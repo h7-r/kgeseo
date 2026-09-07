@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>왜곡 렌더링 진단</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --ground:#f2efe8; --card:#fbfaf7; --sunk:#eae6dc;
+    --line:#d9d4c7; --line-soft:#e6e2d6;
+    --ink:#16211f; --muted:#5d6a67; --faint:#8d9793;
+    --accent:#a8431f;
+    --ok:#2f6b45; --ok-bg:#e3efe6;
+    --warn:#8a6212; --warn-bg:#f6ecd6;
+    --bad:#9c2f27; --bad-bg:#f7e3e0;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:"IBM Plex Sans KR","IBM Plex Sans",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0d1614; --card:#141f1d; --sunk:#0a110f;
+      --line:#25332f; --line-soft:#1c2825;
+      --ink:#e8e2d6; --muted:#9aa8a3; --faint:#6b7975;
+      --accent:#d9703f;
+      --ok:#79bd8f; --ok-bg:#16291f;
+      --warn:#e0b45c; --warn-bg:#2a2313;
+      --bad:#e2776a; --bad-bg:#2b1613;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0d1614; --card:#141f1d; --sunk:#0a110f;
+    --line:#25332f; --line-soft:#1c2825;
+    --ink:#e8e2d6; --muted:#9aa8a3; --faint:#6b7975;
+    --accent:#d9703f;
+    --ok:#79bd8f; --ok-bg:#16291f;
+    --warn:#e0b45c; --warn-bg:#2a2313;
+    --bad:#e2776a; --bad-bg:#2b1613;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:var(--sans); font-size:15px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:840px; margin:0 auto; padding:32px 20px 72px; display:flex; flex-direction:column; gap:22px}
+
+  header{display:flex; flex-direction:column; gap:6px; padding-bottom:4px}
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--accent); font-weight:600;
+  }
+  h1{margin:0; font-size:27px; font-weight:700; letter-spacing:-.015em; text-wrap:balance}
+  .sub{margin:0; color:var(--muted); font-size:14px; max-width:60ch}
+
+  .verdict{
+    border:1px solid var(--line); border-radius:3px; background:var(--card);
+    padding:20px 22px; display:flex; flex-direction:column; gap:10px;
+    border-left:4px solid var(--faint);
+  }
+  .verdict[data-level="ok"]{border-left-color:var(--ok)}
+  .verdict[data-level="warn"]{border-left-color:var(--warn)}
+  .verdict[data-level="bad"]{border-left-color:var(--bad)}
+  .verdict h2{margin:0; font-size:20px; font-weight:600; letter-spacing:-.01em}
+  .verdict p{margin:0; color:var(--muted); font-size:14px}
+  .verdict ol{margin:6px 0 0; padding-left:20px; display:flex; flex-direction:column; gap:7px; font-size:14px}
+  .verdict ol strong{font-weight:600}
+
+  section{border:1px solid var(--line); border-radius:3px; background:var(--card); overflow:hidden}
+  section > h3{
+    margin:0; padding:11px 18px; font-size:11px; font-weight:600;
+    font-family:var(--mono); letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted); background:var(--sunk); border-bottom:1px solid var(--line-soft);
+  }
+  .rows{display:flex; flex-direction:column}
+  .row{
+    display:grid; grid-template-columns:minmax(140px,1fr) minmax(0,1.6fr) auto;
+    gap:14px; align-items:baseline;
+    padding:11px 18px; border-bottom:1px solid var(--line-soft);
+  }
+  .row:last-child{border-bottom:0}
+  .row .k{color:var(--muted); font-size:13px}
+  .row .v{font-family:var(--mono); font-size:13.5px; word-break:break-word; font-variant-numeric:tabular-nums}
+  .row .v em{font-style:normal; color:var(--faint)}
+  .chip{
+    font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.08em;
+    padding:2px 7px; border-radius:2px; white-space:nowrap; text-transform:uppercase;
+  }
+  .chip.ok{color:var(--ok); background:var(--ok-bg)}
+  .chip.warn{color:var(--warn); background:var(--warn-bg)}
+  .chip.bad{color:var(--bad); background:var(--bad-bg)}
+  .chip.idle{color:var(--faint); background:var(--sunk)}
+
+  .bar{grid-column:1/-1; height:4px; background:var(--sunk); border-radius:2px; overflow:hidden; margin-top:2px}
+  .bar > i{display:block; height:100%; background:var(--accent); width:0; transition:width .4s ease}
+  @media (prefers-reduced-motion:reduce){ .bar > i{transition:none} }
+
+  .actions{display:flex; gap:10px; flex-wrap:wrap; padding:16px 18px; background:var(--sunk); border-top:1px solid var(--line-soft)}
+  button{
+    font-family:var(--sans); font-size:14px; font-weight:600; color:var(--ground);
+    background:var(--accent); border:0; border-radius:2px; padding:9px 18px; cursor:pointer;
+  }
+  button.ghost{background:transparent; color:var(--ink); border:1px solid var(--line)}
+  button:disabled{opacity:.45; cursor:default}
+  button:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+  .note{font-size:13px; color:var(--muted); padding:14px 18px; border-top:1px solid var(--line-soft)}
+  .note code{font-family:var(--mono); font-size:12.5px; background:var(--sunk); padding:1px 5px; border-radius:2px}
+  footer{color:var(--faint); font-size:12.5px; font-family:var(--mono); text-align:center; padding-top:4px}
+  #bench{position:absolute; left:-9999px; top:0}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">「왜곡」 · WebGL 진단</span>
+    <h1>이 컴퓨터가 게임을 못 돌리는 이유</h1>
+    <p class="sub">브라우저가 실제로 어떤 GPU를 쓰고 있는지 읽고, 이 기계의 픽셀 처리 속도와 드로우콜 처리 속도를 직접 재서 원인을 지목합니다. 결과 화면을 그대로 캡처해 보내주세요.</p>
+  </header>
+
+  <div class="verdict" id="판정" data-level="">
+    <h2 id="판정제목">측정 준비 중…</h2>
+    <p id="판정설명">아래 「측정 시작」을 누르면 3~5초간 화면이 잠깐 멈춘 뒤 결과가 나옵니다.</p>
+    <ol id="판정처방" hidden></ol>
+  </div>
+
+  <section>
+    <h3>그래픽 장치</h3>
+    <div class="rows" id="장치"></div>
+    <div class="actions">
+      <button id="시작">측정 시작</button>
+      <button id="복사" class="ghost" disabled>결과 텍스트 복사</button>
+    </div>
+  </section>
+
+  <section>
+    <h3>실측 성능</h3>
+    <div class="rows" id="성능">
+      <div class="row"><span class="k">상태</span><span class="v" id="상태">아직 측정하지 않음</span><span class="chip idle">대기</span></div>
+    </div>
+    <p class="note">픽셀 처리량은 640×640 고정 캔버스를 반복해서 칠하며 잽니다. 창 크기와 무관하게 기계끼리 비교할 수 있습니다.</p>
+  </section>
+
+  <section>
+    <h3>「왜곡」 예상 성능</h3>
+    <div class="rows" id="예측">
+      <div class="row"><span class="k">기준 작업량</span><span class="v">드로우콜 1,824 · 삼각형 995k · 오버드로우 3배 <em>(2026-08-31 실측)</em></span><span class="chip idle">대기</span></div>
+    </div>
+  </section>
+
+  <footer>측정값은 이 브라우저 안에서만 계산됩니다. 아무 데도 전송되지 않습니다.</footer>
+</div>
+
+<canvas id="bench" width="640" height="640"></canvas>
+
+<script>
+(function(){
+  "use strict";
+
+  // ─────────────────────────────────────────────────────────
+  // 1. WebGL 컨텍스트를 열고 '진짜 GPU 이름'을 읽는다.
+  //    WEBGL_debug_renderer_info 확장이 있어야 실제 칩 이름이 나온다.
+  //    이게 SwiftShader / llvmpipe 로 나오면 GPU를 아예 못 쓰는 상태다.
+  // ─────────────────────────────────────────────────────────
+  var 캔 = document.getElementById("bench");
+  var gl = null, WebGL2 = false, 오류 = null;
+  try {
+    gl = 캔.getContext("webgl2", {antialias:false, powerPreference:"high-performance", preserveDrawingBuffer:false});
+    WebGL2 = !!gl;
+    if (!gl) gl = 캔.getContext("webgl", {antialias:false, powerPreference:"high-performance"});
+  } catch (e) { 오류 = String(e); }
+
+  function GPU이름(){
+    if (!gl) return "WebGL 자체가 안 열림";
+    try {
+      var ext = gl.getExtension("WEBGL_debug_renderer_info");
+      return String((ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)) || "알 수 없음");
+    } catch (e) { return "읽기 실패"; }
+  }
+
+  var 이름 = GPU이름();
+  var 소문자 = 이름.toLowerCase();
+  var 소프트웨어 = ["swiftshader","llvmpipe","software","microsoft basic","generic renderer","mesa offscreen"]
+      .some(function(w){ return 소문자.indexOf(w) >= 0; });
+  // 내장 GPU 판별 — 완벽하진 않지만 실무에서 거의 맞는다
+  var 내장 = !소프트웨어 && (
+      /intel|uhd graphics|iris|hd graphics/.test(소문자) ||
+      /radeon\(tm\) graphics|vega \d? ?graphics|amd radeon graphics/.test(소문자)
+  );
+  var 외장 = !소프트웨어 && !내장 && /nvidia|geforce|rtx|gtx|radeon rx|arc|apple m/.test(소문자);
+
+  // ─────────────────────────────────────────────────────────
+  // 2. 이 기계가 실제로 칠해야 하는 픽셀 수
+  //    캔버스 픽셀 = CSS 크기 × devicePixelRatio.
+  //    앱은 dpr 을 2로 제한하므로 같은 식으로 계산한다.
+  // ─────────────────────────────────────────────────────────
+  var DPR = window.devicePixelRatio || 1;
+  var 앱DPR = Math.min(DPR, 2);
+  // 일부 임베드 환경에서 innerWidth 가 0 으로 잡힌다 → 화면 크기로 대체
+  var 창가로 = window.innerWidth || document.documentElement.clientWidth || screen.width || 1280;
+  var 창세로 = window.innerHeight || document.documentElement.clientHeight || screen.height || 720;
+  var 렌더MP = (창가로 * 앱DPR) * (창세로 * 앱DPR) / 1e6;
+
+  function 행(부모, 키, 값, 상태, 라벨){
+    var d = document.createElement("div"); d.className = "row";
+    var k = document.createElement("span"); k.className = "k"; k.textContent = 키;
+    var v = document.createElement("span"); v.className = "v"; v.innerHTML = 값;
+    var c = document.createElement("span"); c.className = "chip " + (상태 || "idle"); c.textContent = 라벨 || "—";
+    d.appendChild(k); d.appendChild(v); d.appendChild(c);
+    부모.appendChild(d);
+    return d;
+  }
+
+  var 장치 = document.getElementById("장치");
+  행(장치, "브라우저가 쓰는 GPU", 이름,
+     소프트웨어 ? "bad" : (내장 ? "warn" : "ok"),
+     소프트웨어 ? "CPU 렌더" : (내장 ? "내장" : (외장 ? "외장" : "확인")));
+  행(장치, "WebGL 버전", WebGL2 ? "WebGL 2.0" : (gl ? "WebGL 1.0" : "없음"),
+     WebGL2 ? "ok" : "warn", WebGL2 ? "정상" : "구형");
+  행(장치, "화면 배율 (DPR)", DPR.toFixed(2) + " <em>· 앱은 " + 앱DPR.toFixed(2) + "로 제한</em>",
+     DPR > 1.6 ? "warn" : "ok", DPR > 1.6 ? "높음" : "보통");
+  행(장치, "창 크기", 창가로 + " × " + 창세로 + " CSS px", "idle", "정보");
+  행(장치, "실제 렌더 픽셀", "<strong>" + 렌더MP.toFixed(2) + " MP</strong> <em>(" +
+     Math.round(창가로*앱DPR) + " × " + Math.round(창세로*앱DPR) + ")</em>",
+     렌더MP > 4 ? "bad" : (렌더MP > 2.2 ? "warn" : "ok"),
+     렌더MP > 4 ? "과다" : (렌더MP > 2.2 ? "많음" : "적정"));
+  if (gl) {
+    행(장치, "최대 텍스처 크기", gl.getParameter(gl.MAX_TEXTURE_SIZE) + " px", "idle", "정보");
+  }
+  if (오류) 행(장치, "컨텍스트 오류", 오류, "bad", "실패");
+
+  // ─────────────────────────────────────────────────────────
+  // 3. 벤치마크
+  //    (a) 픽셀 처리량: 화면 전체를 덮는 사각형을 계속 칠한다
+  //    (b) 드로우콜 처리량: 1픽셀짜리 삼각형을 수천 번 따로 그린다
+  //        → 칠하는 양은 0에 가깝고, 순수하게 '명령을 몇 번 보낼 수 있나'만 잰다
+  // ─────────────────────────────────────────────────────────
+  function 셰이더(종류, 소스){
+    var s = gl.createShader(종류);
+    gl.shaderSource(s, 소스); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  function 프로그램(vs, fs){
+    var p = gl.createProgram();
+    gl.attachShader(p, 셰이더(gl.VERTEX_SHADER, vs));
+    gl.attachShader(p, 셰이더(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    return p;
+  }
+
+  var VS_채움 =
+    "attribute vec2 p; varying vec2 uv;" +
+    "void main(){ uv = p; gl_Position = vec4(p, 0.0, 1.0); }";
+  // 실제 게임 셰이더처럼 픽셀마다 조금 계산하게 둔다(순수 대역폭 측정이 되지 않도록)
+  var FS_채움 =
+    "precision highp float; varying vec2 uv; uniform float t;" +
+    "void main(){" +
+    "  float a = sin(uv.x*14.0+t)*cos(uv.y*11.0-t);" +
+    "  float b = fract(sin(dot(uv, vec2(12.99,78.23)))*43758.55);" +
+    "  vec3 c = vec3(a*0.5+0.5, b, a*b);" +
+    "  c = pow(c, vec3(1.0/2.2));" +
+    "  gl_FragColor = vec4(c, 0.6);" +   // 알파 < 1 → 블렌딩이 실제로 일어난다
+    "}";
+  var VS_점 =
+    "attribute vec2 p; uniform vec2 off;" +
+    "void main(){ gl_Position = vec4(p*0.001 + off, 0.0, 1.0); }";
+  var FS_점 =
+    "precision mediump float; uniform vec3 col;" +
+    "void main(){ gl_FragColor = vec4(col, 1.0); }";
+
+  // GPU가 명령을 실제로 다 끝냈는지 확인하려면 결과를 한 픽셀 읽어야 한다.
+  // (드라이버는 명령을 큐에 쌓아두고 바로 돌아오기 때문에, 이걸 안 하면 시간이 0으로 나온다.)
+  var 한픽셀 = new Uint8Array(4);
+  function 동기(){ gl.readPixels(0,0,1,1, gl.RGBA, gl.UNSIGNED_BYTE, 한픽셀); }
+
+  // 배치 크기를 늘려가며 목표 시간만큼만 돌린다 — 느린 기계에서도 안 멈춘다
+  function 측정(작업, 목표ms){
+    작업(1); 동기();                       // 워밍업 (셰이더 컴파일·버퍼 업로드 제외)
+    var n = 1, 총시간 = 0, 총회수 = 0, 안전 = 0;
+    while (총시간 < 목표ms && 안전++ < 40){
+      var t0 = performance.now();
+      작업(n); 동기();
+      var dt = performance.now() - t0;
+      총시간 += dt; 총회수 += n;
+      if (dt < 40) n = Math.min(n * 4, 1 << 22);
+    }
+    return 총회수 / (총시간 / 1000);
+  }
+
+  var 결과 = null;
+
+  function 벤치(){
+    var W = 640, H = 640;
+    gl.viewport(0, 0, W, H);
+    gl.disable(gl.DEPTH_TEST);
+    // ★ 블렌딩을 반드시 켠다.
+    //   애플 M시리즈·모바일 GPU는 타일 기반(TBDR)이라, 같은 자리에 불투명 사각형을
+    //   여러 번 겹쳐 그리면 '가려질 픽셀'을 셰이더 실행 전에 통째로 버린다(은면 제거).
+    //   그러면 1000번 그려도 실제로는 한 번만 칠해져서 측정값이 몇 배로 부풀려진다.
+    //   블렌딩을 켜면 뒤에 있던 색이 계산에 필요해지므로 드라이버가 건너뛸 수 없다.
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    // (a) 픽셀 처리량
+    var t컴파일0 = performance.now();
+    var pFill = 프로그램(VS_채움, FS_채움);
+    var 컴파일ms = performance.now() - t컴파일0;
+
+    var buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+    gl.useProgram(pFill);
+    var locP = gl.getAttribLocation(pFill, "p");
+    gl.enableVertexAttribArray(locP);
+    gl.vertexAttribPointer(locP, 2, gl.FLOAT, false, 0, 0);
+    var locT = gl.getUniformLocation(pFill, "t");
+
+    var 채움회수 = 측정(function(n){
+      for (var i = 0; i < n; i++){ gl.uniform1f(locT, i * 0.01); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+    }, 320);
+    var MPs = 채움회수 * (W * H) / 1e6;   // 초당 메가픽셀
+
+    // (b) 드로우콜 처리량 — 1px 삼각형을 매번 따로, 유니폼도 매번 바꾼다
+    var pDot = 프로그램(VS_점, FS_점);
+    gl.useProgram(pDot);
+    var locP2 = gl.getAttribLocation(pDot, "p");
+    gl.enableVertexAttribArray(locP2);
+    gl.vertexAttribPointer(locP2, 2, gl.FLOAT, false, 0, 0);
+    var locOff = gl.getUniformLocation(pDot, "off");
+    var locCol = gl.getUniformLocation(pDot, "col");
+
+    var 콜초당 = 측정(function(n){
+      for (var i = 0; i < n; i++){
+        gl.uniform2f(locOff, ((i % 97) / 97) * 1.8 - 0.9, ((i % 89) / 89) * 1.8 - 0.9);
+        gl.uniform3f(locCol, (i % 7) / 7, (i % 11) / 11, (i % 13) / 13);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+    }, 320);
+
+    return { MPs: MPs, 콜초당: 콜초당, 컴파일ms: 컴파일ms };
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // 4. 판정
+  // ─────────────────────────────────────────────────────────
+  var 씬 = { 콜: 1824, 삼각형: 995000, 오버드로우: 3, 블룸배수: 1.6 };
+
+  function 그리기(r){
+    var 성능 = document.getElementById("성능");
+    성능.innerHTML = "";
+
+    var 필상태 = r.MPs < 400 ? "bad" : (r.MPs < 1500 ? "warn" : "ok");
+    행(성능, "픽셀 처리량", "<strong>" + Math.round(r.MPs).toLocaleString() + " MP/s</strong>",
+       필상태, 필상태 === "bad" ? "매우 낮음" : (필상태 === "warn" ? "낮음" : "충분"));
+
+    var 콜상태 = r.콜초당 < 120000 ? "bad" : (r.콜초당 < 400000 ? "warn" : "ok");
+    행(성능, "드로우콜 처리량", "<strong>" + Math.round(r.콜초당).toLocaleString() + " 콜/s</strong>",
+       콜상태, 콜상태 === "bad" ? "매우 낮음" : (콜상태 === "warn" ? "낮음" : "충분"));
+
+    행(성능, "셰이더 컴파일", r.컴파일ms.toFixed(1) + " ms",
+       r.컴파일ms > 120 ? "warn" : "ok", r.컴파일ms > 120 ? "느림" : "정상");
+
+    // ── 예측 ──
+    var 프레임MP = 렌더MP * 씬.오버드로우 * 씬.블룸배수;
+    var fps픽셀 = r.MPs / Math.max(0.01, 프레임MP); // 0 나눗셈 방어
+    var fps콜 = r.콜초당 / 씬.콜;
+    var fps = Math.min(fps픽셀, fps콜);
+    var 병목 = fps픽셀 < fps콜 ? "픽셀" : "드로우콜";
+
+    var 예측 = document.getElementById("예측");
+    예측.innerHTML = "";
+    행(예측, "한 프레임에 칠할 픽셀", 프레임MP.toFixed(2) + " MP <em>(창 " + 렌더MP.toFixed(2) + " MP × 겹침 3배 × 블룸 1.6배)</em>",
+       프레임MP > 12 ? "bad" : (프레임MP > 6 ? "warn" : "ok"),
+       프레임MP > 12 ? "과다" : (프레임MP > 6 ? "많음" : "적정"));
+    행(예측, "픽셀 기준 한계", Math.round(fps픽셀) + " fps", 
+       fps픽셀 < 25 ? "bad" : (fps픽셀 < 50 ? "warn" : "ok"),
+       fps픽셀 < 25 ? "부족" : (fps픽셀 < 50 ? "빠듯" : "여유"));
+    행(예측, "드로우콜 기준 한계", Math.round(fps콜) + " fps",
+       fps콜 < 25 ? "bad" : (fps콜 < 50 ? "warn" : "ok"),
+       fps콜 < 25 ? "부족" : (fps콜 < 50 ? "빠듯" : "여유"));
+    var 마지막 = 행(예측, "예상 프레임", "<strong>약 " + Math.round(fps) + " fps</strong> <em>· 병목은 " + 병목 + "</em>",
+       fps < 20 ? "bad" : (fps < 40 ? "warn" : "ok"),
+       fps < 20 ? "못 돌림" : (fps < 40 ? "끊김" : "정상"));
+    var 바 = document.createElement("div"); 바.className = "bar";
+    var 채 = document.createElement("i"); 바.appendChild(채);
+    마지막.appendChild(바);
+    requestAnimationFrame(function(){ 채.style.width = Math.min(100, fps / 60 * 100) + "%"; });
+
+    // ── 판정문 ──
+    var 박스 = document.getElementById("판정");
+    var 제목 = document.getElementById("판정제목");
+    var 설명 = document.getElementById("판정설명");
+    var 처방 = document.getElementById("판정처방");
+    처방.innerHTML = ""; 처방.hidden = false;
+
+    var 단계, 헤드, 본문, 항목 = [];
+
+    if (소프트웨어) {
+      단계 = "bad";
+      헤드 = "GPU를 아예 못 쓰고 있습니다";
+      본문 = "브라우저가 그래픽 카드 대신 CPU로 화면을 그리고 있습니다(" + 이름 + "). 이 상태면 어떤 최적화를 해도 초당 한 장 수준입니다.";
+      항목.push("<strong>크롬 설정 → 시스템 → '사용 가능한 경우 그래픽 가속 사용'</strong>을 켜고 크롬을 완전히 종료 후 재실행");
+      항목.push("<strong>그래픽 드라이버 업데이트</strong> — 드라이버가 낡으면 크롬이 안전을 위해 GPU 사용을 스스로 차단합니다");
+      항목.push("<code>chrome://gpu</code> 를 열어 맨 위 <strong>WebGL</strong> 줄이 <em>Hardware accelerated</em> 인지 확인");
+    } else if (내장 && 외장 === false && /nvidia|radeon rx|arc/.test(navigator.userAgent.toLowerCase()) === false && 렌더MP > 2.2) {
+      단계 = "warn";
+      헤드 = "외장 GPU가 아니라 내장 GPU로 돌고 있습니다";
+      본문 = "브라우저가 쓰는 장치가 " + 이름 + " 입니다. 게이밍 노트북이라면 NVIDIA/AMD 외장 카드가 따로 있는데, 크롬이 그걸 안 쓰고 있는 상태입니다. 화면이 크고 배율이 높을수록(지금 " + 렌더MP.toFixed(2) + " MP) 내장 GPU로는 감당이 안 됩니다.";
+      항목.push("<strong>Windows 설정 → 시스템 → 디스플레이 → 그래픽</strong> 에서 Chrome 을 찾아 <strong>'고성능'</strong> 으로 지정하고 크롬 재시작");
+      항목.push("NVIDIA 제어판 → 3D 설정 관리 → 프로그램 설정 → Chrome → <strong>고성능 NVIDIA 프로세서</strong>");
+      항목.push("확인은 이 페이지를 새로고침해서 위 GPU 이름이 바뀌었는지 보면 됩니다");
+    } else if (fps < 25) {
+      단계 = "bad";
+      헤드 = 병목 === "픽셀" ? "칠해야 할 픽셀이 너무 많습니다" : "드로우콜이 이 기계엔 버겁습니다";
+      본문 = 병목 === "픽셀"
+        ? "GPU 자체는 인식됐지만, 이 창 크기(" + 렌더MP.toFixed(2) + " MP × 배율 " + 앱DPR.toFixed(2) + ")에서 한 프레임에 " + 프레임MP.toFixed(1) + " MP 를 칠해야 합니다. 이 기계의 처리량(" + Math.round(r.MPs).toLocaleString() + " MP/s)으로는 " + Math.round(fps픽셀) + " fps 가 한계입니다."
+        : "이 기계가 초당 처리할 수 있는 드로우콜이 " + Math.round(r.콜초당).toLocaleString() + " 회인데, 우리 씬은 한 프레임에 1,824 회를 씁니다.";
+      if (병목 === "픽셀") {
+        항목.push("<strong>주소 끝에 <code>?q=low</code> 를 붙여</strong> 여세요 — 배율 1 고정 + 안티앨리어싱 끔");
+        항목.push("<strong>브라우저 창을 전체화면이 아닌 절반 크기로</strong> 줄여보세요. 픽셀이 1/4이 되면 fps는 대략 4배가 됩니다");
+        항목.push("Windows 디스플레이 배율이 150% 이상이면 100%로 낮춰보세요");
+      } else {
+        항목.push("<strong><code>?q=low</code></strong> 로 여세요");
+        항목.push("이 결과를 개발자(랑)에게 보내주세요 — 드로우콜 감축이 필요한 케이스입니다");
+      }
+    } else if (fps < 45) {
+      단계 = "warn";
+      헤드 = "돌아가긴 하는데 여유가 없습니다";
+      본문 = "예상 " + Math.round(fps) + " fps 로, 움직임이 많은 장면에서 끊길 수 있습니다. 병목은 " + 병목 + " 쪽입니다.";
+      항목.push("<strong><code>?q=low</code></strong> 로 열면 확실히 부드러워집니다");
+      항목.push("다른 탭·영상·게임 런처를 닫고 다시 재보세요");
+    } else {
+      단계 = "ok";
+      헤드 = "이 컴퓨터는 문제없습니다";
+      본문 = "예상 " + Math.round(fps) + " fps. 여기서도 끊긴다면 원인은 그래픽 성능이 아니라 다른 곳(네트워크 로딩, 확장 프로그램, 백그라운드 프로세스)입니다.";
+      항목.push("끊긴다면 <strong>시크릿 창</strong>에서 다시 열어보세요 — 확장 프로그램이 원인인 경우가 많습니다");
+    }
+
+    박스.setAttribute("data-level", 단계);
+    제목.textContent = 헤드;
+    설명.textContent = 본문;
+    항목.forEach(function(t){ var li = document.createElement("li"); li.innerHTML = t; 처방.appendChild(li); });
+
+    결과 = [
+      "── 「왜곡」 렌더링 진단 ──",
+      "GPU        : " + 이름,
+      "분류       : " + (소프트웨어 ? "소프트웨어(CPU)" : 내장 ? "내장 GPU" : 외장 ? "외장 GPU" : "미분류"),
+      "WebGL      : " + (WebGL2 ? "2.0" : gl ? "1.0" : "없음"),
+      "DPR / 창   : " + DPR.toFixed(2) + " / " + 창가로 + "×" + 창세로,
+      "렌더 픽셀  : " + 렌더MP.toFixed(2) + " MP",
+      "픽셀 처리  : " + Math.round(r.MPs).toLocaleString() + " MP/s",
+      "드로우콜   : " + Math.round(r.콜초당).toLocaleString() + " 콜/s",
+      "셰이더컴파일: " + r.컴파일ms.toFixed(1) + " ms",
+      "예상 fps   : " + Math.round(fps) + " (병목: " + 병목 + ")",
+      "판정       : " + 헤드,
+      "UA         : " + navigator.userAgent
+    ].join("\n");
+    document.getElementById("복사").disabled = false;
+  }
+
+  // ─────────────────────────────────────────────────────────
+  var 시작 = document.getElementById("시작");
+  시작.addEventListener("click", function(){
+    if (!gl) {
+      document.getElementById("판정").setAttribute("data-level", "bad");
+      document.getElementById("판정제목").textContent = "WebGL 자체가 열리지 않습니다";
+      document.getElementById("판정설명").textContent =
+        "브라우저가 3D를 아예 못 씁니다. chrome://gpu 에서 WebGL 줄을 확인하고, 그래픽 가속 설정과 드라이버를 점검하세요.";
+      return;
+    }
+    시작.disabled = true; 시작.textContent = "측정 중…";
+    document.getElementById("상태").textContent = "화면이 잠깐 멈춥니다…";
+    // 버튼 상태가 화면에 반영된 뒤에 측정을 시작한다
+    setTimeout(function(){
+      try {
+        그리기(벤치());
+        시작.textContent = "다시 측정";
+      } catch (e) {
+        document.getElementById("상태").textContent = "측정 실패: " + e.message;
+        시작.textContent = "다시 시도";
+      }
+      시작.disabled = false;
+    }, 60);
+  });
+
+  document.getElementById("복사").addEventListener("click", function(){
+    if (!결과) return;
+    var b = this;
+    navigator.clipboard.writeText(결과).then(function(){
+      b.textContent = "복사됨";
+      setTimeout(function(){ b.textContent = "결과 텍스트 복사"; }, 1600);
+    }).catch(function(){ b.textContent = "복사 실패 — 화면을 캡처해 주세요"; });
+  });
+})();
+</script>
+
+</body>
+</html>

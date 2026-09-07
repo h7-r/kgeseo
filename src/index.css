@@ -1,0 +1,38 @@
+/* index.css — 전역 스타일
+   개념: 게임 화면을 항상 16:9로 유지하고 화면 가운데 배치. */
+
+* { box-sizing: border-box; }              /* 크기 계산을 직관적으로 */
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+/* ★ #root 에 너비를 명시해야 한다.
+   body 가 display:grid + place-items:center 라서 자식(#root)은 '내용 크기만큼'
+   줄어든다(shrink-to-fit). 그러면 .stage 의 width:100% 가 그 줄어든 크기를
+   기준으로 계산되고, <canvas> 기본 크기 300px 에 물려 화면이 300px 로 주저앉는다.
+   너비를 100%로 못박고, 가운데 정렬은 #root 가 대신 맡는다. */
+#root {
+  width: 100%;
+  display: grid;
+  place-items: center;
+}
+
+body {
+  display: grid;                            /* 가운데 정렬용 그리드 */
+  place-items: center;                      /* 수평·수직 중앙 */
+  min-height: 100vh;
+  background: #141014;                      /* 무대 바깥(레터박스) 어두운 배경 */
+}
+
+/* 게임 무대: 폭에 맞춰 커지되 항상 16:9, 최대 1280px */
+.stage {
+  width: 100%;
+  max-width: 1280px;
+  aspect-ratio: 16 / 9;                     /* ★ 항상 16:9 (배경 위를 보는 '창') */
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);   /* 살짝 떠 보이게(선택) */
+}
+
+/* R3F가 만든 <canvas>가 무대를 꽉 채우도록 */
+.stage canvas { display: block; width: 100% !important; height: 100% !important; }
