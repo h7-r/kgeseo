@@ -92,6 +92,22 @@ import {
   CROUCH_EYE,
   R,
   NEAR,
+  텍스처배율,
+  makeCanvasTexture,
+  질감얹기,
+  블록W,
+  블록H,
+  벽칸_가로,
+  벽칸_세로,
+  WALL_TEX_W,
+  WALL_TEX_H,
+  FLOOR_TEX,
+  회,
+  둥근얼룩,
+  벽텍스처,
+  바닥텍스처,
+  CEIL_TEX,
+  천장텍스처,
 } from "./공용.jsx";
 import { useLocation, useNavigate } from "react-router-dom";
 // 기차 내부 씬 — 파일이 나뉘어 있지만 같은 번들에 들어가므로 전환은 즉시다.
@@ -282,6 +298,16 @@ const COLLIDERS = [
   ...CORNER_BOXES,
 ];
 const SPOTS = { booth: [0, -8], train: [14, -2], airport: [-18, -2] }; // 방 축소(폭36)에 맞춰 조정
+
+// ── 기차 문 판정 거리 ────────────────────────────────────────
+//   세 개를 나눠 두는 이유:
+//     열림 : 이만큼 다가오면 문이 스르륵 열리기 시작한다(연출)
+//     진입 : 이 안이면 '문 안으로 들어섰다'고 보고 씬을 바꾼다
+//     해제 : 기차에서 내린 뒤 이만큼 멀어져야 다시 들어갈 수 있다
+//   ★ 해제 > 진입 이어야 한다. 같으면 문 앞에 내린 순간 다시 빨려 들어간다.
+const 문열림거리 = 6.5;
+const 문진입거리 = 2.0;
+const 문잠금해제거리 = 3.4;
 const dist2 = (x, z, [sx, sz]) => Math.hypot(x - sx, z - sz);
 // ===== 동적 충돌 박스 =====
 // [문제] COLLIDERS 는 기둥만 들어 있는 '고정 목록'이라, 의자·책상처럼
@@ -406,7 +432,7 @@ function 충돌체({
 //     경계 — 방과 복도는 '문 앞'에서만 이어진다
 //     막힘 — 기둥·가구 충돌 박스
 //     근처 — 매표소·기차 같은 상호작용 지점
-function usePlayer(active, onNear, eye = EYE, crouchEye = CROUCH_EYE) {
+function usePlayer(active, onNear, eye = EYE, crouchEye = CROUCH_EYE, 복귀) {
   const onNearRef = useRef(onNear);
   onNearRef.current = onNear;
 
@@ -430,14 +456,42 @@ function usePlayer(active, onNear, eye = EYE, crouchEye = CROUCH_EYE) {
 
   const 근처 = useCallback((p) => {
     let n = "";
-    if (dist2(p.x, p.z, SPOTS.booth) < NEAR) n = "booth";
-    else if (dist2(p.x, p.z, SPOTS.train) < NEAR) n = "train";
+    // ★ 기차는 문이 여러 개다. 고정 좌표 하나로 판정하면 칸을 늘리거나
+    //   기차를 옮겼을 때 어긋난다 → 실제로 그려진 문 목록에서 가장 가까운 것을 찾는다.
+    //   어느 문이든 들어가는 곳은 같은 객차 안이다(들어간 칸만 기억해 둔다).
+    const 문 = 기차문.가까운문상세(p.x, p.z);
+    // 연출용 — 문짝이 이 값을 보고 열리고 닫힌다
+    문상태.칸 = 문 ? 문.칸 : null;
+    문상태.거리 = 문 ? 문.거리 : Infinity;
+    // 충분히 멀어졌으면 재진입 잠금을 푼다
+    if (!문 || 문.거리 > 문잠금해제거리) 진입잠금.켬 = false;
+
+    if (문 && 문.거리 < 문진입거리 && !진입잠금.켬) {
+      // 문 안으로 들어섰다 → 키를 누르지 않아도 넘어간다
+      들어간문.칸 = 문.칸;
+      들어간문.위치 = { x: 문.x, z: 문.z };
+      n = "train진입";
+    } else if (문 && 문.거리 < NEAR) {
+      // 아직 문 앞. [E] 로도 탈 수 있게 예전 방식을 남겨 둔다
+      들어간문.칸 = 문.칸;
+      들어간문.위치 = { x: 문.x, z: 문.z };
+      n = "train";
+    } else if (dist2(p.x, p.z, SPOTS.booth) < NEAR) n = "booth";
     else if (dist2(p.x, p.z, SPOTS.airport) < NEAR) n = "airport";
     onNearRef.current(n);
     return n;
   }, []);
 
-  use이동(active, { 눈높이: eye, 앉은높이: crouchEye, 경계, 막힘: hit, 근처 });
+  use이동(active, {
+    눈높이: eye,
+    앉은높이: crouchEye,
+    경계,
+    막힘: hit,
+    근처,
+    // 복귀가 있을 때만 자리를 옮긴다. 평소(처음 접속)에는 건드리지 않는다.
+    시작: 복귀?.시작,
+    바라봄: 복귀?.바라봄,
+  });
 }
 
 // ===== 텍스처 유틸 =====
@@ -453,323 +507,9 @@ function usePlayer(active, onNear, eye = EYE, crouchEye = CROUCH_EYE) {
 //   그리는 코드는 전부 S(= 실제 캔버스 크기)를 기준으로 좌표를 잡으므로,
 //   size 하나만 줄이면 그림 자체는 똑같이 그려지고 해상도만 낮아진다.
 //   ⚠ 일반 모드(랑의 화면)는 배율 1 — 1px도 안 바뀐다.
-const 텍스처배율 = 저사양 ? 0.5 : 1;
-
-function makeCanvasTexture(size, draw) {
-  const c = document.createElement("canvas");
-  // 너무 작아지면 무늬가 뭉개지므로 128px 아래로는 안 내려간다
-  const 실제 = Math.max(128, Math.round(size * 텍스처배율));
-  c.width = c.height = 실제;
-  draw(c.getContext("2d", { willReadFrequently: true }), 실제);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
-}
-
-// ===== 캔버스 질감 =====
-// 코드로 그린 텍스처는 색이 너무 고르게 깔려 '인쇄물' 처럼 보인다.
-//   → 넓고 옅은 얼룩(손때·물자국) + 미세한 점(종이 결)을 덧칠해 낡은 느낌을 준다.
-//   세기 0이면 아무것도 하지 않는다. 정사각형이 아니어도 되고, 이어붙지 않는다.
-function 질감얹기(g, w, h, seed, 세기 = 1) {
-  if (세기 <= 0) return;
-  const rnd = makeRandom((seed | 0) * 977 + 13);
-  const R = Math.max(w, h);
-
-  // ① 넓고 옅은 얼룩 — 손때·물자국. 진하게 하면 지저분해지니 아주 옅게.
-  const n = 5 + ((rnd() * 4) | 0);
-  for (let i = 0; i < n; i++) {
-    const x = rnd() * w,
-      y = rnd() * h,
-      r = R * (0.12 + rnd() * 0.3);
-    const 어둡게 = rnd() < 0.72;
-    const grd = g.createRadialGradient(x, y, 0, x, y, r);
-    const a = (어둡게 ? 0.06 : 0.05) * 세기;
-    grd.addColorStop(
-      0,
-      어둡게 ? `rgba(90,80,66,${a})` : `rgba(255,255,255,${a})`,
-    );
-    grd.addColorStop(1, "rgba(0,0,0,0)");
-    g.fillStyle = grd;
-    g.fillRect(0, 0, w, h);
-  }
-
-  // ② 미세한 점 — 종이 섬유. 흰 점·검은 점을 섞어야 '결'로 보인다.
-  const 점수 = ((w * h) / 170) | 0;
-  g.globalAlpha = 0.05 * 세기;
-  for (let i = 0; i < 점수; i++) {
-    g.fillStyle = rnd() < 0.5 ? "#000" : "#fff";
-    g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 1, 1);
-  }
-  g.globalAlpha = 1;
-}
-
-// ===== 콘크리트 벽·바닥 (전부 코드로 그린다) =====
-// 참고: 작은 블록을 반 장씩 어긋나게 쌓은 벽 + 큰 판으로 나뉜 민바닥 콘크리트.
-// ★ 텍스처에는 '밝기 무늬'만 그린다(대략 0.78~1.0).
-//   실제 색은 재질의 color가 정하고 명암은 실시간 조명이 만든다.
-//   그래서 참고 사진처럼 밝게 그려도 방 분위기는 지금 그대로 어둡게 남는다.
-
-const 블록W = 0.66, // 블록 한 장 ≈ 20cm (1유닛 ≈ 30cm)
-  블록H = 0.33; // ≈ 10cm
-const 벽칸_가로 = 8, // 텍스처 한 장에 들어가는 블록 수
-  벽칸_세로 = 16;
-const WALL_TEX_W = 블록W * 벽칸_가로; // 텍스처 한 장이 덮는 실제 가로(5.28)
-const WALL_TEX_H = 블록H * 벽칸_세로; // 〃 세로(5.28 — 캔버스가 정사각이라 같게 맞췄다)
-const FLOOR_TEX = 6; // 바닥 판 한 칸 = 6유닛(≈1.8m)
-
-const 회 = (v) => `rgb(${v | 0},${v | 0},${v | 0})`;
-
-// 원형 얼룩 하나. 텍스처가 이어 붙어도 티가 안 나도록 상하좌우로 감아 가며 찍는다.
-function 둥근얼룩(g, S, x, y, r, rgb, a) {
-  for (const dx of [-S, 0, S])
-    for (const dy of [-S, 0, S]) {
-      const cx = x + dx,
-        cy = y + dy;
-      if (cx < -r || cx > S + r || cy < -r || cy > S + r) continue;
-      const grd = g.createRadialGradient(cx, cy, 0, cx, cy, r);
-      grd.addColorStop(0, `rgba(${rgb},${a})`);
-      grd.addColorStop(1, `rgba(${rgb},0)`);
-      g.fillStyle = grd;
-      g.beginPath();
-      g.arc(cx, cy, r, 0, 6.2832);
-      g.fill();
-    }
-}
-
-// ── 콘크리트 블록 벽 ─────────────────────────────────────────
-const 벽텍캐시 = new Map();
-// 옵션을 주면 천장에도 그대로 쓸 수 있게 일반화했다.
-//   기본값은 지금 벽과 완전히 같다 — 벽 결과는 하나도 안 바뀐다.
-//   칸가로·칸세로 = 텍스처 한 장에 들어가는 블록 수
-//   엇갈림 = 한 줄씩 어긋나는 정도(0.5=막쌓기 / 0=격자로 반듯하게)
-//   흘러내림 = 물자국을 세로로 흘릴지(벽) 둥글게 번지게 할지(천장)
-//   아래때 = 아래쪽이 더 더러워지는 그라디언트(천장에는 위아래가 없다)
-function 벽텍스처(seed, 낡음 = 0.7, opt = {}) {
-  const {
-    칸가로 = 벽칸_가로,
-    칸세로 = 벽칸_세로,
-    엇갈림 = 0.5,
-    흘러내림 = true,
-    아래때 = true,
-  } = opt;
-  const 캐시키 = `${seed}|${낡음}|${칸가로}|${칸세로}|${엇갈림}|${흘러내림}|${아래때}`;
-  if (벽텍캐시.has(캐시키)) return 벽텍캐시.get(캐시키);
-  const t = makeCanvasTexture(1024, (g, S) => {
-    const rnd = makeRandom(seed);
-    const bw = S / 칸가로,
-      bh = S / 칸세로;
-    const J = 4; // 줄눈(모르타르) 두께 px ≈ 1cm
-
-    g.fillStyle = 회(196); // 줄눈 바탕 — 블록보다 어둡다
-    g.fillRect(0, 0, S, S);
-
-    for (let r = 0; r < 칸세로; r++) {
-      const off = (r % 2) * bw * 엇갈림; // 한 줄씩 어긋나게(막쌓기)
-      for (let c = -1; c < 칸가로; c++) {
-        let v = 240 + (rnd() - 0.5) * 11; // 블록마다 톤이 조금씩 다르다(16→11로 완화)
-        const 뽑기 = rnd();
-        if (뽑기 < 0.07)
-          v -= 11; // 가끔 유난히 때 탄 블록(16→11)
-        else if (뽑기 > 0.93) v += 8; // 가끔 유난히 밝은 블록
-        g.fillStyle = 회(v);
-        const x = c * bw + off;
-        // 캔버스 밖으로 나가는 블록은 반대쪽에도 그려야 이어진다
-        for (const dx of [0, S])
-          g.fillRect(x + dx + J / 2, r * bh + J / 2, bw - J, bh - J);
-      }
-    }
-
-    // 넓고 옅은 얼룩 — 콘크리트 특유의 얼룩덜룩함
-    for (let i = 0; i < 24; i++)
-      둥근얼룩(
-        g,
-        S,
-        rnd() * S,
-        rnd() * S,
-        50 + rnd() * 150,
-        rnd() < 0.62 ? "58,58,58" : "255,255,255",
-        0.03 + rnd() * 0.05,
-      );
-
-    // 물 자국 — 벽은 아래로 흘러내리고, 천장은 둥글게 번진다
-    if (흘러내림) {
-      for (let i = 0; i < 7; i++) {
-        const x = rnd() * S,
-          w = 6 + rnd() * 26;
-        const y0 = rnd() * S * 0.45,
-          len = S * (0.25 + rnd() * 0.6);
-        const grd = g.createLinearGradient(0, y0, 0, y0 + len);
-        grd.addColorStop(0, "rgba(64,62,58,0)");
-        grd.addColorStop(0.3, `rgba(64,62,58,${0.05 + rnd() * 0.08})`);
-        grd.addColorStop(1, "rgba(64,62,58,0)");
-        g.fillStyle = grd;
-        for (const dx of [-S, 0]) g.fillRect(x + dx, y0, w, len);
-      }
-    } else {
-      // 스며들어 번진 자국 — 가운데는 옅고 가장자리에 테두리가 진하게 남는다
-      for (let i = 0; i < 6; i++) {
-        const x = rnd() * S,
-          y = rnd() * S,
-          R = 45 + rnd() * 130;
-        for (const dx of [-S, 0, S])
-          for (const dy of [-S, 0, S]) {
-            const grd = g.createRadialGradient(
-              x + dx,
-              y + dy,
-              R * 0.2,
-              x + dx,
-              y + dy,
-              R,
-            );
-            grd.addColorStop(0, "rgba(70,66,58,0.09)");
-            grd.addColorStop(0.75, "rgba(70,66,58,0.05)");
-            grd.addColorStop(1, "rgba(70,66,58,0)");
-            g.fillStyle = grd;
-            g.beginPath();
-            g.arc(x + dx, y + dy, R, 0, 6.2832);
-            g.fill();
-            g.strokeStyle = "rgba(66,62,54,0.1)";
-            g.lineWidth = 2.5;
-            g.beginPath();
-            g.arc(x + dx, y + dy, R * (0.72 + rnd() * 0.2), 0, 6.2832);
-            g.stroke();
-          }
-      }
-    }
-
-    // ── 낡음 레이어 ──────────────────────────────────────────
-    // 위 얼룩·물자국은 '더러움'이고, 아래 셋은 '세월'이다. 종류가 다르다.
-    if (낡음 > 0) {
-      const a = 낡음;
-
-      // (1) 페인트 벗겨짐 — 가장자리가 너덜너덜한 조각. 속은 더 어두운 바탕이 드러난다.
-      for (let i = 0; i < Math.round(9 * a); i++) {
-        const cx0 = rnd() * S,
-          cy0 = rnd() * S;
-        const R = 18 + rnd() * 46;
-        for (const dx of [-S, 0, S]) {
-          g.beginPath();
-          const n = 12;
-          for (let k = 0; k <= n; k++) {
-            const th = (k / n) * Math.PI * 2;
-            // 반지름을 크게 흔들어 매끈한 원이 아니라 '뜯어진' 모양으로
-            const rr = R * (0.55 + rnd() * 0.75);
-            const px = cx0 + dx + Math.cos(th) * rr,
-              py = cy0 + Math.sin(th) * rr * 0.8;
-            k ? g.lineTo(px, py) : g.moveTo(px, py);
-          }
-          g.closePath();
-          g.fillStyle = `rgba(120,114,104,${0.16 + rnd() * 0.14})`;
-          g.fill();
-        }
-      }
-
-      // (2) 실금 — 한 번에 곧게 가지 않고 마디마다 꺾이며 내려간다
-      for (let i = 0; i < Math.round(7 * a); i++) {
-        let px = rnd() * S,
-          py = rnd() * S;
-        const 방향 = (rnd() - 0.5) * 1.1 + Math.PI / 2; // 대체로 아래로
-        g.strokeStyle = `rgba(74,70,64,${0.22 + rnd() * 0.2})`;
-        g.lineWidth = 1 + rnd() * 1.2;
-        for (const dx of [-S, 0, S]) {
-          g.beginPath();
-          g.moveTo(px + dx, py);
-          let qx = px + dx,
-            qy = py;
-          const 마디 = 5 + ((rnd() * 5) | 0);
-          for (let k = 0; k < 마디; k++) {
-            const L = 14 + rnd() * 40;
-            const th = 방향 + (rnd() - 0.5) * 0.9;
-            qx += Math.cos(th) * L;
-            qy += Math.sin(th) * L;
-            g.lineTo(qx, qy);
-          }
-          g.stroke();
-        }
-      }
-
-      // (3) 바닥에서 올라온 때 — 아래로 갈수록 짙어진다(습기가 아래부터 먹는다)
-      if (아래때) {
-        const 아래 = g.createLinearGradient(0, S * 0.55, 0, S);
-        아래.addColorStop(0, "rgba(58,54,48,0)");
-        아래.addColorStop(1, `rgba(58,54,48,${0.1 * a})`);
-        g.fillStyle = 아래;
-        g.fillRect(0, S * 0.55, S, S * 0.45);
-      }
-    }
-  });
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  벽텍캐시.set(캐시키, t);
-  return t;
-}
-
-// ── 민바닥 콘크리트 ──────────────────────────────────────────
-const 바닥텍캐시 = new Map();
-function 바닥텍스처(seed) {
-  if (바닥텍캐시.has(seed)) return 바닥텍캐시.get(seed);
-  const t = makeCanvasTexture(1024, (g, S) => {
-    const rnd = makeRandom(seed + 5100);
-    g.fillStyle = 회(242);
-    g.fillRect(0, 0, S, S);
-
-    // 미장 자국 — 크고 옅은 얼룩을 겹쳐 얼룩덜룩하게
-    for (let i = 0; i < 64; i++)
-      둥근얼룩(
-        g,
-        S,
-        rnd() * S,
-        rnd() * S,
-        40 + rnd() * 210,
-        rnd() < 0.55 ? "70,68,64" : "255,255,255",
-        0.02 + rnd() * 0.045,
-      );
-
-    // 자잘한 기포·찍힌 자국
-    g.fillStyle = "rgba(96,94,90,0.30)";
-    for (let i = 0; i < 290; i++) {
-      const x = rnd() * S,
-        y = rnd() * S,
-        r = 0.8 + rnd() * 2.2;
-      g.beginPath();
-      g.arc(x, y, r, 0, 6.2832);
-      g.fill();
-    }
-    // 조금 더 큰 자국
-    for (let i = 0; i < 44; i++)
-      둥근얼룩(g, S, rnd() * S, rnd() * S, 4 + rnd() * 8, "80,78,74", 0.14);
-
-    // 판 경계 줄눈 — 텍스처 테두리에 그으면 텍스처 한 장이 곧 '판 한 칸'이 된다
-    둥근얼룩(g, S, 0, S / 2, 26, "90,88,84", 0.06); // 줄눈 옆 살짝 어두운 띠
-    둥근얼룩(g, S, S / 2, 0, 26, "90,88,84", 0.06);
-    g.strokeStyle = "rgba(126,124,120,0.55)";
-    g.lineWidth = 3;
-    g.beginPath();
-    g.moveTo(0, 1.5);
-    g.lineTo(S, 1.5);
-    g.moveTo(1.5, 0);
-    g.lineTo(1.5, S);
-    g.stroke();
-  });
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  바닥텍캐시.set(seed, t);
-  return t;
-}
-
-// ===== 천장 — 벽과 같은 블록 텍스처를 크고 반듯하게 =====
-// 벽과 완전히 같은 그리기 코드를 쓴다(얼룩·페인트 벗겨짐·실금까지).
-//   다만 천장은 ① 칸이 크고 ② 줄이 어긋나지 않고(격자) ③ 물자국이 번지고
-//   ④ '아래로 갈수록 때' 가 없다. 그래서 벽과 한 몸처럼 보이면서도 천장으로 읽힌다.
-const CEIL_TEX = 8; // 텍스처 한 장이 덮는 실제 크기(유닛) → 칸 하나 2유닛 ≈ 0.6m
-function 천장텍스처(seed, 낡음 = 0.7) {
-  return 벽텍스처(seed + 4400, 낡음, {
-    칸가로: 4,
-    칸세로: 4,
-    엇갈림: 0,
-    흘러내림: false,
-    아래때: false,
-  });
-}
+// ★ 벽·바닥·천장 캔버스 질감은 공용.jsx 로 옮겼다.
+//   기차 안도 같은 질감을 써야 한 세계로 보이기 때문이다.
+//   (코드는 그대로 옮겼을 뿐이라 역의 결과물은 하나도 안 바뀐다)
 
 // ── 반복을 흐트러뜨리는 큰 얼룩 (정점 색) ────────────────────
 // 텍스처는 몇 유닛마다 되풀이되므로 그것만 쓰면 무늬가 눈에 띈다.
@@ -4893,15 +4633,27 @@ function 구역스위치({ 방, 복도, 기차, 배경, 켜기 = true }) {
 
     // 방  : 복도 깊숙이 들어가 문이 안 보이면 끈다
     // 복도: 방 오른쪽(기차 쪽)에 있으면 구멍이 너무 멀어 안 보인다
-    // 기차: 복도 안이거나 문 앞이면 벽에 완전히 가린다
     const 방켜기 = !복도안 || 문근처;
     const 복도켜기 = p.x < MIN_X + 12;
-    const 기차켜기 = p.x > MIN_X + 2;
+
+    // ★★ 기차 — 예전 조건은 `p.x > MIN_X + 2` 였다. 이게 버그였다. ★★
+    //   MIN_X 는 **방의 왼쪽 벽**이다. 즉 x −20 ~ −18 은 아직 '방 안'인데
+    //   거기서 이미 기차가 통째로 꺼져서, 방 왼쪽에 서서 기차 쪽을 보면
+    //   그 자리가 새까맣게(캔버스 배경색 #000000) 보였다.
+    //   → 방 안에서는 절대 끄지 않는다. 복도로 들어간 뒤에만 끈다.
+    const 기차켜기 = !복도안 || 문근처;
+
+    // ★ 배경(먼벽·확장천장·어둠판)은 기차와 **따로** 둔다.
+    //   예전엔 기차를 끌 때 배경까지 같이 껐다. 그러면 가릴 것이 아무것도 없어져
+    //   그 자리가 그대로 '검은 화면'이 된다 — 즉 컬링이 곧 암전이었다.
+    //   배경은 큰 판 몇 장뿐이라 늘 켜 둬도 값이 거의 안 든다. 켜 두면
+    //   기차가 꺼지는 순간에도 검정이 아니라 '기차 저편 공간'이 보인다.
+    const 배경켜기 = true;
 
     if (방.current) 방.current.visible = 방켜기;
     if (복도.current) 복도.current.visible = 복도켜기;
     if (기차.current) 기차.current.visible = 기차켜기;
-    if (배경.current) 배경.current.visible = 기차켜기;
+    if (배경.current) 배경.current.visible = 배경켜기;
   });
   return null;
 }
@@ -5170,7 +4922,12 @@ function 성능계기판({ 보이기 = true }) {
     // ★ 드로우콜이 갑자기 20 아래로 떨어졌는데 fps 는 멀쩡하다
     //   = GPU가 죽은 게 아니라 '그릴 게 없어진' 것 → 구역 컬링이 다 꺼버린 상황이다.
     //   검은 화면의 원인이 완전히 다르므로 화면에 따로 알린다.
-    if (이번콜 < 20 && fps > 20 && 블랙박스.최대.콜 > 200) {
+    // ★ 기준을 '지금 씬에 올라와 있는 지오메트리 수'로 바꿨다.
+    //   예전엔 블랙박스.최대.콜(그동안 본 최고 드로우콜)과 비교했는데,
+    //   역(1100여 개) → 기차 안(30개 미만)처럼 **작은 씬으로 갈아타면**
+    //   드로우콜이 정상적으로 20 아래가 되어 오탐이 났다.
+    //   씬 자체가 작으면 드로우콜이 적은 게 맞으므로, 지금 씬의 크기를 본다.
+    if (이번콜 < 20 && fps > 20 && i.memory.geometries > 200) {
       블랙박스.씬꺼짐 = true;
     }
 
@@ -6178,6 +5935,178 @@ function 승강장끝벽({
 // 실측 비율 : 길이 2.064 : 높이 1.000 : 폭 0.686  (높이 1.0 정규화 · 밑면 y=0)
 //   그래서 '크기' 값이 곧 기차 높이(유닛)다. 11.5 ≈ 3.5m — 실제 전동차와 비슷하다.
 useGLTF.preload("/models/train.glb");
+
+// ═══════════════════════════════════════════════════════════════
+//  기차 문 — 여러 개지만 안은 하나
+// ═══════════════════════════════════════════════════════════════
+// [왜 목록으로 두는가]
+//   기차는 칸이 여러 개고 칸마다 문이 있다. 문 좌표를 손으로 적어 두면
+//   Leva 로 기차를 옮기거나 칸 수를 바꿀 때마다 어긋난다.
+//   → 문 자리에 빈 오브젝트를 하나 심고, **실제로 그려진 위치**를 읽어서 등록한다.
+//     기차와 같은 group 안에 있으니 아무리 기울이고 돌려도 절대 안 어긋난다.
+//
+// [어느 문으로 들어가든 안은 하나]
+//   모든 문이 같은 /train 으로 간다. 다만 '어느 문으로 들어갔는지'는 기억해 둔다.
+//   나올 때 그 문 앞에 다시 세워야 순간이동한 느낌이 안 나기 때문이다.
+const 기차문목록 = new Map(); // 칸번호 -> {x, z}
+export const 기차문 = {
+  등록: (칸, 위치) => 기차문목록.set(칸, 위치),
+  해제: (칸) => 기차문목록.delete(칸),
+  목록: () => [...기차문목록.entries()],
+  // 가장 가까운 문과 그 거리 — 문을 열지, 들어갈지를 한 번에 판단한다.
+  //   제한 거리를 두지 않는다. 거리 값 자체가 필요하기 때문이다.
+  가까운문상세: (x, z) => {
+    let 최소 = Infinity,
+      찾음 = null;
+    for (const [칸, q] of 기차문목록) {
+      const d = Math.hypot(x - q.x, z - q.z);
+      if (d < 최소) {
+        최소 = d;
+        찾음 = { 칸, 거리: d, x: q.x, z: q.z };
+      }
+    }
+    return 찾음;
+  },
+  // 가장 가까운 문. 판정 거리 안에 없으면 null
+  가까운문: (x, z, 거리) => {
+    let 최소 = 거리,
+      찾음 = null;
+    for (const [칸, p] of 기차문목록) {
+      const d = Math.hypot(x - p.x, z - p.z);
+      if (d < 최소) {
+        최소 = d;
+        찾음 = 칸;
+      }
+    }
+    return 찾음;
+  },
+};
+// 마지막으로 들어간 문. 기차에서 나올 때 이 자리로 되돌린다.
+//   위치까지 같이 적어 둔다 — 역 씬이 다시 켜질 때 문 목록은 아직 비어 있어서
+//   (표식이 그려진 뒤에야 등록된다) 그 순간에는 문 좌표를 물어볼 수가 없다.
+export const 들어간문 = { 칸: null, 위치: null };
+
+// ★ 문 열림 연출용 — 지금 가장 가까운 문과 그 거리.
+//   매 프레임 바뀌는 값이라 React state 로 두면 초당 60번 리렌더가 난다.
+//   그래서 바깥 상자에 담아 두고 문짝이 useFrame 안에서 직접 읽는다.
+export const 문상태 = { 칸: null, 거리: Infinity };
+
+// ★ 기차에서 막 내렸을 때 곧바로 다시 빨려 들어가는 것을 막는 잠금.
+//   내리면 문 바로 앞에 서게 되는데 그 자리가 이미 '진입 거리 안'이라,
+//   잠그지 않으면 내리자마자 무한히 다시 탄다.
+export const 진입잠금 = { 켬: false };
+
+// 역 씬이 '기차에서 나온 직후'인지. 그때만 문 앞으로 되돌려 세운다.
+export const 기차에서나옴 = { 켬: false };
+
+// 콘솔 확인용 — 렌더에는 아무 영향이 없다.
+//   콘솔에 __기차문.목록() 을 치면 지금 등록된 문 좌표를 볼 수 있다.
+//   __기차문.가까운문상세(x, z) 로 판정 거리도 직접 재 볼 수 있다.
+if (typeof window !== "undefined") {
+  window.__기차문 = 기차문;
+  window.__문상태 = 문상태;
+  window.__들어간문 = 들어간문;
+  window.__진입잠금 = 진입잠금;
+  window.__기차에서나옴 = 기차에서나옴;
+}
+
+// 문 자리에 심는 눈에 안 보이는 표식.
+//   그려진 뒤 한 번만 월드 좌표를 읽는다(그 전에 읽으면 원점이 나온다).
+function 기차문표식({ 칸, 위치 }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const o = ref.current;
+    if (!o) return;
+    let 남은 = 20;
+    const 재기 = () => {
+      o.updateWorldMatrix(true, false);
+      const w = new THREE.Vector3();
+      o.getWorldPosition(w);
+      if (Number.isFinite(w.x) && (w.x !== 0 || w.z !== 0)) {
+        기차문.등록(칸, { x: w.x, z: w.z });
+        return true;
+      }
+      return --남은 <= 0;
+    };
+    const id = setInterval(() => {
+      if (재기()) clearInterval(id);
+    }, 200);
+    재기();
+    return () => {
+      clearInterval(id);
+      기차문.해제(칸);
+    };
+  }, [칸, 위치[0], 위치[1], 위치[2]]);
+  return <object3D ref={ref} position={위치} />;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  문짝 — 구멍 크기에 맞춘 한 짝. 다가가면 옆으로 미끄러진다
+// ═══════════════════════════════════════════════════════════════
+// [모델의 문을 안 쓰는 이유]
+//   train.glb 를 실제로 재 보면 이렇다(모델 로컬 단위, 차체 길이가 2.064).
+//     body  x −1.032 ~  1.032
+//     dark  x −0.043 ~  0.380   ← 뚫린 구멍. 폭 0.423 · 높이 0.639
+//     door  x −0.181 ~  0.528   ← 폭 0.709
+//   door 메시는 구멍(0.423)보다 넓고 좌우로 벌어져 있다. 즉 **처음부터
+//   양옆으로 활짝 열린 문 두 짝**이 모델에 박혀 있는 것이다.
+//   그래서 그걸 옆으로 밀면 '문이 열린다'가 아니라 '열린 문이 이동한다'가 된다.
+//   → 모델 문은 그리지 않고(본체조각에서 뺐다), 구멍에 딱 맞는 한 짝을 직접 만든다.
+//
+// [왜 React state 를 안 쓰나]
+//   열림 정도는 매 프레임 바뀐다. state 로 두면 초당 60번 리렌더가 나고,
+//   그 리렌더가 기차 전체(칸 수 × 조각 수)를 다시 그린다. 그래서 ref 에 담고
+//   three 객체를 직접 움직인다 — React 는 이 변화를 아예 모른다.
+
+// 모델에서 직접 잰 구멍 값. 여기만 고치면 문 크기·자리가 전부 따라온다.
+const 문구멍 = {
+  중심x: (-0.043 + 0.38) / 2, // 0.1685
+  중심y: (0.212 + 0.851) / 2, // 0.5315
+  폭: 0.423,
+  높이: 0.639,
+  // 방을 향한 면(−z)의 차체 표면이 z = −0.343.
+  //   그보다 아주 살짝 안쪽에 둬야 차체 테두리가 문틀처럼 문을 감싼다.
+  z: -0.327,
+};
+
+function 문짝({ 칸, 선, 열림폭, 색 }) {
+  const ref = useRef(null);
+  const 열림 = useRef(0);
+  // 구멍보다 아주 조금 크게 만든다. 딱 맞추면 가장자리에 실틈이 비친다.
+  const geo = useMemo(
+    () => new THREE.BoxGeometry(문구멍.폭 + 0.024, 문구멍.높이 + 0.016, 0.03),
+    [],
+  );
+  useEffect(() => () => geo.dispose(), [geo]);
+
+  useFrame((_, dt) => {
+    const g = ref.current;
+    if (!g) return;
+    // 목표: 내가 가장 가까운 문이고 열림 거리 안이면 1(열림), 아니면 0(닫힘)
+    const 목표 = 문상태.칸 === 칸 && 문상태.거리 < 문열림거리 ? 1 : 0;
+    // 지수 보간 — 프레임 간격(dt)이 흔들려도 '열리는 속도'가 일정하다.
+    //   (목표-현재)*0.1 처럼 고정 비율로 하면 60fps 와 30fps 에서 속도가 달라진다.
+    열림.current += (목표 - 열림.current) * (1 - Math.exp(-dt * 5));
+    // 닫힘(0) = 구멍을 덮은 자리 · 열림(1) = 옆으로 열림폭만큼 비켜난 자리.
+    //   차체가 X축으로 길므로 문도 X축으로 미끄러진다.
+    g.position.x = 열림.current * 열림폭;
+  });
+
+  return (
+    <group ref={ref}>
+      <mesh
+        geometry={geo}
+        position={[문구멍.중심x, 문구멍.중심y, 문구멍.z]}
+        castShadow
+        receiveShadow
+      >
+        <meshToonMaterial color={색} gradientMap={TOON_GRADIENT} />
+        <만화선 geo={geo} 선={선} />
+      </mesh>
+    </group>
+  );
+}
+
 const TRAIN_LEN = 2.064; // 높이 1 기준 길이. 여러 칸을 이어 붙일 때 간격 계산에 쓴다
 
 function Train({
@@ -6198,6 +6127,7 @@ function Train({
   차체색 = "#4A515C",
   문색 = "#39404A",
   어둠색 = "#0A0C10",
+  문열림폭 = 0.46, // 옆으로 미끄러지는 폭. 구멍 폭 0.423 보다 조금 크게.
   선,
 }) {
   const [x, z] = pos;
@@ -6226,6 +6156,10 @@ function Train({
     return c;
   }, [scene, 차체색, 문색, 어둠색]);
   const 조각 = useMemo(() => GLB조각(model), [model]);
+  // ★ 모델의 door 메시는 아예 그리지 않는다.
+  //   그것은 '열린 문 두 짝'이라, 그걸 쓰면 문이 닫힌 모습을 만들 수가 없다.
+  //   대신 구멍에 딱 맞는 한 짝을 <문짝> 이 직접 만든다.
+  const 본체조각 = useMemo(() => 조각.filter((c) => c.name !== "door"), [조각]);
 
   // ── 칸 배치 ────────────────────────────────────────────
   //   휨 = 0 이면 그냥 일직선으로 늘어놓는다.
@@ -6266,11 +6200,16 @@ function Train({
             {/* dark(어둠상자)에는 선을 두르지 않는다 — 구멍에 테두리가 생기면
                 '뚫린 곳'이 아니라 '검은 판때기'로 보인다. */}
             <조각그리기
-              조각={조각}
+              조각={본체조각}
               선={선}
               선제외={["dark"]}
               그림자받기={false}
             />
+            {/* 문은 모델 것을 안 쓰고 직접 만든다 (위 문짝 주석 참고) */}
+            <문짝 칸={i} 선={선} 열림폭={문열림폭} 색={문색} />
+            {/* 문 앞 자리 — 모델 기준 door 메시는 x 0.175 언저리, 폭 방향(z)은
+                양쪽에 다 있다. 방을 향한 쪽(-z)에서 한 걸음 물러난 자리를 잡는다. */}
+            <기차문표식 칸={i} 위치={[0.175, 0.5, -0.55]} />
           </group>
         ))}
       </group>
@@ -7443,7 +7382,20 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     눈높이: { value: EYE, min: 2, max: 10, step: 0.05 },
     앉은높이: { value: CROUCH_EYE, min: 0.8, max: 6, step: 0.05 },
   });
-  usePlayer(active, onNear, CAM.눈높이, CAM.앉은높이);
+  // ★ 기차에서 막 내렸다면 탔던 문 앞에 다시 세운다.
+  //   카메라는 씬이 바뀌어도 하나뿐이라, 그냥 두면 기차 안 좌표(0, 6.5, 0)가
+  //   그대로 역 좌표로 해석돼 방 한가운데에 뚝 떨어진다.
+  //   useMemo 로 감싼 이유 = 이 판단은 씬이 켜질 때 딱 한 번만 해야 하기 때문이다.
+  const 복귀 = useMemo(() => {
+    if (!기차에서나옴.켬 || !들어간문.위치) return null;
+    기차에서나옴.켬 = false; // 한 번 쓰면 끈다
+    const d = 들어간문.위치;
+    return {
+      시작: [d.x - 2.6, undefined, d.z], // 문에서 방 안쪽으로 두 걸음 물러난 자리
+      바라봄: Math.PI / 2, // -x = 방 안쪽을 본다
+    };
+  }, []);
+  usePlayer(active, onNear, CAM.눈높이, CAM.앉은높이, 복귀);
   // ── 벽·바닥 질감 ───────────────────────────────────────
   //   콘크리트 블록 벽 + 민바닥 콘크리트. 시드를 바꾸면 얼룩 배치가 통째로 달라진다.
   const MAT = useSavedControls("벽·바닥 질감", {
@@ -7989,6 +7941,13 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     // ── 자세 3종 ──────────────────────────────────────
     // 좌우기울기 = 옆으로 기우뚱(롤). 탈선해 한쪽으로 기운 느낌.
     //   0.05 rad ≈ 2.9°. 기차가 길어서 조금만 줘도 끝이 크게 들린다.
+    // 문이 열릴 때 미끄러지는 폭(모델 로컬 단위. 차체 길이가 2.064다).
+    //   평소엔 이만큼 반대로 밀어 '닫힘'을 만들고, 다가오면 0 으로 돌아온다.
+    //   ★ 문이 엉뚱한 쪽으로 닫히면 부호를 뒤집으면 된다(음수 가능).
+    // 문이 열릴 때 옆으로 미끄러지는 폭(모델 로컬 단위).
+    //   구멍 폭이 0.423 이므로 그보다 조금 커야 구멍이 완전히 드러난다.
+    //   ★ 반대쪽으로 열리게 하려면 음수로 바꾸면 된다.
+    문열림폭: { value: 0.46, min: -0.8, max: 0.8, step: 0.005 },
     좌우기울기: { value: 0.08, min: -0.4, max: 0.4, step: 0.005 },
     // 앞뒤기울기 = 코가 들리거나 처지는 각(피치).
     앞뒤기울기: { value: -0.01, min: -0.3, max: 0.3, step: 0.005 },
@@ -9252,6 +9211,7 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
             차체색={TR.차체색}
             문색={TR.문색}
             어둠색={TR.어둠색}
+            문열림폭={TR.문열림폭}
             선={TR선}
           />
         </Suspense>
@@ -9785,51 +9745,14 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
       {/* ?fx=off 로 후처리를 통째로 뺄 수 있다.
           후처리는 화면 크기만 한 렌더타깃을 여러 장 잡아서, 내장 GPU에서 메모리 문제가
           의심될 때 가장 먼저 빼보는 대상이다. 기본값은 켜짐이라 평소엔 그대로다. */}
-      {!후처리끄기 && (
-        /* ★★ 검은 화면(GPU 연결 끊김)의 진짜 원인이 여기 있었다. ★★
-           @react-three/postprocessing 의 EffectComposer 기본값이
-             multisampling = 8            (MSAA 8배)
-             frameBufferType = HalfFloatType  (픽셀당 8바이트, RGBA16F)
-           이다. 화면이 2530×1423(3.6메가픽셀)이면 렌더타깃 한 장이
-
-             3.6M픽셀 × 8샘플 × 8바이트 = 약 230 MB
-
-           컴포저는 입력·출력 두 장을 잡으므로 460MB, 거기에 Bloom 밉체인과
-           캔버스 자체 MSAA, 텍스처 111MB 까지 더하면 600MB를 넘는다.
-           내장 GPU(AMD 780M 등)는 시스템 램을 나눠 쓰므로 여기서 죽는다.
-           → 드라이버가 컨텍스트를 끊는다 = 검은 화면.
-
-           고친 값:
-             multisampling  8 → 2   (저사양은 0)   메모리 1/4
-             frameBufferType 8바이트 → 4바이트       메모리 1/2
-           합쳐서 460MB → 약 58MB (1/8).
-
-           화질은? 외곽선은 이미 기하학적으로 그린 것이라 MSAA에 거의 의존하지 않고,
-           Bloom도 threshold 0.85 · intensity 0.45 로 약하게 쓰고 있어 차이가 미미하다.
-           예전 설정과 눈으로 비교하고 싶으면 주소에 ?fx=hi 를 붙이면 된다. */
-        <EffectComposer
-          autoClear={false}
-          multisampling={저사양 ? 0 : 후처리고품질 ? 8 : 2}
-          frameBufferType={후처리고품질 ? THREE.HalfFloatType : THREE.UnsignedByteType}
-        >
-          <Bloom intensity={0.45} luminanceThreshold={0.85} mipmapBlur />
-          <Vignette offset={0.36} darkness={0.28} />
-        </EffectComposer>
-      )}
-
-      {TOP_VIEW ? (
-        // 배치 확인용: 위에서 내려다보기 + 마우스 드래그 회전/줌
-        <OrbitControls makeDefault target={[-5, 0, 0]} />
-      ) : (
-        /* selector를 존재하지 않는 요소로 지정 → 화면 클릭으로는 잠기지 않는다.
-           시작은 T키(App의 keydown에서 controlsRef.lock())로만 이뤄진다. */
-        <PointerLockControls
-          ref={controlsRef}
-          selector="#__never__"
-          onLock={() => onLockChange(true)}
-          onUnlock={() => onLockChange(false)}
-        />
-      )}
+      {/* ★ 후처리(EffectComposer)와 시점 조작(PointerLockControls)은
+             App(껍데기)로 옮겼다. 이유는 두 가지다.
+             ① 마우스 잠금 — 여기 있으면 씬이 바뀔 때 컨트롤이 통째로 사라졌다가
+                새로 생긴다. 그 순간 잠금이 풀려서 기차를 타고 내릴 때마다
+                T 를 다시 눌러야 했다.
+             ② 화면 톤 — 여기 있으면 역에만 블룸·비네트가 걸리고 기차 안에는
+                안 걸려서, 같은 게임인데 두 곳의 분위기가 달라 보였다.
+             껍데기에 두면 씬이 바뀌어도 그대로 유지된다. */}
     </>
   );
 }
@@ -9950,6 +9873,79 @@ export default function App() {
     }, 1000);
     return () => clearInterval(id);
   }, []);
+  // ── 씬 전환 (페이드 인·아웃) ────────────────────────────────
+  // [왜 페이드를 넣나]
+  //   씬이 통째로 바뀌는 순간 화면이 뚝 끊긴다. 사이에 검은 화면을 한 번 끼우면
+  //   '문을 통과했다'로 읽히고, 새 씬이 첫 프레임을 그리는 짧은 시간도 가려진다.
+  //   (PRD 전역-006 「세션 전환 연출 — 페이드로 로딩을 가린다 · 1초 이내」)
+  //   여기 합계 = 어두워지기 260ms + 밝아지기 시작까지 120ms ≈ 0.4초.
+  const [어둠, set어둠] = useState(0); // 0 = 투명, 1 = 완전 검정
+  const 전환중 = useRef(false); // 연타로 두 번 전환되는 것을 막는다
+  /**
+   * 씬을 바꾼다.
+   * @param 페이드 검은 막을 끼울지. **기차는 끼우지 않는다** — 아래 설명 참고.
+   */
+  const 씬전환 = useCallback(
+    (경로, 준비, 페이드 = true) => {
+      if (전환중.current) return;
+      전환중.current = true;
+
+      // ★ 페이드 없는 길 — 문을 통과하듯 그 자리에서 바로 바뀐다.
+      //   Canvas 는 하나뿐이고 '안에 그릴 것'만 갈아 끼우므로(아래 씬 교체 주석)
+      //   WebGL 컨텍스트가 다시 만들어지지 않는다 → 가릴 로딩이 애초에 없다.
+      //   전환중 잠금만 남긴다. 문 앞에 서 있으면 near 가 계속 'train진입'이라
+      //   잠금이 없으면 같은 프레임에 두 번 걸릴 수 있다.
+      if (!페이드) {
+        준비?.();
+        이동하기(경로);
+        setTimeout(() => {
+          전환중.current = false;
+        }, 250);
+        return;
+      }
+
+      set어둠(1);
+      setTimeout(() => {
+        준비?.(); // 씬을 바꾸기 직전에 해 둘 일(잠금 걸기 등)
+        이동하기(경로);
+        setTimeout(() => {
+          set어둠(0);
+          전환중.current = false;
+        }, 120);
+      }, 260);
+    },
+    [이동하기],
+  );
+  // ── 기차는 페이드 없이 바로 넘어간다 ──────────────────────
+  //   기차 문은 '문을 열고 들어가는' 동작이라 화면이 한 번 검어지면
+  //   걸어 들어가던 흐름이 끊긴다. 로딩을 가릴 필요도 없다(같은 번들·같은 Canvas).
+  //   ※ 페이드 자체는 남겨 뒀다 — 나중에 세션이 통째로 바뀌는 자리
+  //     (PRD 전역-006)에서는 세 번째 인자를 빼고 부르면 그대로 쓸 수 있다.
+  const 기차타기 = useCallback(
+    () => 씬전환("/train", undefined, false),
+    [씬전환],
+  );
+  const 기차내리기 = useCallback(
+    () =>
+      씬전환(
+        "/",
+        () => {
+          // 내리자마자 다시 빨려 들어가지 않게 잠그고,
+          // 역 씬이 '문 앞'에서 시작하도록 표시해 둔다.
+          진입잠금.켬 = true;
+          기차에서나옴.켬 = true;
+        },
+        false,
+      ),
+    [씬전환],
+  );
+
+  // 문 안으로 걸어 들어가면 키를 누르지 않아도 넘어간다.
+  //   near 는 값이 바뀔 때만 갱신되므로 매 프레임 돌지 않는다.
+  useEffect(() => {
+    if (near === "train진입" && !기차안) 기차타기();
+  }, [near, 기차안, 기차타기]);
+
   const openBooth = useCallback(() => {
     setModalOpen(true);
     controlsRef.current?.unlock();
@@ -9968,12 +9964,12 @@ export default function App() {
       }
       if (e.code !== "KeyE" || !locked || modalOpen) return;
       if (near === "booth") openBooth();
-      else if (near === "train") 이동하기("/train"); // 역 → 기차 안
-      else if (near === "기차나가기") 이동하기("/"); // 기차 안 → 역
+      else if (near === "train") 기차타기(); // 역 → 기차 안 ([E] 백업 경로)
+      else if (near === "기차나가기") 기차내리기(); // 기차 안 → 역
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [near, locked, modalOpen, openBooth, 이동하기]);
+  }, [near, locked, modalOpen, openBooth, 기차타기, 기차내리기]);
 
   const active = locked && !modalOpen;
   // 화면 안내 문구.
@@ -10071,7 +10067,55 @@ export default function App() {
             onLockChange={setLocked}
           />
         )}
+
+        {/* ═══ 씬이 바뀌어도 살아 있어야 하는 것들 ═══
+            여기 두면 역 ↔ 기차 안을 오갈 때 다시 만들어지지 않는다. */}
+
+        {/* 후처리 — 블룸·비네트. 두 씬에 똑같이 걸려야 같은 게임처럼 보인다.
+            ?fx=off 로 통째로 끌 수 있다(내장 GPU 문제를 의심할 때 첫 번째로 빼 보는 것).
+            multisampling 8 → 2, HalfFloat → UnsignedByte 로 낮춰 둔 이유는
+            기본값 그대로면 렌더타깃 메모리가 460MB 를 넘어 내장 GPU가 죽기 때문이다. */}
+        {!후처리끄기 && (
+          <EffectComposer
+            autoClear={false}
+            multisampling={저사양 ? 0 : 후처리고품질 ? 8 : 2}
+            frameBufferType={
+              후처리고품질 ? THREE.HalfFloatType : THREE.UnsignedByteType
+            }
+          >
+            <Bloom intensity={0.45} luminanceThreshold={0.85} mipmapBlur />
+            <Vignette offset={0.36} darkness={0.28} />
+          </EffectComposer>
+        )}
+
+        {/* 시점 조작 — ★ 여기 있어야 씬이 바뀌어도 마우스 잠금이 안 풀린다.
+            selector 를 없는 요소로 지정 → 화면 클릭으로는 잠기지 않는다.
+            시작은 T 키(위 keydown 에서 controlsRef.lock())로만 이뤄진다. */}
+        {TOP_VIEW ? (
+          <OrbitControls makeDefault target={[-5, 0, 0]} />
+        ) : (
+          <PointerLockControls
+            ref={controlsRef}
+            selector="#__never__"
+            onLock={() => setLocked(true)}
+            onUnlock={() => setLocked(false)}
+          />
+        )}
       </Canvas>
+      {/* 씬 전환용 검은 막.
+          pointerEvents:none — 화면을 덮지만 클릭·마우스는 그대로 통과시킨다.
+          transition 으로만 움직이므로 자바스크립트가 매 프레임 개입하지 않는다. */}
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "#000",
+          opacity: 어둠,
+          transition: "opacity 260ms ease",
+          pointerEvents: "none",
+          zIndex: 50,
+        }}
+      />
       {!locked && !modalOpen && (
         <div style={S.center}>
           [T] 시작 · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · ESC
