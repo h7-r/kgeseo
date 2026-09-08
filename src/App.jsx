@@ -5097,6 +5097,276 @@ function 낡은문텍스처(seed = 1, 때 = 1) {
   return t;
 }
 
+// ===== 기차 출입문 텍스처 — 낡은 강철 미닫이 문 =====
+// [의도] 참고 사진(KTX식) 구조: 매끈한 플러시 패널 + 파묻힌 손잡이 포켓 + 아래
+//   킥패널 이음선. 색은 차체(#4A515C)와 같은 계열의 '살짝 연한' 톤(재질 color 지정).
+//   ★ 문짝 판 자체는 차체 구멍(폭 0.423)을 덮는 크기라 좁히면 틈이 생긴다.
+//     그래서 판은 그대로 두고 양옆에 '문틀(jamb)'을 그려 밝은 문 면만 좁아 보이게 한다.
+//   ★ 한 짝을 통째로 0~1 UV 로 덮어 타일 반복 없이 자연스럽게 이어진다.
+const _기차문캐시 = new Map();
+function 기차문텍스처(seed = 1, opts = {}) {
+  const {
+    손잡이가로 = 0.78,
+    손잡이세로 = 0.53,
+    손잡이폭 = 0.072,
+    손잡이높이 = 0.15,
+    문틀폭 = 0.1,
+    문틀색 = "#1c2027",
+    낡음 = 1,
+  } = opts;
+  // 캐시 키에 옵션을 넣어야 값이 바뀔 때 새로 그린다(안 넣으면 옛 그림 재사용).
+  const 키 =
+    seed +
+    "|" +
+    [손잡이가로, 손잡이세로, 손잡이폭, 손잡이높이, 문틀폭, 낡음]
+      .map((v) => v.toFixed(3))
+      .join(",") +
+    "|" + 문틀색;
+  if (_기차문캐시.has(키)) return _기차문캐시.get(키);
+  const 낡 = 낡음;
+  const W = 384,
+    H = 562; // 문 비율(폭 0.447 : 높이 0.655)
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  const rnd = makeRandom(seed * 977 + 41);
+
+  // 문 면(밝은 패널)이 차지하는 좌우 범위 — 양옆은 문틀이 먹는다.
+  const jw = W * 문틀폭; // 문틀 폭(좌우 각각)
+  const L = jw,
+    R = W - jw,
+    PW = R - L; // 패널 안쪽 폭
+
+  // ── ① 바탕: 밝은 중립 강철(색은 재질 color 가 입힌다) ──
+  g.fillStyle = "#d7dae0";
+  g.fillRect(0, 0, W, H);
+  for (let x = 0; x < W; x += 2) {
+    const v = (rnd() - 0.5) * 8;
+    g.fillStyle = `rgba(${Math.round(196 + v)},${Math.round(200 + v)},${Math.round(206 + v)},0.16)`;
+    g.fillRect(x, 0, 1, H);
+  }
+  // 금속 광택 — 위에서 비스듬히 떨어지는 세로 하이라이트
+  const sheen = g.createLinearGradient(0, 0, W * 0.7, H);
+  sheen.addColorStop(0, "rgba(255,255,255,0.1)");
+  sheen.addColorStop(0.35, "rgba(255,255,255,0.03)");
+  sheen.addColorStop(0.55, "rgba(0,0,0,0.03)");
+  sheen.addColorStop(1, "rgba(0,0,0,0.08)");
+  g.fillStyle = sheen;
+  g.fillRect(0, 0, W, H);
+  // 넓고 옅은 톤 얼룩
+  for (let i = 0; i < 20; i++) {
+    const cx = L + rnd() * PW,
+      cy = rnd() * H,
+      r = 60 + rnd() * 140;
+    const 톤 = rnd() < 0.5 ? "255,255,255" : "40,44,52";
+    const gr = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+    gr.addColorStop(0, `rgba(${톤},${(0.03 + rnd() * 0.06).toFixed(3)})`);
+    gr.addColorStop(1, `rgba(${톤},0)`);
+    g.fillStyle = gr;
+    g.fillRect(cx - r, cy - r, r * 2, r * 2);
+  }
+
+  // ── ② 아래 킥패널 이음선 — 패널 안쪽만 가로지른다 ──────
+  const kickY = H * 0.82;
+  g.strokeStyle = "rgba(30,33,39,0.42)";
+  g.lineWidth = 2.5;
+  g.beginPath();
+  g.moveTo(L + 4, kickY);
+  g.lineTo(R - 4, kickY);
+  g.stroke();
+  g.strokeStyle = "rgba(255,255,255,0.28)";
+  g.lineWidth = 1.3;
+  g.beginPath();
+  g.moveTo(L + 4, kickY + 2.6);
+  g.lineTo(R - 4, kickY + 2.6);
+  g.stroke();
+
+  // ── ③ 파묻힌 손잡이 포켓 — 더 작게, 더 오른쪽 ──────────
+  const round = (x, y, w, h, r) => {
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.arcTo(x + w, y, x + w, y + h, r);
+    g.arcTo(x + w, y + h, x, y + h, r);
+    g.arcTo(x, y + h, x, y, r);
+    g.arcTo(x, y, x + w, y, r);
+    g.closePath();
+  };
+  const pw = W * 손잡이폭,
+    ph = H * 손잡이높이,
+    pr = 9;
+  const px = L + PW * 손잡이가로 - pw / 2,
+    py = H * 손잡이세로 - ph / 2;
+  let gr = g.createLinearGradient(0, py, 0, py + ph);
+  gr.addColorStop(0, "rgba(20,22,27,0.9)");
+  gr.addColorStop(1, "rgba(48,52,60,0.6)");
+  round(px, py, pw, ph, pr);
+  g.fillStyle = gr;
+  g.fill();
+  round(px, py, pw, ph, pr);
+  g.strokeStyle = "rgba(14,16,21,0.7)";
+  g.lineWidth = 2.4;
+  g.stroke();
+  g.strokeStyle = "rgba(255,255,255,0.42)";
+  g.lineWidth = 1.3;
+  g.beginPath();
+  g.moveTo(px + pr, py + ph - 1.3);
+  g.lineTo(px + pw - pr, py + ph - 1.3);
+  g.moveTo(px + pw - 1.3, py + pr);
+  g.lineTo(px + pw - 1.3, py + ph - pr);
+  g.stroke();
+  // 손잡이 바 — 포켓 위쪽 가로 그립
+  const bx = px + 4,
+    bw = pw - 8,
+    by = py + 6,
+    bh = 6;
+  g.fillStyle = "rgba(70,75,84,0.92)";
+  g.fillRect(bx, by, bw, bh);
+  g.fillStyle = "rgba(210,214,220,0.6)";
+  g.fillRect(bx, by, bw, 1.4);
+  g.fillStyle = "rgba(14,16,21,0.6)";
+  g.fillRect(bx, by + bh - 1.4, bw, 1.4);
+  g.fillStyle = "rgba(10,12,16,0.5)";
+  g.fillRect(bx, by + bh, bw, ph - bh - 11);
+
+  // ── ④ 찌그러짐 — 눌린 금속(패널 안, 은은하게) ──────────
+  const 찌그러짐 = (cx, cy, r, 세기) => {
+    const a = rnd() * Math.PI * 2;
+    const dx = Math.cos(a),
+      dy = Math.sin(a);
+    let g2 = g.createRadialGradient(
+      cx + dx * r * 0.4, cy + dy * r * 0.4, 0,
+      cx + dx * r * 0.4, cy + dy * r * 0.4, r,
+    );
+    g2.addColorStop(0, `rgba(22,25,31,${(0.24 * 세기).toFixed(3)})`);
+    g2.addColorStop(1, "rgba(22,25,31,0)");
+    g.fillStyle = g2;
+    g.fillRect(cx - r * 1.6, cy - r * 1.6, r * 3.2, r * 3.2);
+    g2 = g.createRadialGradient(
+      cx - dx * r * 0.4, cy - dy * r * 0.4, 0,
+      cx - dx * r * 0.4, cy - dy * r * 0.4, r * 0.8,
+    );
+    g2.addColorStop(0, `rgba(255,255,255,${(0.2 * 세기).toFixed(3)})`);
+    g2.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = g2;
+    g.fillRect(cx - r * 1.6, cy - r * 1.6, r * 3.2, r * 3.2);
+  };
+  for (let i = 0; i < 3; i++)
+    찌그러짐(L + 20 + rnd() * (PW - 40), 40 + rnd() * (H - 80), 15 + rnd() * 18, (0.6 + rnd() * 0.4) * 낡);
+  찌그러짐(L + PW * (rnd() < 0.5 ? 0.2 : 0.8), H * (0.72 + rnd() * 0.14), 26 + rnd() * 12, 0.85 * 낡);
+
+  // ── ⑤ 얼룩 — 흘러내린 때·녹물 + 번진 자국(패널 안, 절제) ─
+  for (let i = 0; i < 10; i++) {
+    const x = L + rnd() * PW,
+      y0 = rnd() * H * 0.5,
+      len = 50 + rnd() * 200,
+      w2 = 1 + rnd() * 2.4;
+    const 색 = rnd() < 0.3 ? "96,60,32" : "40,44,52";
+    const g2 = g.createLinearGradient(0, y0, 0, y0 + len);
+    g2.addColorStop(0, `rgba(${색},${((0.13 + rnd() * 0.1) * 낡).toFixed(3)})`);
+    g2.addColorStop(1, `rgba(${색},0)`);
+    g.fillStyle = g2;
+    g.fillRect(x, y0, w2, len);
+  }
+  for (let i = 0; i < 3; i++) {
+    const cx = L + 20 + rnd() * (PW - 40),
+      cy = H * (0.55 + rnd() * 0.36),
+      k = 11 + rnd() * 18;
+    const 색 = rnd() < 0.5 ? "76,52,30" : "36,40,48";
+    g.fillStyle = `rgba(${색},${((0.08 + rnd() * 0.08) * 낡).toFixed(3)})`;
+    g.beginPath();
+    const n = 12;
+    for (let j = 0; j <= n; j++) {
+      const a2 = (j / n) * Math.PI * 2,
+        r = k * (0.5 + rnd() * 0.9);
+      const qx = cx + Math.cos(a2) * r,
+        qy = cy + Math.sin(a2) * r * 1.2;
+      j === 0 ? g.moveTo(qx, qy) : g.lineTo(qx, qy);
+    }
+    g.closePath();
+    g.fill();
+  }
+
+  // ── ⑥ 기스 — 손잡이 둘레 + 패널 안 몇 개 ───────────────
+  const 긋기 = (x, y, l, a2, 밝) => {
+    g.strokeStyle = 밝
+      ? `rgba(255,255,255,${((0.13 + rnd() * 0.14) * 낡).toFixed(3)})`
+      : `rgba(24,27,33,${((0.15 + rnd() * 0.15) * 낡).toFixed(3)})`;
+    g.lineWidth = 0.6 + rnd() * 1.0;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(a2) * l, y + Math.sin(a2) * l);
+    g.stroke();
+  };
+  for (let i = 0; i < 18; i++)
+    긋기(L + rnd() * PW, rnd() * H, 6 + rnd() * 26, (rnd() - 0.5) * 1.0 + (rnd() < 0.5 ? 0 : Math.PI / 2), rnd() < 0.5);
+  for (let i = 0; i < 12; i++)
+    긋기(px + pw / 2 + (rnd() - 0.5) * pw * 3, py + ph / 2 + (rnd() - 0.5) * ph * 1.8,
+      7 + rnd() * 20, rnd() * Math.PI * 2, rnd() < 0.55);
+
+  // ── ⑦ 아래쪽 때 — 킥패널 아래로 갈수록 진하게 ──────────
+  const gb = g.createLinearGradient(0, H, 0, kickY - 20);
+  gb.addColorStop(0, "rgba(20,22,27,0.4)");
+  gb.addColorStop(1, "rgba(20,22,27,0)");
+  g.fillStyle = gb;
+  g.fillRect(L, kickY - 20, PW, H - (kickY - 20));
+
+  // ── ⑧ 미세 알갱이 ────────────────────────────────────
+  for (let i = 0; i < 1100; i++) {
+    g.fillStyle = `rgba(34,38,45,${(0.025 + rnd() * 0.05).toFixed(3)})`;
+    g.fillRect(L + rnd() * PW, rnd() * H, 1 + rnd(), 1 + rnd());
+  }
+  질감얹기(g, W, H, seed * 53 + 7, 0.4);
+
+  // ── ⑨ 양옆 문틀(jamb) — 밝은 문 면을 좁아 보이게 ───────
+  //   문틀은 살짝 어둡게(움푹 들어간 프레임). 안쪽 모서리에 밝은 베벨 한 줄로
+  //   '문 면이 프레임보다 앞으로 나와 있다'를 만든다.
+  const _hx = (h) => {
+    const n = parseInt(h.slice(1), 16);
+    return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  };
+  const 틀rgb = _hx(문틀색);
+  g.fillStyle = `rgba(${틀rgb},0.82)`;
+  g.fillRect(0, 0, jw, H);
+  g.fillRect(R, 0, jw, H);
+  // ★ 문틀 베벨/홈 라인과, 텍스처에 늘 굽던 검정 두꺼운 테두리는 제거했다.
+  //   (문틀폭을 넘어 회색이 감싸 보이던 원인 + 조절과 무관한 검정 외곽.)
+  //   외곽선은 이제 <만화선>의 조절 가능한 한 줄(외곽선굵기/색)만 쓴다.
+
+  // ── 부드러운 가장자리 음영 — 문이 프레임에 살짝 잠긴 듯 4변을 은은하게 어둡게.
+  //   딱딱한 검정 테두리 대신 이 소프트 그늘이 '자연스러운 외곽'을 만든다.
+  const eg = 22;
+  const 변그늘 = (x, y, w, h, x2, y2) => {
+    const vg = g.createLinearGradient(x, y, x2, y2);
+    vg.addColorStop(0, "rgba(8,10,14,0.42)");
+    vg.addColorStop(1, "rgba(8,10,14,0)");
+    g.fillStyle = vg;
+    g.fillRect(x, y, w, h);
+  };
+  변그늘(0, 0, W, eg, 0, eg); // 위
+  {
+    const vg = g.createLinearGradient(0, H, 0, H - eg);
+    vg.addColorStop(0, "rgba(8,10,14,0.42)");
+    vg.addColorStop(1, "rgba(8,10,14,0)");
+    g.fillStyle = vg;
+    g.fillRect(0, H - eg, W, eg);
+  } // 아래
+  변그늘(0, 0, eg, H, eg, 0); // 왼
+  {
+    const vg = g.createLinearGradient(W, 0, W - eg, 0);
+    vg.addColorStop(0, "rgba(8,10,14,0.42)");
+    vg.addColorStop(1, "rgba(8,10,14,0)");
+    g.fillStyle = vg;
+    g.fillRect(W - eg, 0, eg, H);
+  } // 오른
+
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  _기차문캐시.set(키, t);
+  return t;
+}
+
 // ===== 복도 측면 문 (오래 안 쓴 낡은 문) =====
 // 벽면이 x 에 수직이라 '깊이 = x, 폭 = z, 높이 = y' 로 짠다.
 //   글자(명패)는 넣지 않는다 — 여기는 튜토리얼 구간이고,
@@ -6069,15 +6339,58 @@ const 문구멍 = {
   z: -0.327,
 };
 
-function 문짝({ 칸, 선, 열림폭, 색 }) {
+function 문짝({ 칸, 선, 열림폭, 색, 옵션 = {} }) {
   const ref = useRef(null);
   const 열림 = useRef(0);
   // 구멍보다 아주 조금 크게 만든다. 딱 맞추면 가장자리에 실틈이 비친다.
-  const geo = useMemo(
+  // ★ 캐비넷과 같은 방식: 면을 분할한 박스의 정점을 노멀 방향으로 밀어
+  //   '진짜 눌린 굴곡'을 만든다. 분할이 없으면 밀 정점이 없어 찌그러지지 않는다.
+  const geo = useMemo(() => {
+    const g = new THREE.BoxGeometry(
+      문구멍.폭 + 0.024, 문구멍.높이 + 0.016, 0.03,
+      24, 32, 1, // 앞·뒤 면을 촘촘히 쪼갠다 → 눌림이 매끈한 굴곡으로
+    );
+    const 개수 = 옵션.찌그러짐 ?? 4;
+    const 깊이 = 옵션.찌그러짐깊이 ?? 0.022;
+    if (개수 > 0 && 깊이 > 0) 찌그러뜨리기(g, 칸 * 37 + 5, 개수, 깊이, 0.07);
+    g.computeVertexNormals(); // 눌린 뒤 노멀 재계산 → 각진 다이아몬드 대신 부드러운 음영
+    return g;
+  }, [칸, 옵션.찌그러짐, 옵션.찌그러짐깊이]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  // 외곽선 전용 — 찌그러지지 않은 '깔끔한 사각 박스'.
+  //   ★ 외곽선을 찌그러진 문에 직접 두르면 눌림 자국까지 선이 따라 그려져
+  //     검은 다이아몬드가 찍힌다(외곽선색=얼룩색처럼 보이던 원인).
+  //   그래서 외곽선은 이 매끈한 박스에만 두르고, 찌그러짐은 음영으로만 보인다.
+  const 선geo = useMemo(
     () => new THREE.BoxGeometry(문구멍.폭 + 0.024, 문구멍.높이 + 0.016, 0.03),
     [],
   );
-  useEffect(() => () => geo.dispose(), [geo]);
+  useEffect(() => () => 선geo.dispose(), [선geo]);
+  // 칸마다 seed 를 달리해 문짝 얼룩·기스가 제각각이 되게. 텍스처는 캐시되므로
+  //   여러 번 그리지 않고, 공유 자원이라 여기서 dispose 하지 않는다.
+  const 문맵 = useMemo(
+    () => 기차문텍스처(칸 + 1, 옵션),
+    [
+      칸,
+      옵션.손잡이가로,
+      옵션.손잡이세로,
+      옵션.손잡이폭,
+      옵션.손잡이높이,
+      옵션.문틀폭,
+      옵션.문틀색,
+      옵션.낡음,
+    ],
+  );
+  // 문 전용 외곽선 — 공유 선 대신 폴더 값으로 굵기·색을 따로 조절한다.
+  const 문선 = useMemo(
+    () => ({
+      외곽선: (옵션.외곽선굵기 ?? 1.5) > 0,
+      외곽선굵기: 옵션.외곽선굵기 ?? 1.5,
+      외곽선색: 옵션.외곽선색 ?? "#242a33",
+      주름선: false,
+    }),
+    [옵션.외곽선굵기, 옵션.외곽선색],
+  );
 
   useFrame((_, dt) => {
     const g = ref.current;
@@ -6100,8 +6413,20 @@ function 문짝({ 칸, 선, 열림폭, 색 }) {
         castShadow
         receiveShadow
       >
-        <meshToonMaterial color={색} gradientMap={TOON_GRADIENT} />
-        <만화선 geo={geo} 선={선} />
+        <meshToonMaterial map={문맵} color={색} gradientMap={TOON_GRADIENT} />
+      </mesh>
+      {/* 외곽선 전용 메시 — 눈에 안 보이는 매끈한 박스에 외곽선만 두른다.
+          (찌그러진 문에 직접 두르지 않으므로 눌림 자국이 선에 안 걸린다.) */}
+      <mesh geometry={선geo} position={[문구멍.중심x, 문구멍.중심y, 문구멍.z]}>
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        {문선.외곽선 && (
+          <Outlines
+            thickness={문선.외곽선굵기}
+            color={문선.외곽선색}
+            transparent
+            opacity={0.8}
+          />
+        )}
       </mesh>
     </group>
   );
@@ -6128,6 +6453,7 @@ function Train({
   문색 = "#39404A",
   어둠색 = "#0A0C10",
   문열림폭 = 0.46, // 옆으로 미끄러지는 폭. 구멍 폭 0.423 보다 조금 크게.
+  문옵션 = {},
   선,
 }) {
   const [x, z] = pos;
@@ -6206,7 +6532,7 @@ function Train({
               그림자받기={false}
             />
             {/* 문은 모델 것을 안 쓰고 직접 만든다 (위 문짝 주석 참고) */}
-            <문짝 칸={i} 선={선} 열림폭={문열림폭} 색={문색} />
+            <문짝 칸={i} 선={선} 열림폭={문열림폭} 색={문색} 옵션={문옵션} />
             {/* 문 앞 자리 — 모델 기준 door 메시는 x 0.175 언저리, 폭 방향(z)은
                 양쪽에 다 있다. 방을 향한 쪽(-z)에서 한 걸음 물러난 자리를 잡는다. */}
             <기차문표식 칸={i} 위치={[0.175, 0.5, -0.55]} />
@@ -7461,10 +7787,10 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
   // 화면 오른쪽 위에 슬라이더가 뜬다. 값을 돌려보며 폐역 톤을 직접 맞추고,
   // 마음에 드는 값을 찾으면 알려주면 코드에 고정한다. (개발용 — 최종엔 끈다)
   const L = useSavedControls("폐역 조명", {
-    기본광밝기: { value: 0.29, min: 0, max: 1.5, step: 0.01 },
-    기본광색: "#fffaef",
+    기본광밝기: { value: 1.5, min: 0, max: 1.7, step: 0.01 },
+    기본광색: "#ffffff",
     반구광밝기: { value: 0.78, min: 0, max: 1.5, step: 0.01 },
-    주광밝기: { value: 1.89, min: 0, max: 3, step: 0.01 },
+    주광밝기: { value: 2.88, min: 0, max: 3, step: 0.01 },
     주광색: "#ffffff",
     앰버포인트밝기: { value: 49, min: 0, max: 120, step: 1 },
     안개농도시작: { value: 42, min: 0, max: 120, step: 1 },
@@ -7965,6 +8291,24 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
       각도: 71,
       주름색: "#000000",
     }),
+  });
+
+  // ── 기차 외부 문 (문짝 텍스처·손잡이·문틀 실시간 조절) ──────
+  //   문짝 판 크기는 차체 구멍에 묶여 있어 못 줄인다. 대신 '문틀폭'으로
+  //   양옆 프레임을 키워 밝은 문 면이 좁아 보이게 한다(틈 없음).
+  const 문설정 = useSavedControls("기차 외부 문", {
+    문색: "#2a2f38", // 차체 계열의 살짝 연한 톤(현재 고정값)
+    손잡이가로: { value: 0.78, min: 0.5, max: 0.96, step: 0.01 }, // 패널 안 0=왼 1=오른
+    손잡이세로: { value: 0.48, min: 0.3, max: 0.72, step: 0.01 },
+    손잡이폭: { value: 0.05, min: 0.03, max: 0.16, step: 0.002 },
+    손잡이높이: { value: 0.17, min: 0.08, max: 0.3, step: 0.005 },
+    문틀폭: { value: 0, min: 0, max: 0.2, step: 0.005 }, // 좌우 각각(0=문틀 없음)
+    문틀색: "#caced5", // 양옆 문틀(프레임) 색
+    낡음: { value: 2, min: 0, max: 2, step: 0.05 }, // 얼룩·기스(그림) 세기(0=깨끗)
+    찌그러짐: { value: 10, min: 0, max: 14, step: 1 }, // 입체 눌림 개수(캐비넷식)
+    찌그러짐깊이: { value: 0.03, min: 0, max: 0.05, step: 0.002 },
+    외곽선굵기: { value: 2, min: 0, max: 8, step: 0.5 },
+    외곽선색: "#000000",
   });
 
   // ── 기차 선로 (도상·침목·레일) ─────────────────────────────
@@ -9209,9 +9553,10 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
             앞뒤기울기={TR.앞뒤기울기}
             휨={TR.휨}
             차체색={TR.차체색}
-            문색={TR.문색}
+            문색={문설정.문색}
             어둠색={TR.어둠색}
             문열림폭={TR.문열림폭}
+            문옵션={문설정}
             선={TR선}
           />
         </Suspense>
@@ -9855,7 +10200,11 @@ export default function App() {
   const 기차안 = 위치.pathname === "/train";
   const [locked, setLocked] = useState(false);
   // 계기판 표시 여부 — Scene 안의 Leva 값은 껍데기에서 못 읽으므로 여기서 따로 만든다.
-  const { 계기판: PF계기판 } = useSavedControls("성능(공통)", { 계기판: true });
+  // ★ 계기판 기본 꺼짐. 개발용이라 팀원 화면에도, 내 화면에도 평소엔 안 뜬다.
+  //   필요하면 Leva 「성능(공통) → 계기판」 을 켜면 된다.
+  const { 계기판: PF계기판 } = useSavedControls("성능(공통)", {
+    계기판: false,
+  });
   const [near, setNear] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   // GPU가 그래픽 컨텍스트를 회수해 갔는지. 회수되면 캔버스가 통째로 검게 된다.
@@ -9864,7 +10213,13 @@ export default function App() {
   //   1초에 한 번만 확인해서 상태로 옮긴다(매 프레임 확인하면 그게 더 비싸다).
   const [씬꺼짐, set씬꺼짐] = useState(false);
   // 지난번에 남은 기록이 있으면 처음 한 번만 띄운다
-  const [지난기록보임, set지난기록보임] = useState(() => !!블랙박스.지난기록);
+  // ★ '지난번 종료 직전 기록' 팝업은 자동으로 띄우지 않는다.
+  //   블랙박스는 0.5초마다 저장하므로 정상 종료여도 기록이 남고,
+  //   그러면 접속할 때마다 이 팝업이 떠서 거슬린다.
+  //   기록 자체는 그대로 남겨 둔다 — 진짜 크래시(GPU 끊김 · 씬 꺼짐)가 나면
+  //   그때 뜨는 경고 오버레이가 이 데이터를 쓴다.
+  //   지난 기록을 직접 보고 싶으면 콘솔에서 __블랙박스.지난기록 을 치면 된다.
+  const [지난기록보임, set지난기록보임] = useState(false);
   useEffect(() => {
     const id = setInterval(() => {
       // 컨텍스트가 죽었으면 이벤트를 놓쳤더라도 여기서 잡는다
@@ -10116,11 +10471,12 @@ export default function App() {
           zIndex: 50,
         }}
       />
+      {/* 가운데 안내 텍스트 제거(요청) — 필요하면 이 블록 되살리면 된다.
       {!locked && !modalOpen && (
         <div style={S.center}>
           [T] 시작 · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · ESC
         </div>
-      )}
+      )} */}
       {/* 조준점 — 1인칭은 커서가 없으니 화면 한가운데가 커서다 */}
       {active && <div style={S.조준점} />}
       {active && hint && <div style={S.hint}>{hint}</div>}
