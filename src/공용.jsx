@@ -249,6 +249,20 @@ function 저장쓰기(전체) {
 //   즉 '딱 한 번만 강제로 되돌리기'다.
 //   ※ 되돌리기가 끝나면 여기서 지워도 된다(안 지워도 해가 없다).
 const 강제기본값 = {
+  // 기차 안이 너무 어두워 물건을 놓을 수가 없었다 → 밝은 기본값으로 한 번 되돌린다.
+  //   (한 번 적용되고 나면 다시 사용자가 만진 값이 살아난다)
+  "기차 내부": [
+    "차체색",
+    "바닥색",
+    "천장색",
+    "좌석색",
+    "등받이색",
+    "창밖색",
+    "창틀색",
+    "선반색",
+    "밝기",
+    "천장등세기",
+  ],
   "천장등(공통)": ["천장번짐"], // 천장 동그라미 제거 — 셀 셰이딩과 화풍이 어긋남
   // 복도 길이 — 슬라이더 최대치까지 끌어놨던 값을 새 범위 기준으로 한 번 리셋
   // 화면에서 맞춘 값으로 한 번 되돌린다(적용 후에는 이 목록에서 빼면 된다)
@@ -412,7 +426,7 @@ const HANDLED = new Set([
 
 function use이동(
   active,
-  { 눈높이 = EYE, 앉은높이 = CROUCH_EYE, 경계, 막힘, 근처, 시작 } = {},
+  { 눈높이 = EYE, 앉은높이 = CROUCH_EYE, 경계, 막힘, 근처, 시작, 바라봄 } = {},
 ) {
   const { camera } = useThree();
   const eyeRef = useRef(눈높이);
@@ -470,6 +484,19 @@ function use이동(
         vel.current.set(0, 0, 0);
         vy.current = 0;
       }
+      // ★ 바라볼 방향(yaw). 위치만 옮기면 '어디를 보고 서 있는지'는 그대로다.
+      //   three.js 카메라의 기본 시선은 **−z 방향**이다. 그래서 씬의 긴 축이
+      //   x 라면, 들어오자마자 **옆벽을 코앞에서 마주보고** 서게 된다.
+      //   (기차 안이 캄캄해 보였던 원인이 정확히 이것이었다 — 조명이 아니라 시선)
+      //
+      //   각도 기준 (y축 회전, 라디안):
+      //     0        → −z 를 본다 (기본값)
+      //     +π/2     → −x 를 본다
+      //     −π/2     → +x 를 본다
+      //     π        → +z 를 본다
+      //   rotation.set(x, y, z) 에서 x(위아래)·z(기울기)는 0으로 둔다.
+      //   서 있는 사람은 고개를 갸웃하지 않으니까.
+      if (바라봄 !== undefined) camera.rotation.set(0, 바라봄, 0);
     }
 
     if (근처) {
@@ -531,7 +558,363 @@ function use이동(
   return lastNear;
 }
 
+
+// ═══════════════════════════════════════════════════════════════
+//  캔버스 질감 — 벽 · 바닥 · 천장  (App.jsx 에서 옮겨 옴)
+// ═══════════════════════════════════════════════════════════════
+// [왜 여기로 옮겼나]
+//   역(수사본부)의 '낡은 느낌'은 전부 이 코드에서 나온다. 콘크리트 블록,
+//   벗겨진 페인트, 물자국, 아래에서 올라온 때 — 색만 칠한 상자와 이것의
+//   차이가 곧 퀄리티 차이다.
+//   그런데 이게 App.jsx 안에만 있어서 기차 안은 민무늬 상자로 남아 있었다.
+//   두 씬이 **같은 질감**을 써야 한 세계로 보이므로 공용으로 옮긴다.
+//   ※ 코드는 한 글자도 안 바꿨다. 역의 결과물은 그대로다.
+
+// 저사양 모드(?q=low) — App.jsx 와 같은 규칙으로 주소에서 직접 읽는다.
+//   텍스처 해상도를 절반으로 떨어뜨려 내장 GPU의 메모리를 아낀다.
+const 저사양 = (() => {
+  try {
+    return new URLSearchParams(location.search).get("q") === "low";
+  } catch {
+    return false; // 브라우저가 아닌 환경(빌드 중 등)에서는 일반 모드
+  }
+})();
+
+const 텍스처배율 = 저사양 ? 0.5 : 1;
+
+function makeCanvasTexture(size, draw) {
+  const c = document.createElement("canvas");
+  // 너무 작아지면 무늬가 뭉개지므로 128px 아래로는 안 내려간다
+  const 실제 = Math.max(128, Math.round(size * 텍스처배율));
+  c.width = c.height = 실제;
+  draw(c.getContext("2d", { willReadFrequently: true }), 실제);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+// ===== 캔버스 질감 =====
+// 코드로 그린 텍스처는 색이 너무 고르게 깔려 '인쇄물' 처럼 보인다.
+//   → 넓고 옅은 얼룩(손때·물자국) + 미세한 점(종이 결)을 덧칠해 낡은 느낌을 준다.
+//   세기 0이면 아무것도 하지 않는다. 정사각형이 아니어도 되고, 이어붙지 않는다.
+function 질감얹기(g, w, h, seed, 세기 = 1) {
+  if (세기 <= 0) return;
+  const rnd = makeRandom((seed | 0) * 977 + 13);
+  const R = Math.max(w, h);
+
+  // ① 넓고 옅은 얼룩 — 손때·물자국. 진하게 하면 지저분해지니 아주 옅게.
+  const n = 5 + ((rnd() * 4) | 0);
+  for (let i = 0; i < n; i++) {
+    const x = rnd() * w,
+      y = rnd() * h,
+      r = R * (0.12 + rnd() * 0.3);
+    const 어둡게 = rnd() < 0.72;
+    const grd = g.createRadialGradient(x, y, 0, x, y, r);
+    const a = (어둡게 ? 0.06 : 0.05) * 세기;
+    grd.addColorStop(
+      0,
+      어둡게 ? `rgba(90,80,66,${a})` : `rgba(255,255,255,${a})`,
+    );
+    grd.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = grd;
+    g.fillRect(0, 0, w, h);
+  }
+
+  // ② 미세한 점 — 종이 섬유. 흰 점·검은 점을 섞어야 '결'로 보인다.
+  const 점수 = ((w * h) / 170) | 0;
+  g.globalAlpha = 0.05 * 세기;
+  for (let i = 0; i < 점수; i++) {
+    g.fillStyle = rnd() < 0.5 ? "#000" : "#fff";
+    g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 1, 1);
+  }
+  g.globalAlpha = 1;
+}
+
+// ===== 콘크리트 벽·바닥 (전부 코드로 그린다) =====
+// 참고: 작은 블록을 반 장씩 어긋나게 쌓은 벽 + 큰 판으로 나뉜 민바닥 콘크리트.
+// ★ 텍스처에는 '밝기 무늬'만 그린다(대략 0.78~1.0).
+//   실제 색은 재질의 color가 정하고 명암은 실시간 조명이 만든다.
+//   그래서 참고 사진처럼 밝게 그려도 방 분위기는 지금 그대로 어둡게 남는다.
+
+const 블록W = 0.66, // 블록 한 장 ≈ 20cm (1유닛 ≈ 30cm)
+  블록H = 0.33; // ≈ 10cm
+const 벽칸_가로 = 8, // 텍스처 한 장에 들어가는 블록 수
+  벽칸_세로 = 16;
+const WALL_TEX_W = 블록W * 벽칸_가로; // 텍스처 한 장이 덮는 실제 가로(5.28)
+const WALL_TEX_H = 블록H * 벽칸_세로; // 〃 세로(5.28 — 캔버스가 정사각이라 같게 맞췄다)
+const FLOOR_TEX = 6; // 바닥 판 한 칸 = 6유닛(≈1.8m)
+
+const 회 = (v) => `rgb(${v | 0},${v | 0},${v | 0})`;
+
+// 원형 얼룩 하나. 텍스처가 이어 붙어도 티가 안 나도록 상하좌우로 감아 가며 찍는다.
+function 둥근얼룩(g, S, x, y, r, rgb, a) {
+  for (const dx of [-S, 0, S])
+    for (const dy of [-S, 0, S]) {
+      const cx = x + dx,
+        cy = y + dy;
+      if (cx < -r || cx > S + r || cy < -r || cy > S + r) continue;
+      const grd = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+      grd.addColorStop(0, `rgba(${rgb},${a})`);
+      grd.addColorStop(1, `rgba(${rgb},0)`);
+      g.fillStyle = grd;
+      g.beginPath();
+      g.arc(cx, cy, r, 0, 6.2832);
+      g.fill();
+    }
+}
+
+// ── 콘크리트 블록 벽 ─────────────────────────────────────────
+const 벽텍캐시 = new Map();
+// 옵션을 주면 천장에도 그대로 쓸 수 있게 일반화했다.
+//   기본값은 지금 벽과 완전히 같다 — 벽 결과는 하나도 안 바뀐다.
+//   칸가로·칸세로 = 텍스처 한 장에 들어가는 블록 수
+//   엇갈림 = 한 줄씩 어긋나는 정도(0.5=막쌓기 / 0=격자로 반듯하게)
+//   흘러내림 = 물자국을 세로로 흘릴지(벽) 둥글게 번지게 할지(천장)
+//   아래때 = 아래쪽이 더 더러워지는 그라디언트(천장에는 위아래가 없다)
+function 벽텍스처(seed, 낡음 = 0.7, opt = {}) {
+  const {
+    칸가로 = 벽칸_가로,
+    칸세로 = 벽칸_세로,
+    엇갈림 = 0.5,
+    흘러내림 = true,
+    아래때 = true,
+  } = opt;
+  const 캐시키 = `${seed}|${낡음}|${칸가로}|${칸세로}|${엇갈림}|${흘러내림}|${아래때}`;
+  if (벽텍캐시.has(캐시키)) return 벽텍캐시.get(캐시키);
+  const t = makeCanvasTexture(1024, (g, S) => {
+    const rnd = makeRandom(seed);
+    const bw = S / 칸가로,
+      bh = S / 칸세로;
+    const J = 4; // 줄눈(모르타르) 두께 px ≈ 1cm
+
+    g.fillStyle = 회(196); // 줄눈 바탕 — 블록보다 어둡다
+    g.fillRect(0, 0, S, S);
+
+    for (let r = 0; r < 칸세로; r++) {
+      const off = (r % 2) * bw * 엇갈림; // 한 줄씩 어긋나게(막쌓기)
+      for (let c = -1; c < 칸가로; c++) {
+        let v = 240 + (rnd() - 0.5) * 11; // 블록마다 톤이 조금씩 다르다(16→11로 완화)
+        const 뽑기 = rnd();
+        if (뽑기 < 0.07)
+          v -= 11; // 가끔 유난히 때 탄 블록(16→11)
+        else if (뽑기 > 0.93) v += 8; // 가끔 유난히 밝은 블록
+        g.fillStyle = 회(v);
+        const x = c * bw + off;
+        // 캔버스 밖으로 나가는 블록은 반대쪽에도 그려야 이어진다
+        for (const dx of [0, S])
+          g.fillRect(x + dx + J / 2, r * bh + J / 2, bw - J, bh - J);
+      }
+    }
+
+    // 넓고 옅은 얼룩 — 콘크리트 특유의 얼룩덜룩함
+    for (let i = 0; i < 24; i++)
+      둥근얼룩(
+        g,
+        S,
+        rnd() * S,
+        rnd() * S,
+        50 + rnd() * 150,
+        rnd() < 0.62 ? "58,58,58" : "255,255,255",
+        0.03 + rnd() * 0.05,
+      );
+
+    // 물 자국 — 벽은 아래로 흘러내리고, 천장은 둥글게 번진다
+    if (흘러내림) {
+      for (let i = 0; i < 7; i++) {
+        const x = rnd() * S,
+          w = 6 + rnd() * 26;
+        const y0 = rnd() * S * 0.45,
+          len = S * (0.25 + rnd() * 0.6);
+        const grd = g.createLinearGradient(0, y0, 0, y0 + len);
+        grd.addColorStop(0, "rgba(64,62,58,0)");
+        grd.addColorStop(0.3, `rgba(64,62,58,${0.05 + rnd() * 0.08})`);
+        grd.addColorStop(1, "rgba(64,62,58,0)");
+        g.fillStyle = grd;
+        for (const dx of [-S, 0]) g.fillRect(x + dx, y0, w, len);
+      }
+    } else {
+      // 스며들어 번진 자국 — 가운데는 옅고 가장자리에 테두리가 진하게 남는다
+      for (let i = 0; i < 6; i++) {
+        const x = rnd() * S,
+          y = rnd() * S,
+          R = 45 + rnd() * 130;
+        for (const dx of [-S, 0, S])
+          for (const dy of [-S, 0, S]) {
+            const grd = g.createRadialGradient(
+              x + dx,
+              y + dy,
+              R * 0.2,
+              x + dx,
+              y + dy,
+              R,
+            );
+            grd.addColorStop(0, "rgba(70,66,58,0.09)");
+            grd.addColorStop(0.75, "rgba(70,66,58,0.05)");
+            grd.addColorStop(1, "rgba(70,66,58,0)");
+            g.fillStyle = grd;
+            g.beginPath();
+            g.arc(x + dx, y + dy, R, 0, 6.2832);
+            g.fill();
+            g.strokeStyle = "rgba(66,62,54,0.1)";
+            g.lineWidth = 2.5;
+            g.beginPath();
+            g.arc(x + dx, y + dy, R * (0.72 + rnd() * 0.2), 0, 6.2832);
+            g.stroke();
+          }
+      }
+    }
+
+    // ── 낡음 레이어 ──────────────────────────────────────────
+    // 위 얼룩·물자국은 '더러움'이고, 아래 셋은 '세월'이다. 종류가 다르다.
+    if (낡음 > 0) {
+      const a = 낡음;
+
+      // (1) 페인트 벗겨짐 — 가장자리가 너덜너덜한 조각. 속은 더 어두운 바탕이 드러난다.
+      for (let i = 0; i < Math.round(9 * a); i++) {
+        const cx0 = rnd() * S,
+          cy0 = rnd() * S;
+        const R = 18 + rnd() * 46;
+        for (const dx of [-S, 0, S]) {
+          g.beginPath();
+          const n = 12;
+          for (let k = 0; k <= n; k++) {
+            const th = (k / n) * Math.PI * 2;
+            // 반지름을 크게 흔들어 매끈한 원이 아니라 '뜯어진' 모양으로
+            const rr = R * (0.55 + rnd() * 0.75);
+            const px = cx0 + dx + Math.cos(th) * rr,
+              py = cy0 + Math.sin(th) * rr * 0.8;
+            k ? g.lineTo(px, py) : g.moveTo(px, py);
+          }
+          g.closePath();
+          g.fillStyle = `rgba(120,114,104,${0.16 + rnd() * 0.14})`;
+          g.fill();
+        }
+      }
+
+      // (2) 실금 — 한 번에 곧게 가지 않고 마디마다 꺾이며 내려간다
+      for (let i = 0; i < Math.round(7 * a); i++) {
+        let px = rnd() * S,
+          py = rnd() * S;
+        const 방향 = (rnd() - 0.5) * 1.1 + Math.PI / 2; // 대체로 아래로
+        g.strokeStyle = `rgba(74,70,64,${0.22 + rnd() * 0.2})`;
+        g.lineWidth = 1 + rnd() * 1.2;
+        for (const dx of [-S, 0, S]) {
+          g.beginPath();
+          g.moveTo(px + dx, py);
+          let qx = px + dx,
+            qy = py;
+          const 마디 = 5 + ((rnd() * 5) | 0);
+          for (let k = 0; k < 마디; k++) {
+            const L = 14 + rnd() * 40;
+            const th = 방향 + (rnd() - 0.5) * 0.9;
+            qx += Math.cos(th) * L;
+            qy += Math.sin(th) * L;
+            g.lineTo(qx, qy);
+          }
+          g.stroke();
+        }
+      }
+
+      // (3) 바닥에서 올라온 때 — 아래로 갈수록 짙어진다(습기가 아래부터 먹는다)
+      if (아래때) {
+        const 아래 = g.createLinearGradient(0, S * 0.55, 0, S);
+        아래.addColorStop(0, "rgba(58,54,48,0)");
+        아래.addColorStop(1, `rgba(58,54,48,${0.1 * a})`);
+        g.fillStyle = 아래;
+        g.fillRect(0, S * 0.55, S, S * 0.45);
+      }
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  벽텍캐시.set(캐시키, t);
+  return t;
+}
+
+// ── 민바닥 콘크리트 ──────────────────────────────────────────
+const 바닥텍캐시 = new Map();
+function 바닥텍스처(seed) {
+  if (바닥텍캐시.has(seed)) return 바닥텍캐시.get(seed);
+  const t = makeCanvasTexture(1024, (g, S) => {
+    const rnd = makeRandom(seed + 5100);
+    g.fillStyle = 회(242);
+    g.fillRect(0, 0, S, S);
+
+    // 미장 자국 — 크고 옅은 얼룩을 겹쳐 얼룩덜룩하게
+    for (let i = 0; i < 64; i++)
+      둥근얼룩(
+        g,
+        S,
+        rnd() * S,
+        rnd() * S,
+        40 + rnd() * 210,
+        rnd() < 0.55 ? "70,68,64" : "255,255,255",
+        0.02 + rnd() * 0.045,
+      );
+
+    // 자잘한 기포·찍힌 자국
+    g.fillStyle = "rgba(96,94,90,0.30)";
+    for (let i = 0; i < 290; i++) {
+      const x = rnd() * S,
+        y = rnd() * S,
+        r = 0.8 + rnd() * 2.2;
+      g.beginPath();
+      g.arc(x, y, r, 0, 6.2832);
+      g.fill();
+    }
+    // 조금 더 큰 자국
+    for (let i = 0; i < 44; i++)
+      둥근얼룩(g, S, rnd() * S, rnd() * S, 4 + rnd() * 8, "80,78,74", 0.14);
+
+    // 판 경계 줄눈 — 텍스처 테두리에 그으면 텍스처 한 장이 곧 '판 한 칸'이 된다
+    둥근얼룩(g, S, 0, S / 2, 26, "90,88,84", 0.06); // 줄눈 옆 살짝 어두운 띠
+    둥근얼룩(g, S, S / 2, 0, 26, "90,88,84", 0.06);
+    g.strokeStyle = "rgba(126,124,120,0.55)";
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(0, 1.5);
+    g.lineTo(S, 1.5);
+    g.moveTo(1.5, 0);
+    g.lineTo(1.5, S);
+    g.stroke();
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  바닥텍캐시.set(seed, t);
+  return t;
+}
+
+// ===== 천장 — 벽과 같은 블록 텍스처를 크고 반듯하게 =====
+// 벽과 완전히 같은 그리기 코드를 쓴다(얼룩·페인트 벗겨짐·실금까지).
+//   다만 천장은 ① 칸이 크고 ② 줄이 어긋나지 않고(격자) ③ 물자국이 번지고
+//   ④ '아래로 갈수록 때' 가 없다. 그래서 벽과 한 몸처럼 보이면서도 천장으로 읽힌다.
+const CEIL_TEX = 8; // 텍스처 한 장이 덮는 실제 크기(유닛) → 칸 하나 2유닛 ≈ 0.6m
+function 천장텍스처(seed, 낡음 = 0.7) {
+  return 벽텍스처(seed + 4400, 낡음, {
+    칸가로: 4,
+    칸세로: 4,
+    엇갈림: 0,
+    흘러내림: false,
+    아래때: false,
+  });
+}
+
 export {
+  텍스처배율,
+  makeCanvasTexture,
+  질감얹기,
+  블록W,
+  블록H,
+  벽칸_가로,
+  벽칸_세로,
+  WALL_TEX_W,
+  WALL_TEX_H,
+  FLOOR_TEX,
+  회,
+  둥근얼룩,
+  벽텍스처,
+  바닥텍스처,
+  CEIL_TEX,
+  천장텍스처,
   makeToonGradient,
   TOON_GRADIENT,
   OUTLINE_THICK,
