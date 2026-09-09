@@ -63,6 +63,11 @@ export function 계기판({ 보고 }) {
       <div style={{ ...S.줄, color: 완주 ? "#8FE3B0" : "#9AA3B4" }}>
         고리 {완주 ? "완주" : v.방문.join(" → ") || "—"}
       </div>
+      {/* 씬이 끝나 차단물이 치워졌을 때 무슨 일이 벌어졌는지 알려 준다.
+          Shift+숫자(개발용)로 부른다 — §4 차단물의 `치움` 참고. */}
+      {v.연출 ? (
+        <div style={{ ...S.줄, color: "#FFD166" }}>연출 {v.연출}</div>
+      ) : null}
       <div style={S.구분} />
       <table style={S.표}>
         <tbody>

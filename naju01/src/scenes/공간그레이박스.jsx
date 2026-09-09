@@ -13,7 +13,7 @@
 //   ④ 고리 1바퀴 75.1 m 가 도면 계산과 실제 보행이 일치하는가 (§8)
 //   → 그래서 모양보다 **치수와 시야**가 맞는 것이 우선이다. 꾸미기는 통과 뒤.
 
-import { useMemo, useEffect, useRef, useState } from "react";
+import { useMemo, useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { useThree, useFrame } from "@react-three/fiber";
 import { PointerLockControls, Outlines, Html } from "@react-three/drei";
@@ -83,6 +83,7 @@ import { 바위읽기, 바위파일목록 } from "../바위에셋.js";
 import { 강면만들기, 물가만들기, 건너편만들기 } from "../강.js";
 import { 길만들기, 길가돌자리들, 통로결 } from "../통로.js";
 import { use지형이동, 이동상수 } from "../use지형이동.js";
+import { 연출만들기, 무너짐변환 } from "../연출.js";
 
 // §9 「아직 확정되지 않은 값」을 Leva 손잡이로 바꾼다.
 // 범위·기본값은 공간도면.js 의 `조절범위` 한 곳에서만 온다.
@@ -624,7 +625,12 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
         코드: b.코드,
         이름: b.이름,
         역할: b.역할,
+        치움: b.치움 ?? null, // 어느 씬이 끝나면 치우나(도면 §4 주석 참고)
         머리: 골 ? 능선마루((b.X[0] + b.X[1]) / 2) + b.높이 : 머리,
+        // ※ 무너뜨릴 때 **얼마나 내려야 사라지는가**. `높이` 를 쓰면 안 된다 —
+        //   골에 선 것(B2·수목대)은 발이 0 인데 머리가 18 m 라, 도면의
+        //   `높이: 4.0` 만큼만 내리면 14 m 가 그대로 남는다.
+        실제키: (골 ? 능선마루((b.X[0] + b.X[1]) / 2) + b.높이 : 머리) - 발,
         중심: [(b.X[0] + b.X[1]) / 2, (b.Z[0] + b.Z[1]) / 2],
         // 수목대는 '능선 바위 + 그 위의 나무', 나머지는 통짜 바위 덩이
         바위: 바위(b.X, b.Z, 발, 머리),
@@ -1228,6 +1234,51 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     );
   }, [scene, T.구운지형]);
 
+  // ── 씬이 끝나면 차단물을 치운다 (§4) ─────────────────────
+  // [왜 여기 있나]
+  //   §4 의 차단물은 「그 씬 동안」 가리라는 규칙이다. 씬이 끝나면 치워서
+  //   다음 길목을 열어 주는 편이 규칙에도 맞고, 「길이 막힌 것처럼 보인다」도
+  //   같이 풀린다(T3 들머리 — README 참고).
+  //   ※ 씬 진행 장치는 **아직 없다.** 지금은 개발용 손잡이와
+  //     `window.__NAJU.씬끝(번호)` 가 부른다. 진짜 씬 장치가 생기면
+  //     그쪽에서 같은 함수를 부르면 된다 — 여기는 안 고쳐도 된다.
+  const [치운차단물, 치운차단물설정] = useState(() => new Set());
+  const 연출참조 = useRef(null);
+  //   `보고.current` 는 걷기 훅이 매 프레임 새 객체로 갈아끼운다.
+  //   그래서 알림을 거기 바로 쓰면 다음 프레임에 지워진다 — ref 에 들고
+  //   매 프레임 다시 실어 준다.
+  const 연출알림참조 = useRef("");
+  const [무너짐, 무너짐설정] = useState(null); // { 코드, 진행 }
+
+  // 지형이 다시 만들어져도(레바를 돌리면 그렇다) 치운 상태는 유지한다.
+  //   판정 쪽 `치운것` 은 지형과 함께 새로 생기므로 여기서 다시 채운다.
+  useEffect(() => {
+    if (!지형?.치운것) return;
+    지형.치운것.clear();
+    for (const 코드 of 치운차단물) 지형.치운것.add(코드);
+  }, [지형, 치운차단물]);
+
+  const 씬끝 = useCallback(
+    (씬번호) => {
+      if (연출참조.current && !연출참조.current.끝났나) return "연출 중이다";
+      const 대상 = 차단물조형?.덩이들?.find(
+        (b) => b.치움?.씬 === 씬번호 && !치운차단물.has(b.코드),
+      );
+      if (!대상) return `씬 ${씬번호} 에 치울 차단물이 없다`;
+      연출참조.current = 연출만들기({
+        차단물: 대상,
+        볼곳: 대상.치움.볼곳,
+        말: 대상.치움.말,
+        지면높이: (x, z) => 땅?.지표?.높이(x, z) ?? 0,
+        치우기: () => 치운차단물설정((s) => new Set(s).add(대상.코드)),
+        알림: (글) => { 연출알림참조.current = 글; },
+      });
+      무너짐설정({ 코드: 대상.코드, 진행: 0 });
+      return `${대상.코드} ${대상.이름} 치우는 중`;
+    },
+    [차단물조형, 치운차단물, 땅],
+  );
+
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     // ※ `지형GLB` — Meshy 에 넘길 지형 한 덩이를 뽑는 손잡이.
@@ -1235,6 +1286,16 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     window.__NAJU = {
       camera, gl, scene, 지형, 설정: T, 텔레포트, THREE,
       지형GLB: (선택) => 지형GLB(scene, 선택, gl),
+      // 씬이 끝났음을 알린다 → 그 씬이 치우기로 한 차단물이 무너진다.
+      //   진짜 씬 진행 장치가 생기면 그쪽에서 이걸 부르면 된다.
+      씬끝,
+      치운차단물: () => [...치운차단물],
+      연출단계: () =>
+        연출참조.current
+          ? 연출참조.current.끝났나
+            ? "끝"
+            : 연출참조.current.단계()
+          : "없음",
       // 세계 사각형 → 아틀라스 사각형 (구역별 굽기에서 도구가 쓴다)
       바닥칸사각형,
       구역목록: () =>
@@ -1247,12 +1308,22 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
       // 구운 텍스처 A/B — 도구가 Leva 를 안 거치고 바로 껐다 켠다
       구운지형: (켬) => 구운지형입히기(scene, 켬),
     };
-  }, [camera, gl, scene, 지형, T, 텔레포트]);
+  }, [camera, gl, scene, 지형, T, 텔레포트, 씬끝, 치운차단물]);
 
   // ※ 이 useFrame 은 **반드시 use지형이동 뒤에** 등록돼야 한다.
   //   그 훅이 매 프레임 `보고.current` 를 새 객체로 갈아끼우기 때문에,
   //   먼저 등록되면 여기서 쓴 값이 곧바로 지워진다(계기판에 0 만 찍혔다).
-  useFrame((상태) => {
+  useFrame((상태, dt) => {
+    // ── 차단물 무너뜨리기 연출 ──
+    //   `틱` 이 카메라를 직접 돌린다(돌아보기 단계). 걷기 훅보다 뒤에서
+    //   돌아야 이번 프레임 값이 안 지워진다 — 아래 주석과 같은 이유다.
+    const 연 = 연출참조.current;
+    if (연 && !연.끝났나) {
+      연.틱(Math.min(0.05, dt), camera); // 창을 되살릴 때 dt 가 튀면 한 번에 끝나 버린다
+      무너짐설정((v) =>
+        v && v.코드 === 연.코드 && v.진행 === 연.진행 ? v : { 코드: 연.코드, 진행: 연.진행 },
+      );
+    }
     // 하늘돔은 카메라를 따라다녀야 한다. 고정하면 무대 끝에서 하늘이 잘린다.
     if (하늘참조.current) 하늘참조.current.position.copy(camera.position);
     // 구름도 따라다닌다 — 고정하면 80 m 무대를 걷는데 구름이 휙휙 지나가
@@ -1261,6 +1332,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     // 물결 — 움직여야 물로 읽힌다. 멈춘 물은 그냥 파란 바닥이다.
     if (강조형) 강조형.수면.갱신(상태.clock.elapsedTime * T.물결속도);
     if (보고.current) {
+      보고.current.연출 = 연출알림참조.current;
       보고.current.삼각형 = gl.info.render.triangles;
       보고.current.드로우콜 = gl.info.render.calls;
     }
@@ -1268,16 +1340,25 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   });
 
   // 개발용 — 숫자키로 V1·V2·V3 에 선다(§4 시야 검증용. 게임 기능이 아니다)
+  //   Shift+숫자 = 「그 번호의 씬이 끝났다」 → 그 씬이 치우기로 한 차단물이
+  //   무너진다. 진짜 씬 진행 장치가 생기면 그쪽이 `씬끝()` 을 부르면 되고,
+  //   이 키는 그때 지워도 된다.
+  //   ※ `e.code` 를 쓴다 — 한글 IME 에서 `e.key` 는 못 믿는다(편집기.jsx 참고).
   useEffect(() => {
     const on = (e) => {
-      const i = { Digit1: 0, Digit2: 1, Digit3: 2 }[e.code];
-      if (i === undefined || !텔레포트.current) return;
+      const i = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4 }[e.code];
+      if (i === undefined) return;
+      if (e.shiftKey) {
+        연출알림참조.current = 씬끝(i + 1);
+        return;
+      }
+      if (i > 2 || !텔레포트.current) return;
       const v = 시점[i];
       텔레포트.current(v.X, v.Z, v.방위);
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
-  }, [텔레포트]);
+  }, [텔레포트, 씬끝]);
 
   // ── 통로를 조각으로 펼친다 ──────────────────────────────
   const 통로조각 = useMemo(
@@ -1623,8 +1704,21 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
       ))}
 
       {차단물조형
-        ? 차단물조형.덩이들.map((b) => (
-            <group key={`차단-${b.코드}`}>
+        ? 차단물조형.덩이들.map((b) => {
+            // 다 치워진 것은 아예 안 그린다. 무너지는 중이면 가라앉힌다 —
+            // 판정(`지형.치운것`)은 무너짐이 끝나는 순간에만 열리므로
+            // 「보이는데 못 지나감 / 없는데 막힘」이 안 생긴다.
+            const 치워짐 = 치운차단물.has(b.코드);
+            const 진행 = 무너짐?.코드 === b.코드 ? 무너짐.진행 : 치워짐 ? 1 : 0;
+            if (치워짐 && 진행 >= 1) return null;
+            const v = 무너짐변환(진행, b.실제키 ?? 4);
+            return (
+            <group
+              key={`차단-${b.코드}`}
+              position={[0, v.내림, 0]}
+              scale={[1, v.눌림, 1]}
+              rotation={[v.기울기, 0, v.기울기 * 0.4]}
+            >
               <mesh name="b.바위" geometry={b.바위} receiveShadow castShadow>
                 <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 양면 />
               </mesh>
@@ -1639,7 +1733,8 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
                 </라벨>
               )}
             </group>
-          ))
+            );
+          })
         : 차단물.map((b) => {
             const w = b.X[1] - b.X[0];
             const d = b.Z[1] - b.Z[0];
