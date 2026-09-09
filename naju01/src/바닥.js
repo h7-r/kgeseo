@@ -269,6 +269,7 @@ export function 땅흩뿌림만들기({
   const 후보수 = Math.round(w * d * 최대밀도 * 밀도배율 * 1.6);
   const 조각 = [];
   const 자리 = [];
+  const 자리들 = [];
   const 색 = new THREE.Color();
   const 사원수 = new THREE.Quaternion();
   const 행렬 = new THREE.Matrix4();
@@ -309,6 +310,8 @@ export function 땅흩뿌림만들기({
       : r.알[0] + (r.알[1] - r.알[0]) * Math.pow(크기뽑기, 2.2);
     const 세로 = 크기 * (큰 ? Math.min(1, r.납작 + 0.28) : r.납작);
     const y = 지표.높이(x, z);
+    // 인스턴스로 심을 수 있게 자리도 같이 남긴다(편집기가 하나씩 고른다)
+    자리들.push({ x, y: y - 세로 * 0.18, z, 크기, 높이비: 세로 / 크기, 폭비: 폭비 });
     const g = 모양[모양번호].clone();
     사원수.setFromEuler(new THREE.Euler(회전[0], 회전[1], 회전[2]));
     배율.set(크기 * 미터, 세로 * 미터, 크기 * 폭비 * 미터);
@@ -324,10 +327,10 @@ export function 땅흩뿌림만들기({
   }
 
   모양.forEach((g) => g.dispose());
-  if (!조각.length) return { 지오: null, 자리 };
+  if (!조각.length) return { 지오: null, 자리, 자리들 };
   const 합본 = mergeGeometries(조각, false);
   조각.forEach((g) => g.dispose());
-  return { 지오: 합본, 자리 };
+  return { 지오: 합본, 자리, 자리들 };
 }
 
 // 돌 발치를 어둡게 칠할 때 쓰는 조회기 — 격자로 나눠 빠르게 찾는다
@@ -361,4 +364,28 @@ export function 접지그늘만들기(자리들) {
       }
     return 진하기 * 진하기;
   };
+}
+
+
+// ── 인스턴스용 돌 표본 ──────────────────────────────────────
+// [왜]
+//   `돌뿌리기`·`땅흩뿌림만들기` 는 돌마다 지오메트리를 만들어 **통째로 병합**한다.
+//   드로우콜은 싸지만 「저 바위 하나」를 고를 수가 없다 — 길 위에 얹힌 돌을
+//   치우려면 그 하나를 집을 수 있어야 한다(배치.js 머리말 참고).
+//   여기서 **지름 1 · 원점 중심** 짜리 표본을 몇 벌 만들어 두면, 자리·크기·회전은
+//   인스턴스가 갖는다.
+//
+//   ※ 나무와 달리 **밑동을 원점에 두지 않는다.** 돌은 반쯤 파묻히므로
+//     자리 좌표가 곧 돌의 **중심**이어야 기존 배치 규칙이 그대로 맞는다.
+export function 돌표본들(수 = 6, 시드 = 7301) {
+  const 난수 = makeRandom(시드);
+  const 표본 = [];
+  for (let i = 0; i < 수; i++) {
+    const g = 돌모양만들기(난수);
+    g.computeBoundingSphere();
+    const r = g.boundingSphere?.radius || 0.5;
+    g.scale(0.5 / r, 0.5 / r, 0.5 / r); // 지름 1 로 맞춘다
+    표본.push(g);
+  }
+  return 표본;
 }

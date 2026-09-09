@@ -279,14 +279,18 @@ export function 편집기({
   useEffect(() => {
     if (!켬) return;
     const 눌림 = async (ev) => {
+      // ★ `ev.key` 가 아니라 `ev.code`(물리 키)로 판단한다.
+      //   한글 IME 가 켜져 있으면 R 을 눌러도 `ev.key` 는 **"ㄱ"** 으로 온다.
+      //   그래서 「E 는 되는데 R·X 는 안 된다」가 나왔다 — E 토글만 code 를
+      //   쓰고 있었기 때문이다. 자판 배열·IME 와 무관하려면 code 여야 한다.
       if (ev.ctrlKey || ev.metaKey) {
-        if (ev.key.toLowerCase() === "s") {
+        if (ev.code === "KeyS") {
           ev.preventDefault();
           ev.stopPropagation(); // S(뒤로 걷기)로 새어 나가지 않게
           await 저장하기();
           return;
         }
-        if (ev.key.toLowerCase() === "z") {
+        if (ev.code === "KeyZ") {
           ev.preventDefault();
           const 이전 = 되돌리기통.current.pop();
           if (이전) {
@@ -298,13 +302,13 @@ export function 편집기({
       }
       // ── 복사 · 붙여넣기 ──────────────────────────────────
       //   생성기는 그대로 두고 **사람이 더한 것**을 편집 파일에 쌓는다(배치.js `더함`).
-      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "c") {
+      if ((ev.ctrlKey || ev.metaKey) && ev.code === "KeyC") {
         if (!고른것) return;
         복사판.current = { ...고른것 };
         알림설정(`복사함 — ${고른것.이름} #${고른것.번호} · Ctrl+V 로 붙이기`);
         return;
       }
-      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "v") {
+      if ((ev.ctrlKey || ev.metaKey) && ev.code === "KeyV") {
         const c = 복사판.current;
         if (!c) {
           알림설정("복사한 것이 없다 — 먼저 Ctrl+C");
@@ -337,30 +341,28 @@ export function 편집기({
         되돌리기통.current.push(편집);
         편집설정((e) => 고치기(e, 고른것.이름, 고른것.번호, 값));
       };
-      switch (ev.key) {
+      switch (ev.code) {
         case "Delete":
         case "Backspace":
-        case "x":
-        case "X":
+        case "KeyX":
           되돌리기통.current.push(편집);
           편집설정((e) => 지우기(e, 고른것.이름, 고른것.번호));
           고른것설정(null);
           알림설정("지움 · Ctrl+S 로 저장");
           break;
-        case "r":
-        case "R": {
+        case "KeyR": {
           const 다음 = (고른것.회전 ?? 0) + (ev.shiftKey ? -회전단위 : 회전단위);
           고른것설정((v) => ({ ...v, 회전: 다음 }));
           밀기({ 회전: 다음 });
           break;
         }
-        case "[": {
+        case "BracketLeft": {
           const 다음 = 고른것.키 * 0.9;
           고른것설정((v) => ({ ...v, 키: 다음 }));
           밀기({ 키: 다음 });
           break;
         }
-        case "]": {
+        case "BracketRight": {
           const 다음 = 고른것.키 * 1.1;
           고른것설정((v) => ({ ...v, 키: 다음 }));
           밀기({ 키: 다음 });
@@ -384,10 +386,10 @@ export function 편집기({
           앞.normalize();
           const 옆 = new THREE.Vector3().crossVectors(앞, camera.up).normalize();
           const d = new THREE.Vector3();
-          if (ev.key === "ArrowUp") d.copy(앞);
-          if (ev.key === "ArrowDown") d.copy(앞).negate();
-          if (ev.key === "ArrowRight") d.copy(옆);
-          if (ev.key === "ArrowLeft") d.copy(옆).negate();
+          if (ev.code === "ArrowUp") d.copy(앞);
+          if (ev.code === "ArrowDown") d.copy(앞).negate();
+          if (ev.code === "ArrowRight") d.copy(옆);
+          if (ev.code === "ArrowLeft") d.copy(옆).negate();
           const x = Math.min(코어.X[1] - 0.5, Math.max(코어.X[0] + 0.5, 고른것.x + d.x * 칸));
           const z = Math.min(코어.Z[1] - 0.5, Math.max(코어.Z[0] + 0.5, 고른것.z + d.z * 칸));
           const y = 지면높이 ? 지면높이(x, z) : 고른것.y;

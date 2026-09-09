@@ -357,3 +357,18 @@ export function 나룻배만들기({
   );
   return 합본;
 }
+
+
+// ── 인스턴스용 나룻배 표본 ─────────────────────────────────
+//   하나뿐인 물건도 **고르고 옮길 수 있어야** 한다(편집기). 그러려면
+//   무리(InstancedMesh)에 넣어야 하고, 표본은 **길이 1 · 원점 기준**이어야 한다.
+//   그래야 자리의 `키` 에 실제 길이(m)를 주면 그대로 맞는다.
+export function 나룻배표본(옵션 = {}) {
+  const g = 나룻배만들기({ ...옵션, x: 0, z: 0, 방향: 0, 물높이: 0, 잠김: 0 });
+  g.computeBoundingBox();
+  const b = g.boundingBox;
+  const 길이 = b.max.z - b.min.z || 1;
+  g.translate(-(b.max.x + b.min.x) / 2, 0, -(b.max.z + b.min.z) / 2);
+  g.scale(1 / 길이, 1 / 길이, 1 / 길이);
+  return g;
+}
