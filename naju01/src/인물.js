@@ -19,6 +19,8 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { 색입히기 } from "./바닥.js";
 import { 미터 } from "./공간도면.js";
+import { makeRandom } from "../../src/공용.jsx";
+import { 밑동원점으로 } from "./배치.js";
 
 // 인덱스를 풀어 둔다 — 다른 조각(정이십면체)과 합치려면 형식이 같아야 한다
 const 풀기 = (g) => {
@@ -122,4 +124,23 @@ export function 사람들만들기(목록) {
   const 합본 = mergeGeometries(조각, false);
   조각.forEach((g) => g.dispose());
   return 합본;
+}
+
+// ── 인스턴스용 사람 표본 ───────────────────────────────────
+//   `사람만들기` 는 자리·방향을 안에서 적용한다. 인스턴스로 심으려면
+//   **높이 1 · 밑동 원점**짜리 표본이 필요하다(배치.js 규약).
+//   옷·살 색을 조금씩 달리해 몇 벌 만들어 둔다 — 다 같으면 복제 티가 난다.
+export function 사람표본들(수 = 4, 시드 = 9101) {
+  const 난수 = makeRandom(시드);
+  const 옷표 = ["#8C8E96", "#7A8290", "#94897C", "#6F7A72"];
+  const 표본 = [];
+  for (let i = 0; i < 수; i++) {
+    const g = 사람만들기({
+      키: 1.7,
+      옷: 옷표[Math.floor(난수() * 옷표.length)],
+      살: "#C9B49A",
+    });
+    표본.push(밑동원점으로(g));
+  }
+  return 표본;
 }

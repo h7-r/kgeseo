@@ -23,6 +23,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { makeRandom } from "../../src/공용.jsx";
 import { 색입히기 } from "./바닥.js";
+import { 밑동원점으로 as 표본정규화 } from "./배치.js";
 import { 미터 } from "./공간도면.js";
 
 export const 수목결 = {
@@ -619,6 +620,36 @@ export function 덤불표본들(수 = 5, 시드 = 9003) {
     }
     표본.push(밑동원점으로(mergeGeometries(조각, false)));
     조각.forEach((g) => g.dispose());
+  }
+  return 표본;
+}
+
+// ── 인스턴스용 풀포기 표본 ─────────────────────────────────
+//   가는 잎 서넛이 한 포기. 밟고 지나가는 것이라 충돌은 없다.
+export function 풀표본들(수 = 5, 시드 = 9004) {
+  const 난수 = makeRandom(시드);
+  const 표본 = [];
+  const 밝 = new THREE.Color(수목결.잎밝음);
+  const 보통 = new THREE.Color(수목결.잎);
+  const 어 = new THREE.Color(수목결.잎어둠);
+  const 색 = new THREE.Color();
+  for (let n = 0; n < 수; n++) {
+    const 조각 = [];
+    const 잎수 = 3 + Math.floor(난수() * 3);
+    for (let k = 0; k < 잎수; k++) {
+      const 길 = 0.6 + 난수() * 0.5;
+      const g = new THREE.ConeGeometry(0.035, 길, 3).toNonIndexed();
+      g.deleteAttribute("uv");
+      g.rotateX((난수() - 0.5) * 0.55);
+      g.rotateZ((난수() - 0.5) * 0.55);
+      g.rotateY(난수() * Math.PI * 2);
+      g.translate((난수() - 0.5) * 0.12, 길 * 0.45, (난수() - 0.5) * 0.12);
+      색.copy(어).lerp(보통, 0.3 + 난수() * 0.5).lerp(밝, 난수() * 0.3);
+      조각.push(색입히기(g, 색));
+    }
+    const 합 = mergeGeometries(조각, false);
+    조각.forEach((g) => g.dispose());
+    표본.push(표본정규화(합));
   }
   return 표본;
 }

@@ -30,6 +30,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 import { 미터, 유닛, 코어 } from "./공간도면.js";
+import { 에셋목록, 갈래목록, 에셋찾기 } from "./에셋목록.js";
 import {
   지우기,
   고치기,
@@ -58,6 +59,10 @@ export function 편집기({
   const 편집참조 = useRef(편집);
   편집참조.current = 편집;
   const 복사판 = useRef(null); // Ctrl+C 로 담아 둔 것
+  // 붓 — 팔레트에서 고른 물건. 이게 있으면 클릭이 「고르기」가 아니라 「놓기」다.
+  const [붓, 붓설정] = useState(null);
+  const 붓참조 = useRef(null);
+  붓참조.current = 붓;
   // 저장 상태 — 「먹힌 건지 안 먹힌 건지」가 안 보여서 만든 것
   const [저장됨, 저장됨설정] = useState(""); // 마지막으로 저장한 편집의 지문
   const [저장중, 저장중설정] = useState(false);
@@ -201,6 +206,28 @@ export function 편집기({
         return;
       }
       if (ev.button !== 0) return;
+      // ── 붓이 들려 있으면 그 자리에 **놓는다** ──
+      //   팔레트에서 고른 물건을 클릭한 자리에 심는다. 여러 개를 이어 놓을 수
+      //   있게 붓은 그대로 들고 있는다(ESC 로 내려놓는다).
+      const 붓것 = 붓참조.current;
+      if (붓것) {
+        const 자리 = 땅자리(ev, 0);
+        if (!자리) return;
+        const [x, z] = 자리;
+        const y = 지면높이참조.current ? 지면높이참조.current(x, z) : 0;
+        const 정의 = 에셋찾기(붓것);
+        되돌리기통.current.push(편집참조.current);
+        const { 편집: 다음, 번호 } = 더하기(편집참조.current, 붓것, {
+          x,
+          y: y - (정의?.중심원점 ? -(정의.기본키 ?? 1) * 0.3 : 0),
+          z,
+          키: 정의?.기본키 ?? 1,
+          회전: Math.random() * Math.PI * 2,
+        });
+        편집설정(다음);
+        알림설정(`${정의?.이름 ?? 붓것} 놓음 #${번호} · Ctrl+S 로 저장`);
+        return;
+      }
       const 찾음 = 집기(ev);
       if (찾음) {
         고른것설정(찾음);
@@ -399,6 +426,11 @@ export function 편집기({
           break;
         }
         case "Escape":
+          if (붓참조.current) {
+            붓설정(null);
+            알림설정("붓 내려놓음");
+            break;
+          }
           고른것설정(null);
           고른것참조.current = null;
           알림설정("");
@@ -470,6 +502,8 @@ export function 편집기({
         </group>
       )}
       <편집안내
+        붓={붓}
+        붓설정={붓설정}
         알림={알림}
         고른것={고른것}
         안한변경={안한변경}
@@ -496,10 +530,16 @@ export function 편집기({
 //   `<div>`·`<button>` 을 three 객체로 해석해 터진다
 //   ("R3F: B is not part of the THREE namespace" — 실제로 그랬다).
 //   react-dom 의 createPortal 도 같은 이유로 안 통한다. 그래서 DOM 을 직접 만든다.
-function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 저장하기 }) {
+function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 저장하기, 붓, 붓설정 }) {
+  // 팔레트는 **접어 둔다.** 펼치면 화면을 크게 가려서, 정작 놓을 자리가 안 보인다.
+  const [펼침, 펼침설정] = useState(false);
+  const 펼침참조 = useRef(펼침);
+  펼침참조.current = 펼침;
   const 판참조 = useRef(null);
   const 저장참조 = useRef(저장하기);
   저장참조.current = 저장하기;
+  const 붓설정참조 = useRef(붓설정);
+  붓설정참조.current = 붓설정;
 
   // 판은 한 번만 만든다
   useEffect(() => {
@@ -509,12 +549,22 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
       "position:fixed;left:12px;bottom:12px;z-index:60;pointer-events:none;" +
       "font:12px/1.6 ui-monospace,monospace;color:#E8EAF0;" +
       "background:rgba(16,20,28,.86);padding:10px 12px;border-radius:8px;" +
-      "border:1px solid rgba(255,209,102,.35);max-width:min(52ch,64vw)";
+      "border:1px solid rgba(255,209,102,.35);max-width:min(60ch,70vw);" +
+      "max-height:70vh;overflow:auto";
     document.body.appendChild(판);
     판참조.current = 판;
     const 누름 = (e) => {
       const b = e.target.closest("#naju-저장버튼");
-      if (b) 저장참조.current?.();
+      if (b) {
+        저장참조.current?.();
+        return;
+      }
+      if (e.target.closest("#naju-팔레트접기")) {
+        펼침설정((v) => !v);
+        return;
+      }
+      const p = e.target.closest("[data-에셋]");
+      if (p) 붓설정참조.current?.(p.getAttribute("data-에셋"));
     };
     판.addEventListener("click", 누름);
     return () => {
@@ -546,6 +596,44 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
             : "변경 없음";
     const 각 =
       ((((((고른것?.회전 ?? 0) * 180) / Math.PI) % 360) + 360) % 360) | 0;
+    // ── 팔레트 ──
+    //   갈래별로 묶어 보여 준다. 누르면 그게 **붓**이 되고, 화면을 클릭하면 놓인다.
+    const 붓이름 = 붓 ? (에셋찾기(붓)?.이름 ?? 붓) : null;
+    const 팔레트 =
+      '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.14)">' +
+      '<button id="naju-팔레트접기" type="button" style="pointer-events:auto;cursor:pointer;' +
+      "font:inherit;color:#E8EAF0;background:rgba(255,255,255,.08);border:1px solid " +
+      'rgba(255,255,255,.2);border-radius:5px;padding:3px 9px">' +
+      `${펼침 ? "▾" : "▸"} 놓을 것</button>` +
+      (붓이름
+        ? ` <span style="color:#FFD166">붓: ${붓이름}</span>` +
+          '<span style="opacity:.6"> — 화면을 클릭해 놓는다 · ESC 로 내려놓기</span>'
+        : '<span style="opacity:.6"> — 눌러서 고른다</span>') +
+      (!펼침
+        ? "</div>"
+        : 갈래목록
+        .map((갈래) => {
+          const 것들 = 에셋목록
+            .filter((v) => v.갈래 === 갈래)
+            .map((v) => {
+              const 켜짐 = 붓 === v.키;
+              return (
+                `<button type="button" data-에셋="${v.키}" ` +
+                'style="pointer-events:auto;cursor:pointer;font:inherit;' +
+                `border:1px solid ${켜짐 ? "#FFD166" : "rgba(255,255,255,.22)"};` +
+                `background:${켜짐 ? "#FFD166" : "rgba(255,255,255,.06)"};` +
+                `color:${켜짐 ? "#12161F" : "#E8EAF0"};` +
+                'border-radius:5px;padding:2px 7px;margin:2px 3px 0 0">' +
+                `${v.이름}</button>`
+              );
+            })
+            .join("");
+          return (
+            `<div style="margin-top:4px"><span style="opacity:.55">${갈래}</span><br>${것들}</div>`
+          );
+        })
+          .join("") + "</div>");
+
     판.innerHTML =
       '<b style="color:#FFD166">편집 모드</b>' +
       '<span style="opacity:.75"> · 클릭·드래그 고르고 옮기기 · 우클릭 드래그 시점 · WASD 걷기</span><br>' +
@@ -568,8 +656,9 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
       (붙었나 === false
         ? '<div style="margin-top:4px;color:#FF8A80">개발 서버에 저장 기능이 없다 — ' +
           "<b>npx vite naju01</b> 을 다시 띄워라</div>"
-        : "");
-  }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나]);
+        : "") +
+      팔레트;
+  }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 붓]);
 
   return null;
 }
