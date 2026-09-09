@@ -12,6 +12,8 @@ import path from "node:path";
 //   빌드:  npx vite build naju01
 const 뿌리 = fileURLToPath(new URL("..", import.meta.url));
 const 편집파일 = fileURLToPath(new URL("./에셋/편집.json", import.meta.url));
+const 백업방 = fileURLToPath(new URL("./에셋/편집-백업/", import.meta.url));
+const 백업최대 = 40;
 
 // ── 편집 저장 (개발 서버 전용) ─────────────────────────────
 // [왜 필요한가]
@@ -23,6 +25,34 @@ const 편집파일 = fileURLToPath(new URL("./에셋/편집.json", import.meta.u
 // [왜 여기(naju01 전용 설정)에 두나]
 //   저장소 뿌리의 vite.config.js 는 **본편 것**이라 건드리지 않는다.
 //   이 플러그인은 naju01 개발 서버에만 붙는다.
+// ── 덮어쓰기 전에 한 벌 남긴다 ─────────────────────────────
+// [왜]
+//   이 파일은 **손으로 놓은 것 전부**다 — 다시 만들 수가 없다. 생성기 결과와
+//   달리 시드로 되살릴 방법이 없다. 그런데 저장은 그냥 덮어쓰기라, 헤드리스
+//   시험이든 실수든 한 번만 잘못 덮으면 그날 작업이 통째로 사라진다.
+//   (실제로 그렇게 잃었다. 그래서 넣는다.)
+//   덮어쓸 내용이 지금 것과 같으면 안 남긴다 — 백업이 같은 파일로 가득 찬다.
+async function 덮기전에백업(새글) {
+  let 옛글;
+  try {
+    옛글 = await fs.readFile(편집파일, "utf8");
+  } catch {
+    return; // 원래 없던 파일이면 잃을 것도 없다
+  }
+  if (옛글 === 새글) return;
+  await fs.mkdir(백업방, { recursive: true });
+  const 때 = new Date();
+  const 두자리 = (n) => String(n).padStart(2, "0");
+  const 이름 =
+    `편집-${때.getFullYear()}${두자리(때.getMonth() + 1)}${두자리(때.getDate())}` +
+    `-${두자리(때.getHours())}${두자리(때.getMinutes())}${두자리(때.getSeconds())}.json`;
+  await fs.writeFile(path.join(백업방, 이름), 옛글);
+  // 오래된 것부터 지워 개수를 묶어 둔다
+  const 목록 = (await fs.readdir(백업방)).filter((v) => v.endsWith(".json")).sort();
+  for (const v of 목록.slice(0, Math.max(0, 목록.length - 백업최대)))
+    await fs.rm(path.join(백업방, v), { force: true });
+}
+
 function 편집저장() {
   return {
     name: "naju01-편집저장",
@@ -52,6 +82,7 @@ function 편집저장() {
             const 글 = Buffer.concat(조각).toString("utf8");
             JSON.parse(글); // 깨진 JSON 을 파일에 남기지 않는다
             await fs.mkdir(path.dirname(편집파일), { recursive: true });
+            await 덮기전에백업(글);
             await fs.writeFile(편집파일, 글);
             res.statusCode = 200;
             res.end("ok");
