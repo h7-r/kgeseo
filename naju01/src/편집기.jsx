@@ -8,9 +8,12 @@
 //   싸운 버그가 그것이라, 편집으로 되살릴 이유가 없다.
 //
 // [조작]
-//   클릭        고르기 (빈 곳 클릭 = 고르기 해제)
-//   방향키       미세 이동 (0.25 m · Shift 를 누르면 1 m). 화면에서 본 방향 기준
-//   G           마우스 이동 — 커서를 따라 붙어 다닌다. 다시 클릭해 확정
+//   클릭         고르기 (빈 곳 클릭 = 해제)
+//   왼쪽 드래그   고른 것을 끌어 옮기기 (4 px 넘게 움직이면 시작)
+//   오른쪽 드래그 시점 돌리기 — 편집 중에도 둘러볼 수 있어야 한다
+//   WASD         걸어 다니기 (편집 중에도 이동은 살아 있다)
+//   방향키        미세 이동 (0.25 m · Shift 를 누르면 1 m). 화면에서 본 방향 기준
+//   Ctrl+C / V   복사 · 붙여넣기
 //   R / Shift+R 회전 (누를 때마다 15°)
 //   [ / ]       크기 −10 % / +10 %
 //   Delete/X    지우기
@@ -27,7 +30,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 import { 미터, 유닛, 코어 } from "./공간도면.js";
-import { 지우기, 고치기, 편집쓰기 } from "./배치.js";
+import { 지우기, 고치기, 더하기, 편집쓰기 } from "./배치.js";
 
 const 회전단위 = Math.PI / 12; // 15°
 // 이동할 때 '땅'으로 쳐 주는 메시 이름
@@ -43,9 +46,11 @@ export function 편집기({
 }) {
   const { camera, scene, gl } = useThree();
   const [고른것, 고른것설정] = useState(null); // { 이름, 번호, 자리:{x,y,z}, 키 }
-  const [끌기중, 끌기중설정] = useState(false);
   const [알림, 알림설정] = useState("");
   const 되돌리기통 = useRef([]);
+  const 편집참조 = useRef(편집);
+  편집참조.current = 편집;
+  const 복사판 = useRef(null); // Ctrl+C 로 담아 둔 것
   const 광선 = useRef(new THREE.Raycaster());
   const 화면 = useRef(new THREE.Vector2());
 
@@ -106,44 +111,32 @@ export function 편집기({
     [camera, scene, gl],
   );
 
-  // ── 클릭 ────────────────────────────────────────────────
+  // ── 마우스 (고르기 · 끌기 · 시점 돌리기) ────────────────
+  // [왜 ref 로 두나]
+  //   상태(useState)를 의존성에 넣으면 렌더마다 리스너가 떨어졌다 붙는다.
+  //   끌기 도중에 그러면 **드래그가 끊긴다** — 실제로 「드래그로 이동이 안 된다」의
+  //   원인이었다. 순간 상태는 ref 로 들고 리스너는 한 번만 붙인다.
+  const 끌기 = useRef(null); // { 시작:[x,y], 움직임:false }
+  const 돌리기 = useRef(null); // 오른쪽 버튼으로 시점 돌리기
+  const 고른것참조 = useRef(null);
+  const 지면높이참조 = useRef(지면높이);
+  고른것참조.current = 고른것;
+  지면높이참조.current = 지면높이;
+
   useEffect(() => {
     if (!켬) return;
     const 캔 = gl.domElement;
-    const 눌림 = (ev) => {
-      if (ev.button !== 0) return;
-      if (끌기중) {
-        // 이동 확정
-        끌기중설정(false);
-        알림설정("옮김 · Ctrl+S 로 저장");
-        return;
-      }
-      const 찾음 = 집기(ev);
-      고른것설정(찾음);
-      알림설정(
-        찾음
-          ? `${찾음.이름} #${찾음.번호} · (${찾음.x.toFixed(1)}, ${찾음.z.toFixed(1)}) · 키 ${찾음.키.toFixed(1)} m`
-          : "",
-      );
-    };
-    캔.addEventListener("pointerdown", 눌림);
-    return () => 캔.removeEventListener("pointerdown", 눌림);
-  }, [켬, 집기, gl, 끌기중]);
-
-  // ── 이동 중 마우스 따라가기 ──────────────────────────────
-  useEffect(() => {
-    if (!켬 || !끌기중 || !고른것) return;
-    const 캔 = gl.domElement;
     const 면 = new THREE.Plane();
     const 닿는곳 = new THREE.Vector3();
-    const 움직임 = (ev) => {
+
+    // 커서 아래의 땅 자리 — 못 맞히면 지금 높이의 수평면으로 받는다
+    const 땅자리 = (ev, 기준y) => {
       const 상자 = 캔.getBoundingClientRect();
       화면.current.set(
         ((ev.clientX - 상자.left) / 상자.width) * 2 - 1,
         -((ev.clientY - 상자.top) / 상자.height) * 2 + 1,
       );
       광선.current.setFromCamera(화면.current, camera);
-      // ① 땅 계열 메시에 떨어뜨려 본다
       const 맞음 = 광선.current
         .intersectObjects(scene.children, true)
         .filter((h) => 땅이름.includes(h.object.name));
@@ -152,27 +145,102 @@ export function 편집기({
         x = 맞음[0].point.x * 유닛;
         z = 맞음[0].point.z * 유닛;
       } else {
-        // ② ★ 못 맞히면 **지금 높이의 수평면**에 떨어뜨린다.
-        //    언덕 위에서 거의 수평으로 보면 광선이 코어 지면을 넘어 원경으로
-        //    날아가 버려서, 마우스를 움직여도 아무 일이 안 일어났다(실측: 맞음 0).
-        //    면으로 받으면 **어디를 보든 반드시 따라온다.**
-        면.set(new THREE.Vector3(0, 1, 0), -고른것.y * 미터);
-        if (!광선.current.ray.intersectPlane(면, 닿는곳)) return;
+        // 언덕 위에서 수평으로 보면 광선이 코어를 넘어 원경으로 날아간다.
+        // 면으로 받아야 **어디를 보든 따라온다**(실측: 안 받으면 맞음 0).
+        면.set(new THREE.Vector3(0, 1, 0), -기준y * 미터);
+        if (!광선.current.ray.intersectPlane(면, 닿는곳)) return null;
         x = 닿는곳.x * 유닛;
         z = 닿는곳.z * 유닛;
       }
-      // ★ Playable Core 밖으로는 못 나간다.
-      //   수평에 가깝게 보면 면 교점이 수백 m 밖으로 날아간다(실측: −38, 38).
-      //   무대 밖에 심을 일은 없으므로 여기서 물린다.
-      x = Math.min(코어.X[1] - 0.5, Math.max(코어.X[0] + 0.5, x));
-      z = Math.min(코어.Z[1] - 0.5, Math.max(코어.Z[0] + 0.5, z));
-      const y = 지면높이 ? 지면높이(x, z) : p.y * 유닛;
-      고른것설정((v) => (v ? { ...v, x, y, z } : v));
-      편집설정((e) => 고치기(e, 고른것.이름, 고른것.번호, { x, y, z }));
+      // Playable Core 밖으로는 못 나간다(면 교점은 수백 m 밖까지 간다)
+      return [
+        Math.min(코어.X[1] - 0.5, Math.max(코어.X[0] + 0.5, x)),
+        Math.min(코어.Z[1] - 0.5, Math.max(코어.Z[0] + 0.5, z)),
+      ];
     };
+
+    const 눌림 = (ev) => {
+      // 오른쪽 버튼 = 시점 돌리기 (편집 중에도 둘러볼 수 있어야 한다)
+      if (ev.button === 2) {
+        돌리기.current = { x: ev.clientX, y: ev.clientY };
+        캔.setPointerCapture?.(ev.pointerId);
+        ev.preventDefault();
+        return;
+      }
+      if (ev.button !== 0) return;
+      const 찾음 = 집기(ev);
+      if (찾음) {
+        고른것설정(찾음);
+        고른것참조.current = 찾음;
+        끌기.current = { 시작: [ev.clientX, ev.clientY], 움직임: false };
+        캔.setPointerCapture?.(ev.pointerId);
+        알림설정(
+          `${찾음.이름} #${찾음.번호} · (${찾음.x.toFixed(1)}, ${찾음.z.toFixed(1)}) · 키 ${찾음.키.toFixed(1)} m`,
+        );
+      } else {
+        고른것설정(null);
+        고른것참조.current = null;
+        알림설정("");
+      }
+    };
+
+    const 움직임 = (ev) => {
+      // ① 시점 돌리기
+      if (돌리기.current) {
+        const dx = ev.clientX - 돌리기.current.x;
+        const dy = ev.clientY - 돌리기.current.y;
+        돌리기.current = { x: ev.clientX, y: ev.clientY };
+        camera.rotation.order = "YXZ";
+        camera.rotation.y -= dx * 0.0035;
+        camera.rotation.x = Math.max(
+          -Math.PI / 2 + 0.01,
+          Math.min(Math.PI / 2 - 0.01, camera.rotation.x - dy * 0.0035),
+        );
+        return;
+      }
+      // ② 고른 것 끌기 — 4 px 넘게 움직여야 시작(클릭과 구분)
+      const 끌 = 끌기.current;
+      const 고 = 고른것참조.current;
+      if (!끌 || !고) return;
+      if (!끌.움직임) {
+        const d = Math.hypot(ev.clientX - 끌.시작[0], ev.clientY - 끌.시작[1]);
+        if (d < 4) return;
+        끌.움직임 = true;
+        되돌리기통.current.push(편집참조.current);
+      }
+      const 자리 = 땅자리(ev, 고.y);
+      if (!자리) return;
+      const [x, z] = 자리;
+      const y = 지면높이참조.current ? 지면높이참조.current(x, z) : 고.y;
+      const 새것 = { ...고, x, y, z };
+      고른것참조.current = 새것;
+      고른것설정(새것);
+      편집설정((e) => 고치기(e, 고.이름, 고.번호, { x, y, z }));
+    };
+
+    const 뗌 = (ev) => {
+      if (돌리기.current) {
+        돌리기.current = null;
+        캔.releasePointerCapture?.(ev.pointerId);
+        return;
+      }
+      if (끌기.current?.움직임) 알림설정("옮김 · Ctrl+S 로 저장");
+      끌기.current = null;
+      캔.releasePointerCapture?.(ev.pointerId);
+    };
+
+    const 메뉴막기 = (ev) => ev.preventDefault();
+    캔.addEventListener("pointerdown", 눌림);
     캔.addEventListener("pointermove", 움직임);
-    return () => 캔.removeEventListener("pointermove", 움직임);
-  }, [켬, 끌기중, 고른것, camera, scene, gl, 지면높이, 편집설정]);
+    캔.addEventListener("pointerup", 뗌);
+    캔.addEventListener("contextmenu", 메뉴막기);
+    return () => {
+      캔.removeEventListener("pointerdown", 눌림);
+      캔.removeEventListener("pointermove", 움직임);
+      캔.removeEventListener("pointerup", 뗌);
+      캔.removeEventListener("contextmenu", 메뉴막기);
+    };
+  }, [켬, 집기, gl, camera, scene, 편집설정]);
 
   // ── 키 ──────────────────────────────────────────────────
   useEffect(() => {
@@ -199,6 +267,42 @@ export function 편집기({
           return;
         }
       }
+      // ── 복사 · 붙여넣기 ──────────────────────────────────
+      //   생성기는 그대로 두고 **사람이 더한 것**을 편집 파일에 쌓는다(배치.js `더함`).
+      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "c") {
+        if (!고른것) return;
+        복사판.current = { ...고른것 };
+        알림설정(`복사함 — ${고른것.이름} #${고른것.번호} · Ctrl+V 로 붙이기`);
+        return;
+      }
+      if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "v") {
+        const c = 복사판.current;
+        if (!c) {
+          알림설정("복사한 것이 없다 — 먼저 Ctrl+C");
+          return;
+        }
+        // 원본에서 화면 오른쪽으로 한 걸음 띄워 놓는다(정확히 겹치면 안 보인다)
+        const 앞 = new THREE.Vector3();
+        camera.getWorldDirection(앞);
+        앞.y = 0;
+        if (앞.lengthSq() < 1e-6) 앞.set(0, 0, -1);
+        앞.normalize();
+        const 옆 = new THREE.Vector3().crossVectors(앞, camera.up).normalize();
+        const 간격 = Math.max(1, c.키 * 0.6);
+        const x = Math.min(코어.X[1] - 0.5, Math.max(코어.X[0] + 0.5, c.x + 옆.x * 간격));
+        const z = Math.min(코어.Z[1] - 0.5, Math.max(코어.Z[0] + 0.5, c.z + 옆.z * 간격));
+        const y = 지면높이 ? 지면높이(x, z) : c.y;
+        되돌리기통.current.push(편집);
+        const { 편집: 다음, 번호 } = 더하기(편집, c.이름, {
+          x, y, z, 키: c.키, 회전: c.회전 ?? 0,
+        });
+        편집설정(다음);
+        const 새것 = { ...c, 번호, x, y, z };
+        고른것설정(새것);
+        고른것참조.current = 새것;
+        알림설정(`붙여넣음 — ${c.이름} #${번호} · Ctrl+S 로 저장`);
+        return;
+      }
       if (!고른것) return;
       const 밀기 = (값) => {
         되돌리기통.current.push(편집);
@@ -213,12 +317,6 @@ export function 편집기({
           편집설정((e) => 지우기(e, 고른것.이름, 고른것.번호));
           고른것설정(null);
           알림설정("지움 · Ctrl+S 로 저장");
-          break;
-        case "g":
-        case "G":
-          되돌리기통.current.push(편집);
-          끌기중설정(true);
-          알림설정("이동 중 — 클릭해서 놓기 · ESC 취소");
           break;
         case "r":
         case "R": {
@@ -247,18 +345,20 @@ export function 편집기({
         case "ArrowDown": {
           ev.preventDefault();
           const 칸 = 밀기단위 * (ev.shiftKey ? 4 : 1);
-          // 카메라가 보는 방향 기준으로 민다 — 화면에서 본 대로 움직여야 직관적이다
+          // ★ 화면 기준으로 민다. 오른쪽 벡터는 **걷기 훅과 같은 식**(fwd × up)을
+          //   쓴다. 예전에는 그 값을 음수로 써서 **좌우가 뒤집혀 있었다**
+          //   (사용자 지적: 「기준이 다른 것 같다」).
           const 앞 = new THREE.Vector3();
           camera.getWorldDirection(앞);
           앞.y = 0;
           if (앞.lengthSq() < 1e-6) 앞.set(0, 0, -1);
           앞.normalize();
-          const 옆 = new THREE.Vector3(-앞.z, 0, 앞.x);
+          const 옆 = new THREE.Vector3().crossVectors(앞, camera.up).normalize();
           const d = new THREE.Vector3();
           if (ev.key === "ArrowUp") d.copy(앞);
           if (ev.key === "ArrowDown") d.copy(앞).negate();
-          if (ev.key === "ArrowRight") d.copy(옆).negate();
-          if (ev.key === "ArrowLeft") d.copy(옆);
+          if (ev.key === "ArrowRight") d.copy(옆);
+          if (ev.key === "ArrowLeft") d.copy(옆).negate();
           const x = Math.min(코어.X[1] - 0.5, Math.max(코어.X[0] + 0.5, 고른것.x + d.x * 칸));
           const z = Math.min(코어.Z[1] - 0.5, Math.max(코어.Z[0] + 0.5, 고른것.z + d.z * 칸));
           const y = 지면높이 ? 지면높이(x, z) : 고른것.y;
@@ -268,8 +368,8 @@ export function 편집기({
           break;
         }
         case "Escape":
-          끌기중설정(false);
           고른것설정(null);
+          고른것참조.current = null;
           알림설정("");
           break;
         default:
@@ -333,7 +433,9 @@ function 편집안내({ 알림, 고른것 }) {
     }
     판.innerHTML =
       '<b style="color:#FFD166">편집 모드</b><br>' +
-      "클릭 고르기 · <b>방향키</b> 밀기(Shift 크게) · <b>G</b> 마우스이동 · <b>R</b> 회전 · <b>[ ]</b> 크기 · " +
+      "<b>클릭·드래그</b> 고르고 옮기기 · <b>우클릭 드래그</b> 시점 · <b>WASD</b> 걷기<br>" +
+      "<b>방향키</b> 밀기(Shift 크게) · <b>R</b> 회전 · <b>[ ]</b> 크기 · " +
+      "<b>Ctrl+C/V</b> 복사·붙여넣기 · " +
       "<b>X</b> 지우기 · <b>Ctrl+Z</b> 되돌리기 · <b>Ctrl+S</b> 저장 · <b>ESC</b> 해제" +
       (고른것
         ? `<br><span style="color:#9BE3B4">${고른것.이름} #${고른것.번호}</span>`

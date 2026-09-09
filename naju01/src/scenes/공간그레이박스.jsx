@@ -58,8 +58,6 @@ import {
 import {
   수목대만들기,
   풀만들기,
-  덤불만들기,
-  나무들만들기,
   잎더미만들기,
   수풀뿌리기,
   길가수풀자리,
@@ -549,7 +547,6 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   }, [
     땅,
     지형,
-    땅,
     T.절벽디테일,
     T.절벽칸당,
     T.절벽파임,
@@ -560,8 +557,6 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     T.절벽덤불,
     T.절벽나무,
     T.바위덩어리,
-    T.바위칸당,
-    T.바위파임,
   ]);
   useEffect(
     () => () => {
@@ -1117,7 +1112,9 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
 
   // ── 이동 ────────────────────────────────────────────────
   //   시작 자리 = V1(Z1 서쪽, 동쪽을 본다). Scene 01 의 첫 시점이다.
-  const 텔레포트 = use지형이동(active, {
+  // ★ 편집 중에도 걸어 다닐 수 있어야 한다. 포인터락은 풀려 있지만
+  //   WASD 는 살아 있어야 「보면서 옮기기」가 된다(시점은 우클릭 드래그).
+  const 텔레포트 = use지형이동(active || 편집모드, {
     지형,
     시작: [시점[0].X, 시점[0].Z, 시점[0].방위],
     눈높이: T.눈높이,
