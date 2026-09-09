@@ -1047,6 +1047,21 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     [],
   );
 
+  // ── 10 m 격자 — 코어 사각형에 딱 맞춘다 ─────────────────
+  //   도면 대조용 눈금이라 **무대 안에만** 있어야 한다.
+  const 격자선 = useMemo(() => {
+    const 점 = [];
+    const y = 0.08 * 미터;
+    for (let x = 코어.X[0]; x <= 코어.X[1] + 1e-6; x += 10)
+      점.push(x * 미터, y, 코어.Z[0] * 미터, x * 미터, y, 코어.Z[1] * 미터);
+    for (let z = 코어.Z[0]; z <= 코어.Z[1] + 1e-6; z += 10)
+      점.push(코어.X[0] * 미터, y, z * 미터, 코어.X[1] * 미터, y, z * 미터);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(점, 3));
+    return g;
+  }, []);
+  useEffect(() => () => 격자선?.dispose(), [격자선]);
+
   // ── 무대 밖으로 내려가는 연결로 ─────────────────────────
   //   코어 동쪽 가장자리는 바깥 들판보다 6.7 m 높다(실측). 마을길이 거기서
   //   허공에 뜬 채 시작하고 있었다. 이 경사로가 그 턱을 이어 준다.
@@ -1982,12 +1997,17 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
           );
         })}
 
-      {/* ── 10 m 격자 ── */}
-      {T.격자 && (
-        <gridHelper
-          args={[80 * 미터, 8, "#8894A8", "#4C5563"]}
-          position={V3(40, 25, 0.08)}
-        />
+      {/* ── 10 m 격자 ──
+          ※ 예전에는 `gridHelper` 80 × 80 정사각형을 (40, 25)에 놓았다.
+            그런데 코어는 80 × **50** 이라, 격자가 **강 위로 15 m 삐져나갔다**
+            (z −15 ~ 65 · 강은 z 44.5 부터). 물가에서 강 건너를 보면 그 선들이
+            거의 수평으로 겹쳐 **흰 띠**가 되어 택촌을 통째로 가렸다
+            (실측: 화면 한복판 맨 앞 물체가 GridHelper · 23 m · z=65).
+            이제 코어 사각형에 딱 맞춰 직접 긋는다 — 무대 밖으로 안 나간다. */}
+      {T.격자 && 격자선 && (
+        <lineSegments geometry={격자선} frustumCulled={false}>
+          <lineBasicMaterial color="#6B7788" toneMapped={false} transparent opacity={0.55} />
+        </lineSegments>
       )}
 
       <편집기
