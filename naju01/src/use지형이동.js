@@ -60,6 +60,11 @@ export function use지형이동(
     //   `active` 만 꺼서는 안 된다 — 중력·접지는 `active` 밖에서 돌기 때문에
     //   카메라가 매 프레임 땅으로 도로 끌려 내려간다(실제로 그랬다).
     멈춤 = false,
+    // 코어 밖으로 나갈 수 있는 자리를 알려 주는 함수 `(x, z) => boolean`.
+    //   기본은 없음 = 예전대로 코어 사각형에 갇힌다.
+    //   경계를 통째로 넓히면 동쪽 가장자리 어디서나 6.7 m 아래로 떨어진다 —
+    //   **연결로 위에서만** 열어야 한다.
+    밖으로 = null,
   } = {},
 ) {
   const { camera } = useThree();
@@ -235,19 +240,19 @@ export function use지형이동(
       };
 
       const 이전 = { x: p.x, z: p.z };
-      const nx = THREE.MathUtils.clamp(
-        p.x + vel.current.x * dt,
-        코어경계.xmin * 미터,
-        코어경계.xmax * 미터,
-      );
+      // 코어 밖으로 나갈 수 있는가 — `밖으로` 가 참인 자리는 안 죈다
+      const 죄기 = (v, a, b, mx, mz) =>
+        밖으로 && 밖으로(mx * 유닛, mz * 유닛)
+          ? v
+          : THREE.MathUtils.clamp(v, a * 미터, b * 미터);
+
+      const 갈x = p.x + vel.current.x * dt;
+      const nx = 죄기(갈x, 코어경계.xmin, 코어경계.xmax, 갈x, p.z);
       if (갈수있나(nx, p.z)) p.x = nx;
       else vel.current.x = 0;
 
-      const nz = THREE.MathUtils.clamp(
-        p.z + vel.current.z * dt,
-        코어경계.zmin * 미터,
-        코어경계.zmax * 미터,
-      );
+      const 갈z = p.z + vel.current.z * dt;
+      const nz = 죄기(갈z, 코어경계.zmin, 코어경계.zmax, p.x, 갈z);
       if (갈수있나(p.x, nz)) p.z = nz;
       else vel.current.z = 0;
 
