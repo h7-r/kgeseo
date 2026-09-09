@@ -9,7 +9,8 @@
 //
 // [조작]
 //   클릭        고르기 (빈 곳 클릭 = 고르기 해제)
-//   G           이동 — 마우스를 움직이면 지면을 따라 붙어 다닌다. 다시 클릭해 확정
+//   방향키       미세 이동 (0.25 m · Shift 를 누르면 1 m). 화면에서 본 방향 기준
+//   G           마우스 이동 — 커서를 따라 붙어 다닌다. 다시 클릭해 확정
 //   R / Shift+R 회전 (누를 때마다 15°)
 //   [ / ]       크기 −10 % / +10 %
 //   Delete/X    지우기
@@ -25,10 +26,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
-import { 미터, 유닛 } from "./공간도면.js";
+import { 미터, 유닛, 코어 } from "./공간도면.js";
 import { 지우기, 고치기, 편집쓰기 } from "./배치.js";
 
 const 회전단위 = Math.PI / 12; // 15°
+// 이동할 때 '땅'으로 쳐 주는 메시 이름
+const 땅이름 = ["땅", "길", "비탈", "절벽면", "절벽조각.덩어리", "z.지오"];
+const 밀기단위 = 0.25; // m — Shift 를 누르면 4 배
 
 export function 편집기({
   켬,
@@ -68,6 +72,12 @@ export function 편집기({
         const 회 = new THREE.Quaternion();
         const 크 = new THREE.Vector3();
         m.decompose(자리, 회, 크);
+        // ★ 테두리는 **그 모양의 진짜 바운딩박스**로 그린다.
+        //   예전에는 `키`(높이)를 세 축에 다 썼다. 나무 키가 5 m 면 가로도 5 m 인
+        //   상자가 그려져서, 실제로는 폭 1.5 m 인 나무를 3 배 넘게 감쌌다 —
+        //   무엇을 골랐는지 알 수가 없었다(사용자 지적).
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        const bb = o.geometry.boundingBox;
         return {
           이름: 무리이름,
           번호,
@@ -76,6 +86,19 @@ export function 편집기({
           z: 자리.z * 유닛,
           키: 크.y * 유닛,
           회전: new THREE.Euler().setFromQuaternion(회, "YXZ").y,
+          // 유닛 단위의 국소 상자(모양 기준) — 그릴 때 인스턴스 크기를 곱한다
+          상자: {
+            크기: [
+              (bb.max.x - bb.min.x) * 크.x,
+              (bb.max.y - bb.min.y) * 크.y,
+              (bb.max.z - bb.min.z) * 크.z,
+            ],
+            중심: [
+              ((bb.max.x + bb.min.x) / 2) * 크.x,
+              ((bb.max.y + bb.min.y) / 2) * 크.y,
+              ((bb.max.z + bb.min.z) / 2) * 크.z,
+            ],
+          },
         };
       }
       return null;
@@ -111,6 +134,8 @@ export function 편집기({
   useEffect(() => {
     if (!켬 || !끌기중 || !고른것) return;
     const 캔 = gl.domElement;
+    const 면 = new THREE.Plane();
+    const 닿는곳 = new THREE.Vector3();
     const 움직임 = (ev) => {
       const 상자 = 캔.getBoundingClientRect();
       화면.current.set(
@@ -118,14 +143,29 @@ export function 편집기({
         -((ev.clientY - 상자.top) / 상자.height) * 2 + 1,
       );
       광선.current.setFromCamera(화면.current, camera);
-      // 땅 메시에 떨어뜨린다 — 공중에 뜨지 않게
+      // ① 땅 계열 메시에 떨어뜨려 본다
       const 맞음 = 광선.current
         .intersectObjects(scene.children, true)
-        .filter((h) => ["땅", "길", "비탈", "절벽면"].includes(h.object.name));
-      if (!맞음.length) return;
-      const p = 맞음[0].point;
-      const x = p.x * 유닛;
-      const z = p.z * 유닛;
+        .filter((h) => 땅이름.includes(h.object.name));
+      let x, z;
+      if (맞음.length) {
+        x = 맞음[0].point.x * 유닛;
+        z = 맞음[0].point.z * 유닛;
+      } else {
+        // ② ★ 못 맞히면 **지금 높이의 수평면**에 떨어뜨린다.
+        //    언덕 위에서 거의 수평으로 보면 광선이 코어 지면을 넘어 원경으로
+        //    날아가 버려서, 마우스를 움직여도 아무 일이 안 일어났다(실측: 맞음 0).
+        //    면으로 받으면 **어디를 보든 반드시 따라온다.**
+        면.set(new THREE.Vector3(0, 1, 0), -고른것.y * 미터);
+        if (!광선.current.ray.intersectPlane(면, 닿는곳)) return;
+        x = 닿는곳.x * 유닛;
+        z = 닿는곳.z * 유닛;
+      }
+      // ★ Playable Core 밖으로는 못 나간다.
+      //   수평에 가깝게 보면 면 교점이 수백 m 밖으로 날아간다(실측: −38, 38).
+      //   무대 밖에 심을 일은 없으므로 여기서 물린다.
+      x = Math.min(코어.X[1] - 0.5, Math.max(코어.X[0] + 0.5, x));
+      z = Math.min(코어.Z[1] - 0.5, Math.max(코어.Z[0] + 0.5, z));
       const y = 지면높이 ? 지면높이(x, z) : p.y * 유닛;
       고른것설정((v) => (v ? { ...v, x, y, z } : v));
       편집설정((e) => 고치기(e, 고른것.이름, 고른것.번호, { x, y, z }));
@@ -199,6 +239,34 @@ export function 편집기({
           밀기({ 키: 다음 });
           break;
         }
+        // ★ 방향키로도 옮긴다. 마우스 이동(G)은 큰 이동에, 방향키는 미세 조정에.
+        //   「마우스로 드래그해도 안 움직인다」는 지적이 있어서 확실한 길을 하나 더 둔다.
+        case "ArrowLeft":
+        case "ArrowRight":
+        case "ArrowUp":
+        case "ArrowDown": {
+          ev.preventDefault();
+          const 칸 = 밀기단위 * (ev.shiftKey ? 4 : 1);
+          // 카메라가 보는 방향 기준으로 민다 — 화면에서 본 대로 움직여야 직관적이다
+          const 앞 = new THREE.Vector3();
+          camera.getWorldDirection(앞);
+          앞.y = 0;
+          if (앞.lengthSq() < 1e-6) 앞.set(0, 0, -1);
+          앞.normalize();
+          const 옆 = new THREE.Vector3(-앞.z, 0, 앞.x);
+          const d = new THREE.Vector3();
+          if (ev.key === "ArrowUp") d.copy(앞);
+          if (ev.key === "ArrowDown") d.copy(앞).negate();
+          if (ev.key === "ArrowRight") d.copy(옆).negate();
+          if (ev.key === "ArrowLeft") d.copy(옆);
+          const x = Math.min(코어.X[1] - 0.5, Math.max(코어.X[0] + 0.5, 고른것.x + d.x * 칸));
+          const z = Math.min(코어.Z[1] - 0.5, Math.max(코어.Z[0] + 0.5, 고른것.z + d.z * 칸));
+          const y = 지면높이 ? 지면높이(x, z) : 고른것.y;
+          고른것설정((v) => ({ ...v, x, y, z }));
+          밀기({ x, y, z });
+          알림설정(`(${x.toFixed(1)}, ${z.toFixed(1)}) · Ctrl+S 로 저장`);
+          break;
+        }
         case "Escape":
           끌기중설정(false);
           고른것설정(null);
@@ -210,7 +278,7 @@ export function 편집기({
     };
     window.addEventListener("keydown", 눌림);
     return () => window.removeEventListener("keydown", 눌림);
-  }, [켬, 고른것, 편집, 편집설정]);
+  }, [켬, 고른것, 편집, 편집설정, camera, 지면높이]);
 
   // 편집 모드에 들어가면 포인터락을 푼다(마우스로 집어야 하므로)
   useEffect(() => {
@@ -222,15 +290,19 @@ export function 편집기({
     <>
       {고른것 && (
         <mesh
-          position={[고른것.x * 미터, (고른것.y + 고른것.키 * 0.5) * 미터, 고른것.z * 미터]}
+          position={[
+            고른것.x * 미터 + (고른것.상자?.중심[0] ?? 0),
+            고른것.y * 미터 + (고른것.상자?.중심[1] ?? 고른것.키 * 0.5 * 미터),
+            고른것.z * 미터 + (고른것.상자?.중심[2] ?? 0),
+          ]}
           renderOrder={999}
         >
           <boxGeometry
-            args={[
-              고른것.키 * 1.25 * 미터,
-              고른것.키 * 1.1 * 미터,
-              고른것.키 * 1.25 * 미터,
-            ]}
+            args={
+              고른것.상자
+                ? 고른것.상자.크기.map((v) => v * 1.06)
+                : [고른것.키 * 미터, 고른것.키 * 미터, 고른것.키 * 미터]
+            }
           />
           <meshBasicMaterial
             color="#FFD166"
@@ -261,7 +333,7 @@ function 편집안내({ 알림, 고른것 }) {
     }
     판.innerHTML =
       '<b style="color:#FFD166">편집 모드</b><br>' +
-      "클릭 고르기 · <b>G</b> 이동 · <b>R</b> 회전 · <b>[ ]</b> 크기 · " +
+      "클릭 고르기 · <b>방향키</b> 밀기(Shift 크게) · <b>G</b> 마우스이동 · <b>R</b> 회전 · <b>[ ]</b> 크기 · " +
       "<b>X</b> 지우기 · <b>Ctrl+Z</b> 되돌리기 · <b>Ctrl+S</b> 저장 · <b>ESC</b> 해제" +
       (고른것
         ? `<br><span style="color:#9BE3B4">${고른것.이름} #${고른것.번호}</span>`
