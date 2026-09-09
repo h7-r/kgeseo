@@ -30,7 +30,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { useThree, useFrame } from "@react-three/fiber";
 import { 미터, 유닛, 코어 } from "./공간도면.js";
-import { 에셋목록, 갈래목록, 에셋찾기 } from "./에셋목록.js";
+import { 에셋목록, 갈래목록, 에셋찾기, 에셋표본 } from "./에셋목록.js";
+import { 미리보기굽기 } from "./미리보기.js";
 import {
   지우기,
   고치기,
@@ -405,6 +406,9 @@ export function 편집기({
           z,
           키: 정의?.기본키 ?? 1,
           회전: Math.random() * Math.PI * 2,
+          // 언덕·길처럼 키와 가로세로가 다른 물건은 비율을 같이 실어야 한다
+          ...(정의?.기본폭비 !== undefined ? { 폭비: 정의.기본폭비 } : null),
+          ...(정의?.기본깊이비 !== undefined ? { 깊이비: 정의.기본깊이비 } : null),
           ...(정의?.기본색 !== undefined ? { 색: 정의.기본색 } : null),
         });
         편집설정(다음);
@@ -818,6 +822,15 @@ export function 편집기({
 function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 저장하기, 붓, 붓설정, 부감 }) {
   // 팔레트는 **접어 둔다.** 펼치면 화면을 크게 가려서, 정작 놓을 자리가 안 보인다.
   const [펼침, 펼침설정] = useState(false);
+  // 썸네일 — 펼칠 때 한 번만 굽는다. 안 펼치면 굽지 않는다(WebGL 을 하나 더
+  //   여는 일이라, 안 쓸 사람에게 값을 치르게 할 이유가 없다).
+  const [썸네일, 썸네일설정] = useState(null);
+  useEffect(() => {
+    if (!펼침 || 썸네일) return;
+    // 프레임을 한 번 넘기고 굽는다 — 펼치는 순간 화면이 멈칫하지 않게
+    const t = setTimeout(() => 썸네일설정(미리보기굽기(에셋목록, 에셋표본)), 0);
+    return () => clearTimeout(t);
+  }, [펼침, 썸네일]);
   const 판참조 = useRef(null);
   const 저장참조 = useRef(저장하기);
   저장참조.current = 저장하기;
@@ -911,14 +924,26 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
             .filter((v) => v.갈래 === 갈래)
             .map((v) => {
               const 켜짐 = 붓 === v.키;
+              const 그림 = 썸네일?.get(v.키);
+              // 그림 위에 이름 — 이름만 있으면 「덤불」과 「수풀」이 안 갈린다.
+              //   썸네일을 못 구운 환경에서도 이름은 그대로 보인다.
               return (
-                `<button type="button" data-에셋="${v.키}" ` +
+                `<button type="button" data-에셋="${v.키}" title="${v.이름}" ` +
                 'style="pointer-events:auto;cursor:pointer;font:inherit;' +
                 `border:1px solid ${켜짐 ? "#FFD166" : "rgba(255,255,255,.22)"};` +
                 `background:${켜짐 ? "#FFD166" : "rgba(255,255,255,.06)"};` +
                 `color:${켜짐 ? "#12161F" : "#E8EAF0"};` +
-                'border-radius:5px;padding:2px 7px;margin:2px 3px 0 0">' +
-                `${v.이름}</button>`
+                "border-radius:6px;padding:3px 5px 2px;margin:3px 4px 0 0;" +
+                'display:inline-flex;flex-direction:column;align-items:center;' +
+                'gap:1px;width:62px;vertical-align:top">' +
+                (그림
+                  ? `<img src="${그림}" width="46" height="46" alt="" ` +
+                    'style="display:block;border-radius:4px;' +
+                    `background:${켜짐 ? "rgba(0,0,0,.10)" : "rgba(0,0,0,.22)"}">`
+                  : '<span style="display:block;width:46px;height:46px;' +
+                    'border-radius:4px;background:rgba(0,0,0,.22)"></span>') +
+                `<span style="font-size:10px;line-height:1.15;text-align:center;` +
+                `word-break:keep-all">${v.이름}</span></button>`
               );
             })
             .join("");
@@ -958,7 +983,7 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
       팔레트;
     // ※ 펼침을 빼먹으면 「놓을 것」을 눌러도 판이 다시 안 그려져서
     //    에셋 버튼이 영영 안 나온다(실제로 그랬다).
-  }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 붓, 펼침, 부감]);
+  }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 붓, 펼침, 부감, 썸네일]);
 
   return null;
 }
