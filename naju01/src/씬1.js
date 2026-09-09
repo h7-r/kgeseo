@@ -1,0 +1,330 @@
+// ═══════════════════════════════════════════════════════════════
+//  씬1.js — Scene 01 「돌아오지 않은 약속」이 요구하는 것들
+// ═══════════════════════════════════════════════════════════════
+// [무엇을 만드는가]
+//   ④ Scene 구성표가 Scene 01 에 **반드시 있어야 한다**고 적은 것들을
+//   실제 자리에 놓는다. 여기 놓는 것은 전부 **유형 수준**이다 —
+//   ④ §5 가 「퍼즐의 정답·풀이법을 이 문서에서 정하지 않는다」고 했고,
+//   실제 `instance_id` 는 ⑤ SceneInventory 에서 정한다. 그러니 이 모듈은
+//   **「어떤 종류의 물건이 어디에 있어야 하는가」까지만** 답한다.
+//
+// [근거 — 무엇을 보고 놓았나]
+//   ④ Scene 01 · 필수 장소 요소
+//     · 두 사람이 만나던 **앙암바위 내 장소 맥락**이 있어야 한다  → Z3 만나던 자리
+//   ④ Scene 01 · 필수 스토리 오브젝트
+//     · **구렁이** — 첫 등장. 정체 불명의 존재로만 제시           → Z1 동쪽 수풀가
+//     · 아비사가 아랑사를 **기다렸다는 사실**을 전달할 흔적        → Z1 물가 화톳불·돌탑
+//   ④ Scene 01 · 일반 조작 오브젝트
+//     · **어부 생활 맥락**을 전달하는 오브젝트                    → 그물틀 · 통발
+//     · 아비사와 아랑사의 **관계·기다림**을 전달하는 오브젝트      → 화톳불 · 돌탑
+//   ③ §4 관련 사실
+//     · `F-05` 물고기를 계기로 두 사람이 인연을 맺음  → 어부 살림이 물가에 있어야 한다
+//     · `F-06` 밤마다 앙암바위에서 만남               → Z3 에 만나던 자리와 불 자리
+//
+// [★ 필수 단서는 Playable Core 안에만 둔다]
+//   ④ §0.5 의 게임플레이 정보 배치 원칙이다. 여기 자리는 전부 Z1·Z3 **안**이다.
+//   원경(강 건너 택촌·먼 들판)에는 하나도 두지 않았다.
+//
+// [씬 상태]
+//   무리 이름을 전부 `씬1.` 로 시작하게 했다. ④ §0.7 이 말하는 「Scene 진행에
+//   따른 오브젝트 활성/비활성」이 생기면, **이름 앞머리만 보고** 켜고 끌 수 있다.
+//
+// [단위]  도면 좌표 m. 표본은 **키 1** 짜리이고, m 변환은 `무리만들기` 가 한다.
+
+import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { makeRandom } from "../../src/공용.jsx";
+
+// 색 — 도면 숫자가 아니라 화풍 값이라 여기 둔다.
+export const 씬1결 = {
+  막대: "#7A6647", // 그물틀 · 통발을 엮은 나무
+  그물: "#A9A489", // 볕에 바랜 삼줄
+  돌: "#8A8375",
+  돌어둠: "#4A463E",
+  재: "#3A3630", // 다 탄 재
+  숯: "#241F1B",
+  구렁이등: "#4A4632",
+  구렁이배: "#8E8560",
+};
+
+// ── 꼭짓점 색 입히기 ────────────────────────────────────────
+// [왜 uv 를 떼나]
+//   `mergeGeometries` 는 **속성 구성이 다르면 조용히 `null` 을 돌려준다.**
+//   three 의 기본 도형(실린더·정이십면체)에는 `uv` 가 있고, 직접 만든 면
+//   (그물·구렁이)에는 없다. 섞어 합치면 null 이 나오고, 그게 그대로 무리로
+//   넘어가 `Cannot read properties of null (reading 'morphAttributes')` 로
+//   터진다(실제로 그랬다 — 나룻배 때와 같은 함정이다).
+//   여기서는 uv 를 아무도 안 쓰므로 **합치기 전에 떼어 버린다.**
+function 칠(geo, 색) {
+  geo.deleteAttribute("uv");
+  geo.deleteAttribute("uv1");
+  const c = new THREE.Color(색);
+  const n = geo.attributes.position.count;
+  const a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    a[i * 3] = c.r;
+    a[i * 3 + 1] = c.g;
+    a[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(a, 3));
+  return geo;
+}
+
+// 길이(Z) 를 1 로 맞추고 밑동을 원점에 둔다 — 누워 있는 물건용.
+//   ※ 균등 축소라 가로·세로가 비례해 따라온다. 그래서 `키` 하나(= 길이 m)만
+//     주면 되고 `폭비`·`깊이비` 는 1 로 둘 수 있다(나루터와 같은 규약).
+function 길이1로(g) {
+  g.computeBoundingBox();
+  const bb = g.boundingBox;
+  const L = Math.max(1e-6, bb.max.z - bb.min.z);
+  g.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
+  g.scale(1 / L, 1 / L, 1 / L);
+  return g;
+}
+
+// ── 그물틀 ──────────────────────────────────────────────────
+//   물가에 그물을 널어 말리는 틀. **어부가 사는 물가**라는 신호다(`F-05`).
+//   키 1 · 밑동 원점. 가로는 `폭비` 로 준다.
+export function 그물틀표본들(수 = 3, 시드 = 1301) {
+  const 난수 = makeRandom(시드);
+  const 표본 = [];
+  for (let i = 0; i < 수; i++) {
+    const 조각 = [];
+    const 반폭 = 0.55 + 난수() * 0.12;
+    // 다리 둘 — 살짝 벌려 세운다. 곧게 세우면 안 넘어질 이유가 없어 보인다.
+    for (const s of [-1, 1]) {
+      const g = new THREE.CylinderGeometry(0.028, 0.04, 1, 5, 1);
+      g.translate(0, 0.5, 0);
+      g.rotateZ(s * (0.10 + 난수() * 0.05));
+      g.translate(s * 반폭, 0, (난수() - 0.5) * 0.06);
+      조각.push(칠(g.toNonIndexed(), 씬1결.막대));
+      g.dispose();
+    }
+    // 가로대 — 다리 위를 가로지른다
+    const 가로 = new THREE.CylinderGeometry(0.026, 0.026, 반폭 * 2.1, 5, 1);
+    가로.rotateZ(Math.PI / 2);
+    가로.translate(0, 0.94, 0);
+    조각.push(칠(가로.toNonIndexed(), 씬1결.막대));
+    가로.dispose();
+    // 널린 그물 — 아래로 처진 한 겹. 판판하면 천이 아니라 판때기다.
+    const 칸 = 10;
+    const 위치 = [];
+    const 처짐 = (t) => Math.sin(Math.PI * t) * (0.30 + 난수() * 0.05);
+    for (let k = 0; k < 칸; k++) {
+      const t0 = k / 칸;
+      const t1 = (k + 1) / 칸;
+      const x0 = -반폭 + 2 * 반폭 * t0;
+      const x1 = -반폭 + 2 * 반폭 * t1;
+      const y0 = 0.92 - 처짐(t0);
+      const y1 = 0.92 - 처짐(t1);
+      const z = 0.02;
+      위치.push(x0, 0.92, -z, x1, 0.92, -z, x0, y0, z);
+      위치.push(x1, 0.92, -z, x1, y1, z, x0, y0, z);
+    }
+    const 망 = new THREE.BufferGeometry();
+    망.setAttribute("position", new THREE.Float32BufferAttribute(위치, 3));
+    망.computeVertexNormals();
+    조각.push(칠(망, 씬1결.그물));
+    const 합 = mergeGeometries(조각, false);
+    조각.forEach((g) => g.dispose());
+    표본.push(합);
+  }
+  return 표본;
+}
+
+// ── 통발 ────────────────────────────────────────────────────
+//   물고기를 가두는 통발. 물가에 눕혀 둔다. **길이 1 · 누워 있음.**
+export function 통발표본들(수 = 3, 시드 = 1607) {
+  const 난수 = makeRandom(시드);
+  const 표본 = [];
+  for (let i = 0; i < 수; i++) {
+    // 한쪽이 좁은 통 — 좁은 쪽이 물고기가 드는 입이다
+    const g = new THREE.CylinderGeometry(0.30, 0.16 + 난수() * 0.05, 0.95, 7, 1, true);
+    g.rotateX(Math.PI / 2); // 눕힌다(길이가 Z)
+    const p = g.attributes.position;
+    for (let k = 0; k < p.count; k++) {
+      // 엮은 대나무라 면이 고르지 않다
+      p.setX(k, p.getX(k) * (1 + (난수() - 0.5) * 0.14));
+      p.setY(k, p.getY(k) * (1 + (난수() - 0.5) * 0.14));
+    }
+    g.computeVertexNormals();
+    const n = 칠(g.toNonIndexed(), 씬1결.막대);
+    g.dispose();
+    표본.push(길이1로(n));
+  }
+  return 표본;
+}
+
+// ── 돌탑 ────────────────────────────────────────────────────
+//   누군가 오래 다녀갔다는 표시. **기다림**을 말없이 전한다.
+//   키 1 · 밑동 원점.
+export function 돌탑표본들(수 = 3, 시드 = 2203) {
+  const 난수 = makeRandom(시드);
+  const 표본 = [];
+  for (let i = 0; i < 수; i++) {
+    const 조각 = [];
+    const 층 = 5 + Math.floor(난수() * 3);
+    let y = 0;
+    for (let k = 0; k < 층; k++) {
+      const t = k / (층 - 1);
+      const r = 0.28 * (1 - t * 0.62) * (0.85 + 난수() * 0.3);
+      const h = 0.10 + 난수() * 0.07;
+      const g = new THREE.IcosahedronGeometry(r, 0);
+      g.scale(1, (h / 2 / r) * 1.6, 0.85 + 난수() * 0.3);
+      g.rotateY(난수() * Math.PI * 2);
+      g.translate((난수() - 0.5) * 0.05, y + h / 2, (난수() - 0.5) * 0.05);
+      조각.push(
+        칠(g.toNonIndexed(), 난수() < 0.5 ? 씬1결.돌 : 씬1결.돌어둠),
+      );
+      g.dispose();
+      y += h * 0.92;
+    }
+    const 합 = mergeGeometries(조각, false);
+    조각.forEach((g) => g.dispose());
+    합.computeBoundingBox();
+    합.scale(1 / 합.boundingBox.max.y, 1 / 합.boundingBox.max.y, 1 / 합.boundingBox.max.y);
+    표본.push(합);
+  }
+  return 표본;
+}
+
+// ── 화톳불 자리 ─────────────────────────────────────────────
+//   돌을 둘러 놓고 불을 피운 자리. 다 타서 재만 남았다.
+//   **밤마다 여기 있었다**는 흔적이다(`F-06`).
+//   ※ 키 1 · **가로가 훨씬 넓다.** 그래서 표본 자체를 넓게 만든다 —
+//     그래야 `폭비` 로 늘이지 않아도 돌이 안 찌그러진다.
+export function 화톳불표본들(수 = 3, 시드 = 3307) {
+  const 난수 = makeRandom(시드);
+  const 표본 = [];
+  for (let i = 0; i < 수; i++) {
+    const 조각 = [];
+    const 반지름 = 2.6; // 키(=돌 높이) 대비 가로 반지름
+    const 돌수 = 9 + Math.floor(난수() * 3);
+    for (let k = 0; k < 돌수; k++) {
+      const a = (k / 돌수) * Math.PI * 2 + (난수() - 0.5) * 0.3;
+      const r = 반지름 * (0.9 + 난수() * 0.2);
+      const g = new THREE.IcosahedronGeometry(0.55 + 난수() * 0.2, 0);
+      g.scale(1, 0.8, 1);
+      g.rotateY(난수() * Math.PI * 2);
+      g.translate(Math.cos(a) * r, 0.42, Math.sin(a) * r);
+      조각.push(칠(g.toNonIndexed(), 난수() < 0.5 ? 씬1결.돌 : 씬1결.돌어둠));
+      g.dispose();
+    }
+    // 재와 숯 — 가운데를 살짝 파고 어둡게
+    const 재 = new THREE.CircleGeometry(반지름 * 0.86, 12);
+    재.rotateX(-Math.PI / 2);
+    재.translate(0, 0.1, 0);
+    조각.push(칠(재.toNonIndexed(), 씬1결.재));
+    재.dispose();
+    for (let k = 0; k < 5; k++) {
+      const g = new THREE.IcosahedronGeometry(0.22 + 난수() * 0.18, 0);
+      g.scale(1, 0.45, 1);
+      const a = 난수() * Math.PI * 2;
+      const r = 반지름 * 0.55 * 난수();
+      g.translate(Math.cos(a) * r, 0.16, Math.sin(a) * r);
+      조각.push(칠(g.toNonIndexed(), 씬1결.숯));
+      g.dispose();
+    }
+    const 합 = mergeGeometries(조각, false);
+    조각.forEach((g) => g.dispose());
+    표본.push(합);
+  }
+  return 표본;
+}
+
+// ── 구렁이 ──────────────────────────────────────────────────
+//   ④ Scene 01 필수 스토리 오브젝트 — **첫 등장. 정체 불명으로만 제시.**
+//   ※ ④ 부록 E 와 ①·③ §10 이 「구렁이 = 아랑사」를 **확정하지 말라**고 못
+//     박았다. 그래서 여기서는 **그냥 큰 구렁이**다. 사람을 떠올리게 하는
+//     표식(얼굴·장신구 따위)은 하나도 넣지 않았다.
+//   길이 1 · 누워 있음 · 밑동 원점.
+export function 구렁이표본들(수 = 3, 시드 = 4409) {
+  const 난수 = makeRandom(시드);
+  const 표본 = [];
+  for (let i = 0; i < 수; i++) {
+    const 마디 = 34;
+    const 굽이 = 1.1 + 난수() * 0.6;
+    const 위치 = [];
+    const 색깔 = [];
+    const 등 = new THREE.Color(씬1결.구렁이등);
+    const 배 = new THREE.Color(씬1결.구렁이배);
+    const 고리 = 6; // 몸통 단면 꼭짓점 수 — 적어야 각진 저폴리로 읽힌다
+    const 점 = (t, k) => {
+      // 중심선 — S 자로 구불거린다. 곧으면 막대다.
+      const z = t * 4.0;
+      const x = Math.sin(t * Math.PI * 굽이 * 2) * 0.55 * (1 - t * 0.25);
+      // 굵기 — 목이 가장 굵고 꼬리로 갈수록 가늘다
+      const r = 0.19 * Math.sin(Math.PI * Math.pow(t, 0.55)) + 0.035;
+      const a = (k / 고리) * Math.PI * 2;
+      return [
+        x + Math.cos(a) * r,
+        r + Math.sin(a) * r * 0.72, // 바닥에 눌린 단면
+        z,
+        Math.sin(a), // 등/배 가르기용
+      ];
+    };
+    for (let m = 0; m < 마디; m++) {
+      const t0 = m / 마디;
+      const t1 = (m + 1) / 마디;
+      for (let k = 0; k < 고리; k++) {
+        const A = 점(t0, k);
+        const B = 점(t0, k + 1);
+        const C = 점(t1, k);
+        const D = 점(t1, k + 1);
+        for (const v of [A, C, B, B, C, D]) {
+          위치.push(v[0], v[1], v[2]);
+          const c = v[3] > 0.2 ? 등 : v[3] < -0.4 ? 배 : 등;
+          색깔.push(c.r, c.g, c.b);
+        }
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(위치, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(색깔, 3));
+    g.computeVertexNormals();
+    표본.push(길이1로(g));
+  }
+  return 표본;
+}
+
+// ── 어디에 무엇을 놓는가 ────────────────────────────────────
+//   ※ 자리는 **도면 구역 안**이다. Z1(X 8~28 · Z 30~44) · Z3(X 34~58 · Z 8~26).
+//     Z3 남쪽 끝(z 26)은 이미 벼랑이라(실측 z 26.5 에서 낙하면) 안쪽에 둔다.
+export function 씬1자리들({ 지면높이 }) {
+  const y = (x, z) => (지면높이 ? 지면높이(x, z) : 0);
+  const 두기 = (목록) => 목록.map((v) => ({ ...v, y: y(v.x, v.z) + (v.띄움 ?? 0) }));
+
+  return {
+    // ── Z1 나루터 — 어부가 사는 물가(`F-05`) ──
+    그물틀: 두기([
+      { x: 13.4, z: 40.9, 키: 1.55, 회전: 0.34, 폭비: 1.35 / 1.55 },
+      { x: 16.9, z: 41.6, 키: 1.42, 회전: -0.22, 폭비: 1.25 / 1.42 },
+    ]),
+    통발: 두기([
+      { x: 19.6, z: 41.9, 키: 0.95, 회전: 0.9 },
+      { x: 20.5, z: 42.3, 키: 0.88, 회전: 1.6 },
+      { x: 19.0, z: 42.5, 키: 0.92, 회전: 0.2, 기울기: 0.35 },
+    ]),
+    // ── 기다림의 흔적 — Z1 물가 · Z3 만나던 자리 ──
+    화톳불: 두기([
+      // 아비사가 기다리던 자리(물가). 아비사 NPC(22, 38.5) 가 바라보는 쪽이다.
+      { x: 24.2, z: 41.2, 키: 0.26, 회전: 0.5 },
+      // 두 사람이 밤마다 만나던 자리(`F-06`) — 앙암바위 위
+      { x: 44.7, z: 24.4, 키: 0.28, 회전: 1.1 },
+    ]),
+    돌탑: 두기([
+      { x: 25.6, z: 40.3, 키: 0.82, 회전: 0.7, 폭비: 0.62, 깊이비: 0.62 },
+      { x: 47.4, z: 23.7, 키: 0.95, 회전: 2.1, 폭비: 0.6, 깊이비: 0.6 },
+    ]),
+    // ── 구렁이 — 첫 등장. 수풀 가장자리에서 물가 쪽을 향한다 ──
+    //   ④ 부록 E 「조사관이 위험 요소로 판단해 떨어뜨림」 · ③ §7 「숲으로 쫓아낸다」
+    //   둘 다 **가까이 오다 물러난다**는 그림이라, 아비사와 물가 사이가 아니라
+    //   **수풀 쪽**에 둔다. 아직은 그냥 큰 구렁이다.
+    //   ※ 자리를 두 번 옮겼다. (26.6, 36.4) 는 **T1「바위틈」들머리(28, 36.5)**
+    //     에 걸쳐 길을 막았고, (25.4, 33.6) 은 **T4 꼬리** 위였다.
+    //     그 일대를 재 보니 순수 Z1 은 **x 22~26 · z 35~38** 뿐이다.
+    //     몸통이 4.2 m 라 **거의 X 축으로 눕혀** 그 안에 담는다.
+    //     T1 은 §5 Scene 01 에서 추락지점으로 가는 길이라 막히면 안 된다.
+    구렁이: 두기([{ x: 23.9, z: 36.4, 키: 4.2, 회전: 1.5 }]),
+  };
+}
