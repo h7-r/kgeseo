@@ -701,11 +701,41 @@ export function 편집기({
     };
   }, [켬, 부감설정]);
 
-  // ── 부감 높이(휠) ────────────────────────────────────────
+  // ── 휠 — 에셋함 위에서는 그 안만 구르고, 그 밖에서는 부감 높낮이 ──
+  // [왜 자리로 판별하나]
+  //   안내판은 `pointer-events:none` 이다(그래야 판 뒤쪽 땅을 클릭해 물건을
+  //   놓을 수 있다). 그래서 판 위에서 휠을 굴려도 **이벤트가 캔버스로 새어
+  //   나가** 지도가 확대·축소됐다(사용자 지적: 에셋함 안에서는 그 영역만
+  //   굴러야 한다). 판이 이벤트를 못 받으니 **커서가 그 상자 안에 있는지**를
+  //   자리로 재서 갈라 준다.
   useEffect(() => {
-    if (!켬 || !부감) return;
-    const 캔 = gl.domElement;
+    if (!켬) return;
+    const 안에있나 = (el, ev) => {
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return false;
+      return (
+        ev.clientX >= r.left && ev.clientX <= r.right &&
+        ev.clientY >= r.top && ev.clientY <= r.bottom
+      );
+    };
     const 휠 = (ev) => {
+      // ① 에셋함 안이면 그 상자만 구른다 — 지도는 꿈쩍도 안 한다
+      const 함 = document.getElementById("naju-에셋함");
+      if (안에있나(함, ev)) {
+        ev.preventDefault();
+        함.scrollTop += ev.deltaY;
+        return;
+      }
+      // ② 안내판(에셋함 밖)이면 판 전체를 구른다. 여기서도 지도는 안 움직인다.
+      const 판 = document.getElementById("naju-편집안내");
+      if (안에있나(판, ev)) {
+        ev.preventDefault();
+        판.scrollTop += ev.deltaY;
+        return;
+      }
+      // ③ 그 밖 — 부감일 때만 높낮이. 걸어 다닐 때는 휠에 아무 일도 없다.
+      if (!부감) return;
       ev.preventDefault();
       const 밑 = 지면높이 ? 지면높이(camera.position.x * 유닛, camera.position.z * 유닛) : 0;
       const 지금 = camera.position.y * 유닛 - 밑;
@@ -717,9 +747,11 @@ export function 편집기({
       높이참조.current = 다음;
       camera.position.y = (밑 + 다음) * 미터;
     };
-    캔.addEventListener("wheel", 휠, { passive: false });
-    return () => 캔.removeEventListener("wheel", 휠);
-  }, [켬, 부감, camera, gl, 지면높이]);
+    // 창 **하나에만** 단다. 캔버스에도 달면 캔버스 위에서 굴릴 때 이벤트가
+    // 창으로 버블링해 **두 번 발동**한다(높낮이가 두 배로 뛴다).
+    window.addEventListener("wheel", 휠, { passive: false });
+    return () => window.removeEventListener("wheel", 휠);
+  }, [켬, 부감, camera, 지면높이]);
 
   // 붓이 들려 있으면 커서를 십자로 바꾼다 — 클릭이 「고르기」가 아니라
   // 「놓기」라는 것이 눈에 보여야 한다.
@@ -918,7 +950,12 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
         : '<span style="opacity:.6"> — 눌러서 고른다</span>') +
       (!펼침
         ? "</div>"
-        : 갈래목록
+        : // 에셋함 — **제 스크롤 영역**을 갖는다. 갈래가 늘면 패널이 화면을
+          //   위아래로 다 먹어 버려서, 정작 놓을 자리가 안 보인다.
+          //   ※ id 로 찾아 휠을 여기로 돌린다(아래 `휠` 핸들러 참고).
+          '<div id="naju-에셋함" style="max-height:34vh;overflow-y:auto;' +
+          "overflow-x:hidden;margin-top:2px;padding-right:4px\">" +
+          갈래목록
         .map((갈래) => {
           const 것들 = 에셋목록
             .filter((v) => v.갈래 === 갈래)
@@ -951,7 +988,7 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
             `<div style="margin-top:4px"><span style="opacity:.55">${갈래}</span><br>${것들}</div>`
           );
         })
-          .join("") + "</div>");
+          .join("") + "</div></div>");
 
     판.innerHTML =
       '<b style="color:#FFD166">편집 모드</b>' +
