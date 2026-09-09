@@ -69,7 +69,7 @@ import { 무리만들기, 편집읽기, 빈편집 } from "../배치.js";
 import { 편집기 } from "../편집기.jsx";
 import { 하늘돔만들기, 구름만들기, 하늘결 } from "../하늘.js";
 import { 들판만들기, 숲마을만들기, 산줄기만들기 } from "../원경.js";
-import { 나루만들기 } from "../나루터.js";
+import { 나루만들기, 나룻배만들기 } from "../나루터.js";
 import { 사람들만들기 } from "../인물.js";
 import {
   지형GLB,
@@ -307,6 +307,8 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     //   ※ 기하는 안 바뀐다 — **텍스처만** 갈아 끼우므로 판정과 무관하다.
     //     끄면 원래 정점색 툰으로 되돌아간다. A/B 로 보라고 스위치로 뒀다.
     // ★ 바위에 붙는 수풀 — 모티브 사진처럼 맨 암벽이 아니게 한다
+    // 나루터에 대 둔 배 — 「여기서 강을 건넌다」를 읽히게 한다
+    나룻배: true,
     // ★ 언덕 전체 수풀 — 모티브 사진에서 초록이 없는 데는 깎아지른 암벽뿐이다.
     //   걷는 무대(구역·통로)는 비운다: 이 나무들은 막힘 판정이 없다.
     // ★ 길 양옆 — 완만한 데는 나무·덤불, 비탈 옆면은 기둥 없는 잎더미
@@ -878,6 +880,23 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   }, [지형]);
   useEffect(() => () => 나루?.dispose(), [나루]);
 
+  // ── 나룻배 ─────────────────────────────────────────────
+  //   말뚝과 널만 있으면 아직 나루터가 아니다. 배가 있어야
+  //   「여기서 강을 건넌다」가 한눈에 읽힌다(§5 Scene 01).
+  //   나루 **동쪽 옆**에 나루와 나란히 대 둔다.
+  const 나룻배 = useMemo(() => {
+    if (!T.나룻배) return null;
+    const z1 = 지형.구역.find((v) => v.코드 === "Z1");
+    return 나룻배만들기({
+      x: z1.X[0] + 11.4, // 나루(X+4.5~+9.5) 바로 동쪽
+      z: 강.Z시작 + 1.5, // 물 위
+      방향: 0.1, // 나루와 거의 나란히
+      물높이: 0, // 강.js 는 y = 0 을 기준으로 물결친다
+      시드: 4477,
+    });
+  }, [지형, T.나룻배]);
+  useEffect(() => () => 나룻배?.dispose(), [나룻배]);
+
   // ── 통로 T1~T4 ──────────────────────────────────────────
   const 길조형 = useMemo(() => {
     if (!T.길디테일) return null;
@@ -1370,6 +1389,12 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
       {나루 && (
         <mesh name="나루" geometry={나루} receiveShadow castShadow>
           <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} />
+        </mesh>
+      )}
+      {/* 나룻배 — 널배라 안쪽 바닥이 보인다. 양면으로 둔다. */}
+      {나룻배 && (
+        <mesh name="나룻배" geometry={나룻배} receiveShadow castShadow>
+          <meshLambertMaterial vertexColors side={THREE.DoubleSide} />
         </mesh>
       )}
 
