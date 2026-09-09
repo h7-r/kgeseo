@@ -22,6 +22,7 @@
 import * as THREE from "three";
 import { 미터, 코어 } from "./공간도면.js";
 import { 통로결 } from "./통로.js";
+import { 흙벽결 } from "./절벽.js";
 
 // ── 설계값 ──────────────────────────────────────────────────
 //   시작 : 코어 **안쪽**에서 시작한다. 가장자리에 딱 붙여 시작하면 코어 땅과
@@ -83,12 +84,15 @@ export function 연결로만들기({ 코어높이, 바깥높이, 칸당 = 0.5 })
     const { u, 옆 } = 재기(x, z);
     return u >= -0.02 && u <= 1.02 && Math.abs(옆) <= 반폭 + 설계.갓길;
   };
+  // 길바닥 높이 — 파 넣은 깊이는 **양 끝에서 0** 으로 뺀다. 끝까지 파 두면
+  //   아랫자락이 들판 밑으로 들어가 덮여 버린다(실측: 마지막 3 m 가 안 보였다).
+  const 길바닥 = (u) => {
+    const 끝맺음 = Math.max(0, Math.min(1, Math.min(u, 1 - u) / 0.12));
+    return 길높이(u) - 설계.바닥깊이 * 끝맺음;
+  };
   const 높이 = (x, z) => {
     const { u, 옆 } = 재기(x, z);
-    // 파 넣은 깊이는 **양 끝에서 0** 으로 뺀다. 끝까지 파 두면 아랫자락이
-    //   들판 밑으로 들어가 덮여 버린다(실측: 마지막 3 m 가 안 보였다).
-    const 끝맺음 = Math.min(1, Math.min(u, 1 - u) / 0.12);
-    const y = 길높이(u) - 설계.바닥깊이 * Math.max(0, 끝맺음);
+    const y = 길바닥(u);
     const 밖 = Math.max(0, Math.abs(옆) - 반폭);
     if (밖 <= 0) return y;
     // 갓길 — 길 밖으로 갈수록 주변 땅으로 녹아든다
@@ -98,52 +102,114 @@ export function 연결로만들기({ 코어높이, 바깥높이, 칸당 = 0.5 })
   };
 
   // ── 지오메트리 ────────────────────────────────────────────
-  //   길이 방향으로 잘게 썰고, 폭 방향은 [갓길 바깥 · 길 가장자리 · 한복판 ·
-  //   길 가장자리 · 갓길 바깥] 다섯 줄로 짠다. 가장자리에 줄이 있어야
-  //   길바닥과 어깨가 **각이 서서** 길로 읽힌다(한 장이면 그냥 비탈이다).
-  const 칸수 = Math.max(8, Math.round(평면길이 * 칸당));
-  const 옆줄 = [
-    -(반폭 + 설계.갓길),
-    -반폭,
-    0,
-    반폭,
-    반폭 + 설계.갓길,
-  ];
+  // [왜 「둑」을 세우나]
+  //   예전에는 길 양옆에 1.4 m 짜리 갓길만 달고 끝냈다. 그런데 이 길은
+  //   가장자리에서 **5 m 넘게 떠 있다.** 폭 6 m 짜리 널판이 허공을 가로지르는
+  //   꼴이라 「판판하다」는 말이 나왔다(사용자 지적).
+  //   진짜 산길은 **흙을 쌓아 만든 둑** 위에 난다. 그래서 길 옆으로
+  //   **안식각(흙이 저절로 무너지지 않는 각, 33°)** 으로 흘러내리는 비탈을
+  //   붙인다. 길이 땅에서 5 m 떠 있으면 비탈은 5/tan33° ≈ 7.7 m 뻗는다.
+  //   높이 차가 클수록 넓어지므로 **위쪽은 넓고 아래로 갈수록 좁아진다** —
+  //   그게 언덕을 깎아 낸 길의 생김새다.
+  const 안식각 = (33 * Math.PI) / 180;
+  const 안식 = Math.tan(안식각);
+  const 둘레높이 = (x, z) =>
+    x <= 코어.X[1] && x >= 코어.X[0] && z >= 코어.Z[0] && z <= 코어.Z[1]
+      ? 코어높이(x, z)
+      : 바깥높이(x, z);
+
+  // 흙 표면 흔들림 — 자로 잰 비탈은 콘크리트로 보인다
+  const 결 = (x, z) =>
+    Math.sin(x * 0.7 + z * 0.4) * 0.5 +
+    Math.sin(x * 1.9 - z * 1.3 + 2.1) * 0.28 +
+    Math.sin(x * 3.7 + z * 2.9 + 4.4) * 0.14;
+
+  // 한 지점(u, 쪽)의 둑 폭 — 길 가장자리와 둘레 땅의 높이 차로 정한다
+  const 둑폭 = (u, 쪽) => {
+    const [ex, ez] = 중심자리(u, 반폭 * 쪽);
+    const 길y = 길바닥(u);
+    const 땅y = 둘레높이(ex, ez);
+    const w = Math.abs(길y - 땅y) / 안식;
+    return THREE.MathUtils.clamp(w, 0.9, 11);
+  };
+
+  const 중심자리 = (u, 옆) => {
+    const x = x0 + ux * 평면길이 * u + nx * 옆;
+    const z = z0 + uz * 평면길이 * u + nz * 옆;
+    return [x, z];
+  };
+
+  const 칸수 = Math.max(14, Math.round(평면길이 * 칸당));
+  const 결가지 = [1, 0.62, 0.28, 0]; // 둑 바깥 → 길 가장자리
   const 위치 = [];
   const 색깔 = [];
   const 다짐 = new THREE.Color(통로결.다짐);
   const 가장 = new THREE.Color(통로결.가장자리);
-  const 갓 = new THREE.Color(통로결.갓길);
-  const c = new THREE.Color();
+  const 흙밝 = new THREE.Color(흙벽결.밝음);
+  const 흙어 = new THREE.Color(흙벽결.어둠);
+  const 임시 = new THREE.Color();
 
-  const 점 = (i, j) => {
+  // 한 단면의 점들 — [옆거리(부호), 높이, 색]
+  const 단면 = (i) => {
     const u = i / 칸수;
-    const 옆 = 옆줄[j];
-    const x = x0 + ux * 평면길이 * u + nx * 옆;
-    const z = z0 + uz * 평면길이 * u + nz * 옆;
-    return [x, 높이(x, z), z];
-  };
-  const 색 = (j) => {
-    if (j === 2) return 다짐;
-    if (j === 1 || j === 3) return c.copy(다짐).lerp(가장, 0.65);
-    return 갓;
-  };
-  const 밀기 = (p, col) => {
-    위치.push(p[0] * 미터, p[1] * 미터, p[2] * 미터);
-    색깔.push(col.r, col.g, col.b);
+    const 줄 = [];
+    const wL = 둑폭(u, -1);
+    const wR = 둑폭(u, +1);
+    const 길y = 길바닥(u);
+    const 넣기 = (옆, t쪽) => {
+      const [x, z] = 중심자리(u, 옆);
+      let y;
+      let 색;
+      const 밖 = Math.abs(옆) - 반폭;
+      if (밖 <= 0) {
+        // 길바닥 — 한복판이 밟혀 다져지고 살짝 굼실거린다
+        y = 길y + 결(x, z) * 0.035;
+        const 가 = Math.abs(옆) / 반폭;
+        색 = 임시.copy(다짐).lerp(가장, Math.pow(가, 1.7) * 0.8).clone();
+      } else {
+        // 둑 비탈 — 길 가장자리에서 둘레 땅까지 **오목하게** 흘러내린다.
+        //   직선으로 이으면 각재를 덧댄 꼴이다. 아래로 갈수록 눕혀야
+        //   흙이 쌓여 굳은 것처럼 보인다.
+        const w = 옆 < 0 ? wL : wR;
+        const t = THREE.MathUtils.clamp(밖 / w, 0, 1);
+        const 땅y = 둘레높이(x, z);
+        const 눕힘 = 1 - Math.pow(1 - t, 2.1);
+        y = THREE.MathUtils.lerp(길y, 땅y, 눕힘) + 결(x, z) * 0.16 * (1 - t);
+        // 파인 데는 어둡다 — 비탈 한복판이 가장 어둡고 아래로 갈수록 땅빛
+        색 = 임시
+          .copy(흙어)
+          .lerp(흙밝, 0.35 + Math.pow(t, 0.8) * 0.55)
+          .clone();
+      }
+      줄.push({ x, y, z, 색, t쪽 });
+    };
+    for (let k = 0; k < 결가지.length; k++)
+      넣기(-(반폭 + wL * 결가지[k]), -1);
+    넣기(0, 0);
+    for (let k = 결가지.length - 1; k >= 0; k--)
+      넣기(반폭 + wR * 결가지[k], 1);
+    return 줄;
   };
 
+  const 밀기 = (p) => {
+    위치.push(p.x * 미터, p.y * 미터, p.z * 미터);
+    색깔.push(p.색.r, p.색.g, p.색.b);
+  };
+
+  let 앞단면 = 단면(0);
   for (let i = 0; i < 칸수; i++) {
-    for (let j = 0; j < 옆줄.length - 1; j++) {
-      const a = 점(i, j);
-      const b = 점(i + 1, j);
-      const d = 점(i, j + 1);
-      const e = 점(i + 1, j + 1);
-      const ca = 색(j).clone();
-      const cb = 색(j + 1).clone();
-      밀기(a, ca); 밀기(b, ca); 밀기(d, cb);
-      밀기(b, ca); 밀기(e, cb); 밀기(d, cb);
+    const 뒤단면 = 단면(i + 1);
+    for (let j = 0; j < 앞단면.length - 1; j++) {
+      const a = 앞단면[j];
+      const b = 뒤단면[j];
+      const c2 = 앞단면[j + 1];
+      const d2 = 뒤단면[j + 1];
+      // ★ 감는 순서. 예전에는 a→b→c 로 감아 **법선이 전부 아래를 봤다**
+      //   (실측: 288 개 모두). 해를 등지니 통째로 검게 나왔다.
+      밀기(a); 밀기(c2); 밀기(b);
+      밀기(b); 밀기(c2); 밀기(d2);
     }
+    앞단면 = 뒤단면;
   }
 
   const 지오 = new THREE.BufferGeometry();
