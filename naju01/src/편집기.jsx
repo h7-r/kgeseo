@@ -42,7 +42,15 @@ import {
 
 const 회전단위 = Math.PI / 12; // 15°
 // 이동할 때 '땅'으로 쳐 주는 메시 이름
-const 땅이름 = ["땅", "길", "비탈", "절벽면", "절벽조각.덩어리", "z.지오"];
+// 광선이 「땅」으로 받아 주는 것들. 원경 들판도 넣는다 — 무대 밖에 물건을
+// 놓으려면 거기서도 바닥을 맞혀야 한다.
+const 땅이름 = [
+  "땅", "길", "비탈", "절벽면", "절벽조각.덩어리", "z.지오",
+  "원경.들", "원경.먼들",
+];
+// 이 이름에 맞았으면 **그 지점의 높이**를 그대로 쓴다. 코어 밖은 `지면높이`
+// (지표)가 값을 안 갖고 있어서, 안 그러면 원경 나무가 땅속에 박힌다.
+const 바깥땅 = new Set(["원경.들", "원경.먼들"]);
 
 // ── 못 고르는 것을 눌렀을 때 뭐라고 말해 줄 것인가 ──────────
 // [왜]
@@ -84,9 +92,16 @@ const 부감기본 = {
 //   방향이 어긋나 조작이 안 된다(방향키가 뒤집혀 보이던 것과 같은 문제다).
 const 임시앞 = new THREE.Vector3();
 const 임시옆 = new THREE.Vector3();
-//   무대(코어) 밖으로는 못 나간다. 안 죄면 강 위 허공까지 밀려 나가서
-//   돌아올 길을 잃는다(실측 중 Z 51 까지 나갔다 — 코어는 Z 0~50 이다).
-const 여유 = 6; // m — 가장자리를 볼 수 있게 이만큼은 넘어가도 둔다
+// ── 편집이 미치는 범위 ─────────────────────────────────────
+//   무대(코어)는 X 0~80 · Z 0~50 이다. 그런데 **바깥에도 물건이 있다** —
+//   원경 숲 760 그루와 마을 34 채. 그것도 고치려면 코어에 가둘 수 없다.
+//   그렇다고 무한히 놔두면 부감으로 밀다가 1 km 밖으로 나가 돌아올 길을 잃는다.
+//   그래서 원경이 실제로 서 있는 범위(코어에서 사방 250 m)까지만 연다.
+export const 편집범위 = {
+  X: [코어.X[0] - 250, 코어.X[1] + 250],
+  Z: [코어.Z[0] - 250, 코어.Z[1] + 250],
+};
+const 죄기 = (v, a, b) => Math.min(b, Math.max(a, v));
 function 화면밀기(카메라, 옆m, 앞m) {
   카메라.getWorldDirection(임시앞);
   임시앞.y = 0;
@@ -95,10 +110,8 @@ function 화면밀기(카메라, 옆m, 앞m) {
   임시옆.crossVectors(임시앞, 카메라.up).normalize();
   const x = 카메라.position.x * 유닛 + 임시앞.x * 앞m + 임시옆.x * 옆m;
   const z = 카메라.position.z * 유닛 + 임시앞.z * 앞m + 임시옆.z * 옆m;
-  카메라.position.x =
-    Math.min(코어.X[1] + 여유, Math.max(코어.X[0] - 여유, x)) * 미터;
-  카메라.position.z =
-    Math.min(코어.Z[1] + 여유, Math.max(코어.Z[0] - 여유, z)) * 미터;
+  카메라.position.x = 죄기(x, 편집범위.X[0], 편집범위.X[1]) * 미터;
+  카메라.position.z = 죄기(z, 편집범위.Z[0], 편집범위.Z[1]) * 미터;
 }
 
 // 인스턴스 하나의 색을 sRGB 16진수로 꺼낸다(없으면 null).
@@ -333,10 +346,11 @@ export function 편집기({
       const 맞음 = 광선.current
         .intersectObjects(scene.children, true)
         .filter((h) => 땅이름.includes(h.object.name));
-      let x, z;
+      let x, z, 맞은y = null;
       if (맞음.length) {
         x = 맞음[0].point.x * 유닛;
         z = 맞음[0].point.z * 유닛;
+        if (바깥땅.has(맞음[0].object.name)) 맞은y = 맞음[0].point.y * 유닛;
       } else {
         // 언덕 위에서 수평으로 보면 광선이 코어를 넘어 원경으로 날아간다.
         // 면으로 받아야 **어디를 보든 따라온다**(실측: 안 받으면 맞음 0).
@@ -345,10 +359,11 @@ export function 편집기({
         x = 닿는곳.x * 유닛;
         z = 닿는곳.z * 유닛;
       }
-      // Playable Core 밖으로는 못 나간다(면 교점은 수백 m 밖까지 간다)
+      // 편집 범위 밖으로는 못 나간다(면 교점은 수백 m 밖까지 간다)
       return [
-        Math.min(코어.X[1] - 0.5, Math.max(코어.X[0] + 0.5, x)),
-        Math.min(코어.Z[1] - 0.5, Math.max(코어.Z[0] + 0.5, z)),
+        죄기(x, 편집범위.X[0], 편집범위.X[1]),
+        죄기(z, 편집범위.Z[0], 편집범위.Z[1]),
+        맞은y,
       ];
     };
 
@@ -375,8 +390,13 @@ export function 편집기({
       if (붓것) {
         const 자리 = 땅자리(ev, 0);
         if (!자리) return;
-        const [x, z] = 자리;
-        const y = 지면높이참조.current ? 지면높이참조.current(x, z) : 0;
+        const [x, z, 바깥y] = 자리;
+        const y =
+          바깥y !== null
+            ? 바깥y // 무대 밖 — 원경 들판을 맞힌 그 높이
+            : 지면높이참조.current
+              ? 지면높이참조.current(x, z)
+              : 0;
         const 정의 = 에셋찾기(붓것);
         되돌리기통.current.push(편집참조.current);
         const { 편집: 다음, 번호 } = 더하기(편집참조.current, 붓것, {
@@ -449,8 +469,13 @@ export function 편집기({
       }
       const 자리 = 땅자리(ev, 고.y);
       if (!자리) return;
-      const [x, z] = 자리;
-      const y = 지면높이참조.current ? 지면높이참조.current(x, z) : 고.y;
+      const [x, z, 바깥y] = 자리;
+      const y =
+        바깥y !== null
+          ? 바깥y // 무대 밖은 원경 들판 높이를 쓴다(지표는 거기 값이 없다)
+          : 지면높이참조.current
+            ? 지면높이참조.current(x, z)
+            : 고.y;
       const 새것 = { ...고, x, y, z };
       고른것참조.current = 새것;
       고른것설정(새것);
@@ -533,8 +558,8 @@ export function 편집기({
         앞.normalize();
         const 옆 = new THREE.Vector3().crossVectors(앞, camera.up).normalize();
         const 간격 = Math.max(1, c.키 * 0.6);
-        const x = Math.min(코어.X[1] - 0.5, Math.max(코어.X[0] + 0.5, c.x + 옆.x * 간격));
-        const z = Math.min(코어.Z[1] - 0.5, Math.max(코어.Z[0] + 0.5, c.z + 옆.z * 간격));
+        const x = 죄기(c.x + 옆.x * 간격, 편집범위.X[0], 편집범위.X[1]);
+        const z = 죄기(c.z + 옆.z * 간격, 편집범위.Z[0], 편집범위.Z[1]);
         const y = 지면높이 ? 지면높이(x, z) : c.y;
         되돌리기통.current.push(편집);
         const { 편집: 다음, 번호 } = 더하기(편집, c.이름, {
@@ -625,8 +650,8 @@ export function 편집기({
           if (ev.code === "ArrowDown") d.copy(앞).negate();
           if (ev.code === "ArrowRight") d.copy(옆);
           if (ev.code === "ArrowLeft") d.copy(옆).negate();
-          const x = Math.min(코어.X[1] - 0.5, Math.max(코어.X[0] + 0.5, 고른것.x + d.x * 칸));
-          const z = Math.min(코어.Z[1] - 0.5, Math.max(코어.Z[0] + 0.5, 고른것.z + d.z * 칸));
+          const x = 죄기(고른것.x + d.x * 칸, 편집범위.X[0], 편집범위.X[1]);
+          const z = 죄기(고른것.z + d.z * 칸, 편집범위.Z[0], 편집범위.Z[1]);
           const y = 지면높이 ? 지면높이(x, z) : 고른것.y;
           고른것설정((v) => ({ ...v, x, y, z }));
           밀기({ x, y, z });

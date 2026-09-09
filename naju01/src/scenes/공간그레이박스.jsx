@@ -68,7 +68,13 @@ import { 무리만들기, 편집읽기, 빈편집, 돌흔들기 } from "../배�
 import { 편집기 } from "../편집기.jsx";
 import { 에셋목록, 에셋표본 } from "../에셋목록.js";
 import { 하늘돔만들기, 구름만들기, 하늘결 } from "../하늘.js";
-import { 들판만들기, 숲마을만들기, 산줄기만들기 } from "../원경.js";
+import {
+  들판만들기,
+  숲마을만들기,
+  산줄기만들기,
+  원경나무표본들,
+  원경집표본들,
+} from "../원경.js";
 import { 나루만들기, 나룻배표본 } from "../나루터.js";
 import { 사람들만들기 } from "../인물.js";
 import {
@@ -777,7 +783,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     () => () => {
       원경?.들?.dispose();
       원경?.먼들?.dispose();
-      원경?.숲마을?.dispose();
+      원경?.숲마을?.지오?.dispose();
       원경?.산?.dispose();
     },
     [원경],
@@ -1023,6 +1029,8 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
       돌: 돌표본들(6, 7301),
       기둥: 기둥표본들(4, 3301),
       가로대: 가로대표본들(3, 5507),
+      원경나무: 원경나무표본들(6, 4801),
+      원경집: 원경집표본들(6203),
     }),
     [],
   );
@@ -1071,9 +1079,13 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   // 자리 목록 + 편집 → 인스턴스 무리
   const 무리들 = useMemo(() => {
     const 목록 = [];
+    const 세운이름 = new Set();
     const 담기 = (이름, 자리들, 모양들, 옵션 = {}) => {
       const m = 무리만들기({ 이름, 모양들, 자리들, 편집, ...옵션 });
-      if (m) 목록.push(m);
+      if (m) {
+        목록.push(m);
+        세운이름.add(이름);
+      }
     };
     if (언덕자리) {
       담기("언덕수풀.나무", 언덕자리.나무자리, 표본.나무);
@@ -1106,6 +1118,12 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
       담기("울타리.기둥", 울타리자리.기둥, 표본.기둥);
       담기("울타리.가로대", 울타리자리.가로대, 표본.가로대);
     }
+    // 무대 밖 원경 — 숲 320 그루와 마을 34 채. 예전에는 한 덩이로 구워서
+    // 하나도 못 골랐다(사용자 지적). 이제 하나씩 고르고 옮기고 지울 수 있다.
+    if (원경?.숲마을) {
+      담기("원경.나무", 원경.숲마을.나무자리, 표본.원경나무);
+      담기("원경.집", 원경.숲마을.집자리, 표본.원경집);
+    }
     // 자갈 — 작지만 길 위에 얹히면 걸리적거린다. 이것도 하나씩 치울 수 있어야 한다.
     if (땅?.알자리?.length) {
       담기(
@@ -1136,6 +1154,10 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     for (const 정의 of 에셋목록) {
       const 놓은것 = 편집?.더함?.[정의.키];
       if (!놓은것?.length) continue;
+      // ★ 생성기가 이미 세운 이름이면 건너뛴다. 「원경.나무」처럼 팔레트 키와
+      //   무리 이름이 **일부러 같은** 것이 있는데(놓은 것이 그 무리에 섞여야
+      //   한다), 여기서 또 세우면 같은 물건이 두 번 그려진다.
+      if (세운이름.has(정의.키)) continue;
       담기(정의.키, [], 에셋표본(정의.키), { 양면: !!정의.양면 });
     }
     return 목록;
@@ -1148,6 +1170,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     나룻배자리,
     나룻배모양,
     울타리자리,
+    원경,
     표본,
     편집,
   ]);
@@ -1533,8 +1556,8 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
           <mesh name="원경.먼들" geometry={원경.먼들} frustumCulled={false}>
             <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 양면 />
           </mesh>
-          {원경.숲마을 && (
-            <mesh name="원경.숲마을" geometry={원경.숲마을}>
+          {원경.숲마을?.지오 && (
+            <mesh name="원경.숲마을" geometry={원경.숲마을.지오}>
               <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} />
             </mesh>
           )}

@@ -235,12 +235,14 @@ export function 숲마을만들기({
   지평색 = "#CFCBBE",
 }) {
   const 난수 = makeRandom(시드);
-  const 조각 = [];
+  const 조각 = []; // 산울타리만 남는다 — 나무와 집은 무리로 세운다
+  const 나무자리 = [];
+  const 집자리 = [];
   const 하늘가 = new THREE.Color(지평색);
   const 숲 = new THREE.Color(원경결.숲);
   const 숲밝 = new THREE.Color(원경결.숲밝);
-  const 초가 = new THREE.Color(원경결.초가);
-  const 기와 = new THREE.Color(원경결.기와);
+  // ※ 초가·기와 색은 이제 `원경집표본들` 이 **벽 색에 대한 비율**로 굽는다.
+  //   여기서는 어느 쪽인지(모양 번호)만 정한다.
   const 흙벽 = new THREE.Color(원경결.흙벽);
   const 회벽 = new THREE.Color(원경결.회벽);
   const c = new THREE.Color();
@@ -292,31 +294,24 @@ export function 숲마을만들기({
       const y = 높이(x, z);
       c.copy(섞(숲, 숲밝, 난수())).lerp(하늘가, Math.pow(m, 0.75) * 0.82);
       const 잎색 = c.clone();
-      // 줄기 — ※ 덩이 하나만 두면 멀리서도 **녹색 공**으로 보인다.
-      //   가는 줄기가 있어야 나무 실루엣이 된다.
-      const 줄기 = new THREE.CylinderGeometry(
-        키 * 0.035 * 미터, 키 * 0.05 * 미터, 키 * 0.42 * 미터, 5, 1,
-      );
-      자리.set(x * 미터, (y + 키 * 0.21) * 미터, z * 미터);
-      행렬.compose(자리, new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
-      const 줄기n = 줄기.toNonIndexed();
-      줄기.dispose();
-      줄기n.applyMatrix4(행렬);
-      놓기(줄기n, 섞(new THREE.Color("#6B5A4C"), 하늘가, Math.pow(m, 0.75) * 0.82));
-      // 잎덩이 둘 — 아래가 넓고 위가 좁아야 나무로 읽힌다
-      for (const [높, 반, 눌] of [[0.5, 0.34, 1.0], [0.76, 0.24, 0.9]]) {
-        const g = new THREE.IcosahedronGeometry(키 * 반 * 미터, 0);
-        사원수.setFromEuler(new THREE.Euler(난수(), 난수() * 6.3, 난수()));
-        배율.set(1, 눌 * (0.85 + 난수() * 0.35), 1);
-        자리.set(
-          (x + (난수() - 0.5) * 키 * 0.12) * 미터,
-          (y + 키 * 높) * 미터,
-          (z + (난수() - 0.5) * 키 * 0.12) * 미터,
-        );
-        행렬.compose(자리, 사원수, 배율);
-        g.applyMatrix4(행렬);
-        놓기(g, 잎색);
+      // ★ 예전에는 여기서 줄기와 잎덩이를 **구워 합쳤다.** 그러면 320 그루가
+      //   한 덩이가 되어 하나도 못 고른다(사용자 지적: 「바깥 요소도 고르게」).
+      //   지금은 **자리만** 남기고 무리(InstancedMesh)로 세운다.
+      //   ※ 난수는 예전과 **똑같은 횟수·순서로** 굴린다. 안 그러면 숲 자리가
+      //     통째로 달라져서 지금까지 맞춰 놓은 원경 그림이 어긋난다.
+      const 잎흔들 = [];
+      for (let b = 0; b < 2; b++) {
+        난수(); 난수(); 난수(); // 예전 Euler 세 몫
+        잎흔들.push(난수()); // 예전 눌림 몫
+        난수(); 난수(); // 예전 자리 흔들림 두 몫
       }
+      나무자리.push({
+        x, y, z,
+        키,
+        회전: 잎흔들[0] * Math.PI * 2,
+        모양: Math.floor(잎흔들[1] * 6) % 6,
+        색: 잎색.getHex(),
+      });
       심음++;
     }
   }
@@ -370,37 +365,113 @@ export function 숲마을만들기({
     const d = 3.5 + 난수() * 3;
     const h = 2.4 + 난수() * 1.2;
     const 방 = 난수() * 6.3;
-    // 벽
-    const 벽g = new THREE.BoxGeometry(w * 미터, h * 미터, d * 미터);
-    사원수.setFromEuler(new THREE.Euler(0, 방, 0));
-    자리.set(x * 미터, (y + h / 2) * 미터, z * 미터);
-    행렬.compose(자리, 사원수, new THREE.Vector3(1, 1, 1));
-    벽g.applyMatrix4(행렬);
-    // 집마다 흙벽/회벽. 한 색이면 흰 상자 무더기로 보인다.
+    // 벽 색 — 예전과 같은 순서로 굴린다
     c.copy(섞(흙벽, 회벽, 난수())).lerp(하늘가, Math.pow(m, 0.75) * 0.8);
-    놓기(벽g.toNonIndexed(), c.clone());
-    벽g.dispose();
-    // 지붕 — 네모뿔(4각 원뿔)로 얹으면 초가·기와 어느 쪽으로도 읽힌다
-    const 지g = new THREE.ConeGeometry(
-      Math.hypot(w, d) * 0.58 * 미터,
-      (1.1 + 난수() * 0.8) * 미터,
-      4,
-      1,
-    );
-    사원수.setFromEuler(new THREE.Euler(0, 방 + Math.PI / 4, 0));
-    자리.set(x * 미터, (y + h + 0.6) * 미터, z * 미터);
-    행렬.compose(자리, 사원수, new THREE.Vector3(1, 1, 1));
-    지g.applyMatrix4(행렬);
-    // 지붕도 초가/기와로 갈린다 — 마을이 한 채씩 세어지려면 지붕이 갈려야 한다
-    c.copy(난수() < 0.62 ? 초가 : 기와).lerp(하늘가, Math.pow(m, 0.75) * 0.8);
-    놓기(지g.toNonIndexed(), c.clone());
-    지g.dispose();
+    const 벽색 = c.clone();
+    const 지붕높 = 1.1 + 난수() * 0.8; // 예전 지붕 높이 몫
+    const 초가냐 = 난수() < 0.62;
+    // ★ 여기도 굽지 않고 자리만 남긴다(위 나무 주석 참고).
+    //   표본은 「벽 색 × 지붕 비율」 네 벌이라, 지붕이 초가/기와로 갈린다.
+    집자리.push({
+      x, y, z,
+      키: h + 지붕높 + 0.6, // 용마루까지의 키
+      회전: 방,
+      폭비: w / (h + 지붕높 + 0.6),
+      깊이비: d / (h + 지붕높 + 0.6),
+      모양: (초가냐 ? 0 : 2) + (난수() < 0.5 ? 0 : 1),
+      색: 벽색.getHex(),
+    });
   }
 
-  if (!조각.length) return null;
-  const 합본 = mergeGeometries(조각, false);
-  조각.forEach((g) => g.dispose());
-  return 합본;
+  // 산울타리만 굽는다. 나무·집은 자리로 돌려주고 무리로 세운다.
+  let 합본 = null;
+  if (조각.length) {
+    합본 = mergeGeometries(조각, false);
+    조각.forEach((g) => g.dispose());
+  }
+  return { 지오: 합본, 나무자리, 집자리 };
+}
+
+// ── 원경 표본 ────────────────────────────────────────────────
+// [왜 색을 흰색으로 굽나]
+//   원경은 거리에 따라 **지평색 쪽으로 섞어** 색을 정한다. 그 값은 그루마다
+//   다르므로 `instanceColor` 로 준다. 표본의 꼭짓점 색은 **비율**만 담는다 —
+//   흰색(1,1,1)이 「인스턴스 색 그대로」, 0.72 가 「그보다 어둡게」다.
+//   ※ 줄기는 원래 제 색(#6B5A4C)에서 따로 흐려졌다. 지금은 잎 색의 0.72 배라
+//     아주 멀리서는 원래보다 조금 어둡다 — 300 m 밖 줄기는 한 픽셀이라
+//     눈으로는 구분되지 않는다(실측으로 확인했다).
+
+// 원경 나무 — 밑동이 원점, 키 1. 줄기 + 잎덩이 둘.
+export function 원경나무표본들(수 = 6, 시드 = 4801) {
+  const 난수 = makeRandom(시드);
+  const 표본 = [];
+  const 칠 = (g, v) => {
+    const n = g.attributes.position.count;
+    const a = new Float32Array(n * 3);
+    for (let i = 0; i < n * 3; i++) a[i] = v;
+    g.setAttribute("color", new THREE.BufferAttribute(a, 3));
+    return g;
+  };
+  for (let i = 0; i < 수; i++) {
+    const 조각 = [];
+    const 줄기 = new THREE.CylinderGeometry(0.035, 0.05, 0.42, 5, 1).toNonIndexed();
+    줄기.translate(0, 0.21, 0);
+    조각.push(칠(줄기, 0.72));
+    for (const [높, 반, 눌] of [[0.5, 0.34, 1.0], [0.76, 0.24, 0.9]]) {
+      const g = new THREE.IcosahedronGeometry(반, 0).toNonIndexed();
+      g.scale(1, 눌 * (0.85 + 난수() * 0.35), 1);
+      g.rotateY(난수() * Math.PI * 2);
+      g.translate((난수() - 0.5) * 0.12, 높, (난수() - 0.5) * 0.12);
+      조각.push(칠(g, 1));
+    }
+    const 합 = mergeGeometries(조각, false);
+    조각.forEach((g) => g.dispose());
+    합.computeVertexNormals();
+    표본.push(합);
+  }
+  return 표본;
+}
+
+// 원경 집 — 밑동이 원점, 용마루까지 키 1. 벽 + 네모뿔 지붕.
+//   네 벌 = 지붕 두 가지(초가·기와) × 밝기 두 단계. 지붕 색은 벽 색에 대한
+//   **비율**로 굽는다 — 그래야 마을이 한 채씩 세어진다.
+export function 원경집표본들(시드 = 6203) {
+  const 난수 = makeRandom(시드);
+  const 표본 = [];
+  const 칠 = (g, r, gg, bb) => {
+    const n = g.attributes.position.count;
+    const a = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      a[i * 3] = r;
+      a[i * 3 + 1] = gg;
+      a[i * 3 + 2] = bb;
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(a, 3));
+    return g;
+  };
+  // 지붕/벽 비율 — 초가는 누렇게 어둡고, 기와는 푸르게 어둡다
+  const 지붕비 = [
+    [0.86, 0.72, 0.46],
+    [0.96, 0.82, 0.55],
+    [0.56, 0.58, 0.62],
+    [0.66, 0.68, 0.74],
+  ];
+  for (let i = 0; i < 4; i++) {
+    const 벽높 = 0.62 + 난수() * 0.06; // 키 1 중 벽이 차지하는 몫
+    const 조각 = [];
+    const 벽 = new THREE.BoxGeometry(1, 벽높, 1).toNonIndexed();
+    벽.translate(0, 벽높 / 2, 0);
+    조각.push(칠(벽, 1, 1, 1));
+    const 지 = new THREE.ConeGeometry(0.76, 1 - 벽높, 4, 1).toNonIndexed();
+    지.rotateY(Math.PI / 4);
+    지.translate(0, 벽높 + (1 - 벽높) / 2, 0);
+    조각.push(칠(지, ...지붕비[i]));
+    const 합 = mergeGeometries(조각, false);
+    조각.forEach((g) => g.dispose());
+    합.computeVertexNormals();
+    표본.push(합);
+  }
+  return 표본;
 }
 
 // ── 산줄기 ──────────────────────────────────────────────────
