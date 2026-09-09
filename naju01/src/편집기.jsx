@@ -45,6 +45,17 @@ const 회전단위 = Math.PI / 12; // 15°
 const 땅이름 = ["땅", "길", "비탈", "절벽면", "절벽조각.덩어리", "z.지오"];
 const 밀기단위 = 0.25; // m — Shift 를 누르면 4 배
 
+// 인스턴스 하나의 색을 sRGB 16진수로 꺼낸다(없으면 null).
+//   `instanceColor` 배열은 **작업 색공간(선형)** 값이다. `fromArray` 는 그대로
+//   싣고 `getHex()` 는 sRGB 로 돌려주므로, `배치.js` 가 `색.set(hex)` 로 다시
+//   읽을 때 정확히 같은 값으로 되돌아온다.
+const 임시꺼냄 = new THREE.Color();
+function 인스턴스색(o, i) {
+  const ic = o.instanceColor;
+  if (!ic || i === undefined || i >= ic.count) return null;
+  return 임시꺼냄.fromArray(ic.array, i * 3).getHex();
+}
+
 export function 편집기({
   켬,
   편집,
@@ -121,6 +132,13 @@ export function 편집기({
         //   무엇을 골랐는지 알 수가 없었다(사용자 지적).
         if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
         const bb = o.geometry.boundingBox;
+        // ★ 복사·붙여넣기가 **그 물건 그대로**를 물려받게 여기서 다 캐낸다.
+        //   예전에는 x·y·z·키·회전만 실어 날라서, 붙인 돌이 색을 잃고(흰 돌),
+        //   납작함과 기울기까지 잃어 다른 물건이 됐다(사용자 지적).
+        //   ※ `키` 의 뜻은 안 바꾼다(높이). 대신 가로·세로를 **키에 대한 비율**로
+        //     같이 넘겨서, 붙인 것이 원본과 똑같은 크기로 서게 한다.
+        const 오일러 = new THREE.Euler().setFromQuaternion(회, "YXZ");
+        const 색 = 인스턴스색(o, h.instanceId);
         return {
           이름: 무리이름,
           번호,
@@ -128,7 +146,13 @@ export function 편집기({
           y: 자리.y * 유닛,
           z: 자리.z * 유닛,
           키: 크.y * 유닛,
-          회전: new THREE.Euler().setFromQuaternion(회, "YXZ").y,
+          회전: 오일러.y,
+          기울기: 오일러.x,
+          기울기2: 오일러.z,
+          폭비: 크.y > 1e-9 ? 크.x / 크.y : 1,
+          깊이비: 크.y > 1e-9 ? 크.z / 크.y : 1,
+          모양: o.userData?.모양번호,
+          ...(색 !== null ? { 색 } : null),
           // 유닛 단위의 국소 상자(모양 기준) — 그릴 때 인스턴스 크기를 곱한다
           상자: {
             크기: [
@@ -355,7 +379,16 @@ export function 편집기({
         const y = 지면높이 ? 지면높이(x, z) : c.y;
         되돌리기통.current.push(편집);
         const { 편집: 다음, 번호 } = 더하기(편집, c.이름, {
-          x, y, z, 키: c.키, 회전: c.회전 ?? 0,
+          x, y, z,
+          키: c.키,
+          회전: c.회전 ?? 0,
+          // 색·모양·납작함·기울기까지 그대로 — 「복사」는 같은 물건이어야 한다
+          기울기: c.기울기 ?? 0,
+          기울기2: c.기울기2 ?? 0,
+          폭비: c.폭비 ?? 1,
+          깊이비: c.깊이비 ?? 1,
+          ...(c.모양 !== undefined ? { 모양: c.모양 } : null),
+          ...(c.색 !== undefined ? { 색: c.색 } : null),
         });
         편집설정(다음);
         const 새것 = { ...c, 번호, x, y, z };

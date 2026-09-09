@@ -199,6 +199,8 @@ function 무리({ 묶음 }) {
       }
       m.userData.무리이름 = 묶음.이름;
       m.userData.번호들 = v.번호들;
+      // 복사·붙여넣기가 **같은 모양**을 물려받게 하려고 남긴다
+      m.userData.모양번호 = v.모양번호;
       m.computeBoundingSphere();
     });
   }, [묶음]);
