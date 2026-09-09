@@ -113,9 +113,24 @@ export function 무리만들기({
       색들[i * 3 + 2] = 임시색.b;
       번호들[i] = a.번호;
     }
+    // 표본에 꼭짓점 색이 없으면 흰색을 채워 둔다.
+    //   재질이 `vertexColors` 라 three 는 `USE_COLOR` 를 켜는데, 지오메트리에
+    //   `color` 속성이 없으면 그 값이 **(0,0,0)** 으로 읽혀 통째로 검게 나온다.
+    //   흰색을 깔아 두면 `instanceColor` 가 그대로 곱해져 제 색이 나온다.
+    //   (돌 표본이 색 없이 들어와 2,159 개가 새까맸다 — 실측으로 잡았다)
+    흰색깔기(모양들[k]);
     무리.push({ 지오: 모양들[k], 행렬들, 색들, 번호들, 모양번호: k });
   }
   return { 이름, 무리, 양면, 총: 자리들.length, 살아있는수: 살아남음.length };
+}
+
+// 꼭짓점 색이 없는 표본에 흰색을 한 번 깔아 둔다(이미 있으면 그대로 둔다)
+function 흰색깔기(geo) {
+  if (!geo || geo.attributes.color) return geo;
+  const n = geo.attributes.position.count;
+  const arr = new Float32Array(n * 3).fill(1);
+  geo.setAttribute("color", new THREE.BufferAttribute(arr, 3));
+  return geo;
 }
 
 // 편집 덮어쓰기 값이 실제로 있는가 (null·빈 객체 걸러내기)

@@ -52,6 +52,8 @@ import {
   절벽수풀자리,
   바위덩어리자리들,
   바위덩이만들기,
+  절벽결,
+  흙벽결,
 } from "../절벽.js";
 import {
   수목대만들기,
@@ -79,7 +81,7 @@ import { GLB풀기, 첫메시, 실치수맞춤 } from "../에셋.js";
 import { 구운지형입히기 } from "../구운지형.js";
 import { 바위읽기, 바위파일목록 } from "../바위에셋.js";
 import { 강면만들기, 물가만들기, 건너편만들기 } from "../강.js";
-import { 길만들기, 길가돌자리들 } from "../통로.js";
+import { 길만들기, 길가돌자리들, 통로결 } from "../통로.js";
 import { use지형이동, 이동상수 } from "../use지형이동.js";
 
 // §9 「아직 확정되지 않은 값」을 Leva 손잡이로 바꾼다.
@@ -164,6 +166,16 @@ function 라벨({ 위치, children, 색 = "#F2F4F8", 배경 = "rgba(20,24,34,.72
 //   `배치.js` 가 만든 무리를 InstancedMesh 로 올린다.
 //   `userData` 에 무리 이름과 **원래 번호**를 실어 둔다 — 편집기가 광선으로
 //   집었을 때 「어느 무리의 몇 번인가」를 알아야 지우거나 옮길 수 있다.
+// 돌 하나하나의 회색빛 — 옛 `돌뿌리기` 와 **같은 섞기**를 쓴다.
+//   어둠에서 밝음으로 0.32~0.94 사이를 무작위로 섞는다. 다 같은 회색이면
+//   자갈밭이 시멘트 판으로 보인다.
+function 돌빛(밝음, 어둠) {
+  const 밝 = new THREE.Color(밝음);
+  const 어 = new THREE.Color(어둠);
+  const c = new THREE.Color();
+  return (t) => c.copy(어).lerp(밝, 0.32 + t * 0.62).getHex();
+}
+
 function 무리({ 묶음 }) {
   const 참조들 = useRef([]);
   useEffect(() => {
@@ -173,8 +185,16 @@ function 무리({ 묶음 }) {
       if (!m) return;
       m.instanceMatrix.array.set(v.행렬들);
       m.instanceMatrix.needsUpdate = true;
-      if (m.instanceColor) {
-        m.instanceColor.array.set(v.색들);
+      // 인스턴스 색 — three 는 `setColorAt` 을 부르기 전까지 `instanceColor` 를
+      // 만들지 않는다. 옛 코드는 `if (m.instanceColor)` 로 감싸 놓아서 **한 번도
+      // 실행되지 않았고**, 돌 2,159 개가 통째로 검게 나왔다(실측으로 잡았다).
+      if (v.색들) {
+        if (!m.instanceColor || m.instanceColor.count !== m.count)
+          m.instanceColor = new THREE.InstancedBufferAttribute(
+            new Float32Array(v.색들),
+            3,
+          );
+        else m.instanceColor.array.set(v.색들);
         m.instanceColor.needsUpdate = true;
       }
       m.userData.무리이름 = 묶음.이름;
@@ -1032,13 +1052,16 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
       담기("길가수풀.잎더미", 길가자리.잎더미, 표본.잎더미);
     }
     // ── 돌붙이 — 길 위에 얹힌 것을 하나씩 치울 수 있어야 한다 ──
-    const 돌담기 = (이름, 자리들, 시드, 납작) => {
+    // ※ 색을 **반드시** 넘긴다. 무리로 옮기면서 이걸 빼먹어 돌이 통째로
+    //   검게 나왔다(`배치.js` 의 `흰색깔기` 주석 참고). 섞는 비율은 옛
+    //   `돌뿌리기` 와 똑같이 두어 예전 그림이 그대로 나오게 한다.
+    const 돌담기 = (이름, 자리들, 시드, 납작, 빛 = 돌빛(절벽결.밝음, 절벽결.어둠)) => {
       if (!자리들?.length) return;
-      담기(이름, 돌흔들기(자리들, 시드, { 납작 }), 표본.돌);
+      담기(이름, 돌흔들기(자리들, 시드, { 납작, 색: 빛 }), 표본.돌);
     };
     if (길조형) {
-      돌담기("길가돌", 길조형.돌자리, 90211);
-      돌담기("비탈바위", 길조형.비탈바위자리, 611303);
+      돌담기("길가돌", 길조형.돌자리, 90211, undefined, 돌빛(통로결.돌, 통로결.돌어둠));
+      돌담기("비탈바위", 길조형.비탈바위자리, 611303, undefined, 돌빛(절벽결.밝음, 흙벽결.어둠));
       돌담기("틈바위", 길조형.틈바위자리, 224401, [0.85, 1.5]);
       if (길조형.비탈덤불자리?.length)
         담기("비탈덤불", 길조형.비탈덤불자리, 표본.잎더미);
