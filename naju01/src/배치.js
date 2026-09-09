@@ -77,8 +77,31 @@ export function 무리만들기({
   if (!살아남음.length) return null;
 
   // ── 모양별로 나눠 담는다 ─────────────────────────────────
+  // ── 못 쓸 값 걸러내기 ────────────────────────────────────
+  // [왜]
+  //   좌표나 크기에 NaN·Infinity 가 하나만 섞여도 인스턴스 행렬이 통째로
+  //   망가지고, 그게 GPU 로 넘어가면 드라이버가 화면을 놓아 버린다
+  //   (탭이 통째로 꺼진다). 편집 파일은 사람이 손으로 고칠 수도 있고,
+  //   생성기가 무대 밖 좌표를 다룰 일도 생겼으니 **넘기기 전에 막는다.**
+  const 성한값 = (v) => v === undefined || Number.isFinite(v);
+  const 성한가 = (a) =>
+    Number.isFinite(a.x) &&
+    Number.isFinite(a.y) &&
+    Number.isFinite(a.z) &&
+    Number.isFinite(a.키) &&
+    a.키 > 0 &&
+    ["회전", "기울기", "기울기2", "폭비", "높이비", "깊이비"].every((k) =>
+      성한값(a[k]),
+    );
+  const 성한것 = 살아남음.filter(성한가);
+  if (성한것.length !== 살아남음.length && typeof console !== "undefined")
+    console.warn(
+      `[배치] ${이름}: 못 쓸 값이 든 ${살아남음.length - 성한것.length}개를 건너뛴다`,
+    );
+  if (!성한것.length) return null;
+
   const 통 = 모양들.map(() => []);
-  for (const a of 살아남음) {
+  for (const a of 성한것) {
     // 같은 번호는 언제나 같은 모양을 쓴다(편집해도 모양이 안 바뀌게)
     const k = (a.모양 ?? a.번호) % 모양들.length;
     통[k].push(a);
@@ -126,7 +149,7 @@ export function 무리만들기({
     흰색깔기(모양들[k]);
     무리.push({ 지오: 모양들[k], 행렬들, 색들, 번호들, 모양번호: k });
   }
-  return { 이름, 무리, 양면, 총: 자리들.length, 살아있는수: 살아남음.length };
+  return { 이름, 무리, 양면, 총: 자리들.length, 살아있는수: 성한것.length };
 }
 
 // 꼭짓점 색이 없는 표본에 흰색을 한 번 깔아 둔다(이미 있으면 그대로 둔다)

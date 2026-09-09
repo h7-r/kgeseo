@@ -5,11 +5,14 @@
 //   팔레트가 이름만 늘어놓고 있어서, 「덤불」과 「수풀」이 어떻게 다른지
 //   놓아 보기 전에는 알 수 없었다. 눈으로 고를 수 있어야 한다(사용자 지시).
 //
-// [왜 렌더러를 따로 만드나]
-//   본 화면 렌더러를 빌려 쓰면 그 프레임의 렌더 타깃·상태를 건드리게 되고,
-//   계기판이 읽는 `gl.info` 통계도 오염된다(삼각형 수가 튄다).
-//   썸네일은 **딱 한 번** 굽고 버리면 그만이라, 작은 렌더러를 따로 만들어
-//   쓰고 곧바로 `dispose` 한다. WebGL 컨텍스트를 오래 붙들지 않는다.
+// [왜 본 화면 렌더러를 쓰나 — 예전에는 따로 만들었다]
+//   처음에는 작은 `WebGLRenderer` 를 따로 만들어 굽고 버렸다. 계기판이 읽는
+//   `gl.info` 를 안 건드리려던 것이다. 그런데 그건 **WebGL 컨텍스트를 하나 더
+//   여는 일**이다. 브라우저는 동시에 열 수 있는 컨텍스트 수가 정해져 있어,
+//   한계에 걸리면 **가장 오래된 것(=본 화면)을 죽인다.** 그러면 화면이
+//   통째로 꺼진다. 썸네일 하나 보자고 치를 값이 아니다.
+//   지금은 본 렌더러에 **렌더 타깃**을 물려 굽는다. 컨텍스트는 늘 하나다.
+//   `gl.info` 는 다음 프레임에 씬이 `reset()` 하므로 오염이 남지 않는다.
 //
 // [색을 어떻게 보여 주나]
 //   표본의 꼭짓점 색은 대개 **비율**이다(흰색 = 인스턴스 색 그대로).
@@ -21,23 +24,28 @@ import * as THREE from "three";
 // 한 벌 구워 두고 돌려쓴다. 두 번 부르면 이미 구운 것을 돌려준다.
 let 구운것 = null;
 
-export function 미리보기굽기(에셋목록, 에셋표본, { 크기 = 46 } = {}) {
+export function 미리보기굽기(에셋목록, 에셋표본, 렌더러, { 크기 = 46 } = {}) {
   if (구운것) return 구운것;
   구운것 = new Map();
+  if (!렌더러) return 구운것; // 아직 렌더러가 없다 — 썸네일 없이 간다
 
-  let 렌더러;
-  try {
-    렌더러 = new THREE.WebGLRenderer({
-      alpha: true,
-      antialias: true,
-      preserveDrawingBuffer: true, // toDataURL 을 쓰려면 켜야 한다
-    });
-  } catch {
-    return 구운것; // WebGL 을 하나 더 못 여는 환경 — 썸네일 없이 간다
-  }
-  렌더러.setSize(크기, 크기, false);
-  렌더러.setPixelRatio(2); // 작은 그림이라 두 배로 떠야 글자처럼 또렷하다
-  렌더러.setClearColor(0x000000, 0);
+  const 배 = 2; // 작은 그림이라 두 배로 떠야 또렷하다
+  const 타깃 = new THREE.WebGLRenderTarget(크기 * 배, 크기 * 배, {
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    // ★ 렌더 타깃은 기본이 **선형**이라, 그대로 읽어 PNG 로 만들면 통째로
+    //   어두워진다(실측: 바위 #5e594f → #1d1914). 캔버스로 그릴 때와 같은
+    //   sRGB 로 적어 달라고 못 박는다.
+    colorSpace: THREE.SRGBColorSpace,
+  });
+  // 읽어 낸 픽셀을 그림으로 만들 2D 캔버스 — WebGL 이 아니다
+  const 캔 = document.createElement("canvas");
+  캔.width = 크기 * 배;
+  캔.height = 크기 * 배;
+  const 붓 = 캔.getContext("2d");
+  const 픽셀 = new Uint8Array(크기 * 배 * 크기 * 배 * 4);
+  const 이미지 = 붓.createImageData(크기 * 배, 크기 * 배);
+  const 옛타깃 = 렌더러.getRenderTarget();
 
   const 씬 = new THREE.Scene();
   // 빛 — 정면에서만 때리면 실루엣이 납작해진다. 위·앞·뒤 셋으로 세운다.
@@ -96,8 +104,19 @@ export function 미리보기굽기(에셋목록, 에셋표본, { 크기 = 46 } =
       카메라.lookAt(중심);
       카메라.updateProjectionMatrix();
 
+      렌더러.setRenderTarget(타깃);
+      렌더러.setClearColor(0x000000, 0);
+      렌더러.clear();
       렌더러.render(씬, 카메라);
-      구운것.set(정의.키, 렌더러.domElement.toDataURL("image/png"));
+      렌더러.readRenderTargetPixels(타깃, 0, 0, 캔.width, 캔.height, 픽셀);
+      // WebGL 은 아래에서 위로 읽는다 — 뒤집어야 똑바로 선다
+      const 줄바이트 = 캔.width * 4;
+      for (let y = 0; y < 캔.height; y++) {
+        const 원 = (캔.height - 1 - y) * 줄바이트;
+        이미지.data.set(픽셀.subarray(원, 원 + 줄바이트), y * 줄바이트);
+      }
+      붓.putImageData(이미지, 0, 0);
+      구운것.set(정의.키, 캔.toDataURL("image/png"));
       씬.remove(메시);
       메시.material.dispose();
     } catch {
@@ -106,7 +125,7 @@ export function 미리보기굽기(에셋목록, 에셋표본, { 크기 = 46 } =
   }
 
   재질.dispose();
-  렌더러.dispose();
-  렌더러.forceContextLoss?.();
+  타깃.dispose();
+  렌더러.setRenderTarget(옛타깃); // 본 화면이 쓰던 타깃을 돌려준다
   return 구운것;
 }

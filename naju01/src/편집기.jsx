@@ -825,6 +825,7 @@ export function 편집기({
         붓={붓}
         붓설정={붓설정}
         부감={부감}
+        gl={gl}
         알림={알림}
         고른것={고른것}
         안한변경={안한변경}
@@ -851,7 +852,7 @@ export function 편집기({
 //   `<div>`·`<button>` 을 three 객체로 해석해 터진다
 //   ("R3F: B is not part of the THREE namespace" — 실제로 그랬다).
 //   react-dom 의 createPortal 도 같은 이유로 안 통한다. 그래서 DOM 을 직접 만든다.
-function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 저장하기, 붓, 붓설정, 부감 }) {
+function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 저장하기, 붓, 붓설정, 부감, gl }) {
   // 팔레트는 **접어 둔다.** 펼치면 화면을 크게 가려서, 정작 놓을 자리가 안 보인다.
   const [펼침, 펼침설정] = useState(false);
   // 썸네일 — 펼칠 때 한 번만 굽는다. 안 펼치면 굽지 않는다(WebGL 을 하나 더
@@ -860,9 +861,12 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
   useEffect(() => {
     if (!펼침 || 썸네일) return;
     // 프레임을 한 번 넘기고 굽는다 — 펼치는 순간 화면이 멈칫하지 않게
-    const t = setTimeout(() => 썸네일설정(미리보기굽기(에셋목록, 에셋표본)), 0);
+    const t = setTimeout(
+      () => 썸네일설정(미리보기굽기(에셋목록, 에셋표본, gl)),
+      0,
+    );
     return () => clearTimeout(t);
-  }, [펼침, 썸네일]);
+  }, [펼침, 썸네일, gl]);
   const 판참조 = useRef(null);
   const 저장참조 = useRef(저장하기);
   저장참조.current = 저장하기;
