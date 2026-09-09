@@ -199,7 +199,10 @@ function 무리({ 묶음 }) {
           receiveShadow
           frustumCulled={false}
         >
-          <meshLambertMaterial vertexColors />
+          <meshLambertMaterial
+            vertexColors
+            side={묶음.양면 ? THREE.DoubleSide : THREE.FrontSide}
+          />
         </instancedMesh>
       ))}
     </>
@@ -1015,8 +1018,8 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   // 자리 목록 + 편집 → 인스턴스 무리
   const 무리들 = useMemo(() => {
     const 목록 = [];
-    const 담기 = (이름, 자리들, 모양들) => {
-      const m = 무리만들기({ 이름, 모양들, 자리들, 편집 });
+    const 담기 = (이름, 자리들, 모양들, 옵션 = {}) => {
+      const m = 무리만들기({ 이름, 모양들, 자리들, 편집, ...옵션 });
       if (m) 목록.push(m);
     };
     if (언덕자리) {
@@ -1062,7 +1065,8 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
         담기("절벽머리", 절벽조각.머리나무자리, 표본.잎더미);
     }
     // 단품 — 나룻배처럼 하나뿐인 물건도 고를 수 있게 무리에 넣는다
-    if (나룻배자리) 담기("나룻배", [나룻배자리], [나룻배모양]);
+    // 널배라 안쪽 바닥이 보인다 — 양면으로 그려야 뚫리지 않는다
+    if (나룻배자리) 담기("나룻배", [나룻배자리], [나룻배모양], { 양면: true });
     // ── 팔레트로 놓은 것 ──
     //   `에셋목록.js` 의 물건들. 생성기가 만든 게 아니라 사람이 놓은 것이라
     //   자리 목록이 없고, **편집.더함** 이 곧 자리 목록이다.
@@ -1070,7 +1074,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     for (const 정의 of 에셋목록) {
       const 놓은것 = 편집?.더함?.[정의.키];
       if (!놓은것?.length) continue;
-      담기(정의.키, [], 에셋표본(정의.키));
+      담기(정의.키, [], 에셋표본(정의.키), { 양면: !!정의.양면 });
     }
     return 목록;
   }, [
