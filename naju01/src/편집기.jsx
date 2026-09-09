@@ -245,6 +245,37 @@ export function 편집기({
     [camera, scene, gl],
   );
 
+  // ── 그 자리의 바닥 높이 ─────────────────────────────────
+  // [왜 `지면높이` 를 그냥 못 쓰나]
+  //   `지면높이` 는 **코어 지표**다. 무대 밖에는 값이 없어서 0 을 돌려준다.
+  //   그래서 원경 마을(고도 −2.5 m)의 집을 방향키로 한 번만 밀어도
+  //   **2.5 m 위로 튀어 올랐다**(실측: −2.52 → −0.02). 사용자가 「튕긴다」고
+  //   한 것이 이것이다.
+  //   무대 밖에서는 **원경 지면에 광선을 내려** 진짜 높이를 읽는다.
+  //   그것도 못 맞히면 **원래 높이를 그대로 둔다** — 0 으로 떨구는 것보다 낫다.
+  const 아래 = useRef(new THREE.Vector3(0, -1, 0));
+  const 바닥높이 = useCallback(
+    (x, z, 기본 = 0) => {
+      if (
+        x >= 코어.X[0] && x <= 코어.X[1] &&
+        z >= 코어.Z[0] && z <= 코어.Z[1]
+      )
+        return 지면높이 ? 지면높이(x, z) : 기본;
+      광선.current.set(
+        new THREE.Vector3(x * 미터, 400 * 미터, z * 미터),
+        아래.current,
+      );
+      광선.current.far = Infinity;
+      const 맞음 = 광선.current
+        .intersectObjects(scene.children, true)
+        .filter((h) => 땅이름.includes(h.object.name));
+      return 맞음.length ? 맞음[0].point.y * 유닛 : 기본;
+    },
+    [지면높이, scene],
+  );
+  const 바닥높이참조 = useRef(바닥높이);
+  바닥높이참조.current = 바닥높이;
+
   // ── 못 고르는 것을 눌렀을 때 무엇이었는지 말해 준다 ──────
   //   빈 하늘을 누른 것과 「옮길 수 없는 것」을 누른 것은 전혀 다른 상황인데,
   //   둘 다 조용하면 사용자는 편집기가 고장 난 줄 안다.
@@ -392,12 +423,7 @@ export function 편집기({
         const 자리 = 땅자리(ev, 0);
         if (!자리) return;
         const [x, z, 바깥y] = 자리;
-        const y =
-          바깥y !== null
-            ? 바깥y // 무대 밖 — 원경 들판을 맞힌 그 높이
-            : 지면높이참조.current
-              ? 지면높이참조.current(x, z)
-              : 0;
+        const y = 바깥y !== null ? 바깥y : 바닥높이참조.current(x, z, 0);
         const 정의 = 에셋찾기(붓것);
         되돌리기통.current.push(편집참조.current);
         const { 편집: 다음, 번호 } = 더하기(편집참조.current, 붓것, {
@@ -474,12 +500,9 @@ export function 편집기({
       const 자리 = 땅자리(ev, 고.y);
       if (!자리) return;
       const [x, z, 바깥y] = 자리;
-      const y =
-        바깥y !== null
-          ? 바깥y // 무대 밖은 원경 들판 높이를 쓴다(지표는 거기 값이 없다)
-          : 지면높이참조.current
-            ? 지면높이참조.current(x, z)
-            : 고.y;
+      // 광선이 원경 들판을 맞혔으면 그 높이가 곧 정답이다.
+      // 아니면 `바닥높이` 가 코어 안팎을 갈라 준다.
+      const y = 바깥y !== null ? 바깥y : 바닥높이참조.current(x, z, 고.y);
       const 새것 = { ...고, x, y, z };
       고른것참조.current = 새것;
       고른것설정(새것);
@@ -564,7 +587,7 @@ export function 편집기({
         const 간격 = Math.max(1, c.키 * 0.6);
         const x = 죄기(c.x + 옆.x * 간격, 편집범위.X[0], 편집범위.X[1]);
         const z = 죄기(c.z + 옆.z * 간격, 편집범위.Z[0], 편집범위.Z[1]);
-        const y = 지면높이 ? 지면높이(x, z) : c.y;
+        const y = 바닥높이(x, z, c.y);
         되돌리기통.current.push(편집);
         const { 편집: 다음, 번호 } = 더하기(편집, c.이름, {
           x, y, z,
@@ -656,7 +679,7 @@ export function 편집기({
           if (ev.code === "ArrowLeft") d.copy(옆).negate();
           const x = 죄기(고른것.x + d.x * 칸, 편집범위.X[0], 편집범위.X[1]);
           const z = 죄기(고른것.z + d.z * 칸, 편집범위.Z[0], 편집범위.Z[1]);
-          const y = 지면높이 ? 지면높이(x, z) : 고른것.y;
+          const y = 바닥높이(x, z, 고른것.y);
           고른것설정((v) => ({ ...v, x, y, z }));
           밀기({ x, y, z });
           알림설정(`(${x.toFixed(1)}, ${z.toFixed(1)}) · Ctrl+S 로 저장`);
@@ -668,7 +691,7 @@ export function 편집기({
     };
     window.addEventListener("keydown", 눌림);
     return () => window.removeEventListener("keydown", 눌림);
-  }, [켬, 고른것, 편집, 편집설정, camera, 지면높이, 저장하기]);
+  }, [켬, 고른것, 편집, 편집설정, camera, 바닥높이, 저장하기]);
 
   // ── 부감 켜고 끄기 · 누른 키 모으기 ─────────────────────
   //   위의 키 핸들러와 따로 둔다. 저건 `고른것` 이 바뀔 때마다 다시 붙는데,
