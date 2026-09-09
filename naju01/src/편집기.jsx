@@ -28,7 +28,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
-import { useThree } from "@react-three/fiber";
+import { useThree, useFrame } from "@react-three/fiber";
 import { 미터, 유닛, 코어 } from "./공간도면.js";
 import { 에셋목록, 갈래목록, 에셋찾기 } from "./에셋목록.js";
 import {
@@ -64,6 +64,43 @@ const 못고르는것 = {
 const 말없이넘길것 = /^(강조형|하늘|구름|원경|표시|자리표|시점)/;
 const 밀기단위 = 0.25; // m — Shift 를 누르면 4 배
 
+// ── 부감(공중에서 내려다보기) ───────────────────────────────
+// [왜]
+//   걸어 다니면서 배치하면 **전체가 안 보인다.** 길 하나를 따라가며 나무를
+//   심으면 멀리서 봤을 때 한쪽으로 쏠려 있는 걸 뒤늦게 안다. 위에서 내려다보고
+//   밀어 놓을 수 있어야 한다.
+// [왜 걷기를 통째로 멈추나]
+//   `use지형이동` 의 중력·접지는 `active` **밖**에서 돌아서, active 만 꺼도
+//   카메라가 매 프레임 땅으로 끌려 내려간다. 그래서 `멈춤` 을 따로 뒀다.
+const 부감기본 = {
+  높이: 22, // m — 처음 떠오르는 높이
+  높이범위: [4, 90],
+  기울기: -1.05, // rad ≈ -60°. -90°(수직)는 방향 감각이 사라져 오히려 헷갈린다
+  밀기: 14, // m/s — 키로 미는 속도(Shift 는 3 배)
+};
+
+// 화면 기준으로 카메라를 수평으로 민다.
+//   「보고 있는 화면의 위」가 앞이어야 한다. 월드 축으로 밀면 시점을 돌린 뒤
+//   방향이 어긋나 조작이 안 된다(방향키가 뒤집혀 보이던 것과 같은 문제다).
+const 임시앞 = new THREE.Vector3();
+const 임시옆 = new THREE.Vector3();
+//   무대(코어) 밖으로는 못 나간다. 안 죄면 강 위 허공까지 밀려 나가서
+//   돌아올 길을 잃는다(실측 중 Z 51 까지 나갔다 — 코어는 Z 0~50 이다).
+const 여유 = 6; // m — 가장자리를 볼 수 있게 이만큼은 넘어가도 둔다
+function 화면밀기(카메라, 옆m, 앞m) {
+  카메라.getWorldDirection(임시앞);
+  임시앞.y = 0;
+  if (임시앞.lengthSq() < 1e-9) 임시앞.set(0, 0, -1);
+  임시앞.normalize();
+  임시옆.crossVectors(임시앞, 카메라.up).normalize();
+  const x = 카메라.position.x * 유닛 + 임시앞.x * 앞m + 임시옆.x * 옆m;
+  const z = 카메라.position.z * 유닛 + 임시앞.z * 앞m + 임시옆.z * 옆m;
+  카메라.position.x =
+    Math.min(코어.X[1] + 여유, Math.max(코어.X[0] - 여유, x)) * 미터;
+  카메라.position.z =
+    Math.min(코어.Z[1] + 여유, Math.max(코어.Z[0] - 여유, z)) * 미터;
+}
+
 // 인스턴스 하나의 색을 sRGB 16진수로 꺼낸다(없으면 null).
 //   `instanceColor` 배열은 **작업 색공간(선형)** 값이다. `fromArray` 는 그대로
 //   싣고 `getHex()` 는 sRGB 로 돌려주므로, `배치.js` 가 `색.set(hex)` 로 다시
@@ -81,6 +118,8 @@ export function 편집기({
   편집설정,
   지면높이,
   잠금해제, // 포인터락을 풀어야 마우스로 집을 수 있다
+  부감, // 공중에서 내려다보는 중인가
+  부감설정,
 }) {
   const { camera, scene, gl } = useThree();
   const [고른것, 고른것설정] = useState(null); // { 이름, 번호, 자리:{x,y,z}, 키 }
@@ -220,6 +259,51 @@ export function 편집기({
   const 무엇이었나참조 = useRef(무엇이었나);
   무엇이었나참조.current = 무엇이었나;
 
+  // ── 부감 몰기 ────────────────────────────────────────────
+  //   키는 ref 로 모아 두고 매 프레임 민다. 키다운마다 카메라를 옮기면
+  //   프레임률에 따라 속도가 달라진다(느린 기계에서 굼뜨다).
+  const 부감참조 = useRef(부감);
+  부감참조.current = 부감;
+  const 눌린키 = useRef(new Set());
+  const 높이참조 = useRef(부감기본.높이);
+  const 밀기중 = useRef(null); // 가운데 버튼 끌기로 밀기
+
+  // 부감에 들어갈 때 띄우고, 나올 때 **곧바로 내려놓는다.**
+  //   걷기 훅에 그냥 맡기면 22 m 상공에서 떨어지고, 낙차가 커서 `낙하복귀` 가
+  //   사람을 마지막 안전 지점으로 보내 버린다 — 방금 보고 있던 자리가 아니다.
+  useEffect(() => {
+    if (!켬) return;
+    const 발밑 = () =>
+      지면높이 ? 지면높이(camera.position.x * 유닛, camera.position.z * 유닛) : 0;
+    camera.rotation.order = "YXZ";
+    if (부감) {
+      높이참조.current = 부감기본.높이;
+      camera.position.y = (발밑() + 부감기본.높이) * 미터;
+      camera.rotation.x = 부감기본.기울기;
+      camera.rotation.z = 0;
+      return;
+    }
+    // 내려오기 — 높이는 걷기 훅이 그 자리에서 잡아 준다(use지형이동 주석).
+    //   여기서는 고개만 수평으로 돌려 놓는다.
+    camera.rotation.x = 0;
+    camera.rotation.z = 0;
+  }, [켬, 부감, camera, 지면높이]);
+
+  useFrame((_, dt) => {
+    if (!켬 || !부감참조.current) return;
+    const k = 눌린키.current;
+    // 고른 것이 있으면 방향키는 **그 물건을 미는 데** 쓴다(기존 동작).
+    //   그때도 WASD 로는 화면을 민다 — 그래야 밀면서 따라갈 수 있다.
+    const 화살표로민다 = !고른것참조.current;
+    const 앞 = (k.has("KeyW") ? 1 : 0) - (k.has("KeyS") ? 1 : 0) +
+      (화살표로민다 ? (k.has("ArrowUp") ? 1 : 0) - (k.has("ArrowDown") ? 1 : 0) : 0);
+    const 옆 = (k.has("KeyD") ? 1 : 0) - (k.has("KeyA") ? 1 : 0) +
+      (화살표로민다 ? (k.has("ArrowRight") ? 1 : 0) - (k.has("ArrowLeft") ? 1 : 0) : 0);
+    if (!앞 && !옆) return;
+    const 빠르기 = 부감기본.밀기 * (k.has("ShiftLeft") || k.has("ShiftRight") ? 3 : 1);
+    화면밀기(camera, 옆 * 빠르기 * dt, 앞 * 빠르기 * dt);
+  });
+
   // ── 마우스 (고르기 · 끌기 · 시점 돌리기) ────────────────
   // [왜 ref 로 두나]
   //   상태(useState)를 의존성에 넣으면 렌더마다 리스너가 떨어졌다 붙는다.
@@ -276,6 +360,13 @@ export function 편집기({
         ev.preventDefault();
         return;
       }
+      // 가운데 버튼 = 화면 밀기. 부감에서 지도를 끌어 옮기는 손짓이다.
+      if (ev.button === 1) {
+        밀기중.current = { x: ev.clientX, y: ev.clientY };
+        캔.setPointerCapture?.(ev.pointerId);
+        ev.preventDefault();
+        return;
+      }
       if (ev.button !== 0) return;
       // ── 붓이 들려 있으면 그 자리에 **놓는다** ──
       //   팔레트에서 고른 물건을 클릭한 자리에 심는다. 여러 개를 이어 놓을 수
@@ -318,6 +409,21 @@ export function 편집기({
     };
 
     const 움직임 = (ev) => {
+      // ⓪ 가운데 버튼 밀기 — 끈 만큼 화면이 따라온다.
+      //   높이에 비례해 밀어야 한다. 90 m 위에서 5 m 씩 밀면 안 움직이는
+      //   것처럼 보이고, 4 m 위에서 같은 양을 밀면 휙 날아간다.
+      if (밀기중.current) {
+        const dx = ev.clientX - 밀기중.current.x;
+        const dy = ev.clientY - 밀기중.current.y;
+        밀기중.current = { x: ev.clientX, y: ev.clientY };
+        const 밑 = 지면높이참조.current
+          ? 지면높이참조.current(camera.position.x * 유닛, camera.position.z * 유닛)
+          : 0;
+        const 높이 = Math.max(2, camera.position.y * 유닛 - 밑);
+        const 배 = 높이 * 0.0022;
+        화면밀기(camera, -dx * 배, dy * 배);
+        return;
+      }
       // ① 시점 돌리기
       if (돌리기.current) {
         const dx = ev.clientX - 돌리기.current.x;
@@ -354,6 +460,11 @@ export function 편집기({
     const 뗌 = (ev) => {
       if (돌리기.current) {
         돌리기.current = null;
+        캔.releasePointerCapture?.(ev.pointerId);
+        return;
+      }
+      if (밀기중.current) {
+        밀기중.current = null;
         캔.releasePointerCapture?.(ev.pointerId);
         return;
       }
@@ -530,6 +641,57 @@ export function 편집기({
     return () => window.removeEventListener("keydown", 눌림);
   }, [켬, 고른것, 편집, 편집설정, camera, 지면높이, 저장하기]);
 
+  // ── 부감 켜고 끄기 · 누른 키 모으기 ─────────────────────
+  //   위의 키 핸들러와 따로 둔다. 저건 `고른것` 이 바뀔 때마다 다시 붙는데,
+  //   여기서 키를 모으면 그 순간 **누르고 있던 키를 잃어버려** 화면이 멈춘다.
+  useEffect(() => {
+    const 키통 = 눌린키.current; // 정리 함수가 볼 것을 지금 붙잡아 둔다
+    if (!켬) {
+      키통.clear();
+      return;
+    }
+    const 내림 = (ev) => {
+      if (ev.code === "Tab") {
+        ev.preventDefault(); // 안 막으면 브라우저가 포커스를 옮겨 버린다
+        부감설정?.((v) => !v);
+        return;
+      }
+      키통.add(ev.code);
+    };
+    const 올림 = (ev) => 키통.delete(ev.code);
+    // 창을 벗어나면 누른 채로 남아 화면이 혼자 흘러간다
+    const 비우기 = () => 키통.clear();
+    window.addEventListener("keydown", 내림);
+    window.addEventListener("keyup", 올림);
+    window.addEventListener("blur", 비우기);
+    return () => {
+      window.removeEventListener("keydown", 내림);
+      window.removeEventListener("keyup", 올림);
+      window.removeEventListener("blur", 비우기);
+      키통.clear();
+    };
+  }, [켬, 부감설정]);
+
+  // ── 부감 높이(휠) ────────────────────────────────────────
+  useEffect(() => {
+    if (!켬 || !부감) return;
+    const 캔 = gl.domElement;
+    const 휠 = (ev) => {
+      ev.preventDefault();
+      const 밑 = 지면높이 ? 지면높이(camera.position.x * 유닛, camera.position.z * 유닛) : 0;
+      const 지금 = camera.position.y * 유닛 - 밑;
+      // 곱셈으로 바꾼다 — 높이 5 m 와 80 m 에서 같은 양을 더하면 한쪽이 못 쓴다
+      const 다음 = Math.min(
+        부감기본.높이범위[1],
+        Math.max(부감기본.높이범위[0], 지금 * (ev.deltaY > 0 ? 1.15 : 1 / 1.15)),
+      );
+      높이참조.current = 다음;
+      camera.position.y = (밑 + 다음) * 미터;
+    };
+    캔.addEventListener("wheel", 휠, { passive: false });
+    return () => 캔.removeEventListener("wheel", 휠);
+  }, [켬, 부감, camera, gl, 지면높이]);
+
   // 붓이 들려 있으면 커서를 십자로 바꾼다 — 클릭이 「고르기」가 아니라
   // 「놓기」라는 것이 눈에 보여야 한다.
   useEffect(() => {
@@ -601,6 +763,7 @@ export function 편집기({
       <편집안내
         붓={붓}
         붓설정={붓설정}
+        부감={부감}
         알림={알림}
         고른것={고른것}
         안한변경={안한변경}
@@ -627,7 +790,7 @@ export function 편집기({
 //   `<div>`·`<button>` 을 three 객체로 해석해 터진다
 //   ("R3F: B is not part of the THREE namespace" — 실제로 그랬다).
 //   react-dom 의 createPortal 도 같은 이유로 안 통한다. 그래서 DOM 을 직접 만든다.
-function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 저장하기, 붓, 붓설정 }) {
+function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 저장하기, 붓, 붓설정, 부감 }) {
   // 팔레트는 **접어 둔다.** 펼치면 화면을 크게 가려서, 정작 놓을 자리가 안 보인다.
   const [펼침, 펼침설정] = useState(false);
   const 판참조 = useRef(null);
@@ -744,7 +907,11 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
       '<b style="color:#FFD166">편집 모드</b>' +
       '<span style="opacity:.75"> · 클릭·드래그 고르고 옮기기 · 우클릭 드래그 시점 · WASD 걷기</span><br>' +
       '<span style="opacity:.75">방향키 밀기(Shift 크게) · R 회전 · [ ] 크기 · ' +
-      "Ctrl+C/V 복사·붙여넣기 · X 지우기 · Ctrl+Z 되돌리기 · ESC 해제</span>" +
+      "Ctrl+C/V 복사·붙여넣기 · X 지우기 · Ctrl+Z 되돌리기 · ESC 해제</span><br>" +
+      (부감
+        ? '<span style="color:#9BD6FF">부감 — WASD·방향키로 화면 밀기(Shift 빠르게) · ' +
+          "휠 높낮이 · 가운데 버튼 끌어 밀기 · 우클릭 끌어 돌리기 · Tab 내려오기</span>"
+        : '<span style="opacity:.75">Tab — 공중에서 내려다보기</span>') +
       (고른것
         ? `<br><span style="color:#9BE3B4">${고른것.이름} #${고른것.번호}</span>` +
           `<span style="color:#C9CEDA">  (${고른것.x.toFixed(1)}, ${고른것.z.toFixed(1)})` +
@@ -766,7 +933,7 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
       팔레트;
     // ※ 펼침을 빼먹으면 「놓을 것」을 눌러도 판이 다시 안 그려져서
     //    에셋 버튼이 영영 안 나온다(실제로 그랬다).
-  }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 붓, 펼침]);
+  }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 붓, 펼침, 부감]);
 
   return null;
 }

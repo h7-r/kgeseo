@@ -992,10 +992,15 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   //   `useSavedControls` 는 setter 를 안 돌려주므로 Leva 와 키를 같이 쓰면
   //   진실이 둘이 된다 — 그래서 Leva 항목은 아예 뺐다.
   const [편집모드, 편집모드설정] = useState(false);
+  // 편집 중 공중에서 내려다보기(Tab). 편집을 끄면 같이 내려온다.
+  const [부감, 부감설정] = useState(false);
   useEffect(() => {
     const 눌림 = (e) => {
       if (e.code === "KeyE" && !e.repeat && !e.ctrlKey && !e.metaKey)
-        편집모드설정((v) => !v);
+        편집모드설정((v) => {
+          if (v) 부감설정(false); // 편집을 끄면 부감도 같이 내려놓는다
+          return !v;
+        });
     };
     window.addEventListener("keydown", 눌림);
     return () => window.removeEventListener("keydown", 눌림);
@@ -1224,6 +1229,9 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     낙하복귀: T.낙하복귀,
     보고,
     화살표이동: !편집모드, // 편집 중 방향키는 요소를 민다
+    // 부감 동안은 걷기를 통째로 멈춘다 — `active` 만 꺼면 중력이 카메라를
+    // 매 프레임 땅으로 끌어내린다(use지형이동 주석 참고).
+    멈춤: 편집모드 && 부감,
   });
 
   // 개발용 — 카메라·렌더러·지형·순간이동을 창에 열어 둔다.
@@ -1915,6 +1923,8 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
         편집설정={편집설정}
         지면높이={(x, z) => 땅.지표.높이(x, z)}
         잠금해제={() => controlsRef.current?.unlock?.()}
+        부감={부감}
+        부감설정={부감설정}
       />
 
       <PointerLockControls

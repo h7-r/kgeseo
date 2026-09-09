@@ -56,6 +56,10 @@ export function use지형이동(
     // 편집 모드에서는 방향키가 **고른 요소를 미는 데** 쓰인다.
     // 그때 사람이 같이 걸어가면 화면이 흔들려 조준이 안 된다.
     화살표이동 = true,
+    // ★ 부감(공중에서 내려다보기) 동안 걷기를 통째로 멈춘다.
+    //   `active` 만 꺼서는 안 된다 — 중력·접지는 `active` 밖에서 돌기 때문에
+    //   카메라가 매 프레임 땅으로 도로 끌려 내려간다(실제로 그랬다).
+    멈춤 = false,
   } = {},
 ) {
   const { camera } = useThree();
@@ -70,6 +74,7 @@ export function use지형이동(
   const 첫프레임 = useRef(true);
   const 최고점 = useRef(0); // 공중에 뜬 뒤 도달한 가장 높은 y
   const 안전 = useRef(null); // 마지막으로 멀쩡히 서 있던 자리
+  const 멈춤이었나 = useRef(false); // 부감에서 막 내려왔는가
   const 누적거리 = useRef(0);
   const 경과 = useRef(0);
   const 방문 = useRef([]); // 지나온 구역 순서 — 고리 검증용
@@ -143,6 +148,40 @@ export function use지형이동(
 
   useFrame((_, dt) => {
     const p = camera.position;
+    if (멈춤) {
+      // 카메라는 남이 몬다. 계기판이 죽지 않게 자리 보고만 해 준다.
+      if (보고) {
+        const X0 = p.x * 유닛;
+        const Z0 = p.z * 유닛;
+        const 밑 = 지형.지면(X0, Z0);
+        보고.current = {
+          ...보고.current,
+          X: X0,
+          Z: Z0,
+          EL: 밑.y,
+          실눈높이: p.y * 유닛 - 밑.y,
+          자리: 지형.자리이름(X0, Z0),
+          속도: 0,
+          지형,
+        };
+      }
+      접지.current = false;
+      멈춤이었나.current = true;
+      return;
+    }
+    // 멈춤에서 깨어난 첫 프레임 — **그 자리에 그대로 선다.**
+    //   안 그러면 부감 높이(22 m)가 낙차로 읽혀 `낙하복귀` 가 사람을 마지막
+    //   안전 지점으로 보내 버린다. 부감으로 골라 둔 자리를 잃는 것이다
+    //   (실측: 부감에서 (27.5, 51) 까지 갔는데 내려오니 시작점 (11, 38.5) 였다).
+    if (멈춤이었나.current) {
+      멈춤이었나.current = false;
+      const 밑 = 지형.지면(p.x * 유닛, p.z * 유닛);
+      p.y = 밑.y * 미터 + 눈높이 * 미터;
+      vy.current = 0;
+      접지.current = true;
+      최고점.current = p.y;
+      안전.current = { X: p.x * 유닛, Z: p.z * 유닛 };
+    }
 
     // 시작 자리로 한 번 옮긴다. 텔레포트는 useEffect 에서 만들어지므로
     //   아직 준비가 안 됐으면 다음 프레임에 다시 시도한다.
