@@ -389,28 +389,54 @@ export function 편집기({
   return (
     <>
       {고른것 && (
-        <mesh
-          position={[
-            고른것.x * 미터 + (고른것.상자?.중심[0] ?? 0),
-            고른것.y * 미터 + (고른것.상자?.중심[1] ?? 고른것.키 * 0.5 * 미터),
-            고른것.z * 미터 + (고른것.상자?.중심[2] ?? 0),
-          ]}
+        // ★ 테두리를 **같이 돌린다.**
+        //   나무·잎더미는 거의 좌우대칭이라 15° 를 돌려도 눈에 안 띈다.
+        //   실제로 「회전이 안 먹힌다」는 말이 나왔는데, 재 보니 yaw 는 정확히
+        //   0° → 45° 로 가고 있었다 — **보이지 않았을 뿐**이다.
+        //   상자가 같이 돌고 앞쪽에 표시가 있으면 얼마나 돌았는지 바로 읽힌다.
+        <group
+          position={[고른것.x * 미터, 고른것.y * 미터, 고른것.z * 미터]}
+          rotation={[0, 고른것.회전 ?? 0, 0]}
           renderOrder={999}
         >
-          <boxGeometry
-            args={
-              고른것.상자
-                ? 고른것.상자.크기.map((v) => v * 1.06)
-                : [고른것.키 * 미터, 고른것.키 * 미터, 고른것.키 * 미터]
-            }
-          />
-          <meshBasicMaterial
-            color="#FFD166"
-            wireframe
-            depthTest={false}
-            toneMapped={false}
-          />
-        </mesh>
+          <mesh
+            position={[
+              고른것.상자?.중심[0] ?? 0,
+              고른것.상자?.중심[1] ?? 고른것.키 * 0.5 * 미터,
+              고른것.상자?.중심[2] ?? 0,
+            ]}
+          >
+            <boxGeometry
+              args={
+                고른것.상자
+                  ? 고른것.상자.크기.map((v) => v * 1.06)
+                  : [고른것.키 * 미터, 고른것.키 * 미터, 고른것.키 * 미터]
+              }
+            />
+            <meshBasicMaterial
+              color="#FFD166"
+              wireframe
+              depthTest={false}
+              toneMapped={false}
+            />
+          </mesh>
+          {/* 앞쪽 코 — 어느 방향을 보고 있는지 알려 준다 */}
+          <mesh
+            position={[
+              0,
+              (고른것.상자?.중심[1] ?? 고른것.키 * 0.5 * 미터),
+              -((고른것.상자?.크기[2] ?? 고른것.키 * 미터) * 0.53 + 0.35 * 미터),
+            ]}
+            rotation={[Math.PI / 2, 0, 0]}
+          >
+            <coneGeometry args={[0.22 * 미터, 0.7 * 미터, 4]} />
+            <meshBasicMaterial
+              color="#FFD166"
+              depthTest={false}
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
       )}
       <편집안내 알림={알림} 고른것={고른것} />
     </>
@@ -438,7 +464,10 @@ function 편집안내({ 알림, 고른것 }) {
       "<b>Ctrl+C/V</b> 복사·붙여넣기 · " +
       "<b>X</b> 지우기 · <b>Ctrl+Z</b> 되돌리기 · <b>Ctrl+S</b> 저장 · <b>ESC</b> 해제" +
       (고른것
-        ? `<br><span style="color:#9BE3B4">${고른것.이름} #${고른것.번호}</span>`
+        ? `<br><span style="color:#9BE3B4">${고른것.이름} #${고른것.번호}</span>` +
+          `<br><span style="color:#C9CEDA">(${고른것.x.toFixed(1)}, ${고른것.z.toFixed(1)})` +
+          ` · 키 ${고른것.키.toFixed(1)} m` +
+          ` · ∠ ${(((((고른것.회전 ?? 0) * 180) / Math.PI) % 360) + 360) % 360 | 0}°</span>`
         : "") +
       (알림 ? `<br><span style="color:#FFD166">${알림}</span>` : "");
     return () => {
