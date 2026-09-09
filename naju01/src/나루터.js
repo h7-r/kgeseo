@@ -246,7 +246,27 @@ export function 나룻배만들기({
     }
   }
 
-  // ⑤ 앉을 널 셋 — 사람이 타는 물건이라는 표시
+  // ⑤ 바닥널 — **수면보다 위**에 깐다
+  // [왜 필요한가]
+  //   선체 밑널은 `잠김` 만큼 물에 잠긴다. 그러면 수면(y = 0)이 **배 안쪽을
+  //   가로질러**, 배 안에 물이 차오른 것처럼 보인다(실제로 그렇게 보였다).
+  //   물가 근처에서는 땅 판까지 같이 올라온다 — 둘 다 같은 이유다.
+  //   진짜 배도 밑바닥 위에 널을 한 겹 깔아 발을 올린다(멍에 위의 널).
+  //   그 널을 **수면보다 확실히 위**에 두면 물도 땅도 가려진다.
+  const 바닥널높이 = (q) => Math.max(q.바닥 + 0.05, 잠김 + 0.06);
+  for (let i = 0; i < N; i++) {
+    const a = 단면(i / N);
+    const b = 단면((i + 1) / N);
+    const ya = 바닥널높이(a);
+    const yb = 바닥널높이(b);
+    // 옆널에 살짝 못 미치게 — 딱 붙이면 아른거린다
+    const wa = a.반폭 * 0.96;
+    const wb = b.반폭 * 0.96;
+    const 색 = 칠(밝, 어, 0.22 + 난수() * 0.2);
+    사각([-wa, ya, a.z], [wa, ya, a.z], [wb, yb, b.z], [-wb, yb, b.z], 색);
+  }
+
+  // ⑥ 앉을 널 셋 — 사람이 타는 물건이라는 표시
   const 지오들 = [];
   for (const t of [0.3, 0.52, 0.74]) {
     const q = 단면(t);
@@ -261,19 +281,62 @@ export function 나룻배만들기({
     지오들.push(색입히기(판, 칠(밝, 어, 0.45 + 난수() * 0.3)));
   }
 
-  // ⑥ 삿대 — 배 안에 비스듬히 뉘어 둔다
+  // ⑦ 삿대 — 뱃전 안쪽에 붙여 뉘어 둔다(노와 안 엉키게)
   {
     const 대 = uv떼기(
       new THREE.CylinderGeometry(0.035 * 미터, 0.045 * 미터, 3.4 * 미터, 6, 1).toNonIndexed(),
     );
     대.applyMatrix4(
       new THREE.Matrix4().compose(
-        new THREE.Vector3(-0.2 * 미터, (깊이 * 0.55) * 미터, 0.2 * 미터),
+        new THREE.Vector3(-(폭 * 0.32) * 미터, (잠김 + 0.12) * 미터, 0.15 * 미터),
         new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2 - 0.06, 0.1, 0)),
         new THREE.Vector3(1, 1, 1),
       ),
     );
     지오들.push(색입히기(대, 칠(말밝, 말어, 0.5 + 난수() * 0.35)));
+  }
+
+  // ⑧ 노 두 자루 — 양쪽 뱃전에 **가로로** 걸쳐 둔다
+  // [자세]
+  //   젓는 노는 배와 나란히 눕는 게 아니라 **뱃전을 가로질러** 걸린다.
+  //   손잡이는 배 안쪽, 물갈퀴는 반대쪽 뱃전 **너머 물 위로** 나간다.
+  //   처음에 배 길이 방향으로 뉘었더니 두 자루가 가운데서 X 자로 엇갈렸다 —
+  //   「걸쳐 둔 노」가 아니라 「던져 놓은 막대」로 보였다.
+  for (const 쪽 of [-1, 1]) {
+    const 중 = 단면(0.5);
+    const 뱃전 = 중.반폭 + 중.벌림;
+    const 자루길이 = 2.6;
+    const 손잡이안쪽 = 0.5; // 반대편 뱃전 안쪽으로 들어오는 길이
+    // 국소 +X 로 뻗는 노를 만들고, 통째로 자리에 얹는다
+    const 조각모음 = [];
+    const 자루 = uv떼기(
+      new THREE.CylinderGeometry(0.028 * 미터, 0.036 * 미터, 자루길이 * 미터, 6, 1).toNonIndexed(),
+    );
+    자루.rotateZ(Math.PI / 2); // 길이를 x 축으로
+    자루.translate((자루길이 / 2 - 손잡이안쪽) * 미터, 0, 0);
+    조각모음.push(색입히기(자루, 칠(말밝, 말어, 0.45 + 난수() * 0.35)));
+    // 물갈퀴 — 끝에서 납작하고 넓게
+    const 날 = uv떼기(new THREE.BoxGeometry(0.72 * 미터, 0.03 * 미터, 0.21 * 미터).toNonIndexed());
+    날.translate((자루길이 - 손잡이안쪽 + 0.3) * 미터, -0.02 * 미터, 0);
+    조각모음.push(색입히기(날, 칠(밝, 어, 0.34 + 난수() * 0.3)));
+
+    const 노 = mergeGeometries(조각모음, false);
+    조각모음.forEach((g) => g.dispose());
+    노.applyMatrix4(
+      new THREE.Matrix4().compose(
+        // 뱃전에 얹히는 자리 — 두 자루가 앞뒤로 어긋나게 놓아 안 겹친다
+        new THREE.Vector3(-쪽 * 뱃전 * 0.55 * 미터, (중.윗 - 0.03) * 미터, 쪽 * 0.55 * 미터),
+        new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(
+            0,
+            쪽 > 0 ? 0 : Math.PI, // 좌현·우현으로 뻗는 방향
+            -0.12, // 바깥쪽이 물 쪽으로 살짝 내려간다
+          ),
+        ),
+        new THREE.Vector3(1, 1, 1),
+      ),
+    );
+    지오들.push(노);
   }
 
   const 몸 = new THREE.BufferGeometry();
