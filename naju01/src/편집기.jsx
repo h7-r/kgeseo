@@ -363,6 +363,21 @@ export function 편집기({
         알림설정(`붙여넣음 — ${c.이름} #${번호} · Ctrl+S 로 저장`);
         return;
       }
+      // ★ ESC 는 **고른 것이 없어도** 들어야 한다.
+      //   예전에는 아래 `if (!고른것) return` 뒤에 있었다. 붓만 들고 아무것도
+      //   고르지 않은 상태가 정상인데, 그때 ESC 가 아예 안 돌아가서
+      //   **붓을 내려놓을 방법이 없었다**(사용자 지적).
+      if (ev.code === "Escape") {
+        if (붓참조.current) {
+          붓설정(null);
+          알림설정("붓 내려놓음");
+          return;
+        }
+        고른것설정(null);
+        고른것참조.current = null;
+        알림설정("");
+        return;
+      }
       if (!고른것) return;
       const 밀기 = (값) => {
         되돌리기통.current.push(편집);
@@ -425,16 +440,6 @@ export function 편집기({
           알림설정(`(${x.toFixed(1)}, ${z.toFixed(1)}) · Ctrl+S 로 저장`);
           break;
         }
-        case "Escape":
-          if (붓참조.current) {
-            붓설정(null);
-            알림설정("붓 내려놓음");
-            break;
-          }
-          고른것설정(null);
-          고른것참조.current = null;
-          알림설정("");
-          break;
         default:
           break;
       }
@@ -442,6 +447,16 @@ export function 편집기({
     window.addEventListener("keydown", 눌림);
     return () => window.removeEventListener("keydown", 눌림);
   }, [켬, 고른것, 편집, 편집설정, camera, 지면높이, 저장하기]);
+
+  // 붓이 들려 있으면 커서를 십자로 바꾼다 — 클릭이 「고르기」가 아니라
+  // 「놓기」라는 것이 눈에 보여야 한다.
+  useEffect(() => {
+    const 캔 = gl.domElement;
+    캔.style.cursor = 켬 && 붓 ? "crosshair" : "";
+    return () => {
+      캔.style.cursor = "";
+    };
+  }, [켬, 붓, gl]);
 
   // 편집 모드에 들어가면 포인터락을 푼다(마우스로 집어야 하므로)
   useEffect(() => {
@@ -533,8 +548,6 @@ export function 편집기({
 function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 저장하기, 붓, 붓설정 }) {
   // 팔레트는 **접어 둔다.** 펼치면 화면을 크게 가려서, 정작 놓을 자리가 안 보인다.
   const [펼침, 펼침설정] = useState(false);
-  const 펼침참조 = useRef(펼침);
-  펼침참조.current = 펼침;
   const 판참조 = useRef(null);
   const 저장참조 = useRef(저장하기);
   저장참조.current = 저장하기;
@@ -563,8 +576,16 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
         펼침설정((v) => !v);
         return;
       }
+      if (e.target.closest("#naju-붓내려놓기")) {
+        붓설정참조.current?.(null);
+        return;
+      }
       const p = e.target.closest("[data-에셋]");
-      if (p) 붓설정참조.current?.(p.getAttribute("data-에셋"));
+      if (p) {
+        // 같은 것을 다시 누르면 내려놓는다(토글) — 해제할 길이 하나뿐이면 갇힌다
+        const 키 = p.getAttribute("data-에셋");
+        붓설정참조.current?.((v) => (v === 키 ? null : 키));
+      }
     };
     판.addEventListener("click", 누름);
     return () => {
@@ -607,7 +628,10 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
       `${펼침 ? "▾" : "▸"} 놓을 것</button>` +
       (붓이름
         ? ` <span style="color:#FFD166">붓: ${붓이름}</span>` +
-          '<span style="opacity:.6"> — 화면을 클릭해 놓는다 · ESC 로 내려놓기</span>'
+          ' <button id="naju-붓내려놓기" type="button" style="pointer-events:auto;' +
+          "cursor:pointer;font:inherit;color:#12161F;background:#FFD166;border:none;" +
+          'border-radius:5px;padding:2px 8px">내려놓기 (ESC)</button>' +
+          '<span style="opacity:.6"> — 화면을 클릭해 놓는다</span>'
         : '<span style="opacity:.6"> — 눌러서 고른다</span>') +
       (!펼침
         ? "</div>"
@@ -658,7 +682,9 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
           "<b>npx vite naju01</b> 을 다시 띄워라</div>"
         : "") +
       팔레트;
-  }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 붓]);
+    // ※ 펼침을 빼먹으면 「놓을 것」을 눌러도 판이 다시 안 그려져서
+    //    에셋 버튼이 영영 안 나온다(실제로 그랬다).
+  }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 붓, 펼침]);
 
   return null;
 }
