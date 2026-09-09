@@ -172,6 +172,34 @@ export async function 편집쓰기(편집) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(편집, null, 2),
   });
-  if (!r.ok) throw new Error(`편집 저장 실패 (${r.status})`);
+  const 글 = await r.text();
+  if (!r.ok) throw new Error(`저장 실패 (${r.status})`);
+  // ★ 여기서 본문을 반드시 확인한다.
+  //   저장 플러그인이 안 붙어 있으면 Vite 가 **index.html 을 200 으로** 돌려준다.
+  //   `r.ok` 만 보면 **저장된 줄 알고 넘어간다** — 실제로 그래서
+  //   「먹힌 건지 안 먹힌 건지 모르겠다」가 나왔다.
+  if (글.trim() !== "ok")
+    throw new Error("개발 서버에 저장 기능이 없다 — `npx vite naju01` 을 다시 띄워라");
   return true;
+}
+
+// 저장 기능이 붙어 있는지 미리 확인한다(편집 모드에 들어갈 때 알려 주려고)
+export async function 저장가능한가() {
+  try {
+    const r = await fetch("/__naju-edit?t=" + Date.now());
+    const 글 = await r.text();
+    JSON.parse(글);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// 편집이 몇 건인가 — 저장 안 한 변경을 세어 보여 주려고
+export function 편집수(편집) {
+  let n = 0;
+  for (const v of Object.values(편집?.지움 ?? {})) n += v.length;
+  for (const v of Object.values(편집?.고침 ?? {})) n += Object.keys(v).length;
+  for (const v of Object.values(편집?.더함 ?? {})) n += v.length;
+  return n;
 }

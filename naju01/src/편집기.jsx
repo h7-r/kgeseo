@@ -30,7 +30,14 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 import { 미터, 유닛, 코어 } from "./공간도면.js";
-import { 지우기, 고치기, 더하기, 편집쓰기 } from "./배치.js";
+import {
+  지우기,
+  고치기,
+  더하기,
+  편집쓰기,
+  편집수,
+  저장가능한가,
+} from "./배치.js";
 
 const 회전단위 = Math.PI / 12; // 15°
 // 이동할 때 '땅'으로 쳐 주는 메시 이름
@@ -51,6 +58,32 @@ export function 편집기({
   const 편집참조 = useRef(편집);
   편집참조.current = 편집;
   const 복사판 = useRef(null); // Ctrl+C 로 담아 둔 것
+  // 저장 상태 — 「먹힌 건지 안 먹힌 건지」가 안 보여서 만든 것
+  const [저장됨, 저장됨설정] = useState(""); // 마지막으로 저장한 편집의 지문
+  const [저장중, 저장중설정] = useState(false);
+  const [붙었나, 붙었나설정] = useState(null); // 개발 서버에 저장 기능이 있나
+  const 지문 = JSON.stringify(편집);
+  const 안한변경 = 편집수(편집) > 0 && 지문 !== 저장됨;
+
+  useEffect(() => {
+    if (!켬) return;
+    저장가능한가().then(붙었나설정);
+  }, [켬]);
+
+  const 저장하기 = useCallback(async () => {
+    저장중설정(true);
+    try {
+      await 편집쓰기(편집참조.current);
+      저장됨설정(JSON.stringify(편집참조.current));
+      알림설정("저장했다 → 에셋/편집.json");
+      붙었나설정(true);
+    } catch (e) {
+      알림설정("✘ " + e.message);
+      붙었나설정(false);
+    } finally {
+      저장중설정(false);
+    }
+  }, []);
   const 광선 = useRef(new THREE.Raycaster());
   const 화면 = useRef(new THREE.Vector2());
 
@@ -249,12 +282,8 @@ export function 편집기({
       if (ev.ctrlKey || ev.metaKey) {
         if (ev.key.toLowerCase() === "s") {
           ev.preventDefault();
-          try {
-            await 편집쓰기(편집);
-            알림설정("저장함 → 에셋/편집.json");
-          } catch (e) {
-            알림설정("저장 실패: " + e.message);
-          }
+          ev.stopPropagation(); // S(뒤로 걷기)로 새어 나가지 않게
+          await 저장하기();
           return;
         }
         if (ev.key.toLowerCase() === "z") {
@@ -378,7 +407,7 @@ export function 편집기({
     };
     window.addEventListener("keydown", 눌림);
     return () => window.removeEventListener("keydown", 눌림);
-  }, [켬, 고른것, 편집, 편집설정, camera, 지면높이]);
+  }, [켬, 고른것, 편집, 편집설정, camera, 지면높이, 저장하기]);
 
   // 편집 모드에 들어가면 포인터락을 푼다(마우스로 집어야 하므로)
   useEffect(() => {
@@ -438,41 +467,107 @@ export function 편집기({
           </mesh>
         </group>
       )}
-      <편집안내 알림={알림} 고른것={고른것} />
+      <편집안내
+        알림={알림}
+        고른것={고른것}
+        안한변경={안한변경}
+        변경수={편집수(편집)}
+        저장중={저장중}
+        붙었나={붙었나}
+        저장하기={저장하기}
+      />
     </>
   );
 }
 
-// 화면 구석 안내 — Html 대신 DOM 에 직접 붙인다(three 씬 밖이라 가볍다)
-function 편집안내({ 알림, 고른것 }) {
+// ── 화면 구석 안내 + 저장 버튼 ──────────────────────────────
+// [왜 버튼을 두나]
+//   Ctrl+S 는 **S(뒤로 걷기)와 맞물린다.** 키를 고쳐도 「눌렀는데 됐는지
+//   모르겠다」는 문제는 남는다. 누를 수 있는 버튼과 **상태 표시**가 답이다.
+//     · 변경 없음        → 회색
+//     · 저장 안 한 변경 N → 노랑 (눌러 달라는 뜻)
+//     · 저장됨           → 초록
+//     · 저장 기능 없음    → 빨강 + 무엇을 해야 하는지
+//
+// [왜 React 요소가 아니라 DOM 을 직접 만지나]
+//   이 컴포넌트는 `<Canvas>` **안**에 있다. R3F 는 자기 재조정기를 쓰므로
+//   `<div>`·`<button>` 을 three 객체로 해석해 터진다
+//   ("R3F: B is not part of the THREE namespace" — 실제로 그랬다).
+//   react-dom 의 createPortal 도 같은 이유로 안 통한다. 그래서 DOM 을 직접 만든다.
+function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 저장하기 }) {
+  const 판참조 = useRef(null);
+  const 저장참조 = useRef(저장하기);
+  저장참조.current = 저장하기;
+
+  // 판은 한 번만 만든다
   useEffect(() => {
-    let 판 = document.getElementById("naju-편집안내");
-    if (!판) {
-      판 = document.createElement("div");
-      판.id = "naju-편집안내";
-      판.style.cssText =
-        "position:fixed;left:12px;bottom:12px;z-index:60;pointer-events:none;" +
-        "font:12px/1.6 ui-monospace,monospace;color:#E8EAF0;" +
-        "background:rgba(16,20,28,.82);padding:10px 12px;border-radius:8px;" +
-        "border:1px solid rgba(255,209,102,.35);max-width:min(46ch,60vw)";
-      document.body.appendChild(판);
-    }
+    const 판 = document.createElement("div");
+    판.id = "naju-편집안내";
+    판.style.cssText =
+      "position:fixed;left:12px;bottom:12px;z-index:60;pointer-events:none;" +
+      "font:12px/1.6 ui-monospace,monospace;color:#E8EAF0;" +
+      "background:rgba(16,20,28,.86);padding:10px 12px;border-radius:8px;" +
+      "border:1px solid rgba(255,209,102,.35);max-width:min(52ch,64vw)";
+    document.body.appendChild(판);
+    판참조.current = 판;
+    const 누름 = (e) => {
+      const b = e.target.closest("#naju-저장버튼");
+      if (b) 저장참조.current?.();
+    };
+    판.addEventListener("click", 누름);
+    return () => {
+      판.removeEventListener("click", 누름);
+      판.remove();
+      판참조.current = null;
+    };
+  }, []);
+
+  // 내용만 갱신
+  useEffect(() => {
+    const 판 = 판참조.current;
+    if (!판) return;
+    const 색 = 저장중
+      ? "#9AA3B2"
+      : 붙었나 === false
+        ? "#FF8A80"
+        : 안한변경
+          ? "#FFD166"
+          : "#9BE3B4";
+    const 글 = 저장중
+      ? "저장 중…"
+      : 붙었나 === false
+        ? "저장 불가 — 서버 재시작"
+        : 안한변경
+          ? `저장하기 (변경 ${변경수})`
+          : 변경수 > 0
+            ? `저장됨 (${변경수})`
+            : "변경 없음";
+    const 각 =
+      ((((((고른것?.회전 ?? 0) * 180) / Math.PI) % 360) + 360) % 360) | 0;
     판.innerHTML =
-      '<b style="color:#FFD166">편집 모드</b><br>' +
-      "<b>클릭·드래그</b> 고르고 옮기기 · <b>우클릭 드래그</b> 시점 · <b>WASD</b> 걷기<br>" +
-      "<b>방향키</b> 밀기(Shift 크게) · <b>R</b> 회전 · <b>[ ]</b> 크기 · " +
-      "<b>Ctrl+C/V</b> 복사·붙여넣기 · " +
-      "<b>X</b> 지우기 · <b>Ctrl+Z</b> 되돌리기 · <b>Ctrl+S</b> 저장 · <b>ESC</b> 해제" +
+      '<b style="color:#FFD166">편집 모드</b>' +
+      '<span style="opacity:.75"> · 클릭·드래그 고르고 옮기기 · 우클릭 드래그 시점 · WASD 걷기</span><br>' +
+      '<span style="opacity:.75">방향키 밀기(Shift 크게) · R 회전 · [ ] 크기 · ' +
+      "Ctrl+C/V 복사·붙여넣기 · X 지우기 · Ctrl+Z 되돌리기 · ESC 해제</span>" +
       (고른것
         ? `<br><span style="color:#9BE3B4">${고른것.이름} #${고른것.번호}</span>` +
-          `<br><span style="color:#C9CEDA">(${고른것.x.toFixed(1)}, ${고른것.z.toFixed(1)})` +
-          ` · 키 ${고른것.키.toFixed(1)} m` +
-          ` · ∠ ${(((((고른것.회전 ?? 0) * 180) / Math.PI) % 360) + 360) % 360 | 0}°</span>`
+          `<span style="color:#C9CEDA">  (${고른것.x.toFixed(1)}, ${고른것.z.toFixed(1)})` +
+          ` · 키 ${고른것.키.toFixed(1)} m · ∠ ${각}°</span>`
         : "") +
-      (알림 ? `<br><span style="color:#FFD166">${알림}</span>` : "");
-    return () => {
-      판.remove();
-    };
-  }, [알림, 고른것]);
+      '<div style="margin-top:8px;display:flex;align-items:center;gap:8px">' +
+      `<button id="naju-저장버튼" type="button"${저장중 ? " disabled" : ""} ` +
+      'style="pointer-events:auto;cursor:pointer;font:inherit;color:#12161F;' +
+      `background:${색};border:none;border-radius:6px;padding:5px 12px;font-weight:700">` +
+      `${글}</button>` +
+      '<span style="opacity:.6">또는 Ctrl+S</span></div>' +
+      (알림
+        ? `<div style="margin-top:6px;color:${알림.startsWith("✘") ? "#FF8A80" : "#FFD166"}">${알림}</div>`
+        : "") +
+      (붙었나 === false
+        ? '<div style="margin-top:4px;color:#FF8A80">개발 서버에 저장 기능이 없다 — ' +
+          "<b>npx vite naju01</b> 을 다시 띄워라</div>"
+        : "");
+  }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나]);
+
   return null;
 }

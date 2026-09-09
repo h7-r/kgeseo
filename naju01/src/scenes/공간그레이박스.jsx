@@ -1121,6 +1121,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     걷기속도: T.걷기속도,
     낙하복귀: T.낙하복귀,
     보고,
+    화살표이동: !편집모드, // 편집 중 방향키는 요소를 민다
   });
 
   // 개발용 — 카메라·렌더러·지형·순간이동을 창에 열어 둔다.

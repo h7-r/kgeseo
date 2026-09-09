@@ -53,6 +53,9 @@ export function use지형이동(
     걷기속도, // m/s — 안 넘기면 본편 WALK 를 그대로 쓴다
     낙하복귀 = true,
     보고,
+    // 편집 모드에서는 방향키가 **고른 요소를 미는 데** 쓰인다.
+    // 그때 사람이 같이 걸어가면 화면이 흔들려 조준이 안 된다.
+    화살표이동 = true,
   } = {},
 ) {
   const { camera } = useThree();
@@ -71,16 +74,23 @@ export function use지형이동(
   const 경과 = useRef(0);
   const 방문 = useRef([]); // 지나온 구역 순서 — 고리 검증용
 
+  const 화살표참조 = useRef(true);
+  화살표참조.current = 화살표이동;
+
   useEffect(() => {
     const set = (code, v) => {
       const k = keys.current;
-      if (code === "KeyW" || code === "ArrowUp") k.f = v;
-      else if (code === "KeyS" || code === "ArrowDown") k.b = v;
-      else if (code === "KeyA" || code === "ArrowLeft") k.l = v;
-      else if (code === "KeyD" || code === "ArrowRight") k.r = v;
+      const 화 = 화살표참조.current;
+      if (code === "KeyW" || (화 && code === "ArrowUp")) k.f = v;
+      else if (code === "KeyS" || (화 && code === "ArrowDown")) k.b = v;
+      else if (code === "KeyA" || (화 && code === "ArrowLeft")) k.l = v;
+      else if (code === "KeyD" || (화 && code === "ArrowRight")) k.r = v;
       else if (code === "ShiftLeft" || code === "ShiftRight") k.run = v;
     };
     const down = (e) => {
+      // ★ Ctrl/⌘ 를 누른 채면 **이동으로 안 친다.**
+      //   Ctrl+S(저장)가 S(뒤로 걷기)와 맞물려, 저장할 때마다 뒷걸음질쳤다.
+      if (e.ctrlKey || e.metaKey) return;
       if (HANDLED.has(e.code)) e.preventDefault();
       if (e.code === "Space" && 접지.current) {
         vy.current = JUMP;
