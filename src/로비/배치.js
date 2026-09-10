@@ -42,6 +42,19 @@ export const 걸이 = new Map(); // 걸이id -> { 물건id, x, y, z, rot, 기울
 export const 걸이등록 = (id, v) => 걸이.set(id, v);
 export const 걸이해제 = (id) => 걸이.delete(id);
 
+// 지금 '원래 자리가 아닌 곳'에 옮겨져 있는 물건들.
+// [왜 이걸 아나]
+//   제자리로 되돌릴 때 겹침을 따지는데, **처음부터 거기 있던 것**까지 세면
+//   되돌리기가 영영 안 된다 — 모자는 옷걸이 상자와 겹치고, 키보드는 모니터
+//   상자와 겹친 채로 놓여 있는 게 정상이기 때문이다.
+//   처음 배치는 이미 어우러져 있으니 따질 것이 없고, 새로 생긴 위험은
+//   **누가 그 자리에 다른 물건을 옮겨다 놓은 경우** 하나뿐이다.
+export const 옮겨진것 = new Set();
+export const 옮겨진것갱신 = (ids) => {
+  옮겨진것.clear();
+  for (const id of ids) 옮겨진것.add(id);
+};
+
 // 벽·기둥·가구처럼 '통과 못 하는 것' 목록은 App.jsx 가 들고 있다.
 // 여기서 그걸 import 하면 서로 물고 물리므로, 반대로 App 이 넣어 준다.
 let 월드박스 = () => [];
@@ -109,6 +122,27 @@ export function 놓을자리찾기(카메라, 물건id, 최대거리 = 9) {
     const 옆거리제곱 = hx * hx + hy * hy + hz * hz - 앞거리 * 앞거리;
     const 반 = h.반경 ?? 1.0;
     if (옆거리제곱 > 반 * 반) continue;
+
+    // 제자리에 **다른 물건을 옮겨다 놓았으면** 빨강.
+    //   원래부터 거기 있던 가구·기기는 따지지 않는다(옮겨진것 주석 참고).
+    const 밑 = h.y + (s.오프셋 ?? 0);
+    const 제자리상자 = {
+      minX: h.x - s.halfX,
+      maxX: h.x + s.halfX,
+      minZ: h.z - s.halfZ,
+      maxZ: h.z + s.halfZ,
+      minY: 밑,
+      maxY: 밑 + s.height,
+    };
+    let 막은것 = null;
+    for (const [id, b] of 점유) {
+      if (id === 물건id || !옮겨진것.has(id)) continue;
+      if (겹치나(제자리상자, b)) {
+        막은것 = id;
+        break;
+      }
+    }
+
     return {
       있나: true,
       걸이: gid, // 이 값이 있으면 '제자리로 되돌리기'다
@@ -120,7 +154,8 @@ export function 놓을자리찾기(카메라, 물건id, 최대거리 = 9) {
       halfX: s.halfX,
       halfZ: s.halfZ,
       height: s.height,
-      됨: true,
+      됨: !막은것,
+      이유: 막은것 ? "겹침" : undefined,
     };
   }
 
@@ -260,12 +295,31 @@ export const use놓기상태 = () =>
 export function 위에얹힌것(물건id) {
   const 나 = 점유.get(물건id);
   if (!나) return null;
+  const 내넓이 = (나.maxX - 나.minX) * (나.maxZ - 나.minZ);
   for (const [id, b] of 점유) {
     if (id === 물건id) continue;
-    if (b.minX >= 나.maxX - 틈새 || b.maxX <= 나.minX + 틈새) continue;
-    if (b.minZ >= 나.maxZ - 틈새 || b.maxZ <= 나.minZ + 틈새) continue;
-    // 내 윗면 높이에 밑면이 놓여 있으면 '얹힌 것'이다
-    if (Math.abs(b.minY - 나.maxY) < 0.15) return id;
+
+    // ① 내 윗면에 **앉아** 있어야 한다.
+    //   전에는 높이 차 0.15 안이면 위아래를 안 가리고 '얹혔다'고 봤다.
+    //   그래서 **키보드가 영영 안 집혔다** — 모니터 모델은 원점이 한가운데라
+    //   상자 밑면이 책상 아래(2.10)까지 내려오는데, 납작한 키보드 윗면이
+    //   2.14 라 우연히 0.04 차이가 났다. 둘 다 책상에 놓인 물건인데
+    //   "모니터가 키보드 위에 올라가 있다"가 된 것이다.
+    //   내 몸에 파묻힌 것은 얹힌 게 아니다 → 밑면이 내 윗면보다 아래면 뺀다.
+    if (b.minY < 나.maxY - 0.03) continue;
+    if (b.minY > 나.maxY + 0.15) continue;
+
+    // ② 겹친 넓이가 그 물건 발자국의 절반쯤은 돼야 '내 위에 있다'고 본다.
+    //   상자는 축에 나란해서 비스듬히 놓인 물건일수록 실제보다 크게 잡힌다.
+    //   모서리만 스친 것까지 세면 옆 물건 때문에 못 드는 일이 생긴다.
+    const 겹폭 = Math.min(b.maxX, 나.maxX) - Math.max(b.minX, 나.minX);
+    const 겹깊 = Math.min(b.maxZ, 나.maxZ) - Math.max(b.minZ, 나.minZ);
+    if (겹폭 <= 틈새 || 겹깊 <= 틈새) continue;
+    const 그넓이 = (b.maxX - b.minX) * (b.maxZ - b.minZ);
+    const 작은넓이 = Math.min(그넓이, 내넓이);
+    if (작은넓이 <= 0 || (겹폭 * 겹깊) / 작은넓이 < 0.4) continue;
+
+    return id;
   }
   return null;
 }
