@@ -39,7 +39,6 @@ import {
   모형지오,
   머리재기,
   혀찾기,
-  눈알만들기,
   가는것찾기,
 } from "./모형/불러오기.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -303,6 +302,9 @@ export function 구렁이표본들() {
       //   주둥이가 아래로 기운 머리에서는 턱 밑에 붙는다(한 번 그랬다).
       //   「머리 옆면에서 가장 바깥으로 튀어나온 점」은 언제나 뺨이다.
       const 위 = new THREE.Vector3(0, 1, 0);
+      const 눈크기 = 머리폭 * 0.34;
+      const 동공 = 눈크기 * 0.44;
+      const 법 = new THREE.Vector3();
       눈자리 = [-1, 1].map((쪽) => {
         const 목표 = 옆.clone().multiplyScalar(쪽).addScaledVector(위, 0.5).normalize();
         let 고른 = 두개골.clone().addScaledVector(옆, 쪽 * 머리폭);
@@ -320,8 +322,10 @@ export function 구렁이표본들() {
             고른.copy(q);
           }
         }
-        return { 자리: 고른, 바깥: 고른.clone().sub(두개골).normalize(), 반지름: 머리폭 * 0.26 };
+        return { 자리: 고른, 바깥: 고른.clone().sub(두개골).normalize() };
       });
+      const 눈들 = 눈자리.map((e) => e.자리);
+      const 눈밖 = 눈자리.map((e) => e.바깥);
 
       const v = new THREE.Vector3();
       for (let i = 0; i < p.count; i++) {
@@ -357,6 +361,29 @@ export function 구렁이표본들() {
         g *= 잔;
         b *= 잔;
 
+        // ── 눈알 ────────────────────────────────────────
+        //   모형에 있는 눈을 **칠한다**(붙이지 않는다). 뺨에서 가장 바깥
+        //   으로 튀어나온 점이 눈알이고, 그 둘레만 물들인다.
+        //   ★ 거리만 보면 머리를 파고들며 번진다 — 면이 **눈과 같은 쪽을
+        //     볼 때만** 칠한다(눈알은 바깥으로 볼록하다).
+        for (let e = 0; e < 2; e++) {
+          const d = v.distanceTo(눈들[e]);
+          if (d >= 눈크기) continue;
+          법.set(nor.getX(i), nor.getY(i), nor.getZ(i));
+          if (법.dot(눈밖[e]) < 0.45) continue;
+          const 가 = THREE.MathUtils.smoothstep(d, 눈크기 * 0.82, 눈크기);
+          if (d < 동공) {
+            r = 0.06;
+            g = 0.06;
+            b = 0.06;
+          } else {
+            r = THREE.MathUtils.lerp(3.3, r, 가);
+            g = THREE.MathUtils.lerp(2.4, g, 가);
+            b = THREE.MathUtils.lerp(0.3, b, 가);
+          }
+          break;
+        }
+
         // ── 혀 — 붉게 ───────────────────────────────────
         //   ★ 색은 **비율**이라 바탕(#4A4632 = 74,70,50)에 곱해진다.
         //     붉게 하려면 「빨강을 칠한다」가 아니라 **빨강 비율을 올리고
@@ -374,21 +401,11 @@ export function 구렁이표본들() {
     },
   });
 
-  // 2) 눈알 — 칠하지 않고 **붙인다**(왜 그런지는 `눈알만들기` 주석 참고)
-  const 조각 = [몸];
-  for (const e of 눈자리 ?? [])
-    조각.push(
-      눈알만들기({
-        // 살짝 밖으로 밀어 도드라지게 — 표면에 딱 맞추면 파묻힌다
-        자리: e.자리.clone().addScaledVector(e.바깥, e.반지름 * 0.42),
-        반지름: e.반지름,
-        바깥: e.바깥,
-        홍채: [3.2, 2.3, 0.3], // 호박빛
-        동공: [0.07, 0.07, 0.07],
-      }),
-    );
-  const 합 = mergeGeometries(조각, false);
-  return [합 ?? 몸];
+  // ※ 눈알을 **붙이지 않는다.** 예전에는 작은 공을 만들어 얹었는데,
+  //   사용자 지적대로 **모형에 이미 눈이 있다.** 없는 것을 만들어 붙이는
+  //   대신 있는 것을 칠하는 게 맞다. 41,506 삼각형일 때는 머리 표면
+  //   꼭짓점이 성겨 칠이 들쭉날쭉했는데, 90,378 로 올린 지금은 촘촘하다.
+  return [몸];
 }
 
 // ── 화면 위 풀이 ────────────────────────────────────────────

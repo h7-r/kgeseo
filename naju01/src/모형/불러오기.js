@@ -356,3 +356,52 @@ export function 가는것찾기(
   for (let i = 0; i < n; i++) if (나무자리.has(어느자리[i])) 나무.add(i);
   return 나무;
 }
+
+// ── 나무 줄기 찾기 ──────────────────────────────────────────
+//   [안 되던 것들 — 다 재 보고 버렸다]
+//     · `가는것찾기`(가로로 가는가)  → 줄기 굵기(0.1)가 찾는 반경(0.14)과
+//       비슷해 **전부 0.14 로 포화**됐다. 밑동과 잎이 안 갈렸다.
+//     · 연결 성분                    → 잎이 줄기에 **붙어 있다**(한 덩어리
+//       99 %). 나뭇잎이 낱장으로 떨어져 있을 줄 알았는데 아니었다.
+//     · 얇은 판(법선 마주보기)        → 잎도 **속이 찬 덩어리**다(얇은 점 1 %).
+//   [되는 것 — 나무는 아래가 줄기다]
+//     높이별 꼭짓점 수를 세면 **잎이 시작되는 층에서 갑자기 뛴다**(실측:
+//     나무1 은 0.2 층 18 개 → 0.3 층 267 개). 그 아래가 줄기다.
+//     그 위로도 줄기가 이어지지만 잎에 가려 거의 안 보인다. 다만 **줄기
+//     축에서 가까운 점**은 위에서도 줄기로 친다 — 잎 사이로 보이는 부분이다.
+export function 줄기찾기(면, { 잎시작몫 = 12, 줄기여유 = 1.35, 위로 = 0.62 } = {}) {
+  const p = 면.attributes.position;
+  const n = p.count;
+  let 최고 = 0;
+  for (let i = 0; i < n; i++) 최고 = Math.max(최고, p.getY(i));
+  const 층수 = 10;
+  const 칸 = 최고 / 층수;
+  const 셈 = new Array(층수).fill(0);
+  for (let i = 0; i < n; i++)
+    셈[Math.min(층수 - 1, Math.floor(p.getY(i) / 칸))]++;
+  // 잎이 시작되는 층 — 전체의 1/잎시작몫 을 처음 넘는 층
+  const 문턱 = n / 잎시작몫;
+  let 잎층 = 층수;
+  for (let k = 0; k < 층수; k++) if (셈[k] > 문턱) { 잎층 = k; break; }
+  const 줄기끝 = 잎층 * 칸;
+
+  // 줄기 축과 굵기 — 줄기끝 아래 점들로 잰다
+  let cx = 0, cz = 0, m = 0;
+  for (let i = 0; i < n; i++)
+    if (p.getY(i) < 줄기끝) { cx += p.getX(i); cz += p.getZ(i); m++; }
+  if (m) { cx /= m; cz /= m; }
+  let 굵기 = 0;
+  for (let i = 0; i < n; i++)
+    if (p.getY(i) < 줄기끝)
+      굵기 = Math.max(굵기, Math.hypot(p.getX(i) - cx, p.getZ(i) - cz));
+  굵기 = (굵기 || 0.08) * 줄기여유;
+
+  const 줄기 = new Set();
+  for (let i = 0; i < n; i++) {
+    const y = p.getY(i);
+    if (y < 줄기끝) { 줄기.add(i); continue; }
+    if (y < 최고 * 위로 && Math.hypot(p.getX(i) - cx, p.getZ(i) - cz) < 굵기)
+      줄기.add(i);
+  }
+  return { 줄기, 줄기끝, 굵기, 축: [cx, cz] };
+}
