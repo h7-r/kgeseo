@@ -9016,14 +9016,9 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     //   바깥벽에 붙여 세운다(정면이 복도 안쪽 +x 를 본다).
     //   깊이 2.4 를 빼면 지나갈 폭이 약 4.1(1.2m) 남는다 — 좁지만 다닐 만하다.
     자판기보이기: true,
-    자판기폭: { value: 3.4, min: 2, max: 5, step: 0.05 },
-    자판기높이: { value: 7.4, min: 4, max: 8, step: 0.05 },
+    // 앞뒤(깊이)만 두 대가 같이 쓴다 — 같은 벽에 등을 대고 서 있어서다.
+    //   가로·세로는 대마다 따로 조절한다(「음료 자판기」·「커피 자판기」 폴더).
     자판기깊이: { value: 2.4, min: 1.2, max: 3.5, step: 0.05 },
-    자판기벽틈: { value: 0.08, min: 0, max: 0.6, step: 0.01 },
-    캔자판기z비율: { value: 0.3, min: 0, max: 1, step: 0.01 },
-    커피자판기z비율: { value: 0.46, min: 0, max: 1, step: 0.01 },
-    캔자판기색: "#2f4a63",
-    커피자판기색: "#5a3e2b",
     // ★ 퍼즐이 나중에 밀어 넣을 자리. 지금은 Leva 로 눈으로 확인한다.
     커피선택: { value: "없음", options: ["없음", "핫", "아이스"] },
     음료뽑힌캔: { value: -1, min: -1, max: 5, step: 1 },
@@ -9114,7 +9109,10 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     위치y: { value: 0, min: -2, max: 6, step: 0.1 },
     위치z: { value: 9.2, min: -60, max: 26, step: 0.5 },
     회전도: { value: -90, min: -180, max: 180, step: 90 },
-    몸통색: "#909090",
+    // 대별 크기 — 앞뒤(깊이)만 「복도」 폴더에서 두 대가 같이 쓴다
+    가로길이: { value: 3.4, min: 2, max: 5, step: 0.05 },
+    세로길이: { value: 7.4, min: 4, max: 9, step: 0.05 },
+    몸통색: "#5f5e5e",
     테색: "#3b3b3b",
     간판색: "#fffdf2",
     간판글자색: "#141414", // COLD DRINKS 글자색(밝은 간판이라 검정)
@@ -9135,16 +9133,18 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     위치y: { value: 0, min: -2, max: 6, step: 0.1 },
     위치z: { value: -3.2, min: -60, max: 26, step: 0.5 },
     회전도: { value: -90, min: -180, max: 180, step: 90 },
+    가로길이: { value: 3.4, min: 2, max: 5, step: 0.05 },
+    세로길이: { value: 7.4, min: 4, max: 9, step: 0.05 },
     몸통색: "#3e332b",
-    테색: "#7a7f89",
+    테색: "#61656c",
     간판색: "#8d372e",
-    간판글자색: "#fff6e2",
+    간판글자색: "#fcfcfc",
     버튼틀색: "#3e3e3e",
     패널색: "#241a12",
     어두운색: "#15171b",
     컵색: "#cbc19e",
     커피색: "#342113",
-    배출부벽색: "#8d8d8d",
+    배출부벽색: "#cbcbcb",
     배출부유리색: "#c9ccce",
     외곽선: true,
     외곽선굵기: { value: 3, min: 0, max: 12, step: 0.5 },
@@ -10166,8 +10166,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
                   <캔자판기
                     위치={[음료자판CD.위치x, 음료자판CD.위치y, zc]}
                     회전={(음료자판CD.회전도 * Math.PI) / 180}
-                    폭={CD.자판기폭}
-                    높이={CD.자판기높이}
+                    폭={음료자판CD.가로길이}
+                    높이={음료자판CD.세로길이}
                     깊이={CD.자판기깊이}
                     몸통색={음료자판CD.몸통색}
                     테색={음료자판CD.테색}
@@ -10186,8 +10186,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
                   <커피자판기
                     위치={[커피자판CD.위치x, 커피자판CD.위치y, zk]}
                     회전={(커피자판CD.회전도 * Math.PI) / 180}
-                    폭={CD.자판기폭}
-                    높이={CD.자판기높이}
+                    폭={커피자판CD.가로길이}
+                    높이={커피자판CD.세로길이}
                     깊이={CD.자판기깊이}
                     몸통색={커피자판CD.몸통색}
                     테색={커피자판CD.테색}
