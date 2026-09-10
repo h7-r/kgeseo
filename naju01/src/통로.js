@@ -52,6 +52,44 @@ const 사이 = (v, a, b) => THREE.MathUtils.clamp((v - a) / (b - a), 0, 1);
 //   갓길폭  길 바깥으로 흘러내리는 어깨의 폭(m)
 //   갓길낙차 그 어깨가 내려앉는 깊이(m)
 //   요철    길바닥이 흔들리는 폭(m) — 걷는 판정과 어긋나지 않게 얕게
+// ── 면을 위로 세운다 ───────────────────────────────────────
+// [왜 필요한가 — 실제로 당한 일]
+//   길 리본을 「a → e → b」 순서로 감아 왔는데, 이 통로들의 가로·세로 축
+//   방향에서는 그 감기가 **법선을 아래로** 만든다. 실측하니 T1 은 1,242 면
+//   중 **1,213 면이 아래**를 봤다(네 통로 다 96~100 %).
+//   길은 단면(FrontSide)으로 그리므로 —
+//     · 위에서 보면 **뒷면이라 컬링**돼 안 보인다 → 여태 아무도 몰랐다
+//     · 아래·옆에서 보면 빛을 못 받는 **검은 면**이 튀어나온다
+//   비탈길에서 「뭐가 튀어나왔고 속이 다 들여다보인다」는 제보가 그것이다.
+//
+// [왜 손으로 감기를 뒤집지 않고 재서 고치나]
+//   감기가 어느 쪽이 맞는지는 **통로의 방향에 달렸다.** 도면을 고치면 또
+//   뒤집힐 수 있다. 그때 다시 눈으로 찾느니, 만들 때마다 재서 바로 세운다.
+//   같은 실수를 연결로에서 한 번, 길에서 한 번 했다 — 두 번이면 규칙이다.
+function 위로세우기(지오) {
+  const n = 지오.attributes.normal;
+  let 합 = 0;
+  for (let i = 0; i < n.count; i++) 합 += n.getY(i);
+  if (합 >= 0) return 지오; // 이미 위를 본다
+  // 삼각형마다 둘째·셋째 꼭짓점을 맞바꾼다 = 감기를 뒤집는다
+  for (const 이름 of Object.keys(지오.attributes)) {
+    const a = 지오.attributes[이름];
+    const 칸 = a.itemSize;
+    const arr = a.array;
+    for (let f = 0; f + 2 < a.count; f += 3)
+      for (let c = 0; c < 칸; c++) {
+        const i = (f + 1) * 칸 + c;
+        const j = (f + 2) * 칸 + c;
+        const t = arr[i];
+        arr[i] = arr[j];
+        arr[j] = t;
+      }
+    a.needsUpdate = true;
+  }
+  지오.computeVertexNormals();
+  return 지오;
+}
+
 export function 길만들기({
   통로, 간격 = 0.4, 갓길폭 = 0.9, 갓길낙차 = 0.35, 요철 = 0.06,
   비탈파임 = 0.5, 층두께 = 1.2, 각짐 = 0.7,
@@ -323,6 +361,7 @@ export function 길만들기({
   길지오.setAttribute("position", new THREE.Float32BufferAttribute(위치, 3));
   길지오.setAttribute("color", new THREE.Float32BufferAttribute(색깔, 3));
   길지오.computeVertexNormals();
+  위로세우기(길지오);
 
   let 비탈지오 = null;
   if (치마.length) {
