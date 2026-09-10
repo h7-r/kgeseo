@@ -32,6 +32,7 @@ export function 잰다({
   면 = false,
   자리 = false,
   재기 = false,
+  기준y, // 이 물건에 넘긴 y prop 값. 밑면 오프셋을 재는 데 쓴다.
   다시재기,
   children,
 }) {
@@ -74,7 +75,15 @@ export function 잰다({
         //   돌린 순간 발자국이 달라져 '괜찮다고 해놓고 겹치는' 일이 생긴다.
         //   긴 쪽으로 맞춘 정사각이면 어느 각도로 돌려도 안전하다.
         const 반 = Math.max(폭, 깊이) / 2;
-        크기등록(id, { halfX: 반, halfZ: 반, height: b.max.y - b.min.y });
+        // ★ 밑면 오프셋 = 실제 밑면이 'y prop' 보다 얼마나 아래에 있나.
+        //   대부분 0 이지만(모델 밑면 = y 0), 모자처럼 원점이 중간인 것은 값이 생긴다.
+        //   이걸 안 재면 놓을 때 물건이 면에 파묻히거나 공중에 뜬다.
+        크기등록(id, {
+          halfX: 반,
+          halfZ: 반,
+          height: b.max.y - b.min.y,
+          오프셋: 기준y === undefined ? 0 : b.min.y - 기준y,
+        });
       }
       return true;
     };
@@ -90,7 +99,7 @@ export function 잰다({
       if (면) 표면해제(id);
       if (자리) 점유해제(id);
     };
-  }, [id, 면, 자리, 재기, 다시재기]);
+  }, [id, 면, 자리, 재기, 기준y, 다시재기]);
 
   return <group ref={ref}>{children}</group>;
 }

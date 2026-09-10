@@ -132,11 +132,14 @@ import {
   표면해제,
 } from "./로비/배치.js";
 import {
+  겨냥,
   실행 as 상호실행,
   use로비상태,
   서랍움직이기,
   램프토글,
-  의자토글,
+  끄는의자,
+  의자잡기,
+  의자놓기,
   집기,
   놓기,
   제자리로,
@@ -7092,6 +7095,98 @@ function 캐비닛선분(열림) {
 }
 const CAB_LINE_GEO = 캐비닛선분(null);
 
+// ── 의자 끌기 ──────────────────────────────────────────────
+// [왜 매 프레임 state 를 안 쓰나]
+//   끌고 있는 동안 위치는 초당 60번 바뀐다. state 로 두면 로비 전체가 그만큼
+//   다시 그려진다. 그래서 그룹을 ref 로 직접 밀고, **놓는 순간에만** 상태에 적는다.
+//
+// [자식이 절대좌표로 그려지는 문제]
+//   의자는 자기 안에서 pos=[x,z] 절대좌표로 그려진다. 그래서 그룹에는
+//   '기준 자리에서 얼마나 벗어났는지'(차이)만 넣는다.
+const 끌기위치 = { x: 0, z: 0 }; // 놓을 때 읽는다. 프레임마다 갱신.
+const _끌앞 = new THREE.Vector3();
+
+function 의자끌기({ 기준, 거리 = 3.2, children }) {
+  const g = useRef(null);
+  const 마지막 = useRef(null);
+  const { camera } = useThree();
+
+  // 잡는 순간 '지금 있는 자리'로 채워 둔다.
+  //   따라오는 계산이 한 번도 안 돈 상태에서 E 를 눌러도 제자리에 놓이도록.
+  useEffect(() => {
+    끌기위치.x = 기준[0];
+    끌기위치.z = 기준[1];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useFrame(() => {
+    const o = g.current;
+    if (!o) return;
+    camera.getWorldDirection(_끌앞);
+    _끌앞.y = 0;
+    if (_끌앞.lengthSq() < 1e-6) return;
+    _끌앞.normalize();
+
+    let tx = camera.position.x + _끌앞.x * 거리;
+    let tz = camera.position.z + _끌앞.z * 거리;
+    // 벽·가구를 뚫지 않게. 막힌 자리로는 안 가고 마지막 성한 자리에 머문다.
+    if (hit(tx, tz)) {
+      const m = 마지막.current;
+      if (!m) return;
+      tx = m[0];
+      tz = m[1];
+    } else 마지막.current = [tx, tz];
+
+    끌기위치.x = tx;
+    끌기위치.z = tz;
+    o.position.set(tx - 기준[0], 0, tz - 기준[1]);
+  });
+
+  return <group ref={g}>{children}</group>;
+}
+
+// ── 서랍 한 칸만 빛나게 ────────────────────────────────────
+// [왜 캐비닛 통째로 안 빛내나]
+//   겨냥 대상은 '서랍 한 칸'인데 캐비닛 전체가 빛나면 무엇을 여는지가 안 보인다.
+//   그렇다고 서랍만 <강조> 로 감쌀 수도 없다 — **닫혀 있을 때 서랍은 GLB 몸통의
+//   일부라 따로 떼어낼 메시가 없기 때문이다.**
+//   그래서 그 칸 앞면 크기의 얇은 판을 하나 덧대고, 그것만 밝힌다.
+//   더하기 합성(Additive)이라 원래 색을 지우지 않고 밝기만 올린다 → Bloom 이 번지게 한다.
+function 서랍겨냥빛({ id, 칸, z, 색 = "#fffee7", 세기 = 0.45 }) {
+  const ref = useRef(null);
+  const 양 = useRef(0);
+  const y0 = CAB_SEAMS[칸],
+    y1 = CAB_SEAMS[칸 + 1];
+
+  useFrame((_, dt) => {
+    const o = ref.current;
+    if (!o) return;
+    const 목표 = 겨냥.값() === id ? 1 : 0;
+    양.current += (목표 - 양.current) * (1 - Math.exp(-dt * 14));
+    o.visible = 양.current > 0.01;
+    o.material.opacity = 양.current * 세기;
+    o.material.color.set(색);
+  });
+
+  return (
+    <mesh
+      ref={ref}
+      visible={false}
+      position={[0, (y0 + y1) / 2, z + 0.003]}
+      scale={[CAB_FX * 2, y1 - y0, 1]}
+    >
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial
+        transparent
+        opacity={0}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
+  );
+}
+
 // ===== 열린 서랍 (코드로 생성) =====
 // GLB는 서랍이 통짜로 붙어 있어 '열' 수가 없다.
 //   → 그 칸을 어두운 상자로 덮어 구멍처럼 만들고, 그 앞에 서랍 상자를 새로 그린다.
@@ -7107,6 +7202,7 @@ function CabinetDrawer({
   깊이 = 0.016,
   얼룩 = 10,
   얼룩세기 = 1,
+  낡음배율 = 1, // 몸통 대비 눌린 자국 깊이. 1 = 몸통과 같게
   선,
 }) {
   const y0 = CAB_SEAMS[칸],
@@ -7129,8 +7225,11 @@ function CabinetDrawer({
       const g = new THREE.BoxGeometry(w, hh, dd, 12, 12, 2);
       // 미세 흔들림은 약하게만 — 세게 주면 정사각 격자 때문에 사선 줄무늬가 뜬다
       자글자글(g, 씨, 0.01);
-      // 눌린 자국은 부품이 작으니 반경을 크게(0.18) 잡아야 실제로 눌린 게 보인다
-      찌그러뜨리기(g, 씨, 찌그러짐, 깊이 * 0.45, 0.12);
+      // 눌린 자국은 부품이 작으니 반경을 크게(0.12) 잡아야 실제로 눌린 게 보인다.
+      //   ★ 예전에는 깊이를 0.45배로 줄여 놔서 **열린 서랍만 유독 매끈**했다.
+      //     닫혀 있을 때 보이는 건 GLB 몸통(제 깊이)인데 열면 이 부품으로 바뀌니
+      //     같은 서랍인데 여닫을 때마다 낡은 정도가 달라 보였다. 이제 몸통과 같게 준다.
+      찌그러뜨리기(g, 씨, 찌그러짐, 깊이 * 낡음배율, 0.12);
       얼룩입히기(g, 씨, 얼룩, 얼룩세기, 오프셋);
       return g;
     };
@@ -7140,7 +7239,7 @@ function CabinetDrawer({
       바닥: mk(0.336, 0.01, d, seed + 3, y0 + 0.014),
       손잡이: mk(0.11, 0.034, 0.012, seed + 4, cy - 0.02),
     };
-  }, [seed, 찌그러짐, 깊이, 얼룩, 얼룩세기, h, d, cy, y0]);
+  }, [seed, 찌그러짐, 깊이, 얼룩, 얼룩세기, 낡음배율, h, d, cy, y0]);
   // 슬라이더를 움직이면 새로 만들어지므로 이전 것은 버린다(GPU 누수 방지)
   useEffect(
     () => () => Object.values(부품).forEach((g) => g.dispose()),
@@ -7386,6 +7485,8 @@ function Cabinet({
   선보이기 = true,
   선색 = "#8A929C",
   열림 = null, // { 칸: 0~3, 양: 뺀 깊이, 서류: bool } — null이면 전부 닫힘
+  겨냥 = null, // { id, 칸, 색, 세기 } — 이 칸만 빛낸다. 없으면 안 빛낸다.
+  서랍낡음 = 1,
   선,
 }) {
   const [x, z] = pos;
@@ -7445,6 +7546,7 @@ function Cabinet({
           칸={열림.칸}
           양={열림.양}
           서류={열림.서류}
+          낡음배율={서랍낡음}
           color={color}
           seed={seed}
         />
@@ -7455,6 +7557,20 @@ function Cabinet({
         <lineSegments geometry={선geo}>
           <lineBasicMaterial color={선색} toneMapped={false} />
         </lineSegments>
+      )}
+      {/* 겨냥 강조 — 만질 수 있는 그 한 칸만. 열려 있으면 앞판과 같이 나온다. */}
+      {겨냥 && (
+        <서랍겨냥빛
+          id={겨냥.id}
+          칸={겨냥.칸}
+          z={
+            열림 && 열림.칸 === 겨냥.칸
+              ? CAB_SLOT_Z + 열림.양 + 0.0145
+              : CAB_FZ
+          }
+          색={겨냥.색}
+          세기={겨냥.세기}
+        />
       )}
     </group>
   );
@@ -8009,6 +8125,9 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     살짝열림: { value: 0.12, min: 0, max: 0.25, step: 0.005 },
     많이열림: { value: 0.14, min: 0, max: 0.25, step: 0.005 },
     서류보이기: true,
+    // 열린 서랍 부품의 눌린 자국 깊이(몸통 대비). 1 = 몸통과 같게.
+    //   닫혔을 때 보이는 GLB 몸통과 열었을 때 보이는 코드 부품의 낡은 정도를 맞춘다.
+    서랍낡음: { value: 1.0, min: 0, max: 2, step: 0.05 },
 
     ...선스키마({ 주름: true, 각도: 40 }),
   });
@@ -8335,8 +8454,7 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     색: "#363b46",
     // 의자를 통과할 수 없게 막는다. 끄면 예전처럼 뚫고 지나갈 수 있다(비교용).
     충돌: true,
-    // [E] 로 의자를 뺐을 때 물러나는 거리. 반대로 가면 음수로 뒤집는다.
-    빼는거리: { value: 1.4, min: -3, max: 3, step: 0.05 },
+
 
     ...선스키마({ 굵기: 2.0, 색: "#1a1614", 주름: true, 각도: 65 }),
   });
@@ -9223,6 +9341,10 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     ...mgLive.map((v, i) => ({ id: `mug${i}`, 종류: "머그", 이름: "머그컵", v })),
     ...lpLive.map((v, i) => ({ id: `laptop${i}`, 종류: "노트북", 이름: "노트북", v })),
     ...spLive.map((v, i) => ({ id: `paper${i}`, 종류: "서류", 이름: "서류", v })),
+    // 중절모 — 옷걸이에 걸려 있다가 집어서 아무 데나 놓을 수 있다.
+    ...(ht1.보이기
+      ? [{ id: "hat0", 종류: "모자", 이름: "중절모", v: ht1 }]
+      : []),
   ];
   const 놓인곳 = (o) =>
     로비.자리[o.id] ?? { x: o.v.x, y: o.v.높이, z: o.v.z, rot: o.v.회전 };
@@ -9243,6 +9365,20 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           sizeMul={o.v.개별크기}
           cCup={MG.컵색}
           cCoffee={MG.커피색}
+        />
+      );
+    if (o.종류 === "모자")
+      return (
+        <Fedora
+          선={HT}
+          pos={pos}
+          y={y}
+          rot={rot}
+          // ★ 기울기(자빠진 정도)는 옷걸이에 걸려 있을 때만 준다.
+          //   그대로 들거나 책상에 놓으면 챙이 파묻히거나 공중에 뜬다.
+          기울기={곳 && !로비.자리[o.id] ? o.v.기울기 : 0}
+          크기={o.v.크기}
+          색={o.v.색}
         />
       );
     if (o.종류 === "노트북")
@@ -10135,13 +10271,6 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
               )
             }
           />
-          <강조
-            id={`cab${i}`}
-            색={HL.색}
-            세기={HL.세기}
-            확대={HL.가구커지기}
-            기준={() => [c.x, 0, c.z]}
-          >
           <Cabinet
             선={CB선}
             pos={[c.x, c.z]}
@@ -10156,8 +10285,14 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
             선보이기={CB.선보이기}
             선색={CB.선색}
             열림={서랍보기(i)}
+            서랍낡음={CB.서랍낡음}
+            겨냥={{
+              id: `cab${i}`,
+              칸: 서랍칸(i),
+              색: HL.색,
+              세기: HL.세기,
+            }}
           />
-          </강조>
           </충돌체>
         ))}
 
@@ -10198,19 +10333,6 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
             </group>
           );
         })}
-
-      {/* ── 중절모 — 옷걸이 가지에 걸린 것 하나 ───────────── */}
-      {ht1.보이기 && (
-        <Fedora
-          선={HT}
-          pos={[ht1.x, ht1.z]}
-          y={ht1.높이}
-          rot={ht1.회전}
-          기울기={ht1.기울기}
-          크기={ht1.크기}
-          색={ht1.색}
-        />
-      )}
 
       {/* ── 옷걸이 스탠드 2개 ─────────────────────────────── */}
       {CT.보이기 && (
@@ -10447,38 +10569,51 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           대마다 Leva 폴더(의자1~5)로 위치·회전을 따로 조절한다. */}
       <Suspense fallback={null}>
         {chLive.map((c, i) => {
-          const 뺌 = !!로비.의자[`chair${i}`];
-          const d = 뺌 ? CH.빼는거리 : 0;
-          const cx = c.x + Math.sin(c.회전) * d;
-          const cz = c.z + Math.cos(c.회전) * d;
-          return (
-            <group key={`chair${i}`}>
+          const id = `chair${i}`;
+          const 놓인 = 로비.의자자리[id];
+          const cx = 놓인 ? 놓인.x : c.x;
+          const cz = 놓인 ? 놓인.z : c.z;
+          const 끌리는중 = 로비.끄는의자 === id;
+          const 의자 = (
+            <>
               <상호대상
-                id={`chair${i}`}
+                id={id}
                 반경={0.9}
                 위치={() => [cx, 1.6, cz]}
-                라벨={뺌 ? "[E] 의자 넣기" : "[E] 의자 빼기"}
-                실행={() => 의자토글(`chair${i}`)}
+                라벨="[E] 의자 끌기"
+                끔={() => !!로비.끄는의자 || !!로비.든것}
+                실행={() => 의자잡기(id)}
               />
               <강조
-                id={`chair${i}`}
+                id={id}
                 색={HL.색}
                 세기={HL.세기}
                 확대={HL.가구커지기}
                 기준={() => [cx, 0, cz]}
               >
-              <Chair
-                선={CH선}
-                이름={`chair${i}`}
-                충돌={CH.충돌}
-                pos={[cx, cz]}
-                rot={c.회전}
-                y={c.높이}
-                scale={CH.크기}
-                sizeMul={c.개별크기}
-                color={CH.색}
-              />
+                <Chair
+                  선={CH선}
+                  이름={id}
+                  // 끌고 있는 동안은 충돌을 끈다.
+                  //   안 끄면 내가 끌고 가는 의자에 내가 막혀 앞으로 못 간다.
+                  충돌={CH.충돌 && !끌리는중}
+                  pos={[cx, cz]}
+                  rot={c.회전}
+                  y={c.높이}
+                  scale={CH.크기}
+                  sizeMul={c.개별크기}
+                  color={CH.색}
+                />
               </강조>
+            </>
+          );
+          return (
+            <group key={id}>
+              {끌리는중 ? (
+                <의자끌기 기준={[cx, cz]}>{의자}</의자끌기>
+              ) : (
+                의자
+              )}
             </group>
           );
         })}
@@ -10547,7 +10682,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
                 면
                 자리
                 재기
-                다시재기={`${곳.x},${곳.y},${곳.z},${곳.rot},${o.v.개별크기 ?? o.v.크기},${MG.크기},${LP.크기}`}
+                기준y={곳.y}
+                다시재기={`${곳.x},${곳.y},${곳.z},${곳.rot},${o.v.개별크기 ?? o.v.크기 ?? 1},${MG.크기},${LP.크기}`}
               >
                 <강조
                   id={`집기:${o.id}`}
@@ -10714,6 +10850,9 @@ export default function App() {
         () => {
           // 들고 있던 물건은 원래 자리에 두고 간다(GRD-01 되돌릴 수 있음).
           제자리로();
+          // 끌던 의자도 그 자리에 두고 간다. 안 놓으면 기차에서 돌아왔을 때
+          //   갑자기 의자가 다시 따라붙는다.
+          의자놓기(끌기위치.x, 끌기위치.z);
         },
         false,
       ),
@@ -10813,6 +10952,12 @@ export default function App() {
       if (e.code !== "KeyE" || !locked) return;
       // ★ 순서는 화면 아래 안내문과 반드시 같아야 한다.
       //   ① 정면으로 겨냥한 것  ② 들고 있으면 놓기  ③ 문
+      // 의자를 끌고 있으면 E 는 '놓기'다. 조준과 무관하게 우선한다 —
+      //   끌던 의자가 화면 밖으로 나가 조준이 안 될 수도 있기 때문이다.
+      if (끄는의자()) {
+        의자놓기(끌기위치.x, 끌기위치.z);
+        return;
+      }
       if (상호실행()) return;
       if (놓기시도()) return;
       if (near === "train") 기차타기(); // 역 → 기차 안 ([E] 백업 경로)

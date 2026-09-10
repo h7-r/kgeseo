@@ -133,7 +133,10 @@ export function 놓을자리찾기(카메라, 물건id, 최대거리 = 9) {
       return { 있나: true, x, y, z, rot, ...s, 됨: false, 이유: "겹침" };
   }
 
-  return { 있나: true, x, y, z, rot, ...s, 됨: true };
+  // ★ y 는 '면의 높이'가 아니라 **물건에 넘길 y 값**이다.
+  //   물건마다 y prop 이 밑면이 아닐 수 있다(모자처럼 모델 원점이 중간인 것).
+  //   실측해 둔 오프셋만큼 빼 줘야 밑면이 면에 정확히 닿는다.
+  return { 있나: true, x, y: y - (s.오프셋 ?? 0), z, rot, ...s, 됨: true, 면높이: y };
 }
 
 const 조이기 = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.min(Math.max(v, lo), hi));
