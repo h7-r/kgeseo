@@ -10083,6 +10083,7 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
               벽개수={CD.부식벽수}
               깨짐개수={CD.벽깨짐수}
               금개수={CD.벽금수}
+              선={CD선}
               크기={CD.부식크기}
               문z={CD.문z}
               문폭={CD.문폭}

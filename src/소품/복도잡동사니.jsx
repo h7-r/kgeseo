@@ -150,31 +150,54 @@ function 콘크리트지오(r) {
   return g;
 }
 
-// ── 각목 — 부러진 자리가 갈라져 있다 ───────────────────────
-//   반듯한 막대는 '나무 토막'이 아니라 '상자'로 보인다. 끝을 들쭉날쭉하게
-//   깨뜨리고, 결을 따라 색을 줄무늬로 넣어야 나무가 된다.
-function 각목지오(r) {
-  const 판 = new THREE.BoxGeometry(1, 0.14, 0.2, 6, 1, 1);
+// ── 부서진 벽돌 ────────────────────────────────────────────
+//   벽에서 떨어져 나온 조각이다. 반듯한 상자는 '벽돌'이 아니라 '상자'라,
+//   깨진 쪽 면을 들쭉날쭉하게 부수고 모서리를 갉아 낸다.
+//   @param 깨짐 0 = 온전한 벽돌, 1 = 반쯤 부서진 조각
+function 벽돌지오(r, 깨짐 = 0.5) {
+  const 판 = new THREE.BoxGeometry(1, 0.46, 0.3, 4, 2, 2);
   const g = 판.toNonIndexed();
   판.dispose();
   const p = g.attributes.position;
   const 씨 = r() * 8;
+  const 부러진쪽 = r() < 0.5 ? 1 : -1;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i);
-    const 끝 = Math.max(0, Math.abs(x) - 0.32) / 0.18; // 양 끝에서만 1 로 간다
-    if (끝 <= 0) continue;
-    const j = 자리잡음(x * 9 + 씨, p.getY(i) * 9, p.getZ(i) * 9);
-    // 부러진 끝 — 길이·두께가 가시처럼 튀거나 패인다
+    const y = p.getY(i);
+    const z = p.getZ(i);
+    const j = 자리잡음(x * 7 + 씨, y * 7, z * 7);
+    // ① 부러진 단면 — 한쪽 끝이 뭉텅 깨져 울퉁불퉁하다
+    const 끝 = Math.max(0, x * 부러진쪽 - 0.12) / 0.38;
+    // ② 모서리는 어디든 조금씩 갉아 먹혔다(오래된 벽돌은 각이 안 산다)
+    const 갉음 = 0.03 * (j - 0.5);
     p.setXYZ(
       i,
-      x + (j - 0.4) * 0.18 * 끝,
-      p.getY(i) * (1 - 0.45 * 끝 * j),
-      p.getZ(i) * (1 - 0.35 * 끝 * (1 - j)),
+      // ★ j(잡음)만 곱하면 j≈0 인 정점이 안 움직여 길이가 그대로다.
+      //   고정분(0.3)을 더해야 '한 귀퉁이가 뭉텅 없어진' 반 토막이 된다.
+      x - 부러진쪽 * 끝 * 깨짐 * (0.3 + 0.28 * j) + 갉음,
+      y * (1 - 끝 * 깨짐 * 0.3 * j) + 갉음,
+      z * (1 - 끝 * 깨짐 * 0.25 * (1 - j)) + 갉음,
     );
   }
   p.needsUpdate = true;
   g.computeVertexNormals();
   return g;
+}
+
+// 벽돌 색 — 낡아서 붉은기가 죽은 흙빛. 회색 블록도 섞인다.
+const 벽돌색조 = ["#6b4a3c", "#5e4438", "#734f3e", "#585a5e", "#4e463f"];
+function 벽돌칠하기(g, r, 어둡) {
+  const 바탕 = _색.set(벽돌색조[Math.floor(r() * 벽돌색조.length)]).clone();
+  const 깨진면 = _색2.set("#8a7b6d").clone(); // 갓 깨진 속은 밝고 부슬부슬하다
+  const 씨 = r() * 5;
+  색굽기(g, null, (px, py, pz) => {
+    const 알갱이 = 0.82 + 0.34 * 자리잡음(px * 24 + 씨, py * 24, pz * 24);
+    // 옆면(길이 끝)일수록 깨진 속살이 드러난다
+    const 속 = Math.max(0, Math.abs(px) - 0.3) * 1.6;
+    const c = 바탕.clone().lerp(깨진면, Math.min(0.55, 속));
+    const v = 어둡 * 알갱이;
+    return [c.r * v, c.g * v, c.b * v];
+  });
 }
 
 // ── 녹슨 철판 조각 — 한쪽이 휘어 들린 얇은 판 ───────────────
@@ -239,7 +262,7 @@ const 종류들 = [
   { 이름: "전단지", 무게: 2, 종이: 종이칸.전단지, 비율: [1.0, 0.78] },
   { 이름: "신문조각", 무게: 2, 종이: 종이칸.신문, 비율: [1.0, 0.8] },
   { 이름: "낡은종이", 무게: 2, 종이: 종이칸.낡은종이, 비율: [0.85, 1.0] },
-  { 이름: "각목", 무게: 2 }, // 벽에 기대 세운다(아래 참고)
+  { 이름: "벽돌", 무게: 3 }, // 벽에서 떨어져 나온 조각 — 벽 밑에 쌓인다
   { 이름: "녹슨철판", 무게: 2 },
 ];
 const 뽑기표 = 종류들.flatMap((t, i) => Array(t.무게).fill(i));
@@ -317,7 +340,7 @@ function 잡동사니지오({
     let g;
     let 캔인가 = false;
     let 종이인가 = false;
-    let 기댐 = false; // 벽에 기대 세우는 물건(각목)
+    let 벽밑 = false; // 벽 밑에 놓이는 물건(벽돌)
     const 왼벽 = x < (x0 + x1) / 2;
 
     if (t.이름 === "캔") {
@@ -375,28 +398,17 @@ function 잡동사니지오({
         const v = 어둡 * 알갱이;
         return [c.r * v, c.g * v, c.b * v];
       });
-    } else if (t.이름 === "각목") {
-      // ★ 바닥 한가운데 뒹구는 각목은 '왜 여기 있지' 가 된다.
-      //   판자는 창·문을 막으려고 대 놓는 물건이다. 그래서 **벽에 기대 세운다** —
-      //   쓰고 남은 걸 벽에 세워 둔 모습이라야 이 공간에 있을 이유가 생긴다.
-      기댐 = true;
-      g = 각목지오(r);
-      g.scale((0.8 + r() * 0.7) * 크기, 크기, 크기);
-      // 길이축(X)이 벽 쪽으로 기울어 서게 한다. 왼벽이면 −x 끝이 올라가야 한다.
-      const 기울 = 1.02 + r() * 0.3;
-      g.rotateZ(왼벽 ? -기울 : 기울);
-      g.rotateY((r() - 0.5) * 0.5);
-      // 나무 결 — 길이 방향 줄무늬. 젖어서 검게 상한 데가 섞인다.
-      // 사진에서 각목만 누렇게 떠 보였다 → 비바람 맞은 잿빛 나무로 눌렀다
-      _색.set("#5d5347");
-      _색2.set("#332b23");
-      색굽기(g, null, (px, py, pz) => {
-        const 결 = 자리잡음(px * 3.5, pz * 26, 0);
-        const 썩음 = Math.max(0, 자리잡음(px * 2.1, 0, pz * 2.1) - 0.55) * 2;
-        const c = _색.clone().lerp(_색2, 0.25 + 결 * 0.35 + 썩음 * 0.5);
-        const v = 어둡;
-        return [c.r * v, c.g * v, c.b * v];
-      });
+    } else if (t.이름 === "벽돌") {
+      // ★ 벽에서 떨어진 것이니 **벽 밑에** 있어야 한다.
+      //   바닥 한가운데 벽돌 한 장이 놓여 있으면 '왜 여기 있지'가 된다.
+      벽밑 = true;
+      const 깨짐 = r() < 0.35 ? 0.15 : 0.5 + r() * 0.5;
+      g = 벽돌지오(r, 깨짐);
+      const s = (0.5 + r() * 0.22) * 크기;
+      g.scale(s, s, s);
+      g.rotateZ((r() - 0.5) * 0.35); // 조금 기울어 얹혀 있다
+      g.rotateY(r() * Math.PI * 2);
+      벽돌칠하기(g, r, 어둡);
     } else if (t.이름 === "녹슨철판") {
       g = 철판지오(r);
       const s = (0.3 + r() * 0.26) * 크기;
@@ -433,11 +445,12 @@ function 잡동사니지오({
 
     // 밑면이 바닥판에 닿게 올린다(공중에 뜨거나 파묻히지 않게)
     g.computeBoundingBox();
-    // 기대 세운 것은 벽에 바짝 붙인다 — 떨어져 서 있으면 '기댄' 것으로 안 보인다
-    const gx = 기댐
+    // 벽 밑에 놓는 것은 벽에 바짝 붙인다 — 떨어져 있으면 '떨어져 나온' 것으로 안 보인다
+    const 반폭 = (g.boundingBox.max.x - g.boundingBox.min.x) * 0.5;
+    const gx = 벽밑
       ? 왼벽
-        ? x0 + (g.boundingBox.max.x - g.boundingBox.min.x) * 0.5 + 0.06
-        : x1 - (g.boundingBox.max.x - g.boundingBox.min.x) * 0.5 - 0.06
+        ? x0 + 반폭 + 0.04 + r() * 0.25
+        : x1 - 반폭 - 0.04 - r() * 0.25
       : x;
     g.translate(gx, -g.boundingBox.min.y + 바닥y + 0.002, z);
     (캔인가 ? 캔조각 : 종이인가 ? 종이조각 : 잡조각).push(g);
@@ -810,21 +823,87 @@ function 얼룩색(g, 녹, 바탕, 밝) {
   return g;
 }
 
-// ── 깨진 자국 — 벽면이 떨어져 나간 자리 ────────────────────
-//   [왜 두 겹인가]
-//     한 겹이면 색 판때기라 스티커로 보인다. 실제로 깨진 자리는 세 층이 보인다 —
-//     바깥은 성한 벽, 그 안은 **부서진 흰 속살**, 가운데는 깊은 그늘.
-//     그래서 큰 판(성한 벽 → 속살)과 작은 판(속살 → 그늘)을 겹친다.
-function 깨짐조각(r, 벽, 속살, 그늘, 밝) {
+// ── 파인 자리 — 벽이 뭉텅 떨어져 나가 벽돌이 드러난 곳 ─────
+// [왜 판때기(데칼)를 그만뒀나]
+//   색만 칠한 판은 어느 각도에서 봐도 납작하다. 벽을 스치듯 지나갈 때
+//   특히 티가 난다 — 그림자도 안 지고 두께도 없다.
+//
+// [벽을 진짜로 뚫을 수는 없다]
+//   복도 벽은 판 한 장이라, 뒤로 파 들어간 공간을 만들어도 벽판이 앞을 가린다.
+//   (소화전 손잡이에서 겪은 것과 같은 문제다)
+//   그래서 **앞으로 쌓아 올려 깊이를 만든다.**
+//     ① 안쪽 어둠판 — 벽면 바로 앞. 구멍 바닥 노릇을 한다.
+//     ② 드러난 벽돌 — 그 위에 벽돌 몇 장을 줄 맞춰 얹는다. 층이 보이면
+//        '뚫린 곳'으로 읽힌다. 벽돌이야말로 "안쪽에 뭔가 있다"의 증거다.
+//     ③ 깨진 테 — 둘레에 부러진 마감재 조각이 삐죽삐죽 앞으로 튀어나온다.
+//   테가 제일 앞, 벽돌이 중간, 어둠이 제일 뒤 → 눈에는 그만큼 파여 보인다.
+function 파임조각(r, 벽, 크기) {
   const 것 = [];
-  const 바깥 = 얼룩판(r);
-  얼룩색(바깥, 속살, 벽, 밝); // 가운데 속살 → 가장자리는 벽색이라 스르륵 번진다
-  것.push(바깥);
+  // ※ 마지막에 UV 를 떼고 돌려준다. 원판(얼룩판)에는 UV 가 없고 상자에는 있어서
+  //   섞어 합치면 mergeGeometries 가 실패한다(속성 구성이 달라야 한다는 규칙).
+  const s = 크기;
+  const 안깊 = 0.012; // 어둠판이 벽면에서 뜬 정도
+  const 벽돌앞 = 0.05;
+  const 테앞 = 0.15;
+
+  // ① 안쪽 어둠 — 구멍 바닥
   const 안 = 얼룩판(r);
-  안.scale(0.58, 0.58, 1);
-  안.translate((r() - 0.5) * 0.1, (r() - 0.5) * 0.1, 0.001);
-  얼룩색(안, 그늘, 속살, 밝);
+  안.scale(s, s * (0.72 + r() * 0.5), 1);
+  안.translate(0, 0, 안깊);
+  const 어둠 = new THREE.Color("#141619");
+  얼룩색(안, 어둠, 어둠, 1);
   것.push(안);
+
+  // ② 드러난 벽돌 — 줄눈이 어긋나게 두 세 켜
+  const 켜 = 2 + Math.floor(r() * 2);
+  const 벽돌h = (s * 0.9) / (켜 + 0.6);
+  for (let k = 0; k < 켜; k++) {
+    const 개수 = 1 + Math.floor(r() * 2);
+    for (let i = 0; i < 개수; i++) {
+      const w = s * (0.34 + r() * 0.3);
+      const b = new THREE.BoxGeometry(w, 벽돌h * 0.8, 0.05);
+      const bx = (r() - 0.5) * s * 0.5;
+      const by = (k - (켜 - 1) / 2) * 벽돌h + (r() - 0.5) * 0.02;
+      b.translate(bx, by, 벽돌앞 - r() * 0.02);
+      const 색 = new THREE.Color(벽돌색조[Math.floor(r() * 벽돌색조.length)]);
+      const p = b.attributes.position;
+      const c = new Float32Array(p.count * 3);
+      for (let v = 0; v < p.count; v++) {
+        // 앞면(+z)만 빛을 받고 옆면은 그늘 — 층이 또렷해진다
+        const 앞 = p.getZ(v) > 벽돌앞 - 0.001 ? 1 : 0.45;
+        c[v * 3] = 색.r * 앞;
+        c[v * 3 + 1] = 색.g * 앞;
+        c[v * 3 + 2] = 색.b * 앞;
+      }
+      b.setAttribute("color", new THREE.BufferAttribute(c, 3));
+      것.push(b);
+    }
+  }
+
+  // ③ 깨진 테 — 둘레에 부러진 마감재가 삐죽삐죽
+  const 조각수 = 7 + Math.floor(r() * 5);
+  const 테색 = new THREE.Color(벽).lerp(new THREE.Color("#8f9298"), 0.45);
+  for (let i = 0; i < 조각수; i++) {
+    const 각 = (i / 조각수) * Math.PI * 2 + (r() - 0.5) * 0.4;
+    const R = s * (0.42 + r() * 0.16);
+    const w = s * (0.16 + r() * 0.18);
+    const 깊 = 테앞 * (0.45 + r() * 0.55);
+    const b = new THREE.BoxGeometry(w, w * (0.5 + r() * 0.7), 깊);
+    b.rotateZ((r() - 0.5) * 1.2);
+    b.translate(Math.cos(각) * R, Math.sin(각) * R * 0.85, 깊 / 2);
+    const p = b.attributes.position;
+    const c = new Float32Array(p.count * 3);
+    for (let v = 0; v < p.count; v++) {
+      // 앞으로 튀어나온 끝일수록 밝다(빛을 먼저 받는다)
+      const 밝 = 0.55 + 0.55 * Math.min(1, Math.max(0, p.getZ(v) / 깊));
+      c[v * 3] = 테색.r * 밝;
+      c[v * 3 + 1] = 테색.g * 밝;
+      c[v * 3 + 2] = 테색.b * 밝;
+    }
+    b.setAttribute("color", new THREE.BufferAttribute(c, 3));
+    것.push(b);
+  }
+  for (const g of 것) g.deleteAttribute("uv");
   return 것;
 }
 
@@ -913,11 +992,9 @@ function 부식지오({
     조각.push(g);
   }
 
-  // ── 깨진 자국 · 금 ── 벽이 상해서 떨어져 나간 자리
-  const 속살 = new THREE.Color("#7f8288");
-  const 그늘 = new THREE.Color("#24262a");
+  // ── 금 ── 벽을 타고 내려간 균열 (얇아서 얼룩과 같이 눕는다)
   const 금색 = new THREE.Color("#1e2024");
-  const 벽에붙이기 = (조각들, 왼쪽, h, z) => {
+  const 벽에붙이기 = (조각들, 왼쪽, h, z, 담을곳) => {
     for (const g of 조각들) {
       if (왼쪽) {
         g.rotateY(Math.PI / 2);
@@ -926,20 +1003,9 @@ function 부식지오({
         g.rotateY(-Math.PI / 2);
         g.translate(x1 - 0.035, h, z);
       }
-      조각.push(g);
+      담을곳.push(g);
     }
   };
-  for (let i = 0; i < 개수.깨짐; i++) {
-    const 왼쪽 = r() < 0.5;
-    const z = z0 + r() * (z1 - z0);
-    if (!왼쪽 && Math.abs(z - 문z) < 문폭 / 2 + 0.3) continue;
-    const h = 0.4 + Math.pow(r(), 1.4) * 벽높이 * 0.75;
-    const s = (0.35 + r() * 0.75) * 크기;
-    const 밝 = Math.max(0.12, 밝기(z));
-    const 것 = 깨짐조각(r, 바탕벽, 속살, 그늘, 밝);
-    것.forEach((g) => g.scale(s, s * (0.7 + r() * 0.6), 1));
-    벽에붙이기(것, 왼쪽, h, z);
-  }
   for (let i = 0; i < 개수.금; i++) {
     const 왼쪽 = r() < 0.5;
     const z = z0 + r() * (z1 - z0);
@@ -947,13 +1013,42 @@ function 부식지오({
     const h = 벽높이 * (0.35 + r() * 0.5);
     const 것 = 금조각(r, 금색, Math.max(0.12, 밝기(z)));
     것.forEach((g) => g.scale(크기, 크기, 1));
-    벽에붙이기(것, 왼쪽, h, z);
+    벽에붙이기(것, 왼쪽, h, z, 조각);
   }
 
-  if (!조각.length) return null;
-  const 합 = mergeGeometries(조각, false);
-  조각.forEach((g) => g.dispose());
-  return 합;
+  // ── 파인 자리 ── 진짜 두께가 있는 덩어리라 **따로** 모은다.
+  //   얼룩·금은 반투명 데칼이지만 이것은 불투명하고 외곽선도 둘러야 한다.
+  const 파임조각들 = [];
+  for (let i = 0; i < 개수.깨짐; i++) {
+    const 왼쪽 = r() < 0.5;
+    const z = z0 + r() * (z1 - z0);
+    if (!왼쪽 && Math.abs(z - 문z) < 문폭 / 2 + 0.3) continue;
+    const s = (0.45 + r() * 0.7) * 크기;
+    // ★ 파임 반높이보다 낮게 잡으면 바닥 아래로 삐져나간다.
+    //   벽 밑동에 몰리게 하되(제곱분포) 자기 반높이만큼은 띄운다.
+    const 반높이 = s * 0.75;
+    const h = Math.max(
+      반높이 + 0.2,
+      0.5 + Math.pow(r(), 1.4) * 벽높이 * 0.7,
+    );
+    const 밝 = Math.max(0.12, 밝기(z));
+    const 것 = 파임조각(r, 벽색, s);
+    // 깊이 감광은 여기서 한꺼번에 곱한다(조각마다 색을 이미 구워 뒀다)
+    for (const g of 것) {
+      const c = g.attributes.color;
+      for (let v = 0; v < c.count; v++)
+        c.setXYZ(v, c.getX(v) * 밝, c.getY(v) * 밝, c.getZ(v) * 밝);
+    }
+    벽에붙이기(것, 왼쪽, h, z, 파임조각들);
+  }
+
+  const 합치기 = (것들) => {
+    if (!것들.length) return null;
+    const m = mergeGeometries(것들, false);
+    것들.forEach((g) => g.dispose());
+    return m;
+  };
+  return { 자국: 합치기(조각), 파임: 합치기(파임조각들) };
 }
 
 /** 바닥·벽에 번진 부식 자국. 벽·바닥 면 바로 위에 덧대는 얇은 판들이다. */
@@ -972,8 +1067,9 @@ export function 복도부식({
   벽색 = "#525b69",
   seed = 4711,
   밝기 = () => 1,
+  선,
 }) {
-  const 지오 = useMemo(
+  const { 자국, 파임 } = useMemo(
     () =>
       부식지오({
         x0, x1, z0, z1, 바닥y, 벽높이,
@@ -985,10 +1081,30 @@ export function 복도부식({
     [x0, x1, z0, z1, 바닥y, 벽높이, 바닥개수, 벽개수, 깨짐개수, 금개수,
      seed, 바닥색, 벽색, 문z, 문폭, 크기],
   );
-  useEffect(() => () => 지오?.dispose(), [지오]);
-  if (!지오) return null;
+  useEffect(
+    () => () => {
+      자국?.dispose();
+      파임?.dispose();
+    },
+    [자국, 파임],
+  );
   return (
-    <mesh geometry={지오}>
+    <group>
+      {파임 && (
+        <mesh geometry={파임} castShadow receiveShadow>
+          {/* 파인 자리는 두께가 있는 덩어리다 — 불투명하게, 외곽선도 두른다.
+                 얼룩과 달리 '물건'이라 화풍을 그대로 따라야 한다. */}
+          <meshToonMaterial
+            vertexColors
+            color="#ffffff"
+            gradientMap={TOON_GRADIENT}
+            flatShading
+          />
+          <만화선 선={선} />
+        </mesh>
+      )}
+      {자국 && (
+      <mesh geometry={자국}>
       {/* 벽·바닥 면 바로 위에 겹쳐 그린다.
              polygonOffset 이 없으면 두 면의 깊이값이 엎치락뒤치락해 깜빡인다.
              외곽선은 두르지 않는다 — 얼룩에 테를 그으면 스티커가 된다. */}
@@ -1004,7 +1120,9 @@ export function 복도부식({
         polygonOffsetFactor={-2}
         polygonOffsetUnits={-2}
       />
-    </mesh>
+      </mesh>
+      )}
+    </group>
   );
 }
 
