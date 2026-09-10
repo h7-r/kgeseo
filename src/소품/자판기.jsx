@@ -314,7 +314,9 @@ function 배수텍스처() {
 //   실제 브랜드(펩시·코카콜라·웰치스 등)는 상표라 못 쓴다. 대신 음료 종류를
 //   나타내는 오리지널 디자인(스우시 + 거품 + 일반 명칭)을 직접 그린다.
 //   원통 옆면에 감기므로 워드마크를 2번(1/4·3/4) 넣어 어느 방향에서도 보이게.
-const 캔종류 = [
+// ★ 복도 바닥 잡동사니가 같은 목록·같은 그림을 쓴다.
+//   자판기에서 뽑아 마신 캔이 바닥에 굴러다녀야 한 세계로 읽힌다.
+export const 캔종류 = [
   { bg: "#1b4fb0", 글: "SODA", 글색: "#ffffff", 띠: "#eaf1fb", 점: "#9cc0f2" },
   { bg: "#2f9e52", 글: "CIDER", 글색: "#ffffff", 띠: "#eafff0", 점: "#bff0cf" },
   { bg: "#dfe6ec", 글: "MILK", 글색: "#2b6cb0", 띠: "#2b6cb0", 점: "#cfe0f2" },
@@ -323,13 +325,15 @@ const 캔종류 = [
   { bg: "#d23b32", 글: "COLA", 글색: "#ffffff", 띠: "#ffe3df", 점: "#f5a39c" },
 ];
 
-function 캔라벨텍스처({ bg, 글, 글색, 띠, 점 }) {
-  const c = document.createElement("canvas");
-  c.width = 512;
-  c.height = 220;
-  const W = c.width;
-  const H = c.height;
-  const g = c.getContext("2d");
+/**
+ * 캔 라벨을 '주어진 칸'에 그린다.
+ * 텍스처 한 장을 통째로 쓰는 대신 칸을 받게 쪼갠 이유 —
+ * 바닥 잡동사니가 라벨 6종을 **한 장(아틀라스)** 에 모아 쓰기 때문이다.
+ * 그래야 굴러다니는 캔 전부가 메시 하나로 그려진다.
+ */
+export function 캔라벨그리기(g, ox, oy, W, H, { bg, 글, 글색, 띠, 점 }) {
+  g.save();
+  g.translate(ox, oy);
   g.fillStyle = bg;
   g.fillRect(0, 0, W, H);
   // 대각 밝은 띠(스우시)
@@ -374,6 +378,14 @@ function 캔라벨텍스처({ bg, 글, 글색, 띠, 점 }) {
     } while (f > 18);
     g.fillText(글, cx, H * 0.54);
   }
+  g.restore();
+}
+
+function 캔라벨텍스처(종류) {
+  const c = document.createElement("canvas");
+  c.width = 512;
+  c.height = 220;
+  캔라벨그리기(c.getContext("2d"), 0, 0, c.width, c.height, 종류);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
