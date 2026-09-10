@@ -138,3 +138,92 @@ export function 머리재기(면, { 머리깊이 = 0.11, 이웃 = 0.05 } = {}) {
     코,
   };
 }
+
+// ── 혀 찾기 ─────────────────────────────────────────────────
+//   [왜 어렵나]  이 모형에는 재질도 UV 도 없다. 「여기가 혀」라고 적힌 데가
+//   없으니 **모양만 보고** 알아내야 한다.
+//   [안 되던 것 셋]
+//     · 「가장 먼 점」    → 한 점뿐이라 못 쓴다
+//     · 「이웃이 적은 점」→ 메시 밀도가 들쭉날쭉해 안 갈렸다(실측: 두개골
+//       근처 이웃 중앙 62, 혀 근처 42 — 겹친다)
+//     · 「얇은 판인 점」  → 줄인 메시에는 얇은 조각이 여기저기 있어서
+//       **머리와 목까지 빨개졌다**(확대 스크린샷으로 잡았다)
+//   [되는 것]  혀는 **혀끝에서 이어진 한 덩어리**다. 가장 먼 점에서
+//     시작해 이웃을 타고 번져 나가되, **혀끝에서 일정 거리까지만** 간다.
+//     입에 붙어 있으니 더 가면 머리로 새는데, 거리로 끊으면 딱 혀만 남는다.
+export function 혀찾기(면, { 시작점, 이음 = 0.018, 길이 = 0.085 } = {}) {
+  const p = 면.attributes.position;
+  const q = new THREE.Vector3();
+
+  // 혀끝 = 주어진 자리에서 가장 가까운 꼭짓점
+  let 씨 = 0;
+  let 최소 = Infinity;
+  for (let i = 0; i < p.count; i++) {
+    q.set(p.getX(i), p.getY(i), p.getZ(i));
+    const d = q.distanceToSquared(시작점);
+    if (d < 최소) {
+      최소 = d;
+      씨 = i;
+    }
+  }
+  const 끝 = new THREE.Vector3(p.getX(씨), p.getY(씨), p.getZ(씨));
+
+  // 혀끝 둘레만 추려 놓고 번진다 — 전체를 돌면 O(n²) 이 감당이 안 된다
+  const 둘레 = [];
+  for (let i = 0; i < p.count; i++) {
+    q.set(p.getX(i), p.getY(i), p.getZ(i));
+    if (q.distanceTo(끝) < 길이) 둘레.push(i);
+  }
+  const 자리 = 둘레.map(
+    (i) => new THREE.Vector3(p.getX(i), p.getY(i), p.getZ(i)),
+  );
+  const 든것 = new Set([씨]);
+  const 줄 = [끝.clone()];
+  const 이음2 = 이음 * 이음;
+  while (줄.length) {
+    const 현 = 줄.pop();
+    for (let k = 0; k < 둘레.length; k++) {
+      const i = 둘레[k];
+      if (든것.has(i)) continue;
+      if (자리[k].distanceToSquared(현) > 이음2) continue;
+      든것.add(i);
+      줄.push(자리[k]);
+    }
+  }
+  return 든것;
+}
+
+// ── 눈알 붙이기 ─────────────────────────────────────────────
+//   [왜 칠하지 않고 붙이나]
+//     꼭짓점 색으로 눈을 그렸더니 **들쭉날쭉한 노란 얼룩**이 됐다. 머리
+//     표면의 꼭짓점이 성겨서(눈 자리 반지름 안에 몇 개 없다) 동그라미가
+//     안 나오고, 가장자리가 톱니처럼 튀었다. 「눈이 파인 자국 같다」는
+//     지적이 그거였다.
+//     ★ 눈알은 **원래 튀어나온 것**이다. 작은 공을 실제로 붙이면 동그라미가
+//       저절로 나오고, 살짝 도드라져 빛도 제대로 받는다.
+//   ※ `uv` 를 **반드시 지운다.** `mergeGeometries` 는 속성 구성이 다르면
+//     조용히 `null` 을 돌려주고, 그게 나중에 `morphAttributes` 오류로
+//     터진다. 구(球)에는 uv 가 있고 모형에는 없다.
+export function 눈알만들기({ 자리, 반지름, 바깥, 홍채, 동공, 동공비 = 0.42 }) {
+  const g = new THREE.SphereGeometry(반지름, 12, 9);
+  delete g.attributes.uv;
+  delete g.attributes.uv1;
+  const n = g.toNonIndexed();
+  g.dispose();
+  n.computeVertexNormals();
+  const p = n.attributes.position;
+  const 색 = new Float32Array(p.count * 3);
+  const v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.set(p.getX(i), p.getY(i), p.getZ(i)).normalize();
+    // 바깥쪽을 정면으로 보는 데가 동공이다
+    const 앞 = v.dot(바깥);
+    const c = 앞 > 1 - 동공비 ? 동공 : 홍채;
+    색[i * 3] = c[0];
+    색[i * 3 + 1] = c[1];
+    색[i * 3 + 2] = c[2];
+  }
+  n.setAttribute("color", new THREE.BufferAttribute(색, 3));
+  n.translate(자리.x, 자리.y, 자리.z);
+  return n;
+}
