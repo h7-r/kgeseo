@@ -36,7 +36,9 @@ export const 크기등록 = (id, s) => 크기.set(id, s);
 // [왜 따로 두나]
 //   놓을 자리는 광선 ↔ 수평면 교차로 찾는다. 옷걸이 가지는 면이 아니라 점이라
 //   그 방식으로는 절대 안 잡힌다. 실제 게임들이 쓰는 스냅 지점과 같은 개념이다.
-export const 걸이 = new Map(); // 걸이id -> { 물건id, x, y, z, rot, 반경 }
+// 기울기 = '걸렸을 때의 자세'. 유령이 같은 자세로 떠야 놓고 나서 딴 물건처럼
+//   보이지 않는다. 없으면 0(반듯이).
+export const 걸이 = new Map(); // 걸이id -> { 물건id, x, y, z, rot, 기울기, 반경 }
 export const 걸이등록 = (id, v) => 걸이.set(id, v);
 export const 걸이해제 = (id) => 걸이.delete(id);
 
@@ -114,6 +116,7 @@ export function 놓을자리찾기(카메라, 물건id, 최대거리 = 9) {
       y: h.y,
       z: h.z,
       rot: h.rot ?? 0,
+      기울기: h.기울기 ?? 0,
       halfX: s.halfX,
       halfZ: s.halfZ,
       height: s.height,

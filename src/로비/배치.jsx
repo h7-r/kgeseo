@@ -143,6 +143,15 @@ const _유령색 = new THREE.Color();
 
 export function 놓기유령({ 가능색, 불가색, 투명도 = 0.4, children }) {
   const g = useRef(null);
+  // 기울임 = 자빠진 각도만 따로 받는 안쪽 그룹.
+  //   [왜 그룹을 하나 더 두나]
+  //     자세는 프레임마다 바뀔 수 있는데(걸이를 보다가 책상을 보면 0 으로 돌아온다),
+  //     이걸 자식의 prop 으로 넘기면 초당 60번 다시 그린다. 그래서 그룹의
+  //     회전만 손으로 돌린다 — 물건 컴포넌트는 한 번 그려진 그대로 둔다.
+  //   [축 순서]
+  //     실물(Fedora)이 바깥 group=회전(Y) · 안쪽 group=기울기(X) 구조다.
+  //     유령도 바깥 g=회전(Y) · 안쪽 기울임=기울기(X) 로 같게 맞춰야 자세가 같다.
+  const 기울임 = useRef(null);
   const 재질 = useRef(null);
   if (!재질.current)
     재질.current = new THREE.MeshBasicMaterial({
@@ -167,6 +176,7 @@ export function 놓기유령({ 가능색, 불가색, 투명도 = 0.4, children }
     o.visible = true;
     o.position.set(r.x, r.y, r.z);
     o.rotation.set(0, r.rot ?? 0, 0);
+    if (기울임.current) 기울임.current.rotation.x = r.기울기 ?? 0;
 
     const m = 재질.current;
     m.color.copy(_유령색.set(r.됨 ? 가능색 : 불가색));
@@ -192,7 +202,7 @@ export function 놓기유령({ 가능색, 불가색, 투명도 = 0.4, children }
 
   return (
     <group ref={g} visible={false}>
-      {children}
+      <group ref={기울임}>{children}</group>
     </group>
   );
 }
