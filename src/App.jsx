@@ -112,6 +112,59 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 // 기차 내부 씬 — 파일이 나뉘어 있지만 같은 번들에 들어가므로 전환은 즉시다.
 import 기차내부 from "./scenes/기차내부.jsx";
+// 복도 소품 — 자판기 2대(캔 · 커피). 상자와 판이라 GLB 없이 코드로 짰다.
+import { 캔자판기, 커피자판기 } from "./소품/자판기.jsx";
+// ── 화면 위에 뜨는 창들 ─────────────────────────────────────
+//   화면층 = 「한 번에 하나의 모달」 규칙(GRD-11 · CMN-035)을 지키는 관리자.
+//   앞으로 수첩(N) · 힌트(H) · 일시정지(ESC)가 여기에 줄줄이 붙는다.
+import 소지품UI from "./게임/소지품UI.jsx";
+import { 소지품 } from "./게임/소지품.js";
+import { 화면층, 층, use열린층 } from "./게임/화면층.js";
+// ★ 로비 물건 상호작용 (CT-007 / S4-009) — 겨냥 판정과 물건 상태는 App 밖 상자에 둔다.
+import 겨냥판정, { 상호대상, 손에든것 } from "./로비/겨냥판정.jsx";
+import { 강조 } from "./로비/강조.jsx";
+import { 잰다, 놓을자리계산, 놓기유령 } from "./로비/배치.jsx";
+import {
+  월드박스공급,
+  최근자리값,
+  위에얹힌것,
+  표면등록,
+  표면해제,
+} from "./로비/배치.js";
+import {
+  실행 as 상호실행,
+  use로비상태,
+  서랍움직이기,
+  램프토글,
+  의자토글,
+  집기,
+  놓기,
+  제자리로,
+} from "./로비/상호작용.js";
+
+// ★★ 개발용_소지품씨앗 — 서버가 붙으면 이 상수와 쓰는 곳을 함께 지운다. ★★
+//   지금은 소지품 창을 눈으로 확인할 방법이 이것뿐이라 표본을 넣어 둔다.
+//   모양은 계약(v0.3.1)의 Clue 와 맞춰 두었다 → 서버 응답을 그대로 꽂을 수 있다.
+const 개발용_소지품씨앗 = [
+  {
+    id: "DEV_KEY_01",
+    이름: "낡은 열쇠",
+    분류: "열쇠",
+    설명: "손잡이에 긁힌 자국이 많다. 어디 것인지는 아직 모른다.",
+  },
+  {
+    id: "DEV_NOTE_01",
+    이름: "구겨진 쪽지",
+    분류: "기록",
+    설명: "날짜만 남고 이름 자리는 뜯겨 나갔다.",
+  },
+  {
+    id: "DEV_NOTE_02",
+    이름: "압수 목록",
+    분류: "기록",
+    설명: "품목 다섯 줄 중 세 번째만 줄이 그어져 있다.",
+  },
+];
 // ===== 실행 모드 =====
 // ★ 이 값들은 파일 맨 위에 있어야 한다.
 //   아래쪽 코드가 모듈이 읽히는 시점에 곧바로 쓰기 때문에(예: 텍스처배율),
@@ -289,7 +342,6 @@ const CORNER_BOXES = [
 // ★ 충돌 박스는 '눈에 보이는 물체'에만 둔다.
 //   메시 없이 박스만 남으면 로비 한가운데가 이유 없이 막힌다.
 //   나중에 GLB 소품을 놓을 때 아래 값을 다시 넣으면 된다:
-//     매표소 카운터 : { minX: -4,   maxX: 4,    minZ: -13.2, maxZ: -10.8 }
 //     벤치          : { minX: 8.5,  maxX: 12.5, minZ: 5.4,   maxZ: 6.6  }
 const COLLIDERS = [
   // 구조 기둥 1개 — Column x=8 z=0
@@ -297,8 +349,6 @@ const COLLIDERS = [
   // 방 네 모서리 기둥
   ...CORNER_BOXES,
 ];
-const SPOTS = { booth: [0, -8], train: [14, -2], airport: [-18, -2] }; // 방 축소(폭36)에 맞춰 조정
-
 // ── 기차 문 판정 거리 ────────────────────────────────────────
 //   세 개를 나눠 두는 이유:
 //     열림 : 이만큼 다가오면 문이 스르륵 열리기 시작한다(연출)
@@ -308,7 +358,6 @@ const SPOTS = { booth: [0, -8], train: [14, -2], airport: [-18, -2] }; // 방 �
 const 문열림거리 = 6.5;
 const 문진입거리 = 2.0;
 const 문잠금해제거리 = 3.4;
-const dist2 = (x, z, [sx, sz]) => Math.hypot(x - sx, z - sz);
 // ===== 동적 충돌 박스 =====
 // [문제] COLLIDERS 는 기둥만 들어 있는 '고정 목록'이라, 의자·책상처럼
 //   Leva 로 위치를 옮기는 물건은 충돌이 없었다. 그래서 물건 안으로 걸어 들어갔다.
@@ -328,8 +377,15 @@ const 동적콜라이더 = new Map(); // 이름 -> {minX,maxX,minZ,maxZ}
 
 // 중심 좌표와 반경으로 정사각 박스를 만든다.
 //   회전하는 물건은 정확한 모서리 대신 '가장 긴 쪽 반지름'을 쓰면 충분하다.
-function 원형박스(x, z, 반경) {
-  return { minX: x - 반경, maxX: x + 반경, minZ: z - 반경, maxZ: z + 반경 };
+function 원형박스(x, z, 반경, 높이) {
+  return {
+    minX: x - 반경,
+    maxX: x + 반경,
+    minZ: z - 반경,
+    maxZ: z + 반경,
+    // 높이를 안 주면 '천장까지 막힌 것'으로 본다(벽·기둥이 그렇다).
+    ...(높이 === undefined ? {} : { minY: 0, maxY: 높이 }),
+  };
 }
 
 // 컴포넌트가 살아 있는 동안만 박스를 등록한다.
@@ -343,6 +399,13 @@ function use충돌박스(이름, 박스, 켬 = true) {
     // 박스 값이 바뀌면(=Leva로 옮기면) 다시 등록한다
   }, [이름, 켬, 박스 && 박스.minX, 박스 && 박스.maxX, 박스 && 박스.minZ, 박스 && 박스.maxZ]);
 }
+
+// ★ 배치(놓기·들기) 계산은 이 목록을 봐야 겹침·관통을 막을 수 있다.
+//   배치.js 가 App.jsx 를 import 하면 서로 물고 물리므로, 반대로 여기서 넣어 준다.
+월드박스공급(function* () {
+  yield* COLLIDERS;
+  yield* 동적콜라이더.values();
+});
 
 const 상자안 = (c, x, z) =>
   x > c.minX - R && x < c.maxX + R && z > c.minZ - R && z < c.maxZ + R;
@@ -400,6 +463,12 @@ function 충돌체({
         maxX: cx + (폭 / 2) * 여유,
         minZ: cz - (깊이 / 2) * 여유,
         maxZ: cz + (깊이 / 2) * 여유,
+        // ★ 높이도 같이 남긴다.
+        //   걸어다니는 판정(hit)은 예전처럼 x·z 만 보지만, **손에 든 물건**은
+        //   책상 위를 지나갈 수 있어야 한다. 높이가 없으면 책상이 천장까지
+        //   솟은 벽이 되어 컵을 들고 책상 앞에 서기만 해도 막힌다.
+        minY: b.min.y,
+        maxY: b.max.y,
       });
       return true;
     };
@@ -431,7 +500,7 @@ function 충돌체({
 //   여기서는 이 씬에서만 통하는 규칙 세 가지만 넘겨 준다.
 //     경계 — 방과 복도는 '문 앞'에서만 이어진다
 //     막힘 — 기둥·가구 충돌 박스
-//     근처 — 매표소·기차 같은 상호작용 지점
+//     근처 — 기차 문 같은 상호작용 지점
 function usePlayer(active, onNear, eye = EYE, crouchEye = CROUCH_EYE, 복귀) {
   const onNearRef = useRef(onNear);
   onNearRef.current = onNear;
@@ -476,8 +545,7 @@ function usePlayer(active, onNear, eye = EYE, crouchEye = CROUCH_EYE, 복귀) {
       들어간문.칸 = 문.칸;
       들어간문.위치 = { x: 문.x, z: 문.z };
       n = "train";
-    } else if (dist2(p.x, p.z, SPOTS.booth) < NEAR) n = "booth";
-    else if (dist2(p.x, p.z, SPOTS.airport) < NEAR) n = "airport";
+    }
     onNearRef.current(n);
     return n;
   }, []);
@@ -942,7 +1010,12 @@ function Chair({
   //   0.85 를 더 곱해 살짝 줄였다 — 딱 맞추면 의자 옆을 지날 때 걸리는 느낌이 난다.
   //   플레이어 반지름 R(0.6)은 hit() 안에서 따로 더해진다.
   const 반경 = 0.65 * CHAIR_SCALE * scale * sizeMul * 0.85;
-  const 박스 = useMemo(() => 원형박스(x, z, 반경), [x, z, 반경]);
+  // 모델 실측 높이 1.90 에 실제 배율을 곱한 것 — 등받이 꼭대기까지다.
+  const 의자높이 = 1.9 * CHAIR_SCALE * scale * sizeMul;
+  const 박스 = useMemo(
+    () => 원형박스(x, z, 반경, 의자높이),
+    [x, z, 반경, 의자높이],
+  );
   use충돌박스(이름, 박스, 충돌);
 
   const { scene } = useGLTF("/models/chair.glb");
@@ -2653,29 +2726,58 @@ function 기차선로({
   // ★ 길이 방향 = 로컬 X 다. 기차 모델도 X축으로 길기 때문에,
   //   기차와 같은 회전값을 주면 레일이 기차 밑에 나란히 깔린다.
   //   (예전엔 선로만 Z축으로 길게 짜 놔서 같은 각도인데 90° 어긋나 있었다)
-  const 침목들 = useMemo(() => {
+  // ★★ 침목·자갈은 **한 덩어리로 합쳐서** 그린다. ★★
+  //   예전에는 <mesh> 를 침목 52개 + 자갈 260개, 총 312개 만들었다.
+  //   그런데 삼각형은 다 합쳐야 3천 개 남짓이다. 즉 **그릴 게 적은데
+  //   그리라는 명령만 312번** 나가고 있었다(침목은 외곽선까지 붙어 두 배).
+  //   드로우콜은 개수 자체가 비용이라, 작은 상자가 많을수록 손해가 크다.
+  //   상자합치기 는 위치·회전을 정점 좌표에 미리 반영해 하나로 이어 붙인다.
+  //   → 화면은 똑같고 드로우콜만 312 → 2 로 줄어든다.
+  const 침목지오 = useMemo(() => {
     const rnd = makeRandom(seed + 11);
     const 간 = 2.4; // 침목 간격
     const n = Math.floor(길이 / 간);
-    return Array.from({ length: n }, (_, i) => ({
-      x: -길이 / 2 + i * 간 + 간 / 2, // 길이 방향으로 늘어놓는다
-      z: (rnd() - 0.5) * 0.5, // 살짝 틀어진 침목 — 관리 안 된 폐선 느낌
-      r: (rnd() - 0.5) * 0.06,
-      s: 0.9 + rnd() * 0.2,
-    }));
-  }, [길이, seed]);
+    return 상자합치기(
+      Array.from({ length: n }, (_, i) => {
+        const z = (rnd() - 0.5) * 0.5; // 살짝 틀어진 침목 — 관리 안 된 폐선 느낌
+        const r = (rnd() - 0.5) * 0.06;
+        const sc = 0.9 + rnd() * 0.2;
+        return {
+          크기: [0.95, 0.24, (궤간 + 2.2) * sc],
+          위치: [-길이 / 2 + i * 간 + 간 / 2, 0.12, z],
+          회전: [0, r, 0],
+        };
+      }),
+    );
+  }, [길이, 궤간, seed]);
 
-  const 자갈들 = useMemo(() => {
-    if (!자갈) return [];
+  const 자갈지오 = useMemo(() => {
+    if (!자갈) return null;
     const rnd = makeRandom(seed + 29);
-    return Array.from({ length: 260 }, () => ({
-      x: (rnd() - 0.5) * 길이,
-      z: (rnd() - 0.5) * 폭 * 0.98,
-      s: 0.16 + rnd() * 0.3,
-      r: rnd() * Math.PI,
-      t: rnd() * 0.5,
-    }));
+    return 상자합치기(
+      Array.from({ length: 260 }, () => {
+        const x = (rnd() - 0.5) * 길이;
+        const z = (rnd() - 0.5) * 폭 * 0.98;
+        const sc = 0.16 + rnd() * 0.3;
+        const r = rnd() * Math.PI;
+        const t = rnd() * 0.5;
+        return {
+          크기: [sc, sc * 0.7, sc],
+          위치: [x, 0.02 + t * 0.1, z],
+          회전: [t, r, t * 0.7],
+        };
+      }),
+    );
   }, [폭, 길이, 자갈, seed]);
+
+  // 합친 지오메트리는 우리가 만든 것이라 우리가 치운다(안 치우면 GPU 메모리에 쌓인다)
+  useEffect(
+    () => () => {
+      침목지오?.dispose();
+      자갈지오?.dispose();
+    },
+    [침목지오, 자갈지오],
+  );
 
   const 툰 = (색) => (
     <meshToonMaterial color={색} gradientMap={TOON_GRADIENT} />
@@ -2692,20 +2794,15 @@ function 기차선로({
         {툰(도상색)}
       </mesh>
 
-      {/* 침목 — 레일을 가로질러 받치는 나무 토막 (길이 방향에 직각) */}
-      {침목들.map((t, i) => (
-        <mesh
-          key={`tie${i}`}
-          position={[t.x, 0.12, t.z]}
-          rotation={[0, t.r, 0]}
-          receiveShadow
-          castShadow
-        >
-          <boxGeometry args={[0.95, 0.24, (궤간 + 2.2) * t.s]} />
+      {/* 침목 — 레일을 가로질러 받치는 나무 토막 (길이 방향에 직각).
+             52개가 한 메시다. 외곽선도 하나만 붙으므로 선은 예전과 똑같이
+             토막마다 그어진다(합쳐도 각 상자의 면은 그대로 남아 있다). */}
+      {침목지오 && (
+        <mesh geometry={침목지오} receiveShadow castShadow>
           {툰(침목색)}
           {선긋기}
         </mesh>
-      ))}
+      )}
 
       {/* 레일 2줄 — 침목 위에 얹혀 길이 방향으로 뻗는다 */}
       {[-1, 1].map((sz) => (
@@ -2720,17 +2817,10 @@ function 기차선로({
         </mesh>
       ))}
 
-      {/* 흩어진 자갈 — 도상 위에 무작위로. 개수가 많아 선은 안 두른다(무겁다) */}
-      {자갈들.map((g, i) => (
-        <mesh
-          key={`ballast${i}`}
-          position={[g.x, 0.02 + g.t * 0.1, g.z]}
-          rotation={[g.t, g.r, g.t * 0.7]}
-        >
-          <boxGeometry args={[g.s, g.s * 0.7, g.s]} />
-          {툰(도상색)}
-        </mesh>
-      ))}
+      {/* 흩어진 자갈 — 도상 위에 무작위로. 260개가 한 메시다(선은 원래 안 두른다) */}
+      {자갈지오 && (
+        <mesh geometry={자갈지오}>{툰(도상색)}</mesh>
+      )}
     </group>
   );
 }
@@ -3060,6 +3150,47 @@ function 승강장확장({
   const 이음들 = useMemo(() => 줄지어(이음간격), [설비길이, 이음간격, 가운데z]); // eslint-disable-line
   const 행거들 = useMemo(() => 줄지어(행거간격), [설비길이, 행거간격, 가운데z]); // eslint-disable-line
 
+  // ★ 드로우콜 줄이기 — 같은 재질의 잔가지들을 한 덩어리로 합친다.
+  //   철골 격자와 행거는 전부 '색 하나짜리 가는 막대'다. 삼각형은 몇 백 개인데
+  //   메시로 나눠 두면 그 수만큼 그리기 명령이 나간다. 드로우콜은 개수 자체가
+  //   비용이라, 작고 많은 것일수록 합쳐서 얻는 이득이 크다.
+  const 골조지오 = useMemo(() => {
+    if (!골조) return null;
+    return 상자합치기([
+      ...골조가로.map((gx) => ({
+        크기: [골조굵기, 골조굵기 * 2.4, 깊이],
+        위치: [gx, 0, 가운데z],
+      })),
+      ...골조세로.map((gz) => ({
+        크기: [천장폭, 골조굵기, 골조굵기 * 2],
+        위치: [(시작x + 끝x) / 2, 골조굵기 * 1.4, gz],
+      })),
+    ]);
+  }, [골조, 골조가로, 골조세로, 골조굵기, 깊이, 천장폭, 시작x, 끝x, 가운데z]);
+
+  const 행거지오 = useMemo(() => {
+    if (!설비) return null;
+    return 상자합치기(
+      행거들.flatMap((hz) => [
+        { 크기: [0.1, 덕트내림, 0.1], 위치: [덕트X, 높이 - 덕트내림 / 2, hz] },
+        // 배관 다발은 가로 받침대 하나로 통째로 걸어 둔다
+        {
+          크기: [배관간격 * 배관수 + 0.5, 0.12, 0.12],
+          위치: [배관X, 높이 - 배관내림 - 0.18, hz],
+        },
+        { 크기: [0.09, 배관내림, 0.09], 위치: [배관X, 높이 - 배관내림 / 2, hz] },
+      ]),
+    );
+  }, [설비, 행거들, 덕트X, 배관X, 높이, 덕트내림, 배관내림, 배관간격, 배관수]);
+
+  useEffect(
+    () => () => {
+      골조지오?.dispose();
+      행거지오?.dispose();
+    },
+    [골조지오, 행거지오],
+  );
+
   // 배관 4줄. 굵기를 조금씩 다르게 해야 '다발'로 보인다 — 다 같으면 빗살무늬가 된다.
   const 배관들 = useMemo(() => {
     const rnd = makeRandom(seed + 41);
@@ -3150,29 +3281,13 @@ function 승강장확장({
         <>
           {/* 철골 격자 — 천장판보다 위에 있어서, 판이 떨어져 나간 자리에서만 보인다.
                  이게 없으면 구멍이 그냥 '검은 사각형'으로 보인다. */}
-          {골조 && (
+          {골조 && 골조지오 && (
             <group position={[0, 높이 + 0.55, 0]}>
-              {골조가로.map((gx, i) => (
-                <mesh key={`jx${i}`} position={[gx, 0, 가운데z]}>
-                  <boxGeometry args={[골조굵기, 골조굵기 * 2.4, 깊이]} />
-                  <meshToonMaterial
-                    color={골조색}
-                    gradientMap={TOON_GRADIENT}
-                  />
-                </mesh>
-              ))}
-              {골조세로.map((gz, i) => (
-                <mesh
-                  key={`jz${i}`}
-                  position={[(시작x + 끝x) / 2, 골조굵기 * 1.4, gz]}
-                >
-                  <boxGeometry args={[천장폭, 골조굵기, 골조굵기 * 2]} />
-                  <meshToonMaterial
-                    color={골조색}
-                    gradientMap={TOON_GRADIENT}
-                  />
-                </mesh>
-              ))}
+              {/* 가로살·세로살 20여 개가 한 메시다. 전부 같은 색·같은 재질이라
+                  나눠 그릴 이유가 없다(합쳐도 격자 모양은 그대로 남는다). */}
+              <mesh geometry={골조지오}>
+                <meshToonMaterial color={골조색} gradientMap={TOON_GRADIENT} />
+              </mesh>
             </group>
           )}
 
@@ -3271,23 +3386,14 @@ function 승강장확장({
 
           {/* ── 행거 — 천장에 매다는 가는 봉.
                  이게 없으면 덕트도 배관도 허공에 둥둥 떠 보인다. */}
-          {행거들.map((hz, i) => (
-            <group key={`hang${i}`}>
-              <mesh position={[덕트X, 높이 - 덕트내림 / 2, hz]}>
-                <boxGeometry args={[0.1, 덕트내림, 0.1]} />
-                <meshToonMaterial color={배관색} gradientMap={TOON_GRADIENT} />
-              </mesh>
-              {/* 배관 다발은 가로 받침대 하나로 통째로 걸어 둔다 */}
-              <mesh position={[배관X, 높이 - 배관내림 - 0.18, hz]}>
-                <boxGeometry args={[배관간격 * 배관수 + 0.5, 0.12, 0.12]} />
-                <meshToonMaterial color={배관색} gradientMap={TOON_GRADIENT} />
-              </mesh>
-              <mesh position={[배관X, 높이 - 배관내림 / 2, hz]}>
-                <boxGeometry args={[0.09, 배관내림, 0.09]} />
-                <meshToonMaterial color={배관색} gradientMap={TOON_GRADIENT} />
-              </mesh>
-            </group>
-          ))}
+          {/* 행거 하나가 봉 3개라 예전엔 N×3 개의 메시였다. 전부 같은 색이라
+              한 덩어리로 합친다 — 가는 봉이라 삼각형은 얼마 안 되는데
+              그리라는 명령만 많이 나가던 자리다. */}
+          {행거지오 && (
+            <mesh geometry={행거지오}>
+              <meshToonMaterial color={배관색} gradientMap={TOON_GRADIENT} />
+            </mesh>
+          )}
         </group>
       )}
     </>
@@ -5421,10 +5527,13 @@ function 복도측면문({
   문턱색 = "#3f443f",
   판자색 = "#6a5b45",
   못색 = "#8a8078",
+  틀돌출 = 0.06, // 문틀(케이싱)이 벽에서 나온 정도 — 얇게
+  내림 = 0.03, // 문짝이 문틀 면보다 안쪽으로 들어간 정도
+  발판돌출 = 0.06, // 문 밑 발판(문턱)이 복도로 나온 정도
   외곽선 = true,
   외곽선색 = "#131314",
   외곽선굵기 = 5,
-  문두께 = 0.16,
+  문두께 = 0.09,
   때 = 1,
   판자 = false,
   밝기 = 1,
@@ -5440,10 +5549,19 @@ function 복도측면문({
   ) : null;
 
   const d = 방향;
-  const 문w = 폭 - 0.12;
-  const 문h = 높이 - 0.1;
-  const 문앞 = d * 0.16;
-  const 앞 = 문앞 + d * (문두께 / 2 + 0.04);
+  // 문짝은 개구부를 거의 꽉 채운다(둘레 틈만 살짝). 예전엔 폭-0.12 라 틈이 컸다.
+  const 문w = 폭 - 0.06;
+  const 문h = 높이 - 0.06;
+  // ── 벽(x=0)은 꽉 찬 평면이다. 그래서 문은 그 벽에 '얕게 박힌' 플러시 문으로 짠다.
+  //   깊은 알코브는 벽에 실제 구멍을 뚫어야 되는데 지금 바깥벽은 통짜라, 여기선 얕게.
+  //   문짝 뒷면은 자연히 벽 뒤로 숨고(가려짐) 앞면만 살짝 나온다 → 두꺼운 슬래브 X.
+  const 틀돌출c = Math.max(0, Math.min(틀돌출, 0.25)); // 문틀이 벽에서 나온 깊이
+  const 틀d = Math.max(0.02, 틀돌출c); // 지오메트리용(0이면 퇴화 방지)
+  const 내림c = Math.max(0, Math.min(내림, 0.1)); // 문짝이 문틀보다 들어간 깊이
+  const 발판c = Math.max(0, Math.min(발판돌출, 0.4)); // 발판이 복도로 나온 깊이
+  const 문앞면 = d * Math.max(0.01, 틀돌출c - 0.02 - 내림c); // 문 앞면(벽보다 앞, 문틀면보다 안)
+  const 문앞 = 문앞면 - d * (문두께 / 2); // 문짝 중심 x — 아래 부속들이 이 값 기준
+  const 앞 = 문앞 + d * (문두께 / 2 + 0.02); // 문 앞면 위에 살짝 뜬 선/패널
   const 굵 = 0.05;
 
   // ★ 부속을 재질별로 미리 '하나의 지오메트리'로 구워 둔다.
@@ -5501,8 +5619,22 @@ function 복도측면문({
       ),
     );
 
-    return { 문틈, 패널, 경첩, 못 };
-  }, [폭, 높이, 문두께, d, 앞, 문앞, 문w, 문h, 굵]);
+    // ⓪ 문틀(케이싱) — 개구부를 감싸는 얇은 테두리(상 + 좌우) → 1개.
+    //    벽면(x=0)에서 틀d 만큼만 나온다. 두꺼운 상자가 아니라 얇은 테.
+    const 틀두께 = 0.16;
+    const 문틀 = 상자합치기([
+      {
+        크기: [틀d, 틀두께, 폭 + 2 * 틀두께],
+        위치: [d * (틀d / 2), 높이 + 틀두께 / 2 - 0.03, 0],
+      },
+      ...[-1, 1].map((sz) => ({
+        크기: [틀d, 높이 + 틀두께, 틀두께],
+        위치: [d * (틀d / 2), 높이 / 2, sz * (폭 / 2 + 틀두께 / 2)],
+      })),
+    ]);
+
+    return { 문틈, 패널, 경첩, 못, 문틀 };
+  }, [폭, 높이, 문두께, 틀d, d, 앞, 문앞, 문w, 문h, 굵]);
 
   useEffect(
     () => () => {
@@ -5515,14 +5647,13 @@ function 복도측면문({
 
   return (
     <group position={[x, 0, z]}>
-      {/* ① 리빌 — 개구부 안쪽 깊이.
-             문선(나무 케이싱)을 걷어낸 뒤로는 이 면이 문의 테두리를 만든다. */}
-      <mesh position={[d * 0.08, 높이 / 2, 0]}>
-        <boxGeometry args={[0.42, 높이 + 0.04, 폭 + 0.04]} />
+      {/* ① 문틀(케이싱) — 벽에서 얇게 나온 테두리. 예전의 두꺼운 리빌 상자를 대체. */}
+      <mesh geometry={합본.문틀} castShadow>
         <meshToonMaterial
-          color={색밝기(리빌색, 밝기)}
+          color={색밝기(리빌색, 밝기 * 1.1)}
           gradientMap={TOON_GRADIENT}
         />
+        {선긋기}
       </mesh>
 
       {/* ③ 문짝 */}
@@ -5605,13 +5736,14 @@ function 복도측면문({
           );
         })}
 
-      {/* ⑨ 문턱 */}
-      <mesh position={[d * 0.14, 0.05, 0]}>
-        <boxGeometry args={[0.5, 0.1, 폭]} />
+      {/* ⑨ 발판(문턱) — 개구부 밑, 벽에서 복도로 발판c 만큼 나온 얕은 턱 */}
+      <mesh position={[d * (발판c / 2), 0.06, 0]} receiveShadow>
+        <boxGeometry args={[Math.max(0.04, 발판c), 0.12, 폭 + 0.12]} />
         <meshToonMaterial
           color={색밝기(문턱색, 밝기)}
           gradientMap={TOON_GRADIENT}
         />
+        {선긋기}
       </mesh>
     </group>
   );
@@ -7701,6 +7833,20 @@ function 수거품상자({ 사건, 선, 가로 = 0.95, 세로 = 0.78, 상자높�
 
 // ===== 3D 씬 =====
 function Scene({ active, onNear, controlsRef, onLockChange }) {
+  // ── 로비 물건 상태 (서랍·램프·의자·들고 있는 것) ──────────
+  //   겨냥은 여기서 구독하지 않는다. 고개만 돌려도 방 전체가 다시 그려지기 때문이다.
+  const 로비 = use로비상태();
+  // ── 바닥도 물건을 놓을 수 있는 면이다 ────────────────────
+  useEffect(() => {
+    표면등록("바닥", {
+      minX: MIN_X,
+      maxX: MAX_X,
+      minZ: MIN_Z,
+      maxZ: MAX_Z,
+      top: 0,
+    });
+    return () => 표면해제("바닥");
+  }, []);
   // ── 시점(눈높이) 조절 ──────────────────────────────────
   //   usePlayer보다 먼저 선언해야 값을 넘겨줄 수 있다.
   //   (React 훅은 매 렌더마다 '같은 순서'로 호출돼야 하므로 위치를 고정한다)
@@ -7843,6 +7989,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     개별배율: { value: 1.0, min: 0.3, max: 2.5, step: 0.01 },
   });
   const stLive = [st1, st2, st3];
+  // 램프 개별 on/off — 손으로 만진 적이 없으면 Leva 공통값을 따른다.
+  const 램프보기 = (id, 기본) => 로비.램프[id] ?? 기본;
 
   // ── 서류 캐비닛 ────────────────────────────────────────
   //   색·크기는 셋이 공통, 시드만 달라서 얼룩·찌그러짐이 서로 다르다.
@@ -7883,6 +8031,52 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     시드: { value: 4022, min: 1, max: 9999, step: 1 },
   });
   const cbLive = [cb1, cb2, cb3];
+
+  // ── 서랍 여닫기 (S4-009 · CT-007) ──────────────────────
+  const 서랍칸 = (i) => CAB_OPEN_PLAN[i]?.칸 ?? 1;
+  const 서랍기본 = (i) =>
+    CB.서랍열기 && CAB_OPEN_PLAN[i]
+      ? {
+          칸: CAB_OPEN_PLAN[i].칸,
+          양: CAB_OPEN_PLAN[i].세기 === "많이" ? CB.많이열림 : CB.살짝열림,
+          서류: !!CAB_OPEN_PLAN[i].서류 && CB.서류보이기,
+        }
+      : null;
+  const 서랍보기 = (i) => {
+    const 손 = 로비.서랍[`cab${i}`];
+    if (손 === undefined) return 서랍기본(i);
+    if (손 === null) return null;
+    return { ...손, 서류: !!CAB_OPEN_PLAN[i]?.서류 && CB.서류보이기 };
+  };
+  const 서랍열렸나 = (i) => {
+    const v = 서랍보기(i);
+    return !!v && v.양 > 0.005;
+  };
+  const 서랍위치 = (i) => {
+    const c = cbLive[i];
+    const 칸 = 서랍칸(i);
+    const cy = (CAB_SEAMS[칸] + CAB_SEAMS[칸 + 1]) / 2;
+    const fz = CAB_FZ * CB.높이;
+    return [
+      c.x + Math.sin(c.회전) * fz,
+      cy * CB.높이,
+      c.z + Math.cos(c.회전) * fz,
+    ];
+  };
+
+  // ── 서랍 안에 놓인 물건은 서랍과 한 몸으로 움직인다 ──────
+  //   증거 번호표 2번이 캐비닛1 맨 아래 서랍 안에 있다. 서랍만 움직이면
+  //   표지가 캐비닛을 뚫고 허공에 남는다.
+  //   ★ 지금 좌표는 **서랍이 살짝 열린 모습을 보고 맞춘 값**이라,
+  //     열림 0 을 기준으로 더하면 두 번 밀린다. 기본 열림량과의 '차이'만 움직인다.
+  const 서랍승객 = { "E-02": 0 }; // 증거물 id -> 올라탄 캐비닛 번호
+  const 서랍보정 = (항목id) => {
+    const i = 서랍승객[항목id];
+    if (i === undefined) return [0, 0];
+    const d = ((서랍보기(i)?.양 ?? 0) - (서랍기본(i)?.양 ?? 0)) * CB.높이;
+    const c = cbLive[i];
+    return [Math.sin(c.회전) * d, Math.cos(c.회전) * d];
+  };
 
   // ── 증거물 3종(소품) ───────────────────────────────────────
   const EV = useSavedControls("증거물(공통)", {
@@ -8141,6 +8335,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     색: "#363b46",
     // 의자를 통과할 수 없게 막는다. 끄면 예전처럼 뚫고 지나갈 수 있다(비교용).
     충돌: true,
+    // [E] 로 의자를 뺐을 때 물러나는 거리. 반대로 가면 음수로 뒤집는다.
+    빼는거리: { value: 1.4, min: -3, max: 3, step: 0.05 },
 
     ...선스키마({ 굵기: 2.0, 색: "#1a1614", 주름: true, 각도: 65 }),
   });
@@ -8503,8 +8699,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     //   책상은 z = -7.3 ~ -2.5 에 몰려 있어서(빨강·파랑·초록) 문 바로 앞이 막혔다.
     //   z = +4 면 가장 가까운 책상(초록 z=-2.5)과 6.5유닛 떨어져 통로가 트인다.
     문z: { value: 4, min: -14, max: 12, step: 0.2 },
-    문폭: { value: 3.8, min: 2, max: 8, step: 0.1 },
-    문높이: { value: 6.8, min: 3, max: 11, step: 0.1 },
+    문폭: { value: 3.6, min: 2, max: 8, step: 0.1 },
+    문높이: { value: 5.7, min: 3, max: 11, step: 0.1 },
     // 벽 두께 — 구멍 안쪽에 드러나는 '단면'의 깊이.
     //   0 이면 종이에 뚫은 구멍처럼 보인다. 이 값이 '뚫렸다'를 만든다.
     문두께: { value: 0.2, min: 0.2, max: 2, step: 0.05 },
@@ -8550,36 +8746,58 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     배전반보이기: true,
     배전반z비율: { value: 0.88, min: 0, max: 1, step: 0.01 },
     배전반폭: { value: 1.6, min: 0.6, max: 3, step: 0.05 },
-    배전반높이: { value: 2.1, min: 0.8, max: 4, step: 0.05 },
+    배전반높이: { value: 2.0, min: 0.8, max: 4, step: 0.05 },
     배전반깊이: { value: 0.4, min: 0.1, max: 1, step: 0.02 },
-    배전반바닥높이: { value: 3.1, min: 0.5, max: 6, step: 0.05 },
-    배전반색: "#565b62",
-    배전반문색: "#4b5057",
+    배전반바닥높이: { value: 2.8, min: 0.5, max: 6, step: 0.05 },
+    배전반색: "#4d5055",
+    배전반문색: "#5e646c",
     배전반라벨색: "#c9a83c",
     배전반번호: "N-3",
     배전반전선관: true, // 천장 트레이로 올라가는 관
 
     소화전보이기: true,
-    소화전z비율: { value: 0.1, min: 0, max: 1, step: 0.01 },
-    소화전폭: { value: 1.5, min: 0.6, max: 3, step: 0.05 },
-    소화전높이: { value: 2.4, min: 0.8, max: 4, step: 0.05 },
-    소화전깊이: { value: 0.42, min: 0.1, max: 1, step: 0.02 },
-    소화전바닥높이: { value: 2.6, min: 0.5, max: 6, step: 0.05 },
-    소화전색: "#6b3a33",
-    소화전문색: "#8d3f34",
-    소화전라벨색: "#a5342a",
+    소화전z비율: { value: 0.88, min: 0, max: 1, step: 0.01 },
+    소화전폭: { value: 1.4, min: 0.6, max: 3, step: 0.05 },
+    소화전높이: { value: 2.25, min: 0.8, max: 4, step: 0.05 },
+    소화전깊이: { value: 0.38, min: 0.1, max: 1, step: 0.02 },
+    소화전바닥높이: { value: 2.25, min: 0.5, max: 6, step: 0.05 },
+    소화전색: "#804239",
+    소화전문색: "#79352c",
+    소화전라벨색: "#cb4e43",
+
+    // ── 자판기 2대 ────────────────────────────────────────
+    //   바깥벽에 붙여 세운다(정면이 복도 안쪽 +x 를 본다).
+    //   깊이 2.4 를 빼면 지나갈 폭이 약 4.1(1.2m) 남는다 — 좁지만 다닐 만하다.
+    자판기보이기: true,
+    자판기폭: { value: 3.4, min: 2, max: 5, step: 0.05 },
+    자판기높이: { value: 7.4, min: 4, max: 8, step: 0.05 },
+    자판기깊이: { value: 2.4, min: 1.2, max: 3.5, step: 0.05 },
+    자판기벽틈: { value: 0.08, min: 0, max: 0.6, step: 0.01 },
+    캔자판기z비율: { value: 0.3, min: 0, max: 1, step: 0.01 },
+    커피자판기z비율: { value: 0.46, min: 0, max: 1, step: 0.01 },
+    캔자판기색: "#2f4a63",
+    커피자판기색: "#5a3e2b",
+    // ★ 퍼즐이 나중에 밀어 넣을 자리. 지금은 Leva 로 눈으로 확인한다.
+    커피선택: { value: "없음", options: ["없음", "핫", "아이스"] },
+    음료뽑힌캔: { value: -1, min: -1, max: 5, step: 1 },
+    커피컵: false,
+    커피문열림: { value: 0, min: 0, max: 1, step: 0.05 },
 
     // ── 복도 측면 사무실 문 (바깥벽에 나란히) ───────────────
     측면문보이기: true,
     측면문개수: { value: 3, min: 0, max: 6, step: 1 },
     측면문폭: { value: 3.0, min: 2, max: 5, step: 0.1 },
     측면문높이: { value: 6.4, min: 4, max: 9, step: 0.1 },
+    측면문두께: { value: 0.09, min: 0.04, max: 0.2, step: 0.01 }, // 문짝 두께
+    측면문틀돌출: { value: 0.06, min: 0, max: 0.25, step: 0.01 }, // 문틀(케이싱)이 벽에서 나온 정도
+    측면문내림: { value: 0.03, min: 0, max: 0.1, step: 0.01 }, // 문짝이 문틀 면보다 안쪽으로 들어간 정도
+    측면문발판돌출: { value: 0.06, min: 0, max: 0.4, step: 0.01 }, // 발판(문턱)이 복도로 나온 정도
     측면문시작: { value: 0.18, min: 0, max: 1, step: 0.01 }, // 복도 길이 비율
     측면문끝: { value: 0.78, min: 0, max: 1, step: 0.01 },
     // 텍스처와 곱해지는 색이라 너무 어두우면 얼룩이 다 죽는다.
     //   검정 계열 대신 '어두운 회색' — 검정은 형태가 안 읽히고 텍스처도 다 먹는다.
     // 부위별 색 — 파생시키지 않고 전부 따로 둔다(하나만 바꿔도 다른 데가 안 흔들림)
-    측면문색: "#a59363", // 문짝
+    측면문색: "#5a5f62", // 문짝
     측면문리빌색: "#313339", // 개구부 안쪽 깊이
     측면문틈색: "#303136", // 문짝 둘레 틈 선
     측면문패널선색: "#3f4346", // 문짝에 새긴 패널 테두리
@@ -8593,8 +8811,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     측면문외곽선: true,
     측면문외곽선색: "#131314",
     측면문외곽선굵기: { value: 5, min: 0, max: 20, step: 0.5 },
-    측면문밝기: { value: 1.55, min: 0.3, max: 3, step: 0.05 }, // 문 전체 밝기
-    측면문때: { value: 1.1, min: 0, max: 2, step: 0.05 },
+    측면문밝기: { value: 1.85, min: 0.3, max: 3, step: 0.05 }, // 문 전체 밝기
+    측면문때: { value: 0.6, min: 0, max: 2, step: 0.05 },
     측면문판자: true, // 널빤지로 막아 둔 문 섞기
 
     // ── 복도 끝 비상계단 문 (z시작 쪽 끝벽) ─────────────────
@@ -8641,6 +8859,61 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
 
     ...선스키마({ 굵기: 5, 색: "#131314", 주름: false }),
   });
+
+  // ── 음료 자판기(위치·색·외곽선 따로) ─────────────────────
+  //   회전도: 90=바깥벽(왼쪽) 정면, -90=반대편 벽(오른쪽)에서 복도를 향함.
+  const 음료자판CD = useSavedControls("음료 자판기", {
+    위치x: { value: -21.3, min: -34, max: -19, step: 0.1 },
+    위치y: { value: 0, min: -2, max: 6, step: 0.1 },
+    위치z: { value: 9.2, min: -60, max: 26, step: 0.5 },
+    회전도: { value: -90, min: -180, max: 180, step: 90 },
+    몸통색: "#909090",
+    테색: "#3b3b3b",
+    간판색: "#fffdf2",
+    간판글자색: "#141414", // COLD DRINKS 글자색(밝은 간판이라 검정)
+    유리색: "#d7dcde",
+    선반색: "#3a4652",
+    버튼틀색: "#404348",
+    패널색: "#20272e",
+    어두운색: "#838383",
+    외곽선: true,
+    외곽선굵기: { value: 3, min: 0, max: 12, step: 0.5 },
+    외곽선색: "#000000",
+    내부외곽선색: "#000000", // 캔·버튼·배출구 등 내부 외곽선 색
+  });
+
+  // ── 커피 자판기(위치·색·외곽선 따로) ─────────────────────
+  const 커피자판CD = useSavedControls("커피 자판기", {
+    위치x: { value: -21.3, min: -34, max: -19, step: 0.1 },
+    위치y: { value: 0, min: -2, max: 6, step: 0.1 },
+    위치z: { value: -3.2, min: -60, max: 26, step: 0.5 },
+    회전도: { value: -90, min: -180, max: 180, step: 90 },
+    몸통색: "#3e332b",
+    테색: "#7a7f89",
+    간판색: "#8d372e",
+    간판글자색: "#fff6e2",
+    버튼틀색: "#3e3e3e",
+    패널색: "#241a12",
+    어두운색: "#15171b",
+    컵색: "#cbc19e",
+    커피색: "#342113",
+    배출부벽색: "#8d8d8d",
+    배출부유리색: "#c9ccce",
+    외곽선: true,
+    외곽선굵기: { value: 3, min: 0, max: 12, step: 0.5 },
+    외곽선색: "#000000",
+    내부외곽선색: "#000000", // 버튼·배출부 등 내부 외곽선 색
+  });
+  const mk선 = (v, 색) => ({
+    외곽선: v.외곽선,
+    외곽선굵기: v.외곽선굵기,
+    외곽선색: 색,
+    주름선: false,
+  });
+  const 음료자판선 = mk선(음료자판CD, 음료자판CD.외곽선색);
+  const 음료자판내부선 = mk선(음료자판CD, 음료자판CD.내부외곽선색);
+  const 커피자판선 = mk선(커피자판CD, 커피자판CD.외곽선색);
+  const 커피자판내부선 = mk선(커피자판CD, 커피자판CD.내부외곽선색);
 
   // Leva 값 → 이동 경계용 상자에 밀어 넣는다.
   //   useFrame(이동 처리)은 React 렌더 밖에서 도니까, state 로 넘기면
@@ -8923,6 +9196,95 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     }),
   );
   const spLive = [sp1, sp2, sp3, sp4, sp5, sp6, sp8];
+
+  // ── 놓기 미리보기 색 ───────────────────────────────────
+  //   형광색은 셀셰이딩 톤에서 혼자 튄다. 채도를 낮춘 파스텔이 기본값.
+  const PV = useSavedControls("놓기 미리보기", {
+    가능색: "#a5d5a6", // 연한 초록
+    불가색: "#e58277", // 연한 코랄
+    유령보이기: true,
+    유령투명도: { value: 0.4, min: 0.05, max: 1, step: 0.05 },
+  });
+
+  // ── 겨냥 강조 ──────────────────────────────────────────
+  //   글자 대신 물건 자체로 알려 준다. 두 가지가 동시에 걸린다 —
+  //   살짝 커지고(둥), 재질이 스스로 빛나 화면의 Bloom 이 그 빛을 번지게 한다.
+  //   ※ 세기가 낮으면 '노랗게 물들기'만 하고, Bloom 임계값(0.85)을 넘어야
+  //     비로소 외곽이 **번진다.** 번짐이 약하면 세기를 올리면 된다.
+  const HL = useSavedControls("겨냥 강조", {
+    색: "#fffee7", // 아주 옅은 미색 — 물건 고유색을 덜 묻히고 밝기만 올린다
+    세기: { value: 0.45, min: 0, max: 2, step: 0.05 },
+    커지기: { value: 0.08, min: 0, max: 0.2, step: 0.005 }, // 들 수 있는 물건
+    가구커지기: { value: 0.02, min: 0, max: 0.1, step: 0.005 }, // 캐비닛·의자·스탠드
+  });
+
+  // ── 들었다 놓을 수 있는 물건 (머그컵 3 · 노트북 3 · 서류 7) ──────────
+  const 들물건 = [
+    ...mgLive.map((v, i) => ({ id: `mug${i}`, 종류: "머그", 이름: "머그컵", v })),
+    ...lpLive.map((v, i) => ({ id: `laptop${i}`, 종류: "노트북", 이름: "노트북", v })),
+    ...spLive.map((v, i) => ({ id: `paper${i}`, 종류: "서류", 이름: "서류", v })),
+  ];
+  const 놓인곳 = (o) =>
+    로비.자리[o.id] ?? { x: o.v.x, y: o.v.높이, z: o.v.z, rot: o.v.회전 };
+
+  const 물건그리기 = (o, 곳) => {
+    if (!o) return null;
+    const pos = 곳 ? [곳.x, 곳.z] : [0, 0];
+    const y = 곳 ? 곳.y : 0;
+    const rot = 곳 ? 곳.rot : 0;
+    if (o.종류 === "머그")
+      return (
+        <Mug
+          선={MG선}
+          pos={pos}
+          rot={rot}
+          y={y}
+          scale={MG.크기}
+          sizeMul={o.v.개별크기}
+          cCup={MG.컵색}
+          cCoffee={MG.커피색}
+        />
+      );
+    if (o.종류 === "노트북")
+      return (
+        <Laptop
+          선={LP선}
+          pos={pos}
+          rot={rot}
+          y={y}
+          scale={LP.크기 * o.v.개별크기}
+          cScreen={LP.화면색}
+          cBezel={LP.테두리색}
+          cKeys={LP.키보드색}
+          cTrackpad={LP.트랙패드색}
+          cBody={LP.본체색}
+          screenOn={LP.화면켜기}
+          screenColor={LP.화면빛색}
+        />
+      );
+    return (
+      <PaperStack
+        pos={pos}
+        y={y}
+        rot={rot}
+        scale={o.v.크기}
+        sheets={o.v.낱장수}
+        spread={o.v.흐트러짐}
+        slide={o.v.밀림}
+        thick={o.v.한장두께}
+        lean={o.v.무너짐}
+        seed={o.v.씨드}
+        paperColor={o.v.종이색}
+        folderColor={o.v.봉투색}
+        clipCount={o.v.집게수}
+        stickyCount={o.v.포스트잇수}
+        printed={o.v.글자표시}
+        printedFolder={o.v.봉투글자}
+        textStyle={o.v.글씨종류}
+        선={SP선}
+      />
+    );
+  };
 
   // 개별 책상 조절 — 각 책상마다 폴더 하나씩. 값이 폴더에 유지되어 리셋되지 않는다.
   //   조절 후 콘솔 '값출력' 버튼을 누르면 현재 값이 콘솔에 찍힌다 → DESK_SPOTS에 붙이면 고정.
@@ -9325,6 +9687,10 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
                   방향={1}
                   폭={CD.측면문폭}
                   높이={CD.측면문높이}
+                  문두께={CD.측면문두께}
+                  틀돌출={CD.측면문틀돌출}
+                  내림={CD.측면문내림}
+                  발판돌출={CD.측면문발판돌출}
                   문색={CD.측면문색}
                   리빌색={CD.측면문리빌색}
                   틈색={CD.측면문틈색}
@@ -9398,6 +9764,73 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
               선={CD선}
             />
           )}
+
+          {/* ── 자판기 2대 ───────────────────────────────────
+                 바깥벽에 등을 대고 정면(로컬 +z)이 복도 안쪽을 보도록
+                 Y 로 90° 돌린다. 밝기는 벽·함과 같은 깊이 규칙을 그대로 쓴다
+                 — 안 그러면 복도 끝에서 자판기만 혼자 환하게 뜬다. */}
+          {CD.자판기보이기 &&
+            (() => {
+              const 깊이규칙 = {
+                문z: CD.문z,
+                감쇠: CD.감쇠거리,
+                어둠: CD.깊이어둠,
+                최소밝기: CD.최소밝기,
+                끝어둠: CD.끝쪽어둠,
+                끝기울기: CD.끝쪽기울기,
+                z0: CD.z시작,
+              };
+              const zc = 음료자판CD.위치z;
+              const zk = 커피자판CD.위치z;
+              return (
+                <>
+                  <캔자판기
+                    위치={[음료자판CD.위치x, 음료자판CD.위치y, zc]}
+                    회전={(음료자판CD.회전도 * Math.PI) / 180}
+                    폭={CD.자판기폭}
+                    높이={CD.자판기높이}
+                    깊이={CD.자판기깊이}
+                    몸통색={음료자판CD.몸통색}
+                    테색={음료자판CD.테색}
+                    간판색={음료자판CD.간판색}
+                    간판글자색={음료자판CD.간판글자색}
+                    유리색={음료자판CD.유리색}
+                    선반색={음료자판CD.선반색}
+                    버튼틀색={음료자판CD.버튼틀색}
+                    패널색={음료자판CD.패널색}
+                    어두운색={음료자판CD.어두운색}
+                    뽑힌캔={CD.음료뽑힌캔 < 0 ? null : CD.음료뽑힌캔}
+                    밝기={복도깊이밝기(zc, 깊이규칙)}
+                    선={음료자판선}
+                    내부선={음료자판내부선}
+                  />
+                  <커피자판기
+                    위치={[커피자판CD.위치x, 커피자판CD.위치y, zk]}
+                    회전={(커피자판CD.회전도 * Math.PI) / 180}
+                    폭={CD.자판기폭}
+                    높이={CD.자판기높이}
+                    깊이={CD.자판기깊이}
+                    몸통색={커피자판CD.몸통색}
+                    테색={커피자판CD.테색}
+                    간판색={커피자판CD.간판색}
+                    간판글자색={커피자판CD.간판글자색}
+                    버튼틀색={커피자판CD.버튼틀색}
+                    패널색={커피자판CD.패널색}
+                    어두운색={커피자판CD.어두운색}
+                    컵색={커피자판CD.컵색}
+                    커피색={커피자판CD.커피색}
+                    배출부벽색={커피자판CD.배출부벽색}
+                    배출부유리색={커피자판CD.배출부유리색}
+                    선택={CD.커피선택 === "없음" ? null : CD.커피선택}
+                    컵있음={CD.커피컵}
+                    문열림={CD.커피문열림}
+                    밝기={복도깊이밝기(zk, 깊이규칙)}
+                    선={커피자판선}
+                    내부선={커피자판내부선}
+                  />
+                </>
+              );
+            })()}
 
           {/* 구멍의 테두리 — 리빌(안쪽 단면) + 찢어진 가장자리 + 발치 잔해.
                  벽 자체의 구멍은 아래 '벽' 블록에서 판을 쪼개 뚫는다. */}
@@ -9593,14 +10026,35 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
              천장등을 끄고 이 좁은 빛 웅덩이들만 남기면 '야간 수사' 톤이 된다.
              위치·각도는 Leva 폴더 스탠드1/2/3 에서 실시간으로 맞춘다. */}
       {stLive.map((s3, i) => (
+        <group key={`lamp${i}`}>
+        <상호대상
+          id={`stand${i}`}
+          반경={0.7}
+          위치={() => [s3.x, s3.받침높이 + S.높이 * s3.개별배율 * 0.9, s3.z]}
+          라벨={() =>
+            램프보기(`stand${i}`, S.켜기) ? "[E] 스탠드 끄기" : "[E] 스탠드 켜기"
+          }
+          실행={() => 램프토글(`stand${i}`, S.켜기)}
+        />
+        <강조
+          id={`stand${i}`}
+          색={HL.색}
+          세기={HL.세기}
+          확대={HL.가구커지기}
+          기준={() => [s3.x, s3.받침높이, s3.z]}
+        >
+        <잰다
+          id={`stand${i}`}
+          자리
+          다시재기={`${s3.x},${s3.z},${s3.받침높이},${s3.회전},${s3.개별배율},${S.높이}`}
+        >
         <DeskLamp
           선={SD선}
-          key={`lamp${i}`}
           pos={[s3.x, s3.z]}
           baseY={s3.받침높이}
           rot={s3.회전}
           height={S.높이 * s3.개별배율}
-          on={S.켜기}
+          on={램프보기(`stand${i}`, S.켜기)}
           bulb={S.전구색}
           body={S.몸체색}
           inner={S.갓안쪽색}
@@ -9609,6 +10063,9 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           음영바닥={S.음영바닥}
           shadow={S.그림자}
         />
+        </잰다>
+        </강조>
+        </group>
       ))}
 
       {/* ── 장스탠드 1개 (바닥에 세우는 긴 것) ────────────────
@@ -9621,6 +10078,15 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           여유={COL.여유}
           다시재기={`${FL.x},${FL.z},${FL.회전},${FL.높이}`}
         >
+        <상호대상
+          id="floorlamp"
+          반경={0.8}
+          위치={() => [FL.x, FL.바닥높이 + FL.높이 * 0.9, FL.z]}
+          라벨={() =>
+            램프보기("floorlamp", FL.켜기) ? "[E] 장스탠드 끄기" : "[E] 장스탠드 켜기"
+          }
+          실행={() => 램프토글("floorlamp", FL.켜기)}
+        />
         <DeskLamp
           선={FL선}
           기둥늘림={1.05}
@@ -9631,7 +10097,7 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           baseY={FL.바닥높이}
           rot={FL.회전}
           height={FL.높이}
-          on={FL.켜기}
+          on={램프보기("floorlamp", FL.켜기)}
           bulb={S.전구색}
           body={S.몸체색}
           inner={S.갓안쪽색}
@@ -9654,6 +10120,28 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
             여유={COL.여유}
             다시재기={`${c.x},${c.z},${c.회전},${CB.높이}`}
           >
+          {/* 만질 수 있는 서랍 한 칸 */}
+          <상호대상
+            id={`cab${i}`}
+            반경={0.8}
+            위치={() => 서랍위치(i)}
+            라벨={() => (서랍열렸나(i) ? "[E] 서랍 닫기" : "[E] 서랍 열기")}
+            실행={() =>
+              서랍움직이기(
+                `cab${i}`,
+                서랍칸(i),
+                CB.많이열림,
+                서랍열렸나(i) ? "닫기" : "열기",
+              )
+            }
+          />
+          <강조
+            id={`cab${i}`}
+            색={HL.색}
+            세기={HL.세기}
+            확대={HL.가구커지기}
+            기준={() => [c.x, 0, c.z]}
+          >
           <Cabinet
             선={CB선}
             pos={[c.x, c.z]}
@@ -9667,19 +10155,9 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
             얼룩세기={CB.얼룩세기}
             선보이기={CB.선보이기}
             선색={CB.선색}
-            열림={
-              CB.서랍열기 && CAB_OPEN_PLAN[i]
-                ? {
-                    칸: CAB_OPEN_PLAN[i].칸,
-                    양:
-                      CAB_OPEN_PLAN[i].세기 === "많이"
-                        ? CB.많이열림
-                        : CB.살짝열림,
-                    서류: !!CAB_OPEN_PLAN[i].서류 && CB.서류보이기,
-                  }
-                : null
-            }
+            열림={서랍보기(i)}
           />
+          </강조>
           </충돌체>
         ))}
 
@@ -9687,10 +10165,11 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
       {EV.보이기 &&
         증거목록.map((항목, i) => {
           const v = evLive[i];
+          const [dx, dz] = 서랍보정(항목.id); // 서랍에 실린 것이면 같이 움직인다
           return (
             <group
               key={항목.id}
-              position={[v.x, v.높이, v.z]}
+              position={[v.x + dx, v.높이, v.z + dz]}
               rotation={[0, v.회전, 0]}
               scale={EV.크기}
             >
@@ -9916,6 +10395,11 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
             여유={COL.여유}
             다시재기={`${d.x},${d.z},${d.회전},${d.가로길이},${d.세로길이},${D.크기}`}
           >
+          <잰다
+            id={`면:desk${i}`}
+            면
+            다시재기={`${d.x},${d.z},${d.회전},${d.가로길이},${d.세로길이},${d.높이},${D.크기},${D.높이미세}`}
+          >
           <Desk
             pos={[d.x, d.z]}
             rot={d.회전}
@@ -9927,6 +10411,7 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
             선={D선}
             color={DESK_DEBUG ? DESK_COLORS[i] : P.struct}
           />
+          </잰다>
           </충돌체>
         ))}
       </Suspense>
@@ -9935,9 +10420,14 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           위치·높이·회전·개별크기를 따로 조절. 크기·색은 공통 폴더에서. */}
       <Suspense fallback={null}>
         {pcLive.map((p, i) => (
+          <잰다
+            key={`pc${i}`}
+            id={`pc${i}`}
+            자리
+            다시재기={`${p.x},${p.z},${p.회전},${p.높이},${p.개별크기},${PC.크기}`}
+          >
           <PcSet
             선={PC선}
-            key={`pc${i}`}
             pos={[p.x, p.z]}
             rot={p.회전}
             y={p.높이}
@@ -9949,26 +10439,49 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
             KB선={KB선}
             MS선={MS선}
           />
+          </잰다>
         ))}
       </Suspense>
 
       {/* 사무용 의자 5개 — 왼쪽 자리에 3개, 오른쪽에 2개.
           대마다 Leva 폴더(의자1~5)로 위치·회전을 따로 조절한다. */}
       <Suspense fallback={null}>
-        {chLive.map((c, i) => (
-          <Chair
-            선={CH선}
-            key={`chair${i}`}
-            이름={`chair${i}`}
-            충돌={CH.충돌}
-            pos={[c.x, c.z]}
-            rot={c.회전}
-            y={c.높이}
-            scale={CH.크기}
-            sizeMul={c.개별크기}
-            color={CH.색}
-          />
-        ))}
+        {chLive.map((c, i) => {
+          const 뺌 = !!로비.의자[`chair${i}`];
+          const d = 뺌 ? CH.빼는거리 : 0;
+          const cx = c.x + Math.sin(c.회전) * d;
+          const cz = c.z + Math.cos(c.회전) * d;
+          return (
+            <group key={`chair${i}`}>
+              <상호대상
+                id={`chair${i}`}
+                반경={0.9}
+                위치={() => [cx, 1.6, cz]}
+                라벨={뺌 ? "[E] 의자 넣기" : "[E] 의자 빼기"}
+                실행={() => 의자토글(`chair${i}`)}
+              />
+              <강조
+                id={`chair${i}`}
+                색={HL.색}
+                세기={HL.세기}
+                확대={HL.가구커지기}
+                기준={() => [cx, 0, cz]}
+              >
+              <Chair
+                선={CH선}
+                이름={`chair${i}`}
+                충돌={CH.충돌}
+                pos={[cx, cz]}
+                rot={c.회전}
+                y={c.높이}
+                scale={CH.크기}
+                sizeMul={c.개별크기}
+                color={CH.색}
+              />
+              </강조>
+            </group>
+          );
+        })}
       </Suspense>
 
       {/* 증거 핀보드 — 사진·메모를 붉은 실로 이어 놓은 판 */}
@@ -10005,79 +10518,84 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
         />
       </충돌체>
 
-      {/* 커피 머그컵 3개 — 왼쪽 책상에 2개, 오른쪽에 1개.
-          대마다 Leva 폴더(머그컵1~3)로 위치·높이·회전·크기를 조절한다. */}
+      {/* ── 들었다 놓을 수 있는 물건 (머그컵 3 · 노트북 3 · 서류 7) ──────
+             어디에 놓여 있는지는 '자리'가 정하고, 손에 든 것 하나는 여기서 빠져
+             카메라 앞(손에든것)에 그려진다. 배치·색·크기는 각자의 Leva 폴더에서. */}
       <Suspense fallback={null}>
-        {mgLive.map((m, i) => (
-          <Mug
-            선={MG선}
-            key={`mug${i}`}
-            pos={[m.x, m.z]}
-            rot={m.회전}
-            y={m.높이}
-            scale={MG.크기}
-            sizeMul={m.개별크기}
-            cCup={MG.컵색}
-            cCoffee={MG.커피색}
-          />
-        ))}
+        {들물건.map((o) => {
+          if (로비.든것 === o.id) return null;
+          const 곳 = 놓인곳(o);
+          return (
+            <group key={o.id}>
+              <상호대상
+                id={`집기:${o.id}`}
+                반경={0.55}
+                위치={() => {
+                  const c = 놓인곳(o);
+                  return [c.x, c.y + 0.25, c.z];
+                }}
+                라벨={`[E] ${o.이름} 들기`}
+                // ★ 위에 뭔가 얹혀 있으면 아예 겨냥 대상에서 뺀다.
+                //   글자로 이유를 알려 주지 않기로 했으니, '빛나지 않는다'가
+                //   곧 '지금은 못 든다'라는 뜻이 되어야 한다.
+                끔={() => !!로비.든것 || !!위에얹힌것(o.id)}
+                실행={() => 집기(o.id)}
+              />
+              {/* 면 = 이 위에도 올릴 수 있다 · 자리 = 겹침 검사 · 재기 = 발자국 크기 */}
+              <잰다
+                id={o.id}
+                면
+                자리
+                재기
+                다시재기={`${곳.x},${곳.y},${곳.z},${곳.rot},${o.v.개별크기 ?? o.v.크기},${MG.크기},${LP.크기}`}
+              >
+                <강조
+                  id={`집기:${o.id}`}
+                  색={HL.색}
+                  세기={HL.세기}
+                  확대={HL.커지기}
+                  기준={() => {
+                    const c = 놓인곳(o);
+                    return [c.x, c.y, c.z];
+                  }}
+                >
+                  {물건그리기(o, 곳)}
+                </강조>
+              </잰다>
+            </group>
+          );
+        })}
       </Suspense>
-
-      {/* 노트북 2대 — 같은 laptop.glb 파일 하나를 두 번 배치한다.
-          같은 파일은 GPU 메모리에 한 번만 올라가므로(useGLTF 캐시),
-          2대째는 추가 비용이 거의 없다. 위치·회전만 다르게 줘서 다른 노트북처럼 보이게. */}
-      <Suspense fallback={null}>
-        {lpLive.map((l, i) => (
-          <Laptop
-            선={LP선}
-            key={`laptop${i}`}
-            pos={[l.x, l.z]}
-            rot={l.회전}
-            y={l.높이}
-            scale={LP.크기 * l.개별크기}
-            cScreen={LP.화면색}
-            cBezel={LP.테두리색}
-            cKeys={LP.키보드색}
-            cTrackpad={LP.트랙패드색}
-            cBody={LP.본체색}
-            screenOn={LP.화면켜기}
-            screenColor={LP.화면빛색}
-          />
-        ))}
-      </Suspense>
-
-      {/* 서류 더미 9개 — GLB 없이 코드로 만든다(낱장 = 얇은 상자).
-          더미마다 모든 값을 Leva 폴더에서 따로 조절한다. */}
-      {spLive.map((s, i) => (
-        <PaperStack
-          key={`paper${i}`}
-          pos={[s.x, s.z]}
-          y={s.높이}
-          rot={s.회전}
-          scale={s.크기}
-          sheets={s.낱장수}
-          spread={s.흐트러짐}
-          slide={s.밀림}
-          thick={s.한장두께}
-          lean={s.무너짐}
-          seed={s.씨드}
-          paperColor={s.종이색}
-          folderColor={s.봉투색}
-          clipCount={s.집게수}
-          stickyCount={s.포스트잇수}
-          printed={s.글자표시}
-          printedFolder={s.봉투글자}
-          textStyle={s.글씨종류}
-          선={SP선}
-        />
-      ))}
       </group>
+
+      {/* ── 손에 든 것과 미리보기는 '방 그룹' 밖에 둔다 ────────────
+             방 그룹은 구역 최적화가 통째로 껐다 켠다. 안에 두면 복도로 나가는 순간
+             들고 있던 컵이 화면에서 사라진다. */}
+      <Suspense fallback={null}>
+        {/* 계산은 보여주기와 분리 — 표시를 꺼도 놓기가 동작해야 한다 */}
+        <놓을자리계산 물건id={로비.든것} />
+
+        {로비.든것 && PV.유령보이기 && (
+          <놓기유령
+            가능색={PV.가능색}
+            불가색={PV.불가색}
+            투명도={PV.유령투명도}
+          >
+            {물건그리기(들물건.find((o) => o.id === 로비.든것))}
+          </놓기유령>
+        )}
+
+        {로비.든것 && (
+          <손에든것 물건id={로비.든것}>
+            {물건그리기(들물건.find((o) => o.id === 로비.든것))}
+          </손에든것>
+        )}
+      </Suspense>
 
       {/* ══════════════════════════════════════════════════════
           소품 자리 — 나중에 GLB 모델을 여기에 배치한다.
           COLLIDERS의 AABB는 그대로 살아 있으므로 아래 좌표에 맞춰 넣으면 된다.
 
-            매표소 카운터 : position [0, 0, -12]      (AABB x −4~4 / z −13.2~−10.8)
             벤치          : position [10.5, 0, 6]     (AABB x 8.5~12.5 / z 5.4~6.6)
             화분          : [-5, 0, -9.5] , [5, 0, -9.5]
             포스터        : 좌벽 [-23.6, 5, -8] , [-23.6, 5, 6] / 우벽 [23.6, 5, 8]
@@ -10102,92 +10620,6 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
   );
 }
 
-// ===== 매표소 모달 (UI만 새 팔레트로) =====
-const DESTS = { 여수: ["여수엑스포", "여천"], 순천: ["순천역", "순천만"] };
-function TicketModal({ onClose }) {
-  const [step, setStep] = useState("category");
-  const [region, setRegion] = useState(null);
-  const [dest, setDest] = useState(null);
-  return (
-    <div style={S.backdrop} onClick={onClose}>
-      <div style={S.card} onClick={(e) => e.stopPropagation()}>
-        <div style={S.head}>
-          <span>매표소 · Tickets</span>
-          <button style={S.x} onClick={onClose}>
-            ✕
-          </button>
-        </div>
-        {step === "category" && (
-          <>
-            <p style={S.q}>어디로 떠나시나요?</p>
-            <button style={S.btn} onClick={() => setStep("region")}>
-              국내
-            </button>
-            <button style={S.dim} disabled>
-              해외 · 준비중
-            </button>
-          </>
-        )}
-        {step === "region" && (
-          <>
-            <p style={S.q}>지역 노선</p>
-            {["여수", "순천"].map((r) => (
-              <button
-                key={r}
-                style={S.btn}
-                onClick={() => {
-                  setRegion(r);
-                  setStep("dest");
-                }}
-              >
-                {r}
-              </button>
-            ))}
-            <button style={S.dim} disabled>
-              광주 · 준비중(역사기행)
-            </button>
-            <button style={S.link} onClick={() => setStep("category")}>
-              ← 뒤로
-            </button>
-          </>
-        )}
-        {step === "dest" && (
-          <>
-            <p style={S.q}>{region} — 목적지</p>
-            {DESTS[region].map((d) => (
-              <button
-                key={d}
-                style={S.btn}
-                onClick={() => {
-                  setDest(d);
-                  setStep("done");
-                }}
-              >
-                {d}
-              </button>
-            ))}
-            <button style={S.link} onClick={() => setStep("region")}>
-              ← 뒤로
-            </button>
-          </>
-        )}
-        {step === "done" && (
-          <>
-            <p style={S.q}>발권 완료</p>
-            <p style={S.ticket}>
-              {region} · {dest} 행 승차권
-            </p>
-            <p style={S.small}>오른쪽 기차역(승강장)으로 가서 탑승하세요.</p>
-            <button style={S.btn} onClick={onClose}>
-              확인
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ===== 최상위 (로직 변경 없음) =====
 // ===== 실행 모드 =====
 
@@ -10206,7 +10638,6 @@ export default function App() {
     계기판: false,
   });
   const [near, setNear] = useState("");
-  const [modalOpen, setModalOpen] = useState(false);
   // GPU가 그래픽 컨텍스트를 회수해 갔는지. 회수되면 캔버스가 통째로 검게 된다.
   const [GPU끊김, setGPU끊김] = useState(false);
   // 블랙박스는 그냥 객체라서 값이 바뀌어도 React가 모른다.
@@ -10277,9 +10708,24 @@ export default function App() {
   //   ※ 페이드 자체는 남겨 뒀다 — 나중에 세션이 통째로 바뀌는 자리
   //     (PRD 전역-006)에서는 세 번째 인자를 빼고 부르면 그대로 쓸 수 있다.
   const 기차타기 = useCallback(
-    () => 씬전환("/train", undefined, false),
+    () =>
+      씬전환(
+        "/train",
+        () => {
+          // 들고 있던 물건은 원래 자리에 두고 간다(GRD-01 되돌릴 수 있음).
+          제자리로();
+        },
+        false,
+      ),
     [씬전환],
   );
+
+  // 지금 보고 있는 자리에 내려놓는다. 겹치거나 면이 아니면 아무 일도 안 한다.
+  const 놓기시도 = useCallback(() => {
+    const r = 최근자리값();
+    if (!r?.됨) return false;
+    return 놓기({ x: r.x, y: r.y, z: r.z, rot: r.rot });
+  }, []);
   const 기차내리기 = useCallback(
     () =>
       씬전환(
@@ -10301,41 +10747,94 @@ export default function App() {
     if (near === "train진입" && !기차안) 기차타기();
   }, [near, 기차안, 기차타기]);
 
-  const openBooth = useCallback(() => {
-    setModalOpen(true);
+  // ── 화면 위 창(소지품 등) ────────────────────────────────
+  //   창을 열면 **마우스 잠금을 푼다** — 안 그러면 커서가 없어 칸을 못 고른다.
+  //   닫으면 다시 잠가서 1인칭으로 돌아온다.
+  const 열린창 = use열린층();
+  // 창을 열기 직전에 마우스가 잠겨 있었나. 닫을 때 그 상태로 되돌린다.
+  //   ★ 무조건 다시 잠그면 안 된다 — T 를 누른 적 없는 사람이 소지품만 열어 봤다가
+  //     닫는 순간 갑자기 1인칭에 갇힌다.
+  const 잠금복귀 = useRef(false);
+  const 창열기 = useCallback((이름) => {
+    잠금복귀.current = !!document.pointerLockElement;
+    화면층.열기(이름);
     controlsRef.current?.unlock();
   }, []);
-  const closeBooth = useCallback(() => {
-    setModalOpen(false);
-    controlsRef.current?.lock();
+  const 창닫기 = useCallback(() => {
+    화면층.닫기();
+    if (잠금복귀.current) controlsRef.current?.lock();
+  }, []);
+
+  // ★★ 개발용 임시 물건 — **서버가 붙으면 지운다.** ★★
+  //   지울 때는 `개발용_소지품씨앗` 으로 검색하면 관련 부분이 전부 나온다.
+  //   실제로는 계약(v0.3.1)의 `clue_acquired` 상태 변경이 왔을 때 소지품.넣기() 를 부른다.
+  //   조용히:true — 접속하자마자 창이 튀어나오지 않게. 서버 복원분도 이 길로 들어온다.
+  useEffect(() => {
+    소지품.넣기여러개(개발용_소지품씨앗, { 조용히: true });
   }, []);
 
   useEffect(() => {
+    // Leva 숫자칸·색칸에 타이핑하는 중이면 게임 키로 먹지 않는다.
+    //   ★ 이게 없으면 Leva 에서 색 코드에 'i' 를 치는 순간 소지품이 열린다.
+    //     T·E 도 같은 문제라 여기서 한꺼번에 막는다.
+    const 글씨입력중 = (t) =>
+      !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+
     const onKey = (e) => {
+      if (글씨입력중(e.target)) return;
+
+      // ESC — 열린 창이 있으면 그것부터 닫는다(CMN-035 우선순위).
+      //   ※ 브라우저가 ESC 로 마우스 잠금을 먼저 푸는 건 막을 수 없다.
+      //     창이 열려 있을 땐 이미 풀어 둔 상태라 부딪히지 않는다.
+      if (e.code === "Escape") {
+        if (열린창) 창닫기();
+        return;
+      }
+
+      // I키 — 소지품. 열려 있으면 닫힌다.
+      //   ★ **마우스 잠금(T)과 무관하게 연다.** 소지품은 월드 상호작용이 아니라
+      //     화면 창이다. `locked` 를 조건으로 걸었더니 페이지를 열고 바로 I 를 누른
+      //     사람에게는 아무 일도 안 일어났다(실제로 그렇게 막혔다).
+      //     닫을 때도 마찬가지 — 창을 열며 잠금을 풀었으므로 그때 locked 는 이미 false 다.
+      if (e.code === "KeyI") {
+        if (열린창 === 층.소지품) 창닫기();
+        else if (!열린창) 창열기(층.소지품);
+        return;
+      }
+
+      // 창이 열려 있는 동안은 아래 게임 조작을 전부 막는다(입력 우선순위: 창 > 게임)
+      if (열린창) return;
+
       // T키 — 1인칭 시작(마우스 잠금). 클릭 대신 키로 시작해 Leva를 자유롭게 만진다.
-      if (e.code === "KeyT" && !locked && !modalOpen) {
+      if (e.code === "KeyT" && !locked) {
         controlsRef.current?.lock();
         return;
       }
-      if (e.code !== "KeyE" || !locked || modalOpen) return;
-      if (near === "booth") openBooth();
-      else if (near === "train") 기차타기(); // 역 → 기차 안 ([E] 백업 경로)
+      if (e.code !== "KeyE" || !locked) return;
+      // ★ 순서는 화면 아래 안내문과 반드시 같아야 한다.
+      //   ① 정면으로 겨냥한 것  ② 들고 있으면 놓기  ③ 문
+      if (상호실행()) return;
+      if (놓기시도()) return;
+      if (near === "train") 기차타기(); // 역 → 기차 안 ([E] 백업 경로)
       else if (near === "기차나가기") 기차내리기(); // 기차 안 → 역
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [near, locked, modalOpen, openBooth, 기차타기, 기차내리기]);
+  }, [near, locked, 열린창, 창열기, 창닫기, 기차타기, 기차내리기, 놓기시도]);
 
-  const active = locked && !modalOpen;
-  // 화면 안내 문구.
-  //   ★ 기차·공항 안내는 뺐다(기능은 그대로 — 근처에서 E 를 누르면 동작한다).
-  //     아직 연출이 정해지지 않은 자리라 안내만 먼저 띄우면 미완성으로 보인다.
-  const hint =
-    near === "기차나가기"
-      ? "[E] 기차에서 내리기"
-      : near === "booth"
-        ? "[E] 매표소 이용"
-        : "";
+  // 창이 열려 있으면 이동·조준을 멈춘다.
+  //   ※ 여기에 나중에 **타이머 정지**(GRD-07)도 같이 걸린다.
+  const active = locked && !열린창;
+  // 화면 안내 문구. 지금 남은 건 기차에서 내리기 하나뿐이다.
+  // ── 화면 아래 안내문 ────────────────────────────────────
+  // ★ 물건 조작 안내는 **글자를 쓰지 않는다.**
+  //   겨냥한 물건이 스스로 살짝 커지고 빛나며(강조.jsx), 들고 있을 때는 놓일 자리에
+  //   초록/빨강 유령이 뜬다. 시선이 물건에 가 있는데 화면 구석 글씨를 읽게 만들
+  //   이유가 없다. 여기 남은 건 씬을 옮기는 안내 하나뿐이다 —
+  //   그건 물건이 아니라 이동이라 빛낼 대상이 없다.
+  const 로비 = use로비상태();
+  const hint = near === "기차나가기" ? "[E] 기차에서 내리기" : "";
+  const 안내경고 = false;
 
   return (
     <div className="stage" style={{ position: "relative" }}>
@@ -10423,6 +10922,9 @@ export default function App() {
           />
         )}
 
+        {/* 겨냥 판정 — 로비에서만 돈다. */}
+        <겨냥판정 켬={active && !기차안} />
+
         {/* ═══ 씬이 바뀌어도 살아 있어야 하는 것들 ═══
             여기 두면 역 ↔ 기차 안을 오갈 때 다시 만들어지지 않는다. */}
 
@@ -10472,15 +10974,20 @@ export default function App() {
         }}
       />
       {/* 가운데 안내 텍스트 제거(요청) — 필요하면 이 블록 되살리면 된다.
-      {!locked && !modalOpen && (
+      {!locked && (
         <div style={S.center}>
           [T] 시작 · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · ESC
         </div>
       )} */}
       {/* 조준점 — 1인칭은 커서가 없으니 화면 한가운데가 커서다 */}
       {active && <div style={S.조준점} />}
-      {active && hint && <div style={S.hint}>{hint}</div>}
-      {modalOpen && <TicketModal onClose={closeBooth} />}
+      {active && hint && (
+        <div style={안내경고 ? { ...S.hint, color: "#ffb4a8" } : S.hint}>
+          {hint}
+        </div>
+      )}
+      {/* 소지품 — 화면층이 '지금 열린 창'을 정하므로 두 창이 겹칠 수 없다 */}
+      <소지품UI 열림={열린창 === 층.소지품} 닫기={창닫기} />
       {/* GPU가 죽었을 때만 뜬다. 검은 화면만 남으면 원인을 알 수 없으니 안내한다. */}
       {GPU끊김 && (
         <div style={S.끊김}>
@@ -10668,82 +11175,4 @@ const S = {
     borderRadius: 20,
     pointerEvents: "none",
   },
-  backdrop: {
-    position: "absolute",
-    inset: 0,
-    background: "rgba(16,22,38,.55)",
-    display: "grid",
-    placeItems: "center",
-  },
-  card: {
-    width: 320,
-    background: "#EDF1F7",
-    color: "#2C3444",
-    borderRadius: 14,
-    padding: 20,
-    font: "15px sans-serif",
-    boxShadow: "0 20px 50px rgba(16,22,38,.45)",
-  },
-  head: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    fontSize: 18,
-    fontWeight: 600,
-    marginBottom: 14,
-    fontFamily: "serif",
-  },
-  x: {
-    background: "none",
-    border: "none",
-    color: "#2C3444",
-    fontSize: 18,
-    cursor: "pointer",
-  },
-  q: { margin: "4px 0 12px", color: "#5C6982" },
-  btn: {
-    display: "block",
-    width: "100%",
-    margin: "8px 0",
-    padding: 12,
-    background: P.gold,
-    color: "#2C3444",
-    border: "none",
-    borderRadius: 10,
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  dim: {
-    display: "block",
-    width: "100%",
-    margin: "8px 0",
-    padding: 12,
-    background: "#D2D9E3",
-    color: "#8A94A6",
-    border: "none",
-    borderRadius: 10,
-    fontSize: 15,
-    cursor: "not-allowed",
-  },
-  link: {
-    display: "block",
-    width: "100%",
-    marginTop: 6,
-    padding: 8,
-    background: "none",
-    color: "#7E8CA0",
-    border: "none",
-    fontSize: 14,
-    cursor: "pointer",
-  },
-  ticket: {
-    background: "#DCE3EE",
-    padding: 14,
-    borderRadius: 10,
-    textAlign: "center",
-    fontSize: 17,
-    margin: "6px 0",
-  },
-  small: { color: "#6E7C90", fontSize: 13, margin: "8px 0 14px" },
 };
