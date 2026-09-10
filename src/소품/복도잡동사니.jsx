@@ -150,6 +150,56 @@ function 콘크리트지오(r) {
   return g;
 }
 
+// ── 각목 — 부러진 자리가 갈라져 있다 ───────────────────────
+//   반듯한 막대는 '나무 토막'이 아니라 '상자'로 보인다. 끝을 들쭉날쭉하게
+//   깨뜨리고, 결을 따라 색을 줄무늬로 넣어야 나무가 된다.
+function 각목지오(r) {
+  const 판 = new THREE.BoxGeometry(1, 0.14, 0.2, 6, 1, 1);
+  const g = 판.toNonIndexed();
+  판.dispose();
+  const p = g.attributes.position;
+  const 씨 = r() * 8;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i);
+    const 끝 = Math.max(0, Math.abs(x) - 0.32) / 0.18; // 양 끝에서만 1 로 간다
+    if (끝 <= 0) continue;
+    const j = 자리잡음(x * 9 + 씨, p.getY(i) * 9, p.getZ(i) * 9);
+    // 부러진 끝 — 길이·두께가 가시처럼 튀거나 패인다
+    p.setXYZ(
+      i,
+      x + (j - 0.4) * 0.18 * 끝,
+      p.getY(i) * (1 - 0.45 * 끝 * j),
+      p.getZ(i) * (1 - 0.35 * 끝 * (1 - j)),
+    );
+  }
+  p.needsUpdate = true;
+  g.computeVertexNormals();
+  return g;
+}
+
+// ── 녹슨 철판 조각 — 한쪽이 휘어 들린 얇은 판 ───────────────
+function 철판지오(r) {
+  const 판 = new THREE.PlaneGeometry(1, 0.6, 4, 3);
+  const g = 판.toNonIndexed();
+  판.dispose();
+  g.rotateX(-Math.PI / 2);
+  const p = g.attributes.position;
+  // 말림이 세면 키운 뒤에 20cm 넘게 들려 '세워 둔 판'처럼 보인다
+  const 휨 = 0.13 + r() * 0.2;
+  const 씨 = r() * 6;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i);
+    const z = p.getZ(i);
+    // 한쪽 끝이 말려 들리고, 표면이 우글거린다(부식된 철판의 특징)
+    const u = x + 0.5;
+    const y = 휨 * u * u + 0.035 * Math.sin(x * 9 + 씨) * Math.cos(z * 11);
+    p.setXYZ(i, x, y, z);
+  }
+  p.needsUpdate = true;
+  g.computeVertexNormals();
+  return g;
+}
+
 // ── 전단지 — 바닥에 눌린 채 귀퉁이가 말린 종이 ──────────────
 function 전단지지오(r) {
   const 판 = new THREE.PlaneGeometry(1, 0.72, 5, 4);
@@ -181,11 +231,14 @@ const 종류들 = [
   { 이름: "전단지", 무게: 4 },
   { 이름: "콘크리트조각", 무게: 4 },
   { 이름: "담배꽁초", 무게: 3 },
+  { 이름: "각목", 무게: 2 }, // 드물게 — 크고 눈에 띄어서 많으면 어수선하다
+  { 이름: "녹슨철판", 무게: 2 },
 ];
 const 뽑기표 = 종류들.flatMap((t, i) => Array(t.무게).fill(i));
 
 const _색 = new THREE.Color();
 const _색2 = new THREE.Color();
+const _은색 = new THREE.Color("#9aa1a8"); // 녹이 덜 슨 성한 쇠
 
 // 지오메트리에 정점색을 굽는다.
 //   칠 = (x,y,z, 높이비율) => [r,g,b] 또는 null(= 기본색)
@@ -231,7 +284,9 @@ function 칸으로(g, 칸, 열, 행) {
 // ── 배치 ────────────────────────────────────────────────────
 //   반환: { 캔: geo|null, 잡동: geo|null }
 //   캔만 따로 빼는 이유 — 라벨 그림(아틀라스)을 쓰므로 재질이 다르다.
-function 잡동사니지오({ x0, x1, z0, z1, 개수, seed, 밝기, 바닥y, 아틀라스열, 아틀라스행 }) {
+function 잡동사니지오({
+  x0, x1, z0, z1, 개수, seed, 밝기, 바닥y, 크기 = 1, 아틀라스열, 아틀라스행,
+}) {
   const r = makeRandom(seed);
   const 폭 = x1 - x0;
   const 캔조각 = [];
@@ -261,7 +316,7 @@ function 잡동사니지오({ x0, x1, z0, z1, 개수, seed, 밝기, 바닥y, 아
       const 칸 = Math.floor(r() * 캔종류.length);
       g = 돌려서굳히기(캔옆선, 10, (a) => 칸으로(a, 칸, 아틀라스열, 아틀라스행));
       찌그러뜨리기(g, 세기, r);
-      g.scale(0.19, 0.44, 0.19);
+      g.scale(0.19 * 크기, 0.44 * 크기, 0.19 * 크기);
       // 거의 다 누워 있다. 서 있는 캔은 방금 놓은 것처럼 보여 드물어야 한다.
       if (r() > 0.12) g.rotateX(Math.PI / 2 + (r() - 0.5) * 0.5);
       // 라벨 위에 얹는 색 — 때가 타 조금 어둡고, 개체마다 살짝 다르다
@@ -271,7 +326,7 @@ function 잡동사니지오({ x0, x1, z0, z1, 개수, seed, 밝기, 바닥y, 아
       const 세기 = 0.35 + r() * 0.5; // 종이컵은 거의 다 찌그러진다
       g = 돌려서굳히기(컵옆선, 10);
       찌그러뜨리기(g, 세기, r);
-      g.scale(0.17, 0.3, 0.17);
+      g.scale(0.17 * 크기, 0.3 * 크기, 0.17 * 크기);
       if (r() > 0.25) g.rotateX(Math.PI / 2 + (r() - 0.5) * 0.6);
       // 바닥에 남은 커피 자국 — 아래로 갈수록 진하다. 이게 있어야 '쓰던 컵'이다.
       _색.set("#d6cfbe");
@@ -284,7 +339,7 @@ function 잡동사니지오({ x0, x1, z0, z1, 개수, seed, 밝기, 바닥y, 아
       });
     } else if (t.이름 === "전단지") {
       g = 전단지지오(r);
-      g.scale(0.28 + r() * 0.16, 1, 0.28 + r() * 0.14);
+      g.scale((0.28 + r() * 0.16) * 크기, 크기, (0.28 + r() * 0.14) * 크기);
       g.rotateY(r() * Math.PI * 2);
       // 인쇄면 — 위쪽에 제목 띠, 아래쪽에 본문 줄. 백지는 종이로 안 보인다.
       _색.set(r() < 0.5 ? "#c9c3b2" : "#d2ccbb");
@@ -299,7 +354,7 @@ function 잡동사니지오({ x0, x1, z0, z1, 개수, seed, 밝기, 바닥y, 아
       });
     } else if (t.이름 === "콘크리트조각") {
       g = 콘크리트지오(r);
-      const s = 0.1 + r() * 0.13;
+      const s = (0.1 + r() * 0.13) * 크기;
       g.scale(s, s, s);
       g.rotateY(r() * Math.PI * 2);
       g.rotateZ((r() - 0.5) * 0.7);
@@ -312,11 +367,44 @@ function 잡동사니지오({ x0, x1, z0, z1, 개수, seed, 밝기, 바닥y, 아
         const v = 어둡 * 알갱이;
         return [c.r * v, c.g * v, c.b * v];
       });
+    } else if (t.이름 === "각목") {
+      g = 각목지오(r);
+      g.scale((0.55 + r() * 0.5) * 크기, 크기, 크기);
+      g.rotateY(r() * Math.PI * 2);
+      g.rotateZ((r() - 0.5) * 0.25);
+      // 나무 결 — 길이 방향 줄무늬. 젖어서 검게 상한 데가 섞인다.
+      _색.set("#7a6449");
+      _색2.set("#3b2f22");
+      색굽기(g, null, (px, py, pz) => {
+        const 결 = 자리잡음(px * 3.5, pz * 26, 0);
+        const 썩음 = Math.max(0, 자리잡음(px * 2.1, 0, pz * 2.1) - 0.55) * 2;
+        const c = _색.clone().lerp(_색2, 0.25 + 결 * 0.35 + 썩음 * 0.5);
+        const v = 어둡;
+        return [c.r * v, c.g * v, c.b * v];
+      });
+    } else if (t.이름 === "녹슨철판") {
+      g = 철판지오(r);
+      const s = (0.3 + r() * 0.26) * 크기;
+      g.scale(s, 크기, s);
+      g.rotateY(r() * Math.PI * 2);
+      // 녹 — 얼룩덜룩해야 한다. 고른 갈색은 페인트지 녹이 아니다.
+      _색.set("#8a4a26");
+      _색2.set("#2e1c12");
+      색굽기(g, null, (px, py, pz) => {
+        const 녹 = 자리잡음(px * 11, py * 11, pz * 11);
+        const 성한데 = Math.max(0, 자리잡음(px * 4, 0, pz * 4) - 0.62) * 2.6;
+        const c = _색
+          .clone()
+          .lerp(_색2, 0.15 + 녹 * 0.55)
+          .lerp(_은색, Math.min(0.6, 성한데));
+        const v = 어둡;
+        return [c.r * v, c.g * v, c.b * v];
+      });
     } else {
       // 담배꽁초 — 필터는 연갈색, 태운 끝은 검정. 살짝 꺾여 있다.
       g = 돌려서굳히기(꽁초옆선, 7);
       찌그러뜨리기(g, 0.25 + r() * 0.25, r);
-      g.scale(0.028, 0.09, 0.028);
+      g.scale(0.028 * 크기, 0.09 * 크기, 0.028 * 크기);
       g.rotateX(Math.PI / 2 + (r() - 0.5) * 0.4);
       g.rotateY(r() * Math.PI * 2);
       _색.set("#cbb27a");
@@ -511,6 +599,162 @@ function 캔아틀라스() {
   return t;
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  부식 자국 — 바닥·벽에 번진 녹과 물때
+// ═══════════════════════════════════════════════════════════════
+// [왜 필요한가]
+//   벽·바닥 질감은 한 장을 되풀이해 깐다. 아무리 잘 그려도 '고르게 낡은 면'이
+//   되어, 가까이 가면 무늬가 반복되는 게 보인다.
+//   실제로 낡은 공간은 **고르게** 낡지 않는다 — 물이 닿은 자리, 쇠가 박힌 자리,
+//   배관 밑처럼 **한 군데씩** 썩어 들어간다. 그 얼룩덜룩함이 세월을 만든다.
+//
+// [어떻게 만드나]
+//   판을 하나 덧대고 가운데는 녹색, 가장자리는 **바탕면 색**으로 물들인다.
+//   가장자리가 바탕과 같은 색이라 테두리 없이 스르륵 번져 보인다.
+//   원판을 그대로 쓰면 동그란 스티커라, 반지름을 들쭉날쭉하게 흔든다.
+//
+// [벽에 흘러내린 자국]
+//   물이 새면 아래로 흐른다. 그래서 벽 자국은 위가 좁고 아래로 길게 끌린다.
+//   이게 있고 없고가 '더러운 벽'과 '녹슨 벽'을 가른다.
+
+const 녹색조 = ["#7a3f1f", "#8f5227", "#5d3a22", "#46301f"];
+
+function 얼룩판(r, { 세로늘림 = 1 } = {}) {
+  const g = new THREE.CircleGeometry(0.5, 16);
+  const p = g.attributes.position;
+  const 씨 = r() * 9;
+  for (let i = 1; i < p.count; i++) {
+    // 0번은 한가운데라 안 건드린다
+    const k = 0.55 + 0.75 * 자리잡음(p.getX(i) * 6 + 씨, p.getY(i) * 6, 씨);
+    p.setXY(i, p.getX(i) * k, p.getY(i) * k * 세로늘림);
+  }
+  p.needsUpdate = true;
+  return g;
+}
+
+// 얼룩 하나에 색을 굽는다 — 가운데는 녹, 가장자리는 바탕색(그래야 번져 보인다)
+function 얼룩색(g, 녹, 바탕, 밝) {
+  const p = g.attributes.position;
+  const c = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) {
+    // 삼각부채라 0번이 중심, 나머지가 테두리다
+    const 중심 = i === 0 ? 1 : 0;
+    const 섞 = 중심 ? 0 : 1;
+    _색.copy(녹).lerp(바탕, 섞).multiplyScalar(밝);
+    c[i * 3] = _색.r;
+    c[i * 3 + 1] = _색.g;
+    c[i * 3 + 2] = _색.b;
+  }
+  g.setAttribute("color", new THREE.BufferAttribute(c, 3));
+  return g;
+}
+
+function 부식지오({
+  x0, x1, z0, z1, 바닥y, 벽높이, 개수, seed, 밝기, 바닥색, 벽색, 문z, 문폭, 크기,
+}) {
+  const r = makeRandom(seed + 777);
+  const 조각 = [];
+  const 바탕바닥 = new THREE.Color(바닥색);
+  const 바탕벽 = new THREE.Color(벽색);
+  const 녹 = new THREE.Color();
+
+  // ── 바닥 ── 벽 밑과 웅덩이 언저리가 먼저 썩는다
+  for (let i = 0; i < 개수.바닥; i++) {
+    const 벽쪽 = r() < 0.75;
+    const u = 벽쪽 ? (r() < 0.5 ? 0.04 : 0.96) + (r() - 0.5) * 0.22 : 0.2 + r() * 0.6;
+    const x = x0 + Math.min(0.99, Math.max(0.01, u)) * (x1 - x0);
+    const z = z0 + r() * (z1 - z0);
+    const g = 얼룩판(r);
+    g.rotateX(-Math.PI / 2);
+    const s = (0.5 + r() * 1.5) * 크기;
+    g.scale(s, 1, s * (0.7 + r() * 0.8));
+    g.rotateY(r() * Math.PI);
+    g.translate(x, 바닥y + 0.004, z);
+    녹.set(녹색조[Math.floor(r() * 녹색조.length)]);
+    얼룩색(g, 녹, 바탕바닥, Math.max(0.12, 밝기(z)));
+    조각.push(g);
+  }
+
+  // ── 벽 ── 아래쪽(물이 스며오르는 자리)에 몰리고, 아래로 흘러내린다
+  for (let i = 0; i < 개수.벽; i++) {
+    const 왼쪽 = r() < 0.5;
+    const z = z0 + r() * (z1 - z0);
+    // 방으로 통하는 구멍 자리는 벽이 없다 → 거기엔 안 붙인다
+    if (!왼쪽 && Math.abs(z - 문z) < 문폭 / 2 + 0.3) continue;
+    const 흘림 = r() < 0.45;
+    const g = 얼룩판(r, { 세로늘림: 흘림 ? 2.6 + r() * 2.2 : 1 });
+    // 아래에 몰리게 — 제곱을 쓰면 바닥 가까이로 쏠린다
+    const h = Math.pow(r(), 1.8) * 벽높이 * 0.7 + 0.15;
+    const s = (0.45 + r() * 1.2) * 크기;
+    g.scale(s, s, 1);
+    // 흘러내린 자국은 아래로 끌리므로 중심을 위로 올려 잡는다
+    g.translate(0, 흘림 ? -s * 0.6 : 0, 0);
+    if (왼쪽) {
+      g.rotateY(Math.PI / 2);
+      g.translate(x0 + 0.03, h, z);
+    } else {
+      g.rotateY(-Math.PI / 2);
+      g.translate(x1 - 0.03, h, z);
+    }
+    녹.set(녹색조[Math.floor(r() * 녹색조.length)]);
+    얼룩색(g, 녹, 바탕벽, Math.max(0.12, 밝기(z)));
+    조각.push(g);
+  }
+
+  if (!조각.length) return null;
+  const 합 = mergeGeometries(조각, false);
+  조각.forEach((g) => g.dispose());
+  return 합;
+}
+
+/** 바닥·벽에 번진 부식 자국. 벽·바닥 면 바로 위에 덧대는 얇은 판들이다. */
+export function 복도부식({
+  x0, x1, z0, z1,
+  바닥y = 0.01,
+  벽높이 = 8,
+  바닥개수 = 16,
+  벽개수 = 26,
+  크기 = 1,
+  문z = -4,
+  문폭 = 4.4,
+  바닥색 = "#3a3d42",
+  벽색 = "#525b69",
+  seed = 4711,
+  밝기 = () => 1,
+}) {
+  const 지오 = useMemo(
+    () =>
+      부식지오({
+        x0, x1, z0, z1, 바닥y, 벽높이,
+        개수: { 바닥: 바닥개수, 벽: 벽개수 },
+        seed, 밝기, 바닥색, 벽색, 문z, 문폭, 크기,
+      }),
+    // 밝기는 매 렌더 새 함수라 의존성에 넣으면 계속 다시 만든다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [x0, x1, z0, z1, 바닥y, 벽높이, 바닥개수, 벽개수, seed, 바닥색, 벽색, 문z, 문폭, 크기],
+  );
+  useEffect(() => () => 지오?.dispose(), [지오]);
+  if (!지오) return null;
+  return (
+    <mesh geometry={지오}>
+      {/* 벽·바닥 면 바로 위에 겹쳐 그린다.
+             polygonOffset 이 없으면 두 면의 깊이값이 엎치락뒤치락해 깜빡인다.
+             외곽선은 두르지 않는다 — 얼룩에 테를 그으면 스티커가 된다. */}
+      <meshToonMaterial
+        vertexColors
+        color="#ffffff"
+        gradientMap={TOON_GRADIENT}
+        transparent
+        opacity={0.72}
+        depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={-2}
+        polygonOffsetUnits={-2}
+      />
+    </mesh>
+  );
+}
+
 export function 복도잡동사니({
   x0,
   x1,
@@ -520,6 +764,9 @@ export function 복도잡동사니({
   웅덩이 = 3,
   바닥y = 0.01, // 복도 바닥판이 깔린 높이
   천장y = 7, // 물방울이 시작하는 높이(천장 배관)
+  // ★ 실물 치수(1 유닛 ≈ 0.30m)대로 두면 넓은 복도에서 너무 작게 읽힌다.
+  //   스타일 게임은 바닥 소품을 실물보다 조금 키워야 눈에 들어온다.
+  크기 = 1.45,
   seed = 4711,
   밝기 = () => 1,
   선,
@@ -533,11 +780,11 @@ export function 복도잡동사니({
     () =>
       잡동사니지오({
         x0, x1, z0, z1,
-        개수: 실개수, seed, 밝기, 바닥y, 아틀라스열, 아틀라스행,
+        개수: 실개수, seed, 밝기, 바닥y, 크기, 아틀라스열, 아틀라스행,
       }),
     // 밝기는 매 렌더 새 함수라 의존성에 넣으면 계속 다시 만든다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [x0, x1, z0, z1, 실개수, seed, 바닥y],
+    [x0, x1, z0, z1, 실개수, seed, 바닥y, 크기],
   );
   const 물 = useMemo(
     () => 웅덩이지오({ 자리, seed, 바닥y, 밝기 }),
