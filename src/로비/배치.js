@@ -31,6 +31,15 @@ export const 점유등록 = (id, b) => 점유.set(id, b);
 export const 점유해제 = (id) => 점유.delete(id);
 export const 크기등록 = (id, s) => 크기.set(id, s);
 
+// ── 걸이(스냅 지점) ───────────────────────────────────────
+// 평면이 아닌 '한 점'에 되돌려 놓는 자리. 옷걸이에 모자를 다시 거는 것처럼.
+// [왜 따로 두나]
+//   놓을 자리는 광선 ↔ 수평면 교차로 찾는다. 옷걸이 가지는 면이 아니라 점이라
+//   그 방식으로는 절대 안 잡힌다. 실제 게임들이 쓰는 스냅 지점과 같은 개념이다.
+export const 걸이 = new Map(); // 걸이id -> { 물건id, x, y, z, rot, 반경 }
+export const 걸이등록 = (id, v) => 걸이.set(id, v);
+export const 걸이해제 = (id) => 걸이.delete(id);
+
 // 벽·기둥·가구처럼 '통과 못 하는 것' 목록은 App.jsx 가 들고 있다.
 // 여기서 그걸 import 하면 서로 물고 물리므로, 반대로 App 이 넣어 준다.
 let 월드박스 = () => [];
@@ -86,6 +95,31 @@ export function 놓을자리찾기(카메라, 물건id, 최대거리 = 9) {
 
   const o = 카메라.position;
   const d = _앞(카메라);
+
+  // ⓞ 걸이가 먼저다. 이 물건의 제자리가 시선에 걸리면 거기로 되돌린다.
+  for (const [gid, h] of 걸이) {
+    if (h.물건id !== 물건id) continue;
+    const hx = h.x - o.x,
+      hy = h.y - o.y,
+      hz = h.z - o.z;
+    const 앞거리 = hx * d.x + hy * d.y + hz * d.z;
+    if (앞거리 <= 0.3 || 앞거리 > 최대거리) continue;
+    const 옆거리제곱 = hx * hx + hy * hy + hz * hz - 앞거리 * 앞거리;
+    const 반 = h.반경 ?? 1.0;
+    if (옆거리제곱 > 반 * 반) continue;
+    return {
+      있나: true,
+      걸이: gid, // 이 값이 있으면 '제자리로 되돌리기'다
+      x: h.x,
+      y: h.y,
+      z: h.z,
+      rot: h.rot ?? 0,
+      halfX: s.halfX,
+      halfZ: s.halfZ,
+      height: s.height,
+      됨: true,
+    };
+  }
 
   // ① 광선 ↔ 각 면의 윗평면 교차. 가장 가까운 것 하나.
   let 최근 = null;

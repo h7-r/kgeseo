@@ -127,6 +127,8 @@ import { 잰다, 놓을자리계산, 놓기유령 } from "./로비/배치.jsx";
 import {
   월드박스공급,
   최근자리값,
+  걸이등록,
+  걸이해제,
   위에얹힌것,
   표면등록,
   표면해제,
@@ -7537,6 +7539,13 @@ function Cabinet({
         )}
       </mesh>
       {열림 && (
+        <강조
+          id={겨냥?.id}
+          색={겨냥?.색}
+          세기={겨냥?.세기}
+          확대={0} /* 서랍은 커지지 않는다 — 몸통 구멍에서 삐져나와 보인다 */
+          기준={() => [0, 0, 0]}
+        >
         <CabinetDrawer
           선={선}
           찌그러짐={찌그러짐}
@@ -7550,6 +7559,7 @@ function Cabinet({
           color={color}
           seed={seed}
         />
+        </강조>
       )}
       {/* 서랍 구분선 — 지오메트리는 셋이 공유하고 색만 따로 준다.
           toneMapped=false 라 어두운 방에서도 지정한 색 그대로 보인다. */}
@@ -7558,16 +7568,16 @@ function Cabinet({
           <lineBasicMaterial color={선색} toneMapped={false} />
         </lineSegments>
       )}
-      {/* 겨냥 강조 — 만질 수 있는 그 한 칸만. 열려 있으면 앞판과 같이 나온다. */}
-      {겨냥 && (
+      {/* 겨냥 강조 — 만질 수 있는 그 한 칸만.
+             ★ 닫혀 있을 때만 이 덧판을 쓴다. 닫힌 서랍은 GLB 몸통의 일부라
+               따로 밝힐 메시가 없기 때문이다.
+               열려 있으면 위쪽 <강조> 가 **서랍 메시 전체**(앞판·측벽·바닥·손잡이)를
+               밝힌다 — 예전에는 앞면만 빛나서 안쪽이 캄캄했다. */}
+      {겨냥 && !(열림 && 열림.칸 === 겨냥.칸) && (
         <서랍겨냥빛
           id={겨냥.id}
           칸={겨냥.칸}
-          z={
-            열림 && 열림.칸 === 겨냥.칸
-              ? CAB_SLOT_Z + 열림.양 + 0.0145
-              : CAB_FZ
-          }
+          z={CAB_FZ}
           색={겨냥.색}
           세기={겨냥.세기}
         />
@@ -8192,6 +8202,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
   const 서랍보정 = (항목id) => {
     const i = 서랍승객[항목id];
     if (i === undefined) return [0, 0];
+    // 한 번 집어서 다른 데 놓았으면 더는 그 서랍 소속이 아니다.
+    if (로비.자리[항목id]) return [0, 0];
     const d = ((서랍보기(i)?.양 ?? 0) - (서랍기본(i)?.양 ?? 0)) * CB.높이;
     const c = cbLive[i];
     return [Math.sin(c.회전) * d, Math.cos(c.회전) * d];
@@ -9336,7 +9348,21 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     가구커지기: { value: 0.02, min: 0, max: 0.1, step: 0.005 }, // 캐비닛·의자·스탠드
   });
 
-  // ── 들었다 놓을 수 있는 물건 (머그컵 3 · 노트북 3 · 서류 7) ──────────
+  // 모자를 옷걸이 제자리에 되돌릴 수 있게 '걸이'를 등록한다.
+  //   옷걸이 가지는 수평면이 아니라 점이라, 일반 놓기 판정으로는 절대 안 잡힌다.
+  useEffect(() => {
+    걸이등록("모자걸이", {
+      물건id: "hat0",
+      x: ht1.x,
+      y: ht1.높이,
+      z: ht1.z,
+      rot: ht1.회전,
+      반경: 1.1,
+    });
+    return () => 걸이해제("모자걸이");
+  }, [ht1.x, ht1.z, ht1.높이, ht1.회전]);
+
+  // ── 들었다 놓을 수 있는 물건 (머그컵 3 · 노트북 3 · 서류 7 · 모자 · 번호표 3) ────
   const 들물건 = [
     ...mgLive.map((v, i) => ({ id: `mug${i}`, 종류: "머그", 이름: "머그컵", v })),
     ...lpLive.map((v, i) => ({ id: `laptop${i}`, 종류: "노트북", 이름: "노트북", v })),
@@ -9344,6 +9370,19 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     // 중절모 — 옷걸이에 걸려 있다가 집어서 아무 데나 놓을 수 있다.
     ...(ht1.보이기
       ? [{ id: "hat0", 종류: "모자", 이름: "중절모", v: ht1 }]
+      : []),
+    // 현장 번호표 1·2·3 — 삼각 표지. 봉투·상자는 그대로 둔다(집기 대상 아님).
+    ...(EV.보이기
+      ? 증거목록
+          .map((항목, i) => ({ 항목, v: evLive[i] }))
+          .filter(({ 항목 }) => 항목.종류 === "번호표")
+          .map(({ 항목, v }) => ({
+            id: 항목.id,
+            종류: "번호표",
+            이름: `번호표 ${항목.번호}`,
+            번호: 항목.번호,
+            v,
+          }))
       : []),
   ];
   const 놓인곳 = (o) =>
@@ -9380,6 +9419,16 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           크기={o.v.크기}
           색={o.v.색}
         />
+      );
+    if (o.종류 === "번호표")
+      return (
+        <group
+          position={[pos[0], y, pos[1]]}
+          rotation={[0, rot, 0]}
+          scale={EV.크기}
+        >
+          <증거번호표 번호={o.번호} 선={EV선} />
+        </group>
       );
     if (o.종류 === "노트북")
       return (
@@ -10299,6 +10348,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
       {/* ── 증거물 3종 — 그냥 놓여 있는 소품이다(조사 기능 없음) ── */}
       {EV.보이기 &&
         증거목록.map((항목, i) => {
+          // 번호표는 '들 수 있는 물건'으로 옮겼다 → 여기서는 그리지 않는다.
+          if (항목.종류 === "번호표") return null;
           const v = evLive[i];
           const [dx, dz] = 서랍보정(항목.id); // 서랍에 실린 것이면 같이 움직인다
           return (
@@ -10679,7 +10730,10 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
               {/* 면 = 이 위에도 올릴 수 있다 · 자리 = 겹침 검사 · 재기 = 발자국 크기 */}
               <잰다
                 id={o.id}
-                면
+                /* ★ 위에 물건을 올릴 수 있는 건 윗면이 평평한 것만.
+                     컵·모자·삼각 번호표의 상자 크기 윗면은 실제로는 뾰족하거나
+                     둥글어서, 올릴 수 있게 하면 물건이 허공에 걸쳐 보인다. */
+                면={o.종류 === "노트북" || o.종류 === "서류"}
                 자리
                 재기
                 기준y={곳.y}
@@ -10863,6 +10917,12 @@ export default function App() {
   const 놓기시도 = useCallback(() => {
     const r = 최근자리값();
     if (!r?.됨) return false;
+    // 걸이 = 제자리로 되돌리기. 좌표를 적는 대신 덮어쓴 자리를 지운다 →
+    //   그래야 옷걸이에 걸린 원래 모습(기울기까지)이 그대로 돌아온다.
+    if (r.걸이) {
+      제자리로();
+      return true;
+    }
     return 놓기({ x: r.x, y: r.y, z: r.z, rot: r.rot });
   }, []);
   const 기차내리기 = useCallback(
