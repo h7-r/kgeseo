@@ -227,3 +227,132 @@ export function 눈알만들기({ 자리, 반지름, 바깥, 홍채, 동공, 동
   n.translate(자리.x, 자리.y, 자리.z);
   return n;
 }
+
+// ── 가는 것(기둥·가로대) 찾기 ───────────────────────────────
+//   [무엇을 푸나]
+//     Meshy 모형에는 재질이 없다. 그런데 천막은 **천과 나무**로 되어 있고,
+//     둘은 색이 달라야 한다(사용자 지시: 천 회색 · 기둥 나무색).
+//     「여기가 나무」라고 적힌 데가 없으니 **모양으로** 갈라야 한다.
+//
+//   [갈리는 성질]
+//     기둥은 **가로로 가늘다.** 어느 높이에서 얇게 썰어 보면 지름 몇 cm 짜리
+//     작은 점이다. 천은 넓게 퍼진 면이라 같은 높이에서 사방으로 뻗는다.
+//     실측(천막 모형, 길이 1 기준)으로 분포가 **깨끗하게 둘로 갈렸다** —
+//       가로 퍼짐 0.02~0.06 : 1,520 점 (17 %)  ← 기둥
+//       가로 퍼짐 0.13~0.14 : 7,683 점 (83 %)  ← 천
+//     그 사이가 텅 비어 있어서 문턱을 어디에 둬도 같다.
+//
+//   [가로대는 한 겹 더 봐야 한다]
+//     천을 걸친 **가로 막대**도 나무인데, 가로로 길어서 위 시험만으로는
+//     천으로 잡힌다. 그래서 이웃의 **주축**을 본다 — 막대는 한 방향으로만
+//     길고 다른 방향으로는 가늘다. 작은 축이 얇으면 나무다.
+//
+//   [빠르기]  높이 슬랩 + 가로 격자로 나눠 이웃을 찾는다. 다 훑으면
+//     꼭짓점 5 만 개에 2 억 번이라 시작이 눈에 띄게 느려진다.
+export function 가는것찾기(
+  면,
+  { 슬랩 = 0.03, 반경 = 0.14, 퍼짐문턱 = 0.06, 작은축문턱 = 0.035 } = {},
+) {
+  const p = 면.attributes.position;
+  const n = p.count;
+
+  // ── 먼저 **같은 자리를 하나로 묶는다** ────────────────────
+  //   `toNonIndexed()` 를 지난 지오메트리는 면마다 꼭짓점을 따로 갖는다.
+  //   같은 자리가 평균 세 벌씩 있는 셈이라, 그대로 재면 **바깥 고리도 세 배
+  //   안쪽 고리도 세 배 → 아홉 배** 느리다(실측 1.79 초. 시작할 때 두 번
+  //   돌아서 3.6 초를 잡아먹었다).
+  //   자리별로 한 번만 재고 나머지는 그 답을 물려받는다.
+  const 대표 = new Map();
+  const 어느자리 = new Int32Array(n);
+  const 자리들 = [];
+  for (let i = 0; i < n; i++) {
+    const k = `${p.getX(i)},${p.getY(i)},${p.getZ(i)}`;
+    let r = 대표.get(k);
+    if (r === undefined) {
+      r = 자리들.length;
+      대표.set(k, r);
+      자리들.push(i);
+    }
+    어느자리[i] = r;
+  }
+  const m = 자리들.length;
+
+  // 높이 슬랩 → 가로 격자
+  const 칸 = 반경;
+  const 통 = new Map();
+  const 열쇠 = (s, gx, gz) => `${s}|${gx}|${gz}`;
+  for (let r = 0; r < m; r++) {
+    const i = 자리들[r];
+    const k = 열쇠(
+      Math.floor(p.getY(i) / 슬랩),
+      Math.floor(p.getX(i) / 칸),
+      Math.floor(p.getZ(i) / 칸),
+    );
+    let a = 통.get(k);
+    if (!a) 통.set(k, (a = []));
+    a.push(i);
+  }
+  const 나무자리 = new Set();
+  const 반경2 = 반경 * 반경;
+  for (let r = 0; r < m; r++) {
+    const i = 자리들[r];
+    const x = p.getX(i);
+    const y = p.getY(i);
+    const z = p.getZ(i);
+    const s = Math.floor(y / 슬랩);
+    const gx = Math.floor(x / 칸);
+    const gz = Math.floor(z / 칸);
+    let 최대 = 0;
+    let sx = 0;
+    let sz = 0;
+    let 셈 = 0;
+    const 이웃 = [];
+    for (let ds = -1; ds <= 1; ds++)
+      for (let dx = -1; dx <= 1; dx++)
+        for (let dz = -1; dz <= 1; dz++) {
+          const a = 통.get(열쇠(s + ds, gx + dx, gz + dz));
+          if (!a) continue;
+          for (const j of a) {
+            const ex = p.getX(j) - x;
+            const ez = p.getZ(j) - z;
+            const d2 = ex * ex + ez * ez;
+            if (d2 > 반경2) continue;
+            최대 = Math.max(최대, d2);
+            이웃.push(ex, ez);
+            sx += ex;
+            sz += ez;
+            셈++;
+          }
+        }
+    if (Math.sqrt(최대) < 퍼짐문턱) {
+      나무자리.add(r);
+      continue;
+    }
+    if (셈 < 4) continue;
+    // 주축 — 2×2 공분산의 작은 고유값이 곧 「가는 쪽」이다
+    const mx = sx / 셈;
+    const mz = sz / 셈;
+    let a11 = 0;
+    let a12 = 0;
+    let a22 = 0;
+    for (let k = 0; k < 이웃.length; k += 2) {
+      const ex = 이웃[k] - mx;
+      const ez = 이웃[k + 1] - mz;
+      a11 += ex * ex;
+      a12 += ex * ez;
+      a22 += ez * ez;
+    }
+    a11 /= 셈;
+    a12 /= 셈;
+    a22 /= 셈;
+    const 합 = a11 + a22;
+    const 곱 = a11 * a22 - a12 * a12;
+    const 뿌리 = Math.sqrt(Math.max(0, (합 * 합) / 4 - 곱));
+    const 작은축 = 2 * Math.sqrt(Math.max(0, 합 / 2 - 뿌리));
+    if (작은축 < 작은축문턱) 나무자리.add(r);
+  }
+  // 자리별 답을 꼭짓점으로 되돌린다
+  const 나무 = new Set();
+  for (let i = 0; i < n; i++) if (나무자리.has(어느자리[i])) 나무.add(i);
+  return 나무;
+}
