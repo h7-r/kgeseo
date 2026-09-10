@@ -750,11 +750,12 @@ export function 편집기({
         함.scrollTop += ev.deltaY;
         return;
       }
-      // ② 안내판(에셋함 밖)이면 판 전체를 구른다. 여기서도 지도는 안 움직인다.
+      // ② 안내판(에셋함 밖) 위라면 **아무 일도 안 한다.** 지도가 움직이면
+      //   안 되니 막기만 한다. 판은 이제 세로 flex 라 스스로 넘치지 않는다
+      //   (넘치는 건 에셋함뿐이고, 그건 ① 이 맡는다).
       const 판 = document.getElementById("naju-편집안내");
       if (안에있나(판, ev)) {
         ev.preventDefault();
-        판.scrollTop += ev.deltaY;
         return;
       }
       // ③ 그 밖 — 부감일 때만 높낮이. 걸어 다닐 때는 휠에 아무 일도 없다.
@@ -900,18 +901,53 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
   useEffect(() => {
     const 판 = document.createElement("div");
     판.id = "naju-편집안내";
+    // [★ 창을 넘어가지 않게 — 한 번 밖으로 나갔다]
+    //   예전에는 `max-height:70vh; overflow:auto` 였다. 그런데 판 전체에
+    //   `pointer-events:none` 이 걸려 있어서 **스크롤바를 잡을 수가 없었다.**
+    //   넘친 부분은 휠로만 닿을 수 있었고, 그걸 모르면 「화면 밖으로 나가서
+    //   클릭도 안 된다」가 된다(사용자 지적. 실측: 1280×720 에서 에셋 버튼
+    //   26 개 중 19 개가 화면 아래로 밀려 있었다).
+    //   지금은 **세로 flex** 다 —
+    //     · 판   : `calc(100vh - 24px)` 를 절대 안 넘는다
+    //     · 안내글: 남는 만큼만 쓰고 모자라면 제가 줄어든다
+    //     · 에셋함: 남은 높이를 다 받고 **제 스크롤바를 갖는다**
+    //   `overflow:hidden` 인 이유는 판이 스스로 스크롤될 일이 없어야 하기
+    //   때문이다. 스크롤은 **잡을 수 있는 곳**에서만 일어나야 한다.
     판.style.cssText =
       "position:fixed;left:12px;bottom:12px;z-index:60;pointer-events:none;" +
       "font:12px/1.6 ui-monospace,monospace;color:#E8EAF0;" +
       "background:rgba(16,20,28,.86);padding:10px 12px;border-radius:8px;" +
       "border:1px solid rgba(255,209,102,.35);max-width:min(60ch,70vw);" +
-      "max-height:70vh;overflow:auto";
+      "max-height:calc(100vh - 24px);overflow:hidden;" +
+      "display:flex;flex-direction:column;gap:0";
     document.body.appendChild(판);
     판참조.current = 판;
+    // 스크롤바를 **보이게** 한다.
+    //   [왜 style 태그가 필요한가]  이 판은 문자열 HTML 로 그린다. 인라인
+    //   style 로는 `::-webkit-scrollbar` 같은 가상 요소를 못 꾸민다.
+    //   기본 스크롤바는 어두운 판 위에서 거의 안 보여서, 넘친 줄을 모른다 —
+    //   「화면 밖으로 나가서 클릭도 안 된다」가 그렇게 나왔다.
+    const 스타일 = document.createElement("style");
+    스타일.id = "naju-편집안내-스타일";
+    스타일.textContent =
+      "#naju-에셋함::-webkit-scrollbar{-webkit-appearance:none;width:10px}" +
+      "#naju-에셋함::-webkit-scrollbar-track{background:rgba(255,255,255,.06);border-radius:5px}" +
+      "#naju-에셋함::-webkit-scrollbar-thumb{background:rgba(255,209,102,.55);" +
+      "border-radius:5px;border:2px solid transparent;background-clip:content-box}" +
+      "#naju-에셋함::-webkit-scrollbar-thumb:hover{background:rgba(255,209,102,.85);" +
+      "background-clip:content-box}";
+    document.head.appendChild(스타일);
     const 누름 = (e) => {
       const b = e.target.closest("#naju-저장버튼");
       if (b) {
         저장참조.current?.();
+        return;
+      }
+      // 에셋함 굴리기 — 한 줄(버튼 한 칸 높이)씩 움직인다
+      const 굴 = e.target.closest("#naju-함위로, #naju-함아래로");
+      if (굴) {
+        const 함 = document.getElementById("naju-에셋함");
+        if (함) 함.scrollTop += 굴.id === "naju-함위로" ? -78 : 78;
         return;
       }
       if (e.target.closest("#naju-팔레트접기")) {
@@ -933,6 +969,7 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
     return () => {
       판.removeEventListener("click", 누름);
       판.remove();
+      스타일.remove();
       판참조.current = null;
     };
   }, []);
@@ -963,7 +1000,14 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
     //   갈래별로 묶어 보여 준다. 누르면 그게 **붓**이 되고, 화면을 클릭하면 놓인다.
     const 붓이름 = 붓 ? (에셋찾기(붓)?.이름 ?? 붓) : null;
     const 팔레트 =
-      '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.14)">' +
+      // flex 자식이라 `min-height:0` 이 없으면 안쪽 스크롤이 안 먹는다
+      '<div style="margin-top:8px;padding-top:8px;flex:1 1 auto;min-height:0;' +
+      "display:flex;flex-direction:column;" +
+      'border-top:1px solid rgba(255,255,255,.14)">' +
+      // ★ 머리줄은 **한 줄짜리 블록**으로 감싼다. 안 감싸면 세로 flex 의
+      //   자식이 되어 단추들이 **각자 한 줄씩 차지하며 가로로 늘어난다**
+      //   (실제로 ▲▼ 와 「내려놓기」가 그렇게 늘어졌다).
+      '<div style="flex:0 0 auto">' +
       '<button id="naju-팔레트접기" type="button" style="pointer-events:auto;cursor:pointer;' +
       "font:inherit;color:#E8EAF0;background:rgba(255,255,255,.08);border:1px solid " +
       'rgba(255,255,255,.2);border-radius:5px;padding:3px 9px">' +
@@ -975,12 +1019,41 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
           'border-radius:5px;padding:2px 8px">내려놓기 (ESC)</button>' +
           '<span style="opacity:.6"> — 화면을 클릭해 놓는다</span>'
         : '<span style="opacity:.6"> — 눌러서 고른다</span>') +
+      (펼침
+        ? // 굴리기 단추 — **브라우저 스크롤바에 기대지 않는다.**
+          //   맥 크롬은 스크롤바를 겹쳐 그려서(overlay) 굴리기 전에는 안
+          //   보인다. 넘친 줄 자체를 모르면 「클릭이 안 된다」가 된다.
+          //   눈에 보이고 눌리는 단추를 두면 그 문제가 없다.
+          ' <span id="naju-더있다" style="color:#FFD166"></span>' +
+          '<button id="naju-함위로" type="button" style="pointer-events:auto;' +
+          "cursor:pointer;font:inherit;color:#E8EAF0;background:rgba(255,255,255,.08);" +
+          "border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:1px 7px;" +
+          'margin-left:6px">▲</button>' +
+          '<button id="naju-함아래로" type="button" style="pointer-events:auto;' +
+          "cursor:pointer;font:inherit;color:#E8EAF0;background:rgba(255,255,255,.08);" +
+          "border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:1px 7px;" +
+          'margin-left:3px">▼</button>'
+        : "") +
+      "</div>" +
       (!펼침
-        ? "</div>"
+        ? ""
         : // 에셋함 — **제 스크롤 영역**을 갖는다. 갈래가 늘면 패널이 화면을
           //   위아래로 다 먹어 버려서, 정작 놓을 자리가 안 보인다.
           //   ※ id 로 찾아 휠을 여기로 돌린다(아래 `휠` 핸들러 참고).
-          '<div id="naju-에셋함" style="max-height:34vh;overflow-y:auto;' +
+          // ★ `pointer-events:auto` — 이게 없으면 **스크롤바를 못 잡는다.**
+          //   판이 `none` 이라 자식도 그대로 물려받는다. 휠 핸들러로 대신
+          //   굴려 주고는 있었지만, 잡을 게 없으면 넘친 줄도 모른다.
+          //   여기만 켜 둔다 — 판의 나머지(안내글)는 여전히 뒤가 클릭된다.
+          // ★ `flex:1 1 auto; min-height:0` — 남은 높이를 **다 받는다.**
+          //   예전엔 `max-height:34vh` 고정이라, 창이 낮으면 두 줄밖에
+          //   안 보이고 창이 커도 그 이상 안 늘었다.
+          '<div id="naju-에셋함" style="pointer-events:auto;' +
+          "flex:1 1 auto;min-height:88px;overflow-y:scroll;" +
+          // ★ `scrollbar-width`/`scrollbar-color` 를 쓰면 안 된다. 요즘
+          //   크롬은 그 표준 속성을 지원하는데, **그게 켜지면
+          //   `::-webkit-scrollbar` 규칙을 무시한다.** 둘을 같이 두면
+          //   가늘고 흐린 기본 막대가 나와 어두운 판 위에서 안 보인다.
+          //   여기서는 눈에 띄어야 하므로 webkit 쪽에 맡긴다.
           "overflow-x:hidden;margin-top:2px;padding-right:4px\">" +
           갈래목록
         .map((갈래) => {
@@ -1045,6 +1118,12 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
           "<b>npx vite naju01</b> 을 다시 띄워라</div>"
         : "") +
       팔레트;
+    // 넘쳤으면 그렇다고 적는다 — 스크롤바만으로는 못 알아채는 사람이 있다.
+    //   ※ 그리고 **난 뒤에** 재야 한다. 그려지기 전에는 높이가 0 이다.
+    const 함 = 판.querySelector("#naju-에셋함");
+    const 더 = 판.querySelector("#naju-더있다");
+    if (함 && 더 && 함.scrollHeight > 함.clientHeight + 2)
+      더.textContent = "  ↕ 굴려서 더 보기";
     // ※ 펼침을 빼먹으면 「놓을 것」을 눌러도 판이 다시 안 그려져서
     //    에셋 버튼이 영영 안 나온다(실제로 그랬다).
   }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 붓, 펼침, 부감, 썸네일]);
