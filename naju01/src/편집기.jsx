@@ -894,6 +894,7 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
   const 판참조 = useRef(null);
   const 저장참조 = useRef(저장하기);
   저장참조.current = 저장하기;
+  const 붙이기참조 = useRef(null);
   const 붓설정참조 = useRef(붓설정);
   붓설정참조.current = 붓설정;
 
@@ -937,6 +938,43 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
       "#naju-에셋함::-webkit-scrollbar-thumb:hover{background:rgba(255,209,102,.85);" +
       "background-clip:content-box}";
     document.head.appendChild(스타일);
+
+    // ── 판을 **실제로 보이는 영역**에 붙인다 ──────────────
+    // [왜 `position:fixed` 만으로는 모자라나]
+    //   `fixed` 는 **레이아웃 뷰포트**에 붙는다. 그런데 사람이 보는 것은
+    //   **비주얼 뷰포트**다. 둘은 다음 경우에 어긋난다 —
+    //     · 트랙패드 핀치 줌 (맥에서 두 손가락으로 확대)
+    //     · 가로 스크롤이 생긴 채로 오른쪽으로 민 상태
+    //   어긋나면 `left:12px` 가 **화면 밖 왼쪽**을 가리킨다. 판이 통째로
+    //   잘려 보이고 눌리지도 않는다(스크린샷 제보).
+    //   `visualViewport` 가 그 어긋남(`offsetLeft`·`offsetTop`)을 알려 주므로,
+    //   그만큼 밀어서 늘 보이는 자리에 둔다.
+    const 붙이기 = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      // 확대 중에는 판도 같이 커 보이므로 크기 상한도 실제 보이는 높이로 준다
+      판.style.left = `${vv.offsetLeft + 12}px`;
+      판.style.bottom = "auto";
+      판.style.top = `${vv.offsetTop + vv.height - 판.offsetHeight - 12}px`;
+      판.style.maxHeight = `${Math.max(120, vv.height - 24)}px`;
+      // 마지막 보정 — 무슨 까닭이든 판이 보이는 데 밖으로 나갔으면 끌어온다.
+      //   위 계산이 못 잡는 경우(조상에 transform 이 붙는다든지)까지 덮는다.
+      //   「안 보인다」보다 「조금 어긋나 보인다」가 낫다.
+      const r = 판.getBoundingClientRect();
+      const 왼 = vv.offsetLeft;
+      const 위 = vv.offsetTop;
+      if (r.left < 왼) 판.style.left = `${parseFloat(판.style.left) + (왼 - r.left)}px`;
+      if (r.top < 위) 판.style.top = `${parseFloat(판.style.top) + (위 - r.top)}px`;
+      const 아래끝 = 위 + vv.height;
+      const r2 = 판.getBoundingClientRect();
+      if (r2.bottom > 아래끝)
+        판.style.top = `${parseFloat(판.style.top) - (r2.bottom - 아래끝)}px`;
+    };
+    붙이기();
+    window.visualViewport?.addEventListener("resize", 붙이기);
+    window.visualViewport?.addEventListener("scroll", 붙이기);
+    window.addEventListener("resize", 붙이기);
+    붙이기참조.current = 붙이기;
     const 누름 = (e) => {
       const b = e.target.closest("#naju-저장버튼");
       if (b) {
@@ -968,9 +1006,13 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
     판.addEventListener("click", 누름);
     return () => {
       판.removeEventListener("click", 누름);
+      window.visualViewport?.removeEventListener("resize", 붙이기);
+      window.visualViewport?.removeEventListener("scroll", 붙이기);
+      window.removeEventListener("resize", 붙이기);
       판.remove();
       스타일.remove();
       판참조.current = null;
+      붙이기참조.current = null;
     };
   }, []);
 
@@ -1124,6 +1166,8 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
     const 더 = 판.querySelector("#naju-더있다");
     if (함 && 더 && 함.scrollHeight > 함.clientHeight + 2)
       더.textContent = "  ↕ 굴려서 더 보기";
+    // 내용이 바뀌면 판 높이가 달라진다 — 아래쪽 12 px 을 다시 맞춘다.
+    붙이기참조.current?.();
     // ※ 펼침을 빼먹으면 「놓을 것」을 눌러도 판이 다시 안 그려져서
     //    에셋 버튼이 영영 안 나온다(실제로 그랬다).
   }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 붓, 펼침, 부감, 썸네일]);
