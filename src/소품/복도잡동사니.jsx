@@ -829,90 +829,6 @@ function 얼룩색(g, 녹, 바탕, 밝) {
   return g;
 }
 
-// ── 파인 자리 — 벽이 뭉텅 떨어져 나가 벽돌이 드러난 곳 ─────
-// [왜 판때기(데칼)를 그만뒀나]
-//   색만 칠한 판은 어느 각도에서 봐도 납작하다. 벽을 스치듯 지나갈 때
-//   특히 티가 난다 — 그림자도 안 지고 두께도 없다.
-//
-// [벽을 진짜로 뚫을 수는 없다]
-//   복도 벽은 판 한 장이라, 뒤로 파 들어간 공간을 만들어도 벽판이 앞을 가린다.
-//   (소화전 손잡이에서 겪은 것과 같은 문제다)
-//   그래서 **앞으로 쌓아 올려 깊이를 만든다.**
-//     ① 안쪽 어둠판 — 벽면 바로 앞. 구멍 바닥 노릇을 한다.
-//     ② 드러난 벽돌 — 그 위에 벽돌 몇 장을 줄 맞춰 얹는다. 층이 보이면
-//        '뚫린 곳'으로 읽힌다. 벽돌이야말로 "안쪽에 뭔가 있다"의 증거다.
-//     ③ 깨진 테 — 둘레에 부러진 마감재 조각이 삐죽삐죽 앞으로 튀어나온다.
-//   테가 제일 앞, 벽돌이 중간, 어둠이 제일 뒤 → 눈에는 그만큼 파여 보인다.
-function 파임조각(r, 벽, 크기) {
-  const 것 = [];
-  // ※ 마지막에 UV 를 떼고 돌려준다. 원판(얼룩판)에는 UV 가 없고 상자에는 있어서
-  //   섞어 합치면 mergeGeometries 가 실패한다(속성 구성이 달라야 한다는 규칙).
-  const s = 크기;
-  const 안깊 = 0.012; // 어둠판이 벽면에서 뜬 정도
-  const 벽돌앞 = 0.05;
-  const 테앞 = 0.15;
-
-  // ① 안쪽 어둠 — 구멍 바닥
-  const 안 = 얼룩판(r);
-  안.scale(s, s * (0.72 + r() * 0.5), 1);
-  안.translate(0, 0, 안깊);
-  const 어둠 = new THREE.Color("#141619");
-  얼룩색(안, 어둠, 어둠, 1);
-  것.push(안);
-
-  // ② 드러난 벽돌 — 줄눈이 어긋나게 두 세 켜
-  const 켜 = 2 + Math.floor(r() * 2);
-  const 벽돌h = (s * 0.9) / (켜 + 0.6);
-  for (let k = 0; k < 켜; k++) {
-    const 개수 = 1 + Math.floor(r() * 2);
-    for (let i = 0; i < 개수; i++) {
-      const w = s * (0.34 + r() * 0.3);
-      const b = new THREE.BoxGeometry(w, 벽돌h * 0.8, 0.05);
-      const bx = (r() - 0.5) * s * 0.5;
-      const by = (k - (켜 - 1) / 2) * 벽돌h + (r() - 0.5) * 0.02;
-      b.translate(bx, by, 벽돌앞 - r() * 0.02);
-      const 색 = new THREE.Color(벽돌색조[Math.floor(r() * 벽돌색조.length)]);
-      const p = b.attributes.position;
-      const c = new Float32Array(p.count * 3);
-      for (let v = 0; v < p.count; v++) {
-        // 앞면(+z)만 빛을 받고 옆면은 그늘 — 층이 또렷해진다
-        const 앞 = p.getZ(v) > 벽돌앞 - 0.001 ? 1 : 0.45;
-        c[v * 3] = 색.r * 앞;
-        c[v * 3 + 1] = 색.g * 앞;
-        c[v * 3 + 2] = 색.b * 앞;
-      }
-      b.setAttribute("color", new THREE.BufferAttribute(c, 3));
-      것.push(b);
-    }
-  }
-
-  // ③ 깨진 테 — 둘레에 부러진 마감재가 삐죽삐죽
-  const 조각수 = 7 + Math.floor(r() * 5);
-  const 테색 = new THREE.Color(벽).lerp(new THREE.Color("#8f9298"), 0.45);
-  for (let i = 0; i < 조각수; i++) {
-    const 각 = (i / 조각수) * Math.PI * 2 + (r() - 0.5) * 0.4;
-    const R = s * (0.42 + r() * 0.16);
-    const w = s * (0.16 + r() * 0.18);
-    const 깊 = 테앞 * (0.45 + r() * 0.55);
-    const b = new THREE.BoxGeometry(w, w * (0.5 + r() * 0.7), 깊);
-    b.rotateZ((r() - 0.5) * 1.2);
-    b.translate(Math.cos(각) * R, Math.sin(각) * R * 0.85, 깊 / 2);
-    const p = b.attributes.position;
-    const c = new Float32Array(p.count * 3);
-    for (let v = 0; v < p.count; v++) {
-      // 앞으로 튀어나온 끝일수록 밝다(빛을 먼저 받는다)
-      const 밝 = 0.55 + 0.55 * Math.min(1, Math.max(0, p.getZ(v) / 깊));
-      c[v * 3] = 테색.r * 밝;
-      c[v * 3 + 1] = 테색.g * 밝;
-      c[v * 3 + 2] = 테색.b * 밝;
-    }
-    b.setAttribute("color", new THREE.BufferAttribute(c, 3));
-    것.push(b);
-  }
-  for (const g of 것) g.deleteAttribute("uv");
-  return 것;
-}
-
 // ── 금 — 벽을 타고 내려간 균열 ──────────────────────────────
 //   한 줄로 곧게 그으면 '선을 그린 것'이다. 마디마다 방향이 꺾이고
 //   아래로 갈수록 가늘어져야 갈라진 것으로 보인다.
@@ -1022,39 +938,10 @@ function 부식지오({
     벽에붙이기(것, 왼쪽, h, z, 조각);
   }
 
-  // ── 파인 자리 ── 진짜 두께가 있는 덩어리라 **따로** 모은다.
-  //   얼룩·금은 반투명 데칼이지만 이것은 불투명하고 외곽선도 둘러야 한다.
-  const 파임조각들 = [];
-  for (let i = 0; i < 개수.깨짐; i++) {
-    const 왼쪽 = r() < 0.5;
-    const z = z0 + r() * (z1 - z0);
-    if (!왼쪽 && Math.abs(z - 문z) < 문폭 / 2 + 0.3) continue;
-    const s = (0.45 + r() * 0.7) * 크기;
-    // ★ 파임 반높이보다 낮게 잡으면 바닥 아래로 삐져나간다.
-    //   벽 밑동에 몰리게 하되(제곱분포) 자기 반높이만큼은 띄운다.
-    const 반높이 = s * 0.75;
-    const h = Math.max(
-      반높이 + 0.2,
-      0.5 + Math.pow(r(), 1.4) * 벽높이 * 0.7,
-    );
-    const 밝 = Math.max(0.12, 밝기(z));
-    const 것 = 파임조각(r, 벽색, s);
-    // 깊이 감광은 여기서 한꺼번에 곱한다(조각마다 색을 이미 구워 뒀다)
-    for (const g of 것) {
-      const c = g.attributes.color;
-      for (let v = 0; v < c.count; v++)
-        c.setXYZ(v, c.getX(v) * 밝, c.getY(v) * 밝, c.getZ(v) * 밝);
-    }
-    벽에붙이기(것, 왼쪽, h, z, 파임조각들);
-  }
-
-  const 합치기 = (것들) => {
-    if (!것들.length) return null;
-    const m = mergeGeometries(것들, false);
-    것들.forEach((g) => g.dispose());
-    return m;
-  };
-  return { 자국: 합치기(조각), 파임: 합치기(파임조각들) };
+  if (!조각.length) return null;
+  const 합 = mergeGeometries(조각, false);
+  조각.forEach((g) => g.dispose());
+  return 합;
 }
 
 /** 바닥·벽에 번진 부식 자국. 벽·바닥 면 바로 위에 덧대는 얇은 판들이다. */
@@ -1064,7 +951,6 @@ export function 복도부식({
   벽높이 = 8,
   바닥개수 = 16,
   벽개수 = 26,
-  깨짐개수 = 10,
   금개수 = 8,
   크기 = 1,
   문z = -4,
@@ -1073,44 +959,23 @@ export function 복도부식({
   벽색 = "#525b69",
   seed = 4711,
   밝기 = () => 1,
-  선,
 }) {
-  const { 자국, 파임 } = useMemo(
+  const 지오 = useMemo(
     () =>
       부식지오({
         x0, x1, z0, z1, 바닥y, 벽높이,
-        개수: { 바닥: 바닥개수, 벽: 벽개수, 깨짐: 깨짐개수, 금: 금개수 },
+        개수: { 바닥: 바닥개수, 벽: 벽개수, 금: 금개수 },
         seed, 밝기, 바닥색, 벽색, 문z, 문폭, 크기,
       }),
     // 밝기는 매 렌더 새 함수라 의존성에 넣으면 계속 다시 만든다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [x0, x1, z0, z1, 바닥y, 벽높이, 바닥개수, 벽개수, 깨짐개수, 금개수,
+    [x0, x1, z0, z1, 바닥y, 벽높이, 바닥개수, 벽개수, 금개수,
      seed, 바닥색, 벽색, 문z, 문폭, 크기],
   );
-  useEffect(
-    () => () => {
-      자국?.dispose();
-      파임?.dispose();
-    },
-    [자국, 파임],
-  );
+  useEffect(() => () => 지오?.dispose(), [지오]);
+  if (!지오) return null;
   return (
-    <group>
-      {파임 && (
-        <mesh geometry={파임} castShadow receiveShadow>
-          {/* 파인 자리는 두께가 있는 덩어리다 — 불투명하게, 외곽선도 두른다.
-                 얼룩과 달리 '물건'이라 화풍을 그대로 따라야 한다. */}
-          <meshToonMaterial
-            vertexColors
-            color="#ffffff"
-            gradientMap={TOON_GRADIENT}
-            flatShading
-          />
-          <만화선 선={선} />
-        </mesh>
-      )}
-      {자국 && (
-      <mesh geometry={자국}>
+    <mesh geometry={지오}>
       {/* 벽·바닥 면 바로 위에 겹쳐 그린다.
              polygonOffset 이 없으면 두 면의 깊이값이 엎치락뒤치락해 깜빡인다.
              외곽선은 두르지 않는다 — 얼룩에 테를 그으면 스티커가 된다. */}
@@ -1126,9 +991,7 @@ export function 복도부식({
         polygonOffsetFactor={-2}
         polygonOffsetUnits={-2}
       />
-      </mesh>
-      )}
-    </group>
+    </mesh>
   );
 }
 
