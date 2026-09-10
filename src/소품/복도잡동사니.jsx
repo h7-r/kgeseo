@@ -201,8 +201,9 @@ function 철판지오(r) {
 }
 
 // ── 전단지 — 바닥에 눌린 채 귀퉁이가 말린 종이 ──────────────
-function 전단지지오(r) {
+function 전단지지오(r, 손질) {
   const 판 = new THREE.PlaneGeometry(1, 0.72, 5, 4);
+  if (손질) 손질(판); // UV 를 아틀라스 칸으로 옮긴다(인덱스가 있을 때가 싸다)
   const g = 판.toNonIndexed();
   판.dispose();
   g.rotateX(-Math.PI / 2); // 바닥에 눕힌다
@@ -231,17 +232,21 @@ function 전단지지오(r) {
 //   같은 것이 두 번 깔리니 바닥이 자잘한 것으로 뒤덮여 어수선해졌다.
 //   남긴 것은 전부 **한눈에 무엇인지 읽히는 크기**다.
 const 종류들 = [
-  { 이름: "캔", 무게: 6, 텍스처: true },
-  { 이름: "종이컵", 무게: 4 },
-  { 이름: "전단지", 무게: 4 },
-  { 이름: "각목", 무게: 2 }, // 드물게 — 크고 눈에 띄어서 많으면 어수선하다
+  { 이름: "캔", 무게: 6 },
+  { 이름: "종이컵", 무게: 3 },
+  // 종이는 인쇄면이 있어야 종이로 읽힌다 → 아틀라스 칸을 하나씩 쓴다
+  { 이름: "영수증", 무게: 3, 종이: 종이칸.영수증, 비율: [0.42, 1.0] },
+  { 이름: "전단지", 무게: 2, 종이: 종이칸.전단지, 비율: [1.0, 0.78] },
+  { 이름: "신문조각", 무게: 2, 종이: 종이칸.신문, 비율: [1.0, 0.8] },
+  { 이름: "낡은종이", 무게: 2, 종이: 종이칸.낡은종이, 비율: [0.85, 1.0] },
+  { 이름: "각목", 무게: 2 }, // 벽에 기대 세운다(아래 참고)
   { 이름: "녹슨철판", 무게: 2 },
 ];
 const 뽑기표 = 종류들.flatMap((t, i) => Array(t.무게).fill(i));
 
 const _색 = new THREE.Color();
 const _색2 = new THREE.Color();
-const _은색 = new THREE.Color("#9aa1a8"); // 녹이 덜 슨 성한 쇠
+const _은색 = new THREE.Color("#8b9095"); // 녹이 덜 슨 성한 쇠
 
 // 지오메트리에 정점색을 굽는다.
 //   칠 = (x,y,z, 높이비율) => [r,g,b] 또는 null(= 기본색)
@@ -293,6 +298,7 @@ function 잡동사니지오({
   const r = makeRandom(seed);
   const 폭 = x1 - x0;
   const 캔조각 = [];
+  const 종이조각 = [];
   const 잡조각 = [];
 
   for (let i = 0; i < 개수; i++) {
@@ -310,6 +316,9 @@ function 잡동사니지오({
 
     let g;
     let 캔인가 = false;
+    let 종이인가 = false;
+    let 기댐 = false; // 벽에 기대 세우는 물건(각목)
+    const 왼벽 = x < (x0 + x1) / 2;
 
     if (t.이름 === "캔") {
       캔인가 = true;
@@ -340,21 +349,17 @@ function 잡동사니지오({
         const v = 어둡 * (0.85 + 0.25 * 자리잡음(px * 3, py * 3, pz * 3));
         return [c.r * v, c.g * v, c.b * v];
       });
-    } else if (t.이름 === "전단지") {
-      g = 전단지지오(r);
-      g.scale((0.28 + r() * 0.16) * 크기, 크기, (0.28 + r() * 0.14) * 크기);
+    } else if (t.종이 !== undefined) {
+      // ── 인쇄된 종이 — 영수증·전단지·신문 조각 ──
+      종이인가 = true;
+      g = 전단지지오(r, (a) => 칸으로(a, t.종이, 종이열, 종이행));
+      const [bw, bh] = t.비율;
+      const s = (0.34 + r() * 0.18) * 크기;
+      g.scale(s * bw, 크기, s * bh);
       g.rotateY(r() * Math.PI * 2);
-      // 인쇄면 — 위쪽에 제목 띠, 아래쪽에 본문 줄. 백지는 종이로 안 보인다.
-      _색.set(r() < 0.5 ? "#c9c3b2" : "#d2ccbb");
-      _색2.set("#4d4738");
-      색굽기(g, null, (px, py, pz) => {
-        const 인쇄 =
-          pz > 0.18 ? 0.55 : pz > -0.05 && Math.abs((pz * 40) % 4) < 1.6 ? 0.32 : 0;
-        const 때 = 0.75 + 0.35 * 자리잡음(px * 7, pz * 7, 0);
-        const c = _색.clone().lerp(_색2, 인쇄);
-        const v = 어둡 * 때;
-        return [c.r * v, c.g * v, c.b * v];
-      });
+      // 그림 위에 얹는 밝기만 정점색으로. 때는 아틀라스에 이미 구워 뒀다.
+      const v = 어둡 * (0.85 + r() * 0.28);
+      색굽기(g, [v, v, v]);
     } else if (t.이름 === "콘크리트조각") {
       g = 콘크리트지오(r);
       const s = (0.1 + r() * 0.13) * 크기;
@@ -371,13 +376,20 @@ function 잡동사니지오({
         return [c.r * v, c.g * v, c.b * v];
       });
     } else if (t.이름 === "각목") {
+      // ★ 바닥 한가운데 뒹구는 각목은 '왜 여기 있지' 가 된다.
+      //   판자는 창·문을 막으려고 대 놓는 물건이다. 그래서 **벽에 기대 세운다** —
+      //   쓰고 남은 걸 벽에 세워 둔 모습이라야 이 공간에 있을 이유가 생긴다.
+      기댐 = true;
       g = 각목지오(r);
-      g.scale((0.55 + r() * 0.5) * 크기, 크기, 크기);
-      g.rotateY(r() * Math.PI * 2);
-      g.rotateZ((r() - 0.5) * 0.25);
+      g.scale((0.8 + r() * 0.7) * 크기, 크기, 크기);
+      // 길이축(X)이 벽 쪽으로 기울어 서게 한다. 왼벽이면 −x 끝이 올라가야 한다.
+      const 기울 = 1.02 + r() * 0.3;
+      g.rotateZ(왼벽 ? -기울 : 기울);
+      g.rotateY((r() - 0.5) * 0.5);
       // 나무 결 — 길이 방향 줄무늬. 젖어서 검게 상한 데가 섞인다.
-      _색.set("#7a6449");
-      _색2.set("#3b2f22");
+      // 사진에서 각목만 누렇게 떠 보였다 → 비바람 맞은 잿빛 나무로 눌렀다
+      _색.set("#5d5347");
+      _색2.set("#332b23");
       색굽기(g, null, (px, py, pz) => {
         const 결 = 자리잡음(px * 3.5, pz * 26, 0);
         const 썩음 = Math.max(0, 자리잡음(px * 2.1, 0, pz * 2.1) - 0.55) * 2;
@@ -391,8 +403,8 @@ function 잡동사니지오({
       g.scale(s, 크기, s);
       g.rotateY(r() * Math.PI * 2);
       // 녹 — 얼룩덜룩해야 한다. 고른 갈색은 페인트지 녹이 아니다.
-      _색.set("#8a4a26");
-      _색2.set("#2e1c12");
+      _색.set("#6b4b36"); // 채도를 낮춘 녹
+      _색2.set("#2b211a");
       색굽기(g, null, (px, py, pz) => {
         const 녹 = 자리잡음(px * 11, py * 11, pz * 11);
         const 성한데 = Math.max(0, 자리잡음(px * 4, 0, pz * 4) - 0.62) * 2.6;
@@ -421,8 +433,14 @@ function 잡동사니지오({
 
     // 밑면이 바닥판에 닿게 올린다(공중에 뜨거나 파묻히지 않게)
     g.computeBoundingBox();
-    g.translate(x, -g.boundingBox.min.y + 바닥y + 0.002, z);
-    (캔인가 ? 캔조각 : 잡조각).push(g);
+    // 기대 세운 것은 벽에 바짝 붙인다 — 떨어져 서 있으면 '기댄' 것으로 안 보인다
+    const gx = 기댐
+      ? 왼벽
+        ? x0 + (g.boundingBox.max.x - g.boundingBox.min.x) * 0.5 + 0.06
+        : x1 - (g.boundingBox.max.x - g.boundingBox.min.x) * 0.5 - 0.06
+      : x;
+    g.translate(gx, -g.boundingBox.min.y + 바닥y + 0.002, z);
+    (캔인가 ? 캔조각 : 종이인가 ? 종이조각 : 잡조각).push(g);
   }
 
   const 합치기 = (조각) => {
@@ -431,7 +449,7 @@ function 잡동사니지오({
     조각.forEach((g) => g.dispose());
     return m;
   };
-  return { 캔: 합치기(캔조각), 잡동: 합치기(잡조각) };
+  return { 캔: 합치기(캔조각), 종이: 합치기(종이조각), 잡동: 합치기(잡조각) };
 }
 
 // ── 물웅덩이 ────────────────────────────────────────────────
@@ -557,6 +575,144 @@ function 물방울({ 자리, 천장y, 바닥y, 밝기 }) {
   );
 }
 
+// ── 종이 아틀라스 — 영수증 · 전단지 · 신문 조각 ─────────────
+// [왜 글씨를 그려 넣나]
+//   백지는 종이로 안 보인다. 바닥에 떨어진 종이가 종이로 읽히는 건
+//   **인쇄된 줄** 때문이다. 읽으라고 넣는 게 아니라 '글씨가 있다'가 보이면 된다.
+//   그래서 실제 글자를 몇 개만 쓰고 나머지는 줄로 흉내 낸다 — 멀리서는 똑같고
+//   가까이서는 '영수증이구나' 가 온다.
+const 종이칸 = { 영수증: 0, 전단지: 1, 신문: 2, 낡은종이: 3 };
+const 종이열 = 2;
+const 종이행 = 2;
+
+const 폰트 = "'Malgun Gothic', system-ui, sans-serif";
+
+function 줄긋기(g, x, y, w, h, 색) {
+  g.fillStyle = 색;
+  g.fillRect(x, y, w, h);
+}
+
+function 종이아틀라스() {
+  const S = 256;
+  const c = document.createElement("canvas");
+  c.width = 종이열 * S;
+  c.height = 종이행 * S;
+  const g = c.getContext("2d");
+  const r = makeRandom(31337);
+  const 칸 = (i) => [(i % 종이열) * S, Math.floor(i / 종이열) * S];
+
+  // ① 영수증 — 감열지. 위에 상호, 점선, 품목 줄, 합계.
+  {
+    const [ox, oy] = 칸(종이칸.영수증);
+    g.save();
+    g.translate(ox, oy);
+    g.fillStyle = "#e8e4d9";
+    g.fillRect(0, 0, S, S);
+    g.fillStyle = "#3a3630";
+    g.textAlign = "center";
+    g.font = `700 26px ${폰트}`;
+    g.fillText("나주역 매점", S / 2, 34);
+    g.font = `16px ${폰트}`;
+    g.fillText("TEL 061-330-****", S / 2, 56);
+    for (let i = 0; i < 2; i++) 줄긋기(g, 18, 70 + i * 6, S - 36, 2, "#8d887c");
+    g.textAlign = "left";
+    g.font = `15px ${폰트}`;
+    let y = 96;
+    for (const [이름, 값] of [
+      ["캔커피", "1,200"], ["생수", "900"], ["샌드위치", "3,500"],
+      ["담배", "4,500"], ["봉투", "100"],
+    ]) {
+      g.fillText(이름, 22, y);
+      g.textAlign = "right";
+      g.fillText(값, S - 22, y);
+      g.textAlign = "left";
+      y += 22;
+    }
+    줄긋기(g, 18, y - 8, S - 36, 2, "#8d887c");
+    g.font = `700 19px ${폰트}`;
+    g.fillText("합계", 22, y + 20);
+    g.textAlign = "right";
+    g.fillText("10,200", S - 22, y + 20);
+    // 아래쪽 바코드 흉내
+    for (let i = 0; i < 40; i++)
+      줄긋기(g, 30 + i * 5, S - 40, 1 + r() * 3, 26, "#2c2924");
+    g.restore();
+  }
+
+  // ② 전단지 — 큰 제목 띠 + 본문 줄 + 그림 자리
+  {
+    const [ox, oy] = 칸(종이칸.전단지);
+    g.save();
+    g.translate(ox, oy);
+    g.fillStyle = "#ddd7c6";
+    g.fillRect(0, 0, S, S);
+    g.fillStyle = "#8e3b2f";
+    g.fillRect(0, 18, S, 52);
+    g.fillStyle = "#f4efe2";
+    g.textAlign = "center";
+    g.font = `800 34px ${폰트}`;
+    g.fillText("임대 문의", S / 2, 54);
+    g.fillStyle = "#c9c2b0";
+    g.fillRect(20, 86, 96, 74); // 그림 자리
+    g.fillStyle = "#4a453b";
+    for (let i = 0; i < 6; i++) 줄긋기(g, 128, 92 + i * 13, 108 - r() * 26, 5, "#5a5449");
+    for (let i = 0; i < 5; i++) 줄긋기(g, 20, 176 + i * 14, S - 40 - r() * 60, 5, "#5a5449");
+    g.restore();
+  }
+
+  // ③ 신문 조각 — 단이 나뉜 촘촘한 줄 + 사진
+  {
+    const [ox, oy] = 칸(종이칸.신문);
+    g.save();
+    g.translate(ox, oy);
+    g.fillStyle = "#d8d3c3";
+    g.fillRect(0, 0, S, S);
+    g.fillStyle = "#2f2b25";
+    g.textAlign = "left";
+    g.font = `800 24px ${폰트}`;
+    g.fillText("폐선 구간 정비", 16, 34);
+    줄긋기(g, 14, 44, S - 28, 2, "#4a453b");
+    g.fillStyle = "#b9b3a2";
+    g.fillRect(14, 54, 104, 66); // 사진
+    for (let 단 = 0; 단 < 2; 단++) {
+      const x = 14 + 단 * 118;
+      const y0 = 단 === 0 ? 128 : 54;
+      for (let i = 0; i < (단 === 0 ? 8 : 14); i++)
+        줄긋기(g, x, y0 + i * 11, 104 - r() * 22, 4, "#544f45");
+    }
+    g.restore();
+  }
+
+  // ④ 낡은 종이 — 거의 지워진 줄 몇 개
+  {
+    const [ox, oy] = 칸(종이칸.낡은종이);
+    g.save();
+    g.translate(ox, oy);
+    g.fillStyle = "#cfc8b6";
+    g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 9; i++)
+      줄긋기(g, 24 + r() * 20, 40 + i * 22, 120 + r() * 80, 4, "#6b6558");
+    g.restore();
+  }
+
+  // 공통 때 — 커피 얼룩·먼지. 새 종이가 바닥에 있으면 어색하다.
+  g.globalCompositeOperation = "multiply";
+  for (let i = 0; i < 70; i++) {
+    const R = 8 + r() * 46;
+    g.fillStyle = `rgba(${120 + r() * 50 | 0},${100 + r() * 40 | 0},${70 + r() * 30 | 0},${0.08 + r() * 0.22})`;
+    g.beginPath();
+    g.arc(r() * c.width, r() * c.height, R, 0, 7);
+    g.fill();
+  }
+  g.fillStyle = "rgba(150,145,132,0.35)";
+  g.fillRect(0, 0, c.width, c.height);
+  g.globalCompositeOperation = "source-over";
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 // ── 캔 라벨 아틀라스 ────────────────────────────────────────
 //   6종을 한 장에 모으고 **때를 입힌다.** 새 캔 그림 그대로면
 //   갓 뽑은 캔이 바닥에 놓인 꼴이라 어색하다.
@@ -620,7 +776,9 @@ function 캔아틀라스() {
 //   물이 새면 아래로 흐른다. 그래서 벽 자국은 위가 좁고 아래로 길게 끌린다.
 //   이게 있고 없고가 '더러운 벽'과 '녹슨 벽'을 가른다.
 
-const 녹색조 = ["#7a3f1f", "#8f5227", "#5d3a22", "#46301f"];
+// ★ 채도를 낮췄다. 주황빛이 세면 녹이 아니라 '칠한 것'으로 보이고,
+//   어두운 복도에서 그 부분만 색이 튄다. 흙빛에 가깝게 눌렀다.
+const 녹색조 = ["#5c4133", "#67493a", "#4a382d", "#3a2d25"];
 
 function 얼룩판(r, { 세로늘림 = 1 } = {}) {
   const g = new THREE.CircleGeometry(0.5, 16);
@@ -650,6 +808,57 @@ function 얼룩색(g, 녹, 바탕, 밝) {
   }
   g.setAttribute("color", new THREE.BufferAttribute(c, 3));
   return g;
+}
+
+// ── 깨진 자국 — 벽면이 떨어져 나간 자리 ────────────────────
+//   [왜 두 겹인가]
+//     한 겹이면 색 판때기라 스티커로 보인다. 실제로 깨진 자리는 세 층이 보인다 —
+//     바깥은 성한 벽, 그 안은 **부서진 흰 속살**, 가운데는 깊은 그늘.
+//     그래서 큰 판(성한 벽 → 속살)과 작은 판(속살 → 그늘)을 겹친다.
+function 깨짐조각(r, 벽, 속살, 그늘, 밝) {
+  const 것 = [];
+  const 바깥 = 얼룩판(r);
+  얼룩색(바깥, 속살, 벽, 밝); // 가운데 속살 → 가장자리는 벽색이라 스르륵 번진다
+  것.push(바깥);
+  const 안 = 얼룩판(r);
+  안.scale(0.58, 0.58, 1);
+  안.translate((r() - 0.5) * 0.1, (r() - 0.5) * 0.1, 0.001);
+  얼룩색(안, 그늘, 속살, 밝);
+  것.push(안);
+  return 것;
+}
+
+// ── 금 — 벽을 타고 내려간 균열 ──────────────────────────────
+//   한 줄로 곧게 그으면 '선을 그린 것'이다. 마디마다 방향이 꺾이고
+//   아래로 갈수록 가늘어져야 갈라진 것으로 보인다.
+function 금조각(r, 색, 밝) {
+  const 마디 = 3 + Math.floor(r() * 3);
+  const 것 = [];
+  let x = 0;
+  let y = 0;
+  let 각 = -Math.PI / 2 + (r() - 0.5) * 0.5; // 대체로 아래로
+  let 폭 = 0.045 + r() * 0.03;
+  for (let i = 0; i < 마디; i++) {
+    const 길이 = 0.18 + r() * 0.3;
+    const g = new THREE.PlaneGeometry(1, 1);
+    g.scale(길이, 폭, 1);
+    g.rotateZ(각);
+    g.translate(x + (Math.cos(각) * 길이) / 2, y + (Math.sin(각) * 길이) / 2, 0);
+    const p = g.attributes.position;
+    const c = new Float32Array(p.count * 3);
+    for (let k = 0; k < p.count; k++) {
+      c[k * 3] = 색.r * 밝;
+      c[k * 3 + 1] = 색.g * 밝;
+      c[k * 3 + 2] = 색.b * 밝;
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(c, 3));
+    것.push(g);
+    x += Math.cos(각) * 길이;
+    y += Math.sin(각) * 길이;
+    각 += (r() - 0.5) * 0.9;
+    폭 *= 0.72; // 끝으로 갈수록 가늘어진다
+  }
+  return 것;
 }
 
 function 부식지오({
@@ -704,6 +913,43 @@ function 부식지오({
     조각.push(g);
   }
 
+  // ── 깨진 자국 · 금 ── 벽이 상해서 떨어져 나간 자리
+  const 속살 = new THREE.Color("#7f8288");
+  const 그늘 = new THREE.Color("#24262a");
+  const 금색 = new THREE.Color("#1e2024");
+  const 벽에붙이기 = (조각들, 왼쪽, h, z) => {
+    for (const g of 조각들) {
+      if (왼쪽) {
+        g.rotateY(Math.PI / 2);
+        g.translate(x0 + 0.035, h, z);
+      } else {
+        g.rotateY(-Math.PI / 2);
+        g.translate(x1 - 0.035, h, z);
+      }
+      조각.push(g);
+    }
+  };
+  for (let i = 0; i < 개수.깨짐; i++) {
+    const 왼쪽 = r() < 0.5;
+    const z = z0 + r() * (z1 - z0);
+    if (!왼쪽 && Math.abs(z - 문z) < 문폭 / 2 + 0.3) continue;
+    const h = 0.4 + Math.pow(r(), 1.4) * 벽높이 * 0.75;
+    const s = (0.35 + r() * 0.75) * 크기;
+    const 밝 = Math.max(0.12, 밝기(z));
+    const 것 = 깨짐조각(r, 바탕벽, 속살, 그늘, 밝);
+    것.forEach((g) => g.scale(s, s * (0.7 + r() * 0.6), 1));
+    벽에붙이기(것, 왼쪽, h, z);
+  }
+  for (let i = 0; i < 개수.금; i++) {
+    const 왼쪽 = r() < 0.5;
+    const z = z0 + r() * (z1 - z0);
+    if (!왼쪽 && Math.abs(z - 문z) < 문폭 / 2 + 0.3) continue;
+    const h = 벽높이 * (0.35 + r() * 0.5);
+    const 것 = 금조각(r, 금색, Math.max(0.12, 밝기(z)));
+    것.forEach((g) => g.scale(크기, 크기, 1));
+    벽에붙이기(것, 왼쪽, h, z);
+  }
+
   if (!조각.length) return null;
   const 합 = mergeGeometries(조각, false);
   조각.forEach((g) => g.dispose());
@@ -717,6 +963,8 @@ export function 복도부식({
   벽높이 = 8,
   바닥개수 = 16,
   벽개수 = 26,
+  깨짐개수 = 10,
+  금개수 = 8,
   크기 = 1,
   문z = -4,
   문폭 = 4.4,
@@ -729,12 +977,13 @@ export function 복도부식({
     () =>
       부식지오({
         x0, x1, z0, z1, 바닥y, 벽높이,
-        개수: { 바닥: 바닥개수, 벽: 벽개수 },
+        개수: { 바닥: 바닥개수, 벽: 벽개수, 깨짐: 깨짐개수, 금: 금개수 },
         seed, 밝기, 바닥색, 벽색, 문z, 문폭, 크기,
       }),
     // 밝기는 매 렌더 새 함수라 의존성에 넣으면 계속 다시 만든다
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [x0, x1, z0, z1, 바닥y, 벽높이, 바닥개수, 벽개수, seed, 바닥색, 벽색, 문z, 문폭, 크기],
+    [x0, x1, z0, z1, 바닥y, 벽높이, 바닥개수, 벽개수, 깨짐개수, 금개수,
+     seed, 바닥색, 벽색, 문z, 문폭, 크기],
   );
   useEffect(() => () => 지오?.dispose(), [지오]);
   if (!지오) return null;
@@ -780,7 +1029,7 @@ export function 복도잡동사니({
     () => 웅덩이자리({ x0, x1, z0, z1, 개수: 웅덩이, seed }),
     [x0, x1, z0, z1, 웅덩이, seed],
   );
-  const { 캔: 캔지오, 잡동 } = useMemo(
+  const { 캔: 캔지오, 종이: 종이지오, 잡동 } = useMemo(
     () =>
       잡동사니지오({
         x0, x1, z0, z1,
@@ -796,14 +1045,17 @@ export function 복도잡동사니({
     [자리, seed, 바닥y],
   );
   const 라벨 = useMemo(() => 캔아틀라스(), []);
+  const 종이그림 = useMemo(() => 종이아틀라스(), []);
   useEffect(
     () => () => {
       캔지오?.dispose();
+      종이지오?.dispose();
       잡동?.dispose();
       물?.dispose();
       라벨?.dispose();
+      종이그림?.dispose();
     },
-    [캔지오, 잡동, 물, 라벨],
+    [캔지오, 종이지오, 잡동, 물, 라벨, 종이그림],
   );
 
   return (
@@ -815,6 +1067,19 @@ export function 복도잡동사니({
             map={라벨}
             vertexColors
             gradientMap={TOON_GRADIENT}
+          />
+          <만화선 선={선} />
+        </mesh>
+      )}
+      {종이지오 && (
+        <mesh geometry={종이지오} castShadow receiveShadow>
+          {/* 인쇄면 그림 × 정점색(밝기). 종이는 뒤에서도 보여야 한다 —
+                 바닥에 붙어 있어도 귀퉁이가 말려 뒷면이 드러난다. */}
+          <meshToonMaterial
+            map={종이그림}
+            vertexColors
+            gradientMap={TOON_GRADIENT}
+            side={THREE.DoubleSide}
           />
           <만화선 선={선} />
         </mesh>

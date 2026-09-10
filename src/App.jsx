@@ -9099,6 +9099,9 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     부식보이기: true,
     부식바닥수: { value: 12, min: 0, max: 60, step: 1 },
     부식벽수: { value: 18, min: 0, max: 80, step: 1 },
+    // 벽이 떨어져 나간 자리 · 금 간 자리
+    벽깨짐수: { value: 10, min: 0, max: 40, step: 1 },
+    벽금수: { value: 8, min: 0, max: 40, step: 1 },
     부식크기: { value: 1.3, min: 0.3, max: 3, step: 0.05 },
     자판기보이기: true,
     // 앞뒤(깊이)만 두 대가 같이 쓴다 — 같은 벽에 등을 대고 서 있어서다.
@@ -10078,6 +10081,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
               벽높이={CD.높이}
               바닥개수={CD.부식바닥수}
               벽개수={CD.부식벽수}
+              깨짐개수={CD.벽깨짐수}
+              금개수={CD.벽금수}
               크기={CD.부식크기}
               문z={CD.문z}
               문폭={CD.문폭}
