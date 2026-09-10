@@ -24,9 +24,13 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const [입력, 출력, 이름 = "모형"] = process.argv.slice(2);
+const [입력, 출력, 이름 = "모형", 축 = "auto"] = process.argv.slice(2);
 if (!입력 || !출력) {
-  console.error("쓰는 법: node 도구/모형굽기.mjs <입력.glb> <출력.js> [이름]");
+  console.error(
+    "쓰는 법: node 도구/모형굽기.mjs <입력.glb> <출력.js> [이름] [축]\n" +
+      "  축: auto(기본) | keep\n" +
+      "      auto — 가로로 가장 긴 쪽이 **Z** 가 되도록 Y 축으로 90° 돌린다",
+  );
   process.exit(1);
 }
 
@@ -56,6 +60,37 @@ const 위치 = 조각내기(프림.attributes.POSITION);
 const 인덱스원 = 조각내기(프림.indices);
 const 꼭 = 위치.length / 3;
 if (꼭 > 65535) throw new Error(`꼭짓점이 ${꼭} 개다 — 먼저 줄여라 (gltf-transform simplify)`);
+
+// ── 긴 쪽을 Z 로 돌린다 ────────────────────────────────────
+// [왜 필요한가]
+//   Meshy 는 물건을 아무 방향으로나 내놓는다. 배 모형은 **X 축으로 누워**
+//   있었다(1.898 × 0.566 × 0.862). 그런데 이 프로젝트의 「누운 물건」 규약은
+//   **길이 = Z** 다(나루터·가로대·상판이 전부 그렇다). 그대로 구우면
+//   배가 옆으로 누운 채 길이만 폭에 들어가서, `키` 에 4.4 m 를 줘도
+//   **4.4 m 폭짜리 배**가 된다.
+//   그래서 가로(X·Z) 중 긴 쪽이 Z 가 되도록 Y 축으로 90° 돌린다.
+{
+  let mn = [Infinity, Infinity, Infinity];
+  let mx = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < 꼭; i++)
+    for (let c = 0; c < 3; c++) {
+      const v = 위치[i * 3 + c];
+      if (v < mn[c]) mn[c] = v;
+      if (v > mx[c]) mx[c] = v;
+    }
+  const 가로 = mx[0] - mn[0];
+  const 세로 = mx[2] - mn[2];
+  if (축 === "auto" && 가로 > 세로) {
+    // (x, z) → (z, -x) : Y 축 −90°
+    for (let i = 0; i < 꼭; i++) {
+      const x = 위치[i * 3];
+      const z = 위치[i * 3 + 2];
+      위치[i * 3] = z;
+      위치[i * 3 + 2] = -x;
+    }
+    console.log(`  가로(${가로.toFixed(3)})가 세로(${세로.toFixed(3)})보다 길어 Y 축으로 90° 돌렸다`);
+  }
+}
 
 // ── 밑동 원점 · XZ 한복판 · Z 폭 1 ─────────────────────────
 let 최소 = [Infinity, Infinity, Infinity];

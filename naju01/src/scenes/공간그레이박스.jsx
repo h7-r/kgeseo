@@ -1036,7 +1036,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   //   「여기서 강을 건넌다」가 한눈에 읽힌다(§5 Scene 01).
   //   ※ **무리(인스턴스)로 넣는다.** 하나뿐인 물건이라도 편집기로 집어
   //     옮길 수 있어야 한다 — 자리를 눈으로 잡는 게 배치의 전부다.
-  const 나룻배모양 = useMemo(() => (T.나룻배 ? 나룻배표본({ 시드: 4477 }) : null), [T.나룻배]);
+  const 나룻배모양 = useMemo(() => (T.나룻배 ? 나룻배표본() : null), [T.나룻배]);
   useEffect(() => () => 나룻배모양?.dispose(), [나룻배모양]);
   const 나룻배자리 = useMemo(() => {
     if (!T.나룻배) return null;

@@ -25,6 +25,8 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { makeRandom } from "../../src/공용.jsx";
 import { 색입히기 } from "./바닥.js";
 import { 미터 } from "./공간도면.js";
+import { 나룻배모형 } from "./모형/나룻배.js";
+import { 모형지오 } from "./모형/불러오기.js";
 
 export const 나루결 = {
   말뚝: "#6A5947",
@@ -398,12 +400,55 @@ export function 나룻배만들기({
 //   하나뿐인 물건도 **고르고 옮길 수 있어야** 한다(편집기). 그러려면
 //   무리(InstancedMesh)에 넣어야 하고, 표본은 **길이 1 · 원점 기준**이어야 한다.
 //   그래야 자리의 `키` 에 실제 길이(m)를 주면 그대로 맞는다.
-export function 나룻배표본(옵션 = {}) {
-  const g = 나룻배만들기({ ...옵션, x: 0, z: 0, 방향: 0, 물높이: 0, 잠김: 0 });
-  g.computeBoundingBox();
-  const b = g.boundingBox;
-  const 길이 = b.max.z - b.min.z || 1;
-  g.translate(-(b.max.x + b.min.x) / 2, 0, -(b.max.z + b.min.z) / 2);
-  g.scale(1 / 길이, 1 / 길이, 1 / 길이);
+//
+// [★ 지금은 Meshy 모형이다 — 손으로 깎던 배는 아래 `나룻배만들기` 에 남아 있다]
+//   손으로 깎은 배는 씬 어디에서도 안 쓴다. 지우지 않고 두는 이유는
+//   `나루만들기`(나루터)가 같은 부품 함수들을 쓰고 있어서다.
+//
+// [★ 꼭짓점에 **진짜 색**을 굽는다 — 다른 모형들과 반대다]
+//   구렁이·통발은 **비율**만 굽고 실제 색을 `instanceColor` 가 준다. 배는
+//   그러면 안 된다. 이미 놓여 있는 배들의 편집 기록에 `색: 16777215`(흰색)이
+//   들어 있어서(팔레트에 `기본색` 이 없던 시절에 놓인 것들이다), 비율만
+//   구우면 그 배들이 **새하얗게** 나온다. 흰색을 곱해도 제 색이 나오도록
+//   여기서는 진짜 색을 굽는다. 손으로 깎던 옛 표본도 그렇게 하고 있었다.
+//
+// [★ 원점은 밑동이 아니라 **흘수선**이다]
+//   구운 모형은 밑동이 y=0 이다. 그대로 쓰면 배가 **물 위에 얹혀** 보인다 —
+//   실측: 높이 1.31 m 중 1.18 m 가 수면 위로 나왔다. 배는 잠겨야 배다.
+//   그래서 표본을 통째로 내려 **물에 잠기는 만큼이 y=0 아래**로 가게 한다.
+//   이렇게 해 두면 이미 놓여 있는 배들의 `y`(대개 0 근처)를 **한 개도 안
+//   고치고** 제대로 뜬다. 남의 편집 기록을 건드리지 않는 길이다.
+const 잠기는비율 = 0.3;
+
+export function 나룻배표본() {
+  const 널 = new THREE.Color(나루결.널);
+  const 널어둠 = new THREE.Color(나루결.널어둠);
+  const 물속 = new THREE.Color(나루결.말뚝어둠);
+  const 임시 = new THREE.Color();
+  const g = 모형지오(나룻배모형, {
+    칠하기: (면, 모형, 색) => {
+      const p = 면.attributes.position;
+      const nor = 면.attributes.normal;
+      const 높이 = 모형.폭.y || 1;
+      // 흘수선 — 이 아래는 물에 잠겨 젖은 빛이다. 자리의 `y` 가 −0.13 이고
+      //   표본 키가 0.298 이니, 실제로 잠기는 건 아래 한 뼘 남짓이다.
+      const 흘수 = 높이 * 잠기는비율;
+      for (let i = 0; i < p.count; i++) {
+        const y = p.getY(i);
+        const z = p.getZ(i);
+        // 널결 — 길이 방향으로 잔 줄. 없으면 통짜 나무토막으로 보인다.
+        const 결 = 0.5 + 0.5 * Math.sin(z * 96 + y * 31);
+        // 위(뱃전·사람)는 밝고 아래(배 안·바닥)는 어둡다
+        const 위봄 = THREE.MathUtils.clamp(nor.getY(i) * 0.5 + 0.5, 0, 1);
+        임시.copy(널어둠).lerp(널, 0.25 + 0.6 * 위봄);
+        임시.multiplyScalar(0.9 + 0.14 * 결);
+        if (y < 흘수) 임시.lerp(물속, THREE.MathUtils.clamp((흘수 - y) / 흘수, 0, 1) * 0.7);
+        색[i * 3] = 임시.r;
+        색[i * 3 + 1] = 임시.g;
+        색[i * 3 + 2] = 임시.b;
+      }
+    },
+  });
+  g.translate(0, -(나룻배모형.폭.y || 1) * 잠기는비율, 0);
   return g;
 }
