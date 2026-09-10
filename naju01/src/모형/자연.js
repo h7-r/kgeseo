@@ -286,8 +286,13 @@ export function 자갈밭모형들() {
 //   **1.72 배**였다. 그대로 놓으면 `키 4.2` 짜리 집이 폭 13.5 m 가 된다.
 export function 초가집모형들() {
   return 한번("초가집", () => {
-    const 짚 = new THREE.Color(원경결.초가);
-    const 짚그늘 = new THREE.Color(원경결.초가).multiplyScalar(0.72);
+    // ★ 지붕은 **원경결.초가(#9A8A5C)보다 밝게** 쓴다(팀 지시).
+    //   [왜 `원경결` 을 안 고치나]  그 색은 손으로 깎은 옛 원경집도 쓴다.
+    //   거기까지 밝히면 `모형자연` 을 껐을 때 그림이 달라진다. 여기서만 든다.
+    //   갓 이엉을 얹은 지붕은 누렇게 밝다 — 몇 해 지나면 잿빛으로 내려앉는데,
+    //   그 「내려앉은 빛」이 예전 값이었다.
+    const 짚 = new THREE.Color("#CBB87C");
+    const 짚그늘 = new THREE.Color("#8C7C4E");
     const 벽 = new THREE.Color(원경결.흙벽);
     const 벽그늘 = new THREE.Color(원경결.흙벽).multiplyScalar(0.68);
     const 나무 = new THREE.Color("#6A5540");
@@ -318,8 +323,10 @@ export function 초가집모형들() {
             } else if (위로 > 지붕부터) {
               // 짚결 — 이엉을 얹은 결이 있어야 「초가」로 보인다
               const 결 = 0.5 + 0.5 * Math.sin(위로 * 190 + p.getX(i) * 23);
-              임시.copy(짚그늘).lerp(짚, 0.45 + 0.55 * 위봄);
-              임시.multiplyScalar(0.95 + 0.11 * 결);
+              // 그늘 쪽 바닥도 올린다 — 면이 많아 아래를 보는 면이 많은데,
+              //   거기가 어두우면 밝은 색을 써도 덩어리째 가라앉는다.
+              임시.copy(짚그늘).lerp(짚, 0.55 + 0.45 * 위봄);
+              임시.multiplyScalar(0.96 + 0.1 * 결);
             } else if (목재.has(i)) {
               const 결 = 0.5 + 0.5 * Math.sin(p.getY(i) * 240);
               임시.copy(나무그늘).lerp(나무, 0.3 + 0.66 * 위봄);
@@ -352,8 +359,13 @@ export function 초가집모형들() {
 //   섞어 쓰면 안 되고, 손으로 놓는 에셋으로만 둔다.
 export function 초가마을덩이들() {
   return 한번("초가마을", () => {
-    const 짚 = new THREE.Color(원경결.초가);
-    const 짚그늘 = new THREE.Color(원경결.초가).multiplyScalar(0.72);
+    // ★ 지붕은 **원경결.초가(#9A8A5C)보다 밝게** 쓴다(팀 지시).
+    //   [왜 `원경결` 을 안 고치나]  그 색은 손으로 깎은 옛 원경집도 쓴다.
+    //   거기까지 밝히면 `모형자연` 을 껐을 때 그림이 달라진다. 여기서만 든다.
+    //   갓 이엉을 얹은 지붕은 누렇게 밝다 — 몇 해 지나면 잿빛으로 내려앉는데,
+    //   그 「내려앉은 빛」이 예전 값이었다.
+    const 짚 = new THREE.Color("#CBB87C");
+    const 짚그늘 = new THREE.Color("#8C7C4E");
     const 벽 = new THREE.Color(원경결.흙벽);
     const 벽그늘 = new THREE.Color(원경결.흙벽).multiplyScalar(0.68);
     const 임시 = new THREE.Color();
