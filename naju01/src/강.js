@@ -116,7 +116,14 @@ export function 강면만들기({ X, Z시작, Z끝, 칸당 = 0.6, 물결높이 =
   //   ※ 법선은 `computeVertexNormals` 대신 **미분으로 직접** 구한다.
   //     매 프레임 삼각형을 전부 훑는 것보다 훨씬 싸다(꼭짓점 수만큼만 돈다).
   const A = [0.5, 0.32, 0.18];
-  const 갱신 = (시각) => {
+  // ★ 왜곡 — `갱신(시각, 어긋남)` 으로 넘긴다(왜곡.js `물어긋남결`).
+  //   기본은 `null`(정상)이라, 안 넘기면 예전과 **한 프레임도 다르지 않다.**
+  const 갱신 = (시각, 어긋남 = null) => {
+    // 너울만 거꾸로 간다. 잔물결은 그대로다 — 둘이 다투어야 위화감이 생긴다.
+    //   같이 뒤집으면 그냥 「반대로 흐르는 강」이고, 그건 어긋남이 아니다.
+    const 뒤 = 어긋남 ? 어긋남.너울뒤집기 : 0;
+    const 너울속 = -0.28 * (1 - 2 * 뒤); // 뒤=0 → -0.28(정상) · 뒤=1 → +0.28
+    const 끌림 = 어긋남 ? 어긋남.옆끌림 : 0;
     const pos = geo.attributes.position;
     const col = geo.attributes.color;
     const nor = geo.attributes.normal;
@@ -124,10 +131,10 @@ export function 강면만들기({ X, Z시작, Z끝, 칸당 = 0.6, 물결높이 =
       const x = gx[i];
       const z = gz[i];
       const p1 = x * 0.55 + 시각 * 0.9;
-      const p2 = z * 0.9 - 시각 * 1.35 + x * 0.15;
+      const p2 = z * 0.9 - 시각 * 1.35 + x * (0.15 + 끌림);
       const p3 = (x + z) * 1.7 + 시각 * 2.1;
       // 너울 — 주기가 아주 긴 큰 물결. 잔물결만 있으면 '떨리는 판'으로 보인다.
-      const p0 = z * 0.06 - 시각 * 0.28 + x * 0.02;
+      const p0 = z * 0.06 + 시각 * 너울속 + x * 0.02;
       const h =
         Math.sin(p0) * 1.15 +
         A[0] * Math.sin(p1) +
@@ -139,7 +146,7 @@ export function 강면만들기({ X, Z시작, Z끝, 칸당 = 0.6, 물결높이 =
       const dx =
         (1.15 * 0.02 * Math.cos(p0) +
           A[0] * 0.55 * Math.cos(p1) +
-          A[1] * 0.15 * Math.cos(p2) +
+          A[1] * (0.15 + 끌림) * Math.cos(p2) +
           A[2] * 1.7 * Math.cos(p3)) *
         물결높이 *
         3.5;

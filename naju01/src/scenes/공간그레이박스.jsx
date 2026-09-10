@@ -99,6 +99,14 @@ import {
   화톳불표본들,
   구렁이표본들,
 } from "../씬1.js";
+import {
+  왜곡단계,
+  단계차례,
+  잔상들,
+  잔상흔들기,
+  잔상색,
+  물어긋남결,
+} from "../왜곡.js";
 import { 울타리자리들, 기둥표본들, 가로대표본들 } from "../울타리.js";
 import { 연결로만들기 } from "../연결로.js";
 
@@ -192,6 +200,84 @@ function 돌빛(밝음, 어둠) {
   const 어 = new THREE.Color(어둠);
   const c = new THREE.Color();
   return (t) => c.copy(어).lerp(밝, 0.32 + t * 0.62).getHex();
+}
+
+// ── 왜곡 잔상 ───────────────────────────────────────────────
+//   같은 무리를 조금씩 어긋나게 여러 벌 겹쳐 그린다. 왜 이 방식인지,
+//   왜 택촌에만 거는지는 `왜곡.js` 머리말에 적어 두었다.
+//
+//   [왜 색을 하나로 뭉개나]
+//     잔상까지 마을 색을 그대로 쓰면 겹칠수록 **진해져서** 오히려 또렷해
+//     보인다 — 흐리게 하려는 일과 정반대다. 지평선 색 쪽으로 당겨 놓아야
+//     겹칠수록 뿌예진다.
+//   [왜 광선에서 빼나]
+//     잔상은 **그림일 뿐**이다. 편집기가 이걸 집으면 있지도 않은 마을을
+//     고르게 된다. `raycast` 를 빈 함수로 덮어 아예 안 잡히게 한다.
+function 잔상무리({ 묶음, 결, 세기, 지평색 }) {
+  const 참조들 = useRef([]);
+  const 뭉치 = useRef([]);
+  const 벌들 = useMemo(() => 잔상들(결, 세기), [결, 세기]);
+  const 밀 = useRef(new THREE.Vector3());
+
+  useEffect(() => {
+    참조들.current.forEach((m) => {
+      if (!m) return;
+      m.raycast = () => {};
+      m.userData.잔상 = true;
+    });
+  }, [묶음, 벌들]);
+
+  useFrame((상태) => {
+    const t = 상태.clock.elapsedTime;
+    뭉치.current.forEach((g, i) => {
+      if (!g) return;
+      const v = 잔상흔들기(벌들[i], t, 밀.current);
+      g.position.set(v.x * 미터, v.y * 미터, v.z * 미터);
+    });
+  });
+
+  if (!묶음 || !벌들.length) return null;
+  let 번 = -1;
+  return (
+    <>
+      {벌들.map((잔, gi) => (
+        <group
+          key={`잔상-${묶음.이름}-${gi}`}
+          ref={(el) => {
+            뭉치.current[gi] = el;
+          }}
+        >
+          {묶음.무리.map((v, i) => {
+            번 += 1;
+            const 나 = 번;
+            return (
+              <instancedMesh
+                key={`${묶음.이름}-잔상${gi}-${i}`}
+                ref={(el) => {
+                  참조들.current[나] = el;
+                }}
+                name={`왜곡.${묶음.이름}`}
+                args={[v.지오, undefined, v.번호들.length]}
+                frustumCulled={false}
+                onUpdate={(m) => {
+                  m.instanceMatrix.array.set(v.행렬들);
+                  m.instanceMatrix.needsUpdate = true;
+                }}
+              >
+                <meshLambertMaterial
+                  color={잔상색("#8E8778", 지평색, 세기)}
+                  transparent
+                  opacity={잔.짙기}
+                  depthWrite={false}
+                  side={THREE.FrontSide}
+                />
+              </instancedMesh>
+            );
+          })}
+        </group>
+      ))}
+    </>
+  );
 }
 
 function 무리({ 묶음 }) {
@@ -356,6 +442,13 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     // Scene 01 이 요구하는 것들(그물틀·통발·돌탑·화톳불·구렁이).
     //   씬 상태 장치가 생기면 이 손잡이 대신 씬 진행이 켜고 끈다.
     씬1요소: true,
+    // ── 왜곡 (④ Scene 01 §3 · §0.7) ───────────────────────
+    //   ★ 단계는 **퍼즐 완료**로 매긴다(씬 번호가 아니다 — §0.7 표가 P01~P04
+    //     로 되어 있고, 씬 2 의 P01 은 씬 2 가 **끝날 때** 풀린다).
+    //     지금은 손으로 돌려 보는 손잡이다. 진짜 진행 장치가 생기면 그쪽이
+    //     이 값을 준다.
+    왜곡: true,
+    왜곡단계: { value: "초기", options: 단계차례 },
     // ── 빛 ────────────────────────────────────────────────
     //   환경광이 세면 굴곡이 다 씻겨 나간다. 하늘빛(위=하늘색·아래=땅색)이
     //   있어야 위를 보는 면과 옆을 보는 면이 갈린다.
@@ -1067,6 +1160,14 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     [],
   );
 
+  // ── 지금 왜곡이 어느 단계인가 ───────────────────────────
+  //   `왜곡` 을 끄면 세기 0 — 「왜곡 없는 화면」과 A/B 로 대 볼 수 있어야
+  //   무엇이 달라졌는지 판정이 된다(이 프로젝트의 다른 스위치들과 같은 이유).
+  const 왜곡now = useMemo(() => {
+    const 단 = 왜곡단계[T.왜곡단계] ?? 왜곡단계.초기;
+    return T.왜곡 ? 단 : { 세기: 0, 결: "없음", 물어긋남: 0, 설명: "꺼 둠" };
+  }, [T.왜곡, T.왜곡단계]);
+
   // ── Scene 01 이 요구하는 것들 ───────────────────────────
   //   ④ Scene 구성표 Scene 01 의 「필수 장소 요소 · 필수 스토리 오브젝트 ·
   //   일반 조작 오브젝트」를 실제 자리에 놓는다(근거는 씬1.js 머리말).
@@ -1507,7 +1608,11 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     // 하늘이 코앞에 있는 것처럼 보인다(시차가 0 이어야 '아주 멀리'로 읽힌다)
     if (구름참조.current) 구름참조.current.position.copy(camera.position);
     // 물결 — 움직여야 물로 읽힌다. 멈춘 물은 그냥 파란 바닥이다.
-    if (강조형) 강조형.수면.갱신(상태.clock.elapsedTime * T.물결속도);
+    if (강조형)
+      강조형.수면.갱신(
+        상태.clock.elapsedTime * T.물결속도,
+        왜곡now.물어긋남 ? 물어긋남결(왜곡now.물어긋남) : null,
+      );
     if (보고.current) {
       보고.current.연출 = 연출알림참조.current;
       보고.current.삼각형 = gl.info.render.triangles;
@@ -2047,6 +2152,23 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
       )}
 
       {/* ── 흩뿌린 수풀 — 인스턴스라 하나씩 고를 수 있다 ── */}
+      {/* ── 왜곡 잔상 — 택촌에만 건다 (④ Scene 01 §3) ──
+             거리에 따라 뿌옇게 하면 그건 **안개**다. 「저기가 이상하다」가
+             되려면 그 마을만 이상해야 한다. 그래서 `원경.택촌` 을 따로
+             담아 두었다(원경.js). */}
+      {왜곡now.세기 > 0 &&
+        무리들
+          .filter((묶음) => 묶음.이름 === "원경.택촌")
+          .map((묶음) => (
+            <잔상무리
+              key={`잔상-${묶음.이름}`}
+              묶음={묶음}
+              결={왜곡now.결}
+              세기={왜곡now.세기}
+              지평색={하늘결.지평}
+            />
+          ))}
+
       {무리들.map((묶음) => (
         <무리 key={묶음.이름} 묶음={묶음} />
       ))}
