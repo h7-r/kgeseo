@@ -24,7 +24,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const [입력, 출력, 이름 = "모형", 규약 = "눕힘", 크기옵션] = process.argv.slice(2);
+const [입력, 출력, 이름 = "모형", 규약 = "눕힘", 크기옵션, 목표옵션] =
+  process.argv.slice(2);
 if (!입력 || !출력) {
   console.error(
     "쓰는 법: node 도구/모형굽기.mjs <입력.glb> <출력.js> [이름] [규약] [크기]\n" +
@@ -37,11 +38,16 @@ if (!입력 || !출력) {
       "    중심        가장 긴 쪽 = `크기`(기본 0.8) · **자리 한복판이 원점**\n" +
       "                굴러다니는 것 — 바위 · 자갈\n" +
       "                0.8 인 이유: 지금 쓰는 `돌표본들` 을 재 보니 그렇다.\n" +
-      "                맞춰 두어야 이미 놓인 돌들의 `키` 가 안 어긋난다.",
+      "                맞춰 두어야 이미 놓인 돌들의 `키` 가 안 어긋난다.\n" +
+      "  목표삼각형 — 주면 **용접 + 감면**을 여기서 한다(meshoptimizer).\n" +
+      "               Downloads 의 원본 GLB 를 그대로 넣을 수 있다.\n" +
+      "               안 주면 안 줄인다(이미 줄여 둔 GLB 를 넣는 옛 쓰임새).",
   );
   process.exit(1);
 }
 const 크기 = Number(크기옵션 ?? 0.8);
+// 목표 삼각형 — 안 주면 감면하지 않는다(이미 줄여 둔 GLB 를 넣는 옛 쓰임새).
+const 목표삼각형 = Number(목표옵션 ?? 0);
 
 // ── GLB 를 연다 ────────────────────────────────────────────
 const 바 = fs.readFileSync(입력);
@@ -65,10 +71,99 @@ const 조각내기 = (번호) => {
 };
 
 const 프림 = 문서.meshes[0].primitives[0];
-const 위치 = 조각내기(프림.attributes.POSITION);
-const 인덱스원 = 조각내기(프림.indices);
+let 위치 = 조각내기(프림.attributes.POSITION);
+let 인덱스원 =
+  프림.indices !== undefined
+    ? 조각내기(프림.indices)
+    : // 인덱스가 없는 GLB 도 있다(Meshy 생성본 일부). 0,1,2,… 로 만들어 준다.
+      Uint32Array.from({ length: 위치.length / 3 }, (_, i) => i);
+
+// ── 용접 + 감면 ────────────────────────────────────────────
+// [왜 여기서 하나]
+//   예전에는 `gltf-transform` CLI 로 미리 줄여 `에셋/모형/*.glb` 를 만들고
+//   이 도구는 그걸 받기만 했다. 그래서 「조금만 더 살려 보자」를 해 보려면
+//   **도구 두 개를 오가야** 했고, 얼마나 줄였는지도 파일에 안 남았다.
+//   `meshoptimizer` 가 이미 node_modules 에 있으니 여기서 한 번에 한다.
+//   → 이제 **Downloads 의 원본 GLB 를 그대로** 넣고 목표 삼각형만 주면 된다.
+//
+// [왜 용접이 먼저인가]
+//   Meshy 생성본은 꼭짓점을 **안 합쳐서** 낸다(초가집1: 삼각형 306만에
+//   꼭짓점 153만). 용접 없이 감면하면 같은 자리 꼭짓점이 따로 놀아
+//   면이 조각조각 떨어진다.
+//
+// [왜 Uint16 상한이 있나]
+//   구운 모듈은 인덱스를 **Uint16** 으로 적는다(파일 크기). 그래서
+//   꼭짓점 65,535 개가 천장이다. 목표를 그보다 크게 줘도 여기서 잘린다.
+if (목표삼각형 > 0 && 인덱스원.length / 3 > 목표삼각형) {
+  const { MeshoptSimplifier } = await import("meshoptimizer");
+  await MeshoptSimplifier.ready;
+  // ① 용접 — 같은 자리 꼭짓점을 합친다
+  const 남은자리 = new Uint32Array(위치.length / 3);
+  const 남은수 = MeshoptSimplifier.compactMesh
+    ? 0
+    : 0; // (compactMesh 는 버전에 따라 없다 — 아래 수동 용접을 쓴다)
+  void 남은자리;
+  void 남은수;
+  const 열쇠 = new Map();
+  const 새위치 = [];
+  const 옮김 = new Uint32Array(위치.length / 3);
+  for (let i = 0; i < 위치.length / 3; i++) {
+    // 소수점 5자리(0.01 mm)에서 같으면 같은 점으로 본다
+    const k =
+      위치[i * 3].toFixed(5) + "," + 위치[i * 3 + 1].toFixed(5) + "," + 위치[i * 3 + 2].toFixed(5);
+    let j = 열쇠.get(k);
+    if (j === undefined) {
+      j = 새위치.length / 3;
+      열쇠.set(k, j);
+      새위치.push(위치[i * 3], 위치[i * 3 + 1], 위치[i * 3 + 2]);
+    }
+    옮김[i] = j;
+  }
+  const 용접위치 = new Float32Array(새위치);
+  const 용접인덱스 = new Uint32Array(인덱스원.length);
+  for (let i = 0; i < 인덱스원.length; i++) 용접인덱스[i] = 옮김[인덱스원[i]];
+  console.log(
+    `  용접   꼭짓점 ${(위치.length / 3).toLocaleString()} → ${(용접위치.length / 3).toLocaleString()}`,
+  );
+
+  // ② 감면 — 목표 삼각형까지 줄인다
+  const 목표인덱스수 = 목표삼각형 * 3;
+  const [줄인인덱스, 오차] = MeshoptSimplifier.simplify(
+    용접인덱스,
+    용접위치,
+    3,
+    목표인덱스수,
+    0.05, // 허용 오차 — 넘기면 목표보다 덜 줄인다(형태를 지킨다)
+    ["LockBorder"],
+  );
+  // ③ 안 쓰는 꼭짓점 버리기
+  const 쓴것 = new Map();
+  const 짐위치 = [];
+  const 짐인덱스 = new Uint32Array(줄인인덱스.length);
+  for (let i = 0; i < 줄인인덱스.length; i++) {
+    const v = 줄인인덱스[i];
+    let j = 쓴것.get(v);
+    if (j === undefined) {
+      j = 짐위치.length / 3;
+      쓴것.set(v, j);
+      짐위치.push(용접위치[v * 3], 용접위치[v * 3 + 1], 용접위치[v * 3 + 2]);
+    }
+    짐인덱스[i] = j;
+  }
+  위치 = new Float32Array(짐위치);
+  인덱스원 = 짐인덱스;
+  console.log(
+    `  감면   삼각형 ${(용접인덱스.length / 3).toLocaleString()} → ${(인덱스원.length / 3).toLocaleString()}` +
+      ` · 꼭짓점 ${(위치.length / 3).toLocaleString()} · 오차 ${오차.toFixed(4)}`,
+  );
+}
+
 const 꼭 = 위치.length / 3;
-if (꼭 > 65535) throw new Error(`꼭짓점이 ${꼭} 개다 — 먼저 줄여라 (gltf-transform simplify)`);
+if (꼭 > 65535)
+  throw new Error(
+    `꼭짓점이 ${꼭} 개다 — 인덱스를 Uint16 으로 적으므로 65,535 가 천장이다.\n` +
+      `  목표 삼각형을 낮춰라: node 도구/모형굽기.mjs <입력> <출력> [이름] [규약] [크기] [목표삼각형]`,
+  );
 
 // ── 긴 쪽을 Z 로 돌린다 ────────────────────────────────────
 // [왜 필요한가]
