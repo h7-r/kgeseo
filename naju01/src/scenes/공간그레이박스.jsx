@@ -105,6 +105,7 @@ import { GLB풀기, 첫메시, 실치수맞춤 } from "../에셋.js";
 import { 구운지형입히기 } from "../구운지형.js";
 import { 바위읽기, 바위파일목록 } from "../바위에셋.js";
 import { 강면만들기, 물가만들기, 건너편만들기, 건너굽이 } from "../강.js";
+import { 물잔결참조 } from "../물잔결.js";
 import { 길만들기, 길가돌자리들, 통로결 } from "../통로.js";
 import { use지형이동, 이동상수 } from "../use지형이동.js";
 import { 연출만들기, 무너짐변환 } from "../연출.js";
@@ -194,18 +195,19 @@ function 경사조각({ a, b, 폭, 두께 = 0.35, 색, 선긋기 }) {
 //   `양면` — 비탈 치마처럼 안팎이 다 보일 수 있는 면에 쓴다.
 //     한쪽만 그리면 뒷면이 통째로 까맣게 뚫려 보인다. DoubleSide 로 두면
 //     three 가 뒷면 프래그먼트의 노멀을 뒤집어 줘서 양쪽 다 제대로 받는다.
-function 바닥재질({ 방식, 밝기, 양면 = false }) {
+function 바닥재질({ 방식, 밝기, 양면 = false, 재질참조 }) {
   const 색 = 색밝기("#FFFFFF", 밝기);
   const 면 = 양면 ? THREE.DoubleSide : THREE.FrontSide;
   return 방식 === "툰" ? (
     <meshToonMaterial
+      ref={재질참조}
       vertexColors
       color={색}
       side={면}
       gradientMap={TOON_GRADIENT}
     />
   ) : (
-    <meshLambertMaterial vertexColors color={색} side={면} />
+    <meshLambertMaterial ref={재질참조} vertexColors color={색} side={면} />
   );
 }
 
@@ -474,6 +476,9 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     강디테일: true,
     물결높이: { value: 0.09, min: 0, max: 0.4, step: 0.01 }, // m
     물결속도: { value: 1, min: 0, max: 3, step: 0.05 },
+    // 잔물결 — **픽셀마다** 얹는 결(물잔결.js). 꼭짓점 격자가 1.7 m 라
+    //   그보다 잔 물결은 기하로는 못 담는다. 0 이면 예전 그대로다.
+    물잔결: { value: 1, min: 0, max: 2, step: 0.05 },
     물가돌: { value: 90, min: 0, max: 300, step: 10 },
     // 강 건너 능선 실루엣 — **택촌 뒤에만** 선다.
     //   ※ 예전에는 물가(강.Z시작+건너)에 세워서 택촌 **앞**을 막았다. 높이가
@@ -655,6 +660,10 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   // ── 지형 한 벌 ──────────────────────────────────────────
   //   절벽 높이를 돌리면 Z3 고도 → T3·T4 경사 → 그 위 차단물까지 한꺼번에
   //   다시 만들어진다. 그림·이동·충돌·계기판이 이 한 벌만 본다.
+  // 수면 잔결 손잡이 — 재질이 만들어질 때 걸리고, 매 프레임 여기로 시각을 넣는다
+  const 잔결참조 = useRef(null);
+  const 잔결걸기참조 = useMemo(() => 물잔결참조(잔결참조), []);
+
   const 지형 = useMemo(
     () =>
       지형만들기({
@@ -2004,11 +2013,17 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     // 하늘이 코앞에 있는 것처럼 보인다(시차가 0 이어야 '아주 멀리'로 읽힌다)
     if (구름참조.current) 구름참조.current.position.copy(camera.position);
     // 물결 — 움직여야 물로 읽힌다. 멈춘 물은 그냥 파란 바닥이다.
-    if (강조형)
-      강조형.수면.갱신(
+    if (강조형) {
+      const 어긋남 = 왜곡now.물어긋남 ? 물어긋남결(왜곡now.물어긋남) : null;
+      강조형.수면.갱신(상태.clock.elapsedTime * T.물결속도, 어긋남);
+      // ★ 잔결도 **같은 어긋남**을 받는다. 안 그러면 너울만 거꾸로 가고
+      //   잔물결은 멀쩡해서 위화감이 반만 온다(물잔결.js 머리말).
+      잔결참조.current?.갱신(
         상태.clock.elapsedTime * T.물결속도,
-        왜곡now.물어긋남 ? 물어긋남결(왜곡now.물어긋남) : null,
+        어긋남,
+        T.물잔결,
       );
+    }
     if (보고.current) {
       보고.current.연출 = 연출알림참조.current;
       보고.current.삼각형 = gl.info.render.triangles;
@@ -2206,8 +2221,15 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
               <meshBasicMaterial vertexColors toneMapped={false} />
             </mesh>
           )}
+          {/* ★ 수면만 재질에 ref 를 단다 — `물잔결.js` 가 셰이더에 잔결을
+                 끼워 넣는다. 램버트↔툰을 바꾸면 재질이 새로 생기므로
+                 ref 콜백이 다시 불려 새 재질에도 걸린다. */}
           <mesh name="강조형.수면.지오" geometry={강조형.수면.지오} receiveShadow>
-            <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} />
+            <바닥재질
+              방식={T.바닥셰이딩}
+              밝기={T.밝기}
+              재질참조={잔결걸기참조}
+            />
           </mesh>
           {강조형.돌 && (
             <mesh name="강조형.돌" geometry={강조형.돌} receiveShadow castShadow>
