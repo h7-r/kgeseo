@@ -148,8 +148,8 @@ export function 결걸기(재질, { 길 = false } = {}) {
            float along = dot(p.xz, dir);
            float across = dot(p.xz, side);
            // 세로(진행) 6 배로 늘이고 가로는 촘촘하게 — 끌린 자국이 된다
-           blot = (badakFbm(vec3(along * 0.16, p.y * 0.4, across * 1.05)) - 0.5) * 0.85
-                + (badakFbm(vec3(along * 0.55, p.y * 0.4, across * 3.1) + 9.0) - 0.5) * 0.40;
+           blot = (badakFbm(vec3(along * 0.16, p.y * 0.4, across * 1.05)) - 0.5) * 0.34
+                + (badakFbm(vec3(along * 0.55, p.y * 0.4, across * 3.1) + 9.0) - 0.5) * 0.30;
            // ★ 바퀴 자국 둘 — 걷는 폭의 |u| ≈ 0.5 에 다져진 띠가 난다.
            //   가운데(u=0)는 발이 모이는 자리라 한 번 더 밝다.
            float u = vGil.z;
@@ -157,15 +157,19 @@ export function 결걸기(재질, { 길 = false } = {}) {
            float mid = exp(-pow(u / 0.22, 2.0));
            // 자국을 따라 끊기게 — 연속한 띠면 레일처럼 보인다
            float broken = badakFbm(vec3(along * 0.5, 0.0, 0.0) + 31.0) * 0.6 + 0.55;
-           blot -= rut * 0.30 * broken;
-           blot += mid * 0.16;`
+           blot -= rut * 0.18 * broken;
+           blot += mid * 0.10;`
                : `
            // ── 흙·풀·자갈 ──
-           //   큰 얼룩(6 m) · 중간(1.6 m) · 잔 결(0.35 m)
+           // ★ **큰 무늬를 키우면 안 된다.** 처음에 6 m 짜리 얼룩을 0.62 로
+           //   줬더니 바닥에 **기름때 같은 검은 아메바**가 앉았다(사용자 지적:
+           //   「얼룩덜룩 검정색 점이 기괴하다」). 실제 흙바닥은 멀리서 보면
+           //   거의 고르고, 눈에 드는 변화는 **발밑의 잔 결**이다.
+           //   그래서 무게를 큰 것 → 작은 것으로 옮긴다.
            float wide = badakFbm(p * 0.17);
            float mid  = badakFbm(p * 0.62 + 7.3);
            float fine = badakFbm(p * 2.9 + 21.1);
-           blot = (wide - 0.5) * 0.62 + (mid - 0.5) * 0.30 + (fine - 0.5) * 0.16;
+           blot = (wide - 0.5) * 0.16 + (mid - 0.5) * 0.24 + (fine - 0.5) * 0.34;
            // ★ 바탕색으로 **무엇인지** 알아낸다 — 새 자료가 필요 없다.
            //   자갈밭은 잿빛(채도 낮음) · 들판은 초록 · 나머지는 흙.
            //   구역마다 결이 달라야 「다른 재료」로 읽힌다.
@@ -175,21 +179,27 @@ export function 결걸기(재질, { 길 = false } = {}) {
            float gravel = smoothstep(0.22, 0.08, sat);                       // 잿빛일수록 1
            float grass = smoothstep(0.02, 0.14, diffuseColor.g - diffuseColor.r);
            // 자갈 — 알갱이. 아주 잔 노이즈를 세게 넣으면 낱알로 읽힌다.
-           blot += (badakNoise(p * 9.5) - 0.5) * 0.75 * gravel;
+           //   ※ 생 노이즈(badakNoise)를 세게 넣었더니 **네모난 검은 점**이
+           //     찍혔다 — 값 노이즈라 격자가 그대로 보인다. fbm 으로 부드럽게.
+           blot += (badakFbm(p * 4.2) - 0.5) * 0.34 * gravel;
            // 풀 — 잔 결을 성기게, 대신 포기 단위(0.5 m)로 뭉친다
-           blot += (badakFbm(p * 1.9 + 3.3) - 0.5) * 0.45 * grass;`
+           blot += (badakFbm(p * 1.9 + 3.3) - 0.5) * 0.26 * grass;`
            }
            // 가파를수록 바위 — 평평한 데(ny=1)는 0, 선 면(ny=0)은 1
            float steep = clamp(1.0 - abs(normalize(vNormal).y), 0.0, 1.0);
            steep = smoothstep(0.25, 0.75, steep) * badakRock;
            // 바위 면은 세로로 긁힌 결이 난다 — 물이 흘러내린 자국
            float streak = badakFbm(vec3(p.x * 3.4, p.y * 0.55, p.z * 3.4) + 5.0);
-           blot += (streak - 0.5) * 0.45 * steep;
-           // 밝기를 흔든다. 색상은 안 건드린다 — 꼭짓점 색이 정한 색을 지키고
+           blot += (streak - 0.5) * 0.30 * steep;
+           // ★ **반드시 조인다.** 겹친 항이 다 같은 쪽으로 몰리면 blot 이
+           //   ±1.1 까지 갔고, 밝기가 **0.19 배**까지 떨어져 새까맣게 탔다.
+           //   실제 흙바닥의 명암 폭은 ±15 % 남짓이다.
+           blot = clamp(blot, -0.42, 0.42);
+           // 밝기만 흔든다. 색상은 안 건드린다 — 꼭짓점 색이 정한 색을 지키고
            //   **명암만** 준다. 흙은 흙색, 풀은 풀색 그대로다.
-           diffuseColor.rgb *= 1.0 + blot * 0.55 * badakAmp;
+           diffuseColor.rgb *= 1.0 + blot * 0.30 * badakAmp;
            // 가파른 면은 한 톤 더 가라앉힌다(바위는 흙보다 어둡다)
-           diffuseColor.rgb *= 1.0 - steep * 0.13 * badakAmp;
+           diffuseColor.rgb *= 1.0 - steep * 0.09 * badakAmp;
          }`,
       )
       // ── ② 결로 법선 흔들기 ──────────────────────────────
@@ -202,7 +212,8 @@ export function 결걸기(재질, { 길 = false } = {}) {
            float n0 = badakNoise(p);
            float nx = badakNoise(p + vec3(e, 0.0, 0.0));
            float nz = badakNoise(p + vec3(0.0, 0.0, e));
-           vec2 g = vec2(nx - n0, nz - n0) * 2.4 * badakAmp;
+           // 2.4 → 1.1. 세게 주면 평평한 바닥이 **우둘투둘한 금속**처럼 번들거린다.
+           vec2 g = vec2(nx - n0, nz - n0) * 1.1 * badakAmp;
            normal = normalize(normal + vec3(-g.x, 0.0, -g.y));
          }`,
       );

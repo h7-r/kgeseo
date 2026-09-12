@@ -510,9 +510,9 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     물잔결: { value: 1, min: 0, max: 2, step: 0.05 },
     // 바닥 결 — 땅·비탈·길·절벽에 삼면(triplanar)으로 얹는 얼룩·결(바닥결.js).
     //   바닥은 전부 uv 가 없어서 이미지 텍스처를 못 쓴다. 0 이면 예전 그대로.
-    바닥결: { value: 1.3, min: 0, max: 2, step: 0.05 },
+    바닥결: { value: 1, min: 0, max: 2, step: 0.05 },
     // 가파른 면을 얼마나 바위처럼 만들까 — 절벽·비탈이 흙과 갈린다
-    바닥바위결: { value: 1.1, min: 0, max: 2, step: 0.05 },
+    바닥바위결: { value: 1, min: 0, max: 2, step: 0.05 },
     물가돌: { value: 90, min: 0, max: 300, step: 10 },
     // 강 건너 능선 실루엣 — **택촌 뒤에만** 선다.
     //   ※ 예전에는 물가(강.Z시작+건너)에 세워서 택촌 **앞**을 막았다. 높이가
