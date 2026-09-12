@@ -106,6 +106,7 @@ import { 구운지형입히기 } from "../구운지형.js";
 import { 바위읽기, 바위파일목록 } from "../바위에셋.js";
 import { 강면만들기, 물가만들기, 건너편만들기, 건너굽이 } from "../강.js";
 import { 물잔결참조 } from "../물잔결.js";
+import { 바닥결참조, 결세기 } from "../바닥결.js";
 import { 길만들기, 길가돌자리들, 통로결 } from "../통로.js";
 import { use지형이동, 이동상수 } from "../use지형이동.js";
 import { 연출만들기, 무너짐변환 } from "../연출.js";
@@ -195,19 +196,25 @@ function 경사조각({ a, b, 폭, 두께 = 0.35, 색, 선긋기 }) {
 //   `양면` — 비탈 치마처럼 안팎이 다 보일 수 있는 면에 쓴다.
 //     한쪽만 그리면 뒷면이 통째로 까맣게 뚫려 보인다. DoubleSide 로 두면
 //     three 가 뒷면 프래그먼트의 노멀을 뒤집어 줘서 양쪽 다 제대로 받는다.
-function 바닥재질({ 방식, 밝기, 양면 = false, 재질참조 }) {
+function 바닥재질({ 방식, 밝기, 양면 = false, 재질참조, 결 = false }) {
   const 색 = 색밝기("#FFFFFF", 밝기);
   const 면 = 양면 ? THREE.DoubleSide : THREE.FrontSide;
+  // ★ `결` 을 켠 바닥에만 삼면(triplanar) 결을 끼운다(바닥결.js).
+  //   재질이 새로 생길 때마다(램버트↔툰) ref 콜백이 다시 불려 다시 걸린다.
+  //   무리(나무·바위 인스턴스)에는 **안 건다** — 거기까지 결을 얹으면
+  //   잎사귀마다 얼룩이 져 화면이 지저분해지고, 값도 두 배로 든다.
+  const 결참조 = useMemo(() => (결 ? 바닥결참조() : null), [결]);
+  const 참조 = 재질참조 ?? 결참조;
   return 방식 === "툰" ? (
     <meshToonMaterial
-      ref={재질참조}
+      ref={참조}
       vertexColors
       color={색}
       side={면}
       gradientMap={TOON_GRADIENT}
     />
   ) : (
-    <meshLambertMaterial ref={재질참조} vertexColors color={색} side={면} />
+    <meshLambertMaterial ref={참조} vertexColors color={색} side={면} />
   );
 }
 
@@ -487,6 +494,11 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     // 잔물결 — **픽셀마다** 얹는 결(물잔결.js). 꼭짓점 격자가 1.7 m 라
     //   그보다 잔 물결은 기하로는 못 담는다. 0 이면 예전 그대로다.
     물잔결: { value: 1, min: 0, max: 2, step: 0.05 },
+    // 바닥 결 — 땅·비탈·길·절벽에 삼면(triplanar)으로 얹는 얼룩·결(바닥결.js).
+    //   바닥은 전부 uv 가 없어서 이미지 텍스처를 못 쓴다. 0 이면 예전 그대로.
+    바닥결: { value: 1.3, min: 0, max: 2, step: 0.05 },
+    // 가파른 면을 얼마나 바위처럼 만들까 — 절벽·비탈이 흙과 갈린다
+    바닥바위결: { value: 1.1, min: 0, max: 2, step: 0.05 },
     물가돌: { value: 90, min: 0, max: 300, step: 10 },
     // 강 건너 능선 실루엣 — **택촌 뒤에만** 선다.
     //   ※ 예전에는 물가(강.Z시작+건너)에 세워서 택촌 **앞**을 막았다. 높이가
@@ -2060,6 +2072,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     if (강조형) {
       const 어긋남 = 왜곡now.물어긋남 ? 물어긋남결(왜곡now.물어긋남) : null;
       강조형.수면.갱신(상태.clock.elapsedTime * T.물결속도, 어긋남);
+      결세기(T.바닥결, T.바닥바위결);
       // ★ 잔결도 **같은 어긋남**을 받는다. 안 그러면 너울만 거꾸로 가고
       //   잔물결은 멀쩡해서 위화감이 반만 온다(물잔결.js 머리말).
       잔결참조.current?.갱신(
@@ -2319,7 +2332,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
       {/* ── 땅 한 장 ── */}
       {땅.그물 && (
         <mesh name="땅" geometry={땅.그물} receiveShadow>
-          <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} />
+          <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 결 />
         </mesh>
       )}
 
@@ -2337,7 +2350,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
           {/* 양면 — 옆 마구리의 감는 방향이 한쪽에서 뒤집혀 **검은 쐐기**가 났다.
               닫힌 덩어리라 양면으로 두면 three 가 뒷면 노멀을 뒤집어 준다. */}
           <mesh name="절벽면" geometry={절벽조각.면} receiveShadow castShadow>
-            <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 양면 />
+            <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 양면 결 />
           </mesh>
           {절벽조각.너덜 && (
             <mesh name="절벽조각.너덜" geometry={절벽조각.너덜} receiveShadow castShadow>
@@ -2383,7 +2396,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
             <group key={`길-${통로실측[i].코드}`}>
               {v.비탈 && (
                 <mesh name="비탈" geometry={v.비탈} receiveShadow castShadow>
-                  <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 양면 />
+                  <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 양면 결 />
                 </mesh>
               )}
               {/* ★ 단면(FrontSide). 양면으로 두면 길보다 낮은 자리에서 올려다볼 때
@@ -2391,7 +2404,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
                   화면에 **세로로 긴 검은 띠**로 나온다. 광선을 쏴서 확인했다.
                   밑면을 안 그리면 그 자리에는 뒤의 비탈·땅이 보인다. */}
               <mesh name="길" geometry={v.길} receiveShadow>
-                <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} />
+                <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 결 />
               </mesh>
             </group>
           ))}
@@ -2439,13 +2452,13 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
       {/* 무대 밖으로 내려가는 연결로 — 그림과 걷는 높이가 같은 함수를 본다 */}
       {연결로?.지오 && (
         <mesh name="연결로" geometry={연결로.지오} receiveShadow castShadow>
-          <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 양면 />
+          <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 양면 결 />
         </mesh>
       )}
 
       {차단물조형?.구역바위.map((z) => (
         <mesh name="z.지오" key={`구역바위-${z.코드}`} geometry={z.지오} receiveShadow castShadow>
-          <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 양면 />
+          <바닥재질 방식={T.바닥셰이딩} 밝기={T.밝기} 양면 결 />
         </mesh>
       ))}
 
