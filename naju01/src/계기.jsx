@@ -60,6 +60,26 @@ export function 계기판({ 보고 }) {
         <span>삼각형 {(v.삼각형 ?? 0).toLocaleString()}</span>
         <span style={S.흐림}>드로우콜 {v.드로우콜 ?? 0}</span>
       </div>
+      {/* ── fps ──
+             평균만 보면 안 된다. 평균 60 이어도 스무 프레임에 한 번 120 ms 가
+             끼면 화면은 끊겨 보인다. **가장 느린 프레임**을 같이 보여 준다.
+             색: 55 이상 초록 · 30 이상 노랑 · 그 아래 빨강. */}
+      {v.fps != null ? (
+        <div style={S.줄}>
+          <span
+            style={{
+              color:
+                v.fps >= 55 ? "#8FE3B0" : v.fps >= 30 ? "#FFD166" : "#FF8A80",
+              fontWeight: 700,
+            }}
+          >
+            {v.fps.toFixed(0)} fps
+          </span>
+          <span style={S.흐림}>
+            평균 {v.프레임ms?.toFixed(1)} ms · 최악 {v.최악ms?.toFixed(0)} ms
+          </span>
+        </div>
+      ) : null}
       <div style={{ ...S.줄, color: 완주 ? "#8FE3B0" : "#9AA3B4" }}>
         고리 {완주 ? "완주" : v.방문.join(" → ") || "—"}
       </div>

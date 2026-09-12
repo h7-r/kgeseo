@@ -2052,7 +2052,28 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   // ※ 이 useFrame 은 **반드시 use지형이동 뒤에** 등록돼야 한다.
   //   그 훅이 매 프레임 `보고.current` 를 새 객체로 갈아끼우기 때문에,
   //   먼저 등록되면 여기서 쓴 값이 곧바로 지워진다(계기판에 0 만 찍혔다).
+  // ── 프레임 시간 재기 ────────────────────────────────────
+  // [왜 넣나]  계기판에 삼각형·드로우콜은 있는데 **fps 가 없었다.**
+  //   「이 씬이 실제 기기에서 도는가」를 물어볼 수가 없었다(사용자 지적).
+  // [왜 평균만으로는 부족한가]
+  //   평균 60 이어도 20 프레임마다 한 번 120 ms 가 끼면 화면은 끊겨 보인다.
+  //   그래서 **최근 120 프레임의 평균과 가장 느린 한 프레임**을 같이 낸다.
+  //   느린 쪽이 진짜 체감이다.
+  const 프레임들 = useRef(new Float32Array(120));
+  const 프레임칸 = useRef(0);
+  const 프레임찬 = useRef(0);
+
   useFrame((상태, dt) => {
+    // dt 는 초.
+    // ★ 위쪽 한계를 **5 초**로 잡는다. 처음에 1 초로 뒀더니 헤드리스
+    //   (SwiftShader) 에서 한 프레임이 1 초를 넘어 **전부 걸러졌고 fps 가
+    //   아예 안 나왔다.** 느린 프레임이야말로 봐야 할 값이다.
+    //   5 초를 넘는 것만 버린다 — 그건 탭이 잠들었다 깬 것이지 렌더가 아니다.
+    if (dt > 0.0005 && dt < 5) {
+      프레임들.current[프레임칸.current] = dt;
+      프레임칸.current = (프레임칸.current + 1) % 프레임들.current.length;
+      프레임찬.current = Math.min(프레임찬.current + 1, 프레임들.current.length);
+    }
     // ── 차단물 무너뜨리기 연출 ──
     //   `틱` 이 카메라를 직접 돌린다(돌아보기 단계). 걷기 훅보다 뒤에서
     //   돌아야 이번 프레임 값이 안 지워진다 — 아래 주석과 같은 이유다.
@@ -2085,6 +2106,20 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
       보고.current.연출 = 연출알림참조.current;
       보고.current.삼각형 = gl.info.render.triangles;
       보고.current.드로우콜 = gl.info.render.calls;
+      // fps — 최근 창의 평균과 **가장 느린 프레임**
+      const n = 프레임찬.current;
+      if (n > 4) {
+        let 합 = 0;
+        let 최대 = 0;
+        for (let i = 0; i < n; i++) {
+          const v = 프레임들.current[i];
+          합 += v;
+          if (v > 최대) 최대 = v;
+        }
+        보고.current.fps = n / 합;
+        보고.current.프레임ms = (합 / n) * 1000;
+        보고.current.최악ms = 최대 * 1000;
+      }
     }
     gl.info.reset(); // 지난 프레임치를 읽었으니 비운다
   });
