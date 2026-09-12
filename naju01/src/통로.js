@@ -100,6 +100,13 @@ export function 길만들기({
 
   const 위치 = [];
   const 색깔 = [];
+  // ★ 길결 — 꼭짓점마다 (진행방향 x, 진행방향 z, 가로자리 u) 를 같이 굽는다.
+  //   [왜]  바닥결(바닥결.js)이 길에는 **길을 따라 늘어난 결**을 줘야 한다.
+  //     흙바닥과 같은 둥근 얼룩을 주면 길이 그냥 흙판으로 보인다. 바퀴 자국·
+  //     발자국은 **진행 방향으로 늘어나고**, 가운데가 가장 많이 밟힌다.
+  //   [왜 셰이더가 스스로 못 구하나]  프래그먼트는 자기가 길 위인지도,
+  //     길이 어느 쪽으로 가는지도 모른다. 리본을 만드는 여기만 안다.
+  const 길결 = [];
   const 다짐 = new THREE.Color(통로결.다짐);
   const 가장 = new THREE.Color(통로결.가장자리);
   const 갓 = new THREE.Color(통로결.갓길);
@@ -155,6 +162,8 @@ export function 길만들기({
     위치.push(q.x * 미터, q.y * 미터, q.z * 미터);
     const cc = 색계산(q);
     색깔.push(cc.r, cc.g, cc.b);
+    // 진행 방향 = 가로 법선을 90° 돌린 것. u 는 −끝 ~ +끝(0 이 한가운데).
+    길결.push(-q.p.nz, q.p.nx, q.u);
   };
   const 면 = (a, b, d) => {
     찍기(a);
@@ -387,6 +396,10 @@ export function 길만들기({
   const 길지오 = new THREE.BufferGeometry();
   길지오.setAttribute("position", new THREE.Float32BufferAttribute(위치, 3));
   길지오.setAttribute("color", new THREE.Float32BufferAttribute(색깔, 3));
+  // ★ 속성 이름은 **ASCII** 여야 한다. three 가 이 이름을 GLSL 의
+  //   `attribute` 선언에 그대로 넣기 때문에, 한글로 두면 셰이더가 깨진다
+  //   (물잔결.js·바닥결.js 머리말에 적어 둔 것과 같은 함정이다).
+  길지오.setAttribute("gilGyeol", new THREE.Float32BufferAttribute(길결, 3));
   길지오.computeVertexNormals();
   위로세우기(길지오);
 
