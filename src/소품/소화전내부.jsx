@@ -19,6 +19,9 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { TOON_GRADIENT, 만화선, 색밝기, makeRandom } from "../공용.jsx";
 
+// 색을 밝기만큼 곱해 돌려준다(1 을 넘으면 Bloom 이 번지게 한다)
+const 새색 = (색, 배) => 색밝기(색, 배);
+
 const 툰 = (색, 밝 = 1) => (
   <meshToonMaterial color={색밝기(색, 밝)} gradientMap={TOON_GRADIENT} />
 );
@@ -226,6 +229,18 @@ export function 소화전내부({
   금속색 = "#9aa1a8",
   호스색 = "#d9d3c2",
   빨강 = "#c0392b",
+  // ── 위 칸 부품 ──
+  경종바깥색 = "#ffffff", // 종 바깥 원
+  경종속색 = "#c0392b", // 그 안 원
+  발신기색 = "#c0392b",
+  표시등색 = "#b4524a",
+  경종크기 = 0.24, // 칸 높이 대비
+  경종속크기 = 0.15, // 바깥 원보다 작아야 한다
+  발신기크기 = 0.17,
+  빛세기 = 0.9, // 0 이면 안 빛난다
+  // ★ 부품을 뒤판에 얼마나 붙일지. 0 = 뒤판에 딱, 1 = 함 앞면까지.
+  //   전에는 앞쪽(0.68)에 둬서 **공중에 뜬 것처럼** 보였다.
+  부품깊이 = 0.1,
   밝기 = 1,
   선,
 }) {
@@ -241,7 +256,12 @@ export function 소화전내부({
   //   useMemo 는 그리는 도중 바로 돌아간다. 아래에 선언한 값을 그 안에서 쓰면
   //   'Cannot access before initialization' 으로 화면이 통째로 죽는다.
   const 위y = 안높 / 2 - 칸경계 / 2;
-  const zf = d * (반깊 - 0.06); // 부품을 놓는 앞쪽 면
+  // 부품을 놓는 깊이.
+  //   뒤판(두께 0.06)의 **앞면**은 −(반깊−0.06) 이다. 거기에 원판 두께 절반(0.03)을
+  //   더한 자리가 '뒤판에 딱 붙은' 상태다. 거기서 함 앞면까지를 부품깊이로 잰다.
+  //   0 = 뒤판에 붙음 · 1 = 함 앞면. 전에는 0.68 쯤이라 **공중에 뜬 것처럼** 보였다.
+  const 뒤판앞 = -(반깊 - 0.06) + 0.03;
+  const zf = d * (뒤판앞 + (반깊 - 0.05 - 뒤판앞) * 부품깊이);
   const 걸이y = 안높 / 2 - 칸경계 - 0.12; // 호스가 걸리는 높이
 
   // 안쪽 상자 — 앞이 열린 어두운 통. 이게 있어야 '속이 빈 함'으로 보인다.
@@ -350,35 +370,55 @@ export function 소화전내부({
       {/* ── 위 칸 — 경종 · 발신기 · 표시등 ───────────────────
              실물은 이 셋이 나란히 붙어 있다. 빨간 원 두 개가 소화전의 얼굴이다. */}
       {/* 경종(종) — 큰 빨간 원판 */}
-      {/* ★ 두 원을 벌리고 줄였다. 전에는 둘 사이가 0.003 이라 붙어 보였고,
-             경종이 커서 옆벽에 물렸다. */}
+      {/* 경종 — 흰 바깥 원 + 그 안에 붉은 원. 안쪽 원이 빛난다. */}
       <group position={[zf, 위y, -안폭 * 0.24]} rotation={[0, 0, Math.PI / 2]}>
         <mesh castShadow>
-          <cylinderGeometry args={[칸경계 * 0.24, 칸경계 * 0.24, 0.05, 16]} />
-          {툰(빨강, 밝기)}
+          <cylinderGeometry args={[칸경계 * 경종크기, 칸경계 * 경종크기, 0.05, 16]} />
+          {툰(경종바깥색, 밝기)}
           <만화선 선={선} />
         </mesh>
-        <mesh position={[0, 0.03, 0]}>
-          <cylinderGeometry args={[칸경계 * 0.08, 칸경계 * 0.08, 0.03, 10]} />
-          {툰("#7d2820", 밝기)}
+        <mesh position={[0, 0.031, 0]}>
+          <cylinderGeometry
+            args={[칸경계 * Math.min(경종속크기, 경종크기 * 0.92),
+                   칸경계 * Math.min(경종속크기, 경종크기 * 0.92), 0.03, 14]}
+          />
+          <meshToonMaterial
+            color={색밝기(경종속색, 밝기)}
+            gradientMap={TOON_GRADIENT}
+            emissive={경종속색}
+            emissiveIntensity={빛세기}
+          />
         </mesh>
       </group>
       {/* 발신기(누름 버튼) — 가운데가 눌리는 빨간 버튼 */}
       <group position={[zf, 위y, 안폭 * 0.04]} rotation={[0, 0, Math.PI / 2]}>
         <mesh castShadow>
-          <cylinderGeometry args={[칸경계 * 0.15, 칸경계 * 0.17, 0.06, 14]} />
-          {툰(빨강, 밝기)}
+          <cylinderGeometry
+            args={[칸경계 * 발신기크기 * 0.88, 칸경계 * 발신기크기, 0.06, 14]}
+          />
+          {툰(발신기색, 밝기)}
           <만화선 선={선} />
         </mesh>
         <mesh position={[0, 0.04, 0]}>
-          <cylinderGeometry args={[칸경계 * 0.09, 칸경계 * 0.09, 0.03, 12]} />
-          {툰("#8e2a22", 밝기)}
+          <cylinderGeometry
+            args={[칸경계 * 발신기크기 * 0.53, 칸경계 * 발신기크기 * 0.53, 0.03, 12]}
+          />
+          <meshToonMaterial
+            color={색밝기(발신기색, 밝기 * 0.7)}
+            gradientMap={TOON_GRADIENT}
+            emissive={발신기색}
+            emissiveIntensity={빛세기 * 0.5}
+          />
         </mesh>
       </group>
       {/* 위치표시등 — 불이 꺼진 상태라도 유리알은 보인다 */}
       <mesh position={[zf, 위y + 칸경계 * 0.18, 안폭 * 0.32]}>
         <sphereGeometry args={[칸경계 * 0.1, 10, 8]} />
-        <meshBasicMaterial color={색밝기("#b4524a", 밝기)} toneMapped={false} />
+        {/* 유리알 — 자체발광이라 어둠에서도 보인다. Bloom 이 번지게 한다. */}
+        <meshBasicMaterial
+          color={새색(표시등색, 1 + 빛세기 * 0.8)}
+          toneMapped={false}
+        />
       </mesh>
       {/* 왼쪽 끝 작은 창 — 사진에 있는 은색 표시창. 점(스피커 구멍)은 뺐다:
              그 크기에서는 구멍이 아니라 그냥 검은 점 네 개로 보인다. */}
