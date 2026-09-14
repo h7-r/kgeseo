@@ -107,6 +107,14 @@ export default defineConfig({
   publicDir: fileURLToPath(new URL("../public", import.meta.url)),
   server: {
     port: 5174, // 본편(5173)과 같이 띄워 놓고 번갈아 볼 수 있게
+    // ★ 포트를 못 잡으면 **그 자리에서 죽는다.** 이게 없으면 vite 는 조용히
+    //   5175 로 옮겨 붙는데, 그러면 두 가지가 한꺼번에 어긋난다 —
+    //     ① 5174 를 열었는데 본편이 떠 있고, 그걸 naju01 로 착각한다.
+    //     ② Leva 저장값은 **포트(= origin)별**로 갈린다. 포트가 밀리면
+    //        조절해 둔 값이 통째로 사라진 것처럼 보인다(키는 폴더 이름
+    //        하나뿐이라 `공용.jsx` 의 `kgeseo.leva.v1` 을 같이 쓴다).
+    //   차라리 「5174 가 이미 쓰이고 있다」고 터지는 편이 낫다.
+    strictPort: true,
     // 공용.jsx 처럼 이 폴더 **바깥**(저장소 src/)에 있는 파일을 읽어야 한다.
     fs: { allow: [뿌리] },
   },
