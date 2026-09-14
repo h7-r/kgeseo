@@ -107,6 +107,11 @@ export default defineConfig({
   publicDir: fileURLToPath(new URL("../public", import.meta.url)),
   server: {
     port: 5174, // 본편(5173)과 같이 띄워 놓고 번갈아 볼 수 있게
+    // ★ 옮겨 붙지 않고 그냥 실패하게 한다.
+    //   이게 없으면 5174 가 물렸을 때 5175 로 밀리고, 그 순간 Leva 저장값이
+    //   (localStorage 가 출처별이라) 통째로 사라진 것처럼 보인다.
+    //   본편 쪽 vite.config.js 도 같은 이유로 5173 을 못 박아 뒀다.
+    strictPort: true,
     // 공용.jsx 처럼 이 폴더 **바깥**(저장소 src/)에 있는 파일을 읽어야 한다.
     fs: { allow: [뿌리] },
   },
