@@ -1,0 +1,1260 @@
+// ═══════════════════════════════════════════════════════════════
+//  편집기.jsx — 화면에서 요소 하나를 집어 고치는 도구
+// ═══════════════════════════════════════════════════════════════
+// [무엇을 만질 수 있나]
+//   `배치.js` 로 심은 **인스턴스**만이다 — 나무·덤불·잎더미처럼 흩뿌린 것.
+//   지형·절벽·통로는 **일부러 뺐다.** 그건 도면 숫자(`공간도면.js`)가 정하고,
+//   마우스로 주무르면 그림과 걷는 판정이 갈라진다. 이 프로젝트가 가장 오래
+//   싸운 버그가 그것이라, 편집으로 되살릴 이유가 없다.
+//
+// [조작]
+//   클릭         고르기 (빈 곳 클릭 = 해제)
+//   왼쪽 드래그   고른 것을 끌어 옮기기 (4 px 넘게 움직이면 시작)
+//   오른쪽 드래그 시점 돌리기 — 편집 중에도 둘러볼 수 있어야 한다
+//   , / .        시점 좌우로 돌리기 (Shift 를 누르면 3 배)
+//   부감 휠      시점 돌리기 · 핀치(또는 ⌘/Ctrl/Shift+휠) 높낮이
+//                ※ 밀기는 WASD·방향키 그대로다. 맥 트랙패드에는 오른쪽·
+//                  가운데 버튼이 없어, 우클릭 드래그에만 기댄 돌리기가
+//                  부감에서 통째로 막혀 있었다.
+//                ※ 맥 트랙패드에는 오른쪽 버튼이 없어 부감에서 돌릴 방법이
+//                  없었다. 키로도 돌 수 있어야 위에서 내려다보며 방향을 잡는다.
+//   WASD         걸어 다니기 (편집 중에도 이동은 살아 있다)
+//   방향키        미세 이동 (0.25 m · Shift 를 누르면 1 m). 화면에서 본 방향 기준
+//   Ctrl+C / V   복사 · 붙여넣기
+//   R / Shift+R 회전 (누를 때마다 15°)
+//   [ / ]       크기 −10 % / +10 %
+//   Delete/X    지우기
+//   Ctrl+Z      마지막 편집 되돌리기
+//   Ctrl+S      `에셋/편집.json` 에 저장
+//   ESC         이동 취소 · 고르기 해제
+//
+// [왜 저장을 파일로 하나]
+//   배치는 시드 기반이라 어디서 열어도 같은 결과가 나온다. 편집만 사람마다
+//   다르면 그 전제가 깨진다. 「무엇을 지웠고 무엇을 옮겼는가」만 파일에 남겨
+//   팀원 화면에서도 같게 만든다(vite.config.js 의 `편집저장` 플러그인).
+
+import { useEffect, useRef, useState, useCallback } from "react";
+import * as THREE from "three";
+import { useThree, useFrame } from "@react-three/fiber";
+import { 미터, 유닛, 코어 } from "./공간도면.js";
+import { 에셋목록, 갈래목록, 에셋찾기, 에셋표본 } from "./에셋목록.js";
+import { 미리보기굽기 } from "./미리보기.js";
+import {
+  지우기,
+  고치기,
+  더하기,
+  편집쓰기,
+  편집수,
+  저장가능한가,
+} from "./배치.js";
+
+const 회전단위 = Math.PI / 12; // 15°
+// 이동할 때 '땅'으로 쳐 주는 메시 이름
+// 광선이 「땅」으로 받아 주는 것들. 원경 들판도 넣는다 — 무대 밖에 물건을
+// 놓으려면 거기서도 바닥을 맞혀야 한다.
+const 땅이름 = [
+  "땅", "길", "비탈", "절벽면", "절벽조각.덩어리", "z.지오",
+  "원경.들", "원경.먼들",
+];
+// 이 이름에 맞았으면 **그 지점의 높이**를 그대로 쓴다. 코어 밖은 `지면높이`
+// (지표)가 값을 안 갖고 있어서, 안 그러면 원경 나무가 땅속에 박힌다.
+const 바깥땅 = new Set(["원경.들", "원경.먼들"]);
+
+// ── 못 고르는 것을 눌렀을 때 뭐라고 말해 줄 것인가 ──────────
+// [왜]
+//   무리(InstancedMesh)가 아닌 것은 고를 수가 없다. 그런데 예전에는 클릭해도
+//   **아무 일도 안 일어나서**, 「바위가 길을 막았는데 강제 선택도 안 된다」처럼
+//   보였다(사용자 지적). 왜 못 고르는지를 말해 주면 적어도 헤매지는 않는다.
+//   ※ 이름은 씬이 메시에 붙인 `name` 이다.
+const 못고르는것 = {
+  "b.바위": "차단물 바위 — 도면 §4 가 시야를 막으려고 세운 것이다. 옮기면 V3 에서 사건 현장이 보인다",
+  "b.나무": "차단물 수목대 — 도면 §4 의 시야 차단 장치다",
+  "z.지오": "구역 옆구리 — 대지를 깎은 면이다. 걷는 높이와 한 몸이라 못 옮긴다",
+  땅: "땅 — 걷는 바닥 그 자체다",
+  길: "길 바닥 — 도면이 정한 통로다(T1~T4 길이·경사가 여기에 걸려 있다)",
+  비탈: "길을 받치는 흙비탈 — 길 바닥과 한 몸이다",
+  절벽면: "절벽면 — 도면이 정한 벼랑이다",
+  g: "풀 — 한 장으로 합쳐 그린다(11만 삼각형이라 하나씩 나누면 느려진다)",
+};
+// 이 이름들은 눌러도 알릴 것이 없다(하늘·물·원경). 조용히 넘긴다.
+const 말없이넘길것 = /^(강조형|하늘|구름|원경|표시|자리표|시점)/;
+const 밀기단위 = 0.25; // m — Shift 를 누르면 4 배
+
+// ── 부감(공중에서 내려다보기) ───────────────────────────────
+// [왜]
+//   걸어 다니면서 배치하면 **전체가 안 보인다.** 길 하나를 따라가며 나무를
+//   심으면 멀리서 봤을 때 한쪽으로 쏠려 있는 걸 뒤늦게 안다. 위에서 내려다보고
+//   밀어 놓을 수 있어야 한다.
+// [왜 걷기를 통째로 멈추나]
+//   `use지형이동` 의 중력·접지는 `active` **밖**에서 돌아서, active 만 꺼도
+//   카메라가 매 프레임 땅으로 끌려 내려간다. 그래서 `멈춤` 을 따로 뒀다.
+const 부감기본 = {
+  높이: 22, // m — 처음 떠오르는 높이
+  높이범위: [4, 90],
+  기울기: -1.05, // rad ≈ -60°. -90°(수직)는 방향 감각이 사라져 오히려 헷갈린다
+  밀기: 14, // m/s — 키로 미는 속도(Shift 는 3 배)
+};
+
+// 화면 기준으로 카메라를 수평으로 민다.
+//   「보고 있는 화면의 위」가 앞이어야 한다. 월드 축으로 밀면 시점을 돌린 뒤
+//   방향이 어긋나 조작이 안 된다(방향키가 뒤집혀 보이던 것과 같은 문제다).
+const 임시앞 = new THREE.Vector3();
+const 임시옆 = new THREE.Vector3();
+// ── 편집이 미치는 범위 ─────────────────────────────────────
+//   무대(코어)는 X 0~80 · Z 0~50 이다. 그런데 **바깥에도 물건이 있다** —
+//   원경 숲 760 그루와 마을 34 채. 그것도 고치려면 코어에 가둘 수 없다.
+//   그렇다고 무한히 놔두면 부감으로 밀다가 1 km 밖으로 나가 돌아올 길을 잃는다.
+//   그래서 원경이 실제로 서 있는 범위(코어에서 사방 250 m)까지만 연다.
+export const 편집범위 = {
+  X: [코어.X[0] - 250, 코어.X[1] + 250],
+  Z: [코어.Z[0] - 250, 코어.Z[1] + 250],
+};
+const 죄기 = (v, a, b) => Math.min(b, Math.max(a, v));
+// ── 부감 시점 돌리기 ───────────────────────────────────────
+// ★ **제자리에서 고개만 돌리면 안 된다.**
+//   부감은 60° 아래를 내려다본다. 그 상태로 요(yaw)만 바꾸면 보고 있던 땅
+//   지점이 카메라를 중심으로 **큰 원을 그리며 휩쓸린다** — 화면이 도는 게
+//   아니라 옆으로 밀리는 것으로 보인다(실제로 「회전이 안 되고 이동이 된다」는
+//   지적이 나왔다. 코드는 돌고 있었는데 축이 틀렸던 것이다).
+//   지도 앱처럼 **화면 한복판이 보고 있는 땅 지점**을 축으로 돌아야 한다.
+// [어떻게]  기울기와 높이로 「내려다보는 지점」까지의 수평 거리를 구해
+//   그 점을 축으로 카메라를 함께 돌린다. 축이 제자리에 남으니 시야만 바뀐다.
+const 임시축 = new THREE.Vector3();
+function 시점돌리기(카메라, 델타, 밑m) {
+  카메라.rotation.order = "YXZ";
+  const 요 = 카메라.rotation.y;
+  const 높이m = 카메라.position.y * 유닛 - 밑m;
+  // 기울기가 0 에 가까우면(수평으로 볼 때) 축이 무한히 멀어진다 — 그때는
+  //   제자리 회전이 옳다. 0.15 rad 아래로는 안 내려간다.
+  const 기울기 = Math.max(0.15, -카메라.rotation.x);
+  const 앞m = Math.min(400, 높이m / Math.tan(기울기));
+  임시축.set(
+    카메라.position.x - Math.sin(요) * 앞m * 미터,
+    카메라.position.y,
+    카메라.position.z - Math.cos(요) * 앞m * 미터,
+  );
+  // 축을 중심으로 카메라를 돌린다
+  const dx = 카메라.position.x - 임시축.x;
+  const dz = 카메라.position.z - 임시축.z;
+  const c = Math.cos(델타), sn = Math.sin(델타);
+  카메라.position.x = 임시축.x + dx * c - dz * sn;
+  카메라.position.z = 임시축.z + dx * sn + dz * c;
+  카메라.rotation.y = 요 + 델타;
+}
+
+function 화면밀기(카메라, 옆m, 앞m) {
+  카메라.getWorldDirection(임시앞);
+  임시앞.y = 0;
+  if (임시앞.lengthSq() < 1e-9) 임시앞.set(0, 0, -1);
+  임시앞.normalize();
+  임시옆.crossVectors(임시앞, 카메라.up).normalize();
+  const x = 카메라.position.x * 유닛 + 임시앞.x * 앞m + 임시옆.x * 옆m;
+  const z = 카메라.position.z * 유닛 + 임시앞.z * 앞m + 임시옆.z * 옆m;
+  카메라.position.x = 죄기(x, 편집범위.X[0], 편집범위.X[1]) * 미터;
+  카메라.position.z = 죄기(z, 편집범위.Z[0], 편집범위.Z[1]) * 미터;
+}
+
+// 인스턴스 하나의 색을 sRGB 16진수로 꺼낸다(없으면 null).
+//   `instanceColor` 배열은 **작업 색공간(선형)** 값이다. `fromArray` 는 그대로
+//   싣고 `getHex()` 는 sRGB 로 돌려주므로, `배치.js` 가 `색.set(hex)` 로 다시
+//   읽을 때 정확히 같은 값으로 되돌아온다.
+const 임시꺼냄 = new THREE.Color();
+function 인스턴스색(o, i) {
+  const ic = o.instanceColor;
+  if (!ic || i === undefined || i >= ic.count) return null;
+  return 임시꺼냄.fromArray(ic.array, i * 3).getHex();
+}
+
+export function 편집기({
+  켬,
+  편집,
+  편집설정,
+  지면높이,
+  잠금해제, // 포인터락을 풀어야 마우스로 집을 수 있다
+  부감, // 공중에서 내려다보는 중인가
+  부감설정,
+}) {
+  const { camera, scene, gl } = useThree();
+  const [고른것, 고른것설정] = useState(null); // { 이름, 번호, 자리:{x,y,z}, 키 }
+  const [알림, 알림설정] = useState("");
+  const 되돌리기통 = useRef([]);
+  const 편집참조 = useRef(편집);
+  편집참조.current = 편집;
+  const 복사판 = useRef(null); // Ctrl+C 로 담아 둔 것
+  // 붓 — 팔레트에서 고른 물건. 이게 있으면 클릭이 「고르기」가 아니라 「놓기」다.
+  const [붓, 붓설정] = useState(null);
+  const 붓참조 = useRef(null);
+  붓참조.current = 붓;
+  // 저장 상태 — 「먹힌 건지 안 먹힌 건지」가 안 보여서 만든 것
+  const [저장됨, 저장됨설정] = useState(""); // 마지막으로 저장한 편집의 지문
+  const [저장중, 저장중설정] = useState(false);
+  const [붙었나, 붙었나설정] = useState(null); // 개발 서버에 저장 기능이 있나
+  const 지문 = JSON.stringify(편집);
+  const 안한변경 = 편집수(편집) > 0 && 지문 !== 저장됨;
+
+  useEffect(() => {
+    if (!켬) return;
+    저장가능한가().then(붙었나설정);
+  }, [켬]);
+
+  const 저장하기 = useCallback(async () => {
+    저장중설정(true);
+    try {
+      await 편집쓰기(편집참조.current);
+      저장됨설정(JSON.stringify(편집참조.current));
+      알림설정("저장했다 → 에셋/편집.json");
+      붙었나설정(true);
+    } catch (e) {
+      알림설정("✘ " + e.message);
+      붙었나설정(false);
+    } finally {
+      저장중설정(false);
+    }
+  }, []);
+  const 광선 = useRef(new THREE.Raycaster());
+  const 화면 = useRef(new THREE.Vector2());
+
+  // ── 마우스 아래의 인스턴스 찾기 ──────────────────────────
+  const 집기 = useCallback(
+    (ev) => {
+      const 상자 = gl.domElement.getBoundingClientRect();
+      화면.current.set(
+        ((ev.clientX - 상자.left) / 상자.width) * 2 - 1,
+        -((ev.clientY - 상자.top) / 상자.height) * 2 + 1,
+      );
+      광선.current.setFromCamera(화면.current, camera);
+      const 맞음 = 광선.current.intersectObjects(scene.children, true);
+      for (const h of 맞음) {
+        const o = h.object;
+        if (!o.isInstancedMesh || h.instanceId === undefined) continue;
+        const 무리이름 = o.userData?.무리이름;
+        const 번호들 = o.userData?.번호들;
+        if (!무리이름 || !번호들) continue;
+        const 번호 = 번호들[h.instanceId];
+        const m = new THREE.Matrix4();
+        o.getMatrixAt(h.instanceId, m);
+        const 자리 = new THREE.Vector3();
+        const 회 = new THREE.Quaternion();
+        const 크 = new THREE.Vector3();
+        m.decompose(자리, 회, 크);
+        // ★ 테두리는 **그 모양의 진짜 바운딩박스**로 그린다.
+        //   예전에는 `키`(높이)를 세 축에 다 썼다. 나무 키가 5 m 면 가로도 5 m 인
+        //   상자가 그려져서, 실제로는 폭 1.5 m 인 나무를 3 배 넘게 감쌌다 —
+        //   무엇을 골랐는지 알 수가 없었다(사용자 지적).
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        const bb = o.geometry.boundingBox;
+        // ★ 복사·붙여넣기가 **그 물건 그대로**를 물려받게 여기서 다 캐낸다.
+        //   예전에는 x·y·z·키·회전만 실어 날라서, 붙인 돌이 색을 잃고(흰 돌),
+        //   납작함과 기울기까지 잃어 다른 물건이 됐다(사용자 지적).
+        //   ※ `키` 의 뜻은 안 바꾼다(높이). 대신 가로·세로를 **키에 대한 비율**로
+        //     같이 넘겨서, 붙인 것이 원본과 똑같은 크기로 서게 한다.
+        const 오일러 = new THREE.Euler().setFromQuaternion(회, "YXZ");
+        const 색 = 인스턴스색(o, h.instanceId);
+        return {
+          이름: 무리이름,
+          번호,
+          x: 자리.x * 유닛,
+          y: 자리.y * 유닛,
+          z: 자리.z * 유닛,
+          키: 크.y * 유닛,
+          회전: 오일러.y,
+          기울기: 오일러.x,
+          기울기2: 오일러.z,
+          폭비: 크.y > 1e-9 ? 크.x / 크.y : 1,
+          깊이비: 크.y > 1e-9 ? 크.z / 크.y : 1,
+          모양: o.userData?.모양번호,
+          ...(색 !== null ? { 색 } : null),
+          // 유닛 단위의 국소 상자(모양 기준) — 그릴 때 인스턴스 크기를 곱한다
+          상자: {
+            크기: [
+              (bb.max.x - bb.min.x) * 크.x,
+              (bb.max.y - bb.min.y) * 크.y,
+              (bb.max.z - bb.min.z) * 크.z,
+            ],
+            중심: [
+              ((bb.max.x + bb.min.x) / 2) * 크.x,
+              ((bb.max.y + bb.min.y) / 2) * 크.y,
+              ((bb.max.z + bb.min.z) / 2) * 크.z,
+            ],
+          },
+        };
+      }
+      return null;
+    },
+    [camera, scene, gl],
+  );
+
+  // ── 그 자리의 바닥 높이 ─────────────────────────────────
+  // [왜 `지면높이` 를 그냥 못 쓰나]
+  //   `지면높이` 는 **코어 지표**다. 무대 밖에는 값이 없어서 0 을 돌려준다.
+  //   그래서 원경 마을(고도 −2.5 m)의 집을 방향키로 한 번만 밀어도
+  //   **2.5 m 위로 튀어 올랐다**(실측: −2.52 → −0.02). 사용자가 「튕긴다」고
+  //   한 것이 이것이다.
+  //   무대 밖에서는 **원경 지면에 광선을 내려** 진짜 높이를 읽는다.
+  //   그것도 못 맞히면 **원래 높이를 그대로 둔다** — 0 으로 떨구는 것보다 낫다.
+  const 아래 = useRef(new THREE.Vector3(0, -1, 0));
+  const 바닥높이 = useCallback(
+    (x, z, 기본 = 0) => {
+      if (
+        x >= 코어.X[0] && x <= 코어.X[1] &&
+        z >= 코어.Z[0] && z <= 코어.Z[1]
+      )
+        return 지면높이 ? 지면높이(x, z) : 기본;
+      광선.current.set(
+        new THREE.Vector3(x * 미터, 400 * 미터, z * 미터),
+        아래.current,
+      );
+      광선.current.far = Infinity;
+      const 맞음 = 광선.current
+        .intersectObjects(scene.children, true)
+        .filter((h) => 땅이름.includes(h.object.name));
+      return 맞음.length ? 맞음[0].point.y * 유닛 : 기본;
+    },
+    [지면높이, scene],
+  );
+  const 바닥높이참조 = useRef(바닥높이);
+  바닥높이참조.current = 바닥높이;
+
+  // ── 못 고르는 것을 눌렀을 때 무엇이었는지 말해 준다 ──────
+  //   빈 하늘을 누른 것과 「옮길 수 없는 것」을 누른 것은 전혀 다른 상황인데,
+  //   둘 다 조용하면 사용자는 편집기가 고장 난 줄 안다.
+  const 무엇이었나 = useCallback(
+    (ev) => {
+      const 상자 = gl.domElement.getBoundingClientRect();
+      화면.current.set(
+        ((ev.clientX - 상자.left) / 상자.width) * 2 - 1,
+        -((ev.clientY - 상자.top) / 상자.height) * 2 + 1,
+      );
+      광선.current.setFromCamera(화면.current, camera);
+      for (const h of 광선.current.intersectObjects(scene.children, true)) {
+        const 이름 = h.object?.name;
+        if (!h.object?.visible || !이름 || 말없이넘길것.test(이름)) continue;
+        const 풀이 = 못고르는것[이름];
+        return 풀이
+          ? `못 옮기는 것이다 — ${풀이}`
+          : `못 옮기는 것이다 — 「${이름}」 (독립 요소가 아니다)`;
+      }
+      return "";
+    },
+    [camera, scene, gl],
+  );
+
+  // 리스너는 한 번만 붙이므로(아래 주석) 의존성에 넣지 않고 ref 로 잡는다
+  const 무엇이었나참조 = useRef(무엇이었나);
+  무엇이었나참조.current = 무엇이었나;
+
+  // ── 부감 몰기 ────────────────────────────────────────────
+  //   키는 ref 로 모아 두고 매 프레임 민다. 키다운마다 카메라를 옮기면
+  //   프레임률에 따라 속도가 달라진다(느린 기계에서 굼뜨다).
+  const 부감참조 = useRef(부감);
+  부감참조.current = 부감;
+  const 눌린키 = useRef(new Set());
+  const 높이참조 = useRef(부감기본.높이);
+  const 밀기중 = useRef(null); // 가운데 버튼 끌기로 밀기
+
+  // 부감에 들어갈 때 띄우고, 나올 때 **곧바로 내려놓는다.**
+  //   걷기 훅에 그냥 맡기면 22 m 상공에서 떨어지고, 낙차가 커서 `낙하복귀` 가
+  //   사람을 마지막 안전 지점으로 보내 버린다 — 방금 보고 있던 자리가 아니다.
+  useEffect(() => {
+    if (!켬) return;
+    const 발밑 = () =>
+      지면높이 ? 지면높이(camera.position.x * 유닛, camera.position.z * 유닛) : 0;
+    camera.rotation.order = "YXZ";
+    if (부감) {
+      높이참조.current = 부감기본.높이;
+      camera.position.y = (발밑() + 부감기본.높이) * 미터;
+      camera.rotation.x = 부감기본.기울기;
+      camera.rotation.z = 0;
+      return;
+    }
+    // 내려오기 — 높이는 걷기 훅이 그 자리에서 잡아 준다(use지형이동 주석).
+    //   여기서는 고개만 수평으로 돌려 놓는다.
+    camera.rotation.x = 0;
+    camera.rotation.z = 0;
+  }, [켬, 부감, camera, 지면높이]);
+
+  // ★ `dt` 를 **물린다**(최대 50 ms). 한 프레임이 길어지면 그 곱만큼 화면이
+  //   한 번에 튄다 — 검사 중 한 프레임이 3 초여서 시점이 32 rad(다섯 바퀴)
+  //   돌아간 적이 있다. 실제로도 무거운 순간에 화면이 홱 날아간다.
+  const 물린 = (dt) => Math.min(dt, 0.05);
+
+  useFrame((_, dt0) => {
+    if (!켬 || !부감참조.current) return;
+    const dt = 물린(dt0);
+    const k = 눌린키.current;
+    // 고른 것이 있으면 방향키는 **그 물건을 미는 데** 쓴다(기존 동작).
+    //   그때도 WASD 로는 화면을 민다 — 그래야 밀면서 따라갈 수 있다.
+    const 화살표로민다 = !고른것참조.current;
+    const 앞 = (k.has("KeyW") ? 1 : 0) - (k.has("KeyS") ? 1 : 0) +
+      (화살표로민다 ? (k.has("ArrowUp") ? 1 : 0) - (k.has("ArrowDown") ? 1 : 0) : 0);
+    const 옆 = (k.has("KeyD") ? 1 : 0) - (k.has("KeyA") ? 1 : 0) +
+      (화살표로민다 ? (k.has("ArrowRight") ? 1 : 0) - (k.has("ArrowLeft") ? 1 : 0) : 0);
+    if (!앞 && !옆) return;
+    const 빠르기 = 부감기본.밀기 * (k.has("ShiftLeft") || k.has("ShiftRight") ? 3 : 1);
+    화면밀기(camera, 옆 * 빠르기 * dt, 앞 * 빠르기 * dt);
+  });
+
+  // ── 시점 돌리기(키) ──────────────────────────────────────
+  // [왜 필요한가]  돌리는 방법이 **오른쪽 드래그뿐**이었다. 맥 트랙패드에는
+  //   오른쪽 버튼이 없어(두 손가락 클릭+드래그는 끌기와 섞인다) 부감에서
+  //   방향을 못 바꿨다. 위에서 내려다보며 배치하는 게 부감의 목적인데
+  //   한 방향으로만 볼 수 있으면 반쪽이다.
+  // [왜 부감에서만이 아닌가]  걸을 때도 같은 키로 돌 수 있으면 손이 헷갈리지
+  //   않는다. 편집 중이면 어디서나 듣는다.
+  useFrame((_, dt0) => {
+    if (!켬) return;
+    const dt = 물린(dt0);
+    const k = 눌린키.current;
+    const 돌 = (k.has("Period") ? 1 : 0) - (k.has("Comma") ? 1 : 0);
+    if (!돌) return;
+    const 빠르기 = 0.9 * (k.has("ShiftLeft") || k.has("ShiftRight") ? 3 : 1);
+    const 밑 = 지면높이참조.current
+      ? 지면높이참조.current(camera.position.x * 유닛, camera.position.z * 유닛)
+      : 0;
+    시점돌리기(camera, -돌 * 빠르기 * dt, 밑);
+  });
+
+  // ── 마우스 (고르기 · 끌기 · 시점 돌리기) ────────────────
+  // [왜 ref 로 두나]
+  //   상태(useState)를 의존성에 넣으면 렌더마다 리스너가 떨어졌다 붙는다.
+  //   끌기 도중에 그러면 **드래그가 끊긴다** — 실제로 「드래그로 이동이 안 된다」의
+  //   원인이었다. 순간 상태는 ref 로 들고 리스너는 한 번만 붙인다.
+  const 끌기 = useRef(null); // { 시작:[x,y], 움직임:false }
+  const 돌리기 = useRef(null); // 오른쪽 버튼으로 시점 돌리기
+  const 고른것참조 = useRef(null);
+  const 지면높이참조 = useRef(지면높이);
+  고른것참조.current = 고른것;
+  지면높이참조.current = 지면높이;
+
+  useEffect(() => {
+    if (!켬) return;
+    const 캔 = gl.domElement;
+    const 면 = new THREE.Plane();
+    const 닿는곳 = new THREE.Vector3();
+
+    // 커서 아래의 땅 자리 — 못 맞히면 지금 높이의 수평면으로 받는다
+    const 땅자리 = (ev, 기준y) => {
+      const 상자 = 캔.getBoundingClientRect();
+      화면.current.set(
+        ((ev.clientX - 상자.left) / 상자.width) * 2 - 1,
+        -((ev.clientY - 상자.top) / 상자.height) * 2 + 1,
+      );
+      광선.current.setFromCamera(화면.current, camera);
+      const 맞음 = 광선.current
+        .intersectObjects(scene.children, true)
+        .filter((h) => 땅이름.includes(h.object.name));
+      let x, z, 맞은y = null;
+      if (맞음.length) {
+        x = 맞음[0].point.x * 유닛;
+        z = 맞음[0].point.z * 유닛;
+        if (바깥땅.has(맞음[0].object.name)) 맞은y = 맞음[0].point.y * 유닛;
+      } else {
+        // 언덕 위에서 수평으로 보면 광선이 코어를 넘어 원경으로 날아간다.
+        // 면으로 받아야 **어디를 보든 따라온다**(실측: 안 받으면 맞음 0).
+        면.set(new THREE.Vector3(0, 1, 0), -기준y * 미터);
+        if (!광선.current.ray.intersectPlane(면, 닿는곳)) return null;
+        x = 닿는곳.x * 유닛;
+        z = 닿는곳.z * 유닛;
+      }
+      // 편집 범위 밖으로는 못 나간다(면 교점은 수백 m 밖까지 간다)
+      return [
+        죄기(x, 편집범위.X[0], 편집범위.X[1]),
+        죄기(z, 편집범위.Z[0], 편집범위.Z[1]),
+        맞은y,
+      ];
+    };
+
+    const 눌림 = (ev) => {
+      // 오른쪽 버튼 = 시점 돌리기 (편집 중에도 둘러볼 수 있어야 한다)
+      if (ev.button === 2) {
+        돌리기.current = { x: ev.clientX, y: ev.clientY };
+        캔.setPointerCapture?.(ev.pointerId);
+        ev.preventDefault();
+        return;
+      }
+      // 가운데 버튼 = 화면 밀기. 부감에서 지도를 끌어 옮기는 손짓이다.
+      if (ev.button === 1) {
+        밀기중.current = { x: ev.clientX, y: ev.clientY };
+        캔.setPointerCapture?.(ev.pointerId);
+        ev.preventDefault();
+        return;
+      }
+      if (ev.button !== 0) return;
+      // ── 붓이 들려 있으면 그 자리에 **놓는다** ──
+      //   팔레트에서 고른 물건을 클릭한 자리에 심는다. 여러 개를 이어 놓을 수
+      //   있게 붓은 그대로 들고 있는다(ESC 로 내려놓는다).
+      const 붓것 = 붓참조.current;
+      if (붓것) {
+        const 자리 = 땅자리(ev, 0);
+        if (!자리) return;
+        const [x, z, 바깥y] = 자리;
+        const y = 바깥y !== null ? 바깥y : 바닥높이참조.current(x, z, 0);
+        const 정의 = 에셋찾기(붓것);
+        되돌리기통.current.push(편집참조.current);
+        const { 편집: 다음, 번호 } = 더하기(편집참조.current, 붓것, {
+          x,
+          y: y - (정의?.중심원점 ? -(정의.기본키 ?? 1) * 0.3 : 0),
+          z,
+          키: 정의?.기본키 ?? 1,
+          회전: Math.random() * Math.PI * 2,
+          // 언덕·길처럼 키와 가로세로가 다른 물건은 비율을 같이 실어야 한다
+          ...(정의?.기본폭비 !== undefined ? { 폭비: 정의.기본폭비 } : null),
+          ...(정의?.기본깊이비 !== undefined ? { 깊이비: 정의.기본깊이비 } : null),
+          ...(정의?.기본색 !== undefined ? { 색: 정의.기본색 } : null),
+        });
+        편집설정(다음);
+        알림설정(`${정의?.이름 ?? 붓것} 놓음 #${번호} · Ctrl+S 로 저장`);
+        return;
+      }
+      const 찾음 = 집기(ev);
+      if (찾음) {
+        고른것설정(찾음);
+        고른것참조.current = 찾음;
+        끌기.current = { 시작: [ev.clientX, ev.clientY], 움직임: false };
+        캔.setPointerCapture?.(ev.pointerId);
+        알림설정(
+          `${찾음.이름} #${찾음.번호} · (${찾음.x.toFixed(1)}, ${찾음.z.toFixed(1)}) · 키 ${찾음.키.toFixed(1)} m`,
+        );
+      } else {
+        고른것설정(null);
+        고른것참조.current = null;
+        // 빈 데를 눌렀는지, **못 고르는 것**을 눌렀는지 구별해 준다
+        알림설정(무엇이었나참조.current(ev));
+      }
+    };
+
+    const 움직임 = (ev) => {
+      // ⓪ 가운데 버튼 밀기 — 끈 만큼 화면이 따라온다.
+      //   높이에 비례해 밀어야 한다. 90 m 위에서 5 m 씩 밀면 안 움직이는
+      //   것처럼 보이고, 4 m 위에서 같은 양을 밀면 휙 날아간다.
+      if (밀기중.current) {
+        const dx = ev.clientX - 밀기중.current.x;
+        const dy = ev.clientY - 밀기중.current.y;
+        밀기중.current = { x: ev.clientX, y: ev.clientY };
+        const 밑 = 지면높이참조.current
+          ? 지면높이참조.current(camera.position.x * 유닛, camera.position.z * 유닛)
+          : 0;
+        const 높이 = Math.max(2, camera.position.y * 유닛 - 밑);
+        const 배 = 높이 * 0.0022;
+        화면밀기(camera, -dx * 배, dy * 배);
+        return;
+      }
+      // ① 시점 돌리기
+      if (돌리기.current) {
+        const dx = ev.clientX - 돌리기.current.x;
+        const dy = ev.clientY - 돌리기.current.y;
+        돌리기.current = { x: ev.clientX, y: ev.clientY };
+        camera.rotation.order = "YXZ";
+        camera.rotation.y -= dx * 0.0035;
+        camera.rotation.x = Math.max(
+          -Math.PI / 2 + 0.01,
+          Math.min(Math.PI / 2 - 0.01, camera.rotation.x - dy * 0.0035),
+        );
+        return;
+      }
+      // ② 고른 것 끌기 — 4 px 넘게 움직여야 시작(클릭과 구분)
+      const 끌 = 끌기.current;
+      const 고 = 고른것참조.current;
+      if (!끌 || !고) return;
+      if (!끌.움직임) {
+        const d = Math.hypot(ev.clientX - 끌.시작[0], ev.clientY - 끌.시작[1]);
+        if (d < 4) return;
+        끌.움직임 = true;
+        되돌리기통.current.push(편집참조.current);
+      }
+      const 자리 = 땅자리(ev, 고.y);
+      if (!자리) return;
+      const [x, z, 바깥y] = 자리;
+      // 광선이 원경 들판을 맞혔으면 그 높이가 곧 정답이다.
+      // 아니면 `바닥높이` 가 코어 안팎을 갈라 준다.
+      const y = 바깥y !== null ? 바깥y : 바닥높이참조.current(x, z, 고.y);
+      const 새것 = { ...고, x, y, z };
+      고른것참조.current = 새것;
+      고른것설정(새것);
+      편집설정((e) => 고치기(e, 고.이름, 고.번호, { x, y, z }));
+    };
+
+    const 뗌 = (ev) => {
+      if (돌리기.current) {
+        돌리기.current = null;
+        캔.releasePointerCapture?.(ev.pointerId);
+        return;
+      }
+      if (밀기중.current) {
+        밀기중.current = null;
+        캔.releasePointerCapture?.(ev.pointerId);
+        return;
+      }
+      if (끌기.current?.움직임) 알림설정("옮김 · Ctrl+S 로 저장");
+      끌기.current = null;
+      캔.releasePointerCapture?.(ev.pointerId);
+    };
+
+    const 메뉴막기 = (ev) => ev.preventDefault();
+    캔.addEventListener("pointerdown", 눌림);
+    캔.addEventListener("pointermove", 움직임);
+    캔.addEventListener("pointerup", 뗌);
+    캔.addEventListener("contextmenu", 메뉴막기);
+    return () => {
+      캔.removeEventListener("pointerdown", 눌림);
+      캔.removeEventListener("pointermove", 움직임);
+      캔.removeEventListener("pointerup", 뗌);
+      캔.removeEventListener("contextmenu", 메뉴막기);
+    };
+  }, [켬, 집기, gl, camera, scene, 편집설정]);
+
+  // ── 키 ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!켬) return;
+    const 눌림 = async (ev) => {
+      // ★ `ev.key` 가 아니라 `ev.code`(물리 키)로 판단한다.
+      //   한글 IME 가 켜져 있으면 R 을 눌러도 `ev.key` 는 **"ㄱ"** 으로 온다.
+      //   그래서 「E 는 되는데 R·X 는 안 된다」가 나왔다 — E 토글만 code 를
+      //   쓰고 있었기 때문이다. 자판 배열·IME 와 무관하려면 code 여야 한다.
+      if (ev.ctrlKey || ev.metaKey) {
+        if (ev.code === "KeyS") {
+          ev.preventDefault();
+          ev.stopPropagation(); // S(뒤로 걷기)로 새어 나가지 않게
+          await 저장하기();
+          return;
+        }
+        if (ev.code === "KeyZ") {
+          ev.preventDefault();
+          const 이전 = 되돌리기통.current.pop();
+          if (이전) {
+            편집설정(이전);
+            알림설정("되돌림");
+          }
+          return;
+        }
+      }
+      // ── 복사 · 붙여넣기 ──────────────────────────────────
+      //   생성기는 그대로 두고 **사람이 더한 것**을 편집 파일에 쌓는다(배치.js `더함`).
+      if ((ev.ctrlKey || ev.metaKey) && ev.code === "KeyC") {
+        if (!고른것) return;
+        복사판.current = { ...고른것 };
+        알림설정(`복사함 — ${고른것.이름} #${고른것.번호} · Ctrl+V 로 붙이기`);
+        return;
+      }
+      if ((ev.ctrlKey || ev.metaKey) && ev.code === "KeyV") {
+        const c = 복사판.current;
+        if (!c) {
+          알림설정("복사한 것이 없다 — 먼저 Ctrl+C");
+          return;
+        }
+        // 원본에서 화면 오른쪽으로 한 걸음 띄워 놓는다(정확히 겹치면 안 보인다)
+        const 앞 = new THREE.Vector3();
+        camera.getWorldDirection(앞);
+        앞.y = 0;
+        if (앞.lengthSq() < 1e-6) 앞.set(0, 0, -1);
+        앞.normalize();
+        const 옆 = new THREE.Vector3().crossVectors(앞, camera.up).normalize();
+        const 간격 = Math.max(1, c.키 * 0.6);
+        const x = 죄기(c.x + 옆.x * 간격, 편집범위.X[0], 편집범위.X[1]);
+        const z = 죄기(c.z + 옆.z * 간격, 편집범위.Z[0], 편집범위.Z[1]);
+        const y = 바닥높이(x, z, c.y);
+        되돌리기통.current.push(편집);
+        const { 편집: 다음, 번호 } = 더하기(편집, c.이름, {
+          x, y, z,
+          키: c.키,
+          회전: c.회전 ?? 0,
+          // 색·모양·납작함·기울기까지 그대로 — 「복사」는 같은 물건이어야 한다
+          기울기: c.기울기 ?? 0,
+          기울기2: c.기울기2 ?? 0,
+          폭비: c.폭비 ?? 1,
+          깊이비: c.깊이비 ?? 1,
+          ...(c.모양 !== undefined ? { 모양: c.모양 } : null),
+          ...(c.색 !== undefined ? { 색: c.색 } : null),
+        });
+        편집설정(다음);
+        const 새것 = { ...c, 번호, x, y, z };
+        고른것설정(새것);
+        고른것참조.current = 새것;
+        알림설정(`붙여넣음 — ${c.이름} #${번호} · Ctrl+S 로 저장`);
+        return;
+      }
+      // ★ ESC 는 **고른 것이 없어도** 들어야 한다.
+      //   예전에는 아래 `if (!고른것) return` 뒤에 있었다. 붓만 들고 아무것도
+      //   고르지 않은 상태가 정상인데, 그때 ESC 가 아예 안 돌아가서
+      //   **붓을 내려놓을 방법이 없었다**(사용자 지적).
+      if (ev.code === "Escape") {
+        if (붓참조.current) {
+          붓설정(null);
+          알림설정("붓 내려놓음");
+          return;
+        }
+        고른것설정(null);
+        고른것참조.current = null;
+        알림설정("");
+        return;
+      }
+      if (!고른것) return;
+      const 밀기 = (값) => {
+        되돌리기통.current.push(편집);
+        편집설정((e) => 고치기(e, 고른것.이름, 고른것.번호, 값));
+      };
+      switch (ev.code) {
+        case "Delete":
+        case "Backspace":
+        case "KeyX":
+          되돌리기통.current.push(편집);
+          편집설정((e) => 지우기(e, 고른것.이름, 고른것.번호));
+          고른것설정(null);
+          알림설정("지움 · Ctrl+S 로 저장");
+          break;
+        case "KeyR": {
+          const 다음 = (고른것.회전 ?? 0) + (ev.shiftKey ? -회전단위 : 회전단위);
+          고른것설정((v) => ({ ...v, 회전: 다음 }));
+          밀기({ 회전: 다음 });
+          break;
+        }
+        case "BracketLeft": {
+          const 다음 = 고른것.키 * 0.9;
+          고른것설정((v) => ({ ...v, 키: 다음 }));
+          밀기({ 키: 다음 });
+          break;
+        }
+        case "BracketRight": {
+          const 다음 = 고른것.키 * 1.1;
+          고른것설정((v) => ({ ...v, 키: 다음 }));
+          밀기({ 키: 다음 });
+          break;
+        }
+        // ★ 방향키로도 옮긴다. 마우스 이동(G)은 큰 이동에, 방향키는 미세 조정에.
+        //   「마우스로 드래그해도 안 움직인다」는 지적이 있어서 확실한 길을 하나 더 둔다.
+        case "ArrowLeft":
+        case "ArrowRight":
+        case "ArrowUp":
+        case "ArrowDown": {
+          ev.preventDefault();
+          const 칸 = 밀기단위 * (ev.shiftKey ? 4 : 1);
+          // ★ 화면 기준으로 민다. 오른쪽 벡터는 **걷기 훅과 같은 식**(fwd × up)을
+          //   쓴다. 예전에는 그 값을 음수로 써서 **좌우가 뒤집혀 있었다**
+          //   (사용자 지적: 「기준이 다른 것 같다」).
+          const 앞 = new THREE.Vector3();
+          camera.getWorldDirection(앞);
+          앞.y = 0;
+          if (앞.lengthSq() < 1e-6) 앞.set(0, 0, -1);
+          앞.normalize();
+          const 옆 = new THREE.Vector3().crossVectors(앞, camera.up).normalize();
+          const d = new THREE.Vector3();
+          if (ev.code === "ArrowUp") d.copy(앞);
+          if (ev.code === "ArrowDown") d.copy(앞).negate();
+          if (ev.code === "ArrowRight") d.copy(옆);
+          if (ev.code === "ArrowLeft") d.copy(옆).negate();
+          const x = 죄기(고른것.x + d.x * 칸, 편집범위.X[0], 편집범위.X[1]);
+          const z = 죄기(고른것.z + d.z * 칸, 편집범위.Z[0], 편집범위.Z[1]);
+          const y = 바닥높이(x, z, 고른것.y);
+          고른것설정((v) => ({ ...v, x, y, z }));
+          밀기({ x, y, z });
+          알림설정(`(${x.toFixed(1)}, ${z.toFixed(1)}) · Ctrl+S 로 저장`);
+          break;
+        }
+        default:
+          break;
+      }
+    };
+    window.addEventListener("keydown", 눌림);
+    return () => window.removeEventListener("keydown", 눌림);
+  }, [켬, 고른것, 편집, 편집설정, camera, 바닥높이, 저장하기]);
+
+  // ── 부감 켜고 끄기 · 누른 키 모으기 ─────────────────────
+  //   위의 키 핸들러와 따로 둔다. 저건 `고른것` 이 바뀔 때마다 다시 붙는데,
+  //   여기서 키를 모으면 그 순간 **누르고 있던 키를 잃어버려** 화면이 멈춘다.
+  useEffect(() => {
+    const 키통 = 눌린키.current; // 정리 함수가 볼 것을 지금 붙잡아 둔다
+    if (!켬) {
+      키통.clear();
+      return;
+    }
+    const 내림 = (ev) => {
+      if (ev.code === "Tab") {
+        ev.preventDefault(); // 안 막으면 브라우저가 포커스를 옮겨 버린다
+        부감설정?.((v) => !v);
+        return;
+      }
+      키통.add(ev.code);
+    };
+    const 올림 = (ev) => 키통.delete(ev.code);
+    // 창을 벗어나면 누른 채로 남아 화면이 혼자 흘러간다
+    const 비우기 = () => 키통.clear();
+    window.addEventListener("keydown", 내림);
+    window.addEventListener("keyup", 올림);
+    window.addEventListener("blur", 비우기);
+    return () => {
+      window.removeEventListener("keydown", 내림);
+      window.removeEventListener("keyup", 올림);
+      window.removeEventListener("blur", 비우기);
+      키통.clear();
+    };
+  }, [켬, 부감설정]);
+
+  // ── 휠 — 에셋함 위에서는 그 안만 구르고, 그 밖에서는 부감 높낮이 ──
+  // [왜 자리로 판별하나]
+  //   안내판은 `pointer-events:none` 이다(그래야 판 뒤쪽 땅을 클릭해 물건을
+  //   놓을 수 있다). 그래서 판 위에서 휠을 굴려도 **이벤트가 캔버스로 새어
+  //   나가** 지도가 확대·축소됐다(사용자 지적: 에셋함 안에서는 그 영역만
+  //   굴러야 한다). 판이 이벤트를 못 받으니 **커서가 그 상자 안에 있는지**를
+  //   자리로 재서 갈라 준다.
+  useEffect(() => {
+    if (!켬) return;
+    const 안에있나 = (el, ev) => {
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return false;
+      return (
+        ev.clientX >= r.left && ev.clientX <= r.right &&
+        ev.clientY >= r.top && ev.clientY <= r.bottom
+      );
+    };
+    const 휠 = (ev) => {
+      // ① 에셋함 안이면 그 상자만 구른다 — 지도는 꿈쩍도 안 한다
+      const 함 = document.getElementById("naju-에셋함");
+      if (안에있나(함, ev)) {
+        ev.preventDefault();
+        함.scrollTop += ev.deltaY;
+        return;
+      }
+      // ② 안내판(에셋함 밖) 위라면 **아무 일도 안 한다.** 지도가 움직이면
+      //   안 되니 막기만 한다. 판은 이제 세로 flex 라 스스로 넘치지 않는다
+      //   (넘치는 건 에셋함뿐이고, 그건 ① 이 맡는다).
+      const 판 = document.getElementById("naju-편집안내");
+      if (안에있나(판, ev)) {
+        ev.preventDefault();
+        return;
+      }
+      // ③ 그 밖 — 부감일 때만. 걸어 다닐 때는 휠에 아무 일도 없다.
+      if (!부감) return;
+      ev.preventDefault();
+      const 밑 = 지면높이 ? 지면높이(camera.position.x * 유닛, camera.position.z * 유닛) : 0;
+      const 지금 = camera.position.y * 유닛 - 밑;
+
+      // ── 그냥 굴리면 **시점을 돌린다** ────────────────────
+      // [왜 회전인가]  부감에서 이동은 WASD 로 충분하다. 정작 없던 것이
+      //   **돌리기**였다 — 우클릭 드래그뿐이라 맥 트랙패드에서는 못 썼다.
+      //   위에서 내려다보며 배치하는데 한 방향으로만 보면 반쪽이다.
+      //   두 손가락 스크롤이 가장 손에 붙는 자리라 여기에 둔다.
+      // [높낮이는 어디로]  **핀치 줌**과 ⌘/Ctrl/Shift + 휠이 맡는다.
+      //   맥은 트랙패드 핀치를 `ctrlKey` 붙은 wheel 로 보내므로 저절로 갈린다.
+      // ※ `, .` 키도 그대로 둔다 — 마우스를 안 쓰고 돌리고 싶을 때가 있다.
+      const 높낮이냐 = ev.ctrlKey || ev.metaKey || ev.shiftKey;
+      if (!높낮이냐) {
+        // 가로 스크롤이 더 크면 그쪽을, 아니면 세로를 쓴다 —
+        //   트랙패드는 두 방향이 다 오고, 휠 마우스는 세로만 온다.
+        const 량 =
+          Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
+        시점돌리기(camera, -량 * 0.0035, 밑);
+        return;
+      }
+      // 곱셈으로 바꾼다 — 높이 5 m 와 80 m 에서 같은 양을 더하면 한쪽이 못 쓴다
+      const 다음 = Math.min(
+        부감기본.높이범위[1],
+        Math.max(부감기본.높이범위[0], 지금 * (ev.deltaY > 0 ? 1.15 : 1 / 1.15)),
+      );
+      높이참조.current = 다음;
+      camera.position.y = (밑 + 다음) * 미터;
+    };
+    // 창 **하나에만** 단다. 캔버스에도 달면 캔버스 위에서 굴릴 때 이벤트가
+    // 창으로 버블링해 **두 번 발동**한다(높낮이가 두 배로 뛴다).
+    window.addEventListener("wheel", 휠, { passive: false });
+    return () => window.removeEventListener("wheel", 휠);
+  }, [켬, 부감, camera, 지면높이]);
+
+  // 붓이 들려 있으면 커서를 십자로 바꾼다 — 클릭이 「고르기」가 아니라
+  // 「놓기」라는 것이 눈에 보여야 한다.
+  useEffect(() => {
+    const 캔 = gl.domElement;
+    캔.style.cursor = 켬 && 붓 ? "crosshair" : "";
+    return () => {
+      캔.style.cursor = "";
+    };
+  }, [켬, 붓, gl]);
+
+  // 편집 모드에 들어가면 포인터락을 푼다(마우스로 집어야 하므로)
+  useEffect(() => {
+    if (켬 && 잠금해제) 잠금해제();
+  }, [켬, 잠금해제]);
+
+  if (!켬) return null;
+  return (
+    <>
+      {고른것 && (
+        // ★ 테두리를 **같이 돌린다.**
+        //   나무·잎더미는 거의 좌우대칭이라 15° 를 돌려도 눈에 안 띈다.
+        //   실제로 「회전이 안 먹힌다」는 말이 나왔는데, 재 보니 yaw 는 정확히
+        //   0° → 45° 로 가고 있었다 — **보이지 않았을 뿐**이다.
+        //   상자가 같이 돌고 앞쪽에 표시가 있으면 얼마나 돌았는지 바로 읽힌다.
+        <group
+          position={[고른것.x * 미터, 고른것.y * 미터, 고른것.z * 미터]}
+          rotation={[0, 고른것.회전 ?? 0, 0]}
+          renderOrder={999}
+        >
+          <mesh
+            position={[
+              고른것.상자?.중심[0] ?? 0,
+              고른것.상자?.중심[1] ?? 고른것.키 * 0.5 * 미터,
+              고른것.상자?.중심[2] ?? 0,
+            ]}
+          >
+            <boxGeometry
+              args={
+                고른것.상자
+                  ? 고른것.상자.크기.map((v) => v * 1.06)
+                  : [고른것.키 * 미터, 고른것.키 * 미터, 고른것.키 * 미터]
+              }
+            />
+            <meshBasicMaterial
+              color="#FFD166"
+              wireframe
+              depthTest={false}
+              toneMapped={false}
+            />
+          </mesh>
+          {/* 앞쪽 코 — 어느 방향을 보고 있는지 알려 준다 */}
+          <mesh
+            position={[
+              0,
+              (고른것.상자?.중심[1] ?? 고른것.키 * 0.5 * 미터),
+              -((고른것.상자?.크기[2] ?? 고른것.키 * 미터) * 0.53 + 0.35 * 미터),
+            ]}
+            rotation={[Math.PI / 2, 0, 0]}
+          >
+            <coneGeometry args={[0.22 * 미터, 0.7 * 미터, 4]} />
+            <meshBasicMaterial
+              color="#FFD166"
+              depthTest={false}
+              toneMapped={false}
+            />
+          </mesh>
+        </group>
+      )}
+      <편집안내
+        붓={붓}
+        붓설정={붓설정}
+        부감={부감}
+        gl={gl}
+        알림={알림}
+        고른것={고른것}
+        안한변경={안한변경}
+        변경수={편집수(편집)}
+        저장중={저장중}
+        붙었나={붙었나}
+        저장하기={저장하기}
+      />
+    </>
+  );
+}
+
+// ── 화면 구석 안내 + 저장 버튼 ──────────────────────────────
+// [왜 버튼을 두나]
+//   Ctrl+S 는 **S(뒤로 걷기)와 맞물린다.** 키를 고쳐도 「눌렀는데 됐는지
+//   모르겠다」는 문제는 남는다. 누를 수 있는 버튼과 **상태 표시**가 답이다.
+//     · 변경 없음        → 회색
+//     · 저장 안 한 변경 N → 노랑 (눌러 달라는 뜻)
+//     · 저장됨           → 초록
+//     · 저장 기능 없음    → 빨강 + 무엇을 해야 하는지
+//
+// [왜 React 요소가 아니라 DOM 을 직접 만지나]
+//   이 컴포넌트는 `<Canvas>` **안**에 있다. R3F 는 자기 재조정기를 쓰므로
+//   `<div>`·`<button>` 을 three 객체로 해석해 터진다
+//   ("R3F: B is not part of the THREE namespace" — 실제로 그랬다).
+//   react-dom 의 createPortal 도 같은 이유로 안 통한다. 그래서 DOM 을 직접 만든다.
+function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 저장하기, 붓, 붓설정, 부감, gl }) {
+  // 팔레트는 **접어 둔다.** 펼치면 화면을 크게 가려서, 정작 놓을 자리가 안 보인다.
+  const [펼침, 펼침설정] = useState(false);
+  // 썸네일 — 펼칠 때 한 번만 굽는다. 안 펼치면 굽지 않는다(WebGL 을 하나 더
+  //   여는 일이라, 안 쓸 사람에게 값을 치르게 할 이유가 없다).
+  const [썸네일, 썸네일설정] = useState(null);
+  useEffect(() => {
+    if (!펼침 || 썸네일) return;
+    // 프레임을 한 번 넘기고 굽는다 — 펼치는 순간 화면이 멈칫하지 않게
+    const t = setTimeout(
+      () => 썸네일설정(미리보기굽기(에셋목록, 에셋표본, gl)),
+      0,
+    );
+    return () => clearTimeout(t);
+  }, [펼침, 썸네일, gl]);
+  const 판참조 = useRef(null);
+  const 저장참조 = useRef(저장하기);
+  저장참조.current = 저장하기;
+  const 붙이기참조 = useRef(null);
+  const 붓설정참조 = useRef(붓설정);
+  붓설정참조.current = 붓설정;
+
+  // 판은 한 번만 만든다
+  useEffect(() => {
+    const 판 = document.createElement("div");
+    판.id = "naju-편집안내";
+    // [★ 창을 넘어가지 않게 — 한 번 밖으로 나갔다]
+    //   예전에는 `max-height:70vh; overflow:auto` 였다. 그런데 판 전체에
+    //   `pointer-events:none` 이 걸려 있어서 **스크롤바를 잡을 수가 없었다.**
+    //   넘친 부분은 휠로만 닿을 수 있었고, 그걸 모르면 「화면 밖으로 나가서
+    //   클릭도 안 된다」가 된다(사용자 지적. 실측: 1280×720 에서 에셋 버튼
+    //   26 개 중 19 개가 화면 아래로 밀려 있었다).
+    //   지금은 **세로 flex** 다 —
+    //     · 판   : `calc(100vh - 24px)` 를 절대 안 넘는다
+    //     · 안내글: 남는 만큼만 쓰고 모자라면 제가 줄어든다
+    //     · 에셋함: 남은 높이를 다 받고 **제 스크롤바를 갖는다**
+    //   `overflow:hidden` 인 이유는 판이 스스로 스크롤될 일이 없어야 하기
+    //   때문이다. 스크롤은 **잡을 수 있는 곳**에서만 일어나야 한다.
+    판.style.cssText =
+      "position:fixed;left:12px;bottom:12px;z-index:60;pointer-events:none;" +
+      "font:12px/1.6 ui-monospace,monospace;color:#E8EAF0;" +
+      "background:rgba(16,20,28,.86);padding:10px 12px;border-radius:8px;" +
+      "border:1px solid rgba(255,209,102,.35);max-width:min(60ch,70vw);" +
+      "max-height:calc(100vh - 24px);overflow:hidden;" +
+      "display:flex;flex-direction:column;gap:0";
+    document.body.appendChild(판);
+    판참조.current = 판;
+    // 스크롤바를 **보이게** 한다.
+    //   [왜 style 태그가 필요한가]  이 판은 문자열 HTML 로 그린다. 인라인
+    //   style 로는 `::-webkit-scrollbar` 같은 가상 요소를 못 꾸민다.
+    //   기본 스크롤바는 어두운 판 위에서 거의 안 보여서, 넘친 줄을 모른다 —
+    //   「화면 밖으로 나가서 클릭도 안 된다」가 그렇게 나왔다.
+    const 스타일 = document.createElement("style");
+    스타일.id = "naju-편집안내-스타일";
+    스타일.textContent =
+      "#naju-에셋함::-webkit-scrollbar{-webkit-appearance:none;width:10px}" +
+      "#naju-에셋함::-webkit-scrollbar-track{background:rgba(255,255,255,.06);border-radius:5px}" +
+      "#naju-에셋함::-webkit-scrollbar-thumb{background:rgba(255,209,102,.55);" +
+      "border-radius:5px;border:2px solid transparent;background-clip:content-box}" +
+      "#naju-에셋함::-webkit-scrollbar-thumb:hover{background:rgba(255,209,102,.85);" +
+      "background-clip:content-box}";
+    document.head.appendChild(스타일);
+
+    // ── 판을 **실제로 보이는 영역**에 붙인다 ──────────────
+    // [왜 `position:fixed` 만으로는 모자라나]
+    //   `fixed` 는 **레이아웃 뷰포트**에 붙는다. 그런데 사람이 보는 것은
+    //   **비주얼 뷰포트**다. 둘은 다음 경우에 어긋난다 —
+    //     · 트랙패드 핀치 줌 (맥에서 두 손가락으로 확대)
+    //     · 가로 스크롤이 생긴 채로 오른쪽으로 민 상태
+    //   어긋나면 `left:12px` 가 **화면 밖 왼쪽**을 가리킨다. 판이 통째로
+    //   잘려 보이고 눌리지도 않는다(스크린샷 제보).
+    //   `visualViewport` 가 그 어긋남(`offsetLeft`·`offsetTop`)을 알려 주므로,
+    //   그만큼 밀어서 늘 보이는 자리에 둔다.
+    const 붙이기 = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      // 확대 중에는 판도 같이 커 보이므로 크기 상한도 실제 보이는 높이로 준다
+      판.style.left = `${vv.offsetLeft + 12}px`;
+      판.style.bottom = "auto";
+      판.style.top = `${vv.offsetTop + vv.height - 판.offsetHeight - 12}px`;
+      판.style.maxHeight = `${Math.max(120, vv.height - 24)}px`;
+      // 마지막 보정 — 무슨 까닭이든 판이 보이는 데 밖으로 나갔으면 끌어온다.
+      //   위 계산이 못 잡는 경우(조상에 transform 이 붙는다든지)까지 덮는다.
+      //   「안 보인다」보다 「조금 어긋나 보인다」가 낫다.
+      const r = 판.getBoundingClientRect();
+      const 왼 = vv.offsetLeft;
+      const 위 = vv.offsetTop;
+      if (r.left < 왼) 판.style.left = `${parseFloat(판.style.left) + (왼 - r.left)}px`;
+      if (r.top < 위) 판.style.top = `${parseFloat(판.style.top) + (위 - r.top)}px`;
+      const 아래끝 = 위 + vv.height;
+      const r2 = 판.getBoundingClientRect();
+      if (r2.bottom > 아래끝)
+        판.style.top = `${parseFloat(판.style.top) - (r2.bottom - 아래끝)}px`;
+    };
+    붙이기();
+    window.visualViewport?.addEventListener("resize", 붙이기);
+    window.visualViewport?.addEventListener("scroll", 붙이기);
+    window.addEventListener("resize", 붙이기);
+    붙이기참조.current = 붙이기;
+    const 누름 = (e) => {
+      const b = e.target.closest("#naju-저장버튼");
+      if (b) {
+        저장참조.current?.();
+        return;
+      }
+      // 에셋함 굴리기 — 한 줄(버튼 한 칸 높이)씩 움직인다
+      const 굴 = e.target.closest("#naju-함위로, #naju-함아래로");
+      if (굴) {
+        const 함 = document.getElementById("naju-에셋함");
+        if (함) 함.scrollTop += 굴.id === "naju-함위로" ? -78 : 78;
+        return;
+      }
+      if (e.target.closest("#naju-팔레트접기")) {
+        펼침설정((v) => !v);
+        return;
+      }
+      if (e.target.closest("#naju-붓내려놓기")) {
+        붓설정참조.current?.(null);
+        return;
+      }
+      const p = e.target.closest("[data-에셋]");
+      if (p) {
+        // 같은 것을 다시 누르면 내려놓는다(토글) — 해제할 길이 하나뿐이면 갇힌다
+        const 키 = p.getAttribute("data-에셋");
+        붓설정참조.current?.((v) => (v === 키 ? null : 키));
+      }
+    };
+    판.addEventListener("click", 누름);
+    return () => {
+      판.removeEventListener("click", 누름);
+      window.visualViewport?.removeEventListener("resize", 붙이기);
+      window.visualViewport?.removeEventListener("scroll", 붙이기);
+      window.removeEventListener("resize", 붙이기);
+      판.remove();
+      스타일.remove();
+      판참조.current = null;
+      붙이기참조.current = null;
+    };
+  }, []);
+
+  // 내용만 갱신
+  useEffect(() => {
+    const 판 = 판참조.current;
+    if (!판) return;
+    const 색 = 저장중
+      ? "#9AA3B2"
+      : 붙었나 === false
+        ? "#FF8A80"
+        : 안한변경
+          ? "#FFD166"
+          : "#9BE3B4";
+    const 글 = 저장중
+      ? "저장 중…"
+      : 붙었나 === false
+        ? "저장 불가 — 서버 재시작"
+        : 안한변경
+          ? `저장하기 (변경 ${변경수})`
+          : 변경수 > 0
+            ? `저장됨 (${변경수})`
+            : "변경 없음";
+    const 각 =
+      ((((((고른것?.회전 ?? 0) * 180) / Math.PI) % 360) + 360) % 360) | 0;
+    // ── 팔레트 ──
+    //   갈래별로 묶어 보여 준다. 누르면 그게 **붓**이 되고, 화면을 클릭하면 놓인다.
+    const 붓이름 = 붓 ? (에셋찾기(붓)?.이름 ?? 붓) : null;
+    const 팔레트 =
+      // flex 자식이라 `min-height:0` 이 없으면 안쪽 스크롤이 안 먹는다
+      '<div style="margin-top:8px;padding-top:8px;flex:1 1 auto;min-height:0;' +
+      "display:flex;flex-direction:column;" +
+      'border-top:1px solid rgba(255,255,255,.14)">' +
+      // ★ 머리줄은 **한 줄짜리 블록**으로 감싼다. 안 감싸면 세로 flex 의
+      //   자식이 되어 단추들이 **각자 한 줄씩 차지하며 가로로 늘어난다**
+      //   (실제로 ▲▼ 와 「내려놓기」가 그렇게 늘어졌다).
+      '<div style="flex:0 0 auto">' +
+      '<button id="naju-팔레트접기" type="button" style="pointer-events:auto;cursor:pointer;' +
+      "font:inherit;color:#E8EAF0;background:rgba(255,255,255,.08);border:1px solid " +
+      'rgba(255,255,255,.2);border-radius:5px;padding:3px 9px">' +
+      `${펼침 ? "▾" : "▸"} 놓을 것</button>` +
+      (붓이름
+        ? ` <span style="color:#FFD166">붓: ${붓이름}</span>` +
+          ' <button id="naju-붓내려놓기" type="button" style="pointer-events:auto;' +
+          "cursor:pointer;font:inherit;color:#12161F;background:#FFD166;border:none;" +
+          'border-radius:5px;padding:2px 8px">내려놓기 (ESC)</button>' +
+          '<span style="opacity:.6"> — 화면을 클릭해 놓는다</span>'
+        : '<span style="opacity:.6"> — 눌러서 고른다</span>') +
+      (펼침
+        ? // 굴리기 단추 — **브라우저 스크롤바에 기대지 않는다.**
+          //   맥 크롬은 스크롤바를 겹쳐 그려서(overlay) 굴리기 전에는 안
+          //   보인다. 넘친 줄 자체를 모르면 「클릭이 안 된다」가 된다.
+          //   눈에 보이고 눌리는 단추를 두면 그 문제가 없다.
+          ' <span id="naju-더있다" style="color:#FFD166"></span>' +
+          '<button id="naju-함위로" type="button" style="pointer-events:auto;' +
+          "cursor:pointer;font:inherit;color:#E8EAF0;background:rgba(255,255,255,.08);" +
+          "border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:1px 7px;" +
+          'margin-left:6px">▲</button>' +
+          '<button id="naju-함아래로" type="button" style="pointer-events:auto;' +
+          "cursor:pointer;font:inherit;color:#E8EAF0;background:rgba(255,255,255,.08);" +
+          "border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:1px 7px;" +
+          'margin-left:3px">▼</button>'
+        : "") +
+      "</div>" +
+      (!펼침
+        ? ""
+        : // 에셋함 — **제 스크롤 영역**을 갖는다. 갈래가 늘면 패널이 화면을
+          //   위아래로 다 먹어 버려서, 정작 놓을 자리가 안 보인다.
+          //   ※ id 로 찾아 휠을 여기로 돌린다(아래 `휠` 핸들러 참고).
+          // ★ `pointer-events:auto` — 이게 없으면 **스크롤바를 못 잡는다.**
+          //   판이 `none` 이라 자식도 그대로 물려받는다. 휠 핸들러로 대신
+          //   굴려 주고는 있었지만, 잡을 게 없으면 넘친 줄도 모른다.
+          //   여기만 켜 둔다 — 판의 나머지(안내글)는 여전히 뒤가 클릭된다.
+          // ★ `flex:1 1 auto; min-height:0` — 남은 높이를 **다 받는다.**
+          //   예전엔 `max-height:34vh` 고정이라, 창이 낮으면 두 줄밖에
+          //   안 보이고 창이 커도 그 이상 안 늘었다.
+          '<div id="naju-에셋함" style="pointer-events:auto;' +
+          "flex:1 1 auto;min-height:88px;overflow-y:scroll;" +
+          // ★ `scrollbar-width`/`scrollbar-color` 를 쓰면 안 된다. 요즘
+          //   크롬은 그 표준 속성을 지원하는데, **그게 켜지면
+          //   `::-webkit-scrollbar` 규칙을 무시한다.** 둘을 같이 두면
+          //   가늘고 흐린 기본 막대가 나와 어두운 판 위에서 안 보인다.
+          //   여기서는 눈에 띄어야 하므로 webkit 쪽에 맡긴다.
+          "overflow-x:hidden;margin-top:2px;padding-right:4px\">" +
+          갈래목록
+        .map((갈래) => {
+          const 것들 = 에셋목록
+            .filter((v) => v.갈래 === 갈래)
+            .map((v) => {
+              const 켜짐 = 붓 === v.키;
+              const 그림 = 썸네일?.get(v.키);
+              // 그림 위에 이름 — 이름만 있으면 「덤불」과 「수풀」이 안 갈린다.
+              //   썸네일을 못 구운 환경에서도 이름은 그대로 보인다.
+              return (
+                `<button type="button" data-에셋="${v.키}" title="${v.이름}" ` +
+                'style="pointer-events:auto;cursor:pointer;font:inherit;' +
+                `border:1px solid ${켜짐 ? "#FFD166" : "rgba(255,255,255,.22)"};` +
+                `background:${켜짐 ? "#FFD166" : "rgba(255,255,255,.06)"};` +
+                `color:${켜짐 ? "#12161F" : "#E8EAF0"};` +
+                "border-radius:6px;padding:3px 5px 2px;margin:3px 4px 0 0;" +
+                'display:inline-flex;flex-direction:column;align-items:center;' +
+                'gap:1px;width:62px;vertical-align:top">' +
+                (그림
+                  ? `<img src="${그림}" width="46" height="46" alt="" ` +
+                    'style="display:block;border-radius:4px;' +
+                    `background:${켜짐 ? "rgba(0,0,0,.10)" : "rgba(0,0,0,.22)"}">`
+                  : '<span style="display:block;width:46px;height:46px;' +
+                    'border-radius:4px;background:rgba(0,0,0,.22)"></span>') +
+                `<span style="font-size:10px;line-height:1.15;text-align:center;` +
+                `word-break:keep-all">${v.이름}</span></button>`
+              );
+            })
+            .join("");
+          return (
+            `<div style="margin-top:4px"><span style="opacity:.55">${갈래}</span><br>${것들}</div>`
+          );
+        })
+          .join("") + "</div></div>");
+
+    판.innerHTML =
+      '<b style="color:#FFD166">편집 모드</b>' +
+      '<span style="opacity:.75"> · 클릭·드래그 고르고 옮기기 · 우클릭 드래그 시점 · WASD 걷기</span><br>' +
+      '<span style="opacity:.75">방향키 밀기(Shift 크게) · R 회전 · [ ] 크기 · ' +
+      '<b style="color:#9BD6FF">, . 시점 돌리기</b> · ' +
+      "Ctrl+C/V 복사·붙여넣기 · X 지우기 · Ctrl+Z 되돌리기 · ESC 해제</span><br>" +
+      (부감
+        ? '<span style="color:#9BD6FF">부감 — ' +
+          "WASD·방향키 밀기 · <b>휠 돌리기</b>(, . 도 됨) · <b>핀치/⌘+휠 높낮이</b> · Tab 내려오기</span>"
+        : '<span style="opacity:.75">Tab — 공중에서 내려다보기</span>') +
+      (고른것
+        ? `<br><span style="color:#9BE3B4">${고른것.이름} #${고른것.번호}</span>` +
+          `<span style="color:#C9CEDA">  (${고른것.x.toFixed(1)}, ${고른것.z.toFixed(1)})` +
+          ` · 키 ${고른것.키.toFixed(1)} m · ∠ ${각}°</span>`
+        : "") +
+      '<div style="margin-top:8px;display:flex;align-items:center;gap:8px">' +
+      `<button id="naju-저장버튼" type="button"${저장중 ? " disabled" : ""} ` +
+      'style="pointer-events:auto;cursor:pointer;font:inherit;color:#12161F;' +
+      `background:${색};border:none;border-radius:6px;padding:5px 12px;font-weight:700">` +
+      `${글}</button>` +
+      '<span style="opacity:.6">또는 Ctrl+S</span></div>' +
+      (알림
+        ? `<div style="margin-top:6px;color:${알림.startsWith("✘") ? "#FF8A80" : "#FFD166"}">${알림}</div>`
+        : "") +
+      (붙었나 === false
+        ? '<div style="margin-top:4px;color:#FF8A80">개발 서버에 저장 기능이 없다 — ' +
+          "<b>npx vite naju01</b> 을 다시 띄워라</div>"
+        : "") +
+      팔레트;
+    // 넘쳤으면 그렇다고 적는다 — 스크롤바만으로는 못 알아채는 사람이 있다.
+    //   ※ 그리고 **난 뒤에** 재야 한다. 그려지기 전에는 높이가 0 이다.
+    const 함 = 판.querySelector("#naju-에셋함");
+    const 더 = 판.querySelector("#naju-더있다");
+    if (함 && 더 && 함.scrollHeight > 함.clientHeight + 2)
+      더.textContent = "  ↕ 굴려서 더 보기";
+    // 내용이 바뀌면 판 높이가 달라진다 — 아래쪽 12 px 을 다시 맞춘다.
+    붙이기참조.current?.();
+    // ※ 펼침을 빼먹으면 「놓을 것」을 눌러도 판이 다시 안 그려져서
+    //    에셋 버튼이 영영 안 나온다(실제로 그랬다).
+  }, [알림, 고른것, 안한변경, 변경수, 저장중, 붙었나, 붓, 펼침, 부감, 썸네일]);
+
+  return null;
+}

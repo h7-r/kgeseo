@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NAJU-01 그레이박스</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- 에러 수집기 — 본편 index.html 과 같은 장치.
+         잡히지 않은 에러를 탭 제목에 찍고 window.__E 에 쌓아 둔다. -->
+    <script>
+      window.__E = [];
+      function __err(m) {
+        window.__E.push(String(m).slice(0, 500));
+        document.title = "ERR: " + String(m).slice(0, 120);
+      }
+      addEventListener("error", (e) => __err((e.error && e.error.stack) || e.message));
+      addEventListener("unhandledrejection", (e) =>
+        __err("REJ " + ((e.reason && e.reason.stack) || e.reason)),
+      );
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,19 @@
+// ═══════════════════════════════════════════════════════════════
+//  자갈돌4모형 — Meshy 모형을 구운 것 (**손으로 고치지 않는다**)
+// ═══════════════════════════════════════════════════════════════
+//  원본:  자갈돌4.glb
+//  삼각형 88 · 꼭짓점 46
+//  규약: **중심** (가장 긴 쪽 0.8 · 한복판 원점)
+//  다시 구우려면:  node 도구/모형굽기.mjs 에셋/모형/자갈돌4.glb src/모형/자갈돌4.js 자갈돌4모형 중심
+//
+//  ※ 노멀·꼭짓점 색은 여기 없다. 불러오는 쪽이 `computeVertexNormals` 로
+//    만들고 흰색을 깐다 — 실제 색은 `instanceColor` 가 곱한다.
+
+export const 자갈돌4모형 = {
+  // Z 폭을 1 로 맞췄을 때의 세 폭 — 놓는 쪽이 `키` 를 정할 때 본다
+  폭: { x: 0.6994, y: 0.4914, z: 0.8000 },
+  꼭짓점: 46,
+  삼각형: 88,
+  위치: "3Auzvo/L572k8fA7yS2lvoiSgTzc9FM8RUqRvtNijD0Vd0++MM2xvpouor2Bh1K+F1mRviZqdr6AX7o9+lWqvgoGqr0SDCY+cMqNvugVAz7hiF4+1XGGvvYWpb131ZS+0DU/vi0hYD59sto8F02Ovv+0Zb0PNAY+1u2jvhdAbb495pI+NiRovp8Ggb2cusw+U4eSvpoQPr4sjgu+PSkDvqKXe75W0aY+7vyTvtm/Ij21648+0VJqvr+WBD6No6s+YMAlviN9Jj67eFS+holYvsrVRj4TJoY+GaZKvoyldb4HHxm+ZXZNPdPWb75H6MI998Y+vvo1Hj03DJ6+hWPIvWwKqbzNzMy+34dhveU2gjyYWaQ+23EXPf0pIL7NzMw+eb1XPCsBGL7s1cu+14xsPfcdeb4CUrg+N5aePWpDcj5MelQ+9IStPdWnlD1jUcS+rSoxPaKXez5pqX+9O+KUPCIJdb5hvYa9rcGlPKpCjr1xuq6+q0SZPdJXOL67jHa+vZxdPU/tbT4WtIU7lopsPqqLcr5H6RE9uehoPiPvbr6uOa8+6SBYPgj3Wz5HJwo9iQsKPgsPEz2/now+hUj2PeRPRD54hp0+4oqJPqEEbr6VbR4+F95OPmT+PD4p3Nu9hWp/PqitCb6VG64+ssBDPvBHLrw8cZm+NLdfPjBQlz3fV38+2f6GPrrFbj20zEe+8giwPgzKnL1hMKY83AuzPtuBq73H5nk+",
+  인덱스: "AAABAAIAAAACAAMAAAADAAQAAAAEAAUAAAAFAAEABgABAAUAAgAHAAMAAgABAAgABgAFAAkACgAFAAQABQALAAkABAADAAwABQAKAA0ABwAMAAMABQANAAsACwAOAAkAAQAGAAgABgAOAA8ABgAJAA4ABwACABAABgARAAgADwARAAYADwAOAAsABAANAAoADAASAAQADAAHABIABAATAA0AEAAUAAcAAgAIABAAFAAVAAcADwAWABEADQAXAAsAGAAHABUABwAYABIACwAXABYADwALABYADQAZABcACAAaABAAEQAaAAgAFAAQABsAEAAaABwABAASAB0ADQATABkAFQAUABsAEQAWABoABAAdABMAGAAVAB4AEAAcABsAEgAfAB0AEgAYAB8AFQAbAB4AHAAaACAAHQAfACEAGQATACIAHgAfABgAIAAaACMAFgAkABoAGgAkACUAFwAZACIAHQAhABMAEwAmACIAHAAgACcAFwAiABYAHAAnABsAIgAoABYAGwAnACkAHgAbACkAJAAqACUAKQAfAB4AFgAoACQAJgATACEAIAAjACcAKQAnACsAJQAjABoAJQAqACMAKAAqACQAHwApACEAJwAjACwAKQArACwALAArACcAKQAsACEALAAjAC0AKgAtACMAIgAtACgAJgAhAC0AIQAsAC0AKAAtACoAJgAtACIA",
+};

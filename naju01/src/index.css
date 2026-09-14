@@ -1,0 +1,50 @@
+/* index.css — 그레이박스 전역 스타일
+   ※ 본편 src/index.css 에서 갈라져 나온 것이다(원본은 건드리지 않는다).
+
+   [본편과 다른 점 — 무대를 창에 꽉 채운다]
+   본편은 16:9 레터박스 무대다(연출 화각을 고정하려고). 그런데 그레이박스는
+   **공간을 보러 오는 화면**이라, 위아래 검은 띠가 볼 자리를 잡아먹는다.
+   그래서 기본을 '창 꽉 채우기'로 두었다.
+
+   ⚠ 단, 화각이 달라진다. three.js 의 fov 는 **세로** 기준이라 가로가 넓어지면
+     가로 시야가 함께 넓어진다. §4 의 시야 검증(V1·V2·V3 에서 무엇이 보이나)을
+     본편과 같은 조건으로 하려면 주소 뒤에 **?stage=16x9** 를 붙인다. */
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+/* ★ 가로로 넘치지 않게 못박는다.
+   아래 `.stage` 가 `100vw` 였는데, **`100vw` 는 세로 스크롤바 폭을 안 뺀다.**
+   스크롤바가 한 번이라도 생기면 문서가 창보다 넓어지고, 가로 스크롤이
+   생기고, 그 상태로 오른쪽으로 밀리면 **왼쪽 UI 가 화면 밖으로 나간다.**
+   실제로 편집판과 계기판이 왼쪽이 잘린 채로 보인다는 제보가 왔다. */
+html, body { overflow-x: hidden; max-width: 100%; }
+body { background: #141014; }
+
+#root { width: 100%; }
+
+/* 기본 — 창을 꽉 채운다 */
+.stage {
+  /* `100vw` 가 아니라 `100%` 다 — 위 주석 참고. `100%` 는 스크롤바를 뺀
+     실제 폭을 따르므로 가로 넘침이 생기지 않는다. */
+  width: 100%;
+  height: 100vh;
+}
+
+/* ?stage=16x9 — 본편과 같은 16:9 레터박스(시야 검증용) */
+.stage.무대16x9 {
+  width: 100%;
+  height: auto;
+  max-width: 1280px;
+  aspect-ratio: 16 / 9;
+  margin: 0 auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+body:has(.무대16x9) {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+}
+
+/* R3F가 만든 <canvas>가 무대를 꽉 채우도록 */
+.stage canvas { display: block; width: 100% !important; height: 100% !important; }
