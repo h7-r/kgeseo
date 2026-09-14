@@ -3721,6 +3721,20 @@ function 벽함({
     ]);
   }, [d, 깊이, 홈폭, 홈높, 홈테, 홈z]);
 
+  // 앞이 열린 함체 껍데기 — 뒤판 + 네 변 테두리.
+  //   앞 테두리(테)가 남아 **구멍이 문보다 조금 작다**. 그래야 '파인 속'으로 보인다.
+  const 껍데기 = useMemo(() => {
+    if (!여닫이켬) return null;
+    const 테 = 0.08;
+    return 상자합치기([
+      { 크기: [0.08, 높이, 폭], 위치: [-d * (깊이 / 2 - 0.04), cy, 0] }, // 뒤판
+      { 크기: [깊이, 높이, 테], 위치: [0, cy, -폭 / 2 + 테 / 2] }, // 좌
+      { 크기: [깊이, 높이, 테], 위치: [0, cy, 폭 / 2 - 테 / 2] }, // 우
+      { 크기: [깊이, 테, 폭], 위치: [0, cy + 높이 / 2 - 테 / 2, 0] }, // 위
+      { 크기: [깊이, 테, 폭], 위치: [0, cy - 높이 / 2 + 테 / 2, 0] }, // 아래
+    ]);
+  }, [여닫이켬, 깊이, 높이, 폭, cy, d]);
+
   // 배전반에서 천장 트레이로 올라가는 전선관 2개
   const 관 = useMemo(() => {
     if (!전선관) return null;
@@ -3740,10 +3754,11 @@ function 벽함({
   useEffect(
     () => () => {
       합본 && 합본.dispose();
+      껍데기 && 껍데기.dispose();
       홈테지오 && 홈테지오.dispose();
       관 && 관.dispose();
     },
-    [합본, 홈테지오, 관],
+    [합본, 껍데기, 홈테지오, 관],
   );
 
   // 라벨 폭 — 손잡이 홈을 침범하지 않는 선에서 최대한 크게
@@ -3773,12 +3788,21 @@ function 벽함({
 
   return (
     <group position={[x, 0, z]}>
-      {/* ① 함체 */}
-      <mesh position={[0, cy, 0]} castShadow receiveShadow>
-        <boxGeometry args={[깊이, 높이, 폭]} />
-        <meshToonMaterial color={색밝기(함색, 밝기)} gradientMap={TOON_GRADIENT} />
-        {선긋기}
-      </mesh>
+      {/* ① 함체 —
+             여닫는 함은 **앞이 열린 껍데기**여야 한다. 통짜 상자로 두면
+             문을 열어도 상자 앞면이 그대로 있어 속이 하나도 안 보인다. */}
+      {여닫이켬 ? (
+        <mesh geometry={껍데기} castShadow receiveShadow>
+          <meshToonMaterial color={색밝기(함색, 밝기)} gradientMap={TOON_GRADIENT} />
+          {선긋기}
+        </mesh>
+      ) : (
+        <mesh position={[0, cy, 0]} castShadow receiveShadow>
+          <boxGeometry args={[깊이, 높이, 폭]} />
+          <meshToonMaterial color={색밝기(함색, 밝기)} gradientMap={TOON_GRADIENT} />
+          {선긋기}
+        </mesh>
+      )}
 
       {/* ①-b 속 — 문이 열려야 보인다. 닫혀 있으면 문이 가린다. */}
       {여닫이켬 && (
@@ -3797,6 +3821,14 @@ function 벽함({
           />
         </group>
       )}
+
+      {/* ④ 부속 — 경첩·받침 합본.
+             ★ 문 그룹 **밖**이다. 안에 넣으면 문을 따라 돌고, 문 그룹이
+               이미 cy 에 올라가 있어서 한 번 더 올라가 공중에 뜬다. */}
+      <mesh geometry={합본} castShadow>
+        <meshToonMaterial color={색밝기(부속색, 밝기)} gradientMap={TOON_GRADIENT} />
+        {선긋기}
+      </mesh>
 
       {/* ② 문짝 — 경첩은 **왼쪽(−z) 세로변**. 오른쪽 손잡이를 당겨 연다.
              문짝·라벨·손잡이가 한 그룹이라 같이 돌아간다. */}
@@ -3820,12 +3852,6 @@ function 벽함({
           args={[라벨폭, 라벨폭 * (208 / 320)]}
         />
         <meshBasicMaterial map={라벨} toneMapped={false} color={색밝기("#ffffff", 밝기)} />
-      </mesh>
-
-      {/* ④ 부속 — 경첩·받침 합본 */}
-      <mesh geometry={합본} castShadow>
-        <meshToonMaterial color={색밝기(부속색, 밝기)} gradientMap={TOON_GRADIENT} />
-        {선긋기}
       </mesh>
 
       {/* ④-b 손잡이 홈 — 어두운 바닥판을 먼저 깔고, 그 위에 테를 두른다.
