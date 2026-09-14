@@ -31,17 +31,21 @@ export function 호스지오({
   폭 = 1.0, // 걸린 가로 폭
   높이 = 0.9, // 늘어진 길이
   깊이 = 0.16, // 앞뒤로 겹쳐 걸린 두께
-  가닥 = 13,
+  가닥 = 16,
   seed = 7,
 } = {}) {
   const r = makeRandom(seed);
   const 것 = [];
+  const 칸 = 폭 / Math.max(1, 가닥 - 1);
   for (let i = 0; i < 가닥; i++) {
     const u = 가닥 === 1 ? 0.5 : i / (가닥 - 1);
     const z = (u - 0.5) * 폭;
     // 가운데가 길고 양끝이 짧다 — 접어 걸면 자연히 그렇게 된다
     const 길이 = 높이 * (0.62 + 0.38 * Math.sin(u * Math.PI)) * (0.88 + r() * 0.24);
-    const 굵기 = 0.032 + r() * 0.016;
+    // ★ 소방호스는 **납작한 천**이다. 넓은 면이 앞을 봐야 사진처럼 빽빽해 보인다.
+    //   전에는 앞뒤로 두껍고 좌우로 얇아서, 정면에서 보면 가는 막대 여러 개였다.
+    const 리본폭 = 칸 * (0.72 + r() * 0.12); // 좌우(보이는 폭)
+    const 리본두께 = 0.022 + r() * 0.012; // 앞뒤
     const 앞뒤 = (r() - 0.5) * 깊이;
     // 한 가닥 = 위에서 아래로 내려오다 끝이 살짝 도로 말린다
     const 마디 = 4;
@@ -49,17 +53,23 @@ export function 호스지오({
       const t0 = k / 마디;
       const t1 = (k + 1) / 마디;
       const h = 길이 * (t1 - t0);
-      const g = new THREE.BoxGeometry(굵기 * 1.6, h, 굵기);
+      const g = new THREE.BoxGeometry(리본두께, h, 리본폭);
       // 아래로 갈수록 살짝 흔들린다(천이라 반듯하지 않다)
       const 흔들 = Math.sin(t0 * 3.1 + i) * 0.018;
-      g.translate(앞뒤 + 흔들, -길이 * ((t0 + t1) / 2), z + 흔들 * 0.6);
+      g.translate(앞뒤 + 흔들, -길이 * ((t0 + t1) / 2), z + 흔들 * 0.35);
       것.push(g);
+    }
+    // 끝단 커플링 — 사진처럼 몇 가닥 끝에 금속 고리가 보인다
+    if (i % 4 === 1) {
+      const c = new THREE.CylinderGeometry(리본폭 * 0.42, 리본폭 * 0.42, 0.07, 8);
+      c.translate(앞뒤, -길이 - 0.03, z);
+      것.push(c);
     }
     // 접힌 꼭대기 — 걸이 막대에 걸쳐 넘어간 부분.
     //   ★ 고리 면은 **막대와 직각**이라야 한다. 막대가 z 로 놓였으니 고리는 x-y 평면.
     //     (Torus 기본이 x-y 평면이라 돌리면 안 된다. z 쪽으로 눕히면 고리 폭이
     //      가닥 간격보다 넓어져 위쪽이 통째로 붙어 버린다 — 천이 아니라 판이 된다)
-    const 고리 = new THREE.TorusGeometry(0.038, 굵기 * 0.55, 4, 8, Math.PI);
+    const 고리 = new THREE.TorusGeometry(0.042, 리본두께 * 0.8, 4, 8, Math.PI);
     고리.translate(앞뒤, 0, z);
     것.push(고리);
   }
@@ -174,38 +184,47 @@ export function 소화전내부({
         <sphereGeometry args={[칸경계 * 0.12, 10, 8]} />
         <meshBasicMaterial color={색밝기("#b4524a", 밝기)} toneMapped={false} />
       </mesh>
-      {/* 스피커 구멍 — 작은 점 몇 개면 '소리 나는 것'으로 읽힌다 */}
-      {[0, 1, 2, 3].map((i) => (
-        <mesh
-          key={`hole${i}`}
-          position={[zf, 위y - 칸경계 * 0.2, 안폭 * 0.22 + i * 0.035]}
-        >
-          <cylinderGeometry args={[0.012, 0.012, 0.02, 6]} />
-          {툰("#15181c", 밝기)}
-        </mesh>
-      ))}
+      {/* 왼쪽 끝 작은 창 — 사진에 있는 은색 표시창. 점(스피커 구멍)은 뺐다:
+             그 크기에서는 구멍이 아니라 그냥 검은 점 네 개로 보인다. */}
+      <mesh position={[zf, 위y, -안폭 * 0.44]} rotation={[0, 0, Math.PI / 2]}>
+        <boxGeometry args={[0.03, 칸경계 * 0.42, 칸경계 * 0.16]} />
+        {툰(금속색, 밝기)}
+        <만화선 선={선} />
+      </mesh>
 
       {/* ── 아래 칸 — 밸브 · 호스 · 노즐 ────────────────────── */}
-      {/* 개폐 밸브 — 벽에서 나온 관 + 빨간 핸들. 왼쪽 위에 붙는다. */}
-      <group position={[-d * 반깊 * 0.2, 걸이y + 0.06, -안폭 * 0.34]}>
-        <mesh castShadow>
-          <cylinderGeometry args={[0.05, 0.05, 0.22, 10]} />
+      {/* 개폐 밸브 — 호스 **왼쪽 바깥**, 걸이 막대보다 아래.
+             전에는 걸이 높이에 호스 폭 안쪽으로 있어 호스에 가려 안 보였다.
+             앞으로도 조금 빼서 호스보다 앞에 선다. */}
+      <group position={[d * 반깊 * 0.34, 걸이y - 0.16, -안폭 * 0.44]}>
+        {/* 몸통 — 뒤(급수관)에서 나와 위로 꺾인다 */}
+        <mesh position={[-d * 0.09, 0, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+          <cylinderGeometry args={[0.045, 0.045, 0.2, 10]} />
           {툰(금속색, 밝기)}
           <만화선 선={선} />
         </mesh>
-        {/* 핸들 — 수도꼭지처럼 생긴 빨간 바퀴 */}
-        <group position={[0, 0.14, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh castShadow>
+          <cylinderGeometry args={[0.05, 0.058, 0.2, 10]} />
+          {툰(금속색, 밝기)}
+          <만화선 선={선} />
+        </mesh>
+        {/* 핸들 — 수도꼭지처럼 생긴 빨간 바퀴. 얼굴이 앞을 보게 세운다. */}
+        <group position={[0, 0.15, 0]} rotation={[0, Math.PI / 2, 0]}>
           <mesh castShadow>
-            <torusGeometry args={[0.085, 0.018, 6, 14]} />
+            <torusGeometry args={[0.105, 0.022, 6, 16]} />
             {툰(빨강, 밝기)}
             <만화선 선={선} />
           </mesh>
           {[0, 1, 2].map((i) => (
-            <mesh key={`spoke${i}`} rotation={[0, 0, (i * Math.PI) / 3]}>
-              <boxGeometry args={[0.16, 0.018, 0.016]} />
+            <mesh key={`spoke${i}`} rotation={[0, 0, (i * Math.PI) / 3]} castShadow>
+              <boxGeometry args={[0.21, 0.022, 0.02]} />
               {툰(빨강, 밝기)}
             </mesh>
           ))}
+          <mesh>
+            <cylinderGeometry args={[0.028, 0.028, 0.05, 8]} />
+            {툰(빨강, 밝기)}
+          </mesh>
         </group>
       </group>
 
@@ -222,21 +241,39 @@ export function 소화전내부({
         </mesh>
       </group>
 
-      {/* 노즐(관창) — 오른쪽에 비스듬히 걸려 있다 */}
+      {/* 노즐(관창) — **오른쪽 끝**, 호스 바깥.
+             물 나오는 끝(헤더)이 함 밖으로 **맨 앞**에 나오게 눕힌다.
+             기둥처럼 세워 두면 무엇인지 안 읽힌다 — 앞을 겨눠야 관창이다. */}
       <group
-        position={[d * 반깊 * 0.15, 걸이y - 0.02, 안폭 * 0.33]}
-        rotation={[0, 0, -0.5]}
+        position={[d * (반깊 * 0.15), 걸이y - 0.06, 안폭 * 0.44]}
+        rotation={[0, 0, d > 0 ? -Math.PI / 2 : Math.PI / 2]}
       >
-        <mesh castShadow>
-          <cylinderGeometry args={[0.036, 0.055, 0.26, 10]} />
+        {/* 뒤쪽 굵은 커플링 — 호스와 이어 붙는 자리 */}
+        <mesh position={[0, -0.17, 0]} castShadow>
+          <cylinderGeometry args={[0.07, 0.07, 0.09, 12]} />
+          {툰("#b9a24a", 밝기)}
+          <만화선 선={선} />
+        </mesh>
+        {/* 몸통 — 뒤가 굵고 앞으로 갈수록 가늘어진다 */}
+        <mesh position={[0, 0.02, 0]} castShadow>
+          <cylinderGeometry args={[0.042, 0.066, 0.3, 12]} />
           {툰(금속색, 밝기)}
           <만화선 선={선} />
         </mesh>
-        {/* 연결 커플링 — 굵은 테 하나면 '이어 붙이는 물건'으로 읽힌다 */}
-        <mesh position={[0, -0.15, 0]} castShadow>
-          <cylinderGeometry args={[0.062, 0.062, 0.06, 10]} />
+        {/* 손잡이 테 */}
+        <mesh position={[0, -0.06, 0]} castShadow>
+          <cylinderGeometry args={[0.052, 0.052, 0.05, 12]} />
           {툰("#b9a24a", 밝기)}
+        </mesh>
+        {/* 헤더 — 물 나오는 끝. 여기가 제일 앞이다. */}
+        <mesh position={[0, 0.2, 0]} castShadow>
+          <cylinderGeometry args={[0.05, 0.036, 0.08, 12]} />
+          {툰(금속색, 밝기)}
           <만화선 선={선} />
+        </mesh>
+        <mesh position={[0, 0.245, 0]}>
+          <cylinderGeometry args={[0.026, 0.026, 0.02, 10]} />
+          {툰("#15181c", 밝기)}
         </mesh>
       </group>
     </group>
