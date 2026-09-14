@@ -49,6 +49,9 @@ export default function App() {
   const controlsRef = useRef(null);
   const 보고 = useRef(null); // 씬 → 계기판으로 넘기는 상자(리렌더 없이)
   const [locked, setLocked] = useState(false);
+  const [시점모드, set시점모드] = useState("1인칭");
+  const [아바타종류, set아바타종류] = useState("게임");
+  const [외형, set외형] = useState({ hair: 1, top: 1, bottom: 1, shoes: 1 });
   // 계기판·조작안내는 화면을 꽤 가린다. 그림을 볼 때는 H 로 치운다.
   const [계기보임, set계기보임] = useState(true);
 
@@ -56,6 +59,20 @@ export default function App() {
     const onKey = (e) => {
       if (e.code === "KeyT" && !locked) controlsRef.current?.lock();
       if (e.code === "KeyH" && !e.repeat) set계기보임((v) => !v);
+      // 시점 전환은 카메라 회전값을 만지지 않는다. 보는 방향이 틀어지는 문제를
+      // 피하기 위해 맵 전용 캐릭터 표시만 켜고 끈다.
+      // ★ 수식키가 눌린 V 는 **인칭 전환이 아니다.**
+      //   ⌘V / Ctrl+V 는 편집기의 붙여넣기다(편집기.jsx). 가드가 없어서
+      //   붙여넣기를 누르면 붙지는 않고 시점만 1인칭↔3인칭으로 뒤집혔다.
+      //   같은 파일의 `KeyE` 는 이미 이 가드를 쓰고 있었다.
+      if (
+        e.code === "KeyV" &&
+        !e.repeat &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      )
+        set시점모드((v) => (v === "1인칭" ? "3인칭" : "1인칭"));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -95,6 +112,9 @@ export default function App() {
           controlsRef={controlsRef}
           onLockChange={setLocked}
           보고={보고}
+          삼인칭={시점모드 === "3인칭"}
+          아바타종류={아바타종류}
+          외형={외형}
         />
         {!저사양 && !후처리끄기 && (
           <EffectComposer multisampling={4} enableNormalPass={false}>
@@ -122,7 +142,34 @@ export default function App() {
       {계기보임 && !locked && <조작안내 />}
       {/* 다 숨겼을 때 되돌리는 법을 잊지 않게 작은 자국만 남긴다 */}
       {!계기보임 && <div style={숨김표시}>[H] 계기판</div>}
-      {locked && <div style={조준점} />}
+      <button
+        type="button"
+        onClick={() => set시점모드((v) => (v === "1인칭" ? "3인칭" : "1인칭"))}
+        style={시점버튼}
+      >
+        [V] {시점모드}
+      </button>
+      <div style={아바타패널}>
+        <button
+          type="button"
+          onClick={() => set아바타종류((v) => ({ 게임: "메쉬", 메쉬: "모듈", 모듈: "게임" }[v]))}
+          style={아바타버튼}
+        >
+          외형: {{ 게임: "새 게임 리그", 메쉬: "Meshy 원형", 모듈: "모듈 초안" }[아바타종류]}
+        </button>
+        {아바타종류 === "모듈" && (
+          <div style={선택줄}>
+            {[["hair", "머리"], ["top", "상의"], ["bottom", "하의"], ["shoes", "신발"]].map(([key, label]) => (
+              <button key={key} type="button" style={작은버튼} onClick={() => set외형((old) => ({ ...old, [key]: old[key] % 4 + 1 }))}>
+                {label} {외형[key]}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {/* ※ 화면 한복판의 조준점은 걷어냈다 — 쏘거나 겨냥하는 게임이 아니라
+          **놓여 있을 이유가 없고**, 풍경을 볼 때 계속 눈에 걸린다.
+          되살리려면 아래 `조준점` 스타일을 그대로 쓰면 된다. */}
     </div>
   );
 }
@@ -140,6 +187,7 @@ const 숨김표시 = {
   pointerEvents: "none",
 };
 
+// 안 쓰는 중 — 위 주석 참고(겨냥이 필요한 장치가 생기면 되살린다)
 const 조준점 = {
   position: "absolute",
   left: "50%",
@@ -152,3 +200,22 @@ const 조준점 = {
   background: "rgba(240,244,250,.55)",
   pointerEvents: "none",
 };
+
+const 시점버튼 = {
+  position: "absolute",
+  right: 14,
+  top: 14,
+  zIndex: 20,
+  border: "1px solid rgba(170,190,220,.35)",
+  borderRadius: 7,
+  padding: "6px 9px",
+  background: "rgba(14,18,26,.72)",
+  color: "#E8EFFA",
+  font: '12px/1.2 ui-monospace, Menlo, monospace',
+  cursor: "pointer",
+};
+
+const 아바타패널 = { position: "absolute", right: 14, top: 52, zIndex: 20, display: "grid", gap: 5 };
+const 아바타버튼 = { ...시점버튼, position: "static", textAlign: "left" };
+const 선택줄 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 };
+const 작은버튼 = { border: "1px solid rgba(170,190,220,.25)", borderRadius: 5, padding: "4px 6px", background: "rgba(14,18,26,.68)", color: "#DDE7F6", font: '11px/1.2 ui-monospace, Menlo, monospace', cursor: "pointer" };

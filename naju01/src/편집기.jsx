@@ -11,6 +11,13 @@
 //   클릭         고르기 (빈 곳 클릭 = 해제)
 //   왼쪽 드래그   고른 것을 끌어 옮기기 (4 px 넘게 움직이면 시작)
 //   오른쪽 드래그 시점 돌리기 — 편집 중에도 둘러볼 수 있어야 한다
+//   , / .        시점 좌우로 돌리기 (Shift 를 누르면 3 배)
+//   부감 휠      시점 돌리기 · 핀치(또는 ⌘/Ctrl/Shift+휠) 높낮이
+//                ※ 밀기는 WASD·방향키 그대로다. 맥 트랙패드에는 오른쪽·
+//                  가운데 버튼이 없어, 우클릭 드래그에만 기댄 돌리기가
+//                  부감에서 통째로 막혀 있었다.
+//                ※ 맥 트랙패드에는 오른쪽 버튼이 없어 부감에서 돌릴 방법이
+//                  없었다. 키로도 돌 수 있어야 위에서 내려다보며 방향을 잡는다.
 //   WASD         걸어 다니기 (편집 중에도 이동은 살아 있다)
 //   방향키        미세 이동 (0.25 m · Shift 를 누르면 1 m). 화면에서 본 방향 기준
 //   Ctrl+C / V   복사 · 붙여넣기
@@ -103,6 +110,38 @@ export const 편집범위 = {
   Z: [코어.Z[0] - 250, 코어.Z[1] + 250],
 };
 const 죄기 = (v, a, b) => Math.min(b, Math.max(a, v));
+// ── 부감 시점 돌리기 ───────────────────────────────────────
+// ★ **제자리에서 고개만 돌리면 안 된다.**
+//   부감은 60° 아래를 내려다본다. 그 상태로 요(yaw)만 바꾸면 보고 있던 땅
+//   지점이 카메라를 중심으로 **큰 원을 그리며 휩쓸린다** — 화면이 도는 게
+//   아니라 옆으로 밀리는 것으로 보인다(실제로 「회전이 안 되고 이동이 된다」는
+//   지적이 나왔다. 코드는 돌고 있었는데 축이 틀렸던 것이다).
+//   지도 앱처럼 **화면 한복판이 보고 있는 땅 지점**을 축으로 돌아야 한다.
+// [어떻게]  기울기와 높이로 「내려다보는 지점」까지의 수평 거리를 구해
+//   그 점을 축으로 카메라를 함께 돌린다. 축이 제자리에 남으니 시야만 바뀐다.
+const 임시축 = new THREE.Vector3();
+function 시점돌리기(카메라, 델타, 밑m) {
+  카메라.rotation.order = "YXZ";
+  const 요 = 카메라.rotation.y;
+  const 높이m = 카메라.position.y * 유닛 - 밑m;
+  // 기울기가 0 에 가까우면(수평으로 볼 때) 축이 무한히 멀어진다 — 그때는
+  //   제자리 회전이 옳다. 0.15 rad 아래로는 안 내려간다.
+  const 기울기 = Math.max(0.15, -카메라.rotation.x);
+  const 앞m = Math.min(400, 높이m / Math.tan(기울기));
+  임시축.set(
+    카메라.position.x - Math.sin(요) * 앞m * 미터,
+    카메라.position.y,
+    카메라.position.z - Math.cos(요) * 앞m * 미터,
+  );
+  // 축을 중심으로 카메라를 돌린다
+  const dx = 카메라.position.x - 임시축.x;
+  const dz = 카메라.position.z - 임시축.z;
+  const c = Math.cos(델타), sn = Math.sin(델타);
+  카메라.position.x = 임시축.x + dx * c - dz * sn;
+  카메라.position.z = 임시축.z + dx * sn + dz * c;
+  카메라.rotation.y = 요 + 델타;
+}
+
 function 화면밀기(카메라, 옆m, 앞m) {
   카메라.getWorldDirection(임시앞);
   임시앞.y = 0;
@@ -334,8 +373,14 @@ export function 편집기({
     camera.rotation.z = 0;
   }, [켬, 부감, camera, 지면높이]);
 
-  useFrame((_, dt) => {
+  // ★ `dt` 를 **물린다**(최대 50 ms). 한 프레임이 길어지면 그 곱만큼 화면이
+  //   한 번에 튄다 — 검사 중 한 프레임이 3 초여서 시점이 32 rad(다섯 바퀴)
+  //   돌아간 적이 있다. 실제로도 무거운 순간에 화면이 홱 날아간다.
+  const 물린 = (dt) => Math.min(dt, 0.05);
+
+  useFrame((_, dt0) => {
     if (!켬 || !부감참조.current) return;
+    const dt = 물린(dt0);
     const k = 눌린키.current;
     // 고른 것이 있으면 방향키는 **그 물건을 미는 데** 쓴다(기존 동작).
     //   그때도 WASD 로는 화면을 민다 — 그래야 밀면서 따라갈 수 있다.
@@ -347,6 +392,26 @@ export function 편집기({
     if (!앞 && !옆) return;
     const 빠르기 = 부감기본.밀기 * (k.has("ShiftLeft") || k.has("ShiftRight") ? 3 : 1);
     화면밀기(camera, 옆 * 빠르기 * dt, 앞 * 빠르기 * dt);
+  });
+
+  // ── 시점 돌리기(키) ──────────────────────────────────────
+  // [왜 필요한가]  돌리는 방법이 **오른쪽 드래그뿐**이었다. 맥 트랙패드에는
+  //   오른쪽 버튼이 없어(두 손가락 클릭+드래그는 끌기와 섞인다) 부감에서
+  //   방향을 못 바꿨다. 위에서 내려다보며 배치하는 게 부감의 목적인데
+  //   한 방향으로만 볼 수 있으면 반쪽이다.
+  // [왜 부감에서만이 아닌가]  걸을 때도 같은 키로 돌 수 있으면 손이 헷갈리지
+  //   않는다. 편집 중이면 어디서나 듣는다.
+  useFrame((_, dt0) => {
+    if (!켬) return;
+    const dt = 물린(dt0);
+    const k = 눌린키.current;
+    const 돌 = (k.has("Period") ? 1 : 0) - (k.has("Comma") ? 1 : 0);
+    if (!돌) return;
+    const 빠르기 = 0.9 * (k.has("ShiftLeft") || k.has("ShiftRight") ? 3 : 1);
+    const 밑 = 지면높이참조.current
+      ? 지면높이참조.current(camera.position.x * 유닛, camera.position.z * 유닛)
+      : 0;
+    시점돌리기(camera, -돌 * 빠르기 * dt, 밑);
   });
 
   // ── 마우스 (고르기 · 끌기 · 시점 돌리기) ────────────────
@@ -758,11 +823,29 @@ export function 편집기({
         ev.preventDefault();
         return;
       }
-      // ③ 그 밖 — 부감일 때만 높낮이. 걸어 다닐 때는 휠에 아무 일도 없다.
+      // ③ 그 밖 — 부감일 때만. 걸어 다닐 때는 휠에 아무 일도 없다.
       if (!부감) return;
       ev.preventDefault();
       const 밑 = 지면높이 ? 지면높이(camera.position.x * 유닛, camera.position.z * 유닛) : 0;
       const 지금 = camera.position.y * 유닛 - 밑;
+
+      // ── 그냥 굴리면 **시점을 돌린다** ────────────────────
+      // [왜 회전인가]  부감에서 이동은 WASD 로 충분하다. 정작 없던 것이
+      //   **돌리기**였다 — 우클릭 드래그뿐이라 맥 트랙패드에서는 못 썼다.
+      //   위에서 내려다보며 배치하는데 한 방향으로만 보면 반쪽이다.
+      //   두 손가락 스크롤이 가장 손에 붙는 자리라 여기에 둔다.
+      // [높낮이는 어디로]  **핀치 줌**과 ⌘/Ctrl/Shift + 휠이 맡는다.
+      //   맥은 트랙패드 핀치를 `ctrlKey` 붙은 wheel 로 보내므로 저절로 갈린다.
+      // ※ `, .` 키도 그대로 둔다 — 마우스를 안 쓰고 돌리고 싶을 때가 있다.
+      const 높낮이냐 = ev.ctrlKey || ev.metaKey || ev.shiftKey;
+      if (!높낮이냐) {
+        // 가로 스크롤이 더 크면 그쪽을, 아니면 세로를 쓴다 —
+        //   트랙패드는 두 방향이 다 오고, 휠 마우스는 세로만 온다.
+        const 량 =
+          Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
+        시점돌리기(camera, -량 * 0.0035, 밑);
+        return;
+      }
       // 곱셈으로 바꾼다 — 높이 5 m 와 80 m 에서 같은 양을 더하면 한쪽이 못 쓴다
       const 다음 = Math.min(
         부감기본.높이범위[1],
@@ -1136,10 +1219,11 @@ function 편집안내({ 알림, 고른것, 안한변경, 변경수, 저장중, �
       '<b style="color:#FFD166">편집 모드</b>' +
       '<span style="opacity:.75"> · 클릭·드래그 고르고 옮기기 · 우클릭 드래그 시점 · WASD 걷기</span><br>' +
       '<span style="opacity:.75">방향키 밀기(Shift 크게) · R 회전 · [ ] 크기 · ' +
+      '<b style="color:#9BD6FF">, . 시점 돌리기</b> · ' +
       "Ctrl+C/V 복사·붙여넣기 · X 지우기 · Ctrl+Z 되돌리기 · ESC 해제</span><br>" +
       (부감
-        ? '<span style="color:#9BD6FF">부감 — WASD·방향키로 화면 밀기(Shift 빠르게) · ' +
-          "휠 높낮이 · 가운데 버튼 끌어 밀기 · 우클릭 끌어 돌리기 · Tab 내려오기</span>"
+        ? '<span style="color:#9BD6FF">부감 — ' +
+          "WASD·방향키 밀기 · <b>휠 돌리기</b>(, . 도 됨) · <b>핀치/⌘+휠 높낮이</b> · Tab 내려오기</span>"
         : '<span style="opacity:.75">Tab — 공중에서 내려다보기</span>') +
       (고른것
         ? `<br><span style="color:#9BE3B4">${고른것.이름} #${고른것.번호}</span>` +

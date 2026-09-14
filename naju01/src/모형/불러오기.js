@@ -89,55 +89,69 @@ export function 머리재기(면, { 머리깊이 = 0.11, 이웃 = 0.05 } = {}) {
     if (p.getY(i) > 최고 - 머리깊이)
       대.push(new THREE.Vector3(p.getX(i), p.getY(i), p.getZ(i)));
 
-  // 가장 두꺼운 자리 = 이웃이 가장 많은 점
-  const r2 = 이웃 * 이웃;
-  let 두개골 = 대[0] ?? new THREE.Vector3();
-  let 최다 = -1;
-  for (let a = 0; a < 대.length; a++) {
-    let n = 0;
-    for (let b = 0; b < 대.length; b++)
-      if (대[a].distanceToSquared(대[b]) < r2) n++;
-    if (n > 최다) {
-      최다 = n;
-      두개골 = 대[a];
-    }
-  }
-
-  // 주둥이 = 두개골에서 가장 먼 머리대 점
-  let 코 = 두개골;
+  // ── 주둥이 끝 ────────────────────────────────────────────
+  //   무게중심에서 가장 먼 점. 머리대의 한쪽 끝이므로 늘 코다.
+  const 가운데 = new THREE.Vector3();
+  for (const q of 대) 가운데.add(q);
+  가운데.divideScalar(Math.max(1, 대.length));
+  let 코 = 대[0] ?? new THREE.Vector3();
   let 멀리 = -1;
   for (const q of 대) {
-    const d = q.distanceToSquared(두개골);
-    if (d > 멀리) {
-      멀리 = d;
-      코 = q;
-    }
+    const d = q.distanceToSquared(가운데);
+    if (d > 멀리) { 멀리 = d; 코 = q; }
   }
-  const 주둥이 = 코.clone().sub(두개골).normalize();
+
+  // ── 머리 방향 ────────────────────────────────────────────
+  //   코에서 **가까운 쪽 몸통**으로 향하는 축. 코 둘레 점들의 평균이
+  //   머리 한복판이므로, 그 반대가 주둥이 방향이다.
+  const 근처 = 대.filter((q) => q.distanceTo(코) < 머리깊이 * 1.2);
+  const 머리속 = new THREE.Vector3();
+  for (const q of 근처) 머리속.add(q);
+  머리속.divideScalar(Math.max(1, 근처.length));
+  const 주둥이 = 코.clone().sub(머리속).normalize();
   const 옆 = new THREE.Vector3(0, 1, 0).cross(주둥이).normalize();
 
-  // 머리폭 = 두개골 **바로 둘레**에서 옆축으로 가장 벌어진 거리
-  //   ★ 처음엔 「앞뒤 얇은 띠」로 쟀다가 두 배 넘게 나왔다(0.085 — 실제 반폭은
-  //     0.037 이다). 옆축이 X 축과 나란하지 않아서, 머리 **길이 방향**으로
-  //     퍼진 점까지 옆으로 투영되어 섞인 것이다. 그 값으로 눈을 그렸더니
-  //     눈이 머리를 통째로 덮는 노란 덩어리가 됐다.
-  //     두개골에서 반경 안에 든 점만 본다.
-  let 폭 = 0;
+  // ── 머리길이 — **목이 굵어지는 자리까지** ────────────────
+  // ★ 예전에는 「위쪽 슬라이스에서 이웃이 가장 많은 점」을 두개골로 삼았다.
+  //   또아리를 틀고 머리를 쳐든 자세에서는 그 슬라이스에 **목덜미 고리**가
+  //   같이 들어오고, 고리가 머리보다 조밀해서 두개골이 목으로 잡혔다.
+  //   그러면 머리길이가 두 배로 커져 **눈이 목덜미에 찍힌다**(실제로 그랬다).
+  //   코에서 뒤로 걸어가며 **옆으로 벌어진 폭**을 재고, 폭이 갑자기 굵어지는
+  //   자리를 목으로 본다. 자세와 무관하고 모형 크기에 저절로 맞춰진다.
+  const 칸수 = 24;
+  const 걸음 = (머리깊이 * 2.2) / 칸수;
+  const 폭들 = new Array(칸수).fill(0);
   const 임 = new THREE.Vector3();
-  const 반경 = 이웃 * 0.8;
   for (const q of 대) {
-    임.copy(q).sub(두개골);
-    if (임.length() < 반경) 폭 = Math.max(폭, Math.abs(임.dot(옆)));
+    임.copy(q).sub(코);
+    const 뒤 = -임.dot(주둥이);
+    if (뒤 < 0) continue;
+    const k = Math.floor(뒤 / 걸음);
+    if (k >= 칸수) continue;
+    폭들[k] = Math.max(폭들[k], Math.abs(임.dot(옆)));
   }
+  // 앞쪽 1/3 의 폭을 기준으로 삼는다 — 거기는 확실히 머리다
+  const 앞쪽 = 폭들.slice(1, Math.max(2, Math.round(칸수 / 3))).filter((v) => v > 0);
+  const 기준폭 = 앞쪽.length
+    ? 앞쪽.reduce((a, b) => a + b, 0) / 앞쪽.length
+    : 이웃 * 0.5;
+  let 목칸 = 칸수;
+  for (let k = Math.round(칸수 / 3); k < 칸수; k++)
+    if (폭들[k] > 기준폭 * 1.75) { 목칸 = k; break; }
+  const 머리길이 = Math.max(걸음 * 3, 목칸 * 걸음);
+  const 두개골 = 코.clone().addScaledVector(주둥이, -머리길이 * 0.5);
+  const 머리폭 = Math.max(기준폭, 이웃 * 0.2);
+
   return {
     두개골,
     주둥이,
     옆,
-    머리폭: 폭 || 이웃 * 0.5,
-    머리길이: Math.sqrt(멀리),
+    머리폭,
+    머리길이,
     코,
   };
 }
+
 
 // ── 혀 찾기 ─────────────────────────────────────────────────
 //   [왜 어렵나]  이 모형에는 재질도 UV 도 없다. 「여기가 혀」라고 적힌 데가
