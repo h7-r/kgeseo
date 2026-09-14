@@ -8,8 +8,19 @@ Hair/Top/Bottom/Shoes를 하나씩 표시할 수 있다.
 import bpy
 from pathlib import Path
 
+# ── 저장소 뿌리를 스스로 찾는다 ──────────────────────────────
+#   [왜]  예전에는 `/Users/derrick/...` 절대경로를 박아 뒀다. 그러면
+#     ① 그 기기에서만 돌고,
+#     ② 내보낸 GLB 가 저장소 **밖**에 떨어져도 `git status` 에 안 떠서
+#        아무도 빠진 걸 모른다.
+#     실제로 그렇게 됐다 — naju01 이 부르는 아바타 GLB 3 개가 미추적으로
+#     남아, 다른 사람 기기에서 vite 가 404 대신 index.html 을 돌려주고
+#     GLTF 로더가 그 HTML 을 파싱하다 터져서 **페이지가 통째로 멈췄다.**
+#     (`Unexpected token '<', "<!doctype "...`)
+#   이제 이 파일 위치에서 뿌리를 되짚으므로, 내보내는 순간 git status 에 뜬다.
+뿌리 = Path(__file__).resolve().parents[2]   # naju01/도구/이파일.py → 저장소 뿌리
 OUT_BLEND = Path('/Users/derrick/Downloads/NAJU_modular_avatar_work.blend')
-OUT_GLB = Path('/Users/derrick/Documents/GitHub/kgeseo/public/models/naju-modular-avatar.glb')
+OUT_GLB = 뿌리 / "public/models/naju-modular-avatar.glb"
 
 rig = bpy.data.objects.get('GAME_SIMPLE_RIG')
 if not rig:
