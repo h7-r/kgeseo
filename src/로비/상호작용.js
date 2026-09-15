@@ -83,6 +83,9 @@ const _앞 = new THREE.Vector3();
 const _차 = new THREE.Vector3();
 
 /** 매 프레임(정확히는 겨냥판정 컴포넌트가 정한 주기마다) 부른다 */
+// 이미 한 번 일러 준 대상은 다시 안 찍는다(매 프레임 콘솔이 넘친다)
+const 터진대상 = new Set();
+
 export function 겨냥갱신(카메라, 켬 = true) {
   if (!켬) {
     if (겨냥id !== null) {
@@ -98,8 +101,22 @@ export function 겨냥갱신(카메라, 켬 = true) {
   let 최소옆거리 = Infinity;
 
   for (const [id, t] of 대상) {
-    if (t.끔 && t.끔()) continue;
-    const p = t.위치();
+    // ★ 여기서 예외가 나면 **겨냥 루프 전체가 죽는다.** 그러면 이 물건 하나가
+    //   아니라 문·물건 집기·호버까지 한꺼번에 먹통이 된다. 실제로 겪었다
+    //   (끔 을 함수가 아니라 값으로 넘긴 대상 하나 때문에 전부 멈췄다).
+    //   그래서 ① 끔 은 함수든 값이든 받고 ② 한 대상이 터져도 건너뛰기만 한다.
+    let p;
+    try {
+      const 끔 = typeof t.끔 === "function" ? t.끔() : t.끔;
+      if (끔) continue;
+      p = t.위치();
+    } catch (e) {
+      if (!터진대상.has(id)) {
+        터진대상.add(id);
+        console.error(`[겨냥] "${id}" 가 말썽이라 건너뜁니다.`, e);
+      }
+      continue;
+    }
     if (!p) continue;
     _차.set(p[0] - c.x, p[1] - c.y, p[2] - c.z);
 
@@ -128,7 +145,7 @@ export function 겨냥갱신(카메라, 켬 = true) {
 /**
  * 겨냥 대상으로 등록한다. 컴포넌트가 살아 있는 동안만 등록된다.
  * @param id    물건마다 다른 이름
- * @param 정보  { 라벨, 위치:()=>[x,y,z], 실행:()=>void, 반경?, 거리?, 끔?:()=>bool }
+ * @param 정보  { 라벨, 위치:()=>[x,y,z], 실행:()=>void, 반경?, 거리?, 끔?:()=>bool|bool }
  *
  * ★ 위치·실행은 매 렌더 새로 만들어지는 함수라 의존성에 넣으면 등록이 계속 풀린다.
  *   그래서 최신 값을 상자에 담아 두고, 등록된 쪽은 상자를 통해 읽게 한다.
