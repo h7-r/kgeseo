@@ -256,6 +256,7 @@ export default function App() {
             <div style={색상줄}>
               {[
                 ["skinColor", "피부"],
+                ["eyeColor", "눈"],
                 ["hairColor", "머리"],
                 ["topColor", "상의"],
                 ["bottomColor", "하의"],
@@ -266,6 +267,7 @@ export default function App() {
                   <span>{label}</span>
                   <input
                     type="color"
+                    style={색상입력}
                     value={사이드킥설정[key]}
                     onChange={(e) =>
                       set사이드킥설정((old) => ({ ...old, [key]: e.target.value }))
@@ -308,14 +310,15 @@ const 시점버튼 = {
   cursor: "pointer",
 };
 
-const 아바타패널 = { position: "absolute", right: 14, top: 52, zIndex: 20, display: "grid", gap: 5 };
-const 아바타버튼 = { ...시점버튼, position: "static", textAlign: "left" };
-const 선택줄 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 };
-const 작은버튼 = { border: "1px solid rgba(170,190,220,.25)", borderRadius: 5, padding: "4px 6px", background: "rgba(14,18,26,.68)", color: "#DDE7F6", font: '11px/1.2 ui-monospace, Menlo, monospace', cursor: "pointer" };
-const 커스텀패널 = { width: 245, maxHeight: "calc(100vh - 120px)", overflowY: "auto", display: "grid", gap: 5, padding: 8, borderRadius: 7, background: "rgba(14,18,26,.84)", border: "1px solid rgba(170,190,220,.25)", color: "#DDE7F6", font: '11px/1.3 ui-monospace, Menlo, "Malgun Gothic", monospace' };
-const 한줄라벨 = { display: "grid", gridTemplateColumns: "48px 1fr", alignItems: "center", gap: 5 };
+const 아바타패널 = { position: "absolute", right: 14, top: 52, zIndex: 20, width: "min(340px, calc(100vw - 28px))", minWidth: 0, display: "grid", gap: 5 };
+const 아바타버튼 = { ...시점버튼, position: "static", width: "100%", boxSizing: "border-box", textAlign: "left" };
+const 선택줄 = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", minWidth: 0, gap: 4 };
+const 작은버튼 = { minWidth: 0, border: "1px solid rgba(170,190,220,.25)", borderRadius: 5, padding: "4px 6px", background: "rgba(14,18,26,.68)", color: "#DDE7F6", font: '11px/1.2 ui-monospace, Menlo, monospace', cursor: "pointer" };
+const 커스텀패널 = { width: "100%", minWidth: 0, boxSizing: "border-box", maxHeight: "calc(100vh - 120px)", overflowY: "auto", overflowX: "hidden", display: "grid", gap: 5, padding: 8, borderRadius: 7, background: "rgba(14,18,26,.84)", border: "1px solid rgba(170,190,220,.25)", color: "#DDE7F6", font: '11px/1.3 ui-monospace, Menlo, "Malgun Gothic", monospace' };
+const 한줄라벨 = { display: "grid", gridTemplateColumns: "66px minmax(0, 1fr)", minWidth: 0, alignItems: "center", gap: 5 };
 const 선택상자 = { minWidth: 0, border: "1px solid rgba(170,190,220,.3)", borderRadius: 4, padding: "3px 4px", background: "#202632", color: "#E8EFFA", font: "inherit" };
 const 동작안내 = { padding: "6px 7px", borderRadius: 5, background: "rgba(85,110,145,.18)", color: "#BECBE0", lineHeight: 1.45 };
-const 슬라이더줄 = { display: "grid", gridTemplateColumns: "42px 1fr", alignItems: "center", gap: 5 };
-const 색상줄 = { display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 3 };
-const 색상항목 = { display: "grid", gap: 2, textAlign: "center", fontSize: 9 };
+const 슬라이더줄 = { display: "grid", gridTemplateColumns: "52px minmax(0, 1fr)", minWidth: 0, alignItems: "center", gap: 5 };
+const 색상줄 = { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", minWidth: 0, gap: 5 };
+const 색상항목 = { minWidth: 0, display: "grid", gap: 2, textAlign: "center", fontSize: 9 };
+const 색상입력 = { width: "100%", minWidth: 0, height: 26, padding: 1, boxSizing: "border-box" };
