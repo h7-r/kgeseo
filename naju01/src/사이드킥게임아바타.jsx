@@ -1,14 +1,23 @@
-// Synty Sidekick Free Starter Pack을 NAJU 게임 공간에서 검증하기 위한 별도 런타임.
-// 기존 Meshy/게임 리그 파일은 수정하지 않는다.
-import { useGLTF } from "@react-three/drei";
-import { useFrame, useThree } from "@react-three/fiber";
+// Synty Sidekick 캐릭터 + Quaternius CC0 모션 런타임.
+// 캐릭터 부품·스킨은 Synty 원본 리그를 유지하고, 손으로 관절을 흔들던 임시
+// 코드는 제거했다. Idle / Walk / Sprint 모션을 같은 UE 계열 본 이름으로
+// 리타게팅해 게임에서 교차 재생한다.
+import { useAnimations, useGLTF } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
+import {
+  clone,
+  retargetClip,
+} from "three/examples/jsm/utils/SkeletonUtils.js";
 import { 미터 } from "./공간도면.js";
 
 const 캐릭터파일 = "/models/sidekick-naju-test.glb";
-const DEG = Math.PI / 180;
+const 모션파일 = "/models/vendor/quaternius-universal-animation-library.glb";
+const 강제검증모션 =
+  typeof location !== "undefined"
+    ? new URLSearchParams(location.search).get("motion")
+    : null;
 
 function 첫스킨메시(root) {
   let result = null;
@@ -18,127 +27,156 @@ function 첫스킨메시(root) {
   return result;
 }
 
-function SidekickGameAvatar({ 보이기, 크기 = 미터, 거리 = 11, 눈높이 = 1.62 }) {
-  const root = useRef();
-  const 눌림 = useRef(new Set());
-  const 위상 = useRef(0);
-  const { camera } = useThree();
-  const gltf = useGLTF(캐릭터파일);
-  const 모델 = useMemo(() => clone(gltf.scene), [gltf.scene]);
+function 월드회전(object) {
+  object.updateMatrixWorld(true);
+  return new THREE.Quaternion().setFromRotationMatrix(object.matrixWorld);
+}
 
-  const { 본, 휴식회전, 바닥높이 } = useMemo(() => {
-    const skin = 첫스킨메시(모델);
-    const bones = skin
-      ? Object.fromEntries(skin.skeleton.bones.map((bone) => [bone.name, bone]))
-      : {};
-    const rest = Object.fromEntries(
-      Object.entries(bones).map(([name, bone]) => [name, bone.quaternion.clone()]),
-    );
-    모델.traverse((object) => {
+function 리타게팅옵션(targetSkin, sourceSkin) {
+  targetSkin.skeleton.pose();
+  sourceSkin.skeleton.pose();
+  targetSkin.updateMatrixWorld(true);
+  sourceSkin.updateMatrixWorld(true);
+
+  const sourceNames = new Set(sourceSkin.skeleton.bones.map((bone) => bone.name));
+  const names = {};
+  const localOffsets = {};
+
+  targetSkin.skeleton.bones.forEach((targetBone) => {
+    // Sidekick은 head, Quaternius는 Head 한 글자만 다르다.
+    const sourceName = targetBone.name === "head" ? "Head" : targetBone.name;
+    if (!sourceNames.has(sourceName)) return;
+    names[targetBone.name] = sourceName;
+
+    const sourceBone = sourceSkin.skeleton.getBoneByName(sourceName);
+    const sourceRest = 월드회전(sourceBone);
+    const targetRest = 월드회전(targetBone);
+    const offset = sourceRest.invert().multiply(targetRest);
+    localOffsets[targetBone.name] = new THREE.Matrix4().makeRotationFromQuaternion(offset);
+  });
+
+  return {
+    names,
+    localOffsets,
+    // 원본 모션의 전진(root motion)은 게임 이동과 중복된다. 골반 위치 트랙은
+    // 빼고 관절 회전만 옮겨 발이 두 번 전진하는 현상을 막는다.
+    hip: "__게임이동이담당__",
+    preserveBoneMatrix: true,
+    preserveBonePositions: true,
+    useFirstFramePosition: false,
+    fps: 30,
+  };
+}
+
+function SidekickGameAvatar({ 보이기, 플레이어참조, 크기 = 미터 }) {
+  const root = useRef();
+  const 캐릭터GLTF = useGLTF(캐릭터파일);
+  const 모션GLTF = useGLTF(모션파일);
+
+  const 준비 = useMemo(() => {
+    const model = clone(캐릭터GLTF.scene);
+    const source = clone(모션GLTF.scene);
+    const targetSkin = 첫스킨메시(model);
+    const sourceSkin = 첫스킨메시(source);
+    if (!targetSkin || !sourceSkin) {
+      throw new Error("Sidekick 또는 모션 파일에서 스킨 리그를 찾지 못했습니다.");
+    }
+
+    model.traverse((object) => {
       if (!object.isMesh) return;
       object.castShadow = true;
       object.receiveShadow = true;
       object.frustumCulled = false;
     });
-    모델.updateMatrixWorld(true);
-    const bounds = new THREE.Box3().setFromObject(모델);
-    return { 본: bones, 휴식회전: rest, 바닥높이: bounds.min.y };
-  }, [모델]);
 
-  const 계산 = useMemo(
-    () => ({
-      전방: new THREE.Vector3(),
-      회전: new THREE.Quaternion(),
-      오일러: new THREE.Euler(0, 0, 0, "XYZ"),
-    }),
-    [],
-  );
+    const options = 리타게팅옵션(targetSkin, sourceSkin);
+    // 모션 원본 씬을 믹서 루트로 쓰면서 같은 스켈레톤을 공개한다.
+    // 그러면 glTF 트랙의 계층 경로와 retargetClip 양쪽이 모두 본을 찾는다.
+    source.skeleton = sourceSkin.skeleton;
+    const 선택 = [
+      ["Idle", "Idle_Loop"],
+      ["Walk", "Walk_Loop"],
+      ["Run", "Sprint_Loop"],
+    ];
+    const clips = 선택.map(([name, sourceName]) => {
+      const clip = 모션GLTF.animations.find((item) => item.name === sourceName);
+      if (!clip) throw new Error(`필수 모션을 찾지 못했습니다: ${sourceName}`);
+      const result = retargetClip(targetSkin, source, clip, options);
+      result.name = name;
+      return result;
+    });
+
+    targetSkin.skeleton.pose();
+    model.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(model);
+
+    return {
+      model,
+      targetSkin,
+      clips,
+      bottom: bounds.min.y,
+      mappedBones: Object.keys(options.names).length,
+    };
+  }, [캐릭터GLTF.scene, 모션GLTF.scene, 모션GLTF.animations]);
+
+  const { actions } = useAnimations(준비.clips, 준비.targetSkin);
+  const 현재모션 = useRef(null);
 
   useEffect(() => {
-    const down = (event) => 눌림.current.add(event.code);
-    const up = (event) => 눌림.current.delete(event.code);
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, []);
+    if (!보이기) {
+      Object.values(actions).forEach((action) => action?.stop());
+      현재모션.current = null;
+      return;
+    }
+    actions.Idle?.reset().setLoop(THREE.LoopRepeat, Infinity).play();
+    현재모션.current = "Idle";
+  }, [actions, 보이기]);
 
-  useFrame((_, delta) => {
+  useFrame(() => {
     const group = root.current;
-    if (!group) return;
+    const state = 플레이어참조?.current;
+    if (!group || !state) return;
     group.visible = 보이기;
     if (!보이기) return;
 
-    const 전방 = 계산.전방;
-    camera.getWorldDirection(전방);
-    전방.y = 0;
-    if (전방.lengthSq() < 0.00001) 전방.set(0, 0, -1);
-    전방.normalize();
+    // ?motion=walk / run은 개발 검증용이다. 실제 게임에서는 플레이어 속도만 쓴다.
+    const forced = { idle: "Idle", walk: "Walk", run: "Run" }[강제검증모션];
+    const next = forced ?? (state.moving ? (state.running ? "Run" : "Walk") : "Idle");
+    if (next !== 현재모션.current) {
+      actions[현재모션.current]?.fadeOut(0.16);
+      actions[next]?.reset().setLoop(THREE.LoopRepeat, Infinity).fadeIn(0.16).play();
+      현재모션.current = next;
+    }
 
-    const keys = 눌림.current;
-    const moving = ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].some(
-      (key) => keys.has(key),
+    // 눈/카메라가 아니라 실제 충돌 플레이어의 발 좌표에 놓는다. 점프 중에는
+    // footY가 지면보다 높아지므로 캐릭터도 함께 뜨고, 착지하면 정확히 0 오차다.
+    group.position.set(
+      state.position.x,
+      state.footY - 준비.bottom * 크기,
+      state.position.z,
     );
-    const running = moving && (keys.has("ShiftLeft") || keys.has("ShiftRight"));
-    const motion = moving ? (running ? "Run" : "Walk") : "Idle";
-    const frequency = motion === "Run" ? 2.15 : motion === "Walk" ? 1.35 : 0.22;
-    위상.current += delta * Math.PI * 2 * frequency;
-    const cycle = Math.sin(위상.current);
-    const opposite = Math.sin(위상.current + Math.PI);
-    const secondary = Math.sin(위상.current * 2);
-
-    const pose = (name, x = 0, y = 0, z = 0, speed = 12) => {
-      const bone = 본[name];
-      const rest = 휴식회전[name];
-      if (!bone || !rest) return;
-      계산.오일러.set(x * DEG, y * DEG, z * DEG, "XYZ");
-      계산.회전.setFromEuler(계산.오일러).premultiply(rest);
-      bone.quaternion.slerp(계산.회전, 1 - Math.exp(-delta * speed));
-    };
-
-    // 원본 A/T 포즈의 팔을 자연스럽게 내린 뒤 보행 스윙을 더한다.
-    const armSwing = motion === "Run" ? 24 * cycle : motion === "Walk" ? 13 * cycle : 1.5 * cycle;
-    const elbowBend = motion === "Run" ? 35 : motion === "Walk" ? 12 : 7;
-    pose("upperarm_l", 0, 67, -armSwing);
-    pose("upperarm_r", 0, -67, armSwing);
-    pose("lowerarm_l", 0, 0, -elbowBend - Math.max(0, -cycle) * 9);
-    pose("lowerarm_r", 0, 0, elbowBend + Math.max(0, cycle) * 9);
-
-    const legSwing = motion === "Run" ? 30 * cycle : motion === "Walk" ? 18 * cycle : 0;
-    const leftKnee = motion === "Run" ? 15 + Math.max(0, -cycle) * 30 : motion === "Walk" ? 5 + Math.max(0, -cycle) * 15 : 0;
-    const rightKnee = motion === "Run" ? 15 + Math.max(0, cycle) * 30 : motion === "Walk" ? 5 + Math.max(0, cycle) * 15 : 0;
-    pose("thigh_l", 0, 0, legSwing);
-    pose("thigh_r", 0, 0, -legSwing);
-    pose("calf_l", 0, 0, -leftKnee);
-    pose("calf_r", 0, 0, rightKnee);
-
-    const torsoTurn = motion === "Run" ? 5.5 * opposite : motion === "Walk" ? 2.5 * opposite : 0.7 * cycle;
-    const forwardLean = motion === "Run" ? 7 : 0;
-    pose("spine_01", forwardLean * 0.35, 0, torsoTurn * 0.35);
-    pose("spine_03", forwardLean * 0.65, 0, torsoTurn * 0.65);
-    pose("neck_01", -forwardLean * 0.22, 0, -torsoTurn * 0.25);
-    pose("head", -forwardLean * 0.18, 0, -torsoTurn * 0.2);
-
-    const bob = motion === "Run" ? Math.abs(secondary) * 0.035 : motion === "Walk" ? Math.abs(secondary) * 0.015 : secondary * 0.004;
-    group.position.copy(camera.position).addScaledVector(전방, 거리);
-    group.position.y = camera.position.y - 눈높이 - 바닥높이 * 크기 + bob * 크기;
-    group.rotation.set(0, Math.atan2(전방.x, 전방.z), 0);
+    group.rotation.set(0, state.facing, 0);
     group.scale.setScalar(크기);
 
     if (import.meta.env.DEV) {
-      window.__SIDEKICK_DEBUG = { motion, phase: 위상.current, boneCount: Object.keys(본).length };
+      window.__SIDEKICK_DEBUG = {
+        motion: next,
+        mappedBones: 준비.mappedBones,
+        grounded: state.grounded,
+        groundError: state.footY - state.groundY,
+        position: state.position.toArray(),
+      };
     }
   });
 
   return (
-    <group name="NAJU-sidekick-test-avatar" ref={root} visible={보이기}>
-      <primitive object={모델} />
+    <group name="NAJU-sidekick-avatar" ref={root} visible={보이기}>
+      <primitive object={준비.model} />
     </group>
   );
 }
 
 useGLTF.preload(캐릭터파일);
+useGLTF.preload(모션파일);
 
 export default SidekickGameAvatar;
