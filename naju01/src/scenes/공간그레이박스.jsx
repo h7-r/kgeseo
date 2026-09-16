@@ -492,6 +492,8 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     running: false,
     crouching: false,
     grounded: true,
+    jumping: false,
+    verticalVelocity: 0,
   });
   const T = useSavedControls("NAJU-01 그레이박스", {
     밝기: { value: 1, min: 0.3, max: 2, step: 0.05 },
