@@ -366,6 +366,7 @@ export function use지형이동(
       상태.facing = 바라봄.current;
       상태.moving = active && Math.hypot(vel.current.x, vel.current.z) > 0.001;
       상태.running = active && keys.current.run;
+      상태.crouching = keys.current.앉기;
       상태.grounded = 접지.current;
     }
     if (삼인칭) {
