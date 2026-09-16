@@ -128,6 +128,18 @@ function 여성속옷갱신(mesh, appearance) {
   형태값(mesh, "defaultSkinny", appearance.skinny);
 }
 
+function 하의속옷갱신(mesh, appearance) {
+  mesh.visible = appearance.bottom === 1;
+  형태값(mesh, "masculineFeminine", appearance.feminine);
+  형태값(mesh, "defaultHeavy", appearance.heavy);
+  형태값(mesh, "defaultBuff", appearance.buff);
+  형태값(mesh, "defaultSkinny", appearance.skinny);
+}
+
+function 여성입술갱신(mesh, appearance) {
+  mesh.visible = appearance.feminine >= 0.5;
+}
+
 function SidekickGameAvatar({
   보이기,
   플레이어참조,
@@ -198,6 +210,26 @@ function SidekickGameAvatar({
       pupils.push(pupil);
     });
 
+    // 여성 체형에만 보이는 얇고 옅은 입술선. 얼굴 표면 바로 앞에 놓고
+    // head 본에 붙여 표정·고개 움직임과 머리 크기 조절을 그대로 따라간다.
+    const lipCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.038, 1.521, 0.140),
+      new THREE.Vector3(-0.019, 1.513, 0.142),
+      new THREE.Vector3(0, 1.510, 0.143),
+      new THREE.Vector3(0.019, 1.513, 0.142),
+      new THREE.Vector3(0.038, 1.521, 0.140),
+    ]);
+    const femaleLips = new THREE.Mesh(
+      new THREE.TubeGeometry(lipCurve, 18, 0.0032, 6, false),
+      new THREE.MeshStandardMaterial({ color: "#b9666f", roughness: 0.62 }),
+    );
+    femaleLips.name = "SKLIB_female_lips";
+    femaleLips.castShadow = false;
+    femaleLips.receiveShadow = false;
+    model.add(femaleLips);
+    model.updateMatrixWorld(true);
+    targetSkin.skeleton.getBoneByName("head")?.attach(femaleLips);
+
     // 기본 상의를 벗은 여성 체형에서만 보이는 흰색 스포츠 브라. 기본 몸통의
     // 스킨 메시를 한 겹 복제하고 가슴 높이만 셰이더로 남긴다. 따라서 별도
     // 고정 장식과 달리 원본과 완전히 같은 본 가중치·체형 morph를 사용하며,
@@ -231,6 +263,39 @@ function SidekickGameAvatar({
     chestUnderwear.receiveShadow = true;
     chestUnderwear.frustumCulled = false;
     baseTorso.parent.add(chestUnderwear);
+
+    // HIPS 기본 파츠에는 골반뿐 아니라 허벅지 윗부분까지 한 메시로 들어 있다.
+    // 파츠 전체를 흰색으로 바꾸면 무릎까지 흰 바지가 되므로, 피부색 원본 위에
+    // 허리 바로 아래 높이만 남긴 복제 스킨을 얹어 실제 속옷 영역만 흰색으로 만든다.
+    const baseHips = parts.find(
+      ({ object, slot, option }) =>
+        slot === "bottom" && option === 1 && object.name.includes("17HIPS"),
+    )?.object;
+    const lowerUnderwear = baseHips.clone();
+    lowerUnderwear.name = "SKLIB_base_lower_underwear";
+    lowerUnderwear.material = new THREE.MeshStandardMaterial({
+      color: 속옷색,
+      roughness: 0.82,
+      metalness: 0,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    lowerUnderwear.material.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying float vUnderwearHeight;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\nvUnderwearHeight = position.y;");
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <common>", "#include <common>\nvarying float vUnderwearHeight;")
+        .replace(
+          "#include <clipping_planes_fragment>",
+          "#include <clipping_planes_fragment>\nif (vUnderwearHeight < 0.76 || vUnderwearHeight > 1.00) discard;",
+        );
+    };
+    lowerUnderwear.castShadow = true;
+    lowerUnderwear.receiveShadow = true;
+    lowerUnderwear.frustumCulled = false;
+    baseHips.parent.add(lowerUnderwear);
 
     const options = 리타게팅옵션(retargetSkin, sourceSkin);
     source.skeleton = sourceSkin.skeleton;
@@ -273,7 +338,9 @@ function SidekickGameAvatar({
       clipCount: sourceClips.size,
       parts,
       pupils,
+      femaleLips,
       chestUnderwear,
+      lowerUnderwear,
       headBone: targetSkin.skeleton.getBoneByName("head"),
       bottom,
       feet,
@@ -363,16 +430,7 @@ function SidekickGameAvatar({
       else if (slot === "hair" || slot === "brows" || slot === "facialHair") color = 외형설정.hairColor;
       else if (slot === "head" || slot === "ears" || slot === "nose") color = 외형설정.skinColor;
       else if (slot === "top") color = option === 1 ? 외형설정.skinColor : 외형설정.topColor;
-      else if (slot === "bottom") {
-        // 기본 하의 묶음에서 골반만 흰색 속옷으로 쓰고 다리는 피부색을
-        // 유지한다. 다른 하의를 고르면 선택한 하의색을 그대로 쓴다.
-        const baseUnderwear = option === 1 && object.name.includes("17HIPS");
-        color = baseUnderwear
-          ? 속옷색
-          : option === 1
-            ? 외형설정.skinColor
-            : 외형설정.bottomColor;
-      }
+      else if (slot === "bottom") color = option === 1 ? 외형설정.skinColor : 외형설정.bottomColor;
       else if (slot === "shoes") color = option === 1 ? 외형설정.skinColor : 외형설정.shoesColor;
       else if (slot !== "fixed" && slot !== "teeth") color = 외형설정.accessoryColor;
       else if (object.name.includes("EBR")) color = 외형설정.hairColor;
@@ -381,8 +439,17 @@ function SidekickGameAvatar({
       else 색입히기(object, color);
     });
     준비.pupils.forEach((pupil) => pupil.material.color.set(외형설정.eyeColor));
+    여성입술갱신(준비.femaleLips, 외형설정);
     여성속옷갱신(준비.chestUnderwear, 외형설정);
-  }, [준비.parts, 준비.pupils, 준비.chestUnderwear, 외형설정]);
+    하의속옷갱신(준비.lowerUnderwear, 외형설정);
+  }, [
+    준비.parts,
+    준비.pupils,
+    준비.femaleLips,
+    준비.chestUnderwear,
+    준비.lowerUnderwear,
+    외형설정,
+  ]);
 
   useEffect(() => {
     if (!보이기) {
