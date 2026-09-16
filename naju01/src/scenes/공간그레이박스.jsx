@@ -480,7 +480,7 @@ function 무리({ 묶음, 선긋기, 방식, 밝기, 초목선 = false, 그림�
   );
 }
 
-export default function 공간그레이박스({ active, controlsRef, onLockChange, 보고, 삼인칭 = false, 아바타종류 = "메쉬", 외형 }) {
+export default function 공간그레이박스({ active, controlsRef, onLockChange, 보고, 삼인칭 = false, 아바타종류 = "메쉬", 외형, 사이드킥설정 }) {
   // 카메라와 분리된 실제 플레이어 좌표. 3인칭 캐릭터·지형 판정·카메라가
   // 모두 이 한 값을 사용해야 경사에서 몸이 묻거나 뜨지 않는다.
   const 플레이어상태 = useRef({
@@ -490,6 +490,7 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     facing: Math.PI,
     moving: false,
     running: false,
+    crouching: false,
     grounded: true,
   });
   const T = useSavedControls("NAJU-01 그레이박스", {
@@ -3193,7 +3194,11 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
       {/* NAJU-01 전용 3인칭 표시. 이동·충돌·카메라 로직은 기존 맵 것을
           그대로 쓰며, V로 카메라의 pitch/yaw를 강제로 바꾸지 않는다. */}
       {아바타종류 === "사이드킥" ? (
-        <사이드킥게임아바타 보이기={삼인칭} 플레이어참조={플레이어상태} />
+        <사이드킥게임아바타
+          보이기={삼인칭}
+          플레이어참조={플레이어상태}
+          설정={사이드킥설정}
+        />
       ) : 아바타종류 === "게임" ? (
         <리깅게임아바타 보이기={삼인칭} 입력활성={active || 편집모드} 눈높이={T.눈높이 * 미터} />
       ) : 아바타종류 === "모듈" ? (

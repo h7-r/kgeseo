@@ -21,6 +21,12 @@ import 공간그레이박스 from "./scenes/공간그레이박스.jsx";
 import { 계기판, 조작안내 } from "./계기.jsx";
 import { 미터, 기준, 시점 } from "./공간도면.js";
 import { 기본지형 } from "./지형.js";
+import {
+  기본사이드킥설정,
+  사이드킥모션목록,
+  외형항목이름,
+  외형선택지,
+} from "./사이드킥옵션.js";
 
 // 본편과 같은 개발용 스위치 — ?q=low · ?leva=1 · ?fx=off
 const 쿼리 =
@@ -52,6 +58,7 @@ export default function App() {
   const [시점모드, set시점모드] = useState("1인칭");
   const [아바타종류, set아바타종류] = useState("사이드킥");
   const [외형, set외형] = useState({ hair: 1, top: 1, bottom: 1, shoes: 1 });
+  const [사이드킥설정, set사이드킥설정] = useState(기본사이드킥설정);
   // 계기판·조작안내는 화면을 꽤 가린다. 그림을 볼 때는 H 로 치운다.
   const [계기보임, set계기보임] = useState(true);
 
@@ -115,6 +122,7 @@ export default function App() {
           삼인칭={시점모드 === "3인칭"}
           아바타종류={아바타종류}
           외형={외형}
+          사이드킥설정={사이드킥설정}
         />
         {!저사양 && !후처리끄기 && (
           <EffectComposer multisampling={4} enableNormalPass={false}>
@@ -176,10 +184,93 @@ export default function App() {
             ))}
           </div>
         )}
+        {아바타종류 === "사이드킥" && (
+          <div style={커스텀패널}>
+            <label style={한줄라벨}>
+              <span>동작</span>
+              <select
+                style={선택상자}
+                value={사이드킥설정.motion}
+                onChange={(e) =>
+                  set사이드킥설정((old) => ({ ...old, motion: e.target.value }))
+                }
+              >
+                {사이드킥모션목록.map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
+            {Object.entries(외형선택지).map(([key, options]) => (
+              <label key={key} style={한줄라벨}>
+                <span>{외형항목이름[key]}</span>
+                <select
+                  style={선택상자}
+                  value={사이드킥설정[key]}
+                  onChange={(e) =>
+                    set사이드킥설정((old) => ({ ...old, [key]: Number(e.target.value) }))
+                  }
+                >
+                  {options.map(([value, label]) => (
+                    <option key={`${key}-${value}`} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+            ))}
+            <div style={선택줄}>
+              <button
+                type="button"
+                style={작은버튼}
+                onClick={() => set사이드킥설정((old) => ({ ...old, feminine: 0 }))}
+              >남성 체형</button>
+              <button
+                type="button"
+                style={작은버튼}
+                onClick={() => set사이드킥설정((old) => ({ ...old, feminine: 1 }))}
+              >여성 체형</button>
+            </div>
+            {[
+              ["skinny", "마름"],
+              ["buff", "근육"],
+              ["heavy", "체격"],
+            ].map(([key, label]) => (
+              <label key={key} style={슬라이더줄}>
+                <span>{label}</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={사이드킥설정[key]}
+                  onChange={(e) =>
+                    set사이드킥설정((old) => ({ ...old, [key]: Number(e.target.value) }))
+                  }
+                />
+              </label>
+            ))}
+            <div style={색상줄}>
+              {[
+                ["skinColor", "피부"],
+                ["hairColor", "머리"],
+                ["topColor", "상의"],
+                ["bottomColor", "하의"],
+                ["shoesColor", "신발"],
+                ["accessoryColor", "장비"],
+              ].map(([key, label]) => (
+                <label key={key} title={label} style={색상항목}>
+                  <span>{label}</span>
+                  <input
+                    type="color"
+                    value={사이드킥설정[key]}
+                    onChange={(e) =>
+                      set사이드킥설정((old) => ({ ...old, [key]: e.target.value }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
-      {/* ※ 화면 한복판의 조준점은 걷어냈다 — 쏘거나 겨냥하는 게임이 아니라
-          **놓여 있을 이유가 없고**, 풍경을 볼 때 계속 눈에 걸린다.
-          되살리려면 아래 `조준점` 스타일을 그대로 쓰면 된다. */}
     </div>
   );
 }
@@ -194,20 +285,6 @@ const 숨김표시 = {
   background: "rgba(14,18,26,.45)",
   color: "#8B94A6",
   font: '11px/1.4 ui-monospace, Menlo, monospace',
-  pointerEvents: "none",
-};
-
-// 안 쓰는 중 — 위 주석 참고(겨냥이 필요한 장치가 생기면 되살린다)
-const 조준점 = {
-  position: "absolute",
-  left: "50%",
-  top: "50%",
-  width: 5,
-  height: 5,
-  marginLeft: -2.5,
-  marginTop: -2.5,
-  borderRadius: "50%",
-  background: "rgba(240,244,250,.55)",
   pointerEvents: "none",
 };
 
@@ -229,3 +306,9 @@ const 아바타패널 = { position: "absolute", right: 14, top: 52, zIndex: 20, 
 const 아바타버튼 = { ...시점버튼, position: "static", textAlign: "left" };
 const 선택줄 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 };
 const 작은버튼 = { border: "1px solid rgba(170,190,220,.25)", borderRadius: 5, padding: "4px 6px", background: "rgba(14,18,26,.68)", color: "#DDE7F6", font: '11px/1.2 ui-monospace, Menlo, monospace', cursor: "pointer" };
+const 커스텀패널 = { width: 245, maxHeight: "calc(100vh - 120px)", overflowY: "auto", display: "grid", gap: 5, padding: 8, borderRadius: 7, background: "rgba(14,18,26,.84)", border: "1px solid rgba(170,190,220,.25)", color: "#DDE7F6", font: '11px/1.3 ui-monospace, Menlo, "Malgun Gothic", monospace' };
+const 한줄라벨 = { display: "grid", gridTemplateColumns: "48px 1fr", alignItems: "center", gap: 5 };
+const 선택상자 = { minWidth: 0, border: "1px solid rgba(170,190,220,.3)", borderRadius: 4, padding: "3px 4px", background: "#202632", color: "#E8EFFA", font: "inherit" };
+const 슬라이더줄 = { display: "grid", gridTemplateColumns: "42px 1fr", alignItems: "center", gap: 5 };
+const 색상줄 = { display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 3 };
+const 색상항목 = { display: "grid", gap: 2, textAlign: "center", fontSize: 9 };
