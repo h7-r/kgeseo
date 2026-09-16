@@ -50,7 +50,7 @@ export default function App() {
   const 보고 = useRef(null); // 씬 → 계기판으로 넘기는 상자(리렌더 없이)
   const [locked, setLocked] = useState(false);
   const [시점모드, set시점모드] = useState("1인칭");
-  const [아바타종류, set아바타종류] = useState("게임");
+  const [아바타종류, set아바타종류] = useState("사이드킥");
   const [외형, set외형] = useState({ hair: 1, top: 1, bottom: 1, shoes: 1 });
   // 계기판·조작안내는 화면을 꽤 가린다. 그림을 볼 때는 H 로 치운다.
   const [계기보임, set계기보임] = useState(true);
@@ -152,10 +152,20 @@ export default function App() {
       <div style={아바타패널}>
         <button
           type="button"
-          onClick={() => set아바타종류((v) => ({ 게임: "메쉬", 메쉬: "모듈", 모듈: "게임" }[v]))}
+          onClick={() =>
+            set아바타종류(
+              (v) =>
+                ({
+                  사이드킥: "게임",
+                  게임: "메쉬",
+                  메쉬: "모듈",
+                  모듈: "사이드킥",
+                })[v],
+            )
+          }
           style={아바타버튼}
         >
-          외형: {{ 게임: "새 게임 리그", 메쉬: "Meshy 원형", 모듈: "모듈 초안" }[아바타종류]}
+          외형: {{ 사이드킥: "Sidekick 테스트", 게임: "새 게임 리그", 메쉬: "Meshy 원형", 모듈: "모듈 초안" }[아바타종류]}
         </button>
         {아바타종류 === "모듈" && (
           <div style={선택줄}>
