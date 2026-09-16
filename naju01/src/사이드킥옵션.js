@@ -47,6 +47,8 @@ export const 사이드킥모션목록 = [
 
 export const 기본사이드킥설정 = {
   motion: "자동",
+  walkMotion: "Walk_Loop",
+  runMotion: "Jog_Fwd_Loop",
   head: 1,
   hair: 4,
   brows: 1,
@@ -70,6 +72,8 @@ export const 기본사이드킥설정 = {
   heavy: 0,
   buff: 0,
   skinny: 0.15,
+  heightScale: 0.9,
+  headScale: 1,
   skinColor: "#f0b789",
   eyeColor: "#26364a",
   hairColor: "#69a9c7",

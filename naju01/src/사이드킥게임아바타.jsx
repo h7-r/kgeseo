@@ -102,17 +102,16 @@ function 색입히기(mesh, color) {
   materials.forEach((material) => material?.color?.set(color));
 }
 
-function 눈입히기(mesh, color) {
+function 눈흰자입히기(mesh) {
   const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
   materials.forEach((material) => {
     if (!material) return;
-    // 원본 라이브러리의 눈은 피부와 같은 흰 재질을 공유한다. 텍스처의
-    // 영향을 제거하고 독립된 짙은 색으로 표시해야 얼굴에 묻히지 않는다.
+    // 원본 눈 메시를 흰자로 쓰고, 중앙 눈동자는 별도 구체로 올린다.
     material.map = null;
-    material.color?.set(color);
+    material.color?.set("#f7f4ee");
     if (material.emissive) {
-      material.emissive.set(color);
-      material.emissiveIntensity = 0.08;
+      material.emissive.set("#ffffff");
+      material.emissiveIntensity = 0.12;
     }
     if ("roughness" in material) material.roughness = 0.3;
     if ("metalness" in material) material.metalness = 0;
@@ -162,6 +161,34 @@ function SidekickGameAvatar({
       }
     });
 
+    targetSkin.skeleton.pose();
+    model.updateMatrixWorld(true);
+    const pupils = [];
+    // Sidekick 원본 눈이 작은 편이라 눈동자가 0.019m만 되어도
+    // 게임 카메라에서는 흰자를 대부분 덮어 검은 눈으로 보였다.
+    // 눈동자를 안구 폭의 약 1/5로 줄여 양쪽 흰자가 명확히 남게 한다.
+    const pupilGeometry = new THREE.SphereGeometry(0.0105, 18, 12);
+    ["eye_l", "eye_r"].forEach((name) => {
+      const bone = targetSkin.skeleton.getBoneByName(name);
+      if (!bone) return;
+      const eyeCenter = new THREE.Vector3();
+      bone.getWorldPosition(eyeCenter);
+      // 흰자 표면 바로 앞에 작은 구체를 겹치면 어느 각도에서도 평면처럼
+      // 사라지지 않으면서 중앙 눈동자로 보인다.
+      eyeCenter.z = 0.106;
+      const localPosition = bone.worldToLocal(eyeCenter.clone());
+      const pupil = new THREE.Mesh(
+        pupilGeometry,
+        new THREE.MeshStandardMaterial({ color: "#26364a", roughness: 0.32 }),
+      );
+      pupil.name = `SKLIB_pupil_${name}`;
+      pupil.position.copy(localPosition);
+      pupil.castShadow = false;
+      pupil.receiveShadow = false;
+      bone.add(pupil);
+      pupils.push(pupil);
+    });
+
     const options = 리타게팅옵션(retargetSkin, sourceSkin);
     source.skeleton = sourceSkin.skeleton;
     const sourceClips = new Map(
@@ -202,6 +229,8 @@ function SidekickGameAvatar({
       clipFor,
       clipCount: sourceClips.size,
       parts,
+      pupils,
+      headBone: targetSkin.skeleton.getBoneByName("head"),
       bottom,
       feet,
       soleOffset: Number.isFinite(restFootY) ? bottom - restFootY : 0,
@@ -238,6 +267,8 @@ function SidekickGameAvatar({
       heavy: 설정.heavy,
       buff: 설정.buff,
       skinny: 설정.skinny,
+      heightScale: 설정.heightScale,
+      headScale: 설정.headScale,
       skinColor: 설정.skinColor,
       eyeColor: 설정.eyeColor,
       hairColor: 설정.hairColor,
@@ -252,6 +283,7 @@ function SidekickGameAvatar({
       설정.headwear, 설정.faceAccessory, 설정.backAccessory, 설정.hipFront,
       설정.hipBack, 설정.hipSide, 설정.shoulderAccessory, 설정.elbowAccessory,
       설정.kneeAccessory, 설정.feminine, 설정.heavy, 설정.buff, 설정.skinny,
+      설정.heightScale, 설정.headScale,
       설정.skinColor, 설정.eyeColor, 설정.hairColor, 설정.topColor, 설정.bottomColor,
       설정.shoesColor, 설정.accessoryColor,
     ],
@@ -290,10 +322,11 @@ function SidekickGameAvatar({
       else if (slot !== "fixed" && slot !== "teeth") color = 외형설정.accessoryColor;
       else if (object.name.includes("EBR")) color = 외형설정.hairColor;
       else if (object.name.includes("EAR") || object.name.includes("NOSE")) color = 외형설정.skinColor;
-      if (eye) 눈입히기(object, color);
+      if (eye) 눈흰자입히기(object);
       else 색입히기(object, color);
     });
-  }, [준비.parts, 외형설정]);
+    준비.pupils.forEach((pupil) => pupil.material.color.set(외형설정.eyeColor));
+  }, [준비.parts, 준비.pupils, 외형설정]);
 
   useEffect(() => {
     if (!보이기) {
@@ -366,16 +399,22 @@ function SidekickGameAvatar({
         next = "Jump_Land";
       } else if (now < 착지끝.current) next = "Jump_Land";
       else if (state.crouching) next = state.moving ? "Crouch_Fwd_Loop" : "Crouch_Idle_Loop";
-      else if (state.moving) next = state.running ? "Sprint_Loop" : "Walk_Loop";
+      else if (state.moving) {
+        next = state.running
+          ? (설정.runMotion || "Jog_Fwd_Loop")
+          : (설정.walkMotion || "Walk_Loop");
+      }
       else next = "Idle_Loop";
       공중모션중.current = confirmedAir;
     }
     재생(next);
     mixer.update(delta);
+    준비.headBone?.scale.setScalar(설정.headScale ?? 1);
 
     group.position.set(state.position.x, state.footY, state.position.z);
     group.rotation.set(0, state.facing, 0);
-    group.scale.setScalar(크기);
+    const avatarScale = 크기 * (설정.heightScale ?? 1);
+    group.scale.setScalar(avatarScale);
     group.updateMatrixWorld(true);
 
     // 원본 달리기는 두 발이 동시에 올라가는 프레임이 있다. root motion을
@@ -390,7 +429,7 @@ function SidekickGameAvatar({
     const animatedBottom = Number.isFinite(animatedFootY)
       ? animatedFootY + 준비.soleOffset
       : 준비.bottom;
-    group.position.y = state.footY - animatedBottom * 크기;
+    group.position.y = state.footY - animatedBottom * avatarScale;
 
     if (import.meta.env.DEV) {
       window.__SIDEKICK_DEBUG = {
