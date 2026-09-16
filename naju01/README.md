@@ -31,12 +31,19 @@ npx vite naju01      # http://localhost:5174
 
 ## 조작
 
-`T` 시작 · `WASD` 이동 · `Shift` 달리기 · `Space` 점프 · `C` 앉기 · `E`(미사용) · `ESC` 나가기
+`T` 시작 · `WASD` 이동 · `Shift` 달리기 · `Space` 점프 · `C` 앉기 · `V` 1·3인칭 전환 · `E`(미사용) · `ESC` 나가기
+3인칭에서는 마우스를 돌려 캐릭터의 앞·뒤·옆을 자유롭게 볼 수 있습니다.
 `1` `2` `3` → **V1·V2·V3 시점으로 이동** (개발용 검증 장치입니다. 게임 기능이 아닙니다 — §0.4 텔레포트 금지와 무관)
 `H` 계기판 숨기기 · `L` Leva 패널 · `?stage=16x9` 본편과 같은 16:9 무대 · 절벽에서 떨어지면 마지막 안전 지점으로 복귀(Leva 에서 끌 수 있음)
 
 Leva 패널 아래쪽 다섯 개 — **절벽높이 · 차단물높이 · 눈높이 · FOV · 걷기속도** — 가
 문서 §9 의 「아직 확정되지 않은 값」입니다. 걸으면서 실시간으로 돌아갑니다.
+
+### 시험용 캐릭터·모션
+
+- 캐릭터: Synty Sidekick Modular Characters Starter Pack에서 만든 별도 게임 공간 시험본
+- 모션: Quaternius Universal Animation Library의 CC0 `Idle_Loop`, `Walk_Loop`, `Sprint_Loop`을 런타임 리타게팅
+- 라이선스 기록: `public/models/vendor/QUATERNIUS-ANIMATIONS-LICENSE.txt`
 
 ## 파일
 
