@@ -136,10 +136,6 @@ function 하의속옷갱신(mesh, appearance) {
   형태값(mesh, "defaultSkinny", appearance.skinny);
 }
 
-function 여성입술갱신(mesh, appearance) {
-  mesh.visible = appearance.feminine >= 0.5;
-}
-
 function SidekickGameAvatar({
   보이기,
   플레이어참조,
@@ -209,26 +205,6 @@ function SidekickGameAvatar({
       bone.add(pupil);
       pupils.push(pupil);
     });
-
-    // 여성 체형에만 보이는 얇고 옅은 입술선. 얼굴 표면 바로 앞에 놓고
-    // head 본에 붙여 표정·고개 움직임과 머리 크기 조절을 그대로 따라간다.
-    const lipCurve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(-0.038, 1.521, 0.140),
-      new THREE.Vector3(-0.019, 1.513, 0.142),
-      new THREE.Vector3(0, 1.510, 0.143),
-      new THREE.Vector3(0.019, 1.513, 0.142),
-      new THREE.Vector3(0.038, 1.521, 0.140),
-    ]);
-    const femaleLips = new THREE.Mesh(
-      new THREE.TubeGeometry(lipCurve, 18, 0.0032, 6, false),
-      new THREE.MeshStandardMaterial({ color: "#b9666f", roughness: 0.62 }),
-    );
-    femaleLips.name = "SKLIB_female_lips";
-    femaleLips.castShadow = false;
-    femaleLips.receiveShadow = false;
-    model.add(femaleLips);
-    model.updateMatrixWorld(true);
-    targetSkin.skeleton.getBoneByName("head")?.attach(femaleLips);
 
     // 기본 상의를 벗은 여성 체형에서만 보이는 흰색 스포츠 브라. 기본 몸통의
     // 스킨 메시를 한 겹 복제하고 가슴 높이만 셰이더로 남긴다. 따라서 별도
@@ -338,7 +314,6 @@ function SidekickGameAvatar({
       clipCount: sourceClips.size,
       parts,
       pupils,
-      femaleLips,
       chestUnderwear,
       lowerUnderwear,
       headBone: targetSkin.skeleton.getBoneByName("head"),
@@ -439,13 +414,11 @@ function SidekickGameAvatar({
       else 색입히기(object, color);
     });
     준비.pupils.forEach((pupil) => pupil.material.color.set(외형설정.eyeColor));
-    여성입술갱신(준비.femaleLips, 외형설정);
     여성속옷갱신(준비.chestUnderwear, 외형설정);
     하의속옷갱신(준비.lowerUnderwear, 외형설정);
   }, [
     준비.parts,
     준비.pupils,
-    준비.femaleLips,
     준비.chestUnderwear,
     준비.lowerUnderwear,
     외형설정,
