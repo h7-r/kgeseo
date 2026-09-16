@@ -111,9 +111,6 @@ import { 물잔결참조 } from "../물잔결.js";
 import { 바닥결참조, 결세기 } from "../바닥결.js";
 import { 길만들기, 길가돌자리들, 통로결 } from "../통로.js";
 import { use지형이동, 이동상수 } from "../use지형이동.js";
-import 플레이어캐릭터 from "../플레이어캐릭터.jsx";
-import 모듈아바타 from "../모듈아바타.jsx";
-import 리깅게임아바타 from "../리깅게임아바타.jsx";
 import 사이드킥게임아바타 from "../사이드킥게임아바타.jsx";
 import { 연출만들기, 무너짐변환 } from "../연출.js";
 import {
@@ -480,7 +477,7 @@ function 무리({ 묶음, 선긋기, 방식, 밝기, 초목선 = false, 그림�
   );
 }
 
-export default function 공간그레이박스({ active, controlsRef, onLockChange, 보고, 삼인칭 = false, 아바타종류 = "메쉬", 외형, 사이드킥설정 }) {
+export default function 공간그레이박스({ active, controlsRef, onLockChange, 보고, 삼인칭 = false, 사이드킥설정 }) {
   // 카메라와 분리된 실제 플레이어 좌표. 3인칭 캐릭터·지형 판정·카메라가
   // 모두 이 한 값을 사용해야 경사에서 몸이 묻거나 뜨지 않는다.
   const 플레이어상태 = useRef({
@@ -3195,19 +3192,11 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
 
       {/* NAJU-01 전용 3인칭 표시. 이동·충돌·카메라 로직은 기존 맵 것을
           그대로 쓰며, V로 카메라의 pitch/yaw를 강제로 바꾸지 않는다. */}
-      {아바타종류 === "사이드킥" ? (
-        <사이드킥게임아바타
-          보이기={삼인칭}
-          플레이어참조={플레이어상태}
-          설정={사이드킥설정}
-        />
-      ) : 아바타종류 === "게임" ? (
-        <리깅게임아바타 보이기={삼인칭} 입력활성={active || 편집모드} 눈높이={T.눈높이 * 미터} />
-      ) : 아바타종류 === "모듈" ? (
-        <모듈아바타 보이기={삼인칭} 입력활성={active || 편집모드} 선택={외형} 크기={2.1} 거리={6.2} 눈높이={T.눈높이 * 미터} />
-      ) : (
-        <플레이어캐릭터 보이기={삼인칭} 입력활성={active || 편집모드} 크기={2.1} 거리={6.2} 눈높이={T.눈높이 * 미터} />
-      )}
+      <사이드킥게임아바타
+        보이기={삼인칭}
+        플레이어참조={플레이어상태}
+        설정={사이드킥설정}
+      />
 
       <PointerLockControls
         ref={controlsRef}
