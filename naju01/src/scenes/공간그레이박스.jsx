@@ -491,6 +491,8 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     grounded: true,
     jumping: false,
     verticalVelocity: 0,
+    attackMotion: null,
+    attackSerial: 0,
   });
   const T = useSavedControls("NAJU-01 그레이박스", {
     밝기: { value: 1, min: 0.3, max: 2, step: 0.05 },
@@ -1491,6 +1493,23 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     window.addEventListener("keydown", 눌림);
     return () => window.removeEventListener("keydown", 눌림);
   }, []);
+
+  // 3인칭 플레이 중 좌클릭은 잽/크로스 입력이다. 꾸미기 패널과 Leva를
+  // 누른 클릭은 공격으로 해석하지 않는다.
+  useEffect(() => {
+    const 공격 = (event) => {
+      if (!active || !삼인칭 || 편집모드 || event.button !== 0) return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest("button, input, select, label, [role='slider']")
+      ) return;
+      const state = 플레이어상태.current;
+      state.attackSerial += 1;
+      state.attackMotion = state.attackSerial % 2 === 1 ? "Punch_Jab" : "Punch_Cross";
+    };
+    window.addEventListener("pointerdown", 공격);
+    return () => window.removeEventListener("pointerdown", 공격);
+  }, [active, 삼인칭, 편집모드]);
 
   // ── 편집 층 ────────────────────────────────────────────
   //   흩뿌린 것들은 이제 **인스턴스**라 하나씩 고칠 수 있다(배치.js).

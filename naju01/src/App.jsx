@@ -207,7 +207,7 @@ export default function App() {
             <div style={동작안내}>
               <b>총 {사이드킥모션목록.length - 1}개 동작</b> · 위 목록 또는 이전/다음으로 전부 미리보기
               <br />
-              <b>자동</b>: WASD 걷기 · Shift 달리기 · C 앉기 · Space 점프
+              <b>자동</b>: WASD 걷기 · Shift 달리기 · C 앉기 · Space 점프 · 좌클릭 펀치
               <br />
               다른 동작을 고르면 이동 상태를 무시하고 그 모션을 제자리에서
               미리보기합니다. 테스트 후에는 자동으로 돌려놓으세요.
@@ -255,8 +255,8 @@ export default function App() {
               >여성 체형</button>
             </div>
             {[
-              ["heightScale", "키", 0.72, 1.05, 0.01],
-              ["headScale", "머리", 0.85, 1.3, 0.01],
+              ["heightScale", "키", 0.6, 1.2, 0.01],
+              ["headScale", "머리", 0.65, 1.6, 0.01],
               ["skinny", "마름", 0, 1, 0.05],
               ["buff", "근육", 0, 1, 0.05],
               ["heavy", "체격", 0, 1, 0.05],
