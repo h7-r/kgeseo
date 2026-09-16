@@ -71,6 +71,7 @@ export const 기본사이드킥설정 = {
   buff: 0,
   skinny: 0.15,
   skinColor: "#f0b789",
+  eyeColor: "#26364a",
   hairColor: "#69a9c7",
   topColor: "#d7e8ef",
   bottomColor: "#333840",

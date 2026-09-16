@@ -102,6 +102,24 @@ function 색입히기(mesh, color) {
   materials.forEach((material) => material?.color?.set(color));
 }
 
+function 눈입히기(mesh, color) {
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  materials.forEach((material) => {
+    if (!material) return;
+    // 원본 라이브러리의 눈은 피부와 같은 흰 재질을 공유한다. 텍스처의
+    // 영향을 제거하고 독립된 짙은 색으로 표시해야 얼굴에 묻히지 않는다.
+    material.map = null;
+    material.color?.set(color);
+    if (material.emissive) {
+      material.emissive.set(color);
+      material.emissiveIntensity = 0.08;
+    }
+    if ("roughness" in material) material.roughness = 0.3;
+    if ("metalness" in material) material.metalness = 0;
+    material.needsUpdate = true;
+  });
+}
+
 function SidekickGameAvatar({
   보이기,
   플레이어참조,
@@ -221,6 +239,7 @@ function SidekickGameAvatar({
       buff: 설정.buff,
       skinny: 설정.skinny,
       skinColor: 설정.skinColor,
+      eyeColor: 설정.eyeColor,
       hairColor: 설정.hairColor,
       topColor: 설정.topColor,
       bottomColor: 설정.bottomColor,
@@ -233,7 +252,7 @@ function SidekickGameAvatar({
       설정.headwear, 설정.faceAccessory, 설정.backAccessory, 설정.hipFront,
       설정.hipBack, 설정.hipSide, 설정.shoulderAccessory, 설정.elbowAccessory,
       설정.kneeAccessory, 설정.feminine, 설정.heavy, 설정.buff, 설정.skinny,
-      설정.skinColor, 설정.hairColor, 설정.topColor, 설정.bottomColor,
+      설정.skinColor, 설정.eyeColor, 설정.hairColor, 설정.topColor, 설정.bottomColor,
       설정.shoesColor, 설정.accessoryColor,
     ],
   );
@@ -260,8 +279,10 @@ function SidekickGameAvatar({
       형태값(object, "defaultBuff", 외형설정.buff);
       형태값(object, "defaultSkinny", 외형설정.skinny);
 
+      const eye = object.name.includes("EYEL") || object.name.includes("EYER");
       let color = null;
-      if (slot === "hair" || slot === "brows" || slot === "facialHair") color = 외형설정.hairColor;
+      if (eye) color = 외형설정.eyeColor;
+      else if (slot === "hair" || slot === "brows" || slot === "facialHair") color = 외형설정.hairColor;
       else if (slot === "head" || slot === "ears" || slot === "nose") color = 외형설정.skinColor;
       else if (slot === "top") color = option === 1 ? 외형설정.skinColor : 외형설정.topColor;
       else if (slot === "bottom") color = option === 1 ? 외형설정.skinColor : 외형설정.bottomColor;
@@ -269,7 +290,8 @@ function SidekickGameAvatar({
       else if (slot !== "fixed" && slot !== "teeth") color = 외형설정.accessoryColor;
       else if (object.name.includes("EBR")) color = 외형설정.hairColor;
       else if (object.name.includes("EAR") || object.name.includes("NOSE")) color = 외형설정.skinColor;
-      색입히기(object, color);
+      if (eye) 눈입히기(object, color);
+      else 색입히기(object, color);
     });
   }, [준비.parts, 외형설정]);
 
