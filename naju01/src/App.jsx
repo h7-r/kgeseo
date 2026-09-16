@@ -200,6 +200,12 @@ export default function App() {
                 ))}
               </select>
             </label>
+            <div style={동작안내}>
+              <b>자동</b>: WASD 걷기 · Shift 달리기 · C 앉기 · Space 점프
+              <br />
+              다른 동작을 고르면 이동 상태를 무시하고 그 모션을 제자리에서
+              미리보기합니다. 테스트 후에는 자동으로 돌려놓으세요.
+            </div>
             {Object.entries(외형선택지).map(([key, options]) => (
               <label key={key} style={한줄라벨}>
                 <span>{외형항목이름[key]}</span>
@@ -309,6 +315,7 @@ const 작은버튼 = { border: "1px solid rgba(170,190,220,.25)", borderRadius: 
 const 커스텀패널 = { width: 245, maxHeight: "calc(100vh - 120px)", overflowY: "auto", display: "grid", gap: 5, padding: 8, borderRadius: 7, background: "rgba(14,18,26,.84)", border: "1px solid rgba(170,190,220,.25)", color: "#DDE7F6", font: '11px/1.3 ui-monospace, Menlo, "Malgun Gothic", monospace' };
 const 한줄라벨 = { display: "grid", gridTemplateColumns: "48px 1fr", alignItems: "center", gap: 5 };
 const 선택상자 = { minWidth: 0, border: "1px solid rgba(170,190,220,.3)", borderRadius: 4, padding: "3px 4px", background: "#202632", color: "#E8EFFA", font: "inherit" };
+const 동작안내 = { padding: "6px 7px", borderRadius: 5, background: "rgba(85,110,145,.18)", color: "#BECBE0", lineHeight: 1.45 };
 const 슬라이더줄 = { display: "grid", gridTemplateColumns: "42px 1fr", alignItems: "center", gap: 5 };
 const 색상줄 = { display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 3 };
 const 색상항목 = { display: "grid", gap: 2, textAlign: "center", fontSize: 9 };

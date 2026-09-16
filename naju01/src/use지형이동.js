@@ -87,6 +87,10 @@ export function use지형이동(
   const vel = useRef(new THREE.Vector3());
   const vy = useRef(0);
   const 접지 = useRef(true);
+  // `접지 === false`만으로는 점프를 판단하면 안 된다. 경사를 내려갈 때도
+  // 새 바닥이 한 프레임 낮아지면 접지가 잠깐 풀릴 수 있다. Space로 실제
+  // 점프를 시작했는지를 따로 기억해 보행 중 점프 모션이 트리거되지 않게 한다.
+  const 점프중 = useRef(false);
   const 첫프레임 = useRef(true);
   const 최고점 = useRef(0); // 공중에 뜬 뒤 도달한 가장 높은 y
   const 안전 = useRef(null); // 마지막으로 멀쩡히 서 있던 자리
@@ -116,6 +120,7 @@ export function use지형이동(
       if (e.code === "Space" && 접지.current) {
         vy.current = JUMP;
         접지.current = false;
+        점프중.current = true;
       }
       if (e.code === "KeyC" && !e.repeat) keys.current.앉기 = !keys.current.앉기;
       set(e.code, true);
@@ -148,6 +153,7 @@ export function use지형이동(
       목적지.set(X * 미터, (g.y + 눈) * 미터, Z * 미터);
       vy.current = 0;
       접지.current = true;
+      점프중.current = false;
       // ★ 이 두 줄이 없으면 **높은 데서 낮은 데로 옮길 때 도로 튕겨 나간다.**
       //   최고점이 옛 높이(예: Z3 +14)에 남아 있어서, 새 바닥(Z1 0)에 닿는 순간
       //   14 m 를 떨어진 것으로 계산되고 → 낙하 복귀가 걸려 원래 자리로 되돌린다.
@@ -175,6 +181,7 @@ export function use지형이동(
     p.y = (g.y + 눈높이) * 미터;
     vy.current = 0;
     접지.current = true;
+    점프중.current = false;
     최고점.current = p.y;
   }, [지형, 눈높이, camera]);
 
@@ -215,6 +222,7 @@ export function use지형이동(
       p.y = 밑.y * 미터 + 눈높이 * 미터;
       vy.current = 0;
       접지.current = true;
+      점프중.current = false;
       최고점.current = p.y;
       안전.current = { X: p.x * 유닛, Z: p.z * 유닛 };
     }
@@ -300,22 +308,40 @@ export function use지형이동(
     const 바닥Y = 현재발밑.y * 미터 + 눈;
 
     // ── 위아래 ────────────────────────────────────────────
-    vy.current += GRAVITY * dt;
-    let ny = p.y + vy.current * dt;
-    최고점.current = Math.max(최고점.current, p.y);
+    // 작은 하향 경사는 공중 상태가 아니라 '지면을 따라가는 보행'이다.
+    // 발밑이 턱 허용치 안에서 낮아진 경우는 바로 붙여 주고, 그보다
+    // 큰 낙차만 실제 추락으로 처리한다.
+    const 현재발Y = p.y - 눈;
+    const 바닥까지거리 = (현재발Y - 현재발밑.y * 미터) * 유닛;
+    const 지면따라가기 =
+      접지.current && !점프중.current && 바닥까지거리 <= 턱 + 0.05;
+    let ny;
 
-    if (ny <= 바닥Y) {
-      const 낙차 = (최고점.current - 바닥Y) * 유닛; // m
+    if (지면따라가기) {
       ny = 바닥Y;
       vy.current = 0;
       접지.current = true;
       최고점.current = ny;
-
-      const 되돌릴까 = 낙하복귀 && (낙차 > 추락 || 현재발밑.물);
-      // 복귀는 '이동'이 아니므로 보행 거리에 더하지 않는다
-      if (되돌릴까 && 안전.current) 텔레포트.current(안전.current.X, 안전.current.Z);
     } else {
-      접지.current = false;
+      vy.current += GRAVITY * dt;
+      ny = p.y + vy.current * dt;
+      최고점.current = Math.max(최고점.current, p.y);
+
+      if (ny <= 바닥Y) {
+        const 낙차 = (최고점.current - 바닥Y) * 유닛; // m
+        ny = 바닥Y;
+        vy.current = 0;
+        접지.current = true;
+        점프중.current = false;
+        최고점.current = ny;
+
+        const 되돌릴까 = 낙하복귀 && (낙차 > 추락 || 현재발밑.물);
+        // 복귀는 '이동'이 아니므로 보행 거리에 더하지 않는다
+        if (되돌릴까 && 안전.current)
+          텔레포트.current(안전.current.X, 안전.current.Z);
+      } else {
+        접지.current = false;
+      }
     }
     // 접지 중에는 정확히 지면에 놓는다. 보간하면 경사를 오를 때 몸이 땅속에,
     // 내려갈 때 공중에 남는다. 공중일 때만 중력 적분을 그대로 쓴다.
@@ -368,6 +394,8 @@ export function use지형이동(
       상태.running = active && keys.current.run;
       상태.crouching = keys.current.앉기;
       상태.grounded = 접지.current;
+      상태.jumping = 점프중.current;
+      상태.verticalVelocity = vy.current;
     }
     if (삼인칭) {
       camera.getWorldDirection(카메라전방.current);
