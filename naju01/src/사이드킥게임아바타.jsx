@@ -12,6 +12,7 @@ import { 기본사이드킥설정 } from "./사이드킥옵션.js";
 
 const 캐릭터파일 = "/models/sidekick-customizer.glb";
 const 모션파일 = "/models/vendor/quaternius-universal-animation-library.glb";
+const 속옷색 = "#f7f7f3";
 const 강제검증모션 =
   typeof location !== "undefined"
     ? new URLSearchParams(location.search).get("motion")
@@ -119,6 +120,14 @@ function 눈흰자입히기(mesh) {
   });
 }
 
+function 여성속옷갱신(mesh, appearance) {
+  mesh.visible = appearance.top === 1 && appearance.feminine >= 0.5;
+  형태값(mesh, "masculineFeminine", appearance.feminine);
+  형태값(mesh, "defaultHeavy", appearance.heavy);
+  형태값(mesh, "defaultBuff", appearance.buff);
+  형태값(mesh, "defaultSkinny", appearance.skinny);
+}
+
 function SidekickGameAvatar({
   보이기,
   플레이어참조,
@@ -189,6 +198,40 @@ function SidekickGameAvatar({
       pupils.push(pupil);
     });
 
+    // 기본 상의를 벗은 여성 체형에서만 보이는 흰색 스포츠 브라. 기본 몸통의
+    // 스킨 메시를 한 겹 복제하고 가슴 높이만 셰이더로 남긴다. 따라서 별도
+    // 고정 장식과 달리 원본과 완전히 같은 본 가중치·체형 morph를 사용하며,
+    // 걷기·달리기·펀치에서도 찢어지거나 몸에서 떨어질 수 없다.
+    const baseTorso = parts.find(
+      ({ object, slot, option }) =>
+        slot === "top" && option === 1 && object.name.includes("10TORS"),
+    )?.object;
+    const chestUnderwear = baseTorso.clone();
+    chestUnderwear.name = "SKLIB_female_chest_underwear";
+    chestUnderwear.material = new THREE.MeshStandardMaterial({
+      color: 속옷색,
+      roughness: 0.82,
+      metalness: 0,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    chestUnderwear.material.onBeforeCompile = (shader) => {
+      shader.vertexShader = shader.vertexShader
+        .replace("#include <common>", "#include <common>\nvarying float vUnderwearHeight;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\nvUnderwearHeight = position.y;");
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <common>", "#include <common>\nvarying float vUnderwearHeight;")
+        .replace(
+          "#include <clipping_planes_fragment>",
+          "#include <clipping_planes_fragment>\nif (vUnderwearHeight < 1.17 || vUnderwearHeight > 1.36) discard;",
+        );
+    };
+    chestUnderwear.castShadow = true;
+    chestUnderwear.receiveShadow = true;
+    chestUnderwear.frustumCulled = false;
+    baseTorso.parent.add(chestUnderwear);
+
     const options = 리타게팅옵션(retargetSkin, sourceSkin);
     source.skeleton = sourceSkin.skeleton;
     const sourceClips = new Map(
@@ -230,6 +273,7 @@ function SidekickGameAvatar({
       clipCount: sourceClips.size,
       parts,
       pupils,
+      chestUnderwear,
       headBone: targetSkin.skeleton.getBoneByName("head"),
       bottom,
       feet,
@@ -299,6 +343,8 @@ function SidekickGameAvatar({
   const 공중모션중 = useRef(false);
   const 점프시작끝 = useRef(0);
   const 착지끝 = useRef(0);
+  const 마지막공격 = useRef(0);
+  const 공격끝 = useRef(0);
   const 역행렬 = useMemo(() => new THREE.Matrix4(), []);
   const 발좌표 = useMemo(() => new THREE.Vector3(), []);
 
@@ -317,7 +363,16 @@ function SidekickGameAvatar({
       else if (slot === "hair" || slot === "brows" || slot === "facialHair") color = 외형설정.hairColor;
       else if (slot === "head" || slot === "ears" || slot === "nose") color = 외형설정.skinColor;
       else if (slot === "top") color = option === 1 ? 외형설정.skinColor : 외형설정.topColor;
-      else if (slot === "bottom") color = option === 1 ? 외형설정.skinColor : 외형설정.bottomColor;
+      else if (slot === "bottom") {
+        // 기본 하의 묶음에서 골반만 흰색 속옷으로 쓰고 다리는 피부색을
+        // 유지한다. 다른 하의를 고르면 선택한 하의색을 그대로 쓴다.
+        const baseUnderwear = option === 1 && object.name.includes("17HIPS");
+        color = baseUnderwear
+          ? 속옷색
+          : option === 1
+            ? 외형설정.skinColor
+            : 외형설정.bottomColor;
+      }
       else if (slot === "shoes") color = option === 1 ? 외형설정.skinColor : 외형설정.shoesColor;
       else if (slot !== "fixed" && slot !== "teeth") color = 외형설정.accessoryColor;
       else if (object.name.includes("EBR")) color = 외형설정.hairColor;
@@ -326,7 +381,8 @@ function SidekickGameAvatar({
       else 색입히기(object, color);
     });
     준비.pupils.forEach((pupil) => pupil.material.color.set(외형설정.eyeColor));
-  }, [준비.parts, 준비.pupils, 외형설정]);
+    여성속옷갱신(준비.chestUnderwear, 외형설정);
+  }, [준비.parts, 준비.pupils, 준비.chestUnderwear, 외형설정]);
 
   useEffect(() => {
     if (!보이기) {
@@ -354,7 +410,7 @@ function SidekickGameAvatar({
       actions.current.set(name, action);
     }
     actions.current.get(현재모션.current)?.fadeOut(0.16);
-    action.reset().fadeIn(0.16);
+    action.reset().setEffectiveTimeScale(name.startsWith("Punch_") ? 1.2 : 1).fadeIn(0.16);
     const loop = name.endsWith("_Loop") || name === "A_TPose" || name === "Sword_Idle";
     action.clampWhenFinished = !loop;
     action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1).play();
@@ -379,6 +435,12 @@ function SidekickGameAvatar({
     }
 
     const now = clock.elapsedTime;
+    if ((state.attackSerial ?? 0) !== 마지막공격.current) {
+      마지막공격.current = state.attackSerial ?? 0;
+      const attackClip = 준비.clipFor(state.attackMotion);
+      공격끝.current =
+        now + THREE.MathUtils.clamp((attackClip?.duration ?? 0.62) / 1.2, 0.45, 0.82);
+    }
     let next = 설정.motion;
     if (강제검증모션) next = 강제검증모션;
     if (!next || next === "자동") {
@@ -391,7 +453,9 @@ function SidekickGameAvatar({
         (!state.grounded &&
           공중시작.current !== null &&
           now - 공중시작.current > 0.12);
-      if (confirmedAir) {
+      if (now < 공격끝.current && state.attackMotion) {
+        next = state.attackMotion;
+      } else if (confirmedAir) {
         if (!공중모션중.current) 점프시작끝.current = now + 0.22;
         next = now < 점프시작끝.current ? "Jump_Start" : "Jump_Loop";
       } else if (공중모션중.current && state.grounded) {
