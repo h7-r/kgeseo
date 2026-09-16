@@ -435,6 +435,10 @@ function SidekickGameAvatar({
     () => () => {
       mixer.stopAllAction();
       actions.current.clear();
+      // React StrictMode는 개발 중 effect를 setup → cleanup → setup 순서로
+      // 한 번 더 검증한다. 액션만 비우고 이름을 남기면 다음 프레임이
+      // 이미 재생 중이라고 오판해 T 포즈에 멈춘다.
+      현재모션.current = null;
       mixer.uncacheRoot(준비.targetSkin);
     },
     [mixer, 준비.targetSkin],

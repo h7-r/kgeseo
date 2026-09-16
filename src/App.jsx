@@ -45,6 +45,7 @@ import {
   useCallback,
   useMemo,
   Suspense,
+  lazy,
 } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 // ※ drei의 SoftShadows는 three 0.185의 그림자 셰이더 청크와 호환되지 않아
@@ -191,6 +192,14 @@ const 쿼리 =
   typeof location !== "undefined"
     ? new URLSearchParams(location.search)
     : new URLSearchParams();
+
+// 로비 원본 실행은 그대로 두고 테스트 주소에서만 Sidekick을 지연 로드한다.
+//   /?avatar=sidekick → 로비 1·3인칭 캐릭터 검증
+// 일반 주소에서는 GLB와 모션 파일조차 내려받지 않는다.
+const 로비아바타테스트 = 쿼리.get("avatar") === "sidekick";
+const LobbySidekick = lazy(() =>
+  import("../naju01/src/사이드킥게임아바타.jsx"),
+);
 
 // 저사양 모드 — 내장 GPU 노트북에서 화면이 검게 죽는 걸 막는다.
 //   원인은 대부분 '그릴 픽셀 수'다. 아래 세 가지가 픽셀·메모리를 가장 많이 먹는다.
@@ -541,7 +550,15 @@ function 충돌체({
 //     경계 — 방과 복도는 '문 앞'에서만 이어진다
 //     막힘 — 기둥·가구 충돌 박스
 //     근처 — 기차 문 같은 상호작용 지점
-function usePlayer(active, onNear, eye = EYE, crouchEye = CROUCH_EYE, 복귀) {
+function usePlayer(
+  active,
+  onNear,
+  eye = EYE,
+  crouchEye = CROUCH_EYE,
+  복귀,
+  삼인칭 = false,
+  플레이어참조 = null,
+) {
   const onNearRef = useRef(onNear);
   onNearRef.current = onNear;
 
@@ -599,6 +616,9 @@ function usePlayer(active, onNear, eye = EYE, crouchEye = CROUCH_EYE, 복귀) {
     // 복귀가 있을 때만 자리를 옮긴다. 평소(처음 접속)에는 건드리지 않는다.
     시작: 복귀?.시작,
     바라봄: 복귀?.바라봄,
+    삼인칭,
+    플레이어참조,
+    삼인칭거리: 2.8,
   });
 }
 
@@ -8288,7 +8308,14 @@ function 수거품상자({ 사건, 선, 가로 = 0.95, 세로 = 0.78, 상자높�
 }
 
 // ===== 3D 씬 =====
-function Scene({ active, onNear, controlsRef, onLockChange }) {
+function Scene({
+  active,
+  onNear,
+  controlsRef,
+  onLockChange,
+  삼인칭 = false,
+  플레이어참조 = null,
+}) {
   // ── 로비 물건 상태 (서랍·램프·의자·들고 있는 것) ──────────
   //   겨냥은 여기서 구독하지 않는다. 고개만 돌려도 방 전체가 다시 그려지기 때문이다.
   const 로비 = use로비상태();
@@ -8329,7 +8356,15 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
       바라봄: Math.PI / 2, // -x = 방 안쪽을 본다
     };
   }, []);
-  usePlayer(active, onNear, CAM.눈높이, CAM.앉은높이, 복귀);
+  usePlayer(
+    active,
+    onNear,
+    CAM.눈높이,
+    CAM.앉은높이,
+    복귀,
+    삼인칭,
+    플레이어참조,
+  );
   // ── 벽·바닥 질감 ───────────────────────────────────────
   //   콘크리트 블록 벽 + 민바닥 콘크리트. 시드를 바꾸면 얼룩 배치가 통째로 달라진다.
   const MAT = useSavedControls("벽·바닥 질감", {
@@ -11382,6 +11417,12 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
         )}
       </Suspense>
 
+      {로비아바타테스트 && (
+        <Suspense fallback={null}>
+          <LobbySidekick 보이기={삼인칭} 플레이어참조={플레이어참조} />
+        </Suspense>
+      )}
+
       {/* ══════════════════════════════════════════════════════
           소품 자리 — 나중에 GLB 모델을 여기에 배치한다.
           COLLIDERS의 AABB는 그대로 살아 있으므로 아래 좌표에 맞춰 넣으면 된다.
@@ -11421,6 +11462,21 @@ export default function App() {
   const 이동하기 = useNavigate();
   const 기차안 = 위치.pathname === "/train";
   const [locked, setLocked] = useState(false);
+  const [삼인칭, set삼인칭] = useState(로비아바타테스트);
+  const 플레이어참조 = useRef({
+    position: new THREE.Vector3(0, EYE, 12),
+    footY: 0,
+    groundY: 0,
+    facing: Math.PI,
+    moving: false,
+    running: false,
+    crouching: false,
+    grounded: true,
+    jumping: false,
+    verticalVelocity: 0,
+    attackSerial: 0,
+    attackMotion: "Punch_Jab",
+  });
   // 계기판 표시 여부 — Scene 안의 Leva 값은 껍데기에서 못 읽으므로 여기서 따로 만든다.
   // ★ 계기판 기본 꺼짐. 개발용이라 팀원 화면에도, 내 화면에도 평소엔 안 뜬다.
   //   필요하면 Leva 「성능(공통) → 계기판」 을 켜면 된다.
@@ -11604,6 +11660,11 @@ export default function App() {
       // 창이 열려 있는 동안은 아래 게임 조작을 전부 막는다(입력 우선순위: 창 > 게임)
       if (열린창) return;
 
+      if (e.code === "KeyV" && 로비아바타테스트 && !기차안) {
+        set삼인칭((현재) => !현재);
+        return;
+      }
+
       // T키 — 1인칭 시작(마우스 잠금). 클릭 대신 키로 시작해 Leva를 자유롭게 만진다.
       if (e.code === "KeyT" && !locked) {
         controlsRef.current?.lock();
@@ -11625,7 +11686,31 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [near, locked, 열린창, 창열기, 창닫기, 기차타기, 기차내리기, 놓기시도]);
+  }, [
+    near,
+    locked,
+    열린창,
+    창열기,
+    창닫기,
+    기차타기,
+    기차내리기,
+    놓기시도,
+    기차안,
+  ]);
+
+  useEffect(() => {
+    if (!로비아바타테스트) return undefined;
+    let 다음펀치 = "Punch_Jab";
+    const 공격 = (e) => {
+      if (e.button !== 0 || !locked || !삼인칭 || 기차안 || 열린창) return;
+      const 상태 = 플레이어참조.current;
+      상태.attackMotion = 다음펀치;
+      상태.attackSerial += 1;
+      다음펀치 = 다음펀치 === "Punch_Jab" ? "Punch_Cross" : "Punch_Jab";
+    };
+    window.addEventListener("mousedown", 공격);
+    return () => window.removeEventListener("mousedown", 공격);
+  }, [locked, 삼인칭, 기차안, 열린창]);
 
   // 창이 열려 있으면 이동·조준을 멈춘다.
   //   ※ 여기에 나중에 **타이머 정지**(GRD-07)도 같이 걸린다.
@@ -11728,6 +11813,8 @@ export default function App() {
             onNear={setNear}
             controlsRef={controlsRef}
             onLockChange={setLocked}
+            삼인칭={로비아바타테스트 && 삼인칭}
+            플레이어참조={로비아바타테스트 ? 플레이어참조 : null}
           />
         )}
 
@@ -11790,6 +11877,28 @@ export default function App() {
       )} */}
       {/* 조준점 — 1인칭은 커서가 없으니 화면 한가운데가 커서다 */}
       {active && <div style={S.조준점} />}
+      {로비아바타테스트 && !기차안 && (
+        <button
+          type="button"
+          onClick={() => set삼인칭((현재) => !현재)}
+          style={{
+            position: "fixed",
+            top: 14,
+            // Leva 개발 패널(우측 약 280px) 뒤에 가려지지 않게 둔다.
+            right: 300,
+            zIndex: 60,
+            padding: "8px 12px",
+            border: "1px solid rgba(255,255,255,.24)",
+            borderRadius: 8,
+            background: "rgba(13,17,24,.82)",
+            color: "#f4f6fb",
+            font: "600 12px/1 system-ui, sans-serif",
+            cursor: "pointer",
+          }}
+        >
+          [V] {삼인칭 ? "1인칭" : "3인칭"}
+        </button>
+      )}
       {active && hint && (
         <div style={안내경고 ? { ...S.hint, color: "#ffb4a8" } : S.hint}>
           {hint}
