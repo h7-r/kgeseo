@@ -466,7 +466,18 @@ const HANDLED = new Set([
 
 function use이동(
   active,
-  { 눈높이 = EYE, 앉은높이 = CROUCH_EYE, 경계, 막힘, 근처, 시작, 바라봄 } = {},
+  {
+    눈높이 = EYE,
+    앉은높이 = CROUCH_EYE,
+    경계,
+    막힘,
+    근처,
+    시작,
+    바라봄,
+    삼인칭 = false,
+    플레이어참조 = null,
+    삼인칭거리 = 2.8,
+  } = {},
 ) {
   const { camera } = useThree();
   const eyeRef = useRef(눈높이);
@@ -481,8 +492,13 @@ function use이동(
   const vel = useRef(new THREE.Vector3());
   const vy = useRef(0);
   const grounded = useRef(true);
+  const jumping = useRef(false);
   const lastNear = useRef("");
   const 첫프레임 = useRef(true);
+  const 논리위치 = useRef(null);
+  const 이전삼인칭 = useRef(false);
+  const 바라보는방향 = useRef(Math.PI);
+  const 카메라전방 = useRef(new THREE.Vector3());
 
   useEffect(() => {
     const set = (code, v) => {
@@ -498,6 +514,7 @@ function use이동(
       if (e.code === "Space" && grounded.current) {
         vy.current = JUMP;
         grounded.current = false;
+        jumping.current = true;
       }
       if (e.code === "KeyC" && !e.repeat)
         keys.current.crouchToggle = !keys.current.crouchToggle;
@@ -513,7 +530,11 @@ function use이동(
   }, []);
 
   useFrame((_, dt) => {
-    const p = camera.position;
+    if (!논리위치.current) 논리위치.current = camera.position.clone();
+    if (삼인칭 && !이전삼인칭.current) 논리위치.current.copy(camera.position);
+    if (!삼인칭 && 이전삼인칭.current) camera.position.copy(논리위치.current);
+    이전삼인칭.current = 삼인칭;
+    const p = 삼인칭 ? 논리위치.current : camera.position;
 
     // 씬에 들어온 첫 프레임에 시작 위치로 옮긴다.
     //   (라우터로 씬을 바꿔도 카메라는 하나라, 이전 씬 좌표가 그대로 남아 있다)
@@ -537,13 +558,35 @@ function use이동(
       //   rotation.set(x, y, z) 에서 x(위아래)·z(기울기)는 0으로 둔다.
       //   서 있는 사람은 고개를 갸웃하지 않으니까.
       if (바라봄 !== undefined) camera.rotation.set(0, 바라봄, 0);
+      if (바라봄 !== undefined) 바라보는방향.current = 바라봄;
     }
 
     if (근처) {
       const n = 근처(p) || "";
       if (n !== lastNear.current) lastNear.current = n;
     }
-    if (!active) return;
+    if (!active) {
+      if (플레이어참조) {
+        const 상태 = 플레이어참조.current;
+        상태.position.copy(p);
+        상태.groundY = 0;
+        상태.footY = p.y - eyeRef.current;
+        상태.facing = 바라보는방향.current;
+        상태.moving = false;
+        상태.running = false;
+        상태.crouching = keys.current.crouchToggle;
+        상태.grounded = grounded.current;
+        상태.jumping = jumping.current;
+        상태.verticalVelocity = vy.current;
+      }
+      if (삼인칭) {
+        camera.getWorldDirection(카메라전방.current);
+        camera.position
+          .copy(p)
+          .addScaledVector(카메라전방.current, -삼인칭거리 * (1 / 0.3));
+      }
+      return;
+    }
 
     const k = keys.current;
     const fwd = new THREE.Vector3();
@@ -557,6 +600,8 @@ function use이동(
     if (k.r) wish.add(right);
     if (k.l) wish.sub(right);
     if (wish.lengthSq() > 0) wish.normalize();
+    if (wish.lengthSq() > 0.00001)
+      바라보는방향.current = Math.atan2(wish.x, wish.z);
     const crouching = k.crouchToggle;
     const speed = WALK * (crouching ? CROUCH : k.run ? RUN : 1);
     const target = wish.multiplyScalar(speed);
@@ -589,10 +634,31 @@ function use이동(
       ny = floorY;
       vy.current = 0;
       grounded.current = true;
+      jumping.current = false;
     } else grounded.current = false;
     if (grounded.current)
       ny = THREE.MathUtils.lerp(p.y, floorY, 1 - Math.pow(0.0001, dt));
     p.y = ny;
+
+    if (플레이어참조) {
+      const 상태 = 플레이어참조.current;
+      상태.position.copy(p);
+      상태.groundY = 0;
+      상태.footY = p.y - eyeRef.current;
+      상태.facing = 바라보는방향.current;
+      상태.moving = Math.hypot(vel.current.x, vel.current.z) > 0.001;
+      상태.running = keys.current.run;
+      상태.crouching = keys.current.crouchToggle;
+      상태.grounded = grounded.current;
+      상태.jumping = jumping.current;
+      상태.verticalVelocity = vy.current;
+    }
+    if (삼인칭) {
+      camera.getWorldDirection(카메라전방.current);
+      camera.position
+        .copy(p)
+        .addScaledVector(카메라전방.current, -삼인칭거리 * (1 / 0.3));
+    }
   });
 
   return lastNear;
