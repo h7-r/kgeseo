@@ -315,6 +315,8 @@ def main():
         cx = (min(p.x for p in pts) + max(p.x for p in pts)) / 2
         cy = (min(p.y for p in pts) + max(p.y for p in pts)) / 2
         body.data.transform(Matrix.Translation((-cx, -cy, -low)))
+        # 헤어·의상도 같은 기준으로 옮겨야 하므로 이동량을 남긴다.
+        body["meshy_offset"] = (-cx, -cy, -low)
         body.data.update()
         points = [v.co.copy() for v in body.data.vertices]
         height = max(p.z for p in points)

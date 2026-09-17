@@ -49,6 +49,7 @@ import {
 } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { 사이드킥외형읽기 } from "../naju01/src/사이드킥옵션.js";
+import { 메시외형읽기 } from "../naju01/src/메시외형옵션.js";
 // ※ drei의 SoftShadows는 three 0.185의 그림자 셰이더 청크와 호환되지 않아
 //   씬 전체 머티리얼이 컴파일에 실패한다(WebGL: useProgram: program not valid).
 //   → 사용 금지. 그림자는 Canvas의 shadows="percentage"(PCF)로 처리한다.
@@ -213,6 +214,7 @@ const LobbySidekickPanel = lazy(() =>
 const 로비외형저장키 = "kgeseo.lobby.sidekick.appearance.v2";
 const LobbyChibi = lazy(() => import("../naju01/src/치비게임아바타.jsx"));
 const LobbyChibiPanel = lazy(() => import("../naju01/src/치비테스트패널.jsx"));
+const 로비메시저장키 = "kgeseo.lobby.meshy.appearance.v1";
 
 // 저사양 모드 — 내장 GPU 노트북에서 화면이 검게 죽는 걸 막는다.
 //   원인은 대부분 '그릴 픽셀 수'다. 아래 세 가지가 픽셀·메모리를 가장 많이 먹는다.
@@ -11492,9 +11494,7 @@ export default function App() {
     로비아바타테스트 && !로비치비테스트 ? 사이드킥외형읽기(로비외형저장키) : null,
   );
   const [치비설정, set치비설정] = useState(() =>
-    로비치비테스트
-      ? { motion: "자동", walkMotion: "Walk_Loop", runMotion: "Jog_Fwd_Loop", gender: "masculine", heightScale: 1, headScale: 1, skinColor: "#f3d2bd" }
-      : null,
+    로비치비테스트 ? 메시외형읽기(로비메시저장키) : null,
   );
   const 플레이어참조 = useRef({
     position: new THREE.Vector3(0, EYE, 12),
@@ -11936,7 +11936,7 @@ export default function App() {
       )}
       {로비치비테스트 && !기차안 && 치비설정 && (
         <Suspense fallback={null}>
-          <LobbyChibiPanel 설정={치비설정} set설정={set치비설정} />
+          <LobbyChibiPanel 설정={치비설정} set설정={set치비설정} 저장키={로비메시저장키} />
         </Suspense>
       )}
       {로비아바타테스트 && !기차안 && 사이드킥설정 && (

@@ -1,0 +1,13 @@
+{
+  "selected_faces": 103983,
+  "parts": {
+    "Top_Female": {
+      "vertices": 39813,
+      "faces": 72553
+    },
+    "Bottom_Female": {
+      "vertices": 17555,
+      "faces": 31430
+    }
+  }
+}

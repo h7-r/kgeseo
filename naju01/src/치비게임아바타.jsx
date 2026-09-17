@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { clone, retargetClip } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { 미터 } from "./공간도면.js";
+import { 기본메시설정 } from "./메시외형옵션.js";
 
 // 몸체 종류: chibi = V4 몸체 시제품, meshy = Meshy 민머리 기본 모델(텍스처 원본 유지).
 const 몸파일 = {
@@ -78,12 +79,18 @@ function 몸준비(gltf, 모션GLTF) {
   const sourceSkin = 첫스킨메시(source);
   const skinMaterials = [];
   const soles = [];
+  const parts = [];
   model.traverse((object) => {
     if (!object.isMesh) return;
     object.castShadow = true;
     object.receiveShadow = true;
     object.frustumCulled = false;
     object.material = object.material.clone();
+    // GLB 노드 extras: slot(body/hair/top/bottom) + variant 번호
+    let owner = object;
+    while (owner && owner.userData.slot === undefined && owner.userData.chibi_part === undefined) owner = owner.parent;
+    const data = owner?.userData ?? {};
+    parts.push({ object, slot: data.slot ?? data.chibi_part ?? "body", variant: Number(data.variant ?? -1) });
     const part = object.userData.chibi_part;
     if (part === "body" || object.name.includes("Nose")) skinMaterials.push(object.material);
     if (part === "body") object.material.side = THREE.FrontSide;
@@ -122,6 +129,7 @@ function 몸준비(gltf, 모션GLTF) {
     clipCount: sourceClips.size,
     mappedBones: Object.keys(options.names).length,
     skinMaterials,
+    parts,
     soles,
     headBone: targetSkin.skeleton.getBoneByName("head"),
   };
@@ -139,11 +147,26 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     [gender, 남GLTF, 여GLTF, 모션GLTF],
   );
 
+  // 파츠 표시·색: Meshy 파츠는 텍스처가 색을 담고 있어 선택 색을 곱한다.
+  const 외형 = useMemo(
+    () => ({ ...기본메시설정, ...설정 }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [설정.hair, 설정.top, 설정.bottom, 설정.skinColor, 설정.hairColor, 설정.topColor, 설정.bottomColor],
+  );
+
   useEffect(() => {
-    // Meshy 몸은 피부색이 텍스처에 그려져 있어 곱하기 색을 흰색으로 둔다.
-    const color = 몸체 === "meshy" ? "#ffffff" : (설정.skinColor ?? 기본치비설정.skinColor);
-    준비.skinMaterials.forEach((material) => material.color?.set(color));
-  }, [준비, 설정.skinColor, 몸체]);
+    if (몸체 !== "meshy") {
+      준비.skinMaterials.forEach((material) => material.color?.set(설정.skinColor ?? 기본치비설정.skinColor));
+      return;
+    }
+    const 선택 = { hair: 외형.hair, top: 외형.top, bottom: 외형.bottom };
+    const 색 = { body: 외형.skinColor, hair: 외형.hairColor, top: 외형.topColor, bottom: 외형.bottomColor };
+    준비.parts.forEach(({ object, slot, variant }) => {
+      if (slot in 선택) object.visible = variant === 선택[slot];
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach((material) => material.color?.set(색[slot] ?? "#ffffff"));
+    });
+  }, [준비, 외형, 몸체, 설정.skinColor]);
 
   const mixer = useMemo(() => new THREE.AnimationMixer(준비.targetSkin), [준비.targetSkin]);
   const actions = useRef(new Map());

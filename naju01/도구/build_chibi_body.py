@@ -67,6 +67,9 @@ def arguments() -> argparse.Namespace:
     # V4 source hands are palms-up (180); Meshy A-pose hands face the thighs (0).
     p.add_argument("--arm-twist-deg", type=float, default=180.0)
     p.add_argument("--glb-prefix", default="chibi")
+    # A-pose sources stand with the legs apart; the motions expect the Sidekick
+    # rest stance, so the legs are straightened the same way the arms are.
+    p.add_argument("--straighten-legs", action="store_true")
     return p.parse_args(raw)
 
 
@@ -332,6 +335,8 @@ def main() -> None:
             "UpperArm": sidekick_joint(template, f"lowerarm_{s}") - sidekick_joint(template, f"upperarm_{s}"),
             "Forearm": sidekick_joint(template, f"hand_{s}") - sidekick_joint(template, f"lowerarm_{s}"),
             "Hand": sidekick_joint(template, f"middle_01_{s}") - sidekick_joint(template, f"hand_{s}"),
+            "Thigh": sidekick_joint(template, f"calf_{s}") - sidekick_joint(template, f"thigh_{s}"),
+            "Shin": sidekick_joint(template, f"foot_{s}") - sidekick_joint(template, f"calf_{s}"),
         }
         for side, s in (("L", "l"), ("R", "r"))
     }
@@ -348,6 +353,9 @@ def main() -> None:
             swing_bone(rig, f"UpperArm.{side}", f"Forearm.{side}", sk_dirs[side]["UpperArm"])
             swing_bone(rig, f"Forearm.{side}", f"Hand.{side}", sk_dirs[side]["Forearm"])
             swing_bone(rig, f"Hand.{side}", None, sk_dirs[side]["Hand"])
+            if args.straighten_legs:
+                swing_bone(rig, f"Thigh.{side}", f"Shin.{side}", sk_dirs[side]["Thigh"])
+                swing_bone(rig, f"Shin.{side}", f"Foot.{side}", sk_dirs[side]["Shin"])
         bpy.ops.object.mode_set(mode="OBJECT")
         bpy.context.view_layer.update()
         joints = {b.name: world_head(rig, b.name) for b in rig.pose.bones}

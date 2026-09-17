@@ -1,0 +1,13 @@
+{
+  "selected_faces": 65215,
+  "parts": {
+    "Top_Male": {
+      "vertices": 22306,
+      "faces": 38855
+    },
+    "Bottom_Male": {
+      "vertices": 15043,
+      "faces": 26360
+    }
+  }
+}

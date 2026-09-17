@@ -1,0 +1,171 @@
+{
+  "params": {
+    "height": 1.45,
+    "head_scale": 1.0,
+    "leg_length": 1.0,
+    "arm_thickness": 1.0,
+    "leg_thickness": 1.0,
+    "torso_width": 1.0,
+    "neck_thickness": 1.0,
+    "arm_twist_deg": 0.0,
+    "straighten_legs": true
+  },
+  "variants": {
+    "Male": {
+      "scale": 0.74527,
+      "parts": {
+        "Body_Male": {
+          "vertices": 111363,
+          "max_influences": 4,
+          "bones": [
+            "ball_l",
+            "ball_r",
+            "calf_l",
+            "calf_r",
+            "clavicle_l",
+            "clavicle_r",
+            "foot_l",
+            "foot_r",
+            "hand_l",
+            "hand_r",
+            "head",
+            "lowerarm_l",
+            "lowerarm_r",
+            "neck_01",
+            "pelvis",
+            "spine_01",
+            "spine_02",
+            "spine_03",
+            "thigh_l",
+            "thigh_r",
+            "upperarm_l",
+            "upperarm_r"
+          ]
+        },
+        "Bottom_Male": {
+          "vertices": 15043,
+          "max_influences": 4,
+          "bones": [
+            "pelvis",
+            "spine_01",
+            "spine_02",
+            "thigh_l",
+            "thigh_r"
+          ]
+        },
+        "Hair0_Male": {
+          "vertices": 91121,
+          "max_influences": 1,
+          "bones": [
+            "head"
+          ]
+        },
+        "Hair1_Male": {
+          "vertices": 181197,
+          "max_influences": 1,
+          "bones": [
+            "head"
+          ]
+        },
+        "Top_Male": {
+          "vertices": 22306,
+          "max_influences": 4,
+          "bones": [
+            "clavicle_l",
+            "clavicle_r",
+            "lowerarm_l",
+            "lowerarm_r",
+            "pelvis",
+            "spine_01",
+            "spine_02",
+            "spine_03",
+            "thigh_l",
+            "thigh_r",
+            "upperarm_l",
+            "upperarm_r"
+          ]
+        }
+      },
+      "height": 1.45,
+      "glb": "/private/tmp/claude-501/-Users-derrick-Documents-GitHub-kgeseo/3f1b307a-8bb5-42db-8988-0d46830d341e/scratchpad/meshyglb/meshy-male.glb"
+    },
+    "Female": {
+      "scale": 0.74898,
+      "parts": {
+        "Body_Female": {
+          "vertices": 124544,
+          "max_influences": 4,
+          "bones": [
+            "ball_l",
+            "ball_r",
+            "calf_l",
+            "calf_r",
+            "clavicle_l",
+            "clavicle_r",
+            "foot_l",
+            "foot_r",
+            "hand_l",
+            "hand_r",
+            "head",
+            "lowerarm_l",
+            "lowerarm_r",
+            "neck_01",
+            "pelvis",
+            "spine_01",
+            "spine_02",
+            "spine_03",
+            "thigh_l",
+            "thigh_r",
+            "upperarm_l",
+            "upperarm_r"
+          ]
+        },
+        "Bottom_Female": {
+          "vertices": 17555,
+          "max_influences": 4,
+          "bones": [
+            "pelvis",
+            "spine_01",
+            "spine_02",
+            "thigh_l",
+            "thigh_r"
+          ]
+        },
+        "Hair0_Female": {
+          "vertices": 79324,
+          "max_influences": 1,
+          "bones": [
+            "head"
+          ]
+        },
+        "Hair1_Female": {
+          "vertices": 94421,
+          "max_influences": 1,
+          "bones": [
+            "head"
+          ]
+        },
+        "Top_Female": {
+          "vertices": 39813,
+          "max_influences": 4,
+          "bones": [
+            "clavicle_l",
+            "clavicle_r",
+            "head",
+            "neck_01",
+            "pelvis",
+            "spine_01",
+            "spine_02",
+            "spine_03",
+            "thigh_l",
+            "thigh_r",
+            "upperarm_l",
+            "upperarm_r"
+          ]
+        }
+      },
+      "height": 1.45,
+      "glb": "/private/tmp/claude-501/-Users-derrick-Documents-GitHub-kgeseo/3f1b307a-8bb5-42db-8988-0d46830d341e/scratchpad/meshyglb/meshy-female.glb"
+    }
+  }
+}
