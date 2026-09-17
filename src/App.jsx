@@ -48,6 +48,7 @@ import {
   lazy,
 } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
+import { 사이드킥외형읽기 } from "../naju01/src/사이드킥옵션.js";
 // ※ drei의 SoftShadows는 three 0.185의 그림자 셰이더 청크와 호환되지 않아
 //   씬 전체 머티리얼이 컴파일에 실패한다(WebGL: useProgram: program not valid).
 //   → 사용 금지. 그림자는 Canvas의 shadows="percentage"(PCF)로 처리한다.
@@ -200,6 +201,12 @@ const 로비아바타테스트 = 쿼리.get("avatar") === "sidekick";
 const LobbySidekick = lazy(() =>
   import("../naju01/src/사이드킥게임아바타.jsx"),
 );
+// 캐릭터 꾸미기 패널도 테스트 주소에서만 불러온다. 로비 외형은 로비 출처(5173)의
+// 브라우저 저장소에 따로 저장한다(naju01 5174와는 저장소가 나뉜다).
+const LobbySidekickPanel = lazy(() =>
+  import("../naju01/src/사이드킥꾸미기패널.jsx"),
+);
+const 로비외형저장키 = "kgeseo.lobby.sidekick.appearance.v2";
 
 // 저사양 모드 — 내장 GPU 노트북에서 화면이 검게 죽는 걸 막는다.
 //   원인은 대부분 '그릴 픽셀 수'다. 아래 세 가지가 픽셀·메모리를 가장 많이 먹는다.
@@ -8315,6 +8322,7 @@ function Scene({
   onLockChange,
   삼인칭 = false,
   플레이어참조 = null,
+  사이드킥설정 = undefined,
 }) {
   // ── 로비 물건 상태 (서랍·램프·의자·들고 있는 것) ──────────
   //   겨냥은 여기서 구독하지 않는다. 고개만 돌려도 방 전체가 다시 그려지기 때문이다.
@@ -11419,7 +11427,11 @@ function Scene({
 
       {로비아바타테스트 && (
         <Suspense fallback={null}>
-          <LobbySidekick 보이기={삼인칭} 플레이어참조={플레이어참조} />
+          <LobbySidekick
+            보이기={삼인칭}
+            플레이어참조={플레이어참조}
+            설정={사이드킥설정}
+          />
         </Suspense>
       )}
 
@@ -11463,6 +11475,10 @@ export default function App() {
   const 기차안 = 위치.pathname === "/train";
   const [locked, setLocked] = useState(false);
   const [삼인칭, set삼인칭] = useState(로비아바타테스트);
+  // 테스트 주소가 아니면 null 로 두어 아바타·패널 코드 자체를 건드리지 않는다.
+  const [사이드킥설정, set사이드킥설정] = useState(() =>
+    로비아바타테스트 ? 사이드킥외형읽기(로비외형저장키) : null,
+  );
   const 플레이어참조 = useRef({
     position: new THREE.Vector3(0, EYE, 12),
     footY: 0,
@@ -11815,6 +11831,7 @@ export default function App() {
             onLockChange={setLocked}
             삼인칭={로비아바타테스트 && 삼인칭}
             플레이어참조={로비아바타테스트 ? 플레이어참조 : null}
+            사이드킥설정={사이드킥설정 ?? undefined}
           />
         )}
 
@@ -11898,6 +11915,17 @@ export default function App() {
         >
           [V] {삼인칭 ? "1인칭" : "3인칭"}
         </button>
+      )}
+      {로비아바타테스트 && !기차안 && 사이드킥설정 && (
+        <Suspense fallback={null}>
+          <LobbySidekickPanel
+            설정={사이드킥설정}
+            set설정={set사이드킥설정}
+            저장키={로비외형저장키}
+            위치="left"
+            위여백={14}
+          />
+        </Suspense>
       )}
       {active && hint && (
         <div style={안내경고 ? { ...S.hint, color: "#ffb4a8" } : S.hint}>

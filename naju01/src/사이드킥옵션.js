@@ -257,3 +257,13 @@ export function 외형설정보정(saved) {
   result.appearanceVersion = 외형설정버전;
   return result;
 }
+
+// localStorage 저장값 읽기. v2 키가 없으면 이전 키를 읽어 보정한다.
+export function 사이드킥외형읽기(저장키, 이전저장키) {
+  try {
+    const raw = localStorage.getItem(저장키) ?? (이전저장키 ? localStorage.getItem(이전저장키) : null);
+    return 외형설정보정(raw ? JSON.parse(raw) : null);
+  } catch {
+    return 외형설정보정(null);
+  }
+}
