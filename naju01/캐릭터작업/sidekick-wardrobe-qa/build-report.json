@@ -25,7 +25,7 @@
   },
   "garments": {
     "SKLIB__top__04__WARDROBE_M_TEE_CREW": {
-      "vertices": 2030,
+      "vertices": 2028,
       "faces": 2063,
       "max_influences": 4,
       "weight_sum_error": 0.0,
@@ -66,8 +66,8 @@
       "cover_neck_curve": 3.2
     },
     "SKLIB__top__05__WARDROBE_M_TEE_RELAXED": {
-      "vertices": 2134,
-      "faces": 2171,
+      "vertices": 2121,
+      "faces": 2160,
       "max_influences": 4,
       "weight_sum_error": 0.0,
       "shape_keys": [
@@ -111,7 +111,7 @@
       "cover_neck_curve": 3.2
     },
     "SKLIB__top__06__WARDROBE_M_LONGSLEEVE": {
-      "vertices": 2458,
+      "vertices": 2456,
       "faces": 2545,
       "max_influences": 4,
       "weight_sum_error": 0.0,
@@ -158,8 +158,8 @@
       "cover_neck_curve": 3.2
     },
     "SKLIB__top__07__WARDROBE_M_SWEATSHIRT": {
-      "vertices": 2484,
-      "faces": 2581,
+      "vertices": 2487,
+      "faces": 2584,
       "max_influences": 4,
       "weight_sum_error": 0.0,
       "shape_keys": [
@@ -205,8 +205,8 @@
       "cover_neck_curve": 3.2
     },
     "SKLIB__top__08__WARDROBE_F_TEE_FITTED": {
-      "vertices": 1860,
-      "faces": 1895,
+      "vertices": 1870,
+      "faces": 1902,
       "max_influences": 4,
       "weight_sum_error": 0.0,
       "shape_keys": [
@@ -244,8 +244,8 @@
       "cover_neck_curve": 3.2
     },
     "SKLIB__top__09__WARDROBE_F_TEE_RIB": {
-      "vertices": 1809,
-      "faces": 1842,
+      "vertices": 1802,
+      "faces": 1835,
       "max_influences": 4,
       "weight_sum_error": 0.0,
       "shape_keys": [
@@ -283,8 +283,8 @@
       "cover_neck_curve": 3.2
     },
     "SKLIB__top__10__WARDROBE_F_LONGSLEEVE": {
-      "vertices": 2344,
-      "faces": 2437,
+      "vertices": 2354,
+      "faces": 2444,
       "max_influences": 4,
       "weight_sum_error": 0.0,
       "shape_keys": [
@@ -330,8 +330,8 @@
       "cover_neck_curve": 3.2
     },
     "SKLIB__top__11__WARDROBE_F_MOCKNECK": {
-      "vertices": 2334,
-      "faces": 2435,
+      "vertices": 2344,
+      "faces": 2442,
       "max_influences": 4,
       "weight_sum_error": 0.0,
       "shape_keys": [
@@ -377,7 +377,7 @@
       "cover_neck_curve": 3.2
     },
     "SKLIB__bottom__04__WARDROBE_M_CHINO_SHORTS": {
-      "vertices": 1180,
+      "vertices": 1181,
       "faces": 1144,
       "max_influences": 4,
       "weight_sum_error": 0.0,
@@ -409,8 +409,8 @@
       "cover_leg_y": 0.52
     },
     "SKLIB__bottom__05__WARDROBE_M_ATHLETIC_SHORTS": {
-      "vertices": 1078,
-      "faces": 1048,
+      "vertices": 1075,
+      "faces": 1044,
       "max_influences": 4,
       "weight_sum_error": 0.0,
       "shape_keys": [
@@ -441,7 +441,7 @@
       "cover_leg_y": 0.6
     },
     "SKLIB__bottom__06__WARDROBE_M_STRAIGHT_PANTS": {
-      "vertices": 1688,
+      "vertices": 1689,
       "faces": 1698,
       "max_influences": 4,
       "weight_sum_error": 0.0,
@@ -477,7 +477,7 @@
       "cover_leg_y": 0.115
     },
     "SKLIB__bottom__07__WARDROBE_M_JEANS": {
-      "vertices": 1688,
+      "vertices": 1689,
       "faces": 1698,
       "max_influences": 4,
       "weight_sum_error": 0.0,
@@ -513,8 +513,8 @@
       "cover_leg_y": 0.115
     },
     "SKLIB__bottom__08__WARDROBE_F_SHORTS": {
-      "vertices": 1044,
-      "faces": 1014,
+      "vertices": 1037,
+      "faces": 1006,
       "max_influences": 4,
       "weight_sum_error": 0.0,
       "shape_keys": [
@@ -545,7 +545,7 @@
       "cover_leg_y": 0.65
     },
     "SKLIB__bottom__09__WARDROBE_F_LONG_PANTS": {
-      "vertices": 1688,
+      "vertices": 1689,
       "faces": 1698,
       "max_influences": 4,
       "weight_sum_error": 0.0,
@@ -623,7 +623,6 @@
         "shoulderWidth"
       ],
       "bones": [
-        "calf_r",
         "pelvis",
         "spine_01",
         "spine_02",
@@ -642,6 +641,8 @@
       "cover_leg_y": 0.575
     }
   },
+  "underwear_flat_max_m": 0.04676,
+  "underwear_waist_flat_morph_max_m": 0.02809,
   "seams_after_shoulder_key": {
     "10TORS-11AUPL": {
       "matched": 9,

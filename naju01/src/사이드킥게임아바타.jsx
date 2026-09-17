@@ -175,16 +175,19 @@ function 눈셰이더준비(mesh) {
 const 속옷띠 = { 1: [1.17, 1.36], 2: [0.702, 1.0] };
 const 속옷선GLSL = (p, band) => `(${p}.y >= ${band}.y && ${p}.y <= ${band}.z)`;
 
-function 속옷셰이더(shader, part) {
+// 속옷 복제본도 상의 밑단 안쪽(허리 부분)에서는 그리지 않는다. 옷과 겹치는 속옷이
+// 옷 위로 비치지 않게 하는 마지막 안전장치다.
+function 속옷셰이더(shader, part, uniforms) {
   const [low, high] = 속옷띠[part];
+  Object.assign(shader.uniforms, uniforms);
   shader.vertexShader = shader.vertexShader
     .replace("#include <common>", "#include <common>\nvarying vec3 vUnderwearBind;")
     .replace("#include <begin_vertex>", "#include <begin_vertex>\nvUnderwearBind = position;");
   shader.fragmentShader = shader.fragmentShader
-    .replace("#include <common>", `#include <common>\nvarying vec3 vUnderwearBind;\nconst vec3 uUnderwearBand = vec3(1.0, ${low.toFixed(3)}, ${high.toFixed(3)});`)
+    .replace("#include <common>", `#include <common>\nvarying vec3 vUnderwearBind;\nuniform vec2 uUnderTopHem;\nconst vec3 uUnderwearBand = vec3(1.0, ${low.toFixed(3)}, ${high.toFixed(3)});`)
     .replace(
       "#include <clipping_planes_fragment>",
-      `#include <clipping_planes_fragment>\nif (!${속옷선GLSL("vUnderwearBind", "uUnderwearBand")}) discard;`,
+      `#include <clipping_planes_fragment>\nif (!${속옷선GLSL("vUnderwearBind", "uUnderwearBand")}) discard;\nif (uUnderTopHem.x > 0.5 && vUnderwearBind.y > uUnderTopHem.y + 0.018) discard;`,
     );
 }
 
@@ -211,12 +214,12 @@ function 피부가림준비(mesh, part = 0) {
         `#include <clipping_planes_fragment>
         if (uUnderwearBand.x > 0.5 && ${속옷선GLSL("vCoverBind", "uUnderwearBand")}) discard;
         if (uTopCover.x > 0.5
-          && vCoverBind.y > uTopCover.y + 0.035
-          && abs(vCoverBind.x) < uTopCover.z - 0.035
-          && vCoverBind.y < uTopCover.w + uTopNeck.x * vCoverBind.z + uTopNeck.y * vCoverBind.x * vCoverBind.x - 0.02) discard;
+          && vCoverBind.y > uTopCover.y + 0.018
+          && abs(vCoverBind.x) < uTopCover.z - 0.02
+          && vCoverBind.y < uTopCover.w + uTopNeck.x * vCoverBind.z + uTopNeck.y * vCoverBind.x * vCoverBind.x - 0.015) discard;
         if (uBottomCover.x > 0.5
-          && vCoverBind.y < uBottomCover.y - 0.03
-          && vCoverBind.y > uBottomCover.z + 0.035
+          && vCoverBind.y < uBottomCover.y - 0.012
+          && vCoverBind.y > uBottomCover.z + 0.018
           && abs(vCoverBind.x) < 0.3) discard;`,
       );
   };
@@ -225,23 +228,35 @@ function 피부가림준비(mesh, part = 0) {
 }
 
 // 원단 느낌 — 색은 UI에서 바꾸므로 텍스처 대신 bind 좌표 기반의 아주 약한 명암만 준다.
-function 원단준비(mesh, fabric) {
+// 하의 옷(바지·치마)은 상의 밑단 안쪽에 들어간 허리 부분을 그리지 않는다. 체형 morph를
+// 섞으면 두 옷의 간격이 모든 조합에서 보장되지 않아, 허리가 상의 위로 비치는 것을 막는다.
+function 원단준비(mesh, fabric, slot) {
   const material = mesh.material;
+  const uniforms = { uUnderTopHem: { value: new THREE.Vector2(0, 0) } };
+  mesh.userData.원단uniforms = uniforms;
   material.map = null;
   material.side = THREE.DoubleSide;
   if ("metalness" in material) material.metalness = 0;
   if ("roughness" in material) material.roughness = fabric === "nylon" ? 0.62 : 0.9;
-  if (fabric !== "rib" && fabric !== "denim") return;
+  const pattern =
+    fabric === "rib"
+      ? "float fabricShade = 0.94 + 0.06 * smoothstep(-0.2, 0.6, sin(atan(vFabricBind.x, vFabricBind.z) * 110.0));"
+      : fabric === "denim"
+        ? "float fabricShade = 0.95 + 0.05 * sin((vFabricBind.y + vFabricBind.x * 0.7) * 520.0) * sin(vFabricBind.z * 180.0 + vFabricBind.y * 40.0);"
+        : "float fabricShade = 1.0;";
+  const hideUnderTop =
+    slot === "bottom" ? "if (uUnderTopHem.x > 0.5 && vFabricBind.y > uUnderTopHem.y + 0.018) discard;" : "";
+  // onBeforeCompile 소스가 모든 옷에서 같으므로 캐시 키를 나누지 않으면
+  // three가 첫 번째 옷의 셰이더(무늬·허리 숨김)를 다른 옷에도 재사용한다.
+  material.customProgramCacheKey = () => `sidekick-fabric:${fabric}:${slot}`;
   material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vFabricBind;")
       .replace("#include <begin_vertex>", "#include <begin_vertex>\nvFabricBind = position;");
-    const pattern =
-      fabric === "rib"
-        ? "float fabricShade = 0.94 + 0.06 * smoothstep(-0.2, 0.6, sin(atan(vFabricBind.x, vFabricBind.z) * 110.0));"
-        : "float fabricShade = 0.95 + 0.05 * sin((vFabricBind.y + vFabricBind.x * 0.7) * 520.0) * sin(vFabricBind.z * 180.0 + vFabricBind.y * 40.0);";
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vFabricBind;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vFabricBind;\nuniform vec2 uUnderTopHem;")
+      .replace("#include <clipping_planes_fragment>", `#include <clipping_planes_fragment>\n${hideUnderTop}`)
       .replace("#include <color_fragment>", `#include <color_fragment>\n${pattern}\ndiffuseColor.rgb *= fabricShade;`);
   };
   material.needsUpdate = true;
@@ -251,7 +266,15 @@ function 어깨값(appearance) {
   return THREE.MathUtils.clamp(((appearance.shoulderWidth ?? 1) - 1) / 어깨범위, -1, 1);
 }
 
+// 기본 골반 메시에는 속옷 허리 밴드·앞트임 단추·밑단 턱이 형상으로 조각돼 있다.
+// 옷을 하나라도 입으면 그 요철을 지운 morph(underwearFlat)를 켜서 옷 위로
+// 속옷 형태가 드러나지 않게 한다. 옷도 같은 매끈한 표면으로 만들어져 있다.
+function 옷입음(appearance) {
+  return appearance.top !== 1 || appearance.bottom !== 1;
+}
+
 function 체형입히기(mesh, appearance) {
+  형태값(mesh, "underwearFlat", 옷입음(appearance) ? 1 : 0);
   형태값(mesh, "masculineFeminine", appearance.feminine);
   형태값(mesh, "defaultHeavy", appearance.heavy);
   형태값(mesh, "defaultBuff", appearance.buff);
@@ -316,7 +339,7 @@ function SidekickGameAvatar({
       if (info) {
         if (info.slot === "hair") fixedHairWeights += 헤어가중치고정(object);
         const garment = object.userData.wardrobe_garment ? object.userData : null;
-        if (garment) 원단준비(object, garment.garment_fabric);
+        if (garment) 원단준비(object, garment.garment_fabric, info.slot);
         const bodySkin =
           (info.slot === "top" || info.slot === "bottom") && info.option === 1;
         if (bodySkin) {
@@ -364,7 +387,8 @@ function SidekickGameAvatar({
       roughness: 0.82,
       metalness: 0,
     });
-    chestUnderwear.material.onBeforeCompile = (shader) => 속옷셰이더(shader, 1);
+    chestUnderwear.userData.속옷uniforms = { uUnderTopHem: { value: new THREE.Vector2(0, 0) } };
+    chestUnderwear.material.onBeforeCompile = (shader) => 속옷셰이더(shader, 1, chestUnderwear.userData.속옷uniforms);
     chestUnderwear.castShadow = true;
     chestUnderwear.receiveShadow = true;
     chestUnderwear.frustumCulled = false;
@@ -384,7 +408,8 @@ function SidekickGameAvatar({
       roughness: 0.82,
       metalness: 0,
     });
-    lowerUnderwear.material.onBeforeCompile = (shader) => 속옷셰이더(shader, 2);
+    lowerUnderwear.userData.속옷uniforms = { uUnderTopHem: { value: new THREE.Vector2(0, 0) } };
+    lowerUnderwear.material.onBeforeCompile = (shader) => 속옷셰이더(shader, 2, lowerUnderwear.userData.속옷uniforms);
     lowerUnderwear.castShadow = true;
     lowerUnderwear.receiveShadow = true;
     lowerUnderwear.frustumCulled = false;
@@ -554,6 +579,8 @@ function SidekickGameAvatar({
         uniforms.uPupilRadius.value = 눈동자기본각 * THREE.MathUtils.clamp(외형설정.pupilScale ?? 1, 0.55, 1.45);
       } else 색입히기(object, color);
 
+      const fabric = object.userData.원단uniforms;
+      if (fabric) fabric.uUnderTopHem.value.set(상의 ? 1 : 0, 상의?.cover_hem_y ?? 0);
       const cover = object.userData.가림uniforms;
       if (cover) {
         cover.uTopCover.value.set(
@@ -572,6 +599,7 @@ function SidekickGameAvatar({
     });
     여성속옷갱신(준비.chestUnderwear, 외형설정);
     하의속옷갱신(준비.lowerUnderwear, 외형설정, 치마);
+    준비.lowerUnderwear.userData.속옷uniforms.uUnderTopHem.value.set(상의 ? 1 : 0, 상의?.cover_hem_y ?? 0);
     준비.parts.forEach(({ object }) => {
       const cover = object.userData.가림uniforms;
       if (!cover) return;

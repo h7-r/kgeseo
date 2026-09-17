@@ -128,6 +128,73 @@ def add_shoulder_key_to_part(obj: bpy.types.Object, chains: dict[str, set[str]])
     return largest
 
 
+# ─────────────────────────────── underwear relief ───────────────────────────
+
+UNDERWEAR_FLAT_KEY = "underwearFlat"
+UNDERWEAR_ZONE = (0.62, 0.70, 1.0)  # fade-in start, full, top (world z)
+# Runtime morph only flattens where cloth overlaps the waistband.  The leg hem stays
+# sculpted so the visible white underwear keeps a clean edge under a top or skirt.
+UNDERWEAR_WAIST_ZONE = (0.80, 0.86, 1.0)
+
+
+def underwear_flat_deltas(hips: bpy.types.Object, pinned_points: list[Vector], zone_range=UNDERWEAR_ZONE) -> dict[str, list[Vector]]:
+    """Per-layer world deltas that remove the boxer relief sculpted into the base hips.
+
+    The Synty base hips carry a waistband ridge, fly buttons and a leg hem ledge as
+    real geometry.  Garments built on that surface inherited the shapes, so the
+    underwear read through trousers and tops.  Taubin (lambda/mu) smoothing removes the
+    high-frequency relief while keeping volume; vertices shared with the torso and
+    legs stay fixed so the part seams never open.
+    """
+    world = hips.matrix_world
+    keys = hips.data.shape_keys.key_blocks
+    count = len(hips.data.vertices)
+    near = [set() for _ in range(count)]
+    for edge in hips.data.edges:
+        a, b = edge.vertices
+        near[a].add(b)
+        near[b].add(a)
+    basis = [world @ keys["Basis"].data[i].co for i in range(count)]
+    pinned = {
+        i for i, p in enumerate(basis)
+        if any((p - q).length < 1e-4 for q in pinned_points)
+    }
+    low, full, top = zone_range
+    zone = [
+        0.0 if i in pinned else smoothstep(low, full, p.z) * (1.0 - smoothstep(top - 0.012, top, p.z))
+        for i, p in enumerate(basis)
+    ]
+    result: dict[str, list[Vector]] = {}
+    for name in LAYERS:
+        positions = [world @ keys[name].data[i].co for i in range(count)]
+        original = [p.copy() for p in positions]
+        for _ in range(40):
+            for factor in (0.55, -0.58):
+                updated = list(positions)
+                for i in range(count):
+                    if zone[i] <= 0 or not near[i]:
+                        continue
+                    average = sum((positions[j] for j in near[i]), Vector()) / len(near[i])
+                    updated[i] = positions[i] + (average - positions[i]) * factor * zone[i]
+                positions = updated
+        result[name] = [positions[i] - original[i] for i in range(count)]
+    return result
+
+
+def apply_underwear_flat(hips: bpy.types.Object, deltas: dict[str, list[Vector]]) -> float:
+    """Store the flattening as a runtime morph (basis delta) on the hips part."""
+    keys = hips.data.shape_keys.key_blocks
+    if UNDERWEAR_FLAT_KEY in keys:
+        hips.shape_key_remove(keys[UNDERWEAR_FLAT_KEY])
+    key = hips.shape_key_add(name=UNDERWEAR_FLAT_KEY, from_mix=False)
+    to_local = hips.matrix_world.to_3x3().inverted()
+    largest = 0.0
+    for i, delta in enumerate(deltas["Basis"]):
+        key.data[i].co = keys["Basis"].data[i].co + to_local @ delta
+        largest = max(largest, delta.length)
+    return largest
+
+
 # ─────────────────────────────── garment data ───────────────────────────────
 
 class Surface:
@@ -167,7 +234,11 @@ class Surface:
             self.layers[name][index] += delta
 
 
+FLAT_DELTAS: dict[str, dict[str, list[Vector]]] = {}
+
+
 def gather(parts: list[bpy.types.Object]) -> Surface:
+    """Merge body parts into one surface.  Hips use the underwear-flattened shape."""
     surface = Surface()
     lookup: dict[tuple[int, int, int], int] = {}
     for obj in parts:
@@ -177,11 +248,17 @@ def gather(parts: list[bpy.types.Object]) -> Surface:
         mapping: list[int] = []
         for vertex in obj.data.vertices:
             basis = world @ keys["Basis"].data[vertex.index].co
+            if FLAT_DELTAS.get(obj.name):
+                basis = basis + FLAT_DELTAS[obj.name]["Basis"][vertex.index]
             token = tuple(round(c * 1e4) for c in basis)
             if token in lookup:
                 mapping.append(lookup[token])
                 continue
-            positions = {name: world @ keys[name].data[vertex.index].co for name in LAYERS}
+            flat = FLAT_DELTAS.get(obj.name)
+            positions = {
+                name: world @ keys[name].data[vertex.index].co + (flat[name][vertex.index] if flat else Vector())
+                for name in LAYERS
+            }
             weights = {names[g.group]: g.weight for g in vertex.groups if g.weight > 1e-5}
             lookup[token] = surface.add_vertex(positions, weights)
             mapping.append(lookup[token])
@@ -359,11 +436,13 @@ def offset_layers(surface: Surface, thickness) -> None:
             positions[i] = positions[i] + normals[i] * thickness(surface.basis(i))
 
 
-def clearance(surface: Surface, body: Body, minimum) -> int:
+def clearance(surface: Surface, body: Body, minimum, only=None) -> int:
     pushed = 0
     for name in LAYERS:
         positions = surface.layers[name]
         for i in range(surface.count):
+            if only is not None and not only(i):
+                continue
             location, normal, _index, _dist = body.nearest(name, positions[i])
             if location is None:
                 continue
@@ -467,7 +546,21 @@ BOTTOMS = [
 ]
 
 
-def top_surface(recipe, body: Body, parts_by_code, chains) -> tuple[Surface, dict]:
+def edge_band(surface: Surface, distance: float):
+    """Vertices within `distance` (basis) of an open border: skin is visible there."""
+    border = [surface.basis(v) for edge in boundary_edges(surface) for v in edge]
+    tree = BVHTree.FromPolygons(border, [(i, i, i) for i in range(len(border))], all_triangles=True) if border else None
+    flags = []
+    for i in range(surface.count):
+        if tree is None:
+            flags.append(False)
+            continue
+        _loc, _n, _idx, dist = tree.find_nearest(surface.basis(i))
+        flags.append(dist is not None and dist < distance)
+    return lambda i: i < len(flags) and flags[i]
+
+
+def top_surface(recipe, body: Body, parts_by_code, chains, raw: Body) -> tuple[Surface, dict]:
     option, gender, ident, label, hem, sleeve, neck_z, neck_slope, thickness, smooth_steps, fabric, collar = recipe
     long_sleeve = sleeve > 0.6
     surface = gather([parts_by_code[c] for c in (TOP_PARTS_LONG if long_sleeve else TOP_PARTS_SHORT)])
@@ -498,6 +591,9 @@ def top_surface(recipe, body: Body, parts_by_code, chains) -> tuple[Surface, dic
     if smooth_steps >= 4:
         smooth(surface, 2, 0.35, border)
         clearance(surface, body, lambda p: max(0.0045, 0.75 * local_thickness(p)))
+
+    # Near open borders the runtime still draws the real (sculpted) body.
+    clearance(surface, raw, lambda p: 0.007, only=edge_band(surface, 0.06))
 
     if collar > 0:
         add_collar(surface, body, collar)
@@ -547,7 +643,7 @@ def add_collar(surface: Surface, body: Body, height: float) -> None:
         current = set(new_map.values())
 
 
-def pants_surface(recipe, body: Body, parts_by_code, rig) -> tuple[Surface, dict]:
+def pants_surface(recipe, body: Body, parts_by_code, rig, raw: Body) -> tuple[Surface, dict]:
     option, gender, ident, label, kind, leg_cut, thickness, flare, straight_radius, smooth_steps, fabric = recipe
     surface = gather([parts_by_code[c] for c in BOTTOM_PARTS])
     subdivide(surface)
@@ -585,6 +681,7 @@ def pants_surface(recipe, body: Body, parts_by_code, rig) -> tuple[Surface, dict
                 surface.move_all_layers(i, radial.normalized() * extra)
         clearance(surface, body, lambda p: max(0.004, 0.75 * local_thickness(p)))
 
+    clearance(surface, raw, lambda p: 0.007, only=edge_band(surface, 0.06))
     add_hem_lip(surface, 0.006)
     cover = {"cover_kind": "bottom", "cover_waist_y": WAIST, "cover_leg_y": leg_cut}
     return surface, cover
@@ -834,6 +931,19 @@ def main() -> None:
         code: base_part(code)
         for code in ["01HEAD", "10TORS", "11AUPL", "12AUPR", "13ALWL", "14ALWR", "15HNDL", "16HNDR", "17HIPS", "18LEGL", "19LEGR"]
     }
+    body_upper_raw = Body(gather([parts_by_code[c] for c in BODY_UPPER]))
+    body_lower_raw = Body(gather([parts_by_code[c] for c in BODY_LOWER]))
+    hips = parts_by_code["17HIPS"]
+    seam_points = [
+        part.matrix_world @ v.co
+        for code in ("10TORS", "18LEGL", "19LEGR")
+        for part in [parts_by_code[code]]
+        for v in part.data.vertices
+    ]
+    FLAT_DELTAS[hips.name] = underwear_flat_deltas(hips, seam_points)
+    waist_flat = underwear_flat_deltas(hips, seam_points, UNDERWEAR_WAIST_ZONE)
+    report["underwear_flat_max_m"] = round(max(d.length for d in FLAT_DELTAS[hips.name]["Basis"]), 5)
+    report["underwear_waist_flat_morph_max_m"] = round(apply_underwear_flat(hips, waist_flat), 5)
     body_upper = Body(gather([parts_by_code[c] for c in BODY_UPPER]))
     body_lower = Body(gather([parts_by_code[c] for c in BODY_LOWER]))
 
@@ -848,7 +958,7 @@ def main() -> None:
     material = cloth_material()
     for recipe in TOPS:
         option, gender, ident, label, *_ = recipe
-        surface, cover = top_surface(recipe, body_upper, parts_by_code, chains)
+        surface, cover = top_surface(recipe, body_upper, parts_by_code, chains, body_upper_raw)
         name = f"SKLIB__top__{option:02d}__WARDROBE_{ident}"
         props = {
             "wardrobe_garment": True,
@@ -862,7 +972,7 @@ def main() -> None:
     for recipe in BOTTOMS:
         option, gender, ident, label, kind, *_ = recipe
         if kind == "pants":
-            surface, cover = pants_surface(recipe, body_lower, parts_by_code, rig)
+            surface, cover = pants_surface(recipe, body_lower, parts_by_code, rig, body_lower_raw)
         else:
             surface, cover = skirt_surface(recipe, body_lower, parts_by_code)
         name = f"SKLIB__bottom__{option:02d}__WARDROBE_{ident}"
