@@ -64,7 +64,6 @@ def arguments() -> argparse.Namespace:
     p.add_argument("--leg-thickness", type=float, default=1.08)
     p.add_argument("--torso-width", type=float, default=1.0)
     p.add_argument("--neck-thickness", type=float, default=1.0)
-    p.add_argument("--eye-scale", type=float, default=1.0)
     return p.parse_args(raw)
 
 
@@ -105,82 +104,19 @@ def swing_bone(rig, name: str, child: str | None, target: Vector) -> None:
     bpy.context.view_layer.update()
 
 
-def transfer_garment_weights(meshes) -> dict:
-    """Garments take the skin weights of the nearest body surface (inverse-distance, 4 nearest).
-
-    V4 garments were authored in the bent-arm source pose with partly torso-bound
-    sleeves; straightening the arms left sleeves behind.  Matching the skin makes
-    every garment follow the body exactly through the pose change and all motions.
-    """
-    from mathutils.kdtree import KDTree
-
-    body = next(o for o in meshes if o.name.startswith("Body_"))
-    positions = [body.matrix_world @ v.co for v in body.data.vertices]
-    names = {g.index: g.name for g in body.vertex_groups}
-    body_weights = [{names[g.group]: g.weight for g in v.groups} for v in body.data.vertices]
-    tree = KDTree(len(positions))
-    for i, p in enumerate(positions):
-        tree.insert(p, i)
-    tree.balance()
-    stats = {}
-    for obj in meshes:
-        if slot_of(obj) not in ("top", "bottom", "shoes", "underwear", "underweartop"):
-            continue
-        new = []
-        for v in obj.data.vertices:
-            found = tree.find_n(obj.matrix_world @ v.co, 4)
-            total: dict[str, float] = {}
-            norm = 0.0
-            for _co, index, dist in found:
-                share = 1.0 / max(dist, 1e-4)
-                norm += share
-                for bone, w in body_weights[index].items():
-                    total[bone] = total.get(bone, 0.0) + w * share
-            ranked = sorted(((w / norm, b) for b, w in total.items()), reverse=True)[:MAX_INFLUENCES]
-            scale = sum(w for w, _ in ranked) or 1.0
-            new.append({b: w / scale for w, b in ranked})
-        obj.vertex_groups.clear()
-        groups = {}
-        for i, weights in enumerate(new):
-            for bone, w in weights.items():
-                if bone not in groups:
-                    groups[bone] = obj.vertex_groups.new(name=bone)
-                groups[bone].add([i], w, "REPLACE")
-        stats[obj.name] = len(new)
-    return stats
-
-
-def reset_rig_pose(rig) -> None:
-    """V4 review files carry an active action; start from the bind pose."""
-    if rig.animation_data:
-        rig.animation_data_clear()
-    rig.data.pose_position = "POSE"
-    for pb in rig.pose.bones:
-        pb.rotation_mode = "QUATERNION"
-        pb.rotation_quaternion = (1, 0, 0, 0)
-        pb.location = (0, 0, 0)
-        pb.scale = (1, 1, 1)
-    bpy.context.view_layer.update()
-
-
 def apply_rig_pose(rig, meshes) -> None:
-    """Bake armature pose + current shape-key mix into plain mesh data (keeps weights)."""
-    depsgraph = bpy.context.evaluated_depsgraph_get()
     for obj in meshes:
-        evaluated = obj.evaluated_get(depsgraph)
-        baked = bpy.data.meshes.new_from_object(evaluated, preserve_all_data_layers=True, depsgraph=depsgraph)
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        for mod in list(obj.modifiers):
+            if mod.type == "ARMATURE":
+                bpy.ops.object.modifier_apply(modifier=mod.name)
         world = obj.matrix_world.copy()
-        old = obj.data
-        obj.modifiers.clear()
         obj.parent = None
-        obj.data = baked
-        baked.name = old.name
-        if old.users == 0:
-            bpy.data.meshes.remove(old)
-        obj.data.transform(world)
+        obj.matrix_world = world
+        obj.data.transform(obj.matrix_world)
         obj.matrix_world = Matrix.Identity(4)
-        if obj.data.shape_keys:
-            obj.shape_key_clear()
 
 
 def vertex_weights(obj) -> list[dict[str, float]]:
@@ -192,43 +128,30 @@ def rotate_about_axis(point: Vector, origin: Vector, axis: Vector, angle: float)
     return origin + Quaternion(axis, angle) @ (point - origin)
 
 
-def arm_param(p: Vector, side: str, joints) -> tuple[float, float, Vector]:
-    """(distance along the straightened arm, arm membership 0..1, axis) from position only.
-
-    Every part (body, sleeves, gloves) gets the same field, so garments deform
-    exactly like the skin underneath them.
-    """
-    shoulder, wrist = joints[f"UpperArm.{side}"], joints[f"Hand.{side}"]
-    axis = (wrist - shoulder).normalized()
-    along = (p - shoulder).dot(axis)
-    sign = 1.0 if side == "L" else -1.0
-    radius = (p - (shoulder + axis * along)).length
-    inside = smoothstep(-0.05, 0.035, along) * float(p.x * sign > 0) * smoothstep(0.17, 0.11, radius)
-    return along, inside, axis
-
-
 def twist_arms(meshes, weights, joints) -> None:
-    for side in ("L", "R"):
+    for side, sign in (("L", 1.0), ("R", -1.0)):
         shoulder, elbow, wrist = joints[f"UpperArm.{side}"], joints[f"Forearm.{side}"], joints[f"Hand.{side}"]
+        axis = (wrist - shoulder).normalized()
+        if axis.x < 0:
+            axis = -axis
         upper_len = (elbow - shoulder).length
         fore_len = (wrist - elbow).length
         for obj in meshes:
-            for v in obj.data.vertices:
-                along, inside, axis = arm_param(v.co, side, joints)
-                if inside <= 0:
+            for v, w in zip(obj.data.vertices, weights[obj.name]):
+                arm = sum(w.get(f"{b}.{side}", 0.0) for b in ("UpperArm", "Forearm", "Hand"))
+                if arm <= 0 or v.co.x * sign <= 0:
                     continue
+                along = (v.co - shoulder).dot(axis) * sign
                 if along <= upper_len:
                     t = 0.5 * max(0.0, along) / upper_len
                 else:
                     t = 0.5 + 0.5 * min(1.0, (along - upper_len) / fore_len)
-                # Positive x axis for both sides keeps the twist direction mirrored.
-                spin = axis if axis.x >= 0 else -axis
-                v.co = rotate_about_axis(v.co, shoulder, spin, math.radians(180.0) * t * inside)
+                angle = math.radians(180.0) * t * arm
+                v.co = rotate_about_axis(v.co, shoulder, axis, angle)
 
 
 def apply_proportions(meshes, weights, joints, args) -> None:
     head_origin = joints["Head"]
-    neck_z = joints["Neck"].z
     hip_z = (joints["Thigh.L"].z + joints["Thigh.R"].z) / 2
     ankle_z = (joints["Foot.L"].z + joints["Foot.R"].z) / 2
     k = args.leg_length
@@ -246,70 +169,35 @@ def apply_proportions(meshes, weights, joints, args) -> None:
         base = a + d * (point - a).dot(d)
         return base + (point - base) * (1 + (scale - 1) * amount)
 
-    axis_y = joints["Spine"].y
     for obj in meshes:
-        for v in obj.data.vertices:
+        rigid_head = obj.name.startswith("Face_")
+        for v, w in zip(obj.data.vertices, weights[obj.name]):
             p = v.co.copy()
-            # Head: everything above the neck joint, faded over 6 cm.
-            head_w = smoothstep(neck_z - 0.02, neck_z + 0.06, p.z) * smoothstep(0.30, 0.22, abs(p.x))
+            head_w = 1.0 if rigid_head else w.get("Head", 0.0) + 0.5 * w.get("Neck", 0.0)
             if head_w > 0:
-                p = head_origin + (p - head_origin) * (1 + (args.head_scale - 1) * head_w)
-            arm_total = 0.0
-            for side in ("L", "R"):
-                _along, inside, _axis = arm_param(v.co, side, joints)
-                arm_total += inside
-                if inside > 0:
-                    p = radial(p, joints[f"UpperArm.{side}"], joints[f"Hand.{side}"], args.arm_thickness, inside)
-            # Legs: below the hip line, per side.
-            leg_w = smoothstep(hip_z + 0.02, hip_z - 0.10, v.co.z)
-            if leg_w > 0:
-                side = "L" if v.co.x >= 0 else "R"
-                p = radial(p, joints[f"Thigh.{side}"], joints[f"Foot.{side}"], args.leg_thickness, leg_w * smoothstep(ankle_z - 0.02, ankle_z + 0.08, v.co.z))
-            # Torso + neck: round out around the spine, excluding arms and head.
-            torso_w = (1 - arm_total) * (1 - head_w) * smoothstep(hip_z - 0.12, hip_z + 0.05, v.co.z)
-            neck_w = smoothstep(neck_z - 0.08, neck_z - 0.01, v.co.z) * (1 - head_w)
-            core = torso_w * (args.torso_width - 1) + neck_w * (args.neck_thickness - args.torso_width)
-            if core != 0:
-                p = Vector((p.x * (1 + core), axis_y + (p.y - axis_y) * (1 + core * 0.3), p.z))
-            p.z = leg_z(p.z) if p.z < hip_z else p.z
+                p = head_origin + (p - head_origin) * (1 + (args.head_scale - 1) * min(1.0, head_w))
+            for side, sign in (("L", 1.0), ("R", -1.0)):
+                arm = w.get(f"UpperArm.{side}", 0.0) + w.get(f"Forearm.{side}", 0.0)
+                if arm > 0 and p.x * sign > 0:
+                    p = radial(p, joints[f"UpperArm.{side}"], joints[f"Hand.{side}"], args.arm_thickness, min(1.0, arm))
+                leg = w.get(f"Thigh.{side}", 0.0) + w.get(f"Shin.{side}", 0.0)
+                if leg > 0 and p.x * sign > 0:
+                    p = radial(p, joints[f"Thigh.{side}"], joints[f"Foot.{side}"], args.leg_thickness, min(1.0, leg))
+            # 몸통·목은 척추 축에서 좌우·앞뒤로 둥글게 부풀린다(머리는 제외).
+            torso = sum(w.get(b, 0.0) for b in ("Hips", "Spine", "Chest"))
+            neck = w.get("Neck", 0.0) * (0.0 if rigid_head else 1.0)
+            core = torso * (args.torso_width - 1) + neck * (args.neck_thickness - 1)
+            if core != 0 and not rigid_head:
+                axis_y = joints["Spine"].y
+                p = Vector((p.x * (1 + core), axis_y + (p.y - axis_y) * (1 + core * 0.7), p.z))
+            leg_all = sum(w.get(f"{b}.{s}", 0.0) for b in ("Thigh", "Shin", "Foot", "Toe") for s in ("L", "R"))
+            if leg_all > 0:
+                p.z = p.z + (leg_z(p.z) - p.z) * min(1.0, leg_all)
             v.co = p
     for name, joint in joints.items():
         if name == "Head":
             continue
         joints[name] = Vector((joint.x, joint.y, leg_z(joint.z)))
-    enlarge_eyes(meshes, args.eye_scale)
-
-
-EYE_PARTS = ("Eye", "Iris", "Pupil", "Highlight", "UpperLid")
-
-
-def eye_centres(meshes) -> dict[int, Vector]:
-    centres = {}
-    for obj in meshes:
-        if obj.name.startswith("Face_") and "_Eye_" in obj.name:
-            side = 1 if obj.name.endswith("_1") and not obj.name.endswith("-1") else -1
-            points = [v.co for v in obj.data.vertices]
-            centres[side] = sum(points, Vector()) / len(points)
-    return centres
-
-
-def enlarge_eyes(meshes, scale: float) -> None:
-    """Bigger, rounder chibi eyes: scale each eye stack about its eyeball centre."""
-    if abs(scale - 1) < 1e-6:
-        return
-    centres = eye_centres(meshes)
-    for obj in meshes:
-        if not obj.name.startswith("Face_") or not any(f"_{part}_" in obj.name for part in EYE_PARTS):
-            continue
-        side = 1 if obj.name.endswith("_1") and not obj.name.endswith("-1") else -1
-        centre = centres[side]
-        for v in obj.data.vertices:
-            v.co = centre + (v.co - centre) * scale
-    # Brows follow the larger eyes upward a little.
-    for obj in meshes:
-        if obj.name.startswith("Face_") and "_Brow_" in obj.name:
-            for v in obj.data.vertices:
-                v.co.z += 0.012 * (scale - 1) / 0.3
 
 
 def fit_height(meshes, joints, height: float) -> float:
@@ -432,102 +320,6 @@ def remap_weights(obj, weights, rig, joints_sk) -> dict:
     return {"vertices": len(new), "max_influences": max(len(w) for w in new), "bones": sorted(groups)}
 
 
-# ─────────────────────────────── customization data ─────────────────────────
-
-BODY_KEY_PARTS = ("body", "underwear", "underweartop", "top", "bottom", "shoes")
-
-
-def slot_of(obj) -> str:
-    if obj.get("slot"):
-        return str(obj["slot"])
-    return obj.name.split("_")[0].lower()
-
-
-def body_shape_delta(p: Vector, w: dict[str, float], joints: dict[str, Vector], key: str) -> Vector:
-    """World-space delta for a body-type morph at a rest point with Sidekick weights."""
-    torso = sum(w.get(b, 0.0) for b in ("pelvis", "spine_01", "spine_02", "spine_03"))
-    belly = sum(w.get(b, 0.0) for b in ("spine_01", "spine_02")) + 0.5 * w.get("pelvis", 0.0)
-    chest = w.get("spine_03", 0.0) + 0.5 * sum(w.get(f"clavicle_{s}", 0.0) for s in "lr")
-    delta = Vector()
-
-    def limb(chain_a: str, chain_b: str, amount: float) -> None:
-        nonlocal delta
-        for s in "lr":
-            wa = w.get(f"{chain_a}_{s}", 0.0) + w.get(f"{chain_b}_{s}", 0.0)
-            if wa <= 0:
-                continue
-            a, b = joints[f"{chain_a}_{s}"], joints[f"{chain_b}_{s}"]
-            d = (b - a).normalized()
-            base = a + d * (p - a).dot(d)
-            delta += (p - base) * amount * min(1.0, wa)
-
-    axis_y = joints["spine_02"].y
-    if key == "heavy":
-        delta += Vector((p.x * 0.20 * torso, (p.y - axis_y) * (0.16 * torso + 0.22 * belly * float(p.y < axis_y)), 0))
-        limb("upperarm", "lowerarm", 0.22)
-        limb("thigh", "calf", 0.22)
-    elif key == "skinny":
-        delta += Vector((p.x * -0.12 * torso, (p.y - axis_y) * -0.12 * torso, 0))
-        limb("upperarm", "lowerarm", -0.18)
-        limb("thigh", "calf", -0.15)
-    elif key == "buff":
-        delta += Vector((p.x * 0.12 * chest, (p.y - axis_y) * 0.14 * chest, 0))
-        limb("upperarm", "lowerarm", 0.24)
-        limb("thigh", "calf", 0.12)
-    return delta
-
-
-def add_body_keys(obj, joints) -> None:
-    names = {g.index: g.name for g in obj.vertex_groups}
-    obj.shape_key_add(name="Basis", from_mix=False)
-    for key in ("heavy", "skinny", "buff"):
-        block = obj.shape_key_add(name=key, from_mix=False)
-        for v in obj.data.vertices:
-            w = {names[g.group]: g.weight for g in v.groups}
-            block.data[v.index].co = v.co + body_shape_delta(v.co, w, joints, key)
-
-
-def add_pupil_keys(obj, centres) -> None:
-    side = 1 if obj.name.endswith("_1") and not obj.name.endswith("-1") else -1
-    centre = centres[side]
-    obj.shape_key_add(name="Basis", from_mix=False)
-    for key, scale in (("pupilLarge", 1.22), ("pupilSmall", 0.68)):
-        block = obj.shape_key_add(name=key, from_mix=False)
-        # Scale on the eye's front plane only so the iris stays on the eyeball surface.
-        for v in obj.data.vertices:
-            offset = v.co - centre
-            block.data[v.index].co = centre + Vector((offset.x * scale, offset.y, offset.z * scale))
-
-
-def coverage_bits(body, garments) -> tuple[list[int], dict]:
-    """Bit per garment: body vertex hidden when the garment is directly outside it.
-
-    Three rays (normal, tilted up, tilted down) must all hit the garment within 6 cm,
-    so skin near hems and cuffs stays drawn and only fully covered skin is hidden.
-    """
-    from mathutils.bvhtree import BVHTree
-
-    bits = [0] * len(body.data.vertices)
-    summary = {}
-    for bit, garment in garments:
-        tree = BVHTree.FromObject(garment, bpy.context.evaluated_depsgraph_get())
-        count = 0
-        for v in body.data.vertices:
-            n = v.normal
-            if n.length < 1e-6:
-                continue
-            up = Vector((0, 0, 1))
-            side = n.cross(up)
-            tilt = (up - n * n.dot(up)).normalized() if side.length > 1e-3 else n.cross(Vector((1, 0, 0))).normalized()
-            rays = [n, (n + tilt * 0.45).normalized(), (n - tilt * 0.45).normalized()]
-            origin = v.co + n * 0.001
-            if all(tree.ray_cast(origin, d, 0.06)[0] is not None for d in rays):
-                bits[v.index] |= 1 << bit
-                count += 1
-        summary[garment.name] = count
-    return bits, summary
-
-
 def main() -> None:
     args = arguments()
     bpy.ops.wm.open_mainfile(filepath=str(args.v4_blend.expanduser().resolve()))
@@ -545,16 +337,6 @@ def main() -> None:
     for label in ("Male", "Female"):
         rig = bpy.data.objects[f"Rig_{label}"]
         meshes = [o for o in bpy.data.objects if o.type == "MESH" and o.parent == rig]
-        for obj in (rig, *meshes):
-            obj.hide_viewport = False
-            obj.hide_set(False)
-        reset_rig_pose(rig)
-        # 검토 파일은 손 보정 key(RelaxedHands=1)가 켜진 채라 굽힌 손가락이 구워졌다.
-        for obj in meshes:
-            if obj.data.shape_keys:
-                for block in obj.data.shape_keys.key_blocks[1:]:
-                    block.value = 0.0
-        transfer_garment_weights(meshes)
         bpy.ops.object.select_all(action="DESELECT")
         rig.select_set(True)
         bpy.context.view_layer.objects.active = rig
@@ -575,26 +357,10 @@ def main() -> None:
         joints_sk = {b.name: new_rig.matrix_world @ b.head_local for b in new_rig.data.bones}
         stats = {o.name: remap_weights(o, weights[o.name], new_rig, joints_sk) for o in meshes}
         bpy.data.objects.remove(rig, do_unlink=True)
-        centres = eye_centres(meshes)
-        body = next(o for o in meshes if o.name.startswith("Body_"))
-        garments = []
         for obj in meshes:
-            part = slot_of(obj)
-            obj["chibi_part"] = part
+            obj["chibi_part"] = obj.name.split("_")[0].lower()
             obj["chibi_body"] = label.lower()
-            if part in BODY_KEY_PARTS:
-                add_body_keys(obj, joints_sk)
-            if obj.name.startswith("Face_") and any(f"_{x}_" in obj.name for x in ("Iris", "Pupil", "Highlight")):
-                add_pupil_keys(obj, centres)
-            if part in ("top", "bottom", "shoes"):
-                bit = {"top": 0, "bottom": 4, "shoes": 8}[part] + int(obj.get("variant", 0))
-                obj["chibi_cover_bit"] = bit
-                garments.append((bit, obj))
-        bits, cover = coverage_bits(body, garments)
-        attribute = body.data.attributes.new("_cover", "FLOAT", "POINT")
-        attribute.data.foreach_set("value", [float(b) for b in bits])
-        report_cover = {name: n for name, n in cover.items()}
-        report["variants"][label] = {"scale": round(scale, 5), "parts": stats, "height": args.height, "covered_vertices": report_cover}
+        report["variants"][label] = {"scale": round(scale, 5), "parts": stats, "height": args.height}
         export_sets[label] = (new_rig, meshes)
 
     bpy.data.objects.remove(template, do_unlink=True)
@@ -613,8 +379,8 @@ def main() -> None:
         out = args.glb_dir.expanduser().resolve() / f"chibi-{label.lower()}.glb"
         bpy.ops.export_scene.gltf(
             filepath=str(out), export_format="GLB", use_selection=True, export_animations=False,
-            export_skins=True, export_influence_nb=MAX_INFLUENCES, export_morph=True, export_morph_normal=True,
-            export_apply=False, export_extras=True, export_attributes=True,
+            export_skins=True, export_influence_nb=MAX_INFLUENCES, export_morph=False, export_apply=False,
+            export_extras=True,
         )
         report["variants"][label]["glb"] = str(out)
     args.report.expanduser().resolve().write_text(json.dumps(report, ensure_ascii=False, indent=2))
