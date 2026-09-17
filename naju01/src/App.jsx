@@ -22,10 +22,15 @@ import { 계기판, 조작안내 } from "./계기.jsx";
 import { 미터, 기준, 시점 } from "./공간도면.js";
 import { 기본지형 } from "./지형.js";
 import {
-  기본사이드킥설정,
   사이드킥모션목록,
   외형항목이름,
   외형선택지,
+  성별목록,
+  성별의상선택지,
+  성별적용,
+  외형설정보정,
+  체형슬라이더,
+  색상항목,
 } from "./사이드킥옵션.js";
 
 // 본편과 같은 개발용 스위치 — ?q=low · ?leva=1 · ?fx=off
@@ -50,16 +55,18 @@ const 무대16x9 = 쿼리.get("stage") === "16x9";
 //   Leva 에 저장된 값이 다르면 첫 프레임에 씬이 알아서 다시 앉힌다.
 const 시작 = 시점[0];
 const 시작높이 = (기본지형.지면(시작.X, 시작.Z).y + 기준.눈높이) * 미터;
-const 사이드킥저장키 = "naju01.sidekick.appearance.v1";
+// 꾸미기 패널은 개발용이다. 개발 서버이거나 ?customize 가 있을 때만 보인다.
+const 꾸미기패널보임 = import.meta.env.DEV || 쿼리.has("customize");
+const 사이드킥저장키 = "naju01.sidekick.appearance.v2";
+// v1은 성별·새 의상 번호가 없던 저장값이다. v2가 없으면 v1을 읽어 보정한다.
+const 이전저장키 = "naju01.sidekick.appearance.v1";
 
 function 저장외형읽기() {
   try {
-    const saved = JSON.parse(localStorage.getItem(사이드킥저장키));
-    return saved && typeof saved === "object"
-      ? { ...기본사이드킥설정, ...saved, motion: "자동" }
-      : 기본사이드킥설정;
+    const raw = localStorage.getItem(사이드킥저장키) ?? localStorage.getItem(이전저장키);
+    return raw ? 외형설정보정(JSON.parse(raw)) : 외형설정보정(null);
   } catch {
-    return 기본사이드킥설정;
+    return 외형설정보정(null);
   }
 }
 
@@ -70,6 +77,7 @@ export default function App() {
   const [시점모드, set시점모드] = useState("1인칭");
   const [사이드킥설정, set사이드킥설정] = useState(저장외형읽기);
   const [저장안내, set저장안내] = useState("");
+  const [패널열림, set패널열림] = useState(true);
   // 계기판·조작안내는 화면을 꽤 가린다. 그림을 볼 때는 H 로 치운다.
   const [계기보임, set계기보임] = useState(true);
 
@@ -166,8 +174,12 @@ export default function App() {
       >
         [V] {시점모드}
       </button>
+      {꾸미기패널보임 && (
       <div style={아바타패널}>
-        <div style={아바타버튼}>캐릭터 꾸미기 · Sidekick</div>
+        <button type="button" style={아바타버튼} onClick={() => set패널열림((v) => !v)}>
+          {패널열림 ? "▾" : "▸"} 캐릭터 꾸미기 · Sidekick
+        </button>
+        {패널열림 && (
           <div style={커스텀패널}>
             <label style={한줄라벨}>
               <span>동작</span>
@@ -226,6 +238,33 @@ export default function App() {
                 <option value="Sprint_Loop">전력 질주</option>
               </select>
             </label>
+            <div style={선택줄}>
+              {성별목록.map(([gender, label]) => (
+                <button
+                  key={gender}
+                  type="button"
+                  aria-pressed={사이드킥설정.gender === gender}
+                  style={사이드킥설정.gender === gender ? 선택된버튼 : 작은버튼}
+                  onClick={() => set사이드킥설정((old) => 성별적용(old, gender))}
+                >{label} 체형</button>
+              ))}
+            </div>
+            {["top", "bottom"].map((key) => (
+              <label key={key} style={한줄라벨}>
+                <span>{외형항목이름[key]}</span>
+                <select
+                  style={선택상자}
+                  value={사이드킥설정[key]}
+                  onChange={(e) =>
+                    set사이드킥설정((old) => ({ ...old, [key]: Number(e.target.value) }))
+                  }
+                >
+                  {성별의상선택지[사이드킥설정.gender][key].map(([value, label]) => (
+                    <option key={`${key}-${value}`} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+            ))}
             {Object.entries(외형선택지).map(([key, options]) => (
               <label key={key} style={한줄라벨}>
                 <span>{외형항목이름[key]}</span>
@@ -242,29 +281,12 @@ export default function App() {
                 </select>
               </label>
             ))}
-            <div style={선택줄}>
-              <button
-                type="button"
-                style={작은버튼}
-                onClick={() => set사이드킥설정((old) => ({ ...old, feminine: 0 }))}
-              >남성 체형</button>
-              <button
-                type="button"
-                style={작은버튼}
-                onClick={() => set사이드킥설정((old) => ({ ...old, feminine: 1 }))}
-              >여성 체형</button>
-            </div>
-            {[
-              ["heightScale", "키", 0.6, 1.2, 0.01],
-              ["headScale", "머리", 0.65, 1.6, 0.01],
-              ["skinny", "마름", 0, 1, 0.05],
-              ["buff", "근육", 0, 1, 0.05],
-              ["heavy", "체격", 0, 1, 0.05],
-            ].map(([key, label, min, max, step]) => (
+            {체형슬라이더.map(([key, label, min, max, step]) => (
               <label key={key} style={슬라이더줄}>
-                <span title={`${label} ${Math.round(사이드킥설정[key] * 100)}%`}>{label}</span>
+                <span>{label}</span>
                 <input
                   type="range"
+                  style={슬라이더}
                   min={min}
                   max={max}
                   step={step}
@@ -273,19 +295,12 @@ export default function App() {
                     set사이드킥설정((old) => ({ ...old, [key]: Number(e.target.value) }))
                   }
                 />
+                <output style={슬라이더값}>{Number(사이드킥설정[key]).toFixed(2)}</output>
               </label>
             ))}
             <div style={색상줄}>
-              {[
-                ["skinColor", "피부"],
-                ["eyeColor", "눈"],
-                ["hairColor", "머리"],
-                ["topColor", "상의"],
-                ["bottomColor", "하의"],
-                ["shoesColor", "신발"],
-                ["accessoryColor", "장비"],
-              ].map(([key, label]) => (
-                <label key={key} title={label} style={색상항목}>
+              {색상항목.map(([key, label]) => (
+                <label key={key} title={label} style={색상칸}>
                   <span>{label}</span>
                   <input
                     type="color"
@@ -303,16 +318,22 @@ export default function App() {
                 type="button"
                 style={작은버튼}
                 onClick={() => {
-                  localStorage.setItem(사이드킥저장키, JSON.stringify({ ...사이드킥설정, motion: "자동" }));
-                  set저장안내("현재 외형 저장됨");
+                  try {
+                    localStorage.setItem(사이드킥저장키, JSON.stringify(외형설정보정(사이드킥설정)));
+                    set저장안내("현재 외형 저장됨");
+                  } catch {
+                    set저장안내("저장 실패 · 브라우저 저장소를 쓸 수 없음");
+                  }
                 }}
               >외형 저장</button>
               <button type="button" style={작은버튼} onClick={() => { set사이드킥설정(저장외형읽기()); set저장안내("저장 외형 불러옴"); }}>불러오기</button>
-              <button type="button" style={작은버튼} onClick={() => { set사이드킥설정(기본사이드킥설정); set저장안내("기본값 복원"); }}>초기화</button>
+              <button type="button" style={작은버튼} onClick={() => { set사이드킥설정(외형설정보정(null)); set저장안내("기본값 복원"); }}>초기화</button>
             </div>
             {저장안내 && <div style={저장메시지}>{저장안내}</div>}
           </div>
+        )}
       </div>
+      )}
     </div>
   );
 }
@@ -344,18 +365,21 @@ const 시점버튼 = {
   cursor: "pointer",
 };
 
-const 아바타패널 = { position: "absolute", right: 14, top: 52, zIndex: 20, width: "min(340px, calc(100vw - 28px))", minWidth: 0, display: "grid", gap: 5 };
+const 아바타패널 = { position: "absolute", right: 14, top: 52, zIndex: 20, width: "min(360px, calc(100vw - 28px))", minWidth: 0, maxWidth: "calc(100vw - 28px)", boxSizing: "border-box", display: "grid", gap: 5 };
 const 아바타버튼 = { ...시점버튼, position: "static", width: "100%", boxSizing: "border-box", textAlign: "left" };
-const 선택줄 = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", minWidth: 0, gap: 4 };
+const 선택줄 = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))", minWidth: 0, gap: 4 };
 const 동작선택줄 = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", minWidth: 0, gap: 4 };
-const 작은버튼 = { minWidth: 0, border: "1px solid rgba(170,190,220,.25)", borderRadius: 5, padding: "4px 6px", background: "rgba(14,18,26,.68)", color: "#DDE7F6", font: '11px/1.2 ui-monospace, Menlo, monospace', cursor: "pointer" };
-const 커스텀패널 = { width: "100%", minWidth: 0, boxSizing: "border-box", maxHeight: "calc(100vh - 120px)", overflowY: "auto", overflowX: "hidden", display: "grid", gap: 5, padding: 8, borderRadius: 7, background: "rgba(14,18,26,.84)", border: "1px solid rgba(170,190,220,.25)", color: "#DDE7F6", font: '11px/1.3 ui-monospace, Menlo, "Malgun Gothic", monospace' };
-const 한줄라벨 = { display: "grid", gridTemplateColumns: "66px minmax(0, 1fr)", minWidth: 0, alignItems: "center", gap: 5 };
-const 선택상자 = { minWidth: 0, border: "1px solid rgba(170,190,220,.3)", borderRadius: 4, padding: "3px 4px", background: "#202632", color: "#E8EFFA", font: "inherit" };
+const 작은버튼 = { minWidth: 0, border: "1px solid rgba(170,190,220,.25)", borderRadius: 5, padding: "4px 6px", background: "rgba(14,18,26,.68)", color: "#DDE7F6", font: '11px/1.2 ui-monospace, Menlo, monospace', cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const 선택된버튼 = { ...작은버튼, background: "rgba(92,140,196,.45)", borderColor: "rgba(170,210,255,.7)", color: "#FFFFFF" };
+const 커스텀패널 = { width: "100%", minWidth: 0, boxSizing: "border-box", maxHeight: "calc(100dvh - 120px)", overflowY: "auto", overflowX: "hidden", display: "grid", gap: 5, padding: 8, borderRadius: 7, background: "rgba(14,18,26,.84)", border: "1px solid rgba(170,190,220,.25)", color: "#DDE7F6", font: '11px/1.3 ui-monospace, Menlo, "Malgun Gothic", monospace' };
+const 한줄라벨 = { display: "grid", gridTemplateColumns: "minmax(52px, 28%) minmax(0, 1fr)", minWidth: 0, alignItems: "center", gap: 5 };
+const 선택상자 = { width: "100%", minWidth: 0, boxSizing: "border-box", border: "1px solid rgba(170,190,220,.3)", borderRadius: 4, padding: "3px 4px", background: "#202632", color: "#E8EFFA", font: "inherit" };
 const 동작안내 = { padding: "6px 7px", borderRadius: 5, background: "rgba(85,110,145,.18)", color: "#BECBE0", lineHeight: 1.45 };
-const 슬라이더줄 = { display: "grid", gridTemplateColumns: "52px minmax(0, 1fr)", minWidth: 0, alignItems: "center", gap: 5 };
-const 색상줄 = { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", minWidth: 0, gap: 5 };
-const 색상항목 = { minWidth: 0, display: "grid", gap: 2, textAlign: "center", fontSize: 9 };
+const 슬라이더줄 = { display: "grid", gridTemplateColumns: "minmax(44px, 22%) minmax(0, 1fr) 34px", minWidth: 0, alignItems: "center", gap: 5 };
+const 슬라이더 = { width: "100%", minWidth: 0, margin: 0 };
+const 슬라이더값 = { textAlign: "right", color: "#AFC0D8", fontSize: 10 };
+const 색상줄 = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(52px, 1fr))", minWidth: 0, gap: 5 };
+const 색상칸 = { minWidth: 0, display: "grid", gap: 2, textAlign: "center", fontSize: 9 };
 const 색상입력 = { width: "100%", minWidth: 0, height: 26, padding: 1, boxSizing: "border-box" };
 const 저장줄 = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", minWidth: 0, gap: 4, marginTop: 2 };
 const 저장메시지 = { color: "#9ED6AF", textAlign: "center", fontSize: 10 };

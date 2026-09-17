@@ -2,6 +2,8 @@
 // 외형은 하나의 공통 리그 위에서 머리·헤어·상의·하의·신발 메시를 교체하고,
 // 체형은 Synty 원본 morph target을 움직인다. 모션은 원본 root motion을 빼고
 // 게임 이동 좌표에 리타게팅한다.
+// 현대 의상(4~11번)은 같은 스켈레톤에 스키닝된 실제 메시이고, 기본 몸 위에 겹쳐
+// 입는다. 옷이 덮는 피부는 셰이더에서 숨겨 관통이 보이지 않게 한다.
 import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
@@ -13,6 +15,13 @@ import { 기본사이드킥설정 } from "./사이드킥옵션.js";
 const 캐릭터파일 = "/models/sidekick-customizer.glb";
 const 모션파일 = "/models/vendor/quaternius-universal-animation-library.glb";
 const 속옷색 = "#f7f7f3";
+// build_sidekick_wardrobe.py의 SHOULDER_SHIFT와 같아야 한다.
+// shoulderWidth morph는 "본 이동이 옮기지 않는 몸통 부분"만 담고 있으므로
+// 본 이동과 morph를 항상 같은 비율로 함께 적용해야 어깨가 찢어지지 않는다.
+const 어깨본이동 = 0.035;
+const 어깨범위 = 0.25;
+// 눈동자 기본 반지름(라디안). 안구 중심에서 정면 방향과 이루는 각도로 판정한다.
+const 눈동자기본각 = 0.19;
 const 강제검증모션 =
   typeof location !== "undefined"
     ? new URLSearchParams(location.search).get("motion")
@@ -103,37 +112,167 @@ function 색입히기(mesh, color) {
   materials.forEach((material) => material?.color?.set(color));
 }
 
-function 눈흰자입히기(mesh) {
-  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-  materials.forEach((material) => {
-    if (!material) return;
-    // 원본 눈 메시를 흰자로 쓰고, 중앙 눈동자는 별도 구체로 올린다.
-    material.map = null;
-    material.color?.set("#f7f4ee");
-    if (material.emissive) {
-      material.emissive.set("#ffffff");
-      material.emissiveIntensity = 0.12;
-    }
-    if ("roughness" in material) material.roughness = 0.3;
-    if ("metalness" in material) material.metalness = 0;
-    material.needsUpdate = true;
-  });
+// 원본 눈 메시 하나로 흰자와 중앙 눈동자를 함께 그린다. 판정은 스키닝·morph
+// 이전의 bind 좌표(position)로 하므로 키·머리 크기·체형·모션이 바뀌어도
+// 눈동자는 항상 안구 중앙에 붙어 있다. 흰자 영역(메시)은 건드리지 않는다.
+function 눈셰이더준비(mesh) {
+  if (mesh.userData.눈uniforms) return mesh.userData.눈uniforms;
+  mesh.geometry.computeBoundingBox();
+  const box = mesh.geometry.boundingBox;
+  const radius = (box.max.x - box.min.x) / 2;
+  const uniforms = {
+    uEyeCenter: { value: new THREE.Vector3((box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2, box.max.z - radius) },
+    uPupilColor: { value: new THREE.Color("#26364a") },
+    uPupilRadius: { value: 눈동자기본각 },
+  };
+  const material = mesh.material;
+  material.map = null;
+  material.color?.set("#f7f4ee");
+  if (material.emissive) {
+    material.emissive.set("#ffffff");
+    material.emissiveIntensity = 0.12;
+  }
+  if ("roughness" in material) material.roughness = 0.3;
+  if ("metalness" in material) material.metalness = 0;
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vEyeBind;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvEyeBind = position;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nvarying vec3 vEyeBind;\nuniform vec3 uEyeCenter;\nuniform vec3 uPupilColor;\nuniform float uPupilRadius;\nfloat eyeIris = 0.0;",
+      )
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        vec3 eyeDir = normalize(vEyeBind - uEyeCenter);
+        float eyeAngle = acos(clamp(eyeDir.z, -1.0, 1.0));
+        eyeIris = 1.0 - smoothstep(uPupilRadius - 0.03, uPupilRadius, eyeAngle);
+        float eyeCore = 1.0 - smoothstep(uPupilRadius * 0.42 - 0.025, uPupilRadius * 0.42, eyeAngle);
+        diffuseColor.rgb = mix(diffuseColor.rgb, uPupilColor, eyeIris);
+        diffuseColor.rgb = mix(diffuseColor.rgb, uPupilColor * 0.2, eyeCore);`,
+      )
+      .replace(
+        "#include <emissivemap_fragment>",
+        "#include <emissivemap_fragment>\ntotalEmissiveRadiance *= 1.0 - eyeIris;",
+      );
+  };
+  material.needsUpdate = true;
+  mesh.userData.눈uniforms = uniforms;
+  return uniforms;
+}
+
+// 기본 몸(피부) 파츠 — 옷이 덮는 bind 좌표 영역을 버린다. 옷 가장자리에서
+// 여유(margin)만큼 안쪽만 숨기므로 소매·밑단 경계에서는 피부가 이어져 보인다.
+// 속옷 복제본은 피부와 같은 면에 겹쳐 그린다. polygonOffset으로 앞세우면 비스듬한
+// 각도에서 1cm 떨어진 치마까지 이겨 흰 얼룩이 보였다. 대신 속옷이 보이는 높이 띠의
+// 피부를 버려 깊이 경쟁 자체를 없앤다. part: 1 = 몸통(가슴 띠), 2 = 골반(허리 아래 띠).
+// Synty 기본 골반 메시에는 사각 속옷 밑단이 형상(z≈0.705 m에서 다리 둘레가 턱지게
+// 커짐)으로 모델링되어 있다. 흰색 경계를 그 턱에 정확히 맞춰야 피부색 턱이 남지
+// 않고, 그 아래 허벅지·무릎으로는 흰색이 번지지 않는다.
+const 속옷띠 = { 1: [1.17, 1.36], 2: [0.702, 1.0] };
+const 속옷선GLSL = (p, band) => `(${p}.y >= ${band}.y && ${p}.y <= ${band}.z)`;
+
+function 속옷셰이더(shader, part) {
+  const [low, high] = 속옷띠[part];
+  shader.vertexShader = shader.vertexShader
+    .replace("#include <common>", "#include <common>\nvarying vec3 vUnderwearBind;")
+    .replace("#include <begin_vertex>", "#include <begin_vertex>\nvUnderwearBind = position;");
+  shader.fragmentShader = shader.fragmentShader
+    .replace("#include <common>", `#include <common>\nvarying vec3 vUnderwearBind;\nconst vec3 uUnderwearBand = vec3(1.0, ${low.toFixed(3)}, ${high.toFixed(3)});`)
+    .replace(
+      "#include <clipping_planes_fragment>",
+      `#include <clipping_planes_fragment>\nif (!${속옷선GLSL("vUnderwearBind", "uUnderwearBand")}) discard;`,
+    );
+}
+
+function 피부가림준비(mesh, part = 0) {
+  const band = 속옷띠[part] ?? [0, 0];
+  const uniforms = {
+    uUnderwearBand: { value: new THREE.Vector3(0, band[0], band[1]) },
+    uTopCover: { value: new THREE.Vector4(0, 0, 0, 0) },
+    uTopNeck: { value: new THREE.Vector2(0, 0) },
+    uBottomCover: { value: new THREE.Vector3(0, 0, 0) },
+  };
+  mesh.material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vCoverBind;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvCoverBind = position;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        "#include <common>",
+        "#include <common>\nvarying vec3 vCoverBind;\nuniform vec4 uTopCover;\nuniform vec2 uTopNeck;\nuniform vec3 uUnderwearBand;\nuniform vec3 uBottomCover;",
+      )
+      .replace(
+        "#include <clipping_planes_fragment>",
+        `#include <clipping_planes_fragment>
+        if (uUnderwearBand.x > 0.5 && ${속옷선GLSL("vCoverBind", "uUnderwearBand")}) discard;
+        if (uTopCover.x > 0.5
+          && vCoverBind.y > uTopCover.y + 0.035
+          && abs(vCoverBind.x) < uTopCover.z - 0.035
+          && vCoverBind.y < uTopCover.w + uTopNeck.x * vCoverBind.z + uTopNeck.y * vCoverBind.x * vCoverBind.x - 0.02) discard;
+        if (uBottomCover.x > 0.5
+          && vCoverBind.y < uBottomCover.y - 0.03
+          && vCoverBind.y > uBottomCover.z + 0.035
+          && abs(vCoverBind.x) < 0.3) discard;`,
+      );
+  };
+  mesh.material.needsUpdate = true;
+  mesh.userData.가림uniforms = uniforms;
+}
+
+// 원단 느낌 — 색은 UI에서 바꾸므로 텍스처 대신 bind 좌표 기반의 아주 약한 명암만 준다.
+function 원단준비(mesh, fabric) {
+  const material = mesh.material;
+  material.map = null;
+  material.side = THREE.DoubleSide;
+  if ("metalness" in material) material.metalness = 0;
+  if ("roughness" in material) material.roughness = fabric === "nylon" ? 0.62 : 0.9;
+  if (fabric !== "rib" && fabric !== "denim") return;
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vFabricBind;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvFabricBind = position;");
+    const pattern =
+      fabric === "rib"
+        ? "float fabricShade = 0.94 + 0.06 * smoothstep(-0.2, 0.6, sin(atan(vFabricBind.x, vFabricBind.z) * 110.0));"
+        : "float fabricShade = 0.95 + 0.05 * sin((vFabricBind.y + vFabricBind.x * 0.7) * 520.0) * sin(vFabricBind.z * 180.0 + vFabricBind.y * 40.0);";
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vFabricBind;")
+      .replace("#include <color_fragment>", `#include <color_fragment>\n${pattern}\ndiffuseColor.rgb *= fabricShade;`);
+  };
+  material.needsUpdate = true;
+}
+
+function 어깨값(appearance) {
+  return THREE.MathUtils.clamp(((appearance.shoulderWidth ?? 1) - 1) / 어깨범위, -1, 1);
+}
+
+function 체형입히기(mesh, appearance) {
+  형태값(mesh, "masculineFeminine", appearance.feminine);
+  형태값(mesh, "defaultHeavy", appearance.heavy);
+  형태값(mesh, "defaultBuff", appearance.buff);
+  형태값(mesh, "defaultSkinny", appearance.skinny);
+  형태값(mesh, "shoulderWidth", 어깨값(appearance));
 }
 
 function 여성속옷갱신(mesh, appearance) {
-  mesh.visible = appearance.top === 1 && appearance.feminine >= 0.5;
-  형태값(mesh, "masculineFeminine", appearance.feminine);
-  형태값(mesh, "defaultHeavy", appearance.heavy);
-  형태값(mesh, "defaultBuff", appearance.buff);
-  형태값(mesh, "defaultSkinny", appearance.skinny);
+  mesh.visible = appearance.top === 1 && (appearance.gender ?? (appearance.feminine >= 0.5 ? "feminine" : "masculine")) === "feminine";
+  체형입히기(mesh, appearance);
 }
 
-function 하의속옷갱신(mesh, appearance) {
-  mesh.visible = appearance.bottom === 1;
-  형태값(mesh, "masculineFeminine", appearance.feminine);
-  형태값(mesh, "defaultHeavy", appearance.heavy);
-  형태값(mesh, "defaultBuff", appearance.buff);
-  형태값(mesh, "defaultSkinny", appearance.skinny);
+// 치마는 아래에서 보이므로 속옷 하의를 유지한다. 바지·반바지는 덮어서 숨긴다.
+function 하의속옷갱신(mesh, appearance, 치마) {
+  mesh.visible = appearance.bottom === 1 || 치마;
+  체형입히기(mesh, appearance);
+}
+
+// 1번(기본 몸)은 속옷 상태이자 현대 의상 아래 몸이다. 2·3번 원본 세트만 몸을 대체한다.
+function 기본몸보임(option) {
+  return option !== 2 && option !== 3;
 }
 
 function SidekickGameAvatar({
@@ -141,6 +280,8 @@ function SidekickGameAvatar({
   플레이어참조,
   설정 = 기본사이드킥설정,
   크기 = 미터,
+  // QA 캡처 전용: 지정하면 모션을 페이드 없이 이 시각(초)에 고정한다.
+  검증시각 = null,
 }) {
   const root = useRef();
   const 캐릭터GLTF = useGLTF(캐릭터파일);
@@ -174,36 +315,38 @@ function SidekickGameAvatar({
       const info = 부품정보(object.name);
       if (info) {
         if (info.slot === "hair") fixedHairWeights += 헤어가중치고정(object);
-        parts.push({ object, ...info });
+        const garment = object.userData.wardrobe_garment ? object.userData : null;
+        if (garment) 원단준비(object, garment.garment_fabric);
+        const bodySkin =
+          (info.slot === "top" || info.slot === "bottom") && info.option === 1;
+        if (bodySkin) {
+          const part = object.name.includes("10TORS") ? 1 : object.name.includes("17HIPS") ? 2 : 0;
+          피부가림준비(object, part);
+        }
+        if (object.name.includes("EYEL") || object.name.includes("EYER")) 눈셰이더준비(object);
+        parts.push({ object, ...info, garment });
       }
     });
 
     targetSkin.skeleton.pose();
     model.updateMatrixWorld(true);
-    const pupils = [];
-    // Sidekick 원본 눈이 작은 편이라 눈동자가 0.019m만 되어도
-    // 게임 카메라에서는 흰자를 대부분 덮어 검은 눈으로 보였다.
-    // 눈동자를 안구 폭의 약 1/5로 줄여 양쪽 흰자가 명확히 남게 한다.
-    const pupilGeometry = new THREE.SphereGeometry(0.0105, 18, 12);
-    ["eye_l", "eye_r"].forEach((name) => {
+
+    // 어깨 넓이 — upperarm·shoulderAttach 본을 부모(쇄골) 좌표계에서 옆으로 민다.
+    // 리타게팅 클립은 회전 트랙만 가지므로 매 프레임 휴식 위치 + 보정값을 다시
+    // 써 두면 어떤 모션을 재생해도 유지된다.
+    const inverseRoot = new THREE.Matrix4().copy(model.matrixWorld).invert();
+    const shoulderBones = [];
+    ["upperarm_l", "shoulderAttach_l", "upperarm_r", "shoulderAttach_r"].forEach((name) => {
       const bone = targetSkin.skeleton.getBoneByName(name);
-      if (!bone) return;
-      const eyeCenter = new THREE.Vector3();
-      bone.getWorldPosition(eyeCenter);
-      // 흰자 표면 바로 앞에 작은 구체를 겹치면 어느 각도에서도 평면처럼
-      // 사라지지 않으면서 중앙 눈동자로 보인다.
-      eyeCenter.z = 0.106;
-      const localPosition = bone.worldToLocal(eyeCenter.clone());
-      const pupil = new THREE.Mesh(
-        pupilGeometry,
-        new THREE.MeshStandardMaterial({ color: "#26364a", roughness: 0.32 }),
-      );
-      pupil.name = `SKLIB_pupil_${name}`;
-      pupil.position.copy(localPosition);
-      pupil.castShadow = false;
-      pupil.receiveShadow = false;
-      bone.add(pupil);
-      pupils.push(pupil);
+      if (!bone?.parent) return;
+      const parentInModel = new THREE.Matrix4().multiplyMatrices(inverseRoot, bone.parent.matrixWorld);
+      const toParent = new THREE.Matrix3().setFromMatrix4(parentInModel).invert();
+      const side = name.endsWith("_l") ? 1 : -1;
+      shoulderBones.push({
+        bone,
+        rest: bone.position.clone(),
+        direction: new THREE.Vector3(side, 0, 0).applyMatrix3(toParent),
+      });
     });
 
     // 기본 상의를 벗은 여성 체형에서만 보이는 흰색 스포츠 브라. 기본 몸통의
@@ -220,21 +363,8 @@ function SidekickGameAvatar({
       color: 속옷색,
       roughness: 0.82,
       metalness: 0,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
     });
-    chestUnderwear.material.onBeforeCompile = (shader) => {
-      shader.vertexShader = shader.vertexShader
-        .replace("#include <common>", "#include <common>\nvarying float vUnderwearHeight;")
-        .replace("#include <begin_vertex>", "#include <begin_vertex>\nvUnderwearHeight = position.y;");
-      shader.fragmentShader = shader.fragmentShader
-        .replace("#include <common>", "#include <common>\nvarying float vUnderwearHeight;")
-        .replace(
-          "#include <clipping_planes_fragment>",
-          "#include <clipping_planes_fragment>\nif (vUnderwearHeight < 1.17 || vUnderwearHeight > 1.36) discard;",
-        );
-    };
+    chestUnderwear.material.onBeforeCompile = (shader) => 속옷셰이더(shader, 1);
     chestUnderwear.castShadow = true;
     chestUnderwear.receiveShadow = true;
     chestUnderwear.frustumCulled = false;
@@ -253,21 +383,8 @@ function SidekickGameAvatar({
       color: 속옷색,
       roughness: 0.82,
       metalness: 0,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
     });
-    lowerUnderwear.material.onBeforeCompile = (shader) => {
-      shader.vertexShader = shader.vertexShader
-        .replace("#include <common>", "#include <common>\nvarying float vUnderwearHeight;")
-        .replace("#include <begin_vertex>", "#include <begin_vertex>\nvUnderwearHeight = position.y;");
-      shader.fragmentShader = shader.fragmentShader
-        .replace("#include <common>", "#include <common>\nvarying float vUnderwearHeight;")
-        .replace(
-          "#include <clipping_planes_fragment>",
-          "#include <clipping_planes_fragment>\nif (vUnderwearHeight < 0.76 || vUnderwearHeight > 1.00) discard;",
-        );
-    };
+    lowerUnderwear.material.onBeforeCompile = (shader) => 속옷셰이더(shader, 2);
     lowerUnderwear.castShadow = true;
     lowerUnderwear.receiveShadow = true;
     lowerUnderwear.frustumCulled = false;
@@ -300,6 +417,18 @@ function SidekickGameAvatar({
     const feet = ["foot_l", "ball_l", "foot_r", "ball_r"]
       .map((name) => targetSkin.skeleton.getBoneByName(name))
       .filter(Boolean);
+    // 발끝을 세우는 달리기·점프 자세에서는 발 본보다 발가락 정점이 더 내려간다.
+    // 신발(맨발 포함) 메시의 발바닥 정점만 골라 두었다가 실제 스키닝 위치로 접지한다.
+    const soles = parts
+      .filter(({ slot }) => slot === "shoes")
+      .map(({ object, option }) => {
+        const position = object.geometry.getAttribute("position");
+        const indices = [];
+        for (let i = 0; i < position.count; i += 1) {
+          if (position.getY(i) < 0.035) indices.push(i);
+        }
+        return { object, option, indices };
+      });
     const inverseModel = new THREE.Matrix4().copy(model.matrixWorld).invert();
     const footPoint = new THREE.Vector3();
     let restFootY = Infinity;
@@ -313,12 +442,13 @@ function SidekickGameAvatar({
       clipFor,
       clipCount: sourceClips.size,
       parts,
-      pupils,
+      shoulderBones,
       chestUnderwear,
       lowerUnderwear,
       headBone: targetSkin.skeleton.getBoneByName("head"),
       bottom,
       feet,
+      soles,
       soleOffset: Number.isFinite(restFootY) ? bottom - restFootY : 0,
       fixedHairWeights,
       mappedBones: Object.keys(options.names).length,
@@ -349,12 +479,15 @@ function SidekickGameAvatar({
       shoulderAccessory: 설정.shoulderAccessory,
       elbowAccessory: 설정.elbowAccessory,
       kneeAccessory: 설정.kneeAccessory,
+      gender: 설정.gender,
       feminine: 설정.feminine,
       heavy: 설정.heavy,
       buff: 설정.buff,
       skinny: 설정.skinny,
       heightScale: 설정.heightScale,
       headScale: 설정.headScale,
+      shoulderWidth: 설정.shoulderWidth,
+      pupilScale: 설정.pupilScale,
       skinColor: 설정.skinColor,
       eyeColor: 설정.eyeColor,
       hairColor: 설정.hairColor,
@@ -369,7 +502,7 @@ function SidekickGameAvatar({
       설정.headwear, 설정.faceAccessory, 설정.backAccessory, 설정.hipFront,
       설정.hipBack, 설정.hipSide, 설정.shoulderAccessory, 설정.elbowAccessory,
       설정.kneeAccessory, 설정.feminine, 설정.heavy, 설정.buff, 설정.skinny,
-      설정.heightScale, 설정.headScale,
+      설정.heightScale, 설정.headScale, 설정.gender, 설정.shoulderWidth, 설정.pupilScale,
       설정.skinColor, 설정.eyeColor, 설정.hairColor, 설정.topColor, 설정.bottomColor,
       설정.shoesColor, 설정.accessoryColor,
     ],
@@ -392,12 +525,17 @@ function SidekickGameAvatar({
 
   useEffect(() => {
     const chosen = 외형설정;
+    const 선택옷 = (slot) =>
+      준비.parts.find(({ slot: s, option, garment }) => s === slot && option === chosen[slot] && garment)?.garment;
+    const 상의 = 선택옷("top");
+    const 하의 = 선택옷("bottom");
+    const 치마 = 하의?.cover_kind === "skirt";
     준비.parts.forEach(({ object, slot, option }) => {
-      object.visible = slot === "fixed" || option === chosen[slot];
-      형태값(object, "masculineFeminine", 외형설정.feminine);
-      형태값(object, "defaultHeavy", 외형설정.heavy);
-      형태값(object, "defaultBuff", 외형설정.buff);
-      형태값(object, "defaultSkinny", 외형설정.skinny);
+      if (slot === "fixed") object.visible = true;
+      else if (option === 1 && (slot === "top" || slot === "bottom" || slot === "shoes")) {
+        object.visible = option === chosen[slot] || (slot !== "shoes" && 기본몸보임(chosen[slot]));
+      } else object.visible = option === chosen[slot];
+      체형입히기(object, 외형설정);
 
       const eye = object.name.includes("EYEL") || object.name.includes("EYER");
       let color = null;
@@ -410,15 +548,38 @@ function SidekickGameAvatar({
       else if (slot !== "fixed" && slot !== "teeth") color = 외형설정.accessoryColor;
       else if (object.name.includes("EBR")) color = 외형설정.hairColor;
       else if (object.name.includes("EAR") || object.name.includes("NOSE")) color = 외형설정.skinColor;
-      if (eye) 눈흰자입히기(object);
-      else 색입히기(object, color);
+      if (eye) {
+        const uniforms = object.userData.눈uniforms;
+        uniforms.uPupilColor.value.set(외형설정.eyeColor);
+        uniforms.uPupilRadius.value = 눈동자기본각 * THREE.MathUtils.clamp(외형설정.pupilScale ?? 1, 0.55, 1.45);
+      } else 색입히기(object, color);
+
+      const cover = object.userData.가림uniforms;
+      if (cover) {
+        cover.uTopCover.value.set(
+          상의 ? 1 : 0,
+          상의?.cover_hem_y ?? 0,
+          상의?.cover_sleeve_x ?? 0,
+          상의?.cover_neck_y0 ?? 0,
+        );
+        cover.uTopNeck.value.set(상의?.cover_neck_slope_z ?? 0, 상의?.cover_neck_curve ?? 0);
+        cover.uBottomCover.value.set(
+          하의 && !치마 ? 1 : 0,
+          하의?.cover_waist_y ?? 0,
+          하의?.cover_leg_y ?? 0,
+        );
+      }
     });
-    준비.pupils.forEach((pupil) => pupil.material.color.set(외형설정.eyeColor));
     여성속옷갱신(준비.chestUnderwear, 외형설정);
-    하의속옷갱신(준비.lowerUnderwear, 외형설정);
+    하의속옷갱신(준비.lowerUnderwear, 외형설정, 치마);
+    준비.parts.forEach(({ object }) => {
+      const cover = object.userData.가림uniforms;
+      if (!cover) return;
+      const part = object.name.includes("10TORS") ? 준비.chestUnderwear : object.name.includes("17HIPS") ? 준비.lowerUnderwear : null;
+      cover.uUnderwearBand.value.x = part?.visible ? 1 : 0;
+    });
   }, [
     준비.parts,
-    준비.pupils,
     준비.chestUnderwear,
     준비.lowerUnderwear,
     외형설정,
@@ -516,8 +677,20 @@ function SidekickGameAvatar({
       공중모션중.current = confirmedAir;
     }
     재생(next);
-    mixer.update(delta);
+    const action = actions.current.get(현재모션.current);
+    if (검증시각 !== null && action) {
+      actions.current.forEach((other) => {
+        if (other !== action) other.stop();
+      });
+      action.stopFading().setEffectiveWeight(1).play();
+      action.time = 검증시각 % Math.max(0.001, action.getClip().duration);
+      mixer.update(0);
+    } else mixer.update(delta);
     준비.headBone?.scale.setScalar(설정.headScale ?? 1);
+    const shoulder = 어깨값(설정) * 어깨본이동;
+    준비.shoulderBones.forEach(({ bone, rest, direction }) => {
+      bone.position.copy(rest).addScaledVector(direction, shoulder);
+    });
 
     group.position.set(state.position.x, state.footY, state.position.z);
     group.rotation.set(0, state.facing, 0);
@@ -534,9 +707,20 @@ function SidekickGameAvatar({
       bone.getWorldPosition(발좌표).applyMatrix4(역행렬);
       animatedFootY = Math.min(animatedFootY, 발좌표.y);
     });
-    const animatedBottom = Number.isFinite(animatedFootY)
-      ? animatedFootY + 준비.soleOffset
-      : 준비.bottom;
+    let soleY = Infinity;
+    준비.soles.forEach(({ object, option, indices }) => {
+      if (option !== (설정.shoes ?? 1)) return;
+      indices.forEach((index) => {
+        object.getVertexPosition(index, 발좌표);
+        object.localToWorld(발좌표).applyMatrix4(역행렬);
+        soleY = Math.min(soleY, 발좌표.y);
+      });
+    });
+    const animatedBottom = Number.isFinite(soleY)
+      ? soleY
+      : Number.isFinite(animatedFootY)
+        ? animatedFootY + 준비.soleOffset
+        : 준비.bottom;
     group.position.y = state.footY - animatedBottom * avatarScale;
 
     if (import.meta.env.DEV) {
