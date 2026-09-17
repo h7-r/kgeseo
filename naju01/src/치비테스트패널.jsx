@@ -1,70 +1,113 @@
-// 치비 몸체 시제품 확인용 패널 (로비 ?avatar=chibi 전용).
-// 1단계 검토 범위만 다룬다: 체형 전환, 43개 모션 미리보기, 키·머리 크기, 피부색.
+// 치비 캐릭터 꾸미기 패널 (로비 ?avatar=chibi 전용).
+// 성별 체형, 헤어·상의·하의·신발, 키·머리·체형·눈동자 크기, 색상, 43개 동작 미리보기,
+// 외형 저장·불러오기·초기화.
+import { useState } from "react";
 import { 사이드킥모션목록 } from "./사이드킥옵션.js";
+import { 치비선택지, 치비항목이름, 치비슬라이더, 치비색상, 치비설정보정, 치비외형읽기 } from "./치비옵션.js";
 
 const 입력차단 = (e) => e.stopPropagation();
 
-export default function ChibiTestPanel({ 설정, set설정 }) {
+export default function ChibiTestPanel({ 설정, set설정, 저장키 }) {
+  const [열림, set열림] = useState(true);
+  const [안내, set안내] = useState("");
   const 바꾸기 = (patch) => set설정((old) => ({ ...old, ...patch }));
   const 값목록 = 사이드킥모션목록.map(([value]) => value);
   const 이동 = (step) => {
-    const index = Math.max(0, 값목록.indexOf(설정.motion));
-    const next = (index - 1 + step + (값목록.length - 1)) % (값목록.length - 1);
-    바꾸기({ motion: 값목록[next + 1] });
+    const index = Math.max(1, 값목록.indexOf(설정.motion));
+    const count = 값목록.length - 1;
+    바꾸기({ motion: 값목록[((index - 1 + step + count) % count) + 1] });
   };
   return (
     <div style={패널} onKeyDown={입력차단} onKeyUp={입력차단} onMouseDown={입력차단}>
-      <div style={제목}>치비 몸체 시제품 · 1단계</div>
-      <div style={두칸}>
-        {[["masculine", "남성"], ["feminine", "여성"]].map(([gender, label]) => (
-          <button
-            key={gender}
-            type="button"
-            style={설정.gender === gender ? 선택버튼 : 버튼}
-            onClick={() => 바꾸기({ gender })}
-          >{label}</button>
-        ))}
-      </div>
-      <label style={줄}>
-        <span>동작</span>
-        <select style={선택상자} value={설정.motion} onChange={(e) => 바꾸기({ motion: e.target.value })}>
-          {사이드킥모션목록.map(([value, label]) => (
-            <option key={value} value={value}>{label}</option>
+      <button type="button" style={제목버튼} onClick={() => set열림((v) => !v)}>
+        {열림 ? "▾" : "▸"} 치비 캐릭터 꾸미기
+      </button>
+      {열림 && (
+        <div style={내용}>
+          <div style={두칸}>
+            {[["masculine", "남성 체형"], ["feminine", "여성 체형"]].map(([gender, label]) => (
+              <button key={gender} type="button" style={설정.gender === gender ? 선택버튼 : 버튼} onClick={() => 바꾸기({ gender })}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <label style={줄}>
+            <span>동작</span>
+            <select style={선택상자} value={설정.motion} onChange={(e) => 바꾸기({ motion: e.target.value })}>
+              {사이드킥모션목록.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </label>
+          <div style={세칸}>
+            <button type="button" style={버튼} onClick={() => 이동(-1)}>이전</button>
+            <button type="button" style={버튼} onClick={() => 바꾸기({ motion: "자동" })}>자동</button>
+            <button type="button" style={버튼} onClick={() => 이동(1)}>다음</button>
+          </div>
+          {Object.entries(치비선택지).map(([key, options]) => (
+            <label key={key} style={줄}>
+              <span>{치비항목이름[key]}</span>
+              <select style={선택상자} value={설정[key]} onChange={(e) => 바꾸기({ [key]: Number(e.target.value) })}>
+                {options.map(([value, label]) => (
+                  <option key={`${key}-${value}`} value={value}>{label}</option>
+                ))}
+              </select>
+            </label>
           ))}
-        </select>
-      </label>
-      <div style={세칸}>
-        <button type="button" style={버튼} onClick={() => 이동(-1)}>이전</button>
-        <button type="button" style={버튼} onClick={() => 바꾸기({ motion: "자동" })}>자동</button>
-        <button type="button" style={버튼} onClick={() => 이동(1)}>다음</button>
-      </div>
-      {[["heightScale", "키", 0.7, 1.3], ["headScale", "머리", 0.8, 1.3]].map(([key, label, min, max]) => (
-        <label key={key} style={슬라이더줄}>
-          <span>{label}</span>
-          <input type="range" min={min} max={max} step={0.01} value={설정[key]} onChange={(e) => 바꾸기({ [key]: Number(e.target.value) })} />
-          <output>{Number(설정[key]).toFixed(2)}</output>
-        </label>
-      ))}
-      <label style={줄}>
-        <span>피부</span>
-        <input type="color" value={설정.skinColor} onChange={(e) => 바꾸기({ skinColor: e.target.value })} />
-      </label>
-      <div style={안내}>
-        V 시점 전환 · T 조작 시작 · WASD/Shift/C/Space · 좌클릭 펀치
-        <br />얼굴 질감·헤어·의상은 다음 단계에서 붙인다.
-      </div>
+          {치비슬라이더.map(([key, label, min, max, step]) => (
+            <label key={key} style={슬라이더줄}>
+              <span>{label}</span>
+              <input type="range" style={슬라이더} min={min} max={max} step={step} value={설정[key]} onChange={(e) => 바꾸기({ [key]: Number(e.target.value) })} />
+              <output style={값}>{Number(설정[key]).toFixed(2)}</output>
+            </label>
+          ))}
+          <div style={색상줄}>
+            {치비색상.map(([key, label]) => (
+              <label key={key} style={색상칸}>
+                <span>{label}</span>
+                <input type="color" style={색상입력} value={설정[key]} onChange={(e) => 바꾸기({ [key]: e.target.value })} />
+              </label>
+            ))}
+          </div>
+          <div style={세칸}>
+            <button
+              type="button"
+              style={버튼}
+              onClick={() => {
+                try {
+                  localStorage.setItem(저장키, JSON.stringify(치비설정보정(설정)));
+                  set안내("현재 외형 저장됨");
+                } catch {
+                  set안내("저장 실패");
+                }
+              }}
+            >외형 저장</button>
+            <button type="button" style={버튼} onClick={() => { set설정(치비외형읽기(저장키)); set안내("저장 외형 불러옴"); }}>불러오기</button>
+            <button type="button" style={버튼} onClick={() => { set설정(치비설정보정(null)); set안내("기본값 복원"); }}>초기화</button>
+          </div>
+          {안내 && <div style={안내글}>{안내}</div>}
+          <div style={도움말}>V 시점 · T 조작 시작 · ESC 패널 조작 · WASD/Shift/C/Space · 좌클릭 펀치</div>
+        </div>
+      )}
     </div>
   );
 }
 
 const 글꼴 = '11px/1.35 ui-monospace, Menlo, "Malgun Gothic", monospace';
-const 패널 = { position: "absolute", left: 14, top: 14, zIndex: 60, width: "min(300px, calc(100vw - 28px))", boxSizing: "border-box", display: "grid", gap: 6, padding: 10, borderRadius: 8, background: "rgba(14,18,26,.86)", border: "1px solid rgba(170,190,220,.25)", color: "#DDE7F6", font: 글꼴 };
-const 제목 = { fontWeight: 700, color: "#FFFFFF" };
-const 버튼 = { minWidth: 0, border: "1px solid rgba(170,190,220,.25)", borderRadius: 5, padding: "4px 6px", background: "rgba(14,18,26,.68)", color: "#DDE7F6", font: 글꼴, cursor: "pointer" };
+const 패널 = { position: "absolute", left: 14, top: 14, zIndex: 60, width: "min(320px, calc(100vw - 28px))", boxSizing: "border-box", display: "grid", gap: 5, color: "#DDE7F6", font: 글꼴 };
+const 버튼 = { minWidth: 0, border: "1px solid rgba(170,190,220,.25)", borderRadius: 5, padding: "4px 6px", background: "rgba(14,18,26,.68)", color: "#DDE7F6", font: 글꼴, cursor: "pointer", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const 제목버튼 = { ...버튼, textAlign: "left", padding: "6px 9px", background: "rgba(14,18,26,.84)", fontWeight: 700 };
 const 선택버튼 = { ...버튼, background: "rgba(92,140,196,.45)", borderColor: "rgba(170,210,255,.7)", color: "#FFFFFF" };
+const 내용 = { display: "grid", gap: 5, padding: 8, borderRadius: 7, background: "rgba(14,18,26,.86)", border: "1px solid rgba(170,190,220,.25)", maxHeight: "calc(100dvh - 90px)", overflowY: "auto", overflowX: "hidden" };
 const 두칸 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 };
-const 세칸 = { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 };
-const 줄 = { display: "grid", gridTemplateColumns: "44px minmax(0, 1fr)", alignItems: "center", gap: 6 };
-const 슬라이더줄 = { display: "grid", gridTemplateColumns: "44px minmax(0, 1fr) 34px", alignItems: "center", gap: 6 };
-const 선택상자 = { minWidth: 0, width: "100%", border: "1px solid rgba(170,190,220,.3)", borderRadius: 4, padding: "3px 4px", background: "#202632", color: "#E8EFFA", font: 글꼴 };
-const 안내 = { color: "#AFC0D8", fontSize: 10 };
+const 세칸 = { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 4 };
+const 줄 = { display: "grid", gridTemplateColumns: "minmax(44px, 24%) minmax(0, 1fr)", alignItems: "center", gap: 6 };
+const 슬라이더줄 = { display: "grid", gridTemplateColumns: "minmax(44px, 22%) minmax(0, 1fr) 34px", alignItems: "center", gap: 6 };
+const 슬라이더 = { width: "100%", minWidth: 0, margin: 0 };
+const 값 = { textAlign: "right", color: "#AFC0D8", fontSize: 10 };
+const 선택상자 = { minWidth: 0, width: "100%", boxSizing: "border-box", border: "1px solid rgba(170,190,220,.3)", borderRadius: 4, padding: "3px 4px", background: "#202632", color: "#E8EFFA", font: 글꼴 };
+const 색상줄 = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(46px, 1fr))", gap: 5 };
+const 색상칸 = { minWidth: 0, display: "grid", gap: 2, textAlign: "center", fontSize: 9 };
+const 색상입력 = { width: "100%", minWidth: 0, height: 24, padding: 1, boxSizing: "border-box" };
+const 안내글 = { color: "#9ED6AF", textAlign: "center", fontSize: 10 };
+const 도움말 = { color: "#AFC0D8", fontSize: 10 };

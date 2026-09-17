@@ -8,22 +8,13 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { clone, retargetClip } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { 미터 } from "./공간도면.js";
+import { 기본치비설정 } from "./치비옵션.js";
 
 const 몸파일 = {
   masculine: "/models/chibi-male.glb",
   feminine: "/models/chibi-female.glb",
 };
 const 모션파일 = "/models/vendor/quaternius-universal-animation-library.glb";
-
-const 기본치비설정 = {
-  motion: "자동",
-  walkMotion: "Walk_Loop",
-  runMotion: "Jog_Fwd_Loop",
-  gender: "masculine",
-  heightScale: 1,
-  headScale: 1,
-  skinColor: "#f3d2bd",
-};
 
 function 첫스킨메시(root) {
   let result = null;
@@ -68,6 +59,38 @@ function 리타게팅옵션(targetSkin, sourceSkin) {
   };
 }
 
+function 형태값(mesh, name, value) {
+  const index = mesh.morphTargetDictionary?.[name];
+  if (index !== undefined) mesh.morphTargetInfluences[index] = value;
+}
+
+// 몸 피부는 선택한 옷이 완전히 덮는 정점만 그리지 않는다. 빌드에서 옷마다 비트
+// 하나(_cover)를 구워 두었고, 선택된 옷의 비트 마스크와 맞으면 버린다.
+function 피부가림준비(mesh) {
+  const uniforms = { uCoverMask: { value: 0 } };
+  const material = mesh.material;
+  material.customProgramCacheKey = () => "chibi-skin-cover";
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, uniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute float _cover;\nvarying float vCoverHidden;\nuniform float uCoverMask;")
+      .replace(
+        "#include <begin_vertex>",
+        `#include <begin_vertex>
+        vCoverHidden = 0.0;
+        for (int bit = 0; bit < 12; bit++) {
+          float place = pow(2.0, float(bit));
+          if (mod(floor(uCoverMask / place), 2.0) > 0.5 && mod(floor(_cover / place), 2.0) > 0.5) vCoverHidden = 1.0;
+        }`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying float vCoverHidden;")
+      .replace("#include <clipping_planes_fragment>", "#include <clipping_planes_fragment>\nif (vCoverHidden > 0.999) discard;");
+  };
+  material.needsUpdate = true;
+  mesh.userData.가림uniforms = uniforms;
+}
+
 function 몸준비(gltf, 모션GLTF) {
   const model = clone(gltf.scene);
   const retargetModel = clone(gltf.scene);
@@ -77,15 +100,27 @@ function 몸준비(gltf, 모션GLTF) {
   const sourceSkin = 첫스킨메시(source);
   const skinMaterials = [];
   const soles = [];
+  const parts = [];
   model.traverse((object) => {
     if (!object.isMesh) return;
     object.castShadow = true;
     object.receiveShadow = true;
     object.frustumCulled = false;
-    object.material = object.material.clone();
-    const part = object.userData.chibi_part;
-    if (part === "body" || object.name.includes("Nose")) skinMaterials.push(object.material);
+    object.material = Array.isArray(object.material)
+      ? object.material.map((material) => material.clone())
+      : object.material.clone();
+    // 여러 재질로 나뉜 파츠는 GLTFLoader가 부모 Group에 extras를 붙인다.
+    let owner = object;
+    while (owner && owner.userData.chibi_part === undefined) owner = owner.parent;
+    const data = owner?.userData ?? {};
+    const part = data.chibi_part;
+    parts.push({ object, data });
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    materials.forEach((material) => {
+      if (/^Skin_/.test(material.name)) skinMaterials.push(material);
+    });
     if (part === "body") {
+      피부가림준비(object);
       const position = object.geometry.getAttribute("position");
       const indices = [];
       for (let i = 0; i < position.count; i += 1) if (position.getY(i) < 0.02) indices.push(i);
@@ -120,6 +155,7 @@ function 몸준비(gltf, 모션GLTF) {
     clipCount: sourceClips.size,
     mappedBones: Object.keys(options.names).length,
     skinMaterials,
+    parts,
     soles,
     headBone: targetSkin.skeleton.getBoneByName("head"),
   };
@@ -136,9 +172,48 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     [gender, 남GLTF, 여GLTF, 모션GLTF],
   );
 
+  const 외형 = useMemo(
+    () => ({ ...기본치비설정, ...설정 }),
+    // 모션 값만 바뀔 때는 파츠를 다시 칠하지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [설정.hair, 설정.top, 설정.bottom, 설정.shoes, 설정.skinny, 설정.heavy, 설정.buff, 설정.pupilScale,
+      설정.skinColor, 설정.eyeColor, 설정.hairColor, 설정.topColor, 설정.bottomColor, 설정.shoesColor],
+  );
+
   useEffect(() => {
-    준비.skinMaterials.forEach((material) => material.color?.set(설정.skinColor ?? 기본치비설정.skinColor));
-  }, [준비, 설정.skinColor]);
+    const 선택 = { hair: 외형.hair, top: 외형.top, bottom: 외형.bottom, shoes: 외형.shoes };
+    const 색 = { hair: 외형.hairColor, top: 외형.topColor, bottom: 외형.bottomColor, shoes: 외형.shoesColor };
+    const 큰눈 = Math.max(0, (외형.pupilScale - 1) / 0.45);
+    const 작은눈 = Math.max(0, (1 - 외형.pupilScale) / 0.45);
+    준비.parts.forEach(({ object, data }) => {
+      const slot = data.slot;
+      if (slot in 선택) object.visible = Number(data.variant) === 선택[slot];
+      else if (slot === "underwear") object.visible = 선택.bottom < 0;
+      else if (slot === "underweartop" || object.name.includes("UnderwearTop")) object.visible = 선택.top < 0;
+      형태값(object, "heavy", 외형.heavy);
+      형태값(object, "skinny", 외형.skinny);
+      형태값(object, "buff", 외형.buff);
+      if (/_(Iris|Pupil|Highlight)_/.test(object.name)) {
+        형태값(object, "pupilLarge", 큰눈);
+        형태값(object, "pupilSmall", 작은눈);
+      }
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      materials.forEach((material) => {
+        if (/^Skin_/.test(material.name)) material.color.set(외형.skinColor);
+        else if (/^Iris_/.test(material.name)) material.color.set(외형.eyeColor);
+        else if (/^Brow_/.test(material.name) && object.name.includes("_Brow_")) material.color.set(외형.hairColor);
+        else if (slot === "hair") material.color.set(색.hair);
+        else if (색[slot] && material.name === data.primary_color_material) material.color.set(색[slot]);
+      });
+    });
+    let mask = 0;
+    [["top", 0], ["bottom", 4], ["shoes", 8]].forEach(([slot, base]) => {
+      if (선택[slot] >= 0) mask += 2 ** (base + 선택[slot]);
+    });
+    준비.parts.forEach(({ object }) => {
+      if (object.userData.가림uniforms) object.userData.가림uniforms.uCoverMask.value = mask;
+    });
+  }, [준비, 외형]);
 
   const mixer = useMemo(() => new THREE.AnimationMixer(준비.targetSkin), [준비.targetSkin]);
   const actions = useRef(new Map());

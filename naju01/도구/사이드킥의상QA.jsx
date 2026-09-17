@@ -65,7 +65,8 @@ function QA아바타({ index, count, spec, view, mode }) {
   const cell = mode === "face" ? 0.34 : 간격;
   const x = (index - (count - 1) / 2) * cell;
   // 얼굴 모드에서는 키가 달라도 눈높이가 같은 줄에 오게 발 높이를 옮긴다.
-  const footY = mode === "face" ? 1.6 - 1.625 * (settings.heightScale ?? 1) : 0;
+  const eyeHeight = chibi ? 1.2 : 1.625;
+  const footY = mode === "face" ? 1.6 - eyeHeight * (settings.heightScale ?? 1) : 0;
   const [state] = useState(() => ({
     current: {
       position: new THREE.Vector3(x, 0, 0),
