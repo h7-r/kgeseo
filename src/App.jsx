@@ -197,7 +197,9 @@ const 쿼리 =
 // 로비 원본 실행은 그대로 두고 테스트 주소에서만 Sidekick을 지연 로드한다.
 //   /?avatar=sidekick → 로비 1·3인칭 캐릭터 검증
 // 일반 주소에서는 GLB와 모션 파일조차 내려받지 않는다.
-const 로비아바타테스트 = 쿼리.get("avatar") === "sidekick";
+// ?avatar=chibi → 치비 몸체 시제품(1단계 검토). 이동·시점·펀치 연결은 Sidekick 테스트와 같다.
+const 로비치비테스트 = 쿼리.get("avatar") === "chibi";
+const 로비아바타테스트 = 쿼리.get("avatar") === "sidekick" || 로비치비테스트;
 const LobbySidekick = lazy(() =>
   import("../naju01/src/사이드킥게임아바타.jsx"),
 );
@@ -207,6 +209,8 @@ const LobbySidekickPanel = lazy(() =>
   import("../naju01/src/사이드킥꾸미기패널.jsx"),
 );
 const 로비외형저장키 = "kgeseo.lobby.sidekick.appearance.v2";
+const LobbyChibi = lazy(() => import("../naju01/src/치비게임아바타.jsx"));
+const LobbyChibiPanel = lazy(() => import("../naju01/src/치비테스트패널.jsx"));
 
 // 저사양 모드 — 내장 GPU 노트북에서 화면이 검게 죽는 걸 막는다.
 //   원인은 대부분 '그릴 픽셀 수'다. 아래 세 가지가 픽셀·메모리를 가장 많이 먹는다.
@@ -8323,6 +8327,7 @@ function Scene({
   삼인칭 = false,
   플레이어참조 = null,
   사이드킥설정 = undefined,
+  치비설정 = undefined,
 }) {
   // ── 로비 물건 상태 (서랍·램프·의자·들고 있는 것) ──────────
   //   겨냥은 여기서 구독하지 않는다. 고개만 돌려도 방 전체가 다시 그려지기 때문이다.
@@ -11425,7 +11430,12 @@ function Scene({
         )}
       </Suspense>
 
-      {로비아바타테스트 && (
+      {로비치비테스트 && 치비설정 && (
+        <Suspense fallback={null}>
+          <LobbyChibi 보이기={삼인칭} 플레이어참조={플레이어참조} 설정={치비설정} />
+        </Suspense>
+      )}
+      {로비아바타테스트 && !로비치비테스트 && (
         <Suspense fallback={null}>
           <LobbySidekick
             보이기={삼인칭}
@@ -11477,7 +11487,12 @@ export default function App() {
   const [삼인칭, set삼인칭] = useState(로비아바타테스트);
   // 테스트 주소가 아니면 null 로 두어 아바타·패널 코드 자체를 건드리지 않는다.
   const [사이드킥설정, set사이드킥설정] = useState(() =>
-    로비아바타테스트 ? 사이드킥외형읽기(로비외형저장키) : null,
+    로비아바타테스트 && !로비치비테스트 ? 사이드킥외형읽기(로비외형저장키) : null,
+  );
+  const [치비설정, set치비설정] = useState(() =>
+    로비치비테스트
+      ? { motion: "자동", walkMotion: "Walk_Loop", runMotion: "Jog_Fwd_Loop", gender: "masculine", heightScale: 1, headScale: 1, skinColor: "#f3d2bd" }
+      : null,
   );
   const 플레이어참조 = useRef({
     position: new THREE.Vector3(0, EYE, 12),
@@ -11832,6 +11847,7 @@ export default function App() {
             삼인칭={로비아바타테스트 && 삼인칭}
             플레이어참조={로비아바타테스트 ? 플레이어참조 : null}
             사이드킥설정={사이드킥설정 ?? undefined}
+            치비설정={치비설정 ?? undefined}
           />
         )}
 
@@ -11915,6 +11931,11 @@ export default function App() {
         >
           [V] {삼인칭 ? "1인칭" : "3인칭"}
         </button>
+      )}
+      {로비치비테스트 && !기차안 && 치비설정 && (
+        <Suspense fallback={null}>
+          <LobbyChibiPanel 설정={치비설정} set설정={set치비설정} />
+        </Suspense>
       )}
       {로비아바타테스트 && !기차안 && 사이드킥설정 && (
         <Suspense fallback={null}>

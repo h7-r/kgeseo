@@ -159,6 +159,28 @@ if (전부 || 단계.has("combos")) {
   }
 }
 
+// 6) 치비 몸체 시제품: 43개 모션 전체 (남·여 × 정면·측면) + Sidekick 비교
+if (단계.has("chibi")) {
+  const { 사이드킥모션목록 } = await import("../src/사이드킥옵션.js");
+  const motions = 사이드킥모션목록.map(([value]) => value).filter((value) => value !== "자동");
+  const 조각 = (list, size) => Array.from({ length: Math.ceil(list.length / size) }, (_, i) => list.slice(i * size, (i + 1) * size));
+  for (const gender of ["masculine", "feminine"]) {
+    for (const [index, group] of 조각(motions, 11).entries()) {
+      const avatars = group.map((motion) => ({ avatar: "chibi", settings: { gender }, label: motion, motion, time: 0.35 }));
+      for (const view of ["front", "side"]) {
+        await 장면(`chibi-${gender}-motions-${index + 1}-${view}`, { avatars, view }, { cell: 200 });
+      }
+    }
+  }
+  const 비교 = [["Idle_Loop", 0.6], ["Walk_Loop", 0.3], ["Jog_Fwd_Loop", 0.2], ["Sprint_Loop", 0.18], ["Crouch_Fwd_Loop", 0.35], ["Jump_Loop", 0.2], ["Punch_Cross", 0.22]];
+  const avatars = 비교.flatMap(([motion, time]) => [
+    { settings: { ...남, ...색 }, label: `Sidekick\n${motion}`, motion, time },
+    { avatar: "chibi", settings: { gender: "masculine" }, label: `치비 남\n${motion}`, motion, time },
+    { avatar: "chibi", settings: { gender: "feminine" }, label: `치비 여\n${motion}`, motion, time },
+  ]);
+  for (const view of ["front", "side", "back"]) await 장면(`chibi-compare-${view}`, { avatars, view }, { cell: 150 });
+}
+
 writeFileSync(join(출력, "metrics.json"), JSON.stringify({ errors: 오류, rows: 수치 }, null, 2));
 console.log("errors", 오류.length, 오류.slice(0, 5));
 await browser.close();

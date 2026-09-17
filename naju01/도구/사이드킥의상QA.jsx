@@ -9,6 +9,7 @@ import { createRoot } from "react-dom/client";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import SidekickGameAvatar from "../src/사이드킥게임아바타.jsx";
+import ChibiGameAvatar from "../src/치비게임아바타.jsx";
 import { 외형설정보정 } from "../src/사이드킥옵션.js";
 
 const 간격 = 1.15;
@@ -52,9 +53,14 @@ function QA준비표시({ 장면번호 }) {
 }
 
 function QA아바타({ index, count, spec, view, mode }) {
+  // spec.avatar === "chibi" 이면 치비 몸체 시제품을 같은 무대·같은 모션으로 세운다.
+  const chibi = spec.avatar === "chibi";
   const settings = useMemo(
-    () => ({ ...외형설정보정(spec.settings), motion: spec.motion ?? "Idle_Loop" }),
-    [spec],
+    () =>
+      chibi
+        ? { gender: "masculine", heightScale: 1, headScale: 1, ...spec.settings, motion: spec.motion ?? "Idle_Loop" }
+        : { ...외형설정보정(spec.settings), motion: spec.motion ?? "Idle_Loop" },
+    [spec, chibi],
   );
   const cell = mode === "face" ? 0.34 : 간격;
   const x = (index - (count - 1) / 2) * cell;
@@ -77,13 +83,17 @@ function QA아바타({ index, count, spec, view, mode }) {
   }));
   return (
     <group name={`qa-${index}`} userData={{ spec, settings }}>
-      <SidekickGameAvatar
-        보이기
-        플레이어참조={state}
-        설정={settings}
-        크기={1}
-        검증시각={spec.time ?? 0}
-      />
+      {chibi ? (
+        <ChibiGameAvatar 보이기 플레이어참조={state} 설정={settings} 크기={1} 검증시각={spec.time ?? 0} />
+      ) : (
+        <SidekickGameAvatar
+          보이기
+          플레이어참조={state}
+          설정={settings}
+          크기={1}
+          검증시각={spec.time ?? 0}
+        />
+      )}
     </group>
   );
 }
@@ -216,7 +226,7 @@ function 측정(three) {
   const b = new THREE.Vector3();
   three.scene.children.forEach((group) => {
     if (!group.name?.startsWith("qa-")) return;
-    const avatar = group.getObjectByName("NAJU-sidekick-avatar");
+    const avatar = group.getObjectByName("NAJU-sidekick-avatar") ?? group.getObjectByName("NAJU-chibi-avatar");
     if (!avatar) return;
     avatar.updateMatrixWorld(true);
     const { spec, settings } = group.userData;
@@ -227,7 +237,7 @@ function 측정(three) {
     // 발 접지: 보이는 발·신발 메시의 가장 낮은 정점 높이 (0이 지면)
     let lowest = Infinity;
     avatar.traverse((o) => {
-      if (!o.isSkinnedMesh || !o.visible || !/__shoes__/.test(o.name)) return;
+      if (!o.isSkinnedMesh || !o.visible || !(/__shoes__/.test(o.name) || o.userData.chibi_part === "body")) return;
       const count = o.geometry.getAttribute("position").count;
       for (let i = 0; i < count; i += 1) lowest = Math.min(lowest, 월드정점(o, i, a).y);
     });
