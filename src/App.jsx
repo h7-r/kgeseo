@@ -198,7 +198,9 @@ const 쿼리 =
 //   /?avatar=sidekick → 로비 1·3인칭 캐릭터 검증
 // 일반 주소에서는 GLB와 모션 파일조차 내려받지 않는다.
 // ?avatar=chibi → 치비 몸체 시제품(1단계 검토). 이동·시점·펀치 연결은 Sidekick 테스트와 같다.
-const 로비치비테스트 = 쿼리.get("avatar") === "chibi";
+// ?avatar=meshy → Meshy 민머리 기본 모델(같은 런타임·패널, 몸체 파일만 다름)
+const 로비치비몸체 = 쿼리.get("avatar") === "meshy" ? "meshy" : "chibi";
+const 로비치비테스트 = 쿼리.get("avatar") === "chibi" || 로비치비몸체 === "meshy";
 const 로비아바타테스트 = 쿼리.get("avatar") === "sidekick" || 로비치비테스트;
 const LobbySidekick = lazy(() =>
   import("../naju01/src/사이드킥게임아바타.jsx"),
@@ -11432,7 +11434,7 @@ function Scene({
 
       {로비치비테스트 && 치비설정 && (
         <Suspense fallback={null}>
-          <LobbyChibi 보이기={삼인칭} 플레이어참조={플레이어참조} 설정={치비설정} />
+          <LobbyChibi 보이기={삼인칭} 플레이어참조={플레이어참조} 설정={치비설정} 몸체={로비치비몸체} />
         </Suspense>
       )}
       {로비아바타테스트 && !로비치비테스트 && (

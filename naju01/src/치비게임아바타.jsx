@@ -9,9 +9,10 @@ import * as THREE from "three";
 import { clone, retargetClip } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { 미터 } from "./공간도면.js";
 
+// 몸체 종류: chibi = V4 몸체 시제품, meshy = Meshy 민머리 기본 모델(텍스처 원본 유지).
 const 몸파일 = {
-  masculine: "/models/chibi-male.glb",
-  feminine: "/models/chibi-female.glb",
+  chibi: { masculine: "/models/chibi-male.glb", feminine: "/models/chibi-female.glb" },
+  meshy: { masculine: "/models/meshy-male.glb", feminine: "/models/meshy-female.glb" },
 };
 const 모션파일 = "/models/vendor/quaternius-universal-animation-library.glb";
 
@@ -85,6 +86,7 @@ function 몸준비(gltf, 모션GLTF) {
     object.material = object.material.clone();
     const part = object.userData.chibi_part;
     if (part === "body" || object.name.includes("Nose")) skinMaterials.push(object.material);
+    if (part === "body") object.material.side = THREE.FrontSide;
     if (part === "body") {
       const position = object.geometry.getAttribute("position");
       const indices = [];
@@ -125,10 +127,11 @@ function 몸준비(gltf, 모션GLTF) {
   };
 }
 
-function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비설정, 크기 = 미터, 검증시각 = null }) {
+function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비설정, 크기 = 미터, 검증시각 = null, 몸체 = "chibi" }) {
   const root = useRef();
-  const 남GLTF = useGLTF(몸파일.masculine);
-  const 여GLTF = useGLTF(몸파일.feminine);
+  const 파일 = 몸파일[몸체] ?? 몸파일.chibi;
+  const 남GLTF = useGLTF(파일.masculine);
+  const 여GLTF = useGLTF(파일.feminine);
   const 모션GLTF = useGLTF(모션파일);
   const gender = 설정.gender === "feminine" ? "feminine" : "masculine";
   const 준비 = useMemo(
@@ -137,8 +140,10 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   );
 
   useEffect(() => {
-    준비.skinMaterials.forEach((material) => material.color?.set(설정.skinColor ?? 기본치비설정.skinColor));
-  }, [준비, 설정.skinColor]);
+    // Meshy 몸은 피부색이 텍스처에 그려져 있어 곱하기 색을 흰색으로 둔다.
+    const color = 몸체 === "meshy" ? "#ffffff" : (설정.skinColor ?? 기본치비설정.skinColor);
+    준비.skinMaterials.forEach((material) => material.color?.set(color));
+  }, [준비, 설정.skinColor, 몸체]);
 
   const mixer = useMemo(() => new THREE.AnimationMixer(준비.targetSkin), [준비.targetSkin]);
   const actions = useRef(new Map());
@@ -260,8 +265,8 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   );
 }
 
-useGLTF.preload(몸파일.masculine);
-useGLTF.preload(몸파일.feminine);
+useGLTF.preload(몸파일.chibi.masculine);
+useGLTF.preload(몸파일.chibi.feminine);
 useGLTF.preload(모션파일);
 
 export default ChibiGameAvatar;

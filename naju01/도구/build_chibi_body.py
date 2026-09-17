@@ -64,6 +64,9 @@ def arguments() -> argparse.Namespace:
     p.add_argument("--leg-thickness", type=float, default=1.08)
     p.add_argument("--torso-width", type=float, default=1.0)
     p.add_argument("--neck-thickness", type=float, default=1.0)
+    # V4 source hands are palms-up (180); Meshy A-pose hands face the thighs (0).
+    p.add_argument("--arm-twist-deg", type=float, default=180.0)
+    p.add_argument("--glb-prefix", default="chibi")
     return p.parse_args(raw)
 
 
@@ -128,7 +131,7 @@ def rotate_about_axis(point: Vector, origin: Vector, axis: Vector, angle: float)
     return origin + Quaternion(axis, angle) @ (point - origin)
 
 
-def twist_arms(meshes, weights, joints) -> None:
+def twist_arms(meshes, weights, joints, twist_deg: float = 180.0) -> None:
     for side, sign in (("L", 1.0), ("R", -1.0)):
         shoulder, elbow, wrist = joints[f"UpperArm.{side}"], joints[f"Forearm.{side}"], joints[f"Hand.{side}"]
         axis = (wrist - shoulder).normalized()
@@ -146,7 +149,7 @@ def twist_arms(meshes, weights, joints) -> None:
                     t = 0.5 * max(0.0, along) / upper_len
                 else:
                     t = 0.5 + 0.5 * min(1.0, (along - upper_len) / fore_len)
-                angle = math.radians(180.0) * t * arm
+                angle = math.radians(twist_deg) * t * arm
                 v.co = rotate_about_axis(v.co, shoulder, axis, angle)
 
 
@@ -350,7 +353,7 @@ def main() -> None:
         joints = {b.name: world_head(rig, b.name) for b in rig.pose.bones}
         weights = {o.name: vertex_weights(o) for o in meshes}
         apply_rig_pose(rig, meshes)
-        twist_arms(meshes, weights, joints)
+        twist_arms(meshes, weights, joints, args.arm_twist_deg)
         apply_proportions(meshes, weights, joints, args)
         scale = fit_height(meshes, joints, args.height)
         new_rig = fit_sidekick_rig(template, joints, label)
@@ -376,7 +379,7 @@ def main() -> None:
             obj.hide_set(False)
             obj.select_set(True)
         bpy.context.view_layer.objects.active = rig
-        out = args.glb_dir.expanduser().resolve() / f"chibi-{label.lower()}.glb"
+        out = args.glb_dir.expanduser().resolve() / f"{args.glb_prefix}-{label.lower()}.glb"
         bpy.ops.export_scene.gltf(
             filepath=str(out), export_format="GLB", use_selection=True, export_animations=False,
             export_skins=True, export_influence_nb=MAX_INFLUENCES, export_morph=False, export_apply=False,

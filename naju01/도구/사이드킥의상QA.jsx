@@ -54,7 +54,7 @@ function QA준비표시({ 장면번호 }) {
 
 function QA아바타({ index, count, spec, view, mode }) {
   // spec.avatar === "chibi" 이면 치비 몸체 시제품을 같은 무대·같은 모션으로 세운다.
-  const chibi = spec.avatar === "chibi";
+  const chibi = spec.avatar === "chibi" || spec.avatar === "meshy";
   const settings = useMemo(
     () =>
       chibi
@@ -84,7 +84,7 @@ function QA아바타({ index, count, spec, view, mode }) {
   return (
     <group name={`qa-${index}`} userData={{ spec, settings }}>
       {chibi ? (
-        <ChibiGameAvatar 보이기 플레이어참조={state} 설정={settings} 크기={1} 검증시각={spec.time ?? 0} />
+        <ChibiGameAvatar 보이기 플레이어참조={state} 설정={settings} 크기={1} 검증시각={spec.time ?? 0} 몸체={spec.avatar} />
       ) : (
         <SidekickGameAvatar
           보이기
