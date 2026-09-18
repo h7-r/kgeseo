@@ -105,8 +105,14 @@ function 보폭속도(root, skin, clip) {
 // 모션은 보통 체형에 맞춰 만들어진 것이라, 팔이 짧고 골반이 넓은 이 캐릭터에서는
 // 팔이 몸통·허벅지를 파고들고 걸을 때 허리가 과하게 숙여진다. 클립을 고치는 대신
 // 믹서가 끝난 뒤 본 몇 개를 조금 돌려 준다(모든 동작에 같은 양으로 더해진다).
-const 팔벌림도 = 20; // 위팔을 몸에서 바깥으로
-const 허리세움도 = 13; // 걷기·달리기에서 상체를 뒤로
+const 팔벌림도 = 10; // 위팔을 몸에서 바깥으로 — 몸에 닿지 않을 만큼만
+const 허리세움도 = 6; // 걷기·달리기에서 상체를 뒤로
+
+// 원본 걷기 클립은 무릎이 한 번도 다 펴지지 않아 계속 구부정해 보인다. 한 주기에서
+// 가장 덜 굽은 순간을 찾아 그만큼을 통째로 빼면, 그 순간은 다리가 쭉 펴지고 나머지
+// 굽힘의 크기는 그대로 남는다(걸음의 모양은 건드리지 않는다).
+const 무릎펴기 = 0.85; // 1 = 완전히 펴기. 조금 남겨 과신전을 피한다.
+const 무릎본 = ["calf_l", "calf_r"];
 
 // 보정은 런타임에 본을 돌리지 않고 **리타게팅된 클립의 키프레임에 한 번** 넣는다.
 // 매 프레임 본을 돌리면 믹서가 값을 다시 쓰지 않는 프레임에 보정이 겹쳐 쌓여
@@ -136,6 +142,10 @@ function 보정쿼터니언(skin) {
     const axis = 축.clone().applyQuaternion(부모쉴때회전(bone).invert()).normalize();
     out.set(name, { 회전: new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(도)), 이동만 });
   });
+  무릎본.forEach((name) => {
+    const bone = skin.skeleton.getBoneByName(name);
+    if (bone) out.set(name, { ...(out.get(name) ?? {}), 쉴때: bone.quaternion.clone(), 이동만: true });
+  });
   return out;
 }
 
@@ -149,8 +159,27 @@ function 클립보정(clip, 보정, 이동중) {
     const 규칙 = 보정.get(이름[1]);
     if (!규칙 || (규칙.이동만 && !이동중)) return;
     const q = new THREE.Quaternion();
+    let 회전 = 규칙.회전;
+    if (규칙.쉴때) {
+      // 쉴 때 자세에 가장 가까운(= 가장 덜 굽은) 키를 찾아 그만큼을 뺀다.
+      let 곧은 = null;
+      let 가까움 = -1;
+      for (let i = 0; i < track.values.length; i += 4) {
+        const 닮음 = Math.abs(q.fromArray(track.values, i).dot(규칙.쉴때));
+        if (닮음 > 가까움) {
+          가까움 = 닮음;
+          곧은 = q.clone();
+        }
+      }
+      if (곧은) {
+        const 보정량 = 규칙.쉴때.clone().multiply(곧은.invert());
+        회전 = new THREE.Quaternion().slerp(보정량, 무릎펴기);
+        if (규칙.회전) 회전 = 규칙.회전.clone().multiply(회전);
+      }
+    }
+    if (!회전) return;
     for (let i = 0; i < track.values.length; i += 4) {
-      q.fromArray(track.values, i).premultiply(규칙.회전);
+      q.fromArray(track.values, i).premultiply(회전);
       q.toArray(track.values, i);
     }
   });
