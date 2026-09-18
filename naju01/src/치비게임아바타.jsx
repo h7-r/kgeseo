@@ -111,7 +111,8 @@ const 허리세움도 = 6; // 걷기·달리기에서 상체를 뒤로
 // 원본 걷기 클립은 무릎이 한 번도 다 펴지지 않아 계속 구부정해 보인다. 한 주기에서
 // 가장 덜 굽은 순간을 찾아 그만큼을 통째로 빼면, 그 순간은 다리가 쭉 펴지고 나머지
 // 굽힘의 크기는 그대로 남는다(걸음의 모양은 건드리지 않는다).
-const 무릎펴기 = 0.85; // 1 = 완전히 펴기. 조금 남겨 과신전을 피한다.
+const 무릎펴기 = 1.0; // 가장 덜 굽은 순간을 완전히 편다.
+const 무릎굽힘 = 0.65; // 남은 굽힘의 크기 — 걸을 때 무릎이 과하게 접히지 않게 줄인다.
 const 무릎본 = ["calf_l", "calf_r"];
 
 // 보정은 런타임에 본을 돌리지 않고 **리타게팅된 클립의 키프레임에 한 번** 넣는다.
@@ -149,6 +150,32 @@ function 보정쿼터니언(skin) {
   return out;
 }
 
+// 무릎: 한 주기에서 가장 덜 굽은 키만큼을 모든 키에서 빼 그 순간을 쭉 펴 주고,
+// 남은 굽힘은 크기를 줄인다(굽는 시점·순서는 그대로라 걸음의 모양은 유지된다).
+function 무릎보정(track, 쉴때) {
+  const 쉴때역 = 쉴때.clone().invert();
+  const 굽힘 = [];
+  const q = new THREE.Quaternion();
+  let 가장곧은 = null;
+  let 가까움 = -1;
+  for (let i = 0; i < track.values.length; i += 4) {
+    const r = 쉴때역.clone().multiply(q.fromArray(track.values, i));
+    굽힘.push(r);
+    const 닮음 = Math.abs(r.w);
+    if (닮음 > 가까움) {
+      가까움 = 닮음;
+      가장곧은 = r;
+    }
+  }
+  if (!가장곧은) return;
+  const 뺄것 = new THREE.Quaternion().slerp(가장곧은, 무릎펴기).invert();
+  굽힘.forEach((r, k) => {
+    r.premultiply(뺄것);
+    const 작게 = new THREE.Quaternion().slerp(r, 무릎굽힘);
+    쉴때.clone().multiply(작게).toArray(track.values, k * 4);
+  });
+}
+
 // 트랙 이름은 "upperarm_l.quaternion" 일 수도 ".bones[upperarm_l].quaternion" 일 수도 있다.
 const 트랙본이름 = /(?:\.bones\[)?([^.[\]]+)\]?\.quaternion$/;
 
@@ -159,27 +186,13 @@ function 클립보정(clip, 보정, 이동중) {
     const 규칙 = 보정.get(이름[1]);
     if (!규칙 || (규칙.이동만 && !이동중)) return;
     const q = new THREE.Quaternion();
-    let 회전 = 규칙.회전;
     if (규칙.쉴때) {
-      // 쉴 때 자세에 가장 가까운(= 가장 덜 굽은) 키를 찾아 그만큼을 뺀다.
-      let 곧은 = null;
-      let 가까움 = -1;
-      for (let i = 0; i < track.values.length; i += 4) {
-        const 닮음 = Math.abs(q.fromArray(track.values, i).dot(규칙.쉴때));
-        if (닮음 > 가까움) {
-          가까움 = 닮음;
-          곧은 = q.clone();
-        }
-      }
-      if (곧은) {
-        const 보정량 = 규칙.쉴때.clone().multiply(곧은.invert());
-        회전 = new THREE.Quaternion().slerp(보정량, 무릎펴기);
-        if (규칙.회전) 회전 = 규칙.회전.clone().multiply(회전);
-      }
+      무릎보정(track, 규칙.쉴때);
+      return;
     }
-    if (!회전) return;
+    if (!규칙.회전) return;
     for (let i = 0; i < track.values.length; i += 4) {
-      q.fromArray(track.values, i).premultiply(회전);
+      q.fromArray(track.values, i).premultiply(규칙.회전);
       q.toArray(track.values, i);
     }
   });
