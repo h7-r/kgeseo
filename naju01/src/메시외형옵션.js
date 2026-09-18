@@ -2,6 +2,8 @@
 // 파츠 번호는 GLB 노드 extras의 variant와 같다. -1 = 없음(속옷·민머리·맨발).
 import { 사이드킥모션목록 } from "./사이드킥옵션.js";
 
+export const 모델판 = 2;
+
 export const 메시선택지 = {
   hair: {
     masculine: [[-1, "민머리"], [0, "짧은 머리"], [1, "긴 머리"]],
@@ -19,7 +21,8 @@ export function 메시모델파일(설정) {
   const 조합 = 설정.top >= 0 && 설정.bottom >= 0 ? "both"
     : 설정.top >= 0 ? "top"
     : 설정.bottom >= 0 ? "bottom" : "base";
-  return `/models/meshy-${조합}-${설정.gender === "feminine" ? "female" : "male"}.glb`;
+  // ?v — 파일 이름이 그대로라 브라우저가 옛 모델을 계속 쓴다. 모델을 다시 구우면 올린다.
+  return `/models/meshy-${조합}-${설정.gender === "feminine" ? "female" : "male"}.glb?v=${모델판}`;
 }
 
 // [키, 이름, 최소, 최대, step]
@@ -28,6 +31,8 @@ export const 메시슬라이더 = [
   ["headScale", "머리", 0.8, 1.3, 0.01],
   ["shoulderWidth", "어깨", 0.75, 1.25, 0.01],
   ["buff", "골격", 0, 1, 0.05],
+  ["armThickness", "팔 두께", 0.7, 1.3, 0.01],
+  ["legThickness", "다리 두께", 0.7, 1.3, 0.01],
   ["heavy", "통통", 0, 1, 0.05],
   ["skinny", "마름", 0, 1, 0.05],
   ["handScale", "손 크기", 0.7, 1.3, 0.01],
@@ -55,6 +60,8 @@ export const 기본메시설정 = {
   headScale: 1,
   shoulderWidth: 1,
   buff: 0,
+  armThickness: 1,
+  legThickness: 1,
   heavy: 0,
   skinny: 0,
   handScale: 1,

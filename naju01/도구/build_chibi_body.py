@@ -387,7 +387,8 @@ def remap_weights(obj, weights, rig, joints_sk) -> dict:
 
 # ─────────────────────────────── body sliders ───────────────────────────────
 
-BODY_MORPHS = ("heavy", "skinny", "buff", "shoulderWidth", "handScale", "footScale", "fistHands")
+BODY_MORPHS = ("heavy", "skinny", "buff", "shoulderWidth", "armThickness", "legThickness",
+               "handScale", "footScale", "fistHands")
 
 
 def morph_delta(p: Vector, w: dict[str, float], joints: dict[str, Vector], key: str) -> Vector:
@@ -436,6 +437,10 @@ def morph_delta(p: Vector, w: dict[str, float], joints: dict[str, Vector], key: 
             shift = 0.055 * (arm + 0.6 * clav)
             if shift > 0:
                 delta += Vector((sign * shift, 0, 0))
+    elif key == "armThickness":
+        delta += limbs(0.3, 0.0)
+    elif key == "legThickness":
+        delta += limbs(0.0, 0.3)
     elif key in ("handScale", "footScale"):
         chain_names = ("hand", "wrist") if key == "handScale" else ("foot", "ball")
         for s in "lr":

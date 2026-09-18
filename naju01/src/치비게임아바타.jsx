@@ -105,8 +105,8 @@ function 보폭속도(root, skin, clip) {
 // 모션은 보통 체형에 맞춰 만들어진 것이라, 팔이 짧고 골반이 넓은 이 캐릭터에서는
 // 팔이 몸통·허벅지를 파고들고 걸을 때 허리가 과하게 숙여진다. 클립을 고치는 대신
 // 믹서가 끝난 뒤 본 몇 개를 조금 돌려 준다(모든 동작에 같은 양으로 더해진다).
-const 팔벌림도 = 11; // 위팔을 몸에서 바깥으로
-const 허리세움도 = 7; // 걷기·달리기에서 상체를 뒤로
+const 팔벌림도 = 20; // 위팔을 몸에서 바깥으로
+const 허리세움도 = 13; // 걷기·달리기에서 상체를 뒤로
 
 // 보정은 런타임에 본을 돌리지 않고 **리타게팅된 클립의 키프레임에 한 번** 넣는다.
 // 매 프레임 본을 돌리면 믹서가 값을 다시 쓰지 않는 프레임에 보정이 겹쳐 쌓여
@@ -255,7 +255,8 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     () => ({ ...기본메시설정, ...설정 }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [설정.hair, 설정.skinColor, 설정.hairColor, 설정.clothColor, 설정.shoulderWidth,
-      설정.buff, 설정.heavy, 설정.skinny, 설정.handScale, 설정.footScale, 설정.fistHands],
+      설정.buff, 설정.heavy, 설정.skinny, 설정.armThickness, 설정.legThickness,
+      설정.handScale, 설정.footScale, 설정.fistHands],
   );
 
   useEffect(() => {
@@ -268,6 +269,8 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     const 모프 = {
       heavy: 외형.heavy, skinny: 외형.skinny, buff: 외형.buff,
       shoulderWidth: THREE.MathUtils.clamp((외형.shoulderWidth - 1) / 0.25, -1, 1),
+      armThickness: (외형.armThickness - 1) / 0.3,
+      legThickness: (외형.legThickness - 1) / 0.3,
       handScale: (외형.handScale - 1) / 0.3,
       footScale: (외형.footScale - 1) / 0.3,
       fistHands: 외형.fistHands,
