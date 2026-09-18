@@ -10,7 +10,8 @@
 //   조작감을 정하는 숫자(걷기·달리기·앉기 배율·중력·점프·공중제어·반경)와
 //   키 처리 규칙은 **공용.jsx 에서 그대로 가져다 쓴다.** 여기에 다시 적지 않는다.
 //   → 원본을 고치지 않으면서도 "역·기차와 같은 조작감"이 보장된다.
-//   ※ 걷기 속도의 **기본값**은 공용.jsx 의 WALK(6 유닛/s ≈ 1.8 m/s)가 정한다.
+//   ※ 걷기 속도의 **기본값**은 공용.jsx 의 WALK(2.4 유닛/s ≈ 0.72 m/s)가 정한다.
+//     걷기 모션이 제자리 루프라 보폭 속도(0.54 m/s)에 맞춘 값이다 — 더 올리면 발이 미끄러진다.
 //     문서 §9 의 가정치는 2.5 m/s 다. 어느 쪽이 맞는지는 걸어 봐야 아는 값이라
 //     `걷기속도`(m/s)를 인자로 받아 Leva 에서 돌릴 수 있게 해 두었다.
 //     **본편 공용.jsx 는 여전히 한 줄도 고치지 않는다** — 안 넘기면 WALK 그대로다.
@@ -390,7 +391,9 @@ export function use지형이동(
       상태.groundY = 현재발밑.y * 미터;
       상태.footY = p.y - 눈;
       상태.facing = 바라봄.current;
-      상태.moving = active && Math.hypot(vel.current.x, vel.current.z) > 0.001;
+      // 아바타가 걷기 모션 재생 속도를 실제 이동 속도에 맞추는 데 쓴다.
+      상태.speed = active ? Math.hypot(vel.current.x, vel.current.z) : 0;
+      상태.moving = 상태.speed > 0.001;
       상태.running = active && keys.current.run;
       상태.crouching = keys.current.앉기;
       상태.grounded = 접지.current;

@@ -429,8 +429,11 @@ function useSavedControls(폴더, 스키마) {
 // 눈높이 — 1 유닛 ≈ 0.30m 기준(사람 1.65m ≈ 5.5 유닛)
 const EYE = 6.5, // 서 있을 때
   CROUCH_EYE = 3.0; // 앉았을 때 ≈ 0.9m
-const WALK = 6,
-  RUN = 1.7,
+// 걷기·달리기 모션은 제자리 루프라 이동 속도가 클립의 보폭 속도와 맞아야 발이
+// 미끄러지지 않는다. 1.45m 아바타 기준 Walk_Loop 0.54m/s, Jog_Fwd_Loop 1.58m/s라
+// 걷기 0.72m/s(2.4유닛), 달리기 1.58m/s(5.3유닛)에 맞춰 두었다.
+const WALK = 2.4,
+  RUN = 2.2,
   CROUCH = 0.55;
 const GRAVITY = -30,
   JUMP = 10.5;
