@@ -430,10 +430,13 @@ function useSavedControls(폴더, 스키마) {
 const EYE = 6.5, // 서 있을 때
   CROUCH_EYE = 3.0; // 앉았을 때 ≈ 0.9m
 // 걷기·달리기 모션은 제자리 루프라 이동 속도가 클립의 보폭 속도와 맞아야 발이
-// 미끄러지지 않는다. 1.45m 아바타 기준 Walk_Loop 0.54m/s, Jog_Fwd_Loop 1.58m/s라
-// 걷기 0.72m/s(2.4유닛), 달리기 1.58m/s(5.3유닛)에 맞춰 두었다.
-const WALK = 2.4,
-  RUN = 2.2,
+// 미끄러지지 않는다. 1.45m 아바타 기준 클립의 고유 속도는 Walk_Loop 0.52 m/s,
+// Jog_Fwd_Loop 1.54 m/s, Sprint_Loop 2.16 m/s다.
+//   걷기 0.87 m/s(2.9유닛) → Walk_Loop 1.68배. 0.89 m/s를 넘으면 아바타가 걷기
+//   대신 조깅 클립을 고르므로, 이게 '걷는 걸음'을 유지하는 상한이다.
+//   달리기 2.22 m/s(7.4유닛) → Sprint_Loop 1.03배로 딱 맞는다.
+const WALK = 2.9,
+  RUN = 2.55,
   CROUCH = 0.55;
 const GRAVITY = -30,
   JUMP = 10.5;
