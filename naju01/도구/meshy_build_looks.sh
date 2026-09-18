@@ -51,7 +51,12 @@ for entry in "${LOOKS[@]}"; do
   blend naju01/도구/meshy_add_hair.py --blend "$WORK/${gender}_${look}.blend" --label "$label" \
     --hair "$WORK/${gender}_${look}_${hair1}/hair.glb=0" "$WORK/${gender}_${look}_${hair2}/hair.glb=1" \
     --out-blend "$WORK/${gender}_${look}.blend" >/dev/null
-  blend naju01/도구/build_chibi_body.py --v4-blend "$WORK/${gender}_${look}.blend" \
+  # 착장마다 다른 Meshy 모델이라 체형이 조금씩 다르다. base 착장의 골격을 기준으로
+  # 뽑아 두고 나머지 착장을 그 골격에 맞춘다(옷만 갈아입혀도 몸은 그대로다).
+  canon=$P/canonical-${gender}.json
+  canon_arg=(--canonical "$canon")
+  [ "$look" = base ] && canon_arg=(--canonical-out "$canon")
+  blend naju01/도구/build_chibi_body.py "${canon_arg[@]}" --v4-blend "$WORK/${gender}_${look}.blend" \
     --sidekick-blend "$D/SIDEKICK_customizer_base.blend" --blend-output "$WORK/rigged_${gender}_${look}.blend" \
     --glb-dir "$WORK/full" --report "$WORK/report_${gender}_${look}.json" \
     --height 1.45 --head-scale 1 --leg-length 1 --arm-thickness 1 --leg-thickness 1 \

@@ -74,6 +74,10 @@ def arguments() -> argparse.Namespace:
     # 면 줄이기는 모프를 만들기 전에 해야 한다(모프가 있으면 적용 불가).
     p.add_argument("--face-budget", type=int, default=0, help="0 = 줄이지 않음")
     p.add_argument("--hair-budget", type=int, default=30000)
+    # 옷마다 다른 Meshy 모델이라 체형·자세가 조금씩 다르다. 기준 골격 하나를 뽑아
+    # (--canonical-out) 나머지 착장을 그 골격에 맞춰 변형한다(--canonical).
+    p.add_argument("--canonical-out", type=Path, default=None)
+    p.add_argument("--canonical", type=Path, default=None)
     return p.parse_args(raw)
 
 
@@ -224,6 +228,57 @@ def fit_height(meshes, joints, height: float) -> float:
 
 
 # ─────────────────────────────── Sidekick rig fitting ───────────────────────
+
+def bone_children(rig) -> dict[str, list[str]]:
+    return {b.name: [c.name for c in b.children] for b in rig.pose.bones}
+
+
+def normalise_to_canonical(meshes, weights, joints, canonical, children) -> dict:
+    """Deform the body so its joints land on the canonical skeleton.
+
+    Each look is its own Meshy generation, so arm/leg lengths, hip height and the
+    forward lean differ by a few percent — enough that swapping one garment visibly
+    changes the body.  Per bone we build the similarity (rotation + uniform scale +
+    translation) that carries the measured bone onto the canonical one and blend
+    them by skin weight, so the shape stays continuous across joints.
+    """
+    shared = [n for n in joints if n in canonical]
+    maps: dict[str, tuple[Matrix, Vector, Vector]] = {}
+    for name in shared:
+        kids = [c for c in children.get(name, []) if c in canonical]
+        measured_dir = canonical_dir = None
+        if kids:
+            measured_dir = sum((joints[c] - joints[name] for c in kids), Vector()) / len(kids)
+            canonical_dir = sum((canonical[c] - canonical[name] for c in kids), Vector()) / len(kids)
+        if measured_dir is None or measured_dir.length < 1e-5 or canonical_dir.length < 1e-5:
+            maps[name] = (Matrix.Identity(3), joints[name], canonical[name])
+            continue
+        rotation = measured_dir.normalized().rotation_difference(canonical_dir.normalized()).to_matrix()
+        maps[name] = (rotation * (canonical_dir.length / measured_dir.length), joints[name], canonical[name])
+    # 끝 뼈(머리·손·발끝)는 자기 방향이 없어 부모의 배율을 그대로 쓴다.
+    for name, kids in children.items():
+        for child in kids:
+            if child in maps and not [c for c in children.get(child, []) if c in canonical] and name in maps:
+                maps[child] = (maps[name][0], joints[child], canonical[child])
+
+    moved = 0.0
+    for obj in meshes:
+        for vertex, w in zip(obj.data.vertices, weights[obj.name]):
+            blend = {b: v for b, v in w.items() if b in maps and v > 0}
+            total = sum(blend.values())
+            if total <= 0:
+                continue
+            p = vertex.co
+            out = Vector()
+            for bone, weight in blend.items():
+                matrix, source, target = maps[bone]
+                out += (target + matrix @ (p - source)) * (weight / total)
+            moved += (out - p).length
+            vertex.co = out
+    for name in shared:
+        joints[name] = canonical[name].copy()
+    return {"bones": len(maps), "mean_shift": round(moved / max(1, sum(len(o.data.vertices) for o in meshes)), 5)}
+
 
 def fit_sidekick_rig(template: bpy.types.Object, joints: dict[str, Vector], label: str) -> bpy.types.Object:
     rig = template.copy()
@@ -492,6 +547,14 @@ def main() -> None:
         twist_arms(meshes, weights, joints, args.arm_twist_deg)
         apply_proportions(meshes, weights, joints, args)
         scale = fit_height(meshes, joints, args.height)
+        if args.canonical_out:
+            path = args.canonical_out.expanduser().resolve()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({k: list(v) for k, v in joints.items()}, indent=2))
+        if args.canonical:
+            saved = json.loads(args.canonical.expanduser().resolve().read_text())
+            report.setdefault("canonical", {})[label] = normalise_to_canonical(
+                meshes, weights, joints, {k: Vector(v) for k, v in saved.items()}, bone_children(rig))
         new_rig = fit_sidekick_rig(template, joints, label)
         joints_sk = {b.name: new_rig.matrix_world @ b.head_local for b in new_rig.data.bones}
         stats = {o.name: remap_weights(o, weights[o.name], new_rig, joints_sk) for o in meshes}
