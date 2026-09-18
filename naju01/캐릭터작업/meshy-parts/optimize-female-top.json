@@ -7,7 +7,7 @@
       "faces": 27999
     },
     "Hair1_Female": {
-      "faces": 28000
+      "faces": 27999
     }
   },
   "images": {
@@ -103,6 +103,6 @@
     }
   },
   "files": {
-    "meshy-top-female.glb": 7.86
+    "meshy-top-female.glb": 7.85
   }
 }

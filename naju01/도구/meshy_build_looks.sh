@@ -47,7 +47,12 @@ for entry in "${LOOKS[@]}"; do
   done
 
   # 2) rig this look, 3) add its hair, 4) T-pose + rebind + sliders
-  blend naju01/도구/meshy_base_rig.py --"$gender" "$source" \
+  # 옷을 입은 모델은 소매·밑단에 관절 검출이 속는다. 속옷 차림에서 잡은 관절을
+  # 같은 성별의 나머지 착장에 그대로 물려준다(팔 각도가 착장마다 달라지지 않는다).
+  joints=$P/joints-${gender}.json
+  joints_arg=(--joints "$joints")
+  [ "$look" = base ] && joints_arg=(--joints-out "$joints")
+  blend naju01/도구/meshy_base_rig.py --"$gender" "$source" "${joints_arg[@]}" \
     --blend-output "$WORK/${gender}_${look}.blend" --review-dir "$WORK/review_${gender}_${look}" >/dev/null
   blend naju01/도구/meshy_add_hair.py --blend "$WORK/${gender}_${look}.blend" --label "$label" \
     --hair "$WORK/${gender}_${look}_${hair1}/hair.glb=0" "$WORK/${gender}_${look}_${hair2}/hair.glb=1" \

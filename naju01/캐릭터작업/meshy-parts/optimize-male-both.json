@@ -7,7 +7,7 @@
       "faces": 27999
     },
     "Hair1_Male": {
-      "faces": 27999
+      "faces": 28000
     }
   },
   "images": {
@@ -73,6 +73,6 @@
     }
   },
   "files": {
-    "meshy-both-male.glb": 13.06
+    "meshy-both-male.glb": 13.16
   }
 }

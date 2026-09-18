@@ -38,6 +38,11 @@ def arguments():
     p.add_argument("--female", type=Path)
     p.add_argument("--blend-output", type=Path, required=True)
     p.add_argument("--review-dir", type=Path, required=True)
+    # 옷을 입은 모델은 소매·밑단 때문에 관절이 잘못 잡힌다(티셔츠에서는 손목이
+    # 13% 안쪽으로 잡혀 팔 각도가 18도 틀어졌다). 속옷 차림에서 한 번 잡은 관절을
+    # 키로 나눠 저장해 두고(--joints-out) 같은 캐릭터의 다른 착장에 그대로 쓴다(--joints).
+    p.add_argument("--joints-out", type=Path, default=None)
+    p.add_argument("--joints", type=Path, default=None)
     return p.parse_args(raw)
 
 
@@ -341,7 +346,15 @@ def main():
         body.data.update()
         points = [v.co.copy() for v in body.data.vertices]
         height = max(p.z for p in points)
-        joints = find_landmarks(points)
+        if args.joints:
+            saved = json.loads(args.joints.expanduser().resolve().read_text())
+            joints = {k: Vector(v) * height for k, v in saved.items()}
+        else:
+            joints = find_landmarks(points)
+        if args.joints_out:
+            path = args.joints_out.expanduser().resolve()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({k: [c / height for c in v] for k, v in joints.items()}, indent=2))
         rig = build_rig(label, joints)
         body["slot"] = "body"
         weights = auto_weights(body, rig)
