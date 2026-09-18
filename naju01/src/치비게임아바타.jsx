@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { clone, retargetClip } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { 미터 } from "./공간도면.js";
-import { 기본메시설정 } from "./메시외형옵션.js";
+import { 기본메시설정, 메시모델파일 } from "./메시외형옵션.js";
 
 // 몸체 종류: chibi = V4 몸체 시제품, meshy = Meshy 민머리 기본 모델(텍스처 원본 유지).
 const 몸파일 = {
@@ -68,6 +68,11 @@ function 리타게팅옵션(targetSkin, sourceSkin) {
     useFirstFramePosition: false,
     fps: 30,
   };
+}
+
+function 형태값(mesh, name, value) {
+  const index = mesh.morphTargetDictionary?.[name];
+  if (index !== undefined) mesh.morphTargetInfluences[index] = value;
 }
 
 function 몸준비(gltf, 모션GLTF) {
@@ -137,21 +142,25 @@ function 몸준비(gltf, 모션GLTF) {
 
 function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비설정, 크기 = 미터, 검증시각 = null, 몸체 = "chibi" }) {
   const root = useRef();
+  const meshy = 몸체 === "meshy";
+  const 외형기본 = useMemo(() => ({ ...기본메시설정, ...설정 }), [설정]);
+  const 모델경로 = meshy ? 메시모델파일(외형기본) : null;
   const 파일 = 몸파일[몸체] ?? 몸파일.chibi;
-  const 남GLTF = useGLTF(파일.masculine);
-  const 여GLTF = useGLTF(파일.feminine);
+  const 남GLTF = useGLTF(meshy ? 모델경로 : 파일.masculine);
+  const 여GLTF = useGLTF(meshy ? 모델경로 : 파일.feminine);
   const 모션GLTF = useGLTF(모션파일);
   const gender = 설정.gender === "feminine" ? "feminine" : "masculine";
   const 준비 = useMemo(
-    () => 몸준비(gender === "feminine" ? 여GLTF : 남GLTF, 모션GLTF),
-    [gender, 남GLTF, 여GLTF, 모션GLTF],
+    () => 몸준비(!meshy && gender === "feminine" ? 여GLTF : 남GLTF, 모션GLTF),
+    [meshy, gender, 남GLTF, 여GLTF, 모션GLTF],
   );
 
   // 파츠 표시·색: Meshy 파츠는 텍스처가 색을 담고 있어 선택 색을 곱한다.
   const 외형 = useMemo(
     () => ({ ...기본메시설정, ...설정 }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [설정.hair, 설정.top, 설정.bottom, 설정.skinColor, 설정.hairColor, 설정.topColor, 설정.bottomColor],
+    [설정.hair, 설정.skinColor, 설정.hairColor, 설정.clothColor, 설정.shoulderWidth,
+      설정.buff, 설정.heavy, 설정.skinny, 설정.handScale, 설정.footScale, 설정.fistHands],
   );
 
   useEffect(() => {
@@ -159,10 +168,18 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
       준비.skinMaterials.forEach((material) => material.color?.set(설정.skinColor ?? 기본치비설정.skinColor));
       return;
     }
-    const 선택 = { hair: 외형.hair, top: 외형.top, bottom: 외형.bottom };
-    const 색 = { body: 외형.skinColor, hair: 외형.hairColor, top: 외형.topColor, bottom: 외형.bottomColor };
+    const 색 = { body: 외형.skinColor, hair: 외형.hairColor, top: 외형.clothColor, bottom: 외형.clothColor };
+    // 슬라이더 → morph target. 어깨는 0.75~1.25를 -1~+1로 옮긴다.
+    const 모프 = {
+      heavy: 외형.heavy, skinny: 외형.skinny, buff: 외형.buff,
+      shoulderWidth: THREE.MathUtils.clamp((외형.shoulderWidth - 1) / 0.25, -1, 1),
+      handScale: (외형.handScale - 1) / 0.3,
+      footScale: (외형.footScale - 1) / 0.3,
+      fistHands: 외형.fistHands,
+    };
     준비.parts.forEach(({ object, slot, variant }) => {
-      if (slot in 선택) object.visible = variant === 선택[slot];
+      if (slot === "hair") object.visible = variant === 외형.hair;
+      Object.entries(모프).forEach(([key, value]) => 형태값(object, key, value));
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       materials.forEach((material) => material.color?.set(색[slot] ?? "#ffffff"));
     });

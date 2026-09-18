@@ -33,6 +33,7 @@ from mathutils.kdtree import KDTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import meshy_base_rig as R  # noqa: E402
+import meshy_cloth_select as C  # noqa: E402
 import meshy_extract_hair as H  # noqa: E402
 
 
@@ -43,7 +44,9 @@ def arguments():
     p.add_argument("--label", required=True)
     p.add_argument("--variant", type=Path, required=True)
     p.add_argument("--selection", type=Path, required=True)
-    p.add_argument("--split-z", type=float, required=True, help="waist height in variant coordinates")
+    p.add_argument("--split-z", type=float, default=None,
+                   help="fallback waist height; by default top/bottom are split by garment colour")
+    p.add_argument("--clearance", type=float, default=0.004, help="gap kept between skin and cloth (m)")
     p.add_argument("--out-blend", type=Path, required=True)
     p.add_argument("--review-dir", type=Path, required=True)
     return p.parse_args(raw)
@@ -124,6 +127,93 @@ def blended(maps, weights):
     return m
 
 
+def split_by_colour(obj, selection: set[int], fallback_z):
+    """Split the selected clothing into top and bottom by its own colours.
+
+    A shirt and shorts are different colours, so two colour clusters separate them
+    cleanly along the real seam instead of a flat cut that frays the hem.
+    """
+    import numpy as np
+
+    colours = C.face_colours(obj)
+    verts = obj.data.vertices
+    index = sorted(selection)
+    data = np.array([colours[i] for i in index])
+    centres = np.array([data.min(0), data.max(0)])
+    for _ in range(25):
+        distance = np.linalg.norm(data[:, None, :] - centres[None, :, :], axis=2)
+        labels = distance.argmin(1)
+        for k in (0, 1):
+            if (labels == k).any():
+                centres[k] = data[labels == k].mean(0)
+    heights = {}
+    for k in (0, 1):
+        members = [index[i] for i in range(len(index)) if labels[i] == k]
+        zs = [sum(verts[v].co.z for v in obj.data.polygons[i].vertices) / len(obj.data.polygons[i].vertices)
+              for i in members[:: max(1, len(members) // 400)]]
+        heights[k] = sum(zs) / len(zs) if zs else 0.0
+    top_label = max(heights, key=heights.get)
+    groups = {"top": set(), "bottom": set()}
+    for i, face in enumerate(index):
+        groups["top" if labels[i] == top_label else "bottom"].add(face)
+    if fallback_z is not None and (len(groups["top"]) < 200 or len(groups["bottom"]) < 200):
+        groups = {"top": set(), "bottom": set()}
+        for face in index:
+            poly = obj.data.polygons[face]
+            z = sum(verts[v].co.z for v in poly.vertices) / len(poly.vertices)
+            groups["top" if z >= fallback_z else "bottom"].add(face)
+    return groups
+
+
+def push_outside(obj, body, gap: float) -> int:
+    """Keep the cloth outside the skin: vertices inside (or within `gap`) move out.
+
+    Same idea as the Sidekick wardrobe clearance pass; without it the two Meshy
+    bodies' shape differences leave skin poking through the garment.
+    """
+    from mathutils.bvhtree import BVHTree
+
+    tree = BVHTree.FromPolygons([v.co.copy() for v in body.data.vertices],
+                                [list(p.vertices) for p in body.data.polygons])
+    moved = 0
+    for v in obj.data.vertices:
+        location, normal, _i, _d = tree.find_nearest(v.co)
+        if location is None:
+            continue
+        signed = (v.co - location).dot(normal)
+        if signed < gap:
+            v.co = location + normal * gap
+            moved += 1
+    obj.data.update()
+    return moved
+
+
+def cover_bits(body, garments) -> dict:
+    """Body faces fully hidden by a garment get that garment's bit in `_cover`."""
+    from mathutils.bvhtree import BVHTree
+
+    bits = [0] * len(body.data.vertices)
+    counts = {}
+    for bit, garment in garments:
+        tree = BVHTree.FromPolygons([v.co.copy() for v in garment.data.vertices],
+                                     [list(p.vertices) for p in garment.data.polygons])
+        hidden = 0
+        for v in body.data.vertices:
+            n = v.normal
+            up = Vector((0, 0, 1))
+            side = n.cross(up)
+            tilt = (up - n * n.dot(up)).normalized() if side.length > 1e-3 else n.cross(Vector((1, 0, 0))).normalized()
+            rays = [n, (n + tilt * 0.5).normalized(), (n - tilt * 0.5).normalized()]
+            origin = v.co + n * 0.001
+            if all(tree.ray_cast(origin, d, 0.05)[0] is not None for d in rays):
+                bits[v.index] |= 1 << bit
+                hidden += 1
+        counts[garment.name] = hidden
+    attribute = body.data.attributes.get("_cover") or body.data.attributes.new("_cover", "FLOAT", "POINT")
+    attribute.data.foreach_set("value", [float(b) for b in bits])
+    return counts
+
+
 def main():
     args = arguments()
     review = args.review_dir.expanduser().resolve()
@@ -155,7 +245,10 @@ def main():
 
     selection = set(json.loads(args.selection.read_text()))
     report = {"selected_faces": len(selection), "parts": {}}
-    for part, keep in (("Top", lambda c: c.z >= args.split_z), ("Bottom", lambda c: c.z < args.split_z)):
+    groups = split_by_colour(var, selection, args.split_z)
+    report["split"] = {k: len(v) for k, v in groups.items()}
+    for part, faces in (("Top", groups["top"]), ("Bottom", groups["bottom"])):
+        keep = faces.__contains__
         obj = var.copy()
         obj.data = var.data.copy()
         obj.name = f"{part}_{args.label}"
@@ -163,7 +256,7 @@ def main():
         bm = bmesh.new()
         bm.from_mesh(obj.data)
         bm.faces.ensure_lookup_table()
-        doomed = [f for f in bm.faces if f.index not in selection or not keep(f.calc_center_median())]
+        doomed = [f for f in bm.faces if not keep(f.index)]
         bmesh.ops.delete(bm, geom=doomed, context="FACES")
         bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
         bm.to_mesh(obj.data)
@@ -194,12 +287,16 @@ def main():
                 if bone not in groups:
                     groups[bone] = obj.vertex_groups.new(name=bone)
                 groups[bone].add([index], w, "REPLACE")
+        push_outside(obj, base, args.clearance)
         obj.modifiers.new("Armature", "ARMATURE").object = rig
         obj.parent = rig
         obj["slot"] = part.lower()
         obj["variant"] = 0
         report["parts"][obj.name] = {"vertices": len(obj.data.vertices), "faces": len(obj.data.polygons)}
     bpy.data.objects.remove(var, do_unlink=True)
+    garments = [(0 if o.get("slot") == "top" else 4, o) for o in bpy.data.objects
+                if o.get("slot") in ("top", "bottom") and args.label in o.name]
+    report["covered_body_vertices"] = cover_bits(base, garments)
 
     # Review renders: base body with the fitted clothes.
     scene = bpy.context.scene

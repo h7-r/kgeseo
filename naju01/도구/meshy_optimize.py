@@ -29,6 +29,7 @@ def arguments():
     p.add_argument("--glb-dir", type=Path, required=True)
     p.add_argument("--prefix", default="meshy")
     p.add_argument("--texture", type=int, default=2048)
+    p.add_argument("--labels", nargs="+", default=["Male", "Female"])
     p.add_argument("--report", type=Path, required=True)
     return p.parse_args(raw)
 
@@ -43,22 +44,11 @@ def main():
             image.scale(args.texture, args.texture)
             report["images"][image.name] = {"from": before, "to": tuple(image.size)}
     for obj in [o for o in bpy.data.objects if o.type == "MESH"]:
-        slot = str(obj.get("slot", "body"))
-        budget = BUDGET.get(slot, 20000)
-        faces = len(obj.data.polygons)
-        if faces > budget:
-            bpy.ops.object.select_all(action="DESELECT")
-            obj.select_set(True)
-            bpy.context.view_layer.objects.active = obj
-            mod = obj.modifiers.new("Decimate", "DECIMATE")
-            mod.ratio = budget / faces
-            mod.use_collapse_triangulate = True
-            bpy.ops.object.modifier_apply(modifier=mod.name)
-        report["meshes"][obj.name] = {"faces_before": faces, "faces_after": len(obj.data.polygons)}
+        report["meshes"][obj.name] = {"faces": len(obj.data.polygons)}
 
     out = args.glb_dir.expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
-    for label in ("Male", "Female"):
+    for label in args.labels:
         rig = bpy.data.objects.get(f"ChibiRig_{label}") or bpy.data.objects.get(f"Rig_{label}")
         meshes = [o for o in bpy.data.objects if o.type == "MESH" and o.parent == rig]
         bpy.ops.object.select_all(action="DESELECT")
@@ -70,7 +60,7 @@ def main():
         path = out / f"{args.prefix}-{label.lower()}.glb"
         bpy.ops.export_scene.gltf(
             filepath=str(path), export_format="GLB", use_selection=True, export_animations=False,
-            export_skins=True, export_influence_nb=4, export_morph=False, export_apply=False,
+            export_skins=True, export_influence_nb=4, export_morph=True, export_morph_normal=False, export_apply=False,
             export_extras=True, export_image_format="JPEG", export_jpeg_quality=80,
         )
         report.setdefault("files", {})[path.name] = round(path.stat().st_size / 1e6, 2)

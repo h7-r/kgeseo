@@ -70,6 +70,10 @@ def arguments() -> argparse.Namespace:
     # A-pose sources stand with the legs apart; the motions expect the Sidekick
     # rest stance, so the legs are straightened the same way the arms are.
     p.add_argument("--straighten-legs", action="store_true")
+    p.add_argument("--labels", nargs="+", default=["Male", "Female"])
+    # 면 줄이기는 모프를 만들기 전에 해야 한다(모프가 있으면 적용 불가).
+    p.add_argument("--face-budget", type=int, default=0, help="0 = 줄이지 않음")
+    p.add_argument("--hair-budget", type=int, default=30000)
     return p.parse_args(raw)
 
 
@@ -326,6 +330,116 @@ def remap_weights(obj, weights, rig, joints_sk) -> dict:
     return {"vertices": len(new), "max_influences": max(len(w) for w in new), "bones": sorted(groups)}
 
 
+# ─────────────────────────────── body sliders ───────────────────────────────
+
+BODY_MORPHS = ("heavy", "skinny", "buff", "shoulderWidth", "handScale", "footScale", "fistHands")
+
+
+def morph_delta(p: Vector, w: dict[str, float], joints: dict[str, Vector], key: str) -> Vector:
+    """World-space delta of one slider at a rest point with its Sidekick weights.
+
+    Every mesh (body, clothes, hair) uses the same field, so parts stay together.
+    """
+    def chain(*names) -> float:
+        return min(1.0, sum(w.get(n, 0.0) for n in names))
+
+    torso = chain("pelvis", "spine_01", "spine_02", "spine_03")
+    belly = chain("spine_01", "spine_02") + 0.5 * w.get("pelvis", 0.0)
+    chest = chain("spine_03") + 0.5 * chain("clavicle_l", "clavicle_r")
+    axis_y = joints["spine_02"].y
+    delta = Vector()
+
+    def radial(a: Vector, b: Vector, amount: float, weight: float) -> Vector:
+        d = (b - a).normalized()
+        base = a + d * (p - a).dot(d)
+        return (p - base) * amount * weight
+
+    def limbs(amount_arm: float, amount_leg: float) -> Vector:
+        out = Vector()
+        for s in "lr":
+            arm = chain(f"upperarm_{s}", f"lowerarm_{s}", f"upperarm_twist_01_{s}", f"lowerarm_twist_01_{s}")
+            if arm > 0:
+                out += radial(joints[f"upperarm_{s}"], joints[f"hand_{s}"], amount_arm, arm)
+            leg = chain(f"thigh_{s}", f"calf_{s}", f"thigh_twist_01_{s}", f"calf_twist_01_{s}")
+            if leg > 0:
+                out += radial(joints[f"thigh_{s}"], joints[f"foot_{s}"], amount_leg, leg)
+        return out
+
+    if key == "heavy":
+        delta += Vector((p.x * 0.38 * torso, (p.y - axis_y) * (0.28 * torso + 0.42 * belly * float(p.y < axis_y)), 0))
+        delta += limbs(0.34, 0.36)
+    elif key == "skinny":
+        delta += Vector((p.x * -0.22 * torso, (p.y - axis_y) * -0.2 * torso, 0))
+        delta += limbs(-0.26, -0.24)
+    elif key == "buff":
+        delta += Vector((p.x * 0.24 * chest, (p.y - axis_y) * 0.2 * chest, 0))
+        delta += limbs(0.4, 0.2)
+    elif key == "shoulderWidth":
+        for s, sign in (("l", 1.0), ("r", -1.0)):
+            arm = chain(f"upperarm_{s}", f"lowerarm_{s}", f"hand_{s}", f"upperarm_twist_01_{s}", f"lowerarm_twist_01_{s}")
+            clav = w.get(f"clavicle_{s}", 0.0)
+            shift = 0.055 * (arm + 0.6 * clav)
+            if shift > 0:
+                delta += Vector((sign * shift, 0, 0))
+    elif key in ("handScale", "footScale"):
+        chain_names = ("hand", "wrist") if key == "handScale" else ("foot", "ball")
+        for s in "lr":
+            joint = joints["hand_" + s] if key == "handScale" else joints["foot_" + s]
+            weight = chain(*[f"{n}_{s}" for n in chain_names if f"{n}_{s}" in joints or True])
+            weight = min(1.0, sum(w.get(b, 0.0) for b in w if b.startswith(chain_names[0]) and b.endswith(f"_{s}")))
+            if weight > 0:
+                delta += (p - joint) * 0.35 * weight
+    elif key == "fistHands":
+        # 손가락만 손등 쪽 관절선에서 감아 가볍게 주먹을 쥔다(T포즈: 팔은 +-x, 손바닥은 아래).
+        for s, sign in (("l", 1.0), ("r", -1.0)):
+            hand = min(1.0, sum(x for b, x in w.items() if b.startswith(("hand", "index", "middle", "ring", "pinky", "thumb")) and b.endswith(f"_{s}")))
+            if hand <= 0:
+                continue
+            wrist = joints[f"hand_{s}"]
+            tip = joints.get(f"handtip_{s}", wrist + Vector((sign * 0.1, 0, 0)))
+            reach = max(0.02, abs(tip.x - wrist.x))
+            along = (p.x - wrist.x) * sign
+            # 손가락 밑마디에서 손끝까지만 감는다.
+            knuckle = reach * 0.32
+            length = reach * 0.68
+            if along <= knuckle:
+                continue
+            t = min(1.0, (along - knuckle) / length)
+            angle = math.radians(105.0) * t * hand
+            pivot = Vector((wrist.x + sign * knuckle, p.y, wrist.z))
+            offset = p - pivot
+            c, sn = math.cos(angle), math.sin(angle)
+            rotated = Vector((offset.x * c + offset.z * sn * sign, offset.y, -offset.x * sn * sign + offset.z * c))
+            delta += pivot + rotated - p
+    return delta
+
+
+def add_body_morphs(obj, joints: dict[str, Vector]) -> list[str]:
+    names = {g.index: g.name for g in obj.vertex_groups}
+    joints = dict(joints)
+    # 손끝: 손 가중치를 가진 정점 중 가장 바깥. 손 크기가 모델마다 달라 직접 잰다.
+    for s, sign in (("l", 1.0), ("r", -1.0)):
+        tips = [v.co for v in obj.data.vertices
+                if any(names[g.group].startswith(("hand", "index", "middle", "ring", "pinky"))
+                       and names[g.group].endswith(f"_{s}") and g.weight > 0.5 for g in v.groups)]
+        if tips:
+            joints[f"handtip_{s}"] = max(tips, key=lambda p: p.x * sign)
+    if obj.data.shape_keys is None:
+        obj.shape_key_add(name="Basis", from_mix=False)
+    added = []
+    for key in BODY_MORPHS:
+        block = obj.shape_key_add(name=key, from_mix=False)
+        # 새 키는 값 1로 만들어져 GLB 기본 상태에 그대로 반영된다. 0으로 되돌린다.
+        block.value = 0.0
+        if key == "shoulderWidth":
+            block.slider_min = -1.0
+        for v in obj.data.vertices:
+            weights = {names[g.group]: g.weight for g in v.groups if g.weight > 1e-5}
+            block.data[v.index].co = v.co + morph_delta(v.co, weights, joints, key)
+        added.append(key)
+    return added
+
+
 def main() -> None:
     args = arguments()
     bpy.ops.wm.open_mainfile(filepath=str(args.v4_blend.expanduser().resolve()))
@@ -342,7 +456,7 @@ def main() -> None:
     }
     report: dict = {"params": {k: v for k, v in vars(args).items() if isinstance(v, (int, float))}, "variants": {}}
     export_sets = {}
-    for label in ("Male", "Female"):
+    for label in args.labels:
         rig = bpy.data.objects[f"Rig_{label}"]
         meshes = [o for o in bpy.data.objects if o.type == "MESH" and o.parent == rig]
         bpy.ops.object.select_all(action="DESELECT")
@@ -361,12 +475,28 @@ def main() -> None:
         joints = {b.name: world_head(rig, b.name) for b in rig.pose.bones}
         weights = {o.name: vertex_weights(o) for o in meshes}
         apply_rig_pose(rig, meshes)
+        if args.face_budget:
+            for obj in meshes:
+                budget = args.hair_budget if str(obj.get("slot", "")) == "hair" else args.face_budget
+                faces = len(obj.data.polygons)
+                if faces <= budget:
+                    continue
+                bpy.ops.object.select_all(action="DESELECT")
+                obj.select_set(True)
+                bpy.context.view_layer.objects.active = obj
+                mod = obj.modifiers.new("Decimate", "DECIMATE")
+                mod.ratio = budget / faces
+                mod.use_collapse_triangulate = True
+                bpy.ops.object.modifier_apply(modifier=mod.name)
+            weights = {o.name: vertex_weights(o) for o in meshes}
         twist_arms(meshes, weights, joints, args.arm_twist_deg)
         apply_proportions(meshes, weights, joints, args)
         scale = fit_height(meshes, joints, args.height)
         new_rig = fit_sidekick_rig(template, joints, label)
         joints_sk = {b.name: new_rig.matrix_world @ b.head_local for b in new_rig.data.bones}
         stats = {o.name: remap_weights(o, weights[o.name], new_rig, joints_sk) for o in meshes}
+        for o in meshes:
+            add_body_morphs(o, joints_sk)
         bpy.data.objects.remove(rig, do_unlink=True)
         for obj in meshes:
             obj["chibi_part"] = obj.name.split("_")[0].lower()
@@ -390,8 +520,8 @@ def main() -> None:
         out = args.glb_dir.expanduser().resolve() / f"{args.glb_prefix}-{label.lower()}.glb"
         bpy.ops.export_scene.gltf(
             filepath=str(out), export_format="GLB", use_selection=True, export_animations=False,
-            export_skins=True, export_influence_nb=MAX_INFLUENCES, export_morph=False, export_apply=False,
-            export_extras=True,
+            export_skins=True, export_influence_nb=MAX_INFLUENCES, export_morph=True,
+            export_morph_normal=False, export_apply=False, export_extras=True,
         )
         report["variants"][label]["glb"] = str(out)
     args.report.expanduser().resolve().write_text(json.dumps(report, ensure_ascii=False, indent=2))

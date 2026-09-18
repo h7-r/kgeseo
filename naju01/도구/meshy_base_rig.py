@@ -34,8 +34,8 @@ import meshy_extract_hair as H  # noqa: E402
 def arguments():
     raw = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
     p = argparse.ArgumentParser()
-    p.add_argument("--male", type=Path, required=True)
-    p.add_argument("--female", type=Path, required=True)
+    p.add_argument("--male", type=Path)
+    p.add_argument("--female", type=Path)
     p.add_argument("--blend-output", type=Path, required=True)
     p.add_argument("--review-dir", type=Path, required=True)
     return p.parse_args(raw)
@@ -123,7 +123,8 @@ def find_landmarks(points) -> dict[str, Vector]:
         ankle = leg_centre(ankle_z)
         knee_z = ankle_z + (crotch - ankle_z) * 0.47
         knee = leg_centre(knee_z)
-        joints[f"Thigh.{side}"] = Vector((thigh.x * 0.9, thigh.y, hips_z - h * 0.02))
+        # 허벅지 관절을 안쪽으로 당기면 걷기·달리기에서 무릎이 모인다. 실제 다리 중심을 쓴다.
+        joints[f"Thigh.{side}"] = Vector((thigh.x, thigh.y, hips_z - h * 0.02))
         joints[f"Shin.{side}"] = Vector((knee.x, knee.y + h * 0.005, knee_z))
         joints[f"Foot.{side}"] = Vector((ankle.x, ankle.y + h * 0.01, ankle_z))
         toe_pts = [p for p in points if p.x * sign > 0 and p.z < ground + h * 0.03]
@@ -307,7 +308,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     bpy.ops.wm.read_factory_settings(use_empty=True)
     report = {}
-    for label, path in (("Male", args.male), ("Female", args.female)):
+    for label, path in [(l, p) for l, p in (("Male", args.male), ("Female", args.female)) if p]:
         body = H.import_glb(path, f"Body_{label}")
         # Feet on the ground (z = 0), centred on x/y.
         pts = [v.co for v in body.data.vertices]

@@ -6,13 +6,16 @@ the intended region moves while the torso remains stable.
 """
 
 from math import radians
+import os
 from pathlib import Path
 
 import bpy
 
 
-WORK = Path("/Users/derrick/Downloads/NAJU_avatar_game_rig_work.blend")
-REPORT = Path("/Users/derrick/Downloads/NAJU_avatar_game_rig_range_validation.txt")
+WORK = Path(os.environ.get("AVATAR_AUDIT_BLEND", "/Users/derrick/Downloads/NAJU_avatar_game_rig_work.blend"))
+REPORT = Path(os.environ.get("AVATAR_AUDIT_REPORT", "/Users/derrick/Downloads/NAJU_avatar_game_rig_range_validation.txt"))
+MESH_NAME = os.environ.get("AVATAR_AUDIT_MESH", "NAJU_GAME_AVATAR_MESH")
+RIG_NAME = os.environ.get("AVATAR_AUDIT_RIG", "NAJU_GAME_RIG")
 
 
 def positions(obj):
@@ -48,8 +51,8 @@ def test(name, rig, mesh, before, move, moving_indices, protected_indices):
 
 def main():
     bpy.ops.wm.open_mainfile(filepath=str(WORK))
-    mesh = bpy.data.objects["NAJU_GAME_AVATAR_MESH"]
-    rig = bpy.data.objects["NAJU_GAME_RIG"]
+    mesh = bpy.data.objects[MESH_NAME]
+    rig = bpy.data.objects[RIG_NAME]
     reset_pose(rig)
     rest = positions(mesh)
 
@@ -149,7 +152,7 @@ def main():
     collar_delta = max_delta(rest, collar_after, collar)
     reset_pose(rig)
 
-    lines = ["NAJU Avatar Range-of-Motion Validation", "source: NAJU_avatar_game_rig_work.blend"]
+    lines = ["NAJU Avatar Range-of-Motion Validation", f"source: {WORK.name}"]
     for name, moving, protected, passed in tests:
         lines.append(
             f"{name}: moved region {moving:.6f} m; torso spill {protected:.6f} m; {'PASS' if passed else 'CHECK'}"

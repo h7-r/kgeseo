@@ -7,30 +7,39 @@ export const 메시선택지 = {
     masculine: [[-1, "민머리"], [0, "짧은 머리"], [1, "긴 머리"]],
     feminine: [[-1, "민머리"], [0, "단발"], [1, "긴 머리"]],
   },
-  top: {
-    masculine: [[-1, "없음 · 속옷"], [0, "티셔츠"]],
-    feminine: [[-1, "없음 · 속옷"], [0, "티셔츠"]],
-  },
-  bottom: {
-    masculine: [[-1, "속옷"], [0, "반바지"]],
-    feminine: [[-1, "속옷"], [0, "반바지"]],
-  },
+  top: { masculine: [[-1, "없음 · 속옷"], [0, "티셔츠"]], feminine: [[-1, "없음 · 속옷"], [0, "티셔츠"]] },
+  bottom: { masculine: [[-1, "속옷"], [0, "반바지"]], feminine: [[-1, "속옷"], [0, "반바지"]] },
 };
 
 export const 메시항목이름 = { hair: "헤어", top: "상의", bottom: "하의" };
+
+// 옷은 파츠를 얹지 않고 그 옷을 입은 전신 모델을 통째로 바꿔 끼운다.
+// (Meshy가 만든 착장 그대로라 옷이 뜨거나 속살이 비치지 않는다.)
+export function 메시모델파일(설정) {
+  const 조합 = 설정.top >= 0 && 설정.bottom >= 0 ? "both"
+    : 설정.top >= 0 ? "top"
+    : 설정.bottom >= 0 ? "bottom" : "base";
+  return `/models/meshy-${조합}-${설정.gender === "feminine" ? "female" : "male"}.glb`;
+}
 
 // [키, 이름, 최소, 최대, step]
 export const 메시슬라이더 = [
   ["heightScale", "키", 0.7, 1.3, 0.01],
   ["headScale", "머리", 0.8, 1.3, 0.01],
+  ["shoulderWidth", "어깨", 0.75, 1.25, 0.01],
+  ["buff", "골격", 0, 1, 0.05],
+  ["heavy", "통통", 0, 1, 0.05],
+  ["skinny", "마름", 0, 1, 0.05],
+  ["handScale", "손 크기", 0.7, 1.3, 0.01],
+  ["footScale", "발 크기", 0.7, 1.3, 0.01],
+  ["fistHands", "주먹 쥐기", 0, 1, 0.05],
 ];
 
 // 텍스처 위에 곱해지는 색. 흰색이면 Meshy 원본 색 그대로다.
 export const 메시색상 = [
   ["skinColor", "피부"],
   ["hairColor", "머리"],
-  ["topColor", "상의"],
-  ["bottomColor", "하의"],
+  ["clothColor", "의상"],
 ];
 
 export const 기본메시설정 = {
@@ -44,10 +53,16 @@ export const 기본메시설정 = {
   bottom: 0,
   heightScale: 1,
   headScale: 1,
+  shoulderWidth: 1,
+  buff: 0,
+  heavy: 0,
+  skinny: 0,
+  handScale: 1,
+  footScale: 1,
+  fistHands: 0.6,
   skinColor: "#ffffff",
   hairColor: "#ffffff",
-  topColor: "#ffffff",
-  bottomColor: "#ffffff",
+  clothColor: "#ffffff",
 };
 
 const 모션값 = new Set(사이드킥모션목록.map(([value]) => value));

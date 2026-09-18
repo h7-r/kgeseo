@@ -115,6 +115,8 @@ function QA무대() {
     window.__qa.setScene = (next) =>
       setScene((old) => ({ view: "front", mode: "body", ...next, id: old.id + 1 }));
     window.__qa.metrics = () => 측정(three.current);
+    // 디버그용: 장면 접근(모프·재질 상태 확인).
+    window.__qa.scene = () => three.current?.scene;
     window.__qa.debugSkirt = () => {
       const found = [];
       three.current.scene.traverse((o) => {
