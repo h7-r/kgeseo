@@ -57,11 +57,12 @@ for entry in "${LOOKS[@]}"; do
   blend naju01/도구/meshy_add_hair.py --blend "$WORK/${gender}_${look}.blend" --label "$label" \
     --hair "$WORK/${gender}_${look}_${hair1}/hair.glb=0" "$WORK/${gender}_${look}_${hair2}/hair.glb=1" \
     --out-blend "$WORK/${gender}_${look}.blend" >/dev/null
-  # 착장마다 다른 Meshy 모델이라 체형·자세가 조금씩 다르다. 여성 기본 착장의 골격
-  # 하나를 기준으로 뽑아 두고 남녀 8개 착장을 전부 그 골격에 맞춘다.
-  canon=$P/canonical.json
+  # 착장마다 다른 Meshy 모델이라 체형이 조금씩 다르다. 성별마다 기본 착장의 골격을
+  # 기준으로 뽑아 두고 그 성별의 나머지 착장을 거기에 맞춘다.
+  #   남녀를 한 골격으로 묶어 봤더니 남자 어깨가 30% 좁아져 팔이 몸에 파묻혔다.
+  canon=$P/canonical-${gender}.json
   canon_arg=(--canonical "$canon")
-  [ "$gender:$look" = "female:base" ] && canon_arg=(--canonical-out "$canon")
+  [ "$look" = base ] && canon_arg=(--canonical-out "$canon")
   blend naju01/도구/build_chibi_body.py "${canon_arg[@]}" --v4-blend "$WORK/${gender}_${look}.blend" \
     --sidekick-blend "$D/SIDEKICK_customizer_base.blend" --blend-output "$WORK/rigged_${gender}_${look}.blend" \
     --glb-dir "$WORK/full" --report "$WORK/report_${gender}_${look}.json" \
@@ -69,7 +70,12 @@ for entry in "${LOOKS[@]}"; do
     --torso-width 1 --neck-thickness 1 --arm-twist-deg 0 --straighten-legs \
     --labels "$label" --glb-prefix "meshy-${look}" --face-budget 55000 --hair-budget 28000 >/dev/null
 
-  # 5) browser-sized export
+  # 5) 텍스처에 그려진 입을 지운다(웃는 표정이 어색해서 없애기로 했다)
+  blend naju01/도구/meshy_erase_mouth.py --blend "$WORK/rigged_${gender}_${look}.blend" \
+    --out-blend "$WORK/rigged_${gender}_${look}.blend" --labels "$label" \
+    --report "$P/mouth-${gender}-${look}.json" >/dev/null
+
+  # 6) browser-sized export
   blend naju01/도구/meshy_optimize.py --blend "$WORK/rigged_${gender}_${look}.blend" \
     --glb-dir "$OUT" --prefix "meshy-${look}" --texture 2048 \
     --labels "$label" --report "$P/optimize-${gender}-${look}.json" | grep MESHY_OPTIMIZE_OK

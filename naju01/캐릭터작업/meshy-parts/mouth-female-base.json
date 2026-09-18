@@ -1,0 +1,23 @@
+{
+  "Female": {
+    "chin_z": 1.1344,
+    "nose_z": 1.3061,
+    "band": [
+      1.1344,
+      1.3061
+    ],
+    "vertices": 4097,
+    "image": "Image_0",
+    "painted": 1282,
+    "mask": 5183187,
+    "rule": "adaptive",
+    "skin_redness": 0.1137,
+    "threshold": 0.1737,
+    "peak_redness": 0.1725,
+    "color": [
+      1.0,
+      0.8863,
+      0.7686
+    ]
+  }
+}

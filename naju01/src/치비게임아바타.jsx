@@ -72,6 +72,9 @@ function 리타게팅옵션(targetSkin, sourceSkin) {
 
 // 이동 모션은 제자리 루프라, 게임 이동 속도와 클립의 보폭 속도가 다르면 발이 미끄러진다.
 // 클립을 훑어 디딘 발이 몸 기준으로 뒤로 밀려나는 거리를 재면 그 클립의 고유 이동 속도가 나온다.
+// 모델 기준 축 — Y 위, Z 앞, X 옆(glTF).
+const 앞축 = new THREE.Vector3(0, 0, 1);
+const 옆축 = new THREE.Vector3(1, 0, 0);
 const 이동모션 = new Set(["Walk_Loop", "Walk_Formal_Loop", "Jog_Fwd_Loop", "Sprint_Loop", "Crouch_Fwd_Loop"]);
 
 function 보폭속도(root, skin, clip) {
@@ -97,6 +100,58 @@ function 보폭속도(root, skin, clip) {
   mixer.uncacheRoot(skin);
   skin.skeleton.pose();
   return 합 / clip.duration;
+}
+
+// 모션은 보통 체형에 맞춰 만들어진 것이라, 팔이 짧고 골반이 넓은 이 캐릭터에서는
+// 팔이 몸통·허벅지를 파고들고 걸을 때 허리가 과하게 숙여진다. 클립을 고치는 대신
+// 믹서가 끝난 뒤 본 몇 개를 조금 돌려 준다(모든 동작에 같은 양으로 더해진다).
+const 팔벌림도 = 11; // 위팔을 몸에서 바깥으로
+const 허리세움도 = 7; // 걷기·달리기에서 상체를 뒤로
+
+// 보정은 런타임에 본을 돌리지 않고 **리타게팅된 클립의 키프레임에 한 번** 넣는다.
+// 매 프레임 본을 돌리면 믹서가 값을 다시 쓰지 않는 프레임에 보정이 겹쳐 쌓여
+// 팔이 머리 위로 올라가 버린다(실제로 그랬다).
+//   [뼈 이름, 모델 기준 축, 각도, 이동 동작에만 적용할지]
+const 자세보정 = [
+  ["upperarm_l", 앞축, 팔벌림도, false],
+  ["upperarm_r", 앞축, -팔벌림도, false],
+  ["spine_01", 옆축, -허리세움도 / 3, true],
+  ["spine_02", 옆축, -허리세움도 / 3, true],
+  ["spine_03", 옆축, -허리세움도 / 3, true],
+];
+
+// 쉴 때 자세에서 그 뼈의 부모까지 쌓인 회전 — 모델 기준 축을 부모 기준으로 옮길 때 쓴다.
+function 부모쉴때회전(bone) {
+  const out = new THREE.Quaternion();
+  for (let node = bone.parent; node && node.isBone; node = node.parent) out.premultiply(node.quaternion);
+  return out;
+}
+
+function 보정쿼터니언(skin) {
+  skin.skeleton.pose();
+  const out = new Map();
+  자세보정.forEach(([name, 축, 도, 이동만]) => {
+    const bone = skin.skeleton.getBoneByName(name);
+    if (!bone || !도) return;
+    const axis = 축.clone().applyQuaternion(부모쉴때회전(bone).invert()).normalize();
+    out.set(name, { 회전: new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(도)), 이동만 });
+  });
+  return out;
+}
+
+function 클립보정(clip, 보정, 이동중) {
+  clip.tracks.forEach((track) => {
+    const dot = track.name.lastIndexOf(".");
+    if (track.name.slice(dot + 1) !== "quaternion") return;
+    const 규칙 = 보정.get(track.name.slice(0, dot));
+    if (!규칙 || (규칙.이동만 && !이동중)) return;
+    const q = new THREE.Quaternion();
+    for (let i = 0; i < track.values.length; i += 4) {
+      q.fromArray(track.values, i).premultiply(규칙.회전);
+      q.toArray(track.values, i);
+    }
+  });
+  return clip;
 }
 
 function 형태값(mesh, name, value) {
@@ -137,6 +192,7 @@ function 몸준비(gltf, 모션GLTF) {
   });
 
   const options = 리타게팅옵션(retargetSkin, sourceSkin);
+  const 보정 = 보정쿼터니언(retargetSkin);
   source.skeleton = sourceSkin.skeleton;
   const sourceClips = new Map(모션GLTF.animations.map((clip) => [clip.name, clip]));
   const retargeted = new Map();
@@ -151,6 +207,7 @@ function 몸준비(gltf, 모션GLTF) {
     const result = retargetClip(retargetSkin, source, sourceClip, options);
     result.name = name;
     retargetSkin.skeleton.pose();
+    클립보정(result, 보정, 이동모션.has(name));
     retargeted.set(name, result);
     return result;
   };
@@ -333,6 +390,7 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
       action.time = 검증시각 % Math.max(0.001, action.getClip().duration);
       mixer.update(0);
     } else mixer.update(delta);
+
     준비.headBone?.scale.setScalar(설정.headScale ?? 1);
 
     group.position.set(state.position.x, state.footY, state.position.z);
