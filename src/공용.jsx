@@ -574,6 +574,7 @@ function use이동(
         상태.facing = 바라보는방향.current;
         상태.moving = false;
         상태.running = false;
+        상태.speed = 0;
         상태.crouching = keys.current.crouchToggle;
         상태.grounded = grounded.current;
         상태.jumping = jumping.current;
@@ -646,7 +647,9 @@ function use이동(
       상태.groundY = 0;
       상태.footY = p.y - eyeRef.current;
       상태.facing = 바라보는방향.current;
-      상태.moving = Math.hypot(vel.current.x, vel.current.z) > 0.001;
+      // 아바타가 걷기 모션 재생 속도를 실제 이동 속도에 맞추는 데 쓴다(이동 자체에는 영향 없음).
+      상태.speed = Math.hypot(vel.current.x, vel.current.z);
+      상태.moving = 상태.speed > 0.001;
       상태.running = keys.current.run;
       상태.crouching = keys.current.crouchToggle;
       상태.grounded = grounded.current;

@@ -70,6 +70,35 @@ function 리타게팅옵션(targetSkin, sourceSkin) {
   };
 }
 
+// 이동 모션은 제자리 루프라, 게임 이동 속도와 클립의 보폭 속도가 다르면 발이 미끄러진다.
+// 클립을 훑어 디딘 발이 몸 기준으로 뒤로 밀려나는 거리를 재면 그 클립의 고유 이동 속도가 나온다.
+const 이동모션 = new Set(["Walk_Loop", "Walk_Formal_Loop", "Jog_Fwd_Loop", "Sprint_Loop", "Crouch_Fwd_Loop"]);
+
+function 보폭속도(root, skin, clip) {
+  const 발 = ["foot_l", "foot_r"].map((name) => skin.skeleton.getBoneByName(name));
+  if (!발[0] || !발[1] || !(clip.duration > 0)) return 0;
+  const mixer = new THREE.AnimationMixer(skin);
+  const action = mixer.clipAction(clip).play();
+  const 표본 = 60;
+  const 위치 = [new THREE.Vector3(), new THREE.Vector3()];
+  let 이전 = null;
+  let 합 = 0;
+  for (let i = 0; i <= 표본; i += 1) {
+    action.time = (clip.duration * i) / 표본;
+    mixer.update(0);
+    root.updateMatrixWorld(true);
+    발.forEach((bone, j) => 위치[j].setFromMatrixPosition(bone.matrixWorld));
+    const 디딤 = 위치[0].y <= 위치[1].y ? 0 : 1;
+    // 디딘 발이 바뀌는 구간은 건너뛴다(두 발 사이를 잇는 거리는 보폭이 아니다).
+    if (이전 && 이전.발 === 디딤) 합 += Math.hypot(위치[디딤].x - 이전.x, 위치[디딤].z - 이전.z);
+    이전 = { 발: 디딤, x: 위치[디딤].x, z: 위치[디딤].z };
+  }
+  mixer.stopAllAction();
+  mixer.uncacheRoot(skin);
+  skin.skeleton.pose();
+  return 합 / clip.duration;
+}
+
 function 형태값(mesh, name, value) {
   const index = mesh.morphTargetDictionary?.[name];
   if (index !== undefined) mesh.morphTargetInfluences[index] = value;
@@ -125,12 +154,21 @@ function 몸준비(gltf, 모션GLTF) {
     retargeted.set(name, result);
     return result;
   };
+  const 보폭 = new Map();
+  const 보폭For = (name) => {
+    if (보폭.has(name)) return 보폭.get(name);
+    const clip = clipFor(name);
+    const speed = clip && 이동모션.has(name) ? 보폭속도(retargetModel, retargetSkin, clip) : 0;
+    보폭.set(name, speed);
+    return speed;
+  };
   targetSkin.skeleton.pose();
   model.updateMatrixWorld(true);
   return {
     model,
     targetSkin,
     clipFor,
+    보폭For,
     clipCount: sourceClips.size,
     mappedBones: Object.keys(options.names).length,
     skinMaterials,
@@ -231,6 +269,23 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     if (!group || !state) return;
     group.visible = 보이기;
     if (!보이기) return;
+    const avatarScale = 크기 * (설정.heightScale ?? 1);
+
+    // 실제 이동 속도에 보폭이 가장 가까운 클립을 고른다(고르고 남은 차이는 재생 속도로 맞춘다).
+    const 이동선택 = (지면, 후보) => {
+      let best = 후보[0];
+      let bestErr = Infinity;
+      후보.forEach((name) => {
+        const 고유 = 준비.보폭For(name) * avatarScale;
+        if (고유 <= 1e-4) return;
+        const err = Math.abs(Math.log(Math.max(1e-4, 지면) / 고유));
+        if (err < bestErr) {
+          bestErr = err;
+          best = name;
+        }
+      });
+      return best;
+    };
 
     const now = clock.elapsedTime;
     if ((state.attackSerial ?? 0) !== 마지막공격.current) {
@@ -253,12 +308,24 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
         next = "Jump_Land";
       } else if (now < 착지끝.current) next = "Jump_Land";
       else if (state.crouching) next = state.moving ? "Crouch_Fwd_Loop" : "Crouch_Idle_Loop";
-      else if (state.moving) next = state.running ? (설정.runMotion || "Jog_Fwd_Loop") : (설정.walkMotion || "Walk_Loop");
+      else if (state.moving) {
+        next = 이동선택(state.speed ?? 0, [
+          설정.walkMotion || "Walk_Loop",
+          설정.runMotion || "Jog_Fwd_Loop",
+          "Sprint_Loop",
+        ]);
+      }
       else next = "Idle_Loop";
       공중모션중.current = confirmedAir;
     }
     재생(next);
     const action = actions.current.get(현재모션.current);
+    // 발이 미끄러지지 않도록 걷기·달리기 재생 속도를 실제 이동 속도에 맞춘다.
+    if (action && 검증시각 === null && 이동모션.has(next)) {
+      const 고유 = 준비.보폭For(next) * avatarScale;
+      const 지면 = state.speed ?? 0;
+      action.setEffectiveTimeScale(고유 > 1e-4 ? THREE.MathUtils.clamp(지면 / 고유, 0.45, 2.0) : 1);
+    }
     if (검증시각 !== null && action) {
       actions.current.forEach((other) => {
         if (other !== action) other.stop();
@@ -271,7 +338,6 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
 
     group.position.set(state.position.x, state.footY, state.position.z);
     group.rotation.set(0, state.facing, 0);
-    const avatarScale = 크기 * (설정.heightScale ?? 1);
     group.scale.setScalar(avatarScale);
     group.updateMatrixWorld(true);
 
@@ -294,6 +360,9 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
         motionCount: 준비.clipCount,
         mappedBones: 준비.mappedBones,
         gender,
+        stride: Object.fromEntries([...이동모션].map((n) => [n, 준비.보폭For(n)])),
+        timeScale: action?.getEffectiveTimeScale?.() ?? 1,
+        speed: state.speed ?? 0,
       };
     }
   });
