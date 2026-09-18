@@ -139,11 +139,14 @@ function 보정쿼터니언(skin) {
   return out;
 }
 
+// 트랙 이름은 "upperarm_l.quaternion" 일 수도 ".bones[upperarm_l].quaternion" 일 수도 있다.
+const 트랙본이름 = /(?:\.bones\[)?([^.[\]]+)\]?\.quaternion$/;
+
 function 클립보정(clip, 보정, 이동중) {
   clip.tracks.forEach((track) => {
-    const dot = track.name.lastIndexOf(".");
-    if (track.name.slice(dot + 1) !== "quaternion") return;
-    const 규칙 = 보정.get(track.name.slice(0, dot));
+    const 이름 = 트랙본이름.exec(track.name);
+    if (!이름) return;
+    const 규칙 = 보정.get(이름[1]);
     if (!규칙 || (규칙.이동만 && !이동중)) return;
     const q = new THREE.Quaternion();
     for (let i = 0; i < track.values.length; i += 4) {
