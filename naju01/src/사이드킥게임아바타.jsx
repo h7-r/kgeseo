@@ -707,7 +707,8 @@ function SidekickGameAvatar({
 
     const avatarScale = 크기 * (설정.heightScale ?? 1);
 
-    // 실제 이동 속도에 보폭이 가장 가까운 클립을 고른다(고르고 남은 차이는 재생 속도로 맞춘다).
+    // 걷기는 언제나 걷기 클립이다. 달릴 때만 실제 속도에 보폭이 가장 가까운 클립을
+    // 고른다(고르고 남은 차이는 재생 속도로 맞춘다).
     const 이동선택 = (지면, 후보) => {
       let best = 후보[0];
       let bestErr = Infinity;
@@ -753,11 +754,9 @@ function SidekickGameAvatar({
       } else if (now < 착지끝.current) next = "Jump_Land";
       else if (state.crouching) next = state.moving ? "Crouch_Fwd_Loop" : "Crouch_Idle_Loop";
       else if (state.moving) {
-        next = 이동선택(state.speed ?? 0, [
-          설정.walkMotion || "Walk_Loop",
-          설정.runMotion || "Jog_Fwd_Loop",
-          "Sprint_Loop",
-        ]);
+        next = state.running
+          ? 이동선택(state.speed ?? 0, [설정.runMotion || "Jog_Fwd_Loop", "Sprint_Loop"])
+          : (설정.walkMotion || "Walk_Loop");
       }
       else next = "Idle_Loop";
       공중모션중.current = confirmedAir;
