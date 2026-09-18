@@ -387,7 +387,7 @@ def remap_weights(obj, weights, rig, joints_sk) -> dict:
 
 # ─────────────────────────────── body sliders ───────────────────────────────
 
-BODY_MORPHS = ("heavy", "skinny", "buff", "shoulderWidth", "armThickness", "legThickness",
+BODY_MORPHS = ("heavy", "skinny", "buff", "shoulderWidth", "hipWidth", "armThickness", "legThickness",
                "handScale", "footScale", "fistHands")
 
 
@@ -437,6 +437,14 @@ def morph_delta(p: Vector, w: dict[str, float], joints: dict[str, Vector], key: 
             shift = 0.055 * (arm + 0.6 * clav)
             if shift > 0:
                 delta += Vector((sign * shift, 0, 0))
+    elif key == "hipWidth":
+        # 허리에서 무릎까지만 좁히거나 넓힌다 — 위아래로 부드럽게 0 이 되어 다리가 꺾이지 않는다.
+        hips_z = joints["pelvis"].z
+        waist_z = joints["spine_02"].z
+        knee_z = (joints["calf_l"].z + joints["calf_r"].z) / 2
+        f = smoothstep(knee_z, hips_z, p.z) if p.z <= hips_z else smoothstep(waist_z, hips_z, p.z)
+        if f > 0:
+            delta += Vector((p.x * 0.3 * f, (p.y - axis_y) * 0.2 * f, 0))
     elif key == "armThickness":
         delta += limbs(0.3, 0.0)
     elif key == "legThickness":

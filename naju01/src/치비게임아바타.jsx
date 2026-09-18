@@ -286,7 +286,7 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   const 외형 = useMemo(
     () => ({ ...기본메시설정, ...설정 }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [설정.hair, 설정.skinColor, 설정.hairColor, 설정.clothColor, 설정.shoulderWidth,
+    [설정.hair, 설정.skinColor, 설정.hairColor, 설정.clothColor, 설정.shoulderWidth, 설정.hipWidth,
       설정.buff, 설정.heavy, 설정.skinny, 설정.armThickness, 설정.legThickness,
       설정.handScale, 설정.footScale, 설정.fistHands],
   );
@@ -301,6 +301,7 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     const 모프 = {
       heavy: 외형.heavy, skinny: 외형.skinny, buff: 외형.buff,
       shoulderWidth: THREE.MathUtils.clamp((외형.shoulderWidth - 1) / 0.25, -1, 1),
+      hipWidth: (외형.hipWidth - 1) / 0.3,
       armThickness: (외형.armThickness - 1) / 0.3,
       legThickness: (외형.legThickness - 1) / 0.3,
       handScale: (외형.handScale - 1) / 0.3,
