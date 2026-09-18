@@ -74,20 +74,27 @@ def find_landmarks(points) -> dict[str, Vector]:
 
     # Crotch: scanning up from the knees, the first height where the body is one
     # connected piece around x = 0.
-    crotch = None
+    crotch, run = None, 0
     for i in range(300):
         z = z_at(0.30 + i * 0.001)
         near = [p for p in slice_points(points, z, band) if abs(p.x) < h * 0.08]
         if any(abs(p.x) < h * 0.004 for p in near):
-            crotch = z
-            break
+            run += 1
+            # 옷이 다리 사이를 한두 단면만 이어 붙이는 경우가 있어 연속으로 확인한다.
+            if run >= 6:
+                crotch = z - h * 0.005
+                break
+        else:
+            run = 0
     crotch = crotch or z_at(0.45)
+    # 반바지 밑단이 다리 사이를 이어 붙이면 가랑이가 낮게 잡힌다. 실제 범위로 묶는다.
+    crotch = min(max(crotch, z_at(0.40)), z_at(0.45))
 
     # Neck: narrowest central slice between the shoulders and the ears.  Meshy chibi
     # proportions keep it inside 70-86 % of the height (ears ~87 %, shoulders ~74 %).
     best = None
-    for i in range(160):
-        z = z_at(0.70 + i * 0.001)
+    for i in range(140):
+        z = z_at(0.73 + i * 0.001)
         pts = [p for p in slice_points(points, z, band) if abs(p.x) < h * 0.3]
         centre = [g for g in clusters_x(pts, gap=h * 0.01) if g[0] <= 0 <= g[1]]
         if not centre:
@@ -96,6 +103,8 @@ def find_landmarks(points) -> dict[str, Vector]:
         if best is None or width < best[0]:
             best = (width, z)
     neck_z = best[1]
+    # 옷깃이 목을 두껍게 만들면 탐색이 아래로 새므로, 이 캐릭터 계열의 실제 범위로 묶는다.
+    neck_z = min(max(neck_z, z_at(0.74)), z_at(0.80))
     neck_front_back = [p.y for p in slice_points(points, neck_z, band) if abs(p.x) < best[0] / 2]
     neck_y = (min(neck_front_back) + max(neck_front_back)) / 2
 
@@ -116,7 +125,12 @@ def find_landmarks(points) -> dict[str, Vector]:
         # Legs: per-side centroid of slices below the crotch.
         def leg_centre(z):
             sl = [p for p in slice_points(points, z, band * 1.5) if p.x * sign > h * 0.005]
-            return centroid(sl) if sl else None
+            if not sl:
+                return None
+            # A자세에서는 손이 엉덩이 높이에 있다. 몸 중심에 가장 가까운 덩어리만 다리로 본다.
+            groups = clusters_x(sl, gap=h * 0.02)
+            inner = min(groups, key=lambda g: min(abs(g[0]), abs(g[1])))
+            return centroid([p for p in sl if inner[0] - 1e-6 <= p.x <= inner[1] + 1e-6])
 
         thigh = leg_centre(crotch - h * 0.03)
         ankle_z = ground + h * 0.055
@@ -133,16 +147,22 @@ def find_landmarks(points) -> dict[str, Vector]:
 
         # Arms: points outside the torso, above the hips; axis by principal direction.
         # Armpit: highest slice (below the neck) where the arm is a separate piece.
-        armpit_z, torso_half = None, None
+        armpit_z, torso_half, run = None, None, 0
         for i in range(300):
-            z = neck_z - h * (0.02 + i * 0.001)
+            # 목·귀 근처에서 오검출되지 않게 목보다 충분히 아래에서 시작한다.
+            z = neck_z - h * (0.05 + i * 0.001)
             groups = clusters_x([p for p in slice_points(points, z, band) if p.x * sign >= 0], gap=h * 0.012)
             groups = sorted(groups, key=lambda g: min(abs(g[0]), abs(g[1])))
-            outer = [g for g in groups[1:] if min(abs(g[0]), abs(g[1])) > h * 0.07]
-            if outer:
-                armpit_z = z
-                torso_half = max(abs(groups[0][0]), abs(groups[0][1]))
-                break
+            torso = max(abs(groups[0][0]), abs(groups[0][1])) if groups else 0
+            outer = [g for g in groups[1:] if min(abs(g[0]), abs(g[1])) > h * 0.10]
+            if outer and torso > h * 0.055:
+                run += 1
+                if run >= 3:
+                    armpit_z = z + h * 0.002
+                    torso_half = torso
+                    break
+            else:
+                run = 0
         armpit_z = armpit_z or neck_z - h * 0.08
         torso_half = torso_half or h * 0.1
         arm = [p for p in points if p.x * sign > torso_half + h * 0.01 and hips_z - h * 0.25 < p.z < neck_z]

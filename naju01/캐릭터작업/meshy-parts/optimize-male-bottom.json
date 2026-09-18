@@ -1,7 +1,7 @@
 {
   "meshes": {
     "Body_Male": {
-      "faces": 54999
+      "faces": 55000
     },
     "Hair0_Male": {
       "faces": 28000
@@ -73,6 +73,6 @@
     }
   },
   "files": {
-    "meshy-bottom-male.glb": 13.04
+    "meshy-bottom-male.glb": 13.0
   }
 }
