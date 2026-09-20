@@ -368,7 +368,7 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     외곽선핸들.current?.갱신(외곽선);
   }, [외곽선]);
   useEffect(() => {
-    진단등록(준비, { 클립이름: [...이동모션, "Idle_Loop", "Jump_Loop", "Punch_Cross"] });
+    진단등록(준비, { THREE, 클립이름: [...이동모션, "Idle_Loop", "Jump_Loop", "Punch_Cross"] });
   }, [준비]);
 
   // 파츠 표시·색: Meshy 파츠는 텍스처가 색을 담고 있어 선택 색을 곱한다.

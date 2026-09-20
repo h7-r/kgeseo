@@ -13,6 +13,64 @@ function 뼈계층(bone, depth = 0, out = []) {
   return out;
 }
 
+// 관절 한 곳의 스키닝을 훑는다. 위쪽 본 → 아래쪽 본 가중치가 관절을 지나며
+// 부드럽게 넘어가야 한다. 한쪽이 1 에서 0 으로 뚝 떨어지면 굽힐 때 살이 접힌다.
+//   ※ 좌우를 섞어 재면 안 된다. 본과 같은 쪽 정점만 골라야 한다(실제로 이걸
+//     빼먹어 '혼합 가중치 0' 이라는 잘못된 결론을 낸 적이 있다).
+export function 관절프로파일(mesh, 위본, 아래본, THREE) {
+  const skeleton = mesh.skeleton;
+  const 위 = skeleton.getBoneByName(위본);
+  const 아래 = skeleton.getBoneByName(아래본);
+  if (!위 || !아래) return null;
+  skeleton.pose();
+  // 본의 월드 행렬은 **뿌리부터** 갱신해야 한다. 해당 본만 갱신하면 부모가 지난
+  // 프레임 포즈로 남아 관절 좌표가 엉뚱한 곳에 잡힌다.
+  let 뿌리 = skeleton.bones[0];
+  while (뿌리.parent && 뿌리.parent.isBone) 뿌리 = 뿌리.parent;
+  (뿌리.parent ?? 뿌리).updateMatrixWorld(true);
+  mesh.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
+  const 자리 = (bone) => new THREE.Vector3().setFromMatrixPosition(bone.matrixWorld).applyMatrix4(inv);
+  const 관절 = 자리(아래);
+  const 위자리 = 자리(위);
+  const position = mesh.geometry.getAttribute("position");
+  const skinIndex = mesh.geometry.getAttribute("skinIndex");
+  const skinWeight = mesh.geometry.getAttribute("skinWeight");
+  if (!skinIndex || !skinWeight) return null;
+  const box = new THREE.Box3().setFromBufferAttribute(position);
+  const 키 = box.max.y - box.min.y;
+  // 팔은 T포즈에서 가로로 뻗어 있어 높이로 자르면 관절을 안 지난다. 늘 뼈 축으로 자르고,
+  // 좌우는 x 부호가 아니라 **뼈 축선까지의 거리**로 가른다(반대쪽 팔다리가 섞이지 않는다).
+  const 축 = 관절.clone().sub(위자리).normalize();
+  const 반경 = 키 * 0.1;
+  const 점 = new THREE.Vector3();
+  const 옆 = new THREE.Vector3();
+  const 줄 = [];
+  for (let s = -3; s <= 3; s += 1) {
+    const 거리 = 키 * 0.03 * s;
+    let 위합 = 0;
+    let 아래합 = 0;
+    let n = 0;
+    for (let i = 0; i < position.count; i += 1) {
+      점.fromBufferAttribute(position, i).sub(관절);
+      const 따라 = 점.dot(축);
+      if (Math.abs(따라 - 거리) > 키 * 0.006) continue;
+      옆.copy(점).addScaledVector(축, -따라);
+      if (옆.length() > 반경) continue;
+      for (let k = 0; k < 4; k += 1) {
+        const w = skinWeight.getComponent(i, k);
+        if (w <= 1e-4) continue;
+        const name = skeleton.bones[skinIndex.getComponent(i, k)].name;
+        if (name.startsWith(위본.replace(/_[lr]$/, ""))) 위합 += w;
+        else if (name.startsWith(아래본.replace(/_[lr]$/, ""))) 아래합 += w;
+      }
+      n += 1;
+    }
+    if (n) 줄.push({ 관절대비: +거리.toFixed(3), 정점: n, [위본]: +(위합 / n).toFixed(3), [아래본]: +(아래합 / n).toFixed(3) });
+  }
+  return 줄;
+}
+
 export function 캐릭터진단(준비, 옵션 = {}) {
   const { model, targetSkin, clipFor, clipCount } = 준비;
   const 스킨메시 = [];
@@ -50,12 +108,26 @@ export function 캐릭터진단(준비, 옵션 = {}) {
     클립수: clipCount ?? 0,
     재질수: 재질.length,
   };
+  const 관절 = {};
+  if (옵션.THREE && targetSkin) {
+    [["무릎", "thigh_l", "calf_l"], ["팔꿈치", "upperarm_l", "lowerarm_l"],
+     ["고관절", "pelvis", "thigh_l"], ["어깨", "clavicle_l", "upperarm_l"]]
+      .forEach(([이름, 위, 아래]) => {
+        const 줄 = 관절프로파일(targetSkin, 위, 아래, 옵션.THREE);
+        if (줄) 관절[이름] = 줄;
+      });
+  }
   console.groupCollapsed("캐릭터 진단", 요약);
   console.table(스킨메시);
   console.table(재질);
   if (클립.length) console.table(클립);
+  Object.entries(관절).forEach(([이름, 줄]) => {
+    console.groupCollapsed(`관절 스키닝 — ${이름}`);
+    console.table(줄);
+    console.groupEnd();
+  });
   console.groupEnd();
-  return { 요약, 스킨메시, 재질, 뼈대, 클립 };
+  return { 요약, 스킨메시, 재질, 뼈대, 클립, 관절 };
 }
 
 export function 진단등록(준비, 옵션) {
