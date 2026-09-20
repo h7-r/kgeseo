@@ -47,6 +47,10 @@ const 자세보정 = (값) => [
   ["upperarm_l", 앞축, 값.팔벌림도, false],
   ["upperarm_r", 앞축, -값.팔벌림도, false],
   ["pelvis", 옆축, 값.골반기울기도, false],
+  // 골반을 기울이면 자식인 다리까지 같이 뒤로 돈다 → 몸이 앞으로 쏠린 듯 보인다.
+  // 허벅지를 같은 양만큼 되돌려 다리는 제자리에 두고 골반·엉덩이만 기울인다.
+  ["thigh_l", 옆축, -값.골반기울기도, false],
+  ["thigh_r", 옆축, -값.골반기울기도, false],
   ["spine_01", 옆축, -값.허리곡선도, false],
   ["spine_02", 옆축, -값.허리세움도 / 2, true],
   ["spine_03", 옆축, -값.허리세움도 / 2, true],
@@ -118,21 +122,43 @@ function 각도배율(track, 중심, 배율) {
   }
 }
 
+// 허벅지가 앞으로 나간 정도(0~1) — 키마다. 쉴 때 대비 옆축 회전의 앞 성분으로 본다.
+function 앞뻗음(thighTrack, 쉴때) {
+  const 쉴때역 = 쉴때.clone().invert();
+  const q = new THREE.Quaternion();
+  const out = new Float32Array(thighTrack.values.length / 4);
+  for (let i = 0, k = 0; i < thighTrack.values.length; i += 4, k += 1) {
+    const r = 쉴때역.clone().multiply(q.fromArray(thighTrack.values, i));
+    // 옆축(x) 둘레 회전각. 다리를 앞으로 차올리면 이 값이 한쪽 부호가 된다.
+    const 각 = 2 * Math.atan2(r.x, r.w) * (180 / Math.PI);
+    out[k] = 각;
+  }
+  // 부호가 어느 쪽이 '앞'인지는 클립마다 재지 않고, 평균보다 앞으로 간 쪽을 앞으로 본다.
+  const 평균 = out.reduce((a, b) => a + b, 0) / out.length;
+  const 폭 = Math.max(1e-3, ...out.map((v) => Math.abs(v - 평균)));
+  return { 값: out, 평균, 폭 };
+}
+
 // 쉴 때 자세에서 벗어난 각에서 일정 각도를 뺀다(0 밑으로는 안 내려간다).
-function 각도빼기(track, 쉴때, 도) {
+//   `가중` 을 주면 키마다 그 비율만큼만 뺀다 — 앞으로 뻗은 다리만 펴고
+//   뒤로 미는 다리는 그대로 둬야 뒤꿈치가 제때 떨어지고 체중이 앞발로 넘어간다.
+//   (전부 폈더니 뒷발에 오래 실려 몸이 딛은 발보다 앞에 머물렀다.)
+function 각도빼기(track, 쉴때, 도, 가중 = null) {
   if (!도) return;
   const 뺄각 = THREE.MathUtils.degToRad(도);
   const 쉴때역 = 쉴때.clone().invert();
   const q = new THREE.Quaternion();
   const 축 = new THREE.Vector3();
-  for (let i = 0; i < track.values.length; i += 4) {
+  for (let i = 0, k = 0; i < track.values.length; i += 4, k += 1) {
     const r = 쉴때역.clone().multiply(q.fromArray(track.values, i));
     const 부호 = Math.sign(r.w || 1);
     const 각 = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(r.w), -1, 1));
     if (각 < 1e-5) continue;
+    const 비율 = 가중 ? 가중[k] : 1;
+    if (비율 <= 0) continue;
     const sin = Math.sqrt(Math.max(0, 1 - r.w * r.w));
     축.set(r.x, r.y, r.z).divideScalar(sin * 부호);
-    r.setFromAxisAngle(축.normalize(), Math.max(0, 각 - 뺄각) * 부호);
+    r.setFromAxisAngle(축.normalize(), Math.max(0, 각 - 뺄각 * 비율) * 부호);
     쉴때.clone().multiply(r).toArray(track.values, i);
   }
 }
@@ -143,20 +169,50 @@ const 트랙본이름 = /(?:\.bones\[)?([^.[\]]+)\]?\.quaternion$/;
 export function 클립보정(clip, 보정, 이름, 값) {
   const 이동중 = 이동모션.has(이름);
   const 걷는중 = 걷기모션.has(이름);
+  // 뼈 이름 → 트랙. 무릎은 같은 쪽 허벅지 트랙을 봐야 앞뒤를 안다.
+  const 트랙표 = new Map();
   clip.tracks.forEach((track) => {
+    const m = 트랙본이름.exec(track.name);
+    if (m) 트랙표.set(m[1], track);
+  });
+  // 허벅지는 보폭 확대 뒤의 값으로 앞뒤를 재야 하므로 무릎보다 먼저 처리한다.
+  const 순서 = [...clip.tracks].sort((a, b) => {
+    const ka = 트랙본이름.exec(a.name)?.[1] ?? "";
+    const kb = 트랙본이름.exec(b.name)?.[1] ?? "";
+    return (ka.startsWith("calf") ? 1 : 0) - (kb.startsWith("calf") ? 1 : 0);
+  });
+  순서.forEach((track) => {
     const 이름 = 트랙본이름.exec(track.name);
     if (!이름) return;
     const 규칙 = 보정.get(이름[1]);
     if (!규칙 || (규칙.이동만 && !이동중)) return;
     const q = new THREE.Quaternion();
     if (규칙.무릎) {
-      각도빼기(track, 규칙.무릎, 값.무릎펴기도);
+      const 옆 = 이름[1].endsWith("_l") ? "l" : "r";
+      const 허벅지 = 트랙표.get(`thigh_${옆}`);
+      const 허벅지규칙 = 보정.get(`thigh_${옆}`);
+      let 가중 = null;
+      if (허벅지 && 허벅지규칙?.보폭 && 허벅지.values.length === track.values.length) {
+        const { 값: 각들, 평균, 폭 } = 앞뻗음(허벅지, 허벅지규칙.보폭);
+        // 어느 부호가 '앞'인가는 클립에서 읽는다: 무릎이 가장 곧은 키(디디는 순간)에
+        // 허벅지가 평균에서 벗어난 방향이 앞이다.
+        const 쉴때역 = 규칙.무릎.clone().invert();
+        let 곧은키 = 0;
+        let 최소 = Infinity;
+        for (let i = 0, k = 0; i < track.values.length; i += 4, k += 1) {
+          const r = 쉴때역.clone().multiply(q.fromArray(track.values, i));
+          const 굽힘 = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(r.w), -1, 1));
+          if (굽힘 < 최소) { 최소 = 굽힘; 곧은키 = k; }
+        }
+        const 방향 = Math.sign(각들[곧은키] - 평균) || 1;
+        // 평균보다 앞으로 나간 만큼 0~1. 뒤로 간 키는 0 — 그대로 둔다.
+        가중 = Float32Array.from(각들, (v) => THREE.MathUtils.clamp((방향 * (v - 평균)) / 폭, 0, 1));
+      }
+      각도빼기(track, 규칙.무릎, 값.무릎펴기도, 가중);
       return;
     }
-    if (규칙.보폭) {
-      if (걷는중) 각도배율(track, 평균회전(track), 값.보폭배율);
-      return;
-    }
+    // 허벅지는 보폭 확대(걷기 클립만)와 골반 되돌림(늘)이 같이 걸린다.
+    if (규칙.보폭 && 걷는중) 각도배율(track, 평균회전(track), 값.보폭배율);
     if (!규칙.회전) return;
     for (let i = 0; i < track.values.length; i += 4) {
       q.fromArray(track.values, i).premultiply(규칙.회전);

@@ -57,7 +57,7 @@ function GAIT카메라({ 시점, 줌 }) {
   const size = useThree((state) => state.size);
   useEffect(() => {
     const { camera } = get();
-    const 높이 = 2.0 / 줌;
+    const 높이 = 2.1 / 줌;
     const 폭 = (높이 * size.width) / size.height;
     camera.left = -폭 / 2;
     camera.right = 폭 / 2;
@@ -126,15 +126,17 @@ function GAIT무대() {
   const [시각, set시각] = useState(0);
   const 사이드킥상태 = useRef(정지상태());
   const 메시상태 = useRef(정지상태());
+  const 여성상태 = useRef(정지상태());
   const 사이드킥설정 = useMemo(() => ({ ...외형설정보정(null), motion: 동작 }), [동작]);
   const 메시설정 = useMemo(() => ({ ...메시설정보정(null), motion: 동작 }), [동작]);
+  const 여성설정 = useMemo(() => ({ ...메시설정보정({ gender: "feminine" }), motion: 동작 }), [동작]);
   const 회전 = 시점목록.find(([key]) => key === 시점)[2];
 
   useEffect(() => {
-    사이드킥상태.current.facing = 회전;
-    메시상태.current.facing = 회전;
-    사이드킥상태.current.position.set(-간격 / 2, 0, 0);
-    메시상태.current.position.set(간격 / 2, 0, 0);
+    [사이드킥상태, 메시상태, 여성상태].forEach((ref) => { ref.current.facing = 회전; });
+    사이드킥상태.current.position.set(-간격, 0, 0);
+    메시상태.current.position.set(0, 0, 0);
+    여성상태.current.position.set(간격, 0, 0);
   }, [회전]);
 
   return (
@@ -174,7 +176,7 @@ function GAIT무대() {
                  onChange={(e) => set줌(Number(e.target.value))} style={{ width: "100%" }} />
           <output style={값}>{줌.toFixed(2)}</output>
         </label>
-        <div style={설명}>왼쪽 = 원본 캐릭터 · 오른쪽 = 새 몸체 캐릭터 · 같은 클립을 같은 시각으로 고정</div>
+        <div style={설명}>왼쪽 = 원본 캐릭터 · 가운데 = 새 몸체(남) · 오른쪽 = 새 몸체(여) · 같은 클립을 같은 시각으로 고정</div>
       </div>
       <Canvas
         shadows={false}
@@ -196,6 +198,17 @@ function GAIT무대() {
             보이기
             플레이어참조={메시상태}
             설정={메시설정}
+            크기={1}
+            검증시각={시각}
+            몸체="meshy"
+            툰={{ ...기본툰, 켬: false }}
+            외곽선={{ ...기본외곽선, 켬: false }}
+            보정={보정}
+          />
+          <ChibiGameAvatar
+            보이기
+            플레이어참조={여성상태}
+            설정={여성설정}
             크기={1}
             검증시각={시각}
             몸체="meshy"

@@ -50,6 +50,8 @@ import {
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { 사이드킥외형읽기 } from "../naju01/src/사이드킥옵션.js";
 import { 메시외형읽기 } from "../naju01/src/메시외형옵션.js";
+import { 기본툰 } from "../naju01/src/툰재질.js";
+import { 기본외곽선 } from "../naju01/src/툰외곽선.js";
 // ※ drei의 SoftShadows는 three 0.185의 그림자 셰이더 청크와 호환되지 않아
 //   씬 전체 머티리얼이 컴파일에 실패한다(WebGL: useProgram: program not valid).
 //   → 사용 금지. 그림자는 Canvas의 shadows="percentage"(PCF)로 처리한다.
@@ -203,6 +205,9 @@ const 쿼리 =
 const 로비치비몸체 = 쿼리.get("avatar") === "meshy" ? "meshy" : "chibi";
 const 로비치비테스트 = 쿼리.get("avatar") === "chibi" || 로비치비몸체 === "meshy";
 const 로비아바타테스트 = 쿼리.get("avatar") === "sidekick" || 로비치비테스트;
+// 로비 캐릭터 화면 연출 — 게임공간과 같은 스위치. ?toon=off · ?outline=off
+const 로비툰끄기 = 쿼리.get("toon") === "off";
+const 로비외곽선끄기 = 쿼리.get("outline") === "off";
 const LobbySidekick = lazy(() =>
   import("../naju01/src/사이드킥게임아바타.jsx"),
 );
@@ -8332,6 +8337,8 @@ function Scene({
   플레이어참조 = null,
   사이드킥설정 = undefined,
   치비설정 = undefined,
+  툰설정 = undefined,
+  외곽선설정 = undefined,
 }) {
   // ── 로비 물건 상태 (서랍·램프·의자·들고 있는 것) ──────────
   //   겨냥은 여기서 구독하지 않는다. 고개만 돌려도 방 전체가 다시 그려지기 때문이다.
@@ -11436,7 +11443,7 @@ function Scene({
 
       {로비치비테스트 && 치비설정 && (
         <Suspense fallback={null}>
-          <LobbyChibi 보이기={삼인칭} 플레이어참조={플레이어참조} 설정={치비설정} 몸체={로비치비몸체} />
+          <LobbyChibi 보이기={삼인칭} 플레이어참조={플레이어참조} 설정={치비설정} 몸체={로비치비몸체} 툰={툰설정} 외곽선={외곽선설정} />
         </Suspense>
       )}
       {로비아바타테스트 && !로비치비테스트 && (
@@ -11496,6 +11503,8 @@ export default function App() {
   const [치비설정, set치비설정] = useState(() =>
     로비치비테스트 ? 메시외형읽기(로비메시저장키) : null,
   );
+  const [툰설정, set툰설정] = useState(() => ({ ...기본툰, 켬: !로비툰끄기 }));
+  const [외곽선설정, set외곽선설정] = useState(() => ({ ...기본외곽선, 켬: !로비외곽선끄기 }));
   const 플레이어참조 = useRef({
     position: new THREE.Vector3(0, EYE, 12),
     footY: 0,
@@ -11850,6 +11859,8 @@ export default function App() {
             플레이어참조={로비아바타테스트 ? 플레이어참조 : null}
             사이드킥설정={사이드킥설정 ?? undefined}
             치비설정={치비설정 ?? undefined}
+            툰설정={툰설정}
+            외곽선설정={외곽선설정}
           />
         )}
 
@@ -11936,7 +11947,15 @@ export default function App() {
       )}
       {로비치비테스트 && !기차안 && 치비설정 && (
         <Suspense fallback={null}>
-          <LobbyChibiPanel 설정={치비설정} set설정={set치비설정} 저장키={로비메시저장키} />
+          <LobbyChibiPanel
+            설정={치비설정}
+            set설정={set치비설정}
+            저장키={로비메시저장키}
+            툰설정={툰설정}
+            set툰설정={set툰설정}
+            외곽선설정={외곽선설정}
+            set외곽선설정={set외곽선설정}
+          />
         </Suspense>
       )}
       {로비아바타테스트 && !기차안 && 사이드킥설정 && (
