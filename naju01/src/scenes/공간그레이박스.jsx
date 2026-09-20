@@ -113,6 +113,7 @@ import { 길만들기, 길가돌자리들, 통로결 } from "../통로.js";
 import { use지형이동, 이동상수 } from "../use지형이동.js";
 import 사이드킥게임아바타 from "../사이드킥게임아바타.jsx";
 import 치비게임아바타 from "../치비게임아바타.jsx";
+import { TOON세계 } from "../세계툰.js";
 import { 연출만들기, 무너짐변환 } from "../연출.js";
 import {
   씬1자리들,
@@ -3209,6 +3210,12 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
         부감={부감}
         부감설정={부감설정}
       />
+
+      {/* 게임공간 전체를 캐릭터와 같은 cel 질감으로(세계툰.js). 캐릭터 툰과 같은
+          그라디언트 맵을 쓰므로 계단이 맞는다. ?worldtoon=off 로 원본 질감과 비교. */}
+      {툰설정?.켬 && 툰설정.세계 !== false && (
+        <TOON세계 켬 단계={툰설정.단계} 경계={툰설정.경계} />
+      )}
 
       {/* NAJU-01 전용 3인칭 표시. 이동·충돌·카메라 로직은 기존 맵 것을
           그대로 쓰며, V로 카메라의 pitch/yaw를 강제로 바꾸지 않는다.

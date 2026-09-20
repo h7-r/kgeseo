@@ -57,6 +57,8 @@ const 사이드킥으로 = 쿼리.get("avatar") === "sidekick";
 // 애니메이션풍 렌더 — 기본 켬. ?toon=off / ?outline=off 로 원본 PBR 과 비교한다.
 const 툰끄기 = 쿼리.get("toon") === "off";
 const 외곽선끄기 = 쿼리.get("outline") === "off";
+// 캐릭터는 툰으로 두고 세계만 원본 질감으로 되돌려 비교할 때 ?worldtoon=off
+const 세계툰끄기 = 쿼리.get("worldtoon") === "off";
 const 메시저장키 = "naju01.meshy.appearance.v1";
 const 사이드킥저장키 = "naju01.sidekick.appearance.v2";
 // v1은 성별·새 의상 번호가 없던 저장값이다. v2가 없으면 v1을 읽어 보정한다.
@@ -69,7 +71,7 @@ export default function App() {
   const [시점모드, set시점모드] = useState("1인칭");
   const [사이드킥설정, set사이드킥설정] = useState(() => 사이드킥외형읽기(사이드킥저장키, 이전저장키));
   const [메시설정, set메시설정] = useState(() => (사이드킥으로 ? null : 메시외형읽기(메시저장키)));
-  const [툰설정, set툰설정] = useState(() => ({ ...기본툰, 켬: !툰끄기 }));
+  const [툰설정, set툰설정] = useState(() => ({ ...기본툰, 켬: !툰끄기, 세계: !세계툰끄기 }));
   const [외곽선설정, set외곽선설정] = useState(() => ({ ...기본외곽선, 켬: !외곽선끄기 }));
   // 계기판·조작안내는 화면을 꽤 가린다. 그림을 볼 때는 H 로 치운다.
   const [계기보임, set계기보임] = useState(true);
