@@ -25,7 +25,14 @@ export const 기본보정 = {
   // 원본 걷기 클립은 보폭이 좁다. 허벅지가 흔들리는 각을 키워 한 걸음이 멀리 가게 한다.
   // 달리기·질주는 원래 보폭이 충분해 넓히지 않는다(넓히면 다리가 찢어진다).
   보폭배율: 1.2,
+  // 무릎 굽힘에서 이만큼(도)을 빼되 0 밑으로는 안 내려간다. 곱하기가 아니라 빼기라서
+  // 크게 굽은 구간(80°대)은 거의 그대로고, 거의 다 편 구간(11°)만 0 에 붙어
+  // '디딜 때 다리가 쭉 펴지는 찰나'가 또렷해진다.
+  //   ※ 예전에 배율로 줄였더니 굽은 구간까지 얕아져 행진하듯 걸었다. 빼기로 한 이유다.
+  무릎펴기도: 8,
 };
+
+const 무릎본 = ["calf_l", "calf_r"];
 
 const 보폭본 = ["thigh_l", "thigh_r"];
 
@@ -57,6 +64,10 @@ export function 보정쿼터니언(skin, 값) {
     if (!bone || !도) return;
     const axis = 축.clone().applyQuaternion(부모쉴때회전(bone).invert()).normalize();
     out.set(name, { 회전: new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(도)), 이동만 });
+  });
+  무릎본.forEach((name) => {
+    const bone = skin.skeleton.getBoneByName(name);
+    if (bone) out.set(name, { ...(out.get(name) ?? {}), 무릎: bone.quaternion.clone(), 이동만: true });
   });
   보폭본.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
@@ -104,6 +115,25 @@ function 각도배율(track, 중심, 배율) {
   }
 }
 
+// 쉴 때 자세에서 벗어난 각에서 일정 각도를 뺀다(0 밑으로는 안 내려간다).
+function 각도빼기(track, 쉴때, 도) {
+  if (!도) return;
+  const 뺄각 = THREE.MathUtils.degToRad(도);
+  const 쉴때역 = 쉴때.clone().invert();
+  const q = new THREE.Quaternion();
+  const 축 = new THREE.Vector3();
+  for (let i = 0; i < track.values.length; i += 4) {
+    const r = 쉴때역.clone().multiply(q.fromArray(track.values, i));
+    const 부호 = Math.sign(r.w || 1);
+    const 각 = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(r.w), -1, 1));
+    if (각 < 1e-5) continue;
+    const sin = Math.sqrt(Math.max(0, 1 - r.w * r.w));
+    축.set(r.x, r.y, r.z).divideScalar(sin * 부호);
+    r.setFromAxisAngle(축.normalize(), Math.max(0, 각 - 뺄각) * 부호);
+    쉴때.clone().multiply(r).toArray(track.values, i);
+  }
+}
+
 // 트랙 이름은 "upperarm_l.quaternion" 일 수도 ".bones[upperarm_l].quaternion" 일 수도 있다.
 const 트랙본이름 = /(?:\.bones\[)?([^.[\]]+)\]?\.quaternion$/;
 
@@ -116,6 +146,10 @@ export function 클립보정(clip, 보정, 이름, 값) {
     const 규칙 = 보정.get(이름[1]);
     if (!규칙 || (규칙.이동만 && !이동중)) return;
     const q = new THREE.Quaternion();
+    if (규칙.무릎) {
+      각도빼기(track, 규칙.무릎, 값.무릎펴기도);
+      return;
+    }
     if (규칙.보폭) {
       if (걷는중) 각도배율(track, 평균회전(track), 값.보폭배율);
       return;
