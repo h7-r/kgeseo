@@ -330,40 +330,6 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     [meshy, gender, 남GLTF, 여GLTF, 모션GLTF],
   );
 
-  // 파츠 표시·색: Meshy 파츠는 텍스처가 색을 담고 있어 선택 색을 곱한다.
-  const 외형 = useMemo(
-    () => ({ ...기본메시설정, ...설정 }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [설정.hair, 설정.skinColor, 설정.hairColor, 설정.clothColor, 설정.shoulderWidth, 설정.hipWidth,
-      설정.buff, 설정.heavy, 설정.skinny, 설정.armThickness, 설정.legThickness,
-      설정.handScale, 설정.footScale, 설정.fistHands],
-  );
-
-  useEffect(() => {
-    if (몸체 !== "meshy") {
-      준비.skinMaterials.forEach((material) => material.color?.set(설정.skinColor ?? 기본치비설정.skinColor));
-      return;
-    }
-    const 색 = { body: 외형.skinColor, hair: 외형.hairColor, top: 외형.clothColor, bottom: 외형.clothColor };
-    // 슬라이더 → morph target. 어깨는 0.75~1.25를 -1~+1로 옮긴다.
-    const 모프 = {
-      heavy: 외형.heavy, skinny: 외형.skinny, buff: 외형.buff,
-      shoulderWidth: THREE.MathUtils.clamp((외형.shoulderWidth - 1) / 0.25, -1, 1),
-      hipWidth: (외형.hipWidth - 1) / 0.3,
-      armThickness: (외형.armThickness - 1) / 0.3,
-      legThickness: (외형.legThickness - 1) / 0.3,
-      handScale: (외형.handScale - 1) / 0.3,
-      footScale: (외형.footScale - 1) / 0.3,
-      fistHands: 외형.fistHands,
-    };
-    준비.parts.forEach(({ object, slot, variant }) => {
-      if (slot === "hair") object.visible = variant === 외형.hair;
-      Object.entries(모프).forEach(([key, value]) => 형태값(object, key, value));
-      const materials = Array.isArray(object.material) ? object.material : [object.material];
-      materials.forEach((material) => material.color?.set(색[slot] ?? "#ffffff"));
-    });
-  }, [준비, 외형, 몸체, 설정.skinColor]);
-
   // ── 애니메이션풍 재질 + 외곽선 ──────────────────────────────
   // 재질은 준비(모델)당 한 번만 갈아 끼우고, 세기 같은 값은 uniform 으로만 바꾼다.
   // 켜고 끄기는 원본 재질을 그대로 돌려놓는 방식이라 A/B 비교가 된다.
@@ -404,6 +370,47 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   useEffect(() => {
     진단등록(준비, { 클립이름: [...이동모션, "Idle_Loop", "Jump_Loop", "Punch_Cross"] });
   }, [준비]);
+
+  // 파츠 표시·색: Meshy 파츠는 텍스처가 색을 담고 있어 선택 색을 곱한다.
+  const 외형 = useMemo(
+    () => ({ ...기본메시설정, ...설정 }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [설정.hair, 설정.skinColor, 설정.hairColor, 설정.clothColor, 설정.shoulderWidth, 설정.hipWidth,
+      설정.buff, 설정.heavy, 설정.skinny, 설정.armThickness, 설정.legThickness,
+      설정.handScale, 설정.footScale, 설정.fistHands],
+  );
+
+  useEffect(() => {
+    if (몸체 !== "meshy") {
+      준비.skinMaterials.forEach((material) => material.color?.set(설정.skinColor ?? 기본치비설정.skinColor));
+      return;
+    }
+    const 색 = { body: 외형.skinColor, hair: 외형.hairColor, top: 외형.clothColor, bottom: 외형.clothColor };
+    // 슬라이더 → morph target. 어깨는 0.75~1.25를 -1~+1로 옮긴다.
+    const 모프 = {
+      heavy: 외형.heavy, skinny: 외형.skinny, buff: 외형.buff,
+      shoulderWidth: THREE.MathUtils.clamp((외형.shoulderWidth - 1) / 0.25, -1, 1),
+      hipWidth: (외형.hipWidth - 1) / 0.3,
+      armThickness: (외형.armThickness - 1) / 0.3,
+      legThickness: (외형.legThickness - 1) / 0.3,
+      handScale: (외형.handScale - 1) / 0.3,
+      footScale: (외형.footScale - 1) / 0.3,
+      fistHands: 외형.fistHands,
+    };
+    // 몸과 옷은 한 메시라 재질 색으로는 못 가른다. 툰 재질일 때는 정점 표식으로
+    // 피부·의상을 따로 칠하고, 원본 PBR 로 돌려놨을 때만 예전처럼 메시 단위로 칠한다.
+    // 정점 표식이 있는 모델에서만 피부·의상을 따로 칠할 수 있다.
+    const 툰켬 = Boolean(툰핸들.current?.표식있음);
+    준비.parts.forEach(({ object, slot, variant }) => {
+      if (slot === "hair") object.visible = variant === 외형.hair;
+      Object.entries(모프).forEach(([key, value]) => 형태값(object, key, value));
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      const 칠 = slot === "hair" || !툰켬 ? (색[slot] ?? "#ffffff") : "#ffffff";
+      materials.forEach((material) => material.color?.set(칠));
+    });
+    툰핸들.current?.색칠({ 피부: 외형.skinColor, 의상: 외형.clothColor });
+    // 툰 재질이 붙은 뒤에 색을 칠해야 하므로 툰 켬/끔도 의존성에 둔다.
+  }, [준비, 외형, 몸체, 설정.skinColor, 툰.켬]);
 
   const mixer = useMemo(() => new THREE.AnimationMixer(준비.targetSkin), [준비.targetSkin]);
   const actions = useRef(new Map());

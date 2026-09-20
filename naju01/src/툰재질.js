@@ -57,6 +57,8 @@ export function 그라디언트맵(단계, 경계) {
 // 몸통 공통: rim light.
 const 정점_선언 = `
 attribute float _face;
+attribute float _tint;
+varying float v_tint;
 uniform vec3 _headCentre;
 uniform float _faceFlatten;
 varying float v_face;
@@ -64,12 +66,16 @@ varying vec3 v_viewNormal;
 `;
 const 정점_법선 = `
   v_face = _face;
+  v_tint = _tint;
   if (_face > 0.001 && _faceFlatten > 0.001) {
     vec3 sphere = normalize(position - _headCentre);
     objectNormal = normalize(mix(objectNormal, sphere, _face * _faceFlatten));
   }
 `;
 const 조각_선언 = `
+uniform vec3 _skinTint;
+uniform vec3 _clothTint;
+varying float v_tint;
 uniform float _rimPower;
 uniform float _rimStrength;
 uniform float _hairBand;
@@ -95,6 +101,8 @@ function 셰이더덧칠(material, 설정, 갈래) {
     _rimPower: { value: 설정.림폭 },
     _rimStrength: { value: 설정.림세기 },
     _hairBand: { value: 갈래 === "hair" ? 설정.머리광 : 0 },
+    _skinTint: { value: new THREE.Color(1, 1, 1) },
+    _clothTint: { value: new THREE.Color(1, 1, 1) },
   };
   uniforms.갈래 = 갈래;
   material.userData.툰유니폼 = uniforms;
@@ -106,11 +114,40 @@ function 셰이더덧칠(material, 설정, 갈래) {
       .replace("#include <defaultnormal_vertex>", `#include <defaultnormal_vertex>\n  v_viewNormal = transformedNormal;`);
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>\n${조각_선언}`)
+      // 살빛과 옷 색을 정점 표식에 따라 따로 곱한다(몸과 옷이 한 메시라 여기서 가른다).
+      .replace("#include <map_fragment>", `#include <map_fragment>
+  if (v_tint > 1.5) diffuseColor.rgb *= _clothTint;
+  else if (v_tint > 0.5) diffuseColor.rgb *= _skinTint;`)
       .replace("#include <dithering_fragment>", `#include <dithering_fragment>\n${조각_마감}`);
   };
   // three 는 onBeforeCompile 의 소스로 프로그램을 캐시한다. 갈래가 다르면 키도 달라야
   // 몸 셰이더가 머리에 재사용되지 않는다(예전에 이걸로 의상이 통째로 사라진 적이 있다).
   material.customProgramCacheKey = () => `툰:${갈래}:${설정.단계}:${설정.경계}`;
+}
+
+// ── 살결/옷 가르기 ──────────────────────────────────────────
+// 몸과 옷은 **한 메시**라(모델을 통째로 갈아 끼우는 방식) 슬롯으로 못 가른다.
+// 정점 표식 `_tint` 가 있으면 그걸로 가른다: 0 = 그대로, 1 = 피부색, 2 = 의상색.
+//
+// 이 표식은 **모델을 구울 때 넣어야 한다.** 런타임에서 텍스처 색으로 추정해 봤지만
+// 안 된다: 아틀라스 여백이 살빛이라 셔츠 정점의 UV 를 찍어도 살빛이 나온다
+// (실측 — 셔츠 채도 중앙값 0.224 vs 맨살 0.31, 거의 구분이 안 된다).
+// 표식이 없으면 아무 색도 곱하지 않고, 아바타가 예전처럼 메시 단위로 칠한다.
+
+function 살옷속성(mesh) {
+  const geometry = mesh.geometry;
+  // 우리가 채워 넣은 빈 표식을 GLB 가 준 것으로 오해하면 안 된다. StrictMode 는
+  // 효과를 두 번 돌리는데, 두 번째에 그렇게 오해하면 색칠이 통째로 죽는다.
+  if (geometry.getAttribute("_tint")) return !geometry.userData.빈표식;
+  빈살옷속성(geometry);
+  return false;
+}
+
+function 빈살옷속성(geometry) {
+  if (geometry.getAttribute("_tint")) return;
+  const count = geometry.getAttribute("position").count;
+  geometry.setAttribute("_tint", new THREE.BufferAttribute(new Float32Array(count), 1));
+  geometry.userData.빈표식 = true;
 }
 
 // ── 얼굴 가중치 ──────────────────────────────────────────────
@@ -193,9 +230,12 @@ export function 툰적용(root, 갈래정하기, 설정 = 기본툰) {
     머리중심.y += 0.06;
   }
   const 값 = { ...설정, 머리중심 };
+  let 표식있음 = false;
   대상.forEach((object) => {
     const 갈래 = 갈래정하기(object) ?? "cloth";
     if (!(object.isSkinnedMesh && 얼굴속성(object))) 빈얼굴속성(object.geometry);
+    if (갈래 === "hair") 빈살옷속성(object.geometry);
+    else if (살옷속성(object)) 표식있음 = true;
     const 목록 = Array.isArray(object.material) ? object.material : [object.material];
     const 새것 = 목록.map((원본) => {
       const material = 툰재질(원본, 값, 갈래);
@@ -221,5 +261,14 @@ export function 툰적용(root, 갈래정하기, 설정 = 기본툰) {
       u._hairBand.value = u.갈래 === "hair" ? 다음.머리광 : 0;
     });
   };
-  return { 되돌리기, 유니폼, 갱신, 재질: 원래.map(({ object }) => object.material) };
+  // 피부·의상 색은 재질을 다시 만들지 않고 uniform 으로만 바꾼다.
+  const 색칠 = ({ 피부, 의상 }) => {
+    유니폼.forEach((u) => {
+      if (u.갈래 === "hair") return;
+      if (피부) u._skinTint.value.set(피부);
+      if (의상) u._clothTint.value.set(의상);
+    });
+  };
+  // 표식이 없으면 아바타가 메시 단위 색칠로 돌아가야 한다.
+  return { 되돌리기, 유니폼, 갱신, 색칠, 표식있음 };
 }
