@@ -118,6 +118,14 @@ const 무릎펴기 = 1.0; // 가장 덜 굽은 순간을 완전히 편다.
 const 무릎굽힘 = 0.65; // 남은 굽힘의 크기 — 걸을 때 무릎이 과하게 접히지 않게 줄인다.
 const 무릎본 = ["calf_l", "calf_r"];
 
+// 원본 걷기 클립은 보폭이 좁다. 그대로 두고 빠르게 걸으면 재생 배속만 올라가
+// 종종걸음이 된다. 허벅지가 앞뒤로 흔들리는 각을 키워 한 걸음이 실제로 멀리 간다.
+// (보폭 속도는 런타임에서 다시 재므로 이동 속도 정합은 알아서 따라온다.)
+// 달리기·질주는 원래 보폭이 충분하다. 넓히면 다리가 과하게 찢어진다.
+const 보폭배율 = 1.35;
+const 보폭본 = ["thigh_l", "thigh_r"];
+const 걷기모션 = new Set(["Walk_Loop", "Walk_Formal_Loop"]);
+
 // 보정은 런타임에 본을 돌리지 않고 **리타게팅된 클립의 키프레임에 한 번** 넣는다.
 // 매 프레임 본을 돌리면 믹서가 값을 다시 쓰지 않는 프레임에 보정이 겹쳐 쌓여
 // 팔이 머리 위로 올라가 버린다(실제로 그랬다).
@@ -150,6 +158,10 @@ function 보정쿼터니언(skin) {
     const bone = skin.skeleton.getBoneByName(name);
     if (bone) out.set(name, { ...(out.get(name) ?? {}), 쉴때: bone.quaternion.clone(), 이동만: true });
   });
+  보폭본.forEach((name) => {
+    const bone = skin.skeleton.getBoneByName(name);
+    if (bone) out.set(name, { ...(out.get(name) ?? {}), 보폭: bone.quaternion.clone(), 이동만: true });
+  });
   return out;
 }
 
@@ -179,16 +191,36 @@ function 무릎보정(track, 쉴때) {
   });
 }
 
+// 쉴 때 자세에서 벗어난 각을 배율만큼 키우거나 줄인다(축은 그대로).
+function 각도배율(track, 쉴때, 배율) {
+  const 쉴때역 = 쉴때.clone().invert();
+  const q = new THREE.Quaternion();
+  const 축 = new THREE.Vector3();
+  for (let i = 0; i < track.values.length; i += 4) {
+    const r = 쉴때역.clone().multiply(q.fromArray(track.values, i));
+    const 각 = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(r.w), -1, 1));
+    if (각 < 1e-5) continue;
+    const sin = Math.sqrt(Math.max(0, 1 - r.w * r.w));
+    축.set(r.x, r.y, r.z).divideScalar(sin * Math.sign(r.w || 1));
+    r.setFromAxisAngle(축.normalize(), 각 * 배율 * Math.sign(r.w || 1));
+    쉴때.clone().multiply(r).toArray(track.values, i);
+  }
+}
+
 // 트랙 이름은 "upperarm_l.quaternion" 일 수도 ".bones[upperarm_l].quaternion" 일 수도 있다.
 const 트랙본이름 = /(?:\.bones\[)?([^.[\]]+)\]?\.quaternion$/;
 
-function 클립보정(clip, 보정, 이동중) {
+function 클립보정(clip, 보정, 이동중, 걷는중) {
   clip.tracks.forEach((track) => {
     const 이름 = 트랙본이름.exec(track.name);
     if (!이름) return;
     const 규칙 = 보정.get(이름[1]);
     if (!규칙 || (규칙.이동만 && !이동중)) return;
     const q = new THREE.Quaternion();
+    if (규칙.보폭) {
+      if (걷는중) 각도배율(track, 규칙.보폭, 보폭배율);
+      return;
+    }
     if (규칙.쉴때) {
       무릎보정(track, 규칙.쉴때);
       return;
@@ -255,7 +287,7 @@ function 몸준비(gltf, 모션GLTF) {
     const result = retargetClip(retargetSkin, source, sourceClip, options);
     result.name = name;
     retargetSkin.skeleton.pose();
-    클립보정(result, 보정, 이동모션.has(name));
+    클립보정(result, 보정, 이동모션.has(name), 걷기모션.has(name));
     retargeted.set(name, result);
     return result;
   };

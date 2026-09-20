@@ -430,13 +430,13 @@ function useSavedControls(폴더, 스키마) {
 const EYE = 6.5, // 서 있을 때
   CROUCH_EYE = 3.0; // 앉았을 때 ≈ 0.9m
 // 걷기·달리기 모션은 제자리 루프라 이동 속도가 클립의 보폭 속도와 맞아야 발이
-// 미끄러지지 않는다. 1.45m 아바타 기준 클립의 고유 속도는 Walk_Loop 0.52 m/s,
-// Jog_Fwd_Loop 1.54 m/s, Sprint_Loop 2.16 m/s다.
-//   걷기 0.87 m/s(2.9유닛) → Walk_Loop 1.68배. 0.89 m/s를 넘으면 아바타가 걷기
-//   대신 조깅 클립을 고르므로, 이게 '걷는 걸음'을 유지하는 상한이다.
-//   달리기 2.22 m/s(7.4유닛) → Sprint_Loop 1.03배로 딱 맞는다.
-const WALK = 2.9,
-  RUN = 2.55,
+// 미끄러지지 않는다. 아바타가 걷기 클립의 허벅지 각을 1.35배로 키워 보폭을 넓히므로
+// (치비게임아바타.jsx 의 보폭배율), 1.45m 기준 클립의 고유 속도는
+// Walk_Loop 0.83 m/s, Jog_Fwd_Loop 1.54 m/s, Sprint_Loop 2.16 m/s다.
+//   걷기 1.03 m/s(3.44유닛) → Walk_Loop 1.25배. 넓힌 보폭 덕에 종종걸음이 안 된다.
+//   달리기 2.48 m/s(8.26유닛) → Sprint_Loop 1.15배.
+const WALK = 3.44,
+  RUN = 2.4,
   CROUCH = 0.55;
 const GRAVITY = -30,
   JUMP = 10.5;
