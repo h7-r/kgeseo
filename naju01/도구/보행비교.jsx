@@ -12,6 +12,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import SidekickGameAvatar from "../src/사이드킥게임아바타.jsx";
 import ChibiGameAvatar from "../src/치비게임아바타.jsx";
+import { 기본보정 } from "../src/모션보정.js";
 import { 외형설정보정 } from "../src/사이드킥옵션.js";
 import { 메시설정보정 } from "../src/메시외형옵션.js";
 import { 기본툰 } from "../src/툰재질.js";
@@ -120,6 +121,8 @@ function GAIT무대() {
   const [시점, set시점] = useState("side");
   const [줌, set줌] = useState(1);
   const [멈춤, set멈춤] = useState(false);
+  const [보정켬, set보정켬] = useState(true);
+  const 보정 = useMemo(() => ({ ...기본보정, 켬: 보정켬 }), [보정켬]);
   const [시각, set시각] = useState(0);
   const 사이드킥상태 = useRef(정지상태());
   const 메시상태 = useRef(정지상태());
@@ -153,6 +156,7 @@ function GAIT무대() {
         </div>
         <div style={줄}>
           <button type="button" style={뼈보기 ? 선택 : 버튼} onClick={() => set뼈보기((v) => !v)}>스켈레톤</button>
+          <button type="button" style={보정켬 ? 선택 : 버튼} onClick={() => set보정켬((v) => !v)}>{보정켬 ? "보정 켬" : "원본 클립"}</button>
           <button type="button" style={멈춤 ? 선택 : 버튼} onClick={() => set멈춤((v) => !v)}>{멈춤 ? "정지" : "재생"}</button>
           {[0.25, 0.5, 1].map((v) => (
             <button key={v} type="button" style={배속 === v ? 선택 : 버튼} onClick={() => set배속(v)}>{v}x</button>
@@ -197,6 +201,7 @@ function GAIT무대() {
             몸체="meshy"
             툰={{ ...기본툰, 켬: false }}
             외곽선={{ ...기본외곽선, 켬: false }}
+            보정={보정}
           />
         </Suspense>
       </Canvas>

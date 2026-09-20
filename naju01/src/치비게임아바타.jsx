@@ -12,6 +12,7 @@ import { 기본메시설정, 메시모델파일 } from "./메시외형옵션.js"
 import { 기본툰, 툰적용 } from "./툰재질.js";
 import { 기본외곽선, 외곽선적용 } from "./툰외곽선.js";
 import { 진단등록 } from "./캐릭터진단.js";
+import { 기본보정, 이동모션, 보정쿼터니언, 클립보정 } from "./모션보정.js";
 
 // 몸체 종류: chibi = V4 몸체 시제품, meshy = Meshy 민머리 기본 모델(텍스처 원본 유지).
 const 몸파일 = {
@@ -75,10 +76,6 @@ function 리타게팅옵션(targetSkin, sourceSkin) {
 
 // 이동 모션은 제자리 루프라, 게임 이동 속도와 클립의 보폭 속도가 다르면 발이 미끄러진다.
 // 클립을 훑어 디딘 발이 몸 기준으로 뒤로 밀려나는 거리를 재면 그 클립의 고유 이동 속도가 나온다.
-// 모델 기준 축 — Y 위, Z 앞, X 옆(glTF).
-const 앞축 = new THREE.Vector3(0, 0, 1);
-const 옆축 = new THREE.Vector3(1, 0, 0);
-const 이동모션 = new Set(["Walk_Loop", "Walk_Formal_Loop", "Jog_Fwd_Loop", "Sprint_Loop", "Crouch_Fwd_Loop"]);
 
 function 보폭속도(root, skin, clip) {
   const 발 = ["foot_l", "foot_r"].map((name) => skin.skeleton.getBoneByName(name));
@@ -105,141 +102,12 @@ function 보폭속도(root, skin, clip) {
   return 합 / clip.duration;
 }
 
-// 모션은 보통 체형에 맞춰 만들어진 것이라, 팔이 짧고 골반이 넓은 이 캐릭터에서는
-// 팔이 몸통·허벅지를 파고들고 걸을 때 허리가 과하게 숙여진다. 클립을 고치는 대신
-// 믹서가 끝난 뒤 본 몇 개를 조금 돌려 준다(모든 동작에 같은 양으로 더해진다).
-const 팔벌림도 = 10; // 위팔을 몸에서 바깥으로 — 몸에 닿지 않을 만큼만
-const 허리세움도 = 6; // 걷기·달리기에서 상체를 뒤로
-
-// 원본 걷기 클립은 무릎이 한 번도 다 펴지지 않아 계속 구부정해 보인다. 한 주기에서
-// 가장 덜 굽은 순간을 찾아 그만큼을 통째로 빼면, 그 순간은 다리가 쭉 펴지고 나머지
-// 굽힘의 크기는 그대로 남는다(걸음의 모양은 건드리지 않는다).
-const 무릎펴기 = 1.0; // 가장 덜 굽은 순간을 완전히 편다.
-const 무릎굽힘 = 0.65; // 남은 굽힘의 크기 — 걸을 때 무릎이 과하게 접히지 않게 줄인다.
-const 무릎본 = ["calf_l", "calf_r"];
-
-// 원본 걷기 클립은 보폭이 좁다. 그대로 두고 빠르게 걸으면 재생 배속만 올라가
-// 종종걸음이 된다. 허벅지가 앞뒤로 흔들리는 각을 키워 한 걸음이 실제로 멀리 간다.
-// (보폭 속도는 런타임에서 다시 재므로 이동 속도 정합은 알아서 따라온다.)
-// 달리기·질주는 원래 보폭이 충분하다. 넓히면 다리가 과하게 찢어진다.
-const 보폭배율 = 1.35;
-const 보폭본 = ["thigh_l", "thigh_r"];
-const 걷기모션 = new Set(["Walk_Loop", "Walk_Formal_Loop"]);
-
-// 보정은 런타임에 본을 돌리지 않고 **리타게팅된 클립의 키프레임에 한 번** 넣는다.
-// 매 프레임 본을 돌리면 믹서가 값을 다시 쓰지 않는 프레임에 보정이 겹쳐 쌓여
-// 팔이 머리 위로 올라가 버린다(실제로 그랬다).
-//   [뼈 이름, 모델 기준 축, 각도, 이동 동작에만 적용할지]
-const 자세보정 = [
-  ["upperarm_l", 앞축, 팔벌림도, false],
-  ["upperarm_r", 앞축, -팔벌림도, false],
-  ["spine_01", 옆축, -허리세움도 / 3, true],
-  ["spine_02", 옆축, -허리세움도 / 3, true],
-  ["spine_03", 옆축, -허리세움도 / 3, true],
-];
-
-// 쉴 때 자세에서 그 뼈의 부모까지 쌓인 회전 — 모델 기준 축을 부모 기준으로 옮길 때 쓴다.
-function 부모쉴때회전(bone) {
-  const out = new THREE.Quaternion();
-  for (let node = bone.parent; node && node.isBone; node = node.parent) out.premultiply(node.quaternion);
-  return out;
-}
-
-function 보정쿼터니언(skin) {
-  skin.skeleton.pose();
-  const out = new Map();
-  자세보정.forEach(([name, 축, 도, 이동만]) => {
-    const bone = skin.skeleton.getBoneByName(name);
-    if (!bone || !도) return;
-    const axis = 축.clone().applyQuaternion(부모쉴때회전(bone).invert()).normalize();
-    out.set(name, { 회전: new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(도)), 이동만 });
-  });
-  무릎본.forEach((name) => {
-    const bone = skin.skeleton.getBoneByName(name);
-    if (bone) out.set(name, { ...(out.get(name) ?? {}), 쉴때: bone.quaternion.clone(), 이동만: true });
-  });
-  보폭본.forEach((name) => {
-    const bone = skin.skeleton.getBoneByName(name);
-    if (bone) out.set(name, { ...(out.get(name) ?? {}), 보폭: bone.quaternion.clone(), 이동만: true });
-  });
-  return out;
-}
-
-// 무릎: 한 주기에서 가장 덜 굽은 키만큼을 모든 키에서 빼 그 순간을 쭉 펴 주고,
-// 남은 굽힘은 크기를 줄인다(굽는 시점·순서는 그대로라 걸음의 모양은 유지된다).
-function 무릎보정(track, 쉴때) {
-  const 쉴때역 = 쉴때.clone().invert();
-  const 굽힘 = [];
-  const q = new THREE.Quaternion();
-  let 가장곧은 = null;
-  let 가까움 = -1;
-  for (let i = 0; i < track.values.length; i += 4) {
-    const r = 쉴때역.clone().multiply(q.fromArray(track.values, i));
-    굽힘.push(r);
-    const 닮음 = Math.abs(r.w);
-    if (닮음 > 가까움) {
-      가까움 = 닮음;
-      가장곧은 = r;
-    }
-  }
-  if (!가장곧은) return;
-  const 뺄것 = new THREE.Quaternion().slerp(가장곧은, 무릎펴기).invert();
-  굽힘.forEach((r, k) => {
-    r.premultiply(뺄것);
-    const 작게 = new THREE.Quaternion().slerp(r, 무릎굽힘);
-    쉴때.clone().multiply(작게).toArray(track.values, k * 4);
-  });
-}
-
-// 쉴 때 자세에서 벗어난 각을 배율만큼 키우거나 줄인다(축은 그대로).
-function 각도배율(track, 쉴때, 배율) {
-  const 쉴때역 = 쉴때.clone().invert();
-  const q = new THREE.Quaternion();
-  const 축 = new THREE.Vector3();
-  for (let i = 0; i < track.values.length; i += 4) {
-    const r = 쉴때역.clone().multiply(q.fromArray(track.values, i));
-    const 각 = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(r.w), -1, 1));
-    if (각 < 1e-5) continue;
-    const sin = Math.sqrt(Math.max(0, 1 - r.w * r.w));
-    축.set(r.x, r.y, r.z).divideScalar(sin * Math.sign(r.w || 1));
-    r.setFromAxisAngle(축.normalize(), 각 * 배율 * Math.sign(r.w || 1));
-    쉴때.clone().multiply(r).toArray(track.values, i);
-  }
-}
-
-// 트랙 이름은 "upperarm_l.quaternion" 일 수도 ".bones[upperarm_l].quaternion" 일 수도 있다.
-const 트랙본이름 = /(?:\.bones\[)?([^.[\]]+)\]?\.quaternion$/;
-
-function 클립보정(clip, 보정, 이동중, 걷는중) {
-  clip.tracks.forEach((track) => {
-    const 이름 = 트랙본이름.exec(track.name);
-    if (!이름) return;
-    const 규칙 = 보정.get(이름[1]);
-    if (!규칙 || (규칙.이동만 && !이동중)) return;
-    const q = new THREE.Quaternion();
-    if (규칙.보폭) {
-      if (걷는중) 각도배율(track, 규칙.보폭, 보폭배율);
-      return;
-    }
-    if (규칙.쉴때) {
-      무릎보정(track, 규칙.쉴때);
-      return;
-    }
-    if (!규칙.회전) return;
-    for (let i = 0; i < track.values.length; i += 4) {
-      q.fromArray(track.values, i).premultiply(규칙.회전);
-      q.toArray(track.values, i);
-    }
-  });
-  return clip;
-}
-
 function 형태값(mesh, name, value) {
   const index = mesh.morphTargetDictionary?.[name];
   if (index !== undefined) mesh.morphTargetInfluences[index] = value;
 }
 
-function 몸준비(gltf, 모션GLTF) {
+function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정) {
   const model = clone(gltf.scene);
   const retargetModel = clone(gltf.scene);
   const source = clone(모션GLTF.scene);
@@ -272,7 +140,7 @@ function 몸준비(gltf, 모션GLTF) {
   });
 
   const options = 리타게팅옵션(retargetSkin, sourceSkin);
-  const 보정 = 보정쿼터니언(retargetSkin);
+  const 보정 = 보정쿼터니언(retargetSkin, 보정값);
   source.skeleton = sourceSkin.skeleton;
   const sourceClips = new Map(모션GLTF.animations.map((clip) => [clip.name, clip]));
   const retargeted = new Map();
@@ -287,7 +155,7 @@ function 몸준비(gltf, 모션GLTF) {
     const result = retargetClip(retargetSkin, source, sourceClip, options);
     result.name = name;
     retargetSkin.skeleton.pose();
-    클립보정(result, 보정, 이동모션.has(name), 걷기모션.has(name));
+    if (보정값.켬) 클립보정(result, 보정, name, 보정값);
     retargeted.set(name, result);
     return result;
   };
@@ -315,7 +183,7 @@ function 몸준비(gltf, 모션GLTF) {
   };
 }
 
-function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비설정, 크기 = 미터, 검증시각 = null, 몸체 = "chibi", 툰 = 기본툰, 외곽선 = 기본외곽선 }) {
+function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비설정, 크기 = 미터, 검증시각 = null, 몸체 = "chibi", 툰 = 기본툰, 외곽선 = 기본외곽선, 보정 = 기본보정 }) {
   const root = useRef();
   const meshy = 몸체 === "meshy";
   const 외형기본 = useMemo(() => ({ ...기본메시설정, ...설정 }), [설정]);
@@ -326,8 +194,8 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   const 모션GLTF = useGLTF(모션파일);
   const gender = 설정.gender === "feminine" ? "feminine" : "masculine";
   const 준비 = useMemo(
-    () => 몸준비(!meshy && gender === "feminine" ? 여GLTF : 남GLTF, 모션GLTF),
-    [meshy, gender, 남GLTF, 여GLTF, 모션GLTF],
+    () => 몸준비(!meshy && gender === "feminine" ? 여GLTF : 남GLTF, 모션GLTF, 보정),
+    [meshy, gender, 남GLTF, 여GLTF, 모션GLTF, 보정],
   );
 
   // ── 애니메이션풍 재질 + 외곽선 ──────────────────────────────

@@ -1,0 +1,126 @@
+// 리타게팅한 클립에 걸어 주는 자세 보정 — 값과 계산을 한곳에 모아 둔다.
+// gait.html 에서 켜고 끄며 원본 클립·원본 캐릭터와 나란히 비교할 수 있다.
+import * as THREE from "three";
+
+// 모델 기준 축 — Y 위, Z 앞, X 옆(glTF).
+const 앞축 = new THREE.Vector3(0, 0, 1);
+const 옆축 = new THREE.Vector3(1, 0, 0);
+
+export const 이동모션 = new Set(["Walk_Loop", "Walk_Formal_Loop", "Jog_Fwd_Loop", "Sprint_Loop", "Crouch_Fwd_Loop"]);
+const 걷기모션 = new Set(["Walk_Loop", "Walk_Formal_Loop"]);
+
+// 모션은 보통 체형에 맞춰 만들어진 것이라, 팔이 짧고 골반이 넓은 이 캐릭터에서는
+// 팔이 몸통·허벅지를 파고들고 걸을 때 허리가 과하게 숙여진다. 클립을 고치는 대신
+// 믹서가 끝난 뒤 본 몇 개를 조금 돌려 준다(모든 동작에 같은 양으로 더해진다).
+// 값은 전부 여기 모아 둔다. gait.html 에서 켜고 끄며 원본 클립과 비교할 수 있다.
+// 무릎은 건드리지 않는다. 원본 캐릭터의 걷기도 최소 굽힘이 10.8° 라 다리를 끝까지
+// 펴지 않는다 — 억지로 펴 봤더니 발의 상하 이동이 원본의 1.5배가 되어 행진하듯 걸었다.
+export const 기본보정 = {
+  켬: true,
+  팔벌림도: 10, // 위팔을 몸에서 바깥으로 — 몸에 닿지 않을 만큼만
+  허리세움도: 6, // 걷기·달리기에서 상체를 뒤로(+ 뒤로, - 앞으로)
+  // 원본 걷기 클립은 보폭이 좁다. 허벅지가 흔들리는 각을 키워 한 걸음이 멀리 가게 한다.
+  // 달리기·질주는 원래 보폭이 충분해 넓히지 않는다(넓히면 다리가 찢어진다).
+  보폭배율: 1.35,
+};
+
+const 보폭본 = ["thigh_l", "thigh_r"];
+
+// 보정은 런타임에 본을 돌리지 않고 **리타게팅된 클립의 키프레임에 한 번** 넣는다.
+// 매 프레임 본을 돌리면 믹서가 값을 다시 쓰지 않는 프레임에 보정이 겹쳐 쌓여
+// 팔이 머리 위로 올라가 버린다(실제로 그랬다).
+//   [뼈 이름, 모델 기준 축, 각도, 이동 동작에만 적용할지]
+const 자세보정 = (값) => [
+  ["upperarm_l", 앞축, 값.팔벌림도, false],
+  ["upperarm_r", 앞축, -값.팔벌림도, false],
+  ["spine_01", 옆축, -값.허리세움도 / 3, true],
+  ["spine_02", 옆축, -값.허리세움도 / 3, true],
+  ["spine_03", 옆축, -값.허리세움도 / 3, true],
+];
+
+// 쉴 때 자세에서 그 뼈의 부모까지 쌓인 회전 — 모델 기준 축을 부모 기준으로 옮길 때 쓴다.
+function 부모쉴때회전(bone) {
+  const out = new THREE.Quaternion();
+  for (let node = bone.parent; node && node.isBone; node = node.parent) out.premultiply(node.quaternion);
+  return out;
+}
+
+export function 보정쿼터니언(skin, 값) {
+  skin.skeleton.pose();
+  const out = new Map();
+  자세보정(값).forEach(([name, 축, 도, 이동만]) => {
+    const bone = skin.skeleton.getBoneByName(name);
+    if (!bone || !도) return;
+    const axis = 축.clone().applyQuaternion(부모쉴때회전(bone).invert()).normalize();
+    out.set(name, { 회전: new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(도)), 이동만 });
+  });
+  보폭본.forEach((name) => {
+    const bone = skin.skeleton.getBoneByName(name);
+    if (bone) out.set(name, { ...(out.get(name) ?? {}), 보폭: bone.quaternion.clone(), 이동만: true });
+  });
+  return out;
+}
+
+// 클립 전체의 평균 회전 — 보폭을 키울 때 '가운데'로 삼는다.
+// 쉴 때 자세를 가운데로 쓰면 안 된다: 걷기 클립의 허벅지는 평균이 앞으로 치우쳐
+// 있어서, 쉴 때 기준으로 키우면 **앞으로만 더 나가고 뒤로는 안 뻗는다**.
+function 평균회전(track) {
+  const 합 = new THREE.Quaternion(0, 0, 0, 0);
+  const q = new THREE.Quaternion();
+  const 기준 = new THREE.Quaternion().fromArray(track.values, 0);
+  let n = 0;
+  for (let i = 0; i < track.values.length; i += 4) {
+    q.fromArray(track.values, i);
+    const 부호 = q.dot(기준) < 0 ? -1 : 1;
+    합.x += q.x * 부호;
+    합.y += q.y * 부호;
+    합.z += q.z * 부호;
+    합.w += q.w * 부호;
+    n += 1;
+  }
+  if (!n) return 기준;
+  합.set(합.x / n, 합.y / n, 합.z / n, 합.w / n);
+  return 합.normalize();
+}
+
+// 중심 자세에서 벗어난 각을 배율만큼 키우거나 줄인다(축은 그대로).
+function 각도배율(track, 중심, 배율) {
+  const 쉴때 = 중심;
+  const 쉴때역 = 쉴때.clone().invert();
+  const q = new THREE.Quaternion();
+  const 축 = new THREE.Vector3();
+  for (let i = 0; i < track.values.length; i += 4) {
+    const r = 쉴때역.clone().multiply(q.fromArray(track.values, i));
+    const 각 = 2 * Math.acos(THREE.MathUtils.clamp(Math.abs(r.w), -1, 1));
+    if (각 < 1e-5) continue;
+    const sin = Math.sqrt(Math.max(0, 1 - r.w * r.w));
+    축.set(r.x, r.y, r.z).divideScalar(sin * Math.sign(r.w || 1));
+    r.setFromAxisAngle(축.normalize(), 각 * 배율 * Math.sign(r.w || 1));
+    쉴때.clone().multiply(r).toArray(track.values, i);
+  }
+}
+
+// 트랙 이름은 "upperarm_l.quaternion" 일 수도 ".bones[upperarm_l].quaternion" 일 수도 있다.
+const 트랙본이름 = /(?:\.bones\[)?([^.[\]]+)\]?\.quaternion$/;
+
+export function 클립보정(clip, 보정, 이름, 값) {
+  const 이동중 = 이동모션.has(이름);
+  const 걷는중 = 걷기모션.has(이름);
+  clip.tracks.forEach((track) => {
+    const 이름 = 트랙본이름.exec(track.name);
+    if (!이름) return;
+    const 규칙 = 보정.get(이름[1]);
+    if (!규칙 || (규칙.이동만 && !이동중)) return;
+    const q = new THREE.Quaternion();
+    if (규칙.보폭) {
+      if (걷는중) 각도배율(track, 평균회전(track), 값.보폭배율);
+      return;
+    }
+    if (!규칙.회전) return;
+    for (let i = 0; i < track.values.length; i += 4) {
+      q.fromArray(track.values, i).premultiply(규칙.회전);
+      q.toArray(track.values, i);
+    }
+  });
+  return clip;
+}
