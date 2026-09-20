@@ -11,6 +11,8 @@ import * as THREE from "three";
 import SidekickGameAvatar from "../src/사이드킥게임아바타.jsx";
 import ChibiGameAvatar from "../src/치비게임아바타.jsx";
 import { 외형설정보정 } from "../src/사이드킥옵션.js";
+import { 기본툰 } from "../src/툰재질.js";
+import { 기본외곽선 } from "../src/툰외곽선.js";
 
 const 간격 = 1.15;
 const 방향 = { front: 0, side: Math.PI / 2, back: Math.PI };
@@ -84,7 +86,16 @@ function QA아바타({ index, count, spec, view, mode }) {
   return (
     <group name={`qa-${index}`} userData={{ spec, settings }}>
       {chibi ? (
-        <ChibiGameAvatar 보이기 플레이어참조={state} 설정={settings} 크기={1} 검증시각={spec.time ?? 0} 몸체={spec.avatar} />
+        <ChibiGameAvatar
+          보이기
+          플레이어참조={state}
+          설정={settings}
+          크기={1}
+          검증시각={spec.time ?? 0}
+          몸체={spec.avatar}
+          툰={{ ...기본툰, ...(spec.toon ?? {}) }}
+          외곽선={{ ...기본외곽선, ...(spec.outline ?? {}) }}
+        />
       ) : (
         <SidekickGameAvatar
           보이기

@@ -7,7 +7,7 @@ import { 메시선택지, 메시항목이름, 메시슬라이더, 메시색상, 
 
 const 입력차단 = (e) => e.stopPropagation();
 
-export default function ChibiTestPanel({ 설정, set설정, 저장키 }) {
+export default function ChibiTestPanel({ 설정, set설정, 저장키, 툰설정, set툰설정, 외곽선설정, set외곽선설정 }) {
   const [열림, set열림] = useState(true);
   const [안내, set안내] = useState("");
   const 바꾸기 = (patch) => set설정((old) => 메시설정보정({ ...old, ...patch, motion: patch.motion ?? old.motion }));
@@ -100,6 +100,44 @@ export default function ChibiTestPanel({ 설정, set설정, 저장키 }) {
             <button type="button" style={버튼} onClick={() => { set설정(메시외형읽기(저장키)); set안내("저장 외형 불러옴"); }}>불러오기</button>
             <button type="button" style={버튼} onClick={() => { set설정(메시설정보정(null)); set안내("기본값 복원"); }}>초기화</button>
           </div>
+          {툰설정 && (
+            <>
+              <div style={구분선}>화면 연출 (개발용)</div>
+              <div style={두칸}>
+                <button type="button" style={툰설정.켬 ? 선택버튼 : 버튼} onClick={() => set툰설정((v) => ({ ...v, 켬: !v.켬 }))}>
+                  {툰설정.켬 ? "애니풍 켬" : "원본 PBR"}
+                </button>
+                <button type="button" style={외곽선설정.켬 ? 선택버튼 : 버튼} onClick={() => set외곽선설정((v) => ({ ...v, 켬: !v.켬 }))}>
+                  {외곽선설정.켬 ? "외곽선 켬" : "외곽선 끔"}
+                </button>
+              </div>
+              <div style={두칸}>
+                {[2, 3].map((단계) => (
+                  <button key={단계} type="button" style={툰설정.단계 === 단계 ? 선택버튼 : 버튼}
+                          onClick={() => set툰설정((v) => ({ ...v, 단계 }))}>
+                    명암 {단계}단계
+                  </button>
+                ))}
+              </div>
+              {[["경계", "그림자 경계", 0.25, 0.75, 0.01], ["림세기", "림 라이트", 0, 0.8, 0.01],
+                ["얼굴평탄", "얼굴 평탄", 0, 1, 0.05], ["머리광", "머리 광택", 0, 1, 0.05]].map(([key, label, min, max, step]) => (
+                <label key={key} style={슬라이더줄}>
+                  <span>{label}</span>
+                  <input type="range" style={슬라이더} min={min} max={max} step={step} value={툰설정[key]}
+                         onChange={(e) => set툰설정((v) => ({ ...v, [key]: Number(e.target.value) }))} />
+                  <output style={값}>{Number(툰설정[key]).toFixed(2)}</output>
+                </label>
+              ))}
+              {[["두께", "선 굵기", 0, 4, 0.1]].map(([key, label, min, max, step]) => (
+                <label key={key} style={슬라이더줄}>
+                  <span>{label}</span>
+                  <input type="range" style={슬라이더} min={min} max={max} step={step} value={외곽선설정[key]}
+                         onChange={(e) => set외곽선설정((v) => ({ ...v, [key]: Number(e.target.value) }))} />
+                  <output style={값}>{Number(외곽선설정[key]).toFixed(2)}</output>
+                </label>
+              ))}
+            </>
+          )}
           {안내 && <div style={안내글}>{안내}</div>}
           <div style={도움말}>
             색은 원본 질감 위에 곱해진다(흰색 = 원본 그대로).
@@ -127,5 +165,6 @@ const 선택상자 = { minWidth: 0, width: "100%", boxSizing: "border-box", bord
 const 색상줄 = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(46px, 1fr))", gap: 5 };
 const 색상칸 = { minWidth: 0, display: "grid", gap: 2, textAlign: "center", fontSize: 9 };
 const 색상입력 = { width: "100%", minWidth: 0, height: 24, padding: 1, boxSizing: "border-box" };
+const 구분선 = { marginTop: 4, paddingTop: 5, borderTop: "1px solid rgba(170,190,220,.22)", color: "#AFC0D8", fontSize: 10 };
 const 안내글 = { color: "#9ED6AF", textAlign: "center", fontSize: 10 };
 const 도움말 = { color: "#AFC0D8", fontSize: 10 };

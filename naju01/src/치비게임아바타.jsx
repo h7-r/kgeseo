@@ -9,6 +9,9 @@ import * as THREE from "three";
 import { clone, retargetClip } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { 미터 } from "./공간도면.js";
 import { 기본메시설정, 메시모델파일 } from "./메시외형옵션.js";
+import { 기본툰, 툰적용 } from "./툰재질.js";
+import { 기본외곽선, 외곽선적용 } from "./툰외곽선.js";
+import { 진단등록 } from "./캐릭터진단.js";
 
 // 몸체 종류: chibi = V4 몸체 시제품, meshy = Meshy 민머리 기본 모델(텍스처 원본 유지).
 const 몸파일 = {
@@ -280,7 +283,7 @@ function 몸준비(gltf, 모션GLTF) {
   };
 }
 
-function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비설정, 크기 = 미터, 검증시각 = null, 몸체 = "chibi" }) {
+function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비설정, 크기 = 미터, 검증시각 = null, 몸체 = "chibi", 툰 = 기본툰, 외곽선 = 기본외곽선 }) {
   const root = useRef();
   const meshy = 몸체 === "meshy";
   const 외형기본 = useMemo(() => ({ ...기본메시설정, ...설정 }), [설정]);
@@ -328,6 +331,47 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
       materials.forEach((material) => material.color?.set(색[slot] ?? "#ffffff"));
     });
   }, [준비, 외형, 몸체, 설정.skinColor]);
+
+  // ── 애니메이션풍 재질 + 외곽선 ──────────────────────────────
+  // 재질은 준비(모델)당 한 번만 갈아 끼우고, 세기 같은 값은 uniform 으로만 바꾼다.
+  // 켜고 끄기는 원본 재질을 그대로 돌려놓는 방식이라 A/B 비교가 된다.
+  const 갈래정하기 = useMemo(() => (object) => {
+    let owner = object;
+    while (owner && owner.userData.slot === undefined && owner.userData.chibi_part === undefined) owner = owner.parent;
+    const slot = owner?.userData.slot ?? owner?.userData.chibi_part ?? "body";
+    return slot === "hair" ? "hair" : slot === "body" ? "body" : "cloth";
+  }, []);
+  const 툰핸들 = useRef(null);
+  const 외곽선핸들 = useRef(null);
+  useEffect(() => {
+    if (!툰.켬) return undefined;
+    툰핸들.current = 툰적용(준비.model, 갈래정하기, 툰);
+    return () => {
+      툰핸들.current?.되돌리기();
+      툰핸들.current = null;
+    };
+    // 단계·경계가 바뀌면 그라디언트 맵이 달라져 재질을 다시 만들어야 한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [준비, 갈래정하기, 툰.켬, 툰.단계, 툰.경계]);
+  useEffect(() => {
+    툰핸들.current?.갱신(툰);
+  }, [툰]);
+  useEffect(() => {
+    if (!외곽선.켬) return undefined;
+    외곽선핸들.current = 외곽선적용(준비.model, 외곽선, 갈래정하기);
+    return () => {
+      외곽선핸들.current?.제거();
+      외곽선핸들.current = null;
+    };
+    // 두께·색은 갱신으로만 바꾼다. 켬/끔이 아닌 값 변화로 껍데기를 다시 만들지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [준비, 갈래정하기, 외곽선.켬]);
+  useEffect(() => {
+    외곽선핸들.current?.갱신(외곽선);
+  }, [외곽선]);
+  useEffect(() => {
+    진단등록(준비, { 클립이름: [...이동모션, "Idle_Loop", "Jump_Loop", "Punch_Cross"] });
+  }, [준비]);
 
   const mixer = useMemo(() => new THREE.AnimationMixer(준비.targetSkin), [준비.targetSkin]);
   const actions = useRef(new Map());

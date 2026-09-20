@@ -25,6 +25,8 @@ import 사이드킥꾸미기패널 from "./사이드킥꾸미기패널.jsx";
 import { 사이드킥외형읽기 } from "./사이드킥옵션.js";
 import 치비테스트패널 from "./치비테스트패널.jsx";
 import { 메시외형읽기 } from "./메시외형옵션.js";
+import { 기본툰 } from "./툰재질.js";
+import { 기본외곽선 } from "./툰외곽선.js";
 
 // 본편과 같은 개발용 스위치 — ?q=low · ?leva=1 · ?fx=off
 const 쿼리 =
@@ -52,6 +54,9 @@ const 시작높이 = (기본지형.지면(시작.X, 시작.Z).y + 기준.눈높�
 const 꾸미기패널보임 = import.meta.env.DEV || 쿼리.has("customize");
 // 3인칭 캐릭터 — 기본은 Meshy 캐릭터, ?avatar=sidekick 이면 예전 사이드킥.
 const 사이드킥으로 = 쿼리.get("avatar") === "sidekick";
+// 애니메이션풍 렌더 — 기본 켬. ?toon=off / ?outline=off 로 원본 PBR 과 비교한다.
+const 툰끄기 = 쿼리.get("toon") === "off";
+const 외곽선끄기 = 쿼리.get("outline") === "off";
 const 메시저장키 = "naju01.meshy.appearance.v1";
 const 사이드킥저장키 = "naju01.sidekick.appearance.v2";
 // v1은 성별·새 의상 번호가 없던 저장값이다. v2가 없으면 v1을 읽어 보정한다.
@@ -64,6 +69,8 @@ export default function App() {
   const [시점모드, set시점모드] = useState("1인칭");
   const [사이드킥설정, set사이드킥설정] = useState(() => 사이드킥외형읽기(사이드킥저장키, 이전저장키));
   const [메시설정, set메시설정] = useState(() => (사이드킥으로 ? null : 메시외형읽기(메시저장키)));
+  const [툰설정, set툰설정] = useState(() => ({ ...기본툰, 켬: !툰끄기 }));
+  const [외곽선설정, set외곽선설정] = useState(() => ({ ...기본외곽선, 켬: !외곽선끄기 }));
   // 계기판·조작안내는 화면을 꽤 가린다. 그림을 볼 때는 H 로 치운다.
   const [계기보임, set계기보임] = useState(true);
 
@@ -127,6 +134,8 @@ export default function App() {
           삼인칭={시점모드 === "3인칭"}
           사이드킥설정={사이드킥설정}
           메시설정={메시설정}
+          툰설정={툰설정}
+          외곽선설정={외곽선설정}
         />
         {!저사양 && !후처리끄기 && (
           <EffectComposer multisampling={4} enableNormalPass={false}>
@@ -162,7 +171,15 @@ export default function App() {
         [V] {시점모드}
       </button>
       {꾸미기패널보임 && 메시설정 && (
-        <치비테스트패널 설정={메시설정} set설정={set메시설정} 저장키={메시저장키} />
+        <치비테스트패널
+          설정={메시설정}
+          set설정={set메시설정}
+          저장키={메시저장키}
+          툰설정={툰설정}
+          set툰설정={set툰설정}
+          외곽선설정={외곽선설정}
+          set외곽선설정={set외곽선설정}
+        />
       )}
       {꾸미기패널보임 && !메시설정 && (
         <사이드킥꾸미기패널
