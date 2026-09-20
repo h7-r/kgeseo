@@ -2,7 +2,7 @@
 // 파츠 번호는 GLB 노드 extras의 variant와 같다. -1 = 없음(속옷·민머리·맨발).
 import { 사이드킥모션목록 } from "./사이드킥옵션.js";
 
-export const 모델판 = 3;
+export const 모델판 = 4;
 
 export const 메시선택지 = {
   hair: {
@@ -31,6 +31,7 @@ export const 메시슬라이더 = [
   ["headScale", "머리", 0.8, 1.3, 0.01],
   ["shoulderWidth", "어깨", 0.75, 1.25, 0.01],
   ["hipWidth", "골반", 0.7, 1.3, 0.01],
+  ["lumbar", "허리 굴곡", 0, 1, 0.05],
   ["buff", "골격", 0, 1, 0.05],
   ["armThickness", "팔 두께", 0.7, 1.3, 0.01],
   ["legThickness", "다리 두께", 0.7, 1.3, 0.01],
@@ -61,6 +62,7 @@ export const 기본메시설정 = {
   headScale: 1,
   shoulderWidth: 1,
   hipWidth: 1,
+  lumbar: 0.6,
   buff: 0,
   armThickness: 1,
   legThickness: 1,

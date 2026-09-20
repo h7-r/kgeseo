@@ -387,7 +387,7 @@ def remap_weights(obj, weights, rig, joints_sk) -> dict:
 
 # ─────────────────────────────── body sliders ───────────────────────────────
 
-BODY_MORPHS = ("heavy", "skinny", "buff", "shoulderWidth", "hipWidth", "armThickness", "legThickness",
+BODY_MORPHS = ("heavy", "skinny", "buff", "shoulderWidth", "hipWidth", "lumbar", "armThickness", "legThickness",
                "handScale", "footScale", "fistHands")
 
 
@@ -445,6 +445,22 @@ def morph_delta(p: Vector, w: dict[str, float], joints: dict[str, Vector], key: 
         f = smoothstep(knee_z, hips_z, p.z) if p.z <= hips_z else smoothstep(waist_z, hips_z, p.z)
         if f > 0:
             delta += Vector((p.x * 0.3 * f, (p.y - axis_y) * 0.2 * f, 0))
+    elif key == "lumbar":
+        # 엉덩이~허리의 S 굴곡. 뼈를 돌려서는 안 된다 — 마디가 통째로 돌 뿐
+        # 표면이 오목해지지 않는다. 등 쪽 면만 앞뒤로 밀어 굴곡을 만든다.
+        hips_z = joints["pelvis"].z
+        waist_z = joints["spine_02"].z
+        span = max(1e-4, waist_z - hips_z)
+        깊이 = p.y - axis_y  # 앞이 -y, 등이 +y
+        if 깊이 > 0:
+            def 종 (중심, 폭):
+                return max(0.0, 1.0 - abs(p.z - 중심) / (span * 폭))
+
+            허리 = 종(hips_z + span * 0.5, 1.0)  # 안으로 들어가는 곳
+            엉덩이 = 종(hips_z - span * 0.4, 1.0)  # 뒤로 나오는 곳
+            옆 = smoothstep(span * 1.2, span * 0.5, abs(p.x))  # 옆구리로 갈수록 0
+            # 슬라이더 0~1 로 쓰므로 1 에서 확실히 보이게 잡는다(기본값은 런타임에서 정한다).
+            delta += Vector((0, 깊이 * (엉덩이 * 0.9 - 허리 * 0.85) * 옆, 0))
     elif key == "armThickness":
         delta += limbs(0.3, 0.0)
     elif key == "legThickness":
