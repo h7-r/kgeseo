@@ -767,7 +767,7 @@ function SidekickGameAvatar({
     if (action && 검증시각 === null && 이동모션.has(next)) {
       const 고유 = 준비.보폭For(next) * avatarScale;
       const 지면 = state.speed ?? 0;
-      action.setEffectiveTimeScale(고유 > 1e-4 ? THREE.MathUtils.clamp(지면 / 고유, 0.45, 2.0) : 1);
+      action.setEffectiveTimeScale(고유 > 1e-4 ? THREE.MathUtils.clamp(지면 / 고유, 0.45, 2.2) : 1);
     }
     if (검증시각 !== null && action) {
       actions.current.forEach((other) => {
