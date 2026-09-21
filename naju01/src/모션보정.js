@@ -5,6 +5,7 @@ import * as THREE from "three";
 // 모델 기준 축 — Y 위, Z 앞, X 옆(glTF).
 const 앞축 = new THREE.Vector3(0, 0, 1);
 const 옆축 = new THREE.Vector3(1, 0, 0);
+const 위축 = new THREE.Vector3(0, 1, 0);
 
 export const 이동모션 = new Set(["Walk_Loop", "Walk_Formal_Loop", "Jog_Fwd_Loop", "Sprint_Loop", "Crouch_Fwd_Loop"]);
 const 걷기모션 = new Set(["Walk_Loop", "Walk_Formal_Loop"]);
@@ -61,6 +62,13 @@ export const 기본보정 = {
   접지앞상한: 0.003,
   // (접지나눔은 더 쓰지 않는다 — 단계별로 앞다리가 상한까지 먼저, 나머지를 디딘 다리가 맡는다.)
   접지켬: true,
+  // 무릎 벌리기(도). 무릎에 비해 발이 양옆으로 벌어져 보인다 — 관절 간격은 원본과 같은데
+  // (무릎→발목 좌우 벌어짐 0.009·키, 원본도 0.009) 정강이가 짧아 같은 벌어짐이 더 가파르게
+  // 읽힌다. 허벅지를 바깥으로 a, 정강이를 안쪽으로 2a 돌리면 무릎만 바깥으로 나가고
+  // 발목은 제자리다(허벅지≈정강이 길이). 발은 a 되돌려 발바닥을 평평하게 둔다.
+  무릎벌림도: 3,
+  // 발 안쪽 돌림(도, + = 발끝을 안으로). 발뼈는 앞을 보는데 살이 바깥으로 틀어진 몸체에 쓴다.
+  발안쪽돌림도: 0,
 };
 
 // 성별별 덧값 — 같은 클립·같은 보정인데 몸체가 달라 자세가 다르게 읽힌다.
@@ -76,7 +84,9 @@ export const 성별보정 = {
   // 남성은 골반을 앞으로 기울여(엉덩이 뒤로) 엉덩이 위 등허리가 앞으로 나오게 하고,
   // 그만큼 요추(spine_01)를 되돌려 가슴 높이의 기울기는 원본(≈11°)에 남긴다.
   // 여성 몸체는 살 자체에 그 굴곡이 있어 뼈로 만들 필요가 없다.
-  masculine: { 허리세움도: 6, 목세움도: -6, 골반기울기도: 6, 허리곡선도: 4 },
+  // 남성 발 살은 뼈보다 5~8° 바깥으로 틀어져 있고(여성 1°) 발 중심이 발목보다 3cm 바깥이라
+  // 발이 더 벌어져 보인다. 발끝을 그만큼 안으로 돌린다.
+  masculine: { 허리세움도: 6, 목세움도: -6, 골반기울기도: 6, 허리곡선도: 4, 발안쪽돌림도: 4 },
   feminine: { 허리세움도: 8, 목세움도: -8 },
 };
 
@@ -102,6 +112,16 @@ const 자세보정 = (값) => [
   ["neck_01", 옆축, -값.목세움도, false],
   ["foot_l", 옆축, -값.발피치도, false],
   ["foot_r", 옆축, -값.발피치도, false],
+  // 무릎 벌리기 — 앞축 둘레. 왼다리는 +가 바깥.
+  ["thigh_l", 앞축, 값.무릎벌림도, false],
+  ["thigh_r", 앞축, -값.무릎벌림도, false],
+  ["calf_l", 앞축, -2 * 값.무릎벌림도, false],
+  ["calf_r", 앞축, 2 * 값.무릎벌림도, false],
+  ["foot_l", 앞축, 값.무릎벌림도, false],
+  ["foot_r", 앞축, -값.무릎벌림도, false],
+  // 발끝 안쪽 돌림 — 위축 둘레. 왼발은 +가 바깥(발끝이 +x 로)이라 부호를 뒤집는다.
+  ["foot_l", 위축, -값.발안쪽돌림도, false],
+  ["foot_r", 위축, 값.발안쪽돌림도, false],
 ];
 
 // 쉴 때 자세에서 그 뼈의 부모까지 쌓인 회전 — 모델 기준 축을 부모 기준으로 옮길 때 쓴다.
@@ -118,7 +138,10 @@ export function 보정쿼터니언(skin, 값) {
     const bone = skin.skeleton.getBoneByName(name);
     if (!bone || !도) return;
     const axis = 축.clone().applyQuaternion(부모쉴때회전(bone).invert()).normalize();
-    out.set(name, { 회전: new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(도)), 이동만 });
+    const 회전 = new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(도));
+    // 같은 뼈에 여러 축의 보정이 걸리면 곱해 쌓는다(덮어쓰면 앞 항목이 사라진다).
+    const 앞것 = out.get(name)?.회전;
+    out.set(name, { 회전: 앞것 ? 회전.multiply(앞것) : 회전, 이동만 });
   });
   무릎본.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
@@ -257,7 +280,7 @@ export function 클립보정(clip, 보정, 이름, 값) {
         가중 = Float32Array.from(각들, (v) => THREE.MathUtils.clamp((방향 * (v - 평균)) / 폭, 0, 1));
       }
       각도빼기(track, 규칙.무릎, 값.무릎펴기도, 가중);
-      return;
+      // 여기서 끝내면 안 된다 — 무릎에도 축 회전(무릎벌림도)이 걸린다. 아래로 이어 간다.
     }
     // 허벅지는 보폭 확대(걷기 클립만)와 골반 되돌림(늘)이 같이 걸린다.
     if (규칙.보폭 && 걷는중) 각도배율(track, 평균회전(track), 값.보폭배율);
