@@ -1,12 +1,12 @@
 {
   "Male": {
-    "chin_z": 1.167,
-    "nose_z": 1.3168,
+    "chin_z": 1.1624,
+    "nose_z": 1.3147,
     "band": [
-      1.167,
-      1.3168
+      1.1624,
+      1.3147
     ],
-    "vertices": 5289,
+    "vertices": 5285,
     "image": "Image_0",
     "painted": 15052,
     "mask": 4620724,

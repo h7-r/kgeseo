@@ -68,6 +68,38 @@ def centroid(points):
     return sum(points, Vector()) / len(points)
 
 
+def find_knee(leg_centre, ankle_z, crotch, h):
+    """종아리 알(가장 굵은 단면) 위쪽에서 가장 가는 단면의 높이. 못 찾으면 None."""
+    def width(z):
+        # leg_centre 가 쓰는 것과 같은 다리 덩어리의 폭(x·y 범위의 합)
+        sl = leg_centre.slice(z)
+        if not sl:
+            return None
+        return (max(p.x for p in sl) - min(p.x for p in sl)) + (max(p.y for p in sl) - min(p.y for p in sl))
+    span = crotch - ankle_z
+    samples = []
+    for i in range(0, 80):
+        f = 0.25 + i * 0.006  # 다리 길이의 25~72%
+        w = width(ankle_z + span * f)
+        if w is not None:
+            samples.append((f, w))
+    if len(samples) < 10:
+        return None
+    lower = [s for s in samples if s[0] <= 0.5]
+    if not lower:
+        return None
+    calf_f = max(lower, key=lambda s: s[1])[0]
+    upper = [s for s in samples if calf_f + 0.03 <= s[0] <= 0.68]
+    if not upper:
+        return None
+    knee_f = min(upper, key=lambda s: s[1])[0]
+    # 잘록한 곳이 종아리 알에 너무 붙어 있거나 허벅지까지 올라가면 검출 실패로 본다.
+    if not 0.44 <= knee_f <= 0.64:
+        return None
+    print("KNEE_FRACTION", round(knee_f, 3), "calf", round(calf_f, 3))
+    return ankle_z + span * knee_f
+
+
 def find_landmarks(points) -> dict[str, Vector]:
     zs = [p.z for p in points]
     ground, top = min(zs), max(zs)
@@ -128,19 +160,29 @@ def find_landmarks(points) -> dict[str, Vector]:
 
     for side, sign in (("L", 1.0), ("R", -1.0)):
         # Legs: per-side centroid of slices below the crotch.
-        def leg_centre(z):
+        def leg_slice(z):
             sl = [p for p in slice_points(points, z, band * 1.5) if p.x * sign > h * 0.005]
             if not sl:
-                return None
+                return []
             # A자세에서는 손이 엉덩이 높이에 있다. 몸 중심에 가장 가까운 덩어리만 다리로 본다.
             groups = clusters_x(sl, gap=h * 0.02)
             inner = min(groups, key=lambda g: min(abs(g[0]), abs(g[1])))
-            return centroid([p for p in sl if inner[0] - 1e-6 <= p.x <= inner[1] + 1e-6])
+            return [p for p in sl if inner[0] - 1e-6 <= p.x <= inner[1] + 1e-6]
+
+        def leg_centre(z):
+            sl = leg_slice(z)
+            return centroid(sl) if sl else None
+
+        leg_centre.slice = leg_slice
 
         thigh = leg_centre(crotch - h * 0.03)
         ankle_z = ground + h * 0.055
         ankle = leg_centre(ankle_z)
-        knee_z = ankle_z + (crotch - ankle_z) * 0.47
+        # 무릎은 비율로 찍지 않고 **살의 잘록한 곳**을 찾는다. 0.47 로 찍었더니 종아리
+        # 알 정점(다리의 43%)에 관절이 놓여 살은 무릎 아래에서 접히고, 진짜 무릎은 허벅지에
+        # 붙은 혹처럼 남았다(실측: 관절 0.43, 잘록한 곳 0.54~0.58). 종아리 알이 가장 굵은
+        # 높이 위쪽에서 가장 가는 단면을 무릎으로 본다.
+        knee_z = find_knee(leg_centre, ankle_z, crotch, h) or ankle_z + (crotch - ankle_z) * 0.47
         knee = leg_centre(knee_z)
         # 허벅지 관절을 안쪽으로 당기면 걷기·달리기에서 무릎이 모인다. 실제 다리 중심을 쓴다.
         joints[f"Thigh.{side}"] = Vector((thigh.x, thigh.y, hips_z - h * 0.02))
