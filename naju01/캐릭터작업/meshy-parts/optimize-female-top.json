@@ -1,7 +1,7 @@
 {
   "meshes": {
     "Body_Female": {
-      "faces": 54999
+      "faces": 79999
     },
     "Hair0_Female": {
       "faces": 27999
@@ -103,6 +103,6 @@
     }
   },
   "files": {
-    "meshy-top-female.glb": 8.3
+    "meshy-top-female.glb": 9.78
   }
 }

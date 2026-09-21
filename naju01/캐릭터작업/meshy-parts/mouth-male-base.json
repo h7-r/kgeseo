@@ -1,15 +1,15 @@
 {
   "Male": {
-    "chin_z": 1.1679,
-    "nose_z": 1.328,
+    "chin_z": 1.1669,
+    "nose_z": 1.3249,
     "band": [
-      1.1679,
-      1.328
+      1.1669,
+      1.3249
     ],
-    "vertices": 4180,
+    "vertices": 5540,
     "image": "Image_0",
-    "painted": 7814,
-    "mask": 4726312,
+    "painted": 7798,
+    "mask": 4619386,
     "rule": "adaptive",
     "skin_redness": 0.1608,
     "threshold": 0.2208,

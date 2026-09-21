@@ -12,7 +12,7 @@ import { 기본메시설정, 메시모델파일 } from "./메시외형옵션.js"
 import { 기본툰, 툰적용 } from "./툰재질.js";
 import { 기본외곽선, 외곽선적용 } from "./툰외곽선.js";
 import { 진단등록 } from "./캐릭터진단.js";
-import { 기본보정, 이동모션, 보정쿼터니언, 클립보정 } from "./모션보정.js";
+import { 기본보정, 성별보정, 이동모션, 보정쿼터니언, 클립보정 } from "./모션보정.js";
 
 // 몸체 종류: chibi = V4 몸체 시제품, meshy = Meshy 민머리 기본 모델(텍스처 원본 유지).
 const 몸파일 = {
@@ -134,8 +134,15 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정) {
     if (part === "body") {
       const position = object.geometry.getAttribute("position");
       const indices = [];
-      for (let i = 0; i < position.count; i += 1) if (position.getY(i) < 0.02) indices.push(i);
-      soles.push({ object, indices });
+      // 접지 IK 가 발마다 높이를 보므로 좌우(x 부호)로 나눠 둔다.
+      const 왼발 = [];
+      const 오른발 = [];
+      for (let i = 0; i < position.count; i += 1) {
+        if (position.getY(i) >= 0.02) continue;
+        indices.push(i);
+        (position.getX(i) >= 0 ? 왼발 : 오른발).push(i);
+      }
+      soles.push({ object, indices, 왼발, 오른발 });
     }
   });
 
@@ -159,6 +166,57 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정) {
     retargeted.set(name, result);
     return result;
   };
+  // 발마다 '접지 시각'(한 주기에서 발이 가장 낮은 순간, 0~1). 접지 IK 는 이 직전·직후에만 건다.
+  // 높이만으로는 낮게 스윙하는 발과 디디려는 발을 못 가른다 — 창을 넓히면 스윙 다리를
+  // 붙잡아 곧게 뻗어 버렸다(실제로 그랬다). 시각으로 고르면 그 문제가 없다.
+  const 접지시각 = new Map();
+  const 접지시각For = (name) => {
+    if (접지시각.has(name)) return 접지시각.get(name);
+    const clip = clipFor(name);
+    let out = null;
+    if (clip && 이동모션.has(name)) {
+      const 발 = ["l", "r"].map((s) => [retargetSkin.skeleton.getBoneByName(`foot_${s}`), retargetSkin.skeleton.getBoneByName(`ball_${s}`)]);
+      if (발.every(([f, b]) => f && b)) {
+        const mixer = new THREE.AnimationMixer(retargetSkin);
+        const action = mixer.clipAction(clip).play();
+        const 표본 = 64;
+        const 높이 = [new Float32Array(표본), new Float32Array(표본)];
+        const p1 = new THREE.Vector3();
+        const p2 = new THREE.Vector3();
+        for (let i = 0; i < 표본; i += 1) {
+          action.time = (clip.duration * i) / 표본;
+          mixer.update(0);
+          retargetModel.updateMatrixWorld(true);
+          발.forEach(([f, b], k) => {
+            높이[k][i] = Math.min(p1.setFromMatrixPosition(f.matrixWorld).y, p2.setFromMatrixPosition(b.matrixWorld).y);
+          });
+        }
+        mixer.stopAllAction();
+        mixer.uncacheRoot(retargetSkin);
+        retargetSkin.skeleton.pose();
+        // 접지 = 입각기가 **시작되는** 샘플. 최저점은 발이 이미 붙어 있는 한가운데라
+        // 그 직전 창은 땅 위 구간이 된다 — 최저 높이의 15% 문턱 아래로 처음 내려오는
+        // 순간(최저점에서 거꾸로 훑어 문턱을 넘는 곳)을 잡는다.
+        const 시작 = 높이.map((h) => {
+          let min = Infinity;
+          let max = -Infinity;
+          let imin = 0;
+          h.forEach((y, i) => { if (y < min) { min = y; imin = i; } if (y > max) max = y; });
+          const 문턱 = min + (max - min) * 0.15;
+          let i = imin;
+          for (let k = 0; k < 표본; k += 1) {
+            const j = (imin - k + 표본) % 표본;
+            if (h[j] > 문턱) break;
+            i = j;
+          }
+          return i / 표본;
+        });
+        out = { l: 시작[0], r: 시작[1] };
+      }
+    }
+    접지시각.set(name, out);
+    return out;
+  };
   const 보폭 = new Map();
   const 보폭For = (name) => {
     if (보폭.has(name)) return 보폭.get(name);
@@ -169,11 +227,24 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정) {
   };
   targetSkin.skeleton.pose();
   model.updateMatrixWorld(true);
+  // 접지 IK 용 — 무릎(calf)의 쉴 때 회전과 다리 뼈. 굽힘은 '쉴 때 대비 회전'으로 재고 줄인다.
+  targetSkin.skeleton.pose();
+  const 다리 = ["l", "r"].map((s) => {
+    const thigh = targetSkin.skeleton.getBoneByName(`thigh_${s}`);
+    const calf = targetSkin.skeleton.getBoneByName(`calf_${s}`);
+    const foot = targetSkin.skeleton.getBoneByName(`foot_${s}`);
+    return thigh && calf && foot ? { s, thigh, calf, foot } : null;
+  }).filter(Boolean);
+  const 골반뼈 = targetSkin.skeleton.getBoneByName("pelvis");
   return {
     model,
     targetSkin,
+    다리,
+    골반뼈,
     clipFor,
     보폭For,
+    접지시각For,
+    보정값,
     clipCount: sourceClips.size,
     mappedBones: Object.keys(options.names).length,
     skinMaterials,
@@ -193,9 +264,11 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   const 여GLTF = useGLTF(meshy ? 모델경로 : 파일.feminine);
   const 모션GLTF = useGLTF(모션파일);
   const gender = 설정.gender === "feminine" ? "feminine" : "masculine";
+  // 기본값 → 성별별 값 → 호출자 덧값 순으로 합친다. 호출자는 바꿀 것만 넘긴다.
+  const 보정값 = useMemo(() => ({ ...기본보정, ...(성별보정[gender] ?? {}), ...(보정 ?? {}) }), [gender, 보정]);
   const 준비 = useMemo(
-    () => 몸준비(!meshy && gender === "feminine" ? 여GLTF : 남GLTF, 모션GLTF, 보정),
-    [meshy, gender, 남GLTF, 여GLTF, 모션GLTF, 보정],
+    () => 몸준비(!meshy && gender === "feminine" ? 여GLTF : 남GLTF, 모션GLTF, 보정값),
+    [meshy, gender, 남GLTF, 여GLTF, 모션GLTF, 보정값],
   );
 
   // ── 애니메이션풍 재질 + 외곽선 ──────────────────────────────
@@ -291,6 +364,15 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   const 공격끝 = useRef(0);
   const 역행렬 = useMemo(() => new THREE.Matrix4(), []);
   const 점 = useMemo(() => new THREE.Vector3(), []);
+  const [H, K, F, F2, T, u, v, n] = useMemo(() => Array.from({ length: 8 }, () => new THREE.Vector3()), []);
+  const pq = useMemo(() => new THREE.Quaternion(), []);
+  const wq = useMemo(() => new THREE.Quaternion(), []);
+  const 옆세계 = useMemo(() => new THREE.Vector3(1, 0, 0), []);
+  const 접지상태 = useRef(null);
+  // IK 가 만진 다리 뼈의 '클립 자세' 보관함. 믹서는 값이 지난 프레임과 같으면 본에
+  // 쓰지 않으므로(정지 화면·검증시각), 안 쓴 프레임엔 우리가 되돌려야 IK 가 누적되지
+  // 않는다 — 실측: 0.7cm 요청이 몇 프레임 뒤 3.6cm, 결국 최대 뻗음 14cm 에서 포화.
+  const 다리보관 = useRef(new Map());
 
   useEffect(
     () => () => {
@@ -398,8 +480,145 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     group.scale.setScalar(avatarScale);
     group.updateMatrixWorld(true);
 
-    // 발바닥 정점 중 가장 낮은 점을 지면에 맞춘다(발끝을 세우는 동작 포함).
+    // 발마다 발바닥 최저점(모델 좌표). 스키닝 결과를 읽어야 하므로 뼈 행렬을 먼저 굽는다.
     역행렬.copy(준비.model.matrixWorld).invert();
+    const 발바닥높이 = (측) => {
+      let y = Infinity;
+      준비.soles.forEach(({ object, 왼발, 오른발 }) => {
+        const 목록 = 측 === "l" ? 왼발 : 오른발;
+        for (let i = 0; i < 목록.length; i += 3) {
+          object.getVertexPosition(목록[i], 점);
+          object.localToWorld(점).applyMatrix4(역행렬);
+          y = Math.min(y, 점.y);
+        }
+      });
+      return y;
+    };
+
+    // 접지 IK — 낮은 발은 땅에 붙는다(아래 지면 맞추기). 다른 발이 **접지 직전**이면
+    // (골반보다 앞에 있고 땅에서 접지창 안) 그 다리를 엉덩이+무릎 2본 IK 로 풀어
+    // 발을 제자리에서 수직으로 땅까지 내린다. 리타게팅한 클립은 몸 비율이 달라
+    // 앞발이 땅에 못 닿은 채 딛는데, 그게 '앞발이 높은 곳을 딛는' 것과 '다리가
+    // 끝내 안 펴지는' 두 증상의 같은 원인이다.
+    //   ※ 무릎만 펴서는 안 된다 — 허벅지가 앞으로 나간 상태에서 무릎을 펴면 발은
+    //     앞·위로 간다(실측 발끝 높이 0.077 → 0.183). 그래서 엉덩이까지 같이 푼다.
+    //   ※ 스윙 중인 발은 건드리면 안 된다 — 창을 넓게 잡았더니 공중의 다리를 붙잡아
+    //     곧게 뻗어 버렸다. 골반 앞쪽 + 좁은 창으로 접지 직전만 고른다.
+    if (준비.보정값?.접지켬 !== false && 준비.다리.length === 2 && 준비.골반뼈) {
+      // 믹서가 이번 프레임에 뼈를 썼으면(우리가 남긴 IK 값과 다르면) 그게 클립 자세다.
+      // 안 썼으면(IK 값 그대로면) 보관해 둔 클립 자세로 되돌린 뒤 IK 를 새로 건다.
+      준비.다리.forEach((d) => [d.thigh, d.calf].forEach((bone) => {
+        let 칸 = 다리보관.current.get(bone);
+        if (!칸) {
+          칸 = { 클립: bone.quaternion.clone(), ik: null };
+          다리보관.current.set(bone, 칸);
+        } else if (칸.ik && bone.quaternion.equals(칸.ik)) bone.quaternion.copy(칸.클립);
+        else 칸.클립.copy(bone.quaternion);
+      }));
+      준비.다리.forEach((d) => { d.thigh.updateMatrixWorld(true); });
+      준비.targetSkin.skeleton.update();
+      const 높이 = 준비.다리.map((d) => 발바닥높이(d.s));
+      const 낮은 = 높이[0] <= 높이[1] ? 0 : 1;
+      const 다른 = 1 - 낮은;
+      const 틈 = 높이[다른] - 높이[낮은]; // 모델 단위
+      const 창 = (준비.보정값?.접지창 ?? 0.045) * 1.45;
+      const 다리 = 준비.다리[다른];
+      // 뒤에서 떼는 발은 제외 — 골반보다 앞에 있는(다가오는) 발만 접지 대상이다.
+      // 이 조건을 뺐더니 떼는 뒷발이 창에 걸려 뒷다리가 70° 로 꺾였다.
+      점.setFromMatrixPosition(다리.foot.matrixWorld).applyMatrix4(역행렬);
+      const 발앞뒤 = 점.z;
+      점.setFromMatrixPosition(준비.골반뼈.matrixWorld).applyMatrix4(역행렬);
+      const 앞에있음 = 발앞뒤 - 점.z > 0.02;
+      // 접지 시각 창: 그 발이 평평하게 붙는 시각의 25% 전 ~ 3% 후. 뒤꿈치가 닿아도
+      // 발목·발볼 뼈는 아직 높아 '붙는 시각'이 뒤꿈치 접지보다 ~0.2 주기 늦게 잡히므로,
+      // 그만큼 앞을 덮어야 뒤꿈치 접근 구간이 들어온다. 스윙 중간은 높이 조건이 거른다.
+      let 접지구간 = false;
+      if (action && 이동모션.has(next)) {
+        const 시각표 = 준비.접지시각For(next);
+        const 길이 = action.getClip().duration || 1;
+        if (시각표) {
+          const 위상 = ((action.time % 길이) + 길이) % 길이 / 길이;
+          const 차 = ((위상 - 시각표[다리.s]) % 1 + 1) % 1; // 접지 시각 기준 0~1
+          접지구간 = 차 >= 0.75 || 차 <= 0.03;
+        }
+      }
+      if (import.meta.env.DEV) 접지상태.current = { 다른: 다리.s, 틈: +틈.toFixed(4), 접지구간, 앞에있음 };
+      if (접지구간 && 앞에있음 && 틈 > 0.004 && 틈 < 창) {
+        // 틈을 두 다리가 나눠 맡는다. 앞다리만 내리면 다리가 짧아 무릎이 주기 절반 동안
+        // 2° 로 잠기고, 디딘 다리만 올리면 밀어내는 다리가 이미 뻗어 있어 무릎이 80° 로
+        // 꺾인다(둘 다 실측). 반씩 나누면 앞다리는 엉덩이 회전으로 닿고, 디딘 다리는
+        // 조금 더 굽어 몸이 살짝 내려앉는다 — 원본의 양발 지지 자세가 그렇다.
+        const 상한 = (준비.보정값?.접지내림 ?? 0.03) * 1.45;
+        const 나눔 = 준비.보정값?.접지나눔 ?? 0.5;
+        const 올림 = Math.min(틈 * 나눔, 상한);
+        const 내림 = Math.min(틈 - 올림, 상한);
+        const 풀기 = (다리, 세계이동) => {
+          const { thigh, calf, foot } = 다리;
+          for (let 회 = 0; 회 < 3; 회 += 1) {
+            H.setFromMatrixPosition(thigh.matrixWorld);
+            K.setFromMatrixPosition(calf.matrixWorld);
+            F.setFromMatrixPosition(foot.matrixWorld);
+            if (회 === 0) T.copy(F).setY(F.y + 세계이동);
+            const L1 = H.distanceTo(K);
+            const L2 = K.distanceTo(F);
+            const d = THREE.MathUtils.clamp(H.distanceTo(T), Math.abs(L1 - L2) + 1e-4, L1 + L2 - 1e-4);
+            // 무릎 안쪽 각: 목표 거리에 맞는 값과 지금 값의 차이만큼 무릎을 돌린다.
+            const 목표각 = Math.acos(THREE.MathUtils.clamp((L1 * L1 + L2 * L2 - d * d) / (2 * L1 * L2), -1, 1));
+            u.copy(H).sub(K).normalize();
+            v.copy(F).sub(K).normalize();
+            const 지금각 = Math.acos(THREE.MathUtils.clamp(u.dot(v), -1, 1));
+            n.crossVectors(u, v);
+            if (n.lengthSq() < 1e-8) n.copy(옆세계).applyQuaternion(group.quaternion);
+            n.normalize();
+            const 회전 = (bone, axis, angle) => {
+              bone.parent.getWorldQuaternion(pq);
+              wq.setFromAxisAngle(axis, angle);
+              bone.quaternion.premultiply(pq.clone().invert().multiply(wq).multiply(pq));
+              bone.updateMatrixWorld(true);
+            };
+            // 부호는 시험해 정하되, 거리만 보면 안 된다 — 거의 뻗은 다리는 앞으로 굽히나
+            // 뒤로 꺾으나 엉덩이-발 거리가 같아서 새 다리처럼 뒤로 꺾인 채 통과했다
+            // (실측: 무릎 6°→81°, 발이 15cm 솟음). 무릎은 반드시 몸 앞(+z)으로 나와야 한다.
+            const 무릎앞 = () => {
+              K.setFromMatrixPosition(calf.matrixWorld);
+              F2.setFromMatrixPosition(foot.matrixWorld);
+              // 엉덩이-발 선의 중점에서 무릎으로 가는 벡터의, 모델 앞 방향 성분
+              u.copy(K).sub(v.copy(H).add(F2).multiplyScalar(0.5));
+              v.set(0, 0, 1).applyQuaternion(group.quaternion);
+              return u.dot(v);
+            };
+            회전(calf, n, 목표각 - 지금각);
+            F2.setFromMatrixPosition(foot.matrixWorld);
+            if (Math.abs(H.distanceTo(F2) - d) > 1e-3 || 무릎앞() < 0) {
+              회전(calf, n, -2 * (목표각 - 지금각));
+              F2.setFromMatrixPosition(foot.matrixWorld);
+              if (Math.abs(H.distanceTo(F2) - d) > 1e-3 && 무릎앞() < 0) {
+                // 어느 쪽으로도 앞무릎이 안 나오면(축이 어긋남) 원래대로 두고 포기한다.
+                회전(calf, n, 목표각 - 지금각);
+                F2.setFromMatrixPosition(foot.matrixWorld);
+              }
+            }
+            // 엉덩이: 발이 목표를 향하도록 다리 전체를 돌린다.
+            u.copy(F2).sub(H).normalize();
+            v.copy(T).sub(H).normalize();
+            wq.setFromUnitVectors(u, v);
+            thigh.parent.getWorldQuaternion(pq);
+            thigh.quaternion.premultiply(pq.clone().invert().multiply(wq).multiply(pq));
+            thigh.updateMatrixWorld(true);
+          }
+        };
+        if (올림 > 0.002) 풀기(준비.다리[낮은], 올림 * avatarScale);
+        if (내림 > 0.002) 풀기(다리, -내림 * avatarScale);
+        준비.targetSkin.skeleton.update();
+      }
+      // IK 결과를 남겨 두어 다음 프레임에 믹서가 썼는지 판별한다.
+      준비.다리.forEach((d) => [d.thigh, d.calf].forEach((bone) => {
+        const 칸 = 다리보관.current.get(bone);
+        if (칸) 칸.ik = (칸.ik ?? new THREE.Quaternion()).copy(bone.quaternion);
+      }));
+    }
+
+    // 발바닥 정점 중 가장 낮은 점을 지면에 맞춘다(발끝을 세우는 동작 포함).
     let soleY = Infinity;
     준비.soles.forEach(({ object, indices }) => {
       for (let i = 0; i < indices.length; i += 4) {
@@ -418,6 +637,8 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
         mappedBones: 준비.mappedBones,
         gender,
         stride: Object.fromEntries([...이동모션].map((n) => [n, 준비.보폭For(n)])),
+        contact: 준비.접지시각For(next),
+        ik: 접지상태.current,
         timeScale: action?.getEffectiveTimeScale?.() ?? 1,
         speed: state.speed ?? 0,
       };

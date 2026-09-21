@@ -10,7 +10,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import SidekickGameAvatar from "../src/사이드킥게임아바타.jsx";
 import ChibiGameAvatar from "../src/치비게임아바타.jsx";
-import { 기본보정 } from "../src/모션보정.js";
 import { 외형설정보정 } from "../src/사이드킥옵션.js";
 import { 기본툰 } from "../src/툰재질.js";
 import { 기본외곽선 } from "../src/툰외곽선.js";
@@ -96,7 +95,7 @@ function QA아바타({ index, count, spec, view, mode }) {
           몸체={spec.avatar}
           툰={{ ...기본툰, ...(spec.toon ?? {}) }}
           외곽선={{ ...기본외곽선, ...(spec.outline ?? {}) }}
-          보정={{ ...기본보정, ...(spec.fix ?? {}) }}
+          보정={spec.fix ?? {}}
         />
       ) : (
         <SidekickGameAvatar

@@ -78,6 +78,8 @@ def arguments() -> argparse.Namespace:
     # (--canonical-out) 나머지 착장을 그 골격에 맞춰 변형한다(--canonical).
     p.add_argument("--canonical-out", type=Path, default=None)
     p.add_argument("--canonical", type=Path, default=None)
+    # 허벅지·종아리 표면 다듬기(라플라시안). 0 이면 안 한다.
+    p.add_argument("--leg-smooth", type=int, default=0)
     return p.parse_args(raw)
 
 
@@ -212,6 +214,50 @@ def apply_proportions(meshes, weights, joints, args) -> None:
         if name == "Head":
             continue
         joints[name] = Vector((joint.x, joint.y, leg_z(joint.z)))
+
+
+def smooth_legs(meshes, iterations: int = 6, factor: float = 1.2) -> dict:
+    """Laplacian-smooth the thigh/shin surface so the legs read as legs.
+
+    Meshy's leg geometry is soft and the collapse decimation leaves uneven
+    triangles; under a three-step toon ramp every little bump becomes a band, so
+    the thighs and knees looked like kneaded dough.  Smoothing is limited to a
+    temporary vertex group built from the leg bone weights (feet excluded so the
+    toes keep their shape) and preserves volume, so the silhouette stays and only
+    the surface noise goes.  Runs on the source pose, before any morph is baked.
+    """
+    stats = {}
+    for obj in meshes:
+        if str(obj.get("slot", "")) == "hair":
+            continue
+        names = {g.index: g.name for g in obj.vertex_groups}
+        leg_names = {n for n in names.values() if n.split(".")[0] in ("Thigh", "Shin")}
+        if not leg_names:
+            continue
+        group = obj.vertex_groups.new(name="_legs")
+        touched = 0
+        for v in obj.data.vertices:
+            w = sum(g.weight for g in v.groups if names[g.group] in leg_names)
+            if w > 0.02:
+                group.add([v.index], min(1.0, w), "REPLACE")
+                touched += 1
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        mod = obj.modifiers.new("LegSmooth", "LAPLACIANSMOOTH")
+        mod.vertex_group = "_legs"
+        mod.iterations = iterations
+        mod.lambda_factor = factor
+        mod.lambda_border = 0.0
+        mod.use_volume_preserve = True
+        mod.use_normalized = True
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+        # 모디파이어를 적용하면 그룹 참조가 낡는다(Head 를 지우려 든 적이 있다). 이름으로 다시 찾는다.
+        temp = obj.vertex_groups.get("_legs")
+        if temp is not None:
+            obj.vertex_groups.remove(temp)
+        stats[obj.name] = touched
+    return stats
 
 
 def fit_height(meshes, joints, height: float) -> float:
@@ -557,6 +603,8 @@ def main() -> None:
                 mod.use_collapse_triangulate = True
                 bpy.ops.object.modifier_apply(modifier=mod.name)
             weights = {o.name: vertex_weights(o) for o in meshes}
+        if args.leg_smooth:
+            report.setdefault("leg_smooth", {})[label] = smooth_legs(meshes, iterations=args.leg_smooth)
         twist_arms(meshes, weights, joints, args.arm_twist_deg)
         apply_proportions(meshes, weights, joints, args)
         scale = fit_height(meshes, joints, args.height)

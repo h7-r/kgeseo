@@ -68,7 +68,7 @@ for entry in "${LOOKS[@]}"; do
     --glb-dir "$WORK/full" --report "$WORK/report_${gender}_${look}.json" \
     --height 1.45 --head-scale 1 --leg-length 1 --arm-thickness 1 --leg-thickness 1 \
     --torso-width 1 --neck-thickness 1 --arm-twist-deg 0 --straighten-legs \
-    --labels "$label" --glb-prefix "meshy-${look}" --face-budget 55000 --hair-budget 28000 >/dev/null
+    --labels "$label" --glb-prefix "meshy-${look}" --face-budget 80000 --hair-budget 28000 --leg-smooth 6 >/dev/null
 
   # 5) 텍스처에 그려진 입을 지운다(웃는 표정이 어색해서 없애기로 했다)
   blend naju01/도구/meshy_erase_mouth.py --blend "$WORK/rigged_${gender}_${look}.blend" \

@@ -12,7 +12,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import SidekickGameAvatar from "../src/사이드킥게임아바타.jsx";
 import ChibiGameAvatar from "../src/치비게임아바타.jsx";
-import { 기본보정 } from "../src/모션보정.js";
 import { 외형설정보정 } from "../src/사이드킥옵션.js";
 import { 메시설정보정 } from "../src/메시외형옵션.js";
 import { 기본툰 } from "../src/툰재질.js";
@@ -122,7 +121,8 @@ function GAIT무대() {
   const [줌, set줌] = useState(1);
   const [멈춤, set멈춤] = useState(false);
   const [보정켬, set보정켬] = useState(true);
-  const 보정 = useMemo(() => ({ ...기본보정, 켬: 보정켬 }), [보정켬]);
+  // 덧값만 넘긴다 — 기본값과 성별별 값은 아바타 안에서 합쳐진다.
+  const 보정 = useMemo(() => ({ 켬: 보정켬 }), [보정켬]);
   const [시각, set시각] = useState(0);
   const 사이드킥상태 = useRef(정지상태());
   const 메시상태 = useRef(정지상태());
