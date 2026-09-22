@@ -38,6 +38,7 @@ import {
   갓길기본,
 } from "../공간도면.js";
 import { 지형만들기 } from "../지형.js";
+import { 소품충돌만들기 } from "../소품충돌.js";
 import { 새지형쓰기 } from "../새지형.js";
 import { 구운모형쓰기 } from "../구운모형.js";
 import {
@@ -2233,8 +2234,14 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   //   시작 자리 = V1(Z1 서쪽, 동쪽을 본다). Scene 01 의 첫 시점이다.
   // ★ 편집 중에도 걸어 다닐 수 있어야 한다. 포인터락은 풀려 있지만
   //   WASD 는 살아 있어야 「보면서 옮기기」가 된다(시점은 우클릭 드래그).
+  // 소품 충돌 — 무리가 바뀔 때만 다시 만든다(편집 후 포함).
+  const 소품충돌 = useMemo(() => 소품충돌만들기(무리들), [무리들]);
+  useEffect(() => {
+    if (import.meta.env.DEV && typeof window !== "undefined") window.__소품충돌 = 소품충돌;
+  }, [소품충돌]);
   const 텔레포트 = use지형이동(active || 편집모드, {
     지형,
+    추가막힘: 편집모드 ? null : 소품충돌.막힘,
     시작: [시점[0].X, 시점[0].Z, 시점[0].방위],
     눈높이: T.눈높이,
     걷기속도: T.걷기속도,

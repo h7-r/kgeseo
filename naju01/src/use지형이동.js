@@ -71,6 +71,8 @@ export function use지형이동(
     //   경계를 통째로 넓히면 동쪽 가장자리 어디서나 6.7 m 아래로 떨어진다 —
     //   **연결로 위에서만** 열어야 한다.
     밖으로 = null,
+    // 소품 충돌 `(px, pz, y, 반경) => 이름|null` (미터). 지형 `막힘` 에 더해 본다(소품충돌.js).
+    추가막힘 = null,
   } = {},
 ) {
   const { camera } = useThree();
@@ -274,6 +276,7 @@ export function use지형이동(
         const mx = nx * 유닛;
         const mz = nz * 유닛;
         if (지형.막힘(mx, mz, 발밑.y, R * 유닛 + 0.2)) return false;
+        if (추가막힘 && 추가막힘(mx, mz, 발밑.y, R * 유닛)) return false;
         const g = 지형.지면(mx, mz);
         if (접지.current && g.y - 발밑.y > 턱) return false; // 오르지 못할 턱
         return true;
@@ -305,7 +308,16 @@ export function use지형이동(
     // 공중에 뜨는 현상이 누적됐다.
     const 최종X = p.x * 유닛;
     const 최종Z = p.z * 유닛;
+    // 발 반경 안 다섯 점 중 가장 높은 땅을 밟는다. 중심 한 점만 보면 경사·길 경계에서 앞발이
+    // 놓인 땅이 더 높아 신발이 땅에 파묻혔다(실제로 그랬다). 볼록한 모서리에선 조금 뜨지만 낫다.
     const 현재발밑 = 지형.지면(최종X, 최종Z);
+    {
+      const d = R * 유닛;
+      for (const [ox, oz] of [[d, 0], [-d, 0], [0, d], [0, -d]]) {
+        const g = 지형.지면(최종X + ox, 최종Z + oz);
+        if (g.y > 현재발밑.y && !g.낙하 && !g.물) 현재발밑.y = g.y;
+      }
+    }
     const 바닥Y = 현재발밑.y * 미터 + 눈;
 
     // ── 위아래 ────────────────────────────────────────────
