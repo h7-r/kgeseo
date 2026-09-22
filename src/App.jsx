@@ -59,7 +59,7 @@ import {
   Preload, // ← 씬 전체의 셰이더를 '미리' 컴파일해 둔다 (아래 설명)
 } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
-import { Leva, useControls, button, folder } from "leva"; // 패널 + 슬라이더 + 버튼 + 폴더
+import { Leva, useControls, button } from "leva"; // 패널 + 슬라이더 + 버튼
 import * as THREE from "three";
 // 여러 개의 지오메트리를 '하나'로 합치는 도구.
 //   드로우콜은 '메시 개수'에 비례하므로, 재질이 같은 것끼리 합치면 그만큼 줄어든다.
@@ -74,18 +74,17 @@ import {
   OUTLINE_THICK,
   OUTLINE_COLOR,
   선스키마,
-  주름지오,
   단위상자,
   단위판,
   선뽑기,
+  저장전부지우기,
   만화선,
+  그림자관리,
+  셰이더예열,
+  그림자흔들기,
   색밝기,
   makeRandom,
   상자합치기,
-  저장읽기,
-  저장쓰기,
-  강제기본값,
-  스키마에적용,
   useSavedControls,
   use이동,
   EYE,
@@ -93,17 +92,10 @@ import {
   R,
   NEAR,
   텍스처배율,
-  makeCanvasTexture,
   질감얹기,
-  블록W,
-  블록H,
-  벽칸_가로,
-  벽칸_세로,
   WALL_TEX_W,
   WALL_TEX_H,
   FLOOR_TEX,
-  회,
-  둥근얼룩,
   벽텍스처,
   바닥텍스처,
   CEIL_TEX,
@@ -114,31 +106,571 @@ import { useLocation, useNavigate } from "react-router-dom";
 import 기차내부 from "./scenes/기차내부.jsx";
 // 복도 소품 — 자판기 2대(캔 · 커피). 상자와 판이라 GLB 없이 코드로 짰다.
 import { 캔자판기, 커피자판기 } from "./소품/자판기.jsx";
+import { 동전 } from "./소품/동전.jsx";
+import {
+  줍기,
+  든동전,
+  동전위치,
+  use동전,
+  넣는중,
+  넣기완료,
+  내려놓기,
+  놓인위치,
+  놓은때,
+  반환구자리,
+  반환앞자리,
+} from "./소품/동전상태.js";
+import {
+  든음료,
+  음료동작,
+  음료E,
+  버리기 as 손비우기,
+  종이집기,
+  use음료,
+} from "./소품/종이컵상태.js";
 // 복도 바닥 잡동사니 — 캔·종이·각목·물웅덩이. 전부 한 덩어리로 합쳐 그린다.
 import { 복도잡동사니, 복도부식 } from "./소품/복도잡동사니.jsx";
-import { 소화전내부 } from "./소품/소화전내부.jsx";
+import { 소화전내부, 관창모양, 늘어진호스 } from "./소품/소화전내부.jsx";
+import { 관창곳, use관창, 호스줄당김 } from "./소품/관창.js";
+import { 밀림, 연출강제, use관밀림, use연출 } from "./소품/자판기밀기.js";
+import { 자판기연출 } from "./소품/자판기연출.jsx";
 import { 배전반내부 } from "./소품/배전반내부.jsx";
-import { 열렸나, 여닫기 } from "./소품/여닫이.js";
+import { 번호자물쇠 } from "./소품/자물쇠.jsx";
+import { 열렸나, 여닫기, use열렸나, 덜컹, 덜컹값 } from "./소품/여닫이.js";
+import {
+  use자물쇠,
+  use풀림,
+  use있나,
+  use조작상태,
+  칸고르기,
+  숫자돌리기,
+  맞춰봄,
+  조작나가기,
+  조작끝,
+} from "./소품/번호잠금.js";
+import { 소리재생 } from "./소리.js";
 // ── 화면 위에 뜨는 창들 ─────────────────────────────────────
 //   화면층 = 「한 번에 하나의 모달」 규칙(GRD-11 · CMN-035)을 지키는 관리자.
 //   앞으로 수첩(N) · 힌트(H) · 일시정지(ESC)가 여기에 줄줄이 붙는다.
 import 소지품UI from "./게임/소지품UI.jsx";
+import 힌트UI from "./게임/힌트UI.jsx";
+import 힌트HUD from "./게임/힌트HUD.jsx";
+import { 힌트넣기, 힌트반짝 } from "./게임/힌트함.js";
+import {
+  밸브힌트,
+  종이곳,
+  종이놓인자리,
+  종이버리기,
+  종이보관,
+  종이집음,
+  발앞자리,
+  발앞적기,
+  use힌트종이,
+} from "./소품/힌트종이.js";
 import { 소지품 } from "./게임/소지품.js";
 import { 화면층, 층, use열린층 } from "./게임/화면층.js";
 // ★ 로비 물건 상호작용 (CT-007 / S4-009) — 겨냥 판정과 물건 상태는 App 밖 상자에 둔다.
 import 겨냥판정, { 상호대상, 손에든것 } from "./로비/겨냥판정.jsx";
+
+// ── 손에 든 동전 + 투입 모션 ────────────────────────────────
+//   평소엔 카메라 앞에 동전을 들고 있고(손에든것), 투입(넣는중)하면 **월드 좌표에서**
+//   실제 투입구 자리(넣는중.슬롯)로 날아가 그 자리에서 쑥 들어간다(작아지며).
+//   다 들어가면 넣기완료()가 결과(성공/반환)를 확정한다.
+const _동전시작 = new THREE.Vector3();
+function 동전코인({ 종류, 동전CD, 선, 눕힘 = false }) {
+  const 캔 = 종류 === "캔";
+  return (
+    <동전
+      위치={[0, 0, 0]}
+      무늬={캔 ? "캔" : "종이컵"}
+      색={캔 ? 동전CD.캔색 : 동전CD.컵색}
+      무늬색={캔 ? 동전CD.캔무늬색 : 동전CD.컵무늬색}
+      반지름={동전CD.동전크기}
+      두께={동전CD.동전두께2}
+      눕힘={눕힘}
+      선={선}
+    />
+  );
+}
+
+// ── 동전 낙하·반동 연출 ───────────────────────────────────────
+//   내려놓은 순간(놓은때)부터 짧게: 세로(모서리)로 떨어져 → 바닥에서 한 번
+//   튕기고 → 눕는다. 바닥에 놓인 동전 그림만 이 그룹으로 감싼다(겨냥·판정과 무관).
+//   처음부터 바닥이던 동전(놓은때=0)은 연출 없이 그냥 눕혀 놓는다.
+function 동전낙하({ 종류, 위치, 띄우기 = 0, 시작, children }) {
+  const g = useRef(null);
+  const bx = 위치[0],
+    by = 위치[1],
+    bz = 위치[2];
+  const 착지y = by + 띄우기;
+  useFrame(() => {
+    const o = g.current;
+    if (!o) return;
+    const t0 = 놓은때(종류);
+    const t = t0 ? (performance.now() - t0) / 1000 : 99;
+
+    // ── 반환: 반환구(시작, 높은 곳)에서 나와 앞쪽 바닥(착지)으로 포물선 낙하 ──
+    if (시작) {
+      const 총 = 0.72,
+        낙하 = 0.5;
+      if (t >= 총) {
+        o.position.set(bx, 착지y, bz);
+        o.rotation.z = 0;
+        return;
+      }
+      let x, y, z;
+      if (t < 낙하) {
+        const k = t / 낙하; // 앞으로는 등속, 아래로는 가속 + 처음 살짝 튀어나오는 호
+        x = 시작[0] + (bx - 시작[0]) * k;
+        z = 시작[2] + (bz - 시작[2]) * k;
+        y = 시작[1] + (착지y - 시작[1]) * (k * k) + Math.sin(k * Math.PI) * 0.1;
+      } else {
+        const b = (t - 낙하) / (총 - 낙하);
+        x = bx;
+        z = bz;
+        y = 착지y + Math.sin(b * Math.PI) * 0.1 * (1 - b); // 바닥에서 한 번 튕김
+      }
+      o.position.set(x, y, z);
+      const rk = Math.min(1, t / 0.58);
+      const ee = 1 - Math.pow(1 - rk, 3);
+      o.rotation.z = (1 - ee) * 1.4; // 구르며 눕는다
+      return;
+    }
+
+    // ── 바닥 내려놓기: 제자리에서 수직으로 떨어져 눕는다 ──
+    const 총 = 0.55;
+    let dy = 0,
+      rz = 0;
+    if (t < 총) {
+      const 낙하 = 0.3;
+      const 높이 = 0.7;
+      if (t < 낙하) {
+        const k = t / 낙하;
+        dy = 높이 * (1 - k * k);
+      } else {
+        const b = (t - 낙하) / (총 - 낙하);
+        dy = Math.sin(b * Math.PI) * 0.12 * (1 - b);
+      }
+      dy = Math.max(0, dy);
+      const rk = Math.min(1, t / 0.42);
+      const e = 1 - Math.pow(1 - rk, 3);
+      rz = (1 - e) * 1.35 - Math.sin(rk * Math.PI) * 0.14;
+    }
+    o.position.set(bx, 착지y + dy, bz);
+    o.rotation.z = rz;
+  });
+  return (
+    <group ref={g} position={[bx, 착지y, bz]}>
+      {children}
+    </group>
+  );
+}
+function 동전손연출({ 동전CD, 선 }) {
+  const { camera } = useThree();
+  const 월드ref = useRef(null);
+  const 시작 = useRef(null);
+  useFrame(() => {
+    const wg = 월드ref.current;
+    const n = 넣는중();
+    if (n && wg) {
+      if (!n.t0) {
+        n.t0 = performance.now();
+        _동전시작
+          .set(0.5, -0.55, -1.4)
+          .applyQuaternion(camera.quaternion)
+          .add(camera.position);
+        시작.current = [_동전시작.x, _동전시작.y, _동전시작.z];
+      }
+      const 목표 = n.슬롯 || 시작.current;
+      const t = Math.min(1, (performance.now() - n.t0) / 460);
+      const e = t * t * (3 - 2 * t);
+      wg.position.set(
+        시작.current[0] + (목표[0] - 시작.current[0]) * e,
+        시작.current[1] + (목표[1] - 시작.current[1]) * e + Math.sin(t * Math.PI) * 0.12,
+        시작.current[2] + (목표[2] - 시작.current[2]) * e,
+      );
+      wg.scale.setScalar(t < 0.75 ? 1 : Math.max(0.05, 1 - (t - 0.75) / 0.25));
+      wg.visible = true;
+      if (t >= 1) 넣기완료();
+    } else if (wg) {
+      wg.visible = false;
+    }
+  });
+  const 손종류 = 든동전();
+  const 넣기 = 넣는중();
+  return (
+    <>
+      {손종류 && (
+        <손에든것 물건id="동전" 앞={1.4} 아래={0.55} 옆={0.5}>
+          <동전코인 종류={손종류} 동전CD={동전CD} 선={선} />
+        </손에든것>
+      )}
+      {넣기 && (
+        <group ref={월드ref}>
+          <동전코인 종류={넣기.종류} 동전CD={동전CD} 선={선} />
+        </group>
+      )}
+    </>
+  );
+}
+
+// ── 손에 든 종이컵 모형 — 자판기에서 나온 컵과 같은 모습(작게) ─────────
+//   원뿔대 몸통(컵색) + 윗면 커피(커피색) + 외곽선(만화선).
+function 손컵모형({ 색, 커피색, 남은 = 1, 선 }) {
+  // ★ **바닥을 붙인다.** 예전에는 openEnded 통 하나뿐이라 컵에 바닥이 없었다.
+  //   커피가 차 있을 때는 표면(원판)이 위를 막아 줘서 몰랐는데, 다 마셔서
+  //   표면이 사라지면 **컵 속이 뻥 뚫려 보였다.** 게다가 외곽선(인버티드 헐)도
+  //   뚫린 통을 그대로 따라가 아래가 끊겨 보였다.
+  // ★ 눈앞 한 뼘에 드는 물건이라 **면을 늘렸다**(18 → 28). 방에 놓인 소품과
+  //   달리 화면을 크게 차지해서, 18 면이면 옆선이 눈에 띄게 각졌다.
+  const geo = useMemo(() => {
+    const 벽 = new THREE.CylinderGeometry(0.12, 0.083, 0.24, 28, 1, true);
+    const 바닥 = new THREE.CircleGeometry(0.083, 28);
+    바닥.rotateX(-Math.PI / 2); // 위를 본다 — 컵 속에서 내려다보는 면
+    바닥.translate(0, -0.12, 0);
+    const 합 = mergeGeometries([벽, 바닥], false);
+    벽.dispose();
+    바닥.dispose();
+    return 합;
+  }, []);
+  useEffect(() => () => geo.dispose(), [geo]);
+  // 커피 표면 높이·반지름 = 남은 양에 따라(마실수록 낮아지고 좁아진다)
+  const 채움 = Math.max(0, Math.min(1, 남은));
+  const 표면y = -0.1 + 0.2 * 채움;
+  const 반 = (0.083 + (0.12 - 0.083) * ((표면y + 0.12) / 0.24)) * 0.9;
+  return (
+    <group>
+      {/* 재질도 씬과 같은 셀셰이딩으로 맞춘다. meshBasic 은 명암이 아예 없어서
+             눈앞에 크게 들면 색종이를 오린 것처럼 납작하게 보인다.
+             (같이 들고 다니는 관창도 toon 이다 — 두 물건이 같은 세계여야 한다) */}
+      <mesh geometry={geo} castShadow>
+        <meshToonMaterial
+          color={색}
+          gradientMap={TOON_GRADIENT}
+          side={THREE.DoubleSide}
+        />
+        <만화선 geo={geo} 선={선} />
+      </mesh>
+      {채움 > 0.02 && (
+        <mesh position={[0, 표면y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[반, 18]} />
+          <meshBasicMaterial color={커피색} toneMapped={false} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+// ── 손에 든 음료 캔 모형 — 라벨색 몸통 + 알루미늄 뚜껑 + 따개 탭 ─────
+function 손캔모형({ 색, 딴, 탭ref, 선 }) {
+  // 컵과 같은 이유로 면을 늘렸다(20 → 28). 눈앞에 드는 물건이다.
+  const geo = useMemo(
+    () => new THREE.CylinderGeometry(0.09, 0.09, 0.3, 28, 1),
+    [],
+  );
+  // ★ 뚜껑도 **따로 지오를 만들어 둔다.** 인라인 <circleGeometry> 로 두면
+  //   만화선 에 넘길 geo 가 없어서 윗면에만 선이 안 들어갔다 — 캔을 들어
+  //   위에서 내려다보면 흰 판이 파란 몸통에 그냥 얹힌 것처럼 보였다.
+  //   원판의 테두리가 곧 캔의 **윗 테**라, 여기 선이 있어야 몸통과 갈린다.
+  const 뚜껑geo = useMemo(() => new THREE.CircleGeometry(0.088, 28), []);
+  useEffect(() => () => {
+    geo.dispose();
+    뚜껑geo.dispose();
+  }, [geo, 뚜껑geo]);
+  return (
+    <group>
+      <mesh geometry={geo} castShadow>
+        <meshToonMaterial color={색} gradientMap={TOON_GRADIENT} />
+        <만화선 geo={geo} 선={선} />
+      </mesh>
+      {/* 알루미늄 뚜껑 */}
+      <mesh
+        geometry={뚜껑geo}
+        position={[0, 0.152, 0]}
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
+        <meshToonMaterial color="#c9ccd0" gradientMap={TOON_GRADIENT} />
+        <만화선 geo={뚜껑geo} 선={선} />
+      </mesh>
+      {/* 딴 구멍(어두운) — 땄을 때만 보인다 */}
+      {딴 && (
+        <mesh position={[0.032, 0.156, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.03, 12]} />
+          <meshBasicMaterial color="#101216" toneMapped={false} />
+        </mesh>
+      )}
+      {/* 따개 탭 — 땄으면 살짝 들린다(탭ref 로 회전) */}
+      <group position={[-0.02, 0.156, 0]} ref={탭ref}>
+        <mesh>
+          <boxGeometry args={[0.07, 0.008, 0.03]} />
+          <meshBasicMaterial color="#b9bcc2" toneMapped={false} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+// ── 손에 든 음료(컵/캔) + 따기·마시기 모션 ─────────────────────
+//   E 로 집으면 카메라 앞에 든다(손에든것). 손에든것 그룹은 카메라와 같은 방향이라
+//   로컬 +Z 가 '사용자(화면 앞)' 쪽 → 마실 때 컵/캔을 +Z 로 당겨 입에 대고, 입구가
+//   사용자 쪽으로 오도록 +rotation.x 로 기울인다(예전엔 반대로 부어졌다).
+// ── 밸브 힌트 종이 텍스처 — 밸브(핸들휠) 그림 + 그 밑 중앙 "V _ _ _ E" ─────
+//   정답(VALVE)을 그대로 주지 않고, 밸브 그림 + 빈칸으로 '유추'하게 한다.
+let _힌트텍캐시 = null;
+let _힌트그림캐시 = null;
+/** 힌트함(모달)에 띄울 그림. 3D 에 쓰는 그 캔버스를 그대로 PNG 로 뽑는다 —
+ *  따로 그리면 손에 든 쪽지와 창 속 쪽지가 다른 그림이 된다. */
+export function 힌트종이그림() {
+  힌트종이텍스처(); // 캔버스를 만들어 두게 한다(이미 있으면 그냥 돌아온다)
+  return _힌트그림캐시;
+}
+function 힌트종이텍스처() {
+  if (_힌트텍캐시) return _힌트텍캐시;
+  const S = 256;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const g = c.getContext("2d");
+  const F = "system-ui, 'Malgun Gothic', sans-serif";
+  g.fillStyle = "#f3efe2"; // 누런 종이
+  g.fillRect(0, 0, S, S);
+  g.strokeStyle = "#c9c0a8";
+  g.lineWidth = 5;
+  g.strokeRect(9, 9, S - 18, S - 18);
+  // 상단 작은 머리말(정답 아님 — 분위기용)
+  g.fillStyle = "#7c7460";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.font = `700 ${Math.round(S * 0.075)}px ${F}`;
+  g.fillText("MAINTENANCE NOTE", S / 2, S * 0.16);
+  // 밸브 핸들휠(원 테 + 허브 + 스포크 4개)
+  const cx = S / 2,
+    cy = S * 0.42,
+    R = S * 0.17;
+  g.strokeStyle = "#3a3d42";
+  g.lineWidth = 9;
+  g.beginPath();
+  g.arc(cx, cy, R, 0, Math.PI * 2);
+  g.stroke();
+  g.lineWidth = 7;
+  for (let i = 0; i < 4; i++) {
+    const a = i * (Math.PI / 2) + Math.PI / 4;
+    g.beginPath();
+    g.moveTo(cx, cy);
+    g.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R);
+    g.stroke();
+  }
+  g.fillStyle = "#3a3d42";
+  g.beginPath();
+  g.arc(cx, cy, R * 0.2, 0, Math.PI * 2);
+  g.fill();
+  // 밸브에서 내려오는 관(스템)
+  g.lineWidth = 8;
+  g.beginPath();
+  g.moveTo(cx, cy + R);
+  g.lineTo(cx, cy + R * 1.5);
+  g.stroke();
+  // "V _ _ _ E" (가운데)
+  g.fillStyle = "#23262b";
+  g.font = `800 ${Math.round(S * 0.17)}px ${F}`;
+  g.fillText("V _ _ _ E", cx, S * 0.74);
+  g.fillStyle = "#8a8270";
+  g.font = `600 ${Math.round(S * 0.06)}px ${F}`;
+  g.fillText("5 LETTERS", cx, S * 0.88);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  _힌트텍캐시 = t;
+  try {
+    _힌트그림캐시 = c.toDataURL("image/png");
+  } catch {
+    _힌트그림캐시 = null; // 캔버스를 못 읽는 환경 — 그림 없이 글만 뜬다
+  }
+  return t;
+}
+
+// ── 플레이어가 서 있는 자리를 적어 둔다 ─────────────────────────
+//   쪽지를 버릴 때 쓴다. 카메라는 Canvas 안에서만 잡히는데 [E] 를 받는 곳은
+//   껍데기(App)라, 여기서 한 칸에 적어 두고 그쪽이 읽어 간다.
+//   0.1초에 한 번이면 충분하다 — 걸으면서 버려도 반 걸음 차이도 안 난다.
+const _앞방향 = new THREE.Vector3();
+function 쪽지자리추적() {
+  const { camera } = useThree();
+  const 누적 = useRef(0);
+  useFrame((_, dt) => {
+    누적.current += dt;
+    if (누적.current < 0.1) return;
+    누적.current = 0;
+    camera.getWorldDirection(_앞방향);
+    // 눈앞 한 걸음 바닥. y 는 복도(0.01)·방(0) 둘 다 살짝 위로 띄운다.
+    발앞적기([
+      camera.position.x + _앞방향.x * 1.1,
+      0.05,
+      camera.position.z + _앞방향.z * 1.1,
+    ]);
+  });
+  return null;
+}
+
+// ── 바닥에 버린 힌트 쪽지 ───────────────────────────────────────
+// [왜 바닥에 남기나]
+//   [E] 로 버리면 그냥 증발하던 시절엔, 잘못 눌러 버린 사람에게 되돌릴 길이
+//   없었다. 동전도 관창도 전부 '내려놓으면 그 자리에 남는' 세계인데 쪽지만
+//   사라지면 다른 규칙으로 읽힌다(GRD-01 되돌릴 수 있음).
+//   겨냥한 바닥 자리에 떨어지고, 겨냥하면 밝아지며, [E] 로 다시 줍는다.
+const _쪽지점 = new THREE.Vector3();
+const 쪽지기본자리 = [-20.4, 0.05, -3.2]; // 못 겨냥한 채 버렸을 때 — 자판기 앞
+function 바닥힌트종이({ 선 }) {
+  use힌트종이(); // 버리고 줍는 순간에만 다시 그린다
+  const tex = useMemo(() => 힌트종이텍스처(), []);
+  // ★ 인라인 <planeGeometry> 로 두면 만화선 에 넘길 geo 가 없다.
+  //   바닥에 눕은 종이는 테가 없으면 바닥 무늬에 묻혀 안 보인다.
+  const geo = useMemo(() => new THREE.PlaneGeometry(0.3, 0.3), []);
+  useEffect(() => () => geo.dispose(), [geo]);
+  const 자리ref = useRef(null);
+  if (종이곳() !== "바닥") return null;
+  const 위치 = 종이놓인자리() ?? 쪽지기본자리;
+  return (
+    <group position={위치}>
+      {/* 겨냥이 "여기가 어디냐" 물어올 때 쓰는 빈 그룹 */}
+      <group ref={자리ref} />
+      <강조 id="힌트종이줍기" 기준={() => [0, 0, 0]} 확대={0.14}>
+        {/* 바닥에 떨어진 종이라 **눕혀 놓는다.** 조금 비틀어 둬야 떨어진 것으로
+               읽힌다 — 반듯하면 누가 놓아 둔 것처럼 보인다. */}
+        <mesh
+          geometry={geo}
+          rotation={[-Math.PI / 2, 0, 0.42]}
+          position={[0, 0.012, 0]}
+          receiveShadow
+        >
+          <meshToonMaterial
+            map={tex}
+            gradientMap={TOON_GRADIENT}
+            side={THREE.DoubleSide}
+          />
+          <만화선 geo={geo} 선={선} />
+        </mesh>
+      </강조>
+      <상호대상
+        id="힌트종이줍기"
+        반경={0.3}
+        거리={4}
+        라벨=""
+        /* 손이 차 있으면 못 줍는다 — 한 번에 하나만 든다(관창·동전과 같은 규칙) */
+        끔={() => !!든음료() || !!든동전() || 관창곳() === "손"}
+        위치={() => {
+          const o = 자리ref.current;
+          if (!o) return null;
+          // 겨냥 루프가 초당 20번 부른다 — 여기서 Vector3 를 새로 만들면
+          //   1분에 1200개가 쓰레기가 된다. 모듈에 그릇 하나를 두고 돌려 쓴다.
+          o.getWorldPosition(_쪽지점);
+          return [_쪽지점.x, _쪽지점.y, _쪽지점.z];
+        }}
+        실행={() => {
+          종이집기();
+          종이집음();
+        }}
+      />
+    </group>
+  );
+}
+
+// ── 손에 든 밸브 힌트 종이 모형 — 텍스처를 입힌 얇은 판 ─────────────
+function 손종이모형({ 선 }) {
+  const tex = useMemo(() => 힌트종이텍스처(), []);
+  const geo = useMemo(() => new THREE.PlaneGeometry(0.24, 0.3), []);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return (
+    <mesh geometry={geo}>
+      <meshBasicMaterial map={tex} side={THREE.DoubleSide} toneMapped={false} />
+      {/* 눈앞 한 뼘에 드는 물건이라 테가 없으면 배경에 붙어 떠 보인다.
+             같이 드는 캔·컵·관창이 전부 선을 두르고 있으니 여기만 빠지면 튄다. */}
+      <만화선 geo={geo} 선={선} />
+    </mesh>
+  );
+}
+
+function 손음료연출({ 선 }) {
+  const 음료 = 든음료();
+  const g = useRef(null);
+  const 탭ref = useRef(null);
+  useFrame(() => {
+    const o = g.current;
+    if (!o) return;
+    // 종이(밸브 힌트) — 펼쳐 보면(딴=true) 화면 앞·중앙으로 크게 당겨 읽게 한다.
+    if (음료 && 음료.종류 === "종이") {
+      const 봄 = 음료.딴;
+      const tx = 봄 ? -0.13 : 0,
+        ty = 봄 ? 0.05 : 0,
+        tz = 봄 ? 0.5 : 0,
+        ts = 봄 ? 1.8 : 1;
+      o.position.x += (tx - o.position.x) * 0.15;
+      o.position.y += (ty - o.position.y) * 0.15;
+      o.position.z += (tz - o.position.z) * 0.15;
+      o.scale.setScalar(o.scale.x + (ts - o.scale.x) * 0.15);
+      o.rotation.set(0, 0, 0);
+      return;
+    }
+    const { 동작, 마신때 } = 음료동작();
+    const t = 마신때 ? (performance.now() - 마신때) / 1000 : 99;
+    let py = 0,
+      pz = 0,
+      rx = 0;
+    if (동작 === "마시기" && t < 1.3) {
+      const s = Math.sin((t / 1.3) * Math.PI);
+      py = s * 0.12; // 입 높이로 올림
+      pz = s * 0.55; // 사용자(화면 앞) 쪽으로 당김
+      rx = s * 1.05; // 입구가 사용자 쪽으로 오게 기울임
+    } else if (동작 === "따기" && t < 0.6) {
+      const s = Math.sin((t / 0.6) * Math.PI);
+      py = s * 0.05;
+      pz = s * 0.06; // 살짝 들어 올리며 딴다
+    }
+    o.position.set(0, py, pz);
+    o.rotation.x = rx;
+    o.scale.setScalar(1);
+    // 따개 탭 — 캔을 땄으면 살짝 세운다
+    if (탭ref.current) {
+      const 목표 = 음료 && 음료.종류 === "캔" && 음료.딴 ? -0.9 : 0;
+      탭ref.current.rotation.x += (목표 - 탭ref.current.rotation.x) * 0.2;
+    }
+  });
+  if (!음료) return null;
+  const 캔 = 음료.종류 === "캔";
+  const 종이 = 음료.종류 === "종이";
+  return (
+    <손에든것
+      물건id="음료"
+      앞={종이 ? 0.9 : 캔 ? 1.0 : 1.1}
+      아래={종이 ? 0.35 : 0.5}
+      옆={종이 ? 0.15 : 0.35}
+    >
+      <group ref={g}>
+        {종이 ? (
+          <손종이모형 선={선} />
+        ) : 캔 ? (
+          <손캔모형 색={음료.색} 딴={음료.딴} 탭ref={탭ref} 선={선} />
+        ) : (
+          <손컵모형 색={음료.색} 커피색={음료.음료색} 남은={음료.남은} 선={선} />
+        )}
+      </group>
+    </손에든것>
+  );
+}
 import { use자판기 } from "./소품/자판기상태.js";
 import { 강조 } from "./로비/강조.jsx";
 import { 잰다, 놓을자리계산, 놓기유령 } from "./로비/배치.jsx";
 import {
   월드박스공급,
   최근자리값,
+  크기등록,
   걸이등록,
   걸이해제,
   옮겨진것갱신,
   위에얹힌것,
   표면등록,
   표면해제,
+  면높이,
+  use면판,
 } from "./로비/배치.js";
 import {
   겨냥,
@@ -422,10 +954,22 @@ function use충돌박스(이름, 박스, 켬 = true) {
 // 벽함 문의 겨냥 위치를 물어볼 때 돌려 쓰는 그릇
 const _벽함점 = new THREE.Vector3();
 
+// 잠긴 문이 덜컹거릴 때 젖혀지는 각(라디안). 2도 — 걸쇠가 잡고 있으니 이만큼뿐이다.
+const 덜컹각 = (2 * Math.PI) / 180;
+
+// 벽함 문의 이름 — 열림 상태·덜컹·자물쇠가 **모두 이 한 이름**으로 묶인다.
+//   ★ 함 안에서만 만들면 밖(자물쇠를 세우는 쪽)에서 같은 이름을 못 부른다.
+//     그래서 여기 꺼내 둔다. 양쪽이 각자 문자열을 조립하면 소수점 한 자리만
+//     달라져도 조용히 어긋나서, 문은 잠겼는데 자물쇠는 딴 문을 지키게 된다.
+const 벽함문id = (종류, x, z) => `벽함:${종류}:${x.toFixed(1)},${z.toFixed(1)}`;
+
 const 상자안 = (c, x, z) =>
   x > c.minX - R && x < c.maxX + R && z > c.minZ - R && z < c.maxZ + R;
 
 const hit = (x, z) => {
+  // ★ 관창을 들고 있으면 **호스 길이만큼만** 갈 수 있다. 호스는 늘어나지 않는다.
+  //   (관창.js 호스줄당김 — 다 풀린 뒤 멀어지는 걸음만 막는다)
+  if (호스줄당김(x, z)) return true;
   for (const c of COLLIDERS) if (상자안(c, x, z)) return true;
   for (const c of 동적콜라이더.values()) if (상자안(c, x, z)) return true;
   return false;
@@ -1060,24 +1604,9 @@ function Chair({
   );
   use충돌박스(이름, 박스, 충돌);
 
-  const { scene } = useGLTF("/models/chair.glb");
-  const model = useMemo(() => {
-    // 원본을 직접 고치면 useGLTF 캐시가 오염돼 5개가 같이 바뀐다 → 복제 후 칠한다
-    const cloned = scene.clone(true);
-    cloned.traverse((obj) => {
-      if (obj.isMesh) {
-        obj.material = new THREE.MeshToonMaterial({
-          color,
-          gradientMap: TOON_GRADIENT,
-        });
-        obj.castShadow = true;
-        obj.receiveShadow = true;
-      }
-    });
-    return cloned;
-  }, [scene, color]);
-  // 모델을 조각으로 나눠 그린다 — 그래야 조각마다 외곽선·주름선을 붙일 수 있다.
-  const 조각 = useMemo(() => GLB조각(model), [model]);
+  // 복제 → 툰 재질 → 조각내기. 모니터·키보드·마우스와 **같은 일**이라 훅 하나로 묶여 있다.
+  //   (전에는 이 열다섯 줄이 여기 그대로 복사돼 있었다)
+  const 조각 = useToon조각("/models/chair.glb", color);
   return (
     <group
       position={[x, y, z]}
@@ -2101,23 +2630,9 @@ function Desk({
   선,
 }) {
   const [x, z] = pos;
-  const { scene } = useGLTF("/models/desk.glb");
-  const model = useMemo(() => {
-    const cloned = scene.clone(true);
-    cloned.traverse((obj) => {
-      if (obj.isMesh) {
-        obj.material = new THREE.MeshToonMaterial({
-          color,
-          gradientMap: TOON_GRADIENT,
-        });
-        obj.castShadow = true;
-        obj.receiveShadow = true;
-      }
-    });
-    return cloned;
-  }, [scene, color]);
-  // 모델을 조각으로 나눠 그린다 — 그래야 조각마다 외곽선·주름선을 붙일 수 있다.
-  const 조각 = useMemo(() => GLB조각(model), [model]);
+  // 복제 → 툰 재질 → 조각내기. 모니터·키보드·마우스와 **같은 일**이라 훅 하나로 묶여 있다.
+  //   (전에는 이 열다섯 줄이 여기 그대로 복사돼 있었다)
+  const 조각 = useToon조각("/models/desk.glb", color);
 
   // 바닥에 딱 세우기: min_y가 0에 오도록 (0.62×scale)만큼 올림 + Leva 미세조정(lift)
   //   높이늘림(yStretch)을 쓰면 그만큼 바닥 오프셋도 커진다.
@@ -2446,10 +2961,6 @@ function PaperStack({
     //  ② 그래도 남는 차이만큼 '필요한 만큼만' 띄운다(아래 필요간격).
     let rx = (rnd() - 0.5) * 0.05,
       rz = (rnd() - 0.5) * 0.05;
-    let 이전y = 0,
-      이전h = 0,
-      이전rx = rx,
-      이전rz = rz;
 
     for (let i = 0; i < sheets; i++) {
       const t = i / Math.max(1, sheets - 1); // 0(맨 아래) ~ 1(맨 위)
@@ -2462,26 +2973,52 @@ function PaperStack({
         rx = Math.max(-0.05, Math.min(0.05, rx + (rnd() - 0.5) * 0.014));
         rz = Math.max(-0.05, Math.min(0.05, rz + (rnd() - 0.5) * 0.014));
       }
+      // 이 장이 놓이는 자리 — 흐트러짐(slide) + 무너진 방향으로 흘러내린 만큼
+      const px = (rnd() - 0.5) * slide * 2 + lx * t;
+      const pz = (rnd() - 0.5) * slide * 2 + lz * t;
+
+      // ★★ 이 장이 **더미 위에 있나, 미끄러져 책상에 떨어졌나** ★★
+      //   [무엇이 문제였나]
+      //     예전에는 장 번호 순서대로 무조건 '바로 앞 장 위'에 얹었다.
+      //     그래서 「무너짐」을 올리면 장이 옆으로 멀리 밀려나는데도 높이는
+      //     쌓인 그대로 올라갔다 — 받쳐 줄 종이가 없는 자리에 종이가
+      //     **공중에 떠 있게** 된다. 서류2(무너짐 1.1)가 정확히 그랬다:
+      //     종이 폭이 0.7 인데 1.49 까지 밀려난 장이 책상에서 0.14 떠 있었다.
+      //     (다른 더미는 무너짐이 0.4 이하라 티가 안 났을 뿐, 원인은 같다)
+      //   [규칙] 더미 한가운데에서 **제 몸 반쪽보다 멀리** 나갔으면 더 이상
+      //     더미 위가 아니다 — 흘러내려 책상에 떨어진 장으로 친다.
+      //     떨어진 장끼리 겹치면 그것들끼리 쌓인다.
+      //     이게 곧 '무너진 더미'의 진짜 모습이다: 가운데는 쌓여 있고
+      //     둘레에는 미끄러진 낱장이 책상에 깔린다.
+      const 더미밖 = Math.abs(px) > w / 2 || Math.abs(pz) > d / 2;
+      let 받침 = null;
+      for (const p of out)
+        if (
+          p.더미밖 === 더미밖 && // 더미 위와 책상 위는 서로 안 얹힌다
+          Math.abs(px - p.px) < p.w / 2 &&
+          Math.abs(pz - p.pz) < p.d / 2 &&
+          (받침 === null || p.py > 받침.py)
+        )
+          받침 = p;
+
       // 두 장의 기울기 차이 때문에 모서리가 들리는 높이(가장 나쁜 경우)
-      const 들림 =
-        0.5 * Math.max(w, d) * (Math.abs(rx - 이전rx) + Math.abs(rz - 이전rz));
+      const 들림 = 받침
+        ? 0.5 * Math.max(w, d) * (Math.abs(rx - 받침.rx) + Math.abs(rz - 받침.rz))
+        : 0;
       const 틈 = thick * 0.06; // 면이 딱 붙어 지글거리지 않게 하는 최소 틈
       // 종이를 먼저 얇게 해서 흡수하고, 그래도 모자라면 위로 더 띄운다.
       const h = Math.max(
         thick * 0.25,
         Math.min(thick * 0.9, thick - 들림 - 틈),
       );
-      const 필요간격 = 이전h / 2 + h / 2 + 들림 + 틈;
-      const py = i === 0 ? h / 2 + 틈 : 이전y + Math.max(thick, 필요간격);
-      이전y = py;
-      이전h = h;
-      이전rx = rx;
-      이전rz = rz;
+      const 필요간격 = (받침?.h ?? 0) / 2 + h / 2 + 들림 + 틈;
+      const py = 받침 ? 받침.py + Math.max(thick, 필요간격) : h / 2 + 틈;
 
       out.push({
-        px: (rnd() - 0.5) * slide * 2 + lx * t,
-        pz: (rnd() - 0.5) * slide * 2 + lz * t,
+        px,
+        pz,
         py,
+        더미밖,
         ry: (rnd() - 0.5) * spread * 2, // 돌아간 정도
         rx,
         rz,
@@ -2669,6 +3206,43 @@ function PaperStack({
 // [flatShading] 과 짝을 이루라고 toNonIndexed() 로 면마다 법선을 끊어 놓는다.
 //        그래야 각진 돌 느낌이 나고, 부드럽게 뭉개지지 않는다.
 const 돌캐시 = new Map();
+// ── 잔해 돌무더기 — 네 군데가 **똑같은 것**을 그린다 ────────────
+// [왜 하나로 묶나]
+//   벽 잔해·바닥 잔해·쏟아진 잔해·복도 끝 잔해가 열아홉 줄짜리 같은 JSX 를
+//   네 번 복사해 쓰고 있었다. 한 군데를 고치면 나머지 셋이 조용히 어긋난다 —
+//   실제로 선긋기를 '값'에서 '함수'로 바꾸는 사이 한 군데만 옛 방식으로 남아 있었다.
+//   달랐던 건 **납작한 정도와 그림자 받기뿐**이라 그것만 값으로 받는다.
+function 잔해돌들({
+  목록,
+  이름,
+  거칠기,
+  색,
+  납작 = 0.6, // 높이 배수 — 눌린 정도
+  폭 = 0.85, // 깊이 배수
+  받기 = true, // 그림자를 받나
+  선긋기,
+}) {
+  return 목록.map((c, i) => (
+    <mesh
+      key={`${이름}${i}`}
+      geometry={돌지오(c.k, 거칠기)}
+      position={[c.x, c.y, c.z]}
+      rotation={c.r}
+      scale={[c.s, c.s * 납작, c.s * 폭]}
+      castShadow
+      receiveShadow={받기}
+    >
+      <meshToonMaterial
+        color={색밝기(색, c.b)}
+        gradientMap={TOON_GRADIENT}
+        flatShading
+      />
+      {/* 선긋기는 쓰는 쪽에 따라 '값'이기도 하고 '함수'이기도 하다 — 둘 다 받는다 */}
+      {typeof 선긋기 === "function" ? 선긋기() : 선긋기}
+    </mesh>
+  ));
+}
+
 function 돌지오(씨, 거칠기 = 0.3) {
   const 키 = `${씨}|${거칠기}`;
   const 있음 = 돌캐시.get(키);
@@ -2876,6 +3450,38 @@ function 기차선로({
 //   판이 가로 1칸짜리 사각형이라 정점이 네 개뿐이고, 좌우 두 값만 정해 주면
 //   GPU가 그 사이를 자동으로 이어(보간) 부드러운 그라데이션이 된다.
 //   빛을 하나 더 켜는 것보다 훨씬 싸고, 셀 셰이딩 단계도 안 깨진다.
+// 벽 조각 판 한 장의 지오메트리.
+//   [왜 함수로 빼나] 이 계산(벽돌 무늬 UV 이어 붙이기 + 밝기 정점색)을
+//   **여러 장을 한 덩어리로 합칠 때도 똑같이** 써야 한다. 두 군데에 같은 식을
+//   적어 두면 한쪽만 고쳤을 때 이음매가 어긋난다.
+function 벽조각지오({ w, h, x, y, flipU = false, 분할 = 1, 목록 = null }) {
+  const g = new THREE.PlaneGeometry(w, h, Math.max(1, 분할), 1);
+  const uv = g.attributes.uv;
+  const u0 = (x - w / 2) / WALL_TEX_W;
+  const v0 = (y - h / 2) / WALL_TEX_H;
+  for (let i = 0; i < uv.count; i++) {
+    const u = uv.getX(i) * (w / WALL_TEX_W) + (flipU ? -u0 : u0);
+    uv.setX(i, u);
+    uv.setY(i, uv.getY(i) * (h / WALL_TEX_H) + v0);
+  }
+  if (목록 && 목록.length >= 2) {
+    const pos = g.attributes.position;
+    const col = new Float32Array(pos.count * 3);
+    const 끝 = 목록.length - 1;
+    for (let i = 0; i < pos.count; i++) {
+      const t = (pos.getX(i) + w / 2) / w; // 0(왼쪽 끝) ~ 1(오른쪽 끝)
+      // 목록 사이를 선형 보간 — 값이 2개면 직선, 25개면 꺾은선이 된다
+      const f = Math.max(0, Math.min(끝, t * 끝));
+      const i0 = Math.floor(f);
+      const i1 = Math.min(끝, i0 + 1);
+      const v = 목록[i0] + (목록[i1] - 목록[i0]) * (f - i0);
+      col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = v;
+    }
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  }
+  return g;
+}
+
 function 벽조각({
   w,
   h,
@@ -2896,33 +3502,11 @@ function 벽조각({
   const tex = 벽텍스처(seed, 낡음);
   const 목록 = 밝기목록 || 밝기양끝 || null;
   const 밝기키 = 목록 ? 목록.join(",") : "";
-  const geo = useMemo(() => {
-    const g = new THREE.PlaneGeometry(w, h, Math.max(1, 분할), 1);
-    const uv = g.attributes.uv;
-    const u0 = (x - w / 2) / WALL_TEX_W;
-    const v0 = (y - h / 2) / WALL_TEX_H;
-    for (let i = 0; i < uv.count; i++) {
-      const u = uv.getX(i) * (w / WALL_TEX_W) + (flipU ? -u0 : u0);
-      uv.setX(i, u);
-      uv.setY(i, uv.getY(i) * (h / WALL_TEX_H) + v0);
-    }
-    if (목록 && 목록.length >= 2) {
-      const pos = g.attributes.position;
-      const col = new Float32Array(pos.count * 3);
-      const 끝 = 목록.length - 1;
-      for (let i = 0; i < pos.count; i++) {
-        const t = (pos.getX(i) + w / 2) / w; // 0(왼쪽 끝) ~ 1(오른쪽 끝)
-        // 목록 사이를 선형 보간 — 값이 2개면 직선, 25개면 꺾은선이 된다
-        const f = Math.max(0, Math.min(끝, t * 끝));
-        const i0 = Math.floor(f);
-        const i1 = Math.min(끝, i0 + 1);
-        const v = 목록[i0] + (목록[i1] - 목록[i0]) * (f - i0);
-        col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = v;
-      }
-      g.setAttribute("color", new THREE.BufferAttribute(col, 3));
-    }
-    return g;
-  }, [w, h, x, y, flipU, 분할, 밝기키]);
+  const geo = useMemo(
+    () => 벽조각지오({ w, h, x, y, flipU, 분할, 목록 }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [w, h, x, y, flipU, 분할, 밝기키],
+  );
   useEffect(() => () => geo.dispose(), [geo]);
   return (
     <mesh position={[x, y, 0]} geometry={geo} receiveShadow>
@@ -2996,48 +3580,61 @@ function 부서진벽끝({
     <Outlines thickness={선.외곽선굵기} color={선.외곽선색} />
   ) : null;
 
+  // ★★ 찢어진 단면은 층마다 판 한 장씩이라 **판이 수십 장**이다(층 33 이면 33장).
+  //   판마다 메시를 하나씩 두면 그 수만큼 드로우콜이 나간다. 그런데 이 판들은
+  //   **색이 둘뿐**이고(아랫단/윗벽) 재질·텍스처가 같다 → 색끼리 한 덩어리로 합친다.
+  //   합쳐도 모양은 한 점도 안 바뀐다. UV 는 이미 판마다 구워져 있어서
+  //   벽돌 무늬도 그대로 이어진다.
+  const 밴드지오 = useMemo(() => {
+    const 모음 = { 아래: [], 위: [] };
+    for (const b of 데이터.밴드) {
+      if (b.d <= 0.05) continue; // 파먹힌 층은 안 그린다(기존 벽이 이미 있다)
+      const x = (뒤집기 ? -1 : 1) * (끝x + b.d / 2);
+      const g = 벽조각지오({
+        w: b.d, h: b.h * 0.98, x, y: b.y, flipU: 뒤집기,
+      });
+      g.translate(x, b.y, 0); // 메시 자리 대신 지오에 구워 넣는다
+      모음[b.y < 4 ? "아래" : "위"].push(g);
+    }
+    const 합치기 = (들) => {
+      if (!들.length) return null;
+      const g = 들.length === 1 ? 들[0] : mergeGeometries(들, false);
+      if (들.length > 1) 들.forEach((x) => x.dispose());
+      return g;
+    };
+    return { 아래: 합치기(모음.아래), 위: 합치기(모음.위) };
+  }, [데이터, 끝x, 뒤집기]);
+  useEffect(
+    () => () => {
+      밴드지오.아래?.dispose();
+      밴드지오.위?.dispose();
+    },
+    [밴드지오],
+  );
+  const 벽텍 = 벽텍스처(seed, 낡음);
+
   return (
     <>
-      {/* 찢어진 단면 — 층마다 길이가 다른 벽조각.
-          d>0 이면 기존 벽보다 더 나온 부분, d<0 이면 파먹힌 부분이다.
-          파먹힌 층은 그리지 않는다(기존 벽이 이미 거기 있으니 겹치면 안 된다). */}
+      {/* 찢어진 단면 — 층마다 길이가 다른 벽조각을 **색끼리 한 덩어리로** 합쳐 그린다.
+          d>0 이면 기존 벽보다 더 나온 부분, d<0 이면 파먹힌 부분이다. */}
       <group position={[0, 0, z]} rotation={[0, 뒤집기 ? Math.PI : 0, 0]}>
-        {데이터.밴드.map((b, i) =>
-          b.d > 0.05 ? (
-            <벽조각
-              key={`band${i}`}
-              w={b.d}
-              h={b.h * 0.98}
-              x={(뒤집기 ? -1 : 1) * (끝x + b.d / 2)}
-              y={b.y}
-              색={b.y < 4 ? 아랫단색 : 벽색}
-              seed={seed}
-              낡음={낡음}
-              flipU={뒤집기}
-            />
+        {[["아래", 아랫단색], ["위", 벽색]].map(([키, 색]) =>
+          밴드지오[키] ? (
+            <mesh key={키} geometry={밴드지오[키]} receiveShadow>
+              <meshToonMaterial color={색} map={벽텍} gradientMap={TOON_GRADIENT} />
+            </mesh>
           ) : null,
         )}
       </group>
 
       {/* 발치 잔해 */}
-      {데이터.잔해.map((c, i) => (
-        <mesh
-          key={`rub${i}`}
-          geometry={돌지오(c.k, 거칠기)}
-          position={[c.x, c.y, c.z]}
-          rotation={c.r}
-          scale={[c.s, c.s * 0.6, c.s * 0.85]}
-          castShadow
-          receiveShadow
-        >
-          <meshToonMaterial
-            color={색밝기(잔해색, c.b)}
-            gradientMap={TOON_GRADIENT}
-            flatShading
-          />
-          {선긋기}
-        </mesh>
-      ))}
+      <잔해돌들
+        목록={데이터.잔해}
+        이름="rub"
+        거칠기={거칠기}
+        색={잔해색}
+        선긋기={선긋기}
+      />
     </>
   );
 }
@@ -3064,7 +3661,6 @@ function 승강장확장({
   천장색 = "#5a5f69",
   천장시드 = 12,
   천장낡음 = 0.7,
-  천장얼룩 = 0.7,
   // ── 부서진 천장 ──────────────────────────────────────
   타일 = 2.5, // 천장 마감판 한 장 크기
   무너짐 = 0.22, // 아예 떨어져 나간 판의 비율
@@ -3651,19 +4247,47 @@ function 벽함({
   선색 = "#131314",
   번호 = "N-3",
   때 = 1,
-  전선관 = true, // 배전반에서 천장으로 올라가는 관
+  전선관 = true, // 함에 붙는 배선관
+  // ── 배선관이 어디로 가나 ────────────────────────────────
+  //   "위"     : 함 위에서 천장 트레이로 곧게 올라간다(배전반)
+  //   "아래옆" : 함 아래로 내려와 꺾여 벽을 따라 옆으로 간다(소화전)
+  관모양 = "위",
+  관끝z = 0, // "아래옆" 일 때 옆으로 가서 멈추는 **세계 좌표 z**
+  // ★ 켜면 이 함의 배전관 끝이 **자판기를 따라 밀린다**(소화전만 쓴다).
+  //   구독을 여기서 하는 이유: 씬에서 받으면 밀리는 동안 복도 전체가 다시
+  //   그려진다. 이 함만 다시 그리면 관 지오 하나만 다시 뜬다.
+  관따라밀기 = false,
+  관꺾임높이 = 1.1, // 내려와서 꺾이는 높이(세계 좌표 y)
+  관간격 = 0.24, // 세로로 내려오는 두 줄 사이(좌우)
+  관높이차 = 0.16, // 꺾인 뒤 두 줄 사이(위아래)
+  관굽힘 = 0.3, // 꺾이는 데 반지름 — 실물 배선관은 직각으로 안 꺾인다
+  관굵기 = 0.062, // 관 자체 굵기(반지름)
+  관앞으로 = null, // 함 한가운데에서 앞쪽으로 얼마나(음수면 벽 쪽). null 이면 예전 값
+  관치우침 = 0, // 내려오는 자리를 함 가운데에서 옆으로
   천장높이 = 8,
   전선관색 = "#474c53",
   밝기 = 1,
   여닫이켬 = false, // 문을 [E] 로 열 수 있게 할지(소화전만 켠다)
+  // 자물쇠가 걸려 있나. 켜 두면 [E] 로 열리는 대신 덜컹거리기만 한다.
+  잠김 = false,
   // 활짝 열었을 때 각도(도). 90 을 넘으면 문이 함 앞면보다 더 젖혀진다.
   //   경첩이 함 앞면에 있고 문은 복도 쪽으로 열리므로, 120 까지도 벽에 안 닿는다.
   문열림각 = 102,
   속, // 소화전 속 설정 묶음(Leva 「소화전 속」)
+  // 겨냥 강조 설정(Leva 「겨냥 강조」) — 속 부품(관창)도 같은 값으로 빛난다
+  강조설정,
+  // ★ 배전반 구멍에 꽂힌 관창 색. **소화전함 금속색**을 그대로 받는다 —
+  //   같은 한 자루가 옮겨 간 것이라 두 곳 색이 달라선 안 된다.
+  관창색,
   선,
 }) {
   const d = 방향;
   const cy = 바닥높이 + 높이 / 2;
+  // 자판기가 밀린 만큼 관 끝도 따라간다(끄면 0 — 늘 같은 자리에 선다).
+  //   ★ 칸으로 끊어진 값이다. 관은 지오를 다시 떠야 늘어나므로, 매 프레임
+  //     다시 뜨지 않게 자판기밀기.js 가 0.08 유닛 칸으로 끊어 알려 준다.
+  const 관밀림값 = use관밀림();
+  const 관끝실제 = 관끝z + (관따라밀기 ? 관밀림값 : 0);
   const 라벨 = useMemo(
     () =>
       종류 === "소화전"
@@ -3737,21 +4361,79 @@ function 벽함({
     ]);
   }, [여닫이켬, 깊이, 높이, 폭, cy, d]);
 
-  // 배전반에서 천장 트레이로 올라가는 전선관 2개
+  // ── 배선관 ────────────────────────────────────────────
+  //   "위"    — 함 위에서 천장으로 곧게. 배전반이 쓴다.
+  //   "아래옆" — 함 아래로 내려와 **둥글게 꺾여** 벽을 따라 옆으로. 소화전이 쓴다.
+  //
+  //   [두 줄이 나란히 꺾이게 하는 법]
+  //     꺾임 중심을 **하나로 두고 반지름만 달리** 한다(동심원). 그러면 세로
+  //     구간에서 벌어진 간격이 가로 구간에서도 그대로 유지된다. 중심을 따로
+  //     잡으면 꺾이는 동안 둘이 붙었다 벌어졌다 한다.
+  //   ★ 길이·높이·굵기·깊이·간격을 **서로 안 물리게** 따로 잡는다.
+  //     원통을 scale 로 늘리면 가로를 늘릴 때 굵기까지 같이 늘어난다 —
+  //     그래서 토막마다 길이와 반지름을 값으로 직접 준다.
   const 관 = useMemo(() => {
     if (!전선관) return null;
-    const 위 = 천장높이 - 0.1;
-    const 아래 = 바닥높이 + 높이;
-    if (위 <= 아래) return null;
-    const 조각 = [-1, 1].map((sz) => {
-      const g = new THREE.CylinderGeometry(0.062, 0.062, 위 - 아래, 8, 1);
-      g.translate(d * (깊이 * 0.35), (위 + 아래) / 2, sz * 0.32);
-      return g;
-    });
+    const r = 관굵기;
+    const x = d * (관앞으로 ?? 깊이 * 0.35);
+    const 조각 = [];
+
+    if (관모양 === "위") {
+      const 위 = 천장높이 - 0.1;
+      const 아래 = 바닥높이 + 높이;
+      if (위 <= 아래) return null;
+      for (const sz of [-1, 1]) {
+        const g = new THREE.CylinderGeometry(r, r, 위 - 아래, 8, 1);
+        g.translate(x, (위 + 아래) / 2, 관치우침 + sz * 0.32);
+        조각.push(g);
+      }
+    } else {
+      // ★ 두 줄의 **꺾임 중심을 따로** 둔다. 반지름은 같다.
+      //   전에는 중심 하나에 반지름만 달리했더니(동심원), 좌우 여백을 벌릴 때
+      //   바깥 줄의 가로 구간이 그만큼 아래로 내려가 **세로 길이까지 같이 커졌다**
+      //   (시험이 1.452 → 1.812 로 잡아냈다).
+      //   중심을 따로 두면 좌우 간격(관간격)과 위아래 간격(관높이차)이 서로
+      //   아무 영향도 안 준다.
+      const 끝 = 관끝실제 - z; // 세계 → 이 함 기준 로컬(자판기 밀림 포함)
+      const R = 관굽힘;
+      for (let i = 0; i < 2; i++) {
+        const 세로z = 관치우침 + (i - 0.5) * 관간격; // 내려오는 자리(좌우)
+        const 가로y = 관꺾임높이 - i * 관높이차; // 꺾인 뒤 높이(위아래)
+        const Cz = 세로z - R;
+        const Cy = 가로y + R;
+        if (바닥높이 <= Cy) continue;
+        // ① 함 아래에서 꺾임 시작점까지 곧게 내려온다
+        const 세로길이 = 바닥높이 - Cy;
+        const v = new THREE.CylinderGeometry(r, r, 세로길이, 8, 1);
+        v.translate(x, Cy + 세로길이 / 2, 세로z);
+        조각.push(v);
+        // ② 90° 굽힘. 토러스는 xy 평면에 놓이므로 z-y 평면으로 돌려 세운다.
+        //    rotateZ(π) → rotateY(π/2) 를 거치면 (z,y) 가 (Rcosθ, −Rsinθ) 가 되어
+        //    θ=0 에서 세로(위), θ=π/2 에서 가로(−z 쪽)로 이어진다.
+        const e = new THREE.TorusGeometry(R, r, 6, 10, Math.PI / 2);
+        e.rotateZ(Math.PI);
+        e.rotateY(Math.PI / 2);
+        e.translate(x, Cy, Cz);
+        조각.push(e);
+        // ③ 꺾인 뒤 벽을 따라 옆으로
+        const 가로길이 = Math.abs(끝 - Cz);
+        if (가로길이 > 0.02) {
+          const h = new THREE.CylinderGeometry(r, r, 가로길이, 8, 1);
+          h.rotateX(Math.PI / 2); // 축을 z 로 눕힌다
+          h.translate(x, 가로y, (Cz + 끝) / 2);
+          조각.push(h);
+        }
+      }
+    }
+    if (!조각.length) return null;
     const 합 = mergeGeometries(조각, false);
     조각.forEach((g) => g.dispose());
     return 합;
-  }, [전선관, 천장높이, 바닥높이, 높이, d, 깊이]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    전선관, 관모양, 천장높이, 바닥높이, 높이, d, 깊이, z,
+    관끝실제, 관꺾임높이, 관간격, 관높이차, 관굽힘, 관굵기, 관앞으로, 관치우침,
+  ]);
 
   useEffect(
     () => () => {
@@ -3773,7 +4455,11 @@ function 벽함({
   const 문ref = useRef(null);
   const 문판ref = useRef(null);
   const 열림 = useRef(0);
-  const 문id = `벽함:${종류}:${x.toFixed(1)},${z.toFixed(1)}`;
+  const 문id = 벽함문id(종류, x, z);
+  // ★ 속 부품을 [E] 로 만지려면 **문이 열려 있을 때만** 이어야 한다.
+  //   닫힌 문 너머의 스위치가 눌리면 안 된다. 여닫는 건 드문 일이라
+  //   여기서 다시 그려도 값이 싸다(각도는 아래 useFrame 이 따로 좁힌다).
+  const 문열림 = use열렸나(문id);
   useFrame((_, dt) => {
     const o = 문ref.current;
     if (!o) return;
@@ -3781,12 +4467,18 @@ function 벽함({
     열림.current += (목표 - 열림.current) * (1 - Math.exp(-dt * 9));
     // ★ 부호가 방향(d)을 따라간다.
     //   앞면이 −x 쪽(d=−1)이면 자유변이 −x 로 나와야 하므로 각도도 음수다.
-    o.rotation.y = d * ((문열림각 * Math.PI) / 180) * 열림.current;
+    //   ★ 덜컹은 여기에 **더한다.** 잠긴 문을 당기면 경첩 쪽은 그대로인 채
+    //     손잡이 쪽이 조금 들썩인다 — 그게 이 작은 각도다.
+    const 새각 =
+      d * ((문열림각 * Math.PI) / 180) * 열림.current + 덜컹값(문id) * 덜컹각;
+    // 움직이는 동안만 그림자를 다시 그리게 한다(공용.jsx 그림자관리 참고)
+    if (Math.abs(새각 - o.rotation.y) > 1e-4) 그림자흔들기(0.2);
+    o.rotation.y = 새각;
   });
 
-  const 선긋기 = 선?.외곽선 ? (
-    <Outlines thickness={선.외곽선굵기} color={선.외곽선색} />
-  ) : null;
+  // ★ 지오를 받으면 주름선(모서리 선)까지 같이 그린다. 안 받으면 실루엣만 —
+  //   예전과 똑같아서 안전하다. 인라인 boxGeometry 인 메시는 넘길 지오가 없다.
+  const 선긋기 = (geo) => <만화선 geo={geo} 선={선} />;
 
   return (
     <group position={[x, 0, z]}>
@@ -3796,13 +4488,13 @@ function 벽함({
       {여닫이켬 ? (
         <mesh geometry={껍데기} castShadow receiveShadow>
           <meshToonMaterial color={색밝기(함색, 밝기)} gradientMap={TOON_GRADIENT} />
-          {선긋기}
+          {선긋기(껍데기)}
         </mesh>
       ) : (
         <mesh position={[0, cy, 0]} castShadow receiveShadow>
           <boxGeometry args={[깊이, 높이, 폭]} />
           <meshToonMaterial color={색밝기(함색, 밝기)} gradientMap={TOON_GRADIENT} />
-          {선긋기}
+          {선긋기()}
         </mesh>
       )}
 
@@ -3819,16 +4511,64 @@ function 벽함({
             판색={속?.판색}
             차단기색={속?.차단기색}
             차단기면색={속?.차단기면색}
+            표시창색={속?.표시창색}
+            표시창빛={속?.표시창빛}
+            전선외곽선={속?.전선외곽선}
+            꽂는구멍={속?.꽂는구멍}
+            구멍지름={속?.구멍지름}
+            구멍깊이={속?.구멍깊이}
+            구멍간격={속?.구멍간격}
+            구멍테색={속?.구멍테색}
+            구멍속색={속?.구멍속색}
+            등테색={속?.등테색}
+            빨간등색={속?.빨간등색}
+            초록등색={속?.초록등색}
+            빨간등빛={속?.빨간등빛}
+            초록등빛={속?.초록등빛}
+            빨간알크기={속?.빨간알크기}
+            초록알크기={속?.초록알크기}
+            등위치가로={속?.등위치가로}
+            등위치높이={속?.등위치높이}
+            등크기={속?.등크기}
+            등간격={속?.등간격}
+            스위치두께={속?.스위치두께}
+            스위치가로={속?.스위치가로}
+            스위치깊이={속?.스위치깊이}
+            스위치간격={속?.스위치간격}
+            손잡이가로={속?.손잡이가로}
+            손잡이높이={속?.손잡이높이}
+            미는거리={속?.미는거리}
+            주차단기높이={속?.주차단기높이}
+            주차단기가로={속?.주차단기가로}
+            주차단기깊이={속?.주차단기깊이}
+            주차단기위치={속?.주차단기위치}
+            접속함색={속?.접속함색}
+            접속함높이={속?.접속함높이}
+            접속함가로={속?.접속함가로}
+            접속함위치={속?.접속함위치}
+            계기함가로={속?.계기함가로}
+            계기함높이={속?.계기함높이}
+            계기함위치={속?.계기함위치}
+            표시창가로={속?.표시창가로}
+            표시창높이={속?.표시창높이}
+            접지가로={속?.접지가로}
+            접지폭={속?.접지폭}
             레버색={속?.레버색}
             동색={속?.동색}
-            덕트색={속?.덕트색}
             금속색={속?.금속색}
             검은선색={속?.검은선색}
             파란선색={속?.파란선색}
             초록선색={속?.초록선색}
-            빨간선색={속?.빨간선색}
             라벨색={속?.라벨색}
+            함id={문id}
+            만질수있나={문열림}
+            강조설정={강조설정}
+            관창색={관창색}
+            꽂힘밀기={속?.꽂힘밀기 ?? 0}
             차단기줄={속?.차단기줄}
+            퍼즐빨강={속?.퍼즐빨강}
+            퍼즐파랑={속?.퍼즐파랑}
+            퍼즐노랑={속?.퍼즐노랑}
             전선굵기={속?.전선굵기}
             굵은선굵기={속?.굵은선굵기}
             딱지={속?.딱지}
@@ -3840,6 +4580,10 @@ function 벽함({
                     외곽선굵기: 속.외곽선굵기,
                     외곽선색: 속.외곽선색,
                     주름선: 속.주름선,
+                    // ★ 각도·색까지 같이 넘겨야 한다. 빠뜨리면 만화선이
+                    //   undefined 로 주름지오를 만들다 선이 엉뚱하게 그려진다.
+                    주름선각도: 속.주름선각도,
+                    주름선색: 속.주름선색,
                   }
                 : 선
             }
@@ -3870,6 +4614,10 @@ function 벽함({
             발신기속크기={속?.발신기속크기}
             빛세기={속?.빛세기}
             부품깊이={속?.부품깊이}
+            /* 관창은 문이 열려 있을 때만 [E] 로 집을 수 있다 */
+            만질수있나={문열림}
+            함id={문id}
+            강조설정={강조설정}
             밝기={밝기}
             /* 속 부품 외곽선은 함 바깥선과 따로 조절한다 */
             선={
@@ -3891,7 +4639,7 @@ function 벽함({
                이미 cy 에 올라가 있어서 한 번 더 올라가 공중에 뜬다. */}
       <mesh geometry={합본} castShadow>
         <meshToonMaterial color={색밝기(부속색, 밝기)} gradientMap={TOON_GRADIENT} />
-        {선긋기}
+        {선긋기(합본)}
       </mesh>
 
       {/* ② 문짝 — 경첩은 **왼쪽(−z) 세로변**. 오른쪽 손잡이를 당겨 연다.
@@ -3901,7 +4649,7 @@ function 벽함({
       <mesh position={[d * (깊이 / 2 - 0.02), 0, 0]} castShadow>
         <boxGeometry args={[0.08, 높이 - 0.16, 폭 - 0.14]} />
         <meshToonMaterial color={색밝기(문색, 밝기)} gradientMap={TOON_GRADIENT} />
-        {선긋기}
+        {선긋기()}
       </mesh>
 
       {/* ③ 라벨 — 문짝 표면에 붙인 평면.
@@ -3929,7 +4677,7 @@ function 벽함({
       </mesh>
       <mesh geometry={홈테지오} castShadow>
         <meshToonMaterial color={색밝기(부속색, 밝기)} gradientMap={TOON_GRADIENT} />
-        {선긋기}
+        {선긋기(홈테지오)}
       </mesh>
       {여닫이켬 && (
         <상호대상
@@ -3943,7 +4691,9 @@ function 벽함({
             return [_벽함점.x, _벽함점.y, _벽함점.z];
           }}
           라벨=""
-          실행={() => 여닫기(문id)}
+          // ★ 잠겨 있으면 안 열린다. 대신 덜컹거린다 —
+          //   아무 반응이 없으면 플레이어는 조작이 고장 난 줄 안다.
+          실행={() => (잠김 ? 덜컹(문id) : 여닫기(문id))}
         />
       )}
         </group>
@@ -3958,7 +4708,7 @@ function 벽함({
             color={색밝기(전선관색, 밝기)}
             gradientMap={TOON_GRADIENT}
           />
-          {선긋기}
+          {선긋기(관)}
         </mesh>
       )}
     </group>
@@ -4073,9 +4823,10 @@ function 복도배관({
     [합본],
   );
 
-  const 선긋기 = 선?.외곽선 ? (
-    <Outlines thickness={선.외곽선굵기} color={선.외곽선색} />
-  ) : null;
+  // ★ <Outlines> 만 두면 실루엣만 그린다. 주름선(모서리 선)까지 그리려면
+  //   **그 메시의 지오**가 있어야 해서 만화선에 넘긴다.
+  //   지오를 안 넘기면 예전과 똑같이 실루엣만 나온다(안전하다).
+  const 선긋기 = (geo) => <만화선 geo={geo} 선={선} />;
 
   return (
     <group>
@@ -4085,7 +4836,7 @@ function 복도배관({
           vertexColors
           gradientMap={TOON_GRADIENT}
         />
-        {선긋기}
+        {선긋기(합본.파이프)}
       </mesh>
       <mesh geometry={합본.트레이} castShadow>
         <meshToonMaterial
@@ -4093,7 +4844,7 @@ function 복도배관({
           vertexColors
           gradientMap={TOON_GRADIENT}
         />
-        {선긋기}
+        {선긋기(합본.트레이)}
       </mesh>
       <mesh geometry={합본.행어} castShadow>
         <meshToonMaterial
@@ -4101,7 +4852,7 @@ function 복도배관({
           vertexColors
           gradientMap={TOON_GRADIENT}
         />
-        {선긋기}
+        {선긋기(합본.행어)}
       </mesh>
     </group>
   );
@@ -4201,9 +4952,9 @@ function 비밀복도({
     }));
   }, [잔해, x0, z0, 폭, 길이, seed]);
 
-  const 선긋기 = 선?.외곽선 ? (
-    <Outlines thickness={선.외곽선굵기} color={선.외곽선색} />
-  ) : null;
+  // ★ 지오를 받으면 주름선(모서리 선)까지 같이 그린다. 안 받으면 실루엣만 —
+  //   예전과 똑같아서 안전하다. 인라인 boxGeometry 인 메시는 넘길 지오가 없다.
+  const 선긋기 = (geo) => <만화선 geo={geo} 선={선} />;
 
   // 안쪽벽(방 쪽)은 문 자리를 비워 두고 위·아래로 나눠 세운다.
   //   문 왼쪽 조각 / 문 오른쪽 조각 / 문 위 인방(lintel)
@@ -4366,24 +5117,15 @@ function 비밀복도({
       </group>
 
       {/* 바닥 잔해 */}
-      {돌들.map((c, i) => (
-        <mesh
-          key={`crub${i}`}
-          geometry={돌지오(c.k, 거칠기)}
-          position={[c.x, c.y, c.z]}
-          rotation={c.r}
-          scale={[c.s, c.s * 0.55, c.s * 0.8]}
-          castShadow
-          receiveShadow
-        >
-          <meshToonMaterial
-            color={색밝기(잔해색, c.b)}
-            gradientMap={TOON_GRADIENT}
-            flatShading
-          />
-          {선긋기}
-        </mesh>
-      ))}
+      <잔해돌들
+        목록={돌들}
+        이름="crub"
+        거칠기={거칠기}
+        색={잔해색}
+        납작={0.55}
+        폭={0.8}
+        선긋기={선긋기}
+      />
     </group>
   );
 }
@@ -4969,6 +5711,44 @@ function 복도등({
 // [왜 state 가 아니라 ref 인가]
 //   useState 로 켜고 끄면 매번 React 리렌더 + GLB 재로딩이 일어난다.
 //   ref 로 three 객체의 visible 만 직접 만지면 React 는 한 번도 안 돈다.
+// 복도에서 방(또는 그 반대)이 **구멍을 통해 실제로 보이나**.
+//   [왜 각도를 보나] 거리만 보면(예전: |z − 문z| < 16) 벽을 마주 보고 서 있을 때도
+//   방이 켜진다. 벽은 시야를 막지만 three 는 그걸 모른다.
+//   구멍의 좌·중·우 세 점 중 하나라도 시야 앞쪽에 들어오면 켠다. 세 점을 보는 이유는
+//   구멍 가장자리만 걸쳐 보이는 자세에서 방이 통째로 사라지면 안 되기 때문이다.
+const _구역앞 = new THREE.Vector3();
+function 구멍쪽보나(camera, p, 통) {
+  if (통.자유이동) return true; // 개발용 자유이동이면 판정을 건너뛴다
+  if (Math.abs(p.x - MIN_X) < 3.5) return true; // 구멍 코앞 — 몸이 걸쳐 있을 수 있다
+  // ★ 여기에 "z 로 16 넘게 떨어지면 끈다" 같은 거리 조건을 두면 안 된다.
+  //   복도 끝에서 구멍 쪽을 돌아보면 구멍은 **화면 한가운데**에 있는데 방이 꺼져,
+  //   구멍 너머가 뻥 뚫린 검은 자리가 된다(시험이 3166가지 자세에서 잡아냈다).
+  //   각도만 보면 거리와 상관없이 맞는다 — 멀면 어차피 대부분 프러스텀에서 빠진다.
+  camera.getWorldDirection(_구역앞);
+  const 앞x = _구역앞.x, 앞z = _구역앞.z;
+  const 앞길 = Math.hypot(앞x, 앞z);
+  if (앞길 < 1e-6) return true; // 바로 위/아래를 보는 중 — 판단을 미룬다
+  // ★ 기준 각은 **화면이 실제로 담는 가로 각**에서 가져온다.
+  //   숫자를 손으로 박아 두면 화면 비율이 바뀌거나 fov 를 만졌을 때
+  //   "분명히 보이는데 방이 사라지는" 사고가 난다.
+  const 세로반 = ((camera.fov ?? 60) * Math.PI) / 360;
+  const 가로반 = Math.atan(Math.tan(세로반) * (camera.aspect ?? 1.6));
+  const 한계 = Math.cos(Math.min(1.5, 가로반 + 0.2)); // 0.2rad ≈ 11° 여유
+  const 반 = 통.문폭 / 2 + 1; // 구멍보다 1 만큼 넉넉히
+  for (const dz of [-반, 0, 반]) {
+    const dx = MIN_X - p.x;
+    const dzz = 통.문z + dz - p.z;
+    const 길 = Math.hypot(dx, dzz);
+    if (길 < 1e-3) return true;
+    if ((dx * 앞x + dzz * 앞z) / (길 * 앞길) > 한계) return true;
+  }
+  return false;
+}
+
+// 서류 더미가 책상 윗면 아래로 파묻히는 깊이. 0 이면 두 면이 같은 높이라
+//   깊이 싸움(z-fighting)이 나서 지글거린다.
+const 종이파묻힘 = 0.01;
+
 function 구역스위치({ 방, 복도, 기차, 배경, 켜기 = true }) {
   const { camera } = useThree();
   useFrame(() => {
@@ -4983,19 +5763,29 @@ function 구역스위치({ 방, 복도, 기차, 배경, 켜기 = true }) {
     }
 
     const 복도안 = p.x < MIN_X; // 왼쪽 벽 바깥 = 복도
-    const 문근처 = Math.abs(p.z - 통.문z) < 16; // 구멍으로 방이 보이는 범위
+    // ★ 복도에서 방이 보이는 길은 **구멍 하나뿐**이다.
+    //   three 는 '벽에 가려졌다'를 알지 못한다(가림 판정이 없다). 그래서 복도에서
+    //   벽 쪽으로 고개를 돌리면, 벽 너머의 방을 통째로 다시 그리고 있었다 —
+    //   복도 한가운데서 드로우콜이 2170 까지 올라간 원인이 이것이다.
+    //   구멍이 시야에 안 들어오면 방은 한 점도 안 보이므로 통째로 꺼도 된다.
+    const 구멍쪽 = 구멍쪽보나(camera, p, 통);
 
-    // 방  : 복도 깊숙이 들어가 문이 안 보이면 끈다
-    // 복도: 방 오른쪽(기차 쪽)에 있으면 구멍이 너무 멀어 안 보인다
-    const 방켜기 = !복도안 || 문근처;
-    const 복도켜기 = p.x < MIN_X + 12;
+    // 방  : 복도에 있고 구멍도 안 보이면 끈다.
+    //       ★ 구멍이 막혀 있으면(열림 0) 복도에서는 방이 한 점도 안 보인다.
+    const 방켜기 = !복도안 || (통.자유이동 || (통.열림 > 0.02 && 구멍쪽));
+    // 복도: 방에 있으면 구멍 쪽을 볼 때만 켠다.
+    //       ★ 여기서는 **열림을 따지지 않는다.** 구멍을 막고 있는 덩어리(밀리는벽)가
+    //         복도 그룹에 들어 있어서, 닫혀 있다고 끄면 막이가 같이 사라져
+    //         방에서 보면 그 자리가 뻥 뚫린 검은 구멍이 된다.
+    const 복도켜기 = 복도안 || 구멍쪽;
 
     // ★★ 기차 — 예전 조건은 `p.x > MIN_X + 2` 였다. 이게 버그였다. ★★
     //   MIN_X 는 **방의 왼쪽 벽**이다. 즉 x −20 ~ −18 은 아직 '방 안'인데
     //   거기서 이미 기차가 통째로 꺼져서, 방 왼쪽에 서서 기차 쪽을 보면
     //   그 자리가 새까맣게(캔버스 배경색 #000000) 보였다.
     //   → 방 안에서는 절대 끄지 않는다. 복도로 들어간 뒤에만 끈다.
-    const 기차켜기 = !복도안 || 문근처;
+    //   ★ 기차는 방 저편(+x)에 있으니 **방이 보일 때만** 같이 보인다.
+    const 기차켜기 = 방켜기;
 
     // ★ 배경(먼벽·확장천장·어둠판)은 기차와 **따로** 둔다.
     //   예전엔 기차를 끌 때 배경까지 같이 껐다. 그러면 가릴 것이 아무것도 없어져
@@ -5063,7 +5853,7 @@ function GPU이름읽기(gl) {
       ? ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL)
       : ctx.getParameter(ctx.RENDERER);
     return String(이름 || "알 수 없음");
-  } catch (e) {
+  } catch {
     return "읽기 실패";
   }
 }
@@ -5138,16 +5928,16 @@ const 블랙박스 = {
   try {
     localStorage.setItem("왜곡_블랙박스", this.보고서());
     localStorage.setItem("왜곡_블랙박스_시각", new Date().toLocaleString());
-  } catch (e) { /* 저장 공간이 막힌 브라우저는 그냥 넘어간다 */ }
+  } catch { /* 저장 공간이 막힌 브라우저는 그냥 넘어간다 */ }
 };
 블랙박스.지난기록 = (function () {
   try {
     const t = localStorage.getItem("왜곡_블랙박스");
     return t ? { 표: t, 시각: localStorage.getItem("왜곡_블랙박스_시각") || "" } : null;
-  } catch (e) { return null; }
+  } catch { return null; }
 })();
 블랙박스.지우기 = function () {
-  try { localStorage.removeItem("왜곡_블랙박스"); localStorage.removeItem("왜곡_블랙박스_시각"); } catch (e) {}
+  try { localStorage.removeItem("왜곡_블랙박스"); localStorage.removeItem("왜곡_블랙박스_시각"); } catch {}
 };
 if (typeof window !== "undefined") {
   window.__블랙박스 = 블랙박스;
@@ -5220,7 +6010,7 @@ function 성능계기판({ 보이기 = true }) {
     if (!블랙박스.컨텍스트손실) {
       try {
         if (gl.getContext().isContextLost()) 블랙박스.컨텍스트손실 = true;
-      } catch (e) { 블랙박스.컨텍스트손실 = true; }
+      } catch { 블랙박스.컨텍스트손실 = true; }
     }
     // 매 프레임 값을 걷어서 더하고 곧바로 0으로 되돌린다
     n.콜 += i.render.calls;
@@ -5721,42 +6511,6 @@ function 기차문텍스처(seed = 1, opts = {}) {
   return t;
 }
 
-// ===== 복도 측면 문 (오래 안 쓴 낡은 문) =====
-// 벽면이 x 에 수직이라 '깊이 = x, 폭 = z, 높이 = y' 로 짠다.
-//   글자(명패)는 넣지 않는다 — 여기는 튜토리얼 구간이고,
-//   이 문들은 '열리지 않는 배경'이다. 이름표가 붙으면 열 수 있을 것 같아진다.
-// ===== 널빤지 — 낡아 부서질 듯한 판재 =====
-// 상자 하나를 그대로 쓰면 '새로 켠 각재'로 보인다. 세 가지를 흐트러뜨린다:
-//   ① 뒤틀림 — 길이를 따라 완만하게 휜다(마른 나무는 반드시 휜다)
-//   ② 표면 요철 — 면을 자잘하게 흔들어 결이 살아나게
-//   ③ 쪼개진 끝 — 톱으로 자른 게 아니라 부러뜨린 것처럼 양 끝이 들쭉날쭉
-function 널빤지지오(seed, 두께, 폭, 길이) {
-  const g = new THREE.BoxGeometry(두께, 폭, 길이, 2, 3, 18);
-  const rnd = makeRandom(seed * 131 + 7);
-  const P = g.attributes.position.array;
-  const 반 = 길이 / 2;
-  const 위상 = rnd() * 6.283;
-  for (let i = 0; i < g.attributes.position.count; i++) {
-    const z = P[i * 3 + 2];
-    const t = 반 ? z / 반 : 0; // -1(한쪽 끝) ~ 1(반대쪽 끝)
-    // ① 뒤틀림
-    P[i * 3 + 1] += Math.sin(t * 2.2 + 위상) * 폭 * 0.16;
-    P[i * 3] += Math.cos(t * 1.7 + 위상) * 두께 * 0.35;
-    // ③ 끝 쪼개짐 — 끝에서 28% 구간만 파고든다
-    const 끝 = Math.max(0, Math.abs(t) - 0.72) / 0.28;
-    if (끝 > 0) {
-      P[i * 3 + 2] -= Math.sign(z) * 끝 * 반 * (0.05 + rnd() * 0.24);
-      P[i * 3 + 1] += (rnd() - 0.5) * 폭 * 0.55 * 끝;
-    }
-    // ② 표면 요철
-    P[i * 3] += (rnd() - 0.5) * 두께 * 0.35;
-    P[i * 3 + 1] += (rnd() - 0.5) * 폭 * 0.1;
-  }
-  g.attributes.position.needsUpdate = true;
-  g.computeVertexNormals();
-  return g;
-}
-
 function 복도측면문({
   x = -31,
   z = 0,
@@ -5786,7 +6540,6 @@ function 복도측면문({
   판자 = false,
   밝기 = 1,
   seed = 1,
-  선,
 }) {
   const 텍 = 낡은문텍스처(seed, 때);
   const 문 = 색밝기(문색, 밝기);
@@ -6039,15 +6792,6 @@ function 복도끝문({
     <Outlines thickness={선.외곽선굵기} color={라인} />
   ) : null;
 
-  // 얇은 '선 막대' 하나를 만드는 도우미.
-  //   면과 면 사이에 밝은 막대를 끼우면 그게 곧 선이 된다.
-  //   (텍스처로 선을 그리면 각도에 따라 뭉개지지만, 실제 막대는 안 뭉개진다)
-  const 선막대 = (key, pos, size, 색 = 라인) => (
-    <mesh key={key} position={pos}>
-      <boxGeometry args={size} />
-      <meshToonMaterial color={색} gradientMap={TOON_GRADIENT} />
-    </mesh>
-  );
 
   const 굵기 = 0.05; // 선 막대 두께
   const 앞 = zf + 안쪽 * (문두께 / 2 + 0.07); // 문짝 표면보다 살짝 앞
@@ -6344,21 +7088,17 @@ function 부서진문틀({
 
       {/* ③ 발치에 흘러내린 잔해 — 구멍 양쪽 바닥으로 쏟아진다.
              문이 밀려도 이건 남는다(벽에 속한 것이니까). */}
-      {잔해보이기 &&
-        데이터.바닥.map((c, i) => (
-          <mesh
-            key={`spill${i}`}
-            geometry={돌지오(c.k, 거칠기)}
-            position={[c.x, c.y, c.z]}
-            rotation={c.r}
-            scale={[c.s, c.s * 0.55, c.s * 0.8]}
-            castShadow
-            receiveShadow
-          >
-            {툰(색밝기(잔해색, c.b), true)}
-            {선긋기}
-          </mesh>
-        ))}
+      {잔해보이기 && (
+        <잔해돌들
+          목록={데이터.바닥}
+          이름="spill"
+          거칠기={거칠기}
+          색={잔해색}
+          납작={0.55}
+          폭={0.8}
+          선긋기={선긋기}
+        />
+      )}
     </group>
   );
 }
@@ -6373,7 +7113,6 @@ function 밀리는벽({
   문높이 = 7,
   두께 = 0.7,
   열림 = 0, // 0~1. 1이면 문폭+여유만큼 옆으로 완전히 빠진다
-  벽색 = "#4a5058",
   잔해색 = "#3b4048",
   거칠기 = 0.32,
   seed = 77,
@@ -6548,25 +7287,15 @@ function 승강장끝벽({
         })}
       </group>
 
-      {잔해 &&
-        데이터.돌.map((c, i) => (
-          <mesh
-            key={`endrub${i}`}
-            geometry={돌지오(c.k, 거칠기)}
-            position={[c.x, c.y, c.z]}
-            rotation={c.r}
-            scale={[c.s, c.s * 0.6, c.s * 0.85]}
-            castShadow
-            receiveShadow
-          >
-            <meshToonMaterial
-              color={색밝기(잔해색, c.b)}
-              gradientMap={TOON_GRADIENT}
-              flatShading
-            />
-            {선긋기}
-          </mesh>
-        ))}
+      {잔해 && (
+        <잔해돌들
+          목록={데이터.돌}
+          이름="endrub"
+          거칠기={거칠기}
+          색={잔해색}
+          선긋기={선긋기}
+        />
+      )}
     </>
   );
 }
@@ -6719,7 +7448,8 @@ const 문구멍 = {
   z: -0.327,
 };
 
-function 문짝({ 칸, 선, 열림폭, 색, 옵션 = {} }) {
+function 문짝({ 칸, 열림폭, 색, 옵션 = {} }) {
+  // (아래 useFrame 이 문을 밀 때 그림자도 같이 다시 그린다)
   const ref = useRef(null);
   const 열림 = useRef(0);
   // 구멍보다 아주 조금 크게 만든다. 딱 맞추면 가장자리에 실틈이 비친다.
@@ -6812,6 +7542,92 @@ function 문짝({ 칸, 선, 열림폭, 색, 옵션 = {} }) {
   );
 }
 
+// ── 발판 얼룩(때) 텍스처 — 차체색 바탕에 옅은 얼룩·잔기스. 기차 문과 같은 문법.
+//   색을 그대로 바탕에 굽고, 그 위에 흰/검 얼룩을 옅게 얹는다(색은 material color=흰).
+const _발판텍캐시 = new Map();
+function 발판텍스처(seed = 7, 색 = "#1b2029") {
+  const 키 = `${seed}:${색}`;
+  if (_발판텍캐시.has(키)) return _발판텍캐시.get(키);
+  const W = 128,
+    H = 128;
+  const c = document.createElement("canvas");
+  c.width = W;
+  c.height = H;
+  const g = c.getContext("2d");
+  const rnd = makeRandom(seed * 91 + 7);
+  g.fillStyle = 색; // 바탕 = 차체색
+  g.fillRect(0, 0, W, H);
+  // 옅은 톤 얼룩(흰/검) — 기차 문 텍스처와 같은 라디얼 그라디언트 방식
+  for (let i = 0; i < 11; i++) {
+    const cx = rnd() * W,
+      cy = rnd() * H,
+      r = 18 + rnd() * 46;
+    const 톤 = rnd() < 0.5 ? "255,255,255" : "18,20,26";
+    const gr = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+    gr.addColorStop(0, `rgba(${톤},${(0.04 + rnd() * 0.07).toFixed(3)})`);
+    gr.addColorStop(1, `rgba(${톤},0)`);
+    g.fillStyle = gr;
+    g.fillRect(cx - r, cy - r, r * 2, r * 2);
+  }
+  // 잔 기스 몇 줄 — 밟는 면이라 긁힌 자국이 자연스럽다
+  for (let i = 0; i < 7; i++) {
+    g.strokeStyle = `rgba(16,18,24,${(0.1 + rnd() * 0.16).toFixed(3)})`;
+    g.lineWidth = 0.6 + rnd() * 1.0;
+    const x0 = rnd() * W,
+      y0 = rnd() * H;
+    g.beginPath();
+    g.moveTo(x0, y0);
+    g.lineTo(x0 + (rnd() - 0.5) * 46, y0 + (rnd() - 0.5) * 12);
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  _발판텍캐시.set(키, t);
+  return t;
+}
+
+// ── 문 밑 발판 — 기차역에서 문에 붙어 나오는 '얇은 디딤판' ─────────────
+//   상자가 아니라, 차체에서 바깥(−z=방 쪽)으로 나온 **얇은 판** 한 장.
+//   사람이 밟고 오르는 그 발판이다. 차체와 '한 몸'처럼 보이도록
+//   ① 얼룩(때) 텍스처 ② 외곽선+주름선(만화선) 을 차체와 '같은 값'으로 입힌다.
+//   ★ 모델 로컬 단위(Train 의 scale=크기 를 물려받아 기차에 붙어 함께 움직인다).
+//   ★ 「기차 발판」 Leva 에서 가로폭·세로폭(깊이)·두께·좌우·높이·앞뒤 다 조절.
+function 기차발판({ 색, 선, 옵션 = {} }) {
+  const 가로폭 = 옵션.가로폭 ?? 0.5; // 문 너비 방향(x) 길이
+  const 세로폭 = 옵션.세로폭 ?? 0.14; // 바깥으로 나온 깊이(z) — 밟는 면 깊이
+  const 두께 = 옵션.두께 ?? 0.02; // 판 두께(y) — 얇게
+  const 좌우 = 옵션.좌우 ?? 0; // x 위치 보정(+오른쪽)
+  const 높이 = 옵션.높이 ?? -0.08; // 문턱 대비 위아래(−면 아래로 내려 계단처럼)
+  const 앞뒤 = 옵션.앞뒤 ?? 0; // 바깥으로 더/덜(+면 더 튀어나옴)
+  const 문바닥y = 문구멍.중심y - 문구멍.높이 / 2; // 문 구멍 아래 끝 = 문턱 높이
+  const 앞면z = 문구멍.z; // 방을 향한 −z 면(차체 표면)
+  const geo = useMemo(
+    () => new THREE.BoxGeometry(가로폭, 두께, 세로폭), // 얇은 판(두께가 얕다)
+    [가로폭, 두께, 세로폭],
+  );
+  useEffect(() => () => geo.dispose(), [geo]);
+  // 얼룩(때) 텍스처 — 차체색에 맞춰 굽는다. 색이 바뀌면 새로 만든다(캐시).
+  const 텍 = useMemo(() => 발판텍스처(7, 색), [색]);
+  return (
+    <mesh
+      geometry={geo}
+      position={[
+        문구멍.중심x + 좌우, // 문 가운데 + 좌우 보정
+        문바닥y + 높이, // 문턱 기준 위아래
+        앞면z - 세로폭 / 2 + 0.01 - 앞뒤, // 차체 면에서 바깥으로 돌출(안쪽 살짝 겹침)
+      ]}
+      castShadow
+      receiveShadow
+    >
+      {/* 색은 텍스처에 구워져 있으니 material color 는 흰색(=텍스처 그대로) */}
+      <meshToonMaterial map={텍} gradientMap={TOON_GRADIENT} />
+      {/* 외곽선 + 주름선을 차체와 '같은 선(선)' 값으로 — 기차와 완전히 동일한 테두리 */}
+      <만화선 geo={geo} 선={선} />
+    </mesh>
+  );
+}
+
 const TRAIN_LEN = 2.064; // 높이 1 기준 길이. 여러 칸을 이어 붙일 때 간격 계산에 쓴다
 
 function Train({
@@ -6834,6 +7650,7 @@ function Train({
   어둠색 = "#0A0C10",
   문열림폭 = 0.46, // 옆으로 미끄러지는 폭. 구멍 폭 0.423 보다 조금 크게.
   문옵션 = {},
+  발판, // 문 밑 발판 설정({보이기, 칸, 폭, 돌출, 내림, 올림, 색}) — 없으면 안 그린다
   선,
 }) {
   const [x, z] = pos;
@@ -6912,7 +7729,13 @@ function Train({
               그림자받기={false}
             />
             {/* 문은 모델 것을 안 쓰고 직접 만든다 (위 문짝 주석 참고) */}
-            <문짝 칸={i} 선={선} 열림폭={문열림폭} 색={문색} 옵션={문옵션} />
+            <문짝 칸={i} 열림폭={문열림폭} 색={문색} 옵션={문옵션} />
+            {/* 문 밑 발판 — 선택한 칸(발판.칸)에만 한 단. 칸<0 이면 모든 문에. */}
+            {발판 &&
+              발판.보이기 !== false &&
+              ((발판.칸 ?? -1) < 0 || i === (발판.칸 ?? -1)) && (
+                <기차발판 색={발판.색 ?? 차체색} 선={선} 옵션={발판} />
+              )}
             {/* 문 앞 자리 — 모델 기준 door 메시는 x 0.175 언저리, 폭 방향(z)은
                 양쪽에 다 있다. 방을 향한 쪽(-z)에서 한 걸음 물러난 자리를 잡는다. */}
             <기차문표식 칸={i} 위치={[0.175, 0.5, -0.55]} />
@@ -7387,6 +8210,7 @@ function 의자끌기({
   useFrame((_, dt) => {
     const o = g.current;
     if (!o) return;
+    그림자흔들기(0.2); // 끌고 있는 동안은 그림자도 따라와야 한다
     camera.getWorldDirection(_끌앞);
     _끌앞.y = 0;
     if (_끌앞.lengthSq() < 1e-6) return;
@@ -8288,7 +9112,7 @@ function 수거품상자({ 사건, 선, 가로 = 0.95, 세로 = 0.78, 상자높�
 }
 
 // ===== 3D 씬 =====
-function Scene({ active, onNear, controlsRef, onLockChange }) {
+function Scene({ active, onNear }) {
   // ── 로비 물건 상태 (서랍·램프·의자·들고 있는 것) ──────────
   //   겨냥은 여기서 구독하지 않는다. 고개만 돌려도 방 전체가 다시 그려지기 때문이다.
   const 로비 = use로비상태();
@@ -8298,6 +9122,15 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
   //   (자판기상태.js 를 useFrame 에서 직접 읽어 재질만 손으로 고친다).
   const 음료자판상태 = use자판기("음료");
   const 커피자판상태 = use자판기("커피");
+  use동전(); // 동전 위치·손에 든 것이 바뀌면 다시 그린다
+  use음료(); // 손에 든 음료(컵/캔)가 바뀌면 다시 그린다
+  // 동전을 놓기 시스템에 등록(겨냥 자리 계산·충돌 여유용). 작게.
+  useEffect(() => {
+    크기등록("동전", { halfX: 0.25, halfZ: 0.25, height: 0.08 });
+  }, []);
+  // 관창을 집었나 · 배전반에 꽂았나. 손에 든 그림을 여기서 그리므로 구독한다.
+  //   (함 속·배전반 쪽 그림은 그 두 컴포넌트가 각자 구독한다)
+  const 관창든곳 = use관창();
   // ── 바닥도 물건을 놓을 수 있는 면이다 ────────────────────
   useEffect(() => {
     표면등록("바닥", {
@@ -8395,12 +9228,16 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
   // 화면 오른쪽 위에 슬라이더가 뜬다. 값을 돌려보며 폐역 톤을 직접 맞추고,
   // 마음에 드는 값을 찾으면 알려주면 코드에 고정한다. (개발용 — 최종엔 끈다)
   const L = useSavedControls("폐역 조명", {
-    기본광밝기: { value: 1.5, min: 0, max: 1.7, step: 0.01 },
+    // ★ 전체 밝기를 한 단 올렸다(2026-09-17). 폐역 톤은 그대로 두고 바닥만 든다.
+    //   ※ 기본광·주광은 이미 **슬라이더 끝(1.7 / 3.0)에 거의 붙어 있어서**
+    //     값만 올려서는 몇 칸 못 간다. 상한도 같이 열어 둔다 — 더 올리고 싶을 때
+    //     또 코드를 고치러 오지 않아도 되게.
+    기본광밝기: { value: 1.72, min: 0, max: 2.4, step: 0.01 },
     기본광색: "#ffffff",
-    반구광밝기: { value: 0.78, min: 0, max: 1.5, step: 0.01 },
-    주광밝기: { value: 2.88, min: 0, max: 3, step: 0.01 },
+    반구광밝기: { value: 0.92, min: 0, max: 1.5, step: 0.01 },
+    주광밝기: { value: 3.25, min: 0, max: 4.2, step: 0.01 },
     주광색: "#ffffff",
-    앰버포인트밝기: { value: 49, min: 0, max: 120, step: 1 },
+    앰버포인트밝기: { value: 58, min: 0, max: 120, step: 1 },
     안개농도시작: { value: 42, min: 0, max: 120, step: 1 },
     안개농도끝: { value: 274, min: 20, max: 300, step: 1 },
     안개색: "#cfd9eb",
@@ -8452,7 +9289,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     회전: { value: -1.06, min: -Math.PI, max: Math.PI, step: 0.01 },
     개별배율: { value: 1.0, min: 0.3, max: 2.5, step: 0.01 },
   });
-  const stLive = [st1, st2, st3];
+  // 매 렌더 새 배열이면 받는 쪽 memo 가 전부 풀린다 → 값이 같으면 그대로 둔다
+  const stLive = useMemo(() => [st1, st2, st3], [st1, st2, st3]);
   // 램프 개별 on/off — 손으로 만진 적이 없으면 Leva 공통값을 따른다.
   const 램프보기 = (id, 기본) => 로비.램프[id] ?? 기본;
 
@@ -8497,7 +9335,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     회전: { value: 3.14, min: -Math.PI, max: Math.PI, step: 0.01 },
     시드: { value: 4022, min: 1, max: 9999, step: 1 },
   });
-  const cbLive = [cb1, cb2, cb3];
+  // 매 렌더 새 배열이면 받는 쪽 memo 가 전부 풀린다 → 값이 같으면 그대로 둔다
+  const cbLive = useMemo(() => [cb1, cb2, cb3], [cb1, cb2, cb3]);
 
   // ── 서랍 여닫기 (S4-009 · CT-007) ──────────────────────
   const 서랍칸 = (i) => CAB_OPEN_PLAN[i]?.칸 ?? 1;
@@ -8606,7 +9445,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     상자높이: { value: 0.83, min: 0.15, max: 2.0, step: 0.01 },
   });
 
-  const evLive = [ev1, ev2, ev3, ev4, ev5, ev6];
+  // 매 렌더 새 배열이면 받는 쪽 memo 가 전부 풀린다 → 값이 같으면 그대로 둔다
+  const evLive = useMemo(() => [ev1, ev2, ev3, ev4, ev5, ev6], [ev1, ev2, ev3, ev4, ev5, ev6]);
 
   // ── 옷걸이 스탠드 2개 ───────────────────────────────────────
   //   (걸려 있던 외투 4벌은 뺐다 — 스탠드만 남긴다)
@@ -8694,7 +9534,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     회전: { value: -2.5, min: -Math.PI, max: Math.PI, step: 0.01 },
     개별크기: { value: 1.0, min: 0.2, max: 4, step: 0.01 },
   });
-  const pcLive = [pc1, pc3];
+  // 매 렌더 새 배열이면 받는 쪽 memo 가 전부 풀린다 → 값이 같으면 그대로 둔다
+  const pcLive = useMemo(() => [pc1, pc3], [pc1, pc3]);
 
   // ── 키보드 조절 ────────────────────────────────────────
   // 모니터와 별개의 모델이라 위치·크기·색·회전을 따로 준다.
@@ -8831,6 +9672,11 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     크기: { value: 1.0, min: 0.2, max: 4, step: 0.01 },
     컵색: "#fff4e9",
     커피색: "#382114",
+    // ★ 도자기 흰색이 순백에 가까워 조명 아래서 통째로 하얗게 날아간다.
+    //   (Bloom 임계값 0.85 를 넘으면 외곽까지 번져서 형태가 안 읽힌다)
+    //   색 자체를 어둡게 적으면 저장된 값이 코드를 이겨 화면에 안 나타나므로,
+    //   **쓸 때 한 번 눌러 주는** 배수를 따로 둔다. 1 이면 예전 그대로.
+    밝기: { value: 0.88, min: 0.4, max: 1, step: 0.01 },
 
     ...선스키마({ 주름: false, 각도: 55 }),
   });
@@ -8975,6 +9821,24 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     찌그러짐깊이: { value: 0.03, min: 0, max: 0.05, step: 0.002 },
     외곽선굵기: { value: 2, min: 0, max: 8, step: 0.5 },
     외곽선색: "#000000",
+  });
+
+  // ── 기차 발판 (문에 붙는 얇은 디딤판) ──────────────────────
+  //   기차역에서 문 밑에 나온 얇은 판. 사람이 밟고 오르는 그것.
+  //   차체에 붙어(기차와 함께 기울고 휜다) 바깥으로 나온다. 외곽선·색은 차체와 동일.
+  //   ★ 칸 = 발판을 붙일 문 번호(0부터). -1 이면 모든 문에 붙는다.
+  //     대수·세로에 따라 방 정면에 오는 문이 달라지니, 안 맞으면 이 값만 바꾼다.
+  //   ★ 크기·위치 전부 조절: 가로폭·세로폭(깊이)·두께 / 좌우·높이·앞뒤.
+  const 발판설정 = useSavedControls("기차 발판", {
+    보이기: true,
+    칸: { value: 2, min: -1, max: 5, step: 1 }, // -1=모든 문 / 그 외=그 칸에만
+    가로폭: { value: 0.5, min: 0.1, max: 1.0, step: 0.005 }, // 문 너비 방향(x) 길이
+    세로폭: { value: 0.14, min: 0.03, max: 0.4, step: 0.005 }, // 밟는 깊이(바깥 z)
+    두께: { value: 0.02, min: 0.005, max: 0.1, step: 0.002 }, // 판 두께(얇게)
+    좌우: { value: 0, min: -0.4, max: 0.4, step: 0.005 }, // x 위치 보정
+    높이: { value: -0.08, min: -0.6, max: 0.2, step: 0.005 }, // 문턱 대비 위아래
+    앞뒤: { value: 0, min: -0.2, max: 0.35, step: 0.005 }, // 바깥으로 더/덜
+    색: "#1b2029", // 차체색과 같게(기차의 일부처럼)
   });
 
   // ── 기차 선로 (도상·침목·레일) ─────────────────────────────
@@ -9138,6 +10002,18 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     계기판: true,
     // 안 보이는 구역을 통째로 끄는 최적화. 끄면 예전처럼 전부 그린다(비교용).
     구역최적화: true,
+    // 그림자 맵을 **움직일 때만** 다시 그린다. 끄면 예전처럼 매 프레임(비교용).
+    //   방 한가운데에서 한 프레임 10.4ms → 4.9ms 였다.
+    그림자아끼기: true,
+    // 그림자 한 번 다시 그리는 값이 12ms 다(화면 한 장 8ms 보다 크다).
+    //   ★ 움직이는 동안 매 프레임 다시 그리면 그대로 20ms 가 된다 —
+    //     이 간격만큼 건너뛴다(3 이면 그림자가 최대 3프레임 늦게 따라온다).
+    그림자간격: { value: 3, min: 1, max: 10, step: 1 },
+    //   조용할 때 도는 안전망 주기(프레임). 20 이면 초당 세 번 12ms 가 튄다.
+    그림자안전망: { value: 240, min: 20, max: 600, step: 20 },
+    // 처음 보는 재질은 그 순간 셰이더를 컴파일한다(한 프레임 수백 ms).
+    //   켜 두면 로딩이 끝난 뒤 미리 컴파일해 둬서 중간에 안 튄다.
+    셰이더예열: true,
   });
 
   // 구역별 group 참조 — visible 을 직접 만지려고 ref 로 잡는다
@@ -9189,8 +10065,10 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     //   감광 자체를 끄면 복도가 짧아 보인다.
     깊이어둠: { value: 0.6, min: 0, max: 1, step: 0.01 },
     감쇠거리: { value: 33, min: 5, max: 80, step: 1 },
-    최소밝기: { value: 0.53, min: 0, max: 1, step: 0.01 }, // 감광 바닥값
-    벽밝기: { value: 1.35, min: 0.5, max: 2.5, step: 0.05 }, // 벽 전체 배수
+    // ★ 복도도 한 단 올렸다. 깊이감(멀수록 어둡다)은 건드리지 않고
+    //   **바닥값과 벽 배수만** 든다 — 감광 곡선을 만지면 복도가 짧아 보인다.
+    최소밝기: { value: 0.66, min: 0, max: 1, step: 0.01 }, // 감광 바닥값
+    벽밝기: { value: 1.5, min: 0.5, max: 2.5, step: 0.05 }, // 벽 전체 배수
     // 비상계단(복도 끝) 쪽만 추가로 어둡게 — 복도가 더 길어 보이게 하는 장치
     // ★ 복도 끝(비상계단 쪽) 추가 감광. 0.45 → 0.58 로 올렸다 —
     //   끝이 더 깊이 들어가 보이게. 되돌리려면 이 값 하나만 내리면 된다.
@@ -9223,7 +10101,14 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     배전반폭: { value: 1.6, min: 0.6, max: 3, step: 0.05 },
     배전반높이: { value: 2.0, min: 0.8, max: 4, step: 0.05 },
     배전반깊이: { value: 0.4, min: 0.1, max: 1, step: 0.02 },
-    배전반바닥높이: { value: 2.8, min: 0.5, max: 6, step: 0.05 },
+    // ★ 맞은편 소화전과 **중심선**을 맞춘 값이다.
+    //   소화전: 바닥 2.25 + 높이 2.25 → 중심 3.375
+    //   배전반: 높이가 2.0 이라 바닥 2.375 여야 중심이 같은 3.375 가 된다.
+    //   두 함의 높이가 달라 바닥·천장을 동시에 맞출 수는 없다. 마주 보는 설비는
+    //   중심선을 맞추는 게 실제 건물 관례이고, 복도 가운데 서서 좌우를 볼 때도
+    //   그래야 '같은 높이'로 읽힌다.
+    //   ※ step 이 0.025 인 이유 — 0.05 격자로는 2.375 를 못 찍는다.
+    배전반바닥높이: { value: 2.375, min: 0.5, max: 6, step: 0.025 },
     배전반색: "#4d5055",
     배전반문색: "#5e646c",
     배전반라벨색: "#c9a83c",
@@ -9269,7 +10154,10 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     자판기깊이: { value: 2.4, min: 1.2, max: 3.5, step: 0.05 },
     // ★ 퍼즐이 나중에 밀어 넣을 자리. 지금은 Leva 로 눈으로 확인한다.
     커피선택: { value: "없음", options: ["없음", "핫", "아이스"] },
-    음료뽑힌캔: { value: -1, min: -1, max: 5, step: 1 },
+    // ★ 키 이름을 바꿔 새 기본값(-1)이 확실히 적용되게 한다.
+    //   예전 '음료뽑힌캔' 에 저장돼 있던 값(예: 3=주황)이 버튼 색을 덮어써서
+    //   "노란 캔만 나오는" 현상이 있었다. -1 = 버튼 눌러 나온 캔을 보여 준다.
+    음료뽑힌캔강제: { value: -1, min: -1, max: 5, step: 1 },
     커피컵: false,
     커피문열림: { value: 0, min: 0, max: 1, step: 0.05 },
 
@@ -9347,7 +10235,10 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     불세기: { value: 14.5, min: 0, max: 60, step: 0.5 },
     불색: "#8fa6c4",
 
-    ...선스키마({ 굵기: 5, 색: "#131314", 주름: false }),
+    // 주름선 — 모서리를 따라 긋는 얇은 선. 검정이면 외곽선과 섞여 지저분하다.
+    //   복도에 넣은 것들은 전부 이 회색(#808080)으로 맞춘다.
+    //   ※ 수사본부실은 자기 색을 따로 쓴다 — 여기서 건드리지 않는다.
+    ...선스키마({ 굵기: 5, 색: "#131314", 주름: true, 각도: 40, 주름색: "#808080" }),
   });
 
   // ── 소화전 속 (문을 열면 보이는 것들) ─────────────────────
@@ -9381,39 +10272,448 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     외곽선: true,
     외곽선굵기: { value: 3.5, min: 0, max: 12, step: 0.5 },
     외곽선색: "#000000",
-    주름선: false,
+    주름선: true,
+    주름선각도: { value: 40, min: 10, max: 80, step: 1 },
+    주름선색: "#808080",
   });
+
+  // ── 소화전 밑 배선관 (Leva 폴더 하나로 따로) ─────────────
+  //   함 아래로 내려와 둥글게 꺾여 벽을 따라 음료 자판기 뒤까지 간다.
+  //   (배전반은 반대로 함 위에서 천장으로 올라간다)
+  //
+  //   ★ 값끼리 서로 안 물린다. 길이를 늘려도 굵기·세로 길이는 그대로고,
+  //     좌우로 벌려도 위아래는 그대로다. 관 두 줄의 꺾임 중심을 따로 두어
+  //     그렇게 만들었다 — 중심 하나에 반지름만 달리하면 좌우를 벌릴 때
+  //     바깥 줄이 아래로 내려가 세로까지 같이 커진다.
+  const 소화전밑 = useSavedControls("소화전 밑", {
+    보이기: true,
+    // 옆으로 가서 멈추는 자리(세계 z). 자판기 한가운데(9.2)면 기계에 묻힌다.
+    끝자리: { value: 5.8, min: -60, max: 26, step: 0.1 },
+    // 꺾여서 옆으로 흐르는 높이. 세로 길이는 함 바닥에서 여기까지다.
+    꺾임높이: { value: 1.1, min: 0.2, max: 3.5, step: 0.05 },
+    // 벽에서 얼마나 떨어질지. 음수면 벽 쪽 —
+    //   자판기 뒷면과 벽 사이가 0.1 밖에 없어서 벽에 붙어야 뒤로 지나간다.
+    벽에서: { value: -0.01, min: -0.3, max: 0.5, step: 0.01 },
+    // 내려오는 자리를 함 가운데에서 옆으로
+    치우침: { value: 0.0, min: -1.5, max: 1.5, step: 0.05 },
+    좌우여백: { value: 0.19, min: 0.06, max: 0.9, step: 0.01 }, // 내려올 때 두 줄 사이
+    위아래간격: { value: 0.19, min: 0, max: 0.8, step: 0.01 }, // 옆으로 갈 때 두 줄 사이
+    굵기: { value: 0.05, min: 0.02, max: 0.16, step: 0.002 },
+    굽힘: { value: 0.3, min: 0.06, max: 0.9, step: 0.02 }, // 꺾이는 반지름
+    색: "#474c53",
+  });
+
+  // ── 관창 — 손에 든 모습과 끌려 나온 호스 ────────────────
+  //   소화전함에서 집은 관창을 카메라 앞 어디에 어떻게 들지,
+  //   그리고 함에서 여기까지 끌려 나온 호스 한 줄을 어떻게 그릴지.
+  //   ★ 자리(앞·아래·옆)와 자세(기울기·비틀기)와 크기는 **서로 독립**이다 —
+  //     하나를 만져도 나머지가 따라 움직이지 않는다.
+  const 관창CD = useSavedControls("관창", {
+    앞: { value: 1.5, min: 0.4, max: 3, step: 0.05 },
+    아래: { value: 0.6, min: -0.5, max: 2, step: 0.05 },
+    옆: { value: 0.55, min: -1.5, max: 1.5, step: 0.05 },
+    // 0 = 곧게 세워 든다(물 나오는 끝이 아래 — 함에 걸려 있던 그대로).
+    //   90 = 끝이 정면. ★ 정면으로 두면 **황동 커플링 마구리만** 보여서
+    //   관창이 아니라 노란 원반을 든 꼴이 된다(실제로 그랬다).
+    //   조금만 눕혀 몸통 길이가 보이는 26 이 기본이다.
+    기울기: { value: 26, min: 0, max: 180, step: 2 },
+    비틀기: { value: -16, min: -90, max: 90, step: 2 },
+    크기: { value: 1, min: 0.3, max: 2, step: 0.05 },
+    // 손에 든 것에는 복도 감광을 안 먹인다 — 어두운 데서도 뭘 들었는지 보여야 한다
+    밝기: { value: 1, min: 0.2, max: 2, step: 0.05 },
+    // ── 끌려 나온 호스 ──
+    //   ★ 관창만 들려 있으면 호스와 끊긴 물건으로 보인다. 함 쪽 호스 끝에서
+    //     지금 관창까지 한 줄이 이어져야 "그 호스를 끌고 간다"로 읽힌다.
+    호스보이기: true,
+    호스굵기: { value: 0.052, min: 0.02, max: 0.12, step: 0.002 },
+    // 두 끝 거리 대비. ★ 작으면 **빨랫줄**처럼 팽팽해 보인다. 넉넉히 줘서
+    //   먼 거리에서는 바닥에 닿아 깔리고, 손에 들었을 때만 늘어지게 한다.
+    호스처짐: { value: 0.42, min: 0, max: 1, step: 0.02 },
+    호스나옴: { value: 0.5, min: 0, max: 1.5, step: 0.05 }, // 함 앞으로 먼저 빠지는 길이
+    // 관창 이만큼 아래에서 올라와 물린다. ★ 0 으로 두면 호스가 눈앞으로 곧장
+    //   달려와 화면을 가로지르고, 코앞이 잘려 끊긴 것처럼 보인다.
+    //   ★ 꽂았을 때는 이 값이 '함 앞으로 나오는 거리'가 된다 — 배전반 속
+    //     부품을 스치지 않을 만큼 넉넉해야 한다.
+    호스밑에서: { value: 0.95, min: 0, max: 2, step: 0.05 },
+    // 이 아래로는 안 처진다. 복도 바닥판이 y=0.01 에 깔려 있어 0.03 이면
+    //   호스가 바닥에 닿아 깔린 것으로 보인다(더 낮추면 바닥에 잠긴다).
+    호스바닥: { value: 0.03, min: 0, max: 2, step: 0.01 },
+    // 마디 수. ★ 적으면 꺾이는 데서 통 단면이 뒤집혀 구멍처럼 뚫려 보인다.
+    호스칸: { value: 36, min: 8, max: 72, step: 2 },
+  });
+
+  // ── 소화전 자물쇠 ──────────────────────────────────────
+  //   5칸 번호 다이얼 맹꽁이 자물쇠. 문 손잡이 쪽에 건다.
+  //   ※ 「맞춤」은 지금 보이는 글자 번호다. 나중에 퍼즐이 이 값을 돌리면
+  //     다이얼이 스스로 그 자리로 돌아간다(가장 가까운 쪽으로).
+  const 자물쇠CD = useSavedControls("소화전 자물쇠", {
+    // ★ 자물쇠만 숨긴다. 걸쇠(폴더가 따로다)는 그대로 남는다 —
+    //   걸쇠 자리를 먼저 맞추고 그 안에 자물쇠를 넣을 때 쓴다.
+    보이기: true,
+    // 숨겼을 때 쇠막대가 지나갈 길을 파랗게 비쳐 준다.
+    //   걸쇠 구멍을 그 위에 얹으면 자물쇠가 정확히 꿰진다.
+    숨길때길보기: true,
+    // ★ 자물쇠**만** 옮기는 값. 걸쇠는 안 따라간다.
+    //   걸쇠 자리를 먼저 맞춰 놓고, 이 셋으로 자물쇠를 그 구멍 속에 넣는다.
+    //   아래 x·y·z 는 걸쇠까지 통째로 옮기고, 이 셋은 자물쇠만 옮긴다.
+    //   ★ 지금 값은 걸쇠 두 구멍(좌우 0 과 0.03, 높이 0, 깊이 −0.03)에
+    //     쇠막대가 **정확히 꿰이도록** 계산한 값이다.
+    //     좌우 0.015 = 두 구멍의 한가운데(그래야 양쪽 높이가 같다)
+    //     위아래 −0.1171 = 쇠막대가 그 자리에서 y 0 을 지나는 높이
+    //     깊이 −0.03 = 구멍과 같은 깊이
+    자물쇠좌우: { value: 0.015, min: -0.3, max: 0.3, step: 0.001 },
+    자물쇠위아래: { value: -0.1171, min: -0.4, max: 0.4, step: 0.001 },
+    자물쇠깊이: { value: -0.03, min: -0.3, max: 0.3, step: 0.001 },
+    // ★ 여기 하나만 움직이면 자물쇠 전체가 같이 커지고 작아진다.
+    //   아래 치수들은 **모양의 비율**이라 웬만하면 안 건드려도 된다.
+    //   1 = 실척 5.7cm. 0.8 이면 4.6cm, 1.3 이면 7.4cm.
+    크기: { value: 1.66, min: 0.4, max: 2.5, step: 0.02 },
+    x: { value: -20.61, min: -34, max: -19, step: 0.01 },
+    y: { value: 3.07, min: 0, max: 7, step: 0.01 },
+    z: { value: 15.86, min: -60, max: 26, step: 0.02 },
+    회전도: { value: -100, min: -180, max: 180, step: 5 },
+    폭: { value: 0.155, min: 0.05, max: 0.4, step: 0.005 },
+    높이: { value: 0.082, min: 0.02, max: 0.2, step: 0.002 },
+    깊이: { value: 0.077, min: 0.02, max: 0.2, step: 0.002 },
+    // 좌우 덩이 바깥 끝의 둥글기. 1 = 반원, 0 = 각진 네모.
+    //   1 이면 알약처럼 보여 자물쇠의 묵직함이 빠진다.
+    옆둥글기: { value: 0.7, min: 0, max: 1, step: 0.02 },
+    고리반지름: { value: 0.04, min: 0.01, max: 0.12, step: 0.001 },
+    고리굵기: { value: 0.009, min: 0.003, max: 0.04, step: 0.0005 },
+    고리높이: { value: 0.088, min: 0.015, max: 0.25, step: 0.002 },
+    칸수: { value: 5, min: 1, max: 8, step: 1 },
+    // 다이얼이 차지하는 가로 — 폭 대비. 나머지가 좌우 은색 덩이가 된다.
+    다이얼띠: { value: 0.37, min: 0.2, max: 0.8, step: 0.01 },
+    // ── 줄마다 다른 글자 ──
+    //   ★ 예전엔 한 세트(AELORV)를 다섯 줄이 같이 썼다. 그러면 다섯 줄에 똑같은
+    //     글자가 나란히 서서 찍기 쉬웠고, 실물 문자 자물쇠와도 달랐다.
+    //     이제 줄마다 **정답 글자 + 미끼**를 따로 뽑는다(자물쇠.jsx 줄글자만들기).
+    뽑을글자: "ABCDEFGHIJKLMNOPQRSTUVWXYZ", // 미끼를 뽑아 올 알파벳
+    칸글자수: { value: 7, min: 3, max: 12, step: 1 }, // 한 줄에 몇 글자
+    글자씨: { value: 7, min: 1, max: 99, step: 1 }, // 바꾸면 미끼가 다시 섞인다
+    // 지금 보이는 글자 — 칸마다 글자들의 몇 번째인지
+    맞춤1: { value: 3, min: 0, max: 11, step: 1 },
+    맞춤2: { value: 4, min: 0, max: 11, step: 1 },
+    맞춤3: { value: 0, min: 0, max: 11, step: 1 },
+    맞춤4: { value: 3, min: 0, max: 11, step: 1 },
+    맞춤5: { value: 4, min: 0, max: 11, step: 1 },
+    // ── 퍼즐 ──
+    //   ★ 「맞춤N」은 **처음 보이는 번호**(씨앗)다. 게임 안에서 [E] 로 돌린 값은
+    //     번호잠금.js 가 따로 들고 있어서, 여기를 만지지 않는 한 안 되돌아간다.
+    //   ★ 정답을 비우면 아무 번호로도 안 풀린다(아직 퍼즐이 아닌 상태).
+    //     나중에 서버가 내려주면 이 칸을 그 값으로 바꾸기만 하면 된다.
+    정답: "VALVE",
+    // [E] 로 만질 때 카메라가 자물쇠에서 이만큼 떨어져 선다(작을수록 가깝다)
+    조작거리: { value: 0.8, min: 0.3, max: 2.5, step: 0.05 },
+    쇠색: "#888f96",
+    다이얼색: "#b7b7b7",
+    글자색: "#000000",
+    // ── 칸 구분선 ── 다섯 칸이 한 덩어리로 보이면 몇 번째를 돌리는지 헷갈린다
+    칸선: true,
+    칸선색: "#6e7276",
+    칸선굵기: { value: 0.055, min: 0, max: 0.3, step: 0.005 }, // 칸폭 대비
+    칸선높이: { value: 1.03, min: 0.9, max: 1.25, step: 0.005 }, // 다이얼 대비
+    // ── 읽는 줄 표식 ──
+    //   ★ 다이얼은 세 줄이 같이 보인다. 맞춰야 하는 줄은 **정면 한 줄**인데,
+    //     그걸 모르면 위 줄에 정답을 세워 놓고 왜 안 열리나 하게 된다.
+    //     왼쪽 덩이 앞면에 "→" 를 새겨 그 줄을 가리킨다(왼쪽에만 — 양쪽에
+    //     두면 과녁처럼 보여서 가리키는 게 안 읽힌다).
+    표식: true,
+    표식색: "#2f3338",
+    표식크기: { value: 1, min: 0.3, max: 2, step: 0.05 },
+  });
+  // ── 걸쇠 문쪽 ───────────────────────────────────────
+  //   ㄱ자로 꺾인 판. 날개를 문 앞면에 대고 꺾인 쪽 구멍으로 쇠막대가 지난다.
+  //   ★ 자리는 **자물쇠 기준**이다(자물쇠 폴더의 x·y·z·회전도를 따라 움직인다).
+  //     판의 원점이 큰 구멍 한가운데라, 좌우·위아래·깊이만 맞추면
+  //     자물쇠 쇠막대 길 위에 얹힌다.
+  //   ★ 길이 값은 자물쇠 쇠막대 굵기 대비다 — 자물쇠 「크기」를 키우면 같이 큰다.
+  const 걸쇠문쪽CD = useSavedControls("걸쇠 문쪽", {
+    보이기: true,
+    좌우: { value: 0.0, min: -0.3, max: 0.3, step: 0.001 },
+    // ★ 기본은 **끔**. 아래 「위아래」가 그대로 쓰인다 — 손으로 맞춘 자리를 지킨다.
+    //   켜면 좌우만 정해도 높이가 쇠막대 길 위로 따라오고, 위아래는 어긋남이 된다.
+    쇠막대맞춤: false,
+    위아래: { value: 0.0, min: -0.1, max: 0.4, step: 0.001 },
+    깊이: { value: -0.03, min: -0.3, max: 0.3, step: 0.001 },
+    회전x: { value: 0, min: -180, max: 180, step: 1 },
+    회전y: { value: 10, min: -180, max: 180, step: 1 },
+    회전z: { value: -180, min: -180, max: 180, step: 1 },
+    구멍: { value: 1.5, min: 1.25, max: 4, step: 0.05 },
+    판폭: { value: 2.6, min: 1.2, max: 6, step: 0.05 },
+    두께: { value: 0.49, min: 0.15, max: 1.5, step: 0.02 },
+    길이: { value: 5.2, min: 1.5, max: 14, step: 0.1 },
+    날개: { value: 3.0, min: 0, max: 8, step: 0.1 }, // 0 이면 꺾임 없는 평판
+    나사수: { value: 2, min: 0, max: 4, step: 1 },
+    // 나사를 **판을 대는 면**에 박는다. 켜면 꺾인 날개에, 끄면 구멍 없는 네모 끝에.
+    나사날개: true,
+    나사색: "#5d6166",
+    나사크기: { value: 0.49, min: 0.15, max: 1.2, step: 0.02 },
+    색: "#838689",
+  });
+
+  // ── 걸쇠 테두리쪽 ───────────────────────────────────────
+  //   꺾임 없는 평판. 옆으로 세워 함 테두리에 댄다(날개 0).
+  //   ★ 자리는 **자물쇠 기준**이다(자물쇠 폴더의 x·y·z·회전도를 따라 움직인다).
+  //     판의 원점이 큰 구멍 한가운데라, 좌우·위아래·깊이만 맞추면
+  //     자물쇠 쇠막대 길 위에 얹힌다.
+  //   ★ 길이 값은 자물쇠 쇠막대 굵기 대비다 — 자물쇠 「크기」를 키우면 같이 큰다.
+  const 걸쇠테두리쪽CD = useSavedControls("걸쇠 테두리쪽", {
+    보이기: true,
+    좌우: { value: 0.03, min: -0.3, max: 0.3, step: 0.001 },
+    // ★ 기본은 **끔**. 아래 「위아래」가 그대로 쓰인다 — 손으로 맞춘 자리를 지킨다.
+    //   켜면 좌우만 정해도 높이가 쇠막대 길 위로 따라오고, 위아래는 어긋남이 된다.
+    쇠막대맞춤: false,
+    위아래: { value: 0.0, min: -0.1, max: 0.4, step: 0.001 },
+    깊이: { value: -0.03, min: -0.3, max: 0.3, step: 0.001 },
+    회전x: { value: 0, min: -180, max: 180, step: 1 },
+    회전y: { value: 0, min: -180, max: 180, step: 1 },
+    회전z: { value: 0, min: -180, max: 180, step: 1 },
+    구멍: { value: 1.5, min: 1.25, max: 4, step: 0.05 },
+    판폭: { value: 2.6, min: 1.2, max: 6, step: 0.05 },
+    두께: { value: 0.27, min: 0.15, max: 1.5, step: 0.02 },
+    길이: { value: 14.0, min: 1.5, max: 14, step: 0.1 },
+    날개: { value: 0.0, min: 0, max: 8, step: 0.1 }, // 0 이면 꺾임 없는 평판
+    나사수: { value: 2, min: 0, max: 4, step: 1 },
+    // 나사를 **판을 대는 면**에 박는다. 켜면 꺾인 날개에, 끄면 구멍 없는 네모 끝에.
+    나사날개: false,
+    나사색: "#5d6166",
+    나사크기: { value: 0.45, min: 0.15, max: 1.2, step: 0.02 },
+    색: "#838689",
+  });
+
+  // 씬이 다시 그려졌다 = Leva 를 만졌거나 상태가 바뀌었다.
+  //   그때부터 잠깐(자물쇠 열림 연출 2.5초까지) 그림자를 매 프레임 다시 그린다.
+  useEffect(() => {
+    그림자흔들기(2.8);
+  });
+
+  // ── 복도 깊이 밝기 — 규칙도 함수도 **하나만** 만든다 ────────
+  //   ★ 전에는 자리마다 같은 규칙 덩어리를 통째로 다시 적었고(아홉 군데),
+  //     밝기 함수도 매 렌더 새로 만들었다. 새 함수는 자식에게 "밝기가 바뀌었다"로
+  //     보여서 지오를 다시 만들게 한다. 그래서 자식마다 의존성에서 밝기를 빼는
+  //     땜질이 붙었고, 그 탓에 **밝기 슬라이더를 움직여도 잡동사니는 안 변했다.**
+  //     여기서 한 번만 만들어 넘기면 둘 다 풀린다.
+  const 깊이규칙 = useMemo(
+    () => ({
+      문z: CD.문z,
+      감쇠: CD.감쇠거리,
+      어둠: CD.깊이어둠,
+      최소밝기: CD.최소밝기,
+      끝어둠: CD.끝쪽어둠,
+      끝기울기: CD.끝쪽기울기,
+      z0: CD.z시작,
+    }),
+    [CD.문z, CD.감쇠거리, CD.깊이어둠, CD.최소밝기, CD.끝쪽어둠, CD.끝쪽기울기, CD.z시작],
+  );
+  const 복도밝기 = useMemo(
+    () => (z) => 복도깊이밝기(z, 깊이규칙),
+    [깊이규칙],
+  );
+
+  // ── 비밀 복도 바닥도 '놓을 수 있는 면'이다 ─────────────────
+  //   방 바닥면(표면 "바닥")은 x = MIN_X(-20) ~ MAX_X 구간만 덮는다.
+  //   그런데 동전은 x < MIN_X 인 '비밀 복도'에 있다. 복도 바닥을 따로
+  //   등록해 두지 않으면, 동전을 들고 복도 바닥을 겨냥해 E 를 눌러도
+  //   놓을자리찾기()가 면을 못 찾아 '내려놓기'가 아예 동작하지 않는다.
+  //   (수사관 본부실 물건은 방 안이라 됐고, 동전만 안 됐던 진짜 원인이다.)
+  useEffect(() => {
+    표면등록("복도바닥", {
+      minX: CD.바깥x, // 복도 바깥 벽(-31 근처)
+      maxX: MIN_X, // 방과 맞닿는 경계(-20)
+      minZ: CD.z시작,
+      maxZ: CD.z끝,
+      top: 0.01, // 복도 바닥판이 y=0.01 에 깔려 있다
+    });
+    return () => 표면해제("복도바닥");
+  }, [CD.바깥x, CD.z시작, CD.z끝]);
+
+  // ── 소화전 문 = 자물쇠가 지키는 문 ──────────────────────
+  //   ★ 문·덜컹·자물쇠가 **한 이름**으로 묶인다. 이름이 어긋나면
+  //     문은 잠겼는데 자물쇠는 딴 문을 지키게 된다(그래서 조립식 함수를 쓴다).
+  const 소화전문id = 벽함문id(
+    "소화전",
+    MIN_X - CD.소화전깊이 / 2 - 0.05,
+    CD.z시작 + (CD.z끝 - CD.z시작) * CD.소화전z비율,
+  );
+  // ★ 여기서 use자물쇠(번호까지) 를 구독하면 안 된다 — 다이얼을 한 칸 돌릴 때마다
+  //   복도 전체가 다시 그려진다. 복도가 알아야 할 건 참/거짓 둘뿐이다.
+  const 소화전자물쇠있나 = use있나(소화전문id);
+  const 소화전풀림 = use풀림(소화전문id);
+  // 자물쇠를 숨겨 놨으면(자리 맞추는 중) 문은 그냥 열린다 — 안 그러면 못 연다.
+  const 소화전잠김 = 자물쇠CD.보이기 && 소화전자물쇠있나 && !소화전풀림;
+  // 배전반 문 이름 — 관창을 꽂으려면 이 문이 열려 있어야 한다.
+  const 배전반문id = 벽함문id(
+    "배전반",
+    CD.바깥x + CD.배전반깊이 / 2 + 0.05,
+    CD.z시작 + (CD.z끝 - CD.z시작) * CD.배전반z비율,
+  );
+  // 두 문 이름을 콘솔에 내놓는다 — 시험이 문을 여닫으려면 이름을 알아야 한다.
+  //   (자리 값에서 조립되는 이름이라 밖에서 짐작할 수가 없다)
+  if (typeof window !== "undefined") {
+    window.__소화전문id = 소화전문id;
+    window.__배전반문id = 배전반문id;
+  }
 
   // ── 배전반 속 — 문을 열면 보이는 차단기·부스바·전선 ──────
   //   ※ 전선 색은 실물 규격을 따라 검정(상)·파랑(중성)·초록(접지)이 기본이다.
   //     빨강은 분기 배선에 섞어 단조로움을 깬다.
   const 배전반속 = useSavedControls("배전반 속", {
     안색: "#31353a",
-    판색: "#aeb3ae", // 기기를 물리는 뒷판(실물은 흰빛 도장)
-    차단기색: "#d5d6d1",
-    차단기면색: "#4b4f54",
-    레버색: "#212327",
-    동색: "#b0702c", // 부스바·접지 동판
-    덕트색: "#9aa0a2",
-    금속색: "#8f979e",
-    검은선색: "#17181a",
-    파란선색: "#2f5fa8",
-    초록선색: "#3e8f45",
-    빨간선색: "#a3392f",
+    // 안쪽 판 — 함 문(배전반문색)과 같은 색이라야 한 물건으로 읽힌다
+    판색: "#5e646c",
+    차단기색: "#bbbeb1",
+    차단기면색: "#4b4f54", // 주차단기 몸통 · 변류기함 · 스위치 앞면(다 같은 회색)
+    // 왼쪽 계기창 — 테두리는 위 회색, 안쪽만 이 밝은 판이다.
+    //   퍼즐을 풀어 전기가 들어오면 여기에 노란 빛을 넣는다(표시창빛을 올린다).
+    표시창색: "#d1d4d8",
+    표시창빛: { value: 0.0, min: 0, max: 2.5, step: 0.05 },
+    // ── 관창 꽂는 구멍(계기창 바로 아래) ──
+    //   ★ 소화전에서 꺼낸 관창(노즐)을 여기 꽂는 퍼즐 자리다.
+    //   ★ 여기 값만 **함 크기를 안 따라간다.** 꽂을 물건이 고정 크기라,
+    //     함을 키웠다고 구멍이 같이 커지면 안 맞기 때문이다.
+    // 퍼즐 3색 선 외곽선 — 함 외곽선 굵기 대비. 0 이면 안 두른다.
+    //   ★ <Outlines> 는 픽셀 단위라 1 로 두면 멀리서 선이 통째로 검어진다.
+    전선외곽선: { value: 0.4, min: 0, max: 1, step: 0.05 },
+    꽂는구멍: true,
+    구멍지름: { value: 0.105, min: 0.06, max: 0.2, step: 0.005 },
+    구멍깊이: { value: 0.09, min: 0.02, max: 0.2, step: 0.005 },
+    // 계기창 아래 틈 — 키우면 구멍이 아래로 내려간다.
+    //   서서 볼 때 1px ≈ 0.028 · 한 칸(0.005) ≈ 0.2px.
+    구멍간격: { value: 0.16, min: 0, max: 0.3, step: 0.005 },
+    구멍테색: "#9aa0a6",
+    구멍속색: "#15171a",
+    // 꽂힌 관창을 구멍 축으로 조금 더 밀거나 뺀다(0 = 계산대로 끝이 구멍 바닥에 닿음)
+    꽂힘밀기: { value: 0, min: -0.15, max: 0.15, step: 0.005 },
+    // ── 표시등 두 알(오른쪽 가운데) ──
+    //   실물 반의 파일럿 램프. 기본은 빨강만 켜짐 = 고장, 초록(정상)은 꺼짐.
+    //   퍼즐을 풀면 빨강을 끄고 초록을 켜면 된다.
+    //   바깥 테두리와 안쪽 알을 따로 잡는다.
+    등테색: "#2b2e33",
+    등위치가로: { value: 0.33, min: -0.45, max: 0.45, step: 0.005 },
+    등위치높이: { value: 0.02, min: -0.35, max: 0.35, step: 0.005 },
+    등크기: { value: 0.05, min: 0.015, max: 0.09, step: 0.002 },
+    등간격: { value: 1.3, min: 1.05, max: 3, step: 0.05 },
+    빨간등색: "#ff4a3d",
+    빨간알크기: { value: 0.89, min: 0.2, max: 0.95, step: 0.02 },
+    빨간등빛: { value: 0.8, min: 0, max: 3, step: 0.05 },
+    초록등색: "#43ff5c",
+    초록알크기: { value: 0.89, min: 0.2, max: 0.95, step: 0.02 },
+    초록등빛: { value: 0.3, min: 0, max: 3, step: 0.05 },
+    // ── 동판 ──
+    접지가로: { value: 0.33, min: 0.1, max: 0.45, step: 0.005 },
+    접지폭: { value: 0.08, min: 0.02, max: 0.16, step: 0.005 },
+    레버색: "#b3bac7",
+    동색: "#6c5339", // 부스바·접지 동판
+    금속색: "#43494e",
+    검은선색: "#272727",
+    파란선색: "#537cba", // 인입 중성선(실물 규격 색)
+    초록선색: "#58895c", // 접지
     라벨색: "#e8c53a",
-    차단기줄: { value: 11, min: 4, max: 16, step: 1 },
-    전선굵기: { value: 0.017, min: 0.006, max: 0.04, step: 0.001 },
-    굵은선굵기: { value: 0.034, min: 0.012, max: 0.07, step: 0.002 },
+    // ── 퍼즐 선 3색 ──
+    //   회로가 함 한가운데 접속함에서 끊겨 있다. 거기서 나온 세 줄과
+    //   스위치 쪽 분기선이 같은 색끼리 짝이다. 규격색보다 한 단계 밝게 잡아
+    //   중성선(파랑)과 안 헷갈리게 했다.
+    퍼즐빨강: "#fc6055",
+    퍼즐파랑: "#537cba",
+    퍼즐노랑: "#deb633",
+    // ── 분기 스위치 ──
+    //   맨 아래부터 쌓이고, 남는 위쪽은 빈 자리로 둔다.
+    //   3 이면 양쪽 3줄씩 = 6개. 색은 **위에서부터** 빨강·파랑·노랑이다.
+    //   ※ 최대 11 — 칸 크기가 고정이라 그 위로는 함 밖으로 나간다.
+    차단기줄: { value: 3, min: 1, max: 11, step: 1 },
+    // ── 스위치 생김새 ──
+    // ※ 줄 간격이 이 값을 따라간다 — 두껍게 하면 줄도 같이 벌어진다
+    스위치두께: { value: 0.14, min: 0.03, max: 0.24, step: 0.002 },
+    스위치가로: { value: 0.24, min: 0.12, max: 0.4, step: 0.005 },
+    스위치깊이: { value: 0.13, min: 0.05, max: 0.2, step: 0.005 },
+    스위치간격: { value: 0.21, min: 0.1, max: 0.34, step: 0.005 },
+    손잡이가로: { value: 0.22, min: 0.08, max: 0.45, step: 0.01 },
+    손잡이높이: { value: 0.44, min: 0.2, max: 0.9, step: 0.02 },
+    // 켜짐(안쪽)과 꺼짐(바깥) 사이 거리 — 스위치 가로 대비
+    미는거리: { value: 0.14, min: 0.04, max: 0.3, step: 0.005 },
+    // ── 주차단기(「전기위험」 상자) ──
+    주차단기높이: { value: 0.1, min: 0.05, max: 0.2, step: 0.005 },
+    주차단기가로: { value: 0.23, min: 0.1, max: 0.4, step: 0.005 },
+    주차단기깊이: { value: 0.15, min: 0.06, max: 0.24, step: 0.005 },
+    주차단기위치: { value: 0.44, min: 0.15, max: 0.8, step: 0.01 },
+    // ── 접속함(끊어진 자리) ──
+    접속함색: "#2b2e33",
+    접속함높이: { value: 0.09, min: 0.03, max: 0.16, step: 0.005 },
+    접속함가로: { value: 0.14, min: 0.06, max: 0.3, step: 0.005 },
+    접속함위치: { value: 0.1, min: -0.2, max: 0.3, step: 0.005 },
+    // ── 계기창(왼쪽 위, 나중에 빛낼 자리) ──
+    //   바깥 테두리(계기함)와 안쪽 밝은 판(표시창)을 따로 잡는다.
+    계기함가로: { value: 0.22, min: 0.08, max: 0.4, step: 0.005 },
+    계기함높이: { value: 1.05, min: 0.4, max: 2, step: 0.05 },
+    계기함위치: { value: 0.3, min: -0.45, max: 0.45, step: 0.005 },
+    표시창가로: { value: 0.84, min: 0.2, max: 0.95, step: 0.02 },
+    표시창높이: { value: 0.74, min: 0.2, max: 0.95, step: 0.02 },
+    전선굵기: { value: 0.02, min: 0.006, max: 0.04, step: 0.001 },
+    굵은선굵기: { value: 0.03, min: 0.012, max: 0.07, step: 0.002 },
     딱지: true, // 주차단기에 붙은 「전기위험」 표찰
     외곽선: true,
-    외곽선굵기: { value: 3.5, min: 0, max: 12, step: 0.5 },
+    외곽선굵기: { value: 4.0, min: 0, max: 12, step: 0.5 },
     외곽선색: "#000000",
-    주름선: false,
+    // 주름선 — 모서리를 따라 얇게 긋는 선. 검정이면 외곽선과 섞여 지저분해져서
+    //   밝은 회색으로 둔다(금속 모서리에 빛이 걸린 것처럼 보인다).
+    주름선: true,
+    주름선각도: { value: 40, min: 10, max: 80, step: 1 },
+    주름선색: "#808080",
   });
 
   // ── 음료 자판기(위치·색·외곽선 따로) ─────────────────────
   //   회전도: 90=바깥벽(왼쪽) 정면, -90=반대편 벽(오른쪽)에서 복도를 향함.
+  // ── 자판기 비밀문 ─────────────────────────────────────
+  //   밸브가 돌면(= 배전반 회로가 다 살고 관창까지 꽂히면) 음료 자판기가
+  //   옆으로 쓰윽 밀려 뒤쪽 수사관 본부실 문이 드러난다.
+  //   ★ 이동 거리는 **자동으로** 맞춘다 — 문(문z·문폭)과 자판기 가로에서
+  //     "문을 완전히 비켜서는 자리"를 계산한다. 문 자리를 옮기면 따라온다.
+  //     손으로 정하려면 자동맞춤을 끄고 이동z 를 쓴다.
+  const 비밀자판CD = useSavedControls("자판기 비밀문", {
+    켬: true,
+    // ★ 미리보기 — 퍼즐을 다 풀지 않고도 밀린 자리를 볼 수 있다.
+    //   자판기가 설 자리를 문에 맞춰 눈으로 확인할 때 쓴다(게임에선 끈다).
+    미리보기: false,
+    자동맞춤: true,
+    이동z: { value: 4.2, min: -12, max: 12, step: 0.1 }, // 자동맞춤 끌 때 쓴다
+    여유: { value: 0.3, min: 0, max: 2, step: 0.05 }, // 문 옆으로 더 비켜서는 만큼
+    시간: { value: 2.0, min: 0.4, max: 8, step: 0.1 }, // 다 미는 데 걸리는 시간
+    관도따라: true, // 소화전 밑 배전관 끝도 같이 밀린다
+    // ── 컷신 ──
+    //   밸브를 돌린 자리에서는 자판기가 등 뒤라 열리는 걸 못 본다.
+    //   잠깐 화면을 그리로 넘겨 보여 준다(그 동안 걷기·마우스는 멈춘다).
+    넘어가는시간: { value: 0.9, min: 0.2, max: 3, step: 0.05 },
+    // 자판기에서 떨어진 거리. ★ 가까우면 자판기가 화면을 넘쳐 **열린 문이 안
+    //   보인다**(5 에서 그랬다). 자판기 세로(7.4)와 드러난 문까지 한 화면에
+    //   담기려면 이만큼 떨어져야 한다.
+    보는거리: { value: 9.5, min: 1.5, max: 20, step: 0.1 },
+    // ★ 서 있는 눈높이(6.5)에서 보면 위에서 내려다보는 그림이 된다.
+    //   **더 낮게, 그리고 수평으로** 본다 — 눈높이와 겨냥점을 같은 높이에 맞춘다:
+    //   자판기 높이 7.4 × 0.42 = 3.1 · 6.5 − 3.4 = 3.1 → 각도 0°.
+    보는높이: { value: -3.4, min: -6, max: 6, step: 0.1 },
+    보는겨냥: { value: 0.42, min: 0.1, max: 1, step: 0.02 }, // 자판기 높이의 몇 쯤을 볼지
+    보는치우침: { value: 1.2, min: -8, max: 8, step: 0.1 }, // 옆으로 비껴 보기
+    흔들림: { value: 0.04, min: 0, max: 0.2, step: 0.005 }, // 미는 동안 화면 떨림
+    먼지수: { value: 90, min: 0, max: 300, step: 10 },
+    먼지색: "#cfc7b6",
+    먼지크기: { value: 0.22, min: 0.05, max: 0.8, step: 0.01 },
+    먼지세기: { value: 1, min: 0, max: 4, step: 0.1 },
+    // 밸브 퍼즐을 다 풀지 않고 **연출만** 한 번 돌려 본다
+    지금돌려보기: button(() => 연출강제()),
+  });
+  // 자판기를 담아 옆으로 미는 그룹(자판기밀개 가 매 프레임 자리를 만진다)
+  const 음료자판밀ref = useRef(null);
+
   const 음료자판CD = useSavedControls("음료 자판기", {
+    // ── 배출구 문·받침 — 화면 보며 맞추는 값 ────────────────
+    //   문이 얼마나 눕고 얼마나 젖혀지는지는 숫자로 감이 안 온다.
+    //   닫힘각 0 = 수직, 음수면 앞으로 눕는다. 열림각 −90 을 넘기면 위로 젖혀진다.
+    배출닫힘각도: { value: -26, min: -60, max: 0, step: 1 },
+    배출열림각도: { value: -104, min: -150, max: -60, step: 1 },
+    배출덮개높이: { value: 0.72, min: 0.3, max: 1, step: 0.02 },
+    배출혀: { value: 0.34, min: 0, max: 1, step: 0.02 },
+    배출앞턱비: { value: 0.22, min: 0.02, max: 0.9, step: 0.02 },
     위치x: { value: -21.3, min: -34, max: -19, step: 0.1 },
     위치y: { value: 0, min: -2, max: 6, step: 0.1 },
     위치z: { value: 9.2, min: -60, max: 26, step: 0.5 },
@@ -9422,6 +10722,9 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     가로길이: { value: 3.4, min: 2, max: 5, step: 0.05 },
     세로길이: { value: 7.4, min: 4, max: 9, step: 0.05 },
     몸통색: "#5f5e5e",
+    // 뒤판 — 벽을 등진 면. 몸통에서 떼어 놨으니 따로 칠할 수 있다.
+    //   지금은 몸통과 같은 색이라 예전과 똑같이 보인다.
+    뒷면색: "#5f5e5e",
     테색: "#3b3b3b",
     간판색: "#fffdf2",
     간판글자색: "#141414", // COLD DRINKS 글자색(밝은 간판이라 검정)
@@ -9434,6 +10737,9 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     외곽선굵기: { value: 3, min: 0, max: 12, step: 0.5 },
     외곽선색: "#000000",
     내부외곽선색: "#000000", // 캔·버튼·배출구 등 내부 외곽선 색
+    주름선: true,
+    주름선각도: { value: 40, min: 10, max: 80, step: 1 },
+    주름선색: "#808080",
   });
 
   // ── 커피 자판기(위치·색·외곽선 따로) ─────────────────────
@@ -9455,21 +10761,62 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     커피색: "#342113",
     배출부벽색: "#cbcbcb",
     배출부유리색: "#c9ccce",
+    // 배출부 투명문이 열리는 최대 각(rad). 1.15≈66°(예전) · 1.55≈89° · 1.9≈109°.
+    문열림각: { value: 1.55, min: 0.6, max: 2.1, step: 0.02 },
     외곽선: true,
     외곽선굵기: { value: 3, min: 0, max: 12, step: 0.5 },
     외곽선색: "#000000",
     내부외곽선색: "#000000", // 버튼·배출부 등 내부 외곽선 색
+    주름선: true,
+    주름선각도: { value: 40, min: 10, max: 80, step: 1 },
+    주름선색: "#808080",
   });
   const mk선 = (v, 색) => ({
     외곽선: v.외곽선,
     외곽선굵기: v.외곽선굵기,
     외곽선색: 색,
-    주름선: false,
+    주름선: v.주름선,
+    주름선각도: v.주름선각도,
+    주름선색: v.주름선색,
   });
   const 음료자판선 = mk선(음료자판CD, 음료자판CD.외곽선색);
   const 음료자판내부선 = mk선(음료자판CD, 음료자판CD.내부외곽선색);
   const 커피자판선 = mk선(커피자판CD, 커피자판CD.외곽선색);
   const 커피자판내부선 = mk선(커피자판CD, 커피자판CD.내부외곽선색);
+
+  // ── 동전 (비밀 복도 자판기 앞 바닥) ────────────────────────
+  //   자판기용 토큰 2개. 자판기는 바깥벽에 등을 대고 정면(+x)이 복도 안쪽을 본다
+  //   → 동전은 자판기 앞(+x쪽) 바닥에 놓는다. 위치·크기·색·회전 전부 조절.
+  const 동전CD = useSavedControls("동전", {
+    보이기: true,
+    바닥y: { value: 0.05, min: 0, max: 2, step: 0.01 }, // 복도 바닥(0.01) 위
+    // ★ 동전 투입구에 들어갈 크기 — 더 작고 얇게. (키를 새로 만들어 기본값이 바로 적용되게)
+    동전크기: { value: 0.18, min: 0.08, max: 0.5, step: 0.005 },
+    동전두께2: { value: 0.038, min: 0.015, max: 0.12, step: 0.002 },
+    // ── 캔 동전(음료 자판기용) — 바닥 시작 자리 + 반환구 자리 ──
+    캔바닥x: { value: -20.4, min: -34, max: -16, step: 0.1 },
+    캔바닥z: { value: -1.6, min: -14, max: 6, step: 0.1 },
+    캔회전: { value: 0.2, min: -3.15, max: 3.15, step: 0.05 },
+    캔색: "#b6923f",
+    캔무늬색: "#6f531f",
+    // ── 종이컵 동전(커피 자판기용) ──
+    컵바닥x: { value: -20.4, min: -34, max: -16, step: 0.1 },
+    컵바닥z: { value: -4.8, min: -14, max: 6, step: 0.1 },
+    컵회전: { value: -0.5, min: -3.15, max: 3.15, step: 0.05 },
+    컵색: "#9c7b52",
+    컵무늬색: "#4a3a22",
+    // ── 반환구 자리(잘못 넣으면 여기로 도로 나온다) — 각 자판기 앞 아래 ──
+    음료반환: { value: [-20.7, 1.0, -1.6], step: 0.05 },
+    커피반환: { value: [-20.7, 1.0, -3.2], step: 0.05 },
+    외곽선굵기: { value: 3, min: 0, max: 10, step: 0.5 },
+    외곽선색: "#1c1409",
+  });
+  const 동전선 = {
+    외곽선: true,
+    외곽선굵기: 동전CD.외곽선굵기,
+    외곽선색: 동전CD.외곽선색,
+    주름선: false,
+  };
 
   // Leva 값 → 이동 경계용 상자에 밀어 넣는다.
   //   useFrame(이동 처리)은 React 렌더 밖에서 도니까, state 로 넘기면
@@ -9529,25 +10876,39 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     몰딩선: true,
   });
 
-  const D선 = 선뽑기(D),
-    CB선 = 선뽑기(CB),
-    CH선 = 선뽑기(CH),
-    PC선 = 선뽑기(PC),
-    KB선 = 선뽑기(KB),
-    TR선 = 선뽑기(TR),
-    RL선 = 선뽑기(RL),
-    WK선 = 선뽑기(WK),
-    EW선 = 선뽑기(EW),
-    CD선 = 선뽑기(CD),
-    MS선 = 선뽑기(MS),
-    LP선 = 선뽑기(LP),
-    MG선 = 선뽑기(MG),
-    RK선 = 선뽑기(CT),
-    EV선 = 선뽑기(EV),
-    SD선 = 선뽑기(S),
-    FL선 = 선뽑기(FL),
-    PB선 = 선뽑기(PB),
-    WB선 = 선뽑기(WB);
+  // ★ 선 묶음은 **참조가 유지돼야 한다.**
+  //   선뽑기 는 매번 새 객체를 만든다. 그게 그대로 선={...} 으로 내려가면
+  //   값이 하나도 안 바뀌어도 **자식은 늘 새 props 를 받은 것**이 되어,
+  //   아래에서 아무리 memo 를 걸어도 전부 다시 그려진다.
+  //   한 덩이로 묶어 두면 Leva 를 건드릴 때만 새로 만들어진다.
+  //   (Leva 값은 값이 같으면 같은 객체라서 의존성으로 그대로 쓸 수 있다)
+  const {
+    D선, CB선, CH선, PC선, KB선, TR선, RL선, WK선, EW선, CD선,
+    MS선, LP선, MG선, RK선, EV선, SD선, FL선, PB선, WB선,
+  } = useMemo(
+    () => ({
+      D선: 선뽑기(D),
+      CB선: 선뽑기(CB),
+      CH선: 선뽑기(CH),
+      PC선: 선뽑기(PC),
+      KB선: 선뽑기(KB),
+      TR선: 선뽑기(TR),
+      RL선: 선뽑기(RL),
+      WK선: 선뽑기(WK),
+      EW선: 선뽑기(EW),
+      CD선: 선뽑기(CD),
+      MS선: 선뽑기(MS),
+      LP선: 선뽑기(LP),
+      MG선: 선뽑기(MG),
+      RK선: 선뽑기(CT),
+      EV선: 선뽑기(EV),
+      SD선: 선뽑기(S),
+      FL선: 선뽑기(FL),
+      PB선: 선뽑기(PB),
+      WB선: 선뽑기(WB),
+    }),
+    [D, CB, CH, PC, KB, TR, RL, WK, EW, CD, MS, LP, MG, CT, EV, S, FL, PB, WB],
+  );
 
   // ── 서류 더미 ──────────────────────────────────────────
   // 공통 폴더 없이, 더미마다 전부 따로 조절한다.
@@ -9563,9 +10924,23 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     ),
   );
 
+  // ── 서류 공통 색 ───────────────────────────────────────
+  //   ★ 낱장이 순백(#ffffff)이라 조명 아래서 하얗게 날아가 글줄이 안 읽혔다.
+  //     일곱 폴더의 색을 하나씩 고치는 건 ① 손이 일곱 번 가고 ② 이미 저장된
+  //     값이 코드를 이겨서 화면에 안 나타난다. 그래서 색은 그대로 두고
+  //     **쓸 때 배수로 한 번 눌러** 준다. 1 이면 예전과 똑같다.
+  const SP색 = useSavedControls("서류(공통·색)", {
+    밝기: { value: 0.85, min: 0.4, max: 1, step: 0.01 },
+  });
+
   const 서류틀 = (기본) => ({
     x: { value: 기본.x, min: -20, max: 20, step: 0.1 },
     z: { value: 기본.z, min: -14, max: 14, step: 0.1 },
+    // ★ 켜 두면 아래 「높이」를 무시하고 **책상 윗면**을 따라간다(기본).
+    //   책상을 옮기거나 키워도 종이가 공중에 안 뜬다.
+    //   끄면 아래 「높이」가 그대로 쓰인다 — 일부러 띄우거나, 책상이 없는
+    //   자리(바닥 등)에 두고 손으로 맞출 때.
+    책상에맞추기: 기본.책상에맞추기 ?? true,
     높이: { value: 기본.높이 ?? 2.05, min: 0, max: 6, step: 0.01 },
     회전: { value: 기본.회전, min: -Math.PI, max: Math.PI, step: 0.01 },
     크기: { value: 기본.크기 ?? 1, min: 0.3, max: 3, step: 0.01 },
@@ -9751,7 +11126,38 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
       글씨종류: "체크리스트",
     }),
   );
-  const spLive = [sp1, sp2, sp3, sp4, sp5, sp6, sp8];
+  // ── 서류 높이는 **책상 윗면에서 가져온다** ─────────────────
+  // [왜]
+  //   전에는 「서류N > 높이」와 「책상N > 높이」가 각자 따로 놀았다. 둘이 어긋나면
+  //   서류가 공중에 뜬다 — 실제로 그렇게 떠 있었고, 눈으로는 어느 쪽이 틀렸는지
+  //   알 수가 없다. 책상을 옮기거나 키워도 마찬가지다.
+  //   면 등록소(배치.js)에 **화면에 그려진 책상을 실제로 잰 윗면**이 들어 있으니
+  //   거기서 가져오면 둘이 어긋날 일 자체가 없어진다.
+  //   ★ 면은 GLB 가 다 붙은 뒤에야 등록된다 → use면판() 이 그때 한 번 더 그려 준다.
+  //   ★ 책상 위가 아닌 자리(바닥에 떨어뜨린 서류 등)에는 면이 없다 → Leva 값 그대로.
+  const 면판 = use면판();
+  const spLive = useMemo(
+    () =>
+      [sp1, sp2, sp3, sp4, sp5, sp6, sp8].map((v) => {
+        // 「책상에맞추기」를 끄면 손으로 적은 높이를 그대로 쓴다
+        if (v.책상에맞추기 === false) return v;
+        // ★ 서류끼리는 서로 기준이 되면 안 된다. 서류도 '놓을 수 있는 면'이라
+        //   자기(또는 옆 서류) 윗면을 보면 끝없이 기어오른다.
+        const 윗면 = 면높이(v.x, v.z, (id) => id.startsWith("paper"));
+        // 아주 살짝 파묻어 둔다. 면과 딱 맞추면 두 면이 같은 깊이라 지글거린다.
+        // ★ 0.01 칸(Leva 「높이」의 한 칸)으로 끊는다.
+        //   ① 안 끊으면 2.0500000000000003 같은 값이 나와 '다시재기' 서명이
+        //      매번 달라지고, 종이 외곽선이 한 픽셀씩 떨린다.
+        //   ② 손으로 맞춰 둔 값과 **딱 같은 자리**에 서게 된다(지금 2.05).
+        //      책상을 진짜로 옮기면 0.01 보다 훨씬 크게 움직이므로 그때는 따라간다.
+        return 윗면 === null
+          ? v
+          : { ...v, 높이: Math.round((윗면 - 종이파묻힘) * 100) / 100 };
+      }),
+    // 면판이 바뀌면(책상을 다 재고 나면) 다시 계산한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sp1, sp2, sp3, sp4, sp5, sp6, sp8, 면판],
+  );
 
   // ── 놓기 미리보기 색 ───────────────────────────────────
   //   형광색은 셀셰이딩 톤에서 혼자 튄다. 채도를 낮춘 파스텔이 기본값.
@@ -9881,7 +11287,7 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           y={y}
           scale={MG.크기}
           sizeMul={o.v.개별크기}
-          cCup={MG.컵색}
+          cCup={색밝기(MG.컵색, MG.밝기)}
           cCoffee={MG.커피색}
         />
       );
@@ -9962,8 +11368,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
         thick={o.v.한장두께}
         lean={o.v.무너짐}
         seed={o.v.씨드}
-        paperColor={o.v.종이색}
-        folderColor={o.v.봉투색}
+        paperColor={색밝기(o.v.종이색, SP색.밝기)}
+        folderColor={색밝기(o.v.봉투색, SP색.밝기)}
         clipCount={o.v.집게수}
         stickyCount={o.v.포스트잇수}
         printed={o.v.글자표시}
@@ -10017,7 +11423,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
     높이: { value: DESK_SPOTS[4][5], min: 0.5, max: 2, step: 0.05 },
   });
   // 위 5개 값을 배열로 모아 렌더에서 사용
-  const deskLive = [d1, d2, d3, d4, d5];
+  // 매 렌더 새 배열이면 받는 쪽 memo 가 전부 풀린다 → 값이 같으면 그대로 둔다
+  const deskLive = useMemo(() => [d1, d2, d3, d4, d5], [d1, d2, d3, d4, d5]);
 
   // 값출력 — 콘솔에 현재 전체 배치를 코드로 찍는다(DESK_SPOTS에 붙여 고정)
   // ⚠️ Leva의 button()은 '처음 만들어질 때의 값'을 그대로 붙잡아 둔다(스테일 클로저).
@@ -10065,7 +11472,7 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           "브라우저에 저장된 Leva 값을 모두 지우고 코드 기본값으로 되돌립니다. 계속할까요?",
         )
       ) {
-        localStorage.removeItem(LEVA_KEY);
+        저장전부지우기();
         window.location.reload();
       }
     }),
@@ -10098,6 +11505,305 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
       );
     }),
   });
+
+  // 천장등 — 로비 상태와 무관하다. 같은 원소를 돌려줘 재조정에서 뺀다.
+  const 천장등 = useMemo(
+    () => (
+      <>
+      {/* ── 천장 작업등(수사본부가 설치) — 2×2 균일 격자 ──────────────
+             실제 빛은 여기서 나온다. 낡은 천장에 새로 매단 반구 갓 조명. */}
+      {[
+        [-8, -7],
+        [8, -7],
+        [-8, 7],
+        [8, 7],
+      ].map(([lx, lz], i) => (
+        <WorkLamp
+          key={`ceil${i}`}
+          pos={[lx, lz]}
+          on={CL.켜기 && !S.천장등끄기}
+          drop={CL.내림}
+          크기={CL.크기}
+          갓색={CL.갓색}
+          전구색={CL.전구색}
+          빛세기={CL.빛세기}
+          빛퍼짐={CL.빛퍼짐}
+          번짐={CL.번짐}
+          빛감쇠={CL.빛감쇠}
+          천장번짐={CL.천장번짐}
+          선={RS}
+        />
+      ))}
+      </>
+    ),
+    [CL, S, RS],
+  );
+
+  // 옷걸이들 — 로비 상태와 무관하다. 같은 원소를 돌려줘 재조정에서 뺀다.
+  const 옷걸이들 = useMemo(
+    () => (
+      <>
+      {/* ── 옷걸이 스탠드 2개 ─────────────────────────────── */}
+      {CT.보이기 && (
+        <>
+          {[rk1, rk2].map((r, i) => (
+            <충돌체
+              key={`rack${i}`}
+              이름={`rack${i}`}
+              켬={COL.켜기}
+              여유={COL.여유}
+              다시재기={`${r.x},${r.z},${r.회전},${CT.스탠드높이}`}
+            >
+            <group
+              position={[r.x, 0, r.z]}
+              rotation={[0, r.회전, 0]}
+            >
+              <옷걸이스탠드
+                선={RK선}
+                스탠드색={CT.스탠드색}
+                옷색={r.옷색}
+                높이={CT.스탠드높이}
+                반전={r.좌우반전}
+              />
+            </group>
+            </충돌체>
+          ))}
+        </>
+      )}
+      </>
+    ),
+    [COL, CT, RK선, rk1, rk2],
+  );
+
+  // 책상들 — 로비 상태와 무관하다. 같은 원소를 돌려줘 재조정에서 뺀다.
+  const 책상들 = useMemo(
+    () => (
+      <>
+      {/* 철제 책상 5개 — 각 책상은 개별 Leva 폴더(deskLive)로 실시간 조절.
+          외곽선·주름선은 '책상(공통)' 폴더에서 함께 조절한다. */}
+      <Suspense fallback={null}>
+        {deskLive.map((d, i) => (
+          <충돌체
+            key={`desk${i}`}
+            이름={`desk${i}`}
+            켬={COL.켜기}
+            여유={COL.여유}
+            다시재기={`${d.x},${d.z},${d.회전},${d.가로길이},${d.세로길이},${D.크기}`}
+          >
+          <잰다
+            id={`면:desk${i}`}
+            면
+            다시재기={`${d.x},${d.z},${d.회전},${d.가로길이},${d.세로길이},${d.높이},${D.크기},${D.높이미세}`}
+          >
+          <Desk
+            pos={[d.x, d.z]}
+            rot={d.회전}
+            stretch={d.가로길이}
+            zStretch={d.세로길이}
+            yStretch={d.높이}
+            scale={D.크기}
+            lift={D.높이미세}
+            선={D선}
+            color={DESK_DEBUG ? DESK_COLORS[i] : P.struct}
+          />
+          </잰다>
+          </충돌체>
+        ))}
+      </Suspense>
+      </>
+    ),
+    [COL, D, D선, deskLive],
+  );
+
+  // 컴퓨터들 — 로비 상태와 무관하다. 같은 원소를 돌려줘 재조정에서 뺀다.
+  const 컴퓨터들 = useMemo(
+    () => (
+      <>
+      {/* 책상 위 컴퓨터 3대 — 각 대마다 Leva 폴더(컴퓨터1/2/3)로
+          위치·높이·회전·개별크기를 따로 조절. 크기·색은 공통 폴더에서. */}
+      <Suspense fallback={null}>
+        {pcLive.map((p, i) => (
+          <잰다
+            key={`pc${i}`}
+            id={`pc${i}`}
+            자리
+            다시재기={`${p.x},${p.z},${p.회전},${p.높이},${p.개별크기},${PC.크기}`}
+          >
+          <PcSet
+            선={PC선}
+            pos={[p.x, p.z]}
+            rot={p.회전}
+            y={p.높이}
+            scale={PC.크기}
+            sizeMul={p.개별크기}
+            color={PC.색}
+          />
+          </잰다>
+        ))}
+      </Suspense>
+      </>
+    ),
+    [PC, PC선, pcLive],
+  );
+
+  // ── 방 껍데기 — 바닥·천장·벽·몰딩·기둥 ────────────────────
+  //   [왜 useMemo 로 떼어 두나]
+  //   Scene 은 로비 상태(서랍·든것·의자)를 통째로 구독한다. 서랍 한 칸을
+  //   여는 데만 45ms 간격으로 네 번 갱신이 오고, 그때마다 이 컴포넌트가
+  //   다시 돌면서 **방 안의 리액트 원소 전부**를 새로 만든다.
+  //   그런데 껍데기는 그 상태와 아무 상관이 없다 — 바닥·천장·벽·몰딩·기둥은
+  //   Leva 값이 바뀔 때만 달라진다.
+  //   같은 원소를 그대로 돌려주면 리액트는 그 가지를 통째로 건너뛴다
+  //   (pendingProps 가 같으면 bailout — 자식까지 안 들어간다).
+  //   ※ 의존성의 MAT·CD·RS·WK 는 useSavedControls(=leva) 값이다.
+  //     leva 는 zustand 의 shallow 비교로 **값이 그대로면 같은 객체**를 돌려주므로,
+  //     손잡이를 돌리면 참조가 바뀌어 여기도 곧바로 다시 그려진다.
+  //     Leva 로 맞춰 둔 값이 안 먹는 일은 없다.
+  const 방껍데기 = useMemo(
+    () => (
+      <>
+      {/* ── 바닥 — 폐역 개조: 유리 통로 없애고 전체를 타일 한 판으로 ─────
+          (중앙 우주 통로를 걷어내고 바닥을 꽉 채운 낡은 타일로 통일한다) */}
+      <mesh
+        rotation={[-Math.PI / 2, 0, 0]}
+        position={[ROOM_CX, 0, ROOM_CZ]}
+        geometry={바닥geo}
+        receiveShadow
+      >
+        <meshToonMaterial
+          color={MAT.바닥색}
+          map={바닥텍}
+          gradientMap={TOON_GRADIENT}
+          vertexColors
+        />
+      </mesh>
+
+      {/* ── 천장 — 폐역 개조: 채광창(우주) 없애고 낡은 평천장 한 장으로 ───── */}
+      <mesh
+        rotation={[Math.PI / 2, 0, 0]}
+        position={[ROOM_CX, ROOM_H, ROOM_CZ]}
+        geometry={천장geo}
+        receiveShadow
+      >
+        <meshToonMaterial
+          color={MAT.천장색}
+          map={천장텍}
+          gradientMap={TOON_GRADIENT}
+          vertexColors
+          /* emissive = 빛을 안 받아도 스스로 내는 색.
+             천장색과 같은 색으로 아주 약하게 깔아 '검게 죽는 것'만 막는다. */
+          emissive={MAT.천장색}
+          emissiveIntensity={MAT.천장자체밝기}
+        />
+      </mesh>
+
+      {/* ── 벽 (아래 굽 + 위 본체) — 폐역 개조 ─────────────────────
+          좌표를 ROOM_W/ROOM_D에서 계산해 방 크기를 바꿔도 벽이 따라온다.
+          오른쪽(+x) 벽은 제거 — 기차가 들어와 벽 역할을 하는 자리라 비운다. */}
+      <group position={[ROOM_CX, 0, ROOM_CZ]}>
+        {[
+          [0, -ROOM_D / 2, 0], // 앞벽(뒤쪽)
+          [0, ROOM_D / 2, Math.PI], // 뒷벽(앞쪽)
+          [-ROOM_W / 2, 0, Math.PI / 2], // 왼쪽 벽
+          // 오른쪽 벽 없음(기차 자리)
+        ].map(([x, z, ry], i) => {
+          const side = i >= 2; // 0,1 = 앞뒤(긴 벽) / 2 = 왼쪽(짧은 벽)
+          // ★ 앞·뒷벽은 기차 앞에서 끊는다.
+          //   원래는 x=+16 까지 꽉 차 있어서, 기차가 방을 빠져나가는 양 끝을
+          //   벽이 가로막고 서 있었다. 후퇴시킨 만큼(기본 4유닛) 짧게 만들고
+          //   그 끊긴 자리는 아래 <부서진벽끝> 이 들쭉날쭉하게 마감한다.
+          //   폭을 줄인 만큼 중심도 옮겨야 '왼쪽 끝(-20)'은 그대로 남는다.
+          //   i=1 은 180° 돌아간 벽이라 오프셋 부호가 반대다.
+          // i=0 → 앞벽(z=-14) / i=1 → 뒷벽(z=+12). 후퇴를 따로 준다.
+          //   후퇴가 음수면 벽이 x=+16 을 넘어 기차 쪽으로 더 뻗는다.
+          // 벽이 끝나는 x 를 직접 받아 '얼마나 물러났는지'로 되돌린다.
+          const 후퇴 = 16 - (i === 1 ? WK.뒷벽끝x : WK.앞벽끝x);
+          const w = side ? ROOM_D : ROOM_W - 후퇴;
+          const xOff = side ? 0 : (i === 1 ? 1 : -1) * (후퇴 / 2);
+
+          // ★ 왼쪽 벽(i===2)에 비밀 통로용 '진짜 구멍'을 뚫는다.
+          //   ─ 왜 벽을 쪼개나?
+          //     구멍 앞에 문짝만 세우면 '벽에 기대 놓은 판때기'로 보인다.
+          //     벽 자체를 그 자리만 안 그려야 비로소 '뚫렸다'가 된다.
+          //   ─ 좌표 주의:
+          //     이 벽은 rotation Y = 90°. three.js 에서 Y축 90° 회전은
+          //     로컬 +X 를 월드 -Z 로 보낸다. 그래서
+          //         로컬x = ROOM_CZ - 월드z
+          //     문 위치(CD.문z)는 월드 z 기준이라 이렇게 변환해야 한다.
+          const 구멍 = side && CD.보이기;
+          const dx = ROOM_CZ - CD.문z; // 문 중심(벽 로컬 x)
+          const 반 = CD.문폭 / 2;
+          const 왼끝 = -w / 2,
+            오른끝 = w / 2;
+
+          // 그릴 판 목록을 먼저 계산한다.
+          //   구멍이 없으면 통짜 2장(위 본체 + 아래 굽),
+          //   있으면 좌 조각 + 우 조각 + 인방(문 위 남는 벽).
+          const 판목록 = [];
+          const 통짜 = (pw, px) => {
+            판목록.push({ w: pw, xOff: px, h: 8, y0: 4, color: MAT.벽색 });
+            판목록.push({
+              w: pw,
+              xOff: px,
+              h: 4,
+              y0: 0,
+              color: MAT.벽아랫단색,
+            });
+          };
+          if (!구멍) {
+            통짜(w, xOff);
+          } else {
+            const wL = dx - 반 - 왼끝; // 문 왼쪽에 남는 벽 폭
+            const wR = 오른끝 - (dx + 반); // 문 오른쪽에 남는 벽 폭
+            if (wL > 0.01) 통짜(wL, 왼끝 + wL / 2);
+            if (wR > 0.01) 통짜(wR, 오른끝 - wR / 2);
+            // 인방 = 문 위에 남는 벽. 문높이부터 천장까지.
+            const 인방h = ROOM_H - CD.문높이;
+            if (인방h > 0.01)
+              판목록.push({
+                w: CD.문폭,
+                xOff: dx,
+                h: 인방h,
+                y0: CD.문높이,
+                color: MAT.벽색,
+              });
+          }
+
+          return (
+            <group key={i} position={[x, 0, z]} rotation={[0, ry, 0]}>
+              {판목록.map((p, k) => (
+                <WallPanel
+                  key={k}
+                  w={p.w}
+                  xOff={p.xOff}
+                  h={p.h}
+                  y0={p.y0}
+                  color={p.color}
+                  seed={MAT.벽시드 + i}
+                  얼룩={MAT.벽얼룩}
+                  낡음={MAT.벽낡음}
+                />
+              ))}
+            </group>
+          );
+        })}
+      </group>
+
+      {/* (폐역 개조: 옛 채광창 구조의 천장 격자보 제거 —
+          낡은 평천장으로 바꿨으므로 불필요. 천장 디테일은 나중에 전등·질감으로) */}
+
+      {/* 걸레받이·허리몰딩·코니스·모서리 기둥·부축기둥 */}
+      <RoomShell
+        선={RS}
+        문={CD.보이기 ? { z: CD.문z, 폭: CD.문폭, 높이: CD.문높이 } : null}
+      />
+
+      {/* 구조 기둥 — 폐역 개조: 오른쪽 1개만 (왼쪽은 책상 구역이라 제거) */}
+      <Column x={8} z={0} 선={RS} />
+      </>
+    ),
+    [MAT, CD, RS, WK, 바닥geo, 바닥텍, 천장geo, 천장텍],
+  );
 
   return (
     <>
@@ -10188,7 +11894,6 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           천장색={BG.확장천장색}
           천장시드={MAT.천장시드}
           천장낡음={MAT.천장낡음}
-          천장얼룩={MAT.천장얼룩}
           타일={BG.타일}
           무너짐={BG.무너짐}
           처짐={BG.처짐}
@@ -10216,6 +11921,21 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           Preload all 은 시작할 때 숨겨진 것까지 전부 잠깐 켜서 한 번에 컴파일해 둔다.
           첫 로딩이 조금 길어지는 대신, 게임 중에는 컴파일이 일어나지 않는다.
           (구역 컬링으로 꺼둔 그룹도 포함해서 컴파일한다) */}
+
+      {/* 그림자 맵 관리 — 매 프레임 다시 그리지 않는다(공용.jsx 설명 참고).
+             ★ 성능 폴더에서 끌 수 있다. 끄면 예전처럼 매 프레임 다시 그린다. */}
+      {/* 셰이더 미리 데우기 — 처음 보는 재질의 컴파일(수백 ms)을 로딩 때 끝낸다 */}
+      <셰이더예열 켬={PF.셰이더예열} />
+      <그림자관리
+        켬={PF.그림자아끼기}
+        급할때간격={PF.그림자간격}
+        느린주기={PF.그림자안전망}
+      />
+
+      {/* 충돌 박스 보기 — Leva 「사물 충돌 > 보기」.
+             ★ 스위치는 있는데 이 줄이 빠져 있어서 **켜도 아무 일도 안 났다.**
+               꺼 두면 null 만 돌려주므로 평소에는 값이 하나도 안 든다. */}
+      <충돌박스보기 보이기={COL.보기} 높이={COL.보기높이} />
 
       {/* 구역 스위치 — 플레이어 위치로 안 보이는 구역을 통째로 끈다 */}
       <구역스위치
@@ -10274,16 +11994,7 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
               /* 물방울이 시작하는 높이 — 천장 배관 언저리 */
               천장y={CD.높이 - 0.9}
               seed={MAT.바닥시드 + 4711}
-              밝기={(z) =>
-                복도깊이밝기(z, {
-                  문z: CD.문z,
-                  감쇠: CD.감쇠거리,
-                  어둠: CD.깊이어둠,
-                  최소밝기: CD.최소밝기,
-                  끝어둠: CD.끝쪽어둠,
-                  끝기울기: CD.끝쪽기울기,
-                  z0: CD.z시작,
-                })
+              밝기={복도밝기
               }
               크기={CD.잡동사니크기}
               선={CD선}
@@ -10309,16 +12020,7 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
               바닥색={CD.바닥색}
               벽색={CD.벽색}
               seed={MAT.바닥시드 + 909}
-              밝기={(z) =>
-                복도깊이밝기(z, {
-                  문z: CD.문z,
-                  감쇠: CD.감쇠거리,
-                  어둠: CD.깊이어둠,
-                  최소밝기: CD.최소밝기,
-                  끝어둠: CD.끝쪽어둠,
-                  끝기울기: CD.끝쪽기울기,
-                  z0: CD.z시작,
-                })
+              밝기={복도밝기
               }
             />
           )}
@@ -10381,17 +12083,13 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
               여닫이켬
               문열림각={CD.배전반문열림각}
               속={배전반속}
+              강조설정={HL}
+              /* 꽂힌 관창은 소화전함에서 온 그 자루다 — 색도 그쪽을 따른다 */
+              관창색={소화전속.금속색}
               천장높이={CD.높이}
               전선관색={CD.배관색}
               밝기={
-                복도깊이밝기(
-                  CD.z시작 + (CD.z끝 - CD.z시작) * CD.배전반z비율,
-                  {
-                    문z: CD.문z, 감쇠: CD.감쇠거리, 어둠: CD.깊이어둠,
-                    최소밝기: CD.최소밝기, 끝어둠: CD.끝쪽어둠,
-                    끝기울기: CD.끝쪽기울기, z0: CD.z시작,
-                  },
-                ) * CD.벽밝기
+                복도밝기(CD.z시작 + (CD.z끝 - CD.z시작) * CD.배전반z비율) * CD.벽밝기
               }
               선={CD선}
             />
@@ -10412,19 +12110,76 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
               라벨바탕={CD.소화전라벨색}
               선색={CD선?.외곽선색}
               때={CD.함때}
-              전선관={false}
+              전선관={소화전밑.보이기}
+              관모양="아래옆"
+              관끝z={소화전밑.끝자리}
+              관따라밀기={비밀자판CD.관도따라}
+              관꺾임높이={소화전밑.꺾임높이}
+              관간격={소화전밑.좌우여백}
+              관높이차={소화전밑.위아래간격}
+              관굽힘={소화전밑.굽힘}
+              관굵기={소화전밑.굵기}
+              관앞으로={소화전밑.벽에서}
+              관치우침={소화전밑.치우침}
+              천장높이={CD.높이}
+              전선관색={소화전밑.색}
               여닫이켬
+              잠김={소화전잠김}
               문열림각={CD.소화전문열림각}
               속={소화전속}
+              강조설정={HL}
               밝기={
-                복도깊이밝기(
-                  CD.z시작 + (CD.z끝 - CD.z시작) * CD.소화전z비율,
-                  {
-                    문z: CD.문z, 감쇠: CD.감쇠거리, 어둠: CD.깊이어둠,
-                    최소밝기: CD.최소밝기, 끝어둠: CD.끝쪽어둠,
-                    끝기울기: CD.끝쪽기울기, z0: CD.z시작,
-                  },
-                ) * CD.벽밝기
+                복도밝기(CD.z시작 + (CD.z끝 - CD.z시작) * CD.소화전z비율) * CD.벽밝기
+              }
+              선={CD선}
+            />
+          )}
+          {/* ★ 자물쇠를 숨겨도 걸쇠는 남아야 하므로, 셋 중 하나라도 켜져 있으면 그린다 */}
+          {(자물쇠CD.보이기 ||
+            걸쇠문쪽CD.보이기 ||
+            걸쇠테두리쪽CD.보이기) && (
+            <번호자물쇠
+              위치={[자물쇠CD.x, 자물쇠CD.y, 자물쇠CD.z]}
+              회전={[0, (자물쇠CD.회전도 * Math.PI) / 180, 0]}
+              자물쇠좌우={자물쇠CD.자물쇠좌우}
+              자물쇠위아래={자물쇠CD.자물쇠위아래}
+              자물쇠깊이={자물쇠CD.자물쇠깊이}
+              자물쇠보이기={자물쇠CD.보이기}
+              길보기={자물쇠CD.숨길때길보기}
+              크기={자물쇠CD.크기}
+              폭={자물쇠CD.폭}
+              높이={자물쇠CD.높이}
+              깊이={자물쇠CD.깊이}
+              옆둥글기={자물쇠CD.옆둥글기}
+              잠금id={소화전문id}
+              정답={자물쇠CD.정답}
+              조작거리={자물쇠CD.조작거리}
+              고리반지름={자물쇠CD.고리반지름}
+              고리굵기={자물쇠CD.고리굵기}
+              고리높이={자물쇠CD.고리높이}
+              칸수={자물쇠CD.칸수}
+              다이얼띠={자물쇠CD.다이얼띠}
+              뽑을글자={자물쇠CD.뽑을글자}
+              칸글자수={자물쇠CD.칸글자수}
+              글자씨={자물쇠CD.글자씨}
+              맞춤={[
+                자물쇠CD.맞춤1, 자물쇠CD.맞춤2, 자물쇠CD.맞춤3,
+                자물쇠CD.맞춤4, 자물쇠CD.맞춤5,
+              ]}
+              문걸쇠={걸쇠문쪽CD}
+              틀걸쇠={걸쇠테두리쪽CD}
+              쇠색={자물쇠CD.쇠색}
+              다이얼색={자물쇠CD.다이얼색}
+              글자색={자물쇠CD.글자색}
+              칸선={자물쇠CD.칸선}
+              칸선색={자물쇠CD.칸선색}
+              칸선굵기={자물쇠CD.칸선굵기}
+              칸선높이={자물쇠CD.칸선높이}
+              표식={자물쇠CD.표식}
+              표식색={자물쇠CD.표식색}
+              표식크기={자물쇠CD.표식크기}
+              밝기={
+                복도밝기(CD.z시작 + (CD.z끝 - CD.z시작) * CD.소화전z비율) * CD.벽밝기
               }
               선={CD선}
             />
@@ -10472,17 +12227,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
                   seed={i + 1}
                   /* 문도 복도와 같은 규칙으로 어두워진다 */
                   밝기={
-                    복도깊이밝기(zz, {
-                      문z: CD.문z,
-                      감쇠: CD.감쇠거리,
-                      어둠: CD.깊이어둠,
-                      최소밝기: CD.최소밝기,
-                      끝어둠: CD.끝쪽어둠,
-                      끝기울기: CD.끝쪽기울기,
-                      z0: CD.z시작,
-                    }) * CD.측면문밝기
+                    복도밝기(zz) * CD.측면문밝기
                   }
-                  선={CD선}
                 />
               );
             })}
@@ -10511,19 +12257,14 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
               /* 문도 복도와 같은 규칙으로 어두워져야 따로 노는 느낌이 안 난다.
                  (유도등만 basic 재질이라 이 감광을 안 받는다 — 의도한 것) */
               밝기={
-                복도깊이밝기(CD.z시작, {
-                  문z: CD.문z,
-                  감쇠: CD.감쇠거리,
-                  어둠: CD.깊이어둠,
-                  최소밝기: CD.최소밝기,
-                  끝어둠: CD.끝쪽어둠,
-                  끝기울기: CD.끝쪽기울기,
-                  z0: CD.z시작,
-                }) * CD.끝문밝기보정
+                복도밝기(CD.z시작) * CD.끝문밝기보정
               }
               선={CD선}
             />
           )}
+
+          {/* 바닥에 버린 힌트 쪽지 — 동전과 같은 '바닥에 놓인 것' 이다 */}
+          <바닥힌트종이 선={CD선} />
 
           {/* ── 자판기 2대 ───────────────────────────────────
                  바깥벽에 등을 대고 정면(로컬 +z)이 복도 안쪽을 보도록
@@ -10531,26 +12272,77 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
                  — 안 그러면 복도 끝에서 자판기만 혼자 환하게 뜬다. */}
           {CD.자판기보이기 &&
             (() => {
-              const 깊이규칙 = {
-                문z: CD.문z,
-                감쇠: CD.감쇠거리,
-                어둠: CD.깊이어둠,
-                최소밝기: CD.최소밝기,
-                끝어둠: CD.끝쪽어둠,
-                끝기울기: CD.끝쪽기울기,
-                z0: CD.z시작,
-              };
               const zc = 음료자판CD.위치z;
               const zk = 커피자판CD.위치z;
+              // ── 비밀문: 밸브가 돌면 음료 자판기가 문을 비켜서 밀린다 ──
+              //   자동맞춤 = 문(문z·문폭) 을 **완전히 비켜서는** 자리까지.
+              //     문 오른쪽 끝 + 자판기 반쪽 + 여유 = 자판기가 서야 할 z.
+              //   ★ 문 자리를 Leva 로 옮겨도 따라온다(숫자를 박아 두지 않는다).
+              //   ★ 방향은 **자판기가 이미 서 있는 쪽**으로 간다(문을 지나쳐
+              //     되돌아오지 않게). 거리는 ① 문을 완전히 비키는 만큼과
+              //     ② 자판기 한 대 폭 중 **큰 쪽**이다 — 이미 문을 안 가리고
+              //     있어도 "쓰윽 비켜서는" 게 눈에 보여야 한다.
+              const 밀방향 = zc >= CD.문z ? 1 : -1;
+              const 비켜야 =
+                CD.문폭 / 2 +
+                음료자판CD.가로길이 / 2 +
+                비밀자판CD.여유 -
+                Math.abs(zc - CD.문z);
+              const 밀거리 = 비밀자판CD.자동맞춤
+                ? 밀방향 * Math.max(음료자판CD.가로길이, 비켜야)
+                : 비밀자판CD.이동z;
               return (
                 <>
+                  {/* ★ 밸브가 돌면 화면이 여기로 넘어와 밀리는 걸 보여 준다.
+                         먼지·떨림까지 이 컴포넌트가 맡는다(자판기연출.jsx). */}
+                  <자판기연출
+                    대상ref={음료자판밀ref}
+                    켬={비밀자판CD.켬}
+                    미리보기={비밀자판CD.미리보기}
+                    거리={밀거리}
+                    시간={비밀자판CD.시간}
+                    감시간={비밀자판CD.넘어가는시간}
+                    /* 카메라가 설 자리 — 복도 가운데서 자판기를 비스듬히 본다.
+                       ★ 밀린 뒤 자리(zc + 밀거리)를 같이 보게 두 자리의
+                         가운데를 본다. 안 그러면 다 밀린 자판기가 화면 밖이다. */
+                    보는점={() => [
+                      음료자판CD.위치x - 비밀자판CD.보는거리,
+                      CAM.눈높이 + 비밀자판CD.보는높이,
+                      zc + 밀거리 / 2 - 비밀자판CD.보는치우침,
+                    ]}
+                    보는곳={() => [
+                      음료자판CD.위치x,
+                      음료자판CD.위치y +
+                        음료자판CD.세로길이 * 비밀자판CD.보는겨냥,
+                      zc + 밀거리 / 2,
+                    ]}
+                    먼지자리={() => [
+                      음료자판CD.위치x - CD.자판기깊이 / 2,
+                      음료자판CD.위치y + 0.12,
+                      zc + 밀림() * 0.5,
+                    ]}
+                    먼지수={비밀자판CD.먼지수}
+                    먼지색={비밀자판CD.먼지색}
+                    먼지크기={비밀자판CD.먼지크기}
+                    먼지세기={비밀자판CD.먼지세기}
+                    먼지퍼짐={음료자판CD.가로길이 * 0.8}
+                    흔들림={비밀자판CD.흔들림}
+                  />
+                  {/* ★ 자판기만 이 그룹에 넣는다. 커피 자판기는 제자리다. */}
+                  <group ref={음료자판밀ref}>
                   <캔자판기
+                    배출닫힘각도={음료자판CD.배출닫힘각도}
+                    배출열림각도={음료자판CD.배출열림각도}
+                    배출덮개높이={음료자판CD.배출덮개높이}
+                    배출혀={음료자판CD.배출혀}
+                    배출앞턱비={음료자판CD.배출앞턱비}
                     위치={[음료자판CD.위치x, 음료자판CD.위치y, zc]}
                     회전={(음료자판CD.회전도 * Math.PI) / 180}
                     폭={음료자판CD.가로길이}
                     높이={음료자판CD.세로길이}
                     깊이={CD.자판기깊이}
                     몸통색={음료자판CD.몸통색}
+                    뒷면색={음료자판CD.뒷면색}
                     테색={음료자판CD.테색}
                     간판색={음료자판CD.간판색}
                     간판글자색={음료자판CD.간판글자색}
@@ -10563,16 +12355,17 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
                     /* Leva 값이 있으면 그게 이긴다(연출 확인용).
                        평소에는 버튼을 눌러 나온 것을 보여 준다. */
                     뽑힌캔={
-                      CD.음료뽑힌캔 >= 0
-                        ? CD.음료뽑힌캔
+                      CD.음료뽑힌캔강제 >= 0
+                        ? CD.음료뽑힌캔강제
                         : 음료자판상태.나온것 >= 0
                           ? 음료자판상태.나온것
                           : null
                     }
-                    밝기={복도깊이밝기(zc, 깊이규칙)}
+                    밝기={복도밝기(zc)}
                     선={음료자판선}
                     내부선={음료자판내부선}
                   />
+                  </group>
                   <커피자판기
                     위치={[커피자판CD.위치x, 커피자판CD.위치y, zk]}
                     회전={(커피자판CD.회전도 * Math.PI) / 180}
@@ -10596,13 +12389,166 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
                     }
                     컵있음={CD.커피컵 || 커피자판상태.컵}
                     문열림={CD.커피문열림}
-                    밝기={복도깊이밝기(zk, 깊이규칙)}
+                    문열림각={커피자판CD.문열림각}
+                    밝기={복도밝기(zk)}
                     선={커피자판선}
                     내부선={커피자판내부선}
                   />
                 </>
               );
             })()}
+
+          {/* ── 동전 2개 — 비밀 복도 자판기 앞 바닥 ─────────────────
+                 자판기와 같은 깊이 감광(복도밝기)을 먹여 혼자 안 뜨게 한다. */}
+          {동전CD.보이기 && (
+            <>
+              {/* 캔 동전(음료 자판기용) — 바닥 또는 음료 반환구에 있을 때만 그린다.
+                    (손에 들었거나 자판기에 넣어 사라졌으면 여기선 안 그림) */}
+              {동전위치("캔") === "바닥" && (
+                <>
+                  <상호대상
+                    id="동전줍기:캔"
+                    반경={0.28}
+                    거리={4}
+                    위치={() =>
+                      놓인위치("캔") ?? [동전CD.캔바닥x, 동전CD.바닥y, 동전CD.캔바닥z]
+                    }
+                    라벨=""
+                    끔={() => !!든동전() || 관창곳() === "손"}
+                    실행={() => 줍기("캔")}
+                  />
+                  <동전낙하
+                    종류="캔"
+                    위치={
+                      놓인위치("캔") ?? [동전CD.캔바닥x, 동전CD.바닥y, 동전CD.캔바닥z]
+                    }
+                    띄우기={동전CD.동전두께2 / 2}
+                  >
+                    {/* 겨냥하면 밝아진다 — 주울 수 있는 물건이라는 표시 */}
+                    <강조 id="동전줍기:캔" 기준={() => [0, 0, 0]} 확대={0.14}>
+  <동전
+                        위치={[0, 0, 0]}
+                        회전={[0, 동전CD.캔회전, 0]}
+                        무늬="캔"
+                        색={동전CD.캔색}
+                        무늬색={동전CD.캔무늬색}
+                        반지름={동전CD.동전크기}
+                        두께={동전CD.동전두께2}
+                        밝기={복도밝기((놓인위치("캔") ?? [0, 0, 동전CD.캔바닥z])[2])}
+                        선={동전선}
+                      />
+                    </강조>
+                  </동전낙하>
+                </>
+              )}
+              {동전위치("캔") === "반환:커피" && (
+                <>
+                  <상호대상
+                    id="동전줍기:캔"
+                    반경={0.28}
+                    거리={4}
+                    위치={() => [(반환앞자리("커피") ?? 동전CD.커피반환)[0], 동전CD.바닥y, (반환앞자리("커피") ?? 동전CD.커피반환)[2]]}
+                    라벨=""
+                    끔={() => !!든동전() || 관창곳() === "손"}
+                    실행={() => 줍기("캔")}
+                  />
+                  <동전낙하
+                    종류="캔"
+                    시작={반환구자리("커피")}
+                    위치={[(반환앞자리("커피") ?? 동전CD.커피반환)[0], 동전CD.바닥y, (반환앞자리("커피") ?? 동전CD.커피반환)[2]]}
+                    띄우기={동전CD.동전두께2 / 2}
+                  >
+                    {/* 겨냥하면 밝아진다 — 주울 수 있는 물건이라는 표시 */}
+                    <강조 id="동전줍기:캔" 기준={() => [0, 0, 0]} 확대={0.14}>
+  <동전
+                        위치={[0, 0, 0]}
+                        회전={[0, 동전CD.캔회전, 0]}
+                        무늬="캔"
+                        색={동전CD.캔색}
+                        무늬색={동전CD.캔무늬색}
+                        반지름={동전CD.동전크기}
+                        두께={동전CD.동전두께2}
+                        밝기={복도밝기([(반환앞자리("커피") ?? 동전CD.커피반환)[0], 동전CD.바닥y, (반환앞자리("커피") ?? 동전CD.커피반환)[2]][2])}
+                        선={동전선}
+                      />
+                    </강조>
+                  </동전낙하>
+                </>
+              )}
+              {/* 종이컵 동전(커피 자판기용) */}
+              {동전위치("종이컵") === "바닥" && (
+                <>
+                  <상호대상
+                    id="동전줍기:종이컵"
+                    반경={0.28}
+                    거리={4}
+                    위치={() =>
+                      놓인위치("종이컵") ?? [동전CD.컵바닥x, 동전CD.바닥y, 동전CD.컵바닥z]
+                    }
+                    라벨=""
+                    끔={() => !!든동전() || 관창곳() === "손"}
+                    실행={() => 줍기("종이컵")}
+                  />
+                  <동전낙하
+                    종류="종이컵"
+                    위치={
+                      놓인위치("종이컵") ?? [동전CD.컵바닥x, 동전CD.바닥y, 동전CD.컵바닥z]
+                    }
+                    띄우기={동전CD.동전두께2 / 2}
+                  >
+                    {/* 겨냥하면 밝아진다 — 주울 수 있는 물건이라는 표시 */}
+                    <강조 id="동전줍기:종이컵" 기준={() => [0, 0, 0]} 확대={0.14}>
+  <동전
+                        위치={[0, 0, 0]}
+                        회전={[0, 동전CD.컵회전, 0]}
+                        무늬="종이컵"
+                        색={동전CD.컵색}
+                        무늬색={동전CD.컵무늬색}
+                        반지름={동전CD.동전크기}
+                        두께={동전CD.동전두께2}
+                        밝기={복도밝기((놓인위치("종이컵") ?? [0, 0, 동전CD.컵바닥z])[2])}
+                        선={동전선}
+                      />
+                    </강조>
+                  </동전낙하>
+                </>
+              )}
+              {동전위치("종이컵") === "반환:음료" && (
+                <>
+                  <상호대상
+                    id="동전줍기:종이컵"
+                    반경={0.28}
+                    거리={4}
+                    위치={() => [(반환앞자리("음료") ?? 동전CD.음료반환)[0], 동전CD.바닥y, (반환앞자리("음료") ?? 동전CD.음료반환)[2]]}
+                    라벨=""
+                    끔={() => !!든동전() || 관창곳() === "손"}
+                    실행={() => 줍기("종이컵")}
+                  />
+                  <동전낙하
+                    종류="종이컵"
+                    시작={반환구자리("음료")}
+                    위치={[(반환앞자리("음료") ?? 동전CD.음료반환)[0], 동전CD.바닥y, (반환앞자리("음료") ?? 동전CD.음료반환)[2]]}
+                    띄우기={동전CD.동전두께2 / 2}
+                  >
+                    {/* 겨냥하면 밝아진다 — 주울 수 있는 물건이라는 표시 */}
+                    <강조 id="동전줍기:종이컵" 기준={() => [0, 0, 0]} 확대={0.14}>
+  <동전
+                        위치={[0, 0, 0]}
+                        회전={[0, 동전CD.컵회전, 0]}
+                        무늬="종이컵"
+                        색={동전CD.컵색}
+                        무늬색={동전CD.컵무늬색}
+                        반지름={동전CD.동전크기}
+                        두께={동전CD.동전두께2}
+                        밝기={복도밝기([(반환앞자리("음료") ?? 동전CD.음료반환)[0], 동전CD.바닥y, (반환앞자리("음료") ?? 동전CD.음료반환)[2]][2])}
+                        선={동전선}
+                      />
+                    </강조>
+                  </동전낙하>
+                </>
+              )}
+            </>
+          )}
 
           {/* 구멍의 테두리 — 리빌(안쪽 단면) + 찢어진 가장자리 + 발치 잔해.
                  벽 자체의 구멍은 아래 '벽' 블록에서 판을 쪼개 뚫는다. */}
@@ -10626,7 +12572,6 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
               문높이={CD.문높이}
               두께={CD.문두께}
               열림={CD.열림}
-              벽색={CD.벽색}
               잔해색={CD.잔해색}
               거칠기={CD.거칠기}
               선={CD선}
@@ -10762,6 +12707,7 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
             어둠색={TR.어둠색}
             문열림폭={TR.문열림폭}
             문옵션={문설정}
+            발판={발판설정}
             선={TR선}
           />
         </Suspense>
@@ -10769,30 +12715,8 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
       </group>
 
       <group ref={방ref}>
-      {/* ── 천장 작업등(수사본부가 설치) — 2×2 균일 격자 ──────────────
-             실제 빛은 여기서 나온다. 낡은 천장에 새로 매단 반구 갓 조명. */}
-      {[
-        [-8, -7],
-        [8, -7],
-        [-8, 7],
-        [8, 7],
-      ].map(([lx, lz], i) => (
-        <WorkLamp
-          key={`ceil${i}`}
-          pos={[lx, lz]}
-          on={CL.켜기 && !S.천장등끄기}
-          drop={CL.내림}
-          크기={CL.크기}
-          갓색={CL.갓색}
-          전구색={CL.전구색}
-          빛세기={CL.빛세기}
-          빛퍼짐={CL.빛퍼짐}
-          번짐={CL.번짐}
-          빛감쇠={CL.빛감쇠}
-          천장번짐={CL.천장번짐}
-          선={RS}
-        />
-      ))}
+      {/* 천장등 — 위 useMemo 참고 */}
+      {천장등}
 
       {/* ── 스탠드 조명 3개 ──────────────────────────────
              천장등을 끄고 이 좁은 빛 웅덩이들만 남기면 '야간 수사' 톤이 된다.
@@ -10976,232 +12900,22 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           );
         })}
 
-      {/* ── 옷걸이 스탠드 2개 ─────────────────────────────── */}
-      {CT.보이기 && (
-        <>
-          {[rk1, rk2].map((r, i) => (
-            <충돌체
-              key={`rack${i}`}
-              이름={`rack${i}`}
-              켬={COL.켜기}
-              여유={COL.여유}
-              다시재기={`${r.x},${r.z},${r.회전},${CT.스탠드높이}`}
-            >
-            <group
-              position={[r.x, 0, r.z]}
-              rotation={[0, r.회전, 0]}
-            >
-              <옷걸이스탠드
-                선={RK선}
-                스탠드색={CT.스탠드색}
-                옷색={r.옷색}
-                높이={CT.스탠드높이}
-                반전={r.좌우반전}
-              />
-            </group>
-            </충돌체>
-          ))}
-        </>
-      )}
+      {/* 옷걸이들 — 위 useMemo 참고 */}
+      {옷걸이들}
 
-      {/* ── 바닥 — 폐역 개조: 유리 통로 없애고 전체를 타일 한 판으로 ─────
-          (중앙 우주 통로를 걷어내고 바닥을 꽉 채운 낡은 타일로 통일한다) */}
-      <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
-        position={[ROOM_CX, 0, ROOM_CZ]}
-        geometry={바닥geo}
-        receiveShadow
-      >
-        <meshToonMaterial
-          color={MAT.바닥색}
-          map={바닥텍}
-          gradientMap={TOON_GRADIENT}
-          vertexColors
-        />
-      </mesh>
-
-      {/* ── 천장 — 폐역 개조: 채광창(우주) 없애고 낡은 평천장 한 장으로 ───── */}
-      <mesh
-        rotation={[Math.PI / 2, 0, 0]}
-        position={[ROOM_CX, ROOM_H, ROOM_CZ]}
-        geometry={천장geo}
-        receiveShadow
-      >
-        <meshToonMaterial
-          color={MAT.천장색}
-          map={천장텍}
-          gradientMap={TOON_GRADIENT}
-          vertexColors
-          /* emissive = 빛을 안 받아도 스스로 내는 색.
-             천장색과 같은 색으로 아주 약하게 깔아 '검게 죽는 것'만 막는다. */
-          emissive={MAT.천장색}
-          emissiveIntensity={MAT.천장자체밝기}
-        />
-      </mesh>
-
-      {/* ── 벽 (아래 굽 + 위 본체) — 폐역 개조 ─────────────────────
-          좌표를 ROOM_W/ROOM_D에서 계산해 방 크기를 바꿔도 벽이 따라온다.
-          오른쪽(+x) 벽은 제거 — 기차가 들어와 벽 역할을 하는 자리라 비운다. */}
-      <group position={[ROOM_CX, 0, ROOM_CZ]}>
-        {[
-          [0, -ROOM_D / 2, 0], // 앞벽(뒤쪽)
-          [0, ROOM_D / 2, Math.PI], // 뒷벽(앞쪽)
-          [-ROOM_W / 2, 0, Math.PI / 2], // 왼쪽 벽
-          // 오른쪽 벽 없음(기차 자리)
-        ].map(([x, z, ry], i) => {
-          const side = i >= 2; // 0,1 = 앞뒤(긴 벽) / 2 = 왼쪽(짧은 벽)
-          // ★ 앞·뒷벽은 기차 앞에서 끊는다.
-          //   원래는 x=+16 까지 꽉 차 있어서, 기차가 방을 빠져나가는 양 끝을
-          //   벽이 가로막고 서 있었다. 후퇴시킨 만큼(기본 4유닛) 짧게 만들고
-          //   그 끊긴 자리는 아래 <부서진벽끝> 이 들쭉날쭉하게 마감한다.
-          //   폭을 줄인 만큼 중심도 옮겨야 '왼쪽 끝(-20)'은 그대로 남는다.
-          //   i=1 은 180° 돌아간 벽이라 오프셋 부호가 반대다.
-          // i=0 → 앞벽(z=-14) / i=1 → 뒷벽(z=+12). 후퇴를 따로 준다.
-          //   후퇴가 음수면 벽이 x=+16 을 넘어 기차 쪽으로 더 뻗는다.
-          // 벽이 끝나는 x 를 직접 받아 '얼마나 물러났는지'로 되돌린다.
-          const 후퇴 = 16 - (i === 1 ? WK.뒷벽끝x : WK.앞벽끝x);
-          const w = side ? ROOM_D : ROOM_W - 후퇴;
-          const xOff = side ? 0 : (i === 1 ? 1 : -1) * (후퇴 / 2);
-
-          // ★ 왼쪽 벽(i===2)에 비밀 통로용 '진짜 구멍'을 뚫는다.
-          //   ─ 왜 벽을 쪼개나?
-          //     구멍 앞에 문짝만 세우면 '벽에 기대 놓은 판때기'로 보인다.
-          //     벽 자체를 그 자리만 안 그려야 비로소 '뚫렸다'가 된다.
-          //   ─ 좌표 주의:
-          //     이 벽은 rotation Y = 90°. three.js 에서 Y축 90° 회전은
-          //     로컬 +X 를 월드 -Z 로 보낸다. 그래서
-          //         로컬x = ROOM_CZ - 월드z
-          //     문 위치(CD.문z)는 월드 z 기준이라 이렇게 변환해야 한다.
-          const 구멍 = side && CD.보이기;
-          const dx = ROOM_CZ - CD.문z; // 문 중심(벽 로컬 x)
-          const 반 = CD.문폭 / 2;
-          const 왼끝 = -w / 2,
-            오른끝 = w / 2;
-
-          // 그릴 판 목록을 먼저 계산한다.
-          //   구멍이 없으면 통짜 2장(위 본체 + 아래 굽),
-          //   있으면 좌 조각 + 우 조각 + 인방(문 위 남는 벽).
-          const 판목록 = [];
-          const 통짜 = (pw, px) => {
-            판목록.push({ w: pw, xOff: px, h: 8, y0: 4, color: MAT.벽색 });
-            판목록.push({
-              w: pw,
-              xOff: px,
-              h: 4,
-              y0: 0,
-              color: MAT.벽아랫단색,
-            });
-          };
-          if (!구멍) {
-            통짜(w, xOff);
-          } else {
-            const wL = dx - 반 - 왼끝; // 문 왼쪽에 남는 벽 폭
-            const wR = 오른끝 - (dx + 반); // 문 오른쪽에 남는 벽 폭
-            if (wL > 0.01) 통짜(wL, 왼끝 + wL / 2);
-            if (wR > 0.01) 통짜(wR, 오른끝 - wR / 2);
-            // 인방 = 문 위에 남는 벽. 문높이부터 천장까지.
-            const 인방h = ROOM_H - CD.문높이;
-            if (인방h > 0.01)
-              판목록.push({
-                w: CD.문폭,
-                xOff: dx,
-                h: 인방h,
-                y0: CD.문높이,
-                color: MAT.벽색,
-              });
-          }
-
-          return (
-            <group key={i} position={[x, 0, z]} rotation={[0, ry, 0]}>
-              {판목록.map((p, k) => (
-                <WallPanel
-                  key={k}
-                  w={p.w}
-                  xOff={p.xOff}
-                  h={p.h}
-                  y0={p.y0}
-                  color={p.color}
-                  seed={MAT.벽시드 + i}
-                  얼룩={MAT.벽얼룩}
-                  낡음={MAT.벽낡음}
-                />
-              ))}
-            </group>
-          );
-        })}
-      </group>
-
-      {/* (폐역 개조: 옛 채광창 구조의 천장 격자보 제거 —
-          낡은 평천장으로 바꿨으므로 불필요. 천장 디테일은 나중에 전등·질감으로) */}
-
-      {/* 걸레받이·허리몰딩·코니스·모서리 기둥·부축기둥 */}
-      <RoomShell
-        선={RS}
-        문={CD.보이기 ? { z: CD.문z, 폭: CD.문폭, 높이: CD.문높이 } : null}
-      />
-
-      {/* 구조 기둥 — 폐역 개조: 오른쪽 1개만 (왼쪽은 책상 구역이라 제거) */}
-      <Column x={8} z={0} 선={RS} />
+      {/* 방 껍데기(바닥·천장·벽·몰딩·기둥) — 위 useMemo 참고 */}
+      {방껍데기}
 
       {/* (폐역 개조: 뒷벽 안내 패널 + 전광판 제거 — 운행 정보가 필요 없는 폐역) */}
 
       {/* (폐역 개조: 좌우 사이드 게이트 제거 — 오른쪽은 기차가 들어올 자리라 비우고,
           왼쪽 출입문은 나중에 따로 만든다) */}
 
-      {/* 철제 책상 5개 — 각 책상은 개별 Leva 폴더(deskLive)로 실시간 조절.
-          외곽선·주름선은 '책상(공통)' 폴더에서 함께 조절한다. */}
-      <Suspense fallback={null}>
-        {deskLive.map((d, i) => (
-          <충돌체
-            key={`desk${i}`}
-            이름={`desk${i}`}
-            켬={COL.켜기}
-            여유={COL.여유}
-            다시재기={`${d.x},${d.z},${d.회전},${d.가로길이},${d.세로길이},${D.크기}`}
-          >
-          <잰다
-            id={`면:desk${i}`}
-            면
-            다시재기={`${d.x},${d.z},${d.회전},${d.가로길이},${d.세로길이},${d.높이},${D.크기},${D.높이미세}`}
-          >
-          <Desk
-            pos={[d.x, d.z]}
-            rot={d.회전}
-            stretch={d.가로길이}
-            zStretch={d.세로길이}
-            yStretch={d.높이}
-            scale={D.크기}
-            lift={D.높이미세}
-            선={D선}
-            color={DESK_DEBUG ? DESK_COLORS[i] : P.struct}
-          />
-          </잰다>
-          </충돌체>
-        ))}
-      </Suspense>
+      {/* 책상들 — 위 useMemo 참고 */}
+      {책상들}
 
-      {/* 책상 위 컴퓨터 3대 — 각 대마다 Leva 폴더(컴퓨터1/2/3)로
-          위치·높이·회전·개별크기를 따로 조절. 크기·색은 공통 폴더에서. */}
-      <Suspense fallback={null}>
-        {pcLive.map((p, i) => (
-          <잰다
-            key={`pc${i}`}
-            id={`pc${i}`}
-            자리
-            다시재기={`${p.x},${p.z},${p.회전},${p.높이},${p.개별크기},${PC.크기}`}
-          >
-          <PcSet
-            선={PC선}
-            pos={[p.x, p.z]}
-            rot={p.회전}
-            y={p.높이}
-            scale={PC.크기}
-            sizeMul={p.개별크기}
-            color={PC.색}
-          />
-          </잰다>
-        ))}
-      </Suspense>
+      {/* 컴퓨터들 — 위 useMemo 참고 */}
+      {컴퓨터들}
 
       {/* 사무용 의자 5개 — 왼쪽 자리에 3개, 오른쪽에 2개.
           대마다 Leva 폴더(의자1~5)로 위치·회전을 따로 조절한다. */}
@@ -11219,7 +12933,9 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
                 반경={0.9}
                 위치={() => [cx, 1.6, cz]}
                 라벨="[E] 의자 끌기"
-                끔={() => !!로비.끄는의자 || !!로비.든것}
+                끔={() =>
+                  !!로비.끄는의자 || !!로비.든것 || 관창곳() === "손"
+                }
                 실행={() => 의자잡기(id)}
               />
               <강조
@@ -11319,7 +13035,9 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
                 // ★ 위에 뭔가 얹혀 있으면 아예 겨냥 대상에서 뺀다.
                 //   글자로 이유를 알려 주지 않기로 했으니, '빛나지 않는다'가
                 //   곧 '지금은 못 든다'라는 뜻이 되어야 한다.
-                끔={() => !!로비.든것 || !!위에얹힌것(o.id)}
+                끔={() =>
+                  !!로비.든것 || !!위에얹힌것(o.id) || 관창곳() === "손"
+                }
                 실행={() => 집기(o.id)}
               />
               {/* 면 = 이 위에도 올릴 수 있다 · 자리 = 겹침 검사 · 재기 = 발자국 크기 */}
@@ -11363,7 +13081,12 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
              들고 있던 컵이 화면에서 사라진다. */}
       <Suspense fallback={null}>
         {/* 계산은 보여주기와 분리 — 표시를 꺼도 놓기가 동작해야 한다 */}
-        <놓을자리계산 물건id={로비.든것} />
+        {/* ★ 쪽지는 여기 안 건다.
+               놓을자리찾기 는 좌표를 **본부실 바닥 경계 안으로 당긴다**(배치.js 의
+               조이기). 복도는 그 경계 밖이라 복도에서 버리면 쪽지가 벽 속
+               (x −19.8)으로 끌려가 안 보였다. 쪽지는 발 앞에 떨어뜨린다. */}
+        <놓을자리계산 물건id={로비.든것 || (든동전() ? "동전" : null)} />
+        <쪽지자리추적 />
 
         {로비.든것 && PV.유령보이기 && (
           <놓기유령
@@ -11375,10 +13098,69 @@ function Scene({ active, onNear, controlsRef, onLockChange }) {
           </놓기유령>
         )}
 
+        {/* 동전 내려놓기 미리보기(고스트) — 겨냥한 자리를 초록/빨강으로 보여준다 */}
+        {든동전() && PV.유령보이기 && (
+          <놓기유령 가능색={PV.가능색} 불가색={PV.불가색} 투명도={PV.유령투명도}>
+            {/* ★ 놓을 미리보기는 '바닥에 눕은 동전'이라야 한다.
+                   눕힘=false(세운 자세)면 원판 중심이 바닥에 박혀 윗절반만
+                   초록 '돔'으로 보였다(=사용자가 말한 '원 모양이 아님'). */}
+            <동전코인 종류={든동전()} 동전CD={동전CD} 선={동전선} 눕힘 />
+          </놓기유령>
+        )}
+
         {로비.든것 && (
           <손에든것 물건id={로비.든것}>
             {물건그리기(들물건.find((o) => o.id === 로비.든것))}
           </손에든것>
+        )}
+
+        {/* 손에 든 동전 + 투입 모션 — 카메라 앞에 들고, E 로 투입구에 넣으면 쑥 들어간다. */}
+        <동전손연출 동전CD={동전CD} 선={동전선} />
+
+        {/* 손에 든 음료(컵/캔) — E 로 (캔이면 따고) 마시고, 다 비면 버린다. */}
+        <손음료연출 선={동전선} />
+
+        {/* 손에 든 관창 — 소화전함에서 집어 온 그 자루.
+               ★ 모양은 함 속·배전반 쪽과 **같은 관창모양**을 쓴다.
+                 세 군데에 따로 그리면 옮겨진 물건으로 안 읽힌다. */}
+        {관창든곳 === "손" && (
+          <손에든것
+            물건id="관창"
+            앞={관창CD.앞}
+            아래={관창CD.아래}
+            옆={관창CD.옆}
+          >
+            <group
+              rotation={[
+                (관창CD.기울기 * Math.PI) / 180,
+                (관창CD.비틀기 * Math.PI) / 180,
+                0,
+              ]}
+              scale={관창CD.크기}
+            >
+              <관창모양 금속색={소화전속.금속색} 밝기={관창CD.밝기} 선={CD선} />
+            </group>
+          </손에든것>
+        )}
+
+        {/* 함에서 끌려 나온 호스 한 줄 — 관창이 함 밖에 있을 때만 그린다.
+               ★ 여기(방·복도 그룹 밖)에 둬야 한다. 복도 안에 두면 복도가
+                 시야에서 꺼질 때 들고 있던 호스만 끊겨 보인다. */}
+        {관창CD.호스보이기 && (
+          <늘어진호스
+            칸={관창CD.호스칸}
+            굵기={관창CD.호스굵기}
+            처짐={관창CD.호스처짐}
+            나옴={관창CD.호스나옴}
+            밑에서={관창CD.호스밑에서}
+            바닥y={관창CD.호스바닥}
+            색={소화전속.호스색}
+            밝기={
+              복도밝기(CD.z시작 + (CD.z끝 - CD.z시작) * CD.소화전z비율) *
+              CD.벽밝기
+            }
+            선={CD선}
+          />
         )}
       </Suspense>
 
@@ -11498,8 +13280,10 @@ export default function App() {
   //   ※ 페이드 자체는 남겨 뒀다 — 나중에 세션이 통째로 바뀌는 자리
   //     (PRD 전역-006)에서는 세 번째 인자를 빼고 부르면 그대로 쓸 수 있다.
   const 기차타기 = useCallback(
-    () =>
-      씬전환(
+    () => {
+      소리재생("기차문열기", { 볼륨: 0.9 });
+      setTimeout(() => 소리재생("기차문닫기", { 볼륨: 0.9 }), 700);
+      return 씬전환(
         "/train",
         () => {
           // 들고 있던 물건은 원래 자리에 두고 간다(GRD-01 되돌릴 수 있음).
@@ -11509,7 +13293,8 @@ export default function App() {
           의자놓기(끌기위치.x, 끌기위치.z);
         },
         false,
-      ),
+      );
+    },
     [씬전환],
   );
 
@@ -11526,8 +13311,10 @@ export default function App() {
     return 놓기({ x: r.x, y: r.y, z: r.z, rot: r.rot });
   }, []);
   const 기차내리기 = useCallback(
-    () =>
-      씬전환(
+    () => {
+      소리재생("기차문열기", { 볼륨: 0.9 });
+      setTimeout(() => 소리재생("기차문닫기", { 볼륨: 0.9 }), 700);
+      return 씬전환(
         "/",
         () => {
           // 내리자마자 다시 빨려 들어가지 않게 잠그고,
@@ -11536,7 +13323,8 @@ export default function App() {
           기차에서나옴.켬 = true;
         },
         false,
-      ),
+      );
+    },
     [씬전환],
   );
 
@@ -11564,6 +13352,45 @@ export default function App() {
     if (잠금복귀.current) controlsRef.current?.lock();
   }, []);
 
+  // ── 자물쇠 번호 맞추기 ──────────────────────────────────
+  //   [E] 로 자물쇠를 만지면 카메라가 자물쇠 앞으로 당겨지고, 그동안은
+  //   화살표(또는 WASD)가 **다이얼을 돌린다.**
+  //   ★ 마우스 잠금을 푸는 이유: 잠겨 있으면 고개가 같이 돌아가 자물쇠가
+  //     화면 밖으로 나간다. 어차피 손은 키보드에 있다.
+  const 자물쇠조작 = use조작상태();
+  const 자물쇠잠금복귀 = useRef(false);
+  useEffect(() => {
+    if (!자물쇠조작) return;
+    if (자물쇠조작.단계 === "켬") {
+      자물쇠잠금복귀.current = !!document.pointerLockElement;
+      controlsRef.current?.unlock();
+      return;
+    }
+    // 나가는 중 — 카메라가 되돌아오면 자물쇠.jsx 가 조작끝() 을 부른다.
+    //   그런데 그 사이에 자물쇠가 사라지면(Leva 로 껐다든지) 아무도 안 부른다.
+    //   그러면 이동이 영영 멈춘 채로 갇힌다 → 뒤늦게라도 풀어 준다.
+    const t = setTimeout(() => 조작끝(), 1500);
+    return () => clearTimeout(t);
+  }, [자물쇠조작]);
+  // 조작이 완전히 끝난 뒤에 마우스를 다시 잠근다(되돌아오는 중에 잠그면 화면이 떤다)
+  const 자물쇠켜짐 = !!자물쇠조작;
+  useEffect(() => {
+    if (자물쇠켜짐 || !자물쇠잠금복귀.current) return;
+    자물쇠잠금복귀.current = false;
+    controlsRef.current?.lock();
+  }, [자물쇠켜짐]);
+
+  // 다이얼은 휠로도 돌린다 — 실물 자물쇠를 엄지로 굴리는 것과 같은 몸짓이다.
+  useEffect(() => {
+    if (!자물쇠조작 || 자물쇠조작.단계 !== "켬") return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      숫자돌리기(자물쇠조작.id, e.deltaY < 0 ? 1 : -1);
+    };
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, [자물쇠조작]);
+
   // ★★ 개발용 임시 물건 — **서버가 붙으면 지운다.** ★★
   //   지울 때는 `개발용_소지품씨앗` 으로 검색하면 관련 부분이 전부 나온다.
   //   실제로는 계약(v0.3.1)의 `clue_acquired` 상태 변경이 왔을 때 소지품.넣기() 를 부른다.
@@ -11587,6 +13414,7 @@ export default function App() {
       //     창이 열려 있을 땐 이미 풀어 둔 상태라 부딪히지 않는다.
       if (e.code === "Escape") {
         if (열린창) 창닫기();
+        else if (자물쇠조작?.단계 === "켬") 조작나가기();
         return;
       }
 
@@ -11601,8 +13429,55 @@ export default function App() {
         return;
       }
 
+      // H키 — 힌트함.
+      //   ★ 쪽지를 **들고 있으면 먼저 적어 넣는다.** 창을 열어 놓고 따로
+      //     "보관" 버튼을 찾게 하면 손이 두 번 간다. 줍고 H 한 번이면 끝이다.
+      //     적어 넣으면 종이는 손에서 사라진다 — 적었으니 들고 다닐 이유가 없다.
+      //   ★ I(소지품)와 같이 **마우스 잠금과 무관하게** 연다. 읽는 창이다.
+      if (e.code === "KeyH") {
+        const 든쪽지 = 든음료();
+        if (든쪽지?.종류 === "종이") {
+          힌트넣기({ ...밸브힌트, 그림: 힌트종이그림() });
+          종이보관();
+          손비우기();
+          힌트반짝(); // 왼쪽 표시가 한 번 밝아진다 — "저기에 적혔다"
+          창열기(층.힌트); // 방금 적힌 것을 바로 보여 준다
+          return;
+        }
+        if (열린창 === 층.힌트) 창닫기();
+        else if (!열린창) {
+          힌트반짝();
+          창열기(층.힌트);
+        }
+        return;
+      }
+
       // 창이 열려 있는 동안은 아래 게임 조작을 전부 막는다(입력 우선순위: 창 > 게임)
       if (열린창) return;
+
+      // ── 자물쇠를 만지는 중 — 키를 여기서 다 먹는다 ──────────
+      //   ★ 마우스 잠금을 풀어 둔 상태라 아래 `locked` 조건에 걸려 [E] 가 안 먹는다.
+      //     그래서 그 검사보다 **앞에** 둔다.
+      //   ★ 화살표와 WASD 를 둘 다 받는다. 손이 어디 있든 되는 게 맞다
+      //     (움직임은 어차피 멈춰 있어서 W 가 걸음으로 새지 않는다).
+      if (자물쇠조작?.단계 === "켬") {
+        const id = 자물쇠조작.id;
+        const c = e.code;
+        if (c === "ArrowLeft" || c === "KeyA") 칸고르기(id, -1);
+        else if (c === "ArrowRight" || c === "KeyD") 칸고르기(id, 1);
+        else if (c === "ArrowUp" || c === "KeyW") 숫자돌리기(id, 1);
+        else if (c === "ArrowDown" || c === "KeyS") 숫자돌리기(id, -1);
+        else if (c === "KeyE" || c === "Enter") {
+          // 맞으면 풀리고 그대로 나간다. 틀리면 덜컹 — "아니다"를 몸으로 알려 준다.
+          if (맞춰봄(id)) {
+            // ★ 바로 안 나간다 — 자물쇠가 열려 고리가 빠지는 걸 코앞에서
+            //   보여 준 뒤에야 카메라가 물러난다(그냥 시점만 멀어지며 빠지던
+            //   느낌을 없앤다). 1.2초 뒤 나가기 → 연출과 후퇴가 자연스레 이어진다.
+            setTimeout(() => 조작나가기(), 1500);
+          } else 덜컹(id);
+        }
+        return;
+      }
 
       // T키 — 1인칭 시작(마우스 잠금). 클릭 대신 키로 시작해 Leva를 자유롭게 만진다.
       if (e.code === "KeyT" && !locked) {
@@ -11618,18 +13493,47 @@ export default function App() {
         의자놓기(끌기위치.x, 끌기위치.z);
         return;
       }
+      // 음료(컵/캔)를 들고 있으면 E 는 '(캔이면 따기 →) 마시기 → 다 비면 버리기'다.
+      //   다른 상호작용보다 우선한다(버튼·투입구 등을 안 건드리게 상호실행보다 먼저).
+      const 든것 = 든음료();
+      if (든것) {
+        // 쪽지는 마실 것이 아니다 — [E] 는 **버리기**다.
+        //   ★ 사라지지 않는다. 겨냥한 바닥 자리(없으면 발 앞)에 떨어져
+        //     동전·관창처럼 다시 주울 수 있다(GRD-01 되돌릴 수 있음).
+        //     보관은 [H] 가 한다.
+        if (든것.종류 === "종이") {
+          종이버리기(발앞자리()); // 서 있는 자리 눈앞 — 없으면 기본 자리로
+          손비우기();
+          return;
+        }
+        음료E();
+        return;
+      }
       if (상호실행()) return;
+      // 동전을 들고 투입구가 아닌 곳에서 E → 내려놓기(원래 바닥 자리로).
+      if (든동전()) {
+        // 본부실 물건처럼, 겨냥한 바닥 자리에 내려놓는다(유효한 자리일 때만).
+        const r = 최근자리값();
+        if (r?.됨 && 내려놓기([r.x, r.y, r.z])) return;
+      }
       if (놓기시도()) return;
       if (near === "train") 기차타기(); // 역 → 기차 안 ([E] 백업 경로)
       else if (near === "기차나가기") 기차내리기(); // 기차 안 → 역
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [near, locked, 열린창, 창열기, 창닫기, 기차타기, 기차내리기, 놓기시도]);
+  }, [
+    near, locked, 열린창, 창열기, 창닫기, 기차타기, 기차내리기, 놓기시도,
+    자물쇠조작,
+  ]);
 
   // 창이 열려 있으면 이동·조준을 멈춘다.
   //   ※ 여기에 나중에 **타이머 정지**(GRD-07)도 같이 걸린다.
-  const active = locked && !열린창;
+  //   자물쇠를 만지는 동안도 멈춘다 — 그동안 카메라는 자물쇠가 끌고 있다.
+  // ★ 연출(자판기 컷신) 동안에도 멈춘다 — 카메라를 연출이 몰고 있는데
+  //   플레이어 입력까지 들어오면 두 힘에 끌려 화면이 덜덜 떤다.
+  const 연출켜짐 = use연출();
+  const active = locked && !열린창 && !자물쇠조작 && !연출켜짐;
   // 화면 안내 문구. 지금 남은 건 기차에서 내리기 하나뿐이다.
   // ── 화면 아래 안내문 ────────────────────────────────────
   // ★ 물건 조작 안내는 **글자를 쓰지 않는다.**
@@ -11642,7 +13546,22 @@ export default function App() {
   //   서랍을 한 번 열 때마다(4단계) App 이 통째로 다시 그려졌다 — Canvas 자식
   //   전체가 다시 조정되니 그 순간 프레임이 끊긴다. 씬(Scene)은 자기가 따로
   //   구독하고 있으므로 여기서는 구독하지 않는다.
-  const hint = near === "기차나가기" ? "[E] 기차에서 내리기" : "";
+  // ★ 여기 뜨는 것은 **빛으로 말할 수 없는 것**뿐이다.
+  //   겨냥한 물건은 스스로 밝아지므로(강조.jsx) 굳이 글로 적지 않는다.
+  //   남는 경우는 둘 — ① 이동(빛낼 대상이 없다)
+  //                    ② 손에 든 것에 키가 **둘 이상** 걸린 때.
+  //     쪽지가 그렇다. [E]와 [H]가 전혀 다른 일을 하는데 눌러 보기 전에는
+  //     알 길이 없다. 이럴 때만 글이 값을 한다.
+  // ★ use음료 는 '판 번호'만 돌려준다 — 구독용이다. 값은 든음료() 로 꺼낸다.
+  //   (서랍처럼 초당 여러 번 바뀌는 값이 아니라 집고 버리는 순간뿐이라,
+  //    여기서 구독해도 App 이 자주 다시 그려지지 않는다)
+  use음료();
+  const 든것표시 = 든음료();
+  const hint = (() => {
+    if (든것표시?.종류 === "종이") return "[H] 힌트함에 넣기   ·   [E] 내려놓기";
+    if (near === "기차나가기") return "[E] 기차에서 내리기";
+    return "";
+  })();
   const 안내경고 = false;
 
   return (
@@ -11723,12 +13642,7 @@ export default function App() {
             onLockChange={setLocked}
           />
         ) : (
-          <Scene
-            active={active}
-            onNear={setNear}
-            controlsRef={controlsRef}
-            onLockChange={setLocked}
-          />
+          <Scene active={active} onNear={setNear} />
         )}
 
         {/* 겨냥 판정 — 로비에서만 돈다. */}
@@ -11795,8 +13709,15 @@ export default function App() {
           {hint}
         </div>
       )}
+      {/* 자물쇠 번호 맞추기 — 지금 돌리는 칸과 키 안내.
+             ★ 3D 자물쇠에도 화살표가 뜬다. 여기 글씨는 **키가 뭔지**만 알려 준다 —
+               숫자를 여기서 읽게 만들면 시선이 자물쇠를 떠난다. */}
+      <자물쇠맞추기판 />
       {/* 소지품 — 화면층이 '지금 열린 창'을 정하므로 두 창이 겹칠 수 없다 */}
       <소지품UI 열림={열린창 === 층.소지품} 닫기={창닫기} />
+      <힌트UI 열림={열린창 === 층.힌트} 닫기={창닫기} />
+      {/* 왼쪽 위 작은 힌트 표시. 창이 떠도 숨기지 않는다 — 반짝임을 봐야 한다 */}
+      <힌트HUD 창열림={열린창 !== null} />
       {/* GPU가 죽었을 때만 뜬다. 검은 화면만 남으면 원인을 알 수 없으니 안내한다. */}
       {GPU끊김 && (
         <div style={S.끊김}>
@@ -11884,6 +13805,38 @@ export default function App() {
 }
 
 // ===== 스타일 (쿨 블루그레이 + 웜 골드) =====
+// ── 자물쇠 번호 맞추기 안내판 ───────────────────────────────
+// [왜 App 이 아니라 따로 떼어 냈나]
+//   다이얼 번호를 App 이 구독하면 **키를 한 번 누를 때마다 App 전체가**
+//   다시 그려지고, 그러면 Canvas 자식(복도 전체)까지 딸려 온다.
+//   이 작은 판만 구독하면 다시 그려지는 건 이 판 하나뿐이다.
+function 자물쇠맞추기판() {
+  const 조작 = use조작상태();
+  const 값 = use자물쇠(조작?.id);
+  if (!조작 || !값) return null;
+  return (
+    <div style={S.자물쇠판}>
+      <div style={S.자물쇠칸들}>
+        {값.번호.map((v, i) => (
+          <span
+            key={i}
+            style={
+              i === 값.고른칸 ? { ...S.자물쇠칸, ...S.자물쇠고른칸 } : S.자물쇠칸
+            }
+          >
+            {값.글자들[i]?.[v] ?? "?"}
+          </span>
+        ))}
+      </div>
+      <div style={S.자물쇠안내}>
+        {값.풀림
+          ? "열렸다 — [E] 로 소화전 문을 연다"
+          : "← → 칸 고르기 · ↑ ↓ 숫자 돌리기(휠도 된다) · [E] 확인 · ESC 나가기"}
+      </div>
+    </div>
+  );
+}
+
 const S = {
   끊김: {
     position: "absolute",
@@ -11946,6 +13899,41 @@ const S = {
     color: "#cfe0f5",
     font: "600 14px system-ui, sans-serif",
     cursor: "pointer",
+  },
+  // ── 자물쇠 번호 맞추기 ──
+  자물쇠판: {
+    position: "absolute",
+    left: "50%",
+    bottom: 42,
+    transform: "translateX(-50%)",
+    zIndex: 40,
+    display: "grid",
+    justifyItems: "center",
+    gap: 10,
+    pointerEvents: "none",
+    textAlign: "center",
+  },
+  자물쇠칸들: { display: "flex", gap: 6 },
+  자물쇠칸: {
+    minWidth: 30,
+    padding: "5px 0",
+    borderRadius: 5,
+    border: "1px solid rgba(220,228,240,.25)",
+    background: "rgba(16,20,28,.72)",
+    color: "#dfe6f0",
+    font: "700 19px/1.1 ui-monospace, Menlo, monospace",
+  },
+  자물쇠고른칸: {
+    border: "1px solid #ffd34d",
+    background: "rgba(70,56,18,.9)",
+    color: "#ffe9a8",
+  },
+  자물쇠안내: {
+    padding: "6px 12px",
+    borderRadius: 6,
+    background: "rgba(16,20,28,.72)",
+    color: "#cfd8e6",
+    font: "13px/1.4 system-ui, -apple-system, sans-serif",
   },
   조준점: {
     position: "absolute",

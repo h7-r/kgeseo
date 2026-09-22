@@ -8,7 +8,8 @@ import App from "./App.jsx"; // 우리 앱의 최상위 컴포넌트
 //   씬을 파일로 나눠도 '한 페이지 안에서' 바뀌므로 새로고침이 없다 = 즉시 전환.
 import { BrowserRouter } from "react-router-dom";
 import "./index.css"; // 전역 스타일(16:9 무대 등)
-import "./fonts.css"; // 손글씨 폰트 등록(@font-face "엉겅퀴") — 화이트보드에서 쓴다
+import "./fonts.css";
+import "./소리.js"; // 효과음 시스템을 앱 시작에 미리 켠다(첫 클릭에 오디오 깨움 + 사운드 미리 로드) // 손글씨 폰트 등록(@font-face "엉겅퀴") — 화이트보드에서 쓴다
 
 // createRoot: index.html 의 #root 자리를 리액트가 관리하도록 '뿌리'를 만든다
 ReactDOM.createRoot(document.getElementById("root")).render(

@@ -25,7 +25,6 @@ import {
   useSavedControls,
   선스키마,
   선뽑기,
-  만화선,
   use이동,
   R,
   makeCanvasTexture,
@@ -43,6 +42,9 @@ const 높이 = 10; // y — 약 3.0m
 //   2.6~8.0 = 높이 5.4. 허리 아래부터 머리 위까지 트여 통유리처럼 읽힌다.
 const 창아래 = 2.6;
 const 창위 = 8.0;
+// 창유리 — **자판기 투명문(커피배출부)과 같은 유리**다.
+//   색·불투명도·양면·깊이쓰기까지 그 코드를 그대로 쓴다. 크기만 창 것.
+const 창유리색 = "#e2edf2";
 
 // ── 출입문 ─────────────────────────────────────────────────
 // ★ 문을 옆벽(-z)으로 옮겼다.
@@ -1551,31 +1553,33 @@ export default function 기차내부({ active, onNear }) {
           );
         })}
 
-      {/* 밤 유리 — 이제 반투명 '막'이라 뒤 배경(창밖)이 살짝 비쳐 보인다.
-          toneMapped=false = 톤 매핑을 건너뛴다. 이건 '빛을 받는 물체'가 아니라
-          '비친 상'이라 실내 조명을 올렸다고 같이 밝아지면 안 된다.
+      {/* 유리 — 자판기 투명문에 쓴 그 재질 그대로.
+          그림(밤 반사 텍스처)을 얹어 반투명하게 만들던 것을 걷어냈다. 그림이
+          비쳐 보이는 대신 어른거리는 판때기처럼 읽혔다. 이제는 자판기 문처럼
+          **아무것도 안 그린 맑은 유리막**이라, 뒤의 창밖 배경이 그대로 보인다.
           외곽선은 두르지 않는다 — 유리에 테두리가 생기면 판때기로 보인다. */}
       {유리입구 && (
         <mesh geometry={유리입구}>
           <meshBasicMaterial
-            map={유리맵}
-            color={색밝기("#ffffff", T.유리밝기)}
-            toneMapped={false}
+            color={창유리색}
             transparent
-            opacity={T.막투명도}
+            opacity={0.12}
+            side={THREE.DoubleSide}
             depthWrite={false}
+            toneMapped={false}
           />
         </mesh>
       )}
-      {/* 반대쪽 유리 — 반사 무늬 없이 색만 있는 아주 옅은 막(사각형 안 생김) */}
+      {/* 반대쪽 유리 — 같은 유리다. 양쪽을 다르게 둘 이유가 없다. */}
       {유리반대 && (
         <mesh geometry={유리반대}>
           <meshBasicMaterial
-            color="#0a0d12"
-            toneMapped={false}
+            color={창유리색}
             transparent
             opacity={0.12}
+            side={THREE.DoubleSide}
             depthWrite={false}
+            toneMapped={false}
           />
         </mesh>
       )}

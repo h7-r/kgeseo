@@ -1,0 +1,17 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="260" height="38" viewBox="0 0 260 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Component 1" clip-path="url(#clip0_241_492)">
+<path id="Vector" d="M0 19H22.3438L28.4375 4L32.5 34L36.5625 4L42.6562 19H65L71.0938 4L75.1562 34L79.2188 4L85.3125 19H107.656L113.75 4L117.812 34L121.875 4L127.969 19H150.312L156.406 4L160.469 34L164.531 4L170.625 19H192.969L199.062 4L203.125 34L207.188 4L213.281 19H235.625L241.719 4L245.781 34L249.844 4L260 19" stroke="url(#paint0_linear_241_492)" stroke-width="0.956066" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_241_492" x1="0" y1="-1.52588e-05" x2="260" y2="-1.52588e-05" gradientUnits="userSpaceOnUse">
+<stop stop-color="#60A5FA" stop-opacity="0"/>
+<stop offset="0.15" stop-color="#60A5FA"/>
+<stop offset="0.5" stop-color="#6366F1"/>
+<stop offset="0.85" stop-color="#60A5FA"/>
+<stop offset="1" stop-color="#60A5FA" stop-opacity="0"/>
+</linearGradient>
+<clipPath id="clip0_241_492">
+<rect width="260" height="38" fill="white"/>
+</clipPath>
+</defs>
+</svg>

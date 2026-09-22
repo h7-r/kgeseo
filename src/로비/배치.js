@@ -25,8 +25,64 @@ export const 점유 = new Map(); // id -> { minX, maxX, minZ, maxZ, minY, maxY }
 // 물건 크기: 발자국 반폭과 높이
 export const 크기 = new Map(); // id -> { halfX, halfZ, height }
 
-export const 표면등록 = (id, b) => 표면.set(id, b);
-export const 표면해제 = (id) => 표면.delete(id);
+// ── 면이 바뀌면 알려 준다 ─────────────────────────────────
+// [왜 필요한가]
+//   책상은 GLB 라 **다 내려받은 뒤에야** 크기를 잴 수 있다(잰다 가 0.5초 간격으로
+//   다시 잰다). 그래서 첫 렌더에는 아직 면이 하나도 없다.
+//   "책상 윗면에 맞춰라" 같은 계산을 하려면, 면이 등록된 그 순간 한 번 더
+//   그려야 한다. 시작할 때 몇 번뿐이라 값이 거의 안 든다.
+let 면판 = 0;
+const 면듣는이 = new Set();
+const 면알리기 = () => {
+  면판++;
+  for (const f of 면듣는이) f();
+};
+export const 면바뀜 = {
+  판: () => 면판,
+  구독: (f) => {
+    면듣는이.add(f);
+    return () => 면듣는이.delete(f);
+  },
+};
+/** 면이 바뀔 때만 새 값을 주는 번호. 이걸 useMemo 의존성에 넣어 쓴다. */
+export const use면판 = () =>
+  useSyncExternalStore(면바뀜.구독, 면바뀜.판, 면바뀜.판);
+
+export const 표면등록 = (id, b) => {
+  const 옛 = 표면.get(id);
+  표면.set(id, b);
+  // 같은 값으로 다시 재는 경우가 많다(0.5초마다 다시 잰다) → 진짜 바뀔 때만 알린다
+  if (
+    !옛 || 옛.top !== b.top || 옛.minX !== b.minX || 옛.maxX !== b.maxX ||
+    옛.minZ !== b.minZ || 옛.maxZ !== b.maxZ
+  )
+    면알리기();
+};
+export const 표면해제 = (id) => {
+  if (표면.delete(id)) 면알리기();
+};
+
+/**
+ * (x, z) 바로 아래에 있는 **면의 윗높이**. 없으면 null.
+ *   ★ 이게 있어야 "책상 위에 놓는다"를 숫자 두 개(책상 높이 · 물건 높이)를
+ *     손으로 맞추는 대신 **한 곳에서** 정할 수 있다. 손으로 맞추면 한쪽만
+ *     건드렸을 때 물건이 공중에 뜬다 — 실제로 서류가 그렇게 떠 있었다.
+ *   겹쳐 있으면 제일 높은 면을 고른다(책상 위의 선반 같은 경우).
+ *
+ * @param 빼기 이 면은 안 본다(id => bool). **자기 자신을 반드시 빼야 한다.**
+ *   ★ 물건이 스스로도 '놓을 수 있는 면'인 경우가 있다(서류·노트북 윗면).
+ *     자기 면을 빼지 않으면 "내 윗면에 맞춰라 → 올라감 → 윗면도 올라감"이
+ *     되어 **끝없이 기어오른다.** 실제로 그렇게 됐다(서류가 등록소에서 사라졌다).
+ */
+export function 면높이(x, z, 빼기) {
+  let 가장위 = null;
+  for (const [id, b] of 표면) {
+    if (빼기 && 빼기(id)) continue;
+    if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) continue;
+    if (가장위 === null || b.top > 가장위) 가장위 = b.top;
+  }
+  return 가장위;
+}
 export const 점유등록 = (id, b) => 점유.set(id, b);
 export const 점유해제 = (id) => 점유.delete(id);
 export const 크기등록 = (id, s) => 크기.set(id, s);
@@ -323,3 +379,9 @@ export function 위에얹힌것(물건id) {
   }
   return null;
 }
+
+// 개발용 창구 — 콘솔에서 "지금 무엇이 어디에 얼마나 크게 서 있나"를 바로 본다.
+//   (블랙박스·콜라이더·여닫이도 같은 방식으로 열어 뒀다)
+//   ★ 여기 값은 **코드에 적은 숫자가 아니라 화면에 그려진 실물을 잰 것**이라,
+//     "책상 위에 떠 있다" 같은 건 이걸로만 확인할 수 있다.
+if (typeof window !== "undefined") window.__배치 = { 표면, 점유, 크기, 걸이 };
