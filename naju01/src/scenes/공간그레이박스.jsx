@@ -38,6 +38,7 @@ import {
   갓길기본,
 } from "../공간도면.js";
 import { 지형만들기 } from "../지형.js";
+import { 소품충돌만들기 } from "../소품충돌.js";
 import { 새지형쓰기 } from "../새지형.js";
 import { 구운모형쓰기 } from "../구운모형.js";
 import {
@@ -111,9 +112,9 @@ import { 물잔결참조 } from "../물잔결.js";
 import { 바닥결참조, 결세기 } from "../바닥결.js";
 import { 길만들기, 길가돌자리들, 통로결 } from "../통로.js";
 import { use지형이동, 이동상수 } from "../use지형이동.js";
-import 플레이어캐릭터 from "../플레이어캐릭터.jsx";
-import 모듈아바타 from "../모듈아바타.jsx";
-import 리깅게임아바타 from "../리깅게임아바타.jsx";
+import 사이드킥게임아바타 from "../사이드킥게임아바타.jsx";
+import 치비게임아바타 from "../치비게임아바타.jsx";
+import { TOON세계 } from "../세계툰.js";
 import { 연출만들기, 무너짐변환 } from "../연출.js";
 import {
   씬1자리들,
@@ -479,7 +480,23 @@ function 무리({ 묶음, 선긋기, 방식, 밝기, 초목선 = false, 그림�
   );
 }
 
-export default function 공간그레이박스({ active, controlsRef, onLockChange, 보고, 삼인칭 = false, 아바타종류 = "메쉬", 외형 }) {
+export default function 공간그레이박스({ active, controlsRef, onLockChange, 보고, 삼인칭 = false, 사이드킥설정, 메시설정, 툰설정, 외곽선설정 }) {
+  // 카메라와 분리된 실제 플레이어 좌표. 3인칭 캐릭터·지형 판정·카메라가
+  // 모두 이 한 값을 사용해야 경사에서 몸이 묻거나 뜨지 않는다.
+  const 플레이어상태 = useRef({
+    position: new THREE.Vector3(),
+    groundY: 0,
+    footY: 0,
+    facing: Math.PI,
+    moving: false,
+    running: false,
+    crouching: false,
+    grounded: true,
+    jumping: false,
+    verticalVelocity: 0,
+    attackMotion: null,
+    attackSerial: 0,
+  });
   const T = useSavedControls("NAJU-01 그레이박스", {
     밝기: { value: 1, min: 0.3, max: 2, step: 0.05 },
     // 본편은 어두운 실내(밤 역)라 이 값이 맞지만, 여기는 야외 강가다.
@@ -1480,6 +1497,23 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
     return () => window.removeEventListener("keydown", 눌림);
   }, []);
 
+  // 3인칭 플레이 중 좌클릭은 잽/크로스 입력이다. 꾸미기 패널과 Leva를
+  // 누른 클릭은 공격으로 해석하지 않는다.
+  useEffect(() => {
+    const 공격 = (event) => {
+      if (!active || !삼인칭 || 편집모드 || event.button !== 0) return;
+      if (
+        event.target instanceof Element &&
+        event.target.closest("button, input, select, label, [role='slider']")
+      ) return;
+      const state = 플레이어상태.current;
+      state.attackSerial += 1;
+      state.attackMotion = state.attackSerial % 2 === 1 ? "Punch_Jab" : "Punch_Cross";
+    };
+    window.addEventListener("pointerdown", 공격);
+    return () => window.removeEventListener("pointerdown", 공격);
+  }, [active, 삼인칭, 편집모드]);
+
   // ── 편집 층 ────────────────────────────────────────────
   //   흩뿌린 것들은 이제 **인스턴스**라 하나씩 고칠 수 있다(배치.js).
   //   편집 내용은 `에셋/편집.json` 에서 읽어 와 생성 결과 위에 덧씌운다.
@@ -2200,14 +2234,24 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   //   시작 자리 = V1(Z1 서쪽, 동쪽을 본다). Scene 01 의 첫 시점이다.
   // ★ 편집 중에도 걸어 다닐 수 있어야 한다. 포인터락은 풀려 있지만
   //   WASD 는 살아 있어야 「보면서 옮기기」가 된다(시점은 우클릭 드래그).
+  // 소품 충돌 — 무리가 바뀔 때만 다시 만든다(편집 후 포함).
+  const 소품충돌 = useMemo(() => 소품충돌만들기(무리들), [무리들]);
+  useEffect(() => {
+    if (import.meta.env.DEV && typeof window !== "undefined") window.__소품충돌 = 소품충돌;
+  }, [소품충돌]);
   const 텔레포트 = use지형이동(active || 편집모드, {
     지형,
+    추가막힘: 편집모드 ? null : 소품충돌.막힘,
     시작: [시점[0].X, 시점[0].Z, 시점[0].방위],
     눈높이: T.눈높이,
     걷기속도: T.걷기속도,
     낙하복귀: T.낙하복귀,
     보고,
     화살표이동: !편집모드, // 편집 중 방향키는 요소를 민다
+    삼인칭,
+    플레이어참조: 플레이어상태,
+    // 시작점 뒤쪽 수목 안으로 카메라가 들어가지 않는 거리. 인물 전신은 유지한다.
+    삼인칭거리: 2.8,
     // 부감 동안은 걷기를 통째로 멈춘다 — `active` 만 꺼면 중력이 카메라를
     // 매 프레임 땅으로 끌어내린다(use지형이동 주석 참고).
     멈춤: 편집모드 && 부감,
@@ -3174,14 +3218,30 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
         부감설정={부감설정}
       />
 
+      {/* 게임공간 전체를 캐릭터와 같은 cel 질감으로(세계툰.js). 캐릭터 툰과 같은
+          그라디언트 맵을 쓰므로 계단이 맞는다. ?worldtoon=off 로 원본 질감과 비교. */}
+      {툰설정?.켬 && 툰설정.세계 !== false && (
+        <TOON세계 켬 단계={툰설정.단계} 경계={툰설정.경계} />
+      )}
+
       {/* NAJU-01 전용 3인칭 표시. 이동·충돌·카메라 로직은 기존 맵 것을
-          그대로 쓰며, V로 카메라의 pitch/yaw를 강제로 바꾸지 않는다. */}
-      {아바타종류 === "게임" ? (
-        <리깅게임아바타 보이기={삼인칭} 입력활성={active || 편집모드} 눈높이={T.눈높이 * 미터} />
-      ) : 아바타종류 === "모듈" ? (
-        <모듈아바타 보이기={삼인칭} 입력활성={active || 편집모드} 선택={외형} 크기={2.1} 거리={6.2} 눈높이={T.눈높이 * 미터} />
+          그대로 쓰며, V로 카메라의 pitch/yaw를 강제로 바꾸지 않는다.
+          기본은 Meshy 캐릭터이고, ?avatar=sidekick 이면 사이드킥이 나온다. */}
+      {메시설정 ? (
+        <치비게임아바타
+          보이기={삼인칭}
+          플레이어참조={플레이어상태}
+          설정={메시설정}
+          몸체="meshy"
+          툰={툰설정}
+          외곽선={외곽선설정}
+        />
       ) : (
-        <플레이어캐릭터 보이기={삼인칭} 입력활성={active || 편집모드} 크기={2.1} 거리={6.2} 눈높이={T.눈높이 * 미터} />
+        <사이드킥게임아바타
+          보이기={삼인칭}
+          플레이어참조={플레이어상태}
+          설정={사이드킥설정}
+        />
       )}
 
       <PointerLockControls

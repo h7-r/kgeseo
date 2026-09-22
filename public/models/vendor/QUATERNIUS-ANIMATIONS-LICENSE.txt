@@ -1,0 +1,8 @@
+Universal Animation Library
+Creator: Quaternius
+License: CC0 1.0 Universal (Public Domain Dedication)
+Official source: https://quaternius.com/packs/universalanimationlibrary.html
+
+This project uses the Idle_Loop, Walk_Loop, and Sprint_Loop animation data.
+The character meshes and materials remain from the separately licensed Synty
+Sidekick Character Starter Pack; this file does not alter that license.

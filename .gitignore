@@ -25,3 +25,7 @@ npm-debug.log*
 src/*.backup*.jsx
 src/*.backup*.css
 _to_delete/
+
+# 파이썬 바이트코드 캐시 — Blender 도구를 돌리면 생긴다
+__pycache__/
+*.pyc

@@ -10,7 +10,8 @@
 //   조작감을 정하는 숫자(걷기·달리기·앉기 배율·중력·점프·공중제어·반경)와
 //   키 처리 규칙은 **공용.jsx 에서 그대로 가져다 쓴다.** 여기에 다시 적지 않는다.
 //   → 원본을 고치지 않으면서도 "역·기차와 같은 조작감"이 보장된다.
-//   ※ 걷기 속도의 **기본값**은 공용.jsx 의 WALK(6 유닛/s ≈ 1.8 m/s)가 정한다.
+//   ※ 걷기 속도의 **기본값**은 공용.jsx 의 WALK(2.9 유닛/s ≈ 0.87 m/s)가 정한다.
+//     걷기 모션이 제자리 루프라 보폭 속도(0.52 m/s)에 맞춘 값이다 — 더 올리면 조깅 모션이 나온다.
 //     문서 §9 의 가정치는 2.5 m/s 다. 어느 쪽이 맞는지는 걸어 봐야 아는 값이라
 //     `걷기속도`(m/s)를 인자로 받아 Leva 에서 돌릴 수 있게 해 두었다.
 //     **본편 공용.jsx 는 여전히 한 줄도 고치지 않는다** — 안 넘기면 WALK 그대로다.
@@ -56,6 +57,11 @@ export function use지형이동(
     // 편집 모드에서는 방향키가 **고른 요소를 미는 데** 쓰인다.
     // 그때 사람이 같이 걸어가면 화면이 흔들려 조준이 안 된다.
     화살표이동 = true,
+    // 3인칭에서는 카메라 위치와 실제 플레이어 충돌 좌표를 분리한다.
+    // 플레이어는 지형 위를 걷고 카메라만 그 주위를 돈다.
+    삼인칭 = false,
+    플레이어참조 = null,
+    삼인칭거리 = 4.2,
     // ★ 부감(공중에서 내려다보기) 동안 걷기를 통째로 멈춘다.
     //   `active` 만 꺼서는 안 된다 — 중력·접지는 `active` 밖에서 돌기 때문에
     //   카메라가 매 프레임 땅으로 도로 끌려 내려간다(실제로 그랬다).
@@ -65,6 +71,8 @@ export function use지형이동(
     //   경계를 통째로 넓히면 동쪽 가장자리 어디서나 6.7 m 아래로 떨어진다 —
     //   **연결로 위에서만** 열어야 한다.
     밖으로 = null,
+    // 소품 충돌 `(px, pz, y, 반경) => 이름|null` (미터). 지형 `막힘` 에 더해 본다(소품충돌.js).
+    추가막힘 = null,
   } = {},
 ) {
   const { camera } = useThree();
@@ -72,10 +80,20 @@ export function use지형이동(
   // 않도록 항상 최신치를 상자에 담아 둔다(useEffect 안에 갇힌 낡은 값 문제).
   const 현재 = useRef({ 지형, 눈높이 });
   현재.current = { 지형, 눈높이 };
+  const 삼인칭참조 = useRef(삼인칭);
+  삼인칭참조.current = 삼인칭;
+  const 논리위치 = useRef(null);
+  const 이전삼인칭 = useRef(false);
+  const 바라봄 = useRef(Math.PI);
+  const 카메라전방 = useRef(new THREE.Vector3());
   const keys = useRef({ f: false, b: false, l: false, r: false, run: false, 앉기: false });
   const vel = useRef(new THREE.Vector3());
   const vy = useRef(0);
   const 접지 = useRef(true);
+  // `접지 === false`만으로는 점프를 판단하면 안 된다. 경사를 내려갈 때도
+  // 새 바닥이 한 프레임 낮아지면 접지가 잠깐 풀릴 수 있다. Space로 실제
+  // 점프를 시작했는지를 따로 기억해 보행 중 점프 모션이 트리거되지 않게 한다.
+  const 점프중 = useRef(false);
   const 첫프레임 = useRef(true);
   const 최고점 = useRef(0); // 공중에 뜬 뒤 도달한 가장 높은 y
   const 안전 = useRef(null); // 마지막으로 멀쩡히 서 있던 자리
@@ -105,16 +123,24 @@ export function use지형이동(
       if (e.code === "Space" && 접지.current) {
         vy.current = JUMP;
         접지.current = false;
+        점프중.current = true;
       }
       if (e.code === "KeyC" && !e.repeat) keys.current.앉기 = !keys.current.앉기;
       set(e.code, true);
     };
     const up = (e) => set(e.code, false);
+    const 비우기 = () => {
+      keys.current = { f: false, b: false, l: false, r: false, run: false, 앉기: false };
+      vel.current.x = 0;
+      vel.current.z = 0;
+    };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    window.addEventListener("blur", 비우기);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", 비우기);
     };
   }, []);
 
@@ -124,18 +150,25 @@ export function use지형이동(
     텔레포트.current = (X, Z, 방위) => {
       const { 지형: 지, 눈높이: 눈 } = 현재.current;
       const g = 지.지면(X, Z);
-      camera.position.set(X * 미터, (g.y + 눈) * 미터, Z * 미터);
+      const 목적지 = 삼인칭참조.current
+        ? (논리위치.current ??= camera.position.clone())
+        : camera.position;
+      목적지.set(X * 미터, (g.y + 눈) * 미터, Z * 미터);
       vy.current = 0;
       접지.current = true;
+      점프중.current = false;
       // ★ 이 두 줄이 없으면 **높은 데서 낮은 데로 옮길 때 도로 튕겨 나간다.**
       //   최고점이 옛 높이(예: Z3 +14)에 남아 있어서, 새 바닥(Z1 0)에 닿는 순간
       //   14 m 를 떨어진 것으로 계산되고 → 낙하 복귀가 걸려 원래 자리로 되돌린다.
       //   실제로 `2`(V2·절벽 위) 를 눌렀다가 `1`(V1·나루터) 을 누르면 V2 로 튕겼다.
-      최고점.current = camera.position.y;
+      최고점.current = 목적지.y;
       안전.current = { X, Z };
       if (방위) {
         const yaw = { "+X": -Math.PI / 2, "-X": Math.PI / 2, "+Z": Math.PI, "-Z": 0 }[방위];
-        if (yaw !== undefined) camera.rotation.set(0, yaw, 0, "YXZ");
+        if (yaw !== undefined) {
+          camera.rotation.set(0, yaw, 0, "YXZ");
+          바라봄.current = yaw;
+        }
       }
     };
   }, [camera]);
@@ -144,15 +177,23 @@ export function use지형이동(
   // "갑자기 공중에 뜬 것"으로 읽혀 낙하 복귀가 튄다 — 조용히 다시 앉힌다.
   useEffect(() => {
     if (첫프레임.current) return; // 아직 시작 자리로 옮기기도 전이다
-    const g = 지형.지면(camera.position.x * 유닛, camera.position.z * 유닛);
-    camera.position.y = (g.y + 눈높이) * 미터;
+    const p = 삼인칭참조.current
+      ? (논리위치.current ??= camera.position.clone())
+      : camera.position;
+    const g = 지형.지면(p.x * 유닛, p.z * 유닛);
+    p.y = (g.y + 눈높이) * 미터;
     vy.current = 0;
     접지.current = true;
-    최고점.current = camera.position.y;
+    점프중.current = false;
+    최고점.current = p.y;
   }, [지형, 눈높이, camera]);
 
   useFrame((_, dt) => {
-    const p = camera.position;
+    if (!논리위치.current) 논리위치.current = camera.position.clone();
+    if (삼인칭 && !이전삼인칭.current) 논리위치.current.copy(camera.position);
+    if (!삼인칭 && 이전삼인칭.current) camera.position.copy(논리위치.current);
+    이전삼인칭.current = 삼인칭;
+    const p = 삼인칭 ? 논리위치.current : camera.position;
     if (멈춤) {
       // 카메라는 남이 몬다. 계기판이 죽지 않게 자리 보고만 해 준다.
       if (보고) {
@@ -184,6 +225,7 @@ export function use지형이동(
       p.y = 밑.y * 미터 + 눈높이 * 미터;
       vy.current = 0;
       접지.current = true;
+      점프중.current = false;
       최고점.current = p.y;
       안전.current = { X: p.x * 유닛, Z: p.z * 유닛 };
     }
@@ -201,7 +243,6 @@ export function use지형이동(
     const 발밑 = 지형.지면(X, Z);
     const 앉음 = keys.current.앉기;
     const 눈 = (앉음 ? 기준.앉은눈높이 : 눈높이) * 미터;
-    const 바닥Y = 발밑.y * 미터 + 눈;
 
     if (active) {
       const k = keys.current;
@@ -216,6 +257,7 @@ export function use지형이동(
       if (k.r) wish.add(right);
       if (k.l) wish.sub(right);
       if (wish.lengthSq() > 0) wish.normalize();
+      if (wish.lengthSq() > 0.00001) 바라봄.current = Math.atan2(wish.x, wish.z);
       // 걷기속도(m/s)를 넘기면 그 값을, 안 넘기면 본편 WALK 를 쓴다
       const 기본속도 = 걷기속도 ? 걷기속도 * 미터 : WALK;
       const 속도 = 기본속도 * (앉음 ? CROUCH : k.run ? RUN : 1);
@@ -234,6 +276,7 @@ export function use지형이동(
         const mx = nx * 유닛;
         const mz = nz * 유닛;
         if (지형.막힘(mx, mz, 발밑.y, R * 유닛 + 0.2)) return false;
+        if (추가막힘 && 추가막힘(mx, mz, 발밑.y, R * 유닛)) return false;
         const g = 지형.지면(mx, mz);
         if (접지.current && g.y - 발밑.y > 턱) return false; // 오르지 못할 턱
         return true;
@@ -260,47 +303,84 @@ export function use지형이동(
       경과.current += dt;
     }
 
-    // ── 위아래 ────────────────────────────────────────────
-    vy.current += GRAVITY * dt;
-    let ny = p.y + vy.current * dt;
-    최고점.current = Math.max(최고점.current, p.y);
+    // 수평 이동이 끝난 **새 좌표**에서 바닥을 다시 잰다. 예전에는 이동 전
+    // 좌표의 높이로 캐릭터를 놓아서 경사·길 경계에서 한 프레임씩 땅에 묻거나
+    // 공중에 뜨는 현상이 누적됐다.
+    const 최종X = p.x * 유닛;
+    const 최종Z = p.z * 유닛;
+    // 발 반경 안 다섯 점 중 가장 높은 땅을 밟는다. 중심 한 점만 보면 경사·길 경계에서 앞발이
+    // 놓인 땅이 더 높아 신발이 땅에 파묻혔다(실제로 그랬다). 볼록한 모서리에선 조금 뜨지만 낫다.
+    const 현재발밑 = 지형.지면(최종X, 최종Z);
+    {
+      const d = R * 유닛;
+      for (const [ox, oz] of [[d, 0], [-d, 0], [0, d], [0, -d]]) {
+        const g = 지형.지면(최종X + ox, 최종Z + oz);
+        if (g.y > 현재발밑.y && !g.낙하 && !g.물) 현재발밑.y = g.y;
+      }
+    }
+    const 바닥Y = 현재발밑.y * 미터 + 눈;
 
-    if (ny <= 바닥Y) {
-      const 낙차 = (최고점.current - 바닥Y) * 유닛; // m
+    // ── 위아래 ────────────────────────────────────────────
+    // 작은 하향 경사는 공중 상태가 아니라 '지면을 따라가는 보행'이다.
+    // 발밑이 턱 허용치 안에서 낮아진 경우는 바로 붙여 주고, 그보다
+    // 큰 낙차만 실제 추락으로 처리한다.
+    const 현재발Y = p.y - 눈;
+    const 바닥까지거리 = (현재발Y - 현재발밑.y * 미터) * 유닛;
+    const 지면따라가기 =
+      접지.current && !점프중.current && 바닥까지거리 <= 턱 + 0.05;
+    let ny;
+
+    if (지면따라가기) {
       ny = 바닥Y;
       vy.current = 0;
       접지.current = true;
       최고점.current = ny;
-
-      const 되돌릴까 = 낙하복귀 && (낙차 > 추락 || 발밑.물);
-      // 복귀는 '이동'이 아니므로 보행 거리에 더하지 않는다
-      if (되돌릴까 && 안전.current) 텔레포트.current(안전.current.X, 안전.current.Z);
     } else {
-      접지.current = false;
+      vy.current += GRAVITY * dt;
+      ny = p.y + vy.current * dt;
+      최고점.current = Math.max(최고점.current, p.y);
+
+      if (ny <= 바닥Y) {
+        const 낙차 = (최고점.current - 바닥Y) * 유닛; // m
+        ny = 바닥Y;
+        vy.current = 0;
+        접지.current = true;
+        점프중.current = false;
+        최고점.current = ny;
+
+        const 되돌릴까 = 낙하복귀 && (낙차 > 추락 || 현재발밑.물);
+        // 복귀는 '이동'이 아니므로 보행 거리에 더하지 않는다
+        if (되돌릴까 && 안전.current)
+          텔레포트.current(안전.current.X, 안전.current.Z);
+      } else {
+        접지.current = false;
+      }
     }
-    if (접지.current) ny = THREE.MathUtils.lerp(p.y, 바닥Y, 1 - Math.pow(0.0001, dt));
+    // 접지 중에는 정확히 지면에 놓는다. 보간하면 경사를 오를 때 몸이 땅속에,
+    // 내려갈 때 공중에 남는다. 공중일 때만 중력 적분을 그대로 쓴다.
+    if (접지.current) ny = 바닥Y;
     p.y = ny;
 
     // 멀쩡한 자리(구역·통로 위, 물 아님)를 계속 기억해 둔다
-    if (접지.current && (발밑.구역 || 발밑.통로) && !발밑.물)
-      안전.current = { X, Z };
+    if (접지.current && (현재발밑.구역 || 현재발밑.통로) && !현재발밑.물)
+      안전.current = { X: 최종X, Z: 최종Z };
 
     // 구역 방문 순서 — 고리 1바퀴 확인용
-    if (발밑.구역) {
+    if (현재발밑.구역) {
       const 마지막 = 방문.current[방문.current.length - 1];
-      if (마지막 !== 발밑.구역) 방문.current.push(발밑.구역);
+      if (마지막 !== 현재발밑.구역) 방문.current.push(현재발밑.구역);
       if (방문.current.length > 12) 방문.current.shift();
     }
 
     if (보고)
       보고.current = {
-        X,
-        Z,
-        EL: 발밑.y,
+        X: 최종X,
+        Z: 최종Z,
+        EL: 현재발밑.y,
         // 지금 카메라가 바닥에서 실제로 몇 m 떠 있나 —
         // 설정값(아래 `눈높이`)과 달리 앉으면 줄고 공중에 뜨면 커진다.
-        실눈높이: p.y * 유닛 - 발밑.y,
-        자리: 지형.자리이름(X, Z),
+        실눈높이: p.y * 유닛 - 현재발밑.y,
+        자리: 지형.자리이름(최종X, 최종Z),
         접지: 접지.current,
         앉음,
         달리기: keys.current.run,
@@ -313,6 +393,29 @@ export function use지형이동(
         눈높이,
         걷기속도: 걷기속도 ?? WALK * 유닛,
       };
+
+    // 캐릭터는 논리 플레이어의 실제 지면 좌표를 받고, 3인칭 카메라는
+    // 현재 시선의 반대편으로 물러난다. 마우스로 yaw를 180° 돌리면 캐릭터
+    // 정면까지 볼 수 있으며 플레이어 좌표 자체는 움직이지 않는다.
+    if (플레이어참조) {
+      const 상태 = 플레이어참조.current;
+      상태.position.copy(p);
+      상태.groundY = 현재발밑.y * 미터;
+      상태.footY = p.y - 눈;
+      상태.facing = 바라봄.current;
+      // 아바타가 걷기 모션 재생 속도를 실제 이동 속도에 맞추는 데 쓴다.
+      상태.speed = active ? Math.hypot(vel.current.x, vel.current.z) : 0;
+      상태.moving = 상태.speed > 0.001;
+      상태.running = active && keys.current.run;
+      상태.crouching = keys.current.앉기;
+      상태.grounded = 접지.current;
+      상태.jumping = 점프중.current;
+      상태.verticalVelocity = vy.current;
+    }
+    if (삼인칭) {
+      camera.getWorldDirection(카메라전방.current);
+      camera.position.copy(p).addScaledVector(카메라전방.current, -삼인칭거리 * 미터);
+    }
   });
 
   return 텔레포트;

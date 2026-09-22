@@ -626,8 +626,15 @@ function useSavedControls(폴더, 스키마) {
 // 눈높이 — 1 유닛 ≈ 0.30m 기준(사람 1.65m ≈ 5.5 유닛)
 const EYE = 6.5, // 서 있을 때
   CROUCH_EYE = 3.0; // 앉았을 때 ≈ 0.9m
-const WALK = 6,
-  RUN = 1.7,
+// 걷기·달리기 모션은 제자리 루프라 이동 속도가 클립의 보폭 속도와 맞아야 발이
+// 미끄러지지 않는다. 보폭 확대는 끈 상태(모션보정.js 보폭배율 1.0 — 허벅지 각을
+// 키우면 발이 호를 그리며 떠서 앞발이 높은 곳을 딛는 듯 보였다). 1.45m 기준
+// 클립의 고유 속도는 Walk_Loop 0.53 m/s, Jog_Fwd_Loop 1.63 m/s, Sprint_Loop 2.22 m/s다.
+//   걷기 0.90 m/s(3.0유닛) → 보폭 0.8 배 클립(약 0.43 m/s) 기준 2.1배. 원본 클립이
+//   느긋한 산책이라 이 정도 배속이 보통 걸음의 보속이 된다(아바타의 배속 상한 2.2 안).
+//   달리기 2.48 m/s(8.26유닛) → Sprint_Loop 1.11배.
+const WALK = 3.0,
+  RUN = 2.58,
   CROUCH = 0.55;
 const GRAVITY = -30,
   JUMP = 10.5;
@@ -678,7 +685,18 @@ const _이동갈 = new THREE.Vector3();
 
 function use이동(
   active,
-  { 눈높이 = EYE, 앉은높이 = CROUCH_EYE, 경계, 막힘, 근처, 시작, 바라봄 } = {},
+  {
+    눈높이 = EYE,
+    앉은높이 = CROUCH_EYE,
+    경계,
+    막힘,
+    근처,
+    시작,
+    바라봄,
+    삼인칭 = false,
+    플레이어참조 = null,
+    삼인칭거리 = 2.8,
+  } = {},
 ) {
   const { camera } = useThree();
   const eyeRef = useRef(눈높이);
@@ -693,7 +711,13 @@ function use이동(
   const vel = useRef(new THREE.Vector3());
   const vy = useRef(0);
   const grounded = useRef(true);
+  const jumping = useRef(false);
   const lastNear = useRef("");
+  // 3인칭: 카메라 대신 '논리 위치'를 움직이고 카메라는 그 뒤에서 따라온다.
+  const 논리위치 = useRef(null);
+  const 이전삼인칭 = useRef(false);
+  const 바라보는방향 = useRef(Math.PI);
+  const 카메라전방 = useRef(new THREE.Vector3());
 
   useEffect(() => {
     const set = (code, v) => {
@@ -709,6 +733,7 @@ function use이동(
       if (e.code === "Space" && grounded.current) {
         vy.current = JUMP;
         grounded.current = false;
+        jumping.current = true;
       }
       if (e.code === "KeyC" && !e.repeat)
         keys.current.crouchToggle = !keys.current.crouchToggle;
@@ -750,6 +775,7 @@ function use이동(
     //   rotation.set(x, y, z) 에서 x(위아래)·z(기울기)는 0으로 둔다.
     //   서 있는 사람은 고개를 갸웃하지 않으니까.
     if (바라봄 !== undefined) camera.rotation.set(0, 바라봄, 0);
+    if (바라봄 !== undefined) 바라보는방향.current = 바라봄;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 씬을 떠날 때 발소리 루프가 남아 계속 울리지 않게 끈다.
@@ -758,7 +784,11 @@ function use이동(
   useFrame((_, 원본dt) => {
     // 멈췄다 돌아온 프레임을 그대로 받으면 그만큼 순간이동한다 → 잘라서 쓴다
     const dt = Math.min(원본dt, DT최대);
-    const p = camera.position;
+    if (!논리위치.current) 논리위치.current = camera.position.clone();
+    if (삼인칭 && !이전삼인칭.current) 논리위치.current.copy(camera.position);
+    if (!삼인칭 && 이전삼인칭.current) camera.position.copy(논리위치.current);
+    이전삼인칭.current = 삼인칭;
+    const p = 삼인칭 ? 논리위치.current : camera.position;
 
     if (근처) {
       const n = 근처(p) || "";
@@ -766,6 +796,26 @@ function use이동(
     }
     if (!active) {
       루프정지("뛰기"); // 메뉴를 열거나 조작이 꺼지면 발소리도 멈춘다
+      if (플레이어참조) {
+        const 상태 = 플레이어참조.current;
+        상태.position.copy(p);
+        상태.groundY = 0;
+        상태.footY = p.y - eyeRef.current;
+        상태.facing = 바라보는방향.current;
+        상태.moving = false;
+        상태.running = false;
+        상태.speed = 0;
+        상태.crouching = keys.current.crouchToggle;
+        상태.grounded = grounded.current;
+        상태.jumping = jumping.current;
+        상태.verticalVelocity = vy.current;
+      }
+      if (삼인칭) {
+        camera.getWorldDirection(카메라전방.current);
+        camera.position
+          .copy(p)
+          .addScaledVector(카메라전방.current, -삼인칭거리 * (1 / 0.3));
+      }
       return;
     }
 
@@ -785,6 +835,8 @@ function use이동(
     if (k.r) wish.add(right);
     if (k.l) wish.sub(right);
     if (wish.lengthSq() > 0) wish.normalize();
+    if (wish.lengthSq() > 0.00001)
+      바라보는방향.current = Math.atan2(wish.x, wish.z);
     const crouching = k.crouchToggle;
     const speed = WALK * (crouching ? CROUCH : k.run ? RUN : 1);
     const target = wish.multiplyScalar(speed);
@@ -817,6 +869,7 @@ function use이동(
       ny = floorY;
       vy.current = 0;
       grounded.current = true;
+      jumping.current = false;
     } else grounded.current = false;
     if (grounded.current)
       ny = THREE.MathUtils.lerp(p.y, floorY, 1 - Math.pow(0.0001, dt));
@@ -826,6 +879,28 @@ function use이동(
     if (뛰는중) 루프시작("뛰기", { 볼륨: 0.55 });
     else 루프정지("뛰기");
     p.y = ny;
+
+    if (플레이어참조) {
+      const 상태 = 플레이어참조.current;
+      상태.position.copy(p);
+      상태.groundY = 0;
+      상태.footY = p.y - eyeRef.current;
+      상태.facing = 바라보는방향.current;
+      // 아바타가 걷기 모션 재생 속도를 실제 이동 속도에 맞추는 데 쓴다(이동 자체에는 영향 없음).
+      상태.speed = Math.hypot(vel.current.x, vel.current.z);
+      상태.moving = 상태.speed > 0.001;
+      상태.running = keys.current.run;
+      상태.crouching = keys.current.crouchToggle;
+      상태.grounded = grounded.current;
+      상태.jumping = jumping.current;
+      상태.verticalVelocity = vy.current;
+    }
+    if (삼인칭) {
+      camera.getWorldDirection(카메라전방.current);
+      camera.position
+        .copy(p)
+        .addScaledVector(카메라전방.current, -삼인칭거리 * (1 / 0.3));
+    }
   });
 
   return lastNear;

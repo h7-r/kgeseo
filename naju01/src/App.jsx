@@ -21,6 +21,12 @@ import 공간그레이박스 from "./scenes/공간그레이박스.jsx";
 import { 계기판, 조작안내 } from "./계기.jsx";
 import { 미터, 기준, 시점 } from "./공간도면.js";
 import { 기본지형 } from "./지형.js";
+import 사이드킥꾸미기패널 from "./사이드킥꾸미기패널.jsx";
+import { 사이드킥외형읽기 } from "./사이드킥옵션.js";
+import 치비테스트패널 from "./치비테스트패널.jsx";
+import { 메시외형읽기 } from "./메시외형옵션.js";
+import { 기본툰 } from "./툰재질.js";
+import { 기본외곽선 } from "./툰외곽선.js";
 
 // 본편과 같은 개발용 스위치 — ?q=low · ?leva=1 · ?fx=off
 const 쿼리 =
@@ -44,14 +50,29 @@ const 무대16x9 = 쿼리.get("stage") === "16x9";
 //   Leva 에 저장된 값이 다르면 첫 프레임에 씬이 알아서 다시 앉힌다.
 const 시작 = 시점[0];
 const 시작높이 = (기본지형.지면(시작.X, 시작.Z).y + 기준.눈높이) * 미터;
+// 꾸미기 패널은 개발용이다. 개발 서버이거나 ?customize 가 있을 때만 보인다.
+const 꾸미기패널보임 = import.meta.env.DEV || 쿼리.has("customize");
+// 3인칭 캐릭터 — 기본은 Meshy 캐릭터, ?avatar=sidekick 이면 예전 사이드킥.
+const 사이드킥으로 = 쿼리.get("avatar") === "sidekick";
+// 애니메이션풍 렌더 — 기본 켬. ?toon=off / ?outline=off 로 원본 PBR 과 비교한다.
+const 툰끄기 = 쿼리.get("toon") === "off";
+const 외곽선끄기 = 쿼리.get("outline") === "off";
+// 캐릭터는 툰으로 두고 세계만 원본 질감으로 되돌려 비교할 때 ?worldtoon=off
+const 세계툰끄기 = 쿼리.get("worldtoon") === "off";
+const 메시저장키 = "naju01.meshy.appearance.v1";
+const 사이드킥저장키 = "naju01.sidekick.appearance.v2";
+// v1은 성별·새 의상 번호가 없던 저장값이다. v2가 없으면 v1을 읽어 보정한다.
+const 이전저장키 = "naju01.sidekick.appearance.v1";
 
 export default function App() {
   const controlsRef = useRef(null);
   const 보고 = useRef(null); // 씬 → 계기판으로 넘기는 상자(리렌더 없이)
   const [locked, setLocked] = useState(false);
   const [시점모드, set시점모드] = useState("1인칭");
-  const [아바타종류, set아바타종류] = useState("게임");
-  const [외형, set외형] = useState({ hair: 1, top: 1, bottom: 1, shoes: 1 });
+  const [사이드킥설정, set사이드킥설정] = useState(() => 사이드킥외형읽기(사이드킥저장키, 이전저장키));
+  const [메시설정, set메시설정] = useState(() => (사이드킥으로 ? null : 메시외형읽기(메시저장키)));
+  const [툰설정, set툰설정] = useState(() => ({ ...기본툰, 켬: !툰끄기, 세계: !세계툰끄기 }));
+  const [외곽선설정, set외곽선설정] = useState(() => ({ ...기본외곽선, 켬: !외곽선끄기 }));
   // 계기판·조작안내는 화면을 꽤 가린다. 그림을 볼 때는 H 로 치운다.
   const [계기보임, set계기보임] = useState(true);
 
@@ -113,8 +134,10 @@ export default function App() {
           onLockChange={setLocked}
           보고={보고}
           삼인칭={시점모드 === "3인칭"}
-          아바타종류={아바타종류}
-          외형={외형}
+          사이드킥설정={사이드킥설정}
+          메시설정={메시설정}
+          툰설정={툰설정}
+          외곽선설정={외곽선설정}
         />
         {!저사양 && !후처리끄기 && (
           <EffectComposer multisampling={4} enableNormalPass={false}>
@@ -149,27 +172,25 @@ export default function App() {
       >
         [V] {시점모드}
       </button>
-      <div style={아바타패널}>
-        <button
-          type="button"
-          onClick={() => set아바타종류((v) => ({ 게임: "메쉬", 메쉬: "모듈", 모듈: "게임" }[v]))}
-          style={아바타버튼}
-        >
-          외형: {{ 게임: "새 게임 리그", 메쉬: "Meshy 원형", 모듈: "모듈 초안" }[아바타종류]}
-        </button>
-        {아바타종류 === "모듈" && (
-          <div style={선택줄}>
-            {[["hair", "머리"], ["top", "상의"], ["bottom", "하의"], ["shoes", "신발"]].map(([key, label]) => (
-              <button key={key} type="button" style={작은버튼} onClick={() => set외형((old) => ({ ...old, [key]: old[key] % 4 + 1 }))}>
-                {label} {외형[key]}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      {/* ※ 화면 한복판의 조준점은 걷어냈다 — 쏘거나 겨냥하는 게임이 아니라
-          **놓여 있을 이유가 없고**, 풍경을 볼 때 계속 눈에 걸린다.
-          되살리려면 아래 `조준점` 스타일을 그대로 쓰면 된다. */}
+      {꾸미기패널보임 && 메시설정 && (
+        <치비테스트패널
+          설정={메시설정}
+          set설정={set메시설정}
+          저장키={메시저장키}
+          툰설정={툰설정}
+          set툰설정={set툰설정}
+          외곽선설정={외곽선설정}
+          set외곽선설정={set외곽선설정}
+        />
+      )}
+      {꾸미기패널보임 && !메시설정 && (
+        <사이드킥꾸미기패널
+          설정={사이드킥설정}
+          set설정={set사이드킥설정}
+          저장키={사이드킥저장키}
+          이전저장키={이전저장키}
+        />
+      )}
     </div>
   );
 }
@@ -187,20 +208,6 @@ const 숨김표시 = {
   pointerEvents: "none",
 };
 
-// 안 쓰는 중 — 위 주석 참고(겨냥이 필요한 장치가 생기면 되살린다)
-const 조준점 = {
-  position: "absolute",
-  left: "50%",
-  top: "50%",
-  width: 5,
-  height: 5,
-  marginLeft: -2.5,
-  marginTop: -2.5,
-  borderRadius: "50%",
-  background: "rgba(240,244,250,.55)",
-  pointerEvents: "none",
-};
-
 const 시점버튼 = {
   position: "absolute",
   right: 14,
@@ -215,7 +222,3 @@ const 시점버튼 = {
   cursor: "pointer",
 };
 
-const 아바타패널 = { position: "absolute", right: 14, top: 52, zIndex: 20, display: "grid", gap: 5 };
-const 아바타버튼 = { ...시점버튼, position: "static", textAlign: "left" };
-const 선택줄 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 };
-const 작은버튼 = { border: "1px solid rgba(170,190,220,.25)", borderRadius: 5, padding: "4px 6px", background: "rgba(14,18,26,.68)", color: "#DDE7F6", font: '11px/1.2 ui-monospace, Menlo, monospace', cursor: "pointer" };

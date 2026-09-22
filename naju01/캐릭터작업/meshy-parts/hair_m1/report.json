@@ -1,0 +1,38 @@
+{
+  "icp_mean_mm": [
+    32.49,
+    4.46,
+    2.99,
+    2.89,
+    2.84,
+    2.81,
+    2.78,
+    2.76,
+    2.74,
+    2.73,
+    2.71,
+    2.7
+  ],
+  "scale": 0.797,
+  "translation_mm": [
+    2.0,
+    106.7,
+    183.8
+  ],
+  "hair_vertices": 82954,
+  "hair_faces": 164146,
+  "islands_kept": 1,
+  "seat": {
+    "median_shift_mm": 28.1,
+    "p90_abs_mm": 77.7,
+    "pushed_out": 8686
+  },
+  "ear_faces": 0,
+  "ear_region": {
+    "z": [
+      0.5889,
+      0.7505
+    ],
+    "x_min": 0.1459
+  }
+}
