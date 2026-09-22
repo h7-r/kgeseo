@@ -139,4 +139,6 @@ export function 캐릭터진단(준비, 옵션 = {}) {
 export function 진단등록(준비, 옵션) {
   if (!import.meta.env.DEV || typeof window === "undefined") return;
   window.__캐릭터진단 = (추가) => 캐릭터진단(준비, { ...옵션, ...추가 });
+  // 리타게팅·보정이 끝난 클립을 이름으로 꺼낸다(트랙 값의 키 간 급변 같은 걸 잴 때).
+  window.__캐릭터클립 = (name) => 준비.clipFor?.(name);
 }

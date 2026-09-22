@@ -121,15 +121,23 @@ function GAIT무대() {
   const [줌, set줌] = useState(1);
   const [멈춤, set멈춤] = useState(false);
   const [보정켬, set보정켬] = useState(true);
+  const [접지켬, set접지켬] = useState(true);
+  const [트리포, set트리포] = useState(true);
   // 덧값만 넘긴다 — 기본값과 성별별 값은 아바타 안에서 합쳐진다.
-  const 보정 = useMemo(() => ({ 켬: 보정켬 }), [보정켬]);
+  const 보정 = useMemo(() => ({ 켬: 보정켬, 접지켬 }), [보정켬, 접지켬]);
   const [시각, set시각] = useState(0);
   const 사이드킥상태 = useRef(정지상태());
   const 메시상태 = useRef(정지상태());
   const 여성상태 = useRef(정지상태());
+  // 개발용: ?skinColor=%23ff0000&clothColor=%230000ff&shoes=-1 처럼 외형 값을 주소로 넘길 수 있다.
+  // ?toon=1 이면 툰 재질을 켠다(피부·의상 표식 색칠은 툰 재질에서만 된다).
+  const 주소설정 = useMemo(() => Object.fromEntries(new URLSearchParams(window.location.search)), []);
+  const 툰켬 = 주소설정.toon === "1";
+  const 외곽선켬 = 주소설정.outline === "1";
   const 사이드킥설정 = useMemo(() => ({ ...외형설정보정(null), motion: 동작 }), [동작]);
-  const 메시설정 = useMemo(() => ({ ...메시설정보정(null), motion: 동작 }), [동작]);
-  const 여성설정 = useMemo(() => ({ ...메시설정보정({ gender: "feminine" }), motion: 동작 }), [동작]);
+  const 모션소스 = 트리포 ? "tripo" : "sidekick";
+  const 메시설정 = useMemo(() => ({ ...메시설정보정(주소설정), motion: 동작, motionSource: 모션소스 }), [동작, 주소설정, 모션소스]);
+  const 여성설정 = useMemo(() => ({ ...메시설정보정({ ...주소설정, gender: "feminine" }), motion: 동작, motionSource: 모션소스 }), [동작, 주소설정, 모션소스]);
   const 회전 = 시점목록.find(([key]) => key === 시점)[2];
 
   useEffect(() => {
@@ -159,6 +167,8 @@ function GAIT무대() {
         <div style={줄}>
           <button type="button" style={뼈보기 ? 선택 : 버튼} onClick={() => set뼈보기((v) => !v)}>스켈레톤</button>
           <button type="button" style={보정켬 ? 선택 : 버튼} onClick={() => set보정켬((v) => !v)}>{보정켬 ? "보정 켬" : "원본 클립"}</button>
+          <button type="button" style={접지켬 ? 선택 : 버튼} onClick={() => set접지켬((v) => !v)}>{접지켬 ? "접지 IK 켬" : "접지 IK 끔"}</button>
+          <button type="button" style={트리포 ? 선택 : 버튼} onClick={() => set트리포((v) => !v)}>{트리포 ? "Tripo 동작" : "Sidekick 동작"}</button>
           <button type="button" style={멈춤 ? 선택 : 버튼} onClick={() => set멈춤((v) => !v)}>{멈춤 ? "정지" : "재생"}</button>
           {[0.25, 0.5, 1].map((v) => (
             <button key={v} type="button" style={배속 === v ? 선택 : 버튼} onClick={() => set배속(v)}>{v}x</button>
@@ -201,8 +211,8 @@ function GAIT무대() {
             크기={1}
             검증시각={시각}
             몸체="meshy"
-            툰={{ ...기본툰, 켬: false }}
-            외곽선={{ ...기본외곽선, 켬: false }}
+            툰={{ ...기본툰, 켬: 툰켬 }}
+            외곽선={{ ...기본외곽선, 켬: 외곽선켬 }}
             보정={보정}
           />
           <ChibiGameAvatar
@@ -212,8 +222,8 @@ function GAIT무대() {
             크기={1}
             검증시각={시각}
             몸체="meshy"
-            툰={{ ...기본툰, 켬: false }}
-            외곽선={{ ...기본외곽선, 켬: false }}
+            툰={{ ...기본툰, 켬: 툰켬 }}
+            외곽선={{ ...기본외곽선, 켬: 외곽선켬 }}
             보정={보정}
           />
         </Suspense>

@@ -8,11 +8,11 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { clone, retargetClip } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { 미터 } from "./공간도면.js";
-import { 기본메시설정, 메시모델파일 } from "./메시외형옵션.js";
+import { 기본메시설정, 메시모델파일, 메시신발파일 } from "./메시외형옵션.js";
 import { 기본툰, 툰적용 } from "./툰재질.js";
 import { 기본외곽선, 외곽선적용 } from "./툰외곽선.js";
 import { 진단등록 } from "./캐릭터진단.js";
-import { 기본보정, 성별보정, 이동모션, 보정쿼터니언, 클립보정 } from "./모션보정.js";
+import { 기본보정, 성별보정, 트리포보정, 트리포성별보정, 이동모션, 보정쿼터니언, 클립보정 } from "./모션보정.js";
 
 // 몸체 종류: chibi = V4 몸체 시제품, meshy = Meshy 민머리 기본 모델(텍스처 원본 유지).
 const 몸파일 = {
@@ -20,6 +20,9 @@ const 몸파일 = {
   meshy: { masculine: "/models/meshy-male.glb", feminine: "/models/meshy-female.glb" },
 };
 const 모션파일 = "/models/vendor/quaternius-universal-animation-library.glb";
+// Tripo 동작(우리 몸체에 맞춰 만든 걷기·대기·달리기). 뼈 이름은 굽는 도구에서 우리 리그 이름으로 바꿔 둔다.
+// 파일마다 리그가 다를 수 있다(Tripo 가 몸체마다 새로 리깅한다) — 클립은 제 리그로 리타게팅해야 한다.
+const 트리포모션파일들 = ["/models/tripo-motions.glb?v=8", "/models/tripo-motions-fold.glb?v=1"];
 
 const 기본치비설정 = {
   motion: "자동",
@@ -107,16 +110,51 @@ function 형태값(mesh, name, value) {
   if (index !== undefined) mesh.morphTargetInfluences[index] = value;
 }
 
-function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정) {
+// 따로 구운 파츠(신발)를 캐릭터 골격에 묶는다. 파츠 GLB 의 골격은 뼈 순서가 다를 수 있어
+// skinIndex 를 뼈 이름으로 다시 매긴다. 쉴 때 자세가 같으므로 bind 행렬은 몸 것을 쓴다.
+function 파츠붙이기(partsGLTF, targetSkin) {
+  const out = [];
+  if (!partsGLTF) return out;
+  partsGLTF.scene.traverse((object) => {
+    if (!object.isSkinnedMesh) return;
+    const geometry = object.geometry.clone();
+    const 이름표 = targetSkin.skeleton.bones.map((bone) => bone.name);
+    const 대응 = object.skeleton.bones.map((bone) => Math.max(0, 이름표.indexOf(bone.name)));
+    const index = geometry.getAttribute("skinIndex");
+    for (let i = 0; i < index.count * index.itemSize; i += 1) index.array[i] = 대응[index.array[i]] ?? 0;
+    index.needsUpdate = true;
+    const material = Array.isArray(object.material) ? object.material.map((m) => m.clone()) : object.material.clone();
+    const mesh = new THREE.SkinnedMesh(geometry, material);
+    mesh.name = object.name;
+    // 파츠 표식(slot·variant·side·foot_shrink)은 재질이 여럿이면 메시가 아니라 부모 그룹 노드에
+    // 붙어 온다. 조상까지 훑어 모은다(가까운 쪽이 우선). 이걸 빠뜨리면 신발이 늘 보이고
+    // 밑창 지면 맞춤·발 줄이기가 전부 죽는다(실제로 그랬다).
+    for (let node = object; node && node !== partsGLTF.scene; node = node.parent) {
+      Object.entries(node.userData).forEach(([k, v]) => { if (!(k in mesh.userData)) mesh.userData[k] = v; });
+    }
+    mesh.bind(targetSkin.skeleton, targetSkin.bindMatrix);
+    targetSkin.parent.add(mesh);
+    out.push(mesh);
+  });
+  return out;
+}
+
+function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정, 신발GLTF = null, 트리포GLTFs = null, 트리포값 = 트리포보정) {
   const model = clone(gltf.scene);
   const retargetModel = clone(gltf.scene);
   const source = clone(모션GLTF.scene);
   const targetSkin = 첫스킨메시(model);
   const retargetSkin = 첫스킨메시(retargetModel);
   const sourceSkin = 첫스킨메시(source);
+  // Tripo 동작 소스(파일 여러 개) — 같은 이름의 클립을 이쪽에서 먼저 찾는다. 클립마다 제 파일의 리그를 쓴다.
+  const 트리포근원들 = (트리포GLTFs ?? []).map((g) => { const 씬 = clone(g.scene); const 스킨 = 첫스킨메시(씬); return { 씬, 스킨, 클립: g.animations }; }).filter((x) => x.스킨);
+  const 트리포스킨 = 트리포근원들[0]?.스킨 ?? null;
+  const 트리포클립 = new Map();
+  트리포근원들.forEach((근원) => 근원.클립.forEach((clip) => { if (!트리포클립.has(clip.name)) 트리포클립.set(clip.name, { clip, 근원 }); }));
   const skinMaterials = [];
   const soles = [];
   const parts = [];
+  const 신발파츠 = 파츠붙이기(신발GLTF, targetSkin);
   model.traverse((object) => {
     if (!object.isMesh) return;
     object.castShadow = true;
@@ -144,25 +182,51 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정) {
       }
       soles.push({ object, indices, 왼발, 오른발 });
     }
+    // 신발은 밑창이 맨발보다 낮다. 신었을 때는 신발 바닥이 지면 기준이 된다(보이는 것만 센다).
+    if (data.slot === "shoes") {
+      const position = object.geometry.getAttribute("position");
+      const indices = [];
+      // 바닥 근처 정점 전부(가장 낮은 점 + 2cm). 0 미만으로 잡으면 밑창이 정확히 0 인 신발은 비어서
+      // 맨발 정점이 지면 기준이 되고 신발이 땅에 묻힌다.
+      let 최저 = Infinity;
+      for (let i = 0; i < position.count; i += 1) 최저 = Math.min(최저, position.getY(i));
+      // 5cm — 발이 앞뒤로 기울면(대기 -35°) 쉴 때 최저점이 아닌 뒤꿈치·앞코 가장자리가 최저가 된다.
+      for (let i = 0; i < position.count; i += 1) if (position.getY(i) < 최저 + 0.05) indices.push(i);
+      const 왼발 = data.side === "l" ? indices : [];
+      const 오른발 = data.side === "r" ? indices : [];
+      soles.push({ object, indices, 왼발, 오른발 });
+    }
   });
 
   const options = 리타게팅옵션(retargetSkin, sourceSkin);
+  트리포근원들.forEach((근원) => { 근원.옵션 = 리타게팅옵션(retargetSkin, 근원.스킨); 근원.씬.skeleton = 근원.스킨.skeleton; });
   const 보정 = 보정쿼터니언(retargetSkin, 보정값);
+  const 트리포규칙 = 트리포스킨 ? 보정쿼터니언(retargetSkin, 트리포값) : null;
+  // 팔짱 대기는 팔을 벌리면 손이 반대팔에 안 닿는다(어깨도 1.2 로 넓혔다). 이 클립만 안으로 모은다.
+  // Tripo 리그는 어깨 관절이 몸 중심에서 22cm, 우리 리그는 13cm(어깨 1.2 포함). 같은 회전이면 손이
+  // 7cm 높고 안쪽으로 들어와 반대팔을 뚫었다. 위팔을 내리고 조금 벌려 손 위치를 원본에 맞춘다.
+  const 팔짱값 = { ...트리포값, 팔벌림도: 0, 팔내림도: 8, 아래팔돌림도: -15, ...(트리포값.팔짱덧값 ?? {}) };
+  const 팔짱규칙 = 트리포스킨 ? 보정쿼터니언(retargetSkin, 팔짱값) : null;
   source.skeleton = sourceSkin.skeleton;
   const sourceClips = new Map(모션GLTF.animations.map((clip) => [clip.name, clip]));
   const retargeted = new Map();
   const clipFor = (name) => {
     if (retargeted.has(name)) return retargeted.get(name);
-    const sourceClip = sourceClips.get(name);
+    // Tripo 클립은 우리 몸체에 맞춰 만든 것이라 자세 보정(모션보정.js)을 걸지 않는다.
+    const 트리포것 = 트리포클립.get(name);
+    const sourceClip = 트리포것?.clip ?? sourceClips.get(name);
     if (!sourceClip) return null;
+    const 근원 = 트리포것 ? 트리포것.근원.씬 : source;
+    const 근원스킨 = 트리포것 ? 트리포것.근원.스킨 : sourceSkin;
     retargetSkin.skeleton.pose();
-    sourceSkin.skeleton.pose();
-    source.updateMatrixWorld(true);
+    근원스킨.skeleton.pose();
+    근원.updateMatrixWorld(true);
     retargetSkin.updateMatrixWorld(true);
-    const result = retargetClip(retargetSkin, source, sourceClip, options);
+    const result = retargetClip(retargetSkin, 근원, sourceClip, 트리포것 ? 트리포것.근원.옵션 : options);
     result.name = name;
     retargetSkin.skeleton.pose();
-    if (보정값.켬) 클립보정(result, 보정, name, 보정값);
+    const 팔짱 = 트리포것 && name === "Idle_Fold_Loop";
+    if (보정값.켬) 클립보정(result, 팔짱 ? 팔짱규칙 : 트리포것 ? 트리포규칙 : 보정, name, 팔짱 ? 팔짱값 : 트리포것 ? 트리포값 : 보정값);
     retargeted.set(name, result);
     return result;
   };
@@ -236,7 +300,28 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정) {
     return thigh && calf && foot ? { s, thigh, calf, foot } : null;
   }).filter(Boolean);
   const 골반뼈 = targetSkin.skeleton.getBoneByName("pelvis");
+  // 신발을 신으면 발볼 뼈를 줄여 발가락을 신발 안으로 접어 넣는다(신발은 발뼈에 통째로 붙는다).
+  const 발볼뼈 = ["ball_l", "ball_r"].map((n) => targetSkin.skeleton.getBoneByName(n)).filter(Boolean);
+  // 신발을 신으면 발뼈를 이 배율로 줄인다(신발 GLB 가 foot_shrink 로 알려 준다 — 그만큼 미리 키워
+  // 구워져 있어 신발은 제 크기, 발만 작아져 뒤꿈치·발볼이 비치지 않는다).
+  const 발뼈 = ["foot_l", "foot_r"].map((n) => targetSkin.skeleton.getBoneByName(n)).filter(Boolean);
+  const 신발수축 = 신발파츠.find((m) => m.userData.foot_shrink)?.userData.foot_shrink ?? 1;
+  // 팔 길이 조절용 — 아래팔·손 뼈의 쉴 때 위치. 이 위치 벡터가 곧 부모 뼈(위팔·아래팔)의
+  // 길이라서, 배율을 곱하면 뼈 스케일 없이 팔만 짧아지고 손은 그대로다.
+  const 팔뼈 = ["l", "r"].flatMap((s) => ["lowerarm", "hand"].map((n) => targetSkin.skeleton.getBoneByName(`${n}_${s}`)))
+    .filter(Boolean)
+    .map((bone) => ({ bone, 쉴때: bone.position.clone() }));
+  // 어깨 폭 — 위팔 뼈의 쉴 때 위치(쇄골 기준)에 배율을 곱한다. 어깨 관절이 옆으로 나가고 팔 전체가 따라간다.
+  //   ※ shoulderWidth 모프는 쓰지 않는다. 모프는 팔 정점까지 옆으로 밀어서, 팔을 내리면 그 오프셋이
+  //     팔뼈를 따라 돌아 어깨가 아래로 처졌다(실제로 그랬다).
+  const 어깨뼈 = ["upperarm_l", "upperarm_r"].map((n) => targetSkin.skeleton.getBoneByName(n)).filter(Boolean)
+    .map((bone) => ({ bone, 쉴때: bone.position.clone() }));
   return {
+    팔뼈,
+    어깨뼈,
+    발볼뼈,
+    발뼈,
+    신발수축,
     model,
     targetSkin,
     다리,
@@ -246,6 +331,7 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정) {
     접지시각For,
     보정값,
     clipCount: sourceClips.size,
+    트리포클립: [...트리포클립.keys()],
     mappedBones: Object.keys(options.names).length,
     skinMaterials,
     parts,
@@ -263,12 +349,24 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   const 남GLTF = useGLTF(meshy ? 모델경로 : 파일.masculine);
   const 여GLTF = useGLTF(meshy ? 모델경로 : 파일.feminine);
   const 모션GLTF = useGLTF(모션파일);
+  const 신발GLTF = useGLTF(meshy ? 메시신발파일(외형기본) : 몸파일.chibi.masculine);
+  const 트리포GLTF = useGLTF(트리포모션파일들);
+  const 트리포씀 = (설정.motionSource ?? 기본메시설정.motionSource) === "tripo";
   const gender = 설정.gender === "feminine" ? "feminine" : "masculine";
   // 기본값 → 성별별 값 → 호출자 덧값 순으로 합친다. 호출자는 바꿀 것만 넘긴다.
   const 보정값 = useMemo(() => ({ ...기본보정, ...(성별보정[gender] ?? {}), ...(보정 ?? {}) }), [gender, 보정]);
+  const 트리포값 = useMemo(() => {
+    const v = { ...트리포보정, ...(트리포성별보정[gender] ?? {}) };
+    // 개발용: gait.html?fold=벌림,내림,아래팔 로 팔짱 보정을 바로 바꿔 본다.
+    if (import.meta.env.DEV && typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search).get("fold");
+      if (q) { const [a, b, c] = q.split(",").map(Number); v.팔짱덧값 = { 팔벌림도: a, 팔내림도: b, 아래팔돌림도: c }; }
+    }
+    return v;
+  }, [gender]);
   const 준비 = useMemo(
-    () => 몸준비(!meshy && gender === "feminine" ? 여GLTF : 남GLTF, 모션GLTF, 보정값),
-    [meshy, gender, 남GLTF, 여GLTF, 모션GLTF, 보정값],
+    () => 몸준비(!meshy && gender === "feminine" ? 여GLTF : 남GLTF, 모션GLTF, 보정값, meshy ? 신발GLTF : null, 트리포씀 ? 트리포GLTF : null, 트리포값),
+    [meshy, gender, 남GLTF, 여GLTF, 모션GLTF, 보정값, 신발GLTF, 트리포GLTF, 트리포씀, 트리포값],
   );
 
   // ── 애니메이션풍 재질 + 외곽선 ──────────────────────────────
@@ -316,7 +414,7 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   const 외형 = useMemo(
     () => ({ ...기본메시설정, ...설정 }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [설정.hair, 설정.skinColor, 설정.hairColor, 설정.clothColor, 설정.shoulderWidth, 설정.hipWidth,
+    [설정.hair, 설정.shoes, 설정.skinColor, 설정.hairColor, 설정.clothColor, 설정.shoulderWidth, 설정.hipWidth,
       설정.buff, 설정.heavy, 설정.skinny, 설정.armThickness, 설정.legThickness,
       설정.handScale, 설정.footScale, 설정.fistHands],
   );
@@ -330,7 +428,7 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     // 슬라이더 → morph target. 어깨는 0.75~1.25를 -1~+1로 옮긴다.
     const 모프 = {
       heavy: 외형.heavy, skinny: 외형.skinny, buff: 외형.buff,
-      shoulderWidth: THREE.MathUtils.clamp((외형.shoulderWidth - 1) / 0.25, -1, 1),
+      shoulderWidth: 0, // 뼈로 넓힌다(useFrame 의 어깨뼈). 모프는 팔이 처져서 안 쓴다.
       hipWidth: (외형.hipWidth - 1) / 0.3,
       armThickness: (외형.armThickness - 1) / 0.3,
       legThickness: (외형.legThickness - 1) / 0.3,
@@ -343,7 +441,7 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     // 정점 표식이 있는 모델에서만 피부·의상을 따로 칠할 수 있다.
     const 툰켬 = Boolean(툰핸들.current?.표식있음);
     준비.parts.forEach(({ object, slot, variant }) => {
-      if (slot === "hair") object.visible = variant === 외형.hair;
+      if (slot === "hair" || slot === "shoes") object.visible = variant === 외형[slot];
       Object.entries(모프).forEach(([key, value]) => 형태값(object, key, value));
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       const 칠 = slot === "hair" || !툰켬 ? (색[slot] ?? "#ffffff") : "#ffffff";
@@ -373,6 +471,8 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   // 쓰지 않으므로(정지 화면·검증시각), 안 쓴 프레임엔 우리가 되돌려야 IK 가 누적되지
   // 않는다 — 실측: 0.7cm 요청이 몇 프레임 뒤 3.6cm, 결국 최대 뻗음 14cm 에서 포화.
   const 다리보관 = useRef(new Map());
+  // IK 양(올림·내림)의 지난 프레임 값 — 시간 평활용. 발마다 { 올림, 내림 }.
+  const 접지평활 = useRef({ l: { 올림: 0, 내림: 0 }, r: { 올림: 0, 내림: 0 } });
 
   useEffect(
     () => () => {
@@ -456,6 +556,8 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
       else next = "Idle_Loop";
       공중모션중.current = confirmedAir;
     }
+    // 남성 대기는 팔짱 클립(Tripo). 여성은 손 허리 대기가 어울려 그대로 둔다.
+    if (next === "Idle_Loop" && gender === "masculine" && 준비.트리포클립.includes("Idle_Fold_Loop")) next = "Idle_Fold_Loop";
     재생(next);
     const action = actions.current.get(현재모션.current);
     // 발이 미끄러지지 않도록 걷기·달리기 재생 속도를 실제 이동 속도에 맞춘다.
@@ -474,6 +576,15 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     } else mixer.update(delta);
 
     준비.headBone?.scale.setScalar(설정.headScale ?? 1);
+    // 팔 길이 — 믹서가 쓴 뒤에 덮어야 한다(클립에 위치 트랙이 있을 수 있다).
+    const 팔길이 = 설정.armLength ?? 1;
+    준비.팔뼈.forEach(({ bone, 쉴때 }) => bone.position.copy(쉴때).multiplyScalar(팔길이));
+    const 어깨폭 = 설정.shoulderWidth ?? 1;
+    준비.어깨뼈.forEach(({ bone, 쉴때 }) => bone.position.copy(쉴때).multiplyScalar(어깨폭));
+    const 신발신음 = meshy && (설정.shoes ?? -1) >= 0;
+    준비.발뼈.forEach((bone) => bone.scale.setScalar(신발신음 ? 준비.신발수축 : 1));
+    // 발볼은 발뼈의 자식이라 위 배율까지 물려받는다. 신발 안에서 접히기만 하면 되니 그대로 둔다.
+    준비.발볼뼈.forEach((bone) => bone.scale.setScalar(신발신음 ? 0.02 : 1));
 
     group.position.set(state.position.x, state.footY, state.position.z);
     group.rotation.set(0, state.facing, 0);
@@ -485,6 +596,7 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     const 발바닥높이 = (측) => {
       let y = Infinity;
       준비.soles.forEach(({ object, 왼발, 오른발 }) => {
+        if (!object.visible) return;
         const 목록 = 측 === "l" ? 왼발 : 오른발;
         for (let i = 0; i < 목록.length; i += 3) {
           object.getVertexPosition(목록[i], 점);
@@ -504,7 +616,9 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     //     앞·위로 간다(실측 발끝 높이 0.077 → 0.183). 그래서 엉덩이까지 같이 푼다.
     //   ※ 스윙 중인 발은 건드리면 안 된다 — 창을 넓게 잡았더니 공중의 다리를 붙잡아
     //     곧게 뻗어 버렸다. 골반 앞쪽 + 좁은 창으로 접지 직전만 고른다.
-    if (준비.보정값?.접지켬 !== false && 준비.다리.length === 2 && 준비.골반뼈) {
+    // Tripo 클립은 접지 IK 를 걸지 않는다(트리포보정.접지켬).
+    const 접지쓰기 = 준비.트리포클립.includes(next) ? 트리포보정.접지켬 !== false : 준비.보정값?.접지켬 !== false;
+    if (접지쓰기 && 준비.다리.length === 2 && 준비.골반뼈) {
       // 믹서가 이번 프레임에 뼈를 썼으면(우리가 남긴 IK 값과 다르면) 그게 클립 자세다.
       // 안 썼으면(IK 값 그대로면) 보관해 둔 클립 자세로 되돌린 뒤 IK 를 새로 건다.
       준비.다리.forEach((d) => [d.thigh, d.calf].forEach((bone) => {
@@ -528,7 +642,12 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
       점.setFromMatrixPosition(다리.foot.matrixWorld).applyMatrix4(역행렬);
       const 발앞뒤 = 점.z;
       점.setFromMatrixPosition(준비.골반뼈.matrixWorld).applyMatrix4(역행렬);
-      const 앞에있음 = 발앞뒤 - 점.z > 0.02;
+      // 문턱은 전부 부드러운 가중치로 건다. 딱딱한 on/off(골반 앞 2cm, 틈 4mm~창, 2mm 하한)로
+      // 걸었더니 양발 지지 구간에서 틈이 문턱 근처를 오가며 프레임마다 IK 가 켜졌다 꺼져
+      // 몸 높이가 3~4mm 씩 12Hz 로 떨렸다(실측 — 바들바들 떠는 것처럼 보인 원인).
+      const 앞가중 = THREE.MathUtils.smoothstep(발앞뒤 - 점.z, 0.01, 0.03);
+      const 앞에있음 = 앞가중 > 0.001;
+      const 틈가중 = THREE.MathUtils.smoothstep(틈, 0.002, 0.008) * (1 - THREE.MathUtils.smoothstep(틈, 창 * 0.7, 창));
       // 접지 시각 창: 그 발이 평평하게 붙는 시각의 25% 전 ~ 3% 후. 뒤꿈치가 닿아도
       // 발목·발볼 뼈는 아직 높아 '붙는 시각'이 뒤꿈치 접지보다 ~0.2 주기 늦게 잡히므로,
       // 그만큼 앞을 덮어야 뒤꿈치 접근 구간이 들어온다. 스윙 중간은 높이 조건이 거른다.
@@ -558,18 +677,31 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
       }
       const 접지구간 = 접지가중 > 0.001;
       if (import.meta.env.DEV) 접지상태.current = { 다른: 다리.s, 틈: +틈.toFixed(4), 가중: +접지가중.toFixed(2), 앞다리몫: +앞다리몫.toFixed(2), 앞에있음 };
-      if (접지구간 && 앞에있음 && 틈 > 0.004 && 틈 < 창) {
+      // 이번 프레임 목표량. 조건 밖이면 0 — 아래 평활이 0 으로 미끄러져 내려간다.
+      const 목표 = { l: { 올림: 0, 내림: 0 }, r: { 올림: 0, 내림: 0 } };
+      if (접지구간 && 앞에있음 && 틈 > 0) {
         // 틈을 두 다리가 나눠 맡는다. 앞다리만 내리면 다리가 짧아 무릎이 주기 절반 동안
         // 2° 로 잠기고, 디딘 다리만 올리면 밀어내는 다리가 이미 뻗어 있어 무릎이 80° 로
         // 꺾인다(둘 다 실측). 반씩 나누면 앞다리는 엉덩이 회전으로 닿고, 디딘 다리는
         // 조금 더 굽어 몸이 살짝 내려앉는다 — 원본의 양발 지지 자세가 그렇다.
         // 앞다리 몫에는 따로 낮은 상한을 둔다(접지앞상한) — 앞다리가 다 메우면 무릎이
         // 2° 까지 펴져 반듯해진다. 남는 틈은 그대로 둔다(원본도 뒤꿈치 접지 때 1cm 떠 있다).
-        const 상한 = (준비.보정값?.접지내림 ?? 0.03) * 1.45 * 접지가중;
-        const 앞상한 = (준비.보정값?.접지앞상한 ?? 0.015) * 1.45 * 접지가중 * 앞다리몫;
+        const 가중 = 접지가중 * 앞가중 * 틈가중;
+        const 상한 = (준비.보정값?.접지내림 ?? 0.03) * 1.45 * 가중;
+        const 앞상한 = (준비.보정값?.접지앞상한 ?? 0.015) * 1.45 * 가중 * 앞다리몫;
         // 접근: 앞다리가 상한까지 먼저 맡고 나머지를 디딘 다리가 맡는다. 하중: 앞다리 몫 0.
-        const 내림 = Math.min(틈, 앞상한);
-        const 올림 = Math.min(틈 - 내림, 상한);
+        목표[다리.s].내림 = Math.min(틈, 앞상한);
+        목표[준비.다리[낮은].s].올림 = Math.min(틈 - 목표[다리.s].내림, 상한);
+      }
+      // 시간 평활(시정수 40ms). 남은 프레임 단위 꺾임(무릎 2~5°)을 눌러 준다.
+      // 정지 화면·검증시각에서도 몇 프레임 안에 목표에 붙는다.
+      const 평활 = 접지평활.current;
+      const 비율 = 1 - Math.exp(-Math.max(0, delta) / 0.04);
+      준비.다리.forEach((d) => {
+        평활[d.s].올림 += (목표[d.s].올림 - 평활[d.s].올림) * 비율;
+        평활[d.s].내림 += (목표[d.s].내림 - 평활[d.s].내림) * 비율;
+      });
+      {
         const 풀기 = (다리, 세계이동) => {
           const { thigh, calf, foot } = 다리;
           for (let 회 = 0; 회 < 3; 회 += 1) {
@@ -625,8 +757,10 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
             thigh.updateMatrixWorld(true);
           }
         };
-        if (올림 > 0.002) 풀기(준비.다리[낮은], 올림 * avatarScale);
-        if (내림 > 0.002) 풀기(다리, -내림 * avatarScale);
+        준비.다리.forEach((d) => {
+          if (평활[d.s].올림 > 1e-5) 풀기(d, 평활[d.s].올림 * avatarScale);
+          if (평활[d.s].내림 > 1e-5) 풀기(d, -평활[d.s].내림 * avatarScale);
+        });
         준비.targetSkin.skeleton.update();
       }
       // IK 결과를 남겨 두어 다음 프레임에 믹서가 썼는지 판별한다.
@@ -639,7 +773,9 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     // 발바닥 정점 중 가장 낮은 점을 지면에 맞춘다(발끝을 세우는 동작 포함).
     let soleY = Infinity;
     준비.soles.forEach(({ object, indices }) => {
-      for (let i = 0; i < indices.length; i += 4) {
+      if (!object.visible) return;
+      // 전부 본다. 넷 중 하나만 보면 진짜 최저점을 놓쳐 몇 mm 씩 묻히고 자세 따라 깜빡였다.
+      for (let i = 0; i < indices.length; i += 1) {
         object.getVertexPosition(indices[i], 점);
         object.localToWorld(점).applyMatrix4(역행렬);
         soleY = Math.min(soleY, 점.y);
@@ -648,6 +784,7 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     if (Number.isFinite(soleY)) group.position.y = state.footY - soleY * avatarScale;
 
     if (import.meta.env.DEV) {
+      (window.__CHIBI_DEBUG_BY_GENDER ??= {})[gender] = { motion: next, current: 현재모션.current };
       window.__CHIBI_DEBUG = {
         visible: true,
         motion: next,
@@ -673,5 +810,6 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
 useGLTF.preload(몸파일.chibi.masculine);
 useGLTF.preload(몸파일.chibi.feminine);
 useGLTF.preload(모션파일);
+useGLTF.preload(트리포모션파일들);
 
 export default ChibiGameAvatar;

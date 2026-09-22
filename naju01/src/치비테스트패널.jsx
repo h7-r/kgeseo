@@ -3,7 +3,7 @@
 // 43개 동작 미리보기, 외형 저장·불러오기·초기화.
 import { useState } from "react";
 import { 사이드킥모션목록 } from "./사이드킥옵션.js";
-import { 메시선택지, 메시항목이름, 메시슬라이더, 메시색상, 메시설정보정, 메시외형읽기 } from "./메시외형옵션.js";
+import { 메시선택지, 메시항목이름, 메시슬라이더, 메시색상, 메시설정보정, 메시외형읽기, 모션소스목록 } from "./메시외형옵션.js";
 
 const 입력차단 = (e) => e.stopPropagation();
 
@@ -49,6 +49,14 @@ export default function ChibiTestPanel({ 설정, set설정, 저장키, 툰설정
             <select style={선택상자} value={설정.walkMotion} onChange={(e) => 바꾸기({ walkMotion: e.target.value })}>
               <option value="Walk_Loop">기본 걷기</option>
               <option value="Walk_Formal_Loop">정중한 걷기</option>
+            </select>
+          </label>
+          <label style={줄}>
+            <span>동작 출처</span>
+            <select style={선택상자} value={설정.motionSource ?? "tripo"} onChange={(e) => 바꾸기({ motionSource: e.target.value })}>
+              {모션소스목록.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
           </label>
           <label style={줄}>
