@@ -20,6 +20,7 @@
 
 import { useMemo, useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
+import { 소리재생 } from "../소리.js";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { TOON_GRADIENT, 만화선, makeRandom } from "../공용.jsx";
@@ -528,7 +529,8 @@ function 웅덩이자리({ x0, x1, z0, z1, 개수, seed }) {
 function 물방울({ 자리, 천장y, 바닥y, 밝기 }) {
   const 방울ref = useRef([]);
   const 파문ref = useRef([]);
-  useFrame(({ clock }) => {
+  const 이전u = useRef([]); // 방울마다 지난 프레임 진행도 — '닿는 순간'을 한 번만 잡는다
+  useFrame(({ clock, camera }) => {
     const t = clock.getElapsedTime();
     for (let i = 0; i < 자리.length; i++) {
       const s = 자리[i];
@@ -536,6 +538,16 @@ function 물방울({ 자리, 천장y, 바닥y, 밝기 }) {
       const 파문 = 파문ref.current[i];
       if (!방울 || !파문) continue;
       const u = ((t + s.시차) % s.주기) / s.주기; // 0~1 한 방울의 일생
+      // 낙하(u<0.62)가 끝나 바닥에 닿는 순간(0.62 통과) 딱 한 번, 가까이 있을 때만 소리.
+      const 이전 = 이전u.current[i] ?? u;
+      if (이전 < 0.62 && u >= 0.62) {
+        // 본부실(복도 바깥, x 큰 쪽)에서는 안 들리게 — 복도 안쪽에 있을 때만.
+        const 복도쪽 = camera.position.x < s.x + 4;
+        const d = Math.hypot(camera.position.x - s.x, camera.position.z - s.z);
+        const 최대 = 13; // 이 거리(≈3.9m) 밖이면 안 들린다
+        if (복도쪽 && d < 최대) 소리재생("물방울", { 볼륨: 0.5 * (1 - d / 최대) });
+      }
+      이전u.current[i] = u;
       const 낙하 = Math.min(1, u / 0.62); // 앞 62% 는 떨어지는 시간
       if (u < 0.62) {
         방울.visible = true;
@@ -967,10 +979,12 @@ export function 복도부식({
         개수: { 바닥: 바닥개수, 벽: 벽개수, 금: 금개수 },
         seed, 밝기, 바닥색, 벽색, 문z, 문폭, 크기,
       }),
-    // 밝기는 매 렌더 새 함수라 의존성에 넣으면 계속 다시 만든다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // ★ 밝기는 **한 번만 만들어 넘겨 주는 함수**다(App 의 복도밝기).
+    //   예전에는 자리마다 새 함수를 만들어 넘겨서, 의존성에 넣으면 매 렌더
+    //   지오를 다시 만들었다 — 그래서 빼 놨고, 그 탓에 밝기 슬라이더를
+    //   움직여도 여기만 안 변했다. 이제 넣어도 안전하고, 슬라이더도 먹는다.
     [x0, x1, z0, z1, 바닥y, 벽높이, 바닥개수, 벽개수, 금개수,
-     seed, 바닥색, 벽색, 문z, 문폭, 크기],
+     seed, 밝기, 바닥색, 벽색, 문z, 문폭, 크기],
   );
   useEffect(() => () => 지오?.dispose(), [지오]);
   if (!지오) return null;
@@ -1022,14 +1036,13 @@ export function 복도잡동사니({
         x0, x1, z0, z1,
         개수: 실개수, seed, 밝기, 바닥y, 크기, 아틀라스열, 아틀라스행,
       }),
-    // 밝기는 매 렌더 새 함수라 의존성에 넣으면 계속 다시 만든다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [x0, x1, z0, z1, 실개수, seed, 바닥y, 크기],
+    // ★ 밝기는 App 이 한 번만 만들어 넘기는 함수라 의존성에 넣어도 안전하다
+    //   (위 복도부식의 설명과 같은 이유).
+    [x0, x1, z0, z1, 실개수, seed, 밝기, 바닥y, 크기],
   );
   const 물 = useMemo(
     () => 웅덩이지오({ 자리, seed, 바닥y, 밝기 }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [자리, seed, 바닥y],
+    [자리, seed, 바닥y, 밝기],
   );
   const 라벨 = useMemo(() => 캔아틀라스(), []);
   const 종이그림 = useMemo(() => 종이아틀라스(), []);

@@ -1,0 +1,185 @@
+/* 시작 페이지 기본 초기화
+   [왜 본편 index.css 를 안 가져오나]
+   본편 것은 3D 캔버스·HUD 를 전제로 한 규칙이 섞여 있다. 이 페이지는
+   평범한 웹페이지라, 그 전제를 끌고 오면 피그마 수치와 계속 싸우게 된다.
+   여기서는 브라우저 기본값만 걷어내고, 나머지는 전부 디자인대로 적는다. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--색-바탕);
+  color: var(--색-흰색);
+  font-family: var(--글꼴-한글);
+  -webkit-font-smoothing: antialiased;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* ═══════════════════════════════════════════════════════
+   진짜 입력칸
+
+   피그마에는 「모험가 이름」 같은 안내 글자가 그냥 텍스트로 그려져 있다.
+   그걸 placeholder 로 옮기면 실제로 타이핑이 된다.
+
+   [왜 CSS 가 필요한가]
+   placeholder 색은 ::placeholder 의사요소라 인라인 style 로 못 준다.
+   그래서 칸마다 --안내색 을 인라인으로 넘기고 여기서 받아 쓴다.
+   ═══════════════════════════════════════════════════════ */
+.입력칸 {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--색-흰색);
+  resize: none;
+}
+
+.입력칸::placeholder {
+  color: var(--안내색, rgba(200, 205, 255, 0.35));
+  opacity: 1; /* 파이어폭스는 기본으로 흐리게 만든다 */
+}
+
+/* 누를 수 있는 것에는 손가락 커서 */
+.누름 {
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════════
+   호버 — 누를 수 있는 것에만
+
+   인라인 style 로는 :hover 를 못 준다. 그래서 여기 클래스로 두고
+   컴포넌트에서 className 으로 붙인다. 막아 둔 것(막음)에는 안 붙인다.
+
+   ※ 피그마에는 호버 상태가 그려져 있지 않다. 원본을 해치지 않는 선에서
+     「눌리는 것」 이라는 신호만 준다 — 색·크기를 바꾸지 않고 밝기만 올린다.
+   ═══════════════════════════════════════════════════════ */
+.단추 {
+  transition:
+    filter 0.16s ease,
+    transform 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.단추:hover {
+  filter: brightness(1.14);
+  transform: translateY(-1px);
+}
+.단추:active {
+  transform: translateY(0);
+  filter: brightness(0.96);
+}
+
+/* 글자 링크 — 밝아지고 밑줄이 뜬다 */
+.링크 {
+  transition: color 0.16s ease;
+}
+.링크:hover {
+  color: #93c5fd;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 탭·거르개
+   ★ transition 은 **켜진 것에도** 걸어야 한다. 안 그러면 다른 탭을 눌렀을 때
+     이전 탭의 파란 배경이 툭 하고 사라진다. 양쪽 다 걸어야 색이 서로
+     녹아들듯 넘어간다. */
+.탭 {
+  transition:
+    background-color 0.3s ease,
+    background-image 0.3s ease,
+    border-color 0.3s ease,
+    color 0.3s ease,
+    filter 0.3s ease,
+    box-shadow 0.3s ease;
+}
+.탭:not(.켜짐):hover {
+  filter: brightness(1.35);
+  color: #c8cdff;
+}
+
+/* 카드 — 테두리가 살아나고 살짝 떠오른다 */
+.카드 {
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+.카드:hover {
+  transform: translateY(-4px);
+  border-color: rgba(96, 165, 250, 0.7);
+  box-shadow: 0 12px 32px rgba(29, 78, 216, 0.28);
+}
+
+/* 줄 목록(공지·FAQ·기록) — 바탕만 살짝 */
+.줄:hover {
+  filter: brightness(1.25);
+}
+.줄 {
+  transition: filter 0.16s ease;
+}
+
+/* 입력 오류 한 줄 — 칸 아래에 띄워서 배치를 밀지 않는다 */
+.오류글 {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.2;
+  color: #f87171;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 오류가 난 칸은 밑줄이 붉어진다 */
+.오류칸 {
+  border-bottom-color: rgba(248, 113, 113, 0.75) !important;
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+/* ── 쪽번호·화살표 ────────────────────────────────────
+   누를 수 있다는 걸 색으로 알려 준다. 활성 숫자와 같은 파랑을 쓴다. */
+.쪽화살표 {
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+.쪽화살표:hover {
+  color: #3b82f6;
+}
+.쪽화살표:active {
+  color: #1d4ed8;
+  transform: scale(0.92);
+}
+
+.쪽번호칸 {
+  transition:
+    background-color 0.28s ease,
+    border-color 0.28s ease,
+    color 0.28s ease;
+}
+.쪽번호칸:not(.켜짐):hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+.쪽번호칸:not(.켜짐):active {
+  background-color: rgba(59, 130, 246, 0.16);
+}
