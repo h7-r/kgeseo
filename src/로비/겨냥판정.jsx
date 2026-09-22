@@ -7,6 +7,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { 겨냥갱신, use대상 } from "./상호작용.js";
 import { 스프링암, 크기 } from "./배치.js";
+import { 그림자흔들기 } from "../공용.jsx";
 
 // 초당 20번. 매 프레임 돌 만큼 무거운 계산은 아니지만, 고개를 돌리는 속도에 비해
 // 60번은 낭비다. 0.05초면 사람 눈에는 즉시로 느껴진다.
@@ -71,6 +72,7 @@ export function 손에든것({
   useFrame((_, dt) => {
     const o = g.current;
     if (!o) return;
+    그림자흔들기(0.2); // 손에 든 물건은 계속 움직인다 — 그림자도 따라와야 한다
 
     // ① 들고 싶은 자리 = 카메라 기준 오른쪽·아래·앞
     _목표.set(옆, -아래, -앞).applyQuaternion(camera.quaternion).add(camera.position);

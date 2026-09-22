@@ -40,7 +40,12 @@ export function 강조({
     const o = g.current;
     if (!o) return;
 
-    const 목표 = 겨냥.값() === id ? 1 : 0;
+    // id 는 하나여도 되고 여럿이어도 된다.
+    //   한 물건에 겨냥 지점이 둘 이상 붙는 경우가 있다 — 배전반 퍼즐 선은
+    //   아래 끝(잡기)과 위 끝(꽂기)이 **같은 한 가닥**이라, 어느 쪽을 보든
+    //   그 가닥이 밝아져야 "이게 한 줄이구나"가 읽힌다.
+    const 겨냥중 = 겨냥.값();
+    const 목표 = (Array.isArray(id) ? id.includes(겨냥중) : 겨냥중 === id) ? 1 : 0;
     // 지수 감쇠 — 프레임 수에 상관없이 같은 속도로 붙는다
     양.current += (목표 - 양.current) * (1 - Math.exp(-dt * 14));
     const s = 양.current;
