@@ -29,6 +29,8 @@ export const 기본보정 = {
   // 위팔을 앞으로 돌린다(+ 앞으로, 위축 둘레). 팔짱처럼 팔이 몸 앞에서 겹치는 자세에서
   // 손을 몸 바깥으로 빼는 데 쓴다.
   팔앞으로도: 0,
+  // 팔마다 다르게 줄 때(없으면 위 공통값). 팔짱은 좌우가 대칭이 아니다.
+  왼팔벌림도: null, 오른팔벌림도: null, 왼팔앞으로도: null, 오른팔앞으로도: null,
   // 쇄골을 앞뒤로 돌린다(+ 앞으로, 위축 둘레). 클립이 어깨를 앞으로 말아 놓았을 때 되돌린다.
   쇄골앞으로도: 0,
   // 걷기·달리기에서 위팔을 **제 길이 축 둘레로** 돌린다(+ 팔꿈치가 뒤로).
@@ -46,11 +48,19 @@ export const 기본보정 = {
   // 참이면 이동 동작이 아닌 클립(대기 등)에도 팔꿈치펴기도를 건다. 팔짱처럼 팔이 겹치는 자세에서
   // 겹치는 깊이를 줄이는 데 쓴다.
   팔꿈치펴기늘: false,
+  // 팔마다 다르게 펼 때(없으면 팔꿈치펴기도). 팔짱처럼 좌우가 다른 자세에 쓴다.
+  왼팔꿈치펴기도: null,
+  오른팔꿈치펴기도: null,
   // 손목 굽힘에서 이만큼(도)을 뺀다(0 밑으로는 안 내려간다). 손마다 다르게 줄 수 있다.
   // 팔꿈치펴기도와 같은 조건에서 걸린다(이동 동작 + 팔꿈치펴기늘 인 클립).
   손목펴기도: 0,
   왼손목펴기도: null,
   오른손목펴기도: null,
+  // 손을 아래팔 길이 축 둘레로 굴린다(+ 손바닥이 몸 안쪽으로). 팔짱에서 손바닥을
+  // 반대팔 위에 눕히는 데 쓴다. 손뼈 자신을 돌리는 것이라 비틀림 뼈 문제가 없다.
+  손굴림도: 0,
+  왼손굴림도: null,
+  오른손굴림도: null,
   // 걷기·달리기에서 골반·척추의 좌우 기울임(앞축 둘레 회전) 폭 배율. 1 = 클립 그대로.
   // 앞뒤 끄덕임·비틀림은 그대로 두고 좌우로 흔드는 성분만 줄인다.
   몸흔듦배율: 0.55,
@@ -199,6 +209,8 @@ const 무릎본 = ["calf_l", "calf_r"];
 const 보폭본 = ["thigh_l", "thigh_r"];
 const 팔꿈치본 = ["lowerarm_l", "lowerarm_r"];
 const 손목본 = ["hand_l", "hand_r"];
+// 제 길이 축(아래팔에서 손으로) 둘레로 굴릴 뼈 — [뼈, 부호]
+const 손굴림본 = [["hand_l", 1], ["hand_r", -1]];
 const 몸흔듦본 = ["pelvis", "spine_01", "spine_02", "spine_03"];
 const 몸비틀본 = ["spine_01", "spine_02", "spine_03"];
 const 팔흔듦본 = ["upperarm_l", "upperarm_r"];
@@ -210,11 +222,12 @@ const 팔롤본 = [["upperarm_l", "lowerarm_l", 1], ["upperarm_r", "lowerarm_r",
 // 팔이 머리 위로 올라가 버린다(실제로 그랬다).
 //   [뼈 이름, 모델 기준 축, 각도, 이동 동작에만 적용할지]
 const 자세보정 = (값) => [
-  ["upperarm_l", 앞축, 값.팔벌림도, false],
-  ["upperarm_r", 앞축, -값.팔벌림도, false],
+  // 팔짱처럼 좌우가 다른 자세를 위해 팔마다 따로 줄 수 있다(없으면 양쪽 공통값).
+  ["upperarm_l", 앞축, 값.왼팔벌림도 ?? 값.팔벌림도, false],
+  ["upperarm_r", 앞축, -(값.오른팔벌림도 ?? 값.팔벌림도), false],
   // 왼팔은 +x 를 향하므로 위축 둘레 -가 앞이다(오른팔은 반대).
-  ["upperarm_l", 위축, -값.팔앞으로도, false],
-  ["upperarm_r", 위축, 값.팔앞으로도, false],
+  ["upperarm_l", 위축, -(값.왼팔앞으로도 ?? 값.팔앞으로도), false],
+  ["upperarm_r", 위축, 값.오른팔앞으로도 ?? 값.팔앞으로도, false],
   ["clavicle_l", 위축, -값.쇄골앞으로도, false],
   ["clavicle_r", 위축, 값.쇄골앞으로도, false],
   ["upperarm_l", 앞축, -값.걷기팔붙임도, true],
@@ -296,6 +309,13 @@ export function 보정쿼터니언(skin, 값) {
   손목본.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
     if (bone) out.set(name, { ...(out.get(name) ?? {}), 손목: bone.quaternion.clone() });
+  });
+  손굴림본.forEach(([name, 부호]) => {
+    const bone = skin.skeleton.getBoneByName(name);
+    if (!bone) return;
+    // 제 위치(아래팔 기준)를 제 기준으로 옮기면 아래팔이 뻗은 방향이 된다.
+    const 축 = bone.position.clone().normalize().applyQuaternion(bone.quaternion.clone().invert()).normalize();
+    out.set(name, { ...(out.get(name) ?? {}), 손롤축: 축, 손롤부호: 부호 });
   });
   팔흔듦본.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
@@ -483,10 +503,20 @@ export function 클립보정(clip, 보정, 이름, 값) {
     if (규칙.보폭 && 걷는중) 각도배율(track, 평균회전(track), 값.보폭배율);
     // 팔: 흔들림 폭은 클립 평균을 가운데로 줄이고, 팔꿈치는 쉴 때 대비 굽힘에서 뺀다(이동 중만).
     if (규칙.팔흔듦 && 이동중 && 값.팔흔듦배율 !== 1) 각도배율(track, 평균회전(track), 값.팔흔듦배율);
-    if (규칙.팔꿈치 && (이동중 || 값.팔꿈치펴기늘)) 각도빼기(track, 규칙.팔꿈치, 값.팔꿈치펴기도);
+    if (규칙.팔꿈치 && (이동중 || 값.팔꿈치펴기늘)) {
+      const 도 = (이름[1].endsWith("_l") ? 값.왼팔꿈치펴기도 : 값.오른팔꿈치펴기도) ?? 값.팔꿈치펴기도;
+      각도빼기(track, 규칙.팔꿈치, 도);
+    }
     if (규칙.손목 && (이동중 || 값.팔꿈치펴기늘)) {
       const 도 = (이름[1].endsWith("_l") ? 값.왼손목펴기도 : 값.오른손목펴기도) ?? 값.손목펴기도;
       각도빼기(track, 규칙.손목, 도);
+    }
+    if (규칙.손롤축 && (이동중 || 값.팔꿈치펴기늘)) {
+      const 도 = (이름[1].endsWith("_l") ? 값.왼손굴림도 : 값.오른손굴림도) ?? 값.손굴림도;
+      if (도) {
+        const 롤 = new THREE.Quaternion().setFromAxisAngle(규칙.손롤축, THREE.MathUtils.degToRad(도 * 규칙.손롤부호));
+        for (let i = 0; i < track.values.length; i += 4) q.fromArray(track.values, i).multiply(롤).toArray(track.values, i);
+      }
     }
     if (규칙.흔듦축 && 이동중 && 값.몸흔듦배율 !== 1) 축성분배율(track, 평균회전(track), 규칙.흔듦축, 값.몸흔듦배율);
     if (규칙.비틀축 && 이동중 && 값.몸비틀배율 !== 1) 축성분배율(track, 평균회전(track), 규칙.비틀축, 값.몸비틀배율);
