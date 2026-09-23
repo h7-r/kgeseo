@@ -202,25 +202,16 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정, 신발GLTF = null
   트리포근원들.forEach((근원) => { 근원.옵션 = 리타게팅옵션(retargetSkin, 근원.스킨); 근원.씬.skeleton = 근원.스킨.skeleton; });
   const 보정 = 보정쿼터니언(retargetSkin, 보정값);
   const 트리포규칙 = 트리포스킨 ? 보정쿼터니언(retargetSkin, 트리포값) : null;
-  // 팔짱 대기는 팔을 벌리면 손이 반대팔에 안 닿는다(어깨도 1.2 로 넓혔다). 이 클립만 안으로 모은다.
-  // Tripo 리그는 어깨 관절이 몸 중심에서 22cm, 우리 리그는 13cm(어깨 1.2 포함). 같은 회전이면 손이
-  // 안쪽으로 들어와 반대팔을 뚫는다. 위팔을 앞축 둘레로 4° 모아 손을 바깥으로 보낸다
-  // (실측: 손 정점이 반대팔 안으로 들어간 수 34개 → 0개, 최소 거리 2.0cm → 7.1cm).
-  // Tripo 팔짱 클립은 어깨가 22cm 벌어진 리그로 만든 것이라, 어깨가 13cm 인 우리 몸에 그대로
-  // 얹으면 아래팔이 너무 깊이 겹쳐 팔짱을 과하게 낀 꼴이 된다. 팔꿈치를 28° 펴서 겹침을 줄이고
-  // (손 정점이 반대팔 안으로 0개, 간격 8.1cm) 팔을 조금 모아 어깨가 말리지 않게 둔다.
-  // 팔짱 클립은 어깨가 22cm 벌어진 Tripo 리그로 만든 것이라, 13cm 인 우리 몸에 그대로 얹으면
-  // 아래팔이 너무 깊이 겹치고 어깨가 29° 앞으로 말린다. 쇄골을 20° 되돌려 어깨를 펴면(6.6°)
-  // 손도 어깨선 안쪽으로 들어오고(손 폭/어깨 폭 0.89 → 0.42), 팔꿈치를 15° 펴서 겹침을 줄인다.
-  // 팔짱은 좌우가 대칭이 아니다 — 한 손은 반대팔 밑으로 파묻히고, 다른 손은 반대 위팔 바깥에 얹힌다.
-  // 클립 그대로면 오른손이 왼팔에서 1.6 cm 떨어져 허공에 떠 있었다. 아래 값으로 재면
-  // 오른손은 왼 위팔의 42% 지점(알통)에 닿고, 왼손은 오른 아래팔 밑에 묻힌다.
-  const 팔짱값 = { ...트리포값, 팔벌림도: -6, 팔앞으로도: 0, 팔꿈치펴기도: 25, 쇄골앞으로도: -20, 팔꿈치펴기늘: true,
-    // 오른팔만 25° 더 굽혀 손을 왼 위팔까지 끌어오고(더 굽히면 도로 멀어진다),
-    오른팔꿈치펴기도: -25, 오른팔벌림도: 0,
-    // 들려 있던 오른손목을 45° 펴고, 손을 60° 굴려 손바닥이 위팔 위에 눕게 한다.
-    오른손목펴기도: 45, 오른손굴림도: -60, ...(트리포값.팔짱덧값 ?? {}) };
+  // Tripo 팔짱 클립은 그대로가 제일 낫다 — 어깨·팔벌림·쇄골을 손대 봤더니 앞뒤 아래팔이 뒤바뀌고
+  // 한쪽 손이 가슴 앞 11cm 허공에 떠 버렸다(원본은 두 아래팔이 가슴에 붙고 손이 반대팔에 얹힌다).
+  // 원본에 남은 흠은 오른손이 왼팔을 파고드는 것뿐이라(손 정점 198개가 팔 속) 거기만 편다.
+  const 팔짱값 = { ...트리포값, 팔벌림도: 0, 팔앞으로도: 0, 팔꿈치펴기도: 0, 쇄골앞으로도: 0, 팔꿈치펴기늘: true,
+    // 오른 팔꿈치를 18° 펴면 파고든 정점이 198 → 45 개로 줄어 왼손(29개)과 같아진다.
+    오른팔꿈치펴기도: 18, ...(트리포값.팔짱덧값 ?? {}) };
   const 팔짱규칙 = 트리포스킨 ? 보정쿼터니언(retargetSkin, 팔짱값) : null;
+  // 그냥 서 있는 대기(Idle_Loop)만 따로 편다 — 걷기·달리기는 손대지 않는다.
+  const 대기값 = { ...트리포값, ...(트리포값.대기덧값 ?? {}) };
+  const 대기규칙 = 트리포스킨 ? 보정쿼터니언(retargetSkin, 대기값) : null;
   source.skeleton = sourceSkin.skeleton;
   const sourceClips = new Map(모션GLTF.animations.map((clip) => [clip.name, clip]));
   const retargeted = new Map();
@@ -239,8 +230,11 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정, 신발GLTF = null
     const result = retargetClip(retargetSkin, 근원, sourceClip, 트리포것 ? 트리포것.근원.옵션 : options);
     result.name = name;
     retargetSkin.skeleton.pose();
-    const 팔짱 = 트리포것 && name === "Idle_Fold_Loop";
-    if (보정값.켬) 클립보정(result, 팔짱 ? 팔짱규칙 : 트리포것 ? 트리포규칙 : 보정, name, 팔짱 ? 팔짱값 : 트리포것 ? 트리포값 : 보정값);
+    // 클립마다 쓸 보정 — 팔짱·대기는 그 클립 전용 값이 있다.
+    let [규칙, 값] = 트리포것 ? [트리포규칙, 트리포값] : [보정, 보정값];
+    if (트리포것 && name === "Idle_Fold_Loop") [규칙, 값] = [팔짱규칙, 팔짱값];
+    if (트리포것 && name === "Idle_Loop") [규칙, 값] = [대기규칙, 대기값];
+    if (보정값.켬) 클립보정(result, 규칙, name, 값);
     retargeted.set(name, result);
     return result;
   };
@@ -354,6 +348,22 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정, 신발GLTF = null
   };
 }
 
+// 개발용: 주소의 ?이름=키:값,키:값 을 덧값 객체로 만든다(DEV 에서만).
+//   보기) gait.html?fold=왼팔꿈치펴기도:-20,왼팔앞으로도:-10
+// 값 이름을 그대로 적으므로 자리를 세지 않아도 되고, 새 보정 키가 늘어도 고칠 데가 없다.
+function 개발덧값(이름) {
+  if (!import.meta.env.DEV || typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search).get(이름);
+  if (!q) return null;
+  const out = {};
+  q.split(",").forEach((쌍) => {
+    const [k, v] = 쌍.split(":");
+    const n = Number(v);
+    if (k && Number.isFinite(n)) out[k.trim()] = n;
+  });
+  return Object.keys(out).length ? out : null;
+}
+
 function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비설정, 크기 = 미터, 검증시각 = null, 몸체 = "chibi", 툰 = 기본툰, 외곽선 = 기본외곽선, 보정 = 기본보정 }) {
   const root = useRef();
   const meshy = 몸체 === "meshy";
@@ -371,23 +381,14 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   const 보정값 = useMemo(() => ({ ...기본보정, ...(성별보정[gender] ?? {}), ...(보정 ?? {}) }), [gender, 보정]);
   const 트리포값 = useMemo(() => {
     const v = { ...트리포보정, ...(트리포성별보정[gender] ?? {}) };
-    // 개발용: gait.html?fold=벌림,앞으로,팔꿈치펴기,쇄골,오른손목,오른팔꿈치,오른벌림,오른앞으로,오른손굴림 로 팔짱 보정을 바로 바꿔 본다.
-    if (import.meta.env.DEV && typeof window !== "undefined") {
-      const w = new URLSearchParams(window.location.search).get("walk");
-      if (w) { const [a, b, c] = w.split(",").map(Number);
-        if (Number.isFinite(a)) v.몸비틀배율 = a;
-        if (Number.isFinite(b)) v.걷기숙임도 = b;
-        if (Number.isFinite(c)) v.걷기팔롤도 = c; }
-      const q = new URLSearchParams(window.location.search).get("fold");
-      if (q) { const [a, b, c, d] = q.split(",").map(Number);
-        const [, , , , e, f, g, h, i2] = q.split(",").map(Number);
-        v.팔짱덧값 = { 팔벌림도: a, ...(Number.isFinite(b) ? { 팔앞으로도: b } : {}), ...(Number.isFinite(c) ? { 팔꿈치펴기도: c } : {}),
-                       ...(Number.isFinite(d) ? { 쇄골앞으로도: d } : {}), ...(Number.isFinite(e) ? { 오른손목펴기도: e } : {}),
-                       ...(Number.isFinite(f) ? { 오른팔꿈치펴기도: f } : {}),
-                       ...(Number.isFinite(g) ? { 오른팔벌림도: g } : {}),
-                       ...(Number.isFinite(h) ? { 오른팔앞으로도: h } : {}),
-                       ...(Number.isFinite(i2) ? { 오른손굴림도: i2 } : {}) }; }
-    }
+
+    // 개발용 덧값 — gait.html?walk=…&fold=…&idle=… 로 값을 바로 바꿔 본다.
+    // 덧값은 성별값에 이미 있을 수 있으니, 주소로 넘어온 키만 덮어쓴다.
+    Object.assign(v, 개발덧값("walk") ?? {});
+    const 팔짱 = 개발덧값("fold");
+    if (팔짱) v.팔짱덧값 = { ...(v.팔짱덧값 ?? {}), ...팔짱 };
+    const 대기 = 개발덧값("idle");
+    if (대기) v.대기덧값 = { ...(v.대기덧값 ?? {}), ...대기 };
     return v;
   }, [gender]);
   const 준비 = useMemo(
