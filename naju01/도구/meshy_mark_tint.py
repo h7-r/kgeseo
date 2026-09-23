@@ -12,6 +12,7 @@ import colorsys
 import sys
 
 import bpy
+import mathutils
 import numpy as np
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -239,9 +240,36 @@ def 표식넣기(obj):
             hand = gi.get(f"hand_{side}")
             if up is None or lo is None:
                 continue
+            shoulder = rig.matrix_world @ rig.data.bones[f"upperarm_{side}"].head_local
             elbow = rig.matrix_world @ rig.data.bones[f"lowerarm_{side}"].head_local
             wrist = rig.matrix_world @ rig.data.bones[f"hand_{side}"].head_local
             axis = (wrist - elbow).normalized()
+            # 뼈 팔꿈치는 살의 팔꿈치와 어긋나 있다(여성 실측 2.2cm 손목 쪽). 그대로 섞으면 굽는 자리가
+            # 살의 팔꿈치와 달라 팔이 두 토막처럼 끊겨 보인다. 팔 단면이 가장 가는 곳을 찾아 거기를
+            # 섞음의 한가운데로 삼는다.
+            long = (wrist - shoulder)
+            LA = long.length
+            la = long.normalized()
+            arm = [(v, (M @ v.co - shoulder).dot(la)) for v in me.vertices
+                   if sum(g.weight for g in v.groups if g.group in {up, lo}) > 0.5]
+            중심오프셋 = 0.0
+            if arm:
+                bins = {}
+                for v, d in arm:
+                    k = round(d / 0.015)
+                    bins.setdefault(k, []).append(M @ v.co)
+                prof = []
+                for k, ps in sorted(bins.items()):
+                    if len(ps) < 10:
+                        continue
+                    c = sum(ps, mathutils.Vector()) / len(ps)
+                    prof.append((k * 0.015, sum((p - c).length for p in ps) / len(ps)))
+                창 = [(t, r) for t, r in prof if 0.33 * LA < t < 0.62 * LA]
+                if 창:
+                    살팔꿈치 = min(창, key=lambda x: x[1])[0]
+                    중심오프셋 = 살팔꿈치 - (elbow - shoulder).dot(la)
+                    print(f"ELBOW_CENTER {side} 뼈 {(elbow - shoulder).dot(la):.3f} 살 {살팔꿈치:.3f} 옮김 {중심오프셋 * 100:+.1f}cm")
+            elbow = elbow + la * 중심오프셋
             for v in me.vertices:
                 p = M @ v.co
                 if (p - elbow).length > 0.13:

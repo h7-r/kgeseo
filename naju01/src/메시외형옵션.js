@@ -2,7 +2,7 @@
 // 파츠 번호는 GLB 노드 extras의 variant와 같다. -1 = 없음(속옷·민머리·맨발).
 import { 사이드킥모션목록 } from "./사이드킥옵션.js";
 
-export const 모델판 = 19;
+export const 모델판 = 20;
 
 export const 메시선택지 = {
   hair: {

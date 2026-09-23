@@ -206,7 +206,7 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정, 신발GLTF = null
   // Tripo 리그는 어깨 관절이 몸 중심에서 22cm, 우리 리그는 13cm(어깨 1.2 포함). 같은 회전이면 손이
   // 안쪽으로 들어와 반대팔을 뚫는다. 위팔을 앞축 둘레로 4° 모아 손을 바깥으로 보낸다
   // (실측: 손 정점이 반대팔 안으로 들어간 수 34개 → 0개, 최소 거리 2.0cm → 7.1cm).
-  const 팔짱값 = { ...트리포값, 팔벌림도: -4, 팔앞으로도: 14, ...(트리포값.팔짱덧값 ?? {}) };
+  const 팔짱값 = { ...트리포값, 팔벌림도: -10, 팔앞으로도: 8, ...(트리포값.팔짱덧값 ?? {}) };
   const 팔짱규칙 = 트리포스킨 ? 보정쿼터니언(retargetSkin, 팔짱값) : null;
   source.skeleton = sourceSkin.skeleton;
   const sourceClips = new Map(모션GLTF.animations.map((clip) => [clip.name, clip]));
