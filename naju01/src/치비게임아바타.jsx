@@ -206,7 +206,10 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정, 신발GLTF = null
   // Tripo 리그는 어깨 관절이 몸 중심에서 22cm, 우리 리그는 13cm(어깨 1.2 포함). 같은 회전이면 손이
   // 안쪽으로 들어와 반대팔을 뚫는다. 위팔을 앞축 둘레로 4° 모아 손을 바깥으로 보낸다
   // (실측: 손 정점이 반대팔 안으로 들어간 수 34개 → 0개, 최소 거리 2.0cm → 7.1cm).
-  const 팔짱값 = { ...트리포값, 팔벌림도: -10, 팔앞으로도: 8, ...(트리포값.팔짱덧값 ?? {}) };
+  // Tripo 팔짱 클립은 어깨가 22cm 벌어진 리그로 만든 것이라, 어깨가 13cm 인 우리 몸에 그대로
+  // 얹으면 아래팔이 너무 깊이 겹쳐 팔짱을 과하게 낀 꼴이 된다. 팔꿈치를 28° 펴서 겹침을 줄이고
+  // (손 정점이 반대팔 안으로 0개, 간격 8.1cm) 팔을 조금 모아 어깨가 말리지 않게 둔다.
+  const 팔짱값 = { ...트리포값, 팔벌림도: -6, 팔앞으로도: 6, 팔꿈치펴기도: 28, 팔꿈치펴기늘: true, ...(트리포값.팔짱덧값 ?? {}) };
   const 팔짱규칙 = 트리포스킨 ? 보정쿼터니언(retargetSkin, 팔짱값) : null;
   source.skeleton = sourceSkin.skeleton;
   const sourceClips = new Map(모션GLTF.animations.map((clip) => [clip.name, clip]));
@@ -358,7 +361,7 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   const 보정값 = useMemo(() => ({ ...기본보정, ...(성별보정[gender] ?? {}), ...(보정 ?? {}) }), [gender, 보정]);
   const 트리포값 = useMemo(() => {
     const v = { ...트리포보정, ...(트리포성별보정[gender] ?? {}) };
-    // 개발용: gait.html?fold=벌림,앞으로 로 팔짱 보정을 바로 바꿔 본다.
+    // 개발용: gait.html?fold=벌림,앞으로,팔꿈치펴기 로 팔짱 보정을 바로 바꿔 본다.
     if (import.meta.env.DEV && typeof window !== "undefined") {
       const w = new URLSearchParams(window.location.search).get("walk");
       if (w) { const [a, b, c] = w.split(",").map(Number);
@@ -366,7 +369,8 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
         if (Number.isFinite(b)) v.걷기숙임도 = b;
         if (Number.isFinite(c)) v.걷기팔롤도 = c; }
       const q = new URLSearchParams(window.location.search).get("fold");
-      if (q) { const [a, b] = q.split(",").map(Number); v.팔짱덧값 = { 팔벌림도: a, ...(Number.isFinite(b) ? { 팔앞으로도: b } : {}) }; }
+      if (q) { const [a, b, c] = q.split(",").map(Number);
+        v.팔짱덧값 = { 팔벌림도: a, ...(Number.isFinite(b) ? { 팔앞으로도: b } : {}), ...(Number.isFinite(c) ? { 팔꿈치펴기도: c } : {}) }; }
     }
     return v;
   }, [gender]);
