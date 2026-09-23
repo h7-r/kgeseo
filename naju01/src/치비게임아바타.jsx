@@ -112,14 +112,21 @@ function 형태값(mesh, name, value) {
 
 // 따로 구운 파츠(신발)를 캐릭터 골격에 묶는다. 파츠 GLB 의 골격은 뼈 순서가 다를 수 있어
 // skinIndex 를 뼈 이름으로 다시 매긴다. 쉴 때 자세가 같으므로 bind 행렬은 몸 것을 쓴다.
-function 파츠붙이기(partsGLTF, targetSkin) {
+function 파츠붙이기(partsGLTF, targetSkin, 오류 = []) {
   const out = [];
   if (!partsGLTF) return out;
   partsGLTF.scene.traverse((object) => {
     if (!object.isSkinnedMesh) return;
     const geometry = object.geometry.clone();
     const 이름표 = targetSkin.skeleton.bones.map((bone) => bone.name);
-    const 대응 = object.skeleton.bones.map((bone) => Math.max(0, 이름표.indexOf(bone.name)));
+    const 대응 = object.skeleton.bones.map((bone) => 이름표.indexOf(bone.name));
+    // 몸 골격에 없는 뼈를 쓰는 파츠는 붙이지 않는다. 예전에는 0번(뿌리)으로 몰아 붙였는데,
+    // 그러면 옷이 캐릭터 가운데에 뭉친 채 '그럭저럭 보이는' 상태로 넘어가 원인을 못 찾는다.
+    const 없는뼈 = object.skeleton.bones.filter((bone) => !이름표.includes(bone.name)).map((bone) => bone.name);
+    if (없는뼈.length) {
+      오류.push({ 이름: object.name, 없는뼈 });
+      return;
+    }
     const index = geometry.getAttribute("skinIndex");
     for (let i = 0; i < index.count * index.itemSize; i += 1) index.array[i] = 대응[index.array[i]] ?? 0;
     index.needsUpdate = true;
@@ -154,7 +161,8 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정, 신발GLTF = null
   const skinMaterials = [];
   const soles = [];
   const parts = [];
-  const 신발파츠 = 파츠붙이기(신발GLTF, targetSkin);
+  const 파츠오류 = [];
+  const 신발파츠 = 파츠붙이기(신발GLTF, targetSkin, 파츠오류);
   model.traverse((object) => {
     if (!object.isMesh) return;
     object.castShadow = true;
@@ -325,6 +333,8 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정, 신발GLTF = null
   const 어깨뼈 = ["upperarm_l", "upperarm_r"].map((n) => targetSkin.skeleton.getBoneByName(n)).filter(Boolean)
     .map((bone) => ({ bone, 쉴때: bone.position.clone() }));
   return {
+    // 몸 골격에 없는 뼈를 써서 못 붙인 파츠(신발 등). 비어 있어야 정상이다.
+    파츠오류,
     팔뼈,
     어깨뼈,
     발볼뼈,
@@ -452,6 +462,7 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
       return;
     }
     const 색 = { body: 외형.skinColor, hair: 외형.hairColor, top: 외형.clothColor, bottom: 외형.clothColor };
+    const 신었나 = (외형.shoes ?? -1) >= 0;
     // 슬라이더 → morph target. 어깨는 0.75~1.25를 -1~+1로 옮긴다.
     const 모프 = {
       heavy: 외형.heavy, skinny: 외형.skinny, buff: 외형.buff,
@@ -460,7 +471,8 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
       armThickness: (외형.armThickness - 1) / 0.3,
       legThickness: (외형.legThickness - 1) / 0.3,
       handScale: (외형.handScale - 1) / 0.3,
-      footScale: (외형.footScale - 1) / 0.3,
+      // 신발을 신으면 발 모프 대신 발뼈 배율로 신발과 함께 키운다(useFrame 의 발뼈).
+      footScale: 신었나 ? 0 : (외형.footScale - 1) / 0.3,
       fistHands: 외형.fistHands,
     };
     // 몸과 옷은 한 메시라 재질 색으로는 못 가른다. 툰 재질일 때는 정점 표식으로
@@ -609,7 +621,10 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     const 어깨폭 = 설정.shoulderWidth ?? 1;
     준비.어깨뼈.forEach(({ bone, 쉴때 }) => bone.position.copy(쉴때).multiplyScalar(어깨폭));
     const 신발신음 = meshy && (설정.shoes ?? -1) >= 0;
-    준비.발뼈.forEach((bone) => bone.scale.setScalar(신발신음 ? 준비.신발수축 : 1));
+    // 발 크기: 맨발은 몸 모프(footScale)가 바꾸지만 **신발 GLB 에는 모프가 없다**.
+    // 신발은 발뼈에 통째로 묶여 있으므로, 신었을 때는 발뼈 배율로 신발째 키우고 줄인다
+    // (그때 몸 모프는 0 으로 둔다 — 둘 다 걸면 발이 두 번 커진다).
+    준비.발뼈.forEach((bone) => bone.scale.setScalar(신발신음 ? 준비.신발수축 * (설정.footScale ?? 1) : 1));
     // 발볼은 발뼈의 자식이라 위 배율까지 물려받는다. 신발 안에서 접히기만 하면 되니 그대로 둔다.
     준비.발볼뼈.forEach((bone) => bone.scale.setScalar(신발신음 ? 0.02 : 1));
 
