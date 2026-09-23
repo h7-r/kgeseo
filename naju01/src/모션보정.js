@@ -46,6 +46,11 @@ export const 기본보정 = {
   // 참이면 이동 동작이 아닌 클립(대기 등)에도 팔꿈치펴기도를 건다. 팔짱처럼 팔이 겹치는 자세에서
   // 겹치는 깊이를 줄이는 데 쓴다.
   팔꿈치펴기늘: false,
+  // 손목 굽힘에서 이만큼(도)을 뺀다(0 밑으로는 안 내려간다). 손마다 다르게 줄 수 있다.
+  // 팔꿈치펴기도와 같은 조건에서 걸린다(이동 동작 + 팔꿈치펴기늘 인 클립).
+  손목펴기도: 0,
+  왼손목펴기도: null,
+  오른손목펴기도: null,
   // 걷기·달리기에서 골반·척추의 좌우 기울임(앞축 둘레 회전) 폭 배율. 1 = 클립 그대로.
   // 앞뒤 끄덕임·비틀림은 그대로 두고 좌우로 흔드는 성분만 줄인다.
   몸흔듦배율: 0.55,
@@ -193,6 +198,7 @@ const 무릎본 = ["calf_l", "calf_r"];
 
 const 보폭본 = ["thigh_l", "thigh_r"];
 const 팔꿈치본 = ["lowerarm_l", "lowerarm_r"];
+const 손목본 = ["hand_l", "hand_r"];
 const 몸흔듦본 = ["pelvis", "spine_01", "spine_02", "spine_03"];
 const 몸비틀본 = ["spine_01", "spine_02", "spine_03"];
 const 팔흔듦본 = ["upperarm_l", "upperarm_r"];
@@ -286,6 +292,10 @@ export function 보정쿼터니언(skin, 값) {
   팔꿈치본.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
     if (bone) out.set(name, { ...(out.get(name) ?? {}), 팔꿈치: bone.quaternion.clone() });
+  });
+  손목본.forEach((name) => {
+    const bone = skin.skeleton.getBoneByName(name);
+    if (bone) out.set(name, { ...(out.get(name) ?? {}), 손목: bone.quaternion.clone() });
   });
   팔흔듦본.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
@@ -474,6 +484,10 @@ export function 클립보정(clip, 보정, 이름, 값) {
     // 팔: 흔들림 폭은 클립 평균을 가운데로 줄이고, 팔꿈치는 쉴 때 대비 굽힘에서 뺀다(이동 중만).
     if (규칙.팔흔듦 && 이동중 && 값.팔흔듦배율 !== 1) 각도배율(track, 평균회전(track), 값.팔흔듦배율);
     if (규칙.팔꿈치 && (이동중 || 값.팔꿈치펴기늘)) 각도빼기(track, 규칙.팔꿈치, 값.팔꿈치펴기도);
+    if (규칙.손목 && (이동중 || 값.팔꿈치펴기늘)) {
+      const 도 = (이름[1].endsWith("_l") ? 값.왼손목펴기도 : 값.오른손목펴기도) ?? 값.손목펴기도;
+      각도빼기(track, 규칙.손목, 도);
+    }
     if (규칙.흔듦축 && 이동중 && 값.몸흔듦배율 !== 1) 축성분배율(track, 평균회전(track), 규칙.흔듦축, 값.몸흔듦배율);
     if (규칙.비틀축 && 이동중 && 값.몸비틀배율 !== 1) 축성분배율(track, 평균회전(track), 규칙.비틀축, 값.몸비틀배율);
     if (규칙.롤축 && 이동중 && 값.걷기팔롤도) {
