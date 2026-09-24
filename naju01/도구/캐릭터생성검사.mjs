@@ -63,11 +63,12 @@ const 처음 = await 초안읽기();
   && 처음?.appearance.equipmentIds.shoes === "shoes.sneaker.white",
   JSON.stringify(처음?.appearance.equipmentIds),
 );
-참("신규 기본 체형은 머리 최소·팔다리 85%·마름 20%",
+참("신규 기본 체형은 머리 최소·팔 85%·마름 20%(남성 다리는 100%)",
   처음?.appearance.bodyParameters.headScale === 0.8
   && 처음?.appearance.bodyParameters.armThickness === 0.85
-  && 처음?.appearance.bodyParameters.legThickness === 0.85
-  && 처음?.appearance.bodyParameters.build === -0.2);
+  && 처음?.appearance.bodyParameters.legThickness === 1
+  && 처음?.appearance.bodyParameters.build === -0.2,
+  `다리 두께 ${처음?.appearance.bodyParameters.legThickness}`);
 참("신규 기본 헤어는 그 성별의 실제 헤어", 처음?.appearance.hairId === "hair.m.crop", 처음?.appearance.hairId);
 참("어깨·팔 길이 기본값은 보정된 값", 처음?.appearance.bodyParameters.shoulderWidth === 1.2 && 처음?.appearance.bodyParameters.armLength === 0.88);
 

@@ -19,7 +19,13 @@ export const 몸체에셋판 = String(모델판);
 // 기본값은 **렌더러의 보정된 기본값**을 그대로 쓴다. 어깨 1.2·팔 길이 0.88 을 1.00 으로
 // 고쳐 적으면 초기화할 때마다 캐릭터가 달라진다(요구 5장).
 //   묶음: 화면 오른쪽 패널에서 소제목으로 묶는 단위.
-const 치수 = (key, 이름, min, max, step, 기본, 묶음, 설명) => ({ key, 이름, min, max, step, 기본, 묶음, 설명 });
+const 치수 = (key, 이름, min, max, step, 기본, 묶음, 설명, 성별기본 = null) =>
+  ({ key, 이름, min, max, step, 기본, 묶음, 설명, 성별기본 });
+
+// 그 성별의 시작값. 성별마다 다른 항목만 성별기본에 적는다.
+export function 항목기본(항목, 성별) {
+  return 항목.성별기본?.[성별] ?? 항목.기본;
+}
 
 // 생성 화면의 **시작값**. 렌더러 기본값(어깨 1.2·팔 0.88)을 그대로 쓰되, 처음 만나는 모습이
 // 더 나아 보이도록 몇 가지는 따로 잡았다(머리는 가장 작게, 팔·다리는 조금 가늘게, 살짝 마른 체형).
@@ -38,7 +44,8 @@ export const 체형항목 = [
   치수("armLength", "팔 길이", 0.78, 1.15, 0.01, 렌더러기본.armLength, "비율"),
   치수("legLength", "다리 길이", 0.85, 1.2, 0.01, 렌더러기본.legLength, "비율"),
   치수("armThickness", "팔 두께", 0.7, 1.3, 0.01, 0.85, "비율"),
-  치수("legThickness", "다리 두께", 0.7, 1.3, 0.01, 0.85, "비율"),
+  // 남성은 같은 두께면 다리가 가늘어 보인다(어깨가 넓어 대비가 커진다). 남성만 기본을 굵게 둔다.
+  치수("legThickness", "다리 두께", 0.7, 1.3, 0.01, 0.85, "비율", undefined, { masculine: 1.0 }),
   // 통통(heavy)·마름(skinny) 모프를 **한 축**으로 묶는다. 둘을 따로 두면 동시에 최대로 겹쳐
   // 서로 싸우는 조합이 만들어진다. 음수는 마름, 양수는 통통으로 나눠 보낸다.
   치수("build", "체형", -1, 1, 0.05, -0.2, "체격", "마름 ↔ 기본 ↔ 통통"),
@@ -53,21 +60,21 @@ export const 체형묶음 = [
 ];
 
 // 화면 표시용 — 값 자체가 아니라 "기본 대비 몇 %"다.
-export function 비율표시(항목, 값) {
+export function 비율표시(항목, 값, 성별 = "masculine") {
   if (항목.key === "build") return 값 === 0 ? "기본" : `${값 > 0 ? "통통" : "마름"} ${Math.round(Math.abs(값) * 100)}%`;
   if (항목.key === "buff") return `${Math.round(값 * 100)}%`;
-  return `${Math.round((값 / 항목.기본) * 100)}%`;
+  return `${Math.round((값 / 항목기본(항목, 성별)) * 100)}%`;
 }
 
 // ── 초안 ─────────────────────────────────────────────────────
-export function 기본몸치수() {
-  return Object.fromEntries(체형항목.map((항목) => [항목.key, 항목.기본]));
+export function 기본몸치수(성별 = "masculine") {
+  return Object.fromEntries(체형항목.map((항목) => [항목.key, 항목기본(항목, 성별)]));
 }
 
 export function 기본외형(성별, 카탈로그) {
   return {
     gender: 성별,
-    bodyParameters: 기본몸치수(),
+    bodyParameters: 기본몸치수(성별),
     hairId: 슬롯기본(카탈로그, "hair", 성별)?.id ?? null,
     equipmentIds: {
       top: 슬롯기본(카탈로그, "top", 성별)?.id ?? null,
@@ -111,8 +118,9 @@ export function 외형보정(값, 카탈로그) {
   const 들어온색 = 원본.colors && typeof 원본.colors === "object" ? 원본.colors : {};
   Object.keys(색).forEach((키) => {
     const v = 들어온색[키];
-    if (typeof v === "string" && 색형식.test(v) && (카탈로그.색상[키] ?? []).some(([코드]) => 코드.toLowerCase() === v.toLowerCase())) 색[키] = v;
-    else if (typeof v === "string") 알림.push(`${키} 색이 목록에 없어 기본값으로 바꿨습니다.`);
+    // 색은 팔레트에 없어도 받는다(직접 고를 수 있다). 형식만 본다.
+    if (typeof v === "string" && 색형식.test(v)) 색[키] = v;
+    else if (typeof v === "string") 알림.push(`${키} 색 형식이 잘못돼 기본값으로 바꿨습니다.`);
   });
 
   const 장비 = 원본.equipmentIds && typeof 원본.equipmentIds === "object" ? 원본.equipmentIds : {};

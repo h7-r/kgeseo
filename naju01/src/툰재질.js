@@ -117,14 +117,22 @@ function 셰이더덧칠(material, 설정, 갈래) {
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>\n${조각_선언}`)
       // 살빛과 옷 색을 정점 표식에 따라 따로 곱한다(몸과 옷이 한 메시라 여기서 가른다).
+      //   눈 흰자·이도 피부 표식 안에 들어 있어(정점으로는 못 가른다) 살빛에 물들었다.
+      //   살빛은 따뜻하고 채도가 있지만 흰자는 밝고 무채색이라, 그만큼(sclera) 살빛을 걷어 낸다.
+      //   ※ GLSL 안에는 한글 식별자를 쓰면 안 된다 — 컴파일이 실패해 캐릭터가 통째로 까매진다.
       .replace("#include <map_fragment>", `#include <map_fragment>
   if (v_tint > 1.5) diffuseColor.rgb *= _clothTint;
-  else if (v_tint > 0.5) diffuseColor.rgb *= _skinTint;`)
+  else if (v_tint > 0.5) {
+    float lum = max(max(diffuseColor.r, diffuseColor.g), diffuseColor.b);
+    float sat = lum - min(min(diffuseColor.r, diffuseColor.g), diffuseColor.b);
+    float sclera = smoothstep(0.60, 0.84, lum) * (1.0 - smoothstep(0.05, 0.13, sat));
+    diffuseColor.rgb *= mix(_skinTint, vec3(1.0), sclera);
+  }`)
       .replace("#include <dithering_fragment>", `#include <dithering_fragment>\n${조각_마감}`);
   };
   // three 는 onBeforeCompile 의 소스로 프로그램을 캐시한다. 갈래가 다르면 키도 달라야
   // 몸 셰이더가 머리에 재사용되지 않는다(예전에 이걸로 의상이 통째로 사라진 적이 있다).
-  material.customProgramCacheKey = () => `툰:${갈래}:${설정.단계}:${설정.경계}`;
+  material.customProgramCacheKey = () => `툰:${갈래}:${설정.단계}:${설정.경계}:흰자`;
 }
 
 // ── 살결/옷 가르기 ──────────────────────────────────────────

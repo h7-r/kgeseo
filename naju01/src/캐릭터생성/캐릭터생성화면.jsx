@@ -17,7 +17,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import CC캐릭터프리뷰 from "./캐릭터프리뷰.jsx";
 import { 기본카탈로그, 슬롯이름, 색상슬롯이름, 썸네일고르기 } from "./카탈로그.js";
 import {
-  기본초안, 초안보정, 성별맞추기, 렌더러설정, 완료데이터, 체형항목, 체형묶음, 비율표시, 기본몸치수, 슬롯선택지, 착장요약, 성별목록,
+  기본초안, 초안보정, 성별맞추기, 렌더러설정, 완료데이터, 체형항목, 체형묶음, 비율표시, 기본몸치수, 항목기본, 슬롯선택지, 착장요약, 성별목록,
 } from "./외형데이터.js";
 import { 기본이름규칙, 규칙보정, 형식검사, 이름정규화, 글자수 } from "./이름규칙.js";
 import { 색, 글꼴, 화면, 단추, 고른단추, 큰단추, 꺼진단추, 입력칸, 작은글, 라벨, 소제목, 포커스CSS } from "./스타일.js";
@@ -58,14 +58,14 @@ function CC카드단추({ 고름, 이름, 설명, 썸네일, 색표시, onClick 
   );
 }
 
-function CC슬라이더({ 항목, 값, 바꾸기, 끌기시작, 끌기끝, 되돌리기 }) {
+function CC슬라이더({ 항목, 값, 성별, 바꾸기, 끌기시작, 끌기끝, 되돌리기 }) {
   const id = useId();
   return (
     <div style={{ display: "grid", gap: 4 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
         <label htmlFor={id} style={라벨}>{항목.이름}</label>
         <output htmlFor={id} style={{ marginLeft: "auto", font: `500 12px/1 ${글꼴.모노}`, color: 색.흐린글 }}>
-          {비율표시(항목, 값)}
+          {비율표시(항목, 값, 성별)}
         </output>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "28px minmax(0,1fr) 28px auto", alignItems: "center", gap: 6 }}>
@@ -77,7 +77,7 @@ function CC슬라이더({ 항목, 값, 바꾸기, 끌기시작, 끌기끝, 되�
           max={항목.max}
           step={항목.step}
           value={값}
-          aria-valuetext={비율표시(항목, 값)}
+          aria-valuetext={비율표시(항목, 값, 성별)}
           onPointerDown={끌기시작}
           onKeyDown={끌기시작}
           onChange={(e) => 바꾸기(Number(e.target.value), false)}
@@ -98,7 +98,17 @@ function CC색고르기({ 갈래, 목록, 값, 바꾸기 }) {
   return (
     <fieldset style={{ border: 0, margin: 0, padding: 0, display: "grid", gap: 6 }}>
       <legend style={소제목}>{색상슬롯이름[갈래]} 색</legend>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "stretch" }}>
+        <label style={{ ...단추, display: "grid", gap: 4, justifyItems: "center", padding: "6px 8px", cursor: "pointer" }}>
+          <input
+            type="color"
+            value={값 ?? "#ffffff"}
+            onChange={(e) => 바꾸기(e.target.value)}
+            aria-label={`${색상슬롯이름[갈래]} 색 직접 고르기`}
+            style={{ width: 26, height: 18, padding: 0, border: 0, background: "none", cursor: "pointer" }}
+          />
+          <span style={{ font: `500 11px/1 ${글꼴.본문}` }}>직접</span>
+        </label>
         {목록.map(([코드, 이름]) => {
           const 고름 = 코드.toLowerCase() === (값 ?? "").toLowerCase();
           return (
@@ -252,7 +262,7 @@ export default function CC캐릭터생성화면({
 
   const 갈래초기화 = () => {
     const 기본 = 초안보정(기본초안(카탈로그, 모습.성별), 카탈로그).초안.appearance;
-    if (갈래 === "체형") 외형바꾸기((v) => ({ ...v, bodyParameters: 기본몸치수() }));
+    if (갈래 === "체형") 외형바꾸기((v) => ({ ...v, bodyParameters: 기본몸치수(모습.성별) }));
     else if (갈래 === "헤어") 외형바꾸기((v) => ({ ...v, hairId: 기본.hairId, colors: { ...v.colors, hair: "#ffffff" } }));
     else if (갈래 === "의상") 외형바꾸기((v) => ({ ...v, equipmentIds: { ...기본.equipmentIds }, colors: { ...v.colors, cloth: "#ffffff" } }));
     else 외형바꾸기((v) => ({ ...v, colors: { ...v.colors, skin: "#ffffff" } }));
@@ -463,11 +473,12 @@ export default function CC캐릭터생성화면({
                         <CC슬라이더
                           key={항목.key}
                           항목={항목}
+                          성별={모습.성별}
                           값={몸값[항목.key]}
                           바꾸기={(값, 이력에) => 치수바꾸기(항목, 값, 이력에)}
                           끌기시작={슬라이더끌기시작}
                           끌기끝={슬라이더끌기끝}
-                          되돌리기={() => 치수바꾸기(항목, 항목.기본, true)}
+                          되돌리기={() => 치수바꾸기(항목, 항목기본(항목, 모습.성별), true)}
                         />
                       ))}
                     </div>
