@@ -14,6 +14,7 @@
 //   npx vite naju01  →  http://localhost:5174/지형검사.html
 //   화면과 콘솔에 지문·시간이 찍힌다. `window.__지형검사` 로 헤드리스에서도 읽는다.
 import { 기본지형, 지형만들기 } from "../src/지형.js";
+import { 소음만들기 } from "../src/바닥.js";
 
 // 코어(80 × 50 m)를 넉넉히 덮는 격자. 실제 땅 메시의 꼭짓점 수와 같은 자릿수로 잡는다.
 const 범위 = { x0: -10, x1: 90, z0: -10, z1: 60 };
@@ -76,6 +77,21 @@ export function 만들기재기(설정) {
   return { 걸린ms: Math.round(performance.now() - 시작), 지표 };
 }
 
+// 값소음도 따로 잰다 — 땅 메시가 꼭짓점마다 부르는 함수라 여기가 두 번째로 큰 비용이다.
+function 소음재기() {
+  const 소음 = 소음만들기("바닥결");
+  const 개수 = 2_000_000;
+  const 값 = new Float64Array(개수);
+  const 시작 = performance.now();
+  for (let i = 0; i < 개수; i += 1) {
+    const x = (i % 1409) * 0.37 - 260;
+    const z = ((i / 1409) | 0) * 0.29 - 180;
+    값[i] = 소음(x, z);
+  }
+  return { 걸린ms: Math.round(performance.now() - 시작), 지문: 지문(값), 점수: 개수 };
+}
+const 소음결과 = 소음재기();
+
 // 색인을 끈 것과 켠 것을 **같은 격자로** 재서 지문과 시간을 견준다.
 const 옛것 = 만들기재기({ 색인쓰기: false });
 const 새것 = 만들기재기({ 색인쓰기: true });
@@ -91,6 +107,7 @@ const 결과 = {
   배속: +(옛.걸린ms / Math.max(1, 새.걸린ms)).toFixed(1),
 };
 
+결과.소음 = 소음결과;
 window.__지형검사 = 결과;
 const 줄 = [
   `격자 ${가로칸 + 1} × ${세로칸 + 1} = ${옛.점수.toLocaleString()} 점`,
@@ -104,6 +121,8 @@ const 줄 = [
   `★ 결과 지문 같음: ${같은가 ? "예 — 한 비트도 안 바뀌었다" : "아니오 ← 고쳐야 한다"}`,
   `★ 조회 속도: ${결과.배속} 배 (${옛.걸린ms} ms → ${새.걸린ms} ms)`,
   `   두 번 재서 지문 같음(결정적): ${결과.결정적 ? "예" : "아니오"}`,
+  "",
+  `[값소음 — 바닥.js 소음만들기]  ${소음결과.점수.toLocaleString()} 점 ${소음결과.걸린ms} ms · 지문 ${소음결과.지문}`,
 ].join("\n");
 console.log(줄);
 document.getElementById("결과").textContent = 줄;

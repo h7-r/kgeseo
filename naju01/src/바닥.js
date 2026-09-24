@@ -96,21 +96,32 @@ export const 바닥결 = {
 export function 소음만들기(시드) {
   const 난수 = makeRandom(시드);
   const N = 128;
+  // N 이 2의 거듭제곱이라 나머지 연산을 비트 마스크로 대신한다.
+  //   `((a % N) + N) % N` 은 자리 하나를 물을 때마다 나눗셈을 두 번 한다. 표를 네 번 읽으므로
+  //   한 겹에 여덟 번, 세 겹이니 **한 점에 스물네 번**이다. 땅 메시는 꼭짓점마다 이걸 부른다.
+  //   ※ `& 마스크` 는 **결과가 같다.** 비트 연산은 값을 2^32 로 접는데 2^32 는 128 의 배수라
+  //     낮은 7비트가 그대로 남는다. 음수도 마찬가지다(-1 & 127 === 127 === ((-1 % 128) + 128) % 128).
+  const 마스크 = N - 1;
   const 표 = new Float32Array(N * N);
   for (let i = 0; i < N * N; i++) 표[i] = 난수() * 2 - 1;
 
-  const 부드럽게 = (t) => t * t * (3 - 2 * t);
-  const 격자 = (a, b) => 표[((((a % N) + N) % N) * N) + (((b % N) + N) % N)];
-
+  // 한 겹 — 값소음 한 장을 겹선형으로 읽는다. 셈하는 차례는 예전 그대로 둔다
+  // (순서를 바꾸면 부동소수 끝자리가 달라져 지형 지문이 바뀐다).
   const 한겹 = (x, z) => {
     const xi = Math.floor(x);
     const zi = Math.floor(z);
-    const u = 부드럽게(x - xi);
-    const v = 부드럽게(z - zi);
-    const a = 격자(xi, zi);
-    const b = 격자(xi + 1, zi);
-    const c = 격자(xi, zi + 1);
-    const d = 격자(xi + 1, zi + 1);
+    const tx = x - xi;
+    const tz = z - zi;
+    const u = tx * tx * (3 - 2 * tx);
+    const v = tz * tz * (3 - 2 * tz);
+    const x0 = (xi & 마스크) * N;
+    const x1 = ((xi + 1) & 마스크) * N;
+    const z0 = zi & 마스크;
+    const z1 = (zi + 1) & 마스크;
+    const a = 표[x0 + z0];
+    const b = 표[x1 + z0];
+    const c = 표[x0 + z1];
+    const d = 표[x1 + z1];
     return (a + (b - a) * u) * (1 - v) + (c + (d - c) * u) * v;
   };
 
