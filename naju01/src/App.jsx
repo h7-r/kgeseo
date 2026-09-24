@@ -34,6 +34,12 @@ const 쿼리 =
     ? new URLSearchParams(location.search)
     : new URLSearchParams();
 const 저사양 = 쿼리.get("q") === "low";
+// 픽셀 배율 상한. 이 씬의 **꾸준한 비용**은 땅 픽셀마다 도는 삼면 노이즈라 픽셀 수에 정비례한다.
+//   ?dpr=1.5 면 그릴 픽셀이 44% 준다. 화질은 눈으로 견줘 정할 일이라 기본값(2)은 그대로 둔다.
+const 배율상한 = (() => {
+  const v = Number(쿼리.get("dpr"));
+  return Number.isFinite(v) && v >= 1 && v <= 3 ? v : 2;
+})();
 const LEVA보임 = import.meta.env.DEV || 쿼리.has("leva");
 const 후처리끄기 = 쿼리.get("fx") === "off";
 // 후처리 안의 개별 효과를 하나씩 끄고 비교하는 스위치.
@@ -107,7 +113,7 @@ export default function App() {
       <Leva hidden={!LEVA보임} theme={{ sizes: { numberInputMinWidth: "68px" } }} />
       <Canvas
         shadows={저사양 ? false : "percentage"}
-        dpr={저사양 ? 1 : [1, 2]}
+        dpr={저사양 ? 1 : [1, 배율상한]}
         gl={{
           antialias: !저사양 && 후처리끄기,
           toneMappingExposure: 1.15,

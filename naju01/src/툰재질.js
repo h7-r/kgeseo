@@ -24,29 +24,41 @@ export const 기본툰 = {
   // 했다(광이 나는 듯). 이목구비 음영이 남을 만큼만 눕힌다.
   얼굴평탄: 0.4, // 1 = 얼굴 법선을 완전히 구로 눕힘
   머리광: 0.35, // 머리카락 하이라이트 띠 세기
+  부드럼: 0, // 명암 계단 경계를 이 폭만큼 이어 준다(0 = 딱 떨어지는 cel)
 };
 
 // ── 그라디언트 맵 ────────────────────────────────────────────
 // 계단 수·경계가 같으면 캐릭터가 몇이든 텍스처 하나를 같이 쓴다.
 const 맵캐시 = new Map();
 
-export function 그라디언트맵(단계, 경계) {
-  const key = `${단계}:${경계.toFixed(3)}`;
+// 부드럼 = 계단 경계를 이 폭(0~1)만큼 이어 준다. 0 이면 딱 떨어지는 cel(게임 기본값).
+//   ※ 낮은 폴리곤에서는 계단 경계가 삼각형 모서리를 따라 꺾여 **톱니**로 보인다(목선에서 눈에 띈다).
+//     캐릭터를 크게 확대해 보는 생성 화면만 아주 조금 풀어 준다. 게임은 0 그대로다.
+export function 그라디언트맵(단계, 경계, 부드럼 = 0) {
+  const key = `${단계}:${경계.toFixed(3)}:${부드럼.toFixed(3)}`;
   if (맵캐시.has(key)) return 맵캐시.get(key);
-  const 폭 = 64;
+  const 폭 = 256;
   const data = new Uint8Array(폭);
+  const 값들 = 단계 <= 2 ? [0.42, 1.0] : [0.36, 0.68, 1.0];
+  const 경계들 = 단계 <= 2 ? [경계] : [경계 * 0.72, 경계];
+  const 잇기 = (a, b, t) => a + (b - a) * (t * t * (3 - 2 * t));
   for (let i = 0; i < 폭; i += 1) {
     const x = i / (폭 - 1);
-    // 경계를 기준으로 계단을 나눈다. 어두운 칸은 너무 까맣지 않게 바닥을 올린다.
-    const 칸 = 단계 <= 2
-      ? (x < 경계 ? 0 : 1)
-      : (x < 경계 * 0.72 ? 0 : x < 경계 ? 1 : 2);
-    const 값 = 단계 <= 2 ? [0.42, 1.0][칸] : [0.36, 0.68, 1.0][칸];
+    let 값 = 값들[0];
+    경계들.forEach((c, k) => {
+      if (부드럼 <= 0) {
+        if (x >= c) 값 = 값들[k + 1];
+      } else {
+        const t = Math.min(1, Math.max(0, (x - (c - 부드럼 / 2)) / 부드럼));
+        값 = 잇기(값, 값들[k + 1], t);
+      }
+    });
     data[i] = Math.round(값 * 255);
   }
   const map = new THREE.DataTexture(data, 폭, 1, THREE.RedFormat);
-  map.magFilter = THREE.NearestFilter; // 경계가 흐려지면 cel 이 아니다
-  map.minFilter = THREE.NearestFilter;
+  const 필터 = 부드럼 > 0 ? THREE.LinearFilter : THREE.NearestFilter;
+  map.magFilter = 필터;
+  map.minFilter = 필터;
   map.generateMipmaps = false;
   map.needsUpdate = true;
   맵캐시.set(key, map);
@@ -117,14 +129,22 @@ function 셰이더덧칠(material, 설정, 갈래) {
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>\n${조각_선언}`)
       // 살빛과 옷 색을 정점 표식에 따라 따로 곱한다(몸과 옷이 한 메시라 여기서 가른다).
+      //   눈 흰자·이도 피부 표식 안에 들어 있어(정점으로는 못 가른다) 살빛에 물들었다.
+      //   살빛은 따뜻하고 채도가 있지만 흰자는 밝고 무채색이라, 그만큼(sclera) 살빛을 걷어 낸다.
+      //   ※ GLSL 안에는 한글 식별자를 쓰면 안 된다 — 컴파일이 실패해 캐릭터가 통째로 까매진다.
       .replace("#include <map_fragment>", `#include <map_fragment>
   if (v_tint > 1.5) diffuseColor.rgb *= _clothTint;
-  else if (v_tint > 0.5) diffuseColor.rgb *= _skinTint;`)
+  else if (v_tint > 0.5) {
+    float lum = max(max(diffuseColor.r, diffuseColor.g), diffuseColor.b);
+    float sat = lum - min(min(diffuseColor.r, diffuseColor.g), diffuseColor.b);
+    float sclera = smoothstep(0.60, 0.84, lum) * (1.0 - smoothstep(0.05, 0.13, sat));
+    diffuseColor.rgb *= mix(_skinTint, vec3(1.0), sclera);
+  }`)
       .replace("#include <dithering_fragment>", `#include <dithering_fragment>\n${조각_마감}`);
   };
   // three 는 onBeforeCompile 의 소스로 프로그램을 캐시한다. 갈래가 다르면 키도 달라야
   // 몸 셰이더가 머리에 재사용되지 않는다(예전에 이걸로 의상이 통째로 사라진 적이 있다).
-  material.customProgramCacheKey = () => `툰:${갈래}:${설정.단계}:${설정.경계}`;
+  material.customProgramCacheKey = () => `툰:${갈래}:${설정.단계}:${설정.경계}:${설정.부드럼 ?? 0}:흰자`;
 }
 
 // ── 살결/옷 가르기 ──────────────────────────────────────────
@@ -198,7 +218,7 @@ function 툰재질(원본, 설정, 갈래) {
     depthTest: 원본.depthTest,
     emissive: 원본.emissive ? 원본.emissive.clone() : new THREE.Color(0x000000),
     emissiveMap: 원본.emissiveMap ?? null,
-    gradientMap: 그라디언트맵(설정.단계, 설정.경계),
+    gradientMap: 그라디언트맵(설정.단계, 설정.경계, 설정.부드럼 ?? 0),
   });
   material.name = `${원본.name || "재질"}_툰`;
   셰이더덧칠(material, 설정, 갈래);
