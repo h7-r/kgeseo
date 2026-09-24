@@ -7,7 +7,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import CC캐릭터생성화면 from "./캐릭터생성화면.jsx";
-import { 색, 글꼴, 단추, 고른단추, 작은글, 소제목, 포커스CSS } from "./스타일.js";
+import { 색, 글꼴, 단추, 고른단추, 글자, 화면CSS } from "./스타일.js";
 
 const 이름답목록 = [
   ["available", "사용 가능"],
@@ -36,7 +36,8 @@ function CC미리보기() {
   const [초안, set초안] = useState(null);
   const [초기값, set초기값] = useState(null);
   const [열쇠, set열쇠] = useState(0);
-  const [판보임, set판보임] = useState(true);
+  // 개발 도구는 기본으로 접혀 있다 — 시각 검토 화면을 밀어내지 않는다.
+  const [판보임, set판보임] = useState(false);
   const 적기 = (줄) => set기록((이전) => [`${new Date().toLocaleTimeString("ko-KR")} ${줄}`, ...이전].slice(0, 12));
 
   const checkName = useCallback(async (이름, { signal } = {}) => {
@@ -77,7 +78,7 @@ function CC미리보기() {
 
   return (
     <div style={{ position: "absolute", inset: 0, display: "flex", background: 색.바탕, color: 색.글, fontFamily: 글꼴.본문 }}>
-      <style>{포커스CSS}</style>
+      <style>{화면CSS}</style>
       <div style={{ flex: "1 1 auto", minWidth: 0 }}>
         <CC캐릭터생성화면
           key={열쇠}
@@ -96,21 +97,21 @@ function CC미리보기() {
       )}
       <aside style={{ ...개발판, display: 판보임 ? "grid" : "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ ...소제목, color: 색.경고 }}>개발 미리보기 · 실제 화면 아님</div>
+          <div style={{ ...글자.단계, color: 색.경고 }}>개발 미리보기 · 실제 화면 아님</div>
           <button type="button" style={{ ...단추, marginLeft: "auto", padding: "2px 8px" }} onClick={() => set판보임(false)}>접기</button>
         </div>
-        <p style={작은글}>아래는 생성 화면이 아니라 **가짜 서버**를 조종하는 도구입니다.</p>
+        <p style={글자.설명}>아래는 생성 화면이 아니라 **가짜 서버**를 조종하는 도구입니다.</p>
 
         <div style={{ display: "grid", gap: 6 }}>
-          <span style={소제목}>checkName 이 돌려줄 답</span>
+          <span style={글자.단계}>checkName 이 돌려줄 답</span>
           {이름답목록.map(([값, 글]) => (
             <button key={값} type="button" style={도구.이름답 === 값 ? 고른단추 : 단추} onClick={() => set이름답(값)}>{글}</button>
           ))}
-          <span style={작은글}>‘사용 가능’ 이어도 조사관·홍길동·테스트는 중복으로 답합니다.</span>
+          <span style={글자.설명}>‘사용 가능’ 이어도 조사관·홍길동·테스트는 중복으로 답합니다.</span>
         </div>
 
         <div style={{ display: "grid", gap: 6 }}>
-          <span style={소제목}>onComplete 가 돌려줄 답</span>
+          <span style={글자.단계}>onComplete 가 돌려줄 답</span>
           {완료답목록.map(([값, 글]) => (
             <button key={값} type="button" style={도구.완료답 === 값 ? 고른단추 : 단추} onClick={() => set완료답(값)}>{글}</button>
           ))}
@@ -127,18 +128,18 @@ function CC미리보기() {
         </div>
 
         <div style={{ display: "grid", gap: 6, minHeight: 0 }}>
-          <span style={소제목}>onComplete 로 나간 데이터</span>
+          <span style={글자.단계}>onComplete 로 나간 데이터</span>
           <pre style={코드}>{보낸것 ? JSON.stringify(보낸것, null, 2) : "아직 없음"}</pre>
         </div>
 
         <div style={{ display: "grid", gap: 6, minHeight: 0 }}>
-          <span style={소제목}>onDraftChange 최근 초안</span>
+          <span style={글자.단계}>onDraftChange 최근 초안</span>
           <pre style={코드}>{초안 ? JSON.stringify(초안, null, 2) : "아직 없음"}</pre>
         </div>
 
         <div style={{ display: "grid", gap: 4 }}>
-          <span style={소제목}>기록</span>
-          {기록.map((줄) => (<span key={줄} style={작은글}>{줄}</span>))}
+          <span style={글자.단계}>기록</span>
+          {기록.map((줄) => (<span key={줄} style={글자.설명}>{줄}</span>))}
         </div>
       </aside>
     </div>

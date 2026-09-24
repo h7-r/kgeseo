@@ -62,8 +62,9 @@ neck = rig.matrix_world @ rig.data.bones["neck_01"].head_local
 head = rig.matrix_world @ rig.data.bones["head"].head_local
 목z = float(neck.z)
 목x, 목y = float(neck.x), float(neck.y)
-# 목선을 찾을 띠 — 목뼈 아래 14cm ~ 위 6cm. 어깨·턱까지 건드리지 않게 반지름도 제한한다.
-아래, 위, 반경 = 목z - 0.14, 목z + 0.06, 0.13
+# 목선을 찾을 띠 — 목뼈 아래 12cm ~ 위 5cm, 목 축에서 9cm 안.
+# 반지름을 크게 잡으면 어깨(승모근)를 덮은 셔츠까지 섞여 목선이 위로 밀리고, 그만큼 목에 흰 얼룩이 생긴다.
+아래, 위, 반경 = 목z - 0.12, 목z + 0.05, 0.090
 
 pos = np.array([list(M @ v.co) for v in me.vertices], dtype=np.float32)
 tex = np.full((h, w, 3), np.nan, dtype=np.float32)
@@ -155,17 +156,42 @@ idx = np.arange(NB)
 살색 = np.median(rgb[살 & 띠 & (tex[..., 2] > 목z - 0.02)], axis=0)
 옷색 = np.median(rgb[옷 & 띠 & (tex[..., 2] < 목z - 0.06)], axis=0)
 경계 = np.interp(칸.astype(np.float32), idx, 선, period=NB)
-# **경계 둘레만** 다시 칠한다. 띠 전체를 단색으로 덮으면 얼굴·목의 음영까지 평평해진다.
-고칠띠 = 띠 & (np.abs(tex[..., 2] - 경계) <= 0.016)
-위쪽 = 고칠띠 & (tex[..., 2] > 경계)
-아래쪽 = 고칠띠 & (tex[..., 2] <= 경계)
-px[위쪽, :3] = 살색
-px[아래쪽, :3] = 옷색
+# **경계 둘레만** 다시 칠한다(위아래 1.8cm). 띠 전체를 단색으로 덮으면 얼굴·목의 음영까지 평평해지고,
+# 좁게 잡으면 원래의 들쭉날쭉한 경계가 밴드 밖에 남아 톱니가 그대로 보인다(실제로 그랬다).
+# 경계는 딱 자르지 않고 4mm 폭으로 섞는다 — 텍셀 단위로 딱 자르면 확대했을 때 톱니가 보인다.
+고칠띠 = 띠 & (np.abs(tex[..., 2] - 경계) <= 0.018)
+높낮이 = np.clip((tex[..., 2] - 경계) / 0.004 * 0.5 + 0.5, 0.0, 1.0)  # 0 = 옷, 1 = 살
+섞기 = 높낮이 * 높낮이 * (3 - 2 * 높낮이)
+새색 = 옷색[None, None, :] + (살색 - 옷색)[None, None, :] * 섞기[..., None]
+px[고칠띠, :3] = 새색[고칠띠]
+print(f"COLLAR_BLEND 텍셀={int(고칠띠.sum())}")
+
+# 정점 표식(_tint)도 같은 목선으로 다시 매긴다.
+#   표식은 정점마다 1(살)·2(옷)이고 셰이더는 삼각형 안에서 보간된 값이 1.5 를 넘는지로 가른다.
+#   그래서 경계 정점이 들쭉날쭉하면 **삼각형이 쐐기 모양으로 갈려** 톱니가 보인다(빨강/파랑으로 확인).
+#   텍스처만 고치면 이 톱니는 그대로 남는다.
+#   그래서 1/2 로 딱 나누지 않고 **목선을 중심으로 이어지는 값**을 쓴다(1.5 가 정확히 목선).
+#   셰이더가 삼각형 안에서 보간하므로 1.5 등고선이 목선을 따라 매끄럽게 지나간다.
+attr = me.attributes.get("_TINT") or me.attributes.get("_tint")
+if attr is not None:
+    각v = np.arctan2(pos[:, 1] - 목y, pos[:, 0] - 목x)
+    칸v = ((각v + np.pi) / (2 * np.pi) * NB).astype(np.int32).clip(0, NB - 1)
+    경계v = np.interp(칸v.astype(np.float32), idx, 선, period=NB)
+    반경v = np.hypot(pos[:, 0] - 목x, pos[:, 1] - 목y)
+    고칠v = (pos[:, 2] >= 아래) & (pos[:, 2] <= 위) & (반경v <= 반경)
+    폭 = 0.030
+    바뀜 = 0
+    for i in np.where(고칠v)[0]:
+        새 = 1.5 + float(np.clip((경계v[i] - pos[i, 2]) / 폭, -0.5, 0.5))
+        if abs(attr.data[int(i)].value - 새) > 1e-3:
+            attr.data[int(i)].value = 새
+            바뀜 += 1
+    print(f"COLLAR_TINT 고침={바뀜}/{int(고칠v.sum())}")
 
 image.pixels = px.reshape(-1).tolist()
 image.file_format = "JPEG"
 bpy.context.scene.render.image_settings.quality = args.jpeg
-print(f"COLLAR_OK 살={int(위쪽.sum())} 옷={int(아래쪽.sum())} 선z={선.min():.3f}~{선.max():.3f}")
+print(f"COLLAR_OK 선z={선.min():.3f}~{선.max():.3f}")
 
 # ※ 내보내기 옵션은 meshy_mark_tint.py 와 같아야 한다. export_extras 를 빠뜨리면 파츠 표식
 #   (slot·variant)이 통째로 날아가 헤어가 전부 보이고 신발 판정이 죽는다(실제로 그랬다).

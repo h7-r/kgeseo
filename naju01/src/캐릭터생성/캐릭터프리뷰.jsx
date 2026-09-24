@@ -1,36 +1,50 @@
-// 캐릭터 생성 화면의 3D 미리보기.
+// 캐릭터 생성 화면의 3D 무대.
+//
+// [화면 전체가 하나의 공간이다]
+//   캔버스는 **투명**하다. 배경은 그 아래 CSS 그라데이션 한 덩이가 화면 끝까지 그리고,
+//   캔버스는 캐릭터와 접지 그림자만 얹는다. 그래서 헤더·패널 뒤로도 같은 공간이 이어지고,
+//   캔버스 테두리나 검은 사각형이 공간을 자르지 않는다.
+//   ※ 예전에는 gl.setClearColor(..., 1) 로 캔버스를 불투명하게 칠해 아래 배경이 통째로 가려졌다.
 //
 // [무엇을 재사용하나]
-//   게임과 같은 렌더러(치비게임아바타)·같은 모델·같은 툰 재질을 그대로 쓴다. 이 파일은 그 위에
-//   **생성 화면에만 필요한 껍데기**만 얹는다 — 관찰용 카메라, 부위 보기, 모델 교체 대기.
+//   게임과 같은 렌더러(치비게임아바타)·같은 모델·같은 툰 재질. 여기서는 관찰용 카메라와 빛,
+//   그리고 모델 교체 대기만 얹는다.
 //
 // [왜 '예열' 을 따로 두나]
-//   성별·옷을 바꾸면 전신 GLB 를 통째로 새로 읽는다(파일 10~15MB). 그냥 갈아 끼우면 읽는 동안
-//   Suspense 가 캐릭터를 지워 화면이 빈다. 그래서 **새 모델을 먼저 조용히 읽고**, 다 읽힌 뒤에야
-//   보여 주는 착장을 바꾼다. 늦게 도착한 옛 요청은 열쇠가 달라 그냥 버려진다.
+//   성별·옷을 바꾸면 전신 GLB 를 새로 읽는다(10~15MB). 그냥 갈아 끼우면 읽는 동안 Suspense 가
+//   캐릭터를 지워 화면이 빈다. 새 모델을 먼저 조용히 읽고, 다 읽힌 뒤에 보여 주는 착장을 바꾼다.
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { ContactShadows, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import ChibiGameAvatar from "../치비게임아바타.jsx";
 import { 메시모델파일, 메시신발파일 } from "../메시외형옵션.js";
-import { 색, 단추, 고른단추, 작은글 } from "./스타일.js";
+import { 기본툰 } from "../툰재질.js";
+
+// 생성 화면 전용 툰 설정 — 명암 계단 경계를 아주 조금 풀어 준다.
+//   캐릭터를 얼굴까지 확대해 보는 화면이라, 딱 떨어지는 계단이 낮은 폴리곤의 삼각형 모서리를 따라
+//   꺾여 목선에서 톱니로 보였다. 게임 화면은 기본값(0) 그대로다.
+const 생성툰 = { ...기본툰, 부드럼: 0.06 };
 
 export const 보기목록 = [["전신", "전신"], ["머리", "머리"], ["손", "손"], ["발", "발"]];
 
-// 미리보기 자세는 **외형 데이터가 아니다.** 게임에서 실제로 쓰는 자세만 둔다.
-// (T포즈 같은 작업용 자세는 빼 두었다 — 이용자에게 보여 줄 자세가 아니다.)
+// 이용자에게 보여 줄 자세는 게임에서 실제로 쓰는 것만 둔다(T포즈 같은 작업용 자세는 뺀다).
 export const 자세목록 = [["Idle_Loop", "대기"], ["Walk_Loop", "걷기"]];
 
 export const 품질목록 = [["낮음", "낮음"], ["보통", "보통"], ["높음", "높음"]];
 
+// 손을 볼 때만 팔을 벌린 자세로 바꾼다 — 허리에 손을 얹은 대기 자세는 손을 가린다.
+// 이용자가 고르는 값이 아니라 관찰을 위한 내부 전환이다.
+export function 관찰자세(보기, 자세) {
+  return 보기 === "손" ? "A_TPose" : 자세;
+}
+
 const 품질값 = {
-  낮음: { dpr: [1, 1], 그림자: 0 },
-  보통: { dpr: [1, 1.5], 그림자: 512 },
-  높음: { dpr: [1, 2], 그림자: 1024 },
+  낮음: { dpr: [1, 1], 그림자: 256, 흐림: 2.2 },
+  보통: { dpr: [1, 1.5], 그림자: 512, 흐림: 2.6 },
+  높음: { dpr: [1, 2], 그림자: 1024, 흐림: 3.0 },
 };
 
-// 모델 파일을 바꾸는 값만 모은 열쇠. 슬라이더·색·헤어는 파일을 안 바꾸므로 들어가지 않는다.
 export function 파일열쇠만들기(설정) {
   return `${설정.gender}|${설정.top}|${설정.bottom}|${설정.shoes}`;
 }
@@ -59,7 +73,6 @@ function 정지상태() {
   };
 }
 
-// 다음에 보여 줄 모델을 조용히 읽는다. 다 읽히면 알린다(읽는 동안 멈추는 것은 이 컴포넌트뿐이다).
 function CC모델예열({ 설정, 열쇠, 알림 }) {
   const 몸 = 메시모델파일(설정);
   const 신발 = 메시신발파일(설정);
@@ -100,131 +113,138 @@ function 캐릭터재기(scene, 키배율) {
     손: 손왼 && 손오 ? 손왼.clone().add(손오).multiplyScalar(0.5) : new THREE.Vector3(0, 높이 * 0.5, 0),
     손폭: 손왼 && 손오 ? 손왼.distanceTo(손오) : 높이 * 0.6,
     발: new THREE.Vector3(0, 상자.min.y + 높이 * 0.05, 0),
+    가슴: 자리("spine_03") ?? new THREE.Vector3(0, 높이 * 0.66, 0),
   };
 }
 
-// 어느 부위를, 화면의 어느 자리에 담을지 정한다.
-//   가림px = 아래 도구줄이 덮는 높이. 그만큼을 빼고 남는 자리에 캐릭터를 담아야
-//   발이 도구줄 뒤로 숨지 않는다(요구 3장: 캐릭터·조절 항목·진행 단추가 겹치면 안 된다).
-function 보기목표(보기, 잰값, 화면) {
+// 어느 부위를 얼마나 크게 담을지.
+function 담을것(보기, 잰값) {
   const H = 잰값.기준높이;
-  const 담을높이 = 보기 === "머리" ? H * 0.32
-    : 보기 === "손" ? Math.max(H * 0.36, 잰값.손폭 * 1.3)
-    : 보기 === "발" ? H * 0.28
-    // 전신은 키를 키운 만큼만 더 담는다(줄일 때는 그대로 둬야 작아진 것이 보인다).
-    : H * 1.06 * Math.max(1, 잰값.높이 / H);
-  const 중심 = 보기 === "머리" ? 잰값.머리.clone()
-    : 보기 === "손" ? 잰값.손.clone()
-    : 보기 === "발" ? 잰값.발.clone()
-    : new THREE.Vector3(0, H * 0.5, 0);
-
-  const 높이px = Math.max(120, 화면.높이px);
-  const 쓸자리 = Math.max(80, 높이px - 화면.가림px - 24);
-  const 보이는높이 = 담을높이 * (높이px / 쓸자리);
-  const 거리 = 보이는높이 / (2 * Math.tan((화면.fov * Math.PI) / 360));
-  // 가려지는 만큼 목표를 내리면 캐릭터가 그만큼 위로 올라온다.
-  중심.y -= (화면.가림px / 2) * (보이는높이 / 높이px);
-  return { 목표: 중심, 거리 };
+  if (보기 === "머리") return { 중심: 잰값.머리.clone(), 높이: H * 0.30 };
+  // 손은 좌우를 함께 봐야 비교가 된다 — 두 손 사이 거리에 맞춰 물러난다.
+  if (보기 === "손") return { 중심: 잰값.손.clone(), 높이: Math.max(H * 0.34, 잰값.손폭 * 1.05) };
+  if (보기 === "발") return { 중심: 잰값.발.clone(), 높이: H * 0.26 };
+  // 이름 단계 — 가슴만 담으면 머리가 잘린다. 가슴과 머리 사이를 중심으로 잡고 넉넉히 담는다.
+  if (보기 === "상반신") return { 중심: 잰값.가슴.clone().lerp(잰값.머리, 0.55), 높이: H * 0.62 };
+  // 전신은 키를 키운 만큼만 더 담는다(줄일 때는 그대로 둬야 작아진 것이 보인다).
+  return { 중심: new THREE.Vector3(0, H * 0.5, 0), 높이: H * 1.08 * Math.max(1, 잰값.높이 / H) };
 }
 
-// 카메라를 궤도 위에 놓는다. 좌우 회전·확대는 사람이 잡고, 부위 보기는 목표점과 거리만 바꾼다.
-function CC카메라({ 조작, 보기, 키배율, 가림px, 덜움직이기, 측정열쇠 }) {
+// 카메라를 궤도 위에 놓고, **UI 를 뺀 빈 자리**의 한가운데에 캐릭터를 담는다.
+//   안전영역 = 좌·우·상·하로 UI 가 덮는 픽셀. 패널 폭이 달라져도 머리·손·발이 그 뒤로 숨지 않는다.
+function CC카메라({ 조작, 보기, 키배율, 안전영역, 덜움직이기, 측정열쇠 }) {
   // three 객체는 반응형 값으로 잡지 않고 필요할 때 꺼내 쓴다(보행비교 GAIT카메라와 같은 방식).
   const get = useThree((s) => s.get);
-  const 상태 = useRef({ 목표: new THREE.Vector3(0, 0.9, 0), 거리: 3.4, 채움: false });
-  const 바람 = useRef({ 목표: new THREE.Vector3(0, 0.9, 0), 거리: 3.4 });
+  const 상태 = useRef({ 중심: new THREE.Vector3(0, 0.9, 0), 담을높이: 1.9, 채움: false });
+  const 바람 = useRef({ 중심: new THREE.Vector3(0, 0.9, 0), 높이: 1.9 });
   const 키 = useRef(1);
-  const 가림 = useRef(0);
+  const 안전 = useRef(안전영역);
   const 셈 = useRef(0);
-  const 빛 = useRef();
+  const 주광 = useRef();
+  const 보조광 = useRef();
 
   useEffect(() => {
     키.current = 키배율;
   }, [키배율]);
-
   useEffect(() => {
-    가림.current = 가림px;
-  }, [가림px]);
+    안전.current = 안전영역;
+  }, [안전영역]);
 
-  // 부위를 바꾸거나 착장이 바뀌면 목표를 다시 잡는다.
-  //   ※ 키배율을 의존성에 넣으면 안 된다 — 슬라이더를 움직일 때마다 카메라가 목표로 다시 튀어
-  //     이용자가 잡아 둔 시점을 빼앗는다(요구 6장).
+  // 부위·착장이 바뀔 때만 목표를 다시 잡는다.
+  //   ※ 키배율을 의존성에 넣으면 슬라이더를 움직일 때마다 카메라가 튀어 시점을 빼앗는다.
   useEffect(() => {
-    const { scene, camera, size } = get();
+    const { scene } = get();
     const 잰값 = 캐릭터재기(scene, 키.current);
     if (!잰값) return;
-    const 다음 = 보기목표(보기, 잰값, { 높이px: size.height, 가림px: 가림.current, fov: camera.fov });
-    바람.current = 다음;
+    바람.current = 담을것(보기, 잰값);
     if (!상태.current.채움 || 덜움직이기) {
-      상태.current.목표.copy(다음.목표);
-      상태.current.거리 = 다음.거리;
+      상태.current.중심.copy(바람.current.중심);
+      상태.current.담을높이 = 바람.current.높이;
       상태.current.채움 = true;
     }
-  }, [보기, 측정열쇠, 가림px, get, 덜움직이기]);
+  }, [보기, 측정열쇠, get, 덜움직이기]);
 
   useFrame((_, delta) => {
     const { camera, scene, size } = get();
-    const 화면 = { 높이px: size.height, 가림px: 가림.current, fov: camera.fov };
     const s = 상태.current;
     셈.current += 1;
-    // 전신 보기에서만 키 변화를 따라 거리를 다시 잡는다(열 프레임에 한 번이면 충분하다).
     if ((!s.채움 || 보기 === "전신") && 셈.current % 10 === 0) {
       const 잰값 = 캐릭터재기(scene, 키.current);
       if (잰값) {
-        바람.current = 보기목표(보기, 잰값, 화면);
+        바람.current = 담을것(보기, 잰값);
         if (!s.채움) {
-          s.목표.copy(바람.current.목표);
-          s.거리 = 바람.current.거리;
+          s.중심.copy(바람.current.중심);
+          s.담을높이 = 바람.current.높이;
           s.채움 = true;
         }
       }
     }
-    const 비율 = 덜움직이기 ? 1 : 1 - Math.exp(-delta * 8);
-    s.목표.lerp(바람.current.목표, 비율);
-    s.거리 += (바람.current.거리 - s.거리) * 비율;
+    const 비율 = 덜움직이기 ? 1 : 1 - Math.exp(-delta * 7);
+    s.중심.lerp(바람.current.중심, 비율);
+    s.담을높이 += (바람.current.높이 - s.담을높이) * 비율;
 
-    const { 좌우, 위아래, 줌 } = 조작.current;
-    const 거리 = s.거리 * 줌;
-    const 높이각 = THREE.MathUtils.clamp(위아래, -0.45, 0.85);
-    const x = Math.sin(좌우) * Math.cos(높이각) * 거리;
-    const z = Math.cos(좌우) * Math.cos(높이각) * 거리;
-    const y = Math.sin(높이각) * 거리;
-    // 바닥 아래로는 내려가지 않는다.
-    camera.position.set(s.목표.x + x, Math.max(0.12, s.목표.y + y), s.목표.z + z);
-    camera.lookAt(s.목표);
+    // 1) UI 를 뺀 빈 자리
+    const a = 안전.current;
+    const 폭px = Math.max(160, size.width - a.왼쪽 - a.오른쪽);
+    const 높이px = Math.max(160, size.height - a.위 - a.아래);
+    // 2) 그 자리에 담을 높이 → 화면 전체가 보여야 하는 세계 높이 → 거리
+    const 세계높이 = s.담을높이 * (size.height / 높이px);
+    const 거리 = (세계높이 / (2 * Math.tan((camera.fov * Math.PI) / 360))) * 조작.current.줌;
+    const 세계폭 = 세계높이 * (size.width / size.height);
+
+    // 3) 궤도 위 카메라
+    const { 좌우, 위아래 } = 조작.current;
+    const 높이각 = THREE.MathUtils.clamp(위아래, -0.40, 0.75);
+    const 앞 = new THREE.Vector3(
+      Math.sin(좌우) * Math.cos(높이각),
+      Math.sin(높이각),
+      Math.cos(좌우) * Math.cos(높이각),
+    );
+    const 자리 = s.중심.clone().addScaledVector(앞, 거리);
+    // 4) 빈 자리의 한가운데로 화면을 옮긴다(카메라와 목표를 같이 밀면 시선 방향은 그대로다).
+    const cx = (a.왼쪽 + 폭px / 2) / size.width - 0.5;
+    const cy = 0.5 - (a.위 + 높이px / 2) / size.height;
+    // 앞 = 목표에서 카메라로 가는 방향이라 **시선은 그 반대**다. 화면 오른쪽은 cross(위, 앞) 이다.
+    //   (cross(앞, 위) 로 잡으면 좌우가 뒤집혀 캐릭터가 UI 쪽으로 밀려간다.)
+    const 오른 = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), 앞).normalize();
+    const 위 = new THREE.Vector3().crossVectors(앞, 오른).normalize();
+    const 밀기 = 오른.clone().multiplyScalar(-cx * 세계폭).add(위.clone().multiplyScalar(-cy * 세계높이));
+    const 목표 = s.중심.clone().add(밀기);
+    자리.add(밀기);
+
+    camera.position.set(자리.x, Math.max(0.1, 자리.y), 자리.z);
+    camera.lookAt(목표);
     camera.near = Math.max(0.05, 거리 * 0.05);
-    camera.far = 거리 * 12 + 20;
+    camera.far = 거리 * 14 + 24;
     camera.updateProjectionMatrix();
-    // 주광은 카메라를 따라간다 — 어느 쪽으로 돌려도 얼굴이 검게 죽지 않는다.
-    if (빛.current) {
-      빛.current.position.set(camera.position.x + 1.2, camera.position.y + 2.2, camera.position.z + 1.4);
-      빛.current.target.position.copy(s.목표);
-      빛.current.target.updateMatrixWorld();
+
+    // 5) 빛 — 공간의 빛 방향은 고정하고 보조광만 카메라를 따라간다.
+    //    전부 카메라에 붙이면 어느 각도에서나 평평해져 얼굴 굴곡이 사라진다.
+    if (주광.current) {
+      주광.current.target.position.copy(s.중심);
+      주광.current.target.updateMatrixWorld();
+    }
+    if (보조광.current) {
+      보조광.current.position.copy(camera.position).addScaledVector(위, 0.4);
+      보조광.current.target.position.copy(s.중심);
+      보조광.current.target.updateMatrixWorld();
     }
   });
 
   return (
     <>
-      <directionalLight ref={빛} intensity={1.15} />
-      <ambientLight intensity={0.75} />
-      <hemisphereLight args={["#eef3ff", "#5a5f6b", 0.55]} />
+      {/* 주광 — 왼쪽 위 앞. 얼굴과 몸의 굴곡을 만든다. */}
+      <directionalLight ref={주광} position={[-2.4, 3.4, 2.6]} intensity={1.30} color="#FFF6EA" />
+      {/* 윤곽광 — 뒤 오른쪽. 머리·어깨를 배경에서 떼어 낸다. */}
+      <directionalLight position={[2.6, 2.2, -3.0]} intensity={0.85} color="#9AD8E8" />
+      {/* 보조광 — 카메라를 따라가며 그림자 쪽이 검게 죽지 않을 만큼만 채운다. */}
+      <directionalLight ref={보조광} intensity={0.28} color="#CFE6F2" />
+      <hemisphereLight args={["#DCEAF5", "#1A2B38", 0.46]} />
+      <ambientLight intensity={0.18} />
     </>
   );
 }
 
-// 개발용 손잡이 — 헤드리스 검사에서 씬을 직접 재려고 연다(보행비교 GAIT손잡이와 같은 방식).
-function CC손잡이({ 표시열쇠 }) {
-  const get = useThree((s) => s.get);
-  useEffect(() => {
-    if (!import.meta.env.DEV || typeof window === "undefined") return undefined;
-    // 표시열쇠 = 지금 **화면에 서 있는** 착장. 고른 값과 견줘 '옷을 빨리 바꿔도 어긋나지 않는지' 본다.
-    window.__캐릭터생성 = { get, THREE, 표시열쇠 };
-    return () => { delete window.__캐릭터생성; };
-  }, [get, 표시열쇠]);
-  return null;
-}
-
-// 탭이 안 보이면 그리지 않는다(배경에서 GPU 를 돌리지 않는다).
 function CC보임감시({ 바뀜 }) {
   useEffect(() => {
     const 듣기 = () => 바뀜(!document.hidden);
@@ -234,56 +254,63 @@ function CC보임감시({ 바뀜 }) {
   return null;
 }
 
+// 개발용 손잡이 — 헤드리스 검사에서 씬을 직접 재려고 연다.
+function CC손잡이({ 표시열쇠 }) {
+  const get = useThree((s) => s.get);
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === "undefined") return undefined;
+    window.__캐릭터생성 = { get, THREE, 표시열쇠 };
+    return () => { delete window.__캐릭터생성; };
+  }, [get, 표시열쇠]);
+  return null;
+}
+
 export default function CC캐릭터프리뷰({
   설정,
   보기 = "전신",
-  set보기,
   자세 = "Idle_Loop",
-  set자세,
   품질 = "보통",
-  set품질,
-  덧UI = null,
+  안전영역 = { 왼쪽: 0, 오른쪽: 0, 위: 0, 아래: 0 },
+  조작알림,
+  읽는중알림,
 }) {
   const 상태참조 = useRef(정지상태());
-  const 조작 = useRef({ 좌우: -0.35, 위아래: 0.08, 줌: 1 });
+  // 카메라 조작값은 이 컴포넌트가 들고 있고, 바깥(도크 단추)에는 손잡이만 넘긴다.
+  //   ※ 바깥에서 받은 ref 를 여기서 바꾸면 리액트 규칙 검사에 걸린다(그리고 추적이 어렵다).
+  const 조작 = useRef({ 좌우: -0.30, 위아래: 0.06, 줌: 1 });
   const 끌기 = useRef(null);
   const 손가락 = useRef(new Map());
   const 벌림 = useRef(0);
   const 감쌈 = useRef(null);
-  const 도구줄 = useRef(null);
-  const [가림px, set가림px] = useState(64);
   const 파일열쇠 = 파일열쇠만들기(설정);
-  // 지금 화면에 서 있는 착장. 예열이 끝나야 여기로 옮겨 온다.
   const [표시열쇠, set표시열쇠] = useState(파일열쇠);
   const [보임, set보임] = useState(() => typeof document === "undefined" || !document.hidden);
-  const [초기화수, set초기화수] = useState(0);
 
   const 덜움직이기 = useMemo(
     () => typeof window !== "undefined" && Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches),
     [],
   );
 
-  // 슬라이더·색·헤어는 곧바로, 성별·옷은 다 읽힌 뒤에 반영한다.
   const 표시설정 = useMemo(() => ({ ...설정, ...열쇠풀기(표시열쇠) }), [설정, 표시열쇠]);
   const 읽는중 = 파일열쇠 !== 표시열쇠;
 
+  useEffect(() => {
+    읽는중알림?.(읽는중);
+  }, [읽는중, 읽는중알림]);
+
   const 예열끝 = useCallback((열쇠) => {
-    // 같은 값이면 상태를 안 바꾼다. 늦게 온 옛 요청은 그 사이 열쇠가 또 바뀌었어도
-    // 제 열쇠로 들어오므로, 다음 예열이 최신 열쇠로 다시 알려 준다.
     set표시열쇠((이전) => (열쇠 === 이전 ? 이전 : 열쇠));
   }, []);
 
+  useEffect(() => {
+    조작알림?.({
+      돌리기: (라디안) => { 조작.current.좌우 += 라디안; },
+      초기화: () => { 조작.current = { 좌우: -0.30, 위아래: 0.06, 줌: 1 }; },
+    });
+  }, [조작알림]);
+
   const 줌바꾸기 = useCallback((배) => {
     조작.current.줌 = THREE.MathUtils.clamp(조작.current.줌 * 배, 0.45, 2.2);
-  }, []);
-
-  // 아래 도구줄이 덮는 높이를 재서 카메라에 알린다(줄이 두 줄로 접히면 더 덮는다).
-  useEffect(() => {
-    const 요소 = 도구줄.current;
-    if (!요소 || typeof ResizeObserver === "undefined") return undefined;
-    const 눈 = new ResizeObserver(([항목]) => set가림px(Math.round(항목.contentRect.height) + 24));
-    눈.observe(요소);
-    return () => 눈.disconnect();
   }, []);
 
   useEffect(() => {
@@ -321,143 +348,62 @@ export default function CC캐릭터프리뷰({
     const dy = e.clientY - 끌기.current.y;
     끌기.current = { x: e.clientX, y: e.clientY };
     조작.current.좌우 -= dx * 0.008;
-    조작.current.위아래 = THREE.MathUtils.clamp(조작.current.위아래 + dy * 0.005, -0.45, 0.85);
+    조작.current.위아래 = THREE.MathUtils.clamp(조작.current.위아래 + dy * 0.005, -0.40, 0.75);
   };
   const 뗌 = (e) => {
     손가락.current.delete(e.pointerId);
     if (손가락.current.size < 2) 벌림.current = 0;
     if (손가락.current.size === 0) 끌기.current = null;
   };
-  const 보기초기화 = () => {
-    조작.current = { 좌우: -0.35, 위아래: 0.08, 줌: 1 };
-    set초기화수((n) => n + 1);
-  };
 
   const 품질설정 = 품질값[품질] ?? 품질값.보통;
+  const 실제자세 = 관찰자세(보기, 자세);
 
   return (
-    <div style={무대}>
-      <div
-        ref={감쌈}
-        style={{ position: "absolute", inset: 0, touchAction: "none", cursor: "grab" }}
-        onPointerDown={누름}
-        onPointerMove={움직임}
-        onPointerUp={뗌}
-        onPointerCancel={뗌}
+    <div
+      ref={감쌈}
+      style={{ position: "absolute", inset: 0, touchAction: "none", cursor: "grab" }}
+      onPointerDown={누름}
+      onPointerMove={움직임}
+      onPointerUp={뗌}
+      onPointerCancel={뗌}
+    >
+      <Canvas
+        shadows={false}
+        frameloop={보임 ? "always" : "never"}
+        dpr={품질설정.dpr}
+        camera={{ fov: 30, position: [0, 1, 3.6], near: 0.1, far: 60 }}
+        // 캔버스는 투명하다 — 아래 CSS 배경이 화면 전체에 그대로 이어져야 한다.
+        gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
+        onCreated={({ gl, scene }) => {
+          gl.setClearAlpha(0);
+          scene.background = null;
+        }}
+        style={{ background: "transparent" }}
       >
-        <Canvas
-          shadows={false}
-          frameloop={보임 ? "always" : "never"}
-          dpr={품질설정.dpr}
-          camera={{ fov: 30, position: [0, 1, 3.6], near: 0.1, far: 60 }}
-          gl={{ antialias: true, preserveDrawingBuffer: true }}
-          onCreated={({ gl }) => gl.setClearColor(new THREE.Color("#0a1120"), 1)}
-        >
-          <CC보임감시 바뀜={set보임} />
-          <CC손잡이 표시열쇠={표시열쇠} />
-          <CC카메라
-            조작={조작}
-            보기={보기}
-            키배율={표시설정.heightScale ?? 1}
-            가림px={가림px}
-            덜움직이기={덜움직이기}
-            측정열쇠={`${표시열쇠}|${초기화수}`}
-          />
-          <Suspense fallback={null}>
-            <ChibiGameAvatar 보이기 플레이어참조={상태참조} 설정={{ ...표시설정, motion: 자세 }} 크기={1} 몸체="meshy" />
-            {품질설정.그림자 > 0 ? (
-              <ContactShadows
-                position={[0, 0.001, 0]}
-                opacity={0.42}
-                scale={4}
-                blur={2.6}
-                far={2}
-                resolution={품질설정.그림자}
-                color="#01040c"
-              />
-            ) : null}
-          </Suspense>
-          <Suspense fallback={null}>
-            <CC모델예열 설정={설정} 열쇠={파일열쇠} 알림={예열끝} key={파일열쇠} />
-          </Suspense>
-        </Canvas>
-      </div>
-
-      {읽는중 ? (
-        <div style={읽는중표시} role="status" aria-live="polite">새 모델을 불러오는 중…</div>
-      ) : null}
-
-      <div style={아래줄} ref={도구줄}>
-        <div style={줄} role="group" aria-label="보기 부위">
-          {보기목록.map(([값, 이름]) => (
-            <button key={값} type="button" style={보기 === 값 ? 고른단추 : 단추} aria-pressed={보기 === 값} onClick={() => set보기(값)}>
-              {이름}
-            </button>
-          ))}
-        </div>
-        <div style={줄} role="group" aria-label="카메라 조작">
-          <button type="button" style={단추} aria-label="왼쪽으로 회전" onClick={() => { 조작.current.좌우 -= Math.PI / 6; }}>↺</button>
-          <button type="button" style={단추} aria-label="오른쪽으로 회전" onClick={() => { 조작.current.좌우 += Math.PI / 6; }}>↻</button>
-          <button type="button" style={단추} aria-label="확대" onClick={() => 줌바꾸기(0.85)}>＋</button>
-          <button type="button" style={단추} aria-label="축소" onClick={() => 줌바꾸기(1.18)}>－</button>
-          <button type="button" style={단추} onClick={보기초기화}>보기 초기화</button>
-        </div>
-        <div style={줄} role="group" aria-label="미리보기 자세">
-          {자세목록.map(([값, 이름]) => (
-            <button key={값} type="button" style={자세 === 값 ? 고른단추 : 단추} aria-pressed={자세 === 값} onClick={() => set자세(값)}>
-              {이름}
-            </button>
-          ))}
-        </div>
-        <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={작은글}>화질</span>
-          <select value={품질} onChange={(e) => set품질(e.target.value)} style={{ ...단추, padding: "6px 8px" }}>
-            {품질목록.map(([값, 이름]) => (<option key={값} value={값}>{이름}</option>))}
-          </select>
-        </label>
-        {덧UI}
-      </div>
+        <CC보임감시 바뀜={set보임} />
+        <CC손잡이 표시열쇠={표시열쇠} />
+        <CC카메라
+          조작={조작}
+          보기={보기}
+          키배율={표시설정.heightScale ?? 1}
+          안전영역={안전영역}
+          덜움직이기={덜움직이기}
+          측정열쇠={표시열쇠}
+        />
+        <Suspense fallback={null}>
+          <ChibiGameAvatar 보이기 플레이어참조={상태참조} 설정={{ ...표시설정, motion: 실제자세 }} 크기={1} 몸체="meshy" 툰={생성툰} />
+          {/* 접지 — 발 밑은 또렷하고 둘레로 넓게 흐려진다. 두 장을 겹쳐 '검은 원 한 장' 을 피한다.
+              매 프레임 다시 굽는다(frames=1 로 캐시하면 걷는 동안 그림자가 멈춘다). */}
+          <ContactShadows position={[0, 0.002, 0]} opacity={0.5} scale={3.2} blur={품질설정.흐림} far={1.6}
+                          resolution={품질설정.그림자} color="#04080E" />
+          <ContactShadows position={[0, 0.001, 0]} opacity={0.24} scale={7} blur={4.5} far={2.4}
+                          resolution={Math.max(128, Math.round(품질설정.그림자 / 2))} color="#04080E" />
+        </Suspense>
+        <Suspense fallback={null}>
+          <CC모델예열 설정={설정} 열쇠={파일열쇠} 알림={예열끝} key={파일열쇠} />
+        </Suspense>
+      </Canvas>
     </div>
   );
 }
-
-const 무대 = {
-  position: "relative",
-  flex: "1 1 auto",
-  minWidth: 0,
-  minHeight: 0,
-  borderRadius: 14,
-  overflow: "hidden",
-  border: `1px solid ${색.선}`,
-  background: "#0a1120",
-};
-
-const 아래줄 = {
-  position: "absolute",
-  left: 12,
-  right: 12,
-  bottom: 12,
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 8,
-  alignItems: "center",
-  padding: 8,
-  borderRadius: 12,
-  background: "rgba(6,13,26,0.78)",
-  border: `1px solid ${색.선}`,
-};
-
-const 줄 = { display: "flex", gap: 6, flexWrap: "wrap" };
-
-const 읽는중표시 = {
-  position: "absolute",
-  left: "50%",
-  top: 14,
-  transform: "translateX(-50%)",
-  padding: "6px 14px",
-  borderRadius: 100,
-  background: "rgba(6,13,26,0.85)",
-  border: `1px solid ${색.선}`,
-  font: "500 12px/1 inherit",
-  color: 색.흐린글,
-};

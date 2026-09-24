@@ -20,6 +20,9 @@ const 콘솔오류 = [];
 쪽.on("pageerror", (e) => 콘솔오류.push(e.message));
 await 쪽.goto(주소, { waitUntil: "networkidle" });
 await 쪽.waitForTimeout(9000);
+// 개발 도구(가짜 서버 조종판)는 기본으로 접혀 있다 — 검사에 필요하니 펼친다.
+await 쪽.getByRole("button", { name: "개발 도구 열기" }).click();
+await 쪽.waitForTimeout(500);
 
 const 초안읽기 = async () => {
   const 글 = await 쪽.locator("pre").nth(1).innerText();
@@ -96,6 +99,9 @@ const 골반높이 = () => 쪽.evaluate(() => {
   if (!뼈대) return null;
   return new H.THREE.Vector3().setFromMatrixPosition(뼈대.getBoneByName("pelvis").matrixWorld).y;
 });
+// 다리 길이는 '몸 비율' 묶음 안에 있다 — 접혀 있으면 먼저 편다.
+await 쪽.getByRole("button", { name: "몸 비율" }).click();
+await 쪽.waitForTimeout(400);
 await 밀기("다리 길이", 1.2);
 const 긴다리 = await 골반높이();
 await 밀기("다리 길이", 0.85);
@@ -103,6 +109,8 @@ const 짧은다리 = await 골반높이();
 참("다리 길이 슬라이더가 실제 모델을 바꾼다", 긴다리 > 짧은다리 * 1.1, `골반 높이 ${긴다리?.toFixed(3)} / ${짧은다리?.toFixed(3)}`);
 await 단추("다리 길이 초기화", false).first().click();
 await 쪽.waitForTimeout(600);
+await 쪽.getByRole("button", { name: "기본 크기" }).click();
+await 쪽.waitForTimeout(400);
 
 // 3. 성별을 오가도 각자 초안이 남는다
 await 단추("체형").click();
@@ -261,6 +269,55 @@ const 이름표있나 = await 쪽.evaluate(() => {
   return 칸.every((el) => el.id && document.querySelector(`label[for="${el.id}"]`));
 });
 참("모든 슬라이더에 라벨이 붙어 있다", 이름표있나);
+
+// 12. UI 를 끌어도 카메라가 돌지 않는다(오버레이가 전면이라 특히 중요하다)
+const 카메라자리 = () => 쪽.evaluate(() => {
+  const { camera } = window.__캐릭터생성.get();
+  return [camera.position.x, camera.position.y, camera.position.z];
+});
+await 단추("체형").click();
+await 쪽.waitForTimeout(500);
+const 끌기전자리 = await 카메라자리();
+const 손칸 = 쪽.getByLabel("손 크기", { exact: true });
+const 상자 = await 손칸.boundingBox();
+await 쪽.mouse.move(상자.x + 상자.width * 0.5, 상자.y + 상자.height / 2);
+await 쪽.mouse.down();
+await 쪽.mouse.move(상자.x + 상자.width * 0.8, 상자.y + 상자.height / 2 - 40, { steps: 8 });
+await 쪽.mouse.up();
+await 쪽.waitForTimeout(700);
+const 끌기후자리 = await 카메라자리();
+const 흔들림 = Math.max(...끌기전자리.map((v, i) => Math.abs(v - 끌기후자리[i])));
+// 끌림이 카메라로 새면 40px 드래그에 0.32 라디안(1m 이상) 움직인다. 몇 cm 는 구도 정돈·호흡이다.
+참("슬라이더를 끌어도 카메라가 돌지 않는다", 흔들림 < 0.15, `카메라 이동 ${흔들림.toFixed(3)} m`);
+
+// 13. 팝오버를 Esc 로 닫으면 포커스가 부른 단추로 돌아온다
+await 단추("관찰 옵션").click();
+await 쪽.waitForTimeout(300);
+await 쪽.keyboard.press("Escape");
+await 쪽.waitForTimeout(300);
+const 돌아옴 = await 쪽.evaluate(() => document.activeElement?.textContent?.includes("관찰 옵션") ?? false);
+참("팝오버를 닫으면 포커스가 부른 단추로 돌아온다", 돌아옴);
+
+// 14. 카메라 안전영역 — 머리·발이 오른쪽 패널이나 왼쪽 레일 뒤로 숨지 않는다
+const 화면자리 = () => 쪽.evaluate(() => {
+  const H = window.__캐릭터생성;
+  const { camera, scene, size } = H.get();
+  let 뼈대 = null;
+  scene.traverse((o) => { if (!뼈대 && o.isSkinnedMesh && o.skeleton?.getBoneByName("head")) 뼈대 = o.skeleton; });
+  const 점 = (이름) => {
+    const v = new H.THREE.Vector3().setFromMatrixPosition(뼈대.getBoneByName(이름).matrixWorld).project(camera);
+    return { x: (v.x * 0.5 + 0.5) * size.width, y: (-v.y * 0.5 + 0.5) * size.height };
+  };
+  return { 머리: 점("head"), 발: 점("foot_l"), 폭: size.width, 높이: size.height };
+});
+const 자리 = await 화면자리();
+const 패널왼쪽 = await 쪽.evaluate(() => {
+  const 칸 = document.querySelector('aside[aria-label="조절 패널"]');
+  return 칸 ? 칸.getBoundingClientRect().left : Infinity;
+});
+참("머리·발이 조절 패널 뒤로 숨지 않는다",
+  자리.머리.x < 패널왼쪽 - 8 && 자리.발.x < 패널왼쪽 - 8 && 자리.머리.y > 0 && 자리.발.y < 자리.높이,
+  `머리 ${Math.round(자리.머리.x)},${Math.round(자리.머리.y)} 발 ${Math.round(자리.발.x)} 패널 ${Math.round(패널왼쪽)}`);
 
 참("페이지 오류 없음", 콘솔오류.length === 0, 콘솔오류.join(" | "));
 
