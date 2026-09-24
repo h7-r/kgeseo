@@ -16,6 +16,8 @@
 import { useMemo, useRef, useCallback, useEffect } from "react";
 import * as THREE from "three";
 import { Outlines } from "@react-three/drei";
+import 텔레포트장치 from "../소품/텔레포트장치.jsx";
+import 홀로그램스크린 from "../소품/홀로그램스크린.jsx";
 import { useFrame } from "@react-three/fiber";
 import {
   TOON_GRADIENT,
@@ -1461,6 +1463,11 @@ export default function 기차내부({ active, onNear }) {
       <ambientLight intensity={T.밑빛 * T.밝기} color="#b9c4d4" />
       {/* 위아래로 살짝 갈라 주는 빛 — 천장·바닥이 같은 톤이면 공간이 납작해 보인다 */}
       <hemisphereLight args={["#aab6c6", "#2f343b", 0.35 * T.밝기]} />
+
+      {/* 텔레포트 장치 — 기차 안 소품(위치·크기·회전·발광 전부 Leva 「텔레포트 장치」에서 조절) */}
+      <텔레포트장치 선={선} />
+      {/* 텔레포트 장치가 쏘는 목적지 홀로그램(나주 · 클릭 가능) */}
+      <홀로그램스크린 />
 
       {등목록.map((L, i) => (
         <형광등
