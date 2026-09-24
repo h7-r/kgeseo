@@ -25,7 +25,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export const 설계폭 = 1920;
 
-export default function 무대({ 높이, children }) {
+/* 마지막 내용과 푸터 사이 최소 간격.
+   메인처럼 **띠가 푸터에 그대로 이어져야** 하는 화면은 0 을 넘긴다. */
+const 기본바닥틈 = 72;
+
+export default function 무대({ 높이, 바닥틈 = 기본바닥틈, children }) {
   const 배율 = use화면배율();
   const 칸 = useRef(null);
   const [잰높이, set잰높이] = useState(높이);
@@ -40,25 +44,37 @@ export default function 무대({ 높이, children }) {
       let 맨아래 = 0;
       let 푸터높이 = 0;
       for (const c of el.children) {
-        if (c.dataset.바닥) {
-          푸터높이 = Math.max(푸터높이, c.offsetHeight);
+        /* ★ SVG 에는 offsetTop·offsetHeight 가 **없다**(HTMLElement 전용).
+           장식용 <svg> 를 그냥 자식으로 두면 undefined + undefined = NaN 이 되고,
+           그 뒤 Math.max 가 전부 NaN 이 돼서 높이를 아예 못 고친다.
+           그러면 처음 넘겨받은 숫자에 멈춰, 내용이 끝난 뒤로 빈 칸이 남는다.
+           (실제로 메인에서 푸터 위에 201px 짜리 검은 띠가 생겼다.)
+           그래서 숫자가 아닌 자식은 건너뛴다. */
+        const 키 = c.offsetHeight;
+        const 위 = c.offsetTop;
+        if (typeof 키 !== "number" || typeof 위 !== "number" || Number.isNaN(키) || Number.isNaN(위)) continue;
+
+        if (c.dataset?.바닥) {
+          푸터높이 = Math.max(푸터높이, 키);
           continue;
         }
-        맨아래 = Math.max(맨아래, c.offsetTop + c.offsetHeight);
+        맨아래 = Math.max(맨아래, 위 + 키);
       }
-      const 필요 = 맨아래 + 푸터높이;
+      /* 내용과 푸터 사이 숨 쉴 틈 — 없으면 마지막 상자가 푸터에 딱 붙어
+         두 덩이가 한 덩이처럼 보인다. 푸터 **아래** 는 여전히 0 이다. */
+      const 필요 = 맨아래 + 바닥틈 + 푸터높이;
       /* 내용이 한 화면보다 짧으면 화면 높이만큼 늘려, 푸터가 창 맨 아래에
          붙게 한다. 안 그러면 푸터 뒤로 바탕만 남은 빈 공간이 보인다. */
       const 한화면 = typeof window === "undefined" ? 0 : window.innerHeight / (window.innerWidth / 설계폭);
       const 값 = Math.ceil(Math.max(필요, 한화면));
-      if (값 > 0) set잰높이(값);
+      if (Number.isFinite(값) && 값 > 0) set잰높이(값);
     };
     재기();
     const 관찰 = new ResizeObserver(재기);
     관찰.observe(el);
     for (const c of el.children) 관찰.observe(c);
     return () => 관찰.disconnect();
-  }, [children]);
+  }, [children, 바닥틈]);
 
   const 실제높이 = Math.round(잰높이 * 배율);
 
@@ -76,12 +92,20 @@ export default function 무대({ 높이, children }) {
              hidden 이면 다른 축의 visible 이 **auto 로 바뀌어** 여기에
              스크롤 영역이 하나 더 생긴다. 실제로 그래서 푸터 아래로
              빈 공간과 두 번째 스크롤바가 생겼다. 두 축 다 hidden 으로 둔다. */
-        overflow: "hidden",
+        /* ★ hidden 이 아니라 clip 이다.
+           hidden 은 **스크롤 칸을 만든다**(손으로 못 끌 뿐 프로그램으론 스크롤된다).
+           그러면 이 안의 요소들이 스크롤에 물린 애니메이션(animation-timeline:
+           view())을 걸 때 **이 칸**을 기준으로 잡는데, 이 칸은 절대 스크롤되지
+           않으니 진행도가 0 에서 멈춘다 — 앙암바위 카메라가 안 움직였던 이유다.
+           clip 은 자르기만 하고 스크롤 칸을 안 만들어서, 기준이 문서로 간다.
+           (overflowX 만 주면 안 되는 문제도 clip 에는 없다.) */
+        overflow: "clip",
         background: "var(--색-바탕)",
       }}
     >
       <div
         ref={칸}
+        className="무대속"
         style={{
           position: "absolute",
           left: 0,
@@ -95,7 +119,6 @@ export default function 무대({ 높이, children }) {
       >
         {children}
       </div>
-      <배율표시 배율={배율} 높이={잰높이} />
     </div>
   );
 }
@@ -113,48 +136,4 @@ export function use화면배율() {
   return 배율;
 }
 
-/* ═══════════════════════════════════════════════════════
-   배율 표시 — 이 화면이 「창 폭 기준」 이라는 걸 눈에 보이게
 
-   1920 으로 짜 놓고 창 폭에 맞춰 통째로 줄이기 때문에, 창을 좁히면
-   글자도 같이 작아진다. 그걸 모르면 "왜 폰트가 작아지지?" 하게 된다.
-   그래서 지금 배율과 창 폭을 구석에 적어 둔다.
-
-   **개발 중에만 보인다** (import.meta.env.DEV). 빌드 결과물엔 안 들어간다.
-   눌러서 숨길 수 있다.
-   ═══════════════════════════════════════════════════════ */
-function 배율표시({ 배율, 높이 }) {
-  const [보임, set보임] = useState(true);
-  if (!import.meta.env.DEV) return null;
-  if (!보임)
-    return (
-      <button onClick={() => set보임(true)} style={{ ...쪽지, width: "28px", padding: "6px 0", textAlign: "center" }} title="배율 표시 켜기">
-        ⤢
-      </button>
-    );
-  return (
-    <button onClick={() => set보임(false)} style={쪽지} title="눌러서 숨기기">
-      설계 1920 기준 · 창 폭에 맞춰 <b style={{ color: "#93c5fd" }}>{Math.round(배율 * 100)}%</b> 로 축소
-      <span style={{ opacity: 0.55 }}>
-        {" "}
-        · 창 {typeof window === "undefined" ? "?" : window.innerWidth}px · 페이지 {높이}px
-      </span>
-    </button>
-  );
-}
-
-const 쪽지 = {
-  position: "fixed",
-  right: "12px",
-  bottom: "12px",
-  zIndex: 9999,
-  padding: "6px 10px",
-  borderRadius: "8px",
-  border: "1px solid rgba(96,165,250,0.35)",
-  background: "rgba(6,13,26,0.88)",
-  backdropFilter: "blur(6px)",
-  WebkitBackdropFilter: "blur(6px)",
-  color: "#94a3b8",
-  font: '400 12px/1.4 "IBM Plex Mono", monospace',
-  cursor: "pointer",
-};
