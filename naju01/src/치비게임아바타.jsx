@@ -17,7 +17,9 @@ import { 기본보정, 성별보정, 트리포보정, 트리포성별보정, 이
 // 몸체 종류: chibi = V4 몸체 시제품, meshy = Meshy 민머리 기본 모델(텍스처 원본 유지).
 const 몸파일 = {
   chibi: { masculine: "/models/chibi-male.glb", feminine: "/models/chibi-female.glb" },
-  meshy: { masculine: "/models/meshy-male.glb", feminine: "/models/meshy-female.glb" },
+  // meshy 몸체는 착장마다 파일이 달라 여기서 고르지 않는다 — 메시모델파일(설정) 이 만든다.
+  //   ※ 예전에는 여기에 /models/meshy-male.glb 가 적혀 있었는데 그 파일은 없다(404 가 될 뻔했다).
+  //     지금 코드가 meshy 일 때 이 값을 안 읽어서 드러나지 않았을 뿐이다.
 };
 const 모션파일 = "/models/vendor/quaternius-universal-animation-library.glb";
 // Tripo 동작(우리 몸체에 맞춰 만든 걷기·대기·달리기). 뼈 이름은 굽는 도구에서 우리 리그 이름으로 바꿔 둔다.
@@ -864,8 +866,9 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   );
 }
 
-useGLTF.preload(몸파일.chibi.masculine);
-useGLTF.preload(몸파일.chibi.feminine);
+// 모듈을 읽기만 해도 받아 오는 예열은 **정말 늘 쓰는 것만** 둔다.
+//   chibi 몸체 두 벌(6.5MB)을 예열하고 있었는데, 나주·로비는 몸체="meshy" 라 한 번도 안 쓴다.
+//   chibi 로 쓸 때는 컴포넌트의 useGLTF 가 그때 읽으므로 잃는 것이 없다(실측: 진입 시 6.5MB 덜 받음).
 useGLTF.preload(모션파일);
 useGLTF.preload(트리포모션파일들);
 
