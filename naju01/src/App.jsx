@@ -7,6 +7,7 @@
 // ※ 본편 파일은 읽기만 한다. 이 폴더는 본편을 한 줄도 고치지 않는다.
 
 import { useRef, useState, useEffect } from "react";
+import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { Preload } from "@react-three/drei";
 import {
@@ -43,6 +44,8 @@ const 후처리끄기 = 쿼리.get("fx") === "off";
 const 블룸끄기 = 쿼리.get("bloom") === "off";
 const 비네트끄기 = 쿼리.get("vig") === "off";
 const 톤매핑켜기 = 쿼리.get("tm") === "on";
+// ?fb=half — 후처리 버퍼를 반정밀도(HalfFloat)로 되돌려 아래 증상을 재현해 본다.
+const 반정밀도버퍼 = 쿼리.get("fb") === "half";
 // 무대 — 기본은 창을 꽉 채운다. ?stage=16x9 면 본편과 같은 레터박스(§4 시야 검증용).
 const 무대16x9 = 쿼리.get("stage") === "16x9";
 
@@ -139,19 +142,29 @@ export default function App() {
           툰설정={툰설정}
           외곽선설정={외곽선설정}
         />
+          {/* ★ frameBufferType 을 **반드시** 지정한다.
+              [무엇이 문제였나]  지정하지 않으면 이 라이브러리는 반정밀도(HalfFloat) 버퍼를 고른다.
+                그러면 이 씬은 **3D 화면이 통째로 까맣게** 나온다(UI·라벨만 보인다).
+                실제 GPU 에서 확인했다 — Apple M5 Max · ANGLE Metal 렌더러, 헤드리스가 아니다.
+                ?bloom=off 로 끄면 멀쩡해서 오랫동안 Bloom 탓으로 보였지만, 실제로는 버퍼 탓이다.
+                Bloom 을 켠 채 버퍼만 바이트로 바꾸면 정상으로 돌아온다(멀티샘플 수는 무관).
+              [왜 본편은 멀쩡했나]  본편은 처음부터 frameBufferType 을 지정해 두고 있었다.
+              [되돌리기]  ?fb=half 로 예전 상태를 재현할 수 있다. */}
         {!저사양 && !후처리끄기 && (
-          <EffectComposer multisampling={4} enableNormalPass={false}>
+          <EffectComposer
+            multisampling={4}
+            enableNormalPass={false}
+            frameBufferType={반정밀도버퍼 ? THREE.HalfFloatType : THREE.UnsignedByteType}
+          >
             {/* ACES 톤매핑 — **기본은 꺼 둔다(본편과 같은 상태).**
                 ?tm=on 으로 켜서 비교할 수 있다.
                 한때 "본편에 톤매핑이 빠져서 화면이 어둡다"고 봤는데 **오진이었다.**
                 어두움의 범인은 Bloom 이었고(아래), 톤매핑을 넣고 빼는 차이는
                 하이라이트가 조금 눌리는 정도다. 화풍 선택지로만 남긴다. */}
             {톤매핑켜기 && <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />}
-            {/* ⚠ 헤드리스(SwiftShader)로 찍어 보면 **특정 시점에서 화면이 통째로
-                까맣게 나온다.** V1(나루터)에서 동쪽을 볼 때가 그렇고, 절벽·자갈밭
-                시점은 멀쩡하다. ?bloom=off 로 끄면 바로 정상이 된다.
-                소프트웨어 렌더러 한정 문제일 수 있어 **실제 GPU에서 확인이 필요하다.**
-                본편도 같은 Bloom 을 쓰므로, 재현되면 본편에도 해당한다. */}
+            {/* ※ 한때 "Bloom 을 켜면 화면이 통째로 까맣다"는 증상이 있었다. 원인은 Bloom 이 아니라
+                **후처리 버퍼 형식**이었다(위 frameBufferType 주석). 실제 GPU(Apple M5 Max ·
+                ANGLE Metal)에서 재현했고, 버퍼를 바이트로 두면 Bloom 을 켠 채로 정상이다. */}
             {!블룸끄기 && (
               <Bloom intensity={0.35} luminanceThreshold={0.9} mipmapBlur />
             )}
