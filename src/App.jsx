@@ -139,6 +139,7 @@ import { 소화전내부, 관창모양, 늘어진호스 } from "./소품/소화�
 import { 관창곳, use관창, 호스줄당김 } from "./소품/관창.js";
 import { 밀림, 연출강제, use관밀림, use연출 } from "./소품/자판기밀기.js";
 import { 자판기연출 } from "./소품/자판기연출.jsx";
+import 나주진입연출 from "./소품/나주진입연출.jsx";
 import { 배전반내부 } from "./소품/배전반내부.jsx";
 import { 번호자물쇠 } from "./소품/자물쇠.jsx";
 import { 열렸나, 여닫기, use열렸나, 덜컹, 덜컹값 } from "./소품/여닫이.js";
@@ -13278,6 +13279,14 @@ export default function App() {
   const 이동하기 = useNavigate();
   const 기차안 = 위치.pathname === "/train";
   const [locked, setLocked] = useState(false);
+  // 나주 진입 연출 중엔 3D 렌더를 멈춘다 — 암전에 가려 어차피 안 보이고,
+  //   멈춰야 메인 스레드가 연출 오버레이(암전·텍스트 페이드)에 집중해 매끄럽게 돈다.
+  const [진입연출중, set진입연출중] = useState(false);
+  useEffect(() => {
+    const 켜기 = () => set진입연출중(true);
+    window.addEventListener("kgeseo:나주진입", 켜기);
+    return () => window.removeEventListener("kgeseo:나주진입", 켜기);
+  }, []);
   const [삼인칭, set삼인칭] = useState(로비아바타테스트);
   // 테스트 주소가 아니면 null 로 두어 아바타·패널 코드 자체를 건드리지 않는다.
   const [사이드킥설정, set사이드킥설정] = useState(() =>
@@ -13696,6 +13705,8 @@ export default function App() {
         theme={{ sizes: { numberInputMinWidth: "68px" } }}
       />
       <Canvas
+        /* 나주 진입 연출 중에는 렌더를 멈춘다 — 연출 오버레이가 매끄럽게 돌게 한다. */
+        frameloop={진입연출중 ? "never" : "always"}
         /* 그림자 = 씬을 광원 시점에서 한 번 더 그리는 작업.
            끄면 드로우콜이 사실상 절반이 된다. 저사양에서 가장 큰 절약. */
         shadows={저사양 ? false : "percentage"}
@@ -13827,6 +13838,8 @@ export default function App() {
           zIndex: 50,
         }}
       />
+      {/* 나주 진입 시네마틱 — 텔레포트→나주 사이 암전+안내(끝나면 나주로 이동) */}
+      <나주진입연출 />
       {/* 가운데 안내 텍스트 제거(요청) — 필요하면 이 블록 되살리면 된다.
       {!locked && (
         <div style={S.center}>

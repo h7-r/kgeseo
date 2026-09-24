@@ -284,8 +284,9 @@ export default function 홀로그램스크린() {
     // 아바타 종류(사이드킥)만 이어서 넘긴다 — naju 기본은 Meshy 캐릭터.
     const av = new URLSearchParams(location.search).get("avatar");
     const 쿼리 = av === "sidekick" ? "?avatar=sidekick" : "";
-    // 같은 출처의 나주 진입점 — 본편 vite 가 /naju01/index.html 을 그대로 내준다.
-    location.href = `${location.origin}/naju01/index.html${쿼리}`;
+    // 바로 넘어가지 않고 진입 연출(암전+안내)을 먼저 돌린다.
+    //   연출이 끝나면 나주진입연출.jsx 가 대신 같은 출처 /naju01/ 로 이동시킨다.
+    window.dispatchEvent(new CustomEvent("kgeseo:나주진입", { detail: { 쿼리 } }));
   }, []);
 
   // 캔버스 + 텍스처(한 번만 만들고, 상태 바뀔 때 다시 그린다)
