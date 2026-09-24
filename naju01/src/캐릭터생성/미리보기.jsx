@@ -90,7 +90,7 @@ function CC미리보기() {
       </div>
 
       {판보임 ? null : (
-        <button type="button" style={{ ...단추, position: "fixed", right: 10, bottom: 10, zIndex: 5 }} onClick={() => set판보임(true)}>
+        <button type="button" style={{ ...단추, position: "fixed", right: 0, top: "50%", zIndex: 5, borderRadius: "8px 0 0 8px", writingMode: "vertical-rl" }} onClick={() => set판보임(true)}>
           개발 도구 열기
         </button>
       )}

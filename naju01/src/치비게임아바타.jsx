@@ -322,11 +322,16 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정, 신발GLTF = null
   // 구워져 있어 신발은 제 크기, 발만 작아져 뒤꿈치·발볼이 비치지 않는다).
   const 발뼈 = ["foot_l", "foot_r"].map((n) => targetSkin.skeleton.getBoneByName(n)).filter(Boolean);
   const 신발수축 = 신발파츠.find((m) => m.userData.foot_shrink)?.userData.foot_shrink ?? 1;
-  // 팔 길이 조절용 — 아래팔·손 뼈의 쉴 때 위치. 이 위치 벡터가 곧 부모 뼈(위팔·아래팔)의
-  // 길이라서, 배율을 곱하면 뼈 스케일 없이 팔만 짧아지고 손은 그대로다.
-  const 팔뼈 = ["l", "r"].flatMap((s) => ["lowerarm", "hand"].map((n) => targetSkin.skeleton.getBoneByName(`${n}_${s}`)))
-    .filter(Boolean)
-    .map((bone) => ({ bone, 쉴때: bone.position.clone() }));
+  // 팔·다리 길이 조절 — **뿌리 뼈(위팔·허벅지)를 통째로 배율**로 줄인다. 자식(아래팔·손,
+  // 종아리·발)이 배율을 물려받아 관절 위치와 **살이 함께** 줄어든다.
+  //   ※ 예전에는 아래팔·손 뼈의 위치만 당겼다. 그러면 뼈 사이 거리는 줄지만 위팔 살은 그대로라
+  //     팔꿈치에서 살이 겹쳐 **팔이 끊어져 보였다**(사용자 지적). 위팔이 안 줄고 아래팔만 준 것처럼 보인 이유다.
+  //   ※ 배율은 반드시 **균등**이어야 한다. 한 축만 줄이면 팔꿈치·무릎이 굽었을 때 자식이 기울어져 찌그러진다.
+  //   ※ 손·발은 팔·다리 길이를 따라 줄면 안 되므로 역배율로 되돌린다(제 크기 조절은 따로 있다).
+  const 길이뿌리 = (이름들) => 이름들.map((n) => targetSkin.skeleton.getBoneByName(n)).filter(Boolean);
+  const 팔뿌리 = 길이뿌리(["upperarm_l", "upperarm_r"]);
+  const 손뼈 = 길이뿌리(["hand_l", "hand_r"]);
+  const 다리뿌리 = 길이뿌리(["thigh_l", "thigh_r"]);
   // 어깨 폭 — 위팔 뼈의 쉴 때 위치(쇄골 기준)에 배율을 곱한다. 어깨 관절이 옆으로 나가고 팔 전체가 따라간다.
   //   ※ shoulderWidth 모프는 쓰지 않는다. 모프는 팔 정점까지 옆으로 밀어서, 팔을 내리면 그 오프셋이
   //     팔뼈를 따라 돌아 어깨가 아래로 처졌다(실제로 그랬다).
@@ -335,7 +340,9 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정, 신발GLTF = null
   return {
     // 몸 골격에 없는 뼈를 써서 못 붙인 파츠(신발 등). 비어 있어야 정상이다.
     파츠오류,
-    팔뼈,
+    팔뿌리,
+    손뼈,
+    다리뿌리,
     어깨뼈,
     발볼뼈,
     발뼈,
@@ -595,8 +602,11 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
       else next = "Idle_Loop";
       공중모션중.current = confirmedAir;
     }
-    // 남성 대기는 팔짱 클립(Tripo). 여성은 손 허리 대기가 어울려 그대로 둔다.
-    if (next === "Idle_Loop" && gender === "masculine" && 준비.트리포클립.includes("Idle_Fold_Loop")) next = "Idle_Fold_Loop";
+    // 대기는 남녀 같은 클립(Tripo Idle_Loop — 허리에 손)을 쓴다.
+    //   ※ 남성은 팔짱 클립(Idle_Fold_Loop)을 쓰던 때가 있었는데, 어깨가 22cm 벌어진 Tripo 리그로 만든
+    //     자세라 우리 몸(13cm)에 얹으면 손이 반대팔을 뚫거나 허공에 떴다. 여러 번 손봐도 자연스럽지
+    //     않아 걷어냈다. 남자다움은 다리를 벌려 낸다(모션보정 트리포성별보정.masculine 대기덧값).
+    //     클립 자체는 파일에 남아 있으니 되살리려면 이 줄을 되돌리면 된다.
     재생(next);
     const action = actions.current.get(현재모션.current);
     // 발이 미끄러지지 않도록 걷기·달리기 재생 속도를 실제 이동 속도에 맞춘다.
@@ -615,16 +625,21 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     } else mixer.update(delta);
 
     준비.headBone?.scale.setScalar(설정.headScale ?? 1);
-    // 팔 길이 — 믹서가 쓴 뒤에 덮어야 한다(클립에 위치 트랙이 있을 수 있다).
+    // 팔·다리 길이 — 믹서가 쓴 뒤에 덮어야 한다(클립에 위치·배율 트랙이 있을 수 있다).
     const 팔길이 = 설정.armLength ?? 1;
-    준비.팔뼈.forEach(({ bone, 쉴때 }) => bone.position.copy(쉴때).multiplyScalar(팔길이));
+    const 다리길이 = 설정.legLength ?? 1;
+    준비.팔뿌리.forEach((bone) => bone.scale.setScalar(팔길이));
+    준비.다리뿌리.forEach((bone) => bone.scale.setScalar(다리길이));
+    // 손은 팔 배율을 물려받으므로 되돌린다(손 크기는 모프로 따로 조절한다).
+    준비.손뼈.forEach((bone) => bone.scale.setScalar(1 / 팔길이));
     const 어깨폭 = 설정.shoulderWidth ?? 1;
     준비.어깨뼈.forEach(({ bone, 쉴때 }) => bone.position.copy(쉴때).multiplyScalar(어깨폭));
     const 신발신음 = meshy && (설정.shoes ?? -1) >= 0;
     // 발 크기: 맨발은 몸 모프(footScale)가 바꾸지만 **신발 GLB 에는 모프가 없다**.
     // 신발은 발뼈에 통째로 묶여 있으므로, 신었을 때는 발뼈 배율로 신발째 키우고 줄인다
     // (그때 몸 모프는 0 으로 둔다 — 둘 다 걸면 발이 두 번 커진다).
-    준비.발뼈.forEach((bone) => bone.scale.setScalar(신발신음 ? 준비.신발수축 * (설정.footScale ?? 1) : 1));
+    // 다리 배율도 물려받으니 함께 되돌린다 — 발은 다리 길이를 따라 커지면 안 된다.
+    준비.발뼈.forEach((bone) => bone.scale.setScalar((신발신음 ? 준비.신발수축 * (설정.footScale ?? 1) : 1) / 다리길이));
     // 발볼은 발뼈의 자식이라 위 배율까지 물려받는다. 신발 안에서 접히기만 하면 되니 그대로 둔다.
     준비.발볼뼈.forEach((bone) => bone.scale.setScalar(신발신음 ? 0.02 : 1));
 

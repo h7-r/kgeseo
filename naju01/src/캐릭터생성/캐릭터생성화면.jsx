@@ -156,7 +156,7 @@ export default function CC캐릭터생성화면({
   const [안내, set안내] = useState(처음값.알림.length ? 처음값.알림.join(" ") : null);
   const [좁음, set좁음] = useState(false);
   const [보기, set보기] = useState("전신");
-  const [자세, set자세] = useState("A_TPose");
+  const [자세, set자세] = useState("Idle_Loop");
   const [품질, set품질] = useState("보통");
 
   const [이름, set이름] = useState(처음값.초안.displayName);

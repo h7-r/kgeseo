@@ -57,12 +57,17 @@ const 단추 = (이름, 딱 = true) => 쪽.getByRole("button", { name: 이름, e
 // 1. 신규 기본값은 속옷·맨발
 const 처음 = await 초안읽기();
 참(
-  "신규 기본은 속옷·맨발",
-  처음?.appearance.equipmentIds.top === "top.none"
-  && 처음?.appearance.equipmentIds.bottom === "bottom.none"
-  && 처음?.appearance.equipmentIds.shoes === "shoes.none",
+  "신규 기본은 티셔츠·반바지·운동화 차림",
+  처음?.appearance.equipmentIds.top === "top.tee.white"
+  && 처음?.appearance.equipmentIds.bottom === "bottom.shorts.black"
+  && 처음?.appearance.equipmentIds.shoes === "shoes.sneaker.white",
   JSON.stringify(처음?.appearance.equipmentIds),
 );
+참("신규 기본 체형은 머리 최소·팔다리 85%·마름 20%",
+  처음?.appearance.bodyParameters.headScale === 0.8
+  && 처음?.appearance.bodyParameters.armThickness === 0.85
+  && 처음?.appearance.bodyParameters.legThickness === 0.85
+  && 처음?.appearance.bodyParameters.build === -0.2);
 참("신규 기본 헤어는 그 성별의 실제 헤어", 처음?.appearance.hairId === "hair.m.crop", 처음?.appearance.hairId);
 참("어깨·팔 길이 기본값은 보정된 값", 처음?.appearance.bodyParameters.shoulderWidth === 1.2 && 처음?.appearance.bodyParameters.armLength === 0.88);
 
@@ -78,6 +83,25 @@ await 단추("키 초기화", false).first().click();
 await 쪽.waitForTimeout(600);
 const 되돌린키 = await 키재기();
 참("항목 초기화가 기본값으로 되돌린다", Math.abs(되돌린키 - 기본키) < 0.005, `${되돌린키?.toFixed(3)}`);
+
+// 2-2. 다리 길이도 실제 모델을 바꾼다(팔과 같은 방식 — 뼈 배율)
+//   ※ 뼈 배율은 그룹 경계 상자에 안 잡힌다(스킨드 메시는 제 행렬이 안 바뀐다).
+//     다리가 길어지면 골반이 높이 올라가므로 골반 높이로 잰다.
+const 골반높이 = () => 쪽.evaluate(() => {
+  const H = window.__캐릭터생성;
+  const { scene } = H.get();
+  let 뼈대 = null;
+  scene.traverse((o) => { if (!뼈대 && o.isSkinnedMesh && o.skeleton?.getBoneByName("pelvis")) 뼈대 = o.skeleton; });
+  if (!뼈대) return null;
+  return new H.THREE.Vector3().setFromMatrixPosition(뼈대.getBoneByName("pelvis").matrixWorld).y;
+});
+await 밀기("다리 길이", 1.2);
+const 긴다리 = await 골반높이();
+await 밀기("다리 길이", 0.85);
+const 짧은다리 = await 골반높이();
+참("다리 길이 슬라이더가 실제 모델을 바꾼다", 긴다리 > 짧은다리 * 1.1, `골반 높이 ${긴다리?.toFixed(3)} / ${짧은다리?.toFixed(3)}`);
+await 단추("다리 길이 초기화", false).first().click();
+await 쪽.waitForTimeout(600);
 
 // 3. 성별을 오가도 각자 초안이 남는다
 await 단추("체형").click();
@@ -151,7 +175,7 @@ await 쪽.waitForTimeout(9000);
 const 마지막 = await 초안읽기();
 const 화면열쇠 = await 쪽.evaluate(() => window.__캐릭터생성?.표시열쇠 ?? null);
 참("옷을 연달아 바꿔도 화면이 마지막 선택과 맞는다",
-  마지막?.appearance.equipmentIds.top === "top.tee.white" && 화면열쇠 === "masculine|0|-1|0",
+  마지막?.appearance.equipmentIds.top === "top.tee.white" && 화면열쇠 === "masculine|0|0|0",
   `선택 ${마지막?.appearance.equipmentIds.top} / 화면 ${화면열쇠}`);
 
 // 6. 늦게 온 이름 확인 답이 새 이름을 덮지 않는다

@@ -54,10 +54,11 @@ export const 기본카탈로그 = {
     항목("shoes.none", "shoes", "맨발", ["masculine", "feminine"], -1, { 썸네일: 성별그림("shoes.none") }),
     항목("shoes.sneaker.white", "shoes", "흰 운동화", ["masculine", "feminine"], 0, { 썸네일: 성별그림("shoes.sneaker.white") }),
   ],
-  // 처음 들어왔을 때의 착장 — 기본 속옷·맨발이다(요구 4장).
+  // 처음 들어왔을 때의 착장 — 지금 준비된 티셔츠·반바지·운동화 차림으로 시작한다.
+  // (속옷 차림으로 시작하지 않는다. 속옷만 보고 싶으면 '속옷으로 체형 보기' 를 켜면 된다.)
   신규기본: {
-    masculine: { hair: "hair.m.crop", top: "top.none", bottom: "bottom.none", shoes: "shoes.none" },
-    feminine: { hair: "hair.f.bob", top: "top.none", bottom: "bottom.none", shoes: "shoes.none" },
+    masculine: { hair: "hair.m.crop", top: "top.tee.white", bottom: "bottom.shorts.black", shoes: "shoes.sneaker.white" },
+    feminine: { hair: "hair.f.bob", top: "top.tee.white", bottom: "bottom.shorts.black", shoes: "shoes.sneaker.white" },
   },
   색상: 색상표(),
 };
