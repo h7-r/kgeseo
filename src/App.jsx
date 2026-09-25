@@ -10198,10 +10198,10 @@ function Scene({
     잡동사니보이기: true,
     // 복도 1 유닛당 몇 개 — 길이를 바꿔도 밀도가 유지된다
     // 0.55 → 0.38. 바닥이 빽빽하면 '지저분하다'가 아니라 '어수선하다'가 된다.
-    잡동사니밀도: { value: 0.38, min: 0, max: 2, step: 0.05 },
+    잡동사니밀도: { value: 0.08, min: 0, max: 2, step: 0.05 }, // ★ 바닥 쓰레기 최소화(0.38→0.08, 약32→7개). 동전은 별개로 유지.
     // 실물 치수대로 두면 넓은 복도에서 너무 작게 읽힌다 → 조금 키워 둔다
     잡동사니크기: { value: 1.45, min: 0.6, max: 3, step: 0.05 },
-    웅덩이수: { value: 3, min: 0, max: 12, step: 1 },
+    웅덩이수: { value: 1, min: 0, max: 12, step: 1 }, // ★ 물웅덩이 3→1
     // ── 부식 자국(바닥·벽에 번진 녹과 물때) ──
     부식보이기: true,
     부식바닥수: { value: 12, min: 0, max: 60, step: 1 },
@@ -13298,7 +13298,7 @@ export default function App() {
   const [툰설정, set툰설정] = useState(() => ({ ...기본툰, 켬: !로비툰끄기 }));
   const [외곽선설정, set외곽선설정] = useState(() => ({ ...기본외곽선, 켬: !로비외곽선끄기 }));
   const 플레이어참조 = useRef({
-    position: new THREE.Vector3(0, EYE, 12),
+    position: new THREE.Vector3(-25.5, EYE, 0), // ★ 비밀복도(왼쪽 벽 뒤, 폭 중앙)에서 시작 — 로비 아님. 되돌리려면 (0, EYE, 12).
     footY: 0,
     groundY: 0,
     facing: Math.PI,
@@ -13712,7 +13712,7 @@ export default function App() {
         shadows={저사양 ? false : "percentage"}
         /* dpr = 픽셀 밀도. 2면 가로세로 2배 → 그릴 픽셀이 4배다.
            내장 GPU가 검게 죽는 원인 1순위가 이것. */
-        dpr={저사양 ? 1 : [1, 2]}
+        dpr={저사양 ? 1 : [1, 1.5]}
         gl={{
           /* ★ 후처리(EffectComposer)를 쓰면 실제 그림은 컴포저의 렌더타깃에 그려지고
              캔버스는 그 결과를 받기만 한다. 그래서 캔버스 자체 MSAA는 효과가 없으면서
