@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import 무대 from "../무대.jsx";
 import 약관구간 from "../구간/약관.jsx";
 import 하위푸터 from "../구간/하위푸터.jsx";
-import { 약관높이 } from "../데이터/약관탭.js";
+import { 약관높이, 약관탭목록 } from "../데이터/약관탭.js";
 
 /* 약관 페이지 — nav(149) + 여백 64 + 약관 카드(탭마다 높이 다름) + 여백 64 + 푸터(186) */
 const 내비높이 = 149;
@@ -11,7 +12,11 @@ const 아래여백 = 64;
 const 가장긴약관 = Math.max(...Object.values(약관높이));
 
 export default function 약관화면() {
-  const [탭, set탭] = useState("이용약관");
+  /* 푸터의 「개인정보처리방침」 처럼 **특정 탭을 바로 열어야 하는** 링크가 있다.
+     주소에 ?탭=... 로 실어 보내면 그 탭으로 열린다. 없으면 첫 탭. */
+  const [질의] = useSearchParams();
+  const 첫탭 = 약관탭목록.includes(질의.get("탭")) ? 질의.get("탭") : "이용약관";
+  const [탭, set탭] = useState(첫탭);
   const 카드위 = 내비높이 + 위여백;
   /* [왜 가장 긴 탭 기준으로 고정하나]
      탭마다 카드 길이가 1029~1705 로 제각각이라, 탭을 누를 때마다 푸터가

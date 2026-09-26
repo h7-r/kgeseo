@@ -1,5 +1,6 @@
 import 에셋 from "../에셋.js";
 import { 글꼴, 막음, 막음안내 } from "../공통.js";
+import { use기울임, use드러내기, use지나가며, 다가옴클래스 } from "../움직임.js";
 
 /* 게임 영상 — 피그마 14:1664(3장 갤러리) · 121:2293(큰 카드) · 150:222(쪽번호) */
 
@@ -17,16 +18,14 @@ export default function 게임영상({ 위 = 0, 큰카드위 = 0, 쪽번호위 =
           <span>게임 영상</span>
         </div>
         <div style={{ display: "flex", gap: "16px", width: "100%", height: "260px" }}>
-          {영상.map((ㅇ) => (
-            <영상카드 key={ㅇ.제목} {...ㅇ} />
+          {영상.map((ㅇ, i) => (
+            <작은영상 key={ㅇ.제목} {...ㅇ} 순서={i} />
           ))}
         </div>
       </section>
 
       {/* 큰 카드 121:2293 — 위 갤러리의 두 번째 영상을 크게 보여 준다 */}
-      <div style={{ position: "absolute", left: "216px", top: `${큰카드위}px`, width: "1480px", height: "715px" }} data-node-id="121:2293">
-        <영상카드 {...영상[1]} 큼 />
-      </div>
+      <큰영상 위={큰카드위} />
 
       {/* 쪽번호 150:222 */}
       <div style={{ position: "absolute", left: "772px", top: `${쪽번호위}px`, display: "flex", gap: "16px", alignItems: "center" }} data-node-id="150:222">
@@ -43,9 +42,47 @@ export default function 게임영상({ 위 = 0, 큰카드위 = 0, 쪽번호위 =
   );
 }
 
+/* 작은 영상 카드 — 마우스를 따라 기울고, 차례로 안쪽에서 걸어 나온다 */
+function 작은영상({ 순서, ...ㅇ }) {
+  const 기울임 = use기울임(5);
+  const [보임칸, 보임] = use드러내기();
+  return (
+    <div
+      ref={보임칸}
+      className={`기울임판 ${다가옴클래스(보임)}`}
+      style={{ flex: "1 0 0", minWidth: 0, height: "335px", transitionDelay: `${순서 * 90}ms` }}
+    >
+      <div
+        ref={기울임.ref}
+        onMouseMove={기울임.onMouseMove}
+        onMouseLeave={기울임.onMouseLeave}
+        className="기울임"
+        style={{ width: "100%", height: "100%" }}
+      >
+        <영상카드 {...ㅇ} 채움 />
+      </div>
+    </div>
+  );
+}
+
+/* 큰 영상 카드 — 스크롤에 맞춰 안쪽에서 다가왔다 앞으로 지나간다 */
+function 큰영상({ 위 }) {
+  const 칸 = use지나가며({ 들어올때: 0.9, 나갈때: 1.05, 깊이: 110 });
+  return (
+    <div
+      ref={칸}
+      className="지나가며"
+      style={{ position: "absolute", left: "220px", top: `${위}px`, width: "1480px", height: "715px", willChange: "transform" }}
+      data-node-id="121:2293"
+    >
+      <영상카드 {...영상[1]} 큼 />
+    </div>
+  );
+}
+
 function 영상카드({ 그림, 제목, 갈래, 설명, 큼 }) {
   return (
-    <div style={{ ...카드, ...(큼 ? { width: "100%", height: "100%" } : { flex: "1 0 0", minWidth: 0, height: "335px" }) }}>
+    <div className="카드" style={{ ...카드, width: "100%", height: "100%" }}>
       <img src={그림} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
       {/* 가운데 재생 단추 */}
       <div style={재생}>
@@ -63,7 +100,8 @@ function 영상카드({ 그림, 제목, 갈래, 설명, 큼 }) {
 
 const 갤러리 = {
   position: "absolute",
-  left: "215px",
+  /* 폭 1480 덩이는 1920 한가운데(220) — 원본은 210~217 로 제각각이었다 */
+  left: "220px",
   width: "1480px",
   height: "517px",
   padding: "24px 32px",
@@ -107,8 +145,10 @@ const 설명칸 = {
   left: "-1px",
   right: "-1px",
   bottom: "-1px",
-  height: "96px",
-  padding: "16px",
+  /* 높이를 96 으로 못 박아 뒀더니 큰 카드에서 설명 줄이 잘렸다.
+     글에 맡기고 최소 높이만 준다. */
+  minHeight: "96px",
+  padding: "22px 16px 16px",
   display: "flex",
   flexDirection: "column",
   gap: "6px",

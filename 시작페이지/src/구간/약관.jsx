@@ -16,23 +16,21 @@ export default function 약관({ 탭 = "이용약관", 위 = 0, 왼쪽 = 80, 폭
 
       <div style={{ height: "1px", width: "100%", background: "rgba(30,58,95,0.5)" }} />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "24px", padding: "36px 40px", width: "100%", boxSizing: "border-box", overflow: "hidden" }}>
-        {약관내용[탭].map((덩이, i) =>
-          덩이.꼴 === "제목" ? (
-            <p key={i} style={제목}>
-              {덩이.글}
-            </p>
-          ) : (
+      {/* 조문 사이는 넓게, 한 조문 안의 줄은 촘촘하게 — 그래야 조 단위로 읽힌다 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "18px", padding: "36px 48px 44px", width: "100%", boxSizing: "border-box", overflow: "hidden" }}>
+        {약관내용[탭].map((덩이, i) => {
+          if (덩이.꼴 === "제목") return <p key={i} style={제목}>{덩이.글}</p>;
+          if (덩이.꼴 === "조") return <p key={i} style={조제목}>{덩이.글}</p>;
+          return (
             <div key={i} style={문단칸}>
               {덩이.글.map((줄, j) => (
-                // 마지막 줄만 아래 여백이 없다 (원본 그대로)
-                <p key={j} style={{ margin: 0, marginBottom: j === 덩이.글.length - 1 ? 0 : "20px", lineHeight: 2 }}>
+                <p key={j} style={{ ...본문줄, marginBottom: j === 덩이.글.length - 1 ? 0 : "10px" }}>
                   {줄}
                 </p>
               ))}
             </div>
-          ),
-        )}
+          );
+        })}
       </div>
     </section>
   );
@@ -75,11 +73,32 @@ const 제목 = {
   width: "100%",
 };
 
+/* 조문 제목 — 본문보다 밝고 굵게, 위로 한 칸 더 띄운다 */
+const 조제목 = {
+  margin: 0,
+  marginTop: "14px",
+  fontFamily: 글꼴.읽기,
+  fontWeight: 700,
+  fontSize: "17px",
+  lineHeight: 1.6,
+  color: "#93c5fd",
+  letterSpacing: "0.3px",
+  width: "100%",
+};
+
 const 문단칸 = {
-  fontFamily: 글꼴.모노,
+  /* 조문 본문은 여러 줄을 내리읽는 글이라 모노가 아니라 읽기 글꼴을 쓴다 */
+  fontFamily: 글꼴.읽기,
+  letterSpacing: "-0.1px",
   fontWeight: 400,
   fontSize: "16px",
-  color: "#64748b",
+  color: "#94a3b8",
   width: "100%",
   whiteSpace: "pre-wrap",
+  maxWidth: "1500px", /* 한 줄이 너무 길면 눈이 다음 줄을 못 찾는다 */
+};
+
+const 본문줄 = {
+  margin: 0,
+  lineHeight: 1.9,
 };

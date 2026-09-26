@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import 에셋 from "../에셋.js";
 import { 글꼴, 막음, 막음안내 } from "../공통.js";
 import { 모두검사, 통과했나 } from "../유효성.js";
@@ -209,6 +209,7 @@ function 문의판() {
   const [오류, set오류] = useState({});
   const [눌렀나, set눌렀나] = useState(false);
   const [보냈나, set보냈나] = useState(false);
+  const [끌기중, set끌기중] = useState(false);
 
   const 적기 = (이름) => (v) => {
     const 새값 = { ...값, [이름]: v };
@@ -223,35 +224,67 @@ function 문의판() {
   };
   const 속성 = (이름) => ({ 값: 값[이름] ?? "", 바꾸기: 적기(이름), 오류: 오류[이름] });
 
+  /* 파일 한 장 받기 — 10MB 를 넘으면 받지 않고 이유를 알려 준다 */
+  const 파일받기 = (파일) => {
+    if (!파일) return;
+    if (파일.size > 10 * 1024 * 1024) {
+      적기("파일오류")("10MB 를 넘는 파일은 첨부할 수 없습니다");
+      return;
+    }
+    set값((v) => ({ ...v, 파일: 파일.name, 파일크기: 크기글(파일.size), 파일오류: "" }));
+  };
+
   return (
     <>
       <머리글 제목="1:1 문의하기" 설명="궁금한 점이나 불편사항을 남겨주시면 빠르게 답변드리겠습니다." />
-      <div style={{ display: "flex", gap: "40px", width: "1623px" }}>
-        <div style={{ ...상자, width: "1057px", gap: "24px" }}>
+      {/* 두 상자가 머리글·푸터와 **같은 세로선**에서 시작하고 끝나게 한다.
+          전에는 폭을 1057 로 못 박아 둬서 오른쪽만 휑했다.
+          윗줄(flex-start)로 맞춰야 오른쪽 안내 상자가 글 길이만큼만 커진다. */}
+      <div style={{ display: "flex", gap: "40px", width: "100%", alignItems: "flex-start" }}>
+        <div style={{ ...상자, flex: "1 0 0", minWidth: 0, gap: "24px" }}>
           <입력칸 라벨="문의 유형" 안내="문의 유형을 선택해주세요" 화살표 {...속성("문의유형")} />
           <입력칸 라벨="제목" 안내="문의 제목을 입력해주세요" {...속성("제목")} />
           <입력칸 라벨="내용" 안내="문의 내용을 자세히 작성해주세요" 높이={200} {...속성("내용")} />
+
           <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
             <div style={라벨글}>첨부파일</div>
-            <label style={{ ...올리기, cursor: "pointer" }}>
+            <label
+              style={{ ...올리기, cursor: "pointer", borderColor: 끌기중 ? "#93c5fd" : "#60a5fa", background: 끌기중 ? "rgba(59,130,246,0.08)" : "transparent", transition: "border-color .18s ease, background .18s ease" }}
+              onDragOver={(e) => { e.preventDefault(); set끌기중(true); }}
+              onDragLeave={() => set끌기중(false)}
+              onDrop={(e) => { e.preventDefault(); set끌기중(false); 파일받기(e.dataTransfer.files?.[0]); }}
+            >
               <img src={에셋.imgUploadCloud} alt="" style={{ width: "24px", height: "24px", display: "block" }} />
-              <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#64748b" }}>
-                {값.파일 || "파일을 드래그하거나 클릭하여 첨부 (최대 10MB)"}
+              <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: 값.파일 ? "#93c5fd" : "#64748b", textAlign: "center" }}>
+                {값.파일 ? `${값.파일} · ${값.파일크기}` : "파일을 드래그하거나 클릭하여 첨부 (최대 10MB)"}
               </span>
+              {값.파일 && (
+                <span
+                  className="링크"
+                  style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#64748b" }}
+                  onClick={(e) => { e.preventDefault(); set값((v) => ({ ...v, 파일: "", 파일크기: "", 파일오류: "" })); }}
+                >
+                  지우기
+                </span>
+              )}
               <input
                 type="file"
+                accept="image/*,.pdf,.txt,.log,.zip"
                 style={{ display: "none" }}
-                onChange={(e) => 적기("파일")(e.target.files?.[0]?.name ?? "")}
+                onChange={(e) => 파일받기(e.target.files?.[0])}
               />
             </label>
+            {값.파일오류 && <span style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#f87171" }}>{값.파일오류}</span>}
           </div>
+
           <입력칸 라벨="이메일" 안내="답변 받으실 이메일 주소" {...속성("이메일")} />
           <div className="단추" style={보내기단추} onClick={보내기}>
             {보냈나 ? "접수되었습니다 ✓" : "문의 접수하기"}
           </div>
         </div>
 
-        <div style={{ ...상자, width: "358px", gap: "20px" }}>
+        {/* 안내 상자 — 글이 끝나는 곳에서 끝난다(전엔 왼쪽 상자 키만큼 늘어났다) */}
+        <div style={{ ...상자, width: "358px", flexShrink: 0, gap: "20px" }}>
           <div style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "18px", color: "#eeeeff" }}>운영 시간</div>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontFamily: 글꼴.모노, fontSize: "16px", color: "#94a3b8" }}>
             <span>평일 10:00 - 18:00</span>
@@ -266,6 +299,13 @@ function 문의판() {
       </div>
     </>
   );
+}
+
+/* 1024 단위로 끊어 읽기 좋게 */
+function 크기글(바이트) {
+  if (바이트 < 1024) return `${바이트} B`;
+  if (바이트 < 1024 * 1024) return `${Math.round(바이트 / 1024)} KB`;
+  return `${(바이트 / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function 입력칸({ 라벨, 안내, 높이, 화살표, 값, 바꾸기, 오류 }) {
@@ -308,27 +348,119 @@ function 입력칸({ 라벨, 안내, 높이, 화살표, 값, 바꾸기, 오류 }
   );
 }
 
+/* ═══════════════════════════════════════════════════════
+   문의 유형 고르개
+
+   [왜 <select> 를 버렸나]
+   브라우저가 그리는 목록은 OS 기본 모양이라 이 어두운 화면과 따로 논다
+   (흰 바탕에 파란 강조). 그래서 목록을 직접 그린다.
+
+   직접 그리면 접근성을 손으로 챙겨야 한다 — role/aria 를 달고,
+   Esc·위아래·Enter 를 받고, 바깥을 누르면 닫는다.
+   ═══════════════════════════════════════════════════════ */
 function 고르개({ 안내, 글자, 값, 바꾸기 }) {
+  const [열림, set열림] = useState(false);
+  const [짚은칸, set짚은칸] = useState(-1);
+  const 칸 = useRef(null);
+
+  /* 바깥을 누르면 닫는다 */
+  useEffect(() => {
+    if (!열림) return;
+    const 밖눌림 = (e) => { if (!칸.current?.contains(e.target)) set열림(false); };
+    document.addEventListener("mousedown", 밖눌림);
+    return () => document.removeEventListener("mousedown", 밖눌림);
+  }, [열림]);
+
+  const 고르기 = (ㅇ) => { 바꾸기(ㅇ); set열림(false); };
+
+  const 열쇠 = (e) => {
+    if (e.key === "Escape") { set열림(false); return; }
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (열림 && 짚은칸 >= 0) 고르기(문의유형[짚은칸]);
+      else set열림((v) => !v);
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      set열림(true);
+      set짚은칸((i) => {
+        const 걸음 = e.key === "ArrowDown" ? 1 : -1;
+        return (i + 걸음 + 문의유형.length) % 문의유형.length;
+      });
+    }
+  };
+
   return (
-    <select
-      className="입력칸"
-      value={값 ?? ""}
-      onChange={(e) => 바꾸기(e.target.value)}
-      style={{ ...글자, appearance: "none", cursor: "pointer", color: 값 ? "var(--색-흰색)" : "rgba(200,205,255,0.35)" }}
-    >
-      <option value="">{안내}</option>
-      {문의유형.map((ㅇ) => (
-        <option key={ㅇ} value={ㅇ} style={{ color: "#000" }}>
-          {ㅇ}
-        </option>
-      ))}
-    </select>
+    <div ref={칸} style={{ position: "relative", flex: "1 0 0", minWidth: 0 }}>
+      <div
+        role="combobox"
+        tabIndex={0}
+        aria-expanded={열림}
+        aria-haspopup="listbox"
+        onClick={() => set열림((v) => !v)}
+        onKeyDown={열쇠}
+        style={{ ...글자, cursor: "pointer", outline: "none", color: 값 ? "#eeeeff" : "rgba(200,205,255,0.35)", userSelect: "none" }}
+      >
+        {값 || 안내}
+      </div>
+
+      {열림 && (
+        <div className="고르개판" role="listbox" style={고르개판}>
+          {문의유형.map((ㅇ, i) => (
+            <div
+              key={ㅇ}
+              role="option"
+              aria-selected={값 === ㅇ}
+              onMouseEnter={() => set짚은칸(i)}
+              onClick={() => 고르기(ㅇ)}
+              style={{
+                ...고르개칸,
+                background: i === 짚은칸 ? "rgba(59,130,246,0.18)" : "transparent",
+                color: 값 === ㅇ ? "#93c5fd" : "#cbd5e1",
+              }}
+            >
+              {ㅇ}
+              {값 === ㅇ && <span style={{ color: "#60a5fa" }}>✓</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
+const 고르개판 = {
+  position: "absolute",
+  left: "-16px",
+  right: "-16px",
+  top: "calc(100% + 14px)",
+  zIndex: 30,
+  padding: "6px",
+  borderRadius: "12px",
+  background: "#0a1424",
+  border: "1px solid rgba(96,165,250,0.35)",
+  boxShadow: "0 18px 40px rgba(2,6,16,0.65)",
+  display: "flex",
+  flexDirection: "column",
+  gap: "2px",
+};
+
+const 고르개칸 = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  padding: "11px 14px",
+  borderRadius: "8px",
+  fontFamily: "inherit",
+  fontSize: "16px",
+  cursor: "pointer",
+  transition: "background .14s ease, color .14s ease",
+};
+
 const 머리 = { position: "absolute", left: 0, width: "1920px", padding: "80px 120px 40px", boxSizing: "border-box" };
 const 탭칸 = { position: "absolute", left: 0, width: "1920px", padding: "20px 120px 10px", display: "flex", flexDirection: "column", gap: "24px", boxSizing: "border-box" };
-const 내용칸 = { position: "absolute", left: 0, width: "1920px", padding: "0 120px", display: "flex", flexDirection: "column", gap: "32px", boxSizing: "border-box" };
+const 내용칸 = { position: "absolute", left: 0, width: "1920px", padding: "0 120px 8px", display: "flex", flexDirection: "column", gap: "32px", boxSizing: "border-box" };
 
 const 탭바탕 = { display: "flex", alignItems: "center", padding: "12px 24px", borderRadius: "999px", fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px", whiteSpace: "nowrap", cursor: "pointer", boxSizing: "border-box" };
 const 켜진탭 = { ...탭바탕, backgroundImage: 켜진탭배경, color: "#ffffff", filter: "drop-shadow(0px 8px 24px rgba(59,130,246,0.2)) drop-shadow(0px 4px 12px rgba(59,130,246,0.35))" };

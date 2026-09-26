@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import 네비 from "./구간/네비.jsx";
 import { use화면배율, 설계폭 } from "./무대.jsx";
@@ -34,14 +35,59 @@ const 설정 = {
 };
 const 인증기본 = { 활성: "소개" };
 
+/* ═══════════════════════════════════════════════════════
+   머리띠 상태 — 굳었나(맨 위를 벗어났나) · 숨길까(내려가는 중인가)
+
+   scroll 마다 상태를 바꾸면 매 프레임 리렌더가 난다. 그래서 **문턱을 넘을
+   때만** 바꾼다(굳음 8px, 숨김은 14px 넘게 움직였을 때).
+   그 사이 잔떨림으로는 아무 일도 안 일어난다.
+   ═══════════════════════════════════════════════════════ */
+function use머리띠() {
+  const [굳음, set굳음] = useState(false);
+  const [숨김, set숨김] = useState(false);
+  const 지난자리 = useRef(0);
+
+  useEffect(() => {
+    let 예약 = 0;
+    const 보기 = () => {
+      예약 = 0;
+      const 지금 = window.scrollY;
+      const 움직임 = 지금 - 지난자리.current;
+
+      set굳음(지금 > 8);
+      /* 맨 위 근처에서는 절대 숨기지 않는다 — 올라왔는데 메뉴가 없으면 답답하다 */
+      if (지금 < 160) set숨김(false);
+      else if (움직임 > 14) set숨김(true);
+      else if (움직임 < -14) set숨김(false);
+
+      if (Math.abs(움직임) > 14) 지난자리.current = 지금;
+    };
+    const 예약하기 = () => { if (!예약) 예약 = requestAnimationFrame(보기); };
+    보기();
+    window.addEventListener("scroll", 예약하기, { passive: true });
+    return () => {
+      if (예약) cancelAnimationFrame(예약);
+      window.removeEventListener("scroll", 예약하기);
+    };
+  }, []);
+
+  return { 굳음, 숨김 };
+}
+
 export default function 내비층() {
   const 배율 = use화면배율();
+  const { 굳음, 숨김 } = use머리띠();
   const 가기 = useNavigate();
   const 길 = decodeURIComponent(useLocation().pathname);
   const ㅅ = 설정[길] ?? (길.startsWith("/비밀번호") || 길 === "/로그인" || 길 === "/회원가입" ? 인증기본 : { 활성: "홈" });
 
   return (
-    <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: 0, zIndex: 20 }}>
+    /* fixed 는 **변형이 없는 바깥 칸**에 걸어야 한다 — 안쪽은 scale 이 걸려
+       있어서 거기에 fixed 를 주면 창이 아니라 그 칸을 기준으로 잡힌다 */
+    <div
+      className={`머리띠 ${굳음 ? "굳음" : ""} ${숨김 ? "숨김" : ""}`}
+      style={{ position: "fixed", left: 0, top: 0, width: "100%", height: `${Math.round(149 * 배율)}px`, zIndex: 20 }}
+    >
       <div style={{ width: `${설계폭}px`, transformOrigin: "top left", transform: `scale(${배율})` }}>
         <네비 크기={크기} 활성={ㅅ.활성} 누르기={() => 가기(알약이동)} 메뉴누르기={가기} />
       </div>

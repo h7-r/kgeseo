@@ -1,7 +1,8 @@
 import { useState } from "react";
 import 에셋 from "../에셋.js";
-import { 글꼴, 막음, 막음안내, 중심놓기, 소개폼중심 } from "../공통.js";
-import { 모두검사, 통과했나, 세기 } from "../유효성.js";
+import { 글꼴, 막음, 막음안내, 중심놓기, 소개폼중심, 가입폼왼쪽, 가입폼폭 } from "../공통.js";
+import { 소셜로가기 } from "../소셜로그인.js";
+import { 모두검사, 통과했나, 세기, 한글있나, 영문만안내, 영문칸 } from "../유효성.js";
 
 /* div.form-inner — 피그마 21:1309 (560 × 660, 두 번째 화면 오른쪽)
    실제로 입력을 받는 폼이 아니라 **디자인 그대로의 겉모습**이다.
@@ -14,7 +15,10 @@ export default function 가입폼() {
   const [오류, set오류] = useState({});
   const [동의, set동의] = useState(true); // 원본은 체크된 상태로 그려져 있다
   const [눌렀나, set눌렀나] = useState(false);
+  const [소셜말, set소셜말] = useState(""); // 간편 가입 키가 없을 때 보여 줄 말
   const [됐나, set됐나] = useState(false);
+  const [비번보임, set비번보임] = useState(false);
+  const [확인보임, set확인보임] = useState(false);
 
   const 적기 = (이름) => (e) => {
     const 새값 = { ...값, [이름]: e.target.value };
@@ -29,7 +33,7 @@ export default function 가입폼() {
     /* 보낼 서버가 없다 — 통과하면 단추 글자로만 알려 준다 */
     set됐나(통과했나(새오류));
   };
-  const 속성 = (이름) => ({ 값: 값[이름] ?? "", 바꾸기: 적기(이름), 오류: 오류[이름] });
+  const 속성 = (이름) => ({ 이름, 값: 값[이름] ?? "", 바꾸기: 적기(이름), 오류: 오류[이름] });
 
   return (
     <div style={바깥} data-node-id="21:1309">
@@ -56,8 +60,8 @@ export default function 가입폼() {
             <div style={라벨글자}>비밀번호</div>
           </div>
           <div style={{ position: "absolute", left: 0, right: 0, top: "20px" }}>
-            <입력줄 안내="8자 이상" 종류="password" {...속성("비밀번호")} />
-            <눈 />
+            <입력줄 안내="8자 이상" 종류={비번보임 ? "text" : "password"} {...속성("비밀번호")} />
+            <눈 보임={비번보임} 누르기={() => set비번보임((v) => !v)} />
           </div>
           <div style={{ position: "absolute", left: 0, right: 0, top: "63px", display: "flex", gap: "4px", justifyContent: "center" }}>
             {[0, 1, 2].map((i) => (
@@ -79,8 +83,8 @@ export default function 가입폼() {
         <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
           <div style={라벨글자}>비밀번호 확인</div>
           <div style={{ position: "relative" }}>
-            <입력줄 안내="비밀번호 재입력" 종류="password" {...속성("비밀번호확인")} />
-            <눈 />
+            <입력줄 안내="비밀번호 재입력" 종류={확인보임 ? "text" : "password"} {...속성("비밀번호확인")} />
+            <눈 보임={확인보임} 누르기={() => set확인보임((v) => !v)} />
           </div>
         </div>
 
@@ -127,33 +131,40 @@ export default function 가입폼() {
 
         {/* 소셜 + 로그인 안내 21:1381 */}
         <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center" }}>
-          {[에셋.imgComponent1, 에셋.imgComponent2].map((그림, i) => (
-            <div key={i} style={{ ...소셜, ...막음 }} title={막음안내}>
-              <img src={그림} alt="" style={{ width: "16px", height: "16px", display: "block" }} />
-            </div>
-          ))}
+          {/* 깃허브 대신 네이버 — 로그인 카드와 같은 짝이다 */}
+          <button type="button" className="단추" style={{ ...소셜, background: "#ffffff" }} onClick={() => set소셜말(소셜로가기("구글"))} title="Google 로 가입">
+            <img src={에셋.imgComponent1} alt="Google" style={{ width: "17px", height: "17px", display: "block" }} />
+          </button>
+          <button type="button" className="단추" style={{ ...소셜, background: "#03c75a", borderColor: "#03c75a" }} onClick={() => set소셜말(소셜로가기("네이버"))} title="네이버로 가입">
+            <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 800, fontSize: "18px", lineHeight: 1, color: "#fff", letterSpacing: "-0.5px" }}>N</span>
+          </button>
           <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "rgba(200,205,255,0.45)", letterSpacing: "0.6px", whiteSpace: "nowrap" }}>
             이미 모험가이신가요?&nbsp;
           </span>
           <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#5092f8", letterSpacing: "0.6px", whiteSpace: "nowrap" }}>로그인</span>
         </div>
+        {소셜말 && (
+          <div style={{ fontFamily: 글꼴.모노, fontSize: "13px", color: "#64748b", textAlign: "center" }}>{소셜말}</div>
+        )}
       </div>
     </div>
   );
 }
 
-function 입력칸({ 라벨, 안내, 안내색, 늘림, 아래여백, 값, 바꾸기, 오류 }) {
+function 입력칸({ 이름, 라벨, 안내, 안내색, 늘림, 아래여백, 값, 바꾸기, 오류 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "9px", ...(늘림 ? { flex: "1 0 0", minWidth: 0, alignSelf: "stretch" } : {}) }}>
       <div style={라벨글자}>{라벨}</div>
-      <입력줄 안내={안내} 안내색={안내색} 아래여백={아래여백} 값={값} 바꾸기={바꾸기} 오류={오류} />
+      <입력줄 이름={이름} 안내={안내} 안내색={안내색} 아래여백={아래여백} 값={값} 바꾸기={바꾸기} 오류={오류} />
     </div>
   );
 }
 
-function 입력줄({ 안내, 안내색 = "rgba(200,205,255,0.2)", 아래여백 = 9, 종류 = "text", 값, 바꾸기, 오류 }) {
+function 입력줄({ 이름, 안내, 안내색 = "rgba(200,205,255,0.2)", 아래여백 = 9, 종류 = "text", 값, 바꾸기, 오류 }) {
+  /* 영문만 받는 칸에 한글을 치면 다 치기 전에 알려 준다 (인증 카드와 같은 규칙) */
+  const 한글경고 = 영문칸.has(이름) && 한글있나(값);
   return (
-    <div className={오류 ? "오류칸" : undefined} style={{ ...입력, paddingBottom: `${아래여백}px`, position: "relative" }}>
+    <div className={오류 || 한글경고 ? "오류칸" : undefined} style={{ ...입력, paddingBottom: `${아래여백}px`, position: "relative" }}>
       <input
         className="입력칸"
         type={종류}
@@ -162,21 +173,25 @@ function 입력줄({ 안내, 안내색 = "rgba(200,205,255,0.2)", 아래여백 =
         onChange={바꾸기}
         style={{ fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "18px", "--안내색": 안내색 }}
       />
+      {한글경고 && <span className="칸안내" style={{ right: "28px" }}>{영문만안내}</span>}
       {오류 && <span className="오류글">{오류}</span>}
     </div>
   );
 }
 
-function 눈() {
+/* 비밀번호 보기/숨기기 — 인증 카드와 같은 방식.
+   감은 상태는 눈 위에 사선 한 줄. */
+function 눈({ 보임, 누르기 }) {
   return (
-    <div style={{ position: "absolute", right: 0, top: "27.63%", bottom: "29.13%", display: "flex", alignItems: "center" }}>
-      <img src={에셋.imgVariant7} alt="" style={{ width: "16px", height: "16px", display: "block" }} />
-    </div>
+    <button type="button" onClick={누르기} title={보임 ? "비밀번호 숨기기" : "비밀번호 보기"} style={눈단추}>
+      <img src={에셋.imgEyeIcon} alt="" style={{ width: "18px", height: "18px", display: "block", filter: 보임 ? "brightness(1.9)" : "brightness(1.35)" }} />
+      {!보임 && <span style={사선} />}
+    </button>
   );
 }
 
 /* 왼쪽 소개 덩이와 같은 중심선에 맞춘다 (공통.js 의 소개폼중심) */
-const 바깥 = { ...중심놓기(1175, 소개폼중심, 560), height: "660px" };
+const 바깥 = { ...중심놓기(가입폼왼쪽, 소개폼중심, 가입폼폭), height: "660px" };
 
 const 제목 = {
   fontFamily: 글꼴.넓게,
@@ -276,4 +291,31 @@ const 소셜 = {
   alignItems: "center",
   justifyContent: "center",
   boxSizing: "border-box",
+};
+
+const 눈단추 = {
+  position: "absolute",
+  right: 0,
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: "24px",
+  height: "24px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 0,
+  border: 0,
+  background: "transparent",
+  cursor: "pointer",
+};
+
+const 사선 = {
+  position: "absolute",
+  left: "2px",
+  right: "2px",
+  top: "50%",
+  height: "1.5px",
+  borderRadius: "1px",
+  background: "rgba(200,205,255,0.8)",
+  transform: "rotate(-45deg)",
 };

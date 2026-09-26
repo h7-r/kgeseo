@@ -1,7 +1,8 @@
 import 에셋 from "../에셋.js";
 import { useState } from "react";
+import { 소셜로가기 } from "../소셜로그인.js";
 import { 글꼴, 막음, 막음안내 } from "../공통.js";
-import { 모두검사, 통과했나, 세기 } from "../유효성.js";
+import { 모두검사, 통과했나, 세기, 한글있나, 영문만안내, 영문칸, 쓰는법, 비번조건 } from "../유효성.js";
 
 /* ═══════════════════════════════════════════════════════
    인증 카드 — 피그마에서 **모드 5개짜리 컴포넌트 하나**다.
@@ -191,13 +192,7 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
               <div style={가는선} />
             </div>
           </div>
-          <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center", width: "100%" }}>
-            {[에셋.imgComponent12, 에셋.imgComponent22].map((그림, i) => (
-              <div key={i} style={{ ...소셜, ...막음 }} title={막음안내}>
-                <img src={그림} alt="" style={{ width: "16px", height: "16px", display: "block" }} />
-              </div>
-            ))}
-          </div>
+          <간편로그인 />
         </>
       )}
 
@@ -230,7 +225,51 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
   );
 }
 
-function 입력칸({ 라벨, 안내, 늘림, 흐림, 안내색, 종류, 값, 바꾸기, 오류 }) {
+/* ═══════════════════════════════════════════════════════
+   간편 로그인 단추 — 구글 · 네이버
+
+   [깃허브를 왜 뺐나]
+   원본 두 번째 아이콘이 깃허브였는데, 국내 이용자가 쓰는 계정이 아니다.
+   네이버로 바꿨다. 네이버 표식은 초록 바탕에 흰 N 이 공식 모양이라
+   그대로 그린다(그림 파일이 따로 없어 글자로 그린다).
+
+   키(.env)가 없으면 창을 띄우지 않고 그 자리에서 이유를 알려 준다.
+   ═══════════════════════════════════════════════════════ */
+function 간편로그인() {
+  const [말, set말] = useState("");
+
+  const 가기 = (어디) => {
+    const 문제 = 소셜로가기(어디);
+    set말(문제);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "center", width: "100%" }}>
+      <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center" }}>
+        <button type="button" className="단추" style={{ ...소셜, background: "#ffffff" }} onClick={() => 가기("구글")} title="Google 로 로그인">
+          <img src={에셋.imgComponent12} alt="Google" style={{ width: "18px", height: "18px", display: "block" }} />
+        </button>
+        <button type="button" className="단추" style={{ ...소셜, background: "#03c75a", borderColor: "#03c75a" }} onClick={() => 가기("네이버")} title="네이버로 로그인">
+          <span style={네이버엔}>N</span>
+        </button>
+      </div>
+      {말 && <span style={{ fontFamily: 글꼴.모노, fontSize: "13px", color: "#64748b", textAlign: "center" }}>{말}</span>}
+    </div>
+  );
+}
+
+/* 네이버 표식 — 굵은 산세리프 대문자 N, 초록 바탕에 흰 글자 */
+const 네이버엔 = {
+  fontFamily: "'Inter', system-ui, sans-serif",
+  fontWeight: 800,
+  fontSize: "19px",
+  lineHeight: 1,
+  color: "#ffffff",
+  letterSpacing: "-0.5px",
+  transform: "translateY(-0.5px)",
+};
+
+function 입력칸({ 이름, 라벨, 안내, 늘림, 흐림, 안내색, 종류, 값, 바꾸기, 오류 }) {
   return (
     <div
       style={{
@@ -243,24 +282,77 @@ function 입력칸({ 라벨, 안내, 늘림, 흐림, 안내색, 종류, 값, 바
       }}
     >
       <div style={라벨글}>{라벨}</div>
-      <입력줄 안내={안내} 안내색={안내색} 종류={종류} 값={값} 바꾸기={바꾸기} 오류={오류} />
+      <입력줄 이름={이름} 안내={안내} 안내색={안내색} 종류={종류} 값={값} 바꾸기={바꾸기} 오류={오류} />
     </div>
   );
 }
 
-function 입력줄({ 안내, 안내색 = "rgba(200,205,255,0.2)", 종류 = "text", 값, 바꾸기, 오류 }) {
+function 입력줄({ 이름, 안내, 안내색 = "rgba(200,205,255,0.2)", 종류 = "text", 값, 바꾸기, 오류 }) {
+  const [보임, set보임] = useState(false);
+  const [들어옴, set들어옴] = useState(false);
+  const 비번 = 종류 === "password";
+  /* 영문만 받는 칸에 한글을 치면 **다 치기 전에** 알려 준다.
+     단추를 누를 때까지 기다리면, 한글로 다 적고 나서야 혼나게 된다. */
+  const 한글경고 = 영문칸.has(이름) && 한글있나(값);
+
+  /* 칸에 들어온 순간 쓰는 법을 띄운다 — 틀린 뒤에 혼내는 대신 먼저 알려 준다.
+     오류가 떠 있으면 오류가 우선이다(같은 자리에 둘이 겹치면 안 된다). */
+  const 규칙칸 = 이름 === "비밀번호" || 이름 === "새비밀번호";
+  const 안내띄우기 = 들어옴 && !오류 && !한글경고 && 쓰는법[이름] && !(규칙칸 && 값);
+
   return (
-    <div style={{ ...입력, position: "relative" }} className={오류 ? "오류칸" : undefined}>
-      <input
-        className="입력칸"
-        type={종류}
-        placeholder={안내}
-        value={값 ?? ""}
-        onChange={바꾸기}
-        style={{ fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "18px", "--안내색": 안내색 }}
-      />
-      {오류 && <span className="오류글">{오류}</span>}
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
+      <div
+        className={`밑줄칸 ${오류 || 한글경고 ? "오류칸" : ""}`}
+        style={{ ...입력, position: "relative", paddingRight: 비번 ? "40px" : "32px" }}
+      >
+        <input
+          className="입력칸"
+          /* 눈을 뜨면 password → text 로 바꿔 내가 친 글자가 보인다 */
+          type={비번 && !보임 ? "password" : "text"}
+          placeholder={안내}
+          value={값 ?? ""}
+          onChange={바꾸기}
+          onFocus={() => set들어옴(true)}
+          onBlur={() => set들어옴(false)}
+          autoComplete={비번 ? "new-password" : undefined}
+          style={{ fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "18px", "--안내색": 안내색 }}
+        />
+        {/* 칸 오른쪽 안내 — 밑줄 폭을 넘지 않게 안쪽에 둔다 */}
+        {한글경고 && <span className="칸안내" style={{ right: 비번 ? "40px" : "0" }}>{영문만안내}</span>}
+        {비번 && <눈토글 보임={보임} 누르기={() => set보임((v) => !v)} />}
+        {오류 && <span className="오류글">{오류}</span>}
+        {안내띄우기 && <span className="쓰는법" style={{ fontFamily: 글꼴.모노 }}>{쓰는법[이름]}</span>}
+      </div>
+
+      {/* 비밀번호는 규칙을 켜고 끄며 보여 준다 — 치는 동안 하나씩 초록으로 */}
+      {규칙칸 && (들어옴 || 값) && (
+        <div className="비번규칙" style={{ fontFamily: 글꼴.모노 }}>
+          {비번조건.map(({ 글, 맞나 }) => (
+            <span key={글} className={맞나(값) ? "맞음" : undefined}>
+              <span aria-hidden="true">{맞나(값) ? "✓" : "○"}</span>
+              {글}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+/* ── 비밀번호 보기/숨기기 ─────────────────────────────
+   피그마에는 **뜬 눈 하나**만 있고 감은 눈 그림이 없다. 없는 아이콘을
+   지어 그리는 대신, 감은 상태는 그 눈 위에 **사선 한 줄**을 덧그어 표시한다
+   (흔히 쓰는 표기이고, 원본 그림은 그대로 쓴다).
+
+   ★ 폼 칸의 눈(imgVariant7)은 stroke 투명도가 0.3 이라 어두운 카드 위에서
+     거의 안 보인다. 같은 파일의 또렷한 눈(imgEyeIcon, #64748B)을 쓴다. */
+function 눈토글({ 보임, 누르기 }) {
+  return (
+    <button type="button" onClick={누르기} title={보임 ? "비밀번호 숨기기" : "비밀번호 보기"} style={눈단추}>
+      <img src={에셋.imgEyeIcon} alt="" style={{ width: "18px", height: "18px", display: "block", filter: 보임 ? "brightness(1.9)" : "brightness(1.35)" }} />
+      {!보임 && <span style={사선} />}
+    </button>
   );
 }
 
@@ -331,7 +423,9 @@ const 카드 = {
 
 const 제목글 = { fontFamily: 글꼴.넓게, fontWeight: 700, fontSize: "36px", color: "#eeeeff", width: "100%" };
 const 부제글 = { fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "18px", color: "rgba(181,188,255,0.85)", width: "100%" };
+/* 작은 글씨는 자간이 붙으면 뭉쳐 보인다 — 조금 벌린다 */
 const 라벨글 = {
+  letterSpacing: "0.4px",
   fontFamily: 글꼴.모노,
   fontWeight: 400,
   fontSize: "16px",
@@ -420,17 +514,18 @@ const 소셜 = {
   width: "44px",
   height: "44px",
   borderRadius: "22px",
-  background: "rgba(167,139,250,0.05)",
   border: "1px solid rgba(96,165,250,0.18)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  padding: 0,
+  cursor: "pointer",
   boxSizing: "border-box",
 };
 
 const 하단 = {
   display: "flex",
-  gap: "4px",
+  gap: "10px", // 「아직 모험가가 아닌가요?」 와 「회원가입」 이 붙어 보여서 넓혔다
   alignItems: "center",
   justifyContent: "center",
   width: "100%",
@@ -439,3 +534,30 @@ const 하단 = {
 };
 const 흐린글 = { fontFamily: 글꼴.모노, fontWeight: 400, color: "rgba(200,205,255,0.45)" };
 const 강조링크 = { fontFamily: 글꼴.모노, color: "#5092f8" };
+
+const 눈단추 = {
+  position: "absolute",
+  right: "8px",
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: "24px",
+  height: "24px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 0,
+  border: 0,
+  background: "transparent",
+  cursor: "pointer",
+};
+
+const 사선 = {
+  position: "absolute",
+  left: "2px",
+  right: "2px",
+  top: "50%",
+  height: "1.5px",
+  borderRadius: "1px",
+  background: "rgba(200,205,255,0.75)",
+  transform: "rotate(-45deg)",
+};
