@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>지형 동일성·속도 검사</title>
+    <style>
+      body { margin: 0; padding: 24px; background: #0c1018; color: #dde7f6;
+             font: 14px/1.7 ui-monospace, Menlo, "Malgun Gothic", monospace; }
+      h1 { font-size: 15px; color: #9ad8e8; margin: 0 0 12px; }
+      pre { margin: 0; white-space: pre-wrap; }
+      p { color: #8b94a6; font-size: 12px; max-width: 60em; }
+    </style>
+  </head>
+  <body>
+    <!-- 개발 전용. 지형 높이 조회를 촘촘한 격자로 돌려 **결과 지문**과 **걸린 시간**을 낸다.
+         지형 코드를 고친 뒤 지문이 같으면 결과가 바뀌지 않은 것이다. -->
+    <h1>지형 동일성·속도 검사</h1>
+    <pre id="결과">재는 중…</pre>
+    <p>지문이 같으면 결과가 한 치도 안 바뀐 것이다. 조회 시간이 나주 첫 화면을 붙잡는 비용이다.</p>
+    <script type="module" src="./도구/지형동일성.js"></script>
+  </body>
+</html>
