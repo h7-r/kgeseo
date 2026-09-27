@@ -139,6 +139,7 @@ import { 소화전내부, 관창모양, 늘어진호스 } from "./소품/소화�
 import { 관창곳, use관창, 호스줄당김 } from "./소품/관창.js";
 import { 밀림, 연출강제, use관밀림, use연출 } from "./소품/자판기밀기.js";
 import { 자판기연출 } from "./소품/자판기연출.jsx";
+import 나주진입연출 from "./소품/나주진입연출.jsx";
 import { 배전반내부 } from "./소품/배전반내부.jsx";
 import { 번호자물쇠 } from "./소품/자물쇠.jsx";
 import { 열렸나, 여닫기, use열렸나, 덜컹, 덜컹값 } from "./소품/여닫이.js";
@@ -10197,10 +10198,10 @@ function Scene({
     잡동사니보이기: true,
     // 복도 1 유닛당 몇 개 — 길이를 바꿔도 밀도가 유지된다
     // 0.55 → 0.38. 바닥이 빽빽하면 '지저분하다'가 아니라 '어수선하다'가 된다.
-    잡동사니밀도: { value: 0.38, min: 0, max: 2, step: 0.05 },
+    잡동사니밀도: { value: 0.08, min: 0, max: 2, step: 0.05 }, // ★ 바닥 쓰레기 최소화(0.38→0.08, 약32→7개). 동전은 별개로 유지.
     // 실물 치수대로 두면 넓은 복도에서 너무 작게 읽힌다 → 조금 키워 둔다
     잡동사니크기: { value: 1.45, min: 0.6, max: 3, step: 0.05 },
-    웅덩이수: { value: 3, min: 0, max: 12, step: 1 },
+    웅덩이수: { value: 1, min: 0, max: 12, step: 1 }, // ★ 물웅덩이 3→1
     // ── 부식 자국(바닥·벽에 번진 녹과 물때) ──
     부식보이기: true,
     부식바닥수: { value: 12, min: 0, max: 60, step: 1 },
@@ -13278,6 +13279,14 @@ export default function App() {
   const 이동하기 = useNavigate();
   const 기차안 = 위치.pathname === "/train";
   const [locked, setLocked] = useState(false);
+  // 나주 진입 연출 중엔 3D 렌더를 멈춘다 — 암전에 가려 어차피 안 보이고,
+  //   멈춰야 메인 스레드가 연출 오버레이(암전·텍스트 페이드)에 집중해 매끄럽게 돈다.
+  const [진입연출중, set진입연출중] = useState(false);
+  useEffect(() => {
+    const 켜기 = () => set진입연출중(true);
+    window.addEventListener("kgeseo:나주진입", 켜기);
+    return () => window.removeEventListener("kgeseo:나주진입", 켜기);
+  }, []);
   const [삼인칭, set삼인칭] = useState(로비아바타테스트);
   // 테스트 주소가 아니면 null 로 두어 아바타·패널 코드 자체를 건드리지 않는다.
   const [사이드킥설정, set사이드킥설정] = useState(() =>
@@ -13289,7 +13298,7 @@ export default function App() {
   const [툰설정, set툰설정] = useState(() => ({ ...기본툰, 켬: !로비툰끄기 }));
   const [외곽선설정, set외곽선설정] = useState(() => ({ ...기본외곽선, 켬: !로비외곽선끄기 }));
   const 플레이어참조 = useRef({
-    position: new THREE.Vector3(0, EYE, 12),
+    position: new THREE.Vector3(-25.5, EYE, 0), // ★ 비밀복도(왼쪽 벽 뒤, 폭 중앙)에서 시작 — 로비 아님. 되돌리려면 (0, EYE, 12).
     footY: 0,
     groundY: 0,
     facing: Math.PI,
@@ -13696,12 +13705,14 @@ export default function App() {
         theme={{ sizes: { numberInputMinWidth: "68px" } }}
       />
       <Canvas
+        /* 나주 진입 연출 중에는 렌더를 멈춘다 — 연출 오버레이가 매끄럽게 돌게 한다. */
+        frameloop={진입연출중 ? "never" : "always"}
         /* 그림자 = 씬을 광원 시점에서 한 번 더 그리는 작업.
            끄면 드로우콜이 사실상 절반이 된다. 저사양에서 가장 큰 절약. */
         shadows={저사양 ? false : "percentage"}
         /* dpr = 픽셀 밀도. 2면 가로세로 2배 → 그릴 픽셀이 4배다.
            내장 GPU가 검게 죽는 원인 1순위가 이것. */
-        dpr={저사양 ? 1 : [1, 2]}
+        dpr={저사양 ? 1 : [1, 1.5]}
         gl={{
           /* ★ 후처리(EffectComposer)를 쓰면 실제 그림은 컴포저의 렌더타깃에 그려지고
              캔버스는 그 결과를 받기만 한다. 그래서 캔버스 자체 MSAA는 효과가 없으면서
@@ -13827,6 +13838,8 @@ export default function App() {
           zIndex: 50,
         }}
       />
+      {/* 나주 진입 시네마틱 — 텔레포트→나주 사이 암전+안내(끝나면 나주로 이동) */}
+      <나주진입연출 />
       {/* 가운데 안내 텍스트 제거(요청) — 필요하면 이 블록 되살리면 된다.
       {!locked && (
         <div style={S.center}>

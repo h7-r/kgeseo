@@ -223,21 +223,7 @@ function UI그리기(g, st) {
   // 안내/오류 바 (하나만 표시)
   {
     const hy = 셀렉트.y - 58;
-    if (st.에러) {
-      둥근사각(g, 목록X, hy, 목록W, 44, 11);
-      g.fillStyle = "rgba(255,120,120,0.20)";
-      g.fill();
-      g.lineWidth = 2;
-      g.strokeStyle = "#ff9a9a";
-      g.stroke();
-      g.textBaseline = "middle";
-      g.textAlign = "center";
-      g.fillStyle = "#ffd6d6";
-      g.font = "bold 17px 'Apple SD Gothic Neo', sans-serif";
-      g.fillText(st.에러, 목록X + 목록W / 2, hy + 22);
-      g.textAlign = "left";
-      g.textBaseline = "top";
-    } else if (st.근처) {
+    if (st.근처) {
       둥근사각(g, 목록X, hy, 목록W, 44, 11);
       g.fillStyle = "rgba(120,225,255,0.18)";
       g.fill();
@@ -287,7 +273,6 @@ export default function 홀로그램스크린() {
   const [선택, set선택] = useState(null); // 뽑힌 목적지 id
   const { camera } = useThree();
   const [근처, set근처] = useState(false);
-  const [에러, set에러] = useState(null);
   const 근처ref = useRef(false);
 
   // 나주 맵(naju01)은 이제 본편과 같은 서버(5173)가 /naju01/ 로 함께 내준다.
@@ -299,8 +284,9 @@ export default function 홀로그램스크린() {
     // 아바타 종류(사이드킥)만 이어서 넘긴다 — naju 기본은 Meshy 캐릭터.
     const av = new URLSearchParams(location.search).get("avatar");
     const 쿼리 = av === "sidekick" ? "?avatar=sidekick" : "";
-    // 같은 출처의 나주 진입점 — 본편 vite 가 /naju01/index.html 을 그대로 내준다.
-    location.href = `${location.origin}/naju01/index.html${쿼리}`;
+    // 바로 넘어가지 않고 진입 연출(암전+안내)을 먼저 돌린다.
+    //   연출이 끝나면 나주진입연출.jsx 가 대신 같은 출처 /naju01/ 로 이동시킨다.
+    window.dispatchEvent(new CustomEvent("kgeseo:나주진입", { detail: { 쿼리 } }));
   }, []);
 
   // 캔버스 + 텍스처(한 번만 만들고, 상태 바뀔 때 다시 그린다)
@@ -319,9 +305,9 @@ export default function 홀로그램스크린() {
   useEffect(() => () => tex.dispose(), [tex]);
   useEffect(() => {
     const g = cv.getContext("2d");
-    UI그리기(g, { 선택, 근처, 에러 });
+    UI그리기(g, { 선택, 근처 });
     tex.needsUpdate = true;
-  }, [cv, tex, 선택, 근처, 에러]);
+  }, [cv, tex, 선택, 근처]);
 
   // E — 스크린 가까이서 나주로 이동
   useEffect(() => {
