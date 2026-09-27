@@ -14,6 +14,11 @@ import { 기본외곽선, 외곽선적용 } from "./툰외곽선.js";
 import { 진단등록 } from "./캐릭터진단.js";
 import { 기본보정, 성별보정, 트리포보정, 트리포성별보정, 이동모션, 보정쿼터니언, 클립보정 } from "./모션보정.js";
 
+// 발바닥이 땅에 붙은 채 움직이지 않는 클립. 이 목록에 있을 때만 발바닥 최저점을 캐시한다
+// — 「플레이어가 안 움직인다(state.moving)」와는 다른 말이다(아래 발바닥 캐시 주석).
+// ※ 새 클립을 넣기 전에 반드시 재라. 실측 3초 진폭: Idle_Loop 0.10mm · Walk_Loop 38mm.
+const 제자리모션 = new Set(["Idle_Loop"]);
+
 // 몸체 종류: chibi = V4 몸체 시제품, meshy = Meshy 민머리 기본 모델(텍스처 원본 유지).
 const 몸파일 = {
   chibi: { masculine: "/models/chibi-male.glb", feminine: "/models/chibi-female.glb" },
@@ -521,6 +526,10 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
   const 다리보관 = useRef(new Map());
   // IK 양(올림·내림)의 지난 프레임 값 — 시간 평활용. 발마다 { 올림, 내림 }.
   const 접지평활 = useRef({ l: { 올림: 0, 내림: 0 }, r: { 올림: 0, 내림: 0 } });
+  // 발바닥 최저점 캐시 — 정점 7731 개를 매 프레임 훑는 값이 아바타당 3.0ms 다(실측).
+  const 바닥높이캐시 = useRef(null);
+  const 발지문 = useRef("");
+  const 전환끝 = useRef(0);
 
   useEffect(
     () => () => {
@@ -609,7 +618,10 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     //     자세라 우리 몸(13cm)에 얹으면 손이 반대팔을 뚫거나 허공에 떴다. 여러 번 손봐도 자연스럽지
     //     않아 걷어냈다. 남자다움은 다리를 벌려 낸다(모션보정 트리포성별보정.masculine 대기덧값).
     //     클립 자체는 파일에 남아 있으니 되살리려면 이 줄을 되돌리면 된다.
+    const 이전모션 = 현재모션.current;
     재생(next);
+    // 크로스페이드(0.16초) 중에는 두 클립이 섞여 발이 옮겨 간다 — 그동안은 캐시를 쓰지 않는다.
+    if (현재모션.current !== 이전모션) 전환끝.current = now + 0.2;
     const action = actions.current.get(현재모션.current);
     // 발이 미끄러지지 않도록 걷기·달리기 재생 속도를 실제 이동 속도에 맞춘다.
     if (action && 검증시각 === null && 이동모션.has(next)) {
@@ -830,17 +842,45 @@ function ChibiGameAvatar({ 보이기, 플레이어참조, 설정 = 기본치비�
     }
 
     // 발바닥 정점 중 가장 낮은 점을 지면에 맞춘다(발끝을 세우는 동작 포함).
-    let soleY = Infinity;
-    준비.soles.forEach(({ object, indices }) => {
-      if (!object.visible) return;
-      // 전부 본다. 넷 중 하나만 보면 진짜 최저점을 놓쳐 몇 mm 씩 묻히고 자세 따라 깜빡였다.
-      for (let i = 0; i < indices.length; i += 1) {
-        object.getVertexPosition(indices[i], 점);
-        object.localToWorld(점).applyMatrix4(역행렬);
-        soleY = Math.min(soleY, 점.y);
-      }
-    });
-    if (Number.isFinite(soleY)) group.position.y = state.footY - soleY * avatarScale;
+    //
+    // ── 왜 캐시하나 ────────────────────────────────────────
+    //   정점 7731 개를 훑으며 스키닝 위치를 CPU 로 구한다(정점마다 뼈 4 개 가중 곱).
+    //   실측(Apple M5 Max, 실제 GPU): **아바타당 프레임당 3.0ms** — 60fps 예산의 1/5 이다.
+    //   제자리 클립에서는 최저점이 사실상 고정이라(Idle_Loop 3초 진폭 0.10mm) 다시 안 구해도 된다.
+    //
+    // ── 무엇을 기준으로 「고정」이라 하나 ──────────────────
+    //   **플레이어의 이동 플래그(state.moving)가 아니라 지금 도는 클립과 설정이다.**
+    //   생성 화면 미리보기·검증 모드는 moving=false 를 고정해 둔 채 걷기 클립을 돌린다.
+    //   그때 최저점은 38mm 움직인다 — moving 으로 판정하면 캐릭터가 2.5cm 묻혔다 튄다(실측).
+    //   그래서 ① 제자리 클립이고 ② 크로스페이드가 끝났고 ③ 외형 설정이 그대로일 때만 쓴다.
+    //   ③ 은 항목을 골라 적지 않고 `설정` 전체를 지문으로 쓴다 — 다리 길이·발 크기·신발만
+    //   아니라 체형 모프도 발바닥 메시를 건드릴 수 있고, 항목을 늘릴 때마다 여기를 고치는 걸
+    //   잊으면 조용히 틀린다. 설정은 값 십여 개짜리 납작한 객체라 훑는 값이 3.0ms 에 비해 없다
+    //   (생성 화면에서 슬라이더를 끄는 동안 캐시가 물리면 발이 땅에 묻힌다).
+    const 지문 = `${next}|${몸체}|${JSON.stringify(설정)}`;
+    const 캐시가능 =
+      제자리모션.has(next) &&
+      next === 현재모션.current &&
+      now >= 전환끝.current &&
+      now >= 공격끝.current &&
+      state.grounded &&
+      지문 === 발지문.current &&
+      바닥높이캐시.current !== null;
+    발지문.current = 지문;
+    if (!캐시가능) {
+      let soleY = Infinity;
+      준비.soles.forEach(({ object, indices }) => {
+        if (!object.visible) return;
+        // 전부 본다. 넷 중 하나만 보면 진짜 최저점을 놓쳐 몇 mm 씩 묻히고 자세 따라 깜빡였다.
+        for (let i = 0; i < indices.length; i += 1) {
+          object.getVertexPosition(indices[i], 점);
+          object.localToWorld(점).applyMatrix4(역행렬);
+          soleY = Math.min(soleY, 점.y);
+        }
+      });
+      바닥높이캐시.current = Number.isFinite(soleY) ? soleY : null;
+    }
+    if (바닥높이캐시.current !== null) group.position.y = state.footY - 바닥높이캐시.current * avatarScale;
 
     if (import.meta.env.DEV) {
       (window.__CHIBI_DEBUG_BY_GENDER ??= {})[gender] = { motion: next, current: 현재모션.current };
