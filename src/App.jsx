@@ -771,7 +771,13 @@ const LEVA보임 = import.meta.env.DEV || 쿼리.has("leva");
 //   기본값은 둘 다 켜짐이므로 평소 동작은 조금도 달라지지 않는다.
 const 후처리끄기 = 쿼리.get("fx") === "off";
 const 구역끄기 = 쿼리.get("zone") === "off";
-//   ?fx=hi    후처리를 예전 고품질 설정(MSAA 8배 · 16비트)으로 되돌린다. 화질 비교용.
+//   ?fx=hi    후처리 멀티샘플을 8배로 올린다. 화질 비교용.
+//   ※ 예전에는 프레임 버퍼도 반정밀도(HalfFloat)로 함께 되돌렸는데, **그 버퍼에서
+//     야외 씬이 통째로 까맣게 나온다**(실측: ANGLE Metal · Apple M5 Max, 헤드리스 아님).
+//     나주에서 "Bloom 을 켜면 화면이 검다"던 것과 같은 원인이고, 거기서도 버퍼를
+//     바이트로 두어 고쳤다(naju01/src/App.jsx frameBufferType 주석).
+//     고품질은 **멀티샘플만** 올리는 것으로 둔다 — 버퍼 형식은 화질과 무관하고,
+//     화면이 안 나오는 쪽이 훨씬 나쁜 손해다.
 const 후처리고품질 = 쿼리.get("fx") === "hi";
 
 // GLB 모델을 '메시 조각'으로 분해한다.
@@ -13801,9 +13807,9 @@ export default function App() {
           <EffectComposer
             autoClear={false}
             multisampling={저사양 ? 0 : 후처리고품질 ? 8 : 2}
-            frameBufferType={
-              후처리고품질 ? THREE.HalfFloatType : THREE.UnsignedByteType
-            }
+            /* ★ 반정밀도(HalfFloat)로 두면 안 된다 — 이 버퍼에서 야외 씬이
+                 통째로 까맣게 나온다(위 `후처리고품질` 주석). 바이트로 못 박는다. */
+            frameBufferType={THREE.UnsignedByteType}
           >
             <Bloom intensity={0.45} luminanceThreshold={0.85} mipmapBlur />
             <Vignette offset={0.36} darkness={0.28} />
