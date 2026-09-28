@@ -134,6 +134,8 @@ export function 지형만들기({
   절벽높이 = 절벽원본.높이,
   차단물배율 = 1,
   갓길 = 갓길기본,
+  // 통로 높이 조회에 공간 색인을 쓸지. 끄면 예전처럼 모든 선분을 훑는다(A/B 비교용).
+  색인쓰기 = true,
 } = {}) {
   // ① 구역 — Z3 의 고도만 바뀐다. 나머지는 도면 그대로.
   const 구역 = 구역원본.map((z) =>
@@ -198,6 +200,55 @@ export function 지형만들기({
   //   ※ 길바닥(반폭)뿐 아니라 **갓길까지** 밟을 수 있어야 한다.
   //     길처럼 보이는 자리에서 꺼지면 그건 구멍이다(공간도면.js `갓길기본` 주석).
   //     갓길 위에서는 그림과 똑같은 만큼 내려앉은 높이를 돌려준다.
+  // ── 통로 세밀 선분 공간 색인 ─────────────────────────────
+  // [왜]  `통로높이` 는 자리 하나를 물을 때마다 **모든 통로의 모든 세밀 선분**(약 700개)을
+  //   투영해 보고, 그중 거의 전부를 `거리 > 한계` 로 버린다. 땅 메시는 꼭짓점마다 이걸 부르므로
+  //   나주 첫 화면을 붙잡는 가장 큰 비용이 여기다(CPU 프로파일: `선분에투영` 8.5초).
+  // [무엇을 하나]  선분마다 「그 선분이 영향을 줄 수 있는 칸」에 미리 등록해 두고, 조회할 때는
+  //   그 자리 칸에 등록된 선분만 본다.
+  // [왜 결과가 안 바뀌나]  등록 범위를 선분의 경계 상자에 **한계만큼 넓혀** 잡는다. 거리가 한계
+  //   이하인 자리는 반드시 그 상자 안이므로, 색인은 기여할 선분을 **하나도 빠뜨리지 않는다**
+  //   (버려질 것을 미리 건너뛸 뿐이다). 게다가 칸 안 목록을 통로·선분 **원래 차례**로 쌓으므로
+  //   가중 평균을 더하는 순서까지 같다 — 부동소수 끝자리도 안 바뀐다.
+  //   ※ 이 마지막 조건이 중요하다. 순서가 달라지면 값이 1비트 달라져 지형 지문이 바뀐다.
+  const 색인칸 = 2; // m
+  const 통로색인 = (() => {
+    if (!색인쓰기) return null;
+    const 갓끝 = 갓길.뻗음 * 갓길.폭;
+    const 넣을것 = [];
+    let gx0 = Infinity, gx1 = -Infinity, gz0 = Infinity, gz1 = -Infinity;
+    통로실측.forEach((t) => {
+      const 한계 = t.폭 / 2 + 갓끝;
+      t.세밀.forEach((s) => {
+        const a = Math.floor((Math.min(s.x1, s.x2) - 한계) / 색인칸);
+        const b = Math.floor((Math.max(s.x1, s.x2) + 한계) / 색인칸);
+        const c = Math.floor((Math.min(s.z1, s.z2) - 한계) / 색인칸);
+        const d = Math.floor((Math.max(s.z1, s.z2) + 한계) / 색인칸);
+        넣을것.push({ t, s, a, b, c, d });
+        if (a < gx0) gx0 = a;
+        if (b > gx1) gx1 = b;
+        if (c < gz0) gz0 = c;
+        if (d > gz1) gz1 = d;
+      });
+    });
+    if (!넣을것.length) return null;
+    const 폭 = gx1 - gx0 + 1;
+    const 높이 = gz1 - gz0 + 1;
+    const 칸들 = new Array(폭 * 높이);
+    // 원래 루프와 같은 차례(통로 → 세밀)로 넣는다. 칸 안 목록이 곧 그 차례가 된다.
+    넣을것.forEach(({ t, s, a, b, c, d }) => {
+      for (let gx = a; gx <= b; gx += 1) {
+        for (let gz = c; gz <= d; gz += 1) {
+          const i = (gx - gx0) * 높이 + (gz - gz0);
+          (칸들[i] ??= []).push({ t, s });
+        }
+      }
+    });
+    return { 칸들, gx0, gz0, 폭, 높이 };
+  })();
+  // 색인을 끈 비교용 경로. 목록을 미리 한 번만 펴 둔다 — 조회마다 만들면 A/B 가 공정하지 않다.
+  const 전체선분 = 색인쓰기 ? null : 통로실측.flatMap((t) => t.세밀.map((s) => ({ t, s })));
+
   function 통로높이(px, pz) {
     const 갓끝 = 갓길.뻗음 * 갓길.폭;
     let 최선거리 = Infinity;
@@ -207,10 +258,21 @@ export function 지형만들기({
     let 높이합 = 0;
     let 최선y = 0;
 
-    for (const t of 통로실측) {
+    // 색인이 있으면 이 자리 칸에 등록된 선분만, 없으면 예전처럼 전부 본다.
+    let 후보 = null;
+    if (통로색인) {
+      const gx = Math.floor(px / 색인칸) - 통로색인.gx0;
+      const gz = Math.floor(pz / 색인칸) - 통로색인.gz0;
+      if (gx < 0 || gz < 0 || gx >= 통로색인.폭 || gz >= 통로색인.높이) return null;
+      후보 = 통로색인.칸들[gx * 통로색인.높이 + gz];
+      if (!후보) return null;
+    }
+
+    const 훑기 = 후보 ?? 전체선분;
+    for (const { t, s } of 훑기) {
       const 반폭 = t.폭 / 2;
       const 한계 = 반폭 + 갓끝;
-      for (const s of t.세밀) {
+      {
         const { 거리, 호길이 } = 선분에투영(px, pz, s);
         if (거리 > 한계) continue;
         const 밖 = Math.max(0, (거리 - 반폭) / Math.max(1e-6, 갓길.폭));
