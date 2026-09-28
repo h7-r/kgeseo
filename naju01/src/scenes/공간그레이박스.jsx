@@ -1526,6 +1526,11 @@ export default function 공간그레이박스({ active, controlsRef, onLockChang
   useEffect(() => {
     if (삼인칭) 아바타붙임설정(true);
   }, [삼인칭]);
+  // 캐릭터가 뒤늦게 붙으면 그림자 맵에는 아직 없다. 갱신을 아끼는 동안(그림자관리)
+  // 카메라가 멈춰 있으면 **그림자 없는 캐릭터**가 그대로 남는다 — 붙는 순간 한 번 흔들어 준다.
+  useEffect(() => {
+    if (아바타붙임) 그림자흔들기(2);
+  }, [아바타붙임, 삼인칭]);
   useEffect(() => {
     const 눌림 = (e) => {
       if (e.code === "KeyE" && !e.repeat && !e.ctrlKey && !e.metaKey)
