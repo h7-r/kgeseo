@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import 에셋 from "../에셋.js";
 import { 가까이등록 } from "../근접.js";
+import 머리찾기 from "./머리찾기.jsx";
 import { 글꼴, 글자그라디언트 } from "../공통.js";
 import { 메뉴이동 } from "../이동표.js";
 
@@ -31,7 +32,7 @@ const 치수 = {
 const 항목 = ["홈", "소개", "컬렉션", "드롭", "브랜드", "고객센터"];
 
 
-export default function 네비({ 크기 = "큼", 활성 = "홈", 누르기, 메뉴누르기 }) {
+export default function 네비({ 크기 = "큼", 활성 = "홈", 사람 = null, 누르기, 나가기, 찾아가기, 메뉴누르기 }) {
   const ㅊ = 치수[크기];
   const 줄 = useRef(null);
   const 칸들 = useRef({});
@@ -60,7 +61,17 @@ export default function 네비({ 크기 = "큼", 활성 = "홈", 누르기, 메�
 
   return (
     <nav style={{ ...바깥, height: `${ㅊ.높이}px` }} data-node-id={크기 === "큼" ? "14:1220" : "78:1015"}>
-      <div style={{ ...로고, fontSize: `${ㅊ.로고}px` }}>latent-Space</div>
+      {/* 로고는 어느 사이트에서나 「집으로」다. 그림처럼 놔두면
+          눌러 본 사람은 고장 났다고 여긴다. 진짜 단추로 만들어
+          키보드(탭·엔터)로도 갈 수 있게 한다. */}
+      <button
+        type="button"
+        onClick={() => 가기("홈")}
+        aria-label="홈으로"
+        style={{ ...로고단추, ...로고, fontSize: `${ㅊ.로고}px` }}
+      >
+        latent-Space
+      </button>
 
       <div ref={줄} style={{ position: "relative", display: "flex", gap: "48px", alignItems: "center" }}>
         {항목.map((이름) => (
@@ -71,7 +82,7 @@ export default function 네비({ 크기 = "큼", 활성 = "홈", 누르기, 메�
             style={{
               ...메뉴바탕,
               fontSize: `${ㅊ.메뉴}px`,
-              color: 이름 === 활성 ? "#96c5ff" : "#47628a",
+              color: 이름 === 활성 ? "#96c5ff" : "#6d8cb4", /* 3.3:1 이던 걸 5.6:1 로 — 본문 기준(4.5:1)을 넘긴다. 켜진 메뉴와는 여전히 차이가 난다 */
               textShadow: 이름 === 활성 ? "0px 0px 8px rgba(59, 130, 246, 0.7)" : undefined,
               cursor: "pointer",
             }}
@@ -86,14 +97,27 @@ export default function 네비({ 크기 = "큼", 활성 = "홈", 누르기, 메�
       </div>
 
       <div style={오른쪽}>
-        <img src={에셋.imgSearchIcon} alt="검색" style={{ width: "22px", height: "22px", display: "block" }} />
+        <머리찾기 크기={22} 보내기={찾아가기} />
         <div
           className="단추"
           style={{ ...알약, fontSize: `${ㅊ.알약}px`, cursor: 누르기 ? "pointer" : undefined }}
           onClick={누르기}
+          title={사람 ? `${사람.이름} 님 · 마이페이지` : undefined}
         >
-          {ㅊ.알약글}
+          {/* 로그인 전엔 원본 그대로, 로그인 뒤엔 누구로 들어왔는지 보여 준다 —
+              「내가 로그인돼 있나」를 헤더만 보고 알 수 있어야 한다 */}
+          {사람 ? `${사람.이름} 님` : ㅊ.알약글}
         </div>
+        {사람 && (
+          <button
+            type="button"
+            className="링크"
+            onClick={(e) => { e.stopPropagation(); 나가기?.(); }}
+            style={로그아웃}
+          >
+            로그아웃
+          </button>
+        )}
       </div>
     </nav>
   );
@@ -117,6 +141,16 @@ const 바깥 = {
   boxShadow: "0 1px 0 0 rgba(96,165,250,0.12), 0 6px 18px -8px rgba(0,0,0,0.9)",
   boxSizing: "border-box",
   zIndex: 10, // 밑줄이 아래 내용에 가리지 않게
+};
+
+/* 글자 모양은 로고 그대로 두고, 단추다운 것만 지운다 */
+const 로고단추 = {
+  background: "none",
+  border: "none",
+  padding: 0,
+  cursor: "pointer",
+  font: "inherit",
+  letterSpacing: "inherit",
 };
 
 const 로고 = {
@@ -170,6 +204,18 @@ const 오른쪽 = {
   gap: "20px",
   alignItems: "center",
   border: "1px solid #000000", // 원본에 그대로 있는 테두리 (어두운 바탕이라 거의 안 보인다)
+};
+
+const 로그아웃 = {
+  background: "none",
+  border: "none",
+  padding: "0 2px",
+  marginLeft: "12px",
+  fontFamily: 글꼴.모노,
+  fontSize: "14px",
+  color: "#7d9cc4",
+  whiteSpace: "nowrap",
+  cursor: "pointer",
 };
 
 const 알약 = {

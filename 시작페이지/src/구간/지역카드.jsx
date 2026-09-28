@@ -3,7 +3,13 @@ import { 글꼴, 놓기, 막음, 막음안내 } from "../공통.js";
 import { use기울임, use드러내기, 다가옴클래스 } from "../움직임.js";
 import { use가까움 } from "../근접.js";
 
-/* 지역 카드 3장 + 좌우 화살표 — 피그마 48:1520 · 48:1528 · 48:1536 · 129:1257 · 129:1259
+/* 시나리오 카드 3장 + 좌우 화살표 — 피그마 48:1520 · 48:1528 · 48:1536 · 129:1257
+
+   [딱지를 REGION 에서 SCENARIO 로 바꾼 이유]
+   원본은 REGION 이라고 적어 뒀는데, 여기 셋(버려진 연구소 · 고대 도서관 ·
+   시계탑)은 **실제 지역이 아니라 시나리오**다. 실제 지역은 나주·경주처럼
+   아래 「지역을 선택하세요」 구간에 있다. 같은 말을 두 가지로 쓰면
+   어느 쪽이 진짜 지역인지 헷갈린다. · 129:1259
    가운데 카드만 42px 아래로 내려가 있다 (원본 그대로).
    ※ 가로는 원본이 왼쪽 188 / 오른쪽 202 라 어긋나 있었다 — 카드 세 장을
      7px 씩 밀어 양쪽 195 로 맞췄다. 카드 사이 간격(15)은 그대로다. */
@@ -50,7 +56,7 @@ function 지역한장({ 칸, 사진, 이름, 별, 설명, id }) {
         {/* 사진 + 어둡게 깔아 주는 막 — 한 겹 뒤로 물려 둔다.
             기울일 때 글보다 적게 움직여서 카드에 두께가 생긴다. */}
         <div className="깊이-뒤" style={{ position: "absolute", inset: 0 }}>
-          <img src={사진} alt="" style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover", maxWidth: "none" }} />
+          <img loading="lazy" decoding="async" src={사진} alt="" style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover", maxWidth: "none" }} />
           <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)" }} />
         </div>
 
@@ -60,8 +66,8 @@ function 지역한장({ 칸, 사진, 이름, 별, 설명, id }) {
         {/* 글 — 칸 아래로 33px 삐져나가 있다 (원본 그대로).
             한 겹 앞으로 띄워 놓으면 기울일 때 사진 위로 떠 보인다. */}
         <div className="깊이-앞" style={글칸}>
-          <div style={{ fontFamily: 글꼴.모노, fontSize: "18px", color: "#1e3a5f", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-            REGION
+          <div style={{ fontFamily: 글꼴.모노, fontSize: "18px", color: "#6b93cc", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+            SCENARIO
           </div>
           <div style={{ fontFamily: 글꼴.제목, fontWeight: 400, fontSize: "50px", color: "#eeeeff", width: "100%" }}>{이름}</div>
           <div style={메타}>

@@ -3,9 +3,19 @@ import { use드러내기, 드러남클래스 } from "../움직임.js";
 import { 글꼴, 글자그라디언트 } from "../공통.js";
 import 심장선 from "../심장선.jsx";
 import { 오르는글, use자석 } from "../연출.jsx";
+import 도는글 from "../도는글.jsx";
 
 /* closing-footer — 피그마 136:1251 (1908 × 995, y=7216)
    마지막으로 미는 구간. 위아래에 레이저 선과 심전도 그래프가 붙는다. */
+
+/* 시작 단추 밑에서 도는 안내 — 「지금 눌러도 되나」에 걸리는 것들 */
+const 시작안내 = [
+  "브라우저에서 바로 시작합니다. 설치할 것이 없습니다.",
+  "한 판은 15~25분. 앉은 자리에서 끝납니다.",
+  "혼자 하는 1인칭 추리입니다. 일행을 모으지 않아도 됩니다.",
+  "저장은 자동입니다. 중간에 나가도 이어서 할 수 있습니다.",
+  "WebGL 을 지원하는 PC 브라우저면 됩니다.",
+];
 
 export default function 마무리({ 누름 = () => {} }) {
   const [칸, 보임] = use드러내기();
@@ -16,7 +26,7 @@ export default function 마무리({ 누름 = () => {} }) {
       {/* 뒤에서 번지는 빛 136:1253 */}
       <div style={{ position: "absolute", left: "555px", top: "-36px", width: "798px", height: "815px", pointerEvents: "none" }}>
         <div style={{ position: "absolute", top: "-30.67%", bottom: "-30.67%", left: "-31.33%", right: "-31.33%" }}>
-          <img src={에셋.imgAmbientRadialGlowRight} alt="" style={꽉} />
+          <img loading="lazy" decoding="async" src={에셋.imgAmbientRadialGlowRight} alt="" style={꽉} />
         </div>
       </div>
 
@@ -37,7 +47,7 @@ export default function 마무리({ 누름 = () => {} }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "16px", alignItems: "center", minHeight: "278px", textAlign: "center", width: "100%" }}>
           <오르는글 글="전설이 당신을 기다립니다." 쪼갬={false} style={큰제목} />
           {/* 원본은 앞에 빈 줄이 두 개 있다 — 그만큼 아래로 내려가 있다 */}
-          <div style={{ fontFamily: 글꼴.모노, fontWeight: 300, fontSize: "26px", color: "#47628a", letterSpacing: "1px", width: "608px", whiteSpace: "pre-wrap" }} data-node-id="136:1264">
+          <div style={{ fontFamily: 글꼴.모노, fontWeight: 300, fontSize: "26px", color: "#7d9cc4", letterSpacing: "1px", width: "608px", whiteSpace: "pre-wrap" }} data-node-id="136:1264">
             <p style={{ margin: 0 }}>{"​"}</p>
             <p style={{ margin: 0 }}>{"​"}</p>
             <p style={{ margin: 0 }}>{"지금 바로 당신의 본능과 지혜를 시험해 보세요. 3D 입체 공간에서 시작되는 가장 신비로운 "}</p>
@@ -49,10 +59,14 @@ export default function 마무리({ 누름 = () => {} }) {
           <div ref={자석}>
             <div className="단추" style={{ ...큰단추, cursor: "pointer" }} data-node-id="136:1266" onClick={() => 누름("지금 시작하기")}>지금 시작하기</div>
           </div>
-          <div style={{ fontFamily: 글꼴.모노, fontSize: "18px", color: "#334155", letterSpacing: "1px", width: "368px", whiteSpace: "pre-wrap" }} data-node-id="136:1268">
-            <p style={{ margin: 0 }}>{"    AVAILABLE ON WEBGL · NO        "}</p>
-            <p style={{ margin: 0 }}>{"     INSTALLATION REQUIRED"}</p>
-          </div>
+          {/* 원본은 「WEBGL · 설치 불필요」 두 줄뿐이었다. 시작 단추 바로 밑은
+              마지막으로 망설이는 자리라, 걸리는 것들을 한 줄씩 짚어 준다. */}
+          <도는글
+            줄들={시작안내}
+            사이={3800}
+            style={{ width: "460px", textAlign: "center" }}
+            글style={{ fontFamily: 글꼴.모노, fontSize: "17px", lineHeight: 1.5, color: "#7d9cc4", letterSpacing: "0.5px", display: "block" }}
+          />
         </div>
       </div>
 
@@ -74,7 +88,7 @@ function 가는줄() {
   return (
     <div style={{ position: "relative", width: "400px", height: 0 }}>
       <div style={{ position: "absolute", top: "-1px", left: 0, right: 0 }}>
-        <img src={에셋.imgLine1} alt="" style={꽉} />
+        <img loading="lazy" decoding="async" src={에셋.imgLine1} alt="" style={꽉} />
       </div>
     </div>
   );
@@ -89,7 +103,9 @@ const 바깥 = {
   top: "7216px",
   width: "1908px",
   height: "995px",
-  background: "#02040a",
+  /* 통짜 검정이면 뒤의 입체 공간이 완전히 가려진다. 글이 읽힐 만큼만
+     어둡게 덮고(0.82) 나머지는 비친다. */
+  background: "rgba(2,4,10,0.82)",
   overflow: "hidden",
   display: "flex",
   flexDirection: "column",

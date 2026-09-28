@@ -144,7 +144,8 @@ const 플레이 = {
   fontSize: "44px",
   lineHeight: "150px",
   letterSpacing: "2.2px",
-  color: "#000000",
+  /* 파란 면 위에 검정이라 2.9:1 이었다 — 글자가 면에 묻혔다. 흰색이면 5.6:1 */
+  color: "#ffffff",
   whiteSpace: "nowrap",
   flexShrink: 0,
 };

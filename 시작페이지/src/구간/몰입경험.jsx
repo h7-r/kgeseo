@@ -68,7 +68,7 @@ export default function 몰입경험({ 위 = 0 }) {
           {/* 카드 뒤로 번지는 큰 원 121:2567 */}
           <div style={{ position: "absolute", left: "345px", top: "-210px", width: "624px", height: "1152px", pointerEvents: "none" }}>
             <div style={{ position: "absolute", top: "-26.04%", bottom: "-26.04%", left: "-48.08%", right: "-48.08%" }}>
-              <img src={에셋.imgEllipse13} alt="" style={{ display: "block", width: "100%", height: "100%", maxWidth: "none" }} />
+              <img loading="lazy" decoding="async" src={에셋.imgEllipse13} alt="" style={{ display: "block", width: "100%", height: "100%", maxWidth: "none" }} />
             </div>
           </div>
 
@@ -108,7 +108,7 @@ function 기능한장({ 번호, 그림, 제목, 설명, 순서 }) {
       >
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <div style={아이콘칸}>
-            <img src={그림} alt="" style={{ width: "18px", height: "18px", display: "block" }} />
+            <img loading="lazy" decoding="async" src={그림} alt="" style={{ width: "18px", height: "18px", display: "block" }} />
           </div>
           <div style={번호딱지}>{번호}</div>
         </div>
@@ -128,7 +128,8 @@ function 지표칸({ 값, 이름, 막대 }) {
     <>
       <div style={{ flex: "1 0 0", minWidth: 0, display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", textAlign: "center", whiteSpace: "nowrap" }}>
         <span style={지표숫자}>{값}</span>
-        <span style={{ fontFamily: 글꼴.모노, fontWeight: 500, fontSize: "16px", color: "#000000", textTransform: "uppercase" }}>{이름}</span>
+        {/* 이 글자는 검정(#000)이었다 — 어두운 바탕이라 1.0:1, 통째로 안 보였다 */}
+        <span style={{ fontFamily: 글꼴.모노, fontWeight: 500, fontSize: "16px", color: "#9fb3cc", textTransform: "uppercase" }}>{이름}</span>
       </div>
       {막대 && (
         /* 64px 선을 90° 돌려 세운다 (140:1303) */
@@ -136,7 +137,7 @@ function 지표칸({ 값, 이름, 막대 }) {
           <div style={{ flex: "none", transform: "rotate(90deg)" }}>
             <div style={{ position: "relative", width: "64px", height: 0 }}>
               <div style={{ position: "absolute", top: "-1px", left: 0, right: 0 }}>
-                <img src={에셋.imgLine2} alt="" style={{ display: "block", width: "100%", height: "100%", maxWidth: "none" }} />
+                <img loading="lazy" decoding="async" src={에셋.imgLine2} alt="" style={{ display: "block", width: "100%", height: "100%", maxWidth: "none" }} />
               </div>
             </div>
           </div>
@@ -205,7 +206,7 @@ const 번호딱지 = {
   background: "rgba(255,255,255,0.03)",
   fontFamily: 글꼴.모노,
   fontSize: "14px",
-  color: "#64748b",
+  color: "#93a3b8",
 };
 
 const 지표숫자 = {

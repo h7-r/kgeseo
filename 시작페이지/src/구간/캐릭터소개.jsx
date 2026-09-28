@@ -45,12 +45,14 @@ function 인물한장({ 그림, 이름, 역할, 설명, 순서 }) {
         className="카드 기울임 깊이판"
         style={{ ...카드, flex: "none", width: "100%", height: "100%" }}
       >
-        <div className="깊이-뒤" style={{ height: "320px", width: "100%", overflow: "hidden", flexShrink: 0 }}>
-          <img src={그림} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        {/* 사진 320 → 276. 남은 자리(109px)로는 이름(30) + 역할(16) + 설명 두 줄이
+            안 들어가 글이 잘렸다. 사진을 44px 줄여 글 자리를 만든다. */}
+        <div className="깊이-뒤" style={{ height: "276px", width: "100%", overflow: "hidden", flexShrink: 0 }}>
+          <img loading="lazy" decoding="async" src={그림} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         </div>
-        <div className="깊이-앞" style={{ flex: "1 0 0", display: "flex", flexDirection: "column", gap: "6px", padding: "16px", width: "100%", boxSizing: "border-box" }}>
-          <div style={{ fontFamily: 글꼴.제목, fontSize: "30px", color: "#eeeeff" }}>{이름}</div>
-          <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#1e3a5f", textTransform: "uppercase" }}>{역할}</div>
+        <div className="깊이-앞" style={{ flex: "1 0 0", display: "flex", flexDirection: "column", gap: "5px", padding: "16px 16px 18px", width: "100%", boxSizing: "border-box" }}>
+          <div style={{ fontFamily: 글꼴.제목, fontSize: "30px", lineHeight: 1.1, color: "#eeeeff" }}>{이름}</div>
+          <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#6b93cc", textTransform: "uppercase" }}>{역할}</div>
           <div style={{ fontFamily: 글꼴.본문, fontSize: "16px", lineHeight: 1.5, color: "#9ca3af" }}>{설명}</div>
         </div>
       </div>

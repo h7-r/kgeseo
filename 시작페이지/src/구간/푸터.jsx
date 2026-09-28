@@ -22,7 +22,8 @@ export default function 푸터() {
           </span>
         </div>
 
-        <div style={{ display: "flex", gap: "32px", alignItems: "center", justifySelf: "center", fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", color: "#1e46c1", whiteSpace: "nowrap" }}>
+        {/* 링크 파랑은 #1e46c1 이었는데 거의 검정인 바탕에서 2.5:1 이라 읽히지 않았다 */}
+        <div style={{ display: "flex", gap: "32px", alignItems: "center", justifySelf: "center", fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", color: "#6f92d8", whiteSpace: "nowrap" }}>
           {메뉴.map((이름) => (
             <span key={이름} className="링크" style={{ cursor: "pointer" }} onClick={() => 누름(이름)}>
               {이름}

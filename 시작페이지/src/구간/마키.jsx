@@ -1,4 +1,5 @@
 import 에셋 from "../에셋.js";
+import { 소셜주소 } from "../이동표.js";
 import { 글꼴 } from "../공통.js";
 
 /* marquee — 피그마 67:2025 (y=8333)
@@ -38,19 +39,25 @@ const 흐름 = [
   { t: "✦", cy: 20.97, r: 3.88 },
   { t: "실제 방문 · 특별 보상", cy: 28.0, r: 4.43 },
 ];
-const 소셜 = [에셋.imgCircleX, 에셋.imgYoutube, 에셋.imgTwitter, 에셋.imgInstagram];
+/* 이름을 같이 갖는다 — 그림만 있으면 화면 낭독기에는 아무것도 안 들린다 */
+const 소셜 = [
+  { 이름: "X", 그림: 에셋.imgCircleX },
+  { 이름: "유튜브", 그림: 에셋.imgYoutube },
+  { 이름: "트위터", 그림: 에셋.imgTwitter },
+  { 이름: "인스타그램", 그림: 에셋.imgInstagram },
+];
 
 export default function 마키({ 누름 = () => {} }) {
   return (
     <>
       {/* 띠 위에 얹히는 넓은 빛 53:1015 */}
-      <img src={에셋.imgEllipse7} alt=""
+      <img loading="lazy" decoding="async" src={에셋.imgEllipse7} alt=""
         style={{ position: "absolute", left: "4.47px", top: "8333px", width: "1908.987px", height: "236.927px", display: "block", maxWidth: "none", pointerEvents: "none" }} />
 
       <div style={바깥} data-node-id="48:1435">
         <div style={속} data-node-id="14:1344">
           {/* 흐르는 결 53:1017 과 그 아래 평평한 바탕 74:1018 */}
-          <img src={에셋.imgMarqueeBg} alt=""
+          <img loading="lazy" decoding="async" src={에셋.imgMarqueeBg} alt=""
             style={{ position: "absolute", left: "-2px", top: "-40.93px", width: "1917px", height: "200px", display: "block", maxWidth: "none" }} />
           <div style={{ position: "absolute", left: "-7px", top: "65.07px", width: "1921px", height: "220px", background: "#060b1c" }} />
 
@@ -86,22 +93,41 @@ export default function 마키({ 누름 = () => {} }) {
 
           {/* 소셜 단추 137:1301 */}
           <div style={{ position: "absolute", left: "851px", top: "43.07px", display: "flex", gap: "12px", alignItems: "center" }}>
-            {소셜.map((그림, i) => (
-              <div key={i} style={소셜칸}>
-                <img src={그림} alt="" style={{ width: "20px", height: "20px", display: "block" }} />
-              </div>
-            ))}
+            {소셜.map(({ 이름, 그림 }) => {
+              const 주소 = 소셜주소[이름];
+              const 속 = <img loading="lazy" decoding="async" src={그림} alt="" style={{ width: "20px", height: "20px", display: "block" }} />;
+              /* 주소가 없으면 링크로 만들지 않는다 — 눌러도 아무 데도 못 가는
+                 단추를 두느니, 표식으로 남기는 편이 정직하다. */
+              return 주소 ? (
+                <a
+                  key={이름}
+                  href={주소}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  aria-label={`${이름} (새 창)`}
+                  style={{ ...소셜칸, cursor: "pointer" }}
+                >
+                  {속}
+                </a>
+              ) : (
+                <div key={이름} style={소셜칸} role="img" aria-label={이름}>
+                  {속}
+                </div>
+              );
+            })}
           </div>
         </div>
 
         {/* 맨 아래 줄 136:1297 */}
         <div style={아래줄} data-node-id="136:1297">
-          <span style={{ color: "#47628a" }}>© 2026 ESCAPE THE LEGEND. All Rights Reserved.</span>
+          <span style={{ color: "#7d9cc4" }}>© 2026 ESCAPE THE LEGEND. All Rights Reserved.</span>
           <div style={{ display: "flex", gap: "24px" }}>
             {[
-              ["이용약관", "#47628a"],
-              ["개인정보처리방침", "#60a5fa"],
-              ["고객센터", "#47628a"],
+              /* 개인정보처리방침만 밝게 두고 나머지를 3.3:1 로 깔아 놨었는데,
+                 그 둘이 그냥 안 읽혔다. 강조는 색이 아니라 밝기 차로 남긴다. */
+              ["이용약관", "#6d8cb4"],
+              ["개인정보처리방침", "#93c5fd"],
+              ["고객센터", "#6d8cb4"],
             ].map(([글, 색]) => (
               <span key={글} style={{ color: 색, cursor: "pointer" }} onClick={() => 누름(글)}>
                 {글}
@@ -150,7 +176,7 @@ const 글줄 = {
   gap: "13px",
 };
 
-const 글귀 = { fontFamily: 글꼴.제목, fontWeight: 400, fontSize: "16px", color: "#1e3a5f", whiteSpace: "nowrap" };
+const 글귀 = { fontFamily: 글꼴.제목, fontWeight: 400, fontSize: "16px", color: "#6b93cc", whiteSpace: "nowrap" };
 const 별 = { fontFamily: 글꼴.모노, fontSize: "16px", color: "#5898f8", whiteSpace: "nowrap" };
 
 const 법적 = {
@@ -163,7 +189,7 @@ const 법적 = {
   letterSpacing: "-0.1px",
   fontWeight: 400,
   fontSize: "20px",
-  color: "#666b75",
+  color: "#8b93a3", /* 3.8:1 → 4.9:1. 작아도 읽을 수 있어야 하는 법인 정보다 */
   textAlign: "center",
 };
 

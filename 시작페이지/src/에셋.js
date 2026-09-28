@@ -58,8 +58,9 @@ import imgGroup143 from "../에셋/imgGroup143.svg";
 import imgGroup15 from "../에셋/imgGroup15.svg";
 import imgGroup152 from "../에셋/imgGroup152.svg";
 import imgGroup153 from "../에셋/imgGroup153.svg";
-import imgGroup28 from "../에셋/imgGroup28.svg";
-import imgGroup29 from "../에셋/imgGroup29.svg";
+/* imgGroup28.svg(1.1MB) · imgGroup29.svg(1.4MB) 는 **어디서도 안 쓴다.**
+   import 만 남아 있어 빌드마다 2.5MB 가 따라 들어갔다. 파일은 에셋/ 에
+   그대로 두고 여기서만 뺀다 — 나중에 쓸 일이 생기면 두 줄만 되살리면 된다. */
 import imgInstagram from "../에셋/imgInstagram.svg";
 import imgKey from "../에셋/imgKey.svg";
 import imgLine from "../에셋/imgLine.svg";
@@ -140,8 +141,6 @@ export default {
   imgGroup15,
   imgGroup152,
   imgGroup153,
-  imgGroup28,
-  imgGroup29,
   imgInstagram,
   imgKey,
   imgLine,

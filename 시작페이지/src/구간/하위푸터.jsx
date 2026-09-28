@@ -23,7 +23,8 @@ export default function 하위푸터() {
             · 지역 탐험 방탈출 2026
           </span>
         </div>
-        <div style={{ display: "flex", gap: "32px", alignItems: "center", justifySelf: "center", fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "16px", color: "#1e46c1", whiteSpace: "nowrap" }}>
+        {/* 링크 파랑은 #1e46c1 이었는데 거의 검정인 바탕에서 2.5:1 이라 읽히지 않았다 */}
+        <div style={{ display: "flex", gap: "32px", alignItems: "center", justifySelf: "center", fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "16px", color: "#6f92d8", whiteSpace: "nowrap" }}>
           {링크.map((이름) => (
             <span key={이름} className="링크" style={{ cursor: "pointer" }} onClick={() => 누름(이름)}>
               {이름}
@@ -85,7 +86,7 @@ const 아래줄 = {
   letterSpacing: "-0.1px",
   fontWeight: 400,
   fontSize: "16px",
-  color: "#666b75",
+  color: "#8b93a3", /* 3.7:1 → 4.9:1. 법인 정보는 작아도 읽을 수 있어야 한다 */
   textAlign: "center",
   boxSizing: "border-box",
 };

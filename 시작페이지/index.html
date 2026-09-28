@@ -14,10 +14,18 @@
       href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=Syncopate:wght@400;700&family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <!-- 한글 — 피그마 변수엔 없다. 원본에 가장 가까운 Pretendard 로 둔다. -->
+    <!-- 한글 — 피그마 변수엔 없다. 원본에 가장 가까운 Pretendard 로 둔다.
+
+         ★ static/pretendard.min.css(통짜) 를 쓰다가 dynamic-subset 으로 바꿨다.
+           통짜는 굵기 한 벌이 750KB 남짓인데, 이 화면은 굵기를 일곱 벌 쓴다.
+           그래서 **첫 화면에서만 글꼴로 5.3MB** 를 받고 있었다.
+           dynamic-subset 은 같은 글꼴을 unicode-range 로 잘게 나눠 두어,
+           브라우저가 **실제로 쓴 글자가 든 조각만** 받는다. 글꼴 이름
+           (Pretendard)과 굵기는 그대로라 본문 코드는 한 줄도 안 바뀐다. -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css"
     />
   </head>
   <body>

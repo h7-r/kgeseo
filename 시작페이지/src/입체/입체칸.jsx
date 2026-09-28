@@ -21,6 +21,7 @@ import { Component, Suspense, lazy, useEffect, useRef, useState } from "react";
 const 장면들 = {
   유물: lazy(() => import("./유물.jsx")),
   궤도: lazy(() => import("./궤도.jsx")),
+  깊은우주: lazy(() => import("./깊은우주.jsx")),
 };
 
 /* WebGL 을 만들 수 있나 — 한 번만 확인하고 답을 기억한다 */
@@ -36,7 +37,7 @@ function 웹지엘되나() {
   return 웹지엘가능;
 }
 
-export default function 입체칸({ 장면 = "유물", style }) {
+export default function 입체칸({ 장면 = "유물", 늦게 = false, 깨움 = true, style }) {
   const 칸 = useRef(null);
   const [붙일까, set붙일까] = useState(false);
   const [보임, set보임] = useState(false);
@@ -56,22 +57,49 @@ export default function 입체칸({ 장면 = "유물", style }) {
     const el = 칸.current;
     if (!el) return () => 질의?.removeEventListener?.("change", 바뀜);
 
-    const 관찰 = new IntersectionObserver(
-      ([항목]) => {
-        set보임(항목.isIntersecting);
-        /* 한 번 들어오면 계속 붙여 둔다 — 오갈 때마다 다시 만들면
-           WebGL 문맥을 반복해서 만들고 버리게 돼 훨씬 비싸다 */
-        if (항목.isIntersecting) set붙일까(true);
-      },
-      { rootMargin: "240px" },
-    );
-    관찰.observe(el);
+    /* ★ 늦게=true 면 본문이 다 뜬 뒤에 붙인다.
+       배경 장식이 사진·글보다 먼저 자리를 차지하면, three.js(수백 KB)와
+       WebGL 문맥 만들기가 **본문 이미지 로딩과 경쟁한다.** 실제로 검사에서
+       첫 화면 사진 두 장이 아직 안 받아진 채로 잡혔다.
+       장식은 늦게 와도 아무도 아쉬워하지 않는다. */
+    let 한가할때 = 0;
+    let 짐 = null;
+
+    const 관찰붙이기 = () => {
+      const 관찰 = new IntersectionObserver(
+        ([항목]) => {
+          set보임(항목.isIntersecting);
+          /* 한 번 들어오면 계속 붙여 둔다 — 오갈 때마다 다시 만들면
+             WebGL 문맥을 반복해서 만들고 버리게 돼 훨씬 비싸다 */
+          if (항목.isIntersecting) set붙일까(true);
+        },
+        { rootMargin: "240px" },
+      );
+      관찰.observe(el);
+      짐 = () => 관찰.disconnect();
+    };
+
+    if (!늦게) {
+      관찰붙이기();
+    } else {
+      const 시작 = () => {
+        한가할때 = window.requestIdleCallback
+          ? window.requestIdleCallback(관찰붙이기, { timeout: 2500 })
+          : window.setTimeout(관찰붙이기, 900);
+      };
+      if (document.readyState === "complete") 시작();
+      else window.addEventListener("load", 시작, { once: true });
+    }
 
     return () => {
-      관찰.disconnect();
+      짐?.();
+      if (한가할때) {
+        if (window.cancelIdleCallback) window.cancelIdleCallback(한가할때);
+        else clearTimeout(한가할때);
+      }
       질의?.removeEventListener?.("change", 바뀜);
     };
-  }, []);
+  }, [늦게]);
 
   return (
     <div ref={칸} aria-hidden="true" style={{ position: "absolute", inset: 0, pointerEvents: "none", ...style }}>
@@ -80,7 +108,7 @@ export default function 입체칸({ 장면 = "유물", style }) {
           <Suspense fallback={null}>
             {(() => {
               const 그릴것 = 장면들[장면];
-              return 그릴것 ? <그릴것 보임={보임} 줄임={줄임} /> : null;
+              return 그릴것 ? <그릴것 보임={보임 && 깨움} 줄임={줄임} /> : null;
             })()}
           </Suspense>
         </오류막이>

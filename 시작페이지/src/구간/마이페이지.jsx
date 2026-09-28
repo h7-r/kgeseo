@@ -1,3 +1,6 @@
+import { useNavigate } from "react-router-dom";
+import { 나가기, 지금로그인 } from "../로그인상태.js";
+import { 탈퇴 } from "../계정저장소.js";
 import { 글꼴, 막음, 막음안내 } from "../공통.js";
 import { 마이탭목록, 마이내용 } from "../데이터/마이페이지.js";
 
@@ -8,7 +11,34 @@ import { 마이탭목록, 마이내용 } from "../데이터/마이페이지.js";
    이 구간만 바탕이 #11121a 계열로, 다른 화면(#060d1a)과 다르다 — 원본 그대로.
    ═══════════════════════════════════════════════════════ */
 
+/* 계정 설정에서 **실제로 동작하는** 항목.
+   나머지는 눌러 들어갈 화면이 피그마에 없어 막아 둔다. */
+const 되는항목 = new Set(["로그아웃", "회원 탈퇴"]);
+
 export default function 마이페이지({ 탭 = "최근 플레이 기록", 위 = 0, 탭누르기 = () => {} }) {
+  const 가기 = useNavigate();
+
+  const 계정누르기 = async (라벨) => {
+    if (라벨 === "로그아웃") {
+      나가기();
+      가기("/");
+      return;
+    }
+    if (라벨 === "회원 탈퇴") {
+      /* 되돌릴 수 없는 일이라 반드시 한 번 더 묻는다.
+         서버가 붙으면 여기서 탈퇴 요청을 보내고 응답을 기다리면 된다. */
+      const 정말 = window.confirm(
+        "회원 탈퇴를 진행할까요?\n\n탈퇴하면 플레이 기록과 보유 재화가 모두 사라지며 되돌릴 수 없습니다.\n(관계 법령에 따라 보관 의무가 있는 기록은 정해진 기간 동안 분리 보관됩니다.)",
+      );
+      if (!정말) return;
+      /* 계정과 그 계정의 데이터까지 실제로 지운다(계정저장소.js) */
+      const 사람 = 지금로그인();
+      if (사람?.이메일) await 탈퇴(사람.이메일);
+      나가기();
+      가기("/");
+    }
+  };
+
   const ㄴ = 마이내용[탭];
 
   return (
@@ -28,11 +58,11 @@ export default function 마이페이지({ 탭 = "최근 플레이 기록", 위 =
             <div key={i} className="줄" style={{ ...줄, height: "70px" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#eeeeff" }}>{ㄱ.제목}</span>
-                <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#737a8c" }}>{ㄱ.메타}</span>
+                <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#9aa3b5" }}>{ㄱ.메타}</span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
                 <span style={{ ...딱지, background: ㄱ.색 }}>{ㄱ.결과}</span>
-                <span style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#737a8c" }}>{ㄱ.시간}</span>
+                <span style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#9aa3b5" }}>{ㄱ.시간}</span>
               </div>
             </div>
           ))}
@@ -41,15 +71,30 @@ export default function 마이페이지({ 탭 = "최근 플레이 기록", 위 =
           ㄴ.묶음.map((ㅁ) => (
             <div key={ㅁ.제목} style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
               <span style={소제목}>{ㅁ.제목}</span>
-              {ㅁ.항목.map(([라벨, 값]) => (
-                <div key={라벨} style={{ ...줄, height: "50px", padding: "16px 20px" }}>
-                  <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#eeeeff" }}>{라벨}</span>
-                  {/* 「변경하기」 같은 값은 눌러 들어갈 화면이 피그마에 없다 */}
-                  <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#737a8c", ...막음 }} title={막음안내}>
-                    {값}
-                  </span>
-                </div>
-              ))}
+              {ㅁ.항목.map(([라벨, 값]) => {
+                const 됨 = 되는항목.has(라벨);
+                const 위험 = 라벨 === "회원 탈퇴";
+                return (
+                  <div
+                    key={라벨}
+                    className={됨 ? "줄" : undefined}
+                    role={됨 ? "button" : undefined}
+                    tabIndex={됨 ? 0 : undefined}
+                    onClick={됨 ? () => 계정누르기(라벨) : undefined}
+                    onKeyDown={됨 ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); 계정누르기(라벨); } } : undefined}
+                    style={{ ...줄, height: "50px", padding: "16px 20px", ...(됨 ? { cursor: "pointer" } : {}) }}
+                  >
+                    <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: 위험 ? "#f87171" : "#eeeeff" }}>{라벨}</span>
+                    {/* 「변경하기」 같은 값은 눌러 들어갈 화면이 피그마에 없다 */}
+                    <span
+                      style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: 위험 ? "#f87171" : "#737a8c", ...(됨 ? {} : 막음) }}
+                      title={됨 ? undefined : 막음안내}
+                    >
+                      {값}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           ))}
 
@@ -58,7 +103,7 @@ export default function 마이페이지({ 탭 = "최근 플레이 기록", 위 =
             <div style={{ ...상자, height: "200px", gap: "16px" }}>
               {ㄴ.플랜.map(([라벨, 값]) => (
                 <div key={라벨} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: "24px" }}>
-                  <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#737a8c" }}>{라벨}</span>
+                  <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#9aa3b5" }}>{라벨}</span>
                   <span style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px", color: "#eeeeff" }}>{값}</span>
                 </div>
               ))}
@@ -66,7 +111,7 @@ export default function 마이페이지({ 탭 = "최근 플레이 기록", 위 =
             <span style={소제목}>결제 내역</span>
             {ㄴ.결제.map(([날짜, 플랜, 금액], i) => (
               <div key={i} style={{ ...줄, height: "46px", padding: "14px 20px", borderRadius: "8px" }}>
-                <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#737a8c" }}>{날짜}</span>
+                <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#9aa3b5" }}>{날짜}</span>
                 <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#eeeeff" }}>{플랜}</span>
                 <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#eeeeff" }}>{금액}</span>
               </div>
@@ -79,7 +124,7 @@ export default function 마이페이지({ 탭 = "최근 플레이 기록", 위 =
             <div style={{ ...상자, flexDirection: "row", gap: "24px", height: "80px", padding: "20px 24px" }}>
               {ㄴ.통계.map(([라벨, 값]) => (
                 <div key={라벨} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  <span style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#737a8c" }}>{라벨}</span>
+                  <span style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#9aa3b5" }}>{라벨}</span>
                   <span style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px", color: "#eeeeff" }}>{값}</span>
                 </div>
               ))}
@@ -92,9 +137,9 @@ export default function 마이페이지({ 탭 = "최근 플레이 기록", 위 =
                     <div style={{ width: "40px", height: "40px", borderRadius: "20px", background: "#1f2433", flexShrink: 0 }} />
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: "1 0 0" }}>
                       <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#eeeeff" }}>{이름}</span>
-                      <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#737a8c" }}>{설명}</span>
+                      <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#9aa3b5" }}>{설명}</span>
                     </div>
-                    <span style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#737a8c" }}>{상태}</span>
+                    <span style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#9aa3b5" }}>{상태}</span>
                   </div>
                 ))}
               </div>
@@ -127,7 +172,7 @@ const 바깥 = {
 
 const 탭바탕 = { display: "flex", alignItems: "center", padding: "12px 20px", borderRadius: "999px", fontFamily: 글꼴.모노, fontSize: "16px", whiteSpace: "nowrap", cursor: "pointer", boxSizing: "border-box" };
 const 켜진탭 = { ...탭바탕, background: "#3b82f6", color: "#ffffff", fontWeight: 700 };
-const 꺼진탭 = { ...탭바탕, background: "#1a1c26", color: "#737a8c" };
+const 꺼진탭 = { ...탭바탕, background: "#1a1c26", color: "#9aa3b5" };
 
 const 줄 = {
   display: "flex",
