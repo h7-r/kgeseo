@@ -57,7 +57,12 @@ export default function 나주진입연출() {
       if (진행.current) return;
       진행.current = true;
       const 쿼리 = e && e.detail && e.detail.쿼리 ? e.detail.쿼리 : "";
-      const url = window.location.origin + "/naju01/index.html" + 쿼리;
+      // 목적지 URL — 허브에서 출발했다는 표시(from=hub)를 붙인다. 나주(도착페이드)가
+      //   이 플래그를 보고 "검정→투명 페이드 인"을 켠다. 문자열로 이어 붙이면 쿼리
+      //   유무에 따라 ??from=hub 가 되기 쉬워, URL 로 만들어 안전하게 얹는다.
+      const 목적 = new URL("/naju01/index.html" + 쿼리, window.location.origin);
+      목적.searchParams.set("from", "hub"); // 이미 있으면 덮고, 없으면 붙인다
+      const url = 목적.toString();
       urlRef.current = url;
       let 봤음 = false;
       try { 봤음 = localStorage.getItem(봤키) === "1"; } catch { /* 무시 */ }
