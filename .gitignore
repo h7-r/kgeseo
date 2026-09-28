@@ -29,3 +29,18 @@ _to_delete/
 # 파이썬 바이트코드 캐시 — Blender 도구를 돌리면 생긴다
 __pycache__/
 *.pyc
+
+# ── 저장소 안에서 굴러다니는 작업 산출물 ──────────────
+#  깃에 올릴 것은 아니지만 **지우지도 않는다** — 내 컴퓨터에는 남는다.
+#  이걸 안 적어 두면 `git status` 가 매번 수백 줄로 뒤덮여서
+#  진짜 바뀐 소스가 묻힌다.
+#
+#  ※ output/ · outputs/ · 프로젝트파일/ 에는 정산신청서·인터뷰 대본·
+#    발표자료 같은 **사업 서류**가 들어 있다. 실수로 지우지 말 것.
+tmp/
+output/
+outputs/
+undefined/
+Claude outputs/
+프로젝트파일/
+public/references/
