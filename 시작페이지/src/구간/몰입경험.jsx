@@ -1,5 +1,9 @@
 import 에셋 from "../에셋.js";
 import { 글꼴, 글자그라디언트 } from "../공통.js";
+import { use기울임, use드러내기, 다가옴클래스 } from "../움직임.js";
+import { use가까움 } from "../근접.js";
+import 심장선 from "../심장선.jsx";
+import { 오르는글 } from "../연출.jsx";
 
 /* ═══════════════════════════════════════════════════════
    몰입감 넘치는 게임 경험 — 피그마 121:2583 (Group 30)
@@ -46,7 +50,8 @@ export default function 몰입경험({ 위 = 0 }) {
         data-node-id="121:2565"
       >
         <div style={{ position: "absolute", top: "-6.06%", bottom: "-6.06%", left: 0, right: 0 }}>
-          <img src={에셋.imgVector2} alt="" style={{ display: "block", width: "100%", height: "100%", maxWidth: "none" }} />
+          {/* 밝은 바탕 위라 선·빛을 조금 진하게 잡는다 */}
+          <심장선 모양="넓은맥" 폭="100%" 높이="100%" 색="#1d4ed8" 빛="#2563eb" 굵기={1.1} 진하기={0.45} 주기={4.2} />
         </div>
       </div>
 
@@ -56,7 +61,7 @@ export default function 몰입경험({ 위 = 0 }) {
           <div style={{ display: "flex", gap: "8px", alignItems: "center", fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px", color: "#3b82f6", textTransform: "uppercase" }}>
             <span>CORE FEATURES</span>
           </div>
-          <div style={큰제목}>몰입감 넘치는 게임 경험</div>
+          <오르는글 글="몰입감 넘치는 게임 경험" 쪼갬={false} style={큰제목} />
         </div>
 
         <div style={{ position: "relative", display: "flex", gap: "20px", alignItems: "flex-start", justifyContent: "center", width: "100%" }}>
@@ -67,21 +72,8 @@ export default function 몰입경험({ 위 = 0 }) {
             </div>
           </div>
 
-          {기능.map((ㄱ) => (
-            <div key={ㄱ.번호} style={카드}>
-              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                <div style={아이콘칸}>
-                  <img src={ㄱ.그림} alt="" style={{ width: "18px", height: "18px", display: "block" }} />
-                </div>
-                <div style={번호딱지}>{ㄱ.번호}</div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                <div style={{ fontFamily: 글꼴.본문, fontWeight: 700, fontSize: "22px", color: "#eef2f6", width: "100%" }}>{ㄱ.제목}</div>
-                <div style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "16px", lineHeight: 1.6, color: "#9ca3af", width: "100%" }}>
-                  {ㄱ.설명}
-                </div>
-              </div>
-            </div>
+          {기능.map((ㄱ, i) => (
+            <기능한장 key={ㄱ.번호} {...ㄱ} 순서={i} />
           ))}
         </div>
 
@@ -96,6 +88,38 @@ export default function 몰입경험({ 위 = 0 }) {
         </div>
       </section>
     </>
+  );
+}
+
+/* 기능 카드 한 장 — 차례로 떠오르고 마우스를 따라 기운다 */
+function 기능한장({ 번호, 그림, 제목, 설명, 순서 }) {
+  const 기울임 = use기울임(4);
+  const [보임칸, 보임] = use드러내기();
+  const 가까이 = use가까움(240);
+
+  return (
+    <div ref={보임칸} className={`기울임판 ${다가옴클래스(보임)}`} style={{ flex: "1 0 0", minWidth: 0, transitionDelay: `${순서 * 80}ms` }}>
+      <div
+        ref={(el) => { 기울임.ref.current = el; 가까이.current = el; }}
+        onMouseMove={기울임.onMouseMove}
+        onMouseLeave={기울임.onMouseLeave}
+        className="기울임 가까이-안"
+        style={{ ...카드, flex: "none", width: "100%" }}
+      >
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+          <div style={아이콘칸}>
+            <img src={그림} alt="" style={{ width: "18px", height: "18px", display: "block" }} />
+          </div>
+          <div style={번호딱지}>{번호}</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+          <div style={{ fontFamily: 글꼴.본문, fontWeight: 700, fontSize: "26px", lineHeight: 1.35, color: "#eef2f6", width: "100%" }}>{제목}</div>
+          <div style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", lineHeight: 1.65, color: "#9ca3af", width: "100%" }}>
+            {설명}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -124,7 +148,8 @@ function 지표칸({ 값, 이름, 막대 }) {
 
 const 내용칸 = {
   position: "absolute",
-  left: "217px",
+  /* 폭 1480 덩이는 1920 한가운데(220) — 원본은 210~217 로 제각각이었다 */
+  left: "220px",
   width: "1480px",
   padding: "80px 60px",
   borderRadius: "24px",

@@ -1,5 +1,6 @@
 import 에셋 from "../에셋.js";
 import { 글꼴 } from "../공통.js";
+import { use기울임, use드러내기, use지나가며, 다가옴클래스 } from "../움직임.js";
 
 /* 캐릭터 소개 갤러리 — 피그마 14:1649 (1480 × 620) */
 
@@ -10,30 +11,57 @@ const 인물 = [
 ];
 
 export default function 캐릭터소개({ 위 = 0 }) {
+  /* 구간 전체가 스크롤에 맞춰 아주 조금 다가왔다 지나간다.
+     카드마다 걸면 서로 어긋나 어지럽다 — 덩어리째 한 번만 움직인다. */
+  const 칸 = use지나가며({ 들어올때: 0.95, 나갈때: 1.03, 깊이: 60 });
+
   return (
-    <section style={{ ...바깥, top: `${위}px` }} data-node-id="14:1649">
+    <section ref={칸} className="지나가며" style={{ ...바깥, top: `${위}px`, willChange: "transform" }} data-node-id="14:1649">
       <div style={{ fontFamily: 글꼴.제목, fontSize: "40px", color: "#eeeeff" }}>캐릭터 소개</div>
       <div style={{ display: "flex", gap: "16px", height: "429px", width: "100%" }}>
-        {인물.map((ㅇ) => (
-          <div key={ㅇ.이름} className="카드" style={카드}>
-            <div style={{ height: "320px", width: "100%", overflow: "hidden", flexShrink: 0 }}>
-              <img src={ㅇ.그림} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-            </div>
-            <div style={{ flex: "1 0 0", display: "flex", flexDirection: "column", gap: "6px", padding: "16px", width: "100%", boxSizing: "border-box" }}>
-              <div style={{ fontFamily: 글꼴.제목, fontSize: "30px", color: "#eeeeff" }}>{ㅇ.이름}</div>
-              <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#1e3a5f", textTransform: "uppercase" }}>{ㅇ.역할}</div>
-              <div style={{ fontFamily: 글꼴.본문, fontSize: "16px", lineHeight: 1.5, color: "#9ca3af" }}>{ㅇ.설명}</div>
-            </div>
-          </div>
+        {인물.map((ㅇ, i) => (
+          <인물한장 key={ㅇ.이름} {...ㅇ} 순서={i} />
         ))}
       </div>
     </section>
   );
 }
 
+/* 인물 한 장 — 스크롤로 차례차례 떠오르고, 마우스를 따라 살짝 기운다 */
+function 인물한장({ 그림, 이름, 역할, 설명, 순서 }) {
+  const 기울임 = use기울임(5);
+  const [보임칸, 보임] = use드러내기();
+
+  return (
+    <div
+      ref={보임칸}
+      className={`기울임판 ${다가옴클래스(보임)}`}
+      style={{ flex: "1 0 0", height: "100%", transitionDelay: `${순서 * 90}ms` }}
+    >
+      <div
+        ref={기울임.ref}
+        onMouseMove={기울임.onMouseMove}
+        onMouseLeave={기울임.onMouseLeave}
+        className="카드 기울임 깊이판"
+        style={{ ...카드, flex: "none", width: "100%", height: "100%" }}
+      >
+        <div className="깊이-뒤" style={{ height: "320px", width: "100%", overflow: "hidden", flexShrink: 0 }}>
+          <img src={그림} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        </div>
+        <div className="깊이-앞" style={{ flex: "1 0 0", display: "flex", flexDirection: "column", gap: "6px", padding: "16px", width: "100%", boxSizing: "border-box" }}>
+          <div style={{ fontFamily: 글꼴.제목, fontSize: "30px", color: "#eeeeff" }}>{이름}</div>
+          <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#1e3a5f", textTransform: "uppercase" }}>{역할}</div>
+          <div style={{ fontFamily: 글꼴.본문, fontSize: "16px", lineHeight: 1.5, color: "#9ca3af" }}>{설명}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const 바깥 = {
   position: "absolute",
-  left: "210px",
+  /* 폭 1480 덩이는 1920 한가운데(220) — 원본은 210~217 로 제각각이었다 */
+  left: "220px",
   width: "1480px",
   height: "620px",
   padding: "24px 32px",

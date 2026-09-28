@@ -108,9 +108,9 @@ const 바깥 = {
   position: "absolute",
   left: 0,
   width: "1920px",
-  height: "630px",
+  minHeight: "630px",
   background: "#ffffff",
-  padding: "40px 120px",
+  padding: "40px 120px 56px", // 아래를 조금 더 띄운다 (쪽번호와 흰 면 끝 사이)
   display: "flex",
   flexDirection: "column",
   gap: "24px",
@@ -176,16 +176,19 @@ const 사진속 = {
   boxSizing: "border-box",
 };
 
+/* [왜 absolute 를 버렸나]
+   원본은 쪽번호를 (770, 534) 에 박아 놨다. 그러면 내용이 짧은 탭에서
+   내용과 쪽번호 사이가 휑하게 비고, 칸 높이(630)도 고정이라 그 아래가
+   또 남는다. 흐름 안에 넣어 내용 바로 뒤에 붙였다. */
 const 쪽번호 = {
-  position: "absolute",
-  left: "770px",
-  top: "534px",
-  padding: "20px 0",
+  alignSelf: "center",
+  marginTop: "auto",
+  paddingTop: "24px",
+  paddingBottom: "8px",
   display: "flex",
   gap: "12px",
   alignItems: "center",
   justifyContent: "center",
-  overflow: "hidden",
 };
 
 const 화살표 = {

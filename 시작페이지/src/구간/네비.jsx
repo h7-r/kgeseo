@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import 에셋 from "../에셋.js";
+import { 가까이등록 } from "../근접.js";
 import { 글꼴, 글자그라디언트 } from "../공통.js";
 import { 메뉴이동 } from "../이동표.js";
 
@@ -23,8 +24,8 @@ import { 메뉴이동 } from "../이동표.js";
    ═══════════════════════════════════════════════════════ */
 
 const 치수 = {
-  큼: { 높이: 173, 로고: 26, 메뉴: 18, 밑줄: 34, 알약: 18, 알약글: "로그인  ·  회원가입" },
-  작음: { 높이: 149, 로고: 22, 메뉴: 16, 밑줄: 30, 알약: 16, 알약글: "로그인 · 회원가입" },
+  큼: { 높이: 173, 로고: 30, 메뉴: 18, 밑줄: 34, 알약: 18, 알약글: "로그인  ·  회원가입" },
+  작음: { 높이: 149, 로고: 26, 메뉴: 16, 밑줄: 30, 알약: 16, 알약글: "로그인 · 회원가입" },
 };
 
 const 항목 = ["홈", "소개", "컬렉션", "드롭", "브랜드", "고객센터"];
@@ -65,8 +66,8 @@ export default function 네비({ 크기 = "큼", 활성 = "홈", 누르기, 메�
         {항목.map((이름) => (
           <div
             key={이름}
-            ref={(el) => (칸들.current[이름] = el)}
-            className="링크"
+            ref={(el) => { 칸들.current[이름] = el; 가까이등록(el, 150); }}
+            className="링크 가까이-글"
             style={{
               ...메뉴바탕,
               fontSize: `${ㅊ.메뉴}px`,
@@ -137,20 +138,27 @@ const 메뉴바탕 = {
   transition: "color .18s ease",
 };
 
-/* 밑줄 — 단순한 한 줄. 글자와 8px 띄운다(붙으면 답답해 보인다). */
+/* 밑줄 — 단순한 한 줄. 글자와 8px 띄운다(붙으면 답답해 보인다).
+
+   [왜 left 가 아니라 transform 인가]
+   left 를 움직이면 브라우저가 매 프레임 배치를 다시 잰다. transform 은
+   합성 단계에서만 처리돼 배치를 건드리지 않아서 훨씬 매끄럽다.
+   폭은 항상 같으니(메뉴마다 같은 길이) 옮기기만 하면 된다. */
 function 물결밑줄({ 폭, left }) {
   return (
     <div
       style={{
         position: "absolute",
-        left: `${left}px`,
+        left: 0,
         top: "calc(100% + 8px)",
         width: `${폭}px`,
         height: "2px",
         borderRadius: "1px",
         background: "linear-gradient(90deg, #3b82f6 0%, #96c5ff 100%)",
         /* 왼쪽을 누르면 왼쪽으로, 오른쪽이면 오른쪽으로 미끄러진다 */
-        transition: "left .42s cubic-bezier(.33,.1,.25,1), width .42s cubic-bezier(.33,.1,.25,1)",
+        transform: `translate3d(${left}px, 0, 0)`,
+        transition: "transform .42s var(--부드럽게)",
+        willChange: "transform",
         pointerEvents: "none",
       }}
     />
