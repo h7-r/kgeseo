@@ -22,6 +22,7 @@ const 정점 = /* glsl */ `
 #include <common>
 #include <skinning_pars_vertex>
 #include <morphtarget_pars_vertex>
+#include <clipping_planes_pars_vertex>
 uniform float uThickness;
 void main() {
   #include <beginnormal_vertex>
@@ -37,12 +38,18 @@ void main() {
   vec3 n = normalize(normalMatrix * objectNormal);
   mv.xyz += n * uThickness * 0.0016 * max(-mv.z, 0.05);
   gl_Position = projectionMatrix * mv;
+  // 1인칭 잘림면(치비게임아바타 「앞자르기」)을 껍데기도 따르게 한다.
+  //   빠지면 본체만 잘리고 검은 껍데기 안쪽이 목 단면처럼 남는다.
+  vec4 mvPosition = mv;
+  #include <clipping_planes_vertex>
 }
 `;
 
 const 조각 = /* glsl */ `
 uniform vec3 uColor;
+#include <clipping_planes_pars_fragment>
 void main() {
+  #include <clipping_planes_fragment>
   gl_FragColor = vec4(uColor, 1.0);
 }
 `;
@@ -60,6 +67,7 @@ function 외곽선재질(설정) {
     // 깊이를 쓰지 않는다 → 나중에 그려지는 본체가 항상 이기고, 껍데기는 실루엣 바깥에만
     // 남는다. 깊이를 쓰면 귀·눈두덩처럼 오목한 곳에서 껍데기가 얼굴을 덮어 검게 번진다.
     depthWrite: false,
+    clipping: true, // 재질의 clippingPlanes(1인칭 잘림면)를 셰이더에 넣는다
   });
 }
 
@@ -95,18 +103,32 @@ export function 외곽선적용(root, 설정 = 기본외곽선, 갈래정하기 
     shell.quaternion.copy(mesh.quaternion);
     shell.scale.copy(mesh.scale);
     parent.add(shell);
-    껍데기.push({ shell, parent });
+    껍데기.push({ shell, parent, 본체: mesh });
   });
   const 제거 = () => {
     껍데기.forEach(({ shell, parent }) => parent.remove(shell));
     재질.dispose();
     껍데기.length = 0;
   };
+  // ── 껍데기는 **본체가 보일 때만** 보인다 ─────────────────────────────
+  // [무엇이 문제였나]
+  //   껍데기는 본체의 **형제**다(자식으로 넣으면 변환이 두 번 곱해진다 — 위 주석).
+  //   그래서 본체를 `visible = false` 로 숨겨도 껍데기는 그대로 남았다.
+  //   신발을 벗으면(맨발) 신발 메시는 사라지는데 **검은 껍데기만 발에 남아**
+  //   「맨발인데 검정 신발이 신겨 있다」로 보였다(사용자 지적).
+  //   껍데기 색은 어두운 외곽선 색이고 BackSide 라 딱 신발 실루엣이 된다.
+  // [어떻게] 켜고 끌 때 본체를 같이 본다. 파츠 보임을 바꾼 쪽에서
+  //   `보임맞추기()` 를 부르면 그 자리에서 따라온다(프레임마다 훑지 않는다).
+  let 켬 = 설정.켬;
+  const 보임맞추기 = () => {
+    껍데기.forEach(({ shell, 본체 }) => { shell.visible = 켬 && 본체.visible; });
+  };
   const 갱신 = (다음) => {
     재질.uniforms.uThickness.value = 다음.두께;
     재질.uniforms.uColor.value.set(다음.색);
-    껍데기.forEach(({ shell }) => { shell.visible = 다음.켬; });
+    켬 = 다음.켬;
+    보임맞추기();
   };
   갱신(설정);
-  return { 제거, 갱신 };
+  return { 제거, 갱신, 보임맞추기 };
 }

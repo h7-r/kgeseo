@@ -25,3 +25,6 @@
 
 .DS_Store
 dist-naju01/
+# 감면 도구(도구/모형감면.mjs · 도구/GLB감면.sh)가 남기는 원본 보관본 — 51 MB.
+#   원본은 어차피 git 이력에 있다(`git checkout HEAD~ -- <경로>`). 되돌리기 편의용일 뿐이다.
+원본보관/

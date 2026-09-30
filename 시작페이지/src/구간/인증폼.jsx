@@ -1,7 +1,14 @@
 import 에셋 from "../에셋.js";
-import { useState } from "react";
-import { 글꼴, 막음, 막음안내 } from "../공통.js";
-import { 모두검사, 통과했나, 세기 } from "../유효성.js";
+import { useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { 소셜로가기 } from "../소셜로그인.js";
+import { 들어가기 } from "../로그인상태.js";
+import { 가입, 로그인, 비밀번호바꾸기, 이미있나, 닉네임있나 } from "../계정저장소.js";
+import { 글꼴, 막음 } from "../공통.js";
+import { 세기, 한글있나, 영문만안내, 영문칸, 쓰는법, 비번조건, 메일오타 } from "../유효성.js";
+import 지역고르기 from "./지역고르기.jsx";
+import { use폼, use대문자잠금, 엔터로 } from "../폼검사.js";
+import { 코드발급, 재설정상태, 코드확인, 재설정끝 } from "../재설정.js";
 
 /* ═══════════════════════════════════════════════════════
    인증 카드 — 피그마에서 **모드 5개짜리 컴포넌트 하나**다.
@@ -40,28 +47,126 @@ const 검사할칸 = {
   인증완료: ["새비밀번호", "비밀번호확인"],
 };
 
-export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가기 = () => {} }) {
+/* 회원가입 때 저장소에 「이미 있나」를 물어보는 칸들 (폼검사.js 의 비동기 검사) */
+const 가입중복검사 = {
+  이메일: async (v) => ((await 이미있나(v)) ? "이미 가입된 이메일입니다." : ""),
+  닉네임: async (v) => ((await 닉네임있나(v)) ? "이미 사용 중인 닉네임입니다." : ""),
+};
+
+/* 약관보기(탭) — 동의 줄의 「이용약관」·「개인정보 수집·이용」을 누르면 부른다.
+   인증 화면(화면/인증.jsx)이 카드 아래 약관 칸을 그 탭으로 바꾸고 거기로 스크롤한다. */
+export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가기 = () => {}, 약관보기 = () => {} }) {
   const ㅁ = 모드표[모드];
-  const [값, set값] = useState({});
-  const [오류, set오류] = useState({});
-  const [동의, set동의] = useState(true); // 원본은 체크된 상태로 그려져 있다
+  /* 값·오류·「맞음」 표시는 use폼 이 한곳에서 관리한다(폼검사.js).
+     로그인은 비밀번호 「비었나」만, 회원가입은 이메일·닉네임 중복까지 본다. */
+  /* 로그인·가입이 끝나면 갈 곳 — 주소에 ?다음=/마이페이지 가 있으면 그리로(막혔던 화면으로 돌아가기).
+     ★ 「/」로 시작하는 **이 사이트 안의 주소**만 받는다. //evil.com 이나 https://… 를 받아 주면
+       로그인 뒤 남의 사이트로 튕겨 보내는 데 악용된다(열린 리다이렉트). */
+  const [주소질의] = useSearchParams();
+  const 요청다음 = 주소질의.get("다음") || "";
+  const 돌아갈곳 = 요청다음.startsWith("/") && !요청다음.startsWith("//") && !요청다음.includes("\\") ? 요청다음 : null;
+  /* 재설정 2·3단계는 1단계에서 적은 이메일을 이어받는다 */
+  const 이어받은메일 = 모드 === "인증중" || 모드 === "인증완료" ? 재설정상태()?.메일 : "";
+  const 폼 = use폼({
+    칸들: 검사할칸[모드],
+    로그인: 모드 === "로그인",
+    비동기: 모드 === "회원가입" ? 가입중복검사 : {},
+    처음값: 이어받은메일 ? { 이메일: 이어받은메일 } : null,
+  });
+  const 값 = 폼.값;
+  const [동의오류, set동의오류] = useState("");
+  /* ── 봇 막기 ① 꿀단지(honeypot) ──
+     사람 눈엔 안 보이는 칸을 하나 둔다. 사람은 못 보니 비워 두고,
+     폼을 통째로 채우는 자동 프로그램은 여기까지 채운다 → 채워져 있으면 봇으로 본다.
+     ── 봇 막기 ② 너무 빠른 제출 ──
+     화면이 뜬 지 1.5초 안에 모든 칸을 채워 제출하는 건 사람이 아니다. */
+  const [꿀단지, set꿀단지] = useState("");
+  const 뜬때 = useRef(Date.now());
+  /* [왜 미리 체크해 두지 않나]
+     원본 시안은 체크된 채로 그려져 있었다. 하지만 「개인정보 보호법」은
+     동의를 **본인이 직접** 표시하게 하고, 필수 항목을 구분해 받도록 한다.
+     미리 켜 두면 누른 적 없는 동의가 된다. 비워 두고 시작한다.
+     세 가지를 따로 받는 것도 같은 이유다 — 한 덩이로 묶으면 무엇에
+     동의했는지 남지 않는다. */
+  const [동의들, set동의들] = useState({ 약관: false, 수집: false, 나이: false });
+  /* 약관 = 「전체」 줄 — 아래 두 항목이 다 켜졌는지로 정해진다 */
+  const 동의 = 동의들.수집 && 동의들.나이;
   const [눌렀나, set눌렀나] = useState(false);
 
-  const 적기 = (이름) => (e) => {
-    const 새값 = { ...값, [이름]: e.target.value };
-    set값(새값);
-    if (눌렀나) set오류(모두검사(검사할칸[모드], 새값)); // 한 번 혼난 뒤에는 고치는 즉시 풀어 준다
+  /* 무엇 = "전체" 면 모두 한꺼번에, 아니면 그 항목만 — 그리고 전체(약관)는 늘 「둘 다 켜졌나」 */
+  const 동의바꾸기 = (무엇, 값) => {
+    set동의들((d) => {
+      const 새 = 무엇 === "전체" ? { 약관: 값, 수집: 값, 나이: 값 } : { ...d, [무엇]: 값 };
+      새.약관 = 새.수집 && 새.나이;
+      /* 한 번 혼난 뒤에는 다 채우는 순간 바로 풀어 준다 */
+      if (눌렀나) set동의오류(새.약관 && 새.수집 && 새.나이 ? "" : "필수 항목에 모두 동의해주세요.");
+      return 새;
+    });
   };
 
-  const 보내기 = () => {
+  /* 저장소에 물어보는 동안 단추를 잠근다 —
+     PBKDF2 를 21만 번 돌리느라 몇백 ms 걸린다. 그 사이 두 번 눌리면 안 된다. */
+  const [하는중, set하는중] = useState(false);
+  const [경고, set경고] = useState("");
+
+  const 보내기 = async () => {
+    if (하는중) return; // 두 번 눌러도 한 번만 — 저장소가 답하는 동안은 잠근다
     set눌렀나(true);
-    const 새오류 = 모두검사(검사할칸[모드], 값);
-    if (모드 === "회원가입" && !동의) 새오류.동의 = "약관에 동의해주세요.";
-    set오류(새오류);
-    if (통과했나(새오류)) 가기(ㅁ.다음);
+    set경고("");
+    set하는중(true);
+    try {
+      const 칸통과 = await 폼.전부검사(); // 모든 칸 검사 + 이메일·닉네임 중복 확인까지 기다린다
+      const 동의통과 = 모드 !== "회원가입" || 동의;
+      set동의오류(동의통과 ? "" : "필수 항목에 모두 동의해주세요.");
+      if (!칸통과 || !동의통과) return;
+
+      const 메일 = (값.이메일 ?? "").trim();
+      if (모드 === "회원가입") {
+        /* 봇으로 보이면 이유를 자세히 말하지 않는다 — 어디서 걸렸는지 알려 주면 피해 간다 */
+        if (꿀단지 || Date.now() - 뜬때.current < 1500) { set경고("잠시 후 다시 시도해 주세요."); return; }
+        const 답 = await 가입({
+          이메일: 메일,
+          비밀번호: 값.비밀번호,
+          닉네임: 값.닉네임,
+          지역: 값.지역,
+          /* 동의기록(ERD consent_log)에 항목별로 남긴다 */
+          동의: { 이용약관: 동의들.약관, 개인정보수집: 동의들.수집, 만14세이상: 동의들.나이 },
+        });
+        if (!답.좋음) { set경고(답.까닭); return; }
+        폼.비우기(["비밀번호", "비밀번호확인"]); // 비밀번호는 화면 상태에 남겨 두지 않는다
+        들어가기(답.사람);
+      } else if (모드 === "로그인") {
+        const 답 = await 로그인(메일, 값.비밀번호);
+        /* 틀리면 비밀번호 칸만 비운다 — 이메일은 그대로 두어 다시 치기 쉽게 */
+        if (!답.좋음) { set경고(답.까닭); 폼.비우기(["비밀번호"]); return; }
+        폼.비우기(["비밀번호"]);
+        들어가기(답.사람);
+      } else if (모드 === "비밀번호찾기") {
+        /* 인증코드 발급(재설정.js) — 가입 안 된 메일이어도 똑같이 진행한다(가입 여부를 드러내지 않게) */
+        코드발급(메일);
+      } else if (모드 === "인증중") {
+        /* 코드가 맞아야만 다음(새 비밀번호) 단계가 열린다 */
+        const 답 = 코드확인(메일, 값.인증코드);
+        if (!답.좋음) { set경고(답.까닭); return; }
+      } else if (모드 === "인증완료") {
+        /* 인증을 통과한 재설정만 받는다 — 주소창에 /비밀번호-재설정/완료 를 쳐서 건너뛰지 못하게 */
+        const 상태 = 재설정상태();
+        if (!상태?.인증됨) { set경고("인증이 끝나지 않았거나 시간이 지났습니다. 비밀번호 찾기부터 다시 해 주세요."); return; }
+        const 답 = await 비밀번호바꾸기(상태.메일, 값.새비밀번호);
+        /* 가입 안 된 메일이어도 「바뀌었다」고만 한다 — 이 화면으로 가입 여부를 캐지 못하게 */
+        if (!답.좋음 && 답.까닭 !== "가입되지 않은 이메일입니다.") { set경고(답.까닭); return; }
+        재설정끝();
+      }
+      /* 로그인·가입은 원래 가려던 곳으로, 나머지(재설정 단계)는 정해진 다음 단계로 */
+      가기((모드 === "로그인" || 모드 === "회원가입") && 돌아갈곳 ? 돌아갈곳 : ㅁ.다음);
+    } finally {
+      set하는중(false);
+    }
   };
 
-  const 칸속성 = (이름) => ({ 이름, 값: 값[이름] ?? "", 바꾸기: 적기(이름), 오류: 오류[이름] });
+  /* 칸마다 넘기는 속성 — 값·바꾸기·떠나기·오류·맞음 + Enter 로 제출 */
+  const 칸속성 = (이름) => ({ ...폼.속성(이름), 엔터: 엔터로(보내기) });
+  const 오타 = 모드 !== "인증완료" ? 메일오타(값.이메일) : ""; // 「혹시 gmail.com 인가요?」
   /* 굵기가 링크마다 다르다 — 원본에 그렇게 돼 있다.
      회원가입 화면의 「로그인」만 Regular 이고 나머지는 Bold. */
   const 링크 = (글, 굵게 = true) => (
@@ -87,8 +192,8 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
         ...(ㅁ.높이 ? { minHeight: `${ㅁ.높이}px` } : {}),
         // 회원가입만 그림자가 카드 **밖으로** 나간다(drop-shadow). 나머지는 box-shadow.
         ...(ㅁ.그림자밖
-          ? { filter: "drop-shadow(0px 8px 16px rgba(29,78,216,0.13))" }
-          : { overflow: "hidden", boxShadow: "0px 8px 32px 0px rgba(29,78,216,0.13)" }),
+          ? { filter: "drop-shadow(0px 8px 16px rgba(47,62,112,0.13))" }
+          : { overflow: "hidden", boxShadow: "0px 8px 32px 0px rgba(47,62,112,0.13)" }),
       }}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingBottom: "16px", width: "100%" }}>
@@ -99,8 +204,20 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
       <div style={{ display: "flex", flexDirection: "column", gap: "14px", width: "100%" }}>
         {모드 === "회원가입" && (
           <div style={{ display: "flex", gap: "12px", width: "100%" }}>
-            <입력칸 라벨="닉네임" 안내="모험가 이름" 늘림 {...칸속성("닉네임")} />
-            <입력칸 라벨="지역" 안내="본인 지역 선택" 늘림 {...칸속성("지역")} />
+            <입력칸 라벨="닉네임" 안내="모험가 이름" 늘림 자동완성="nickname" {...칸속성("닉네임")} />
+            {/* 지역 — 브라우저 기본 목록 대신 직접 만든 선택 상자(구간/지역고르기.jsx).
+                고르면 폼.넣기 로 값을 넣고 「만짐」 처리까지 해서 바로 ✓ 가 뜬다. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "9px", flex: "1 0 0", minWidth: 0 }}>
+              <라벨줄 라벨="지역" 스타일={라벨글} {...칸속성("지역")} />
+              <지역고르기
+                값={값.지역}
+                고르기={(곳) => 폼.넣기("지역", 곳)}
+                떠나기={폼.속성("지역").떠나기}
+                오류={폼.속성("지역").오류}
+                맞음={폼.속성("지역").맞음}
+                칸스타일={{ ...입력, paddingRight: 0 }}
+              />
+            </div>
           </div>
         )}
 
@@ -109,17 +226,22 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
           라벨="이메일"
           안내="explorer@escape.kr"
           흐림={모드 === "인증완료"}
-          안내색={모드 === "인증완료" ? "rgba(200,205,255,0.4)" : undefined}
+          안내색={모드 === "인증완료" ? "#6f7a8c" : undefined}
+          자동완성={모드 === "로그인" ? "username" : "email"}
+          입력방식="email"
+          오타={오타}
+          오타고치기={() => 폼.넣기("이메일", 오타.replace(/^혹시 | 인가요\?$/g, ""))}
           {...칸속성("이메일")}
         />
 
-        {모드 === "로그인" && <입력칸 라벨="비밀번호" 안내="비밀번호 입력" 종류="password" {...칸속성("비밀번호")} />}
+        {/* 로그인 비밀번호 — 가입 규칙 목록을 보여 주지 않는다(로그인은 맞나 틀리나만 본다) */}
+        {모드 === "로그인" && <입력칸 라벨="비밀번호" 안내="비밀번호 입력" 종류="password" 자동완성="current-password" 규칙숨김 {...칸속성("비밀번호")} />}
 
         {모드 === "회원가입" && (
           <>
             <div style={{ display: "flex", flexDirection: "column", gap: "9px", width: "100%" }}>
-              <div style={라벨글}>비밀번호</div>
-              <입력줄 안내="8자 이상" 종류="password" {...칸속성("비밀번호")} />
+              <라벨줄 라벨="비밀번호" 스타일={라벨글} {...칸속성("비밀번호")} />
+              <입력줄 안내="8자 이상" 종류="password" 자동완성="new-password" {...칸속성("비밀번호")} />
               {/* 막대 세 칸이 실제 비밀번호 세기를 보여 준다 (원본은 2칸이 켜진 그림) */}
               <div style={{ display: "flex", gap: "4px", width: "100%" }}>
                 {[0, 1, 2].map((i) => (
@@ -129,54 +251,104 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
                       flex: "1 0 0",
                       height: "2px",
                       borderRadius: "2px",
-                      background: i < 세기(값.비밀번호) ? ["#5293f8", "#4f91f7", "#93c5fd"][i] : "rgba(255,255,255,0.07)",
+                      background: i < 세기(값.비밀번호) ? ["#304d91", "#314d8f", "#3b5ea2"][i] : "rgba(255,255,255,0.07)",
                       transition: "background .2s ease",
                     }}
                   />
                 ))}
               </div>
             </div>
-            <입력칸 라벨="비밀번호 확인" 안내="비밀번호 재입력" 종류="password" {...칸속성("비밀번호확인")} />
+            <입력칸 라벨="비밀번호 확인" 안내="비밀번호 재입력" 종류="password" 자동완성="new-password" {...칸속성("비밀번호확인")} />
           </>
         )}
 
-        {모드 === "인증중" && <인증코드빈칸 {...칸속성("인증코드")} />}
+        {모드 === "인증중" && (
+          <>
+            <인증코드빈칸 {...칸속성("인증코드")} />
+            {/* 메일 서버가 없는 동안만 쓰는 안내 — 받은 코드를 화면에 보여 준다 */}
+            {재설정상태() ? (
+              <div style={테스트코드상자} role="note">
+                <span>메일 발송은 서버 연결 후 동작합니다 · 테스트용 인증코드</span>
+                <b style={{ fontFamily: 글꼴.모노, fontSize: "20px", letterSpacing: "4px", color: "#fde68a" }}>{재설정상태().코드}</b>
+              </div>
+            ) : (
+              <div style={테스트코드상자} role="note">
+                <span>받은 인증코드가 없거나 시간이 지났습니다. 비밀번호 찾기부터 다시 해 주세요.</span>
+              </div>
+            )}
+          </>
+        )}
 
         {모드 === "인증완료" && (
           <>
-            <인증코드완료 />
-            <입력칸 라벨="새 비밀번호" 안내="8자 이상" 종류="password" {...칸속성("새비밀번호")} />
-            <입력칸 라벨="새 비밀번호 확인" 안내="비밀번호 재입력" 종류="password" {...칸속성("비밀번호확인")} />
+            <인증코드완료 코드={재설정상태()?.코드} />
+            <입력칸 라벨="새 비밀번호" 안내="8자 이상" 종류="password" 자동완성="new-password" {...칸속성("새비밀번호")} />
+            <입력칸 라벨="새 비밀번호 확인" 안내="비밀번호 재입력" 종류="password" 자동완성="new-password" {...칸속성("비밀번호확인")} />
           </>
         )}
       </div>
 
       {모드 === "회원가입" && (
-        <div style={{ display: "flex", gap: "10px", alignItems: "center", width: "100%", position: "relative" }}>
-          <div
-            style={{ ...체크상자, ...(동의 ? {} : 안동의한상자), cursor: "pointer" }}
-            onClick={() => {
-              const 새 = !동의;
-              set동의(새);
-              if (눌렀나) set오류((o) => ({ ...o, 동의: 새 ? "" : "약관에 동의해주세요." }));
-            }}
-          >
-            {동의 && <div style={체크표시} />}
+        <div style={{ display: "flex", flexDirection: "column", gap: "9px", width: "100%", position: "relative" }}>
+          {/* ═══ [전체] 동의 ═══
+             맨 윗줄은 「전체」 단추다 — 누르면 아래 필수 항목이 **한꺼번에** 켜지고,
+             풀면 한꺼번에 풀린다. 반대로 아래 항목을 하나씩 다 켜면 전체도 저절로 켜진다.
+             → 전체의 체크 여부는 따로 저장하지 않고 「아래가 다 켜졌나」로 **계산**한다.
+               (따로 저장하면 둘이 어긋날 수 있다 — 하나의 사실은 한 곳에만 둔다) */}
+          <동의줄 켜짐={동의} 바꾸기={(v) => 동의바꾸기("전체", v)} 이름="이용약관 전체 동의">
+            <span style={동의필수}>[전체]</span>
+            <약관링크 탭="이용약관" 열기={약관보기}>이용약관</약관링크>
+            <span style={흐린글}>에 동의합니다.</span>
+          </동의줄>
+
+          {/* 딸린 필수 항목 — 체크 네모(16)+사이(10) 만큼 안쪽으로 */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "9px", paddingLeft: "26px" }}>
+            <동의줄 켜짐={동의들.수집} 바꾸기={(v) => 동의바꾸기("수집", v)} 이름="개인정보 수집·이용 동의">
+              <span style={동의필수}>[필수]</span>
+              <약관링크 탭="개인정보처리방침" 열기={약관보기}>개인정보 수집·이용</약관링크>
+              <span style={흐린글}>에 동의합니다.</span>
+            </동의줄>
+
+            <동의줄 켜짐={동의들.나이} 바꾸기={(v) => 동의바꾸기("나이", v)} 이름="만 14세 이상 확인">
+              <span style={동의필수}>[필수]</span>
+              <span style={흐린글}>만 14세 이상입니다.</span>
+            </동의줄>
           </div>
-          {오류.동의 && <span className="오류글" style={{ left: "26px" }}>{오류.동의}</span>}
-          <div style={{ display: "flex", alignItems: "flex-end", fontFamily: 글꼴.모노, fontSize: "16px", whiteSpace: "nowrap" }}>
-            <span style={{ color: "#93c5fd", opacity: 0.7 }}>이용약관</span>
-            <span style={{ color: "rgba(200,205,255,0.45)" }}>&nbsp;및&nbsp;</span>
-            <span style={{ color: "#93c5fd", opacity: 0.7 }}>개인정보처리방침</span>
-            <span style={{ color: "rgba(200,205,255,0.45)" }}>에 동의합니다.</span>
-          </div>
+
+          {동의오류 && <span className="오류글" style={{ left: "26px", top: "100%" }}>{동의오류}</span>}
         </div>
       )}
 
+      {/* 꿀단지 칸 — 화면 밖으로 치워 사람 눈·키보드에는 안 잡힌다(tabIndex -1, aria-hidden).
+          display:none 으로 숨기면 똑똑한 봇은 건너뛰므로, 「있긴 있는」 칸으로 둔다. */}
+      {모드 === "회원가입" && (
+        <input
+          type="text"
+          name="website"
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden="true"
+          value={꿀단지}
+          onChange={(e) => set꿀단지(e.target.value)}
+          style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", opacity: 0 }}
+        />
+      )}
+
       <div style={{ paddingTop: "24px", width: "100%" }}>
-        <div className="단추" style={큰단추} onClick={보내기}>
+        {경고 && (
+          <div style={경고줄} role="alert">{경고}</div>
+        )}
+        <div
+          className="단추"
+          role="button"
+          tabIndex={0}
+          aria-busy={하는중}
+          style={{ ...큰단추, ...(하는중 ? { opacity: 0.65, cursor: "progress" } : {}) }}
+          onClick={보내기}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); 보내기(); } }}
+        >
           <div style={광택} />
-          <span style={{ position: "relative", ...큰단추글 }}>{ㅁ.단추}</span>
+          <span style={{ position: "relative", ...큰단추글 }}>{하는중 ? "확인하는 중…" : ㅁ.단추}</span>
         </div>
       </div>
 
@@ -185,19 +357,13 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
           <div style={{ padding: "12px 0 4px", width: "100%" }}>
             <div style={{ display: "flex", gap: "12px", alignItems: "center", width: "100%" }}>
               <div style={가는선} />
-              <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "rgba(200,205,255,0.3)", whiteSpace: "nowrap" }}>
+              <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#8b93a3", whiteSpace: "nowrap" }}>
                 {모드 === "로그인" ? "간편 로그인" : "간편 가입"}
               </span>
               <div style={가는선} />
             </div>
           </div>
-          <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center", width: "100%" }}>
-            {[에셋.imgComponent12, 에셋.imgComponent22].map((그림, i) => (
-              <div key={i} style={{ ...소셜, ...막음 }} title={막음안내}>
-                <img src={그림} alt="" style={{ width: "16px", height: "16px", display: "block" }} />
-              </div>
-            ))}
-          </div>
+          <간편로그인 />
         </>
       )}
 
@@ -230,7 +396,76 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
   );
 }
 
-function 입력칸({ 라벨, 안내, 늘림, 흐림, 안내색, 종류, 값, 바꾸기, 오류 }) {
+/* ═══════════════════════════════════════════════════════
+   간편 로그인 단추 — 구글 · 네이버
+
+   [깃허브를 왜 뺐나]
+   원본 두 번째 아이콘이 깃허브였는데, 국내 이용자가 쓰는 계정이 아니다.
+   네이버로 바꿨다. 네이버 표식은 초록 바탕에 흰 N 이 공식 모양이라
+   그대로 그린다(그림 파일이 따로 없어 글자로 그린다).
+
+   키(.env)가 없으면 창을 띄우지 않고 그 자리에서 이유를 알려 준다.
+   ═══════════════════════════════════════════════════════ */
+function 간편로그인() {
+  const [말, set말] = useState("");
+
+  const 가기 = (어디) => {
+    const 문제 = 소셜로가기(어디);
+    set말(문제);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "center", width: "100%" }}>
+      <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center" }}>
+        <button type="button" className="단추" style={{ ...소셜, background: "#ffffff" }} onClick={() => 가기("구글")} title="Google 로 로그인">
+          <img loading="lazy" decoding="async" src={에셋.imgComponent12} alt="Google" style={{ width: "18px", height: "18px", display: "block" }} />
+        </button>
+        <button type="button" className="단추" style={{ ...소셜, background: "#03c75a", borderColor: "#03c75a" }} onClick={() => 가기("네이버")} title="네이버로 로그인">
+          <span style={네이버엔}>N</span>
+        </button>
+      </div>
+      {말 && <span style={{ fontFamily: 글꼴.모노, fontSize: "15px", color: "#96a3b6", textAlign: "center" }}>{말}</span>}
+    </div>
+  );
+}
+
+/* 네이버 표식 — 굵은 산세리프 대문자 N, 초록 바탕에 흰 글자 */
+const 네이버엔 = {
+  fontFamily: "'Inter', system-ui, sans-serif",
+  fontWeight: 800,
+  fontSize: "19px",
+  lineHeight: 1,
+  color: "#ffffff",
+  letterSpacing: "-0.5px",
+  transform: "translateY(-0.5px)",
+};
+
+/* ═══════════════════════════════════════════════════════
+   라벨줄 — 「라벨 ········ 오류 한 줄」
+
+   [왜 칸 아래가 아니라 라벨 옆인가]
+   칸 아래(top: 100%)에 띄우면 칸 사이 틈(14px)이 좁아서 **다음 칸의 라벨을 덮었다.**
+   그렇다고 흐름 안에 넣으면 오류가 뜰 때마다 아래 칸들이 밀려 화면이 출렁인다.
+   라벨 줄의 오른쪽은 원래 비어 있는 자리라, 여기에 두면 겹치지도 밀리지도 않는다.
+   · 오류가 있으면 빨간 글(.칸오류) — role="alert" 라 스크린리더가 바로 읽어 준다
+   · 오류가 없고 이메일 오타가 의심되면 「혹시 … 인가요? 고치기」(.오타제안)
+   ═══════════════════════════════════════════════════════ */
+function 라벨줄({ 라벨, 스타일, 이름, 오류, 오타, 오타고치기 }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "12px", width: "100%", minWidth: 0 }}>
+      <div style={{ ...스타일, width: "auto", flexShrink: 0 }}>{라벨}</div>
+      {오류 ? (
+        <span id={`오류-${이름}`} className="칸오류" role="alert" title={오류}>{오류}</span>
+      ) : 오타 ? (
+        <button type="button" className="오타제안" onMouseDown={(e) => e.preventDefault()} onClick={오타고치기} style={{ fontFamily: 글꼴.모노 }}>
+          {오타} <u>고치기</u>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function 입력칸({ 라벨, 늘림, 흐림, ...나머지 }) {
   return (
     <div
       style={{
@@ -242,25 +477,105 @@ function 입력칸({ 라벨, 안내, 늘림, 흐림, 안내색, 종류, 값, 바
         ...(흐림 ? { opacity: 0.5 } : {}),
       }}
     >
-      <div style={라벨글}>{라벨}</div>
-      <입력줄 안내={안내} 안내색={안내색} 종류={종류} 값={값} 바꾸기={바꾸기} 오류={오류} />
+      <라벨줄 라벨={라벨} 스타일={라벨글} {...나머지} />
+      {/* 나머지 속성(값·오류·맞음·떠나기 …)은 그대로 입력줄로 넘긴다 */}
+      <입력줄 {...나머지} />
     </div>
   );
 }
 
-function 입력줄({ 안내, 안내색 = "rgba(200,205,255,0.2)", 종류 = "text", 값, 바꾸기, 오류 }) {
+/* ═══════════════════════════════════════════════════════
+   입력줄 — 칸 하나. 상태에 따라 모양이 바뀐다
+
+     오류   → 밑줄 빨강(.오류칸) + 아래 빨간 한 줄(.오류글)
+     맞음   → 밑줄 초록(.맞음칸) + 오른쪽 ✓(.맞음표)
+     확인중 → 오른쪽 「확인 중…」 (이메일·닉네임 중복을 물어보는 동안)
+     한글   → 오른쪽 「영문으로 입력해주세요」 (영문 칸에 한글을 치는 즉시)
+     대문자 → 오른쪽 「Caps Lock 켜짐」 (비밀번호 칸에서 대문자 잠금이 켜져 있으면)
+
+   aria-invalid · aria-describedby — 화면을 못 보는 사람(스크린리더)에게도
+   「이 칸이 틀렸고, 까닭은 저 글」이라고 이어 준다.
+   ═══════════════════════════════════════════════════════ */
+function 입력줄({ 이름, 안내, 안내색 = "#6f7a8c", 종류 = "text", 값, 바꾸기, 떠나기, 오류, 맞음, 확인중, 최대, 엔터, 자동완성, 입력방식, 목록, 규칙숨김, 오타, 오타고치기 }) {
+  const [보임, set보임] = useState(false);
+  const [들어옴, set들어옴] = useState(false);
+  const 대문자 = use대문자잠금();
+  const 비번 = 종류 === "password";
+  /* 영문만 받는 칸에 한글을 치면 **다 치기 전에** 알려 준다 */
+  const 한글경고 = 영문칸.has(이름) && 한글있나(값);
+  const 오류아이디 = `오류-${이름}`; // 라벨줄의 오류 글 id 와 같다 → aria-describedby 로 잇는다
+
+  /* 칸에 들어온 순간 쓰는 법을 띄운다 — 오류가 떠 있으면 오류가 우선이다 */
+  const 규칙칸 = !규칙숨김 && (이름 === "비밀번호" || 이름 === "새비밀번호");
+  const 안내띄우기 = 들어옴 && !오류 && !한글경고 && !오타 && 쓰는법[이름] && !(규칙칸 && 값) && !(이름 === "비밀번호" && 규칙숨김);
+
+  /* 오른쪽 작은 안내 — 한 번에 하나만(겹치면 안 읽힌다). 급한 것부터 */
+  const 오른쪽말 = 한글경고 ? { 글: 영문만안내, 종류: "" } : 비번 && 대문자.켜짐 && 들어옴 ? { 글: "Caps Lock 켜짐", 종류: "주의" } : 확인중 ? { 글: "확인 중…", 종류: "확인중" } : null;
+  const 상태 = 오류 || 한글경고 ? "오류칸" : 맞음 ? "맞음칸" : "";
+
   return (
-    <div style={{ ...입력, position: "relative" }} className={오류 ? "오류칸" : undefined}>
-      <input
-        className="입력칸"
-        type={종류}
-        placeholder={안내}
-        value={값 ?? ""}
-        onChange={바꾸기}
-        style={{ fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "18px", "--안내색": 안내색 }}
-      />
-      {오류 && <span className="오류글">{오류}</span>}
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
+      <div className={`밑줄칸 ${상태}`} style={{ ...입력, position: "relative", paddingRight: 비번 ? "40px" : "32px" }}>
+        <input
+          className="입력칸"
+          /* 눈을 뜨면 password → text 로 바꿔 내가 친 글자가 보인다 */
+          type={비번 && !보임 ? "password" : "text"}
+          name={이름}
+          placeholder={안내}
+          value={값 ?? ""}
+          maxLength={최대}
+          onChange={바꾸기}
+          onFocus={() => set들어옴(true)}
+          onBlur={() => { set들어옴(false); 대문자.끄기(); 떠나기?.(); }}
+          onKeyDown={(e) => { 대문자.살피기(e); 엔터?.(e); }}
+          onKeyUp={대문자.살피기}
+          /* 비밀번호 관리자가 알아보게 — 로그인은 current-password, 가입은 new-password */
+          autoComplete={자동완성 ?? (비번 ? "new-password" : undefined)}
+          inputMode={입력방식}
+          list={목록}
+          /* 이메일·비밀번호에 맞춤법 검사·첫 글자 대문자 자동 변환이 끼어들면 값이 바뀐다 */
+          spellCheck={false}
+          autoCapitalize="off"
+          autoCorrect="off"
+          aria-invalid={Boolean(오류 || 한글경고)}
+          aria-describedby={오류 ? 오류아이디 : undefined}
+          style={{ fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "18px", "--안내색": 안내색 }}
+        />
+        {오른쪽말 && <span className={`칸안내 ${오른쪽말.종류}`} style={{ right: 비번 ? "40px" : "0" }}>{오른쪽말.글}</span>}
+        {!오른쪽말 && 맞음 && <span className="맞음표" aria-hidden="true" style={{ right: 비번 ? "40px" : "6px" }}>✓</span>}
+        {비번 && <눈토글 보임={보임} 누르기={() => set보임((v) => !v)} />}
+        {/* 오류 글·오타 제안은 칸 아래가 아니라 **라벨줄 오른쪽**에 뜬다(아래 라벨줄 주석) */}
+        {안내띄우기 && <span className="쓰는법" style={{ fontFamily: 글꼴.모노 }}>{쓰는법[이름]}</span>}
+      </div>
+
+      {/* 비밀번호는 규칙을 켜고 끄며 보여 준다 — 치는 동안 하나씩 초록으로 */}
+      {규칙칸 && (들어옴 || 값) && (
+        <div className="비번규칙" style={{ fontFamily: 글꼴.모노 }}>
+          {비번조건.map(({ 글, 맞나 }) => (
+            <span key={글} className={맞나(값) ? "맞음" : undefined}>
+              <span aria-hidden="true">{맞나(값) ? "✓" : "○"}</span>
+              {글}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
+  );
+}
+
+/* ── 비밀번호 보기/숨기기 ─────────────────────────────
+   피그마에는 **뜬 눈 하나**만 있고 감은 눈 그림이 없다. 없는 아이콘을
+   지어 그리는 대신, 감은 상태는 그 눈 위에 **사선 한 줄**을 덧그어 표시한다
+   (흔히 쓰는 표기이고, 원본 그림은 그대로 쓴다).
+
+   ★ 폼 칸의 눈(imgVariant7)은 stroke 투명도가 0.3 이라 어두운 카드 위에서
+     거의 안 보인다. 같은 파일의 또렷한 눈(imgEyeIcon, #64748B)을 쓴다. */
+function 눈토글({ 보임, 누르기 }) {
+  return (
+    <button type="button" onClick={누르기} title={보임 ? "비밀번호 숨기기" : "비밀번호 보기"} style={눈단추}>
+      <img loading="lazy" decoding="async" src={에셋.imgEyeIcon} alt="" style={{ width: "18px", height: "18px", display: "block", filter: 보임 ? "brightness(1.9)" : "brightness(1.35)" }} />
+      {!보임 && <span style={사선} />}
+    </button>
   );
 }
 
@@ -273,9 +588,9 @@ function 인증코드빈칸({ 값, 바꾸기, 오류 }) {
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} style={{ ...빈코드칸, ...(오류 ? { borderColor: "rgba(248,113,113,0.55)" } : {}) }}>
             {(값 ?? "")[i] ? (
-              <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, fontSize: "24px", color: "#c8cdff" }}>{값[i]}</span>
+              <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, fontSize: "24px", color: "#f1f1fc" }}>{값[i]}</span>
             ) : (
-              <div style={{ width: "24px", height: "2px", borderRadius: "1px", background: "rgba(96,165,250,0.3)" }} />
+              <div style={{ width: "24px", height: "2px", borderRadius: "1px", background: "rgba(50,82,150,0.3)" }} />
             )}
           </div>
         ))}
@@ -296,17 +611,17 @@ function 인증코드빈칸({ 값, 바꾸기, 오류 }) {
 }
 
 /* 인증이 끝난 코드 — 초록 테두리에 숫자가 박혀 있고 전체가 흐리다 (103:1255) */
-function 인증코드완료() {
+function 인증코드완료({ 코드 = "------" }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "9px", width: "100%", opacity: 0.6, overflow: "hidden" }}>
       <div style={{ display: "flex", gap: "8px", width: "100%", fontSize: "16px" }}>
-        <span style={{ flex: "1 0 0", fontFamily: 글꼴.모노, color: "rgba(181,189,255,0.85)" }}>인증코드</span>
+        <span style={{ flex: "1 0 0", fontFamily: 글꼴.모노, color: "#96a3b6" }}>인증코드</span>
         <span style={{ flex: "1 0 0", fontFamily: 글꼴.모노, fontWeight: 700, color: "#33d98c" }}>✓ 인증완료</span>
       </div>
       <div style={{ display: "flex", gap: "10px", width: "100%" }}>
-        {["4", "8", "2", "7", "1", "5"].map((숫자, i) => (
+        {String(코드).split("").map((숫자, i) => (
           <div key={i} style={찬코드칸}>
-            <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, fontSize: "24px", color: "#c8cdff" }}>{숫자}</span>
+            <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, fontSize: "24px", color: "#f1f1fc" }}>{숫자}</span>
           </div>
         ))}
       </div>
@@ -314,12 +629,26 @@ function 인증코드완료() {
   );
 }
 
+const 테스트코드상자 = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "12px",
+  padding: "12px 16px",
+  borderRadius: "10px",
+  border: "1px dashed rgba(251,191,36,0.45)",
+  background: "rgba(251,191,36,0.06)",
+  fontFamily: 글꼴.모노,
+  fontSize: "14px",
+  color: "#fbbf24",
+};
+
 const 카드 = {
   width: "593px",
   padding: "48px 24px 0",
   borderRadius: "16px",
-  background: "#060d1a",
-  border: "1px solid #1e3a5f",
+  background: "#050b1a",
+  border: "1px solid #1a305f",
   backdropFilter: "blur(12px)",
   WebkitBackdropFilter: "blur(12px)",
   display: "flex",
@@ -329,23 +658,27 @@ const 카드 = {
   boxSizing: "border-box",
 };
 
-const 제목글 = { fontFamily: 글꼴.넓게, fontWeight: 700, fontSize: "36px", color: "#eeeeff", width: "100%" };
-const 부제글 = { fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "18px", color: "rgba(181,188,255,0.85)", width: "100%" };
+const 제목글 = { fontFamily: 글꼴.넓게, fontWeight: 700, fontSize: "36px", color: "#f1f1fc", width: "100%" };
+const 부제글 = { fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "18px", color: "#96a3b6", width: "100%" };
+/* 작은 글씨는 자간이 붙으면 뭉쳐 보인다 — 조금 벌린다 */
 const 라벨글 = {
+  letterSpacing: "0.4px",
   fontFamily: 글꼴.모노,
   fontWeight: 400,
   fontSize: "16px",
-  color: "rgba(181,188,255,0.85)",
+  color: "#96a3b6",
   textTransform: "uppercase",
   width: "100%",
 };
 
 const 입력 = {
-  borderBottom: "1px solid rgba(96,165,250,0.18)",
+  borderBottom: "1px solid rgba(50,82,150,0.18)",
   padding: "10px 32px 10px 0",
   display: "flex",
   alignItems: "flex-start",
-  overflow: "hidden",
+  /* ★ hidden → visible. 칸 **아래로** 띄우는 오류 한 줄·오타 제안이 이 칸 밖(top: 100%)에
+     그려지는데, hidden 이면 잘려서 **빨간 글씨가 아예 안 보였다.** 긴 글은 input 이 알아서 넘긴다. */
+  overflow: "visible",
   width: "100%",
   boxSizing: "border-box",
 };
@@ -359,22 +692,71 @@ const 코드칸바탕 = {
   borderRadius: "10px",
   boxSizing: "border-box",
 };
-const 빈코드칸 = { ...코드칸바탕, height: "64px", background: "#060d1a", border: "1px solid rgba(96,165,250,0.18)" };
-const 찬코드칸 = { ...코드칸바탕, padding: "16px 0", background: "#0a1426", border: "1px solid rgba(51,166,115,0.4)" };
+const 빈코드칸 = { ...코드칸바탕, height: "64px", background: "#050b1a", border: "1px solid rgba(50,82,150,0.18)" };
+const 찬코드칸 = { ...코드칸바탕, padding: "16px 0", background: "#091126", border: "1px solid rgba(51,166,115,0.4)" };
+
+/* ═══ 약관 링크 ═══
+   동의 줄은 <label> 이라 안의 글자를 누르면 체크가 바뀐다. 링크는 체크가 아니라
+   **약관을 여는** 게 맞으므로 진짜 <button> 으로 두고, 누름이 label 까지 올라가지 않게 막는다.
+   (preventDefault: label 의 「체크 켜기」 기본 동작을 막음 / stopPropagation: 위로 안 퍼지게) */
+function 약관링크({ 탭, 열기, children }) {
+  return (
+    <button
+      type="button"
+      className="약관링크"
+      onClick={(e) => { e.preventDefault(); e.stopPropagation(); 열기(탭); }}
+      title={`${탭} 보기`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ═══ 동의 한 줄 ═══
+   [왜 진짜 <input> 인가]
+   전에는 div 에 onClick 이라 **탭으로 갈 수도, 스페이스로 켤 수도 없었다.**
+   보이는 네모는 시안 그대로 두되, 실제 체크박스를 그 위에 투명하게 겹친다.
+   키보드·스크린리더는 표준 체크박스로 다루고 눈에는 원본이 보인다. */
+function 동의줄({ 켜짐, 바꾸기, 이름, children }) {
+  return (
+    <label style={{ display: "flex", gap: "10px", alignItems: "center", position: "relative", cursor: "pointer" }}>
+      <span style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}>
+        <input type="checkbox" checked={켜짐} onChange={(e) => 바꾸기(e.target.checked)} aria-label={이름} style={숨은체크} />
+        <span
+          aria-hidden="true"
+          /* 그림일 뿐이라 클릭을 받지 않는다 — 받으면 밑의 진짜 체크박스를
+             가로막는다. 클릭은 바깥 <label> 이 받는다. */
+          style={{ ...체크상자, pointerEvents: "none", ...(켜짐 ? {} : 안동의한상자) }}
+        >
+          {켜짐 && <span style={체크표시} />}
+        </span>
+      </span>
+      <span style={{ display: "flex", gap: "5px", alignItems: "flex-end", paddingBottom: "1px", fontFamily: 글꼴.모노, fontSize: "16px", whiteSpace: "nowrap" }}>
+        {children}
+      </span>
+    </label>
+  );
+}
+
+/* 눈에는 안 보이지만 키보드와 스크린리더에는 있는 체크박스.
+   display:none 으로 숨기면 초점을 못 받으므로 투명하게만 덮는다. */
+const 숨은체크 = { position: "absolute", inset: 0, width: "16px", height: "16px", margin: 0, opacity: 0, cursor: "pointer" };
+
+const 동의필수 = { color: "#6f86bf", fontWeight: 700, letterSpacing: "0.4px" };
 
 const 체크상자 = {
   width: "16px",
   height: "16px",
   borderRadius: "4px",
-  border: "1px solid rgba(147,197,253,0.6)",
-  backgroundImage: "linear-gradient(135deg, rgb(59,130,246) 0%, rgb(99,102,241) 100%)",
+  border: "1px solid rgba(59,94,162,0.6)",
+  backgroundImage: "linear-gradient(135deg, rgb(46,72,137) 0%, rgb(54,64,143) 100%)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   boxSizing: "border-box",
   flexShrink: 0,
 };
-const 안동의한상자 = { backgroundImage: "none", background: "transparent", borderColor: "rgba(147,197,253,0.45)" };
+const 안동의한상자 = { backgroundImage: "none", background: "transparent", borderColor: "rgba(59,94,162,0.45)" };
 
 const 체크표시 = {
   width: "4px",
@@ -383,6 +765,19 @@ const 체크표시 = {
   borderBottom: "2px solid #ffffff",
   transform: "rotate(45deg)",
   marginTop: "-2px",
+};
+
+/* 저장소가 돌려준 까닭을 그대로 보여 주는 줄 — 칸 하나가 아니라
+   「이메일 또는 비밀번호가 올바르지 않습니다」처럼 폼 전체에 걸린 문제다 */
+const 경고줄 = {
+  fontFamily: "inherit",
+  fontSize: "16px",
+  lineHeight: 1.5,
+  color: "#f87171",
+  padding: "10px 14px",
+  borderRadius: "10px",
+  background: "rgba(248,113,113,0.08)",
+  border: "1px solid rgba(248,113,113,0.3)",
 };
 
 const 큰단추 = {
@@ -395,8 +790,8 @@ const 큰단추 = {
   alignItems: "center",
   justifyContent: "center",
   boxSizing: "border-box",
-  backgroundImage: "linear-gradient(166.833deg, rgb(59,130,246) 0%, rgb(99,102,241) 45%, rgb(56,130,255) 100%)",
-  boxShadow: "0px 0px 48px 8px rgba(96,165,250,0.25), 0px 4px 20px 0px rgba(59,130,246,0.45)",
+  backgroundImage: "linear-gradient(166.833deg, rgb(46,72,137) 0%, rgb(54,64,143) 45%, rgb(43,71,143) 100%)",
+  boxShadow: "0px 0px 48px 8px rgba(50,82,150,0.25), 0px 4px 20px 0px rgba(46,72,137,0.45)",
   cursor: "pointer",
 };
 const 광택 = {
@@ -420,22 +815,50 @@ const 소셜 = {
   width: "44px",
   height: "44px",
   borderRadius: "22px",
-  background: "rgba(167,139,250,0.05)",
-  border: "1px solid rgba(96,165,250,0.18)",
+  border: "1px solid rgba(50,82,150,0.18)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  padding: 0,
+  cursor: "pointer",
   boxSizing: "border-box",
 };
 
 const 하단 = {
   display: "flex",
-  gap: "4px",
+  gap: "10px", // 「아직 모험가가 아닌가요?」 와 「회원가입」 이 붙어 보여서 넓혔다
   alignItems: "center",
   justifyContent: "center",
   width: "100%",
   fontSize: "16px",
   whiteSpace: "nowrap",
 };
-const 흐린글 = { fontFamily: 글꼴.모노, fontWeight: 400, color: "rgba(200,205,255,0.45)" };
-const 강조링크 = { fontFamily: 글꼴.모노, color: "#5092f8" };
+const 흐린글 = { fontFamily: 글꼴.모노, fontWeight: 400, color: "#8b93a3" };
+const 강조링크 = { fontFamily: 글꼴.모노, color: "#6f86bf" };
+
+const 눈단추 = {
+  position: "absolute",
+  right: "8px",
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: "24px",
+  height: "24px",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: 0,
+  border: 0,
+  background: "transparent",
+  cursor: "pointer",
+};
+
+const 사선 = {
+  position: "absolute",
+  left: "2px",
+  right: "2px",
+  top: "50%",
+  height: "1.5px",
+  borderRadius: "1px",
+  background: "rgba(241,241,252,0.75)",
+  transform: "rotate(-45deg)",
+};

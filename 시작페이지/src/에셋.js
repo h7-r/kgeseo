@@ -13,15 +13,15 @@
 import imgAmbientRadialGlowRight from "../에셋/imgAmbientRadialGlowRight.svg";
 import imgAncientGateLine from "../에셋/imgAncientGateLine.svg";
 import imgAwardLine from "../에셋/imgAwardLine.svg";
-import imgBenefitImage from "../에셋/imgBenefitImage.png";
-import imgBenefitImage1 from "../에셋/imgBenefitImage1.png";
-import imgBg from "../에셋/imgBg.png";
-import imgBg1 from "../에셋/imgBg1.png";
-import imgBg2 from "../에셋/imgBg2.png";
+import imgBenefitImage from "../에셋/imgBenefitImage.webp";
+import imgBenefitImage1 from "../에셋/imgBenefitImage1.webp";
+import imgBg from "../에셋/imgBg.webp";
+import imgBg1 from "../에셋/imgBg1.webp";
+import imgBg2 from "../에셋/imgBg2.webp";
 import imgBookOpen from "../에셋/imgBookOpen.svg";
-import imgCharImage from "../에셋/imgCharImage.png";
-import imgCharImage1 from "../에셋/imgCharImage1.png";
-import imgCharImage2 from "../에셋/imgCharImage2.png";
+import imgCharImage from "../에셋/imgCharImage.webp";
+import imgCharImage1 from "../에셋/imgCharImage1.webp";
+import imgCharImage2 from "../에셋/imgCharImage2.webp";
 import imgChevronDown from "../에셋/imgChevronDown.svg";
 import imgChevronLeft from "../에셋/imgChevronLeft.svg";
 import imgChevronRight from "../에셋/imgChevronRight.svg";
@@ -58,8 +58,9 @@ import imgGroup143 from "../에셋/imgGroup143.svg";
 import imgGroup15 from "../에셋/imgGroup15.svg";
 import imgGroup152 from "../에셋/imgGroup152.svg";
 import imgGroup153 from "../에셋/imgGroup153.svg";
-import imgGroup28 from "../에셋/imgGroup28.svg";
-import imgGroup29 from "../에셋/imgGroup29.svg";
+/* imgGroup28.svg(1.1MB) · imgGroup29.svg(1.4MB) 는 **어디서도 안 쓴다.**
+   import 만 남아 있어 빌드마다 2.5MB 가 따라 들어갔다. 파일은 에셋/ 에
+   그대로 두고 여기서만 뺀다 — 나중에 쓸 일이 생기면 두 줄만 되살리면 된다. */
 import imgInstagram from "../에셋/imgInstagram.svg";
 import imgKey from "../에셋/imgKey.svg";
 import imgLine from "../에셋/imgLine.svg";
@@ -72,11 +73,11 @@ import imgMountainIcon from "../에셋/imgMountainIcon.svg";
 import imgNavigation from "../에셋/imgNavigation.svg";
 import imgPlay from "../에셋/imgPlay.svg";
 import imgPlay2 from "../에셋/imgPlay2.svg";
-import imgPortalImageNaju from "../에셋/imgPortalImageNaju.png";
+import imgPortalImageNaju from "../에셋/imgPortalImageNaju.webp";
 import imgRepeat from "../에셋/imgRepeat.svg";
 import imgRotateCcw from "../에셋/imgRotateCcw.svg";
 import imgSearchIcon from "../에셋/imgSearchIcon.svg";
-import imgShowcaseCircle from "../에셋/imgShowcaseCircle.png";
+import imgShowcaseCircle from "../에셋/imgShowcaseCircle.webp";
 import imgTwitter from "../에셋/imgTwitter.svg";
 import imgUploadCloud from "../에셋/imgUploadCloud.svg";
 import imgUsers from "../에셋/imgUsers.svg";
@@ -86,9 +87,9 @@ import imgVariant7 from "../에셋/imgVariant7.svg";
 import imgVector from "../에셋/imgVector.svg";
 import imgVector1 from "../에셋/imgVector1.svg";
 import imgVector2 from "../에셋/imgVector2.svg";
-import imgVideoCard1 from "../에셋/imgVideoCard1.png";
-import imgVideoCard2 from "../에셋/imgVideoCard2.png";
-import imgVideoCard3 from "../에셋/imgVideoCard3.png";
+import imgVideoCard1 from "../에셋/imgVideoCard1.webp";
+import imgVideoCard2 from "../에셋/imgVideoCard2.webp";
+import imgVideoCard3 from "../에셋/imgVideoCard3.webp";
 import imgYoutube from "../에셋/imgYoutube.svg";
 
 export default {
@@ -140,8 +141,6 @@ export default {
   imgGroup15,
   imgGroup152,
   imgGroup153,
-  imgGroup28,
-  imgGroup29,
   imgInstagram,
   imgKey,
   imgLine,

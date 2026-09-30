@@ -7,6 +7,7 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
+import { 플레이어시점 } from "../공용.jsx";
 import {
   표면등록,
   표면해제,
@@ -83,6 +84,14 @@ export function 잰다({
           halfZ: 반,
           height: b.max.y - b.min.y,
           오프셋: 기준y === undefined ? 0 : b.min.y - 기준y,
+          // ★ **돌리지 않은 진짜 반치수**도 같이 남긴다.
+          //   위 halfX/halfZ 는 '어느 각도로 돌려도 안전한' 정사각이라
+          //   놓기 판정에는 맞지만, **손에 든 물건을 몸에서 얼마나 띄울지**에는
+          //   과하다. 서류(1.11 × 0.32)·키보드(1.55 × 0.49) 같은 납작하고 긴
+          //   물건이 긴 쪽 기준으로 취급돼 팔이 필요 이상으로 벌어진다.
+          //   App 의 `비킴` 이 이 값을 쓴다. 놓기 쪽은 위 정사각 그대로다.
+          진짜halfX: 폭 / 2,
+          진짜halfZ: 깊이 / 2,
         });
       }
       return true;
@@ -119,7 +128,14 @@ export function 놓을자리계산({ 물건id }) {
       놓기상태갱신(null);
       return;
     }
-    const r = 놓을자리찾기(camera, 물건id);
+    // ★ 3인칭이면 **캐릭터 자리**에서 쏜다(배치.js 놓을자리찾기 주석 참고).
+    //   1인칭이면 두 자리가 같아 결과가 안 바뀐다 — 조건을 나누지 않는다.
+    const r = 놓을자리찾기(
+      camera,
+      물건id,
+      undefined,
+      플레이어시점.쓸수있나 ? 플레이어시점.눈 : null,
+    );
     최근자리설정(r);
     놓기상태갱신(r);
   });

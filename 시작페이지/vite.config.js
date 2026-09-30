@@ -14,9 +14,59 @@ import { fileURLToPath } from "node:url";
 //   건드리면 진행 중인 게임 작업과 같은 파일에서 부딪힌다. 여기는 완전히
 //   분리된 앱이라, 이쪽을 아무리 고쳐도 게임 쪽 화면은 한 줄도 안 바뀐다.
 //   나중에 붙일 땐 src/시작화면.jsx 를 본편 라우트로 옮겨 붙이면 된다.
+/* ── 에러 수집기 — **개발 서버에서만** 넣는다 ──
+   잡히지 않은 에러를 탭 제목에 찍고 window.__E 에 쌓아 두는 개발용 장치(본편 index.html 과 같은 것).
+   [전엔] index.html 에 박혀 있어 배포본에도 들어갔다 → 실제 사용자 화면에서 에러가 나면
+          탭 제목이 「ERR: …」로 바뀌었다. 배포본엔 필요 없는 코드라 개발 때만 끼워 넣는다. */
+function 개발용에러수집기() {
+  return {
+    name: "개발용-에러수집기",
+    apply: "serve",
+    transformIndexHtml() {
+      return [{
+        tag: "script",
+        injectTo: "body-prepend",
+        children: `window.__E=[];function __err(m){window.__E.push(String(m).slice(0,500));document.title="ERR: "+String(m).slice(0,120);}addEventListener("error",e=>__err((e.error&&e.error.stack)||e.message));addEventListener("unhandledrejection",e=>__err("REJ "+((e.reason&&e.reason.stack)||e.reason)));`,
+      }];
+    },
+  };
+}
+
+/* ── 배포본 index.html 에서 주석 빼기 ──
+   JS·CSS 는 빌드할 때 압축(minify)되며 주석이 저절로 빠지지만, **HTML 은 Vite 가 손대지 않는다.**
+   그래서 index.html 의 긴 설명 주석이 그대로 배포돼 첫 요청(문서)이 커졌다. 빌드할 때만 지운다
+   (소스 index.html 의 주석은 그대로 — 읽는 사람을 위한 설명이다). */
+function 배포html주석빼기() {
+  return {
+    name: "배포-html-주석빼기",
+    apply: "build",
+    transformIndexHtml: {
+      order: "post",
+      handler: (html) => html.replace(/<!--(?!\[if)[\s\S]*?-->/g, "").replace(/\n\s*\n+/g, "\n"),
+    },
+  };
+}
+
+/* ── 배포본 셰이더(GLSL) 글에서 주석 빼기 ──
+   셰이더는 JS 안의 **문자열**이라, JS 압축기는 그 안의 주석을 코드가 아닌 글자로 보고 그대로 남긴다.
+   (히어로영상.jsx 의 셰이더 설명 주석이 배포 JS 에 그대로 실려 갔다.)
+   빌드할 때만 「○○셰이더 = `…`」 문자열 안의 주석과 빈 줄을 지운다. 셰이더 동작은 그대로다. */
+function 배포셰이더주석빼기() {
+  return {
+    name: "배포-셰이더-주석빼기",
+    apply: "build",
+    transform(코드, id) {
+      if (!/\.jsx?$/.test(id) || !코드.includes("셰이더 = `")) return null;
+      const 새코드 = 코드.replace(/(셰이더\s*=\s*`)([^`]*)(`)/g, (_, 앞, 몸, 뒤) =>
+        앞 + 몸.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "").replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").trim() + 뒤);
+      return { code: 새코드, map: null };
+    },
+  };
+}
+
 export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
-  plugins: [react()],
+  plugins: [react(), 개발용에러수집기(), 배포html주석빼기(), 배포셰이더주석빼기()],
 
   // publicDir 은 **이 폴더 것**(시작페이지/public/)을 쓴다 — 기본값이라 안 적는다.
   //

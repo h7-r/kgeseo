@@ -9,7 +9,7 @@
 import { useRef, useState, useEffect } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
-import { Preload } from "@react-three/drei";
+import { Preload, PerformanceMonitor } from "@react-three/drei";
 import {
   EffectComposer,
   Bloom,
@@ -54,9 +54,18 @@ const 무대16x9 = 쿼리.get("stage") === "16x9";
 // [왜 손잡이로 두나]  이 씬의 꾸준한 비용은 **픽셀 수에 정비례한다** —
 //   화면 절반 이상이 땅이고, 그 땅은 픽셀마다 삼면 노이즈를 세 번 돌린다
 //   (공간그레이박스 `바닥결` 주석). 1.5 로만 낮춰도 픽셀이 44 % 준다.
-// [기본은 2 — 지금 화면 그대로다.]  `?dpr=1.5` · `?dpr=1` 로 견줘 보고
-//   눈에 띄는 차이가 없으면 기본값을 내리면 된다.
-const 배율상한 = Math.min(3, Math.max(1, +(쿼리.get("dpr") || 2) || 2));
+// [기본을 2 → 1.75 로 내렸다]  재 보니 이 씬의 프레임은 **픽셀에 걸려 있었다.**
+//   2 에서 1.5 로만 내려도 그릴 픽셀이 44 % 준다. 1.75 는 그 중간으로,
+//   레티나에서 글자·외곽선이 무너지지 않는 가장 낮은 값이다(눈으로 확인).
+// [★ 고정이 아니라 **스스로 오르내린다** — 아래 `화면배율지킴이`]
+//   `?dpr=1.5` 처럼 숫자를 주면 그 값에 **못 박고** 자동 조절을 끈다
+//   (A/B 로 견줄 때 쓴다).
+const 배율지정 = 쿼리.get("dpr");
+const 배율상한 = Math.min(3, Math.max(1, +(배율지정 || 1.75) || 1.75));
+// 자동 조절 하한 — 이보다 밑으로는 안 내린다(너무 뿌예진다)
+const 배율하한 = 1;
+// 숫자를 직접 준 사람의 뜻을 존중한다 — 그때는 자동 조절을 안 한다
+const 배율자동 = !배율지정 && !저사양;
 
 // 시작 카메라 — V1 자리, 도면 기본값 기준.
 //   Leva 에 저장된 값이 다르면 첫 프레임에 씬이 알아서 다시 앉힌다.
@@ -77,6 +86,22 @@ const 사이드킥저장키 = "naju01.sidekick.appearance.v2";
 const 이전저장키 = "naju01.sidekick.appearance.v1";
 
 export default function App() {
+  // ── 화면 배율을 스스로 오르내리게 한다 ──────────────────────
+  // [무엇이 문제였나]
+  //   dpr 을 하나로 못 박으면 **가장 나쁜 자리에 맞춰야** 한다. Z1 마을처럼
+  //   물건이 몰린 곳에서 버티는 값으로 고정하면, 능선처럼 한가한 곳에서는
+  //   남는 성능을 그냥 버린다. 반대로 높게 고정하면 마을에서 끊긴다.
+  //   그리고 기기가 다 다르다 — 발표장 노트북이 이 맥과 같을 리가 없다.
+  // [어떻게]
+  //   drei 의 `PerformanceMonitor` 가 평균 fps 를 보다가 0~1 짜리 `factor` 를
+  //   내준다. 그걸 하한~상한 사이 배율로 옮긴다. 콘솔·스팀 게임의
+  //   「동적 해상도(dynamic resolution scaling)」와 같은 수다 —
+  //   프레임을 지키려고 **해상도를 먼저 내주는** 쪽을 고른다.
+  // [왜 0.25 눈금으로 끊나]
+  //   배율이 바뀌면 three 가 프레임버퍼를 다시 잡는다. 잘게 흔들면 그때마다
+  //   재할당이 일어나 **아끼려던 것을 도로 쓴다.** 네 눈금이면 충분하다.
+  const [배율, set배율] = useState(배율자동 ? 1.25 : 배율상한);
+
   const controlsRef = useRef(null);
   const 보고 = useRef(null); // 씬 → 계기판으로 넘기는 상자(리렌더 없이)
   const [locked, setLocked] = useState(false);
@@ -119,7 +144,10 @@ export default function App() {
       <Leva hidden={!LEVA보임} theme={{ sizes: { numberInputMinWidth: "68px" } }} />
       <Canvas
         shadows={저사양 ? false : "percentage"}
-        dpr={저사양 ? 1 : [1, 배율상한]}
+        /* ★ `[1, 상한]` 이 아니라 **한 값**을 준다.
+             배열을 주면 three 가 기기 픽셀비에 맞춰 알아서 고르고, 그러면
+             아래 `PerformanceMonitor` 가 정한 값이 **묻힌다**(실제로 안 먹었다). */
+        dpr={저사양 ? 1 : 배율}
         gl={{
           antialias: !저사양 && 후처리끄기,
           toneMappingExposure: 1.15,
@@ -140,6 +168,24 @@ export default function App() {
         }}
       >
         <Preload all />
+        {/* ── 화면배율 지킴이 ──────────────────────────────────
+               프레임이 처지면 배율을 내리고, 남으면 올린다.
+               `factor` 는 0(느림) ~ 1(빠름) 이다.
+               ※ 위아래 한계(`bounds`)를 벌려 둔다. 붙여 두면 올림·내림이
+                 번갈아 들어와 **배율이 계속 흔들린다**(ping-pong).
+               ※ `flipflops` 세 번이면 포기하고 그 자리에 머문다 — 아니면
+                 발표 중에 화면이 계속 오르락내리락한다. */}
+        {배율자동 && (
+          <PerformanceMonitor
+            bounds={() => [50, 58]}
+            flipflops={3}
+            onChange={({ factor }) => {
+              const 다음 =
+                Math.round((배율하한 + (배율상한 - 배율하한) * factor) * 4) / 4;
+              set배율((앞) => (앞 === 다음 ? 앞 : 다음));
+            }}
+          />
+        )}
         <공간그레이박스
           active={locked}
           controlsRef={controlsRef}

@@ -16,7 +16,7 @@ export default function 게임소개({ 탭 = "게임 소개", 위 = 0, 탭누르
   const ㄴ = 탭내용[탭];
 
   return (
-    <section style={{ ...바깥, top: `${위}px` }} data-node-id="86:1319">
+    <section className="밝은판" style={{ ...바깥, top: `${위}px` }} data-node-id="86:1319">
       <div style={{ display: "flex", gap: "20px", width: "100%" }}>
         {탭목록.map((이름) => (
           <div
@@ -41,10 +41,10 @@ export default function 게임소개({ 탭 = "게임 소개", 위 = 0, 탭누르
           <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%", fontSize: "18px" }}>
             {ㄴ.줄.map(([라벨, 값], i) => (
               <div key={i} style={{ display: "flex", gap: "12px", alignItems: "center", width: "100%" }}>
-                <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, color: "#60a5fa", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, color: "#2f3e70", textTransform: "uppercase", whiteSpace: "nowrap" }}>
                   {라벨}
                 </span>
-                <span style={{ flex: "1 0 0", minWidth: 0, fontFamily: 글꼴.모노, fontWeight: 400, lineHeight: "22px", color: "#4d5461" }}>
+                <span style={{ flex: "1 0 0", minWidth: 0, fontFamily: 글꼴.모노, fontWeight: 400, lineHeight: "22px", color: "#3c4250" }}>
                   {값}
                 </span>
               </div>
@@ -54,7 +54,7 @@ export default function 게임소개({ 탭 = "게임 소개", 위 = 0, 탭누르
           <div style={{ height: "1px", width: "100%", background: "#ebedf2" }} />
 
           {/* 설명은 탭마다 문단 수가 다르다 (1~4개) */}
-          <div style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", letterSpacing: "0.18px", color: "#8c94a1", width: "100%" }}>
+          <div style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", letterSpacing: "0.18px", color: "#5f6878", width: "100%" }}>
             {ㄴ.설명.map((문단, i) => (
               <p key={i} style={{ margin: 0, lineHeight: "22px" }}>
                 {문단}
@@ -65,11 +65,11 @@ export default function 게임소개({ 탭 = "게임 소개", 위 = 0, 탭누르
 
         <div style={사진칸}>
           <div style={사진속}>
-            <img src={에셋.imgMonitor} alt="" style={{ width: "28px", height: "28px", display: "block" }} />
-            <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, fontSize: "18px", color: "#60a5fa", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+            <img loading="lazy" decoding="async" src={에셋.imgMonitor} alt="" style={{ width: "28px", height: "28px", display: "block" }} />
+            <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, fontSize: "18px", color: "#2f3e70", textTransform: "uppercase", whiteSpace: "nowrap" }}>
               {ㄴ.사진제목}
             </span>
-            <span style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", lineHeight: "20px", color: "#8c94a1", textAlign: "center", width: "100%" }}>
+            <span style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", lineHeight: "20px", color: "#5f6878", textAlign: "center", width: "100%" }}>
               {ㄴ.사진설명}
             </span>
           </div>
@@ -108,9 +108,9 @@ const 바깥 = {
   position: "absolute",
   left: 0,
   width: "1920px",
-  height: "630px",
+  minHeight: "630px",
   background: "#ffffff",
-  padding: "40px 120px",
+  padding: "40px 120px 56px", // 아래를 조금 더 띄운다 (쪽번호와 흰 면 끝 사이)
   display: "flex",
   flexDirection: "column",
   gap: "24px",
@@ -135,16 +135,18 @@ const 탭바탕 = {
 
 const 켜진탭 = {
   ...탭바탕,
-  background: "#3b82f6",
-  color: "#1a1a1f",
-  filter: "drop-shadow(0px 8px 9px rgba(59,130,246,0.25))",
+  background: "#2e4889",
+  color: "#ffffff", /* 눌린 탭은 흰 글자 — 남색 위 검정은 안 읽혔다 */
+  filter: "drop-shadow(0px 8px 9px rgba(46,72,137,0.25))",
 };
 
+/* 꺼진 탭 글자를 2.8:1 에서 5.2:1 로 올렸다 — 연회색 바탕에 연회색 글자라
+   「안 보인다」는 말이 나왔다. 켜진 탭과는 바탕색으로 구분된다. */
 const 꺼진탭 = {
   ...탭바탕,
   background: "#f2f5f7",
   border: "1px solid #d9dee5",
-  color: "#8c94a1",
+  color: "#5f6878",
 };
 
 const 사진칸 = {
@@ -176,16 +178,19 @@ const 사진속 = {
   boxSizing: "border-box",
 };
 
+/* [왜 absolute 를 버렸나]
+   원본은 쪽번호를 (770, 534) 에 박아 놨다. 그러면 내용이 짧은 탭에서
+   내용과 쪽번호 사이가 휑하게 비고, 칸 높이(630)도 고정이라 그 아래가
+   또 남는다. 흐름 안에 넣어 내용 바로 뒤에 붙였다. */
 const 쪽번호 = {
-  position: "absolute",
-  left: "770px",
-  top: "534px",
-  padding: "20px 0",
+  alignSelf: "center",
+  marginTop: "auto",
+  paddingTop: "24px",
+  paddingBottom: "8px",
   display: "flex",
   gap: "12px",
   alignItems: "center",
   justifyContent: "center",
-  overflow: "hidden",
 };
 
 const 화살표 = {
@@ -197,7 +202,7 @@ const 화살표 = {
   fontFamily: 글꼴.본문,
   fontWeight: 400,
   fontSize: "28px",
-  color: "#666e80",
+  color: "#4a5263",
   whiteSpace: "nowrap",
   cursor: "pointer",
 };
@@ -214,5 +219,6 @@ const 쪽바탕 = {
   boxSizing: "border-box",
 };
 
-const 켜진쪽 = { ...쪽바탕, background: "#3b82f6", color: "#ffffff", fontWeight: 700 };
-const 꺼진쪽 = { ...쪽바탕, border: "1px solid #d1d6e0", color: "#737a8c", fontWeight: 400 };
+/* 흰 글자에 #3b82f6 은 3.7:1 이라 본문 기준에 못 미쳤다. 한 단계 진한 파랑이면 6.3:1 */
+const 켜진쪽 = { ...쪽바탕, background: "#2f3e70", color: "#ffffff", fontWeight: 700 };
+const 꺼진쪽 = { ...쪽바탕, border: "1px solid #d1d6e0", color: "#5f6878", fontWeight: 400 };

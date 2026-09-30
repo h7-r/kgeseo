@@ -7,34 +7,71 @@
     <!-- 피그마 디자인의 실제 제목이 정해지면 여기도 바꾼다 -->
     <title>왜곡 — 시작</title>
 
-    <!-- 피그마 변수 font family/Font 1~3 가 부르는 글꼴 -->
+    <!-- ═══ 글꼴 — IBM Plex 한 벌로 통일 ═══
+         전에는 Bebas Neue(제목) · Inter(본문) · Syncopate(넓게) · IBM Plex Mono
+         네 벌에 한글용 Pretendard 를 받쳐 뒀다. 그런데 앞의 세 벌에는 **한글이
+         없다.** 이 화면은 글의 대부분이 한글이라, 제목도 본문도 실제로는 전부
+         Pretendard 로 떨어져 그려졌다 — 고른 글꼴이 한글에는 한 번도 적용되지
+         않은 셈이다.
+
+         그래서 한글 자모까지 같은 손으로 그린 IBM Plex 한 벌로 바꿨다.
+           · Bebas Neue      — 라틴 표제(ESCAPE THE LEGEND). 그대로 둔다.
+           · Paperlogy       — **한글 표제.** 전에는 여기가 Pretendard 였다.
+           · IBM Plex Sans KR — 한글 본문·읽기, 그리고 모노 자리의 한글
+           · IBM Plex Mono   — 이름표·수치 (이미 화면의 절반 이상을 차지)
+
+         [왜 표제만 라틴·한글을 따로 두나]
+         Bebas 는 아주 좁은 포스터용 글꼴이다. 한 가족으로 묶겠다고 라틴을
+         IBM Plex Sans Condensed 로 바꿔 봤더니, 같은 110px 에서 폭이 1.5배로
+         늘어 히어로의 「THE LEGEND」가 칸을 넘어 잘렸다(703px > 470px).
+         라틴 표제는 Bebas 로 두고, 한글 표제만 같은 무게의 Paperlogy 로
+         받치는 편이 배치를 지키면서 한글에도 제 글꼴을 주는 길이다.
+         (한글·라틴 표제를 각각 고르는 건 국문 디자인에서 흔한 방식이다.)
+
+         ★ 구글 폰트는 unicode-range 로 잘라 주므로 실제로 쓴 글자가 든
+           조각만 내려온다. Paperlogy 는 굵기 한 벌(152KB)만 부른다. -->
+    <!-- ★ 성능(LCP): 메인 첫 화면에서 가장 큰 그림은 히어로의 포스터(영상 첫 장면)다.
+         그런데 이 그림은 CSS 배경(url)이라, 브라우저는 JS 를 다 받아 화면을 그리기 시작해야
+         겨우 「이 그림이 필요하구나」를 안다 — 늦게 받기 시작한다.
+         그래서 메인(/)으로 들어올 때만 미리 받으라고(preload) 먼저 알린다. fetchpriority="high"
+         는 「다른 그림보다 먼저」라는 뜻. 다른 페이지에선 이 그림이 안 쓰이니 걸지 않는다.
+         ★ 자리: 이 작은 스크립트는 구글 글꼴 stylesheet **위에** 둔다(검수에서 옮김).
+         stylesheet 밑에 있는 인라인 스크립트는 그 CSS 를 다 받을 때까지 기다려야 돌고,
+         그동안 HTML 읽기(파싱)도 멈춘다 → 앱 JS 실행까지 글꼴 CSS 한 번 왕복만큼 늦어진다.
+         위에 두면 기다릴 CSS 가 아직 없어서 바로 돌고 지나간다. -->
+    <script>
+      if (location.pathname === "/") {
+        var 미리 = document.createElement("link");
+        미리.rel = "preload";
+        미리.as = "image";
+        미리.href = "/hero-scrub-poster.webp";
+        미리.setAttribute("fetchpriority", "high");
+        document.head.appendChild(미리);
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- 한글 표제 Paperlogy(index.css @font-face)가 있는 곳 — 연결을 미리 열어 둔다 -->
+    <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin />
+    <!-- ★ 성능(렌더 차단 제거): 글꼴 CSS 를 「stylesheet」로 바로 걸면 그 CSS 를 다 받을 때까지
+         화면을 한 장도 그리지 못한다(Lighthouse: 렌더 차단 약 230ms).
+         preload 로 먼저 받고, 다 받으면(onload) stylesheet 로 바꿔 붙인다 → 그동안 화면은 기본 글꼴로 먼저 그려지고
+         (display=swap 과 같은 효과) 글꼴이 오면 바뀐다. JS 를 끈 사람은 noscript 의 평소 방식으로 받는다. -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@300;400;500;600;700;800;900&family=Syncopate:wght@400;700&family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap"
+      onload="this.onload=null;this.rel='stylesheet'"
     />
-    <!-- 한글 — 피그마 변수엔 없다. 원본에 가장 가까운 Pretendard 로 둔다. -->
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
-    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap"
+      />
+    </noscript>
   </head>
   <body>
     <div id="root"></div>
-    <!-- 에러 수집기 — 본편 index.html 과 같은 장치.
-         잡히지 않은 에러를 탭 제목에 찍고 window.__E 에 쌓아 둔다. -->
-    <script>
-      window.__E = [];
-      function __err(m) {
-        window.__E.push(String(m).slice(0, 500));
-        document.title = "ERR: " + String(m).slice(0, 120);
-      }
-      addEventListener("error", (e) => __err((e.error && e.error.stack) || e.message));
-      addEventListener("unhandledrejection", (e) =>
-        __err("REJ " + ((e.reason && e.reason.stack) || e.reason)),
-      );
-    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -15,9 +15,26 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
-import { useSavedControls } from "../공용.jsx";
+import { useSavedControls, 플레이어시점 } from "../공용.jsx";
 
 const 라디안 = (도) => (도 * Math.PI) / 180;
+
+// ── 스크린을 4px 만큼만 위로 ───────────────────────────────
+// [왜 Leva 의 Y 기본값을 안 고쳤나 — 두 가지가 다 걸린다]
+//   ① Y 는 **저장값(localStorage)이 코드 기본값을 이긴다**(공용.jsx
+//      useSavedControls). 슬라이더를 한 번이라도 만진 화면에서는 기본값을
+//      올려 봐야 아무 일도 안 일어난다. 그리고 저장값은 덮어쓰지 않는다.
+//   ② 슬라이더 step 이 0.1 인데, 스크린을 보는 거리에서 0.1 유닛은 **약 19px**
+//      이다. 4px 은 애초에 슬라이더로 집을 수 없는 값이다.
+//   그래서 저장값 위에 **코드에서 더하는 값**으로 뒀다. 슬라이더로 맞춰 둔
+//   자리를 그대로 두고 그 위로 딱 이만큼만 올라간다.
+// [4px 이 왜 0.03 유닛인가]
+//   fov 60 · 스크린까지 5.5 유닛이면 화면에 보이는 세로가
+//   2 × 5.5 × tan30° = 6.35 유닛이다. 창 세로가 1000px 이면 1 유닛 ≈ 157px
+//   → 4px ≈ 0.025 유닛. 창 크기·보는 거리에 따라 0.02~0.035 사이라
+//   가운데인 0.03 으로 둔다. 더/덜 올리려면 이 숫자 하나만 만지면 된다
+//   (0.0075 유닛 ≈ 1px).
+const 살짝올림 = 0.03;
 
 // 캔버스 해상도(픽셀). 평면 비율도 이 가로세로를 따른다.
 const W = 1024,
@@ -250,13 +267,27 @@ function UI그리기(g, st) {
 const 안 = (rc, cx, cy) =>
   cx >= rc.x && cx <= rc.x + rc.w && cy >= rc.y && cy <= rc.y + rc.h;
 
-export default function 홀로그램스크린() {
+// 켬 — 기차 씬이 **지금 켜져 있나**.
+//   ★ 이 컴포넌트는 기차 씬이 숨겨져도(`<group visible={false}>`) 살아 있다.
+//     씬을 버리지 않고 보임만 끄는 구조로 바꾼 뒤부터다. 그런데
+//       · `useFrame` 은 visible 과 무관하게 계속 돈다
+//       · R3F 의 레이캐스트는 **부모의 visible 을 보지 않는다**
+//         (three 의 `Mesh.raycast` 에 visible 검사가 없다)
+//     이 스크린 자리(X −16.4 · Y 5 · Z 4)는 **역 방 안 좌표**라, 한 번
+//     기차를 탄 뒤 로비에서 그 허공을 클릭하면 목적지가 골라지고 [E] 로
+//     나주 진입 연출이 돌아 버렸다. 그래서 켬 으로 통째로 잠근다.
+export default function 홀로그램스크린({ 켬 = true }) {
   const C = useSavedControls("홀로그램 스크린", {
     보이기: true,
     X: { value: -16.4, min: -26, max: 26, step: 0.1 },
-    Y: { value: 5.0, min: 0, max: 12, step: 0.1 },
+    // step 0.1 → 0.02. 0.1 유닛이 화면에서 약 19px 이라 잔조정이 안 됐다.
+    //   (step·min·max 는 코드 것을 쓰므로 저장된 값은 그대로 살아 있다)
+    Y: { value: 5.0, min: 0, max: 12, step: 0.02 },
     Z: { value: 4.0, min: -5, max: 6, step: 0.1 },
-    폭: { value: 8.0, min: 1, max: 16, step: 0.1 }, // 스크린 가로(월드 유닛)
+    // ★ 8.0 은 서서 보면 화면을 넘겨서 **전체가 한눈에 안 들어왔다.**
+    //   기차 안 스크린까지 거리가 4~7 유닛인데 가로 8 이면 시야(fov 60)를 넘는다.
+    //   4.6 이면 그 거리에서 판 전체가 화면 안에 들어온다.
+    폭: { value: 4.6, min: 1, max: 16, step: 0.1 }, // 스크린 가로(월드 유닛)
     회전X: { value: 0, min: -90, max: 90, step: 1 },
     회전Y: { value: 180, min: -180, max: 180, step: 1 },
     색: "#25bdff",
@@ -309,10 +340,21 @@ export default function 홀로그램스크린() {
     tex.needsUpdate = true;
   }, [cv, tex, 선택, 근처]);
 
-  // E — 스크린 가까이서 나주로 이동
+  // ── [E] — **목적지를 고른 뒤에만** 떠난다 ──────────────────
+  // [왜 고르는 단계를 따로 두나]
+  //   전에는 스크린 근처이기만 하면 [E] 가 곧바로 맵을 갈아탔다. 기차 안에서
+  //   다른 걸 하려고 [E] 를 누르다가 **의도치 않게 나주로 넘어가** 버린다.
+  //   장소를 옮기는 건 되돌릴 수 없는 동작이라, 한 번 짚고(클릭) 한 번 확인
+  //   (E)하는 두 박자가 맞다.
+  //   순서: 목적지 카드를 마우스로 **한 번 클릭** → 체크됨 → [E] → 이동.
+  const 선택ref = useRef(null);
+  선택ref.current = 선택;
   useEffect(() => {
     const 눌림 = (e) => {
-      if (e.code === "KeyE" && 근처ref.current) 이동();
+      if (e.code !== "KeyE" || e.repeat) return;
+      if (!켬ref.current) return; // 기차 씬이 꺼져 있으면 아무 일도 없다
+      // 근처 + **고른 목적지가 있을 때만**. 안 골랐으면 아무 일도 안 일어난다.
+      if (근처ref.current && 선택ref.current) 이동();
     };
     window.addEventListener("keydown", 눌림);
     return () => window.removeEventListener("keydown", 눌림);
@@ -338,14 +380,25 @@ export default function 홀로그램스크린() {
 
   const 패널ref = useRef(null);
   const 스캔ref = useRef(null);
+  const 켬ref = useRef(켬);
+  켬ref.current = 켬;
   useFrame(({ clock }) => {
+    if (!켬) {
+      // 꺼진 씬에서 '근처'로 남아 있으면 안 된다 — [E] 가 그대로 먹는다
+      if (근처ref.current) {
+        근처ref.current = false;
+        set근처(false);
+      }
+      return;
+    }
     const t = clock.getElapsedTime();
     // 스크린 가까이 왔나 — E 로 이동 가능 판정
-    const 거리 = Math.hypot(
-      camera.position.x - C.X,
-      camera.position.y - C.Y,
-      camera.position.z - C.Z,
-    );
+    // ★ **사람이 선 자리**에서 잰다. 카메라에서 재면 3인칭이 망가진다 —
+    //   카메라는 캐릭터 뒤 9.33 유닛이라, 스크린을 마주 보면 캐릭터가 3.7 안으로
+    //   얼굴을 박아야 겨우 켜지고, 등을 돌리면 22 밖에서도 켜져 엉뚱한 자리에서
+    //   [E] 가 먹었다. 로비 → 나주로 넘어가는 유일한 길이라 그대로 두면 진행이 막힌다.
+    const 사람 = 플레이어시점.쓸수있나 ? 플레이어시점.눈 : camera.position;
+    const 거리 = Math.hypot(사람.x - C.X, 사람.y - C.Y, 사람.z - C.Z);
     const 가까움 = 거리 < 13;
     if (근처ref.current !== 가까움) {
       근처ref.current = 가까움;
@@ -391,7 +444,7 @@ export default function 홀로그램스크린() {
 
   return (
     <group
-      position={[C.X, C.Y, C.Z]}
+      position={[C.X, C.Y + 살짝올림, C.Z]}
       rotation={[라디안(C.회전X), 라디안(C.회전Y), 0]}
     >
       {/* 발광 빔 — 스크린 아래로 뻗어 장치 쪽으로 좁아진다 */}
@@ -416,7 +469,15 @@ export default function 홀로그램스크린() {
       )}
 
       {/* 스크린 패널 — 클릭 가능 */}
-      <mesh ref={패널ref} onClick={클릭} onPointerDown={클릭}>
+      {/* ★ 손잡이는 **하나만** 단다.
+             onClick 과 onPointerDown 을 둘 다 걸어 뒀더니, 한 번 누르는 동안
+             누를 때(pointerdown) 한 번 · 뗄 때(click) 한 번 — **토글이 두 번**
+             돌아서 고른 것이 제자리로 돌아갔다. 버튼을 누르고 있는 동안에만
+             SELECT 가 떠 있던 게 그것이다.
+             남긴 쪽은 pointerdown 이다. 3D 화면에서는 누른 뒤 떼기 전에 시점이
+             움직여 커서가 판 밖으로 나갈 수 있는데, 그러면 click 은 아예 안 온다. */}
+      {/* 꺼진 씬에서는 레이캐스트 자체를 막는다 — visible=false 는 클릭을 안 막는다 */}
+      <mesh ref={패널ref} onPointerDown={켬 ? 클릭 : undefined} raycast={켬 ? undefined : () => null}>
         <planeGeometry args={[C.폭, 높이]} />
         <meshBasicMaterial
           map={tex}

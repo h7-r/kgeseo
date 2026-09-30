@@ -43,6 +43,9 @@ export const 글자 = {
   설명: { font: `400 13px/1.6 ${글꼴.본문}`, color: 색.더흐린글 },
   // 숫자는 폭이 흔들리면 슬라이더를 움직일 때마다 라벨이 덜컹거린다.
   수치: { font: `500 13px/1 ${글꼴.모노}`, fontVariantNumeric: "tabular-nums", color: 색.흐린글 },
+  // 눈금 이름("아주 좁게" 같은 말). 숫자가 아니라 말이므로 본문 글꼴을 쓰고,
+  //   지금 고른 칸이라는 뜻이라 강조색을 준다.
+  눈금: { font: `500 13px/1.3 ${글꼴.본문}`, color: 색.강조 },
   단계: { font: `500 12px/1 ${글꼴.모노}`, letterSpacing: "0.14em", color: 색.더흐린글 },
 };
 
@@ -152,7 +155,16 @@ export const 화면CSS = `
 .캐생 .주단추:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 34px rgba(111,192,214,0.3); }
 .캐생 .주단추:active:not(:disabled) { transform: translateY(0); }
 .캐생 input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: none; cursor: pointer; }
-.캐생 input[type="range"]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.16); }
+/* 눈금 슬라이더 — 칸이 다섯이라 자리를 점으로 보여 준다(딱딱 끊긴다는 느낌).
+   ※ datalist 의 기본 눈금 표시는 브라우저마다 제각각이라 쓰지 않고, 트랙에
+     반복 그라디언트로 직접 찍는다. 점 간격은 칸 사이(25%)와 같다. */
+.캐생 input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px; border-radius: 2px;
+  background:
+    radial-gradient(circle at center, rgba(255,255,255,0.42) 1.6px, rgba(0,0,0,0) 1.7px) 0 50% / 25% 100% repeat-x,
+    rgba(255,255,255,0.16);
+}
+.캐생 input[type="range"] + datalist { display: none; }
 .캐생 input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; margin-top: -6px; border-radius: 50%; background: ${색.강조}; box-shadow: 0 0 0 4px rgba(154,216,232,0.16); transition: box-shadow ${모션.빠름}; }
 .캐생 input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 7px rgba(154,216,232,0.20); }
 .캐생 input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.16); }

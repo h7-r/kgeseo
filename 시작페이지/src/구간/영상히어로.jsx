@@ -1,4 +1,3 @@
-import 에셋 from "../에셋.js";
 import { 글꼴, 글자그라디언트 } from "../공통.js";
 
 /* ═══════════════════════════════════════════════════════
@@ -15,13 +14,13 @@ export default function 영상히어로({ 위 = 129, 누름 = () => {} }) {
   return (
     <section style={{ ...바깥, top: `${위}px` }} data-node-id="14:1627">
       {꺾쇠.map((s, i) => (
-        <div key={i} style={{ position: "absolute", background: "#3b82f6", borderRadius: "1px", pointerEvents: "none", ...s }} />
+        <div key={i} style={{ position: "absolute", background: "#2e4889", borderRadius: "1px", pointerEvents: "none", ...s }} />
       ))}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "24px", alignItems: "center", width: "560px" }} data-node-id="14:1628">
         <div style={눈썹}>
-          <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#60a5fa", whiteSpace: "nowrap" }}>
-            GAME &amp; CHARACTERS · PULSE 2026
+          <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#6f86bf", whiteSpace: "nowrap" }}>
+            GAME &amp; CHARACTERS · ESCAPE THE LEGEND 2026
           </span>
         </div>
 
@@ -31,8 +30,8 @@ export default function 영상히어로({ 위 = 129, 누름 = () => {} }) {
         </div>
 
         <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <div className="단추" style={채운단추} onClick={() => 누름("트레일러 보기")}>트레일러 보기</div>
-          <div className="단추" style={빈단추} onClick={() => 누름("캐릭터 갤러리 →")}>캐릭터 갤러리 →</div>
+          <div className="단추" style={채운단추} onClick={() => 누름("트레일러 보기")}><span className="단추글">트레일러 보기</span></div>
+          <div className="단추" style={빈단추} onClick={() => 누름("캐릭터 갤러리 →")}><span className="단추글">캐릭터 갤러리 →</span></div>
         </div>
       </div>
     </section>
@@ -44,7 +43,7 @@ const 바깥 = {
   left: "-7px",
   width: "1920px",
   height: "963px",
-  background: "#060d1a",
+  background: "#050b1a",
   overflow: "hidden",
   display: "flex",
   alignItems: "center",
@@ -69,8 +68,8 @@ const 눈썹 = {
   alignItems: "center",
   padding: "6px 16px",
   borderRadius: "20px",
-  background: "#060d1a",
-  border: "1px solid #1e3a5f",
+  background: "#050b1a",
+  border: "1px solid #1a305f",
 };
 
 const 제목 = {
@@ -79,7 +78,12 @@ const 제목 = {
   lineHeight: "72px",
   width: "100%",
   textAlign: "center",
-  ...글자그라디언트("linear-gradient(90deg, #ffffff 0%, #93c5fd 100%)"),
+  ...글자그라디언트("linear-gradient(90deg, #ffffff 0%, #3b5ea2 100%)"),
+  /* 글자(76px)가 줄 높이(72px)보다 커서, 그라디언트가 칠해지는 칸(=줄 칸) 밖으로
+     나간 글자 윗부분이 잘려 보였다. 위아래로 칸만 넓히고(padding) 같은 만큼
+     되돌려(margin) 배치는 그대로 둔다. */
+  padding: "14px 0",
+  margin: "-14px 0",
 };
 
 const 설명 = {
@@ -87,7 +91,7 @@ const 설명 = {
   fontWeight: 300,
   fontSize: "18px",
   lineHeight: "28px",
-  color: "#64748b",
+  color: "#96a3b6",
   textAlign: "center",
   width: "547px",
 };
@@ -109,14 +113,14 @@ const 채운단추 = {
   padding: "14px 36px",
   fontWeight: 700,
   color: "#ffffff",
-  backgroundImage: "linear-gradient(140deg, rgb(37,99,235) 0%, rgb(29,78,216) 50%, rgb(30,64,175) 100%)",
-  boxShadow: "0px 0px 24px 0px rgba(96,165,250,0.13), 0px 4px 16px 0px rgba(59,130,246,0.31)",
+  backgroundImage: "linear-gradient(140deg, rgb(47,66,123) 0%, rgb(47,62,112) 50%, rgb(44,56,99) 100%)",
+  boxShadow: "0px 0px 24px 0px rgba(50,82,150,0.13), 0px 4px 16px 0px rgba(46,72,137,0.31)",
 };
 const 빈단추 = {
   ...단추바탕,
   padding: "14px 32px",
   fontWeight: 400,
-  color: "#93c5fd",
-  background: "rgba(10,18,32,0.75)",
+  color: "#6f86bf",
+  background: "rgba(9,15,32,0.75)",
   border: "1px solid rgba(255,255,255,0.2)",
 };

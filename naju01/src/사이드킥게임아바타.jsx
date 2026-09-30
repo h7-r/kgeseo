@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { clone, retargetClip } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { 미터 } from "./공간도면.js";
 import { 기본사이드킥설정 } from "./사이드킥옵션.js";
+import { 양손주먹중심 } from "./주먹중심.js";
 
 const 캐릭터파일 = "/models/sidekick-customizer.glb";
 const 모션파일 = "/models/vendor/quaternius-universal-animation-library.glb";
@@ -334,6 +335,13 @@ function SidekickGameAvatar({
   크기 = 미터,
   // QA 캡처 전용: 지정하면 모션을 페이드 없이 이 시각(초)에 고정한다.
   검증시각 = null,
+  // 한 프레임 안에서 언제 도나. 손목표(−30) 뒤, 든물건(−10) 앞이어야 한다.
+  //   ★ 이게 없으면(기본 0) **든물건보다 늦게** 돌아서, 물건이 직전 프레임
+  //     손뼈를 따라간다 — 걸을 때 물건이 손에서 헤엄친다.
+  //     치비 아바타는 진작 받고 있었는데 이쪽만 빠져서, `?avatar=sidekick`
+  //     경로에만 그 증상이 남아 있었다.
+  //   naju01 단독으로도 돌아야 해서 import 대신 prop 이고 기본값을 둔다.
+  프레임순서 = -20,
 }) {
   const root = useRef();
   const 캐릭터GLTF = useGLTF(캐릭터파일);
@@ -509,6 +517,18 @@ function SidekickGameAvatar({
       chestUnderwear,
       lowerUnderwear,
       headBone: targetSkin.skeleton.getBoneByName("head"),
+      // 손뼈 — [왼손, 오른손]. 본편(kgeseo)에서 든 물건이 이 뼈를 따라가야
+      // **캐릭터가 쥔 것**으로 보인다. 치비 아바타는 진작 내보내고 있었는데
+      // 이쪽만 빠져 있어서, `?avatar=sidekick` 3인칭에서는 손뼈가 늘 null →
+      // 든 물건이 전부 캐릭터 **등 뒤 9.33 유닛 허공**에 떠서 따라다녔다.
+      손뼈: ["hand_l", "hand_r"].map((n) => targetSkin.skeleton.getBoneByName(n)).filter(Boolean),
+      // 손목 → 주먹 한가운데. 모델당 한 번만 계산된다(주먹중심.js 의 캐시).
+      손바닥: 양손주먹중심(targetSkin),
+      // 물건 전용 소켓 뼈(치비와 같은 규약 — 그쪽 「쥠소켓」 주석 참고)
+      쥠소켓: {
+        hand_l: targetSkin.skeleton.getBoneByName("prop_l") ?? null,
+        hand_r: targetSkin.skeleton.getBoneByName("prop_r") ?? null,
+      },
       bottom,
       feet,
       soles,
@@ -688,10 +708,29 @@ function SidekickGameAvatar({
     현재모션.current = name;
   };
 
+  // [lint] react-hooks/immutability 를 이 블록에서만 끈다 — 이유:
+  //   `플레이어참조.current` 는 **일부러 양방향으로 쓰는 상자**다.
+  //   공용.jsx 의 use이동 이 position·facing·moving 을 적고, 아바타가 그걸 읽어
+  //   몸을 놓은 뒤 **손뼈·어깨 자리·팔 길이**를 되적어 게임에 알려 준다.
+  //   (본편이 naju01 을 import 하지 나오는 길은 없다 — 고리가 생긴다. 그래서
+  //    이 ref 가 두 패키지를 잇는 유일한 통로다.)
+  //   react-compiler 규칙은 "렌더 뒤에 prop 을 바꾸지 마라"고 하지만, 이건
+  //   렌더 결과가 아니라 **프레임마다 갱신되는 런타임 상태**라 state 로 올리면
+  //   매 프레임 리렌더가 난다. 규칙이 잡아내려는 버그와는 다른 종류다.
+  // eslint-disable-next-line react-hooks/immutability
   useFrame(({ clock }, delta) => {
     const group = root.current;
     const state = 플레이어참조?.current;
     if (!group || !state) return;
+    // ★ 손뼈를 상태에 얹어 둔다(치비게임아바타 와 같은 규약).
+    //   여기서 내보내기만 하고, 쓰는 쪽은 본편이 정한다 — 이 파일은 본편을 모른다.
+    // eslint-disable-next-line react-hooks/immutability
+    state.오른손 = 준비.손뼈?.[1] ?? 준비.손뼈?.[0] ?? null;
+    state.왼손 = 준비.손뼈?.[0] ?? null;
+    state.오른손바닥 = 준비.손바닥?.hand_r ?? null;
+    state.왼손바닥 = 준비.손바닥?.hand_l ?? null;
+    state.오른쥠소켓 = 준비.쥠소켓?.hand_r ?? null;
+    state.왼쥠소켓 = 준비.쥠소켓?.hand_l ?? null;
     group.visible = 보이기;
     if (!보이기) {
       if (import.meta.env.DEV) {
@@ -826,7 +865,7 @@ function SidekickGameAvatar({
         position: state.position.toArray(),
       };
     }
-  });
+  }, 프레임순서);
 
   return (
     <group name="NAJU-sidekick-avatar" ref={root} visible={보이기}>

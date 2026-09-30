@@ -51,8 +51,12 @@ const 키재기 = () => 쪽.evaluate(() => {
   const 상자 = new H.THREE.Box3().setFromObject(무리);
   return 상자.max.y - 상자.min.y;
 });
-const 밀기 = async (이름, 값) => {
-  await 쪽.getByLabel(이름, { exact: true }).fill(String(값));
+// ── 체형 슬라이더는 **눈금 다섯 칸**이다(외형데이터 「눈금」) ──────────────
+//   예전에는 0.01 단위 연속값이라 `fill("1.3")` 처럼 실수를 넣었다. 지금은
+//   슬라이더의 값이 **칸 번호(0~4)** 이고 가운데(2)가 언제나 기본값이다.
+//   0 = 가장 작은 쪽 · 4 = 가장 큰 쪽. 칸이 가리키는 실수는 항목마다 다르다.
+const 밀기 = async (이름, 칸) => {
+  await 쪽.getByLabel(이름, { exact: true }).fill(String(칸));
   await 쪽.waitForTimeout(600);
 };
 const 단추 = (이름, 딱 = true) => 쪽.getByRole("button", { name: 이름, exact: 딱 }).first();
@@ -78,9 +82,9 @@ const 처음 = await 초안읽기();
 // 2. 슬라이더가 실제 3D 를 바꾼다
 await 단추("체형").click();
 const 기본키 = await 키재기();
-await 밀기("키", 1.3);
+await 밀기("키", 4);           // 가장 큰 칸
 const 큰키 = await 키재기();
-await 밀기("키", 0.7);
+await 밀기("키", 0);           // 가장 작은 칸
 const 작은키 = await 키재기();
 참("키 슬라이더가 실제 모델 높이를 바꾼다", 큰키 > 기본키 * 1.2 && 작은키 < 기본키 * 0.8, `${기본키?.toFixed(3)} → ${큰키?.toFixed(3)} / ${작은키?.toFixed(3)}`);
 await 단추("키 초기화", false).first().click();
@@ -102,9 +106,9 @@ const 골반높이 = () => 쪽.evaluate(() => {
 // 다리 길이는 '몸 비율' 묶음 안에 있다 — 접혀 있으면 먼저 편다.
 await 쪽.getByRole("button", { name: "몸 비율" }).click();
 await 쪽.waitForTimeout(400);
-await 밀기("다리 길이", 1.2);
+await 밀기("다리 길이", 4);
 const 긴다리 = await 골반높이();
-await 밀기("다리 길이", 0.85);
+await 밀기("다리 길이", 0);
 const 짧은다리 = await 골반높이();
 참("다리 길이 슬라이더가 실제 모델을 바꾼다", 긴다리 > 짧은다리 * 1.1, `골반 높이 ${긴다리?.toFixed(3)} / ${짧은다리?.toFixed(3)}`);
 await 단추("다리 길이 초기화", false).first().click();
@@ -114,22 +118,22 @@ await 쪽.waitForTimeout(400);
 
 // 3. 성별을 오가도 각자 초안이 남는다
 await 단추("체형").click();
-await 밀기("머리 크기", 1.25);
+await 밀기("머리 크기", 3);    // 머리 눈금 3칸 = 1.18 (0.01 단위로 맞춘 값)
 await 단추("기본").click();
 await 단추("여성").click();
 await 쪽.waitForTimeout(5000);
 await 단추("체형").click();
-await 밀기("머리 크기", 0.85);
+await 밀기("머리 크기", 1);    // 머리 눈금 1칸 = 0.93
 await 단추("기본").click();
 await 단추("남성").click();
 await 쪽.waitForTimeout(5000);
 const 남자초안 = await 초안읽기();
-참("남→여→남 에서 남성 초안이 복원된다", Math.abs((남자초안?.appearance.bodyParameters.headScale ?? 0) - 1.25) < 0.001, String(남자초안?.appearance.bodyParameters.headScale));
+참("남→여→남 에서 남성 초안이 복원된다", Math.abs((남자초안?.appearance.bodyParameters.headScale ?? 0) - 1.18) < 0.001, String(남자초안?.appearance.bodyParameters.headScale));
 await 단추("기본").click();
 await 단추("여성").click();
 await 쪽.waitForTimeout(5000);
 const 여자초안 = await 초안읽기();
-참("여성 초안도 그대로 남는다", Math.abs((여자초안?.appearance.bodyParameters.headScale ?? 0) - 0.85) < 0.001, String(여자초안?.appearance.bodyParameters.headScale));
+참("여성 초안도 그대로 남는다", Math.abs((여자초안?.appearance.bodyParameters.headScale ?? 0) - 0.93) < 0.001, String(여자초안?.appearance.bodyParameters.headScale));
 await 단추("기본").click();
 await 단추("남성").click();
 await 쪽.waitForTimeout(5000);
@@ -141,12 +145,12 @@ await 쪽.waitForTimeout(3500);
 await 단추("흰 운동화", false).click();
 await 쪽.waitForTimeout(3500);
 const 옷입은뒤 = await 초안읽기();
-참("옷을 갈아입어도 체형값이 유지된다", Math.abs((옷입은뒤?.appearance.bodyParameters.headScale ?? 0) - 1.25) < 0.001);
+참("옷을 갈아입어도 체형값이 유지된다", Math.abs((옷입은뒤?.appearance.bodyParameters.headScale ?? 0) - 1.18) < 0.001);
 참("의상 선택이 초안에 들어간다", 옷입은뒤?.appearance.equipmentIds.top === "top.tee.white" && 옷입은뒤?.appearance.equipmentIds.shoes === "shoes.sneaker.white");
 
 // 5. 신발을 신어도 발 크기가 실제로 바뀐다(신발 GLB 에는 모프가 없어 따로 처리한다)
 await 단추("체형").click();
-await 밀기("발 크기", 0.7);
+await 밀기("발 크기", 0);
 await 쪽.waitForTimeout(600);
 // 스킨드 메시는 뼈가 움직여도 제 행렬이 안 바뀐다 — 스키닝된 정점을 직접 읽어 재야 한다.
 const 신발재기 = () => 쪽.evaluate(() => {
@@ -165,7 +169,7 @@ const 신발재기 = () => 쪽.evaluate(() => {
   return 상자.getSize(new H.THREE.Vector3()).length();
 });
 const 작은발 = await 신발재기();
-await 밀기("발 크기", 1.3);
+await 밀기("발 크기", 4);
 await 쪽.waitForTimeout(600);
 const 큰발 = await 신발재기();
 참("신발을 신어도 발 크기 조절이 신발에 반영된다", 작은발 && 큰발 && 큰발 > 작은발 * 1.3, `${작은발?.toFixed(3)} → ${큰발?.toFixed(3)}`);
@@ -261,9 +265,13 @@ await 키슬라이더.press("End");
 const 엔드값 = await 키슬라이더.inputValue();
 await 키슬라이더.press("ArrowLeft");
 const 한칸값 = await 키슬라이더.inputValue();
+// 눈금이 다섯 칸이므로 Home=0 · End=4 · 왼쪽 화살표는 한 칸 아래인 3 이다.
 참("키보드로 슬라이더를 움직일 수 있다(Home/End/방향키)",
-  포커스갔나 && Number(홈값) === 0.7 && Number(엔드값) === 1.3 && Math.abs(Number(한칸값) - 1.29) < 0.001,
+  포커스갔나 && Number(홈값) === 0 && Number(엔드값) === 4 && Number(한칸값) === 3,
   `${홈값} / ${엔드값} / ${한칸값}`);
+// 읽어 주는 값이 숫자가 아니라 칸 이름이어야 한다(화면에 보이는 것과 같아야 한다).
+const 칸이름 = await 키슬라이더.getAttribute("aria-valuetext");
+참("슬라이더가 칸 이름을 읽어 준다", typeof 칸이름 === "string" && 칸이름.length > 0 && !/^[0-9.]+$/.test(칸이름), String(칸이름));
 const 이름표있나 = await 쪽.evaluate(() => {
   const 칸 = [...document.querySelectorAll('input[type=range]')];
   return 칸.every((el) => el.id && document.querySelector(`label[for="${el.id}"]`));

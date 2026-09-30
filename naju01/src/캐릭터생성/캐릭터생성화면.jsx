@@ -16,7 +16,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import CC캐릭터프리뷰, { 보기목록, 자세목록, 품질목록 } from "./캐릭터프리뷰.jsx";
 import { 기본카탈로그, 슬롯이름, 색상슬롯이름, 썸네일고르기 } from "./카탈로그.js";
 import {
-  기본초안, 초안보정, 성별맞추기, 렌더러설정, 완료데이터, 체형항목, 체형묶음, 비율표시, 기본몸치수, 항목기본,
+  기본초안, 초안보정, 성별맞추기, 렌더러설정, 완료데이터, 체형항목, 체형묶음, 눈금들, 가까운눈금, 기본몸치수, 항목기본,
   슬롯선택지, 성별목록,
 } from "./외형데이터.js";
 import { 기본이름규칙, 규칙보정, 형식검사, 이름정규화, 글자수 } from "./이름규칙.js";
@@ -86,32 +86,48 @@ function CC칩단추({ 고름, children, onClick, 넓게 = false, ...남은 }) {
 
 function CC슬라이더({ 항목, 값, 성별, 바꾸기, 끌기시작, 끌기끝, 되돌리기 }) {
   const id = useId();
+  // ── 퍼센트가 아니라 **눈금 다섯 칸**을 고른다(외형데이터 「눈금」) ──────────
+  //   슬라이더의 값은 칸 번호(0~4)이고, 바깥으로 나가는 값은 그 칸이 가리키는
+  //   실수다. 그래서 초안·완료 데이터·렌더러는 예전과 똑같다.
+  const 눈금 = useMemo(() => 눈금들(항목, 성별), [항목, 성별]);
+  const 칸 = 가까운눈금(눈금, 값);
+  const 칸이름 = 눈금[칸]?.이름 ?? "";
+  const 칸으로 = (다음, 이력에) => {
+    const i = Math.max(0, Math.min(눈금.length - 1, 다음));
+    바꾸기(눈금[i].값, 이력에);
+  };
   return (
     <div className="슬라줄" style={{ display: "grid", gap: 2 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 사이.s }}>
         <label htmlFor={id} style={글자.라벨}>{항목.이름}</label>
-        <output htmlFor={id} style={{ marginLeft: "auto", ...글자.수치 }}>{비율표시(항목, 값, 성별)}</output>
+        <output htmlFor={id} style={{ marginLeft: "auto", ...글자.눈금 }}>{칸이름}</output>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 사이.s }}>
         <input
           id={id}
           type="range"
-          min={항목.min}
-          max={항목.max}
-          step={항목.step}
-          value={값}
-          aria-valuetext={비율표시(항목, 값, 성별)}
+          min={0}
+          max={눈금.length - 1}
+          step={1}
+          value={칸}
+          /* 읽어 주는 값도 숫자가 아니라 칸 이름이다(화면에 보이는 것과 같아야 한다) */
+          aria-valuetext={칸이름}
+          list={`${id}-눈금`}
           onPointerDown={끌기시작}
           onKeyDown={끌기시작}
-          onChange={(e) => 바꾸기(Number(e.target.value), false)}
+          onChange={(e) => 칸으로(Number(e.target.value), false)}
           onPointerUp={끌기끝}
           onKeyUp={끌기끝}
           onBlur={끌기끝}
         />
-        {/* 미세 조절·초기화는 늘 있지만 조용하다(가리키거나 포커스가 오면 또렷해진다). */}
+        {/* 칸이 어디 있는지 눈으로 보이게 한다 — 딱딱 끊긴다는 느낌이 여기서 난다 */}
+        <datalist id={`${id}-눈금`}>
+          {눈금.map((v, i) => (<option key={v.이름} value={i} label={v.이름} />))}
+        </datalist>
+        {/* 한 칸씩·초기화는 늘 있지만 조용하다(가리키거나 포커스가 오면 또렷해진다). */}
         <span className="미세" style={{ display: "flex", gap: 2, flex: "0 0 auto", transition: "opacity 160ms" }}>
-          <button type="button" aria-label={`${항목.이름} 줄이기`} style={작은아이콘단추} onClick={() => 바꾸기(값 - 항목.step, true)}>−</button>
-          <button type="button" aria-label={`${항목.이름} 늘리기`} style={작은아이콘단추} onClick={() => 바꾸기(값 + 항목.step, true)}>＋</button>
+          <button type="button" aria-label={`${항목.이름} 한 칸 줄이기`} style={작은아이콘단추} onClick={() => 칸으로(칸 - 1, true)}>−</button>
+          <button type="button" aria-label={`${항목.이름} 한 칸 늘리기`} style={작은아이콘단추} onClick={() => 칸으로(칸 + 1, true)}>＋</button>
           <button type="button" aria-label={`${항목.이름} 초기화`} style={작은아이콘단추} onClick={되돌리기}>↺</button>
         </span>
       </div>
@@ -235,7 +251,9 @@ export default function CC캐릭터생성화면({
   const [자세, set자세] = useState("Idle_Loop");
   const [품질, set품질] = useState("보통");
   const [관찰열림, set관찰열림] = useState(false);
-  const [읽는중, set읽는중] = useState(false);
+  // (「불러오는 중」 상태는 더 두지 않는다 — 배지를 걷어냈고, 미리 받아 두기로
+  //  기다림 자체를 줄였다. 프리뷰의 `읽는중알림` prop 은 남겨 두었으니 나중에
+  //  부모가 쓸 일이 생기면 그때 이어 붙이면 된다.)
   const [크기, set크기] = useState({ 폭: 1280, 높이: 800 });
   const [들어옴, set들어옴] = useState(false);
 
@@ -441,7 +459,7 @@ export default function CC캐릭터생성화면({
     ? (typeof checkName !== "function" ? 이름상태글.미연결 : "이름 중복확인을 마쳐야 완료할 수 있습니다.")
     : null;
 
-  const { 좁음, 여백, 위여백, 레일, 패널, 머리높이, 시트, 갈래띠, 안전영역 } = 배치;
+  const { 좁음, 여백, 위여백, 레일, 패널, 머리높이, 시트, 안전영역 } = 배치;
   const 항목설명 = {
     기본: "성별과 피부색을 정합니다.",
     체형: "키와 비율을 조절합니다. 기본값 그대로 넘어가도 됩니다.",
@@ -465,7 +483,6 @@ export default function CC캐릭터생성화면({
           품질={품질}
           안전영역={안전영역}
           조작알림={조작등록}
-          읽는중알림={set읽는중}
         />
       </div>
 
@@ -716,11 +733,13 @@ export default function CC캐릭터생성화면({
           </div>
         ) : null}
 
-        {읽는중 ? (
-          <div style={{ ...읽는중표시, top: 위여백 + 머리높이 + 갈래띠 + 12 }} role="status" aria-live="polite">
-            새 모델을 불러오는 중…
-          </div>
-        ) : null}
+        {/* ★ 「새 모델을 불러오는 중…」 배지는 **안 띄운다.**
+               [왜] 옷을 고를 때마다 글자가 떴다 사라지면 화면이 어수선하고,
+               "지금 뭔가 잘못됐나" 로 읽힌다. 기다리는 동안에도 **고르기 전
+               모습이 그대로 보이고** 있어서 빈 화면이 아니다.
+               [대신 무엇을 했나] 다음에 고를 옷을 미리 받아 둔다
+               (캐릭터프리뷰 의 「미리 받아 둔다」) — 기다릴 일 자체를 줄였다.
+               읽는중 값은 부모가 쓸 수 있게 그대로 흘려 둔다. */}
 
         {/* 왼쪽 아래 — 낮은 강조의 보조 조작 */}
         {단계 === "외형" ? (
@@ -808,14 +827,5 @@ const 안내줄 = {
   pointerEvents: "auto",
 };
 
-const 읽는중표시 = {
-  position: "absolute",
-  left: "50%",
-  transform: "translateX(-50%)",
-  padding: "6px 14px",
-  borderRadius: 999,
-  background: "rgba(8,14,22,0.8)",
-  font: `500 12px/1 ${글꼴.본문}`,
-  color: 색.흐린글,
-  pointerEvents: "none",
-};
+// (「불러오는 중」 배지는 걷어냈다 — 위 JSX 의 주석 참고. 되살릴 일이 생기면
+//  아래 모양을 그대로 쓰면 된다.)

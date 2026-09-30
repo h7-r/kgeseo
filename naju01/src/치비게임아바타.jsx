@@ -493,6 +493,8 @@ function 몸준비(gltf, 모션GLTF, 보정값 = 기본보정, 신발GLTF = null
     parts,
     soles,
     headBone: targetSkin.skeleton.getBoneByName("head"),
+    // 1인칭 「몸만」에서 머리 대신 **목째** 접는다(아래 목뼈 주석). 없으면 머리만 접는다.
+    neckBone: targetSkin.skeleton.getBoneByName("neck_01"),
     // 이 준비가 밀려났을 때 **자기가 만든 것만** 반납한다(위 「버릴것」 주석).
     //   두 번 불러도 안전하다 — 목록을 비우고 끝낸다.
     버리기: () => {
@@ -552,7 +554,14 @@ function 개발덧값(이름) {
 //   그때를 위해 접기도 같이 둔다(둘 다 싸다).
 // ※ 그림자는 안 자른다(clipShadows 기본 false) — 몸은 실제로 거기 있으니
 //   바닥 그림자는 온전해야 맞다.
-const 앞자르기 = 0.21; // m. 카메라에서 이만큼 앞부터 그린다(머리 반지름보다 크게)
+// 앞 = m. 카메라에서 이만큼 앞부터 그린다. 콘솔 `__잘림.앞 = 0.2` 로 바로 바꿔 볼 수 있다.
+//   ★ 목뼈를 접은 뒤로(아래 neckBone) 크게 둘 까닭이 없어졌다. 0.32 에서는
+//     손·소매가 평면에 걸려 **손가락이 얇은 껍질처럼** 잘려 보였다(사용자 지적).
+//     0.16 이면 손(눈에서 40cm 남짓)은 온전하고 목 단면도 안 보인다.
+// 몸뒤 = m. 1인칭 「몸만」일 때 몸을 뒤로 물리는 거리(아래 group.position). 기본 0 —
+//   물리면 팔 길이 제한 때문에 든 물건이 화면 밖으로 내려가서 꺼 두었다.
+const 잘림 = { 앞: 0.16, 몸뒤: 0 };
+if (typeof window !== "undefined") window.__잘림 = 잘림;
 const _잘림면 = new THREE.Plane(new THREE.Vector3(0, 0, -1), 1e6);
 const 잘림면목록 = [_잘림면];
 const _잘림앞 = new THREE.Vector3();
@@ -716,6 +725,7 @@ function ChibiGameAvatar({ 보이기, 일인칭몸 = false, 플레이어참조, 
   //   그래서 첫 프레임에 한 번만 붙이고 깃발을 세운다. 몸이 다시 만들어지면
   //   (설정·성별·몸체가 바뀌면) 깃발을 내려 다시 붙인다.
   const 잘림붙임 = useRef(false);
+  const 몸만이전 = useRef(false);
   useEffect(() => {
     gl.localClippingEnabled = true; // 안 켜면 재질의 clippingPlanes 를 무시한다
     잘림붙임.current = false;
@@ -785,7 +795,13 @@ function ChibiGameAvatar({ 보이기, 일인칭몸 = false, 플레이어참조, 
       설정.handScale, 설정.footScale, 설정.fistHands],
   );
 
-  useEffect(() => {
+  // ★ **그리기 전에** 맞춘다(useEffect 가 아니라 useLayoutEffect).
+  //   [왜] 여기서 고르지 않은 헤어를 숨기고 벗은 신발을 감춘다. 그런데 몸이 새로
+  //   만들어지면 GLB 안의 파츠가 **전부 보이는 상태**로 시작한다. 이 일이 그리기
+  //   뒤에 일어나면 그 한 프레임에 **안 고른 머리와 벗은 신발이 같이 보인다**
+  //   (머리가 둘로 겹쳐 '귀가 하나 더' 처럼 보이는 그림이 그것이다).
+  //   툰·외곽선을 앞당긴 것과 같은 이유다(위 「그리기 전에」 주석).
+  useLayoutEffect(() => {
     if (몸체 !== "meshy") {
       준비.skinMaterials.forEach((material) => material.color?.set(설정.skinColor ?? 기본치비설정.skinColor));
       return;
@@ -818,6 +834,10 @@ function ChibiGameAvatar({ 보이기, 일인칭몸 = false, 플레이어참조, 
       const 칠 = slot === "hair" || !툰켬 ? (색[slot] ?? "#ffffff") : "#ffffff";
       materials.forEach((material) => material.color?.set(칠));
     });
+    // 숨긴 파츠(안 고른 헤어·벗은 신발)의 **외곽선 껍데기도 같이 숨긴다.**
+    //   껍데기는 본체의 형제라 저절로 따라 숨지 않는다 — 안 맞추면 맨발인데
+    //   검은 신발 실루엣이 발에 남는다(툰외곽선 「본체가 보일 때만」).
+    외곽선핸들.current?.보임맞추기();
     툰핸들.current?.색칠({ 피부: 외형.skinColor, 의상: 외형.clothColor });
     // 툰 재질이 붙은 뒤에 색을 칠해야 하므로 툰 켬/끔도 의존성에 둔다.
   }, [준비, 외형, 몸체, 설정.skinColor, 툰.켬]);
@@ -853,8 +873,18 @@ function ChibiGameAvatar({ 보이기, 일인칭몸 = false, 플레이어참조, 
   //   손 모양이 **툭** 바뀐다.
   const 쥠양 = useRef(0);
 
+  // 몸이 새로 만들어질 때(옷·성별 바꾸기) **하던 동작과 그 시각**을 넘겨 주는 쪽지.
+  const 이어갈자세 = useRef(null);
+
   useEffect(
     () => () => {
+      // 떠나기 전에 지금 무엇을 몇 초째 돌고 있었는지 적어 둔다(아래 「이어서」).
+      const 지금 = actions.current.get(현재모션.current);
+      // 적은 때도 같이 남긴다 — 새 몸이 붙기까지 걸린 만큼 클립을 더 돌려 놓아야
+      //   걸음이 끊기지 않는다(그 사이가 0.2초쯤 된다).
+      이어갈자세.current = 지금
+        ? { 모션: 현재모션.current, 시각: 지금.time, 적은때: performance.now() }
+        : null;
       mixer.stopAllAction();
       actions.current.clear();
       // StrictMode 재실행 뒤에도 T포즈에 멈추지 않게 이름까지 비운다.
@@ -873,8 +903,28 @@ function ChibiGameAvatar({ 보이기, 일인칭몸 = false, 플레이어참조, 
       action = mixer.clipAction(clip, 준비.targetSkin);
       actions.current.set(name, action);
     }
-    actions.current.get(현재모션.current)?.fadeOut(0.16);
-    action.reset().setEffectiveTimeScale(name.startsWith("Punch_") ? 1.2 : 1).fadeIn(0.16);
+    const 앞것 = actions.current.get(현재모션.current);
+    앞것?.fadeOut(0.16);
+    action.reset().setEffectiveTimeScale(name.startsWith("Punch_") ? 1.2 : 1);
+    // ── 앞 동작이 없으면 **섞지 않고 바로 100%** 로 튼다 ─────────────────
+    //   [왜] `fadeIn` 은 세기를 0 → 1 로 올린다. 섞을 앞 동작이 있을 때는 그게
+    //   맞지만, 몸을 막 새로 만든 직후에는 앞 동작이 없다. 그러면 0.16초 동안
+    //   **클립과 쉴 때 자세(바인드 포즈)가 섞인 몸**이 보인다 — 옷을 갈아입을
+    //   때마다 캐릭터가 한 번 움찔하던 것이 이것이다.
+    if (앞것) action.fadeIn(0.16);
+    else action.setEffectiveWeight(1);
+    // ── 옷만 갈아입었으면 **하던 동작을 이어서** 돌린다 ──────────────────
+    //   몸이 새로 만들어지면 믹서도 새것이라 클립이 0초부터 다시 돈다. 걷는 중에
+    //   갈아입으면 걸음이 처음으로 되감겨 눈에 띈다(실측: 팔 각도가 한 프레임에
+    //   되돌아갔다). 떠나기 전에 적어 둔 시각이 같은 동작이면 거기서부터 잇는다.
+    const 이어 = 이어갈자세.current;
+    이어갈자세.current = null;
+    if (이어 && 이어.모션 === name) {
+      const 길이 = action.getClip().duration;
+      const 사이 = Math.max(0, (performance.now() - 이어.적은때) / 1000);
+      // 오래 떠나 있었으면(씬을 바꿨거나 탭이 멈췄거나) 이어 붙일 의미가 없다.
+      if (길이 > 0 && 사이 < 2) action.time = (이어.시각 + 사이) % 길이;
+    }
     const loop = name.endsWith("_Loop") || name === "A_TPose" || name === "Sword_Idle";
     action.clampWhenFinished = !loop;
     action.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1).play();
@@ -920,6 +970,17 @@ function ChibiGameAvatar({ 보이기, 일인칭몸 = false, 플레이어참조, 
       });
     }
     const 몸만 = 일인칭몸 || (!보이기 && !!state.일인칭손);
+    // 몸만 켜지는 순간 잘림면을 한 번 더 붙인다 — 외곽선 껍데기처럼 첫 프레임 뒤에
+    //   생긴 메시는 위 훑기에서 빠져 **안 잘린 채** 목·가슴 단면을 비췄다.
+    if (몸만 && !몸만이전.current) {
+      group.traverse((o) => {
+        const m = o.material;
+        if (!m) return;
+        if (Array.isArray(m)) m.forEach((한) => (한.clippingPlanes = 잘림면목록));
+        else m.clippingPlanes = 잘림면목록;
+      });
+    }
+    몸만이전.current = 몸만;
     const 그릴까 = 보이기 || 몸만;
     group.visible = 그릴까;
     // ★ 오른손 뼈를 상태에 얹어 둔다.
@@ -1015,12 +1076,15 @@ function ChibiGameAvatar({ 보이기, 일인칭몸 = false, 플레이어참조, 
     //   아주 작은 값으로 접는다.
     //   `몸만`(1인칭 손 포함)일 때 접는다 — 3인칭(보이기)에서는 그대로다.
     준비.headBone?.scale.setScalar(몸만 ? 1e-4 : (설정.headScale ?? 1));
+    // ★ 머리만 접으면 **목 기둥이 그대로 남아** 1인칭에서 잘린 목 단면이 비쳤다.
+    //   목뼈째 접으면 목이 쇄골 사이 한 점으로 모인다(머리는 목의 자식이라 같이 접힌다).
+    if (준비.neckBone) 준비.neckBone.scale.setScalar(몸만 ? 1e-4 : 1);
     // ── 1인칭: 카메라 앞쪽만 남긴다 (위 「잘림면」) ────────────────
     //   시선축에 수직인 평면을 카메라 앞 `앞자르기` 에 세우고 그 **뒤를 버린다.**
     //   머리·목·가슴은 뒤라 사라지고, 손·팔뚝은 앞이라 남는다.
     if (몸만) {
       카메라.getWorldDirection(_잘림앞);
-      _잘림점.copy(카메라.position).addScaledVector(_잘림앞, 앞자르기 * 크기);
+      _잘림점.copy(카메라.position).addScaledVector(_잘림앞, 잘림.앞 * 크기);
       _잘림면.normal.copy(_잘림앞);
       // 평면식 n·p + c = 0. c = −n·q 면 q 뒤(n·p + c < 0)가 잘린다.
       _잘림면.constant = -_잘림앞.dot(_잘림점);
@@ -1080,6 +1144,17 @@ function ChibiGameAvatar({ 보이기, 일인칭몸 = false, 플레이어참조, 
 
     group.position.set(state.position.x, state.footY, state.position.z);
     group.rotation.set(0, state.facing, 0);
+    // ── 1인칭 「몸만」: 몸을 **뒤로 물린다** ────────────────────────
+    //   카메라는 발 자리 바로 위(머리 한가운데)에 있는데, 가슴·어깨 앞면은 그보다
+    //   앞이다. 그래서 물건을 들고 내려다보면 제 가슴·소매가 화면 아래를 크게
+    //   덮었다. 실제 눈은 몸 앞면 근처에 있으므로, 몸을 그만큼 뒤로 물려
+    //   카메라가 **눈 자리**에 오게 한다(1인칭 게임의 「카메라=눈 뼈」와 같은 뜻).
+    //   facing 규약: 앞 = (sin f, cos f).
+    if (몸만 && 잘림.몸뒤) {
+      const 뒤 = 잘림.몸뒤 * 크기;
+      group.position.x -= Math.sin(state.facing) * 뒤;
+      group.position.z -= Math.cos(state.facing) * 뒤;
+    }
     group.scale.setScalar(avatarScale);
     group.updateMatrixWorld(true);
 
