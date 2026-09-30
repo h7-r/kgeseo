@@ -622,6 +622,8 @@ const 강제기본값 = {
     "접속함z", "접속함y", "퓨즈10x", "퓨즈10z", "퓨즈15x", "퓨즈15z", "퓨즈경계z",
     // 분기함 B 를 측면문 널빤지 밖으로 비켜 세웠다(널빤지에 박혀 있었다)
     "B_z",
+    // 2026-10-01 — 튜토리얼 흐름(자판기→소화전→배전반→밸브)에서 뺐다. 기본으로 숨긴다.
+    "보이기",
   ],
   // 홀로그램 스크린 — 가로 8.0 은 서서 보면 화면을 넘겨 전체가 안 들어왔다.
   //   4.6 으로 줄인다. 한 번 되돌린 뒤에는 다시 손으로 맞춘 값이 산다.
@@ -1581,6 +1583,13 @@ function use이동(
   const 얹은오프셋 = useRef(new THREE.Vector3());
   const 오프셋켬 = useRef(false);
   const 바라보는방향 = useRef(Math.PI);
+  // 첫 몸 방향은 **시작 카메라의 yaw** 에서 뽑는다(아래 「바라봄」과 같은 규약 θ + π).
+  //   Math.PI 는 카메라 기본 시선(−z)일 때만 맞다 — 시작 자리를 비상계단 앞에서
+  //   복도 안쪽(+z)을 보게 바꾸자 캐릭터가 뒤돌아 섰다.
+  useLayoutEffect(() => {
+    바라보는방향.current = camera.rotation.y + Math.PI;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // 3인칭 붐 — 지금 길이(부드럽게 펴지는 값)와 계산에 쓰는 그릇들.
   //   매 프레임 새로 만들면 그만큼 쓰레기가 쌓인다(로비는 프레임이 빡빡하다).
   const 붐현재 = useRef(0);
@@ -1895,7 +1904,11 @@ function use이동(
     //   rotation.set(x, y, z) 에서 x(위아래)·z(기울기)는 0으로 둔다.
     //   서 있는 사람은 고개를 갸웃하지 않으니까.
     if (바라봄 !== undefined) camera.rotation.set(0, 바라봄, 0);
-    if (바라봄 !== undefined) 바라보는방향.current = 바라봄;
+    // ★ 몸 방향(바라보는방향)은 **다른 규약**이다 — atan2(x, z) 라서 0 이 +z 다.
+    //   카메라 yaw θ 의 시선은 (−sin θ, −cos θ) 이므로 몸 방향 = θ + π.
+    //   예전에는 카메라 값을 그대로 넣어서 3인칭에서 캐릭터가 **카메라를 마주 보고**
+    //   섰다(기차에서 내릴 때 · 비상계단 앞 시작 때 실측, 2026-10-01).
+    if (바라봄 !== undefined) 바라보는방향.current = 바라봄 + Math.PI;
   }, [켬]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 씬을 떠날 때 발소리 루프가 남아 계속 울리지 않게 끈다.
@@ -1935,7 +1948,15 @@ function use이동(
       전환시작자리.current.copy(camera.position);
       전환남음.current = 시점전환시간;
     }
-    if (삼인칭 && !이전삼인칭.current) 논리위치.current.copy(camera.position);
+    if (삼인칭 && !이전삼인칭.current) {
+      논리위치.current.copy(camera.position);
+      // ★ 3인칭으로 들어설 때 몸은 **1인칭에서 보던 쪽**을 그대로 본다.
+      //   바라보는방향 은 3인칭에서 마지막으로 걸은 쪽이라, 1인칭에서 고개만 돌렸다가
+      //   V 를 누르면 몸이 **옛 방향으로 휙 돌았다** — 가슴 앞에 든 노트북·상자가
+      //   몸을 따라 반 바퀴 휘둘렸다(로비검사 「시점 전환 때 물건 튐」 0.34, 2026-10-01).
+      //   카메라 yaw θ → 몸 방향 θ + π (아래 「바라봄」과 같은 규약).
+      바라보는방향.current = camera.rotation.y + Math.PI;
+    }
     if (!삼인칭 && 이전삼인칭.current) camera.position.copy(논리위치.current);
     이전삼인칭.current = 삼인칭;
     const p = 삼인칭 ? 논리위치.current : camera.position;
