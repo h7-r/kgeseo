@@ -87,7 +87,29 @@ const _차 = new THREE.Vector3();
 // 이미 한 번 일러 준 대상은 다시 안 찍는다(매 프레임 콘솔이 넘친다)
 const 터진대상 = new Set();
 
-export function 겨냥갱신(카메라, 켬 = true) {
+/**
+ * 등록된 대상의 지금 자리를 읽는다. 튜토리얼 안내가 "저 물건으로 가라"를 그릴 때 쓴다.
+ *   ★ 좌표를 안내 쪽에 따로 적지 않으려고 둔다 — 물건을 옮기면 안내도 같이 옮겨야 한다.
+ *   위치() 가 터져도 겨냥 루프처럼 조용히 null 을 돌려준다.
+ */
+export function 대상위치(id) {
+  const t = 대상.get(id);
+  if (!t) return null;
+  try {
+    return t.위치() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * @param 원점  거리를 재는 기준점(없으면 카메라 자리).
+ *   ★ 3인칭에서는 카메라가 **사람 뒤 9.33 유닛**에 있다. 카메라에서 거리를 재면
+ *     `손닿는거리`(6 유닛 ≈ 1.8 m)를 언제나 넘어서 **아무것도 안 잡힌다**.
+ *     그래서 거리는 사람 자리에서 재고, 방향(시선)은 카메라 것을 그대로 쓴다 —
+ *     그래야 화면 한가운데 조준점과 판정이 어긋나지 않는다.
+ */
+export function 겨냥갱신(카메라, 켬 = true, 원점 = null) {
   if (!켬) {
     if (겨냥id !== null) {
       겨냥id = null;
@@ -96,7 +118,7 @@ export function 겨냥갱신(카메라, 켬 = true) {
     return;
   }
   카메라.getWorldDirection(_앞);
-  const c = 카메라.position;
+  const c = 원점 ?? 카메라.position;
 
   let 찾은id = null;
   let 최소옆거리 = Infinity;

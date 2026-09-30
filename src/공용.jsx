@@ -823,7 +823,9 @@ function use이동(
         const 상태 = 플레이어참조.current;
         상태.position.copy(p);
         상태.groundY = 0;
-        상태.footY = p.y - eyeRef.current;
+        // ★ 앉으면 눈높이가 내려간다. 늘 **선 눈높이**를 빼고 있어서 그 차이만큼
+        //   발바닥이 바닥 아래로 내려갔다 — 3인칭 캐릭터가 땅에 파묻힌다.
+        상태.footY = grounded.current ? 상태.groundY : p.y - eyeRef.current;
         상태.facing = 바라보는방향.current;
         상태.moving = false;
         상태.running = false;
@@ -907,7 +909,12 @@ function use이동(
       const 상태 = 플레이어참조.current;
       상태.position.copy(p);
       상태.groundY = 0;
-      상태.footY = p.y - eyeRef.current;
+      // ★ 발은 **땅에 있으면 땅에** 있다. 눈높이로 발 높이를 역산하면 안 된다.
+      //   [왜 그랬나]  앉으면 눈높이가 6.5 → 3.0 으로 **부드럽게** 내려가는데,
+      //   기준값(floorY)은 그 순간 3.0 으로 **툭** 바뀐다. 그 사이 p.y 는 아직 높아서
+      //   footY 가 양수가 되고, 캐릭터가 공중에 떴다가 떨어졌다(사용자 지적).
+      //   땅에 있으면 발 높이는 지면 그대로고, 앉는 모습은 클립이 무릎을 굽혀 낸다.
+      상태.footY = grounded.current ? 상태.groundY : p.y - eyeRef.current;
       상태.facing = 바라보는방향.current;
       // 아바타가 걷기 모션 재생 속도를 실제 이동 속도에 맞추는 데 쓴다(이동 자체에는 영향 없음).
       상태.speed = Math.hypot(vel.current.x, vel.current.z);
