@@ -32,7 +32,7 @@ export default function 가입히어로({ 누름 = () => {} }) {
         </div>
       </div>
 
-      <div style={{ fontFamily: 글꼴.모노, fontWeight: 300, fontSize: "16px", color: "#64748b", width: "100%" }}>
+      <div style={{ fontFamily: 글꼴.모노, fontWeight: 300, fontSize: "16px", color: "#93a3b8", width: "100%" }}>
         <p style={{ margin: 0, lineHeight: "26px" }}>조사관 등록을 완료하고 합동수사본부에 합류하세요.</p>
         <p style={{ margin: 0, lineHeight: "26px" }}>전국 각지에서 사라진 기록을 추적하고,</p>
         <p style={{ margin: 0, lineHeight: "26px" }}>잊혀진 전설의 진실을 밝혀낼 당신을 기다리고 있습니다.</p>

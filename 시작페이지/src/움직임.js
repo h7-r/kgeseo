@@ -311,3 +311,37 @@ export function use스크롤진행(이름, { 시작 = 0.92, 끝 = 0.12 } = {}) {
 
   return 칸;
 }
+
+/* ═══════════════════════════════════════════════════════
+   지금 스크롤하는 중인가
+
+   [왜 필요한가]
+   뒤에 깔린 입체 공간이 늘 켜져 있으면, 글을 읽는 동안에도 계속 뭔가
+   움직인다. 격자와 조각이 글자 뒤를 지나가면 **글이 잘 안 읽힌다.**
+   움직이는 동안에만 보이고 멈추면 사라지게 하면, 읽을 때는 조용하고
+   넘길 때는 공간이 살아난다.
+
+   멈춤 판정을 너무 짧게 잡으면 스크롤 중간중간 깜빡인다(손가락을 떼는
+   찰나마다 꺼진다). 900ms 쯤 기다려야 「이제 읽는구나」로 읽힌다.
+   ═══════════════════════════════════════════════════════ */
+export function use스크롤중(멈춤 = 900) {
+  const [중, set중] = useState(false);
+
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+
+    let 시계 = 0;
+    const 움직임 = () => {
+      set중(true);
+      clearTimeout(시계);
+      시계 = window.setTimeout(() => set중(false), 멈춤);
+    };
+    window.addEventListener("scroll", 움직임, { passive: true });
+    return () => {
+      clearTimeout(시계);
+      window.removeEventListener("scroll", 움직임);
+    };
+  }, [멈춤]);
+
+  return 중;
+}

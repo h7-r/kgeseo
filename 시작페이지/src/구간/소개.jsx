@@ -106,7 +106,7 @@ const 설명 = {
   fontWeight: 300,
   fontSize: "28px",
   letterSpacing: "0.28px",
-  color: "#64748b",
+  color: "#93a3b8",
   width: "615px",
 };
 
@@ -161,7 +161,7 @@ const 지표이름 = {
   fontWeight: 400,
   fontSize: "18px",
   letterSpacing: "2px",
-  color: "#334155",
+  color: "#7c8ba1",
   textTransform: "uppercase",
   lineHeight: "normal",
   whiteSpace: "nowrap",

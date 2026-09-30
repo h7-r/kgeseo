@@ -33,7 +33,10 @@ const 바깥 = {
   top: "2711px",
   width: "1920px",
   height: "1047px",
-  background: "#060d1a",
+  /* 통짜 색이면 뒤에 깔린 입체 공간(입체/깊은우주.jsx)이 화면 한가운데를
+     통째로 가린다. 이 칸은 게임 영상이 들어올 자리라 아직 비어 있으니,
+     글이 읽힐 만큼만 덮고 나머지는 비치게 둔다. */
+  background: "rgba(6,13,26,0.62)",
   border: "1px solid #1e3a5f",
   borderRadius: "24px",
   overflow: "hidden",
@@ -109,7 +112,7 @@ const 영상글자 = {
 const 자리표시 = {
   fontFamily: 글꼴.모노,
   fontSize: "18px",
-  color: "#1e3a5f",
+  color: "#6b93cc",
   textTransform: "uppercase",
   whiteSpace: "nowrap",
 };

@@ -38,7 +38,7 @@ export default function 앙암바위({ 누름 = () => {} }) {
           <div style={안쪽링테} />
 
           <div style={사진틀}>
-            <img src={에셋.imgPortalImageNaju} alt="" style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover", borderRadius: "285px", maxWidth: "none" }} />
+            <img loading="lazy" decoding="async" src={에셋.imgPortalImageNaju} alt="" style={{ position: "absolute", width: "100%", height: "100%", objectFit: "cover", borderRadius: "285px", maxWidth: "none" }} />
             {/* 아래쪽만 바탕색으로 가라앉힌다 */}
             <div style={{ position: "absolute", inset: 0, borderRadius: "285px", background: "linear-gradient(180deg, rgba(2,4,10,0) 60%, rgba(2,4,10,0.8) 100%)" }} />
           </div>
@@ -64,7 +64,7 @@ export default function 앙암바위({ 누름 = () => {} }) {
       {/* 오른쪽 — 설명 72:1034 */}
       <div style={{ ...놓기(1040, 6213, 720), display: "flex", flexDirection: "column", gap: "40px" }} data-node-id="72:1034">
         <div style={미션배지} data-node-id="72:1035">
-          <img src={에셋.imgLock} alt="" style={{ width: "12px", height: "12px", display: "block" }} />
+          <img loading="lazy" decoding="async" src={에셋.imgLock} alt="" style={{ width: "12px", height: "12px", display: "block" }} />
           <span style={{ fontFamily: 글꼴.본문, fontWeight: 700, fontSize: "18px", color: "#60a5fa", letterSpacing: "3px", textTransform: "uppercase", whiteSpace: "nowrap" }}>
             방탈출 미션 (ESCAPE MISSION)
           </span>
@@ -84,7 +84,7 @@ export default function 앙암바위({ 누름 = () => {} }) {
         <div style={{ display: "flex", gap: "24px", alignItems: "center" }}>
           {제원.map(({ 라벨, 값, 수, 단위, 폭, 별색 }) => (
             <div key={라벨} style={{ ...제원칸, width: `${폭}px` }}>
-              <div style={{ fontFamily: 글꼴.본문, fontWeight: 600, fontSize: "18px", color: "#64748b", letterSpacing: "1px" }}>{라벨}</div>
+              <div style={{ fontFamily: 글꼴.본문, fontWeight: 600, fontSize: "18px", color: "#93a3b8", letterSpacing: "1px" }}>{라벨}</div>
               {값 ? (
                 <div style={{ fontFamily: 글꼴.본문, fontWeight: 700, fontSize: "22px", color: 별색 ? "#60a5fa" : "#ffffff" }}>{값}</div>
               ) : (
@@ -102,7 +102,7 @@ export default function 앙암바위({ 누름 = () => {} }) {
             <span style={{ fontFamily: 글꼴.본문, fontWeight: 800, fontSize: "22px", color: "#ffffff", letterSpacing: "1px", whiteSpace: "nowrap" }}>
               미션 시작하기
             </span>
-            <img src={에셋.imgPlay} alt="" style={{ width: "16px", height: "16px", display: "block" }} />
+            <img loading="lazy" decoding="async" src={에셋.imgPlay} alt="" style={{ width: "16px", height: "16px", display: "block" }} />
           </div>
           <div className="단추" style={{ ...미리보기, cursor: "pointer" }} data-node-id="72:1060" onClick={() => 누름("미리보기")}>미리보기</div>
         </div>

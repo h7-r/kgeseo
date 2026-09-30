@@ -21,7 +21,7 @@ export default function 영상히어로({ 위 = 129, 누름 = () => {} }) {
       <div style={{ display: "flex", flexDirection: "column", gap: "24px", alignItems: "center", width: "560px" }} data-node-id="14:1628">
         <div style={눈썹}>
           <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#60a5fa", whiteSpace: "nowrap" }}>
-            GAME &amp; CHARACTERS · PULSE 2026
+            GAME &amp; CHARACTERS · ESCAPE THE LEGEND 2026
           </span>
         </div>
 
@@ -87,7 +87,7 @@ const 설명 = {
   fontWeight: 300,
   fontSize: "18px",
   lineHeight: "28px",
-  color: "#64748b",
+  color: "#93a3b8",
   textAlign: "center",
   width: "547px",
 };

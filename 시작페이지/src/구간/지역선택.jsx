@@ -60,12 +60,12 @@ export default function 지역선택({ 누름 = () => {} }) {
       {/* 오른쪽 원 뒤에서 번지는 빛 68:1019 · 68:1020 */}
       <div style={{ ...놓기(932, 4371, 731, 700), pointerEvents: "none" }} data-node-id="68:1019">
         <div style={{ position: "absolute", top: "-34.29%", bottom: "-34.29%", left: "-32.83%", right: "-32.83%" }}>
-          <img src={에셋.imgGlowRight} alt="" style={꽉} />
+          <img loading="lazy" decoding="async" src={에셋.imgGlowRight} alt="" style={꽉} />
         </div>
       </div>
       <div style={{ ...놓기(1420, 4410, 366, 400), pointerEvents: "none" }} data-node-id="68:1020">
         <div style={{ position: "absolute", top: "-37.5%", bottom: "-37.5%", left: "-40.98%", right: "-40.98%" }}>
-          <img src={에셋.imgGlowCenterAccent} alt="" style={꽉} />
+          <img loading="lazy" decoding="async" src={에셋.imgGlowCenterAccent} alt="" style={꽉} />
         </div>
       </div>
 
@@ -76,7 +76,7 @@ export default function 지역선택({ 누름 = () => {} }) {
         <div style={둥근사진}>
           {/* key 를 바꿔야 애니메이션이 **다시** 돈다 — 같은 노드를 두면
               CSS 애니메이션이 한 번 돌고 끝난다 */}
-          <img
+          <img loading="lazy" decoding="async"
             key={고른}
             className="카메라줌"
             src={ㄱ.사진}
@@ -101,7 +101,7 @@ export default function 지역선택({ 누름 = () => {} }) {
             </span>
           </div>
           <div style={큰글씨} data-node-id="68:1026">지역을 선택하세요</div>
-          <div style={{ fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "26px", lineHeight: "32px", color: "#64748b" }} data-node-id="68:1027">
+          <div style={{ fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "26px", lineHeight: "32px", color: "#93a3b8" }} data-node-id="68:1027">
             각 지역의 역사와 전설이 담긴 방탈출 미션이 당신을 기다립니다
           </div>
         </div>
@@ -115,7 +115,7 @@ export default function 지역선택({ 누름 = () => {} }) {
           {/* 가로 실선 68:1034 — 높이 0 짜리 칸 위에 그림이 걸쳐 있다 */}
           <div style={{ position: "relative", height: 0, width: "100%" }}>
             <div style={{ position: "absolute", top: "-1px", left: 0, right: 0 }}>
-              <img src={에셋.imgLine} alt="" style={꽉} />
+              <img loading="lazy" decoding="async" src={에셋.imgLine} alt="" style={꽉} />
             </div>
           </div>
           <div style={{ display: "flex", gap: "24px", alignItems: "flex-start" }}>
@@ -147,10 +147,10 @@ function 갈래알({ 이름, 그림, 크기, 켜짐, 고르기 }) {
         className="갈래알 가까이"
         style={{ ...동그라미, border: `2px solid ${켜짐 ? "#3b82f6" : "rgba(30,58,95,0.38)"}`, ...(켜짐 ? { boxShadow: "0px 0px 16px 0px rgba(59,130,246,0.38)" } : {}) }}
       >
-        <img src={그림} alt="" style={{ width: `${크기}px`, height: `${크기}px`, display: "block" }} />
+        <img loading="lazy" decoding="async" src={그림} alt="" style={{ width: `${크기}px`, height: `${크기}px`, display: "block" }} />
         <div style={{ position: "absolute", inset: 0, borderRadius: "inherit", boxShadow: `inset 0px 0px 10px 0px ${켜짐 ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.07)"}` }} />
       </div>
-      <div style={{ fontFamily: 글꼴.본문, fontWeight: 켜짐 ? 700 : 500, fontSize: "18px", color: 켜짐 ? "#efefef" : "#64748b", whiteSpace: "nowrap" }}>
+      <div style={{ fontFamily: 글꼴.본문, fontWeight: 켜짐 ? 700 : 500, fontSize: "18px", color: 켜짐 ? "#efefef" : "#7b8aa1", whiteSpace: "nowrap" }}>
         {이름}
       </div>
     </div>

@@ -4,6 +4,7 @@ import { 글꼴, 글자그라디언트, 막음, 막음안내 } from "../공통.j
 import { 요금제 as 자료 } from "../데이터/요금제.js";
 import 심장선 from "../심장선.jsx";
 import 세로선 from "../세로선.jsx";
+import 도는글 from "../도는글.jsx";
 import { use기울임, use드러내기, 다가옴클래스 } from "../움직임.js";
 
 /* ═══════════════════════════════════════════════════════
@@ -132,7 +133,7 @@ export default function 요금제구간({ 위 = 0 }) {
                   {/* 원본 차례: 덧붙임 글 → 파형 → 오른쪽 아래 「구독하기」 알약 */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     {ㅋ.덧.map((줄) => (
-                      <span key={줄} style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#64748b" }}>
+                      <span key={줄} style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#93a3b8" }}>
                         {줄}
                       </span>
                     ))}
@@ -178,10 +179,10 @@ export default function 요금제구간({ 위 = 0 }) {
         <머리 꼬리표="Benefits" 제목="혜택 안내" 설명="구독 혜택을 한눈에 확인하고, 시즌 드롭을 미리 준비하세요." />
         <div style={혜택칸}>
           <div style={{ width: "520px", height: "356px", borderRadius: "16px", overflow: "hidden", flexShrink: 0 }}>
-            <img src={에셋.imgBenefitImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <img loading="lazy" decoding="async" src={에셋.imgBenefitImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           </div>
           <div style={{ width: "249px", height: "195px", marginLeft: "48px", alignSelf: "flex-end", marginBottom: "7px", borderRadius: "16px", overflow: "hidden", flexShrink: 0 }}>
-            <img src={에셋.imgBenefitImage1} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            <img loading="lazy" decoding="async" src={에셋.imgBenefitImage1} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           </div>
           {/* 그림과 글 사이 호 188:3650 — 로그인 화면과 같은 호를 쓴다.
               칸(420) 보다 조금 짧게(360) 잡아 위아래가 상자 테두리에 닿지 않게 했다. */}
@@ -197,12 +198,20 @@ export default function 요금제구간({ 위 = 0 }) {
 
             <div style={{ height: "1px", background: "linear-gradient(90deg, rgba(59,130,246,0.4) 0%, rgba(59,130,246,0) 100%)" }} />
 
+            {/* 목록 위에서 한 줄씩 돌아가는 문구 — 지금 이 한 줄을 읽게 한다 */}
+            <도는글
+              줄들={자료.도는혜택}
+              사이={4200}
+              style={{ minHeight: "46px" }}
+              글style={{ fontFamily: 글꼴.모노, fontSize: "16px", lineHeight: 1.5, color: "#93c5fd" }}
+            />
+
             <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
               {자료.혜택점.map(({ 글, 덧 }) => (
                 <div key={글} style={{ display: "flex", gap: "12px", alignItems: "baseline" }}>
                   <span style={{ ...점표, alignSelf: "center" }} />
                   <span style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px", color: "#e2e8f0", whiteSpace: "nowrap" }}>{글}</span>
-                  <span style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#64748b" }}>{덧}</span>
+                  <span style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#93a3b8" }}>{덧}</span>
                 </div>
               ))}
             </div>
@@ -235,7 +244,7 @@ function 결제상자({ 제목, 요약, 줄, 아이콘 }) {
       >
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <div style={아이콘칸}>
-            <img src={에셋[아이콘]} alt="" style={{ width: "18px", height: "18px", display: "block" }} />
+            <img loading="lazy" decoding="async" src={에셋[아이콘]} alt="" style={{ width: "18px", height: "18px", display: "block" }} />
           </div>
           <span style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "19px", color: "#eeeeff", letterSpacing: "0.2px" }}>{제목}</span>
         </div>
@@ -275,7 +284,7 @@ function 머리({ 꼬리표, 제목, 설명 }) {
         {꼬리표}
       </span>
       <span style={{ fontFamily: 글꼴.제목, fontSize: "42px", lineHeight: 1.18, color: "#eeeeff" }}>{제목}</span>
-      <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", lineHeight: 1.6, color: "#64748b" }}>{설명}</span>
+      <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", lineHeight: 1.6, color: "#93a3b8" }}>{설명}</span>
     </div>
   );
 }

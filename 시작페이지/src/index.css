@@ -969,3 +969,94 @@ html {
   .머리띠 { transition: none; }
   .머리띠.숨김 { transform: none; }
 }
+
+/* ── 도는 글 ────────────────────────────────────────────
+   새 줄이 아래에서 올라오며 흐릿함에서 또렷해진다. 흐림을 살짝 섞으면
+   두 줄이 겹치는 순간이 자연스럽다 — 글자가 툭 바뀌면 눈에 거슬린다. */
+.도는글줄 {
+  animation: 도는글등장 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes 도는글등장 {
+  from { opacity: 0; transform: translateY(8px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+/* ── 누를 수 있는 것의 반응 ─────────────────────────────
+   [왜 겹쳐 그리나]
+   이 화면의 단추·카드는 배경과 그림자를 인라인 style 로 직접 갖고 있다.
+   클래스에서 같은 속성을 건드리면 인라인이 이겨서 안 먹는다.
+   그래서 ::before 로 한 겹 덮어 빛을 얹는다 — 원래 모양은 그대로 둔다. */
+.단추 {
+  position: relative;
+  overflow: hidden;
+}
+.단추::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  /* 왼쪽 위에서 비스듬히 지나가는 빛 — 금속을 기울일 때 생기는 반사 */
+  background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.22) 48%, transparent 64%);
+  transform: translateX(-60%);
+  transition: opacity 0.2s ease, transform 0.55s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.단추:hover::before {
+  opacity: 1;
+  transform: translateX(60%);
+}
+
+/* 누른 순간 안쪽에서 빛이 퍼진다 — 「눌렸다」를 몸으로 알려 준다 */
+.단추:active::before {
+  opacity: 1;
+  transform: translateX(0);
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.3), transparent 62%);
+  transition: none;
+}
+
+/* ── 카드가 들리는 느낌 ─────────────────────────────────
+   테두리만 밝아지면 「선택됐다」로 읽히고, 그림자가 깊어져야 「들렸다」로
+   읽힌다. 둘을 같이 줘야 손에 잡히는 것처럼 보인다. */
+.카드 {
+  position: relative;
+}
+.카드::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(160deg, rgba(147, 197, 253, 0.16), transparent 46%);
+  transition: opacity 0.26s ease;
+}
+.카드:hover::before {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .도는글줄 { animation: none; }
+  .단추::before,
+  .카드::before { transition: none; }
+}
+
+/* 머리띠 검색 입력 — 밑줄 하나. 이 화면의 다른 입력칸과 같은 말투다. */
+.머리찾기칸 {
+  border: none;
+  border-bottom: 1px solid rgba(96, 165, 250, 0.35);
+  border-radius: 0;
+  background: transparent;
+  padding: 4px 2px 6px;
+  color: #eeeeff;
+  transition: border-color 0.18s ease;
+}
+.머리찾기칸:focus {
+  outline: none;
+  border-bottom-color: #60a5fa;
+}
+/* 브라우저가 붙이는 X 표는 밑줄 모양과 안 맞아 지운다 */
+.머리찾기칸::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}

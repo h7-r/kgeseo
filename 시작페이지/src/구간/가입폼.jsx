@@ -2,6 +2,8 @@ import { useState } from "react";
 import 에셋 from "../에셋.js";
 import { 글꼴, 막음, 막음안내, 중심놓기, 소개폼중심, 가입폼왼쪽, 가입폼폭 } from "../공통.js";
 import { 소셜로가기 } from "../소셜로그인.js";
+import { 들어가기 } from "../로그인상태.js";
+import { 가입 } from "../계정저장소.js";
 import { 모두검사, 통과했나, 세기, 한글있나, 영문만안내, 영문칸 } from "../유효성.js";
 
 /* div.form-inner — 피그마 21:1309 (560 × 660, 두 번째 화면 오른쪽)
@@ -13,9 +15,19 @@ const 검사할칸 = ["닉네임", "지역", "이메일", "비밀번호", "비�
 export default function 가입폼() {
   const [값, set값] = useState({});
   const [오류, set오류] = useState({});
-  const [동의, set동의] = useState(true); // 원본은 체크된 상태로 그려져 있다
+  /* ═══ 동의는 갈라서 받는다 ═══
+     원본은 「이용약관 및 개인정보처리방침에 동의합니다」 한 줄이었다. 두 가지가 걸린다.
+     ① 처리방침은 **공개하는 문서**지 동의를 받는 대상이 아니다. 동의를 받아야 하는 건
+        「개인정보 수집·이용」이다.
+     ② 만 14세 미만은 법정대리인 동의 없이 가입할 수 없다(개인정보 보호법 제22조의2).
+        그래서 나이 확인을 따로 받는다.
+     셋 다 필수라 하나라도 빠지면 막는다. */
+  const [동의들, set동의들] = useState({ 약관: true, 수집: true, 나이: true });
+  const 동의 = 동의들.약관 && 동의들.수집 && 동의들.나이;
   const [눌렀나, set눌렀나] = useState(false);
-  const [소셜말, set소셜말] = useState(""); // 간편 가입 키가 없을 때 보여 줄 말
+  const [소셜말, set소셜말] = useState("");
+  const [하는중, set하는중] = useState(false);
+  const [경고, set경고] = useState(""); // 간편 가입 키가 없을 때 보여 줄 말
   const [됐나, set됐나] = useState(false);
   const [비번보임, set비번보임] = useState(false);
   const [확인보임, set확인보임] = useState(false);
@@ -25,13 +37,28 @@ export default function 가입폼() {
     set값(새값);
     if (눌렀나) set오류(모두검사(검사할칸, 새값));
   };
-  const 보내기 = () => {
+  const 보내기 = async () => {
     set눌렀나(true);
     const 새오류 = 모두검사(검사할칸, 값);
-    if (!동의) 새오류.동의 = "약관에 동의해주세요.";
+    if (!동의) 새오류.동의 = "필수 항목에 모두 동의해주세요.";
     set오류(새오류);
-    /* 보낼 서버가 없다 — 통과하면 단추 글자로만 알려 준다 */
-    set됐나(통과했나(새오류));
+    if (!통과했나(새오류) || 하는중) return;
+
+    set하는중(true);
+    set경고("");
+    try {
+      const 답 = await 가입({
+        이메일: 값.이메일,
+        비밀번호: 값.비밀번호,
+        닉네임: 값.닉네임,
+        지역: 값.지역,
+      });
+      if (!답.좋음) { set경고(답.까닭); return; }
+      들어가기(답.사람);
+      set됐나(true);
+    } finally {
+      set하는중(false);
+    }
   };
   const 속성 = (이름) => ({ 이름, 값: 값[이름] ?? "", 바꾸기: 적기(이름), 오류: 오류[이름] });
 
@@ -88,33 +115,52 @@ export default function 가입폼() {
           </div>
         </div>
 
-        {/* 동의 줄 21:1362 */}
-        <div style={{ display: "flex", gap: "10px", alignItems: "center", position: "relative" }}>
-          <div
-            style={{ ...체크상자, ...(동의 ? {} : { backgroundImage: "none", background: "transparent", borderColor: "rgba(147,197,253,0.45)" }), cursor: "pointer" }}
-            onClick={() => {
-              const 새 = !동의;
-              set동의(새);
-              if (눌렀나) set오류((o) => ({ ...o, 동의: 새 ? "" : "약관에 동의해주세요." }));
-            }}
+        {/* 동의 줄 21:1362 — 원본은 한 줄이었지만 항목을 나눴다(위 주석 참고) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "9px", position: "relative" }}>
+          <동의줄
+            켜짐={동의들.약관}
+            바꾸기={(v) => set동의들((d) => ({ ...d, 약관: v }))}
+            이름="이용약관 동의"
           >
-            {동의 && <div style={체크표시} />}
-          </div>
-          {오류.동의 && <span className="오류글" style={{ left: "26px" }}>{오류.동의}</span>}
-          <div style={{ display: "flex", alignItems: "flex-end", paddingBottom: "1px", fontFamily: 글꼴.모노, fontSize: "16px", whiteSpace: "nowrap" }}>
-            <span style={{ color: "#93c5fd", opacity: 0.7, letterSpacing: "0.6px" }}>이용약관</span>
-            <span style={{ color: "rgba(200,205,255,0.45)", letterSpacing: "0.44px" }}>&nbsp;및&nbsp;</span>
-            <span style={{ color: "#93c5fd", opacity: 0.7, letterSpacing: "0.6px" }}>개인정보처리방침</span>
-            <span style={{ color: "rgba(200,205,255,0.45)", letterSpacing: "0.44px" }}>에 동의합니다.</span>
-          </div>
+            <span style={필수}>[필수]</span>
+            <span style={파란글}>이용약관</span>
+            <span style={흐린글}>에 동의합니다.</span>
+          </동의줄>
+
+          <동의줄
+            켜짐={동의들.수집}
+            바꾸기={(v) => set동의들((d) => ({ ...d, 수집: v }))}
+            이름="개인정보 수집·이용 동의"
+          >
+            <span style={필수}>[필수]</span>
+            <span style={파란글}>개인정보 수집·이용</span>
+            <span style={흐린글}>에 동의합니다.</span>
+          </동의줄>
+
+          <동의줄
+            켜짐={동의들.나이}
+            바꾸기={(v) => set동의들((d) => ({ ...d, 나이: v }))}
+            이름="만 14세 이상 확인"
+          >
+            <span style={필수}>[필수]</span>
+            <span style={흐린글}>만 14세 이상입니다.</span>
+          </동의줄>
+
+          {오류.동의 && <span className="오류글" style={{ left: "26px", top: "100%" }}>{오류.동의}</span>}
         </div>
+
+        {경고 && (
+          <div role="alert" style={{ fontFamily: 글꼴.모노, fontSize: "13px", lineHeight: 1.5, color: "#f87171" }}>
+            {경고}
+          </div>
+        )}
 
         {/* 큰 단추 21:1371 */}
         <div style={{ paddingTop: "6px" }}>
           <div className="단추" style={{ ...큰단추, cursor: "pointer" }} onClick={보내기}>
             {/* 위쪽에 얹히는 흰 광택 (원본의 ::before) */}
             <div style={광택} />
-            <span style={{ position: "relative", ...큰단추글자 }}>{됐나 ? "가입 완료 ✓" : "모험 시작하기"}</span>
+            <span style={{ position: "relative", ...큰단추글자 }}>{하는중 ? "가입하는 중…" : 됐나 ? "가입 완료 ✓" : "모험 시작하기"}</span>
           </div>
         </div>
 
@@ -133,7 +179,7 @@ export default function 가입폼() {
         <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center" }}>
           {/* 깃허브 대신 네이버 — 로그인 카드와 같은 짝이다 */}
           <button type="button" className="단추" style={{ ...소셜, background: "#ffffff" }} onClick={() => set소셜말(소셜로가기("구글"))} title="Google 로 가입">
-            <img src={에셋.imgComponent1} alt="Google" style={{ width: "17px", height: "17px", display: "block" }} />
+            <img loading="lazy" decoding="async" src={에셋.imgComponent1} alt="Google" style={{ width: "17px", height: "17px", display: "block" }} />
           </button>
           <button type="button" className="단추" style={{ ...소셜, background: "#03c75a", borderColor: "#03c75a" }} onClick={() => set소셜말(소셜로가기("네이버"))} title="네이버로 가입">
             <span style={{ fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 800, fontSize: "18px", lineHeight: 1, color: "#fff", letterSpacing: "-0.5px" }}>N</span>
@@ -144,7 +190,7 @@ export default function 가입폼() {
           <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#5092f8", letterSpacing: "0.6px", whiteSpace: "nowrap" }}>로그인</span>
         </div>
         {소셜말 && (
-          <div style={{ fontFamily: 글꼴.모노, fontSize: "13px", color: "#64748b", textAlign: "center" }}>{소셜말}</div>
+          <div style={{ fontFamily: 글꼴.모노, fontSize: "13px", color: "#93a3b8", textAlign: "center" }}>{소셜말}</div>
         )}
       </div>
     </div>
@@ -184,7 +230,7 @@ function 입력줄({ 이름, 안내, 안내색 = "rgba(200,205,255,0.2)", 아래
 function 눈({ 보임, 누르기 }) {
   return (
     <button type="button" onClick={누르기} title={보임 ? "비밀번호 숨기기" : "비밀번호 보기"} style={눈단추}>
-      <img src={에셋.imgEyeIcon} alt="" style={{ width: "18px", height: "18px", display: "block", filter: 보임 ? "brightness(1.9)" : "brightness(1.35)" }} />
+      <img loading="lazy" decoding="async" src={에셋.imgEyeIcon} alt="" style={{ width: "18px", height: "18px", display: "block", filter: 보임 ? "brightness(1.9)" : "brightness(1.35)" }} />
       {!보임 && <span style={사선} />}
     </button>
   );
@@ -221,6 +267,55 @@ const 입력 = {
   alignItems: "flex-start",
   overflow: "hidden",
 };
+
+/* ═══ 동의 한 줄 ═══
+   [왜 진짜 <input> 인가]
+   원본은 div 에 onClick 이라 **탭으로 갈 수도, 스페이스로 켤 수도 없었다.**
+   보이는 네모는 그대로 두되(원본 모양), 실제 체크박스를 그 위에 투명하게
+   겹쳐 둔다. 그러면 키보드·스크린리더는 표준 체크박스로 다루고
+   눈에는 원본 디자인이 보인다. */
+function 동의줄({ 켜짐, 바꾸기, 이름, children }) {
+  return (
+    <label style={{ display: "flex", gap: "10px", alignItems: "center", position: "relative", cursor: "pointer" }}>
+      <span style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}>
+        <input
+          type="checkbox"
+          checked={켜짐}
+          onChange={(e) => 바꾸기(e.target.checked)}
+          aria-label={이름}
+          style={숨은체크}
+        />
+        <span
+          aria-hidden="true"
+          /* 그림일 뿐이라 클릭을 받지 않는다 — 받으면 밑의 진짜 체크박스를
+             가로막는다. 클릭은 바깥 <label> 이 받아서 처리한다. */
+          style={{ ...체크상자, pointerEvents: "none", ...(켜짐 ? {} : { backgroundImage: "none", background: "transparent", borderColor: "rgba(147,197,253,0.45)" }) }}
+        >
+          {켜짐 && <span style={체크표시} />}
+        </span>
+      </span>
+      <span style={{ display: "flex", gap: "5px", alignItems: "flex-end", paddingBottom: "1px", fontFamily: 글꼴.모노, fontSize: "15px", whiteSpace: "nowrap" }}>
+        {children}
+      </span>
+    </label>
+  );
+}
+
+/* 눈에는 안 보이지만 키보드와 스크린리더에는 있는 체크박스.
+   display:none 으로 숨기면 아예 초점을 못 받으므로 투명하게만 덮는다. */
+const 숨은체크 = {
+  position: "absolute",
+  inset: 0,
+  width: "16px",
+  height: "16px",
+  margin: 0,
+  opacity: 0,
+  cursor: "pointer",
+};
+
+const 필수 = { color: "#60a5fa", fontWeight: 700, letterSpacing: "0.4px" };
+const 파란글 = { color: "#93c5fd", opacity: 0.85, letterSpacing: "0.5px" };
+const 흐린글 = { color: "rgba(200,205,255,0.5)", letterSpacing: "0.4px" };
 
 const 체크상자 = {
   width: "16px",

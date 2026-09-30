@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import 네비 from "./구간/네비.jsx";
 import { use화면배율, 설계폭 } from "./무대.jsx";
 import { 알약이동 } from "./이동표.js";
+import { use로그인, 나가기 } from "./로그인상태.js";
 
 /* ═══════════════════════════════════════════════════════
    nav 를 라우트 **바깥** 에 한 번만 그리는 층
@@ -77,6 +78,7 @@ function use머리띠() {
 export default function 내비층() {
   const 배율 = use화면배율();
   const { 굳음, 숨김 } = use머리띠();
+  const 사람 = use로그인();
   const 가기 = useNavigate();
   const 길 = decodeURIComponent(useLocation().pathname);
   const ㅅ = 설정[길] ?? (길.startsWith("/비밀번호") || 길 === "/로그인" || 길 === "/회원가입" ? 인증기본 : { 활성: "홈" });
@@ -89,7 +91,16 @@ export default function 내비층() {
       style={{ position: "fixed", left: 0, top: 0, width: "100%", height: `${Math.round(149 * 배율)}px`, zIndex: 20 }}
     >
       <div style={{ width: `${설계폭}px`, transformOrigin: "top left", transform: `scale(${배율})` }}>
-        <네비 크기={크기} 활성={ㅅ.활성} 누르기={() => 가기(알약이동)} 메뉴누르기={가기} />
+        <네비
+          크기={크기}
+          활성={ㅅ.활성}
+          사람={사람}
+          /* 로그인 전엔 로그인 화면으로, 로그인 뒤엔 마이페이지로 */
+          누르기={() => 가기(사람 ? "/마이페이지" : 알약이동)}
+          나가기={() => { 나가기(); 가기("/"); }}
+          찾아가기={(말) => 가기(`/찾기?말=${encodeURIComponent(말)}`)}
+          메뉴누르기={가기}
+        />
       </div>
     </div>
   );

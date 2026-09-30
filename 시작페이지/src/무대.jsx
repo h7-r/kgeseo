@@ -100,7 +100,11 @@ export default function 무대({ 높이, 바닥틈 = 기본바닥틈, children }
            clip 은 자르기만 하고 스크롤 칸을 안 만들어서, 기준이 문서로 간다.
            (overflowX 만 주면 안 되는 문제도 clip 에는 없다.) */
         overflow: "clip",
-        background: "var(--색-바탕)",
+        /* ★ 바탕을 비워 둔다.
+           뒤에 깔린 입체 공간(입체/깊은우주.jsx)이 보이려면 이 칸이 색을
+           칠하면 안 된다. 바탕색은 body 가 갖고 있으므로 색이 사라지지는
+           않는다 — 구간마다 제 배경을 가진 곳은 그대로 덮어 그린다. */
+        background: "transparent",
       }}
     >
       <div
