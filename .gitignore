@@ -29,3 +29,14 @@ _to_delete/
 # 파이썬 바이트코드 캐시 — Blender 도구를 돌리면 생긴다
 __pycache__/
 *.pyc
+
+# Backend 로컬 환경, 도구 캐시, 로컬 DB
+
+/backend/.env
+/backend/.venv/
+/backend/venv/
+/backend/.pytest_cache/
+/backend/.ruff_cache/
+/backend/*.db
+/backend/*.sqlite
+/backend/*.sqlite3
