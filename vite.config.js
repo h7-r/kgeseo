@@ -18,5 +18,14 @@ export default defineConfig({
   //
   //   strictPort 를 켜면 5173 이 막혔을 때 옮겨 붙지 않고 그냥 실패한다.
   //   "왜 값이 다 날아갔지" 보다 "포트가 물렸다" 가 훨씬 고치기 쉬운 오류다.
-  server: { port: 5173, strictPort: true },
+  server: {
+    port: 5173,
+    strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    },
+  },
 })
