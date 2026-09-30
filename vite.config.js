@@ -123,5 +123,12 @@ export default defineConfig({
         "./naju01/src/scenes/공간그레이박스.jsx",
       ],
     },
+    // 백엔드(FastAPI, backend/) 로 /api 요청을 넘긴다 — feature/sejin-backend-integration
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
+    },
   },
 })

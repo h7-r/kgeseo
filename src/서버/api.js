@@ -28,6 +28,69 @@
 const 저장키 = "왜곡.진행.v1";
 const 지연 = (ms) => new Promise((r) => setTimeout(r, ms));
 
+async function 백엔드요청(경로, 옵션 = {}) {
+  let 응답;
+  try {
+    응답 = await fetch(경로, {
+      ...옵션,
+      headers: { Accept: "application/json", ...옵션.headers },
+    });
+  } catch (원인) {
+    const 오류 = new Error(`Backend 요청 실패 (network): ${원인.message}`);
+    오류.status = null;
+    오류.detail = 원인.message;
+    오류.cause = 원인;
+    throw 오류;
+  }
+
+  const 본문 = await 응답.json().catch(() => null);
+  if (!응답.ok) {
+    const 상세 = 본문?.detail ?? 응답.statusText ?? "알 수 없는 오류";
+    const 오류 = new Error(`Backend 요청 실패 (${응답.status}): ${상세}`);
+    오류.status = 응답.status;
+    오류.detail = 상세;
+    throw 오류;
+  }
+
+  return 본문;
+}
+
+// 실제 Backend 연결 확인용. 게임 API의 기존 모의 구현과는 독립적으로 동작한다.
+export const 백엔드상태조회 = () => 백엔드요청("/api/v1/health");
+export const DB준비상태조회 = () => 백엔드요청("/api/v1/health/ready");
+export const Google로그인 = (credential) =>
+  백엔드요청("/api/v1/auth/google", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ credential }),
+  });
+
+// 소화전 자물쇠 vertical slice용 실제 Backend API. 기존 게임 mock과 독립적이다.
+export const 익명세션생성 = () =>
+  백엔드요청("/api/v1/anonymous-sessions", { method: "POST" });
+export const 케이스번들조회 = (caseId) =>
+  백엔드요청(`/api/v1/cases/${encodeURIComponent(caseId)}/bundle`);
+export const 플레이세션생성 = (anonymousSessionId, caseId) =>
+  백엔드요청("/api/v1/play-sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      anonymous_session_id: anonymousSessionId,
+      case_id: caseId,
+    }),
+  });
+export const 플레이세션조회 = (playSessionId) =>
+  백엔드요청(`/api/v1/play-sessions/${encodeURIComponent(playSessionId)}`);
+export const 상호작용제출 = (playSessionId, interaction) =>
+  백엔드요청(
+    `/api/v1/play-sessions/${encodeURIComponent(playSessionId)}/interactions`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(interaction),
+    },
+  );
+
 // 개발 중 예외 처리를 실제로 확인하려고 둔 스위치.
 //   콘솔에서 `왜곡_서버실패(true)` 를 치면 그때부터 조회가 실패한다.
 //   ★ 저장소에 남겨 둔다 — 새로고침해도 유지돼야 '부팅 때 실패'를 재현할 수 있다.

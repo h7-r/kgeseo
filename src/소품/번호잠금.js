@@ -43,7 +43,7 @@ const _경고한것 = new Set();
  * @param 글자들 **줄마다 다른 글자 세트**(문자열 배열). 실물 문자 자물쇠는
  *   줄마다 새겨진 글자가 다르다. 문자열 하나로 주면 모든 줄이 그걸 같이 쓴다.
  */
-export function 씨앗(id, { 번호, 정답, 글자들 = "0123456789" }) {
+export function 씨앗(id, { 번호, 정답, 글자들 = "0123456789", 제출 }) {
   if (!id) return;
   // 안쪽에서는 항상 **줄별 배열**로 들고 있는다. 바깥이 문자열을 줘도 여기서 편다.
   const 줄수 = Array.isArray(글자들)
@@ -86,6 +86,8 @@ export function 씨앗(id, { 번호, 정답, 글자들 = "0123456789" }) {
     글자들: 줄글자,
     // 풀린 자물쇠는 다시 안 잠근다 — Leva 를 만졌다고 문이 도로 잠기면 황당하다.
     풀림: 옛?.풀림 ?? false,
+    제출,
+    제출중: 옛?.제출중 ?? false,
     고른칸: Math.min(옛?.고른칸 ?? 0, Math.max(0, 새번호.length - 1)),
   });
   알리기();
@@ -195,6 +197,27 @@ export function 맞춰봄(id) {
   return 맞나;
 }
 
+/** 현재 다이얼 문자열을 외부 판정기에 제출한다. 판정기가 없으면 기존 로컬 판정을 쓴다. */
+export async function 제출하기(id) {
+  const s = 자물쇠들.get(id);
+  if (!s || s.제출중) return null;
+  if (s.풀림) return true;
+  if (!s.제출) return 맞춰봄(id);
+
+  const answer = s.번호.map((v, i) => s.글자들[i]?.[v] ?? "").join("");
+  고치기(id, () => ({ 제출중: true }));
+  try {
+    const 맞나 = await s.제출(answer);
+    if (맞나) {
+      고치기(id, () => ({ 풀림: true }));
+      소리재생("자물쇠열림", { 볼륨: 0.9 });
+    }
+    return 맞나;
+  } finally {
+    고치기(id, () => ({ 제출중: false }));
+  }
+}
+
 export function 풀기(id) {
   고치기(id, () => ({ 풀림: true }));
 }
@@ -213,5 +236,6 @@ if (typeof window !== "undefined")
     칸찍기,
     숫자돌리기,
     맞춰봄,
+    제출하기,
     판: () => 판,
   };

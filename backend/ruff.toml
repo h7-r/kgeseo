@@ -1,0 +1,12 @@
+target-version = "py313"
+
+# 이미 적용된 Alembic Migration은 lint/format 대상으로 삼지 않는다.
+extend-exclude = ["alembic/versions"]
+
+[lint]
+# v0.1에서는 기본적인 문법/오류/Import 검사부터 적용한다.
+select = ["E4", "E7", "E9", "F", "I"]
+
+[lint.per-file-ignores]
+# Alembic이 Base.metadata를 구성하기 위해 의도적으로 모델을 import한다.
+"alembic/env.py" = ["F401"]
