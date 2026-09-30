@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from app.api.v1.anonymous_sessions import (
     router as anonymous_sessions_router,
 )
+from app.api.v1.auth import router as auth_router
 from app.api.v1.cases import router as cases_router
 from app.api.v1.health import router as health_router
 from app.api.v1.interactions import router as interactions_router
@@ -23,6 +24,13 @@ app = FastAPI(
 # 자동화된 프로세스 상태 확인용 API 등록
 app.include_router(
     health_router,
+    prefix="/api/v1",
+)
+
+
+# Google 계정 로그인 API 등록
+app.include_router(
+    auth_router,
     prefix="/api/v1",
 )
 

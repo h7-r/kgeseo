@@ -28,11 +28,12 @@
 const 저장키 = "왜곡.진행.v1";
 const 지연 = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function 백엔드요청(경로) {
+async function 백엔드요청(경로, 옵션 = {}) {
   let 응답;
   try {
     응답 = await fetch(경로, {
-      headers: { Accept: "application/json" },
+      ...옵션,
+      headers: { Accept: "application/json", ...옵션.headers },
     });
   } catch (원인) {
     const 오류 = new Error(`Backend 요청 실패 (network): ${원인.message}`);
@@ -57,6 +58,12 @@ async function 백엔드요청(경로) {
 // 실제 Backend 연결 확인용. 게임 API의 기존 모의 구현과는 독립적으로 동작한다.
 export const 백엔드상태조회 = () => 백엔드요청("/api/v1/health");
 export const DB준비상태조회 = () => 백엔드요청("/api/v1/health/ready");
+export const Google로그인 = (credential) =>
+  백엔드요청("/api/v1/auth/google", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ credential }),
+  });
 
 // 개발 중 예외 처리를 실제로 확인하려고 둔 스위치.
 //   콘솔에서 `왜곡_서버실패(true)` 를 치면 그때부터 조회가 실패한다.

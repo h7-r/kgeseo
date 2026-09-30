@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     db_user: str
     db_password: str
     db_name: str
+    google_client_id: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

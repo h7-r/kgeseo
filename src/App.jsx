@@ -155,6 +155,7 @@ import {
 } from "./소품/번호잠금.js";
 import { 소리재생 } from "./소리.js";
 import Backend연결상태 from "./서버/연결상태.jsx";
+import Google로그인 from "./서버/Google로그인.jsx";
 // ── 화면 위에 뜨는 창들 ─────────────────────────────────────
 //   화면층 = 「한 번에 하나의 모달」 규칙(GRD-11 · CMN-035)을 지키는 관리자.
 //   앞으로 수첩(N) · 힌트(H) · 일시정지(ESC)가 여기에 줄줄이 붙는다.
@@ -13890,6 +13891,8 @@ export default function App() {
       <힌트HUD 창열림={열린창 !== null} />
       {/* 임시 개발 도구: Vite proxy를 거친 Backend/API 및 DB readiness 확인 */}
       {import.meta.env.DEV && <Backend연결상태 />}
+      {/* 임시 시연 도구: 검증된 Google 프로필만 React state에 보관 */}
+      {import.meta.env.DEV && <Google로그인 />}
       {/* GPU가 죽었을 때만 뜬다. 검은 화면만 남으면 원인을 알 수 없으니 안내한다. */}
       {GPU끊김 && (
         <div style={S.끊김}>

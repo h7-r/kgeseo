@@ -40,3 +40,7 @@ __pycache__/
 /backend/*.db
 /backend/*.sqlite
 /backend/*.sqlite3
+
+# Frontend local environment overrides
+.env.local
+.env.*.local
