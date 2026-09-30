@@ -63,9 +63,12 @@ const 쪽 = await 브라우저.newPage({ viewport: { width: 1280, height: 720 } 
 // 콘솔 오류 모으기 — 포인터 잠금 경고는 위 설명대로 **정상**이라 뺀다.
 const 오류 = [];
 const 잠금경고 = /pointer lock|Pointer Lock/i;
+// 백엔드(backend/, :8000)를 안 켜면 개발용 연결 표시가 /api 요청마다 502 를 찍는다.
+//   게임 오류가 아니라 서버가 꺼져 있다는 뜻이라 뺀다(feature/sejin-backend-integration).
+const 백엔드꺼짐 = /Backend|Play Session|502 \(Bad Gateway\)/;
 쪽.on("pageerror", (e) => { if (!잠금경고.test(e.message)) 오류.push(`pageerror: ${e.message}`); });
 쪽.on("console", (m) => {
-  if (m.type() === "error" && !잠금경고.test(m.text())) 오류.push(`console: ${m.text().slice(0, 200)}`);
+  if (m.type() === "error" && !잠금경고.test(m.text()) && !백엔드꺼짐.test(m.text())) 오류.push(`console: ${m.text().slice(0, 200)}`);
 });
 
 console.log(`▶ ${주소}`);
@@ -104,8 +107,20 @@ async function 시점맞추기(삼인칭) {
 }
 
 /** 키를 누른 채 걸으며 자리를 프레임마다 적는다 */
+// ★ 걷기 전에 시선을 **−z(본부실 책상 쪽)** 로 맞춘다. 2026-10-01 부터 게임이
+//   비상계단 앞에서 +z 를 보고 시작하는데, 그대로 두면 WASD 방향이 뒤집혀
+//   8방향 전력질주 중 한 갈래가 기차 문에 닿아 **기차에 타 버렸다**(경로 /train).
+//   그 뒤 본부실 물건 겨냥이 전부 null 로 실패했다.
+const 시선정면 = () =>
+  쪽.evaluate(() => {
+    const c = window.__카메라;
+    c.rotation.set(0, 0, 0, "YXZ");
+    c.updateMatrixWorld(true);
+  });
+
 async function 걷기(키들, 초, 시작 = [0, 0]) {
   await 쪽.evaluate(([x, z]) => window.__순간이동(x, z), 시작);
+  await 시선정면();
   await 쪽.waitForTimeout(500);
   for (const k of 키들) await 쪽.keyboard.down(k);
   const 기록 = await 쪽.evaluate(
@@ -138,6 +153,7 @@ async function 걷기(키들, 초, 시작 = [0, 0]) {
 async function 걸음속도(키들, 초 = 1.5, 시작 = [0, 0]) {
   await 쪽.evaluate(() => { window.__이동진단.켬 = true; });
   await 쪽.evaluate(([x, z]) => window.__순간이동(x, z), 시작);
+  await 시선정면();
   await 쪽.waitForTimeout(600);
   for (const k of 키들) await 쪽.keyboard.down(k);
   const 줄 = await 쪽.evaluate(
@@ -242,7 +258,13 @@ const 조합 = [["KeyW"], ["KeyS"], ["KeyA"], ["KeyD"],
                ["KeyW", "KeyA"], ["KeyW", "KeyD"], ["KeyS", "KeyA"], ["KeyS", "KeyD"]];
 let 이탈 = [];
 for (const c of 조합) {
-  const 끝 = (await 걷기([...c, "ShiftLeft"], 3)).at(-1);
+  // ★ (−6, 5) 에서 **1.8초**만 달린다. (0, 0) 에서 3초를 달리면 오른쪽 아래 대각선이
+  //   기차 문(+x 열린 변)에 닿아 **기차에 올라탔고**, 그 뒤 검사가 전부 기차 안에서
+  //   돌아 본부실 겨냥이 null 로 실패했다(2026-10-01). 1.8초 × 8.1 유닛/초 ≈ 14.6
+  //   이면 어느 쪽 벽이든 닿고, 기차 문까지는 못 간다.
+  const 끝 = (await 걷기([...c, "ShiftLeft"], 1.8, [-6, 5])).at(-1);
+  if ((await 쪽.evaluate(() => location.pathname)) !== "/")
+    이탈.push(`${c.join("+")} → 기차에 탔다(경로 ${await 쪽.evaluate(() => location.pathname)})`);
   // 역은 x −24~24 · z −18~18, 복도는 −x 쪽으로만 더 뻗는다. 넉넉히 잡는다.
   if (끝[1] > 26 || 끝[1] < -64 || Math.abs(끝[2]) > 26)
     이탈.push(`${c.join("+")} → (${끝[1].toFixed(1)}, ${끝[2].toFixed(1)})`);
