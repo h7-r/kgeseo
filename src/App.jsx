@@ -149,13 +149,15 @@ import {
   use조작상태,
   칸고르기,
   숫자돌리기,
-  맞춰봄,
+  제출하기,
   조작나가기,
   조작끝,
 } from "./소품/번호잠금.js";
 import { 소리재생 } from "./소리.js";
 import Backend연결상태 from "./서버/연결상태.jsx";
 import Google로그인 from "./서버/Google로그인.jsx";
+import PlaySessionStatus from "./서버/플레이세션상태.jsx";
+import { 소화전자물쇠제출 } from "./서버/플레이세션.js";
 // ── 화면 위에 뜨는 창들 ─────────────────────────────────────
 //   화면층 = 「한 번에 하나의 모달」 규칙(GRD-11 · CMN-035)을 지키는 관리자.
 //   앞으로 수첩(N) · 힌트(H) · 일시정지(ESC)가 여기에 줄줄이 붙는다.
@@ -12212,6 +12214,7 @@ function Scene({
               옆둥글기={자물쇠CD.옆둥글기}
               잠금id={소화전문id}
               정답={자물쇠CD.정답}
+              제출={소화전자물쇠제출}
               조작거리={자물쇠CD.조작거리}
               고리반지름={자물쇠CD.고리반지름}
               고리굵기={자물쇠CD.고리굵기}
@@ -13567,12 +13570,16 @@ export default function App() {
         else if (c === "ArrowDown" || c === "KeyS") 숫자돌리기(id, -1);
         else if (c === "KeyE" || c === "Enter") {
           // 맞으면 풀리고 그대로 나간다. 틀리면 덜컹 — "아니다"를 몸으로 알려 준다.
-          if (맞춰봄(id)) {
-            // ★ 바로 안 나간다 — 자물쇠가 열려 고리가 빠지는 걸 코앞에서
-            //   보여 준 뒤에야 카메라가 물러난다(그냥 시점만 멀어지며 빠지던
-            //   느낌을 없앤다). 1.2초 뒤 나가기 → 연출과 후퇴가 자연스레 이어진다.
-            setTimeout(() => 조작나가기(), 1500);
-          } else 덜컹(id);
+          제출하기(id)
+            .then((맞나) => {
+              if (맞나 === true) {
+                // 자물쇠가 열리는 모습을 보여 준 뒤 카메라를 되돌린다.
+                setTimeout(() => 조작나가기(), 1500);
+              } else if (맞나 === false) 덜컹(id);
+            })
+            .catch((오류) => {
+              console.error("[Play Session] 자물쇠 판정 실패", 오류);
+            });
         }
         return;
       }
@@ -13893,6 +13900,7 @@ export default function App() {
       {import.meta.env.DEV && <Backend연결상태 />}
       {/* 임시 시연 도구: 검증된 Google 프로필만 React state에 보관 */}
       {import.meta.env.DEV && <Google로그인 />}
+      {import.meta.env.DEV && <PlaySessionStatus />}
       {/* GPU가 죽었을 때만 뜬다. 검은 화면만 남으면 원인을 알 수 없으니 안내한다. */}
       {GPU끊김 && (
         <div style={S.끊김}>
@@ -14004,7 +14012,9 @@ function 자물쇠맞추기판() {
         ))}
       </div>
       <div style={S.자물쇠안내}>
-        {값.풀림
+        {값.제출중
+          ? "Backend에서 확인 중..."
+          : 값.풀림
           ? "열렸다 — [E] 로 소화전 문을 연다"
           : "← → 칸 고르기 · ↑ ↓ 숫자 돌리기(휠도 된다) · [E] 확인 · ESC 나가기"}
       </div>

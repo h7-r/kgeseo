@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1",
+  "case_id": "case_001",
+  "puzzles": [
+    {
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "accepted_answers": [
+        "VALVE"
+      ],
+      "on_correct": {
+        "grant_clue_ids": [],
+        "complete_puzzle_ids": [],
+        "set_flags": {
+          "fire_cabinet_unlocked": true
+        }
+      }
+    }
+  ],
+  "clue_combinations": []
+}

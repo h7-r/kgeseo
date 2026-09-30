@@ -1,0 +1,28 @@
+{
+  "case_id": "case_001",
+  "entry_zone_id": "ZONE_SECRET_CORRIDOR",
+  "zones": [
+    {
+      "zone_id": "ZONE_SECRET_CORRIDOR",
+      "zone_name": "Secret Corridor",
+      "zone_type": "corridor",
+      "description": "A hidden corridor containing a locked fire cabinet.",
+      "objects": [
+        {
+          "object_id": "OBJ_FIRE_CABINET_LOCK",
+          "object_name": "Fire Cabinet Letter Lock",
+          "object_type": "lock",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": {
+            "type": "input",
+            "target_id": "PUZZLE_FIRE_CABINET_LOCK"
+          }
+        }
+      ],
+      "navigation": [],
+      "metadata": {}
+    }
+  ]
+}

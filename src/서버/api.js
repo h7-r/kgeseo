@@ -65,6 +65,32 @@ export const Google로그인 = (credential) =>
     body: JSON.stringify({ credential }),
   });
 
+// 소화전 자물쇠 vertical slice용 실제 Backend API. 기존 게임 mock과 독립적이다.
+export const 익명세션생성 = () =>
+  백엔드요청("/api/v1/anonymous-sessions", { method: "POST" });
+export const 케이스번들조회 = (caseId) =>
+  백엔드요청(`/api/v1/cases/${encodeURIComponent(caseId)}/bundle`);
+export const 플레이세션생성 = (anonymousSessionId, caseId) =>
+  백엔드요청("/api/v1/play-sessions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      anonymous_session_id: anonymousSessionId,
+      case_id: caseId,
+    }),
+  });
+export const 플레이세션조회 = (playSessionId) =>
+  백엔드요청(`/api/v1/play-sessions/${encodeURIComponent(playSessionId)}`);
+export const 상호작용제출 = (playSessionId, interaction) =>
+  백엔드요청(
+    `/api/v1/play-sessions/${encodeURIComponent(playSessionId)}/interactions`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(interaction),
+    },
+  );
+
 // 개발 중 예외 처리를 실제로 확인하려고 둔 스위치.
 //   콘솔에서 `왜곡_서버실패(true)` 를 치면 그때부터 조회가 실패한다.
 //   ★ 저장소에 남겨 둔다 — 새로고침해도 유지돼야 '부팅 때 실패'를 재현할 수 있다.
