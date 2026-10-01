@@ -34,7 +34,8 @@ if (typeof window !== "undefined") {
     받음 = true;
     const 링크 = document.createElement("link");
     링크.rel = "prefetch";
-    링크.href = 입장영상.주소;
+    /* 오프닝은 30MB 남짓이라 통째로 미리 받지 않는다(첫 장면 그림만) — 영상은 누르는 순간 앞부분부터 흘려 받는다 */
+    링크.href = 입장영상.포스터;
     document.head.appendChild(링크);
   };
   const 한가할때 = () => (window.requestIdleCallback ? requestIdleCallback(전환영상받기, { timeout: 6000 }) : setTimeout(전환영상받기, 3000));
