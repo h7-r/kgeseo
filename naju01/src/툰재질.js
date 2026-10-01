@@ -80,12 +80,21 @@ uniform float _faceFlatten;
 varying float v_face;
 varying vec3 v_viewNormal;
 `;
+// [목선이 톱니처럼 찢겨 보이던 이유] — v_cloth 를 정점마다 0/1 로 자르지 않는 까닭이다.
+//   목선 표식(naju01/도구/meshy_round_collar.py)은 **경계가 정확히 1.5** 가 되도록 1.0~2.0
+//   사이 값을 목 둘레 정점에 심어 둔다. 그런데 정점 셰이더가 그 값을 먼저 0/1 로 잘라
+//   버려서 눈금이 통째로 버려졌고, 경계가 **삼각형 모서리를 따라서만** 갈렸다.
+//   그래서 목둘레가 톱니처럼 찢겨 보였다(실측 — 목 주변 정점 1,316 개가 1.0~2.0 사이 값인데
+//   전부 버려지고 있었다). `_tint - 1.0` 을 0~1 로 자르면 1→0(살)·1.5→0.5(경계)·2→1(상의)·
+//   3→1(하의) 이라, 조각 셰이더의 0.5 등고선이 **삼각형 안을 가로지르는 매끈한 곡선**이 된다.
+//   하의(3)는 1 로 묶이므로 살↔하의 삼각형이 2(상의)를 지나가는 일도 없다.
 // ※ 셰이더 문자열 안에는 한글을 넣지 않는다(일부 드라이버는 주석의 한글도 거부한다)
 const 정점_법선 = `
   v_face = _face;
   v_tint = _tint;
-  // interpolate "is cloth" and "is bottom" separately (1->3 would pass through 2 = top)
-  v_cloth = _tint > 1.5 ? 1.0 : 0.0;
+  // keep the 1.0~2.0 ramp (see the Korean note above) instead of a per-vertex step;
+  // "is bottom" still steps, so a skin->bottom triangle never passes through 2 = top
+  v_cloth = clamp(_tint - 1.0, 0.0, 1.0);
   v_bottom = _tint > 2.5 ? 1.0 : 0.0;
   if (_face > 0.001 && _faceFlatten > 0.001) {
     vec3 sphere = normalize(position - _headCentre);
