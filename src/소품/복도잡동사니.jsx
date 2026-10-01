@@ -23,7 +23,7 @@ import { useFrame } from "@react-three/fiber";
 import { 소리재생 } from "../소리.js";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { TOON_GRADIENT, 만화선, makeRandom } from "../공용.jsx";
+import { TOON_GRADIENT, 만화선, makeRandom, 플레이어시점 } from "../공용.jsx";
 import { 캔종류, 캔라벨그리기 } from "./자판기.jsx";
 
 // ── 찌그러뜨리기 ────────────────────────────────────────────
@@ -542,8 +542,14 @@ function 물방울({ 자리, 천장y, 바닥y, 밝기 }) {
       const 이전 = 이전u.current[i] ?? u;
       if (이전 < 0.62 && u >= 0.62) {
         // 본부실(복도 바깥, x 큰 쪽)에서는 안 들리게 — 복도 안쪽에 있을 때만.
-        const 복도쪽 = camera.position.x < s.x + 4;
-        const d = Math.hypot(camera.position.x - s.x, camera.position.z - s.z);
+        // ★ **사람이 선 자리**로 잰다. 이건 three 의 AudioListener 가 아니라 손으로
+        //   볼륨을 깎는 방식이라, 듣는 귀는 카메라가 아니라 **사람**이다.
+        //   카메라로 재면 3인칭에서 캐릭터가 물웅덩이 옆에 서 있어도 카메라가
+        //   13 밖이면 소리가 안 나고, 반대로 캐릭터는 본부실인데 카메라만 복도
+        //   쪽이면 들린다(카메라는 캐릭터 뒤 9.33). 볼륨도 그만큼 어긋난다.
+        const 귀 = 플레이어시점.쓸수있나 ? 플레이어시점.눈 : camera.position;
+        const 복도쪽 = 귀.x < s.x + 4;
+        const d = Math.hypot(귀.x - s.x, 귀.z - s.z);
         const 최대 = 13; // 이 거리(≈3.9m) 밖이면 안 들린다
         if (복도쪽 && d < 최대) 소리재생("물방울", { 볼륨: 0.5 * (1 - d / 최대) });
       }

@@ -43,8 +43,13 @@ export default function 힌트UI({ 열림, 닫기 }) {
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)))
         return;
       e.preventDefault();
+      // ★ 실물이 없는 쪽지(튜토리얼 첫 쪽지 등, 실물: false)는 버리지 않는다 —
+      //   떨어뜨릴 종이가 없다. 예전엔 무엇을 빼든 **밸브 쪽지**를 바닥에 내놓아서,
+      //   아직 얻지도 않은 밸브 쪽지가 복도에 나타날 뻔했다.
+      const 그것 = 힌트들.find((h) => h.id === 고른것);
+      if (그것?.실물 === false) return;
       const 남은 = 힌트들.filter((h) => h.id !== 고른것);
-      if (힌트빼기(고른것)) 종이도로놓기();
+      if (힌트빼기(고른것) && 고른것 === "밸브힌트") 종이도로놓기();
       // 버린 자리를 비워 두지 않는다 — 옆 것을 이어서 펴 준다
       set고른것(남은.length ? 남은[남은.length - 1].id : null);
     };
@@ -103,9 +108,13 @@ export default function 힌트UI({ 열림, 닫기 }) {
                 <div style={S.줄} />
                 {상세.그림 && <img src={상세.그림} alt="" style={S.상세그림} />}
                 <p style={S.설명}>{상세.설명 ?? "아직 적힌 것이 없다."}</p>
-                <div style={S.버리기}>
-                  <kbd style={S.키}>E</kbd> 버리기 — 쪽지가 바닥에 떨어진다
-                </div>
+                {상세.실물 === false ? (
+                  <div style={S.버리기}>힌트함에 늘 남아 있는 쪽지</div>
+                ) : (
+                  <div style={S.버리기}>
+                    <kbd style={S.키}>E</kbd> 버리기 — 쪽지가 바닥에 떨어진다
+                  </div>
+                )}
               </>
             ) : (
               <div style={S.안내}>
@@ -228,7 +237,7 @@ const S = {
     borderRadius: 8,
     background: "#12161c",
   },
-  설명: { margin: 0, color: "#b7c0cb", fontSize: 14 },
+  설명: { margin: 0, color: "#b7c0cb", fontSize: 14, whiteSpace: "pre-line" }, // \n 줄바꿈을 살린다
   안내: { color: "#5b6b80", fontSize: 13, paddingTop: 6 },
   버리기: {
     marginTop: 14,
