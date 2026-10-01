@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { use질의탭 } from "../하위메뉴.js";
+import { 마이탭목록 } from "../데이터/마이페이지.js";
 import 무대 from "../무대.jsx";
 import 마이페이지구간 from "../구간/마이페이지.jsx";
 import 하위푸터 from "../구간/하위푸터.jsx";
@@ -7,7 +8,8 @@ import 하위푸터 from "../구간/하위푸터.jsx";
 const 내비높이 = 149;
 
 export default function 마이페이지화면() {
-  const [탭, set탭] = useState("최근 플레이 기록");
+  // 탭은 주소 ?탭= 에 둔다 — 머리띠 아래 하위 메뉴가 탭을 바꿀 수 있게(하위메뉴.js use질의탭)
+  const [탭, set탭] = use질의탭(마이탭목록, "최근 플레이 기록");
   const 푸터위 = 내비높이 + 60 + 1300 + 60 + 170; // +170 = 맨 위 「내 정보」 카드 자리
 
   return (

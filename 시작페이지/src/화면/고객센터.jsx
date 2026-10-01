@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { use질의탭 } from "../하위메뉴.js";
+import { 고객센터탭 } from "../데이터/고객센터.js";
 import 무대 from "../무대.jsx";
 import 고객센터구간 from "../구간/고객센터.jsx";
 import 하위푸터 from "../구간/하위푸터.jsx";
@@ -9,7 +10,8 @@ const 내비높이 = 149;
 const 내용높이 = { 공지사항: 1100, "자주 묻는 질문 (FAQ)": 979, "1:1 문의하기": 1059 };
 
 export default function 고객센터화면() {
-  const [탭, set탭] = useState("공지사항");
+  // 탭은 주소 ?탭= 에 둔다 — 머리띠 아래 하위 메뉴가 탭을 바꿀 수 있게(하위메뉴.js use질의탭)
+  const [탭, set탭] = use질의탭(고객센터탭, "공지사항");
   /* 헤더 아래부터 푸터 전까지 전부 흰 면. 내용 칸은 안쪽 위 48 · 아래 56 여백 */
   const 면높이 = 내용높이[탭] + 48 + 56;
   const 흰바탕높이 = 330 + 면높이 + 60;
