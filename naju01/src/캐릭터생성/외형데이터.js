@@ -160,7 +160,7 @@ export function 기본외형(성별, 카탈로그) {
       bottom: 슬롯기본(카탈로그, "bottom", 성별)?.id ?? null,
       shoes: 슬롯기본(카탈로그, "shoes", 성별)?.id ?? null,
     },
-    colors: { skin: "#ffffff", hair: "#ffffff", cloth: "#ffffff" },
+    colors: { skin: "#ffffff", hair: "#ffffff", cloth: "#ffffff", bottom: "#ffffff", shoes: "#ffffff" },
   };
 }
 
@@ -194,7 +194,9 @@ export function 외형보정(값, 카탈로그) {
   };
 
   const 색 = { ...기본.colors };
-  const 들어온색 = 원본.colors && typeof 원본.colors === "object" ? 원본.colors : {};
+  let 들어온색 = 원본.colors && typeof 원본.colors === "object" ? 원본.colors : {};
+  // 예전 초안(상·하의 한 색)에는 bottom 이 없다 — 상의 색을 그대로 이어받는다
+  if (들어온색.bottom === undefined && typeof 들어온색.cloth === "string") 들어온색 = { ...들어온색, bottom: 들어온색.cloth };
   Object.keys(색).forEach((키) => {
     const v = 들어온색[키];
     // 색은 팔레트에 없어도 받는다(직접 고를 수 있다). 형식만 본다.
@@ -294,6 +296,8 @@ export function 렌더러설정(외형, 카탈로그, { 속옷보기 = false, �
     skinColor: 외형.colors.skin,
     hairColor: 외형.colors.hair,
     clothColor: 외형.colors.cloth,
+    bottomColor: 외형.colors.bottom ?? 외형.colors.cloth,
+    shoesColor: 외형.colors.shoes ?? "#ffffff",
   };
 }
 

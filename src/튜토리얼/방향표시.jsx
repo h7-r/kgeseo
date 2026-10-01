@@ -72,9 +72,11 @@ function 자원() {
 }
 
 /** 캔버스 **안** — 머리 위 화살표 + 가장자리 좌표 계산 */
-export function 방향표시3D({ 켬 = true }) {
-  const { 단계 } = use튜토리얼();
-  const 지금 = 단계들[단계];
+export function TG방향표시3D({ 켬 = true }) {
+  // 숨김(사용자가 안내를 접음)·끝냄은 해랑 쪽 상태를 그대로 따른다 —
+  //   동그라미가 사라졌는데 화살표만 남으면 안내가 어긋난다.
+  const { 단계, 숨김, 끝냄 } = use튜토리얼();
+  const 지금 = 숨김 || 끝냄 ? null : 단계들[단계];
   const get = useThree((s) => s.get);
   const 묶음 = useRef(null);
   const _v = useRef(new THREE.Vector3());
@@ -153,7 +155,7 @@ export function 방향표시3D({ 켬 = true }) {
 }
 
 /** 캔버스 **밖** — 가장자리 화살표를 그린다(자리는 위에서 직접 써 넣는다) */
-export default function 방향표시HUD() {
+export default function TG방향표시HUD() {
   const 붙이기 = (el) => {
     // ★ useEffect(…, []) 로 담으면 안 된다 — 안내가 꺼진 첫 렌더에서는 요소가 없고,
     //   그 상태로 효과가 한 번 돌아 버려 영영 비어 있는다(실제로 그렇게 안 떴다).

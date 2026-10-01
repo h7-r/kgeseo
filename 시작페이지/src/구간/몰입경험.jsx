@@ -98,7 +98,7 @@ function 기능한장({ 번호, 그림, 제목, 설명, 순서 }) {
   const 가까이 = use가까움(240);
 
   return (
-    <div ref={보임칸} className={`기울임판 ${다가옴클래스(보임)}`} style={{ flex: "1 0 0", minWidth: 0, transitionDelay: `${순서 * 45}ms` }}>
+    <div ref={보임칸} className={`기울임판 ${다가옴클래스(보임)}`} style={{ flex: "1 0 0", minWidth: 0, transitionDelay: `${순서 * 30}ms` }}>
       <div
         ref={(el) => { 기울임.ref.current = el; 가까이.current = el; }}
         onMouseMove={기울임.onMouseMove}

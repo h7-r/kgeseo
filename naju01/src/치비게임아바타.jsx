@@ -805,7 +805,8 @@ function ChibiGameAvatar({ 보이기, 일인칭몸 = false, 플레이어참조, 
   const 외형 = useMemo(
     () => ({ ...기본메시설정, ...설정 }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [설정.hair, 설정.shoes, 설정.skinColor, 설정.hairColor, 설정.clothColor, 설정.shoulderWidth, 설정.hipWidth,
+    [설정.hair, 설정.shoes, 설정.skinColor, 설정.hairColor, 설정.clothColor, 설정.bottomColor, 설정.shoesColor,
+      설정.gender, 설정.shoulderWidth, 설정.hipWidth,
       설정.buff, 설정.heavy, 설정.skinny, 설정.armThickness, 설정.legThickness,
       설정.handScale, 설정.footScale, 설정.fistHands],
   );
@@ -821,7 +822,12 @@ function ChibiGameAvatar({ 보이기, 일인칭몸 = false, 플레이어참조, 
       준비.skinMaterials.forEach((material) => material.color?.set(설정.skinColor ?? 기본치비설정.skinColor));
       return;
     }
-    const 색 = { body: 외형.skinColor, hair: 외형.hairColor, top: 외형.clothColor, bottom: 외형.clothColor };
+    const 색 = {
+      body: 외형.skinColor, hair: 외형.hairColor, top: 외형.clothColor,
+      bottom: 외형.bottomColor ?? 외형.clothColor,
+      // 신발은 따로 된 GLB 라 정점 표식이 없다 — 재질 색을 그대로 곱한다(툰이든 아니든)
+      shoes: 외형.shoesColor ?? "#ffffff",
+    };
     const 신었나 = (외형.shoes ?? -1) >= 0;
     // 슬라이더 → morph target. 어깨는 0.75~1.25를 -1~+1로 옮긴다.
     const 모프 = {
@@ -846,14 +852,19 @@ function ChibiGameAvatar({ 보이기, 일인칭몸 = false, 플레이어참조, 
       if (slot === "hair" || slot === "shoes") object.visible = variant === 외형[slot];
       Object.entries(모프).forEach(([key, value]) => 형태값(object, key, value));
       const materials = Array.isArray(object.material) ? object.material : [object.material];
-      const 칠 = slot === "hair" || !툰켬 ? (색[slot] ?? "#ffffff") : "#ffffff";
+      const 칠 = slot === "hair" || slot === "shoes" || !툰켬 ? (색[slot] ?? "#ffffff") : "#ffffff";
       materials.forEach((material) => material.color?.set(칠));
     });
     // 숨긴 파츠(안 고른 헤어·벗은 신발)의 **외곽선 껍데기도 같이 숨긴다.**
     //   껍데기는 본체의 형제라 저절로 따라 숨지 않는다 — 안 맞추면 맨발인데
     //   검은 신발 실루엣이 발에 남는다(툰외곽선 「본체가 보일 때만」).
     외곽선핸들.current?.보임맞추기();
-    툰핸들.current?.색칠({ 피부: 외형.skinColor, 의상: 외형.clothColor });
+    툰핸들.current?.색칠({
+      피부: 외형.skinColor,
+      의상: 외형.clothColor,
+      // 하의는 정점 표식 3 으로 따로 칠한다(naju01/도구/하의표식굽기.mjs)
+      하의: 외형.bottomColor ?? 외형.clothColor,
+    });
     // 툰 재질이 붙은 뒤에 색을 칠해야 하므로 툰 켬/끔도 의존성에 둔다.
   }, [준비, 외형, 몸체, 설정.skinColor, 툰.켬]);
 

@@ -7,6 +7,9 @@
     <title>kgeseo</title>
   </head>
   <body>
+    <!-- 웹사이트에서 전환 영상과 함께 넘어온 경우(?전환=) — 스크립트가 뜨기 전 한순간도 밝은 바탕이 비치지 않게
+         바탕부터 영상 막과 같은 색으로 칠해 둔다(src/전환영상.jsx). -->
+    <script>try { if (new URLSearchParams(location.search).has("전환")) document.documentElement.style.background = "#01040a"; } catch (e) {}</script>
     <div id="root"></div>
     <!-- 에러 수집기 — 브라우저 콘솔을 못 볼 때(팀원 PC 등) 원인을 남긴다.
          잡히지 않은 에러를 탭 제목에 찍고 window.__E 에 쌓아 둔다. -->

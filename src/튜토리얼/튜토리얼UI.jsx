@@ -8,12 +8,14 @@
 
 import { useEffect, useState } from "react";
 import { 단계들, use튜토리얼, 튜토리얼숨김토글 } from "./튜토리얼.js";
+import { use출동 } from "./출동.js";
 
 const 퍼즐수 = 단계들.filter((d) => d.퍼즐).length;
 const 조작단계수 = 단계들.findIndex((d) => d.퍼즐);
 
 export default function 튜토리얼UI({ 가림 = false }) {
   const { 단계, 방금, 끝냄, 숨김 } = use튜토리얼();
+  const { 단계: 출동단계 } = use출동();
   const 지금 = 단계들[단계];
   const [번쩍, set번쩍] = useState(null);
   const [끝숨김, set끝숨김] = useState(false);
@@ -27,12 +29,16 @@ export default function 튜토리얼UI({ 가림 = false }) {
     return () => clearTimeout(t);
   }, [단계, 방금]);
 
-  // 다 끝나면 9초 뒤 알아서 접는다
+  // 다 끝나면 — 힌트함을 한 번 열어 보면 접는다(완료 문구가 「H 로 확인」을 시키므로).
+  //   안 열어도 40초 뒤에는 알아서 접는다. 창이 열리면 App 이 `가림` 을 켠다.
   useEffect(() => {
     if (!끝냄) return undefined;
-    const t = setTimeout(() => set끝숨김(true), 9000);
+    const t = setTimeout(() => set끝숨김(true), 40000);
     return () => clearTimeout(t);
   }, [끝냄]);
+  useEffect(() => {
+    if (끝냄 && 가림) set끝숨김(true);
+  }, [끝냄, 가림]);
 
   useEffect(() => {
     const 키 = (e) => {
@@ -45,7 +51,9 @@ export default function 튜토리얼UI({ 가림 = false }) {
     return () => window.removeEventListener("keydown", 키);
   }, []);
 
-  if (!지금 || 가림 || (끝냄 && 끝숨김)) return null;
+  // 출동 호출이 뜨면 자리를 내준다 — 같은 위쪽 가운데라 겹친다(출동UI 임무 목표)
+  const 출동중 = 출동단계 === "알림" || 출동단계 === "안내" || 출동단계 === "탑승";
+  if (!지금 || 가림 || 출동중 || (끝냄 && 끝숨김)) return null;
   if (숨김) return <div style={S.접힘}>[F1] 안내 보기</div>;
 
   const 머리 = 지금.퍼즐

@@ -8,6 +8,7 @@ import { 배경시작점 } from "./공통.js";
 import 시작화면 from "./시작화면.jsx";
 import 에러 from "./화면/에러.jsx";
 import 영상모달 from "./구간/영상모달.jsx";
+import 게임전환, { 입장영상 } from "./구간/게임전환.jsx";
 import { use히어로덮음 } from "./가림.js";
 import { 그림미리데우기 } from "./그림미리.js";
 
@@ -23,9 +24,25 @@ if (typeof window !== "undefined") {
   const 데우기 = () => window.setTimeout(그림미리데우기, 800);
   if (document.readyState === "complete") 데우기(); else window.addEventListener("load", 데우기, { once: true });
   window.addEventListener("쪽바뀜", 데우기);
+
+  /* 게임 전환 영상(구간/게임전환.jsx)을 한가할 때 미리 받아 둔다 — **로그인한 사람만**.
+     게임 단추를 눌렀을 때 영상이 곧바로 흘러야 한다(안 받아 두면 첫 장면에서 잠깐 멈춘다).
+     로그인 안 한 사람은 단추를 눌러도 로그인 화면으로 가니 받을 이유가 없다(2.4MB 아끼기). */
+  let 받음 = false;
+  const 전환영상받기 = () => {
+    if (받음 || !지금로그인()) return;
+    받음 = true;
+    const 링크 = document.createElement("link");
+    링크.rel = "prefetch";
+    링크.href = 입장영상.주소;
+    document.head.appendChild(링크);
+  };
+  const 한가할때 = () => (window.requestIdleCallback ? requestIdleCallback(전환영상받기, { timeout: 6000 }) : setTimeout(전환영상받기, 3000));
+  if (document.readyState === "complete") 한가할때(); else window.addEventListener("load", 한가할때, { once: true });
+  window.addEventListener("쪽바뀜", 한가할때); // 방금 로그인하고 돌아온 경우
 }
 import { use로그인, 지금로그인 } from "./로그인상태.js";
-import { 게임시작, 게임시작길 } from "./이동표.js";
+import { 게임시작 } from "./이동표.js";
 import 입체칸 from "./입체/입체칸.jsx";
 
 /* 화면 목록 — 피그마 프로토타입의 전환을 주소로 옮긴 것 */
@@ -42,6 +59,8 @@ export default function 앱() {
       <내비층 />
       {/* 경주 원·시나리오 카드를 누르면 뜨는 큰 영상 — 화면마다 따로 두지 않고 여기 한 번만(영상창상태.js) */}
       <영상모달 />
+      {/* 「게임 시작」 을 누르면 뜨는 전환 영상 — 역시 한 번만(구간/게임전환.jsx) */}
+      <게임전환 />
       <쪽전환>
         <Routes>
         <Route path="/" element={<시작화면 />} />
@@ -58,7 +77,7 @@ export default function 앱() {
         <Route path="/마이페이지" element={<문지기><마이페이지화면 /></문지기>} />
         <Route path="/영상캐릭터" element={<영상캐릭터 />} />
         <Route path="/찾기" element={<찾기화면 />} />
-        {/* 게임으로 이어 주는 자리 — 로그인 화면에서 ?다음=/게임시작 으로 돌아오면 여기서 게임으로 넘긴다 */}
+        {/* 게임으로 이어 주는 자리 — 주소(/게임시작)로 바로 들어온 사람용. 사이트 단추들은 이 길을 안 거친다 */}
         <Route path="/게임시작" element={<게임으로 />} />
 
         {/* 막힌 길들 — 404 말고도 미리 만들어 둔다.
@@ -102,13 +121,15 @@ export default function 앱() {
 
    ★ 이건 흐름을 위한 자물쇠지 보안이 아니다 — 로그인상태.js 참고.
    ═══════════════════════════════════════════════════════ */
-/* /게임시작 — 로그인했으면 게임(캐릭터 생성)으로 페이지째 넘어가고, 아니면 로그인부터.
+/* /게임시작 — 로그인했으면 전환 영상과 함께 게임(캐릭터 생성)으로, 아니면 로그인부터.
+   ★ 로그인 뒤에는 **홈으로** 돌아온다(?다음= 을 안 붙인다). 로그인하자마자 게임으로 튕기지 않게 —
+     사용자 지시 「로그인하면 그대로 웹사이트에 있고」. 게임은 게임 단추를 눌러야 시작된다.
    (replace — 뒤로가기를 눌렀을 때 이 중간 자리로 다시 돌아와 또 튕겨 나가지 않게) */
 function 게임으로() {
   const 가기 = useNavigate();
   useEffect(() => {
     if (지금로그인()) 게임시작((길) => 가기(길, { replace: true }));
-    else 가기(`/로그인?다음=${encodeURIComponent(게임시작길)}`, { replace: true });
+    else 가기("/로그인", { replace: true });
   }, [가기]);
   return <p style={{ padding: "160px 24px", textAlign: "center", color: "#8fa0c4" }}>게임으로 이동하는 중…</p>;
 }
