@@ -13,7 +13,7 @@
 // [props 계약]  docs/캐릭터생성-인수인계.md 에 같은 내용이 정리돼 있다.
 //   initialValue? / catalog? / nameRules? / checkName / onDraftChange? / onComplete / onCancel?
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import CC캐릭터프리뷰, { 보기목록, 자세목록, 품질목록 } from "./캐릭터프리뷰.jsx";
+import CC캐릭터프리뷰, { 보기목록 /* , 자세목록, 품질목록 — 관찰 옵션 막아 둠 */ } from "./캐릭터프리뷰.jsx";
 import { 기본카탈로그, 슬롯이름, 색상슬롯이름, 썸네일고르기 } from "./카탈로그.js";
 import {
   기본초안, 초안보정, 성별맞추기, 렌더러설정, 완료데이터, 체형항목, 체형묶음, 눈금들, 가까운눈금, 기본몸치수, 항목기본,
@@ -248,9 +248,11 @@ export default function CC캐릭터생성화면({
   const [속옷보기, set속옷보기] = useState(false);
   const [안내, set안내] = useState(처음값.알림.length ? 처음값.알림.join(" ") : null);
   const [보기, set보기] = useState("전신");
-  const [자세, set자세] = useState("Idle_Loop");
-  const [품질, set품질] = useState("보통");
-  const [관찰열림, set관찰열림] = useState(false);
+  // ★ 자세는 **걷기로 고정**한다. 관찰 옵션(대기/걷기·화질·돌리기)은 UI 개편 중이라
+  //   단추째 주석으로 막아 두었다(아래 「관찰 도크」). 되살리려면 setter 들을 다시 꺼내 쓰면 된다.
+  const [자세] = useState("Walk_Loop");
+  const [품질] = useState("보통");
+  // const [관찰열림, set관찰열림] = useState(false);
   // (「불러오는 중」 상태는 더 두지 않는다 — 배지를 걷어냈고, 미리 받아 두기로
   //  기다림 자체를 줄였다. 프리뷰의 `읽는중알림` prop 은 남겨 두었으니 나중에
   //  부모가 쓸 일이 생기면 그때 이어 붙이면 된다.)
@@ -268,7 +270,7 @@ export default function CC캐릭터생성화면({
   const 검사번호 = useRef(0);
   const 검사중단 = useRef(null);
   const 루트 = useRef(null);
-  const 관찰단추 = useRef(null);
+  // const 관찰단추 = useRef(null); — 관찰 옵션 막아 둠
   const 카메라손잡이 = useRef(null);
   const 조작등록 = useCallback((손잡이) => { 카메라손잡이.current = 손잡이; }, []);
 
@@ -695,6 +697,7 @@ export default function CC캐릭터생성화면({
               {보기목록.map(([값, 글]) => (
                 <CC칩단추 key={값} 고름={(단계 === "이름" ? "상반신" : 보기) === 값} onClick={() => set보기(값)}>{글}</CC칩단추>
               ))}
+              {/* ── 관찰 옵션 — UI 개편 중이라 잠시 막아 둔다(자세는 걷기 고정) ──
               <span style={{ width: 1, height: 20, background: "rgba(255,255,255,0.12)", margin: `0 ${사이.xs}px` }} />
               <button ref={관찰단추} type="button" aria-expanded={관찰열림} aria-haspopup="dialog"
                       style={{ ...단추, padding: "9px 12px" }} onClick={() => set관찰열림((v) => !v)}>
@@ -729,6 +732,7 @@ export default function CC캐릭터생성화면({
                   </CC칩단추>
                 </div>
               ) : null}
+              ── 관찰 옵션 끝 ── */}
             </div>
           </div>
         ) : null}
@@ -758,7 +762,7 @@ export default function CC캐릭터생성화면({
         <div style={{ position: "absolute", right: 여백, bottom: 좁음 ? 시트 + 10 : 위여백, display: "flex", alignItems: "center", gap: 사이.m, pointerEvents: "auto" }}>
           {단계 === "외형" ? (
             <button type="button" className="주단추" style={주단추}
-                    onClick={() => { set속옷보기(false); set단계("이름"); set관찰열림(false); }}>
+                    onClick={() => { set속옷보기(false); set단계("이름"); /* set관찰열림(false); — 관찰 옵션 막아 둠 */ }}>
               이름 입력으로
             </button>
           ) : (

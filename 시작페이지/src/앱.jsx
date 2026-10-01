@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useLayoutEffect, useRef } from "react";
 import { 인증, 게임소개, 약관화면, 고객센터화면, 요금제화면, 마이페이지화면, 영상캐릭터, 찾기화면, 모두미리받기 } from "./화면목록.js";
 import { use화면밖쉼 } from "./쉼.js";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import 내비층 from "./내비층.jsx";
 import { use읽은만큼, use스크롤중 } from "./움직임.js";
 import { 배경시작점 } from "./공통.js";
@@ -24,7 +24,8 @@ if (typeof window !== "undefined") {
   if (document.readyState === "complete") 데우기(); else window.addEventListener("load", 데우기, { once: true });
   window.addEventListener("쪽바뀜", 데우기);
 }
-import { use로그인 } from "./로그인상태.js";
+import { use로그인, 지금로그인 } from "./로그인상태.js";
+import { 게임시작, 게임시작길 } from "./이동표.js";
 import 입체칸 from "./입체/입체칸.jsx";
 
 /* 화면 목록 — 피그마 프로토타입의 전환을 주소로 옮긴 것 */
@@ -57,6 +58,8 @@ export default function 앱() {
         <Route path="/마이페이지" element={<문지기><마이페이지화면 /></문지기>} />
         <Route path="/영상캐릭터" element={<영상캐릭터 />} />
         <Route path="/찾기" element={<찾기화면 />} />
+        {/* 게임으로 이어 주는 자리 — 로그인 화면에서 ?다음=/게임시작 으로 돌아오면 여기서 게임으로 넘긴다 */}
+        <Route path="/게임시작" element={<게임으로 />} />
 
         {/* 막힌 길들 — 404 말고도 미리 만들어 둔다.
             서버가 붙으면 그쪽에서 이 주소로 보내면 된다. */}
@@ -99,6 +102,17 @@ export default function 앱() {
 
    ★ 이건 흐름을 위한 자물쇠지 보안이 아니다 — 로그인상태.js 참고.
    ═══════════════════════════════════════════════════════ */
+/* /게임시작 — 로그인했으면 게임(캐릭터 생성)으로 페이지째 넘어가고, 아니면 로그인부터.
+   (replace — 뒤로가기를 눌렀을 때 이 중간 자리로 다시 돌아와 또 튕겨 나가지 않게) */
+function 게임으로() {
+  const 가기 = useNavigate();
+  useEffect(() => {
+    if (지금로그인()) 게임시작((길) => 가기(길, { replace: true }));
+    else 가기(`/로그인?다음=${encodeURIComponent(게임시작길)}`, { replace: true });
+  }, [가기]);
+  return <p style={{ padding: "160px 24px", textAlign: "center", color: "#8fa0c4" }}>게임으로 이동하는 중…</p>;
+}
+
 function 문지기({ children }) {
   const 사람 = use로그인();
   if (!사람) return <에러 종류="403" />;

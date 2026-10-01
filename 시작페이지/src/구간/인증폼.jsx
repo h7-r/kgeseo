@@ -173,7 +173,9 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
     <span
       className="링크"
       style={{ ...강조링크, fontWeight: 굵게 ? 700 : 400, cursor: "pointer" }}
-      onClick={() => 이동(글)}
+      /* 로그인 ↔ 회원가입 을 오갈 때 ?다음= 을 그대로 들고 간다 — 「플레이하기 → 로그인 → (계정이 없어) 회원가입」
+         으로 옮겨 가도, 가입이 끝나면 원래 가려던 곳(게임)으로 이어진다 */
+      onClick={() => (돌아갈곳 && (글 === "로그인" || 글 === "회원가입") ? 가기(`/${글}?다음=${encodeURIComponent(돌아갈곳)}`) : 이동(글))}
     >
       {글}
     </span>
@@ -334,7 +336,8 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
         />
       )}
 
-      <div style={{ paddingTop: "24px", width: "100%" }}>
+      {/* 경고 상자와 단추 사이 14px — 전엔 둘이 딱 붙어 있었다 */}
+      <div style={{ paddingTop: "24px", width: "100%", display: "flex", flexDirection: "column", gap: "14px" }}>
         {경고 && (
           <div style={경고줄} role="alert">{경고}</div>
         )}
@@ -545,8 +548,20 @@ function 입력줄({ 이름, 안내, 안내색 = "#6f7a8c", 종류 = "text", 값
         {!오른쪽말 && 맞음 && <span className="맞음표" aria-hidden="true" style={{ right: 비번 ? "40px" : "6px" }}>✓</span>}
         {비번 && <눈토글 보임={보임} 누르기={() => set보임((v) => !v)} />}
         {/* 오류 글·오타 제안은 칸 아래가 아니라 **라벨줄 오른쪽**에 뜬다(아래 라벨줄 주석) */}
-        {안내띄우기 && <span className="쓰는법" style={{ fontFamily: 글꼴.모노 }}>{쓰는법[이름]}</span>}
       </div>
+
+      {/* ★ 쓰는 법 — 밑줄 **아래 흐름 안**에 펼친다(index.css .쓰는법칸).
+          [전엔] 밑줄 아래에 떠 있는(absolute) 글이라 칸 사이 틈(14px)보다 길어서
+                 다음 칸의 라벨(「비밀번호」)과 글자가 겹쳤다.
+          [지금] 칸에 들어오면 글 높이만큼 부드럽게 열리며 아래 칸을 살짝 밀어 준다 → 절대 안 겹친다.
+          닫혀 있을 땐 높이 0 이라 자리를 차지하지 않는다. */}
+      {쓰는법[이름] && (
+        <div className={`쓰는법칸${안내띄우기 ? " 열림" : ""}`} aria-hidden={!안내띄우기}>
+          <div>
+            <span className="쓰는법" style={{ fontFamily: 글꼴.모노 }}>{쓰는법[이름]}</span>
+          </div>
+        </div>
+      )}
 
       {/* 비밀번호는 규칙을 켜고 끄며 보여 준다 — 치는 동안 하나씩 초록으로 */}
       {규칙칸 && (들어옴 || 값) && (

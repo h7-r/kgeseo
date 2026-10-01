@@ -46,6 +46,7 @@ import {
   useMemo,
   Suspense,
   lazy,
+  useSyncExternalStore,
 } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { 사이드킥외형읽기 } from "../naju01/src/사이드킥옵션.js";
@@ -1545,6 +1546,27 @@ const 저사양 = 쿼리.get("q") === "low";
 // Leva 패널 — 개발 서버(내 맥)에서는 항상 보이고, 배포본에서는 숨긴다.
 //   import.meta.env.DEV 는 Vite가 넣어주는 값으로, npm run dev 일 때만 true다.
 const LEVA보임 = import.meta.env.DEV || 쿼리.has("leva");
+// ★ 모바일에서는 Leva 를 숨긴다(사용자 지시 2026-10-01). 손가락으로는 슬라이더를
+//   못 만지고 화면만 가린다. 터치 기기(pointer: coarse) 또는 폭 768px 이하.
+//   창을 돌리거나 크기를 바꾸면 바로 따라간다(use모바일).
+const 모바일조건 = "(pointer: coarse), (max-width: 768px)";
+function use모바일() {
+  return useSyncExternalStore(
+    (알림) => {
+      const mq = window.matchMedia(모바일조건);
+      mq.addEventListener("change", 알림);
+      return () => mq.removeEventListener("change", 알림);
+    },
+    () => window.matchMedia(모바일조건).matches,
+    () => false,
+  );
+}
+
+// ── 캐릭터 꾸미기 패널(왼쪽) — 지금은 **화면에 안 띄운다** (사용자 지시 2026-10-01) ──
+//   「일단 안 보이게, 나중에 쓴다고 하면 불러와 달라」. 지운 게 아니라 스위치로 끈 것이다.
+//   · 다시 켜기: 아래 값을 true 로 바꾸거나, 주소에 ?꾸미기 를 붙인다.
+//   · 저장된 캐릭터 외형은 패널이 아니라 App 이 직접 읽으므로(메시외형읽기) 꺼도 그대로다.
+const 꾸미기패널켬 = false || 쿼리.has("꾸미기");
 
 // ── 원인 격리용 스위치 (문제 생겼을 때만 쓴다) ──────────────
 //   ?fx=off   후처리(Bloom·Vignette)를 통째로 끈다
@@ -1552,7 +1574,13 @@ const LEVA보임 = import.meta.env.DEV || 쿼리.has("leva");
 //   기본값은 둘 다 켜짐이므로 평소 동작은 조금도 달라지지 않는다.
 const 후처리끄기 = 쿼리.get("fx") === "off";
 const 구역끄기 = 쿼리.get("zone") === "off";
-//   ?fx=hi    후처리를 예전 고품질 설정(MSAA 8배 · 16비트)으로 되돌린다. 화질 비교용.
+//   ?fx=hi    후처리 멀티샘플을 8배로 올린다. 화질 비교용.
+//   ※ 예전에는 프레임 버퍼도 반정밀도(HalfFloat)로 함께 되돌렸는데, **그 버퍼에서
+//     야외 씬이 통째로 까맣게 나온다**(실측: ANGLE Metal · Apple M5 Max, 헤드리스 아님).
+//     나주에서 "Bloom 을 켜면 화면이 검다"던 것과 같은 원인이고, 거기서도 버퍼를
+//     바이트로 두어 고쳤다(naju01/src/App.jsx frameBufferType 주석).
+//     고품질은 **멀티샘플만** 올리는 것으로 둔다 — 버퍼 형식은 화질과 무관하고,
+//     화면이 안 나오는 쪽이 훨씬 나쁜 손해다.
 const 후처리고품질 = 쿼리.get("fx") === "hi";
 // ── 자동 검사용: 마우스 잠금 없이도 조작을 켠다 ────────────────
 //   ?조작=항상  (또는 ?input=always)
@@ -11668,11 +11696,9 @@ function Scene({
   //   기존 퍼즐(동전→자판기→자물쇠→소화전→배전반→밸브)은 한 줄도 안 건드린다.
   //   값은 전부 따로 움직인다 — 하나를 바꿔도 다른 값이 따라 움직이지 않는다.
   const 작업등CD = useSavedControls("작업등 퍼즐", {
-    // ★ 2026-10-01 기본 **꺼짐**. 게임은 이제 비상계단 앞(이 퍼즐이 있던 구간)에서
-    //   시작하고, 튜토리얼 퍼즐은 자판기 → 소화전 → 배전반 → 밸브(입구 열기)
-    //   넷뿐이다(사용자 지시). 켜 두면 시작하자마자 복도가 캄캄하고(구간어둠)
-    //   튜토리얼에 없는 퍼즐이 먼저 눈에 띈다. Leva 에서 켜면 예전 그대로 돌아온다.
-    보이기: false,
+    // ★ 늘 켜 둔다(사용자 지시 2026-10-01: 「항상 보여야 한다 — 마음대로 숨기지 마」).
+    //   한때 튜토리얼 흐름에서 뺀다고 기본값을 꺼 둔 적이 있다 — 되돌렸다.
+    보이기: true,
     // ── 램프가 처음 굴러다니는 자리 (복도 끝 잔해 사이) ──
     바닥x: { value: -25.2, min: -31, max: -20, step: 0.1 },
     바닥y: { value: 0.42, min: 0, max: 3, step: 0.02 },
@@ -12141,14 +12167,18 @@ function Scene({
     동전크기: { value: 0.18, min: 0.08, max: 0.5, step: 0.005 },
     동전두께2: { value: 0.038, min: 0.015, max: 0.12, step: 0.002 },
     // ── 캔 동전(음료 자판기용) — 바닥 시작 자리 + 반환구 자리 ──
-    캔바닥x: { value: -20.4, min: -34, max: -16, step: 0.1 },
-    캔바닥z: { value: -1.6, min: -14, max: 6, step: 0.1 },
+    // ★ 2026-10-01 — x −20.4 는 커피 자판기 몸통(x −22.5 ~ −20.1, 정면이 −x) **속**이었다.
+    //   자판기에 충돌을 넣은 뒤로는 몸이 거기까지 못 가서 겨냥·줍기가 들쭉날쭉했다
+    //   (종이컵 동전은 아예 안 잡혔다). 두 동전 다 **정면 앞 바닥**으로 옮긴다.
+    //   정면(−22.5)에서 한 뼘 남짓 앞이라 자판기 앞에 서면 발치에 보인다.
+    캔바닥x: { value: -23.7, min: -34, max: -16, step: 0.1 },
+    캔바닥z: { value: -1.2, min: -14, max: 6, step: 0.1 },
     캔회전: { value: 0.2, min: -3.15, max: 3.15, step: 0.05 },
     캔색: "#b6923f",
     캔무늬색: "#6f531f",
     // ── 종이컵 동전(커피 자판기용) ──
-    컵바닥x: { value: -20.4, min: -34, max: -16, step: 0.1 },
-    컵바닥z: { value: -4.8, min: -14, max: 6, step: 0.1 },
+    컵바닥x: { value: -23.4, min: -34, max: -16, step: 0.1 },
+    컵바닥z: { value: -5.4, min: -14, max: 6, step: 0.1 },
     컵회전: { value: -0.5, min: -3.15, max: 3.15, step: 0.05 },
     컵색: "#9c7b52",
     컵무늬색: "#4a3a22",
@@ -14808,6 +14838,7 @@ export default function App() {
   const [사이드킥설정, set사이드킥설정] = useState(() =>
     로비아바타테스트 && !로비치비테스트 ? 사이드킥외형읽기(로비외형저장키) : null,
   );
+  const 모바일 = use모바일(); // Leva 숨김 — 위 「모바일조건」
   const [치비설정, set치비설정] = useState(() =>
     로비치비테스트 ? 메시외형읽기(로비메시저장키) : null,
   );
@@ -15236,7 +15267,7 @@ export default function App() {
           기본값(numberInputMinWidth 38px)은 '−12.3' 같은 값에서 뒷자리가 잘려
           캡처로 값을 옮길 때 소수점을 못 읽는다. 68px로 늘려 항상 다 보이게 한다. */}
       <Leva
-        hidden={!LEVA보임}
+        hidden={!LEVA보임 || 모바일}
         theme={{ sizes: { numberInputMinWidth: "68px" } }}
       />
       <Canvas
@@ -15383,9 +15414,9 @@ export default function App() {
           <EffectComposer
             autoClear={false}
             multisampling={저사양 ? 0 : 후처리고품질 ? 8 : 2}
-            frameBufferType={
-              후처리고품질 ? THREE.HalfFloatType : THREE.UnsignedByteType
-            }
+            /* ★ 반정밀도(HalfFloat)로 두면 안 된다 — 이 버퍼에서 야외 씬이
+                 통째로 까맣게 나온다(위 `후처리고품질` 주석). 바이트로 못 박는다. */
+            frameBufferType={THREE.UnsignedByteType}
           >
             <Bloom intensity={0.45} luminanceThreshold={0.85} mipmapBlur />
             <Vignette offset={0.36} darkness={0.28} />
@@ -15452,7 +15483,7 @@ export default function App() {
           [V] {삼인칭 ? "1인칭" : "3인칭"}
         </button>
       )}
-      {로비치비테스트 && !기차안 && 치비설정 && (
+      {꾸미기패널켬 && 로비치비테스트 && !기차안 && 치비설정 && (
         <Suspense fallback={null}>
           <LobbyChibiPanel
             설정={치비설정}
@@ -15465,7 +15496,7 @@ export default function App() {
           />
         </Suspense>
       )}
-      {로비아바타테스트 && !기차안 && 사이드킥설정 && (
+      {꾸미기패널켬 && 로비아바타테스트 && !기차안 && 사이드킥설정 && (
         <Suspense fallback={null}>
           <LobbySidekickPanel
             설정={사이드킥설정}
