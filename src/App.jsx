@@ -46,6 +46,7 @@ import {
   useMemo,
   Suspense,
   lazy,
+  useSyncExternalStore,
 } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { 사이드킥외형읽기 } from "../naju01/src/사이드킥옵션.js";
@@ -1543,6 +1544,27 @@ const 저사양 = 쿼리.get("q") === "low";
 // Leva 패널 — 개발 서버(내 맥)에서는 항상 보이고, 배포본에서는 숨긴다.
 //   import.meta.env.DEV 는 Vite가 넣어주는 값으로, npm run dev 일 때만 true다.
 const LEVA보임 = import.meta.env.DEV || 쿼리.has("leva");
+// ★ 모바일에서는 Leva 를 숨긴다(사용자 지시 2026-10-01). 손가락으로는 슬라이더를
+//   못 만지고 화면만 가린다. 터치 기기(pointer: coarse) 또는 폭 768px 이하.
+//   창을 돌리거나 크기를 바꾸면 바로 따라간다(use모바일).
+const 모바일조건 = "(pointer: coarse), (max-width: 768px)";
+function use모바일() {
+  return useSyncExternalStore(
+    (알림) => {
+      const mq = window.matchMedia(모바일조건);
+      mq.addEventListener("change", 알림);
+      return () => mq.removeEventListener("change", 알림);
+    },
+    () => window.matchMedia(모바일조건).matches,
+    () => false,
+  );
+}
+
+// ── 캐릭터 꾸미기 패널(왼쪽) — 지금은 **화면에 안 띄운다** (사용자 지시 2026-10-01) ──
+//   「일단 안 보이게, 나중에 쓴다고 하면 불러와 달라」. 지운 게 아니라 스위치로 끈 것이다.
+//   · 다시 켜기: 아래 값을 true 로 바꾸거나, 주소에 ?꾸미기 를 붙인다.
+//   · 저장된 캐릭터 외형은 패널이 아니라 App 이 직접 읽으므로(메시외형읽기) 꺼도 그대로다.
+const 꾸미기패널켬 = false || 쿼리.has("꾸미기");
 
 // ── 원인 격리용 스위치 (문제 생겼을 때만 쓴다) ──────────────
 //   ?fx=off   후처리(Bloom·Vignette)를 통째로 끈다
@@ -14807,6 +14829,7 @@ export default function App() {
   const [사이드킥설정, set사이드킥설정] = useState(() =>
     로비아바타테스트 && !로비치비테스트 ? 사이드킥외형읽기(로비외형저장키) : null,
   );
+  const 모바일 = use모바일(); // Leva 숨김 — 위 「모바일조건」
   const [치비설정, set치비설정] = useState(() =>
     로비치비테스트 ? 메시외형읽기(로비메시저장키) : null,
   );
@@ -15235,7 +15258,7 @@ export default function App() {
           기본값(numberInputMinWidth 38px)은 '−12.3' 같은 값에서 뒷자리가 잘려
           캡처로 값을 옮길 때 소수점을 못 읽는다. 68px로 늘려 항상 다 보이게 한다. */}
       <Leva
-        hidden={!LEVA보임}
+        hidden={!LEVA보임 || 모바일}
         theme={{ sizes: { numberInputMinWidth: "68px" } }}
       />
       <Canvas
@@ -15451,7 +15474,7 @@ export default function App() {
           [V] {삼인칭 ? "1인칭" : "3인칭"}
         </button>
       )}
-      {로비치비테스트 && !기차안 && 치비설정 && (
+      {꾸미기패널켬 && 로비치비테스트 && !기차안 && 치비설정 && (
         <Suspense fallback={null}>
           <LobbyChibiPanel
             설정={치비설정}
@@ -15464,7 +15487,7 @@ export default function App() {
           />
         </Suspense>
       )}
-      {로비아바타테스트 && !기차안 && 사이드킥설정 && (
+      {꾸미기패널켬 && 로비아바타테스트 && !기차안 && 사이드킥설정 && (
         <Suspense fallback={null}>
           <LobbySidekickPanel
             설정={사이드킥설정}
