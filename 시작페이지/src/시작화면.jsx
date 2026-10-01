@@ -1,6 +1,5 @@
 import { useNavigate } from "react-router-dom";
 import { 눌러이동 } from "./이동표.js";
-import { use로그인 } from "./로그인상태.js";
 import 무대, { use화면배율 } from "./무대.jsx";
 import 히어로핀, { 히어로끝 } from "./구간/히어로핀.jsx";
 import 소개 from "./구간/소개.jsx";
@@ -19,9 +18,8 @@ import 푸터 from "./구간/푸터.jsx";
 /* 메인 랜딩 — 피그마 3:3 「메인 (Main)」 (1920 × 9020) */
 export default function 시작화면() {
   const 가기 = useNavigate();
-  /* 로그인했으면 「플레이하기」 등이 회원가입 대신 게임으로 간다(이동표.js 눌러이동) */
-  const 사람 = use로그인();
-  const 누름 = 눌러이동(가기, { 로그인됨: Boolean(사람) });
+  /* 「플레이하기」 등 게임 시작 단추 — 로그인했으면 게임, 아니면 로그인 뒤 게임(이동표.js 눌러이동) */
+  const 누름 = 눌러이동(가기);
   const 배율 = use화면배율();
 
   return (

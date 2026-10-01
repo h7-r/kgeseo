@@ -36,7 +36,7 @@ function 인물한장({ 그림, 이름, 역할, 설명, 순서 }) {
     <div
       ref={보임칸}
       className={`기울임판 ${다가옴클래스(보임)}`}
-      style={{ flex: "1 0 0", height: "100%", transitionDelay: `${순서 * 45}ms` }}
+      style={{ flex: "1 0 0", height: "100%", transitionDelay: `${순서 * 30}ms` }}
     >
       <div
         ref={기울임.ref}

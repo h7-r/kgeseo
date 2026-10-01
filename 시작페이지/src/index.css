@@ -329,12 +329,12 @@ button {
 /* ── 스크롤로 드러나기 ──────────────────────────────── */
 .드러남 {
   opacity: 0;
-  transform: translateY(26px);
+  transform: translateY(16px);
   /* 아래 .다가옴 과 겹쳐 쓰면 안쪽에서 3D 로 다가온다 */
-  /* 0.7s 는 굴리는 속도보다 느렸다 — 다 나타나기 전에 이미 지나가 버린다 */
+  /* 0.7s → 0.42s → 0.3s (2026-10-01 「스크롤 따라 나오는 게 느리다」) — 거리도 26 → 16px 로 줄였다 */
   transition:
-    opacity 0.42s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform;
 }
 .드러남.보임 {
@@ -442,21 +442,29 @@ button {
   box-shadow: 0 1px 0 0 rgba(50, 82, 150, 0.55);
 }
 
-/* 칸에 들어왔을 때 띄우는 쓰는 법 — 밑줄 바로 아래, 배치를 안 민다 */
-.쓰는법 {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 7px);
-  font-size: 13px;
-  line-height: 1.45;
-  color: #6f86bf;
-  opacity: 0.92;
-  pointer-events: none;
-  animation: 안내들어옴 0.18s ease-out;
+/* 칸에 들어왔을 때 펼치는 쓰는 법 — 밑줄 아래 흐름 안(겹치지 않는다)
+   [높이 0 → 글 높이로 부드럽게] grid-template-rows 를 0fr → 1fr 로 바꾸면
+   글 높이를 몰라도(한 줄이든 두 줄이든) 딱 그만큼 열린다. 안쪽 칸은 min-height:0 + overflow:hidden.
+   margin-top: 칸 묶음의 gap(10px)을 닫혀 있을 땐 없애고(-10px), 열리면 밑줄과 6px 만 띄운다(-4px). */
+.쓰는법칸 {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: -10px;
+  opacity: 0;
+  transition: grid-template-rows 0.2s ease, margin-top 0.2s ease, opacity 0.18s ease;
 }
+.쓰는법칸 > div { min-height: 0; overflow: hidden; }
+.쓰는법칸.열림 { grid-template-rows: 1fr; margin-top: -4px; opacity: 1; }
 @keyframes 안내들어옴 {
   from { opacity: 0; transform: translateY(-3px); }
-  to   { opacity: 0.92; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.쓰는법 {
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #6f86bf;
+  padding-bottom: 2px;
 }
 
 /* 비밀번호 규칙 체크 목록 */
@@ -478,7 +486,7 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .쓰는법 { animation: none; }
+  .쓰는법칸 { transition: none; }
 }
 
 /* ── 스크롤 막대 ────────────────────────────────────────
@@ -535,11 +543,11 @@ html {
    글자가 흐려 보이지 않도록 끝난 뒤엔 transform 을 완전히 지운다. */
 .다가옴 {
   opacity: 0;
-  transform: perspective(1400px) translate3d(0, 34px, -110px);
-  /* 0.78s 는 굴리는 속도보다 느렸다 */
+  transform: perspective(1400px) translate3d(0, 22px, -70px);
+  /* 0.78s → 0.46s → 0.32s (2026-10-01 「스크롤 따라 나오는 게 느리다」) — 다가오는 거리도 줄였다 */
   transition:
-    opacity 0.46s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.46s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform;
 }
 .다가옴.보임 {
@@ -653,10 +661,10 @@ html {
   transform-origin: 50% 100%;
   transform: rotateX(-82deg) translateY(0.35em);
   opacity: 0;
-  /* 0.72s 는 굴리는 속도보다 느렸다 — 제목이 다 서기 전에 지나가 버린다 */
+  /* 0.72s → 0.46s → 0.34s (2026-10-01) — 제목이 다 서기 전에 지나가 버린다 */
   transition:
-    transform 0.46s cubic-bezier(0.23, 1, 0.32, 1),
-    opacity 0.32s ease-out;
+    transform 0.34s cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 0.24s ease-out;
   will-change: transform, opacity;
 }
 .오르는낱말.섬 {

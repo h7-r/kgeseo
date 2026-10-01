@@ -16,6 +16,8 @@
 //   루프시작("뛰기") / 루프정지("뛰기") — 반복 재생(발소리·물방울)
 
 // 이름 → public/sfx 파일. (public 은 Vite 가 루트(/)로 서빙한다)
+import { 설정 } from "./설정/설정.js";
+
 const 목록 = {
   박스들기: "/sfx/box_up.mp3",
   박스놓기: "/sfx/box_down.mp3",
@@ -42,6 +44,21 @@ const 있음 = typeof window !== "undefined";
 let ctx = null;
 const 버퍼 = new Map(); // 이름 → AudioBuffer
 const 로딩 = new Map(); // 이름 → Promise (중복 로딩 방지)
+
+// ── 효과음 마스터 볼륨 — 설정의 「효과음」(0~1) ──────────────────
+//   모든 효과음이 destination 대신 이 한 곳을 지난다. 설정을 바꾸면 곧바로 따라간다.
+let 마스터 = null;
+function 효과음출력(c) {
+  if (!마스터) {
+    마스터 = c.createGain();
+    마스터.gain.value = 설정.값().효과음;
+    마스터.connect(c.destination);
+    설정.구독((v) => {
+      if (마스터) 마스터.gain.value = v.효과음;
+    });
+  }
+  return 마스터;
+}
 
 function 컨텍스트() {
   if (!있음) return null;
@@ -101,7 +118,7 @@ export function 소리재생(이름, { 볼륨 = 1, 배속 = 1 } = {}) {
   s.playbackRate.value = 배속;
   const g = c.createGain();
   g.gain.value = 볼륨;
-  s.connect(g).connect(c.destination);
+  s.connect(g).connect(효과음출력(c));
   s.start();
   return s;
 }
@@ -122,7 +139,7 @@ export function 루프시작(이름, { 볼륨 = 1 } = {}) {
   s.loop = true;
   const g = c.createGain();
   g.gain.value = 볼륨;
-  s.connect(g).connect(c.destination);
+  s.connect(g).connect(효과음출력(c));
   s.start();
   루프중.set(이름, { s, g });
 }

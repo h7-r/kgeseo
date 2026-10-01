@@ -2,7 +2,8 @@
 // 파츠 번호는 GLB 노드 extras의 variant와 같다. -1 = 없음(속옷·민머리·맨발).
 import { 사이드킥모션목록 } from "./사이드킥옵션.js";
 
-export const 모델판 = 20;
+// 21 — 하의 표식(3)을 구웠다(하의표식굽기.mjs). 판을 올려야 브라우저가 새 GLB 를 받는다.
+export const 모델판 = 21;
 
 export const 메시선택지 = {
   hair: {
@@ -63,7 +64,9 @@ export const 메시슬라이더 = [
 export const 메시색상 = [
   ["skinColor", "피부"],
   ["hairColor", "머리"],
-  ["clothColor", "의상"],
+  ["clothColor", "상의"],
+  ["bottomColor", "하의"],
+  ["shoesColor", "신발"],
 ];
 
 export const 기본메시설정 = {
@@ -99,6 +102,8 @@ export const 기본메시설정 = {
   skinColor: "#ffffff",
   hairColor: "#ffffff",
   clothColor: "#ffffff",
+  bottomColor: "#ffffff",
+  shoesColor: "#ffffff",
 };
 
 const 모션값 = new Set(사이드킥모션목록.map(([value]) => value));

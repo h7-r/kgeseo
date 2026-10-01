@@ -95,7 +95,7 @@ function 작은영상({ 순서, 켜짐, 누르기, ...ㅇ }) {
       onClick={누르기}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); 누르기?.(); } }}
       className={`기울임판 ${다가옴클래스(보임)}`}
-      style={{ flex: "1 0 0", minWidth: 0, height: "335px", cursor: "pointer", transitionDelay: `${순서 * 45}ms`, outline: 켜짐 ? "2px solid rgba(50,82,150,0.85)" : "none", outlineOffset: "2px", borderRadius: "12px" }}
+      style={{ flex: "1 0 0", minWidth: 0, height: "335px", cursor: "pointer", transitionDelay: `${순서 * 30}ms`, outline: 켜짐 ? "2px solid rgba(50,82,150,0.85)" : "none", outlineOffset: "2px", borderRadius: "12px" }}
     >
       <div
         ref={기울임.ref}

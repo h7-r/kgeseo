@@ -286,14 +286,20 @@ function 환영판({ 사람, 누름 }) {
   return (
     <div style={{ ...바깥, display: "flex", flexDirection: "column", justifyContent: "center", gap: "24px" }} className={`사락판${켜짐 ? " 켜짐" : ""}`} data-node-id="21:1309">
       {/* ① 머리글 */}
+      {/* ★ 영문(WELCOME BACK)만 모노+자간, 한글(접속 중)은 본문 글꼴·자간 0.
+          모노 글꼴의 넓은 자간이 한글에 걸리면 「접 속 중」처럼 글자가 흩어져 보였다. */}
       <div className="사락" style={환영머리}>
         <span style={접속점} aria-hidden="true" />
-        <span>WELCOME BACK · 접속 중</span>
+        <span style={{ fontFamily: 글꼴.모노, letterSpacing: "2px" }}>WELCOME BACK</span>
+        <span style={머리가름} aria-hidden="true" />
+        <span style={{ fontFamily: 글꼴.본문, letterSpacing: 0, color: "#8fa0c4" }}>접속 중</span>
         {사람.테스트 && <span style={테스트딱지}>테스트 계정</span>}
       </div>
 
       {/* ② 인사 */}
-      <div className="사락 사락-1" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      {/* ★ 인사 두 줄을 **한 글꼴(본문)** 로 — 전엔 「환영합니다,」(Paperlogy) · 닉네임(Plex) 이 서로 다른 글꼴이라
+          따로 노는 두 덩이로 보였다. 윗줄은 작고 밝게(도입), 아랫줄 닉네임이 주인공 */}
+      <div className="사락 사락-1" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
         <div style={환영인사}>환영합니다,</div>
         <div style={{ display: "flex", alignItems: "baseline", gap: "10px", minWidth: 0 }}>
           <span style={환영이름} title={사람.이름}>{사람.이름}</span>
@@ -305,11 +311,9 @@ function 환영판({ 사람, 누름 }) {
       {/* 글자를 키우니(21px) 한 줄이 판 폭(560)을 넘어 어중간한 곳에서 꺾였다 →
           뜻이 끊기는 자리에서 직접 줄을 나누고(br), 줄 안에서는 꺾이지 않게(nowrap) */}
       <p className="사락 사락-1" style={{ ...환영글, whiteSpace: "nowrap" }}>
-        전설 속에 봉인된 첫 번째 사건이
+        전설 속에 봉인된 첫 번째 사건이 조사관님을
         <br />
-        조사관님을 기다리고 있습니다.
-        <br />
-        지역의 단서를 모아 봉인을 풀고,
+        기다리고 있습니다. 지역의 단서를 모아 봉인을 풀고,
         <br />
         잊혀진 이야기를 되찾아 주세요.
       </p>
@@ -344,7 +348,8 @@ function 환영판({ 사람, 누름 }) {
         </div>
 
         {/* ⑥ 링크 */}
-        <div style={{ display: "flex", justifyContent: "center", gap: "10px", marginTop: "18px", fontFamily: 글꼴.모노, fontSize: "16px", color: "#8b93a3" }}>
+        {/* ★ 모노 → 본문 글꼴: 모노는 한글 띄어쓰기가 한 칸씩 넓어 「기록  보기」처럼 벌어져 보였다 */}
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "14px", marginTop: "20px", fontFamily: 글꼴.본문, fontSize: "15px", color: "#6f7a8c" }}>
           <button type="button" className="링크" style={글링크} onClick={() => 누름("마이페이지")}>마이페이지에서 기록 보기 →</button>
           <span aria-hidden="true">·</span>
           <button type="button" className="링크" style={{ ...글링크, color: "#8b93a3" }} onClick={나가기}>로그아웃</button>
@@ -358,11 +363,11 @@ const 환영머리 = {
   display: "flex",
   alignItems: "center",
   gap: "10px",
-  fontFamily: 글꼴.모노,
-  fontSize: "15px",
-  letterSpacing: "1.6px",
+  fontSize: "14px",
   color: "#6f86bf",
 };
+/* WELCOME BACK │ 접속 중 — 가운데 점 대신 가는 세로선으로 나눈다(모노 · 가 한 칸을 크게 먹었다) */
+const 머리가름 = { width: "1px", height: "12px", background: "rgba(111,134,191,0.45)" };
 /* 접속 중 표시 — 초록 점 + 은은한 번짐 */
 const 접속점 = { width: "8px", height: "8px", borderRadius: "50%", background: "#34d399", boxShadow: "0 0 10px rgba(52,211,153,0.7)" };
 const 테스트딱지 = {
@@ -374,7 +379,7 @@ const 테스트딱지 = {
   fontSize: "12px",
   letterSpacing: "0.4px",
 };
-const 환영인사 = { fontFamily: 글꼴.넓게, fontWeight: 700, fontSize: "36px", color: "#f2f1fc", letterSpacing: "1.05px" };
+const 환영인사 = { fontFamily: 글꼴.본문, fontWeight: 500, fontSize: "30px", lineHeight: 1.3, color: "#c9d2ee", letterSpacing: "-0.3px" };
 /* 닉네임 — 히어로 THE LEGEND 와 같은 남색 결의 그라디언트 글자 */
 /* ★ 닉네임·님 은 본문 글꼴(IBM Plex Sans KR) 하나로 — 「넓게」(Bebas Neue)는 영문 전용이라
      영문 닉네임은 Bebas, 「님」은 한글 대체 글꼴로 따로 그려져 키·굵기가 달라 보인다(헤더 알약과 같은 문제). */
@@ -396,8 +401,9 @@ const 환영이름 = {
 /* 님 — 닉네임과 같은 글꼴·같은 크기, 색만 옅게 (크기가 다르면 따로 노는 두 글자로 보인다) */
 /* 님 — 닉네임의 0.8배(64 → 51). 한글은 같은 px 에서도 영문 대문자보다 글자 몸이 커서
    같은 크기로 두면 「님」이 더 커 보였다. 0.8배면 두 글자의 윗선이 거의 맞는다. 색만 옅게. */
-const 환영님 = { fontFamily: 글꼴.본문, fontWeight: 500, fontSize: "51px", lineHeight: 1.05, color: "#96a3b6", flexShrink: 0 };
-const 환영글 = { margin: 0, fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "21px", lineHeight: 1.65, color: "#a3aec0" }; // 18 → 21 — 더 크게, 조금 더 밝게
+const 환영님 = { fontFamily: 글꼴.본문, fontWeight: 600, fontSize: "44px", lineHeight: 1.05, color: "#8fa0c4", flexShrink: 0 };
+/* 본문 — 19px · 행간 1.75. 3줄로 끊어(뜻 단위) 긴 줄이 판 폭(560)에서 어중간하게 꺾이지 않게 한다 */
+const 환영글 = { margin: 0, fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "19px", lineHeight: 1.75, color: "#aab4c6", letterSpacing: "-0.2px" };
 const 정보카드 = {
   display: "flex",
   borderRadius: "14px",
@@ -405,10 +411,11 @@ const 정보카드 = {
   background: "rgba(5,11,26,0.72)",
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
 };
-const 정보칸 = { flex: "1 0 0", display: "flex", flexDirection: "column", gap: "8px", padding: "16px 18px", minWidth: 0 };
-const 정보라벨 = { fontFamily: 글꼴.모노, fontSize: "13px", letterSpacing: "0.6px", color: "#6f7a8c" };
-const 정보값 = { fontFamily: 글꼴.본문, fontWeight: 700, fontSize: "18px", color: "#f1f1fc", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
-const 글링크 = { padding: 0, border: 0, background: "none", font: "inherit", color: "#6f86bf", cursor: "pointer" };
+const 정보칸 = { flex: "1 0 0", display: "flex", flexDirection: "column", gap: "6px", padding: "16px 20px", minWidth: 0 };
+/* 라벨도 본문 글꼴로 — 모노 자간이 한글에 걸려 「나 의  지 역」처럼 흩어졌다 */
+const 정보라벨 = { fontFamily: 글꼴.본문, fontWeight: 500, fontSize: "13px", color: "#7b879b" };
+const 정보값 = { fontFamily: 글꼴.본문, fontWeight: 700, fontSize: "19px", lineHeight: 1.3, color: "#f1f1fc", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+const 글링크 = { padding: 0, border: 0, background: "none", font: "inherit", color: "#9fb2ea", cursor: "pointer" };
 
 /* ═══════════════════════════════════════════════════════
    라벨줄 — 「라벨 ········ 오류 한 줄」

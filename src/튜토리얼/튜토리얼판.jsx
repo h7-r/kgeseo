@@ -16,7 +16,7 @@ import { 단계들, 동그라미반지름, 튜토리얼틱, use튜토리얼 } fr
 
 const 색 = new THREE.Color("#8ee8ff");
 
-export default function 튜토리얼판({ 소화전문id, 켬 = true }) {
+export default function 튜토리얼판({ 켬 = true }) {
   const { 단계 } = use튜토리얼();
   const 지금 = 단계들[단계];
   const 묶음 = useRef(null);
@@ -27,7 +27,7 @@ export default function 튜토리얼판({ 소화전문id, 켬 = true }) {
   useFrame(({ camera, clock }) => {
     if (!켬) return;
     const 눈 = 플레이어시점.쓸수있나 ? 플레이어시점.눈 : camera.position;
-    튜토리얼틱({ 눈, yaw: camera.rotation.y, 소화전문id });
+    튜토리얼틱({ 눈, yaw: camera.rotation.y });
 
     const g = 묶음.current;
     if (!g) return;

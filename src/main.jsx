@@ -9,6 +9,9 @@ import App from "./App.jsx"; // 우리 앱의 최상위 컴포넌트
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 // 웹사이트 「게임 시작」 → 캐릭터 생성 → 튜토리얼(/). 생성 중에는 게임 씬(App)을 안 띄운다.
 import 캐릭터생성연결 from "./캐릭터생성연결.jsx";
+// 화면이 넘어가는 사이(렌더링)를 반복 영상으로 가리는 막 — 라우터 **바깥**에 한 번(주소가 바뀌어도 살아 있게).
+//   나주 맵(naju01)도 같은 막을 쓰므로 naju01 쪽에 있다(naju01/src/전환/로딩영상.jsx 머리 주석).
+import 로딩영상판 from "../naju01/src/전환/로딩영상.jsx";
 import "./index.css"; // 전역 스타일(16:9 무대 등)
 import "./fonts.css";
 import "./소리.js"; // 효과음 시스템을 앱 시작에 미리 켠다(첫 클릭에 오디오 깨움 + 사운드 미리 로드) // 손글씨 폰트 등록(@font-face "엉겅퀴") — 화이트보드에서 쓴다
@@ -23,6 +26,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         <Route path="/캐릭터생성" element={<캐릭터생성연결 />} />
         <Route path="*" element={<App />} />
       </Routes>
+      <로딩영상판 />
     </BrowserRouter>
   </React.StrictMode>,
 );

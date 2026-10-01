@@ -254,7 +254,11 @@ function 바닥재질({ 방식, 밝기, 양면 = false, 재질참조, 결 = fals
 }
 
 // 라벨 — 한글이 필요해서 3D 텍스트 대신 DOM 을 띄운다(글꼴 문제가 없다)
+// (2026-10-01 사용자 지시) 구역·풀이 이름표는 도면 점검용이라 평소엔 안 띄운다 — 주소에 ?dev 가 있을 때만.
+//   Leva 「라벨」 저장값이 true 로 남아 있어도 여기서 막는다.
+const 라벨보임 = typeof location !== "undefined" && new URLSearchParams(location.search).has("dev");
 function 라벨({ 위치, children, 색 = "#F2F4F8", 배경 = "rgba(20,24,34,.72)", 크기 = 13 }) {
+  if (!라벨보임) return null;
   return (
     <Html position={위치} center distanceFactor={26} zIndexRange={[10, 0]}>
       <div

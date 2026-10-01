@@ -35,7 +35,8 @@ const 쿼리 =
     ? new URLSearchParams(location.search)
     : new URLSearchParams();
 const 저사양 = 쿼리.get("q") === "low";
-const LEVA보임 = import.meta.env.DEV || 쿼리.has("leva");
+// (2026-10-01 사용자 지시) 개발 서버에서도 기본은 숨긴다 — ?leva 를 붙이면 보인다.
+const LEVA보임 = 쿼리.has("leva");
 const 후처리끄기 = 쿼리.get("fx") === "off";
 // 후처리 안의 개별 효과를 하나씩 끄고 비교하는 스위치.
 //   ?bloom=off · ?vig=off · ?tm=on
@@ -72,7 +73,10 @@ const 배율자동 = !배율지정 && !저사양;
 const 시작 = 시점[0];
 const 시작높이 = (기본지형.지면(시작.X, 시작.Z).y + 기준.눈높이) * 미터;
 // 꾸미기 패널은 개발용이다. 개발 서버이거나 ?customize 가 있을 때만 보인다.
-const 꾸미기패널보임 = import.meta.env.DEV || 쿼리.has("customize");
+// (2026-10-01) 개발 서버에서도 숨긴다 — ?customize 일 때만.
+const 꾸미기패널보임 = 쿼리.has("customize");
+// 도면 계기판(좌표·고도·구간 거리)도 개발용 — ?dev 일 때만 처음부터 켠다.
+const 계기처음 = 쿼리.has("dev");
 // 3인칭 캐릭터 — 기본은 Meshy 캐릭터, ?avatar=sidekick 이면 예전 사이드킥.
 const 사이드킥으로 = 쿼리.get("avatar") === "sidekick";
 // 애니메이션풍 렌더 — 기본 켬. ?toon=off / ?outline=off 로 원본 PBR 과 비교한다.
@@ -111,12 +115,12 @@ export default function App() {
   const [툰설정, set툰설정] = useState(() => ({ ...기본툰, 켬: !툰끄기, 세계: !세계툰끄기 }));
   const [외곽선설정, set외곽선설정] = useState(() => ({ ...기본외곽선, 켬: !외곽선끄기 }));
   // 계기판·조작안내는 화면을 꽤 가린다. 그림을 볼 때는 H 로 치운다.
-  const [계기보임, set계기보임] = useState(true);
+  const [계기보임, set계기보임] = useState(계기처음);
 
   useEffect(() => {
     const onKey = (e) => {
       if (e.code === "KeyT" && !locked) controlsRef.current?.lock();
-      if (e.code === "KeyH" && !e.repeat) set계기보임((v) => !v);
+      if (계기처음 && e.code === "KeyH" && !e.repeat) set계기보임((v) => !v); // 개발용(?dev)일 때만
       // 시점 전환은 카메라 회전값을 만지지 않는다. 보는 방향이 틀어지는 문제를
       // 피하기 위해 맵 전용 캐릭터 표시만 켜고 끈다.
       // ★ 수식키가 눌린 V 는 **인칭 전환이 아니다.**
@@ -230,9 +234,9 @@ export default function App() {
       </Canvas>
 
       {계기보임 && <계기판 보고={보고} />}
-      {계기보임 && !locked && <조작안내 />}
+      {계기처음 && !locked && <조작안내 />}
       {/* 다 숨겼을 때 되돌리는 법을 잊지 않게 작은 자국만 남긴다 */}
-      {!계기보임 && <div style={숨김표시}>[H] 계기판</div>}
+      {계기처음 && !계기보임 && <div style={숨김표시}>[H] 계기판</div>}
       <button
         type="button"
         onClick={() => set시점모드((v) => (v === "1인칭" ? "3인칭" : "1인칭"))}

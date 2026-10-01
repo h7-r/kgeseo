@@ -128,21 +128,25 @@ function 공지판() {
         </div>
       </div>
 
-      {/* 쪽번호는 판 밖에 있다 (원본에서 형제 노드) */}
-      <div style={{ display: "flex", gap: "8px", alignItems: "center", justifyContent: "center", width: "100%", paddingTop: "32px", paddingBottom: "16px" }}>
-        <div style={{ ...동근단추, cursor: 지금쪽 > 1 ? "pointer" : "default", opacity: 지금쪽 > 1 ? 1 : 0.4 }} onClick={() => 쪽바꾸기(지금쪽 - 1)}>
-          <img loading="lazy" decoding="async" src={에셋.imgChevronLeft} alt="" style={{ width: "14px", height: "14px", display: "block" }} />
-        </div>
-        <div style={{ display: "flex", gap: "4px" }}>
-          {Array.from({ length: 총쪽 }, (_, i) => i + 1).map((n) => (
-            <div key={n} className={`탭 ${n === 지금쪽 ? "켜짐" : ""}`} style={{ ...(n === 지금쪽 ? 켜진쪽 : 꺼진쪽), cursor: "pointer" }} onClick={() => 쪽바꾸기(n)}>
-              {n}
-            </div>
-          ))}
-        </div>
-        <div style={{ ...동근단추, cursor: 지금쪽 < 총쪽 ? "pointer" : "default", opacity: 지금쪽 < 총쪽 ? 1 : 0.4 }} onClick={() => 쪽바꾸기(지금쪽 + 1)}>
-          <img loading="lazy" decoding="async" src={에셋.imgChevronRight} alt="" style={{ width: "14px", height: "14px", display: "block" }} />
-        </div>
+      {/* 쪽번호는 판 밖에 있다 (원본에서 형제 노드)
+          게임 소개·게임 영상 쪽번호와 같은 모양으로 맞췄다 — 여기만 화살표가 동그라미에 싸여 있고
+          화살표↔숫자(8)·숫자↔숫자(4) 간격도 달라서 따로 놀았다. 한 줄 flex 에 gap 12 하나로 둔다. */}
+      <div style={쪽번호줄}>
+        <button type="button" className="쪽화살표" style={{ ...쪽화살, ...(지금쪽 > 1 ? null : 막힘) }} disabled={지금쪽 <= 1} onClick={() => 쪽바꾸기(지금쪽 - 1)} aria-label="이전 쪽">‹</button>
+        {Array.from({ length: 총쪽 }, (_, i) => i + 1).map((n) => (
+          <button
+            key={n}
+            type="button"
+            className={`쪽번호칸 ${n === 지금쪽 ? "켜짐" : ""}`}
+            style={{ ...(n === 지금쪽 ? 켜진쪽 : 꺼진쪽), cursor: "pointer" }}
+            onClick={() => 쪽바꾸기(n)}
+            aria-label={`${n}쪽`}
+            aria-current={n === 지금쪽 ? "page" : undefined}
+          >
+            {n}
+          </button>
+        ))}
+        <button type="button" className="쪽화살표" style={{ ...쪽화살, ...(지금쪽 < 총쪽 ? null : 막힘) }} disabled={지금쪽 >= 총쪽} onClick={() => 쪽바꾸기(지금쪽 + 1)} aria-label="다음 쪽">›</button>
       </div>
     </>
   );
@@ -490,11 +494,14 @@ const 판 = {
 };
 const 줄카드 = { display: "flex", gap: "20px", alignItems: "center", padding: "20px", borderRadius: "12px", background: "#ffffff", border: "1px solid #e3e7ee", boxSizing: "border-box" };
 
-const 동근단추 = { display: "flex", alignItems: "center", justifyContent: "center", padding: "10px", borderRadius: "999px", background: "#ffffff", border: "1px solid #d9dee5" };
-const 쪽바탕 = { display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 16px", borderRadius: "999px", fontFamily: 글꼴.모노, fontSize: "16px", boxSizing: "border-box" };
+/* 쪽번호 — 값은 게임소개.jsx 쪽번호(같은 흰 면)와 같다: 줄 gap 12 · 화살표 40 칸 글자 ‹› · 숫자 36 원 */
+const 쪽번호줄 = { display: "flex", gap: "12px", alignItems: "center", justifyContent: "center", width: "100%", paddingTop: "32px", paddingBottom: "16px" };
+const 쪽화살 = { width: "40px", height: "40px", padding: 0, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: 글꼴.본문, fontWeight: 400, fontSize: "28px", color: "#4a5263", background: "transparent", border: "none", cursor: "pointer" };
+const 막힘 = { opacity: 0.4, cursor: "default", pointerEvents: "none" }; // 첫·끝 쪽에선 갈 곳이 없다
+const 쪽바탕 = { width: "36px", height: "36px", padding: 0, borderRadius: "18px", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: 글꼴.모노, fontSize: "18px", boxSizing: "border-box" };
 /* 흰 글자에 #3b82f6 은 3.7:1 이라 본문 기준에 못 미쳤다. 한 단계 진한 파랑이면 6.3:1 */
-const 켜진쪽 = { ...쪽바탕, background: "#2f3e70", color: "#ffffff", fontWeight: 700 };
-const 꺼진쪽 = { ...쪽바탕, background: "#ffffff", border: "1px solid #d9dee5", color: "#5f6878" };
+const 켜진쪽 = { ...쪽바탕, background: "#2f3e70", border: "none", color: "#ffffff", fontWeight: 700 }; // button 기본 회색 테두리를 지운다
+const 꺼진쪽 = { ...쪽바탕, background: "#ffffff", border: "1px solid #d1d6e0", color: "#5f6878", fontWeight: 400 };
 
 const 상자 = { display: "flex", flexDirection: "column", padding: "32px", borderRadius: "16px", background: "#f7f9fc", border: "1px solid #e3e7ee", boxShadow: "0px 8px 16px 0px rgba(20,30,60,0.06)", boxSizing: "border-box" };
 const 라벨글 = { fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "16px", color: "#4a5263", textTransform: "uppercase" };
