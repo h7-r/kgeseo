@@ -141,7 +141,15 @@ import { 밀림, 연출강제, use관밀림, use연출 } from "./소품/자판�
 import { 자판기연출 } from "./소품/자판기연출.jsx";
 import { 배전반내부 } from "./소품/배전반내부.jsx";
 import { 번호자물쇠 } from "./소품/자물쇠.jsx";
-import { 열렸나, 여닫기, use열렸나, 덜컹, 덜컹값 } from "./소품/여닫이.js";
+import {
+  열렸나,
+  여닫기,
+  use열렸나,
+  덜컹,
+  덜컹값,
+  열림으로복원,
+  복원열림인가,
+} from "./소품/여닫이.js";
 import {
   use자물쇠,
   use풀림,
@@ -152,12 +160,19 @@ import {
   제출하기,
   조작나가기,
   조작끝,
+  완료로복원,
 } from "./소품/번호잠금.js";
 import { 소리재생 } from "./소리.js";
 import Backend연결상태 from "./서버/연결상태.jsx";
 import Google로그인 from "./서버/Google로그인.jsx";
 import PlaySessionStatus from "./서버/플레이세션상태.jsx";
-import { 소화전자물쇠제출 } from "./서버/플레이세션.js";
+import {
+  플레이계약,
+  소화전자물쇠제출,
+  usePuzzleCompleted,
+  usePlayFlag,
+  usePlayStateSource,
+} from "./서버/플레이세션.js";
 // ── 화면 위에 뜨는 창들 ─────────────────────────────────────
 //   화면층 = 「한 번에 하나의 모달」 규칙(GRD-11 · CMN-035)을 지키는 관리자.
 //   앞으로 수첩(N) · 힌트(H) · 일시정지(ESC)가 여기에 줄줄이 붙는다.
@@ -4498,8 +4513,8 @@ function 벽함({
   //   state 로 두면 그때마다 복도 전체가 다시 그려진다.
   const 문ref = useRef(null);
   const 문판ref = useRef(null);
-  const 열림 = useRef(0);
   const 문id = 벽함문id(종류, x, z);
+  const 열림 = useRef(열렸나(문id) ? 1 : 0);
   // ★ 속 부품을 [E] 로 만지려면 **문이 열려 있을 때만** 이어야 한다.
   //   닫힌 문 너머의 스위치가 눌리면 안 된다. 여닫는 건 드문 일이라
   //   여기서 다시 그려도 값이 싸다(각도는 아래 useFrame 이 따로 좁힌다).
@@ -4508,7 +4523,9 @@ function 벽함({
     const o = 문ref.current;
     if (!o) return;
     const 목표 = 여닫이켬 && 열렸나(문id) ? 1 : 0;
-    열림.current += (목표 - 열림.current) * (1 - Math.exp(-dt * 9));
+    열림.current = 복원열림인가(문id)
+      ? 1
+      : 열림.current + (목표 - 열림.current) * (1 - Math.exp(-dt * 9));
     // ★ 부호가 방향(d)을 따라간다.
     //   앞면이 −x 쪽(d=−1)이면 자유변이 −x 로 나와야 하므로 각도도 음수다.
     //   ★ 덜컹은 여기에 **더한다.** 잠긴 문을 당기면 경첩 쪽은 그대로인 채
@@ -10601,6 +10618,14 @@ function Scene({
   //   복도 전체가 다시 그려진다. 복도가 알아야 할 건 참/거짓 둘뿐이다.
   const 소화전자물쇠있나 = use있나(소화전문id);
   const 소화전풀림 = use풀림(소화전문id);
+  const Backend소화전완료 = usePuzzleCompleted(플레이계약.puzzleId);
+  const Backend소화전열림 = usePlayFlag(플레이계약.unlockedFlag) === true;
+  const Backend상태출처 = usePlayStateSource();
+  useEffect(() => {
+    if (Backend상태출처 !== "복원") return;
+    if (Backend소화전완료) 완료로복원(소화전문id);
+    if (Backend소화전열림) 열림으로복원(소화전문id);
+  }, [Backend상태출처, Backend소화전완료, Backend소화전열림, 소화전문id]);
   // 자물쇠를 숨겨 놨으면(자리 맞추는 중) 문은 그냥 열린다 — 안 그러면 못 연다.
   const 소화전잠김 = 자물쇠CD.보이기 && 소화전자물쇠있나 && !소화전풀림;
   // 배전반 문 이름 — 관창을 꽂으려면 이 문이 열려 있어야 한다.

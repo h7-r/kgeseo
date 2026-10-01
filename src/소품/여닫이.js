@@ -15,6 +15,7 @@ import { useSyncExternalStore } from "react";
 import { 소리재생 } from "../소리.js";
 
 const 열린것 = new Set();
+const 복원된열림 = new Set();
 let 판 = 0;
 const 듣는이 = new Set();
 const 알리기 = () => {
@@ -25,6 +26,7 @@ const 알리기 = () => {
 export const 열렸나 = (id) => 열린것.has(id);
 
 export function 여닫기(id) {
+  복원된열림.delete(id);
   if (열린것.has(id)) 열린것.delete(id);
   else 열린것.add(id);
   알리기();
@@ -36,9 +38,20 @@ export function 여닫기(id) {
 }
 
 export function 닫기(id) {
+  복원된열림.delete(id);
   if (!열린것.delete(id)) return;
   알리기();
 }
+
+/** 서버 진행 상태의 열린 문을 소리 없이 즉시 복원한다. */
+export function 열림으로복원(id) {
+  if (!id || 열린것.has(id)) return;
+  열린것.add(id);
+  복원된열림.add(id);
+  알리기();
+}
+
+export const 복원열림인가 = (id) => 복원된열림.has(id);
 
 export const 여닫이 = {
   판: () => 판,
