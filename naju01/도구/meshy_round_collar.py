@@ -37,7 +37,7 @@ parser.add_argument("--jpeg", type=int, default=85)
 # 목선을 이만큼(m) 내리거나(+) 올린다(−). 구의 반지름을 키우고 줄이는 것이라 둘레가 함께 움직인다.
 parser.add_argument("--drop", type=float, default=0.0)
 # 텍스처를 다시 칠할 껍질 두께(m). 이보다 멀면 원래 색을 그대로 둔다.
-parser.add_argument("--shell", type=float, default=0.020)
+parser.add_argument("--shell", type=float, default=0.026)
 # 경계를 이 폭(m)으로 섞는다. 텍셀 단위로 딱 자르면 확대했을 때 톱니가 보인다.
 parser.add_argument("--feather", type=float, default=0.005)
 # 목선 고리를 모을 때 목 축에서 가로로 이만큼 안쪽만 본다. 넓히면 어깨·소매 둘레가 섞인다.
@@ -140,28 +140,52 @@ if not (0.02 < R < 0.25):
     print("COLLAR_SKIP radius")
     sys.exit(0)
 
-# ── ③ 껍질 안만 다시 칠한다 ─────────────────────────────────
-# 구에서 잰 부호 있는 거리. 음수 = 구 안(목·머리 쪽) = 살, 양수 = 구 밖(셔츠).
-#   ※ 머리는 구에서 멀리 밖에 있어 '옷'으로 잡히지만, 껍질(±shell) 밖이라 손대지 않는다.
-def 거리(P):
-    return np.linalg.norm(P - C[None, :], axis=-1) - R
+# ── ③ 목선에서 잰 거리 ─────────────────────────────────────
+# 구에서 바로 재면(|p−C|−R) 안 된다. **목 뒤는 몸 표면이 구에 거의 접해서**, 목선보다
+#   2cm 아래 등판이 다시 구 **안**으로 들어온다. 그러면 거기가 살로 칠해져 **살빛 쐐기가
+#   목을 타고 삐죽 내려온다**(실제로 그랬다 — 표식 그림에서 빨간 쐐기로 확인).
+#   그래서 가장 가까운 목선 점에서의 **접평면까지의 거리**로 잰다. 목선 바로 옆에서는 구와
+#   같은 값이고, 멀어져도 다시 뒤집히지 않는다.
+방향 = (쓸점 - C) / np.linalg.norm(쓸점 - C, axis=1, keepdims=True)
 
 
-# ★ 구 표면은 목선에서 한 번, **목 기둥이 구를 빠져나가는 곳**에서 한 번, 두 군데서 몸과 만난다.
-#   목이 구 반지름보다 가늘어서 생기는 일이다. 그냥 두면 목 한가운데에 흰 띠가 둘러진다(실제로 그랬다).
-#   그래서 ①에서 모은 **진짜 목선 점들 가까이**만 고친다 — 목 기둥 쪽 교차선은 거기서 한참 떨어져 있다.
-곁 = 0.025
-# 대표색을 뽑는 띠는 더 넉넉히 본다. 목 기둥은 구 안쪽으로 최대 (R − 목반지름) 만큼 들어가 있어서
-#   2.5cm 로 재면 **살색을 한 텍셀도 못 찾는다**(meshy-top-female 에서 실제로 0 개가 나왔다).
+def 목선에서(P, 묶음=20000):
+    """(목선에서의 부호 있는 거리, 목선까지의 거리). 둘 다 미터."""
+    평 = np.ascontiguousarray(P).reshape(-1, 3)
+    s_ = np.empty(len(평))
+    d_ = np.empty(len(평))
+    for i in range(0, len(평), 묶음):
+        조각 = 평[i:i + 묶음]
+        쪽 = 조각[:, None, :] - 쓸점[None, :, :]
+        제곱 = np.einsum("ijk,ijk->ij", 쪽, 쪽)
+        j = 제곱.argmin(axis=1)
+        d_[i:i + 묶음] = np.sqrt(제곱[np.arange(len(조각)), j])
+        s_[i:i + 묶음] = np.einsum("ij,ij->i", 조각 - 쓸점[j], 방향[j])
+    모양 = P.shape[:-1]
+    return s_.reshape(모양), d_.reshape(모양)
+
+
+# 목선에서 이만큼 안쪽까지 고친다. 좁게 잡으면 목 뒤에 원래의 들쭉날쭉한 표식과 색이
+#   그대로 남고, 넓게 잡으면 목선과 상관없는 데까지 평평하게 칠해진다.
+곁 = 0.035
 곁색 = 0.060
 
+v거리미리, v곁 = 목선에서(pos)
 
-def 목선근처(P, 곁=곁):
-    쪽 = P.reshape(-1, 1, 3) - 쓸점.reshape(1, -1, 3)
-    return (np.einsum("ijk,ijk->ij", 쪽, 쪽).min(axis=1) <= 곁 * 곁).reshape(P.shape[:-1])
-
-
-v거리미리 = 거리(pos)
+# ★ 맞춘 목선이 **살과 옷을 실제로 갈라 주는지** 확인한다.
+#   목선이 앞뒤로 높이가 크게 다른 옷(남성 top 이 그랬다)은 점들이 큰 구에 잘 얹히지만,
+#   그 구는 등판 셔츠까지 안쪽에 넣어 버린다. 그대로 칠하면 가슴에 흰 얼룩이 생긴다.
+곁검사 = (np.abs(v거리미리) > 0.004) & (np.abs(v거리미리) < 0.025) & (살 | 옷) & (v곁 <= 곁)
+안쪽 = 곁검사 & (v거리미리 < 0)
+바깥 = 곁검사 & (v거리미리 > 0)
+if 안쪽.sum() < 30 or 바깥.sum() < 30:
+    print(f"COLLAR_SKIP sides in={int(안쪽.sum())} out={int(바깥.sum())}")
+    sys.exit(0)
+맞음 = (살[안쪽].mean() + 옷[바깥].mean()) / 2
+print(f"COLLAR_CHECK 안쪽살={살[안쪽].mean():.2f} 바깥옷={옷[바깥].mean():.2f}")
+if 맞음 < 0.80:
+    print("COLLAR_SKIP sphere does not separate skin from cloth")
+    sys.exit(0)
 
 # 텍셀마다 3D 좌표를 구한다 — 목 둘레 면만 래스터라이즈한다.
 tex = np.full((h, w, 3), np.nan, dtype=np.float32)
@@ -197,27 +221,9 @@ if not 있음.any():
     sys.exit(0)
 
 s = np.full((h, w), np.nan, dtype=np.float32)
-s[있음] = 거리(tex[있음])
-# ★ 맞춘 구가 **살과 옷을 실제로 갈라 주는지** 확인한다.
-#   목선이 앞뒤로 높이가 크게 다른 옷(남성 top 이 그랬다)은 점들이 반지름 11cm 짜리 큰 구에
-#   잘 얹히지만, 그 구는 **등판 셔츠까지 안쪽에 넣어 버린다.** 그대로 칠하면 가슴에 흰 얼룩이
-#   생긴다(실제로 그렇게 나왔다). 맞지 않으면 손대지 않고 넘어간다.
-# 검사는 **실제로 칠하는 범위**(곁)에서만 한다. 넓게 보면 목선보다 위쪽 목 기둥(맨살인데 구 밖)이
-#   섞여 들어가 멀쩡한 구도 떨어뜨린다(남성 both 가 그랬다 — 바깥옷 0.62).
-곁검사 = (np.abs(v거리미리) > 0.004) & (np.abs(v거리미리) < 0.025) & (살 | 옷) & 목선근처(pos)
-안쪽 = 곁검사 & (v거리미리 < 0)
-바깥 = 곁검사 & (v거리미리 > 0)
-if 안쪽.sum() < 30 or 바깥.sum() < 30:
-    print(f"COLLAR_SKIP sides in={int(안쪽.sum())} out={int(바깥.sum())}")
-    sys.exit(0)
-맞음 = (살[안쪽].mean() + 옷[바깥].mean()) / 2
-print(f"COLLAR_CHECK 안쪽살={살[안쪽].mean():.2f} 바깥옷={옷[바깥].mean():.2f}")
-if 맞음 < 0.80:
-    print("COLLAR_SKIP sphere does not separate skin from cloth")
-    sys.exit(0)
-
-껍질 = 있음 & (np.abs(s) <= args.shell)
-껍질[껍질] = 목선근처(tex[껍질])
+곁맵 = np.full((h, w), np.inf, dtype=np.float32)
+s[있음], 곁맵[있음] = 목선에서(tex[있음])
+껍질 = 있음 & (np.abs(s) <= args.shell) & (곁맵 <= 곁)
 if 껍질.sum() < 200:
     print(f"COLLAR_SKIP shell={int(껍질.sum())}")
     sys.exit(0)
@@ -226,8 +232,8 @@ if 껍질.sum() < 200:
 rgb = px[..., :3]
 살띠 = 있음 & (s < -args.shell) & (s > -args.shell - 0.025)
 옷띠 = 있음 & (s > args.shell) & (s < args.shell + 0.025)
-살띠[살띠] = 목선근처(tex[살띠], 곁색)
-옷띠[옷띠] = 목선근처(tex[옷띠], 곁색)
+살띠 &= 곁맵 <= 곁색
+옷띠 &= 곁맵 <= 곁색
 if 살띠.sum() < 50 or 옷띠.sum() < 50:
     print(f"COLLAR_SKIP bands skin={int(살띠.sum())} cloth={int(옷띠.sum())}")
     sys.exit(0)
@@ -241,12 +247,14 @@ px[껍질, :3] = 새색[껍질]
 print(f"COLLAR_BLEND 텍셀={int(껍질.sum())} 살={살색.round(3).tolist()} 옷={옷색.round(3).tolist()}")
 
 # ── ④ 정점 표식도 같은 구로 다시 매긴다 ─────────────────────
+# ★ 껍질(|s| ≤ 폭/2) 안만 다시 매기면 안 된다. 그 밖에 남은 **옛 표식의 들쭉날쭉한 쐐기**가
+#   그대로 살아남아 목 뒤로 삐져나온다. 목선 둘레 전체를 다시 매기고, 멀리 있는 정점은
+#   1.0(살)·2.0(옷)으로 딱 떨어지게 자른다.
 # 셰이더(naju01/src/툰재질.js)는 삼각형 안에서 보간한 _tint 의 **1.5 등고선**으로 살/옷을 가른다.
 # 여기서 1.5 를 구 표면에 정확히 맞춰 두면 그 등고선이 텍스처 경계와 겹친다.
 폭 = 0.030
 v거리 = v거리미리
-고칠v = (np.abs(v거리) <= 폭 / 2) & 가까움 & (살 | 옷)
-고칠v[고칠v] = 목선근처(pos[고칠v])
+고칠v = 가까움 & (살 | 옷) & (v곁 <= 곁)
 새표식 = 1.5 + np.clip(v거리 / 폭, -0.5, 0.5)
 바뀜 = 0
 for i in np.where(고칠v)[0]:
