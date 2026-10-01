@@ -107,8 +107,8 @@ export default function 머리찾기({ 크기 = 22, 보내기 }) {
           style={{
             width: "240px",
             fontFamily: 글꼴.모노,
-            fontSize: "15px",
-            "--안내색": "rgba(200,205,255,0.35)",
+            fontSize: "16px",
+            "--안내색": "#6f7a8c",
           }}
         />
       </div>

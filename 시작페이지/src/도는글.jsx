@@ -19,7 +19,7 @@ import { use드러내기 } from "./움직임.js";
    ═══════════════════════════════════════════════════════ */
 
 export default function 도는글({ 줄들, 사이 = 3600, style, 글style }) {
-  const [칸, 보임] = use드러내기("0px 0px -10% 0px");
+  const [칸, 보임] = use드러내기("0px 0px -10% 0px", "양쪽") /* 안 보이면 글 바꾸기를 멈춘다 */;
   const [몇번째, set몇번째] = useState(0);
   const [멈춤, set멈춤] = useState(false);
   const 줄임 = useRef(false);

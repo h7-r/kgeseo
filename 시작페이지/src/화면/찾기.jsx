@@ -53,25 +53,25 @@ export default function 찾기화면() {
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); 다시찾기(친말); } }}
             placeholder="무엇을 찾으세요?"
             aria-label="다시 찾기"
-            style={{ fontFamily: 글꼴.모노, fontSize: "18px", "--안내색": "rgba(200,205,255,0.3)" }}
+            style={{ fontFamily: 글꼴.모노, fontSize: "18px", "--안내색": "#6f7a8c" }}
           />
           <button type="button" className="단추" style={찾기단추} onClick={() => 다시찾기(친말)}>
-            찾기
+            <span className="단추글">찾기</span>
           </button>
         </div>
 
         {말 && (
-          <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#93a3b8" }}>
-            <b style={{ color: "#93c5fd" }}>{말}</b> 에 대한 결과 {결과.length}건
+          <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#96a3b6" }}>
+            <b style={{ color: "#6f86bf" }}>{말}</b> 에 대한 결과 {결과.length}건
           </div>
         )}
 
         {말 && 결과.length === 0 && (
           <div style={빈칸}>
-            <div style={{ fontFamily: 글꼴.본문, fontWeight: 700, fontSize: "20px", color: "#eeeeff" }}>
+            <div style={{ fontFamily: 글꼴.본문, fontWeight: 700, fontSize: "20px", color: "#f1f1fc" }}>
               찾는 내용이 없습니다
             </div>
-            <div style={{ fontFamily: 글꼴.읽기, fontSize: "16px", lineHeight: 1.7, color: "#93a3b8" }}>
+            <div style={{ fontFamily: 글꼴.읽기, fontSize: "16px", lineHeight: 1.7, color: "#96a3b6" }}>
               맞춤법을 확인하거나 더 짧은 말로 찾아 보세요. 아직 만들지 않은 화면일 수도 있습니다.
             </div>
           </div>
@@ -89,9 +89,9 @@ export default function 찾기화면() {
               >
                 <div style={{ display: "flex", gap: "10px", alignItems: "baseline" }}>
                   <span style={어디딱지}>{ㄱ.어디}</span>
-                  <span style={{ fontFamily: 글꼴.본문, fontWeight: 700, fontSize: "18px", color: "#eeeeff" }}>{ㄱ.제목}</span>
+                  <span style={{ fontFamily: 글꼴.본문, fontWeight: 700, fontSize: "18px", color: "#f1f1fc" }}>{ㄱ.제목}</span>
                 </div>
-                <div style={{ fontFamily: 글꼴.읽기, fontSize: "15px", lineHeight: 1.65, color: "#93a3b8", textAlign: "left" }}>
+                <div style={{ fontFamily: 글꼴.읽기, fontSize: "16px", lineHeight: 1.65, color: "#96a3b6", textAlign: "left" }}>
                   {ㄱ.조각}
                 </div>
               </button>
@@ -100,7 +100,7 @@ export default function 찾기화면() {
         )}
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center", paddingTop: "8px" }}>
-          <span style={{ fontFamily: 글꼴.모노, fontSize: "15px", color: "#7d9cc4" }}>자주 찾는 말</span>
+          <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#8b93a3" }}>자주 찾는 말</span>
           {자주찾는말.map((ㅁ) => (
             <button key={ㅁ} type="button" className="탭" style={자주단추} onClick={() => 다시찾기(ㅁ)}>
               {ㅁ}
@@ -127,8 +127,8 @@ const 바깥 = {
 const 꼬리표 = {
   fontFamily: 글꼴.모노,
   fontWeight: 700,
-  fontSize: "15px",
-  color: "#3b82f6",
+  fontSize: "16px",
+  color: "#6f86bf",
   letterSpacing: "2.5px",
 };
 
@@ -136,14 +136,14 @@ const 큰제목 = {
   fontFamily: 글꼴.제목,
   fontSize: "56px",
   lineHeight: 1.15,
-  ...글자그라디언트("linear-gradient(90deg, #dbeafe 0%, #60a5fa 55%, #3b82f6 100%)"),
+  ...글자그라디언트("linear-gradient(90deg, #e1ebf8 0%, #325296 55%, #2e4889 100%)"),
 };
 
 const 찾는줄 = {
   display: "flex",
   gap: "14px",
   alignItems: "center",
-  borderBottom: "1px solid rgba(96,165,250,0.28)",
+  borderBottom: "1px solid rgba(50,82,150,0.28)",
   paddingBottom: "12px",
 };
 
@@ -152,10 +152,10 @@ const 찾기단추 = {
   padding: "10px 24px",
   borderRadius: "999px",
   border: "none",
-  backgroundImage: "linear-gradient(140deg, rgb(37,99,235) 0%, rgb(29,78,216) 100%)",
+  backgroundImage: "linear-gradient(140deg, rgb(47,66,123) 0%, rgb(47,62,112) 100%)",
   fontFamily: 글꼴.모노,
   fontWeight: 700,
-  fontSize: "15px",
+  fontSize: "16px",
   color: "#ffffff",
   cursor: "pointer",
 };
@@ -167,8 +167,8 @@ const 결과줄 = {
   width: "100%",
   padding: "18px 22px",
   borderRadius: "12px",
-  background: "#0a1220",
-  border: "1px solid #1e3a5f",
+  background: "#090f20",
+  border: "1px solid #1a305f",
   cursor: "pointer",
   textAlign: "left",
 };
@@ -177,11 +177,11 @@ const 어디딱지 = {
   flexShrink: 0,
   fontFamily: 글꼴.모노,
   fontWeight: 700,
-  fontSize: "13px",
-  color: "#60a5fa",
+  fontSize: "15px",
+  color: "#6f86bf",
   padding: "3px 9px",
   borderRadius: "999px",
-  border: "1px solid rgba(96,165,250,0.35)",
+  border: "1px solid rgba(50,82,150,0.35)",
   whiteSpace: "nowrap",
 };
 
@@ -191,17 +191,17 @@ const 빈칸 = {
   gap: "10px",
   padding: "34px",
   borderRadius: "16px",
-  background: "rgba(6,13,26,0.6)",
-  border: "1px solid #1e3a5f",
+  background: "rgba(5,11,26,0.6)",
+  border: "1px solid #1a305f",
 };
 
 const 자주단추 = {
   padding: "7px 15px",
   borderRadius: "999px",
-  background: "#0a1220",
-  border: "1px solid #1e3a5f",
+  background: "#090f20",
+  border: "1px solid #1a305f",
   fontFamily: 글꼴.모노,
-  fontSize: "14px",
-  color: "#93a3b8",
+  fontSize: "16px",
+  color: "#96a3b6",
   cursor: "pointer",
 };

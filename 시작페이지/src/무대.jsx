@@ -21,6 +21,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
    글자가 칸을 넘칠 때만 작동해서 넘치지 않는 글자엔 영향이 없다.
    이게 없으면 "50+" 같은 글자가 칸(97px)을 넘겨도 안 쪼개져서
    원본과 줄 수가 달라진다.
+   ★ 그런데 break-word 는 한글을 **글자 단위**로 끊어서 「가/장」「연결됩니/다」처럼
+     단어 한가운데서 줄이 넘어갔다. 그래서 둘로 나눈다.
+     · word-break: keep-all  — 한글도 띄어쓰기에서만 줄을 바꾼다(단어별로 떨어진다)
+     · overflow-wrap: anywhere — 그래도 칸보다 긴 덩이("50+" 등)는 전처럼 쪼갠다
    ═══════════════════════════════════════════════════════ */
 
 export const 설계폭 = 1920;
@@ -43,7 +47,18 @@ export default function 무대({ 높이, 바닥틈 = 기본바닥틈, children }
          푸터 높이를 더한다. */
       let 맨아래 = 0;
       let 푸터높이 = 0;
-      for (const c of el.children) {
+      /* 밀림 상자(data-밀림)는 높이가 0 이라 그 자체로는 아무것도 안 잡힌다.
+         그래서 **그 안의 자식들**을 꺼내 와서, 상자가 내려간 만큼(offsetTop)을 더해 잰다. */
+      const 잴것들 = [];
+      /* 밀림 상자 안에 또 밀림 상자가 있을 수 있다(영상 멈춤 안에 앙암바위 멈춤) → 끝까지 들어간다 */
+      const 담기 = (부모, 더함) => {
+        for (const c of 부모.children) {
+          if (c.dataset?.밀림) 담기(c, 더함 + c.offsetTop);
+          else 잴것들.push([c, 더함]);
+        }
+      };
+      담기(el, 0);
+      for (const [c, 더함] of 잴것들) {
         /* ★ SVG 에는 offsetTop·offsetHeight 가 **없다**(HTMLElement 전용).
            장식용 <svg> 를 그냥 자식으로 두면 undefined + undefined = NaN 이 되고,
            그 뒤 Math.max 가 전부 NaN 이 돼서 높이를 아예 못 고친다.
@@ -51,7 +66,7 @@ export default function 무대({ 높이, 바닥틈 = 기본바닥틈, children }
            (실제로 메인에서 푸터 위에 201px 짜리 검은 띠가 생겼다.)
            그래서 숫자가 아닌 자식은 건너뛴다. */
         const 키 = c.offsetHeight;
-        const 위 = c.offsetTop;
+        const 위 = typeof c.offsetTop === "number" ? c.offsetTop + 더함 : c.offsetTop;
         if (typeof 키 !== "number" || typeof 위 !== "number" || Number.isNaN(키) || Number.isNaN(위)) continue;
 
         if (c.dataset?.바닥) {
@@ -72,9 +87,33 @@ export default function 무대({ 높이, 바닥틈 = 기본바닥틈, children }
     재기();
     const 관찰 = new ResizeObserver(재기);
     관찰.observe(el);
-    for (const c of el.children) 관찰.observe(c);
-    return () => 관찰.disconnect();
-  }, [children, 바닥틈]);
+    /* 밀림 상자 속(그 속의 속까지) 구간도 크기가 바뀌면 다시 재야 한다 */
+    const 관찰하기 = (부모) => {
+      for (const c of 부모.children) {
+        관찰.observe(c);
+        if (c.dataset?.밀림) 관찰하기(c);
+      }
+    };
+    관찰하기(el);
+    /* 나중에 붙는 자식(탭을 바꿔 새로 끼워진 구간 등)도 관찰에 넣는다.
+       자식이 빠지기만 해도 높이가 줄 수 있으니 그때도 다시 잰다 — 자식이 붙고 빠질 때만 돈다. */
+    const 붙음 = new MutationObserver((목록) => {
+      let 바뀜 = false;
+      for (const m of 목록) {
+        for (const n of m.addedNodes) if (n.nodeType === 1) { 관찰.observe(n); 바뀜 = true; }
+        if (m.removedNodes.length) 바뀜 = true;
+      }
+      if (바뀜) 재기();
+    });
+    붙음.observe(el, { childList: true });
+    return () => { 관찰.disconnect(); 붙음.disconnect(); };
+    /* ★ 성능: 의존성에서 children 을 뺐다.
+       children 은 부모가 다시 그릴 때마다 **새 객체**라서, 넣어 두면 탭 하나만 눌러도
+       이 효과가 다시 돌며 ① 자식 전부의 offsetTop/offsetHeight 를 읽어 강제 레이아웃을 일으키고
+       ② ResizeObserver 를 새로 만들어 자식 전부를 다시 관찰했다.
+       내용 길이가 바뀌는 건 위 ResizeObserver(자식 크기)와 MutationObserver(새 자식)가
+       이미 잡아 주므로, 부모가 다시 그렸다는 이유만으로 다시 잴 필요가 없다. */
+  }, [바닥틈]);
 
   const 실제높이 = Math.round(잰높이 * 배율);
 
@@ -114,7 +153,8 @@ export default function 무대({ 높이, 바닥틈 = 기본바닥틈, children }
           position: "absolute",
           left: 0,
           top: 0,
-          wordBreak: "break-word",
+          wordBreak: "keep-all",
+          overflowWrap: "anywhere",
           width: `${설계폭}px`,
           height: `${잰높이}px`,
           transformOrigin: "top left",

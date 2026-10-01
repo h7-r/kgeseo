@@ -18,8 +18,10 @@ import * as THREE from "three";
    화면 밖이면 정지, 동작 줄이기면 회전 정지.
    ═══════════════════════════════════════════════════════ */
 
-const 파랑 = "#3b82f6";
-const 하늘 = "#93c5fd";
+/* 회색 위주 — 파랑이 튄다는 의견. 남색은 가운데 링 한 줄에만 살짝 */
+const 회색 = "#8f949d";
+const 은색 = "#c3c7ce";
+const 남색 = "#3a5794";
 
 /* 궤도 링 하나 — 아주 얇은 도넛 */
 function 링({ 반지름, 굵기, 기울기, 속도, 색, 투명도 }) {
@@ -53,7 +55,7 @@ function 표식({ 반지름, 기울기, 속도, 시작 }) {
     <group rotation={기울기}>
       <mesh ref={몸}>
         <sphereGeometry args={[0.035, 10, 10]} />
-        <meshBasicMaterial color={하늘} />
+        <meshBasicMaterial color={은색} />
       </mesh>
     </group>
   );
@@ -83,7 +85,7 @@ function 티끌({ 개수 = 240 }) {
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[자리, 3]} />
       </bufferGeometry>
-      <pointsMaterial size={0.024} color={파랑} transparent opacity={0.6} sizeAttenuation depthWrite={false} />
+      <pointsMaterial size={0.024} color={회색} transparent opacity={0.5} sizeAttenuation depthWrite={false} />
     </points>
   );
 }
@@ -110,12 +112,17 @@ export default function 궤도({ 보임 = true, 줄임 = false }) {
       camera={{ position: [0, 0, 6], fov: 45 }}
       frameloop={보임 && !줄임 ? "always" : "never"}
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+      /* ★ 성능: 배포 빌드에서는 셰이더 오류 검사(getShaderInfoLog·getProgramInfoLog)를 끈다.
+         이 검사는 GPU 가 컴파일을 끝낼 때까지 주 스레드를 **붙잡고 기다린다** —
+         측정에서 스크롤 도중 420ms 를 먹었다. 깊은우주.jsx 의 미리굽기와 같은 처리다.
+         개발 중(npm run dev)에는 그대로 켜 두어 오류를 볼 수 있다. */
+      onCreated={({ gl }) => { gl.debug.checkShaderErrors = !import.meta.env.PROD; }}
       style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
     >
       {/* 축을 서로 어긋나게 기울인 링 셋 */}
-      <링 반지름={2.12} 굵기={0.006} 기울기={[1.15, 0.2, 0]} 속도={0.16} 색={파랑} 투명도={0.75} />
-      <링 반지름={2.62} 굵기={0.005} 기울기={[-0.9, 0.55, 0.3]} 속도={-0.11} 색={하늘} 투명도={0.5} />
-      <링 반지름={3.05} 굵기={0.004} 기울기={[0.45, -1.1, 0]} 속도={0.07} 색={파랑} 투명도={0.34} />
+      <링 반지름={2.12} 굵기={0.006} 기울기={[1.15, 0.2, 0]} 속도={0.16} 색={회색} 투명도={0.6} />
+      <링 반지름={2.62} 굵기={0.005} 기울기={[-0.9, 0.55, 0.3]} 속도={-0.11} 색={남색} 투명도={0.3} />
+      <링 반지름={3.05} 굵기={0.004} 기울기={[0.45, -1.1, 0]} 속도={0.07} 색={회색} 투명도={0.3} />
 
       <표식 반지름={2.12} 기울기={[1.15, 0.2, 0]} 속도={0.16} 시작={0} />
       <표식 반지름={2.62} 기울기={[-0.9, 0.55, 0.3]} 속도={-0.11} 시작={2.2} />

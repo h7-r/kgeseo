@@ -30,13 +30,23 @@ let 듣는중 = false;
 
 const 계속지울것 = [];
 
+let 다꺼짐 = false;
+
 function 그리기() {
   예약 = 0;
+  다꺼짐 = 마우스x === -9999;
   계속지울것.length = 0;
   const 창높이 = window.innerHeight;
   const 창너비 = window.innerWidth;
 
-  for (const { el, 반경 } of 명단) {
+  /* ★ 성능: 「전부 읽고 → 전부 쓴다」 두 단계로 나눴다(레이아웃 스래싱 막기).
+     [전엔] 요소 하나마다 위치 읽기(getBoundingClientRect) → 값 쓰기(setProperty)를 번갈아 했다.
+     값을 하나 쓰면 스타일이 「더러워지고」, 다음 요소 위치를 읽는 순간 브라우저가 스타일을
+     **그 자리에서 다시 계산**해야 했다(측정: 전환 한 바퀴에 강제 스타일 계산 100회).
+     먼저 모든 위치를 읽어 값을 계산해 두고, 쓰기는 마지막에 몰아서 하면 다시 계산은 한 번뿐이다. */
+  const 쓸것 = [];
+  for (const 표 of 명단) {
+    const { el, 반경 } = 표;
     if (!el.isConnected) {
       /* 화면에서 사라진 요소는 명단에서 뺀다 — 안 그러면 계속 쌓인다 */
       계속지울것.push(el);
@@ -45,7 +55,7 @@ function 그리기() {
     const r = el.getBoundingClientRect();
     /* 화면 밖은 계산할 값어치가 없다 */
     if (r.bottom < -80 || r.top > 창높이 + 80 || r.right < -80 || r.left > 창너비 + 80) {
-      if (el.style.getPropertyValue("--가까움") !== "0") el.style.setProperty("--가까움", "0");
+      쓸것.push([표, "0"]);
       continue;
     }
     /* 요소 가장자리까지의 거리 — 가운데 기준으로 재면 큰 카드가 불리하다 */
@@ -54,8 +64,9 @@ function 그리기() {
     const 거리 = Math.hypot(dx, dy);
     const 값 = 거리 >= 반경 ? 0 : 1 - 거리 / 반경;
     /* 끝으로 갈수록 뚝 떨어지게 제곱한다 — 선형이면 멀리서도 늘 희미하게 켜져 있다 */
-    el.style.setProperty("--가까움", (값 * 값).toFixed(3));
+    쓸것.push([표, (값 * 값).toFixed(3)]);
   }
+  for (const [표, 값] of 쓸것) 적기(표, 값);
 
   /* 떨어져 나간 요소 정리 — 돌면서 지우면 순회가 깨지니 끝나고 한다 */
   if (계속지울것.length) {
@@ -66,6 +77,16 @@ function 그리기() {
       }
     }
   }
+}
+
+/* ★ 성능: 값이 **바뀔 때만** 적는다.
+   CSS 변수를 적으면(같은 값이라도) 그 요소와 자식들의 스타일을 다시 계산해야 한다.
+   스크롤할 때마다 등록된 요소 전부에 적었더니, 커서가 멀리 있어 전부 0 인데도
+   매 프레임 스타일 계산이 났다(측정: 전환 중 강제 스타일 93회). 마지막 값을 기억해 두고 비교한다. */
+function 적기(표, 값) {
+  if (표.지난 === 값) return;
+  표.지난 = 값;
+  표.el.style.setProperty("--가까움", 값);
 }
 
 function 움직임(e) {
@@ -86,6 +107,9 @@ function 듣기시작() {
   window.addEventListener("mousemove", 움직임, { passive: true });
   window.addEventListener("mouseleave", 나감);
   window.addEventListener("scroll", () => {
+    /* 커서가 창 밖이면(터치패드로 굴리는 중 커서를 치워 둔 경우 등) 한 번 다 끈 뒤로는
+       스크롤마다 요소 위치를 다시 잴 필요가 없다 — 어차피 전부 0 이다 */
+    if (마우스x === -9999 && 다꺼짐) return;
     if (!예약) 예약 = requestAnimationFrame(그리기);
   }, { passive: true });
 }

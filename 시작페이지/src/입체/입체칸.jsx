@@ -19,7 +19,6 @@ import { Component, Suspense, lazy, useEffect, useRef, useState } from "react";
    ═══════════════════════════════════════════════════════ */
 
 const 장면들 = {
-  유물: lazy(() => import("./유물.jsx")),
   궤도: lazy(() => import("./궤도.jsx")),
   깊은우주: lazy(() => import("./깊은우주.jsx")),
 };
@@ -30,14 +29,18 @@ function 웹지엘되나() {
   if (웹지엘가능 !== null) return 웹지엘가능;
   try {
     const 캔 = document.createElement("canvas");
-    웹지엘가능 = Boolean(캔.getContext("webgl2") || 캔.getContext("webgl"));
+    const 문맥 = 캔.getContext("webgl2") || 캔.getContext("webgl");
+    웹지엘가능 = Boolean(문맥);
+    /* ★ 확인만 하고 버린 문맥을 **바로 돌려준다.** 안 그러면 GC 전까지 GPU 에
+       문맥 하나가 더 살아 있다(브라우저 한도 16개, 메모리). */
+    문맥?.getExtension("WEBGL_lose_context")?.loseContext();
   } catch {
     웹지엘가능 = false;
   }
   return 웹지엘가능;
 }
 
-export default function 입체칸({ 장면 = "유물", 늦게 = false, 깨움 = true, style }) {
+export default function 입체칸({ 장면 = "궤도", 늦게 = false, 깨움 = true, style }) {
   const 칸 = useRef(null);
   const [붙일까, set붙일까] = useState(false);
   const [보임, set보임] = useState(false);
@@ -73,7 +76,9 @@ export default function 입체칸({ 장면 = "유물", 늦게 = false, 깨움 = 
              WebGL 문맥을 반복해서 만들고 버리게 돼 훨씬 비싸다 */
           if (항목.isIntersecting) set붙일까(true);
         },
-        { rootMargin: "240px" },
+        /* 1200px — 화면에 닿기 한참 전에 붙여 둔다. 240px 이면 스크롤해 내려올 때
+           궤도가 뒤늦게 「툭」 나타났다. */
+        { rootMargin: "1200px" },
       );
       관찰.observe(el);
       짐 = () => 관찰.disconnect();

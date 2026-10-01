@@ -35,7 +35,7 @@ export const 소셜 = {
     이름: "Google",
     색: "#ffffff",
     바탕: "#ffffff",
-    키이름: "VITE_구글_아이디",
+    키이름: "VITE_GOOGLE_CLIENT_ID", // 영문 이름만 — Vite 는 한글 환경변수 이름을 못 읽는다
     주소(키) {
       const q = new URLSearchParams({
         client_id: 키,
@@ -52,7 +52,7 @@ export const 소셜 = {
     이름: "Naver",
     색: "#ffffff",
     바탕: "#03c75a",
-    키이름: "VITE_네이버_아이디",
+    키이름: "VITE_NAVER_CLIENT_ID",
     주소(키) {
       const q = new URLSearchParams({
         client_id: 키,

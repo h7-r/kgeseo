@@ -1,19 +1,31 @@
-import { useEffect } from "react";
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Suspense, useEffect, useLayoutEffect, useRef } from "react";
+import { 인증, 게임소개, 약관화면, 고객센터화면, 요금제화면, 마이페이지화면, 영상캐릭터, 찾기화면, 모두미리받기 } from "./화면목록.js";
+import { use화면밖쉼 } from "./쉼.js";
+import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import 내비층 from "./내비층.jsx";
 import { use읽은만큼, use스크롤중 } from "./움직임.js";
 import { 배경시작점 } from "./공통.js";
 import 시작화면 from "./시작화면.jsx";
-import 인증 from "./화면/인증.jsx";
-import 게임소개 from "./화면/게임소개.jsx";
-import 약관화면 from "./화면/약관.jsx";
-import 고객센터화면 from "./화면/고객센터.jsx";
-import 요금제화면 from "./화면/요금제.jsx";
-import 마이페이지화면 from "./화면/마이페이지.jsx";
-import 영상캐릭터 from "./화면/영상캐릭터.jsx";
 import 에러 from "./화면/에러.jsx";
-import 찾기화면 from "./화면/찾기.jsx";
-import { use로그인 } from "./로그인상태.js";
+import 영상모달 from "./구간/영상모달.jsx";
+import { use히어로덮음 } from "./가림.js";
+import { 그림미리데우기 } from "./그림미리.js";
+
+/* ★ 성능: 화면마다 코드를 떼어(lazy) 첫 JS 를 줄인다. 쪽을 옮길 때 기다리지
+   않도록, 첫 화면이 다 뜬 뒤 한가할 때 나머지 화면 코드를 미리 받아 둔다.
+   (목록과 「받아 둔 화면은 멈추지 않고 바로 그리기」는 화면목록.js 로 옮겼다 —
+    머리띠도 메뉴에 마우스를 올릴 때 같은 목록으로 미리 받는다) */
+if (typeof window !== "undefined") {
+  const 시작 = () => (window.requestIdleCallback ? requestIdleCallback(모두미리받기, { timeout: 4000 }) : setTimeout(모두미리받기, 2000));
+  if (document.readyState === "complete") 시작(); else window.addEventListener("load", 시작, { once: true });
+
+  /* 그림 미리 데우기(그림미리.js) — 첫 화면이 다 뜬 뒤, 그리고 쪽을 옮길 때마다(새 쪽의 그림이 붙은 뒤) */
+  const 데우기 = () => window.setTimeout(그림미리데우기, 800);
+  if (document.readyState === "complete") 데우기(); else window.addEventListener("load", 데우기, { once: true });
+  window.addEventListener("쪽바뀜", 데우기);
+}
+import { use로그인, 지금로그인 } from "./로그인상태.js";
+import { 게임시작, 게임시작길 } from "./이동표.js";
 import 입체칸 from "./입체/입체칸.jsx";
 
 /* 화면 목록 — 피그마 프로토타입의 전환을 주소로 옮긴 것 */
@@ -28,6 +40,8 @@ export default function 앱() {
 
       <진행막대 />
       <내비층 />
+      {/* 경주 원·시나리오 카드를 누르면 뜨는 큰 영상 — 화면마다 따로 두지 않고 여기 한 번만(영상창상태.js) */}
+      <영상모달 />
       <쪽전환>
         <Routes>
         <Route path="/" element={<시작화면 />} />
@@ -44,6 +58,8 @@ export default function 앱() {
         <Route path="/마이페이지" element={<문지기><마이페이지화면 /></문지기>} />
         <Route path="/영상캐릭터" element={<영상캐릭터 />} />
         <Route path="/찾기" element={<찾기화면 />} />
+        {/* 게임으로 이어 주는 자리 — 로그인 화면에서 ?다음=/게임시작 으로 돌아오면 여기서 게임으로 넘긴다 */}
+        <Route path="/게임시작" element={<게임으로 />} />
 
         {/* 막힌 길들 — 404 말고도 미리 만들어 둔다.
             서버가 붙으면 그쪽에서 이 주소로 보내면 된다. */}
@@ -86,6 +102,17 @@ export default function 앱() {
 
    ★ 이건 흐름을 위한 자물쇠지 보안이 아니다 — 로그인상태.js 참고.
    ═══════════════════════════════════════════════════════ */
+/* /게임시작 — 로그인했으면 게임(캐릭터 생성)으로 페이지째 넘어가고, 아니면 로그인부터.
+   (replace — 뒤로가기를 눌렀을 때 이 중간 자리로 다시 돌아와 또 튕겨 나가지 않게) */
+function 게임으로() {
+  const 가기 = useNavigate();
+  useEffect(() => {
+    if (지금로그인()) 게임시작((길) => 가기(길, { replace: true }));
+    else 가기(`/로그인?다음=${encodeURIComponent(게임시작길)}`, { replace: true });
+  }, [가기]);
+  return <p style={{ padding: "160px 24px", textAlign: "center", color: "#8fa0c4" }}>게임으로 이동하는 중…</p>;
+}
+
 function 문지기({ children }) {
   const 사람 = use로그인();
   if (!사람) return <에러 종류="403" />;
@@ -122,14 +149,17 @@ function 문지기({ children }) {
 
 function 배경공간() {
   const 스크롤중 = use스크롤중(900);
+  const 히어로덮음 = use히어로덮음();
+  useEffect(() => { document.documentElement.classList.toggle("스크롤중", 스크롤중); }, [스크롤중]);
 
   const 가로 = Math.round(배경시작점.가로 * 100);
   const 세로 = Math.round(배경시작점.세로 * 100);
   /* 시작점이 오른쪽 끝에 가까우니 가로 반지름을 넉넉히 준다 —
      좁게 잡으면 화면 왼쪽 절반이 통째로 비어 보인다. */
+  /* mask 의 불투명도 m 을 바탕색 덮개의 (1−m) 로 뒤집었다 */
   const 덮개 =
     `radial-gradient(150% 112% at ${가로}% ${세로}%,` +
-    " rgba(0,0,0,1) 0%, rgba(0,0,0,0.95) 34%, rgba(0,0,0,0.4) 70%, rgba(0,0,0,0) 100%)";
+    " rgba(1,4,10,0) 0%, rgba(1,4,10,0.05) 34%, rgba(1,4,10,0.6) 70%, rgba(1,4,10,1) 100%)";
 
   return (
     <div
@@ -142,11 +172,15 @@ function 배경공간() {
         opacity: 스크롤중 ? 1 : 0,
         /* 나타날 땐 빠르게(넘기자마자 보여야 한다), 사라질 땐 천천히 */
         transition: 스크롤중 ? "opacity .22s ease-out" : "opacity .7s ease-in",
-        maskImage: 덮개,
-        WebkitMaskImage: 덮개,
       }}
     >
-      <입체칸 장면="깊은우주" 늦게 깨움={스크롤중} />
+      {/* 히어로가 창을 다 덮는 동안엔 재운다 — 안 보이는 걸 그리지 않는다 */}
+      <입체칸 장면="깊은우주" 늦게 깨움={스크롤중 && !히어로덮음} />
+      {/* ★ 성능: mask-image 대신 **바탕색 덮개**를 위에 얹는다.
+          뒤가 늘 단색(body #01040a)이라 결과 픽셀은 mask 와 같다
+          (canvas·m + 바탕·(1−m)). mask 는 WebGL 층마다 별도 렌더 패스를
+          만들어 매 프레임 가려 칠하지만, 덮개는 변하지 않는 그라디언트 한 장이다. */}
+      <div style={{ position: "absolute", inset: 0, background: 덮개 }} />
     </div>
   );
 }
@@ -159,17 +193,25 @@ function 진행막대() {
 
 function 쪽전환({ children }) {
   const 길 = useLocation().pathname;
+  const 틀 = useRef(null);
+  use화면밖쉼(틀, 길);
 
-  useEffect(() => {
+  /* ★ 성능·깜빡임: useEffect → useLayoutEffect.
+     useEffect 는 **화면을 한 번 그린 뒤에** 돈다. 그래서 긴 페이지 중간에서 옮기면
+     새 페이지가 옛 스크롤 자리(엉뚱한 중간)로 한 장 그려졌다가 맨 위로 튀었다.
+     useLayoutEffect 는 그리기 **전에** 돌아서, 첫 장부터 맨 위로 그려진다. */
+  useLayoutEffect(() => {
+    /* ★ 이 scrollTo 는 사람이 굴린 게 아니다 — 입체 배경을 깨우지 않게 표시해 두고
+       (use스크롤중 이 한 번 건너뛴다), 카메라가 관성으로 되감기지 않게 알린다. */
+    if (window.scrollY !== 0) window.__프로그램스크롤 = true;
     window.scrollTo({ top: 0, behavior: "auto" });
+    window.dispatchEvent(new Event("쪽바뀜"));
   }, [길]);
 
   return (
     <>
-      {/* 주소가 바뀔 때마다 새로 만들어져 한 번 걷힌다 */}
-      <div key={`막${길}`} className="전환막" aria-hidden="true" />
-      <div key={길} className="쪽전환">
-        {children}
+      <div key={길} ref={틀} className="쪽전환">
+        <Suspense fallback={null}>{children}</Suspense>
       </div>
     </>
   );

@@ -17,7 +17,7 @@ export default function 캐릭터소개({ 위 = 0 }) {
 
   return (
     <section ref={칸} className="지나가며" style={{ ...바깥, top: `${위}px`, willChange: "transform" }} data-node-id="14:1649">
-      <div style={{ fontFamily: 글꼴.제목, fontSize: "40px", color: "#eeeeff" }}>캐릭터 소개</div>
+      <div style={{ fontFamily: 글꼴.제목, fontSize: "40px", color: "#f1f1fc" }}>캐릭터 소개</div>
       <div style={{ display: "flex", gap: "16px", height: "429px", width: "100%" }}>
         {인물.map((ㅇ, i) => (
           <인물한장 key={ㅇ.이름} {...ㅇ} 순서={i} />
@@ -36,7 +36,7 @@ function 인물한장({ 그림, 이름, 역할, 설명, 순서 }) {
     <div
       ref={보임칸}
       className={`기울임판 ${다가옴클래스(보임)}`}
-      style={{ flex: "1 0 0", height: "100%", transitionDelay: `${순서 * 90}ms` }}
+      style={{ flex: "1 0 0", height: "100%", transitionDelay: `${순서 * 45}ms` }}
     >
       <div
         ref={기울임.ref}
@@ -51,9 +51,9 @@ function 인물한장({ 그림, 이름, 역할, 설명, 순서 }) {
           <img loading="lazy" decoding="async" src={그림} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         </div>
         <div className="깊이-앞" style={{ flex: "1 0 0", display: "flex", flexDirection: "column", gap: "5px", padding: "16px 16px 18px", width: "100%", boxSizing: "border-box" }}>
-          <div style={{ fontFamily: 글꼴.제목, fontSize: "30px", lineHeight: 1.1, color: "#eeeeff" }}>{이름}</div>
-          <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#6b93cc", textTransform: "uppercase" }}>{역할}</div>
-          <div style={{ fontFamily: 글꼴.본문, fontSize: "16px", lineHeight: 1.5, color: "#9ca3af" }}>{설명}</div>
+          <div style={{ fontFamily: 글꼴.제목, fontSize: "30px", lineHeight: 1.1, color: "#f1f1fc" }}>{이름}</div>
+          <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#6f86bf", textTransform: "uppercase" }}>{역할}</div>
+          <div style={{ fontFamily: 글꼴.본문, fontSize: "16px", lineHeight: 1.5, color: "#8b93a3" }}>{설명}</div>
         </div>
       </div>
     </div>
@@ -68,7 +68,7 @@ const 바깥 = {
   height: "620px",
   padding: "24px 32px",
   borderRadius: "16px",
-  border: "1.5px solid rgba(59,130,246,0.6)",
+  border: "1.5px solid rgba(46,72,137,0.6)",
   display: "flex",
   flexDirection: "column",
   gap: "30px",
@@ -83,8 +83,8 @@ const 카드 = {
   display: "flex",
   flexDirection: "column",
   borderRadius: "12px",
-  border: "1px solid #1e3a5f",
-  background: "linear-gradient(180deg, #0a1628 0%, #02040a 100%)",
+  border: "1px solid #1a305f",
+  background: "linear-gradient(180deg, #081228 0%, #01040a 100%)",
   overflow: "hidden",
   boxSizing: "border-box",
 };

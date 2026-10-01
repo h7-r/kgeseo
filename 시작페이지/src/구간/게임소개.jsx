@@ -16,7 +16,7 @@ export default function 게임소개({ 탭 = "게임 소개", 위 = 0, 탭누르
   const ㄴ = 탭내용[탭];
 
   return (
-    <section style={{ ...바깥, top: `${위}px` }} data-node-id="86:1319">
+    <section className="밝은판" style={{ ...바깥, top: `${위}px` }} data-node-id="86:1319">
       <div style={{ display: "flex", gap: "20px", width: "100%" }}>
         {탭목록.map((이름) => (
           <div
@@ -41,7 +41,7 @@ export default function 게임소개({ 탭 = "게임 소개", 위 = 0, 탭누르
           <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%", fontSize: "18px" }}>
             {ㄴ.줄.map(([라벨, 값], i) => (
               <div key={i} style={{ display: "flex", gap: "12px", alignItems: "center", width: "100%" }}>
-                <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, color: "#1d4ed8", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, color: "#2f3e70", textTransform: "uppercase", whiteSpace: "nowrap" }}>
                   {라벨}
                 </span>
                 <span style={{ flex: "1 0 0", minWidth: 0, fontFamily: 글꼴.모노, fontWeight: 400, lineHeight: "22px", color: "#3c4250" }}>
@@ -66,7 +66,7 @@ export default function 게임소개({ 탭 = "게임 소개", 위 = 0, 탭누르
         <div style={사진칸}>
           <div style={사진속}>
             <img loading="lazy" decoding="async" src={에셋.imgMonitor} alt="" style={{ width: "28px", height: "28px", display: "block" }} />
-            <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, fontSize: "18px", color: "#1d4ed8", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+            <span style={{ fontFamily: 글꼴.모노, fontWeight: 600, fontSize: "18px", color: "#2f3e70", textTransform: "uppercase", whiteSpace: "nowrap" }}>
               {ㄴ.사진제목}
             </span>
             <span style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", lineHeight: "20px", color: "#5f6878", textAlign: "center", width: "100%" }}>
@@ -135,9 +135,9 @@ const 탭바탕 = {
 
 const 켜진탭 = {
   ...탭바탕,
-  background: "#3b82f6",
-  color: "#1a1a1f",
-  filter: "drop-shadow(0px 8px 9px rgba(59,130,246,0.25))",
+  background: "#2e4889",
+  color: "#ffffff", /* 눌린 탭은 흰 글자 — 남색 위 검정은 안 읽혔다 */
+  filter: "drop-shadow(0px 8px 9px rgba(46,72,137,0.25))",
 };
 
 /* 꺼진 탭 글자를 2.8:1 에서 5.2:1 로 올렸다 — 연회색 바탕에 연회색 글자라
@@ -220,5 +220,5 @@ const 쪽바탕 = {
 };
 
 /* 흰 글자에 #3b82f6 은 3.7:1 이라 본문 기준에 못 미쳤다. 한 단계 진한 파랑이면 6.3:1 */
-const 켜진쪽 = { ...쪽바탕, background: "#1d4ed8", color: "#ffffff", fontWeight: 700 };
-const 꺼진쪽 = { ...쪽바탕, border: "1px solid #d1d6e0", color: "#6b7488", fontWeight: 400 };
+const 켜진쪽 = { ...쪽바탕, background: "#2f3e70", color: "#ffffff", fontWeight: 700 };
+const 꺼진쪽 = { ...쪽바탕, border: "1px solid #d1d6e0", color: "#5f6878", fontWeight: 400 };

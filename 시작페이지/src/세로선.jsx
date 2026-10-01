@@ -31,7 +31,7 @@ const 배x = 18; // 가장 배부른 곳(가운데)
 const 실제배x = (끝x + 배x * 6) / 8;
 const 호중심 = (끝x + 실제배x) / 2;
 
-export default function 세로선({ 가운데, 위, 높이, 색 = "#3b82f6", 빛 = "#eaf2ff" }) {
+export default function 세로선({ 가운데, 위, 높이, 색 = "#92979f", 빛 = "#f4f4f5" }) {
   const 아이디 = useId().replace(/:/g, "");
   const 결 = `호결${아이디}`;
   const 번짐 = `호번짐${아이디}`;
@@ -81,7 +81,7 @@ export default function 세로선({ 가운데, 위, 높이, 색 = "#3b82f6", 빛
         className="호빛"
         d={길}
         fill="none"
-        stroke="#9ecbff"
+        stroke="#aab6d3" /* 쨍한 하늘색(#9ecbff) → 은빛 도는 남색 */
         strokeWidth="5"
         strokeLinecap="round"
         pathLength="100"

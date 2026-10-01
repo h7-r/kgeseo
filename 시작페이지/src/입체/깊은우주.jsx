@@ -29,7 +29,8 @@ import { 배경시작점 } from "../공통.js";
 
    ★ 세기를 두 번 낮췄다. 처음엔 또렷하게 그렸더니 글을 읽는 동안 뒤에서
      계속 뭔가 움직여 눈이 피로했다. 배경은 **있는 줄 알아볼 정도**면 된다.
-     · 고리 투명도 0.75 → 0.30  · 파편 반투명 0.45  · 먼지 0.5 → 0.26
+     · 고리 투명도 0.75 → 0.30 → 0.17  · 파편 반투명 0.45  · 먼지 0.5 → 0.26
+     · 고리 굵기 0.075 → 0.045 (더 얇고 옅게 — 스크롤할 때 원이 도드라지지 않게)
      · 조명 전반 절반으로  · 안개 0.019 → 0.032 (먼 것이 일찍 사라진다)
 
    [가볍게]
@@ -39,9 +40,9 @@ import { 배경시작점 } from "../공통.js";
    · 동작 줄이기를 켠 사람에겐 카메라를 세운다.
    ═══════════════════════════════════════════════════════ */
 
-const 바탕 = "#02040a";
-const 파랑 = "#3b82f6";
-const 하늘 = "#93c5fd";
+const 바탕 = "#030509"; // 페이지 바탕(토큰 --색-바탕)과 맞춘다
+const 파랑 = "#92979f";
+const 하늘 = "#c5c8cb";
 
 /* 통로 전체 길이(단위). 스크롤 0~1 이 이 거리를 지난다.
    ★ 520 은 너무 길었다. 페이지를 조금만 굴려도 카메라가 수십 단위를 날아가
@@ -68,7 +69,7 @@ function 고리들() {
            들쭉날쭉해야 좁아졌다 넓어지는 통로처럼 읽힌다 */
         반지름: 6 + Math.sin(i * 1.7) * 3.6,
         비틈: [Math.sin(i * 0.9) * 0.26, Math.cos(i * 1.3) * 0.26, i * 0.4],
-        진하기: 0.3 - i * 0.015,
+        진하기: 0.17 - i * 0.01,
       })),
     [],
   );
@@ -83,9 +84,9 @@ function 고리들() {
       {자리.map((ㄱ, i) => (
         <mesh key={i} position={[0, 0, ㄱ.z]} rotation={ㄱ.비틈}>
           {/* ★ 튜브를 0.022 로 뒀더니 20 단위만 떨어져도 1픽셀이 안 돼서
-              아예 안 보였다. 화면에 잡히려면 이 정도는 굵어야 한다. */}
-          <torusGeometry args={[ㄱ.반지름, 0.075, 6, 96]} />
-          <meshBasicMaterial color={i % 3 === 0 ? 하늘 : 파랑} transparent opacity={Math.max(0.09, ㄱ.진하기)} />
+              아예 안 보였다. 0.075 는 너무 도드라져서 0.045 로 — 안 보일 만큼은 안 줄인다. */}
+          <torusGeometry args={[ㄱ.반지름, 0.045, 6, 96]} />
+          <meshBasicMaterial color={i % 3 === 0 ? 하늘 : 파랑} transparent opacity={Math.max(0.05, ㄱ.진하기)} />
         </mesh>
       ))}
     </group>
@@ -145,7 +146,7 @@ function 파편들() {
       {/* 스스로 내는 빛을 낮추고 금속감을 올린다 — 제 빛으로 환하면 면마다
           밝기가 같아져서 납작한 색종이처럼 보인다. 빛을 **받아야** 입체가 된다. */}
       <meshStandardMaterial
-        color="#0a1730"
+        color="#0f131a"
         emissive="#1e3a8a"
         emissiveIntensity={0.06}
         metalness={0.4}
@@ -175,34 +176,27 @@ function 파편들() {
    40×40 칸이라 꼭짓점이 1681개 — 매 프레임 고쳐도 가볍다.
    ─────────────────────────────────────────────────────── */
 function 휘는격자({ 높이 = -7, 뒤집기 = false }) {
-  const 몸 = useRef(null);
-  const 처음 = useRef(null);
-
-  useFrame(({ clock }) => {
-    const 판 = 몸.current?.geometry;
-    if (!판) return;
-    const 자리 = 판.attributes.position;
-    if (!처음.current) 처음.current = Float32Array.from(자리.array);
-
-    const ㅅ = clock.getElapsedTime() * 0.35;
-    for (let i = 0; i < 자리.count; i += 1) {
-      const x = 처음.current[i * 3];
-      const y = 처음.current[i * 3 + 1];
-      /* 두 방향 물결을 겹친다 — 한 방향만 쓰면 빨래판처럼 규칙적이다 */
-      자리.array[i * 3 + 2] =
-        Math.sin(x * 0.12 + ㅅ) * 1.1 + Math.sin(y * 0.09 - ㅅ * 0.8) * 0.9;
-    }
-    자리.needsUpdate = true;
-  });
+  /* ★ 성능: 전에는 매 프레임 꼭짓점 1681개를 CPU 에서 고치고 버퍼를 통째로
+     다시 올렸다(격자 2장 × 40KB/프레임). 같은 식을 정점 셰이더로 옮겨
+     GPU 가 계산한다 — 모양·속도는 그대로, 주 스레드 일과 업로드는 0. */
+  const 시간 = useMemo(() => ({ value: 0 }), []);
+  const 재질 = useRef(null);
+  useFrame(({ clock }) => { 시간.value = clock.getElapsedTime() * 0.35; });
+  const 끼우기 = useMemo(() => (셰이더) => {
+    셰이더.uniforms.uWave = 시간;
+    셰이더.vertexShader = "uniform float uWave;\n" + 셰이더.vertexShader.replace(
+      "#include <begin_vertex>",
+      "#include <begin_vertex>\n transformed.z = sin(position.x * 0.12 + uWave) * 1.1 + sin(position.y * 0.09 - uWave * 0.8) * 0.9;",
+    );
+  }, [시간]);
 
   return (
     <mesh
-      ref={몸}
       position={[0, 높이, -통로길이 / 2]}
       rotation={[뒤집기 ? Math.PI / 2 : -Math.PI / 2, 0, 0]}
     >
       <planeGeometry args={[70, 통로길이 + 80, 40, 40]} />
-      <meshBasicMaterial color={파랑} wireframe transparent opacity={0.075} />
+      <meshBasicMaterial ref={재질} color={파랑} wireframe transparent opacity={0.075} onBeforeCompile={끼우기} />
     </mesh>
   );
 }
@@ -282,17 +276,39 @@ function 소실점옮기기() {
   return null;
 }
 
+/* ★ 성능: useFrame 안에서 scrollHeight 를 읽으면, 그 프레임에 DOM 이 바뀌어
+   있을 때 **강제 레이아웃**이 난다. 스크롤·크기 바뀜 때만 재 둔다. */
+const 스크롤끝 = { 값: 0, 더러움: true };
+if (typeof window !== "undefined") {
+  const 더럽힘 = () => { 스크롤끝.더러움 = true; };
+  window.addEventListener("resize", 더럽힘);
+  window.addEventListener("쪽바뀜", 더럽힘);
+  new ResizeObserver(더럽힘).observe(document.documentElement);
+}
+function 스크롤몫() {
+  if (스크롤끝.더러움) { 스크롤끝.값 = document.documentElement.scrollHeight - window.innerHeight; 스크롤끝.더러움 = false; }
+  const 끝 = 스크롤끝.값;
+  return 끝 <= 0 ? 0 : Math.min(1, Math.max(0, window.scrollY / 끝));
+}
+
 function 카메라({ 줄임 }) {
   const { camera } = useThree();
   const 몫 = useRef(0);
+  /* 쪽을 옮기면 스크롤이 0 으로 **순간** 바뀐다. 관성으로 따라가면 카메라가
+     통로를 몇 초 동안 거꾸로 날아가 「스크롤보다 늦다」로 보인다 → 한 번에 붙인다. */
+  const 붙임 = useRef(false);
+  useEffect(() => {
+    const 표시 = () => { 붙임.current = true; };
+    window.addEventListener("쪽바뀜", 표시);
+    return () => window.removeEventListener("쪽바뀜", 표시);
+  }, []);
   const 목표 = useRef(new THREE.Vector3(0, 0, 0));
   const 봄 = useRef(new THREE.Vector3(0, 0, -20));
 
   useFrame(({ pointer }, 지난시간) => {
     if (줄임) return;
 
-    const 끝 = document.documentElement.scrollHeight - window.innerHeight;
-    const 새몫 = 끝 <= 0 ? 0 : Math.min(1, Math.max(0, window.scrollY / 끝));
+    const 새몫 = 스크롤몫();
     몫.current = 새몫;
 
     목표.current.set(0, 0, -새몫 * 통로길이);
@@ -305,6 +321,10 @@ function 카메라({ 줄임 }) {
        ② 그래도 한 프레임에 갈 수 있는 거리를 **초당 22단위**로 자른다.
           아무리 빨리 굴려도 카메라는 그 속도를 넘지 못한다.
        프레임 시간(지난시간)을 곱해야 빠른 기기·느린 기기에서 같은 속도가 된다. */
+    if (붙임.current) {
+      붙임.current = false;
+      camera.position.z = 목표.current.z;
+    }
     const 최대속도 = 22;
     const 남은 = 목표.current.z - camera.position.z;
     const 가려는거리 = 남은 * 0.035;
@@ -323,6 +343,31 @@ function 카메라({ 줄임 }) {
 
   return null;
 }
+
+/* ★ 성능: frameloop 가 "never" 로 시작하므로, 셰이더는 **첫 스크롤 프레임**에
+   컴파일됐다(표준 재질+조명+안개 = 가장 비싼 프로그램). 사용자가 막 굴리는
+   순간 멈칫한다. 붙자마자 한가할 때 미리 컴파일하고 한 장 그려 둔다. */
+function 미리굽기() {
+  const { gl, scene, camera, invalidate } = useThree();
+  useEffect(() => {
+    gl.debug.checkShaderErrors = !import.meta.env.PROD; // 배포에선 동기 로그 조회를 뺀다
+    let 끝 = false;
+    let 그림예약 = 0;
+    const 한가할때 = (f, 기다림) => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 기다림 }) : setTimeout(f, 300));
+    const 취소 = (id) => (window.cancelIdleCallback ? cancelIdleCallback(id) : clearTimeout(id));
+    const 굽기 = () => {
+      const p = gl.compileAsync ? gl.compileAsync(scene, camera) : Promise.resolve(gl.compile(scene, camera));
+      /* ★ 성능: 컴파일이 끝나자마자 같은 작업에서 그리면 「컴파일 + 첫 그리기(텍스처·버퍼 올리기)」가
+         한 덩어리 긴 작업이 된다(요금제에서 가만히 있어도 3.7초 멈춤). 그리기는 **다음 한가한 틈**으로
+         떼어 두 조각으로 나눈다 — 긴 작업 쪼개기. 결과(첫 스크롤 전에 다 구워 둠)는 같다. */
+      p.then(() => { if (!끝) 그림예약 = 한가할때(() => { if (!끝) { gl.render(scene, camera); invalidate(); } }, 1500); }).catch(() => {});
+    };
+    const id = 한가할때(굽기, 1500);
+    return () => { 끝 = true; 취소(id); if (그림예약) 취소(그림예약); };
+  }, [gl, scene, camera, invalidate]);
+  return null;
+}
+
 
 export default function 깊은우주({ 보임 = true, 줄임 = false }) {
   return (
@@ -343,7 +388,7 @@ export default function 깊은우주({ 보임 = true, 줄임 = false }) {
           나야 다면체가 다면체로 보인다 */}
       <ambientLight intensity={0.16} />
       <directionalLight position={[8, 6, 3]} intensity={1.4} color={하늘} />
-      <directionalLight position={[-7, -4, -2]} intensity={0.6} color="#1d4ed8" />
+      <directionalLight position={[-7, -4, -2]} intensity={0.6} color="#737782" />
       {/* 카메라 앞을 비추는 등 — 가까이 오는 것이 먼저 밝아진다 */}
       <pointLight position={[0, 0, 4]} intensity={14} distance={30} decay={1.7} color={파랑} />
 
@@ -355,6 +400,7 @@ export default function 깊은우주({ 보임 = true, 줄임 = false }) {
       <가까운먼지 />
       <소실점옮기기 />
       <카메라 줄임={줄임} />
+      <미리굽기 />
     </Canvas>
   );
 }

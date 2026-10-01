@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import 에셋 from "../에셋.js";
-import { 글꼴, 막음, 막음안내 } from "../공통.js";
+import { 글꼴 } from "../공통.js";
 import { use기울임, use드러내기, use지나가며, 다가옴클래스 } from "../움직임.js";
 
 /* 게임 영상 — 피그마 14:1664(3장 갤러리) · 121:2293(큰 카드) · 150:222(쪽번호) */
@@ -43,7 +43,7 @@ export default function 게임영상({ 위 = 0, 큰카드위 = 0, 쪽번호위 =
   return (
     <>
       <section style={{ ...갤러리, top: `${위}px` }} data-node-id="14:1664">
-        <div style={{ display: "flex", gap: "8px", alignItems: "center", fontFamily: 글꼴.모노, fontSize: "16px", color: "#60a5fa" }}>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", fontFamily: 글꼴.모노, fontSize: "16px", color: "#6f86bf" }}>
           <span>게임 영상</span>
         </div>
         <div style={{ display: "flex", gap: "16px", width: "100%", height: "260px" }}>
@@ -95,7 +95,7 @@ function 작은영상({ 순서, 켜짐, 누르기, ...ㅇ }) {
       onClick={누르기}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); 누르기?.(); } }}
       className={`기울임판 ${다가옴클래스(보임)}`}
-      style={{ flex: "1 0 0", minWidth: 0, height: "335px", cursor: "pointer", transitionDelay: `${순서 * 90}ms`, outline: 켜짐 ? "2px solid rgba(96,165,250,0.85)" : "none", outlineOffset: "2px", borderRadius: "12px" }}
+      style={{ flex: "1 0 0", minWidth: 0, height: "335px", cursor: "pointer", transitionDelay: `${순서 * 45}ms`, outline: 켜짐 ? "2px solid rgba(50,82,150,0.85)" : "none", outlineOffset: "2px", borderRadius: "12px" }}
     >
       <div
         ref={기울임.ref}
@@ -138,12 +138,12 @@ function 영상카드({ 그림, 제목, 갈래, 설명, 큼 }) {
       </div>
       {/* 아래쪽 설명 — 바탕색으로 녹여 내린다 */}
       <div style={설명칸}>
-        <div style={{ fontFamily: 글꼴.제목, fontSize: 큼 ? "32px" : "24px", color: "#eeeeff" }}>{제목}</div>
+        <div style={{ fontFamily: 글꼴.제목, fontSize: 큼 ? "32px" : "24px", color: "#f1f1fc" }}>{제목}</div>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#3b82f6", textTransform: "uppercase" }}>{갈래}</span>
+          <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#6f86bf", textTransform: "uppercase" }}>{갈래}</span>
           {큼 && <span style={지금보는중}>NOW PLAYING</span>}
         </div>
-        <div style={{ fontFamily: 글꼴.본문, fontSize: "16px", lineHeight: 1.5, color: "#9ca3af" }}>{설명}</div>
+        <div style={{ fontFamily: 글꼴.본문, fontSize: "16px", lineHeight: 1.5, color: "#8b93a3" }}>{설명}</div>
       </div>
     </div>
   );
@@ -152,14 +152,14 @@ function 영상카드({ 그림, 제목, 갈래, 설명, 큼 }) {
 /* 큰 카드에만 붙는 표시 — 위 목록과 같은 제목이 두 번 보이는 걸 설명해 준다 */
 const 지금보는중 = {
   fontFamily: "inherit",
-  fontSize: "13px",
+  fontSize: "15px",
   fontWeight: 700,
   letterSpacing: "1px",
-  color: "#93c5fd",
+  color: "#6f86bf",
   padding: "3px 9px",
   borderRadius: "999px",
-  border: "1px solid rgba(96,165,250,0.45)",
-  background: "rgba(59,130,246,0.12)",
+  border: "1px solid rgba(50,82,150,0.45)",
+  background: "rgba(46,72,137,0.12)",
   whiteSpace: "nowrap",
 };
 
@@ -171,7 +171,7 @@ const 갤러리 = {
   height: "517px",
   padding: "24px 32px",
   borderRadius: "16px",
-  border: "1.5px solid rgba(59,130,246,0.6)",
+  border: "1.5px solid rgba(46,72,137,0.6)",
   display: "flex",
   flexDirection: "column",
   gap: "16px",
@@ -182,7 +182,7 @@ const 갤러리 = {
 const 카드 = {
   position: "relative",
   borderRadius: "12px",
-  border: "1px solid #1e3a5f",
+  border: "1px solid #1a305f",
   overflow: "hidden",
   boxSizing: "border-box",
 };
@@ -196,7 +196,7 @@ const 재생 = {
   height: "56px",
   borderRadius: "28px",
   background: "rgba(255,255,255,0.1)",
-  border: "1px solid #3b82f6",
+  border: "1px solid #2e4889",
   backdropFilter: "blur(6px)",
   WebkitBackdropFilter: "blur(6px)",
   display: "flex",
@@ -217,7 +217,7 @@ const 설명칸 = {
   display: "flex",
   flexDirection: "column",
   gap: "6px",
-  background: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(2,4,10,0.85) 45%, #02040a 100%)",
+  background: "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(1,4,10,0.85) 45%, #01040a 100%)",
   boxSizing: "border-box",
 };
 
@@ -229,9 +229,12 @@ const 화살표 = {
   justifyContent: "center",
   fontFamily: 글꼴.본문,
   fontSize: "24px",
-  color: "#5b6c84", /* 밝은 카드 위에서 2.2:1 이던 화살표 — 5.1:1 로 */
+  color: "#8b93a3", /* 어두운 면 위 화살표 — 회색 */
+  background: "transparent", /* <button> 기본 흰 바탕이 사각형으로 떴다 */
+  border: "none",
+  cursor: "pointer",
 };
 const 쪽바탕 = { width: "40px", height: "40px", borderRadius: "20px", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: 글꼴.모노, fontSize: "16px", boxSizing: "border-box" };
 /* 흰 글자에 #3b82f6 은 3.7:1 이라 본문 기준에 못 미쳤다. 한 단계 진한 파랑이면 6.3:1 */
-const 켜진쪽 = { ...쪽바탕, background: "#1d4ed8", color: "#ffffff", fontWeight: 700 };
-const 꺼진쪽 = { ...쪽바탕, background: "rgba(10,15,31,0.8)", border: "1px solid #1e3a5f", color: "#94a3b8" };
+const 켜진쪽 = { ...쪽바탕, background: "#2f3e70", color: "#ffffff", fontWeight: 700 };
+const 꺼진쪽 = { ...쪽바탕, background: "rgba(9,14,31,0.8)", border: "1px solid #1a305f", color: "#96a3b6" };

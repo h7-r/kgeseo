@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import 네비 from "./구간/네비.jsx";
 import { use화면배율, 설계폭 } from "./무대.jsx";
 import { 알약이동 } from "./이동표.js";
 import { use로그인, 나가기 } from "./로그인상태.js";
+import { 주소미리받기 } from "./화면목록.js";
 
 /* ═══════════════════════════════════════════════════════
    nav 를 라우트 **바깥** 에 한 번만 그리는 층
@@ -30,7 +31,7 @@ const 설정 = {
   "/게임소개": { 활성: "소개" },
   "/영상캐릭터": { 활성: "컬렉션" },
   "/마이페이지": { 활성: "컬렉션" },
-  "/요금제": { 활성: "드롭" },
+  "/요금제": { 활성: "구독" },
   "/약관": { 활성: "브랜드" },
   "/고객센터": { 활성: "고객센터" },
 };
@@ -81,6 +82,14 @@ export default function 내비층() {
   const 사람 = use로그인();
   const 가기 = useNavigate();
   const 길 = decodeURIComponent(useLocation().pathname);
+  /* ★ 성능(React): 네비에 넘기는 함수를 useCallback 으로 **같은 함수**로 유지한다.
+     머리띠는 스크롤 문턱(굳음·숨김)을 넘을 때마다 다시 그려지는데, 그때마다 화살표 함수를
+     새로 만들면 네비는 「받은 값이 바뀌었다」고 보고 메뉴·찾기칸까지 통째로 다시 그린다
+     (특강의 "Parent rendered" 전파). 함수가 그대로면 memo 된 네비는 건너뛴다. */
+  /* 로그인 전엔 로그인 화면으로, 로그인 뒤엔 마이페이지로 */
+  const 누르기 = useCallback(() => 가기(사람 ? "/마이페이지" : 알약이동), [가기, 사람]);
+  const 로그아웃 = useCallback(() => { 나가기(); 가기("/"); }, [가기]);
+  const 찾아가기 = useCallback((말) => 가기(`/찾기?말=${encodeURIComponent(말)}`), [가기]);
   const ㅅ = 설정[길] ?? (길.startsWith("/비밀번호") || 길 === "/로그인" || 길 === "/회원가입" ? 인증기본 : { 활성: "홈" });
 
   return (
@@ -95,11 +104,11 @@ export default function 내비층() {
           크기={크기}
           활성={ㅅ.활성}
           사람={사람}
-          /* 로그인 전엔 로그인 화면으로, 로그인 뒤엔 마이페이지로 */
-          누르기={() => 가기(사람 ? "/마이페이지" : 알약이동)}
-          나가기={() => { 나가기(); 가기("/"); }}
-          찾아가기={(말) => 가기(`/찾기?말=${encodeURIComponent(말)}`)}
+          누르기={누르기}
+          나가기={로그아웃}
+          찾아가기={찾아가기}
           메뉴누르기={가기}
+          미리받기={주소미리받기}
         />
       </div>
     </div>

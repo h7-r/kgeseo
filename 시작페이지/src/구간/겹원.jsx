@@ -14,22 +14,19 @@
    도는 건 transform 뿐이라 배치를 건드리지 않는다. 장식이라 클릭도 막는다.
    ═══════════════════════════════════════════════════════ */
 
-export default function 겹원({ 칸, 무늬 = "가", 이름 }) {
+export default function 겹원({ 칸, 무늬 = "가", 이름, 클래스 }) {
   return (
     <div
+      className={클래스} /* 앙암바위 뒤 고리는 "앙암핀" — 구간과 같이 멈춰 있도록 */
       style={{ ...칸, perspective: "1500px", pointerEvents: "none" }}
       data-node-id={이름}
       aria-hidden="true"
     >
       <div className={`겹원판 겹원-${무늬}`}>
         {/* 바깥 — 가장 얇고 가장 많이 누워 있다 */}
-        <div className="고리 고리-바깥">
-          <div className="고리훑기" />
-        </div>
+        <div className="고리 고리-바깥" />
         {/* 가운데 — 반대로 기울어 바깥 고리와 두 곳에서 엇갈린다 */}
-        <div className="고리 고리-중간">
-          <div className="고리훑기 고리훑기-느림" />
-        </div>
+        <div className="고리 고리-중간" />
         {/* 안 — 가장 두껍고 가장 서 있다 */}
         <div className="고리 고리-안" />
       </div>

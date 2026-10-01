@@ -1,4 +1,3 @@
-import 에셋 from "../에셋.js";
 import { useNavigate } from "react-router-dom";
 import { 글꼴 } from "../공통.js";
 import { 눌러이동 } from "../이동표.js";
@@ -16,22 +15,22 @@ export default function 하위푸터() {
     <footer style={바깥} data-바닥="1" data-node-id="112:1415">
       <div style={윗줄}>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <span style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "18px", color: "#eeeeff", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+          <span style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "18px", color: "#3a5794", textTransform: "uppercase", whiteSpace: "nowrap" }}>
             ESCAPE THE LEGEND
           </span>
-          <span style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "16px", color: "#4d8ff7", whiteSpace: "nowrap" }}>
+          <span style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "16px", color: "#ffffff", whiteSpace: "nowrap" }}>
             · 지역 탐험 방탈출 2026
           </span>
         </div>
         {/* 링크 파랑은 #1e46c1 이었는데 거의 검정인 바탕에서 2.5:1 이라 읽히지 않았다 */}
-        <div style={{ display: "flex", gap: "32px", alignItems: "center", justifySelf: "center", fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "16px", color: "#6f92d8", whiteSpace: "nowrap" }}>
+        <div style={{ display: "flex", gap: "32px", alignItems: "center", justifySelf: "center", fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "16px", color: "#3a5794", whiteSpace: "nowrap" }}>
           {링크.map((이름) => (
             <span key={이름} className="링크" style={{ cursor: "pointer" }} onClick={() => 누름(이름)}>
               {이름}
             </span>
           ))}
         </div>
-        <span style={{ justifySelf: "end", fontFamily: 글꼴.모노, fontSize: "16px", color: "#5596f8", whiteSpace: "nowrap" }}>
+        <span style={{ justifySelf: "end", fontFamily: 글꼴.모노, fontSize: "16px", color: "#ffffff", whiteSpace: "nowrap" }}>
           ™ &amp; © 2026 ESCAPE THE LEGEND. All Rights Reserved.
         </span>
       </div>
@@ -59,7 +58,7 @@ const 바깥 = {
   /* 위 구분선~첫 줄(38px)과 마지막 줄~바닥을 **같게** 맞춘 높이.
      원본 186 이면 아래가 7px 뿐이라 글이 바닥에 붙어 보였다. */
   height: "217px",
-  background: "#060b1c",
+  background: "#000000", /* 끝 띠는 검정으로 — 색을 줄여 남색 면과 구분 */
   borderTop: "1px solid #40454d",
   boxSizing: "border-box",
 };
@@ -86,7 +85,7 @@ const 아래줄 = {
   letterSpacing: "-0.1px",
   fontWeight: 400,
   fontSize: "16px",
-  color: "#8b93a3", /* 3.7:1 → 4.9:1. 법인 정보는 작아도 읽을 수 있어야 한다 */
+  color: "#8b93a3", /* 원래 회색이던 법인 정보는 회색으로 */
   textAlign: "center",
   boxSizing: "border-box",
 };
