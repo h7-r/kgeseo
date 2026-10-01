@@ -1,7 +1,8 @@
 // 로딩영상.jsx — 화면이 넘어가는 사이(렌더링·모델 읽기)를 **반복 재생되는 영상 + 흐르는 안내 문장**으로 가리는 막
 //
 // [어디서 쓰나] (사용자 지시)
-//   ① 웹사이트 → 캐릭터 생성  「입장」  웹사이트가 틀던 입장 영상을 **그 초부터** 이어 튼다(?전환=2.61)
+//   ① 웹사이트 → 캐릭터 생성  「입장」  웹사이트가 틀던 **오프닝 시네마틱(소리 포함)** 을 그 초부터 이어 틀고(?전환=2.61),
+//                                     준비가 끝나면 SKIP 이 뜬다. 끝까지 보거나 SKIP 을 누르면 걷힌다.
 //   ② 캐릭터 생성 → 튜토리얼  「튜토리얼」 경주 → 여수 → 경주 → … 반복
 //   ③ 기차 내부 → 나주 맵     「나주」  나주 진입 영상을 **처음 한 번** 튼 뒤 목포 → 순천 → 목포 → … 반복
 //   영상 아래에는 사용법·왜곡 현상·세계관 문장이 **한 줄씩 시간차로** 바뀌며 끝없이 돈다.
@@ -36,18 +37,17 @@ import { 다뜰때까지 } from "./준비검사.js";
 export { 로딩붙잡기 } from "./준비검사.js";
 
 // ── 배경음악 ────────────────────────────────────────────────
-//   (사용자 지시 2026-10-01) 첫 게임 진입 영상 = The Final Chord, 나주 진입 영상 = Atmospheric Drone.
+//   (사용자 지시 2026-10-01) 캐릭터 생성 뒤 로딩 = The Final Chord(처음부터), 나주 진입 영상 = Atmospheric Drone.
+//   ★ 첫 게임 진입(입장)은 따로 곡을 안 튼다 — 오프닝 시네마틱 영상이 **제 소리**를 갖고 있다(아래 클립 「오프닝」).
 //   막이 뜨면 틀고, 걷히면 서서히 줄여 끈다. 페이지를 건너면(③ 나주) 몇 초까지 들었는지 함께 넘겨 이어 튼다.
 //   볼륨 = 설정의 「배경음악」(기본 0.6 = 10 중 6) × 곡별 보정.
 //   보정은 두 곡의 실측 크기(EBU R128)를 맞춘 값이다 — Final Chord −16.3 LUFS, Drone −14.4 LUFS → Drone 을 1.9dB 낮춘다.
 //   naju01 은 본편(src/설정)을 가져오면 안 되므로 같은 localStorage 를 직접 읽는다(src/설정/설정.js 의 저장키·기본값과 같게 둘 것).
-//   튜토리얼(캐릭터 생성 뒤 로딩)도 같은 Final Chord — 입장 때 멈춘 자리부터 이어 튼다(같은 곡이 처음부터 다시 나오면 어색하다).
+//   (예전엔 입장 때 틀던 Final Chord 를 튜토리얼 로딩이 이어 틀었다. 입장이 시네마틱으로 바뀌어 이제 **처음부터** 튼다.)
 const 음악 = {
-  입장: { 주소: "/bgm/final-chord.mp3", 보정: 1 },
   튜토리얼: { 주소: "/bgm/final-chord.mp3", 보정: 1 },
   나주: { 주소: "/bgm/atmospheric-drone.mp3", 보정: 0.8 },
 };
-const 멈춘자리 = new Map(); // 곡 주소 → 끈 순간의 초
 const 설정저장키 = "kgeseo.설정.v1";
 const 기본배경음악 = 0.6;
 function 배경음악크기() {
@@ -65,7 +65,6 @@ function 음악틀기(종류, 초 = 0) {
   음악끄기(0.6);
   const 곡 = 음악[종류];
   if (!곡) return;
-  if (!(초 > 0)) 초 = 멈춘자리.get(곡.주소) || 0;
   // #t= 로 시작 초를 주소에 실으면 그 지점부터 바로 받는다(다 받고 옮기는 것보다 빨리 소리가 난다)
   const audio = new Audio(초 > 0 ? `${곡.주소}#t=${초.toFixed(2)}` : 곡.주소);
   audio.preload = "auto";
@@ -83,13 +82,11 @@ function 음악틀기(종류, 초 = 0) {
   });
   음악지금 = { 종류, audio };
 }
-const 곡주소 = (audio) => new URL(audio.src, location.href).pathname;
 /** 서서히 줄이며 끈다(초). 막이 사라진 뒤에도 끝까지 줄어든다(모듈에 두는 이유) */
 function 음악끄기(초 = 1.2) {
   const 앞 = 음악지금;
   if (!앞) return;
   음악지금 = null;
-  멈춘자리.set(곡주소(앞.audio), 앞.audio.currentTime || 0);
   const 시작 = performance.now();
   const 처음 = 앞.audio.volume;
   const 멈추기 = () => { 앞.audio.pause(); 앞.audio.src = ""; };
@@ -106,7 +103,10 @@ function 음악끄기(초 = 1.2) {
 // ── 영상 ───────────────────────────────────────────────────
 //   전부 public/전환/ 에 있다(소리 없음 · 854×480). 지역 영상 넷은 웹사이트 시나리오 카드·경주 원에 쓴
 //   2배속 영상에서 소리만 뺀 것이다 — 웹사이트에서 본 장면이 게임 로딩에서 다시 나온다.
+//   ★ 오프닝만 다르다 — 「왜곡 시네마틱 초안」(114초 · 1080p · **소리 있음**). 소리 = 설정 「배경음악」 크기.
+//     원본 200MB 를 웹용(30fps · CRF 25)으로 줄였다 — 깃허브는 한 파일 100MB 까지라 원본은 못 올린다.
 const 클립 = {
+  오프닝: { 주소: "/전환/opening-cinematic.mp4", 포스터: "/전환/opening-cinematic-poster.jpg", 이름: "OPENING", 소리: true },
   입장: { 주소: "/전환/game-enter.mp4", 포스터: "/전환/game-enter-poster.webp", 이름: "합동수사본부" },
   경주: { 주소: "/전환/load-gyeongju.mp4", 포스터: "/전환/load-gyeongju-poster.webp", 이름: "경주 · 신라의 비밀" },
   여수: { 주소: "/전환/load-yeosu.mp4", 포스터: "/전환/load-yeosu-poster.webp", 이름: "여수 · 거북선의 비밀" },
@@ -146,8 +146,11 @@ const 나주문장 = [
 // ── 묶음(어떤 영상을 어떤 순서로, 어떤 글과 함께) ─────────────────
 //   처음 = 한 번만 트는 영상들,  반복 = 그 뒤 준비될 때까지 도는 영상들
 const 묶음들 = {
+  /* 입장 — (2026-10-01 사용자 지시) 오프닝 시네마틱을 **끝까지**(소리 포함) 튼다.
+       준비(캐릭터 생성 화면 렌더)가 끝나야 오른쪽 아래에 SKIP 이 뜬다. 영상이 끝나거나 SKIP 을 누르면 걷힌다.
+       영상이 먼저 끝났는데 아직 준비가 안 됐으면 예전 입장 영상(소리 없음)을 돌리며 기다린다. */
   입장: {
-    처음: [], 반복: ["입장"],
+    처음: ["오프닝"], 반복: ["입장"], 오프닝: true,
     이름표: "ENTERING · 합동수사본부", 제목: "조사관 등록실", 부제: "현장에 나서기 전, 당신의 모습을 정합니다.",
     문장: [...세계관문장.slice(0, 3), "외형을 정하고 이름을 등록하면 첫 임무가 시작됩니다."],
     최소: 1.4,
@@ -216,11 +219,8 @@ function 처음상태() {
   window.history.replaceState(window.history.state, "", 주소.pathname + 주소.search + 주소.hash);
   const 초 = Number(값);
   const 시각 = Number.isFinite(초) && 초 > 0 ? 초 : 0;
-  // 음악 — 웹사이트가 「누른 순간」 부터 튼 곡이 몇 초였는지(?음악=). 없으면 영상 초를 쓴다
-  const 음악초 = Number(주소.searchParams.get("음악"));
-  주소.searchParams.delete("음악");
-  window.history.replaceState(window.history.state, "", 주소.pathname + 주소.search + 주소.hash);
-  return { 종류: "입장", 순번: 0, 시각, 음악: Number.isFinite(음악초) && 음악초 > 0 ? 음악초 : 시각, 문장: 0, 걷지않음: false, 번호: 1 };
+  // 웹사이트가 「플레이하기」 순간부터 튼 오프닝을 그 초부터 잇는다(소리는 영상에 들어 있다 — 따로 곡 없음)
+  return { 종류: "입장", 순번: 0, 시각, 음악: 0, 문장: 0, 걷지않음: false, 번호: 1 };
 }
 
 /** 막을 켠다. 종류 = "입장" | "튜토리얼" | "나주"
@@ -263,6 +263,12 @@ function 로딩막({ 종류, 순번: 처음순번, 시각: 처음시각, 음악:
   읽는중참조.current = 읽는중;
   const [걷힘, set걷힘] = useState(false);
   const [기다림, set기다림] = useState("불러오는 중"); // 지금 무엇을 기다리는지 — 작은 상태 글
+  /* 오프닝(입장) — 준비됨이면 SKIP 이 뜨고, 오프닝끝(끝까지 봤거나 SKIP)과 둘 다면 걷힌다 */
+  const [준비됨, set준비됨] = useState(false);
+  const [오프닝끝, set오프닝끝] = useState(!묶음.오프닝);
+  const [소리막힘, set소리막힘] = useState(false); // 새 페이지라 브라우저가 소리를 막았나
+  const 준비됨참조 = useRef(false);
+  준비됨참조.current = 준비됨;
 
   /* ── 영상 두 칸을 번갈아 쓴다 ──
      한 칸이 트는 동안 다른 칸은 **다음 영상을 미리 받아 둔다.** 앞 영상이 끝나기 0.4초 전에
@@ -329,10 +335,30 @@ function 로딩막({ 종류, 순번: 처음순번, 시각: 처음시각, 음악:
     Promise.all([최소, 다뜸]).then(() => {
       if (끝남) return;
       // 두 프레임 더 — 데운 뒤 첫 그림이 실제 화면에 올라간 다음에 걷는다
-      requestAnimationFrame(() => requestAnimationFrame(() => { if (!끝남) set걷힘(true); }));
+      //   오프닝은 걷지 않고 SKIP 만 띄운다(끝까지 보거나 SKIP 을 눌러야 걷힌다 — 아래)
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (끝남) return;
+        if (묶음.오프닝) set준비됨(true);
+        else set걷힘(true);
+      }));
     });
     return () => { 끝남 = true; };
   }, [걷지않음, 묶음.최소]);
+  /* 오프닝 — 준비가 끝났고 영상도 끝났으면(또는 SKIP) 걷는다 */
+  useEffect(() => {
+    if (묶음.오프닝 && 준비됨 && 오프닝끝) set걷힘(true);
+  }, [묶음.오프닝, 준비됨, 오프닝끝]);
+  /* 소리가 막혔으면 — 첫 클릭·키에 소리를 켠다(영상은 이미 소리 없이 흐르고 있다) */
+  useEffect(() => {
+    if (!소리막힘) return undefined;
+    const 켜기 = () => {
+      for (const ㅋ of 칸들) if (ㅋ.current && 클립[ㅋ.current.dataset.클립]?.소리) ㅋ.current.muted = false;
+      set소리막힘(false);
+    };
+    window.addEventListener("pointerdown", 켜기, { once: true });
+    window.addEventListener("keydown", 켜기, { once: true });
+    return () => { window.removeEventListener("pointerdown", 켜기); window.removeEventListener("keydown", 켜기); };
+  }, [소리막힘]); // eslint-disable-line react-hooks/exhaustive-deps
   /* 배경음악 — 막이 뜨면 틀고(이어받았으면 그 초부터), 걷히기 시작하면 서서히 끈다 */
   useEffect(() => {
     음악틀기(종류, 음악시각 || 0);
@@ -340,6 +366,18 @@ function 로딩막({ 종류, 순번: 처음순번, 시각: 처음시각, 음악:
   useEffect(() => {
     if (!걷힘) return undefined;
     음악끄기(1.4);
+    /* 소리 있는 영상(오프닝)도 막이 사라지는 동안 소리를 줄인다 — 뚝 끊기지 않게 */
+    for (const ㅋ of 칸들) {
+      const v = ㅋ.current;
+      if (!v || v.muted || !클립[v.dataset.클립]?.소리) continue;
+      const 처음 = v.volume, t0 = performance.now();
+      const 줄이기 = () => {
+        const k = Math.min(1, (performance.now() - t0) / 700);
+        v.volume = 처음 * (1 - k);
+        if (k < 1) requestAnimationFrame(줄이기);
+      };
+      requestAnimationFrame(줄이기);
+    }
     const t = setTimeout(끄기, 750);
     return () => clearTimeout(t);
   }, [걷힘]);
@@ -350,7 +388,8 @@ function 로딩막({ 종류, 순번: 처음순번, 시각: 처음시각, 음악:
     <div role="status" aria-live="off" aria-label={`${묶음.제목} — 불러오는 중`}
          style={{ ...막, opacity: 걷힘 ? 0 : 1, pointerEvents: 걷힘 ? "none" : "auto" }}>
       {[0, 1].map((칸) => {
-        const 정보 = 클립[몇번째클립(묶음, 판.순번[칸])];
+        const 이름 = 몇번째클립(묶음, 판.순번[칸]);
+        const 정보 = 클립[이름];
         const 앞인가 = 판.앞 === 칸;
         return (
           <video
@@ -358,7 +397,8 @@ function 로딩막({ 종류, 순번: 처음순번, 시각: 처음시각, 음악:
             ref={칸들[칸]}
             src={정보.주소}
             poster={정보.포스터}
-            muted
+            data-클립={이름}
+            muted={!정보.소리}
             playsInline
             preload="auto"
             aria-hidden="true"
@@ -371,23 +411,53 @@ function 로딩막({ 종류, 순번: 처음순번, 시각: 처음시각, 음악:
               if (초 > 0 && 초 < (v.duration || 0) - 0.5) {
                 try { v.currentTime = 초; } catch { /* 못 옮기면 처음부터 */ }
               }
-              v.play().catch(() => {}); // 자동 재생이 막혀도 포스터는 보인다
+              if (정보.소리) {
+                v.muted = false;
+                v.volume = 배경음악크기(); // 소리 크기 = 설정 「배경음악」(기본 0.6)
+              }
+              v.play().catch(() => {
+                /* 소리 있는 영상은 새 페이지에서 막힐 수 있다 — 소리 없이라도 이어 틀고 첫 입력에 켠다 */
+                if (!정보.소리) return; // 자동 재생이 막혀도 포스터는 보인다
+                v.muted = true;
+                set소리막힘(true);
+                v.play().catch(() => {});
+              });
             }}
             onTimeUpdate={(e) => {
               if (!앞인가) return;
               const v = e.currentTarget;
-              if (v.duration && v.duration - v.currentTime < 0.4) 다음으로();
+              if (!v.duration || v.duration - v.currentTime >= 0.4) return;
+              // 오프닝이 끝나 간다 — 준비가 됐으면 그대로 걷고, 아직이면 다음 영상으로 넘어가 기다린다
+              if (이름 === "오프닝") {
+                set오프닝끝(true);
+                if (준비됨참조.current) return;
+              }
+              다음으로();
             }}
-            onEnded={() => { if (앞인가) 다음으로(); }}
+            onEnded={() => {
+              if (!앞인가) return;
+              if (이름 === "오프닝") { set오프닝끝(true); if (준비됨참조.current) return; }
+              다음으로();
+            }}
           />
         );
       })}
-      <div style={눌림} aria-hidden="true" />
+      {/* 오프닝 시네마틱이 흐르는 동안은 글·딱지·어둡게 깔기를 다 뺀다 — 영화처럼 화면만 */}
+      {!앞클립.소리 && <div style={눌림} aria-hidden="true" />}
 
       {/* 오른쪽 위 — 지금 흐르는 영상이 어느 지역인지 */}
-      <span style={지역딱지} key={앞클립.이름}>{앞클립.이름}</span>
+      {!앞클립.소리 && <span style={지역딱지} key={앞클립.이름}>{앞클립.이름}</span>}
 
-      <div style={글칸}>
+      {/* SKIP — 준비(렌더링)가 다 끝난 뒤에만 뜬다. 다른 사이트들처럼 오른쪽 아래 · 영어 */}
+      {묶음.오프닝 && 준비됨 && !오프닝끝 && (
+        <button type="button" className="오프닝건너뛰기" style={건너뛰기} onClick={() => set오프닝끝(true)} aria-label="Skip opening">
+          SKIP <span aria-hidden="true">▸▸</span>
+        </button>
+      )}
+      {/* 소리가 막혔을 때만 — 아무 곳이나 누르면 켜진다 */}
+      {소리막힘 && 앞클립.소리 && <span style={소리안내}>CLICK FOR SOUND</span>}
+
+      <div style={{ ...글칸, display: 앞클립.소리 ? "none" : "flex" }}>
         <span style={이름표}>{묶음.이름표}</span>
         <strong style={제목}>{묶음.제목}</strong>
         <span style={부제}>{묶음.부제}</span>
@@ -413,7 +483,12 @@ const CSS = `
 /* 문장 하나가 머무는 동안(3.8초): 0.5초 떠오르고 → 머물고 → 0.5초 사라진다 */
 @keyframes 로딩문장 { 0% { opacity: 0; transform: translateY(6px); } 13% { opacity: 1; transform: none; } 87% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
 .로딩문장 { animation: 로딩문장 ${문장간격}ms ease both; }
+@keyframes 건너뛰기나타남 { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.오프닝건너뛰기 { animation: 건너뛰기나타남 .5s ease both; transition: background .2s ease, border-color .2s ease; }
+.오프닝건너뛰기:hover { background: rgba(255,255,255,0.16) !important; border-color: rgba(255,255,255,0.75) !important; }
+.오프닝건너뛰기:focus-visible { outline: 2px solid #9fb2ea; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
+  .오프닝건너뛰기 { animation: none; }
   .로딩빛 { animation: none; width: 100% !important; opacity: .5; }
   .로딩문장 { animation: none; }
 }
@@ -458,6 +533,31 @@ const 안내문장 = {
   color: "rgba(201,210,238,0.82)",
 };
 const 상태글 = { fontFamily: 모노, fontSize: "11px", letterSpacing: "0.08em", color: "rgba(159,178,234,0.6)", marginTop: "-4px" };
+const 건너뛰기 = {
+  position: "absolute",
+  zIndex: 4,
+  right: "clamp(24px, 4vw, 56px)",
+  bottom: "clamp(28px, 6vh, 64px)",
+  padding: "10px 22px",
+  borderRadius: "999px",
+  background: "rgba(0,0,0,0.42)",
+  border: "1px solid rgba(255,255,255,0.45)",
+  color: "#ffffff",
+  fontFamily: 모노,
+  fontSize: "14px",
+  letterSpacing: "0.18em",
+  cursor: "pointer",
+};
+const 소리안내 = {
+  position: "absolute",
+  zIndex: 4,
+  left: "clamp(24px, 4vw, 56px)",
+  bottom: "clamp(28px, 6vh, 64px)",
+  fontFamily: 모노,
+  fontSize: "12px",
+  letterSpacing: "0.16em",
+  color: "rgba(255,255,255,0.7)",
+};
 const 지역딱지 = {
   position: "absolute",
   zIndex: 3,

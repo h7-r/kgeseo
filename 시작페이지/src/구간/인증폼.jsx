@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { 소셜로가기 } from "../소셜로그인.js";
 import { 들어가기 } from "../로그인상태.js";
-import { 가입, 로그인, 비밀번호바꾸기, 이미있나, 닉네임있나 } from "../계정저장소.js";
+import { 가입, 로그인, 비밀번호바꾸기, 이미있나, 닉네임있나, 테스트계정켜짐 } from "../계정저장소.js";
 import { 글꼴, 막음 } from "../공통.js";
 import { 세기, 한글있나, 영문만안내, 영문칸, 쓰는법, 비번조건, 메일오타 } from "../유효성.js";
 import 지역고르기 from "./지역고르기.jsx";
@@ -71,7 +71,13 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
     칸들: 검사할칸[모드],
     로그인: 모드 === "로그인",
     비동기: 모드 === "회원가입" ? 가입중복검사 : {},
-    처음값: 이어받은메일 ? { 이메일: 이어받은메일 } : null,
+    처음값: 이어받은메일
+      ? { 이메일: 이어받은메일 }
+      /* (2026-10-01 사용자 지시 — 시연용) 로그인 화면에 테스트 계정을 **미리 채워만** 둔다.
+         자동으로 들어가지는 않는다 — 「로그인」 은 사람이 누른다. 테스트 계정을 끄면(VITE_TEST_ACCOUNT=off) 같이 꺼진다. */
+      : 모드 === "로그인" && 테스트계정켜짐
+        ? { 이메일: "test123@naver.com", 비밀번호: "test123" }
+        : null,
   });
   const 값 = 폼.값;
   const [동의오류, set동의오류] = useState("");
