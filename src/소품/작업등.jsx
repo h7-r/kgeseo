@@ -784,6 +784,9 @@ function 힌트글({ 글, 위치, 회전, 크기 = 0.9, 색, 밝기 = 1 }) {
         map={텍}
         transparent
         depthWrite={false}
+        polygonOffset
+        polygonOffsetFactor={-2}
+        polygonOffsetUnits={-2}
         color={색밝기("#ffffff", Math.min(1, 밝기))}
       />
     </mesh>
@@ -1485,7 +1488,8 @@ function 차단기함({
         {/* 회로도 주머니 — 누렇게 바랜 종이 한 장이 끼워져 있다 */}
         <mesh position={[-d * (차단기문두께 / 2 + 0.014), -높이 * 0.04, 폭 / 2]}>
           <boxGeometry args={[0.01, 높이 * 0.3, 폭 * 0.52]} />
-          <meshToonMaterial color={색밝기("#cdc6ad", 밝기)} gradientMap={TOON_GRADIENT} />
+          {/* 열어서 보는 종이 — 속과 같은 밝기 하한(위 머리말). 힌트가 여기 적혀 있다 */}
+          <meshToonMaterial color={색밝기("#cdc6ad", Math.max(0.6, 밝기))} gradientMap={TOON_GRADIENT} />
           <Outlines thickness={2} color="#2a2720" />
         </mesh>
         {/* 한 단어 힌트 — 회로도 위에 누가 매직으로 「모양」 이라고 휘갈겨 두었다 */}
@@ -2380,15 +2384,14 @@ function 전류선({ 점들, 통, 밝기 = 1, 선 }) {
     빛재질.uniforms.uProg.value = 진행;
     빛재질.uniforms.uTime.value = 지금;
     빛재질.uniforms.uLen.value = 길이;
-    if (빛ref.current) 빛ref.current.visible = 진행 > 0;
-    // 앞머리 불똥 — 가는 동안만. 파닥이며 튄다
+    // ★ visible 은 **끄지 않는다.** 처음 보이는 순간 셰이더를 새로 컴파일하느라 화면이
+    //   몇 초 멈췄다(그래서 액자 불이 한참 늦게 들었다). 진행 0 이면 셰이더가 전부 버린다.
+    // 앞머리 불똥 — 가는 동안만. 파닥이며 튄다(안 쓸 때는 크기 0)
     const h = 머리ref.current;
     if (h) {
-      h.visible = 진행 > 0 && 진행 < 1;
-      if (h.visible) {
-        h.position.copy(길.getPointAt(진행));
-        h.scale.setScalar(0.7 + Math.random() * 0.8);
-      }
+      const 감 = 진행 > 0 && 진행 < 1;
+      if (감) h.position.copy(길.getPointAt(진행));
+      h.scale.setScalar(감 ? 0.7 + Math.random() * 0.8 : 0.0001);
     }
   });
   return (
@@ -2403,8 +2406,8 @@ function 전류선({ 점들, 통, 밝기 = 1, 선 }) {
           <meshToonMaterial color={색밝기("#8b9097", 밝기)} gradientMap={TOON_GRADIENT} />
         </mesh>
       ))}
-      <mesh ref={빛ref} geometry={빛관} material={빛재질} visible={false} />
-      <mesh ref={머리ref} visible={false}>
+      <mesh ref={빛ref} geometry={빛관} material={빛재질} />
+      <mesh ref={머리ref} scale={0.0001}>
         <sphereGeometry args={[0.09, 10, 8]} />
         <meshBasicMaterial color={new THREE.Color("#dff8ff").multiplyScalar(4)} toneMapped={false} />
       </mesh>
@@ -3018,10 +3021,8 @@ function 벽그림({ 위치, 폭 = 2.6, 방향 = -1, 정답, 밝기 = 1, 선 }) 
     테전류재질.uniforms.uLen.value = 폭 + 높;
     const 켬 = 창점등(지금 - 닿음 - 1.2);
     const m = 창빛ref.current?.material;
-    if (m) {
-      m.opacity = 켬;
-      창빛ref.current.visible = 켬 > 0.001;
-    }
+    // ★ 여기도 visible 을 끄지 않는다(위 전류선 주석 — 처음 켤 때 컴파일로 멈춘다)
+    if (m) m.opacity = 켬;
     if (빛ref.current) 빛ref.current.intensity = 켬 * 6;
     if (등ref.current) 등ref.current.material.color.setScalar(0.25 + 켬 * 2.2);
   });
@@ -3061,9 +3062,14 @@ function 벽그림({ 위치, 폭 = 2.6, 방향 = -1, 정답, 밝기 = 1, 선 }) 
         <meshToonMaterial map={바탕} color={색밝기("#ffffff", 밝기 * 1.08)} gradientMap={TOON_GRADIENT} />
       </mesh>
       {/* 창빛 — 전류가 닿으면 껌뻑이며 얹힌다(더하기 섞기라 어두운 바탕 위에서만 빛난다) */}
-      <mesh ref={창빛ref} position={[d * 0.128, 0, 0]} rotation={돌} visible={false}>
+      {/* ★ 바탕과 겨우 0.003 떨어져 있으면 **멀리서 깊이 싸움에 져서** 창빛이 안 보였다
+             (가까이선 보이고 두세 걸음 물러서면 사라졌다). 띄우고 깊이 보정까지 건다. */}
+      <mesh ref={창빛ref} position={[d * 0.14, 0, 0]} rotation={돌} renderOrder={2}>
         <planeGeometry args={[폭, 높]} />
         <meshBasicMaterial
+          polygonOffset
+          polygonOffsetFactor={-4}
+          polygonOffsetUnits={-4}
           map={창빛}
           transparent
           opacity={0}
