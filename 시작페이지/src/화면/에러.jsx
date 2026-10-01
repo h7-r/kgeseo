@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import 무대 from "../무대.jsx";
 import 하위푸터 from "../구간/하위푸터.jsx";
 import { 글꼴, 글자그라디언트 } from "../공통.js";
+import { use자석 } from "../연출.jsx";
 
 /* ═══════════════════════════════════════════════════════
    막힌 길 화면 — 404 를 비롯한 여러 상황을 한 틀로 그린다
@@ -63,6 +64,7 @@ export const 막힌길 = {
 export default function 에러({ 종류 = "404" }) {
   const 가기 = useNavigate();
   const ㅁ = 막힌길[종류] ?? 막힌길[404];
+  const 자석 = use자석({ 당김: 0.2, 최대: 10 });
 
   /* 인터넷이 돌아오면 「오프라인」 화면은 스스로 물러난다.
      사람이 새로고침을 떠올리지 않아도 되게. */
@@ -76,8 +78,6 @@ export default function 에러({ 종류 = "404" }) {
 
   const 누르기 = () => {
     if (ㅁ.단추.되돌리기) window.location.reload();
-    /* 403(로그인 필요) → 로그인한 뒤 **지금 이 화면으로** 돌아오게 주소를 실어 보낸다 */
-    else if (종류 === "403") 가기(`${ㅁ.단추.길}?다음=${encodeURIComponent(decodeURIComponent(window.location.pathname))}`);
     else 가기(ㅁ.단추.길);
   };
 
@@ -85,8 +85,8 @@ export default function 에러({ 종류 = "404" }) {
     <무대 높이={900}>
       <div style={가운데} data-node-id="14:2502">
         <div style={숫자}>{ㅁ.숫자}</div>
-        <div style={{ fontFamily: 글꼴.제목, fontSize: "48px", color: "#f1f1fc", whiteSpace: "nowrap" }}>{ㅁ.제목}</div>
-        <div style={{ fontFamily: 글꼴.읽기, fontWeight: 400, fontSize: "18px", lineHeight: 1.75, color: "#96a3b6", textAlign: "center", maxWidth: "620px" }}>
+        <div style={{ fontFamily: 글꼴.제목, fontSize: "48px", color: "#eeeeff", whiteSpace: "nowrap" }}>{ㅁ.제목}</div>
+        <div style={{ fontFamily: 글꼴.읽기, fontWeight: 400, fontSize: "18px", lineHeight: 1.75, color: "#93a3b8", textAlign: "center", maxWidth: "620px" }}>
           {ㅁ.설명}
         </div>
 
@@ -94,9 +94,9 @@ export default function 에러({ 종류 = "404" }) {
           <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#4ade80" }}>연결이 돌아왔습니다. 다시 시도해 주세요.</div>
         )}
 
-        <div>
+        <div ref={자석}>
           <button type="button" className="단추" style={복귀단추} onClick={누르기}>
-            <span className="단추글">{ㅁ.단추.글}</span>
+            {ㅁ.단추.글}
           </button>
         </div>
 
@@ -106,7 +106,7 @@ export default function 에러({ 종류 = "404" }) {
           </button>
           {ㅁ.곁들임 && (
             <>
-              <span style={{ color: "#6f86bf" }}>·</span>
+              <span style={{ color: "#6b93cc" }}>·</span>
               <button type="button" className="링크" style={곁단추} onClick={() => 가기(ㅁ.곁들임.길)}>
                 {ㅁ.곁들임.글}
               </button>
@@ -139,7 +139,7 @@ const 숫자 = {
   fontSize: "160px",
   lineHeight: 1,
   letterSpacing: "4px",
-  ...글자그라디언트("linear-gradient(90deg, #3b5ea2 0%, #2e4889 50%, #2f3e70 100%)"),
+  ...글자그라디언트("linear-gradient(90deg, #93c5fd 0%, #3b82f6 50%, #1d4ed8 100%)"),
 };
 
 const 복귀단추 = {
@@ -149,8 +149,8 @@ const 복귀단추 = {
   padding: "14px 36px",
   borderRadius: "100px",
   border: "none",
-  backgroundImage: "linear-gradient(140deg, rgb(47,66,123) 0%, rgb(47,62,112) 50%, rgb(44,56,99) 100%)",
-  boxShadow: "0px 0px 48px 0px rgba(50,82,150,0.25), 0px 4px 20px 0px rgba(46,72,137,0.45)",
+  backgroundImage: "linear-gradient(140deg, rgb(37,99,235) 0%, rgb(29,78,216) 50%, rgb(30,64,175) 100%)",
+  boxShadow: "0px 0px 48px 0px rgba(96,165,250,0.25), 0px 4px 20px 0px rgba(59,130,246,0.45)",
   fontFamily: 글꼴.모노,
   fontWeight: 700,
   fontSize: "18px",
@@ -166,6 +166,6 @@ const 곁단추 = {
   padding: 0,
   fontFamily: 글꼴.모노,
   fontSize: "16px",
-  color: "#8b93a3",
+  color: "#7d9cc4",
   cursor: "pointer",
 };

@@ -8,7 +8,7 @@ const 내비높이 = 149;
 
 export default function 마이페이지화면() {
   const [탭, set탭] = useState("최근 플레이 기록");
-  const 푸터위 = 내비높이 + 60 + 1300 + 60 + 170; // +170 = 맨 위 「내 정보」 카드 자리
+  const 푸터위 = 내비높이 + 60 + 1300 + 60;
 
   return (
     <무대 높이={푸터위 + 186}>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import 에셋 from "../에셋.js";
-import { 글꼴 } from "../공통.js";
+import { 글꼴, 막음, 막음안내 } from "../공통.js";
 import { 모두검사, 통과했나 } from "../유효성.js";
 import { 고객센터탭, 공지목록, 자주묻는질문, 배지글자색 } from "../데이터/고객센터.js";
 
@@ -12,27 +12,24 @@ import { 고객센터탭, 공지목록, 자주묻는질문, 배지글자색 } fr
    **같은 페이지의 탭 상태 3개**다 — 페이지를 세 개 만들지 않는다.
    ═══════════════════════════════════════════════════════ */
 
-const 켜진탭배경 = "linear-gradient(133.605deg, rgb(46,72,137) 0%, rgb(54,64,143) 45%, rgb(43,71,143) 100%)";
+const 켜진탭배경 = "linear-gradient(133.605deg, rgb(59,130,246) 0%, rgb(99,102,241) 45%, rgb(56,130,255) 100%)";
 const 거름 = { 공지사항: ["전체", "점검", "이벤트", "업데이트", "안내"], "자주 묻는 질문 (FAQ)": ["전체", "계정", "게임플레이", "결제", "기술지원"] };
 
-export default function 고객센터({ 탭 = "공지사항", 위 = 0, 면높이 = 0, 흰바탕높이 = 0, 탭누르기 = () => {} }) {
+export default function 고객센터({ 탭 = "공지사항", 위 = 0, 탭누르기 = () => {} }) {
   return (
     <>
-      {/* 헤더 구분선 아래부터 푸터 전까지 **전부 흰 면** — 머리·탭·내용이 한 장의
-          밝은 종이 위에 놓인다. (헤더·푸터만 어두운 채로 남는다) */}
-      <div className="밝은판" style={{ position: "absolute", left: 0, top: `${위}px`, width: "1920px", height: `${흰바탕높이}px`, background: "#ffffff" }} aria-hidden="true" />
       {/* 머리 112:1277 */}
       <div style={{ ...머리, top: `${위}px` }} data-node-id="112:1277">
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
-          <div style={{ fontFamily: 글꼴.제목, fontSize: "76px", lineHeight: "72px", color: "#1a1a1f", whiteSpace: "nowrap" }}>고객센터</div>
-          <div style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", lineHeight: "28px", color: "#5f6878", width: "100%" }}>
+          <div style={{ fontFamily: 글꼴.제목, fontSize: "76px", lineHeight: "72px", color: "#eeeeff", whiteSpace: "nowrap" }}>고객센터</div>
+          <div style={{ fontFamily: 글꼴.모노, fontWeight: 300, fontSize: "18px", lineHeight: "28px", color: "#93a3b8", width: "100%" }}>
             공지사항, 자주 묻는 질문, 그리고 합동수사본부 1:1 문의 채널을 통해 해결되지 않은 미션을 제보하세요.
           </div>
         </div>
       </div>
 
       {/* 탭 112:1284 */}
-      <div className="밝은판" style={{ ...탭칸, top: `${위 + 230}px` }} data-node-id="112:1284">
+      <div style={{ ...탭칸, top: `${위 + 230}px` }} data-node-id="112:1284">
         <div style={{ display: "flex", gap: "20px" }}>
           {고객센터탭.map((이름) => (
             <div key={이름} className={`탭 ${이름 === 탭 ? "켜짐" : ""}`} style={이름 === 탭 ? 켜진탭 : 꺼진탭} onClick={() => 탭누르기(이름)}>
@@ -40,13 +37,11 @@ export default function 고객센터({ 탭 = "공지사항", 위 = 0, 면높이 
             </div>
           ))}
         </div>
-        <div style={{ height: "1px", width: "100%", background: "#e3e7ee" }} />
+        <div style={{ height: "1px", width: "100%", background: "#1e3a5f" }} />
       </div>
 
-      {/* 내용 — 구분선 아래는 흰 면(게임 소개와 같은 라이트 면).
-          전엔 어두운 바탕 위에 제목이 구분선 7px 아래 붙어 있어 눈에 안 들어왔다.
-          흰 면을 구분선에서 띄우고, 면 안쪽 위를 56px 비워 제목이 숨 쉬게 한다. */}
-      <div className="밝은판" style={{ ...내용칸, top: `${위 + 330}px`, minHeight: `${면높이}px` }}>
+      {/* 내용 */}
+      <div style={{ ...내용칸, top: `${위 + 330}px` }}>
         {탭 === "공지사항" && <공지판 />}
         {탭 === "자주 묻는 질문 (FAQ)" && <문답판 />}
         {탭 === "1:1 문의하기" && <문의판 />}
@@ -58,8 +53,8 @@ export default function 고객센터({ 탭 = "공지사항", 위 = 0, 면높이 
 function 머리글({ 제목, 설명 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-      <div style={{ fontFamily: 글꼴.제목, fontSize: "44px", color: "#1a1a1f", whiteSpace: "nowrap" }}>{제목}</div>
-      <div style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", color: "#5f6878" }}>{설명}</div>
+      <div style={{ fontFamily: 글꼴.제목, fontSize: "40px", color: "#eeeeff", whiteSpace: "nowrap" }}>{제목}</div>
+      <div style={{ fontFamily: 글꼴.모노, fontWeight: 300, fontSize: "18px", color: "#93a3b8" }}>{설명}</div>
     </div>
   );
 }
@@ -78,7 +73,7 @@ function 거르개({ 목록, 고른값, 바꾸기 }) {
 
 function 배지({ 분류, 색 }) {
   return (
-    <div style={{ display: "inline-flex", alignItems: "center", padding: "6px 14px", borderRadius: "6px", background: 색, fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px", color: 배지글자색[분류] || "#96a3b6", whiteSpace: "nowrap" }}>
+    <div style={{ display: "inline-flex", alignItems: "center", padding: "6px 14px", borderRadius: "6px", background: 색, fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px", color: 배지글자색[분류] || "#94a3b8", whiteSpace: "nowrap" }}>
       {분류}
     </div>
   );
@@ -121,8 +116,8 @@ function 공지판() {
               <div style={{ width: "100px", flexShrink: 0 }}>
                 <배지 분류={ㄱ.분류} 색={ㄱ.배지색} />
               </div>
-              <div style={{ flex: "1 0 0", minWidth: 0, fontFamily: 글꼴.모노, fontSize: "16px", color: "#1a1a1f" }}>{ㄱ.제목}</div>
-              <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#5f6878", whiteSpace: "nowrap" }}>{ㄱ.날짜}</div>
+              <div style={{ flex: "1 0 0", minWidth: 0, fontFamily: 글꼴.모노, fontSize: "16px", color: "#eeeeff" }}>{ㄱ.제목}</div>
+              <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#93a3b8", whiteSpace: "nowrap" }}>{ㄱ.날짜}</div>
             </div>
           ))}
         </div>
@@ -167,7 +162,7 @@ function 문답판() {
         }}
       />
       <div style={판}>
-        <div style={{ display: "flex", gap: "24px", padding: "16px 32px", background: "#f2f5f7", fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px", color: "#325296" }}>
+        <div style={{ display: "flex", gap: "24px", padding: "16px 32px", background: "#0a1220", fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px", color: "#60a5fa" }}>
           <span style={{ width: "100px" }}>분류</span>
           <span style={{ flex: "1 0 0" }}>질문</span>
           <span>상태</span>
@@ -186,14 +181,14 @@ function 문답판() {
                 <div style={{ width: "100px", flexShrink: 0 }}>
                   <배지 분류={ㅁ.분류} 색={ㅁ.배지색} />
                 </div>
-                <div style={{ flex: "1 0 0", minWidth: 0, fontFamily: 글꼴.모노, fontSize: "16px", color: "#1a1a1f" }}>{ㅁ.질문}</div>
+                <div style={{ flex: "1 0 0", minWidth: 0, fontFamily: 글꼴.모노, fontSize: "16px", color: "#eeeeff" }}>{ㅁ.질문}</div>
                 {/* 펼치면 아래쪽 화살표, 접으면 오른쪽 화살표 (원본과 같은 두 그림) */}
                 <img loading="lazy" decoding="async" src={펼침 ? 에셋.imgChevronDown : 에셋.imgChevronRight2} alt="" style={{ width: "16px", height: "16px", display: "block" }} />
               </div>
               {펼침 && (
                 <>
-                  <div style={{ height: "1px", background: "#e3e7ee" }} />
-                  <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", lineHeight: 1.7, color: "#5f6878" }}>
+                  <div style={{ height: "1px", background: "#1e3a5f" }} />
+                  <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", lineHeight: 1.7, color: "#94a3b8" }}>
                     {ㅁ.답 || "준비 중인 답변입니다."}
                   </div>
                 </>
@@ -254,19 +249,19 @@ function 문의판() {
           <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
             <div style={라벨글}>첨부파일</div>
             <label
-              style={{ ...올리기, cursor: "pointer", borderColor: 끌기중 ? "#3b5ea2" : "#325296", background: 끌기중 ? "rgba(46,72,137,0.08)" : "transparent", transition: "border-color .18s ease, background .18s ease" }}
+              style={{ ...올리기, cursor: "pointer", borderColor: 끌기중 ? "#93c5fd" : "#60a5fa", background: 끌기중 ? "rgba(59,130,246,0.08)" : "transparent", transition: "border-color .18s ease, background .18s ease" }}
               onDragOver={(e) => { e.preventDefault(); set끌기중(true); }}
               onDragLeave={() => set끌기중(false)}
               onDrop={(e) => { e.preventDefault(); set끌기중(false); 파일받기(e.dataTransfer.files?.[0]); }}
             >
               <img loading="lazy" decoding="async" src={에셋.imgUploadCloud} alt="" style={{ width: "24px", height: "24px", display: "block" }} />
-              <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: 값.파일 ? "#3b5ea2" : "#5f6878", textAlign: "center" }}>
+              <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: 값.파일 ? "#93c5fd" : "#7b8aa1", textAlign: "center" }}>
                 {값.파일 ? `${값.파일} · ${값.파일크기}` : "파일을 드래그하거나 클릭하여 첨부 (최대 10MB)"}
               </span>
               {값.파일 && (
                 <span
                   className="링크"
-                  style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#5f6878" }}
+                  style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#93a3b8" }}
                   onClick={(e) => { e.preventDefault(); set값((v) => ({ ...v, 파일: "", 파일크기: "", 파일오류: "" })); }}
                 >
                   지우기
@@ -279,24 +274,24 @@ function 문의판() {
                 onChange={(e) => 파일받기(e.target.files?.[0])}
               />
             </label>
-            {값.파일오류 && <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#f87171" }}>{값.파일오류}</span>}
+            {값.파일오류 && <span style={{ fontFamily: 글꼴.모노, fontSize: "14px", color: "#f87171" }}>{값.파일오류}</span>}
           </div>
 
           <입력칸 라벨="이메일" 안내="답변 받으실 이메일 주소" {...속성("이메일")} />
           <div className="단추" style={보내기단추} onClick={보내기}>
-            <span className="단추글">{보냈나 ? "접수되었습니다 ✓" : "문의 접수하기"}</span>
+            {보냈나 ? "접수되었습니다 ✓" : "문의 접수하기"}
           </div>
         </div>
 
         {/* 안내 상자 — 글이 끝나는 곳에서 끝난다(전엔 왼쪽 상자 키만큼 늘어났다) */}
         <div style={{ ...상자, width: "358px", flexShrink: 0, gap: "20px" }}>
-          <div style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "18px", color: "#1a1a1f" }}>운영 시간</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontFamily: 글꼴.모노, fontSize: "16px", color: "#5f6878" }}>
+          <div style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "18px", color: "#eeeeff" }}>운영 시간</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontFamily: 글꼴.모노, fontSize: "16px", color: "#94a3b8" }}>
             <span>평일 10:00 - 18:00</span>
             <span>주말/공휴일 휴무</span>
           </div>
-          <div style={{ height: "1px", background: "#e3e7ee" }} />
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontFamily: 글꼴.모노, fontSize: "16px", color: "#5f6878" }}>
+          <div style={{ height: "1px", background: "#1e3a5f" }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontFamily: 글꼴.모노, fontSize: "16px", color: "#94a3b8" }}>
             <span>긴급 문의: support@escapethelegend.kr</span>
             <span>평균 답변 시간: 1-2 영업일</span>
           </div>
@@ -314,7 +309,7 @@ function 크기글(바이트) {
 }
 
 function 입력칸({ 라벨, 안내, 높이, 화살표, 값, 바꾸기, 오류 }) {
-  const 글자 = { fontFamily: 글꼴.본문, fontSize: "16px", "--안내색": "rgba(26,26,31,0.5)" };
+  const 글자 = { fontFamily: 글꼴.본문, fontSize: "16px", "--안내색": "rgba(200,205,255,0.35)" };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "9px", width: "100%" }}>
       <div style={라벨글}>{라벨}</div>
@@ -322,7 +317,7 @@ function 입력칸({ 라벨, 안내, 높이, 화살표, 값, 바꾸기, 오류 }
         className={오류 ? "오류칸" : undefined}
         style={{
           position: "relative",
-          border: "1px solid #d9dee5",
+          border: "1px solid rgba(96,165,250,0.18)",
           borderRadius: "8px",
           padding: 높이 ? "16px" : "10px 16px",
           ...(높이 ? { height: `${높이}px` } : {}),
@@ -405,7 +400,7 @@ function 고르개({ 안내, 글자, 값, 바꾸기 }) {
         aria-haspopup="listbox"
         onClick={() => set열림((v) => !v)}
         onKeyDown={열쇠}
-        style={{ ...글자, cursor: "pointer", outline: "none", color: 값 ? "#1a1a1f" : "rgba(26,26,31,0.5)", userSelect: "none" }}
+        style={{ ...글자, cursor: "pointer", outline: "none", color: 값 ? "#eeeeff" : "rgba(200,205,255,0.35)", userSelect: "none" }}
       >
         {값 || 안내}
       </div>
@@ -421,12 +416,12 @@ function 고르개({ 안내, 글자, 값, 바꾸기 }) {
               onClick={() => 고르기(ㅇ)}
               style={{
                 ...고르개칸,
-                background: i === 짚은칸 ? "rgba(46,72,137,0.08)" : "transparent",
-                color: 값 === ㅇ ? "#3b5ea2" : "#3a4050",
+                background: i === 짚은칸 ? "rgba(59,130,246,0.18)" : "transparent",
+                color: 값 === ㅇ ? "#93c5fd" : "#cbd5e1",
               }}
             >
               {ㅇ}
-              {값 === ㅇ && <span style={{ color: "#325296" }}>✓</span>}
+              {값 === ㅇ && <span style={{ color: "#60a5fa" }}>✓</span>}
             </div>
           ))}
         </div>
@@ -443,9 +438,9 @@ const 고르개판 = {
   zIndex: 30,
   padding: "6px",
   borderRadius: "12px",
-  background: "#ffffff",
-  border: "1px solid #d9dee5",
-  boxShadow: "0 18px 40px rgba(20,30,60,0.14)",
+  background: "#0a1424",
+  border: "1px solid rgba(96,165,250,0.35)",
+  boxShadow: "0 18px 40px rgba(2,6,16,0.65)",
   display: "flex",
   flexDirection: "column",
   gap: "2px",
@@ -465,15 +460,15 @@ const 고르개칸 = {
 
 const 머리 = { position: "absolute", left: 0, width: "1920px", padding: "80px 120px 40px", boxSizing: "border-box" };
 const 탭칸 = { position: "absolute", left: 0, width: "1920px", padding: "20px 120px 10px", display: "flex", flexDirection: "column", gap: "24px", boxSizing: "border-box" };
-const 내용칸 = { position: "absolute", left: 0, width: "1920px", padding: "48px 120px 56px", display: "flex", flexDirection: "column", gap: "32px", background: "#ffffff", boxSizing: "border-box" };
+const 내용칸 = { position: "absolute", left: 0, width: "1920px", padding: "0 120px 8px", display: "flex", flexDirection: "column", gap: "32px", boxSizing: "border-box" };
 
 const 탭바탕 = { display: "flex", alignItems: "center", padding: "12px 24px", borderRadius: "999px", fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px", whiteSpace: "nowrap", cursor: "pointer", boxSizing: "border-box" };
-const 켜진탭 = { ...탭바탕, backgroundImage: 켜진탭배경, color: "#ffffff", filter: "drop-shadow(0px 8px 24px rgba(46,72,137,0.2)) drop-shadow(0px 4px 12px rgba(46,72,137,0.35))" };
-const 꺼진탭 = { ...탭바탕, background: "#f2f5f7", border: "1px solid #d9dee5", color: "#5f6878" };
+const 켜진탭 = { ...탭바탕, backgroundImage: 켜진탭배경, color: "#ffffff", filter: "drop-shadow(0px 8px 24px rgba(59,130,246,0.2)) drop-shadow(0px 4px 12px rgba(59,130,246,0.35))" };
+const 꺼진탭 = { ...탭바탕, background: "#0a1220", border: "1px solid #1e3a5f", color: "#94a3b8" };
 
 const 거름바탕 = { display: "flex", alignItems: "center", padding: "10px 18px", borderRadius: "999px", fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px", whiteSpace: "nowrap", cursor: "pointer", boxSizing: "border-box" };
 const 켜진거름 = { ...거름바탕, backgroundImage: 켜진탭배경, color: "#ffffff" };
-const 꺼진거름 = { ...거름바탕, background: "#f2f5f7", border: "1px solid #d9dee5", color: "#5f6878" };
+const 꺼진거름 = { ...거름바탕, background: "#0a1220", border: "1px solid #1e3a5f", color: "#94a3b8" };
 
 const 판 = {
   display: "flex",
@@ -481,29 +476,31 @@ const 판 = {
   gap: "24px",
   padding: "32px 0",
   borderRadius: "16px",
-  background: "#f7f9fc",
-  border: "1px solid #e3e7ee",
-  boxShadow: "0px 8px 32px 0px rgba(20,30,60,0.06)",
+  background: "#060d1a",
+  border: "1px solid #1e3a5f",
+  backdropFilter: "blur(12px)",
+  WebkitBackdropFilter: "blur(12px)",
+  boxShadow: "0px 8px 32px 0px rgba(29,78,216,0.06)",
   width: "100%",
   overflow: "hidden",
   boxSizing: "border-box",
 };
-const 줄카드 = { display: "flex", gap: "20px", alignItems: "center", padding: "20px", borderRadius: "12px", background: "#ffffff", border: "1px solid #e3e7ee", boxSizing: "border-box" };
+const 줄카드 = { display: "flex", gap: "20px", alignItems: "center", padding: "20px", borderRadius: "12px", background: "#0a1220", border: "1px solid #1e3a5f", boxSizing: "border-box" };
 
-const 동근단추 = { display: "flex", alignItems: "center", justifyContent: "center", padding: "10px", borderRadius: "999px", background: "#ffffff", border: "1px solid #d9dee5" };
+const 동근단추 = { display: "flex", alignItems: "center", justifyContent: "center", padding: "10px", borderRadius: "999px", background: "#0a1220", border: "1px solid #1e3a5f" };
 const 쪽바탕 = { display: "flex", alignItems: "center", justifyContent: "center", padding: "8px 16px", borderRadius: "999px", fontFamily: 글꼴.모노, fontSize: "16px", boxSizing: "border-box" };
 /* 흰 글자에 #3b82f6 은 3.7:1 이라 본문 기준에 못 미쳤다. 한 단계 진한 파랑이면 6.3:1 */
-const 켜진쪽 = { ...쪽바탕, background: "#2f3e70", color: "#ffffff", fontWeight: 700 };
-const 꺼진쪽 = { ...쪽바탕, background: "#ffffff", border: "1px solid #d9dee5", color: "#5f6878" };
+const 켜진쪽 = { ...쪽바탕, background: "#1d4ed8", color: "#ffffff", fontWeight: 700 };
+const 꺼진쪽 = { ...쪽바탕, background: "#0a1220", border: "1px solid #1e3a5f", color: "#94a3b8" };
 
-const 상자 = { display: "flex", flexDirection: "column", padding: "32px", borderRadius: "16px", background: "#f7f9fc", border: "1px solid #e3e7ee", boxShadow: "0px 8px 16px 0px rgba(20,30,60,0.06)", boxSizing: "border-box" };
-const 라벨글 = { fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "16px", color: "#4a5263", textTransform: "uppercase" };
-const 올리기 = { display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", padding: "24px", borderRadius: "12px", border: "1px dashed #325296", boxSizing: "border-box" };
+const 상자 = { display: "flex", flexDirection: "column", padding: "32px", borderRadius: "16px", background: "#060d1a", border: "1px solid #1e3a5f", boxShadow: "0px 8px 16px 0px rgba(29,78,216,0.06)", boxSizing: "border-box" };
+const 라벨글 = { fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "16px", color: "rgba(181,188,255,0.85)", textTransform: "uppercase" };
+const 올리기 = { display: "flex", flexDirection: "column", gap: "8px", alignItems: "center", padding: "24px", borderRadius: "12px", border: "1px dashed #60a5fa", boxSizing: "border-box" };
 const 보내기단추 = {
   display: "flex", alignItems: "center", justifyContent: "center", padding: "15px 24px", borderRadius: "100px",
   backgroundImage: 켜진탭배경, color: "#ffffff", fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "16px",
   textTransform: "uppercase", cursor: "pointer",
-  boxShadow: "0px 0px 48px 8px rgba(50,82,150,0.25), 0px 4px 20px 0px rgba(46,72,137,0.45)",
+  boxShadow: "0px 0px 48px 8px rgba(96,165,250,0.25), 0px 4px 20px 0px rgba(59,130,246,0.45)",
 };
 
-const 빈안내 = { fontFamily: 글꼴.모노, fontSize: "16px", color: "#5f6878", padding: "12px 0" };
+const 빈안내 = { fontFamily: 글꼴.모노, fontSize: "16px", color: "#93a3b8", padding: "12px 0" };

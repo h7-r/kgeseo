@@ -1,3 +1,4 @@
+import 에셋 from "../에셋.js";
 import { useNavigate } from "react-router-dom";
 import { 글꼴 } from "../공통.js";
 import { 눌러이동 } from "../이동표.js";
@@ -13,16 +14,16 @@ export default function 푸터() {
     <footer style={바깥} data-바닥="1" data-node-id="14:1333">
       <div style={{ ...가운뎃줄, width: "1760px" }}>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-          <span style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "22px", color: "#3a5794", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+          <span style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "22px", color: "#eeeeff", textTransform: "uppercase", whiteSpace: "nowrap" }}>
             ESCAPE THE LEGEND
           </span>
-          <span style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", color: "#ffffff", whiteSpace: "nowrap" }}>
+          <span style={{ fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", color: "#4d8ff7", whiteSpace: "nowrap" }}>
             · 지역 탐험 방탈출 2026
           </span>
         </div>
 
         {/* 링크 파랑은 #1e46c1 이었는데 거의 검정인 바탕에서 2.5:1 이라 읽히지 않았다 */}
-        <div style={{ display: "flex", gap: "32px", alignItems: "center", justifySelf: "center", fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", color: "#3a5794", whiteSpace: "nowrap" }}>
+        <div style={{ display: "flex", gap: "32px", alignItems: "center", justifySelf: "center", fontFamily: 글꼴.모노, fontWeight: 400, fontSize: "18px", color: "#6f92d8", whiteSpace: "nowrap" }}>
           {메뉴.map((이름) => (
             <span key={이름} className="링크" style={{ cursor: "pointer" }} onClick={() => 누름(이름)}>
               {이름}
@@ -30,7 +31,7 @@ export default function 푸터() {
           ))}
         </div>
 
-        <span style={{ justifySelf: "end", fontFamily: 글꼴.모노, fontSize: "18px", color: "#ffffff", whiteSpace: "nowrap" }}>
+        <span style={{ justifySelf: "end", fontFamily: 글꼴.모노, fontSize: "18px", color: "#5596f8", whiteSpace: "nowrap" }}>
           ™ &amp; © 2026 ESCAPE THE LEGEND. All Rights Reserved.
         </span>
       </div>
@@ -56,7 +57,7 @@ const 바깥 = {
   /* 원본(161)은 글줄 아래로 94px 이 그냥 비어 있었다. 글줄 한 줄만 있는
      띠라 위아래 28px 씩만 두고 줄인다 — 푸터가 끝이라는 게 분명해진다. */
   height: "98px",
-  background: "#000000", /* 끝 띠는 검정으로 — 색을 줄여 남색 면과 구분 */
+  background: "#060b1c",
   borderTop: "1px solid #40454d",
   padding: "32px 80px",
   display: "flex",

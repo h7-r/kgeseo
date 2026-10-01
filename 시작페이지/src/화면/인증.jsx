@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import 인증폼 from "../구간/인증폼.jsx";
 import 가입히어로 from "../구간/가입히어로.jsx";
@@ -56,13 +56,6 @@ const 가장긴약관 = Math.max(...Object.values(약관높이));
 export default function 인증({ 모드 }) {
   const 가기 = useNavigate();
   const [약관탭, set약관탭] = useState("이용약관");
-  /* 카드 속 「이용약관」 링크를 누르면 → 아래 약관 칸을 그 탭으로 바꾸고 거기로 부드럽게 내려간다.
-     페이지를 옮기지 않으니 적던 가입 내용이 그대로 남는다. */
-  const 약관자리 = useRef(null);
-  const 약관보기 = (탭) => {
-    set약관탭(탭);
-    약관자리.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
   const 이동 = (글) => {
     const 길 = 흐름[글];
     if (길) 가기(길);
@@ -73,10 +66,7 @@ export default function 인증({ 모드 }) {
   return (
     <무대 높이={푸터위 + 186}>
       <div style={{ position: "absolute", left: `${쪽여백}px`, top: "393px" }}>
-        {/* key={모드} — 로그인 ↔ 회원가입으로 옮기면 폼을 **새로** 만든다.
-            주소가 바뀌어도 같은 <인증> 자리라 리액트가 칸 값·오류를 그대로 들고 왔었다
-            (로그인에 치던 비밀번호가 회원가입 칸에 남아 있는 식). */}
-        <인증폼 key={모드} 모드={모드} 이동={이동} 가기={가기} 약관보기={약관보기} />
+        <인증폼 모드={모드} 이동={이동} 가기={가기} />
       </div>
       {/* ═══ 카드와 소개 글을 가르는 호 ═══
           세로: 카드(393~1193)와 소개 글(482~1106)을 **합친 범위의 가운데**가
@@ -90,8 +80,7 @@ export default function 인증({ 모드 }) {
       {/* 원본에서 인증 폼 아래에 붙어 있는 약관 탭 (94:1137) */}
       <약관구간 탭={약관탭} 위={약관위} 왼쪽={약관왼쪽} 폭={약관폭} 탭누르기={set약관탭} />
       {/* 가장 긴 약관 탭만큼 자리를 잡아 둔다 — 푸터가 탭마다 안 움직이게 */}
-      {/* scrollMarginTop — 스크롤해 왔을 때 위 메뉴(nav)에 약관 탭이 가리지 않게 여유를 둔다 */}
-      <div ref={약관자리} style={{ position: "absolute", left: 0, top: `${약관위}px`, width: "1px", height: `${가장긴약관 + 80}px`, pointerEvents: "none", scrollMarginTop: "140px" }} />
+      <div style={{ position: "absolute", left: 0, top: `${약관위}px`, width: "1px", height: `${가장긴약관 + 80}px`, pointerEvents: "none" }} />
       <하위푸터 />
     </무대>
   );

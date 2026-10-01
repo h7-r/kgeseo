@@ -14,7 +14,7 @@ export default function 약관({ 탭 = "이용약관", 위 = 0, 왼쪽 = 80, 폭
         ))}
       </div>
 
-      <div style={{ height: "1px", width: "100%", background: "rgba(26,48,95,0.5)" }} />
+      <div style={{ height: "1px", width: "100%", background: "rgba(30,58,95,0.5)" }} />
 
       {/* 조문 사이는 넓게, 한 조문 안의 줄은 촘촘하게 — 그래야 조 단위로 읽힌다 */}
       <div style={{ display: "flex", flexDirection: "column", gap: "18px", padding: "36px 48px 44px", width: "100%", boxSizing: "border-box", overflow: "hidden" }}>
@@ -38,8 +38,8 @@ export default function 약관({ 탭 = "이용약관", 위 = 0, 왼쪽 = 80, 폭
 
 const 바깥 = {
   position: "absolute",
-  background: "rgba(5,11,26,0.3)",
-  border: "1px solid rgba(26,48,95,0.6)",
+  background: "rgba(6,13,26,0.3)",
+  border: "1px solid rgba(30,58,95,0.6)",
   borderRadius: "16px",
   overflow: "hidden",
   display: "flex",
@@ -60,8 +60,8 @@ const 탭바탕 = {
   cursor: "pointer",
   boxSizing: "border-box",
 };
-const 켜진탭 = { ...탭바탕, background: "#2e4889", color: "#ffffff" };
-const 꺼진탭 = { ...탭바탕, background: "#090f20", border: "1px solid #1a305f", color: "#96a3b6" };
+const 켜진탭 = { ...탭바탕, background: "#3b82f6", color: "#ffffff" };
+const 꺼진탭 = { ...탭바탕, background: "#0a1220", border: "1px solid #1e3a5f", color: "#94a3b8" };
 
 const 제목 = {
   margin: 0,
@@ -69,7 +69,7 @@ const 제목 = {
   fontWeight: 700,
   fontSize: "22px",
   lineHeight: 1.4,
-  color: "#f1f1fc",
+  color: "#eeeeff",
   width: "100%",
 };
 
@@ -81,7 +81,7 @@ const 조제목 = {
   fontWeight: 700,
   fontSize: "17px",
   lineHeight: 1.6,
-  color: "#6f86bf",
+  color: "#93c5fd",
   letterSpacing: "0.3px",
   width: "100%",
 };
@@ -92,7 +92,7 @@ const 문단칸 = {
   letterSpacing: "-0.1px",
   fontWeight: 400,
   fontSize: "16px",
-  color: "#96a3b6",
+  color: "#94a3b8",
   width: "100%",
   whiteSpace: "pre-wrap",
   maxWidth: "1500px", /* 한 줄이 너무 길면 눈이 다음 줄을 못 찾는다 */
