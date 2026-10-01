@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { use질의탭 } from "../하위메뉴.js";
+import { 탭목록 } from "../데이터/게임소개탭.js";
 import 무대 from "../무대.jsx";
 import 게임소개구간 from "../구간/게임소개.jsx";
 import 하위푸터 from "../구간/하위푸터.jsx";
@@ -11,7 +12,8 @@ const 구간높이 = 650; // 탭 다섯 개 모두 650 — 가장 긴 것에 맞
 const 머리틈 = 104;
 
 export default function 게임소개() {
-  const [탭, set탭] = useState("게임 소개");
+  // 탭은 주소 ?탭= 에 둔다 — 머리띠 아래 하위 메뉴가 탭을 바꿀 수 있게(하위메뉴.js use질의탭)
+  const [탭, set탭] = use질의탭(탭목록, "게임 소개");
 
   return (
     <무대 높이={내비높이 + 머리틈 + 구간높이 + 186}>

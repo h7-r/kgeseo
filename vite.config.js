@@ -86,8 +86,46 @@ function 레바값읽기고치기() {
 }
 
 // https://vite.dev/config/
+/* ── 개발용: 「모두의 기본값으로」 버튼이 보내는 외형을 파일로 받는다 ──
+   [왜 필요한가]  캐릭터 기본 모습은 사람이 **화면을 보고** 맞춰야 정해진다. 그런데 그
+   값은 브라우저 localStorage 에만 있어서, 코드에 박으려면 콘솔을 열어 긁어내야 했다.
+   개발 서버가 POST 를 받아 파일로 적어 주면 **패널의 버튼 한 번**으로 끝난다.
+   개발 서버에서만 돈다(apply: "serve"). 배포본에는 없다. */
+function 기본외형받기() {
+  return {
+    name: "개발용-기본외형-받기",
+    apply: "serve",
+    configureServer(서버) {
+      // ★ 길 이름은 **ASCII** 여야 한다. 한글로 뒀더니 브라우저가 퍼센트 인코딩해
+      //   보내는데(`/__%EA%B8%B0…`) connect 는 디코딩하지 않고 글자 그대로 견준다 —
+      //   영영 안 맞아서 404 였다(실측).
+      서버.middlewares.use("/__default-look", (req, res, next) => {
+        if (req.method !== "POST") return next();
+        let 몸 = "";
+        req.on("data", (조각) => {
+          몸 += 조각;
+          if (몸.length > 64 * 1024) req.destroy(); // 외형 한 벌은 1KB 남짓이다
+        });
+        req.on("end", async () => {
+          try {
+            const 값 = JSON.parse(몸);
+            const 곳 = fileURLToPath(new URL("./naju01/src/기본외형.json", import.meta.url));
+            await fs.writeFile(곳, `${JSON.stringify(값, null, 2)}\n`, "utf-8");
+            res.statusCode = 200;
+            res.end("ok");
+            console.log("[기본외형] naju01/src/기본외형.json 에 저장했습니다.");
+          } catch (오류) {
+            res.statusCode = 400;
+            res.end(String(오류?.message ?? 오류));
+          }
+        });
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [레바값읽기고치기(), react(), 나주편집읽기()],
+  plugins: [레바값읽기고치기(), react(), 나주편집읽기(), 기본외형받기()],
   // ── 포트를 못 박는다 ──────────────────────────────────────
   // [왜 strictPort 가 필요한가]
   //   포트를 안 적으면 vite 는 5173 을 쓰되, **이미 물려 있으면 말없이 5174 로

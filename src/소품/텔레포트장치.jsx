@@ -128,7 +128,7 @@ export default function 텔레포트장치({ 선 }) {
   const 빛ref = useRef(null);
 
   useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+    const t = clock.elapsedTime;
     const 맥 = 0.5 + 0.5 * Math.sin(t * C.맥동속도); // 0~1 숨쉬기
     const 코 = 코어ref.current;
     if (코) {
