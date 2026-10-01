@@ -17,16 +17,6 @@ T=$(mktemp -d)
 #   마지막 단계에서만 평소 품질(85)로 굽는다.
 MID=(--jpeg 100)  # 중간 단계 품질
 
-# 착장마다 목선 모양이 달라 고리를 모으는 가로 반경(--ring)을 따로 준다.
-#   남성 top 은 목선이 유난히 높고 고르지 않아 어떤 값으로도 구가 안 맞는다. 목선은
-#   건너뛰고(스크립트가 스스로 COLLAR_SKIP 한다) 밑단만 손본다.
-목선옵션() {
-  case "$1" in
-    top-female) echo "--ring 0.060" ;;
-    *) echo "" ;;
-  esac
-}
-
 for f in base-female top-female bottom-female both-female base-male top-male bottom-male both-male; do
   G=public/models/meshy-$f.glb
   echo "== $f"
@@ -39,7 +29,7 @@ for f in base-female top-female bottom-female both-female base-male top-male bot
     top-*|both-*)
       rm -f "$T/b.glb"
       "$B" --background --factory-startup --python naju01/도구/meshy_round_collar.py -- \
-        --glb "$T/a.glb" --out "$T/b.glb" "${MID[@]}" $(목선옵션 "$f") | grep -E "^COLLAR"
+        --glb "$T/a.glb" --out "$T/b.glb" "${MID[@]}" | grep -E "^COLLAR"
       # 목선을 못 잡으면 아무것도 안 내놓는다 — 그때는 앞 단계 결과를 그대로 넘긴다.
       [ -f "$T/b.glb" ] || cp "$T/a.glb" "$T/b.glb"
       "$B" --background --factory-startup --python naju01/도구/meshy_soften_hem.py -- \
