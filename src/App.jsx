@@ -181,6 +181,8 @@ import PlaySessionStatus from "./서버/플레이세션상태.jsx";
 import { 소화전자물쇠제출 } from "./서버/플레이세션.js";
 // 비상계단 앞 첫 조작 안내 — 바닥 동그라미(캔버스 안) + 안내판(캔버스 밖)
 import 튜토리얼판 from "./튜토리얼/튜토리얼판.jsx";
+// 다음 목표가 **어느 쪽인지** — 머리 위 화살표(캔버스 안) + 화면 가장자리 표시(밖)
+import 방향표시HUD, { 방향표시3D } from "./튜토리얼/방향표시.jsx";
 import 튜토리얼UI from "./튜토리얼/튜토리얼UI.jsx";
 // ── 화면 위에 뜨는 창들 ─────────────────────────────────────
 //   화면층 = 「한 번에 하나의 모달」 규칙(GRD-11 · CMN-035)을 지키는 관리자.
@@ -6557,7 +6559,7 @@ function 복도등({
   const 켤때 = useRef(-1);
   const 앞세기 = useRef(세기);
   useFrame(({ clock }) => {
-    const 이제 = clock.getElapsedTime();
+    const 이제 = clock.elapsedTime;
     // 꺼져 있다가 켜지는 순간 — 지연을 적어 둔다
     if (앞세기.current <= 0 && 세기 > 0) 켤때.current = 이제 + 점등지연;
     if (세기 <= 0) 켤때.current = -1;
@@ -6565,7 +6567,7 @@ function 복도등({
     const 아직 = 켤때.current > 0 && 이제 < 켤때.current;
     let 밝기 = 아직 ? 0 : 1;
     if (깜빡임 && !아직) {
-      const t = clock.getElapsedTime() + (패턴.오프셋 ?? 0);
+      const t = clock.elapsedTime + (패턴.오프셋 ?? 0);
       const p = t % 패턴.주기;
       for (const [s0, len] of 패턴.꺼짐) {
         if (p >= s0 && p < s0 + len) {
@@ -13688,6 +13690,7 @@ function Scene({
           <바닥힌트종이 선={CD선} />
           {/* 튜토리얼 — 조건 확인 + 바닥의 빛나는 동그라미 (src/튜토리얼) */}
           <튜토리얼판 소화전문id={소화전문id} />
+          <방향표시3D />
 
           {/* ── 자판기 2대 ───────────────────────────────────
                  바깥벽에 등을 대고 정면(로컬 +z)이 복도 안쪽을 보도록
@@ -15489,6 +15492,7 @@ export default function App() {
       <힌트HUD 창열림={열린창 !== null} />
       {/* 튜토리얼 안내판 — 창이 떠 있거나 기차 안이면 숨는다 */}
       <튜토리얼UI 가림={열린창 !== null || 기차안} />
+      {!열린창 && !기차안 && <방향표시HUD />}
       {/* 임시 개발 도구: Vite proxy를 거친 Backend/API 및 DB readiness 확인 */}
       {import.meta.env.DEV && <Backend연결상태 />}
       {/* 임시 시연 도구: 검증된 Google 프로필만 React state에 보관 */}

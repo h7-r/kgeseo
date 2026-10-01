@@ -108,6 +108,31 @@ export default function ChibiTestPanel({ 설정, set설정, 저장키, 툰설정
             <button type="button" style={버튼} onClick={() => { set설정(메시외형읽기(저장키)); set안내("저장 외형 불러옴"); }}>불러오기</button>
             <button type="button" style={버튼} onClick={() => { set설정(메시설정보정(null)); set안내("기본값 복원"); }}>초기화</button>
           </div>
+          {/* ── 개발용: 지금 모습을 **모두의 시작 모습**으로 ──────────────
+                [왜 버튼인가]  기본 모습은 화면을 보고 맞춰야 정해지는데, 그 값은
+                브라우저 localStorage 에만 있다. 콘솔을 열어 긁어내는 대신 개발 서버로
+                보내 파일(naju01/src/기본외형.json)로 적는다. 개발 서버에서만 된다. */}
+          {import.meta.env.DEV && (
+            <button
+              type="button"
+              style={{ ...버튼, width: "100%", marginTop: 6 }}
+              onClick={async () => {
+                try {
+                  const 보낼것 = 메시설정보정(설정);
+                  const 답 = await fetch("/__default-look", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(보낼것),
+                  });
+                  set안내(답.ok ? "모두의 시작 모습으로 저장됨" : "저장 실패(개발 서버 아님)");
+                } catch {
+                  set안내("저장 실패(개발 서버 아님)");
+                }
+              }}
+            >
+              이 모습을 모두의 시작 모습으로
+            </button>
+          )}
           {툰설정 && (
             <>
               <div style={구분선}>화면 연출 (개발용)</div>

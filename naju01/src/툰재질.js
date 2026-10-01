@@ -253,6 +253,8 @@ export function 툰적용(root, 갈래정하기, 설정 = 기본툰) {
   }
   const 값 = { ...설정, 머리중심 };
   let 표식있음 = false;
+  // 이 핸들이 실제로 얹어 둔 재질. 되돌릴 때 **내 것이 아직 붙어 있을 때만** 되돌린다.
+  const 얹은것 = new Map();
   대상.forEach((object) => {
     const 갈래 = 갈래정하기(object) ?? "cloth";
     if (!(object.isSkinnedMesh && 얼굴속성(object))) 빈얼굴속성(object.geometry);
@@ -266,14 +268,27 @@ export function 툰적용(root, 갈래정하기, 설정 = 기본툰) {
     });
     원래.push({ object, material: object.material });
     object.material = Array.isArray(object.material) ? 새것 : 새것[0];
+    얹은것.set(object, object.material);
   });
   const 되돌리기 = () => {
     원래.forEach(({ object, material }) => {
+      // ★ 남이 이미 새 재질을 얹었으면 손대지 않는다.
+      //   [무엇이 문제였나]  StrictMode(개발)에서는 효과가 **두 번** 돈다:
+      //     ① 툰 입힘 → ② 정리(되돌리기를 두 프레임 뒤로 미룸) → ③ 툰 다시 입힘
+      //   그런데 ②의 되돌리기가 두 프레임 뒤에 실행되면서 **③이 얹은 툰 재질을
+      //   원본으로 도로 갈아 끼웠다.** 그래서 몸이 MeshStandardMaterial 로 남고
+      //   피부·의상 색(uniform)이 아무 데도 안 닿았다 — 색이 통째로 안 먹던 원인이다.
+      //   (머리만 바뀐 건 머리는 uniform 이 아니라 `material.color` 로 칠하기 때문이다.)
       const 지금 = Array.isArray(object.material) ? object.material : [object.material];
+      const 내것 = 얹은것.get(object);
+      const 아직내것 =
+        내것 && (Array.isArray(내것) ? 내것[0] === 지금[0] : 내것 === 지금[0]);
+      if (!아직내것) return;
       지금.forEach((m) => m.dispose());
       object.material = material;
     });
     원래.length = 0;
+    얹은것.clear();
   };
   const 갱신 = (다음) => {
     유니폼.forEach((u) => {

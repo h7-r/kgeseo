@@ -67,38 +67,42 @@ export const 메시색상 = [
 ];
 
 export const 기본메시설정 = {
+  // ★ 기본 모습 — **화면을 보고 맞춘 값**이다(패널의 「이 모습을 모두의 시작 모습으로」).
+  //   localStorage 에 저장된 값이 없는 사람(= 처음 접속하는 팀원 전원)이 이 모습으로 시작한다.
+  //   다시 정하려면 패널에서 맞춘 뒤 그 버튼을 누르고, 저장된 JSON 을 여기로 옮기면 된다.
   version: 1,
   motion: "자동",
   walkMotion: "Walk_Loop",
-  runMotion: "Jog_Fwd_Loop",
+  runMotion: "Sprint_Loop",
   motionSource: "tripo",
-  gender: "masculine",
+  // 기본 성별은 **여성**이다(지시). 체형 값도 그 모습에 맞춰 둔 것이라 같이 바꾸면 안 맞는다.
+  gender: "feminine",
   hair: 0,
   top: 0,
   bottom: 0,
   shoes: 0,
-  heightScale: 1,
-  headScale: 1,
+  heightScale: 0.98,
+  headScale: 0.8,
   // 기본 어깨를 넓힌다(위팔 뼈를 옆으로 — 치비게임아바타). Meshy 몸체 조형이 좁아 걸을 때 팔이 골반을 뚫었다.
-  shoulderWidth: 1.2,
+  shoulderWidth: 1,
   hipWidth: 1,
-  buff: 0,
-  armThickness: 1,
+  buff: 0.4,
+  armThickness: 1.06,
   legThickness: 1,
   heavy: 0,
-  skinny: 0,
+  skinny: 0.4,
   // 팔 길이. Meshy 몸체는 팔이 무릎 가까이 내려올 만큼 길어 기본을 줄여 둔다.
   // 위팔 뼈를 통째로 균등 배율로 줄이고 손만 역배율로 되돌린다(치비게임아바타) — 살이 함께 줄어
   // 팔꿈치가 끊겨 보이지 않는다.
-  armLength: 0.88,
+  armLength: 0.7,
   // 다리 길이. 팔과 같은 방식(허벅지 뼈를 통째로 배율 — 치비게임아바타)이라 살이 함께 줄고 늘어난다.
   legLength: 1,
-  handScale: 1,
-  footScale: 1,
-  fistHands: 0.6,
-  skinColor: "#ffffff",
-  hairColor: "#ffffff",
-  clothColor: "#ffffff",
+  handScale: 0.98,
+  footScale: 0.7,
+  fistHands: 0.7,
+  skinColor: "#e2c5c5",
+  hairColor: "#252222",
+  clothColor: "#ebe5e5",
 };
 
 const 모션값 = new Set(사이드킥모션목록.map(([value]) => value));

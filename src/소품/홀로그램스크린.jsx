@@ -391,7 +391,7 @@ export default function 홀로그램스크린({ 켬 = true }) {
       }
       return;
     }
-    const t = clock.getElapsedTime();
+    const t = clock.elapsedTime;
     // 스크린 가까이 왔나 — E 로 이동 가능 판정
     // ★ **사람이 선 자리**에서 잰다. 카메라에서 재면 3인칭이 망가진다 —
     //   카메라는 캐릭터 뒤 9.33 유닛이라, 스크린을 마주 보면 캐릭터가 3.7 안으로

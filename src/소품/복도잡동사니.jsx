@@ -531,7 +531,7 @@ function 물방울({ 자리, 천장y, 바닥y, 밝기 }) {
   const 파문ref = useRef([]);
   const 이전u = useRef([]); // 방울마다 지난 프레임 진행도 — '닿는 순간'을 한 번만 잡는다
   useFrame(({ clock, camera }) => {
-    const t = clock.getElapsedTime();
+    const t = clock.elapsedTime;
     for (let i = 0; i < 자리.length; i++) {
       const s = 자리[i];
       const 방울 = 방울ref.current[i];
