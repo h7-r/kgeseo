@@ -26,8 +26,8 @@ import { use드러내기 } from "./움직임.js";
 /* 글자클래스 — **글자를 담은 칸**에 붙는다. 바깥 className 은 자리를 잡는
    칸에 붙으므로, background-clip: text 처럼 글자에 걸려야 하는 것은 여기로
    줘야 한다(바깥에 주면 배경이 글자 모양으로 안 잘린다). */
-export function 오르는글({ 글, 간격 = 35, 쪼갬 = true, 태그: 태그 = "div", style, className, 글자클래스 }) {
-  const [칸, 보임] = use드러내기("0px 0px 30% 0px");
+export function 오르는글({ 글, 간격 = 55, 쪼갬 = true, 태그: 태그 = "div", style, className, 글자클래스 }) {
+  const [칸, 보임] = use드러내기("0px 0px 18% 0px");
   const 낱말 = String(글).split(" ");
   const 태그이름 = 태그;
 
