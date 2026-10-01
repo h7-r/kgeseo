@@ -20,6 +20,7 @@ import { useSyncExternalStore } from "react";
 import { 소리재생 } from "../소리.js";
 
 const 자물쇠들 = new Map(); // id -> { 번호, 정답, 글자들, 풀림, 고른칸 }
+const 복원대기 = new Set();
 let 조작 = null; // { id, 단계: "켬" | "나감" }
 let 판 = 0;
 const 듣는이 = new Set();
@@ -53,6 +54,7 @@ export function 씨앗(id, { 번호, 정답, 글자들 = "0123456789", 제출 })
     String((Array.isArray(글자들) ? 글자들[i] : 글자들) ?? "") || "0123456789",
   );
   const 옛 = 자물쇠들.get(id);
+  const 복원됨 = 복원대기.delete(id);
   const 새번호 = Array.from({ length: 줄수 }, (_, i) =>
     정수((번호 ?? [])[i] ?? 0, 줄글자[i].length),
   );
@@ -85,7 +87,8 @@ export function 씨앗(id, { 번호, 정답, 글자들 = "0123456789", 제출 })
     정답: 새정답,
     글자들: 줄글자,
     // 풀린 자물쇠는 다시 안 잠근다 — Leva 를 만졌다고 문이 도로 잠기면 황당하다.
-    풀림: 옛?.풀림 ?? false,
+    풀림: 옛?.풀림 ?? 복원됨,
+    즉시열림: 옛?.즉시열림 ?? 복원됨,
     제출,
     제출중: 옛?.제출중 ?? false,
     고른칸: Math.min(옛?.고른칸 ?? 0, Math.max(0, 새번호.length - 1)),
@@ -190,7 +193,7 @@ export function 맞춰봄(id) {
   const 맞나 =
     s.정답.length === s.번호.length && s.정답.every((v, i) => v === s.번호[i]);
   if (맞나 && !s.풀림) {
-    자물쇠들.set(id, { ...s, 풀림: true });
+    자물쇠들.set(id, { ...s, 풀림: true, 즉시열림: false });
     소리재생("자물쇠열림", { 볼륨: 0.9 }); // 정답 — 걸쇠가 철컥 열린다
     알리기();
   }
@@ -209,7 +212,7 @@ export async function 제출하기(id) {
   try {
     const 맞나 = await s.제출(answer);
     if (맞나) {
-      고치기(id, () => ({ 풀림: true }));
+      고치기(id, () => ({ 풀림: true, 즉시열림: false }));
       소리재생("자물쇠열림", { 볼륨: 0.9 });
     }
     return 맞나;
@@ -219,11 +222,22 @@ export async function 제출하기(id) {
 }
 
 export function 풀기(id) {
-  고치기(id, () => ({ 풀림: true }));
+  고치기(id, () => ({ 풀림: true, 즉시열림: false }));
+}
+
+/** 서버에서 이미 완료된 상태를 성공 연출 없이 월드에 되살린다. */
+export function 완료로복원(id) {
+  if (!id) return;
+  if (!자물쇠들.has(id)) {
+    복원대기.add(id);
+    return;
+  }
+  고치기(id, () => ({ 풀림: true, 즉시열림: true }));
 }
 
 export function 잠그기(id) {
-  고치기(id, () => ({ 풀림: false }));
+  복원대기.delete(id);
+  고치기(id, () => ({ 풀림: false, 즉시열림: false }));
 }
 
 if (typeof window !== "undefined")
