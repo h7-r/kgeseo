@@ -150,12 +150,13 @@ export default function 요금제구간({ 위 = 0 }) {
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                     <span style={{ fontFamily: 글꼴.제목, fontSize: "32px", color: "#f1f1fc" }}>{ㅋ.이름}</span>
-                    <span style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "24px", color: "#6f86bf" }}>{ㅋ.값}</span>
+                    <span style={{ fontFamily: 글꼴.모노, fontWeight: 700, fontSize: "24px", color: 켜짐 ? "#9fb4ea" : "#6f86bf", transition: "color .45s ease" }}>{ㅋ.값}</span>
                   </div>
-                  <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#96a3b6" }}>{ㅋ.요약}</div>
+                  {/* (2026-10-02 사용자 지시) 가운데로 온 플랜은 글을 밝게 — 회색은 눈에 잘 안 들어왔다 */}
+                  <div style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: 켜짐 ? "#dfe5f2" : "#96a3b6", transition: "color .45s ease" }}>{ㅋ.요약}</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: "1 0 auto" }}>
                     {ㅋ.혜택.map((줄) => (
-                      <span key={줄} style={{ fontFamily: 글꼴.모노, fontSize: "16px", lineHeight: 1.5, color: "#96a3b6" }}>
+                      <span key={줄} style={{ fontFamily: 글꼴.모노, fontSize: "16px", lineHeight: 1.5, color: 켜짐 ? "#eef2f8" : "#96a3b6", transition: "color .45s ease" }}>
                         {줄}
                       </span>
                     ))}
@@ -164,7 +165,7 @@ export default function 요금제구간({ 위 = 0 }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                     {ㅋ.덧.map((줄) => (
                       /* 16 → 14: 원래 크기로. 커진 만큼 카드 밖으로 밀려 잘렸다 */
-                      <span key={줄} style={{ fontFamily: 글꼴.모노, fontSize: "14px", lineHeight: 1.4, color: "#96a3b6" }}>
+                      <span key={줄} style={{ fontFamily: 글꼴.모노, fontSize: "14px", lineHeight: 1.4, color: 켜짐 ? "#c9d2e6" : "#96a3b6", transition: "color .45s ease" }}>
                         {줄}
                       </span>
                     ))}

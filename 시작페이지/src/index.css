@@ -1147,19 +1147,24 @@ html.스크롤중 .로고흐름,
    읽으러 내려갈 땐 비켜 주고, 되돌아 올라오는 순간 바로 나타난다 —
    올라온다는 건 찾는 게 있다는 뜻이라 그때가 메뉴가 필요한 때다.
    ═══════════════════════════════════════════════════════ */
+/* 구간 맞춤 — 브라우저 스크롤 맞춤(내비층.jsx use스냅표식 이 표식을 깔고 이 클래스를 켠다).
+   mandatory = 늘 어느 구간엔가 선다. 화면보다 큰 표식(핀·긴 구간) 안에서는 자유롭게 굴러간다. */
+html.구간맞춤 { scroll-snap-type: y mandatory; }
+
 .머리띠 {
   transition:
     transform 0.34s var(--부드럽게),
     background-color 0.3s ease,
-    backdrop-filter 0.3s ease,
     box-shadow 0.3s ease;
   will-change: transform;
 }
-/* 맨 위를 벗어나면 뒤가 비치는 바탕이 깔린다 — 글 위로 지나갈 때 겹쳐 읽히지 않게 */
+/* 맨 위를 벗어나면 바탕이 한 겹 더 깔린다 — 글 위로 지나갈 때 겹쳐 읽히지 않게
+   ★ 성능(2026-10-02 「스크롤이 매끄럽지 않다」): 뒤 흐림(backdrop-filter)을 뺐다.
+     머리띠는 화면에 붙어 있고 뒤 내용은 계속 움직여서, 흐림을 **매 프레임** 새로 계산했다.
+     메뉴 · 이 바탕 · 하위 메뉴까지 화면 폭 흐림이 세 겹이었다. GPU 크롬 실측: 흐림만 빼도
+     끊긴 프레임 162 → 37. 바탕이 원래 거의 검은 반투명이라 흐림이 없어도 겉보기는 같다. */
 .머리띠.굳음 {
   background: rgba(1, 4, 10, 0.72);
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
   box-shadow: 0 10px 30px -22px rgba(0, 0, 0, 0.95);
 }
 .머리띠.숨김 {

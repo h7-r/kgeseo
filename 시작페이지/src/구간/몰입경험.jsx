@@ -40,9 +40,16 @@ export default function 몰입경험({ 위 = 0 }) {
     <>
       {/* ── 밝은 바탕 121:2291 — 화면 끝까지, 각진 면 ── */}
       <div
-        style={{ position: "absolute", left: "-1px", top: `${위}px`, width: "1920px", height: "946px", background: "#f7f9fc" }} /* 분홍 기운(#fff9f9) → 다른 흰 면과 같은 색 */
+        style={{ position: "absolute", left: "-1px", top: `${위}px`, width: "1920px", height: "946px", background: "#f7f9fc", overflow: "hidden", pointerEvents: "none" }} /* 분홍 기운(#fff9f9) → 다른 흰 면과 같은 색 */
         data-node-id="121:2291"
-      />
+      >
+        {/* (2026-10-02 사용자 지시 — 피그마처럼) 지표 줄 뒤로 번지는 푸른 빛 + 옅은 원 두 개.
+            위가 희고 아래로 갈수록 살짝 푸르게 — 빛과 원의 가운데는 지표 줄(약 708)이다. */}
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, #fbfbfe 0%, #f3f4fb 60%, #eceffa 100%)" }} />
+        <div style={{ position: "absolute", left: "50%", top: "708px", width: "760px", height: "860px", transform: "translate(-50%, -50%)", background: "radial-gradient(closest-side, rgba(84,108,214,0.62) 0%, rgba(110,132,224,0.32) 45%, rgba(140,160,232,0) 100%)" }} />
+        <div style={{ position: "absolute", left: "50%", top: "708px", width: "800px", height: "800px", transform: "translate(-50%, -50%)", borderRadius: "50%", border: "1px solid rgba(58,80,148,0.16)" }} />
+        <div style={{ position: "absolute", left: "50%", top: "708px", width: "1180px", height: "1180px", transform: "translate(-50%, -50%)", borderRadius: "50%", border: "1px dashed rgba(58,80,148,0.14)" }} />
+      </div>
 
       {/* ── 아래쪽 물결 121:2565 ── */}
       <div
@@ -181,8 +188,10 @@ const 카드 = {
   background: "linear-gradient(180deg, #081228 0%, #01040a 100%)",
   display: "flex",
   flexDirection: "column",
-  gap: "20px",
-  justifyContent: "space-between",
+  /* (2026-10-02 사용자 지시) 글을 **위에서부터 같은 간격**으로 — 전엔 아래로 붙여(space-between)
+     설명이 세 줄인 첫 카드만 제목이 위로 올라가 네 장의 제목 높이가 달랐다 */
+  gap: "40px",
+  justifyContent: "flex-start",
   overflow: "hidden",
   boxShadow: "0px 0px 24px 0px rgba(46,72,137,0.18)",
   boxSizing: "border-box",

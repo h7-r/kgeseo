@@ -13,11 +13,26 @@ import { 글꼴, 글자그라디언트 } from "../공통.js";
 export default function 영상히어로({ 위 = 129, 누름 = () => {} }) {
   return (
     <section style={{ ...바깥, top: `${위}px` }} data-node-id="14:1627">
+      {/* (2026-10-02 사용자 지시) 맨 위 배경 영상 — 캐릭터 생성 화면을 녹화한 것.
+          2배속 · 60fps · 마우스 화살표/손가락은 장면마다 찾아 지웠다(원본 dist/bgm/캐릭터영상.mov).
+          글이 영상 위에서도 읽히게 위아래·가운데를 어둡게 깐다. */}
+      <video
+        src="/character-film.mp4"
+        poster="/character-film-poster.jpg"
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        aria-hidden="true"
+        style={배경영상}
+      />
+      <div style={영상덮개} aria-hidden="true" />
       {꺾쇠.map((s, i) => (
         <div key={i} style={{ position: "absolute", background: "#2e4889", borderRadius: "1px", pointerEvents: "none", ...s }} />
       ))}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "24px", alignItems: "center", width: "560px" }} data-node-id="14:1628">
+      <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", gap: "24px", alignItems: "center", width: "560px" }} data-node-id="14:1628">
         <div style={눈썹}>
           <span style={{ fontFamily: 글꼴.모노, fontSize: "16px", color: "#6f86bf", whiteSpace: "nowrap" }}>
             GAME &amp; CHARACTERS · ESCAPE THE LEGEND 2026
@@ -48,6 +63,24 @@ const 바깥 = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+};
+
+const 배경영상 = {
+  position: "absolute",
+  inset: 0,
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+  pointerEvents: "none",
+};
+/* 가운데(글 자리)는 진하게, 가장자리로 갈수록 영상이 드러난다 — 위아래는 페이지 바탕으로 녹인다 */
+const 영상덮개 = {
+  position: "absolute",
+  inset: 0,
+  pointerEvents: "none",
+  background:
+    "radial-gradient(ellipse 46% 52% at 50% 50%, rgba(5,11,26,0.9) 0%, rgba(5,11,26,0.68) 55%, rgba(5,11,26,0.4) 100%)," +
+    "linear-gradient(180deg, rgba(5,11,26,0.85) 0%, rgba(5,11,26,0) 22%, rgba(5,11,26,0) 72%, #050b1a 100%)",
 };
 
 /* 네 귀퉁이 꺾쇠 */

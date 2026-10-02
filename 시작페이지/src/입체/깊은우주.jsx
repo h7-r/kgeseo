@@ -36,7 +36,7 @@ import { 배경시작점 } from "../공통.js";
    [가볍게]
    · 파편은 InstancedMesh 하나로 그린다(그리기 호출 1번).
    · 고리는 얇은 도넛 12개뿐.
-   · dpr 1.5 로 묶고, 탭이 숨으면 렌더를 멈춘다.
+   · dpr 1(계단 보정 없이)로 그리고, 탭이 숨으면 렌더를 멈춘다.
    · 동작 줄이기를 켠 사람에겐 카메라를 세운다.
    ═══════════════════════════════════════════════════════ */
 
@@ -372,11 +372,14 @@ function 미리굽기() {
 export default function 깊은우주({ 보임 = true, 줄임 = false }) {
   return (
     <Canvas
-      dpr={[1, 1.5]}
+      /* ★ 성능(2026-10-02): 1.5배 → 1배, 계단 보정(antialias) 끔. 이 배경은 일부러 옅고 안개에 묻힌
+         장식이라(고리 투명도 0.17) 해상도를 낮춰도 겉보기가 거의 같다. GPU 크롬 실측: 이 캔버스만 꺼도
+         스크롤 중 끊긴 프레임 162 → 44 — 화면 전체를 매 프레임 1.5배로 그리던 값이 컸다. */
+      dpr={1}
       camera={{ position: [0, 0, 0], fov: 62, near: 0.1, far: 260 }}
       /* 안 보일 때는 아예 안 그린다 — 화면에서 사라진 걸 계속 그릴 이유가 없다 */
       frameloop={보임 && !줄임 ? "always" : "never"}
-      gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+      gl={{ antialias: false, alpha: true, powerPreference: "high-performance" }}
       style={{ position: "absolute", inset: 0, pointerEvents: "none" }}
     >
       {/* 안개가 깊이를 만든다 — 없으면 먼 것도 또렷해서 평면처럼 보인다 */}
