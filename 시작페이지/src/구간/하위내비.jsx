@@ -49,9 +49,8 @@ const 바깥 = {
   alignItems: "center",
   justifyContent: "center",
   gap: "40px",
-  background: "rgba(1, 4, 10, 0.78)",
-  backdropFilter: "blur(12px)",
-  WebkitBackdropFilter: "blur(12px)",
+  /* 뒤 흐림 없이 짙게 — 머리띠와 같은 까닭(index.css .머리띠.굳음 주석) */
+  background: "rgba(1, 4, 10, 0.9)",
   borderTop: "1px solid rgba(111, 134, 191, 0.18)",
   borderBottom: "1px solid rgba(111, 134, 191, 0.18)",
 };

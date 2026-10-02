@@ -187,9 +187,8 @@ const 바깥 = {
   alignItems: "center",
   justifyContent: "space-between",
   padding: "0 80px",
-  background: "rgba(1, 4, 10, 0.8)",
-  backdropFilter: "blur(12px)",
-  WebkitBackdropFilter: "blur(12px)",
+  /* 뒤 흐림을 뺀 대신 조금 더 짙게(0.8 → 0.88) — 흐림이 스크롤마다 GPU 를 크게 먹었다(index.css .머리띠.굳음 주석) */
+  background: "rgba(1, 4, 10, 0.88)",
   /* 원본은 0.5px rgba(108,116,127,0.4) 인데 어두운 화면에서는 헤더와 본문이
      구분되지 않는다. 한 줄 더 또렷하게 하고 아래로 옅은 그림자를 깔았다. */
   borderBottom: "1px solid rgba(150, 163, 182, 0.45)",

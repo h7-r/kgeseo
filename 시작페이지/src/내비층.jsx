@@ -59,22 +59,31 @@ const 애니 = { 중: false, 끝난때: 0, 틀: 0, 끊기: null };
  * 사람이 그 사이 휠·터치·키를 쓰면 바로 놓아준다(사람이 이긴다).
  * @param 목표재기 () => 스크롤 자리(px) — 처음과 도착 뒤에 부른다
  */
-function 구간으로굴리기(목표재기, 보정 = 2) {
+function 구간으로굴리기(목표재기, 보정 = 2, 처음속도 = 0) {
   const 목표 = 목표재기();
   if (목표 == null) return;
   cancelAnimationFrame(애니.틀);
   애니.끊기?.();
   const 시작 = window.scrollY;
+  const 거리 = 목표 - 시작;
   const t0 = performance.now();
   const 동작줄임 = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  /* 속도감 — 거리에 비례하되 0.35~0.7초 안. 짧은 맞춤은 금방, 먼 이동도 0.7초면 닿는다 */
-  const 길이 = 동작줄임 ? 0 : Math.min(700, Math.max(350, Math.abs(목표 - 시작) * 0.15)); // ms
+  /* 속도감 (2026-10-02 「자동 맞춤이 생각보다 느리다」) — 0.22~0.45초. 짧은 맞춤은 금방 닿는다 */
+  const 길이 = 동작줄임 ? 0 : Math.min(450, Math.max(220, 180 + Math.abs(거리) * 0.08)); // ms
+  /* 이어받는 속도 — 관성으로 미끄러지던 속도(px/ms)를 그대로 물려받아 출발한다.
+     목표 쪽으로 가던 중이면 그 속도로 이어 가고, 반대쪽이면 0 에서 출발한다(되돌아오는 경우). */
+  const m0 = 거리 && Math.sign(처음속도) === Math.sign(거리) ? Math.min(2.5, (처음속도 * 길이) / 거리) : 0;
   애니.중 = true;
   머리띠붙잡기.까지 = Infinity;
-  let 사람이씀 = null;
-  const 끝 = (다채움) => {
+  /* 굴리는 동안은 브라우저 스크롤 맞춤(scroll-snap)을 잠깐 끈다 — 켜 두면 프레임마다 놓는 자리를
+     브라우저가 가까운 구간으로 다시 끌어당긴다. 다 가면 다시 켠다(도착 자리가 곧 맞춤 자리라 안 튄다). */
+  document.documentElement.style.scrollSnapType = "none";
+  const 휠 = () => 끝(false); // 사람이 다시 굴리면 놓아준다
+  const 사람이씀 = () => 끝(false);
+  function 끝(다채움) {
     cancelAnimationFrame(애니.틀);
-    window.removeEventListener("wheel", 사람이씀);
+    document.documentElement.style.scrollSnapType = "";
+    window.removeEventListener("wheel", 휠);
     window.removeEventListener("touchstart", 사람이씀);
     window.removeEventListener("keydown", 사람이씀);
     애니.끊기 = null;
@@ -89,18 +98,23 @@ function 구간으로굴리기(목표재기, 보정 = 2) {
       }
     }
     애니.중 = false;
-    애니.끝난때 = performance.now();
+    /* 끝난때 — 「방금 우리가 굴린 스크롤」 의 멈춤 신호를 무시하려고 찍는다.
+       ★ 사람이 끊었을 때(다채움=false)는 안 찍는다. 찍으면 사람이 굴린 마지막 멈춤 신호까지
+         무시돼서, 굴린 뒤 맞춤이 아예 안 일어났다(실측). */
+    if (다채움) 애니.끝난때 = performance.now();
     머리띠붙잡기.까지 = performance.now() + 250; // 다 굴렸다 — 머리띠를 놓는다
-  };
-  사람이씀 = () => 끝(false);
+  }
   애니.끊기 = () => 끝(false);
-  window.addEventListener("wheel", 사람이씀, { passive: true });
+  window.addEventListener("wheel", 휠, { passive: true });
   window.addEventListener("touchstart", 사람이씀, { passive: true });
   window.addEventListener("keydown", 사람이씀);
   const 한칸 = (지금) => {
     const k = 길이 ? Math.min(1, (지금 - t0) / 길이) : 1;
-    const 부드럽게 = 1 - Math.pow(1 - k, 3); // 빨리 출발해 살며시 선다
-    window.scrollTo({ top: Math.max(0, 시작 + (목표 - 시작) * 부드럽게), behavior: "instant" });
+    /* 3차 에르미트 곡선 — 출발 속도 m0(이어받은 관성), 도착 속도 0.
+       m0 = 0 이면 부드럽게 출발해 부드럽게 서는 곡선(smoothstep)이 된다.
+       ★ 전엔 멈춘 뒤 0 에서 출발해 「멈췄다가 다시 간다」 였고, 그 전엔 최고 속도로 튀어 나가 「툭」 이었다. */
+    const 부드럽게 = (k * k * k - 2 * k * k + k) * m0 + (-2 * k * k * k + 3 * k * k);
+    window.scrollTo({ top: Math.max(0, 시작 + 거리 * 부드럽게), behavior: "instant" });
     if (k < 1) 애니.틀 = requestAnimationFrame(한칸);
     else 끝(true);
   };
@@ -147,65 +161,76 @@ function use머리띠() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   구간 맞춤 — 스크롤을 멈추면 가까운 덩이의 윗줄에 맞춰 잡는다
-   (2026-10-01 사용자 지시 「스크롤하면 자연스럽게 바로 그 밑 라인에 잡히도록」)
+   구간 맞춤 — 브라우저의 스크롤 맞춤(CSS scroll-snap)에 맡긴다
 
-   [언제 잡나] 굴리기가 멈춘 뒤(scrollend, 없으면 160ms 조용하면).
-     · 내려가던 중 — 다음 덩이 윗줄이 화면 위에서 40% 안쪽에 들어와 있으면 그 줄로.
-     · 올라가던 중 — 덩이 윗줄이 화면 위로 40% 안쪽에 있으면 그 줄로.
-     · 조금(14% 안) 지나쳤으면 어느 쪽으로 굴렸든 그 줄로 되돌린다.
-   [안 잡는 때]
-     · 덩이가 화면에 멈춰 있는(핀) 동안 — 히어로 영상·사건 파일·앙암바위는 스크롤한 만큼
-       장면이 흐른다. 거기서 잡아 버리면 장면을 볼 수가 없다.
-     · 모달이 열려 스크롤이 잠겼을 때 · 우리가 스스로 굴리는 중일 때.
-   [어디에 맞추나] 덩이를 머리띠(+하위 메뉴) 아래 남은 화면의 **한가운데**에 — 덩이 사이 틈이 모두 같아서
-     위아래 틈이 똑같이 보인다(하위메뉴.js 맞춤자리). 하위 메뉴를 눌러 갈 때도 같은 자리다.
+   [왜 JS 로 안 굴리나] (2026-10-02 「화면이 멈췄다가 잡힌다 · 끊김이 생각 이상으로 심하다」)
+     전엔 스크롤이 멈추면(또는 느려지면) JS 가 매 프레임 scrollTo 로 끌어다 맞췄다. 그런데 맥 트랙패드는
+     손을 뗀 뒤에도 **브라우저가 관성으로 계속 굴리고**, 그 관성은 JS 가 막을 수 없다(크롬은 몸짓의 첫
+     휠만 막을 수 있다). 결국 관성과 JS 가 같은 프레임에 서로 페이지를 움직여 멈칫·덜컥였다.
+     scroll-snap 은 브라우저가 **관성과 한 몸으로** 맞춘다 — 미끄러지던 그대로 구간에 가서 선다.
+     JS 는 「어디가 구간인지」 표식만 깔고 스크롤에는 손대지 않는다.
+
+   [표식] 무대(1920 축소) 안 좌표를 문서 좌표로 재서, 문서 위에 보이지 않는 칸을 깐다.
+     · 보통 구간 — 그 덩이 크기 그대로, 가운데 맞춤(scroll-padding-top 이 머리띠라 「머리띠 아래 한가운데」)
+     · 화면보다 긴 구간 · 핀 구간(덩이 + 멈춰 있는 거리) — 윗줄 맞춤. 칸이 화면보다 크면 브라우저가
+       그 **안에서는 자유롭게** 굴리게 둔다(사건 파일·앙암바위 장면이 흐르는 동안 안 끌려간다).
+     · 맨 위 히어로 영상 핀 — 0 부터 핀이 풀리는 데까지 한 칸(안에서 자유)
+     · 맨 아래 — 화면 한 장짜리 칸(푸터까지 내려갈 수 있게)
+   [mandatory] 늘 어느 구간엔가 선다 — 「반쯤 가면 다음으로」 를 브라우저가 관성 방향까지 보고 고른다.
    ═══════════════════════════════════════════════════════ */
-function use구간맞춤(길, 배율, 머리높이) {
+function use스냅표식(길, 배율, 머리높이) {
   useEffect(() => {
     if (!하위메뉴[길] || 하위메뉴[길].종류 !== "구간") return undefined;
-    let 지난 = window.scrollY;
-    let 방향 = 1;
-    let 타이머 = 0;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const html = document.documentElement;
+    const 판 = document.createElement("div");
+    판.setAttribute("aria-hidden", "true");
+    판.style.cssText = "position:absolute;left:0;top:0;width:1px;height:0;pointer-events:none;visibility:hidden;";
+    document.body.appendChild(판);
 
-    const 맞추기 = () => {
-      if (애니.중 || performance.now() - 애니.끝난때 < 200) return; // 우리가 굴린 것
-      if (getComputedStyle(document.documentElement).overflow === "hidden") return;
-      const y = window.scrollY;
+    const 깔기 = () => {
       const 화면 = window.innerHeight;
-      /* 히어로 영상 핀 — 트랙이 끝나기 전엔 안 잡는다 */
+      const 남은 = 화면 - 머리높이;
+      const 칸들 = [];
+      /* 맨 위 히어로 핀 — 0 부터 핀이 풀리는 데까지 */
       const 트랙 = document.querySelector("[data-핀트랙]");
       if (트랙) {
-        const 핀끝 = 트랙.getBoundingClientRect().bottom + y - 화면;
-        if (y < 핀끝 - 2) return;
+        const 끝 = 트랙.getBoundingClientRect().bottom + window.scrollY - 화면;
+        칸들.push({ 위: 0, 높이: Math.max(화면, 끝 + 화면), 맞춤: "start" });
       }
-      const 구간들 = 구간자리들(길, 배율, 머리높이).filter((ㄱ) => !ㄱ.맨위);
-      /* 핀 안 — 덩이가 화면에 멈춰 장면이 흐르는 동안(맞춤자리 ~ 잠금 끝) */
-      if (구간들.some((ㄱ) => ㄱ.잠금끝 > ㄱ.위 && y > ㄱ.맞춤 + 2 && y < ㄱ.맞춤 + (ㄱ.잠금끝 - ㄱ.위) - 2)) return;
-      let 고른 = null;
-      for (const ㄱ of 구간들) {
-        const d = ㄱ.맞춤 - y; // + 면 아래로 더 가야 맞는다
-        const 앞쪽 = 방향 > 0 ? d > 0 && d < 화면 * 0.45 : d < 0 && d > -화면 * 0.45;
-        const 조금지남 = Math.abs(d) < 화면 * 0.15;
-        if ((앞쪽 || 조금지남) && Math.abs(d) > 2 && (!고른 || Math.abs(d) < Math.abs(고른.d))) 고른 = { d, 맞춤: ㄱ.맞춤, 이름: ㄱ.이름 };
+      for (const ㄱ of 구간자리들(길, 배율, 머리높이)) {
+        if (ㄱ.맨위) continue;
+        const 핀 = ㄱ.잠금끝 - ㄱ.위;
+        if (!핀 && ㄱ.높이 <= 남은) 칸들.push({ 위: ㄱ.위, 높이: ㄱ.높이, 맞춤: "center" });
+        else 칸들.push({ 위: ㄱ.위 - 16, 높이: ㄱ.높이 + 핀 + 16, 맞춤: "start" }); // 긴 것 · 핀 — 안에서 자유
       }
-      if (고른) 구간으로굴리기(() => 구간자리들(길, 배율, 머리높이).find((ㄱ) => ㄱ.이름 === 고른.이름)?.맞춤);
+      /* 맨 아래 — 푸터까지 */
+      const 문서 = html.scrollHeight;
+      칸들.push({ 위: 문서 - 화면, 높이: 화면, 맞춤: "end" });
+      판.replaceChildren(
+        ...칸들.map((ㅋ) => {
+          const d = document.createElement("div");
+          d.style.cssText = `position:absolute;left:0;width:1px;top:${Math.round(ㅋ.위)}px;height:${Math.max(1, Math.round(ㅋ.높이))}px;scroll-snap-align:${ㅋ.맞춤};`;
+          return d;
+        }),
+      );
     };
-    const 굴림 = () => {
-      const y = window.scrollY;
-      if (Math.abs(y - 지난) > 1) 방향 = y > 지난 ? 1 : -1;
-      지난 = y;
-      if (!("onscrollend" in window)) {
-        clearTimeout(타이머);
-        타이머 = setTimeout(맞추기, 160);
-      }
-    };
-    window.addEventListener("scroll", 굴림, { passive: true });
-    if ("onscrollend" in window) window.addEventListener("scrollend", 맞추기);
+    html.style.scrollPaddingTop = `${머리높이}px`;
+    html.classList.add("구간맞춤");
+    깔기();
+    /* 문서 높이가 바뀌면(그림·영상이 늦게 읽히면) 다시 깐다 — 굴리는 동안이 아니라 크기가 바뀔 때만 */
+    let 예약 = 0;
+    const 다시 = () => { clearTimeout(예약); 예약 = setTimeout(깔기, 120); };
+    const 관찰 = new ResizeObserver(다시);
+    관찰.observe(document.body);
+    window.addEventListener("resize", 다시);
     return () => {
-      clearTimeout(타이머);
-      window.removeEventListener("scroll", 굴림);
-      window.removeEventListener("scrollend", 맞추기);
+      clearTimeout(예약);
+      관찰.disconnect();
+      window.removeEventListener("resize", 다시);
+      html.classList.remove("구간맞춤");
+      html.style.scrollPaddingTop = "";
+      판.remove();
     };
   }, [길, 배율, 머리높이]);
 }
@@ -234,7 +259,7 @@ function use지금구간(길, 배율, 켬, 머리높이) {
 
 export default function 내비층() {
   const 배율 = use화면배율();
-  const { 굳음, 숨김 } = use머리띠();
+  const { 굳음, 숨김: 숨기고싶음 } = use머리띠();
   const 사람 = use로그인();
   const 가기 = useNavigate();
   const 위치 = useLocation();
@@ -247,8 +272,12 @@ export default function 내비층() {
     가기(주소);
   }, [가기]);
   const 하위 = 하위열린길 === 길 && 하위메뉴[길]?.메뉴 !== false ? 하위메뉴[길] : null;
+  /* 구간 맞춤 페이지(홈·컬렉션·구독)에서는 머리띠를 숨기지 않는다 (2026-10-02)
+     구간은 「머리띠 아래 한가운데」 에 맞춰 선다(scroll-padding-top). 내려갈 때 머리띠가 숨으면 그 자리가
+     비어 위 틈만 커 보이고, 숨었다 나타나는 움직임이 맞춤과 겹쳐 멈칫해 보였다. */
+  const 숨김 = 숨기고싶음 && 하위메뉴[길]?.종류 !== "구간";
   const 머리높이 = Math.round((149 + (하위 ? 하위높이 : 0)) * 배율);
-  use구간맞춤(길, 배율, 머리높이);
+  use스냅표식(길, 배율, 머리높이);
   const 지금구간 = use지금구간(길, 배율, !!하위, 머리높이);
   const 질의탭 = new URLSearchParams(위치.search).get("탭");
   const 켜진것 = 하위?.종류 === "탭" ? (하위.항목.some((ㅎ) => ㅎ.이름 === 질의탭) ? 질의탭 : 하위.항목[0]?.이름) : 지금구간;
