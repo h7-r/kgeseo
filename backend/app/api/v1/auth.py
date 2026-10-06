@@ -26,6 +26,11 @@ from app.services.naver_auth import (
     NaverTokenExchangeError,
     verify_naver_authorization_code,
 )
+from app.services.social_auth import (
+    AccountLinkRequiredError,
+    SocialAuthConflictError,
+    authenticate_social_user,
+)
 
 router = APIRouter(
     prefix="/auth",
@@ -34,12 +39,16 @@ router = APIRouter(
 
 
 @router.post("/google", response_model=GoogleUserResponse)
-def login_with_google(request: GoogleLoginRequest) -> GoogleUserResponse:
+async def login_with_google(
+    request: GoogleLoginRequest,
+    db: AsyncSession = Depends(get_db),
+) -> GoogleUserResponse:
     try:
-        return verify_google_credential(
+        profile = verify_google_credential(
             request.credential,
             settings.google_client_id,
         )
+        return await authenticate_social_user(db, profile)
     except GoogleAuthConfigurationError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -50,18 +59,29 @@ def login_with_google(request: GoogleLoginRequest) -> GoogleUserResponse:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Google credential.",
         ) from error
+    except AccountLinkRequiredError as error:
+        raise account_link_required_exception() from error
+    except SocialAuthConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Social account login could not be completed.",
+        ) from error
 
 
 @router.post("/naver", response_model=GoogleUserResponse)
-def login_with_naver(request: NaverLoginRequest) -> GoogleUserResponse:
+async def login_with_naver(
+    request: NaverLoginRequest,
+    db: AsyncSession = Depends(get_db),
+) -> GoogleUserResponse:
     try:
-        return verify_naver_authorization_code(
+        profile = verify_naver_authorization_code(
             request.code,
             request.state,
             settings.naver_client_id,
             settings.naver_client_secret,
             settings.naver_redirect_uri,
         )
+        return await authenticate_social_user(db, profile)
     except NaverAuthConfigurationError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -86,6 +106,13 @@ def login_with_naver(request: NaverLoginRequest) -> GoogleUserResponse:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Naver profile.",
+        ) from error
+    except AccountLinkRequiredError as error:
+        raise account_link_required_exception() from error
+    except SocialAuthConflictError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Social account login could not be completed.",
         ) from error
 
 
@@ -155,4 +182,17 @@ async def check_nickname_exists(
 ) -> LocalExistsResponse:
     return LocalExistsResponse(
         exists=await local_auth.nickname_exists(db, nickname),
+    )
+
+
+def account_link_required_exception() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "code": "account_link_required",
+            "message": (
+                "An account with this email already exists. "
+                "Sign in with the existing account before linking this provider."
+            ),
+        },
     )

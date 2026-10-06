@@ -33,24 +33,24 @@ class AppUser(Base):
         nullable=True,
     )
 
-    terms_version: Mapped[str] = mapped_column(
+    terms_version: Mapped[str | None] = mapped_column(
         VARCHAR(32),
-        nullable=False,
+        nullable=True,
     )
 
-    terms_accepted_at: Mapped[datetime] = mapped_column(
+    terms_accepted_at: Mapped[datetime | None] = mapped_column(
         DATETIME(fsp=6),
-        nullable=False,
+        nullable=True,
     )
 
-    privacy_accepted_at: Mapped[datetime] = mapped_column(
+    privacy_accepted_at: Mapped[datetime | None] = mapped_column(
         DATETIME(fsp=6),
-        nullable=False,
+        nullable=True,
     )
 
-    age_confirmed_at: Mapped[datetime] = mapped_column(
+    age_confirmed_at: Mapped[datetime | None] = mapped_column(
         DATETIME(fsp=6),
-        nullable=False,
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(

@@ -5,6 +5,7 @@ let 진행중로그인 = null;
 
 function 백엔드오류메시지(오류) {
   if (오류.status === 401) return "Naver 인증에 실패했습니다. 다시 시도해 주세요.";
+  if (오류.status === 409 && 오류.detail?.code === "account_link_required") return "이미 같은 이메일로 가입된 계정이 있습니다. 기존 로그인 후 Naver 계정을 연결해 주세요.";
   if (오류.status === 502) return "Naver 프로필을 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
   if (오류.status === 503) return "Naver 로그인이 아직 서버에 설정되지 않았습니다.";
   if (오류.status) return `Naver 로그인 처리 중 문제가 생겼습니다. (${오류.status})`;

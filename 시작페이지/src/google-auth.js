@@ -6,6 +6,7 @@ let credential대기 = null;
 
 function 백엔드오류메시지(오류) {
   if (오류.status === 401) return "Google 인증에 실패했습니다. 다른 계정으로 다시 시도해 주세요.";
+  if (오류.status === 409 && 오류.detail?.code === "account_link_required") return "이미 같은 이메일로 가입된 계정이 있습니다. 기존 로그인 후 Google 계정을 연결해 주세요.";
   if (오류.status === 503) return "Google 로그인이 아직 서버에 설정되지 않았습니다.";
   if (오류.status) return `Google 로그인 처리 중 문제가 생겼습니다. (${오류.status})`;
   return "Backend에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.";
