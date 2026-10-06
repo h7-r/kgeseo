@@ -1,6 +1,7 @@
 import 에셋 from "../에셋.js";
 import { useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { Google로로그인 } from "../google-auth.js";
 import { 소셜로가기 } from "../소셜로그인.js";
 import { 들어가기 } from "../로그인상태.js";
 import { 가입, 로그인, 비밀번호바꾸기, 이미있나, 닉네임있나, 테스트계정켜짐 } from "../계정저장소.js";
@@ -372,7 +373,7 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
               <div style={가는선} />
             </div>
           </div>
-          <간편로그인 />
+          <간편로그인 로그인완료={(사람) => { 들어가기(사람); 가기(돌아갈곳 || ㅁ.다음); }} />
         </>
       )}
 
@@ -415,10 +416,25 @@ export default function 인증폼({ 모드 = "로그인", 이동 = () => {}, 가
 
    키(.env)가 없으면 창을 띄우지 않고 그 자리에서 이유를 알려 준다.
    ═══════════════════════════════════════════════════════ */
-function 간편로그인() {
+function 간편로그인({ 로그인완료 = () => {} }) {
   const [말, set말] = useState("");
+  const [하는중, set하는중] = useState(false);
 
-  const 가기 = (어디) => {
+  const 가기 = async (어디) => {
+    if (하는중) return;
+    if (어디 === "구글") {
+      set말("");
+      set하는중(true);
+      try {
+        로그인완료(await Google로로그인());
+      } catch (오류) {
+        set말(오류.message || "Google 로그인에 실패했습니다.");
+      } finally {
+        set하는중(false);
+      }
+      return;
+    }
+
     const 문제 = 소셜로가기(어디);
     set말(문제);
   };
@@ -426,7 +442,7 @@ function 간편로그인() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "center", width: "100%" }}>
       <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center" }}>
-        <button type="button" className="단추" style={{ ...소셜, background: "#ffffff" }} onClick={() => 가기("구글")} title="Google 로 로그인">
+        <button type="button" className="단추" style={{ ...소셜, background: "#ffffff", ...(하는중 ? { opacity: 0.65, cursor: "progress" } : {}) }} onClick={() => 가기("구글")} title="Google 로 로그인" aria-busy={하는중}>
           <img loading="lazy" decoding="async" src={에셋.imgComponent12} alt="Google" style={{ width: "18px", height: "18px", display: "block" }} />
         </button>
         <button type="button" className="단추" style={{ ...소셜, background: "#03c75a", borderColor: "#03c75a" }} onClick={() => 가기("네이버")} title="네이버로 로그인">

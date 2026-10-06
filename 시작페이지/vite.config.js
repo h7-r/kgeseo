@@ -86,5 +86,14 @@ export default defineConfig({
   //   strictPort 를 켜면 이미 물려 있을 때 옆 포트로 말없이 옮겨 붙지 않고
   //   그냥 실패한다. "왜 엉뚱한 화면이 뜨지" 보다 "포트가 물렸다" 가 훨씬
   //   고치기 쉬운 오류다. (뿌리 vite.config.js 의 같은 판단을 따른다)
-  server: { port: 5175, strictPort: true },
+  server: {
+    port: 5175,
+    strictPort: true,
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:8000",
+        changeOrigin: true,
+      },
+    },
+  },
 });
