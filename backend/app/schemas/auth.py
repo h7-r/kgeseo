@@ -5,11 +5,16 @@ class GoogleLoginRequest(BaseModel):
     credential: str = Field(min_length=1)
 
 
+class NaverLoginRequest(BaseModel):
+    code: str = Field(min_length=1)
+    state: str = Field(min_length=1)
+
+
 class GoogleUserResponse(BaseModel):
     provider: str
     subject: str
     email: str
-    email_verified: bool
+    email_verified: bool | None = None
     name: str | None = None
     picture: str | None = None
 

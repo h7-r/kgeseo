@@ -7,6 +7,7 @@ import { use읽은만큼, use스크롤중 } from "./움직임.js";
 import { 배경시작점 } from "./공통.js";
 import 시작화면 from "./시작화면.jsx";
 import 에러 from "./화면/에러.jsx";
+import SocialCallback from "./화면/소셜콜백.jsx";
 import 영상모달 from "./구간/영상모달.jsx";
 import 게임전환, { 입장영상 } from "./구간/게임전환.jsx";
 import { use히어로덮음 } from "./가림.js";
@@ -66,6 +67,7 @@ export default function 앱() {
         <Routes>
         <Route path="/" element={<시작화면 />} />
         <Route path="/로그인" element={<인증 모드="로그인" />} />
+        <Route path="/로그인/콜백" element={<SocialCallback />} />
         <Route path="/회원가입" element={<인증 모드="회원가입" />} />
         <Route path="/비밀번호-찾기" element={<인증 모드="비밀번호찾기" />} />
         <Route path="/비밀번호-재설정" element={<인증 모드="인증중" />} />

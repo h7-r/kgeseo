@@ -8,13 +8,13 @@
    인가 화면으로 보내는 것까지만 한다.
 
    [키는 어디서 오나]
-   .env 에 넣고 Vite 가 넣어 준다 — VITE_구글_아이디 / VITE_네이버_아이디.
+   .env 에 넣고 Vite 가 넣어 준다 — VITE_GOOGLE_CLIENT_ID / VITE_NAVER_CLIENT_ID.
    키가 없으면 창을 띄우지 않고 **무엇이 없는지** 알려 준다.
    가짜로 성공한 척하는 것보다 낫다.
 
    .env 예시
-     VITE_구글_아이디=xxxxxxxx.apps.googleusercontent.com
-     VITE_네이버_아이디=xxxxxxxxxxxxxxxxxxxx
+     VITE_GOOGLE_CLIENT_ID=xxxxxxxx.apps.googleusercontent.com
+     VITE_NAVER_CLIENT_ID=xxxxxxxxxxxxxxxxxxxx
    ═══════════════════════════════════════════════════════ */
 
 const 돌아올곳 = () => `${window.location.origin}/로그인/콜백`;
@@ -28,6 +28,22 @@ function 상태값만들기(어디) {
     /* 사생활 보호 모드 등에서 막힐 수 있다 — 그래도 로그인은 시도하게 둔다 */
   }
   return 값;
+}
+
+export function 소셜상태읽기() {
+  try {
+    return sessionStorage.getItem("소셜상태") || "";
+  } catch {
+    return "";
+  }
+}
+
+export function 소셜상태지우기() {
+  try {
+    sessionStorage.removeItem("소셜상태");
+  } catch {
+    /* 사생활 보호 모드 등에서 막힐 수 있다 */
+  }
 }
 
 export const 소셜 = {
