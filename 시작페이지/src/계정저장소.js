@@ -47,10 +47,6 @@ const 시도칸 = "로그인시도";
    「이 사람은 어느 판에 동의했나」를 나중에 알 수 있다 (ERD consent_log.version) */
 export const 약관판 = "2026-09";
 
-/* 로그인 잠금 — 5번 틀리면 5분 */
-const 잠금횟수 = 5;
-const 잠금시간 = 5 * 60 * 1000;
-
 /* 브라우저가 이 기능을 쓸 수 있나 — 사생활 보호 모드에서 막히기도 한다 */
 export function 저장소쓸수있나() {
   return typeof indexedDB !== "undefined" && typeof crypto !== "undefined" && !!crypto.subtle;
@@ -149,10 +145,56 @@ function 같은가(ㄱ, ㄴ) {
 }
 
 const 다듬기 = (이메일) => String(이메일 || "").normalize("NFC").trim().toLowerCase();
-const 닉네임키 = (닉네임) => String(닉네임 || "").normalize("NFC").trim().toLowerCase();
 
 /* 바깥(화면·세션)에 내보내는 모양 — 해시·소금은 **절대** 밖으로 안 나간다 */
 const 내보내기 = (줄) => ({ 아이디: 줄.아이디, 이메일: 줄.이메일, 이름: 줄.이름, 지역: 줄.지역, 가입때: 줄.가입때, 테스트: Boolean(줄.테스트) });
+
+const 백엔드문제말 = "서버와 통신하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+
+async function 인증요청(주소, 옵션 = {}) {
+  let 응답;
+  try {
+    응답 = await fetch(주소, {
+      ...옵션,
+      headers: {
+        "Content-Type": "application/json",
+        ...(옵션.headers ?? {}),
+      },
+    });
+  } catch {
+    return { 좋음: false, 상태: 0, 내용: null, 까닭: 백엔드문제말 };
+  }
+
+  let 내용;
+  try {
+    내용 = await 응답.json();
+  } catch {
+    내용 = null;
+  }
+
+  if (!응답.ok) {
+    return {
+      좋음: false,
+      상태: 응답.status,
+      내용,
+      까닭: 내용?.detail || 백엔드문제말,
+    };
+  }
+
+  return { 좋음: true, 상태: 응답.status, 내용 };
+}
+
+function 백엔드사람(사용자) {
+  const 가입때 = Date.parse(사용자?.created_at || "");
+  return {
+    아이디: 사용자?.user_id,
+    이메일: 사용자?.email,
+    이름: 사용자?.nickname,
+    지역: 사용자?.region ?? "",
+    가입때: Number.isNaN(가입때) ? Date.now() : 가입때,
+    제공자: 사용자?.provider ?? "local",
+  };
+}
 
 /* ═══════════════════════════════════════════════════════
    테스트 계정 — 이름 TEST / test123@naver.com / test123
@@ -219,132 +261,72 @@ export async function 잠김남은시간(이메일) {
   return Math.max(0, 기록.잠김까지 - Date.now());
 }
 
-const 분초 = (ms) => { const 초 = Math.ceil(ms / 1000); return `${Math.floor(초 / 60)}분 ${String(초 % 60).padStart(2, "0")}초`; };
-
 /* ── 바깥에서 쓰는 것들 ───────────────────────────────── */
 
 /** 이 이메일로 이미 가입했나 */
 export async function 이미있나(이메일) {
-  if (!저장소쓸수있나()) return false;
-  const 사람 = await 하기(계정칸, "readonly", (칸) => 칸.get(다듬기(이메일)));
-  return Boolean(사람);
+  const 답 = await 인증요청(`/api/v1/auth/email-exists?email=${encodeURIComponent(다듬기(이메일))}`, {
+    method: "GET",
+  });
+  return Boolean(답.좋음 && 답.내용?.exists);
 }
 
 /** 이 닉네임을 누가 쓰고 있나 (대소문자 무시: Test = TEST) */
 export async function 닉네임있나(닉네임) {
-  if (!저장소쓸수있나()) return false;
-  const 사람 = await 하기(계정칸, "readonly", (칸) => 칸.index("닉네임키").get(닉네임키(닉네임)));
-  return Boolean(사람);
+  const 답 = await 인증요청(`/api/v1/auth/nickname-exists?nickname=${encodeURIComponent(String(닉네임 || "").normalize("NFC").trim())}`, {
+    method: "GET",
+  });
+  return Boolean(답.좋음 && 답.내용?.exists);
 }
 
 /** 회원가입. 성공하면 { 좋음: true, 사람 }, 아니면 { 좋음: false, 까닭, 칸 } */
 export async function 가입({ 이메일, 비밀번호, 닉네임, 지역, 동의 = {} }) {
-  if (!저장소쓸수있나()) {
-    return { 좋음: false, 까닭: "이 브라우저에서는 계정을 저장할 수 없습니다. 사생활 보호 모드를 끄고 다시 시도해 주세요." };
-  }
-  const 키 = 다듬기(이메일);
-  const 닉키 = 닉네임키(닉네임);
-  if (await 이미있나(키)) return { 좋음: false, 칸: "이메일", 까닭: "이미 가입된 이메일입니다. 로그인해 주세요." };
-  if (닉키 && (await 닉네임있나(닉키))) return { 좋음: false, 칸: "닉네임", 까닭: "이미 사용 중인 닉네임입니다." };
+  const 답 = await 인증요청("/api/v1/auth/register", {
+    method: "POST",
+    body: JSON.stringify({
+      email: 이메일,
+      password: 비밀번호,
+      nickname: 닉네임,
+      region: 지역,
+      consent: {
+        terms: Boolean(동의.이용약관),
+        privacy: Boolean(동의.개인정보수집),
+        age: Boolean(동의.만14세이상),
+        terms_version: 약관판,
+      },
+    }),
+  });
 
-  const 소금 = crypto.getRandomValues(new Uint8Array(16));
-  const 해시 = await 섞기(비밀번호, 소금);
-  const 지금 = Date.now();
-
-  const 줄 = {
-    아이디: crypto.randomUUID(),
-    이메일: 키,
-    소셜: null,
-    비번해시: 해시줄(열엿자(소금), 해시),
-    이름: String(닉네임 || "").normalize("NFC").trim() || 키.split("@")[0],
-    닉네임키: 닉키 || 키.split("@")[0],
-    지역: String(지역 || "").trim(),
-    가입때: 지금,
-    테스트: false,
-  };
-
-  /* ── 한 거래(transaction)로 세 표에 같이 쓴다 ──
-     계정만 들어가고 동의기록이 빠지는 식의 **반쪽 가입**이 생기면 안 된다.
-     한 거래 안의 쓰기는 전부 되거나 전부 안 된다(하나라도 실패하면 모두 되돌린다). */
-  const db = await 열기();
-  try {
-    await new Promise((맞음, 틀림) => {
-      const 거래 = db.transaction([계정칸, 데이터칸, 동의칸], "readwrite");
-      /* add — 같은 열쇠(이메일)나 같은 닉네임키가 있으면 put 과 달리 **덮어쓰지 않고 실패**한다 */
-      거래.objectStore(계정칸).add(줄);
-      거래.objectStore(데이터칸).put({ 이메일: 키, 기록: [], 설정: {} }); // 옛 찌꺼기가 있으면 새 빈 칸으로
-      const 동의표 = 거래.objectStore(동의칸);
-      for (const [종류, 했나] of Object.entries(동의)) {
-        동의표.add({ 아이디: crypto.randomUUID(), 계정아이디: 줄.아이디, 종류, 판: 약관판, 동의: Boolean(했나), 동의때: 지금, 철회때: null });
-      }
-      거래.oncomplete = 맞음;
-      거래.onerror = () => 틀림(거래.error);
-      거래.onabort = () => 틀림(거래.error);
-    });
-  } catch (문제) {
-    /* ConstraintError = 고유 조건 위반. 확인과 저장 사이에 다른 탭이 먼저 가입한 경우다 */
-    if (문제?.name === "ConstraintError") return { 좋음: false, 까닭: "방금 같은 이메일이나 닉네임으로 가입한 계정이 있습니다. 다시 확인해 주세요." };
-    return { 좋음: false, 까닭: "가입 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요." };
+  if (!답.좋음) {
+    if (답.상태 === 409 && 답.내용?.detail === "Email already registered.") {
+      return { 좋음: false, 칸: "이메일", 까닭: "이미 가입된 이메일입니다. 로그인해 주세요." };
+    }
+    if (답.상태 === 409 && 답.내용?.detail === "Nickname already registered.") {
+      return { 좋음: false, 칸: "닉네임", 까닭: "이미 사용 중인 닉네임입니다." };
+    }
+    if (답.상태 === 422) return { 좋음: false, 까닭: "입력값을 다시 확인해 주세요." };
+    return { 좋음: false, 까닭: 답.까닭 || "가입 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요." };
   }
 
-  return { 좋음: true, 사람: 내보내기(줄) };
+  return { 좋음: true, 사람: 백엔드사람(답.내용.user) };
 }
-
-/* 없는 계정일 때도 해시를 **똑같이 한 번** 돌리기 위한 가짜 소금.
-   안 돌리면 없는 이메일은 바로(수 ms), 있는 이메일은 늦게(수백 ms) 답해서
-   걸린 시간만으로 가입 여부가 드러난다. */
-const 가짜소금 = new Uint8Array(16);
 
 /** 로그인. 성공하면 { 좋음: true, 사람 }. 실패하면 { 좋음: false, 까닭, 잠김까지? } */
 export async function 로그인(이메일, 비밀번호) {
-  if (!저장소쓸수있나()) return { 좋음: false, 까닭: "이 브라우저에서는 계정을 읽을 수 없습니다." };
-  const 키 = 다듬기(이메일);
+  const 답 = await 인증요청("/api/v1/auth/login", {
+    method: "POST",
+    body: JSON.stringify({
+      email: 이메일,
+      password: 비밀번호,
+    }),
+  });
 
-  /* ① 잠겨 있으면 비밀번호를 맞춰 보지도 않는다 */
-  const 기록 = await 시도읽기(키);
-  if (기록.잠김까지 > Date.now()) {
-    return { 좋음: false, 잠김까지: 기록.잠김까지, 까닭: `로그인을 ${잠금횟수}번 실패해 잠시 잠겼습니다. ${분초(기록.잠김까지 - Date.now())} 뒤에 다시 시도해 주세요.` };
+  if (!답.좋음) {
+    if (답.상태 === 401) return { 좋음: false, 까닭: "이메일 또는 비밀번호가 올바르지 않습니다." };
+    return { 좋음: false, 까닭: 답.까닭 || 백엔드문제말 };
   }
 
-  /* ② 맞춰 보기 — 계정이 없어도 해시는 똑같이 돌린다(위 가짜소금) */
-  const 줄 = await 하기(계정칸, "readonly", (칸) => 칸.get(키));
-  const 풀린것 = 줄 ? 해시풀기(줄) : null;
-  const 해시 = await 섞기(비밀번호, 풀린것 ? 열엿자거꾸로(풀린것.소금) : 가짜소금, 풀린것?.횟수 ?? 반복);
-  const 맞았나 = Boolean(풀린것) && 같은가(해시, 풀린것.해시);
-
-  if (!맞았나) {
-    /* ③ 실패 — 횟수를 올리고, 다 차면 잠근다 */
-    const 실패 = 기록.실패 + 1;
-    const 잠김 = 실패 >= 잠금횟수;
-    await 하기(시도칸, "readwrite", (칸) => 칸.put({ 이메일: 키, 실패: 잠김 ? 0 : 실패, 잠김까지: 잠김 ? Date.now() + 잠금시간 : 0 }));
-    /* 없는 계정과 틀린 비밀번호를 **같은 말**로 답한다 — 어떤 메일이 가입돼 있는지 못 캐낸다 */
-    if (잠김) return { 좋음: false, 잠김까지: Date.now() + 잠금시간, 까닭: `로그인을 ${잠금횟수}번 실패해 5분 동안 잠깁니다.` };
-    const 남음 = 잠금횟수 - 실패;
-    return { 좋음: false, 까닭: `이메일 또는 비밀번호가 올바르지 않습니다.${실패 >= 3 ? ` (${남음}번 더 틀리면 5분간 잠깁니다)` : ""}` };
-  }
-
-  /* ④ 성공 — 실패 기록을 지우고, 로그인 기록(마이페이지 「로그인 기록」)에 남긴다 */
-  await 하기(시도칸, "readwrite", (칸) => 칸.delete(키));
-  await 로그인기록남기기(키);
-  return { 좋음: true, 사람: 내보내기(줄) };
-}
-
-/* ── 로그인 기록 ── 최근 10번만 남긴다(언제 · 어떤 브라우저·기기)
-   「내가 모르는 로그인이 있었나」를 스스로 확인하는 용도다. IP 는 브라우저가 알 수 없어 서버 몫. */
-function 기기이름() {
-  const ua = navigator.userAgent || "";
-  const 브라우저 = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : /Firefox\//.test(ua) ? "Firefox" : "브라우저";
-  const 기기 = /iPhone|iPad/.test(ua) ? "iOS" : /Android/.test(ua) ? "Android" : /Mac OS X/.test(ua) ? "macOS" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : "기기";
-  return `${브라우저} · ${기기}`;
-}
-async function 로그인기록남기기(키) {
-  try {
-    const 지금 = (await 계정데이터(키)) ?? { 이메일: 키, 기록: [], 설정: {} };
-    const 로그인들 = [{ 때: Date.now(), 기기: 기기이름() }, ...(지금.로그인들 ?? [])].slice(0, 10);
-    await 하기(데이터칸, "readwrite", (칸) => 칸.put({ ...지금, 로그인들 }));
-  } catch {
-    /* 기록을 못 남겨도 로그인은 되어야 한다 */
-  }
+  return { 좋음: true, 사람: 백엔드사람(답.내용.user) };
 }
 
 /** 로그인한 채로 비밀번호 바꾸기 — **지금 비밀번호를 먼저 확인**한다(마이페이지 「비밀번호 변경」).
@@ -390,7 +372,9 @@ export async function 비밀번호바꾸기(이메일, 새비밀번호) {
 
   const 소금 = crypto.getRandomValues(new Uint8Array(16));
   const 해시 = await 섞기(새비밀번호, 소금);
-  const { 소금: _옛소금, 해시: _옛해시, ...나머지 } = 줄; // 1판 칸(소금·해시)은 치우고 새 한 줄로
+  const 나머지 = { ...줄 }; // 1판 칸(소금·해시)은 치우고 새 한 줄로
+  delete 나머지.소금;
+  delete 나머지.해시;
   await 하기(계정칸, "readwrite", (칸) => 칸.put({ ...나머지, 비번해시: 해시줄(열엿자(소금), 해시) }));
   await 하기(시도칸, "readwrite", (칸) => 칸.delete(키)); // 바꿨으니 잠금도 푼다
   return { 좋음: true };

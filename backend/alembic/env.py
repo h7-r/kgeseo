@@ -9,6 +9,7 @@ from alembic import context
 from app.core.config import settings
 from app.db.base import Base
 from app.models.anonymous_session import AnonymousSession
+from app.models.app_user import AppUser
 from app.models.interaction_event import InteractionEvent
 
 # PlaySession 모델도 Alembic의 Base.metadata에 등록되도록 import한다.
