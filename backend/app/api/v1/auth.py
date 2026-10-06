@@ -10,12 +10,21 @@ from app.schemas.auth import (
     LocalExistsResponse,
     LocalLoginRequest,
     LocalRegisterRequest,
+    NaverLoginRequest,
 )
 from app.services import local_auth
 from app.services.google_auth import (
     GoogleAuthConfigurationError,
     InvalidGoogleCredentialError,
     verify_google_credential,
+)
+from app.services.naver_auth import (
+    InvalidNaverAuthorizationCodeError,
+    InvalidNaverProfileError,
+    NaverAuthConfigurationError,
+    NaverProfileError,
+    NaverTokenExchangeError,
+    verify_naver_authorization_code,
 )
 
 router = APIRouter(
@@ -40,6 +49,43 @@ def login_with_google(request: GoogleLoginRequest) -> GoogleUserResponse:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Google credential.",
+        ) from error
+
+
+@router.post("/naver", response_model=GoogleUserResponse)
+def login_with_naver(request: NaverLoginRequest) -> GoogleUserResponse:
+    try:
+        return verify_naver_authorization_code(
+            request.code,
+            request.state,
+            settings.naver_client_id,
+            settings.naver_client_secret,
+            settings.naver_redirect_uri,
+        )
+    except NaverAuthConfigurationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Naver authentication is not configured.",
+        ) from error
+    except InvalidNaverAuthorizationCodeError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Naver authorization code.",
+        ) from error
+    except NaverTokenExchangeError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Naver token exchange failed.",
+        ) from error
+    except NaverProfileError as error:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Naver profile request failed.",
+        ) from error
+    except InvalidNaverProfileError as error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Naver profile.",
         ) from error
 
 
