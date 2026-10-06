@@ -33,11 +33,6 @@ class AppUser(Base):
         nullable=True,
     )
 
-    password_hash: Mapped[str] = mapped_column(
-        VARCHAR(255),
-        nullable=False,
-    )
-
     terms_version: Mapped[str] = mapped_column(
         VARCHAR(32),
         nullable=False,

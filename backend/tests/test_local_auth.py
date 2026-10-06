@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 
 from app.models.app_user import AppUser
+from app.models.auth_identity import AuthIdentity
 from app.services.local_auth import hash_password
 
 
@@ -18,11 +19,29 @@ def make_user(
         email=email,
         nickname=nickname,
         region="전남",
-        password_hash=hash_password(password),
         terms_version="2026-09",
         terms_accepted_at=now,
         privacy_accepted_at=now,
         age_confirmed_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def make_local_identity(
+    *,
+    user: AppUser | None = None,
+    email: str = "sejin@example.com",
+    password: str = "RightPassword123!",
+) -> AuthIdentity:
+    now = datetime(2026, 10, 6, 12, 0, 0)
+    app_user = user or make_user(email=email, password=password)
+    return AuthIdentity(
+        id="22222222-2222-4222-8222-222222222222",
+        app_user_id=app_user.id,
+        provider="local",
+        provider_subject=email,
+        password_hash=hash_password(password),
         created_at=now,
         updated_at=now,
     )
@@ -58,14 +77,20 @@ def test_register_local_account_success(client, db_session):
     assert "password" not in response.text
     assert "password_hash" not in response.text
 
+    assert len(db_session.added) == 2
     user = db_session.added[0]
+    identity = db_session.added[1]
     assert user.email == "sejin@example.com"
-    assert user.password_hash.startswith("pbkdf2_sha256$210000$")
-    assert user.password_hash != "RightPassword123!"
     assert user.terms_version == "2026-09"
     assert user.terms_accepted_at is not None
     assert user.privacy_accepted_at is not None
     assert user.age_confirmed_at is not None
+    assert isinstance(identity, AuthIdentity)
+    assert identity.app_user_id == user.id
+    assert identity.provider == "local"
+    assert identity.provider_subject == "sejin@example.com"
+    assert identity.password_hash.startswith("pbkdf2_sha256$210000$")
+    assert identity.password_hash != "RightPassword123!"
     assert db_session.commit_count == 1
     assert db_session.refresh_count == 1
 
@@ -152,7 +177,9 @@ def test_register_local_account_race_condition_reports_nickname_duplicate(
 
 
 def test_login_local_account_success(client, db_session):
-    db_session.scalar_result = make_user()
+    user = make_user()
+    db_session.scalar_result = make_local_identity(user=user)
+    db_session.get_result = user
 
     response = client.post(
         "/api/v1/auth/login",
@@ -168,11 +195,24 @@ def test_login_local_account_success(client, db_session):
 
 
 def test_login_local_account_rejects_wrong_password(client, db_session):
-    db_session.scalar_result = make_user()
+    db_session.scalar_result = make_local_identity()
 
     response = client.post(
         "/api/v1/auth/login",
         json={"email": "sejin@example.com", "password": "WrongPassword123!"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid email or password."
+
+
+def test_login_local_account_rejects_missing_user_for_identity(client, db_session):
+    db_session.scalar_result = make_local_identity()
+    db_session.get_result = None
+
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": "sejin@example.com", "password": "RightPassword123!"},
     )
 
     assert response.status_code == 401

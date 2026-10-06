@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.app_user import AppUser
+from app.models.auth_identity import AuthIdentity
 from app.schemas.auth import LocalRegisterRequest
 
 PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
@@ -104,6 +105,17 @@ async def get_user_by_nickname(db: AsyncSession, nickname: str) -> AppUser | Non
     return await db.scalar(statement)
 
 
+async def get_local_identity_by_email(
+    db: AsyncSession,
+    email: str,
+) -> AuthIdentity | None:
+    statement = select(AuthIdentity).where(
+        AuthIdentity.provider == "local",
+        AuthIdentity.provider_subject == normalize_email(email),
+    )
+    return await db.scalar(statement)
+
+
 async def email_exists(db: AsyncSession, email: str) -> bool:
     return await get_user_by_email(db, email) is not None
 
@@ -132,7 +144,6 @@ async def register_user(db: AsyncSession, request: LocalRegisterRequest) -> AppU
         email=email,
         nickname=nickname,
         region=region,
-        password_hash=hash_password(request.password),
         terms_version=request.consent.terms_version,
         terms_accepted_at=now,
         privacy_accepted_at=now,
@@ -140,7 +151,17 @@ async def register_user(db: AsyncSession, request: LocalRegisterRequest) -> AppU
         created_at=now,
         updated_at=now,
     )
+    identity = AuthIdentity(
+        id=str(uuid4()),
+        app_user_id=user.id,
+        provider="local",
+        provider_subject=email,
+        password_hash=hash_password(request.password),
+        created_at=now,
+        updated_at=now,
+    )
     db.add(user)
+    db.add(identity)
 
     try:
         await db.commit()
@@ -157,7 +178,14 @@ async def register_user(db: AsyncSession, request: LocalRegisterRequest) -> AppU
 
 
 async def login_user(db: AsyncSession, email: str, password: str) -> AppUser:
-    user = await get_user_by_email(db, email)
-    if user is None or not verify_password(password, user.password_hash):
+    identity = await get_local_identity_by_email(db, email)
+    if (
+        identity is None
+        or identity.password_hash is None
+        or not verify_password(password, identity.password_hash)
+    ):
+        raise InvalidLocalCredentialsError
+    user = await db.get(AppUser, identity.app_user_id)
+    if user is None:
         raise InvalidLocalCredentialsError
     return user
