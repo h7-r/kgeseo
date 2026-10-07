@@ -25,7 +25,7 @@ export const SHOW_CUSTOMIZE_PANEL = query.has("customize");
 // 원인 격리용 — 문제를 좁힐 때만 붙인다.
 /** ?fx=off — 후처리(Bloom·Vignette)를 통째로 끈다. */
 export const IS_POSTFX_DISABLED = query.get("fx") === "off";
-/** ?fx=hi — 후처리를 예전 고품질(MSAA 8배 · 16비트)로. 화질 비교용. */
+/** ?fx=hi — 후처리 멀티샘플만 8배로. 화질 비교용(버퍼 형식은 바꾸지 않는다 — App 의 EffectComposer 주석). */
 export const IS_POSTFX_HIGH_QUALITY = query.get("fx") === "hi";
 /** ?zone=off — 구역 컬링을 끄고 전부 그린다. */
 export const IS_ZONE_CULLING_DISABLED = query.get("zone") === "off";

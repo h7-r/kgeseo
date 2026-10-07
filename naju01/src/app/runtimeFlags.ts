@@ -21,6 +21,8 @@ export const IS_TONE_MAPPING_ENABLED = QUERY.get("tm") === "on";
 export const USE_HALF_FLOAT_BUFFER = QUERY.get("fb") === "half";
 /** ?stage=16x9 — 본편과 같은 레터박스(시야 검증용). 기본은 창을 꽉 채운다 */
 export const IS_STAGE_16X9 = QUERY.get("stage") === "16x9";
+/** ?from=hub — 허브의 진입 연출을 타고 왔다. 검은 화면에서 첫 프레임에 밝아진다. 주소를 직접 치거나 새로고침하면 페이드가 없다 */
+export const IS_ARRIVING_FROM_HUB = QUERY.get("from") === "hub";
 
 // 이 씬은 픽셀에 걸려 있다(땅이 픽셀마다 삼면 노이즈를 돈다). 1.75 는 레티나에서 글자·외곽선이 안 무너지는 가장 낮은 값.
 // ?dpr=1.5 처럼 숫자를 주면 그 값에 못 박고 자동 조절을 끈다(A/B 비교용).

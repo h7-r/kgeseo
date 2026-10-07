@@ -9,7 +9,7 @@ import { ToonOutline } from "@/engine/outline";
 import { requestShadowUpdates } from "@/engine/rendering";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { isOpen, rattle, rattleOffset, toggleHinge, useIsOpen } from "@/props/hingeState";
+import { isOpen, isRestoredOpen, rattle, rattleOffset, toggleHinge, useIsOpen } from "@/props/hingeState";
 import { usePipeOffset } from "@/props/vendingPush";
 
 import { LABEL_ASPECT, hydrantLabelTexture, panelLabelTexture } from "./textures";
@@ -291,14 +291,17 @@ export default function WallCabinet({
   // 각도를 state 로 두면 여닫는 동안 매 프레임 복도 전체가 다시 그려진다.
   const doorRef = useRef<THREE.Group>(null);
   const doorPanelRef = useRef<THREE.Group>(null);
-  const openness = useRef(0);
   const doorId = wallCabinetDoorId(kind, x, z);
+  const openness = useRef(isOpen(doorId) ? 1 : 0);
   const isDoorOpen = useIsOpen(doorId);
   useFrame((_, dt) => {
     const door = doorRef.current;
     if (!door) return;
     const target = canOpen && isOpen(doorId) ? 1 : 0;
-    openness.current += (target - openness.current) * (1 - Math.exp(-dt * 9));
+    // 서버 진행 상태로 되살린 문은 여는 동작 없이 바로 열린 각도다
+    openness.current = isRestoredOpen(doorId)
+      ? 1
+      : openness.current + (target - openness.current) * (1 - Math.exp(-dt * 9));
     // 부호가 방향(d)을 따라간다. 덜컹은 더한다 — 경첩 쪽은 그대로인 채 손잡이 쪽만 들썩인다.
     const angle = d * ((openAngle * Math.PI) / 180) * openness.current + rattleOffset(doorId) * RATTLE_ANGLE;
     if (Math.abs(angle - door.rotation.y) > 1e-4) requestShadowUpdates(0.2);

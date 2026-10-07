@@ -22,6 +22,8 @@ export interface LockState {
   /** 줄마다 새겨진 글자 세트 */
   glyphs: string[];
   unlocked: boolean;
+  /** 서버에서 이미 풀린 채로 되살렸다 — 열리는 연출 없이 바로 열린 자세로 둔다. */
+  openInstantly: boolean;
   submit?: LockSubmitter;
   submitting: boolean;
   selectedRow: number;
@@ -43,6 +45,8 @@ export interface LockSeed {
 }
 
 const locks = new Map<string, LockState>();
+/** 자물쇠가 등록되기 전에 들어온 완료 복원 — 등록할 때 풀린 채로 시작한다. */
+const pendingRestores = new Set<string>();
 let control: LockControl | null = null;
 const signal = createChangeSignal();
 
@@ -61,6 +65,7 @@ export function seedLock(id: string, { digits, answer, glyphs = "0123456789", su
     (_, i) => String((Array.isArray(glyphs) ? glyphs[i] : glyphs) ?? "") || "0123456789",
   );
   const previous = locks.get(id);
+  const restored = pendingRestores.delete(id);
   const nextDigits = Array.from({ length: rowCount }, (_, i) => wrap((digits ?? [])[i] ?? 0, rowGlyphs[i].length));
   // 정답 글자가 그 줄에 없으면 절대 못 푸는 자물쇠다. 조용히 0 번으로 바꾸지 말고 비워서 알린다.
   const answerText = String(answer ?? "").toUpperCase();
@@ -83,7 +88,8 @@ export function seedLock(id: string, { digits, answer, glyphs = "0123456789", su
     answer: nextAnswer,
     glyphs: rowGlyphs,
     // 풀린 자물쇠는 다시 잠그지 않는다 — Leva 를 만졌다고 문이 도로 잠기면 황당하다.
-    unlocked: previous?.unlocked ?? false,
+    unlocked: previous?.unlocked ?? restored,
+    openInstantly: previous?.openInstantly ?? restored,
     submit,
     submitting: previous?.submitting ?? false,
     selectedRow: Math.min(previous?.selectedRow ?? 0, Math.max(0, nextDigits.length - 1)),
@@ -183,7 +189,7 @@ export function tryLockAnswer(id: string) {
   if (lock.answer.length === 0) return false;
   const correct = lock.answer.length === lock.digits.length && lock.answer.every((v, i) => v === lock.digits[i]);
   if (correct && !lock.unlocked) {
-    locks.set(id, { ...lock, unlocked: true });
+    locks.set(id, { ...lock, unlocked: true, openInstantly: false });
     playSound("lockOpen", { volume: 0.9 });
     signal.notify();
   }
@@ -202,7 +208,7 @@ export async function submitLockAnswer(id: string): Promise<boolean | null> {
   try {
     const correct = await lock.submit(answer);
     if (correct) {
-      update(id, () => ({ unlocked: true }));
+      update(id, () => ({ unlocked: true, openInstantly: false }));
       playSound("lockOpen", { volume: 0.9 });
     }
     return correct;
@@ -212,11 +218,22 @@ export async function submitLockAnswer(id: string): Promise<boolean | null> {
 }
 
 export function unlockLock(id: string) {
-  update(id, () => ({ unlocked: true }));
+  update(id, () => ({ unlocked: true, openInstantly: false }));
+}
+
+/** 서버에서 이미 완료된 상태를 성공 연출 없이 월드에 되살린다. */
+export function restoreUnlocked(id: string | null | undefined) {
+  if (!id) return;
+  if (!locks.has(id)) {
+    pendingRestores.add(id);
+    return;
+  }
+  update(id, () => ({ unlocked: true, openInstantly: true }));
 }
 
 export function relockLock(id: string) {
-  update(id, () => ({ unlocked: false }));
+  pendingRestores.delete(id);
+  update(id, () => ({ unlocked: false, openInstantly: false }));
 }
 
 // 콘솔에서 손으로 풀어 보며 퍼즐이 진짜 풀리는지 확인한다.

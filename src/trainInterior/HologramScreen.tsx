@@ -146,7 +146,7 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
       }
       return;
     }
-    const t = clock.getElapsedTime();
+    const t = clock.elapsedTime;
     // 사람이 선 자리에서 잰다. 카메라로 재면 3인칭에서 캐릭터 뒤 9.33 유닛만큼 어긋난다.
     const person = playerView.ready ? playerView.eye : camera.position;
     const distance = Math.hypot(person.x - controls.x, person.y - controls.y, person.z - controls.z);

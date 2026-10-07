@@ -50,12 +50,6 @@ export interface ConsentRecord {
   withdrawnAt: number | null;
 }
 
-export interface LoginAttempt {
-  email: string;
-  failures: number;
-  lockedUntil: number;
-}
-
 /** 화면이 문구 대신 비교할 실패 종류 */
 export type AccountFailureCode = "unknownEmail";
 
@@ -65,8 +59,6 @@ export type AccountFailure<Field extends string = never> = {
   code?: AccountFailureCode;
   /** 문제가 난 입력칸 */
   field?: Field;
-  /** 잠겼으면 풀리는 시각(ms) */
-  lockedUntil?: number;
 };
 
 export type SignUpResult = { ok: true; user: SessionUser } | AccountFailure<"email" | "nickname">;

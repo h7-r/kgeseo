@@ -62,5 +62,12 @@ export default defineConfig({
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
   // 본편 5173 · naju01 5174 · website 5175. 포트가 물려 있으면 옆 포트로 옮기지 않고 실패한다.
-  server: { port: 5175, strictPort: true },
+  // /api 는 같은 출처로 보내 백엔드(FastAPI)에 넘긴다. CORS 설정 없이 쿠키·요청이 오간다.
+  server: {
+    port: 5175,
+    strictPort: true,
+    proxy: {
+      "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
+    },
+  },
 });

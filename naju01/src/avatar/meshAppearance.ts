@@ -168,38 +168,40 @@ export interface MeshAppearanceConfig {
 }
 
 export const DEFAULT_MESH_CONFIG: MeshAppearanceConfig = {
+  // 화면을 보고 맞춘 기본 모습(패널의 「이 모습을 모두의 시작 모습으로」). 저장값이 없는 사람은 이 모습으로 시작한다.
   version: 1,
   motion: AUTO_MOTION,
   walkMotion: "Walk_Loop",
-  runMotion: "Jog_Fwd_Loop",
+  runMotion: "Sprint_Loop",
   // 되돌리려면 "sidekick". 저장값에 tripo 가 남아 있어도 패널의 「동작 출처」에서 고를 수 있다.
   motionSource: "tripo",
-  gender: "masculine",
+  // 체형 값은 여성 모습에 맞춘 것이라 성별만 바꾸면 안 맞는다.
+  gender: "feminine",
   hair: 0,
   top: 0,
   bottom: 0,
   shoes: 0,
-  heightScale: 1,
-  headScale: 1,
-  // Meshy 몸체 조형이 좁아 걸을 때 팔이 골반을 뚫었다 — 위팔 뼈를 옆으로 벌려 기본 어깨를 넓힌다.
-  shoulderWidth: 1.2,
+  heightScale: 0.98,
+  headScale: 0.8,
+  shoulderWidth: 1,
   hipWidth: 1,
-  buff: 0,
-  armThickness: 1,
+  buff: 0.4,
+  armThickness: 1.06,
   legThickness: 1,
   heavy: 0,
-  skinny: 0,
+  skinny: 0.4,
   // Meshy 몸체는 팔이 무릎 가까이 내려올 만큼 길다. 위팔 뼈를 균등 배율로 줄이고 손만 역배율로 되돌려
   // 살이 함께 줄어 팔꿈치가 끊겨 보이지 않는다.
-  armLength: 0.88,
+  armLength: 0.7,
   // 팔과 같은 방식(허벅지 뼈 배율)이라 살이 함께 줄고 늘어난다.
   legLength: 1,
-  handScale: 1,
-  footScale: 1,
-  fistHands: 0.6,
-  skinColor: "#ffffff",
-  hairColor: "#ffffff",
-  clothColor: "#ffffff",
+  handScale: 0.98,
+  footScale: 0.7,
+  fistHands: 0.7,
+  skinColor: "#e2c5c5",
+  hairColor: "#252222",
+  clothColor: "#ebe5e5",
+  // 하의·신발 색은 상의와 따로 고른다. 기본은 에셋 색 그대로.
   bottomColor: "#ffffff",
   shoesColor: "#ffffff",
 };

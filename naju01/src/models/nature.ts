@@ -125,6 +125,7 @@ export function rockModels(): Geometries {
 }
 
 // 같은 바위를 아주 낮게(90 삼각형) 구운 것. 1,699 개가 깔려서 근경 바위를 쓰면 맵 전체보다 무겁다.
+// 근경 바위는 한 개 9,000 삼각형(실측, 두 번 올렸다)이라 차이가 100 배다 — 면수는 재고 적는다.
 function pebbleModels(): Geometries {
   return once("pebble", () =>
     [PEBBLE_1, PEBBLE_2, PEBBLE_3, PEBBLE_4, PEBBLE_5, PEBBLE_6, PEBBLE_7].map((model) =>

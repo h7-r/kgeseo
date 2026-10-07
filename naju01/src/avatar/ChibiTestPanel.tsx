@@ -43,6 +43,9 @@ const TOON_SLIDERS: readonly Slider<"threshold" | "rimStrength" | "faceFlatten" 
 ];
 const OUTLINE_SLIDERS: readonly Slider<"thickness">[] = [["thickness", "선 굵기", 0, 4, 0.1]];
 
+// 개발 서버(뿌리 vite 설정)가 받아 기본 외형 JSON 파일로 적는다. connect 는 퍼센트 인코딩을 안 풀어서 길은 ASCII 여야 한다.
+const DEFAULT_LOOK_ENDPOINT = "/__default-look";
+
 // 게임 입력은 window 리스너라 패널 루트에서 전파를 끊으면 게임으로 새지 않는다.
 const stopPropagation = (event: SyntheticEvent) => event.stopPropagation();
 
@@ -73,6 +76,20 @@ export default function ChibiTestPanel({
       setNotice("현재 외형 저장됨");
     } catch {
       setNotice("저장 실패");
+    }
+  };
+
+  // 기본 모습은 화면을 보고 맞춰야 정해지는데 그 값은 localStorage 에만 있다 — 개발 서버로 보내 파일로 적는다
+  const handleSaveAsDefault = async () => {
+    try {
+      const response = await fetch(DEFAULT_LOOK_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(normalizeMeshConfig(config)),
+      });
+      setNotice(response.ok ? "모두의 시작 모습으로 저장됨" : "저장 실패(개발 서버 아님)");
+    } catch {
+      setNotice("저장 실패(개발 서버 아님)");
     }
   };
 
@@ -229,6 +246,11 @@ export default function ChibiTestPanel({
               초기화
             </button>
           </div>
+          {import.meta.env.DEV && (
+            <button type="button" style={saveAsDefaultButtonStyle} onClick={() => void handleSaveAsDefault()}>
+              이 모습을 모두의 시작 모습으로
+            </button>
+          )}
           <div style={dividerStyle}>화면 연출 (개발용)</div>
           <div style={twoColumnStyle}>
             <button
@@ -325,6 +347,7 @@ const buttonStyle: CSSProperties = {
   overflow: "hidden",
   textOverflow: "ellipsis",
 };
+const saveAsDefaultButtonStyle: CSSProperties = { ...buttonStyle, width: "100%", marginTop: 6 };
 const titleButtonStyle: CSSProperties = {
   ...buttonStyle,
   textAlign: "left",

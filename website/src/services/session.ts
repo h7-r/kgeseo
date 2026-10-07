@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /**
- * 로그인 세션. 인증 서버가 붙기 전까지 sessionStorage 에만 둔다.
+ * 로그인 세션. 서버가 토큰을 내주기 전까지 확인된 사용자를 sessionStorage 에만 둔다.
  * 화면 흐름을 위한 잠금일 뿐 보안 장치가 아니다 — 실제 검증은 서버 토큰이 해야 한다.
  */
 export interface SessionUser {
@@ -11,6 +11,10 @@ export interface SessionUser {
   region?: string;
   joinedAt?: number;
   isTest?: boolean;
+  /** "local" · "google" · "naver" */
+  provider?: string;
+  /** 소셜 계정 프로필 사진 주소 */
+  picture?: string;
 }
 
 interface StoredSession extends SessionUser {
@@ -64,6 +68,8 @@ export function signIn(user: SessionUser) {
     region: user.region,
     joinedAt: user.joinedAt,
     isTest: user.isTest,
+    provider: user.provider,
+    picture: user.picture,
     signedInAt: Date.now(),
   };
   try {

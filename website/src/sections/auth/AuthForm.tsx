@@ -70,7 +70,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
 
   const consent = useConsents();
   const bot = useBotGuard();
-  // PBKDF2 를 몇백 ms 돌리는 동안 두 번 눌리지 않게 잠근다.
+  // 서버 응답이나 PBKDF2 해시를 기다리는 동안 두 번 눌리지 않게 잠근다.
   const { isSubmitting, run: runSubmit } = useSubmitLock();
   const [alertMessage, setAlertMessage] = useState("");
 
@@ -322,7 +322,12 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
               <div style={hairlineStyle} />
             </div>
           </div>
-          <SocialLogin />
+          <SocialLogin
+            onSignedIn={(user) => {
+              signIn(user);
+              navigate(returnTo || config.next);
+            }}
+          />
         </>
       )}
 

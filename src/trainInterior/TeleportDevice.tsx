@@ -147,7 +147,7 @@ export default function TeleportDevice({ outline }: TeleportDeviceProps) {
   const lightRef = useRef<THREE.PointLight>(null);
 
   useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
+    const t = clock.elapsedTime;
     const pulse = 0.5 + 0.5 * Math.sin(t * controls.pulseSpeed);
     const core = coreRef.current;
     if (core) {

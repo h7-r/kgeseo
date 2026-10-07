@@ -89,7 +89,7 @@ export interface CaseBundleZone {
 }
 
 export interface CaseBundleResponse {
-  data: { entry_zone_id: string; zones: CaseBundleZone[] };
+  data: { case_id: string; entry_zone_id: string; zones: CaseBundleZone[] };
 }
 
 export interface PlaySessionState {
@@ -98,7 +98,12 @@ export interface PlaySessionState {
 }
 
 export interface PlaySessionResponse {
-  data: { play_session_id: string; state: PlaySessionState };
+  data: { play_session_id: string; case_id: string; state: PlaySessionState };
+}
+
+/** 조회(GET) 응답에만 completed_at 이 있다. */
+export interface PlaySessionReadResponse {
+  data: PlaySessionResponse["data"] & { completed_at: string | null };
 }
 
 export interface InteractionRequest {
@@ -139,7 +144,7 @@ export const createPlaySession = (anonymousSessionId: string, caseId: string) =>
     jsonInit("POST", { anonymous_session_id: anonymousSessionId, case_id: caseId }),
   );
 export const getPlaySession = (playSessionId: string) =>
-  backendRequest<PlaySessionResponse>(`/api/v1/play-sessions/${encodeURIComponent(playSessionId)}`);
+  backendRequest<PlaySessionReadResponse>(`/api/v1/play-sessions/${encodeURIComponent(playSessionId)}`);
 export const submitInteraction = (playSessionId: string, interaction: InteractionRequest) =>
   backendRequest<InteractionResult>(
     `/api/v1/play-sessions/${encodeURIComponent(playSessionId)}/interactions`,

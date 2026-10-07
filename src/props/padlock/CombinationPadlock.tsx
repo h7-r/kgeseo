@@ -264,6 +264,7 @@ export default function CombinationPadlock({
   const shownDigits = lock?.digits ?? seedDigits;
   const selectedRow = lock?.selectedRow ?? 0;
   const unlocked = !!lock?.unlocked;
+  const opensInstantly = !!lock?.openInstantly;
 
   const lockRef = useRef<THREE.Group>(null);
   const shakeRef = useRef<THREE.Group>(null);
@@ -279,7 +280,7 @@ export default function CombinationPadlock({
       shake.rotation.z = v * 0.17;
       shake.rotation.x = v * 0.05;
     }
-    progress.current = unlocked ? Math.min(1, progress.current + dt / OPENING_MOTION.duration) : 0;
+    progress.current = opensInstantly ? 1 : unlocked ? Math.min(1, progress.current + dt / OPENING_MOTION.duration) : 0;
     const t = progress.current;
     const pose = openingPose(t);
     if (t > 0 && t < 1) requestShadowUpdates(0.2);

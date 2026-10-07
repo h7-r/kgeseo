@@ -13,11 +13,14 @@ import { createChangeSignal } from "@/lib/changeSignal";
 export const SWITCH_ID_MARK = ":switch:";
 
 const openIds = new Set<string>();
+/** 서버 진행 상태로 되살린 문 — 화면이 여는 동작 없이 바로 열린 각도로 그린다. */
+const restoredOpenIds = new Set<string>();
 const signal = createChangeSignal();
 
 export const isOpen = (id: string) => openIds.has(id);
 
 export function toggleHinge(id: string) {
+  restoredOpenIds.delete(id);
   if (openIds.has(id)) openIds.delete(id);
   else openIds.add(id);
   signal.notify();
@@ -28,9 +31,20 @@ export function toggleHinge(id: string) {
 }
 
 export function closeHinge(id: string) {
+  restoredOpenIds.delete(id);
   if (!openIds.delete(id)) return;
   signal.notify();
 }
+
+/** 서버 진행 상태의 열린 문을 소리 없이 즉시 되살린다. */
+export function restoreOpen(id: string | null | undefined) {
+  if (!id || openIds.has(id)) return;
+  openIds.add(id);
+  restoredOpenIds.add(id);
+  signal.notify();
+}
+
+export const isRestoredOpen = (id: string) => restoredOpenIds.has(id);
 
 export const hingeStore = {
   version: signal.version,

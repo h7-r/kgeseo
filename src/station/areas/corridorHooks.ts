@@ -5,11 +5,13 @@ import { pickOutline } from "@/engine/leva/savedControls";
 import type { OutlineValues } from "@/engine/toon";
 import { exposeDevHook } from "@/debug/devHooks";
 import { registerSurface, unregisterSurface } from "@/lobby/placement";
-import { useLockExists, useLockUnlocked } from "@/props/combinationLock";
+import { restoreUnlocked, useLockExists, useLockUnlocked } from "@/props/combinationLock";
+import { restoreOpen } from "@/props/hingeState";
 import type { WorkLampPuzzleValues } from "@/props/workLampPuzzle/controls";
 import { useCorridorPower, useEndDoorReleased, useFullPower } from "@/props/workLampPuzzle/workLampState";
 import { corridorDepthBrightness, type CorridorDepthRule } from "@/station/corridor/depthShading";
 import { wallCabinetDoorId } from "@/station/corridor/wallCabinetId";
+import { PLAY_CONTRACT, usePlayFlag, usePlayStateSource, usePuzzleCompleted } from "@/server/playSession";
 import { MIN_X } from "@/station/layout/dimensions";
 import { passage } from "@/station/layout/passage";
 
@@ -116,6 +118,15 @@ export function useWallCabinetDoors(corridor: CorridorValues, isPadlockVisible: 
   const panelDoorId = wallCabinetDoorId("panel", spots.panel.x, spots.panel.z);
   const hasHydrantLock = useLockExists(hydrantDoorId);
   const isHydrantUnlocked = useLockUnlocked(hydrantDoorId);
+  // 이어 하기 — 서버에 남은 진행(퍼즐 완료·문 열림)을 소리·연출 없이 월드에 되살린다
+  const isServerPuzzleCompleted = usePuzzleCompleted(PLAY_CONTRACT.puzzleId);
+  const isServerCabinetOpen = usePlayFlag(PLAY_CONTRACT.unlockedFlag) === true;
+  const stateSource = usePlayStateSource();
+  useEffect(() => {
+    if (stateSource !== "restored") return;
+    if (isServerPuzzleCompleted) restoreUnlocked(hydrantDoorId);
+    if (isServerCabinetOpen) restoreOpen(hydrantDoorId);
+  }, [stateSource, isServerPuzzleCompleted, isServerCabinetOpen, hydrantDoorId]);
   // 자물쇠를 숨겨 놨으면(자리 맞추는 중) 문은 그냥 열린다
   const isHydrantLocked = isPadlockVisible && hasHydrantLock && !isHydrantUnlocked;
 

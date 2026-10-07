@@ -579,7 +579,12 @@ function prepareBody(
 // 그림자는 안 자른다(clipShadows 기본 false) — 몸은 실제로 거기 있다.
 //   near = m, 카메라에서 이만큼 앞부터 그린다. 0.32 는 손가락이 껍질처럼 잘렸고, 0.16 이면 손은 온전하고 목 단면도 안 보인다.
 //   bodyBack = m, 「몸만」일 때 몸을 뒤로 물리는 거리. 물리면 팔 길이 제한에 든 물건이 화면 밖으로 내려가 0 으로 둔다.
-const CLIPPING = { near: 0.16, bodyBack: 0 };
+//   crouchNear = m, 앉았을 때의 near. 앉으면 몸이 앞으로 숙여(Crouch 클립) 가슴·등이 면 앞에 놓이고 안쪽 등판이
+//     비쳤다. 그때만 면을 더 밀어 몸통까지 자른다. 손·팔뚝은 그보다 앞이라 남는다.
+//   showBody = 1인칭에서 내 몸을 그릴까. 기본 끔 — 카메라가 몸 안에 있어 어느 자세든 잘린 단면이 비친다.
+//     손만 남기려면 손 뼈 가중치 마스크(에셋·셰이더 작업)가 필요하다. 든 물건은 카메라 기준으로 따로 그려진다.
+//   콘솔에서 바로 맞춘다: `__game.clipping.crouchNear = 0.4`, `__game.clipping.showBody = true`
+const CLIPPING = { near: 0.16, crouchNear: 0.34, bodyBack: 0, showBody: false };
 exposeDevHook("clipping", CLIPPING);
 const clipPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 1e6);
 const CLIP_PLANES = [clipPlane];
@@ -1021,19 +1026,23 @@ function ChibiGameAvatar({
       attachClipPlanes();
     }
     // 게임이 프레임마다 내려 주는 「몸만 그려라」(물건을 들거나 [E] 로 뻗는 동안). prop 이면 집을 때마다 리렌더가 난다.
-    const bodyOnly = firstPersonBody || (!visible && !!state.firstPersonHands);
+    // firstPersonBody prop 으로 켠 경우는 showBody 와 상관없이 그린다.
+    const bodyOnly = firstPersonBody || (CLIPPING.showBody && !visible && !!state.firstPersonHands);
     // 몸만 켜지는 순간 한 번 더 붙인다 — 첫 프레임 뒤에 생긴 외곽선 껍데기가 안 잘린 채 목 단면을 비췄다.
     if (bodyOnly && !wasBodyOnly.current) attachClipPlanes();
     wasBodyOnly.current = bodyOnly;
     const shouldDraw = visible || bodyOnly;
     group.visible = shouldDraw;
     // 손뼈·주먹 중심·소켓을 상자에 얹는다. 쓰는 쪽은 본편이 정한다(이 파일은 본편을 모른다).
-    state.rightHand = prepared.handBones[1] ?? prepared.handBones[0] ?? null;
-    state.leftHand = prepared.handBones[0] ?? null;
-    state.rightPalm = prepared.palms.hand_r ?? null;
-    state.leftPalm = prepared.palms.hand_l ?? null;
-    state.rightGripSocket = prepared.gripSockets.hand_r ?? null;
-    state.leftGripSocket = prepared.gripSockets.hand_l ?? null;
+    // 몸을 안 그릴 때는 비운다 — 아래에서 바로 빠져나가 뼈가 멈추므로, 든 물건이 안 보이는 몸 속에 박힌다.
+    // 뼈가 없으면 쓰는 쪽이 카메라 기준 자리(1인칭 갈래)로 그린다.
+    const exportHands = shouldDraw;
+    state.rightHand = exportHands ? (prepared.handBones[1] ?? prepared.handBones[0] ?? null) : null;
+    state.leftHand = exportHands ? (prepared.handBones[0] ?? null) : null;
+    state.rightPalm = exportHands ? (prepared.palms.hand_r ?? null) : null;
+    state.leftPalm = exportHands ? (prepared.palms.hand_l ?? null) : null;
+    state.rightGripSocket = exportHands ? (prepared.gripSockets.hand_r ?? null) : null;
+    state.leftGripSocket = exportHands ? (prepared.gripSockets.hand_l ?? null) : null;
     if (!shouldDraw) return;
     const avatarScale = scale * (config.heightScale ?? 1);
 
@@ -1110,7 +1119,8 @@ function ChibiGameAvatar({
     // 1인칭: 시선축에 수직인 평면을 카메라 앞 near 에 세우고 그 뒤를 버린다.
     if (bodyOnly) {
       camera.getWorldDirection(_clipForward);
-      _clipPoint.copy(camera.position).addScaledVector(_clipForward, CLIPPING.near * scale);
+      const near = state.crouching ? CLIPPING.crouchNear : CLIPPING.near;
+      _clipPoint.copy(camera.position).addScaledVector(_clipForward, near * scale);
       clipPlane.normal.copy(_clipForward);
       // 평면식 n·p + c = 0. c = −n·q 면 q 뒤가 잘린다.
       clipPlane.constant = -_clipForward.dot(_clipPoint);

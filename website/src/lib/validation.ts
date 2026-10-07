@@ -123,34 +123,30 @@ export function suggestEmailTypo(raw: unknown): string {
   return closest ? `혹시 ${value.split("@")[0]}@${closest} 인가요?` : "";
 }
 
-const RESERVED_NICKNAMES = [
-  "관리자",
-  "운영자",
-  "운영팀",
-  "admin",
-  "administrator",
-  "root",
-  "system",
-  "test",
-  "테스트",
-  "왜곡",
-  "gm",
-];
-// 예시만 둔다. 실제 금칙어 목록은 길어서 서버가 맡는다.
-const BANNED_WORDS = ["시발", "씨발", "병신", "fuck", "shit"];
+// 서버(nickname_policy)와 같은 목록. 서버가 마지막에 한 번 더 막는다.
+const RESERVED_NICKNAMES = ["관리자", "운영자", "운영팀", "admin", "administrator", "root", "system", "왜곡", "gm"];
+const BANNED_WORDS = ["시발", "씨발", "병신", "개새끼", "좆", "보지", "자지", "fuck", "shit", "bitch"];
+// 숫자로 글자를 흉내 낸 우회(adm1n, 5hit)를 잡는다.
+const LEET: Record<string, string> = { 0: "o", 1: "i", 3: "e", 4: "a", 5: "s", 7: "t" };
 
 // 닉네임 칸이 반쪽 폭이라 문구는 16자 안팎으로 짧게 둔다.
 function checkNickname(raw: unknown): string {
-  const value = normalizeInput(raw).trim();
+  const original = String(raw ?? "");
+  // 다듬기 전에 본다. 끝에 붙은 탭 같은 제어 문자가 trim 으로 몰래 사라지지 않게.
+  if (/\p{C}/u.test(original)) return "사용할 수 없는 닉네임입니다.";
+  const value = original.normalize("NFKC").trim();
   if (!value) return "닉네임을 입력해주세요.";
   if (value.length < 2) return "2자 이상 입력해주세요.";
   if (value.length > MAX.nickname) return "12자까지 쓸 수 있습니다.";
   if (/\s/.test(value)) return "띄어쓰기는 쓸 수 없어요.";
   if (/[ㄱ-ㅎㅏ-ㅣ]/.test(value)) return "자음·모음만 따로 쓸 수 없어요.";
   if (!/^[가-힣A-Za-z0-9_]+$/.test(value)) return "특수문자는 _ 만 쓸 수 있어요.";
-  const lower = value.toLowerCase();
-  if (RESERVED_NICKNAMES.includes(lower)) return "사용할 수 없는 닉네임입니다.";
-  if (BANNED_WORDS.some((word) => lower.includes(word))) return "쓸 수 없는 단어가 있어요.";
+  const key = value.toLowerCase().replaceAll("_", "");
+  // 통째로 같을 때만 막는다. 짧은 금칙어가 들어 있다고 멀쩡한 낱말까지 막지 않게.
+  const candidates = [key, key.replace(/[013457]/g, (c) => LEET[c]), key.replace(/[0-9]+$/, "")];
+  if (candidates.some((c) => RESERVED_NICKNAMES.includes(c) || BANNED_WORDS.includes(c))) {
+    return "사용할 수 없는 닉네임입니다.";
+  }
   return "";
 }
 

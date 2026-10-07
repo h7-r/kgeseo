@@ -3,13 +3,17 @@ import { useEffect, type CSSProperties } from "react";
 
 import { PLAY_CONTRACT, PLAY_PHASE_LABELS, startPlaySession, usePlaySession } from "./playSession";
 
+function bootstrap() {
+  startPlaySession(PLAY_CONTRACT.caseId).catch((error: unknown) => {
+    console.error("[Play Session] bootstrap 실패", error);
+  });
+}
+
 export default function PlaySessionStatusPanel() {
   const status = usePlaySession();
 
   useEffect(() => {
-    startPlaySession().catch((error: unknown) => {
-      console.error("[Play Session] bootstrap 실패", error);
-    });
+    bootstrap();
   }, []);
 
   const isCompleted = status.savedState?.completed_puzzle_ids.includes(PLAY_CONTRACT.puzzleId);
@@ -27,6 +31,11 @@ export default function PlaySessionStatusPanel() {
         </span>
       )}
       {status.error && <span style={errorStyle}>{status.error}</span>}
+      {status.error && (
+        <button type="button" style={retryStyle} onClick={bootstrap}>
+          다시 확인
+        </button>
+      )}
     </aside>
   );
 }
@@ -63,4 +72,14 @@ const errorStyle: CSSProperties = {
   marginTop: 6,
   color: "#ef8b87",
   overflowWrap: "anywhere",
+};
+const retryStyle: CSSProperties = {
+  marginTop: 7,
+  padding: "4px 7px",
+  border: "1px solid rgba(225,232,242,.28)",
+  borderRadius: 4,
+  background: "#202936",
+  color: "#edf2f7",
+  cursor: "pointer",
+  font: "inherit",
 };

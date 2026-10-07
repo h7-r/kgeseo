@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     db_password: str
     db_name: str
     google_client_id: str = ""
+    naver_client_id: str = ""
+    naver_client_secret: str = ""
+    naver_redirect_uri: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

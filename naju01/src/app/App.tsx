@@ -20,9 +20,12 @@ import { DEFAULT_OUTLINE } from "../avatar/toonOutline";
 import { BASELINE, UNITS_PER_METER, VIEWPOINTS } from "../plan/sitePlan";
 import NajuScene, { type NajuSceneReport } from "../scene/NajuScene";
 import { DEFAULT_TERRAIN } from "../terrain/terrain";
+import { ArrivalCover, FirstFrameSignal } from "../transition/ArrivalFade";
+import { useArrivalFade } from "../transition/useArrivalFade";
 import ControlsHelp from "./ControlsHelp";
 import Dashboard from "./Dashboard";
 import {
+  IS_ARRIVING_FROM_HUB,
   IS_BLOOM_DISABLED,
   IS_DPR_AUTO,
   IS_LOW_QUALITY,
@@ -82,6 +85,8 @@ export default function App() {
     setMeshConfig((previous) => (typeof action === "function" ? previous && action(previous) : action));
   // 계기판·조작 안내는 화면을 꽤 가려서 그림을 볼 때는 H 로 치운다
   const [isDashboardVisible, setIsDashboardVisible] = useState(SHOW_DEV_TOOLS);
+  // 첫 프레임이 그려지면 검은 덮개가 걷힌다
+  const [isArrivalRevealed, revealArrival] = useArrivalFade(IS_ARRIVING_FROM_HUB);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -132,6 +137,7 @@ export default function App() {
             }}
           />
         )}
+        {IS_ARRIVING_FROM_HUB && <FirstFrameSignal onFirstFrame={revealArrival} />}
         <NajuScene
           active={locked}
           controlsRef={controlsRef}
@@ -160,6 +166,7 @@ export default function App() {
         )}
       </Canvas>
 
+      {IS_ARRIVING_FROM_HUB && <ArrivalCover revealed={isArrivalRevealed} />}
       {isDashboardVisible && <Dashboard reportRef={reportRef} />}
       {SHOW_DEV_TOOLS && !locked && <ControlsHelp />}
       {/* 다 숨겼을 때 되돌리는 법을 잊지 않게 작은 자국만 남긴다 */}

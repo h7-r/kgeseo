@@ -7,12 +7,6 @@ export const normalizeEmail = (email: unknown) =>
     .normalize("NFC")
     .trim()
     .toLowerCase();
-export const toNicknameKey = (nickname: unknown) =>
-  String(nickname || "")
-    .normalize("NFC")
-    .trim()
-    .toLowerCase();
-
 // 해시·소금은 절대 밖으로 내보내지 않는다. 이 모양 그대로 signIn 에 넘길 수 있다.
 export const toSessionUser = (account: AccountRecord): SessionUser => ({
   id: account.id,

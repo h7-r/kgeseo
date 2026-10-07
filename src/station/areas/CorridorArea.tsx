@@ -13,6 +13,7 @@ import SlidingWall from "@/station/corridor/SlidingWall";
 import FloorHintPaper from "@/station/hands/FloorHintPaper";
 import { dynamicColliders, hit, type ColliderBox } from "@/station/layout/collision";
 import { MIN_X } from "@/station/layout/dimensions";
+import { TutorialDirectionArrow } from "@/tutorial/TutorialDirection";
 import TutorialFloorMarker from "@/tutorial/TutorialFloorMarker";
 
 import type { CoinValues } from "../controls/coinControls";
@@ -283,6 +284,7 @@ export default function CorridorArea({
 
       <FloorHintPaper outline={outline} />
       <TutorialFloorMarker />
+      <TutorialDirectionArrow />
 
       {corridor.vendingVisible && (
         <VendingArea

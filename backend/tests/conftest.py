@@ -41,6 +41,10 @@ class FakeAsyncSession:
     async def scalar(self, statement: Any) -> Any:
         self.scalar_calls.append(statement)
         self.operation_log.append("scalar")
+        if isinstance(self.scalar_result, list):
+            if not self.scalar_result:
+                return None
+            return self.scalar_result.pop(0)
         return self.scalar_result
 
     async def execute(self, statement: Any) -> None:

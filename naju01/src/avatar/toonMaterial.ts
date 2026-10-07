@@ -91,11 +91,15 @@ uniform float _faceFlatten;
 varying float v_face;
 varying vec3 v_viewNormal;
 `;
+// v_cloth 를 정점마다 0/1 로 자르지 않는다. 목선 표식(naju01/tools/meshy_round_collar.py)은 경계가 정확히 1.5 인
+// 1.0~2.0 눈금이라, 자르면 경계가 삼각형 모서리를 따라서만 갈려 목둘레가 톱니처럼 찢겨 보였다.
+// _tint − 1 을 0~1 로 자르면 0.5 등고선이 삼각형 안을 가로지르는 매끈한 곡선이 된다. 하의(3)는 1 로 묶여 상의를 지나지 않는다.
 const VERTEX_NORMAL = `
   v_face = _face;
   v_tint = _tint;
-  // interpolate "is cloth" and "is bottom" separately (1->3 would pass through 2 = top)
-  v_cloth = _tint > 1.5 ? 1.0 : 0.0;
+  // keep the 1.0~2.0 ramp (see the Korean note above) instead of a per-vertex step;
+  // "is bottom" still steps, so a skin->bottom triangle never passes through 2 = top
+  v_cloth = clamp(_tint - 1.0, 0.0, 1.0);
   v_bottom = _tint > 2.5 ? 1.0 : 0.0;
   if (_face > 0.001 && _faceFlatten > 0.001) {
     vec3 sphere = normalize(position - _headCentre);

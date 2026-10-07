@@ -1,7 +1,6 @@
 import { getAccountData } from "./accountData";
 import { getConsents, withdrawConsents } from "./consents";
 import { getAccount, isStorageAvailable, run } from "./db";
-import { clearLoginAttempts } from "./loginLock";
 import { constantTimeEqual, formatHash, fromHex, hashPassword, parseHash, toHex } from "./passwordHash";
 import { normalizeEmail, toSessionUser } from "./records";
 import { STORE } from "./schema";
@@ -48,8 +47,6 @@ export async function resetPassword(email: string, newPassword: string): Promise
   await run(STORE.accounts, "readwrite", (store) =>
     store.put({ ...account, passwordHash: formatHash(toHex(salt), hash) }),
   );
-  // 새 비밀번호로 바로 들어올 수 있게 로그인 잠금도 푼다.
-  await clearLoginAttempts(key);
   return { ok: true };
 }
 
@@ -109,7 +106,5 @@ export async function deleteAccount(email: string): Promise<AccountActionResult>
   if (account?.id) await withdrawConsents(account.id);
   await run(STORE.accounts, "readwrite", (store) => store.delete(key));
   await run(STORE.accountData, "readwrite", (store) => store.delete(key));
-  // 같은 메일로 다시 가입한 사람이 지난 잠금을 물려받지 않게 한다.
-  await clearLoginAttempts(key);
   return { ok: true };
 }

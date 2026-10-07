@@ -48,7 +48,7 @@ export default function Drips({ spots, ceilingY, floorY, brightness, quietZs = [
   const lastPhase = useRef<number[]>([]);
 
   useFrame(({ clock, camera }) => {
-    const t = clock.getElapsedTime();
+    const t = clock.elapsedTime;
     for (let i = 0; i < spots.length; i++) {
       const spot = spots[i];
       const drop = dropRefs.current[i];

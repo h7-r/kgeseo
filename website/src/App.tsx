@@ -21,6 +21,7 @@ import { dispatchPageChange, scrollToTopSilently } from "@/lib/pageEvents";
 import { ROUTES, launchGame } from "@/navigation/routes";
 import ErrorPage from "@/pages/ErrorPage";
 import HomePage from "@/pages/home/HomePage";
+import SocialCallbackPage from "@/pages/SocialCallbackPage";
 import { getSessionUser, useSessionUser } from "@/services/session";
 import { useHeroCovering } from "@/state/heroCover";
 import { BACKDROP_ORIGIN } from "@/three/backdropOrigin";
@@ -39,6 +40,7 @@ export default function App() {
         <Routes>
           <Route path={ROUTES.home} element={<HomePage />} />
           <Route path={ROUTES.login} element={<AuthPage mode="login" />} />
+          <Route path={ROUTES.socialCallback} element={<SocialCallbackPage />} />
           <Route path={ROUTES.signup} element={<AuthPage mode="signup" />} />
           <Route path={ROUTES.forgotPassword} element={<AuthPage mode="forgotPassword" />} />
           <Route path={ROUTES.verifyCode} element={<AuthPage mode="verifyCode" />} />

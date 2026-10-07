@@ -37,6 +37,7 @@ import StationScene from "@/station/StationScene";
 import TrainInteriorScene from "@/trainInterior/TrainInteriorScene";
 import DispatchCard from "@/tutorial/DispatchCard";
 import TutorialPanel from "@/tutorial/TutorialPanel";
+import TutorialDirectionHud from "@/tutorial/TutorialDirection";
 
 import { useDevInventorySeed } from "./devInventorySeed";
 import ActionHint from "./overlays/ActionHint";
@@ -194,7 +195,8 @@ export default function App() {
           <EffectComposer
             autoClear={false}
             multisampling={IS_LOW_QUALITY ? 0 : IS_POSTFX_HIGH_QUALITY ? 8 : 2}
-            frameBufferType={IS_POSTFX_HIGH_QUALITY ? THREE.HalfFloatType : THREE.UnsignedByteType}
+            // 반정밀도(HalfFloat) 버퍼에서는 야외 씬이 통째로 까맣게 나온다(ANGLE Metal 실측). 바이트로 못 박는다.
+            frameBufferType={THREE.UnsignedByteType}
           >
             <Bloom intensity={0.45} luminanceThreshold={0.85} mipmapBlur />
             <Vignette offset={0.36} darkness={0.28} />
@@ -232,6 +234,7 @@ export default function App() {
       {/* 창이 떠도 숨기지 않는다 — 반짝임을 봐야 한다 */}
       <HintHud isPanelOpen={openLayer !== null} />
       <TutorialPanel covered={openLayer !== null || isTrain} />
+      {!openLayer && !isTrain && <TutorialDirectionHud />}
       <DispatchCard covered={openLayer !== null} isInTrain={isTrain} />
       {SHOW_DEV_TOOLS && <DevTools />}
       <CrashOverlays isGpuLost={isGpuLost} isSceneEmptied={isSceneEmptied} />

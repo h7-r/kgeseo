@@ -78,14 +78,14 @@ export default function CorridorLight({
   const turnOnAt = useRef(-1);
   const previousIntensity = useRef(intensity);
   useFrame(({ clock }) => {
-    const now = clock.getElapsedTime();
+    const now = clock.elapsedTime;
     if (previousIntensity.current <= 0 && intensity > 0) turnOnAt.current = now + turnOnDelay;
     if (intensity <= 0) turnOnAt.current = -1;
     previousIntensity.current = intensity;
     const isWaiting = turnOnAt.current > 0 && now < turnOnAt.current;
     let brightness = isWaiting ? 0 : 1;
     if (flicker && !isWaiting) {
-      const t = clock.getElapsedTime() + pattern.offset;
+      const t = clock.elapsedTime + pattern.offset;
       const p = t % pattern.period;
       for (const [start, duration] of pattern.offs) {
         if (p >= start && p < start + duration) {
