@@ -87,7 +87,7 @@
         }
       },
       "height": 1.45,
-      "glb": "/private/tmp/claude-501/-Users-derrick-Documents-GitHub-kgeseo/3f1b307a-8bb5-42db-8988-0d46830d341e/scratchpad/meshyglb/meshy-male.glb"
+      "glb": "meshyglb/meshy-male.glb"
     },
     "Female": {
       "scale": 0.74898,
@@ -165,7 +165,7 @@
         }
       },
       "height": 1.45,
-      "glb": "/private/tmp/claude-501/-Users-derrick-Documents-GitHub-kgeseo/3f1b307a-8bb5-42db-8988-0d46830d341e/scratchpad/meshyglb/meshy-female.glb"
+      "glb": "meshyglb/meshy-female.glb"
     }
   }
 }
