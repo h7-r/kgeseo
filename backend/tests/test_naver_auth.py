@@ -2,6 +2,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api.v1 import auth
+from app.models.app_user import AppUser
+from app.models.auth_identity import AuthIdentity
 from app.schemas.auth import GoogleUserResponse
 from app.services import naver_auth
 from app.services.naver_auth import (
@@ -12,10 +14,58 @@ from app.services.naver_auth import (
 )
 
 
+def make_user(
+    *,
+    user_id: str = "11111111-1111-4111-8111-111111111111",
+    email: str = "user@example.com",
+    nickname: str = "Naver User",
+) -> AppUser:
+    from datetime import datetime
+
+    now = datetime(2026, 10, 6, 12, 0, 0)
+    return AppUser(
+        id=user_id,
+        email=email,
+        nickname=nickname,
+        region=None,
+        terms_version="2026-09",
+        terms_accepted_at=now,
+        privacy_accepted_at=now,
+        age_confirmed_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def make_identity(
+    *,
+    user: AppUser | None = None,
+    subject: str = "naver-subject",
+) -> AuthIdentity:
+    from datetime import datetime
+
+    now = datetime(2026, 10, 6, 12, 0, 0)
+    app_user = user or make_user()
+    return AuthIdentity(
+        id="22222222-2222-4222-8222-222222222222",
+        app_user_id=app_user.id,
+        provider="naver",
+        provider_subject=subject,
+        password_hash=None,
+        created_at=now,
+        updated_at=now,
+    )
+
+
 def test_naver_login_returns_verified_profile(
     client: TestClient,
+    db_session,
     monkeypatch,
 ) -> None:
+    user = make_user()
+    db_session.scalar_result = make_identity(user=user)
+    db_session.get_result = user
+
     def verify(
         code: str,
         state: str,
@@ -51,6 +101,81 @@ def test_naver_login_returns_verified_profile(
         "picture": "https://example.com/profile.png",
     }
     assert "valid-code" not in response.text
+    assert "app_user_id" not in response.text
+    assert "password_hash" not in response.text
+
+
+def test_naver_login_creates_user_and_identity_for_new_email(
+    client: TestClient,
+    db_session,
+    monkeypatch,
+) -> None:
+    db_session.scalar_result = [None, None, None]
+
+    def verify(*args) -> GoogleUserResponse:
+        return GoogleUserResponse(
+            provider="naver",
+            subject="naver-subject",
+            email="User@Example.COM",
+            email_verified=None,
+            name="Naver User",
+            picture="https://example.com/profile.png",
+        )
+
+    monkeypatch.setattr(auth, "verify_naver_authorization_code", verify)
+
+    response = client.post(
+        "/api/v1/auth/naver",
+        json={"code": "valid-code", "state": "?ㅼ씠踰?state"},
+    )
+
+    assert response.status_code == 200
+    assert "app_user_id" not in response.json()
+    assert len(db_session.added) == 2
+    user = db_session.added[0]
+    identity = db_session.added[1]
+    assert isinstance(user, AppUser)
+    assert isinstance(identity, AuthIdentity)
+    assert user.email == "user@example.com"
+    assert user.nickname == "Naver User"
+    assert user.terms_version is None
+    assert user.terms_accepted_at is None
+    assert user.privacy_accepted_at is None
+    assert user.age_confirmed_at is None
+    assert identity.provider == "naver"
+    assert identity.provider_subject == "naver-subject"
+    assert identity.password_hash is None
+    assert "password_hash" not in response.text
+    assert "access-token" not in response.text
+
+
+def test_naver_login_requires_account_link_for_existing_email(
+    client: TestClient,
+    db_session,
+    monkeypatch,
+) -> None:
+    db_session.scalar_result = [None, make_user()]
+
+    def verify(*args) -> GoogleUserResponse:
+        return GoogleUserResponse(
+            provider="naver",
+            subject="naver-subject",
+            email="user@example.com",
+            email_verified=None,
+            name="Naver User",
+            picture=None,
+        )
+
+    monkeypatch.setattr(auth, "verify_naver_authorization_code", verify)
+
+    response = client.post(
+        "/api/v1/auth/naver",
+        json={"code": "valid-code", "state": "?ㅼ씠踰?state"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "account_link_required"
+    assert db_session.added == []
 
 
 def test_naver_login_reports_missing_server_configuration(
