@@ -8,6 +8,7 @@ from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
 from app.schemas.auth import GoogleUserResponse
 from app.services.local_auth import normalize_email, normalize_nickname, utc_now
+from app.services.nickname_policy import InvalidNicknameError, validate_nickname
 
 NICKNAME_SUFFIX_LENGTH = 4
 MAX_NICKNAME_ATTEMPTS = 20
@@ -28,6 +29,8 @@ class SocialAuthInvalidProfileError(Exception):
 async def authenticate_social_user(
     db: AsyncSession,
     profile: GoogleUserResponse,
+    *,
+    _nickname_attempt: int = 0,
 ) -> GoogleUserResponse:
     provider = normalize_provider(profile.provider)
     provider_subject = normalize_provider_subject(profile.subject)
@@ -74,6 +77,7 @@ async def authenticate_social_user(
     )
     db.add(user)
     db.add(identity)
+    attempted_nickname = user.nickname
 
     try:
         await db.commit()
@@ -91,6 +95,14 @@ async def authenticate_social_user(
             return profile
         if await get_user_by_email(db, email) is not None:
             raise AccountLinkRequiredError from error
+        if await nickname_exists(db, attempted_nickname):
+            if _nickname_attempt >= MAX_NICKNAME_ATTEMPTS - 1:
+                raise SocialAuthConflictError from error
+            return await authenticate_social_user(
+                db,
+                profile,
+                _nickname_attempt=_nickname_attempt + 1,
+            )
         raise
 
     await db.refresh(user)
@@ -136,18 +148,24 @@ async def make_unique_nickname(
     display_name: str | None,
     email: str,
 ) -> str:
-    base = normalize_nickname(display_name or "") or normalize_nickname(
-        email.split("@", 1)[0],
-    )
-    base = base or "user"
-    base = base[:32]
-    if not await nickname_exists(db, base):
+    try:
+        base = validate_nickname(display_name or "")
+    except InvalidNicknameError:
+        base = "user"
+        use_fallback = True
+    else:
+        use_fallback = False
+    if not use_fallback and not await nickname_exists(db, base):
         return base
 
     suffix_space = NICKNAME_SUFFIX_LENGTH + 1
-    truncated_base = base[: 32 - suffix_space] or "user"
+    truncated_base = base[: 12 - suffix_space] or "user"
     for _ in range(MAX_NICKNAME_ATTEMPTS):
         candidate = f"{truncated_base}_{uuid4().hex[:NICKNAME_SUFFIX_LENGTH].upper()}"
+        try:
+            candidate = validate_nickname(candidate)
+        except InvalidNicknameError:
+            candidate = validate_nickname(f"user_{uuid4().hex[:4].upper()}")
         if not await nickname_exists(db, candidate):
             return candidate
 

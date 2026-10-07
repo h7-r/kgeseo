@@ -22,8 +22,9 @@
    「같아 보이는데 다른 값」이 생겨 중복 검사·로그인이 어긋난다.
    · NFC 정규화 — 맥에서 복사한 한글은 자모가 풀린(NFD) 채로 올 때가 있다.
      「가」 한 글자가 「ㄱ+ㅏ」 두 글자로 저장되면 같은 닉네임이 둘 생긴다.
-   · 폭 없는 글자(​‌‍﻿)·제어 문자 제거 — 복사·붙여넣기로 몰래 들어온다. */
-const 안보이는글자 = /[\u0000-\u001f\u007f​-‍⁠﻿]/g;
+   · 폭 없는 글자와 제어 문자 제거 — 복사·붙여넣기로 몰래 들어온다. */
+// eslint-disable-next-line no-control-regex -- 기존 입력 정리용 제어 문자 범위
+const 안보이는글자 = /[\u0000-\u001f\u007f\u200b-\u200d\u2060\ufeff]/g;
 export function 다듬기(v) {
   return String(v ?? "").normalize("NFC").replace(안보이는글자, "");
 }
@@ -94,19 +95,22 @@ export function 메일오타(원래) {
    · 운영자 사칭이 되는 이름, 테스트 계정 이름(TEST)은 못 쓴다
    · 욕설 금칙어는 목록이 길어 서버(/nickname/check)가 맡는다 — 여기선 예시만 막는다
    · 문구는 짧게 — 닉네임 칸이 반쪽 폭이라 라벨 옆에 16자 안팎만 들어간다 */
-const 예약닉네임 = ["관리자", "운영자", "운영팀", "admin", "administrator", "root", "system", "test", "테스트", "왜곡", "gm"];
-const 금칙어 = ["시발", "씨발", "병신", "fuck", "shit"]; // 예시. 실제 목록은 서버에 둔다
+const 예약닉네임 = ["관리자", "운영자", "운영팀", "admin", "administrator", "root", "system", "왜곡", "gm"];
+const 금칙어 = ["시발", "씨발", "병신", "개새끼", "좆", "보지", "자지", "fuck", "shit", "bitch"];
 function 닉네임규칙(원래) {
-  const v = 다듬기(원래).trim();
+  const 원문 = String(원래 ?? "");
+  if (/[\p{C}]/u.test(원문)) return "사용할 수 없는 닉네임입니다.";
+  const v = 원문.normalize("NFKC").trim();
   if (!v) return "닉네임을 입력해주세요.";
   if (v.length < 2) return "2자 이상 입력해주세요.";
   if (v.length > 최대길이.닉네임) return "12자까지 쓸 수 있습니다.";
   if (/\s/.test(v)) return "띄어쓰기는 쓸 수 없어요.";
   if (/[ㄱ-ㅎㅏ-ㅣ]/.test(v)) return "자음·모음만 따로 쓸 수 없어요.";
   if (!/^[가-힣A-Za-z0-9_]+$/.test(v)) return "특수문자는 _ 만 쓸 수 있어요.";
-  const 작게 = v.toLowerCase();
-  if (예약닉네임.includes(작게)) return "사용할 수 없는 닉네임입니다.";
-  if (금칙어.some((w) => 작게.includes(w))) return "쓸 수 없는 단어가 있어요.";
+  const 작게 = v.toLowerCase().replaceAll("_", "");
+  const 치환표 = { 0: "o", 1: "i", 3: "e", 4: "a", 5: "s", 7: "t" };
+  const 후보들 = [작게, 작게.replace(/[013457]/g, (c) => 치환표[c]), 작게.replace(/[0-9]+$/, "")];
+  if (후보들.some((c) => 예약닉네임.includes(c) || 금칙어.includes(c))) return "사용할 수 없는 닉네임입니다.";
   return "";
 }
 

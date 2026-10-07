@@ -132,7 +132,8 @@ def test_google_login_creates_user_and_identity_for_new_email(
     assert isinstance(user, AppUser)
     assert isinstance(identity, AuthIdentity)
     assert user.email == "user@example.com"
-    assert user.nickname == "Test User"
+    assert user.nickname.startswith("user_")
+    assert len(user.nickname) == 9
     assert user.terms_version is None
     assert user.terms_accepted_at is None
     assert user.privacy_accepted_at is None

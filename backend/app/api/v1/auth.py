@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.session import get_db
 from app.schemas.auth import (
+    EmailExistsRequest,
     GoogleLoginRequest,
     GoogleUserResponse,
     LocalAuthResponse,
@@ -11,6 +12,7 @@ from app.schemas.auth import (
     LocalLoginRequest,
     LocalRegisterRequest,
     NaverLoginRequest,
+    NicknameExistsRequest,
 )
 from app.services import local_auth
 from app.services.google_auth import (
@@ -26,6 +28,7 @@ from app.services.naver_auth import (
     NaverTokenExchangeError,
     verify_naver_authorization_code,
 )
+from app.services.nickname_policy import InvalidNicknameError, validate_nickname
 from app.services.social_auth import (
     AccountLinkRequiredError,
     SocialAuthConflictError,
@@ -127,6 +130,8 @@ async def register_local_account(
 ) -> LocalAuthResponse:
     try:
         user = await local_auth.register_user(db, request)
+    except InvalidNicknameError as error:
+        raise invalid_nickname_exception() from error
     except local_auth.EmailAlreadyRegisteredError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -167,21 +172,37 @@ async def login_local_account(
     return LocalAuthResponse(user=local_auth.user_to_payload(user))
 
 
-@router.get("/email-exists", response_model=LocalExistsResponse)
+@router.post("/email-exists", response_model=LocalExistsResponse)
 async def check_email_exists(
-    email: str = Query(min_length=1, max_length=254),
+    request: EmailExistsRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> LocalExistsResponse:
-    return LocalExistsResponse(exists=await local_auth.email_exists(db, email))
+    response.headers["Cache-Control"] = "no-store"
+    return LocalExistsResponse(exists=await local_auth.email_exists(db, request.email))
 
 
-@router.get("/nickname-exists", response_model=LocalExistsResponse)
+@router.post("/nickname-exists", response_model=LocalExistsResponse)
 async def check_nickname_exists(
-    nickname: str = Query(min_length=1, max_length=32),
+    request: NicknameExistsRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> LocalExistsResponse:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        nickname = validate_nickname(request.nickname)
+    except InvalidNicknameError as error:
+        raise invalid_nickname_exception() from error
     return LocalExistsResponse(
         exists=await local_auth.nickname_exists(db, nickname),
+    )
+
+
+def invalid_nickname_exception() -> HTTPException:
+    return HTTPException(
+        status_code=422,
+        detail={"code": "invalid_nickname", "message": "사용할 수 없는 닉네임입니다."},
+        headers={"Cache-Control": "no-store"},
     )
 
 

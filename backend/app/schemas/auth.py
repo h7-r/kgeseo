@@ -29,7 +29,7 @@ class LocalRegisterConsent(BaseModel):
 class LocalRegisterRequest(BaseModel):
     email: str = Field(min_length=1, max_length=254)
     password: str = Field(min_length=1, max_length=128)
-    nickname: str = Field(min_length=1, max_length=32)
+    nickname: str
     region: str | None = Field(default=None, max_length=32)
     consent: LocalRegisterConsent
 
@@ -54,3 +54,11 @@ class LocalAuthResponse(BaseModel):
 
 class LocalExistsResponse(BaseModel):
     exists: bool
+
+
+class EmailExistsRequest(BaseModel):
+    email: str = Field(min_length=1, max_length=254)
+
+
+class NicknameExistsRequest(BaseModel):
+    nickname: str

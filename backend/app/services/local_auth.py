@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
 from app.schemas.auth import LocalRegisterRequest
+from app.services.nickname_policy import validate_nickname
 
 PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
 PASSWORD_HASH_ITERATIONS = 210_000
@@ -126,7 +127,7 @@ async def nickname_exists(db: AsyncSession, nickname: str) -> bool:
 
 async def register_user(db: AsyncSession, request: LocalRegisterRequest) -> AppUser:
     email = normalize_email(request.email)
-    nickname = normalize_nickname(request.nickname)
+    nickname = validate_nickname(request.nickname)
     region = normalize_nickname(request.region or "") or None
 
     if not email or not nickname:
