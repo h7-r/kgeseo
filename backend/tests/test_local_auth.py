@@ -139,7 +139,7 @@ def test_register_local_account_rejects_blank_nickname_after_normalization(
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Invalid local account input."
+    assert response.json()["detail"]["code"] == "invalid_nickname"
     assert db_session.added == []
 
 
@@ -234,7 +234,7 @@ def test_login_local_account_rejects_missing_email(client, db_session):
 def test_email_exists(client, db_session):
     db_session.scalar_result = make_user()
 
-    response = client.get("/api/v1/auth/email-exists?email=sejin@example.com")
+    response = client.post("/api/v1/auth/email-exists", json={"email": "sejin@example.com"})
 
     assert response.status_code == 200
     assert response.json() == {"exists": True}
@@ -243,7 +243,7 @@ def test_email_exists(client, db_session):
 def test_nickname_exists(client, db_session):
     db_session.scalar_result = None
 
-    response = client.get("/api/v1/auth/nickname-exists?nickname=세진")
+    response = client.post("/api/v1/auth/nickname-exists", json={"nickname": "세진"})
 
     assert response.status_code == 200
     assert response.json() == {"exists": False}

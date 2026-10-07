@@ -265,16 +265,18 @@ export async function 잠김남은시간(이메일) {
 
 /** 이 이메일로 이미 가입했나 */
 export async function 이미있나(이메일) {
-  const 답 = await 인증요청(`/api/v1/auth/email-exists?email=${encodeURIComponent(다듬기(이메일))}`, {
-    method: "GET",
+  const 답 = await 인증요청("/api/v1/auth/email-exists", {
+    method: "POST",
+    body: JSON.stringify({ email: 다듬기(이메일) }),
   });
   return Boolean(답.좋음 && 답.내용?.exists);
 }
 
 /** 이 닉네임을 누가 쓰고 있나 (대소문자 무시: Test = TEST) */
 export async function 닉네임있나(닉네임) {
-  const 답 = await 인증요청(`/api/v1/auth/nickname-exists?nickname=${encodeURIComponent(String(닉네임 || "").normalize("NFC").trim())}`, {
-    method: "GET",
+  const 답 = await 인증요청("/api/v1/auth/nickname-exists", {
+    method: "POST",
+    body: JSON.stringify({ nickname: String(닉네임 || "").normalize("NFKC").trim() }),
   });
   return Boolean(답.좋음 && 답.내용?.exists);
 }
@@ -298,6 +300,9 @@ export async function 가입({ 이메일, 비밀번호, 닉네임, 지역, 동�
   });
 
   if (!답.좋음) {
+    if (답.내용?.detail?.code === "invalid_nickname") {
+      return { 좋음: false, 칸: "닉네임", 까닭: "사용할 수 없는 닉네임입니다." };
+    }
     if (답.상태 === 409 && 답.내용?.detail === "Email already registered.") {
       return { 좋음: false, 칸: "이메일", 까닭: "이미 가입된 이메일입니다. 로그인해 주세요." };
     }
