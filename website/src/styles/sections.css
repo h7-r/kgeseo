@@ -1,0 +1,167 @@
+.branch-dot {
+  transition:
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    transform 0.16s var(--ease-smooth);
+}
+.branch-dot:hover {
+  transform: translateY(-3px);
+  border-color: rgba(50, 82, 150, 0.7) !important;
+}
+.branch-dot:active {
+  transform: scale(0.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .branch-dot {
+    transition: none;
+  }
+}
+
+/* 글자가 바닥에 서 있고 그림자가 뒤쪽 바닥에 눕는다. ::before 는 data-text 를 다시 써서 바닥선(84%)에서
+   납작하게 눕히고, ::after 는 닿은 자리의 접지 그림자. isolation 이 없으면 그림자가 히어로 영상 뒤로 숨는다. */
+.floor-shadow {
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+  isolation: isolate;
+}
+.floor-shadow::before {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  color: rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  transform-origin: 50% 84%;
+  transform: scaleY(-0.55) skewX(-42deg);
+  filter: blur(0.9px);
+  /* 뒤집힌 상자라 to top 이 화면에선 아래 방향이다 */
+  -webkit-mask-image: linear-gradient(to top, #000 14%, rgba(0, 0, 0, 0.5) 55%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 14%, rgba(0, 0, 0, 0.5) 55%, transparent 100%);
+  pointer-events: none;
+}
+.floor-shadow::after {
+  content: "";
+  position: absolute;
+  left: 1%;
+  right: 1%;
+  bottom: 16%;
+  height: 7px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.26) 0%, rgba(0, 0, 0, 0.1) 55%, transparent 75%);
+  filter: blur(3px);
+  transform: translateY(50%);
+  pointer-events: none;
+}
+
+/* --enter(가운데로 올라오는 동안 0→1)와 --progress(멈춘 뒤 0→1)는 JS 가 넣는다.
+   --camera 는 멈춘 뒤 앞 42% 동안 0→1, 끝에서 느려지게 1-(1-t)² 로 휜다.
+   scale·rotateX·rotate 가 한 숫자에 묶여 줌이 아니라 카메라가 물러나는 느낌이 난다. */
+.case-file {
+  --enter: 0;
+  --progress: 0;
+  --camera-linear: clamp(0, calc(var(--progress) / 0.42), 1);
+  --camera: calc(1 - (1 - var(--camera-linear)) * (1 - var(--camera-linear)));
+  background: #3b3f42 !important; /* 그림이 오기 전엔 그림 평균색 */
+}
+.case-file__window {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  perspective: 1400px;
+  perspective-origin: 60% 40%;
+}
+/* 기울어 있는 동안은 늘 1.3배 이상이라 네 모서리가 화면 밖에 있다 */
+.case-file__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform-origin: 66% 42%;
+  transform: translate3d(0, calc((1 - var(--enter)) * 70px), 0) rotateX(calc((1 - var(--camera)) * 7deg))
+    rotate(calc((1 - var(--camera)) * -2.5deg)) scale(calc(1.9 - var(--enter) * 0.08 - var(--camera) * 0.82));
+  filter: brightness(calc(0.4 + var(--enter) * 0.12 + var(--camera) * 0.38)) saturate(0.9);
+  will-change: transform, filter;
+}
+.case-file__shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: calc(0.35 + var(--camera) * 0.65);
+  background:
+    linear-gradient(90deg, rgba(1, 4, 10, 0.78) 0%, rgba(1, 4, 10, 0.35) 45%, rgba(1, 4, 10, 0) 70%),
+    linear-gradient(0deg, rgba(1, 4, 10, 0.85) 0%, rgba(1, 4, 10, 0) 45%),
+    linear-gradient(180deg, rgba(1, 4, 10, 0.6) 0%, rgba(1, 4, 10, 0) 18%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .case-file__image {
+    transform: none;
+    filter: brightness(0.85);
+  }
+}
+
+/* .card:focus-visible 보다 뒤에 와야 카드 위의 미리보기 초점선이 이긴다 */
+.preview-trigger {
+  cursor: pointer;
+  outline: none;
+}
+.preview-trigger:focus-visible {
+  outline: 2px solid var(--color-accent-light);
+  outline-offset: 4px;
+}
+
+/* 고른 카드 표시. 초점선을 inline 으로 지우면 키보드로 옮겨 다닐 때 어디 있는지 안 보인다. */
+.gallery-card.is-active {
+  outline: 2px solid rgba(50, 82, 150, 0.85);
+}
+.gallery-card:focus-visible {
+  outline: 2px solid var(--color-accent-light);
+  outline-offset: 4px;
+}
+.preview-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 44px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px 10px 14px;
+  border-radius: 999px;
+  background: rgba(5, 11, 26, 0.72);
+  border: 1px solid rgba(159, 178, 234, 0.45);
+  color: var(--color-text-bright);
+  font-size: 16px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 8px);
+  transition:
+    opacity 0.22s ease,
+    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.preview-trigger:hover .preview-badge,
+.preview-trigger:focus-visible .preview-badge {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.preview-badge.preview-badge--card {
+  top: 36%;
+  bottom: auto;
+  transform: translate(-50%, -40%);
+}
+.preview-trigger:hover .preview-badge.preview-badge--card,
+.preview-trigger:focus-visible .preview-badge.preview-badge--card {
+  transform: translate(-50%, -50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .preview-badge {
+    transition: none;
+  }
+}

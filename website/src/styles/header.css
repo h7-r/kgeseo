@@ -1,0 +1,45 @@
+/* fixed 는 변형이 없는 바깥 칸에 준다 — transform 이 걸린 요소 안에서는 fixed 가 그 요소를 기준으로 잡힌다.
+   내려갈 땐 비켜 주고, 올라오는 순간 다시 나타난다. */
+.site-header {
+  transition:
+    transform 0.34s var(--ease-smooth),
+    background-color 0.3s ease,
+    box-shadow 0.3s ease;
+  will-change: transform;
+}
+/* backdrop-filter 는 쓰지 않는다 — 뒤 내용이 계속 움직여 매 프레임 흐림을 새로 계산하게 된다 */
+.site-header.is-solid {
+  background: rgba(1, 4, 10, 0.72);
+  box-shadow: 0 10px 30px -22px rgba(0, 0, 0, 0.95);
+}
+.site-header.is-hidden {
+  transform: translateY(-104%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-header {
+    transition: none;
+  }
+  .site-header.is-hidden {
+    transform: none;
+  }
+}
+
+.header-search__input {
+  border: none;
+  border-bottom: 1px solid rgba(50, 82, 150, 0.35);
+  border-radius: 0;
+  background: transparent;
+  padding: 4px 2px 6px;
+  color: var(--color-text-bright);
+  transition: border-color 0.18s ease;
+}
+.header-search__input:focus {
+  outline: none;
+  border-bottom-color: var(--color-blue-mid);
+}
+/* 브라우저가 붙이는 X 표는 밑줄 모양과 안 맞는다 */
+.header-search__input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}

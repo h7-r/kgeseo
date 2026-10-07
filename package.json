@@ -5,11 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
     "preview": "vite preview",
-    "검사": "node 도구/선언순서검사.mjs",
-    "로비검사": "node 도구/로비검사.mjs"
+    "format": "prettier --write src website",
+    "format:check": "prettier --check src website",
+    "check:lobby": "node tools/lobby-check.mjs",
+    "check:declarations": "node tools/declaration-order.mjs",
+    "photo:grip": "node tools/grip-photo.mjs",
+    "web:dev": "vite website",
+    "web:build": "tsc -p website && vite build website",
+    "web:typecheck": "tsc -p website",
+    "web:preview": "vite preview website --port 5175"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
@@ -26,12 +34,17 @@
     "@gltf-transform/cli": "^4.5.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^6.0.4",
     "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.7.0",
     "playwright": "^1.62.1",
+    "prettier": "^3.9.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.0",
     "vite": "^8.2.0"
   }
 }
