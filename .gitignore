@@ -56,7 +56,7 @@ tmp/
 output/
 outputs/
 undefined/
-Claude outputs/
+*outputs/
 프로젝트파일/
 public/references/
 
