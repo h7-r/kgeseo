@@ -1,4 +1,4 @@
-// 구역 바닥을 코드로 만든다(옛 지형 경로 — Leva 「블렌더지형」을 끄면 이쪽이 땅을 그린다).
+// 구역 바닥을 코드로 만든다(해석식 지형 — Leva 「블렌더지형」을 끄면 이쪽이 땅을 그린다).
 // 모델링이 아니라 코드인 이유: 절벽 높이가 아직 미정이고, 걷는 바닥(sitePlan 숫자)과 보이는 바닥이 어긋나면 안 된다.
 //
 // 툰 셰이딩은 위를 보는 바닥을 한 칸의 단색으로 뭉갠다 → 굴곡은 꼭짓점 색(알베도)에 굽는다.
@@ -118,6 +118,8 @@ export const GROUND_STYLE: Record<GroundStyleCode, GroundStyle> = {
 };
 
 export type Noise2D = (x: number, z: number) => number;
+/** (x, z) 미터 → 그 자리 높이(m) */
+export type HeightAt = (x: number, z: number) => number;
 
 /** 시드 고정 값소음(세 겹). 시드가 같으면 팀원 화면에도 똑같이 뜬다. */
 export function createNoise(seed: number): Noise2D {
@@ -278,14 +280,14 @@ export function buildGround({ surface, core, cliff, cellsPerMeter, normalExagger
 }
 
 /** 돌 발치 그늘을 칠할 때 쓰는 원 */
-export interface ScatterFootprint {
+interface ScatterFootprint {
   x: number;
   z: number;
   radius: number;
 }
 
 /** 인스턴스로 심는 자갈 자리(편집기가 하나씩 고른다) */
-export interface PebbleSpot {
+interface PebbleSpot {
   x: number;
   y: number;
   z: number;
@@ -317,8 +319,8 @@ export function buildGroundScatter({
   canPlace,
 }: BuildGroundScatterOptions) {
   const random = makeRandom(seed);
-  // 돌 모양 표본 여섯을 만들던 자리 — 모양은 이제 인스턴스 무리가 따로 만든다.
-  // 그래도 난수 차례는 그대로 소비해야 자리·색이 손 배치(edits.json)와 어긋나지 않는다.
+  // 돌 모양 여섯 벌 몫의 난수를 먼저 소비한다. 모양은 인스턴스 무리가 따로 만들지만,
+  // 자리·색이 이 난수 차례로 손 배치(edits.json)와 맞물려 있다.
   for (let i = 0; i < 6; i++) createRockShape(random).dispose();
 
   const w = core.x[1] - core.x[0];

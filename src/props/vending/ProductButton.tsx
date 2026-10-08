@@ -9,8 +9,7 @@ import { Interactable } from "@/lobby/AimTracker";
 import { aim } from "@/lobby/interactions";
 import { heldCoin } from "@/props/coinState";
 import { buttonLight, pressDepth, type VendingId } from "@/props/vendingMachineState";
-
-import { worldPositionOf } from "@/props/shared/worldPosition";
+import { worldPositionOf } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
 type Corner = [number, number, number];

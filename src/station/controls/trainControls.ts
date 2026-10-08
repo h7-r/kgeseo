@@ -144,6 +144,5 @@ export function usePlatformEndWallControls() {
 }
 
 export type TrainControls = ReturnType<typeof useTrainControls>;
-export type TrainValues = TrainControls["train"];
 export type BackdropValues = TrainControls["backdrop"];
 export type PlatformEndWallValues = ReturnType<typeof usePlatformEndWallControls>;

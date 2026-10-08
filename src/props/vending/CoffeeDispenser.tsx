@@ -10,11 +10,11 @@ import { Highlight } from "@/lobby/Highlight";
 import { heldCoin } from "@/props/coinState";
 import { heldDrink, pickUpCup } from "@/props/drinkState";
 import { clearCup, toggleDoor, vendingMachineStore, type VendingId } from "@/props/vendingMachineState";
-
-import { mergedBoxes } from "./common";
-import { worldPositionOf } from "@/props/shared/worldPosition";
-import { makeDrainTexture } from "./textures";
+import { worldPositionOf } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
+
+import { mergedBoxes } from "./geometry";
+import { makeDrainTexture } from "./textures";
 
 interface CoffeeDispenserProps {
   y: number;

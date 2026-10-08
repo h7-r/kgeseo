@@ -8,7 +8,7 @@ import { NOZZLE_DIMENSIONS } from "@/props/hydrantCabinet/nozzleGeometry";
 import { SWITCH_ID_MARK } from "@/props/hingeState";
 import { nozzleLocation } from "@/props/nozzleState";
 import { areAllCircuitsLive, isCircuitLive, registerSwitchIds, type WireColor } from "@/props/panelWiring";
-import type { HighlightSettings } from "@/props/shared/highlightSettings";
+import type { HighlightSettings } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
 import BreakerSwitch from "./BreakerSwitch";

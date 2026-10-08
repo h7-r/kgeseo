@@ -10,16 +10,10 @@ import { makeRandom } from "@/engine/random";
 
 import { toBaseOrigin } from "../placement/instanceGroups";
 import { UNITS_PER_METER } from "../plan/sitePlan";
+import { unindex } from "../story/pieceGeometry";
 import { applyVertexColors } from "../terrain/ground";
 
-// 정이십면체와 합치려면 형식이 같아야 해 인덱스를 푼다
-const flatten = (geometry: THREE.BufferGeometry) => {
-  const flat = geometry.toNonIndexed();
-  geometry.dispose();
-  return flat;
-};
-
-export interface PersonOptions {
+interface PersonOptions {
   /** m (기본 1.7 — §3 의 「사람 자」) */
   height?: number;
   x?: number;
@@ -56,23 +50,23 @@ function buildPerson({
     pieces.push(applyVertexColors(geometry, color));
   };
 
-  // 다리가 갈려야 사람 실루엣이다. 원뿔대 하나로 뭉개면 멀리서 바위 기둥처럼 보였다.
+  // 다리가 갈려야 사람 실루엣이다. 원뿔대 하나로 뭉개면 멀리서 바위 기둥처럼 보인다.
   for (const side of [-1, 1]) {
     place(
-      flatten(new THREE.CylinderGeometry(height * 0.045 * u, height * 0.055 * u, height * 0.47 * u, 6, 1)),
+      unindex(new THREE.CylinderGeometry(height * 0.045 * u, height * 0.055 * u, height * 0.47 * u, 6, 1)),
       [side * height * 0.055, height * 0.235, 0],
       clothDark,
     );
   }
   // 허리
   place(
-    flatten(new THREE.CylinderGeometry(height * 0.1 * u, height * 0.115 * u, height * 0.12 * u, 7, 1)),
+    unindex(new THREE.CylinderGeometry(height * 0.1 * u, height * 0.115 * u, height * 0.12 * u, 7, 1)),
     [0, height * 0.52, 0],
     clothDark,
   );
   // 몸통 — 어깨로 갈수록 살짝 넓어진다
   place(
-    flatten(new THREE.CylinderGeometry(height * 0.12 * u, height * 0.095 * u, height * 0.28 * u, 7, 1)),
+    unindex(new THREE.CylinderGeometry(height * 0.12 * u, height * 0.095 * u, height * 0.28 * u, 7, 1)),
     [0, height * 0.71, 0],
     clothColor,
   );
@@ -81,7 +75,7 @@ function buildPerson({
   // 팔 — 실루엣의 폭
   for (const side of [-1, 1]) {
     place(
-      flatten(new THREE.CylinderGeometry(height * 0.028 * u, height * 0.032 * u, height * 0.32 * u, 5, 1)),
+      unindex(new THREE.CylinderGeometry(height * 0.028 * u, height * 0.032 * u, height * 0.32 * u, 5, 1)),
       [side * height * 0.125, height * 0.68, 0],
       clothColor,
     );

@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { button, folder, levaStore, useControls } from "leva";
 
 import { exposeDevHook } from "@/debug/devHooks";
@@ -10,17 +10,17 @@ import teamBaseline from "@/settings/teamBaseline.json";
 // 다음에 켤 때 저장값을 기본값 자리에 끼워 넣는다. 저장 열쇠 = 폴더 이름 + 항목 이름.
 const LEVA_STORAGE_KEY = "kgeseo.leva.v1";
 
-// 팀 기준값: 랑의 저장값 전체를 settings/teamBaseline.json 으로 커밋해 두고, 판 이름이 바뀔 때 한 번 팀원 저장값을 통째로 갈아 끼운다.
-// 새 기준을 낼 때는 랑 브라우저 콘솔에서 copy(localStorage.getItem("kgeseo.leva.v1")) → JSON 에 붙이고 판 이름을 바꾼다.
+// 팀 기준값: 기준이 되는 저장값 전체를 settings/teamBaseline.json 에 두고, 판 이름이 바뀔 때 한 번 팀원 저장값을 통째로 갈아 끼운다.
+// 새 기준을 낼 때는 기준 브라우저 콘솔에서 copy(localStorage.getItem("kgeseo.leva.v1")) → JSON 에 붙이고 판 이름을 바꾼다.
 const TEAM_BASELINE_VERSION = "2026-10-01-rang";
 const TEAM_BASELINE_VERSION_KEY = "kgeseo.leva.teamBaselineVersion";
-// 옛 판 이름이 남아 있으면 이미 받은 사람이다. 다시 덮으면 그 뒤에 각자 맞춘 값이 날아간다.
+// 한글 열쇠의 판 이름이 남아 있으면 이미 받은 사람이다. 다시 덮으면 그 뒤에 각자 맞춘 값이 날아간다.
 const LEGACY_TEAM_BASELINE_VERSION = "2026-10-01-랑";
 const LEGACY_TEAM_BASELINE_VERSION_KEY = "kgeseo.leva.팀기준판";
 
 /**
- * 저장값보다 코드 기본값이 이겨야 하는 항목. 폴더 이름 → 옛 한글 항목 이름(= 스키마의 label).
- * 다른 파일의 스키마 열쇠가 영어로 바뀌어도 label 로 맞추므로 이 표는 한글 그대로 둔다.
+ * 저장값보다 코드 기본값이 이겨야 하는 항목. 폴더 이름 → 항목 label.
+ * 저장 데이터 열쇠라 한글 그대로 — 스키마 열쇠가 아니라 label 로 맞춘다.
  */
 const FORCE_DEFAULT_LABELS: Record<string, readonly string[]> = {
   "작업등 퍼즐": [
@@ -150,7 +150,7 @@ const FORCE_DEFAULT_LABELS: Record<string, readonly string[]> = {
     "정답",
     "조작거리",
   ],
-  // 옛 자리(입구를 안 막는 9.2 · −3.2)가 이기면 「밀어서 여는」 퍼즐이 안 맞는다.
+  // 저장된 자리(입구를 안 막는 9.2 · −3.2)가 이기면 「밀어서 여는」 퍼즐이 안 맞는다.
   "커피 자판기": ["주름선", "주름선색", "주름선각도", "위치z", "세로길이", "테색", "간판글자색", "배출부벽색"],
   "음료 자판기": ["주름선", "주름선색", "주름선각도", "위치z", "가로길이", "세로길이", "몸통색"],
   "자판기 비밀문": ["시간", "보는거리", "보는높이", "보는겨냥"],
@@ -260,7 +260,7 @@ const FORCE_DEFAULT_LABELS: Record<string, readonly string[]> = {
   // 이 폴더는 만져 본 사람이 많아, 저장값이 이기면 눈높이를 고쳐도 화면이 그대로다.
   "시점(눈높이)": ["눈높이", "앉은높이"],
   "1인칭 손": ["앞", "아래", "피치따름", "품앞", "품아래"],
-  // 옛 자리는 커피 자판기 몸통 속이라 충돌 때문에 동전을 못 줍는다.
+  // 저장된 자리는 커피 자판기 몸통 속이라 충돌 때문에 동전을 못 줍는다.
   동전: ["캔바닥x", "캔바닥z", "컵바닥x", "컵바닥z"],
   "비밀 복도": [
     "등개수",
@@ -304,7 +304,7 @@ const FORCE_DEFAULT_LABELS: Record<string, readonly string[]> = {
 type SavedFolder = Record<string, unknown>;
 type SavedControls = Record<string, SavedFolder>;
 
-/** leva 가 받는 스키마. 항목마다 label 에 옛 한글 이름을 주면 그 이름으로 저장된 값도 찾아온다. */
+/** leva 가 받는 스키마. 항목마다 label 에 한글 이름을 주면 그 이름으로 저장된 값도 찾아온다. */
 export type LevaSchema = Parameters<typeof folder>[0];
 type Widen<V> = V extends number ? number : V extends string ? string : V extends boolean ? boolean : V;
 type EntryValue<E> = E extends { value: infer V } ? Widen<V> : Widen<E>;
@@ -330,7 +330,7 @@ export function clearSavedControls() {
   removeStorage(LEVA_STORAGE_KEY);
 }
 
-// 옛 판 열쇠는 지우지 않는다. 같은 주소에서 이전 빌드를 다시 띄웠을 때 옛 코드가
+// 한글 판 열쇠는 지우지 않는다. 같은 주소에서 이전 빌드를 다시 띄웠을 때 그 코드가
 // 판이 없다고 보고 팀 기준값으로 각자 맞춘 값을 덮어쓰는 일을 막는다.
 function seedTeamBaseline() {
   if (readStorage(TEAM_BASELINE_VERSION_KEY) === TEAM_BASELINE_VERSION) return;
@@ -390,7 +390,7 @@ function entryLabel(key: string, entry: unknown): string {
   return key;
 }
 
-/** 저장값을 스키마의 value 자리에만 끼워 넣는다(범위·눈금은 코드 것). 열쇠로 못 찾으면 label(옛 이름)로 찾는다. */
+/** 저장값을 스키마의 value 자리에만 끼워 넣는다(범위·눈금은 코드 것). 열쇠로 못 찾으면 label(한글 이름)로 찾는다. */
 function applySaved<S extends LevaSchema>(folderName: string, schema: S): S {
   const all = readAll();
   const saved = all[folderName];
@@ -429,15 +429,15 @@ function applySaved<S extends LevaSchema>(folderName: string, schema: S): S {
 
 /**
  * useControls 대신 쓴다. 폴더를 접힌 채 만들고, 값이 바뀌면 폴더 단위로 저장한다.
- * 저장할 때 폴더를 통째로 다시 쓰므로 옛 한글 열쇠는 자연히 사라진다.
+ * 저장할 때 폴더를 통째로 다시 쓰므로 한글 열쇠로 저장된 값은 자연히 영어 열쇠로 바뀐다.
  */
 export function useSavedControls<S extends LevaSchema>(folderName: string, schema: S): ControlValues<S> {
   // 첫 렌더에만 계산한다. 다시 만들면 Leva 가 값을 되돌린다.
-  const initial = useMemo(() => {
+  const [initial] = useState(() => {
     prepareStorage();
     announceSavedState();
     return applySaved(folderName, schema);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  });
 
   // 폴더가 백 개 가까이라 펼친 채면 패널 높이를 잘못 재 줄이 겹친다. 접힘은 folder() 로만 줄 수 있다.
   const wrapped = useMemo<LevaSchema>(

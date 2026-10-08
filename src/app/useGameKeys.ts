@@ -1,9 +1,8 @@
 import { useEffect } from "react";
 
-import { IS_INPUT_ALWAYS_ON } from "@/app/runtimeFlags";
 import { startReach } from "@/engine/playerView";
 import { addHint, flashHints } from "@/game/hintBox";
-import { LAYERS, type Layer } from "@/game/overlayLayer";
+import { isTypingTarget, LAYERS, type Layer } from "@/game/overlayLayer";
 import { dropChair, draggedChair, runAimed } from "@/lobby/interactions";
 import { latestPlacement } from "@/lobby/placement";
 import { dropCoin, heldCoin } from "@/props/coinState";
@@ -22,7 +21,8 @@ import { hintPaperImage } from "@/station/hands/hintPaperTexture";
 import { chairDragState } from "@/station/office/chairDragState";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 
-import type { PointerLockRef } from "./controls";
+import type { PointerLockRef } from "./pointerLock";
+import { IS_INPUT_ALWAYS_ON } from "./runtimeFlags";
 import { tryPlaceHeld } from "./useSceneTransition";
 
 // 풀린 자물쇠가 열리는 모습을 보여 준 뒤 카메라를 되돌린다.
@@ -41,10 +41,6 @@ interface GameKeysOptions {
   leaveTrain: () => void;
   toggleThirdPerson: () => void;
 }
-
-// Leva 숫자칸·색칸에 타이핑하는 중이면 게임 키로 먹지 않는다(색 코드에 i 를 치면 소지품이 열린다).
-const isTyping = (target: EventTarget | null) =>
-  target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
 
 /** 자물쇠를 만지는 동안은 키를 여기서 다 먹는다. 화살표와 WASD 를 둘 다 받는다(걸음은 어차피 멈춰 있다). */
 function handleLockKey(code: string, id: string) {
@@ -94,8 +90,8 @@ function handleUse(near: NearTarget, boardTrain: () => void, leaveTrain: () => v
     if (spot?.ok && dropCoin([spot.x, spot.y, spot.z])) return;
   }
   if (tryPlaceHeld()) return;
-  if (near === NEAR_TARGET.train)
-    boardTrain(); // [E] 백업 경로
+  // 문 안으로 걸어 들어가도 타지만 [E] 로도 탄다.
+  if (near === NEAR_TARGET.train) boardTrain();
   else if (near === NEAR_TARGET.trainExit) leaveTrain();
 }
 
@@ -125,7 +121,7 @@ export function useGameKeys({
     const isLockActive = lockControl?.phase === "active";
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isTyping(event.target)) return;
+      if (isTypingTarget(event.target)) return;
       const { code } = event;
 
       // 열린 창부터 닫는다(CMN-035). 브라우저가 ESC 로 잠금을 먼저 푸는 건 막을 수 없지만 창이 열려 있으면 이미 풀려 있다.

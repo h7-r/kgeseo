@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
-import { DESIGN_WIDTH, STAGE_INNER_CLASS, useStageScale } from "@/lib/stage";
+import { DESIGN_WIDTH, STAGE_INNER_CLASS, useStageScale } from "@/lib/layout";
 
 const DEFAULT_BOTTOM_GAP = 72;
 

@@ -9,10 +9,9 @@
 #        --source naju01/character-work/meshy-parts/shoes/sneaker-white.glb \
 #        --glb public/models/meshy-both-male.glb --out public/models/shoes-both-male.glb
 #
-# 소스 신발의 축: 앞코 -X, 뒤꿈치 +X, 위 +Z, 폭 Y (Meshy 신발이 그렇게 나온다. 다르면 --toe-axis).
-# 캐릭터 발은 앞코 -Y. 발 길이·폭에 여유(--margin)를 더한 크기로 놓고, 뒤꿈치를 발 뒤꿈치에
-# 맞춘다. 모든 정점을 발뼈(foot) 하나에 100% 로 묶는다 — 게임 운동화는 발가락에서 굽지 않고,
-# 런타임에서 신발을 신으면 발볼 뼈를 줄여 발가락을 신발 안으로 접어 넣는다(치비게임아바타).
+# 소스 신발 축은 앞코 -X·위 +Z(Meshy 신발이 그렇게 나온다), 캐릭터 발은 앞코 -Y.
+# 발 길이·폭에 여유를 더한 크기로 놓고 뒤꿈치를 맞춘다. 운동화는 발가락에서 굽지 않으므로
+# 모든 정점을 발뼈 하나에 100% 로 묶고, 런타임(ChibiGameAvatar)이 발볼 뼈를 줄여 발가락을 접어 넣는다.
 import argparse
 import math
 import sys
@@ -28,18 +27,18 @@ parser.add_argument("--source", required=True, help="정리된 신발 소스 GLB
 parser.add_argument("--glb", help="캐릭터 몸 GLB")
 parser.add_argument("--out", help="결과 파츠 GLB")
 parser.add_argument("--tris", type=int, default=7000, help="소스 정리 때 신발 한 짝의 삼각형 수")
-# 신발은 원래 발보다 아주 조금만 크게 잡는다. 발 자체가 통통해 발+여유로 잡으면 발목에 비해
-# 신발이 너무 커 보였다. 발은 신을 때 --foot-shrink 로 줄여 신발 안에 넣는다(안 줄이면 살이 뚫고 나온다).
+# 발 자체가 통통해 발+넉넉한 여유로 잡으면 발목에 비해 신발이 커 보이므로 여유는 아주 조금만 둔다.
+# 대신 신을 때 --foot-shrink 로 발을 줄여 신발 안에 넣는다.
 parser.add_argument("--margin-length", type=float, default=0.006, help="원래 발 길이에 더하는 여유(m)")
 parser.add_argument("--margin-width", type=float, default=0.004, help="줄어든 발 폭에 더하는 여유(m) — 이보다 좁을 때만 폭을 키운다")
 parser.add_argument("--sink", type=float, default=0.006, help="신발 바닥을 맨발 바닥보다 이만큼 내린다(m)")
 parser.add_argument("--heel-gap", type=float, default=0.016, help="발 뒤꿈치 뒤로 신발 뒤꿈치가 나가는 양(m)")
-# 발은 줄지만 발목 위 종아리는 줄지 않아, 신발 입구가 발목보다 좁으면 뒤꿈치 위 살이 신발 뒤로
-# 삐져나온다. 밑창은 그대로 두고 위로 갈수록 폭·길이를 이 비율까지 넓힌다.
+# 발은 줄어도 종아리는 그대로라 신발 입구가 좁으면 뒤꿈치 위 살이 삐져나온다.
+# 밑창은 그대로 두고 위로 갈수록 폭·길이를 이 비율까지 넓힌다.
 parser.add_argument("--collar-flare", type=float, default=0.2)
 parser.add_argument("--sole-ratio", type=float, default=0.14, help="신발 높이 중 밑창으로 칠할 비율")
-# 신발을 신으면 런타임이 발뼈를 이 배율로 줄여 발을 신발 안에 넣는다(뒤꿈치·발볼이 비치지 않게).
-# 신발은 발뼈에 붙어 같이 줄어드므로, 여기서 발목(발뼈 머리) 기준으로 1/배율 만큼 미리 키워 둔다.
+# 런타임은 신발을 신으면 발뼈를 이 배율로 줄인다. 신발도 발뼈에 붙어 같이 줄어드므로
+# 여기서 발목(발뼈 머리) 기준으로 1/배율 만큼 미리 키워 둔다.
 parser.add_argument("--foot-shrink", type=float, default=0.72, help="신을 때 발뼈 배율(1 = 안 줄임)")
 args = parser.parse_args(argv)
 
@@ -114,7 +113,7 @@ floor = min((body.matrix_world @ v.co).z for v in body.data.vertices)
 before = set(bpy.data.objects)
 bpy.ops.import_scene.gltf(filepath=args.source)
 source = next(o for o in bpy.data.objects if o not in before and o.type == "MESH")
-# 변환은 오브젝트가 아니라 메시 데이터에 직접 곱한다(글TF 로 들어온 계층에서는 apply 가 먹지 않았다).
+# 변환은 메시 데이터에 직접 곱한다(glTF 로 들어온 계층에서는 apply 가 먹지 않는다).
 source.data.transform(source.matrix_world)
 source.matrix_world = mathutils.Matrix.Identity(4)
 if source.parent:
@@ -126,7 +125,6 @@ source.data.update()
 src_lo, src_hi = bounds(source)
 src_len = src_hi.y - src_lo.y
 src_wid = src_hi.x - src_lo.x
-src_hgt = src_hi.z - src_lo.z
 
 
 def foot_points(side):
@@ -172,15 +170,11 @@ def fit(side):
         bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
         bm.to_mesh(shoe.data)
         bm.free()
-    # 놓는 자리는 **줄어든 발** 기준이다. 발은 발목(발뼈 머리)을 중심으로 줄어들어 살이 뼈보다
-    # 바깥에 있는 남성 발은 줄면서 안쪽으로 들어온다 — 원래 발 중심에 놓았더니 신발이 바깥으로
-    # 치우쳐 안쪽 살이 드러났다.
+    # 놓는 자리는 줄어든 발 기준이다. 발은 발목을 중심으로 줄어 살이 뼈 바깥에 있는 발은 안쪽으로 들어온다.
     head = armature.matrix_world @ armature.data.bones[f"foot_{side}"].head_local
     k = args.foot_shrink
-    sx_c = head.x + ((f_lo.x + f_hi.x) / 2 - head.x) * k
     heel_y = head.y + (f_hi.y - head.y) * k
-    # 발 살의 방향(뒤꿈치 중심 → 앞꿈치 중심)에 신발을 맞춰 돌린다. 남성 발 살은 뼈보다 바깥으로
-    # 틀어져 있어, 상자 중심에만 맞추면 뒤꿈치 안쪽이 신발 밖으로 나왔다.
+    # 발 살이 뼈보다 틀어져 있을 수 있어 발 살의 방향(뒤꿈치 중심 → 앞꿈치 중심)에 맞춰 돌린다.
     heel_pts = [p for p in pts if p.y > f_hi.y - foot_len * 0.3]
     toe_pts = [p for p in pts if p.y < f_lo.y + foot_len * 0.3]
     hc = sum(heel_pts, mathutils.Vector()) / len(heel_pts)

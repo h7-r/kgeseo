@@ -2,33 +2,35 @@ import { useState, type CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import ConsentGroup from "@/components/form/ConsentGroup";
-import Honeypot from "@/components/form/Honeypot";
 import InputLine, { type FieldBinding } from "@/components/form/InputLine";
-import LabelRow from "@/components/form/LabelRow";
-import PasswordStrength from "@/components/form/PasswordStrength";
 import { hairlineStyle, inputBoxStyle } from "@/components/form/styles";
-import SubmitButton from "@/components/form/SubmitButton";
-import TextField from "@/components/form/TextField";
+import SubmitButton, { Honeypot } from "@/components/form/SubmitButton";
+import TextField, { LabelRow, PasswordStrength } from "@/components/form/TextField";
 import RegionPicker from "@/components/RegionPicker";
 import type { TermsTabId } from "@/data/terms";
-import { BOT_SUSPECTED_MESSAGE, useBotGuard } from "@/hooks/useBotGuard";
-import { useConsents } from "@/hooks/useConsents";
-import { submitOnEnter, useForm } from "@/hooks/useForm";
-import { useSubmitLock } from "@/hooks/useSubmitLock";
-import { SIGNUP_DUPLICATE_CHECKS } from "@/lib/signupDuplicateChecks";
+import {
+  BOT_SUSPECTED_MESSAGE,
+  SIGNUP_DUPLICATE_CHECKS,
+  submitOnEnter,
+  useBotGuard,
+  useConsents,
+  useForm,
+  useSubmitLock,
+} from "@/hooks/useForm";
 import { FONT } from "@/lib/style";
 import { suggestEmailTypo, type FieldName } from "@/lib/validation";
 import { QUERY, ROUTES, safeNextPath, withQuery, type RoutePath } from "@/navigation/routes";
 import type { AuthMode } from "@/pages/AuthPage";
-import { TEST_ACCOUNT_ENABLED, TEST_ACCOUNT_LOGIN, authenticate, resetPassword, signUp } from "@/services/accountStore";
+import { authenticate, signUp } from "@/services/account/authApi";
+import { TEST_ACCOUNT_ENABLED, TEST_ACCOUNT_LOGIN } from "@/services/account/db";
+import { resetPassword } from "@/services/account/manageAccount";
 import { clearResetState, getResetState, issueResetCode, verifyResetCode } from "@/services/passwordReset";
 import { signIn } from "@/services/session";
 import { COLOR, GRADIENT, SHADOW, surfaceFillStyle } from "@/styles/tokens";
 
 import { AUTH_FIELDS, AUTH_MODES } from "./authModes";
-import CodeBoxes from "./CodeBoxes";
+import CodeBoxes, { VerifiedCode } from "./CodeBoxes";
 import SocialLogin from "./SocialLogin";
-import VerifiedCode from "./VerifiedCode";
 
 // 사생활 보호 모드처럼 IndexedDB 가 막혀 저장소 호출이 던질 때 보여 준다. 문구는 저장소가 같은 상황에 쓰는 말과 같다.
 const STORAGE_ERROR_MESSAGE: Record<AuthMode, string> = {

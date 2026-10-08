@@ -3,10 +3,12 @@
 // 생성기의 반복 순서나 난수 소비 순서가 바뀌면 손 배치가 엉뚱한 물건에 붙는다.
 
 import * as THREE from "three";
+
 import { makeRandom } from "@/engine/random";
+
 import { UNITS_PER_METER } from "../plan/sitePlan";
 
-export type SpotColor = number | string;
+type SpotColor = number | string;
 
 /** 자리 하나. 좌표·키는 미터, 각은 라디안. */
 export interface Spot {
@@ -29,16 +31,16 @@ export interface Spot {
 
 export type SpotPatch = Partial<Spot>;
 
-/** 편집 파일을 읽어 영어 열쇠로 바꾼 것. 저장할 때 editFile 이 옛 열쇠로 되돌린다. */
+/** 편집 파일을 읽어 영어 열쇠로 바꾼 것. 저장할 때 editFile 이 한글 열쇠로 되돌린다. */
 export interface Edits {
   removed: Record<string, number[]>;
   modified: Record<string, Record<number, SpotPatch>>;
   added: Record<string, Spot[]>;
 }
 
-export type PlacedSpot = Spot & { id: number };
+type PlacedSpot = Spot & { id: number };
 
-export interface InstanceBatch {
+interface InstanceBatch {
   geometry: THREE.BufferGeometry;
   matrices: Float32Array;
   colors: Float32Array;
@@ -187,7 +189,7 @@ function fillWhite(geometry: THREE.BufferGeometry) {
  */
 export function toBaseOrigin(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
   geometry.computeBoundingBox();
-  const box = geometry.boundingBox!;
+  const box = geometry.boundingBox ?? new THREE.Box3();
   const height = box.max.y - box.min.y || 1;
   geometry.translate(-(box.max.x + box.min.x) / 2, -box.min.y, -(box.max.z + box.min.z) / 2);
   geometry.scale(1 / height, 1 / height, 1 / height);
@@ -239,7 +241,7 @@ export interface ScatterSpot {
   size?: number;
 }
 
-export interface JitterOptions {
+interface JitterOptions {
   /** 높이비 범위 [최소, 최대] */
   flatten?: [number, number];
   /** 0~1 난수를 받아 16진 색을 낸다 */
@@ -248,7 +250,7 @@ export interface JitterOptions {
 
 /**
  * 흩뿌린 돌 자리에 회전·납작함·색을 채운다.
- * 예전엔 지오를 만들며 굴리던 값을 자리로 올려, 편집기가 하나씩 돌리고 늘일 수 있게 했다.
+ * 지오가 아니라 자리에 담아야 편집기가 하나씩 돌리고 늘일 수 있다.
  */
 export function jitterStones(
   spots: ScatterSpot[],

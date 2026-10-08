@@ -20,19 +20,19 @@ import {
   type Zone,
   type ZoneCode,
 } from "../plan/sitePlan";
-import { createNoise } from "./ground";
+import { createNoise, type HeightAt } from "./ground";
 import type { HeightTable } from "./heightTable";
 
 const DEGREES = 180 / Math.PI;
 
 /** 지형 밖에서 끼워 주는 무대 밖 연결로(terrain/connectorRamp) */
-export interface RampSurface {
+interface RampSurface {
   isOn: (x: number, z: number) => boolean;
   heightAt: (x: number, z: number) => number;
 }
 
 /** 지면 판정. 연결로 위면 path 가 "연결로" — 계기판에 그대로 보이는 글자다. */
-export interface GroundSample {
+interface GroundSample {
   y: number;
   zone: ZoneCode | null;
   path: PathCode | "연결로" | null;
@@ -43,7 +43,7 @@ export interface GroundSample {
   isWater: boolean;
 }
 
-export interface PathSegment {
+interface PathSegment {
   x1: number;
   z1: number;
   x2: number;
@@ -53,7 +53,7 @@ export interface PathSegment {
   startDistance: number;
 }
 
-export interface PathMeasurement {
+interface PathMeasurement {
   // 도면의 route("Z1 → Z2" 문자열)와 겹치지 않게 조각 목록은 segments 로 둔다.
   segments: PathSegment[];
   planarLength: number;
@@ -80,11 +80,11 @@ export interface MeasuredPath extends PathDef, PathMeasurement {
   fineLength: number;
 }
 
-export interface Blocker extends Omit<BlockerDef, "floor"> {
+interface Blocker extends Omit<BlockerDef, "floor"> {
   floor: number;
 }
 
-export interface TerrainCliff extends Cliff {
+interface TerrainCliff extends Cliff {
   slopeAngle: number;
 }
 
@@ -251,8 +251,7 @@ export function createTerrain({
   // 경사면까지 따진 실제로 다리가 가는 거리
   const measuredWalk = measuredPaths.reduce((s, t) => s + t.trueLength, 0);
 
-  // ── 통로 세밀 선분 공간 색인 ──
-  // 조회마다 모든 세밀 선분(약 700개)을 투영하던 것이 첫 화면의 가장 큰 비용이었다(CPU 프로파일 8.5초).
+  // 통로 세밀 선분 공간 색인. 조회마다 세밀 선분(약 700개)을 다 투영하면 첫 화면이 가장 무거워진다.
   // 등록 범위를 경계 상자에 한계만큼 넓혀 잡아 기여할 선분은 하나도 안 빠지고, 칸 안 목록을 원래 차례
   // (통로 → 선분)로 쌓아 가중 평균을 더하는 순서까지 같다 — 순서가 달라지면 1비트가 달라져 지형 지문이 바뀐다.
   const INDEX_CELL = 2; // m
@@ -350,8 +349,7 @@ export function createTerrain({
     };
   }
 
-  // ── 산허리 ──
-  // 도면은 구역·통로 높이만 말하고 나머지는 EL 0 이라, T3·T4 는 13 m 상공에 뜬 리본이었다(갓길 밖은 허공).
+  // 산허리. 도면은 구역·통로 높이만 말하고 나머지는 EL 0 이라, T3·T4 는 13 m 상공에 뜬 리본이었다(갓길 밖은 허공).
   // 실제 산길은 산허리를 깎은 것이므로 가까운 설계면에서 일정 기울기로 흘러내리는 흙더미로 채운다.
   //   올림 = max(높은 설계면 − 거리 × 기울기), 내림 = min(낮은 설계면 + 거리 × 기울기), 지대 = min(올림, 내림)
   // 원뿔들의 최대·최소라 어느 설계면과도 경계에서 정확히 만나 이음매가 안 생긴다. 절벽 배터 띠는 채우지 않는다.
@@ -413,8 +411,7 @@ export function createTerrain({
     return Math.max(0, Math.min(raise, lower) + wobble);
   }
 
-  // ── 통로 둑 ──
-  // T3 는 Z4 한가운데서 시작하고 T4 는 +4.7 m 인 채로 Z1 에 들어와, 길만 띄우면 갓길 옆이 절벽(4.2 m 단차)이다.
+  // 통로 둑. T3 는 Z4 한가운데서 시작하고 T4 는 +4.7 m 인 채로 Z1 에 들어와, 길만 띄우면 갓길 옆이 절벽(4.2 m 단차)이다.
   // 아무 조각이나 쌓게 두면 Z3 위를 지나는 T4 가 Z2 에 9 m 흙산을 붓는다 —
   //   구역 안이면 그 구역 안을 지나는 조각만, 미설계 자리면 낮은 구역(EL ≤ 0) 안을 지나는 조각만 쌓는다.
   // 구역 안팎에서 같은 함수를 부르므로 경계에서 값이 어긋날 수 없다.
@@ -452,12 +449,22 @@ export function createTerrain({
     return h;
   }
 
-  // ── 블렌더가 구운 높이표(있으면) ──
-  // y 만 덮어쓴다. 구역·통로·갓길·낙하·물 깃발은 사각형·폴리라인 판정이라 표와 무관하고 씬 진행·퍼즐이 거기 걸려 있다.
-  // 표를 안 끼우면 예전과 한 글자도 다르지 않게 돈다.
+  // 블렌더가 구운 높이표(있으면)는 y 만 덮어쓴다. 구역·통로·갓길·낙하·물 깃발은 사각형·폴리라인 판정이라
+  // 표와 무관하고 씬 진행·퍼즐이 거기 걸려 있다. 표를 안 끼우면 해석식 높이 그대로다.
   let heightTable: Pick<HeightTable, "heightAt"> | null = null;
   function setHeightTable(table: Pick<HeightTable, "heightAt"> | null | undefined) {
     heightTable = table ?? null;
+  }
+
+  // 연결로는 도면 밖 설계라 지형이 직접 만들지 않고 씬이 끼워 준다. 안 끼우면 없는 것과 같다.
+  let ramp: RampSurface | null = null;
+  function setRamp(value: RampSurface | null | undefined) {
+    ramp = value ?? null;
+  }
+  // 원경 들판 높이. 안 끼우면 코어 밖이 y = 0 이라 연결로로 내려가면 들판보다 0.3 m 뜬 보이지 않는 평면을 걷는다.
+  let outerGround: HeightAt | null = null;
+  function setOuterGround(value: HeightAt | null | undefined) {
+    outerGround = value ?? null;
   }
 
   /**
@@ -513,7 +520,7 @@ export function createTerrain({
       return { y: wallHeight * (1 - f), zone: null, path: null, isFall: true, isWater: false };
     }
 
-    // 무대 밖 연결로 — 코어 밖에서만 본다. 안쪽은 한 줄도 안 건드려 도면 대조·실측(고리 75.1 m)에 영향이 없다.
+    // 무대 밖 연결로 — 코어 밖에서만 본다. 코어 안 판정(고리 75.1 m)에는 영향이 없다.
     if (ramp && isOutsideCore(px, pz) && ramp.isOn(px, pz)) {
       return { y: ramp.heightAt(px, pz), zone: null, path: "연결로", isFall: false, isWater: false };
     }
@@ -530,17 +537,6 @@ export function createTerrain({
       isFall: false,
       isWater,
     };
-  }
-
-  // 연결로는 도면 밖 설계라 지형이 직접 만들지 않고 씬이 끼워 준다. 안 끼우면 없는 것과 같다.
-  let ramp: RampSurface | null = null;
-  function setRamp(value: RampSurface | null | undefined) {
-    ramp = value ?? null;
-  }
-  // 원경 들판 높이. 안 끼우면 코어 밖이 y = 0 이라 연결로로 내려가면 들판보다 0.3 m 뜬 보이지 않는 평면을 걷는다.
-  let outerGround: ((x: number, z: number) => number) | null = null;
-  function setOuterGround(value: ((x: number, z: number) => number) | null | undefined) {
-    outerGround = value ?? null;
   }
 
   // 시야 차단물은 실제로 못 지나간다(발 ~ 바닥 + 높이 구간 안에 발밑이 있을 때만).
@@ -564,8 +560,8 @@ export function createTerrain({
     const g = groundAt(px, pz);
     if (g.path) return `${g.path} ${pathNames[g.path] ?? ""}`.trim();
     if (g.zone) return `${g.zone} ${zoneNames[g.zone] ?? ""}`.trim();
-    if (g.isWater) return RIVER.name ?? "영산강";
-    if (g.isFall) return `${cliff.name ?? "절벽"} 면`;
+    if (g.isWater) return RIVER.name;
+    if (g.isFall) return `${cliff.name} 면`;
     return "미설계";
   }
 
@@ -578,8 +574,6 @@ export function createTerrain({
     setRamp,
     setOuterGround,
     setHeightTable,
-    hasRamp: () => !!ramp,
-    isOnRamp: (x: number, z: number) => !!ramp && ramp.isOn(x, z),
     cliff,
     measuredLoop,
     measuredWalk,

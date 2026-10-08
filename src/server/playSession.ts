@@ -1,11 +1,13 @@
 import { useSyncExternalStore } from "react";
 
 import { readStorage, removeStorage, writeStorage } from "@/engine/storage";
+import { createChangeSignal } from "@/lib/changeSignal";
 
 import {
   BackendError,
   createAnonymousSession,
   createPlaySession,
+  errorMessage,
   getCaseBundle,
   getPlaySession,
   submitInteraction,
@@ -22,7 +24,7 @@ export const PLAY_CONTRACT = Object.freeze({
   unlockedFlag: "fire_cabinet_unlocked",
 });
 
-export type PlayPhase =
+type PlayPhase =
   | "idle"
   | "starting"
   | "restoring"
@@ -53,9 +55,9 @@ export const PLAY_PHASE_LABELS: Record<PlayPhase, string> = {
 };
 
 /** 저장 상태가 어디서 왔나 — "restored" 일 때만 월드를 소리·연출 없이 되살린다. */
-export type PlayStateSource = "restored" | "new" | "interaction";
+type PlayStateSource = "restored" | "new" | "interaction";
 
-export interface PlaySessionStatus {
+interface PlaySessionStatus {
   phase: PlayPhase;
   caseId: string | null;
   playSessionId: string | null;
@@ -86,18 +88,12 @@ let status: PlaySessionStatus = {
 let starting: Promise<string> | null = null;
 let startingCaseId: string | null = null;
 let submitting: Promise<boolean> | null = null;
-const listeners = new Set<() => void>();
+const signal = createChangeSignal();
+const subscribe = signal.subscribe;
 
 const update = (patch: Partial<PlaySessionStatus>) => {
   status = { ...status, ...patch };
-  for (const listener of listeners) listener();
-};
-
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  signal.notify();
 };
 
 export const usePlaySession = () => useSyncExternalStore(subscribe, () => status);
@@ -111,7 +107,6 @@ export const usePuzzleCompleted = (puzzleId: string) =>
 export const usePlayFlag = (flagId: string) => useSyncExternalStore(subscribe, () => readPlayFlag(flagId));
 export const usePlayStateSource = () => useSyncExternalStore(subscribe, () => status.stateSource);
 
-const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const errorStatus = (error: unknown) => (error instanceof BackendError ? error.status : null);
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.length > 0;
 const isNullableId = (value: unknown) => value === null || isNonEmptyString(value);

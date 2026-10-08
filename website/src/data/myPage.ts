@@ -11,7 +11,7 @@ export type MyPageTabId = (typeof MY_PAGE_TABS)[number]["id"];
 
 type Pair = readonly [label: string, value: string];
 
-export interface PlayRecord {
+interface PlayRecord {
   region: string;
   regionNo: string;
   title: string;
@@ -31,25 +31,25 @@ export interface PlayRecord {
 export type AccountAction =
   "changePassword" | "loginHistory" | "emailNotifications" | "exportData" | "signOut" | "deleteAccount";
 
-export interface SettingsItem {
+interface SettingsItem {
   label: string;
   /** 오른쪽 단추 글. */
   value: string;
   action?: AccountAction;
 }
 
-export interface SettingsGroup {
+interface SettingsGroup {
   title: string;
   items: readonly SettingsItem[];
 }
 
-export interface OwnedItem {
+interface OwnedItem {
   name: string;
   rarity: "COMMON" | "RARE" | "EPIC" | "LEGEND";
   color: string;
 }
 
-export interface MyPageContent {
+interface MyPageContent {
   history: { records: readonly PlayRecord[] };
   account: { groups: readonly SettingsGroup[] };
   subscription: {

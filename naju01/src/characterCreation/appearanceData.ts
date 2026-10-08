@@ -104,7 +104,7 @@ export function bodyFieldDefault(field: BodyField, gender: AvatarGender): number
 }
 
 // 생성 화면의 시작값이자 「초기화」가 돌아갈 자리. 렌더러 기본값(어깨 1.2·팔 0.88)을 그대로 쓰되 처음 모습이 나아
-// 보이도록 몇 가지는 따로 잡았다(머리는 가장 작게, 팔·다리는 조금 가늘게, 살짝 마른 체형). 1.00 으로 고쳐 적으면
+// 보이도록 몇 가지는 따로 잡는다(머리는 가장 작게, 팔·다리는 조금 가늘게, 살짝 마른 체형). 1.00 으로 고쳐 적으면
 // 초기화할 때마다 캐릭터가 달라진다.
 export const BODY_FIELDS: readonly BodyField[] = [
   {
@@ -138,7 +138,7 @@ export const BODY_FIELDS: readonly BodyField[] = [
     description: "신발도 함께 커지고 작아진다",
   },
   // 최소 1.00(렌더러 범위 0.75 보다 좁다). 0.75 로 좁히면 걸을 때 손가락이 반바지 안으로 들어가고
-  // 벌린 대기 자세에서도 팔이 몸에 닿았다.
+  // 벌린 대기 자세에서도 팔이 몸에 닿는다.
   {
     key: "shoulderWidth",
     label: "어깨 너비",
@@ -200,8 +200,8 @@ export const BODY_FIELDS: readonly BodyField[] = [
     group: "physique",
     description: "마름 ↔ 기본 ↔ 통통",
   },
-  // 상한 0.75(렌더러 범위 1.0 보다 낮다). 체형(통통) 최대와 함께 1.0 이면 몸통이 위팔을 삼키고 목이 사라졌다.
-  // 따로 최대로 올리는 것은 괜찮았다 — 겹칠 때만 깨져 한쪽만 낮췄다.
+  // 상한 0.75(렌더러 범위 1.0 보다 낮다). 체형(통통) 최대와 함께 1.0 이면 몸통이 위팔을 삼키고 목이 사라진다.
+  // 겹칠 때만 깨지므로 한쪽만 낮춘다.
   {
     key: "buff",
     label: "골격",
@@ -224,7 +224,7 @@ export const BODY_FIELD_GROUPS: readonly Option<BodyFieldGroup>[] = [
 // 퍼센트 대신 기준점 다섯 개로 끊어 고른다 — 「103%」 같은 숫자는 뜻이 없고 이용자가 판단할 길이 없다.
 // 가운데가 늘 기본값이다: min · (min+기본)/2 · 기본 · (기본+max)/2 · max.
 // 기본이 한쪽 끝인 항목(머리 크기·골격)은 반대쪽 끝까지를 넷으로 고르게 나눈다.
-// 범위·기본값은 그대로라 바깥으로 나가는 초안·완료 데이터도 예전과 같은 실수 값이다.
+// 눈금은 고르는 방법일 뿐이라 초안·완료 데이터에는 그 칸이 가리키는 실수가 그대로 나간다.
 const TICK_WORDS: Record<BodyFieldKey, readonly [smaller: string, larger: string]> = {
   heightScale: ["작게", "크게"],
   headScale: ["작게", "크게"],

@@ -6,23 +6,13 @@ import TabBar from "@/components/TabBar";
 import { MY_PAGE_CONTENT, MY_PAGE_TABS, type AccountAction, type MyPageTabId } from "@/data/myPage";
 import { FONT } from "@/lib/style";
 import { ROUTES, launchGame, useSiteNavigate } from "@/navigation/routes";
-import AccountTab from "@/sections/myPage/tabs/AccountTab";
-import AchievementsTab from "@/sections/myPage/tabs/AchievementsTab";
-import HistoryTab from "@/sections/myPage/tabs/HistoryTab";
-import ItemsTab from "@/sections/myPage/tabs/ItemsTab";
-import SubscriptionTab from "@/sections/myPage/tabs/SubscriptionTab";
-import {
-  deleteAccount,
-  exportMyData,
-  getAccountData,
-  saveAccountData,
-  type AccountData,
-} from "@/services/accountStore";
+import type { AccountData } from "@/services/account/db";
+import { deleteAccount, exportMyData, getAccountData, saveAccountData } from "@/services/account/manageAccount";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
-import { downloadJson } from "./downloadJson";
 import LoginHistoryModal from "./LoginHistoryModal";
+import { AccountTab, AchievementsTab, HistoryTab, ItemsTab, SubscriptionTab } from "./MyPageTabs";
 import PasswordModal from "./PasswordModal";
 import ProfileCard, { type ProfileStats } from "./ProfileCard";
 import { modalDangerStyle } from "./styles";
@@ -178,3 +168,14 @@ const tabBaseStyle: CSSProperties = {
 };
 const activeTabStyle: CSSProperties = { ...tabBaseStyle, background: COLOR.navy, color: COLOR.white, fontWeight: 700 };
 const inactiveTabStyle: CSSProperties = { ...tabBaseStyle, background: "#1a1c26", color: COLOR.textMuted };
+
+/** 비밀번호 해시를 뺀 내 데이터를 JSON 파일로 내려받는다. */
+function downloadJson(data: unknown, fileName: string) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  const link = Object.assign(document.createElement("a"), { href: url, download: fileName });
+  // 문서에 붙였다 떼야 download 파일 이름이 먹는 브라우저가 있다.
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

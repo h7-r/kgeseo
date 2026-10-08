@@ -53,8 +53,7 @@ export function useColliderBox(name: string, box: ColliderBox | null | undefined
     return () => {
       dynamicColliders.delete(name);
     };
-    // 박스 객체가 아니라 좌표가 바뀔 때(=Leva 로 옮길 때)만 다시 등록한다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 박스 객체가 아니라 좌표가 바뀔 때(Leva 로 옮길 때)만 다시 등록한다
   }, [name, enabled, minX, maxX, minZ, maxZ]);
 }
 
@@ -88,7 +87,7 @@ function blockedBy(x: number, z: number, r: number, y: number | undefined, exclu
 export const hit = (x: number, z: number, y?: number): boolean => {
   // 관창을 들고 있으면 호스 길이만큼만 갈 수 있다.
   if (isHoseTaut(x, z)) return true;
-  // 끌고 있는 의자는 주인을 막지 않는다 — 의자가 몸 앞 1.2cm 에 붙어 있어 모든 걸음이 막히고 갇힘 판정이 충돌을 통째로 껐다.
+  // 끌고 있는 의자는 주인을 막지 않는다 — 의자가 몸 바로 앞에 붙어 있어 막으면 모든 걸음이 막힌다.
   const chair = draggedChair();
   return blockedBy(x, z, PLAYER_RADIUS, y, chair ? dragBoxId(chair) : null);
 };

@@ -10,8 +10,7 @@ import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Highlight } from "@/lobby/Highlight";
 
 import { createCurrentMaterial, FLOW_SECONDS } from "./currentFlow";
-import { PAINTING_HEIGHT_PX, PAINTING_WIDTH_PX } from "./dimensions";
-import { roundedPolyline, startupBrightness } from "./geometry";
+import { PAINTING_HEIGHT_PX, PAINTING_WIDTH_PX, roundedPolyline, startupBrightness } from "./geometry";
 import { lastTrainBackgroundTexture, lastTrainWindowLightTexture } from "./paintingTextures";
 import { nameplateTexture } from "./textures";
 import { flowStartedAt, isBinComplete, useWindowSwitchKey } from "./workLampState";

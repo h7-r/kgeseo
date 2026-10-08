@@ -1,6 +1,6 @@
 import Stage from "@/components/Stage";
-import { HEADER_HEIGHT, FOOTER_ALLOWANCE } from "@/layout/layoutMetrics";
 import PageFooter from "@/layout/PageFooter";
+import { HEADER_HEIGHT, FOOTER_ALLOWANCE } from "@/lib/layout";
 import PricingPlans from "@/sections/pricing/PricingPlans";
 
 const TOP_GAP = 60;

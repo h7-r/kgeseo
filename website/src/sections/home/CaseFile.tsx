@@ -3,8 +3,9 @@ import type { CSSProperties } from "react";
 import { usePinnedWipe } from "@/hooks/motion";
 import { FONT } from "@/lib/style";
 import { sectionAnchor } from "@/navigation/subMenus";
-import { CASE_FILE_PIN_LENGTH } from "@/pages/home/homeLayout";
 import { COLOR } from "@/styles/tokens";
+
+import { CASE_FILE_PIN_LENGTH } from "./homeLayout";
 
 const FACTS = [
   ["장소", "전라남도 나주 · 앙암바위"],

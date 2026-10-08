@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 import type { DrawerOpening } from "@/lobby/interactions";
 
-/** 서랍 칸 경계 y (모델 높이 1 기준, GLB 실측). 홈이 얕아 어두운 방에서는 선을 그어야 칸이 보인다. */
+/** 서랍 칸 경계 y (모델 높이 1 기준, GLB 에서 잰 값). 홈이 얕아 어두운 방에서는 선을 그어야 칸이 보인다. */
 export const CAB_SEAMS = [0.035, 0.28, 0.52, 0.745, 0.965];
 /** 앞면 좌우 끝 */
 export const CAB_FX = 0.17;
@@ -42,7 +42,7 @@ export function cabinetLineGeometry(opening: CabinetOpening | null): THREE.Buffe
 /** 닫힌 캐비닛은 모두 이 한 벌을 같이 쓴다. */
 export const CAB_LINE_GEO = cabinetLineGeometry(null);
 
-export interface CabinetOpenPlan {
+interface CabinetOpenPlan {
   row: number;
   extent: "slight" | "wide";
   hasPapers?: boolean;

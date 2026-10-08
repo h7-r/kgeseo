@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { openGameTransition } from "@/app/siteState";
 import { getSessionUser } from "@/services/session";
-import { openGameTransition } from "@/state/gameTransition";
 
 export const ROUTES = {
   home: "/",

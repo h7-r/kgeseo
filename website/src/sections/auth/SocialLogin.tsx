@@ -3,8 +3,8 @@ import { useState, type CSSProperties } from "react";
 import googleIcon from "@/assets/images/imgComponent12.svg";
 import { FONT } from "@/lib/style";
 import { signInWithGoogle } from "@/services/account/googleAuth";
+import { startNaverLogin } from "@/services/account/naverAuth";
 import type { SessionUser } from "@/services/session";
-import { startSocialLogin } from "@/services/socialLogin";
 import { COLOR } from "@/styles/tokens";
 
 interface SocialLoginProps {
@@ -32,7 +32,7 @@ export default function SocialLogin({ onSignedIn }: SocialLoginProps) {
 
   const handleNaver = () => {
     if (isBusy) return;
-    setMessage(startSocialLogin("naver"));
+    setMessage(startNaverLogin());
   };
 
   return (

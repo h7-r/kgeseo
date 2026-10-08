@@ -5,18 +5,18 @@
 // 위에서 편 투영(XZ)만 쓰면 74° 절벽이 3.6 배로 늘어난다 — 서 있는 면은 옆(XY)에서 펴서 다른 칸에 넣는다.
 // 4K 한 장 기준 바닥칸 51 px/m, 절벽칸 98 px/m — 절벽은 코앞에서 보므로 두 배를 준다.
 // 좌표는 한 점도 안 건드리고 UV 만 더한다. 그래야 구운 뒤에도 판정 숫자가 안 변한다.
+
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+
+import { isMesh } from "../loaders/glbImport";
 import { MESH_NAMES } from "../plan/meshNames";
 import { CLIFF, CORE, UNITS_PER_METER, type Range } from "../plan/sitePlan";
 
-// instanceof 대신 is* 표식 — three 가 두 벌 실려도(도구·SSR) 원본처럼 메시를 알아본다
-const isMesh = (o: THREE.Object3D): o is THREE.Mesh => (o as THREE.Mesh).isMesh === true;
+type AtlasCellName = "ground" | "cliff";
 
-export type AtlasCellName = "ground" | "cliff";
-
-export interface CellRect {
+interface CellRect {
   u: Range;
   v: Range;
 }
@@ -36,7 +36,7 @@ const ATLAS_LAYOUT: Record<AtlasCellName, CellRect> = {
 };
 
 // 씬 메시 이름으로 칸을 고른다.
-// 절벽 발치 너덜은 절벽 칸이다 — 바닥 칸(위에서 편 투영)에 넣었더니 수직 벽 돌들이 흰 얼룩으로 뭉갰다.
+// 절벽 발치 너덜은 절벽 칸이다 — 바닥 칸(위에서 편 투영)에 넣으면 수직 벽 돌들이 흰 얼룩으로 뭉개진다.
 const BAKE_TARGETS: Record<AtlasCellName, string[]> = {
   ground: [MESH_NAMES.ground, MESH_NAMES.path, MESH_NAMES.slope],
   cliff: [MESH_NAMES.cliffFace, MESH_NAMES.cliffScree],
@@ -218,14 +218,14 @@ export function groundCellRect(xRange: Range, zRange: Range): CellRect {
   return { u: [Math.min(u0, u1), Math.max(u0, u1)], v: [Math.min(v0, v1), Math.max(v0, v1)] };
 }
 
-export interface TerrainZone {
+interface TerrainZone {
   x: Range;
   z: Range;
   /** 주면 이 아틀라스 사각형이 0~1 을 꽉 채우게 UV 를 편다 */
   rect?: CellRect | null;
 }
 
-export interface CollectOptions {
+interface CollectOptions {
   vertexColors?: boolean;
   /** 이 칸만 모은다 */
   cell?: AtlasCellName | null;
@@ -233,11 +233,11 @@ export interface CollectOptions {
   zone?: TerrainZone | null;
 }
 
-export type TerrainStats = Partial<Record<AtlasCellName, number>>;
+type TerrainStats = Partial<Record<AtlasCellName, number>>;
 
 /**
- * 씬의 지형 조각을 모아 한 덩이로(원본은 clone — 씬은 계속 돈다).
- * 정점색: 안 실으면 거의 백색 단색으로 돌아왔다. 우리 정점색이 재료 단서라 고를 수 있게 뒀다.
+ * 씬의 지형 조각을 복제해 한 덩이로 모은다(씬은 계속 돈다).
+ * 정점색: 안 실으면 Meshy 가 거의 백색 단색으로 돌려준다. 우리 정점색이 재료 단서라 고를 수 있게 뒀다.
  * 칸: Meshy 는 한 모델에 재질 하나만 입힌다. 칸별로 따로 구워도 UV 는 전체 배치라 같은 자리에 합칠 수 있다.
  * 구역: 그 구역의 아틀라스 사각형만 오려 붙이면 구역마다 다른 재질을 입힐 수 있다.
  */
@@ -252,7 +252,7 @@ export function collectTerrain(
     if (cell && cellName !== cell) continue;
     scene.traverse((o) => {
       if (!isMesh(o) || !names.includes(o.name)) return;
-      const source = o.geometry as THREE.BufferGeometry;
+      const source = o.geometry;
       const g = source.clone();
       // 부모 변환까지 반영해 월드 좌표로 굳힌다
       o.updateWorldMatrix(true, false);
@@ -293,7 +293,7 @@ export function collectTerrain(
 
 /**
  * 우리 정점색을 아틀라스 그림으로 굽는다. 정점색 속성(COLOR_0)은 Meshy 가 처리에 실패해서 그림으로 넘긴다.
- * 세로로 뒤집지 않는다 — v = 0 이 프레임버퍼 0행에 그려지고 PNG 0행·glTF v = 0 도 위라 그대로 담으면 맞는다(뒤집었다가 절벽 칸이 올라갔다).
+ * 세로로 뒤집지 않는다 — v = 0 이 프레임버퍼 0행에 그려지고 PNG 0행·glTF v = 0 도 위라 그대로 담으면 맞는다.
  * 렌더 타깃은 선형 값을 담으므로 sRGB 로 지정해야 탁하고 어둡게 안 나온다.
  */
 export function bakeUnderpaint(renderer: THREE.WebGLRenderer, geo: THREE.BufferGeometry, size = 2048) {
@@ -350,7 +350,7 @@ export function bakeUnderpaint(renderer: THREE.WebGLRenderer, geo: THREE.BufferG
 
 /**
  * 무게중심이 세계 사각형 안인 삼각형만 남긴다.
- * 구역 하나는 아틀라스의 5 % 남짓이라 Meshy 가 「UV 커버리지가 너무 작다」로 거부했다 — 그 사각형이 0~1 을 채우게 편다.
+ * 구역 하나는 아틀라스의 5 % 남짓이라 Meshy 가 「UV 커버리지가 너무 작다」로 거부한다 — 그 사각형이 0~1 을 채우게 편다.
  * 사각형 밖으로 나가는 삼각형(급사면 → 바위칸)은 버린다. 최종 화면에서 바위칸을 보므로 구역 굽기와 무관하다.
  */
 function cropToRect(geo: THREE.BufferGeometry, { x: X, z: Z }: TerrainZone, unfold: CellRect | null = null) {
@@ -400,13 +400,13 @@ function cropToRect(geo: THREE.BufferGeometry, { x: X, z: Z }: TerrainZone, unfo
   return cropped;
 }
 
-export interface ExportOptions extends CollectOptions {
+interface ExportOptions extends CollectOptions {
   /** 정점색을 아틀라스 그림으로 구워 baseColorTexture 로 넣는다 */
   underpaint?: boolean;
   underpaintSize?: number;
 }
 
-export interface TerrainExport {
+interface TerrainExport {
   buffer: ArrayBuffer | { [key: string]: unknown };
   stats: TerrainStats;
 }

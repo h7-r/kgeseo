@@ -8,8 +8,7 @@ import { COLOR } from "@/styles/tokens";
 import FaqPanel from "./FaqPanel";
 import InquiryPanel from "./InquiryPanel";
 import NoticesPanel from "./NoticesPanel";
-import { ACTIVE_TAB_BACKGROUND } from "./styles";
-import { SUPPORT_CONTENT_OFFSET, SUPPORT_CONTENT_PADDING } from "./supportLayout";
+import { ACTIVE_TAB_BACKGROUND, SUPPORT_CONTENT_OFFSET, SUPPORT_CONTENT_PADDING } from "./styles";
 
 interface SupportCenterProps {
   tab: SupportTabId;

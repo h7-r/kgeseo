@@ -3,6 +3,12 @@ import * as THREE from "three";
 import { TEXTURE_SCALE } from "@/engine/quality";
 import { makeRandom } from "@/engine/random";
 
+/**
+ * 캔버스로 그리는 간판·표지 글씨. 기기에 실제로 있는 한글 고딕부터 찾는다 —
+ * 웹폰트가 앞이면 아직 안 실린 화면에서 엉뚱한 글꼴로 떨어져 글자 폭이 어긋난다.
+ */
+export const SIGN_FONT = '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif';
+
 export type CanvasDraw = (
   g: CanvasRenderingContext2D,
   width: number,
@@ -16,7 +22,19 @@ function context2d(canvas: HTMLCanvasElement, willReadFrequently: boolean): Canv
   return g;
 }
 
-function toTexture(canvas: HTMLCanvasElement, anisotropy: number | null): THREE.CanvasTexture {
+/** 빈 캔버스와 2D 컨텍스트 — 한 장짜리 텍스처를 직접 그릴 때 */
+export function createCanvas(
+  width: number,
+  height: number,
+): { canvas: HTMLCanvasElement; g: CanvasRenderingContext2D } {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  return { canvas, g: context2d(canvas, false) };
+}
+
+/** 다 그린 캔버스를 sRGB 텍스처로 */
+export function canvasToTexture(canvas: HTMLCanvasElement, anisotropy: number | null = null): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   if (anisotropy !== null) texture.anisotropy = anisotropy;
@@ -32,7 +50,7 @@ export function makeCanvasTexture(
   const scaled = Math.max(128, Math.round(size * TEXTURE_SCALE));
   canvas.width = canvas.height = scaled;
   draw(context2d(canvas, true), scaled);
-  return toTexture(canvas, 8);
+  return canvasToTexture(canvas, 8);
 }
 
 export interface CachedCanvasTextureOptions {
@@ -73,7 +91,7 @@ export function cachedCanvasTexture(
   canvas.width = width;
   canvas.height = height;
   draw(context2d(canvas, willReadFrequently), width, height, canvas);
-  const texture = toTexture(canvas, anisotropy);
+  const texture = canvasToTexture(canvas, anisotropy);
   if (repeat) texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   canvasTextureCache.set(key, texture);
   onCreate?.(texture, canvas);

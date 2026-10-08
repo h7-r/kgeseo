@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { makeRandom } from "@/engine/random";
 import type { OutlineValues } from "@/engine/toon";
 
-import { RubbleStones, type RubbleStone } from "./rubble";
+import RubbleStones, { type RubbleStone } from "./RubbleStones";
 import ShellOutline from "./ShellOutline";
 import WallPiece from "./WallPiece";
 

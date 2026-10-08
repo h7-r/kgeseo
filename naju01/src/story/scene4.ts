@@ -162,7 +162,7 @@ export function footprintPrototypes(count = 3, seed = 7403): THREE.BufferGeometr
   return prototypes;
 }
 
-export type Scene4PropKey = "boatMark" | "stake" | "footprint";
+type Scene4PropKey = "boatMark" | "stake" | "footprint";
 
 export const SCENE4_NOTES: Record<Scene4PropKey, SceneNote> = {
   boatMark: { text: "배를 끌어올린 자국 · 배는 없다", color: "#B9E0C8" },

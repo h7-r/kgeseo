@@ -1,8 +1,6 @@
-"""Make a browser-sized GLB from the rigged Meshy character blend.
+"""리깅한 Meshy 캐릭터 blend 를 브라우저용 GLB 로 내보낸다.
 
-Shapes are not re-authored: this only lowers resolution.  Per-slot triangle budgets
-are reached with Blender's Decimate (collapse, UV/weights preserved) and every image
-is scaled down to one size.  Run after build_chibi_body.py.
+형태는 건드리지 않고 이미지를 한 크기로 줄여 JPEG 로 굽는다. build_chibi_body.py 다음에 돌린다.
 
 Usage:
   Blender --background --factory-startup --python meshy_optimize.py -- \
@@ -19,19 +17,16 @@ from pathlib import Path
 
 import bpy
 
-BUDGET = {"body": 45000, "hair": 30000, "top": 16000, "bottom": 12000}
-
-
 def arguments():
     raw = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    p = argparse.ArgumentParser()
-    p.add_argument("--blend", type=Path, required=True)
-    p.add_argument("--glb-dir", type=Path, required=True)
-    p.add_argument("--prefix", default="meshy")
-    p.add_argument("--texture", type=int, default=2048)
-    p.add_argument("--labels", nargs="+", default=["Male", "Female"])
-    p.add_argument("--report", type=Path, required=True)
-    return p.parse_args(raw)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--blend", type=Path, required=True)
+    parser.add_argument("--glb-dir", type=Path, required=True)
+    parser.add_argument("--prefix", default="meshy")
+    parser.add_argument("--texture", type=int, default=2048)
+    parser.add_argument("--labels", nargs="+", default=["Male", "Female"])
+    parser.add_argument("--report", type=Path, required=True)
+    return parser.parse_args(raw)
 
 
 def main():

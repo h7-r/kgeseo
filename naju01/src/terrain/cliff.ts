@@ -3,17 +3,18 @@
 // 절벽 띠는 설 수 없는 자리라(terrain 이 낙하로 돌려준다) 1~2 m 씩 실제로 파도 판정과 안 어긋난다.
 // 변위는 언제나 안쪽으로만 — Z2(자갈밭) 쪽으로 튀어나오면 걷는 사람 몸에 바위가 박힌다.
 // 좌표·크기는 미터, 지오메트리만 유닛.
+
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+
 import { makeRandom } from "@/engine/random";
-import { applyVertexColors, createRockShape, type Noise2D } from "./ground";
-import { CLIFF_OUTLINE, UNITS_PER_METER, type Cliff } from "../plan/sitePlan";
 
-type Range = [number, number];
-type HeightAt = (x: number, z: number) => number;
-export type CliffBand = Pick<Cliff, "x" | "zTop" | "zBottom" | "height">;
+import { CLIFF_OUTLINE, UNITS_PER_METER, type Cliff, type Range } from "../plan/sitePlan";
+import { applyVertexColors, createRockShape, type HeightAt, type Noise2D } from "./ground";
 
-export interface RockPalette<T = string> {
+type CliffBand = Pick<Cliff, "x" | "zTop" | "zBottom" | "height">;
+
+interface RockPalette<T = string> {
   bright: T;
   dark: T;
   wet: T;
@@ -39,7 +40,7 @@ export const EARTH_WALL_STYLE: RockPalette = {
 const smooth = (t: number) => t * t * (3 - 2 * t);
 export const between = (v: number, a: number, b: number) => THREE.MathUtils.clamp((v - a) / (b - a), 0, 1);
 
-export interface CutSample {
+interface CutSample {
   /** 안쪽으로 파는 깊이(m) */
   d: number;
   layerIndex: number;
@@ -47,7 +48,7 @@ export interface CutSample {
   t: number;
 }
 
-export interface CutFaceOptions {
+interface CutFaceOptions {
   /** 안쪽으로 파는 최대 깊이(m) */
   carveDepth: number;
   /** 가로 지층 한 겹의 높이(m) — 높이의 눈금 */
@@ -134,6 +135,9 @@ export function buildCutFace({
   };
 }
 
+// 절벽은 사진처럼 세로 홈이 주역이다 — 가로 지층은 거의 지우고 각진 격자는 흔적만 남긴다.
+const CLIFF_CARVE = { strataStrength: 0.12, verticalGrooves: 1.25, jointStrength: 0.3 };
+
 interface PaintSample {
   layerIndex: number;
   d: number;
@@ -217,17 +221,7 @@ export function buildCliffFace({
   // 위쪽만 0 으로 여민다. 아래까지 여미면 밑동 한 줄이 매끈해져 바위가 선반 위에 들려 보인다.
   const edgeFade = (v: number) => Math.min(1, v * 5);
 
-  // 절벽은 세로 홈이 주역이다(buildCutFace 설명)
-  const carve = buildCutFace({
-    carveDepth,
-    strataThickness,
-    angularity,
-    grainNoise,
-    strataNoise,
-    strataStrength: 0.12, // 가로 지층은 거의 지운다
-    verticalGrooves: 1.25,
-    jointStrength: 0.3, // 각진 격자는 흔적만
-  });
+  const carve = buildCutFace({ carveDepth, strataThickness, angularity, grainNoise, strataNoise, ...CLIFF_CARVE });
   const carveAt = (x: number, y: number, v: number): CutSample => {
     const r = carve(x, y, 0);
     return { d: r.d * edgeFade(v), layerIndex: r.layerIndex, t: r.t };
@@ -309,7 +303,7 @@ export function buildCliffFace({
     const z0 = crest + (toe - crest) * v;
     const y0 = wall * (1 - v);
     const depth = backDepth(u);
-    // 원본은 안쪽 점에 층번호·t 가 없어(undefined) 색 계산이 NaN 이 된다. 같은 값을 내려고 NaN 을 넣는다.
+    // 안쪽 점에는 지층이 없다. NaN 을 넣어 칠하기가 NaN 색을 내게 둔다 — 마구리 색이 그 값에 맞춰져 있다.
     return { x: p.x, y: y0 - NY * depth, z: z0 - NZ * depth, d: carveDepth, y0, v, layerIndex: NaN, t: NaN };
   };
   for (const [u, flip] of [
@@ -431,16 +425,8 @@ export function cliffBushSpots({
   const L = Math.hypot(h, batter) || 1;
   const nz = h / L;
   const ny = batter / L;
-  const carve = buildCutFace({
-    carveDepth,
-    strataThickness,
-    angularity,
-    grainNoise,
-    strataNoise,
-    strataStrength: 0.12,
-    verticalGrooves: 1.25,
-    jointStrength: 0.3,
-  });
+  // 절벽면과 같은 파임이라야 골에 붙는다
+  const carve = buildCutFace({ carveDepth, strataThickness, angularity, grainNoise, strataNoise, ...CLIFF_CARVE });
   const spots: BushSpot[] = [];
   for (let i = 0; i < count; i++) {
     const u = random();

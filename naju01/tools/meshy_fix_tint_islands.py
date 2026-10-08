@@ -3,21 +3,11 @@
 #   Blender --background --factory-startup --python naju01/tools/meshy_fix_tint_islands.py -- \
 #     --glb public/models/meshy-both-female.glb --out public/models/meshy-both-female.glb
 #
-# [무엇이 문제였나]
-#   여성 기본 착장의 **등 허리께 두 군데**가 상의인데 '하의'로 표식돼 있었다. 셰이더는 표식대로
-#   하의 색을 곱하므로 셔츠에 다른 색 얼룩 두 개가 생긴다. 하의 색을 상의와 다르게 고르면
-#   그 두 군데만 엉뚱한 색으로 물든다(뚫려 보인다는 말이 이것이다 — 구멍은 아니다).
-#
-# [어떻게]
-#   표식은 **넓은 덩어리**여야 한다. 같은 표식끼리 모서리로 이어 덩어리를 찾고, 터무니없이
-#   작은 덩어리는 둘레의 이웃 표식으로 바꾼다.
-#   ※ 살 표식은 원래 덩어리가 여럿이다 — 머리·목은 소매·바지에 막혀 팔·다리와 끊긴다.
-#     그래서 '작다'는 기준은 절대 개수와 그 표식 전체 대비 비율을 **둘 다** 본다.
-#   ※ 목선 눈금(1.0~2.0 사이 값)은 반올림해서 덩어리만 나누고, **값은 섬에만 쓴다.**
-#     그래서 meshy_round_collar.py 가 심어 둔 눈금이 뭉개지지 않는다.
-#   ※ ★ 먼저 **자리로 용접**해야 한다. GLB 는 UV·법선 이음매마다 정점을 쪼개 두므로,
-#     그대로 모서리를 타면 UV 조각 하나하나가 따로 노는 덩어리가 된다(실측 — 그냥 돌렸더니
-#     덩어리가 수백 개로 쪼개져 정점 11,595 개를 엉뚱하게 바꿨다).
+# 셰이더는 표식대로 색을 곱하므로, 상의 안에 '하의' 표식 섬이 있으면 셔츠에 다른 색 얼룩이 생긴다.
+# 같은 표식끼리 모서리로 이어 덩어리를 찾고, 작은 덩어리는 둘레 이웃의 표식으로 바꾼다.
+#   - 살 표식은 원래 덩어리가 여럿이라 '작다'는 절대 개수와 전체 대비 비율을 둘 다 본다.
+#   - 목선 눈금(1.0~2.0 사이 값)은 반올림해 덩어리만 나누고 값은 섬에만 써서 뭉개지 않는다.
+#   - GLB 는 UV·법선 이음매마다 정점을 쪼개 두므로 먼저 자리로 용접해야 덩어리가 안 쪼개진다.
 import argparse
 import sys
 
@@ -74,7 +64,7 @@ ends = np.searchsorted(a_sorted, np.arange(M), side="right")
 
 
 def find_clusters(member):
-    """속함[i] 가 True 인 (용접된) 정점들을 모서리로 이어 덩어리 번호를 매긴다."""
+    """member[i] 가 True 인 (용접된) 정점들을 모서리로 이어 덩어리 번호를 매긴다."""
     labels = np.full(M, -1, dtype=np.int64)
     next_label = 0
     for seed in np.where(member)[0]:
@@ -122,16 +112,15 @@ for c in (1, 2, 3):
         for v in np.where(island[inverse])[0]:
             attr.data[int(v)].value = float(new_value)
         changed += n
-        print(f"ISLE_FIX 표식{c}→{새값} 정점={n}")
+        print(f"ISLE_FIX 표식{c}→{new_value} 정점={n}")
 
-print(f"ISLE_OK 바꾼정점={바꾼수}")
+print(f"ISLE_OK 바꾼정점={changed}")
 if changed == 0:
-    # 바뀐 게 없으면 내보내지 않는다. 다시 내보내면 텍스처가 JPEG 로 한 번 더 구워져
-    # 화질만 떨어지고 10~15MB 짜리 파일이 괜히 커밋에 올라간다.
+    # 다시 내보내면 텍스처가 JPEG 로 한 번 더 구워져 화질만 떨어지므로 그대로 둔다.
     print("ISLE_NOCHANGE")
     sys.exit(0)
 
-# ※ 내보내기 옵션은 meshy_mark_tint.py 와 같아야 한다(export_extras 를 빠뜨리면 파츠 표식이 날아간다).
+# 내보내기 옵션은 meshy_mark_tint.py 와 같아야 한다(export_extras 를 빠뜨리면 파츠 표식이 날아간다).
 bpy.ops.export_scene.gltf(
     filepath=args.out, export_format="GLB", export_animations=False,
     export_skins=True, export_influence_nb=4, export_morph=True, export_morph_normal=False, export_apply=False,

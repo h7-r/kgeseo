@@ -5,8 +5,8 @@
  */
 import { useEffect, useRef } from "react";
 
-import { NAJU_ENTER_EVENT } from "@/station/najuEnter";
 import { continueLoadingVideoAt, showLoadingVideo } from "@/naju";
+import { NAJU_ENTER_EVENT } from "@/station/najuEnter";
 
 // 영상이 화면을 덮고(0.7초 페이드) 첫 장면이 흐른 뒤 넘어간다
 const COVER_THEN_LEAVE_MS = 900;

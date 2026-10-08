@@ -19,7 +19,7 @@ export interface ReturnPose {
   facing: number;
 }
 
-export interface UsePlayerOptions {
+interface UsePlayerOptions {
   active: boolean;
   onNear: (target: NearTarget) => void;
   eye?: number;

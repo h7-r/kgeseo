@@ -4,12 +4,13 @@ import type * as THREE from "three";
 import type { OutlineValues } from "@/engine/toon";
 import { PALETTE } from "@/station/layout/dimensions";
 
-import { GltfParts, useToonParts } from "./gltfParts";
+import { useToonParts } from "./gltfModel";
+import GltfParts from "./GltfParts";
 
 const DESK_URL = "/models/desk.glb";
 useGLTF.preload(DESK_URL);
 
-/** 원본 모델의 중심 → 바닥 거리 */
+/** 배율 1 에서 모델 중심 → 바닥 거리 */
 const DESK_RAW_MINY = 0.6225;
 
 interface DeskProps {

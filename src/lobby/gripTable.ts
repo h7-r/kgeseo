@@ -1,19 +1,11 @@
 /**
- * 물건을 어떻게 쥐는가 — 물건 쪽이 들고 있는 표.
- * 손에 값 하나를 두고 모든 물건에 같은 보정을 먹이면 컵은 손잡이를 놓치고 상자는 한 손에
- * 매달린다. 상용 엔진처럼 쥐는 자리는 프롭에 붙이고 팔은 IK 로 따라간다.
- * 숫자는 화면을 보며 맞춘 실측값이다. 모델 원점이 GLB 마다 달라 코드로 유추할 수 없다.
+ * 물건을 어떻게 쥐는가 — 쥐는 자리는 물건이 들고, 팔은 IK 로 따라간다.
+ * 손 쪽에 보정 하나를 두면 컵은 손잡이를 놓치고 상자는 한 손에 매달린다.
+ * 숫자는 화면을 보며 맞춘 값이다. 모델 원점이 GLB 마다 달라 코드로 끌어낼 수 없다.
  */
 import type { Vector3Tuple } from "three";
 
 import { exposeDevHook } from "@/debug/devHooks";
-
-export interface HoldPose {
-  forward?: number;
-  side?: number;
-  down?: number;
-  reachRatio?: number;
-}
 
 export interface GripSpec {
   /** 물건 로컬 좌표에서 손이 잡는 점. 이 점이 손뼈 자리에 오도록 물건을 민다. */
@@ -30,18 +22,13 @@ export interface GripSpec {
   handPoint?: Vector3Tuple | null;
   /** 물건 회전에서 손 회전으로 가는 각(도). 없으면 손목을 안 건드린다. */
   handRotation?: Vector3Tuple | null;
-  /**
-   * 물건이 손을 얼마나 따라 도나(0 = 몸 기준 똑바로, 1 = 손 회전 그대로). 지금은 전부 0 —
-   * 이 팔 자세에서 소켓 회전을 그대로 쓰면 컵이 97.5° 기울었다. 화면으로 보고 올릴 것.
-   */
+  /** 물건이 손 회전을 얼마나 따라 도나(0 = 몸 기준 똑바로, 1 = 손 회전 그대로). 이 팔 자세에서 1 이면 컵이 크게 기운다. */
   followHand?: number;
-  /** 이 물건만의 드는 자세. 없으면 Leva 「손 자리」 공통값. */
-  pose?: HoldPose | null;
   /** 손가락을 얼마나 감나(절대값, fistHands 모프). 「주먹 섞기」가 0 이면 화면에 안 나온다. */
   gripStrength: number;
 }
 
-export type GripKind =
+type GripKind =
   | "mug"
   | "drink"
   | "nozzle"
@@ -56,7 +43,7 @@ export type GripKind =
   | "collectionBox";
 
 /** 아무 규격도 없는 물건. 손뼈 자리에 그대로 둔다. */
-export const DEFAULT_GRIP: GripSpec = {
+const DEFAULT_GRIP: GripSpec = {
   gripPoint: [0, 0, 0],
   gripRotation: [0, 0, 0],
   twoHanded: false,
@@ -65,12 +52,23 @@ export const DEFAULT_GRIP: GripSpec = {
   handPoint: null,
   handRotation: null,
   followHand: 0,
-  pose: null,
   gripStrength: 0.7,
 };
 
-export const GRIP_TABLE: Record<GripKind, GripSpec> = {
-  // 손잡이 중심(실측). 컵 몸통은 주먹 바깥으로 빠진다. y 180° — 손잡이가 오른손 쪽으로.
+// 상자·수거함은 원점이 밑바닥이라 한가운데는 y 0.42. 손자리는 IK 가 옮기는 손목 자리 —
+// 옆면 바로 바깥·윗부분이라야 팔이 닿고 손이 위 모서리를 쥔다.
+const BOX_GRIP: GripSpec = {
+  gripPoint: [0, 0, 0],
+  gripRotation: [0, 0, 0],
+  twoHanded: true,
+  hugged: true,
+  hugPoint: [0, 0.42, 0],
+  handPoint: [0.64, 0.66, 0.05],
+  gripStrength: 0.45,
+};
+
+const GRIP_TABLE: Record<GripKind, GripSpec> = {
+  // 손잡이 중심. 컵 몸통은 주먹 바깥으로 빠진다. y 180° — 손잡이가 오른손 쪽으로.
   // 손각 -40° 로 손바닥을 세운다(그대로 두면 컵을 위에서 얹은 모양).
   mug: {
     gripPoint: [0.212, 0.184, 0],
@@ -158,26 +156,8 @@ export const GRIP_TABLE: Record<GripKind, GripSpec> = {
     handPoint: [0.8, -0.08, 0.05],
     gripStrength: 0.4,
   },
-  // 원점이 밑바닥이라 한가운데는 y 0.42. 손자리는 IK 가 옮기는 손목 자리 —
-  // 옆면 바로 바깥·윗부분이라야 팔이 닿고 손이 위 모서리를 쥔다.
-  box: {
-    gripPoint: [0, 0, 0],
-    gripRotation: [0, 0, 0],
-    twoHanded: true,
-    hugged: true,
-    hugPoint: [0, 0.42, 0],
-    handPoint: [0.64, 0.66, 0.05],
-    gripStrength: 0.45,
-  },
-  collectionBox: {
-    gripPoint: [0, 0, 0],
-    gripRotation: [0, 0, 0],
-    twoHanded: true,
-    hugged: true,
-    hugPoint: [0, 0.42, 0],
-    handPoint: [0.64, 0.66, 0.05],
-    gripStrength: 0.45,
-  },
+  box: BOX_GRIP,
+  collectionBox: BOX_GRIP,
 };
 
 const isGripKind = (name: string): name is GripKind => Object.hasOwn(GRIP_TABLE, name);
@@ -192,7 +172,7 @@ const ID_PREFIXES: [prefix: string, kind: GripKind][] = [
   ["ms", "mouse"],
 ];
 
-// 손각·쥠점은 화면을 봐야 아는 값이라, 콘솔에서 덧씌워 다음 프레임부터 바로 본다.
+// 손각·쥠점은 화면을 봐야 아는 값이라 콘솔에서 덧씌워 다음 프레임부터 본다.
 // gripOffsets("mug", { handRotation: [0,0,-90] }) · ("mug", null) 로 되돌림 · () 로 전부 지움.
 const overrides = new Map<string, Partial<GripSpec>>();
 
@@ -206,7 +186,7 @@ exposeDevHook("gripTable", GRIP_TABLE);
 
 /**
  * 이 물건을 어떻게 쥐나.
- * @param kind 들물건이 들고 있는 종류(있으면 우선)
+ * @param kind 든 물건이 알려 준 종류(있으면 우선)
  * @param itemId 없으면 id 앞머리로 짐작한다. "coin"·"drink"·"nozzle" 은 id 가 곧 종류다.
  */
 export function gripSpec(kind?: string | null, itemId?: string | null): GripSpec {

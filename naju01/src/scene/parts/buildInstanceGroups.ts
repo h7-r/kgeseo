@@ -1,6 +1,7 @@
-import type * as THREE from "three";
+import * as THREE from "three";
 
-import { NPC } from "../../plan/sitePlan";
+import type { TexturedModel as LoadedModel } from "../../loaders/useTexturedModels";
+import { PEBBLE_START_INDEX } from "../../models/nature";
 import { ASSET_CATALOG, assetPrototype } from "../../placement/assetCatalog";
 import { GROUP_IDS } from "../../placement/editFile";
 import {
@@ -13,7 +14,7 @@ import {
   type ScatterSpot,
   type Spot,
 } from "../../placement/instanceGroups";
-import { PEBBLE_START_INDEX } from "../../models/nature";
+import { NPC } from "../../plan/sitePlan";
 import type { scene1Spots } from "../../story/scene1";
 import type { scene2Spots } from "../../story/scene2";
 import type { scene3Spots } from "../../story/scene3";
@@ -22,7 +23,6 @@ import type { scene5Spots } from "../../story/scene5";
 import { CLIFF_STYLE, EARTH_WALL_STYLE } from "../../terrain/cliff";
 import { PATH_STYLE } from "../../terrain/slopePaths";
 import { villageFenceSpots } from "../../world/villageFences";
-import { stoneShade } from "./groupRules";
 
 type Shapes = THREE.BufferGeometry[];
 type GroundHeight = (x: number, z: number) => number;
@@ -66,12 +66,9 @@ export interface NajuPrototypes {
   stonePiles: Shapes;
 }
 
-interface TexturedModel {
-  prototypes: Shapes | null;
-  material: THREE.Material | null;
-}
+type TexturedModel = Pick<LoadedModel, "prototypes" | "material">;
 
-export interface InstanceGroupInputs {
+interface InstanceGroupInputs {
   edits: Edits;
   prototypes: NajuPrototypes;
   bakedNature: boolean;
@@ -122,6 +119,18 @@ const pickStoneShape = (size: number | undefined, id: number) =>
 
 // 텍스처 모형은 색을 곱하면 물든다 — 흰색으로 둔다.
 const TEXTURE_WHITE = "#ffffff";
+
+/** 돌마다 어둠→밝음 사이를 0.32~0.94 로 섞는다. 다 같은 회색이면 자갈밭이 시멘트 판으로 보인다. */
+function stoneShade(light: THREE.ColorRepresentation, dark: THREE.ColorRepresentation) {
+  const lightColor = new THREE.Color(light);
+  const darkColor = new THREE.Color(dark);
+  const color = new THREE.Color();
+  return (t: number) =>
+    color
+      .copy(darkColor)
+      .lerp(lightColor, 0.32 + t * 0.62)
+      .getHex();
+}
 
 /**
  * 자리 목록 + 편집 → 인스턴스 무리. 무리 id 가 곧 edits.json 열쇠이고
@@ -206,7 +215,7 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
     add(GROUP_IDS.roadsideLeafPiles, scaled(roadside.leafPiles, 0.6), shapes.shrubs, { doubleSided: true });
   }
 
-  // 모형자연을 끄면 표본이 옛 절차적 돌 여섯 종이라 「앞 일곱 / 뒤 일곱」 가름이 없다.
+  // 모형자연을 끄면 표본이 절차적 돌 여섯 종이라 「앞 일곱 / 뒤 일곱」 가름이 없다.
   const hasTwoStoneKinds = (shapes.pebbles?.length ?? 0) > PEBBLE_START_INDEX;
   // 색을 꼭 넘긴다 — 빼먹으면 돌이 통째로 검게 나온다.
   const addStones = (
@@ -258,7 +267,7 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
     add(GROUP_IDS.distantHouses, villages.houseSpots, shapes.distantHouses);
     // 택촌은 따로 담아 왜곡 연출을 이 무리에만 건다.
     add(GROUP_IDS.taekchonHouses, villages.taekchonSpots, shapes.distantHouses);
-    // 마당 울은 편집을 얹은 뒤의 집 자리로 세운다 — 생성기 원본을 쓰면 사람이 옮긴 집을 못 따라간다.
+    // 마당 울은 편집을 얹은 뒤의 집 자리로 세운다 — 생성기 자리를 쓰면 사람이 옮긴 집을 못 따라간다.
     const villageFences: [string, string, Spot[], number][] = [
       [GROUP_IDS.villageFence, GROUP_IDS.distantHouses, villages.houseSpots, 7731],
       [GROUP_IDS.taekchonFence, GROUP_IDS.taekchonHouses, villages.taekchonSpots, 8817],
@@ -282,7 +291,7 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
     add(GROUP_IDS.scene1Tents, scene1.tent, shapes.tents, { doubleSided: true });
     add(GROUP_IDS.scene1Cairns, scene1.cairn, shapes.cairns);
     add(GROUP_IDS.scene1Bonfires, scene1.bonfire, shapes.bonfires, { doubleSided: true });
-    // 구운 모형이 오기 전에 옛 표본으로 세우면 흰 구렁이가 한 번 번쩍 뜬다 — 늦게 나타나는 편이 낫다.
+    // 구운 모형이 오기 전에 깎은 표본으로 세우면 흰 구렁이가 한 번 번쩍 뜬다 — 늦게 나타나는 편이 낫다.
     if (!input.bakedNature || input.serpent.prototypes) add(GROUP_IDS.scene1Serpent, scene1.serpent, shapes.serpents);
     // 하나뿐인 사람도 무리로 넣어야 편집기로 집어 자리·방향을 잡는다. 도착 전에는 담을 것이 없다.
     if (input.abisa.prototypes)
@@ -303,7 +312,7 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
         { material: input.abisa.material },
       );
   }
-  // 척도용 회색 사람 셋을 자리·방향·키 그대로 진짜 인물로 맞바꿨다. 서 있는 데가 Z1 밖이라 `씬1.` 을 안 붙인다.
+  // 어부 셋은 사람 키를 재는 자도 겸한다. 서 있는 데가 Z1 밖이라 `씬1.` 을 안 붙인다.
   const people: [string, TexturedModel, number, number, number, number][] = [
     [GROUP_IDS.fisher, input.fisher, 50, 38, 1.8, -1.2],
     [GROUP_IDS.fisher2, input.fisher2, 40, 36, 1.72, 0.4],

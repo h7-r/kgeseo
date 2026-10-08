@@ -1,13 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
-import { MAX_LENGTH, normalizeInput, validateFields } from "@/lib/validation";
-import type { FieldErrors, FieldName, FormValues } from "@/lib/validation";
+import {
+  MAX_LENGTH,
+  normalizeInput,
+  validateFields,
+  type FieldErrors,
+  type FieldName,
+  type FormValues,
+} from "@/lib/validation";
+import { isEmailTaken, isNicknameTaken } from "@/services/account/authApi";
+import type { ConsentKind } from "@/services/account/db";
 
 /** 저장소에 물어봐야 아는 검사(이메일·닉네임 중복). 통과하면 "", 아니면 보여 줄 말 */
-export type AsyncCheck = (value: string | undefined) => Promise<string>;
+type AsyncCheck = (value: string | undefined) => Promise<string>;
 
-export interface UseFormOptions {
+// 칸을 떠나거나 고치다 멈추면 서버에 「이미 있나」를 묻는다.
+export const SIGNUP_DUPLICATE_CHECKS: Partial<Record<FieldName, AsyncCheck>> = {
+  email: async (value) => ((await isEmailTaken(value)) ? "이미 가입된 이메일입니다." : ""),
+  nickname: async (value) => ((await isNicknameTaken(value)) ? "이미 사용 중인 닉네임입니다." : ""),
+};
+
+interface UseFormOptions {
   fields: readonly FieldName[];
   /** true 면 비밀번호는 비었는지만 본다. */
   isLogin?: boolean;
@@ -29,7 +42,7 @@ export interface FieldProps {
   maxLength: number | undefined;
 }
 
-export interface UseFormResult {
+interface UseFormResult {
   values: FormValues;
   fieldProps: (name: FieldName) => FieldProps;
   /** 모든 칸을 검사한다. 비동기 검사까지 끝까지 기다리고, 통과했으면 true */
@@ -62,13 +75,15 @@ export function useForm({
   // 늦게 온 이전 요청의 답을 버리기 위한 칸별 최신 요청 번호
   const requestIds = useRef<Partial<Record<FieldName, number>>>({});
   const timers = useRef<Partial<Record<FieldName, number>>>({});
+  // 부모가 묶음을 렌더마다 새로 만들어도 내용은 같다. 처음 받은 것을 쓴다.
+  const [blurChecks] = useState(asyncChecks);
 
   // 동기 검사는 상태로 들지 않고 매번 계산한다. 값과 어긋날 일이 없다.
   const ruleErrors = validateFields(fields, values, { isLogin });
 
   const runAsyncCheck = useCallback(
     (name: FieldName, nextValues: FormValues) => {
-      const check = asyncChecks[name];
+      const check = blurChecks[name];
       if (!check) return;
       window.clearTimeout(timers.current[name]);
       // 형식부터 틀리면 저장소를 두드리지 않고 이전 답도 지운다.
@@ -93,9 +108,7 @@ export function useForm({
         setChecking((prev) => ({ ...prev, [name]: false }));
       }, ASYNC_CHECK_DELAY_MS);
     },
-    // 부모가 asyncChecks 를 매번 새로 만들어도 내용은 같아서 의존성에서 뺀다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isLogin],
+    [blurChecks, isLogin],
   );
 
   useEffect(() => {
@@ -169,7 +182,7 @@ export function useForm({
   return { values, fieldProps, validateAll, clearFields, setField, submitted };
 }
 
-export interface CapsLockState {
+interface CapsLockState {
   isOn: boolean;
   /** 키 이벤트마다 불러 잠금 상태를 읽는다. */
   detect: (event: KeyboardEvent) => void;
@@ -201,4 +214,81 @@ export function submitOnEnter(submit: () => void) {
       submit();
     }
   };
+}
+
+/**
+ * 제출이 끝날 때까지 다시 누르지 못하게 잠근다.
+ * isSubmitting 상태는 다음 렌더에야 바뀌어 빠른 두 번째 누름을 못 막으므로 잠금은 ref 로 건다.
+ */
+export function useSubmitLock() {
+  const lockedRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const run = useCallback(async (task: () => Promise<void>) => {
+    if (lockedRef.current) return;
+    lockedRef.current = true;
+    setIsSubmitting(true);
+    try {
+      await task();
+    } finally {
+      lockedRef.current = false;
+      setIsSubmitting(false);
+    }
+  }, []);
+
+  return { isSubmitting, run };
+}
+
+// 봇으로 보이면 어디서 걸렸는지 알려 주지 않는다.
+export const BOT_SUSPECTED_MESSAGE = "잠시 후 다시 시도해 주세요.";
+// 봇은 화면이 뜨자마자 모든 칸을 채워 제출한다.
+const MIN_FILL_TIME_MS = 1500;
+
+/** 봇 막기: 숨은 칸(honeypot)이 채워졌거나 화면이 뜨고 너무 빨리 제출했는지 본다. */
+export function useBotGuard() {
+  const [honeypot, setHoneypot] = useState("");
+  const [mountedAt] = useState(() => Date.now());
+  const isLikelyBot = () => Boolean(honeypot) || Date.now() - mountedAt < MIN_FILL_TIME_MS;
+  return { honeypot, setHoneypot, isLikelyBot };
+}
+
+const CONSENT_REQUIRED_MESSAGE = "필수 항목에 모두 동의해주세요.";
+
+/**
+ * 「전체」(terms)는 아래 두 항목이 다 켜졌는지로 정한다.
+ * 처리방침은 공개 문서라 동의 대상은 「수집·이용」이고, 만 14세 미만은 법정대리인 동의가 필요해 나이를 따로 받는다.
+ */
+export type Consents = Record<ConsentKind, boolean>;
+
+export type ConsentChoice = "all" | Exclude<ConsentKind, "terms">;
+
+/** 가입 동의 체크 상태와 「필수 항목」 오류. */
+export function useConsents() {
+  // 개인정보 보호법은 동의를 본인이 직접 표시하게 한다. 미리 켜 두지 않는다.
+  const [consents, setConsents] = useState<Consents>({ terms: false, privacyCollection: false, over14: false });
+  const [error, setError] = useState("");
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+  const allAgreed = consents.privacyCollection && consents.over14;
+
+  const update = (which: ConsentChoice, checked: boolean) => {
+    const next: Consents =
+      which === "all"
+        ? { terms: checked, privacyCollection: checked, over14: checked }
+        : { ...consents, [which]: checked };
+    next.terms = next.privacyCollection && next.over14;
+    setConsents(next);
+    // 한 번 혼난 뒤에는 다 켜는 순간 바로 풀어 준다.
+    if (hasSubmitted) setError(next.terms ? "" : CONSENT_REQUIRED_MESSAGE);
+  };
+
+  /** 제출 단추를 누른 순간 부른다. */
+  const markSubmitted = () => setHasSubmitted(true);
+
+  /** 필수 동의를 검사해 오류를 띄우고 통과 여부를 돌려준다. */
+  const check = () => {
+    setError(allAgreed ? "" : CONSENT_REQUIRED_MESSAGE);
+    return allAgreed;
+  };
+
+  return { consents, allAgreed, error, update, markSubmitted, check };
 }

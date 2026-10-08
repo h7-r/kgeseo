@@ -1,8 +1,8 @@
 /** 증거물 종류. 손에 든 물건 종류 id(numberTag·box·collectionBox)와 맞춘다. */
-export type EvidenceKind = "envelope" | "numberTag" | "box" | "collectionBox";
+type EvidenceKind = "envelope" | "numberTag" | "box" | "collectionBox";
 
 /** 증거물 한 개. name·item·description·clue 는 화면에 보이는 글이다. */
-export interface EvidenceItem {
+interface EvidenceItem {
   id: string;
   kind: EvidenceKind;
   /** 번호표만 */
@@ -14,7 +14,7 @@ export interface EvidenceItem {
   clue: string;
 }
 
-/** 방에 놓인 증거물 — 방을 코드가 아니라 데이터로 정의하는 첫 단계(SceneInventory 씨앗). */
+/** 방에 놓인 증거물 */
 export const EVIDENCE_ITEMS: EvidenceItem[] = [
   {
     id: "E-01",

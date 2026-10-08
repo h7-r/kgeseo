@@ -1,11 +1,8 @@
-"""Extract a Meshy hair variant onto a Meshy base character (no geometry authoring).
+"""다른 Meshy 모델의 머리카락을 기본 캐릭터 머리에 옮겨 얹는다(형상을 새로 만들지 않는다).
 
-1. Similarity-align (rotation + translation + uniform scale) the variant head to the
-   base head with ICP on face/ear/jaw points that hair does not cover.
-2. Keep variant faces whose vertices lie outside the base head surface by more than
-   `--gap` metres above the neck: that is the hair shell, with its UVs and texture.
-3. Drop tiny islands, save a blend with base + hair, export the hair GLB and
-   texture-colour renders (front/side/back) of base+hair next to the variant.
+1. 머리카락이 덮지 않는 얼굴 아랫부분 점으로 ICP 유사 변환(회전·이동·균일 배율)을 맞춘다.
+2. 머리카락 면(UV·텍스처 그대로)만 남기고 작은 섬을 버린 뒤 기본 두피에 얹는다.
+3. 기본+머리카락 blend, 머리카락 GLB, 앞·옆·뒤 검수 그림을 쓴다.
 
 Usage:
   Blender --background --factory-startup --python meshy_extract_hair.py -- \
@@ -30,14 +27,14 @@ from mathutils.bvhtree import BVHTree
 
 def arguments():
     raw = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    p = argparse.ArgumentParser()
-    p.add_argument("--base", type=Path, required=True)
-    p.add_argument("--variant", type=Path, required=True)
-    p.add_argument("--out-dir", type=Path, required=True)
-    p.add_argument("--gap", type=float, default=0.006)
-    p.add_argument("--selection", type=Path, default=None,
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base", type=Path, required=True)
+    parser.add_argument("--variant", type=Path, required=True)
+    parser.add_argument("--out-dir", type=Path, required=True)
+    parser.add_argument("--gap", type=float, default=0.006)
+    parser.add_argument("--selection", type=Path, default=None,
                    help="selection.json from meshy_hair_select.py (reviewed face indices)")
-    return p.parse_args(raw)
+    return parser.parse_args(raw)
 
 
 def import_glb(path: Path, name: str) -> bpy.types.Object:
@@ -57,7 +54,7 @@ def import_glb(path: Path, name: str) -> bpy.types.Object:
 
 
 def umeyama(src: list[Vector], dst: list[Vector]) -> Matrix:
-    """Least-squares similarity transform src -> dst (4x4)."""
+    """src → dst 최소제곱 유사 변환(4x4)."""
     import numpy as np
 
     a = np.array([tuple(p) for p in src])
@@ -88,7 +85,6 @@ def head_frame(points: list[Vector]):
     return top, height
 
 
-
 def face_islands(bm):
     bm.faces.ensure_lookup_table()
     seen, islands = set(), []
@@ -110,7 +106,7 @@ def face_islands(bm):
 
 
 def base_color_pixels(obj):
-    """Base-colour texture as a small numpy RGB array (for colour classification only)."""
+    """기본색 텍스처를 1024² RGB 배열로(색 분류용)."""
     import numpy as np
 
     material = obj.data.materials[0]
@@ -130,7 +126,7 @@ def base_color_pixels(obj):
 
 
 def ear_region(base_pts, top, height):
-    """Base ear box: beyond the skull side (front-of-head width) at ear height."""
+    """기본 모델의 귀 상자: 귀 높이에서 두개골 옆면보다 바깥."""
     band = (top - height * 0.19, top - height * 0.105)
     front = [abs(p.x) for p in base_pts if band[0] < p.z < band[1] and -0.2 < p.y < -0.06]
     skull = max(front)
@@ -138,10 +134,9 @@ def ear_region(base_pts, top, height):
 
 
 def select_ear_faces(obj, box) -> set[int]:
-    """The variant's own ear: faces in the ear box beyond the skull side.
+    """머리카락을 가져오는 모델 자신의 귀 면.
 
-    The hair was generated around this ear, so shipping it with the hair (and hiding
-    the base ear while this hair is worn) removes strands cutting through the ear.
+    머리카락이 이 귀를 둘러 생성됐으므로 귀를 함께 가져와야(기본 귀는 숨김) 가닥이 귀를 뚫지 않는다.
     """
     faces = set()
     for poly in obj.data.polygons:
@@ -152,7 +147,7 @@ def select_ear_faces(obj, box) -> set[int]:
 
 
 def uv_islands(obj) -> list[list[int]]:
-    """Faces connected across edges whose UVs match on both sides (Meshy texture charts)."""
+    """양쪽 UV 가 같은 모서리로 이어진 면 묶음(= Meshy 텍스처 차트)."""
     bm = bmesh.new()
     bm.from_mesh(obj.data)
     bm.faces.ensure_lookup_table()
@@ -184,11 +179,10 @@ def uv_islands(obj) -> list[list[int]]:
     return islands
 
 
-def select_hair_faces(obj, top, height, neck_z, tree=None, eye_line=None) -> set[int]:
-    """Whole texture charts that are mostly hair-coloured.
+def select_hair_faces(obj, neck_z) -> set[int]:
+    """대부분 머리카락 색인 텍스처 차트를 통째로 고른다.
 
-    Meshy lays hair and face on separate UV charts, so dark lashes and brows painted
-    on the face chart are excluded even though their colour matches the hair.
+    Meshy 는 머리카락과 얼굴을 다른 차트에 두므로, 얼굴 차트의 어두운 눈썹·속눈썹은 빠진다.
     """
     import numpy as np
 
@@ -214,7 +208,7 @@ def select_hair_faces(obj, top, height, neck_z, tree=None, eye_line=None) -> set
 
 
 def fill_enclosed(obj, hair: set[int], neck_z: float) -> set[int]:
-    """Add small non-hair patches completely surrounded by hair (strand highlights, gaps)."""
+    """머리카락에 완전히 둘러싸인 작은 조각(가닥 하이라이트·틈)을 더한다."""
     bm = bmesh.new()
     bm.from_mesh(obj.data)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
@@ -246,10 +240,9 @@ def fill_enclosed(obj, hair: set[int], neck_z: float) -> set[int]:
 
 
 def seat_on_skull(bm, tree, top, height, skip=frozenset()) -> dict:
-    """Move hair radially (about the head centre) so its inner layer rests on the base skull.
+    """머리 중심에서 방사 방향으로 옮겨 안쪽 층이 기본 두개골에 얹히게 한다.
 
-    The shift is a smooth, low-frequency field over directions (binned, blurred and
-    bilinearly sampled), so strands keep their original relief and nothing steps.
+    이동량은 방향별로 칸을 나눠 흐린 매끄러운 장이라 가닥의 결이 살고 계단이 안 생긴다.
     """
     centre = Vector((0.0, 0.0, top - height * 0.13))
     rows, cols = 24, 48
@@ -308,10 +301,7 @@ def seat_on_skull(bm, tree, top, height, skip=frozenset()) -> dict:
 
 
 def clear_skull(bm, tree, gap: float, skip=frozenset()) -> int:
-    """Where thin hair dips under the base scalp, lift just those vertices outside it.
-
-    Smoothed over one-ring neighbours so strands don't get dents.
-    """
+    """얇은 머리카락이 두피 아래로 파고든 정점만 바깥으로 들어 올린다(1링 평균으로 패임 방지)."""
     lift = {}
     for v in bm.verts:
         if v in skip:
@@ -330,6 +320,7 @@ def clear_skull(bm, tree, gap: float, skip=frozenset()) -> int:
         v.co += vec.normalized() * max(vec.length, lift[v].length)
     return len(lift)
 
+
 def main():
     args = arguments()
     out = args.out_dir.expanduser().resolve()
@@ -342,11 +333,10 @@ def main():
     top, height = head_frame(base_pts)
     tree = BVHTree.FromPolygons(base_pts, [list(p.vertices) for p in base.data.polygons])
 
-    # Head region of the base: above the chin line (upper ~25% of the body).
+    # 머리 영역: 턱선 위(몸 위쪽 약 25%).
     neck_z = top - height * 0.26
-    face_band = (top - height * 0.24, top - height * 0.12)
 
-    # Front of the face below the eyes (cheeks, nose, mouth, chin): hair never covers it.
+    # 눈 아래 얼굴 앞면(뺨·코·입·턱)은 머리카락이 덮지 않아 정렬 기준점으로 쓴다.
     eye_line = top - height * 0.155
     chin_line = top - height * 0.235
     front_y = min(p.y for p in base_pts if chin_line < p.z < eye_line and abs(p.x) < 0.05)
@@ -375,13 +365,12 @@ def main():
     var.data.transform(transform)
     var.data.update()
 
-    eye_line = top - height * 0.155
     ear_box = ear_region(base_pts, top, height)
     if args.selection:
         hair_faces = set(json.loads(args.selection.read_text()))
         ear_faces = set()
     else:
-        hair_faces = select_hair_faces(var, top, height, neck_z, tree, eye_line)
+        hair_faces = select_hair_faces(var, neck_z)
         ear_faces = select_ear_faces(var, ear_box)
         hair_faces |= ear_faces
     bm = bmesh.new()
@@ -393,8 +382,7 @@ def main():
     doomed = [f for f in bm.faces if f.index not in hair_faces]
     bmesh.ops.delete(bm, geom=doomed, context="FACES")
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
-    # glTF splits vertices along UV seams; weld positions (UVs live on loops, so they
-    # are kept) so a hair shell is one island instead of hundreds of UV patches.
+    # glTF 는 UV 이음매마다 정점을 쪼개므로 자리로 용접해 머리카락을 한 섬으로 만든다(UV 는 루프에 남는다).
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
     islands = face_islands(bm)
     total = sum(len(i) for i in islands)
@@ -427,7 +415,7 @@ def main():
     bpy.context.view_layer.objects.active = var
     bpy.ops.export_scene.gltf(filepath=str(out / "hair.glb"), export_format="GLB", use_selection=True)
 
-    # Texture-colour renders: base+hair, and hair alone.
+    # 텍스처 색 검수 그림: 기본+머리카락, 머리카락만.
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.display.shading.light = "STUDIO"
@@ -459,7 +447,7 @@ def main():
             scene.render.filepath = str(out / f"{label}_{view}.png")
             bpy.ops.render.render(write_still=True)
     base.hide_render = False
-    # 확인용 blend: 기본 모델은 이 헤어를 쓸 때처럼 귀를 숨긴 상태로 저장한다.
+    # 확인용 blend 는 이 머리카락을 쓸 때처럼 기본 귀를 숨긴 상태로 저장한다.
     bpy.ops.wm.save_as_mainfile(filepath=str(out / "hair_on_base.blend"))
     (out / "report.json").write_text(json.dumps(report, indent=2))
     print("MESHY_HAIR_OK", json.dumps(report))

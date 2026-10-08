@@ -5,13 +5,15 @@
 
 import * as THREE from "three";
 
-export interface CollapseDurations {
+import { METERS_PER_UNIT } from "../plan/sitePlan";
+
+interface CollapseDurations {
   turn: number;
   collapse: number;
   linger: number;
 }
 
-export type CollapseStage = "turn" | "collapse" | "linger" | "done";
+type CollapseStage = "turn" | "collapse" | "linger" | "done";
 
 const DEFAULT_DURATION: CollapseDurations = { turn: 0.9, collapse: 1.4, linger: 0.6 };
 
@@ -26,13 +28,13 @@ const angleDelta = (a: number, b: number) => {
   return d;
 };
 
-export interface CollapseTarget {
+interface CollapseTarget {
   code: string;
   name?: string;
   center: [number, number];
 }
 
-export interface CollapseOptions {
+interface CollapseOptions {
   blocker: CollapseTarget;
   /** 카메라가 돌아볼 자리(열리는 길목). 없으면 차단물 중심 */
   lookAt?: [number, number] | null;
@@ -89,12 +91,12 @@ export function createCollapseSequence({
           camera.rotation.order = "YXZ";
           startAngle = { y: camera.rotation.y, x: camera.rotation.x };
           // three 의 +Z 가 화면 뒤라 atan2 부호가 이렇게 된다
-          const dx = vx - camera.position.x * 0.3;
-          const dz = vz - camera.position.z * 0.3;
+          const dx = vx - camera.position.x * METERS_PER_UNIT;
+          const dz = vz - camera.position.z * METERS_PER_UNIT;
           const horizontal = Math.hypot(dx, dz);
           targetAngle = {
             y: Math.atan2(-dx, -dz),
-            x: Math.atan2(lookY - camera.position.y * 0.3, Math.max(0.5, horizontal)),
+            x: Math.atan2(lookY - camera.position.y * METERS_PER_UNIT, Math.max(0.5, horizontal)),
           };
         }
         const k = smooth(Math.min(1, t / durations.turn));
@@ -135,7 +137,7 @@ export function createCollapseSequence({
   return sequence;
 }
 
-export interface CollapseTransform {
+interface CollapseTransform {
   /** 내려가는 양(유닛) */
   sink: number;
   /** 세로 눌림 배율 */
@@ -148,8 +150,8 @@ export interface CollapseTransform {
 export function collapseTransform(progress: number, heightMeters = 4): CollapseTransform {
   const p = THREE.MathUtils.clamp(progress, 0, 1);
   return {
-    // 제 키만큼 땅 밑으로(유닛 = m / 0.3)
-    sink: -(heightMeters / 0.3) * p * 1.05,
+    // 제 키만큼 땅 밑으로
+    sink: -(heightMeters / METERS_PER_UNIT) * p * 1.05,
     squash: 1 - 0.45 * p,
     // 처음부터 흐려지면 유령처럼 보인다 — 마지막에만 빠르게
     opacity: p < 0.75 ? 1 : 1 - (p - 0.75) / 0.25,

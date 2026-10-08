@@ -2,14 +2,15 @@
 // 강은 방향 앵커다. 어디가 남쪽인지 알려 주는 유일한 지형지물이라 파란 판 한 장으로는 안 된다.
 // 수면은 성긴 격자(1 m 당 0.6칸)로 충분하다. 물결은 CPU 가 매 프레임 다시 쓴다.
 // 좌표·크기는 미터, 지오메트리만 유닛.
+
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { makeRandom } from "@/engine/random";
-import { applyVertexColors, createRockShape, type Noise2D } from "../terrain/ground";
-import { UNITS_PER_METER } from "../plan/sitePlan";
-import type { WaterDistortion } from "../story/distortion";
 
-type Range = [number, number];
+import { makeRandom } from "@/engine/random";
+
+import { UNITS_PER_METER, type Range } from "../plan/sitePlan";
+import type { WaterDistortion } from "../story/distortion";
+import { applyVertexColors, createRockShape, type Noise2D } from "../terrain/ground";
 
 const RIVER_STYLE = {
   shallow: "#6E8A86", // 물가 — 바닥이 비쳐 밝고 탁하다

@@ -19,12 +19,12 @@ export interface PaymentBoxContent {
   lines: readonly string[];
 }
 
-export interface BenefitPoint {
+interface BenefitPoint {
   text: string;
   note: string;
 }
 
-export interface Pricing {
+interface Pricing {
   plans: readonly PricingPlan[];
   paymentBoxes: readonly PaymentBoxContent[];
   benefitsTitle: string;

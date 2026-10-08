@@ -12,8 +12,7 @@ import { useLockUnlocked } from "@/props/combinationLock";
 import { rattleOffset, toggleHinge, useIsOpen } from "@/props/hingeState";
 
 import BreakerWiring from "./BreakerWiring";
-import { BREAKER_DOOR_THICKNESS } from "./dimensions";
-import { openBoxGeometry } from "./geometry";
+import { BREAKER_DOOR_THICKNESS, openBoxGeometry } from "./geometry";
 import HandwrittenHint from "./HandwrittenHint";
 import { circuitStripTexture } from "./textures";
 import { pluggedWireCount, usePluggedWiresKey, useWiringCorrect } from "./workLampState";

@@ -8,12 +8,12 @@ import * as THREE from "three";
 import { METERS_PER_UNIT } from "../plan/sitePlan";
 
 /** 충돌을 뽑는 데 필요한 무리 모양(placement/instanceGroups 의 InstanceGroup 이 이 모양을 가진다) */
-export interface ColliderSourceGroup {
+interface ColliderSourceGroup {
   groupId: string;
   batches: readonly { geometry: THREE.BufferGeometry; matrices: Float32Array }[];
 }
 
-export interface PropCollider {
+interface PropCollider {
   x: number;
   z: number;
   radius: number;
@@ -106,7 +106,8 @@ function buildCylinders(
     if (ratio === null) continue;
     for (const { geometry, matrices } of group.batches) {
       if (!geometry.boundingBox) geometry.computeBoundingBox();
-      box.copy(geometry.boundingBox!);
+      if (!geometry.boundingBox) continue;
+      box.copy(geometry.boundingBox);
       const size = new THREE.Vector3().subVectors(box.max, box.min);
       const center = new THREE.Vector3().addVectors(box.max, box.min).multiplyScalar(0.5);
       for (let i = 0; i < matrices.length; i += 16) {
@@ -189,8 +190,6 @@ export function buildPropColliders(groups: readonly ColliderSourceGroup[] | null
   };
   return { blockedAt, count: colliders.length, colliders };
 }
-
-export type PropColliders = ReturnType<typeof buildPropColliders>;
 
 /** 3인칭 카메라를 막는 원기둥. occludes(x, y, z) — 모두 미터, 그 점이 소품 안이면 true. */
 export function buildCameraOccluders(groups: readonly ColliderSourceGroup[] | null | undefined) {

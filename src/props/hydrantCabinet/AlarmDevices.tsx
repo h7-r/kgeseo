@@ -3,7 +3,7 @@ import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
-export interface AlarmDeviceColors {
+interface AlarmDeviceColors {
   bellOuterColor: string;
   bellInnerColor: string;
   callPointOuterColor: string;
@@ -12,7 +12,7 @@ export interface AlarmDeviceColors {
   metalColor: string;
 }
 
-export interface AlarmDeviceSizes {
+interface AlarmDeviceSizes {
   /** 칸 높이 대비 */
   bellSize: number;
   /** 바깥 원보다 작아야 한다 */

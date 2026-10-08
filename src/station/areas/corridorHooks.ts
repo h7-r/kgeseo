@@ -1,21 +1,21 @@
 import { useEffect, useMemo } from "react";
 
+import { exposeDevHook } from "@/debug/devHooks";
 import { scaleColor } from "@/engine/color";
 import { pickOutline } from "@/engine/leva/savedControls";
 import type { OutlineValues } from "@/engine/toon";
-import { exposeDevHook } from "@/debug/devHooks";
 import { registerSurface, unregisterSurface } from "@/lobby/placement";
 import { restoreUnlocked, useLockExists, useLockUnlocked } from "@/props/combinationLock";
 import { restoreOpen } from "@/props/hingeState";
-import type { WorkLampPuzzleValues } from "@/props/workLampPuzzle/controls";
 import { useCorridorPower, useEndDoorReleased, useFullPower } from "@/props/workLampPuzzle/workLampState";
-import { corridorDepthBrightness, type CorridorDepthRule } from "@/station/corridor/depthShading";
-import { wallCabinetDoorId } from "@/station/corridor/wallCabinetId";
 import { PLAY_CONTRACT, usePlayFlag, usePlayStateSource, usePuzzleCompleted } from "@/server/playSession";
+import { corridorDepthBrightness, type CorridorDepthRule } from "@/station/corridor/corridorLighting";
+import { wallCabinetDoorId } from "@/station/corridor/wallCabinetId";
 import { MIN_X } from "@/station/layout/dimensions";
 import { passage } from "@/station/layout/passage";
 
 import type { CorridorValues } from "../controls/corridorControls";
+import type { WorkLampPuzzleValues } from "../controls/workLampControls";
 
 /** 복도 길이 비율(0 = 비상계단 쪽 끝, 1 = 방 쪽 끝) → 세계 z */
 export const corridorZ = (corridor: CorridorValues, ratio: number) =>

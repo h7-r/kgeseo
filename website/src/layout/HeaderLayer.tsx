@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { cancelSectionScroll, scrollToSection } from "@/layout/header/sectionScroll";
-import { useCurrentSection } from "@/layout/header/useCurrentSection";
-import { useHeaderScrollState } from "@/layout/header/useHeaderScrollState";
-import { useSectionSnapMarkers } from "@/layout/header/useSectionSnapMarkers";
-import { DESIGN_WIDTH, useStageScale } from "@/lib/stage";
+import { DESIGN_WIDTH, HEADER_HEIGHT, useStageScale } from "@/lib/layout";
 import { AUTH_PAGE_PATHS, QUERY, ROUTES, withQuery, type RoutePath } from "@/navigation/routes";
 import { sectionTops } from "@/navigation/sectionGeometry";
 import { SUB_NAV_HEIGHT, getSubMenu } from "@/navigation/subMenus";
 import { signOut, useSessionUser } from "@/services/session";
 
 import Header, { type HeaderMenuId } from "./Header";
-import { HEADER_HEIGHT } from "./layoutMetrics";
+import {
+  cancelSectionScroll,
+  scrollToSection,
+  useCurrentSection,
+  useHeaderScrollState,
+  useSectionSnapMarkers,
+} from "./headerScroll";
 import SubNav from "./SubNav";
 
 /*

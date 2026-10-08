@@ -1,6 +1,6 @@
 // 절벽 아래 물가에서 강 건너 택촌으로 가는 징검다리.
 // 두 마을이 이어져 있다는 것이 화면에 서야 하는데(④ Scene 01), 그 이음은 약하다 —
-// 교각을 쌓은 농다리가 아니라 큰 돌을 물바닥에 그냥 놓은 징검다리다(사용자가 사진으로 보여 준 것).
+// 교각을 쌓은 농다리가 아니라 큰 돌을 물바닥에 그냥 놓은 징검다리다.
 //   낱개로 한 뼘씩 떨어져 · 크기 제각각에 납작 · 줄이 좌우로 굽고 · 가끔 두 장이 나란히 · 물 위로 한 뼘.
 // 걷는 판정은 없다. 그림일 뿐이라 지금 밟으면 뚫고 물에 빠진다 — 붙이려면 도면·하네스를 건드려야 해 팀이 정한다.
 // 표본은 밑동 원점 · Z 폭 1(누운 물건 규약). size = 디디는 쪽 길이.
@@ -11,6 +11,7 @@ import { makeRandom } from "@/engine/random";
 
 import type { Spot } from "../placement/instanceGroups";
 import { RIVER } from "../plan/sitePlan";
+import type { HeightAt } from "../terrain/ground";
 import { farBankBendAt, riverBendAt } from "./river";
 
 // 물에 씻겨 희끗한 화강암. 꼭짓점에는 비율만 굽는다.
@@ -70,7 +71,8 @@ export function steppingStonePrototypes(count = 6, seed = 6101): THREE.BufferGeo
     geometry.setAttribute("color", new THREE.Float32BufferAttribute(shades, 3));
     geometry.computeVertexNormals();
     geometry.computeBoundingBox();
-    const bb = geometry.boundingBox!;
+    const bb = geometry.boundingBox;
+    if (!bb) continue;
     const length = Math.max(1e-6, bb.max.z - bb.min.z);
     geometry.translate(-(bb.min.x + bb.max.x) / 2, -bb.min.y, -(bb.min.z + bb.max.z) / 2);
     geometry.scale(1 / length, 1 / length, 1 / length);
@@ -79,7 +81,7 @@ export function steppingStonePrototypes(count = 6, seed = 6101): THREE.BufferGeo
   return prototypes;
 }
 
-export interface SteppingStoneOptions {
+interface SteppingStoneOptions {
   x?: number;
   /** 돌 한 칸(중심 사이). 촘촘하면 돌이 붙어 돌길로 보인다 — 돌 사이로 물이 지나가야 징검다리다 */
   step?: number;
@@ -88,12 +90,12 @@ export interface SteppingStoneOptions {
   /** 줄이 좌우로 굽는 폭 — 자로 그은 징검다리는 없다 */
   sway?: number;
   seed?: number;
-  groundHeight?: ((x: number, z: number) => number) | null;
+  groundHeight?: HeightAt | null;
   /** 이 너머로는 groundHeight 를 믿으면 안 된다 */
   coreZEnd?: number;
 }
 
-export interface SteppingStoneLayout {
+interface SteppingStoneLayout {
   stones: Spot[];
   measurements: { startZ: number; endZ: number; length: number; step: number; stoneCount: number };
 }
@@ -131,7 +133,7 @@ export function steppingStoneSpots({
     const z = startZ + length * t;
     const x = bend(t);
     // 양끝 돌만 땅높이를 따르고 가운데는 물바닥(0)이다. 코어 밖에서 groundHeight 를 부르면
-    // 엉뚱한 값이 나온다(예전 교각이 −2.61 m 로 가라앉았다). 건너편(z > 77)은 수면과 같다.
+    // 엉뚱한 값이 나와 돌이 물속으로 가라앉는다. 건너편(z > 77)은 수면과 같다.
     const isOnLand = k <= 1 || k >= count - 1;
     const floor = groundHeight && isOnLand && z <= coreZEnd ? groundHeight(x, z) : 0;
     const size = 1.35 + random() * 0.55;

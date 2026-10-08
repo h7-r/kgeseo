@@ -1,4 +1,13 @@
-import { Suspense, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
+import {
+  Component,
+  Suspense,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type ErrorInfo,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import {
@@ -11,20 +20,18 @@ import {
   SupportPage,
   TermsPage,
 } from "@/app/pageRegistry";
-import RouteErrorBoundary from "@/app/RouteErrorBoundary";
+import { useHeroCovering } from "@/app/siteState";
 import { useIsScrolling, useReadProgress } from "@/hooks/motion";
-import { usePauseOffscreen } from "@/hooks/usePauseOffscreen";
 import GameTransition from "@/layout/GameTransition";
 import HeaderLayer from "@/layout/HeaderLayer";
-import VideoModal from "@/layout/VideoModal";
+import VideoModal from "@/layout/videoPlayer/VideoModal";
+import { BACKDROP_ORIGIN } from "@/lib/layout";
 import { dispatchPageChange, scrollToTopSilently } from "@/lib/pageEvents";
 import { ROUTES, launchGame } from "@/navigation/routes";
 import ErrorPage from "@/pages/ErrorPage";
-import HomePage from "@/pages/home/HomePage";
+import HomePage from "@/pages/HomePage";
 import SocialCallbackPage from "@/pages/SocialCallbackPage";
 import { getSessionUser, useSessionUser } from "@/services/session";
-import { useHeroCovering } from "@/state/heroCover";
-import { BACKDROP_ORIGIN } from "@/three/backdropOrigin";
 import SceneSlot from "@/three/SceneSlot";
 
 export default function App() {
@@ -150,4 +157,60 @@ function PageFrame({ children }: { children: ReactNode }) {
       </RouteErrorBoundary>
     </div>
   );
+}
+
+/**
+ * 화면 코드를 못 받거나 그리다 터지면 빈 화면 대신 500 화면을 보여 준다.
+ * 주소마다 새로 만들어지는 칸 안에 두어, 다른 화면으로 가면 오류 상태가 함께 걷힌다.
+ */
+class RouteErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  override state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  override componentDidCatch(error: unknown, info: ErrorInfo) {
+    console.error(error, info.componentStack);
+  }
+
+  override render() {
+    return this.state.hasError ? <ErrorPage kind="500" /> : this.props.children;
+  }
+}
+
+/*
+ * background-position · stroke-dashoffset · conic-gradient 각도를 돌리는 끝없는 장식은
+ * 합성만으로 안 돼 매 프레임 다시 칠한다. 화면 밖(여유 200px)에 있을 때만 멈춘다.
+ */
+const ANIMATED_SELECTOR = ".flow-text, .stripe-text, .arc-glow, .pulse-light, .pulse-glow, .ring, .photo-ring";
+
+/** root 안의 끝없는 장식 애니메이션이 화면 밖이면 .is-paused 를 붙인다. resetKey 가 바뀌면 다시 건다. */
+function usePauseOffscreen(rootRef: RefObject<HTMLElement | null>, resetKey?: unknown): void {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) entry.target.classList.toggle("is-paused", !entry.isIntersecting);
+      },
+      { rootMargin: "200px 0px" },
+    );
+    const seen = new WeakSet<Element>();
+    const scan = () => {
+      for (const el of root.querySelectorAll(ANIMATED_SELECTOR)) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+        observer.observe(el);
+      }
+    };
+    scan();
+    // lazy 화면처럼 늦게 붙는 구간도 잡는다.
+    const mutationObserver = new MutationObserver(scan);
+    mutationObserver.observe(root, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [rootRef, resetKey]);
 }

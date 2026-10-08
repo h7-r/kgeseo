@@ -1,6 +1,6 @@
 import Modal from "@/components/Modal";
 import { FONT } from "@/lib/style";
-import type { AccountData } from "@/services/accountStore";
+import type { AccountData } from "@/services/account/db";
 import { COLOR } from "@/styles/tokens";
 
 import { darkRowStyle } from "./styles";

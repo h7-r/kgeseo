@@ -20,8 +20,7 @@ export type FieldName =
 export type FormValues = Partial<Record<FieldName, string>>;
 export type FieldErrors = Partial<Record<FieldName, string>>;
 
-// 복사·붙여넣기로 몰래 들어오는 제어 문자와 폭 없는 글자.
-// eslint-disable-next-line no-control-regex
+// eslint-disable-next-line no-control-regex -- 복사·붙여넣기로 몰래 들어오는 제어 문자와 폭 없는 글자를 걸러 낸다.
 const INVISIBLE_CHARS = /[\u0000-\u001f\u007f\u200b-\u200d\u2060\ufeff]/g;
 
 /**
@@ -168,7 +167,7 @@ const COMMON_PASSWORDS = [
 ];
 
 /** 비밀번호 규칙이 함께 보는 값. 이메일 아이디·닉네임이 들어간 비밀번호를 막는다. */
-export interface PasswordContext {
+interface PasswordContext {
   email?: string;
   nickname?: string;
 }
@@ -241,7 +240,7 @@ export const FIELD_HINTS: Readonly<Partial<Record<FieldName, string>>> = {
   code: "메일로 받은 숫자 6자리를 적어주세요.",
 };
 
-export interface PasswordCheck {
+interface PasswordCheck {
   label: string;
   test: (value: string | undefined) => boolean;
 }
@@ -254,7 +253,7 @@ export const PASSWORD_CHECKS: readonly PasswordCheck[] = [
   { label: "숫자", test: (value) => /\d/.test(value || "") },
 ];
 
-export interface ValidateOptions {
+interface ValidateOptions {
   /** true 면 비밀번호는 비었는지만 본다. */
   isLogin?: boolean;
 }

@@ -8,9 +8,8 @@ import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { Highlight } from "@/lobby/Highlight";
 import { canTurnValve, turnValve, usePanelWiring, valveOpen } from "@/props/panelWiring";
-import type { HighlightSettings } from "@/props/shared/highlightSettings";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { worldPositionOf } from "@/props/shared/worldPosition";
+import { type HighlightSettings, worldPositionOf } from "@/props/shared/aimTarget";
 
 interface HoseValveProps {
   valveId: string;

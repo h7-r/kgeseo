@@ -1,5 +1,5 @@
-# 노면이 매끄러운가 — 걷는 폭만 재고 옛 지형과 견준다.
-#   쓰는 법(저장소 뿌리에서): Blender --background --factory-startup --python naju01/tools/measure-path-surface.py -- <옛높이.bin> [다듬기 되풀이…]
+# 노면이 매끄러운가 — 걷는 폭만 재고 기준 높이 파일과 견준다.
+#   쓰는 법(저장소 뿌리에서): Blender --background --factory-startup --python naju01/tools/measure-path-surface.py -- <기준높이.bin> [다듬기 되풀이…]
 #   build-terrain.py 를 읽어 main() 앞까지만 실행하고 build_heights·PATHS 를 쓴다.
 import numpy as np, math, sys
 args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -9,8 +9,8 @@ iteration_list = [int(v) for v in args[1:]] or [None]
 source = open("naju01/tools/build-terrain.py", encoding="utf-8").read()
 source = source[:source.rindex("main()")]
 nx, nz, cell = 321, 201, 0.25
-o = np.fromfile(old_path, dtype="<f4")
-old = o[nx * nz:2 * nx * nz].reshape(nz, nx)
+raw_heights = np.fromfile(old_path, dtype="<f4")
+old = raw_heights[nx * nz:2 * nx * nz].reshape(nz, nx)
 
 def sample(grid, x, z):
     u = np.clip(x / cell, 0, nx - 1.001); v = np.clip(z / cell, 0, nz - 1.001)
@@ -53,13 +53,13 @@ def measure(grid, paths):
     return lines
 
 for iters in iteration_list:
-    g = {"__name__": "t"}
+    namespace = {"__name__": "t"}
     # smooth_centerline 의 기본 되풀이 값만 바꿔 돌린다
     src = source if iters is None else source.replace("iterations=14", f"iterations={iters}")
-    exec(compile(src, "t", "exec"), g)
-    _, _, h, _, _, _ = g["build_heights"]()
-    old_lines = measure(old, g["PATHS"])
-    new_lines = measure(h, g["PATHS"])
+    exec(compile(src, "t", "exec"), namespace)
+    _, _, heights, _, _, _ = namespace["build_heights"]()
+    old_lines = measure(old, namespace["PATHS"])
+    new_lines = measure(heights, namespace["PATHS"])
     print(f"  ── 다듬기 되풀이 {iters if iters is not None else '(현재값)'} ──")
     print("  통로 | 길이(도면)   | 단차 옛→새   | 어긋남 옛→새 | 5cm 초과")
     plan = {"T1": 9.5, "T2": 15.1, "T3": 22.5, "T4": 28.0}

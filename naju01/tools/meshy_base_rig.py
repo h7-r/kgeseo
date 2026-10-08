@@ -1,12 +1,8 @@
-"""Rig a bald Meshy base character with a temporary 22-bone rig (no shape authoring).
+"""Meshy 기본 캐릭터에 임시 22본 리그를 씌운다(메시·텍스처는 건드리지 않는다).
 
-The Meshy mesh and texture stay untouched.  Joint positions come from horizontal
-slices of the mesh (crotch gap, neck narrowing, arm axis, leg centre lines); the
-result is rendered with the skeleton drawn over it for visual review.  Weights are
-computed with Blender automatic weights on a welded, decimated proxy and transferred
-to the full mesh.  Output uses the V4 names (Rig_<Label>, Body_<Label>) so
-build_chibi_body.py can straighten the arms to the Sidekick T-pose and rebind to
-the Sidekick 89-bone skeleton.
+관절 자리는 메시의 수평 단면(가랑이 틈·목 잘록함·팔 축·다리 중심선)에서 찾고, 골격을 겹쳐
+그려 검수한다. 웨이트는 용접·축소한 대리 메시에서 자동 웨이트를 구해 원래 메시로 옮긴다.
+이름(Rig_<Label>, Body_<Label>)은 build_chibi_body.py 가 이어받는 규약이다.
 
 Usage:
   Blender --background --factory-startup --python meshy_base_rig.py -- \
@@ -33,17 +29,16 @@ import meshy_extract_hair as H  # noqa: E402
 
 def arguments():
     raw = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    p = argparse.ArgumentParser()
-    p.add_argument("--male", type=Path)
-    p.add_argument("--female", type=Path)
-    p.add_argument("--blend-output", type=Path, required=True)
-    p.add_argument("--review-dir", type=Path, required=True)
-    # 옷을 입은 모델은 소매·밑단 때문에 관절이 잘못 잡힌다(티셔츠에서는 손목이
-    # 13% 안쪽으로 잡혀 팔 각도가 18도 틀어졌다). 속옷 차림에서 한 번 잡은 관절을
-    # 키로 나눠 저장해 두고(--joints-out) 같은 캐릭터의 다른 착장에 그대로 쓴다(--joints).
-    p.add_argument("--joints-out", type=Path, default=None)
-    p.add_argument("--joints", type=Path, default=None)
-    return p.parse_args(raw)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--male", type=Path)
+    parser.add_argument("--female", type=Path)
+    parser.add_argument("--blend-output", type=Path, required=True)
+    parser.add_argument("--review-dir", type=Path, required=True)
+    # 옷 입은 모델은 소매·밑단 때문에 관절이 잘못 잡힌다. 기본 착장에서 잡은 관절을 키로 나눠
+    # 저장해 두고(--joints-out) 같은 캐릭터의 다른 착장에 그대로 쓴다(--joints).
+    parser.add_argument("--joints-out", type=Path, default=None)
+    parser.add_argument("--joints", type=Path, default=None)
+    return parser.parse_args(raw)
 
 
 def slice_points(points, z, band):
@@ -109,8 +104,7 @@ def find_landmarks(points) -> dict[str, Vector]:
     def z_at(f):
         return ground + h * f
 
-    # Crotch: scanning up from the knees, the first height where the body is one
-    # connected piece around x = 0.
+    # 가랑이: 무릎에서 위로 훑어 x = 0 둘레가 처음 한 덩어리로 이어지는 높이.
     crotch, run = None, 0
     for i in range(300):
         z = z_at(0.30 + i * 0.001)
@@ -127,8 +121,7 @@ def find_landmarks(points) -> dict[str, Vector]:
     # 반바지 밑단이 다리 사이를 이어 붙이면 가랑이가 낮게 잡힌다. 실제 범위로 묶는다.
     crotch = min(max(crotch, z_at(0.40)), z_at(0.45))
 
-    # Neck: narrowest central slice between the shoulders and the ears.  Meshy chibi
-    # proportions keep it inside 70-86 % of the height (ears ~87 %, shoulders ~74 %).
+    # 목: 어깨와 귀 사이에서 가장 가는 가운데 단면(Meshy 치비 비율에서 키의 70~86%).
     best = None
     for i in range(140):
         z = z_at(0.73 + i * 0.001)
@@ -159,7 +152,7 @@ def find_landmarks(points) -> dict[str, Vector]:
     joints["Head"] = Vector((0, neck_y, neck_z + h * 0.03))
 
     for side, sign in (("L", 1.0), ("R", -1.0)):
-        # Legs: per-side centroid of slices below the crotch.
+        # 다리: 가랑이 아래 단면의 좌우별 무게중심.
         def leg_slice(z):
             sl = [p for p in slice_points(points, z, band * 1.5) if p.x * sign > h * 0.005]
             if not sl:
@@ -178,10 +171,8 @@ def find_landmarks(points) -> dict[str, Vector]:
         thigh = leg_centre(crotch - h * 0.03)
         ankle_z = ground + h * 0.055
         ankle = leg_centre(ankle_z)
-        # 무릎은 비율로 찍지 않고 **살의 잘록한 곳**을 찾는다. 0.47 로 찍었더니 종아리
-        # 알 정점(다리의 43%)에 관절이 놓여 살은 무릎 아래에서 접히고, 진짜 무릎은 허벅지에
-        # 붙은 혹처럼 남았다(실측: 관절 0.43, 잘록한 곳 0.54~0.58). 종아리 알이 가장 굵은
-        # 높이 위쪽에서 가장 가는 단면을 무릎으로 본다.
+        # 무릎은 비율로 찍으면 종아리 알에 관절이 놓여 엉뚱한 데서 접힌다. 살의 잘록한 곳을 찾고,
+        # 못 찾을 때만 비율(0.47)을 쓴다.
         knee_z = find_knee(leg_centre, ankle_z, crotch, h) or ankle_z + (crotch - ankle_z) * 0.47
         knee = leg_centre(knee_z)
         # 허벅지 관절을 안쪽으로 당기면 걷기·달리기에서 무릎이 모인다. 실제 다리 중심을 쓴다.
@@ -192,8 +183,7 @@ def find_landmarks(points) -> dict[str, Vector]:
         tip = min(toe_pts, key=lambda p: p.y)
         joints[f"Toe.{side}"] = Vector((ankle.x, (tip.y + ankle.y) * 0.5 - h * 0.01, ground + h * 0.015))
 
-        # Arms: points outside the torso, above the hips; axis by principal direction.
-        # Armpit: highest slice (below the neck) where the arm is a separate piece.
+        # 팔: 몸통 바깥·엉덩이 위의 점. 겨드랑이는 팔이 따로 떨어지는 가장 높은 단면(목 아래).
         armpit_z, torso_half, run = None, None, 0
         for i in range(300):
             # 목·귀 근처에서 오검출되지 않게 목보다 충분히 아래에서 시작한다.
@@ -259,27 +249,27 @@ def build_rig(label, joints) -> bpy.types.Object:
     bpy.context.view_layer.objects.active = rig
     bpy.ops.object.mode_set(mode="EDIT")
     for name, parent, tail in BONES:
-        b = data.edit_bones.new(name)
+        bone = data.edit_bones.new(name)
         if name == "Root":
-            b.head, b.tail = Vector((0, 0, 0)), Vector((0, 0, 0.1))
-            b.use_deform = False
+            bone.head, bone.tail = Vector((0, 0, 0)), Vector((0, 0, 0.1))
+            bone.use_deform = False
         else:
-            b.head = joints[name]
+            bone.head = joints[name]
             if tail:
-                b.tail = joints[tail]
+                bone.tail = joints[tail]
             else:
-                b.tail = joints[name] + Vector((0, -0.05, 0))
-            if (b.tail - b.head).length < 1e-3:
-                b.tail = b.head + Vector((0, 0, 0.03))
+                bone.tail = joints[name] + Vector((0, -0.05, 0))
+            if (bone.tail - bone.head).length < 1e-3:
+                bone.tail = bone.head + Vector((0, 0, 0.03))
         if parent:
-            b.parent = data.edit_bones[parent]
-        b.align_roll(Vector((0, -1, 0)))
+            bone.parent = data.edit_bones[parent]
+        bone.align_roll(Vector((0, -1, 0)))
     bpy.ops.object.mode_set(mode="OBJECT")
     return rig
 
 
 def auto_weights(body, rig) -> dict:
-    """Automatic weights on a welded, decimated proxy, then transfer to the full mesh."""
+    """용접·축소한 대리 메시에서 자동 웨이트를 구해 원래 메시로 옮긴다."""
     proxy = body.copy()
     proxy.data = body.data.copy()
     proxy.name = f"{body.name}_proxy"
@@ -338,10 +328,10 @@ def render_review(label, body, rig, joints, out: Path, height: float):
     mat.diffuse_color = (1, 0.1, 0.1, 1)
     for name, co in joints.items():
         bpy.ops.mesh.primitive_uv_sphere_add(radius=height * 0.008, location=co, segments=12, ring_count=8)
-        m = bpy.context.object
-        m.data.materials.append(mat)
-        m.show_in_front = True
-        markers.append(m)
+        marker = bpy.context.object
+        marker.data.materials.append(mat)
+        marker.show_in_front = True
+        markers.append(marker)
     body.hide_render = False
     cam = bpy.data.objects.get("ReviewCam") or bpy.data.objects.new("ReviewCam", bpy.data.cameras.new("ReviewCam"))
     if cam.name not in scene.collection.objects:
@@ -353,7 +343,7 @@ def render_review(label, body, rig, joints, out: Path, height: float):
     others = [o for o in bpy.data.objects if o.type == "MESH" and o not in markers and o is not body]
     for o in others:
         o.hide_render = True
-    # Markers render through a slightly transparent body: draw wire-ish by alpha.
+    # 몸을 반투명하게 해 관절 표시가 비쳐 보이게 한다.
     scene.display.shading.show_xray = True
     scene.display.shading.xray_alpha = 0.55
     for view, angle in (("front", 0), ("side", math.pi / 2)):
@@ -365,8 +355,8 @@ def render_review(label, body, rig, joints, out: Path, height: float):
     scene.display.shading.show_xray = False
     for o in others:
         o.hide_render = False
-    for m in markers:
-        bpy.data.objects.remove(m, do_unlink=True)
+    for marker in markers:
+        bpy.data.objects.remove(marker, do_unlink=True)
 
 
 def main():
@@ -377,13 +367,13 @@ def main():
     report = {}
     for label, path in [(l, p) for l, p in (("Male", args.male), ("Female", args.female)) if p]:
         body = H.import_glb(path, f"Body_{label}")
-        # Feet on the ground (z = 0), centred on x/y.
+        # 발을 바닥(z = 0)에, x·y 는 가운데로.
         pts = [v.co for v in body.data.vertices]
         low = min(p.z for p in pts)
         cx = (min(p.x for p in pts) + max(p.x for p in pts)) / 2
         cy = (min(p.y for p in pts) + max(p.y for p in pts)) / 2
         body.data.transform(Matrix.Translation((-cx, -cy, -low)))
-        # 헤어·의상도 같은 기준으로 옮겨야 하므로 이동량을 남긴다.
+        # 머리카락·옷도 같은 기준으로 옮겨야 하므로 이동량을 남긴다.
         body["meshy_offset"] = (-cx, -cy, -low)
         body.data.update()
         points = [v.co.copy() for v in body.data.vertices]
@@ -406,9 +396,9 @@ def main():
         body.hide_viewport = False
     bpy.ops.wm.save_as_mainfile(filepath=str(args.blend_output.expanduser().resolve()))
     (out / "rig_report.json").write_text(json.dumps(report, indent=2))
-    for label, r in report.items():
-        hgt = r["height"]
-        print("FRACTIONS", label, {k: round(v[2] / hgt, 3) for k, v in r["joints"].items() if k.endswith(("L",)) or "." not in k})
+    for label, entry in report.items():
+        body_height = entry["height"]
+        print("FRACTIONS", label, {k: round(v[2] / body_height, 3) for k, v in entry["joints"].items() if k.endswith(("L",)) or "." not in k})
     print("MESHY_BASE_RIG_OK", json.dumps({k: v["weights"] for k, v in report.items()}))
 
 

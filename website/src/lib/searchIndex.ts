@@ -9,7 +9,7 @@ import { QUERY, ROUTES, withQuery, type NavTarget } from "@/navigation/routes";
  * 사이트 검색 색인. 검색용으로 글을 따로 베껴 두면 언젠가 본문과 어긋나므로
  * 화면이 쓰는 데이터 파일을 그대로 읽어 만든다. 글이 수천 줄뿐이라 브라우저에서 훑어도 충분히 빠르다.
  */
-export interface SearchResult {
+interface SearchResult {
   title: string;
   /** 결과 옆에 붙는 구역 이름(소개 · 약관 …) */
   section: string;

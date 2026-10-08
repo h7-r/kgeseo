@@ -1,14 +1,122 @@
-import { useRef } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
-import type * as THREE from "three";
+import * as THREE from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import type { OutlineValues } from "@/engine/toon";
-import { HeldItem } from "@/lobby/AimTracker";
+import { ToonOutline } from "@/engine/outline";
+import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
+import { HeldItem } from "@/lobby/HeldItem";
 import { drinkAction, heldDrink, useDrink } from "@/props/drinkState";
 
-import HeldCanModel from "./HeldCanModel";
-import HeldCupModel from "./HeldCupModel";
-import HeldPaperModel from "./HeldPaperModel";
+import { hintPaperTexture } from "./hintPaperTexture";
+
+interface HeldCanModelProps {
+  color: string;
+  isOpened: boolean;
+  /** 따개 탭. 땄으면 HeldDrink 가 살짝 세운다 */
+  tabRef: RefObject<THREE.Group | null>;
+  outline?: OutlineValues | null;
+}
+
+/** 손에 든 음료 캔 — 라벨색 몸통 + 알루미늄 뚜껑 + 따개 탭. */
+function HeldCanModel({ color, isOpened, tabRef, outline }: HeldCanModelProps) {
+  // 눈앞에 크게 드는 물건이라 면을 28 칸으로 둔다.
+  const geometry = useMemo(() => new THREE.CylinderGeometry(0.09, 0.09, 0.3, 28, 1), []);
+  // 뚜껑 테두리가 곧 캔의 윗 테라 선을 둘러야 몸통과 갈린다 — 그래서 지오를 따로 둔다.
+  const lidGeometry = useMemo(() => new THREE.CircleGeometry(0.088, 28), []);
+  useEffect(
+    () => () => {
+      geometry.dispose();
+      lidGeometry.dispose();
+    },
+    [geometry, lidGeometry],
+  );
+  return (
+    <group>
+      <mesh geometry={geometry} castShadow>
+        <meshToonMaterial color={color} gradientMap={TOON_GRADIENT} />
+        <ToonOutline geometry={geometry} outline={outline} />
+      </mesh>
+      <mesh geometry={lidGeometry} position={[0, 0.152, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <meshToonMaterial color="#c9ccd0" gradientMap={TOON_GRADIENT} />
+        <ToonOutline geometry={lidGeometry} outline={outline} />
+      </mesh>
+      {isOpened && (
+        <mesh position={[0.032, 0.156, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[0.03, 12]} />
+          <meshBasicMaterial color="#101216" toneMapped={false} />
+        </mesh>
+      )}
+      <group position={[-0.02, 0.156, 0]} ref={tabRef}>
+        <mesh>
+          <boxGeometry args={[0.07, 0.008, 0.03]} />
+          <meshBasicMaterial color="#b9bcc2" toneMapped={false} />
+        </mesh>
+      </group>
+    </group>
+  );
+}
+
+interface HeldCupModelProps {
+  color: string;
+  coffeeColor: string;
+  /** 남은 양 0~1 — 마실수록 표면이 낮아지고 좁아진다 */
+  remaining?: number;
+  outline?: OutlineValues | null;
+}
+
+/** 손에 든 종이컵 — 자판기에서 나온 컵과 같은 모습. */
+function HeldCupModel({ color, coffeeColor, remaining = 1, outline }: HeldCupModelProps) {
+  // 바닥이 없으면 다 마셨을 때 컵 속이 뚫려 보이고 외곽선도 아래가 끊긴다.
+  // 눈앞에 크게 드는 물건이라 면을 28 칸으로 둔다(18 이면 옆선이 각져 보인다).
+  const geometry = useMemo(() => {
+    const wall = new THREE.CylinderGeometry(0.12, 0.083, 0.24, 28, 1, true);
+    const bottom = new THREE.CircleGeometry(0.083, 28);
+    bottom.rotateX(-Math.PI / 2); // 컵 속에서 내려다보는 면
+    bottom.translate(0, -0.12, 0);
+    const merged = mergeGeometries([wall, bottom], false);
+    wall.dispose();
+    bottom.dispose();
+    return merged;
+  }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  const fill = Math.max(0, Math.min(1, remaining));
+  const surfaceY = -0.1 + 0.2 * fill;
+  const surfaceRadius = (0.083 + (0.12 - 0.083) * ((surfaceY + 0.12) / 0.24)) * 0.9;
+  return (
+    <group>
+      {/* meshBasic 은 명암이 없어 눈앞에 크게 들면 색종이처럼 납작하다. 같이 드는 관창도 toon 이다. */}
+      <mesh geometry={geometry} castShadow>
+        <meshToonMaterial color={color} gradientMap={TOON_GRADIENT} side={THREE.DoubleSide} />
+        <ToonOutline geometry={geometry} outline={outline} />
+      </mesh>
+      {fill > 0.02 && (
+        <mesh position={[0, surfaceY, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[surfaceRadius, 18]} />
+          <meshBasicMaterial color={coffeeColor} toneMapped={false} />
+        </mesh>
+      )}
+    </group>
+  );
+}
+
+interface HeldPaperModelProps {
+  outline?: OutlineValues | null;
+}
+
+/** 손에 든 밸브 힌트 쪽지 — 텍스처를 입힌 얇은 판. */
+function HeldPaperModel({ outline }: HeldPaperModelProps) {
+  const texture = useMemo(() => hintPaperTexture(), []);
+  const geometry = useMemo(() => new THREE.PlaneGeometry(0.24, 0.3), []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return (
+    <mesh geometry={geometry}>
+      <meshBasicMaterial map={texture} side={THREE.DoubleSide} toneMapped={false} />
+      {/* 같이 드는 캔·컵·관창이 전부 선을 두르고 있어 여기만 빠지면 배경에 붙어 떠 보인다. */}
+      <ToonOutline geometry={geometry} outline={outline} />
+    </mesh>
+  );
+}
 
 interface HeldDrinkProps {
   outline?: OutlineValues | null;

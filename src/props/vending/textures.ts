@@ -2,25 +2,10 @@
  * 자판기 간판·버튼 이름표·광고·배수구·캔 라벨 텍스처.
  * 색과 글자가 Leva 로 바뀌므로 캐시하지 않고 자판기마다 만들어 내릴 때 버린다.
  */
-import * as THREE from "three";
+
+import { canvasToTexture, createCanvas } from "@/engine/textures/canvas";
 
 import { CAN_FLAVORS, VENDING_FONT_STACK, drawCanLabel, type CanFlavor } from "./canLabels";
-
-function createCanvas(width: number, height: number) {
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const g = canvas.getContext("2d");
-  if (!g) throw new Error("2D 캔버스를 만들 수 없습니다.");
-  return { canvas, g };
-}
-
-function toTexture(canvas: HTMLCanvasElement, anisotropy?: number) {
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  if (anisotropy !== undefined) texture.anisotropy = anisotropy;
-  return texture;
-}
 
 /**
  * 간판 글자 판(COFFEE / COLD DRINKS).
@@ -53,7 +38,7 @@ export function makeSignTexture(
     fontSize -= 4;
   } while (fontSize > 24);
   g.fillText(text, canvas.width / 2, canvas.height / 2 + 4);
-  return toTexture(canvas);
+  return canvasToTexture(canvas);
 }
 
 /** 버튼 이름표(밀크커피 등). 둥근 배경 + 광택 + 넘치면 줄이는 글자. */
@@ -88,10 +73,10 @@ export function makeButtonLabelTexture(
     fontSize -= 2;
   } while (fontSize > 16);
   g.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
-  return toTexture(canvas);
+  return canvasToTexture(canvas);
 }
 
-export type PosterKind = "coffeePoster" | "coffeeAd" | "drinkAd";
+type PosterKind = "coffeePoster" | "coffeeAd" | "drinkAd";
 
 /** 하단 광고판·커피 포스터. 브랜드 대신 오리지널 일러스트. */
 export function makePosterTexture({
@@ -247,7 +232,7 @@ export function makePosterTexture({
   }
 
   // 비스듬히 봐도 글자가 안 뭉개진다
-  return toTexture(canvas, 8);
+  return canvasToTexture(canvas, 8);
 }
 
 /** 컵 받침의 배수 그레이트(동심원 + 방사선). */
@@ -279,13 +264,13 @@ export function makeDrainTexture() {
     g.lineTo(cx + Math.cos(a) * 50, cy + Math.sin(a) * 50);
     g.stroke();
   }
-  return toTexture(canvas);
+  return canvasToTexture(canvas);
 }
 
-export function makeCanLabelTexture(flavor: CanFlavor) {
+function makeCanLabelTexture(flavor: CanFlavor) {
   const { canvas, g } = createCanvas(512, 220);
   drawCanLabel(g, 0, 0, canvas.width, canvas.height, flavor);
-  return toTexture(canvas);
+  return canvasToTexture(canvas);
 }
 
 export const makeCanLabelTextures = () => CAN_FLAVORS.map(makeCanLabelTexture);

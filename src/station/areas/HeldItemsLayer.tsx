@@ -1,27 +1,25 @@
 import { Suspense, type RefObject } from "react";
 
+import type { AvatarLink, WorldPoint } from "@/engine/avatarLink";
 import type { OutlineValues } from "@/engine/toon";
-import { HeldItem } from "@/lobby/AimTracker";
+import { HeldItem } from "@/lobby/HeldItem";
 import type { LobbyState } from "@/lobby/interactions";
 import { PlacementGhost, PlacementResolver } from "@/lobby/PlacementViews";
 import { heldCoin } from "@/props/coinState";
 import NozzleModel from "@/props/hydrantCabinet/NozzleModel";
-import type { NozzleLocation } from "@/props/nozzleState";
 import SaggingHose from "@/props/hydrantCabinet/SaggingHose";
-import type { WorkLampPuzzleValues } from "@/props/workLampPuzzle/controls";
-import HeldTrash from "@/props/workLampPuzzle/HeldTrash";
-import HeldWorkLamp from "@/props/workLampPuzzle/HeldWorkLamp";
+import type { NozzleLocation } from "@/props/nozzleState";
+import { HeldTrash, HeldWorkLamp } from "@/props/workLampPuzzle/HeldPuzzleItems";
 import AttachToHand from "@/station/hands/AttachToHand";
-import type { AvatarLink, WorldPoint } from "@/engine/avatarLink";
-import CoinModel from "@/station/hands/CoinModel";
-import FootSpotTracker from "@/station/hands/FootSpotTracker";
-import HeldCoin from "@/station/hands/HeldCoin";
+import { FootSpotTracker } from "@/station/hands/FloorHintPaper";
+import HeldCoin, { CoinModel } from "@/station/hands/HeldCoin";
 import HeldDrink from "@/station/hands/HeldDrink";
 import { chairDragState } from "@/station/office/chairDragState";
 
-import type { CoinValues } from "../controls/coinControls";
-import type { HydrantInteriorValues, NozzleValues } from "../controls/hydrantControls";
-import type { PlacementPreviewValues } from "../controls/interactionControls";
+import type { HydrantInteriorValues, NozzleValues } from "../controls/corridorCabinetControls";
+import type { PlacementPreviewValues } from "../controls/systemControls";
+import type { CoinValues } from "../controls/vendingControls";
+import type { WorkLampPuzzleValues } from "../controls/workLampControls";
 import PickupItemModel, { type PickupLooks } from "./PickupItemModel";
 import { pickupSpot, type PickupItem } from "./usePickupItems";
 

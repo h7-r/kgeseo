@@ -11,6 +11,7 @@ import { makeRandom } from "@/engine/random";
 import { FERRY_BOAT } from "../models/baked";
 import { bakedModelGeometry } from "../models/bakedGeometry";
 import { UNITS_PER_METER } from "../plan/sitePlan";
+import { unindex } from "../story/pieceGeometry";
 import { applyVertexColors } from "../terrain/ground";
 
 const LANDING_STYLE = {
@@ -18,12 +19,6 @@ const LANDING_STYLE = {
   stakeDark: "#3A3026",
   plank: "#7E6E58",
   plankDark: "#453A2C",
-};
-
-const flatten = (geometry: THREE.BufferGeometry) => {
-  const flat = geometry.toNonIndexed();
-  geometry.dispose();
-  return flat;
 };
 
 interface LandingOptions {
@@ -75,7 +70,7 @@ function buildLanding({ xRange, waterEdge, reach = 3.2, floorHeight, seed = 8801
       const height = 1.0 + random() * 0.75 + t * 0.35; // 물 쪽일수록 길게 박힌다
       const radius = 0.09 + random() * 0.05;
       place(
-        flatten(
+        unindex(
           new THREE.CylinderGeometry(
             radius * UNITS_PER_METER,
             radius * 1.2 * UNITS_PER_METER,
@@ -101,7 +96,7 @@ function buildLanding({ xRange, waterEdge, reach = 3.2, floorHeight, seed = 8801
     const x = center - halfWidth + 0.25 + width * (i + 0.5);
     const length = reach + 0.9;
     place(
-      flatten(new THREE.BoxGeometry(width * 0.82 * UNITS_PER_METER, 0.07 * UNITS_PER_METER, length * UNITS_PER_METER)),
+      unindex(new THREE.BoxGeometry(width * 0.82 * UNITS_PER_METER, 0.07 * UNITS_PER_METER, length * UNITS_PER_METER)),
       [x, floorHeight + 0.34 + (random() - 0.5) * 0.03, waterEdge - 0.6 + length / 2],
       [(random() - 0.5) * 0.02, (random() - 0.5) * 0.02, 0],
       scratch
@@ -114,7 +109,7 @@ function buildLanding({ xRange, waterEdge, reach = 3.2, floorHeight, seed = 8801
   // 가로대 — 없으면 판자가 떠 있는 것처럼 보인다
   for (const t of [0.08, 0.62]) {
     place(
-      flatten(new THREE.BoxGeometry(halfWidth * 2 * UNITS_PER_METER, 0.12 * UNITS_PER_METER, 0.14 * UNITS_PER_METER)),
+      unindex(new THREE.BoxGeometry(halfWidth * 2 * UNITS_PER_METER, 0.12 * UNITS_PER_METER, 0.14 * UNITS_PER_METER)),
       [center, floorHeight + 0.25, waterEdge - 0.4 + reach * t],
       [0, 0, 0],
       scratch.copy(stakeDark).lerp(stakeLight, 0.5).clone(),
@@ -144,7 +139,8 @@ export function landingPrototypes(count = 3, seed = 8801): THREE.BufferGeometry[
     });
     if (!geometry) continue;
     geometry.computeBoundingBox();
-    const bb = geometry.boundingBox!;
+    const bb = geometry.boundingBox;
+    if (!bb) continue;
     const length = Math.max(1e-6, bb.max.z - bb.min.z);
     // y 는 floorHeight 0 이라 이미 지면이 0 이다
     geometry.translate(-(bb.min.x + bb.max.x) / 2, 0, -bb.min.z);
@@ -155,7 +151,7 @@ export function landingPrototypes(count = 3, seed = 8801): THREE.BufferGeometry[
 }
 
 // 표본을 미리 잠그지 않는다 — 잠긴 정도는 배마다 달라 자리의 y 로 정한다.
-// 0 이어도 아래 translate 는 남긴다: 법선을 다시 정규화해 지금 그림과 비트까지 같다.
+// 0 이어도 아래 translate 는 남긴다 — 법선을 다시 정규화하므로 빼면 그림이 비트 단위로 달라진다.
 const SUBMERGE_RATIO = 0;
 // 배 밑동 이만큼은 젖은 빛으로 칠한다. 모양은 안 건드린다.
 const WET_RATIO = 0.22;

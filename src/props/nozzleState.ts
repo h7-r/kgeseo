@@ -23,7 +23,6 @@ const state: { location: NozzleLocation } = { location: "cabinet" };
 const signal = createChangeSignal();
 
 export const nozzleLocation = () => state.location;
-export const isNozzleHeld = () => state.location === "hand";
 
 /** 이미 뭔가 들고(끌고) 있나 — 관창을 집을 수 있는지의 기준. */
 export function handsBusy() {
@@ -51,10 +50,10 @@ export function plugNozzle() {
   return true;
 }
 
-// ── 호스가 매달릴 두 끝 ──
+// 호스가 매달릴 두 끝
 // 함 쪽 끝과 관창 커플링을 서로 다른 컴포넌트가 그리므로 여기서 만나게 한다.
 // 부모가 움직이면 좌표는 곧 낡으므로 Object3D 를 받는다.
-export interface HoseAnchors {
+interface HoseAnchors {
   /**
    * 관창이 함에 걸려 있던 고정 기준점. 끌려 나온 길이·한계를 이 점으로 잰다 —
    * 다발 끝으로 재면 그 점이 움직여 호스가 매 프레임 출렁인다.

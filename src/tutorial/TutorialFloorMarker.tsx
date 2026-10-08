@@ -8,9 +8,9 @@ import * as THREE from "three";
 
 import { playerView } from "@/engine/playerView";
 
-import { CIRCLE_RADIUS, TUTORIAL_STEPS, tickTutorial, useTutorial } from "./tutorial";
+import { CIRCLE_RADIUS, TUTORIAL_COLOR, TUTORIAL_STEPS, tickTutorial, useTutorial } from "./tutorial";
 
-const MARKER_COLOR = new THREE.Color("#8ee8ff");
+const MARKER_COLOR = new THREE.Color(TUTORIAL_COLOR);
 
 type BasicMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
 
@@ -43,20 +43,19 @@ export default function TutorialFloorMarker({ enabled = true }: TutorialFloorMar
 
   if (!enabled || !current?.spot) return null;
   const [x, z] = current.spot;
-  const r = CIRCLE_RADIUS;
   return (
     <group ref={groupRef} position={[x, 0.03, z]} key={current.id}>
       <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={5}>
-        <ringGeometry args={[r * 0.86, r, 64]} />
+        <ringGeometry args={[CIRCLE_RADIUS * 0.86, CIRCLE_RADIUS, 64]} />
         <meshBasicMaterial color={MARKER_COLOR} transparent depthWrite={false} toneMapped={false} />
       </mesh>
       <mesh ref={discRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} renderOrder={5}>
-        <circleGeometry args={[r * 0.86, 64]} />
+        <circleGeometry args={[CIRCLE_RADIUS * 0.86, 64]} />
         <meshBasicMaterial color={MARKER_COLOR} transparent depthWrite={false} toneMapped={false} />
       </mesh>
       {/* 빛기둥 — 위로 갈수록 옅어지게 뚜껑 없는 원통 */}
       <mesh ref={beamRef} position={[0, 2.2, 0]} renderOrder={5}>
-        <cylinderGeometry args={[r * 0.95, r, 4.4, 48, 1, true]} />
+        <cylinderGeometry args={[CIRCLE_RADIUS * 0.95, CIRCLE_RADIUS, 4.4, 48, 1, true]} />
         <meshBasicMaterial
           color={MARKER_COLOR}
           transparent

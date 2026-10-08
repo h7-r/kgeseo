@@ -1,7 +1,7 @@
 import { addHint, flashHints, type Hint } from "@/game/hintBox";
 
 // 튜토리얼 뒤 혼자 풀 자판기 퍼즐 쪽으로 등을 미는 한 줄. 풀이는 말하지 않고 「캔음료」에만 따옴표로 눈길을 준다.
-export const FIRST_HINT_TEXT = '본부실 사람들은 커피와 "캔음료"를 무척 좋아해!';
+const FIRST_HINT_TEXT = '본부실 사람들은 커피와 "캔음료"를 무척 좋아해!';
 
 const CANVAS_SIZE = 512;
 const FONT = "'Nanum Pen Script', 'Gaegu', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif";
@@ -107,7 +107,7 @@ function drawNoteImage() {
 }
 
 // 바닥에 떨어진 실물이 없어 힌트함에서 버릴 수 없다.
-export const FIRST_HINT: Hint = {
+const FIRST_HINT: Hint = {
   id: "tutorial:firstNote",
   name: "찢어진 쪽지",
   // 그림 글씨가 작게 보여도 읽히게 설명에도 문장을 적는다.

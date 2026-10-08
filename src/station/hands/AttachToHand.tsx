@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Vector3Tuple } from "three";
 
+import type { AvatarLink, WorldPoint } from "@/engine/avatarLink";
 import { FRAME_PRIORITY, MAX_FRAME_DELTA } from "@/engine/camera";
 import { thirdPersonConfig } from "@/engine/movement/boom";
 import { playerView, reachAmount } from "@/engine/playerView";
@@ -13,9 +14,7 @@ import { heldCoin } from "@/props/coinState";
 import { heldDrink } from "@/props/drinkState";
 import { nozzleLocation } from "@/props/nozzleState";
 
-import type { AvatarLink, WorldPoint } from "@/engine/avatarLink";
-import { chestAnchor, pushClearOfBody, reachTarget } from "./handPose";
-import { useHandControls } from "./useHandControls";
+import { chestAnchor, pushClearOfBody, reachTarget, useHandControls } from "./handPose";
 
 // 드는 힘(IK 가중치)을 켜고 끄는 속도. 반감기 ≈ 58ms — 집는 손짓과 같은 시간대라 "손이 쥐었다"로 읽힌다.
 const GRIP_FADE_SPEED = 12;
@@ -90,7 +89,7 @@ export default function AttachToHand({
     }
     Object.assign(thirdPersonConfig, thirdPerson);
 
-    // 1인칭인데 아바타가 안 그려지는 프레임에 소켓을 넘기면 얼어 있는 옛 뼈로 물건이 간다.
+    // 1인칭인데 아바타가 안 그려지는 프레임에 소켓을 넘기면 멈춰 있는 지난 뼈 자리로 물건이 간다.
     // 그래서 우선 3인칭 값으로 적고, 1인칭 손이 켜지면 아래에서 다시 적는다.
     const exposeHand = (isUsed: boolean) => {
       playerView.hand = isUsed ? (playerRef?.current?.rightHand ?? null) : null;

@@ -3,6 +3,7 @@
 // 가장 오래된 것(본 화면)을 죽인다. gl.info 오염은 다음 프레임에 씬이 reset() 해서 남지 않는다.
 
 import * as THREE from "three";
+
 import type { AssetDefinition } from "./assetCatalog";
 
 // 한 벌 구워 두고 돌려쓴다
@@ -29,7 +30,8 @@ export function bakeThumbnail(
   const canvas = document.createElement("canvas");
   canvas.width = size * pixelRatio;
   canvas.height = size * pixelRatio;
-  const context = canvas.getContext("2d")!;
+  const context = canvas.getContext("2d");
+  if (!context) return baked;
   const pixels = new Uint8Array(size * pixelRatio * size * pixelRatio * 4);
   const image = context.createImageData(size * pixelRatio, size * pixelRatio);
   const previousTarget = renderer.getRenderTarget();

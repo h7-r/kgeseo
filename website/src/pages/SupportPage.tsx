@@ -1,10 +1,10 @@
 import Stage from "@/components/Stage";
 import { SUPPORT_TABS, type SupportTabId } from "@/data/support";
 import { useQueryTab } from "@/hooks/useQueryTab";
-import { HEADER_HEIGHT, FOOTER_ALLOWANCE } from "@/layout/layoutMetrics";
 import PageFooter from "@/layout/PageFooter";
+import { HEADER_HEIGHT, FOOTER_ALLOWANCE } from "@/lib/layout";
+import { SUPPORT_CONTENT_OFFSET, SUPPORT_CONTENT_PADDING } from "@/sections/support/styles";
 import SupportCenter from "@/sections/support/SupportCenter";
-import { SUPPORT_CONTENT_OFFSET, SUPPORT_CONTENT_PADDING } from "@/sections/support/supportLayout";
 
 /** 흰 면이 내용 칸 아래로 더 내려가는 길이 */
 const LIGHT_BG_BOTTOM = 60;

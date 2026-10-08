@@ -4,10 +4,7 @@ import * as THREE from "three";
 import { TOON_GRADIENT } from "@/engine/toon";
 
 import { UNITS_PER_METER } from "../../plan/sitePlan";
-import { planPoint } from "./planPoint";
-
-/** 도면 점 [X, Z, 고도] (미터) */
-export type PlanPoint = readonly [number, number, number];
+import { planPoint, type PlanPoint } from "./planPoint";
 
 interface SlopeSegmentProps {
   a: PlanPoint;

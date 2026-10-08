@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { createChangeSignal } from "@/lib/changeSignal";
 
 // 백엔드 계약(USR-051)용으로 남겨 둔 조사 상태. 아직 아무 화면도 쓰지 않는다.
 // 캔버스 안 3D 와 캔버스 밖 UI 가 같은 값을 봐야 해서 바깥 상자에 둔다.
@@ -37,20 +38,16 @@ let state: InvestigationState = {
   history: {},
 };
 
-const listeners = new Set<() => void>();
+const signal = createChangeSignal();
+
 function setState(patch: Partial<InvestigationState>) {
   state = { ...state, ...patch };
-  for (const listener of listeners) listener();
+  signal.notify();
 }
 
 export const investigationStore = {
   get: () => state,
-  subscribe(listener: () => void) {
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  },
+  subscribe: signal.subscribe,
   set: setState,
 };
 

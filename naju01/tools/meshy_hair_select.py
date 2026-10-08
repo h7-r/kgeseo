@@ -1,13 +1,13 @@
-"""Hair selection on one Meshy model, reviewed visually like Blender edit mode.
+"""Meshy 모델 하나에서 머리카락 면을 골라 그림으로 검수한다.
 
-Selection = dark base-colour faces above the neck, enclosed light gaps filled, then
-per-model manual edits from a JSON file (boxes in the model's own coordinates):
+목 위의 어두운 기본색 면을 고르고 둘러싸인 밝은 틈을 메운 뒤, 모델별 JSON 으로 손질한다
+(상자는 모델 자신의 좌표):
   {"remove": [{"min": [x,y,z], "max": [x,y,z], "note": "..."}],
    "add":    [{"min": [...], "max": [...], "note": "..."}],
-   "remove_islands_below": 0.3,   # drop selected islands whose top is below this z
-   "min_z": 0.2,                  # colour selection floor (long hair)
+   "remove_islands_below": 0.3,   # 꼭대기가 이 z 보다 낮은 섬은 버린다
+   "min_z": 0.2,                  # 색으로 고르는 바닥 높이(긴 머리)
    "min_island_faces": 300}
-Writes selection.json (face indices) and review renders with the selection in red.
+selection.json(면 번호)과 고른 면을 빨갛게 칠한 검수 그림을 쓴다.
 
 Usage:
   Blender --background --factory-startup --python meshy_hair_select.py -- \
@@ -34,11 +34,11 @@ import meshy_extract_hair as H  # noqa: E402
 
 def arguments():
     raw = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    p = argparse.ArgumentParser()
-    p.add_argument("--model", type=Path, required=True)
-    p.add_argument("--edits", type=Path, required=True)
-    p.add_argument("--out-dir", type=Path, required=True)
-    return p.parse_args(raw)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=Path, required=True)
+    parser.add_argument("--edits", type=Path, required=True)
+    parser.add_argument("--out-dir", type=Path, required=True)
+    return parser.parse_args(raw)
 
 
 def inside(c: Vector, box) -> bool:
@@ -74,7 +74,7 @@ def main():
     top, height = max(zs), max(zs) - min(zs)
     neck_z = top - height * 0.26
 
-    # "min_z": long hair reaching the chest needs a lower cut-off than the neck.
+    # 가슴까지 내려오는 긴 머리는 목보다 낮은 바닥(min_z)이 필요하다.
     selected = colour_selection(obj, neck_z, edits.get("min_z"))
     centres = {p.index: sum((obj.data.vertices[i].co for i in p.vertices), Vector()) / len(p.vertices)
                for p in obj.data.polygons}
@@ -83,7 +83,7 @@ def main():
     for box in edits.get("add", []):
         selected |= {i for i, c in centres.items() if inside(c, box)}
 
-    # island clean-up on welded geometry
+    # 용접한 형상에서 섬을 정리한다
     bm = bmesh.new()
     bm.from_mesh(obj.data)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
@@ -115,7 +115,7 @@ def main():
 
     (out / "selection.json").write_text(json.dumps(sorted(selected)))
 
-    # review renders: selected faces red, rest textured
+    # 검수 그림: 고른 면은 빨강, 나머지는 텍스처
     red = bpy.data.materials.new("Selected")
     red.diffuse_color = (1.0, 0.05, 0.05, 1)
     obj.data.materials.append(red)

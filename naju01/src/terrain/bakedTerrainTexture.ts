@@ -1,8 +1,11 @@
-// Meshy 가 구운 지형 텍스처 세 장을 원본 메시에 입히고 뗀다.
+// Meshy 가 구운 지형 텍스처 세 장을 우리 지형 메시에 입히고 뗀다.
 // Meshy 는 메시를 단위 상자로 정규화하고 정점도 용접해 돌려준다. 그 메시를 쓰면 좌표를 되돌리는 동안 판정과 어긋날 수 있다.
-// 그런데 UV 는 넘긴 그대로 돌아왔다(소수점까지) — 그래서 기하는 버리고 그림만 원본 메시에 붙인다. 판정은 한 점도 안 건드린다.
+// 그런데 UV 는 넘긴 그대로(소수점까지) 돌아온다 — 그래서 기하는 버리고 그림만 우리 메시에 붙인다. 판정은 한 점도 안 건드린다.
 // glTF 는 UV 원점이 왼쪽 위라 flipY 를 끈다. 원래 재질을 기억해 두었다가 끄면 그대로 되돌린다(Leva A/B).
+
 import * as THREE from "three";
+
+import { isMesh } from "../loaders/glbImport";
 import { applyCellUv, applyRockUv, findCell, ROCK_TARGETS } from "./terrainAtlas";
 
 const TEXTURE_URLS = {
@@ -10,9 +13,6 @@ const TEXTURE_URLS = {
   roughnessMetalness: new URL("../../assets/terrain/roughness-metalness.jpg", import.meta.url).href,
   normal: new URL("../../assets/terrain/normal.jpg", import.meta.url).href,
 };
-
-// instanceof 대신 is* 표식 — three 가 두 벌 실려도(도구·SSR) 원본처럼 메시를 알아본다
-const isMesh = (o: THREE.Object3D): o is THREE.Mesh => (o as THREE.Mesh).isMesh === true;
 
 let materialPromise: Promise<THREE.MeshStandardMaterial> | null = null;
 
@@ -92,7 +92,7 @@ export async function applyBakedTerrainTexture(scene: THREE.Object3D, enabled: b
   let touched = 0;
   scene.traverse((o) => {
     if (!isMesh(o)) return;
-    const geo = o.geometry as THREE.BufferGeometry;
+    const geo = o.geometry;
     const cell = findCell(o.name);
     const isRock = !cell && ROCK_TARGETS.includes(o.name);
     if (!cell && !isRock) return;

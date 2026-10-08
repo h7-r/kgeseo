@@ -64,8 +64,7 @@ export default function RegionPicker({
       cancelAnimationFrame(frame);
       document.removeEventListener("pointerdown", handlePointerDown);
     };
-    // close·value 는 열릴 때 한 번만 읽으면 된다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- close·value 는 열릴 때 한 번만 읽으면 된다.
   }, [open]);
 
   const select = (region: string) => {

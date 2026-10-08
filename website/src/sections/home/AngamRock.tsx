@@ -6,11 +6,11 @@ import { usePinnedWipe } from "@/hooks/motion";
 import { FONT, gradientText, place } from "@/lib/style";
 import { ROUTES, START_GAME, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
-import { ANGAM_PIN_LENGTH } from "@/pages/home/homeLayout";
 import { COLOR, GRADIENT, surfaceFillStyle } from "@/styles/tokens";
 import SceneSlot from "@/three/SceneSlot";
 
 import CircleVideo from "./CircleVideo";
+import { ANGAM_PIN_LENGTH } from "./homeLayout";
 
 interface MissionSpec {
   label: string;

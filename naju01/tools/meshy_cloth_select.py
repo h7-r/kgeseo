@@ -1,9 +1,7 @@
-"""Clothing selection on a dressed Meshy variant, reviewed visually.
+"""옷 입은 Meshy 모델에서 옷 면을 골라 그림으로 검수한다.
 
-A garment face is one whose base-colour differs from this model's own skin colour
-(sampled on the cheeks and forearms) by more than `--skin-distance`, inside the
-clothing height band.  Per-model edits.json can remove/add boxes exactly like the
-hair tool, and the result is rendered with the selection in red for review.
+옷 높이 띠 안에서, 이 모델의 피부색(뺨·팔뚝에서 뽑음)과 `--skin-distance` 넘게 다른 면이 옷이다.
+모델별 edits.json 으로 상자를 빼고 더하며(머리카락 도구와 같은 방식), 고른 면을 빨갛게 찍는다.
 
   {"remove": [{"min": [x,y,z], "max": [...], "note": "..."}],
    "add": [...], "min_island_faces": 300, "bands": {"top": [z0, z1], "bottom": [z0, z1]}}
@@ -33,13 +31,12 @@ import meshy_extract_hair as H  # noqa: E402
 
 def arguments():
     raw = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    p = argparse.ArgumentParser()
-    p.add_argument("--model", type=Path, required=True)
-    p.add_argument("--edits", type=Path, required=True)
-    p.add_argument("--out-dir", type=Path, required=True)
-    p.add_argument("--skin-distance", type=float, default=0.22)
-    # edits.json의 skin_distance가 있으면 그 값을 쓴다(모델별 검토 결과 보존).
-    return p.parse_args(raw)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=Path, required=True)
+    parser.add_argument("--edits", type=Path, required=True)
+    parser.add_argument("--out-dir", type=Path, required=True)
+    parser.add_argument("--skin-distance", type=float, default=0.22)
+    return parser.parse_args(raw)
 
 
 def inside(c: Vector, box) -> bool:
@@ -47,7 +44,7 @@ def inside(c: Vector, box) -> bool:
 
 
 def face_colours(obj):
-    """(face index -> linear RGB) sampled at the face centre of the base-colour map."""
+    """면 번호 → 면 중심에서 뽑은 기본색(linear RGB)."""
     import numpy as np
 
     pixels = H.base_color_pixels(obj)
@@ -76,7 +73,7 @@ def main():
                for p in obj.data.polygons}
     colours = face_colours(obj)
 
-    # Skin reference: cheeks and forearms of this same model.
+    # 피부색 기준: 이 모델 자신의 뺨과 팔뚝.
     import numpy as np
 
     skin_faces = [i for i, c in centres.items()
@@ -90,9 +87,10 @@ def main():
     for index, c in centres.items():
         if not any(lo <= c.z <= hi for lo, hi in bands.values()):
             continue
+        # edits.json 의 skin_distance 가 있으면 모델별 검수값을 쓴다.
         if float(np.linalg.norm(colours[index] - skin)) > edits.get("skin_distance", args.skin_distance):
             selected.add(index)
-    # 옷 안쪽의 프린트·음영이 피부색에 가까워 생기는 구멍을 메운다(헤어와 같은 방식).
+    # 옷의 프린트·음영이 피부색에 가까워 생기는 구멍을 메운다.
     selected = H.fill_enclosed(obj, selected, ground + h * 0.20)
     for box in edits.get("remove", []):
         selected -= {i for i in selected if inside(centres[i], box)}

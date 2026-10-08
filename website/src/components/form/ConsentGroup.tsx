@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
 import { TERMS_TABS, type TermsTabId } from "@/data/terms";
-import type { ConsentChoice, Consents } from "@/hooks/useConsents";
+import type { ConsentChoice, Consents } from "@/hooks/useForm";
 import { FONT } from "@/lib/style";
 import { ROUTES, withQuery } from "@/navigation/routes";
 import { COLOR, GRADIENT } from "@/styles/tokens";

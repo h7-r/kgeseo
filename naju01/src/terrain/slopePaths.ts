@@ -3,15 +3,16 @@
 // 갓길·비탈은 그 바깥으로만 낸다 — 보이는 길 위를 걷다가 갑자기 떨어지는 일이 없다.
 // 도면 중심선은 직각으로 꺾인다. 잘게 뽑아 이웃 방향을 평균 낸 선(extractCenterline)을 써야 꺾인 데서 면이 안 파고든다.
 // 좌표·크기는 미터, 지오메트리만 유닛.
+
 import * as THREE from "three";
+
 import { makeRandom } from "@/engine/random";
-import { between, buildCutFace, EARTH_WALL_STYLE, paintCutFace, type BushSpot, type StoneSpot } from "./cliff";
-import type { Noise2D } from "./ground";
+
 import { SHOULDER_DEFAULTS, UNITS_PER_METER } from "../plan/sitePlan";
+import { between, buildCutFace, EARTH_WALL_STYLE, paintCutFace, type BushSpot, type StoneSpot } from "./cliff";
+import type { HeightAt, Noise2D } from "./ground";
 // 중심선은 terrain 이 진실이다 — 그림이 판정과 같은 선을 봐야 보이는 길과 밟히는 길이 안 어긋난다
 import { extractCenterline, type CenterlinePoint, type MeasuredPath } from "./terrain";
-
-type HeightAt = (x: number, z: number) => number;
 
 export const PATH_STYLE = {
   packed: "#A2937A", // 밟혀 다져진 한가운데 — 밝고 마른 흙
@@ -22,8 +23,8 @@ export const PATH_STYLE = {
 };
 // 비탈 색은 cliff 의 EARTH_WALL_STYLE — 절벽·바위 능선·길 비탈이 같은 칠하기 규칙을 타야 한 공간으로 보인다
 
-/** terrain 의 실측 통로(measuredPaths 한 칸). centerline 이 있으면 그것을, 없으면 새로 뽑는다. */
-export type SlopePathInput = Parameters<typeof extractCenterline>[0] &
+/** terrain 이 잰 통로(measuredPaths 한 칸). centerline 이 있으면 그것을, 없으면 새로 뽑는다. */
+type SlopePathInput = Parameters<typeof extractCenterline>[0] &
   Pick<MeasuredPath, "code" | "width" | "crevasse"> & { centerline?: CenterlinePoint[] };
 
 interface PathOptions {
@@ -46,7 +47,7 @@ interface PathOptions {
   otherPathAt?: ((x: number, z: number) => boolean) | null;
 }
 
-export interface PathDecor {
+interface PathDecor {
   rocks: StoneSpot[];
   bushes: BushSpot[];
   crevasseRocks: StoneSpot[];
@@ -73,7 +74,7 @@ interface SkirtPoint {
 }
 
 // 감기가 맞는 쪽은 통로 방향에 달려 도면을 고치면 또 뒤집힌다. 만들 때마다 재서 위를 보게 세운다.
-// 실측: 아래를 본 면은 위에서 컬링돼 안 보이다가 옆·아래에서 검은 면으로 튀어나왔다.
+// 아래를 본 면은 위에서 컬링돼 안 보이다가 옆·아래에서 검은 면으로 튀어나온다.
 function faceUpward(geo: THREE.BufferGeometry) {
   const n = geo.attributes.normal;
   let sum = 0;
@@ -192,7 +193,7 @@ export function buildPaths({
     }
   }
 
-  // ── 비탈(받치는 흙더미) — 갓길 바깥 끝에서 땅까지 치마를 두른다 ──
+  // 비탈(받치는 흙더미) — 갓길 바깥 끝에서 땅까지 치마를 두른다.
   // 절벽과 같은 깎인면 규칙을 세기만 눅여 태운다. 매끈한 판이면 옆 절벽과 재질이 따로 논다.
   const carve = buildCutFace({
     carveDepth: slopeCarveDepth,
@@ -302,7 +303,7 @@ export function buildPaths({
     }
   }
 
-  // ── 비탈에 놓을 바위·덤불 자리 ──
+  // 비탈에 놓을 바위·덤불 자리.
   // 절벽(암반)과 길 비탈(흙)이 딱 잘려 보이는 게 이질감의 뿌리다. 같은 돌을 흩어 두 재질을 물려 넣는다.
   const decor: PathDecor = { rocks: [], bushes: [], crevasseRocks: [] };
   {
@@ -384,7 +385,7 @@ interface RoadsideStoneOptions {
 
 /**
  * 길 바깥(갓길 쪽)에만 놓는 길가 돌 자리. 길 위에 놓으면 걷다가 통과한다.
- * 인스턴스로 심으려고 자리만 뽑는다. 예전에 지오메트리로 굽던 때와 같은 시드·같은 난수 순서라 자리가 일치한다.
+ * 인스턴스로 심으려고 자리만 뽑는다. 시드와 난수 순서가 손 배치(edits.json)에 묶여 있다.
  */
 export function roadsideStoneSpots({
   lines,
@@ -405,7 +406,7 @@ export function roadsideStoneSpots({
       const z = p.z + p.nz * distance * sideSign;
       const size = 0.1 + Math.pow(random(), 2.4) * 0.42;
       const flatness = 0.5 + random() * 0.35;
-      // 예전 코드가 굴리던 모양·회전·크기·색 몫 — 안 굴리면 뒤 돌 자리가 전부 밀린다
+      // 모양·회전·크기·색 몫의 난수 — 안 굴리면 뒤 돌 자리가 전부 밀린다
       random();
       random();
       random();

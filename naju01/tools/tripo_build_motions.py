@@ -9,9 +9,11 @@
 # 붙여 NLA 트랙으로 내보낸다. 메시는 Tripo 삭감본이 깨져 있어 버리고, 리타게팅 코드가 요구하는
 # SkinnedMesh 자리에는 골반에 묶인 작은 삼각형 하나만 넣는다.
 import argparse
+import math
 import sys
 
 import bpy
+from mathutils import Quaternion, Vector
 
 argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
 parser = argparse.ArgumentParser()
@@ -21,7 +23,7 @@ args = parser.parse_args(argv)
 
 bone_map = {
     "Hips": "pelvis", "Spine": "spine_01", "Spine1": "spine_02", "Spine2": "spine_03",
-    "Neck": "neck_01", "Head": "Head",  # 리타게팅옵션이 target 'head' 를 source 'Head' 로 찾는다
+    "Neck": "neck_01", "Head": "Head",  # 리타게팅 옵션이 target 'head' 를 source 'Head' 로 찾는다
 }
 for side, s in (("Left", "l"), ("Right", "r")):
     bone_map.update({
@@ -78,27 +80,28 @@ for spec in args.clip:
             bpy.data.objects.remove(o, do_unlink=True)
 
 # 리그 스케일(FBX cm)을 미터로, 정면을 우리 몸체와 같게(Blender -Y = glTF +Z). Tripo 리그는 +X 를
-# 본다 — 그대로 두면 리타게팅이 90° 돌아간 세계 회전을 얹어 팔이 앞으로 뻗고 다리가 안 굽는다(실제로 그랬다).
+# 봐서 그대로 두면 리타게팅이 90° 돌아간 세계 회전을 얹어 팔이 앞으로 뻗고 다리가 안 굽는다.
 bpy.context.view_layer.objects.active = rig
 bpy.ops.object.select_all(action="DESELECT")
 rig.select_set(True)
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-import math
-from mathutils import Vector
+
+
 def facing():
     foot = rig.data.bones["foot_l"]; ball = rig.data.bones["ball_l"]
     d = (rig.matrix_world @ ball.head_local) - (rig.matrix_world @ foot.head_local); d.z = 0
     return d.normalized()
+
+
 f = facing()
 yaw = math.atan2(-1, 0) - math.atan2(f.y, f.x)  # 목표: (0, -1)
 rig.rotation_euler = (0, 0, yaw)
 bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 print("FACING before", [round(v, 2) for v in f], "after", [round(v, 2) for v in facing()])
 
-# 쉴 때 자세를 우리 리그와 같은 T포즈로. Tripo 리그는 A포즈(팔 45° 아래)라, 리타게팅이 팔의 세계 회전을
-# 그대로 얹으면 팔 축 둘레 비틀림이 T포즈 팔에는 앞뒤 돌림으로 나타나 팔이 앞으로 뻗었다(실제로 그랬다).
-# 위팔을 수평(±X)으로 세운 자세를 새 쉴 때 자세로 굳히고, 그만큼 모든 키를 되돌린다.
-from mathutils import Matrix, Quaternion
+# 쉴 때 자세를 우리 리그와 같은 T포즈로. Tripo 리그는 A포즈라 팔의 세계 회전을 그대로 얹으면
+# 팔 축 비틀림이 앞뒤 돌림으로 나타나 팔이 앞으로 뻗는다. 위팔을 수평(±X)으로 세운 자세를
+# 새 쉴 때 자세로 굳히고, 그만큼 모든 키를 되돌린다.
 # 임포트 직후엔 클립의 첫 프레임 포즈가 뼈에 남아 있다. 그대로 굳히면 쉴 때 자세가 엉킨다 — 먼저 비운다.
 rig.animation_data.action = None
 for pb in rig.pose.bones:
@@ -107,9 +110,13 @@ for pb in rig.pose.bones:
     pb.location = (0, 0, 0)
     pb.scale = (1, 1, 1)
 bpy.context.view_layer.update()
-def parent_relative(b):
-    m = b.matrix_local if b.parent is None else (b.parent.matrix_local.inverted() @ b.matrix_local)
+
+
+def parent_relative(bone):
+    m = bone.matrix_local if bone.parent is None else (bone.parent.matrix_local.inverted() @ bone.matrix_local)
     return m.to_3x3()
+
+
 old_rest = {b.name: parent_relative(b) for b in rig.data.bones}
 bpy.ops.object.mode_set(mode="POSE")
 for name, child, target in (("upperarm_l", "lowerarm_l", Vector((1, 0, 0))), ("upperarm_r", "lowerarm_r", Vector((-1, 0, 0)))):

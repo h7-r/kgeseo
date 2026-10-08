@@ -2,11 +2,27 @@ import type { CSSProperties } from "react";
 
 import { fieldLabelStyle } from "@/components/form/styles";
 import type { FieldProps } from "@/hooks/useForm";
+import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
 
-import { codeBoxBaseStyle, codeDigitStyle } from "./codeBoxStyles";
-
 const CODE_LENGTH = 6;
+
+const codeBoxBaseStyle: CSSProperties = {
+  flex: "1 0 0",
+  minWidth: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  borderRadius: "10px",
+  boxSizing: "border-box",
+};
+
+const codeDigitStyle: CSSProperties = {
+  fontFamily: FONT.mono,
+  fontWeight: 600,
+  fontSize: "24px",
+  color: COLOR.textBright,
+};
 
 type CodeBoxesProps = Pick<FieldProps, "value" | "onChange" | "error">;
 
@@ -45,4 +61,32 @@ const emptyBoxStyle: CSSProperties = {
   height: "64px",
   background: COLOR.surface,
   border: "1px solid rgba(50,82,150,0.18)",
+};
+
+/** 인증이 끝난 코드. 초록 테두리에 숫자가 박혀 있고 전체가 흐리다. */
+export function VerifiedCode({ code = "------" }: { code?: string }) {
+  return (
+    <div
+      style={{ display: "flex", flexDirection: "column", gap: "9px", width: "100%", opacity: 0.6, overflow: "hidden" }}
+    >
+      <div style={{ display: "flex", gap: "8px", width: "100%", fontSize: "16px" }}>
+        <span style={{ flex: "1 0 0", fontFamily: FONT.mono, color: COLOR.textMuted }}>인증코드</span>
+        <span style={{ flex: "1 0 0", fontFamily: FONT.mono, fontWeight: 700, color: "#33d98c" }}>✓ 인증완료</span>
+      </div>
+      <div style={{ display: "flex", gap: "10px", width: "100%" }}>
+        {code.split("").map((digit, i) => (
+          <div key={i} style={filledBoxStyle}>
+            <span style={codeDigitStyle}>{digit}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const filledBoxStyle: CSSProperties = {
+  ...codeBoxBaseStyle,
+  padding: "16px 0",
+  background: "#091126",
+  border: "1px solid rgba(51,166,115,0.4)",
 };

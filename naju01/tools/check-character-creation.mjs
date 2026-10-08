@@ -24,33 +24,31 @@ await page.waitForTimeout(9000);
 await page.getByRole("button", { name: "개발 도구 열기" }).click();
 await page.waitForTimeout(500);
 
-const readDraft = async () => {
-  const text = await page.locator("pre").nth(1).innerText();
+// 개발 도구의 첫 <pre> 는 완료 데이터, 둘째는 지금 초안이다
+const readPreJson = async (index) => {
+  const text = await page.locator("pre").nth(index).innerText();
   try {
     return JSON.parse(text);
   } catch {
     return null;
   }
 };
-const readCompleted = async () => {
-  const text = await page.locator("pre").nth(0).innerText();
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-};
+const readDraft = () => readPreJson(1);
+const readCompleted = () => readPreJson(0);
 // 캐릭터의 실제 높이(m) — 슬라이더가 3D 를 바꾸는지 보는 잣대
-const measureHeight = () => page.evaluate(() => {
-  const hook = window.__game?.characterCreation;
-  if (!hook) return null;
-  const { scene } = hook.get();
-  let avatar = null;
-  scene.traverse((o) => { if (!avatar && o.name === "NAJU-chibi-avatar") avatar = o; });
-  if (!avatar) return null;
-  const box = new hook.THREE.Box3().setFromObject(avatar);
-  return box.max.y - box.min.y;
-});
+const measureHeight = () =>
+  page.evaluate(() => {
+    const hook = window.__game?.characterCreation;
+    if (!hook) return null;
+    const { scene } = hook.get();
+    let avatar = null;
+    scene.traverse((o) => {
+      if (!avatar && o.name === "NAJU-chibi-avatar") avatar = o;
+    });
+    if (!avatar) return null;
+    const box = new hook.THREE.Box3().setFromObject(avatar);
+    return box.max.y - box.min.y;
+  });
 // 체형 슬라이더 값은 눈금 칸 번호(0~4)이고 가운데(2)가 기본값이다. 칸이 가리키는 실수는 항목마다 다르다
 const slide = async (label, step) => {
   await page.getByLabel(label, { exact: true }).fill(String(step));
@@ -62,19 +60,24 @@ const button = (name, exact = true) => page.getByRole("button", { name, exact })
 const initial = await readDraft();
 check(
   "신규 기본은 티셔츠·반바지·운동화 차림",
-  initial?.appearance.equipmentIds.top === "top.tee.white"
-  && initial?.appearance.equipmentIds.bottom === "bottom.shorts.black"
-  && initial?.appearance.equipmentIds.shoes === "shoes.sneaker.white",
+  initial?.appearance.equipmentIds.top === "top.tee.white" &&
+    initial?.appearance.equipmentIds.bottom === "bottom.shorts.black" &&
+    initial?.appearance.equipmentIds.shoes === "shoes.sneaker.white",
   JSON.stringify(initial?.appearance.equipmentIds),
 );
-check("신규 기본 체형은 머리 최소·팔 85%·마름 20%(남성 다리는 100%)",
-  initial?.appearance.bodyParameters.headScale === 0.8
-  && initial?.appearance.bodyParameters.armThickness === 0.85
-  && initial?.appearance.bodyParameters.legThickness === 1
-  && initial?.appearance.bodyParameters.build === -0.2,
-  `다리 두께 ${initial?.appearance.bodyParameters.legThickness}`);
+check(
+  "신규 기본 체형은 머리 최소·팔 85%·마름 20%(남성 다리는 100%)",
+  initial?.appearance.bodyParameters.headScale === 0.8 &&
+    initial?.appearance.bodyParameters.armThickness === 0.85 &&
+    initial?.appearance.bodyParameters.legThickness === 1 &&
+    initial?.appearance.bodyParameters.build === -0.2,
+  `다리 두께 ${initial?.appearance.bodyParameters.legThickness}`,
+);
 check("신규 기본 헤어는 그 성별의 실제 헤어", initial?.appearance.hairId === "hair.m.crop", initial?.appearance.hairId);
-check("어깨·팔 길이 기본값은 보정된 값", initial?.appearance.bodyParameters.shoulderWidth === 1.2 && initial?.appearance.bodyParameters.armLength === 0.88);
+check(
+  "어깨·팔 길이 기본값은 보정된 값",
+  initial?.appearance.bodyParameters.shoulderWidth === 1.2 && initial?.appearance.bodyParameters.armLength === 0.88,
+);
 
 // 2. 슬라이더가 실제 3D 를 바꾼다
 await button("체형").click();
@@ -83,7 +86,11 @@ await slide("키", 4); // 가장 큰 칸
 const tallHeight = await measureHeight();
 await slide("키", 0); // 가장 작은 칸
 const shortHeight = await measureHeight();
-check("키 슬라이더가 실제 모델 높이를 바꾼다", tallHeight > baseHeight * 1.2 && shortHeight < baseHeight * 0.8, `${baseHeight?.toFixed(3)} → ${tallHeight?.toFixed(3)} / ${shortHeight?.toFixed(3)}`);
+check(
+  "키 슬라이더가 실제 모델 높이를 바꾼다",
+  tallHeight > baseHeight * 1.2 && shortHeight < baseHeight * 0.8,
+  `${baseHeight?.toFixed(3)} → ${tallHeight?.toFixed(3)} / ${shortHeight?.toFixed(3)}`,
+);
 await button("키 초기화", false).first().click();
 await page.waitForTimeout(600);
 const resetHeight = await measureHeight();
@@ -91,14 +98,17 @@ check("항목 초기화가 기본값으로 되돌린다", Math.abs(resetHeight -
 
 // 2-2. 다리 길이도 실제 모델을 바꾼다(뼈 배율).
 // 스킨드 메시는 뼈 배율이 경계 상자에 안 잡혀서, 다리가 길어지면 올라가는 골반 높이로 잰다
-const pelvisHeight = () => page.evaluate(() => {
-  const hook = window.__game.characterCreation;
-  const { scene } = hook.get();
-  let skeleton = null;
-  scene.traverse((o) => { if (!skeleton && o.isSkinnedMesh && o.skeleton?.getBoneByName("pelvis")) skeleton = o.skeleton; });
-  if (!skeleton) return null;
-  return new hook.THREE.Vector3().setFromMatrixPosition(skeleton.getBoneByName("pelvis").matrixWorld).y;
-});
+const pelvisHeight = () =>
+  page.evaluate(() => {
+    const hook = window.__game.characterCreation;
+    const { scene } = hook.get();
+    let skeleton = null;
+    scene.traverse((o) => {
+      if (!skeleton && o.isSkinnedMesh && o.skeleton?.getBoneByName("pelvis")) skeleton = o.skeleton;
+    });
+    if (!skeleton) return null;
+    return new hook.THREE.Vector3().setFromMatrixPosition(skeleton.getBoneByName("pelvis").matrixWorld).y;
+  });
 // 다리 길이는 '몸 비율' 묶음 안에 있다 — 접혀 있으면 먼저 편다
 await page.getByRole("button", { name: "몸 비율" }).click();
 await page.waitForTimeout(400);
@@ -106,7 +116,11 @@ await slide("다리 길이", 4);
 const longLegs = await pelvisHeight();
 await slide("다리 길이", 0);
 const shortLegs = await pelvisHeight();
-check("다리 길이 슬라이더가 실제 모델을 바꾼다", longLegs > shortLegs * 1.1, `골반 높이 ${longLegs?.toFixed(3)} / ${shortLegs?.toFixed(3)}`);
+check(
+  "다리 길이 슬라이더가 실제 모델을 바꾼다",
+  longLegs > shortLegs * 1.1,
+  `골반 높이 ${longLegs?.toFixed(3)} / ${shortLegs?.toFixed(3)}`,
+);
 await button("다리 길이 초기화", false).first().click();
 await page.waitForTimeout(600);
 await page.getByRole("button", { name: "기본 크기" }).click();
@@ -124,12 +138,20 @@ await button("기본").click();
 await button("남성").click();
 await page.waitForTimeout(5000);
 const maleDraft = await readDraft();
-check("남→여→남 에서 남성 초안이 복원된다", Math.abs((maleDraft?.appearance.bodyParameters.headScale ?? 0) - 1.18) < 0.001, String(maleDraft?.appearance.bodyParameters.headScale));
+check(
+  "남→여→남 에서 남성 초안이 복원된다",
+  Math.abs((maleDraft?.appearance.bodyParameters.headScale ?? 0) - 1.18) < 0.001,
+  String(maleDraft?.appearance.bodyParameters.headScale),
+);
 await button("기본").click();
 await button("여성").click();
 await page.waitForTimeout(5000);
 const femaleDraft = await readDraft();
-check("여성 초안도 그대로 남는다", Math.abs((femaleDraft?.appearance.bodyParameters.headScale ?? 0) - 0.93) < 0.001, String(femaleDraft?.appearance.bodyParameters.headScale));
+check(
+  "여성 초안도 그대로 남는다",
+  Math.abs((femaleDraft?.appearance.bodyParameters.headScale ?? 0) - 0.93) < 0.001,
+  String(femaleDraft?.appearance.bodyParameters.headScale),
+);
 await button("기본").click();
 await button("남성").click();
 await page.waitForTimeout(5000);
@@ -141,34 +163,48 @@ await page.waitForTimeout(3500);
 await button("흰 운동화", false).click();
 await page.waitForTimeout(3500);
 const afterOutfit = await readDraft();
-check("옷을 갈아입어도 체형값이 유지된다", Math.abs((afterOutfit?.appearance.bodyParameters.headScale ?? 0) - 1.18) < 0.001);
-check("의상 선택이 초안에 들어간다", afterOutfit?.appearance.equipmentIds.top === "top.tee.white" && afterOutfit?.appearance.equipmentIds.shoes === "shoes.sneaker.white");
+check(
+  "옷을 갈아입어도 체형값이 유지된다",
+  Math.abs((afterOutfit?.appearance.bodyParameters.headScale ?? 0) - 1.18) < 0.001,
+);
+check(
+  "의상 선택이 초안에 들어간다",
+  afterOutfit?.appearance.equipmentIds.top === "top.tee.white" &&
+    afterOutfit?.appearance.equipmentIds.shoes === "shoes.sneaker.white",
+);
 
 // 5. 신발을 신어도 발 크기가 실제로 바뀐다(신발 GLB 에는 모프가 없어 따로 처리한다)
 await button("체형").click();
 await slide("발 크기", 0);
 await page.waitForTimeout(600);
 // 스킨드 메시는 뼈가 움직여도 제 행렬이 안 바뀐다 — 스키닝된 정점을 직접 읽어 잰다
-const measureShoe = () => page.evaluate(() => {
-  const hook = window.__game.characterCreation;
-  const { scene } = hook.get();
-  let shoe = null;
-  scene.traverse((o) => { if (!shoe && o.isSkinnedMesh && o.userData.slot === "shoes" && o.visible) shoe = o; });
-  if (!shoe) return null;
-  const box = new hook.THREE.Box3();
-  const point = new hook.THREE.Vector3();
-  const count = shoe.geometry.getAttribute("position").count;
-  for (let i = 0; i < count; i += 7) {
-    shoe.getVertexPosition(i, point);
-    box.expandByPoint(shoe.localToWorld(point));
-  }
-  return box.getSize(new hook.THREE.Vector3()).length();
-});
+const measureShoe = () =>
+  page.evaluate(() => {
+    const hook = window.__game.characterCreation;
+    const { scene } = hook.get();
+    let shoe = null;
+    scene.traverse((o) => {
+      if (!shoe && o.isSkinnedMesh && o.userData.slot === "shoes" && o.visible) shoe = o;
+    });
+    if (!shoe) return null;
+    const box = new hook.THREE.Box3();
+    const point = new hook.THREE.Vector3();
+    const count = shoe.geometry.getAttribute("position").count;
+    for (let i = 0; i < count; i += 7) {
+      shoe.getVertexPosition(i, point);
+      box.expandByPoint(shoe.localToWorld(point));
+    }
+    return box.getSize(new hook.THREE.Vector3()).length();
+  });
 const smallFoot = await measureShoe();
 await slide("발 크기", 4);
 await page.waitForTimeout(600);
 const bigFoot = await measureShoe();
-check("신발을 신어도 발 크기 조절이 신발에 반영된다", smallFoot && bigFoot && bigFoot > smallFoot * 1.3, `${smallFoot?.toFixed(3)} → ${bigFoot?.toFixed(3)}`);
+check(
+  "신발을 신어도 발 크기 조절이 신발에 반영된다",
+  smallFoot && bigFoot && bigFoot > smallFoot * 1.3,
+  `${smallFoot?.toFixed(3)} → ${bigFoot?.toFixed(3)}`,
+);
 await button("발 크기 초기화", false).first().click();
 
 // 5-2. 옷을 연달아 빨리 바꿔도 화면이 마지막 선택과 맞는다
@@ -183,9 +219,11 @@ await button("흰 티셔츠", false).click();
 await page.waitForTimeout(9000);
 const lastDraft = await readDraft();
 const shownKey = await page.evaluate(() => window.__game?.characterCreation?.displayKey ?? null);
-check("옷을 연달아 바꿔도 화면이 마지막 선택과 맞는다",
+check(
+  "옷을 연달아 바꿔도 화면이 마지막 선택과 맞는다",
   lastDraft?.appearance.equipmentIds.top === "top.tee.white" && shownKey === "masculine|0|0|0",
-  `선택 ${lastDraft?.appearance.equipmentIds.top} / 화면 ${shownKey}`);
+  `선택 ${lastDraft?.appearance.equipmentIds.top} / 화면 ${shownKey}`,
+);
 
 // 6. 늦게 온 이름 확인 답이 새 이름을 덮지 않는다
 await button("이름 입력으로", false).click();
@@ -209,7 +247,10 @@ await button("느린 응답 켬(2.6초)").click(); // 도로 빠르게
 await nameInput.fill("조사관");
 await button("중복확인").click();
 await page.waitForTimeout(1200);
-check("이미 쓰는 이름은 중복으로 표시된다", (await page.locator("[role=status]").last().innerText()).includes("이미 사용 중"));
+check(
+  "이미 쓰는 이름은 중복으로 표시된다",
+  (await page.locator("[role=status]").last().innerText()).includes("이미 사용 중"),
+);
 check("확인 전에는 완료가 막힌다", await completeButton.isDisabled());
 
 // 8. 형식 오류
@@ -226,14 +267,16 @@ check("확인이 끝나면 완료가 열린다", await completeButton.isEnabled(
 await completeButton.click();
 await page.waitForTimeout(1500);
 const submitted = await readCompleted();
-check("완료 데이터에 화면의 외형과 이름이 들어간다",
-  submitted?.displayName === "김나루"
-  && submitted?.appearance.gender === "masculine"
-  && submitted?.appearance.equipmentIds.top === "top.tee.white"
-  && submitted?.appearance.equipmentIds.shoes === "shoes.sneaker.white"
-  && submitted?.appearance.catalogVersion
-  && submitted?.appearance.bodyAssetVersion,
-  JSON.stringify(submitted?.appearance.equipmentIds));
+check(
+  "완료 데이터에 화면의 외형과 이름이 들어간다",
+  submitted?.displayName === "김나루" &&
+    submitted?.appearance.gender === "masculine" &&
+    submitted?.appearance.equipmentIds.top === "top.tee.white" &&
+    submitted?.appearance.equipmentIds.shoes === "shoes.sneaker.white" &&
+    submitted?.appearance.catalogVersion &&
+    submitted?.appearance.bodyAssetVersion,
+  JSON.stringify(submitted?.appearance.equipmentIds),
+);
 check("완료해도 화면이 저절로 넘어가지 않는다", await page.locator("input[placeholder]").first().isVisible());
 check("완료 뒤 다시 누를 수 없다", await completeButton.isDisabled());
 
@@ -242,9 +285,11 @@ const draftToSend = await readDraft();
 await button("초안을 initialValue 로 다시 열기").click();
 await page.waitForTimeout(9000);
 const restored = await readDraft();
-check("초안을 initialValue 로 넣으면 외형이 복원된다",
+check(
+  "초안을 initialValue 로 넣으면 외형이 복원된다",
   JSON.stringify(restored?.appearance) === JSON.stringify(draftToSend?.appearance),
-  `${restored?.appearance.equipmentIds.top} / 머리 ${restored?.appearance.bodyParameters.headScale}`);
+  `${restored?.appearance.equipmentIds.top} / 머리 ${restored?.appearance.bodyParameters.headScale}`,
+);
 check("복원된 이름도 남는다", restored?.displayName === "김나루", restored?.displayName);
 await button("이름 입력으로", false).click();
 check("복원된 이름은 다시 확인해야 한다", await button("캐릭터 생성 완료", false).isDisabled());
@@ -262,23 +307,30 @@ const endValue = await heightSlider.inputValue();
 await heightSlider.press("ArrowLeft");
 const oneStepValue = await heightSlider.inputValue();
 // 눈금이 다섯 칸이므로 Home=0 · End=4 · 왼쪽 화살표는 한 칸 아래인 3 이다
-check("키보드로 슬라이더를 움직일 수 있다(Home/End/방향키)",
+check(
+  "키보드로 슬라이더를 움직일 수 있다(Home/End/방향키)",
   focused && Number(homeValue) === 0 && Number(endValue) === 4 && Number(oneStepValue) === 3,
-  `${homeValue} / ${endValue} / ${oneStepValue}`);
+  `${homeValue} / ${endValue} / ${oneStepValue}`,
+);
 // 읽어 주는 값이 숫자가 아니라 칸 이름이어야 한다(화면에 보이는 것과 같게)
 const stepName = await heightSlider.getAttribute("aria-valuetext");
-check("슬라이더가 칸 이름을 읽어 준다", typeof stepName === "string" && stepName.length > 0 && !/^[0-9.]+$/.test(stepName), String(stepName));
+check(
+  "슬라이더가 칸 이름을 읽어 준다",
+  typeof stepName === "string" && stepName.length > 0 && !/^[0-9.]+$/.test(stepName),
+  String(stepName),
+);
 const allLabeled = await page.evaluate(() => {
-  const sliders = [...document.querySelectorAll('input[type=range]')];
+  const sliders = [...document.querySelectorAll("input[type=range]")];
   return sliders.every((el) => el.id && document.querySelector(`label[for="${el.id}"]`));
 });
 check("모든 슬라이더에 라벨이 붙어 있다", allLabeled);
 
 // 12. UI 를 끌어도 카메라가 돌지 않는다(오버레이가 전면이라 특히 중요하다)
-const cameraPosition = () => page.evaluate(() => {
-  const { camera } = window.__game.characterCreation.get();
-  return [camera.position.x, camera.position.y, camera.position.z];
-});
+const cameraPosition = () =>
+  page.evaluate(() => {
+    const { camera } = window.__game.characterCreation.get();
+    return [camera.position.x, camera.position.y, camera.position.z];
+  });
 await button("체형").click();
 await page.waitForTimeout(500);
 const beforeDrag = await cameraPosition();
@@ -303,25 +355,32 @@ const focusReturned = await page.evaluate(() => document.activeElement?.textCont
 check("팝오버를 닫으면 포커스가 부른 단추로 돌아온다", focusReturned);
 
 // 14. 카메라 안전영역 — 머리·발이 오른쪽 패널이나 왼쪽 레일 뒤로 숨지 않는다
-const screenPoints = () => page.evaluate(() => {
-  const hook = window.__game.characterCreation;
-  const { camera, scene, size } = hook.get();
-  let skeleton = null;
-  scene.traverse((o) => { if (!skeleton && o.isSkinnedMesh && o.skeleton?.getBoneByName("head")) skeleton = o.skeleton; });
-  const project = (boneName) => {
-    const v = new hook.THREE.Vector3().setFromMatrixPosition(skeleton.getBoneByName(boneName).matrixWorld).project(camera);
-    return { x: (v.x * 0.5 + 0.5) * size.width, y: (-v.y * 0.5 + 0.5) * size.height };
-  };
-  return { head: project("head"), foot: project("foot_l"), width: size.width, height: size.height };
-});
+const screenPoints = () =>
+  page.evaluate(() => {
+    const hook = window.__game.characterCreation;
+    const { camera, scene, size } = hook.get();
+    let skeleton = null;
+    scene.traverse((o) => {
+      if (!skeleton && o.isSkinnedMesh && o.skeleton?.getBoneByName("head")) skeleton = o.skeleton;
+    });
+    const project = (boneName) => {
+      const v = new hook.THREE.Vector3()
+        .setFromMatrixPosition(skeleton.getBoneByName(boneName).matrixWorld)
+        .project(camera);
+      return { x: (v.x * 0.5 + 0.5) * size.width, y: (-v.y * 0.5 + 0.5) * size.height };
+    };
+    return { head: project("head"), foot: project("foot_l"), width: size.width, height: size.height };
+  });
 const points = await screenPoints();
 const panelLeft = await page.evaluate(() => {
   const panel = document.querySelector('aside[aria-label="조절 패널"]');
   return panel ? panel.getBoundingClientRect().left : Infinity;
 });
-check("머리·발이 조절 패널 뒤로 숨지 않는다",
+check(
+  "머리·발이 조절 패널 뒤로 숨지 않는다",
   points.head.x < panelLeft - 8 && points.foot.x < panelLeft - 8 && points.head.y > 0 && points.foot.y < points.height,
-  `머리 ${Math.round(points.head.x)},${Math.round(points.head.y)} 발 ${Math.round(points.foot.x)} 패널 ${Math.round(panelLeft)}`);
+  `머리 ${Math.round(points.head.x)},${Math.round(points.head.y)} 발 ${Math.round(points.foot.x)} 패널 ${Math.round(panelLeft)}`,
+);
 
 check("페이지 오류 없음", pageErrors.length === 0, pageErrors.join(" | "));
 

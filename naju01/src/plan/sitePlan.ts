@@ -9,7 +9,7 @@ export type Range = [number, number];
 export type ZoneCode = "Z1" | "Z2" | "Z3" | "Z4";
 export type PathCode = "T1" | "T2" | "T3" | "T4";
 export type Heading = "+X" | "-X" | "+Z" | "-Z";
-export type SceneNumber = 1 | 2 | 3 | 4 | 5;
+type SceneNumber = 1 | 2 | 3 | 4 | 5;
 
 /** 미터 → 유닛 */
 export const UNITS_PER_METER = 1 / 0.3;
@@ -100,7 +100,7 @@ export interface Cliff {
 /** 절벽(§3 B-01). Z3 남쪽 가장자리(Z 26, EL +14)에서 Z2 바닥(Z 30, EL 0)으로 떨어진다. 실각 ≈ 74°. */
 export const CLIFF: Cliff = { name: "앙암바위 절벽", x: [34, 56], zTop: 26, zBottom: 30, height: 14 };
 
-export interface CliffProfile {
+interface CliffProfile {
   /** 마루선 z — 남쪽으로 0~2.6 m 물러난다. 물러난 만큼 어깨(선반)가 생긴다. */
   crest: number;
   /** 발치선 z — 북쪽으로 0~1.5 m 당긴다. */
@@ -219,8 +219,8 @@ export const PATHS: PathDef[] = [
     code: "T4",
     name: "서측 하강로",
     route: "Z3 → Z1",
-    // 꼬리 세 점을 북쪽으로 돌렸다(A-01 과 다른 유일한 좌표). 원래 자리에선 흙둑이 나루터에서 T1 들머리로 가는
-    // 선을 막았다. 길이 28.01 m·경사 26.6° 는 도면 표 그대로다.
+    // 꼬리 세 점만 A-01 과 다르다(북쪽으로 돌림) — 도면 자리면 흙둑이 나루터에서 T1 들머리로 가는 선을 막는다.
+    // 길이 28.01 m·경사 26.6° 는 도면 표 그대로다.
     points: [
       [36, 24.5],
       [31, 23],
@@ -275,8 +275,7 @@ export interface BlockerDef {
  * 시야 차단물(§2 회색 블록). 높이는 도면에 없어 "선 채로 너머가 안 보이는" 최소치로 잡았다.
  * B2·수목대는 Z3 와 Z4 사이 빈 골(X 58~62)에 서 있어 발을 0 으로 두어 골을 메운다 — +14 로 두면 공중에 뜬 상자라
  * Z4 쪽에서 아무것도 못 가린다.
- * 도면 그림에만 있던 B1b「바위 능선(남)」은 뺐다. T1 길 위로 튀어나왔고 §4 가 요구한 차단도 아니었다.
- * 되살리려면 Z 를 39 아래로 당겨 길을 안 밟게: { code: "B1b", x: [28, 34], z: [41.6, 44], foot: 0, floor: 0, height: 3.5 }
+ * 도면 그림의 B1b「바위 능선(남)」은 두지 않는다 — T1 길 위로 튀어나오고 §4 가 요구한 차단도 아니다.
  */
 export const BLOCKERS: BlockerDef[] = [
   {
@@ -323,7 +322,7 @@ export const BLOCKERS: BlockerDef[] = [
   },
 ];
 
-export interface Viewpoint {
+interface Viewpoint {
   code: string;
   x: number;
   z: number;
@@ -378,7 +377,7 @@ export const VIEWPOINTS: Viewpoint[] = [
   },
 ];
 
-export interface InvestigationSlot {
+interface InvestigationSlot {
   scene: SceneNumber;
   color: string;
   points: [number, number][];
@@ -433,7 +432,7 @@ export const NPC: { name: string; zone: ZoneCode; x: number; z: number; color: s
   color: "#B4544C",
 };
 
-export interface Section {
+interface Section {
   code: string;
   axis: "X" | "Z";
   value: number;
@@ -455,7 +454,7 @@ export const BASELINE = {
   maxSlope: 30, // ° — 0단계 규칙
 };
 
-export interface TunableRange {
+interface TunableRange {
   /** null 이면 부르는 쪽 기본값(걷기 속도는 본편 WALK) */
   value: number | null;
   min: number;
@@ -477,7 +476,7 @@ export const TUNABLE_RANGES = {
   walkSpeed: { value: null, min: 0.4, max: 3.5, step: 0.1, unit: "m/s", basis: "§9 가정 2.5" },
 } satisfies Record<string, TunableRange>;
 
-export type TunableKey = keyof typeof TUNABLE_RANGES;
+type TunableKey = keyof typeof TUNABLE_RANGES;
 
 /** Leva 항목 하나({ value, min, max, step }). 범위·기본값은 TUNABLE_RANGES 한 곳에서만 온다. */
 export function tunable(key: TunableKey, fallback = 0) {

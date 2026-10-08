@@ -13,34 +13,30 @@ import { createChangeSignal } from "@/lib/changeSignal";
 
 import type { Point3 } from "./interactions";
 
-export interface SurfaceBox {
+/** 바닥에 비친 발자국(축에 나란한 사각형). */
+interface Footprint {
   minX: number;
   maxX: number;
   minZ: number;
   maxZ: number;
+}
+
+interface SurfaceBox extends Footprint {
   top: number;
 }
 
-export interface OccupiedBox {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
+interface OccupiedBox extends Footprint {
   minY: number;
   maxY: number;
 }
 
 /** 벽·기둥처럼 높이가 없는 것은 minY/maxY 를 비워 둔다(높이 제한 없음). */
-export interface WorldBox {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
+export interface WorldBox extends Footprint {
   minY?: number;
   maxY?: number;
 }
 
-export interface ItemSize {
+interface ItemSize {
   /** 놓기 판정용 정사각 반폭 — 어느 각도로 돌려도 안전하다. */
   halfX: number;
   halfZ: number;
@@ -53,7 +49,7 @@ export interface ItemSize {
 }
 
 /** 평면이 아닌 한 점으로 되돌려 놓는 자리(옷걸이의 모자). 광선↔수평면으로는 안 잡힌다. */
-export interface SnapPoint {
+interface SnapPoint {
   itemId: string;
   x: number;
   y: number;
@@ -64,20 +60,16 @@ export interface SnapPoint {
   radius?: number;
 }
 
-export const surfaces = new Map<string, SurfaceBox>();
-export const occupants = new Map<string, OccupiedBox>();
+const surfaces = new Map<string, SurfaceBox>();
+const occupants = new Map<string, OccupiedBox>();
 export const itemSizes = new Map<string, ItemSize>();
-export const snapPoints = new Map<string, SnapPoint>();
+const snapPoints = new Map<string, SnapPoint>();
 
 // 책상은 GLB 를 다 받은 뒤에야 잴 수 있어 첫 렌더에는 면이 없다. 면이 등록될 때 다시 그리게 알린다.
 const surfaceSignal = createChangeSignal();
-export const surfaceChanges = {
-  version: surfaceSignal.version,
-  subscribe: surfaceSignal.subscribe,
-};
 /** 면이 바뀔 때만 새 값을 주는 번호. useMemo 의존성에 넣어 쓴다. */
 export const useSurfaceVersion = () =>
-  useSyncExternalStore(surfaceChanges.subscribe, surfaceChanges.version, surfaceChanges.version);
+  useSyncExternalStore(surfaceSignal.subscribe, surfaceSignal.version, surfaceSignal.version);
 
 export const registerSurface = (id: string, box: SurfaceBox) => {
   const previous = surfaces.get(id);
@@ -120,7 +112,7 @@ export const unregisterSnapPoint = (id: string) => snapPoints.delete(id);
 
 // 원래 자리가 아닌 곳에 옮겨진 물건들. 제자리로 되돌릴 때 처음부터 거기 있던 것까지
 // 겹침으로 세면(옷걸이와 모자, 모니터와 키보드) 영영 못 되돌린다.
-export const movedItems = new Set<string>();
+const movedItems = new Set<string>();
 export const setMovedItems = (ids: Iterable<string>) => {
   movedItems.clear();
   for (const id of ids) movedItems.add(id);
@@ -133,7 +125,7 @@ export const provideWorldBoxes = (generator: () => Iterable<WorldBox>) => {
 };
 
 /** 3D 점 막힘 검사. 2D hit 는 책상을 높이 무한한 벽으로 봐서, 책상 위로 든 컵까지 막는다. */
-export function isBlocked3D(x: number, y: number, z: number, margin = 0, excludeId: string | null = null) {
+function isBlocked3D(x: number, y: number, z: number, margin = 0, excludeId: string | null = null) {
   for (const [id, box] of occupants) {
     if (id === excludeId) continue;
     if (x < box.minX - margin || x > box.maxX + margin) continue;
@@ -160,9 +152,9 @@ function overlaps(a: OccupiedBox, b: WorldBox) {
   return true;
 }
 
-export type PlacementBlockReason = "overlap" | "surfaceTooNarrow";
+type PlacementBlockReason = "overlap" | "surfaceTooNarrow";
 
-export interface FoundPlacement extends ItemSize {
+interface FoundPlacement extends ItemSize {
   found: true;
   /** 놓아도 되는가(초록/빨강). */
   ok: boolean;
@@ -179,7 +171,7 @@ export interface FoundPlacement extends ItemSize {
 }
 
 /** 면을 못 찾으면 found=false. ok 도 같이 두어 `r?.ok` 하나로 놓을 수 있는지 본다. */
-export type PlacementResult = { found: false; ok: false } | FoundPlacement;
+type PlacementResult = { found: false; ok: false } | FoundPlacement;
 
 const NOT_FOUND: PlacementResult = { found: false, ok: false };
 
@@ -197,16 +189,16 @@ export function findPlacement(
   const size = itemSizes.get(itemId);
   if (!size) return NOT_FOUND;
 
-  const o = origin ?? camera.position;
-  const d = cameraForward(camera);
+  const from = origin ?? camera.position;
+  const direction = cameraForward(camera);
 
   // 걸이가 먼저다. 이 물건의 제자리가 시선에 걸리면 거기로 되돌린다.
   for (const [snapId, snap] of snapPoints) {
     if (snap.itemId !== itemId) continue;
-    const hx = snap.x - o.x,
-      hy = snap.y - o.y,
-      hz = snap.z - o.z;
-    const along = hx * d.x + hy * d.y + hz * d.z;
+    const hx = snap.x - from.x;
+    const hy = snap.y - from.y;
+    const hz = snap.z - from.z;
+    const along = hx * direction.x + hy * direction.y + hz * direction.z;
     if (along <= 0.3 || along > maxDistance) continue;
     const sideSq = hx * hx + hy * hy + hz * hz - along * along;
     const radius = snap.radius ?? 1.0;
@@ -250,11 +242,11 @@ export function findPlacement(
   // 광선 ↔ 각 면의 윗평면 교차. 가장 가까운 것 하나.
   let nearest: { t: number; px: number; pz: number; surface: SurfaceBox } | null = null;
   for (const surface of surfaces.values()) {
-    if (Math.abs(d.y) < 1e-4) continue;
-    const t = (surface.top - o.y) / d.y;
+    if (Math.abs(direction.y) < 1e-4) continue;
+    const t = (surface.top - from.y) / direction.y;
     if (t <= 0.3 || t > maxDistance) continue;
-    const px = o.x + d.x * t;
-    const pz = o.z + d.z * t;
+    const px = from.x + direction.x * t;
+    const pz = from.z + direction.z * t;
     if (px < surface.minX || px > surface.maxX || pz < surface.minZ || pz > surface.maxZ) continue;
     if (!nearest || t < nearest.t) nearest = { t, px, pz, surface };
   }
@@ -263,7 +255,7 @@ export function findPlacement(
   const { px, pz, surface } = nearest;
   const y = surface.top;
   // 모델 앞면(+Z)이 사람 쪽을 보게 돌린다. 노트북 화면이 벽을 보면 어색하다.
-  const rot = Math.atan2(-d.x, -d.z);
+  const rot = Math.atan2(-direction.x, -direction.z);
 
   // 가장자리에 걸치면 떠 보이므로 발자국을 면 안쪽으로 당긴다.
   const x = clamp(px, surface.minX + size.halfX, surface.maxX - size.halfX);
@@ -290,16 +282,17 @@ export function findPlacement(
   return { found: true, x, y: y - (size.offset ?? 0), z, rot, ...size, ok: true, surfaceTop: y };
 }
 
-const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.min(Math.max(v, lo), hi));
+/** 면이 물건보다 좁으면(lo > hi) 가운데에 둔다. */
+const clamp = (value: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.min(Math.max(value, lo), hi));
 
 // 매번 새 벡터를 만들지 않도록 하나를 돌려 쓴다
 const forward = { x: 0, y: 0, z: 0 };
 function cameraForward(camera: THREE.Camera) {
-  const e = camera.matrixWorld.elements;
+  const elements = camera.matrixWorld.elements;
   // 카메라 시선은 -Z, 월드행렬 3열의 반대 방향이다.
-  forward.x = -e[8];
-  forward.y = -e[9];
-  forward.z = -e[10];
+  forward.x = -elements[8];
+  forward.y = -elements[9];
+  forward.z = -elements[10];
   const length = Math.hypot(forward.x, forward.y, forward.z) || 1;
   forward.x /= length;
   forward.y /= length;
@@ -339,33 +332,12 @@ export function springArm(
   return last;
 }
 
-// ── 놓기 상태 ── 화면 아래 안내문용 ──
-// 자리는 매 프레임 바뀐다. found/ok 두 참거짓이 달라질 때만 알린다.
-
-let latest: PlacementResult | null = null; // E 를 눌렀을 때 쓴다(알림 없음)
+// 매 프레임 바뀌는 놓을 자리. E 를 눌렀을 때 읽는다(구독 없음).
+let latest: PlacementResult | null = null;
 export const setLatestPlacement = (result: PlacementResult | null) => {
   latest = result;
 };
 export const latestPlacement = () => latest;
-
-export interface PlacementStatus {
-  found: boolean;
-  ok: boolean;
-}
-
-let status: PlacementStatus = { found: false, ok: false };
-const statusSignal = createChangeSignal();
-export function updatePlacementStatus(result: PlacementResult | null) {
-  const next = { found: !!result?.found, ok: !!result?.ok };
-  if (next.found === status.found && next.ok === status.ok) return;
-  status = next;
-  statusSignal.notify();
-}
-export const placementStatus = {
-  get: () => status,
-  subscribe: statusSignal.subscribe,
-};
-export const usePlacementStatus = () => useSyncExternalStore(placementStatus.subscribe, placementStatus.get);
 
 /**
  * 이 물건 윗면에 얹혀 있는 다른 물건. 없으면 null.

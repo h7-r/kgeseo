@@ -6,7 +6,7 @@ import { hasNoErrors, validateFields, type FieldErrors, type FieldName, type For
 import { COLOR, SHADOW } from "@/styles/tokens";
 
 import InquiryField from "./InquiryField";
-import PanelHeading from "./PanelHeading";
+import { PanelHeading } from "./PanelParts";
 import { ACTIVE_TAB_BACKGROUND, labelStyle } from "./styles";
 
 const INQUIRY_FIELDS: readonly FieldName[] = ["inquiryType", "title", "content", "email"];

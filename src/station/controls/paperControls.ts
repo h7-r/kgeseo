@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import { outlineSchema, pickOutline, useSavedControls } from "@/engine/leva/savedControls";
-import { PAPER_STYLES } from "@/station/office/paperStackConstants";
+import { PAPER_STYLES } from "@/station/office/paper";
 
 interface PaperDefaults {
   x: number;

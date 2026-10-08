@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 
+import { DESIGN_WIDTH, STAGE_INNER_CLASS } from "@/lib/layout";
+import { clamp01 } from "@/lib/math";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 import { consumeProgrammaticScroll } from "@/lib/pageEvents";
-import { DESIGN_WIDTH, STAGE_INNER_CLASS } from "@/lib/stage";
 
 const STAGE_SELECTOR = `.${STAGE_INNER_CLASS}`;
 
@@ -12,7 +13,7 @@ function supportsScrollTimeline(timeline: string): boolean {
 }
 
 /** "below" 는 화면 아래로 빠질 때만 되감고, "both" 는 어느 쪽으로 나가든 끈다. */
-export type RevealRewind = "below" | "both";
+type RevealRewind = "below" | "both";
 
 /**
  * 화면에 들어오면 true. 위로 지나간 것은 그대로 두고, 아래로 빠졌을 때만 되감아
@@ -57,7 +58,7 @@ export function useReadProgress<T extends HTMLElement = HTMLDivElement>(): RefOb
       const el = ref.current;
       if (!el) return;
       const end = document.documentElement.scrollHeight - window.innerHeight;
-      const ratio = end <= 0 ? 0 : Math.min(1, Math.max(0, window.scrollY / end));
+      const ratio = end <= 0 ? 0 : clamp01(window.scrollY / end);
       el.style.transform = `scaleX(${ratio})`;
     };
     const schedule = () => {
@@ -88,7 +89,7 @@ function offsetTopWithinStage(el: HTMLElement, stage: Element): number {
   return y;
 }
 
-export interface PinnedWipeOptions {
+interface PinnedWipeOptions {
   /** 멈춘 채 스크롤하는 거리(무대 px). */
   pinLength?: number;
   /** 덩이 하나가 진행도에서 맡는 몫. 간격보다 넓어 앞 덩이가 끝나기 전에 다음이 시작된다. */
@@ -164,7 +165,7 @@ export function usePinnedWipe<T extends HTMLElement = HTMLDivElement>({
 
       if (writeProgress) {
         // 한 화면 전부터 0 → 멈추는 순간 1
-        const enter = Math.min(1, Math.max(0, 1 - (pinStart - window.scrollY) / viewportHeight));
+        const enter = clamp01(1 - (pinStart - window.scrollY) / viewportHeight);
         const progress = pinDistance > 0 ? scrolled / pinDistance : 1;
         const key = `${enter.toFixed(3)}|${progress.toFixed(3)}`;
         if (lastValues.get(panel) !== key) {
@@ -179,7 +180,7 @@ export function usePinnedWipe<T extends HTMLElement = HTMLDivElement>({
         pinDistance > 0 ? (scrolled / pinDistance - textStart) / Math.max(0.01, revealEnd - textStart) : 1;
       chunks.forEach((el, index) => {
         let ratio = (overall - index * gap) / span;
-        ratio = Math.min(1, Math.max(0, ratio));
+        ratio = clamp01(ratio);
         ratio = Math.round(ratio * 1000) / 1000;
         if (lastValues.get(el) === ratio) return;
         lastValues.set(el, ratio);
@@ -257,7 +258,7 @@ export function useMouseParallax<T extends HTMLElement = HTMLDivElement>(maxOffs
   return ref;
 }
 
-export interface TiltBindings<T extends HTMLElement> {
+interface TiltBindings<T extends HTMLElement> {
   ref: RefObject<T | null>;
   onMouseMove: (event: MouseEvent<T>) => void;
   onMouseLeave: () => void;
@@ -287,9 +288,9 @@ export function useTilt<T extends HTMLElement = HTMLDivElement>(maxAngle = 6): T
  * CSS view() 와 같은 뜻의 구간 지점.
  * entry x: 윗변이 화면 아래에서 x×높이 들어옴 · cover x: 아래 닿음(0)~위로 다 빠짐(1) · exit x: 윗변이 화면 위에 닿은 뒤 x×높이 더 올라감
  */
-export type ScrollRangeEdge = readonly ["entry" | "cover" | "exit", number];
+type ScrollRangeEdge = readonly ["entry" | "cover" | "exit", number];
 
-export interface ScrollRangeOptions {
+interface ScrollRangeOptions {
   start?: ScrollRangeEdge;
   end?: ScrollRangeEdge;
 }
@@ -309,9 +310,9 @@ function useScrollRange(
   ref: RefObject<HTMLElement | null>,
   { start = ["entry", 0], end = ["exit", 1] }: ScrollRangeOptions = {},
 ): void {
-  // 배열은 매번 새로 만들어지므로 글자로 바꿔 의존성을 비교한다.
-  const startKey = start.join(" ");
-  const endKey = end.join(" ");
+  // 배열은 매번 새로 만들어지므로 낱값으로 풀어 의존성을 비교한다.
+  const [startKind, startX] = start;
+  const [endKind, endX] = end;
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -332,8 +333,8 @@ function useScrollRange(
         top = el.getBoundingClientRect().top + window.scrollY;
       }
       const height = el.offsetHeight * scale;
-      const a = Math.round(edgeToScrollY(start, top, height, viewportHeight));
-      const b = Math.round(edgeToScrollY(end, top, height, viewportHeight));
+      const a = Math.round(edgeToScrollY([startKind, startX], top, height, viewportHeight));
+      const b = Math.round(edgeToScrollY([endKind, endX], top, height, viewportHeight));
       const key = `${a}|${b}`;
       if (key === last) return;
       last = key;
@@ -354,8 +355,7 @@ function useScrollRange(
       window.removeEventListener("resize", schedule);
       resizeObserver.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ref, startKey, endKey]);
+  }, [ref, startKind, startX, endKind, endX]);
 }
 
 /** 확대샷으로 시작해 들어오는 동안 제 크기로 물러난다(.recede). */
@@ -365,7 +365,7 @@ export function useRecede<T extends HTMLElement = HTMLDivElement>(): RefObject<T
   return ref;
 }
 
-export interface PassByOptions {
+interface PassByOptions {
   /** 아래에서 들어올 때 배율. */
   enterScale?: number;
   /** 위로 빠져나갈 때 배율. */
@@ -398,7 +398,7 @@ export function usePassBy<T extends HTMLElement = HTMLDivElement>({
       const rect = el.getBoundingClientRect();
       const viewportHeight = window.innerHeight;
       // 0 = 아래에서 막 들어옴, 0.5 = 한가운데, 1 = 위로 다 빠져나감
-      const ratio = Math.min(1, Math.max(0, (viewportHeight - rect.top) / (viewportHeight + rect.height)));
+      const ratio = clamp01((viewportHeight - rect.top) / (viewportHeight + rect.height));
       const scale =
         ratio < 0.5 ? enterScale + (1 - enterScale) * (ratio / 0.5) : 1 + (exitScale - 1) * ((ratio - 0.5) / 0.5);
       const z = ratio < 0.5 ? -depth * (1 - ratio / 0.5) : 0;

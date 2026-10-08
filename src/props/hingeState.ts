@@ -30,7 +30,7 @@ export function toggleHinge(id: string) {
   return open;
 }
 
-export function closeHinge(id: string) {
+function closeHinge(id: string) {
   restoredOpenIds.delete(id);
   if (!openIds.delete(id)) return;
   signal.notify();
@@ -46,15 +46,10 @@ export function restoreOpen(id: string | null | undefined) {
 
 export const isRestoredOpen = (id: string) => restoredOpenIds.has(id);
 
-export const hingeStore = {
-  version: signal.version,
-  subscribe: signal.subscribe,
-};
-
 /** id 하나의 열림 여부를 구독한다(드물게 바뀌어 다시 그려도 괜찮다). */
 export const useIsOpen = (id: string) => useSyncExternalStore(signal.subscribe, () => openIds.has(id));
 
-// ── 덜컹 ── 잠겨서 안 열리는 문
+// 덜컹 — 잠겨서 안 열리는 문
 // 아무 반응이 없으면 조작이 고장 난 줄 안다. 문이 흔들려야 "잠겼구나"로 읽힌다.
 // 흔들림은 매 프레임 바뀌므로 시작 시각만 적고 화면이 useFrame 에서 계산한다.
 

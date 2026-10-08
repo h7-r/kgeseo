@@ -4,9 +4,11 @@
 // 삼각형 수·실치수, UV 가 0~1 안인지(벗어나면 반복돼 이상하다),
 // 텍셀 밀도(노린 51 · 98 px/m 이 맞나 — 자릿수로 갈리면 어딘가 늘어났다), 늘어남을 본다.
 
-import { chromium } from "playwright";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { chromium } from "playwright";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const glbPath = path.join(here, "..", "assets", "source", "terrain.glb");
@@ -24,7 +26,7 @@ try {
   await page.waitForTimeout(2000);
 
   // 페이지는 파일 시스템을 못 읽어 바이트로 넘긴다
-  const bytes = [...(await (await import("node:fs/promises")).readFile(glbPath))];
+  const bytes = [...(await fs.readFile(glbPath))];
 
   console.log(
     await page.evaluate(

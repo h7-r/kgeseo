@@ -1,8 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- 페이지 엔트리라 내보낼 것이 없다 */
 /**
  * 걷기·달리기 비교 무대(개발 전용, gait.html).
- * 왼쪽 = 원본 무료 캐릭터(sidekick-customizer.glb — 몸·스켈레톤·스키닝 원본), 가운데·오른쪽 = 새 몸체(Meshy + 같은 88본 + 자동 웨이트).
- * 같은 클립을 같은 시각으로 고정해 넣어야 「원본은 멀쩡한데 이쪽만 이상한」 항목을 가려낸다.
+ * 왼쪽 = Sidekick 캐릭터(sidekick-customizer.glb — 기준 몸·스켈레톤·스키닝), 가운데·오른쪽 = Meshy 몸체(같은 88본 + 자동 웨이트).
+ * 같은 클립을 같은 시각으로 고정해 넣어야 「기준은 멀쩡한데 이쪽만 이상한」 항목을 가려낸다.
  * 뼈는 멀쩡한데 살만 찌그러지는지 보려면 스켈레톤 표시를 켠다.
  */
 import { Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -11,10 +11,10 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import type { AvatarLink } from "@/engine/avatarLink";
 
 import ChibiGameAvatar from "../src/avatar/ChibiGameAvatar";
 import SidekickGameAvatar from "../src/avatar/SidekickGameAvatar";
-import type { AvatarLink } from "@/engine/avatarLink";
 import { normalizeMeshConfig, type MotionSource } from "../src/avatar/meshAppearance";
 import { normalizeSidekickConfig } from "../src/avatar/sidekickOptions";
 import { DEFAULT_TOON } from "../src/avatar/toonMaterial";
@@ -119,7 +119,15 @@ function GaitDevHook() {
 }
 
 /** 세 아바타가 같은 시각을 받도록 한 곳에서만 시간을 굴린다 */
-function GaitClock({ isPaused, speed, setTime }: { isPaused: boolean; speed: number; setTime: (time: number) => void }) {
+function GaitClock({
+  isPaused,
+  speed,
+  setTime,
+}: {
+  isPaused: boolean;
+  speed: number;
+  setTime: (time: number) => void;
+}) {
   const elapsed = useRef(0);
   useFrame((_, delta) => {
     if (isPaused) return;
@@ -194,7 +202,12 @@ function GaitStage() {
         </div>
         <div style={rowStyle}>
           {VIEWS.map(([id, label]) => (
-            <button key={id} type="button" style={view === id ? selectedStyle : buttonStyle} onClick={() => setView(id)}>
+            <button
+              key={id}
+              type="button"
+              style={view === id ? selectedStyle : buttonStyle}
+              onClick={() => setView(id)}
+            >
               {label}
             </button>
           ))}

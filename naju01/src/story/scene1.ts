@@ -159,7 +159,7 @@ export function cairnPrototypes(count = 3, seed = 2203): THREE.BufferGeometry[] 
     const merged = mergeGeometries(pieces, false);
     pieces.forEach((g) => g.dispose());
     merged.computeBoundingBox();
-    const top = merged.boundingBox!.max.y;
+    const top = merged.boundingBox?.max.y ?? 1;
     merged.scale(1 / top, 1 / top, 1 / top);
     prototypes.push(merged);
   }
@@ -348,7 +348,7 @@ export function serpentPrototypes(): THREE.BufferGeometry[] {
   return [body];
 }
 
-export type Scene1PropKey = "netFrame" | "fishTrap" | "bonfire" | "cairn" | "serpent" | "tent";
+type Scene1PropKey = "netFrame" | "fishTrap" | "bonfire" | "cairn" | "serpent" | "tent";
 
 // 이 그레이박스는 팀이 띄워 놓고 걸어 보는 물건이라, 소스를 안 여는 사람에게도 「왜 여기 있나」를 보여 준다
 export const SCENE1_NOTES: Record<Scene1PropKey, SceneNote> = {

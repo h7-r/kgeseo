@@ -1,14 +1,15 @@
-// export-terrain.mjs — 지형 한 덩이를 GLB 로 뽑는다(Meshy 업로드용).
+// 지형 한 덩이를 GLB 로 뽑는다(Meshy 업로드용).
 // 쓰는 법
 //   1) 개발 서버를 띄운다      npx vite naju01     → http://localhost:5174
 //   2) 다른 창에서            node naju01/tools/export-terrain.mjs [--cell ground|cliff] [--zone Z1] [--underpaint | --vertex-colors]
 //   3) naju01/assets/source/terrain*.glb 가 생긴다 → Meshy 에 업로드
 // Meshy 설정: enable_original_uv true(끄면 4만 면 제한에 걸린다) · enable_pbr true · texture_resolution "4k" · remove_lighting true(구운 조명이 우리 해와 충돌)
 
-import { chromium } from "playwright";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { chromium } from "playwright";
 
 // 브라우저를 거치는 건 화면에 보이는 지형과 굽는 지형을 같게 하려고다 — 노드에서 다시 만들면 설정 하나만 어긋나도 다른 물건이 나온다
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -20,9 +21,9 @@ const optionValue = (name) => {
   return i >= 0 ? args[i + 1] : null;
 };
 
-// 첫 굽기(색 없이)가 거의 백색 단색으로 돌아와서 우리 흙·바위 색을 실어 보내는 선택지를 뒀다
+// 색 없이 넘기면 거의 흰 단색으로 돌아와, 흙·바위 색을 꼭짓점 색으로 실어 보낼 수 있게 한다
 const vertexColors = args.includes("--vertex-colors");
-// Meshy 가 COLOR_0 에서 처리 실패를 내서, 색을 그림으로 구워 baseColorTexture 로 넣는다
+// Meshy 는 COLOR_0 를 처리하지 못해, 색을 그림으로 구워 baseColorTexture 로 넣는 길도 둔다
 const underpaint = args.includes("--underpaint");
 // Meshy 는 한 모델에 재질 하나만 입힌다 — 칸별로 따로 굽고 우리가 합친다(UV 는 전체 아틀라스 자리라 계산이 필요 없다)
 const cell = optionValue("--cell");
@@ -50,7 +51,7 @@ try {
       let zone = null;
       let rect = null;
       if (k.zoneCode) {
-        const z = naju.zoneList().find((v) => v.code === k.zoneCode);
+        const z = naju.zoneList().find((candidate) => candidate.code === k.zoneCode);
         if (!z) throw new Error(`구역 ${k.zoneCode} 를 못 찾았다`);
         rect = naju.groundCellRect(z.x, z.z);
         // UV 를 0~1 로 펴서 넘긴다(Meshy 「UV 커버리지가 너무 작다」 회피) — 돌아온 그림 전체가 이 사각형이라 fill 을 적는다

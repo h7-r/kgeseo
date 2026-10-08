@@ -2,25 +2,27 @@ import { useState, type CSSProperties } from "react";
 
 import googleIcon from "@/assets/images/imgComponent1.svg";
 import ConsentGroup from "@/components/form/ConsentGroup";
-import Honeypot from "@/components/form/Honeypot";
 import InputLine, { type FieldBinding } from "@/components/form/InputLine";
-import LabelRow from "@/components/form/LabelRow";
-import PasswordStrength from "@/components/form/PasswordStrength";
 import { hairlineStyle, inputBoxStyle } from "@/components/form/styles";
-import SubmitButton from "@/components/form/SubmitButton";
-import TextField from "@/components/form/TextField";
+import SubmitButton, { Honeypot } from "@/components/form/SubmitButton";
+import TextField, { LabelRow, PasswordStrength } from "@/components/form/TextField";
 import RegionPicker from "@/components/RegionPicker";
-import { BOT_SUSPECTED_MESSAGE, useBotGuard } from "@/hooks/useBotGuard";
-import { useConsents } from "@/hooks/useConsents";
-import { submitOnEnter, useForm } from "@/hooks/useForm";
-import { useSubmitLock } from "@/hooks/useSubmitLock";
-import { SIGNUP_DUPLICATE_CHECKS } from "@/lib/signupDuplicateChecks";
+import {
+  BOT_SUSPECTED_MESSAGE,
+  SIGNUP_DUPLICATE_CHECKS,
+  submitOnEnter,
+  useBotGuard,
+  useConsents,
+  useForm,
+  useSubmitLock,
+} from "@/hooks/useForm";
 import { FONT } from "@/lib/style";
 import { suggestEmailTypo, type FieldName } from "@/lib/validation";
 import { ROUTES, useSiteNavigate } from "@/navigation/routes";
-import { signUp } from "@/services/accountStore";
+import { signUp } from "@/services/account/authApi";
+import { signInWithGoogle } from "@/services/account/googleAuth";
+import { startNaverLogin } from "@/services/account/naverAuth";
 import { signIn, useSessionUser } from "@/services/session";
-import { startSocialLogin } from "@/services/socialLogin";
 import { COLOR } from "@/styles/tokens";
 
 import { signupPanelStyle, primaryButtonStyle, primaryLabelStyle } from "./quickSignupStyles";
@@ -38,9 +40,24 @@ export default function QuickSignup() {
   const consent = useConsents();
   const bot = useBotGuard();
   const [socialMessage, setSocialMessage] = useState("");
+  const [isGoogleBusy, setIsGoogleBusy] = useState(false);
   const { isSubmitting, run: runSubmit } = useSubmitLock();
   const [alertMessage, setAlertMessage] = useState("");
   const [isDone, setIsDone] = useState(false);
+
+  // 구글은 팝업에서 끝난다 — 로그인되면 세션이 바뀌어 이 자리가 환영 판으로 바뀐다
+  const handleGoogle = async () => {
+    if (isGoogleBusy) return;
+    setSocialMessage("");
+    setIsGoogleBusy(true);
+    try {
+      signIn(await signInWithGoogle());
+    } catch (error) {
+      setSocialMessage((error instanceof Error && error.message) || "Google 로그인에 실패했습니다.");
+    } finally {
+      setIsGoogleBusy(false);
+    }
+  };
 
   const handleSubmit = () =>
     runSubmit(async () => {
@@ -220,9 +237,10 @@ export default function QuickSignup() {
           <button
             type="button"
             className="btn"
-            style={{ ...socialButtonStyle, background: COLOR.white }}
-            onClick={() => setSocialMessage(startSocialLogin("google"))}
+            style={{ ...socialButtonStyle, background: COLOR.white, ...(isGoogleBusy ? busyStyle : {}) }}
+            onClick={handleGoogle}
             title="Google 로 가입"
+            aria-busy={isGoogleBusy}
           >
             <img
               loading="lazy"
@@ -236,7 +254,7 @@ export default function QuickSignup() {
             type="button"
             className="btn"
             style={{ ...socialButtonStyle, background: "#03c75a", borderColor: "#03c75a" }}
-            onClick={() => setSocialMessage(startSocialLogin("naver"))}
+            onClick={() => setSocialMessage(startNaverLogin())}
             title="네이버로 가입"
           >
             <span style={naverMarkStyle}>N</span>
@@ -291,6 +309,8 @@ const subtitleStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+// 구글 팝업이 떠 있는 동안 — 로그인 화면의 간편 로그인 단추와 같은 모양
+const busyStyle: CSSProperties = { opacity: 0.65, cursor: "progress" };
 const socialButtonStyle: CSSProperties = {
   width: "44px",
   height: "44px",

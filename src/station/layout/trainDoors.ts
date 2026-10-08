@@ -2,12 +2,12 @@ import { exposeDevHook } from "@/debug/devHooks";
 
 import { MAX_X, MAX_Z, MIN_X, MIN_Z } from "./dimensions";
 
-export interface DoorPoint {
+interface DoorPoint {
   x: number;
   z: number;
 }
 
-export interface DoorDetail extends DoorPoint {
+interface DoorDetail extends DoorPoint {
   car: number;
   distance: number;
 }
@@ -36,7 +36,7 @@ export const trainDoors = {
   /**
    * 출동 안내가 데려갈 문 — 기차를 마주 보고 섰을 때 오른쪽 문.
    * 본부실은 +x 쪽이 기차라 오른쪽이 +z 다. 방 안에서 닿는 문 중 z 가 가장 큰 것.
-   * 가장 가까운 문을 고르면 선 자리에 따라 왼쪽 문으로 안내했다.
+   * 가장 가까운 문을 고르면 선 자리에 따라 왼쪽 문으로 안내하게 된다.
    */
   rightmost: (x: number, z: number): DoorDetail | null => {
     let found: (DoorPoint & { car: number }) | null = null;

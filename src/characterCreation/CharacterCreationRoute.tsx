@@ -1,6 +1,6 @@
 /**
  * 웹사이트 「게임 시작」 → 캐릭터 생성 → 튜토리얼(/) 을 잇는 라우트.
- * 오프닝 영상은 naju01 로딩영상이 `?transition=` 초부터 이어 튼다. 완료하면 외형을 로비 아바타 저장소에 적고
+ * 오프닝 영상은 naju01 로딩 영상이 `?transition=` 초부터 이어 튼다. 완료하면 외형을 로비 아바타 저장소에 적고
  * 로딩 영상으로 덮은 뒤 / 로 간다.
  * App 밖에 두는 이유: 생성 화면 뒤에서 역 씬을 같이 돌리면 GPU 를 두 벌 쓴다. / 로 넘어갈 때 App 이
  * 처음 마운트되며 새 외형을 읽는다(마운트 때 한 번만 읽는다).
@@ -9,7 +9,7 @@
 import { Suspense, useCallback, useRef, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { PLAYER_MESHY_APPEARANCE_KEY } from "@/engine/appearanceKeys";
+import { PLAYER_MESHY_APPEARANCE_KEY } from "@/engine/storage";
 import {
   CharacterCreationScreen,
   DEFAULT_CATALOG,
@@ -59,9 +59,9 @@ function isDraft(value: unknown): value is CharacterDraft {
   return typeof value === "object" && value !== null;
 }
 
-/** 완료 데이터의 외형 → 로비 아바타 설정(메시외형옵션 형식) */
+/** 완료 데이터의 외형 → 로비 아바타 설정(MeshAppearanceConfig) */
 function toLobbyMeshConfig(appearance: CompletedCharacter["appearance"]) {
-  // 렌더러설정 은 초안 모양(colors)을 받는다 — 완료 데이터는 supportedColorValues 로 나간다
+  // toRendererConfig 는 초안 모양(colors)을 받는다 — 완료 데이터는 supportedColorValues 로 나간다
   const rendered = toRendererConfig({ ...appearance, colors: appearance.supportedColorValues }, DEFAULT_CATALOG);
   // 걷기·달리기·주먹 쥠 같은 게임 쪽 값은 기본을 쓰고 외형만 덮는다
   return normalizeMeshConfig({

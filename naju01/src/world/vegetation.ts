@@ -4,12 +4,14 @@
 
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { makeRandom } from "@/engine/random";
-import { UNITS_PER_METER } from "../plan/sitePlan";
-import { applyVertexColors } from "../terrain/ground";
-import { toBaseOrigin, type Spot } from "../placement/instanceGroups";
 
-type Range = [number, number];
+import { makeRandom } from "@/engine/random";
+
+import { toBaseOrigin, type Spot } from "../placement/instanceGroups";
+import { UNITS_PER_METER, type Range } from "../plan/sitePlan";
+import { applyVertexColors, type HeightAt, type Noise2D } from "../terrain/ground";
+import type { GroundSurface } from "../terrain/groundSurface";
+import type { Terrain } from "../terrain/terrain";
 
 export const VEGETATION_STYLE = {
   trunk: "#5B4A3A",
@@ -20,16 +22,9 @@ export const VEGETATION_STYLE = {
   leafLight: "#8AA05F",
 };
 
-/** 지형에서 이 파일이 보는 것만 — 걷는 무대·물·벼랑면을 비우려고 */
-interface GroundProbe {
-  groundAt(x: number, z: number): { isWater?: boolean; isFall?: boolean; path?: unknown; zone?: unknown };
-}
-
-/** 지표에서 이 파일이 보는 것만 */
-interface SurfaceProbe {
-  heightAt(x: number, z: number): number;
-  steepnessAt(x: number, z: number): number;
-}
+// 지형·지표에서 이 파일이 보는 것만 — 걷는 무대·물·벼랑면을 비우고 땅 높이·가파름을 잰다
+type GroundProbe = Pick<Terrain, "groundAt">;
+type SurfaceProbe = Pick<GroundSurface, "heightAt" | "steepnessAt">;
 
 // 잎덩이 하나 — 정이십면체 꼭짓점을 흔든다. 인덱스가 없어 면마다 각진 노멀이 서고 툰과 잘 맞는다.
 function leafClump(random: () => number) {
@@ -53,19 +48,19 @@ function leafClump(random: () => number) {
   return geometry;
 }
 
-export interface TreeBeltOptions {
+interface TreeBeltOptions {
   /** 심을 사각형(m) */
   x: Range;
   z: Range;
   /** 나무가 서는 고도(m). 비탈이면 (x, z) → 높이 함수 */
-  ground: number | ((x: number, z: number) => number);
+  ground: number | HeightAt;
   /** 차단물 높이(m) — 나무 키의 기준 */
   height: number;
   count: number;
   seed: number;
   /** 가장자리에서 들여 심는 거리(m) — 기둥이 밖으로 나가면 막힘 사각형과 어긋난다 */
   inset?: number;
-  groundBump?: ((x: number, z: number) => number) | null;
+  groundBump?: HeightAt | null;
 }
 
 /** 수목대(§4 V3 시야 차단) 자리. 심는 것은 인스턴스 무리에 맡겨 구운 나무가 들어가고 편집기가 고른다. */
@@ -91,15 +86,15 @@ export function treeBeltSpots({ x, z, ground, height, count, seed, inset = 0.5, 
   return spots;
 }
 
-export interface GrassOptions {
+interface GrassOptions {
   x: Range;
   z: Range;
   elevation: number;
   density?: number;
   seed: number;
   height?: Range;
-  clumpNoise?: ((x: number, z: number) => number) | null;
-  groundBump?: ((x: number, z: number) => number) | null;
+  clumpNoise?: Noise2D | null;
+  groundBump?: HeightAt | null;
   canPlace?: ((x: number, z: number) => boolean) | null;
 }
 
@@ -179,7 +174,7 @@ export function buildGrass({
   return merged;
 }
 
-export interface ScatterBushesOptions {
+interface ScatterBushesOptions {
   terrain: GroundProbe;
   surface: SurfaceProbe;
   core: { x: Range; z: Range };
@@ -248,7 +243,7 @@ interface MeasuredPathProbe {
   centerline?: { x: number; z: number; nx: number; nz: number }[];
 }
 
-export interface RoadsideBushOptions {
+interface RoadsideBushOptions {
   measuredPaths: MeasuredPathProbe[];
   surface: SurfaceProbe;
   terrain: GroundProbe;
@@ -305,7 +300,7 @@ export function roadsideBushSpots({
   return { trees, shrubs, leafPiles };
 }
 
-// ── 인스턴스 표본 — 높이 1 · 밑동 원점. 같은 모양이면 복제 티가 나서 여러 벌 만든다 ──
+// 인스턴스 표본 — 높이 1 · 밑동 원점. 같은 모양이면 복제 티가 나서 여러 벌 만든다.
 
 /** 나무 표본 — 기둥 + 잎덩이 2~3 */
 export function treePrototypes(count = 5, seed = 9001): THREE.BufferGeometry[] {

@@ -7,10 +7,10 @@ import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { heldCoin, registerReturnLanding, registerReturnSlot, tryInsertCoin } from "@/props/coinState";
 import type { VendingId } from "@/props/vendingMachineState";
-
-import { mergedBoxes } from "./common";
-import { worldPositionOf } from "@/props/shared/worldPosition";
+import { worldPositionOf } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
+
+import { mergedBoxes } from "./geometry";
 
 interface PaymentPanelProps {
   y: number;

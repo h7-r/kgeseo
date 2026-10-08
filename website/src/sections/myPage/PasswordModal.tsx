@@ -4,7 +4,7 @@ import Modal from "@/components/Modal";
 import { modalPrimaryStyle, modalSecondaryStyle } from "@/components/modalButtonStyles";
 import { FONT } from "@/lib/style";
 import { matchPasswords, RULES } from "@/lib/validation";
-import { changePassword } from "@/services/accountStore";
+import { changePassword } from "@/services/account/manageAccount";
 import type { SessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 

@@ -6,9 +6,8 @@
 #       --triangles 300000 --texture 2048
 #   --convention lying(기본)|height|center · --size 0.8 (center 일 때 가장 긴 쪽)
 #
-# texture-to-vertex-colors.py 는 인스턴스로 수백 번 심는 것용이다. 구렁이처럼 한 마리뿐인
-# 것은 텍스처·노멀맵을 그대로 물려도 드로우콜 하나뿐이다.
-# 받은 파일이 무거운 건 8192 텍스처 3 장 때문이라 2048 로 줄이면 1/16 이 된다.
+# 수백 번 심는 것은 texture-to-vertex-colors.py 를 쓴다. 구렁이처럼 하나뿐인 것은
+# 텍스처·노멀맵을 그대로 물려도 드로우콜 하나라 이 도구로 줄이기만 한다.
 
 import bpy, sys, os
 import numpy as np
@@ -45,7 +44,6 @@ print(f"  불러옴: {len(me.polygons):,} 면 · {len(me.vertices):,} 꼭짓점 
 # 규약 맞추기 — Meshy 원본은 원점이 몸통 한가운데라 그대로면 절반이 땅에 박힌다.
 # glTF Y = 블렌더 Z · glTF Z = −블렌더 Y 라 「glTF Z 폭 1」은 블렌더 Y 폭 1 이다.
 def fit_convention(ob, convention, size=0.8):
-    import mathutils
     me = ob.data
     co = np.empty(len(me.vertices) * 3, dtype=np.float32)
     me.vertices.foreach_get("co", co)
@@ -75,7 +73,7 @@ def fit_convention(ob, convention, size=0.8):
           f"{final[0]:.4f} × {final[1]:.4f} × {final[2]:.4f} (배율 {factor:.5f})")
     print(f"    → glTF 폭 x {final[0]:.4f} · y {final[2]:.4f} · z {final[1]:.4f}")
 
-# 텍스처 줄이기 — UV 는 그대로 두고 이미지만. 2 m 뱀에 8192 는 과하다.
+# 텍스처 줄이기 — UV 는 그대로 두고 이미지만.
 for image in list(bpy.data.images):
     if image.size[0] <= texture_size and image.size[1] <= texture_size:
         continue

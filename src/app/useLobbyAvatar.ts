@@ -1,7 +1,6 @@
 import { useState } from "react";
 
-import { IS_LOBBY_OUTLINE_DISABLED, IS_LOBBY_TOON_DISABLED, USES_CHIBI_RUNTIME } from "@/app/runtimeFlags";
-import { PLAYER_MESHY_APPEARANCE_KEY, PLAYER_SIDEKICK_APPEARANCE_KEY } from "@/engine/appearanceKeys";
+import { PLAYER_MESHY_APPEARANCE_KEY, PLAYER_SIDEKICK_APPEARANCE_KEY } from "@/engine/storage";
 import {
   DEFAULT_MESH_CONFIG,
   DEFAULT_OUTLINE,
@@ -14,6 +13,8 @@ import {
   type SidekickConfig,
   type ToonConfig,
 } from "@/naju";
+
+import { IS_LOBBY_OUTLINE_DISABLED, IS_LOBBY_TOON_DISABLED, USES_CHIBI_RUNTIME } from "./runtimeFlags";
 
 /**
  * 로비 아바타 외형. 저장소는 마운트 때 한 번만 읽는다(캐릭터 생성 화면이 적고 / 로 넘어온다).

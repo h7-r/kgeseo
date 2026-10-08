@@ -33,7 +33,7 @@ export const DEFAULT_TOON: ToonConfig = {
   threshold: 0.5,
   rimStrength: 0.28,
   rimWidth: 3.2,
-  // 0.85 면 얼굴 법선이 거의 구가 되어 그림자 없이 환하기만 했다. 이목구비 음영이 남을 만큼만 눕힌다.
+  // 너무 크면 얼굴 법선이 거의 구가 되어 그림자 없이 환하기만 하다. 이목구비 음영이 남을 만큼만 눕힌다.
   faceFlatten: 0.4,
   hairShine: 0.35,
   softness: 0,
@@ -92,7 +92,7 @@ varying float v_face;
 varying vec3 v_viewNormal;
 `;
 // v_cloth 를 정점마다 0/1 로 자르지 않는다. 목선 표식(naju01/tools/meshy_round_collar.py)은 경계가 정확히 1.5 인
-// 1.0~2.0 눈금이라, 자르면 경계가 삼각형 모서리를 따라서만 갈려 목둘레가 톱니처럼 찢겨 보였다.
+// 1.0~2.0 눈금이라, 자르면 경계가 삼각형 모서리를 따라서만 갈려 목둘레가 톱니처럼 찢겨 보인다.
 // _tint − 1 을 0~1 로 자르면 0.5 등고선이 삼각형 안을 가로지르는 매끈한 곡선이 된다. 하의(3)는 1 로 묶여 상의를 지나지 않는다.
 const VERTEX_NORMAL = `
   v_face = _face;
@@ -364,7 +364,7 @@ export function applyToon(
   });
   // 내가 붙인 재질이 아직 붙어 있을 때만 원본으로 돌린다.
   //   StrictMode 의 떼기는 두 프레임 미뤄지는데, 그 사이 다시 붙은 두 번째 툰을 지우면
-  //   첫 캐릭터만 툰이 아니게 되고 상의 색이 아예 안 먹었다.
+  //   첫 캐릭터만 툰이 아니게 되고 상의 색이 아예 안 먹는다.
   const restore = () => {
     installed.forEach(({ object, material, installed: install, created }) => {
       if (object.material === install) object.material = material;

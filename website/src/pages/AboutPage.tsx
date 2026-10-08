@@ -1,8 +1,8 @@
 import Stage from "@/components/Stage";
 import { ABOUT_TABS } from "@/data/about";
 import { useQueryTab } from "@/hooks/useQueryTab";
-import { HEADER_HEIGHT, FOOTER_ALLOWANCE } from "@/layout/layoutMetrics";
 import PageFooter from "@/layout/PageFooter";
+import { HEADER_HEIGHT, FOOTER_ALLOWANCE } from "@/lib/layout";
 import AboutTabs from "@/sections/about/AboutTabs";
 
 // 흰 면이 머리띠에 붙으면 머리띠가 흰 면의 일부처럼 보여 어두운 바탕을 넉넉히 띄운다.

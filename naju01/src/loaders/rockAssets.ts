@@ -1,6 +1,6 @@
 // Meshy 가 형태째 만들어 준 바위를 절벽 앞에 얹는다.
 // 리텍스처는 삼각형을 한 개도 안 바꿔(92,910 → 92,910) 프롬프트로 바위 모양을 못 고친다 — 형태는 Image/Text-to-3D 로 만든다.
-// 그림 전용이다. 걷는 높이는 여전히 terrain 의 배터라 도면 대조(±0.5 m)와 실측이 그대로 유효하다.
+// 그림 전용이다. 걷는 높이는 여전히 terrain 의 배터라 도면 대조(±0.5 m)가 그대로 유효하다.
 // 폴더에 .glb 를 넣으면 잡히고, 없으면 조용히 건너뛴다.
 
 import type * as THREE from "three";
@@ -19,7 +19,7 @@ const fileName = (path: string) => path.split("/").pop() ?? path;
 /** 폴더에 든 바위 파일 이름들 */
 export const ROCK_FILES = Object.keys(ROCK_URLS).map(fileName);
 
-export interface LoadedRock {
+interface LoadedRock {
   geometry: THREE.BufferGeometry;
   name: string;
 }

@@ -8,9 +8,7 @@ import { TOON_GRADIENT } from "@/engine/toon";
 import { connectorGeometry } from "./geometry";
 import type { WireShape } from "./workLampState";
 
-type Point = [number, number, number];
-
-const SAGGING_POINTS: Point[] = [
+const SAGGING_POINTS: THREE.Vector3Tuple[] = [
   [0, 0, 0],
   [0.014, -0.075, 0.018],
   [-0.01, -0.15, 0.042],
@@ -20,7 +18,7 @@ const SAGGING_POINTS: Point[] = [
 interface WireStrandProps {
   shape: WireShape;
   /** 뿌리 → 끝(로컬). 끝에 접속 모양이 앉는다 */
-  points?: Point[];
+  points?: THREE.Vector3Tuple[];
   /** 모양의 면이 볼 쪽(+1 = +x) */
   direction?: number;
   brightness?: number;
@@ -47,8 +45,8 @@ export default function WireStrand({
       0.4,
     );
     return new THREE.TubeGeometry(curve, 20, 0.015 * size, 6, false);
-    // 점 배열은 판마다 새로 만들어지므로 값으로 비교한다
-  }, [pointsKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 점 배열은 판마다 새로 만들어져 값(pointsKey)으로 비교한다
+  }, [pointsKey, size]);
   const tip = useMemo(() => connectorGeometry(shape, size), [shape, size]);
   useEffect(
     () => () => {

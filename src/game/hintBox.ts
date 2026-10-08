@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { createChangeSignal } from "@/lib/changeSignal";
 
 // 소지품(I)은 들고 쓰는 것, 힌트(H)는 다시 읽는 것이라 따로 둔다.
 // 보관하는 순간 실물은 손에서 사라진다.
@@ -15,34 +16,20 @@ export interface Hint {
   isPhysical?: boolean;
 }
 
-export interface StoredHint extends Hint {
+interface StoredHint extends Hint {
   acquiredAt: number;
 }
 
 const hints: StoredHint[] = [];
-let version = 0;
-const listeners = new Set<() => void>();
-const notify = () => {
-  version += 1;
-  for (const listener of listeners) listener();
-};
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-};
+const signal = createChangeSignal();
 
-export const hasHint = (id: string) => hints.some((hint) => hint.id === id);
-/** 읽기 전용으로만 쓴다. */
-export const getHints = (): readonly StoredHint[] => hints;
-export const getHintCount = () => hints.length;
+const hasHint = (id: string) => hints.some((hint) => hint.id === id);
 
 /** 새로 들어갔으면 true, 이미 있으면 false. */
 export function addHint(hint: Hint | null | undefined) {
   if (!hint?.id || hasHint(hint.id)) return false;
   hints.push({ ...hint, acquiredAt: Date.now() });
-  notify();
+  signal.notify();
   return true;
 }
 
@@ -54,7 +41,7 @@ export function removeHint(id: string) {
   const index = hints.findIndex((hint) => hint.id === id);
   if (index < 0) return null;
   const [removed] = hints.splice(index, 1);
-  notify();
+  signal.notify();
   return removed ?? null;
 }
 
@@ -63,18 +50,18 @@ let flashedAt = 0;
 export const getHintFlashTime = () => flashedAt;
 export function flashHints() {
   flashedAt = performance.now();
-  notify();
+  signal.notify();
 }
 
 /** 개발·테스트용 */
-export function clearHints() {
+function clearHints() {
   hints.length = 0;
-  notify();
+  signal.notify();
 }
 
 // 판(숫자)만 구독한다. 배열을 돌려주면 같은 참조라 바뀐 걸 모른다.
 export const useHintBox = (): readonly StoredHint[] => {
-  useSyncExternalStore(subscribe, () => version);
+  useSyncExternalStore(signal.subscribe, signal.version);
   return hints;
 };
 

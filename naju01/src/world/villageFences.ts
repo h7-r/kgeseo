@@ -1,4 +1,4 @@
-// 초가집 마당을 두르는 싸리울. 마을은 집이 아니라 마당과 울이 만든다(팀 지시).
+// 초가집 마당을 두르는 싸리울. 마을은 집이 아니라 마당과 울이 만든다.
 // fences 는 길을 따라가는 울타리라 규칙이 다르다. 표본과 치수만 같이 쓴다 — 같은 목수가 세운 것처럼.
 // 마당 반쪽 = min(집 폭 × 0.85, 이웃까지 × 0.45). 이웃도 제 몫을 가져가 합쳐도 0.9 라 절대 안 닿는다.
 // 사방을 두르면 상자로 보여, 마을 한복판을 향한 한 면을 비운다(사립문 쪽).
@@ -8,6 +8,7 @@ import * as THREE from "three";
 import { makeRandom } from "@/engine/random";
 
 import type { Spot } from "../placement/instanceGroups";
+import type { HeightAt } from "../terrain/ground";
 import { FENCE_DIMENSIONS, WOOD_STYLE, type FenceLayout } from "./fences";
 
 interface Point {
@@ -50,10 +51,10 @@ function yardOutline(center: Point, half: Point, openDirection: number, rotation
   return line;
 }
 
-export interface VillageFenceOptions {
+interface VillageFenceOptions {
   /** distantLandscape 가 내는 집 자리와 같은 모양 */
   houseSpots?: Spot[] | null;
-  groundHeight?: ((x: number, z: number) => number) | null;
+  groundHeight?: HeightAt | null;
   /** 초가집 모형은 가로가 키의 1.72 배다(nature 에서 맞춰 굽는다) */
   houseWidthRatio?: number;
   seed?: number;

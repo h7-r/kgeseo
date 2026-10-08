@@ -9,7 +9,7 @@ import { useMovement } from "@/engine/movement/useMovement";
 import { TOON_GRADIENT } from "@/engine/toon";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 
-import { brokenLampTexture, crackTexture, darkOutsideTexture, seatFabricTexture } from "./atlasTextures";
+import { ATLAS_GRID, brokenLampTexture, crackTexture, darkOutsideTexture, seatFabricTexture } from "./atlasTextures";
 import {
   CAR_CROUCH_EYE,
   CAR_EYE,
@@ -90,11 +90,11 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
   }, [outsideMap, controls.flipOutside]);
   const darkOutsideMap = useMemo(() => darkOutsideTexture(), []);
   useEffect(() => () => darkOutsideMap.dispose(), [darkOutsideMap]);
-  const seatFabricMap = useMemo(() => seatFabricTexture(4), []);
+  const seatFabricMap = useMemo(() => seatFabricTexture(), []);
   useEffect(() => () => seatFabricMap.dispose(), [seatFabricMap]);
-  const crackMap = useMemo(() => crackTexture(4), []);
+  const crackMap = useMemo(() => crackTexture(), []);
   useEffect(() => () => crackMap.dispose(), [crackMap]);
-  const brokenLampMap = useMemo(() => brokenLampTexture(4), []);
+  const brokenLampMap = useMemo(() => brokenLampTexture(), []);
   useEffect(() => () => brokenLampMap.dispose(), [brokenLampMap]);
 
   // 한 장이 약 8 유닛(바닥은 6)을 덮게 반복해야 무늬가 늘어나거나 뭉개지지 않는다.
@@ -129,9 +129,7 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
         controls.flickerLampRatio,
         controls.flickerPeriod,
       ),
-    // 깜빡주기가 deps 에 없어 다른 값이 바뀔 때에야 반영된다(원본 그대로, 보고함).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [controls.lampCount, controls.lampSeed, controls.deadLampRatio, controls.flickerLampRatio],
+    [controls.lampCount, controls.lampSeed, controls.deadLampRatio, controls.flickerLampRatio, controls.flickerPeriod],
   );
 
   const boardedWindows = useMemo(
@@ -238,7 +236,7 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
             offColor={controls.lampOffColor}
             brightness={controls.brightness}
             brokenMap={brokenLampMap}
-            uvCell={[i % 4, ((i / 4) | 0) % 4]}
+            uvCell={[i % ATLAS_GRID, ((i / ATLAS_GRID) | 0) % ATLAS_GRID]}
           />
         ))}
 

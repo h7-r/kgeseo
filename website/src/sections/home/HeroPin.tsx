@@ -1,13 +1,12 @@
 import { useEffect, useRef } from "react";
 
-import { HEADER_HEIGHT } from "@/layout/layoutMetrics";
+import { setHeroCovering } from "@/app/siteState";
+import { HEADER_HEIGHT, useStageScale } from "@/lib/layout";
 import { clamp01 } from "@/lib/math";
 import { prefersReducedMotion } from "@/lib/motionPreference";
-import { useStageScale } from "@/lib/stage";
-import { INTRO_CENTER_Y } from "@/pages/home/homeLayout";
-import { setHeroCovering } from "@/state/heroCover";
 
 import Hero from "./Hero";
+import { INTRO_CENTER_Y } from "./homeLayout";
 
 /** 설계 좌표에서 히어로 아래 끝(헤더 + 히어로 1149). 홈 무대가 이만큼 끌어올려진다. */
 export const HERO_BOTTOM = HEADER_HEIGHT + 1149;

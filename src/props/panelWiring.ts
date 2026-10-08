@@ -17,7 +17,6 @@ import { nozzleLocation } from "./nozzleState";
 /** 0 = 빨강 · 1 = 파랑 · 2 = 노랑 */
 export type WireColor = 0 | 1 | 2;
 
-export const COLOR_COUNT = 3;
 export const COLOR_NAMES = ["빨강", "파랑", "노랑"] as const;
 
 interface WiringState {
@@ -42,10 +41,7 @@ export const heldWire = () => state.held;
 export const pluggedWire = (top: WireColor) => state.plugged[top] ?? null;
 /** 아래 선 c 가 꽂힌 위 선 번호. 안 꽂혔으면 −1. */
 export const wireSocket = (color: WireColor) => state.plugged.indexOf(color);
-/** 아래 선 c 가 쥐지도 꽂지도 않은 원래 자리에 있나. */
-export const isWireLoose = (color: WireColor) => state.held !== color && wireSocket(color) < 0;
-export const isWiringSolved = () => state.plugged.every((c, t) => c === t);
-export const wiringSolvedAt = () => state.solvedAt;
+const isWiringSolved = () => state.plugged.every((c, t) => c === t);
 
 // 뽑아서 풀림이 깨지면 시각도 0 으로 — 다시 풀 때 불빛이 처음부터 켜져야 푼 티가 난다.
 function remeasureSolved() {
@@ -66,14 +62,6 @@ export function grabWire(color: WireColor) {
   if (wireSocket(color) >= 0) return false;
   state.held = color;
   playSound("button", { volume: 0.9 });
-  signal.notify();
-  return true;
-}
-
-/** 쥔 손을 그냥 놓는다. */
-export function releaseWire() {
-  if (state.held === null) return false;
-  state.held = null;
   signal.notify();
   return true;
 }
@@ -103,7 +91,7 @@ export function unplugWire(top: WireColor) {
   return true;
 }
 
-// ── 차단기까지 본 회로 ──
+// 차단기까지 본 회로
 // 선은 여기가, 차단기 위치는 hingeState 가, 어느 차단기가 어느 색인지는 배전반 그림만 안다.
 // 배전반이 열릴 때 짝을 적어 두면 함을 닫아(컴포넌트가 사라져)도 밸브가 다시 잠기지 않는다.
 let switchIds: (string | null)[] = [null, null, null];
@@ -122,7 +110,7 @@ export function isCircuitLive(color: WireColor) {
 
 export const areAllCircuitsLive = () => isCircuitLive(0) && isCircuitLive(1) && isCircuitLive(2);
 
-// ── 소화전 개폐 밸브 ── 회로가 다 살고 관창까지 꽂혀야 돌아간다.
+// 소화전 개폐 밸브 — 회로가 다 살고 관창까지 꽂혀야 돌아간다.
 let valve: 0 | 1 = 0;
 export const valveOpen = () => valve;
 export const canTurnValve = () => !valve && areAllCircuitsLive() && nozzleLocation() === "plugged";
@@ -135,7 +123,7 @@ export function turnValve() {
 }
 
 /** 개발·테스트용 초기화 */
-export function resetWiring() {
+function resetWiring() {
   state.held = null;
   state.plugged = [null, null, null];
   state.solvedAt = 0;

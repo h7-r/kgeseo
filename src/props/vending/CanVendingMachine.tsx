@@ -20,16 +20,16 @@ import {
   vendingMachineStore,
   type VendingId,
 } from "@/props/vendingMachineState";
+import { worldPositionOf } from "@/props/shared/aimTarget";
+import ToonMaterial from "@/props/shared/ToonMaterial";
 
 import { CAN_FLAVORS } from "./canLabels";
-import { HINT_NOTE_GEOMETRY, backPanelGeometry, bodyGeometry, mergedBoxes } from "./common";
-import { worldPositionOf } from "@/props/shared/worldPosition";
+import { backPanelGeometry, bodyGeometry, mergedBoxes } from "./geometry";
 import DispensedCan, { CanMaterials } from "./DispensedCan";
 import DispenserFlap from "./DispenserFlap";
 import PaymentPanel from "./PaymentPanel";
 import ProductButton from "./ProductButton";
 import { makeCanLabelTextures, makePosterTexture, makeSignTexture } from "./textures";
-import ToonMaterial from "@/props/shared/ToonMaterial";
 
 // 버튼 6색 — 빨강·주황·초록·파랑·보라·흰색
 const BUTTON_COLORS = ["#d23b32", "#e39a24", "#2f9e52", "#1b4fb0", "#7a3ea0", "#e8ecf0"];
@@ -60,9 +60,12 @@ const HINT_CAN = 0;
 
 const TRIM = 0.28;
 
+/** 배출구에 놓이는 힌트 쪽지 — 크기가 안 바뀌어 한 장만 만든다. */
+const HINT_NOTE_GEOMETRY = new THREE.PlaneGeometry(0.16, 0.2);
+
 type GroupProps = Omit<ThreeElements["group"], "position" | "rotation" | "children">;
 
-export interface CanVendingMachineProps extends GroupProps {
+interface CanVendingMachineProps extends GroupProps {
   /** 배출구 덮개가 닫혔을 때 기울기(도) */
   flapClosedAngle?: number;
   /** 배출구 덮개를 열었을 때(도) */
@@ -147,7 +150,7 @@ export default function CanVendingMachine({
   // 세로 구역, 아래에서 위로: 바닥 → 배출구 → 광고 → 버튼줄 → 유리창 → 간판
   const ceiling = height - TRIM - 0.56;
   const floor = TRIM + 0.15;
-  // 서서 볼 때 버튼·동전구가 눈높이 근처에 오도록 아래 묶음을 키웠다. 셋의 합이 버튼줄 높이를 정한다.
+  // 서서 볼 때 버튼·동전구가 눈높이 근처에 오도록 아래 묶음을 크게 잡는다. 셋의 합이 버튼줄 높이를 정한다.
   const trayHeight0 = 1.55;
   const adHeight0 = 1.25;
   const controlHeight0 = 0.66;

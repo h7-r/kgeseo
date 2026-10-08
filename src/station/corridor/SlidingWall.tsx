@@ -49,8 +49,8 @@ export default function SlidingWall({
 }: SlidingWallProps) {
   const blocks = useMemo(() => {
     const rnd = makeRandom(seed + 5);
-    const columns = 4,
-      rows = 5;
+    const columns = 4;
+    const rows = 5;
     const out: WallBlock[] = [];
     for (let i = 0; i < columns; i++)
       for (let j = 0; j < rows; j++) {

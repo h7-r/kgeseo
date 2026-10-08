@@ -4,7 +4,8 @@ import * as THREE from "three";
 
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { GltfParts, splitGltf } from "./gltfParts";
+import { splitGltf } from "./gltfModel";
+import GltfParts from "./GltfParts";
 
 const COAT_RACK_URL = "/models/coat_rack.glb";
 useGLTF.preload(COAT_RACK_URL);

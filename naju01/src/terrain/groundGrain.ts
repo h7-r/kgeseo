@@ -2,17 +2,19 @@
 // 바닥 지오메트리는 합치기 위해 uv 를 전부 떼어 냈다 — 삼면 투영은 월드 좌표만 쓰므로 uv 가 필요 없다.
 // GLSL 은 한글 식별자를 못 쓴다(번들은 통과하고 GPU 에서 깨진다). 셰이더 안 이름과 attribute 이름은 ASCII 로.
 // 셰이더 안 좌표 단위는 미터다.
+
 import * as THREE from "three";
+
 import { UNITS_PER_METER } from "../plan/sitePlan";
 
-export interface GrainHandle {
+interface GrainHandle {
   uniforms: {
     grainAmp: THREE.IUniform<number>;
     grainRock: THREE.IUniform<number>;
   };
 }
 
-export interface GrainOptions {
+interface GrainOptions {
   /** 길 전용 결. 지오메트리에 `pathGrain`(진행방향 x, z, 가로자리 u) 속성이 있어야 한다. */
   path?: boolean;
 }

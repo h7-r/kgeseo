@@ -3,7 +3,7 @@ import { Outlines } from "@react-three/drei";
 
 import { makeRandom } from "@/engine/random";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
-import { RubbleStones, type RubbleStone } from "@/station/train/rubble";
+import RubbleStones, { type RubbleStone } from "@/station/train/RubbleStones";
 import { stoneGeometry } from "@/station/train/stoneGeometry";
 
 interface EdgeChunk {

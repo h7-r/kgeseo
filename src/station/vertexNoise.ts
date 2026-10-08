@@ -7,7 +7,7 @@ const CABINET_DIAGONAL = 1.19;
 
 function sizeOf(geometry: THREE.BufferGeometry): { box: THREE.Box3; size: THREE.Vector3 } {
   geometry.computeBoundingBox();
-  const box = geometry.boundingBox as THREE.Box3;
+  const box = geometry.boundingBox ?? new THREE.Box3();
   const size = new THREE.Vector3();
   box.getSize(size);
   return { box, size };
@@ -132,7 +132,7 @@ export function stainGeometry(
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 }
 
-export interface SurfaceStainOptions {
+interface SurfaceStainOptions {
   /** 얼룩 개수 */
   count?: number;
   /** 얼룩 진하기. 아무리 겹쳐도 40% 까지만 어두워진다 */

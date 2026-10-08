@@ -17,16 +17,16 @@ export interface LoadingVideoOptions {
   keepOpen?: boolean;
 }
 
-// ── 배경음악 ──
+// 배경음악
 // 입장은 오프닝 영상이 제 소리를 갖고 있어 곡을 따로 틀지 않는다.
-// 보정은 실측 크기(EBU R128)를 맞춘 값 — Final Chord −16.3 LUFS, Drone −14.4 LUFS → Drone 을 1.9dB 낮춘다.
+// 보정은 곡 크기(EBU R128)를 맞춘 값 — Final Chord −16.3 LUFS, Drone −14.4 LUFS → Drone 을 1.9dB 낮춘다.
 const MUSIC: Partial<Record<LoadingVideoKind, { url: string; gain: number }>> = {
   tutorial: { url: "/bgm/final-chord.mp3", gain: 1 },
   naju: { url: "/bgm/atmospheric-drone.mp3", gain: 0.8 },
 };
 
 // naju01 은 본편 settings 를 가져오면 안 되므로 같은 localStorage 를 직접 읽는다(열쇠·기본값을 본편과 같게).
-// 본편이 한 번도 안 떴으면 옛 열쇠에만 값이 있다 — 필드가 한글이라 읽기만 하고 옮기지 않는다.
+// 본편이 한 번도 안 떴으면 한글 필드의 이전 열쇠에만 값이 있다 — 읽기만 하고 옮기지 않는다.
 const SETTINGS_KEY = "kgeseo.settings.v1";
 const LEGACY_SETTINGS_KEY = "kgeseo.설정.v1";
 const DEFAULT_BGM_VOLUME = 0.6;
@@ -94,12 +94,12 @@ export function musicTime(): number {
   return currentMusic?.audio.currentTime || 0;
 }
 
-// ── 영상 ──
+// 영상
 // 지역 영상 넷은 웹사이트 카드에 쓴 2배속 영상에서 소리만 뺀 것(854×480).
-// 오프닝만 114초 · 1080p · 소리 있음(크기 = 설정 「배경음악」). 원본 200MB 는 깃허브 한도라 웹용으로 줄였다.
-export type ClipId = "opening" | "entry" | "gyeongju" | "yeosu" | "mokpo" | "suncheon" | "naju";
+// 오프닝만 114초 · 1080p · 소리 있음(크기 = 설정 「배경음악」). 깃허브 파일 한도 때문에 웹용으로 줄인 것이다.
+type ClipId = "opening" | "entry" | "gyeongju" | "yeosu" | "mokpo" | "suncheon" | "naju";
 
-export interface Clip {
+interface Clip {
   url: string;
   poster: string;
   label: string;
@@ -139,7 +139,7 @@ export function isClipId(value: string | undefined): value is ClipId {
   return value !== undefined && value in CLIPS;
 }
 
-// ── 안내 문장 ──
+// 안내 문장
 // 세계관 문장은 「왜곡 세계관 설정서 v0.3」 에 적힌 것만. 조작 문장은 본편 튜토리얼 단계표와 같은 키다.
 const CONTROL_LINES = [
   "T — 조작을 시작합니다. 마우스가 화면에 잠기고, Esc 로 풀 수 있습니다.",
@@ -176,7 +176,7 @@ function interleave(first: readonly string[], second: readonly string[]): string
   return result;
 }
 
-export interface LoadingSequence {
+interface LoadingSequence {
   /** 한 번만 트는 영상들 */
   intro: ClipId[];
   /** 그 뒤 준비될 때까지 도는 영상들 */
@@ -238,13 +238,13 @@ export const LINE_INTERVAL_MS = 3800;
 /** 느린 노트북에서 나주 맵을 처음 받을 때도 넉넉하게(초) */
 export const MAX_WAIT_SECONDS = 60;
 
-// ── 페이지를 건너 이어 틀기 ──
+// 페이지를 건너 이어 틀기
 // 넘어가기 직전 「몇 번째 영상의 몇 초 · 몇 번째 문장」 을 sessionStorage 에 적고, 새 페이지가 뜨자마자 읽는다.
 // naju01/index.html 의 인라인 스크립트도 이 열쇠를 본다(바탕을 먼저 어둡게).
 const HANDOFF_KEY = "kgeseo.loading.handoff.v2";
 const HANDOFF_MAX_AGE_MS = 15000;
 
-export interface LoadingScene {
+interface LoadingScene {
   kind: LoadingVideoKind;
   clipIndex: number;
   videoTime: number;

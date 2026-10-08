@@ -6,7 +6,7 @@ import { mergeBoxes, type MergeBox } from "@/engine/geometry";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { corridorDepthBrightness, type CorridorDepthRule } from "./depthShading";
+import { corridorDepthBrightness, type CorridorDepthRule } from "./corridorLighting";
 
 /** z축을 따라 뻗는 파이프. CylinderGeometry 는 Y축 방향이라 X로 90° 눕힌다. */
 function pipeGeometry(radius: number, z0: number, z1: number, x: number, y: number, lengthSegments = 24) {
@@ -20,13 +20,13 @@ function pipeGeometry(radius: number, z0: number, z1: number, x: number, y: numb
 /** 합친 지오에 정점 z 위치로 밝기를 칠한다. 정점색은 재질 색에 곱해져 한 덩어리 안에서도 z 따라 밝기가 달라진다. */
 function applyDepthColors(geometry: THREE.BufferGeometry | null, brightnessAt: (z: number) => number) {
   if (!geometry) return geometry;
-  const pos = geometry.attributes.position;
-  const col = new Float32Array(pos.count * 3);
-  for (let i = 0; i < pos.count; i++) {
-    const v = brightnessAt(pos.getZ(i));
-    col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = v;
+  const position = geometry.attributes.position;
+  const colors = new Float32Array(position.count * 3);
+  for (let i = 0; i < position.count; i++) {
+    const brightness = brightnessAt(position.getZ(i));
+    colors[i * 3] = colors[i * 3 + 1] = colors[i * 3 + 2] = brightness;
   }
-  geometry.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
   return geometry;
 }
 

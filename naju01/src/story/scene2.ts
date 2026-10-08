@@ -225,7 +225,7 @@ export function birdPolePrototypes(count = 3, seed = 5205): THREE.BufferGeometry
   return prototypes;
 }
 
-export type Scene2PropKey = "platformBed" | "stool" | "aFrameCarrier" | "waterJar" | "birdPole";
+type Scene2PropKey = "platformBed" | "stool" | "aFrameCarrier" | "waterJar" | "birdPole";
 
 export const SCENE2_NOTES: Record<Scene2PropKey, SceneNote> = {
   platformBed: { text: "평상 · 젊은이들이 모여 말이 오간 자리 (F-10)", color: "#CFE3B8" },

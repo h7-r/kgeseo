@@ -1,6 +1,5 @@
 import { OPENING_FILM } from "@/data/videos";
 import { runWhenIdle } from "@/lib/idle";
-import { warmUpImages } from "@/lib/imageWarmup";
 import { PAGE_CHANGE_EVENT } from "@/lib/pageEvents";
 import { getSessionUser } from "@/services/session";
 
@@ -9,6 +8,30 @@ import { preloadAllPages } from "./pageRegistry";
 function onPageLoad(callback: () => void) {
   if (document.readyState === "complete") callback();
   else window.addEventListener("load", callback, { once: true });
+}
+
+/*
+ * loading="lazy" 그림은 화면 가까이 와야 받고, 처음 그릴 때 decode 한다.
+ * 빠르게 굴리면 이 둘이 스크롤을 못 따라가므로, 한가할 때 3장씩 미리 받아 풀어 둔다.
+ */
+const WARMUP_BATCH_SIZE = 3;
+
+const whenIdle = (task: () => void) => runWhenIdle(task, 1500, 200);
+
+function warmUpImages(): void {
+  const images = [...document.querySelectorAll<HTMLImageElement>('img[loading="lazy"]')];
+  let index = 0;
+  const runBatch = () => {
+    for (let count = 0; count < WARMUP_BATCH_SIZE && index < images.length; count++, index++) {
+      const image = images[index];
+      if (!image.isConnected) continue;
+      image.loading = "eager";
+      // 아직 안 왔거나 깨졌으면 조용히 넘어간다. 화면에 닿으면 원래대로 그린다.
+      image.decode?.().catch(() => {});
+    }
+    if (index < images.length) whenIdle(runBatch);
+  };
+  whenIdle(runBatch);
 }
 
 const warmUpImagesSoon = () => window.setTimeout(warmUpImages, 800);

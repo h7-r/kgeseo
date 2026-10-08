@@ -33,7 +33,7 @@ export interface HeightTable {
   z0: number;
 }
 
-/** 표를 읽어 조회기를 만든다. 실패해도 던지지 않고 null — 바닥이 사라지는 것보다 옛 해석식 바닥이 낫다. */
+/** 표를 읽어 조회기를 만든다. 실패해도 던지지 않고 null — 바닥이 사라지는 것보다 해석식 바닥이 낫다. */
 export async function loadHeightTable(url = HEIGHT_TABLE_URL): Promise<HeightTable | null> {
   let buffer: ArrayBuffer;
   try {
@@ -84,8 +84,7 @@ function parseHeightTable(buffer: ArrayBuffer): HeightTable | null {
   const contains = (x: number, z: number) => x >= x0 && x <= x1 && z >= z0 && z <= z1;
 
   // 최근접이면 0.25 m 마다 높이가 계단으로 튀어 발이 덜컥거린다. 그림(GLB)도 삼각형이라 선형이어야 같은 면이다.
-  const heightAt = (x: number, z: number) => {
-    if (!contains(x, z)) return null;
+  const bilinear = (grid: Uint16Array | Uint8Array, x: number, z: number) => {
     const u = (x - x0) / cellX;
     const v = (z - z0) / cellZ;
     let i = Math.floor(u);
@@ -95,30 +94,13 @@ function parseHeightTable(buffer: ArrayBuffer): HeightTable | null {
     const fu = u - i;
     const fv = v - j;
     const k = j * nx + i;
-    const a = heights[k];
-    const b = heights[k + 1];
-    const c = heights[k + nx];
-    const d = heights[k + nx + 1];
-    const top = a + (b - a) * fu;
-    const bottom = c + (d - c) * fu;
-    return low + ((top + (bottom - top) * fv) / 65535) * span;
+    const top = grid[k] + (grid[k + 1] - grid[k]) * fu;
+    const bottom = grid[k + nx] + (grid[k + nx + 1] - grid[k + nx]) * fu;
+    return top + (bottom - top) * fv;
   };
 
-  const roadAt = (x: number, z: number) => {
-    if (!contains(x, z)) return 0;
-    const u = (x - x0) / cellX;
-    const v = (z - z0) / cellZ;
-    let i = Math.floor(u);
-    let j = Math.floor(v);
-    if (i >= nx - 1) i = nx - 2;
-    if (j >= nz - 1) j = nz - 2;
-    const fu = u - i;
-    const fv = v - j;
-    const k = j * nx + i;
-    const top = roadGrid[k] + (roadGrid[k + 1] - roadGrid[k]) * fu;
-    const bottom = roadGrid[k + nx] + (roadGrid[k + nx + 1] - roadGrid[k + nx]) * fu;
-    return (top + (bottom - top) * fv) / 255;
-  };
+  const heightAt = (x: number, z: number) => (contains(x, z) ? low + (bilinear(heights, x, z) / 65535) * span : null);
+  const roadAt = (x: number, z: number) => (contains(x, z) ? bilinear(roadGrid, x, z) / 255 : 0);
 
   return {
     version,

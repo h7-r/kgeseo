@@ -3,14 +3,16 @@
 // 갈 수 없는 곳이라 충돌도 판정도 없다. 멀수록 성글게, 멀수록 지평선 색으로 녹인다 — 이 하나가 깊이를 만든다.
 // 코어 가장자리에서 높이 0 으로 맞춰 이어 붙인 티가 안 나게 한다.
 // 좌표·크기는 미터, 지오메트리만 유닛.
+
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+
 import { makeRandom } from "@/engine/random";
-import type { Noise2D } from "../terrain/ground";
+
 import { UNITS_PER_METER, type Range, type River } from "../plan/sitePlan";
+import { applyVertexColors, type HeightAt, type Noise2D } from "../terrain/ground";
 import { farBankBendAt, riverBendAt } from "./river";
 
-type HeightAt = (x: number, z: number) => number;
 type CoreBounds = { x: Range; z: Range };
 type RiverBand = Pick<River, "zStart" | "farBankWidth">;
 
@@ -36,6 +38,22 @@ export const DISTANT_STYLE = {
 };
 
 const mix = (a: THREE.Color, b: THREE.Color, t: number) => a.clone().lerp(b, t);
+
+/** 코어 가장자리에서 몇 m (0 = 코어 옆) */
+const coreDistance = (core: CoreBounds, x: number, z: number) => {
+  const dx = Math.max(core.x[0] - x, 0, x - core.x[1]);
+  const dz = Math.max(core.z[0] - z, 0, z - core.z[1]);
+  return Math.hypot(dx, dz);
+};
+
+// 뙈기 — 멀수록 크게. 먼 띠 격자(38 m)에 26 m 뙈기를 그리면 무늬가 사라져 단색 융단이 된다.
+const plotSizeAt = (core: CoreBounds, x: number, z: number) => 26 * (1 + (coreDistance(core, x, z) / 260) * 1.7);
+
+// 곧은 격자는 바둑판이다. 실제 논밭은 물길과 지형을 따라 굽는다. 들판과 산울타리가 같은 뙈기를 봐야 한다.
+const warpField = (noise: Noise2D, x: number, z: number) => [
+  x + noise(x * 0.0035, z * 0.0035) * 16 + noise(x * 0.012, z * 0.012) * 4,
+  z + noise(x * 0.0035 + 31, z * 0.0035 + 17) * 16 + noise(x * 0.012 + 5, z * 0.012) * 4,
+];
 
 interface FieldOptions {
   core: CoreBounds;
@@ -93,12 +111,7 @@ export function buildFields({
   const horizon = new THREE.Color(horizonColor);
   const c = new THREE.Color();
 
-  // 코어 가장자리에서 몇 m (0 = 코어 옆)
-  const distance = (x: number, z: number) => {
-    const dx = Math.max(core.x[0] - x, 0, x - core.x[1]);
-    const dz = Math.max(core.z[0] - z, 0, z - core.z[1]);
-    return Math.hypot(dx, dz);
-  };
+  const distance = (x: number, z: number) => coreDistance(core, x, z);
   // 공기에 씻긴 정도 0~1 — 절대 거리로 재야 띠마다 색이 안 튄다
   const haze = (x: number, z: number) => THREE.MathUtils.clamp(distance(x, z) / hazeDistance, 0, 1);
 
@@ -120,13 +133,8 @@ export function buildFields({
     return y - sink;
   };
 
-  // 뙈기 — 멀수록 크게. 먼 띠 격자(38 m)에 26 m 뙈기를 그리면 무늬가 사라져 단색 융단이 된다.
-  const plotSize = (x: number, z: number) => 26 * (1 + (distance(x, z) / 260) * 1.7);
-  // 곧은 격자는 바둑판이다. 실제 논밭은 물길과 지형을 따라 굽는다.
-  const warp = (x: number, z: number) => [
-    x + noise(x * 0.0035, z * 0.0035) * 16 + noise(x * 0.012, z * 0.012) * 4,
-    z + noise(x * 0.0035 + 31, z * 0.0035 + 17) * 16 + noise(x * 0.012 + 5, z * 0.012) * 4,
-  ];
+  const plotSize = (x: number, z: number) => plotSizeAt(core, x, z);
+  const warp = (x: number, z: number) => warpField(noise, x, z);
   const plot = (px: number, pz: number) => {
     const [x, z] = warp(px, pz);
     const size = plotSize(px, pz);
@@ -221,7 +229,7 @@ export function buildFields({
   return { geometry, heightAt, haze, distance };
 }
 
-export interface DistantTreeSpot {
+interface DistantTreeSpot {
   x: number;
   y: number;
   z: number;
@@ -231,7 +239,7 @@ export interface DistantTreeSpot {
   color: number;
 }
 
-export interface DistantHouseSpot extends DistantTreeSpot {
+interface DistantHouseSpot extends DistantTreeSpot {
   widthRatio: number;
   depthRatio: number;
 }
@@ -253,7 +261,7 @@ interface ForestVillageOptions {
 /**
  * 숲(나무 덩이 무리)·산울타리·진부촌·택촌. 나무와 집은 자리만 돌려주고 무리(InstancedMesh)로 세운다 —
  * 구워 합치면 하나도 못 고른다. 산울타리만 굽는다.
- * 난수는 예전과 똑같은 횟수·순서로 굴린다. 하나라도 어긋나면 숲 자리가 통째로 다시 깔린다.
+ * 난수 횟수·순서가 손 배치(edits.json)에 묶여 있다. 하나라도 어긋나면 숲 자리가 통째로 다시 깔린다.
  */
 export function buildForestVillages({
   core,
@@ -285,17 +293,6 @@ export function buildForestVillages({
   const scale = new THREE.Vector3();
   const quaternion = new THREE.Quaternion();
 
-  const place = (g: THREE.BufferGeometry, color: THREE.Color) => {
-    const n = g.attributes.position.count;
-    const arr = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) {
-      arr[i * 3] = color.r;
-      arr[i * 3 + 1] = color.g;
-      arr[i * 3 + 2] = color.b;
-    }
-    g.setAttribute("color", new THREE.BufferAttribute(arr, 3));
-    pieces.push(g);
-  };
   const isUsable = (x: number, z: number) => {
     // 저해상도 덩이는 멀리 있을 때만 그럴싸하다 — 코어에서 20 m 는 떨어뜨린다
     if (x > core.x[0] - 20 && x < core.x[1] + 20 && z > core.z[0] - 20 && z < core.z[1] + 20) return false;
@@ -326,7 +323,7 @@ export function buildForestVillages({
       const y = heightAt(x, z);
       c.copy(mix(forest, forestLight, random())).lerp(horizon, Math.pow(m, 0.75) * 0.82);
       const leafColor = c.clone();
-      // 줄기·잎덩이를 구워 합치던 때의 난수 몫(Euler 셋, 눌림, 자리 흔들림 둘)을 그대로 굴린다
+      // 줄기·잎덩이 모양 몫의 난수(Euler 셋, 눌림, 자리 흔들림 둘)를 그대로 굴린다
       const leafJitter: number[] = [];
       for (let b = 0; b < 2; b++) {
         random();
@@ -350,57 +347,44 @@ export function buildForestVillages({
   }
 
   // 산울타리 — 뙈기 경계에 덤불이 줄지어 서야 중경(40~260 m)이 채워진다
-  {
-    const plotSize = (x: number, z: number) => {
-      const dx = Math.max(core.x[0] - x, 0, x - core.x[1]);
-      const dz = Math.max(core.z[0] - z, 0, z - core.z[1]);
-      return 26 * (1 + (Math.hypot(dx, dz) / 260) * 1.7);
-    };
-    for (let i = 0; i < 900; i++) {
-      const x = core.x[0] - 300 + random() * 680;
-      const z = core.z[0] - 300 + random() * 650;
-      if (!isUsable(x, z)) continue;
-      const m = haze(x, z);
-      const size = plotSize(x, z);
-      const wx = x + noise(x * 0.0035, z * 0.0035) * 16 + noise(x * 0.012, z * 0.012) * 4;
-      const wz = z + noise(x * 0.0035 + 31, z * 0.0035 + 17) * 16 + noise(x * 0.012 + 5, z * 0.012) * 4;
-      const fx = ((wx % size) + size) % size;
-      const fz = ((wz % size) + size) % size;
-      // 경계 2 m 안쪽에만, 그것도 드문드문 — 줄이 끊겨야 자연스럽다
-      if (Math.min(fx, size - fx, fz, size - fz) > 2) continue;
-      if (random() > 0.45) continue;
-      const y = heightAt(x, z);
-      const height = 1.6 + random() * 2.4;
-      const g = new THREE.IcosahedronGeometry(height * 0.4 * UNITS_PER_METER, 0);
-      quaternion.setFromEuler(new THREE.Euler(random(), random() * 6.3, random()));
-      scale.set(1, 0.7 + random() * 0.4, 1);
-      position.set(x * UNITS_PER_METER, (y + height * 0.42) * UNITS_PER_METER, z * UNITS_PER_METER);
-      matrix.compose(position, quaternion, scale);
-      g.applyMatrix4(matrix);
-      c.copy(mix(forest, forestLight, random() * 0.7)).lerp(horizon, Math.pow(m, 0.75) * 0.82);
-      place(g, c.clone());
-    }
+  for (let i = 0; i < 900; i++) {
+    const x = core.x[0] - 300 + random() * 680;
+    const z = core.z[0] - 300 + random() * 650;
+    if (!isUsable(x, z)) continue;
+    const m = haze(x, z);
+    const size = plotSizeAt(core, x, z);
+    const [wx, wz] = warpField(noise, x, z);
+    const fx = ((wx % size) + size) % size;
+    const fz = ((wz % size) + size) % size;
+    // 경계 2 m 안쪽에만, 그것도 드문드문 — 줄이 끊겨야 자연스럽다
+    if (Math.min(fx, size - fx, fz, size - fz) > 2) continue;
+    if (random() > 0.45) continue;
+    const y = heightAt(x, z);
+    const height = 1.6 + random() * 2.4;
+    const g = new THREE.IcosahedronGeometry(height * 0.4 * UNITS_PER_METER, 0);
+    quaternion.setFromEuler(new THREE.Euler(random(), random() * 6.3, random()));
+    scale.set(1, 0.7 + random() * 0.4, 1);
+    position.set(x * UNITS_PER_METER, (y + height * 0.42) * UNITS_PER_METER, z * UNITS_PER_METER);
+    matrix.compose(position, quaternion, scale);
+    g.applyMatrix4(matrix);
+    c.copy(mix(forest, forestLight, random() * 0.7)).lerp(horizon, Math.pow(m, 0.75) * 0.82);
+    pieces.push(applyVertexColors(g, c));
   }
 
-  // 진부촌 — §383 이 「원경·방향」으로 두라고 한 그대로. 북동쪽(내륙)에 모아야 마을로 보인다.
-  const villageX = core.x[1] + 72;
-  const villageZ = core.z[0] - 55;
-  for (let i = 0; i < houseCount; i++) {
-    const x = villageX + (random() - 0.5) * 90;
-    const z = villageZ + (random() - 0.5) * 70;
-    if (!isUsable(x, z)) continue;
+  // 집 한 채. 키·폭·깊이 → 방위 → 벽색 → 지붕 차례로 난수를 굴린다(두 마을이 같은 차례다).
+  // 지붕 몫(straw) 난수는 모양 번호에만 쓰지만 굴려야 뒤따르는 집 자리가 안 밀린다.
+  const house = (x: number, z: number, headingOf: () => number): DistantHouseSpot => {
     const m = haze(x, z);
     const y = heightAt(x, z);
     const w = 4 + random() * 4;
     const d = 3.5 + random() * 3;
     const h = 2.4 + random() * 1.2;
-    const heading = random() * 6.3;
+    const heading = headingOf();
     c.copy(mix(earthWall, plasterWall, random())).lerp(horizon, Math.pow(m, 0.75) * 0.8);
     const wallColor = c.clone();
     const roofHeight = 1.1 + random() * 0.8;
-    // 진부촌은 초가집 마을이다(예전엔 기와를 섞었다). 난수는 그대로 굴려야 뒤따르는 집 자리가 안 밀린다.
     const straw = random();
-    houseSpots.push({
+    return {
       x,
       y,
       z,
@@ -410,39 +394,29 @@ export function buildForestVillages({
       depthRatio: d / (h + roofHeight + 0.6),
       shapeIndex: (straw < 0.5 ? 0 : 2) + (random() < 0.5 ? 0 : 1),
       color: wallColor.getHex(),
-    });
+    };
+  };
+
+  // 진부촌 — §383 이 「원경·방향」으로 두라고 한 그대로. 북동쪽(내륙)에 모아야 마을로 보인다. 모두 초가집이다.
+  const villageX = core.x[1] + 72;
+  const villageZ = core.z[0] - 55;
+  for (let i = 0; i < houseCount; i++) {
+    const x = villageX + (random() - 0.5) * 90;
+    const z = villageZ + (random() - 0.5) * 70;
+    if (!isUsable(x, z)) continue;
+    houseSpots.push(house(x, z, () => random() * 6.3));
   }
 
   // 택촌 — 강 건너 마을. 진부촌과 택촌 방향이 갈려야 「강을 사이에 둔 두 마을」(F-02)이 읽힌다.
-  // 앞 루프들의 난수를 한 톨도 안 건드리려고 맨 뒤에 붙였다.
+  // 맨 뒤에서 난수를 굴려 앞 루프들의 자리를 한 톨도 안 건드린다.
   const taekchonX = (core.x[0] + core.x[1]) / 2;
   const taekchonZ = river.zStart + river.farBankWidth + 26; // 저편 물가에서 뭍으로 더 들어간 자리
   for (let i = 0; i < taekchonCount; i++) {
     const x = taekchonX + (random() - 0.5) * 76;
     const z = taekchonZ + (random() - 0.5) * 22;
     if (!isUsable(x, z)) continue;
-    const m = haze(x, z);
-    const y = heightAt(x, z);
-    const w = 4 + random() * 4;
-    const d = 3.5 + random() * 3;
-    const h = 2.4 + random() * 1.2;
     // 어촌은 물가를 향해 앉는다
-    const heading = Math.PI + (random() - 0.5) * 1.4;
-    c.copy(mix(earthWall, plasterWall, random())).lerp(horizon, Math.pow(m, 0.75) * 0.8);
-    const wallColor = c.clone();
-    const roofHeight = 1.1 + random() * 0.8;
-    const straw = random();
-    taekchonSpots.push({
-      x,
-      y,
-      z,
-      size: h + roofHeight + 0.6,
-      rotation: heading,
-      widthRatio: w / (h + roofHeight + 0.6),
-      depthRatio: d / (h + roofHeight + 0.6),
-      shapeIndex: (straw < 0.5 ? 0 : 2) + (random() < 0.5 ? 0 : 1),
-      color: wallColor.getHex(),
-    });
+    taekchonSpots.push(house(x, z, () => Math.PI + (random() - 0.5) * 1.4));
   }
 
   let geometry: THREE.BufferGeometry | null = null;
@@ -460,13 +434,7 @@ export function buildForestVillages({
 export function distantTreePrototypes(count = 6, seed = 4801) {
   const random = makeRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
-  const paint = (g: THREE.BufferGeometry, v: number) => {
-    const n = g.attributes.position.count;
-    const a = new Float32Array(n * 3);
-    for (let i = 0; i < n * 3; i++) a[i] = v;
-    g.setAttribute("color", new THREE.BufferAttribute(a, 3));
-    return g;
-  };
+  const paint = (g: THREE.BufferGeometry, v: number) => applyVertexColors(g, { r: v, g: v, b: v });
   for (let i = 0; i < count; i++) {
     const pieces: THREE.BufferGeometry[] = [];
     const trunk = new THREE.CylinderGeometry(0.035, 0.05, 0.42, 5, 1).toNonIndexed();
@@ -497,17 +465,8 @@ export function distantTreePrototypes(count = 6, seed = 4801) {
 export function distantHousePrototypes(seed = 6203) {
   const random = makeRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
-  const paint = (g: THREE.BufferGeometry, r: number, gg: number, bb: number) => {
-    const n = g.attributes.position.count;
-    const a = new Float32Array(n * 3);
-    for (let i = 0; i < n; i++) {
-      a[i * 3] = r;
-      a[i * 3 + 1] = gg;
-      a[i * 3 + 2] = bb;
-    }
-    g.setAttribute("color", new THREE.BufferAttribute(a, 3));
-    return g;
-  };
+  const paint = (g: THREE.BufferGeometry, r: number, gg: number, bb: number) =>
+    applyVertexColors(g, { r, g: gg, b: bb });
   // 지붕/벽 비율
   const roofRatios: [number, number, number][] = [
     [0.92, 0.8, 0.52], // 갓 이은 짚 — 누렇다

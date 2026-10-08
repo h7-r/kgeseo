@@ -5,14 +5,12 @@ import CollectionBox from "@/station/office/evidence/CollectionBox";
 import EvidenceBox from "@/station/office/evidence/EvidenceBox";
 import EvidenceNumberTag from "@/station/office/evidence/EvidenceNumberTag";
 import Fedora from "@/station/office/Fedora";
-import Keyboard from "@/station/office/Keyboard";
 import Laptop from "@/station/office/Laptop";
-import Mouse from "@/station/office/Mouse";
 import Mug from "@/station/office/Mug";
 import PaperStack from "@/station/office/PaperStack";
+import { Keyboard, Mouse } from "@/station/office/PcSet";
 
-import type { KeyboardValues, LaptopControls, MouseValues } from "../controls/computerControls";
-import type { MugControls } from "../controls/mugControls";
+import type { KeyboardValues, LaptopControls, MouseValues, MugControls } from "../controls/officePropControls";
 import type { PickupItem } from "./usePickupItems";
 
 /** 들 수 있는 물건들의 공통 Leva 값 — 놓인 것·든 것·놓기 유령이 같은 모양으로 그려지도록 한 묶음으로 넘긴다. */

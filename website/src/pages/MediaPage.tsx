@@ -1,6 +1,6 @@
 import Stage from "@/components/Stage";
-import { FOOTER_ALLOWANCE } from "@/layout/layoutMetrics";
 import PageFooter from "@/layout/PageFooter";
+import { FOOTER_ALLOWANCE } from "@/lib/layout";
 import CharacterShowcase, { CHARACTER_SHOWCASE_HEIGHT } from "@/sections/media/CharacterShowcase";
 import GameplayVideos, { FEATURED_HEIGHT, GALLERY_HEIGHT } from "@/sections/media/GameplayVideos";
 import ImmersiveExperience from "@/sections/media/ImmersiveExperience";

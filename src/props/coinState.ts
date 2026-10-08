@@ -18,11 +18,11 @@ export type CoinKind = "can" | "cup";
  * floor — 바닥에 놓여 있음 · hand — 들고 있음 · spent — 제대로 넣어져 사라짐(잠시 뒤 처음 자리에 다시 생긴다)
  * returned:<자판기> — 잘못 넣어 그 자판기 반환구로 나옴
  */
-export type CoinLocation = "floor" | "hand" | "spent" | `returned:${VendingId}`;
+type CoinLocation = "floor" | "hand" | "spent" | `returned:${VendingId}`;
 
-export type InsertResult = "accepted" | "returned";
+type InsertResult = "accepted" | "returned";
 
-export interface CoinInsertion {
+interface CoinInsertion {
   kind: CoinKind;
   vendingId: VendingId;
   result: InsertResult;
@@ -138,7 +138,7 @@ export function finishInsert() {
     state.location[insertion.kind] = "spent";
     playSound("lockOpen", { volume: 0.9 });
     lightUpButtons(insertion.vendingId);
-    // 한 번 넣으면 끝나 막혔다 — 잠시 뒤 처음 자리에 떨어지며 다시 생긴다.
+    // 한 번 넣고 끝나면 다시 못 해 본다 — 잠시 뒤 처음 자리에 떨어지며 다시 생긴다.
     const kind = insertion.kind;
     setTimeout(() => {
       if (state.location[kind] !== "spent") return; // 그새 초기화됐으면 그대로
@@ -157,7 +157,7 @@ export function finishInsert() {
 }
 
 /** 개발·테스트용 초기화 */
-export function resetCoins() {
+function resetCoins() {
   state.location = { can: "floor", cup: "floor" };
   state.held = null;
   state.inserting = null;

@@ -9,13 +9,13 @@ import * as THREE from "three";
 import { clone, retargetClip } from "three/examples/jsm/utils/SkeletonUtils.js";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import type { AvatarLink } from "@/engine/avatarLink";
 
 import { FORCED_MOTION } from "../app/runtimeFlags";
 import { UNITS_PER_METER } from "../plan/sitePlan";
-import type { AvatarLink } from "@/engine/avatarLink";
 import { bothFistCenters } from "./fistCenter";
 import { LOCOMOTION_CLIPS } from "./motionCorrection";
-import { attachSkeleton, firstSkinnedMesh, retargetOptions, setMorph, strideSpeed } from "./retargeting";
+import { attachSkeleton, firstSkinnedMesh, retargetOptions, setMorph, strideSpeed } from "./rig";
 import { AUTO_MOTION, DEFAULT_SIDEKICK_CONFIG, type SidekickConfig } from "./sidekickOptions";
 
 const CHARACTER_URL = "/models/sidekick-customizer.glb";
@@ -181,7 +181,7 @@ function prepareEyeShader(mesh: THREE.Mesh): EyeUniforms {
 }
 
 // 속옷 복제본은 피부와 같은 면에 겹쳐 그린다. polygonOffset 으로 앞세우면 비스듬히 볼 때 1cm 떨어진 치마까지
-// 이겨 흰 얼룩이 보였다. 대신 속옷이 보이는 높이 띠의 피부를 버려 깊이 경쟁 자체를 없앤다.
+// 이겨 흰 얼룩이 보인다. 대신 속옷이 보이는 높이 띠의 피부를 버려 깊이 경쟁 자체를 없앤다.
 // part: 1 = 몸통(가슴 띠), 2 = 골반(허리 아래 띠). 골반 띠 아래 끝은 원본 메시의 사각 속옷 밑단 턱(z≈0.705 m)에
 // 맞춰야 피부색 턱이 안 남고 허벅지로 흰색이 안 번진다.
 const UNDERWEAR_BANDS: Record<number, [number, number]> = { 1: [1.17, 1.36], 2: [0.702, 1.0] };

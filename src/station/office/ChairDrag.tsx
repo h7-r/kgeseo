@@ -61,8 +61,7 @@ export default function ChairDrag({
       // 안 거두면 빈손인데 팔이 허공을 붙잡고 있다.
       chairDragState.isHeld = false;
     };
-    // 잡는 순간 한 번만 — 끄는 동안 바뀌는 origin 으로 다시 채우면 의자가 원래 자리로 튄다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 잡는 순간 한 번만. 바뀐 origin 으로 다시 채우면 의자가 원래 자리로 튄다.
   }, []);
 
   useFrame((_, rawDelta) => {
@@ -73,7 +72,7 @@ export default function ChairDrag({
     requestShadowUpdates(0.2);
     // 3인칭 카메라는 캐릭터 뒤에 있어, 카메라를 기준으로 하면 의자가 몸통 안으로 파고든다.
     const person = playerView.ready ? playerView.eye : camera.position;
-    const s = drag.current;
+    const chair = drag.current;
 
     // 앞으로 삼을 방향. 3인칭에서 몸은 카메라를 따라 돌지 않아, 카메라 기준이면 가만히 있어도 의자만 몸 주위를 돈다.
     let goalAngle: number;
@@ -88,16 +87,16 @@ export default function ChairDrag({
     }
 
     // ① 거리는 두고 각도만 돌린다. 직선으로 당기면 뒤돌아볼 때 의자가 몸(카메라)을 지나 외곽선 껍데기가 화면을 덮는다.
-    if (s.isFirst) {
-      s.angle = goalAngle;
-      s.isFirst = false;
+    if (chair.isFirst) {
+      chair.angle = goalAngle;
+      chair.isFirst = false;
     }
-    s.angle += angleDelta(goalAngle - s.angle) * (1 - Math.exp(-dt * 9));
+    chair.angle += angleDelta(goalAngle - chair.angle) * (1 - Math.exp(-dt * 9));
 
     // ② 벽은 충돌 박스가 아니라 경계 사각형이라 직접 가둔다.
     const wall = radius + WALL_MOLDING;
-    let goalX = THREE.MathUtils.clamp(person.x + Math.sin(s.angle) * distance, MIN_X + wall, MAX_X - wall);
-    let goalZ = THREE.MathUtils.clamp(person.z + Math.cos(s.angle) * distance, MIN_Z + wall, MAX_Z - wall);
+    let goalX = THREE.MathUtils.clamp(person.x + Math.sin(chair.angle) * distance, MIN_X + wall, MAX_X - wall);
+    let goalZ = THREE.MathUtils.clamp(person.z + Math.cos(chair.angle) * distance, MIN_Z + wall, MAX_Z - wall);
 
     // ②-b 너무 가까우면 밀어낸다. 결과가 아니라 목표에 걸어야 프레임마다 밀고 당기는 잔떨림이 없다.
     const bodyRadius = radius * 0.85;
@@ -106,21 +105,21 @@ export default function ChairDrag({
     const tdz = goalZ - person.z;
     const td = Math.hypot(tdx, tdz);
     if (td < minDistance) {
-      const ux = td > 1e-3 ? tdx / td : Math.sin(s.angle);
-      const uz = td > 1e-3 ? tdz / td : Math.cos(s.angle);
+      const ux = td > 1e-3 ? tdx / td : Math.sin(chair.angle);
+      const uz = td > 1e-3 ? tdz / td : Math.cos(chair.angle);
       goalX = person.x + ux * minDistance;
       goalZ = person.z + uz * minDistance;
     }
 
     // ②-c 줄은 팽팽할 때만 당긴다(부등식 거리 구속). 앞서 가면 사람이 의자를 따라 걷는 그림이 된다.
     if (slack > 0) {
-      const ddx = s.x - person.x;
-      const ddz = s.z - person.z;
+      const ddx = chair.x - person.x;
+      const ddz = chair.z - person.z;
       const dd = Math.hypot(ddx, ddz);
       const leash = distance + slack;
       if (dd <= leash) {
-        goalX = s.x;
-        goalZ = s.z;
+        goalX = chair.x;
+        goalZ = chair.z;
       } else {
         goalX = THREE.MathUtils.clamp(person.x + (ddx / dd) * leash, MIN_X + wall, MAX_X - wall);
         goalZ = THREE.MathUtils.clamp(person.z + (ddz / dd) * leash, MIN_Z + wall, MAX_Z - wall);
@@ -129,38 +128,38 @@ export default function ChairDrag({
 
     // ③ 부드럽게 다가가되 속도에 천장을 씌운다 — 크게 벌어져도 한 프레임에 몇 유닛씩 뛰지 않는다.
     const k = 1 - Math.exp(-dt * 18);
-    let stepX = (goalX - s.x) * k;
-    let stepZ = (goalZ - s.z) * k;
+    let stepX = (goalX - chair.x) * k;
+    let stepZ = (goalZ - chair.z) * k;
     const maxStep = speed * dt;
     const step = Math.hypot(stepX, stepZ);
     if (step > maxStep) {
       stepX *= maxStep / step;
       stepZ *= maxStep / step;
     }
-    const nx = s.x + stepX;
-    const nz = s.z + stepZ;
+    const nx = chair.x + stepX;
+    const nz = chair.z + stepZ;
 
     // ④ 축을 따로 풀어 막히면 벽을 따라 미끄러진다. 가구는 살짝 헐렁하게 — 딱 맞추면 옆을 지날 때 걸린다.
     const r = bodyRadius;
     // 이미 안에 있으면 빠져나가게 허용
-    const isStuck = blockedWithin(s.x, s.z, r, boxId);
-    if (isStuck || !blockedWithin(nx, s.z, r, boxId)) s.x = nx;
-    if (isStuck || !blockedWithin(s.x, nz, r, boxId)) s.z = nz;
+    const isStuck = blockedWithin(chair.x, chair.z, r, boxId);
+    if (isStuck || !blockedWithin(nx, chair.z, r, boxId)) chair.x = nx;
+    if (isStuck || !blockedWithin(chair.x, nz, r, boxId)) chair.z = nz;
 
     // ⑤ 박스가 없으면 끌던 의자 안으로 내가 걸어 들어간다.
-    dynamicColliders.set(boxId, squareBox(s.x, s.z, r, height));
+    dynamicColliders.set(boxId, squareBox(chair.x, chair.z, r, height));
 
-    chairDragState.x = s.x;
-    chairDragState.z = s.z;
+    chairDragState.x = chair.x;
+    chairDragState.z = chair.z;
     // ⑥ 손이 잡을 자리 — 중심을 잡으면 팔이 의자 속으로 들어가 사람 쪽으로 반경만큼 당긴다. 손붙이기가 다음 프레임에 읽는다.
-    const towardX = person.x - s.x;
-    const towardZ = person.z - s.z;
+    const towardX = person.x - chair.x;
+    const towardZ = person.z - chair.z;
     const toward = Math.hypot(towardX, towardZ) || 1;
-    chairDragState.handX = s.x + (towardX / toward) * radius * 0.9;
-    chairDragState.handZ = s.z + (towardZ / toward) * radius * 0.9;
+    chairDragState.handX = chair.x + (towardX / toward) * radius * 0.9;
+    chairDragState.handZ = chair.z + (towardZ / toward) * radius * 0.9;
     chairDragState.handY = height * 0.92;
     chairDragState.isHeld = true;
-    group.position.set(s.x - origin[0], 0, s.z - origin[1]);
+    group.position.set(chair.x - origin[0], 0, chair.z - origin[1]);
   }, FRAME_PRIORITY.draggedProp);
 
   return <group ref={groupRef}>{children}</group>;

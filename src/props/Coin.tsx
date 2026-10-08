@@ -10,7 +10,7 @@ import { cachedCanvasTexture } from "@/engine/textures/canvas";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
 /** 동전 가운데 새긴 무늬. can 은 음료 자판기용, cup 은 커피 자판기용. */
-export type CoinPattern = "star" | "keyhole" | "can" | "cup";
+type CoinPattern = "star" | "keyhole" | "can" | "cup";
 
 // roundRect 가 없는 환경에서도 되게 arcTo 로 그린다
 function roundedRectPath(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius: number) {

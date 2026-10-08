@@ -17,7 +17,6 @@ import {
   setLatestPlacement,
   unregisterOccupant,
   unregisterSurface,
-  updatePlacementStatus,
 } from "./placement";
 
 interface MeasureItemProps {
@@ -49,7 +48,8 @@ export function MeasureItem({
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let attemptsLeft = 30; // GLB 는 내려받은 뒤에야 자식으로 붙는다 → 될 때까지 다시 잰다
+    // GLB 는 내려받은 뒤에야 자식으로 붙는다 — 될 때까지 다시 잰다.
+    let attemptsLeft = 30;
 
     const measure = () => {
       const group = ref.current;
@@ -122,15 +122,10 @@ interface PlacementResolverProps {
 export function PlacementResolver({ itemId }: PlacementResolverProps) {
   const { camera } = useThree();
   useFrame(() => {
-    if (!itemId) {
-      setLatestPlacement(null);
-      updatePlacementStatus(null);
-      return;
-    }
     // 3인칭이면 캐릭터 자리에서 쏜다. 1인칭이면 두 자리가 같다.
-    const result = findPlacement(camera, itemId, undefined, playerView.ready ? playerView.eye : null);
-    setLatestPlacement(result);
-    updatePlacementStatus(result);
+    setLatestPlacement(
+      itemId ? findPlacement(camera, itemId, undefined, playerView.ready ? playerView.eye : null) : null,
+    );
   });
   return null;
 }

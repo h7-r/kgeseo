@@ -7,7 +7,7 @@ import { lazy } from "react";
 
 export type { AvatarLink as AvatarPlayerLink } from "@/engine/avatarLink";
 
-// ── 로딩 영상 ──
+// 로딩 영상
 export {
   continueLoadingVideoAt,
   showLoadingVideo,
@@ -17,7 +17,7 @@ export {
 // 첫 화면부터 덮어야 해서 lazy 로 미루지 않는다
 export { default as LoadingVideoOverlay } from "../../naju01/src/transition/LoadingVideoOverlay";
 
-// ── 캐릭터 생성 ──
+// 캐릭터 생성
 export { DEFAULT_CATALOG, type CharacterCatalog } from "../../naju01/src/characterCreation/catalog";
 export {
   toRendererConfig,
@@ -31,7 +31,7 @@ export {
 } from "../../naju01/src/characterCreation/nameRules";
 export const CharacterCreationScreen = lazy(() => import("../../naju01/src/characterCreation/CharacterCreationScreen"));
 
-// ── 로비 아바타 외형 ──
+// 로비 아바타 외형
 export {
   DEFAULT_MESH_CONFIG,
   normalizeMeshConfig,
@@ -48,7 +48,7 @@ export { DEFAULT_TOON, type ToonConfig } from "../../naju01/src/avatar/toonMater
 export { DEFAULT_OUTLINE, type OutlineConfig } from "../../naju01/src/avatar/toonOutline";
 export type { ChibiBody } from "../../naju01/src/avatar/ChibiGameAvatar";
 
-// ── 로비 아바타와 꾸미기 패널 ──
+// 로비 아바타와 꾸미기 패널
 export const LobbyChibi = lazy(() => import("../../naju01/src/avatar/ChibiGameAvatar"));
 export const LobbySidekick = lazy(() => import("../../naju01/src/avatar/SidekickGameAvatar"));
 export const LobbyChibiPanel = lazy(() => import("../../naju01/src/avatar/ChibiTestPanel"));

@@ -1,19 +1,16 @@
-// lobby-check.mjs — 로비를 실제로 띄워 걸음·벽·집기·시점 전환·프레임을 재는 자동 검사
-//
-// 빌드·lint 가 깨끗해도 화면에서는 틀릴 수 있다. 걸음 속도, 벽 뚫기, 물건이 튀는 것은
-// 띄워 놓고 숫자를 재야 안다.
+// 로비를 실제로 띄워 걸음·벽·집기·시점 전환·프레임을 재는 자동 검사.
+// 걸음 속도, 벽 뚫기, 물건이 튀는 것은 빌드·lint 로는 안 보이고 띄워 놓고 재야 안다.
 //
 //   1) 개발 서버:  npx vite --port 5173
 //   2) 검사:       node tools/lobby-check.mjs [주소]
 //   통과하면 종료 코드 0, 하나라도 실패하면 1, 페이지를 못 띄우면 2.
 //
-// · headless 가 아니다 — headless WebGL 은 소프트웨어 렌더러라 프레임 숫자가 의미 없다.
 // · ?input=always — 포인터 잠금 없이 조작을 켠다. 자동화에서 잠금은 창 포커스에 달려 들쭉날쭉하다.
 //   시점 회전은 안 되지만 걷기·E·V 는 된다.
 // · vsync 를 끈다 — 켜 두면 프레임 시간이 16.7 / 33.3ms 로 양자화된다.
 // · 속도는 막히지 않은 프레임의 중앙값, 프레임 시간은 같은 판 안에서만 견준다(맥은 열로 기준이 밀린다).
 
-import { chromium } from "playwright";
+import { aimAt, heldItem, isThirdPerson, openGamePage, POINTER_LOCK } from "./gamePage.mjs";
 
 // 기본 몸체(meshy)로 돌린다. chibi 몸체에는 주먹 모프가 없어 손 회귀가 안 보인다.
 //   chibi 도 보려면: node tools/lobby-check.mjs "http://localhost:5173/?avatar=chibi&input=always"
@@ -27,16 +24,10 @@ function check(name, ok, detail) {
   console.log(`${ok ? "✔" : "✖"} ${name} — ${detail}`);
 }
 
-const browser = await chromium.launch({
-  headless: false,
-  channel: "chrome",
-  args: ["--use-angle=metal", "--disable-gpu-vsync", "--disable-frame-rate-limit"],
-});
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const { browser, page } = await openGamePage(["--disable-gpu-vsync", "--disable-frame-rate-limit"]);
 
-// 포인터 잠금 경고는 ?input=always 에서 정상이다. 백엔드가 꺼져 있으면 /api 가 502 를 찍는다.
+// 백엔드가 꺼져 있으면 /api 가 502 를 찍는다. 로비 검사와는 무관하다.
 const errors = [];
-const POINTER_LOCK = /pointer lock/i;
 const BACKEND_DOWN = /Backend|Play Session|502 \(Bad Gateway\)/;
 page.on("pageerror", (e) => {
   if (!POINTER_LOCK.test(e.message)) errors.push(`pageerror: ${e.message}`);
@@ -71,12 +62,9 @@ if (!loaded) {
 await page.bringToFront();
 const startPath = await page.evaluate(() => location.pathname);
 
-const isThirdPerson = () => page.evaluate(() => window.__game.view.isThirdPerson);
-const heldItem = () => page.evaluate(() => window.__game.lobby.lobbyStore.get().heldItem);
-
 /** 시점이 원하는 쪽이 아니면 V 로 바꾼다 */
 async function setThirdPerson(third) {
-  if ((await isThirdPerson()) === third) return;
+  if ((await isThirdPerson(page)) === third) return;
   await page.keyboard.press("KeyV");
   await page.waitForTimeout(1300);
 }
@@ -84,9 +72,9 @@ async function setThirdPerson(third) {
 // 걷기 전에 시선을 −z(본부실 책상 쪽)로 맞춘다. 그대로 두면 WASD 방향이 뒤집혀 기차 문에 닿는다.
 const faceForward = () =>
   page.evaluate(() => {
-    const c = window.__game.camera;
-    c.rotation.set(0, 0, 0, "YXZ");
-    c.updateMatrixWorld(true);
+    const camera = window.__game.camera;
+    camera.rotation.set(0, 0, 0, "YXZ");
+    camera.updateMatrixWorld(true);
   });
 
 /** 키를 누른 채 걸으며 프레임마다 [시각, x, z] 를 적는다 */
@@ -166,7 +154,7 @@ const medianFrameMs = (samples) => {
 
 const toMps = (unitsPerSecond) => (unitsPerSecond * METERS_PER_UNIT).toFixed(2);
 
-// ── ① 1인칭 걷기·달리기 ─────────────────────────────────
+// ① 1인칭 걷기·달리기
 await setThirdPerson(false);
 const fpWalk = await measureSpeed(["KeyW"]);
 const fpRun = await measureSpeed(["KeyW", "ShiftLeft"]);
@@ -193,7 +181,7 @@ check(
   `명령 ${walkSpeed.toFixed(2)} → 실제 ${fpWalk.actual.toFixed(2)} 유닛/초 (막힌 프레임 ${(fpWalk.blockedRatio * 100).toFixed(0)}%)`,
 );
 
-// ── ①-2 3인칭 걷기 ──────────────────────────────────────
+// ①-2 3인칭 걷기
 await setThirdPerson(true);
 const tpWalk = await measureSpeed(["KeyW"]);
 const tpSpeed = tpWalk.commanded;
@@ -207,14 +195,14 @@ check(
   tpWalk.actual > tpSpeed * 0.9,
   `명령 ${tpSpeed.toFixed(2)} → 실제 ${tpWalk.actual.toFixed(2)} 유닛/초 (막힌 프레임 ${(tpWalk.blockedRatio * 100).toFixed(0)}%)`,
 );
-// 클립 배속이 상한(2.2)을 넘으면 발이 미끄러진다. 치비 아바타는 아직 naju01 쪽이라 옛 이름이다.
+// 클립 배속이 상한(2.2)을 넘으면 발이 미끄러진다. 계기(__game.chibiDebug)가 없는 몸체는 건너뛴다.
 const timeScale = await page.evaluate(() => window.__game.chibiDebug?.timeScale ?? null);
 check(
   "아바타 클립 배속이 상한 안",
   timeScale === null || timeScale <= 2.2,
   timeScale === null ? "이 몸체엔 계기가 없다(건너뜀)" : `${timeScale.toFixed(2)} (상한 2.2)`,
 );
-// 기차 안·로비·비밀복도 어디서나 같은 속도여야 한다 — 두 시점을 같은 값으로 묶었다.
+// 두 시점은 같은 걸음 속도 값을 쓴다 — 기차 안·로비·비밀복도 어디서나 같아야 한다.
 check(
   "두 시점 걸음이 같다",
   Math.abs(tpSpeed - walkSpeed) < 0.05,
@@ -227,7 +215,7 @@ check(
 );
 await setThirdPerson(false);
 
-// ── ② 벽 뚫기 — 여덟 방향 전력질주 ─────────────────────
+// ② 벽 뚫기 — 여덟 방향 전력질주
 // (−14, 6) 에서 1.8초. 둘레가 비어 있고 가장 가까운 기차 문까지 25 유닛이라 벽에는 닿고 문에는 못 간다.
 const directions = [
   ["KeyW"],
@@ -250,21 +238,9 @@ for (const keys of directions) {
 }
 check("벽 뚫기(8방향 전력질주 1.8초)", escapes.length === 0, escapes.length ? escapes.join(" · ") : "전부 방 안");
 
-// ── ③ 물건 집기·놓기 ────────────────────────────────────
+// ③ 물건 집기·놓기
 // 한 손 물건만 보면 안 된다. 두 손 물건(노트북)은 가슴 앵커·양팔 IK 라는 다른 경로를 탄다.
 const pickupIds = ["pickup:mug0", "pickup:laptop0"];
-
-/** 물건 앞에 서서 1인칭으로 겨눈다 — 3인칭 카메라는 붐 끝이라 lookAt 이 안 맞는다 */
-async function aimAt(position) {
-  await page.evaluate(([x, y, z]) => {
-    window.__game.teleport(x + 1.1, z + 1.1);
-    const c = window.__game.camera;
-    c.position.set(x + 1.1, c.position.y, z + 1.1);
-    c.lookAt(x, y, z);
-    c.updateMatrixWorld(true);
-  }, position);
-  await page.waitForTimeout(700);
-}
 
 const findTarget = (id) => page.evaluate((targetId) => window.__game.targets().find((t) => t.id === targetId), id);
 const aimedId = () => page.evaluate(() => window.__game.lobby.aim.get());
@@ -278,13 +254,13 @@ for (const id of pickupIds) {
     continue;
   }
   await setThirdPerson(false);
-  await aimAt(item.position);
+  await aimAt(page, item.position);
   const aimed = await aimedId();
   check(`겨냥(${id})`, aimed === id, `겨냥된 것 = ${aimed}`);
   if (aimed !== id) continue;
   await page.keyboard.press("KeyE");
   await page.waitForTimeout(900);
-  const picked = await heldItem();
+  const picked = await heldItem(page);
   check(`집기(${id})`, picked !== null, `heldItem = ${picked}`);
   if (!picked) continue;
 
@@ -293,7 +269,7 @@ for (const id of pickupIds) {
   const errorsBefore = errors.length;
   await page.keyboard.press("KeyE");
   await page.waitForTimeout(1200);
-  check(`3인칭에서 놓기(${id})`, (await heldItem()) === null, `heldItem = ${await heldItem()}`);
+  check(`3인칭에서 놓기(${id})`, (await heldItem(page)) === null, `heldItem = ${await heldItem(page)}`);
   check(
     `놓는 동안 예외 없음(${id})`,
     errors.length === errorsBefore,
@@ -305,13 +281,13 @@ for (const id of pickupIds) {
 // ④⑤ 에서 쓸 물건을 다시 집어 둔다
 if (lastItem) {
   await setThirdPerson(false);
-  await aimAt(lastItem.position);
+  await aimAt(page, lastItem.position);
   await page.keyboard.press("KeyE");
   await page.waitForTimeout(900);
-  held = await heldItem();
+  held = await heldItem(page);
 }
 
-// ── ④ 시점 전환 때 든 물건이 튀지 않는가 ───────────────
+// ④ 시점 전환 때 든 물건이 튀지 않는가
 if (held) {
   const trail = page.evaluate(
     () =>
@@ -340,7 +316,7 @@ if (held) {
   check("시점 전환 때 물건이 안 튄다", maxJump < 0.3, `한 프레임 최대 ${maxJump.toFixed(3)} 유닛`);
   await page.waitForTimeout(900);
 
-  // ── ⑤ 3인칭에서 놓을 때 팔 IK 가 서서히 꺼지는가 ──────
+  // ⑤ 3인칭에서 놓을 때 팔 IK 가 서서히 꺼지는가
   await setThirdPerson(true);
   // 시각도 같이 적는다. 프레임당 변화량만 보면 긴 프레임 하나에 거짓 경보가 난다. 보려는 건 초당 속도다.
   const ikTrail = page.evaluate(
@@ -367,12 +343,12 @@ if (held) {
     if (dt > 0.004) ikRate = Math.max(ikRate, d / dt);
   }
   measurements.push(["팔 IK 세기 변화 속도", `${ikRate.toFixed(1)}/초 (한 프레임 최대 ${ikStep.toFixed(3)})`]);
-  // 예전엔 한 프레임에 떨어졌다(60fps 기준 51/초). 지금 가장 빠른 축은 뻗기 램프(6.3/초) 언저리다.
-  check("팔 IK 가 서서히 꺼진다", ikRate < 15, `${ikRate.toFixed(1)}/초 (예전 51/초)`);
-  check("물건 놓기", (await heldItem()) === null, `heldItem = ${await heldItem()}`);
+  // 한 프레임에 꺼지면 60fps 에서 51/초가 나온다. 정상이면 가장 빠른 축이 뻗기 램프(6.3/초) 언저리다.
+  check("팔 IK 가 서서히 꺼진다", ikRate < 15, `${ikRate.toFixed(1)}/초 (한 프레임에 꺼지면 51/초)`);
+  check("물건 놓기", (await heldItem(page)) === null, `heldItem = ${await heldItem(page)}`);
 }
 
-// ── ⑥ 의자 끌기 — 손 모양과 놓은 뒤 빈손 헛자세 ───────
+// ⑥ 의자 끌기 — 손 모양과 놓은 뒤 빈손 헛자세
 // 의자는 heldItem 이 null 인데 손은 쥐고 있는 유일한 경우라, 든 물건 기준 조건에서 조용히 어긋난다.
 const fistMorph = () =>
   page.evaluate(() => {
@@ -387,7 +363,7 @@ const fistMorph = () =>
 const chair = await findTarget("chair0");
 if (chair) {
   await setThirdPerson(false);
-  await aimAt(chair.position);
+  await aimAt(page, chair.position);
   const aimed = await aimedId();
   if (aimed !== "chair0") check("의자 겨냥", false, `겨냥된 것 = ${aimed}`);
   else {
@@ -405,9 +381,9 @@ if (chair) {
 
     // 아무것도 안 겨냥한 채 놓으면 팔이 클립 자세로 돌아가야 한다
     await page.evaluate(() => {
-      const c = window.__game.camera;
-      c.lookAt(c.position.x, c.position.y + 20, c.position.z);
-      c.updateMatrixWorld(true);
+      const camera = window.__game.camera;
+      camera.lookAt(camera.position.x, camera.position.y + 20, camera.position.z);
+      camera.updateMatrixWorld(true);
     });
     await page.waitForTimeout(300);
     await page.keyboard.press("KeyE"); // 놓기
@@ -424,7 +400,7 @@ if (chair) {
   }
 }
 
-// ── ⑦ 두 시점 프레임 시간 ───────────────────────────────
+// ⑦ 두 시점 프레임 시간
 for (const third of [false, true]) {
   await setThirdPerson(third);
   const ms = medianFrameMs(await walk(["KeyW"], 2));
@@ -434,7 +410,7 @@ for (const third of [false, true]) {
   ]);
 }
 
-// ── ⑧ 콘솔 오류 ────────────────────────────────────────
+// ⑧ 콘솔 오류
 check(
   "콘솔 오류",
   errors.length === 0,

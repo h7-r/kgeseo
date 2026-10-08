@@ -1,12 +1,11 @@
 import { Suspense, lazy, type CSSProperties } from "react";
 
-import { CORNER_BRACKETS } from "@/components/cornerBrackets";
 import { useMouseParallax } from "@/hooks/motion";
 import { FONT, gradientText } from "@/lib/style";
 import { START_GAME, useSiteNavigate } from "@/navigation/routes";
-import { COLOR, GRADIENT } from "@/styles/tokens";
+import { COLOR, CORNER_BRACKETS, GRADIENT } from "@/styles/tokens";
 
-import HeroVideoPlaceholder from "./HeroVideoPlaceholder";
+import HeroVideoFrame from "./HeroVideoFrame";
 
 // three.js 를 첫 번들에서 뺀다. 받는 동안은 같은 포스터가 보인다.
 const HeroVideo = lazy(() => import("@/sections/home/HeroVideo"));
@@ -29,7 +28,7 @@ export default function Hero({ top = 173 }: HeroProps) {
       style={{ ...sectionStyle, top: `${top}px`, transformOrigin: "center 38%", willChange: "transform, opacity" }}
     >
       {/* 제목·조준선(zIndex 1) 뒤(zIndex 0)에 깔린다. */}
-      <Suspense fallback={<HeroVideoPlaceholder />}>
+      <Suspense fallback={<HeroVideoFrame />}>
         <HeroVideo />
       </Suspense>
 

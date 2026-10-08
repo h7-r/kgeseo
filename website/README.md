@@ -25,19 +25,18 @@ npm run format          # Prettier 로 src/·website/ 서식 맞추기 (검사�
 ```
 src/
   main.tsx, App.tsx      진입점 · 라우트 · 3D 배경 · 페이지 전환
-  app/pageRegistry.ts    페이지 코드 분할(lazy)과 미리 받기
-  navigation/            주소 상수(routes.ts) · 하위 메뉴(subMenus.ts)
+  app/                   페이지 코드 분할(pageRegistry) · 첫 화면 뒤 미리 받기(boot) · 작은 전역 상태(siteState)
+  navigation/            주소 상수(routes.ts) · 하위 메뉴(subMenus.ts) · 구간 자리 재기
   pages/                 주소 하나에 대응하는 화면
   sections/<page>/       화면을 이루는 구간
-  layout/                머리띠 · 푸터 · 영상 모달 · 게임 전환 영상
-  components/            Stage · Modal · RegionPicker 등 공용 부품
-  hooks/                 스크롤 연출 · 근접 반응 · 폼 검사 · 영상 미리보기
-  services/              세션 · 계정 저장소(IndexedDB) · 비밀번호 재설정 · 소셜 로그인
-  state/                 작은 전역 상태(createStore + useSyncExternalStore)
-  lib/                   스타일 도우미 · 검증 · 검색 색인 · 이벤트
+  layout/                머리띠 · 푸터 · 게임 전환 영상 · 영상 모달(videoPlayer/)
+  components/            Stage · Modal · RegionPicker · 폼 부품(form/) 등 공용 부품
+  hooks/                 스크롤 연출 · 근접 반응 · 폼 상태·검사 · 영상 미리보기
+  services/              세션 · 비밀번호 재설정 · 계정(account/: 서버 인증 · IndexedDB · 소셜 로그인)
+  lib/                   배치 상수(layout.ts) · 스타일 도우미 · 검증 · 검색 색인 · 이벤트
   data/                  화면 문구 데이터
   three/                 3D 장면(lazy 로드)
-  styles/                전역 CSS (index.css 가 순서대로 import)
+  styles/                전역 CSS (index.css 가 순서대로 import) · 공용 색(tokens.ts)
   assets/images/         피그마에서 내보낸 그림
 ```
 

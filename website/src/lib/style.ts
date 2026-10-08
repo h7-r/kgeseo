@@ -49,7 +49,7 @@ export const FONT = {
 } as const;
 
 /** 배경에 번지는 파란 장식 빛을 남색 톤으로 눌러 준다. */
-export const decorGlowStyle: CSSProperties = { filter: "saturate(0.6) brightness(0.55)" };
+const decorGlowStyle: CSSProperties = { filter: "saturate(0.6) brightness(0.55)" };
 
 /** 칸을 꽉 채우는 그림. 전역 img 의 max-width 를 풀어야 칸보다 큰 글로우가 줄어들지 않는다. */
 export const fillImageStyle: CSSProperties = { display: "block", width: "100%", height: "100%", maxWidth: "none" };

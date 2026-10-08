@@ -5,7 +5,7 @@ import { ROUTES } from "@/navigation/routes";
 type PageModule<P> = { default: ComponentType<P> };
 
 /** lazy 페이지에 코드를 미리 받아 두는 preload() 를 붙인 것. */
-export type PreloadablePage<P extends object> = ComponentType<P> & {
+type PreloadablePage<P extends object> = ComponentType<P> & {
   preload: () => Promise<PageModule<P>>;
 };
 

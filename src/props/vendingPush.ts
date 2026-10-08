@@ -36,7 +36,7 @@ const strained = (t: number) => {
 export const pushOffset = () => strained(progress) * distance;
 /** 관이 쓰는 밀림(칸으로 끊어져 있다) */
 export const pipeOffset = () => steppedOffset;
-export const pushProgress = () => progress;
+const pushProgress = () => progress;
 
 function updateSteppedOffset() {
   const next = Math.round(pushOffset() / STEP_SIZE) * STEP_SIZE;
@@ -61,7 +61,7 @@ export function advancePush(open: number | boolean, dt: number, duration: number
   return progress;
 }
 
-// ── 컷신 ──
+// 컷신
 // 컷신 동안 걷기·마우스를 멈추는 판단은 App 껍데기가, 컷신은 씬 안 컴포넌트가 돌린다. 여기서 잇는다.
 let cutscenePlaying = false;
 export const isCutscenePlaying = () => cutscenePlaying;
@@ -111,7 +111,7 @@ export function setPush(value: number, target: number) {
 }
 
 /** 개발·시험용 */
-export function resetPush() {
+function resetPush() {
   progress = 0;
   steppedOffset = 0;
   cutsceneSeen = false;

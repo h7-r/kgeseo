@@ -284,7 +284,7 @@ export function buildPanelGeometries(layout: PanelLayout) {
   };
 }
 
-export type PanelGeometries = ReturnType<typeof buildPanelGeometries>;
+type PanelGeometries = ReturnType<typeof buildPanelGeometries>;
 
 export function disposePanelGeometries(geometries: PanelGeometries) {
   const { socket: socketParts, indicatorBolts, ...rest } = geometries;

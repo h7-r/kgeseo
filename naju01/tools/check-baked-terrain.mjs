@@ -3,16 +3,16 @@
 // 쓰는 법  node naju01/tools/check-baked-terrain.mjs <url>
 import { chromium } from "playwright";
 
+import { expandLevaFolders, startGame, toggleBakedTerrain } from "./headlessPage.mjs";
+
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
 const logs = [];
 page.on("console", (m) => {
-  const t = m.text();
-  if (t.startsWith("[새지형]")) logs.push(t);
+  const text = m.text();
+  if (text.startsWith("[새지형]")) logs.push(text);
 });
-await page.goto(process.argv[2], { waitUntil: "networkidle" });
-await page.waitForTimeout(2500);
-await page.keyboard.press("KeyT"); // 게임 시작 — 씬이 살아 있어야 계기판이 돈다
+await startGame(page, process.argv[2], 2500); // 씬이 살아 있어야 계기판이 돈다
 await page.waitForTimeout(2000);
 
 const countMeshes = () =>
@@ -21,20 +21,17 @@ const countMeshes = () =>
     if (!scene) return "씬 못 찾음";
     const watched = ["ground", "path", "slope", "cliffFace", "connectorRamp", "zone.sides"];
     const counts = {};
+    const isShown = (o) => {
+      for (let node = o; node; node = node.parent) if (!node.visible) return false;
+      return true;
+    };
     scene.traverse((o) => {
-      if (!o.isMesh || !o.geometry) return;
-      let visible = o.visible,
-        p = o.parent;
-      while (visible && p) {
-        visible = p.visible;
-        p = p.parent;
-      }
-      if (!visible || !watched.includes(o.name)) return;
+      if (!o.isMesh || !o.geometry || !isShown(o) || !watched.includes(o.name)) return;
       const g = o.geometry;
       const n = Math.round((g.index ? g.index.count : g.attributes.position.count) / 3);
       counts[o.name] = (counts[o.name] || 0) + n;
     });
-    // 판정도 같이 잰다 — 그림만 바뀌고 발밑이 안 바뀌면 예전 병이 도진다
+    // 판정도 같이 잰다 — 그림만 바뀌고 발밑이 안 바뀌면 보이는 땅과 밟는 땅이 갈린다
     const terrain = window.__game?.naju?.terrain;
     const samples = terrain
       ? [
@@ -49,21 +46,17 @@ const countMeshes = () =>
       : "-";
     return { ...counts, groundSamples: samples };
   });
-console.log("  [옛 지형]", JSON.stringify(await countMeshes()));
-await page.evaluate(() => {
-  for (let i = 0; i < 4; i++)
-    document.querySelectorAll('[class*="leva"] svg').forEach((s) => s.closest("div")?.parentElement?.click());
-});
-await page.waitForTimeout(1200);
-await page.evaluate(() => document.querySelectorAll('input[type="checkbox"]')[7].click());
+console.log("  [새 지형 끔]", JSON.stringify(await countMeshes()));
+await expandLevaFolders(page, 1200);
+await toggleBakedTerrain(page);
+// GLB 가 올 때까지 기다린다 — 성공 「준비됨」 · 실패 「못 읽었다」「못 만들었다」
 for (let i = 0; i < 12; i++) {
-  // GLB 가 올 때까지 기다린다
   await page.waitForTimeout(5000);
-  if (logs.some((l) => l.includes("준비됨") || l.includes("못 "))) break; // 성공 「준비됨」 · 실패 「못 읽었다」「못 만들었다」
+  if (logs.some((line) => line.includes("준비됨") || line.includes("못 "))) break;
 }
-// SwiftShader 는 한 프레임이 3~4 초라, 로그 뒤에도 이펙트 커밋까지 몇 프레임 더 기다린다(3 초로 오판한 적 있다)
+// 한 프레임이 3~4 초라, 로그 뒤에도 이펙트 커밋까지 몇 프레임 더 기다린다
 await page.waitForTimeout(20000);
-console.log("  [새 지형]", JSON.stringify(await countMeshes()));
+console.log("  [새 지형 켬]", JSON.stringify(await countMeshes()));
 console.log(
   "  진단:",
   await page.evaluate(() => {
@@ -71,7 +64,6 @@ console.log(
     return JSON.stringify({
       hasSetHeightTable: typeof terrain?.setHeightTable,
       useBlenderTerrain: window.__game?.naju?.controls?.useBlenderTerrain,
-      terrainObjectCount: window.__terrainSeen ? 1 : 1,
     });
   }),
 );

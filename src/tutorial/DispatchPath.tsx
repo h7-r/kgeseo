@@ -9,18 +9,18 @@ import * as THREE from "three";
 
 import { playerView } from "@/engine/playerView";
 
-import { tickDispatch, useDispatchState } from "./dispatch";
+import { DISPATCH_COLOR, tickDispatch, useDispatchState } from "./dispatch";
 
 type Point2 = [x: number, z: number];
 
-export interface RoomBounds {
+interface RoomBounds {
   minX: number;
   maxX: number;
   minZ: number;
   maxZ: number;
 }
 
-export interface DispatchDoor {
+interface DispatchDoor {
   x: number;
   z: number;
   distance: number;
@@ -29,7 +29,7 @@ export interface DispatchDoor {
 const CELL = 0.5;
 const ARROW_SPACING = 1.5;
 const MAX_ARROWS = 64;
-const ARROW_COLOR = new THREE.Color("#ffb25c"); // 경보의 주황 — 튜토리얼(하늘색)과 구분한다
+const ARROW_COLOR = new THREE.Color(DISPATCH_COLOR);
 const PERSON_RADIUS = 0.6;
 
 const NEIGHBORS: Point2[] = [
@@ -95,13 +95,13 @@ function findPath(
     return best;
   };
 
-  const s = nearestOpenCell(start);
-  const g = nearestOpenCell(goal);
-  if (s < 0 || g < 0) return null;
+  const startCell = nearestOpenCell(start);
+  const goalCell = nearestOpenCell(goal);
+  if (startCell < 0 || goalCell < 0) return null;
   const previous = new Int32Array(nx * nz).fill(-1);
-  previous[s] = s;
-  const queue = [s];
-  for (let k = 0; k < queue.length && previous[g] < 0; k += 1) {
+  previous[startCell] = startCell;
+  const queue = [startCell];
+  for (let k = 0; k < queue.length && previous[goalCell] < 0; k += 1) {
     const c = queue[k];
     const i = Math.floor(c / nz);
     const j = c % nz;
@@ -117,12 +117,12 @@ function findPath(
       queue.push(n);
     }
   }
-  if (previous[g] < 0) return null;
+  if (previous[goalCell] < 0) return null;
 
   const points: Point2[] = [];
-  for (let c = g; ; c = previous[c]) {
+  for (let c = goalCell; ; c = previous[c]) {
     points.push([cellX(Math.floor(c / nz)), cellZ(c % nz)]);
-    if (c === s) break;
+    if (c === startCell) break;
   }
   points.reverse();
 

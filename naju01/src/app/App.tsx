@@ -1,8 +1,9 @@
 /**
  * NAJU-01 그레이박스 껍데기. 본편 껍데기와 같은 구성(Leva · Canvas · T 키로 시작)이고,
  * 씬이 하나뿐이라 라우터가 없고 계기판이 그레이박스 전용이다.
+ * 순서: 에셋 받기(로딩 덮개) → 씬 한 번 세우기 → 몇 장 그린 뒤 덮개 걷기. 걷힌 뒤에는 다시 세울 것이 없다.
  */
-import { useEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import { memo, useEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { PerformanceMonitor, Preload } from "@react-three/drei";
@@ -15,15 +16,16 @@ import ChibiTestPanel from "../avatar/ChibiTestPanel";
 import SidekickCustomizerPanel from "../avatar/SidekickCustomizerPanel";
 import { readMeshAppearance, type MeshAppearanceConfig } from "../avatar/meshAppearance";
 import { readSidekickAppearance } from "../avatar/sidekickOptions";
-import { DEFAULT_TOON, type ToonConfig } from "../avatar/toonMaterial";
+import { DEFAULT_TOON } from "../avatar/toonMaterial";
 import { DEFAULT_OUTLINE } from "../avatar/toonOutline";
 import { BASELINE, UNITS_PER_METER, VIEWPOINTS } from "../plan/sitePlan";
-import NajuScene, { type NajuSceneReport } from "../scene/NajuScene";
+import NajuScene, { type NajuSceneReport, type NajuToonConfig } from "../scene/NajuScene";
 import { DEFAULT_TERRAIN } from "../terrain/terrain";
 import { ArrivalCover, FirstFrameSignal } from "../transition/ArrivalFade";
 import { useArrivalFade } from "../transition/useArrivalFade";
-import ControlsHelp from "./ControlsHelp";
 import Dashboard from "./Dashboard";
+import LoadingCover, { type LoadingProgress } from "./LoadingCover";
+import { prefetchNajuAssets } from "./prefetch";
 import {
   IS_ARRIVING_FROM_HUB,
   IS_BLOOM_DISABLED,
@@ -40,6 +42,7 @@ import {
   MAX_DPR,
   MESH_APPEARANCE_KEY,
   MIN_DPR,
+  MSAA_SAMPLES,
   SHOW_CUSTOMIZE_PANEL,
   SHOW_DEV_TOOLS,
   SHOW_LEVA,
@@ -48,9 +51,6 @@ import {
   USE_SIDEKICK_AVATAR,
 } from "./runtimeFlags";
 
-/** 나주 App 만 세계 툰 스위치(world)를 더 들고 다닌다 */
-export type NajuToonConfig = ToonConfig & { world?: boolean };
-
 type ViewMode = "1인칭" | "3인칭";
 
 // 시작 카메라 — V1 자리. Leva 저장값이 다르면 첫 프레임에 씬이 다시 앉힌다.
@@ -58,6 +58,12 @@ const START = VIEWPOINTS[0];
 const START_HEIGHT = (DEFAULT_TERRAIN.groundAt(START.x, START.z).y + BASELINE.eyeHeight) * UNITS_PER_METER;
 
 const toggleViewMode = (mode: ViewMode): ViewMode => (mode === "1인칭" ? "3인칭" : "1인칭");
+
+// 계기판 눈금·dpr·시점 단추만 바뀌어도 App 이 다시 그린다. 씬은 수천 줄짜리라 다시 도는 것만으로 무겁고,
+// 넘기는 prop 은 ref·state 라 안 바뀌면 같은 참조다.
+const MemoNajuScene = memo(NajuScene);
+// 덮개가 흐려지는(.4s) 뒤에 DOM 에서 뗀다
+const COVER_REMOVE_MS = 450;
 
 export default function App() {
   // 동적 해상도 — dpr 을 못 박으면 가장 나쁜 자리(Z1 마을)에 맞춰야 해서 한가한 곳의 성능을 버린다.
@@ -87,6 +93,38 @@ export default function App() {
   const [isDashboardVisible, setIsDashboardVisible] = useState(SHOW_DEV_TOOLS);
   // 첫 프레임이 그려지면 검은 덮개가 걷힌다
   const [isArrivalRevealed, revealArrival] = useArrivalFade(IS_ARRIVING_FROM_HUB);
+
+  const [loading, setLoading] = useState<LoadingProgress>({ done: 0, total: 0, label: "", phase: "fetching" });
+  const [isSceneReady, setIsSceneReady] = useState(false); // 다 받아서 씬을 붙여도 된다
+  const [isSceneDrawn, setIsSceneDrawn] = useState(false);
+  const [isCoverMounted, setIsCoverMounted] = useState(true);
+
+  useEffect(() => {
+    let isAlive = true;
+    let frame = 0;
+    prefetchNajuAssets((done, total, label) => {
+      if (isAlive) setLoading({ done, total, label, phase: "fetching" });
+    }).then(() => {
+      if (!isAlive) return;
+      setLoading((previous) => ({ ...previous, phase: "building" }));
+      // 「세우는 중」이 한 번 그려진 뒤에 붙인다 — 같은 틱이면 수 초짜리 동기 세우기가 먼저 와 「받는 중」에서 얼어 보인다
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          if (isAlive) setIsSceneReady(true);
+        });
+      });
+    });
+    return () => {
+      isAlive = false;
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSceneDrawn) return undefined;
+    const timer = setTimeout(() => setIsCoverMounted(false), COVER_REMOVE_MS);
+    return () => clearTimeout(timer);
+  }, [isSceneDrawn]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -124,40 +162,47 @@ export default function App() {
           far: 4000,
         }}
       >
-        <Preload all />
-        {/* factor 0(느림)~1(빠름). bounds 를 벌려 둬야 올림·내림이 번갈아 흔들리지 않고,
-            flipflops 세 번이면 그 자리에 머문다(발표 중 화면이 오르내리지 않게). */}
-        {IS_DPR_AUTO && (
-          <PerformanceMonitor
-            bounds={() => [50, 58]}
-            flipflops={3}
-            onChange={({ factor }) => {
-              const next = Math.round((MIN_DPR + (MAX_DPR - MIN_DPR) * factor) * 4) / 4;
-              setDpr((previous) => (previous === next ? previous : next));
-            }}
-          />
+        {/* 씬과 함께 붙인다 — 빈 캔버스에서 재면 fps 가 높게 나와 배율이 상한부터 올라가고, Preload 는 데울 것이 없다 */}
+        {isSceneReady && (
+          <>
+            {/* factor 0(느림)~1(빠름). bounds 를 벌려 둬야 올림·내림이 번갈아 흔들리지 않고,
+                flipflops 세 번이면 그 자리에 머문다(발표 중 화면이 오르내리지 않게). */}
+            {IS_DPR_AUTO && (
+              <PerformanceMonitor
+                bounds={() => [50, 58]}
+                flipflops={3}
+                onChange={({ factor }) => {
+                  const next = Math.round((MIN_DPR + (MAX_DPR - MIN_DPR) * factor) * 4) / 4;
+                  setDpr((previous) => (previous === next ? previous : next));
+                }}
+              />
+            )}
+            <MemoNajuScene
+              active={locked}
+              controlsRef={controlsRef}
+              onLockChange={setLocked}
+              reportRef={reportRef}
+              isThirdPerson={viewMode === "3인칭"}
+              sidekickConfig={sidekickConfig}
+              meshConfig={meshConfig}
+              toonConfig={toonConfig}
+              outlineConfig={outlineConfig}
+            />
+            {/* 씬 뒤에 둔다 — 붙는 순서대로 효과가 돌아 씬의 재질이 다 선 다음에 데운다 */}
+            <Preload all />
+            {/* 붙자마자 걷으면 셰이더 컴파일·첫 업로드가 걸린 프레임을 그대로 보게 된다 */}
+            <FirstFrameSignal frames={3} onFirstFrame={() => setIsSceneDrawn(true)} />
+            {IS_ARRIVING_FROM_HUB && <FirstFrameSignal onFirstFrame={revealArrival} />}
+          </>
         )}
-        {IS_ARRIVING_FROM_HUB && <FirstFrameSignal onFirstFrame={revealArrival} />}
-        <NajuScene
-          active={locked}
-          controlsRef={controlsRef}
-          onLockChange={setLocked}
-          reportRef={reportRef}
-          isThirdPerson={viewMode === "3인칭"}
-          sidekickConfig={sidekickConfig}
-          meshConfig={meshConfig}
-          toonConfig={toonConfig}
-          outlineConfig={outlineConfig}
-        />
-        {/* frameBufferType 을 꼭 준다 — 기본 HalfFloat 이면 이 씬의 3D 가 통째로 까맣다(Apple M5 Max · ANGLE Metal 실측).
-            Bloom 탓으로 보였지만 버퍼 탓이었다. ?fb=half 로 재현한다. */}
+        {/* frameBufferType 을 꼭 준다 — 기본 HalfFloat 이면 ANGLE Metal 에서 이 씬의 3D 가 통째로 까맣다(?fb=half 로 재현). */}
         {!IS_LOW_QUALITY && !IS_POSTFX_DISABLED && (
           <EffectComposer
-            multisampling={4}
+            multisampling={MSAA_SAMPLES}
             enableNormalPass={false}
             frameBufferType={USE_HALF_FLOAT_BUFFER ? THREE.HalfFloatType : THREE.UnsignedByteType}
           >
-            {/* ACES 는 본편처럼 기본 끔. 어두움의 범인이 아니었고 화풍 선택지로만 남긴다(?tm=on). */}
+            {/* ACES 는 본편처럼 기본 끔 — 화풍 선택지(?tm=on) */}
             {IS_TONE_MAPPING_ENABLED && <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />}
             {!IS_BLOOM_DISABLED && <Bloom intensity={0.35} luminanceThreshold={0.9} mipmapBlur />}
             {/* 본편과 같은 값 */}
@@ -185,6 +230,7 @@ export default function App() {
           setOutlineConfig={setOutlineConfig}
         />
       )}
+      {isCoverMounted && <LoadingCover progress={loading} fading={isSceneDrawn} />}
       {SHOW_CUSTOMIZE_PANEL && !meshConfig && (
         <SidekickCustomizerPanel
           config={sidekickConfig}
@@ -196,6 +242,41 @@ export default function App() {
     </div>
   );
 }
+
+/** (?dev) 조작 안내 — 잠그기 전에만 화면 아래에 뜬다 */
+function ControlsHelp() {
+  return (
+    <div style={helpStyle}>
+      <b>[T] 시작</b> · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · ESC 나가기 · <b>[V] 1·3인칭 전환</b> ·{" "}
+      <b>[E] 편집</b> · <b>[H] 계기판 숨기기</b>
+      <br />
+      <span style={mutedStyle}>
+        3인칭에서 마우스로 캐릭터 앞·뒤를 자유롭게 회전 · [1][2][3] V1·V2·V3 시점으로 이동(개발용)
+        <br />
+        [L] Leva 패널 · 낙하하면 마지막 안전 지점으로 복귀
+        <br />
+        Leva 아래쪽 「절벽높이·차단물높이·눈높이·FOV·걷기속도」가 문서 §9 의 미결값입니다 — 돌려 보고 정한 값은{" "}
+        <b>공간도면.js 에 박아야</b> 팀에 전달됩니다
+      </span>
+    </div>
+  );
+}
+
+const mutedStyle: CSSProperties = { color: "#8B94A6" };
+const helpStyle: CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  bottom: 18,
+  transform: "translateX(-50%)",
+  zIndex: 20,
+  padding: "8px 14px",
+  borderRadius: 8,
+  background: "rgba(14,18,26,.7)",
+  color: "#E6EBF4",
+  font: '12.5px/1.6 "Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif',
+  textAlign: "center",
+  pointerEvents: "none",
+};
 
 const hiddenHintStyle: CSSProperties = {
   position: "absolute",

@@ -34,7 +34,5 @@ export const MESH_NAMES = {
   terrainExport: "NAJU01_terrain",
 } as const;
 
-export type MeshName = (typeof MESH_NAMES)[keyof typeof MESH_NAMES];
-
 /** 왜곡 잔상 무리의 메시 이름 */
 export const distortionMeshName = (groupId: string) => `distortion.${groupId}`;

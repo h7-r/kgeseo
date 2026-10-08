@@ -5,7 +5,7 @@
 export const PANEL_WIDTH = 1024;
 export const PANEL_HEIGHT = 620;
 
-export interface Destination {
+interface Destination {
   id: string;
   /** 화면 표시 */
   name: string;
@@ -52,23 +52,23 @@ const KOREA_OUTLINE: readonly LonLat[] = [
 const JEJU: LonLat = [126.5, 33.4];
 const NAJU: LonLat = [126.72, 35.03];
 // 제주까지 들어오는 지도 범위
-const MIN_LON = 125.9,
-  MAX_LON = 129.75,
-  MIN_LAT = 33.0,
-  MAX_LAT = 38.7;
+const MIN_LON = 125.9;
+const MAX_LON = 129.75;
+const MIN_LAT = 33.0;
+const MAX_LAT = 38.7;
 
-export interface Rect {
+interface Rect {
   x: number;
   y: number;
   w: number;
   h: number;
 }
 
-const LIST_X = 560,
-  LIST_W = PANEL_WIDTH - LIST_X - 60,
-  ROW_H = 78,
-  ROW0_Y = 170,
-  ROW_GAP = 14;
+const LIST_X = 560;
+const LIST_W = PANEL_WIDTH - LIST_X - 60;
+const ROW_H = 78;
+const ROW0_Y = 170;
+const ROW_GAP = 14;
 export const rowRect = (i: number): Rect => ({ x: LIST_X, y: ROW0_Y + i * (ROW_H + ROW_GAP), w: LIST_W, h: ROW_H });
 export const SELECT_RECT: Rect = { x: LIST_X, y: PANEL_HEIGHT - 110, w: LIST_W / 2 - 12, h: 66 };
 export const RESET_RECT: Rect = { x: LIST_X + LIST_W / 2 + 12, y: PANEL_HEIGHT - 110, w: LIST_W / 2 - 12, h: 66 };
@@ -86,7 +86,7 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
   g.closePath();
 }
 
-export interface PanelState {
+interface PanelState {
   selectedId: string | null;
   isNear: boolean;
 }

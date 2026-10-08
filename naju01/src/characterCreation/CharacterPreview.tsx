@@ -23,9 +23,13 @@ import ChibiGameAvatar from "../avatar/ChibiGameAvatar";
 import { meshBodyUrl, meshShoesUrl, type MeshAppearanceConfig } from "../avatar/meshAppearance";
 import type { AvatarGender } from "../avatar/sidekickOptions";
 import { DEFAULT_TOON } from "../avatar/toonMaterial";
-import type { PreviewQuality, PreviewView } from "./previewViews";
 
-// 얼굴까지 확대해 보는 화면이라 딱 떨어지는 명암 계단이 낮은 폴리곤 모서리를 따라 목선에서 톱니로 보였다 — 경계를 조금 푼다.
+/** 담을 부위. upperBody 는 이름 단계 전용이다 */
+export type PreviewView = "full" | "head" | "hands" | "feet" | "upperBody";
+
+export type PreviewQuality = "low" | "medium" | "high";
+
+// 얼굴까지 확대해 보는 화면이라 딱 떨어지는 명암 계단이 낮은 폴리곤 모서리를 따라 목선에서 톱니로 보인다 — 경계를 조금 푼다.
 const PREVIEW_TOON = { ...DEFAULT_TOON, softness: 0.06 };
 
 /** 무대 칸 밖에서 UI 가 덮는 픽셀 — 카메라가 그 뒤로 캐릭터를 숨기지 않는다 */
@@ -56,7 +60,7 @@ function observationPose(view: PreviewView, pose: string): string {
   return view === "hands" && pose === "Idle_Loop" ? "A_TPose" : pose;
 }
 
-// 보통 dpr 1.25: 정지 프레임 비용 대부분이 그리기가 아니라 투명 캔버스 합성(픽셀 수 비례)이었다(dpr 1 이면 15.7ms 빠짐).
+// 보통 dpr 1.25: 정지 프레임 비용 대부분은 그리기가 아니라 투명 캔버스 합성(픽셀 수 비례)이다.
 const QUALITY_SETTINGS: Record<PreviewQuality, { dpr: [number, number]; shadowResolution: number; blur: number }> = {
   low: { dpr: [1, 1], shadowResolution: 256, blur: 2.2 },
   medium: { dpr: [1, 1.25], shadowResolution: 512, blur: 2.6 },
@@ -75,9 +79,9 @@ function parseFileKey(key: string): OutfitKeySource {
 }
 
 // ── 다음에 고를 옷을 미리 받아 둔다 ──
-// 옷은 전신 GLB(9.5~14.7MB)를 통째로 갈아 끼워 처음 고르는 조합은 몇 초 걸렸다. 한 벌을 보여 준 뒤 한가해지면
+// 옷은 전신 GLB(9.5~14.7MB)를 통째로 갈아 끼워 처음 고르는 조합은 몇 초 걸린다. 한 벌을 보여 준 뒤 한가해지면
 // 그 성별의 나머지 조합을 조용히 받아 둔다(반대 성별까지는 받지 않는다 — 100MB 를 다 받을 이유가 없다).
-// 한 번에 하나씩, 한가할 때만: 여덟 개를 한꺼번에 받았더니 동시 연결(6개)이 차서 이용자가 누른 옷이 3.0초 밀렸다.
+// 한 번에 하나씩, 한가할 때만: 한꺼번에 받으면 동시 연결(6개)이 차서 이용자가 누른 옷이 밀린다.
 // 작은 신발부터 받아 두면 몸이 오는 동안 짝이 준비된다.
 const OUTFIT_COMBOS = [
   { top: -1, bottom: -1 },
@@ -135,7 +139,7 @@ function createStandingState(): PlayerMotionState & { attackSerial: number; atta
   };
 }
 
-/** 새 착장 GLB 를 먼저 읽고, 다 읽히면 알린다 — 그 전에는 예전 모습을 그대로 보여 준다 */
+/** 새 착장 GLB 를 먼저 읽고, 다 읽히면 알린다 — 그 전에는 앞 모습을 그대로 보여 준다 */
 function ModelWarmup({
   config,
   fileKey,
@@ -156,7 +160,7 @@ function ModelWarmup({
 }
 
 // 캐릭터 상자는 정점을 훑지 않고 잰다. Box3.setFromObject 는 SkinnedMesh 마다 정점 9.8만 개를 모프·스키닝해
-// 옷을 갈아입을 때마다 576ms 를 먹었다. 지오메트리 상자(한 번 구우면 GLB 캐시에 남는다)를 세계 행렬로 옮겨 합친다.
+// 옷을 갈아입을 때마다 수백 ms 를 먹는다. 지오메트리 상자(한 번 구우면 GLB 캐시에 남는다)를 세계 행렬로 옮겨 합친다.
 // 쉴 때 자세 기준이라 동작에 따라 상자가 흔들리지 않아 카메라용으로 오히려 낫다.
 const pieceBox = new THREE.Box3();
 function groupBox(group: THREE.Object3D, target: THREE.Box3): THREE.Box3 {
@@ -268,7 +272,7 @@ function PreviewCamera({ orbit, view, heightScale, safeArea, reduceMotion, measu
   const keyLight = useRef<THREE.DirectionalLight>(null);
   const fillLight = useRef<THREE.DirectionalLight>(null);
   // 부위를 바꾸면 자세도 바뀐다(손 보기). 고른 순간 한 번만 재면 아직 바뀌기 전 손 좌표를 담아
-  // 손이 화면 밖으로 나갔다 — 자세가 건너가는 동안 몇 프레임 더 잰다.
+  // 손이 화면 밖으로 나간다 — 자세가 건너가는 동안 몇 프레임 더 잰다.
   const remeasureFrames = useRef(0);
 
   useEffect(() => {
@@ -443,7 +447,7 @@ export default function CharacterPreview({
     onLoadingChange?.(isLoading);
   }, [isLoading, onLoadingChange]);
 
-  // 보여 줄 한 벌이 붙고 한가해지면 나머지 조합을 하나씩 받는다. 성별이 바뀌면 옛 줄은 멈추고 다시 건다.
+  // 보여 줄 한 벌이 붙고 한가해지면 나머지 조합을 하나씩 받는다. 성별이 바뀌면 앞 줄은 멈추고 다시 건다.
   const gender = config.gender;
   useEffect(() => {
     let isAlive = true;
@@ -451,8 +455,7 @@ export default function CharacterPreview({
     return () => {
       isAlive = false;
     };
-    // displayKey 는 지금 보고 있는 것을 건너뛰는 데만 쓴다 — 바뀔 때마다 다시 걸 필요는 없다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- displayKey 는 지금 보는 조합을 건너뛰는 데만 쓴다
   }, [gender]);
 
   const handleWarmupReady = useCallback((key: string) => {
@@ -566,7 +569,7 @@ export default function CharacterPreview({
           />
           {/* 접지 그림자 두 장 — 발 밑은 또렷하게, 둘레는 넓고 흐리게(검은 원 한 장을 피한다).
               매 프레임 다시 굽는다(frames=1 이면 걷는 동안 그림자가 멈춘다).
-              넓은 쪽은 blur 로 흐려 해상도가 드러나지 않아 반의반으로 줄였다 — 둘이 정지 프레임의 25~30% 를 먹었다. */}
+              넓은 쪽은 blur 로 흐려 해상도가 드러나지 않아 반의반만 쓴다 — 그림자 굽기가 정지 프레임 비용의 큰 몫이다. */}
           <ContactShadows
             position={[0, 0.002, 0]}
             opacity={0.5}

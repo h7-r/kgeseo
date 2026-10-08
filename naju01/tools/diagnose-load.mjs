@@ -2,9 +2,9 @@
 // 쓰는 법  node naju01/tools/diagnose-load.mjs <url>
 //
 // 헤드리스(SwiftShader) fps 는 의미 없어, 그 시점에 프러스텀으로 잘라 남는 삼각형·드로우콜을 잰다.
-// 렌더러 판정을 흉내 내므로 자리별로 견줄 수 있다. 화면을 채우는 픽셀 비용은 안 잡힌다
-// (가까이 있는 큰 물건이 범인이면 따로 봐야 한다 — 구렁이가 그랬다).
-import { chromium } from "playwright";
+// 렌더러 판정을 흉내 내므로 자리별로 견줄 수 있다. 화면을 채우는 픽셀 비용은 안 잡히므로
+// 가까이 있는 큰 물건이 범인이면 따로 봐야 한다.
+import { logPageErrors, openHeadless, startGame } from "./headlessPage.mjs";
 
 const viewpoints = [
   ["Z1 나루터", 18, 38, -0.6],
@@ -19,40 +19,34 @@ const viewpoints = [
   ["구렁이 앞", 23, 41, -1.2],
 ];
 
-const browser = await chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
-const page = await browser.newPage({ viewport: { width: 1280, height: 760 } });
-page.on("pageerror", (e) => console.log("  pageerror:", (e.message || "").slice(0, 160)));
-await page.goto(process.argv[2], { waitUntil: "networkidle" });
-await page.waitForTimeout(3000);
-await page.keyboard.press("KeyT");
+const { browser, page } = await openHeadless({ width: 1280, height: 760 });
+logPageErrors(page, 160);
+await startGame(page, process.argv[2]);
 await page.waitForTimeout(22000);
 
 const measure = (x, z, heading) =>
   page.evaluate(
     ([X, Z, A]) => {
-      const naju = window.__game.naju,
-        THREE = naju.THREE;
+      const naju = window.__game.naju;
+      const THREE = naju.THREE;
       naju.teleport?.current?.(X, Z, A);
-      const c = naju.camera;
-      c.updateMatrixWorld();
-      c.updateProjectionMatrix();
+      const camera = naju.camera;
+      camera.updateMatrixWorld();
+      camera.updateProjectionMatrix();
       const frustum = new THREE.Frustum().setFromProjectionMatrix(
-        new THREE.Matrix4().multiplyMatrices(c.projectionMatrix, c.matrixWorldInverse),
+        new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
       );
+      const isShown = (o) => {
+        for (let node = o; node; node = node.parent) if (!node.visible) return false;
+        return true;
+      };
       const sphere = new THREE.Sphere();
-      let triangles = 0,
-        shadowTriangles = 0,
-        draws = 0;
+      let triangles = 0;
+      let shadowTriangles = 0;
+      let draws = 0;
       const byName = {};
       naju.scene.traverse((o) => {
-        if (!o.isMesh || !o.geometry) return;
-        let visible = o.visible,
-          p = o.parent;
-        while (visible && p) {
-          visible = p.visible;
-          p = p.parent;
-        }
-        if (!visible) return;
+        if (!o.isMesh || !o.geometry || !isShown(o)) return;
         const g = o.geometry;
         if (!g.boundingSphere) g.computeBoundingSphere();
         sphere.copy(g.boundingSphere).applyMatrix4(o.matrixWorld);

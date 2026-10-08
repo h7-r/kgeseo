@@ -6,6 +6,7 @@
 import type { CSSProperties } from "react";
 
 import { getHintFlashTime, useHintBox } from "./hintBox";
+import { GOLD } from "./panelStyles";
 
 interface HintHudProps {
   /** 힌트함 창이 열려 있다 — 숨기지 않고 더 진하게 띄운다 */
@@ -61,8 +62,6 @@ const FLASH_KEYFRAMES = `
   56%  { opacity: 1;   transform: translateX(1px);  box-shadow: 0 0 0 2px rgba(224,169,78,.45); }
   100% { opacity: .62; transform: translateX(0);    box-shadow: 0 0 0 0 rgba(224,169,78,0); }
 }`;
-
-const GOLD = "#e0a94e";
 
 const frameStyle: CSSProperties = {
   position: "absolute",

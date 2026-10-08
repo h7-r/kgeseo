@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
 import { Outlines } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { FLICKER_PATTERNS, type FlickerPattern } from "./flickerPatterns";
-import { fluorescentPanelTexture } from "./textures";
+import { FLICKER_PATTERNS, type FlickerPattern } from "./corridorLighting";
+import { fluorescentPanelTexture } from "./fixtureTextures";
 
 interface CorridorLightProps {
   x?: number;

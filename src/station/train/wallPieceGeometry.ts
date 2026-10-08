@@ -2,7 +2,7 @@ import * as THREE from "three";
 
 import { WALL_TEX_H, WALL_TEX_W } from "@/engine/textures/surfaces";
 
-export interface WallPieceGeometryOptions {
+interface WallPieceGeometryOptions {
   width: number;
   height: number;
   /** 판 가운데의 벽 좌표. UV 를 이만큼 밀어 옆 벽의 벽돌 무늬를 그대로 잇는다 */

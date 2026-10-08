@@ -8,7 +8,7 @@ import { Interactable } from "@/lobby/AimTracker";
 import { Highlight } from "@/lobby/Highlight";
 import { isOpen, toggleHinge } from "@/props/hingeState";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { worldPositionOf } from "@/props/shared/worldPosition";
+import { worldPositionOf } from "@/props/shared/aimTarget";
 
 interface BreakerSwitchProps {
   id: string;

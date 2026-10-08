@@ -3,12 +3,10 @@ import * as THREE from "three";
 
 import { CEIL_TEX, ceilingTexture, FLOOR_TEX, floorTexture } from "@/engine/textures/surfaces";
 import { TOON_GRADIENT } from "@/engine/toon";
-import { applySurfaceStains } from "@/station/vertexNoise";
 import { ROOM_CX, ROOM_CZ, ROOM_D, ROOM_H, ROOM_W } from "@/station/layout/dimensions";
-import Column from "@/station/room/Column";
-import RoomShell from "@/station/room/RoomShell";
-import type { StructureOutline } from "@/station/room/StructureOutlines";
+import RoomShell, { Column, type StructureOutline } from "@/station/room/RoomShell";
 import WallPanel from "@/station/room/WallPanel";
+import { applySurfaceStains } from "@/station/vertexNoise";
 
 import type { SurfaceValues } from "../controls/roomControls";
 
@@ -99,7 +97,7 @@ interface RoomStructureProps {
 
 /**
  * 방 껍데기 — 바닥·천장·벽·몰딩·기둥. 로비 상태(서랍·든 것)와 상관없이 Leva 값이 바뀔 때만 달라진다.
- * memo 로 감싸 서랍 한 칸 열 때 45ms 간격으로 네 번 오는 갱신에 이 가지를 통째로 건너뛰게 한다.
+ * memo 로 감싸 서랍 한 칸 열 때 여러 번 오는 갱신에 이 가지를 통째로 건너뛰게 한다.
  */
 function RoomStructure({ surface, outline, door, frontWallEndX, backWallEndX }: RoomStructureProps) {
   const floorMap = floorTexture(surface.floorSeed);

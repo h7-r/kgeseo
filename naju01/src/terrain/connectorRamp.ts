@@ -1,17 +1,18 @@
 // 코어 동쪽 끝에서 바깥 들판으로 내려가는 경사로.
-// 코어 동쪽 가장자리는 들판보다 6.7 m 높아(실측) 원경의 마을길이 허공에서 시작하고 있었다.
-// 도면 값이 아닌 새 설계(사용자 요청)라 §7 0단계 안건이다. T1~T4 와 고리 75.1 m 는 손대지 않았다.
+// 코어 동쪽 가장자리는 들판보다 6.7 m 높아, 이것이 없으면 원경의 마을길이 허공에서 시작한다.
+// 도면 밖 설계라 §7 0단계 안건이다. T1~T4 와 고리 75.1 m 는 건드리지 않는다.
 // 경사는 T3(14.9°)와 T4(26.6°) 사이 — 짐 지고 오르내리는 마을길이라 T4 만큼 가파르면 안 되고,
 // T3 만큼 눕히면 25 m 를 더 뻗어 원경 논밭을 가로지른다.
+
 import * as THREE from "three";
+
 import { CORE, UNITS_PER_METER } from "../plan/sitePlan";
 import { EARTH_WALL_STYLE } from "./cliff";
+import type { HeightAt } from "./ground";
 import { PATH_STYLE } from "./slopePaths";
 
-type HeightAt = (x: number, z: number) => number;
-
 const RAMP_DESIGN = {
-  // 시작은 코어 가장자리. 안쪽(75)에서 시작했더니 이미 내려가는 코어 땅 위로 최대 2.0 m 떴다.
+  // 시작은 코어 가장자리 — 안쪽에서 시작하면 이미 내려가는 코어 땅 위로 2 m 가까이 뜬다.
   start: [CORE.x[1], 12], // (80, 12)
   end: [CORE.x[1] + 23, 12], // (103, 12) — 마을길 들머리 (82, 12) 너머 들판
   width: 3.2, // 사람 둘이 지나갈 만큼
@@ -19,7 +20,7 @@ const RAMP_DESIGN = {
   floorDepth: 0.18, // 길바닥을 주변보다 이만큼 파 넣어야 다져진 길로 읽힌다
 } as const;
 
-export interface RampMeasurements {
+interface RampMeasurements {
   length: number;
   planLength: number;
   drop: number;
@@ -101,8 +102,7 @@ export function buildConnectorRamp({ coreHeight, outerHeight, cellsPerMeter = 0.
     return THREE.MathUtils.lerp(y, around, smooth(t));
   };
 
-  // ── 지오메트리 ──
-  // 길이 가장자리에서 5 m 넘게 떠 있어 갓길만 달면 허공을 가로지르는 널판이다.
+  // 지오메트리. 길이 가장자리에서 5 m 넘게 떠 있어 갓길만 달면 허공을 가로지르는 널판이다.
   // 진짜 산길처럼 안식각(33°)으로 흘러내리는 흙둑을 붙인다 — 높이차가 클수록 넓어진다.
   const restAngle = (33 * Math.PI) / 180;
   const restSlope = Math.tan(restAngle);

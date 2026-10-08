@@ -3,7 +3,7 @@ import { settingsStore } from "@/settings/settings";
 
 // 버튼 연타처럼 같은 소리가 겹쳐야 하고 지연이 적어야 해서 <audio> 대신 미리 디코드한 Web Audio 버퍼를 쓴다.
 // 이름은 public/sfx 파일 이름을 camelCase 로 옮긴 것. Vite 가 public 을 루트(/)로 서빙한다.
-export const SOUND_FILES = {
+const SOUND_FILES = {
   boxUp: "/sfx/box_up.mp3",
   boxDown: "/sfx/box_down.mp3",
   chair: "/sfx/chair.mp3",
@@ -29,12 +29,12 @@ export const SOUND_FILES = {
 
 export type SoundName = keyof typeof SOUND_FILES;
 
-export interface PlaySoundOptions {
+interface PlaySoundOptions {
   volume?: number;
   rate?: number;
 }
 
-export interface LoopOptions {
+interface LoopOptions {
   volume?: number;
 }
 
@@ -53,8 +53,8 @@ function sfxOutput(ctx: AudioContext) {
     master = ctx.createGain();
     master.gain.value = settingsStore.get().sfxVolume;
     master.connect(ctx.destination);
-    settingsStore.subscribe((settings) => {
-      if (master) master.gain.value = settings.sfxVolume;
+    settingsStore.subscribe(() => {
+      if (master) master.gain.value = settingsStore.get().sfxVolume;
     });
   }
   return master;
@@ -89,7 +89,7 @@ function load(name: SoundName): Promise<AudioBuffer | null> {
             resolve(null);
             return;
           }
-          // 콜백형 decodeAudioData — 옛 사파리 호환
+          // 콜백형 decodeAudioData — 구형 사파리도 받는다
           ctx.decodeAudioData(
             data,
             (buffer) => {
@@ -106,7 +106,7 @@ function load(name: SoundName): Promise<AudioBuffer | null> {
 }
 
 /** 모든 효과음을 미리 디코드한다. 사용자 입력 전에도 된다. */
-export function preloadSounds() {
+function preloadSounds() {
   for (const name of Object.keys(SOUND_FILES) as SoundName[]) void load(name);
 }
 
@@ -160,10 +160,6 @@ export function stopLoop(name: SoundName) {
     // 이미 멈춘 소스
   }
   loops.delete(name);
-}
-
-export function isLooping(name: SoundName) {
-  return loops.has(name);
 }
 
 // 브라우저는 첫 입력 전에는 소리를 막는다. 파일은 지금 받아 두고 컨텍스트는 첫 입력에 깨운다.

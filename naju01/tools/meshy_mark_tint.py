@@ -3,10 +3,9 @@
 #   Blender --background --factory-startup --python naju01/tools/meshy_mark_tint.py -- \
 #     --glb public/models/meshy-both-male.glb --out public/models/meshy-both-male.glb [--hair-nape 0.16]
 #
-# _tint: 0 = 그대로, 1 = 피부색 곱함, 2 = 의상색 곱함(툰재질.js 가 읽는다). 몸과 옷이 한 메시라
-# 재질로는 못 가르고, 런타임 텍스처 추정은 아틀라스 여백이 살빛이라 실패했다(툰재질.js 주석).
-# 여기서는 면마다 UV 중심의 텍스처 색을 HSV 로 보고(흰 옷·검은 옷 vs 살빛), 뼈 영역으로
-# 손·발·머리·아랫팔·종아리는 살로 못박은 뒤, 정점은 이웃 면의 다수결로 정한다.
+# _tint: 0 = 그대로, 1 = 피부색 곱함, 2 = 의상색 곱함(src/avatar/toonMaterial.ts 가 읽는다).
+# 몸과 옷이 한 메시라 재질로 못 가르고, 런타임 텍스처 추정은 아틀라스 여백이 살빛이라 믿을 수 없다.
+# 면마다 UV 중심의 색을 HSV 로 보고, 손·발·머리 같은 뼈 영역은 살로 못박은 뒤 정점은 이웃 면 다수결로 정한다.
 import argparse
 import colorsys
 import sys
@@ -22,21 +21,19 @@ parser.add_argument("--out", required=True)
 parser.add_argument("--hair-nape", type=float, default=0.0,
                     help="짧은 머리(variant 0) 뒤쪽 아랫부분을 이 비율만큼 아래로 늘린다(0 = 안 함)")
 parser.add_argument("--jpeg", type=int, default=85)
-# 상의 밑단을 이만큼(m) 올려 반바지로 칠한다(텍스처에서 밑단 띠를 반바지 색으로). 골반이 위로
-# 올라가 보인다. 몸·옷이 한 메시라 기하는 못 자르고 색만 바꾼다.
+# 상의 밑단을 이만큼(m) 올려 반바지 색으로 칠한다. 몸·옷이 한 메시라 기하는 못 자르고 색만 바꾼다.
 parser.add_argument("--shirt-shorten", type=float, default=0.0)
-# 상의(밝은 옷) 정점의 허벅지 웨이트를 골반으로 옮긴다. 자동 웨이트가 상의 밑단을 살처럼 허벅지에 묶어,
-# 걸을 때 앞 밑단은 앞다리를 따라 올라가고 뒤 밑단은 뒷다리를 따라 내려와 구부정해 보였다.
+# 상의 정점의 허벅지 웨이트를 골반으로 옮긴다. 자동 웨이트는 상의 밑단을 허벅지에 묶어 걸을 때 밑단이 다리를 따라간다.
 parser.add_argument("--shirt-to-pelvis", action="store_true")
-# 옷/살 경계가 삼각형 한가운데를 지나는 면을 다수결 색으로 통째로 칠한다. 텍스처 보간으로 검정이 살 쪽으로
-# 번지고, 다리가 움직여 삼각형이 늘어나면 번짐이 커졌다(반바지 밑단 뒤쪽). 경계를 삼각형 변에 맞춘다.
+# 반바지 밑단을 텍셀 단위로 다시 그린다. 경계가 삼각형 한가운데를 지나면 텍스처 보간으로 검정이
+# 살 쪽으로 번지고, 다리가 움직여 삼각형이 늘어나면 번짐이 커진다.
 parser.add_argument("--sharpen-hem", action="store_true")
 parser.add_argument("--fix-crossleg", action="store_true", help="한쪽 허벅지 0.8 이상 정점의 반대쪽 허벅지 웨이트를 지운다")
-# 고관절 둘레 골반↔허벅지 웨이트를 넓게(관절 위 3cm ~ 아래 9cm) 다시 편다. 자동 웨이트는 4cm 안에서 급하게
-# 넘어가 다리를 앞으로 들면 앞쪽 살이 접히며 면이 깨져 보였다.
+# 고관절 둘레 골반↔허벅지 웨이트를 넓게(관절 위 3cm ~ 아래 9cm) 다시 편다. 자동 웨이트는 너무 급하게
+# 넘어가 다리를 들면 앞쪽 살이 접혀 깨져 보인다.
 parser.add_argument("--smooth-hip", action="store_true")
-# 팔꿈치 둘레 위팔↔아래팔 웨이트를 넓게(관절 ±4.5cm) 다시 편다. 자동 웨이트는 3cm 안에서 급하게
-# 넘어가, 팔을 굽히면 팔꿈치가 각지게 꺾여 보였다(실측: -0.02 에서 0.85, +0.01 에서 0.70 으로 뒤집힘).
+# 팔꿈치 둘레 위팔↔아래팔 웨이트를 넓게(관절 ±4.5cm) 다시 편다. 자동 웨이트는 너무 급하게 넘어가
+# 팔을 굽히면 팔꿈치가 각지게 꺾인다.
 parser.add_argument("--smooth-elbow", action="store_true")
 args = parser.parse_args(argv)
 
@@ -127,12 +124,12 @@ def mark_tint(obj):
         pelvis = obj.vertex_groups.get("pelvis")
         thighs = [gi[n] for n in ("thigh_l", "thigh_r", "thigh_twist_01_l", "thigh_twist_01_r") if n in gi]
         M = obj.matrix_world
-        # 상의 = 반바지 허리선 위의 옷 정점. 밝기만 보면 반바지 밑단 경계 정점(옆 살이 밝다)까지 상의로
-        # 오인해 골반에 묶여, 다리가 움직일 때 밑단이 톱니처럼 찢어졌다(실제로 그랬다).
+        # 상의 = 반바지 허리선 위의 옷 정점. 밝기만 보면 반바지 밑단 경계 정점(옆 살이 밝다)까지
+        # 골반에 묶여 다리가 움직일 때 밑단이 톱니처럼 찢어진다.
         dark_tops = [(M @ v.co).z for v in me.vertices
                      if smoothed[v.index] == 2.0 and vert_faces[v.index] and face_val[vert_faces[v.index]].mean() < 0.5]
-        # 허리선 6cm 아래까지는 상의로 본다(1.5cm 로 두니 허리선 밑 상의 정점이 허벅지에 남아 뒤 허리선에
-        # 계단 홈이 생겼다). 반바지 밑단은 허리선 18cm 아래라 걸리지 않는다.
+        # 허리선 6cm 아래까지는 상의로 본다(더 좁으면 뒤 허리선에 계단 홈이 생긴다).
+        # 반바지 밑단은 허리선 훨씬 아래라 걸리지 않는다.
         shirt_floor = (max(dark_tops) - 0.06) if dark_tops else -1.0
         moved = 0
         for v in me.vertices:
@@ -151,8 +148,8 @@ def mark_tint(obj):
             moved += 1
         print(f"SHIRT_PELVIS_OK moved={moved}")
 
-        # 반바지 허리띠도 골반을 따른다. 상의만 골반에 묶으면 상의/반바지 경계 삼각형이 늘어나 흑백 경계가
-        # 톱니처럼 번졌다. 반바지 윗부분 4cm 는 골반, 그 아래 6cm 는 골반→허벅지로 서서히 넘긴다.
+        # 반바지 허리띠도 골반을 따라야 상의/반바지 경계 삼각형이 늘어나지 않는다.
+        # 반바지 윗부분 4cm 는 골반, 그 아래 6cm 는 골반→허벅지로 서서히 넘긴다.
         M = obj.matrix_world
         dark_top = max(((M @ v.co).z for v in me.vertices
                         if smoothed[v.index] == 2.0 and vert_faces[v.index] and face_val[vert_faces[v.index]].mean() < 0.5), default=None)
@@ -177,8 +174,8 @@ def mark_tint(obj):
                 band += 1
         print(f"WAISTBAND_OK top={dark_top} verts={band}")
 
-    # 반대쪽 다리 웨이트 누수 제거 — 왼다리 정점에 오른 허벅지가 2% 섞여 있으면 오른다리가 크게 나갈 때
-    # 반바지 밑단이 끌려가 색이 바깥으로 번진다. 한쪽 허벅지가 0.8 이상이면 반대쪽은 지우고 정규화한다.
+    # 반대쪽 다리 웨이트 누수 제거 — 조금만 섞여도 반대 다리가 크게 나갈 때 밑단이 끌려간다.
+    # 한쪽 허벅지가 0.8 이상이면 반대쪽은 지우고 정규화한다.
     gi = {g.name: g.index for g in obj.vertex_groups}
     pairs = [(gi.get("thigh_l"), gi.get("thigh_r"), gi.get("thigh_twist_01_r")), (gi.get("thigh_r"), gi.get("thigh_l"), gi.get("thigh_twist_01_l"))]
     fixed = 0
@@ -244,9 +241,8 @@ def mark_tint(obj):
             elbow = rig.matrix_world @ rig.data.bones[f"lowerarm_{side}"].head_local
             wrist = rig.matrix_world @ rig.data.bones[f"hand_{side}"].head_local
             axis = (wrist - elbow).normalized()
-            # 뼈 팔꿈치는 살의 팔꿈치와 어긋나 있다(여성 실측 2.2cm 손목 쪽). 그대로 섞으면 굽는 자리가
-            # 살의 팔꿈치와 달라 팔이 두 토막처럼 끊겨 보인다. 팔 단면이 가장 가는 곳을 찾아 거기를
-            # 섞음의 한가운데로 삼는다.
+            # 뼈 팔꿈치는 살의 팔꿈치와 어긋나 있어 그대로 섞으면 팔이 두 토막처럼 끊겨 보인다.
+            # 팔 단면이 가장 가는 곳을 섞음의 한가운데로 삼는다.
             long = (wrist - shoulder)
             LA = long.length
             la = long.normalized()
@@ -295,32 +291,12 @@ def mark_tint(obj):
         sharpen_boundary(obj, image, px, uv)
 
 
-def fill_triangle(px, w, h, pts, col):
-    for k in range(1, len(pts) - 1):
-        tri = [pts[0], pts[k], pts[k + 1]]
-        xs = [p[0] for p in tri]
-        ys = [p[1] for p in tri]
-        x0, x1 = max(0, int(min(xs)) - 1), min(w - 1, int(max(xs)) + 1)
-        y0, y1 = max(0, int(min(ys)) - 1), min(h - 1, int(max(ys)) + 1)
-        if x1 < x0 or y1 < y0:
-            continue
-        X, Y = np.meshgrid(np.arange(x0, x1 + 1) + 0.5, np.arange(y0, y1 + 1) + 0.5)
-        (ax, ay), (bx, by), (cx, cy) = tri
-        det = (bx - ax) * (cy - ay) - (cx - ax) * (by - ay)
-        if abs(det) < 1e-9:
-            continue
-        l1 = ((bx - X) * (cy - Y) - (cx - X) * (by - Y)) / det
-        l2 = ((cx - X) * (ay - Y) - (ax - X) * (cy - Y)) / det
-        l3 = 1 - l1 - l2
-        eps = -0.5
-        mask = (l1 >= eps) & (l2 >= eps) & (l3 >= eps)
-        px[y0:y1 + 1, x0:x1 + 1, :3][mask] = col
-
-
 def sharpen_boundary(obj, image, px, uv):
-    """반바지 밑단을 텍셀 단위로 다시 그린다. 텍셀마다 3D 높이를 구해(면 안 무게중심 보간) 밑단선 위는
-    반바지색, 아래는 살색으로 칠한다 — 경계가 삼각형 배치와 무관하게 매끈한 선이 된다.
-    (면 단위로 칠했더니 UV 가 길쭉한 면에서 줄무늬가 생겼다.)"""
+    """반바지 밑단을 텍셀 단위로 다시 그린다.
+
+    텍셀마다 3D 높이를 구해 밑단선 위는 반바지색, 아래는 살색으로 칠해 경계가 삼각형 배치와
+    무관한 매끈한 선이 된다(면 단위로 칠하면 UV 가 길쭉한 면에서 줄무늬가 생긴다).
+    """
     me = obj.data
     w, h = image.size
     M = obj.matrix_world
@@ -377,9 +353,8 @@ def sharpen_boundary(obj, image, px, uv):
     if not dark.any() or not light.any():
         print("SHARPEN_SKIP no boundary")
         return
-    # 2) 밑단선: 다리마다(x 부호), 다리 둘레 각도 구간(16개)마다 어두운 텍셀 비율이 50% 아래로 떨어지는
-    #    높이를 밑단으로 본다(어두운 z 의 하위 백분위는 번진 텍셀에 끌려 너무 낮게 잡혔다). 구간 사이는 각도로
-    #    연속 보간해 계단이 생기지 않게 한다. 밑단이 수평이 아니어도(앞이 낮은 반바지) 따라간다.
+    # 2) 밑단선: 다리마다, 둘레 각도 구간마다 어두운 텍셀 비율이 50% 아래로 떨어지는 높이(하위 백분위는
+    #    번진 텍셀에 끌려 너무 낮다). 구간 사이는 각도로 이어 보간해 기울어진 밑단도 계단 없이 따라간다.
     NB = 16
     SLICE = 0.005
     hem = {}
@@ -435,7 +410,7 @@ def sharpen_boundary(obj, image, px, uv):
         if hem[side] is None:
             continue
         per, hz = hem[side]
-        # 밑단 위 3cm ~ 아래 8cm 를 다시 그린다(번진 검정은 밑단 아래 몇 cm 까지 내려와 있었다).
+        # 밑단 위 3cm ~ 아래 8cm 를 다시 그린다(번진 검정이 밑단 아래 몇 cm 까지 내려와 있다).
         band = have & sel & (tex_z < hz + 0.03) & (tex_z > hz - 0.08)
         above = band & (tex_z >= hz)
         below = band & (tex_z < hz)
@@ -529,8 +504,8 @@ def lower_back_hair(obj, ratio):
     ys = [p.y for p in pts]
     cy = (min(ys) + max(ys)) / 2
     radius = (max(ys) - min(ys)) / 2
-    # 정수리 쪽까지 같이 내리면 뒤통수 윗부분 머리가 두개골 안으로 들어가 살이 머리 위로 비친다
-    # (실제로 그랬다). 머리 높이의 아래 절반에서만, 아래로 갈수록 세게 늘린다.
+    # 정수리까지 내리면 뒤통수 윗부분이 두개골 안으로 들어가 살이 비치므로,
+    # 머리 높이의 아래 절반에서만 아래로 갈수록 세게 늘린다.
     mid = crown - (crown - bottom) * 0.5
     moved = 0
     # 셰이프키가 있으면 내보내기는 키 데이터를 쓴다 — 정점과 모든 키를 같이 옮긴다.

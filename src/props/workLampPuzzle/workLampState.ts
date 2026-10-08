@@ -24,7 +24,7 @@ export type WorkLampLocation = "floor" | "hand" | JunctionSlot;
 
 const isJunctionSlot = (value: string): value is JunctionSlot => (JUNCTION_SLOTS as readonly string[]).includes(value);
 
-// ⟦그림 퍼즐⟧ 창 여섯 — 사람과 처음 불이 일부러 엇갈려 네 경우가 다 있다.
+// 그림 퍼즐의 창 여섯 — 사람과 처음 불이 일부러 엇갈려 네 경우가 다 있다.
 export const WINDOW_COUNT = 6;
 /** 1 = 그 창에 사람이 있다. 그림과 답이 같은 값을 본다. */
 export const LAST_TRAIN_PASSENGERS = "101101";
@@ -32,11 +32,11 @@ const INITIAL_LIGHTS = "100110";
 const initialLights = () => [...INITIAL_LIGHTS].map((c) => c === "1");
 
 /**
- * ⟦스위치 안 퍼즐⟧ 선 셋은 전부 같은 회색이고 끝의 접속 모양으로 맞춘다.
+ * 스위치 안 퍼즐 선 셋은 전부 같은 회색이고 끝의 접속 모양으로 맞춘다.
  * 배전반이 색으로 맞추니 또 색을 쓰면 같은 퍼즐을 두 번 하는 것이다(색맹과도 무관하다).
  */
 export type WireShape = "round" | "square" | "triangle";
-const WIRE_SHAPES: readonly WireShape[] = ["round", "square", "triangle"];
+export const WIRE_SHAPES: readonly WireShape[] = ["round", "square", "triangle"];
 /** 화면에 보이는 모양 이름 */
 export const WIRE_SHAPE_LABELS: Record<WireShape, string> = {
   round: "둥근",
@@ -49,7 +49,7 @@ export type TrashBin = "general" | "plastic";
 export type TrashId =
   "petBottle" | "detergentBottle" | "yogurtBottle" | "takeoutCup" | "toothbrush" | "straw" | "receipt" | "tissue";
 
-export interface TrashItem {
+interface TrashItem {
   id: TrashId;
   /** 화면에 보이는 이름 */
   name: string;
@@ -75,7 +75,7 @@ export const TRASH_ITEMS: readonly TrashItem[] = [
 export const BIN_LABELS: Record<TrashBin, string> = { general: "일반쓰레기", plastic: "플라스틱" };
 const isTrashBin = (value: string): value is TrashBin => Object.hasOwn(BIN_LABELS, value);
 
-export type TrashPlace = "floor" | TrashBin;
+type TrashPlace = "floor" | TrashBin;
 
 interface WorkLampState {
   location: WorkLampLocation;
@@ -89,7 +89,7 @@ interface WorkLampState {
   fullPower: boolean;
   /** 램프가 지금 놓인 자리. null 이면 Leva 의 첫 자리 — 아무 데나 둬야 한 손 규칙에서 손을 비운다. */
   floorSpot: Vector3Tuple | null;
-  /** ⟦이어지는 퍼즐⟧ 끝문(비상계단) 전기 잠금을 풀었나 */
+  /** 이어지는 퍼즐 끝문(비상계단) 전기 잠금을 풀었나 */
   endDoorReleased: boolean;
   heldWire: WireShape | null;
   /** 꽂는 자리 → 꽂힌 가닥 */
@@ -104,7 +104,7 @@ interface WorkLampState {
   rejectingBin: TrashBin | null;
   /** 통마다 몫을 다 채워 전류가 흐르기 시작한 시각(초) */
   flowStartedAt: Record<TrashBin, number>;
-  /** ⟦그림 퍼즐⟧ 스위치 하나가 창 하나의 불. 사람 있는 창은 켜고 빈 창은 끄면 완전 전원. */
+  /** 그림 퍼즐 스위치 하나가 창 하나의 불. 사람 있는 창은 켜고 빈 창은 끄면 완전 전원. */
   windowSwitches: boolean[];
 }
 
@@ -132,20 +132,17 @@ const state: WorkLampState = {
 const signal = createChangeSignal();
 
 export const workLampLocation = () => state.location;
-export const isWorkLampHeld = () => state.location === "hand";
 /**
  * 이 퍼즐 물건(램프·전선 가닥·쓰레기)으로 손이 찼나.
  * 다른 퍼즐의 한 손 규칙은 이걸 본다 — 램프만 보면 쓰레기를 든 채 동전을 또 집는다.
  */
 export const isWorkLampPuzzleHandFull = () => state.location === "hand" || !!state.heldWire || !!state.heldTrash;
-/** 어느 분기함에 꽂혀 있나 */
-export const pluggedSlot = () => (isJunctionSlot(state.location) ? state.location : null);
 
 /**
  * 이미 손이 찼나 — 램프를 집을 수 있는지의 기준.
  * 반대 방향(동전·관창 쪽에서 램프를 보는 것)은 순환 import 가 되므로 App 의 disabled 에서 막는다.
  */
-export function handsFull() {
+function handsFull() {
   if (heldCoin()) return true;
   if (nozzleLocation() === "hand") return true;
   if (state.heldWire) return true;
@@ -193,7 +190,6 @@ export function dropWorkLamp(spot: Vector3Tuple | null = null) {
 /** 램프가 지금 놓인 자리(없으면 null — 부르는 쪽이 첫 자리를 쓴다) */
 export const workLampFloorSpot = () => state.floorSpot;
 
-export const hasSeenMark = (slot: JunctionSlot) => state.seenMarks.includes(slot);
 /** 세 칸을 다 읽었나 — 차단기함 자물쇠를 만질 이유가 생기는 시점 */
 export const hasSeenAllMarks = () => JUNCTION_SLOTS.every((k) => state.seenMarks.includes(k));
 
@@ -223,10 +219,9 @@ export function releaseEndDoor() {
   return true;
 }
 
-// ── ⟦스위치 안 퍼즐⟧ 선 연결 ──
+// 스위치 안 퍼즐 — 선 연결
 export const heldWireShape = () => state.heldWire;
 export const pluggedWires = () => state.pluggedWires;
-export const wireSparkAt = () => state.wireSparkAt;
 /** 이 가닥이 지금 빠져 늘어져 있나 */
 export const isWireDangling = (shape: WireShape) =>
   state.heldWire !== shape &&
@@ -234,7 +229,7 @@ export const isWireDangling = (shape: WireShape) =>
   state.pluggedWires.square !== shape &&
   state.pluggedWires.triangle !== shape;
 /** 셋이 다 제자리에 꽂혔나 — 레버를 올릴 수 있는 조건 */
-export const isWiringCorrect = () =>
+const isWiringCorrect = () =>
   state.pluggedWires.round === "round" &&
   state.pluggedWires.square === "square" &&
   state.pluggedWires.triangle === "triangle";
@@ -292,7 +287,7 @@ export function plugWireInto(socket: string) {
   return true;
 }
 
-// ── ⟦분리수거 퍼즐⟧ ──
+// 분리수거 퍼즐
 // 일반·플라스틱 두 통은 전선으로 맞은편 그림 액자에 이어져 있다. 한 통의 몫을 다 채우면
 // 그 선으로 전류가 흐르고, 둘 다 흐르면 그림의 창에 불이 든다.
 export const heldTrash = () => state.heldTrash;
@@ -355,10 +350,10 @@ export const flowStartedAt = (bin: TrashBin) => state.flowStartedAt[bin];
 /** 두 통 다 흐른다 — 그림 액자에 전기가 들어왔다 */
 export const isPaintingPowered = () => isBinComplete("general") && isBinComplete("plastic");
 
-// ── ⟦그림 퍼즐⟧ 객차 조명 시험반 ──
+// 그림 퍼즐 — 객차 조명 시험반
 export const windowSwitch = (index: number) => state.windowSwitches[index];
 /** "100110" 처럼 켬 = 1. 그림 속 창의 불도 이 값을 따른다. */
-export const windowSwitchKey = () => state.windowSwitches.map((v) => (v ? "1" : "0")).join("");
+const windowSwitchKey = () => state.windowSwitches.map((v) => (v ? "1" : "0")).join("");
 /**
  * 시험반 스위치 하나를 젖힌다. 사람 있는 창만 켜진 그 순간 완전 전원이 들어오고 스위치가 잠긴다
  * (다시 끄면 복도가 도로 꺼지는 건 벌이지 퍼즐이 아니다).
@@ -378,7 +373,7 @@ export function toggleWindowSwitch(index: number) {
 }
 
 /** 처음부터 다시(개발용) */
-export function resetWorkLamp() {
+function resetWorkLamp() {
   state.location = "floor";
   state.seenMarks = [];
   state.power = false;
@@ -401,7 +396,7 @@ export function resetWorkLamp() {
   signal.notify();
 }
 
-// ── 구독 훅 ── 전부 원시값을 돌려준다. 객체는 판마다 참조가 달라 전부 다시 그린다.
+// 구독 훅 — 전부 원시값을 돌려준다. 객체는 판마다 참조가 달라 전부 다시 그린다.
 const subscribe = signal.subscribe;
 export const useWorkLampLocation = () => useSyncExternalStore(subscribe, workLampLocation, workLampLocation);
 export const useCorridorPower = () => useSyncExternalStore(subscribe, corridorPower, corridorPower);
@@ -419,9 +414,6 @@ const pluggedKey = () =>
   `${state.pluggedWires.round ?? "-"}|${state.pluggedWires.square ?? "-"}|${state.pluggedWires.triangle ?? "-"}`;
 /** 꽂힌 상태를 문자열로 구독한다 */
 export const usePluggedWiresKey = () => useSyncExternalStore(subscribe, pluggedKey, pluggedKey);
-export const useSeenAllMarks = () => useSyncExternalStore(subscribe, hasSeenAllMarks, hasSeenAllMarks);
-/** 판 번호 — "뭔가 바뀌었다"만 알면 되는 곳 */
-export const useWorkLampVersion = () => useSyncExternalStore(subscribe, signal.version, signal.version);
 
 // 헤드리스 시험은 포인터 잠금이 없어 걸어 다닐 수 없다. 꽂힌 상태를 밖에서 만든다.
 exposeDevHook("workLamp", {

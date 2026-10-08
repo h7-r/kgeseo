@@ -25,7 +25,7 @@ export const TERMS_HEIGHTS: Record<TermsTabId, number> = {
 };
 
 /** title 문서 이름 · article 조문 제목 · body 본문 줄 묶음 */
-export type TermsSection =
+type TermsSection =
   { kind: "title"; text: string } | { kind: "article"; text: string } | { kind: "body"; lines: readonly string[] };
 
 const EFFECTIVE_DATE = "2026년 1월 1일";

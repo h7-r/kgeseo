@@ -5,7 +5,7 @@ import { runWhenIdle } from "@/lib/idle";
 import { clamp01 } from "@/lib/math";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 
-import { heroVideoBoxStyle, heroVideoShadeStyle } from "./heroVideoStyles";
+import HeroVideoFrame from "./HeroVideoFrame";
 
 /**
  * 히어로 배경 영상 — WebGL 왜곡 + 스크롤 스크럽.
@@ -376,7 +376,7 @@ function mount(container: HTMLElement): (() => void) | undefined {
   };
 }
 
-/** 히어로 배경. three.js 를 부르므로 lazy 로 떼어 쓰고, 받는 동안 HeroVideoPlaceholder 를 보여 준다. */
+/** 히어로 배경. three.js 를 부르므로 lazy 로 떼어 쓰고, 받는 동안 Hero 가 같은 HeroVideoFrame 을 보여 준다. */
 export default function HeroVideo() {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -399,10 +399,5 @@ export default function HeroVideo() {
     };
   }, []);
 
-  return (
-    <>
-      <div ref={containerRef} style={heroVideoBoxStyle} aria-hidden="true" />
-      <div style={heroVideoShadeStyle} aria-hidden="true" />
-    </>
-  );
+  return <HeroVideoFrame boxRef={containerRef} />;
 }

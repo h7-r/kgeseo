@@ -7,9 +7,9 @@
 #
 # 나무·바위처럼 인스턴스 무리로 심는 것은 개체마다 텍스처를 물리면 묶음이 쪼개진다.
 # 재질이 이미 vertexColors 를 쓰므로 색을 정점에 구워 두면 그대로 꽂힌다.
-# 순서: 원본 해상도에서 색을 뜬 다음에 줄인다(거꾸로면 무늬가 뭉갠다).
+# 원본 해상도에서 색을 뜬 다음에 줄인다(거꾸로면 무늬가 뭉개진다).
 
-import bpy, sys, os, math
+import bpy, sys, os
 import numpy as np
 
 args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -40,11 +40,9 @@ me = ob.data
 print(f"  불러옴: {len(me.polygons):,} 면 · {len(me.vertices):,} 꼭짓점")
 
 
-
 # 규약 맞추기 — Meshy 원본은 원점이 몸통 한가운데라 그대로면 절반이 땅에 박힌다.
 # glTF Y = 블렌더 Z · glTF Z = −블렌더 Y 라 「glTF Z 폭 1」은 블렌더 Y 폭 1 이다.
 def fit_convention(ob, convention, size=0.8):
-    import mathutils
     me = ob.data
     co = np.empty(len(me.vertices) * 3, dtype=np.float32)
     me.vertices.foreach_get("co", co)
@@ -73,6 +71,7 @@ def fit_convention(ob, convention, size=0.8):
     print(f"  규약 «{convention}» 맞춤 — 블렌더 폭 "
           f"{final[0]:.4f} × {final[1]:.4f} × {final[2]:.4f} (배율 {factor:.5f})")
     print(f"    → glTF 폭 x {final[0]:.4f} · y {final[2]:.4f} · z {final[1]:.4f}")
+
 
 def base_color_image(ob):
     """재질에서 베이스컬러에 물린 이미지 — 러프니스·노멀 맵을 집으면 회색 덩어리가 된다."""
@@ -124,7 +123,7 @@ top = pixels[y0, x0, :3] * (1 - fx) + pixels[y0, x1, :3] * fx
 bottom = pixels[y1, x0, :3] * (1 - fx) + pixels[y1, x1, :3] * fx
 color = top * (1 - fy) + bottom * fy
 
-# sRGB → 선형. 블렌더가 돌려준 값이 sRGB 였다(평균 0.3 대) — 안 바꾸면 허옇게 뜬다.
+# sRGB → 선형. 블렌더가 돌려주는 픽셀 값은 sRGB 라 안 바꾸면 허옇게 뜬다.
 clamped = np.clip(color, 0.0, 1.0)
 linear = np.where(clamped <= 0.04045, clamped / 12.92, ((clamped + 0.055) / 1.055) ** 2.4)
 color4 = np.ones((loop_count, 4), dtype=np.float32)

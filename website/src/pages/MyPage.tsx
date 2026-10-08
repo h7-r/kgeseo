@@ -1,8 +1,8 @@
 import Stage from "@/components/Stage";
 import { MY_PAGE_TABS } from "@/data/myPage";
 import { useQueryTab } from "@/hooks/useQueryTab";
-import { HEADER_HEIGHT, FOOTER_ALLOWANCE } from "@/layout/layoutMetrics";
 import PageFooter from "@/layout/PageFooter";
+import { HEADER_HEIGHT, FOOTER_ALLOWANCE } from "@/lib/layout";
 import MyPagePanel from "@/sections/myPage/MyPagePanel";
 
 const PANEL_GAP = 60;

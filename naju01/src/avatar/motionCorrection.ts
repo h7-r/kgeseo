@@ -103,7 +103,7 @@ export type CorrectionOverrides = Partial<CorrectionValues>;
 
 // 이 캐릭터는 팔이 짧고 골반이 넓어 팔이 몸을 파고들고 걸을 때 허리가 과하게 숙여진다.
 // 클립을 고치는 대신 본 몇 개를 조금 돌린다. 무릎은 끝까지 펴지 않는다 — 원본 걷기도 최소 10.8°
-// 굽혀 있고, 억지로 폈더니 발의 상하 이동이 1.5배가 되어 행진하듯 걸었다.
+// 굽혀 있고, 억지로 펴면 발의 상하 이동이 커져 행진하듯 걷는다.
 // 팔을 옆축 둘레로 돌리는 보정은 쓰지 않는다 — 쉴 때 팔이 X 를 향해 그 축 회전은 비틀림이고,
 // 비틀림 뼈에 웨이트가 없어 아래팔이 통째로 돌아 팔꿈치가 틀어져 보인다.
 export const DEFAULT_CORRECTION: CorrectionValues = {
@@ -112,7 +112,7 @@ export const DEFAULT_CORRECTION: CorrectionValues = {
   walkArmTuck: 8,
   armForward: 0,
   clavicleForward: 0,
-  // 우리 클립은 팔꿈치가 옆으로 벌어지며 접혀(옆/뒤 성분비 1.14, 원본 0.21) 팔이 엇나가 보였다.
+  // 우리 클립은 팔꿈치가 옆으로 벌어지며 접혀(옆/뒤 성분비 1.14, 원본 0.21) 팔이 엇나가 보인다.
   walkArmRoll: 0,
   walkArmBack: 10,
   armSwingScale: 0.7,
@@ -135,11 +135,11 @@ export const DEFAULT_CORRECTION: CorrectionValues = {
   pelvisTilt: 0,
   lumbarCurve: 0,
   chestLift: 8,
-  // 보폭을 키우면 발이 호를 그리며 올라가 앞발이 높은 곳을 딛는 듯 보였다(앞뒤발 높이차 원본 0.054,
+  // 보폭을 키우면 발이 호를 그리며 올라가 앞발이 높은 곳을 딛는 듯 보인다(앞뒤발 높이차 원본 0.054,
   // 1.2배 0.074). 접지 IK 를 넣은 뒤엔 오히려 줄인다 — 다리가 짧아 클립 보폭에선 앞발이 뜬다.
   strideScale: 0.8,
   footPitch: 10,
-  // 접지 IK 가 디딜 때 다리를 뻗어 주므로 4 로 낮춘다(8 + IK 는 너무 반듯했다. 원본은 11~27°).
+  // 접지 IK 가 디딜 때 다리를 뻗어 주므로 4 로 낮춘다(8 + IK 는 너무 반듯하다. 원본은 11~27°).
   kneeStraighten: 4,
   neckLift: 0,
   headBow: 0,
@@ -158,10 +158,10 @@ export const DEFAULT_CORRECTION: CorrectionValues = {
 
 // 성별별 덧값 — 같은 클립·보정인데 몸체가 달라 다르게 읽힌다.
 //   남성 몸체는 등이 곧은 판이라 가슴을 더 세운다. 목은 가슴과 반대 부호로 되돌려 머리는 클립대로 둔다
-//   (가슴을 세우면 자식인 목·머리가 같이 젖혀져 턱이 든다). 가슴 12 는 몸통이 원본보다 4° 더 젖혀졌다.
+//   (가슴을 세우면 자식인 목·머리가 같이 젖혀져 턱이 든다). 가슴 12 면 몸통이 원본보다 4° 더 젖혀진다.
 //   남성 발 살은 뼈보다 5~8° 바깥으로 틀어져 있어 발끝을 안으로 돌리고, 어깨가 넓어 걸을 때 팔을 더 붙인다.
 //   허벅지가 길고 종아리가 짧아 같은 굽힘이 더 구부정해 무릎을 더 펴고 접지 내림도 줄인다.
-//   골반 기울기 10° 는 고관절이 뒤로 밀려 몸이 발보다 뒤에 앉은 꼴이 되어 0 으로 되돌렸다.
+//   골반 기울기는 0 — 기울이면 고관절이 뒤로 밀려 몸이 발보다 뒤에 앉은 꼴이 된다.
 export const GENDER_CORRECTION: Record<"masculine" | "feminine", CorrectionOverrides> = {
   masculine: {
     chestLift: 14,
@@ -181,7 +181,7 @@ export const GENDER_CORRECTION: Record<"masculine" | "feminine", CorrectionOverr
 // Tripo 리그는 어깨가 좁아 걸을 때 팔이 골반을 뚫고 대기 때 손이 몸에 파묻힌다.
 export const TRIPO_CORRECTION: CorrectionValues = {
   ...DEFAULT_CORRECTION,
-  // 어깨 기본값을 1.15 로 넓힌 만큼 되돌렸다(넓히기 전엔 14).
+  // 어깨 기본값(1.15)이 넓힌 만큼 덜 벌린다.
   armSpread: 10,
   walkArmTuck: 0,
   walkArmBack: 0,
@@ -190,7 +190,7 @@ export const TRIPO_CORRECTION: CorrectionValues = {
   bodySwayScale: 1,
   bodyTwistScale: 1,
   // 좌우 팔 흔들림 폭이 3cm 어긋나 있지만 한 축 회전으로는 못 잰다 — 그대로 둔다.
-  // 팔 롤 40° 는 비틀림 뼈에 웨이트가 없어 어깨 세모근이 통째로 돌아 되돌렸다.
+  // 팔 롤은 0 — 비틀림 뼈에 웨이트가 없어 어깨 세모근이 통째로 돈다.
   walkArmRoll: 0,
   pelvisTilt: 0,
   lumbarCurve: 0,
@@ -205,7 +205,7 @@ export const TRIPO_CORRECTION: CorrectionValues = {
   walkLean: 0,
   walkLegForward: 0,
   walkLegGather: 0,
-  // 팔자걸음 교정 — 디딜 때 발끝이 왼 12°, 오른 5.6° 바깥을 봤다. 대기는 일부러 벌린 자세라 열린 채 남는다.
+  // 팔자걸음 교정 — 디딜 때 발끝이 왼 12°, 오른 5.6° 바깥을 본다. 대기는 일부러 벌린 자세라 열린 채 남는다.
   footToeIn: 0,
   leftFootToeIn: 10,
   rightFootToeIn: 4,
@@ -213,16 +213,16 @@ export const TRIPO_CORRECTION: CorrectionValues = {
   walkChestLift: 0,
   walkNeckLift: 0,
   walkPelvisTilt: 0,
-  // 디딜 때 발이 쉴 때보다 7° 들려 발 앞이 떠 보였다.
+  // 디딜 때 발이 쉴 때보다 7° 들려 발 앞이 떠 보인다.
   walkFootPitch: -6,
-  // 발이 이미 땅에 있어 IK 가 디딘 다리를 굽히면 걸음마다 무릎이 튕겼다(13°→25°).
+  // 발이 이미 땅에 있어 IK 가 디딘 다리를 굽히면 걸음마다 무릎이 튕긴다.
   footContactEnabled: false,
 };
 
 // Tripo 걷기·달리기의 성별별 덧값.
-//   남성 걷기는 요추가 뒤로, 목이 앞으로 나가 거북목처럼 구부정했다. 요추를 숙이고 가슴을 세우고,
+//   남성 걷기는 요추가 뒤로, 목이 앞으로 나가 거북목처럼 구부정하다. 요추를 숙이고 가슴을 세우고,
 //   요추 숙임 + 가슴 세움만큼 목을 되돌려 머리는 클립대로 둔다. 상체가 굳어 보여 척추 비틀림을 키운다.
-//   남성 발 살은 뼈보다 바깥으로 틀어져 4° 더 돌린다. 골반 18° 는 엉덩이 살이 꺾여 절반으로 줄였다.
+//   남성 발 살은 뼈보다 바깥으로 틀어져 4° 더 돌린다. 골반은 18° 면 엉덩이 살이 꺾여 절반만 기울인다.
 //   대기는 남녀가 같은 클립(허리에 손)이라 남성만 다리를 벌려 구분한다.
 //   여성 대기는 골반이 앞으로 기울고 요추가 젖혀져 허리가 꺾여 보여, 골반을 말고 요추를 되세운다.
 export const TRIPO_GENDER_CORRECTION: Record<"masculine" | "feminine", CorrectionOverrides> = {
@@ -277,7 +277,7 @@ const ARM_ROLL_BONES: [string, string, number][] = [
 type PoseRule = [string, THREE.Vector3, number | null, boolean];
 
 // 보정은 매 프레임 본을 돌리지 않고 리타게팅된 클립 키프레임에 한 번 넣는다.
-// 매 프레임 돌리면 믹서가 값을 안 쓰는 프레임에 보정이 쌓여 팔이 머리 위로 올라갔다.
+// 매 프레임 돌리면 믹서가 값을 안 쓰는 프레임에 보정이 쌓여 팔이 머리 위로 올라간다.
 const poseRules = (v: CorrectionValues): PoseRule[] => [
   ["upperarm_l", FORWARD_AXIS, v.armSpread, false],
   ["upperarm_r", FORWARD_AXIS, -v.armSpread, false],
@@ -310,7 +310,7 @@ const poseRules = (v: CorrectionValues): PoseRule[] => [
   ["thigh_l", SIDE_AXIS, -v.pelvisTilt, false],
   ["thigh_r", SIDE_AXIS, -v.pelvisTilt, false],
   ["spine_01", SIDE_AXIS, -v.lumbarCurve, false],
-  // 가슴·목 세우기는 모든 동작에 건다. 걷기에만 걸었더니 대기·걷기 사이에 자세가 튀었다.
+  // 가슴·목 세우기는 모든 동작에 건다. 걷기에만 걸면 대기·걷기 사이에 자세가 튄다.
   ["spine_03", SIDE_AXIS, -v.chestLift, false],
   ["neck_01", SIDE_AXIS, -v.neckLift, false],
   ["head", SIDE_AXIS, v.headBow, false],
@@ -433,7 +433,7 @@ function scaleAngle(track: THREE.KeyframeTrack, center: THREE.Quaternion, scale:
   for (let i = 0; i < track.values.length; i += 4) {
     const r = centerInverse.clone().multiply(q.fromArray(track.values, i));
     // w < 0 이면 같은 회전의 긴 쪽 표현이라 −r 로 바꾼 뒤 축·각을 읽는다.
-    //   축과 각에 부호를 따로 곱하면 역회전이 되어, 무릎이 120° 넘게 굽는 키만 뒤집혀 다리가 뒤틀렸다.
+    //   축과 각에 부호를 따로 곱하면 역회전이 되어, 무릎이 120° 넘게 굽는 키만 뒤집혀 다리가 뒤틀린다.
     if (r.w < 0) r.set(-r.x, -r.y, -r.z, -r.w);
     const angle = 2 * Math.acos(THREE.MathUtils.clamp(r.w, -1, 1));
     if (angle < 1e-5) continue;
@@ -472,7 +472,7 @@ function forwardReach(thighTrack: THREE.KeyframeTrack, rest: THREE.Quaternion) {
   }
   // 어느 부호가 앞인지는 클립마다 재지 않고, 평균보다 앞으로 간 쪽을 앞으로 본다.
   const mean = angles.reduce((a, b) => a + b, 0) / angles.length;
-  // Float32Array.map 이라 차이도 float32 로 반올림된다 — 가중치가 옛 값과 같으려면 그대로 둔다.
+  // Float32Array.map 이라 차이도 float32 로 반올림된다 — 가중치가 바뀌지 않게 그대로 둔다.
   const range = Math.max(1e-3, ...angles.map((value) => Math.abs(value - mean)));
   return { angles, mean, range };
 }

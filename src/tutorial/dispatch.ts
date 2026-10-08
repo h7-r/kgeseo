@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { createChangeSignal } from "@/lib/changeSignal";
 
 import { tutorialStore } from "./tutorial";
 
@@ -12,11 +13,14 @@ import { tutorialStore } from "./tutorial";
 //   boarded   기차에 올랐다
 
 /** 본부실에 들어선 뒤 긴급 호출까지(초) */
-export const ALERT_DELAY_SECONDS = 5;
+const ALERT_DELAY_SECONDS = 5;
 
-export type DispatchPhase = "idle" | "countdown" | "alert" | "guide" | "boarded";
+/** 경보의 주황 — 튜토리얼(하늘색)과 구분한다. 카드와 바닥 화살표가 같이 쓴다. */
+export const DISPATCH_COLOR = "#ffb25c";
 
-export interface DispatchState {
+type DispatchPhase = "idle" | "countdown" | "alert" | "guide" | "boarded";
+
+interface DispatchState {
   phase: DispatchPhase;
   /** performance.now() 기준 ms */
   enteredAt: number | null;
@@ -28,27 +32,20 @@ export interface DispatchState {
 const INITIAL_STATE: DispatchState = { phase: "idle", enteredAt: null, secondsLeft: null, doorDistance: null };
 
 let state: DispatchState = INITIAL_STATE;
-const listeners = new Set<() => void>();
+const signal = createChangeSignal();
 function setState(patch: Partial<DispatchState>) {
   state = { ...state, ...patch };
-  for (const listener of listeners) listener();
+  signal.notify();
 }
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-};
 
-export const dispatchStore = { get: () => state, subscribe };
-export const useDispatchState = () => useSyncExternalStore(subscribe, () => state);
+export const useDispatchState = () => useSyncExternalStore(signal.subscribe, () => state);
 
 /** 카드를 닫는다 — 화살표 안내만 남는다. */
 export function acknowledgeDispatch() {
   if (state.phase === "alert") setState({ phase: "guide" });
 }
 
-export interface DispatchTickInput {
+interface DispatchTickInput {
   isInHeadquarters: boolean;
   isInTrain: boolean;
   /** 기차 문까지 거리(유닛) */

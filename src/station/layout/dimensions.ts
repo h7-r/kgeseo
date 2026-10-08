@@ -1,11 +1,10 @@
 /** 본부실(폐역) 방 치수와 색. 1 유닛 ≈ 0.30m. */
 
-export const ROOM_W = 36; // x 폭 — 줄인 만큼은 전부 기차 쪽(+x)에서 뺐다
-export const ROOM_D = 26; // z 깊이 — 줄인 만큼은 전부 캐비닛 쪽(+z)에서 뺐다
+export const ROOM_W = 36; // x 폭
+export const ROOM_D = 26; // z 깊이
 export const ROOM_H = 12; // 천장 높이
 
-// 방 껍데기는 원점 대칭으로 그려진다. 한쪽 벽만 안으로 들이려고 방 전체를 옮긴다.
-// 왼쪽 벽 x = -20, 앞쪽 벽 z = -14 는 그대로다.
+// 방 껍데기는 중심 대칭으로 그려진다. 왼쪽 벽 x = -20, 앞쪽 벽 z = -14 를 기준으로 중심을 잡는다.
 export const ROOM_CX = -20 + ROOM_W / 2; // = -2
 export const ROOM_CZ = -14 + ROOM_D / 2; // = -1
 
@@ -27,7 +26,7 @@ export const PALETTE = {
 export const CORNER_INSET = 0.455; // 벽면에서 기둥 중심까지
 export const CORNER_SIZE = 0.8; // 기둥 한 변
 
-export interface AreaBox {
+interface AreaBox {
   minX: number;
   maxX: number;
   minZ: number;

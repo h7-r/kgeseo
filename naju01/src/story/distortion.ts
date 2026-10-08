@@ -9,7 +9,7 @@ import * as THREE from "three";
 
 export type DistortionKind = "blur" | "overlap" | "none";
 
-export interface DistortionStage {
+interface DistortionStage {
   strength: number;
   kind: DistortionKind;
   /** 물결 어긋남 정도(0~1) */
@@ -19,7 +19,7 @@ export interface DistortionStage {
 
 /** Leva 「왜곡단계」 옵션 값(저장 데이터라 글자 그대로) */
 export type DistortionStageOption = "초기" | "P01" | "P02" | "P03" | "P04";
-export type DistortionStageId = "initial" | "p01" | "p02" | "p03" | "p04";
+type DistortionStageId = "initial" | "p01" | "p02" | "p03" | "p04";
 
 export const DISTORTION_STAGE_IDS: Record<DistortionStageOption, DistortionStageId> = {
   초기: "initial",
@@ -41,7 +41,7 @@ export const DISTORTION_STAGES: Record<DistortionStageId, DistortionStage> = {
 
 export const DISTORTION_STAGE_ORDER: DistortionStageOption[] = ["초기", "P01", "P02", "P03", "P04"];
 
-export interface Afterimage {
+interface Afterimage {
   /** 미는 거리 [x, y, z] (m) */
   offset: [number, number, number];
   opacity: number;

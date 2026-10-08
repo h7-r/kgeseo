@@ -4,9 +4,10 @@ import { useGLTF } from "@react-three/drei";
 import type { OutlineValues } from "@/engine/toon";
 import { squareBox, useColliderBox } from "@/station/layout/collision";
 
-import { GltfParts, useToonParts } from "./gltfParts";
+import { useToonParts } from "./gltfModel";
+import GltfParts from "./GltfParts";
 
-// 실측 폭 1.27 · 높이 1.90 · 깊이 1.30, 밑면이 이미 y=0.
+// 모델 폭 1.27 · 높이 1.90 · 깊이 1.30, 밑면이 이미 y=0.
 useGLTF.preload("/models/chair.glb");
 
 /** 등받이(1.90 × 1.6 ≈ 3.05)가 책상 윗면(≈2.0)보다 조금 높게 오는 배율. 의자 끌기도 같은 값을 쓴다. */

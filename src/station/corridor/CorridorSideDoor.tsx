@@ -6,7 +6,7 @@ import { mergeBoxes, type MergeBox } from "@/engine/geometry";
 import { makeRandom } from "@/engine/random";
 import { TOON_GRADIENT } from "@/engine/toon";
 
-import { wornDoorTexture } from "./textures";
+import { wornDoorTexture } from "./fixtureTextures";
 
 interface CorridorSideDoorProps {
   x?: number;

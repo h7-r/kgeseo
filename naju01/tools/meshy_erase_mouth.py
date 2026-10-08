@@ -1,12 +1,8 @@
-"""Paint the mouth out of the Meshy face texture.
+"""Meshy 얼굴 텍스처에서 입을 지운다.
 
-The smile is not geometry — Meshy bakes it into the body texture — so it is
-removed by repainting those texels with the skin around them.  The mouth is
-found from the mesh, not by guessing at the image: the head vertices give the
-chin and the nose tip, the band between them that faces forward is the mouth
-area, and its UV triangles are rasterised into a mask.  Inside the mask only
-texels that differ from the surrounding skin are replaced, so the chin shading
-and the jaw line survive.
+입은 형상이 아니라 텍스처에 그려져 있어 주변 살빛으로 덧칠한다. 입 자리는 그림이 아니라
+메시에서 찾는다: 턱~코끝 사이 띠의 UV 를 마스크로 칠하고, 그 안에서 살빛과 다른 texel 만
+바꿔 턱 음영과 턱선은 남긴다.
 
 Usage:
   Blender --background --factory-startup --python meshy_erase_mouth.py -- \
@@ -28,23 +24,20 @@ from mathutils import Vector
 
 def arguments() -> argparse.Namespace:
     raw = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    p = argparse.ArgumentParser()
-    p.add_argument("--blend", type=Path, required=True)
-    p.add_argument("--out-blend", type=Path, required=True)
-    p.add_argument("--labels", nargs="+", default=["Male", "Female"])
-    p.add_argument("--report", type=Path, default=None)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--blend", type=Path, required=True)
+    parser.add_argument("--out-blend", type=Path, required=True)
+    parser.add_argument("--labels", nargs="+", default=["Male", "Female"])
+    parser.add_argument("--report", type=Path, default=None)
     # 입술은 코끝보다 아래에 있다. 이 높이(턱=0, 코끝=1)까지만 살펴본다.
-    p.add_argument("--high", type=float, default=1.0)
-    # 입술만 고르는 붉기 — 그 모델의 살빛보다 이만큼 더 붉은 texel 만 지운다.
-    # 고정값을 쓰면 안 된다: 살빛의 r-g 가 모델마다 0.11~0.17 로 달라, 0.18 로 묶었더니
-    # 어떤 모델은 얼굴 음영이 통째로 칠해졌다. 눈썹·눈동자는 거의 검어서 r-g 가
-    # 0 에 가깝고 흰자는 회색이라 어느 쪽 규칙에도 걸리지 않는다.
-    p.add_argument("--redness", type=float, default=0.06)
-    # 위 규칙에 아무것도 안 걸리는 모델이 있다(입술이 덜 붉다). 그때만 쓰는 예비 규칙 —
-    # 살빛보다 조금 더 붉으면서 **더 어두운** 곳.
-    p.add_argument("--fallback-redness", type=float, default=0.06)
-    p.add_argument("--fallback-darkness", type=float, default=0.15)
-    return p.parse_args(raw)
+    parser.add_argument("--high", type=float, default=1.0)
+    # 살빛보다 이만큼 더 붉은 texel 만 지운다. 살빛의 r-g 가 모델마다 달라 고정 문턱은 안 된다.
+    # 눈썹·눈동자·흰자는 r-g 가 0 에 가까워 어느 규칙에도 걸리지 않는다.
+    parser.add_argument("--redness", type=float, default=0.06)
+    # 입술이 덜 붉어 위 규칙에 안 걸릴 때만 쓰는 예비 규칙 — 조금 더 붉으면서 더 어두운 곳.
+    parser.add_argument("--fallback-redness", type=float, default=0.06)
+    parser.add_argument("--fallback-darkness", type=float, default=0.15)
+    return parser.parse_args(raw)
 
 
 def head_mesh(label: str):
@@ -55,12 +48,7 @@ def head_mesh(label: str):
 
 
 def mouth_vertices(obj, rig, high: float) -> tuple[set[int], dict]:
-    """Vertex indices of the head below the nose — both cheeks, the jaw and the mouth.
-
-    The band is not narrowed to the face side: the UV islands are scattered all
-    over the atlas and the facing direction cannot be read off the head shape
-    reliably, so the mouth is picked out of this band by colour instead.
-    """
+    """코 아래 머리 정점(양 뺨·턱·입). 얼굴 쪽으로 좁히지 않고 입은 색으로 가려낸다."""
     head_bone = rig.data.bones.get("head")
     neck_bone = rig.data.bones.get("neck_01")
     points = [obj.matrix_world @ v.co for v in obj.data.vertices]
@@ -86,7 +74,7 @@ def mouth_vertices(obj, rig, high: float) -> tuple[set[int], dict]:
 
 
 def uv_mask(obj, picked: set[int], width: int, height: int) -> np.ndarray:
-    """Rasterise the UV triangles whose corners are all in `picked`."""
+    """`picked` 정점에 걸친 면의 UV 를 마스크로 칠한다."""
     mesh = obj.data
     layer = mesh.uv_layers.active
     mask = np.zeros((height, width), dtype=bool)
@@ -121,9 +109,7 @@ def erase(image, mask: np.ndarray, args) -> dict:
     value = pixels[..., :3].mean(axis=-1)
     skin_red = float(np.median(red[mask]))
     skin_value = float(np.median(value[mask]))
-    # 고정 여유값은 모델마다 안 맞는다(어떤 모델은 입술이 덜 붉어 하나도 안 걸리고,
-    # 어떤 모델은 얼굴 음영까지 걸린다). 그 모델에서 가장 붉은 쪽과 살빛의 중간을
-    # 문턱으로 삼으면 대비가 약한 입술도, 진한 입술도 같이 잡힌다.
+    # 그 모델의 가장 붉은 쪽과 살빛의 중간을 문턱으로 삼아 옅은 입술과 진한 입술을 같이 잡는다.
     peak = float(np.percentile(red[mask], 99.99))
     rule = "adaptive"
     threshold = skin_red + max(args.redness, (peak - skin_red) * 0.5)
@@ -146,8 +132,7 @@ def erase(image, mask: np.ndarray, args) -> dict:
     pixels[grown, :3] = skin
     image.pixels.foreach_set(pixels.reshape(-1))
     image.update()
-    # 고친 화소는 blend 에 저장했다 다시 열면 원본 파일에서 되읽혀 사라진다.
-    # 지금 버퍼를 다시 packed 파일로 굽는다.
+    # 그냥 저장하면 다시 열 때 원본 이미지 파일에서 되읽혀 사라지므로 버퍼를 packed 로 굽는다.
     image.pack()
     return {"painted": int(grown.sum()), "mask": int(mask.sum()), "rule": rule,
             "skin_redness": round(skin_red, 4), "threshold": round(float(threshold), 4),

@@ -5,8 +5,8 @@ import type { Plugin } from "vite";
 // 꾸미기 패널의 「모두의 기본값으로」 버튼이 보내는 외형을 파일로 받는 개발 서버 주소.
 // 기본 모습은 화면을 보고 맞춰야 정해지는데 그 값은 localStorage 에만 있어서, 콘솔에서 긁어내던 일을 버튼 한 번으로 줄인다.
 // 길은 ASCII 여야 한다 — connect 는 퍼센트 인코딩을 풀지 않고 글자 그대로 견줘서 한글 길은 영영 404 다.
-export const DEFAULT_LOOK_ENDPOINT = "/__default-look";
-export const DEFAULT_LOOK_FILE = fileURLToPath(new URL("../assets/default-look.json", import.meta.url));
+const DEFAULT_LOOK_ENDPOINT = "/__default-look";
+const DEFAULT_LOOK_FILE = fileURLToPath(new URL("../assets/default-look.json", import.meta.url));
 const MAX_BODY = 64 * 1024; // 외형 한 벌은 1KB 남짓이다
 
 /** 개발 서버에서만 돈다(배포본에는 없다). */

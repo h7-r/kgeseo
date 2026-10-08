@@ -12,7 +12,7 @@ import { Interactable } from "@/lobby/AimTracker";
 import { isOpen, isRestoredOpen, rattle, rattleOffset, toggleHinge, useIsOpen } from "@/props/hingeState";
 import { usePipeOffset } from "@/props/vendingPush";
 
-import { LABEL_ASPECT, hydrantLabelTexture, panelLabelTexture } from "./textures";
+import { hydrantLabelTexture, LABEL_ASPECT, panelLabelTexture } from "./signTextures";
 import { wallCabinetDoorId, type WallCabinetKind } from "./wallCabinetId";
 
 // 잠긴 문이 덜컹일 때 젖혀지는 각. 걸쇠가 잡고 있으니 2도뿐이다.
@@ -21,7 +21,7 @@ const RATTLE_ANGLE = (2 * Math.PI) / 180;
 const aimPoint = new THREE.Vector3();
 
 /** 함 속 부품을 그릴 때 넘겨주는 값. 속 그룹은 이미 함 높이 가운데(cy)에 올라가 있다. */
-export interface WallCabinetInteriorContext {
+interface WallCabinetInteriorContext {
   doorId: string;
   /** 닫힌 문 너머의 스위치가 눌리면 안 되므로 속 부품은 문이 열려 있을 때만 만질 수 있다 */
   isDoorOpen: boolean;
@@ -37,7 +37,7 @@ export interface WallCabinetInteriorContext {
  * up — 함 위에서 천장 트레이로 곧게(배전반).
  * downSide — 함 아래로 내려와 둥글게 꺾여 벽을 따라 옆으로(소화전).
  */
-export type ConduitShape = "up" | "downSide";
+type ConduitShape = "up" | "downSide";
 
 interface WallCabinetProps {
   kind?: WallCabinetKind;
@@ -173,10 +173,10 @@ export default function WallCabinet({
   const gripRimGeometry = useMemo(() => {
     const thickness = 0.075;
     const x0 = d * (depth / 2 + thickness / 2);
-    const zL = gripZ - gripWidth / 2 - gripRim,
-      zR = gripZ + gripWidth / 2 + gripRim;
-    const yB = -gripHeight / 2 - gripRim,
-      yT = gripHeight / 2 + gripRim;
+    const zL = gripZ - gripWidth / 2 - gripRim;
+    const zR = gripZ + gripWidth / 2 + gripRim;
+    const yB = -gripHeight / 2 - gripRim;
+    const yT = gripHeight / 2 + gripRim;
     return mergeBoxes([
       { size: [thickness, gripHeight + gripRim * 2, gripRim], position: [x0, 0, zL + gripRim / 2] },
       { size: [thickness, gripHeight + gripRim * 2, gripRim], position: [x0, 0, zR - gripRim / 2] },

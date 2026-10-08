@@ -9,10 +9,8 @@ import { createCurrentMaterial, FLOW_SECONDS } from "./currentFlow";
 import { roundedPolyline } from "./geometry";
 import { flowStartedAt, isBinComplete, type TrashBin } from "./workLampState";
 
-type Point = [number, number, number];
-
 interface PowerCableProps {
-  points: Point[];
+  points: THREE.Vector3Tuple[];
   /** 이 선에 전류를 보내는 통. null 이면 전류가 흐르지 않는 선(액자 → 스위치) */
   bin: TrashBin | null;
   brightness?: number;
@@ -38,8 +36,8 @@ export default function PowerCable({ points, bin, brightness = 1 }: PowerCablePr
       path,
       clips,
     };
-    // 점 배열은 판마다 새로 만들어지므로 값으로 비교한다
-  }, [pointsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 점 배열은 판마다 새로 만들어져 값(pointsKey)으로 비교한다
+  }, [pointsKey]);
   const glowMaterial = useMemo(() => createCurrentMaterial(), []);
   useEffect(
     () => () => {

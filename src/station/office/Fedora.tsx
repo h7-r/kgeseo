@@ -5,7 +5,7 @@ import type * as THREE from "three";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { firstMeshGeometry } from "./firstMeshGeometry";
+import { firstMeshGeometry } from "./gltfModel";
 
 const FEDORA_URL = "/models/fedora.glb";
 useGLTF.preload(FEDORA_URL);

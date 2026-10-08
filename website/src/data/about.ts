@@ -9,7 +9,7 @@ export const ABOUT_TABS = [
 
 export type AboutTabId = (typeof ABOUT_TABS)[number]["id"];
 
-export interface AboutTabContent {
+interface AboutTabContent {
   /** 탭 순서(1부터). 아래 쪽번호와 이전·다음 화살표가 이 값으로 움직인다. */
   page: number;
   /** [항목, 내용] */

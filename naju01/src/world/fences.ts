@@ -9,6 +9,8 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { makeRandom } from "@/engine/random";
 
 import type { Spot } from "../placement/instanceGroups";
+import type { HeightAt } from "../terrain/ground";
+import type { CenterlinePoint } from "../terrain/terrain";
 
 // 비바람 맞은 참나무. 너무 붉으면 새 목재, 너무 회색이면 돌이 된다.
 export const WOOD_STYLE = {
@@ -29,21 +31,17 @@ export const FENCE_DIMENSIONS = {
   burial: 0.12, // 땅에 박는 깊이(안 그러면 떠 보인다)
 };
 
-export interface CenterlinePoint {
-  x: number;
-  z: number;
-  nx: number;
-  nz: number;
-}
+/** 중심선 점 — 자리와 옆 방향 법선만 본다 */
+type LinePoint = Pick<CenterlinePoint, "x" | "z" | "nx" | "nz">;
 
-export interface FencePath {
+interface FencePath {
   width: number;
-  centerline: CenterlinePoint[];
+  centerline: LinePoint[];
 }
 
-export interface FenceOptions {
+interface FenceOptions {
   measuredPaths: FencePath[];
-  groundHeight: (x: number, z: number) => number;
+  groundHeight: HeightAt;
   /** 이만큼(m) 넘게 떨어지는 쪽에만 세운다 */
   minDrop?: number;
   /** 낙차를 재는 거리(m) — 길 가장자리에서 바깥으로 */
@@ -218,8 +216,8 @@ function resampleOnLine(points: { x: number; z: number }[], spacing: number): { 
 }
 
 // 선을 따라 일정 간격으로 점을 다시 뽑는다. 법선도 같이 옮긴다.
-function resample(line: CenterlinePoint[], spacing: number): CenterlinePoint[] {
-  const result: CenterlinePoint[] = [];
+function resample(line: LinePoint[], spacing: number): LinePoint[] {
+  const result: LinePoint[] = [];
   let leftover = 0;
   for (let i = 0; i < line.length - 1; i++) {
     const a = line[i];

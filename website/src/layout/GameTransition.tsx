@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 
+import { closeGameTransition, useGameTransitionDestination } from "@/app/siteState";
 import { OPENING_FILM } from "@/data/videos";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 import { FONT } from "@/lib/style";
 import { GAME_TRANSITION_PARAM } from "@/navigation/routes";
-import { closeGameTransition, useGameTransitionDestination } from "@/state/gameTransition";
 import { COLOR } from "@/styles/tokens";
 
 // 게임 설정 "배경음악" 기본값(10 중 6). 게임 쪽도 같은 값으로 잇는다.

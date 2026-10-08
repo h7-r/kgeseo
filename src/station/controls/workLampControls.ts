@@ -1,12 +1,11 @@
 import { useSavedControls } from "@/engine/leva/savedControls";
-import type { WorkLampPuzzleValues } from "@/props/workLampPuzzle/controls";
 
 /**
- * 「작업등 퍼즐」 — 비밀 복도 반대쪽 끝의 퍼즐. 열쇠가 WorkLampPuzzleValues 필드와 같아 통째로 넘긴다.
+ * 「작업등 퍼즐」 — 비밀 복도 반대쪽 끝의 퍼즐. 값을 통째로 퍼즐에 넘긴다.
  * 늘 보여야 한다(visible 기본 true — 저장된 false 는 강제 기본값이 지운다).
  * darkBoundaryZ 40 은 복도 끝벽(25.5)을 넉넉히 넘겨, 시작하자마자 자판기 쪽까지 통째로 어둡게 한다.
  */
-export function useWorkLampPuzzleControls(): WorkLampPuzzleValues {
+export function useWorkLampPuzzleControls() {
   return useSavedControls("작업등 퍼즐", {
     visible: { value: true, label: "보이기" },
     floorX: { value: -25.2, min: -31, max: -20, step: 0.1, label: "바닥x" },
@@ -93,3 +92,5 @@ export function useWorkLampPuzzleControls(): WorkLampPuzzleValues {
     switchPanelSide: { value: -2.55, min: -5, max: 5, step: 0.05, label: "시험반옆" },
   });
 }
+
+export type WorkLampPuzzleValues = ReturnType<typeof useWorkLampPuzzleControls>;

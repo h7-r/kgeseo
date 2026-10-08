@@ -5,28 +5,28 @@ import { Interactable } from "@/lobby/AimTracker";
 import { Highlight } from "@/lobby/Highlight";
 import { moveDrawer, toggleLamp, type LobbyState } from "@/lobby/interactions";
 import { MeasureItem } from "@/lobby/PlacementViews";
-import AutoCollider from "@/station/layout/AutoCollider";
+import { AutoCollider } from "@/station/layout/Colliders";
 import Cabinet from "@/station/office/cabinet/Cabinet";
 import DeskLamp from "@/station/office/DeskLamp";
 import EvidenceBag from "@/station/office/evidence/EvidenceBag";
-import EvidenceNumberTag from "@/station/office/evidence/EvidenceNumberTag";
 import { EVIDENCE_ITEMS } from "@/station/office/evidence/evidenceItems";
+import EvidenceNumberTag from "@/station/office/evidence/EvidenceNumberTag";
 import { FLOOR_AXIS, FLOOR_LAMP_URL, FLOOR_MOUTH } from "@/station/office/lampModels";
 import PinBoard from "@/station/office/PinBoard";
 import Whiteboard from "@/station/office/Whiteboard";
-import type { StructureOutline } from "@/station/room/StructureOutlines";
+import type { StructureOutline } from "@/station/room/RoomShell";
 
-import type { BoardControls } from "../controls/boardControls";
-import type { CabinetControls } from "../controls/cabinetControls";
-import type { ChairControls } from "../controls/chairControls";
-import type { CoatRackControls } from "../controls/coatRackControls";
-import type { ComputerControls } from "../controls/computerControls";
-import type { DeskCommonValues, DeskValues } from "../controls/deskControls";
-import type { EvidenceControls } from "../controls/evidenceControls";
-import type { HighlightValues } from "../controls/interactionControls";
-import type { CeilingLightValues, DeskLampControls, FloorLampValues } from "../controls/lampControls";
-import type { SurfaceValues } from "../controls/roomControls";
-import type { CollisionValues } from "../controls/systemControls";
+import type {
+  BoardControls,
+  CabinetControls,
+  ChairControls,
+  CoatRackControls,
+  DeskCommonValues,
+  DeskValues,
+} from "../controls/furnitureControls";
+import type { ComputerControls, EvidenceControls } from "../controls/officePropControls";
+import type { CeilingLightValues, DeskLampControls, FloorLampValues, SurfaceValues } from "../controls/roomControls";
+import type { CollisionValues, HighlightValues } from "../controls/systemControls";
 import { cabinetDrawers, DRAWER_RIDERS } from "./cabinetDrawers";
 import type { PickupLooks } from "./PickupItemModel";
 import PickupItems from "./PickupItems";
@@ -59,7 +59,7 @@ interface StationRoomProps {
   collision: CollisionValues;
 }
 
-/** 수사본부실 — 조명·가구·소품·방 껍데기. 그리는 순서는 원래 씬 그대로다. */
+/** 수사본부실 — 조명·가구·소품·방 껍데기. 그리는 순서는 바꾸지 않는다. */
 export default function StationRoom({
   lobby,
   ceilingLight,

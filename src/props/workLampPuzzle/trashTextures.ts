@@ -1,7 +1,6 @@
-import { cachedCanvasTexture } from "@/engine/textures/canvas";
+import { cachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
 import { makeRandom } from "@/engine/random";
 
-import { SIGN_FONT } from "@/engine/textures/fonts";
 import type { TrashBin } from "./workLampState";
 
 /** 통 몸통의 결 — 긁힘 · 바닥 때 · 흘러내린 얼룩 · 구청 스티커 */
@@ -189,7 +188,7 @@ export function floorStainTexture() {
   );
 }
 
-export type PrintKind = "water" | "receipt" | "detergent" | "straw" | "yogurt";
+type PrintKind = "water" | "receipt" | "detergent" | "straw" | "yogurt";
 
 const PRINT_SIZE: Record<PrintKind, [number, number]> = {
   water: [256, 64],

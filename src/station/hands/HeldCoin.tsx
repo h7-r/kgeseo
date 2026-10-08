@@ -5,10 +5,42 @@ import type { Vector3Tuple } from "three";
 
 import { playerView } from "@/engine/playerView";
 import type { OutlineValues } from "@/engine/toon";
-import { HeldItem } from "@/lobby/AimTracker";
-import { coinInsertion, finishInsert, heldCoin, useCoins } from "@/props/coinState";
+import { HeldItem } from "@/lobby/HeldItem";
+import Coin from "@/props/Coin";
+import { coinInsertion, finishInsert, heldCoin, useCoins, type CoinKind } from "@/props/coinState";
 
-import CoinModel, { type CoinLook } from "./CoinModel";
+import type { CoinValues } from "../controls/vendingControls";
+
+/** Leva 「동전」 중 동전 모양에 쓰는 값 */
+export type CoinLook = Pick<
+  CoinValues,
+  "canColor" | "canPatternColor" | "cupColor" | "cupPatternColor" | "coinSize" | "coinThickness"
+>;
+
+interface CoinModelProps {
+  kind: CoinKind;
+  look: CoinLook;
+  outline?: OutlineValues | null;
+  /** 바닥에 눕힌 자세. 놓기 미리보기는 눕혀야 원판 중심이 바닥에 박히지 않는다. */
+  isLying?: boolean;
+}
+
+/** 손에 들거나 날아가는 동전 한 닢. 종류에 따라 무늬·색을 고른다. */
+export function CoinModel({ kind, look, outline, isLying = false }: CoinModelProps) {
+  const isCan = kind === "can";
+  return (
+    <Coin
+      position={[0, 0, 0]}
+      pattern={kind}
+      color={isCan ? look.canColor : look.cupColor}
+      patternColor={isCan ? look.canPatternColor : look.cupPatternColor}
+      radius={look.coinSize}
+      thickness={look.coinThickness}
+      isLying={isLying}
+      outline={outline}
+    />
+  );
+}
 
 const startPoint = new THREE.Vector3();
 

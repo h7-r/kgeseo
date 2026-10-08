@@ -4,7 +4,7 @@
 #     --body public/models/meshy-both-male.glb --shoes public/models/shoes-both-male.glb \
 #     --hair 0 --arm-length 0.88 --out ~/Downloads/kgeseo-male.glb
 #
-# 런타임(치비게임아바타)에서만 적용되는 것들을 쉴 때 자세에 굽는다:
+# 런타임(ChibiGameAvatar)에서만 적용되는 것들을 쉴 때 자세에 굽는다:
 #   팔 길이(아래팔·손 뼈 위치 배율), 신을 때 발뼈 줄이기(신발 GLB 의 foot_shrink), 발볼 접기.
 # 머리는 고른 variant 하나만 남기고, 신발은 캐릭터 골격에 다시 묶는다.
 import argparse
@@ -82,47 +82,47 @@ for o in meshes:
 # 런타임 조정을 포즈로 만든다.
 ctx.view_layer.objects.active = rig
 bpy.ops.object.mode_set(mode="POSE")
-pb = rig.pose.bones
+pose_bones = rig.pose.bones
 for side in ("l", "r"):
-    if foot_shrink != 1.0 and f"foot_{side}" in pb:
-        pb[f"foot_{side}"].scale = (foot_shrink,) * 3
-    if args.shoes and f"ball_{side}" in pb:
-        pb[f"ball_{side}"].scale = (0.02,) * 3
-    if args.shoulder_width != 1.0 and f"upperarm_{side}" in pb:
-        b = rig.data.bones[f"upperarm_{side}"]
-        p = rig.data.bones[f"clavicle_{side}"]
-        off_arm = (b.head_local - p.head_local) * (args.shoulder_width - 1)
-        pb[f"upperarm_{side}"].location = b.matrix_local.to_3x3().inverted() @ off_arm
+    if foot_shrink != 1.0 and f"foot_{side}" in pose_bones:
+        pose_bones[f"foot_{side}"].scale = (foot_shrink,) * 3
+    if args.shoes and f"ball_{side}" in pose_bones:
+        pose_bones[f"ball_{side}"].scale = (0.02,) * 3
+    if args.shoulder_width != 1.0 and f"upperarm_{side}" in pose_bones:
+        bone = rig.data.bones[f"upperarm_{side}"]
+        parent_bone = rig.data.bones[f"clavicle_{side}"]
+        off_arm = (bone.head_local - parent_bone.head_local) * (args.shoulder_width - 1)
+        pose_bones[f"upperarm_{side}"].location = bone.matrix_local.to_3x3().inverted() @ off_arm
     if args.arm_length != 1.0:
         for name, parent in ((f"lowerarm_{side}", f"upperarm_{side}"), (f"hand_{side}", f"lowerarm_{side}")):
-            if name not in pb:
+            if name not in pose_bones:
                 continue
-            b = rig.data.bones[name]
-            p = rig.data.bones[parent]
-            off_arm = (b.head_local - p.head_local) * (args.arm_length - 1)  # 아마추어 공간
-            off_local = b.matrix_local.to_3x3().inverted() @ off_arm
-            pb[name].location = off_local
+            bone = rig.data.bones[name]
+            parent_bone = rig.data.bones[parent]
+            off_arm = (bone.head_local - parent_bone.head_local) * (args.arm_length - 1)  # 아마추어 공간
+            off_local = bone.matrix_local.to_3x3().inverted() @ off_arm
+            pose_bones[name].location = off_local
 if args.apose:
     # 위팔을 앞뒤 축(아마추어 Y) 둘레로 돌려 팔을 내린다. 왼팔은 +X 방향이라 +각이 아래.
     for side, sign in (("l", 1), ("r", -1)):
         name = f"upperarm_{side}"
-        if name not in pb:
+        if name not in pose_bones:
             continue
-        # 아마추어 공간 회전을 뼈 로컬 회전으로 옮겨 넣는다(pose matrix 대입은 배경 모드에서 먹지 않았다).
+        # 아마추어 공간 회전을 뼈 로컬 회전으로 옮겨 넣는다(pose matrix 대입은 배경 모드에서 먹지 않는다).
         R3 = mathutils.Matrix.Rotation(math.radians(sign * args.apose), 3, "Y")
         L3 = rig.data.bones[name].matrix_local.to_3x3()
-        pb[name].rotation_mode = "QUATERNION"
-        pb[name].rotation_quaternion = (L3.inverted() @ R3 @ L3).to_quaternion()
+        pose_bones[name].rotation_mode = "QUATERNION"
+        pose_bones[name].rotation_quaternion = (L3.inverted() @ R3 @ L3).to_quaternion()
     ctx.view_layer.update()
     for side in ("l", "r"):
-        if f"hand_{side}" in pb:
-            print(f"APOSE_HAND {side} z={(rig.matrix_world @ pb[f'hand_{side}'].head).z:.3f} x={(rig.matrix_world @ pb[f'hand_{side}'].head).x:.3f}")
+        if f"hand_{side}" in pose_bones:
+            print(f"APOSE_HAND {side} z={(rig.matrix_world @ pose_bones[f'hand_{side}'].head).z:.3f} x={(rig.matrix_world @ pose_bones[f'hand_{side}'].head).x:.3f}")
 bpy.ops.object.mode_set(mode="OBJECT")
-# 메시에 포즈를 굽는다 — 평가된(변형된) 메시를 복사해 넣는다(modifier_apply 는 배경 모드에서
-# 조용히 아무것도 안 했다). 그 뒤 포즈를 새 쉴 때 자세로 굳히고 다시 묶는다.
-dg = ctx.evaluated_depsgraph_get()
+# 평가된 메시를 복사해 포즈를 굽는다(modifier_apply 는 배경 모드에서 조용히 아무것도 안 한다).
+# 그 뒤 포즈를 새 쉴 때 자세로 굳히고 다시 묶는다.
+depsgraph = ctx.evaluated_depsgraph_get()
 for o in meshes:
-    baked = bpy.data.meshes.new_from_object(o.evaluated_get(dg), preserve_all_data_layers=True, depsgraph=dg)
+    baked = bpy.data.meshes.new_from_object(o.evaluated_get(depsgraph), preserve_all_data_layers=True, depsgraph=depsgraph)
     baked.name = o.data.name + "_baked"
     o.modifiers.clear()
     o.data = baked
@@ -148,7 +148,6 @@ if args.mesh_only:
         o.parent = None
         o.matrix_world = world
     bpy.data.objects.remove(rig, do_unlink=True)
-    hand = None
     for o in meshes:
         xs = [(o.matrix_world @ v.co) for v in o.data.vertices]
         print("APOSE_CHECK hand-ish min z", round(min(p.z for p in xs if abs(p.x) > 0.3), 3) if any(abs(p.x) > 0.3 for p in xs) else "n/a",

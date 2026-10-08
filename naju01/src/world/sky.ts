@@ -2,12 +2,15 @@
 // 단색 하늘은 지평선이 안 보이고, 건너편 뱃길이 오려 붙인 종이처럼 뜬다.
 // 둘 다 빛·안개를 안 받는 평면 색이고, 카메라를 따라다닌다 — 고정하면 무대 끝에서 돔 밖으로 나가 하늘이 잘린다.
 // 반지름은 미터, 지오메트리만 유닛.
+
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+
 import { makeRandom } from "@/engine/random";
+
 import { UNITS_PER_METER } from "../plan/sitePlan";
 
-export interface SkyPalette {
+interface SkyPalette {
   zenith: string;
   middle: string;
   horizon: string;

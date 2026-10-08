@@ -1,26 +1,10 @@
-import * as THREE from "three";
-
 import { makeRandom } from "@/engine/random";
+import { canvasToTexture, createCanvas } from "@/engine/textures/canvas";
 import { CAN_FLAVORS, drawCanLabel } from "@/props/vending/canLabels";
 
 import { CAN_ATLAS_COLUMNS, CAN_ATLAS_ROWS, PAPER_CELL, PAPER_COLUMNS, PAPER_ROWS } from "./geometry";
 
 const PAPER_FONT = "'Malgun Gothic', system-ui, sans-serif";
-
-function createCanvas(width: number, height: number) {
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const g = canvas.getContext("2d");
-  if (!g) throw new Error("2D 캔버스를 만들 수 없습니다.");
-  return { canvas, g };
-}
-
-function toTexture(canvas: HTMLCanvasElement) {
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
 
 function bar(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
   g.fillStyle = color;
@@ -143,7 +127,7 @@ export function makePaperAtlas() {
   g.fillRect(0, 0, canvas.width, canvas.height);
   g.globalCompositeOperation = "source-over";
 
-  return toTexture(canvas);
+  return canvasToTexture(canvas);
 }
 
 /** 캔 라벨 6종을 한 장에 모으고 때를 입힌다 — 새 캔 그림 그대로면 갓 뽑은 캔이 바닥에 놓인 꼴이다. */
@@ -178,5 +162,5 @@ export function makeCanAtlas() {
     g.lineTo(x + (rnd() - 0.5) * 34, y + (rnd() - 0.5) * 8);
     g.stroke();
   }
-  return toTexture(canvas);
+  return canvasToTexture(canvas);
 }

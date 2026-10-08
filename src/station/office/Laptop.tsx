@@ -4,9 +4,10 @@ import * as THREE from "three";
 
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { GltfParts, splitGltf } from "./gltfParts";
+import { splitGltf } from "./gltfModel";
+import GltfParts from "./GltfParts";
 
-// 5,819면으로 줄여 부위 5개로 자른 모델. 바닥이 y=0, 가로·세로 중앙이 원점.
+// 부위 5개로 나뉜 모델. 바닥이 y=0, 가로·세로 중앙이 원점.
 useGLTF.preload("/models/laptop.glb");
 
 /** GLB 안의 메시 이름 그대로 */
@@ -52,7 +53,7 @@ export default function Laptop({
   const { scene } = useGLTF("/models/laptop.glb");
 
   const model = useMemo(() => {
-    // 원본을 고치면 useGLTF 캐시가 오염돼 노트북이 다 같이 바뀐다.
+    // 캐시된 GLB 를 그대로 고치면 노트북이 다 같이 바뀐다.
     const cloned = scene.clone(true);
     const colors: Record<LaptopPart, string> = {
       screen: cScreen,

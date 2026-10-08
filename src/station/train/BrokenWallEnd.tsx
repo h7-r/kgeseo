@@ -6,7 +6,7 @@ import { makeRandom } from "@/engine/random";
 import { wallTexture } from "@/engine/textures/surfaces";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { RubbleStones, type RubbleStone } from "./rubble";
+import RubbleStones, { type RubbleStone } from "./RubbleStones";
 import ShellOutline from "./ShellOutline";
 import { wallPieceGeometry } from "./wallPieceGeometry";
 

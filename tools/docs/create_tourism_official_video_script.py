@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from docx import Document
-from docx.enum.section import WD_SECTION
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -10,9 +9,7 @@ from docx.shared import Inches, Pt, RGBColor
 
 
 OUT = Path("프로젝트파일/인터뷰자료/지자체 관광부서 영상 인터뷰 대본과 서비스 사용 의향 확인서.docx")
-# This is the Korean system font available on the macOS host.  The previous
-# Noto font name was not installed for the rendering backend, which made the
-# Korean glyphs disappear in the visual PDF check.
+# macOS 에 기본으로 있는 한글 글꼴 — 설치 안 된 글꼴이면 PDF 변환에서 한글이 빠진다.
 FONT = "AppleGothic"
 NAVY = "18324B"
 BLUE = "EAF2F8"
@@ -66,21 +63,21 @@ def set_cell_margins(cell, top=90, start=110, bottom=90, end=110):
     if tc_mar is None:
         tc_mar = OxmlElement("w:tcMar")
         tc_pr.append(tc_mar)
-    for m, v in (("top", top), ("start", start), ("bottom", bottom), ("end", end)):
-        node = tc_mar.find(qn(f"w:{m}"))
+    for margin, value in (("top", top), ("start", start), ("bottom", bottom), ("end", end)):
+        node = tc_mar.find(qn(f"w:{margin}"))
         if node is None:
-            node = OxmlElement(f"w:{m}")
+            node = OxmlElement(f"w:{margin}")
             tc_mar.append(node)
-        node.set(qn("w:w"), str(v))
+        node.set(qn("w:w"), str(value))
         node.set(qn("w:type"), "dxa")
 
 
 def table(doc, headers, rows, widths=None):
-    t = doc.add_table(rows=1, cols=len(headers))
-    t.alignment = WD_TABLE_ALIGNMENT.CENTER
-    t.style = "Table Grid"
+    grid = doc.add_table(rows=1, cols=len(headers))
+    grid.alignment = WD_TABLE_ALIGNMENT.CENTER
+    grid.style = "Table Grid"
     for i, header in enumerate(headers):
-        cell = t.rows[0].cells[i]
+        cell = grid.rows[0].cells[i]
         cell.text = ""
         shade(cell, NAVY)
         set_cell_border(cell)
@@ -89,10 +86,10 @@ def table(doc, headers, rows, widths=None):
         p = cell.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.space_after = Pt(0)
-        r = p.add_run(header)
-        set_font(r, 9.5, True, "FFFFFF")
+        run = p.add_run(header)
+        set_font(run, 9.5, True, "FFFFFF")
     for ridx, row in enumerate(rows):
-        cells = t.add_row().cells
+        cells = grid.add_row().cells
         for i, value in enumerate(row):
             cell = cells[i]
             cell.text = ""
@@ -104,14 +101,14 @@ def table(doc, headers, rows, widths=None):
             p = cell.paragraphs[0]
             p.paragraph_format.space_after = Pt(0)
             p.paragraph_format.line_spacing = 1.15
-            r = p.add_run(str(value))
-            set_font(r, 9.2)
+            run = p.add_run(str(value))
+            set_font(run, 9.2)
     if widths:
-        for row in t.rows:
+        for row in grid.rows:
             for cell, width in zip(row.cells, widths):
                 cell.width = Inches(width)
     doc.add_paragraph().paragraph_format.space_after = Pt(1)
-    return t
+    return grid
 
 
 def paragraph(doc, text="", bold_lead=None, indent=0, after=7, size=10.5):
@@ -120,13 +117,13 @@ def paragraph(doc, text="", bold_lead=None, indent=0, after=7, size=10.5):
     p.paragraph_format.space_after = Pt(after)
     p.paragraph_format.line_spacing = 1.38
     if bold_lead and text.startswith(bold_lead):
-        r = p.add_run(bold_lead)
-        set_font(r, size, True)
-        r = p.add_run(text[len(bold_lead):])
-        set_font(r, size)
+        run = p.add_run(bold_lead)
+        set_font(run, size, True)
+        run = p.add_run(text[len(bold_lead):])
+        set_font(run, size)
     else:
-        r = p.add_run(text)
-        set_font(r, size)
+        run = p.add_run(text)
+        set_font(run, size)
     return p
 
 
@@ -135,8 +132,8 @@ def heading(doc, text, level=1):
     p.paragraph_format.space_before = Pt(15 if level == 1 else 10)
     p.paragraph_format.space_after = Pt(7)
     p.paragraph_format.keep_with_next = True
-    r = p.add_run(text)
-    set_font(r, 15 if level == 1 else 12, True, "000000")
+    run = p.add_run(text)
+    set_font(run, 15 if level == 1 else 12, True, "000000")
     return p
 
 
@@ -146,8 +143,8 @@ def bullet(doc, text, level=0):
     p.paragraph_format.first_line_indent = Inches(-0.14)
     p.paragraph_format.space_after = Pt(3)
     p.paragraph_format.line_spacing = 1.25
-    r = p.add_run(text)
-    set_font(r, 10.3)
+    run = p.add_run(text)
+    set_font(run, 10.3)
     return p
 
 
@@ -156,8 +153,8 @@ def script_question(doc, no, question, guide, sample):
     p.paragraph_format.space_before = Pt(9)
     p.paragraph_format.space_after = Pt(3)
     p.paragraph_format.keep_with_next = True
-    r = p.add_run(f"Q{no}. {question}")
-    set_font(r, 11.2, True, NAVY)
+    run = p.add_run(f"Q{no}. {question}")
+    set_font(run, 11.2, True, NAVY)
     paragraph(doc, f"진행자 안내: {guide}", bold_lead="진행자 안내: ", indent=0.12, after=3, size=9.7)
     paragraph(doc, f"답변 예시: {sample}", bold_lead="답변 예시: ", indent=0.12, after=5, size=10.2)
 
@@ -184,20 +181,20 @@ def main():
         style.font.color.rgb = RGBColor(0, 0, 0)
 
     footer = section.footer
-    fp = footer.paragraphs[0]
-    fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    fr = fp.add_run("왜곡 지역 설화 기반 방탈출 서비스 인터뷰 자료")
-    set_font(fr, 8.5, False, "666666")
+    footer_p = footer.paragraphs[0]
+    footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    footer_run = footer_p.add_run("왜곡 지역 설화 기반 방탈출 서비스 인터뷰 자료")
+    set_font(footer_run, 8.5, False, "666666")
 
     title = doc.add_paragraph(style="Title")
     title.paragraph_format.space_after = Pt(6)
     title.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    tr = title.add_run("지자체 관광부서 영상 인터뷰 대본과 서비스 사용 의향 확인서")
-    set_font(tr, 21, True, "000000")
+    title_run = title.add_run("지자체 관광부서 영상 인터뷰 대본과 서비스 사용 의향 확인서")
+    set_font(title_run, 21, True, "000000")
     sub = doc.add_paragraph()
     sub.paragraph_format.space_after = Pt(14)
-    sr = sub.add_run("나주와 목포 관광부서 담당 주무관 및 팀장용")
-    set_font(sr, 11.5, False, "555555")
+    sub_run = sub.add_run("나주와 목포 관광부서 담당 주무관 및 팀장용")
+    set_font(sub_run, 11.5, False, "555555")
 
     table(doc, ["문서 목적", "사용 방식"], [[
         "지역 설화 기반 방탈출 게임 제작·운영 서비스의 고도화 방향을 소개하고, 영상 인터뷰와 조건부 사용 의향 확인에 활용합니다.",

@@ -7,22 +7,18 @@ import CombinationPadlock from "@/props/padlock/CombinationPadlock";
 import { submitFireCabinetLock } from "@/server/playSession";
 import WallCabinet from "@/station/corridor/WallCabinet";
 
+import type { HydrantControls, PadlockControls, PanelInteriorValues } from "../controls/corridorCabinetControls";
 import type { CorridorValues } from "../controls/corridorControls";
-import type { HydrantControls } from "../controls/hydrantControls";
-import type { HighlightValues } from "../controls/interactionControls";
-import type { PadlockControls } from "../controls/lockControls";
-import type { PanelInteriorValues } from "../controls/panelControls";
-import type { CorridorShading } from "./corridorHooks";
-import { wallCabinetSpots } from "./corridorHooks";
+import type { HighlightValues } from "../controls/systemControls";
+import { wallCabinetSpots, type CorridorShading } from "./corridorHooks";
 
 /**
- * 두 함을 그리는 자리에만 더하는 올림. 중심(3.375)이 눈높이(4.15)보다 0.8 가까이 낮았다.
+ * 두 함을 그리는 자리에만 더하는 올림 — 함 중심을 눈높이 가까이 올린다.
  * Leva 저장값(바닥높이·자물쇠 y)은 그대로 두고 여기서만 더해 맞춰 둔 값이 안 날아간다. 자물쇠도 같이 올려야 손잡이에 걸린다.
  */
 const WALL_CABINET_LIFT = 0.6;
 
-// 원본은 소화전 속 부품에 선 네 칸(외곽선·굵기·색·주름선)만 넘겨 주름선 각도·색이 비어 있었다.
-// 그러면 three 기본값으로 그려진다 — EdgesGeometry 문턱 1°, LineBasicMaterial 흰색. 화면이 같도록 그 값을 그대로 적는다.
+// 소화전 속 부품의 주름선 각도·색은 three 기본값(EdgesGeometry 문턱 1°, LineBasicMaterial 흰색)으로 그린다.
 const EDGES_DEFAULT_ANGLE = 1;
 const LINE_DEFAULT_COLOR = "#ffffff";
 

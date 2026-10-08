@@ -2,14 +2,11 @@ import { useId, useState, type CSSProperties } from "react";
 
 import chevronDownIcon from "@/assets/images/imgChevronDown.svg";
 import chevronRightIcon from "@/assets/images/imgChevronRight2.svg";
-import { FAQ_ITEMS } from "@/data/support";
+import { ALL, FAQ_FILTERS, FAQ_ITEMS } from "@/data/support";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
 
-import CategoryBadge from "./CategoryBadge";
-import FilterChips from "./FilterChips";
-import { ALL, FAQ_FILTERS } from "./filters";
-import PanelHeading from "./PanelHeading";
+import { CategoryBadge, FilterChips, PanelHeading } from "./PanelParts";
 import { emptyStyle, panelStyle, rowCardStyle } from "./styles";
 
 export default function FaqPanel() {

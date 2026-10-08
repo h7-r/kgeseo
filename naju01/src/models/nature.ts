@@ -8,6 +8,7 @@
 // 받은 모형의 비례는 건드리지 않는다. 크거나 작으면 키로 맞춘다 — 눌러서 맞추면 덤불이 선인장이 된다.
 
 import * as THREE from "three";
+
 import type { AssetDefinition } from "../placement/assetCatalog";
 import { DISTANT_STYLE } from "../world/distantLandscape";
 import { VEGETATION_STYLE } from "../world/vegetation";
@@ -73,7 +74,7 @@ export function treeModels(): Geometries {
     const leafDark = new THREE.Color(VEGETATION_STYLE.leafDark);
     const leafLight = new THREE.Color(VEGETATION_STYLE.leafLight);
     const temp = new THREE.Color();
-    // 나무1·나무3 은 팀 판정으로 뺐다
+    // 나무1·나무3 은 쓰지 않는다
     return [TREE_2, TREE_4, TREE_5, TREE_6, TREE_7].map((model) =>
       bakedModelGeometry(model, {
         paint: (geometry, _model, colors) => {
@@ -125,7 +126,7 @@ export function rockModels(): Geometries {
 }
 
 // 같은 바위를 아주 낮게(90 삼각형) 구운 것. 1,699 개가 깔려서 근경 바위를 쓰면 맵 전체보다 무겁다.
-// 근경 바위는 한 개 9,000 삼각형(실측, 두 번 올렸다)이라 차이가 100 배다 — 면수는 재고 적는다.
+// 근경 바위는 한 개 9,000 삼각형이라 차이가 100 배다 — 면수는 재고 적는다.
 function pebbleModels(): Geometries {
   return once("pebble", () =>
     [PEBBLE_1, PEBBLE_2, PEBBLE_3, PEBBLE_4, PEBBLE_5, PEBBLE_6, PEBBLE_7].map((model) =>
@@ -161,7 +162,7 @@ const paintPlant =
     }
   };
 
-/** 수풀 — 가로가 키의 1.8 배인 덩이 그대로. 수풀1 은 지피식물이라 팀 판정으로 뺐다. */
+/** 수풀 — 가로가 키의 1.8 배인 덩이 그대로. 수풀1 은 지피식물이라 쓰지 않는다. */
 export function bushModels(): Geometries {
   return once("bush", () => {
     const paint = paintPlant(
@@ -198,7 +199,7 @@ export function gravelPatchModels(): Geometries {
   return once("gravelPatch", () => [bakedModelGeometry(GRAVEL_PATCH_1, { bottom: 1.12, top: 0.72 })]);
 }
 
-// 지붕은 원경 초가색보다 밝게 — 원경 색을 고치면 모형자연을 껐을 때 옛 집 그림까지 바뀐다
+// 지붕은 원경 초가색보다 밝게. 원경 색을 같이 쓰면 고칠 때 모형자연을 껐을 때의 원경 집 그림까지 바뀐다.
 const STRAW = "#CBB87C";
 const STRAW_SHADE = "#8C7C4E";
 
@@ -248,9 +249,10 @@ export function thatchedHouseModels(): Geometries {
           }
         },
       });
-      // 가로가 키의 2.4~3.2 배라 그대로면 키 4.2 짜리 집이 폭 13.5 m 다. 옛 원경집 비(1.72)로 균등하게 줄인다.
+      // 가로가 키의 2.4~3.2 배라 그대로면 키 4.2 짜리 집이 폭 13.5 m 다. 원경 집 비(1.72)로 균등하게 줄인다.
       geometry.computeBoundingBox();
-      const box = geometry.boundingBox!;
+      const box = geometry.boundingBox;
+      if (!box) return geometry;
       const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
       const scale = 1.72 / width;
       geometry.scale(scale, scale, scale);

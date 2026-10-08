@@ -6,8 +6,8 @@ import type { Plugin } from "vite";
 // 나주 맵의 손 배치(지운 것·옮긴 것)를 파일 한 장으로 주고받는 개발 서버 주소.
 // 배치는 시드로 어디서 열어도 같은데 편집만 브라우저에 두면 사람마다 달라지므로 파일에 적는다.
 // 주소에 한글을 쓰지 않는다 — req.url 은 퍼센트 인코딩된 원문이라 한글 리터럴과 비교가 어긋난다.
-export const EDIT_ENDPOINT = "/__naju-edit";
-export const EDIT_FILE = fileURLToPath(new URL("../assets/edits.json", import.meta.url));
+const EDIT_ENDPOINT = "/__naju-edit";
+const EDIT_FILE = fileURLToPath(new URL("../assets/edits.json", import.meta.url));
 const BACKUP_DIR = fileURLToPath(new URL("../assets/edits-backup/", import.meta.url));
 const MAX_BACKUPS = 40;
 // 파일이 없을 때 돌려주는 빈 편집 — 열쇠는 저장 형식 그대로(한글)
@@ -15,7 +15,7 @@ const EMPTY_EDITS = '{"지움":{},"고침":{}}';
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-// 손으로 놓은 것은 다시 만들 수 없다. 덮어쓰기 한 번에 그날 작업이 사라진 적이 있어 직전 내용을 남긴다.
+// 손으로 놓은 것은 다시 만들 수 없다 — 덮어쓰기 한 번에 작업이 사라지지 않게 직전 내용을 남긴다.
 // 내용이 같으면 남기지 않는다 — 백업이 같은 파일로 가득 찬다.
 async function backupBeforeOverwrite(next: string) {
   let previous: string;
@@ -35,6 +35,31 @@ async function backupBeforeOverwrite(next: string) {
   for (const file of backups.slice(0, Math.max(0, backups.length - MAX_BACKUPS))) {
     await fs.rm(path.join(BACKUP_DIR, file), { force: true });
   }
+}
+
+// 빌드본에 같이 내보내는 이름 — 정적 서버·CDN 이 한글 경로를 제각각 인코딩해서 ASCII 로 둔다
+const BUNDLED_EDIT_FILE = "naju-edit.json";
+const EMPTY_BUNDLED_EDITS = '{"지움":{},"고침":{},"더함":{}}';
+
+/**
+ * 빌드본에는 /__naju-edit 미들웨어가 없어 그 주소가 index.html 을 돌려주고 손 배치가 통째로 빠진다.
+ * 그래서 빌드할 때 편집 파일을 naju-edit.json 으로 같이 내보낸다(placement/editFile 이 빌드본에서 읽는다).
+ */
+export function najuEditBundle(): Plugin {
+  return {
+    name: "naju-edit-bundle",
+    apply: "build",
+    async generateBundle() {
+      // 글자로 풀지 않고 바이트 그대로 싣는다
+      let source: string | Uint8Array = EMPTY_BUNDLED_EDITS;
+      try {
+        source = await fs.readFile(EDIT_FILE);
+      } catch {
+        // 편집 파일이 없으면 빈 편집으로 나간다
+      }
+      this.emitFile({ type: "asset", fileName: BUNDLED_EDIT_FILE, source });
+    },
+  };
 }
 
 /** GET 은 편집 파일을 내주고, writable 이면 POST 로 덮어쓴다. 본편 서버(5173)는 읽기만 한다. */

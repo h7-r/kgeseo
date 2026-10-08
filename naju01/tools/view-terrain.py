@@ -3,8 +3,8 @@
 #     Blender --background --factory-startup -t 6 --python naju01/tools/view-terrain.py \
 #       -- --glb assets/terrain.glb --out /tmp/view-terrain
 #
-# 숫자 검수만으로는 「규격은 맞는데 흉한 땅」을 못 잡아 게임에 올리기 전에 형태를 본다.
-# 재질이 아직 없으니 워크벤치(스튜디오 조명 + 그림자 + 캐비티)가 형태를 가장 잘 보여 준다.
+# 숫자 검수로는 「규격은 맞는데 흉한 땅」을 못 잡아 게임에 올리기 전에 형태를 본다.
+# 재질이 없으니 워크벤치(스튜디오 조명 + 그림자 + 캐비티)가 형태를 가장 잘 보여 준다.
 
 import bpy, sys, os, math
 from mathutils import Vector
@@ -33,20 +33,20 @@ scene = bpy.context.scene
 scene.render.engine = "BLENDER_WORKBENCH"
 scene.render.resolution_x, scene.render.resolution_y = 1000, 620
 scene.render.film_transparent = False
-sh = scene.display.shading
-sh.light = "STUDIO"
-sh.color_type = "SINGLE"
-sh.single_color = (0.62, 0.58, 0.50)
-sh.show_shadows = True
-sh.show_cavity = True
-sh.cavity_type = "BOTH"
-sh.curvature_ridge_factor = 1.4
-sh.curvature_valley_factor = 1.4
-sh.shadow_intensity = 0.55
+shading = scene.display.shading
+shading.light = "STUDIO"
+shading.color_type = "SINGLE"
+shading.single_color = (0.62, 0.58, 0.50)
+shading.show_shadows = True
+shading.show_cavity = True
+shading.cavity_type = "BOTH"
+shading.curvature_ridge_factor = 1.4
+shading.curvature_valley_factor = 1.4
+shading.shadow_intensity = 0.55
 
-cam_d = bpy.data.cameras.new("cam")
-cam_d.lens = 35
-cam = bpy.data.objects.new("cam", cam_d)
+cam_data = bpy.data.cameras.new("cam")
+cam_data.lens = 35
+cam = bpy.data.objects.new("cam", cam_data)
 scene.collection.objects.link(cam)
 scene.camera = cam
 

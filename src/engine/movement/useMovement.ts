@@ -62,7 +62,7 @@ export interface MovementOptions {
   facing?: number;
   isThirdPerson?: boolean;
   playerRef?: RefObject<PlayerMotionState> | null;
-  /** 3인칭 설정을 끈 옛 모드의 붐 길이(m) */
+  /** 3인칭 설정(thirdPersonConfig.enabled)을 끈 단순 붐의 길이(m) */
   thirdPersonDistance?: number;
   /** 천장 높이(유닛). 3인칭 카메라가 뚫고 올라가지 않게 자른다. 비우면 머리 위 조금까지만 */
   ceiling?: number | null;
@@ -171,8 +171,7 @@ export function useMovement(
   // 첫 몸 방향은 시작 카메라의 yaw 에서(몸 = 카메라 yaw + π). Math.PI 는 카메라가 −z 를 볼 때만 맞다.
   useLayoutEffect(() => {
     bodyYaw.current = camera.rotation.y + Math.PI;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [camera]);
   const boomLength = useRef(0);
   const baseFov = useRef<number | null>(null);
   const pivotScratch = useMemo(() => new THREE.Vector3(), []);
@@ -328,7 +327,7 @@ export function useMovement(
     }
   };
 
-  /** 시점 전환 이어 붙이기 — 지금 자리에서 붙잡아 둔 옛 자리 쪽으로 남은 만큼 되돌린다. */
+  /** 시점 전환 이어 붙이기 — 지금 자리에서 전환 직전 자리 쪽으로 남은 만큼 되돌린다. */
   const blendViewSwitch = (rawDt: number) => {
     if (switchRemaining.current <= 0) return;
     switchRemaining.current = Math.max(0, switchRemaining.current - Math.min(rawDt, MAX_FRAME_DELTA));
@@ -393,7 +392,7 @@ export function useMovement(
     };
   }, []);
 
-  // 씬에 들어설 때(꺼짐 → 켜짐) 한 번 자리를 잡는다. 커밋 중에 해야 새 씬이 옛 좌표로 한 프레임 그려지지 않는다.
+  // 씬에 들어설 때(꺼짐 → 켜짐) 한 번 자리를 잡는다. 커밋 중에 해야 새 씬이 이전 좌표로 한 프레임 그려지지 않는다.
   // 그 뒤 start/facing 이 바뀌었다고 걷던 사람을 도로 끌어다 놓으면 안 되므로 deps 는 enabled 뿐이다.
   const hasEntered = useRef(false);
   useLayoutEffect(() => {
@@ -418,7 +417,8 @@ export function useMovement(
       // 몸 방향은 atan2(x, z) 규약이라 0 이 +z 다 — 카메라 yaw θ 의 몸 방향은 θ + π.
       bodyYaw.current = facing + Math.PI;
     }
-  }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 들어설 때 한 번만. 걷던 사람을 start 로 끌어다 놓지 않는다
+  }, [enabled]);
 
   // 씬을 떠날 때 발소리 루프가 남아 계속 울리지 않게 끈다.
   useEffect(

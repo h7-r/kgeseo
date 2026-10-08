@@ -1,17 +1,14 @@
-// declaration-order.mjs — 아직 만들어지지 않은 const 를 먼저 읽고 있지 않은가
+// 아직 초기화되지 않은 const 를 먼저 읽는 곳을 찾는다.
 //
 //   node tools/declaration-order.mjs [파일...]
 //
-// const 는 선언한 줄보다 앞에서 못 읽는다(Cannot access before initialization). 빌드는 이걸 못 잡는다.
-// 옛 복도잡동사니·소화전내부에서 두 번 앱 전체가 안 떴다.
+// const 를 선언 줄보다 먼저 읽으면 실행 중에 터지는데(Cannot access before initialization) 빌드는 못 잡는다.
+// 모듈 최상단의 선언 전 사용은 tsc 가 TS2448 로 잡지만, 컴포넌트 안에서 useMemo·useCallback 이 아래쪽 값을
+// 읽는 것은 「나중에 불리는 함수」로 보고 넘긴다. 둘 다 렌더 중에 바로 도므로 이 검사가 그 몫을 잡는다.
 //
-// tsc 와의 차이: 모듈 최상단의 선언 전 사용은 tsc 가 TS2448 로 잡는다. 하지만 컴포넌트 안에서
-// useMemo·useCallback 이 아래쪽 값을 읽는 것은 tsc 가 「나중에 불리는 함수」로 보고 넘긴다.
-// 둘 다 그리는 도중 바로 돌기 때문에 그게 이 검사가 더 잡는 몫이다. .js/.jsx 에는 tsc 가 없으니 전부 본다.
-//
-// · 들여쓰기 0 = 모듈 최상단, 들여쓰기 2 = 함수·컴포넌트 안. 둘을 따로 본다
-//   (컴포넌트가 모듈 아래쪽 값을 읽는 건 정상이다 — 그때는 모듈 읽기가 끝나 있다).
-// · 함수 본문은 건너뛴다. 나중에 불리니 아래쪽 값을 읽어도 된다. useMemo·useCallback 만 예외다.
+// · 들여쓰기 0 = 모듈 최상단, 들여쓰기 2 = 함수·컴포넌트 안. 컴포넌트가 모듈 아래쪽 값을 읽는 것은
+//   모듈 읽기가 끝난 뒤라 정상이므로 둘을 따로 본다.
+// · 함수 본문은 나중에 불리므로 건너뛴다. useMemo·useCallback 만 예외다.
 import fs from "node:fs";
 
 const DEFAULT_FILES = [
@@ -26,7 +23,7 @@ const DEFAULT_FILES = [
   "src/props/hydrantCabinet/hoseGeometry.ts",
   "src/props/vending/CanVendingMachine.tsx",
   "src/props/vending/CoffeeVendingMachine.tsx",
-  "src/props/vending/common.ts",
+  "src/props/vending/geometry.ts",
   "src/props/vendingMachineState.ts",
   "src/props/hingeState.ts",
   "src/lobby/placement.ts",
@@ -34,6 +31,7 @@ const DEFAULT_FILES = [
   "src/lobby/interactions.ts",
   "src/lobby/Highlight.tsx",
   "src/lobby/AimTracker.tsx",
+  "src/lobby/HeldItem.tsx",
 ];
 const files = process.argv.length > 2 ? process.argv.slice(2) : DEFAULT_FILES;
 
@@ -52,8 +50,8 @@ const LAZY = /^(\(|async\s|function\b|[\w$가-힣]+\s*=>)/;
 function collectInitializer(lines, start, first) {
   let body = first;
   let depth = 0;
-  const count = (s) => {
-    for (const ch of s) {
+  const count = (text) => {
+    for (const ch of text) {
       if ("([{".includes(ch)) depth++;
       else if (")]}".includes(ch)) depth--;
     }
@@ -71,11 +69,11 @@ function findDeclarations(lines, indent) {
   const re = declarationPattern(indent);
   const found = [];
   for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(re);
-    if (!m || lines[i][indent] === " ") continue; // 더 깊이 들여쓴 줄은 다른 자리다
-    const head = m[2].trim();
-    const lazy = !IMMEDIATE.test(head) && LAZY.test(head);
-    found.push({ name: m[1], line: i + 1, body: collectInitializer(lines, i, m[2]), lazy });
+    const match = lines[i].match(re);
+    if (!match || lines[i][indent] === " ") continue; // 더 깊이 들여쓴 줄은 다른 자리다
+    const head = match[2].trim();
+    const isLazy = !IMMEDIATE.test(head) && LAZY.test(head);
+    found.push({ name: match[1], line: i + 1, body: collectInitializer(lines, i, match[2]), isLazy });
   }
   return found;
 }
@@ -90,6 +88,11 @@ const stripNoise = (code) =>
 
 let failedFiles = 0;
 for (const file of files) {
+  if (!fs.existsSync(file)) {
+    failedFiles++;
+    console.log("  ✗", file, "— 파일이 없다(옮겨졌으면 목록을 고친다)");
+    continue;
+  }
   const lines = fs.readFileSync(file, "utf8").split("\n");
   const problems = [];
   let declarationCount = 0;
@@ -103,7 +106,7 @@ for (const file of files) {
   for (const declarations of scopes) {
     declarationCount += declarations.length;
     declarations.forEach((decl, i) => {
-      if (decl.lazy) return;
+      if (decl.isLazy) return;
       const body = stripNoise(decl.body);
       for (const later of declarations.slice(i + 1)) {
         const use = new RegExp(`(^|[^\\w$가-힣.])${later.name.replace(/\$/g, "\\$")}([^\\w$가-힣]|$)`);
@@ -115,7 +118,7 @@ for (const file of files) {
   if (problems.length) {
     failedFiles++;
     console.log("  ✗", file);
-    for (const p of problems) console.log("      ", p);
+    for (const problem of problems) console.log("      ", problem);
   } else {
     console.log("  ✓", file, `const ${declarationCount}개`);
   }

@@ -6,6 +6,25 @@
 import { useState, type CSSProperties } from "react";
 
 import { useInventory, type InventoryItem } from "./inventory";
+import {
+  backdropStyle,
+  bodyStyle,
+  categoryStyle,
+  detailNameStyle,
+  dividerStyle,
+  footerStyle,
+  gridStyle,
+  headerMetaStyle,
+  headerStyle,
+  hintStyle,
+  panelStyle,
+  sectionCountStyle,
+  sectionTitleStyle,
+  selectedSlotStyle,
+  slotNameStyle,
+  slotStyle,
+  titleStyle,
+} from "./panelStyles";
 
 interface InventoryPanelProps {
   /** 지금 이 창이 열려 있나(화면층이 정한다) */
@@ -93,41 +112,6 @@ export default function InventoryPanel({ open, onClose }: InventoryPanelProps) {
   );
 }
 
-const GOLD = "#e0a94e";
-const MONO_SMALL = "12px ui-monospace,Menlo,monospace";
-
-const backdropStyle: CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  zIndex: 50,
-  background: "rgba(10,13,18,.72)",
-  display: "grid",
-  placeItems: "center",
-};
-
-const panelStyle: CSSProperties = {
-  width: 720,
-  maxWidth: "90%",
-  maxHeight: "82%",
-  display: "flex",
-  flexDirection: "column",
-  padding: "22px 24px",
-  borderRadius: 12,
-  background: "#191d25",
-  border: "1px solid #2c3648",
-  color: "#cfe3ff",
-  font: "15px/1.7 sans-serif",
-};
-
-const headerStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "baseline",
-  justifyContent: "space-between",
-  marginBottom: 16,
-};
-const titleStyle: CSSProperties = { font: "600 22px/1.3 sans-serif" };
-const headerMetaStyle: CSSProperties = { font: MONO_SMALL, color: "#5b6b80" };
-const bodyStyle: CSSProperties = { display: "flex", gap: 20, minHeight: 0, flex: 1 };
 const leftColumnStyle: CSSProperties = { flex: "1 1 58%", overflowY: "auto", paddingRight: 4 };
 const rightColumnStyle: CSSProperties = {
   flex: "1 1 42%",
@@ -136,32 +120,7 @@ const rightColumnStyle: CSSProperties = {
   overflowY: "auto",
 };
 const sectionStyle: CSSProperties = { marginBottom: 18 };
-const sectionTitleStyle: CSSProperties = {
-  font: MONO_SMALL,
-  letterSpacing: 1,
-  color: GOLD,
-  marginBottom: 8,
-};
-const sectionCountStyle: CSSProperties = { color: "#5b6b80", marginLeft: 4 };
-const gridStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))",
-  gap: 8,
-};
 
-const slotStyle: CSSProperties = {
-  display: "grid",
-  justifyItems: "center",
-  gap: 4,
-  padding: "10px 6px",
-  borderRadius: 8,
-  background: "#12161c",
-  border: "1px solid #2c343e",
-  color: "#cfe3ff",
-  font: "12px sans-serif",
-  cursor: "pointer",
-};
-const selectedSlotStyle: CSSProperties = { ...slotStyle, borderColor: GOLD, background: "#1d2430" };
 const slotImageStyle: CSSProperties = { width: 40, height: 40, objectFit: "contain" };
 const slotLetterStyle: CSSProperties = {
   display: "grid",
@@ -173,17 +132,8 @@ const slotLetterStyle: CSSProperties = {
   font: "600 18px sans-serif",
   color: "#8ea3bd",
 };
-const slotNameStyle: CSSProperties = {
-  maxWidth: "100%",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
-};
 const emptyRowStyle: CSSProperties = { color: "#5b6b80", fontSize: 13, padding: "6px 2px" };
 
-const categoryStyle: CSSProperties = { font: MONO_SMALL, letterSpacing: 1, color: GOLD };
-const detailNameStyle: CSSProperties = { margin: "6px 0 0", font: "600 19px/1.3 sans-serif" };
-const dividerStyle: CSSProperties = { height: 1, background: "#2c343e", margin: "14px 0" };
 const detailImageStyle: CSSProperties = {
   width: "100%",
   borderRadius: 8,
@@ -191,10 +141,3 @@ const detailImageStyle: CSSProperties = {
   marginBottom: 12,
 };
 const descriptionStyle: CSSProperties = { margin: 0, color: "#b7c0cb", fontSize: 14 };
-const hintStyle: CSSProperties = { color: "#5b6b80", fontSize: 13, paddingTop: 6 };
-const footerStyle: CSSProperties = {
-  marginTop: 16,
-  textAlign: "right",
-  color: "#5b6b80",
-  font: MONO_SMALL,
-};

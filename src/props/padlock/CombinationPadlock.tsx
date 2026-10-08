@@ -18,7 +18,7 @@ import {
 } from "@/props/combinationLock";
 import { rattleOffset } from "@/props/hingeState";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { worldPositionOf } from "@/props/shared/worldPosition";
+import { worldPositionOf } from "@/props/shared/aimTarget";
 
 import LatchPlate, { type LatchSettings } from "./LatchPlate";
 import LockCloseUpCamera from "./LockCloseUpCamera";
@@ -69,14 +69,14 @@ function Dial({ geometry, material, x, slot, slotCount, speed = 10 }: DialProps)
 
 const DEFAULT_DIGITS = [0, 0, 0, 0, 0];
 
-export interface CombinationPadlockProps {
+interface CombinationPadlockProps {
   position?: Vector3Tuple;
   rotation?: Vector3Tuple;
   /** 전체 크기 배수. 아래 치수들은 모양의 비율이고 실제 크기는 이 값 하나로 정한다. */
   size?: number;
   /** 크기 1 일 때 실척 4.7cm */
   width?: number;
-  /** 폭의 0.43 — 원본은 이만큼 납작하다 */
+  /** 폭의 0.43 — 실물 자물쇠는 이만큼 납작하다 */
   height?: number;
   /** 높이보다 조금 얇아 다이얼이 앞뒤로 살짝 나온다 */
   depth?: number;

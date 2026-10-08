@@ -7,7 +7,7 @@ import CoffeeVendingMachine from "@/props/vending/CoffeeVendingMachine";
 import VendingPushCutscene from "@/props/vending/VendingPushCutscene";
 import type { CoffeeTemperature, VendingMachineState } from "@/props/vendingMachineState";
 import { pushOffset } from "@/props/vendingPush";
-import VendingMachineCollider from "@/station/layout/VendingMachineCollider";
+import { VendingMachineCollider } from "@/station/layout/Colliders";
 
 import type { CorridorValues } from "../controls/corridorControls";
 import type { CoffeeVendingValues, DrinkVendingValues, VendingControls } from "../controls/vendingControls";
@@ -15,7 +15,7 @@ import type { CoffeeVendingValues, DrinkVendingValues, VendingControls } from ".
 /** 「비밀 복도 › 커피선택」 선택지 값(저장 데이터라 한글) → 온도 id. "없음" 이면 자판기 상태를 따른다. */
 const COFFEE_CHOICE: Record<string, CoffeeTemperature> = { 핫: "hot", 아이스: "iced" };
 
-// 원본과 같은 순서로 계산한다((도 × π) ÷ 180) — 곱셈 순서가 바뀌면 마지막 자리가 달라질 수 있다
+// (도 × π) ÷ 180 순서를 지킨다 — 곱셈 순서가 바뀌면 마지막 자리가 달라질 수 있다
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
 /** 몸통 선과 캔·버튼·배출구 같은 안쪽 선. 색만 다르다. */

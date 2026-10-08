@@ -30,31 +30,18 @@ export interface InteractableInfo {
   disabled?: boolean | (() => boolean);
 }
 
-// ── 겨냥 ─────────────────────────────────────────────────
+// ── 겨냥 ──
 // 겨냥은 고개만 돌려도 바뀐다. 물건 상태와 같은 상자에 두면 둘러보기만 해도
-// 로비 전체가 다시 그려지므로 따로 둔다(HUD 만 구독한다).
+// 로비 전체가 다시 그려지므로 따로 둔다.
 
 const targets = new Map<string, InteractableInfo>();
 
 let aimedId: string | null = null;
 const aimSignal = createChangeSignal();
 
-const readLabel = (target: InteractableInfo | undefined) =>
-  !target ? "" : typeof target.label === "function" ? target.label() : (target.label ?? "");
-
 export const aim = {
   get: () => aimedId,
-  label: () => (aimedId ? readLabel(targets.get(aimedId)) : ""),
   subscribe: aimSignal.subscribe,
-};
-
-export const useAim = () => useSyncExternalStore(aim.subscribe, aim.get);
-
-/** 화면 아래 안내문용. 서랍을 열면 같은 물건이라도 문구가 바뀌므로 물건 상태도 구독한다. */
-export const useAimLabel = () => {
-  useSyncExternalStore(aim.subscribe, aim.get);
-  useSyncExternalStore(lobbyStore.subscribe, lobbyStore.get);
-  return aim.label();
 };
 
 /** 지금 겨냥 중인 것을 실행한다. 처리했으면 true (E 키가 여기서 소비된다). */
@@ -193,7 +180,7 @@ export function useInteractable(id: string, info: InteractableInfo) {
   }, [id]);
 }
 
-// ── 물건 상태 ── 실제로 뭔가 바뀔 때만 알린다 ─────────────────
+// ── 물건 상태 ── 실제로 뭔가 바뀔 때만 알린다
 
 export interface DrawerOpening {
   row: number;
@@ -201,7 +188,7 @@ export interface DrawerOpening {
   amount: number;
 }
 
-export interface ChairSpot {
+interface ChairSpot {
   x: number;
   z: number;
 }
@@ -254,11 +241,7 @@ const OPEN_STEPS = [0.25, 0.55, 0.8, 1];
 const CLOSE_STEPS = [0.8, 0.55, 0.25, 0]; // 마지막 0 = 완전히 닫힘
 const DRAWER_STEP_MS = 45;
 
-export type DrawerDirection = "open" | "close";
-
-export function drawerOpening(cabinetId: string) {
-  return state.drawers[cabinetId] ?? null;
-}
+type DrawerDirection = "open" | "close";
 
 /**
  * 서랍을 연다/닫는다. 지금 열려 있는지는 씬이 정한다 — 캐비닛은 손대기 전에도
@@ -298,7 +281,6 @@ export function toggleLamp(id: string, fallback: boolean) {
 // 문 앞에 둔 의자도 다시 E 로 옮길 수 있어 갇히지 않는다(GRD-12). 놓을 자리를 제한하면
 // "왜 여기 못 놓는지"를 글자 없이 설명할 길이 없다.
 export const draggedChair = () => state.draggedChair;
-export const chairSpot = (id: string) => state.chairSpots[id] ?? null;
 
 export function grabChair(id: string) {
   if (state.draggedChair || state.heldItem) return false;

@@ -8,7 +8,7 @@ import { MeasureItem } from "@/lobby/PlacementViews";
 import { nozzleLocation } from "@/props/nozzleState";
 import { isWorkLampPuzzleHandFull } from "@/props/workLampPuzzle/workLampState";
 
-import type { HighlightValues } from "../controls/interactionControls";
+import type { HighlightValues } from "../controls/systemControls";
 import PickupItemModel, { type PickupLooks } from "./PickupItemModel";
 import { pickupSize, pickupSpot, type PickupItem, type PickupKind } from "./usePickupItems";
 

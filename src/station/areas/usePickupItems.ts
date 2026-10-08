@@ -8,14 +8,19 @@ import {
   unregisterSnapPoint,
   useSurfaceVersion,
 } from "@/lobby/placement";
+import { monitorRelativePose, type DeskPose } from "@/station/office/deskLayout";
 import { EVIDENCE_ITEMS } from "@/station/office/evidence/evidenceItems";
-import { monitorRelativePose, type DeskPose } from "@/station/office/monitorRelativePose";
-import { PAPER_SINK_DEPTH } from "@/station/office/paperStackConstants";
+import { PAPER_SINK_DEPTH } from "@/station/office/paper";
 
-import type { CoatRackControls, HatValues } from "../controls/coatRackControls";
-import type { KeyboardMouseControls, LaptopValues, MonitorValues } from "../controls/computerControls";
-import type { EvidenceControls, EvidencePose } from "../controls/evidenceControls";
-import type { MugValues } from "../controls/mugControls";
+import type { CoatRackControls, HatValues } from "../controls/furnitureControls";
+import type {
+  EvidenceControls,
+  EvidencePose,
+  KeyboardMouseControls,
+  LaptopValues,
+  MonitorValues,
+  MugValues,
+} from "../controls/officePropControls";
 import type { PaperValues } from "../controls/paperControls";
 import { DRAWER_RIDERS } from "./cabinetDrawers";
 
@@ -31,7 +36,7 @@ export type PickupItem =
 
 export type PickupKind = PickupItem["kind"];
 
-/** 지금 놓인 자리 — 옮긴 적이 없으면 Leva 원래 자리 */
+/** 지금 놓인 자리 — 옮긴 적이 없으면 Leva 제자리 */
 export const pickupSpot = (item: PickupItem, itemSpots: LobbyState["itemSpots"]): ItemSpot =>
   itemSpots[item.id] ?? { x: item.values.x, y: item.values.height, z: item.values.z, rot: item.values.rotation };
 
@@ -56,8 +61,7 @@ function useDeskFittedPapers(papers: readonly PaperValues[]) {
         // 아주 살짝 파묻는다(같은 깊이면 지글거린다). 0.01 칸으로 끊어야 다시재기 서명이 매번 안 바뀌어 외곽선이 안 떨린다.
         return top === null ? v : { ...v, height: Math.round((top - PAPER_SINK_DEPTH) * 100) / 100 };
       }),
-    // 면이 바뀌면(책상을 다 재고 나면) 다시 계산한다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 면이 바뀌면(책상을 다 재고 나면) 다시 계산한다
     [papers, surfaceVersion],
   );
 }
@@ -75,7 +79,7 @@ interface PickupSources {
 
 /**
  * 머그컵 3 · 노트북 3 · 서류 7 · 모자 · 번호표 · 증거물 상자 둘 · 키보드·마우스.
- * 원래 자리를 걸이(스냅 지점)로 등록해 언제든 정확히 제자리로 되돌릴 수 있게 한다(GRD-01).
+ * 제자리를 걸이(스냅 지점)로 등록해 언제든 정확히 제자리로 되돌릴 수 있게 한다(GRD-01).
  */
 export function usePickupItems({
   lobby,
@@ -110,7 +114,7 @@ export function usePickupItems({
             : [],
         )
       : []),
-    // 봉투는 뺐다 — 납작해서 들면 종잇장 한 장을 든 것처럼 보인다
+    // 봉투는 들 수 없다 — 납작해서 들면 종잇장 한 장을 든 것처럼 보인다
     ...(evidence.common.visible
       ? EVIDENCE_ITEMS.flatMap((item, i): PickupItem[] =>
           item.kind === "box" || item.kind === "collectionBox"
@@ -129,7 +133,7 @@ export function usePickupItems({
     ]),
   ];
 
-  // 시선이 원래 자리에 걸리면 그리로 스냅한다. 옷걸이 가지처럼 면이 아닌 곳은 광선↔수평면으로 못 잡는다.
+  // 시선이 제자리에 걸리면 그리로 스냅한다. 옷걸이 가지처럼 면이 아닌 곳은 광선↔수평면으로 못 잡는다.
   const homeSignature = items
     .map((o) => `${o.id}:${o.values.x},${o.values.height},${o.values.z},${o.values.rotation},${pickupTilt(o)}`)
     .join("|");
@@ -149,8 +153,7 @@ export function usePickupItems({
     return () => {
       for (const o of items) unregisterSnapPoint(`home:${o.id}`);
     };
-    // 자리 값이 바뀔 때만 다시 등록한다(목록은 매 렌더 새로 만들어진다)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 목록은 매 렌더 새로 만들어져 자리 값이 바뀔 때만 다시 등록한다
   }, [homeSignature]);
 
   // 제자리 겹침은 「누가 거기 갖다 놓은 것」만 따진다

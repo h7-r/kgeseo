@@ -1,9 +1,9 @@
-import { ANGAM_PIN_LENGTH, CASE_FILE_PIN_LENGTH } from "@/pages/home/homeLayout";
+import { ANGAM_PIN_LENGTH, CASE_FILE_PIN_LENGTH } from "@/sections/home/homeLayout";
 
 import { ROUTES } from "./routes";
 
 /** 하위 메뉴가 찾아갈 덩이 이름. 덩이 요소에 `{...sectionAnchor(id)}` 로 붙인다. */
-export type SectionId =
+type SectionId =
   | "intro"
   | "case-file"
   | "legend-regions"
@@ -24,7 +24,7 @@ export function sectionAnchor(id: SectionId) {
 
 const bySection = (id: SectionId) => `[data-section="${id}"]`;
 
-export interface SectionItem {
+interface SectionItem {
   id: string;
   label: string;
   /** 덩이를 찾는 선택자. null 이면 페이지 맨 위. */
@@ -33,7 +33,7 @@ export interface SectionItem {
   pinLength?: number;
 }
 
-export interface SubMenu {
+interface SubMenu {
   items: readonly SectionItem[];
   /** false 면 하위 메뉴 줄은 띄우지 않고 스크롤 맞춤만 쓴다. */
   showBar?: boolean;

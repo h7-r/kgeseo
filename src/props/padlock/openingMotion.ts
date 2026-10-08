@@ -9,7 +9,7 @@
 
 type Phase = readonly [number, number];
 
-export interface OpeningMotion {
+interface OpeningMotion {
   /** 초 — 처음부터 끝까지 */
   duration: number;
   /** 매달린 본체가 화면 쪽으로 반듯이 눕는 각 */
@@ -59,7 +59,7 @@ export const OPENING_MOTION: OpeningMotion = {
   },
 };
 
-export interface OpeningPose {
+interface OpeningPose {
   /** 본체가 아래로 내려가는 정도 */
   release: number;
   /** x 축 회전(음수 = 화면 쪽으로 눕는다) */

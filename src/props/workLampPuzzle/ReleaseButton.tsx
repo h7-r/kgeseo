@@ -51,7 +51,7 @@ export default function ReleaseButton({
     <group position={position}>
       <Highlight id="workLamp:releaseButton" anchor={() => null} grow={0} strength={0.2}>
         <mesh geometry={boxGeometry} position={[d * 0.09, 0, 0]} castShadow receiveShadow>
-          {/* 벽보다 확실히 어둡게 — 전원이 와서 벽이 밝아지면 버튼만 허공에 떠 보였다 */}
+          {/* 벽보다 확실히 어둡게 — 전원이 와서 벽이 밝아져도 버튼이 벽에 붙어 보인다 */}
           <meshToonMaterial color={scaleColor("#2c3036", brightness)} gradientMap={TOON_GRADIENT} />
           <ToonOutline geometry={boxGeometry} outline={outline} />
           <Outlines thickness={3} color="#0f1012" />

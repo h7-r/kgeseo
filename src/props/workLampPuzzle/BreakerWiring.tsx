@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import type { BufferGeometry } from "three";
+import type { BufferGeometry, Vector3Tuple } from "three";
 import { Outlines } from "@react-three/drei";
 
 import { scaleColor } from "@/engine/color";
@@ -19,12 +19,9 @@ import {
   useHeldWireShape,
   usePluggedWiresKey,
   WIRE_SHAPE_LABELS,
+  WIRE_SHAPES,
   type WireShape,
 } from "./workLampState";
-
-type Point = [number, number, number];
-
-const SHAPES: readonly WireShape[] = ["round", "square", "triangle"];
 
 /** 꽂는 자리의 테·파인 홈 — 모양마다 한 번만 만든다 */
 const connectorSet = (size: number): Record<WireShape, BufferGeometry> => ({
@@ -38,7 +35,7 @@ const ROOT_SIDE: Record<WireShape, number> = { triangle: -1, round: 0, square: 1
 
 interface BreakerWiringProps {
   /** 차단기함 자리(월드) — 겨냥 지점 계산에 쓴다 */
-  position: Point;
+  position: Vector3Tuple;
   direction: number;
   width: number;
   height: number;
@@ -49,7 +46,7 @@ interface BreakerWiringProps {
 }
 
 /**
- * 차단기함 아래 ⟦스위치 안 퍼즐⟧ — 꽂는 자리 셋 + 빠져 있는 선 셋.
+ * 차단기함 아래 스위치 안 퍼즐 — 꽂는 자리 셋 + 빠져 있는 선 셋.
  * 선은 셋 다 같은 회색이고 끝 모양(둥근·네모·세모)과 같은 모양이 파인 자리에 꽂는다.
  * 선은 함 바닥 구멍에서 올라와 끝을 위·앞으로 세운다 — 아래로 늘어뜨리면 모양이 바닥에 잘린다.
  */
@@ -83,9 +80,9 @@ export default function BreakerWiring({
   };
   const socketZ = (socket: WireShape) => SOCKET_SIDE[socket] * width * 0.21;
   const rootZ = (shape: WireShape) => ROOT_SIDE[shape] * width * 0.24;
-  const socketOf = (shape: WireShape) => SHAPES.find((k) => plugged[k] === shape) ?? null;
+  const socketOf = (shape: WireShape) => WIRE_SHAPES.find((k) => plugged[k] === shape) ?? null;
   // 늘어진 선 — 바닥 구멍에서 앞으로 휘어 올라와 고개를 든다
-  const danglingPoints = (shape: WireShape): Point[] => {
+  const danglingPoints = (shape: WireShape): Vector3Tuple[] => {
     const z = rootZ(shape);
     return [
       [d * wireX.root, wireY.root, z],
@@ -94,7 +91,7 @@ export default function BreakerWiring({
       [d * wireX.tip, wireY.tip, z],
     ];
   };
-  const pluggedPoints = (shape: WireShape, socket: WireShape): Point[] => {
+  const pluggedPoints = (shape: WireShape, socket: WireShape): Vector3Tuple[] => {
     const zg = rootZ(shape);
     const zs = socketZ(socket);
     return [
@@ -123,7 +120,7 @@ export default function BreakerWiring({
           <meshToonMaterial color={scaleColor("#1c1e22", brightness)} gradientMap={TOON_GRADIENT} />
           <Outlines thickness={2} color="#0f1012" />
         </mesh>
-        {SHAPES.map((socket) => {
+        {WIRE_SHAPES.map((socket) => {
           const pluggedShape = plugged[socket];
           const isMatch = pluggedShape === socket;
           return (
@@ -148,7 +145,7 @@ export default function BreakerWiring({
       </group>
 
       {/* 바닥 구멍 — 선이 어디서 나오는지 보여야 늘어진 선이 된다 */}
-      {SHAPES.map((shape) => (
+      {WIRE_SHAPES.map((shape) => (
         <mesh
           key={`grommet${shape}`}
           position={[d * wireX.root, wireY.root, rootZ(shape)]}
@@ -159,7 +156,7 @@ export default function BreakerWiring({
         </mesh>
       ))}
 
-      {SHAPES.map((shape) => {
+      {WIRE_SHAPES.map((shape) => {
         const socket = socketOf(shape);
         if (socket) {
           return (
@@ -196,7 +193,7 @@ export default function BreakerWiring({
         );
       })}
 
-      {SHAPES.map((shape) => (
+      {WIRE_SHAPES.map((shape) => (
         <Interactable
           key={`grab${shape}`}
           id={`wire:${shape}`}
@@ -211,7 +208,7 @@ export default function BreakerWiring({
           run={() => pickUpWire(shape)}
         />
       ))}
-      {SHAPES.map((socket) => {
+      {WIRE_SHAPES.map((socket) => {
         const pluggedShape = plugged[socket];
         return (
           <Interactable

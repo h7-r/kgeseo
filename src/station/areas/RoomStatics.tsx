@@ -8,18 +8,17 @@ import { memo, Suspense, useMemo } from "react";
 import { pickOutline } from "@/engine/leva/savedControls";
 import type { OutlineValues } from "@/engine/toon";
 import { MeasureItem } from "@/lobby/PlacementViews";
+import { AutoCollider } from "@/station/layout/Colliders";
+import { PALETTE } from "@/station/layout/dimensions";
 import CoatRack from "@/station/office/CoatRack";
 import Desk from "@/station/office/Desk";
 import PcSet from "@/station/office/PcSet";
 import WorkLamp from "@/station/office/WorkLamp";
-import AutoCollider from "@/station/layout/AutoCollider";
-import { PALETTE } from "@/station/layout/dimensions";
-import type { StructureOutline } from "@/station/room/StructureOutlines";
+import type { StructureOutline } from "@/station/room/RoomShell";
 
-import type { CoatRackControls } from "../controls/coatRackControls";
-import type { ComputerControls } from "../controls/computerControls";
-import type { DeskCommonValues, DeskValues } from "../controls/deskControls";
-import type { CeilingLightValues } from "../controls/lampControls";
+import type { CoatRackControls, DeskCommonValues, DeskValues } from "../controls/furnitureControls";
+import type { ComputerControls } from "../controls/officePropControls";
+import type { CeilingLightValues } from "../controls/roomControls";
 import type { CollisionValues } from "../controls/systemControls";
 
 // 2×2 균일 격자. 실제 빛은 여기서 나온다.
@@ -39,7 +38,7 @@ interface CeilingLightsProps {
 
 /** 천장 작업등 넷 — 수사본부가 낡은 천장에 새로 매단 반구 갓 조명. */
 export const CeilingLights = memo(function CeilingLights({ light, isForcedOff, outline }: CeilingLightsProps) {
-  // 원본은 방 구조물 선(넉 칸)을 그대로 넘겼다. 갓은 외곽선만 쓰고 주름선은 꺼져 있던 셈이다.
+  // 갓은 방 구조물 선 중 외곽선만 쓰고 주름선은 끈다.
   const lampOutline = useMemo<OutlineValues>(
     () => ({
       outline: outline.outline,
@@ -81,7 +80,7 @@ interface CoatRacksProps {
   collision: CollisionValues;
 }
 
-/** 옷걸이 스탠드 둘(걸려 있던 외투는 뺐다). */
+/** 옷걸이 스탠드 둘. */
 export const CoatRacks = memo(function CoatRacks({ common, rack1, rack2, collision }: CoatRacksProps) {
   const outline = useMemo(() => pickOutline(common), [common]);
   if (!common.visible) return null;

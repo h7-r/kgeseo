@@ -17,9 +17,8 @@ import {
   resetNozzle,
   useNozzle,
 } from "@/props/nozzleState";
-import type { HighlightSettings } from "@/props/shared/highlightSettings";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { worldPositionOf } from "@/props/shared/worldPosition";
+import { type HighlightSettings, worldPositionOf } from "@/props/shared/aimTarget";
 import { isWorkLampPuzzleHandFull } from "@/props/workLampPuzzle/workLampState";
 
 import AlarmDevices from "./AlarmDevices";
@@ -162,7 +161,7 @@ export default function HydrantCabinetInterior({
   // 호스는 한 줄이다. 관창을 끌고 나가면 그만큼 함 속 다발이 줄어야 어디서 나온 호스인지 읽힌다.
   const hoseSettings = useMemo<HoseOptions & { start: Vector3Tuple; end: Vector3Tuple }>(
     () => ({
-      // 양옆에 밸브·노즐이 설 자리를 내고 왼쪽 끝 가닥이 밸브 바퀴와 안 겹치게 좁혔다
+      // 양옆에 밸브·노즐이 설 자리를 내고 왼쪽 끝 가닥이 밸브 바퀴와 안 겹치게 좁힌다
       width: innerWidth * 0.56,
       height: (innerHeight - shelfHeight) * 0.72,
       depth: depth * 0.4,

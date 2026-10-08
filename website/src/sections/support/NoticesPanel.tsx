@@ -1,14 +1,11 @@
 import { useState } from "react";
 
-import { NOTICES } from "@/data/support";
+import { ALL, NOTICE_FILTERS, NOTICES } from "@/data/support";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
 
-import CategoryBadge from "./CategoryBadge";
-import FilterChips from "./FilterChips";
-import { ALL, NOTICE_FILTERS } from "./filters";
 import Pager from "./Pager";
-import PanelHeading from "./PanelHeading";
+import { CategoryBadge, FilterChips, PanelHeading } from "./PanelParts";
 import { emptyStyle, panelStyle, rowCardStyle } from "./styles";
 
 // 디자인엔 쪽번호가 10쪽까지 있지만 자료는 8건뿐이다. 빈 쪽이 생기지 않게 있는 쪽만 그린다.

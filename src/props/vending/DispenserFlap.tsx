@@ -8,10 +8,10 @@ import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { toggleFlap, vendingMachineStore, type VendingId } from "@/props/vendingMachineState";
-
-import { mergedBoxes } from "./common";
-import { worldPositionOf } from "@/props/shared/worldPosition";
+import { worldPositionOf } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
+
+import { mergedBoxes } from "./geometry";
 
 interface DispenserFlapProps {
   y: number;
@@ -55,7 +55,7 @@ export default function DispenserFlap({
   sideFrontRatio = 0.22,
 }: DispenserFlapProps) {
   const halfDepth = depth / 2;
-  // 경첩 자리는 닫았을 때 덮개가 예전 그 자리에 오도록 역산한다.
+  // 경첩 자리는 닫힌 각도가 바뀌어도 덮개 가운데가 같은 자리에 오도록 역산한다.
   const closedRad = (closedAngle * Math.PI) / 180;
   const openRad = (openAngle * Math.PI) / 180;
   const arm = height * 0.4;

@@ -6,7 +6,7 @@ import { tunable } from "../plan/sitePlan";
 import { DISTORTION_STAGE_ORDER } from "../story/distortion";
 
 /** Leva 옵션 값은 저장 데이터라 한글 그대로 두고, 코드에서는 이 표로 읽는다. */
-export const GROUND_SHADING = { 부드럽게: "smooth", 툰: "toon" } as const;
+const GROUND_SHADING = { 부드럽게: "smooth", 툰: "toon" } as const;
 export type GroundShading = (typeof GROUND_SHADING)[keyof typeof GROUND_SHADING];
 
 export function toGroundShading(option: string): GroundShading {
@@ -15,7 +15,7 @@ export function toGroundShading(option: string): GroundShading {
 
 /**
  * 「NAJU-01 그레이박스」 — 한 번의 useSavedControls 그대로(팀 기준값 112 키와 맞물린다).
- * 열쇠 순서도 저장값·팀 기준값과 같아야 한다. label = 옛 한글 열쇠.
+ * 열쇠 순서도 저장값·팀 기준값과 같아야 한다. label 은 저장 데이터 열쇠라 한글 그대로.
  */
 export function useNajuControls() {
   return useSavedControls("NAJU-01 그레이박스", {
@@ -35,8 +35,8 @@ export function useNajuControls() {
     showHumanScale: { value: true, label: "사람자" },
     fallRecovery: { value: true, label: "낙하복귀" },
     groundDetail: { value: true, label: "바닥디테일" },
-    // 이름이 `새지형` 이 아닌 이유: 그 열쇠에 false 가 저장된 브라우저가 있어 기본값을 바꿔도 안 먹었다.
-    // 끄면 옛 코드 지형으로 돌아간다(비교·되돌리기용 — edits.json 은 새 지형 높이 기준이다).
+    // label 이 `새지형` 이 아닌 것은 그 열쇠에 false 가 저장된 브라우저가 있어서다.
+    // 끄면 코드 지형으로 돌아간다(비교·되돌리기용 — edits.json 은 블렌더 지형 높이 기준이다).
     useBlenderTerrain: { value: !FORCE_LEGACY_TERRAIN, label: "블렌더지형" },
     // 본편 로비와 같은 툰 그라디언트라야 두 공간이 같은 게임으로 보인다.
     groundShading: { value: "툰", options: ["부드럽게", "툰"], label: "바닥셰이딩" },
@@ -158,7 +158,7 @@ export function useNajuControls() {
     // <Outlines> 는 screenspace 일 때만 월드 단위다. 야외라 픽셀 고정이면 먼 물건이 선에 삼켜진다.
     // 0.05 유닛 = 1.5 cm. engine outlineSchema 의 눈금(0.5)으로는 못 다뤄 따로 둔다.
     outlineWorldWidth: { value: 0.05, min: 0, max: 0.3, step: 0.005, label: "외곽선세계굵기" },
-    // 켜지 말 것 — 숲이 검은 덩어리가 되고 한 겹 잎에 흰 얼룩이 끼며 삼각형이 +53 % 다. 해 본 기록으로 남긴다.
+    // 켜지 말 것 — 숲이 검은 덩어리가 되고 한 겹 잎에 흰 얼룩이 끼며 삼각형이 +53 % 다.
     vegetationOutline: { value: false, label: "초목외곽선" },
   });
 }

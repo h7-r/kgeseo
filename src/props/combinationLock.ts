@@ -1,6 +1,6 @@
 /**
  * 번호 자물쇠의 다이얼 상태와 [E] 조작 모드.
- * Leva 「맞춤N」은 화면을 맞출 때 내가 돌리는 값이라, 플레이어가 돌리는 값은 여기 따로 담고
+ * Leva 「맞춤N」은 화면을 맞추는 값이라, 플레이어가 돌리는 값은 여기 따로 담고
  * Leva 를 만졌을 때만 씨앗을 다시 뿌린다(한 값으로 쓰면 다음 렌더에 Leva 값으로 튕긴다).
  * 조작 단계가 active/leaving 둘인 이유: ESC 순간 끝내면 카메라가 돌아오는 동안 이동이
  * 되살아나 화면이 두 힘에 끌려 떤다. ESC 는 leaving 으로만 바꾸고 카메라가 다 돌아오면 끝낸다.
@@ -14,7 +14,7 @@ import { createChangeSignal } from "@/lib/changeSignal";
 /** 다이얼 문자열을 외부 판정기(서버)에 내고 맞았는지 받는다. */
 export type LockSubmitter = (answer: string) => boolean | Promise<boolean>;
 
-export interface LockState {
+interface LockState {
   /** 줄마다 지금 가리키는 글자 번호 */
   digits: number[];
   /** 줄마다 정답 글자 번호. 비어 있으면 절대 안 풀린다. */
@@ -29,14 +29,14 @@ export interface LockState {
   selectedRow: number;
 }
 
-export type LockControlPhase = "active" | "leaving";
+type LockControlPhase = "active" | "leaving";
 
 export interface LockControl {
   id: string;
   phase: LockControlPhase;
 }
 
-export interface LockSeed {
+interface LockSeed {
   digits?: number[];
   answer?: string | number;
   /** 줄마다 다른 글자 세트. 문자열 하나면 모든 줄이 같이 쓴다. */
@@ -119,11 +119,9 @@ export const useLockUnlocked = (id: string | null | undefined) =>
 export const useLockExists = (id: string | null | undefined) =>
   useSyncExternalStore(signal.subscribe, () => !!(id && locks.has(id)));
 
-// ── 조작 모드 ──
+// 조작 모드
 export const lockControl = () => control;
 export const useLockControl = () => useSyncExternalStore(signal.subscribe, () => control);
-/** 지금 이 자물쇠를 만지는 중인가(매 프레임 물어봐도 되게 가볍다). */
-export const isHandlingLock = (id: string) => !!control && control.id === id && control.phase === "active";
 
 export function startLockControl(id: string) {
   if (!id || !locks.has(id)) return false;
@@ -146,7 +144,7 @@ export function endLockControl() {
   signal.notify();
 }
 
-// ── 다이얼 돌리기 ──
+// 다이얼 돌리기
 function update(id: string, change: (lock: LockState) => Partial<LockState>) {
   const lock = locks.get(id);
   if (!lock) return;
@@ -164,7 +162,7 @@ export function selectLockRow(id: string, direction: number) {
   playSound("lockDial", { volume: 0.9 });
 }
 
-export function setLockRow(id: string, row: number) {
+function setLockRow(id: string, row: number) {
   update(id, (lock) => ({
     selectedRow: Math.max(0, Math.min(lock.digits.length - 1, Math.round(row))),
   }));
@@ -217,7 +215,7 @@ export async function submitLockAnswer(id: string): Promise<boolean | null> {
   }
 }
 
-export function unlockLock(id: string) {
+function unlockLock(id: string) {
   update(id, () => ({ unlocked: true, openInstantly: false }));
 }
 
@@ -231,7 +229,7 @@ export function restoreUnlocked(id: string | null | undefined) {
   update(id, () => ({ unlocked: true, openInstantly: true }));
 }
 
-export function relockLock(id: string) {
+function relockLock(id: string) {
   pendingRestores.delete(id);
   update(id, () => ({ unlocked: false, openInstantly: false }));
 }

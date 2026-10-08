@@ -2,13 +2,13 @@ import { memo, useLayoutEffect, useRef, useState, type CSSProperties } from "rea
 
 import { preloadRoute } from "@/app/pageRegistry";
 import { registerProximity } from "@/hooks/proximity";
+import { HEADER_HEIGHT } from "@/lib/layout";
 import { FONT, gradientText } from "@/lib/style";
 import { HEADER_MENU, ROUTES, type RoutePath } from "@/navigation/routes";
 import type { SessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import HeaderSearch from "./HeaderSearch";
-import { HEADER_HEIGHT } from "./layoutMetrics";
 
 export type HeaderMenuId = (typeof HEADER_MENU)[number]["id"];
 

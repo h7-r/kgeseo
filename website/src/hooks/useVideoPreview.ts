@@ -9,11 +9,11 @@ import {
   type RefObject,
 } from "react";
 
+import { openVideoModal } from "@/app/siteState";
 import type { Video } from "@/data/videos";
 import { prefersReducedMotion } from "@/lib/motionPreference";
-import { openVideoModal } from "@/state/videoModal";
 
-export interface VideoPreviewVideoProps {
+interface VideoPreviewVideoProps {
   ref: RefObject<HTMLVideoElement | null>;
   src: string | undefined;
   poster: string | undefined;
@@ -24,7 +24,7 @@ export interface VideoPreviewVideoProps {
   "aria-hidden": true;
 }
 
-export interface VideoPreviewTriggerProps {
+interface VideoPreviewTriggerProps {
   role: "button";
   tabIndex: number;
   "aria-label": string;
@@ -36,7 +36,7 @@ export interface VideoPreviewTriggerProps {
   onKeyDown: KeyboardEventHandler<HTMLElement>;
 }
 
-export interface VideoPreview {
+interface VideoPreview {
   hasVideo: boolean;
   /** <video> 에 그대로 펼친다. 영상이 없으면 null. */
   videoProps: VideoPreviewVideoProps | null;

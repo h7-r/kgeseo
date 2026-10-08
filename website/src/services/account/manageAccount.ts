@@ -1,16 +1,113 @@
-import { getAccountData } from "./accountData";
-import { getConsents, withdrawConsents } from "./consents";
-import { getAccount, isStorageAvailable, run } from "./db";
-import { constantTimeEqual, formatHash, fromHex, hashPassword, parseHash, toHex } from "./passwordHash";
-import { normalizeEmail, toSessionUser } from "./records";
-import { STORE } from "./schema";
-import type {
-  AccountActionResult,
-  AccountSettings,
-  ChangePasswordResult,
-  ConsentKind,
-  ExportedAccountData,
-} from "./types";
+import type { SessionUser } from "@/services/session";
+
+import type { AccountFailure } from "./authApi";
+import {
+  emptyAccountData,
+  getAccount,
+  isStorageAvailable,
+  normalizeEmail,
+  run,
+  STORE,
+  type AccountData,
+  type AccountRecord,
+  type AccountSettings,
+  type ConsentKind,
+  type ConsentRecord,
+} from "./db";
+
+type ChangePasswordResult = { ok: true } | AccountFailure<"currentPassword" | "newPassword">;
+type AccountActionResult = { ok: true } | AccountFailure;
+
+/** 「내 데이터 내려받기」 파일. 사람이 읽는 파일이라 키·값을 한국어로 둔다. */
+interface ExportedAccountData {
+  내보낸때: string;
+  계정: { 아이디: string; 이메일: string; 이름: string; 지역?: string; 가입때?: number; 테스트: boolean };
+  설정: Record<string, unknown>;
+  플레이기록: unknown[];
+  로그인기록: { 때: string; 기기: string }[];
+  동의기록: { 종류: string; 판: string; 동의: boolean; 동의때: string; 철회때: string | null }[];
+}
+
+const PBKDF2_ITERATIONS = 210_000;
+
+function toHex(buffer: ArrayBuffer | Uint8Array): string {
+  return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function fromHex(hex: string): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i += 1) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return bytes;
+}
+
+async function hashPassword(password: string, salt: Uint8Array<ArrayBuffer>, iterations = PBKDF2_ITERATIONS) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt, iterations, hash: "SHA-256" }, key, 256);
+  return toHex(bits);
+}
+
+// 알고리즘·반복 횟수를 같이 적어 두면 나중에 횟수를 올려도 이전 해시를 읽을 수 있다.
+const formatHash = (saltHex: string, hash: string) => `pbkdf2_sha256$${PBKDF2_ITERATIONS}$${saltHex}$${hash}`;
+
+function parseHash(passwordHash: string) {
+  const [, iterations, salt, hash] = passwordHash.split("$");
+  return { iterations: Number(iterations), salt, hash };
+}
+
+// 끝까지 비교한다. 중간에 멈추면 걸린 시간으로 몇 글자가 맞았는지 샌다.
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+// 해시·소금은 절대 밖으로 내보내지 않는다.
+const toSessionUser = (account: AccountRecord): SessionUser => ({
+  id: account.id,
+  email: account.email,
+  name: account.name,
+  region: account.region,
+  joinedAt: account.joinedAt,
+  isTest: Boolean(account.isTest),
+});
+
+/** 이 계정의 기록·설정 읽기 */
+export async function getAccountData(email: string): Promise<AccountData | null> {
+  if (!isStorageAvailable()) return null;
+  const data = await run(
+    STORE.accountData,
+    "readonly",
+    (store) => store.get(normalizeEmail(email)) as IDBRequest<AccountData | undefined>,
+  );
+  return data ?? null;
+}
+
+/** 이 계정의 데이터 쓰기. 넘긴 항목만 덮어쓴다. */
+export async function saveAccountData(
+  email: string,
+  patch: Partial<Omit<AccountData, "email">>,
+): Promise<AccountData | null> {
+  if (!isStorageAvailable()) return null;
+  const key = normalizeEmail(email);
+  const current = (await getAccountData(key)) ?? emptyAccountData(key);
+  const next: AccountData = { ...current, ...patch, email: key };
+  await run(STORE.accountData, "readwrite", (store) => store.put(next));
+  return next;
+}
+
+const getConsents = (accountId: string) =>
+  run(STORE.consents, "readonly", (store) => store.index("accountId").getAll(accountId) as IDBRequest<ConsentRecord[]>);
+
+/** 탈퇴해도 동의 기록은 지우지 않고 철회 시각만 남긴다. */
+async function withdrawConsents(accountId: string) {
+  const consents = await getConsents(accountId);
+  for (const consent of consents) {
+    await run(STORE.consents, "readwrite", (store) =>
+      store.put({ ...consent, withdrawnAt: consent.withdrawnAt ?? Date.now() }),
+    );
+  }
+}
 
 /** 로그인한 채로 비밀번호 바꾸기. 자리를 비운 사이 남이 바꾸지 못하게 지금 비밀번호를 먼저 확인한다. */
 export async function changePassword(

@@ -1,9 +1,8 @@
 import { memo, type CSSProperties } from "react";
 
+import { HEADER_HEIGHT } from "@/lib/layout";
 import { FONT } from "@/lib/style";
 import { SUB_NAV_HEIGHT } from "@/navigation/subMenus";
-
-import { HEADER_HEIGHT } from "./layoutMetrics";
 
 interface SubNavItem {
   id: string;

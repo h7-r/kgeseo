@@ -1,9 +1,7 @@
-"""Add extracted Meshy hair pieces to the rigged base blend (head-bone bound).
+"""리깅한 기본 blend 에 뽑아 둔 머리카락 조각을 Head 뼈에 묶어 붙인다.
 
-The hair GLB from meshy_extract_hair.py is already aligned and seated on the base
-head in the raw Meshy coordinates; this only applies the same grounding offset the
-base body got, binds it rigidly to the Head bone and tags it with slot/variant so the
-runtime can switch styles.
+머리카락 GLB 는 meshy_extract_hair.py 가 이미 머리에 맞춰 두었으므로, 몸통과 같은
+바닥 맞춤 오프셋만 주고 slot/variant 를 달아 런타임이 머리 모양을 바꿀 수 있게 한다.
 
 Usage:
   Blender --background --factory-startup --python meshy_add_hair.py -- \
@@ -29,12 +27,12 @@ import meshy_extract_hair as H  # noqa: E402
 
 def arguments():
     raw = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    p = argparse.ArgumentParser()
-    p.add_argument("--blend", type=Path, required=True)
-    p.add_argument("--label", required=True)
-    p.add_argument("--hair", nargs="+", required=True, help="path=variant pairs")
-    p.add_argument("--out-blend", type=Path, required=True)
-    return p.parse_args(raw)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--blend", type=Path, required=True)
+    parser.add_argument("--label", required=True)
+    parser.add_argument("--hair", nargs="+", required=True, help="path=variant pairs")
+    parser.add_argument("--out-blend", type=Path, required=True)
+    return parser.parse_args(raw)
 
 
 def main():

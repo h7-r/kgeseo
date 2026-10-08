@@ -17,9 +17,8 @@ import {
   wireSocket,
   type WireColor,
 } from "@/props/panelWiring";
-import type { HighlightSettings } from "@/props/shared/highlightSettings";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { worldPositionOf } from "@/props/shared/worldPosition";
+import { type HighlightSettings, worldPositionOf } from "@/props/shared/aimTarget";
 
 import DraggedWire from "./DraggedWire";
 import { copperTipGeometry, currentBranchShapes, wireBundle, type WirePath } from "./panelWires";

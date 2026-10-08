@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import { readMigrated, writeStorage } from "@/engine/storage";
+import { createChangeSignal } from "@/lib/changeSignal";
 
 // 같은 출처라 나주(/naju01/)도 이 값을 읽는다.
 const STORAGE_KEY = "kgeseo.settings.v1";
@@ -22,7 +23,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  // naju01 로딩영상도 0.6 을 기본으로 쓴다.
+  // naju01 로딩 영상도 0.6 을 기본으로 쓴다.
   bgmVolume: 0.6,
   sfxVolume: 0.65,
   brightness: 1,
@@ -40,7 +41,7 @@ export const RESOLUTION_LABELS: Record<Resolution, string> = {
   max: "최고",
 };
 
-// 「자동」은 App 이 원래 쓰던 dpr 을 그대로 쓴다.
+// 「자동」은 App 이 기기에 맞춰 dpr 을 고른다(canvasDpr).
 export const RESOLUTION_DPR: Record<Exclude<Resolution, "auto">, number> = {
   low: 0.75,
   medium: 1,
@@ -68,7 +69,7 @@ function isResolution(value: unknown): value is Resolution {
   return typeof value === "string" && (RESOLUTION_OPTIONS as readonly string[]).includes(value);
 }
 
-/** 옛 한글 필드 이름으로 저장된 값도 영어 필드로 옮겨 읽는다. */
+/** 한글 필드 이름으로 저장된 값도 영어 필드로 옮겨 읽는다. */
 function normalize(raw: unknown): Partial<Settings> {
   if (typeof raw !== "object" || raw === null) return {};
   const result: Partial<Settings> = {};
@@ -97,16 +98,11 @@ function readSettings(): Settings {
 }
 
 let current: Settings = typeof window === "undefined" ? { ...DEFAULT_SETTINGS } : readSettings();
-const listeners = new Set<(settings: Settings) => void>();
+const signal = createChangeSignal();
 
 export const settingsStore = {
   get: (): Settings => current,
-  subscribe(listener: (settings: Settings) => void) {
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  },
+  subscribe: signal.subscribe,
 };
 
 export const useSettings = () => useSyncExternalStore(settingsStore.subscribe, settingsStore.get, settingsStore.get);
@@ -115,7 +111,7 @@ export function updateSettings(patch: Partial<Settings>) {
   current = { ...current, ...patch };
   // 사생활 보호 창 등에서 저장이 막혀도 이번 판에는 먹는다.
   writeStorage(STORAGE_KEY, JSON.stringify(current));
-  for (const listener of listeners) listener(current);
+  signal.notify();
 }
 
 export function resetSettings() {

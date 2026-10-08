@@ -112,7 +112,7 @@ function startWatching() {
       }
     }).observe({ type: "resource", buffered: false });
   } catch {
-    // 옛 브라우저 — 위 둘로 버틴다
+    // PerformanceObserver 가 없는 브라우저 — 위 둘로 버틴다
   }
 }
 // 이 파일을 읽는 순간(= main 이 뜨는 순간) 깔아야 첫 요청부터 센다

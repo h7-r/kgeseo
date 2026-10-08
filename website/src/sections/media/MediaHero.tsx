@@ -1,10 +1,9 @@
 import type { CSSProperties } from "react";
 
-import { CORNER_BRACKETS } from "@/components/cornerBrackets";
 import { FONT, gradientText } from "@/lib/style";
 import { ROUTES, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
-import { COLOR, GRADIENT, SHADOW, badgePillStyle } from "@/styles/tokens";
+import { COLOR, CORNER_BRACKETS, GRADIENT, SHADOW, badgePillStyle } from "@/styles/tokens";
 
 interface MediaHeroProps {
   top?: number;

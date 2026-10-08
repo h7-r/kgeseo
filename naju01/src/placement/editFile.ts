@@ -1,14 +1,19 @@
 // 손 편집 파일(assets/edits.json) 읽기·쓰기. 개발 서버의 /__naju-edit 가 그 파일을 내주고 받아 쓴다.
-// 파일은 다시 만들 수 없는 손 작업이라 열쇠를 옛 한글 그대로 둔다 — 코드 안에서만 영어로 바꿔 쓰고,
-// 저장할 때 옛 열쇠·옛 순서로 되돌려 같은 편집이면 바이트까지 같은 파일이 나오게 한다.
+// 빌드본에는 그 엔드포인트가 없어 빌드 때 같이 내보낸 naju-edit.json 을 읽는다(vite/editFilePlugin).
+// 파일은 다시 만들 수 없는 손 작업이라 열쇠를 한글 그대로 둔다 — 코드 안에서만 영어로 바꿔 쓰고,
+// 저장할 때 한글 열쇠·원래 순서로 되돌려 같은 편집이면 바이트까지 같은 파일이 나오게 한다.
 
 import type { Edits, Spot, SpotPatch } from "./instanceGroups";
 
 const EDIT_ENDPOINT = "/__naju-edit";
+const editFileUrl = () =>
+  import.meta.env.PROD
+    ? `${import.meta.env.BASE_URL}naju-edit.json?t=${Date.now()}`
+    : `${EDIT_ENDPOINT}?t=${Date.now()}`;
 
-export const EDIT_KEYS = { removed: "지움", modified: "고침", added: "더함" } as const;
+const EDIT_KEYS = { removed: "지움", modified: "고침", added: "더함" } as const;
 
-export const SPOT_FIELD_KEYS = {
+const SPOT_FIELD_KEYS = {
   size: "키",
   rotation: "회전",
   tilt: "기울기",
@@ -91,12 +96,10 @@ const FILE_TO_SPOT: Record<string, string> = Object.fromEntries(
 );
 const SPOT_TO_FILE: Record<string, string> = SPOT_FIELD_KEYS;
 
-// 열쇠 이름만 바꾸고 순서는 그대로 — 저장한 JSON 의 필드 순서가 옛 파일과 같아야 한다.
-// 표에 없는 열쇠(x·y·z, 모르는 것)는 그대로 지나간다.
-function renameKeys(source: object, table: Record<string, string>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(source)) out[table[key] ?? key] = value;
-  return out;
+// 열쇠 이름만 바꾸고 순서는 그대로 — 저장한 JSON 의 필드 순서가 읽은 파일과 같아야 한다.
+// 표에 없는 열쇠(x·y·z, 모르는 것)는 그대로 지나간다. 파일 꼴은 따로 검사하지 않는다.
+function renameKeys<T extends object = Record<string, unknown>>(source: object, table: Record<string, string>): T {
+  return Object.fromEntries(Object.entries(source).map(([key, value]) => [table[key] ?? key, value])) as T;
 }
 
 function mapValues<T, U>(record: Record<string, T>, map: (value: T) => U): Record<string, U> {
@@ -111,11 +114,9 @@ function fromFile(file: Partial<EditFile>): Edits {
   return {
     removed: file[EDIT_KEYS.removed] ?? {},
     modified: mapValues(file[EDIT_KEYS.modified] ?? {}, (group) =>
-      mapValues(group, (patch) => renameKeys(patch, FILE_TO_SPOT) as SpotPatch),
+      mapValues(group, (patch) => renameKeys<SpotPatch>(patch, FILE_TO_SPOT)),
     ),
-    added: mapValues(file[EDIT_KEYS.added] ?? {}, (spots) =>
-      spots.map((spot) => renameKeys(spot, FILE_TO_SPOT) as unknown as Spot),
-    ),
+    added: mapValues(file[EDIT_KEYS.added] ?? {}, (spots) => spots.map((spot) => renameKeys<Spot>(spot, FILE_TO_SPOT))),
   };
 }
 
@@ -129,16 +130,28 @@ function toFile(edits: Edits): EditFile {
   };
 }
 
-/** 빌드본에는 엔드포인트가 없다 — 그때는 빈 편집으로 간다 */
+/** 못 읽으면 빈 편집으로 간다 */
 export async function loadEdits(): Promise<Edits> {
   try {
-    const response = await fetch(`${EDIT_ENDPOINT}?t=${Date.now()}`);
+    const response = await fetch(editFileUrl());
     if (!response.ok) return emptyEdits();
     return fromFile((await response.json()) as Partial<EditFile>);
   } catch {
     return emptyEdits();
   }
 }
+
+let prefetchPromise: Promise<Edits> | null = null;
+let prefetched: Edits | null = null;
+
+/** 씬을 붙이기 전에 받아 둔다(app/prefetch). 편집기가 저장한 뒤의 최신값은 씬 state 가 든다 — 이건 첫 렌더용이다. */
+export function prefetchEdits(): Promise<Edits> {
+  prefetchPromise ??= loadEdits().then((edits) => (prefetched = edits));
+  return prefetchPromise;
+}
+
+/** 미리 읽어 둔 편집. 아직 없으면 null — 그때 씬은 붙은 뒤에 읽는다. */
+export const getPrefetchedEdits = (): Edits | null => prefetched;
 
 export async function saveEdits(edits: Edits): Promise<true> {
   const response = await fetch(EDIT_ENDPOINT, {

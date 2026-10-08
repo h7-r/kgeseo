@@ -64,7 +64,7 @@ export default function Dashboard({ reportRef }: DashboardProps) {
         <span>삼각형 {(report.triangles ?? 0).toLocaleString()}</span>
         <span style={mutedStyle}>드로우콜 {report.drawCalls ?? 0}</span>
       </div>
-      {/* 옛 코드 지형과 블렌더 지형은 겉보기로 비슷해서 글자로 박아 둔다(읽기에 실패하면 조용히 옛 지형으로 돌아간다) */}
+      {/* 코드 지형과 블렌더 지형은 겉보기로 비슷해서 글자로 박아 둔다(읽기에 실패하면 조용히 코드 지형으로 돌아간다) */}
       {report.terrainSource ? (
         <div style={rowStyle}>
           <span style={mutedStyle}>지형</span>

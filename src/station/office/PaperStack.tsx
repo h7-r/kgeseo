@@ -6,8 +6,7 @@ import { ToonOutline } from "@/engine/outline";
 import { makeRandom } from "@/engine/random";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { PAPER_D, PAPER_STYLES, PAPER_W } from "./paperStackConstants";
-import { paperTexture, STICKY_COLORS, STICKY_TEXTS, stickyMaterials } from "./paperTextures";
+import { PAPER_D, PAPER_STYLES, PAPER_W, paperTexture, STICKY_COLORS, STICKY_TEXTS, stickyMaterials } from "./paper";
 
 const CLIP_DARK = "#22252A";
 const CLIP_METAL = "#C9CDD4";
@@ -59,10 +58,7 @@ interface PaperStackProps {
   outline?: OutlineValues | null;
 }
 
-/**
- * 서류 더미. AI 3D 생성기는 낱장을 한 덩어리로 녹여 붙이고 평면·직각도 울퉁불퉁하게 만든다 —
- * 종이 한 장 = 납작한 상자라 코드가 훨씬 낫다.
- */
+/** 서류 더미. 종이 한 장 = 납작한 상자 — 낱장이 겹친 모양은 모델보다 코드로 쌓아야 평면·직각이 반듯하다. */
 export default function PaperStack({
   pos = [0, 0],
   y = 2.44,

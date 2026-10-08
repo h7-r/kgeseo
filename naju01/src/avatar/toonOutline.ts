@@ -88,9 +88,9 @@ export interface OutlineHandle {
 }
 
 /** 외곽선 껍데기 표식. 툰·외곽선을 다시 입힐 때 껍데기를 몸으로 보지 않게 한다. */
-export const OUTLINE_SHELL_KEY = "isOutlineShell";
+const OUTLINE_SHELL_KEY = "isOutlineShell";
 
-/** 외곽선 껍데기인가 — 옛 껍데기는 한두 프레임 늦게 걷히므로 그 사이 다시 입히는 쪽이 건너뛴다 */
+/** 외곽선 껍데기인가 — 밀려난 껍데기는 한두 프레임 늦게 걷히므로 그 사이 다시 입히는 쪽이 건너뛴다 */
 export const isOutlineShell = (object: THREE.Object3D) => object.userData[OUTLINE_SHELL_KEY] === true;
 
 /** root 아래 SkinnedMesh 마다 껍데기를 하나씩 붙인다. */

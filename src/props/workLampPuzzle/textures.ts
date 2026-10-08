@@ -1,7 +1,6 @@
 // 글자는 폴리곤으로 깎지 않고 캔버스에 그린다 — 비싸기만 하고 안 예쁘다(벽함 라벨과 같은 원칙).
 import { makeRandom } from "@/engine/random";
-import { cachedCanvasTexture } from "@/engine/textures/canvas";
-import { SIGN_FONT } from "@/engine/textures/fonts";
+import { cachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
 
 /** 분기함에 붙은 작은 명판 — 「A-1 / 조명분기」 */
 export function junctionLabelTexture(text = "A-1", background = "#aeb6bd", ink = "#131314", wear = 1) {

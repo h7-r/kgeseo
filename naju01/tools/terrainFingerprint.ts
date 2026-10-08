@@ -86,7 +86,7 @@ function measureCreate(options: TerrainOptions) {
 
 /** 값소음 — 땅 메시가 꼭짓점마다 부르는 두 번째로 큰 비용 */
 function measureNoise() {
-  // 옛 도구는 문자열 시드("바닥결")를 넘겼다 — makeRandom 의 >>> 0 에서 0 이 되므로 0 과 같다
+  // 시드를 고정해야 지문을 다른 날 잰 값과 견줄 수 있다
   const noise = createNoise(0);
   const count = 2_000_000;
   const values = new Float64Array(count);
@@ -123,17 +123,17 @@ exposeDevHook("terrainCheck", result);
 const text = [
   `격자 ${COLUMNS + 1} × ${ROWS + 1} = ${legacy.pointCount.toLocaleString()} 점`,
   "",
-  `[옛것 — 모든 선분 훑기]  조회 ${legacy.elapsedMs} ms · 지형 만들기 ${legacyBuild.elapsedMs} ms`,
+  `[색인 없이 — 모든 선분 훑기]  조회 ${legacy.elapsedMs} ms · 지형 만들기 ${legacyBuild.elapsedMs} ms`,
   `   높이 지문 ${legacy.heightFingerprint} · 갈래 지문 ${legacy.kindFingerprint} · 범위 ${legacy.min} ~ ${legacy.max}`,
   "",
-  `[새것 — 공간 색인]      조회 ${indexed.elapsedMs} ms · 지형 만들기 ${indexedBuild.elapsedMs} ms`,
+  `[공간 색인]                  조회 ${indexed.elapsedMs} ms · 지형 만들기 ${indexedBuild.elapsedMs} ms`,
   `   높이 지문 ${indexed.heightFingerprint} · 갈래 지문 ${indexed.kindFingerprint} · 범위 ${indexed.min} ~ ${indexed.max}`,
   "",
-  `★ 결과 지문 같음: ${fingerprintsMatch ? "예 — 한 비트도 안 바뀌었다" : "아니오 ← 고쳐야 한다"}`,
-  `★ 조회 속도: ${result.speedup} 배 (${legacy.elapsedMs} ms → ${indexed.elapsedMs} ms)`,
+  `결과 지문 같음: ${fingerprintsMatch ? "예 — 한 비트도 안 바뀌었다" : "아니오 ← 고쳐야 한다"}`,
+  `조회 속도: ${result.speedup} 배 (${legacy.elapsedMs} ms → ${indexed.elapsedMs} ms)`,
   `   두 번 재서 지문 같음(결정적): ${result.isDeterministic ? "예" : "아니오"}`,
   "",
-  `[값소음 — 바닥.js 소음만들기]  ${noiseResult.pointCount.toLocaleString()} 점 ${noiseResult.elapsedMs} ms · 지문 ${noiseResult.fingerprint}`,
+  `[값소음 — createNoise]  ${noiseResult.pointCount.toLocaleString()} 점 ${noiseResult.elapsedMs} ms · 지문 ${noiseResult.fingerprint}`,
 ].join("\n");
 console.log(text);
 const output = document.getElementById("result");

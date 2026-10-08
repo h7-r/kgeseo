@@ -9,9 +9,9 @@ import { playSound } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 
-export type HeldDrinkKind = "cup" | "can" | "paper";
-export type DrinkAction = "open" | "sip" | "view";
-export type DrinkUseResult = DrinkAction | "discard";
+type HeldDrinkKind = "cup" | "can" | "paper";
+type DrinkAction = "open" | "sip" | "view";
+type DrinkUseResult = DrinkAction | "discard";
 
 const SIP_AMOUNT = 0.34; // 약 3모금이면 빈다
 
@@ -156,7 +156,7 @@ export function discardDrink() {
 }
 
 /** 개발·테스트용 초기화 */
-export function resetDrink() {
+function resetDrink() {
   discardDrink();
 }
 

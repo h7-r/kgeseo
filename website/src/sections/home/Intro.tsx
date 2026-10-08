@@ -3,8 +3,9 @@ import type { CSSProperties } from "react";
 import { FONT, gradientText, placeCentered } from "@/lib/style";
 import { ROUTES, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
-import { INTRO_CENTER_Y, INTRO_LEFT, INTRO_WIDTH } from "@/pages/home/homeLayout";
 import { COLOR, GRADIENT, SHADOW, badgePillStyle } from "@/styles/tokens";
+
+import { INTRO_CENTER_Y, INTRO_LEFT, INTRO_WIDTH } from "./homeLayout";
 
 const DIVIDER = "1px solid rgba(26,48,95,0.25)";
 

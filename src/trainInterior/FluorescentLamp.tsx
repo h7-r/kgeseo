@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef } from "react";
-import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
 
 import { scaleColor } from "@/engine/color";
 import { TOON_GRADIENT } from "@/engine/toon";
 
+import { ATLAS_GRID } from "./atlasTextures";
 import { CAR_HEIGHT } from "./dimensions";
 
 export type LampState = { kind: "dead" } | { kind: "steady" } | { kind: "flicker"; phase: number; period: number };
@@ -36,8 +37,6 @@ function flickerValue(time: number, phase: number, period: number): number {
   }
   return 1;
 }
-
-const ATLAS_GRID = 4;
 
 interface FluorescentLampProps {
   x: number;
@@ -81,15 +80,15 @@ export default function FluorescentLamp({
     const light = lightRef.current;
     const panelMaterial = panelMaterialRef.current;
     if (!light || !panelMaterial) return;
-    const v =
+    const level =
       state.kind === "dead"
         ? 0
         : state.kind === "flicker"
           ? flickerValue(clock.elapsedTime, state.phase, state.period)
           : 1;
-    light.intensity = intensity * v;
+    light.intensity = intensity * level;
     // 빛만 꺼지고 판이 밝으면 가짜로 보인다.
-    panelMaterial.color.copy(off).lerp(onColor, v);
+    panelMaterial.color.copy(off).lerp(onColor, level);
   });
 
   return (

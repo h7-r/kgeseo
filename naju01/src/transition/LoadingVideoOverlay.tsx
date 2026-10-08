@@ -161,10 +161,10 @@ function LoadingCurtain({
     };
   }, [isSoundBlocked]);
 
-  // 시작 초(이어받기)는 처음 한 번만 쓴다
+  // 시작 초(이어받기)는 처음 한 번만 쓴다 — 막마다 key 가 새라 두 값은 막이 사는 동안 그대로다
   useEffect(() => {
     playMusic(kind, initialMusicTime || 0);
-  }, [kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [kind, initialMusicTime]);
 
   useEffect(() => {
     if (!isLifted) return undefined;

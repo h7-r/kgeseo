@@ -9,7 +9,7 @@ import type { Option } from "../avatar/sidekickOptions";
 import type { CharacterDraft, CompletedCharacter, CompleteResult } from "./appearanceData";
 import CharacterCreationScreen from "./CharacterCreationScreen";
 import type { NameCheckResult } from "./nameRules";
-import { COLORS, FONTS, SCREEN_CSS, TYPE_SCALE, buttonStyle, selectedButtonStyle } from "./styles";
+import { BASE_COLORS, FONTS, MOTION, SCREEN_CSS } from "./styles";
 
 type NameAnswer = "available" | "taken" | "invalid" | "reject";
 type CompleteAnswer = "ok" | "name_taken" | "failed" | "reject";
@@ -31,9 +31,8 @@ const COMPLETE_ANSWERS: readonly Option<CompleteAnswer>[] = [
 // 이미 쓰이고 있다고 칠 이름들 — 「사용 가능」을 골라도 이 이름은 중복으로 답한다
 const TAKEN_NAMES = new Set(["조사관", "홍길동", "테스트"]);
 
-// 엔트리 파일이라 내보낼 것이 없다(Fast Refresh 대신 새로고침)
-// eslint-disable-next-line react-refresh/only-export-components
-function CharacterCreationDevPreview() {
+// 엔트리 파일이지만 Fast Refresh 가 이 컴포넌트를 알아보도록 내보낸다
+export default function CharacterCreationDevPreview() {
   const [nameAnswer, setNameAnswer] = useState<NameAnswer>("available");
   const [completeAnswer, setCompleteAnswer] = useState<CompleteAnswer>("ok");
   const [isSlow, setIsSlow] = useState(false);
@@ -111,7 +110,7 @@ function CharacterCreationDevPreview() {
       )}
       <aside style={{ ...toolPanelStyle, display: isToolOpen ? "grid" : "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ ...TYPE_SCALE.step, color: COLORS.warning }}>개발 미리보기 · 실제 화면 아님</div>
+          <div style={{ ...TYPE_SCALE.step, color: BASE_COLORS.warning }}>개발 미리보기 · 실제 화면 아님</div>
           <button
             type="button"
             style={{ ...buttonStyle, marginLeft: "auto", padding: "2px 8px" }}
@@ -190,12 +189,36 @@ function CharacterCreationDevPreview() {
   );
 }
 
-// 원본은 없는 색 토큰(색.바탕)을 읽어 배경이 비어 있었다 — 같은 화면이 되도록 배경을 두지 않는다
+const TYPE_SCALE = {
+  caption: { font: `400 13px/1.6 ${FONTS.body}`, color: BASE_COLORS.textFaint },
+  step: { font: `500 12px/1 ${FONTS.mono}`, letterSpacing: "0.14em", color: BASE_COLORS.textFaint },
+} satisfies Record<string, CSSProperties>;
+
+// 기본 단추는 테두리가 없다 — 모든 단추에 선을 두르면 화면이 상자로 가득 찬다.
+const buttonStyle: CSSProperties = {
+  appearance: "none",
+  border: "none",
+  background: "none",
+  borderRadius: 10,
+  padding: "8px 12px",
+  color: BASE_COLORS.textMuted,
+  font: `500 13px/1.3 ${FONTS.body}`,
+  cursor: "pointer",
+  transition: `color ${MOTION.fast}, background ${MOTION.fast}`,
+};
+
+const selectedButtonStyle: CSSProperties = {
+  ...buttonStyle,
+  color: "#FFFFFF",
+  background: "rgba(154,216,232,0.16)",
+};
+
+// 배경은 생성 화면이 그린다
 const rootStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
   display: "flex",
-  color: COLORS.text,
+  color: BASE_COLORS.text,
   fontFamily: FONTS.body,
 };
 
@@ -217,7 +240,7 @@ const toolPanelStyle: CSSProperties = {
   alignContent: "start",
   overflowY: "auto",
   padding: 14,
-  borderLeft: `1px solid ${COLORS.line}`,
+  borderLeft: `1px solid ${BASE_COLORS.line}`,
   background: "rgba(255,194,102,0.05)",
 };
 
@@ -227,10 +250,10 @@ const codeStyle: CSSProperties = {
   overflow: "auto",
   padding: 8,
   borderRadius: 8,
-  border: `1px solid ${COLORS.line}`,
+  border: `1px solid ${BASE_COLORS.line}`,
   background: "#04070f",
   font: `400 11px/1.5 ${FONTS.mono}`,
-  color: COLORS.textMuted,
+  color: BASE_COLORS.textMuted,
   whiteSpace: "pre-wrap",
   wordBreak: "break-all",
 };

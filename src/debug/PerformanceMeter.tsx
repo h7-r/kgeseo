@@ -1,11 +1,42 @@
 import { useEffect, useMemo, useRef } from "react";
+import type * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
-import { exposeDevHook } from "@/debug/devHooks";
 import { IS_LOW_QUALITY } from "@/engine/quality";
 
 import { crashLog } from "./crashLog";
-import { isSoftwareRenderer, readGpuName } from "./gpuInfo";
+import { exposeDevHook } from "./devHooks";
+
+/**
+ * 실제 렌더러(GPU) 이름. GPU 를 못 쓰면 브라우저가 에러 없이 CPU 로 그리므로 이름을 화면에 찍어 판별한다.
+ * WEBGL_debug_renderer_info 가 없으면 브라우저가 감춘 것이라 일반 RENDERER 값을 쓴다.
+ */
+function readGpuName(gl: THREE.WebGLRenderer): string {
+  try {
+    const context = gl.getContext();
+    const extension = context.getExtension("WEBGL_debug_renderer_info");
+    const name: unknown = extension
+      ? context.getParameter(extension.UNMASKED_RENDERER_WEBGL)
+      : context.getParameter(context.RENDERER);
+    return String(name || "알 수 없음");
+  } catch {
+    return "읽기 실패";
+  }
+}
+
+// 이름에 이 단어가 있으면 CPU 로 그리는 중이다.
+const SOFTWARE_RENDERER_WORDS = [
+  "swiftshader", // 크롬
+  "llvmpipe", // 리눅스
+  "software",
+  "microsoft basic",
+  "generic renderer",
+];
+
+function isSoftwareRenderer(name: string) {
+  const lowered = name.toLowerCase();
+  return SOFTWARE_RENDERER_WORDS.some((word) => lowered.includes(word));
+}
 
 interface PerformanceMeterProps {
   visible?: boolean;
@@ -27,7 +58,7 @@ export default function PerformanceMeter({ visible = true }: PerformanceMeterPro
   }, [scene, camera, gl]);
 
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const acc = useRef({ t: 0, frames: 0, calls: 0, triangles: 0, minFps: 999 });
+  const totals = useRef({ t: 0, frames: 0, calls: 0, triangles: 0, minFps: 999 });
 
   // gl.info 는 렌더 시작 때 스스로 0 이 되는데, useFrame 은 렌더 직전이라 엉뚱한 값이 읽힌다. 직접 리셋한다.
   useEffect(() => {
@@ -44,27 +75,27 @@ export default function PerformanceMeter({ visible = true }: PerformanceMeterPro
 
   useEffect(() => {
     if (!visible) return;
-    const d = document.createElement("div");
+    const panel = document.createElement("div");
     // GPU 를 못 잡았으면 빨간 테두리 — 캡처만 봐도 안다
     const danger = gpu.isSoftware;
-    d.style.cssText =
+    panel.style.cssText =
       "position:fixed;left:8px;bottom:8px;z-index:9999;padding:6px 10px;" +
       "font:12px/1.5 ui-monospace,Menlo,monospace;" +
       (danger ? "color:#ffd9d9;" : "color:#cfe3ff;") +
       "background:rgba(12,16,24,.88);border-radius:6px;" +
       (danger ? "border:2px solid #e2544a;" : "border:1px solid #2c3648;") +
       "max-width:340px;white-space:pre-wrap;pointer-events:none";
-    document.body.appendChild(d);
-    panelRef.current = d;
+    document.body.appendChild(panel);
+    panelRef.current = panel;
     return () => {
-      d.remove();
+      panel.remove();
       panelRef.current = null;
     };
   }, [visible, gpu]);
 
   useFrame((_, dt) => {
     const info = gl.info;
-    const n = acc.current;
+    const n = totals.current;
     // gl.info 숫자는 GPU 가 죽어도 계속 오른다. isContextLost() 만 믿을 수 있다.
     if (!crashLog.contextLost) {
       try {

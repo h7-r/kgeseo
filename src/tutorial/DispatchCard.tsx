@@ -4,7 +4,7 @@
  */
 import { useEffect, useRef, type CSSProperties } from "react";
 
-import { acknowledgeDispatch, tickDispatch, useDispatchState } from "./dispatch";
+import { acknowledgeDispatch, DISPATCH_COLOR, tickDispatch, useDispatchState } from "./dispatch";
 
 /** 무전 수신음을 WebAudio 로 짧게 만든다(파일 없음). 브라우저가 막으면 조용히 넘어간다. */
 function playRadioChirp() {
@@ -116,8 +116,6 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
   return null;
 }
 
-const ORANGE = "#ffb25c";
-
 const overlayStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
@@ -134,8 +132,8 @@ const cardStyle: CSSProperties = {
   padding: "20px 24px 16px",
   borderRadius: 12,
   background: "rgba(14, 12, 12, 0.92)",
-  border: `1px solid ${ORANGE}66`,
-  boxShadow: `0 0 0 1px rgba(0,0,0,.4), 0 0 40px ${ORANGE}22, 0 18px 40px rgba(0,0,0,.5)`,
+  border: `1px solid ${DISPATCH_COLOR}66`,
+  boxShadow: `0 0 0 1px rgba(0,0,0,.4), 0 0 40px ${DISPATCH_COLOR}22, 0 18px 40px rgba(0,0,0,.5)`,
   color: "#f1ece6",
   lineHeight: 1.6,
 };
@@ -146,7 +144,7 @@ const headerStyle: CSSProperties = {
   gap: 8,
   fontSize: 12,
   letterSpacing: "0.12em",
-  color: ORANGE,
+  color: DISPATCH_COLOR,
   marginBottom: 10,
 };
 
@@ -207,7 +205,7 @@ const objectiveStyle: CSSProperties = {
   padding: "10px 16px",
   borderRadius: 10,
   background: "rgba(14, 12, 12, 0.8)",
-  borderLeft: `3px solid ${ORANGE}`,
+  borderLeft: `3px solid ${DISPATCH_COLOR}`,
   color: "#f1ece6",
   pointerEvents: "none",
   zIndex: 20,
@@ -219,9 +217,9 @@ const objectiveHeaderStyle: CSSProperties = {
   gap: 7,
   fontSize: 11,
   letterSpacing: "0.1em",
-  color: ORANGE,
+  color: DISPATCH_COLOR,
 };
-const smallDotStyle: CSSProperties = { width: 6, height: 6, borderRadius: 99, background: ORANGE };
+const smallDotStyle: CSSProperties = { width: 6, height: 6, borderRadius: 99, background: DISPATCH_COLOR };
 const objectiveTextStyle: CSSProperties = { fontSize: 14, marginTop: 3 };
 const distanceStyle: CSSProperties = { color: "#a0968c" };
 

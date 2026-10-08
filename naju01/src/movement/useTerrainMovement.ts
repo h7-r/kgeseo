@@ -23,8 +23,6 @@ import type { PlayerMotionState } from "@/engine/movement/useMovement";
 import { BASELINE, METERS_PER_UNIT, UNITS_PER_METER, type Heading, type ZoneCode } from "../plan/sitePlan";
 import { CORE_BOUNDS, DEFAULT_TERRAIN, type Terrain } from "../terrain/terrain";
 
-export type { PlayerMotionState };
-
 // 오를 수 있는 턱(m). 이보다 높으면 벽 — 절벽 아래에서 위로 걸어 올라가지 못하게 하는 값이기도 하다.
 const STEP_HEIGHT = 0.55;
 // 이만큼 넘게 떨어지면 추락으로 보고 복귀시킨다(§6 ②). 산허리를 채워 어디로 떨어져도 이어진 땅이라,
@@ -64,7 +62,7 @@ const BOOM_STEP = 0.25 * UNITS_PER_METER;
 const BOOM_MIN = 0.9 * UNITS_PER_METER;
 const BOOM_RELEASE_RATE = 4;
 
-export interface TerrainMovementOptions {
+interface TerrainMovementOptions {
   terrain?: Terrain;
   /** 시작 자리 [x, z, 방위] */
   start?: [number, number, Heading?];

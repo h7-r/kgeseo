@@ -3,32 +3,11 @@
 // 몇 벌 미리 만들어 인스턴스로 돌려쓴다. 비율만 다루고(높이 1 · 밑동 원점) 실치수는 자리의 키가 정한다.
 
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+
 import { makeRandom } from "@/engine/random";
+
+import { ball, box, bundle, cylinder, flatten } from "../story/pieceGeometry";
 import { applyVertexColors } from "../terrain/ground";
-import { toBaseOrigin } from "../placement/instanceGroups";
-
-const unindex = (geometry: THREE.BufferGeometry) => {
-  const flat = geometry.toNonIndexed();
-  flat.deleteAttribute("uv");
-  flat.deleteAttribute("uv1");
-  geometry.dispose();
-  return flat;
-};
-const box = (w: number, h: number, d: number) => unindex(new THREE.BoxGeometry(w, h, d));
-const cylinder = (r1: number, r2: number, h: number, segments = 6) =>
-  unindex(new THREE.CylinderGeometry(r1, r2, h, segments, 1));
-const ball = (r: number, detail = 0) => {
-  const geometry = new THREE.IcosahedronGeometry(r, detail);
-  geometry.deleteAttribute("uv");
-  return geometry.toNonIndexed();
-};
-
-const mergePieces = (pieces: THREE.BufferGeometry[]) => {
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((piece) => piece.dispose());
-  return toBaseOrigin(merged);
-};
 
 /** 횃불 — 기둥 + 감은 천 + 불꽃. 불꽃은 밝은 색이라 밤이 아니어도 빛나는 것으로 읽힌다. */
 export function torchPrototypes(count = 3, seed = 3302): THREE.BufferGeometry[] {
@@ -48,12 +27,12 @@ export function torchPrototypes(count = 3, seed = 3302): THREE.BufferGeometry[] 
     const flameColors = [new THREE.Color("#FFD166"), new THREE.Color("#FF9E3D"), new THREE.Color("#FFF0C2")];
     for (let k = 0; k < 3; k++) {
       const h = 0.34 - k * 0.08;
-      const cone = unindex(new THREE.ConeGeometry(0.09 - k * 0.02, h, 5));
+      const cone = flatten(new THREE.ConeGeometry(0.09 - k * 0.02, h, 5));
       cone.rotateY(random() * Math.PI);
       cone.translate((random() - 0.5) * 0.03, 1.78 + k * 0.05 + h / 2, (random() - 0.5) * 0.03);
       pieces.push(applyVertexColors(cone, flameColors[k]));
     }
-    prototypes.push(mergePieces(pieces));
+    prototypes.push(bundle(pieces));
   }
   return prototypes;
 }
@@ -89,7 +68,7 @@ export function guardianPostPrototypes(count = 3, seed = 3303): THREE.BufferGeom
       tooth.translate(side * 0.06, 1.31, 0.2);
       pieces.push(applyVertexColors(tooth, new THREE.Color("#D8CFBC")));
     }
-    prototypes.push(mergePieces(pieces));
+    prototypes.push(bundle(pieces));
   }
   return prototypes;
 }
@@ -112,7 +91,7 @@ export function stelePrototypes(count = 3, seed = 3304): THREE.BufferGeometry[] 
     roof.rotateZ((random() - 0.5) * 0.03);
     roof.translate(0, 1.48, 0);
     pieces.push(applyVertexColors(roof, dark));
-    prototypes.push(mergePieces(pieces));
+    prototypes.push(bundle(pieces));
   }
   return prototypes;
 }
@@ -132,7 +111,7 @@ export function gravePrototypes(count = 3, seed = 3305): THREE.BufferGeometry[] 
     const altar = box(0.55, 0.1, 0.34);
     altar.translate(0, 0.02, 1.62);
     pieces.push(applyVertexColors(altar, stone));
-    prototypes.push(mergePieces(pieces));
+    prototypes.push(bundle(pieces));
   }
   return prototypes;
 }
@@ -156,7 +135,7 @@ export function villageSignPrototypes(count = 2, seed = 3306): THREE.BufferGeome
     const rim = box(1.62, 0.06, 0.09);
     rim.translate(0, 1.96, 0);
     pieces.push(applyVertexColors(rim, wood));
-    prototypes.push(mergePieces(pieces));
+    prototypes.push(bundle(pieces));
   }
   return prototypes;
 }

@@ -1,10 +1,10 @@
-// grip-photo.mjs — 1인칭에서 물건을 하나씩 집고 화면을 찍는다(쥠표·「1인칭 손」 값 맞추기용)
+// 1인칭에서 물건을 하나씩 집고 화면을 찍는다(쥠표·「1인칭 손」 값 맞추기용).
 //
 //   node tools/grip-photo.mjs <저장폴더> <id,id,...> [variants.json]
 //
 //   variants.json = [{ "name": "a", "grip": {"mug": {...}}, "leva": {"1인칭 손.forward": 0.9}, "cutNear": 0.18 }, ...]
 //     · grip    → __game.gripOffsets(kind, spec)   (src/lobby/gripTable.ts — 종류·필드는 GripSpec 영어 이름)
-//     · leva    → __game.leva.setValueAtPath("폴더.key", 값)   (옛 한글 라벨 "1인칭 손.앞" 도 받는다)
+//     · leva    → __game.leva.setValueAtPath("폴더.key", 값)   (한글 label 경로 "1인칭 손.앞" 도 받는다)
 //     · cutNear → __game.clipping.near, cutBack → __game.clipping.bodyBack   (naju01 치비 아바타의 1인칭 잘림면, m)
 //   한 번 집은 채로 변형마다 바꿔 찍는다 — 페이지를 다시 띄우지 않아 빠르다.
 //
@@ -16,7 +16,7 @@
 //   [미리] 개발 서버가 떠 있어야 한다: npx vite --port 5173
 import { readFileSync } from "node:fs";
 
-import { chromium } from "playwright";
+import { aimAt, heldItem, isThirdPerson, openGamePage, POINTER_LOCK } from "./gamePage.mjs";
 
 const outDir = process.argv[2] ?? ".";
 const itemIds = (process.argv[3] ?? "mug0,kb0,ms0,laptop1,E-06,hat0").split(",");
@@ -27,11 +27,10 @@ const pitches = (process.env.PITCH ?? "front:-0.15,down:-0.55").split(",").map((
 });
 const url = process.env.GAME_URL ?? "http://localhost:5173/?input=always";
 
-const browser = await chromium.launch({ headless: false, channel: "chrome", args: ["--use-angle=metal"] });
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const { browser, page } = await openGamePage();
 const errors = [];
 page.on("pageerror", (e) => {
-  if (!/pointer lock/i.test(e.message)) errors.push(e.message);
+  if (!POINTER_LOCK.test(e.message)) errors.push(e.message);
 });
 await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
 await page.waitForFunction(
@@ -70,7 +69,7 @@ async function prepare() {
     await page.keyboard.press("Escape");
     await page.waitForTimeout(600);
   }
-  for (let i = 0; i < 3 && (await page.evaluate(() => window.__game.view.isThirdPerson)); i += 1) {
+  for (let i = 0; i < 3 && (await isThirdPerson(page)); i += 1) {
     await page.keyboard.press("KeyV");
     await page.waitForTimeout(1300);
   }
@@ -82,7 +81,7 @@ async function applyVariant(variant) {
     game.gripOffsets(); // 전부 지우고 다시 건다
     for (const [kind, spec] of Object.entries(v.grip ?? {})) game.gripOffsets(kind, spec);
 
-    // 키는 영어, 폴더 이름은 한글 그대로다. 옛 변형 파일의 한글 라벨 경로도 찾아 준다.
+    // 키는 영어, 폴더 이름은 한글이다. 한글 label 로 적은 변형 파일 경로도 찾아 준다.
     const data = game.leva.getData();
     const resolvePath = (path) => {
       if (path in data) return path;
@@ -95,9 +94,9 @@ async function applyVariant(variant) {
     };
     for (const [path, value] of Object.entries(v.leva ?? {})) game.leva.setValueAtPath(resolvePath(path), value, true);
 
-    // 잘림면은 아직 naju01 쪽(옛 전역 이름)이다
-    if (v.cutNear != null && window.__game.clipping) window.__game.clipping.near = v.cutNear;
-    if (v.cutBack != null && window.__game.clipping) window.__game.clipping.bodyBack = v.cutBack;
+    // 잘림면은 naju01 치비 아바타가 __game.clipping 으로 연다
+    if (v.cutNear != null && game.clipping) game.clipping.near = v.cutNear;
+    if (v.cutBack != null && game.clipping) game.clipping.bodyBack = v.cutBack;
   }, variant);
 }
 
@@ -115,18 +114,10 @@ for (const id of itemIds) {
   }
   await prepare();
   await applyVariant(variants[0]);
-  await page.evaluate(([x, y, z]) => {
-    window.__game.teleport(x + 1.1, z + 1.1);
-    const c = window.__game.camera;
-    c.position.set(x + 1.1, c.position.y, z + 1.1);
-    c.lookAt(x, y, z);
-    c.updateMatrixWorld(true);
-  }, item.position);
-  await page.waitForTimeout(700);
+  await aimAt(page, item.position);
   await page.keyboard.press("KeyE");
   await page.waitForTimeout(1500);
-  const held = await page.evaluate(() => window.__game.lobby.lobbyStore.get().heldItem);
-  console.log(id, "heldItem", held);
+  console.log(id, "heldItem", await heldItem(page));
   await hideOverlays();
 
   if (process.env.THIRD) {
@@ -146,11 +137,11 @@ for (const id of itemIds) {
   for (const v of variants) {
     await applyVariant(v);
     for (const [name, pitch] of pitches) {
-      await page.evaluate((p) => {
-        const c = window.__game.camera;
-        c.rotation.order = "YXZ";
-        c.rotation.set(p, c.rotation.y, 0, "YXZ");
-        c.updateMatrixWorld(true);
+      await page.evaluate((angle) => {
+        const camera = window.__game.camera;
+        camera.rotation.order = "YXZ";
+        camera.rotation.set(angle, camera.rotation.y, 0, "YXZ");
+        camera.updateMatrixWorld(true);
       }, pitch);
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${outDir}/${id}-${v.name}-${name}.png` });

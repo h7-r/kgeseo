@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { PointerLockControls, Preload } from "@react-three/drei";
@@ -7,26 +7,20 @@ import { Leva } from "leva";
 import * as THREE from "three";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
 
-import {
-  IS_INPUT_ALWAYS_ON,
-  IS_POSTFX_DISABLED,
-  IS_POSTFX_HIGH_QUALITY,
-  SHOW_CUSTOMIZE_PANEL,
-  SHOW_DEV_TOOLS,
-  SHOW_LEVA,
-  USES_CHIBI_RUNTIME,
-  useIsMobile,
-} from "@/app/runtimeFlags";
+import { useCrashWatch } from "@/debug/crashLog";
 import PerformanceMeter from "@/debug/PerformanceMeter";
 import { DEFAULT_FOV } from "@/engine/camera";
 import { useSavedControls } from "@/engine/leva/savedControls";
 import { EYE } from "@/engine/movement/constants";
 import { IS_LOW_QUALITY } from "@/engine/quality";
+import { PLAYER_MESHY_APPEARANCE_KEY, PLAYER_SIDEKICK_APPEARANCE_KEY } from "@/engine/storage";
 import HintHud from "@/game/HintHud";
 import HintPanel from "@/game/HintPanel";
+import { useDevInventorySeed } from "@/game/inventory";
 import InventoryPanel from "@/game/InventoryPanel";
 import { LAYERS } from "@/game/overlayLayer";
 import AimTracker from "@/lobby/AimTracker";
+import { LobbyChibiPanel, LobbySidekickPanel } from "@/naju";
 import { useCutscene } from "@/props/vendingPush";
 import SettingsPanel from "@/settings/SettingsPanel";
 import { RESOLUTION_DPR, useSettings, type Settings } from "@/settings/settings";
@@ -39,24 +33,23 @@ import DispatchCard from "@/tutorial/DispatchCard";
 import TutorialPanel from "@/tutorial/TutorialPanel";
 import TutorialDirectionHud from "@/tutorial/TutorialDirection";
 
-import { useDevInventorySeed } from "./devInventorySeed";
-import ActionHint from "./overlays/ActionHint";
 import CrashOverlays from "./overlays/CrashOverlays";
-import Crosshair from "./overlays/Crosshair";
-import CustomizePanels from "./overlays/CustomizePanels";
-import DevTools from "./overlays/DevTools";
-import FadeCurtain from "./overlays/FadeCurtain";
-import LockDialPanel from "./overlays/LockDialPanel";
-import TopBarButton from "./overlays/TopBarButton";
-import { createPlayerState } from "./playerState";
-import { TRAIN_PATH } from "./routes";
-import { useCrashWatch } from "./useCrashWatch";
+import { ActionHint, Crosshair, FadeCurtain, LockDialPanel, TopBarButton } from "./overlays/Hud";
+import { createPlayerState, usePunch } from "./playerState";
+import { useLockControlMode, useOverlayWindows } from "./pointerLock";
+import {
+  IS_INPUT_ALWAYS_ON,
+  IS_POSTFX_DISABLED,
+  IS_POSTFX_HIGH_QUALITY,
+  SHOW_CUSTOMIZE_PANEL,
+  SHOW_DEV_TOOLS,
+  SHOW_LEVA,
+  USES_CHIBI_RUNTIME,
+  useIsMobile,
+} from "./runtimeFlags";
 import { useGameKeys } from "./useGameKeys";
-import { useLobbyAvatar } from "./useLobbyAvatar";
-import { useLockControlMode } from "./useLockControlMode";
-import { useOverlayWindows } from "./useOverlayWindows";
-import { usePunch } from "./usePunch";
-import { useSceneTransition } from "./useSceneTransition";
+import { useLobbyAvatar, type LobbyAvatar } from "./useLobbyAvatar";
+import { TRAIN_PATH, useSceneTransition } from "./useSceneTransition";
 
 // 기본값(38px)이면 '−12.3' 같은 값의 뒷자리가 잘려 캡처로 값을 옮길 때 소수점을 못 읽는다.
 const LEVA_THEME = { sizes: { numberInputMinWidth: "68px" } };
@@ -87,6 +80,49 @@ function canvasDpr({ resolution }: Settings): number | [number, number] {
     return Math.min(RESOLUTION_DPR[resolution], window.devicePixelRatio || 1);
   }
   return IS_LOW_QUALITY ? 1 : [1, 1.5];
+}
+
+// ?dev 일 때만 그리므로 평소엔 받지도 않는다.
+const BackendStatus = lazy(() => import("@/server/BackendStatus"));
+const GoogleSignIn = lazy(() => import("@/server/GoogleSignIn"));
+const PlaySessionStatusPanel = lazy(() => import("@/server/PlaySessionStatusPanel"));
+
+/** 임시 개발 도구 — Backend·DB 준비 상태, 시연용 Google 로그인, 플레이 세션 상태 */
+function DevTools() {
+  return (
+    <Suspense fallback={null}>
+      <BackendStatus />
+      <GoogleSignIn />
+      <PlaySessionStatusPanel />
+    </Suspense>
+  );
+}
+
+/** 캐릭터 꾸미기 패널(왼쪽). 런타임에 맞는 하나만 띄운다. */
+function CustomizePanels({ avatar }: { avatar: LobbyAvatar }) {
+  return (
+    <Suspense fallback={null}>
+      {USES_CHIBI_RUNTIME ? (
+        <LobbyChibiPanel
+          config={avatar.chibiConfig}
+          setConfig={avatar.setChibiConfig}
+          storageKey={PLAYER_MESHY_APPEARANCE_KEY}
+          toonConfig={avatar.toonConfig}
+          setToonConfig={avatar.setToonConfig}
+          outlineConfig={avatar.outlineConfig}
+          setOutlineConfig={avatar.setOutlineConfig}
+        />
+      ) : (
+        <LobbySidekickPanel
+          config={avatar.sidekickConfig}
+          setConfig={avatar.setSidekickConfig}
+          storageKey={PLAYER_SIDEKICK_APPEARANCE_KEY}
+          side="left"
+          topOffset={14}
+        />
+      )}
+    </Suspense>
+  );
 }
 
 /** 게임 껍데기 — Canvas 하나에 역·기차 씬을 함께 두고 주소로 보임만 바꾼다. 그 위에 화면 창과 안내를 얹는다. */
@@ -195,7 +231,7 @@ export default function App() {
           <EffectComposer
             autoClear={false}
             multisampling={IS_LOW_QUALITY ? 0 : IS_POSTFX_HIGH_QUALITY ? 8 : 2}
-            // 반정밀도(HalfFloat) 버퍼에서는 야외 씬이 통째로 까맣게 나온다(ANGLE Metal 실측). 바이트로 못 박는다.
+            // 반정밀도(HalfFloat) 버퍼에서는 야외 씬이 통째로 까맣게 나온다(ANGLE Metal). 바이트로 못 박는다.
             frameBufferType={THREE.UnsignedByteType}
           >
             <Bloom intensity={0.45} luminanceThreshold={0.85} mipmapBlur />

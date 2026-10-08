@@ -3,6 +3,7 @@
 // 모형을 다시 구우면 꼭짓점이 통째로 바뀌므로 좌표를 박지 않고 그때그때 잰다.
 
 import * as THREE from "three";
+
 import type { BakedModel } from "./baked";
 
 function decodeBase64<T>(text: string, ArrayType: new (buffer: ArrayBuffer) => T): T {
@@ -14,7 +15,7 @@ function decodeBase64<T>(text: string, ArrayType: new (buffer: ArrayBuffer) => T
 
 export type PaintVertices = (geometry: THREE.BufferGeometry, model: BakedModel, colors: Float32Array) => void;
 
-export interface BakedGeometryOptions {
+interface BakedGeometryOptions {
   /** 색 배열을 직접 채운다. 머리 위치처럼 지오 전체를 봐야 하는 칠이 있어 통째로 넘긴다. */
   paint?: PaintVertices | null;
   /** paint 가 없을 때의 위아래 명암 — 단색 덩어리는 부피가 안 읽힌다 */
@@ -55,7 +56,7 @@ export function bakedModelGeometry(
   return geometry;
 }
 
-export interface HeadMeasurement {
+interface HeadMeasurement {
   skull: THREE.Vector3;
   /** 주둥이 방향(단위) */
   snout: THREE.Vector3;
@@ -135,7 +136,7 @@ export function measureHead(
   return { skull, snout, side, headWidth, headLength, nose };
 }
 
-export interface TongueOptions {
+interface TongueOptions {
   start: THREE.Vector3;
   /** 이 거리 안이면 이어진 것으로 본다 */
   link?: number;
@@ -175,8 +176,7 @@ export function findTongue(
   const found = new Set([seed]);
   const queue = [tip.clone()];
   const link2 = link * link;
-  while (queue.length) {
-    const current = queue.pop()!;
+  for (let current = queue.pop(); current; current = queue.pop()) {
     for (let k = 0; k < around.length; k++) {
       const i = around[k];
       if (found.has(i)) continue;
@@ -188,7 +188,7 @@ export function findTongue(
   return found;
 }
 
-export interface ThinPartOptions {
+interface ThinPartOptions {
   /** 높이 슬랩 두께 */
   slab?: number;
   radius?: number;
@@ -200,7 +200,7 @@ export interface ThinPartOptions {
 
 /**
  * 가는 것(기둥·가로대)의 꼭짓점. 천막의 천과 나무를 모양으로 가른다.
- * 기둥은 어느 높이로 썰어도 가는 점이고 천은 넓게 퍼진다 — 실측 분포가 깨끗이 둘로 갈렸다.
+ * 기둥은 어느 높이로 썰어도 가는 점이고 천은 넓게 퍼진다 — 두 분포가 깨끗이 둘로 갈린다.
  * 가로로 긴 막대는 이웃의 주축에서 작은 축이 얇은지로 한 번 더 본다.
  */
 export function findThinParts(
@@ -301,7 +301,7 @@ export function findThinParts(
   return thin;
 }
 
-export interface TrunkOptions {
+interface TrunkOptions {
   /** 꼭짓점 수가 n / 이 값을 넘는 층부터 잎으로 본다 */
   leafStartDivisor?: number;
   layerCount?: number;
@@ -309,7 +309,7 @@ export interface TrunkOptions {
   branchAllowance?: number;
 }
 
-export interface TrunkResult {
+interface TrunkResult {
   trunk: Set<number>;
   trunkTop: number;
   thickness: number;

@@ -11,12 +11,11 @@ import { Highlight } from "@/lobby/Highlight";
 import CombinationPadlock from "@/props/padlock/CombinationPadlock";
 import { useIsOpen } from "@/props/hingeState";
 import { BREAKER_BOX_LOCK_ID } from "@/tutorial/tutorial";
+import type { WorkLampPuzzleValues } from "@/station/controls/workLampControls";
 
 import BreakerBox from "./BreakerBox";
 import ChalkMark from "./ChalkMark";
-import type { WorkLampPuzzleValues } from "./controls";
-import { BIN_SIZE, BREAKER_DOOR_THICKNESS } from "./dimensions";
-import { startupBrightness } from "./geometry";
+import { BIN_SIZE, BREAKER_DOOR_THICKNESS, startupBrightness } from "./geometry";
 import HandwrittenHint from "./HandwrittenHint";
 import JunctionBox from "./JunctionBox";
 import { DOOR_LATCH, FRAME_LATCH } from "./latches";
@@ -46,7 +45,6 @@ import {
   type WorkLampLocation,
 } from "./workLampState";
 
-type Vec3 = [number, number, number];
 type Wall = "inner" | "outer";
 
 const isSlot = (location: WorkLampLocation): location is JunctionSlot => location !== "floor" && location !== "hand";
@@ -67,7 +65,7 @@ interface JunctionSpot {
 
 let renderCount = 0;
 
-export interface CorridorBounds {
+interface CorridorBounds {
   outerX: number;
   innerX: number;
   startZ?: number;
@@ -95,7 +93,7 @@ interface WorkLampPuzzleProps {
  */
 export default function WorkLampPuzzle({
   corridor,
-  values: v,
+  values,
   brightnessAt,
   isBlocked,
   registerCollider,
@@ -124,50 +122,50 @@ export default function WorkLampPuzzle({
     (): JunctionSpot[] => [
       {
         slot: "A",
-        z: v.junctionAZ,
+        z: values.junctionAZ,
         wall: "inner",
         label: "A-1",
-        order: v.markAOrder,
-        glyph: v.markAGlyph,
-        markZ: v.markAZ,
-        markOffset: v.markOffset,
+        order: values.markAOrder,
+        glyph: values.markAGlyph,
+        markZ: values.markAZ,
+        markOffset: values.markOffset,
       },
       {
         slot: "B",
-        z: v.junctionBZ,
+        z: values.junctionBZ,
         wall: "outer",
         label: "A-2",
-        order: v.markBOrder,
-        glyph: v.markBGlyph,
-        markZ: v.markBZ,
-        markOffset: v.markBOffset,
+        order: values.markBOrder,
+        glyph: values.markBGlyph,
+        markZ: values.markBZ,
+        markOffset: values.markBOffset,
       },
       {
         slot: "C",
-        z: v.junctionCZ,
+        z: values.junctionCZ,
         wall: "inner",
         label: "A-3",
-        order: v.markCOrder,
-        glyph: v.markCGlyph,
-        markZ: v.markCZ,
-        markOffset: v.markOffset,
+        order: values.markCOrder,
+        glyph: values.markCGlyph,
+        markZ: values.markCZ,
+        markOffset: values.markOffset,
       },
     ],
     [
-      v.junctionAZ,
-      v.junctionBZ,
-      v.junctionCZ,
-      v.markAOrder,
-      v.markBOrder,
-      v.markCOrder,
-      v.markAGlyph,
-      v.markBGlyph,
-      v.markCGlyph,
-      v.markAZ,
-      v.markBZ,
-      v.markCZ,
-      v.markOffset,
-      v.markBOffset,
+      values.junctionAZ,
+      values.junctionBZ,
+      values.junctionCZ,
+      values.markAOrder,
+      values.markBOrder,
+      values.markCOrder,
+      values.markAGlyph,
+      values.markBGlyph,
+      values.markCGlyph,
+      values.markAZ,
+      values.markBZ,
+      values.markCZ,
+      values.markOffset,
+      values.markBOffset,
     ],
   );
 
@@ -197,12 +195,12 @@ export default function WorkLampPuzzle({
 
   // 손에 들었을 때는 여기서 안 그린다
   const droppedSpot = workLampFloorSpot();
-  const lampSpot = useMemo((): { position: Vec3; rotation: Vec3 } | null => {
+  const lampSpot = useMemo((): { position: THREE.Vector3Tuple; rotation: THREE.Vector3Tuple } | null => {
     if (location === "floor")
       return {
         // 내려놓은 자리가 있으면 거기, 없으면 처음 굴러다니던 자리
-        position: droppedSpot ?? [v.floorX, v.floorY, v.floorZ],
-        rotation: [Math.PI * 0.5, 0, v.floorTilt],
+        position: droppedSpot ?? [values.floorX, values.floorY, values.floorZ],
+        rotation: [Math.PI * 0.5, 0, values.floorTilt],
       };
     const box = boxes.find((b) => b.slot === location);
     if (!box) return null;
@@ -210,8 +208,8 @@ export default function WorkLampPuzzle({
     return {
       // 고리를 함 앞으로 내밀어 달았으므로 램프도 그 자리에 매단다
       position: [
-        (box.wall === "outer" ? outerX : innerX) + d * (v.boxDepth + 0.05),
-        v.boxY + v.boxHeight * 0.34 - 0.62 * v.lampScale,
+        (box.wall === "outer" ? outerX : innerX) + d * (values.boxDepth + 0.05),
+        values.boxY + values.boxHeight * 0.34 - 0.62 * values.lampScale,
         box.z,
       ],
       rotation: [0, 0, 0],
@@ -220,39 +218,39 @@ export default function WorkLampPuzzle({
     location,
     droppedSpot,
     boxes,
-    v.floorX,
-    v.floorY,
-    v.floorZ,
-    v.floorTilt,
-    v.boxDepth,
-    v.boxY,
-    v.boxHeight,
-    v.lampScale,
+    values.floorX,
+    values.floorY,
+    values.floorZ,
+    values.floorTilt,
+    values.boxDepth,
+    values.boxY,
+    values.boxHeight,
+    values.lampScale,
     outerX,
     innerX,
   ]);
 
   // 내려놓을 자리 — 몸이 보는 쪽 dropDistance 앞 바닥. 벽 속에 박히면 다시 못 줍기에 앞에서부터 물러나며 빈 데를 찾는다.
-  const dropPoint = useMemo((): Vec3 => [0, 0, 0], []);
-  const dropSpot = (): Vec3 => {
+  const dropPoint = useMemo((): THREE.Vector3Tuple => [0, 0, 0], []);
+  const dropSpot = (): THREE.Vector3Tuple => {
     const eye = playerView.eye;
     const yaw = playerView.bodyYaw;
     const dx = Math.sin(yaw);
     const dz = Math.cos(yaw);
-    let d = v.dropDistance;
+    let d = values.dropDistance;
     for (; d > 0.35; d -= 0.4) {
       const x = eye.x + dx * d;
       const z = eye.z + dz * d;
       if (!isBlocked || !isBlocked(x, z)) break;
     }
     dropPoint[0] = eye.x + dx * d;
-    dropPoint[1] = v.floorY;
+    dropPoint[1] = values.floorY;
     dropPoint[2] = eye.z + dz * d;
     return dropPoint;
   };
 
   // [F] — 겨냥과 상관없이 손에 든 것을 내려놓는다. [E] 내려놓기는 바닥을 볼 때만 잡혀
-  // 분기함·문을 보고 있으면 그쪽이 먼저 잡혔다.
+  // 분기함·문을 보고 있으면 그쪽이 먼저 잡힌다.
   const dropHeld = useEffectEvent(() => {
     // 전선·쓰레기는 바닥에 두지 않고 제자리로 돌아간다
     if (heldWireShape()) {
@@ -288,46 +286,46 @@ export default function WorkLampPuzzle({
       const eye = playerView.eye;
       const yaw = playerView.bodyYaw;
       light.position.set(
-        eye.x + Math.sin(yaw) * v.handLightForward,
-        eye.y - v.handLightDown,
-        eye.z + Math.cos(yaw) * v.handLightForward,
+        eye.x + Math.sin(yaw) * values.handLightForward,
+        eye.y - values.handLightDown,
+        eye.z + Math.cos(yaw) * values.handLightForward,
       );
-      light.intensity = v.handIntensity;
-      light.distance = v.handDistance;
+      light.intensity = values.handIntensity;
+      light.distance = values.handDistance;
     } else if (isSlot(location)) {
       if (lampSpot) light.position.set(...lampSpot.position);
-      light.intensity = v.pluggedIntensity * strength.current;
-      light.distance = v.pluggedDistance;
+      light.intensity = values.pluggedIntensity * strength.current;
+      light.distance = values.pluggedDistance;
     } else {
       // 바닥에서도 켜져 있다 — 깜깜한 복도 끝에서 이 불빛 하나가 「저기 뭔가 있다」의 전부다
       if (lampSpot) light.position.set(...lampSpot.position);
-      light.intensity = v.floorIntensity;
-      light.distance = v.floorDistance;
+      light.intensity = values.floorIntensity;
+      light.distance = values.floorDistance;
     }
   });
 
-  const binsCenterZ = (v.binGeneralZ + v.binPlasticZ) / 2;
+  const binsCenterZ = (values.binGeneralZ + values.binPlasticZ) / 2;
 
   return (
     <group>
       {boxes.map((box) => {
         const d = wallDirection(box.wall);
         const x = wallX(box.wall);
-        const aimPoint: Vec3 = [x + d * 0.35, v.boxY, box.z];
+        const aimPoint: THREE.Vector3Tuple = [x + d * 0.35, values.boxY, box.z];
         const isHere = location === box.slot;
         return (
           <group key={box.slot}>
             {/* 겨냥하면 함이 스스로 빛난다 — 복도 소품이 전부 쓰는 방식이다 */}
             <Highlight id={`workLamp:${box.slot}`} anchor={() => null} grow={0} strength={0.22}>
               <JunctionBox
-                position={[x, v.boxY, box.z]}
+                position={[x, values.boxY, box.z]}
                 direction={d}
-                width={v.boxWidth}
-                height={v.boxHeight}
-                depth={v.boxDepth}
+                width={values.boxWidth}
+                height={values.boxHeight}
+                depth={values.boxDepth}
                 label={box.label}
-                wear={v.boxWear}
-                brightness={brightnessAt(box.z) * v.boxBrightness}
+                wear={values.boxWear}
+                brightness={brightnessAt(box.z) * values.boxBrightness}
                 plugged={isHere}
                 ceilingHeight={corridorHeight}
                 outline={outline}
@@ -353,13 +351,13 @@ export default function WorkLampPuzzle({
         return (
           <ChalkMark
             key={`mark${box.slot}`}
-            position={[wallX(box.wall) + d * box.markOffset, v.markY, box.markZ]}
+            position={[wallX(box.wall) + d * box.markOffset, values.markY, box.markZ]}
             rotation={[0, d > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}
-            size={v.markSize}
+            size={values.markSize}
             order={box.order}
             glyph={box.glyph}
-            color={v.markColor}
-            seed={v.markSeed}
+            color={values.markColor}
+            seed={values.markSeed}
             strengthRef={markStrengths[box.slot]}
           />
         );
@@ -369,13 +367,13 @@ export default function WorkLampPuzzle({
         <Highlight id="workLamp:pickUp" anchor={() => lampSpot.position} grow={0.12} strength={0.6}>
           <group position={lampSpot.position} rotation={lampSpot.rotation}>
             <WorkLampModel
-              scale={v.lampScale}
-              metalColor={v.metalColor}
-              rubberColor={v.rubberColor}
-              bulbColor={v.bulbColor}
+              scale={values.lampScale}
+              metalColor={values.metalColor}
+              rubberColor={values.rubberColor}
+              bulbColor={values.bulbColor}
               // 그린 순간의 점등 세기를 읽는다 — 꽂은 직후엔 0 이라 전구는 다음 판까지 어둡다
-              glow={isSlot(location) ? strength.current : v.floorGlow}
-              floorGlint={location === "floor" ? v.floorGlint : 0}
+              glow={isSlot(location) ? strength.current : values.floorGlow}
+              floorGlint={location === "floor" ? values.floorGlint : 0}
               outline={outline}
             />
           </group>
@@ -387,20 +385,20 @@ export default function WorkLampPuzzle({
       <pointLight
         ref={lightRef}
         name="workLamp:light"
-        color={v.lightColor}
+        color={values.lightColor}
         intensity={0}
-        distance={v.pluggedDistance}
+        distance={values.pluggedDistance}
         decay={2}
         castShadow={false}
       />
 
-      {/* 바닥 물건은 눈높이(4.15)보다 멀다 — 거리 3 으로는 어떻게 서도 안 닿았다 */}
+      {/* 바닥 물건은 눈높이(4.15)보다 멀어 거리 3 으로는 어떻게 서도 안 닿는다 */}
       <Interactable
         id="workLamp:pickUp"
         radius={1.2}
         reach={6}
         position={() => {
-          const c = lampSpot?.position ?? [v.floorX, v.floorY, v.floorZ];
+          const c = lampSpot?.position ?? [values.floorX, values.floorY, values.floorZ];
           return [c[0], c[1] + 0.2, c[2]];
         }}
         label="[E] 작업등 집기"
@@ -419,15 +417,15 @@ export default function WorkLampPuzzle({
         run={() => dropWorkLamp(dropSpot())}
       />
 
-      {v.breakerVisible && (
+      {values.breakerVisible && (
         <>
           <BreakerBox
-            position={[innerX, v.breakerY, v.breakerZ]}
+            position={[innerX, values.breakerY, values.breakerZ]}
             direction={-1}
-            width={v.breakerWidth}
-            height={v.breakerHeight}
-            depth={v.breakerDepth}
-            brightness={brightnessAt(v.breakerZ) * v.boxBrightness}
+            width={values.breakerWidth}
+            height={values.breakerHeight}
+            depth={values.breakerDepth}
+            brightness={brightnessAt(values.breakerZ) * values.boxBrightness}
             doorId={BREAKER_BOX_LOCK_ID}
             isRaised={isPowered}
             onLever={() => {
@@ -437,7 +435,7 @@ export default function WorkLampPuzzle({
             outline={outline}
           />
           <Recycling
-            values={v}
+            values={values}
             outerX={outerX}
             brightnessAt={brightnessAt}
             registerCollider={registerCollider}
@@ -452,32 +450,32 @@ export default function WorkLampPuzzle({
             brightness={brightnessAt(binsCenterZ)}
           />
           <Painting
-            position={[innerX - 0.02, v.paintingY, v.paintingZ]}
+            position={[innerX - 0.02, values.paintingY, values.paintingZ]}
             direction={-1}
-            width={v.paintingWidth}
-            brightness={brightnessAt(v.paintingZ)}
+            width={values.paintingWidth}
+            brightness={brightnessAt(values.paintingZ)}
             outline={outline}
           />
           <WindowSwitchPanel
-            position={[innerX, v.switchPanelY, v.paintingZ + v.switchPanelSide]}
+            position={[innerX, values.switchPanelY, values.paintingZ + values.switchPanelSide]}
             direction={-1}
-            brightness={brightnessAt(v.paintingZ)}
+            brightness={brightnessAt(values.paintingZ)}
             outline={outline}
           />
           <PuzzleCables
-            values={v}
+            values={values}
             outerX={outerX}
             innerX={innerX}
             corridorHeight={corridorHeight}
             brightnessAt={brightnessAt}
           />
           <ReleaseButton
-            position={[innerX, v.breakerY + 0.35, startZ + 2.2]}
+            position={[innerX, values.breakerY + 0.35, startZ + 2.2]}
             direction={-1}
             // 비상 전원(절반)으로는 안 산다 — 시험반까지 맞춰야 전기가 온다
             isPowered={isFullPower}
             isReleased={isReleased}
-            brightness={brightnessAt(startZ + 2.2) * v.boxBrightness}
+            brightness={brightnessAt(startZ + 2.2) * values.boxBrightness}
             outline={outline}
           />
           {/* 자물쇠는 문에 매달린 게 아니라 월드 좌표에 서 있어, 문이 젖혀지면 걸쇠가 허공에 남는다 —
@@ -486,21 +484,21 @@ export default function WorkLampPuzzle({
           {!isBreakerOpen && (
             <CombinationPadlock
               position={[
-                innerX - v.breakerDepth - 0.01 - BREAKER_DOOR_THICKNESS / 2 - v.lockDepth,
-                v.breakerY + v.lockHeight,
-                v.breakerZ + v.breakerWidth / 2 + v.lockSide,
+                innerX - values.breakerDepth - 0.01 - BREAKER_DOOR_THICKNESS / 2 - values.lockDepth,
+                values.breakerY + values.lockHeight,
+                values.breakerZ + values.breakerWidth / 2 + values.lockSide,
               ]}
               rotation={[0, -Math.PI / 2, 0]}
               doorLatch={DOOR_LATCH}
               frameLatch={FRAME_LATCH}
-              size={v.lockScale}
+              size={values.lockScale}
               rowCount={3}
               lockId={BREAKER_BOX_LOCK_ID}
-              answer={v.lockAnswer}
+              answer={values.lockAnswer}
               // 처음 보이는 번호. 정답과 같으면 자물쇠가 한 칸 밀어 준다
-              initialDigits={[v.lockSeed1, v.lockSeed2, v.lockSeed3]}
-              handleDistance={v.lockOperateDistance}
-              brightness={brightnessAt(v.breakerZ)}
+              initialDigits={[values.lockSeed1, values.lockSeed2, values.lockSeed3]}
+              handleDistance={values.lockOperateDistance}
+              brightness={brightnessAt(values.breakerZ)}
               outline={outline}
             />
           )}

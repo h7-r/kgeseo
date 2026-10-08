@@ -4,7 +4,8 @@ import * as THREE from "three";
 
 import { makeToonGradient, type OutlineValues } from "@/engine/toon";
 
-import { GltfParts, splitGltf, type GltfPart } from "./gltfParts";
+import { splitGltf, type GltfPart } from "./gltfModel";
+import GltfParts from "./GltfParts";
 import { DESK_LAMP_URL, FLOOR_LAMP_URL, LAMP_AXIS, LAMP_MOUTH } from "./lampModels";
 
 useGLTF.preload(DESK_LAMP_URL);

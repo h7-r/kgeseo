@@ -7,7 +7,7 @@ import { PRICING, type PlanName, type PricingPlan } from "@/data/pricing";
 import { FONT } from "@/lib/style";
 import { QUERY, ROUTES, useSiteNavigate, withQuery } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
-import { getAccountData, saveAccountData } from "@/services/accountStore";
+import { getAccountData, saveAccountData } from "@/services/account/manageAccount";
 import { useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 

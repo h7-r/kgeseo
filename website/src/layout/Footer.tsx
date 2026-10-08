@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { FOOTER_ATTR } from "@/lib/stage";
+import { FOOTER_ATTR } from "@/lib/layout";
 import { FONT } from "@/lib/style";
 import { FOOTER_LINKS, useSiteNavigate } from "@/navigation/routes";
 import { COLOR } from "@/styles/tokens";

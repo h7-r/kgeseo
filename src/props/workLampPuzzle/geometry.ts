@@ -5,13 +5,21 @@ import { makeRandom } from "@/engine/random";
 
 import type { WireShape } from "./workLampState";
 
-type Vec3 = [number, number, number];
+/** 차단기함 문짝 두께 — 자물쇠를 문짝 앞면에 세울 때도 쓴다 */
+export const BREAKER_DOOR_THICKNESS = 0.1;
+
+/** 분리수거함 하나(실척 약 90 cm). 벽에 등을 대고 선다. */
+export const BIN_SIZE = { depth: 1.25, width: 1.5, bodyHeight: 2.72 };
+
+/** 그림 「막차」 캔버스 픽셀 크기 — 액자 비율도 이걸 따른다 */
+export const PAINTING_WIDTH_PX = 2048;
+export const PAINTING_HEIGHT_PX = 1366;
 
 export interface GeometryPiece {
   geometry: THREE.BufferGeometry | null;
-  position?: Vec3;
-  rotation?: Vec3;
-  scale?: Vec3;
+  position?: THREE.Vector3Tuple;
+  rotation?: THREE.Vector3Tuple;
+  scale?: THREE.Vector3Tuple;
 }
 
 /**
@@ -37,7 +45,7 @@ export function mergePieces(pieces: GeometryPiece[]): THREE.BufferGeometry | nul
   return merged ?? null;
 }
 
-export interface OpenBoxOptions {
+interface OpenBoxOptions {
   depth: number;
   height: number;
   width: number;
@@ -136,21 +144,21 @@ export function crumpledGeometry(radius: number, seed: number) {
 }
 
 /** 꺾이는 데를 둥글린 꺾은선 — 벽·천장을 타는 전선은 직각으로 붙어 가다 모서리에서 휜다. */
-export function roundedPolyline(points: Vec3[], radius = 0.25) {
-  const v = points.map((p) => new THREE.Vector3(...p));
+export function roundedPolyline(points: THREE.Vector3Tuple[], radius = 0.25) {
+  const corners = points.map((p) => new THREE.Vector3(...p));
   const path = new THREE.CurvePath<THREE.Vector3>();
-  let from = v[0].clone();
-  for (let i = 1; i < v.length - 1; i++) {
-    const incoming = v[i].clone().sub(v[i - 1]);
-    const outgoing = v[i + 1].clone().sub(v[i]);
+  let from = corners[0].clone();
+  for (let i = 1; i < corners.length - 1; i++) {
+    const incoming = corners[i].clone().sub(corners[i - 1]);
+    const outgoing = corners[i + 1].clone().sub(corners[i]);
     const r = Math.min(radius, incoming.length() / 2, outgoing.length() / 2);
-    const a = v[i].clone().addScaledVector(incoming.normalize(), -r);
-    const b = v[i].clone().addScaledVector(outgoing.normalize(), r);
+    const a = corners[i].clone().addScaledVector(incoming.normalize(), -r);
+    const b = corners[i].clone().addScaledVector(outgoing.normalize(), r);
     if (a.distanceTo(from) > 1e-4) path.add(new THREE.LineCurve3(from, a));
-    path.add(new THREE.QuadraticBezierCurve3(a, v[i].clone(), b));
+    path.add(new THREE.QuadraticBezierCurve3(a, corners[i].clone(), b));
     from = b;
   }
-  path.add(new THREE.LineCurve3(from, v[v.length - 1].clone()));
+  path.add(new THREE.LineCurve3(from, corners[corners.length - 1].clone()));
   return path;
 }
 

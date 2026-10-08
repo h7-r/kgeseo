@@ -8,7 +8,9 @@ import { chairDragState } from "@/station/office/chairDragState";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 import { entryLock, exitedTrain } from "@/station/layout/trainDoors";
 
-import { STATION_PATH, TRAIN_PATH } from "./routes";
+/** 한 Canvas 안에서 주소로 씬을 고른다. /train 이면 객차 안, 그 밖은 역. */
+const STATION_PATH = "/";
+export const TRAIN_PATH = "/train";
 
 // 어두워지기 260ms + 밝아지기 시작까지 120ms ≈ 0.4초 (PRD 전역-006 「페이드로 로딩을 가린다 · 1초 이내」)
 const FADE_OUT_MS = 260;

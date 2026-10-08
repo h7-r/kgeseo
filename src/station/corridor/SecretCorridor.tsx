@@ -5,11 +5,11 @@ import { ToonOutline } from "@/engine/outline";
 import { makeRandom } from "@/engine/random";
 import { floorTexture } from "@/engine/textures/surfaces";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
-import { applySurfaceStains } from "@/station/vertexNoise";
-import { RubbleStones, type RubbleStone } from "@/station/train/rubble";
+import RubbleStones, { type RubbleStone } from "@/station/train/RubbleStones";
 import WallPiece from "@/station/train/WallPiece";
+import { applySurfaceStains } from "@/station/vertexNoise";
 
-import { corridorDepthBrightness } from "./depthShading";
+import { corridorDepthBrightness } from "./corridorLighting";
 
 interface SecretCorridorProps {
   /** 복도 바깥벽 */
@@ -124,30 +124,26 @@ export default function SecretCorridor({
   );
 
   const floorMap = floorTexture(floorSeed);
-  const floorGeometry = useMemo(
-    () => {
-      const g = new THREE.PlaneGeometry(
-        width,
-        length,
-        Math.max(2, Math.round(width / 1.2)),
-        Math.max(2, Math.round(length / 1.2)),
-      );
-      applySurfaceStains(g, floorSeed + 9, { count: 22, strength: 1.1 });
-      // 얼룩 정점색에 곱해야 한다 — 덮어쓰면 얼룩이 사라진다.
-      // 바닥판은 X축 −90° 로 눕혀 로컬 y 가 월드 z 의 반대다(월드z = cz − y).
-      const pos = g.attributes.position;
-      const col = g.attributes.color;
-      for (let i = 0; i < pos.count; i++) {
-        const m = depthBrightness(cz - pos.getY(i));
-        if (col) col.setXYZ(i, col.getX(i) * m, col.getY(i) * m, col.getZ(i) * m);
-      }
-      if (col) col.needsUpdate = true;
-      return g;
-    },
-    // 원본과 같은 의존 목록 — 최소밝기·끝어둠·끝기울기·벽밝기는 빠져 있어 그 값만 바꾸면 바닥이 안 따라간다(보고됨).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [width, length, floorSeed, darkness, falloff, doorZ, cz, darkBoundary, darkFactor, brightBoundary],
-  );
+  const floorGeometry = useMemo(() => {
+    const g = new THREE.PlaneGeometry(
+      width,
+      length,
+      Math.max(2, Math.round(width / 1.2)),
+      Math.max(2, Math.round(length / 1.2)),
+    );
+    applySurfaceStains(g, floorSeed + 9, { count: 22, strength: 1.1 });
+    // 얼룩 정점색에 곱해야 한다 — 덮어쓰면 얼룩이 사라진다.
+    // 바닥판은 X축 −90° 로 눕혀 로컬 y 가 월드 z 의 반대다(월드z = cz − y).
+    const position = g.attributes.position;
+    const colors = g.attributes.color;
+    for (let i = 0; i < position.count; i++) {
+      const brightness = depthBrightness(cz - position.getY(i));
+      if (colors)
+        colors.setXYZ(i, colors.getX(i) * brightness, colors.getY(i) * brightness, colors.getZ(i) * brightness);
+    }
+    if (colors) colors.needsUpdate = true;
+    return g;
+  }, [width, length, floorSeed, cz, depthBrightness]);
   useEffect(() => () => floorGeometry.dispose(), [floorGeometry]);
 
   // 바닥 잔해 — 오래 안 쓴 통로라는 걸 말해 주는 단서

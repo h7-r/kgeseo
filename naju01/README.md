@@ -11,7 +11,23 @@ npx vite naju01      # http://localhost:5174
 ```
 
 본편(`npm run dev`, 5173)과 **동시에** 띄워 놓고 번갈아 볼 수 있습니다. 본편 기차의 텔레포트도 5173 안의 `/naju01/` 로 넘어옵니다.
-빌드는 `npx vite build naju01` (결과는 `naju01/dist-naju01/`, 깃 무시됨). 타입 검사는 `npx tsc -p naju01`.
+빌드는 `npx vite build naju01` (결과는 `naju01/dist-naju01/`, 깃 무시됨), 빌드본 보기는 `npx vite preview naju01`. 타입 검사는 `npx tsc -p naju01`.
+빌드본에는 `/__naju-edit` 가 없어서 빌드할 때 `assets/edits.json` 을 `naju-edit.json` 으로 같이 내보내고, 빌드본은 그 파일로 손 배치를 읽습니다.
+발표는 빌드본이 가볍습니다(HMR·미압축 모듈·개발용 검사가 빠짐).
+
+첫 진입 때는 손 배치·구운 모형 다섯을 **먼저 받고**(로딩 덮개) 씬을 세웁니다(`src/app/prefetch.ts`). 구운 지형은 일부러 늦게 켭니다 — 손 배치가 「해석 지형으로 선 뒤 구운 땅이 도착하는」 순서의 생성 번호로 남아 있어서입니다.
+naju01 의 `main.tsx` 는 StrictMode 를 씌우지 않습니다 — 개발 모드에서 씬의 memo·effect 가 두 번 돌아 첫 진입이 두 배로 무거워집니다.
+
+### 발표 프리셋 (주소 스위치)
+
+Leva 저장값 위에 얹히므로 어느 브라우저에서든 같은 화면이 나오고, 떼면 원래 화면입니다. 값은 `src/app/presentation.ts`.
+
+| 주소 | 하는 일 |
+|---|---|
+| `?present` | 라벨·격자·조사점 표식·단면선 끔 |
+| `?present=light` | 위 + 원경·수풀 밀도와 그림자 범위 줄임, 물 그림자 수신 끔, 해상도 상한 1.5·MSAA 2 |
+| `?present=minimal` | 위 + 바닥결·물잔결까지 끔(비상용 — 땅이 단색이 됨) |
+| `&mood=evening` · `&mood=night` | 로비처럼 어두운 바탕 + 낮은 해 하나(하늘돔 끔·안개 당김). 따로 써도 됨 |
 
 ## 본편과 같은 것 / 다른 것
 

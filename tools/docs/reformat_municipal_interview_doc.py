@@ -1,18 +1,14 @@
-"""Create a print-ready, reflowed version of the municipal interview script.
+"""지자체 인터뷰 대본 DOCX 를 인쇄용으로 다시 배치한다.
 
-The source content is read from the supplied DOCX and placed into a cleaner
-structure.  It deliberately does not alter the wording, names, questions,
-answers, check options, or the non-binding condition of the original.
+입력 DOCX 의 내용을 더 깔끔한 구조에 옮길 뿐, 문구·이름·질문·답변·체크 항목·비구속 조건은 바꾸지 않는다.
 """
 
-from copy import deepcopy
 from pathlib import Path
 import re
 
 from docx import Document
-from docx.enum.section import WD_SECTION
-from docx.enum.table import WD_ALIGN_VERTICAL, WD_ROW_HEIGHT_RULE
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK, WD_COLOR_INDEX
+from docx.enum.table import WD_ALIGN_VERTICAL
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_COLOR_INDEX
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
@@ -31,7 +27,6 @@ MID_GRAY = "F2F4F7"
 LIGHT_GRAY = "D9DEE7"
 PALE_BLUE = "F7F9FC"
 RED = "A63B2B"
-YELLOW = "FFF2CC"
 
 
 def set_cell_shading(cell, fill):
@@ -127,7 +122,7 @@ def add_highlighted_runs(paragraph, text, size=10.5, bold=False, color=BLACK):
 def clear_paragraph(paragraph):
     p = paragraph._element
     for child in list(p):
-        # Retain paragraph properties so named styles (notably Title) survive.
+        # 문단 속성(pPr)은 남겨야 Title 같은 이름 붙은 스타일이 유지된다.
         if child.tag != qn("w:pPr"):
             p.remove(child)
 
@@ -219,8 +214,7 @@ def add_bullet(document, text, size=10.5):
 
 
 def add_note(document, text):
-    # The two non-binding notices stay in the same form rather than spilling
-    # onto a nearly empty signature-only page.
+    # 비구속 안내 두 줄이 서명만 남은 빈 쪽으로 넘어가지 않게 양식과 붙여 둔다.
     p = add_paragraph(document, text, size=8.0, before=1, after=1, line=1.0, color="606C7A")
     p.paragraph_format.keep_together = True
     return p
@@ -259,8 +253,7 @@ def add_table(document, rows, widths=None, header=True, first_col_labels=False, 
             p.paragraph_format.line_spacing = 1.12
             clear_paragraph(p)
             if not value and blank_opinion:
-                # Leave a concise but usable handwritten-response area so the
-                # declaration and notes remain with the form on one sheet.
+                # 손글씨 칸은 작게 두어 선언문·안내가 양식과 한 장에 남게 한다.
                 p.add_run(" ")
             else:
                 add_highlighted_runs(
@@ -335,9 +328,9 @@ def add_form(document, source, city, info_table, interest_table, opinion_table, 
     form_heading_1 = add_heading(document, "1. 사용 및 협력 검토 의향", level=3)
     form_heading_1.paragraph_format.space_before = Pt(8)
     form_heading_1.paragraph_format.space_after = Pt(2)
-    # Preserve the original checklist text but render it as an easy-to-check list.
+    # 체크 항목 문구는 그대로 두고 체크하기 쉬운 목록으로 그린다.
     checklist = [p.text.strip() for p in source.paragraphs if p.text.strip().startswith("☐  지역 설화") or p.text.strip().startswith("☐  현장") or p.text.strip().startswith("☐  관리자") or p.text.strip().startswith("☐  보상") or p.text.strip().startswith("☐  성과")]
-    # The list occurs twice in the source.  Select the matching six rows by city.
+    # 입력 문서에 목록이 두 번 나오므로 도시에 맞는 여섯 줄을 고른다.
     if city == "나주시":
         checklist = checklist[:6]
     else:
@@ -369,13 +362,13 @@ def main():
     source = Document(SOURCE)
     document = setup_document()
 
-    # Cover
+    # 표지
     add_title(document, source.paragraphs[1].text.strip(), source.paragraphs[2].text.strip())
     add_paragraph(document, source.paragraphs[5].text.strip(), size=15, after=6, line=1.25, bold=True)
     add_paragraph(document, source.paragraphs[6].text.strip(), size=12, after=30, line=1.25, color="536273")
     add_table(document, extract_rows(source, 0), widths=[2.4, 15.2], header=False, first_col_labels=True, size=10.2)
 
-    # Recording guidance
+    # 촬영 안내
     add_heading(document, find_paragraph(source, "1. 촬영 요청 안내"), level=1, page_break=True)
     add_paragraph(document, find_paragraph(source, "바쁘신 가운데"), size=10.8, after=10)
     add_table(document, extract_rows(source, 1), widths=[3.25, 14.35], header=False, first_col_labels=True, size=9.7)
@@ -384,7 +377,7 @@ def main():
         add_bullet(document, find_paragraph(source, prefix), size=10.1)
     add_table(document, extract_rows(source, 2), widths=[17.6], header=False, size=10, blank_opinion=False)
 
-    # Service description
+    # 서비스 소개
     add_heading(document, find_paragraph(source, "2. 서비스 소개"), level=1, page_break=True)
     add_table(document, extract_rows(source, 3), widths=[17.6], header=False, size=11)
     add_heading(document, find_paragraph(source, "2-1. 우리가"), level=2)
@@ -395,7 +388,7 @@ def main():
     for prefix in ("정보가 아니라", "두 개의 완결", "보상은 방문", "한 편이 아니라"):
         add_bullet(document, find_paragraph(source, prefix), size=10.2)
 
-    # Expansion: force its heading to travel with the process it introduces.
+    # 확장: 제목이 소개하는 절차 표와 같은 쪽에 붙게 한다.
     add_heading(document, find_paragraph(source, "2-4. 확장"), level=2)
     add_heading(document, find_paragraph(source, "① 최소한의"), level=3)
     add_table(document, extract_rows(source, 6), widths=[4.4, 4.4, 4.4, 4.4], header=True, size=8.6)
@@ -409,14 +402,14 @@ def main():
     for prefix in ("템플릿 게시", "운영 부담", "광역 연계", "경험 확장"):
         add_bullet(document, find_paragraph(source, prefix), size=9.9)
 
-    # Video scripts. Each interview starts on a fresh page; no title is left alone.
+    # 인터뷰 대본 — 대본마다 새 쪽에서 시작해 제목만 홀로 남지 않게 한다.
     add_heading(document, find_paragraph(source, "3. 인터뷰 대본"), level=1, page_break=True)
     add_interview_script(document, source, find_paragraph(source, "대본 A"), 8, find_paragraph(source, "대본 B"), new_page=False)
     add_interview_script(document, source, find_paragraph(source, "대본 B"), 9, find_paragraph(source, "대본 C"))
     add_interview_script(document, source, find_paragraph(source, "대본 C"), 10, find_paragraph(source, "대본 D"))
     add_interview_script(document, source, find_paragraph(source, "대본 D"), 11, find_paragraph(source, "서비스 사용 의향서"))
 
-    # Non-binding intent forms, one city per independently usable section.
+    # 비구속 사용 의향서 — 도시마다 따로 쓸 수 있는 구역 하나씩.
     add_form(
         document,
         source,
@@ -429,7 +422,7 @@ def main():
         find_paragraph(source, "※ 본 의향서는"),
         find_paragraph(source, "※ 광주인공지능사관학교"),
     )
-    # Find the second copy of the declaration and notes exactly as held in source.
+    # 두 번째 도시의 선언문·안내는 입력 문서에 있는 두 번째 사본을 그대로 쓴다.
     occurrences = [p.text.strip() for p in source.paragraphs if p.text.strip().startswith("본 기관(부서)은 위 서비스")]
     notes1 = [p.text.strip() for p in source.paragraphs if p.text.strip().startswith("※ 본 의향서는")]
     notes2 = [p.text.strip() for p in source.paragraphs if p.text.strip().startswith("※ 광주인공지능사관학교")]

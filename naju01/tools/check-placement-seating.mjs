@@ -4,38 +4,30 @@
 // 쓰는 법  node naju01/tools/check-placement-seating.mjs <url> <edits.json url> [new-terrain]
 import { chromium } from "playwright";
 
+import {
+  expandLevaFolders,
+  logPageErrors,
+  startGame,
+  toggleBakedTerrain,
+  waitForBakedGround,
+} from "./headlessPage.mjs";
+
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-page.on("pageerror", (e) => console.log("  pageerror:", (e.message || "").slice(0, 120)));
-await page.goto(process.argv[2], { waitUntil: "networkidle" });
-await page.waitForTimeout(2500);
-await page.keyboard.press("KeyT");
+logPageErrors(page, 120);
+await startGame(page, process.argv[2], 2500);
 await page.waitForTimeout(1500);
-await page.evaluate(() => {
-  for (let i = 0; i < 4; i++)
-    document.querySelectorAll('[class*="leva"] svg').forEach((s) => s.closest("div")?.parentElement?.click());
-});
-await page.waitForTimeout(800);
+await expandLevaFolders(page);
 if (process.argv[4] === "new-terrain") {
-  await page.evaluate(() => document.querySelectorAll('input[type="checkbox"]')[7].click());
-  for (let i = 0; i < 14; i++) {
-    await page.waitForTimeout(5000);
-    if (
-      await page.evaluate(
-        () =>
-          !!window.__game?.naju?.scene?.getObjectByName("ground")?.geometry?.attributes?.position &&
-          (window.__game.naju.scene.getObjectByName("ground").geometry.index?.count ?? 0) / 3 === 128000,
-      )
-    )
-      break;
-  }
+  await toggleBakedTerrain(page);
+  await waitForBakedGround(page, 14);
   await page.waitForTimeout(20000);
 }
 const result = await page.evaluate(async (editsUrl) => {
   const naju = window.__game?.naju;
   if (!naju) return "창구 없음";
-  const THREE = naju.THREE,
-    METER = 1 / 0.3;
+  const THREE = naju.THREE;
+  const METER = 1 / 0.3;
   const edits = await (await fetch(editsUrl)).json();
   const groundMeshes = [];
   naju.scene.traverse((o) => {
@@ -50,23 +42,23 @@ const result = await page.evaluate(async (editsUrl) => {
   // 편집 파일 열쇠(고침·더함)는 저장 데이터라 한글 그대로다
   for (const section of ["고침", "더함"])
     for (const value of Object.values(edits[section] ?? {}))
-      for (const a of Array.isArray(value) ? value : Object.values(value)) {
-        if (!a || !("x" in a && "y" in a && "z" in a)) continue;
-        if (a.x < 0.3 || a.x > 79.7 || a.z < 0.3 || a.z > 49.7) continue; // 코어 밖은 이 땅이 아니다
-        ray.set(new THREE.Vector3(a.x * METER, 60 * METER, a.z * METER), down);
+      for (const item of Array.isArray(value) ? value : Object.values(value)) {
+        if (!item || !("x" in item && "y" in item && "z" in item)) continue;
+        if (item.x < 0.3 || item.x > 79.7 || item.z < 0.3 || item.z > 49.7) continue; // 코어 밖은 이 땅이 아니다
+        ray.set(new THREE.Vector3(item.x * METER, 60 * METER, item.z * METER), down);
         const hits = ray.intersectObjects(groundMeshes, false);
         if (!hits.length) {
           misses++;
           continue;
         }
-        gaps.push(a.y - hits[0].point.y / METER); // + 면 떠 있고 − 면 박혔다
+        gaps.push(item.y - hits[0].point.y / METER); // + 면 떠 있고 − 면 박혔다
       }
   gaps.sort((p, q) => p - q);
   const percentile = (t) => gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * t))];
   const absGaps = gaps.map(Math.abs).sort((p, q) => p - q);
   return {
     measured: gaps.length,
-    misses: misses,
+    misses,
     median: +percentile(0.5).toFixed(3),
     min: +percentile(0).toFixed(2),
     max: +percentile(1).toFixed(2),

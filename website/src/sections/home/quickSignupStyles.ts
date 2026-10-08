@@ -1,8 +1,9 @@
 import type { CSSProperties } from "react";
 
 import { FONT, placeCentered } from "@/lib/style";
-import { INTRO_CENTER_Y, SIGNUP_FORM_LEFT, SIGNUP_FORM_WIDTH } from "@/pages/home/homeLayout";
 import { COLOR } from "@/styles/tokens";
+
+import { INTRO_CENTER_Y, SIGNUP_FORM_LEFT, SIGNUP_FORM_WIDTH } from "./homeLayout";
 
 // 가입 폼과 환영 판이 같은 자리·같은 단추를 쓴다.
 

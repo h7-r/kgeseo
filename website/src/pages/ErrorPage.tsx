@@ -6,7 +6,7 @@ import { FONT, gradientText } from "@/lib/style";
 import { QUERY, ROUTES, useSiteNavigate, withQuery, type RoutePath } from "@/navigation/routes";
 import { COLOR, GRADIENT, SHADOW } from "@/styles/tokens";
 
-export type ErrorKind = "404" | "403" | "500" | "503" | "offline";
+type ErrorKind = "404" | "403" | "500" | "503" | "offline";
 
 /** path 가 없으면 새로고침한다. */
 interface ErrorAction {

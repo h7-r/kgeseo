@@ -1,10 +1,10 @@
-import { normalizeEmail } from "@/services/account/records";
+import { normalizeEmail } from "@/services/account/db";
 
 /**
  * 비밀번호 재설정 인증코드 발급·확인. 메일 서버가 붙기 전까지의 흉내라 코드를 화면에 테스트용으로 보여 준다.
  * 탭 안(sessionStorage)에만 두어 탭을 닫으면 사라진다. 서버가 붙으면 이 파일만 바꾸면 된다.
  */
-export interface PasswordResetState {
+interface PasswordResetState {
   email: string;
   code: string;
   expiresAt: number;
@@ -13,7 +13,7 @@ export interface PasswordResetState {
   verified: boolean;
 }
 
-export type VerifyCodeResult = { ok: true } | { ok: false; reason: string; field?: "email" | "code" };
+type VerifyCodeResult = { ok: true } | { ok: false; reason: string; field?: "email" | "code" };
 
 const STORAGE_KEY = "waegok.passwordReset";
 const CODE_TTL_MS = 10 * 60 * 1000;

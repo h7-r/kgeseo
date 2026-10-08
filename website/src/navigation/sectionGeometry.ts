@@ -1,4 +1,4 @@
-import { STAGE_INNER_CLASS } from "@/lib/stage";
+import { STAGE_INNER_CLASS } from "@/lib/layout";
 
 import { getSubMenu } from "./subMenus";
 
@@ -75,7 +75,7 @@ function steadyTranslateY(element: HTMLElement): number {
   }
 }
 
-export interface SectionPosition extends SectionBounds {
+interface SectionPosition extends SectionBounds {
   id: string;
   label: string;
   /** 핀이 풀리는 스크롤 자리(px). */

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useFrame } from "@react-three/fiber";
 import { Outlines } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { scaleColor } from "@/engine/color";
@@ -9,7 +9,7 @@ import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { rattle, rattleOffset, toggleHinge, useIsOpen } from "@/props/hingeState";
 
-import { EXIT_SIGN_ASPECT, exitSignTexture } from "./textures";
+import { EXIT_SIGN_ASPECT, exitSignTexture } from "./signTextures";
 
 interface CorridorEndDoorProps {
   /** 복도 중앙 x */
@@ -119,9 +119,9 @@ export default function CorridorEndDoor({
         position: [sx * (doorW / 2), height / 2, front],
       })),
     ]);
-    const iw = doorW - 0.7,
-      ih = doorH - 0.9,
-      cy = height / 2 + 0.08;
+    const iw = doorW - 0.7;
+    const ih = doorH - 0.9;
+    const cy = height / 2 + 0.08;
     const panels = mergeBoxes([
       { size: [iw, bar * 0.7, bar * 0.7], position: [0, cy + ih / 2, front] },
       { size: [iw, bar * 0.7, bar * 0.7], position: [0, cy - ih / 2, front] },

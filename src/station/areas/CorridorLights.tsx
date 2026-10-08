@@ -1,10 +1,10 @@
 import type { OutlineValues } from "@/engine/toon";
-import type { WorkLampPuzzleValues } from "@/props/workLampPuzzle/controls";
 import CorridorLight from "@/station/corridor/CorridorLight";
-import { FLICKER_PATTERNS } from "@/station/corridor/flickerPatterns";
+import { FLICKER_PATTERNS } from "@/station/corridor/corridorLighting";
 import { MIN_X } from "@/station/layout/dimensions";
 
 import type { CorridorValues } from "../controls/corridorControls";
+import type { WorkLampPuzzleValues } from "../controls/workLampControls";
 import { corridorZ } from "./corridorHooks";
 
 // 등마다 때를 다르게 — 같은 값이면 복사한 티가 난다

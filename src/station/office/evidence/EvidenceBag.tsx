@@ -15,7 +15,7 @@ interface EvidenceBagProps {
   size?: number;
 }
 
-/** 증거물 지퍼백. 납작하고 각진 물건은 AI 3D 생성기가 못 만들어 코드로 그린다. */
+/** 증거물 지퍼백. 납작하고 각진 물건이라 상자 몇 개로 그린다. */
 export default function EvidenceBag({ caseNo, item, outline, thickness = 0.05, size = 1 }: EvidenceBagProps) {
   const texture = useMemo(
     () =>

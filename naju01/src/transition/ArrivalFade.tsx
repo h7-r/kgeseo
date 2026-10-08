@@ -5,19 +5,21 @@ import { ARRIVAL_FADE_MS } from "./useArrivalFade";
 
 interface FirstFrameSignalProps {
   onFirstFrame: () => void;
+  /** 몇 장째에 알릴지 */
+  frames?: number;
 }
 
 /**
  * Canvas 안에 둔다. R3F 는 Canvas children 을 Suspense 하나로 묶으므로, 이 컴포넌트의 useFrame 이 돈다는 건
  * GLB·지형이 다 준비됐다는 뜻이다. useFrame 은 그 프레임을 그리기 전에 돌아서 두 장째에 알린다.
  */
-export function FirstFrameSignal({ onFirstFrame }: FirstFrameSignalProps) {
+export function FirstFrameSignal({ onFirstFrame, frames = 2 }: FirstFrameSignalProps) {
   const frameCount = useRef(0);
   const hasSignaled = useRef(false);
   useFrame(() => {
     if (hasSignaled.current) return;
     frameCount.current += 1;
-    if (frameCount.current < 2) return;
+    if (frameCount.current < frames) return;
     hasSignaled.current = true;
     onFirstFrame();
   });

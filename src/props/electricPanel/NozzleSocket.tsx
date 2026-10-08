@@ -9,9 +9,8 @@ import { Interactable } from "@/lobby/AimTracker";
 import { Highlight } from "@/lobby/Highlight";
 import NozzleModel from "@/props/hydrantCabinet/NozzleModel";
 import { nozzleLocation, pickUpNozzle, plugNozzle, useNozzle } from "@/props/nozzleState";
-import type { HighlightSettings } from "@/props/shared/highlightSettings";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { worldPositionOf } from "@/props/shared/worldPosition";
+import { type HighlightSettings, worldPositionOf } from "@/props/shared/aimTarget";
 import { isWorkLampPuzzleHandFull } from "@/props/workLampPuzzle/workLampState";
 
 interface NozzleSocketProps {

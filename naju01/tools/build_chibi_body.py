@@ -1,20 +1,12 @@
-"""V4 chibi body -> Sidekick-compatible skeleton prototype (step 1: body + motions).
+"""22본 리그 몸을 Sidekick 골격(뼈 이름·계층·축)으로 다시 묶어 GLB 로 내보낸다.
 
-Reads (never writes) the V4 review body (`base_rig.blend`: Body/Face/Underwear on a
-22-bone rig in the source pose: arms bent, palms up) and the Sidekick shared rig.
-Writes a new blend + one GLB per body type whose skeleton has the Sidekick bone
-names, hierarchy and bone axes, so the existing Quaternius retarget (43 motions)
-works unchanged.
-
-Steps per body type
-1. Swing the arms into the Sidekick T-pose direction with the V4 skin (LBS).
-2. Distributed arm twist about the straightened arm axis: 0 deg at the shoulder,
-   90 deg at the elbow, 180 deg at the wrist.  Source palms-up/thumb-back becomes
-   Sidekick palms-down/thumb-forward with the elbow hinge facing forward.
-3. Chibi proportions: larger head, shorter legs, rounder limbs (weight blended).
-4. Uniform scale to the requested standing height, feet on the ground.
-5. Copy the Sidekick armature, move its joints onto the body, remap V4 weights
-   (normalized, 4 influences) and bind.
+입력 blend 는 읽기만 한다. Sidekick 골격과 같게 만들어 기존 Quaternius 리타게팅 동작이
+그대로 붙게 한다. 체형마다:
+1. 팔(·다리)을 Sidekick T포즈 방향으로 돌린다(입력 스킨으로 LBS).
+2. 팔 축 둘레로 어깨 0° → 손목 --arm-twist-deg 까지 나눠 비튼다.
+3. 치비 비율: 머리 키우고, 다리 줄이고, 팔다리 굵게(웨이트로 섞음).
+4. 요청한 키로 균일 배율, 발은 바닥에.
+5. Sidekick 골격을 복사해 관절을 몸에 옮기고 웨이트를 옮겨(정규화, 4개) 묶은 뒤 체형 슬라이더를 단다.
 
 Usage:
   Blender --background --factory-startup --python build_chibi_body.py -- \
@@ -51,36 +43,35 @@ MAX_INFLUENCES = 4
 
 def arguments() -> argparse.Namespace:
     raw = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
-    p = argparse.ArgumentParser()
-    p.add_argument("--v4-blend", type=Path, required=True)
-    p.add_argument("--sidekick-blend", type=Path, required=True)
-    p.add_argument("--blend-output", type=Path, required=True)
-    p.add_argument("--glb-dir", type=Path, required=True)
-    p.add_argument("--report", type=Path, required=True)
-    p.add_argument("--height", type=float, default=1.45)
-    p.add_argument("--head-scale", type=float, default=1.18)
-    p.add_argument("--leg-length", type=float, default=0.86)
-    p.add_argument("--arm-thickness", type=float, default=1.12)
-    p.add_argument("--leg-thickness", type=float, default=1.08)
-    p.add_argument("--torso-width", type=float, default=1.0)
-    p.add_argument("--neck-thickness", type=float, default=1.0)
-    # V4 source hands are palms-up (180); Meshy A-pose hands face the thighs (0).
-    p.add_argument("--arm-twist-deg", type=float, default=180.0)
-    p.add_argument("--glb-prefix", default="chibi")
-    # A-pose sources stand with the legs apart; the motions expect the Sidekick
-    # rest stance, so the legs are straightened the same way the arms are.
-    p.add_argument("--straighten-legs", action="store_true")
-    p.add_argument("--labels", nargs="+", default=["Male", "Female"])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--v4-blend", type=Path, required=True)
+    parser.add_argument("--sidekick-blend", type=Path, required=True)
+    parser.add_argument("--blend-output", type=Path, required=True)
+    parser.add_argument("--glb-dir", type=Path, required=True)
+    parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--height", type=float, default=1.45)
+    parser.add_argument("--head-scale", type=float, default=1.18)
+    parser.add_argument("--leg-length", type=float, default=0.86)
+    parser.add_argument("--arm-thickness", type=float, default=1.12)
+    parser.add_argument("--leg-thickness", type=float, default=1.08)
+    parser.add_argument("--torso-width", type=float, default=1.0)
+    parser.add_argument("--neck-thickness", type=float, default=1.0)
+    # 손바닥이 위를 보는 입력은 180, 허벅지를 보는 Meshy A포즈는 0.
+    parser.add_argument("--arm-twist-deg", type=float, default=180.0)
+    parser.add_argument("--glb-prefix", default="chibi")
+    # A포즈 입력은 다리가 벌어져 있어 팔과 같은 방식으로 Sidekick 쉴 때 자세로 편다.
+    parser.add_argument("--straighten-legs", action="store_true")
+    parser.add_argument("--labels", nargs="+", default=["Male", "Female"])
     # 면 줄이기는 모프를 만들기 전에 해야 한다(모프가 있으면 적용 불가).
-    p.add_argument("--face-budget", type=int, default=0, help="0 = 줄이지 않음")
-    p.add_argument("--hair-budget", type=int, default=30000)
-    # 옷마다 다른 Meshy 모델이라 체형·자세가 조금씩 다르다. 기준 골격 하나를 뽑아
-    # (--canonical-out) 나머지 착장을 그 골격에 맞춰 변형한다(--canonical).
-    p.add_argument("--canonical-out", type=Path, default=None)
-    p.add_argument("--canonical", type=Path, default=None)
+    parser.add_argument("--face-budget", type=int, default=0, help="0 = 줄이지 않음")
+    parser.add_argument("--hair-budget", type=int, default=30000)
+    # 착장마다 체형·자세가 조금씩 달라 기준 골격 하나를 뽑아(--canonical-out)
+    # 나머지 착장을 그 골격에 맞춰 변형한다(--canonical).
+    parser.add_argument("--canonical-out", type=Path, default=None)
+    parser.add_argument("--canonical", type=Path, default=None)
     # 허벅지·종아리 표면 다듬기(라플라시안). 0 이면 안 한다.
-    p.add_argument("--leg-smooth", type=int, default=0)
-    return p.parse_args(raw)
+    parser.add_argument("--leg-smooth", type=int, default=0)
+    return parser.parse_args(raw)
 
 
 def smoothstep(a: float, b: float, x: float) -> float:
@@ -88,7 +79,7 @@ def smoothstep(a: float, b: float, x: float) -> float:
     return t * t * (3 - 2 * t)
 
 
-# ─────────────────────────────── Sidekick reference ─────────────────────────
+# ── Sidekick 기준 골격 ──
 
 def append_sidekick_rig(path: Path) -> bpy.types.Object:
     with bpy.data.libraries.load(str(path), link=False) as (src, dst):
@@ -102,14 +93,14 @@ def sidekick_joint(rig: bpy.types.Object, name: str) -> Vector:
     return rig.matrix_world @ rig.data.bones[name].head_local
 
 
-# ─────────────────────────────── V4 body posing ─────────────────────────────
+# ── 입력 몸 자세·비율 ──
 
 def world_head(rig, name) -> Vector:
     return rig.matrix_world @ rig.pose.bones[name].head
 
 
 def swing_bone(rig, name: str, child: str | None, target: Vector) -> None:
-    """Rotate a pose bone about its head so head->child(head) points along target."""
+    """포즈 뼈를 머리 둘레로 돌려 머리→자식 머리 방향이 target 을 향하게 한다."""
     bpy.context.view_layer.update()
     pb = rig.pose.bones[name]
     head = pb.head.copy()
@@ -217,14 +208,10 @@ def apply_proportions(meshes, weights, joints, args) -> None:
 
 
 def smooth_legs(meshes, iterations: int = 6, factor: float = 1.2) -> dict:
-    """Laplacian-smooth the thigh/shin surface so the legs read as legs.
+    """허벅지·종아리 표면을 라플라시안으로 다듬는다.
 
-    Meshy's leg geometry is soft and the collapse decimation leaves uneven
-    triangles; under a three-step toon ramp every little bump becomes a band, so
-    the thighs and knees looked like kneaded dough.  Smoothing is limited to a
-    temporary vertex group built from the leg bone weights (feet excluded so the
-    toes keep their shape) and preserves volume, so the silhouette stays and only
-    the surface noise goes.  Runs on the source pose, before any morph is baked.
+    툰 계단 아래에선 축소가 남긴 작은 요철이 전부 띠가 된다. 다리 뼈 웨이트로 만든 임시 그룹에만
+    (발 제외) 부피 보존으로 걸어 실루엣은 두고 표면 잡음만 지운다. 모프를 굽기 전에 돈다.
     """
     stats = {}
     for obj in meshes:
@@ -252,7 +239,7 @@ def smooth_legs(meshes, iterations: int = 6, factor: float = 1.2) -> dict:
         mod.use_volume_preserve = True
         mod.use_normalized = True
         bpy.ops.object.modifier_apply(modifier=mod.name)
-        # 모디파이어를 적용하면 그룹 참조가 낡는다(Head 를 지우려 든 적이 있다). 이름으로 다시 찾는다.
+        # 모디파이어를 적용하면 그룹 참조가 낡아 엉뚱한 그룹을 가리킬 수 있으므로 이름으로 다시 찾는다.
         temp = obj.vertex_groups.get("_legs")
         if temp is not None:
             obj.vertex_groups.remove(temp)
@@ -273,20 +260,17 @@ def fit_height(meshes, joints, height: float) -> float:
     return scale
 
 
-# ─────────────────────────────── Sidekick rig fitting ───────────────────────
+# ── Sidekick 골격 맞추기 ──
 
 def bone_children(rig) -> dict[str, list[str]]:
     return {b.name: [c.name for c in b.children] for b in rig.pose.bones}
 
 
 def normalise_to_canonical(meshes, weights, joints, canonical, children) -> dict:
-    """Deform the body so its joints land on the canonical skeleton.
+    """관절이 기준 골격에 놓이도록 몸을 변형한다.
 
-    Each look is its own Meshy generation, so arm/leg lengths, hip height and the
-    forward lean differ by a few percent — enough that swapping one garment visibly
-    changes the body.  Per bone we build the similarity (rotation + uniform scale +
-    translation) that carries the measured bone onto the canonical one and blend
-    them by skin weight, so the shape stays continuous across joints.
+    착장마다 팔다리 길이·엉덩이 높이가 몇 % 씩 달라 옷만 바꿔도 몸이 바뀌어 보인다. 뼈마다
+    잰 뼈를 기준 뼈로 옮기는 유사 변환을 만들고 스킨 웨이트로 섞어 관절에서 끊기지 않게 한다.
     """
     shared = [n for n in joints if n in canonical]
     maps: dict[str, tuple[Matrix, Vector, Vector]] = {}
@@ -334,8 +318,7 @@ def fit_sidekick_rig(template: bpy.types.Object, joints: dict[str, Vector], labe
     bpy.context.scene.collection.objects.link(rig)
 
     targets: dict[str, Vector] = {sk: joints[v4] for v4, sk in V4_TO_SIDEKICK.items()}
-    # Distribute the spine joints along the V4 pelvis->neck polyline at the
-    # same relative heights the Sidekick spine uses.
+    # 척추 관절은 골반→목 꺾은선 위에 Sidekick 척추와 같은 상대 높이로 나눠 놓는다.
     sk = {n: sidekick_joint(template, n) for n in ("pelvis", "spine_01", "spine_02", "spine_03", "neck_01")}
     v4_chain = [joints["Hips"], joints["Spine"], joints["Chest"], joints["Neck"]]
     lengths = [(b - a).length for a, b in zip(v4_chain, v4_chain[1:])]
@@ -376,7 +359,7 @@ def fit_sidekick_rig(template: bpy.types.Object, joints: dict[str, Vector], labe
 
     for bone in [b for b in bones if b.parent is None]:
         place(bone)
-    # Twist bones sit between their segment joints like the Sidekick rig.
+    # 비틀림 뼈는 Sidekick 처럼 마디 관절 사이에 둔다.
     for side in ("l", "r"):
         for twist, a, b in (("upperarm_twist_01", "upperarm", "lowerarm"), ("lowerarm_twist_01", "lowerarm", "hand"),
                             ("thigh_twist_01", "thigh", "calf"), ("calf_twist_01", "calf", "foot")):
@@ -431,16 +414,16 @@ def remap_weights(obj, weights, rig, joints_sk) -> dict:
     return {"vertices": len(new), "max_influences": max(len(w) for w in new), "bones": sorted(groups)}
 
 
-# ─────────────────────────────── body sliders ───────────────────────────────
+# ── 체형 슬라이더 ──
 
 BODY_MORPHS = ("heavy", "skinny", "buff", "shoulderWidth", "hipWidth", "armThickness", "legThickness",
                "handScale", "footScale", "fistHands")
 
 
 def morph_delta(p: Vector, w: dict[str, float], joints: dict[str, Vector], key: str) -> Vector:
-    """World-space delta of one slider at a rest point with its Sidekick weights.
+    """쉴 때 자세의 한 점에서 슬라이더 하나가 만드는 이동량(월드).
 
-    Every mesh (body, clothes, hair) uses the same field, so parts stay together.
+    몸·옷·머리카락이 같은 장을 써서 파츠가 따로 놀지 않는다.
     """
     def chain(*names) -> float:
         return min(1.0, sum(w.get(n, 0.0) for n in names))
@@ -499,7 +482,6 @@ def morph_delta(p: Vector, w: dict[str, float], joints: dict[str, Vector], key: 
         chain_names = ("hand", "wrist") if key == "handScale" else ("foot", "ball")
         for s in "lr":
             joint = joints["hand_" + s] if key == "handScale" else joints["foot_" + s]
-            weight = chain(*[f"{n}_{s}" for n in chain_names if f"{n}_{s}" in joints or True])
             weight = min(1.0, sum(w.get(b, 0.0) for b in w if b.startswith(chain_names[0]) and b.endswith(f"_{s}")))
             if weight > 0:
                 delta += (p - joint) * 0.35 * weight
@@ -636,7 +618,7 @@ def main() -> None:
     for label, (rig, meshes) in export_sets.items():
         bpy.ops.object.select_all(action="DESELECT")
         for obj in (rig, *meshes):
-            # 원본 검토 파일에서 한쪽 체형이 숨김 상태라 선택 내보내기에서 빠졌다.
+            # 입력 blend 에서 숨김 상태인 체형도 선택 내보내기에 들어가게 한다.
             obj.hide_viewport = False
             obj.hide_set(False)
             obj.select_set(True)

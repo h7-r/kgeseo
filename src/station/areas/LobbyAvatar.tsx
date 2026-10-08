@@ -1,9 +1,9 @@
 import { Suspense, type RefObject } from "react";
 
 import { LOBBY_AVATAR_BODY, USES_CHIBI_RUNTIME } from "@/app/runtimeFlags";
+import type { AvatarLink } from "@/engine/avatarLink";
 import { FRAME_PRIORITY } from "@/engine/camera";
 import BoomFade from "@/engine/movement/BoomFade";
-import type { AvatarLink } from "@/engine/avatarLink";
 import {
   LobbyChibi,
   LobbySidekick,

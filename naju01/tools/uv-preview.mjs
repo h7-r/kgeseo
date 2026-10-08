@@ -3,12 +3,13 @@
 //
 // 숫자(「94.3 % 쓸만함」)로는 어디가 뭉개졌는지 안 보인다. 체커를 입히면
 // 정사각형 유지 = 늘어남 없음, 길쭉함 = 서 있는 면, 칸 크기 튐 = 텍셀 밀도 튐.
-// Meshy 크레딧을 쓰기 전에 잡아야 싸다. 빨간 칸은 절벽 칸, 흰/회색 칸은 바닥 칸.
+// Meshy 크레딧을 쓰기 전에 잡는다. 빨간 칸은 절벽 칸, 흰/회색 칸은 바닥 칸.
 
-import { chromium } from "playwright";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { chromium } from "playwright";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const glbPath = path.join(here, "..", "assets", "source", "terrain.glb");
@@ -80,15 +81,15 @@ try {
   }, bytes);
   console.log("  " + notice);
 
-  for (const [name, X, Z, yaw, pitch] of shots) {
+  for (const [name, x, z, yaw, pitch] of shots) {
     await page.evaluate(
-      ([X, Z, yaw, pitch]) => {
-        window.__game.naju.teleport.current(X, Z);
+      ([x, z, yaw, pitch]) => {
+        window.__game.naju.teleport.current(x, z);
         const camera = window.__game.naju.camera;
         camera.rotation.order = "YXZ";
         camera.rotation.set(pitch, yaw, 0);
       },
-      [X, Z, yaw, pitch],
+      [x, z, yaw, pitch],
     );
     await page.waitForTimeout(800);
     await page.screenshot({ path: path.join(outDir, `UV-${name}.png`) });

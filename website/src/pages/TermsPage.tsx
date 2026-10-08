@@ -1,8 +1,8 @@
 import Stage from "@/components/Stage";
 import { TERMS_HEIGHTS, TERMS_TABS } from "@/data/terms";
 import { useQueryTab } from "@/hooks/useQueryTab";
-import { HEADER_HEIGHT, FOOTER_ALLOWANCE } from "@/layout/layoutMetrics";
 import PageFooter from "@/layout/PageFooter";
+import { HEADER_HEIGHT, FOOTER_ALLOWANCE } from "@/lib/layout";
 import TermsTabs from "@/sections/terms/TermsTabs";
 
 const TOP_MARGIN = 64;

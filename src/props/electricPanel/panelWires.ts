@@ -59,7 +59,7 @@ const mix = (a: number, b: number, k: number) => a + (b - a) * k;
  * 꽂힌 모양 — 위 선(암) 입구 바로 아래까지 끌어 올린다. 점을 덧붙이기만 한다(원래 경로를 지우면
  * 단자 쪽 앞부분까지 흔들린다). 마지막 마디는 곧게 수직이어야 핀이 통 옆구리로 비껴 들어가지 않는다.
  */
-export function pluggedPath(points: WirePath, target: Vector3Tuple, depth = 0.08): WirePath {
+function pluggedPath(points: WirePath, target: Vector3Tuple, depth = 0.08): WirePath {
   const end = points[points.length - 1];
   const mouth: Vector3Tuple = [target[0], target[1] - depth, target[2]];
   return [
@@ -222,7 +222,7 @@ export function buildWirePaths(layout: PanelLayout) {
   };
 }
 
-export type WirePaths = ReturnType<typeof buildWirePaths>;
+type WirePaths = ReturnType<typeof buildWirePaths>;
 
 /** 고정 배선 — 검은 상선 · 파란 중성선 · 초록 접지선. 접지선은 셋이 좁게 나란히 지나 가늘게 둔다. */
 export function buildFixedWires({ inlet, feeder, ground }: WirePaths, thickRadius: number) {

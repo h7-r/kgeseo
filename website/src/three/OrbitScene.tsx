@@ -4,8 +4,6 @@ import * as THREE from "three";
 
 import { COLOR } from "@/styles/tokens";
 
-import type { Tilt } from "./tilt";
-
 // 디자인의 둥근 사진과 평면 링은 그대로 두고, 이 장면을 그 뒤에 깔아 링을 진짜 기울어진 궤도로 보이게 한다.
 
 // 회색 위주. 파랑은 튀어 보여 남색은 가운데 링 한 줄에만 쓴다.
@@ -14,16 +12,16 @@ const SILVER = "#c3c7ce";
 const NAVY = COLOR.navyMuted;
 
 // 같은 각도로 도는 링은 동심원으로만 보인다. 축을 어긋나게 기울여야 앞뒤로 교차하며 깊이가 읽힌다.
-const INNER_TILT: Tilt = [1.15, 0.2, 0];
-const MIDDLE_TILT: Tilt = [-0.9, 0.55, 0.3];
-const OUTER_TILT: Tilt = [0.45, -1.1, 0];
+const INNER_TILT: THREE.EulerTuple = [1.15, 0.2, 0];
+const MIDDLE_TILT: THREE.EulerTuple = [-0.9, 0.55, 0.3];
+const OUTER_TILT: THREE.EulerTuple = [0.45, -1.1, 0];
 
 const canvasStyle: CSSProperties = { position: "absolute", inset: 0, pointerEvents: "none" };
 
 interface OrbitRingProps {
   radius: number;
   thickness: number;
-  tilt: Tilt;
+  tilt: THREE.EulerTuple;
   speed: number;
   color: string;
   opacity: number;
@@ -48,7 +46,7 @@ function OrbitRing({ radius, thickness, tilt, speed, color, opacity }: OrbitRing
 
 interface OrbitMarkerProps {
   radius: number;
-  tilt: Tilt;
+  tilt: THREE.EulerTuple;
   speed: number;
   startAngle: number;
 }

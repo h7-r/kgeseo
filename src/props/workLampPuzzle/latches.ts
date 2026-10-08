@@ -1,6 +1,6 @@
 import type { LatchSettings } from "@/props/padlock/LatchPlate";
 
-// 걸쇠 두 장 — 소화전 자물쇠에서 화면 보며 맞춘 비율을 옮겨 왔고, 이 함이 작아 길이만 줄였다.
+// 차단기함 자물쇠의 걸쇠 두 장 — 소화전 자물쇠와 같은 비율에 함이 작은 만큼 길이만 줄인다.
 // 원점이 큰 구멍 한가운데라 좌우·위아래·깊이만 맞추면 쇠막대 길에 얹힌다.
 export const DOOR_LATCH: LatchSettings = {
   visible: true,

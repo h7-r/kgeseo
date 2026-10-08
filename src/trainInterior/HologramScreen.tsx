@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import * as THREE from "three";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import { useSavedControls } from "@/engine/leva/savedControls";
 import { playerView } from "@/engine/playerView";
+import { NAJU_ENTER_EVENT, type NajuEnterDetail } from "@/station/najuEnter";
 
 import {
   DESTINATIONS,
@@ -16,14 +17,10 @@ import {
   rowRect,
   SELECT_RECT,
 } from "./hologramPanel";
-import { NAJU_ENTER_EVENT, type NajuEnterDetail } from "@/station/najuEnter";
 
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
-/**
- * 저장값 위에 코드로 더하는 높이(≈4 px). Y 는 저장값이 기본값을 이기고, 슬라이더 한 칸(0.02)도 이보다 크다.
- * fov 60 · 5.5 유닛 거리에서 1 유닛 ≈ 157 px 이라 0.0075 유닛 ≈ 1 px.
- */
+/** 저장값 위에 더하는 높이(화면에서 ≈4 px). 저장된 Y 가 기본값을 이겨 기본값을 고쳐서는 안 올라간다. */
 const LIFT = 0.03;
 /** 이 안이면 [E] 로 떠날 수 있다 */
 const NEAR_DISTANCE = 13;
@@ -31,7 +28,7 @@ const NEAR_DISTANCE = 13;
 interface HologramScreenProps {
   /**
    * 기차 씬이 지금 켜져 있나. 씬이 숨어도 이 컴포넌트는 살아 있고, useFrame 과 R3F 레이캐스트는
-   * visible 을 보지 않는다. 스크린 자리가 역 방 안 좌표라 로비에서 허공을 클릭해 나주로 넘어가던 일을 막는다.
+   * visible 을 보지 않는다. 스크린 자리가 역 방 안 좌표와 겹쳐, 끄지 않으면 로비 허공 클릭에 나주로 넘어간다.
    */
   enabled?: boolean;
 }
@@ -104,10 +101,10 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
   }, [canvas, panelTexture, selectedId, isNear]);
 
   // 장소 이동은 되돌릴 수 없어 두 박자로 한다 — 카드를 클릭해 고르고, 근처에서 [E].
-  // 근처이기만 하면 넘어가게 했을 때 다른 일로 [E] 를 누르다 나주로 넘어가 버렸다.
+  // 근처이기만 하면 넘어가게 하면 다른 일로 누른 [E] 에도 나주로 넘어간다.
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== "KeyE" || e.repeat) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "KeyE" || event.repeat) return;
       if (!enabledRef.current) return;
       if (nearRef.current && selectedRef.current) goToNaju();
     };
@@ -166,11 +163,11 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
   });
 
   const handlePointerDown = useCallback(
-    (e: ThreeEvent<PointerEvent>) => {
-      if (!e.uv) return;
-      e.stopPropagation();
-      const cx = e.uv.x * PANEL_WIDTH;
-      const cy = (1 - e.uv.y) * PANEL_HEIGHT;
+    (event: ThreeEvent<PointerEvent>) => {
+      if (!event.uv) return;
+      event.stopPropagation();
+      const cx = event.uv.x * PANEL_WIDTH;
+      const cy = (1 - event.uv.y) * PANEL_HEIGHT;
       for (let i = 0; i < DESTINATIONS.length; i++) {
         if (isInside(rowRect(i), cx, cy)) {
           const destination = DESTINATIONS[i];

@@ -184,7 +184,7 @@ export function brokenBranchPrototypes(count = 3, seed = 6304): THREE.BufferGeom
   return prototypes;
 }
 
-export type Scene3PropKey = "strawShoe" | "hairRibbon" | "dirtClod" | "brokenBranch";
+type Scene3PropKey = "strawShoe" | "hairRibbon" | "dirtClod" | "brokenBranch";
 
 export const SCENE3_NOTES: Record<Scene3PropKey, SceneNote> = {
   strawShoe: { text: "짚신 한 짝 · 나머지 짝은 14 m 아래에 있다 (F-07)", color: "#F2C89A" },
@@ -193,7 +193,7 @@ export const SCENE3_NOTES: Record<Scene3PropKey, SceneNote> = {
   brokenBranch: { text: "부러진 생가지 · 떨어지며 훑고 내려온 자국", color: "#CFE3B8" },
 };
 
-// 실측한 마루 띠(z 25.2~26.4)는 통째로 바위벽이라 거기 놓은 짚신은 파묻혀 안 보였다.
+// 마루 띠(z 25.2~26.4)는 통째로 바위벽이라 거기 놓으면 파묻혀 안 보인다.
 // 사람이 설 수 있는 벼랑 끝은 z ≈ 24.0~24.5 다(씬1 화톳불·돌탑도 같은 띠).
 // (39, 11) 은 일부러 비워 둔다 — 그 서사는 씬1 이 이미 세웠고, 무엇을 둘지는 퍼즐이 정해진 뒤의 일이다.
 export function scene3Spots({ groundHeight }: SceneSpotOptions): Record<Scene3PropKey, Spot[]> {

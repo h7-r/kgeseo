@@ -7,16 +7,16 @@ import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { pressButton, vendingMachineStore, type CoffeeTemperature, type VendingId } from "@/props/vendingMachineState";
+import ToonMaterial from "@/props/shared/ToonMaterial";
 
 import { COFFEE_LIQUID_COLORS } from "./canLabels";
 import CoffeeDispenser from "./CoffeeDispenser";
-import { backPanelGeometry, bodyGeometry } from "./common";
+import { backPanelGeometry, bodyGeometry } from "./geometry";
 import PaymentPanel from "./PaymentPanel";
 import ProductButton from "./ProductButton";
 import { makeButtonLabelTexture, makePosterTexture, makeSignTexture } from "./textures";
-import ToonMaterial from "@/props/shared/ToonMaterial";
 
-export interface CoffeeMenuItem {
+interface CoffeeMenuItem {
   /** 버튼 이름표에 보이는 글자 */
   name: string;
   temperature: CoffeeTemperature;
@@ -39,7 +39,7 @@ const GRID_COLUMNS = 4;
 
 type GroupProps = Omit<ThreeElements["group"], "position" | "rotation" | "children">;
 
-export interface CoffeeVendingMachineProps extends GroupProps {
+interface CoffeeVendingMachineProps extends GroupProps {
   position?: Vector3Tuple;
   rotationY?: number;
   width?: number;

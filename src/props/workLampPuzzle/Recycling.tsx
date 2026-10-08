@@ -4,9 +4,9 @@ import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { Highlight } from "@/lobby/Highlight";
 import type { ColliderBox } from "@/station/layout/collision";
+import type { WorkLampPuzzleValues } from "@/station/controls/workLampControls";
 
-import type { WorkLampPuzzleValues } from "./controls";
-import { BIN_SIZE } from "./dimensions";
+import { BIN_SIZE } from "./geometry";
 import RecyclingBin from "./RecyclingBin";
 import TrashModel from "./TrashModel";
 import { floorStainTexture } from "./trashTextures";
@@ -52,7 +52,7 @@ interface RecyclingProps {
 }
 
 /**
- * ⟦분리수거 퍼즐⟧ 막힌 옆문 옆 통 둘 + 널린 쓰레기 여덟. 비상 전원이 들어와야 무엇인지 보이고 주울 수 있다.
+ * 분리수거 퍼즐 — 막힌 옆문 옆 통 둘 + 널린 쓰레기 여덟. 비상 전원이 들어와야 무엇인지 보이고 주울 수 있다.
  * 통마다 몫(넷)을 칸 수로 말해 주고, 다 채우면 그 통의 선으로 전류가 흐른다.
  */
 export default function Recycling({ values, outerX, brightnessAt, registerCollider, outline }: RecyclingProps) {

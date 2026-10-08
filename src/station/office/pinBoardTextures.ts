@@ -12,8 +12,8 @@ export const PIN_H = 2.4;
 /** 판 아랫변 높이 — 화이트보드와 같은 다리 높이 */
 export const PIN_LIFT = 1.7;
 
-export type PhotoKind = "spring" | "signboard" | "eastGateBridge" | "oldDocument" | "cadastralMap";
-export type NoteKind = "distance" | "source" | "testimony" | "wordingMismatch";
+type PhotoKind = "spring" | "signboard" | "eastGateBridge" | "oldDocument" | "cadastralMap";
+type NoteKind = "distance" | "source" | "testimony" | "wordingMismatch";
 export type CardKind = PhotoKind | NoteKind;
 
 const NOTE_LINES: Record<NoteKind, string[]> = {

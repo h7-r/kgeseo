@@ -7,8 +7,7 @@ import type { Vector3Tuple } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 import { makeRandom } from "@/engine/random";
-import { cachedCanvasTexture } from "@/engine/textures/canvas";
-import { SIGN_FONT } from "@/engine/textures/fonts";
+import { cachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
 
 function mergeAndDispose(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry {
   const merged = mergeGeometries(pieces, false);
@@ -16,7 +15,7 @@ function mergeAndDispose(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return merged;
 }
 
-// ── 몸통 — 좌우 두 덩이. 가운데는 다이얼이 통째로 채운다 ──
+// 몸통 — 좌우 두 덩이. 가운데는 다이얼이 통째로 채운다
 // 통으로 막으면 몸통 앞면이 다이얼을 가려 얇은 조각만 삐져나온다.
 
 /** 덩이 하나의 가로. 몸통과 표식 자리가 같은 값을 봐야 표식이 덩이 밖으로 안 나간다. */
@@ -97,7 +96,7 @@ export function bodyGeometry({
   );
 }
 
-export interface MarkerShape {
+interface MarkerShape {
   length: number;
   headLength: number;
   headHalf: number;
@@ -147,11 +146,11 @@ export function shackleGeometry({
   return mergeAndDispose(pieces);
 }
 
-// ── 걸쇠 판 ──
+// 걸쇠 판
 // 실물은 구멍 뚫린 철판 두 장을 마주 물리고 그 구멍으로 쇠막대가 지난다.
 // 판은 y-z 평면에 서고 구멍 축이 x, 원점은 큰 구멍 한가운데다 — 쇠막대 길 위에 얹기 쉽다.
 
-export interface LatchPlateShape {
+interface LatchPlateShape {
   holeRadius: number;
   plateHalfWidth: number;
   length: number;

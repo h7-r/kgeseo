@@ -12,10 +12,10 @@ import { Canvas, useFrame, useThree, type RootState } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import type { AvatarLink } from "@/engine/avatarLink";
 
 import ChibiGameAvatar, { type ChibiAvatarConfig, type ChibiBody } from "../src/avatar/ChibiGameAvatar";
 import SidekickGameAvatar from "../src/avatar/SidekickGameAvatar";
-import type { AvatarLink } from "@/engine/avatarLink";
 import type { CorrectionOverrides } from "../src/avatar/motionCorrection";
 import { normalizeSidekickConfig } from "../src/avatar/sidekickOptions";
 import { DEFAULT_TOON, type ToonConfig } from "../src/avatar/toonMaterial";
@@ -155,7 +155,13 @@ function QaAvatar({ index, count, spec, view, mode }: QaAvatarProps) {
           correction={spec.fix ?? {}}
         />
       ) : (
-        <SidekickGameAvatar visible playerRef={playerRef} config={sidekickConfig} scale={1} fixedTime={spec.time ?? 0} />
+        <SidekickGameAvatar
+          visible
+          playerRef={playerRef}
+          config={sidekickConfig}
+          scale={1}
+          fixedTime={spec.time ?? 0}
+        />
       )}
     </group>
   );
@@ -240,7 +246,7 @@ function QaStage() {
   );
 }
 
-// ── 수치 검사 ──
+// 수치 검사
 
 const SEAM_PAIRS = [
   ["10TORS", "11AUPL"],
@@ -334,9 +340,14 @@ function measure(three: RootState | null): AvatarMetrics[] {
     avatar.updateMatrixWorld(true);
     const { spec, settings } = group.userData as { spec: QaAvatarSpec; settings: { motion?: string } };
     const scale = avatar.scale.x;
-    const skeletonMesh = avatar.getObjectByProperty("isSkinnedMesh", true) as THREE.SkinnedMesh;
-    // 옛 코드처럼 없는 뼈면 여기서 터진다 — 수치가 조용히 0 이 되는 것보다 낫다
-    const bone = (name: string) => skeletonMesh.skeleton.getBoneByName(name) as THREE.Bone;
+    const skeletonMesh = avatar.getObjectByProperty("isSkinnedMesh", true);
+    if (!(skeletonMesh instanceof THREE.SkinnedMesh)) throw new Error(`${spec.label}: 스킨드 메시가 없다`);
+    // 없는 뼈면 여기서 터뜨린다 — 수치가 조용히 0 이 되는 것보다 낫다
+    const bone = (name: string) => {
+      const found = skeletonMesh.skeleton.getBoneByName(name);
+      if (!found) throw new Error(`${spec.label}: 뼈 ${name} 이 없다`);
+      return found;
+    };
 
     // 발 접지: 보이는 발·신발 메시의 가장 낮은 정점 높이(0 이 지면)
     let lowest = Infinity;
@@ -366,7 +377,8 @@ function measure(three: RootState | null): AvatarMetrics[] {
       if (!child) return;
       bone(parentName).getWorldPosition(a);
       child.getWorldPosition(b);
-      const expected = (child.userData.restLength as number | undefined) ?? (child.userData.restLength = child.position.length());
+      const expected =
+        (child.userData.restLength as number | undefined) ?? (child.userData.restLength = child.position.length());
       boneRatio = Math.max(boneRatio, Math.abs(a.distanceTo(b) / scale / expected - 1));
     });
 
@@ -434,7 +446,7 @@ function skirtPenetration(avatar: THREE.Object3D) {
   const bindNormals = skirtMesh.geometry.getAttribute("normal");
   let outward = 0;
   for (let i = 0; i < count; i += 1) {
-    outward += bindNormals.getX(i) * bind.getX(i) + bindNormals.getZ(i) * (bind.getZ(i) - 0.0);
+    outward += bindNormals.getX(i) * bind.getX(i) + bindNormals.getZ(i) * bind.getZ(i);
   }
   const sign = outward >= 0 ? 1 : -1;
 

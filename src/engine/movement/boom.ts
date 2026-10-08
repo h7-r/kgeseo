@@ -18,7 +18,7 @@ export type BlockTest = (x: number, z: number, y?: number) => boolean;
 
 /**
  * 1인칭 걸음 배속. 1인칭은 눈이 곧 속도계라 같은 m/s 도 3인칭보다 빠르게 느껴진다 —
- * 화면을 보며 좁힌 끝에 두 시점 모두 0.95 m/s 로 묶었다. 콘솔에서 바로 바꿔 볼 수 있다.
+ * 두 시점 모두 0.95 m/s 로 묶는다. 콘솔에서 바로 바꿔 볼 수 있다.
  */
 export const firstPersonSpeed = {
   /** 걷기 3.15 유닛/초 ≈ 0.95 m/s */
@@ -59,7 +59,7 @@ export interface ThirdPersonConfig {
   /** 3인칭에서만 넓히는 시야각. 0 이면 안 바꾼다 */
   fov: number;
   fovSpeed: number;
-  /** 끄면 옛 동작(피벗 = 눈 · 어깨 0 · 선 붐) */
+  /** 끄면 단순 붐(피벗 = 눈 · 어깨 0 · 굵기 없는 붐) */
   enabled: boolean;
 }
 
@@ -104,7 +104,7 @@ export const boomState: BoomState = {
   pivotDroppedFrames: 0,
   /** false 면 피벗 되돌리기를 끈다(A/B 비교용) */
   fixPivot: true,
-  /** true 면 옛 「갇힘 면제」(벽을 통과할 수 있던 동작)로 되돌린다(A/B 비교용) */
+  /** true 면 「갇힘 면제」(벽 안에서 시작하면 충돌을 무시하는 동작)로 돈다(A/B 비교용) */
   useLegacyEscape: false,
 };
 
@@ -203,8 +203,8 @@ export function boomDistance(
     return isBlocked(x, z, y) || isBlocked(x + ox, z + oz, y) || isBlocked(x - ox, z - oz, y);
   };
 
-  // 시작점을 안쪽 사각 안으로 끌어다 놓는다. 예전의 「갇힘 면제」 는 벽에서 0.53 유닛만 다가가도 켜져
-  // 충돌을 통째로 무시했고, 카메라가 방 밖으로 나간 경우의 85% 가 그것이었다.
+  // 시작점을 안쪽 사각 안으로 끌어다 놓는다. 「갇힘 면제」 는 벽에 조금만 다가가도 켜져 충돌을 통째로 무시해
+  // 카메라를 방 밖으로 내보낸다.
   let startX = pivot.x;
   let startZ = pivot.z;
   if (inner && !boomState.useLegacyEscape) {

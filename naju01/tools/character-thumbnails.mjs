@@ -1,8 +1,9 @@
 // 카탈로그 카드 썸네일 굽기 — gait.html 의 실제 모델을 찍어 잘라 낸다.
 //   node naju01/tools/character-thumbnails.mjs   (개발 서버 5174 필요)
-import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+
+import { chromium } from "playwright";
 
 const outDir = fileURLToPath(new URL("../../public/thumbs/character-creation/", import.meta.url));
 mkdirSync(outDir, { recursive: true });
@@ -47,7 +48,10 @@ for (const [name, query, part, gender] of SHOTS) {
   await page.waitForTimeout(2200);
   const horizontal = gender === "m" ? MALE_CROP : FEMALE_CROP;
   const vertical = PART_CROPS[part];
-  await page.screenshot({ path: `${outDir}/${name}.png`, clip: { x: horizontal.x, y: vertical.y, width: horizontal.w, height: vertical.h } });
+  await page.screenshot({
+    path: `${outDir}/${name}.png`,
+    clip: { x: horizontal.x, y: vertical.y, width: horizontal.w, height: vertical.h },
+  });
   console.log("구움", name);
   await page.close();
 }

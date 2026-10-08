@@ -1,9 +1,10 @@
 // 편집기 팔레트에 뜨는 물건 목록. 한 줄을 더하면 팔레트에 뜨고, 놓고 옮기고 지우고 저장된다.
 // 바닥톤·질감(표면)과 오르막길·언덕(지형)은 물건이 아니라 여기 없다 — 마우스로 주무르면
-// 보이는 것과 걸을 수 있는 것이 어긋난다(이 프로젝트가 가장 오래 싸운 버그).
+// 보이는 것과 걸을 수 있는 것이 어긋난다.
 // 표본 규약: 높이 1 · 밑동 원점. 반쯤 파묻히는 돌만 중심이 원점이다.
 
 import type * as THREE from "three";
+
 import {
   bushModels,
   flowerModels,
@@ -70,7 +71,7 @@ export interface AssetDefinition {
 }
 
 export const ASSET_CATALOG: AssetDefinition[] = [
-  // ── 돌 ──
+  // 돌
   {
     key: "소품.바위",
     label: "바위",
@@ -98,7 +99,7 @@ export const ASSET_CATALOG: AssetDefinition[] = [
     defaultColor: 0x94908a,
     prototype: () => gravelPatchModels(),
   },
-  // ── 풀·나무 ──
+  // 풀·나무
   { key: "소품.나무", label: "나무", category: "풀·나무", defaultSize: 5.0, prototype: () => treeModels() },
   { key: "소품.덤불", label: "덤불", category: "풀·나무", defaultSize: 0.7, prototype: () => bushModels() },
   { key: "소품.수풀", label: "수풀", category: "풀·나무", defaultSize: 0.7, prototype: () => bushModels() },
@@ -118,7 +119,7 @@ export const ASSET_CATALOG: AssetDefinition[] = [
     doubleSided: true,
     prototype: () => flowerModels(),
   },
-  // ── 사람이 세운 것 ──
+  // 사람이 세운 것
   {
     key: "소품.횃불",
     label: "횃불",
@@ -171,7 +172,7 @@ export const ASSET_CATALOG: AssetDefinition[] = [
     doubleSided: true,
     prototype: () => [ferryBoatPrototype()],
   },
-  // 국소 +Z 로 뻗는다(건너편이면 R 로 반 바퀴). 키 = 나루 길이 — Z1 나루터 실측 4.1 m.
+  // 국소 +Z 로 뻗는다(건너편이면 R 로 반 바퀴). 키 = 나루 길이 — Z1 나루터가 4.1 m.
   {
     key: "소품.나루터",
     label: "나루터",
@@ -188,10 +189,10 @@ export const ASSET_CATALOG: AssetDefinition[] = [
     defaultColor: STEPPING_STONE_STYLE.stone,
     prototype: (s) => steppingStonePrototypes(6, s),
   },
-  // ── 사람 ──
+  // 사람
   { key: "소품.인물", label: "인물", category: "사람", defaultSize: 1.7, prototype: (s) => personPrototypes(4, s) },
 
-  // ── 씬 1 「돌아오지 않은 약속」 — 자동 배치는 scene1 ──
+  // 씬 1 「돌아오지 않은 약속」 — 자동 배치는 scene1
   {
     key: "씬1.그물틀",
     label: "그물틀",
@@ -244,7 +245,7 @@ export const ASSET_CATALOG: AssetDefinition[] = [
     prototype: () => serpentPrototypes(),
   },
 
-  // ── 씬 2 「엇갈리는 증언」 — 한 덩이에 색이 여럿이라(나무·옹기·짚·새) 색을 주지 않는다 ──
+  // 씬 2 「엇갈리는 증언」 — 한 덩이에 색이 여럿이라(나무·옹기·짚·새) 색을 주지 않는다
   {
     key: "씬2.평상",
     label: "평상",
@@ -277,7 +278,7 @@ export const ASSET_CATALOG: AssetDefinition[] = [
   },
   { key: "씬2.솟대", label: "솟대", category: "씬 2", defaultSize: 3.1, prototype: (s) => birdPolePrototypes(3, s) },
 
-  // ── 씬 3 「앙암바위의 죽음」 — 짚신은 왼짝·오른짝이 따로라, 모양을 안 고르면 번호가 짝을 정한다 ──
+  // 씬 3 「앙암바위의 죽음」 — 짚신은 왼짝·오른짝이 따로라, 모양을 안 고르면 번호가 짝을 정한다
   { key: "씬3.짚신", label: "짚신", category: "씬 3", defaultSize: 0.06, prototype: (s) => strawShoePrototypes(2, s) },
   { key: "씬3.댕기", label: "댕기", category: "씬 3", defaultSize: 0.05, prototype: (s) => hairRibbonPrototypes(3, s) },
   {
@@ -296,7 +297,7 @@ export const ASSET_CATALOG: AssetDefinition[] = [
     prototype: (s) => brokenBranchPrototypes(3, s),
   },
 
-  // ── 씬 4 「지워진 기억」 — 셋 다 무엇이 있었던 흔적이지 그 무엇이 아니다 ──
+  // 씬 4 「지워진 기억」 — 셋 다 무엇이 있었던 흔적이지 그 무엇이 아니다
   {
     key: "씬4.배자국",
     label: "배 끌린 자국",
@@ -321,7 +322,7 @@ export const ASSET_CATALOG: AssetDefinition[] = [
     prototype: (s) => footprintPrototypes(3, s),
   },
 
-  // ── 씬 5 「돌아온 이야기」 — 돌무지는 씬 1 돌탑을 놓고 키만 줄이면 돼서 따로 안 올린다 ──
+  // 씬 5 「돌아온 이야기」 — 돌무지는 씬 1 돌탑을 놓고 키만 줄이면 돼서 따로 안 올린다
   {
     key: "씬5.금줄",
     label: "금줄",
@@ -338,7 +339,7 @@ export const ASSET_CATALOG: AssetDefinition[] = [
     prototype: (s) => smallTablePrototypes(3, s),
   },
 
-  // ── 무대 밖 — 멀리 있을 때만 그럴싸하다. 거리 색 섞기를 안 거치니 중간쯤 흐린 색을 기본으로 준다 ──
+  // 무대 밖 — 멀리 있을 때만 그럴싸하다. 거리 색 섞기를 안 거치니 중간쯤 흐린 색을 기본으로 준다
   {
     key: "원경.나무",
     label: "원경 나무",
@@ -379,7 +380,7 @@ export const ASSET_CATALOG: AssetDefinition[] = [
     defaultColor: LAND_PIECE_STYLE.path,
     prototype: (s) => pathPiecePrototypes(3, s),
   },
-  // ── 자연물 낱개 — 「저 자리에 저 바위」를 놓을 때 한 종씩 ──
+  // 자연물 낱개 — 「저 자리에 저 바위」를 놓을 때 한 종씩
   ...singleItemAssets(),
 ];
 
@@ -391,7 +392,8 @@ export const findAsset = (key: string) => ASSET_CATALOG.find((asset) => asset.ke
 const prototypeCache = new Map<string, THREE.BufferGeometry[]>();
 
 export function assetPrototype(key: string, seed = 5501): THREE.BufferGeometry[] | null {
-  if (prototypeCache.has(key)) return prototypeCache.get(key)!;
+  const cached = prototypeCache.get(key);
+  if (cached) return cached;
   const asset = findAsset(key);
   if (!asset) return null;
   const prototype = asset.prototype(seed);

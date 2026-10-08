@@ -14,6 +14,9 @@ export function parseGlb(buffer: ArrayBuffer): Promise<GLTF> {
   return new Promise((resolve, reject) => loader.parse(buffer, "", resolve, reject));
 }
 
+// instanceof 대신 is* 표식 — three 가 두 벌 실려도(도구·SSR) 메시를 알아본다
+export const isMesh = (o: THREE.Object3D): o is THREE.Mesh => (o as THREE.Mesh).isMesh === true;
+
 export function firstMesh(gltf: GLTF): THREE.Mesh | null {
   let found: THREE.Mesh | null = null;
   gltf.scene.traverse((o) => {
@@ -22,7 +25,7 @@ export function firstMesh(gltf: GLTF): THREE.Mesh | null {
   return found;
 }
 
-export type SizeBasis = "height" | "width" | "depth" | "max";
+type SizeBasis = "height" | "width" | "depth" | "max";
 
 interface FitRealSizeOptions {
   basis?: SizeBasis;
@@ -38,7 +41,8 @@ export function fitRealSize(
   { basis = "height", targetMeters, alignBottom = true }: FitRealSizeOptions,
 ): THREE.BufferGeometry {
   geometry.computeBoundingBox();
-  const b = geometry.boundingBox!;
+  const b = geometry.boundingBox;
+  if (!b) return geometry;
   const width = b.max.x - b.min.x;
   const height = b.max.y - b.min.y;
   const depth = b.max.z - b.min.z;
@@ -49,7 +53,8 @@ export function fitRealSize(
   const factor = (targetMeters * UNITS_PER_METER) / current;
   geometry.scale(factor, factor, factor);
   geometry.computeBoundingBox();
-  const c = geometry.boundingBox!;
+  const c = geometry.boundingBox;
+  if (!c) return geometry;
   geometry.translate(
     -(c.max.x + c.min.x) / 2,
     alignBottom ? -c.min.y : -(c.max.y + c.min.y) / 2,

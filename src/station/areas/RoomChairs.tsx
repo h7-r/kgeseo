@@ -11,8 +11,8 @@ import { isWorkLampPuzzleHandFull } from "@/props/workLampPuzzle/workLampState";
 import Chair, { CHAIR_SCALE } from "@/station/office/Chair";
 import ChairDrag from "@/station/office/ChairDrag";
 
-import type { ChairControls } from "../controls/chairControls";
-import type { HighlightValues } from "../controls/interactionControls";
+import type { ChairControls } from "../controls/furnitureControls";
+import type { HighlightValues } from "../controls/systemControls";
 
 interface RoomChairsProps {
   chairs: ChairControls;
@@ -77,7 +77,7 @@ export default function RoomChairs({ chairs: { common, drag, chairs }, lobby, hi
               <ChairDrag
                 id={id}
                 origin={[x, z]}
-                // Chair 안 충돌 박스와 같은 식이어야 한다(원본도 Chair 의 ×0.85 는 빠져 있다)
+                // Chair 안 충돌 박스와 같은 식이어야 한다(Chair 의 ×0.85 는 여기 넣지 않는다)
                 radius={0.65 * CHAIR_SCALE * common.size * c.sizeMul}
                 height={1.9 * CHAIR_SCALE * common.size * c.sizeMul}
                 distance={drag.distance}

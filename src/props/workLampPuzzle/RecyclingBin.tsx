@@ -7,8 +7,7 @@ import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { BIN_SIZE } from "./dimensions";
-import { taperedBoxGeometry } from "./geometry";
+import { BIN_SIZE, taperedBoxGeometry } from "./geometry";
 import { binBodyTexture, binSignTexture } from "./trashTextures";
 import { rejectingBin, trashRejectedAt, type TrashBin } from "./workLampState";
 

@@ -3,7 +3,7 @@ import type { Vector3Tuple } from "three";
 import type { LobbyState } from "@/lobby/interactions";
 import { CAB_FZ, CAB_OPEN_PLAN, CAB_SEAMS, type CabinetOpening } from "@/station/office/cabinet/cabinetGeometry";
 
-import type { CabinetCommonValues, CabinetValues } from "../controls/cabinetControls";
+import type { CabinetCommonValues, CabinetValues } from "../controls/furnitureControls";
 
 /**
  * 서랍에 실린 물건(증거물 id → 캐비닛 번호). 서랍과 한 몸이라 열고 닫을 때 같이 움직이고, 따로 집을 수 없다 —

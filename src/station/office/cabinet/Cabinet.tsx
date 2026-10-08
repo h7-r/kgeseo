@@ -1,15 +1,16 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Outlines, useGLTF } from "@react-three/drei";
-import type * as THREE from "three";
+import { useFrame } from "@react-three/fiber";
+import * as THREE from "three";
 
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Highlight } from "@/lobby/Highlight";
+import { aim as aimTarget } from "@/lobby/interactions";
 import { dentGeometry, stainGeometry } from "@/station/vertexNoise";
 
-import { firstMeshGeometry } from "../firstMeshGeometry";
+import { firstMeshGeometry } from "../gltfModel";
 import CabinetDrawer from "./CabinetDrawer";
-import { CAB_FZ, CAB_LINE_GEO, cabinetLineGeometry, type CabinetOpening } from "./cabinetGeometry";
-import DrawerAimGlow from "./DrawerAimGlow";
+import { CAB_FX, CAB_FZ, CAB_LINE_GEO, CAB_SEAMS, cabinetLineGeometry, type CabinetOpening } from "./cabinetGeometry";
 
 const CABINET_URL = "/models/cabinet.glb";
 useGLTF.preload(CABINET_URL);
@@ -17,7 +18,7 @@ useGLTF.preload(CABINET_URL);
 const ORIGIN = (): THREE.Vector3Tuple => [0, 0, 0];
 
 /** 겨냥하면 빛낼 서랍 한 칸 */
-export interface CabinetAim {
+interface CabinetAim {
   id: string;
   row: number;
   color?: THREE.ColorRepresentation;
@@ -46,6 +47,48 @@ interface CabinetProps {
   aim?: CabinetAim | null;
   drawerWear?: number;
   outline?: OutlineValues | null;
+}
+
+interface DrawerAimGlowProps {
+  id: string;
+  row: number;
+  z: number;
+  color?: THREE.ColorRepresentation;
+  strength?: number;
+}
+
+/**
+ * 겨냥한 서랍 한 칸 앞에 덧대는 빛판. 닫힌 서랍은 GLB 몸통의 일부라 따로 밝힐 메시가 없다.
+ * 더하기 합성이라 원래 색을 지우지 않고 밝기만 올린다(Bloom 이 번진다).
+ */
+function DrawerAimGlow({ id, row, z, color = "#fffee7", strength = 0.45 }: DrawerAimGlowProps) {
+  const meshRef = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null);
+  const amount = useRef(0);
+  const y0 = CAB_SEAMS[row];
+  const y1 = CAB_SEAMS[row + 1];
+
+  useFrame((_, delta) => {
+    const mesh = meshRef.current;
+    if (!mesh) return;
+    const goal = aimTarget.get() === id ? 1 : 0;
+    amount.current += (goal - amount.current) * (1 - Math.exp(-delta * 14));
+    mesh.visible = amount.current > 0.01;
+    mesh.material.opacity = amount.current * strength;
+    mesh.material.color.set(color);
+  });
+
+  return (
+    <mesh ref={meshRef} visible={false} position={[0, (y0 + y1) / 2, z + 0.003]} scale={[CAB_FX * 2, y1 - y0, 1]}>
+      <planeGeometry args={[1, 1]} />
+      <meshBasicMaterial
+        transparent
+        opacity={0}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
+        toneMapped={false}
+      />
+    </mesh>
+  );
 }
 
 /**

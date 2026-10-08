@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "rea
 import type * as THREE from "three";
 
 import { IS_ZONE_CULLING_DISABLED } from "@/app/runtimeFlags";
+import type { AvatarLink } from "@/engine/avatarLink";
 import { pickOutline } from "@/engine/leva/savedControls";
 import { PLAYER_RADIUS } from "@/engine/movement/constants";
 import { OutlineViewportSync } from "@/engine/outline";
@@ -9,20 +10,19 @@ import { requestShadowUpdates, ShaderWarmup, ShadowManager } from "@/engine/rend
 import type { OutlineValues } from "@/engine/toon";
 import { useLobbyState } from "@/lobby/interactions";
 import { registerItemSize, registerSurface, unregisterSurface } from "@/lobby/placement";
+import type { ChibiConfig, OutlineConfig, SidekickConfig, ToonConfig } from "@/naju";
 import { useCoins } from "@/props/coinState";
 import { useDrink } from "@/props/drinkState";
 import { useNozzle } from "@/props/nozzleState";
 import { useVendingMachine } from "@/props/vendingMachineState";
-import type { AvatarLink } from "@/engine/avatarLink";
+import { ColliderDebugView } from "@/station/layout/Colliders";
 import { blockedWithin } from "@/station/layout/collision";
-import ColliderDebugView from "@/station/layout/ColliderDebugView";
 import { MAX_X, MAX_Z, MIN_X, MIN_Z } from "@/station/layout/dimensions";
 import type { NearTarget } from "@/station/layout/passage";
 import { enteredDoor, exitedTrain, trainDoors } from "@/station/layout/trainDoors";
 import { usePlayer, type ReturnPose } from "@/station/layout/usePlayer";
 import ZoneCulling from "@/station/layout/ZoneCulling";
 import DispatchPath from "@/tutorial/DispatchPath";
-import type { ChibiConfig, OutlineConfig, SidekickConfig, ToonConfig } from "@/naju";
 
 import BackdropArea from "./areas/BackdropArea";
 import CorridorArea from "./areas/CorridorArea";
@@ -33,32 +33,41 @@ import type { PickupLooks } from "./areas/PickupItemModel";
 import StationRoom from "./areas/StationRoom";
 import TrainArea from "./areas/TrainArea";
 import { usePickupItems } from "./areas/usePickupItems";
-import { useBoardControls } from "./controls/boardControls";
-import { useCabinetControls } from "./controls/cabinetControls";
-import { useChairControls } from "./controls/chairControls";
-import { useCoatRackControls } from "./controls/coatRackControls";
-import { useCoinControls } from "./controls/coinControls";
-import { useComputerControls, useKeyboardMouseControls, useLaptopControls } from "./controls/computerControls";
+import { useHydrantControls, usePadlockControls, usePanelInteriorControls } from "./controls/corridorCabinetControls";
 import { useCorridorControls } from "./controls/corridorControls";
-import { useDebugPrintControls, type DebugPrintValues } from "./controls/debugControls";
-import { useDeskCommonControls, useDeskControls } from "./controls/deskControls";
-import { useEvidenceControls } from "./controls/evidenceControls";
-import { useHydrantControls } from "./controls/hydrantControls";
-import { useInteractionControls } from "./controls/interactionControls";
-import { useCeilingLightControls, useDeskLampControls, useFloorLampControls } from "./controls/lampControls";
-import { usePadlockControls } from "./controls/lockControls";
-import { useMugControls } from "./controls/mugControls";
-import { usePanelInteriorControls } from "./controls/panelControls";
+import {
+  useBoardControls,
+  useCabinetControls,
+  useChairControls,
+  useCoatRackControls,
+  useDeskCommonControls,
+  useDeskControls,
+} from "./controls/furnitureControls";
+import {
+  useComputerControls,
+  useEvidenceControls,
+  useKeyboardMouseControls,
+  useLaptopControls,
+  useMugControls,
+} from "./controls/officePropControls";
 import { usePaperControls } from "./controls/paperControls";
 import {
+  useCeilingLightControls,
+  useDeskLampControls,
+  useFloorLampControls,
   useLightingControls,
   useStructureOutlineControls,
   useSurfaceControls,
-  useViewControls,
 } from "./controls/roomControls";
-import { useSystemControls } from "./controls/systemControls";
+import {
+  useDebugPrintControls,
+  useInteractionControls,
+  useSystemControls,
+  useViewControls,
+  type DebugPrintValues,
+} from "./controls/systemControls";
 import { usePlatformEndWallControls, useTrainControls } from "./controls/trainControls";
-import { useVendingControls } from "./controls/vendingControls";
+import { useCoinControls, useVendingControls } from "./controls/vendingControls";
 import { useWorkLampPuzzleControls } from "./controls/workLampControls";
 
 interface StationSceneProps {
@@ -91,7 +100,7 @@ function useReturnPose(enabled: boolean): ReturnPose | null {
 
 /**
  * 역 — 수사본부실·비밀 복도·멈춰 선 기차. 씬을 버리지 않고 보임만 끈다(visible=false 가지는 three 가 통째로 건너뛴다).
- * Leva 훅은 패널 순서가 곧 저장 순서라 원래 순서 그대로 부른다.
+ * Leva 훅은 부르는 순서가 곧 패널 순서라 아래 순서를 바꾸지 않는다.
  */
 export default function StationScene({
   active,
@@ -120,7 +129,7 @@ export default function StationScene({
     return () => unregisterSurface("floor");
   }, []);
 
-  // ── Leva — 아래 순서가 패널 순서다 ──
+  // Leva — 아래 순서가 패널 순서다
   const view = useViewControls();
   const returnPose = useReturnPose(enabled);
   usePlayer({

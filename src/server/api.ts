@@ -18,7 +18,7 @@ const PROGRESS_KEY = "waegok.progress.v1";
 const LEGACY_PROGRESS_KEY = "왜곡.진행.v1";
 const FAILURE_KEY = "waegok.serverFailures";
 const LEGACY_FAILURE_KEY = "왜곡.서버실패";
-// 동의 이력은 덮어쓰지 않고 쌓는다(S1-006). 약관이 개정되면 새 줄이 쌓이고 옛 줄은 남아야 한다.
+// 동의 이력은 덮어쓰지 않고 쌓는다(S1-006). 약관이 개정되면 새 줄이 쌓이고 이전 줄은 남아야 한다.
 const CONSENT_KEY = "waegok.consentHistory.v1";
 const LEGACY_CONSENT_KEY = "왜곡.동의이력.v1";
 
@@ -36,7 +36,7 @@ export class BackendError extends Error {
   }
 }
 
-function errorMessage(cause: unknown) {
+export function errorMessage(cause: unknown) {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
@@ -254,7 +254,7 @@ function renameFields(value: unknown, fields: Record<string, string>): Record<st
   return Object.fromEntries(Object.entries(value).map(([key, field]) => [fields[key] ?? key, field]));
 }
 
-// 옛 한글 필드 이름으로 저장된 기록도 영어 필드로 옮겨 읽는다.
+// 한글 필드 이름으로 저장된 기록도 영어 필드로 옮겨 읽는다.
 function toConsentRecord(raw: unknown): ConsentRecord {
   const record = renameFields(raw, LEGACY_CONSENT_FIELDS);
   const items = Array.isArray(record.items) ? record.items : [];
@@ -350,6 +350,3 @@ const mockServer = {
 
 /** 화면 코드는 이 이름만 쓴다. 구현이 바뀌어도 여기만 갈아끼운다. */
 export const server = mockServer;
-
-/** 화면 구석 표시용 */
-export const isMockServer = true;

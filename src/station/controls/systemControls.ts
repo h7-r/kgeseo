@@ -1,4 +1,23 @@
-import { useSavedControls } from "@/engine/leva/savedControls";
+import type { RefObject } from "react";
+import { button, useControls } from "leva";
+
+import { clearSavedControls, useSavedControls } from "@/engine/leva/savedControls";
+import { CROUCH_EYE, EYE } from "@/engine/movement/constants";
+
+import type { DeskCommonValues, DeskValues } from "./furnitureControls";
+import type { ComputerControls, KeyboardValues, LaptopControls, MouseValues } from "./officePropControls";
+import type { PaperControls } from "./paperControls";
+import type { LightingValues } from "./roomControls";
+
+// 장소에 매이지 않는 폴더 — 시점·충돌·성능·조작 표시와 개발용 출력 버튼.
+
+/** 「시점(눈높이)」 — usePlayer 보다 먼저 불러야 값을 넘길 수 있다. */
+export function useViewControls() {
+  return useSavedControls("시점(눈높이)", {
+    eyeHeight: { value: EYE, min: 2, max: 10, step: 0.05, label: "눈높이" },
+    crouchEyeHeight: { value: CROUCH_EYE, min: 0.8, max: 6, step: 0.05, label: "앉은높이" },
+  });
+}
 
 /**
  * 「사물 충돌」·「성능」.
@@ -11,7 +30,7 @@ export function useSystemControls() {
     showBoxes: { value: false, label: "보기" },
     boxHeight: { value: 4, min: 0.5, max: 12, step: 0.5, label: "보기높이" },
   });
-  // 그림자 한 번 다시 그리는 값은 실측 1.4~2.3ms. 간격 2 면 든 물건·문 그림자가 33ms 늦게 따라온다.
+  // 그림자를 한 번 다시 그리는 데 1.4~2.3ms 가 든다. 간격 2 면 든 물건·문 그림자가 33ms 늦게 따라온다.
   const performance = useSavedControls("성능", {
     meter: { value: true, label: "계기판" },
     zoneCulling: { value: true, label: "구역최적화" },
@@ -23,6 +42,106 @@ export function useSystemControls() {
   return { collision, performance };
 }
 
-export type SystemControls = ReturnType<typeof useSystemControls>;
-export type CollisionValues = SystemControls["collision"];
-export type PerformanceValues = SystemControls["performance"];
+/**
+ * 「1인칭 몸」·「놓기 미리보기」·「겨냥 강조」.
+ * 겨냥 강조는 글자 대신 물건 자체로 알린다 — 살짝 커지고 스스로 빛나 Bloom(임계 0.85)이 외곽을 번지게 한다.
+ * color·strength·grow 가 HighlightSettings 필드와 같아 벽함 속 부품에 그대로 넘긴다.
+ */
+export function useInteractionControls() {
+  // 아직 아바타 눈높이가 안 맞아 1인칭 몸은 기본 꺼짐 — 켜면 내려다볼 때 가슴이 화면을 막는다.
+  const firstPersonBody = useSavedControls("1인칭 몸", {
+    showFirstPersonBody: { value: false, label: "일인칭몸보기" },
+  });
+  // 형광색은 셀셰이딩 톤에서 혼자 튄다. 채도를 낮춘 파스텔이 기본.
+  const placementPreview = useSavedControls("놓기 미리보기", {
+    okColor: { value: "#a5d5a6", label: "가능색" },
+    blockedColor: { value: "#e58277", label: "불가색" },
+    ghostVisible: { value: true, label: "유령보이기" },
+    ghostOpacity: { value: 0.4, min: 0.05, max: 1, step: 0.05, label: "유령투명도" },
+  });
+  const highlight = useSavedControls("겨냥 강조", {
+    color: { value: "#fffee7", label: "색" },
+    strength: { value: 0.45, min: 0, max: 2, step: 0.05, label: "세기" },
+    grow: { value: 0.08, min: 0, max: 0.2, step: 0.005, label: "커지기" },
+    furnitureGrow: { value: 0.02, min: 0, max: 0.1, step: 0.005, label: "가구커지기" },
+  });
+  return { showFirstPersonBody: firstPersonBody.showFirstPersonBody, placementPreview, highlight };
+}
+
+/** 출력 버튼이 읽는 지금 값. leva 버튼은 처음 만들 때 값을 붙잡아 두므로 ref 로 최신 값을 건넨다. */
+export interface DebugPrintValues {
+  view: ViewValues;
+  lighting: LightingValues;
+  deskCommon: DeskCommonValues;
+  computer: ComputerControls["common"];
+  monitors: ComputerControls["monitors"];
+  keyboard: KeyboardValues;
+  mouse: MouseValues;
+  laptop: LaptopControls["common"];
+  laptops: LaptopControls["laptops"];
+  papers: PaperControls["papers"];
+  desks: readonly DeskValues[];
+}
+
+const deskSpotsCode = (desks: readonly DeskValues[], formatRotation: (r: number) => string | number) =>
+  "const DESK_SPOTS = [\n" +
+  desks
+    .map((d) => `  [${d.x}, ${d.z}, ${formatRotation(d.rotation)}, ${d.width}, ${d.depth}, ${d.height}],`)
+    .join("\n") +
+  "\n];";
+
+/** 「★ 책상값 출력」·「★ 전체값 출력」 — 저장하지 않는 개발용 버튼. 콘솔에 지금 값을 뽑는다. */
+export function useDebugPrintControls(live: RefObject<DebugPrintValues | null>) {
+  useControls("★ 책상값 출력", {
+    printDesks: {
+      ...button(() => {
+        if (!live.current) return;
+        console.log(
+          "=== DESK_SPOTS (복사해서 코드에 붙이기) ===\n" + deskSpotsCode(live.current.desks, (r) => r.toFixed(3)),
+        );
+      }),
+      label: "콘솔에출력",
+    },
+  });
+
+  useControls("★ 전체값 출력", {
+    resetSaved: {
+      ...button(() => {
+        if (window.confirm("브라우저에 저장된 Leva 값을 모두 지우고 코드 기본값으로 되돌립니다. 계속할까요?")) {
+          clearSavedControls();
+          window.location.reload();
+        }
+      }),
+      label: "저장값초기화",
+    },
+    printAll: {
+      ...button(() => {
+        const v = live.current;
+        if (!v) return;
+        const section = (title: string, value: unknown) => `\n=== ${title} ===\n` + JSON.stringify(value, null, 2);
+        console.log(
+          "===== K게서 현재 Leva 전체값 =====" +
+            section("시점(눈높이)", v.view) +
+            section("폐역 조명", v.lighting) +
+            section("책상(공통)", v.deskCommon) +
+            section("컴퓨터(공통·색)", v.computer) +
+            section("컴퓨터1/3", v.monitors) +
+            section("키보드(공통)", v.keyboard) +
+            section("마우스(공통)", v.mouse) +
+            section("노트북(공통·색)", v.laptop) +
+            section("노트북1/2/3", v.laptops) +
+            section("서류 더미", v.papers) +
+            "\n\n=== DESK_SPOTS (그대로 코드에 붙이기) ===\n" +
+            deskSpotsCode(v.desks, (r) => r),
+        );
+      }),
+      label: "콘솔에전부출력",
+    },
+  });
+}
+
+type ViewValues = ReturnType<typeof useViewControls>;
+export type CollisionValues = ReturnType<typeof useSystemControls>["collision"];
+type InteractionControls = ReturnType<typeof useInteractionControls>;
+export type PlacementPreviewValues = InteractionControls["placementPreview"];
+export type HighlightValues = InteractionControls["highlight"];

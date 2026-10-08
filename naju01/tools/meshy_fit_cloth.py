@@ -1,14 +1,8 @@
-"""Cut the reviewed clothing out of a dressed Meshy variant and fit it to the base body.
+"""옷 입은 Meshy 모델에서 검수한 옷을 잘라 기본 몸에 맞춘다.
 
-The garment mesh, its UVs and its texture stay exactly as Meshy made them.  Only its
-placement changes: each bone of a temporary rig gets an affine map (variant bind ->
-base bind, bone frame to bone frame with per-axis size ratios), and every garment
-vertex moves with the weight blend of those maps.  That absorbs the pose and
-proportion differences between two Meshy generations.
-
-Adds Top_<Label>/Bottom_<Label> objects to the base rig blend (weights taken from
-the nearest base-body vertices), so build_chibi_body.py straightens the arms and
-rebinds body and clothes together.
+옷 메시·UV·텍스처는 그대로 두고 자리만 옮긴다: 뼈마다 아핀 사상(옷 모델 뼈 틀 → 기본 뼈 틀,
+축별 크기 비)을 만들고 옷 정점을 웨이트로 섞은 사상으로 옮겨 자세·비율 차이를 흡수한다.
+기본 리그 blend 에 Top_<Label>/Bottom_<Label> 을 더해 build_chibi_body.py 가 몸과 함께 다시 묶게 한다.
 
 Usage:
   Blender --background --factory-startup --python meshy_fit_cloth.py -- \
@@ -39,17 +33,17 @@ import meshy_extract_hair as H  # noqa: E402
 
 def arguments():
     raw = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    p = argparse.ArgumentParser()
-    p.add_argument("--base-blend", type=Path, required=True)
-    p.add_argument("--label", required=True)
-    p.add_argument("--variant", type=Path, required=True)
-    p.add_argument("--selection", type=Path, required=True)
-    p.add_argument("--split-z", type=float, default=None,
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base-blend", type=Path, required=True)
+    parser.add_argument("--label", required=True)
+    parser.add_argument("--variant", type=Path, required=True)
+    parser.add_argument("--selection", type=Path, required=True)
+    parser.add_argument("--split-z", type=float, default=None,
                    help="fallback waist height; by default top/bottom are split by garment colour")
-    p.add_argument("--clearance", type=float, default=0.004, help="gap kept between skin and cloth (m)")
-    p.add_argument("--out-blend", type=Path, required=True)
-    p.add_argument("--review-dir", type=Path, required=True)
-    return p.parse_args(raw)
+    parser.add_argument("--clearance", type=float, default=0.004, help="gap kept between skin and cloth (m)")
+    parser.add_argument("--out-blend", type=Path, required=True)
+    parser.add_argument("--review-dir", type=Path, required=True)
+    return parser.parse_args(raw)
 
 
 def spread(points, frame_inv):
@@ -78,7 +72,7 @@ def bone_frame(joints, name, tail_name) -> Matrix:
     return m
 
 
-CHAIN = {  # bone -> tail joint
+CHAIN = {  # 뼈 → 꼬리 관절
     "Hips": "Spine", "Spine": "Chest", "Chest": "Neck", "Neck": "Head", "Head": "HeadTop",
     **{f"{n}.{s}": f"{t}.{s}" for s in ("L", "R")
        for n, t in (("Clavicle", "UpperArm"), ("UpperArm", "Forearm"), ("Forearm", "Hand"), ("Hand", "HandTip"),
@@ -87,7 +81,7 @@ CHAIN = {  # bone -> tail joint
 
 
 def affines(base_joints, base_pts, var_joints, var_pts):
-    """Per-bone affine variant -> base, with spread ratios from each body's own points."""
+    """뼈마다 옷 모델 → 기본 몸 아핀 사상. 크기 비는 각 몸 자신의 점 퍼짐에서 구한다."""
     result = {}
     for bone, tail in CHAIN.items():
         f_base = bone_frame(base_joints, bone, tail)
@@ -112,12 +106,12 @@ def blended(maps, weights):
     m = Matrix(((0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0), (0, 0, 0, 0)))
     total = 0.0
     for bone, w in weights.items():
-        a = maps.get(bone)
-        if a is None:
+        affine = maps.get(bone)
+        if affine is None:
             continue
         for i in range(4):
             for j in range(4):
-                m[i][j] += a[i][j] * w
+                m[i][j] += affine[i][j] * w
         total += w
     if total <= 0:
         return maps["Hips"].copy()
@@ -128,11 +122,7 @@ def blended(maps, weights):
 
 
 def split_by_colour(obj, selection: set[int], fallback_z):
-    """Split the selected clothing into top and bottom by its own colours.
-
-    A shirt and shorts are different colours, so two colour clusters separate them
-    cleanly along the real seam instead of a flat cut that frays the hem.
-    """
+    """고른 옷을 색 두 덩어리로 나눠 상의·하의로 가른다(높이로 자르면 밑단이 해진다)."""
     import numpy as np
 
     colours = C.face_colours(obj)
@@ -166,11 +156,7 @@ def split_by_colour(obj, selection: set[int], fallback_z):
 
 
 def push_outside(obj, body, gap: float) -> int:
-    """Keep the cloth outside the skin: vertices inside (or within `gap`) move out.
-
-    Same idea as the Sidekick wardrobe clearance pass; without it the two Meshy
-    bodies' shape differences leave skin poking through the garment.
-    """
+    """살 안쪽(또는 `gap` 이내)의 옷 정점을 밖으로 밀어 살이 옷을 뚫지 않게 한다."""
     from mathutils.bvhtree import BVHTree
 
     tree = BVHTree.FromPolygons([v.co.copy() for v in body.data.vertices],
@@ -189,7 +175,7 @@ def push_outside(obj, body, gap: float) -> int:
 
 
 def cover_bits(body, garments) -> dict:
-    """Body faces fully hidden by a garment get that garment's bit in `_cover`."""
+    """옷에 완전히 가려진 몸 정점에 그 옷의 비트를 `_cover` 로 단다."""
     from mathutils.bvhtree import BVHTree
 
     bits = [0] * len(body.data.vertices)
@@ -235,7 +221,7 @@ def main():
     var_joints = R.find_landmarks(var_pts)
     maps = affines(base_joints, base_pts, var_joints, var_pts)
 
-    # Base-body weights for the nearest-vertex transfer.
+    # 가장 가까운 정점에서 옮겨 올 기본 몸 웨이트.
     names = {g.index: g.name for g in base.vertex_groups}
     base_weights = [{names[g.group]: g.weight for g in v.groups if g.weight > 1e-5} for v in base.data.vertices]
     tree = KDTree(len(base_pts))
@@ -264,7 +250,7 @@ def main():
         if not obj.data.vertices:
             bpy.data.objects.remove(obj, do_unlink=True)
             continue
-        # Weights from the nearest base-body vertices, then the affine move.
+        # 가장 가까운 기본 몸 정점의 웨이트를 받고, 그 웨이트로 아핀 이동한다.
         groups = {}
         moved = []
         for v in obj.data.vertices:
@@ -298,7 +284,7 @@ def main():
                 if o.get("slot") in ("top", "bottom") and args.label in o.name]
     report["covered_body_vertices"] = cover_bits(base, garments)
 
-    # Review renders: base body with the fitted clothes.
+    # 검수 그림: 옷을 맞춘 기본 몸.
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_WORKBENCH"
     scene.display.shading.light = "STUDIO"

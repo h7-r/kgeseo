@@ -3,14 +3,15 @@
 // 씬을 훑어 표준/물리/램버트/퐁 재질을 MeshToonMaterial 로 갈아 끼우고, 이미 툰인 재질은 같은 그라디언트 맵으로 계단만 맞춘다.
 // 건드리지 않는 것: 플레이어 캐릭터(avatar/toonMaterial 이 맡는다)와 외곽선 껍데기, Basic(하늘·구름·라벨), Shader,
 // 결·잔결 셰이더 훅이 붙은 재질.
+
 import { useEffect } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
-import { exposeDevHook } from "@/debug/devHooks";
-import { TOON_UNIFORMS_KEY, toonGradientMap } from "../avatar/toonMaterial";
 
-// instanceof 대신 is* 표식 — three 가 두 벌 실려도(도구·SSR) 원본처럼 메시를 알아본다
-const isMesh = (o: THREE.Object3D): o is THREE.Mesh => (o as THREE.Mesh).isMesh === true;
+import { exposeDevHook } from "@/debug/devHooks";
+
+import { TOON_UNIFORMS_KEY, toonGradientMap } from "../avatar/toonMaterial";
+import { isMesh } from "../loaders/glbImport";
 
 type ConvertibleMaterial = THREE.MeshStandardMaterial | THREE.MeshLambertMaterial | THREE.MeshPhongMaterial;
 
@@ -143,7 +144,7 @@ interface WorldToonProps {
 
 /**
  * 씬 안에 두면 알아서 돈다. 소품·지형·NPC 가 나중에 로드되므로 주기적으로 다시 훑는다.
- * useFrame 에 걸었더니 처음 한 번만 돌고 뒤에 들어온 NPC 가 PBR 로 남았다 — 타이머로 훑고 바뀌면 invalidate.
+ * useFrame 에 걸면 뒤에 들어온 NPC 를 놓쳐 PBR 로 남는다 — 타이머로 훑고 바뀌면 invalidate.
  */
 export default function WorldToon({ enabled = true, steps = 3, threshold = 0.5, intervalMs = 500 }: WorldToonProps) {
   const scene = useThree((s) => s.scene);

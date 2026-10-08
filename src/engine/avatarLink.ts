@@ -1,9 +1,10 @@
-// 플레이어 상자 — 이동이 몸 상태를 적고, 아바타(naju01)가 그걸 읽어 몸을 놓은 뒤 손뼈·어깨 자리·팔 길이를
-// 되적는다. 본편 손붙이기는 그 값으로 손 목표를 정해 다시 적는다. 두 패키지가 서로 import 하지 않고
-// 이 상자 하나로만 이어지도록 engine 에 둔다.
 import type * as THREE from "three";
 
 import type { PlayerMotionState } from "@/engine/movement/useMovement";
+
+// 플레이어 상자 — 이동이 몸 상태를 적고, 아바타(naju01)가 그걸 읽어 몸을 놓은 뒤 손뼈·어깨 자리·팔 길이를
+// 되적는다. 본편 손붙이기는 그 값으로 손 목표를 정해 다시 적는다. 두 패키지가 서로 import 하지 않고
+// 이 상자 하나로만 이어지도록 engine 에 둔다.
 
 export interface WorldPoint {
   x: number;
@@ -18,7 +19,7 @@ export interface QuaternionValues {
   w: number;
 }
 
-/** 팔꿈치가 빠지는 쪽(방향 성분, 거리 아님). 꺼져 있으면 옛 부호 시험 IK 로 돈다. */
+/** 팔꿈치가 빠지는 쪽(방향 성분, 거리 아님). 꺼져 있으면 부호를 시험해 고르는 IK 로 돈다. */
 export interface ArmPole {
   enabled: boolean;
   back: number;
@@ -33,7 +34,7 @@ export interface AvatarLink extends PlayerMotionState {
   attackSerial?: number;
   attackMotion?: string;
 
-  // ── 아바타가 적는다 ──
+  // 아래는 아바타가 적는다
   rightHand?: THREE.Object3D | null;
   leftHand?: THREE.Object3D | null;
   /** 손목 → 주먹 한가운데(손뼈 로컬) */
@@ -49,7 +50,7 @@ export interface AvatarLink extends PlayerMotionState {
   /** 아바타가 잰 가슴 반두께(세계 배율). 못 쟀으면 null — 한 번 재면 다시 안 잰다 */
   torsoHalfDepth?: number | null;
 
-  // ── 게임(손붙이기)이 적는다 ──
+  // 아래는 게임(손붙이기)이 적는다
   /** 오른팔 IK 세기 0~1 */
   handIk?: number;
   handTarget?: WorldPoint | null;

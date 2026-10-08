@@ -9,16 +9,21 @@ export const SUPPORT_TABS = [
 
 export type SupportTabId = (typeof SUPPORT_TABS)[number]["id"];
 
-export type NoticeCategory = "점검" | "이벤트" | "업데이트" | "안내";
-export type FaqCategory = "계정" | "게임플레이" | "결제" | "기술지원";
+/** 분류 칩 맨 앞 칸. 고르면 모든 분류를 보여 준다. */
+export const ALL = "전체";
+export const NOTICE_FILTERS = [ALL, "점검", "이벤트", "업데이트", "안내"] as const;
+export const FAQ_FILTERS = [ALL, "계정", "게임플레이", "결제", "기술지원"] as const;
 
-export interface Notice {
+export type NoticeCategory = Exclude<(typeof NOTICE_FILTERS)[number], typeof ALL>;
+export type FaqCategory = Exclude<(typeof FAQ_FILTERS)[number], typeof ALL>;
+
+interface Notice {
   category: NoticeCategory;
   title: string;
   date: string;
 }
 
-export interface FaqItem {
+interface FaqItem {
   category: FaqCategory;
   question: string;
   /** 아직 답을 쓰지 않은 질문은 null */

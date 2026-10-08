@@ -3,11 +3,10 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { runWhenIdle } from "@/lib/idle";
+import { BACKDROP_ORIGIN } from "@/lib/layout";
+import { clamp01 } from "@/lib/math";
 import { PAGE_CHANGE_EVENT } from "@/lib/pageEvents";
 import { COLOR } from "@/styles/tokens";
-
-import { BACKDROP_ORIGIN } from "./backdropOrigin";
-import type { Tilt } from "./tilt";
 
 // CSS 로 확대하면 납작한 그림이 커질 뿐이다. 진짜 공간에서 카메라를 z 로 밀어야
 // 가까운 것과 먼 것이 다른 속도로 지나가는 시차가 생긴다.
@@ -27,7 +26,7 @@ const RINGS = Array.from({ length: RING_COUNT }, (_, i) => ({
   z: -(i + 1) * (TUNNEL_LENGTH / RING_COUNT),
   // 반지름이 다 같으면 원기둥으로 보인다. 들쭉날쭉해야 좁아졌다 넓어지는 통로로 읽힌다.
   radius: 6 + Math.sin(i * 1.7) * 3.6,
-  tilt: [Math.sin(i * 0.9) * 0.26, Math.cos(i * 1.3) * 0.26, i * 0.4] satisfies Tilt,
+  tilt: [Math.sin(i * 0.9) * 0.26, Math.cos(i * 1.3) * 0.26, i * 0.4] satisfies THREE.EulerTuple,
   opacity: 0.17 - i * 0.01,
 }));
 
@@ -217,7 +216,7 @@ function getScrollProgress(): number {
     scrollExtent.dirty = false;
   }
   const end = scrollExtent.value;
-  return end <= 0 ? 0 : Math.min(1, Math.max(0, window.scrollY / end));
+  return end <= 0 ? 0 : clamp01(window.scrollY / end);
 }
 
 const MAX_CAMERA_SPEED = 22; // 초당 단위. 스크롤 막대를 홱 끌어도 화면이 휙 날아가지 않게 자른다.

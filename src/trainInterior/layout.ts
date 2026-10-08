@@ -3,6 +3,7 @@ import type * as THREE from "three";
 import { mergeBoxes, type MergeBox } from "@/engine/geometry";
 import { makeRandom } from "@/engine/random";
 
+import { ATLAS_GRID } from "./atlasTextures";
 import type { LampState } from "./FluorescentLamp";
 import { CAR_LENGTH, CAR_WIDTH, DOOR_WIDTH, DOOR_X, WINDOW_BOTTOM, WINDOW_TOP, WINDOW_WIDTH } from "./dimensions";
 
@@ -10,7 +11,7 @@ import { CAR_LENGTH, CAR_WIDTH, DOOR_WIDTH, DOOR_X, WINDOW_BOTTOM, WINDOW_TOP, W
 const WINDOW_COUNT = Math.max(2, Math.round(CAR_LENGTH / 9));
 
 /** 창 가운데 x 목록 */
-export const WINDOW_XS = Array.from(
+const WINDOW_XS = Array.from(
   { length: WINDOW_COUNT },
   (_, i) => -CAR_LENGTH / 2 + 5 + (i * (CAR_LENGTH - 10)) / (WINDOW_COUNT - 1),
 );
@@ -37,7 +38,7 @@ export function buildWindowFrames(): THREE.BufferGeometry | null {
       boxes.push({ size: [WINDOW_WIDTH, 0.3, 0.24], position: [x, WINDOW_TOP - 0.15, z] });
       boxes.push({ size: [WINDOW_WIDTH, 0.3, 0.24], position: [x, WINDOW_BOTTOM + 0.15, z] });
       boxes.push({ size: [0.3, height, 0.24], position: [x - WINDOW_WIDTH / 2 + 0.15, middle, z] });
-      boxes.push({ size: [0.3, height, 0.24], position: [x + WINDOW_WIDTH / 2 + -0.15, middle, z] });
+      boxes.push({ size: [0.3, height, 0.24], position: [x + WINDOW_WIDTH / 2 - 0.15, middle, z] });
       boxes.push({ size: [WINDOW_WIDTH + 0.4, 0.22, 0.7], position: [x, WINDOW_BOTTOM - 0.1, z + side * -0.3] });
     }
   return mergeBoxes(boxes);
@@ -117,7 +118,7 @@ export function buildShelf(): THREE.BufferGeometry | null {
   );
 }
 
-export interface LampSpot {
+interface LampSpot {
   x: number;
   state: LampState;
 }
@@ -144,14 +145,14 @@ export function layoutLamps(
   });
 }
 
-export interface SeatSpot {
+interface SeatSpot {
   x: number;
   z: number;
   /** +1 = +x 를 본다(등받이는 -x 쪽) */
   facing: number;
 }
 
-export interface SeatLayoutOptions {
+interface SeatLayoutOptions {
   groupCount: number;
   groupSpacing: number;
   facingGap: number;
@@ -180,13 +181,11 @@ export function layoutSeats({ groupCount, groupSpacing, facingGap, start, wallGa
   return spots;
 }
 
-export interface SeatGeometries {
+interface SeatGeometries {
   fabric: THREE.BufferGeometry | null;
   frame: THREE.BufferGeometry | null;
   armrest: THREE.BufferGeometry | null;
 }
-
-const SEAT_ATLAS_GRID = 4;
 
 /**
  * 좌석을 재질별(천·틀·팔걸이) 세 덩어리로 합친다. 좌석마다 아틀라스 칸이 달라 얼룩·찢김이 다 다르다.
@@ -194,7 +193,7 @@ const SEAT_ATLAS_GRID = 4;
  */
 export function buildSeats(spots: SeatSpot[], scale: number): SeatGeometries {
   const K = scale;
-  const N = SEAT_ATLAS_GRID;
+  const N = ATLAS_GRID;
   const fabric: MergeBox[] = [],
     frame: MergeBox[] = [],
     armrest: MergeBox[] = [];
@@ -238,7 +237,7 @@ export function buildSeats(spots: SeatSpot[], scale: number): SeatGeometries {
   return { fabric: mergeBoxes(fabric), frame: mergeBoxes(frame), armrest: mergeBoxes(armrest) };
 }
 
-export interface SeatCollider {
+interface SeatCollider {
   minX: number;
   maxX: number;
   minZ: number;

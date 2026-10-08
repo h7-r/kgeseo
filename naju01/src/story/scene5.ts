@@ -145,7 +145,7 @@ export function smallTablePrototypes(count = 3, seed = 8502): THREE.BufferGeomet
   return prototypes;
 }
 
-export type Scene5PropKey = "stonePile" | "sacredRope" | "smallTable";
+type Scene5PropKey = "stonePile" | "sacredRope" | "smallTable";
 
 export const SCENE5_NOTES: Record<Scene5PropKey, SceneNote> = {
   stonePile: { text: "돌무지 여럿 · 씬1 의 돌탑 하나를 여럿이 이었다", color: "#B9E0C8" },

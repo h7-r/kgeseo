@@ -9,7 +9,7 @@
 #   흐름 짓기 → 흔들기 → 규격 다시 못박기. 흔들기가 마지막이면 대지가 기운다.
 # --factory-startup 으로 돌고 환경설정·.blend 를 건드리지 않는다. 내보내는 것은 GLB 하나뿐.
 
-import bpy, bmesh, sys, os, math, time
+import bpy, sys, os, math, time
 import numpy as np
 
 # 도면 값 (src/plan/sitePlan.ts 와 같은 숫자)
@@ -53,7 +53,7 @@ CUT_SLOPE = math.tan(math.radians(38.0))   # 0.78 — 길 위쪽 둑
 FILL_SLOPE = math.tan(math.radians(30.0))   # 0.58 — 길 아래쪽 비탈
 BERM_HEIGHT = 6.0   # m — 쌓기로 올릴 수 있는 최대 높이
 BERM_SPREAD = 3.0   # m — 그 둑이 옆으로 퍼지는 거리
-# 둑·깎기 뻗음은 옛 JS 지형에 맞춘 값. 넓히면 Z1 에 손으로 놓은 배치가 더 어긋난다.
+# 둑·깎기 뻗음은 Z1 에 손으로 놓은 배치에 맞춘 값이라 넓히면 배치가 어긋난다.
 
 # 옹벽: T4 헤어핀은 두 다리 노면 사이가 1.25 m 뿐이라 노면 바로 옆에서만 급한 면을 허락한다.
 WALL_SLOPE = 3.0    # tan 72°
@@ -347,7 +347,7 @@ def cliff_lines(X, Z):
     s2 = wave(2.3, 1.9, 0.50) + wave(5.1, 0.4, 0.32) + wave(9.7, 3.2, 0.18)
     # 띠 폭을 4 m 로 붙들고 마루선만 흔든다 — 따로 흔들면 띠가 좁아져 85° 가 된다.
     band = CLIFF["height"] / math.tan(math.radians(74.0))     # = 4.01 m
-    # 흔들림 0.25 — 0.8 이면 발치가 Z2 대지 안을 1.5 m 들어올렸다.
+    # 흔들림은 0.25 까지 — 크게 흔들면 발치가 Z2 대지 안을 들어올린다.
     crest = CLIFF["zTop"] + (0.5 + s1 * 0.5) * 0.25         # 26.0 ~ 26.25
     toe = crest + band                                     # 30.0 ~ 30.26
 
@@ -382,7 +382,7 @@ def carve_paths(X, Z, h, cliff_mask):
     """
     lock = np.zeros(X.shape, dtype=np.float32)
     shoulder = SHOULDER["width"] * SHOULDER["spread"]
-    # 클램프는 스스로 멈추지 않아 거리로 끊는다(T4 쌓기가 24 m 까지 땅을 들어올렸다).
+    # 클램프는 스스로 멈추지 않아 거리로 끊는다(안 끊으면 쌓기가 멀리까지 땅을 들어올린다).
     reach = 9.0   # m — 이 밖에서는 길이 지형을 다스리지 않는다
     # 절벽 면 위에서는 클램프를 끈다 — 벼랑에 흙을 쌓을 수 없다.
     off = cliff_mask.astype(np.float32) * 60.0
@@ -614,7 +614,7 @@ def measure(X, Z, h):
     """지은 땅이 도면과 맞나 — 내보내기 전에 스스로 검사한다.
 
     대지 평탄도는 통로·절벽을 뺀 자리에서 재되, 뺀 칸도 반드시 찍는다
-    (빼서 안 보이던 둑이 마을 바닥을 5.5 m 밀고 들어온 적이 있다).
+    (뺀 자리에서 둑이 대지를 밀고 들어와도 놓치지 않게).
     """
     lines = []
     shoulder = SHOULDER["width"] * SHOULDER["spread"]

@@ -1,5 +1,4 @@
-import { cachedCanvasTexture } from "@/engine/textures/canvas";
-import { SIGN_FONT } from "@/engine/textures/fonts";
+import { cachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
 
 export const DANGER_LABEL_WIDTH = 384;
 export const DANGER_LABEL_HEIGHT = 88;

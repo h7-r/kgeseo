@@ -9,7 +9,7 @@ const SCENES = {
   deepSpace: lazy(() => import("./DeepSpaceScene")),
 };
 
-export type SceneName = keyof typeof SCENES;
+type SceneName = keyof typeof SCENES;
 
 let webglSupported: boolean | null = null;
 

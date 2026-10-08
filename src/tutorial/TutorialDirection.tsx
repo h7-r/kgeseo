@@ -12,10 +12,11 @@ import * as THREE from "three";
 
 import { playerView } from "@/engine/playerView";
 
-import { TUTORIAL_STEPS, useTutorial } from "./tutorial";
+import { TUTORIAL_COLOR, TUTORIAL_STEPS, useTutorial } from "./tutorial";
 
-const ARROW_COLOR = "#8ee8ff"; // 바닥 동그라미와 같은 색
 const EDGE_MARGIN = 52; // 가장자리 화살표를 테두리에서 이만큼 안쪽에 둔다
+// 복도 바닥 높이. 눈 높이는 앉기·시점 설정에 따라 오르내려 머리에 안 붙는다 — 바닥에서 잰다.
+const FLOOR_Y = 0;
 
 // 캔버스 안(계산)과 밖(그리기)을 잇는 유일한 통로
 let edgeElement: HTMLDivElement | null = null;
@@ -43,7 +44,7 @@ function getArrowResources() {
   arrowResources ??= {
     geometry: createArrowGeometry(),
     material: new THREE.MeshBasicMaterial({
-      color: ARROW_COLOR,
+      color: TUTORIAL_COLOR,
       transparent: true,
       opacity: 0,
       depthWrite: false,
@@ -70,46 +71,44 @@ export function TutorialDirectionArrow({ enabled = true }: TutorialDirectionArro
   const groupRef = useRef<THREE.Group>(null);
   const { geometry, material } = getArrowResources();
 
-  useFrame(({ camera, size }, dt) => {
+  useFrame(({ camera, size }, delta) => {
     const spot = enabled ? current?.spot : undefined;
     const eye = playerView.ready ? playerView.eye : camera.position;
-    // 복도 바닥은 y = 0. 눈 높이는 앉기·시점 설정에 따라 오르내려서 머리에 안 붙는다 — 바닥에서 잰다.
-    const floorY = 0;
 
     // ① 머리 위 화살표
     const group = groupRef.current;
     if (group) {
       if (!spot) {
-        material.opacity += (0 - material.opacity) * Math.min(1, dt * 8);
+        material.opacity += (0 - material.opacity) * Math.min(1, delta * 8);
       } else {
         const dx = spot[0] - eye.x;
         const dz = spot[1] - eye.z;
         const distance = Math.hypot(dx, dz);
         const bob = Math.sin(performance.now() / 420) * 0.12;
-        group.position.set(eye.x, floorY + 5.0 + bob, eye.z);
+        group.position.set(eye.x, FLOOR_Y + 5.0 + bob, eye.z);
         // 바로 위에 서면 방향이 튄다 — 그때는 마지막 각을 그대로 둔다
         if (distance > 0.4) group.rotation.y = Math.atan2(dx, dz);
         // 다 왔으면 흐려진다. 코앞에서 계속 가리키면 시야만 가린다.
         const strength = THREE.MathUtils.clamp((distance - 1.6) / 2.5, 0, 1);
         const pulse = 0.72 + 0.28 * Math.sin(performance.now() / 300);
-        material.opacity += (0.42 * strength * pulse - material.opacity) * Math.min(1, dt * 10);
+        material.opacity += (0.42 * strength * pulse - material.opacity) * Math.min(1, delta * 10);
       }
     }
 
     // ② 화면 가장자리 화살표
-    const el = edgeElement;
-    if (!el) return;
+    const edge = edgeElement;
+    if (!edge) return;
     if (!spot) {
-      el.style.opacity = "0";
+      edge.style.opacity = "0";
       return;
     }
-    projected.set(spot[0], floorY + 0.8, spot[1]).project(camera);
+    projected.set(spot[0], FLOOR_Y + 0.8, spot[1]).project(camera);
     const isBehind = projected.z > 1;
     // 카메라 뒤면 부호를 뒤집어야 방향이 맞는다
     const x = isBehind ? -projected.x : projected.x;
     const y = isBehind ? -projected.y : projected.y;
     if (!isBehind && Math.abs(x) <= 1 && Math.abs(y) <= 1) {
-      el.style.opacity = "0"; // 목표가 화면에 들어오면 바로 숨긴다
+      edge.style.opacity = "0"; // 목표가 화면에 들어오면 바로 숨긴다
       return;
     }
     const m = Math.max(Math.abs(x), Math.abs(y)) || 1;
@@ -117,8 +116,10 @@ export function TutorialDirectionArrow({ enabled = true }: TutorialDirectionArro
     const ny = y / m;
     const cx = Math.min(size.width - EDGE_MARGIN, Math.max(EDGE_MARGIN, (nx * 0.5 + 0.5) * size.width));
     const cy = Math.min(size.height - EDGE_MARGIN, Math.max(EDGE_MARGIN, (-ny * 0.5 + 0.5) * size.height));
-    el.style.opacity = "1";
-    el.style.transform = `translate(${cx}px, ${cy}px) translate(-50%, -50%) rotate(${-Math.atan2(-ny, nx)}rad)`;
+    edge.style.opacity = "1";
+    // 화살표 그림은 0° 에 오른쪽을 본다. 화면 y 는 아래로 자라고 CSS 회전은 시계 방향이라
+    // 화면 방향 (nx, -ny) 의 각이 곧 회전각이다(앞에 - 를 붙이면 위아래가 뒤집힌다).
+    edge.style.transform = `translate(${cx}px, ${cy}px) translate(-50%, -50%) rotate(${Math.atan2(-ny, nx)}rad)`;
   });
 
   return (
@@ -139,8 +140,8 @@ export function TutorialDirectionArrow({ enabled = true }: TutorialDirectionArro
 /** 캔버스 밖 — 가장자리 화살표. 자리는 위 컴포넌트가 직접 써 넣는다. */
 export default function TutorialDirectionHud() {
   // useEffect(…, []) 로 담으면 안내가 꺼진 첫 렌더에 요소가 없어 영영 비어 있는다 — ref 콜백으로 담는다
-  const attach = (el: HTMLDivElement | null) => {
-    edgeElement = el;
+  const attach = (element: HTMLDivElement | null) => {
+    edgeElement = element;
   };
   useEffect(
     () => () => {
@@ -157,7 +158,7 @@ export default function TutorialDirectionHud() {
           <path
             d="M6 17 L24 17 M17 8 L26 17 L17 26"
             fill="none"
-            stroke={ARROW_COLOR}
+            stroke={TUTORIAL_COLOR}
             strokeWidth="3"
             strokeLinecap="round"
             strokeLinejoin="round"

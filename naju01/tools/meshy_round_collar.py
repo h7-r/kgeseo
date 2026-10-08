@@ -3,26 +3,13 @@
 #   Blender --background --factory-startup --python naju01/tools/meshy_round_collar.py -- \
 #     --glb public/models/meshy-both-female.glb --out public/models/meshy-both-female.glb
 #
-# [무엇이 찢어져 보였나]
-#   몸과 옷이 한 메시라 목선은 **텍스처의 색 경계**다. 그 경계가 삼각형 배치를 따라 들쭉날쭉해서,
-#   음영을 계단으로 만드는 툰 재질에서 살빛 쐐기가 흰 셔츠 위로 삐죽삐죽 튀어나와 보였다.
-#   정점 표식(_TINT)의 경계도 같이 들쭉날쭉했다.
-#
-# [예전 방식과 무엇이 다른가]
-#   예전에는 **텍스처 색**(채도)으로 살/옷을 가르고 각도 구간마다 '옷 비율 50% 높이'를 찾았다.
-#   그런데 가르려는 그 색 경계가 바로 망가진 대상이라, 가슴팍 그늘이 살로 잡히면서 목선이
-#   통째로 내려앉아 턱받이처럼 넓어졌다(실측 — 선z 가 1.046~1.079 로 잡혀 더 나빠졌다).
-#
-#   지금은 **정점 표식 _TINT 를 기준**으로 삼는다. 표식은 meshy_mark_tint.py 가 구워 둔 것이라
-#   큰 덩어리(목=살 1, 셔츠=상의 2)는 정확하고, 망가진 곳은 경계 한 줄뿐이다.
-#     ① 살↔옷이 갈리는 **모서리의 중점**을 모아 목선 점구름을 만든다.
-#     ② 거기에 **구(球)를 최소제곱으로 맞춘다.** 구와 몸이 만나는 선은 정의상 매끄러운 닫힌
-#        곡선이고, 어깨 위로 자연스럽게 흘러내려 라운드넥 모양이 된다(원기둥이나 높이 자르기로는
-#        어깨에서 선이 꺾인다).
-#     ③ 구 표면에서 ±2cm 껍질 안에서만 텍스처를 다시 칠하고 _TINT 를 다시 매긴다.
-#        껍질 밖은 손대지 않으므로 얼굴·가슴팍 음영은 그대로다.
-#
-#   텍스처와 표식이 **같은 곡선**을 쓰는 것이 핵심이다. 둘이 어긋나면 한쪽을 고쳐도 톱니가 남는다.
+# 몸과 옷이 한 메시라 목선은 텍스처의 색 경계인데, 그 경계가 삼각형을 따라 들쭉날쭉해
+# 툰 재질에서 살빛 쐐기가 셔츠 위로 튀어나와 보인다. 망가진 색 경계 대신 정점 표식 _TINT
+# (큰 덩어리는 정확하다)를 기준으로 삼는다.
+#   1) 살↔옷이 갈리는 모서리의 중점을 모아 목선 점구름을 만든다.
+#   2) 구를 최소제곱으로 맞추고, 목 축 둘레 각도의 낮은 차수 푸리에 곡선으로 다듬는다.
+#   3) 곡선 둘레 껍질 안에서만 텍스처를 다시 칠하고 _TINT 를 다시 매긴다.
+# 텍스처와 표식이 같은 곡선을 써야 한다. 둘이 어긋나면 한쪽을 고쳐도 톱니가 남는다.
 import argparse
 import sys
 
@@ -42,9 +29,8 @@ parser.add_argument("--shell", type=float, default=0.026)
 parser.add_argument("--feather", type=float, default=0.005)
 # 목선 고리를 모을 때 목 축에서 가로로 이만큼 안쪽만 본다. 넓히면 어깨·소매 둘레가 섞인다.
 parser.add_argument("--ring", type=float, default=0.11)
-# 목뼈에서 아래로 이만큼까지만 본다. 상의만 입은 착장(top)은 **배가 드러나** 밑단에도 살↔옷
-#   경계가 있는데, 넉넉히 잡으면 그 고리까지 한 구에 맞추려다 엉뚱한 구가 나온다
-#   (남성 top 에서 R 이 10~11cm 로 부풀어 가슴에 흰 얼룩을 칠했다).
+# 목뼈에서 아래로 이만큼까지만 본다. 배가 드러나는 착장은 밑단에도 살↔옷 경계가 있어
+#   넉넉히 잡으면 그 고리까지 한 구에 맞추려다 엉뚱한 구가 나온다.
 parser.add_argument("--below", type=float, default=0.10)
 args = parser.parse_args(argv)
 
@@ -87,10 +73,8 @@ rig = body.parent
 neck = rig.matrix_world @ rig.data.bones["neck_01"].head_local
 neck_pos = np.array([neck.x, neck.y, neck.z], dtype=np.float32)
 
-# ── ① 살↔옷 모서리의 중점 모으기 ────────────────────────────
-# 목선은 **목 축을 둘러싸는 고리**다. 목뼈에서 18cm 안이면서 목 축에서 가로로 11cm 안쪽만 본다.
-#   가로 제한이 없으면 소매 둘레(겨드랑이)의 살↔옷 경계까지 딸려 와 구가 통째로 커진다
-#   (남성 top 에서 R 이 11cm 로 부풀어 등판 셔츠까지 구 안에 들어갔다).
+# ── 1) 살↔옷 모서리의 중점 모으기 ──
+# 목선은 목 축을 둘러싼 고리다. 가로 제한이 없으면 소매 둘레의 경계까지 딸려 와 구가 커진다.
 skin = tint < 1.5
 cloth = (tint >= 1.5) & (tint < 2.5)  # 2 = 상의. 3(하의)은 목선과 무관하다.
 horiz = np.hypot(pos[:, 0] - neck_pos[0], pos[:, 1] - neck_pos[1])
@@ -109,10 +93,10 @@ for e in me.edges:
     points.append(pos[a] + (pos[b] - pos[a]) * t)
 points = np.array(points, dtype=np.float64)
 if len(points) < 60:
-    print(f"COLLAR_SKIP edges={len(점)}")
+    print(f"COLLAR_SKIP edges={len(points)}")
     sys.exit(0)
 
-# ── ② 구 맞추기 ─────────────────────────────────────────────
+# ── 2) 구 맞추기 ──
 # |p−C|² = R²  →  2C·p + (R²−|C|²) = |p|²  로 펴면 미지수 넷짜리 선형 문제다.
 # 들쭉날쭉한 점이 섞여 있으니 두 번 다시 맞추며 멀리 튄 점을 버린다(IRLS).
 def fit_sphere(P):
@@ -135,22 +119,14 @@ for _ in range(3):
 C, R = fit_sphere(inliers)
 R += args.drop
 spread = float(np.std(np.linalg.norm(inliers - C, axis=1) - R))
-print(f"COLLAR_FIT 점={len(점)}→{len(쓸점)} R={R:.4f} 중심z={C[2]:.3f} 퍼짐={퍼짐*1000:.1f}mm")
+print(f"COLLAR_FIT 점={len(points)}→{len(inliers)} R={R:.4f} 중심z={C[2]:.3f} 퍼짐={spread*1000:.1f}mm")
 if not (0.02 < R < 0.25):
     print("COLLAR_SKIP radius")
     sys.exit(0)
 
-# ── ③ 목선을 **매끄러운 닫힌 곡선**으로 다듬는다 ──────────
-# [왜 점 뭉치로 재면 안 되나]
-#   모아 둔 목선 점은 원래 경계에서 뽑은 것이라 둘레를 따라 흩어져 있다. 「가장 가까운
-#   점」으로 거리를 재면 그 점들의 **보로노이 칸**을 따라 거리장이 꺾여서, 경계가 각진
-#   다각형으로 나온다 — 목 뒤가 삐뚤삐뚤해 보인 것이 이것이다(263 개 점의 칸 모양 그대로).
-#
-# [어떻게]
-#   목 축(세로) 둘레의 각도 θ 로 매개화해서, 반지름 r(θ) 와 높이 z(θ) 를 각각 **낮은 차수의
-#   푸리에 급수**로 맞춘다(상수 + 1~3 차). 차수가 낮아 울퉁불퉁한 성분이 아예 표현되지 않으므로
-#   **정의상 매끄럽고 닫힌** 곡선이 된다. 그 뒤로는 질의점의 θ 를 바로 넣어 목선 점을 구한다
-#   (가장 가까운 점을 찾지 않으므로 칸 경계가 생길 수 없다).
+# ── 3) 목선을 매끄러운 닫힌 곡선으로 ──
+# 「가장 가까운 점」으로 거리를 재면 보로노이 칸을 따라 경계가 각지게 나온다. 그래서 목 축 둘레
+# 각도 θ 로 r(θ)·z(θ) 를 낮은 차수 푸리에 급수로 맞춰, 정의상 매끄럽고 닫힌 곡선을 쓴다.
 ORDER = 3
 
 
@@ -188,7 +164,7 @@ angle = np.arctan2(curve_points[:, 1] - neck_pos[1], curve_points[:, 0] - neck_p
 X = design(angle)
 curve_spread = float(np.std(np.hypot(np.hypot(curve_points[:, 0] - neck_pos[0], curve_points[:, 1] - neck_pos[1]) - X @ coef_r,
                                curve_points[:, 2] - X @ coef_z)))
-print(f"COLLAR_CURVE 점={len(쓸점)}→{len(곡선점)} 퍼짐={곡선퍼짐*1000:.1f}mm")
+print(f"COLLAR_CURVE 점={len(inliers)}→{len(curve_points)} 퍼짐={curve_spread*1000:.1f}mm")
 
 
 def collar_point(angle):
@@ -197,15 +173,9 @@ def collar_point(angle):
     return np.stack([neck_pos[0] + r * np.cos(angle), neck_pos[1] + r * np.sin(angle), X @ coef_z], axis=-1)
 
 
-# ── 목선을 **가로지르는 방향** ──────────────────────────────
-# [왜 구의 바깥 방향을 쓰면 안 되나]
-#   처음에는 (q−C)/R, 즉 구에서 바깥으로 향하는 방향으로 안팎을 갈랐다. 그런데 목 뒤에서
-#   그 방향이 **위로 30° 가까이 들린다.** 그러면 목선보다 **위쪽 목**이 '바깥(옷)'으로 잡혀
-#   목덜미 한가운데가 흰색으로 칠해진다(실제로 그렇게 나왔다).
-# [어떻게]
-#   방향을 데이터에서 직접 잰다. 각도 구간마다 목선 가까이의 **살 쪽 무게중심 → 옷 쪽
-#   무게중심**을 잇는다. 이것이 그 자리에서 실제로 살과 옷이 갈리는 방향이다.
-#   구간이 비면 이웃에서 채우고, 같은 푸리에 기저로 매끄럽게 편다.
+# ── 목선을 가로지르는 방향 ──
+# 구의 바깥 방향은 목 뒤에서 위로 크게 들려 목덜미가 옷으로 잡힌다. 그래서 각도 구간마다
+# 살 쪽 무게중심 → 옷 쪽 무게중심을 재고, 같은 푸리에 기저로 매끄럽게 편다.
 N_BINS = 72
 
 
@@ -229,7 +199,7 @@ def crossing_direction():
     filled = ~np.isnan(d[:, 0])
     if filled.sum() < N_BINS // 3:
         return None, 0
-    # 빈 칸은 둘레를 따라 이어 채우고, 푸리에로 편다(차수가 낮아 울퉁불퉁할 수가 없다).
+    # 빈 칸은 둘레를 따라 이어 채운다.
     for c in range(3):
         d[~filled, c] = np.interp(centers[~filled], centers[filled], d[filled, c], period=2 * np.pi)
     X = design(centers)
@@ -239,9 +209,9 @@ def crossing_direction():
 
 coef_d, filled_count = crossing_direction()
 if coef_d is None:
-    print(f"COLLAR_SKIP bins={찬칸}")
+    print(f"COLLAR_SKIP bins={filled_count}")
     sys.exit(0)
-print(f"COLLAR_DIR 채운칸={찬칸}/{칸수}")
+print(f"COLLAR_DIR 채운칸={filled_count}/{N_BINS}")
 
 
 def from_collar(P):
@@ -258,24 +228,22 @@ def from_collar(P):
             np.linalg.norm(offset, axis=1).reshape(out_shape))
 
 
-# 목선에서 이만큼 안쪽까지 고친다. 좁게 잡으면 목 뒤에 원래의 들쭉날쭉한 표식과 색이
-#   그대로 남고, 넓게 잡으면 목선과 상관없는 데까지 평평하게 칠해진다.
+# 목선에서 이만큼까지 고친다. 좁으면 들쭉날쭉한 표식이 남고, 넓으면 상관없는 데까지 칠해진다.
 REACH = 0.035
 REACH_COLOR = 0.060
 
 dist_v, reach_v = from_collar(pos)
 
-# ★ 맞춘 목선이 **살과 옷을 실제로 갈라 주는지** 확인한다.
-#   목선이 앞뒤로 높이가 크게 다른 옷(남성 top 이 그랬다)은 점들이 큰 구에 잘 얹히지만,
-#   그 구는 등판 셔츠까지 안쪽에 넣어 버린다. 그대로 칠하면 가슴에 흰 얼룩이 생긴다.
+# 맞춘 목선이 살과 옷을 실제로 갈라 주는지 확인한다. 목선 앞뒤 높이가 크게 다른 옷은
+#   큰 구에 잘 얹히지만 등판 셔츠까지 안쪽에 넣어 버려, 그대로 칠하면 가슴에 얼룩이 생긴다.
 check_zone = (np.abs(dist_v) > 0.004) & (np.abs(dist_v) < 0.025) & (skin | cloth) & (reach_v <= REACH)
 inside = check_zone & (dist_v < 0)
 outside = check_zone & (dist_v > 0)
 if inside.sum() < 30 or outside.sum() < 30:
-    print(f"COLLAR_SKIP sides in={int(안쪽.sum())} out={int(바깥.sum())}")
+    print(f"COLLAR_SKIP sides in={int(inside.sum())} out={int(outside.sum())}")
     sys.exit(0)
 agreement = (skin[inside].mean() + cloth[outside].mean()) / 2
-print(f"COLLAR_CHECK 안쪽살={살[안쪽].mean():.2f} 바깥옷={옷[바깥].mean():.2f}")
+print(f"COLLAR_CHECK 안쪽살={skin[inside].mean():.2f} 바깥옷={cloth[outside].mean():.2f}")
 if agreement < 0.80:
     print("COLLAR_SKIP sphere does not separate skin from cloth")
     sys.exit(0)
@@ -318,17 +286,17 @@ reach_map = np.full((h, w), np.inf, dtype=np.float32)
 s[covered], reach_map[covered] = from_collar(tex[covered])
 shell_mask = covered & (np.abs(s) <= args.shell) & (reach_map <= REACH)
 if shell_mask.sum() < 200:
-    print(f"COLLAR_SKIP shell={int(껍질.sum())}")
+    print(f"COLLAR_SKIP shell={int(shell_mask.sum())}")
     sys.exit(0)
 
-# 대표색 — 껍질 **바로 바깥**의 살(안쪽)과 옷(바깥쪽) 중앙값. 껍질 안은 이미 망가진 색이라 쓰면 안 된다.
+# 대표색 — 껍질 바로 바깥의 살·옷 중앙값. 껍질 안은 이미 망가진 색이다.
 rgb = px[..., :3]
 skin_band = covered & (s < -args.shell) & (s > -args.shell - 0.025)
 cloth_band = covered & (s > args.shell) & (s < args.shell + 0.025)
 skin_band &= reach_map <= REACH_COLOR
 cloth_band &= reach_map <= REACH_COLOR
 if skin_band.sum() < 50 or cloth_band.sum() < 50:
-    print(f"COLLAR_SKIP bands skin={int(살띠.sum())} cloth={int(옷띠.sum())}")
+    print(f"COLLAR_SKIP bands skin={int(skin_band.sum())} cloth={int(cloth_band.sum())}")
     sys.exit(0)
 skin_color = np.median(rgb[skin_band], axis=0)
 cloth_color = np.median(rgb[cloth_band], axis=0)
@@ -337,14 +305,12 @@ side_t = np.clip(s / args.feather * 0.5 + 0.5, 0.0, 1.0)  # 0 = 살(구 안), 1 
 blend = side_t * side_t * (3 - 2 * side_t)
 new_color = skin_color[None, None, :] + (cloth_color - skin_color)[None, None, :] * blend[..., None]
 px[shell_mask, :3] = new_color[shell_mask]
-print(f"COLLAR_BLEND 텍셀={int(껍질.sum())} 살={살색.round(3).tolist()} 옷={옷색.round(3).tolist()}")
+print(f"COLLAR_BLEND 텍셀={int(shell_mask.sum())} 살={skin_color.round(3).tolist()} 옷={cloth_color.round(3).tolist()}")
 
-# ── ④ 정점 표식도 같은 구로 다시 매긴다 ─────────────────────
-# ★ 껍질(|s| ≤ 폭/2) 안만 다시 매기면 안 된다. 그 밖에 남은 **옛 표식의 들쭉날쭉한 쐐기**가
-#   그대로 살아남아 목 뒤로 삐져나온다. 목선 둘레 전체를 다시 매기고, 멀리 있는 정점은
-#   1.0(살)·2.0(옷)으로 딱 떨어지게 자른다.
-# 셰이더(naju01/src/avatar/toonMaterial.ts)는 삼각형 안에서 보간한 _tint 의 **1.5 등고선**으로 살/옷을 가른다.
-# 여기서 1.5 를 구 표면에 정확히 맞춰 두면 그 등고선이 텍스처 경계와 겹친다.
+# ── 4) 정점 표식도 같은 곡선으로 다시 매긴다 ──
+# 껍질 안만 매기면 그 밖의 들쭉날쭉한 쐐기가 남으므로 목선 둘레 전체를 매기고 멀리는 1.0·2.0 으로 자른다.
+# 셰이더(naju01/src/avatar/toonMaterial.ts)는 보간한 _tint 의 1.5 등고선으로 살/옷을 가르므로
+# 1.5 를 목선에 맞추면 그 등고선이 텍스처 경계와 겹친다.
 BLEND_WIDTH = 0.030
 signed_v = dist_v
 fix_v = near_neck & (skin | cloth) & (reach_v <= REACH)
@@ -354,15 +320,15 @@ for i in np.where(fix_v)[0]:
     if abs(tint[i] - new_tint[i]) > 1e-3:
         attr.data[int(i)].value = float(new_tint[i])
         changed += 1
-print(f"COLLAR_TINT 고침={바뀜}/{int(고칠v.sum())}")
+print(f"COLLAR_TINT 고침={changed}/{int(fix_v.sum())}")
 
 image.pixels = px.reshape(-1).tolist()
 image.file_format = "JPEG"
 bpy.context.scene.render.image_settings.quality = args.jpeg
 print("COLLAR_OK")
 
-# ※ 내보내기 옵션은 meshy_mark_tint.py 와 같아야 한다. export_extras 를 빠뜨리면 파츠 표식
-#   (slot·variant)이 통째로 날아가 헤어가 전부 보이고 신발 판정이 죽는다(실제로 그랬다).
+# 내보내기 옵션은 meshy_mark_tint.py 와 같아야 한다. export_extras 를 빠뜨리면 slot·variant 표식이
+#   날아가 머리카락이 전부 보이고 신발 판정이 죽는다.
 bpy.ops.export_scene.gltf(
     filepath=args.out, export_format="GLB", export_animations=False,
     export_skins=True, export_influence_nb=4, export_morph=True, export_morph_normal=False, export_apply=False,

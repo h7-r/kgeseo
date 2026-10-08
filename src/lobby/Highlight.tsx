@@ -1,5 +1,5 @@
 /**
- * 겨냥한 물건을 글자 없이 보여서 알려 준다 — 살짝 커지고(≈4%) 스스로 빛난다.
+ * 겨냥한 물건을 글자 없이 알려 준다 — 살짝 커지고 스스로 빛난다.
  * 발광은 이미 걸린 Bloom 이 번지게 해 외곽이 물든 것처럼 보이므로 외곽선 메시가 따로 필요 없다.
  */
 import { useRef, type ReactNode } from "react";
@@ -40,10 +40,10 @@ export function Highlight({ id, anchor, color = "#fffee7", strength = 0.45, grow
     const goal = isAimed ? 1 : 0;
     // 지수 감쇠 — 프레임 수와 상관없이 같은 속도로 붙는다
     amount.current += (goal - amount.current) * (1 - Math.exp(-delta * 14));
-    const s = amount.current;
+    const level = amount.current;
 
     // 기준점 p 중심으로 키우려면 월드 = k·자식 + p·(1−k)
-    const k = 1 + grow * s;
+    const k = 1 + grow * level;
     const p = anchor();
     if (p) {
       group.scale.setScalar(k);
@@ -51,9 +51,9 @@ export function Highlight({ id, anchor, color = "#fffee7", strength = 0.45, grow
     }
 
     // 꺼져 있고 이미 껐으면 훑지 않는다(대부분의 프레임이 여기서 끝난다)
-    if (s < 0.002 && previous.current < 0.002) return;
-    previous.current = s;
-    glow.set(color).multiplyScalar(s * strength);
+    if (level < 0.002 && previous.current < 0.002) return;
+    previous.current = level;
+    glow.set(color).multiplyScalar(level * strength);
 
     // 원래 발광에 더한다. 덮어쓰면 강조가 꺼질 때 스탠드 전구처럼 스스로 빛나던 부품이 영영 꺼진다.
     const apply = (material: EmissiveMaterial) => {

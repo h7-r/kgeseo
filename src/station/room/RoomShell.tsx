@@ -1,6 +1,6 @@
 import { Outlines } from "@react-three/drei";
 
-import { TOON_GRADIENT } from "@/engine/toon";
+import { OUTLINE_COLOR, OUTLINE_THICKNESS, TOON_GRADIENT } from "@/engine/toon";
 import {
   CORNER_INSET,
   CORNER_SIZE,
@@ -12,7 +12,25 @@ import {
   ROOM_W,
 } from "@/station/layout/dimensions";
 
-import StructureOutlines, { type StructureOutline } from "./StructureOutlines";
+/**
+ * 방 구조물(몰딩·모서리 기둥·부축기둥·구조 기둥)의 선. Leva 「방 구조물(선)」 폴더 값이다.
+ * JSX 로 바로 만든 지오라 참조가 없어 주름선은 못 걸고 외곽선만 둘린다.
+ */
+export interface StructureOutline {
+  outline: boolean;
+  outlineWidth: number;
+  outlineColor: string;
+  /** 걸레받이·허리몰딩·코니스에도 선을 두를지 */
+  moldingOutline: boolean;
+}
+
+/** 기둥류 외곽선. 값을 안 주면 기본 굵기·색으로 두른다. */
+function StructureOutlines({ outline }: { outline?: StructureOutline }) {
+  if (outline?.outline === false) return null;
+  return (
+    <Outlines thickness={outline?.outlineWidth ?? OUTLINE_THICKNESS} color={outline?.outlineColor ?? OUTLINE_COLOR} />
+  );
+}
 
 // 겹쳐 놓이는 입체끼리 같은 평면을 공유하는 면이 하나라도 있으면 z-fighting 체커보드가 난다.
 // 아래 값들은 몰딩 3종 / 부축기둥 / 모서리 기둥의 앞·뒤·윗면이 전부 어긋나도록 잡았다.
@@ -81,7 +99,7 @@ function Rail({ y, height, depth, color = PALETTE.structDark, outline, gap }: Ra
   );
 }
 
-export interface RoomShellDoor {
+interface RoomShellDoor {
   /** 월드 z */
   z: number;
   width: number;
@@ -94,7 +112,7 @@ interface RoomShellProps {
   door?: RoomShellDoor | null;
 }
 
-/** 몰딩 3단 + 모서리 기둥 + 앞뒤 벽 부축기둥. */
+/** 방 껍데기 구조물 — 몰딩 3단 + 모서리 기둥 + 앞뒤 벽 부축기둥. 구조 기둥(Column)도 여기 둔다. */
 export default function RoomShell({ outline, door }: RoomShellProps) {
   // 그룹이 ROOM_CZ 만큼 밀려 있어 로컬 z 로 바꾼다. 여유 0.3 은 몰딩이 문설주에 딱 붙지 않게.
   const gap = door ? { z: door.z - ROOM_CZ, width: door.width + 0.3 } : null;
@@ -149,6 +167,35 @@ export default function RoomShell({ outline, door }: RoomShellProps) {
           </mesh>
         )),
       )}
+    </group>
+  );
+}
+
+interface ColumnProps {
+  x: number;
+  z: number;
+  outline?: StructureOutline;
+}
+
+/** 구조 기둥 — 몸통 + 받침 + 머리. 충돌 박스는 STATIC_COLLIDERS 에 따로 있다. */
+export function Column({ x, z, outline }: ColumnProps) {
+  return (
+    <group position={[x, 0, z]}>
+      <mesh position={[0, 6, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[0.7, 0.8, 12, 20]} />
+        <meshToonMaterial color={PALETTE.struct} gradientMap={TOON_GRADIENT} />
+        <StructureOutlines outline={outline} />
+      </mesh>
+      <mesh position={[0, 0.3, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[1, 1, 0.6, 20]} />
+        <meshToonMaterial color={PALETTE.structDark} gradientMap={TOON_GRADIENT} />
+        <StructureOutlines outline={outline} />
+      </mesh>
+      <mesh position={[0, 11.8, 0]} castShadow receiveShadow>
+        <cylinderGeometry args={[1, 0.9, 0.5, 20]} />
+        <meshToonMaterial color={PALETTE.structDark} gradientMap={TOON_GRADIENT} />
+        <StructureOutlines outline={outline} />
+      </mesh>
     </group>
   );
 }

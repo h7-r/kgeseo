@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 
 import { IS_INPUT_ALWAYS_ON } from "@/app/runtimeFlags";
 import { exposeDevHook } from "@/debug/devHooks";
-import { aim } from "@/lobby/interactions";
+import { createChangeSignal } from "@/lib/changeSignal";
 import { lockState } from "@/props/combinationLock";
 import { corridorPower, hasSeenAllMarks, workLampLocation } from "@/props/workLampPuzzle/workLampState";
 
@@ -19,8 +19,10 @@ export const BREAKER_BOX_LOCK_ID = "workLamp:breakerBox";
 // 동그라미는 작업등 퍼즐 구간(z −30 안쪽)에만 둔다.
 const CORRIDOR_X = -25.5;
 export const CIRCLE_RADIUS = 1.6;
+/** 바닥 동그라미·방향 화살표가 같이 쓰는 하늘색 */
+export const TUTORIAL_COLOR = "#8ee8ff";
 
-export type TutorialStepId =
+type TutorialStepId =
   | "start"
   | "lookAround"
   | "walk"
@@ -36,17 +38,16 @@ export type TutorialStepId =
   | "done";
 
 /** 이번 단계에서 모은 기록 + 틱 문맥 */
-export interface TutorialContext {
+interface TutorialContext {
   pressed: Set<string>;
   pressCounts: Record<string, number>;
   turnedAngle: number;
-  hasTouched: boolean;
   previousYaw: number | null;
   isLocked: boolean;
   isInside: boolean;
 }
 
-export interface TutorialStep {
+interface TutorialStep {
   id: TutorialStepId;
   title: string;
   text: string;
@@ -190,7 +191,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
 // 퍼즐 구간에서만, 뒤 단계가 이미 끝났으면 앞 단계를 건너뛴다(순서와 다르게 풀었을 때).
 const FIRST_PUZZLE_STEP = TUTORIAL_STEPS.findIndex((step) => step.id === "workLamp");
 
-export interface TutorialState {
+interface TutorialState {
   /** TUTORIAL_STEPS 의 위치 */
   step: number;
   /** 방금 끝낸 단계 */
@@ -200,34 +201,26 @@ export interface TutorialState {
 }
 
 let state: TutorialState = { step: 0, previousStepId: null, isFinished: false, isHidden: false };
-const listeners = new Set<() => void>();
+const signal = createChangeSignal();
 function setState(patch: Partial<TutorialState>) {
   state = { ...state, ...patch };
-  for (const listener of listeners) listener();
+  signal.notify();
 }
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-};
 
-export const tutorialStore = { get: () => state, subscribe };
-export const useTutorial = () => useSyncExternalStore(subscribe, () => state);
+export const tutorialStore = { get: () => state, subscribe: signal.subscribe };
+export const useTutorial = () => useSyncExternalStore(signal.subscribe, () => state);
 
 // 단계가 바뀌면 비운다.
 const record: Omit<TutorialContext, "isLocked" | "isInside"> = {
   pressed: new Set(),
   pressCounts: {},
   turnedAngle: 0,
-  hasTouched: false,
   previousYaw: null,
 };
 function clearRecord() {
   record.pressed = new Set();
   record.pressCounts = {};
   record.turnedAngle = 0;
-  record.hasTouched = false;
   record.previousYaw = null;
 }
 
@@ -247,8 +240,6 @@ const KEY_NAMES: Partial<Record<string, string>> = {
   Space: "Space",
   KeyC: "C",
   KeyV: "V",
-  KeyE: "E",
-  KeyH: "H",
 };
 
 if (typeof window !== "undefined") {
@@ -258,8 +249,6 @@ if (typeof window !== "undefined") {
     if (!name) return;
     record.pressed.add(name);
     record.pressCounts[name] = (record.pressCounts[name] ?? 0) + 1;
-    // 겨냥한 게 있을 때 E = 실제로 무언가를 만졌다.
-    if (name === "E" && aim.get()) record.hasTouched = true;
   });
 }
 
@@ -274,7 +263,7 @@ exposeDevHook("tutorial", {
   restart: restartTutorial,
 });
 
-export interface TutorialTickInput {
+interface TutorialTickInput {
   eye: { x: number; z: number };
   /** 카메라 y 회전 */
   yaw: number;

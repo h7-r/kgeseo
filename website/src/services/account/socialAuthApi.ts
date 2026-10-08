@@ -47,7 +47,7 @@ export async function postSocialAuth(path: "/google" | "/naver", payload: unknow
   return toSocialProfile(body);
 }
 
-export interface SocialProfile {
+interface SocialProfile {
   provider: string;
   subject: string;
   email: string;
