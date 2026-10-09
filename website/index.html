@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>왜곡 — 시작</title>
+
+    <!-- 메인의 LCP 그림은 CSS 배경이라 JS 가 돌기 전에는 브라우저가 모른다. 메인일 때만 미리 받는다.
+         글꼴 stylesheet 보다 위에 둬야 CSS 를 기다리지 않고 바로 실행된다. -->
+    <script>
+      if (location.pathname === "/") {
+        const preload = document.createElement("link");
+        preload.rel = "preload";
+        preload.as = "image";
+        preload.href = "/hero-scrub-poster.webp";
+        preload.setAttribute("fetchpriority", "high");
+        document.head.appendChild(preload);
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://fastly.jsdelivr.net" crossorigin />
+    <!-- 글꼴 CSS 가 렌더를 막지 않게 preload 후 stylesheet 로 바꿔 붙인다. -->
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap"
+      onload="
+        this.onload = null;
+        this.rel = 'stylesheet';
+      "
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap"
+      />
+    </noscript>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

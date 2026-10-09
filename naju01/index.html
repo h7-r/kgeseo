@@ -2,10 +2,14 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NAJU-01 그레이박스</title>
   </head>
   <body>
+    <!-- 본편에서 텔레포트로 넘어온 경우 — 로딩 영상(src/transition/LoadingVideoOverlay.tsx)이 뜨기 전 한순간도
+         밝은 바탕이 비치지 않게, 이어받을 장면이 있으면 바탕부터 영상 막과 같은 색으로 칠해 둔다. -->
+    <script>try { if (sessionStorage.getItem("kgeseo.loading.handoff.v2")) document.documentElement.style.background = "#01040a"; } catch (e) {}</script>
     <div id="root"></div>
     <!-- 에러 수집기 — 본편 index.html 과 같은 장치.
          잡히지 않은 에러를 탭 제목에 찍고 window.__E 에 쌓아 둔다. -->
@@ -20,6 +24,6 @@
         __err("REJ " + ((e.reason && e.reason.stack) || e.reason)),
       );
     </script>
-    <script type="module" src="./src/main.jsx"></script>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

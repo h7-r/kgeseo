@@ -1,0 +1,449 @@
+/* placeholder 색은 의사요소라 인라인으로 못 준다. 칸마다 --placeholder-color 를 넘겨 여기서 받는다. */
+.text-input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--color-white);
+  resize: none;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+}
+
+.text-input::placeholder {
+  color: var(--placeholder-color, #6f7a8c);
+  opacity: 1; /* 파이어폭스는 기본으로 흐리게 만든다 */
+}
+
+.theme-light .text-input {
+  color: #1a1a1f;
+}
+
+/* 칸 아래에 띄워서 배치를 밀지 않는다 */
+.form-error {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.2;
+  color: #f87171;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.form-field.is-error,
+.inquiry-field__box.is-error {
+  border-bottom-color: rgba(248, 113, 113, 0.75) !important;
+  border-color: rgba(248, 113, 113, 0.55);
+}
+
+.form-field__notice {
+  position: absolute;
+  bottom: 12px;
+  font-size: 12px;
+  line-height: 1;
+  color: #f87171;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.inquiry-type-select__list {
+  transform-origin: top center;
+  animation: list-open 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes list-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scaleY(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inquiry-type-select__list {
+    animation: none;
+  }
+}
+
+/* 칸이 밑줄 모양이라 네모 outline 대신 밑줄을 밝혀 초점을 보인다 */
+.text-input:focus-visible {
+  outline: none;
+}
+.form-field {
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+.form-field:focus-within {
+  border-bottom-color: var(--color-blue-mid) !important;
+  box-shadow: 0 1px 0 0 rgba(50, 82, 150, 0.55);
+}
+/* 지역 상자가 열려 있는 동안. 아래 오류·통과 규칙보다 앞에 둬야 그 색이 이긴다. */
+.region-picker__field.is-open {
+  border-bottom-color: var(--color-blue-mid) !important;
+}
+
+/* grid-template-rows 0fr → 1fr 로 글 높이를 몰라도 그만큼 열린다.
+   margin-top 은 묶음의 gap(10px)을 닫혀 있을 땐 없애고, 열리면 밑줄과 6px 만 띄운다. */
+.input-hint {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: -10px;
+  opacity: 0;
+  transition:
+    grid-template-rows 0.2s ease,
+    margin-top 0.2s ease,
+    opacity 0.18s ease;
+}
+.input-hint > div {
+  min-height: 0;
+  overflow: hidden;
+}
+.input-hint.is-open {
+  grid-template-rows: 1fr;
+  margin-top: -4px;
+  opacity: 1;
+}
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.input-hint__text {
+  display: block;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-accent);
+  padding-bottom: 2px;
+}
+
+.password-rules {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 13px;
+  color: #475569;
+}
+.password-rules__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.18s ease;
+}
+.password-rules__item.is-valid {
+  color: #4ade80;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .input-hint {
+    transition: none;
+  }
+}
+
+/* .form-field:focus-within 보다 구체적이어야 틀린 칸에 들어가도 빨강이 남는다 */
+.form-field.is-error,
+.form-field.is-error:focus-within {
+  border-bottom-color: rgba(248, 113, 113, 0.85) !important;
+  box-shadow: 0 1px 0 0 rgba(248, 113, 113, 0.35);
+}
+.form-field.is-valid,
+.form-field.is-valid:focus-within {
+  border-bottom-color: rgba(74, 222, 128, 0.6) !important;
+  box-shadow: 0 1px 0 0 rgba(74, 222, 128, 0.22);
+}
+
+.form-field__check {
+  position: absolute;
+  bottom: 12px;
+  font-size: 15px;
+  line-height: 1;
+  color: #4ade80;
+  pointer-events: none;
+  animation: check-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes check-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.form-field__notice.is-warning {
+  color: #fbbf24;
+}
+.form-field__notice.is-checking {
+  color: var(--color-accent);
+}
+
+/* 라벨 줄 오른쪽 한 줄 — 칸 사이를 덮지도, 아래 칸을 밀지도 않는다 */
+.label-row__error {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis; /* 넘치면 … 으로. 전체 문장은 title 로 */
+  white-space: nowrap;
+  text-align: right;
+  font-size: 13px;
+  line-height: 1.2;
+  color: #f87171;
+  animation: message-in 0.18s ease-out;
+}
+
+.label-row__typo-fix {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  line-height: 1.2;
+  color: #fbbf24;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.label-row__typo-fix u {
+  color: #fde68a;
+}
+.label-row__typo-fix:focus-visible {
+  outline: 1px solid #fbbf24;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .form-field__check,
+  .label-row__error {
+    animation: none;
+  }
+}
+
+.region-picker__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  font-size: 18px;
+  line-height: 1.5;
+  letter-spacing: 0.2px;
+  text-align: left;
+  cursor: pointer;
+}
+/* 초점은 밑줄이 밝아지는 걸로 보인다 */
+.region-picker__trigger:focus-visible {
+  outline: none;
+}
+.region-picker__chevron {
+  flex-shrink: 0;
+  color: var(--color-accent);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.region-picker__field.is-open .region-picker__chevron {
+  transform: rotate(180deg);
+}
+
+.region-picker__list {
+  position: absolute;
+  top: calc(100% + 10px);
+  width: 420px;
+  padding: 16px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 14px;
+  background: rgba(5, 11, 26, 0.97);
+  border: 1px solid #1a305f;
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(59, 94, 162, 0.12),
+    0 0 32px rgba(46, 72, 137, 0.18);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-sizing: border-box;
+  transform-origin: top right;
+  animation: region-list-open 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes region-list-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.region-picker__list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px 8px;
+  border-bottom: 1px solid rgba(50, 82, 150, 0.18);
+  font-size: 13px;
+  letter-spacing: 0.6px;
+  color: #c9d2e6;
+}
+.region-picker__list-help {
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  color: #6f7a8c;
+}
+
+.region-picker__group {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: center;
+  gap: 10px;
+}
+.region-picker__group-name {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: var(--color-accent);
+}
+.region-picker__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.region-picker__chip {
+  min-width: 56px;
+  text-align: center;
+  padding: 7px 12px;
+  border-radius: 100px;
+  border: 1px solid rgba(50, 82, 150, 0.35);
+  background: rgba(46, 72, 137, 0.06);
+  color: #c9d2e6;
+  font-size: 15px;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    transform 0.12s ease;
+}
+.region-picker__chip:hover,
+.region-picker__chip:focus-visible {
+  outline: none;
+  border-color: var(--color-blue-light);
+  background: rgba(46, 72, 137, 0.28);
+  color: var(--color-white);
+}
+.region-picker__chip:active {
+  transform: scale(0.95);
+}
+.region-picker__chip.is-selected {
+  border-color: rgba(111, 134, 191, 0.7);
+  background-image: linear-gradient(135deg, rgb(46, 72, 137) 0%, rgb(54, 64, 143) 100%);
+  color: var(--color-white);
+  box-shadow: 0 0 14px rgba(50, 82, 150, 0.45);
+}
+
+/* 동의 줄 안의 링크 — 누르면 체크가 아니라 약관이 열린다 */
+.consent-group__terms-link {
+  color: var(--color-accent);
+  letter-spacing: 0.5px;
+  text-decoration: underline;
+  text-decoration-color: rgba(111, 134, 191, 0.35);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition:
+    color 0.16s ease,
+    text-decoration-color 0.16s ease;
+}
+.consent-group__terms-link:hover,
+.consent-group__terms-link:focus-visible {
+  color: #9aabd8;
+  text-decoration-color: currentColor;
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .region-picker__list {
+    animation: none;
+  }
+  .region-picker__chevron,
+  .region-picker__chip {
+    transition: none;
+  }
+}
+
+/* 모달은 무대 밖이라 밑줄보다 네모 칸이 또렷해 읽기 쉽다 */
+.modal__input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #262d40;
+  background: #0b1224;
+  color: var(--color-text-bright);
+  font: inherit;
+  font-size: 16px;
+  box-sizing: border-box;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.modal__input:focus {
+  outline: none;
+  border-color: var(--color-blue-light);
+  box-shadow: 0 0 0 3px rgba(79, 108, 176, 0.25);
+}
+.modal__input.is-error {
+  border-color: rgba(248, 113, 113, 0.8);
+}
+.modal__input.is-valid {
+  border-color: rgba(74, 222, 128, 0.6);
+}
+
+.toggle-switch {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid #3a4258;
+  border-radius: 999px;
+  background: #1a1c26;
+  cursor: pointer;
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease;
+}
+.toggle-switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #96a3b6;
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.18s ease;
+}
+.toggle-switch[aria-checked="true"] {
+  background: var(--color-navy);
+  border-color: var(--color-blue-light);
+}
+.toggle-switch[aria-checked="true"]::after {
+  transform: translateX(20px);
+  background: var(--color-white);
+}
+.toggle-switch:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

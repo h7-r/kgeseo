@@ -1,0 +1,23 @@
+/* 표제 28곳이 굵기를 따로 적지 않는다. 100~900 을 한 벌로 선언해 어떤 굵기를 요구해도 이 글꼴이 쓰이게 한다. */
+@font-face {
+  font-family: "Paperlogy";
+  src: url("https://fastly.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8ExtraBold.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --color-bg: #01040a;
+  --color-white: #ffffff;
+  --color-text-bright: #f1f1fc;
+  --color-accent: #6f86bf;
+  --color-accent-light: #9fb2ea;
+  --color-navy: #2e4889;
+  --color-blue-mid: #325296;
+  --color-blue-light: #4f6cb0;
+
+  --font-korean: "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif;
+
+  /* 끝이 확 붙는 곡선. 기본 ease 는 일부러 넣은 움직임처럼 보이지 않는다. */
+  --ease-smooth: cubic-bezier(0.23, 1, 0.32, 1);
+}

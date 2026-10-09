@@ -1,41 +1,40 @@
-/* index.css — 전역 스타일
-   개념: 게임 화면을 항상 16:9로 유지하고 화면 가운데 배치. */
+/* 전역 스타일 — 게임 무대가 브라우저 창을 꽉 채운다. */
 
-* { box-sizing: border-box; }              /* 크기 계산을 직관적으로 */
+* {
+  box-sizing: border-box;
+}
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
 }
 
-/* ★ #root 에 너비를 명시해야 한다.
-   body 가 display:grid + place-items:center 라서 자식(#root)은 '내용 크기만큼'
-   줄어든다(shrink-to-fit). 그러면 .stage 의 width:100% 가 그 줄어든 크기를
-   기준으로 계산되고, <canvas> 기본 크기 300px 에 물려 화면이 300px 로 주저앉는다.
-   너비를 100%로 못박고, 가운데 정렬은 #root 가 대신 맡는다. */
+body {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  background: #141014;
+}
+
+/* body 가 grid 라 #root 는 내용 크기로 줄어든다. 너비를 못박지 않으면
+   <canvas> 기본 300px 에 물려 화면이 주저앉는다. */
 #root {
   width: 100%;
   display: grid;
   place-items: center;
 }
 
-body {
-  display: grid;                            /* 가운데 정렬용 그리드 */
-  place-items: center;                      /* 수평·수직 중앙 */
-  min-height: 100vh;
-  background: #141014;                      /* 무대 바깥(레터박스) 어두운 배경 */
-}
-
-/* 게임 무대: 브라우저 창을 꽉 채운다.
-   ★ 예전엔 aspect-ratio 16:9 + max-width 1280px 로 '창'처럼 가운데 띄웠는데,
-     그러면 브라우저 창이 16:9 보다 세로로 길 때 위아래에 검은 띠가 생겼다.
-     3D 는 <canvas> 부모 크기에 맞춰 카메라 비율을 자동으로 잡으므로,
-     비율을 고정하지 않고 창을 꽉 채워도 화면이 늘어나지 않는다.
-   ※ 100dvh = 모바일 주소창을 감안한 '진짜 보이는 높이'. 100vh 보다 정확하다. */
-.stage {
+/* 비율을 고정하지 않는다 — R3F 가 부모 크기로 카메라 비율을 잡으므로 늘어나지 않고,
+   세로로 긴 창에서 위아래 검은 띠도 안 생긴다. dvh = 모바일 주소창을 뺀 실제 높이. */
+.game-stage {
   width: 100vw;
   height: 100dvh;
 }
 
-/* R3F가 만든 <canvas>가 무대를 꽉 채우도록 */
-.stage canvas { display: block; width: 100% !important; height: 100% !important; }
+.game-stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
