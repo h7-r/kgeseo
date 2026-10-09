@@ -1,7 +1,7 @@
 // 층이 여러 개인 지형 위를 걷는 1·3인칭 이동.
 // engine 의 useMovement 는 바닥이 하나라고 가정한다. NAJU-01 은 EL 0 · +8 · +14 가 이어져 발밑을 좌표로 물어야 하는 것만 다르다.
 // 조작감 숫자(걷기·달리기·앉기·중력·점프·공중제어·반경)와 키 규칙은 engine 것을 그대로 쓴다 — 역·기차와 같은 조작감.
-// 걷기 속도는 §9 가정치(2.5 m/s)와 본편 WALK 중 걸어 봐야 정할 값이라 인자로 받아 Leva 로 돌린다(안 넘기면 WALK).
+// 걷기 속도는 §9 가정치(2.5 m/s)와 본편 WALK_SPEED 중 걸어 봐야 정할 값이라 인자로 받아 Leva 로 돌린다(안 넘기면 WALK_SPEED).
 
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import * as THREE from "three";
@@ -9,14 +9,14 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import {
   AIR_CONTROL,
-  CROUCH,
-  EYE,
+  CROUCH_SPEED_MULTIPLIER,
+  EYE_HEIGHT,
   GRAVITY,
   HANDLED_KEYS,
-  JUMP,
+  JUMP_VELOCITY,
   PLAYER_RADIUS,
-  RUN,
-  WALK,
+  RUN_SPEED_MULTIPLIER,
+  WALK_SPEED,
 } from "@/engine/movement/constants";
 import type { PlayerMotionState } from "@/engine/movement/useMovement";
 
@@ -67,7 +67,7 @@ interface TerrainMovementOptions {
   /** 시작 자리 [x, z, 방위] */
   start?: [number, number, Heading?];
   eyeHeight?: number;
-  /** m/s — 안 넘기면 본편 WALK 그대로 */
+  /** m/s — 안 넘기면 본편 WALK_SPEED 그대로 */
   walkSpeed?: number | null;
   fallRecovery?: boolean;
   reportRef?: { current: MovementReport | null } | null;
@@ -155,7 +155,7 @@ export function useTerrainMovement(
       if (e.ctrlKey || e.metaKey) return;
       if (HANDLED_KEYS.has(e.code)) e.preventDefault();
       if (e.code === "Space" && isGrounded.current) {
-        verticalVelocity.current = JUMP;
+        verticalVelocity.current = JUMP_VELOCITY;
         isGrounded.current = false;
         isJumping.current = true;
       }
@@ -281,8 +281,8 @@ export function useTerrainMovement(
       if (k.left) wish.sub(right);
       if (wish.lengthSq() > 0) wish.normalize();
       if (wish.lengthSq() > 0.00001) facing.current = Math.atan2(wish.x, wish.z);
-      const baseSpeed = walkSpeed ? walkSpeed * UNITS_PER_METER : WALK;
-      const speed = baseSpeed * (isCrouching ? CROUCH : k.run ? RUN : 1);
+      const baseSpeed = walkSpeed ? walkSpeed * UNITS_PER_METER : WALK_SPEED;
+      const speed = baseSpeed * (isCrouching ? CROUCH_SPEED_MULTIPLIER : k.run ? RUN_SPEED_MULTIPLIER : 1);
       const goal = wish.multiplyScalar(speed);
 
       if (isGrounded.current) {
@@ -405,7 +405,7 @@ export function useTerrainMovement(
         visitedZones: visited.current,
         terrain,
         eyeHeight,
-        walkSpeed: walkSpeed ?? WALK * METERS_PER_UNIT,
+        walkSpeed: walkSpeed ?? WALK_SPEED * METERS_PER_UNIT,
       };
 
     // 캐릭터는 논리 플레이어의 지면 좌표를 받고, 3인칭 카메라는 시선 반대편으로 물러난다.
@@ -453,12 +453,12 @@ export function useTerrainMovement(
 
 /** 본편 engine 이 정한 원래 이동 값(m). 계기판이 Leva 로 돌린 값과 나란히 보여 준다. */
 export const MOVEMENT_CONSTANTS = {
-  walk: WALK * METERS_PER_UNIT, // m/s
-  run: WALK * RUN * METERS_PER_UNIT,
-  crouchWalk: WALK * CROUCH * METERS_PER_UNIT,
-  jump: JUMP * METERS_PER_UNIT,
+  walk: WALK_SPEED * METERS_PER_UNIT, // m/s
+  run: WALK_SPEED * RUN_SPEED_MULTIPLIER * METERS_PER_UNIT,
+  crouchWalk: WALK_SPEED * CROUCH_SPEED_MULTIPLIER * METERS_PER_UNIT,
+  jump: JUMP_VELOCITY * METERS_PER_UNIT,
   gravity: GRAVITY * METERS_PER_UNIT,
   radius: PLAYER_RADIUS * METERS_PER_UNIT,
   // 이 그레이박스는 §9 의 1.6 m 눈높이로 걷는다. 본편과 시선 차이를 잊으면 V1~V3 시야 판정을 옮길 때 어긋난다(§7 0단계).
-  mainEyeHeight: EYE * METERS_PER_UNIT,
+  mainEyeHeight: EYE_HEIGHT * METERS_PER_UNIT,
 };

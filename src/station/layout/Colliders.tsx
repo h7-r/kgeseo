@@ -3,7 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { PLAYER_RADIUS } from "@/engine/movement/constants";
-import { pushOffset } from "@/props/vendingPush";
+import { getPushOffset } from "@/props/vendingPushState";
 
 import { dynamicColliders, STATIC_COLLIDERS, type ColliderBox } from "./collision";
 
@@ -130,7 +130,7 @@ export function VendingMachineCollider({
     if (!enabled || !followsPush) return;
     const b = dynamicColliders.get(name);
     if (!b) return;
-    const d = pushOffset();
+    const d = getPushOffset();
     b.minZ = box.minZ + d;
     b.maxZ = box.maxZ + d;
   });
@@ -143,7 +143,7 @@ interface ColliderDebugViewProps {
 }
 
 /**
- * 막고 있는 영역을 빨간 상자로 그린다. hit() 이 플레이어 반지름을 더하므로 같은 만큼 부풀려야
+ * 막고 있는 영역을 빨간 상자로 그린다. isBlockedForPlayer() 가 플레이어 반지름을 더하므로 같은 만큼 부풀려야
  * 화면이 실제로 못 들어가는 범위와 맞는다.
  */
 export function ColliderDebugView({ visible = false, height = 4 }: ColliderDebugViewProps) {

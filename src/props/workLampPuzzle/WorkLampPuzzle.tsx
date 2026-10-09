@@ -7,21 +7,21 @@ import { playerView } from "@/engine/playerView";
 import { requestShadowUpdates } from "@/engine/rendering";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
+import { AimHighlight } from "@/lobby/AimHighlight";
 import CombinationPadlock from "@/props/padlock/CombinationPadlock";
-import { useIsOpen } from "@/props/hingeState";
-import { BREAKER_BOX_LOCK_ID } from "@/tutorial/tutorial";
+import { useIsHingeOpen } from "@/props/hingeState";
+import { BREAKER_BOX_LOCK_ID } from "@/tutorial/tutorialState";
 import type { WorkLampPuzzleValues } from "@/station/controls/workLampControls";
 
 import BreakerBox from "./BreakerBox";
 import ChalkMark from "./ChalkMark";
-import { BIN_SIZE, BREAKER_DOOR_THICKNESS, startupBrightness } from "./geometry";
+import { BIN_SIZE, BREAKER_DOOR_THICKNESS, computeStartupBrightness } from "./puzzleGeometry";
 import HandwrittenHint from "./HandwrittenHint";
 import JunctionBox from "./JunctionBox";
 import { DOOR_LATCH, FRAME_LATCH } from "./latches";
 import Painting from "./Painting";
 import PuzzleCables from "./PuzzleCables";
-import Recycling, { type RegisterCollider } from "./Recycling";
+import RecyclingStation, { type RegisterCollider } from "./RecyclingStation";
 import ReleaseButton from "./ReleaseButton";
 import WindowSwitchPanel from "./WindowSwitchPanel";
 import WorkLampModel from "./WorkLampModel";
@@ -29,27 +29,28 @@ import {
   dropTrash,
   dropWire,
   dropWorkLamp,
-  heldTrash,
-  heldWireShape,
+  getHeldTrash,
+  getHeldWireShape,
   JUNCTION_SLOTS,
   pickUpWorkLamp,
   plugWorkLamp,
   raiseBreaker,
-  useCorridorPower,
-  useEndDoorReleased,
-  useFullPower,
+  useIsCorridorPowered,
+  useIsEndDoorReleased,
+  useHasFullPower,
   useWorkLampLocation,
-  workLampFloorSpot,
-  workLampLocation,
+  getWorkLampFloorSpot,
+  getWorkLampLocation,
   type JunctionSlot,
   type WorkLampLocation,
 } from "./workLampState";
 
 type Wall = "inner" | "outer";
 
-const isSlot = (location: WorkLampLocation): location is JunctionSlot => location !== "floor" && location !== "hand";
+const isJunctionSlot = (location: WorkLampLocation): location is JunctionSlot =>
+  location !== "floor" && location !== "hand";
 /** 함이 향하는 쪽(+x / −x) */
-const wallDirection = (wall: Wall) => (wall === "outer" ? 1 : -1);
+const getWallDirection = (wall: Wall) => (wall === "outer" ? 1 : -1);
 
 interface JunctionSpot {
   slot: JunctionSlot;
@@ -100,11 +101,11 @@ export default function WorkLampPuzzle({
   outline,
 }: WorkLampPuzzleProps) {
   const location = useWorkLampLocation();
-  const isPowered = useCorridorPower();
-  const isFullPower = useFullPower();
-  const isReleased = useEndDoorReleased();
+  const isPowered = useIsCorridorPowered();
+  const isFullPower = useHasFullPower();
+  const isReleased = useIsEndDoorReleased();
   // 문이 열리면 자물쇠·걸쇠를 통째로 감춘다(아래)
-  const isBreakerOpen = useIsOpen(BREAKER_BOX_LOCK_ID);
+  const isBreakerOpen = useIsHingeOpen(BREAKER_BOX_LOCK_ID);
 
   // 「상자는 바뀌는데 화면이 안 따라온다」를 가릴 때 이 두 값을 나란히 본다
   useEffect(() => {
@@ -182,19 +183,19 @@ export default function WorkLampPuzzle({
     if (previousLocation.current === location) return;
     previousLocation.current = location;
     // 분기함에 꽂은 순간만 껌뻑인다. 손에 들 때는 바로 켜진다.
-    startupAt.current = isSlot(location) ? performance.now() / 1000 : -99;
+    startupAt.current = isJunctionSlot(location) ? performance.now() / 1000 : -99;
     // 빛이 확 바뀌므로 그림자를 한 번 따라오게 한다
     requestShadowUpdates(1.2);
   }, [location]);
 
   useFrame(() => {
-    const value = isSlot(location) ? startupBrightness(performance.now() / 1000 - startupAt.current) : 0;
+    const value = isJunctionSlot(location) ? computeStartupBrightness(performance.now() / 1000 - startupAt.current) : 0;
     strength.current = value;
     for (const slot of JUNCTION_SLOTS) markStrengths[slot].current = location === slot ? value : 0;
   });
 
   // 손에 들었을 때는 여기서 안 그린다
-  const droppedSpot = workLampFloorSpot();
+  const droppedSpot = getWorkLampFloorSpot();
   const lampSpot = useMemo((): { position: THREE.Vector3Tuple; rotation: THREE.Vector3Tuple } | null => {
     if (location === "floor")
       return {
@@ -204,7 +205,7 @@ export default function WorkLampPuzzle({
       };
     const box = boxes.find((b) => b.slot === location);
     if (!box) return null;
-    const d = wallDirection(box.wall);
+    const d = getWallDirection(box.wall);
     return {
       // 고리를 함 앞으로 내밀어 달았으므로 램프도 그 자리에 매단다
       position: [
@@ -253,15 +254,15 @@ export default function WorkLampPuzzle({
   // 분기함·문을 보고 있으면 그쪽이 먼저 잡힌다.
   const dropHeld = useEffectEvent(() => {
     // 전선·쓰레기는 바닥에 두지 않고 제자리로 돌아간다
-    if (heldWireShape()) {
+    if (getHeldWireShape()) {
       dropWire();
       return;
     }
-    if (heldTrash()) {
+    if (getHeldTrash()) {
       dropTrash();
       return;
     }
-    if (workLampLocation() !== "hand") return;
+    if (getWorkLampLocation() !== "hand") return;
     dropWorkLamp(dropSpot());
   });
   useEffect(() => {
@@ -292,7 +293,7 @@ export default function WorkLampPuzzle({
       );
       light.intensity = values.handIntensity;
       light.distance = values.handDistance;
-    } else if (isSlot(location)) {
+    } else if (isJunctionSlot(location)) {
       if (lampSpot) light.position.set(...lampSpot.position);
       light.intensity = values.pluggedIntensity * strength.current;
       light.distance = values.pluggedDistance;
@@ -309,14 +310,14 @@ export default function WorkLampPuzzle({
   return (
     <group>
       {boxes.map((box) => {
-        const d = wallDirection(box.wall);
+        const d = getWallDirection(box.wall);
         const x = wallX(box.wall);
         const aimPoint: THREE.Vector3Tuple = [x + d * 0.35, values.boxY, box.z];
         const isHere = location === box.slot;
         return (
           <group key={box.slot}>
             {/* 겨냥하면 함이 스스로 빛난다 — 복도 소품이 전부 쓰는 방식이다 */}
-            <Highlight id={`workLamp:${box.slot}`} anchor={() => null} grow={0} strength={0.22}>
+            <AimHighlight id={`workLamp:${box.slot}`} anchor={() => null} grow={0} strength={0.22}>
               <JunctionBox
                 position={[x, values.boxY, box.z]}
                 direction={d}
@@ -330,7 +331,7 @@ export default function WorkLampPuzzle({
                 ceilingHeight={corridorHeight}
                 outline={outline}
               />
-            </Highlight>
+            </AimHighlight>
             {/* 거리는 사람 자리에서 잰 진짜 거리다(함은 벽, 사람은 복도 가운데).
                 반경이 넉넉한 건 3인칭 때문 — 카메라가 뒤라 같은 반경이 화면에선 절반 각도다. */}
             <Interactable
@@ -347,7 +348,7 @@ export default function WorkLampPuzzle({
       })}
 
       {boxes.map((box) => {
-        const d = wallDirection(box.wall);
+        const d = getWallDirection(box.wall);
         return (
           <ChalkMark
             key={`mark${box.slot}`}
@@ -364,7 +365,7 @@ export default function WorkLampPuzzle({
       })}
 
       {location !== "hand" && lampSpot && (
-        <Highlight id="workLamp:pickUp" anchor={() => lampSpot.position} grow={0.12} strength={0.6}>
+        <AimHighlight id="workLamp:pickUp" anchor={() => lampSpot.position} grow={0.12} strength={0.6}>
           <group position={lampSpot.position} rotation={lampSpot.rotation}>
             <WorkLampModel
               scale={values.lampScale}
@@ -372,12 +373,12 @@ export default function WorkLampPuzzle({
               rubberColor={values.rubberColor}
               bulbColor={values.bulbColor}
               // 그린 순간의 점등 세기를 읽는다 — 꽂은 직후엔 0 이라 전구는 다음 판까지 어둡다
-              glow={isSlot(location) ? strength.current : values.floorGlow}
+              glow={isJunctionSlot(location) ? strength.current : values.floorGlow}
               floorGlint={location === "floor" ? values.floorGlint : 0}
               outline={outline}
             />
           </group>
-        </Highlight>
+        </AimHighlight>
       )}
 
       {/* 조건 없이 늘 놓는다 — 손에 든 동안에도 불이 나야 한다. 자리는 useFrame 이 옮긴다.
@@ -434,7 +435,7 @@ export default function WorkLampPuzzle({
             }}
             outline={outline}
           />
-          <Recycling
+          <RecyclingStation
             values={values}
             outerX={outerX}
             brightnessAt={brightnessAt}

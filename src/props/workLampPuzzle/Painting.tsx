@@ -4,26 +4,31 @@ import { Outlines } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 
 import { scaleColor } from "@/engine/color";
-import { mergeBoxes, type MergeBox } from "@/engine/geometry";
+import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
-import { Highlight } from "@/lobby/Highlight";
+import { AimHighlight } from "@/lobby/AimHighlight";
 
 import { createCurrentMaterial, FLOW_SECONDS } from "./currentFlow";
-import { PAINTING_HEIGHT_PX, PAINTING_WIDTH_PX, roundedPolyline, startupBrightness } from "./geometry";
-import { lastTrainBackgroundTexture, lastTrainWindowLightTexture } from "./paintingTextures";
-import { nameplateTexture } from "./textures";
-import { flowStartedAt, isBinComplete, useWindowSwitchKey } from "./workLampState";
+import {
+  PAINTING_HEIGHT_PX,
+  PAINTING_WIDTH_PX,
+  computeRoundedPolyline,
+  computeStartupBrightness,
+} from "./puzzleGeometry";
+import { makeLastTrainBackgroundTexture, makeLastTrainWindowLightTexture } from "./paintingTextures";
+import { makeNameplateTexture } from "./labelTextures";
+import { getFlowStartedAt, isBinComplete, useWindowSwitchKey } from "./workLampState";
 
 /** 틀 폭 */
 const FRAME = 0.24;
 const WINDOW_LIGHT_COLOR = new THREE.Color(1.6, 1.45, 1.2);
 
 /** 형광등이 붙듯 두어 번 껌뻑이다 선다(0~1) */
-const windowStartup = (t: number) => (t < 0 ? 0 : startupBrightness(t));
+const computeWindowStartup = (t: number) => (t < 0 ? 0 : computeStartupBrightness(t));
 
 /** 액자 틀 네 변 */
-function framePieces(width: number, height: number, depthX: number, bar: number, margin: number): MergeBox[] {
+function buildFramePieces(width: number, height: number, depthX: number, bar: number, margin: number): BoxPiece[] {
   const halfW = width / 2 + margin,
     halfH = height / 2 + margin;
   return [
@@ -50,9 +55,9 @@ interface PaintingProps {
 export default function Painting({ position, width = 2.6, direction = -1, brightness = 1, outline }: PaintingProps) {
   const d = direction;
   const height = width * (PAINTING_HEIGHT_PX / PAINTING_WIDTH_PX);
-  const background = lastTrainBackgroundTexture();
-  const windowLights = lastTrainWindowLightTexture(useWindowSwitchKey());
-  const nameplate = nameplateTexture("막차", "— 왜곡역 개통 기념 · 1987 —");
+  const background = makeLastTrainBackgroundTexture();
+  const windowLights = makeLastTrainWindowLightTexture(useWindowSwitchKey());
+  const nameplate = makeNameplateTexture("막차", "— 왜곡역 개통 기념 · 1987 —");
   const faceRotation: [number, number, number] = [0, d > 0 ? Math.PI / 2 : -Math.PI / 2, 0];
   const windowMaterial = useRef<THREE.MeshBasicMaterial>(null);
   const lightRef = useRef<THREE.PointLight>(null);
@@ -64,7 +69,7 @@ export default function Painting({ position, width = 2.6, direction = -1, bright
       halfW = width / 2 + FRAME * 0.5,
       halfH = height / 2 + FRAME * 0.5;
     const side = (s: number) =>
-      roundedPolyline(
+      computeRoundedPolyline(
         [
           [x, halfH, 0],
           [x, halfH, s * halfW],
@@ -86,22 +91,31 @@ export default function Painting({ position, width = 2.6, direction = -1, bright
     // 두 선이 다 닿은 뒤부터 잰다 — 테를 도는 1.2 초, 그 뒤 창에 불
     const arrived =
       isBinComplete("general") && isBinComplete("plastic")
-        ? Math.max(flowStartedAt("general"), flowStartedAt("plastic")) + FLOW_SECONDS
+        ? Math.max(getFlowStartedAt("general"), getFlowStartedAt("plastic")) + FLOW_SECONDS
         : Infinity;
     const now = performance.now() / 1000;
     rimCurrentMaterial.uniforms.uProg.value = Math.min(1, Math.max(0, (now - arrived) / 1.2));
     rimCurrentMaterial.uniforms.uTime.value = now;
     rimCurrentMaterial.uniforms.uLen.value = width + height;
-    const on = windowStartup(now - arrived - 1.2);
+    const on = computeWindowStartup(now - arrived - 1.2);
     // visible 은 끄지 않는다 — 처음 켤 때 셰이더 컴파일로 멈춘다
     if (windowMaterial.current) windowMaterial.current.opacity = on;
     if (lightRef.current) lightRef.current.intensity = on * 6;
     lampMaterial.current?.color.setScalar(0.25 + on * 2.2);
   });
   // 짙은 호두나무 바깥 + 금박 안쪽 턱 + 리넨 속틀
-  const outerFrame = useMemo(() => mergeBoxes(framePieces(width, height, 0.14, FRAME, FRAME)), [width, height]);
-  const gildedEdge = useMemo(() => mergeBoxes(framePieces(width, height, 0.18, 0.05, 0.05)), [width, height]);
-  const linerFrame = useMemo(() => mergeBoxes(framePieces(width, height, 0.12, 0.06, 0.01)), [width, height]);
+  const outerFrame = useMemo(
+    () => buildMergedBoxes(buildFramePieces(width, height, 0.14, FRAME, FRAME)),
+    [width, height],
+  );
+  const gildedEdge = useMemo(
+    () => buildMergedBoxes(buildFramePieces(width, height, 0.18, 0.05, 0.05)),
+    [width, height],
+  );
+  const linerFrame = useMemo(
+    () => buildMergedBoxes(buildFramePieces(width, height, 0.12, 0.06, 0.01)),
+    [width, height],
+  );
   useEffect(
     () => () => {
       outerFrame?.dispose();
@@ -112,7 +126,7 @@ export default function Painting({ position, width = 2.6, direction = -1, bright
   );
   return (
     <group position={position}>
-      <Highlight id="painting:lastTrain" anchor={() => null} grow={0} strength={0.1}>
+      <AimHighlight id="painting:lastTrain" anchor={() => null} grow={0} strength={0.1}>
         {outerFrame && (
           <mesh geometry={outerFrame} position={[d * 0.07, 0, 0]} castShadow>
             <meshToonMaterial color={scaleColor("#3e2616", brightness)} gradientMap={TOON_GRADIENT} />
@@ -130,7 +144,7 @@ export default function Painting({ position, width = 2.6, direction = -1, bright
             <meshToonMaterial color={scaleColor("#cfc6ad", brightness)} gradientMap={TOON_GRADIENT} />
           </mesh>
         )}
-      </Highlight>
+      </AimHighlight>
       {/* toon 재질에 복도 밝기를 곱한다 — basic 이면 어둠 속에서 그림만 환하게 뜬다 */}
       <mesh position={[d * 0.125, 0, 0]} rotation={faceRotation}>
         <planeGeometry args={[width, height]} />

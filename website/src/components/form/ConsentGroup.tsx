@@ -6,7 +6,7 @@ import { FONT } from "@/lib/style";
 import { ROUTES, withQuery } from "@/navigation/routes";
 import { COLOR, GRADIENT } from "@/styles/tokens";
 
-import type { FormVariant } from "./styles";
+import type { FormVariant } from "./formStyles";
 
 interface ConsentGroupProps {
   variant: FormVariant;
@@ -72,7 +72,7 @@ export default function ConsentGroup({
       </div>
 
       {error && (
-        <span className="error-text" style={{ left: "26px", top: "100%" }}>
+        <span className="form-error" style={{ left: "26px", top: "100%" }}>
           {error}
         </span>
       )}
@@ -95,7 +95,7 @@ function TermsLink({ tab, onOpen, children }: TermsLinkProps) {
   return (
     <button
       type="button"
-      className="terms-link"
+      className="consent-group__terms-link"
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();

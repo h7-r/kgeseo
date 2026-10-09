@@ -29,21 +29,21 @@ await expandLevaFolders(page);
 await toggleBakedTerrain(page);
 await page.waitForTimeout(20000);
 const off = await measure();
-const countOf = (side, name) => side.counts[name] || 0;
+const countByName = (side, name) => side.counts[name] || 0;
 const names = [...new Set([...Object.keys(on.counts), ...Object.keys(off.counts)])];
-names.sort((a, b) => Math.abs(countOf(on, b) - countOf(off, b)) - Math.abs(countOf(on, a) - countOf(off, a)));
+names.sort((a, b) => Math.abs(countByName(on, b) - countByName(off, b)) - Math.abs(countByName(on, a) - countByName(off, a)));
 console.log(`  새지형 켬=${on.useBlenderTerrain} 끔=${off.useBlenderTerrain}`);
 console.log("  이름                        켬        끔       차이  (☼ = 그림자도 그린다)");
 for (const name of names.slice(0, 16)) {
-  const onCount = countOf(on, name);
-  const offCount = countOf(off, name);
+  const onCount = countByName(on, name);
+  const offCount = countByName(off, name);
   if (onCount === offCount) continue;
   console.log(
     `  ${name.padEnd(24)} ${String(onCount).padStart(9)} ${String(offCount).padStart(9)} ${String(onCount - offCount).padStart(10)}`,
   );
 }
-const total = (side) => Object.values(side.counts).reduce((sum, count) => sum + count, 0);
+const sumCounts = (side) => Object.values(side.counts).reduce((sum, count) => sum + count, 0);
 console.log(
-  `  합계                     ${String(total(on)).padStart(9)} ${String(total(off)).padStart(9)} ${String(total(on) - total(off)).padStart(10)}`,
+  `  합계                     ${String(sumCounts(on)).padStart(9)} ${String(sumCounts(off)).padStart(9)} ${String(sumCounts(on) - sumCounts(off)).padStart(10)}`,
 );
 await browser.close();

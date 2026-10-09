@@ -32,7 +32,7 @@ const LEGACY_SETTINGS_KEY = "kgeseo.설정.v1";
 const DEFAULT_BGM_VOLUME = 0.6;
 
 /** 설정의 「배경음악」 크기(0~1) */
-export function bgmVolume(): number {
+export function getBgmVolume(): number {
   try {
     const current = localStorage.getItem(SETTINGS_KEY);
     const value: unknown = current
@@ -55,7 +55,7 @@ export function playMusic(kind: LoadingVideoKind, seconds = 0) {
   const audio = new Audio(seconds > 0 ? `${track.url}#t=${seconds.toFixed(2)}` : track.url);
   audio.preload = "auto";
   audio.loop = true;
-  audio.volume = bgmVolume() * track.gain;
+  audio.volume = getBgmVolume() * track.gain;
   audio.play().catch(() => {
     // 새 페이지라 아직 입력이 없으면 브라우저가 막는다 — 첫 키·클릭에 다시 튼다
     const retry = () => {
@@ -90,7 +90,7 @@ export function stopMusic(seconds = 1.2) {
   requestAnimationFrame(step);
 }
 
-export function musicTime(): number {
+export function getMusicTime(): number {
   return currentMusic?.audio.currentTime || 0;
 }
 
@@ -228,7 +228,7 @@ function isLoadingVideoKind(value: unknown): value is LoadingVideoKind {
 }
 
 /** n 번째로 틀 클립 — intro 를 다 틀면 loop 를 돈다 */
-export function clipAt(sequence: LoadingSequence, index: number): ClipId {
+export function getClipAt(sequence: LoadingSequence, index: number): ClipId {
   if (index < sequence.intro.length) return sequence.intro[index];
   return sequence.loop[(index - sequence.intro.length) % sequence.loop.length];
 }
@@ -266,7 +266,7 @@ let state: LoadingVideoState | null = readInitialState();
 // 리액트가 그리기 전에 곡을 건다 — 막이 그려질 때까지 기다리면 영상보다 늦게 들린다
 if (state) playMusic(state.kind, state.musicTime);
 const listeners = new Set<() => void>();
-const notify = () => listeners.forEach((listener) => listener());
+const notifyListeners = () => listeners.forEach((listener) => listener());
 
 let currentScene: () => LoadingScene | null = () => null;
 
@@ -317,7 +317,7 @@ function readInitialState(): LoadingVideoState | null {
 /** 막을 켠다 */
 export function showLoadingVideo(kind: LoadingVideoKind, { keepOpen = false }: LoadingVideoOptions = {}) {
   state = { kind, clipIndex: 0, videoTime: 0, musicTime: 0, lineIndex: 0, keepOpen, serial: (state?.serial ?? 0) + 1 };
-  notify();
+  notifyListeners();
 }
 
 /** 지금 장면을 적어 두고 다른 페이지로 옮긴다 — 새 페이지가 같은 장면부터 이어 튼다 */
@@ -336,7 +336,7 @@ export function continueLoadingVideoAt(url: string) {
 
 export function hideLoadingVideo() {
   state = null;
-  notify();
+  notifyListeners();
 }
 
 export function useLoadingVideoState(): LoadingVideoState | null {

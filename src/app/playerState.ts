@@ -1,7 +1,7 @@
 import { useEffect, type RefObject } from "react";
 import * as THREE from "three";
 
-import { EYE } from "@/engine/movement/constants";
+import { EYE_HEIGHT } from "@/engine/movement/constants";
 import type { AvatarPlayerLink } from "@/naju";
 
 import { IS_INPUT_ALWAYS_ON } from "./runtimeFlags";
@@ -18,7 +18,7 @@ interface PlayerState extends AvatarPlayerLink {
 /** 첫 값만 채운다. position 은 매 프레임 이동이 덮어쓰므로 실제 시작 자리는 Canvas 의 camera 다. */
 export function createPlayerState(): PlayerState {
   return {
-    position: new THREE.Vector3(-25.5, EYE, 0),
+    position: new THREE.Vector3(-25.5, EYE_HEIGHT, 0),
     footY: 0,
     groundY: 0,
     facing: Math.PI,

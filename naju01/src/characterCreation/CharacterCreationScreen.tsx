@@ -11,7 +11,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import {
   createDefaultDraft,
   normalizeDraft,
-  outfitSummary,
+  formatOutfitSummary,
   toCompletedCharacter,
   toRendererConfig,
   type CharacterDraft,
@@ -21,9 +21,9 @@ import {
 import { BasicsPanel, BodyPanel, HairPanel } from "./AppearancePanels";
 import { DEFAULT_CATALOG, type CharacterCatalog } from "./catalog";
 import CharacterPreview, { type PreviewControls, type PreviewQuality, type PreviewView } from "./CharacterPreview";
-import { measureLayout } from "./layout";
+import { measureScreenLayout } from "./screenLayout";
 import NamePanel from "./NamePanel";
-import { DEFAULT_NAME_RULES, normalizeName, normalizeNameRules, type CheckName } from "./nameRules";
+import { DEFAULT_NAME_RULES, normalizeName, normalizeNameRules, type NameChecker } from "./nameRules";
 import { OutfitModal, OutfitPanel } from "./OutfitPanel";
 import { ScreenFooter, ScreenHeader } from "./ScreenFrame";
 import { NextStep, SettingsCard, StepNav } from "./SettingsColumn";
@@ -52,7 +52,7 @@ export interface CharacterCreationScreenProps {
   initialValue?: unknown;
   catalog?: CharacterCatalog | null;
   nameRules?: unknown;
-  checkName?: CheckName | null;
+  checkName?: NameChecker | null;
   onDraftChange?: ((draft: CharacterDraft) => void) | null;
   onComplete?: ((payload: CompletedCharacter) => Promise<CompleteResult>) | null;
   onCancel?: (() => void) | null;
@@ -70,24 +70,28 @@ export default function CharacterCreationScreen({
   const activeCatalog = useMemo(() => catalog ?? DEFAULT_CATALOG, [catalog]);
   const rules = useMemo(() => normalizeNameRules(nameRules ?? DEFAULT_NAME_RULES), [nameRules]);
 
-  const [initial] = useState(() => normalizeDraft(initialValue ?? createDefaultDraft(activeCatalog), activeCatalog));
-  const looks = useLookHistory(initial.draft.appearance, activeCatalog);
-  const { gender, appearance, updateAppearance } = looks;
-  const [stage, setStage] = useState<"appearance" | "name">("appearance");
+  const [normalizedInitial] = useState(() =>
+    normalizeDraft(initialValue ?? createDefaultDraft(activeCatalog), activeCatalog),
+  );
+  const lookHistory = useLookHistory(normalizedInitial.draft.appearance, activeCatalog);
+  const { gender, appearance, updateAppearance } = lookHistory;
+  const [phase, setPhase] = useState<"appearance" | "name">("appearance");
   const [section, setSection] = useState<AppearanceTab>("basics");
   const [showUnderwear, setShowUnderwear] = useState(false);
-  const [notice, setNotice] = useState<string | null>(initial.notices.length ? initial.notices.join(" ") : null);
+  const [notice, setNotice] = useState<string | null>(
+    normalizedInitial.notices.length ? normalizedInitial.notices.join(" ") : null,
+  );
   const [view, setView] = useState<PreviewView>("full");
   // 관찰 옵션(대기/걷기·화질·돌리기)은 화면에 내지 않는다 — 자세는 걷기, 화질은 보통으로 고정
   const [pose] = useState("Walk_Loop");
   const [quality] = useState<PreviewQuality>("medium");
-  const [size, setSize] = useState({ width: 1280, height: 800 });
+  const [screenSize, setScreenSize] = useState({ width: 1280, height: 800 });
   const [hasEntered, setHasEntered] = useState(false);
   const [isConfirmNudged, setIsConfirmNudged] = useState(false);
   // 의상 모달 — 고르는 중인 칸. null 이면 닫힘
   const [openOutfitSlot, setOpenOutfitSlot] = useState<OutfitSlot | null>(null);
 
-  const nameCheck = useNameCheck(initial.draft.displayName, rules, checkName);
+  const nameCheck = useNameCheck(normalizedInitial.draft.displayName, rules, checkName);
   const draft = useMemo<CharacterDraft>(
     () => ({ schemaVersion: 1, displayName: normalizeName(nameCheck.name), appearance }),
     [nameCheck.name, appearance],
@@ -101,15 +105,15 @@ export default function CharacterCreationScreen({
     onNameTaken: nameCheck.markTaken,
   });
 
-  const root = useRef<HTMLDivElement>(null);
-  const nameInput = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const nameInputId = useId();
   const cameraControls = useRef<PreviewControls | null>(null);
   const handleControlsReady = useCallback((controls: PreviewControls) => {
     cameraControls.current = controls;
   }, []);
 
-  const layout = useMemo(() => measureLayout(size.width, size.height), [size]);
+  const layout = useMemo(() => measureScreenLayout(screenSize.width, screenSize.height), [screenSize]);
   const rendererConfig = useMemo(
     () => toRendererConfig(appearance, activeCatalog, { showUnderwear, motion: pose }),
     [appearance, activeCatalog, showUnderwear, pose],
@@ -120,11 +124,11 @@ export default function CharacterCreationScreen({
   }, [draft, onDraftChange]);
 
   useEffect(() => {
-    const element = root.current;
+    const element = rootRef.current;
     if (!element || typeof ResizeObserver === "undefined") return undefined;
     const observer = new ResizeObserver(([entry]) => {
       const rect = entry.contentRect;
-      setSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
+      setScreenSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
     });
     observer.observe(element);
     return () => observer.disconnect();
@@ -136,27 +140,27 @@ export default function CharacterCreationScreen({
     return () => clearTimeout(timer);
   }, []);
 
-  const resetAll = () => {
-    looks.resetAll();
+  const handleResetAll = () => {
+    lookHistory.resetAll();
     setNotice("외형을 기본값으로 되돌렸습니다. 되돌리기로 복구할 수 있습니다.");
   };
 
-  const changeName = (value: string) => {
+  const handleNameChange = (value: string) => {
     nameCheck.changeName(value);
     completion.clearError();
   };
 
   // 「이름」은 단계(외형/이름)를 바꾸고, 나머지는 외형 안의 갈래를 바꾼다
-  const activeTab: TabId = stage === "name" ? "name" : section;
+  const activeTab: TabId = phase === "name" ? "name" : section;
   const activeTabIndex = TABS.findIndex((tab) => tab.id === activeTab);
   const nextTab = TABS[activeTabIndex + 1];
-  const selectTab = (tab: TabId) => {
+  const handleTabSelect = (tab: TabId) => {
     if (tab === "name") {
       setShowUnderwear(false);
-      setStage("name");
+      setPhase("name");
       return;
     }
-    setStage("appearance");
+    setPhase("appearance");
     setSection(tab);
     // 갈래를 고르면 그 부위로 초점을 옮긴다(슬라이더를 움직이는 동안에는 옮기지 않는다)
     if (tab === "hair") setView("head");
@@ -169,22 +173,22 @@ export default function CharacterCreationScreen({
       void completion.complete();
       return;
     }
-    selectTab("name");
+    handleTabSelect("name");
     setIsConfirmNudged(true);
-    setTimeout(() => nameInput.current?.focus(), 60);
+    setTimeout(() => nameInputRef.current?.focus(), 60);
   };
   const confirmLabel = completion.isCompleted
     ? "튜토리얼로 이동 중…"
     : completion.isCompleting
       ? "처리 중입니다…"
       : "확인 · 게임 시작";
-  const previewView: PreviewView = stage === "name" ? "upperBody" : view;
+  const previewView: PreviewView = phase === "name" ? "upperBody" : view;
 
   const { isNarrow, panel, stage: stageRect, settings, viewBar, safeArea } = layout;
   const isSettingsWide = settings.w > 560;
 
   return (
-    <div ref={root} className="cc-root" style={rootStyle}>
+    <div ref={rootRef} className="character-creator" style={rootStyle}>
       <style>{SCREEN_CSS + SCREEN_HOVER_CSS + HEARTBEAT_LINE_CSS}</style>
 
       {/* 배경층 — 「어디에 들어왔나」만 말하고 주인공을 빼앗지 않는다 */}
@@ -209,7 +213,7 @@ export default function CharacterCreationScreen({
           inset: 0,
           opacity: hasEntered ? 1 : 0,
           transition: "opacity 600ms ease-out",
-          clipPath: `inset(${stageRect.y}px ${Math.max(0, size.width - stageRect.x - stageRect.w)}px ${Math.max(0, size.height - stageRect.y - stageRect.h)}px ${stageRect.x}px round 4px)`,
+          clipPath: `inset(${stageRect.y}px ${Math.max(0, screenSize.width - stageRect.x - stageRect.w)}px ${Math.max(0, screenSize.height - stageRect.y - stageRect.h)}px ${stageRect.x}px round 4px)`,
         }}
       >
         <CharacterPreview
@@ -261,13 +265,13 @@ export default function CharacterCreationScreen({
             pointerEvents: "auto",
           }}
         >
-          <StepNav activeTab={activeTab} isNarrow={isNarrow} onSelect={selectTab} />
+          <StepNav activeTab={activeTab} isNarrow={isNarrow} onSelect={handleTabSelect} />
 
           <SettingsCard
             title={TABS[activeTabIndex].label}
             description={TAB_DESCRIPTIONS[activeTab]}
             notice={notice}
-            onResetSection={activeTab !== "name" ? () => looks.resetSection(section) : null}
+            onResetSection={activeTab !== "name" ? () => lookHistory.resetSection(section) : null}
             onDismissNotice={() => setNotice(null)}
           >
             {activeTab === "basics" ? (
@@ -276,7 +280,7 @@ export default function CharacterCreationScreen({
                 appearance={appearance}
                 gender={gender}
                 showUnderwear={showUnderwear}
-                onGenderChange={looks.changeGender}
+                onGenderChange={lookHistory.changeGender}
                 onShowUnderwearChange={setShowUnderwear}
                 updateAppearance={updateAppearance}
               />
@@ -286,9 +290,9 @@ export default function CharacterCreationScreen({
                 gender={gender}
                 body={appearance.bodyParameters}
                 isWide={isSettingsWide}
-                onChange={looks.changeBodyValue}
-                onDragStart={looks.startDrag}
-                onDragEnd={looks.endDrag}
+                onChange={lookHistory.changeBodyValue}
+                onDragStart={lookHistory.startDrag}
+                onDragEnd={lookHistory.endDrag}
               />
             ) : null}
             {activeTab === "hair" ? (
@@ -311,7 +315,7 @@ export default function CharacterCreationScreen({
             {activeTab === "name" ? (
               <NamePanel
                 inputId={nameInputId}
-                inputRef={nameInput}
+                inputRef={nameInputRef}
                 name={nameCheck.name}
                 characterCount={nameCheck.characterCount}
                 rules={rules}
@@ -319,24 +323,24 @@ export default function CharacterCreationScreen({
                 message={nameCheck.message}
                 isComposing={nameCheck.isComposing}
                 isConfirmNudged={isConfirmNudged}
-                summary={outfitSummary(appearance, activeCatalog)}
+                summary={formatOutfitSummary(appearance, activeCatalog)}
                 completeError={completion.error}
                 isCompleted={completion.isCompleted}
                 onInput={(value) => {
-                  changeName(value);
+                  handleNameChange(value);
                   setIsConfirmNudged(false);
                 }}
                 onCompositionStart={() => nameCheck.setIsComposing(true)}
                 onCompositionEnd={(value) => {
                   nameCheck.setIsComposing(false);
-                  changeName(value);
+                  handleNameChange(value);
                 }}
                 onCheck={() => void nameCheck.checkDuplicate()}
               />
             ) : null}
           </SettingsCard>
 
-          <NextStep nextTab={nextTab?.id} isNameConfirmed={nameCheck.isConfirmed} onSelect={selectTab} />
+          <NextStep nextTab={nextTab?.id} isNameConfirmed={nameCheck.isConfirmed} onSelect={handleTabSelect} />
         </section>
 
         {openOutfitSlot ? (
@@ -353,16 +357,16 @@ export default function CharacterCreationScreen({
         <ScreenFooter
           layout={layout}
           activeTabIndex={activeTabIndex}
-          canUndo={looks.canUndo}
-          canRedo={looks.canRedo}
+          canUndo={lookHistory.canUndo}
+          canRedo={lookHistory.canRedo}
           isNameConfirmed={nameCheck.isConfirmed}
           isBusy={completion.isCompleting || completion.isCompleted}
           confirmLabel={confirmLabel}
           nameResultId={`${nameInputId}-result`}
           onCancel={onCancel}
-          onUndo={looks.undo}
-          onRedo={looks.redo}
-          onResetAll={resetAll}
+          onUndo={lookHistory.undo}
+          onRedo={lookHistory.redo}
+          onResetAll={handleResetAll}
           onConfirm={handleConfirm}
         />
       </div>

@@ -5,19 +5,19 @@ import type { Vector3Tuple } from "three";
 
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
+import { AimHighlight } from "@/lobby/AimHighlight";
 import Coin from "@/props/Coin";
 import {
-  coinDroppedAt,
-  coinDroppedTime,
-  coinLocation,
-  heldCoin,
+  getCoinDroppedAt,
+  getCoinDroppedTime,
+  getCoinLocation,
+  getHeldCoin,
   pickUpCoin,
-  returnLandingPosition,
-  returnSlotPosition,
+  getReturnLandingPosition,
+  getReturnSlotPosition,
   type CoinKind,
 } from "@/props/coinState";
-import { nozzleLocation } from "@/props/nozzleState";
+import { getNozzleLocation } from "@/props/nozzleState";
 import type { VendingId } from "@/props/vendingMachineState";
 import { isWorkLampPuzzleHandFull } from "@/props/workLampPuzzle/workLampState";
 
@@ -26,7 +26,7 @@ import type { CoinValues } from "../controls/vendingControls";
 const ORIGIN_ANCHOR = (): Vector3Tuple => [0, 0, 0];
 
 // 한 손 규칙 — 동전·관창·작업등 퍼즐 물건 중 하나라도 들었으면 못 줍는다
-const isHandBusy = () => !!heldCoin() || nozzleLocation() === "hand" || isWorkLampPuzzleHandFull();
+const isHandBusy = () => !!getHeldCoin() || getNozzleLocation() === "hand" || isWorkLampPuzzleHandFull();
 
 interface CoinDropProps {
   kind: CoinKind;
@@ -50,7 +50,7 @@ function CoinDrop({ kind, position, lift = 0, from, children }: CoinDropProps) {
   useFrame(() => {
     const group = groupRef.current;
     if (!group) return;
-    const t0 = coinDroppedTime(kind);
+    const t0 = getCoinDroppedTime(kind);
     const t = t0 ? (performance.now() - t0) / 1000 : 99;
 
     if (from) {
@@ -142,7 +142,7 @@ function FloorCoin({ kind, spot, from, rotation, color, patternColor, coin, outl
       />
       <CoinDrop kind={kind} position={spot()} from={from} lift={coin.coinThickness / 2}>
         {/* 겨냥하면 밝아진다 — 주울 수 있다는 표시 */}
-        <Highlight id={id} anchor={ORIGIN_ANCHOR} grow={0.14}>
+        <AimHighlight id={id} anchor={ORIGIN_ANCHOR} grow={0.14}>
           <Coin
             position={[0, 0, 0]}
             rotation={[0, rotation, 0]}
@@ -153,7 +153,7 @@ function FloorCoin({ kind, spot, from, rotation, color, patternColor, coin, outl
             thickness={coin.coinThickness}
             outline={outline}
           />
-        </Highlight>
+        </AimHighlight>
       </CoinDrop>
     </>
   );
@@ -185,39 +185,39 @@ export default function CorridorCoins({ coin, outline }: CorridorCoinsProps) {
   };
   // Leva 벡터 값은 number[] 로 온다
   const returnedSpot = (vendingId: VendingId, fallback: readonly number[]) => (): Vector3Tuple => {
-    const landing = returnLandingPosition(vendingId) ?? fallback;
+    const landing = getReturnLandingPosition(vendingId) ?? fallback;
     return [landing[0], coin.floorY, landing[2]];
   };
 
   return (
     <>
-      {coinLocation("can") === "floor" && (
+      {getCoinLocation("can") === "floor" && (
         <FloorCoin
           kind="can"
-          spot={() => coinDroppedAt("can") ?? [coin.canFloorX, coin.floorY, coin.canFloorZ]}
+          spot={() => getCoinDroppedAt("can") ?? [coin.canFloorX, coin.floorY, coin.canFloorZ]}
           {...canLook}
         />
       )}
-      {coinLocation("can") === "returned:coffee" && (
+      {getCoinLocation("can") === "returned:coffee" && (
         <FloorCoin
           kind="can"
           spot={returnedSpot("coffee", coin.coffeeReturn)}
-          from={returnSlotPosition("coffee")}
+          from={getReturnSlotPosition("coffee")}
           {...canLook}
         />
       )}
-      {coinLocation("cup") === "floor" && (
+      {getCoinLocation("cup") === "floor" && (
         <FloorCoin
           kind="cup"
-          spot={() => coinDroppedAt("cup") ?? [coin.cupFloorX, coin.floorY, coin.cupFloorZ]}
+          spot={() => getCoinDroppedAt("cup") ?? [coin.cupFloorX, coin.floorY, coin.cupFloorZ]}
           {...cupLook}
         />
       )}
-      {coinLocation("cup") === "returned:drink" && (
+      {getCoinLocation("cup") === "returned:drink" && (
         <FloorCoin
           kind="cup"
           spot={returnedSpot("drink", coin.drinkReturn)}
-          from={returnSlotPosition("drink")}
+          from={getReturnSlotPosition("drink")}
           {...cupLook}
         />
       )}

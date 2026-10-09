@@ -7,34 +7,34 @@ import { ToonOutline } from "@/engine/outline";
 import { requestShadowUpdates } from "@/engine/rendering";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
+import { AimHighlight } from "@/lobby/AimHighlight";
 import {
-  lockControl,
-  seedLock,
+  getLockControl,
+  registerLock,
   startLockControl,
   useLock,
   useLockControl,
   type LockSubmitter,
-} from "@/props/combinationLock";
-import { rattleOffset } from "@/props/hingeState";
+} from "@/props/combinationLockState";
+import { computeRattleOffset } from "@/props/hingeState";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { worldPositionOf } from "@/props/shared/aimTarget";
+import { getWorldPositionOf } from "@/props/shared/aimTarget";
 
 import LatchPlate, { type LatchSettings } from "./LatchPlate";
 import LockCloseUpCamera from "./LockCloseUpCamera";
-import { OPENING_MOTION, openingPose, openingPosition } from "./openingMotion";
+import { OPENING_MOTION, computeOpeningPose, computeOpeningPosition } from "./openingMotion";
 import {
-  bodyGeometry,
+  buildPadlockBodyGeometry,
   computeBevel,
   computeLobeWidth,
-  dialBandGeometry,
-  dialBandTexture,
-  dialCoreGeometry,
-  dialDividerGeometry,
-  dialSlotAngle,
-  makeRowGlyphs,
-  markerGeometry,
-  shackleGeometry,
+  buildDialBandGeometry,
+  makeDialBandTexture,
+  buildDialCoreGeometry,
+  buildDialDividerGeometry,
+  computeDialSlotAngle,
+  computeRowGlyphs,
+  buildMarkerGeometry,
+  buildShackleGeometry,
 } from "./padlockGeometry";
 
 interface DialProps {
@@ -49,11 +49,11 @@ interface DialProps {
 /** 다이얼 한 칸. 칸이 바뀌면 가장 가까운 쪽으로 돈다(9 → 0 에서 한 바퀴 거꾸로 돌면 안 된다). */
 function Dial({ geometry, material, x, slot, slotCount, speed = 10 }: DialProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const angle = useRef(dialSlotAngle(slot, slotCount));
+  const angle = useRef(computeDialSlotAngle(slot, slotCount));
   useFrame((_, dt) => {
     const group = groupRef.current;
     if (!group) return;
-    const target = dialSlotAngle(slot, slotCount);
+    const target = computeDialSlotAngle(slot, slotCount);
     const turn = Math.PI * 2;
     let diff = target - angle.current;
     diff = (((diff % turn) + turn * 1.5) % turn) - turn / 2;
@@ -179,7 +179,7 @@ export default function CombinationPadlock({
 }: CombinationPadlockProps) {
   const dialWidth = width * dialSpan;
   const body = useMemo(
-    () => bodyGeometry({ width, height, depth, dialWidth, sideRoundness }),
+    () => buildPadlockBodyGeometry({ width, height, depth, dialWidth, sideRoundness }),
     [width, height, depth, dialWidth, sideRoundness],
   );
 
@@ -192,7 +192,7 @@ export default function CombinationPadlock({
   const shortLegRatio = Math.min(1, Math.max(0.5, 1 - (0.55 * embed) / leg));
   const shackle = useMemo(
     () =>
-      shackleGeometry({
+      buildShackleGeometry({
         radius: shackleRadius,
         thickness: shackleThickness,
         leg,
@@ -206,17 +206,19 @@ export default function CombinationPadlock({
   const dialRadius = height * 0.5;
   const slotWidth = dialWidth / rowCount;
   const rowGlyphs = useMemo(
-    () => makeRowGlyphs({ answer, rowCount, glyphsPerRow, glyphPool, seed: glyphSeed }),
+    () => computeRowGlyphs({ answer, rowCount, glyphsPerRow, glyphPool, seed: glyphSeed }),
     [answer, rowCount, glyphsPerRow, glyphPool, glyphSeed],
   );
   const bands = useMemo(
     () =>
-      rowGlyphs.map((row) => dialBandGeometry({ slotCount: row.length, radius: dialRadius, width: slotWidth * 0.9 })),
+      rowGlyphs.map((row) =>
+        buildDialBandGeometry({ slotCount: row.length, radius: dialRadius, width: slotWidth * 0.9 }),
+      ),
     [rowGlyphs, dialRadius, slotWidth],
   );
-  const core = useMemo(() => dialCoreGeometry(rowCount, dialRadius, slotWidth), [rowCount, dialRadius, slotWidth]);
+  const core = useMemo(() => buildDialCoreGeometry(rowCount, dialRadius, slotWidth), [rowCount, dialRadius, slotWidth]);
   const dividerRings = useMemo(
-    () => (dividers ? dialDividerGeometry(rowCount, dialRadius, slotWidth, dividerWidth, dividerHeight) : null),
+    () => (dividers ? buildDialDividerGeometry(rowCount, dialRadius, slotWidth, dividerWidth, dividerHeight) : null),
     [dividers, rowCount, dialRadius, slotWidth, dividerWidth, dividerHeight],
   );
 
@@ -235,7 +237,7 @@ export default function CombinationPadlock({
   const markerPlate = useMemo(
     () =>
       marker
-        ? markerGeometry({
+        ? buildMarkerGeometry({
             length: markerLength,
             // 머리·꼬리를 길이에서 뺀다 — 높이로 재면 높이만 만졌을 때 비율이 찌그러진다.
             headLength: markerLength * 0.5,
@@ -251,7 +253,7 @@ export default function CombinationPadlock({
   const seedKey = seedDigits.join(",");
   useEffect(() => {
     if (!lockId) return;
-    seedLock(lockId, {
+    registerLock(lockId, {
       digits: seedKey.split(",").map(Number),
       answer,
       glyphs: rowGlyphs,
@@ -276,13 +278,13 @@ export default function CombinationPadlock({
     const shake = shakeRef.current;
     if (shake) {
       // 문과 같은 id 로 흔들려야 안 열리는 이유가 이 자물쇠라는 게 읽힌다
-      const v = lockId ? rattleOffset(lockId) : 0;
+      const v = lockId ? computeRattleOffset(lockId) : 0;
       shake.rotation.z = v * 0.17;
       shake.rotation.x = v * 0.05;
     }
     progress.current = opensInstantly ? 1 : unlocked ? Math.min(1, progress.current + dt / OPENING_MOTION.duration) : 0;
     const t = progress.current;
-    const pose = openingPose(t);
+    const pose = computeOpeningPose(t);
     if (t > 0 && t < 1) requestShadowUpdates(0.2);
 
     // 본체만 살짝 내려가 짧은 다리가 빠진다. 이후엔 전체와 함께 움직인다.
@@ -292,7 +294,7 @@ export default function CombinationPadlock({
     const whole = lockRef.current;
     if (whole) {
       whole.rotation.set(pose.angle, 0, 0);
-      const [x, y, z] = openingPosition(pose, { x: lockX, y: lockY, z: lockZ });
+      const [x, y, z] = computeOpeningPosition(pose, { x: lockX, y: lockY, z: lockZ });
       whole.position.set(x, y, z);
       whole.visible = pose.visible;
     }
@@ -304,7 +306,7 @@ export default function CombinationPadlock({
       rowGlyphs.map(
         (row) =>
           new THREE.MeshBasicMaterial({
-            map: dialBandTexture(row, dialColor, glyphColor),
+            map: makeDialBandTexture(row, dialColor, glyphColor),
             toneMapped: false, // 어두운 복도에서도 글자가 읽혀야 한다
           }),
       ),
@@ -324,7 +326,7 @@ export default function CombinationPadlock({
   return (
     <group position={position} rotation={rotation} scale={size}>
       {/* 확대는 안 준다 — 문에 매달려 함께 여닫히는데 강조가 position 을 만지면 자물쇠가 따로 논다. */}
-      <Highlight id={highlightId} anchor={() => null} grow={0}>
+      <AimHighlight id={highlightId} anchor={() => null} grow={0}>
         <group ref={lockRef} position={[lockX, lockY, lockZ]}>
           {/* 회전축을 쇠막대 높이로 올렸다가(바깥) 도로 내려온다(안쪽). 몸통 한가운데로 돌리면 걸쇠를 뚫는다. */}
           <group ref={shakeRef} position={[0, shakeAxisY, 0]}>
@@ -386,7 +388,7 @@ export default function CombinationPadlock({
             </group>
           </group>
         </group>
-      </Highlight>
+      </AimHighlight>
       {lockId && (
         <>
           <Interactable
@@ -394,10 +396,10 @@ export default function CombinationPadlock({
             radius={0.3}
             reach={4}
             label=""
-            position={() => worldPositionOf(lockRef)}
+            position={() => getWorldPositionOf(lockRef)}
             run={() => startLockControl(lockId)}
             // 숨겼거나 이미 뭔가 만지는 중이면 겨냥 대상에서 뺀다
-            disabled={() => !lockVisible || unlocked || !!lockControl()}
+            disabled={() => !lockVisible || unlocked || !!getLockControl()}
           />
           <LockCloseUpCamera lockId={lockId} targetRef={lockRef} distance={handleDistance} />
         </>

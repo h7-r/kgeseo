@@ -6,7 +6,7 @@ import type { OutlineValues } from "@/engine/toon";
 import { registerNozzleEnd } from "@/props/nozzleState";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
-import { NOZZLE_DIMENSIONS, nozzleGeometry } from "./nozzleGeometry";
+import { NOZZLE_DIMENSIONS, buildNozzleGeometry } from "./nozzleGeometry";
 
 interface NozzleModelProps {
   metalColor?: string;
@@ -21,7 +21,7 @@ const BRASS_HEIGHT = NOZZLE_DIMENSIONS.tip - NOZZLE_DIMENSIONS.brassStart;
  * 함 속·손·배전반 셋 중 한 군데에만 그려지므로, 그려진 곳의 커플링이 곧 호스가 물릴 자리다.
  */
 export default function NozzleModel({ metalColor = "#9aa1a8", brightness = 1, outline }: NozzleModelProps) {
-  const body = nozzleGeometry();
+  const body = buildNozzleGeometry();
   const couplingRef = useRef<THREE.Group>(null);
   useEffect(() => registerNozzleEnd(couplingRef.current), []);
   return (

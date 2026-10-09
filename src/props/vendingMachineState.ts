@@ -36,7 +36,7 @@ export interface VendingMachineState {
   hintPaperWaiting: boolean;
 }
 
-const createState = (): VendingMachineState => ({
+const createMachineState = (): VendingMachineState => ({
   hasCoin: false,
   pressed: -1,
   pressedAt: 0,
@@ -54,24 +54,24 @@ const createState = (): VendingMachineState => ({
 const machines = new Map<VendingId, VendingMachineState>();
 const signal = createChangeSignal();
 
-const machineState = (id: VendingId) => {
+const getMachineState = (id: VendingId) => {
   let state = machines.get(id);
   if (!state) {
-    state = createState();
+    state = createMachineState();
     machines.set(id, state);
   }
   return state;
 };
 
 export const vendingMachineStore = {
-  get: machineState,
+  get: getMachineState,
   version: signal.version,
   subscribe: signal.subscribe,
 };
 
 /** 동전 투입 — 그 자판기 버튼이 전부 켜진다. */
 export function insertCoin(id: VendingId) {
-  const state = machineState(id);
+  const state = getMachineState(id);
   state.hasCoin = true;
   state.pressed = -1;
   state.pressPaid = false;
@@ -84,7 +84,7 @@ export function pressButton(
   index: number,
   { kind = "drink", temperature = null }: { kind?: VendingId; temperature?: CoffeeTemperature | null } = {},
 ) {
-  const state = machineState(id);
+  const state = getMachineState(id);
   state.pressed = index;
   state.pressedAt = performance.now();
   state.pressPaid = state.hasCoin;
@@ -107,13 +107,13 @@ export function pressButton(
 }
 
 export function toggleDoor(id: VendingId) {
-  const state = machineState(id);
+  const state = getMachineState(id);
   state.doorOpen = !state.doorOpen;
   signal.notify();
 }
 
 export function toggleFlap(id: VendingId) {
-  const state = machineState(id);
+  const state = getMachineState(id);
   state.flapOpen = !state.flapOpen;
   // 덮개를 열면 나온 음료를 집어 간 것으로 본다 — 닫을 때 사라진다.
   if (!state.flapOpen) state.dispensed = -1;
@@ -122,7 +122,7 @@ export function toggleFlap(id: VendingId) {
 
 /** 커피 컵을 치운다(문을 닫을 때). */
 export function clearCup(id: VendingId) {
-  const state = machineState(id);
+  const state = getMachineState(id);
   if (!state.hasCup) return;
   state.hasCup = false;
   state.temperature = null;
@@ -131,7 +131,7 @@ export function clearCup(id: VendingId) {
 
 /** 밸브 힌트 종이가 배출구에서 기다리나(파란 캔 = 참, 집어 가면 거짓). */
 export function setHintPaperWaiting(id: VendingId, waiting: boolean) {
-  const state = machineState(id);
+  const state = getMachineState(id);
   if (state.hintPaperWaiting === waiting) return;
   state.hintPaperWaiting = waiting;
   signal.notify();
@@ -139,7 +139,7 @@ export function setHintPaperWaiting(id: VendingId, waiting: boolean) {
 
 /** 배출구의 캔을 치운다(집어 갈 때). */
 export function clearCan(id: VendingId) {
-  const state = machineState(id);
+  const state = getMachineState(id);
   if (state.dispensed < 0) return;
   state.dispensed = -1;
   state.canDroppedAt = 0;
@@ -148,8 +148,8 @@ export function clearCan(id: VendingId) {
 
 // 0.16초 동안 들어갔다 나온다. 사인 반주기라 끝이 부드럽다.
 const PRESS_SECONDS = 0.16;
-export function pressDepth(id: VendingId, index: number, now: number) {
-  const state = machineState(id);
+export function computePressDepth(id: VendingId, index: number, now: number) {
+  const state = getMachineState(id);
   if (state.pressed !== index) return 0;
   const t = (now - state.pressedAt) / 1000;
   if (t < 0 || t > PRESS_SECONDS) return 0;
@@ -160,8 +160,8 @@ export function pressDepth(id: VendingId, index: number, now: number) {
 // 돈이 없어도 누른 버튼은 빛난다 — 아무 빛도 없으면 "안 눌렸나?" 싶다.
 const BLINK_SECONDS = 1.1;
 const BLINK_PERIOD = 0.16;
-export function buttonLight(id: VendingId, index: number, now: number) {
-  const state = machineState(id);
+export function computeButtonLight(id: VendingId, index: number, now: number) {
+  const state = getMachineState(id);
   if (state.pressed >= 0) {
     if (index !== state.pressed) return 0;
     const t = (now - state.pressedAt) / 1000;
@@ -175,7 +175,7 @@ export function buttonLight(id: VendingId, index: number, now: number) {
 /** 드물게 바뀌는 값만 구독한다. 같은 객체를 제자리에서 고치므로 판 번호로 다시 그린다. */
 export const useVendingMachine = (id: VendingId) => {
   useSyncExternalStore(signal.subscribe, signal.version);
-  return machineState(id);
+  return getMachineState(id);
 };
 
 exposeDevHook("vendingMachine", {

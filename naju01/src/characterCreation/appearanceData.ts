@@ -11,8 +11,8 @@ import {
   RENDERER_DEFAULTS,
   findItem,
   isKnownVariant,
-  slotDefault,
-  slotItems,
+  getSlotDefault,
+  getSlotItems,
   type CatalogItem,
   type CatalogSlot,
   type CharacterCatalog,
@@ -99,7 +99,7 @@ export interface CompletedCharacter {
 export type CompleteResult = { ok: true } | { ok: false; reason: "failed" | "name_taken"; message?: string };
 
 /** 그 성별의 시작값 */
-export function bodyFieldDefault(field: BodyField, gender: AvatarGender): number {
+export function getBodyFieldDefault(field: BodyField, gender: AvatarGender): number {
   return field.genderDefaults?.[gender] ?? field.defaultValue;
 }
 
@@ -245,8 +245,8 @@ export interface Tick {
   label: string;
 }
 
-export function tickValues(field: BodyField, gender: AvatarGender = "masculine"): Tick[] {
-  const base = bodyFieldDefault(field, gender);
+export function computeTickValues(field: BodyField, gender: AvatarGender = "masculine"): Tick[] {
+  const base = getBodyFieldDefault(field, gender);
   const { min, max, step } = field;
   const snap = (v: number) => Math.min(max, Math.max(min, Number((Math.round(v / step) * step).toFixed(4))));
   const [smaller, larger] = TICK_WORDS[field.key] ?? ["작게", "크게"];
@@ -276,7 +276,7 @@ export function tickValues(field: BodyField, gender: AvatarGender = "masculine")
 }
 
 // 저장된 초안이 눈금 사이 값일 수 있어(예전 저장본·부모가 준 값) 가장 가까운 칸을 고른다. 값 자체는 바꾸지 않는다.
-export function nearestTick(ticks: readonly Tick[], value: number): number {
+export function computeNearestTickIndex(ticks: readonly Tick[], value: number): number {
   let index = 0;
   let closest = Infinity;
   ticks.forEach((tick, i) => {
@@ -290,26 +290,28 @@ export function nearestTick(ticks: readonly Tick[], value: number): number {
 }
 
 // ── 초안 ──
-export function defaultBodyParameters(gender: AvatarGender = "masculine"): BodyParameters {
-  return Object.fromEntries(BODY_FIELDS.map((field) => [field.key, bodyFieldDefault(field, gender)])) as BodyParameters;
+export function getDefaultBodyParameters(gender: AvatarGender = "masculine"): BodyParameters {
+  return Object.fromEntries(
+    BODY_FIELDS.map((field) => [field.key, getBodyFieldDefault(field, gender)]),
+  ) as BodyParameters;
 }
 
-function defaultAppearance(gender: AvatarGender, catalog: CharacterCatalog): DraftAppearance {
+function getDefaultAppearance(gender: AvatarGender, catalog: CharacterCatalog): DraftAppearance {
   return {
     gender,
-    bodyParameters: defaultBodyParameters(gender),
-    hairId: slotDefault(catalog, "hair", gender)?.id ?? null,
+    bodyParameters: getDefaultBodyParameters(gender),
+    hairId: getSlotDefault(catalog, "hair", gender)?.id ?? null,
     equipmentIds: {
-      top: slotDefault(catalog, "top", gender)?.id ?? null,
-      bottom: slotDefault(catalog, "bottom", gender)?.id ?? null,
-      shoes: slotDefault(catalog, "shoes", gender)?.id ?? null,
+      top: getSlotDefault(catalog, "top", gender)?.id ?? null,
+      bottom: getSlotDefault(catalog, "bottom", gender)?.id ?? null,
+      shoes: getSlotDefault(catalog, "shoes", gender)?.id ?? null,
     },
     colors: { skin: "#ffffff", hair: "#ffffff", cloth: "#ffffff", bottom: "#ffffff", shoes: "#ffffff" },
   };
 }
 
 export function createDefaultDraft(catalog: CharacterCatalog, gender: AvatarGender = "masculine"): CharacterDraft {
-  return { schemaVersion: DRAFT_SCHEMA_VERSION, displayName: "", appearance: defaultAppearance(gender, catalog) };
+  return { schemaVersion: DRAFT_SCHEMA_VERSION, displayName: "", appearance: getDefaultAppearance(gender, catalog) };
 }
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
@@ -327,7 +329,7 @@ function normalizeAppearance(
   const notices: string[] = [];
   const source = asRecord(value);
   const gender: AvatarGender = source.gender === "feminine" ? "feminine" : "masculine";
-  const fallback = defaultAppearance(gender, catalog);
+  const fallback = getDefaultAppearance(gender, catalog);
 
   const body = { ...fallback.bodyParameters };
   const incomingBody = asRecord(source.bodyParameters);
@@ -342,7 +344,7 @@ function normalizeAppearance(
       return found.id;
     }
     if (id) notices.push(`${slot}: 쓸 수 없는 항목이라 기본값으로 바꿨습니다.`);
-    return slotDefault(catalog, slot, gender)?.id ?? null;
+    return getSlotDefault(catalog, slot, gender)?.id ?? null;
   };
 
   const colors = { ...fallback.colors };
@@ -386,7 +388,7 @@ export function normalizeDraft(
 }
 
 /** 성별을 바꿀 때 — 그 성별이 못 쓰는 헤어·의상은 호환되는 기본값으로 바꾸고 무엇을 바꿨는지 알린다. */
-export function matchGender(
+export function adaptAppearanceToGender(
   appearance: DraftAppearance,
   gender: AvatarGender,
   catalog: CharacterCatalog,
@@ -395,7 +397,7 @@ export function matchGender(
   const pick = (slot: CatalogSlot, id: string | null) => {
     const found = findItem(catalog, id);
     if (found && found.genders.includes(gender)) return found.id;
-    const replacement = slotDefault(catalog, slot, gender);
+    const replacement = getSlotDefault(catalog, slot, gender);
     if (found && replacement) changes.push(`${found.label} → ${replacement.label}`);
     return replacement?.id ?? null;
   };
@@ -487,12 +489,12 @@ export function toCompletedCharacter(draft: CharacterDraft, catalog: CharacterCa
   };
 }
 
-export function genderOptions(): readonly Option<AvatarGender>[] {
+export function getGenderOptions(): readonly Option<AvatarGender>[] {
   return GENDER_OPTIONS;
 }
 
 /** 이름 단계의 「조사관 정보」 표 — [칸, 값] */
-export function outfitSummary(appearance: DraftAppearance, catalog: CharacterCatalog): Option<string>[] {
+export function formatOutfitSummary(appearance: DraftAppearance, catalog: CharacterCatalog): Option<string>[] {
   const labelOf = (id: string | null) => findItem(catalog, id)?.label ?? "없음";
   return [
     ["성별", appearance.gender === "feminine" ? "여성" : "남성"],
@@ -503,6 +505,6 @@ export function outfitSummary(appearance: DraftAppearance, catalog: CharacterCat
   ];
 }
 
-export function slotOptions(catalog: CharacterCatalog, slot: CatalogSlot, gender: AvatarGender): CatalogItem[] {
-  return slotItems(catalog, slot, gender).filter((it) => isKnownVariant(slot, gender, it.variant));
+export function getSlotOptions(catalog: CharacterCatalog, slot: CatalogSlot, gender: AvatarGender): CatalogItem[] {
+  return getSlotItems(catalog, slot, gender).filter((it) => isKnownVariant(slot, gender, it.variant));
 }

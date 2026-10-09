@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } f
 
 import { COLOR } from "@/styles/tokens";
 
-import { fieldTextStyle } from "./styles";
+import { fieldTextStyle } from "./supportStyles";
 
 /** 디자인에 목록이 없어 공지·FAQ 분류를 그대로 쓴다. */
 const INQUIRY_TYPES = ["계정", "게임플레이", "결제", "기술지원", "기타"] as const;
@@ -20,38 +20,38 @@ interface InquiryTypeSelectProps {
  * 그 대신 role·aria, Esc·위아래·Enter, 바깥 누르면 닫기를 손으로 챙긴다.
  */
 export default function InquiryTypeSelect({ placeholder, value, onChange }: InquiryTypeSelectProps) {
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [highlighted, setHighlighted] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
     const handlePointerDown = (event: MouseEvent) => {
-      if (!(event.target instanceof Node) || !rootRef.current?.contains(event.target)) setOpen(false);
+      if (!(event.target instanceof Node) || !rootRef.current?.contains(event.target)) setIsOpen(false);
     };
     document.addEventListener("mousedown", handlePointerDown);
     return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [open]);
+  }, [isOpen]);
 
   const select = (option: InquiryType) => {
     onChange(option);
-    setOpen(false);
+    setIsOpen(false);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
-      setOpen(false);
+      setIsOpen(false);
       return;
     }
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      if (open && highlighted >= 0) select(INQUIRY_TYPES[highlighted]);
-      else setOpen((wasOpen) => !wasOpen);
+      if (isOpen && highlighted >= 0) select(INQUIRY_TYPES[highlighted]);
+      else setIsOpen((wasOpen) => !wasOpen);
       return;
     }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      setOpen(true);
+      setIsOpen(true);
       const step = event.key === "ArrowDown" ? 1 : -1;
       setHighlighted((i) => (i + step + INQUIRY_TYPES.length) % INQUIRY_TYPES.length);
     }
@@ -62,9 +62,9 @@ export default function InquiryTypeSelect({ placeholder, value, onChange }: Inqu
       <div
         role="combobox"
         tabIndex={0}
-        aria-expanded={open}
+        aria-expanded={isOpen}
         aria-haspopup="listbox"
-        onClick={() => setOpen((wasOpen) => !wasOpen)}
+        onClick={() => setIsOpen((wasOpen) => !wasOpen)}
         onKeyDown={handleKeyDown}
         style={{
           ...fieldTextStyle,
@@ -77,8 +77,8 @@ export default function InquiryTypeSelect({ placeholder, value, onChange }: Inqu
         {value || placeholder}
       </div>
 
-      {open && (
-        <div className="picker-panel" role="listbox" style={pickerPanelStyle}>
+      {isOpen && (
+        <div className="inquiry-type-select__list" role="listbox" style={pickerPanelStyle}>
           {INQUIRY_TYPES.map((option, i) => (
             <div
               key={option}

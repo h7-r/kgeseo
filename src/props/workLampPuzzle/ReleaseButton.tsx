@@ -7,9 +7,9 @@ import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
+import { AimHighlight } from "@/lobby/AimHighlight";
 
-import { releaseLabelTexture } from "./textures";
+import { makeReleaseLabelTexture } from "./labelTextures";
 import { releaseEndDoor } from "./workLampState";
 
 interface ReleaseButtonProps {
@@ -36,7 +36,7 @@ export default function ReleaseButton({
   const d = direction;
   const boxGeometry = useMemo(() => new THREE.BoxGeometry(0.18, 0.62, 0.46), []);
   useEffect(() => () => boxGeometry.dispose(), [boxGeometry]);
-  const labelTexture = releaseLabelTexture("#b5443a", "#f4f6f8", 1);
+  const labelTexture = makeReleaseLabelTexture("#b5443a", "#f4f6f8", 1);
   const pressed = useRef(0);
   const buttonRef = useRef<THREE.Mesh>(null);
   const lampColor = !isPowered ? "#3a3d40" : isReleased ? "#7dffa8" : "#ff5a4a";
@@ -49,14 +49,14 @@ export default function ReleaseButton({
   const innerBrightness = Math.max(0.5, brightness);
   return (
     <group position={position}>
-      <Highlight id="workLamp:releaseButton" anchor={() => null} grow={0} strength={0.2}>
+      <AimHighlight id="workLamp:releaseButton" anchor={() => null} grow={0} strength={0.2}>
         <mesh geometry={boxGeometry} position={[d * 0.09, 0, 0]} castShadow receiveShadow>
           {/* 벽보다 확실히 어둡게 — 전원이 와서 벽이 밝아져도 버튼이 벽에 붙어 보인다 */}
           <meshToonMaterial color={scaleColor("#2c3036", brightness)} gradientMap={TOON_GRADIENT} />
           <ToonOutline geometry={boxGeometry} outline={outline} />
           <Outlines thickness={3} color="#0f1012" />
         </mesh>
-      </Highlight>
+      </AimHighlight>
 
       <mesh position={[d * 0.185, 0.2, 0]} rotation={[0, d > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
         <planeGeometry args={[0.38, 0.38 * (96 / 256)]} />

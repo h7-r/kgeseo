@@ -28,10 +28,10 @@ interface BoneRow {
 
 type JointRow = Record<string, number>;
 
-function boneHierarchy(bone: THREE.Object3D, depth = 0, out: BoneRow[] = []): BoneRow[] {
+function collectBoneHierarchy(bone: THREE.Object3D, depth = 0, out: BoneRow[] = []): BoneRow[] {
   out.push({ depth, name: bone.name, parent: bone.parent?.name ?? "", children: bone.children.length });
   bone.children.forEach((child) => {
-    if (child instanceof THREE.Bone) boneHierarchy(child, depth + 1, out);
+    if (child instanceof THREE.Bone) collectBoneHierarchy(child, depth + 1, out);
   });
   return out;
 }
@@ -39,7 +39,7 @@ function boneHierarchy(bone: THREE.Object3D, depth = 0, out: BoneRow[] = []): Bo
 // 관절 한 곳의 스키닝 — 위 본 → 아래 본 가중치가 관절을 지나며 부드럽게 넘어가야 한다.
 // 한쪽이 1 에서 0 으로 뚝 떨어지면 굽힐 때 살이 접힌다.
 // 좌우를 섞어 재면 안 된다(그래서 '혼합 가중치 0' 이라는 틀린 결론을 낸 적이 있다) — 뼈 축선까지 거리로 가른다.
-function jointProfile(mesh: THREE.SkinnedMesh, upperName: string, lowerName: string): JointRow[] | null {
+function measureJointProfile(mesh: THREE.SkinnedMesh, upperName: string, lowerName: string): JointRow[] | null {
   const skeleton = mesh.skeleton;
   const upper = skeleton.getBoneByName(upperName);
   const lower = skeleton.getBoneByName(lowerName);
@@ -108,7 +108,7 @@ const JOINTS = [
   ["shoulder", "clavicle_l", "upperarm_l"],
 ] as const;
 
-function diagnose(target: DiagnosticsTarget, options: DiagnosticsOptions = {}) {
+function collectDiagnostics(target: DiagnosticsTarget, options: DiagnosticsOptions = {}) {
   const { model, targetSkin, clipFor, clipCount } = target;
   const meshes: Record<string, string | number>[] = [];
   const materials: Record<string, string | number | boolean>[] = [];
@@ -148,7 +148,7 @@ function diagnose(target: DiagnosticsTarget, options: DiagnosticsOptions = {}) {
     });
   });
 
-  const skeleton = targetSkin?.skeleton ? boneHierarchy(targetSkin.skeleton.bones[0]) : [];
+  const skeleton = targetSkin?.skeleton ? collectBoneHierarchy(targetSkin.skeleton.bones[0]) : [];
   const clips = (options.clipNames ?? []).map((name) => {
     const clip = clipFor?.(name);
     return clip
@@ -166,7 +166,7 @@ function diagnose(target: DiagnosticsTarget, options: DiagnosticsOptions = {}) {
   const joints: Record<string, JointRow[]> = {};
   if (targetSkin) {
     JOINTS.forEach(([name, upper, lower]) => {
-      const rows = jointProfile(targetSkin, upper, lower);
+      const rows = measureJointProfile(targetSkin, upper, lower);
       if (rows) joints[name] = rows;
     });
   }
@@ -186,7 +186,9 @@ function diagnose(target: DiagnosticsTarget, options: DiagnosticsOptions = {}) {
 /** DEV 에서만 `__game.avatarDiagnostics(extra?)` 와 `__game.avatarClip(name)` 을 연다. */
 export function registerDiagnostics(target: DiagnosticsTarget, options: DiagnosticsOptions) {
   if (!import.meta.env.DEV || typeof window === "undefined") return;
-  exposeDevHook("avatarDiagnostics", (extra?: DiagnosticsOptions) => diagnose(target, { ...options, ...extra }));
+  exposeDevHook("avatarDiagnostics", (extra?: DiagnosticsOptions) =>
+    collectDiagnostics(target, { ...options, ...extra }),
+  );
   // 리타게팅·보정이 끝난 클립을 이름으로 꺼낸다(트랙 값의 키 간 급변 같은 걸 잴 때).
   exposeDevHook("avatarClip", (name: string) => target.clipFor?.(name));
 }

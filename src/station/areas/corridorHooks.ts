@@ -2,30 +2,33 @@ import { useEffect, useMemo } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import { scaleColor } from "@/engine/color";
-import { pickOutline } from "@/engine/leva/savedControls";
+import { pickOutlineValues } from "@/engine/leva/savedControls";
 import type { OutlineValues } from "@/engine/toon";
 import { registerSurface, unregisterSurface } from "@/lobby/placement";
-import { restoreUnlocked, useLockExists, useLockUnlocked } from "@/props/combinationLock";
-import { restoreOpen } from "@/props/hingeState";
-import { useCorridorPower, useEndDoorReleased, useFullPower } from "@/props/workLampPuzzle/workLampState";
+import { restoreUnlockedLock, useHasLock, useIsLockUnlocked } from "@/props/combinationLockState";
+import { restoreHingeOpen } from "@/props/hingeState";
+import { useIsCorridorPowered, useIsEndDoorReleased, useHasFullPower } from "@/props/workLampPuzzle/workLampState";
 import { PLAY_CONTRACT, usePlayFlag, usePlayStateSource, usePuzzleCompleted } from "@/server/playSession";
-import { corridorDepthBrightness, type CorridorDepthRule } from "@/station/corridor/corridorLighting";
-import { wallCabinetDoorId } from "@/station/corridor/wallCabinetId";
-import { MIN_X } from "@/station/layout/dimensions";
+import { computeCorridorDepthBrightness, type CorridorDepthRule } from "@/station/corridor/corridorLighting";
+import { getWallCabinetDoorId } from "@/station/corridor/wallCabinetId";
+import { HEADQUARTERS_MIN_X } from "@/station/layout/dimensions";
 import { passage } from "@/station/layout/passage";
 
 import type { CorridorValues } from "../controls/corridorControls";
 import type { WorkLampPuzzleValues } from "../controls/workLampControls";
 
 /** 복도 길이 비율(0 = 비상계단 쪽 끝, 1 = 방 쪽 끝) → 세계 z */
-export const corridorZ = (corridor: CorridorValues, ratio: number) =>
+export const getCorridorZ = (corridor: CorridorValues, ratio: number) =>
   corridor.startZ + (corridor.endZ - corridor.startZ) * ratio;
 
 /** 벽함 두 개의 자리. 배전반은 문이 있는 바깥벽(+x 를 봄), 소화전은 맞은편 안쪽벽(-x 를 봄). */
-export function wallCabinetSpots(corridor: CorridorValues) {
+export function computeWallCabinetSpots(corridor: CorridorValues) {
   return {
-    panel: { x: corridor.outerX + corridor.panelDepth / 2 + 0.05, z: corridorZ(corridor, corridor.panelZRatio) },
-    hydrant: { x: MIN_X - corridor.hydrantDepth / 2 - 0.05, z: corridorZ(corridor, corridor.hydrantZRatio) },
+    panel: { x: corridor.outerX + corridor.panelDepth / 2 + 0.05, z: getCorridorZ(corridor, corridor.panelZRatio) },
+    hydrant: {
+      x: HEADQUARTERS_MIN_X - corridor.hydrantDepth / 2 - 0.05,
+      z: getCorridorZ(corridor, corridor.hydrantZRatio),
+    },
   };
 }
 
@@ -34,9 +37,9 @@ export function wallCabinetSpots(corridor: CorridorValues) {
  * 지오를 다시 만든다. 작업등 퍼즐 구간 어둠(전원이 들어오면 경계가 −∞ 가 되어 풀린다)도 여기서 섞는다.
  */
 export function useCorridorBrightness(corridor: CorridorValues, workLamp: WorkLampPuzzleValues) {
-  const hasPower = useCorridorPower();
-  const hasFullPower = useFullPower();
-  const isEndDoorReleased = useEndDoorReleased();
+  const hasPower = useIsCorridorPowered();
+  const hasFullPower = useHasFullPower();
+  const isEndDoorReleased = useIsEndDoorReleased();
 
   // 비상 전원(차단기만 올림)일 때는 퍼즐 쪽 절반만 먼저 밝아진다(halfPowerBoundaryZ)
   const isZoneDark = workLamp.visible && workLamp.startDark && !hasFullPower;
@@ -68,10 +71,10 @@ export function useCorridorBrightness(corridor: CorridorValues, workLamp: WorkLa
       hasPower,
     ],
   );
-  const brightnessAt = useMemo(() => (z: number) => corridorDepthBrightness(z, depthRule), [depthRule]);
+  const brightnessAt = useMemo(() => (z: number) => computeCorridorDepthBrightness(z, depthRule), [depthRule]);
 
   // 주름선은 조명을 안 받는 고정색이라 벽이 새까매져도 트레이 살이 회색 격자로 혼자 뜬다 — 어둠을 따라 낮춘다.
-  const baseOutline = useMemo(() => pickOutline(corridor), [corridor]);
+  const baseOutline = useMemo(() => pickOutlineValues(corridor), [corridor]);
   const outline = useMemo<OutlineValues>(() => {
     if (!isZoneDark) return baseOutline;
     return { ...baseOutline, creaseColor: scaleColor(baseOutline.creaseColor, hasPower ? 0.55 : 0.18) };
@@ -84,7 +87,7 @@ export type CorridorShading = ReturnType<typeof useCorridorBrightness>;
 
 /**
  * 복도 경계를 이동 계산(useFrame)이 읽는 모듈 상자에 넣고, 복도 바닥을 「놓을 수 있는 면」으로 등록한다.
- * 방 바닥면은 MIN_X 안쪽만 덮어서, 복도 바닥을 따로 등록하지 않으면 동전을 복도에 못 내려놓는다.
+ * 방 바닥면은 HEADQUARTERS_MIN_X 안쪽만 덮어서, 복도 바닥을 따로 등록하지 않으면 동전을 복도에 못 내려놓는다.
  */
 export function useCorridorSync(corridor: CorridorValues) {
   const { visible, openness, showBlocker, freeRoam, doorZ, doorWidth, outerX, startZ, endZ } = corridor;
@@ -103,7 +106,7 @@ export function useCorridorSync(corridor: CorridorValues) {
 
   useEffect(() => {
     // 복도 바닥판이 y=0.01 에 깔려 있다
-    registerSurface("corridorFloor", { minX: outerX, maxX: MIN_X, minZ: startZ, maxZ: endZ, top: 0.01 });
+    registerSurface("corridorFloor", { minX: outerX, maxX: HEADQUARTERS_MIN_X, minZ: startZ, maxZ: endZ, top: 0.01 });
     return () => unregisterSurface("corridorFloor");
   }, [outerX, startZ, endZ]);
 }
@@ -113,19 +116,19 @@ export function useCorridorSync(corridor: CorridorValues) {
  * 자물쇠 번호까지 구독하면 다이얼을 돌릴 때마다 복도 전체가 다시 그려진다 — 참/거짓만 본다.
  */
 export function useWallCabinetDoors(corridor: CorridorValues, isPadlockVisible: boolean) {
-  const spots = wallCabinetSpots(corridor);
-  const hydrantDoorId = wallCabinetDoorId("hydrant", spots.hydrant.x, spots.hydrant.z);
-  const panelDoorId = wallCabinetDoorId("panel", spots.panel.x, spots.panel.z);
-  const hasHydrantLock = useLockExists(hydrantDoorId);
-  const isHydrantUnlocked = useLockUnlocked(hydrantDoorId);
+  const spots = computeWallCabinetSpots(corridor);
+  const hydrantDoorId = getWallCabinetDoorId("hydrant", spots.hydrant.x, spots.hydrant.z);
+  const panelDoorId = getWallCabinetDoorId("panel", spots.panel.x, spots.panel.z);
+  const hasHydrantLock = useHasLock(hydrantDoorId);
+  const isHydrantUnlocked = useIsLockUnlocked(hydrantDoorId);
   // 이어 하기 — 서버에 남은 진행(퍼즐 완료·문 열림)을 소리·연출 없이 월드에 되살린다
   const isServerPuzzleCompleted = usePuzzleCompleted(PLAY_CONTRACT.puzzleId);
   const isServerCabinetOpen = usePlayFlag(PLAY_CONTRACT.unlockedFlag) === true;
   const stateSource = usePlayStateSource();
   useEffect(() => {
     if (stateSource !== "restored") return;
-    if (isServerPuzzleCompleted) restoreUnlocked(hydrantDoorId);
-    if (isServerCabinetOpen) restoreOpen(hydrantDoorId);
+    if (isServerPuzzleCompleted) restoreUnlockedLock(hydrantDoorId);
+    if (isServerCabinetOpen) restoreHingeOpen(hydrantDoorId);
   }, [stateSource, isServerPuzzleCompleted, isServerCabinetOpen, hydrantDoorId]);
   // 자물쇠를 숨겨 놨으면(자리 맞추는 중) 문은 그냥 열린다
   const isHydrantLocked = isPadlockVisible && hasHydrantLock && !isHydrantUnlocked;

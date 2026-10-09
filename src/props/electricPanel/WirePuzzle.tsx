@@ -5,31 +5,31 @@ import type * as THREE from "three";
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
+import { AimHighlight } from "@/lobby/AimHighlight";
 import {
-  COLOR_NAMES,
+  WIRE_COLOR_NAMES,
   grabWire,
-  heldWire,
+  getHeldWire,
   plugWire,
-  pluggedWire,
+  getPluggedWire,
   unplugWire,
   usePanelWiring,
-  wireSocket,
+  getWireSocket,
   type WireColor,
-} from "@/props/panelWiring";
+} from "@/props/panelWiringState";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { type HighlightSettings, worldPositionOf } from "@/props/shared/aimTarget";
+import { type AimHighlightSettings, getWorldPositionOf } from "@/props/shared/aimTarget";
 
-import DraggedWire from "./DraggedWire";
-import { copperTipGeometry, currentBranchShapes, wireBundle, type WirePath } from "./panelWires";
+import DraggedPanelWire from "./DraggedPanelWire";
+import { buildCopperTipGeometry, buildCurrentBranchPaths, buildWireBundleGeometry, type WirePath } from "./panelWires";
 
 const COLORS: readonly WireColor[] = [0, 1, 2];
 
-/** 위(늘어진 쪽) 암 통 + 아래(스위치 쪽) 수 핀. 쥐고 있는 가닥의 핀은 DraggedWire 가 들고 다니므로 뺀다. */
+/** 위(늘어진 쪽) 암 통 + 아래(스위치 쪽) 수 핀. 쥐고 있는 가닥의 핀은 DraggedPanelWire 가 들고 다니므로 뺀다. */
 function copperTips(hanging: WirePath[], shapes: WirePath[][], radius: number, held: WireColor | null) {
-  const female = copperTipGeometry(hanging, radius * 1.28, radius * 1.18, 0.082);
+  const female = buildCopperTipGeometry(hanging, radius * 1.28, radius * 1.18, 0.082);
   const maleStrands = shapes.flatMap((strands, c) => (held === c ? strands.slice(1) : strands));
-  const male = copperTipGeometry(maleStrands, radius * 0.82, radius * 0.44, 0.066);
+  const male = buildCopperTipGeometry(maleStrands, radius * 0.82, radius * 0.44, 0.066);
   const pieces = [female, male].filter((g): g is THREE.BufferGeometry => !!g);
   if (!pieces.length) return null;
   if (pieces.length === 1) return pieces[0];
@@ -50,7 +50,7 @@ interface WirePuzzleProps {
   brightness: number;
   wireOutline?: OutlineValues | null;
   copperOutline?: OutlineValues | null;
-  highlight?: HighlightSettings;
+  highlight?: AimHighlightSettings;
   canHandle: boolean;
   /** 끌리는 끝이 함 밖으로 못 나가게 */
   limitY: number;
@@ -78,16 +78,16 @@ export default function WirePuzzle({
 }: WirePuzzleProps) {
   // 쥐기·꽂기·뽑기 순간에만 다시 그린다
   usePanelWiring();
-  const held = heldWire();
-  const socket0 = wireSocket(0);
-  const socket1 = wireSocket(1);
-  const socket2 = wireSocket(2);
+  const held = getHeldWire();
+  const socket0 = getWireSocket(0);
+  const socket1 = getWireSocket(1);
+  const socket2 = getWireSocket(2);
   const shapes = useMemo(
-    () => currentBranchShapes(branch, hanging, [socket0, socket1, socket2]),
+    () => buildCurrentBranchPaths(branch, hanging, [socket0, socket1, socket2]),
     [branch, hanging, socket0, socket1, socket2],
   );
   const wires = useMemo(
-    () => COLORS.map((c) => wireBundle([hanging[c], ...shapes[c]], wireRadius, 22)),
+    () => COLORS.map((c) => buildWireBundleGeometry([hanging[c], ...shapes[c]], wireRadius, 22)),
     [hanging, shapes, wireRadius],
   );
   const tips = useMemo(() => copperTips(hanging, shapes, wireRadius, held), [hanging, shapes, wireRadius, held]);
@@ -115,7 +115,7 @@ export default function WirePuzzle({
           확대는 안 준다 — 가는 관을 키우면 굵기만 들쭉날쭉해진다. */}
       {wires.map((g, c) =>
         g ? (
-          <Highlight
+          <AimHighlight
             key={c}
             id={[`wireBottom:${panelId}:${c}`, `wireTop:${panelId}:${c}`]}
             anchor={() => null}
@@ -127,12 +127,12 @@ export default function WirePuzzle({
               <ToonMaterial color={colors[c]} brightness={brightness} />
               <ToonOutline geometry={g} outline={wireOutline} />
             </mesh>
-          </Highlight>
+          </AimHighlight>
         ) : null,
       )}
 
       {held !== null && heldStrand && (
-        <DraggedWire
+        <DraggedPanelWire
           start={heldStrand[heldStrand.length - 1]}
           color={colors[held]}
           brightness={brightness}
@@ -155,9 +155,9 @@ export default function WirePuzzle({
               radius={0.16}
               reach={4}
               // 꽂힌 가닥은 위 선 쪽에서 뽑는다 — 양쪽에서 다 되면 겨냥이 둘 겹친다
-              disabled={() => !canHandle || wireSocket(c) >= 0}
-              label={held === c ? "[E] 놓기" : `[E] ${COLOR_NAMES[c]} 선 잡기`}
-              position={() => worldPositionOf(bottomRefs[c])}
+              disabled={() => !canHandle || getWireSocket(c) >= 0}
+              label={held === c ? "[E] 놓기" : `[E] ${WIRE_COLOR_NAMES[c]} 선 잡기`}
+              position={() => getWorldPositionOf(bottomRefs[c])}
               run={() => grabWire(c)}
             />
           </group>
@@ -165,7 +165,7 @@ export default function WirePuzzle({
       })}
       {COLORS.map((t) => {
         const strand = hanging[t];
-        const plugged = pluggedWire(t);
+        const plugged = getPluggedWire(t);
         return (
           <group key={`top${t}`} ref={topRefs[t]} position={strand[strand.length - 1]}>
             <Interactable
@@ -173,10 +173,10 @@ export default function WirePuzzle({
               radius={0.16}
               reach={4}
               // 빈손이고 꽂힌 것도 없으면 할 일이 없다 — 눌러도 안 되면 고장으로 읽혀 아예 안 띄운다
-              disabled={() => !canHandle || (pluggedWire(t) === null && heldWire() === null)}
-              label={plugged !== null ? "[E] 뽑기" : `[E] ${COLOR_NAMES[t]} 자리에 꽂기`}
-              position={() => worldPositionOf(topRefs[t])}
-              run={() => (pluggedWire(t) !== null ? unplugWire(t) : plugWire(t))}
+              disabled={() => !canHandle || (getPluggedWire(t) === null && getHeldWire() === null)}
+              label={plugged !== null ? "[E] 뽑기" : `[E] ${WIRE_COLOR_NAMES[t]} 자리에 꽂기`}
+              position={() => getWorldPositionOf(topRefs[t])}
+              run={() => (getPluggedWire(t) !== null ? unplugWire(t) : plugWire(t))}
             />
           </group>
         );

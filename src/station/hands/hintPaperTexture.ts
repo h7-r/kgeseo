@@ -1,6 +1,6 @@
 import type * as THREE from "three";
 
-import { cachedCanvasTexture } from "@/engine/textures/canvas";
+import { makeCachedCanvasTexture } from "@/engine/textures/canvas";
 
 const SIZE = 256;
 const FONT = "system-ui, 'Malgun Gothic', sans-serif";
@@ -56,8 +56,8 @@ function drawHintPaper(g: CanvasRenderingContext2D, size: number) {
 }
 
 /** 밸브 힌트 쪽지 텍스처. 손에 든 쪽지·바닥 쪽지·힌트함 그림이 한 캔버스를 같이 쓴다. */
-export function hintPaperTexture(): THREE.CanvasTexture {
-  return cachedCanvasTexture("hintPaper", (g, width) => drawHintPaper(g, width), {
+export function makeHintPaperTexture(): THREE.CanvasTexture {
+  return makeCachedCanvasTexture("hintPaper", (g, width) => drawHintPaper(g, width), {
     width: SIZE,
     willReadFrequently: false,
     onCreate: (_texture, canvas) => {
@@ -71,7 +71,7 @@ export function hintPaperTexture(): THREE.CanvasTexture {
 }
 
 /** 힌트함(모달)에 띄울 PNG. 따로 그리면 손에 든 쪽지와 창 속 쪽지가 다른 그림이 된다. */
-export function hintPaperImage(): string | null {
-  hintPaperTexture();
+export function getHintPaperImageUrl(): string | null {
+  makeHintPaperTexture();
   return imageDataUrl;
 }

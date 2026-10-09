@@ -23,7 +23,7 @@ export default function AboutTabs({ tab, top, onTabChange }: AboutTabsProps) {
   const nextTab = ABOUT_TABS[Math.min(ABOUT_TABS.length - 1, content.page)].id;
 
   return (
-    <section className="light-surface" style={{ ...rootStyle, top: `${top}px` }}>
+    <section className="theme-light" style={{ ...rootStyle, top: `${top}px` }}>
       <TabBar
         items={ABOUT_TABS}
         activeId={tab}
@@ -44,25 +44,25 @@ export default function AboutTabs({ tab, top, onTabChange }: AboutTabsProps) {
 
       {/* 쪽 번호 1~5 는 탭 다섯 개와 짝이다. */}
       <div style={pagerStyle}>
-        <button type="button" className="pager-arrow" style={pagerArrowStyle} onClick={() => onTabChange(previousTab)}>
+        <button type="button" className="pager__arrow" style={pagerArrowStyle} onClick={() => onTabChange(previousTab)}>
           ‹
         </button>
         {ABOUT_TABS.map(({ id }, index) => {
           const page = index + 1;
-          const active = page === content.page;
+          const isActive = page === content.page;
           return (
             <button
               key={id}
               type="button"
-              className={active ? "pager-page is-active" : "pager-page"}
-              style={active ? activePageStyle : inactivePageStyle}
+              className={isActive ? "pager__page is-active" : "pager__page"}
+              style={isActive ? activePageStyle : inactivePageStyle}
               onClick={() => onTabChange(id)}
             >
               {page}
             </button>
           );
         })}
-        <button type="button" className="pager-arrow" style={pagerArrowStyle} onClick={() => onTabChange(nextTab)}>
+        <button type="button" className="pager__arrow" style={pagerArrowStyle} onClick={() => onTabChange(nextTab)}>
           ›
         </button>
       </div>

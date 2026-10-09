@@ -187,7 +187,7 @@ function openDatabase(): Promise<IDBDatabase> {
 }
 
 /** 표 하나에 요청 하나를 보내고 결과를 기다린다. */
-export async function run<T>(
+export async function runStoreRequest<T>(
   storeName: StoreName,
   mode: IDBTransactionMode,
   action: (store: IDBObjectStore) => IDBRequest<T>,
@@ -200,5 +200,5 @@ export async function run<T>(
   });
 }
 
-export const getAccount = (email: string) =>
-  run(STORE.accounts, "readonly", (store) => store.get(email) as IDBRequest<AccountRecord | undefined>);
+export const readAccount = (email: string) =>
+  runStoreRequest(STORE.accounts, "readonly", (store) => store.get(email) as IDBRequest<AccountRecord | undefined>);

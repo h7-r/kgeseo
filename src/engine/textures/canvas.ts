@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 import { TEXTURE_SCALE } from "@/engine/quality";
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 /**
  * 캔버스로 그리는 간판·표지 글씨. 기기에 실제로 있는 한글 고딕부터 찾는다 —
@@ -16,7 +16,7 @@ export type CanvasDraw = (
   canvas: HTMLCanvasElement,
 ) => void;
 
-function context2d(canvas: HTMLCanvasElement, willReadFrequently: boolean): CanvasRenderingContext2D {
+function getContext2d(canvas: HTMLCanvasElement, willReadFrequently: boolean): CanvasRenderingContext2D {
   const g = canvas.getContext("2d", willReadFrequently ? { willReadFrequently: true } : undefined);
   if (!g) throw new Error("2D 캔버스를 만들 수 없습니다.");
   return g;
@@ -30,11 +30,14 @@ export function createCanvas(
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  return { canvas, g: context2d(canvas, false) };
+  return { canvas, g: getContext2d(canvas, false) };
 }
 
 /** 다 그린 캔버스를 sRGB 텍스처로 */
-export function canvasToTexture(canvas: HTMLCanvasElement, anisotropy: number | null = null): THREE.CanvasTexture {
+export function makeTextureFromCanvas(
+  canvas: HTMLCanvasElement,
+  anisotropy: number | null = null,
+): THREE.CanvasTexture {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   if (anisotropy !== null) texture.anisotropy = anisotropy;
@@ -49,8 +52,8 @@ export function makeCanvasTexture(
   const canvas = document.createElement("canvas");
   const scaled = Math.max(128, Math.round(size * TEXTURE_SCALE));
   canvas.width = canvas.height = scaled;
-  draw(context2d(canvas, true), scaled);
-  return canvasToTexture(canvas, 8);
+  draw(getContext2d(canvas, true), scaled);
+  return makeTextureFromCanvas(canvas, 8);
 }
 
 export interface CachedCanvasTextureOptions {
@@ -73,7 +76,7 @@ const canvasTextureCache = new Map<string, THREE.CanvasTexture>();
  * 열쇠마다 한 번만 그려 두고 돌려 쓰는 캔버스 텍스처. 텍스처 해상도는 그대로다(저사양 배율 없음).
  * 열쇠는 모든 호출이 한 캐시를 같이 쓰므로 "sticker|3" 처럼 종류를 앞에 붙인다.
  */
-export function cachedCanvasTexture(
+export function makeCachedCanvasTexture(
   key: string,
   draw: CanvasDraw,
   {
@@ -90,8 +93,8 @@ export function cachedCanvasTexture(
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  draw(context2d(canvas, willReadFrequently), width, height, canvas);
-  const texture = canvasToTexture(canvas, anisotropy);
+  draw(getContext2d(canvas, willReadFrequently), width, height, canvas);
+  const texture = makeTextureFromCanvas(canvas, anisotropy);
   if (repeat) texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   canvasTextureCache.set(key, texture);
   onCreate?.(texture, canvas);
@@ -102,9 +105,9 @@ export function cachedCanvasTexture(
  * 손때·물자국 같은 넓고 옅은 얼룩과 종이 결 같은 미세한 점을 덧칠한다.
  * 코드로 그린 텍스처는 색이 너무 고르게 깔려 인쇄물처럼 보인다. strength 0 이면 아무것도 안 한다.
  */
-export function addGrain(g: CanvasRenderingContext2D, width: number, height: number, seed: number, strength = 1) {
+export function drawGrain(g: CanvasRenderingContext2D, width: number, height: number, seed: number, strength = 1) {
   if (strength <= 0) return;
-  const rnd = makeRandom((seed | 0) * 977 + 13);
+  const rnd = createRandom((seed | 0) * 977 + 13);
   const reach = Math.max(width, height);
 
   const stainCount = 5 + ((rnd() * 4) | 0);

@@ -4,7 +4,7 @@ import { FONT } from "@/lib/style";
 import type { SessionUser } from "@/services/session";
 import { COLOR, GRADIENT } from "@/styles/tokens";
 
-import { profileStartStyle } from "./styles";
+import { profileStartStyle } from "./myPageStyles";
 
 export interface ProfileStats {
   solved: number;
@@ -83,11 +83,11 @@ export default function ProfileCard({ user, stats, onStart, onSignOut }: Profile
         </div>
         <div style={{ width: "1px", height: "56px", background: "#262d40" }} aria-hidden="true" />
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          <button type="button" className="btn btn-sweep" style={profileStartStyle} onClick={onStart}>
-            <span className="btn__label">모험 시작하기</span>
+          <button type="button" className="button button--primary" style={profileStartStyle} onClick={onStart}>
+            <span className="button__label">모험 시작하기</span>
           </button>
-          <button type="button" className="btn" style={profileSignOutStyle} onClick={onSignOut}>
-            <span className="btn__label">로그아웃</span>
+          <button type="button" className="button" style={profileSignOutStyle} onClick={onSignOut}>
+            <span className="button__label">로그아웃</span>
           </button>
         </div>
       </div>

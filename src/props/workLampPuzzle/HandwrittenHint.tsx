@@ -1,6 +1,6 @@
 import { scaleColor } from "@/engine/color";
 
-import { handwritingTexture } from "./textures";
+import { makeHandwritingTexture } from "./labelTextures";
 
 interface HandwrittenHintProps {
   text: string;
@@ -21,7 +21,7 @@ export default function HandwrittenHint({
   color,
   brightness = 1,
 }: HandwrittenHintProps) {
-  const texture = handwritingTexture(text, color);
+  const texture = makeHandwritingTexture(text, color);
   return (
     <mesh position={position} rotation={rotation}>
       <planeGeometry args={[size, size / 2]} />

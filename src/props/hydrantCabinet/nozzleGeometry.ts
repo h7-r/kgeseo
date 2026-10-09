@@ -21,7 +21,7 @@ let cachedGeometry: THREE.BufferGeometry | null = null;
  * 관창 몸통. 함 속·손·배전반 세 군데가 같은 지오를 보므로 한 번만 만들고 dispose 하지 않는다.
  * 길고 가늘어야 관창으로 읽힌다 — 아래가 굵고(커플링) 위로 갈수록 가늘다(물 나오는 끝).
  */
-export function nozzleGeometry(): THREE.BufferGeometry {
+export function buildNozzleGeometry(): THREE.BufferGeometry {
   if (cachedGeometry) return cachedGeometry;
   const profile: [number, number][] = [
     [0.0, -NOZZLE_DIMENSIONS.hose],

@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
-import { addGrain, drawRoundStain, makeCanvasTexture } from "@/engine/textures/canvas";
+import { createRandom } from "@/engine/random";
+import { drawGrain, drawRoundStain, makeCanvasTexture } from "@/engine/textures/canvas";
 
 // 역의 낡은 느낌은 색이 아니라 캔버스로 그린 질감(벗겨진 페인트·물자국·때)에서 나온다.
 // 같은 도구로 기차용 무늬를 그린다. 역의 블록 무늬는 기차 벽에 있으면 이상해서 쓰지 않는다.
@@ -9,12 +9,12 @@ import { addGrain, drawRoundStain, makeCanvasTexture } from "@/engine/textures/c
 const wallTextureCache = new Map<string, THREE.CanvasTexture>();
 
 /** 객차 벽. 금속판을 세로로 이어 붙인 이음매와 리벳이 있어야 콘크리트가 아니라 차량 내부로 읽힌다. */
-export function trainWallTexture(seed: number, wear = 1): THREE.CanvasTexture {
+export function makeTrainWallTexture(seed: number, wear = 1): THREE.CanvasTexture {
   const key = `${seed}|${wear}`;
   const cached = wallTextureCache.get(key);
   if (cached) return cached;
   const texture = makeCanvasTexture(1024, (g, S) => {
-    const rnd = makeRandom(seed * 331 + 17);
+    const rnd = createRandom(seed * 331 + 17);
     // 실제 색은 재질 color 가 곱해서 정한다.
     g.fillStyle = "rgb(238,238,238)";
     g.fillRect(0, 0, S, S);
@@ -144,7 +144,7 @@ export function trainWallTexture(seed: number, wear = 1): THREE.CanvasTexture {
       g.stroke();
     }
 
-    addGrain(g, S, S, seed, wear);
+    drawGrain(g, S, S, seed, wear);
   });
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   wallTextureCache.set(key, texture);
@@ -154,11 +154,11 @@ export function trainWallTexture(seed: number, wear = 1): THREE.CanvasTexture {
 const floorTextureCache = new Map<number, THREE.CanvasTexture>();
 
 /** 리놀륨 바닥 — 미끄럼 방지 홈, 때, 발자국, 흘린 얼룩, 긁힘, 형광등 유리 파편. */
-export function trainFloorTexture(seed: number): THREE.CanvasTexture {
+export function makeTrainFloorTexture(seed: number): THREE.CanvasTexture {
   const cached = floorTextureCache.get(seed);
   if (cached) return cached;
   const texture = makeCanvasTexture(1024, (g, S) => {
-    const rnd = makeRandom(seed * 577 + 41);
+    const rnd = createRandom(seed * 577 + 41);
     g.fillStyle = "rgb(236,236,236)";
     g.fillRect(0, 0, S, S);
 
@@ -249,7 +249,7 @@ export function trainFloorTexture(seed: number): THREE.CanvasTexture {
       g.fill();
     }
 
-    addGrain(g, S, S, seed + 90, 1.3);
+    drawGrain(g, S, S, seed + 90, 1.3);
   });
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   floorTextureCache.set(seed, texture);

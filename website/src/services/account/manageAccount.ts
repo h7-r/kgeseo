@@ -3,10 +3,10 @@ import type { SessionUser } from "@/services/session";
 import type { AccountFailure } from "./authApi";
 import {
   emptyAccountData,
-  getAccount,
+  readAccount,
   isStorageAvailable,
   normalizeEmail,
-  run,
+  runStoreRequest,
   STORE,
   type AccountData,
   type AccountRecord,
@@ -73,9 +73,9 @@ const toSessionUser = (account: AccountRecord): SessionUser => ({
 });
 
 /** 이 계정의 기록·설정 읽기 */
-export async function getAccountData(email: string): Promise<AccountData | null> {
+export async function readAccountData(email: string): Promise<AccountData | null> {
   if (!isStorageAvailable()) return null;
-  const data = await run(
+  const data = await runStoreRequest(
     STORE.accountData,
     "readonly",
     (store) => store.get(normalizeEmail(email)) as IDBRequest<AccountData | undefined>,
@@ -84,26 +84,30 @@ export async function getAccountData(email: string): Promise<AccountData | null>
 }
 
 /** 이 계정의 데이터 쓰기. 넘긴 항목만 덮어쓴다. */
-export async function saveAccountData(
+export async function writeAccountData(
   email: string,
   patch: Partial<Omit<AccountData, "email">>,
 ): Promise<AccountData | null> {
   if (!isStorageAvailable()) return null;
   const key = normalizeEmail(email);
-  const current = (await getAccountData(key)) ?? emptyAccountData(key);
+  const current = (await readAccountData(key)) ?? emptyAccountData(key);
   const next: AccountData = { ...current, ...patch, email: key };
-  await run(STORE.accountData, "readwrite", (store) => store.put(next));
+  await runStoreRequest(STORE.accountData, "readwrite", (store) => store.put(next));
   return next;
 }
 
-const getConsents = (accountId: string) =>
-  run(STORE.consents, "readonly", (store) => store.index("accountId").getAll(accountId) as IDBRequest<ConsentRecord[]>);
+const readConsents = (accountId: string) =>
+  runStoreRequest(
+    STORE.consents,
+    "readonly",
+    (store) => store.index("accountId").getAll(accountId) as IDBRequest<ConsentRecord[]>,
+  );
 
 /** 탈퇴해도 동의 기록은 지우지 않고 철회 시각만 남긴다. */
 async function withdrawConsents(accountId: string) {
-  const consents = await getConsents(accountId);
+  const consents = await readConsents(accountId);
   for (const consent of consents) {
-    await run(STORE.consents, "readwrite", (store) =>
+    await runStoreRequest(STORE.consents, "readwrite", (store) =>
       store.put({ ...consent, withdrawnAt: consent.withdrawnAt ?? Date.now() }),
     );
   }
@@ -117,7 +121,7 @@ export async function changePassword(
 ): Promise<ChangePasswordResult> {
   if (!isStorageAvailable()) return { ok: false, reason: "저장소를 쓸 수 없습니다." };
   const key = normalizeEmail(email);
-  const account = await getAccount(key);
+  const account = await readAccount(key);
   if (!account) return { ok: false, reason: "계정을 찾을 수 없습니다." };
   if (account.isTest) return { ok: false, reason: "테스트 계정은 비밀번호를 바꿀 수 없습니다." };
   const stored = parseHash(account.passwordHash);
@@ -135,13 +139,13 @@ export async function changePassword(
 export async function resetPassword(email: string, newPassword: string): Promise<AccountActionResult> {
   if (!isStorageAvailable()) return { ok: false, reason: "저장소를 쓸 수 없습니다." };
   const key = normalizeEmail(email);
-  const account = await getAccount(key);
+  const account = await readAccount(key);
   if (!account) return { ok: false, code: "unknownEmail", reason: "가입되지 않은 이메일입니다." };
   if (account.isTest) return { ok: false, reason: "테스트 계정은 비밀번호를 바꿀 수 없습니다." };
 
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const hash = await hashPassword(newPassword, salt);
-  await run(STORE.accounts, "readwrite", (store) =>
+  await runStoreRequest(STORE.accounts, "readwrite", (store) =>
     store.put({ ...account, passwordHash: formatHash(toHex(salt), hash) }),
   );
   return { ok: true };
@@ -165,10 +169,10 @@ const CONSENT_LABELS: Record<ConsentKind, string> = {
 export async function exportMyData(email: string): Promise<ExportedAccountData | null> {
   if (!isStorageAvailable()) return null;
   const key = normalizeEmail(email);
-  const account = await getAccount(key);
+  const account = await readAccount(key);
   if (!account) return null;
-  const data = await getAccountData(key);
-  const consents = await getConsents(account.id);
+  const data = await readAccountData(key);
+  const consents = await readConsents(account.id);
   const user = toSessionUser(account);
   return {
     내보낸때: new Date().toISOString(),
@@ -199,9 +203,9 @@ export async function exportMyData(email: string): Promise<ExportedAccountData |
 export async function deleteAccount(email: string): Promise<AccountActionResult> {
   if (!isStorageAvailable()) return { ok: false, reason: "저장소를 쓸 수 없습니다." };
   const key = normalizeEmail(email);
-  const account = await getAccount(key);
+  const account = await readAccount(key);
   if (account?.id) await withdrawConsents(account.id);
-  await run(STORE.accounts, "readwrite", (store) => store.delete(key));
-  await run(STORE.accountData, "readwrite", (store) => store.delete(key));
+  await runStoreRequest(STORE.accounts, "readwrite", (store) => store.delete(key));
+  await runStoreRequest(STORE.accountData, "readwrite", (store) => store.delete(key));
   return { ok: true };
 }

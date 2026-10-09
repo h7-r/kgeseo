@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 
 import HeartbeatLine from "./HeartbeatLine";
 import { ICONS } from "./icons";
-import type { ScreenLayout } from "./layout";
+import type { ScreenLayout } from "./screenLayout";
 import { TABS } from "./steps";
 import {
   COLORS,
@@ -68,7 +68,7 @@ export function ScreenHeader({ layout, onCancel }: ScreenHeaderProps) {
       {onCancel ? (
         <button
           type="button"
-          className="cc-tile"
+          className="character-creator__tile"
           aria-label="닫고 웹사이트로 돌아가기"
           onClick={onCancel}
           style={{
@@ -144,7 +144,7 @@ export function ScreenFooter({
         {onCancel ? (
           <button
             type="button"
-            className="cc-back"
+            className="character-creator__back-button"
             onClick={onCancel}
             style={{ ...backButtonStyle, pointerEvents: "auto" }}
           >
@@ -152,13 +152,25 @@ export function ScreenFooter({
           </button>
         ) : null}
         <div style={{ display: "flex", gap: 4, pointerEvents: "auto" }}>
-          <button type="button" className="cc-text-button" style={textButtonStyle} onClick={onUndo} disabled={!canUndo}>
+          <button
+            type="button"
+            className="character-creator__text-button"
+            style={textButtonStyle}
+            onClick={onUndo}
+            disabled={!canUndo}
+          >
             {ICONS.undo} 되돌리기
           </button>
-          <button type="button" className="cc-text-button" style={textButtonStyle} onClick={onRedo} disabled={!canRedo}>
+          <button
+            type="button"
+            className="character-creator__text-button"
+            style={textButtonStyle}
+            onClick={onRedo}
+            disabled={!canRedo}
+          >
             {ICONS.redo} 다시 실행
           </button>
-          <button type="button" className="cc-text-button" style={textButtonStyle} onClick={onResetAll}>
+          <button type="button" className="character-creator__text-button" style={textButtonStyle} onClick={onResetAll}>
             {ICONS.reset} 외형 초기화
           </button>
         </div>
@@ -173,7 +185,7 @@ export function ScreenFooter({
         </span>
         <button
           type="button"
-          className="cc-confirm"
+          className="character-creator__confirm-button"
           onClick={onConfirm}
           disabled={isBusy}
           aria-describedby={!isNameConfirmed ? nameResultId : undefined}

@@ -5,17 +5,17 @@ import { Outlines } from "@react-three/drei";
 import { scaleColor } from "@/engine/color";
 import { TOON_GRADIENT } from "@/engine/toon";
 
-import { crumpledGeometry, latheGeometry } from "./geometry";
-import { printTexture } from "./trashTextures";
+import { buildCrumpledGeometry, buildLatheGeometry } from "./puzzleGeometry";
+import { makePrintTexture } from "./trashTextures";
 import type { TrashId } from "./workLampState";
 
-type Geometries = Record<string, THREE.BufferGeometry>;
+type TrashGeometries = Record<string, THREE.BufferGeometry>;
 
-function buildGeometries(id: TrashId): Geometries {
-  const o: Geometries = {};
+function buildTrashGeometries(id: TrashId): TrashGeometries {
+  const o: TrashGeometries = {};
   if (id === "petBottle") {
     // 500 mL 생수병 — 꽃 모양 바닥 · 허리 홈 · 어깨 · 목
-    o.bottle = latheGeometry(
+    o.bottle = buildLatheGeometry(
       [
         [0, 0],
         [0.07, 0.004],
@@ -38,7 +38,7 @@ function buildGeometries(id: TrashId): Geometries {
     o.cap = new THREE.CylinderGeometry(0.044, 0.044, 0.05, 18);
     o.ring = new THREE.CylinderGeometry(0.05, 0.05, 0.012, 18);
   } else if (id === "yogurtBottle") {
-    o.bottle = latheGeometry(
+    o.bottle = buildLatheGeometry(
       [
         [0, 0],
         [0.05, 0],
@@ -138,8 +138,8 @@ function buildGeometries(id: TrashId): Geometries {
     g.rotateX(-Math.PI / 2);
     o.paper = g;
   } else {
-    o.large = crumpledGeometry(0.13, 7);
-    o.small = crumpledGeometry(0.09, 13);
+    o.large = buildCrumpledGeometry(0.13, 7);
+    o.small = buildCrumpledGeometry(0.09, 13);
   }
   return o;
 }
@@ -160,7 +160,7 @@ interface TrashModelProps {
 
 /** 쓰레기 한 점의 생김새. 원점이 바닥에 닿는 자리다. */
 export default function TrashModel({ id, brightness = 1 }: TrashModelProps) {
-  const geo = useMemo(() => buildGeometries(id), [id]);
+  const geo = useMemo(() => buildTrashGeometries(id), [id]);
   useEffect(() => () => Object.values(geo).forEach((g) => g.dispose()), [geo]);
 
   const toon = (color: string, factor = 1, extra: ToonExtra = {}) => (
@@ -177,7 +177,7 @@ export default function TrashModel({ id, brightness = 1 }: TrashModelProps) {
           {rim}
         </mesh>
         <mesh geometry={geo.band} position={[0, 0.36, 0]}>
-          <meshToonMaterial map={printTexture("water")} color={white} gradientMap={TOON_GRADIENT} />
+          <meshToonMaterial map={makePrintTexture("water")} color={white} gradientMap={TOON_GRADIENT} />
         </mesh>
         <mesh geometry={geo.ring} position={[0, 0.655, 0]}>
           {toon("#2f7ad8")}
@@ -192,7 +192,7 @@ export default function TrashModel({ id, brightness = 1 }: TrashModelProps) {
     return (
       <group rotation={[0, 0, 1.3]} position={[0.1, 0.06, 0]}>
         <mesh geometry={geo.bottle} castShadow>
-          <meshToonMaterial map={printTexture("yogurt")} color={white} gradientMap={TOON_GRADIENT} />
+          <meshToonMaterial map={makePrintTexture("yogurt")} color={white} gradientMap={TOON_GRADIENT} />
           {rim}
         </mesh>
         {/* 반쯤 뜯긴 은박 뚜껑 */}
@@ -232,7 +232,7 @@ export default function TrashModel({ id, brightness = 1 }: TrashModelProps) {
         </mesh>
         <mesh position={[-0.02, 0.3, 0.101]}>
           <planeGeometry args={[0.36, 0.34]} />
-          <meshToonMaterial map={printTexture("detergent")} color={white} gradientMap={TOON_GRADIENT} transparent />
+          <meshToonMaterial map={makePrintTexture("detergent")} color={white} gradientMap={TOON_GRADIENT} transparent />
         </mesh>
         <mesh geometry={geo.cap} position={[0.07, 0.73, 0]}>
           {toon("#f07a1a")}
@@ -272,7 +272,7 @@ export default function TrashModel({ id, brightness = 1 }: TrashModelProps) {
     return (
       <group position={[0, 0.016, 0]}>
         <mesh geometry={geo.straw} castShadow>
-          <meshToonMaterial map={printTexture("straw")} color={white} gradientMap={TOON_GRADIENT} />
+          <meshToonMaterial map={makePrintTexture("straw")} color={white} gradientMap={TOON_GRADIENT} />
           {rim}
         </mesh>
       </group>
@@ -282,7 +282,7 @@ export default function TrashModel({ id, brightness = 1 }: TrashModelProps) {
       <group position={[0, 0.012, 0]}>
         <mesh geometry={geo.paper} castShadow>
           <meshToonMaterial
-            map={printTexture("receipt")}
+            map={makePrintTexture("receipt")}
             color={white}
             gradientMap={TOON_GRADIENT}
             side={THREE.DoubleSide}

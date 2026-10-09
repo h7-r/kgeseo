@@ -8,10 +8,10 @@ import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { toggleFlap, vendingMachineStore, type VendingId } from "@/props/vendingMachineState";
-import { worldPositionOf } from "@/props/shared/aimTarget";
+import { getWorldPositionOf } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
-import { mergedBoxes } from "./geometry";
+import { buildMergedBoxGeometry } from "./vendingGeometry";
 
 interface DispenserFlapProps {
   y: number;
@@ -78,7 +78,7 @@ export default function DispenserFlap({
     const frontZ = halfDepth + trayReach;
     const sideThickness = 0.12;
     // 상자(index 있음)와 Extrude(index 없음)를 섞으면 mergeGeometries 가 null 을 돌려줘 렌더가 죽는다.
-    const boxes = mergedBoxes([
+    const boxes = buildMergedBoxGeometry([
       { size: [width, 0.12, frontZ - backZ], position: [0, -height / 2, (frontZ + backZ) / 2] },
       { size: [width, height, 0.12], position: [0, 0, backZ + 0.06] },
     ]);
@@ -114,7 +114,7 @@ export default function DispenserFlap({
             id={`vendingFlap:${vendingId}`}
             radius={0.6}
             reach={5}
-            position={() => worldPositionOf(flapRef)}
+            position={() => getWorldPositionOf(flapRef)}
             label=""
             run={() => toggleFlap(vendingId)}
           />

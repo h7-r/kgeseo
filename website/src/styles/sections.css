@@ -20,13 +20,13 @@
 
 /* 글자가 바닥에 서 있고 그림자가 뒤쪽 바닥에 눕는다. ::before 는 data-text 를 다시 써서 바닥선(84%)에서
    납작하게 눕히고, ::after 는 닿은 자리의 접지 그림자. isolation 이 없으면 그림자가 히어로 영상 뒤로 숨는다. */
-.floor-shadow {
+.hero__description {
   position: relative;
   display: inline-block;
   line-height: 1;
   isolation: isolate;
 }
-.floor-shadow::before {
+.hero__description::before {
   content: attr(data-text);
   position: absolute;
   inset: 0;
@@ -41,7 +41,7 @@
   mask-image: linear-gradient(to top, #000 14%, rgba(0, 0, 0, 0.5) 55%, transparent 100%);
   pointer-events: none;
 }
-.floor-shadow::after {
+.hero__description::after {
   content: "";
   position: absolute;
   left: 1%;
@@ -104,7 +104,7 @@
   }
 }
 
-/* .card:focus-visible 보다 뒤에 와야 카드 위의 미리보기 초점선이 이긴다 */
+/* .interactive-card:focus-visible 보다 뒤에 와야 카드 위의 미리보기 초점선이 이긴다 */
 .preview-trigger {
   cursor: pointer;
   outline: none;

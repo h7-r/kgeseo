@@ -1,4 +1,4 @@
-import { outlineSchema, useSavedControls } from "@/engine/leva/savedControls";
+import { buildOutlineSchema, useSavedControls } from "@/engine/leva/savedControls";
 
 /**
  * 「비밀 복도」 — 왼쪽 벽 뒤 복도와 그 안의 벽함·자판기 자리·옆문·끝문·복도등.
@@ -145,7 +145,7 @@ export function useCorridorControls() {
     flicker: { value: true, label: "깜빡임" },
     lightIntensity: { value: 14.5, min: 0, max: 60, step: 0.5, label: "불세기" },
     lightColor: { value: "#8fa6c4", label: "불색" },
-    ...outlineSchema({ width: 5, color: "#131314", crease: true, creaseAngle: 40, creaseColor: "#808080" }),
+    ...buildOutlineSchema({ width: 5, color: "#131314", crease: true, creaseAngle: 40, creaseColor: "#808080" }),
   });
 }
 

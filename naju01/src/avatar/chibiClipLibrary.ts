@@ -5,12 +5,18 @@ import { clone, retargetClip } from "three/examples/jsm/utils/SkeletonUtils.js";
 import {
   type CorrectionTable,
   type CorrectionValues,
-  correctClip,
-  correctionQuaternion,
+  applyClipCorrection,
+  computeCorrectionTable,
   LOCOMOTION_CLIPS,
 } from "./motionCorrection";
 import type { ContactTimes, LoadedGltf } from "./preparedBody";
-import { attachSkeleton, firstSkinnedMesh, type RetargetSetup, retargetOptions, strideSpeed } from "./rig";
+import {
+  attachSkeleton,
+  findFirstSkinnedMesh,
+  type RetargetSetup,
+  computeRetargetOptions,
+  measureStrideSpeed,
+} from "./rig";
 
 // 리타깃·보폭·접지 표본은 뼈대와 동작 파일만 보고 정해진다 — 옷은 껍데기라 상관없다.
 // 갈아입을 때마다 다시 계산하면 멈춤이 길어진다.
@@ -23,7 +29,7 @@ interface RigStore {
 const rigCache = new Map<string, RigStore>();
 const RIG_CACHE_MAX = 6;
 
-function rigSignature(skin: THREE.SkinnedMesh): string {
+function computeRigSignature(skin: THREE.SkinnedMesh): string {
   const parts: string[] = [];
   skin.skeleton.bones.forEach((b) => {
     parts.push(
@@ -40,7 +46,7 @@ function rigSignature(skin: THREE.SkinnedMesh): string {
   return parts.join(",");
 }
 
-function rigStore(key: string): RigStore {
+function getRigStore(key: string): RigStore {
   let store = rigCache.get(key);
   if (!store) {
     store = { retargeted: new Map(), contactTimes: new Map(), strides: new Map() };
@@ -72,7 +78,7 @@ export function loadTripoSources(tripoGltfs: LoadedGltf[] | null): TripoSources 
   const sources: TripoSource[] = (tripoGltfs ?? [])
     .map((g) => {
       const scene = clone(g.scene);
-      return { scene, skin: firstSkinnedMesh(scene), clips: g.animations };
+      return { scene, skin: findFirstSkinnedMesh(scene), clips: g.animations };
     })
     .filter((x): x is TripoSource => !!x.skin);
   const clips = new Map<string, { clip: THREE.AnimationClip; source: TripoSource }>();
@@ -116,13 +122,13 @@ export function createClipLibrary({
   outerKey,
 }: ClipLibraryInput): ClipLibrary {
   const tripoSkin = tripoSources[0]?.skin ?? null;
-  const options = retargetOptions(retargetSkin, sourceSkin);
+  const options = computeRetargetOptions(retargetSkin, sourceSkin);
   tripoSources.forEach((tripo) => {
-    tripo.options = retargetOptions(retargetSkin, tripo.skin);
+    tripo.options = computeRetargetOptions(retargetSkin, tripo.skin);
     attachSkeleton(tripo.scene, tripo.skin.skeleton);
   });
-  const baseTable = correctionQuaternion(retargetSkin, correction);
-  const tripoTable = tripoSkin ? correctionQuaternion(retargetSkin, tripoValues) : null;
+  const baseTable = computeCorrectionTable(retargetSkin, correction);
+  const tripoTable = tripoSkin ? computeCorrectionTable(retargetSkin, tripoValues) : null;
   // Tripo 팔짱 클립은 그대로가 제일 낫다 — 어깨·팔을 손대니 아래팔이 뒤바뀌고 한 손이 허공에 떴다.
   // 남은 흠은 오른손이 왼팔을 파고드는 것뿐이라 거기만 편다(18° 면 파고든 정점 198 → 45).
   const foldValues: CorrectionValues = {
@@ -135,14 +141,14 @@ export function createClipLibrary({
     rightElbowStraighten: 18,
     ...(tripoValues.foldOverrides ?? {}),
   };
-  const foldTable = tripoSkin ? correctionQuaternion(retargetSkin, foldValues) : null;
+  const foldTable = tripoSkin ? computeCorrectionTable(retargetSkin, foldValues) : null;
   // 그냥 서 있는 대기(Idle_Loop)만 따로 편다 — 걷기·달리기는 손대지 않는다.
   const idleValues: CorrectionValues = { ...tripoValues, ...(tripoValues.idleOverrides ?? {}) };
-  const idleTable = tripoSkin ? correctionQuaternion(retargetSkin, idleValues) : null;
+  const idleTable = tripoSkin ? computeCorrectionTable(retargetSkin, idleValues) : null;
   attachSkeleton(source, sourceSkin.skeleton);
   const sourceClips = new Map(motionGltf.animations.map((clip) => [clip.name, clip]));
   // 옷만 바뀐 것이면 앞서 계산한 리타깃·보폭·접지를 그대로 쓴다.
-  const store = rigStore(`${outerKey}|${rigSignature(retargetSkin)}`);
+  const store = getRigStore(`${outerKey}|${computeRigSignature(retargetSkin)}`);
   const retargeted = store.retargeted;
   const clipFor = (name: string): THREE.AnimationClip | null => {
     const cached = retargeted.get(name);
@@ -164,7 +170,7 @@ export function createClipLibrary({
     let values = tripo ? tripoValues : correction;
     if (tripo && name === "Idle_Fold_Loop") [table, values] = [foldTable, foldValues];
     if (tripo && name === "Idle_Loop") [table, values] = [idleTable, idleValues];
-    if (correction.enabled) correctClip(result, table, name, values);
+    if (correction.enabled) applyClipCorrection(result, table, name, values);
     retargeted.set(name, result);
     return result;
   };
@@ -235,7 +241,7 @@ export function createClipLibrary({
     const cached = strides.get(name);
     if (cached !== undefined) return cached;
     const clip = clipFor(name);
-    const speed = clip && LOCOMOTION_CLIPS.has(name) ? strideSpeed(retargetModel, retargetSkin, clip) : 0;
+    const speed = clip && LOCOMOTION_CLIPS.has(name) ? measureStrideSpeed(retargetModel, retargetSkin, clip) : 0;
     strides.set(name, speed);
     return speed;
   };

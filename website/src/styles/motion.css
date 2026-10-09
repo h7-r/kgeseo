@@ -1,6 +1,7 @@
 /* 원칙: 자리는 건드리지 않는다. opacity·transform 만 쓰고 끝나면 정확히 원래 좌표로 돌아온다. */
 
-@keyframes bob {
+/* 가운데 온 요금제 카드만 둥실 떠 있다 */
+@keyframes card-float {
   0%,
   100% {
     transform: translateY(0);
@@ -9,11 +10,11 @@
     transform: translateY(-12px);
   }
 }
-.bob {
-  animation: bob 3.6s ease-in-out infinite;
+.pricing-plans__card.is-active {
+  animation: card-float 3.6s ease-in-out infinite;
 }
 
-.reveal {
+.u-reveal {
   opacity: 0;
   transform: translateY(16px);
   transition:
@@ -21,25 +22,25 @@
     transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform;
 }
-.reveal.is-visible {
+.u-reveal.is-visible {
   opacity: 1;
   transform: none;
 }
 
 /* 크게 돌리면 글자가 읽기 힘들다 */
-.tilt-scene {
+.u-tilt-scene {
   perspective: 900px;
 }
-.tilt {
+.u-tilt {
   transition: transform 0.25s ease;
   transform-style: preserve-3d;
   will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .bob,
-  .tilt,
-  .reveal {
+  .pricing-plans__card.is-active,
+  .u-tilt,
+  .u-reveal {
     animation: none !important;
     transition: none !important;
     transform: none !important;
@@ -48,17 +49,17 @@
 }
 
 /* 심장박동 선 — pathLength=100 이라 모양이 달라도 같은 dash 값을 쓴다 */
-.pulse-light,
-.pulse-glow {
+.heartbeat-line__pulse,
+.heartbeat-line__glow {
   stroke-dasharray: 13 87;
-  animation-name: pulse-flow;
+  animation-name: heartbeat-pulse;
   animation-timing-function: cubic-bezier(0.45, 0, 0.3, 1);
   animation-iteration-count: infinite;
 }
-.pulse-glow {
+.heartbeat-line__glow {
   opacity: 0.55;
 }
-@keyframes pulse-flow {
+@keyframes heartbeat-pulse {
   0% {
     stroke-dashoffset: 100;
     opacity: 0;
@@ -76,14 +77,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pulse-light,
-  .pulse-glow {
+  .heartbeat-line__pulse,
+  .heartbeat-line__glow {
     animation: none;
     opacity: 0;
   }
 }
 
-.read-progress {
+.read-progress-bar {
   position: fixed;
   left: 0;
   top: 0;
@@ -97,7 +98,7 @@
 
 /* perspective 를 부모가 아니라 요소마다 준다 — 공유하면 가장자리 카드가 과하게 찌그러진다.
    끝나면 transform 을 지워 글자가 흐려지지 않게 한다. */
-.approach {
+.u-depth-reveal {
   opacity: 0;
   transform: perspective(1400px) translate3d(0, 22px, -70px);
   transition:
@@ -105,35 +106,35 @@
     transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: opacity, transform;
 }
-.approach.is-visible {
+.u-depth-reveal.is-visible {
   opacity: 1;
   transform: none;
 }
 
 /* 뒤에 있는 것에만 쓴다. 글자에 걸면 읽기 힘들다. */
-.parallax-layer {
+.u-parallax {
   transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .approach {
+  .u-depth-reveal {
     opacity: 1;
     transform: none;
     transition: none;
   }
-  .parallax-layer {
+  .u-parallax {
     transform: none !important;
     transition: none;
   }
 }
 
 /* 배경 장식이라 심장박동 선보다 훨씬 느리고 옅게 */
-.arc-glow {
+.divider-arc__glow {
   stroke-dasharray: 11 89;
-  animation: arc-flow 7s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  animation: divider-arc-flow 7s cubic-bezier(0.5, 0, 0.5, 1) infinite;
 }
-@keyframes arc-flow {
+@keyframes divider-arc-flow {
   0% {
     stroke-dashoffset: 100;
     opacity: 0;
@@ -150,14 +151,14 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .arc-glow {
+  .divider-arc__glow {
     animation: none;
     opacity: 0;
   }
 }
 
 /* scroll-driven 애니메이션은 합성 스레드에서 돈다. 지원하지 않으면 hooks/motion 의 rAF 가 맡는다. */
-@keyframes read-progress {
+@keyframes read-progress-fill {
   from {
     transform: scaleX(0);
   }
@@ -166,7 +167,7 @@
   }
 }
 
-@keyframes pass-by {
+@keyframes scroll-zoom {
   0% {
     transform: perspective(1600px) translate3d(0, 0, -70px) scale(0.92);
   }
@@ -179,30 +180,30 @@
 }
 
 @supports (animation-timeline: scroll()) {
-  .read-progress {
-    animation: read-progress linear both;
+  .read-progress-bar {
+    animation: read-progress-fill linear both;
     animation-timeline: scroll(root block);
   }
 }
 
 /* 구간은 JS 가 직접 재서 넣는다. view() 는 무대 축소(transform)를 몰라 어긋난다. */
 @supports (animation-timeline: scroll()) {
-  .pass-by.is-ranged {
-    animation: pass-by linear both;
+  .u-scroll-zoom.is-ranged {
+    animation: scroll-zoom linear both;
     animation-timeline: scroll(root block);
     animation-range: var(--range-start) var(--range-end);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .read-progress,
-  .pass-by {
+  .read-progress-bar,
+  .u-scroll-zoom {
     animation: none;
   }
 }
 
 /* 다 서면 transform 을 지운다 — 3D 변형이 남아 있으면 서브픽셀 렌더링이 꺼진다 */
-.rise-word {
+.rising-text__line {
   display: inline-block;
   transform-origin: 50% 100%;
   transform: rotateX(-82deg) translateY(0.35em);
@@ -212,35 +213,35 @@
     opacity 0.24s ease-out;
   will-change: transform, opacity;
 }
-.rise-word.is-standing {
+.rising-text__line.is-visible {
   transform: none;
   opacity: 1;
 }
 
 /* 층을 z 축으로 떨어뜨려 두면 기울일 때 층마다 움직임이 달라 두께가 생긴다 */
-.depth-scene {
+.u-depth {
   transform-style: preserve-3d;
 }
-.depth-back {
+.u-depth__back {
   transform: translateZ(-26px) scale(1.06);
 }
-.depth-front {
+.u-depth__front {
   transform: translateZ(34px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise-word {
+  .rising-text__line {
     transform: none;
     opacity: 1;
     transition: none;
   }
-  .depth-back,
-  .depth-front {
+  .u-depth__back,
+  .u-depth__front {
     transform: none;
   }
 }
 
-@keyframes recede {
+@keyframes scroll-zoom-out {
   from {
     transform: scale(1.42);
   }
@@ -249,8 +250,8 @@
   }
 }
 @supports (animation-timeline: scroll()) {
-  .recede.is-ranged {
-    animation: recede linear both;
+  .u-scroll-zoom-out.is-ranged {
+    animation: scroll-zoom-out linear both;
     animation-timeline: scroll(root block);
     animation-range: var(--range-start) var(--range-end);
     transform-origin: 50% 40%;
@@ -260,20 +261,20 @@
 
 /* 사진 칸은 정원이 아니라 통째로 돌리면 윤곽이 흔들린다. 고리는 두고 conic 시작각만 돌린다.
    가운데는 mask 두 장을 exclude 로 파내 border-radius 를 그대로 따라간다. */
-@property --ring-angle {
+@property --border-angle {
   syntax: "<angle>";
   inherits: false;
   initial-value: 0deg;
 }
 
-.photo-ring {
+.u-rotating-border {
   position: absolute;
   inset: -1px;
   border-radius: inherit;
   pointer-events: none;
   padding: 2px; /* 선 두께 */
   background: conic-gradient(
-    from var(--ring-angle),
+    from var(--border-angle),
     rgba(22, 38, 77, 0.3) 0 52%,
     rgba(30, 50, 100, 0.7) 70%,
     rgba(58, 87, 148, 1) 82%,
@@ -289,20 +290,23 @@
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
   mask-composite: exclude;
-  animation: ring-angle-spin 9s linear infinite;
+  animation: border-angle-spin 9s linear infinite;
 }
 
-@keyframes ring-angle-spin {
+@keyframes border-angle-spin {
   to {
-    --ring-angle: 360deg;
+    --border-angle: 360deg;
   }
 }
 
-/* 한 번만 돈다. 누를 때마다 다시 돌리는 건 클래스를 뗐다 붙여서 한다. */
-.logo-sweep {
-  animation: logo-sweep 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+/* 평소엔 천천히 흐르고, 누르면 한 번 빠르게 훑는다. 다시 훑게 하는 건 .is-sweeping 을 뗐다 붙여서 한다. */
+.header-logo {
+  animation: gradient-pan 7s linear infinite;
 }
-@keyframes logo-sweep {
+.header-logo.is-sweeping {
+  animation: gradient-pan 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes gradient-pan {
   /* 0~100% 안에서만 민다 — 벗어나면 그림이 글자를 떠나 글자가 잠깐 사라진다 */
   from {
     background-position: 100% 50%;
@@ -320,8 +324,7 @@
   --band-gap: 10px;
   --band-thin: 6px;
 }
-.flow-text,
-.stripe-text {
+.u-shine-text {
   --band-color: var(--color-white);
   --band-faint: rgba(255, 255, 255, 0.65);
   background-image:
@@ -349,12 +352,12 @@
   background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
   color: transparent !important;
-  animation: glass-shine 8s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  animation: shine-band 8s cubic-bezier(0.45, 0, 0.2, 1) infinite;
 }
-.flow-text {
+.u-shine-text {
   --text-fill: linear-gradient(115deg, #ffffff 0%, #ffffff 36%, #cdd6ee 50%, #4f6cb0 74%, #2f3e70 100%);
 }
-@keyframes glass-shine {
+@keyframes shine-band {
   0% {
     background-position:
       100% 0,
@@ -368,20 +371,20 @@
   }
 }
 
-.flow-text.navy-band {
+.u-shine-text--navy {
   --band-color: #2f4a8e;
   --band-faint: rgba(47, 74, 142, 0.6);
   --text-fill: linear-gradient(115deg, #f1f1fc 0%, #e4e9f6 28%, #9aabd8 50%, #4f6cb0 72%, #2f3e70 100%);
 }
 
-.stripe-text {
+.u-shine-text--solid {
   --band-color: #2f4a8e;
   --band-faint: rgba(47, 74, 142, 0.6);
   --text-fill: linear-gradient(#f1f1fc, #f1f1fc);
 }
 
 /* 그림 폭이 200% 라 앞 50% 와 뒤 50% 가 같은 무늬여야 이음매 없이 반복된다 */
-.play-label {
+.hero__play-label {
   background-image: linear-gradient(
     90deg,
     #ffffff 0%,
@@ -397,59 +400,50 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   color: transparent;
-  animation: logo-sweep 6s linear infinite;
+  animation: gradient-pan 6s linear infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .play-label {
+  .hero__play-label {
     animation: none;
   }
 }
 
-.logo-flow {
-  animation: logo-sweep 7s linear infinite;
-}
 /* background-clip:text 는 매 프레임 다시 칠한다(합성 불가). 안 보이거나 굴리는 동안은 쉰다. */
-.site-header.is-hidden .logo-flow,
-html.is-scrolling .logo-flow,
-.flow-text.is-paused,
-.stripe-text.is-paused,
-.arc-glow.is-paused,
-.pulse-light.is-paused,
-.pulse-glow.is-paused,
-.ring.is-paused,
-.photo-ring.is-paused {
+.site-header.is-hidden .header-logo:not(.is-sweeping),
+html.is-scrolling .header-logo:not(.is-sweeping),
+.u-shine-text.is-paused,
+.divider-arc__glow.is-paused,
+.heartbeat-line__pulse.is-paused,
+.heartbeat-line__glow.is-paused,
+.layered-rings__ring.is-paused,
+.u-rotating-border.is-paused {
   animation-play-state: paused;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .logo-sweep {
+  .header-logo,
+  .header-logo.is-sweeping {
     animation: none;
   }
-  .flow-text {
+  .u-shine-text {
     animation: none;
   }
-  .stripe-text {
+  .layered-rings,
+  .layered-rings__ring,
+  .u-rotating-border {
     animation: none;
   }
-  .logo-flow {
-    animation: none;
-  }
-  .rings,
-  .ring,
-  .photo-ring {
-    animation: none;
-  }
-  .recede {
+  .u-scroll-zoom-out {
     animation: none;
     transform: none;
   }
 }
 
 /* 흐림에서 또렷함으로 가야 단순 축소가 아니라 「카메라가 잡았다」로 읽힌다 */
-.camera-zoom {
-  animation: camera-zoom 0.62s cubic-bezier(0.23, 1, 0.32, 1);
+.u-swap-in {
+  animation: swap-in 0.62s cubic-bezier(0.23, 1, 0.32, 1);
 }
-@keyframes camera-zoom {
+@keyframes swap-in {
   0% {
     transform: scale(1.26);
     opacity: 0;
@@ -465,10 +459,10 @@ html.is-scrolling .logo-flow,
   }
 }
 
-.camera-caption {
-  animation: camera-caption 0.5s cubic-bezier(0.23, 1, 0.32, 1) 0.1s both;
+.region-select__caption {
+  animation: caption-in 0.5s cubic-bezier(0.23, 1, 0.32, 1) 0.1s both;
 }
-@keyframes camera-caption {
+@keyframes caption-in {
   from {
     opacity: 0;
     transform: translateY(10px);
@@ -480,18 +474,18 @@ html.is-scrolling .logo-flow,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .camera-zoom,
-  .camera-caption {
+  .u-swap-in,
+  .region-select__caption {
     animation: none;
   }
 }
 
 /* --proximity 는 0(멀다)~1(닿았다), JS 가 매 프레임 넣는다.
    테두리·그림자가 인라인이라 ::after 층에 얹는다. 값이 매 프레임 바뀌어 transition 은 걸지 않는다. */
-.proximity {
+.u-proximity-glow {
   position: relative;
 }
-.proximity::after {
+.u-proximity-glow::after {
   content: "";
   position: absolute;
   inset: -1px;
@@ -503,10 +497,10 @@ html.is-scrolling .logo-flow,
 }
 
 /* overflow 로 잘리는 칸은 빛을 안쪽으로 준다 */
-.proximity-inner {
+.u-proximity-glow--inset {
   position: relative;
 }
-.proximity-inner::after {
+.u-proximity-glow--inset::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -517,18 +511,18 @@ html.is-scrolling .logo-flow,
     inset 0 0 calc(var(--proximity, 0) * 40px) rgba(46, 72, 137, calc(var(--proximity, 0) * 0.3));
 }
 
-.proximity-text {
+.u-proximity-text {
   filter: brightness(calc(1 + var(--proximity, 0) * 0.75));
 }
 
 /* 기울인 고리라 도는 게 보인다. 절반쯤에서 방향을 뒤집고, 주기(41·58·73초)를 서로 어긋나게 잡는다. */
-.rings {
+.layered-rings {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
 }
 
-.ring {
+.layered-rings__ring {
   position: absolute;
   border-radius: 50%;
   border-style: solid;
@@ -536,47 +530,47 @@ html.is-scrolling .logo-flow,
   will-change: transform;
 }
 
-.ring--outer {
+.layered-rings__ring--outer {
   inset: 0;
   border-width: 0.8px;
   border-color: rgba(143, 148, 157, 0.26);
   animation: ring-spin-a 58s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
-.ring--middle {
+.layered-rings__ring--middle {
   inset: 10.4%;
   border-width: 1.2px;
   border-color: rgba(58, 87, 148, 0.34);
   animation: ring-spin-b 41s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
-.ring--inner {
+.layered-rings__ring--inner {
   inset: 27%;
   border-width: 1.8px;
   border-color: rgba(143, 148, 157, 0.38);
   animation: ring-spin-c 73s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
-.rings--a .ring--outer {
+.layered-rings--regions .layered-rings__ring--outer {
   --tilt-x: 62deg;
   --tilt-z: 18deg;
 }
-.rings--a .ring--middle {
+.layered-rings--regions .layered-rings__ring--middle {
   --tilt-x: -44deg;
   --tilt-z: -26deg;
 }
-.rings--a .ring--inner {
+.layered-rings--regions .layered-rings__ring--inner {
   --tilt-x: 28deg;
   --tilt-z: 40deg;
 }
 
-.rings--b .ring--outer {
+.layered-rings--angam .layered-rings__ring--outer {
   --tilt-x: -55deg;
   --tilt-z: -14deg;
 }
-.rings--b .ring--middle {
+.layered-rings--angam .layered-rings__ring--middle {
   --tilt-x: 48deg;
   --tilt-z: 34deg;
 }
-.rings--b .ring--inner {
+.layered-rings--angam .layered-rings__ring--inner {
   --tilt-x: -24deg;
   --tilt-z: -38deg;
 }
@@ -648,9 +642,9 @@ html.is-scrolling .logo-flow,
 
 /* 늦춤을 0.16초씩만 줘서 한 덩이가 다 서기 전에 다음 덩이가 따라 들어온다.
    transform·opacity·filter 만 써 배치를 다시 계산하지 않는다. */
-.stagger .stagger-item,
-.stagger .rise-word,
-.stagger .rise-word.is-standing {
+.u-stagger .u-stagger__item,
+.u-stagger .rising-text__line,
+.u-stagger .rising-text__line.is-visible {
   opacity: 0;
   transform: translate3d(0, 16px, 0);
   filter: blur(8px);
@@ -659,25 +653,25 @@ html.is-scrolling .logo-flow,
     transform 0.8s cubic-bezier(0.22, 1, 0.36, 1),
     filter 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.stagger.is-active .stagger-item,
-.stagger.is-active .rise-word {
+.u-stagger.is-active .u-stagger__item,
+.u-stagger.is-active .rising-text__line {
   opacity: 1;
   transform: none;
   filter: none;
 }
-.stagger .stagger-1 {
+.u-stagger .u-stagger__item--step-1 {
   transition-delay: 0.16s;
 }
-.stagger .stagger-2 {
+.u-stagger .u-stagger__item--step-2 {
   transition-delay: 0.32s;
 }
-.stagger .stagger-3 {
+.u-stagger .u-stagger__item--step-3 {
   transition-delay: 0.48s;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .stagger .stagger-item,
-  .stagger .rise-word {
+  .u-stagger .u-stagger__item,
+  .u-stagger .rising-text__line {
     opacity: 1;
     transform: none;
     filter: none;
@@ -685,20 +679,20 @@ html.is-scrolling .logo-flow,
   }
 }
 
-/* 스크롤에 묶여 왼쪽부터 닦이듯 드러난다. --wipe(0~1)는 JS 가 getBoundingClientRect 로 재서 넣는다
+/* 스크롤에 묶여 왼쪽부터 닦이듯 드러난다. --reveal-progress(0~1)는 JS 가 getBoundingClientRect 로 재서 넣는다
    (view() 는 무대 축소 전 자리로 계산해 늦다). 기본값 1 이라 JS 가 없어도 글은 다 보인다.
    padding/margin 28px 은 배치를 그대로 두고 그림자 자리를 확보한다. */
-.wipe {
-  --sweep: calc(var(--wipe, 1) * 130% - 30%);
+.u-pin-reveal {
+  --reveal-edge: calc(var(--reveal-progress, 1) * 130% - 30%);
   padding-block: 28px;
   margin-block: -28px;
-  opacity: clamp(0, calc(var(--wipe, 1) / 0.6), 1);
-  transform: translate3d(calc((1 - var(--wipe, 1)) * -28px), 0, 0);
-  -webkit-mask-image: linear-gradient(90deg, #000 var(--sweep), transparent calc(var(--sweep) + 30%));
-  mask-image: linear-gradient(90deg, #000 var(--sweep), transparent calc(var(--sweep) + 30%));
+  opacity: clamp(0, calc(var(--reveal-progress, 1) / 0.6), 1);
+  transform: translate3d(calc((1 - var(--reveal-progress, 1)) * -28px), 0, 0);
+  -webkit-mask-image: linear-gradient(90deg, #000 var(--reveal-edge), transparent calc(var(--reveal-edge) + 30%));
+  mask-image: linear-gradient(90deg, #000 var(--reveal-edge), transparent calc(var(--reveal-edge) + 30%));
 }
 /* 가면은 상자 밖을 잘라 낸다. 다 드러나면 벗겨 단추 그림자가 잘리지 않게 한다. */
-.wipe.is-complete {
+.u-pin-reveal.is-complete {
   -webkit-mask-image: none;
   mask-image: none;
 }
@@ -714,7 +708,7 @@ html.is-scrolling .logo-flow,
   }
 }
 @supports (animation-timeline: scroll()) {
-  .is-pinned {
+  .u-pin.is-pinned {
     animation: pin-push linear both;
     animation-timeline: scroll(root block);
     animation-range: var(--pin-start, 0px) var(--pin-end, 0px);

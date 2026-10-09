@@ -2,11 +2,11 @@ import { useEffect, useMemo } from "react";
 import { Outlines } from "@react-three/drei";
 
 import { scaleColor } from "@/engine/color";
-import { mergeBoxes, type MergeBox } from "@/engine/geometry";
-import { makeRandom } from "@/engine/random";
+import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
+import { createRandom } from "@/engine/random";
 import { TOON_GRADIENT } from "@/engine/toon";
 
-import { wornDoorTexture } from "./fixtureTextures";
+import { makeWornDoorTexture } from "./fixtureTextures";
 
 interface CorridorSideDoorProps {
   x?: number;
@@ -76,7 +76,7 @@ export default function CorridorSideDoor({
   brightness = 1,
   seed = 1,
 }: CorridorSideDoorProps) {
-  const texture = wornDoorTexture(seed, grime);
+  const texture = makeWornDoorTexture(seed, grime);
   const door = scaleColor(doorColor, brightness);
   const gap = scaleColor(gapColor, brightness);
   const panelLine = scaleColor(panelLineColor, brightness);
@@ -97,41 +97,41 @@ export default function CorridorSideDoor({
   const bar = 0.05;
 
   const parts = useMemo(() => {
-    const gaps = mergeBoxes([
+    const gaps = buildMergedBoxes([
       { size: [bar, bar, doorW], position: [front, height / 2 + doorH / 2, 0] },
       { size: [bar, bar, doorW], position: [front, height / 2 - doorH / 2, 0] },
-      ...[-1, 1].map((sz): MergeBox => ({
+      ...[-1, 1].map((sz): BoxPiece => ({
         size: [bar, doorH, bar],
         position: [front, height / 2, sz * (doorW / 2)],
       })),
     ]);
 
     const pw = doorW - 0.7;
-    const panels = mergeBoxes(
+    const panels = buildMergedBoxes(
       [
         { cy: height * 0.62, ph: height * 0.42 },
         { cy: height * 0.25, ph: height * 0.26 },
-      ].flatMap((pn): MergeBox[] => [
+      ].flatMap((pn): BoxPiece[] => [
         { size: [bar * 0.9, bar * 0.9, pw], position: [front, pn.cy + pn.ph / 2, 0] },
         { size: [bar * 0.9, bar * 0.9, pw], position: [front, pn.cy - pn.ph / 2, 0] },
-        ...[-1, 1].map((sz): MergeBox => ({
+        ...[-1, 1].map((sz): BoxPiece => ({
           size: [bar * 0.9, pn.ph, bar * 0.9],
           position: [front, pn.cy, sz * (pw / 2)],
         })),
       ]),
     );
 
-    const hinges = mergeBoxes(
-      [0.78, 0.5, 0.2].map((t): MergeBox => ({
+    const hinges = buildMergedBoxes(
+      [0.78, 0.5, 0.2].map((t): BoxPiece => ({
         size: [0.1, 0.5, 0.22],
         position: [doorX + d * (doorThickness / 2 + 0.02), 0.4 + t * (doorH - 0.6), -doorW / 2 + 0.02],
       })),
     );
 
     // 널빤지 그룹 안 좌표 기준
-    const nails = mergeBoxes(
+    const nails = buildMergedBoxes(
       [-1, 1].flatMap((sz) =>
-        [-0.14, 0.14].map((oy): MergeBox => ({
+        [-0.14, 0.14].map((oy): BoxPiece => ({
           size: [0.05, 0.09, 0.09],
           position: [d * 0.09, oy, sz * (width * 0.42)],
         })),
@@ -140,12 +140,12 @@ export default function CorridorSideDoor({
 
     // 벽면(x=0)에서 얇게 나온 문틀(위 + 좌우)
     const frameThickness = 0.16;
-    const frame = mergeBoxes([
+    const frame = buildMergedBoxes([
       {
         size: [frameGeoDepth, frameThickness, width + 2 * frameThickness],
         position: [d * (frameGeoDepth / 2), height + frameThickness / 2 - 0.03, 0],
       },
-      ...[-1, 1].map((sz): MergeBox => ({
+      ...[-1, 1].map((sz): BoxPiece => ({
         size: [frameGeoDepth, height + frameThickness, frameThickness],
         position: [d * (frameGeoDepth / 2), height / 2, sz * (width / 2 + frameThickness / 2)],
       })),
@@ -161,7 +161,7 @@ export default function CorridorSideDoor({
     [parts],
   );
 
-  const rnd = makeRandom(seed * 97 + 5);
+  const rnd = createRandom(seed * 97 + 5);
   const knobX = doorX + d * (doorThickness / 2 + 0.02);
 
   return (
@@ -218,7 +218,7 @@ export default function CorridorSideDoor({
                 <boxGeometry args={[0.14, 0.62, width + 0.5]} />
                 <meshToonMaterial
                   color={scaleColor(boardColor, brightness * (0.85 + rnd() * 0.3))}
-                  map={wornDoorTexture(seed + 70 + i, grime)}
+                  map={makeWornDoorTexture(seed + 70 + i, grime)}
                   gradientMap={TOON_GRADIENT}
                 />
                 {outlineNode}

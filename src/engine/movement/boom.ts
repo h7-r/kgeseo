@@ -2,7 +2,7 @@ import type * as THREE from "three";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
-import { RUN } from "./constants";
+import { RUN_SPEED_MULTIPLIER } from "./constants";
 
 /** 그 프레임에 있을 수 있는 사각 범위(방·복도) */
 export interface Bounds {
@@ -24,7 +24,7 @@ export const firstPersonSpeed = {
   /** 걷기 3.15 유닛/초 ≈ 0.95 m/s */
   scale: 1.05,
   /** 1인칭 달리기 배수 — 8.1 유닛/초 ≈ 2.44 m/s */
-  runMultiplier: RUN,
+  runMultiplier: RUN_SPEED_MULTIPLIER,
 };
 
 /** 3인칭 걸음 배속. 따로 두지 않으면(null) 1인칭 값을 따라간다. */
@@ -168,7 +168,7 @@ export function reportBoomLength(distance: number) {
  * 씬의 경계·막힘 판정을 그대로 쓴다. 등을 벽에 붙이면 0 이 나온다.
  * radius 는 붐의 굵기 — 선 하나로 밀면 근평면 모서리가 벽을 뚫어 옆방이 보인다.
  */
-export function boomDistance(
+export function computeBoomDistance(
   pivot: THREE.Vector3,
   back: THREE.Vector3,
   maxDistance: number,

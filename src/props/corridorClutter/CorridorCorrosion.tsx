@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 
 import { TOON_GRADIENT } from "@/engine/toon";
 
-import { corrosionGeometry, type BrightnessAt } from "./geometry";
+import { buildCorrosionGeometry, type BrightnessAt } from "./clutterGeometry";
 
 const fullBrightness: BrightnessAt = () => 1;
 
@@ -48,7 +48,7 @@ export default function CorridorCorrosion({
 }: CorridorCorrosionProps) {
   const geometry = useMemo(
     () =>
-      corrosionGeometry({
+      buildCorrosionGeometry({
         x0,
         x1,
         z0,

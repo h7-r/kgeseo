@@ -94,7 +94,7 @@ export const unregisterSurface = (id: string) => {
  * @param exclude 이 면은 안 본다. 자기 자신을 반드시 빼야 한다 — 물건 스스로가 면이면
  *   "내 윗면에 맞춰라 → 올라감 → 윗면도 올라감"으로 끝없이 기어오른다.
  */
-export function surfaceHeightAt(x: number, z: number, exclude?: (id: string) => boolean) {
+export function findSurfaceHeightAt(x: number, z: number, exclude?: (id: string) => boolean) {
   let highest: number | null = null;
   for (const [id, box] of surfaces) {
     if (exclude && exclude(id)) continue;
@@ -143,7 +143,7 @@ function isBlocked3D(x: number, y: number, z: number, margin = 0, excludeId: str
 
 // 맞닿는 것은 겹침이 아니다. 책상 윗면에 올리면 minY 가 maxY 와 정확히 같아진다.
 const TOUCH_GAP = 0.02;
-function overlaps(a: OccupiedBox, b: WorldBox) {
+function isOverlapping(a: OccupiedBox, b: WorldBox) {
   if (a.maxX - TOUCH_GAP <= b.minX || a.minX + TOUCH_GAP >= b.maxX) return false;
   if (a.maxZ - TOUCH_GAP <= b.minZ || a.minZ + TOUCH_GAP >= b.maxZ) return false;
   const bMinY = b.minY ?? -1e4;
@@ -190,7 +190,7 @@ export function findPlacement(
   if (!size) return NOT_FOUND;
 
   const from = origin ?? camera.position;
-  const direction = cameraForward(camera);
+  const direction = computeCameraForward(camera);
 
   // 걸이가 먼저다. 이 물건의 제자리가 시선에 걸리면 거기로 되돌린다.
   for (const [snapId, snap] of snapPoints) {
@@ -217,7 +217,7 @@ export function findPlacement(
     let blocker: string | null = null;
     for (const [id, box] of occupants) {
       if (id === itemId || !movedItems.has(id)) continue;
-      if (overlaps(homeBox, box)) {
+      if (isOverlapping(homeBox, box)) {
         blocker = id;
         break;
       }
@@ -273,10 +273,10 @@ export function findPlacement(
   };
   for (const [id, box] of occupants) {
     if (id === itemId) continue;
-    if (overlaps(self, box)) return { found: true, x, y, z, rot, ...size, ok: false, reason: "overlap" };
+    if (isOverlapping(self, box)) return { found: true, x, y, z, rot, ...size, ok: false, reason: "overlap" };
   }
   for (const box of worldBoxes()) {
-    if (overlaps(self, box)) return { found: true, x, y, z, rot, ...size, ok: false, reason: "overlap" };
+    if (isOverlapping(self, box)) return { found: true, x, y, z, rot, ...size, ok: false, reason: "overlap" };
   }
 
   return { found: true, x, y: y - (size.offset ?? 0), z, rot, ...size, ok: true, surfaceTop: y };
@@ -287,7 +287,7 @@ const clamp = (value: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 
 
 // 매번 새 벡터를 만들지 않도록 하나를 돌려 쓴다
 const forward = { x: 0, y: 0, z: 0 };
-function cameraForward(camera: THREE.Camera) {
+function computeCameraForward(camera: THREE.Camera) {
   const elements = camera.matrixWorld.elements;
   // 카메라 시선은 -Z, 월드행렬 3열의 반대 방향이다.
   forward.x = -elements[8];
@@ -305,7 +305,7 @@ function cameraForward(camera: THREE.Camera) {
  * @param minDistance 아무리 막혀도 이보다 가깝게는 당기지 않는다. 눈까지 당기면 물건이
  *   근평면(0.25) 안으로 들어가 사라진다 — 책상에 살짝 파고드는 편이 낫다.
  */
-export function springArm(
+export function computeSpringArmPoint(
   start: Vector3Tuple,
   target: Vector3Tuple,
   radius = 0.35,
@@ -333,17 +333,17 @@ export function springArm(
 }
 
 // 매 프레임 바뀌는 놓을 자리. E 를 눌렀을 때 읽는다(구독 없음).
-let latest: PlacementResult | null = null;
+let latestResult: PlacementResult | null = null;
 export const setLatestPlacement = (result: PlacementResult | null) => {
-  latest = result;
+  latestResult = result;
 };
-export const latestPlacement = () => latest;
+export const getLatestPlacement = () => latestResult;
 
 /**
  * 이 물건 윗면에 얹혀 있는 다른 물건. 없으면 null.
  * 받침을 들면 위엣것이 공중에 뜬다 — 받침을 못 들게 하는 쪽이 규칙이 단순하다.
  */
-export function itemOnTop(itemId: string) {
+export function findItemOnTop(itemId: string) {
   const self = occupants.get(itemId);
   if (!self) return null;
   const selfArea = (self.maxX - self.minX) * (self.maxZ - self.minZ);

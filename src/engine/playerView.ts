@@ -82,7 +82,7 @@ export function startReach(duration = 0.6) {
 exposeDevHook("reach", startReach);
 
 /** 지금 얼마나 뻗었나 0~1. 빠르게 나갔다 천천히 돌아온다. */
-export function reachAmount(): number {
+export function computeReachAmount(): number {
   if (!reach.start) return 0;
   const t = (performance.now() - reach.start) / 1000;
   if (t >= reach.duration) return 0;

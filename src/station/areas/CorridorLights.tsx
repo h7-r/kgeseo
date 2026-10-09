@@ -1,11 +1,11 @@
 import type { OutlineValues } from "@/engine/toon";
 import CorridorLight from "@/station/corridor/CorridorLight";
 import { FLICKER_PATTERNS } from "@/station/corridor/corridorLighting";
-import { MIN_X } from "@/station/layout/dimensions";
+import { HEADQUARTERS_MIN_X } from "@/station/layout/dimensions";
 
 import type { CorridorValues } from "../controls/corridorControls";
 import type { WorkLampPuzzleValues } from "../controls/workLampControls";
-import { corridorZ } from "./corridorHooks";
+import { getCorridorZ } from "./corridorHooks";
 
 // 등마다 때를 다르게 — 같은 값이면 복사한 티가 난다
 const GRIME_VARIATION = [1, 1.5, 0.72];
@@ -28,7 +28,7 @@ export default function CorridorLights({ corridor, workLamp, hasPower, hasFullPo
     <>
       {Array.from({ length: corridor.lightCount }, (_, i) => {
         const t = (i + 0.5) / corridor.lightCount;
-        const z = corridorZ(corridor, t);
+        const z = getCorridorZ(corridor, t);
         // 차단기만 올리면(비상 전원) 퍼즐 쪽 절반만 켜지고, 분리수거 → 그림 → 시험반까지 풀어야 전부 들어온다
         const isOff =
           workLamp.visible &&
@@ -39,7 +39,7 @@ export default function CorridorLights({ corridor, workLamp, hasPower, hasFullPo
         return (
           <CorridorLight
             key={`cl${i}`}
-            x={(corridor.outerX + MIN_X) / 2}
+            x={(corridor.outerX + HEADQUARTERS_MIN_X) / 2}
             y={corridor.height - corridor.lightDrop}
             z={z}
             width={corridor.lightWidth}

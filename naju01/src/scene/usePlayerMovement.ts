@@ -13,7 +13,7 @@ import type { NajuSceneReport } from "./useSceneFrame";
 import type { Terrain } from "./useTerrainLayers";
 
 interface PlayerMovementOptions {
-  T: PresentedControls;
+  controls: PresentedControls;
   active: boolean;
   isEditing: boolean;
   isOverview: boolean;
@@ -27,7 +27,7 @@ interface PlayerMovementOptions {
 
 /** 이동 — 시작은 V1. 편집 중에도 WASD 는 살아 있어야 「보면서 옮기기」가 된다. */
 export function usePlayerMovement({
-  T,
+  controls,
   active,
   isEditing,
   isOverview,
@@ -47,9 +47,9 @@ export function usePlayerMovement({
     terrain,
     extraBlockedAt: isEditing ? null : propColliders.blockedAt,
     start: [VIEWPOINTS[0].x, VIEWPOINTS[0].z, VIEWPOINTS[0].heading],
-    eyeHeight: T.eyeHeight,
-    walkSpeed: T.walkSpeed,
-    fallRecovery: T.fallRecovery,
+    eyeHeight: controls.eyeHeight,
+    walkSpeed: controls.walkSpeed,
+    fallRecovery: controls.fallRecovery,
     reportRef,
     arrowKeysMove: !isEditing, // 편집 중 방향키는 요소를 민다
     isThirdPerson,
@@ -60,6 +60,6 @@ export function usePlayerMovement({
     // 부감 동안은 걷기를 통째로 멈춘다 — active 만 끄면 중력이 카메라를 땅으로 끌어내린다.
     paused: isEditing && isOverview,
     // 코어 밖은 연결로 위에서만 연다 — 경계를 넓히면 동쪽 어디서나 6.7 m 아래로 떨어진다.
-    canLeaveCore: T.allowLeavingCore && ramp ? (x: number, z: number) => ramp.isOn(x, z) : null,
+    canLeaveCore: controls.allowLeavingCore && ramp ? (x: number, z: number) => ramp.isOn(x, z) : null,
   });
 }

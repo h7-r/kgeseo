@@ -1,5 +1,5 @@
 // 웹사이트의 심장박동 선을 생성 화면에서도 쓴다.
-// 웹사이트 컴포넌트는 그 앱의 CSS(.pulse-light · @keyframes pulse-flow)에 기대므로 길 데이터만 같은 파일에서 가져오고
+// 웹사이트 컴포넌트는 그 앱의 전역 CSS 애니메이션에 기대므로 길 데이터만 같은 파일에서 가져오고
 // 움직임은 HEARTBEAT_LINE_CSS 로 따로 건다. 선 모양을 고치면 두 화면이 같이 바뀐다.
 import { useId, type CSSProperties } from "react";
 
@@ -34,10 +34,11 @@ export default function HeartbeatLine({
   style,
 }: HeartbeatLineProps) {
   const path = HEARTBEAT_PATHS[shape];
-  const blurId = `cc-blur${useId().replace(/:/g, "")}`;
+  const blurId = `heartbeat-line-blur${useId().replace(/:/g, "")}`;
   const animation: CSSProperties = { animationDuration: `${period}s`, animationDelay: `${delay}s` };
   return (
     <svg
+      className="heartbeat-line"
       viewBox={`${path.x} ${path.y} ${path.w} ${path.h}`}
       preserveAspectRatio="none"
       width={width}
@@ -60,7 +61,7 @@ export default function HeartbeatLine({
         vectorEffect="non-scaling-stroke"
       />
       <path
-        className="cc-pulse-blur"
+        className="heartbeat-line__glow-blur"
         d={path.d}
         fill="none"
         stroke={glow}
@@ -72,7 +73,7 @@ export default function HeartbeatLine({
         style={animation}
       />
       <path
-        className="cc-pulse-light"
+        className="heartbeat-line__glow"
         d={path.d}
         fill="none"
         stroke={glow}

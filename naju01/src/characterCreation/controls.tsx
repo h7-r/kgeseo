@@ -12,14 +12,14 @@ const groupTitleStyle: CSSProperties = {
   color: COLORS.textMuted,
 };
 
-interface GroupProps {
+interface SettingGroupProps {
   title: string;
   aside?: string;
   children: ReactNode;
 }
 
 /** 작은 제목 + 내용. 묶음끼리는 24px 띄운다 */
-export function Group({ title, aside, children }: GroupProps) {
+export function SettingGroup({ title, aside, children }: SettingGroupProps) {
   return (
     <section style={{ display: "grid", gap: SPACING.m }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: SPACING.s }}>
@@ -40,7 +40,7 @@ export function TileButton({ isSelected, children, style, ...rest }: TileButtonP
   return (
     <button
       type="button"
-      className="cc-tile"
+      className="character-creator__tile"
       aria-pressed={isSelected}
       style={{ ...tileStyle, ...(isSelected ? selectedTileStyle : null), ...style }}
       {...rest}
@@ -50,17 +50,17 @@ export function TileButton({ isSelected, children, style, ...rest }: TileButtonP
   );
 }
 
-interface SwitchProps {
+interface ToggleSwitchProps {
   isOn: boolean;
   onChange: (isOn: boolean) => void;
   children: ReactNode;
 }
 
 /** 체크박스를 그대로 두고 모양만 스위치로 */
-export function Switch({ isOn, onChange, children }: SwitchProps) {
+export function ToggleSwitch({ isOn, onChange, children }: ToggleSwitchProps) {
   return (
     <label
-      className="cc-tile"
+      className="character-creator__tile"
       style={{
         ...tileStyle,
         display: "flex",
@@ -119,7 +119,7 @@ const checkMarkStyle: CSSProperties = {
   font: "800 11px/1 sans-serif",
 };
 
-interface ItemCardProps {
+interface CatalogItemCardProps {
   isSelected: boolean;
   label: string;
   description?: string;
@@ -127,11 +127,11 @@ interface ItemCardProps {
   onClick: () => void;
 }
 
-export function ItemCard({ isSelected, label, description, thumbnail, onClick }: ItemCardProps) {
+export function CatalogItemCard({ isSelected, label, description, thumbnail, onClick }: CatalogItemCardProps) {
   return (
     <button
       type="button"
-      className="cc-tile"
+      className="character-creator__tile"
       onClick={onClick}
       aria-pressed={isSelected}
       style={{
@@ -200,14 +200,17 @@ interface ColorPickerProps {
 
 export function ColorPicker({ slot, palette, value, onChange }: ColorPickerProps) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(44px, 1fr))", gap: SPACING.s }}>
+    <div
+      className="color-picker"
+      style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(44px, 1fr))", gap: SPACING.s }}
+    >
       {palette.map(([hex, label]) => {
         const isSelected = hex.toLowerCase() === (value ?? "").toLowerCase();
         return (
           <button
             key={hex}
             type="button"
-            className="cc-swatch"
+            className="color-picker__swatch"
             onClick={() => onChange(hex)}
             aria-pressed={isSelected}
             aria-label={`${COLOR_SLOT_LABELS[slot]} 색 ${label}`}
@@ -219,7 +222,7 @@ export function ColorPicker({ slot, palette, value, onChange }: ColorPickerProps
         );
       })}
       <label
-        className="cc-swatch"
+        className="color-picker__swatch"
         style={{
           ...swatchStyle,
           display: "grid",

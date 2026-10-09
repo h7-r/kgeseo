@@ -1,10 +1,16 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 
-import { CROUCH_EYE, EYE, INTERACT_DISTANCE, PLAYER_RADIUS } from "@/engine/movement/constants";
+import { CROUCH_EYE_HEIGHT, EYE_HEIGHT, INTERACT_DISTANCE, PLAYER_RADIUS } from "@/engine/movement/constants";
 import { useMovement, type MovementOptions } from "@/engine/movement/useMovement";
 
-import { hit } from "./collision";
-import { MAX_X, MAX_Z, MIN_X, MIN_Z, ROOM_H } from "./dimensions";
+import { isBlockedForPlayer } from "./collision";
+import {
+  HEADQUARTERS_MAX_X,
+  HEADQUARTERS_MAX_Z,
+  HEADQUARTERS_MIN_X,
+  HEADQUARTERS_MIN_Z,
+  HEADQUARTERS_H,
+} from "./dimensions";
 import { DOOR_ENTER_DISTANCE, DOOR_UNLOCK_DISTANCE, NEAR_TARGET, passage, type NearTarget } from "./passage";
 import { doorState, enteredDoor, entryLock, trainDoors } from "./trainDoors";
 
@@ -37,8 +43,8 @@ interface UsePlayerOptions {
 export function usePlayer({
   active,
   onNear,
-  eye = EYE,
-  crouchEye = CROUCH_EYE,
+  eye = EYE_HEIGHT,
+  crouchEye = CROUCH_EYE_HEIGHT,
   returnPose,
   thirdPerson = false,
   playerRef = null,
@@ -53,16 +59,24 @@ export function usePlayer({
     const pass = passage.get();
     // 통과 창 = 구멍 폭의 절반. 자유이동이면 문 앞인 척해 전부 풀린다.
     const atDoor = pass.freeRoam || (pass.open > 0.8 && Math.abs(p.z - pass.doorZ) < pass.doorWidth / 2);
-    const inCorridor = p.x < MIN_X;
-    let minX = MIN_X + PLAYER_RADIUS;
-    let maxX = MAX_X - PLAYER_RADIUS;
+    const inCorridor = p.x < HEADQUARTERS_MIN_X;
+    let minX = HEADQUARTERS_MIN_X + PLAYER_RADIUS;
+    let maxX = HEADQUARTERS_MAX_X - PLAYER_RADIUS;
     if (inCorridor || atDoor) minX = pass.corridorMinX + PLAYER_RADIUS;
-    if (inCorridor && !atDoor) maxX = MIN_X - PLAYER_RADIUS;
+    if (inCorridor && !atDoor) maxX = HEADQUARTERS_MIN_X - PLAYER_RADIUS;
 
     const minZ =
-      (pass.freeRoam ? Math.min(MIN_Z, pass.corridorMinZ) : inCorridor ? pass.corridorMinZ : MIN_Z) + PLAYER_RADIUS;
+      (pass.freeRoam
+        ? Math.min(HEADQUARTERS_MIN_Z, pass.corridorMinZ)
+        : inCorridor
+          ? pass.corridorMinZ
+          : HEADQUARTERS_MIN_Z) + PLAYER_RADIUS;
     const maxZ =
-      (pass.freeRoam ? Math.max(MAX_Z, pass.corridorMaxZ) : inCorridor ? pass.corridorMaxZ : MAX_Z) - PLAYER_RADIUS;
+      (pass.freeRoam
+        ? Math.max(HEADQUARTERS_MAX_Z, pass.corridorMaxZ)
+        : inCorridor
+          ? pass.corridorMaxZ
+          : HEADQUARTERS_MAX_Z) - PLAYER_RADIUS;
     return { minX, maxX, minZ, maxZ };
   }, []);
 
@@ -92,7 +106,7 @@ export function usePlayer({
     eyeHeight: eye,
     crouchEyeHeight: crouchEye,
     bounds,
-    isBlocked: hit,
+    isBlocked: isBlockedForPlayer,
     nearby: near,
     // 기차에서 돌아올 때만 자리를 옮긴다.
     start: returnPose?.start,
@@ -100,7 +114,7 @@ export function usePlayer({
     isThirdPerson: thirdPerson,
     playerRef,
     thirdPersonDistance: 2.8,
-    ceiling: ROOM_H, // 3인칭 카메라가 천장을 뚫지 않게
+    ceiling: HEADQUARTERS_H, // 3인칭 카메라가 천장을 뚫지 않게
     enabled,
   });
 }

@@ -2,10 +2,10 @@ import { useEffect } from "react";
 
 import { startReach } from "@/engine/playerView";
 import { addHint, flashHints } from "@/game/hintBox";
-import { isTypingTarget, LAYERS, type Layer } from "@/game/overlayLayer";
-import { dropChair, draggedChair, runAimed } from "@/lobby/interactions";
-import { latestPlacement } from "@/lobby/placement";
-import { dropCoin, heldCoin } from "@/props/coinState";
+import { isTypingTarget, OVERLAY_LAYERS, type OverlayLayerName } from "@/game/overlayLayer";
+import { dropChair, getDraggedChair, runAimedInteraction } from "@/lobby/interactions";
+import { getLatestPlacement } from "@/lobby/placement";
+import { dropCoin, getHeldCoin } from "@/props/coinState";
 import {
   leaveLockControl,
   selectLockRow,
@@ -13,17 +13,17 @@ import {
   tryLockAnswer,
   turnLockDigit,
   type LockControl,
-} from "@/props/combinationLock";
-import { discardDrink, heldDrink, interactWithHeldDrink } from "@/props/drinkState";
-import { rattle } from "@/props/hingeState";
+} from "@/props/combinationLockState";
+import { discardDrink, getHeldDrink, interactWithHeldDrink } from "@/props/drinkState";
+import { rattleHinge } from "@/props/hingeState";
 import { dropHintPaper, getFootSpot, storeHintPaper, VALVE_HINT } from "@/props/hintPaperState";
-import { hintPaperImage } from "@/station/hands/hintPaperTexture";
-import { chairDragState } from "@/station/office/chairDragState";
+import { getHintPaperImageUrl } from "@/station/hands/hintPaperTexture";
+import { chairDragState } from "@/station/headquarters/chairDragState";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 
 import type { PointerLockRef } from "./pointerLock";
 import { IS_INPUT_ALWAYS_ON } from "./runtimeFlags";
-import { tryPlaceHeld } from "./useSceneTransition";
+import { tryPlaceHeldItem } from "./useSceneTransition";
 
 // 풀린 자물쇠가 열리는 모습을 보여 준 뒤 카메라를 되돌린다.
 const UNLOCK_SHOW_MS = 1500;
@@ -33,8 +33,8 @@ interface GameKeysOptions {
   near: NearTarget;
   isPointerLocked: boolean;
   isTrain: boolean;
-  openLayer: Layer | null;
-  openWindow: (layer: Layer) => void;
+  openLayer: OverlayLayerName | null;
+  openWindow: (layer: OverlayLayerName) => void;
   closeWindow: () => void;
   lockControl: LockControl | null;
   boardTrain: () => void;
@@ -53,13 +53,13 @@ function handleLockKey(code: string, id: string) {
     submitLockAnswer(id)
       .then((isCorrect) => {
         if (isCorrect === true) setTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
-        else if (isCorrect === false) rattle(id);
+        else if (isCorrect === false) rattleHinge(id);
       })
       .catch((error: unknown) => {
         // 백엔드 없이 프론트만 켜면 요청이 실패해 튜토리얼 자물쇠가 영영 안 열린다 — 서버에 못 닿았을 때만 로컬 판정.
         console.warn("[Play Session] 자물쇠 판정 실패 — 로컬 판정으로 대신한다", error);
         if (tryLockAnswer(id)) setTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
-        else rattle(id);
+        else rattleHinge(id);
       });
   }
 }
@@ -67,12 +67,12 @@ function handleLockKey(code: string, id: string) {
 /** [E] — 순서는 화면 안내문과 같아야 한다: 끄는 의자 → 든 음료·쪽지 → 겨냥한 것 → 동전 → 놓기 → 문 */
 function handleUse(near: NearTarget, boardTrain: () => void, leaveTrain: () => void) {
   // 끌던 의자가 화면 밖으로 나가 조준이 안 될 수 있어 조준보다 먼저 본다.
-  if (draggedChair()) {
+  if (getDraggedChair()) {
     dropChair(chairDragState.x, chairDragState.z);
     return;
   }
   // 버튼·투입구를 건드리지 않게 겨냥보다 먼저.
-  const drink = heldDrink();
+  const drink = getHeldDrink();
   if (drink) {
     // 쪽지는 버린다. 발 앞에 떨어져 다시 주울 수 있다(GRD-01). 보관은 [H].
     if (drink.kind === "paper") {
@@ -83,13 +83,13 @@ function handleUse(near: NearTarget, boardTrain: () => void, leaveTrain: () => v
     interactWithHeldDrink();
     return;
   }
-  if (runAimed()) return;
+  if (runAimedInteraction()) return;
   // 투입구가 아닌 곳에서 동전 → 겨냥한 바닥 자리에 내려놓는다(유효한 자리일 때만).
-  if (heldCoin()) {
-    const spot = latestPlacement();
+  if (getHeldCoin()) {
+    const spot = getLatestPlacement();
     if (spot?.ok && dropCoin([spot.x, spot.y, spot.z])) return;
   }
-  if (tryPlaceHeld()) return;
+  if (tryPlaceHeldItem()) return;
   // 문 안으로 걸어 들어가도 타지만 [E] 로도 탄다.
   if (near === NEAR_TARGET.train) boardTrain();
   else if (near === NEAR_TARGET.trainExit) leaveTrain();
@@ -114,7 +114,7 @@ export function useGameKeys({
 }: GameKeysOptions) {
   useEffect(() => {
     // 열려 있으면 닫고, 아무 창도 없을 때만 연다(다른 창 위로 겹쳐 열지 않는다).
-    const toggleWindow = (layer: Layer) => {
+    const toggleWindow = (layer: OverlayLayerName) => {
       if (openLayer === layer) closeWindow();
       else if (!openLayer) openWindow(layer);
     };
@@ -131,27 +131,27 @@ export function useGameKeys({
         return;
       }
       if (code === "KeyI") {
-        toggleWindow(LAYERS.inventory);
+        toggleWindow(OVERLAY_LAYERS.inventory);
         return;
       }
       if (code === "KeyP") {
-        toggleWindow(LAYERS.settings);
+        toggleWindow(OVERLAY_LAYERS.settings);
         return;
       }
       if (code === "KeyH") {
         // 쪽지를 들고 있으면 먼저 적어 넣는다. 창에서 「보관」을 따로 찾게 하면 손이 두 번 간다.
-        if (heldDrink()?.kind === "paper") {
-          addHint({ ...VALVE_HINT, image: hintPaperImage() });
+        if (getHeldDrink()?.kind === "paper") {
+          addHint({ ...VALVE_HINT, image: getHintPaperImageUrl() });
           storeHintPaper();
           discardDrink();
           flashHints(); // 왼쪽 표시가 한 번 밝아진다 — "저기에 적혔다"
-          openWindow(LAYERS.hint);
+          openWindow(OVERLAY_LAYERS.hint);
           return;
         }
-        if (openLayer === LAYERS.hint) closeWindow();
+        if (openLayer === OVERLAY_LAYERS.hint) closeWindow();
         else if (!openLayer) {
           flashHints();
-          openWindow(LAYERS.hint);
+          openWindow(OVERLAY_LAYERS.hint);
         }
         return;
       }

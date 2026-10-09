@@ -1,20 +1,20 @@
 import { Suspense, useMemo } from "react";
 
-import { pickOutline } from "@/engine/leva/savedControls";
-import { MAX_Z, MIN_Z, ROOM_H } from "@/station/layout/dimensions";
+import { pickOutlineValues } from "@/engine/leva/savedControls";
+import { HEADQUARTERS_MAX_Z, HEADQUARTERS_MIN_Z, HEADQUARTERS_H } from "@/station/layout/dimensions";
 import BrokenWallEnd from "@/station/train/BrokenWallEnd";
 import PlatformEndWall from "@/station/train/PlatformEndWall";
 import Train from "@/station/train/Train";
 import TrainTracks from "@/station/train/TrainTracks";
 
-import type { SurfaceValues } from "../controls/roomControls";
-import type { PlatformEndWallValues, TrainControls } from "../controls/trainControls";
+import type { SurfaceValues } from "../controls/headquartersControls";
+import type { PlatformEndWallValues, TrainControlValues } from "../controls/trainControls";
 
 /** 기차 모델 반폭 비율(모델 폭 0.686 ÷ 2). 끝벽 구멍을 기차 크기에서 계산한다. */
 const TRAIN_HALF_WIDTH = 0.343;
 
 interface TrainAreaProps {
-  train: TrainControls;
+  train: TrainControlValues;
   endWall: PlatformEndWallValues;
   surface: SurfaceValues;
 }
@@ -22,10 +22,10 @@ interface TrainAreaProps {
 /** 승강장 끝벽 → 선로 → 부서진 벽 끝 → 멈춰 선 기차. */
 export default function TrainArea({ train: controls, endWall, surface }: TrainAreaProps) {
   const { train, door, step, tracks, brokenWall, backdrop } = controls;
-  const trainOutline = useMemo(() => pickOutline(train), [train]);
-  const tracksOutline = useMemo(() => pickOutline(tracks), [tracks]);
-  const brokenWallOutline = useMemo(() => pickOutline(brokenWall), [brokenWall]);
-  const endWallOutline = useMemo(() => pickOutline(endWall), [endWall]);
+  const trainOutline = useMemo(() => pickOutlineValues(train), [train]);
+  const tracksOutline = useMemo(() => pickOutlineValues(tracks), [tracks]);
+  const brokenWallOutline = useMemo(() => pickOutlineValues(brokenWall), [brokenWall]);
+  const endWallOutline = useMemo(() => pickOutlineValues(endWall), [endWall]);
 
   return (
     <>
@@ -43,7 +43,7 @@ export default function TrainArea({ train: controls, endWall, surface }: TrainAr
             flipped={flipped}
             startX={16}
             endX={backdrop.farWallX}
-            height={ROOM_H}
+            height={HEADQUARTERS_H}
             holeX0={train.x - TRAIN_HALF_WIDTH * train.size - endWall.holeMargin}
             holeX1={train.x + TRAIN_HALF_WIDTH * train.size + endWall.holeMargin}
             holeHeight={endWall.holeHeight}
@@ -80,8 +80,8 @@ export default function TrainArea({ train: controls, endWall, surface }: TrainAr
       {brokenWall.visible &&
         (
           [
-            [MIN_Z, 3, false, brokenWall.frontEndX, brokenWall.frontLimitX],
-            [MAX_Z, 8, true, brokenWall.backEndX, brokenWall.backLimitX],
+            [HEADQUARTERS_MIN_Z, 3, false, brokenWall.frontEndX, brokenWall.frontLimitX],
+            [HEADQUARTERS_MAX_Z, 8, true, brokenWall.backEndX, brokenWall.backLimitX],
           ] as const
         ).map(([z, seed, flipped, endX, limitX]) => (
           <BrokenWallEnd
@@ -95,7 +95,7 @@ export default function TrainArea({ train: controls, endWall, surface }: TrainAr
             jaggedness={brokenWall.jaggedness}
             roughness={brokenWall.roughness}
             seed={seed}
-            height={ROOM_H}
+            height={HEADQUARTERS_H}
             wallColor={surface.wallColor}
             baseColor={surface.wallBaseColor}
             wear={surface.wallWear}

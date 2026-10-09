@@ -15,8 +15,12 @@ export const FOOTER_ALLOWANCE = 186;
 /** 뒤의 3D 공간이 퍼져 나가는 소실점(화면 비율). 본문을 피해 오른쪽 아래에 둔다. */
 export const BACKDROP_ORIGIN = { x: 0.88, y: 0.62 } as const;
 
-/** 축소가 걸린 안쪽 칸의 클래스. 스크롤 계산이 closest() 로 이 칸을 찾는다. */
-export const STAGE_INNER_CLASS = "stage";
+/** 축소가 걸린 안쪽 칸에 붙이는 속성. 스크롤 계산이 closest() 로 이 칸을 찾는다. */
+export const STAGE_INNER_ATTR = { "data-stage-inner": "" } as const;
+export const STAGE_INNER_SELECTOR = "[data-stage-inner]";
+
+/** 스크롤 구간 동안 제자리에 멈춰 따라 내려오는 요소의 클래스. 같이 멈출 묶음은 data-pin-group 으로 고른다. */
+export const PIN_CLASS = "u-pin";
 
 /**
  * 자식 중 높이를 재지 않고 안을 들여다볼 상자에 붙이는 속성.

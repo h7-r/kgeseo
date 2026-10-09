@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
-import { readMigrated, writeStorage } from "@/engine/storage";
+import { readMigratedStorage, writeStorage } from "@/engine/storage";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 // 같은 출처라 나주(/naju01/)도 이 값을 읽는다.
@@ -70,7 +70,7 @@ function isResolution(value: unknown): value is Resolution {
 }
 
 /** 한글 필드 이름으로 저장된 값도 영어 필드로 옮겨 읽는다. */
-function normalize(raw: unknown): Partial<Settings> {
+function parseSettings(raw: unknown): Partial<Settings> {
   if (typeof raw !== "object" || raw === null) return {};
   const result: Partial<Settings> = {};
   for (const [key, value] of Object.entries(raw)) {
@@ -90,8 +90,8 @@ function normalize(raw: unknown): Partial<Settings> {
 
 function readSettings(): Settings {
   try {
-    const raw: unknown = JSON.parse(readMigrated(STORAGE_KEY, LEGACY_STORAGE_KEY) || "{}");
-    return { ...DEFAULT_SETTINGS, ...normalize(raw) };
+    const raw: unknown = JSON.parse(readMigratedStorage(STORAGE_KEY, LEGACY_STORAGE_KEY) || "{}");
+    return { ...DEFAULT_SETTINGS, ...parseSettings(raw) };
   } catch {
     return { ...DEFAULT_SETTINGS };
   }

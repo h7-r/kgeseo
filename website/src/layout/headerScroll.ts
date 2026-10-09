@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { prefersReducedMotion } from "@/lib/motionPreference";
-import { sectionTops, sectionTopsCached } from "@/navigation/sectionGeometry";
+import { measureSectionPositions, measureSectionPositionsCached } from "@/navigation/sectionGeometry";
 import { getSubMenu } from "@/navigation/subMenus";
 
 // 머리띠가 스크롤에 맞춰 하는 일: 숨기·드러내기, 구간으로 굴러가기, 구간 맞춤 칸 깔기, 지금 구간 찾기.
@@ -77,10 +77,10 @@ const SOLID_THRESHOLD = 8;
 const HIDE_DELTA = 14;
 const ALWAYS_SHOWN_ABOVE = 160;
 
-/** 맨 위를 벗어났나(solid) · 내려가는 중이라 숨길까(hidden). 매 프레임 리렌더하지 않도록 문턱을 넘을 때만 바뀐다. */
+/** 맨 위를 벗어났나(isSolid) · 내려가는 중이라 숨길까(isHidden). 매 프레임 리렌더하지 않도록 문턱을 넘을 때만 바뀐다. */
 export function useHeaderScrollState() {
-  const [solid, setSolid] = useState(false);
-  const [hidden, setHidden] = useState(false);
+  const [isSolid, setIsSolid] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const lastY = useRef(0);
 
   useEffect(() => {
@@ -90,16 +90,16 @@ export function useHeaderScrollState() {
       const y = window.scrollY;
       const delta = y - lastY.current;
 
-      setSolid(y > SOLID_THRESHOLD);
+      setIsSolid(y > SOLID_THRESHOLD);
       // 스스로 굴리는 중에 숨으면 맞춘 화면 위에 빈 띠가 생긴다.
       if (isHeaderHeld(performance.now())) {
-        setHidden(false);
+        setIsHidden(false);
         lastY.current = y;
         return;
       }
-      if (y < ALWAYS_SHOWN_ABOVE) setHidden(false);
-      else if (delta > HIDE_DELTA) setHidden(true);
-      else if (delta < -HIDE_DELTA) setHidden(false);
+      if (y < ALWAYS_SHOWN_ABOVE) setIsHidden(false);
+      else if (delta > HIDE_DELTA) setIsHidden(true);
+      else if (delta < -HIDE_DELTA) setIsHidden(false);
 
       if (Math.abs(delta) > HIDE_DELTA) lastY.current = y;
     };
@@ -114,7 +114,7 @@ export function useHeaderScrollState() {
     };
   }, []);
 
-  return { solid, hidden };
+  return { isSolid, isHidden };
 }
 
 /** 하위 메뉴에서 켤 구간 id — 맞춤 자리를 화면 3분의 1 넘게 지난 마지막 구간. */
@@ -128,7 +128,7 @@ export function useCurrentSection(path: string, scale: number, enabled: boolean,
       frame = 0;
       const y = window.scrollY + window.innerHeight * 0.33;
       let current: string | null = null;
-      for (const section of sectionTopsCached(path, scale, headerHeight)) {
+      for (const section of measureSectionPositionsCached(path, scale, headerHeight)) {
         if (section.snapTop <= y) current = section.id;
       }
       setCurrentId(current);
@@ -178,7 +178,7 @@ export function useSectionSnapMarkers(path: string, scale: number, headerHeight:
         const end = pinTrack.getBoundingClientRect().bottom + window.scrollY - viewportHeight;
         slots.push({ top: 0, height: Math.max(viewportHeight, end + viewportHeight), align: "start" });
       }
-      for (const section of sectionTops(path, scale, headerHeight)) {
+      for (const section of measureSectionPositions(path, scale, headerHeight)) {
         if (section.isPageTop) continue;
         const pin = section.pinEnd - section.top;
         if (!pin && section.height <= available) {
@@ -199,7 +199,7 @@ export function useSectionSnapMarkers(path: string, scale: number, headerHeight:
     };
 
     html.style.scrollPaddingTop = `${headerHeight}px`;
-    html.classList.add("section-snap");
+    html.classList.add("is-section-snap");
     layOut();
     // 그림·영상이 늦게 읽혀 문서 높이가 바뀌면 다시 깐다.
     let timer = 0;
@@ -214,7 +214,7 @@ export function useSectionSnapMarkers(path: string, scale: number, headerHeight:
       clearTimeout(timer);
       observer.disconnect();
       window.removeEventListener("resize", scheduleLayOut);
-      html.classList.remove("section-snap");
+      html.classList.remove("is-section-snap");
       html.style.scrollPaddingTop = "";
       layer.remove();
     };

@@ -6,7 +6,7 @@ import { FONT, type CSSVars } from "@/lib/style";
 import { ENGLISH_ONLY_FIELDS, ENGLISH_ONLY_HINT, FIELD_HINTS, PASSWORD_CHECKS, hasHangul } from "@/lib/validation";
 import { COLOR } from "@/styles/tokens";
 
-import { inputBoxStyle, type FormVariant } from "./styles";
+import { inputBoxStyle, type FormVariant } from "./formStyles";
 
 export type FieldBinding = FieldProps & { onEnter: (event: KeyboardEvent) => void };
 
@@ -23,7 +23,7 @@ export interface InputLineProps extends FieldBinding {
   typo?: string;
 }
 
-type SideMessageKind = "" | "is-warning" | "is-checking";
+type NoticeKind = "" | " is-warning" | " is-checking";
 
 /**
  * 입력칸 하나. 오류면 밑줄 빨강, 맞으면 초록 ✓, 오른쪽엔 급한 안내 하나만
@@ -56,17 +56,17 @@ export default function InputLine({
   // 영문만 받는 칸에 한글을 치면 다 치기 전에 알려 준다.
   const hasHangulWarning = ENGLISH_ONLY_FIELDS.has(name) && hasHangul(value);
 
-  const sideMessage: { text: string; kind: SideMessageKind } | null = hasHangulWarning
+  const notice: { text: string; kind: NoticeKind } | null = hasHangulWarning
     ? { text: ENGLISH_ONLY_HINT, kind: "" }
     : isPassword && capsLock.isOn && isFocused
-      ? { text: "Caps Lock 켜짐", kind: "is-warning" }
+      ? { text: "Caps Lock 켜짐", kind: " is-warning" }
       : isChecking
-        ? { text: "확인 중…", kind: "is-checking" }
+        ? { text: "확인 중…", kind: " is-checking" }
         : null;
-  const status = error || hasHangulWarning ? "field--error" : isValid ? "field--valid" : "";
+  const fieldState = error || hasHangulWarning ? " is-error" : isValid ? " is-valid" : "";
   // 눈 단추가 있으면 오른쪽 안내·✓ 를 그만큼 비켜 둔다.
-  const sideRight = isPassword ? (isCard ? "40px" : "28px") : "0";
-  const validRight = isPassword ? (isCard ? "40px" : "30px") : "6px";
+  const noticeRight = isPassword ? (isCard ? "40px" : "28px") : "0";
+  const checkRight = isPassword ? (isCard ? "40px" : "30px") : "6px";
 
   const boxStyle: CSSProperties = isCard
     ? { ...inputBoxStyle.card, position: "relative", paddingRight: isPassword ? "40px" : "32px" }
@@ -90,9 +90,9 @@ export default function InputLine({
   return (
     // 홈 폼은 눈 단추를 밑줄 칸 밖에 둔다. 칸 안에 두면 밑줄 1px 만큼 반 픽셀 어긋난다.
     <div style={isCard ? cardWrapperStyle : homeWrapperStyle}>
-      <div className={`underline-field ${status}`} style={boxStyle}>
+      <div className={`form-field${fieldState}`} style={boxStyle}>
         <input
-          className="input"
+          className="text-input"
           type={isPassword && !isRevealed ? "password" : "text"}
           name={name}
           placeholder={placeholder}
@@ -121,13 +121,13 @@ export default function InputLine({
           aria-describedby={error ? `error-${name}` : undefined}
           style={inputTextStyle}
         />
-        {sideMessage && (
-          <span className={`field-hint ${sideMessage.kind}`} style={{ right: sideRight }}>
-            {sideMessage.text}
+        {notice && (
+          <span className={`form-field__notice${notice.kind}`} style={{ right: noticeRight }}>
+            {notice.text}
           </span>
         )}
-        {!sideMessage && isValid && (
-          <span className="valid-mark" aria-hidden="true" style={{ right: validRight }}>
+        {!notice && isValid && (
+          <span className="form-field__check" aria-hidden="true" style={{ right: checkRight }}>
             ✓
           </span>
         )}
@@ -137,9 +137,9 @@ export default function InputLine({
 
       {/* 떠 있는 글은 다음 칸 라벨과 겹친다. 흐름 안에서 높이만큼 열어 아래 칸을 민다. */}
       {hint && (
-        <div className={`hint-collapse${showsHint ? " is-open" : ""}`} aria-hidden={!showsHint}>
+        <div className={`input-hint${showsHint ? " is-open" : ""}`} aria-hidden={!showsHint}>
           <div>
-            <span className="hint" style={{ fontFamily: FONT.mono }}>
+            <span className="input-hint__text" style={{ fontFamily: FONT.mono }}>
               {hint}
             </span>
           </div>
@@ -149,7 +149,7 @@ export default function InputLine({
       {showsRules && (isFocused || value) && (
         <div className="password-rules" style={{ fontFamily: FONT.mono }}>
           {PASSWORD_CHECKS.map(({ label, test }) => (
-            <span key={label} className={test(value) ? "is-valid" : undefined}>
+            <span key={label} className={test(value) ? "password-rules__item is-valid" : "password-rules__item"}>
               <span aria-hidden="true">{test(value) ? "✓" : "○"}</span>
               {label}
             </span>
@@ -164,7 +164,7 @@ const inputTextStyle: CSSVars = {
   fontFamily: FONT.body,
   fontWeight: 400,
   fontSize: "18px",
-  "--hint-color": COLOR.textDim,
+  "--placeholder-color": COLOR.textDim,
 };
 
 const cardWrapperStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: "10px", width: "100%" };

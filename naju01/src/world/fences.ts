@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import type { Spot } from "../placement/instanceGroups";
 import type { HeightAt } from "../terrain/ground";
@@ -41,7 +41,7 @@ interface FencePath {
 
 interface FenceOptions {
   measuredPaths: FencePath[];
-  groundHeight: HeightAt;
+  heightAt: HeightAt;
   /** 이만큼(m) 넘게 떨어지는 쪽에만 세운다 */
   minDrop?: number;
   /** 낙차를 재는 거리(m) — 길 가장자리에서 바깥으로 */
@@ -61,14 +61,14 @@ interface GroundPoint {
   z: number;
 }
 
-export function fenceSpots({
+export function computeFenceSpots({
   measuredPaths,
-  groundHeight,
+  heightAt,
   minDrop = 0.8,
   lookout = 1.5,
   seed = 771103,
 }: FenceOptions): FenceLayout {
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const posts: Spot[] = [];
   const rails: Spot[] = [];
   const light = new THREE.Color(WOOD_STYLE.light);
@@ -89,10 +89,10 @@ export function fenceSpots({
     const runs: { side: number; points: { x: number; z: number }[] }[] = [];
     let current: (typeof runs)[number] | null = null;
     for (const p of dense) {
-      const inside = groundHeight(p.x, p.z);
+      const inside = heightAt(p.x, p.z);
       const d = halfWidth + lookout;
-      const left = groundHeight(p.x - p.nx * d, p.z - p.nz * d) - inside;
-      const right = groundHeight(p.x + p.nx * d, p.z + p.nz * d) - inside;
+      const left = heightAt(p.x - p.nx * d, p.z - p.nz * d) - inside;
+      const right = heightAt(p.x + p.nx * d, p.z + p.nz * d) - inside;
       const side = right < left ? 1 : -1; // 더 깊이 떨어지는 쪽
       if (Math.min(left, right) > -minDrop) {
         current = null; // 여기는 안 떨어진다 — 구간을 끊는다
@@ -114,7 +114,7 @@ export function fenceSpots({
     for (const run of runs) {
       const spots = resampleOnLine(run.points, FENCE_DIMENSIONS.postSpacing);
       if (spots.length < 2) continue; // 기둥 하나짜리는 울타리로 안 보인다
-      const grounded = spots.map((q) => ({ ...q, y: groundHeight(q.x, q.z) }));
+      const grounded = spots.map((q) => ({ ...q, y: heightAt(q.x, q.z) }));
       // 기둥 사이가 너무 가파르면 끊는다. 진짜 울타리는 벼랑 끝까지 널을 끌고 내려가지 않는다.
       for (const pieceRun of splitAtSteep(grounded, FENCE_DIMENSIONS.maxSlope)) {
         if (pieceRun.length < 2) continue;
@@ -238,8 +238,8 @@ function resample(line: LinePoint[], spacing: number): LinePoint[] {
 // 무리(InstancedMesh)로 세워야 길 위에 어긋나게 선 기둥 하나를 집어 치울 수 있다
 
 /** 각진 기둥 — 밑동 원점, 높이 1, 가로세로 1. 곧은 각기둥은 플라스틱처럼 보여 위로 살짝 가늘게. */
-export function postPrototypes(count = 4, seed = 3301): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildPostPrototypes(count = 4, seed = 3301): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const geometry = new THREE.CylinderGeometry(0.38, 0.5, 1, 5, 1);
@@ -260,8 +260,8 @@ export function postPrototypes(count = 4, seed = 3301): THREE.BufferGeometry[] {
 }
 
 /** 가로대 — 국소 +Z 로 누운 길이 1 짜리 각재. 원점이 한가운데. */
-export function railPrototypes(count = 3, seed = 5507): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildRailPrototypes(count = 3, seed = 5507): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const geometry = new THREE.BoxGeometry(1, 1, 1, 1, 1, 3);
@@ -279,10 +279,10 @@ export function railPrototypes(count = 3, seed = 5507): THREE.BufferGeometry[] {
 }
 
 /** 팔레트용 「울타리 한 칸」 — 기둥 둘 + 가로대 둘. 밑동 원점, 높이 1. */
-export function fenceSectionPrototypes(count = 3, seed = 9109): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildFenceSectionPrototypes(count = 3, seed = 9109): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
-  const posts = postPrototypes(count, seed + 1);
+  const posts = buildPostPrototypes(count, seed + 1);
   for (let i = 0; i < count; i++) {
     const pieces: THREE.BufferGeometry[] = [];
     const span = 1.7; // 높이 1 기준 칸 너비

@@ -24,7 +24,7 @@ export type NameFormatResult = { ok: true; name: string } | { ok: false; message
 /** 서버(지금은 부모)가 돌려주는 이름 확인 결과 */
 export type NameCheckResult = { status: "available" } | { status: "taken" | "invalid"; message?: string };
 
-export type CheckName = (name: string, options: { signal?: AbortSignal }) => Promise<NameCheckResult>;
+export type NameChecker = (name: string, options: { signal?: AbortSignal }) => Promise<NameCheckResult>;
 
 // 앞뒤 공백을 떼고, 가운데 연속 공백을 한 칸으로, 한글 조합형을 완성형으로 맞춘다.
 // NFC 를 안 맞추면 눈으로 같은 「가」가 서버에서 다른 문자열이 된다.

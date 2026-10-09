@@ -3,7 +3,7 @@ import * as THREE from "three";
 /** 통에서 액자까지 전류가 가는 시간(초) */
 export const FLOW_SECONDS = 2.4;
 
-const VERTEX = /* glsl */ `
+const VERTEX_SHADER = /* glsl */ `
   varying vec2 vUv;
   void main() {
     vUv = uv;
@@ -11,7 +11,7 @@ const VERTEX = /* glsl */ `
   }
 `;
 
-const FRAGMENT = /* glsl */ `
+const FRAGMENT_SHADER = /* glsl */ `
   uniform float uProg;   // 앞머리 자리 0~1
   uniform float uTime;
   uniform float uLen;    // 선 길이(유닛) — 빛 덩이 간격을 길이와 무관하게 맞춘다
@@ -35,8 +35,8 @@ const FRAGMENT = /* glsl */ `
  */
 export function createCurrentMaterial() {
   return new THREE.ShaderMaterial({
-    vertexShader: VERTEX,
-    fragmentShader: FRAGMENT,
+    vertexShader: VERTEX_SHADER,
+    fragmentShader: FRAGMENT_SHADER,
     uniforms: {
       uProg: { value: 0 },
       uTime: { value: 0 },

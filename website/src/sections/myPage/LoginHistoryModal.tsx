@@ -3,7 +3,7 @@ import { FONT } from "@/lib/style";
 import type { AccountData } from "@/services/account/db";
 import { COLOR } from "@/styles/tokens";
 
-import { darkRowStyle } from "./styles";
+import { darkRowStyle } from "./myPageStyles";
 
 interface LoginHistoryModalProps {
   open: boolean;

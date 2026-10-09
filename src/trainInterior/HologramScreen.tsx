@@ -9,13 +9,13 @@ import { NAJU_ENTER_EVENT, type NajuEnterDetail } from "@/station/najuEnter";
 
 import {
   DESTINATIONS,
-  drawPanel,
-  isInside,
-  PANEL_HEIGHT,
-  PANEL_WIDTH,
-  RESET_RECT,
-  rowRect,
-  SELECT_RECT,
+  drawHologramPanel,
+  isPointInRect,
+  HOLOGRAM_CANVAS_HEIGHT,
+  HOLOGRAM_CANVAS_WIDTH,
+  RESET_BUTTON_RECT,
+  getDestinationRowRect,
+  SELECT_BUTTON_RECT,
 } from "./hologramPanel";
 
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
@@ -82,8 +82,8 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
 
   const canvas = useMemo(() => {
     const element = document.createElement("canvas");
-    element.width = PANEL_WIDTH;
-    element.height = PANEL_HEIGHT;
+    element.width = HOLOGRAM_CANVAS_WIDTH;
+    element.height = HOLOGRAM_CANVAS_HEIGHT;
     return element;
   }, []);
   const panelTexture = useMemo(() => {
@@ -96,7 +96,7 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
   useEffect(() => {
     const g = canvas.getContext("2d");
     if (!g) return;
-    drawPanel(g, { selectedId, isNear });
+    drawHologramPanel(g, { selectedId, isNear });
     panelTexture.needsUpdate = true;
   }, [canvas, panelTexture, selectedId, isNear]);
 
@@ -156,7 +156,7 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
     if (panelRef.current) panelRef.current.material.opacity = Math.min(1, controls.brightness * shimmer);
     // 스캔 바가 위로 흐른다
     if (scanRef.current) {
-      const h = controls.width * (PANEL_HEIGHT / PANEL_WIDTH);
+      const h = controls.width * (HOLOGRAM_CANVAS_HEIGHT / HOLOGRAM_CANVAS_WIDTH);
       scanRef.current.position.y = ((t * 0.5) % 1) * h - h / 2;
       scanRef.current.material.opacity = 0.12 * controls.brightness;
     }
@@ -166,26 +166,26 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
     (event: ThreeEvent<PointerEvent>) => {
       if (!event.uv) return;
       event.stopPropagation();
-      const cx = event.uv.x * PANEL_WIDTH;
-      const cy = (1 - event.uv.y) * PANEL_HEIGHT;
+      const cx = event.uv.x * HOLOGRAM_CANVAS_WIDTH;
+      const cy = (1 - event.uv.y) * HOLOGRAM_CANVAS_HEIGHT;
       for (let i = 0; i < DESTINATIONS.length; i++) {
-        if (isInside(rowRect(i), cx, cy)) {
+        if (isPointInRect(getDestinationRowRect(i), cx, cy)) {
           const destination = DESTINATIONS[i];
           if (destination.isOpen) setSelectedId((previous) => (previous === destination.id ? null : destination.id));
           return;
         }
       }
-      if (isInside(SELECT_RECT, cx, cy)) {
+      if (isPointInRect(SELECT_BUTTON_RECT, cx, cy)) {
         if (selectedId) goToNaju();
         return;
       }
-      if (isInside(RESET_RECT, cx, cy)) setSelectedId(null);
+      if (isPointInRect(RESET_BUTTON_RECT, cx, cy)) setSelectedId(null);
     },
     [selectedId, goToNaju],
   );
 
   if (!controls.visible) return null;
-  const height = controls.width * (PANEL_HEIGHT / PANEL_WIDTH);
+  const height = controls.width * (HOLOGRAM_CANVAS_HEIGHT / HOLOGRAM_CANVAS_WIDTH);
 
   return (
     <group

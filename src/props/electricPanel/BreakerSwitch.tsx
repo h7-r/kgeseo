@@ -5,10 +5,10 @@ import type * as THREE from "three";
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
-import { isOpen, toggleHinge } from "@/props/hingeState";
+import { AimHighlight } from "@/lobby/AimHighlight";
+import { isHingeOpen, toggleHinge } from "@/props/hingeState";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { worldPositionOf } from "@/props/shared/aimTarget";
+import { getWorldPositionOf } from "@/props/shared/aimTarget";
 
 interface BreakerSwitchProps {
   id: string;
@@ -44,26 +44,26 @@ export default function BreakerSwitch({
   useFrame((_, dt) => {
     const mesh = meshRef.current;
     if (!mesh) return;
-    const target = isOpen(id) ? 1 : 0;
+    const target = isHingeOpen(id) ? 1 : 0;
     amount.current += (target - amount.current) * (1 - Math.exp(-dt * 14));
     mesh.position.z = offZ + (onZ - offZ) * amount.current;
   });
   return (
     <>
       {/* 확대는 안 준다 — useFrame 이 위치를 직접 만지는데 강조까지 position 을 쓰면 손잡이가 떤다 */}
-      <Highlight id={id} anchor={() => null} grow={0}>
+      <AimHighlight id={id} anchor={() => null} grow={0}>
         <mesh ref={meshRef} geometry={geometry} position={[spot[0], spot[1], offZ]} castShadow>
           <ToonMaterial color={color} brightness={brightness} />
           <ToonOutline geometry={geometry} outline={outline} />
         </mesh>
-      </Highlight>
+      </AimHighlight>
       <Interactable
         id={id}
         radius={0.26}
         reach={4}
         disabled={() => !canHandle}
         label=""
-        position={() => worldPositionOf(meshRef)}
+        position={() => getWorldPositionOf(meshRef)}
         run={() => toggleHinge(id)}
       />
     </>

@@ -10,7 +10,7 @@ import { sectionAnchor } from "@/navigation/subMenus";
 import { COLOR, GRADIENT } from "@/styles/tokens";
 
 import BlockHeader from "./BlockHeader";
-import { pricingSectionStyle, bulletStyle } from "./styles";
+import { pricingSectionStyle, bulletStyle } from "./pricingStyles";
 
 // 작은 그림이 끝나는 x(849)와 글이 시작하는 x(1184)의 한가운데. 혜택 칸 안쪽 기준이다.
 const ARC_CENTER_X = Math.round((849 + 1184) / 2);

@@ -2,8 +2,8 @@
  * 복도 표지판 텍스처 — 벽함 라벨·비상계단 유도등. 글자·기호를 폴리곤으로 깎지 않고 그린다.
  * 대신 툰 테두리를 그림 안에 넣어야 주변 물체의 외곽선과 굵기가 맞는다.
  */
-import { makeRandom } from "@/engine/random";
-import { cachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
+import { createRandom } from "@/engine/random";
+import { makeCachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
 
 /** 벽함 라벨 캔버스 비율(320×208). 라벨 판 크기를 이 비율로 맞춘다. */
 export const LABEL_ASPECT = 208 / 320;
@@ -11,8 +11,8 @@ export const LABEL_ASPECT = 208 / 320;
 export const EXIT_SIGN_ASPECT = 176 / 512;
 
 /** 라벨 위 얼룩·긁힘. 새 표지판은 이 세계에 없다. */
-function weatherLabel(g: CanvasRenderingContext2D, width: number, height: number, seed: number, strength = 1) {
-  const rnd = makeRandom(seed);
+function drawLabelWeathering(g: CanvasRenderingContext2D, width: number, height: number, seed: number, strength = 1) {
+  const rnd = createRandom(seed);
   for (let i = 0; i < 26 * strength; i++) {
     g.globalAlpha = 0.05 + rnd() * 0.12;
     g.fillStyle = rnd() > 0.5 ? "#000000" : "#6b5a3a";
@@ -35,8 +35,8 @@ function weatherLabel(g: CanvasRenderingContext2D, width: number, height: number
 }
 
 /** 배전반 라벨 — 노란 바탕 + 경고 삼각형 + 고압 문구 */
-export function panelLabelTexture(background = "#c9a83c", lineColor = "#131314", number = "N-3", grime = 1) {
-  return cachedCanvasTexture(
+export function makePanelLabelTexture(background = "#c9a83c", lineColor = "#131314", number = "N-3", grime = 1) {
+  return makeCachedCanvasTexture(
     `panelLabel|${background}${lineColor}${number}${grime.toFixed(2)}`,
     (g, W, H) => {
       g.fillStyle = lineColor;
@@ -88,15 +88,15 @@ export function panelLabelTexture(background = "#c9a83c", lineColor = "#131314",
       g.font = `700 30px ${SIGN_FONT}`;
       g.fillText("배전반  " + number, 24, H - 31);
 
-      weatherLabel(g, W, H, 4211, grime);
+      drawLabelWeathering(g, W, H, 4211, grime);
     },
     { width: 320, height: 208 },
   );
 }
 
 /** 소화전 라벨 — 붉은 바탕 + 흰 글자 */
-export function hydrantLabelTexture(background = "#a5342a", lineColor = "#131314", grime = 1) {
-  return cachedCanvasTexture(
+export function makeHydrantLabelTexture(background = "#a5342a", lineColor = "#131314", grime = 1) {
+  return makeCachedCanvasTexture(
     `hydrantLabel|${background}${lineColor}${grime.toFixed(2)}`,
     (g, W, H) => {
       const white = "#f0ece4";
@@ -122,15 +122,15 @@ export function hydrantLabelTexture(background = "#a5342a", lineColor = "#131314
       g.font = `700 20px ${SIGN_FONT}`;
       g.fillText("화재시 유리를 깨시오", W / 2, 174);
 
-      weatherLabel(g, W, H, 917, grime);
+      drawLabelWeathering(g, W, H, 917, grime);
     },
     { width: 320, height: 208 },
   );
 }
 
 /** 비상계단 유도등 표지. 흰 문 + 달려 나오는 초록 사람 + 글자. */
-export function exitSignTexture(green = "#3f9e63", lineColor = "#131314") {
-  return cachedCanvasTexture(
+export function makeExitSignTexture(green = "#3f9e63", lineColor = "#131314") {
+  return makeCachedCanvasTexture(
     `exitSign|${green}|${lineColor}`,
     (g, W, H) => {
       const white = "#f2f6f1";
@@ -210,7 +210,7 @@ export function exitSignTexture(green = "#3f9e63", lineColor = "#131314") {
       g.fillText("EXIT", 218, 126);
 
       // 낡음 — 폐역이니 표지판도 깨끗하면 안 된다
-      const rnd = makeRandom(4242);
+      const rnd = createRandom(4242);
       g.globalAlpha = 0.16;
       g.fillStyle = "#0b1410";
       for (let i = 0; i < 90; i++) {

@@ -1,7 +1,7 @@
 // 이름 입력과 중복확인. 입력이 바뀌면 진행 중인 확인을 버리고 처음부터 다시 확인받는다.
 import { useRef, useState } from "react";
 
-import { countCharacters, normalizeName, validateNameFormat, type CheckName, type NameRules } from "./nameRules";
+import { countCharacters, normalizeName, validateNameFormat, type NameChecker, type NameRules } from "./nameRules";
 
 export type NameStatusKind =
   "idle" | "checking" | "available" | "taken" | "forbidden" | "failed" | "notConnected" | "format";
@@ -23,26 +23,27 @@ const NAME_STATUS_TEXT: Partial<Record<NameStatusKind, string>> = {
   notConnected: "이름 확인 기능이 연결되지 않았습니다.",
 };
 
-export function useNameCheck(initialName: string, rules: NameRules, checkName: CheckName | null) {
+export function useNameCheck(initialName: string, rules: NameRules, checkName: NameChecker | null) {
   const [name, setName] = useState(initialName);
   const [isComposing, setIsComposing] = useState(false);
   const [status, setStatus] = useState<NameStatus>({ kind: "idle", checkedName: null });
-  const checkSerial = useRef(0);
-  const checkAbort = useRef<AbortController | null>(null);
+  const checkSerialRef = useRef(0);
+  const checkAbortRef = useRef<AbortController | null>(null);
 
-  const format = validateNameFormat(name, rules);
+  const inputFormat = validateNameFormat(name, rules);
   const normalizedName = normalizeName(name);
   const isConfirmed = status.kind === "available" && status.checkedName === normalizedName && normalizedName.length > 0;
   const statusMessage =
     status.kind === "format" ? status.message : (status.message ?? NAME_STATUS_TEXT[status.kind] ?? "");
   // 확인 전에는 형식 오류를 먼저 알려 준다
-  const message = status.kind === "idle" && !format.ok && !format.isEmpty ? format.message : statusMessage;
+  const message =
+    status.kind === "idle" && !inputFormat.ok && !inputFormat.isEmpty ? inputFormat.message : statusMessage;
 
   const changeName = (value: string) => {
     setName(value);
-    checkSerial.current += 1;
-    checkAbort.current?.abort();
-    checkAbort.current = null;
+    checkSerialRef.current += 1;
+    checkAbortRef.current?.abort();
+    checkAbortRef.current = null;
     setStatus({ kind: "idle", checkedName: null });
   };
 
@@ -58,23 +59,23 @@ export function useNameCheck(initialName: string, rules: NameRules, checkName: C
       setStatus({ kind: "notConnected", checkedName: null });
       return;
     }
-    checkAbort.current?.abort();
+    checkAbortRef.current?.abort();
     const controller = typeof AbortController === "function" ? new AbortController() : null;
-    checkAbort.current = controller;
-    checkSerial.current += 1;
-    const serial = checkSerial.current;
+    checkAbortRef.current = controller;
+    checkSerialRef.current += 1;
+    const serial = checkSerialRef.current;
     setStatus({ kind: "checking", checkedName: null });
     try {
       const answer = await checkName(candidate, { signal: controller?.signal });
       // 그 사이 입력이 바뀌었으면 앞 답은 버린다
-      if (serial !== checkSerial.current) return;
+      if (serial !== checkSerialRef.current) return;
       const answerStatus = answer?.status;
       if (answerStatus === "available") setStatus({ kind: "available", checkedName: candidate });
       else if (answerStatus === "taken") setStatus({ kind: "taken", message: answer.message, checkedName: null });
       else if (answerStatus === "invalid") setStatus({ kind: "forbidden", message: answer.message, checkedName: null });
       else setStatus({ kind: "failed", checkedName: null });
     } catch {
-      if (serial !== checkSerial.current) return;
+      if (serial !== checkSerialRef.current) return;
       setStatus({ kind: "failed", checkedName: null });
     }
   };

@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 
 import lockIcon from "@/assets/images/imgLock.svg";
 import playIcon from "@/assets/images/imgPlay.svg";
-import { usePinnedWipe } from "@/hooks/motion";
+import { usePinnedReveal } from "@/hooks/motion";
 import { FONT, gradientText, place } from "@/lib/style";
 import { ROUTES, START_GAME, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
@@ -32,13 +32,14 @@ const MISSION_SPECS: readonly MissionSpec[] = [
 /** SECRET OF ANGAM — 왼쪽은 겹겹의 링에 담긴 사건 필름, 오른쪽은 미션 설명. 가운데 온 뒤 잠깐 멈춘다. */
 export default function AngamRock() {
   const navigate = useSiteNavigate();
-  // 멈춰 있는 동안 오른쪽 글 덩이(.wipe)들이 차례로 드러난다.
-  const wipeRef = usePinnedWipe({ pinLength: ANGAM_PIN_LENGTH });
+  // 멈춰 있는 동안 오른쪽 글 덩이(.u-pin-reveal)들이 차례로 드러난다.
+  const revealRef = usePinnedReveal({ pinLength: ANGAM_PIN_LENGTH });
 
   return (
     <>
       <div
-        className="angam-pin"
+        className="u-pin"
+        data-pin-group="angam-rock"
         style={{
           ...place(160, 6531, 820),
           position: "absolute",
@@ -70,7 +71,7 @@ export default function AngamRock() {
 
           {/* 사진틀이 overflow: hidden 이라 그 안에 넣으면 고리가 잘린다. 같은 자리의 형제로 둔다. */}
           <div style={photoRingSlotStyle} aria-hidden="true">
-            <div className="photo-ring" style={{ inset: 0, padding: "3px" }} />
+            <div className="u-rotating-border" style={{ inset: 0, padding: "3px" }} />
           </div>
 
           <div style={regionTagStyle}>
@@ -111,12 +112,13 @@ export default function AngamRock() {
       </div>
 
       <div
-        ref={wipeRef}
-        className="angam-pin"
+        ref={revealRef}
+        className="u-pin"
+        data-pin-group="angam-rock"
         style={{ ...place(1040, 6490, 720), display: "flex", flexDirection: "column", gap: "40px" }}
       >
-        {/* 배지에 바로 .wipe 를 주면 위아래 여백이 붙어 배지가 뚱뚱해진다. 빈 상자로 감싼다. */}
-        <div className="wipe" style={{ alignSelf: "flex-start" }}>
+        {/* 배지에 바로 .u-pin-reveal 을 주면 위아래 여백이 붙어 배지가 뚱뚱해진다. 빈 상자로 감싼다. */}
+        <div className="u-pin-reveal" style={{ alignSelf: "flex-start" }}>
           <div style={missionBadgeStyle}>
             <img
               loading="lazy"
@@ -141,8 +143,8 @@ export default function AngamRock() {
           </div>
         </div>
 
-        <div className="wipe" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div className="flow-text" style={englishTitleStyle}>
+        <div className="u-pin-reveal" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div className="u-shine-text" style={englishTitleStyle}>
             SECRET OF ANGAM
           </div>
           <div
@@ -159,14 +161,14 @@ export default function AngamRock() {
         </div>
 
         <div
-          className="wipe"
+          className="u-pin-reveal"
           style={{ fontFamily: FONT.body, fontWeight: 400, fontSize: "26px", lineHeight: 1.7, color: COLOR.textMuted }}
         >
           나주의 전설 속 앙암바위에 숨겨진 고대의 비밀을 풀어라. 깊은 역사의 장막을 걷어내고, 시간 안에 모든 단서를 찾아
           무사히 탈출해야 합니다. 지금 미션을 시작하세요.
         </div>
 
-        <div className="wipe" style={{ display: "flex", gap: "24px", alignItems: "center" }}>
+        <div className="u-pin-reveal" style={{ display: "flex", gap: "24px", alignItems: "center" }}>
           {MISSION_SPECS.map(({ label, value, amount, unit, width, isStarColor }) => (
             <div key={label} style={{ ...specBoxStyle, width: `${width}px` }}>
               <div
@@ -203,8 +205,8 @@ export default function AngamRock() {
           ))}
         </div>
 
-        <div className="wipe" style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <button type="button" className="btn" style={startButtonStyle} onClick={() => navigate(START_GAME)}>
+        <div className="u-pin-reveal" style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+          <button type="button" className="button" style={startButtonStyle} onClick={() => navigate(START_GAME)}>
             <span
               style={{
                 fontFamily: FONT.body,
@@ -225,8 +227,8 @@ export default function AngamRock() {
               style={{ width: "16px", height: "16px", display: "block" }}
             />
           </button>
-          <button type="button" className="btn" style={previewButtonStyle} onClick={() => navigate(ROUTES.media)}>
-            <span className="btn__label">미리보기</span>
+          <button type="button" className="button" style={previewButtonStyle} onClick={() => navigate(ROUTES.media)}>
+            <span className="button__label">미리보기</span>
           </button>
         </div>
       </div>

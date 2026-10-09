@@ -56,20 +56,20 @@ const state: CoinState = {
 
 const signal = createChangeSignal();
 
-export function heldCoin() {
+export function getHeldCoin() {
   return state.held;
 }
-export function coinLocation(kind: CoinKind) {
+export function getCoinLocation(kind: CoinKind) {
   return state.location[kind];
 }
-export function coinInsertion() {
+export function getCoinInsertion() {
   return state.inserting;
 }
-export function coinDroppedAt(kind: CoinKind) {
+export function getCoinDroppedAt(kind: CoinKind) {
   return state.droppedAt[kind];
 }
 /** 마지막으로 내려놓은 시각(ms). 0 이면 낙하 연출 없음(처음부터 바닥). */
-export function coinDroppedTime(kind: CoinKind) {
+export function getCoinDroppedTime(kind: CoinKind) {
   return state.droppedTime[kind];
 }
 
@@ -78,7 +78,7 @@ const returnSlots: Record<VendingId, Vector3Tuple | null> = { drink: null, coffe
 export function registerReturnSlot(vendingId: VendingId, position: Vector3Tuple | null) {
   returnSlots[vendingId] = position;
 }
-export function returnSlotPosition(vendingId: VendingId) {
+export function getReturnSlotPosition(vendingId: VendingId) {
   return returnSlots[vendingId];
 }
 // 반환구 앞 착지점 — 구멍에서 나와 자판기보다 조금 앞 바닥에 떨어진다.
@@ -86,7 +86,7 @@ const returnLandings: Record<VendingId, Vector3Tuple | null> = { drink: null, co
 export function registerReturnLanding(vendingId: VendingId, position: Vector3Tuple | null) {
   returnLandings[vendingId] = position;
 }
-export function returnLandingPosition(vendingId: VendingId) {
+export function getReturnLandingPosition(vendingId: VendingId) {
   return returnLandings[vendingId];
 }
 
@@ -117,7 +117,7 @@ export function dropCoin(position: Vector3Tuple | null = null) {
 
 /**
  * 투입구에 E. 바로 넣지 않고 투입 모션을 시작한다(held → inserting).
- * 모션이 끝나면 finishInsert() 가 결과를 확정한다.
+ * 모션이 끝나면 finishCoinInsert() 가 결과를 확정한다.
  */
 export function tryInsertCoin(vendingId: VendingId, slot: Vector3Tuple | null = null) {
   const held = state.held;
@@ -131,7 +131,7 @@ export function tryInsertCoin(vendingId: VendingId, slot: Vector3Tuple | null = 
 }
 
 /** 투입 모션이 끝나면 부른다. */
-export function finishInsert() {
+export function finishCoinInsert() {
   const insertion = state.inserting;
   if (!insertion) return;
   if (insertion.result === "accepted") {

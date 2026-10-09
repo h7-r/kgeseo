@@ -1,11 +1,11 @@
 import type { CSSProperties } from "react";
 
 import type { PaymentBoxContent } from "@/data/pricing";
-import { approachClass, useReveal, useTilt } from "@/hooks/motion";
+import { depthRevealClass, useReveal, useTilt } from "@/hooks/motion";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
 
-import { bulletStyle } from "./styles";
+import { bulletStyle } from "./pricingStyles";
 
 type PaymentBoxProps = PaymentBoxContent;
 
@@ -15,11 +15,11 @@ type PaymentBoxProps = PaymentBoxContent;
  */
 export default function PaymentBox({ icon, title, summary, lines }: PaymentBoxProps) {
   const tilt = useTilt(3);
-  const [ref, visible] = useReveal();
+  const [ref, isVisible] = useReveal();
 
   return (
-    <div ref={ref} className={`tilt-scene ${approachClass(visible)}`} style={{ flex: "1 0 0", minWidth: 0 }}>
-      <div {...tilt} className="card tilt" style={{ ...paymentBoxStyle, width: "100%", height: "100%" }}>
+    <div ref={ref} className={`u-tilt-scene ${depthRevealClass(isVisible)}`} style={{ flex: "1 0 0", minWidth: 0 }}>
+      <div {...tilt} className="interactive-card u-tilt" style={{ ...paymentBoxStyle, width: "100%", height: "100%" }}>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <div style={iconBoxStyle}>
             <img

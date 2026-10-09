@@ -4,7 +4,7 @@
 
 import * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import { UNITS_PER_METER } from "../plan/sitePlan";
 
@@ -187,7 +187,7 @@ function fillWhite(geometry: THREE.BufferGeometry) {
  * 표본 규약: 높이 1 · 밑동이 원점. 그래야 자리의 키가 그대로 배율이 되고 y 가 땅에 닿는 점이 된다.
  * (반쯤 파묻히는 돌만 예외로 중심이 원점이다)
  */
-export function toBaseOrigin(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
+export function applyBaseOrigin(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
   geometry.computeBoundingBox();
   const box = geometry.boundingBox ?? new THREE.Box3();
   const height = box.max.y - box.min.y || 1;
@@ -202,7 +202,7 @@ const copyEdits = (edits: Edits | null | undefined): Edits => ({
   added: { ...(edits?.added ?? {}) },
 });
 
-export function removeInstances(edits: Edits, groupId: string, id: number): Edits {
+export function removeInstance(edits: Edits, groupId: string, id: number): Edits {
   const next = copyEdits(edits);
   next.removed[groupId] = [...new Set([...(next.removed[groupId] ?? []), id])];
   return next;
@@ -217,7 +217,7 @@ export function modifyInstance(edits: Edits, groupId: string, id: number, patch:
 }
 
 /** 사람이 더한 것을 쌓는다. 돌려주는 번호로 바로 고르기·옮기기를 이어 간다. */
-export function addInstances(edits: Edits, groupId: string, spot: Spot): { edits: Edits; id: number } {
+export function addInstance(edits: Edits, groupId: string, spot: Spot): { edits: Edits; id: number } {
   const next = copyEdits(edits);
   const list = [...(next.added[groupId] ?? []), spot];
   next.added[groupId] = list;
@@ -257,7 +257,7 @@ export function jitterStones(
   seed: number,
   { flatten = [0.45, 0.85], color }: JitterOptions = {},
 ): Spot[] {
-  const random = makeRandom(seed >>> 0 || 1);
+  const random = createRandom(seed >>> 0 || 1);
   // 필드 순서가 곧 난수 소비 순서다
   return spots.map((spot) => ({
     x: spot.x,

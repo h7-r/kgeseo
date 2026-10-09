@@ -1,5 +1,5 @@
 import { exposeDevHook } from "@/debug/devHooks";
-import { readMigrated, removeStorage, writeStorage } from "@/engine/storage";
+import { readMigratedStorage, removeStorage, writeStorage } from "@/engine/storage";
 
 // 서버 창구(USR-110 · 전역-002 · 전역-003). 진행 상태 쪽은 아직 localStorage 로 흉내만 낸다 —
 // 서버가 준비되면 mockServer 를 fetch 구현으로 바꾸기만 하면 화면 코드는 그대로다.
@@ -36,7 +36,7 @@ export class BackendError extends Error {
   }
 }
 
-export function errorMessage(cause: unknown) {
+export function getErrorMessage(cause: unknown) {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
@@ -55,7 +55,7 @@ async function backendRequest<T>(path: string, init: RequestInit = {}): Promise<
       headers: { Accept: "application/json", ...init.headers },
     });
   } catch (cause) {
-    const message = errorMessage(cause);
+    const message = getErrorMessage(cause);
     throw new BackendError(`Backend 요청 실패 (network): ${message}`, null, message, { cause });
   }
 
@@ -128,22 +128,22 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
 });
 
 // 실제 백엔드 연결 확인용. 아래 모의 서버와는 따로 동작한다.
-export const getBackendHealth = () => backendRequest<unknown>("/api/v1/health");
-export const getDatabaseReadiness = () => backendRequest<unknown>("/api/v1/health/ready");
+export const loadBackendHealth = () => backendRequest<unknown>("/api/v1/health");
+export const loadDatabaseReadiness = () => backendRequest<unknown>("/api/v1/health/ready");
 export const signInWithGoogle = (credential: string) =>
   backendRequest<GoogleUser>("/api/v1/auth/google", jsonInit("POST", { credential }));
 
 // 소화전 자물쇠 vertical slice 용 실제 백엔드 API.
 export const createAnonymousSession = () =>
   backendRequest<AnonymousSessionResponse>("/api/v1/anonymous-sessions", { method: "POST" });
-export const getCaseBundle = (caseId: string) =>
+export const loadCaseBundle = (caseId: string) =>
   backendRequest<CaseBundleResponse>(`/api/v1/cases/${encodeURIComponent(caseId)}/bundle`);
 export const createPlaySession = (anonymousSessionId: string, caseId: string) =>
   backendRequest<PlaySessionResponse>(
     "/api/v1/play-sessions",
     jsonInit("POST", { anonymous_session_id: anonymousSessionId, case_id: caseId }),
   );
-export const getPlaySession = (playSessionId: string) =>
+export const loadPlaySession = (playSessionId: string) =>
   backendRequest<PlaySessionReadResponse>(`/api/v1/play-sessions/${encodeURIComponent(playSessionId)}`);
 export const submitInteraction = (playSessionId: string, interaction: InteractionRequest) =>
   backendRequest<InteractionResult>(
@@ -152,7 +152,7 @@ export const submitInteraction = (playSessionId: string, interaction: Interactio
   );
 
 // 부팅 때 실패를 재현하려고 저장소에 남긴다. 콘솔: __game.forceServerFailure(true)
-let forceFailure = readMigrated(FAILURE_KEY, LEGACY_FAILURE_KEY) === "1";
+let forceFailure = readMigratedStorage(FAILURE_KEY, LEGACY_FAILURE_KEY) === "1";
 
 function setForceFailure(value = true) {
   forceFailure = value;
@@ -270,7 +270,7 @@ function toConsentRecord(raw: unknown): ConsentRecord {
 
 function readProgress(): Partial<Progress> | null {
   try {
-    const raw: unknown = JSON.parse(readMigrated(PROGRESS_KEY, LEGACY_PROGRESS_KEY) || "null");
+    const raw: unknown = JSON.parse(readMigratedStorage(PROGRESS_KEY, LEGACY_PROGRESS_KEY) || "null");
     return raw === null ? null : (renameFields(raw, LEGACY_PROGRESS_FIELDS) as Partial<Progress>);
   } catch {
     return null;
@@ -283,7 +283,7 @@ function writeProgress(progress: Progress) {
 
 function readConsentHistory(): ConsentRecord[] {
   try {
-    const raw: unknown = JSON.parse(readMigrated(CONSENT_KEY, LEGACY_CONSENT_KEY) || "[]");
+    const raw: unknown = JSON.parse(readMigratedStorage(CONSENT_KEY, LEGACY_CONSENT_KEY) || "[]");
     return Array.isArray(raw) ? raw.map(toConsentRecord) : [];
   } catch {
     return [];
@@ -349,4 +349,4 @@ const mockServer = {
 };
 
 /** 화면 코드는 이 이름만 쓴다. 구현이 바뀌어도 여기만 갈아끼운다. */
-export const server = mockServer;
+export const progressServer = mockServer;

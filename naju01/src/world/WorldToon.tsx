@@ -10,7 +10,7 @@ import * as THREE from "three";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
-import { TOON_UNIFORMS_KEY, toonGradientMap } from "../avatar/toonMaterial";
+import { makeToonGradientTexture, TOON_UNIFORMS_KEY } from "../avatar/toonMaterial";
 import { isMesh } from "../loaders/glbImport";
 
 type ConvertibleMaterial = THREE.MeshStandardMaterial | THREE.MeshLambertMaterial | THREE.MeshPhongMaterial;
@@ -27,12 +27,12 @@ const isConvertible = (m: THREE.Material): m is ConvertibleMaterial => CONVERTIB
 const materialList = (object: THREE.Mesh) => (Array.isArray(object.material) ? object.material : [object.material]);
 
 // NPC 모형(아비사·어부 등) 같은 SkinnedMesh 는 세계와 같이 바꿔야 질감이 맞는다
-function shouldSkip(object: THREE.Mesh) {
+function shouldSkipToon(object: THREE.Mesh) {
   if (object.name.includes("outline")) return true;
   return materialList(object).some((m) => m?.userData[TOON_UNIFORMS_KEY]);
 }
 
-function toToon(source: ConvertibleMaterial, gradientMap: THREE.Texture) {
+function createToonMaterial(source: ConvertibleMaterial, gradientMap: THREE.Texture) {
   const material = new THREE.MeshToonMaterial({
     map: source.map ?? null,
     color: source.color ? source.color.clone() : new THREE.Color(0xffffff),
@@ -69,7 +69,7 @@ interface WorldToonStats {
 
 /** 씬 전체를 툰으로. 여러 번 불러도 된다 — 나중에 들어온 메시만 추가로 바꾼다. */
 function applyWorldToon(scene: THREE.Object3D, { steps, threshold }: { steps: number; threshold: number }) {
-  const gradientMap = toonGradientMap(steps, threshold);
+  const gradientMap = makeToonGradientTexture(steps, threshold);
   // 같은 재질을 나눠 쓰는 메시는 툰 재질도 하나로
   const converted = new Map<THREE.Material, THREE.MeshToonMaterial>();
   const changedMeshes: { object: THREE.Mesh; original: THREE.Material | THREE.Material[] }[] = [];
@@ -77,7 +77,7 @@ function applyWorldToon(scene: THREE.Object3D, { steps, threshold }: { steps: nu
 
   const update = () => {
     scene.traverse((object) => {
-      if (!isMesh(object) || shouldSkip(object)) return;
+      if (!isMesh(object) || shouldSkipToon(object)) return;
       let changed = false;
       const next = materialList(object).map((m: THREE.Material) => {
         if (!m) return m;
@@ -97,7 +97,7 @@ function applyWorldToon(scene: THREE.Object3D, { steps, threshold }: { steps: nu
         if (m.userData.groundGrainAttached || m.userData.waterRipplesAttached) return m; // 셰이더 훅이 붙은 재질
         let toon = converted.get(m);
         if (!toon) {
-          toon = toToon(m, gradientMap);
+          toon = createToonMaterial(m, gradientMap);
           converted.set(m, toon);
         }
         changed = true;

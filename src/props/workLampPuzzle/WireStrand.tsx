@@ -5,7 +5,7 @@ import { Outlines } from "@react-three/drei";
 import { scaleColor } from "@/engine/color";
 import { TOON_GRADIENT } from "@/engine/toon";
 
-import { connectorGeometry } from "./geometry";
+import { buildConnectorGeometry } from "./puzzleGeometry";
 import type { WireShape } from "./workLampState";
 
 const SAGGING_POINTS: THREE.Vector3Tuple[] = [
@@ -47,7 +47,7 @@ export default function WireStrand({
     return new THREE.TubeGeometry(curve, 20, 0.015 * size, 6, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 점 배열은 판마다 새로 만들어져 값(pointsKey)으로 비교한다
   }, [pointsKey, size]);
-  const tip = useMemo(() => connectorGeometry(shape, size), [shape, size]);
+  const tip = useMemo(() => buildConnectorGeometry(shape, size), [shape, size]);
   useEffect(
     () => () => {
       tube.dispose();

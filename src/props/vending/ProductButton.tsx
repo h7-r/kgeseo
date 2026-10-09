@@ -6,10 +6,10 @@ import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { aim } from "@/lobby/interactions";
-import { heldCoin } from "@/props/coinState";
-import { buttonLight, pressDepth, type VendingId } from "@/props/vendingMachineState";
-import { worldPositionOf } from "@/props/shared/aimTarget";
+import { aimStore } from "@/lobby/interactions";
+import { getHeldCoin } from "@/props/coinState";
+import { computeButtonLight, computePressDepth, type VendingId } from "@/props/vendingMachineState";
+import { getWorldPositionOf } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
 type Corner = [number, number, number];
@@ -20,7 +20,7 @@ type Corner = [number, number, number];
  * 자체발광 재질이라 조명이 음영을 안 만들어, 위 경사는 밝게·아래 경사는 어둡게 면마다 재질을 나눠 색으로 넣는다.
  * 재질 순서: 앞(0) · 위 경사(1) · 아래 경사(2) · 옆과 뒤(3)
  */
-function buttonCapGeometry(width: number, height: number, depth: number, flare: number) {
+function buildButtonCapGeometry(width: number, height: number, depth: number, flare: number) {
   const fw = width / 2;
   const fh = height / 2;
   const hd = depth / 2;
@@ -63,7 +63,7 @@ function buttonCapGeometry(width: number, height: number, depth: number, flare: 
   return geometry;
 }
 
-const basicColor = (material: THREE.Material | undefined) =>
+const findBasicColor = (material: THREE.Material | undefined) =>
   material instanceof THREE.MeshBasicMaterial ? material.color : null;
 
 interface ProductButtonProps {
@@ -114,7 +114,7 @@ export default function ProductButton({
   // 치마 폭 — 커피 자판기는 버튼 사이가 0.511 밖에 안 돼 이웃과 부딪히지 않게 줄인다
   const flare = Math.min(0.035, width * 0.09, height * 0.13);
   const capDepth = 0.075;
-  const cap = useMemo(() => buttonCapGeometry(width, height, capDepth, flare), [width, height, flare]);
+  const cap = useMemo(() => buildButtonCapGeometry(width, height, capDepth, flare), [width, height, flare]);
   useEffect(() => () => cap.dispose(), [cap]);
 
   // 이름표 버튼은 틀 색을, 색 버튼은 제 색을 경사면 기준으로 삼는다.
@@ -142,9 +142,9 @@ export default function ProductButton({
     const mesh = capRef.current;
     if (!mesh) return;
     const now = performance.now();
-    const pressed = vendingId ? pressDepth(vendingId, index, now) : 0;
-    const light = vendingId ? buttonLight(vendingId, index, now) : alwaysLit ? 1 : 0;
-    const isAimed = aimId && aim.get() === aimId ? 1 : 0;
+    const pressed = vendingId ? computePressDepth(vendingId, index, now) : 0;
+    const light = vendingId ? computeButtonLight(vendingId, index, now) : alwaysLit ? 1 : 0;
+    const isAimed = aimId && aimStore.get() === aimId ? 1 : 0;
 
     mesh.position.z = 0.02 + capDepth / 2 - pressed * (capDepth * 0.6);
 
@@ -153,10 +153,10 @@ export default function ProductButton({
     const mix = Math.min(1, light * 0.8);
     const materials = mesh.material;
     if (!Array.isArray(materials) || materials.length < 4) return;
-    const faceTint = basicColor(materials[0]);
-    const topTint = basicColor(materials[1]);
-    const bottomTint = basicColor(materials[2]);
-    const sideTint = basicColor(materials[3]);
+    const faceTint = findBasicColor(materials[0]);
+    const topTint = findBasicColor(materials[1]);
+    const bottomTint = findBasicColor(materials[2]);
+    const sideTint = findBasicColor(materials[3]);
     if (!faceTint || !topTint || !bottomTint || !sideTint) return;
     faceTint.copy(base.face).multiplyScalar(labelTexture ? faceBrightness * k : k);
     topTint.copy(base.top).lerp(base.glow, mix).multiplyScalar(k);
@@ -177,10 +177,10 @@ export default function ProductButton({
           id={aimId}
           radius={radius}
           reach={5}
-          position={() => worldPositionOf(rootRef)}
+          position={() => getWorldPositionOf(rootRef)}
           label=""
           // 동전을 든 동안은 겨냥이 버튼에 안 뺏기고 투입구로 가야 한다
-          disabled={() => !!heldCoin()}
+          disabled={() => !!getHeldCoin()}
           run={() => onPress?.()}
         />
       )}

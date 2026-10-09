@@ -11,14 +11,14 @@ import { FRAME_PRIORITY, MAX_FRAME_DELTA } from "@/engine/camera";
 import { playerView } from "@/engine/playerView";
 import { requestShadowUpdates } from "@/engine/rendering";
 
-import { gripSpec, type GripSpec } from "./gripTable";
-import { itemSizes, springArm } from "./placement";
+import { getGripSpec, type GripSpec } from "./gripTable";
+import { itemSizes, computeSpringArmPoint } from "./placement";
 
-const target = new THREE.Vector3();
-const start = new THREE.Vector3();
+const targetPosition = new THREE.Vector3();
+const springArmStart = new THREE.Vector3();
 const handQuaternion = new THREE.Quaternion();
 const gripOffset = new THREE.Vector3();
-const correction = new THREE.Quaternion();
+const gripCorrection = new THREE.Quaternion();
 const euler = new THREE.Euler();
 const UP = new THREE.Vector3(0, 1, 0);
 const socketQuaternion = new THREE.Quaternion();
@@ -43,22 +43,22 @@ const smoothstep = (progress: number) => progress * progress * (3 - 2 * progress
 /** 물건별 회전(gripRotation)을 handQuaternion 에 얹는다. */
 function applyGripRotation(spec: GripSpec) {
   if (!hasValue(spec.gripRotation)) return;
-  correction.setFromEuler(degreesToEuler(spec.gripRotation));
-  handQuaternion.multiply(correction);
+  gripCorrection.setFromEuler(degreesToEuler(spec.gripRotation));
+  handQuaternion.multiply(gripCorrection);
 }
 
-/** 물건 로컬 좌표의 점을 놓일 방향으로 돌린 뒤 target 에서 뺀다 — 그 점이 손에 오도록 물건을 반대로 민다. */
+/** 물건 로컬 좌표의 점을 놓일 방향으로 돌린 뒤 targetPosition 에서 뺀다 — 그 점이 손에 오도록 물건을 반대로 민다. */
 function subtractLocalPoint(point: Vector3Tuple) {
   if (!hasValue(point)) return;
   gripOffset.set(point[0], point[1], point[2]).applyQuaternion(handQuaternion);
-  target.sub(gripOffset);
+  targetPosition.sub(gripOffset);
 }
 
 /**
  * 물건의 좌/우 짚는 점을 세계 자리로 알린다 — 다음 프레임 손붙이기가 양팔 IK 목표로 쓴다.
  * 두 손 물건이 아니면 꺼 둔다(안 끄면 빈손인데 왼팔이 허공을 붙잡는다).
  */
-function reportTwoHands(spec: GripSpec, object: THREE.Object3D) {
+function applyTwoHandTargets(spec: GripSpec, object: THREE.Object3D) {
   const hands = playerView.twoHands;
   if (!spec.twoHanded || !spec.handPoint) {
     hands.ready = false;
@@ -143,7 +143,7 @@ export function HeldItem({
 
     const blendFromStart = (progress: number, rotation: THREE.Quaternion) => {
       const t = smoothstep(progress);
-      object.position.lerpVectors(switchFrom.current, target, t);
+      object.position.lerpVectors(switchFrom.current, targetPosition, t);
       object.quaternion.copy(switchFromQuaternion.current).slerp(rotation, t);
     };
 
@@ -166,33 +166,33 @@ export function HeldItem({
         return true;
       }
       if (snapWhenIdle) {
-        object.position.copy(target);
+        object.position.copy(targetPosition);
         object.quaternion.copy(rotation);
       }
       return false;
     };
 
-    const spec = gripSpec(kind, itemId);
+    const spec = getGripSpec(kind, itemId);
 
     // 품에 안는 물건은 손뼈가 아니라 가슴 앞이 주인이다 — 손을 따르면 걸을 때 팔 스윙대로 휘둘린다.
     // 1인칭 손이 켜진 프레임에도 오므로 삼인칭 검사는 따로 하지 않는다.
     const chest = playerView.chest;
     if (spec.hugged && chest.enabled && chest.ready) {
-      target.copy(chest.position);
+      targetPosition.copy(chest.position);
       handQuaternion.copy(chest.quaternion);
       applyGripRotation(spec);
       subtractLocalPoint(spec.hugPoint ?? spec.gripPoint);
       isFirstFrame.current = false;
       // 가슴 앵커는 이미 몸을 따라간다 — 또 늦추면 상자만 뒤처진다.
       place();
-      reportTwoHands(spec, object);
+      applyTwoHandTargets(spec, object);
       return;
     }
 
     // 소켓(prop_r)은 물건을 매달라고 리그에 들어 있는 뼈라 손목→주먹 보정·뒤집기 보정이 필요 없다.
     const socket = playerView.gripSocket;
     if (socket) {
-      socket.getWorldPosition(target);
+      socket.getWorldPosition(targetPosition);
 
       // 컵은 수평을 지켜야 하고 노즐은 손이 겨눈 쪽을 봐야 한다. 0 = 몸 기준 똑바로, 1 = 소켓 회전 그대로.
       const follow = Math.max(0, Math.min(1, spec.followHand ?? 0));
@@ -203,18 +203,18 @@ export function HeldItem({
       }
       const grip = playerView.grip;
       if (grip.rx || grip.ry || grip.rz) {
-        correction.setFromEuler(euler.set(grip.rx, grip.ry, grip.rz));
-        handQuaternion.multiply(correction);
+        gripCorrection.setFromEuler(euler.set(grip.rx, grip.ry, grip.rz));
+        handQuaternion.multiply(gripCorrection);
       }
       applyGripRotation(spec);
       if (grip.x || grip.y || grip.z) {
         gripOffset.set(grip.x, grip.y, grip.z).applyQuaternion(handQuaternion);
-        target.add(gripOffset);
+        targetPosition.add(gripOffset);
       }
       subtractLocalPoint(spec.gripPoint);
       isFirstFrame.current = false;
       place();
-      reportTwoHands(spec, object);
+      applyTwoHandTargets(spec, object);
       return;
     }
 
@@ -223,33 +223,33 @@ export function HeldItem({
       // 손뼈 원점은 손목이다. 아바타가 재서 알려 준 주먹 한가운데(손뼈 로컬)를 세계로 옮긴다.
       const palm = playerView.palm;
       if (palm) {
-        target.set(palm.x, palm.y, palm.z);
-        hand.localToWorld(target);
+        targetPosition.set(palm.x, palm.y, palm.z);
+        hand.localToWorld(targetPosition);
       } else {
-        hand.getWorldPosition(target);
+        hand.getWorldPosition(targetPosition);
       }
       // 손뼈 회전을 그대로 물려받으면 물건이 크게 기운다. 몸 기준 똑바른 자세에 리그 공통 보정(grip)과
       // 물건별 gripRotation 만 얹는다. 자리는 여전히 손뼈를 따른다.
       handQuaternion.setFromAxisAngle(UP, playerView.bodyYaw ?? 0);
       const grip = playerView.grip;
       gripOffset.set(grip.x, grip.y, grip.z).applyQuaternion(handQuaternion);
-      target.add(gripOffset);
-      correction.setFromEuler(euler.set(grip.rx, grip.ry, grip.rz));
-      handQuaternion.multiply(correction);
+      targetPosition.add(gripOffset);
+      gripCorrection.setFromEuler(euler.set(grip.rx, grip.ry, grip.rz));
+      handQuaternion.multiply(gripCorrection);
       applyGripRotation(spec);
       subtractLocalPoint(spec.gripPoint);
 
       if (isFirstFrame.current && !(grabRemaining.current > 0)) {
         isFirstFrame.current = false;
-        object.position.copy(target);
+        object.position.copy(targetPosition);
         object.quaternion.copy(handQuaternion);
-        reportTwoHands(spec, object);
+        applyTwoHandTargets(spec, object);
         return;
       }
       isFirstFrame.current = false;
       // 손은 이미 애니메이션으로 움직인다 — 또 늦추면 두 번 늦어 흐물거린다.
       place();
-      reportTwoHands(spec, object);
+      applyTwoHandTargets(spec, object);
       return;
     }
 
@@ -257,32 +257,32 @@ export function HeldItem({
     // 3인칭에서 카메라 기준이면 물건이 캐릭터 등 뒤 허공에 뜬다. 방향만 카메라에서 가져온다.
     const person = playerView.ready ? playerView.eye : camera.position;
 
-    target.set(side, -down, -forwardDistance).applyQuaternion(camera.quaternion).add(person);
+    targetPosition.set(side, -down, -forwardDistance).applyQuaternion(camera.quaternion).add(person);
 
     // 막혔으면 사람 쪽으로 당긴다. 물건 크기만큼 여유를 둔다.
     const radius = (itemSizes.get(itemId)?.halfX ?? 0.3) + 0.12;
-    start.copy(person);
-    const [x, y, z] = springArm(
-      [start.x, start.y, start.z],
-      [target.x, target.y, target.z],
+    springArmStart.copy(person);
+    const [x, y, z] = computeSpringArmPoint(
+      [springArmStart.x, springArmStart.y, springArmStart.z],
+      [targetPosition.x, targetPosition.y, targetPosition.z],
       radius,
       itemId, // 들고 있는 물건이 놓여 있던 자리는 검사에서 뺀다
       8,
       // 근평면(0.25)보다 넉넉히 앞. 책상 앞에서 집어도 물건이 안 사라진다.
       0.8,
     );
-    target.set(x, y, z);
+    targetPosition.set(x, y, z);
 
     // 처음 든 순간만 즉시 맞춘다(안 그러면 방 저편에서 날아온다). 잡기 중이면 place 가 건너가게 한다.
     if (isFirstFrame.current && !(grabRemaining.current > 0)) {
       isFirstFrame.current = false;
-      object.position.copy(target);
+      object.position.copy(targetPosition);
       object.quaternion.copy(camera.quaternion);
       return;
     }
     isFirstFrame.current = false;
     if (!place(camera.quaternion, false)) {
-      object.position.lerp(target, 1 - Math.exp(-delta * 20));
+      object.position.lerp(targetPosition, 1 - Math.exp(-delta * 20));
       object.quaternion.slerp(camera.quaternion, 1 - Math.exp(-delta * 15));
     }
     // 1인칭·대체 경로에서는 몸이 화면에 없어 양팔 IK 를 걸지 않는다.

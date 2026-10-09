@@ -127,7 +127,7 @@ function makeSnippet(body: string, lowerBody: string, query: string, length = 84
  * 대소문자·앞뒤 공백을 무시하고 찾는다. 점수 높은 순.
  * 제목에서 맞으면 그 화면 자체를 찾는 경우가 많아 위로 올리고, 본문은 다섯 번까지 맞은 횟수를 센다.
  */
-export function search(query: string | null | undefined, limit = 20): SearchResult[] {
+export function searchSite(query: string | null | undefined, limit = 20): SearchResult[] {
   const needle = String(query || "")
     .trim()
     .toLowerCase();

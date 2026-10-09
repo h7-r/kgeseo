@@ -278,7 +278,7 @@ type PoseRule = [string, THREE.Vector3, number | null, boolean];
 
 // 보정은 매 프레임 본을 돌리지 않고 리타게팅된 클립 키프레임에 한 번 넣는다.
 // 매 프레임 돌리면 믹서가 값을 안 쓰는 프레임에 보정이 쌓여 팔이 머리 위로 올라간다.
-const poseRules = (v: CorrectionValues): PoseRule[] => [
+const getPoseRules = (v: CorrectionValues): PoseRule[] => [
   ["upperarm_l", FORWARD_AXIS, v.armSpread, false],
   ["upperarm_r", FORWARD_AXIS, -v.armSpread, false],
   // 왼팔은 +x 를 향하므로 위축 둘레 −가 앞이다(오른팔은 반대).
@@ -332,24 +332,24 @@ const poseRules = (v: CorrectionValues): PoseRule[] => [
 ];
 
 // 쉴 때 자세에서 그 뼈의 부모까지 쌓인 회전 — 모델 기준 축을 부모 기준으로 옮길 때 쓴다.
-function parentRestRotation(bone: THREE.Object3D): THREE.Quaternion {
+function computeParentRestRotation(bone: THREE.Object3D): THREE.Quaternion {
   const out = new THREE.Quaternion();
   for (let node = bone.parent; node && node instanceof THREE.Bone; node = node.parent) out.premultiply(node.quaternion);
   return out;
 }
 
-function mergeEntry(table: CorrectionTable, name: string, patch: BoneCorrection) {
+function mergeBoneCorrection(table: CorrectionTable, name: string, patch: BoneCorrection) {
   table.set(name, { ...(table.get(name) ?? {}), ...patch });
 }
 
 /** 쉴 때 자세 기준으로 뼈마다 보정 회전·축을 미리 만든다. */
-export function correctionQuaternion(skin: THREE.SkinnedMesh, values: CorrectionValues): CorrectionTable {
+export function computeCorrectionTable(skin: THREE.SkinnedMesh, values: CorrectionValues): CorrectionTable {
   skin.skeleton.pose();
   const out: CorrectionTable = new Map();
-  poseRules(values).forEach(([name, axisInModel, degrees, moveOnly]) => {
+  getPoseRules(values).forEach(([name, axisInModel, degrees, moveOnly]) => {
     const bone = skin.skeleton.getBoneByName(name);
     if (!bone || !degrees) return;
-    const axis = axisInModel.clone().applyQuaternion(parentRestRotation(bone).invert()).normalize();
+    const axis = axisInModel.clone().applyQuaternion(computeParentRestRotation(bone).invert()).normalize();
     const rotation = new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(degrees));
     // 같은 뼈에 여러 축이 걸리면 곱해 쌓는다. '늘'과 '이동 중에만'은 따로 쌓는다(팔벌림 + 걷기팔붙임).
     const entry = out.get(name) ?? {};
@@ -360,31 +360,31 @@ export function correctionQuaternion(skin: THREE.SkinnedMesh, values: Correction
   });
   KNEE_BONES.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
-    if (bone) mergeEntry(out, name, { knee: bone.quaternion.clone() });
+    if (bone) mergeBoneCorrection(out, name, { knee: bone.quaternion.clone() });
   });
   STRIDE_BONES.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
-    if (bone) mergeEntry(out, name, { stride: bone.quaternion.clone() });
+    if (bone) mergeBoneCorrection(out, name, { stride: bone.quaternion.clone() });
   });
   ELBOW_BONES.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
-    if (bone) mergeEntry(out, name, { elbow: bone.quaternion.clone() });
+    if (bone) mergeBoneCorrection(out, name, { elbow: bone.quaternion.clone() });
   });
   WRIST_BONES.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
-    if (bone) mergeEntry(out, name, { wrist: bone.quaternion.clone() });
+    if (bone) mergeBoneCorrection(out, name, { wrist: bone.quaternion.clone() });
   });
   ARM_SWING_BONES.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
-    if (bone) mergeEntry(out, name, { armSwing: true });
+    if (bone) mergeBoneCorrection(out, name, { armSwing: true });
   });
   SWAY_BONES.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
     if (!bone) return;
     // 모델 앞축을 이 뼈의 쉴 때 로컬 프레임으로 옮긴다(뼈 세계 회전의 역).
-    const world = parentRestRotation(bone).multiply(bone.quaternion);
+    const world = computeParentRestRotation(bone).multiply(bone.quaternion);
     const axis = FORWARD_AXIS.clone().applyQuaternion(world.invert()).normalize();
-    mergeEntry(out, name, { swayAxis: axis });
+    mergeBoneCorrection(out, name, { swayAxis: axis });
   });
   ARM_ROLL_BONES.forEach(([name, childName, sign]) => {
     const bone = skin.skeleton.getBoneByName(name);
@@ -392,21 +392,21 @@ export function correctionQuaternion(skin: THREE.SkinnedMesh, values: Correction
     if (!bone || !child) return;
     // 자식 위치는 이 뼈의 부모 기준이 아니라 이 뼈 기준으로 옮겨야 제 길이 축이 된다.
     const axis = child.position.clone().normalize().applyQuaternion(bone.quaternion.clone().invert()).normalize();
-    mergeEntry(out, name, { rollAxis: axis, rollSign: sign });
+    mergeBoneCorrection(out, name, { rollAxis: axis, rollSign: sign });
   });
   TWIST_BONES.forEach((name) => {
     const bone = skin.skeleton.getBoneByName(name);
     if (!bone) return;
-    const world = parentRestRotation(bone).multiply(bone.quaternion);
+    const world = computeParentRestRotation(bone).multiply(bone.quaternion);
     const axis = UP_AXIS.clone().applyQuaternion(world.invert()).normalize();
-    mergeEntry(out, name, { twistAxis: axis });
+    mergeBoneCorrection(out, name, { twistAxis: axis });
   });
   return out;
 }
 
 // 클립 전체의 평균 회전 — 보폭을 키울 때 가운데로 삼는다. 쉴 때 자세를 가운데로 쓰면
 // 걷기 허벅지 평균이 앞으로 치우쳐 있어 앞으로만 더 나가고 뒤로는 안 뻗는다.
-function meanRotation(track: THREE.KeyframeTrack): THREE.Quaternion {
+function computeMeanRotation(track: THREE.KeyframeTrack): THREE.Quaternion {
   const sum = new THREE.Quaternion(0, 0, 0, 0);
   const q = new THREE.Quaternion();
   const reference = new THREE.Quaternion().fromArray(track.values, 0);
@@ -426,7 +426,7 @@ function meanRotation(track: THREE.KeyframeTrack): THREE.Quaternion {
 }
 
 // 중심 자세에서 벗어난 각을 배율만큼 키우거나 줄인다(축은 그대로).
-function scaleAngle(track: THREE.KeyframeTrack, center: THREE.Quaternion, scale: number) {
+function applyAngleScale(track: THREE.KeyframeTrack, center: THREE.Quaternion, scale: number) {
   const centerInverse = center.clone().invert();
   const q = new THREE.Quaternion();
   const axis = new THREE.Vector3();
@@ -445,7 +445,7 @@ function scaleAngle(track: THREE.KeyframeTrack, center: THREE.Quaternion, scale:
 }
 
 // 중심 자세에서 벗어난 회전 중 axis 둘레 성분(비틀림)만 배율로 바꾼다. 흔듦은 그대로(swing-twist 분해).
-function scaleTwist(track: THREE.KeyframeTrack, center: THREE.Quaternion, axis: THREE.Vector3, scale: number) {
+function applyTwistScale(track: THREE.KeyframeTrack, center: THREE.Quaternion, axis: THREE.Vector3, scale: number) {
   const centerInverse = center.clone().invert();
   const q = new THREE.Quaternion();
   const twist = new THREE.Quaternion();
@@ -462,7 +462,7 @@ function scaleTwist(track: THREE.KeyframeTrack, center: THREE.Quaternion, axis: 
 }
 
 // 허벅지가 앞으로 나간 정도 — 키마다. 쉴 때 대비 옆축 회전각(도).
-function forwardReach(thighTrack: THREE.KeyframeTrack, rest: THREE.Quaternion) {
+function measureForwardReach(thighTrack: THREE.KeyframeTrack, rest: THREE.Quaternion) {
   const restInverse = rest.clone().invert();
   const q = new THREE.Quaternion();
   const angles = new Float32Array(thighTrack.values.length / 4);
@@ -480,7 +480,7 @@ function forwardReach(thighTrack: THREE.KeyframeTrack, rest: THREE.Quaternion) {
 // 쉴 때 자세에서 벗어난 각에서 일정 각을 뺀다(0 밑으로는 안 내려간다).
 //   weights 를 주면 키마다 그 비율만큼만 뺀다 — 앞으로 뻗은 다리만 펴고 뒤로 미는 다리는 둬야
 //   뒤꿈치가 제때 떨어진다(전부 폈더니 뒷발에 오래 실려 몸이 디딘 발보다 앞에 머물렀다).
-function subtractAngle(
+function applyAngleReduction(
   track: THREE.KeyframeTrack,
   rest: THREE.Quaternion,
   degrees: number | null,
@@ -509,7 +509,7 @@ function subtractAngle(
 const TRACK_BONE_NAME = /(?:\.bones\[)?([^.[\]]+)\]?\.quaternion$/;
 
 /** 리타게팅된 클립의 키프레임에 보정을 직접 넣는다(clip 을 고쳐 돌려준다). */
-export function correctClip(
+export function applyClipCorrection(
   clip: THREE.AnimationClip,
   table: CorrectionTable | null,
   clipName: string,
@@ -542,7 +542,7 @@ export function correctClip(
       const thighRule = table?.get(`thigh_${side}`);
       let weights: Float32Array | null = null;
       if (thigh && thighRule?.stride && thigh.values.length === track.values.length) {
-        const { angles, mean, range } = forwardReach(thigh, thighRule.stride);
+        const { angles, mean, range } = measureForwardReach(thigh, thighRule.stride);
         // 어느 부호가 앞인가는 클립에서 읽는다: 무릎이 가장 곧은 키(디디는 순간)에 허벅지가 평균에서 벗어난 쪽.
         const restInverse = rule.knee.clone().invert();
         let straightKey = 0;
@@ -561,30 +561,30 @@ export function correctClip(
           THREE.MathUtils.clamp((direction * (value - mean)) / range, 0, 1),
         );
       }
-      subtractAngle(track, rule.knee, values.kneeStraighten, weights);
+      applyAngleReduction(track, rule.knee, values.kneeStraighten, weights);
       // 무릎에도 축 회전(kneeSpread)이 걸리므로 아래로 이어 간다.
     }
     // 허벅지는 보폭 확대(걷기 클립만)와 골반 되돌림(늘)이 같이 걸린다.
-    if (rule.stride && isWalking) scaleAngle(track, meanRotation(track), values.strideScale);
+    if (rule.stride && isWalking) applyAngleScale(track, computeMeanRotation(track), values.strideScale);
     // 팔: 흔들림 폭은 클립 평균을 가운데로 줄이고, 팔꿈치는 쉴 때 대비 굽힘에서 뺀다.
     if (rule.armSwing && isMoving && values.armSwingScale !== 1) {
-      scaleAngle(track, meanRotation(track), values.armSwingScale);
+      applyAngleScale(track, computeMeanRotation(track), values.armSwingScale);
     }
     if (rule.elbow && (isMoving || values.elbowStraightenAlways)) {
       const degrees =
         (boneName.endsWith("_l") ? values.leftElbowStraighten : values.rightElbowStraighten) ?? values.elbowStraighten;
-      subtractAngle(track, rule.elbow, degrees);
+      applyAngleReduction(track, rule.elbow, degrees);
     }
     if (rule.wrist && (isMoving || values.elbowStraightenAlways)) {
       const degrees =
         (boneName.endsWith("_l") ? values.leftWristStraighten : values.rightWristStraighten) ?? values.wristStraighten;
-      subtractAngle(track, rule.wrist, degrees);
+      applyAngleReduction(track, rule.wrist, degrees);
     }
     if (rule.swayAxis && isMoving && values.bodySwayScale !== 1) {
-      scaleTwist(track, meanRotation(track), rule.swayAxis, values.bodySwayScale);
+      applyTwistScale(track, computeMeanRotation(track), rule.swayAxis, values.bodySwayScale);
     }
     if (rule.twistAxis && isMoving && values.bodyTwistScale !== 1) {
-      scaleTwist(track, meanRotation(track), rule.twistAxis, values.bodyTwistScale);
+      applyTwistScale(track, computeMeanRotation(track), rule.twistAxis, values.bodyTwistScale);
     }
     if (rule.rollAxis && isMoving && values.walkArmRoll) {
       const roll = new THREE.Quaternion().setFromAxisAngle(

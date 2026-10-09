@@ -13,9 +13,9 @@ import type { AvatarLink } from "@/engine/avatarLink";
 
 import { FORCED_MOTION } from "../app/runtimeFlags";
 import { UNITS_PER_METER } from "../plan/sitePlan";
-import { bothFistCenters } from "./fistCenter";
+import { computeFistCenters } from "./fistCenter";
 import { LOCOMOTION_CLIPS } from "./motionCorrection";
-import { attachSkeleton, firstSkinnedMesh, retargetOptions, setMorph, strideSpeed } from "./rig";
+import { attachSkeleton, findFirstSkinnedMesh, computeRetargetOptions, setMorph, measureStrideSpeed } from "./rig";
 import { AUTO_MOTION, DEFAULT_SIDEKICK_CONFIG, type SidekickConfig } from "./sidekickOptions";
 
 const CHARACTER_URL = "/models/sidekick-customizer.glb";
@@ -28,7 +28,7 @@ const SHOULDER_RANGE = 0.25;
 // 눈동자 기본 반지름(라디안) — 안구 중심에서 정면과 이루는 각으로 판정한다.
 const PUPIL_BASE_ANGLE = 0.19;
 
-interface PartInfo {
+interface PartIdentity {
   slot: string;
   option: number;
 }
@@ -47,7 +47,7 @@ interface Garment {
   cover_leg_y?: number;
 }
 
-interface SidekickPart extends PartInfo {
+interface SidekickPart extends PartIdentity {
   object: THREE.Mesh;
   garment: Garment | null;
 }
@@ -85,18 +85,18 @@ type SidekickMaterial = THREE.Material & {
   metalness?: number;
 };
 
-function singleMaterial(mesh: THREE.Mesh): SidekickMaterial {
+function getSingleMaterial(mesh: THREE.Mesh): SidekickMaterial {
   return (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as SidekickMaterial;
 }
 
-function partInfo(name: string): PartInfo | null {
+function parsePartName(name: string): PartIdentity | null {
   const match = /^SKLIB__([A-Za-z]+)__(\d+)__/.exec(name);
   return match ? { slot: match[1], option: Number(match[2]) } : null;
 }
 
 // Starter Pack 의 몇몇 헤어는 일부 정점이 neutral_bone 에 묶여 고개가 돌면 그 조각만 옆에 떠 보인다.
 // 헤어에서만 중립 본 가중치를 head 로 옮긴다.
-function fixHairWeights(mesh: THREE.Mesh): number {
+function applyHairWeightFix(mesh: THREE.Mesh): number {
   if (!(mesh instanceof THREE.SkinnedMesh)) return 0;
   const neutral = mesh.skeleton.bones.findIndex((bone) => bone.name === "neutral_bone");
   const head = mesh.skeleton.bones.findIndex((bone) => bone.name === "head");
@@ -118,7 +118,7 @@ function fixHairWeights(mesh: THREE.Mesh): number {
   return fixed;
 }
 
-function paintMesh(mesh: THREE.Mesh, color: string | null) {
+function applyMeshColor(mesh: THREE.Mesh, color: string | null) {
   if (!color) return;
   const materials: THREE.Material[] = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
   materials.forEach((material) => {
@@ -141,7 +141,7 @@ function prepareEyeShader(mesh: THREE.Mesh): EyeUniforms {
     uPupilColor: { value: new THREE.Color("#26364a") },
     uPupilRadius: { value: PUPIL_BASE_ANGLE },
   };
-  const material = singleMaterial(mesh);
+  const material = getSingleMaterial(mesh);
   material.map = null;
   material.color?.set("#f7f4ee");
   if (material.emissive) {
@@ -188,7 +188,7 @@ const UNDERWEAR_BANDS: Record<number, [number, number]> = { 1: [1.17, 1.36], 2: 
 const underwearBandGlsl = (p: string, band: string) => `(${p}.y >= ${band}.y && ${p}.y <= ${band}.z)`;
 
 // 속옷 복제본도 상의 밑단 안쪽(허리)에서는 안 그린다 — 옷 위로 비치지 않게 하는 마지막 안전장치.
-function underwearShader(shader: THREE.WebGLProgramParametersWithUniforms, part: number, uniforms: HemUniforms) {
+function applyUnderwearShader(shader: THREE.WebGLProgramParametersWithUniforms, part: number, uniforms: HemUniforms) {
   const [low, high] = UNDERWEAR_BANDS[part];
   Object.assign(shader.uniforms, uniforms);
   shader.vertexShader = shader.vertexShader
@@ -215,7 +215,7 @@ function prepareSkinCover(mesh: THREE.Mesh, part = 0) {
     uTopNeck: { value: new THREE.Vector2(0, 0) },
     uBottomCover: { value: new THREE.Vector3(0, 0, 0) },
   };
-  const material = singleMaterial(mesh);
+  const material = getSingleMaterial(mesh);
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader = shader.vertexShader
@@ -247,7 +247,7 @@ function prepareSkinCover(mesh: THREE.Mesh, part = 0) {
 // 원단 느낌 — 색은 UI 에서 바꾸므로 텍스처 대신 bind 좌표 기반의 약한 명암만 준다.
 // 하의(바지·치마)는 상의 밑단 안쪽 허리를 안 그린다 — 체형 morph 를 섞으면 두 옷 간격이 늘 보장되지 않는다.
 function prepareFabric(mesh: THREE.Mesh, fabric: string | undefined, slot: string) {
-  const material = singleMaterial(mesh);
+  const material = getSingleMaterial(mesh);
   const uniforms: HemUniforms = { uUnderTopHem: { value: new THREE.Vector2(0, 0) } };
   fabricUniformsOf.set(mesh, uniforms);
   material.map = null;
@@ -282,7 +282,7 @@ type BodyShape = Pick<
   "top" | "bottom" | "feminine" | "heavy" | "buff" | "skinny" | "shoulderWidth" | "gender"
 >;
 
-function shoulderMorph(appearance: Pick<SidekickConfig, "shoulderWidth">): number {
+function computeShoulderMorph(appearance: Pick<SidekickConfig, "shoulderWidth">): number {
   return THREE.MathUtils.clamp(((appearance.shoulderWidth ?? 1) - 1) / SHOULDER_RANGE, -1, 1);
 }
 
@@ -298,7 +298,7 @@ function applyBodyShape(mesh: THREE.Object3D, appearance: BodyShape) {
   setMorph(mesh, "defaultHeavy", appearance.heavy);
   setMorph(mesh, "defaultBuff", appearance.buff);
   setMorph(mesh, "defaultSkinny", appearance.skinny);
-  setMorph(mesh, "shoulderWidth", shoulderMorph(appearance));
+  setMorph(mesh, "shoulderWidth", computeShoulderMorph(appearance));
 }
 
 function updateChestUnderwear(mesh: THREE.Mesh, appearance: BodyShape) {
@@ -315,7 +315,7 @@ function updateLowerUnderwear(mesh: THREE.Mesh, appearance: BodyShape, isSkirt: 
 }
 
 // 1번(기본 몸)은 속옷 상태이자 현대 의상 아래 몸이다. 2·3번 원본 세트만 몸을 대체한다.
-function showsBaseBody(option: number): boolean {
+function isBaseBodyVisible(option: number): boolean {
   return option !== 2 && option !== 3;
 }
 
@@ -327,7 +327,7 @@ function createUnderwear(base: THREE.Mesh, name: string, part: number): THREE.Me
   const material = new THREE.MeshStandardMaterial({ color: UNDERWEAR_COLOR, roughness: 0.82, metalness: 0 });
   const uniforms: HemUniforms = { uUnderTopHem: { value: new THREE.Vector2(0, 0) } };
   underwearUniformsOf.set(underwear, uniforms);
-  material.onBeforeCompile = (shader) => underwearShader(shader, part, uniforms);
+  material.onBeforeCompile = (shader) => applyUnderwearShader(shader, part, uniforms);
   underwear.material = material;
   underwear.castShadow = true;
   underwear.receiveShadow = true;
@@ -369,9 +369,9 @@ function SidekickGameAvatar({
     // 부모 스케일이 본 스케일에 흡수되어 1/3 로 준다. 변환 전용 복제본은 늘 scale 1 로 둔다.
     const retargetModel = clone(characterGltf.scene);
     const source = clone(motionGltf.scene);
-    const targetSkin = firstSkinnedMesh(model);
-    const retargetSkin = firstSkinnedMesh(retargetModel);
-    const sourceSkin = firstSkinnedMesh(source);
+    const targetSkin = findFirstSkinnedMesh(model);
+    const retargetSkin = findFirstSkinnedMesh(retargetModel);
+    const sourceSkin = findFirstSkinnedMesh(source);
     if (!targetSkin || !retargetSkin || !sourceSkin) {
       throw new Error("Sidekick 또는 모션 파일에서 스킨 리그를 찾지 못했습니다.");
     }
@@ -386,9 +386,9 @@ function SidekickGameAvatar({
       object.material = Array.isArray(object.material)
         ? object.material.map((material: THREE.Material) => material.clone())
         : object.material.clone();
-      const info = partInfo(object.name);
+      const info = parsePartName(object.name);
       if (info) {
-        if (info.slot === "hair") fixedHairWeights += fixHairWeights(object);
+        if (info.slot === "hair") fixedHairWeights += applyHairWeightFix(object);
         const garment = object.userData.wardrobe_garment ? (object.userData as Garment) : null;
         if (garment) prepareFabric(object, garment.garment_fabric, info.slot);
         const isBodySkin = (info.slot === "top" || info.slot === "bottom") && info.option === 1;
@@ -433,7 +433,7 @@ function SidekickGameAvatar({
     const chestUnderwear = createUnderwear(baseTorso, "SKLIB_female_chest_underwear", 1);
     const lowerUnderwear = createUnderwear(baseHips, "SKLIB_base_lower_underwear", 2);
 
-    const options = retargetOptions(retargetSkin, sourceSkin);
+    const options = computeRetargetOptions(retargetSkin, sourceSkin);
     attachSkeleton(source, sourceSkin.skeleton);
     const sourceClips = new Map(motionGltf.animations.map((clip) => [clip.name, clip]));
     const retargetedClips = new Map<string, THREE.AnimationClip>();
@@ -458,7 +458,7 @@ function SidekickGameAvatar({
       const cached = strides.get(name);
       if (cached !== undefined) return cached;
       const clip = clipFor(name);
-      const speed = clip && LOCOMOTION_CLIPS.has(name) ? strideSpeed(retargetModel, retargetSkin, clip) : 0;
+      const speed = clip && LOCOMOTION_CLIPS.has(name) ? measureStrideSpeed(retargetModel, retargetSkin, clip) : 0;
       strides.set(name, speed);
       return speed;
     };
@@ -504,7 +504,7 @@ function SidekickGameAvatar({
         .map((n) => targetSkin.skeleton.getBoneByName(n))
         .filter((bone): bone is THREE.Bone => !!bone),
       // 손목 → 주먹 한가운데. 모델당 한 번만 계산된다.
-      palms: bothFistCenters(targetSkin),
+      palms: computeFistCenters(targetSkin),
       // 물건 전용 소켓 뼈(치비와 같은 규약)
       gripSockets: {
         hand_l: targetSkin.skeleton.getBoneByName("prop_l") ?? null,
@@ -620,7 +620,7 @@ function SidekickGameAvatar({
     prepared.parts.forEach(({ object, slot, option }) => {
       if (slot === "fixed") object.visible = true;
       else if (option === 1 && (slot === "top" || slot === "bottom" || slot === "shoes")) {
-        object.visible = option === chosen[slot] || (slot !== "shoes" && showsBaseBody(Number(chosen[slot])));
+        object.visible = option === chosen[slot] || (slot !== "shoes" && isBaseBodyVisible(Number(chosen[slot])));
       } else object.visible = option === chosen[slot];
       applyBodyShape(object, appearance);
 
@@ -642,7 +642,7 @@ function SidekickGameAvatar({
           uniforms.uPupilRadius.value =
             PUPIL_BASE_ANGLE * THREE.MathUtils.clamp(appearance.pupilScale ?? 1, 0.55, 1.45);
         }
-      } else paintMesh(object, color);
+      } else applyMeshColor(object, color);
 
       const fabric = fabricUniformsOf.get(object);
       if (fabric) fabric.uUnderTopHem.value.set(top ? 1 : 0, top?.cover_hem_y ?? 0);
@@ -802,7 +802,7 @@ function SidekickGameAvatar({
       mixer.update(0);
     } else mixer.update(delta);
     prepared.headBone?.scale.setScalar(config.headScale ?? 1);
-    const shoulder = shoulderMorph(config) * SHOULDER_BONE_SHIFT;
+    const shoulder = computeShoulderMorph(config) * SHOULDER_BONE_SHIFT;
     prepared.shoulderBones.forEach(({ bone, rest, direction }) => {
       bone.position.copy(rest).addScaledVector(direction, shoulder);
     });

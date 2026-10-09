@@ -1,8 +1,8 @@
-import { outlineSchema, useSavedControls } from "@/engine/leva/savedControls";
+import { buildOutlineSchema, useSavedControls } from "@/engine/leva/savedControls";
 
 import { FORCE_LEGACY_TERRAIN } from "../app/runtimeFlags";
 import { MOVEMENT_CONSTANTS } from "../movement/useTerrainMovement";
-import { tunable } from "../plan/sitePlan";
+import { getTunableControl } from "../plan/sitePlan";
 import { DISTORTION_STAGE_ORDER } from "../story/distortion";
 
 /** Leva 옵션 값은 저장 데이터라 한글 그대로 두고, 코드에서는 이 표로 읽는다. */
@@ -140,7 +140,7 @@ export function useNajuControls() {
     sunIntensity: { value: 1.95, min: 0, max: 3, step: 0.05, label: "햇빛" },
     // 그림자 카메라가 사람을 따라다니므로 좁혀도 눈앞은 늘 덮인다(70 유닛 ≈ 21 m).
     shadowRange: { value: 70, min: 20, max: 230, step: 5, label: "그림자범위" },
-    // 그림자 맵을 움직일 때만 다시 그린다(ShadowManager). 이상하면 끄면 매 프레임으로 돌아간다.
+    // 그림자 맵을 움직일 때만 다시 그린다(ShadowMapUpdater). 이상하면 끄면 매 프레임으로 돌아간다.
     throttleShadowUpdates: { value: true, label: "그림자갱신아낌" },
     // 방위 0 = 북 · 90 = 동 · 180 = 남. 나주는 북반구라 해는 남쪽에 있어야 절벽면이 밝다.
     sunAzimuth: { value: 205, min: 0, max: 360, step: 5, label: "해방위" },
@@ -149,14 +149,14 @@ export function useNajuControls() {
     // 어두우면 모든 밑면이 검게 뭉친다 — 야외에서 밑면이 완전히 검은 일은 없다.
     hemisphereGroundColor: { value: "#7A6A54", label: "땅반사색" },
     // 미결값 — 확정하려면 sitePlan 의 기본값을 고쳐야 팀에 전달된다.
-    cliffHeight: { ...tunable("cliffHeight"), label: "절벽높이" },
-    blockerHeight: { ...tunable("blockerHeight"), label: "차단물높이" },
-    eyeHeight: { ...tunable("eyeHeight"), label: "눈높이" },
-    fov: { ...tunable("fov"), label: "FOV" },
-    walkSpeed: { ...tunable("walkSpeed", MOVEMENT_CONSTANTS.walk), label: "걷기속도" },
-    ...outlineSchema({ width: 2.5, color: "#1B1F27", crease: false }),
+    cliffHeight: { ...getTunableControl("cliffHeight"), label: "절벽높이" },
+    blockerHeight: { ...getTunableControl("blockerHeight"), label: "차단물높이" },
+    eyeHeight: { ...getTunableControl("eyeHeight"), label: "눈높이" },
+    fov: { ...getTunableControl("fov"), label: "FOV" },
+    walkSpeed: { ...getTunableControl("walkSpeed", MOVEMENT_CONSTANTS.walk), label: "걷기속도" },
+    ...buildOutlineSchema({ width: 2.5, color: "#1B1F27", crease: false }),
     // <Outlines> 는 screenspace 일 때만 월드 단위다. 야외라 픽셀 고정이면 먼 물건이 선에 삼켜진다.
-    // 0.05 유닛 = 1.5 cm. engine outlineSchema 의 눈금(0.5)으로는 못 다뤄 따로 둔다.
+    // 0.05 유닛 = 1.5 cm. engine buildOutlineSchema 의 눈금(0.5)으로는 못 다뤄 따로 둔다.
     outlineWorldWidth: { value: 0.05, min: 0, max: 0.3, step: 0.005, label: "외곽선세계굵기" },
     // 켜지 말 것 — 숲이 검은 덩어리가 되고 한 겹 잎에 흰 얼룩이 끼며 삼각형이 +53 % 다.
     vegetationOutline: { value: false, label: "초목외곽선" },

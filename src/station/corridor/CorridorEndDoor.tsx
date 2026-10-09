@@ -4,12 +4,12 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { scaleColor } from "@/engine/color";
-import { mergeBoxes, type MergeBox } from "@/engine/geometry";
+import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { rattle, rattleOffset, toggleHinge, useIsOpen } from "@/props/hingeState";
+import { rattleHinge, computeRattleOffset, toggleHinge, useIsHingeOpen } from "@/props/hingeState";
 
-import { EXIT_SIGN_ASPECT, exitSignTexture } from "./signTextures";
+import { EXIT_SIGN_ASPECT, makeExitSignTexture } from "./signTextures";
 
 interface CorridorEndDoorProps {
   /** 복도 중앙 x */
@@ -74,8 +74,8 @@ export default function CorridorEndDoor({
   exitSignLit = true,
   outline,
 }: CorridorEndDoorProps) {
-  const signTexture = exitSignTexture(exitSignColor, outline?.outlineColor ?? "#131314");
-  const isDoorOpen = useIsOpen(openId ?? "");
+  const signTexture = makeExitSignTexture(exitSignColor, outline?.outlineColor ?? "#131314");
+  const isDoorOpen = useIsHingeOpen(openId ?? "");
   const doorRef = useRef<THREE.Group>(null);
   const doorAngle = useRef(0);
   const aimPoint = useMemo(() => new THREE.Vector3(), []);
@@ -85,7 +85,7 @@ export default function CorridorEndDoor({
     // 경첩은 왼쪽(−x) 세로변. +각이면 문 끝(+x)이 −z(계단실) 쪽으로 돈다.
     const target = isDoorOpen ? (inward * (100 * Math.PI)) / 180 : 0;
     doorAngle.current += (target - doorAngle.current) * Math.min(1, dt * 5);
-    door.rotation.y = doorAngle.current + rattleOffset(openId) * 0.05 * inward;
+    door.rotation.y = doorAngle.current + computeRattleOffset(openId) * 0.05 * inward;
   });
 
   const zf = z + inward * 0.1;
@@ -101,8 +101,8 @@ export default function CorridorEndDoor({
 
   // 벽면이 z 에 수직이라 폭 = x, 깊이 = z 방향이다
   const parts = useMemo(() => {
-    const casing = mergeBoxes([
-      ...[-1, 1].map((sx): MergeBox => ({
+    const casing = buildMergedBoxes([
+      ...[-1, 1].map((sx): BoxPiece => ({
         size: [casingWidth, height + casingWidth, casingDepth],
         position: [sx * (width / 2 + casingWidth / 2), (height + casingWidth) / 2, zf + inward * 0.1],
       })),
@@ -111,10 +111,10 @@ export default function CorridorEndDoor({
         position: [0, height + casingWidth / 2, zf + inward * 0.1],
       },
     ]);
-    const gaps = mergeBoxes([
+    const gaps = buildMergedBoxes([
       { size: [doorW, bar, bar], position: [0, height / 2 + doorH / 2, front] },
       { size: [doorW, bar, bar], position: [0, height / 2 - doorH / 2, front] },
-      ...[-1, 1].map((sx): MergeBox => ({
+      ...[-1, 1].map((sx): BoxPiece => ({
         size: [bar, doorH, bar],
         position: [sx * (doorW / 2), height / 2, front],
       })),
@@ -122,16 +122,16 @@ export default function CorridorEndDoor({
     const iw = doorW - 0.7;
     const ih = doorH - 0.9;
     const cy = height / 2 + 0.08;
-    const panels = mergeBoxes([
+    const panels = buildMergedBoxes([
       { size: [iw, bar * 0.7, bar * 0.7], position: [0, cy + ih / 2, front] },
       { size: [iw, bar * 0.7, bar * 0.7], position: [0, cy - ih / 2, front] },
-      ...[-1, 1].map((sx): MergeBox => ({
+      ...[-1, 1].map((sx): BoxPiece => ({
         size: [bar * 0.7, ih, bar * 0.7],
         position: [sx * (iw / 2), cy, front],
       })),
     ]);
-    const hinges = mergeBoxes(
-      [0.78, 0.5, 0.2].map((t): MergeBox => ({
+    const hinges = buildMergedBoxes(
+      [0.78, 0.5, 0.2].map((t): BoxPiece => ({
         size: [0.22, 0.5, 0.1],
         position: [-doorW / 2 + 0.02, 0.4 + t * (doorH - 0.6), zf + inward * (doorThickness / 2 + 0.04)],
       })),
@@ -221,7 +221,7 @@ export default function CorridorEndDoor({
             return [aimPoint.x, aimPoint.y, aimPoint.z];
           }}
           label={isDoorOpen ? "[E] 문 닫기" : canOpen ? "[E] 비상문 열기" : "[E] 잠김 — 전기 잠금"}
-          run={() => (canOpen ? toggleHinge(openId) : rattle(openId))}
+          run={() => (canOpen ? toggleHinge(openId) : rattleHinge(openId))}
         />
       )}
 

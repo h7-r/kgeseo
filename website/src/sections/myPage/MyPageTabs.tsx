@@ -12,7 +12,7 @@ import {
   strongValueTextStyle,
   subheadingStyle,
   valueTextStyle,
-} from "./styles";
+} from "./myPageStyles";
 
 // 마이페이지 다섯 탭의 내용. 껍데기(탭 줄·카드)는 MyPagePanel 이 그린다.
 
@@ -27,7 +27,7 @@ export function HistoryTab({ onRetry }: HistoryTabProps) {
       {MY_PAGE_CONTENT.history.records.map((record, i) => {
         const isSuccess = record.result === "성공";
         return (
-          <div key={i} className="list-row" style={recordCardStyle}>
+          <div key={i} className="interactive-row" style={recordCardStyle}>
             <div style={{ display: "flex", alignItems: "center", gap: "20px", minWidth: 0 }}>
               <div style={{ ...recordImageStyle, backgroundImage: `url(${record.image})` }} aria-hidden="true" />
               <div style={{ display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
@@ -68,8 +68,8 @@ export function HistoryTab({ onRetry }: HistoryTabProps) {
                   {record.playedAgo}
                 </span>
               </div>
-              <button type="button" className="btn btn-sweep" style={retryButtonStyle} onClick={onRetry}>
-                <span className="btn__label">다시 도전 →</span>
+              <button type="button" className="button button--primary" style={retryButtonStyle} onClick={onRetry}>
+                <span className="button__label">다시 도전 →</span>
               </button>
             </div>
           </div>
@@ -159,7 +159,7 @@ export function AccountTab({ emailNotifications, onAction }: AccountTabProps) {
             return (
               <div
                 key={label}
-                className={action ? "list-row" : undefined}
+                className={action ? "interactive-row" : undefined}
                 role={action ? (isSwitch ? "switch" : "button") : undefined}
                 aria-checked={isSwitch ? emailNotifications : undefined}
                 tabIndex={action ? 0 : undefined}
@@ -199,7 +199,7 @@ export function AccountTab({ emailNotifications, onAction }: AccountTabProps) {
                       {emailNotifications ? "ON" : "OFF"}
                     </span>
                     <span
-                      className="switch"
+                      className="toggle-switch"
                       aria-hidden="true"
                       aria-checked={emailNotifications}
                       style={{ display: "inline-block" }}

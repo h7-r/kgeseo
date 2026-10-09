@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 
-import { mergeBoxes, type MergeBox } from "@/engine/geometry";
-import { makeRandom } from "@/engine/random";
+import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
+import { createRandom } from "@/engine/random";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
 import ShellOutline from "./ShellOutline";
@@ -48,11 +48,11 @@ export default function TrainTracks({
 
   // 침목·자갈은 작은 상자가 수백 개라 드로우콜을 아끼려고 한 덩어리로 합친다.
   const sleeperGeometry = useMemo(() => {
-    const rnd = makeRandom(seed + 11);
+    const rnd = createRandom(seed + 11);
     const spacing = 2.4;
     const count = Math.floor(length / spacing);
-    return mergeBoxes(
-      Array.from({ length: count }, (_, i): MergeBox => {
+    return buildMergedBoxes(
+      Array.from({ length: count }, (_, i): BoxPiece => {
         // 살짝 틀어진 침목 — 관리 안 된 폐선 느낌
         const offsetZ = (rnd() - 0.5) * 0.5;
         const turn = (rnd() - 0.5) * 0.06;
@@ -68,9 +68,9 @@ export default function TrainTracks({
 
   const gravelGeometry = useMemo(() => {
     if (!hasGravel) return null;
-    const rnd = makeRandom(seed + 29);
-    return mergeBoxes(
-      Array.from({ length: 260 }, (): MergeBox => {
+    const rnd = createRandom(seed + 29);
+    return buildMergedBoxes(
+      Array.from({ length: 260 }, (): BoxPiece => {
         const gx = (rnd() - 0.5) * length;
         const gz = (rnd() - 0.5) * width * 0.98;
         const scale = 0.16 + rnd() * 0.3;

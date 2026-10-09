@@ -9,7 +9,7 @@ export interface RetargetSetup extends RetargetClipOptions {
   preserveBonePositions: boolean;
 }
 
-export function firstSkinnedMesh(root: THREE.Object3D): THREE.SkinnedMesh | null {
+export function findFirstSkinnedMesh(root: THREE.Object3D): THREE.SkinnedMesh | null {
   let result: THREE.SkinnedMesh | null = null;
   root.traverse((object) => {
     if (!result && object instanceof THREE.SkinnedMesh) result = object;
@@ -17,7 +17,7 @@ export function firstSkinnedMesh(root: THREE.Object3D): THREE.SkinnedMesh | null
   return result;
 }
 
-function worldQuaternion(object: THREE.Object3D): THREE.Quaternion {
+function getWorldQuaternion(object: THREE.Object3D): THREE.Quaternion {
   object.updateMatrixWorld(true);
   return new THREE.Quaternion().setFromRotationMatrix(object.matrixWorld);
 }
@@ -28,7 +28,7 @@ export function attachSkeleton(root: THREE.Object3D, skeleton: THREE.Skeleton) {
 }
 
 // 회전 트랙만 만들고 루트 이동은 게임이 맡는다(hip 은 어느 뼈와도 안 겹치는 이름).
-export function retargetOptions(targetSkin: THREE.SkinnedMesh, sourceSkin: THREE.SkinnedMesh): RetargetSetup {
+export function computeRetargetOptions(targetSkin: THREE.SkinnedMesh, sourceSkin: THREE.SkinnedMesh): RetargetSetup {
   targetSkin.skeleton.pose();
   sourceSkin.skeleton.pose();
   targetSkin.updateMatrixWorld(true);
@@ -42,8 +42,8 @@ export function retargetOptions(targetSkin: THREE.SkinnedMesh, sourceSkin: THREE
     names[targetBone.name] = sourceName;
     const sourceBone = sourceSkin.skeleton.getBoneByName(sourceName);
     if (!sourceBone) return;
-    const sourceRest = worldQuaternion(sourceBone);
-    const targetRest = worldQuaternion(targetBone);
+    const sourceRest = getWorldQuaternion(sourceBone);
+    const targetRest = getWorldQuaternion(targetBone);
     localOffsets[targetBone.name] = new THREE.Matrix4().makeRotationFromQuaternion(
       sourceRest.invert().multiply(targetRest),
     );
@@ -61,7 +61,7 @@ export function retargetOptions(targetSkin: THREE.SkinnedMesh, sourceSkin: THREE
 
 // 이동 모션은 제자리 루프라, 게임 이동 속도와 클립 보폭 속도가 다르면 발이 미끄러진다.
 // 디딘 발이 몸 기준으로 뒤로 밀려나는 거리를 재면 그 클립의 고유 이동 속도가 나온다.
-export function strideSpeed(root: THREE.Object3D, skin: THREE.SkinnedMesh, clip: THREE.AnimationClip): number {
+export function measureStrideSpeed(root: THREE.Object3D, skin: THREE.SkinnedMesh, clip: THREE.AnimationClip): number {
   const feet = ["foot_l", "foot_r"].map((name) => skin.skeleton.getBoneByName(name));
   const [leftFoot, rightFoot] = feet;
   if (!leftFoot || !rightFoot || !(clip.duration > 0)) return 0;
@@ -99,7 +99,7 @@ export function setMorph(mesh: THREE.Object3D, name: string, value: number) {
 const _correctionQ = new THREE.Quaternion();
 
 /** 세계 회전을 부모 공간으로 옮겨 뼈에 앞곱한다(pq⁻¹ · wq · pq). IK 들이 쓴다. */
-export function rotateInWorld(bone: THREE.Object3D, worldRotation: THREE.Quaternion, parentQ: THREE.Quaternion) {
+export function applyWorldRotation(bone: THREE.Object3D, worldRotation: THREE.Quaternion, parentQ: THREE.Quaternion) {
   bone.parent?.getWorldQuaternion(parentQ);
   bone.quaternion.premultiply(_correctionQ.copy(parentQ).invert().multiply(worldRotation).multiply(parentQ));
   bone.updateMatrixWorld(true);

@@ -8,7 +8,7 @@ import type { PointerLockControls as PointerLockControlsImpl } from "three-stdli
 
 import type { AvatarLink } from "@/engine/avatarLink";
 import { scaleColor } from "@/engine/color";
-import { pickOutline } from "@/engine/leva/savedControls";
+import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { TOON_GRADIENT } from "@/engine/toon";
 
 import { usePresentationOverrides } from "../app/presentation";
@@ -22,26 +22,26 @@ import { MESH_NAMES } from "../plan/meshNames";
 import { CORE, UNITS_PER_METER } from "../plan/sitePlan";
 import { SKY_STYLE } from "../world/sky";
 import WorldToon from "../world/WorldToon";
-import AfterimageGroup from "./parts/AfterimageGroup";
-import BlockerLayer from "./parts/BlockerLayer";
-import { buildInstanceGroups } from "./parts/buildInstanceGroups";
-import DevMarkers from "./parts/DevMarkers";
-import DistantLayer from "./parts/DistantLayer";
-import GroundLayer from "./parts/GroundLayer";
-import GroundMaterial from "./parts/GroundMaterial";
-import InstanceGroupMesh from "./parts/InstanceGroupMesh";
-import PathLayer from "./parts/PathLayer";
-import PlanOverlays from "./parts/PlanOverlays";
-import { planPoint } from "./parts/planPoint";
-import PlayerAvatar from "./parts/PlayerAvatar";
-import SceneNotes from "./parts/SceneNotes";
-import SkyAndLighting from "./parts/SkyAndLighting";
-import WaterLayer from "./parts/WaterLayer";
+import { buildInstanceGroups } from "./buildInstanceGroups";
+import AfterimageGroup from "./components/AfterimageGroup";
+import BlockerLayer from "./components/BlockerLayer";
+import DevMarkers from "./components/DevMarkers";
+import DistantLandscapeLayer from "./components/DistantLandscapeLayer";
+import GroundLayer from "./components/GroundLayer";
+import GroundMaterial from "./components/GroundMaterial";
+import InstanceGroupMesh from "./components/InstanceGroupMesh";
+import PathLayer from "./components/PathLayer";
+import PlanOverlays from "./components/PlanOverlays";
+import { planPoint } from "./components/planPoint";
+import PlayerAvatar from "./components/PlayerAvatar";
+import SceneNotes from "./components/SceneNotes";
+import SkyAndLighting from "./components/SkyAndLighting";
+import WaterLayer from "./components/WaterLayer";
 import { useBlockerCollapse } from "./useBlockerCollapse";
 import { useBlockerShapes } from "./useBlockerShapes";
 import { toGroundShading, useNajuControls } from "./useNajuControls";
 import { useNajuDevHook, useViewpointKeys } from "./useNajuDevTools";
-import { usePathFallback, usePathShapes, useWaysideSpots } from "./usePathLayers";
+import { usePathFallback, usePathShapes, useRoadsideSpots } from "./usePathLayers";
 import { usePlayerMovement } from "./usePlayerMovement";
 import { useRendererSetup, useSceneFrame, type NajuSceneReport } from "./useSceneFrame";
 import { useSceneModes } from "./useSceneModes";
@@ -50,7 +50,7 @@ import { useSunLight } from "./useSunLight";
 import { useBakedTerrainTexture, useGroundAndCliff, useRockAsset, useTerrain } from "./useTerrainLayers";
 import {
   useConnectorRamp,
-  useDistantAndSky,
+  useDistantLandscapeAndSky,
   useFarLandingSpots,
   useFerry,
   useGrass,
@@ -106,30 +106,30 @@ export default function NajuScene({
     attackSerial: 0,
   });
   // ?present · ?mood 가 있으면 그 프리셋이 Leva 저장값을 덮는다
-  const T = usePresentationOverrides(useNajuControls());
-  const shading = toGroundShading(T.groundShading);
-  const outlineValues = pickOutline(T);
+  const controls = usePresentationOverrides(useNajuControls());
+  const shading = toGroundShading(controls.groundShading);
+  const outlineValues = pickOutlineValues(controls);
   // screenspace 를 켜야 thickness 가 월드 단위가 된다.
   const outline = outlineValues.outline ? (
-    <Outlines thickness={T.outlineWorldWidth} color={outlineValues.outlineColor} screenspace />
+    <Outlines thickness={controls.outlineWorldWidth} color={outlineValues.outlineColor} screenspace />
   ) : null;
-  const shade = (color: string) => scaleColor(color, T.brightness);
+  const shade = (color: string) => scaleColor(color, controls.brightness);
 
   const { rippleHandle, rippleMaterialRef } = useWaterRipple();
 
   // 지형·땅·절벽·차단물
-  const { terrain, bakedTerrain, isBakedTerrainOn } = useTerrain(T);
+  const { terrain, bakedTerrain, isBakedTerrainOn } = useTerrain(controls);
   const { measuredPaths, blockers } = terrain;
   const storyModels = useStoryModels();
-  const { ground, maxDip, cliffPieces } = useGroundAndCliff(T, terrain, isBakedTerrainOn);
-  const blockerShapes = useBlockerShapes(T, terrain, ground);
+  const { ground, maxDip, cliffShapes } = useGroundAndCliff(controls, terrain, isBakedTerrainOn);
+  const blockerShapes = useBlockerShapes(controls, terrain, ground);
 
   // 원경·하늘·풀·사람·나룻배·통로
-  const { distant, skyGeometry, cloudGeometry, skyRef, cloudRef } = useDistantAndSky(T);
-  const grass = useGrass(T, terrain);
-  const people = usePeople(T, terrain);
-  const { ferryShape, ferrySpot } = useFerry(T, terrain);
-  const pathShapes = usePathShapes(T, terrain, ground);
+  const { distantLandscape, skyGeometry, cloudGeometry, skyRef, cloudRef } = useDistantLandscapeAndSky(controls);
+  const grass = useGrass(controls, terrain);
+  const people = usePeople(controls, terrain);
+  const { ferryShape, ferrySpot } = useFerry(controls, terrain);
+  const pathShapes = usePathShapes(controls, terrain, ground);
 
   const { isEditing, isOverview, setIsOverview, isAvatarMounted, edits, setEdits } = useSceneModes({
     active,
@@ -137,19 +137,19 @@ export default function NajuScene({
     playerState,
   });
 
-  const prototypes = usePrototypes(T, storyModels.serpent);
-  const story = useStoryProps(T, ground);
-  const farLandingSpots = useFarLandingSpots(distant);
+  const prototypes = usePrototypes(controls, storyModels.serpent);
+  const story = useStoryProps(controls, ground);
+  const farLandingSpots = useFarLandingSpots(distantLandscape);
   const gridGeometry = useGridGeometry();
-  const ramp = useConnectorRamp(T, terrain, ground, distant);
-  const { fences, roadside, hill } = useWaysideSpots(T, terrain, ground);
+  const ramp = useConnectorRamp(controls, terrain, ground, distantLandscape);
+  const { fences, roadside, hill } = useRoadsideSpots(controls, terrain, ground);
 
   const instanceGroups = useMemo(
     () =>
       buildInstanceGroups({
         edits,
         prototypes,
-        bakedNature: T.bakedNature,
+        bakedNature: controls.bakedNature,
         groundAt: terrain.groundAt,
         treeBeltSpots: blockerShapes?.pieces?.find((b) => b.code === "수목대")?.treeSpots ?? null,
         hill,
@@ -157,7 +157,7 @@ export default function NajuScene({
         paths: pathShapes,
         footScreeSpots: blockerShapes?.footScreeSpots ?? null,
         fences,
-        distant,
+        distantLandscape,
         farLandingSpots,
         steppingStones: story.steppingStones,
         scene1: story.scene1,
@@ -171,7 +171,7 @@ export default function NajuScene({
         fisher2: storyModels.fisher2,
         fisher3: storyModels.fisher3,
         pebbleSpots: ground?.pebbleSpots ?? [],
-        cliff: cliffPieces,
+        cliff: cliffShapes,
         ferryBoat: ferrySpot && ferryShape ? { spot: ferrySpot, shape: ferryShape } : null,
       }),
     [
@@ -179,11 +179,11 @@ export default function NajuScene({
       roadside,
       pathShapes,
       blockerShapes,
-      cliffPieces,
+      cliffShapes,
       ferrySpot,
       ferryShape,
       fences,
-      distant,
+      distantLandscape,
       farLandingSpots,
       story.scene1,
       story.scene2,
@@ -198,17 +198,17 @@ export default function NajuScene({
       storyModels.fisher,
       storyModels.fisher2,
       storyModels.fisher3,
-      T.bakedNature,
+      controls.bakedNature,
       ground,
       terrain,
     ],
   );
 
-  const river = useRiver(T, terrain);
+  const river = useRiver(controls, terrain);
 
-  const { camera, gl, scene } = useRendererSetup(T.fov);
+  const { camera, gl, scene } = useRendererSetup(controls.fov);
   const teleport = usePlayerMovement({
-    T,
+    controls,
     active,
     isEditing,
     isOverview,
@@ -219,19 +219,19 @@ export default function NajuScene({
     reportRef,
     playerState,
   });
-  const rockAsset = useRockAsset(T);
-  useBakedTerrainTexture(scene, T.bakedTerrainTexture);
+  const rockAsset = useRockAsset(controls);
+  useBakedTerrainTexture(scene, controls.bakedTerrainTexture);
 
   const { clearedBlockers, collapseRef, collapseNoticeRef, collapse, setCollapse, endScene } = useBlockerCollapse(
     terrain,
     blockerShapes,
     ground,
   );
-  useNajuDevHook({ camera, gl, scene, terrain, T, teleport, endScene, clearedBlockers, collapseRef, ramp });
+  useNajuDevHook({ camera, gl, scene, terrain, controls, teleport, endScene, clearedBlockers, collapseRef, ramp });
 
   // 반드시 useTerrainMovement(usePlayerMovement) 뒤에 등록돼야 한다 — 그 훅이 매 프레임 reportRef.current 를 갈아끼운다.
   useSceneFrame({
-    T,
+    controls,
     camera,
     gl,
     reportRef,
@@ -248,7 +248,7 @@ export default function NajuScene({
   useViewpointKeys(teleport, endScene, collapseNoticeRef);
 
   const pathFallback = usePathFallback(measuredPaths);
-  const { sunTarget, sunRef, sunPosition } = useSunLight(T, camera);
+  const { sunTarget, sunRef, sunPosition } = useSunLight(controls, camera);
 
   const coreWidth = CORE.x[1] - CORE.x[0];
   const coreDepth = CORE.z[1] - CORE.z[0];
@@ -257,7 +257,7 @@ export default function NajuScene({
   return (
     <>
       <SkyAndLighting
-        controls={T}
+        controls={controls}
         skyGeometry={skyGeometry}
         skyRef={skyRef}
         cloudGeometry={cloudGeometry}
@@ -266,7 +266,7 @@ export default function NajuScene({
         sunRef={sunRef}
         sunPosition={sunPosition}
       />
-      <DistantLayer distant={distant} shading={shading} brightness={T.brightness} />
+      <DistantLandscapeLayer distantLandscape={distantLandscape} shading={shading} brightness={controls.brightness} />
 
       {/* 땅 밑받침 — 두께 없는 땅 가장자리·틈으로 뒤가 비치지 않게 */}
       <mesh position={planPoint(coreWidth / 2, coreDepth / 2, -0.9 - maxDip)} receiveShadow>
@@ -274,22 +274,28 @@ export default function NajuScene({
         <meshToonMaterial color={shade("#2E323A")} gradientMap={TOON_GRADIENT} />
       </mesh>
 
-      <WaterLayer controls={T} river={river} shading={shading} shade={shade} rippleMaterialRef={rippleMaterialRef} />
+      <WaterLayer
+        controls={controls}
+        river={river}
+        shading={shading}
+        shade={shade}
+        rippleMaterialRef={rippleMaterialRef}
+      />
       <GroundLayer
-        controls={T}
+        controls={controls}
         terrain={terrain}
         ground={ground}
         bakedTerrain={bakedTerrain}
         isBakedTerrainOn={isBakedTerrainOn}
         grass={grass}
-        cliffPieces={cliffPieces}
+        cliffShapes={cliffShapes}
         rockAsset={rockAsset}
         shading={shading}
         shade={shade}
         outline={outline}
       />
       <PathLayer
-        controls={T}
+        controls={controls}
         measuredPaths={measuredPaths}
         pathShapes={pathShapes}
         fallback={pathFallback}
@@ -300,7 +306,7 @@ export default function NajuScene({
         outline={outline}
       />
       <BlockerLayer
-        controls={T}
+        controls={controls}
         blockers={blockers}
         blockerShapes={blockerShapes}
         clearedBlockers={clearedBlockers}
@@ -310,18 +316,18 @@ export default function NajuScene({
         outline={outline}
       />
       <DevMarkers
-        controls={T}
+        controls={controls}
         terrain={terrain}
         people={people}
         hasBakedAbisa={!!storyModels.abisa.geometry}
         shading={shading}
       />
-      <SceneNotes controls={T} story={story} />
+      <SceneNotes controls={controls} story={story} />
 
       {/* 사람 자 — 절벽 위에서 아래 사람이 사람으로 보이는지(§3) */}
-      {T.showHumanScale && people.scaleFigures && (
+      {controls.showHumanScale && people.scaleFigures && (
         <mesh name={MESH_NAMES.peopleScaleFigure} geometry={people.scaleFigures} castShadow receiveShadow>
-          <GroundMaterial shading={shading} brightness={T.brightness} />
+          <GroundMaterial shading={shading} brightness={controls.brightness} />
         </mesh>
       )}
 
@@ -345,18 +351,18 @@ export default function NajuScene({
           group={group}
           outline={outline}
           shading={shading}
-          brightness={T.brightness}
-          outlineVegetation={T.vegetationOutline}
+          brightness={controls.brightness}
+          outlineVegetation={controls.vegetationOutline}
         />
       ))}
 
-      <PlanOverlays controls={T} gridGeometry={gridGeometry} />
+      <PlanOverlays controls={controls} gridGeometry={gridGeometry} />
 
       <Editor
         enabled={isEditing}
         edits={edits}
         setEdits={setEdits}
-        groundHeightAt={(x: number, z: number) => ground.surface.heightAt(x, z)}
+        heightAt={(x: number, z: number) => ground.surface.heightAt(x, z)}
         unlockPointer={() => controlsRef.current?.unlock?.()}
         overview={isOverview}
         setOverview={setIsOverview}

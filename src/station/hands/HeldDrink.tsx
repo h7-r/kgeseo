@@ -6,9 +6,9 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { HeldItem } from "@/lobby/HeldItem";
-import { drinkAction, heldDrink, useDrink } from "@/props/drinkState";
+import { getDrinkAction, getHeldDrink, useDrink } from "@/props/drinkState";
 
-import { hintPaperTexture } from "./hintPaperTexture";
+import { makeHintPaperTexture } from "./hintPaperTexture";
 
 interface HeldCanModelProps {
   color: string;
@@ -106,7 +106,7 @@ interface HeldPaperModelProps {
 
 /** 손에 든 밸브 힌트 쪽지 — 텍스처를 입힌 얇은 판. */
 function HeldPaperModel({ outline }: HeldPaperModelProps) {
-  const texture = useMemo(() => hintPaperTexture(), []);
+  const texture = useMemo(() => makeHintPaperTexture(), []);
   const geometry = useMemo(() => new THREE.PlaneGeometry(0.24, 0.3), []);
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
@@ -128,7 +128,7 @@ interface HeldDrinkProps {
  */
 export default function HeldDrink({ outline }: HeldDrinkProps) {
   useDrink();
-  const drink = heldDrink();
+  const drink = getHeldDrink();
   const groupRef = useRef<THREE.Group>(null);
   const tabRef = useRef<THREE.Group>(null);
   useFrame(() => {
@@ -148,7 +148,7 @@ export default function HeldDrink({ outline }: HeldDrinkProps) {
       group.rotation.set(0, 0, 0);
       return;
     }
-    const { action, startedAt } = drinkAction();
+    const { action, startedAt } = getDrinkAction();
     const t = startedAt ? (performance.now() - startedAt) / 1000 : 99;
     let py = 0;
     let pz = 0;

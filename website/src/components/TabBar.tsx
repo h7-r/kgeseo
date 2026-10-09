@@ -32,7 +32,7 @@ export default function TabBar<T extends string>({
           <button
             key={id}
             type="button"
-            className={isActive ? "tab is-active" : "tab"}
+            className={isActive ? "tab-button is-active" : "tab-button"}
             style={isActive ? activeTabStyle : inactiveTabStyle}
             onClick={() => onSelect(id)}
           >

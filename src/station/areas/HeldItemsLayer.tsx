@@ -4,24 +4,24 @@ import type { AvatarLink, WorldPoint } from "@/engine/avatarLink";
 import type { OutlineValues } from "@/engine/toon";
 import { HeldItem } from "@/lobby/HeldItem";
 import type { LobbyState } from "@/lobby/interactions";
-import { PlacementGhost, PlacementResolver } from "@/lobby/PlacementViews";
-import { heldCoin } from "@/props/coinState";
+import { PlacementGhost, PlacementResolver } from "@/lobby/ItemPlacement";
+import { getHeldCoin } from "@/props/coinState";
 import NozzleModel from "@/props/hydrantCabinet/NozzleModel";
 import SaggingHose from "@/props/hydrantCabinet/SaggingHose";
 import type { NozzleLocation } from "@/props/nozzleState";
 import { HeldTrash, HeldWorkLamp } from "@/props/workLampPuzzle/HeldPuzzleItems";
-import AttachToHand from "@/station/hands/AttachToHand";
+import HandAttachment from "@/station/hands/HandAttachment";
 import { FootSpotTracker } from "@/station/hands/FloorHintPaper";
 import HeldCoin, { CoinModel } from "@/station/hands/HeldCoin";
 import HeldDrink from "@/station/hands/HeldDrink";
-import { chairDragState } from "@/station/office/chairDragState";
+import { chairDragState } from "@/station/headquarters/chairDragState";
 
 import type { HydrantInteriorValues, NozzleValues } from "../controls/corridorCabinetControls";
 import type { PlacementPreviewValues } from "../controls/systemControls";
 import type { CoinValues } from "../controls/vendingControls";
 import type { WorkLampPuzzleValues } from "../controls/workLampControls";
 import PickupItemModel, { type PickupLooks } from "./PickupItemModel";
-import { pickupSpot, type PickupItem } from "./usePickupItems";
+import { getPickupSpot, type PickupItem } from "./usePickupItems";
 
 /** 끌고 있는 의자의 등받이 — ChairDrag 가 매 프레임 적어 둔 자리. 잡고 있지 않으면 null. */
 const chairHandTarget = (): WorldPoint | null =>
@@ -69,16 +69,16 @@ export default function HeldItemsLayer({
   enabled,
 }: HeldItemsLayerProps) {
   const held = lobby.heldItem ? pickups.find((o) => o.id === lobby.heldItem) : undefined;
-  const coinKind = heldCoin();
+  const coinKind = getHeldCoin();
   // 놓여 있던 자리 — 손이 거기까지 뻗었다가 물건과 함께 돌아온다. 자리는 놓을 때까지 남아 든 채로도 읽힌다.
-  const heldFrom = held ? pickupSpot(held, lobby.itemSpots) : null;
+  const heldFrom = held ? getPickupSpot(held, lobby.itemSpots) : null;
 
   return (
     <Suspense fallback={null}>
       {/* 계산은 보여주기와 따로 — 표시를 꺼도 놓기가 돼야 한다. 쪽지는 여기 안 건다(방 바닥 경계 안으로 당겨져 복도에서 벽 속으로 간다). */}
       <PlacementResolver itemId={lobby.heldItem || (coinKind ? "coin" : null)} />
       <FootSpotTracker />
-      <AttachToHand
+      <HandAttachment
         playerRef={playerRef}
         isThirdPerson={isThirdPerson}
         enabled={enabled}

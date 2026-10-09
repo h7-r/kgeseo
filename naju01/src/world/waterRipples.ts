@@ -36,7 +36,7 @@ const RIPPLE_GLSL = /* glsl */ `
 `;
 
 /** 재질 하나에 한 번만 건다. 두 번 걸면 셰이더가 두 겹으로 붙어 터진다. */
-function attachRipples(material: THREE.Material | null): RippleHandle | null {
+function applyWaterRipples(material: THREE.Material | null): RippleHandle | null {
   if (!material) return null;
   if (material.userData.waterRipplesAttached) return (material.userData.waterRipplesHandle as RippleHandle) ?? null;
 
@@ -106,9 +106,9 @@ function attachRipples(material: THREE.Material | null): RippleHandle | null {
 }
 
 /** 재질 ref 콜백. 바닥셰이딩을 바꿔 재질이 새로 생기면 ref 가 다시 불려 새 재질에도 걸린다. */
-export function waterRippleRef(box: { current: RippleHandle | null }) {
+export function createWaterRippleRef(handleRef: { current: RippleHandle | null }) {
   return (material: THREE.Material | null) => {
     if (!material) return;
-    box.current = attachRipples(material);
+    handleRef.current = applyWaterRipples(material);
   };
 }

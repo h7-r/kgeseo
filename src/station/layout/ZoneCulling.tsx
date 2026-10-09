@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { thirdPersonConfig } from "@/engine/movement/boom";
 import { playerView } from "@/engine/playerView";
 
-import { MIN_X } from "./dimensions";
+import { HEADQUARTERS_MIN_X } from "./dimensions";
 import { passage, type PassageState } from "./passage";
 
 const forward = new THREE.Vector3();
@@ -18,7 +18,7 @@ function isFacingOpening(camera: THREE.Camera, p: THREE.Vector3, pass: PassageSt
   if (pass.freeRoam) return true;
   // 3인칭은 카메라가 사람 뒤로 물러나 있어, 사람이 여유 밖이어도 카메라는 구멍을 볼 수 있다.
   const openingMargin = 3.5 + (thirdPersonConfig.enabled ? thirdPersonConfig.distance / 0.3 : 0);
-  if (Math.abs(p.x - MIN_X) < openingMargin) return true;
+  if (Math.abs(p.x - HEADQUARTERS_MIN_X) < openingMargin) return true;
   // 거리로 끄면 복도 끝에서 돌아볼 때 화면 한가운데 구멍 너머가 검게 빈다. 각도만 본다.
   camera.getWorldDirection(forward);
   const fx = forward.x;
@@ -32,7 +32,7 @@ function isFacingOpening(camera: THREE.Camera, p: THREE.Vector3, pass: PassageSt
   const limit = Math.cos(Math.min(1.5, halfH + 0.2)); // 0.2rad ≈ 11° 여유
   const half = pass.doorWidth / 2 + 1;
   for (const dz of [-half, 0, half]) {
-    const dx = MIN_X - p.x;
+    const dx = HEADQUARTERS_MIN_X - p.x;
     const dzz = pass.doorZ + dz - p.z;
     const len = Math.hypot(dx, dzz);
     if (len < 1e-3) return true;
@@ -44,7 +44,7 @@ function isFacingOpening(camera: THREE.Camera, p: THREE.Vector3, pass: PassageSt
 type GroupRef = RefObject<THREE.Object3D | null>;
 
 interface ZoneCullingProps {
-  room: GroupRef;
+  headquarters: GroupRef;
   corridor: GroupRef;
   train: GroupRef;
   backdrop: GroupRef;
@@ -52,7 +52,7 @@ interface ZoneCullingProps {
 }
 
 /** 방·복도·기차 그룹의 visible 을 직접 켜고 끈다. state 로 하면 리렌더와 GLB 재로딩이 난다. */
-export default function ZoneCulling({ room, corridor, train, backdrop, enabled = true }: ZoneCullingProps) {
+export default function ZoneCulling({ headquarters, corridor, train, backdrop, enabled = true }: ZoneCullingProps) {
   const camera = useThree((s) => s.camera);
   // 이동(FRAME_PRIORITY.movement)이 먼저 사람 자리를 적고 기본 순서(0)인 여기서 읽는다.
   useFrame(() => {
@@ -61,20 +61,20 @@ export default function ZoneCulling({ room, corridor, train, backdrop, enabled =
     const pass = passage.get();
 
     if (!enabled) {
-      for (const r of [room, corridor, train, backdrop]) if (r.current) r.current.visible = true;
+      for (const r of [headquarters, corridor, train, backdrop]) if (r.current) r.current.visible = true;
       return;
     }
 
-    const inCorridor = p.x < MIN_X;
+    const inCorridor = p.x < HEADQUARTERS_MIN_X;
     // 복도에서 방이 보이는 길은 구멍 하나뿐이다.
     const facingOpening = isFacingOpening(camera, p, pass);
-    const showRoom = !inCorridor || pass.freeRoam || (pass.open > 0.02 && facingOpening);
+    const showHeadquarters = !inCorridor || pass.freeRoam || (pass.open > 0.02 && facingOpening);
     // 열림을 따지지 않는다 — 구멍을 막는 밀리는 벽이 복도 그룹에 있어 끄면 방에서 검은 구멍이 보인다.
     const showCorridor = inCorridor || facingOpening;
     // 기차는 방 저편(+x)이라 방이 보일 때만 보인다.
-    const showTrain = showRoom;
+    const showTrain = showHeadquarters;
 
-    if (room.current) room.current.visible = showRoom;
+    if (headquarters.current) headquarters.current.visible = showHeadquarters;
     if (corridor.current) corridor.current.visible = showCorridor;
     if (train.current) train.current.visible = showTrain;
     // 배경은 큰 판 몇 장이라 늘 켠다. 기차와 같이 끄면 컬링이 곧 암전이 된다.

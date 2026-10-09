@@ -6,12 +6,12 @@ import { requestShadowUpdates } from "@/engine/rendering";
 
 import type { PresentedControls } from "../app/presentation";
 import { UNITS_PER_METER } from "../plan/sitePlan";
-import { planPoint } from "./parts/planPoint";
+import { planPoint } from "./components/planPoint";
 
 const U = UNITS_PER_METER;
 
 /** 해 — 방위·고도로 자리를 정하고, 그림자 카메라가 사람을 따라다니게 한다. */
-export function useSunLight(T: PresentedControls, camera: THREE.Camera) {
+export function useSunLight(controls: PresentedControls, camera: THREE.Camera) {
   // 해가 바라보는 지점 — 그림자 카메라를 맞춘다
   const sunTarget = useMemo(() => new THREE.Object3D(), []);
   const sunRef = useRef<THREE.DirectionalLight>(null);
@@ -19,22 +19,22 @@ export function useSunLight(T: PresentedControls, camera: THREE.Camera) {
   // 코어 한가운데(40, 25)에서 방위·고도만큼. X = 동(+) · Z = 남(+).
   const sunPosition = useMemo(() => {
     const distance = 130; // m
-    const a = (T.sunAzimuth * Math.PI) / 180;
-    const e = (T.sunElevation * Math.PI) / 180;
+    const a = (controls.sunAzimuth * Math.PI) / 180;
+    const e = (controls.sunElevation * Math.PI) / 180;
     return planPoint(
       40 + distance * Math.cos(e) * Math.sin(a),
       25 - distance * Math.cos(e) * Math.cos(a),
       distance * Math.sin(e),
     );
-  }, [T.sunAzimuth, T.sunElevation]);
+  }, [controls.sunAzimuth, controls.sunElevation]);
 
   // 그림자 카메라를 사람 곁으로 옮긴다(±70 이면 텍셀이 촘촘해지고 그림자 맵에 들 물건도 준다).
   // 텍셀 격자에 스냅하지 않으면 걸을 때 그림자 가장자리가 지글거린다.
   const sunFollow = useRef({ x: 0, z: 0 });
   useFrame(() => {
     const light = sunRef.current;
-    if (!light || !T.shadows) return;
-    const texel = (T.shadowRange * 2) / 4096;
+    if (!light || !controls.shadows) return;
+    const texel = (controls.shadowRange * 2) / 4096;
     const cx = Math.round(camera.position.x / texel) * texel;
     const cz = Math.round(camera.position.z / texel) * texel;
     const last = sunFollow.current;

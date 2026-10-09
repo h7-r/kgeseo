@@ -5,7 +5,7 @@ import { Outlines } from "@react-three/drei";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { mergePieces, type GeometryPiece } from "./geometry";
+import { buildMergedGeometry, type GeometryPiece } from "./puzzleGeometry";
 
 interface WorkLampModelProps {
   scale?: number;
@@ -21,7 +21,7 @@ interface WorkLampModelProps {
 
 const CAGE_BARS = 6;
 
-function cageGeometry() {
+function buildCageGeometry() {
   const pieces: GeometryPiece[] = [
     // 분기함 고리에 걸리는 걸이
     { geometry: new THREE.TorusGeometry(0.085, 0.017, 8, 20), position: [0, 0.62, 0], rotation: [Math.PI / 2, 0, 0] },
@@ -47,7 +47,7 @@ function cageGeometry() {
   }
   // 살이 모이는 밑 캡
   pieces.push({ geometry: new THREE.SphereGeometry(0.075, 12, 8), position: [0, -0.42, 0], scale: [1, 0.6, 1] });
-  return mergePieces(pieces);
+  return buildMergedGeometry(pieces);
 }
 
 /**
@@ -64,7 +64,7 @@ export default function WorkLampModel({
   floorGlint = 0,
   outline,
 }: WorkLampModelProps) {
-  const cage = useMemo(() => cageGeometry(), []);
+  const cage = useMemo(() => buildCageGeometry(), []);
   useEffect(() => () => cage?.dispose(), [cage]);
 
   return (

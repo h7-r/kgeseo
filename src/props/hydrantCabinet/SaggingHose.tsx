@@ -10,7 +10,7 @@ import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { hoseAnchors, useNozzle } from "@/props/nozzleState";
 
 /** 정점은 매 프레임 제자리에서 고쳐 쓴다 — 들고 걸으면 자리가 계속 바뀌어 새로 만들면 버퍼를 계속 잡는다. */
-function createTubeGeometry(segments: number, radialSegments: number) {
+function buildTubeGeometry(segments: number, radialSegments: number) {
   const g = new THREE.BufferGeometry();
   const count = (segments + 1) * (radialSegments + 1);
   g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(count * 3), 3));
@@ -32,7 +32,7 @@ const binormal = new THREE.Vector3();
 const helper = new THREE.Vector3();
 
 /** 관 정점을 중심선에 맞춘다. 법선은 이전 것을 이어 받아 돌린다(평행 이송) — 새로 뽑으면 꺾이는 데서 단면이 뒤집힌다. */
-function fillTube(geometry: THREE.BufferGeometry, points: THREE.Vector3[], radius: number) {
+function applyTubeShape(geometry: THREE.BufferGeometry, points: THREE.Vector3[], radius: number) {
   const segments = points.length - 1;
   const positions = geometry.attributes.position as THREE.BufferAttribute;
   const normals = geometry.attributes.normal as THREE.BufferAttribute;
@@ -120,7 +120,7 @@ export default function SaggingHose({
 }: SaggingHoseProps) {
   const location = useNozzle();
   const { camera } = useThree();
-  const geometry = useMemo(() => createTubeGeometry(segments, radialSegments), [segments, radialSegments]);
+  const geometry = useMemo(() => buildTubeGeometry(segments, radialSegments), [segments, radialSegments]);
   const points = useMemo(() => Array.from({ length: segments + 1 }, () => new THREE.Vector3()), [segments]);
   useEffect(() => () => geometry.dispose(), [geometry]);
   const meshRef = useRef<THREE.Mesh>(null);
@@ -192,7 +192,7 @@ export default function SaggingHose({
     for (let pass = 0; pass < 2; pass++)
       for (let i = 1; i < segments; i++)
         points[i].lerp(average.addVectors(points[i - 1], points[i + 1]).multiplyScalar(0.5), 0.5);
-    fillTube(geometry, points, radius);
+    applyTubeShape(geometry, points, radius);
 
     let drawn = 0;
     for (let i = 1; i <= segments; i++) drawn += points[i].distanceTo(points[i - 1]);

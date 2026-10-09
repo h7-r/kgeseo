@@ -10,7 +10,7 @@ const DEFAULT_LOOK_FILE = fileURLToPath(new URL("../assets/default-look.json", i
 const MAX_BODY = 64 * 1024; // 외형 한 벌은 1KB 남짓이다
 
 /** 개발 서버에서만 돈다(배포본에는 없다). */
-export function defaultLookReceiver(): Plugin {
+export function defaultLookReceiverPlugin(): Plugin {
   return {
     name: "dev-default-look-receiver",
     apply: "serve",

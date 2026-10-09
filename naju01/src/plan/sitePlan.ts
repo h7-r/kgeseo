@@ -113,7 +113,7 @@ interface CliffProfile {
  * 어긋난 점) 띠 안에서 흔든다. 판정(terrain)과 그림(cliff)이 같이 봐야 눈과 발이 안 어긋나므로 여기 둔다.
  * 마루는 남으로만, 발치는 북으로만 움직여 Z3·Z2 를 침범하지 않는다.
  */
-export function CLIFF_OUTLINE(x: number): CliffProfile {
+export function cliffProfileAt(x: number): CliffProfile {
   const t = (x - CLIFF.x[0]) / (CLIFF.x[1] - CLIFF.x[0]);
   const wave = (a: number, b: number, c: number) => Math.sin(t * Math.PI * a + b) * c;
   // −1 ~ 1 남짓
@@ -377,14 +377,14 @@ export const VIEWPOINTS: Viewpoint[] = [
   },
 ];
 
-interface InvestigationSlot {
+interface InvestigationPoint {
   scene: SceneNumber;
   color: string;
   points: [number, number][];
 }
 
 /** 조사점 후보 슬롯. 실제 instance_id·정답은 정하지 않고 "설 수 있나 / 보이나" 만 본다. */
-export const INVESTIGATION_POINTS: InvestigationSlot[] = [
+export const INVESTIGATION_POINTS: InvestigationPoint[] = [
   {
     scene: 1,
     color: "#23263B",
@@ -445,7 +445,7 @@ export const SECTIONS: Section[] = [
   { code: "B–B′", axis: "Z", value: 34, description: "횡단면 · Z1 → T1 → Z2 → T2" },
 ];
 
-/** 시점·조작 기준값(§9). 걷기 속도는 본편 engine 의 WALK 가 정한다. */
+/** 시점·조작 기준값(§9). 걷기 속도는 본편 engine 의 WALK_SPEED 가 정한다. */
 export const BASELINE = {
   eyeHeight: 1.6, // m — §9
   crouchEyeHeight: 0.9, // m — §6
@@ -455,7 +455,7 @@ export const BASELINE = {
 };
 
 interface TunableRange {
-  /** null 이면 부르는 쪽 기본값(걷기 속도는 본편 WALK) */
+  /** null 이면 부르는 쪽 기본값(걷기 속도는 본편 WALK_SPEED) */
   value: number | null;
   min: number;
   max: number;
@@ -479,7 +479,7 @@ export const TUNABLE_RANGES = {
 type TunableKey = keyof typeof TUNABLE_RANGES;
 
 /** Leva 항목 하나({ value, min, max, step }). 범위·기본값은 TUNABLE_RANGES 한 곳에서만 온다. */
-export function tunable(key: TunableKey, fallback = 0) {
+export function getTunableControl(key: TunableKey, fallback = 0) {
   const range: TunableRange = TUNABLE_RANGES[key];
   return { value: range.value ?? fallback, min: range.min, max: range.max, step: range.step };
 }

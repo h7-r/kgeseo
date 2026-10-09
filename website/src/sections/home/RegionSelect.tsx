@@ -14,7 +14,7 @@ import mountainIcon from "@/assets/images/imgMountainIcon.svg";
 import najuPhoto from "@/assets/images/imgPortalImageNaju.webp";
 import showcasePhoto from "@/assets/images/imgShowcaseCircle.webp";
 import { VIDEOS, type Video } from "@/data/videos";
-import { useRecede } from "@/hooks/motion";
+import { useScrollZoomOut } from "@/hooks/motion";
 import { useProximity } from "@/hooks/proximity";
 import { useVideoPreview } from "@/hooks/useVideoPreview";
 import { fillImageStyle, FONT, glowImageStyle, gradientText, place } from "@/lib/style";
@@ -85,14 +85,14 @@ const BRANCHES: readonly Branch[] = [
 export default function RegionSelect() {
   const navigate = useSiteNavigate();
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const recedeRef = useRecede();
+  const scrollZoomRef = useScrollZoomOut();
   const branch = BRANCHES[selectedIndex];
   // 모달이 이 둥근 모양에서 시작해 네모로 커진다.
   const preview = useVideoPreview(branch.video, "50%");
 
   return (
     <>
-      <div className="flow-text" style={headlineStyle} {...sectionAnchor("legend-regions")}>
+      <div className="u-shine-text" style={headlineStyle} {...sectionAnchor("legend-regions")}>
         전설 속으로, 탈출을 시작하라
       </div>
 
@@ -108,8 +108,8 @@ export default function RegionSelect() {
       </div>
 
       <div
-        ref={recedeRef}
-        className="recede"
+        ref={scrollZoomRef}
+        className="u-scroll-zoom-out"
         style={{ ...place(985, 4406, 713), display: "flex", flexDirection: "column", alignItems: "center" }}
       >
         <div
@@ -119,13 +119,13 @@ export default function RegionSelect() {
         >
           {/* key 를 바꿔야 CSS 애니메이션이 다시 돈다. */}
           {preview.videoProps ? (
-            <video key={selectedIndex} className="camera-zoom" {...preview.videoProps} style={circleFillStyle} />
+            <video key={selectedIndex} className="u-swap-in" {...preview.videoProps} style={circleFillStyle} />
           ) : (
             <img
               loading="lazy"
               decoding="async"
               key={selectedIndex}
-              className="camera-zoom"
+              className="u-swap-in"
               src={branch.photo}
               alt=""
               style={circleFillStyle}
@@ -139,10 +139,10 @@ export default function RegionSelect() {
               boxShadow: `inset 0px 0px 24px 0px ${COLOR.bg}`,
             }}
           />
-          <div className="photo-ring" aria-hidden="true" />
+          <div className="u-rotating-border" aria-hidden="true" />
           {preview.hasVideo && <PreviewBadge />}
         </div>
-        <div key={`caption${selectedIndex}`} className="camera-caption" style={captionStyle}>
+        <div key={`caption${selectedIndex}`} className="region-select__caption" style={captionStyle}>
           <div style={photoTitleStyle}>{branch.title}</div>
           <div style={photoDescriptionStyle}>{branch.description}</div>
         </div>
@@ -178,11 +178,11 @@ export default function RegionSelect() {
         </div>
 
         <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-          <button type="button" className="btn" style={outlineButtonStyle} onClick={() => navigate(ROUTES.media)}>
-            <span className="btn__label">모든 지역 보기</span>
+          <button type="button" className="button" style={outlineButtonStyle} onClick={() => navigate(ROUTES.media)}>
+            <span className="button__label">모든 지역 보기</span>
           </button>
-          <button type="button" className="btn" style={filledButtonStyle} onClick={() => navigate(ROUTES.media)}>
-            <span className="btn__label">지금 탐험하기</span>
+          <button type="button" className="button" style={filledButtonStyle} onClick={() => navigate(ROUTES.media)}>
+            <span className="button__label">지금 탐험하기</span>
           </button>
         </div>
 
@@ -227,7 +227,7 @@ function BranchDot({ label, icon, iconSize, selected, onSelect }: BranchDotProps
     <button type="button" aria-pressed={selected} onClick={onSelect} style={branchItemStyle}>
       <div
         ref={proximityRef}
-        className="branch-dot proximity"
+        className="branch-dot u-proximity-glow"
         style={{
           ...dotStyle,
           border: `2px solid ${selected ? COLOR.navy : "rgba(26,48,95,0.38)"}`,
@@ -267,14 +267,14 @@ function BranchDot({ label, icon, iconSize, selected, onSelect }: BranchDotProps
 
 interface PreviewBadgeProps {
   /** 시나리오 카드용 자리(가운데보다 조금 위). */
-  card?: boolean;
+  isOnCard?: boolean;
 }
 
 /** 호버하면 떠오르는 「▶ 영상 크게 보기」 딱지. 누를 수 있는 곳이라는 표시다. */
-export function PreviewBadge({ card = false }: PreviewBadgeProps) {
+export function PreviewBadge({ isOnCard = false }: PreviewBadgeProps) {
   return (
     <span
-      className={`preview-badge${card ? " preview-badge--card" : ""}`}
+      className={`preview-badge${isOnCard ? " preview-badge--card" : ""}`}
       style={{ fontFamily: FONT.mono }}
       aria-hidden="true"
     >
@@ -315,7 +315,7 @@ const photoCircleStyle: CSSProperties = {
   width: "480px",
   height: "500px",
   borderRadius: "240px",
-  // 파란 테두리는 도는 고리(.photo-ring)가 맡고, 여기는 아주 어두운 남색 한 줄만.
+  // 파란 테두리는 도는 고리(.u-rotating-border)가 맡고, 여기는 아주 어두운 남색 한 줄만.
   border: "1px solid rgba(22,38,77,0.6)",
   boxShadow: "0px 0px 40px 0px rgba(14,26,58,0.45)",
   boxSizing: "border-box",

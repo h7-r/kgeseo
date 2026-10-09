@@ -18,7 +18,7 @@ export default function Pager({ page, pageCount, onChange }: PagerProps) {
     <div style={pagerStyle}>
       <button
         type="button"
-        className="pager-arrow"
+        className="pager__arrow"
         style={{ ...pagerArrowStyle, ...(hasPrevious ? null : pagerDisabledStyle) }}
         disabled={!hasPrevious}
         onClick={() => onChange(page - 1)}
@@ -30,7 +30,7 @@ export default function Pager({ page, pageCount, onChange }: PagerProps) {
         <button
           key={n}
           type="button"
-          className={n === page ? "pager-page is-active" : "pager-page"}
+          className={n === page ? "pager__page is-active" : "pager__page"}
           style={n === page ? activePageStyle : whitePageStyle}
           onClick={() => onChange(n)}
           aria-label={`${n}쪽`}
@@ -41,7 +41,7 @@ export default function Pager({ page, pageCount, onChange }: PagerProps) {
       ))}
       <button
         type="button"
-        className="pager-arrow"
+        className="pager__arrow"
         style={{ ...pagerArrowStyle, ...(hasNext ? null : pagerDisabledStyle) }}
         disabled={!hasNext}
         onClick={() => onChange(page + 1)}
@@ -64,5 +64,5 @@ const pagerStyle: CSSProperties = {
 };
 // 첫·끝 쪽에선 갈 곳이 없다.
 const pagerDisabledStyle: CSSProperties = { opacity: 0.4, cursor: "default", pointerEvents: "none" };
-// 인라인 흰 바탕이 .pager-page:active 의 옅은 물듦을 덮는다. 게임 소개 쪽번호와 다른 점이다.
+// 인라인 흰 바탕이 .pager__page:active 의 옅은 물듦을 덮는다. 게임 소개 쪽번호와 다른 점이다.
 const whitePageStyle: CSSProperties = { ...inactivePageStyle, background: COLOR.white };

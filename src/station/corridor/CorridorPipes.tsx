@@ -2,14 +2,14 @@ import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { mergeBoxes, type MergeBox } from "@/engine/geometry";
+import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { corridorDepthBrightness, type CorridorDepthRule } from "./corridorLighting";
+import { computeCorridorDepthBrightness, type CorridorDepthRule } from "./corridorLighting";
 
 /** z축을 따라 뻗는 파이프. CylinderGeometry 는 Y축 방향이라 X로 90° 눕힌다. */
-function pipeGeometry(radius: number, z0: number, z1: number, x: number, y: number, lengthSegments = 24) {
+function buildPipeGeometry(radius: number, z0: number, z1: number, x: number, y: number, lengthSegments = 24) {
   const length = Math.abs(z1 - z0);
   const g = new THREE.CylinderGeometry(radius, radius, length, 8, lengthSegments);
   g.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI / 2));
@@ -111,7 +111,7 @@ export default function CorridorPipes({
       darkFactor,
       brightBoundary,
     };
-    return (z: number) => corridorDepthBrightness(z, rule) * brightness;
+    return (z: number) => computeCorridorDepthBrightness(z, rule) * brightness;
   }, [
     doorZ,
     falloff,
@@ -134,11 +134,11 @@ export default function CorridorPipes({
     // 굵은 것 2 + 전선관 3
     const pipes = mergeGeometries(
       [
-        pipeGeometry(largeRadius, zA, zB, px - 0.34, py, 40),
-        pipeGeometry(largeRadius * 0.78, zA, zB, px + 0.02, py + 0.06, 40),
-        pipeGeometry(smallRadius, zA, zB, px + 0.3, py - 0.02, 40),
-        pipeGeometry(smallRadius, zA, zB, px + 0.42, py + 0.05, 40),
-        pipeGeometry(smallRadius * 0.8, zA, zB, px + 0.36, py - 0.13, 40),
+        buildPipeGeometry(largeRadius, zA, zB, px - 0.34, py, 40),
+        buildPipeGeometry(largeRadius * 0.78, zA, zB, px + 0.02, py + 0.06, 40),
+        buildPipeGeometry(smallRadius, zA, zB, px + 0.3, py - 0.02, 40),
+        buildPipeGeometry(smallRadius, zA, zB, px + 0.42, py + 0.05, 40),
+        buildPipeGeometry(smallRadius * 0.8, zA, zB, px + 0.36, py - 0.13, 40),
       ],
       false,
     );
@@ -146,12 +146,12 @@ export default function CorridorPipes({
     // 사다리형 케이블 트레이 — 레일 2 + 가로대
     const ty = py - 0.62;
     const rungCount = Math.max(2, Math.floor((zB - zA) / rungSpacing));
-    const tray = mergeBoxes([
-      ...[-1, 1].map((sx): MergeBox => ({
+    const tray = buildMergedBoxes([
+      ...[-1, 1].map((sx): BoxPiece => ({
         size: [0.07, 0.12, zB - zA],
         position: [px + sx * (trayWidth / 2), ty, (zA + zB) / 2],
       })),
-      ...Array.from({ length: rungCount }, (_, i): MergeBox => ({
+      ...Array.from({ length: rungCount }, (_, i): BoxPiece => ({
         size: [trayWidth, 0.04, 0.09],
         position: [px, ty - 0.03, zA + ((zB - zA) * (i + 0.5)) / rungCount],
       })),
@@ -159,11 +159,11 @@ export default function CorridorPipes({
 
     // 파이프를 천장에 매다는 ㄷ자 행어
     const hangerCount = Math.max(2, Math.floor((zB - zA) / hangerSpacing));
-    const hangers = mergeBoxes(
+    const hangers = buildMergedBoxes(
       Array.from({ length: hangerCount }, (_, i) => {
         const z = zA + ((zB - zA) * (i + 0.5)) / hangerCount;
-        const pieces: MergeBox[] = [
-          ...[-0.5, 0.6].map((sx): MergeBox => ({
+        const pieces: BoxPiece[] = [
+          ...[-0.5, 0.6].map((sx): BoxPiece => ({
             size: [0.06, sag + 0.72, 0.06],
             position: [px + sx, height - (sag + 0.72) / 2, z],
           })),

@@ -7,15 +7,15 @@ import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
-import { useLockUnlocked } from "@/props/combinationLock";
-import { rattleOffset, toggleHinge, useIsOpen } from "@/props/hingeState";
+import { AimHighlight } from "@/lobby/AimHighlight";
+import { useIsLockUnlocked } from "@/props/combinationLockState";
+import { computeRattleOffset, toggleHinge, useIsHingeOpen } from "@/props/hingeState";
 
 import BreakerWiring from "./BreakerWiring";
-import { BREAKER_DOOR_THICKNESS, openBoxGeometry } from "./geometry";
+import { BREAKER_DOOR_THICKNESS, buildOpenBoxGeometry } from "./puzzleGeometry";
 import HandwrittenHint from "./HandwrittenHint";
-import { circuitStripTexture } from "./textures";
-import { pluggedWireCount, usePluggedWiresKey, useWiringCorrect } from "./workLampState";
+import { makeCircuitStripTexture } from "./labelTextures";
+import { getPluggedWireCount, usePluggedWiresKey, useIsWiringCorrect } from "./workLampState";
 
 const MINI_BREAKER_COUNT = 6;
 const LOUVER_COUNT = 5;
@@ -63,18 +63,18 @@ export default function BreakerBox({
   outline,
 }: BreakerBoxProps) {
   const d = direction;
-  const isOpen = useIsOpen(doorId);
-  const isUnlocked = useLockUnlocked(doorId);
+  const isOpen = useIsHingeOpen(doorId);
+  const isUnlocked = useIsLockUnlocked(doorId);
   usePluggedWiresKey(); // 레버 라벨의 꽂힌 수를 따라가려고 구독한다
-  const isWired = useWiringCorrect();
+  const isWired = useIsWiringCorrect();
   const doorRef = useRef<THREE.Group>(null);
   const leverRef = useRef<THREE.Group>(null);
   const innerBrightness = Math.max(0.55, brightness);
-  const stripTexture = circuitStripTexture(1);
+  const stripTexture = makeCircuitStripTexture(1);
 
   const wallThickness = 0.05;
   const bodyGeometry = useMemo(
-    () => openBoxGeometry({ depth, height, width, wallThickness, direction: d }),
+    () => buildOpenBoxGeometry({ depth, height, width, wallThickness, direction: d }),
     [depth, height, width, d],
   );
   // 문짝을 함보다 작게(소화전함과 같은 규칙) — 같은 크기면 열릴 때 모서리가 테두리에 잘린다
@@ -98,7 +98,7 @@ export default function BreakerBox({
     const goal = isOpen ? (d * 104 * Math.PI) / 180 : 0;
     doorAngle.current += (goal - doorAngle.current) * Math.min(1, dt * 9);
     // 잠긴 채 당기면 덜컹 — 자물쇠도 같은 id 라 같이 흔들린다
-    if (doorRef.current) doorRef.current.rotation.y = doorAngle.current + rattleOffset(doorId) * 0.05 * -d;
+    if (doorRef.current) doorRef.current.rotation.y = doorAngle.current + computeRattleOffset(doorId) * 0.05 * -d;
     const lever = leverRef.current;
     if (lever) {
       const t = isRaised ? -LEVER_TILT : LEVER_TILT;
@@ -122,7 +122,7 @@ export default function BreakerBox({
   return (
     <group position={position}>
       {/* 몸통 강조는 닫힌 문을 볼 때만 — 열린 뒤 레버·선을 겨냥할 때마다 함 전체가 떴다 꺼졌다 */}
-      <Highlight id={isOpen ? "__none" : doorId} anchor={() => null} grow={0} strength={0.16}>
+      <AimHighlight id={isOpen ? "__none" : doorId} anchor={() => null} grow={0} strength={0.16}>
         {bodyGeometry && (
           <mesh geometry={bodyGeometry} castShadow receiveShadow>
             <meshToonMaterial color={scaleColor(bodyColor, brightness)} gradientMap={TOON_GRADIENT} />
@@ -130,7 +130,7 @@ export default function BreakerBox({
             <Outlines thickness={4} color="#131416" />
           </mesh>
         )}
-      </Highlight>
+      </AimHighlight>
 
       {/* 개구부 안쪽 테를 한 톤 어둡게 — 그래야 벽에 박힌 상자로 읽힌다 */}
       {revealEdges.map(([tx, ty, tz, size], i) => (
@@ -226,7 +226,7 @@ export default function BreakerBox({
             <Outlines thickness={2} color="#131416" />
           </mesh>
         ))}
-        <Highlight id={`${doorId}:lever`} anchor={() => null} grow={0} strength={0.35}>
+        <AimHighlight id={`${doorId}:lever`} anchor={() => null} grow={0} strength={0.35}>
           <group ref={leverRef} position={[d * 0.09, 0, 0]} rotation={[0, 0, LEVER_TILT]}>
             <mesh position={[0, bladeLength * 0.5, 0]} castShadow>
               <boxGeometry args={[0.032, bladeLength, 0.07]} />
@@ -243,7 +243,7 @@ export default function BreakerBox({
               <meshToonMaterial color={scaleColor("#6e767e", innerBrightness)} gradientMap={TOON_GRADIENT} />
             </mesh>
           </group>
-        </Highlight>
+        </AimHighlight>
         <mesh position={[d * 0.085, housingHeight * 0.62, -housingWidth * 0.68]}>
           <sphereGeometry args={[0.032, 12, 8]} />
           <meshBasicMaterial color={isRaised ? "#7dffa8" : "#3a413d"} toneMapped={false} />
@@ -351,7 +351,7 @@ export default function BreakerBox({
         radius={1.0}
         reach={6}
         position={() => [position[0] + d * (depth + 0.1), position[1] - height * 0.04, position[2]]}
-        label={isWired ? "[E] 주 차단기 올리기" : `모양 (${pluggedWireCount()}/3)`}
+        label={isWired ? "[E] 주 차단기 올리기" : `모양 (${getPluggedWireCount()}/3)`}
         disabled={() => !isOpen || isRaised}
         run={() => isWired && onLever()}
       />

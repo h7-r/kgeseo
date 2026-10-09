@@ -17,7 +17,7 @@ const openIds = new Set<string>();
 const restoredOpenIds = new Set<string>();
 const signal = createChangeSignal();
 
-export const isOpen = (id: string) => openIds.has(id);
+export const isHingeOpen = (id: string) => openIds.has(id);
 
 export function toggleHinge(id: string) {
   restoredOpenIds.delete(id);
@@ -37,17 +37,17 @@ function closeHinge(id: string) {
 }
 
 /** 서버 진행 상태의 열린 문을 소리 없이 즉시 되살린다. */
-export function restoreOpen(id: string | null | undefined) {
+export function restoreHingeOpen(id: string | null | undefined) {
   if (!id || openIds.has(id)) return;
   openIds.add(id);
   restoredOpenIds.add(id);
   signal.notify();
 }
 
-export const isRestoredOpen = (id: string) => restoredOpenIds.has(id);
+export const isHingeRestoredOpen = (id: string) => restoredOpenIds.has(id);
 
 /** id 하나의 열림 여부를 구독한다(드물게 바뀌어 다시 그려도 괜찮다). */
-export const useIsOpen = (id: string) => useSyncExternalStore(signal.subscribe, () => openIds.has(id));
+export const useIsHingeOpen = (id: string) => useSyncExternalStore(signal.subscribe, () => openIds.has(id));
 
 // 덜컹 — 잠겨서 안 열리는 문
 // 아무 반응이 없으면 조작이 고장 난 줄 안다. 문이 흔들려야 "잠겼구나"로 읽힌다.
@@ -59,14 +59,14 @@ const RATTLE_CYCLES = 3;
 const nowMs = () => (typeof performance !== "undefined" ? performance.now() : Date.now());
 
 /** 잠긴 문을 덜컹거리게 한다(이미 흔들리는 중이면 처음부터 다시). */
-export function rattle(id: string | null | undefined) {
+export function rattleHinge(id: string | null | undefined) {
   if (!id) return;
   rattles.set(id, nowMs());
   playSound("locked", { volume: 0.9 });
 }
 
 /** 지금 흔들림 −1 ~ 1. 잦아드는 사인파 — 끝까지 같은 세기면 깃발로 보인다. */
-export function rattleOffset(id: string | null | undefined) {
+export function computeRattleOffset(id: string | null | undefined) {
   const t0 = id ? rattles.get(id) : undefined;
   if (t0 === undefined || !id) return 0;
   const t = (nowMs() - t0) / 1000 / RATTLE_SECONDS;
@@ -78,4 +78,4 @@ export function rattleOffset(id: string | null | undefined) {
   return Math.sin(t * Math.PI * 2 * RATTLE_CYCLES) * decay;
 }
 
-exposeDevHook("hinges", { isOpen, toggleHinge, closeHinge, rattle });
+exposeDevHook("hinges", { isOpen: isHingeOpen, toggleHinge, closeHinge, rattle: rattleHinge });

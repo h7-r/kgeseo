@@ -1,10 +1,10 @@
 import { useId, useMemo, type CSSProperties } from "react";
 
 import type { AvatarGender } from "../avatar/sidekickOptions";
-import { nearestTick, tickValues, type BodyField, type BodyFieldKey } from "./appearanceData";
+import { computeNearestTickIndex, computeTickValues, type BodyField, type BodyFieldKey } from "./appearanceData";
 import { COLORS, FONTS, SPACING, smallTextStyle, tileStyle } from "./styles";
 
-// 「아주 작게 · 작게 · 기본」 대신 와닿는 말로. 다섯 칸은 tickValues 순서와 같다(기본이 한쪽 끝인 항목은 첫 칸이 기본).
+// 「아주 작게 · 작게 · 기본」 대신 와닿는 말로. 다섯 칸은 computeTickValues 순서와 같다(기본이 한쪽 끝인 항목은 첫 칸이 기본).
 // cm 는 기본 키를 170cm 로 본 안내값이다.
 const TICK_LABELS: Record<BodyFieldKey, readonly string[]> = {
   heightScale: ["150cm 이하", "160cm", "170cm", "180cm", "190cm 이상"],
@@ -36,7 +36,7 @@ const valueBadgeStyle: CSSProperties = {
   color: "#FFFFFF",
   font: `600 12.5px/1 ${FONTS.body}`,
 };
-const smallTileStyle: CSSProperties = {
+const stepButtonStyle: CSSProperties = {
   ...tileStyle,
   width: 26,
   height: 26,
@@ -67,72 +67,72 @@ export default function TickSlider({
   onDragEnd,
   onReset,
 }: TickSliderProps) {
-  const id = useId();
-  const ticks = useMemo(() => tickValues(field, gender), [field, gender]);
-  const index = nearestTick(ticks, value);
-  const labelAt = (i: number) => TICK_LABELS[field.key]?.[i] ?? ticks[i]?.label ?? "";
-  const currentLabel = labelAt(index);
-  const moveTo = (next: number, isHistoryStep: boolean) => {
+  const sliderId = useId();
+  const ticks = useMemo(() => computeTickValues(field, gender), [field, gender]);
+  const tickIndex = computeNearestTickIndex(ticks, value);
+  const getTickLabel = (i: number) => TICK_LABELS[field.key]?.[i] ?? ticks[i]?.label ?? "";
+  const currentLabel = getTickLabel(tickIndex);
+  const moveToTick = (next: number, isHistoryStep: boolean) => {
     const i = Math.max(0, Math.min(ticks.length - 1, next));
     onChange(ticks[i].value, isHistoryStep);
   };
   return (
-    <div className="cc-slider-row" style={sliderCardStyle}>
+    <div className="tick-slider" style={sliderCardStyle}>
       <div style={{ display: "flex", alignItems: "center", gap: SPACING.s }}>
-        <label htmlFor={id} style={{ font: `600 14px/1.3 ${FONTS.body}`, color: COLORS.text }}>
+        <label htmlFor={sliderId} style={{ font: `600 14px/1.3 ${FONTS.body}`, color: COLORS.text }}>
           {field.label}
         </label>
-        <output htmlFor={id} style={{ marginLeft: "auto", ...valueBadgeStyle }}>
+        <output htmlFor={sliderId} style={{ marginLeft: "auto", ...valueBadgeStyle }}>
           {currentLabel}
         </output>
-        <span className="cc-fine" style={{ display: "flex", gap: 4 }}>
+        <span className="tick-slider__step-buttons" style={{ display: "flex", gap: 4 }}>
           <button
             type="button"
             aria-label={`${field.label} 한 칸 줄이기`}
-            style={smallTileStyle}
-            onClick={() => moveTo(index - 1, true)}
+            style={stepButtonStyle}
+            onClick={() => moveToTick(tickIndex - 1, true)}
           >
             −
           </button>
           <button
             type="button"
             aria-label={`${field.label} 한 칸 늘리기`}
-            style={smallTileStyle}
-            onClick={() => moveTo(index + 1, true)}
+            style={stepButtonStyle}
+            onClick={() => moveToTick(tickIndex + 1, true)}
           >
             ＋
           </button>
-          <button type="button" aria-label={`${field.label} 초기화`} style={smallTileStyle} onClick={onReset}>
+          <button type="button" aria-label={`${field.label} 초기화`} style={stepButtonStyle} onClick={onReset}>
             ↺
           </button>
         </span>
       </div>
       <input
-        id={id}
+        id={sliderId}
         type="range"
         min={0}
         max={ticks.length - 1}
         step={1}
-        value={index}
+        value={tickIndex}
         // 읽어 주는 값도 화면에 보이는 칸 이름이다
         aria-valuetext={currentLabel}
-        list={`${id}-ticks`}
+        list={`${sliderId}-ticks`}
         onPointerDown={onDragStart}
         onKeyDown={onDragStart}
-        onChange={(e) => moveTo(Number(e.target.value), false)}
+        onChange={(e) => moveToTick(Number(e.target.value), false)}
         onPointerUp={onDragEnd}
         onKeyUp={onDragEnd}
         onBlur={onDragEnd}
       />
-      <datalist id={`${id}-ticks`}>
+      <datalist id={`${sliderId}-ticks`}>
         {ticks.map((tick, i) => (
           <option key={tick.label} value={i} label={tick.label} />
         ))}
       </datalist>
       {/* 양 끝 말 — 어느 쪽으로 밀면 무엇이 되나가 손대기 전에 읽힌다 */}
       <div style={{ display: "flex", justifyContent: "space-between", ...smallTextStyle }}>
-        <span>{labelAt(0)}</span>
-        <span>{labelAt(ticks.length - 1)}</span>
+        <span>{getTickLabel(0)}</span>
+        <span>{getTickLabel(ticks.length - 1)}</span>
       </div>
     </div>
   );

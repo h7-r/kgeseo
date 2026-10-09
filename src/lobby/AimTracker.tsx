@@ -8,7 +8,7 @@ import * as THREE from "three";
 
 import { playerView } from "@/engine/playerView";
 
-import { updateAim, useInteractable, type InteractableInfo } from "./interactions";
+import { updateAim, useInteractable, type InteractableSpec } from "./interactions";
 
 // 가만히 있을 때의 최소 측정 주기(초).
 const AIM_INTERVAL = 0.05;
@@ -42,7 +42,7 @@ export default function AimTracker({ enabled = true }: AimTrackerProps) {
   return null;
 }
 
-interface InteractableProps extends InteractableInfo {
+interface InteractableProps extends InteractableSpec {
   id: string;
 }
 

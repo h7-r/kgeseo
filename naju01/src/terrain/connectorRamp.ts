@@ -41,9 +41,9 @@ export interface ConnectorRamp {
 
 interface RampOptions {
   /** 무대 안쪽 지면 */
-  coreHeight: HeightAt;
+  coreHeightAt: HeightAt;
   /** 무대 밖 들판 높이 */
-  outerHeight: HeightAt;
+  outerHeightAt: HeightAt;
   cellsPerMeter?: number;
 }
 
@@ -54,7 +54,7 @@ interface SectionPoint {
   color: THREE.Color;
 }
 
-export function buildConnectorRamp({ coreHeight, outerHeight, cellsPerMeter = 0.5 }: RampOptions): ConnectorRamp {
+export function buildConnectorRamp({ coreHeightAt, outerHeightAt, cellsPerMeter = 0.5 }: RampOptions): ConnectorRamp {
   const [x0, z0] = RAMP_DESIGN.start;
   const [x1, z1] = RAMP_DESIGN.end;
   const dx = x1 - x0;
@@ -65,8 +65,8 @@ export function buildConnectorRamp({ coreHeight, outerHeight, cellsPerMeter = 0.
   const nx = -uz; // 왼쪽 법선
   const nz = ux;
 
-  const startY = coreHeight(x0, z0);
-  const endY = outerHeight(x1, z1);
+  const startY = coreHeightAt(x0, z0);
+  const endY = outerHeightAt(x1, z1);
   const drop = startY - endY;
   const slope = (Math.atan2(drop, planLength) * 180) / Math.PI;
 
@@ -98,7 +98,7 @@ export function buildConnectorRamp({ coreHeight, outerHeight, cellsPerMeter = 0.
     if (outside <= 0) return y;
     // 갓길 — 길 밖으로 갈수록 주변 땅으로 녹아든다
     const t = THREE.MathUtils.clamp(outside / RAMP_DESIGN.shoulder, 0, 1);
-    const around = u < 0.5 ? coreHeight(x, z) : outerHeight(x, z);
+    const around = u < 0.5 ? coreHeightAt(x, z) : outerHeightAt(x, z);
     return THREE.MathUtils.lerp(y, around, smooth(t));
   };
 
@@ -107,7 +107,7 @@ export function buildConnectorRamp({ coreHeight, outerHeight, cellsPerMeter = 0.
   const restAngle = (33 * Math.PI) / 180;
   const restSlope = Math.tan(restAngle);
   const surroundingHeight = (x: number, z: number) =>
-    x <= CORE.x[1] && x >= CORE.x[0] && z >= CORE.z[0] && z <= CORE.z[1] ? coreHeight(x, z) : outerHeight(x, z);
+    x <= CORE.x[1] && x >= CORE.x[0] && z >= CORE.z[0] && z <= CORE.z[1] ? coreHeightAt(x, z) : outerHeightAt(x, z);
 
   // 흙 표면 흔들림 — 자로 잰 비탈은 콘크리트로 보인다
   const grain = (x: number, z: number) =>

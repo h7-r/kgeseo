@@ -29,7 +29,7 @@ interface BakedGeometryOptions {
  * 색은 반드시 깐다 — vertexColors 재질에 color 가 없으면 통째로 검게 나온다.
  * 굽는 것은 비율이고 실제 색은 instanceColor 가 곱한다.
  */
-export function bakedModelGeometry(
+export function buildBakedModelGeometry(
   model: BakedModel,
   { paint = null, bottom = 1.2, top = 0.68 }: BakedGeometryOptions = {},
 ): THREE.BufferGeometry {

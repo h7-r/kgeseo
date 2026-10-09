@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { playSound } from "@/audio/sound";
-import { dropChair, returnHeld, placeHeld } from "@/lobby/interactions";
-import { latestPlacement } from "@/lobby/placement";
-import { chairDragState } from "@/station/office/chairDragState";
+import { dropChair, returnHeldItem, placeHeldItem } from "@/lobby/interactions";
+import { getLatestPlacement } from "@/lobby/placement";
+import { chairDragState } from "@/station/headquarters/chairDragState";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 import { entryLock, exitedTrain } from "@/station/layout/trainDoors";
 
@@ -72,7 +72,7 @@ export function useSceneTransition(isTrain: boolean, near: NearTarget) {
       TRAIN_PATH,
       () => {
         // 들고 있던 물건은 제자리에 두고 간다(GRD-01 되돌릴 수 있음).
-        returnHeld();
+        returnHeldItem();
         // 끌던 의자도 놓는다. 안 놓으면 돌아왔을 때 의자가 갑자기 다시 따라붙는다.
         dropChair(chairDragState.x, chairDragState.z);
       },
@@ -103,13 +103,13 @@ export function useSceneTransition(isTrain: boolean, near: NearTarget) {
 }
 
 /** 지금 보고 있는 자리에 든 물건을 내려놓는다. 겹치거나 면이 아니면 아무 일도 안 한다. */
-export function tryPlaceHeld() {
-  const spot = latestPlacement();
+export function tryPlaceHeldItem() {
+  const spot = getLatestPlacement();
   if (!spot?.ok) return false;
   // 걸이(옷걸이 등) = 제자리로. 좌표 대신 덮어쓴 자리를 지워야 원래 기울기까지 돌아온다.
   if (spot.snapId) {
-    returnHeld();
+    returnHeldItem();
     return true;
   }
-  return placeHeld({ x: spot.x, y: spot.y, z: spot.z, rot: spot.rot });
+  return placeHeldItem({ x: spot.x, y: spot.y, z: spot.z, rot: spot.rot });
 }

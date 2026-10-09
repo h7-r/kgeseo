@@ -8,7 +8,8 @@ import { TOON_GRADIENT } from "@/engine/toon";
 import { ATLAS_GRID } from "./atlasTextures";
 import { CAR_HEIGHT } from "./dimensions";
 
-export type LampState = { kind: "dead" } | { kind: "steady" } | { kind: "flicker"; phase: number; period: number };
+export type FluorescentLampState =
+  { kind: "dead" } | { kind: "steady" } | { kind: "flicker"; phase: number; period: number };
 
 // 버려진 열차는 전기가 불안정해야 한다. 대부분 켜져 있다가 가끔 한 번 발작하듯 깜빡이고,
 // 발작 안에서는 처음엔 느리게 뒤로 갈수록 빠르게 끊긴다 — 안정기가 나간 형광등이 그렇게 죽는다.
@@ -25,7 +26,7 @@ const FIT_OFF_SPANS: readonly [number, number][] = [
 ];
 const FIT_SECONDS = 1.75;
 
-function flickerValue(time: number, phase: number, period: number): number {
+function computeFlicker(time: number, phase: number, period: number): number {
   const u = (time + phase) % period;
   const fitStart = period - FIT_SECONDS;
   if (u < fitStart) return 1;
@@ -40,7 +41,7 @@ function flickerValue(time: number, phase: number, period: number): number {
 
 interface FluorescentLampProps {
   x: number;
-  state: LampState;
+  state: FluorescentLampState;
   intensity: number;
   color: string;
   offColor: string;
@@ -84,7 +85,7 @@ export default function FluorescentLamp({
       state.kind === "dead"
         ? 0
         : state.kind === "flicker"
-          ? flickerValue(clock.elapsedTime, state.phase, state.period)
+          ? computeFlicker(clock.elapsedTime, state.phase, state.period)
           : 1;
     light.intensity = intensity * level;
     // 빛만 꺼지고 판이 밝으면 가짜로 보인다.

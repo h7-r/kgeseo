@@ -124,7 +124,7 @@ interface CanvasState {
   camera: THREE.Camera;
 }
 
-function liveCanvases(): CanvasState[] {
+function getLiveCanvases(): CanvasState[] {
   const result: CanvasState[] = [];
   try {
     _roots.forEach((root, canvas) => {
@@ -140,11 +140,11 @@ function liveCanvases(): CanvasState[] {
 }
 
 /** 관문 1 — 조용하면 null, 아니면 무엇 때문인지(진단 글) */
-function quietBlocker(isLoading: () => boolean): string | null {
+function findLoadingBlocker(isLoading: () => boolean): string | null {
   const now = performance.now();
   for (const [id, startedAt] of pendingRequests) if (now - startedAt > STALE_REQUEST_MS) pendingRequests.delete(id);
   if (!document.querySelector("canvas")) return "캔버스 없음";
-  if (liveCanvases().length === 0) return "3D 준비 전";
+  if (getLiveCanvases().length === 0) return "3D 준비 전";
   if (isLoading()) return "모델 · 텍스처 받는 중";
   if (pendingRequests.size) return `파일 ${pendingRequests.size}개 받는 중`;
   if (now - lastReceivedAt < QUIET_MS) return `파일 막 받음(${lastReceivedName})`;
@@ -155,7 +155,7 @@ function quietBlocker(isLoading: () => boolean): string | null {
 /** 관문 2 — 씬 전체를 GPU 에 올리고 컴파일한다 */
 async function warmUp() {
   const target = new THREE.WebGLRenderTarget(4, 4);
-  for (const { gl, scene, camera } of liveCanvases()) {
+  for (const { gl, scene, camera } of getLiveCanvases()) {
     const textures = new Set<THREE.Texture>();
     const materials = new Set<THREE.Material>();
     scene.traverse((object) => {
@@ -213,8 +213,8 @@ async function warmUp() {
 }
 
 /** 새 물건이 처음 그려지면 늘어난다 */
-function programCount(): number {
-  return liveCanvases().reduce((sum, { gl }) => sum + (gl.info?.programs?.length ?? 0), 0);
+function getProgramCount(): number {
+  return getLiveCanvases().reduce((sum, { gl }) => sum + (gl.info?.programs?.length ?? 0), 0);
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -267,7 +267,7 @@ export async function waitUntilReady(
     // 관문 1 — 0.8초 내리 조용해야 한다
     let quietSince: number | null = null;
     while (!isCancelled() && remainingSeconds() > 0) {
-      const reason = quietBlocker(isLoading);
+      const reason = findLoadingBlocker(isLoading);
       if (reason) {
         quietSince = null;
         report(reason);
@@ -287,7 +287,7 @@ export async function waitUntilReady(
     // 관문 3 — 1.5초와 프레임 10장을 둘 다 채운다(아주 느린 기계는 6초까지 모은다)
     report("화면 안정 확인 중");
     const intervals: number[] = [];
-    const initialPrograms = programCount();
+    const initialPrograms = getProgramCount();
     let breakReason: string | null = null;
     const windowStart = performance.now();
     let previous = performance.now();
@@ -308,11 +308,11 @@ export async function waitUntilReady(
         breakReason = `프레임 끊김 ${Math.round(latest)}ms`;
         break;
       }
-      if (programCount() !== initialPrograms) {
+      if (getProgramCount() !== initialPrograms) {
         breakReason = "새 셰이더가 생김(처음 그려지는 물건)";
         break;
       }
-      const reason = quietBlocker(isLoading);
+      const reason = findLoadingBlocker(isLoading);
       if (reason) {
         breakReason = reason;
         break;
@@ -321,7 +321,7 @@ export async function waitUntilReady(
     if (isCancelled()) break;
     if (!breakReason && intervals.length >= 10) return finish();
     // 다섯 번째부터는 끊김·새 셰이더는 봐준다(느린 기계·재질을 계속 만드는 물건). 관문 1 과 데우기는 끝까지 지킨다.
-    if (attempt >= 5 && !quietBlocker(isLoading)) {
+    if (attempt >= 5 && !findLoadingBlocker(isLoading)) {
       console.warn(
         `[로딩검사] 안정 확인을 ${attempt}번 넘기지 못했다(${breakReason || "프레임이 너무 적음"}) — 다 받고 데운 상태라 걷는다`,
       );

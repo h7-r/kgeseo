@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { WALL_TEX_H, WALL_TEX_W } from "@/engine/textures/surfaces";
+import { WALL_TEXTURE_H, WALL_TEXTURE_W } from "@/engine/textures/surfaces";
 
 interface WallPieceGeometryOptions {
   width: number;
@@ -19,7 +19,7 @@ interface WallPieceGeometryOptions {
  * 벽돌 무늬가 이어지는 벽 조각 판. 여러 장을 한 덩어리로 합칠 때도 이 함수를 써야
  * UV·밝기 식이 한 벌로 남아 이음매가 안 어긋난다.
  */
-export function wallPieceGeometry({
+export function buildWallPieceGeometry({
   width,
   height,
   x,
@@ -30,11 +30,11 @@ export function wallPieceGeometry({
 }: WallPieceGeometryOptions): THREE.PlaneGeometry {
   const geometry = new THREE.PlaneGeometry(width, height, Math.max(1, segments), 1);
   const uv = geometry.attributes.uv;
-  const u0 = (x - width / 2) / WALL_TEX_W;
-  const v0 = (y - height / 2) / WALL_TEX_H;
+  const u0 = (x - width / 2) / WALL_TEXTURE_W;
+  const v0 = (y - height / 2) / WALL_TEXTURE_H;
   for (let i = 0; i < uv.count; i++) {
-    uv.setX(i, uv.getX(i) * (width / WALL_TEX_W) + (flipU ? -u0 : u0));
-    uv.setY(i, uv.getY(i) * (height / WALL_TEX_H) + v0);
+    uv.setX(i, uv.getX(i) * (width / WALL_TEXTURE_W) + (flipU ? -u0 : u0));
+    uv.setY(i, uv.getY(i) * (height / WALL_TEXTURE_H) + v0);
   }
   if (brightness && brightness.length >= 2) {
     const position = geometry.attributes.position;

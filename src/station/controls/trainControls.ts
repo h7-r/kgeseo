@@ -1,5 +1,5 @@
-import { outlineSchema, useSavedControls } from "@/engine/leva/savedControls";
-import { MAX_Z, MIN_Z } from "@/station/layout/dimensions";
+import { buildOutlineSchema, useSavedControls } from "@/engine/leva/savedControls";
+import { HEADQUARTERS_MAX_Z, HEADQUARTERS_MIN_Z } from "@/station/layout/dimensions";
 
 /**
  * 기차 쪽 폴더 여섯 개 — 「기차」·「기차 외부 문」·「기차 발판」·「기차 선로」·「부서진 벽 끝」·「기차 저편 공간」.
@@ -23,7 +23,7 @@ export function useTrainControls() {
     bodyColor: { value: "#1b2029", label: "차체색" },
     doorColor: { value: "#252b36", label: "문색" },
     darkColor: { value: "#0a0c10", label: "어둠색" },
-    ...outlineSchema({ width: 1.5, color: "#242a33", crease: true, creaseAngle: 71, creaseColor: "#000000" }),
+    ...buildOutlineSchema({ width: 1.5, color: "#242a33", crease: true, creaseAngle: 71, creaseColor: "#000000" }),
   });
   // 문짝 판은 차체 구멍에 묶여 못 줄인다. 대신 문틀폭으로 밝은 문 면을 좁혀 보이게 한다.
   const door = useSavedControls("기차 외부 문", {
@@ -65,7 +65,7 @@ export function useTrainControls() {
     ballastColor: { value: "#292520", label: "도상색" },
     sleeperColor: { value: "#1f1a16", label: "침목색" },
     railColor: { value: "#4c4f53", label: "레일색" },
-    ...outlineSchema({ width: 3.5, color: "#080707", crease: false, creaseAngle: 40, creaseColor: "#000000" }),
+    ...buildOutlineSchema({ width: 3.5, color: "#080707", crease: false, creaseAngle: 40, creaseColor: "#000000" }),
   });
   // 앞벽(z=-14)·뒷벽(z=+12)이 끝나는 x 를 직접 잡는다. 기차 앞면 x ≈ 14.1, 뒷면 x ≈ 21.1.
   const brokenWall = useSavedControls("부서진 벽 끝", {
@@ -79,7 +79,7 @@ export function useTrainControls() {
     centerCut: { value: 0.9, min: 0, max: 1, step: 0.05, label: "가운데파임" },
     roughness: { value: 0.04, min: 0, max: 0.6, step: 0.01, label: "거칠기" },
     rubbleColor: { value: "#3b4048", label: "잔해색" },
-    ...outlineSchema({ width: 1.5, color: "#000000", crease: false, creaseAngle: 45, creaseColor: "#000000" }),
+    ...buildOutlineSchema({ width: 1.5, color: "#000000", crease: false, creaseAngle: 45, creaseColor: "#000000" }),
   });
   // 방 오른쪽엔 벽이 없어 3D 물체가 없는 자리는 캔버스 바탕색이 그대로 보인다 — 벽·천장을 이어 붙여 한 공간으로 만든다.
   const backdrop = useSavedControls("기차 저편 공간", {
@@ -130,8 +130,8 @@ export function useTrainControls() {
 export function usePlatformEndWallControls() {
   return useSavedControls("승강장 끝벽", {
     visible: { value: true, label: "보이기" },
-    frontZ: { value: MIN_Z - 8, min: -50, max: 0, step: 0.5, label: "앞끝z" },
-    backZ: { value: MAX_Z + 8, min: 0, max: 50, step: 0.5, label: "뒷끝z" },
+    frontZ: { value: HEADQUARTERS_MIN_Z - 8, min: -50, max: 0, step: 0.5, label: "앞끝z" },
+    backZ: { value: HEADQUARTERS_MAX_Z + 8, min: 0, max: 50, step: 0.5, label: "뒷끝z" },
     holeHeight: { value: 11, min: 2, max: 14, step: 0.2, label: "구멍높이" },
     holeMargin: { value: 0.9, min: 0, max: 6, step: 0.1, label: "구멍여유" },
     strips: { value: 18, min: 6, max: 40, step: 1, label: "칸" },
@@ -139,10 +139,10 @@ export function usePlatformEndWallControls() {
     hasRubble: { value: true, label: "잔해" },
     rubbleColor: { value: "#3b4048", label: "잔해색" },
     roughness: { value: 0.3, min: 0, max: 0.6, step: 0.01, label: "거칠기" },
-    ...outlineSchema({ width: 1.5, color: "#000000", crease: false }),
+    ...buildOutlineSchema({ width: 1.5, color: "#000000", crease: false }),
   });
 }
 
-export type TrainControls = ReturnType<typeof useTrainControls>;
-export type BackdropValues = TrainControls["backdrop"];
+export type TrainControlValues = ReturnType<typeof useTrainControls>;
+export type BackdropValues = TrainControlValues["backdrop"];
 export type PlatformEndWallValues = ReturnType<typeof usePlatformEndWallControls>;

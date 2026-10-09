@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createCollapseSequence, type CollapseSequence } from "../story/blockerCollapse";
 import type { BlockerShapes } from "./useBlockerShapes";
-import type { GroundLayer, Terrain } from "./useTerrainLayers";
+import type { GroundShapes, Terrain } from "./useTerrainLayers";
 
 export interface CollapseState {
   code: string;
@@ -10,7 +10,7 @@ export interface CollapseState {
 }
 
 /** 씬이 끝나면 그 씬 동안 가리던 차단물을 치운다(§4). 씬 진행 장치가 생기면 거기서 endScene 을 부른다. */
-export function useBlockerCollapse(terrain: Terrain, blockerShapes: BlockerShapes, ground: GroundLayer) {
+export function useBlockerCollapse(terrain: Terrain, blockerShapes: BlockerShapes, ground: GroundShapes) {
   const [clearedBlockers, setClearedBlockers] = useState<Set<string>>(() => new Set());
   const collapseRef = useRef<CollapseSequence | null>(null);
   // reportRef.current 는 걷기 훅이 매 프레임 새 객체로 갈아끼운다 — 알림은 ref 에 들고 매 프레임 다시 싣는다.
@@ -35,7 +35,7 @@ export function useBlockerCollapse(terrain: Terrain, blockerShapes: BlockerShape
         blocker: target,
         lookAt: target.clearing.lookAt,
         message: target.clearing.message,
-        groundHeight: (x, z) => ground?.surface?.heightAt(x, z) ?? 0,
+        heightAt: (x, z) => ground?.surface?.heightAt(x, z) ?? 0,
         onClear: () => setClearedBlockers((s) => new Set(s).add(target.code)),
         onNotify: (text) => {
           collapseNoticeRef.current = text;

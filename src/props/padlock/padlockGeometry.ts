@@ -6,8 +6,8 @@ import * as THREE from "three";
 import type { Vector3Tuple } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { makeRandom } from "@/engine/random";
-import { cachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
+import { createRandom } from "@/engine/random";
+import { makeCachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
 
 function mergeAndDispose(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry {
   const merged = mergeGeometries(pieces, false);
@@ -37,7 +37,7 @@ interface LobeOptions {
   sideRoundness?: number;
 }
 
-function lobeGeometry({ lobeWidth, height, depth, side, sideRoundness = 1 }: LobeOptions) {
+function buildLobeGeometry({ lobeWidth, height, depth, side, sideRoundness = 1 }: LobeOptions) {
   // 베벨은 윤곽을 바깥으로 부풀린다. 미리 안으로 줄여 놔야 최종 크기가 맞고 다이얼을 안 가린다.
   const bevel = computeBevel({ height, depth, lobeWidth });
   const r = Math.max(0.0005, height / 2 - bevel);
@@ -73,7 +73,7 @@ function lobeGeometry({ lobeWidth, height, depth, side, sideRoundness = 1 }: Lob
 }
 
 /** 상자+원기둥을 이어 붙이지 않고 윤곽을 뽑는다. 붙이면 속에 남은 마구리가 주름선으로 앞면에 그려진다. */
-export function bodyGeometry({
+export function buildPadlockBodyGeometry({
   width,
   height,
   depth,
@@ -89,7 +89,7 @@ export function bodyGeometry({
   const lobeWidth = computeLobeWidth({ width, height, dialWidth });
   return mergeAndDispose(
     [-1, 1].map((side) => {
-      const g = lobeGeometry({ lobeWidth, height, depth, side, sideRoundness });
+      const g = buildLobeGeometry({ lobeWidth, height, depth, side, sideRoundness });
       g.translate((side * dialWidth) / 2, 0, 0);
       return g;
     }),
@@ -107,7 +107,7 @@ interface MarkerShape {
  * 읽는 줄 표식 "→". 세 줄이 같이 보이는데 맞춰야 하는 건 정면 한 줄이라 가리켜 준다.
  * 왼쪽에만 둔다(양쪽이면 과녁 무늬가 된다). 앞면에 칠한 듯 납작해야 손가락·걸쇠에 안 걸린다.
  */
-export function markerGeometry({ length, headLength, headHalf, tailHalf }: MarkerShape) {
+export function buildMarkerGeometry({ length, headLength, headHalf, tailHalf }: MarkerShape) {
   const shape = new THREE.Shape();
   shape.moveTo(0, 0);
   shape.lineTo(-headLength, headHalf);
@@ -121,7 +121,7 @@ export function markerGeometry({ length, headLength, headHalf, tailHalf }: Marke
 }
 
 /** 고리 — 반원 + 두 다리. 오른쪽이 긴(고정) 다리, 왼쪽이 풀면 먼저 빠지는 짧은 다리다. */
-export function shackleGeometry({
+export function buildShackleGeometry({
   radius,
   thickness,
   leg,
@@ -167,7 +167,7 @@ interface ScrewSpot {
 }
 
 /** 나사 자리. 판을 뚫는 식과 같은 계산이라야 판을 고칠 때 나사만 엉뚱한 데 남지 않는다. */
-export function screwSpots({
+export function computeScrewSpots({
   plateHalfWidth,
   length,
   thickness,
@@ -203,7 +203,7 @@ export function screwSpots({
 }
 
 /** 나사 머리를 앞뒤로 하나씩. 구멍만 있으면 나사가 빠진 자리로 보인다. */
-export function screwGeometry(spots: ScrewSpot[], screwRadius: number, thickness: number) {
+export function buildScrewGeometry(spots: ScrewSpot[], screwRadius: number, thickness: number) {
   if (!spots.length) return null;
   const pieces: THREE.BufferGeometry[] = [];
   for (const { position, axis } of spots) {
@@ -219,7 +219,7 @@ export function screwGeometry(spots: ScrewSpot[], screwRadius: number, thickness
   return mergeAndDispose(pieces);
 }
 
-export function latchPlateGeometry({
+export function buildLatchPlateGeometry({
   holeRadius,
   plateHalfWidth,
   length,
@@ -296,7 +296,15 @@ export function latchPlateGeometry({
  * 다이얼 글자 띠. 원기둥 uv 는 축을 따라 v 라 그대로 씌우면 글자가 90° 눕는다 — 칸마다 uv 를 직접 물린다.
  * 점(θ, x) = (x, R sinθ, R cosθ), θ=0 이 정면(+z).
  */
-export function dialBandGeometry({ slotCount, radius, width }: { slotCount: number; radius: number; width: number }) {
+export function buildDialBandGeometry({
+  slotCount,
+  radius,
+  width,
+}: {
+  slotCount: number;
+  radius: number;
+  width: number;
+}) {
   const positions: number[] = [];
   const normals: number[] = [];
   const uvs: number[] = [];
@@ -342,7 +350,7 @@ export function dialBandGeometry({ slotCount, radius, width }: { slotCount: numb
 }
 
 /** 칸마다 지름이 조금 작은 속심 원기둥. 글자 띠와 붙으면 깜빡이므로 확실히 안쪽에 둔다. */
-export function dialCoreGeometry(rowCount: number, dialRadius: number, slotWidth: number) {
+export function buildDialCoreGeometry(rowCount: number, dialRadius: number, slotWidth: number) {
   const pieces: THREE.BufferGeometry[] = [];
   for (let i = 0; i < rowCount; i++) {
     const c = new THREE.CylinderGeometry(dialRadius * 0.86, dialRadius * 0.86, slotWidth * 0.94, 16, 1);
@@ -354,7 +362,7 @@ export function dialCoreGeometry(rowCount: number, dialRadius: number, slotWidth
 }
 
 /** 칸 사이·양 끝의 얇은 테. 다섯 칸이 한 덩어리로 보이면 몇 번째를 돌리는지 헷갈린다. */
-export function dialDividerGeometry(
+export function buildDialDividerGeometry(
   rowCount: number,
   dialRadius: number,
   slotWidth: number,
@@ -381,7 +389,7 @@ export function dialDividerGeometry(
  * 줄마다 다른 글자 세트. 다섯 줄이 한 세트를 같이 쓰면 같은 글자가 나란히 서서 찍기 쉬워진다.
  * 정답 글자는 반드시 넣고, 나머지 미끼와 끼울 자리는 씨로 정한다(씨가 같으면 늘 같다).
  */
-export function makeRowGlyphs({
+export function computeRowGlyphs({
   answer,
   rowCount,
   glyphsPerRow,
@@ -404,7 +412,7 @@ export function makeRowGlyphs({
   ];
   const answerText = String(answer ?? "").toUpperCase();
   return Array.from({ length: Math.max(1, rowCount) }, (_, i) => {
-    const random = makeRandom(seed * 1013 + i * 7919 + 17);
+    const random = createRandom(seed * 1013 + i * 7919 + 17);
     const own = answerText[i] || null;
     const rest = pool.filter((c) => c !== own);
     // 피셔-예이츠 — 앞에서부터 뽑으면 겹치지 않는다
@@ -421,9 +429,9 @@ export function makeRowGlyphs({
 const BAND_SLOT_PX = 128;
 
 /** 글자 띠 텍스처 — 칸마다 글자 하나. v 가 위로 가므로 캔버스에서는 아래부터 쌓는다. */
-export function dialBandTexture(glyphs: string, background: string, glyphColor: string) {
+export function makeDialBandTexture(glyphs: string, background: string, glyphColor: string) {
   const count = glyphs.length;
-  return cachedCanvasTexture(
+  return makeCachedCanvasTexture(
     `padlockBand|${glyphs}|${background}|${glyphColor}`,
     (g, w, h) => {
       g.fillStyle = background;
@@ -444,4 +452,4 @@ export function dialBandTexture(glyphs: string, background: string, glyphColor: 
  * 칸 k 를 정면(+z)으로 돌리는 각도.
  * rotateX(φ) 는 점을 θ−φ 자리로 옮기므로 θ 에 있는 칸을 정면에 두려면 φ = θ 다(빼지 않는다).
  */
-export const dialSlotAngle = (k: number, slotCount: number) => ((k + 0.5) / slotCount) * Math.PI * 2;
+export const computeDialSlotAngle = (k: number, slotCount: number) => ((k + 0.5) / slotCount) * Math.PI * 2;

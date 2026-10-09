@@ -14,7 +14,7 @@ interface VolumeOptions {
 }
 
 export function useVolume({ videoRef, showToast, wakeControls }: VolumeOptions) {
-  const [muted, setMuted] = useState(rememberedAudio.muted);
+  const [isMuted, setIsMuted] = useState(rememberedAudio.muted);
   const [volume, setVolume] = useState(rememberedAudio.volume);
 
   const changeVolume = useCallback(
@@ -27,7 +27,7 @@ export function useVolume({ videoRef, showToast, wakeControls }: VolumeOptions) 
       rememberedAudio.volume = next || rememberedAudio.volume;
       rememberedAudio.muted = element.muted;
       setVolume(next);
-      setMuted(element.muted);
+      setIsMuted(element.muted);
       if (shouldToast) showToast(next === 0 ? "mute" : "volume", `${Math.round(next * 100)}%`);
       wakeControls();
     },
@@ -42,26 +42,26 @@ export function useVolume({ videoRef, showToast, wakeControls }: VolumeOptions) 
       element.muted = false;
       element.volume = restored;
       setVolume(restored);
-      setMuted(false);
+      setIsMuted(false);
       rememberedAudio.muted = false;
       showToast("volume", `${Math.round(restored * 100)}%`);
     } else {
       element.muted = true;
-      setMuted(true);
+      setIsMuted(true);
       rememberedAudio.muted = true;
       showToast("mute", "음소거");
     }
     wakeControls();
   }, [videoRef, showToast, wakeControls]);
 
-  return { volumeLevel: muted ? 0 : volume, setMuted, changeVolume, toggleMute };
+  return { volumeLevel: isMuted ? 0 : volume, setIsMuted, changeVolume, toggleMute };
 }
 
 interface PlaybackOptions {
   videoRef: RefObject<HTMLVideoElement | null>;
   trackRef: RefObject<HTMLDivElement | null>;
   startTime: number;
-  setMuted: (muted: boolean) => void;
+  setIsMuted: (isMuted: boolean) => void;
   setControlsVisible: (visible: boolean) => void;
   showToast: (icon: IconName, text: string) => void;
   wakeControls: () => void;
@@ -72,7 +72,7 @@ export function useVideoPlayback({
   videoRef,
   trackRef,
   startTime,
-  setMuted,
+  setIsMuted,
   setControlsVisible,
   showToast,
   wakeControls,
@@ -98,7 +98,7 @@ export function useVideoPlayback({
       element.play().catch(() => {
         // 소리 있는 자동 재생이 막히면 소리 없이라도 튼다. 소리 단추로 켤 수 있다.
         element.muted = true;
-        setMuted(true);
+        setIsMuted(true);
         element.play().catch(() => {});
       });
     };
@@ -145,7 +145,7 @@ export function useVideoPlayback({
       element.removeEventListener("ended", handleEnded);
       element.removeEventListener("durationchange", handleDurationChange);
     };
-  }, [startTime, videoRef, trackRef, setMuted, setControlsVisible]);
+  }, [startTime, videoRef, trackRef, setIsMuted, setControlsVisible]);
 
   const togglePlay = useCallback(() => {
     const element = videoRef.current;

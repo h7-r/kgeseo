@@ -6,9 +6,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
-import { toBaseOrigin } from "../placement/instanceGroups";
+import { applyBaseOrigin } from "../placement/instanceGroups";
 import { UNITS_PER_METER } from "../plan/sitePlan";
 import { unindex } from "../story/pieceGeometry";
 import { applyVertexColors } from "../terrain/ground";
@@ -103,8 +103,8 @@ export function buildPeople(people: PersonOptions[]): THREE.BufferGeometry | nul
 }
 
 /** 인스턴스용 사람 표본 — 높이 1 · 밑동 원점. 옷 색을 조금씩 달리한다(다 같으면 복제 티가 난다). */
-export function personPrototypes(count = 4, seed = 9101): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildPersonPrototypes(count = 4, seed = 9101): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const outfits = ["#8C8E96", "#7A8290", "#94897C", "#6F7A72"];
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
@@ -113,7 +113,7 @@ export function personPrototypes(count = 4, seed = 9101): THREE.BufferGeometry[]
       clothes: outfits[Math.floor(random() * outfits.length)],
       skin: "#C9B49A",
     });
-    prototypes.push(toBaseOrigin(geometry));
+    prototypes.push(applyBaseOrigin(geometry));
   }
   return prototypes;
 }

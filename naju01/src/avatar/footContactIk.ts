@@ -6,7 +6,7 @@ import * as THREE from "three";
 
 import { LOCOMOTION_CLIPS, TRIPO_CORRECTION } from "./motionCorrection";
 import type { Leg, PreparedBody, Side, Sole } from "./preparedBody";
-import { rotateInWorld } from "./rig";
+import { applyWorldRotation } from "./rig";
 
 export interface FootContactDebug {
   other: Side;
@@ -99,7 +99,7 @@ function solveLeg(fc: FootContactState, group: THREE.Object3D, { thigh, calf, fo
     n.normalize();
     const rotate = (bone: THREE.Bone, axis: THREE.Vector3, angle: number) => {
       wq.setFromAxisAngle(axis, angle);
-      rotateInWorld(bone, wq, pq);
+      applyWorldRotation(bone, wq, pq);
     };
     // 거리만 보면 거의 뻗은 다리가 뒤로 꺾인 채 통과한다(무릎 6°→81°). 무릎은 반드시 몸 앞(+z)으로.
     const kneeForward = () => {
@@ -124,7 +124,7 @@ function solveLeg(fc: FootContactState, group: THREE.Object3D, { thigh, calf, fo
     u.copy(F2).sub(H).normalize();
     v.copy(T).sub(H).normalize();
     wq.setFromUnitVectors(u, v);
-    rotateInWorld(thigh, wq, pq);
+    applyWorldRotation(thigh, wq, pq);
   }
 }
 

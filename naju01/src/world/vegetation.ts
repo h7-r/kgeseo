@@ -5,9 +5,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
-import { toBaseOrigin, type Spot } from "../placement/instanceGroups";
+import { applyBaseOrigin, type Spot } from "../placement/instanceGroups";
 import { UNITS_PER_METER, type Range } from "../plan/sitePlan";
 import { applyVertexColors, type HeightAt, type Noise2D } from "../terrain/ground";
 import type { GroundSurface } from "../terrain/groundSurface";
@@ -27,7 +27,7 @@ type GroundProbe = Pick<Terrain, "groundAt">;
 type SurfaceProbe = Pick<GroundSurface, "heightAt" | "steepnessAt">;
 
 // 잎덩이 하나 — 정이십면체 꼭짓점을 흔든다. 인덱스가 없어 면마다 각진 노멀이 서고 툰과 잘 맞는다.
-function leafClump(random: () => number) {
+function buildLeafClump(random: () => number) {
   const geometry = new THREE.IcosahedronGeometry(0.5, 0);
   const p = geometry.attributes.position;
   const jitter = new Map<string, number>();
@@ -53,7 +53,7 @@ interface TreeBeltOptions {
   x: Range;
   z: Range;
   /** 나무가 서는 고도(m). 비탈이면 (x, z) → 높이 함수 */
-  ground: number | HeightAt;
+  elevation: number | HeightAt;
   /** 차단물 높이(m) — 나무 키의 기준 */
   height: number;
   count: number;
@@ -64,9 +64,18 @@ interface TreeBeltOptions {
 }
 
 /** 수목대(§4 V3 시야 차단) 자리. 심는 것은 인스턴스 무리에 맡겨 구운 나무가 들어가고 편집기가 고른다. */
-export function treeBeltSpots({ x, z, ground, height, count, seed, inset = 0.5, groundBump }: TreeBeltOptions): Spot[] {
-  const groundAt = typeof ground === "function" ? ground : () => ground;
-  const random = makeRandom(seed + 1);
+export function computeTreeBeltSpots({
+  x,
+  z,
+  elevation,
+  height,
+  count,
+  seed,
+  inset = 0.5,
+  groundBump,
+}: TreeBeltOptions): Spot[] {
+  const elevationAt = typeof elevation === "function" ? elevation : () => elevation;
+  const random = createRandom(seed + 1);
   const x0 = x[0] + inset,
     x1 = x[1] - inset;
   const z0 = z[0] + inset,
@@ -78,7 +87,7 @@ export function treeBeltSpots({ x, z, ground, height, count, seed, inset = 0.5, 
     spots.push({
       x: px,
       z: pz,
-      y: groundAt(px, pz) + (groundBump ? groundBump(px, pz) : 0),
+      y: elevationAt(px, pz) + (groundBump ? groundBump(px, pz) : 0),
       // 키가 다 같으면 울타리처럼 보인다
       size: height * (0.85 + random() * 0.6),
     });
@@ -113,7 +122,7 @@ export function buildGrass({
   groundBump,
   canPlace,
 }: GrassOptions): THREE.BufferGeometry | null {
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const pieces: THREE.BufferGeometry[] = [];
   const light = new THREE.Color("#93A86A");
   const mid = new THREE.Color("#6B7C4C");
@@ -174,7 +183,7 @@ export function buildGrass({
   return merged;
 }
 
-interface ScatterBushesOptions {
+interface HillBushOptions {
   terrain: GroundProbe;
   surface: SurfaceProbe;
   core: { x: Range; z: Range };
@@ -189,7 +198,7 @@ interface ScatterBushesOptions {
  * ① 걷는 무대(구역·통로)는 비운다 — 이 나무들엔 막힘이 없어 밀리지 않는 나무가 되고 §4 시야도 무너진다.
  * ② 급경사엔 흙이 안 붙는다 ③ 물가는 비운다 ④ 소음으로 뭉치게 — 고르면 점을 찍어 놓은 것이 된다.
  */
-export function scatterBushes({
+export function computeHillBushSpots({
   terrain,
   surface,
   core,
@@ -197,8 +206,8 @@ export function scatterBushes({
   shrubCount = 900,
   seed = 640811,
   noise,
-}: ScatterBushesOptions): { treeSpots: Spot[]; shrubSpots: Spot[] } {
-  const random = makeRandom(seed);
+}: HillBushOptions): { treeSpots: Spot[]; shrubSpots: Spot[] } {
+  const random = createRandom(seed);
   const treeSpots: Spot[] = [];
   const shrubSpots: Spot[] = [];
   const w = core.x[1] - core.x[0];
@@ -255,10 +264,10 @@ interface RoadsideBushOptions {
 }
 
 /**
- * 길 양옆 수풀. scatterBushes 는 통로 밴드를 통째로 비워 길 옆이 휑하다 — 실제 산길은 양옆이 가장 빽빽하다.
+ * 길 양옆 수풀. computeHillBushSpots 는 통로 밴드를 통째로 비워 길 옆이 휑하다 — 실제 산길은 양옆이 가장 빽빽하다.
  * 밴드 바로 바깥에 띠를 만들어, 완만하면 나무·덤불, 급한 비탈 옆면이면 기둥 없는 잎더미를 심는다.
  */
-export function roadsideBushSpots({
+export function computeRoadsideBushSpots({
   measuredPaths,
   surface,
   terrain,
@@ -268,7 +277,7 @@ export function roadsideBushSpots({
   spacing = 1.1,
   seed = 415207,
 }: RoadsideBushOptions): { trees: Spot[]; shrubs: Spot[]; leafPiles: Spot[] } {
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const trees: Spot[] = [];
   const shrubs: Spot[] = [];
   const leafPiles: Spot[] = [];
@@ -303,8 +312,8 @@ export function roadsideBushSpots({
 // 인스턴스 표본 — 높이 1 · 밑동 원점. 같은 모양이면 복제 티가 나서 여러 벌 만든다.
 
 /** 나무 표본 — 기둥 + 잎덩이 2~3 */
-export function treePrototypes(count = 5, seed = 9001): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildTreePrototypes(count = 5, seed = 9001): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let n = 0; n < count; n++) {
     const pieces: THREE.BufferGeometry[] = [];
@@ -324,7 +333,7 @@ export function treePrototypes(count = 5, seed = 9001): THREE.BufferGeometry[] {
     for (let k = 0; k < clumpCount; k++) {
       const t = k / Math.max(1, clumpCount - 1);
       const r = (0.3 - t * 0.13) * (0.85 + random() * 0.35);
-      const clump = leafClump(random);
+      const clump = buildLeafClump(random);
       clump.scale(r * 2, r * 2 * (0.7 + random() * 0.5), r * 2);
       clump.translate(
         (random() - 0.5) * r * 0.5,
@@ -335,15 +344,15 @@ export function treePrototypes(count = 5, seed = 9001): THREE.BufferGeometry[] {
       color.lerp(leafLight, t * 0.45);
       pieces.push(applyVertexColors(clump, color));
     }
-    prototypes.push(toBaseOrigin(mergeGeometries(pieces, false)));
+    prototypes.push(applyBaseOrigin(mergeGeometries(pieces, false)));
     pieces.forEach((g) => g.dispose());
   }
   return prototypes;
 }
 
 /** 잎더미 표본 — 기둥 없이 잎만. 암벽 틈에서 자란 덤불이라 막대가 튀어나오면 안 된다. */
-export function leafPilePrototypes(count = 5, seed = 9002, clumps: Range = [3, 6]): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildLeafPilePrototypes(count = 5, seed = 9002, clumps: Range = [3, 6]): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   const leafLight = new THREE.Color(VEGETATION_STYLE.leafLight);
   const leafMid = new THREE.Color(VEGETATION_STYLE.leaf);
@@ -355,22 +364,22 @@ export function leafPilePrototypes(count = 5, seed = 9002, clumps: Range = [3, 6
     for (let k = 0; k < clumpCount; k++) {
       const t = k / Math.max(1, clumpCount - 1);
       const r = (0.5 - t * 0.18) * (0.6 + random() * 0.7);
-      const clump = leafClump(random);
+      const clump = buildLeafClump(random);
       clump.scale(r * 2, r * 2 * (0.6 + random() * 0.6), r * 2);
       clump.translate((random() - 0.5) * 0.8, 0.15 + t * 0.5 + (random() - 0.5) * 0.2, (random() - 0.5) * 0.8);
       color.copy(leafDark).lerp(leafMid, 0.3 + random() * 0.5);
       color.lerp(leafLight, t * 0.5);
       pieces.push(applyVertexColors(clump, color));
     }
-    prototypes.push(toBaseOrigin(mergeGeometries(pieces, false)));
+    prototypes.push(applyBaseOrigin(mergeGeometries(pieces, false)));
     pieces.forEach((g) => g.dispose());
   }
   return prototypes;
 }
 
 /** 덤불 표본 — 짧은 줄기 + 잎덩이 */
-export function shrubPrototypes(count = 5, seed = 9003): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildShrubPrototypes(count = 5, seed = 9003): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   const trunkLight = new THREE.Color(VEGETATION_STYLE.trunk);
   const trunkDark = new THREE.Color(VEGETATION_STYLE.trunkDark);
@@ -389,14 +398,14 @@ export function shrubPrototypes(count = 5, seed = 9003): THREE.BufferGeometry[] 
     for (let k = 0; k < clumpCount; k++) {
       const t = k / Math.max(1, clumpCount - 1);
       const r = (0.42 - t * 0.12) * (0.7 + random() * 0.6);
-      const clump = leafClump(random);
+      const clump = buildLeafClump(random);
       clump.scale(r * 2, r * 2 * (0.65 + random() * 0.5), r * 2);
       clump.translate((random() - 0.5) * 0.5, stemHeight + (1 - stemHeight) * (0.2 + t * 0.6), (random() - 0.5) * 0.5);
       color.copy(leafDark).lerp(leafMid, 0.35 + random() * 0.5);
       color.lerp(leafLight, t * 0.45);
       pieces.push(applyVertexColors(clump, color));
     }
-    prototypes.push(toBaseOrigin(mergeGeometries(pieces, false)));
+    prototypes.push(applyBaseOrigin(mergeGeometries(pieces, false)));
     pieces.forEach((g) => g.dispose());
   }
   return prototypes;

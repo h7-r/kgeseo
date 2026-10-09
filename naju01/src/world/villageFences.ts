@@ -5,7 +5,7 @@
 
 import * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import type { Spot } from "../placement/instanceGroups";
 import type { HeightAt } from "../terrain/ground";
@@ -17,7 +17,7 @@ interface Point {
 }
 
 // 가운데를 두르는 네모에서 열린쪽(라디안, +Z 기준)에 가장 가까운 변을 뺀 ㄷ 자 선
-function yardOutline(center: Point, half: Point, openDirection: number, rotation: number): Point[] {
+function computeYardOutline(center: Point, half: Point, openDirection: number, rotation: number): Point[] {
   // 집이 비스듬하면 마당도 비스듬하다
   const corners = [
     [-half.x, -half.z],
@@ -54,22 +54,22 @@ function yardOutline(center: Point, half: Point, openDirection: number, rotation
 interface VillageFenceOptions {
   /** distantLandscape 가 내는 집 자리와 같은 모양 */
   houseSpots?: Spot[] | null;
-  groundHeight?: HeightAt | null;
+  heightAt?: HeightAt | null;
   /** 초가집 모형은 가로가 키의 1.72 배다(nature 에서 맞춰 굽는다) */
   houseWidthRatio?: number;
   seed?: number;
 }
 
-export function villageFenceSpots({
+export function computeVillageFenceSpots({
   houseSpots,
-  groundHeight = null,
+  heightAt = null,
   houseWidthRatio = 1.72,
   seed = 7731,
 }: VillageFenceOptions = {}): FenceLayout {
   const posts: Spot[] = [];
   const rails: Spot[] = [];
   if (!houseSpots?.length) return { posts, rails };
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   // fences 와 같은 색 규칙 — 같은 마을의 같은 나무다
   const light = new THREE.Color(WOOD_STYLE.light);
   const dark = new THREE.Color(WOOD_STYLE.dark);
@@ -108,7 +108,7 @@ export function villageFenceSpots({
       z: Math.max(halfYard * (0.78 + random() * 0.3), houseDepth * 0.68),
     };
     const openDirection = Math.atan2(cx - house.x, cz - house.z);
-    const line = yardOutline(house, half, openDirection, house.rotation ?? 0);
+    const line = computeYardOutline(house, half, openDirection, house.rotation ?? 0);
 
     const points: { x: number; y: number; z: number }[] = [];
     for (let i = 0; i < line.length - 1; i++) {
@@ -120,10 +120,9 @@ export function villageFenceSpots({
         const t = k / cells;
         const x = a.x + (b.x - a.x) * t;
         const z = a.z + (b.z - a.z) * t;
-        points.push({ x, z, y: groundHeight ? groundHeight(x, z) : (house.y ?? 0) });
+        points.push({ x, z, y: heightAt ? heightAt(x, z) : (house.y ?? 0) });
       }
-      if (i === line.length - 2)
-        points.push({ x: b.x, z: b.z, y: groundHeight ? groundHeight(b.x, b.z) : (house.y ?? 0) });
+      if (i === line.length - 2) points.push({ x: b.x, z: b.z, y: heightAt ? heightAt(b.x, b.z) : (house.y ?? 0) });
     }
     for (const q of points)
       posts.push({

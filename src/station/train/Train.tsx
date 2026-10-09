@@ -7,11 +7,11 @@ import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { DOOR_OPEN_DISTANCE } from "@/station/layout/passage";
 import { doorState, trainDoors } from "@/station/layout/trainDoors";
-import { splitGltf } from "@/station/office/gltfModel";
-import GltfParts from "@/station/office/GltfParts";
-import { dentGeometry } from "@/station/vertexNoise";
+import { splitGltf } from "@/engine/gltfModel";
+import GltfPartMeshes from "@/engine/GltfPartMeshes";
+import { applyDents } from "@/station/vertexNoise";
 
-import { stepTexture, trainDoorTexture, type TrainDoorTextureOptions } from "./trainTextures";
+import { makeTrainStepTexture, makeTrainDoorTexture, type TrainDoorTextureOptions } from "./trainTextures";
 
 const TRAIN_MODEL = "/models/train.glb";
 
@@ -20,7 +20,7 @@ const TRAIN_MODEL = "/models/train.glb";
 useGLTF.preload(TRAIN_MODEL);
 
 /** 높이 1 기준 차체 길이. 여러 칸을 이을 때 간격 계산에 쓴다 */
-const TRAIN_LEN = 2.064;
+const TRAIN_LENGTH = 2.064;
 
 /** train.glb 에서 잰 문 구멍(모델 로컬 단위). 여기만 고치면 문짝·발판의 크기와 자리가 따라온다. */
 const DOOR_OPENING = {
@@ -79,7 +79,7 @@ function TrainDoor({ car, openWidth, color, options = {} }: TrainDoorProps) {
   // 앞뒤 면을 촘촘히 쪼개야 밀 정점이 생겨 눌림이 매끈한 굴곡이 된다.
   const geometry = useMemo(() => {
     const box = new THREE.BoxGeometry(PANEL_WIDTH, PANEL_HEIGHT, PANEL_DEPTH, 24, 32, 1);
-    if (dents > 0 && dentDepth > 0) dentGeometry(box, car * 37 + 5, dents, dentDepth, 0.07);
+    if (dents > 0 && dentDepth > 0) applyDents(box, car * 37 + 5, dents, dentDepth, 0.07);
     box.computeVertexNormals();
     return box;
   }, [car, dents, dentDepth]);
@@ -92,7 +92,7 @@ function TrainDoor({ car, openWidth, color, options = {} }: TrainDoorProps) {
   // 칸마다 시드를 달리해 얼룩·기스가 제각각이다. 텍스처는 캐시 공유라 여기서 치우지 않는다.
   const map = useMemo(
     () =>
-      trainDoorTexture(car + 1, {
+      makeTrainDoorTexture(car + 1, {
         handleX,
         handleY,
         handleWidth,
@@ -193,7 +193,7 @@ function TrainStep({ color, outline, size = {} }: TrainStepProps) {
   const sillY = DOOR_OPENING.centerY - DOOR_OPENING.height / 2;
   const geometry = useMemo(() => new THREE.BoxGeometry(width, thickness, depth), [width, thickness, depth]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  const map = stepTexture(7, color);
+  const map = makeTrainStepTexture(7, color);
 
   return (
     <mesh
@@ -296,7 +296,7 @@ export default function Train({
   // bend ≠ 0 이면 반지름 L/bend 원호 위에 놓는다. three 의 Y 회전은 +X 를 (cos φ, 0, −sin φ) 로
   // 보내므로 진행 방향 (cos a, 0, sin a) 에 맞추려면 φ = −a 다.
   const placements = useMemo((): CarPlacement[] => {
-    const carLength = TRAIN_LEN * spacing;
+    const carLength = TRAIN_LENGTH * spacing;
     const middle = (cars - 1) / 2;
     return Array.from({ length: cars }, (_, i) => {
       const k = i - middle;
@@ -317,7 +317,7 @@ export default function Train({
         {placements.map((car, i) => (
           <group key={`car${i}`} position={[car.x, 0, car.z]} rotation={[0, -car.angle, 0]}>
             {/* 구멍에 테두리가 생기면 뚫린 곳이 아니라 검은 판때기로 보인다 — dark 엔 선을 안 두른다 */}
-            <GltfParts parts={bodyParts} outline={outline} outlineExclude={["dark"]} receiveShadow={false} />
+            <GltfPartMeshes parts={bodyParts} outline={outline} outlineExclude={["dark"]} receiveShadow={false} />
             <TrainDoor car={i} openWidth={doorOpenWidth} color={doorColor} options={doorOptions} />
             {hasStep && (stepCar < 0 || i === stepCar) && (
               <TrainStep color={step.color ?? bodyColor} outline={outline} size={step} />

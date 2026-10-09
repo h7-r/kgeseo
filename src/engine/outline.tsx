@@ -16,7 +16,7 @@ const MATERIAL_CACHE_LIMIT = 64;
 const creaseCache = new WeakMap<THREE.BufferGeometry, Map<number, THREE.EdgesGeometry>>();
 const shellCache = new WeakMap<THREE.BufferGeometry, Map<number, THREE.BufferGeometry>>();
 
-function creaseGeometry(geometry: THREE.BufferGeometry, angle: number): THREE.EdgesGeometry {
+function getCreaseGeometry(geometry: THREE.BufferGeometry, angle: number): THREE.EdgesGeometry {
   let byAngle = creaseCache.get(geometry);
   if (!byAngle) {
     byAngle = new Map();
@@ -30,7 +30,7 @@ function creaseGeometry(geometry: THREE.BufferGeometry, angle: number): THREE.Ed
   return edges;
 }
 
-function shellGeometry(geometry: THREE.BufferGeometry, angle = Math.PI): THREE.BufferGeometry {
+function getShellGeometry(geometry: THREE.BufferGeometry, angle = Math.PI): THREE.BufferGeometry {
   let byAngle = shellCache.get(geometry);
   if (!byAngle) {
     byAngle = new Map();
@@ -103,7 +103,7 @@ function evictOldest<M extends THREE.Material>(cache: Map<string, M>) {
 }
 
 const shellMaterialCache = new Map<string, OutlineShellMaterial>();
-function shellMaterial(color: string, thickness: number): OutlineShellMaterial {
+function getShellMaterial(color: string, thickness: number): OutlineShellMaterial {
   const key = `${color}|${thickness}`;
   let material = shellMaterialCache.get(key);
   if (!material) {
@@ -116,7 +116,7 @@ function shellMaterial(color: string, thickness: number): OutlineShellMaterial {
 
 // 씬 전체에 주름선 색은 3개뿐이었다(재질 262개 → 3개).
 const creaseMaterialCache = new Map<string, THREE.LineBasicMaterial>();
-function creaseMaterial(color: string): THREE.LineBasicMaterial {
+function getCreaseMaterial(color: string): THREE.LineBasicMaterial {
   let material = creaseMaterialCache.get(color);
   if (!material) {
     evictOldest(creaseMaterialCache);
@@ -127,7 +127,7 @@ function creaseMaterial(color: string): THREE.LineBasicMaterial {
   return material;
 }
 
-function geometryOf(object: THREE.Object3D | null): THREE.BufferGeometry | undefined {
+function findGeometry(object: THREE.Object3D | null): THREE.BufferGeometry | undefined {
   if (object && "geometry" in object && object.geometry instanceof THREE.BufferGeometry) return object.geometry;
   return undefined;
 }
@@ -158,19 +158,19 @@ export function ToonOutline({ geometry, outline }: ToonOutlineProps) {
           // geometry 를 안 넘기는 호출 지점이 있다. 래퍼 그룹 없이 부모의 지오를 바로 읽는다.
           ref={(mesh) => {
             if (!mesh) return;
-            const source = geometry ?? geometryOf(mesh.parent);
-            if (source) mesh.geometry = shellGeometry(source);
+            const source = geometry ?? findGeometry(mesh.parent);
+            if (source) mesh.geometry = getShellGeometry(source);
           }}
-          geometry={geometry ? shellGeometry(geometry) : undefined}
-          material={shellMaterial(outline.outlineColor, outline.outlineWidth)}
+          geometry={geometry ? getShellGeometry(geometry) : undefined}
+          material={getShellMaterial(outline.outlineColor, outline.outlineWidth)}
           // 껍데기의 로컬 변환은 늘 단위행렬이다. 매 프레임 행렬을 다시 조립하는 헛수고를 끈다.
           matrixAutoUpdate={false}
         />
       )}
       {outline.crease && geometry && (
         <lineSegments
-          geometry={creaseGeometry(geometry, outline.creaseAngle)}
-          material={creaseMaterial(outline.creaseColor)}
+          geometry={getCreaseGeometry(geometry, outline.creaseAngle)}
+          material={getCreaseMaterial(outline.creaseColor)}
           matrixAutoUpdate={false}
         />
       )}

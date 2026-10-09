@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
-import { outlineSchema, pickOutline, useSavedControls } from "@/engine/leva/savedControls";
-import { PAPER_STYLES } from "@/station/office/paper";
+import { buildOutlineSchema, pickOutlineValues, useSavedControls } from "@/engine/leva/savedControls";
+import { PAPER_STYLES } from "@/station/headquarters/paper";
 
 interface PaperDefaults {
   x: number;
@@ -58,8 +58,11 @@ function paperSchema(d: PaperDefaults) {
  */
 export function usePaperControls() {
   // 종이는 선이 굵으면 금방 지저분해져 얇고 연하게 잡았다
-  const outline = pickOutline(
-    useSavedControls("서류(공통·선)", outlineSchema({ width: 1.5, color: "#000000", crease: true, creaseAngle: 40 })),
+  const outline = pickOutlineValues(
+    useSavedControls(
+      "서류(공통·선)",
+      buildOutlineSchema({ width: 1.5, color: "#000000", crease: true, creaseAngle: 40 }),
+    ),
   );
   const color = useSavedControls("서류(공통·색)", {
     brightness: { value: 0.85, min: 0.4, max: 1, step: 0.01, label: "밝기" },
@@ -232,5 +235,5 @@ export function usePaperControls() {
   return { outline, color, papers };
 }
 
-export type PaperControls = ReturnType<typeof usePaperControls>;
-export type PaperValues = PaperControls["papers"][number];
+export type PaperControlValues = ReturnType<typeof usePaperControls>;
+export type PaperValues = PaperControlValues["papers"][number];

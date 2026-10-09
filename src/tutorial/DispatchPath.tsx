@@ -9,11 +9,11 @@ import * as THREE from "three";
 
 import { playerView } from "@/engine/playerView";
 
-import { DISPATCH_COLOR, tickDispatch, useDispatchState } from "./dispatch";
+import { DISPATCH_COLOR, tickDispatch, useDispatchState } from "./dispatchState";
 
 type Point2 = [x: number, z: number];
 
-interface RoomBounds {
+interface HeadquartersBounds {
   minX: number;
   maxX: number;
   minZ: number;
@@ -44,7 +44,7 @@ const NEIGHBORS: Point2[] = [
 ];
 
 /** 꺾쇠(›) 모양. 바닥에 눕혀 앞이 −z 를 가리킨다. */
-function createChevronGeometry() {
+function buildChevronGeometry() {
   const shape = new THREE.Shape();
   const w = 0.55;
   const h = 0.42;
@@ -65,20 +65,20 @@ function createChevronGeometry() {
 function findPath(
   start: Point2,
   goal: Point2,
-  room: RoomBounds,
+  bounds: HeadquartersBounds,
   isBlocked: (x: number, z: number) => boolean,
 ): Point2[] | null {
-  const nx = Math.ceil((room.maxX - room.minX) / CELL) + 1;
-  const nz = Math.ceil((room.maxZ - room.minZ) / CELL) + 1;
-  const cellX = (i: number) => room.minX + i * CELL;
-  const cellZ = (j: number) => room.minZ + j * CELL;
+  const nx = Math.ceil((bounds.maxX - bounds.minX) / CELL) + 1;
+  const nz = Math.ceil((bounds.maxZ - bounds.minZ) / CELL) + 1;
+  const cellX = (i: number) => bounds.minX + i * CELL;
+  const cellZ = (j: number) => bounds.minZ + j * CELL;
   const open = new Uint8Array(nx * nz);
   for (let i = 0; i < nx; i += 1)
     for (let j = 0; j < nz; j += 1) open[i * nz + j] = isBlocked(cellX(i), cellZ(j)) ? 0 : 1;
 
   const nearestOpenCell = ([x, z]: Point2) => {
-    const ci = Math.round((x - room.minX) / CELL);
-    const cj = Math.round((z - room.minZ) / CELL);
+    const ci = Math.round((x - bounds.minX) / CELL);
+    const cj = Math.round((z - bounds.minZ) / CELL);
     let best = -1;
     let bestDistance = Infinity;
     for (let di = -6; di <= 6; di += 1)
@@ -172,17 +172,23 @@ interface DispatchPathProps {
   /** 그 자리에 반지름 r 짜리가 못 서면 true */
   isBlocked: (x: number, z: number, radius: number) => boolean;
   /** 본부실 경계(벽 안쪽) */
-  room: RoomBounds;
+  headquartersBounds: HeadquartersBounds;
   /** 복도 → 방 구멍의 방 쪽 자리 [x, z] */
   opening: Point2;
   /** 기차 씬이면 그 순간 탑승으로 친다 */
   isInTrain?: boolean;
 }
 
-export default function DispatchPath({ findDoor, isBlocked, room, opening, isInTrain = false }: DispatchPathProps) {
+export default function DispatchPath({
+  findDoor,
+  isBlocked,
+  headquartersBounds,
+  opening,
+  isInTrain = false,
+}: DispatchPathProps) {
   const { phase } = useDispatchState();
   const isVisible = phase === "alert" || phase === "guide";
-  const geometry = useMemo(() => createChevronGeometry(), []);
+  const geometry = useMemo(() => buildChevronGeometry(), []);
   const material = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
@@ -207,7 +213,10 @@ export default function DispatchPath({ findDoor, isBlocked, room, opening, isInT
   useFrame(({ camera, clock }) => {
     const eye = playerView.ready ? playerView.eye : camera.position;
     const isInHeadquarters =
-      eye.x > room.minX - 0.2 && eye.x < room.maxX + 0.2 && eye.z > room.minZ - 0.2 && eye.z < room.maxZ + 0.2;
+      eye.x > headquartersBounds.minX - 0.2 &&
+      eye.x < headquartersBounds.maxX + 0.2 &&
+      eye.z > headquartersBounds.minZ - 0.2 &&
+      eye.z < headquartersBounds.maxZ + 0.2;
     const door = findDoor(eye.x, eye.z);
     // 남은 거리는 실제로 걸어갈 길의 길이다. 직선거리면 책상을 돌아가는 동안 숫자가 안 줄어든다.
     // 길은 0.4초마다 풀리지만 사람→첫 꺾임 구간은 매 프레임 지금 자리로 잰다.
@@ -232,13 +241,13 @@ export default function DispatchPath({ findDoor, isBlocked, room, opening, isInT
     if (t > state.nextRefresh) {
       state.nextRefresh = t + 0.4;
       const isBlockedForPerson = (x: number, z: number) => isBlocked(x, z, PERSON_RADIUS);
-      const isInCorridor = eye.x < room.minX;
+      const isInCorridor = eye.x < headquartersBounds.minX;
       const from: Point2 = isInCorridor ? opening : [eye.x, eye.z];
-      const roomPath = findPath(from, [door.x, door.z], room, isBlockedForPerson);
-      state.points = roomPath
+      const headquartersPath = findPath(from, [door.x, door.z], headquartersBounds, isBlockedForPerson);
+      state.points = headquartersPath
         ? isInCorridor
-          ? [[eye.x, eye.z], ...roomPath]
-          : roomPath
+          ? [[eye.x, eye.z], ...headquartersPath]
+          : headquartersPath
         : [
             [eye.x, eye.z],
             [door.x, door.z],

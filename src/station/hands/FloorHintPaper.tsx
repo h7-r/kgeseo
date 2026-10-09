@@ -7,19 +7,19 @@ import { ToonOutline } from "@/engine/outline";
 import { playerView } from "@/engine/playerView";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
-import { heldCoin } from "@/props/coinState";
-import { heldDrink, pickUpPaper } from "@/props/drinkState";
+import { AimHighlight } from "@/lobby/AimHighlight";
+import { getHeldCoin } from "@/props/coinState";
+import { getHeldDrink, pickUpPaper } from "@/props/drinkState";
 import {
-  hintPaperDroppedAt,
-  hintPaperLocation,
+  getHintPaperDroppedAt,
+  getHintPaperLocation,
   pickUpHintPaper,
   setFootSpot,
   useHintPaper,
 } from "@/props/hintPaperState";
-import { nozzleLocation } from "@/props/nozzleState";
+import { getNozzleLocation } from "@/props/nozzleState";
 
-import { hintPaperTexture } from "./hintPaperTexture";
+import { makeHintPaperTexture } from "./hintPaperTexture";
 
 // 겨냥·강조가 같이 쓰는 id
 const HINT_PAPER_PICKUP_ID = "hintPaperPickup";
@@ -38,30 +38,30 @@ interface FloorHintPaperProps {
  */
 export default function FloorHintPaper({ outline }: FloorHintPaperProps) {
   useHintPaper();
-  const texture = useMemo(() => hintPaperTexture(), []);
+  const texture = useMemo(() => makeHintPaperTexture(), []);
   // 바닥에 눕은 종이는 테가 없으면 바닥 무늬에 묻힌다 — 선을 두르려고 지오를 따로 둔다.
   const geometry = useMemo(() => new THREE.PlaneGeometry(0.3, 0.3), []);
   useEffect(() => () => geometry.dispose(), [geometry]);
   const spotRef = useRef<THREE.Group>(null);
-  if (hintPaperLocation() !== "floor") return null;
-  const position = hintPaperDroppedAt() ?? DEFAULT_SPOT;
+  if (getHintPaperLocation() !== "floor") return null;
+  const position = getHintPaperDroppedAt() ?? DEFAULT_SPOT;
   return (
     <group position={position}>
       <group ref={spotRef} />
-      <Highlight id={HINT_PAPER_PICKUP_ID} anchor={() => [0, 0, 0]} grow={0.14}>
+      <AimHighlight id={HINT_PAPER_PICKUP_ID} anchor={() => [0, 0, 0]} grow={0.14}>
         {/* 반듯하면 누가 놓아 둔 것처럼 보여 조금 비틀어 눕힌다. */}
         <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0.42]} position={[0, 0.012, 0]} receiveShadow>
           <meshToonMaterial map={texture} gradientMap={TOON_GRADIENT} side={THREE.DoubleSide} />
           <ToonOutline geometry={geometry} outline={outline} />
         </mesh>
-      </Highlight>
+      </AimHighlight>
       <Interactable
         id={HINT_PAPER_PICKUP_ID}
         radius={0.55}
         reach={6}
         label=""
         // 한 번에 하나만 든다(관창·동전과 같은 규칙)
-        disabled={() => !!heldDrink() || !!heldCoin() || nozzleLocation() === "hand"}
+        disabled={() => !!getHeldDrink() || !!getHeldCoin() || getNozzleLocation() === "hand"}
         position={() => {
           const spot = spotRef.current;
           if (!spot) return null;

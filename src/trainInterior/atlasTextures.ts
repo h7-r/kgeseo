@@ -1,11 +1,11 @@
 import * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
-import { cachedCanvasTexture, drawRoundStain } from "@/engine/textures/canvas";
+import { createRandom } from "@/engine/random";
+import { makeCachedCanvasTexture, drawRoundStain } from "@/engine/textures/canvas";
 
 import { drawSpill } from "./surfaceTextures";
 
-// 아틀라스: 한 장을 N×N 칸으로 나눠 칸마다 다른 무늬를 그리고, 물건마다 다른 칸을 쓴다(mergeBoxes 의 uvCell).
+// 아틀라스: 한 장을 N×N 칸으로 나눠 칸마다 다른 무늬를 그리고, 물건마다 다른 칸을 쓴다(buildMergedBoxes 의 uvCell).
 // 좌석마다 텍스처를 따로 만들면 메모리가 12배, 하나만 쓰면 다 같은 얼룩이 된다.
 // 흰 바탕이라 재질 color 에 곱해진다 — 색은 재질이 정하고 여기서는 어둡게(때) 또는 밝게(폼)만 그린다.
 
@@ -21,7 +21,7 @@ function drawAtlas(g: CanvasRenderingContext2D, seedOf: (index: number) => numbe
   g.fillRect(0, 0, ATLAS_SIZE, ATLAS_SIZE);
   for (let row = 0; row < ATLAS_GRID; row++)
     for (let column = 0; column < ATLAS_GRID; column++) {
-      const rnd = makeRandom(seedOf(row * ATLAS_GRID + column));
+      const rnd = createRandom(seedOf(row * ATLAS_GRID + column));
       g.save();
       // 칸 밖으로 무늬가 새지 않게 잘라 둔다.
       g.beginPath();
@@ -33,7 +33,7 @@ function drawAtlas(g: CanvasRenderingContext2D, seedOf: (index: number) => numbe
     }
 }
 
-function atlasTexture(seedOf: (index: number) => number, drawCell: DrawCell): THREE.CanvasTexture {
+function makeAtlasTexture(seedOf: (index: number) => number, drawCell: DrawCell): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = ATLAS_SIZE;
   const g = canvas.getContext("2d", { willReadFrequently: true });
@@ -49,8 +49,8 @@ function atlasTexture(seedOf: (index: number) => number, drawCell: DrawCell): TH
  * 좌석 받침대의 금 간 플라스틱. 매끈한 단색이면 시트만 낡고 받침은 새것처럼 보인다.
  * 금은 나뭇가지처럼 갈라지니 재귀로 뻗고, 옆에 밝은 선을 하나 더 그어 갈라진 단면을 만든다.
  */
-export function crackTexture(): THREE.CanvasTexture {
-  return atlasTexture(
+export function makeCrackTexture(): THREE.CanvasTexture {
+  return makeAtlasTexture(
     (index) => index * 431 + 53,
     (g, cell, rnd) => {
       // 아주 옅은 도장면 결. 없으면 플라스틱이 너무 매끈하다
@@ -128,8 +128,8 @@ const SPILL_COLORS = [
 ];
 
 /** 좌석 천 — 코듀로이 결, 반들거림, 흘린 얼룩, 뜯어진 시트. 좌석 색은 Leva 「좌석천색」이 정한다. */
-export function seatFabricTexture(): THREE.CanvasTexture {
-  return atlasTexture(
+export function makeSeatFabricTexture(): THREE.CanvasTexture {
+  return makeAtlasTexture(
     (index) => index * 761 + 17,
     (g, cell, rnd) => {
       // 세로 골 — 천이라는 걸 알려 준다
@@ -226,8 +226,8 @@ export function seatFabricTexture(): THREE.CanvasTexture {
  * 깨진 형광등 커버. 충격점에서 방사형으로 쪼개진 파편, 떨어져 나간 구멍, 그을음을 칸마다 다르게 그린다.
  * 흰 바탕에 곱해지므로 켜진 등이든 꺼진 등이든 금·구멍이 어둡게 보인다.
  */
-export function brokenLampTexture(): THREE.CanvasTexture {
-  return cachedCanvasTexture(
+export function makeBrokenLampTexture(): THREE.CanvasTexture {
+  return makeCachedCanvasTexture(
     `trainBrokenLamp|${ATLAS_GRID}`,
     (g) =>
       drawAtlas(
@@ -322,7 +322,7 @@ export function brokenLampTexture(): THREE.CanvasTexture {
 }
 
 /** 입구 반대편 창밖 — 이미지 없이 거의 검정에 아주 희미한 빛 두 점. */
-export function darkOutsideTexture(): THREE.CanvasTexture {
+export function makeDarkOutsideTexture(): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = 256;
   canvas.height = 256;

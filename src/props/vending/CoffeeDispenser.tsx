@@ -6,15 +6,15 @@ import { UNIT_BOX } from "@/engine/geometry";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
-import { heldCoin } from "@/props/coinState";
-import { heldDrink, pickUpCup } from "@/props/drinkState";
+import { AimHighlight } from "@/lobby/AimHighlight";
+import { getHeldCoin } from "@/props/coinState";
+import { getHeldDrink, pickUpCup } from "@/props/drinkState";
 import { clearCup, toggleDoor, vendingMachineStore, type VendingId } from "@/props/vendingMachineState";
-import { worldPositionOf } from "@/props/shared/aimTarget";
+import { getWorldPositionOf } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
-import { mergedBoxes } from "./geometry";
-import { makeDrainTexture } from "./textures";
+import { buildMergedBoxGeometry } from "./vendingGeometry";
+import { makeDrainTexture } from "./vendingTextures";
 
 interface CoffeeDispenserProps {
   y: number;
@@ -136,7 +136,7 @@ export default function CoffeeDispenser({
 
   const inner = useMemo(
     () =>
-      mergedBoxes([
+      buildMergedBoxGeometry([
         { size: [width, height, 0.1], position: [0, 0, -depth] },
         { size: [width, 0.1, depth], position: [0, height / 2, -depth / 2] },
         { size: [width, 0.1, depth], position: [0, -height / 2, -depth / 2] },
@@ -150,7 +150,7 @@ export default function CoffeeDispenser({
   const marginX = (outerWidth - width) / 2;
   const surround = useMemo(
     () =>
-      mergedBoxes([
+      buildMergedBoxGeometry([
         { size: [outerWidth, Math.max(0.02, marginY), 0.09], position: [0, height / 2 + marginY / 2, -0.02] },
         { size: [outerWidth, Math.max(0.02, marginY), 0.09], position: [0, -height / 2 - marginY / 2, -0.02] },
         { size: [Math.max(0.02, marginX), height, 0.09], position: [-width / 2 - marginX / 2, 0, -0.02] },
@@ -232,9 +232,9 @@ export default function CoffeeDispenser({
               id={`pickCup:${vendingId}`}
               radius={0.42}
               reach={5}
-              position={() => worldPositionOf(cupRef)}
+              position={() => getWorldPositionOf(cupRef)}
               label="컵 집기"
-              disabled={() => !vendingMachineStore.get(vendingId).doorOpen || !!heldDrink() || !!heldCoin()}
+              disabled={() => !vendingMachineStore.get(vendingId).doorOpen || !!getHeldDrink() || !!getHeldCoin()}
               run={() => {
                 pickUpCup(cupColor, coffeeColor);
                 clearCup(vendingId);
@@ -242,12 +242,12 @@ export default function CoffeeDispenser({
             />
           )}
           {/* 그룹 원점이 컵 밑바닥이라 [0,0,0] 을 기준으로 키워야 제자리에서 커진다 */}
-          <Highlight id={`pickCup:${vendingId}`} anchor={() => [0, 0, 0]} grow={0.06}>
+          <AimHighlight id={`pickCup:${vendingId}`} anchor={() => [0, 0, 0]} grow={0.06}>
             <mesh geometry={cupGeometry} castShadow>
               <meshBasicMaterial color={cupColor} toneMapped={false} side={THREE.DoubleSide} />
               <ToonOutline geometry={cupGeometry} outline={outline} />
             </mesh>
-          </Highlight>
+          </AimHighlight>
           <mesh ref={liquidRef} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
             <circleGeometry args={[0.24, 18]} />
             <meshBasicMaterial color={coffeeColor} toneMapped={false} />
@@ -268,7 +268,7 @@ export default function CoffeeDispenser({
               id={`vendingDoor:${vendingId}`}
               radius={0.6}
               reach={5}
-              position={() => worldPositionOf(doorPanelRef)}
+              position={() => getWorldPositionOf(doorPanelRef)}
               label=""
               run={() => {
                 // 열어서 꺼내고 닫는 흐름 — 닫을 때 컵을 가져간 것으로 본다

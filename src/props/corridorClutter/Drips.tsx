@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { playSound } from "@/audio/sound";
 import { playerView } from "@/engine/playerView";
 
-import type { BrightnessAt, PuddleSpot } from "./geometry";
+import type { BrightnessAt, PuddleSpot } from "./clutterGeometry";
 
 // 거리를 제곱으로 줄인다 — 직선이면 멀리서도 꽤 남아 계속 나는 것처럼 들린다. 10 유닛(≈3m) 밖은 0.
 const MAX_HEARING_DISTANCE = 10;
@@ -15,7 +15,7 @@ const VENDING_FADE_END = 9;
 // 앞 62% 는 떨어지는 시간, 나머지는 파문
 const FALL_PORTION = 0.62;
 
-function dripVolume(ear: THREE.Vector3, spot: PuddleSpot, quietZs: readonly number[]) {
+function computeDripVolume(ear: THREE.Vector3, spot: PuddleSpot, quietZs: readonly number[]) {
   if (ear.x >= spot.x + 4) return 0; // 본부실(복도 바깥)에서는 안 들린다
   const d = Math.hypot(ear.x - spot.x, ear.z - spot.z);
   if (d >= MAX_HEARING_DISTANCE) return 0;
@@ -59,7 +59,7 @@ export default function Drips({ spots, ceilingY, floorY, brightness, quietZs = [
       if (previous < FALL_PORTION && u >= FALL_PORTION) {
         // 볼륨을 손으로 깎는 방식이라 듣는 귀는 카메라가 아니라 사람이다(3인칭 카메라는 캐릭터 뒤에 멀리 있다).
         const ear = playerView.ready ? playerView.eye : camera.position;
-        const volume = dripVolume(ear, spot, quietZs);
+        const volume = computeDripVolume(ear, spot, quietZs);
         if (volume > 0.01) playSound("drip", { volume });
       }
       lastPhase.current[i] = u;

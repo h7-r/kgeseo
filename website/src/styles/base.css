@@ -72,6 +72,6 @@ html {
 }
 
 /* mandatory — 늘 어느 구간엔가 선다. 화면보다 큰 표식 안에서는 자유롭게 굴러간다. */
-html.section-snap {
+html.is-section-snap {
   scroll-snap-type: y mandatory;
 }

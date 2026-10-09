@@ -5,12 +5,12 @@ import type { Vector3Tuple } from "three";
 
 import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
-import { heldCoin } from "@/props/coinState";
-import { heldDrink, pickUpCan, pickUpPaper } from "@/props/drinkState";
+import { AimHighlight } from "@/lobby/AimHighlight";
+import { getHeldCoin } from "@/props/coinState";
+import { getHeldDrink, pickUpCan, pickUpPaper } from "@/props/drinkState";
 import { pickUpHintPaper } from "@/props/hintPaperState";
 import {
   clearCan,
@@ -20,16 +20,16 @@ import {
   vendingMachineStore,
   type VendingId,
 } from "@/props/vendingMachineState";
-import { worldPositionOf } from "@/props/shared/aimTarget";
+import { getWorldPositionOf } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
 import { CAN_FLAVORS } from "./canLabels";
-import { backPanelGeometry, bodyGeometry, mergedBoxes } from "./geometry";
+import { buildBackPanelGeometry, buildVendingBodyGeometry, buildMergedBoxGeometry } from "./vendingGeometry";
 import DispensedCan, { CanMaterials } from "./DispensedCan";
 import DispenserFlap from "./DispenserFlap";
 import PaymentPanel from "./PaymentPanel";
 import ProductButton from "./ProductButton";
-import { makeCanLabelTextures, makePosterTexture, makeSignTexture } from "./textures";
+import { makeCanLabelTextures, makePosterTexture, makeSignTexture } from "./vendingTextures";
 
 // 버튼 6색 — 빨강·주황·초록·파랑·보라·흰색
 const BUTTON_COLORS = ["#d23b32", "#e39a24", "#2f9e52", "#1b4fb0", "#7a3ea0", "#e8ecf0"];
@@ -53,7 +53,7 @@ const BUTTON_TO_CAN = BUTTON_COLORS.map((buttonColor) => {
   });
   return best;
 });
-const canForButton = (button: number) => BUTTON_TO_CAN[button % BUTTON_TO_CAN.length] ?? button % CAN_FLAVORS.length;
+const getCanForButton = (button: number) => BUTTON_TO_CAN[button % BUTTON_TO_CAN.length] ?? button % CAN_FLAVORS.length;
 
 // 파란 캔(SODA)이 나오면 밸브 힌트 종이가 같이 나온다.
 const HINT_CAN = 0;
@@ -144,8 +144,8 @@ export default function CanVendingMachine({
   const machine = useVendingMachine(vendingId ?? "drink");
   const frontZ = halfDepth - 0.02;
 
-  const body = useMemo(() => bodyGeometry({ width, height, depth, trim: TRIM }), [width, height, depth]);
-  const backPanel = useMemo(() => backPanelGeometry({ width, height, depth }), [width, height, depth]);
+  const body = useMemo(() => buildVendingBodyGeometry({ width, height, depth, trim: TRIM }), [width, height, depth]);
+  const backPanel = useMemo(() => buildBackPanelGeometry({ width, height, depth }), [width, height, depth]);
 
   // 세로 구역, 아래에서 위로: 바닥 → 배출구 → 광고 → 버튼줄 → 유리창 → 간판
   const ceiling = height - TRIM - 0.56;
@@ -186,7 +186,7 @@ export default function CanVendingMachine({
 
   const shelves = useMemo(
     () =>
-      mergedBoxes(
+      buildMergedBoxGeometry(
         Array.from({ length: rows }, (_, s) => ({
           size: [windowWidth - 0.1, shelfThickness, 1.0] as Vector3Tuple,
           position: [0, shelfTop + band * s - shelfThickness / 2, -0.15] as Vector3Tuple,
@@ -197,7 +197,7 @@ export default function CanVendingMachine({
 
   // 음료 종류는 여기저기 뒤섞는다(일자 나열 X).
   const cans = useMemo(() => {
-    const rnd = makeRandom(20260909);
+    const rnd = createRandom(20260909);
     const list: { x: number; y: number; flavor: number }[] = [];
     for (let s = 0; s < rows; s++) {
       for (let i = 0; i < columns; i++) {
@@ -214,7 +214,7 @@ export default function CanVendingMachine({
   // 캔을 집어 가도 종이는 남는다 — 종이만 따로 뜯어 볼 수 있게.
   useEffect(() => {
     if (!vendingId || dispensedCan == null || dispensedCan < 0) return;
-    setHintPaperWaiting(vendingId, canForButton(dispensedCan) === HINT_CAN);
+    setHintPaperWaiting(vendingId, getCanForButton(dispensedCan) === HINT_CAN);
   }, [dispensedCan, vendingId]);
   const canTone = Math.min(1, 0.5 + brightness * 0.55);
 
@@ -350,29 +350,29 @@ export default function CanVendingMachine({
               id={`pickCan:${vendingId}`}
               radius={0.5}
               reach={5}
-              position={() => worldPositionOf(canSpotRef)}
+              position={() => getWorldPositionOf(canSpotRef)}
               label="캔 집기"
-              disabled={() => !vendingMachineStore.get(vendingId).flapOpen || !!heldDrink() || !!heldCoin()}
+              disabled={() => !vendingMachineStore.get(vendingId).flapOpen || !!getHeldDrink() || !!getHeldCoin()}
               run={() => {
-                const flavor = CAN_FLAVORS[canForButton(dispensedCan)];
+                const flavor = CAN_FLAVORS[getCanForButton(dispensedCan)];
                 // 라벨색 그대로 들고, 음료색은 살짝 어둡게(속 음료 느낌)
                 pickUpCan(flavor.background, scaleColor(flavor.background, 0.7));
                 clearCan(vendingId);
               }}
             />
           )}
-          <Highlight id={`pickCan:${vendingId}`} anchor={() => null} grow={0}>
+          <AimHighlight id={`pickCan:${vendingId}`} anchor={() => null} grow={0}>
             <DispensedCan
               vendingId={vendingId}
               canRadius={canRadius}
               canHeight={canHeight}
               trayFloor={trayFloor}
               z={halfDepth - 0.45}
-              labelTexture={labelTextures[canForButton(dispensedCan)]}
+              labelTexture={labelTextures[getCanForButton(dispensedCan)]}
               tone={canTone}
               outline={inner}
             />
-          </Highlight>
+          </AimHighlight>
         </>
       )}
 
@@ -384,9 +384,9 @@ export default function CanVendingMachine({
             id={`hintPaper:${vendingId}`}
             radius={0.9}
             reach={6}
-            position={() => worldPositionOf(hintPaperSpotRef)}
+            position={() => getWorldPositionOf(hintPaperSpotRef)}
             label="힌트 종이"
-            disabled={() => !!heldDrink() || !!heldCoin()}
+            disabled={() => !!getHeldDrink() || !!getHeldCoin()}
             run={() => {
               pickUpPaper();
               pickUpHintPaper(); // 쪽지의 '곳' 도 손으로 옮긴다(버리면 바닥에 남는다)
@@ -394,12 +394,12 @@ export default function CanVendingMachine({
             }}
           />
           {/* 배출구 속이 어두워 테가 없으면 흰 종이가 떠 있는 네모로 보인다 — 외곽선용 지오를 같이 넘긴다 */}
-          <Highlight id={`hintPaper:${vendingId}`} anchor={() => [0, 0, 0]} grow={0.1}>
+          <AimHighlight id={`hintPaper:${vendingId}`} anchor={() => [0, 0, 0]} grow={0.1}>
             <mesh geometry={HINT_NOTE_GEOMETRY} scale={2.2} rotation={[-Math.PI / 2 + 0.35, 0, 0.3]} castShadow>
               <meshBasicMaterial color="#f3efe2" side={THREE.DoubleSide} toneMapped={false} />
               <ToonOutline geometry={HINT_NOTE_GEOMETRY} outline={inner} />
             </mesh>
-          </Highlight>
+          </AimHighlight>
         </group>
       )}
 

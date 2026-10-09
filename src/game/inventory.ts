@@ -3,7 +3,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 
-import { LAYERS, overlayLayer } from "./overlayLayer";
+import { OVERLAY_LAYERS, overlayLayer } from "./overlayLayer";
 
 // 계약(v0.3.1)의 Clue 와 같은 모양이라 서버 응답을 그대로 꽂으면 된다.
 // 소모 없음(GRD-01)이라 빼기가 없고, 슬롯 상한도 없다(S7-034).
@@ -46,7 +46,7 @@ export const inventory = {
     // 첫 물건일 때만 한 번 열어 준다(S7-030). 아이콘만 띄우면 못 보고 지나가는 사람이 생긴다.
     if (!hasAutoOpened && !silent) {
       hasAutoOpened = true;
-      overlayLayer.open(LAYERS.inventory);
+      overlayLayer.open(OVERLAY_LAYERS.inventory);
     }
     // 복원분은 이미 겪은 것으로 친다.
     if (silent) hasAutoOpened = true;

@@ -45,7 +45,7 @@ const EMPTY_BUNDLED_EDITS = '{"지움":{},"고침":{},"더함":{}}';
  * 빌드본에는 /__naju-edit 미들웨어가 없어 그 주소가 index.html 을 돌려주고 손 배치가 통째로 빠진다.
  * 그래서 빌드할 때 편집 파일을 naju-edit.json 으로 같이 내보낸다(placement/editFile 이 빌드본에서 읽는다).
  */
-export function najuEditBundle(): Plugin {
+export function editFileBundlePlugin(): Plugin {
   return {
     name: "naju-edit-bundle",
     apply: "build",
@@ -63,7 +63,7 @@ export function najuEditBundle(): Plugin {
 }
 
 /** GET 은 편집 파일을 내주고, writable 이면 POST 로 덮어쓴다. 본편 서버(5173)는 읽기만 한다. */
-export function najuEditFile({ writable }: { writable: boolean }): Plugin {
+export function editFileServerPlugin({ writable }: { writable: boolean }): Plugin {
   return {
     name: writable ? "naju-edit-file" : "naju-edit-file-readonly",
     apply: "serve",

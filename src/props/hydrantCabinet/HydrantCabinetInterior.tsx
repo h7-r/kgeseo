@@ -6,23 +6,28 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
+import { AimHighlight } from "@/lobby/AimHighlight";
 import {
-  handsBusy,
+  isHoldingSomething,
   hoseAnchors,
-  nozzleLocation,
+  getNozzleLocation,
   pickUpNozzle,
-  registerAnchor,
+  registerHoseAnchor,
   registerCabinetEnd,
   resetNozzle,
   useNozzle,
 } from "@/props/nozzleState";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { type HighlightSettings, worldPositionOf } from "@/props/shared/aimTarget";
+import { type AimHighlightSettings, getWorldPositionOf } from "@/props/shared/aimTarget";
 import { isWorkLampPuzzleHandFull } from "@/props/workLampPuzzle/workLampState";
 
 import AlarmDevices from "./AlarmDevices";
-import { hoseCenterline, hoseRibbon, polylineLength, type HoseOptions } from "./hoseGeometry";
+import {
+  computeHoseCenterline,
+  buildHoseRibbonGeometry,
+  computePolylineLength,
+  type HoseOptions,
+} from "./hoseGeometry";
 import HoseValve from "./HoseValve";
 import NozzleModel from "./NozzleModel";
 import { NOZZLE_DIMENSIONS } from "./nozzleGeometry";
@@ -35,7 +40,7 @@ const TOTAL_STRANDS = 13;
 
 const anchorScratch = new THREE.Vector3();
 
-function shellGeometry(
+function buildCabinetShellGeometry(
   depth: number,
   innerWidth: number,
   innerHeight: number,
@@ -93,7 +98,7 @@ export interface HydrantCabinetInteriorProps {
   canHandle?: boolean;
   /** 겨냥 대상 이름에 붙는다 — 함이 둘이어도 안 섞인다 */
   cabinetId?: string;
-  highlight?: HighlightSettings;
+  highlight?: AimHighlightSettings;
   brightness?: number;
   outline?: OutlineValues | null;
 }
@@ -143,7 +148,7 @@ export default function HydrantCabinetInterior({
   const hoseGroupX = d * halfDepth * 0.1;
 
   const shell = useMemo(
-    () => shellGeometry(depth, innerWidth, innerHeight, halfDepth, d, shelfHeight),
+    () => buildCabinetShellGeometry(depth, innerWidth, innerHeight, halfDepth, d, shelfHeight),
     [depth, innerWidth, innerHeight, halfDepth, d, shelfHeight],
   );
 
@@ -175,13 +180,13 @@ export default function HydrantCabinetInterior({
   );
   // 호스 전체 길이 — "이보다 멀리는 못 간다"의 근거
   const totalLength = useMemo(
-    () => polylineLength(hoseCenterline({ ...hoseSettings, strands: TOTAL_STRANDS })),
+    () => computePolylineLength(computeHoseCenterline({ ...hoseSettings, strands: TOTAL_STRANDS })),
     [hoseSettings],
   );
   const [remainingStrands, setRemainingStrands] = useState(TOTAL_STRANDS);
   const bundleLine = useMemo(
     () =>
-      hoseCenterline({
+      computeHoseCenterline({
         ...hoseSettings,
         strands: location === "cabinet" ? TOTAL_STRANDS : remainingStrands,
         // 관창이 함에 있을 때만 관창까지 U자로 물린다
@@ -189,7 +194,7 @@ export default function HydrantCabinetInterior({
       }),
     [hoseSettings, remainingStrands, location],
   );
-  const hose = useMemo(() => hoseRibbon(bundleLine, hoseSettings), [bundleLine, hoseSettings]);
+  const hose = useMemo(() => buildHoseRibbonGeometry(bundleLine, hoseSettings), [bundleLine, hoseSettings]);
   // 다발이 끝나는 자리 = 끌려 나온 줄이 시작하는 자리(호스 그룹 기준)
   const bundleEnd = bundleLine[bundleLine.length - 1];
 
@@ -199,7 +204,7 @@ export default function HydrantCabinetInterior({
     const anchor = anchorRef.current;
     if (anchor) {
       anchor.getWorldPosition(anchorScratch);
-      registerAnchor(anchorScratch.x, anchorScratch.y, anchorScratch.z);
+      registerHoseAnchor(anchorScratch.x, anchorScratch.y, anchorScratch.z);
     }
     // 그려진 줄 길이로 정하면 가닥이 빠질 때 다발 끝이 옮겨져 길이가 튀고 호스가 떤다 —
     // 움직이지 않는 기준점에서 관창까지의 거리로 정한다.
@@ -296,7 +301,7 @@ export default function HydrantCabinetInterior({
       {location === "cabinet" && (
         <>
           {/* 강조는 자기 부모 좌표로 자리를 고친다 — 월드 좌표를 주면 함이 돈 만큼 튄다 */}
-          <Highlight
+          <AimHighlight
             id={nozzleId}
             anchor={() => nozzleSpot}
             color={highlight?.color}
@@ -306,15 +311,17 @@ export default function HydrantCabinetInterior({
             <group position={nozzleSpot} ref={nozzleRef}>
               <NozzleModel metalColor={metalColor} brightness={brightness} outline={outline} />
             </group>
-          </Highlight>
+          </AimHighlight>
           <Interactable
             id={nozzleId}
             radius={0.32}
             reach={5}
             label="[E] 관창 꺼내기"
             // 조건은 한 함수에 모은다. 따로 적은 끔을 덧붙이다 앞 조건을 덮어써 퍼즐 순서가 무너진 적이 있다.
-            disabled={() => !canHandle || nozzleLocation() !== "cabinet" || handsBusy() || isWorkLampPuzzleHandFull()}
-            position={() => worldPositionOf(nozzleRef)}
+            disabled={() =>
+              !canHandle || getNozzleLocation() !== "cabinet" || isHoldingSomething() || isWorkLampPuzzleHandFull()
+            }
+            position={() => getWorldPositionOf(nozzleRef)}
             run={() => pickUpNozzle()}
           />
         </>
@@ -328,8 +335,8 @@ export default function HydrantCabinetInterior({
             radius={0.32}
             reach={5}
             label="[E] 관창 제자리에 두기"
-            disabled={() => !canHandle || nozzleLocation() !== "hand"}
-            position={() => worldPositionOf(emptySpotRef)}
+            disabled={() => !canHandle || getNozzleLocation() !== "hand"}
+            position={() => getWorldPositionOf(emptySpotRef)}
             run={() => resetNozzle()}
           />
         </>

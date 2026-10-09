@@ -32,7 +32,7 @@ export function StepNav({ activeTab, isNarrow, onSelect }: StepNavProps) {
           <button
             key={tab.id}
             type="button"
-            className="cc-tile"
+            className="character-creator__tile"
             aria-pressed={isSelected}
             aria-current={isSelected ? "step" : undefined}
             onClick={() => onSelect(tab.id)}
@@ -102,7 +102,7 @@ export function NextStep({ nextTab, isNameConfirmed, onSelect }: NextStepProps) 
     return (
       <button
         type="button"
-        className="cc-tile"
+        className="character-creator__tile"
         onClick={() => onSelect(nextTab)}
         style={{ ...tileStyle, padding: "15px 20px", display: "flex", alignItems: "center", gap: SPACING.m }}
       >
@@ -188,7 +188,7 @@ export function SettingsCard({
         {onResetSection ? (
           <button
             type="button"
-            className="cc-text-button"
+            className="character-creator__text-button"
             style={{ ...textButtonStyle, marginLeft: "auto" }}
             onClick={onResetSection}
           >
@@ -202,7 +202,7 @@ export function SettingsCard({
           <span style={{ flex: 1 }}>{notice}</span>
           <button
             type="button"
-            className="cc-text-button"
+            className="character-creator__text-button"
             style={{ ...textButtonStyle, color: COLORS.warning }}
             onClick={onDismissNotice}
           >

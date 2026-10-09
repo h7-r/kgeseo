@@ -7,18 +7,18 @@ import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
+import { AimHighlight } from "@/lobby/AimHighlight";
 
 import HandwrittenHint from "./HandwrittenHint";
 import {
-  fullPower,
+  hasFullPower,
   isPaintingPowered,
   toggleWindowSwitch,
-  useFullPower,
-  usePaintingPowered,
+  useHasFullPower,
+  useIsPaintingPowered,
   useWindowSwitchKey,
   WINDOW_COUNT,
-  windowSwitch,
+  isWindowSwitchOn,
 } from "./workLampState";
 
 const SPACING = 0.24;
@@ -42,8 +42,8 @@ export default function WindowSwitchPanel({
   outline,
 }: WindowSwitchPanelProps) {
   const d = direction;
-  const isPowered = usePaintingPowered();
-  const isFullPower = useFullPower();
+  const isPowered = useIsPaintingPowered();
+  const isFullPower = useHasFullPower();
   useWindowSwitchKey(); // 스위치가 바뀌면 다시 그린다(값은 아래에서 직접 읽는다)
   const bodyGeometry = useMemo(() => new THREE.BoxGeometry(0.14, 0.66, SPACING * WINDOW_COUNT + 0.3), []);
   useEffect(() => () => bodyGeometry.dispose(), [bodyGeometry]);
@@ -54,19 +54,19 @@ export default function WindowSwitchPanel({
       const handle = handles.current[i];
       if (!handle) continue;
       // 위 = 켬. 레버가 ±x 로 뻗으므로 d 에 따라 같은 각이 위/아래로 갈린다
-      const goal = (windowSwitch(i) ? 0.45 : -0.45) * d;
+      const goal = (isWindowSwitchOn(i) ? 0.45 : -0.45) * d;
       handle.rotation.z += (goal - handle.rotation.z) * Math.min(1, dt * 14);
     }
   });
   return (
     <group position={position}>
-      <Highlight id={SWITCH_IDS} anchor={() => null} grow={0} strength={0.12}>
+      <AimHighlight id={SWITCH_IDS} anchor={() => null} grow={0} strength={0.12}>
         <mesh geometry={bodyGeometry} position={[d * 0.07, 0, 0]} castShadow receiveShadow>
           <meshToonMaterial color={scaleColor("#3a3f46", brightness)} gradientMap={TOON_GRADIENT} />
           <ToonOutline geometry={bodyGeometry} outline={outline} />
           <Outlines thickness={3} color="#0f1012" />
         </mesh>
-      </Highlight>
+      </AimHighlight>
       <HandwrittenHint
         text="창"
         color="#e9e2cf"
@@ -86,7 +86,7 @@ export default function WindowSwitchPanel({
           <group key={i} position={[d * 0.14, -0.12, z]}>
             <mesh position={[d * 0.005, 0.18, 0]}>
               <boxGeometry args={[0.012, 0.07, 0.11]} />
-              <meshBasicMaterial color={isPowered && windowSwitch(i) ? "#ffd978" : "#22262b"} toneMapped={false} />
+              <meshBasicMaterial color={isPowered && isWindowSwitchOn(i) ? "#ffd978" : "#22262b"} toneMapped={false} />
             </mesh>
             <mesh rotation={[0, 0, Math.PI / 2]}>
               <cylinderGeometry args={[0.05, 0.05, 0.03, 14]} />
@@ -111,7 +111,7 @@ export default function WindowSwitchPanel({
               reach={6}
               position={() => [position[0] + d * 0.2, position[1] - 0.12, position[2] + z]}
               label={`[E] ${i + 1}`}
-              disabled={() => !isPaintingPowered() || fullPower()}
+              disabled={() => !isPaintingPowered() || hasFullPower()}
               run={() => toggleWindowSwitch(i)}
             />
           </group>

@@ -5,7 +5,7 @@ import { getSessionUser } from "@/services/session";
 
 import { preloadAllPages } from "./pageRegistry";
 
-function onPageLoad(callback: () => void) {
+function runAfterPageLoad(callback: () => void) {
   if (document.readyState === "complete") callback();
   else window.addEventListener("load", callback, { once: true });
 }
@@ -51,11 +51,11 @@ const prefetchOpeningPosterWhenIdle = () => runWhenIdle(prefetchOpeningPoster, 6
 /** 첫 렌더 전에 한 번 부른다. 첫 쪽 바뀜 알림보다 먼저 듣고 있어야 한다. */
 export function startBackgroundLoading(): void {
   // 첫 화면이 다 뜬 뒤 한가할 때 나머지 화면 코드와 그림을 미리 받아 둔다.
-  onPageLoad(() => runWhenIdle(preloadAllPages, 4000, 2000));
+  runAfterPageLoad(() => runWhenIdle(preloadAllPages, 4000, 2000));
 
-  onPageLoad(warmUpImagesSoon);
+  runAfterPageLoad(warmUpImagesSoon);
   window.addEventListener(PAGE_CHANGE_EVENT, warmUpImagesSoon);
 
-  onPageLoad(prefetchOpeningPosterWhenIdle);
+  runAfterPageLoad(prefetchOpeningPosterWhenIdle);
   window.addEventListener(PAGE_CHANGE_EVENT, prefetchOpeningPosterWhenIdle);
 }

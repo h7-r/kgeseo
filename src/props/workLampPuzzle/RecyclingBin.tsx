@@ -7,9 +7,9 @@ import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { BIN_SIZE, taperedBoxGeometry } from "./geometry";
-import { binBodyTexture, binSignTexture } from "./trashTextures";
-import { rejectingBin, trashRejectedAt, type TrashBin } from "./workLampState";
+import { BIN_SIZE, buildTaperedBoxGeometry } from "./puzzleGeometry";
+import { makeBinBodyTexture, makeBinSignTexture } from "./trashTextures";
+import { getRejectingBin, getTrashRejectedAt, type TrashBin } from "./workLampState";
 
 interface RecyclingBinProps {
   bin: TrashBin;
@@ -37,10 +37,13 @@ export default function RecyclingBin({
   const { depth, width, bodyHeight } = BIN_SIZE;
   const bodyColor = isPlastic ? "#2d64a8" : "#50574d";
   const lidColor = isPlastic ? "#3b77c0" : "#5f675b";
-  const signTexture = binSignTexture(bin);
-  const bodyTexture = binBodyTexture(bin);
+  const signTexture = makeBinSignTexture(bin);
+  const bodyTexture = makeBinBodyTexture(bin);
   const mouthMaterial = useRef<THREE.MeshBasicMaterial>(null);
-  const bodyGeometry = useMemo(() => taperedBoxGeometry(depth, bodyHeight, width, 0.9), [depth, bodyHeight, width]);
+  const bodyGeometry = useMemo(
+    () => buildTaperedBoxGeometry(depth, bodyHeight, width, 0.9),
+    [depth, bodyHeight, width],
+  );
   const lidGeometry = useMemo(() => new THREE.BoxGeometry(depth + 0.1, 0.16, width + 0.1), [depth, width]);
   useEffect(
     () => () => {
@@ -52,8 +55,8 @@ export default function RecyclingBin({
   useFrame(() => {
     const material = mouthMaterial.current;
     if (!material) return;
-    const since = performance.now() / 1000 - trashRejectedAt();
-    const isFlashing = rejectingBin() === bin && since < 0.6 && Math.floor(since * 10) % 2 === 0;
+    const since = performance.now() / 1000 - getTrashRejectedAt();
+    const isFlashing = getRejectingBin() === bin && since < 0.6 && Math.floor(since * 10) % 2 === 0;
     material.color.set(isFlashing ? "#ff3b2f" : "#0a0b0d");
   });
   // 위가 넓은 통이라 표지 윗단에서 앞면이 더 나와 있다 — 표지 윗단 높이로 잰다

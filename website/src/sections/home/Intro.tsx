@@ -33,7 +33,7 @@ export default function Intro() {
 
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "18px" }}>
         <div style={{ ...bigTitleStyle, width: "595px", color: COLOR.textBright }}>ESCAPE</div>
-        <div className="flow-text" style={legendTitleStyle}>
+        <div className="u-shine-text" style={legendTitleStyle}>
           THE LEGEND
         </div>
       </div>
@@ -51,19 +51,19 @@ export default function Intro() {
       <div style={{ display: "flex", gap: "40px", alignItems: "center" }}>
         <button
           type="button"
-          className="btn"
+          className="button"
           style={{ ...filledButtonStyle, cursor: "pointer" }}
           onClick={() => navigate(ROUTES.about)}
         >
-          <span className="btn__label">게임 소개</span>
+          <span className="button__label">게임 소개</span>
         </button>
         <button
           type="button"
-          className="btn"
+          className="button"
           style={{ ...ghostButtonStyle, cursor: "pointer" }}
           onClick={() => navigate(ROUTES.media)}
         >
-          <span className="btn__label">지역 탐험하기</span>
+          <span className="button__label">지역 탐험하기</span>
         </button>
       </div>
 

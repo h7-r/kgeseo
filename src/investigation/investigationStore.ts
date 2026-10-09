@@ -74,12 +74,12 @@ export const closeInvestigation = () => setState({ openedId: null });
 
 const targets = new Map<string, InvestigationTarget>();
 
-export function registerTarget(target: InvestigationTarget) {
+export function registerInvestigationTarget(target: InvestigationTarget) {
   targets.set(target.id, target);
 }
 
-export function registerTargets(list: InvestigationTarget[]) {
-  for (const target of list) registerTarget(target);
+export function registerInvestigationTargets(list: InvestigationTarget[]) {
+  for (const target of list) registerInvestigationTarget(target);
 }
 
-export const findTarget = (id: string) => targets.get(id) ?? null;
+export const findInvestigationTarget = (id: string) => targets.get(id) ?? null;

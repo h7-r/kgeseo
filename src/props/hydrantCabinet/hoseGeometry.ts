@@ -7,13 +7,13 @@
 import * as THREE from "three";
 import type { Vector3Tuple } from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 /**
  * 가운데 선을 따라 납작한 띠를 훑는다. 넓은 면은 늘 앞(x)을 보고, 폭 방향만 진행 방향과 직각으로 돌린다 —
  * 안 돌리면 옆으로 꺾이는 U자 구간에서 띠가 날처럼 선다.
  */
-function ribbonGeometry(centerline: Vector3Tuple[], width: number, thickness: number) {
+function buildRibbonGeometry(centerline: Vector3Tuple[], width: number, thickness: number) {
   const n = centerline.length;
   const across: [number, number][] = [];
   for (let i = 0; i < n; i++) {
@@ -93,7 +93,7 @@ export interface HoseOptions {
  * 접힌 호스의 가운데 선. 지오와 나눈 이유: 관창을 끌고 나가면 다발을 줄여 다시 그리고,
  * 남은 호스 끝을 알고, 전체 길이를 재야 하는데 셋 다 가운데 선만 있으면 된다.
  */
-export function hoseCenterline({
+export function computeHoseCenterline({
   width = 1.0,
   height = 0.9,
   depth = 0.16,
@@ -105,7 +105,7 @@ export function hoseCenterline({
 }: HoseOptions = {}): Vector3Tuple[] {
   const total = Math.max(1, totalStrands ?? requestedStrands);
   const strands = Math.max(1, Math.min(total, requestedStrands));
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
 
   // 총가닥만큼 뽑는다 — 남은 수로 뽑으면 난수 순서가 달라져 남은 가닥 생김새가 전부 바뀐다.
   const lengths: number[] = [];
@@ -209,21 +209,16 @@ export function hoseCenterline({
 }
 
 /** 가운데 선을 납작한 띠로 훑는다. 띠 굵기는 총가닥 간격에서 나온다 — 남은 수로 재면 빠질수록 굵어진다. */
-export function hoseRibbon(
+export function buildHoseRibbonGeometry(
   centerline: Vector3Tuple[],
   { width = 1.0, strands = 16, totalStrands = null }: Pick<HoseOptions, "width" | "strands" | "totalStrands"> = {},
 ) {
   const spacing = width / Math.max(1, (totalStrands ?? strands) - 1);
-  return ribbonGeometry(centerline, spacing * 0.78, 0.028);
-}
-
-/** 선을 뽑아 바로 띠로 만든다. */
-export function hoseGeometry(options: HoseOptions = {}) {
-  return hoseRibbon(hoseCenterline(options), options);
+  return buildRibbonGeometry(centerline, spacing * 0.78, 0.028);
 }
 
 /** 꺾은선의 길이. "호스가 이만큼이라 여기까지만 간다"의 근거. */
-export function polylineLength(line: Vector3Tuple[]) {
+export function computePolylineLength(line: Vector3Tuple[]) {
   let length = 0;
   for (let i = 1; i < line.length; i++) {
     const a = line[i - 1];

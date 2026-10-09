@@ -6,7 +6,7 @@ import playIcon from "@/assets/images/imgPlay2.svg";
 import videoCard1 from "@/assets/images/imgVideoCard1.webp";
 import videoCard2 from "@/assets/images/imgVideoCard2.webp";
 import videoCard3 from "@/assets/images/imgVideoCard3.webp";
-import { approachClass, usePassBy, useReveal, useTilt } from "@/hooks/motion";
+import { depthRevealClass, useReveal, useScrollZoom, useTilt } from "@/hooks/motion";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 import { FONT } from "@/lib/style";
 import { sectionAnchor } from "@/navigation/subMenus";
@@ -69,20 +69,20 @@ interface GameplayVideosProps {
 
 /** 게임 영상 갤러리 · 고른 영상을 크게 보여 주는 카드 · 쪽번호. */
 export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 }: GameplayVideosProps) {
-  const [selected, setSelected] = useState(0);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   // 사람이 직접 고르면 자동 넘김을 멈춘다. 보고 있는 걸 뺏으면 안 된다.
   const [hasInteracted, setHasInteracted] = useState(false);
 
   useEffect(() => {
     if (hasInteracted) return;
     if (prefersReducedMotion()) return;
-    const timer = window.setInterval(() => setSelected((n) => (n + 1) % CHALLENGES.length), AUTO_ADVANCE_INTERVAL);
+    const timer = window.setInterval(() => setSelectedIndex((n) => (n + 1) % CHALLENGES.length), AUTO_ADVANCE_INTERVAL);
     return () => clearInterval(timer);
   }, [hasInteracted]);
 
   const select = (n: number) => {
     setHasInteracted(true);
-    setSelected(((n % CHALLENGES.length) + CHALLENGES.length) % CHALLENGES.length);
+    setSelectedIndex(((n % CHALLENGES.length) + CHALLENGES.length) % CHALLENGES.length);
   };
 
   return (
@@ -97,22 +97,22 @@ export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 
               key={challenge.title}
               {...challenge}
               order={i}
-              active={selected === i}
+              isActive={selectedIndex === i}
               onSelect={() => select(i)}
             />
           ))}
         </div>
       </section>
 
-      <FeaturedVideo top={featuredTop} challenge={CHALLENGES[selected]} />
+      <FeaturedVideo top={featuredTop} challenge={CHALLENGES[selectedIndex]} />
 
       {/* 다섯 칸이 챌린지 다섯과 짝이다. 눌러 고를 수도, 두면 혼자 넘어간다. */}
       <div style={{ ...pagerStyle, top: `${pagerTop}px` }}>
         <button
           type="button"
-          className="pager-arrow"
+          className="pager__arrow"
           style={arrowStyle}
-          onClick={() => select(selected - 1)}
+          onClick={() => select(selectedIndex - 1)}
           aria-label="이전 챌린지"
         >
           ‹
@@ -121,20 +121,24 @@ export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 
           <button
             key={challenge.title}
             type="button"
-            className={selected === i ? "pager-page is-active" : "pager-page"}
-            style={{ ...(selected === i ? activePageStyle : inactivePageStyle), border: "none", cursor: "pointer" }}
+            className={selectedIndex === i ? "pager__page is-active" : "pager__page"}
+            style={{
+              ...(selectedIndex === i ? activePageStyle : inactivePageStyle),
+              border: "none",
+              cursor: "pointer",
+            }}
             onClick={() => select(i)}
             aria-label={`${i + 1}번째 챌린지 · ${challenge.title}`}
-            aria-current={selected === i}
+            aria-current={selectedIndex === i}
           >
             {i + 1}
           </button>
         ))}
         <button
           type="button"
-          className="pager-arrow"
+          className="pager__arrow"
           style={arrowStyle}
-          onClick={() => select(selected + 1)}
+          onClick={() => select(selectedIndex + 1)}
           aria-label="다음 챌린지"
         >
           ›
@@ -146,14 +150,14 @@ export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 
 
 interface GalleryCardProps extends Challenge {
   order: number;
-  active: boolean;
+  isActive: boolean;
   onSelect: () => void;
 }
 
 /** 마우스를 따라 기울고 차례로 안쪽에서 걸어 나오는 작은 영상 카드. */
-function GalleryCard({ order, active, onSelect, ...challenge }: GalleryCardProps) {
+function GalleryCard({ order, isActive, onSelect, ...challenge }: GalleryCardProps) {
   const { ref: tiltRef, onMouseMove, onMouseLeave } = useTilt<HTMLDivElement>(5);
-  const [revealRef, visible] = useReveal<HTMLDivElement>();
+  const [revealRef, isVisible] = useReveal<HTMLDivElement>();
 
   return (
     <div
@@ -167,14 +171,14 @@ function GalleryCard({ order, active, onSelect, ...challenge }: GalleryCardProps
           onSelect();
         }
       }}
-      className={`gallery-card${active ? " is-active" : ""} tilt-scene ${approachClass(visible)}`}
+      className={`gallery-card${isActive ? " is-active" : ""} u-tilt-scene ${depthRevealClass(isVisible)}`}
       style={{ ...galleryCardStyle, transitionDelay: `${order * 30}ms` }}
     >
       <div
         ref={tiltRef}
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
-        className="tilt"
+        className="u-tilt"
         style={{ width: "100%", height: "100%" }}
       >
         <VideoCard {...challenge} />
@@ -190,12 +194,12 @@ interface FeaturedVideoProps {
 
 /** 위 갤러리에서 고른 영상을 크게. 스크롤에 맞춰 안쪽에서 다가왔다 앞으로 지나간다. */
 function FeaturedVideo({ top, challenge }: FeaturedVideoProps) {
-  const passByRef = usePassBy<HTMLDivElement>({ enterScale: 0.9, exitScale: 1.05, depth: 110 });
+  const scrollZoomRef = useScrollZoom<HTMLDivElement>({ enterScale: 0.9, exitScale: 1.05, depth: 110 });
 
   return (
-    <div ref={passByRef} className="pass-by" style={{ ...featuredStyle, top: `${top}px` }}>
+    <div ref={scrollZoomRef} className="u-scroll-zoom" style={{ ...featuredStyle, top: `${top}px` }}>
       {/* key 를 바꿔야 바뀌는 순간 카메라 전환이 다시 돈다 */}
-      <div key={challenge.title} className="camera-zoom" style={{ width: "100%", height: "100%" }}>
+      <div key={challenge.title} className="u-swap-in" style={{ width: "100%", height: "100%" }}>
         <VideoCard {...challenge} large />
       </div>
     </div>
@@ -208,7 +212,7 @@ interface VideoCardProps extends Challenge {
 
 function VideoCard({ image, title, category, description, large = false }: VideoCardProps) {
   return (
-    <div className="card" style={cardStyle}>
+    <div className="interactive-card" style={cardStyle}>
       <img loading="lazy" decoding="async" src={image} alt="" style={cardImageStyle} />
       <div style={playButtonStyle}>
         <img

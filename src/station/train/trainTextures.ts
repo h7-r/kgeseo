@@ -1,7 +1,7 @@
 import type * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
-import { addGrain, cachedCanvasTexture } from "@/engine/textures/canvas";
+import { createRandom } from "@/engine/random";
+import { drawGrain, makeCachedCanvasTexture } from "@/engine/textures/canvas";
 
 export interface TrainDoorTextureOptions {
   /** 손잡이 가운데 — 패널 안 0=왼쪽, 1=오른쪽 */
@@ -30,7 +30,7 @@ function hexToRgb(hex: string): string {
  * 낡은 강철 미닫이 문. 플러시 패널 + 파묻힌 손잡이 포켓 + 아래 킥패널 이음선.
  * 색은 재질 color 가 입히므로 밝은 중립색으로 그린다. 한 짝을 0~1 UV 로 덮어 타일 반복이 없다.
  */
-export function trainDoorTexture(
+export function makeTrainDoorTexture(
   seed = 1,
   {
     handleX = 0.78,
@@ -46,10 +46,10 @@ export function trainDoorTexture(
     .map((v) => v.toFixed(3))
     .join(",")}|${frameColor}`;
 
-  return cachedCanvasTexture(
+  return makeCachedCanvasTexture(
     key,
     (g, W, H) => {
-      const rnd = makeRandom(seed * 977 + 41);
+      const rnd = createRandom(seed * 977 + 41);
 
       // 문 면(밝은 패널)이 차지하는 좌우 범위 — 양옆은 문틀이 먹는다.
       const jw = W * frameWidth;
@@ -254,7 +254,7 @@ export function trainDoorTexture(
         g.fillStyle = `rgba(34,38,45,${(0.025 + rnd() * 0.05).toFixed(3)})`;
         g.fillRect(L + rnd() * PW, rnd() * H, 1 + rnd(), 1 + rnd());
       }
-      addGrain(g, W, H, seed * 53 + 7, 0.4);
+      drawGrain(g, W, H, seed * 53 + 7, 0.4);
 
       // ⑨ 양옆 문틀 — 살짝 어둡게 해 밝은 문 면을 좁아 보이게 한다
       g.fillStyle = `rgba(${hexToRgb(frameColor)},0.82)`;
@@ -290,11 +290,11 @@ export function trainDoorTexture(
 }
 
 /** 문 밑 발판의 때·잔기스. 차체색을 바탕에 굽고 흰/검 얼룩을 옅게 얹는다(재질 color 는 흰색). */
-export function stepTexture(seed = 7, color = "#1b2029"): THREE.CanvasTexture {
-  return cachedCanvasTexture(
+export function makeTrainStepTexture(seed = 7, color = "#1b2029"): THREE.CanvasTexture {
+  return makeCachedCanvasTexture(
     `trainStep|${seed}:${color}`,
     (g, W, H) => {
-      const rnd = makeRandom(seed * 91 + 7);
+      const rnd = createRandom(seed * 91 + 7);
       g.fillStyle = color;
       g.fillRect(0, 0, W, H);
       for (let i = 0; i < 11; i++) {

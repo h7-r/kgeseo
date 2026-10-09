@@ -5,9 +5,9 @@ import * as THREE from "three";
 import { exposeDevHook } from "@/debug/devHooks";
 import type { ArmPole, AvatarLink, WorldPoint } from "@/engine/avatarLink";
 
-import { chestHalfDepth } from "./fistCenter";
+import { measureChestHalfDepth } from "./fistCenter";
 import type { Arm, PreparedBody, Side } from "./preparedBody";
-import { rotateInWorld } from "./rig";
+import { applyWorldRotation } from "./rig";
 
 // 팔꿈치 폴 기본값 — 꺼진 채. 게임이 armPole 을 내려 주면 그 값이 이긴다.
 const DEFAULT_ARM_POLE: ArmPole = { enabled: false, back: 1, down: 1, outward: 0.35, weight: 1 };
@@ -55,7 +55,7 @@ const _wristGoal = new THREE.Vector3();
 const _bodyV = new THREE.Vector3();
 const _bodyScale = new THREE.Vector3();
 
-const roundedPoint = (p: THREE.Vector3) => [p.x, p.y, p.z].map((v) => +v.toFixed(2));
+const roundPoint = (p: THREE.Vector3) => [p.x, p.y, p.z].map((v) => +v.toFixed(2));
 
 // 뼈를 관절 기준으로 돌려 current 점이 goal 점을 향하게 한다.
 function aimBone(bone: THREE.Bone, current: THREE.Vector3, goal: THREE.Vector3, joint: THREE.Vector3) {
@@ -63,18 +63,18 @@ function aimBone(bone: THREE.Bone, current: THREE.Vector3, goal: THREE.Vector3, 
   _v.copy(goal).sub(joint);
   if (_u.lengthSq() < 1e-10 || _v.lengthSq() < 1e-10) return;
   _worldQ.setFromUnitVectors(_u.normalize(), _v.normalize());
-  rotateInWorld(bone, _worldQ, _parentQ);
+  applyWorldRotation(bone, _worldQ, _parentQ);
 }
 
-function writeDebug(arms: Arm[], side: Side, upperLength: number | null, lowerLength: number) {
+function writeArmIkDebug(arms: Arm[], side: Side, upperLength: number | null, lowerLength: number) {
   if (side !== "r") return;
   // 배열·문자열을 프레임마다 만드는 값이라 개발 중에만 적는다.
   if (!import.meta.env.DEV) return;
   const rightArm = arms.find((a) => a.side === "r");
   if (rightArm) _W2.setFromMatrixPosition(rightArm.hand.matrixWorld);
-  armIkDebug.shoulder = roundedPoint(_S);
-  armIkDebug.target = roundedPoint(_T);
-  armIkDebug.hand = roundedPoint(_W2);
+  armIkDebug.shoulder = roundPoint(_S);
+  armIkDebug.target = roundPoint(_T);
+  armIkDebug.hand = roundPoint(_W2);
   armIkDebug.remainingDistance = +_W2.distanceTo(_T).toFixed(3);
   armIkDebug.shoulderToTarget = +_S.distanceTo(_T).toFixed(3);
   if (upperLength != null) armIkDebug.armLength = +(upperLength + lowerLength).toFixed(3);
@@ -135,14 +135,14 @@ function solveWithPole(
   _W.setFromMatrixPosition(hand.matrixWorld);
   aimBone(lower, _W, _wristGoal, _E);
   if (side === "r") {
-    writeDebug(arms, side, L1, L2);
-    if (import.meta.env.DEV) armIkDebug.elbow = roundedPoint(_elbowGoal);
+    writeArmIkDebug(arms, side, L1, L2);
+    if (import.meta.env.DEV) armIkDebug.elbow = roundPoint(_elbowGoal);
   }
 }
 
 // 부호 시험 방식(폴 없음) — 폴이 꺼져 있을 때의 기본. 오른팔은 이 방식으로 화면을 보며 맞춰 두었다.
 // 굽혀 본 뒤 팔꿈치가 몸 뒤로 빠지면 반대로 굽힌다.
-function solveLegacy(
+function solveBySignTest(
   arms: Arm[],
   { side, upper, lower, hand }: Arm,
   weight: number,
@@ -172,7 +172,7 @@ function solveLegacy(
     _n.normalize();
     const rotateArm = (bone: THREE.Bone, axis: THREE.Vector3, angle: number) => {
       _worldQ.setFromAxisAngle(axis, angle);
-      rotateInWorld(bone, _worldQ, _parentQ);
+      applyWorldRotation(bone, _worldQ, _parentQ);
     };
     // 팔꿈치가 몸 뒤로 빠졌나 — 어깨·손 중점에서 팔꿈치로 가는 벡터의 −z 성분
     const elbowBehind = () => {
@@ -197,9 +197,9 @@ function solveLegacy(
     _u.copy(_W2).sub(_S).normalize();
     _v.copy(_T).sub(_S).normalize();
     _worldQ.setFromUnitVectors(_u, _v);
-    rotateInWorld(upper, _worldQ, _parentQ);
+    applyWorldRotation(upper, _worldQ, _parentQ);
   }
-  writeDebug(arms, side, L1, L2);
+  writeArmIkDebug(arms, side, L1, L2);
 }
 
 /**
@@ -247,7 +247,7 @@ export function solveArms(prepared: PreparedBody, state: AvatarLink, group: THRE
         if (skin && rightUpper) {
           _bodyV.setFromMatrixPosition(rightUpper.matrixWorld);
           prepared.model.worldToLocal(_bodyV);
-          const depth = chestHalfDepth(skin, _bodyV.y, _bodyV.z);
+          const depth = measureChestHalfDepth(skin, _bodyV.y, _bodyV.z);
           state.torsoHalfDepth = depth == null ? null : depth * (prepared.model.getWorldScale(_bodyScale).x || 1);
         } else state.torsoHalfDepth = null;
       }
@@ -261,7 +261,7 @@ export function solveArms(prepared: PreparedBody, state: AvatarLink, group: THRE
     const { weight, target } = armRequests[arm.side];
     if (!(weight > 0.001) || !target) return;
     if (pole.enabled) solveWithPole(prepared.arms, arm, weight, target, pole, group);
-    else solveLegacy(prepared.arms, arm, weight, target, group);
+    else solveBySignTest(prepared.arms, arm, weight, target, group);
   });
   return armRequests;
 }

@@ -40,7 +40,7 @@ export default function SocialLogin({ onSignedIn }: SocialLoginProps) {
       <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center" }}>
         <button
           type="button"
-          className="btn"
+          className="button"
           style={{ ...socialButtonStyle, background: COLOR.white, ...(isBusy ? busyStyle : {}) }}
           onClick={handleGoogle}
           title="Google 로 로그인"
@@ -56,7 +56,7 @@ export default function SocialLogin({ onSignedIn }: SocialLoginProps) {
         </button>
         <button
           type="button"
-          className="btn"
+          className="button"
           style={{ ...socialButtonStyle, background: "#03c75a", borderColor: "#03c75a" }}
           onClick={handleNaver}
           title="네이버로 로그인"

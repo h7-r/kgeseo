@@ -6,16 +6,16 @@ import { useThree } from "@react-three/fiber";
 
 import { METERS_PER_UNIT, UNITS_PER_METER } from "../plan/sitePlan";
 import { findAsset } from "./assetCatalog";
-import { EDIT_BOUNDS, GROUND_MESHES, OUTER_GROUND, clamp, type Selection } from "./editorConfig";
-import { addInstances, modifyInstance, type Edits } from "./instanceGroups";
-import { groundBelow, panView } from "./overviewCamera";
+import { clamp, EDIT_BOUNDS, GROUND_MESHES, OUTER_GROUND_MESHES, type Selection } from "./editorConfig";
+import { addInstance, modifyInstance, type Edits } from "./instanceGroups";
+import { heightBelowCamera, panCamera } from "./overviewCamera";
 import type { usePicking } from "./usePicking";
 
 /** 붓으로 고른 물건을 (x, y, z) 바닥에 하나 놓는다 */
 function placeAsset(edits: Edits, brushKey: string, x: number, y: number, z: number) {
   const asset = findAsset(brushKey);
   // 필드 순서가 곧 편집 파일의 필드 순서다
-  const { edits: next, id } = addInstances(edits, brushKey, {
+  const { edits: next, id } = addInstance(edits, brushKey, {
     x,
     y: y - (asset?.centerOrigin ? -(asset.defaultSize ?? 1) * 0.3 : 0),
     z,
@@ -32,7 +32,7 @@ function placeAsset(edits: Edits, brushKey: string, x: number, y: number, z: num
 interface PointerEditingOptions {
   enabled: boolean;
   picking: ReturnType<typeof usePicking>;
-  groundHeightAt: ((x: number, z: number) => number) | null | undefined;
+  heightAt: ((x: number, z: number) => number) | null | undefined;
   editsRef: MutableRefObject<Edits>;
   brushRef: MutableRefObject<string | null>;
   selectedRef: MutableRefObject<Selection | null>;
@@ -45,7 +45,7 @@ interface PointerEditingOptions {
 export function usePointerEditing({
   enabled,
   picking,
-  groundHeightAt,
+  heightAt,
   editsRef,
   brushRef,
   selectedRef,
@@ -55,19 +55,19 @@ export function usePointerEditing({
   setNotice,
 }: PointerEditingOptions) {
   const { camera, scene, gl } = useThree();
-  const { raycaster, aimAt, pick, floorHeight, describeMiss } = picking;
-  const floorHeightRef = useRef(floorHeight);
+  const { raycaster, aimAt, pickInstance, floorHeightAt, describeMiss } = picking;
+  const floorHeightAtRef = useRef(floorHeightAt);
   const describeMissRef = useRef(describeMiss);
-  const groundHeightRef = useRef(groundHeightAt);
+  const heightAtRef = useRef(heightAt);
   const panDrag = useRef<{ x: number; y: number } | null>(null); // 가운데 버튼 끌기
   const drag = useRef<{ start: [number, number]; moved: boolean } | null>(null);
   const orbitDrag = useRef<{ x: number; y: number } | null>(null); // 오른쪽 버튼
 
   // 리스너는 한 번만 붙이고(렌더마다 다시 붙으면 드래그가 끊긴다) 최신 값은 ref 로 본다
   useLayoutEffect(() => {
-    floorHeightRef.current = floorHeight;
+    floorHeightAtRef.current = floorHeightAt;
     describeMissRef.current = describeMiss;
-    groundHeightRef.current = groundHeightAt;
+    heightAtRef.current = heightAt;
   });
 
   useEffect(() => {
@@ -89,7 +89,7 @@ export function usePointerEditing({
       if (hits.length) {
         x = hits[0].point.x * METERS_PER_UNIT;
         z = hits[0].point.z * METERS_PER_UNIT;
-        if (OUTER_GROUND.has(hits[0].object.name)) hitY = hits[0].point.y * METERS_PER_UNIT;
+        if (OUTER_GROUND_MESHES.has(hits[0].object.name)) hitY = hits[0].point.y * METERS_PER_UNIT;
       } else {
         plane.set(new THREE.Vector3(0, 1, 0), -baseY * UNITS_PER_METER);
         if (!raycaster.current.ray.intersectPlane(plane, planeHit)) return null;
@@ -105,7 +105,7 @@ export function usePointerEditing({
       const spot = groundUnderCursor(ev, 0);
       if (!spot) return;
       const [x, z, outerY] = spot;
-      const y = outerY !== null ? outerY : floorHeightRef.current(x, z, 0);
+      const y = outerY !== null ? outerY : floorHeightAtRef.current(x, z, 0);
       undoStack.current.push(editsRef.current);
       const { edits: next, id, label } = placeAsset(editsRef.current, brushKey, x, y, z);
       setEdits(next);
@@ -132,7 +132,7 @@ export function usePointerEditing({
         placeBrush(ev, brushKey);
         return;
       }
-      const found = pick(ev);
+      const found = pickInstance(ev);
       if (found) {
         setSelected(found);
         selectedRef.current = found;
@@ -154,10 +154,10 @@ export function usePointerEditing({
         const dx = ev.clientX - panDrag.current.x;
         const dy = ev.clientY - panDrag.current.y;
         panDrag.current = { x: ev.clientX, y: ev.clientY };
-        const groundY = groundBelow(camera, groundHeightRef.current);
+        const groundY = heightBelowCamera(camera, heightAtRef.current);
         const height = Math.max(2, camera.position.y * METERS_PER_UNIT - groundY);
         const factor = height * 0.0022;
-        panView(camera, -dx * factor, dy * factor);
+        panCamera(camera, -dx * factor, dy * factor);
         return;
       }
       if (orbitDrag.current) {
@@ -185,7 +185,7 @@ export function usePointerEditing({
       const spot = groundUnderCursor(ev, chosen.y);
       if (!spot) return;
       const [x, z, outerY] = spot;
-      const y = outerY !== null ? outerY : floorHeightRef.current(x, z, chosen.y);
+      const y = outerY !== null ? outerY : floorHeightAtRef.current(x, z, chosen.y);
       const moved = { ...chosen, x, y, z };
       selectedRef.current = moved;
       setSelected(moved);
@@ -221,7 +221,7 @@ export function usePointerEditing({
     };
   }, [
     enabled,
-    pick,
+    pickInstance,
     aimAt,
     gl,
     camera,

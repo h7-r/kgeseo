@@ -4,7 +4,7 @@ import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 // 「한 번에 하나의 모달」(GRD-11 · CMN-035). 창마다 열림 상태를 따로 들면 무엇을 눌러야 닫히는지 모르게 된다.
-export const LAYERS = {
+export const OVERLAY_LAYERS = {
   inventory: "inventory",
   notebook: "notebook",
   hint: "hint",
@@ -12,16 +12,16 @@ export const LAYERS = {
   settings: "settings",
 } as const;
 
-export type Layer = (typeof LAYERS)[keyof typeof LAYERS];
+export type OverlayLayerName = (typeof OVERLAY_LAYERS)[keyof typeof OVERLAY_LAYERS];
 
-let openLayer: Layer | null = null;
+let openLayer: OverlayLayerName | null = null;
 const signal = createChangeSignal();
 
 export const overlayLayer = {
-  get: (): Layer | null => openLayer,
+  get: (): OverlayLayerName | null => openLayer,
   subscribe: signal.subscribe,
   /** 다른 창이 열려 있으면 그냥 덮인다. */
-  open(layer: Layer) {
+  open(layer: OverlayLayerName) {
     if (openLayer === layer) return;
     openLayer = layer;
     signal.notify();
@@ -32,7 +32,7 @@ export const overlayLayer = {
     signal.notify();
   },
   /** 같은 창을 다시 부르면 닫힌다. */
-  toggle(layer: Layer) {
+  toggle(layer: OverlayLayerName) {
     openLayer = openLayer === layer ? null : layer;
     signal.notify();
   },

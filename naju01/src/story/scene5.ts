@@ -8,15 +8,15 @@
 
 import type * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import type { Spot } from "../placement/instanceGroups";
 import {
-  ball,
-  box,
-  bundle,
-  cylinder,
-  paint,
+  applyColor,
+  buildBall,
+  buildBox,
+  buildCylinder,
+  mergePieces,
   placeOnGround,
   type SceneNote,
   type SceneSpotOptions,
@@ -40,8 +40,8 @@ const SCENE5_STYLE = {
  * 금줄 — 기둥 둘 사이에 새끼줄을 치고 천을 맨다. 「여기는 그냥 자갈밭이 아니다」.
  * 팽팽한 줄은 빨랫줄이다 — 제 무게로 가운데가 처져야 금줄로 본다. 줄은 국소 X 축을 따라 걸린다.
  */
-export function sacredRopePrototypes(count = 2, seed = 8501): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildSacredRopePrototypes(count = 2, seed = 8501): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const clothColors = [SCENE5_STYLE.clothWhite, SCENE5_STYLE.clothRed, SCENE5_STYLE.clothBlue];
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
@@ -52,14 +52,14 @@ export function sacredRopePrototypes(count = 2, seed = 8501): THREE.BufferGeomet
     const sag = 0.2 + random() * 0.05;
     // 바깥으로 조금 벌려 박는다. 곧게 서면 줄에 끌려 보인다.
     for (const s of [-1, 1]) {
-      const post = cylinder(0.055, 0.075, postHeight, 6);
+      const post = buildCylinder(0.055, 0.075, postHeight, 6);
       post.translate(0, postHeight / 2, 0);
       post.rotateZ(-s * (0.04 + random() * 0.03));
       post.translate(s * halfSpan, 0, (random() - 0.5) * 0.08);
-      pieces.push(paint(post, SCENE5_STYLE.post));
-      const cap = cylinder(0.085, 0.06, 0.07, 6);
+      pieces.push(applyColor(post, SCENE5_STYLE.post));
+      const cap = buildCylinder(0.085, 0.06, 0.07, 6);
       cap.translate(s * halfSpan, postHeight - 0.01, 0);
-      pieces.push(paint(cap, SCENE5_STYLE.postDark));
+      pieces.push(applyColor(cap, SCENE5_STYLE.postDark));
     }
     // 처진 줄 — 포물선을 도막으로 잇는다
     const segments = 14;
@@ -72,10 +72,10 @@ export function sacredRopePrototypes(count = 2, seed = 8501): THREE.BufferGeomet
       const y0 = ropeHeight(t0);
       const y1 = ropeHeight(t1);
       const length = Math.hypot(x1 - x0, y1 - y0);
-      const rope = cylinder(0.026, 0.026, length * 1.08, 4);
+      const rope = buildCylinder(0.026, 0.026, length * 1.08, 4);
       rope.rotateZ(Math.PI / 2 - Math.atan2(y1 - y0, x1 - x0));
       rope.translate((x0 + x1) / 2, (y0 + y1) / 2, 0);
-      pieces.push(paint(rope, SCENE5_STYLE.straw));
+      pieces.push(applyColor(rope, SCENE5_STYLE.straw));
     }
     // 매단 천 다섯 자락. 금줄에 매는 천은 한 뼘 남짓 — 길면 색칠한 널빤지가 걸린 꼴이다.
     for (let k = 0; k < 5; k++) {
@@ -88,15 +88,15 @@ export function sacredRopePrototypes(count = 2, seed = 8501): THREE.BufferGeomet
       let y = top;
       let lean = (random() - 0.5) * 0.35;
       for (let j = 0; j < 2; j++) {
-        const strip = box(0.045, length / 2, 0.01);
+        const strip = buildBox(0.045, length / 2, 0.01);
         strip.rotateZ(lean);
         strip.translate(x + Math.sin(lean) * (length / 4), y - length / 4, 0.02);
-        pieces.push(paint(strip, color));
+        pieces.push(applyColor(strip, color));
         y -= length / 2;
         lean += (random() - 0.5) * 0.45;
       }
     }
-    prototypes.push(bundle(pieces));
+    prototypes.push(mergePieces(pieces));
   }
   return prototypes;
 }
@@ -105,42 +105,42 @@ export function sacredRopePrototypes(count = 2, seed = 8501): THREE.BufferGeomet
  * 소반 — 누가 와서 차린 작은 상. 큰 제단은 관이 세운 것이고 소반은 사람이 들고 온 것이다.
  * 받침돌 + 소반 + 놋그릇 둘 + 얹은 돌 하나. 그 돌이 「이 자리의 이야기」와 잇는다.
  */
-export function smallTablePrototypes(count = 3, seed = 8502): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildSmallTablePrototypes(count = 3, seed = 8502): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const pieces: THREE.BufferGeometry[] = [];
     // 자갈밭에 그냥 놓으면 기운다
-    const base = ball(0.62, 0);
+    const base = buildBall(0.62, 0);
     base.scale(1.15, 0.3, 1.0);
     base.translate(0, 0.1, 0);
-    pieces.push(paint(base, SCENE5_STYLE.stone));
-    const top = box(0.95, 0.075, 0.72);
+    pieces.push(applyColor(base, SCENE5_STYLE.stone));
+    const top = buildBox(0.95, 0.075, 0.72);
     top.translate(0, 0.36, 0);
-    pieces.push(paint(top, SCENE5_STYLE.table));
+    pieces.push(applyColor(top, SCENE5_STYLE.table));
     for (const sx of [-1, 1])
       for (const sz of [-1, 1]) {
-        const leg = box(0.07, 0.16, 0.07);
+        const leg = buildBox(0.07, 0.16, 0.07);
         leg.translate(sx * 0.38, 0.245, sz * 0.27);
-        pieces.push(paint(leg, SCENE5_STYLE.table));
+        pieces.push(applyColor(leg, SCENE5_STYLE.table));
       }
     // 물 한 그릇, 밥 한 그릇
     for (let k = 0; k < 2; k++) {
       const r = 0.16 - k * 0.025;
-      const bowl = cylinder(r * 0.62, r, 0.16, 9);
+      const bowl = buildCylinder(r * 0.62, r, 0.16, 9);
       bowl.translate(-0.2 + k * 0.42, 0.48, (random() - 0.5) * 0.12);
-      pieces.push(paint(bowl, SCENE5_STYLE.brass));
-      const rim = cylinder(r * 1.06, r * 1.06, 0.022, 9);
+      pieces.push(applyColor(bowl, SCENE5_STYLE.brass));
+      const rim = buildCylinder(r * 1.06, r * 1.06, 0.022, 9);
       rim.translate(-0.2 + k * 0.42, 0.565, 0);
-      pieces.push(paint(rim, SCENE5_STYLE.brass));
+      pieces.push(applyColor(rim, SCENE5_STYLE.brass));
     }
     // 밥과 물만이면 여느 제사다 — 돌무지에 얹는 그 돌이 하나 올라 있다
-    const stone = ball(0.12, 0);
+    const stone = buildBall(0.12, 0);
     stone.scale(1.1, 0.72, 0.9);
     stone.rotateY(random() * 6.3);
     stone.translate(0.06, 0.44, -0.2);
-    pieces.push(paint(stone, SCENE5_STYLE.stoneDark));
-    prototypes.push(bundle(pieces));
+    pieces.push(applyColor(stone, SCENE5_STYLE.stoneDark));
+    prototypes.push(mergePieces(pieces));
   }
   return prototypes;
 }
@@ -155,10 +155,10 @@ export const SCENE5_NOTES: Record<Scene5PropKey, SceneNote> = {
 
 // (45, 37) 은 평탄하고 둘레 2~3 m 가 비었지만 1.9 m 앞에 큰 자갈이 있어 z 36~39 · x 43~48 띠에 몰아 놓는다.
 // 금줄을 등지고(북·절벽 쪽) 소반, 사람이 오는 쪽(남·물가)에 돌무지 — 오면서 하나씩 얹은 모양이다.
-export function scene5Spots({ groundHeight }: SceneSpotOptions): Record<Scene5PropKey, Spot[]> {
+export function computeScene5Spots({ heightAt }: SceneSpotOptions): Record<Scene5PropKey, Spot[]> {
   return {
     // 다 같은 키면 누가 한 번에 쌓은 것이 되어 「여럿이 하나씩」이 안 읽힌다
-    stonePile: placeOnGround(groundHeight, [
+    stonePile: placeOnGround(heightAt, [
       { x: 45.0, z: 38.2, size: 0.95, shapeIndex: 0, rotation: 0.4, widthRatio: 0.6, depthRatio: 0.6 },
       { x: 43.9, z: 37.6, size: 0.62, shapeIndex: 1, rotation: 2.1, widthRatio: 0.62, depthRatio: 0.62 },
       { x: 46.2, z: 37.9, size: 0.55, shapeIndex: 2, rotation: 4.0, widthRatio: 0.6, depthRatio: 0.6 },
@@ -170,9 +170,9 @@ export function scene5Spots({ groundHeight }: SceneSpotOptions): Record<Scene5Pr
     ]),
 
     // 자리 뒤쪽(−Z)에 하나. 키 1.5 m 면 눈높이 아래에 줄이 걸려 가리지 않고 구획한다.
-    sacredRope: placeOnGround(groundHeight, [{ x: 45.0, z: 36.2, size: 1.5, shapeIndex: 0, rotation: 0.12 }]),
+    sacredRope: placeOnGround(heightAt, [{ x: 45.0, z: 36.2, size: 1.5, shapeIndex: 0, rotation: 0.12 }]),
 
     // 조사점 (45, 37) 그 자리. 한 사람이 들고 오는 크기(상판 0.73 m).
-    smallTable: placeOnGround(groundHeight, [{ x: 45.0, z: 37.0, size: 0.38, shapeIndex: 0, rotation: 0.12 }]),
+    smallTable: placeOnGround(heightAt, [{ x: 45.0, z: 37.0, size: 0.38, shapeIndex: 0, rotation: 0.12 }]),
   };
 }

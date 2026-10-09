@@ -19,7 +19,7 @@ export interface Point3 {
   readonly z: number;
 }
 
-export interface InteractableInfo {
+export interface InteractableSpec {
   label?: string | (() => string);
   position: () => Vector3Tuple | null | undefined;
   run: () => void;
@@ -34,19 +34,19 @@ export interface InteractableInfo {
 // 겨냥은 고개만 돌려도 바뀐다. 물건 상태와 같은 상자에 두면 둘러보기만 해도
 // 로비 전체가 다시 그려지므로 따로 둔다.
 
-const targets = new Map<string, InteractableInfo>();
+const interactables = new Map<string, InteractableSpec>();
 
 let aimedId: string | null = null;
 const aimSignal = createChangeSignal();
 
-export const aim = {
+export const aimStore = {
   get: () => aimedId,
   subscribe: aimSignal.subscribe,
 };
 
 /** 지금 겨냥 중인 것을 실행한다. 처리했으면 true (E 키가 여기서 소비된다). */
-export function runAimed() {
-  const target = aimedId && targets.get(aimedId);
+export function runAimedInteraction() {
+  const target = aimedId && interactables.get(aimedId);
   if (!target) return false;
   target.run();
   return true;
@@ -65,7 +65,7 @@ const forward = new THREE.Vector3();
 const offset = new THREE.Vector3();
 
 // 이미 한 번 알린 대상은 다시 찍지 않는다(매 프레임 콘솔이 넘친다).
-const brokenTargets = new Set<string>();
+const brokenInteractableIds = new Set<string>();
 
 /**
  * 겨냥 대상을 다시 고른다. 겨냥판정 컴포넌트가 정한 주기마다 부른다.
@@ -90,7 +90,7 @@ export function updateAim(camera: THREE.Camera, enabled = true, origin: Point3 |
   let bestScore = Infinity;
   const holding = !!state.heldItem;
 
-  for (const [id, target] of targets) {
+  for (const [id, target] of interactables) {
     // 한 대상이 터지면 겨냥 루프 전체(문·집기·호버)가 멈춘다. 건너뛰기만 한다.
     let point: Vector3Tuple | null | undefined;
     try {
@@ -98,8 +98,8 @@ export function updateAim(camera: THREE.Camera, enabled = true, origin: Point3 |
       if (disabled) continue;
       point = target.position();
     } catch (error) {
-      if (!brokenTargets.has(id)) {
-        brokenTargets.add(id);
+      if (!brokenInteractableIds.has(id)) {
+        brokenInteractableIds.add(id);
         console.error(`[겨냥] "${id}" 가 말썽이라 건너뜁니다.`, error);
       }
       continue;
@@ -133,9 +133,9 @@ export function updateAim(camera: THREE.Camera, enabled = true, origin: Point3 |
 }
 
 /** 지금 겨냥한 것의 자리. 손붙이기가 팔을 그쪽으로 뻗는다. */
-export function aimedPosition(): Vector3Tuple | null {
+export function getAimedPosition(): Vector3Tuple | null {
   if (!aimedId) return null;
-  const target = targets.get(aimedId);
+  const target = interactables.get(aimedId);
   if (!target) return null;
   try {
     return target.position() ?? null;
@@ -148,13 +148,13 @@ export function aimedPosition(): Vector3Tuple | null {
  * 겨냥 대상으로 등록한다. 컴포넌트가 살아 있는 동안만.
  * position·run 은 매 렌더 새 함수라 의존성에 넣으면 등록이 계속 풀린다 — 최신 값을 ref 로 읽는다.
  */
-export function useInteractable(id: string, info: InteractableInfo) {
+export function useInteractable(id: string, info: InteractableSpec) {
   const latest = useRef(info);
   useLayoutEffect(() => {
     latest.current = info;
   });
   useEffect(() => {
-    targets.set(id, {
+    interactables.set(id, {
       get label() {
         return latest.current.label;
       },
@@ -171,7 +171,7 @@ export function useInteractable(id: string, info: InteractableInfo) {
       run: () => latest.current.run(),
     });
     return () => {
-      targets.delete(id);
+      interactables.delete(id);
       if (aimedId === id) {
         aimedId = null;
         aimSignal.notify();
@@ -222,7 +222,7 @@ let state: LobbyState = {
 };
 
 const lobbySignal = createChangeSignal();
-function patch(partial: Partial<LobbyState>) {
+function updateLobbyState(partial: Partial<LobbyState>) {
   state = { ...state, ...partial };
   lobbySignal.notify();
 }
@@ -261,7 +261,7 @@ function playDrawerSteps(cabinetId: string, row: number, maxAmount: number, dire
     const ratio = steps[index];
     // null 이면 서랍 컴포넌트를 떼어 GLB 앞판이 그대로 보인다(손대기 전 모습).
     const next = ratio <= 0 ? null : { row, amount: maxAmount * ratio };
-    patch({ drawers: { ...state.drawers, [cabinetId]: next } });
+    updateLobbyState({ drawers: { ...state.drawers, [cabinetId]: next } });
     if (++index >= steps.length) {
       clearInterval(drawerTimers.get(cabinetId));
       drawerTimers.delete(cabinetId);
@@ -274,17 +274,17 @@ function playDrawerSteps(cabinetId: string, row: number, maxAmount: number, dire
 // ── 램프 ──
 export const isLampOn = (id: string, fallback: boolean) => state.lamps[id] ?? fallback;
 export function toggleLamp(id: string, fallback: boolean) {
-  patch({ lamps: { ...state.lamps, [id]: !isLampOn(id, fallback) } });
+  updateLobbyState({ lamps: { ...state.lamps, [id]: !isLampOn(id, fallback) } });
 }
 
 // ── 의자 끌기 ──
 // 문 앞에 둔 의자도 다시 E 로 옮길 수 있어 갇히지 않는다(GRD-12). 놓을 자리를 제한하면
 // "왜 여기 못 놓는지"를 글자 없이 설명할 길이 없다.
-export const draggedChair = () => state.draggedChair;
+export const getDraggedChair = () => state.draggedChair;
 
 export function grabChair(id: string) {
   if (state.draggedChair || state.heldItem) return false;
-  patch({ draggedChair: id });
+  updateLobbyState({ draggedChair: id });
   startLoop("chair", { volume: 0.9 });
   return true;
 }
@@ -295,7 +295,7 @@ export function dropChair(x: number, z: number) {
   stopLoop("chair");
   // 잡은 첫 프레임에 놓으면 좌표가 비어 있을 수 있다. 그대로 쓰면 의자가 원점으로 날아간다.
   const valid = Number.isFinite(x) && Number.isFinite(z);
-  patch({
+  updateLobbyState({
     draggedChair: null,
     chairSpots: valid ? { ...state.chairSpots, [id]: { x, z } } : state.chairSpots,
   });
@@ -306,39 +306,46 @@ export function dropChair(x: number, z: number) {
 // 놓을 좌표는 placement 가 계산한다. 여기서는 결과 좌표만 물건별로 들고 있는다.
 
 type ItemSoundId = "paper" | "cupDown" | "boxUp" | "boxDown";
-const itemSound = (id: string, pickingUp: boolean): ItemSoundId =>
+const getItemSoundId = (id: string, pickingUp: boolean): ItemSoundId =>
   id.startsWith("paper") ? "paper" : id.startsWith("mug") ? "cupDown" : pickingUp ? "boxUp" : "boxDown";
 
-export function pickUp(itemId: string) {
+export function pickUpItem(itemId: string) {
   if (state.heldItem || state.draggedChair) return;
-  patch({ heldItem: itemId });
-  playSound(itemSound(itemId, true), { volume: 0.9 });
+  updateLobbyState({ heldItem: itemId });
+  playSound(getItemSoundId(itemId, true), { volume: 0.9 });
 }
 
 /** 든 것을 겹침 검사를 통과한 자리에 놓는다. */
-export function placeHeld(spot: ItemSpot | null | undefined) {
+export function placeHeldItem(spot: ItemSpot | null | undefined) {
   const held = state.heldItem;
   if (!held || !spot) return false;
-  patch({ heldItem: null, itemSpots: { ...state.itemSpots, [held]: { ...spot } } });
-  playSound(itemSound(held, false), { volume: 0.9 });
+  updateLobbyState({ heldItem: null, itemSpots: { ...state.itemSpots, [held]: { ...spot } } });
+  playSound(getItemSoundId(held, false), { volume: 0.9 });
   return true;
 }
 
 /** 든 것을 원래 자리로 돌려놓는다. */
-export function returnHeld() {
+export function returnHeldItem() {
   const held = state.heldItem;
   if (!held) return;
   const itemSpots = { ...state.itemSpots };
   delete itemSpots[held];
-  playSound(itemSound(held, false), { volume: 0.9 });
-  patch({ heldItem: null, itemSpots });
+  playSound(getItemSoundId(held, false), { volume: 0.9 });
+  updateLobbyState({ heldItem: null, itemSpots });
 }
 
 // 헤드리스 브라우저에는 포인터 잠금이 없어 겨냥이 돌지 않는다. updateAim 을 직접 돌려 시험한다.
-exposeDevHook("lobby", { lobbyStore, aim, runAimed, updateAim, aimedPosition, returnHeld });
+exposeDevHook("lobby", {
+  lobbyStore,
+  aim: aimStore,
+  runAimed: runAimedInteraction,
+  updateAim,
+  aimedPosition: getAimedPosition,
+  returnHeld: returnHeldItem,
+});
 // 등록된 상호작용 지점 전부와 그 자리. 하나씩 걸어가 확인하지 않으려고 둔다.
 exposeDevHook("targets", () =>
-  [...targets].map(([id, target]) => {
+  [...interactables].map(([id, target]) => {
     let position: Vector3Tuple | null | undefined | "오류";
     let disabled: boolean | undefined | "오류";
     try {

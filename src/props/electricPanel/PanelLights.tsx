@@ -21,7 +21,7 @@ function isIgnitionOn(t: number) {
 }
 
 /** 쉬지 않고 깜빡이면 고장 난 형광등이다. 두 번 치고 한동안 숨 쉬어야 신호로 읽힌다. 1 을 넘는 만큼 Bloom 이 번진다. */
-function coverIntensity(t: number) {
+function computeCoverIntensity(t: number) {
   if (t < IGNITION_END) return isIgnitionOn(t) ? 3.4 : 0.04;
   const u = (t - IGNITION_END) % 2.7;
   if (u < 0.1) return 3.1;
@@ -31,7 +31,7 @@ function coverIntensity(t: number) {
 }
 
 /** 0 = 원래 어두운 철판, 1 = 흰빛. 붙는 동안은 섞지 않고 오간다 — 섞으면 '반짝'이 아니라 '서서히'다. */
-function coverWhiteness(t: number) {
+function computeCoverWhiteness(t: number) {
   if (t < IGNITION_END) return isIgnitionOn(t) ? 1 : 0;
   return 1;
 }
@@ -97,9 +97,9 @@ export function CoverLight({ geometry, offColor, brightness, outline, isOn }: Pa
     }
     if (!startedAt.current) startedAt.current = performance.now();
     const t = (performance.now() - startedAt.current) / 1000;
-    material.emissiveIntensity = coverIntensity(t);
+    material.emissiveIntensity = computeCoverIntensity(t);
     // 판 색도 같이 간다 — emissive 만 올리면 테두리만 빛나 뒤에서 비치는 것처럼 보인다.
-    material.color.copy(off).lerp(t < IGNITION_END ? IGNITION_COLOR : SETTLED_COLOR, coverWhiteness(t));
+    material.color.copy(off).lerp(t < IGNITION_END ? IGNITION_COLOR : SETTLED_COLOR, computeCoverWhiteness(t));
   });
   if (!geometry) return null;
   return (

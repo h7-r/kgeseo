@@ -8,7 +8,7 @@
  * 붙은 뒤 → 구운 땅이 도착」하는 순서로 깔려 왔고, 손 배치(assets/edits.json)가 그 생성 순서 번호로 남아 있다.
  * 구운 땅이 첫 렌더부터 있으면 자리가 달라져 지운 것·옮긴 것이 엉뚱한 물건에 붙는다.
  */
-import { loadTexturedModel, TEXTURED_MODEL_LABELS, TEXTURED_MODEL_NAMES } from "../loaders/useTexturedModels";
+import { loadTexturedModel, TEXTURED_MODEL_LABELS, TEXTURED_MODEL_NAMES } from "../loaders/useTexturedModel";
 import { prefetchEdits } from "../placement/editFile";
 
 type PrefetchProgress = (done: number, total: number, label: string) => void;

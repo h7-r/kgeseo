@@ -6,13 +6,13 @@ import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { NOZZLE_DIMENSIONS } from "@/props/hydrantCabinet/nozzleGeometry";
 import { SWITCH_ID_MARK } from "@/props/hingeState";
-import { nozzleLocation } from "@/props/nozzleState";
-import { areAllCircuitsLive, isCircuitLive, registerSwitchIds, type WireColor } from "@/props/panelWiring";
-import type { HighlightSettings } from "@/props/shared/aimTarget";
+import { getNozzleLocation } from "@/props/nozzleState";
+import { areAllCircuitsLive, isCircuitLive, registerSwitchIds, type WireColor } from "@/props/panelWiringState";
+import type { AimHighlightSettings } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
 import BreakerSwitch from "./BreakerSwitch";
-import { DANGER_LABEL_HEIGHT, DANGER_LABEL_WIDTH, dangerLabelTexture } from "./dangerLabelTexture";
+import { DANGER_LABEL_HEIGHT, DANGER_LABEL_WIDTH, makeDangerLabelTexture } from "./dangerLabelTexture";
 import NozzleSocket from "./NozzleSocket";
 import { buildPanelGeometries, disposePanelGeometries } from "./panelGeometry";
 import { computePanelLayout, PULL_SIDE, type PanelDimensions } from "./panelLayout";
@@ -65,7 +65,7 @@ export interface ElectricPanelInteriorProps extends Partial<PanelDimensions> {
   lampRimColor?: string;
   /** 스위치 id 가 이 이름 뒤에 붙는다 */
   panelId?: string;
-  highlight?: HighlightSettings;
+  highlight?: AimHighlightSettings;
   /** 꽂힌 관창 색 — 소화전함 금속색과 같아야 한다 */
   nozzleColor?: string;
   /** 꽂힌 관창을 구멍 축으로 더 밀거나 뺀다(0 = 계산대로) */
@@ -284,9 +284,9 @@ export default function ElectricPanelInterior({
     registerSwitchIds([switchId(0), switchId(1), switchId(2)]);
   }, [panelId, colorRows]);
   // 계기창은 마지막 관문 — 회로가 다 이어진 위에 관창까지 꽂혀야 켜진다. 덮개만 보고도 "선은 다 됐다"를 안다.
-  const isMeterLit = () => areAllCircuitsLive() && nozzleLocation() === "plugged";
+  const isMeterLit = () => areAllCircuitsLive() && getNozzleLocation() === "plugged";
 
-  const labelMap = dangerLabel ? dangerLabelTexture(labelColor) : null;
+  const labelMap = dangerLabel ? makeDangerLabelTexture(labelColor) : null;
 
   // 외곽선은 픽셀 단위라 가는 전선에 그대로 두르면 통째로 검게 칠해진다 — 굵은 선은 얇게, 가는 선은 안 두른다.
   const thickOutline = outline?.outline

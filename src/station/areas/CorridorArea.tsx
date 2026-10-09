@@ -10,20 +10,24 @@ import CorridorSideDoor from "@/station/corridor/CorridorSideDoor";
 import SecretCorridor from "@/station/corridor/SecretCorridor";
 import SlidingWall from "@/station/corridor/SlidingWall";
 import FloorHintPaper from "@/station/hands/FloorHintPaper";
-import { dynamicColliders, hit, type ColliderBox } from "@/station/layout/collision";
-import { MIN_X } from "@/station/layout/dimensions";
+import { dynamicColliders, isBlockedForPlayer, type ColliderBox } from "@/station/layout/collision";
+import { HEADQUARTERS_MIN_X } from "@/station/layout/dimensions";
 import { TutorialDirectionArrow } from "@/tutorial/TutorialDirection";
 import TutorialFloorMarker from "@/tutorial/TutorialFloorMarker";
 
-import type { HydrantControls, PadlockControls, PanelInteriorValues } from "../controls/corridorCabinetControls";
+import type {
+  HydrantControlValues,
+  PadlockControlValues,
+  PanelInteriorValues,
+} from "../controls/corridorCabinetControls";
 import type { CorridorValues } from "../controls/corridorControls";
-import type { SurfaceValues } from "../controls/roomControls";
+import type { SurfaceValues } from "../controls/headquartersControls";
 import type { HighlightValues } from "../controls/systemControls";
-import type { CoinValues, VendingControls } from "../controls/vendingControls";
+import type { CoinValues, VendingControlValues } from "../controls/vendingControls";
 import type { WorkLampPuzzleValues } from "../controls/workLampControls";
 import CorridorCabinets from "./CorridorCabinets";
 import CorridorCoins from "./CorridorCoins";
-import { corridorZ, type CorridorShading } from "./corridorHooks";
+import { getCorridorZ, type CorridorShading } from "./corridorHooks";
 import CorridorLights from "./CorridorLights";
 import VendingArea from "./VendingArea";
 
@@ -45,10 +49,10 @@ interface CorridorAreaProps {
   surface: SurfaceValues;
   shading: CorridorShading;
   workLamp: WorkLampPuzzleValues;
-  hydrant: HydrantControls;
-  padlock: PadlockControls;
+  hydrant: HydrantControlValues;
+  padlock: PadlockControlValues;
   panelInterior: PanelInteriorValues;
-  vending: VendingControls;
+  vending: VendingControlValues;
   coin: CoinValues;
   coinOutline: OutlineValues;
   highlight: HighlightValues;
@@ -87,7 +91,7 @@ export default function CorridorArea({
     <>
       <SecretCorridor
         x0={corridor.outerX}
-        x1={MIN_X}
+        x1={HEADQUARTERS_MIN_X}
         z0={corridor.startZ}
         z1={corridor.endZ}
         height={corridor.height}
@@ -119,7 +123,7 @@ export default function CorridorArea({
       {corridor.clutterVisible && (
         <CorridorClutter
           x0={corridor.outerX}
-          x1={MIN_X}
+          x1={HEADQUARTERS_MIN_X}
           z0={corridor.startZ}
           z1={corridor.endZ}
           count={Math.round((corridor.endZ - corridor.startZ) * corridor.clutterDensity)}
@@ -140,7 +144,7 @@ export default function CorridorArea({
       {corridor.corrosionVisible && (
         <CorridorCorrosion
           x0={corridor.outerX}
-          x1={MIN_X}
+          x1={HEADQUARTERS_MIN_X}
           z0={corridor.startZ}
           z1={corridor.endZ}
           floorY={CORRIDOR_FLOOR_Y}
@@ -162,7 +166,7 @@ export default function CorridorArea({
       {corridor.pipesVisible && (
         <CorridorPipes
           x0={corridor.outerX}
-          x1={MIN_X}
+          x1={HEADQUARTERS_MIN_X}
           z0={corridor.startZ}
           z1={corridor.endZ}
           height={corridor.height}
@@ -201,7 +205,7 @@ export default function CorridorArea({
             corridor.sideDoorCount === 1
               ? (corridor.sideDoorStart + corridor.sideDoorEnd) / 2
               : corridor.sideDoorStart + ((corridor.sideDoorEnd - corridor.sideDoorStart) * i) / sideDoorSpan;
-          const z = corridorZ(corridor, t);
+          const z = getCorridorZ(corridor, t);
           return (
             <CorridorSideDoor
               key={`sd${i}`}
@@ -240,10 +244,15 @@ export default function CorridorArea({
       {/* 복도 반대쪽 끝의 퍼즐. 손에 든 램프는 구역 밖(HeldItemsLayer)에서 그린다. */}
       {workLamp.visible && (
         <WorkLampPuzzle
-          corridor={{ outerX: corridor.outerX, innerX: MIN_X, startZ: corridor.startZ, height: corridor.height }}
+          corridor={{
+            outerX: corridor.outerX,
+            innerX: HEADQUARTERS_MIN_X,
+            startZ: corridor.startZ,
+            height: corridor.height,
+          }}
           values={workLamp}
           brightnessAt={brightnessAt}
-          isBlocked={hit}
+          isBlocked={isBlockedForPlayer}
           registerCollider={registerPuzzleCollider}
           outline={outline}
         />
@@ -252,7 +261,7 @@ export default function CorridorArea({
       {/* 복도 끝 비상계단 문 — 차단기 → 해제 버튼 → 이 문. 전기가 와야 유도등도 켜진다 */}
       {corridor.endDoorVisible && (
         <CorridorEndDoor
-          x={(corridor.outerX + MIN_X) / 2}
+          x={(corridor.outerX + HEADQUARTERS_MIN_X) / 2}
           z={corridor.startZ}
           inward={1}
           width={corridor.endDoorWidth}
@@ -299,7 +308,7 @@ export default function CorridorArea({
 
       {/* 구멍 테두리 — 리빌(안쪽 단면)·찢어진 가장자리·발치 잔해. 벽 구멍 자체는 방 벽을 쪼개 뚫는다. */}
       <BrokenDoorFrame
-        x={MIN_X}
+        x={HEADQUARTERS_MIN_X}
         doorZ={corridor.doorZ}
         doorWidth={corridor.doorWidth}
         doorHeight={corridor.doorHeight}
@@ -312,7 +321,7 @@ export default function CorridorArea({
       />
       {corridor.showBlocker && (
         <SlidingWall
-          x={MIN_X}
+          x={HEADQUARTERS_MIN_X}
           doorZ={corridor.doorZ}
           doorWidth={corridor.doorWidth}
           doorHeight={corridor.doorHeight}

@@ -46,8 +46,8 @@ export const setFootSpot = (spot: Vector3Tuple | null) => {
 };
 export const getFootSpot = () => footSpot;
 
-export const hintPaperLocation = () => state.location;
-export const hintPaperDroppedAt = () => state.droppedAt;
+export const getHintPaperLocation = () => state.location;
+export const getHintPaperDroppedAt = () => state.droppedAt;
 
 /** 자판기·바닥에서 집어 든다. */
 export function pickUpHintPaper() {

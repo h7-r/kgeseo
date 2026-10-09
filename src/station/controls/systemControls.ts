@@ -2,20 +2,25 @@ import type { RefObject } from "react";
 import { button, useControls } from "leva";
 
 import { clearSavedControls, useSavedControls } from "@/engine/leva/savedControls";
-import { CROUCH_EYE, EYE } from "@/engine/movement/constants";
+import { CROUCH_EYE_HEIGHT, EYE_HEIGHT } from "@/engine/movement/constants";
 
 import type { DeskCommonValues, DeskValues } from "./furnitureControls";
-import type { ComputerControls, KeyboardValues, LaptopControls, MouseValues } from "./officePropControls";
-import type { PaperControls } from "./paperControls";
-import type { LightingValues } from "./roomControls";
+import type {
+  ComputerControlValues,
+  KeyboardValues,
+  LaptopControlValues,
+  MouseValues,
+} from "./headquartersPropControls";
+import type { PaperControlValues } from "./paperControls";
+import type { LightingValues } from "./headquartersControls";
 
 // 장소에 매이지 않는 폴더 — 시점·충돌·성능·조작 표시와 개발용 출력 버튼.
 
 /** 「시점(눈높이)」 — usePlayer 보다 먼저 불러야 값을 넘길 수 있다. */
 export function useViewControls() {
   return useSavedControls("시점(눈높이)", {
-    eyeHeight: { value: EYE, min: 2, max: 10, step: 0.05, label: "눈높이" },
-    crouchEyeHeight: { value: CROUCH_EYE, min: 0.8, max: 6, step: 0.05, label: "앉은높이" },
+    eyeHeight: { value: EYE_HEIGHT, min: 2, max: 10, step: 0.05, label: "눈높이" },
+    crouchEyeHeight: { value: CROUCH_EYE_HEIGHT, min: 0.8, max: 6, step: 0.05, label: "앉은높이" },
   });
 }
 
@@ -73,13 +78,13 @@ export interface DebugPrintValues {
   view: ViewValues;
   lighting: LightingValues;
   deskCommon: DeskCommonValues;
-  computer: ComputerControls["common"];
-  monitors: ComputerControls["monitors"];
+  computer: ComputerControlValues["common"];
+  monitors: ComputerControlValues["monitors"];
   keyboard: KeyboardValues;
   mouse: MouseValues;
-  laptop: LaptopControls["common"];
-  laptops: LaptopControls["laptops"];
-  papers: PaperControls["papers"];
+  laptop: LaptopControlValues["common"];
+  laptops: LaptopControlValues["laptops"];
+  papers: PaperControlValues["papers"];
   desks: readonly DeskValues[];
 }
 
@@ -116,23 +121,23 @@ export function useDebugPrintControls(live: RefObject<DebugPrintValues | null>) 
     },
     printAll: {
       ...button(() => {
-        const v = live.current;
-        if (!v) return;
+        const values = live.current;
+        if (!values) return;
         const section = (title: string, value: unknown) => `\n=== ${title} ===\n` + JSON.stringify(value, null, 2);
         console.log(
           "===== K게서 현재 Leva 전체값 =====" +
-            section("시점(눈높이)", v.view) +
-            section("폐역 조명", v.lighting) +
-            section("책상(공통)", v.deskCommon) +
-            section("컴퓨터(공통·색)", v.computer) +
-            section("컴퓨터1/3", v.monitors) +
-            section("키보드(공통)", v.keyboard) +
-            section("마우스(공통)", v.mouse) +
-            section("노트북(공통·색)", v.laptop) +
-            section("노트북1/2/3", v.laptops) +
-            section("서류 더미", v.papers) +
+            section("시점(눈높이)", values.view) +
+            section("폐역 조명", values.lighting) +
+            section("책상(공통)", values.deskCommon) +
+            section("컴퓨터(공통·색)", values.computer) +
+            section("컴퓨터1/3", values.monitors) +
+            section("키보드(공통)", values.keyboard) +
+            section("마우스(공통)", values.mouse) +
+            section("노트북(공통·색)", values.laptop) +
+            section("노트북1/2/3", values.laptops) +
+            section("서류 더미", values.papers) +
             "\n\n=== DESK_SPOTS (그대로 코드에 붙이기) ===\n" +
-            deskSpotsCode(v.desks, (r) => r),
+            deskSpotsCode(values.desks, (r) => r),
         );
       }),
       label: "콘솔에전부출력",
@@ -142,6 +147,6 @@ export function useDebugPrintControls(live: RefObject<DebugPrintValues | null>) 
 
 type ViewValues = ReturnType<typeof useViewControls>;
 export type CollisionValues = ReturnType<typeof useSystemControls>["collision"];
-type InteractionControls = ReturnType<typeof useInteractionControls>;
-export type PlacementPreviewValues = InteractionControls["placementPreview"];
-export type HighlightValues = InteractionControls["highlight"];
+type InteractionControlValues = ReturnType<typeof useInteractionControls>;
+export type PlacementPreviewValues = InteractionControlValues["placementPreview"];
+export type HighlightValues = InteractionControlValues["highlight"];

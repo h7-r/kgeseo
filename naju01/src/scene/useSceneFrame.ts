@@ -5,12 +5,12 @@ import { useFrame, useThree } from "@react-three/fiber";
 import type { PresentedControls } from "../app/presentation";
 import type { MovementReport } from "../movement/useTerrainMovement";
 import type { CollapseSequence } from "../story/blockerCollapse";
-import { waterDistortion } from "../story/distortion";
+import { computeWaterDistortion } from "../story/distortion";
 import { setGrainStrength } from "../terrain/groundGrain";
 import type { BakedTerrain } from "../terrain/useBakedTerrain";
 import type { RippleHandle } from "../world/waterRipples";
 import type { CollapseState } from "./useBlockerCollapse";
-import type { RiverLayer } from "./useWorldLayers";
+import type { RiverShapes } from "./useWorldLayers";
 
 /** 걷기 훅이 매 프레임 갈아 끼우는 보고에 씬이 렌더 통계를 덧붙인다(계기판이 읽는다). */
 export interface NajuSceneReport extends MovementReport {
@@ -44,7 +44,7 @@ export function useRendererSetup(fov: number) {
 }
 
 interface SceneFrameOptions {
-  T: PresentedControls;
+  controls: PresentedControls;
   camera: THREE.Camera;
   gl: THREE.WebGLRenderer;
   reportRef: RefObject<NajuSceneReport | null>;
@@ -53,7 +53,7 @@ interface SceneFrameOptions {
   setCollapse: Dispatch<SetStateAction<CollapseState | null>>;
   skyRef: RefObject<THREE.Mesh | null>;
   cloudRef: RefObject<THREE.Mesh | null>;
-  river: RiverLayer;
+  river: RiverShapes;
   waterShift: number;
   rippleHandle: RefObject<RippleHandle | null>;
   bakedTerrainStatus: BakedTerrain["status"];
@@ -64,7 +64,7 @@ interface SceneFrameOptions {
  * 반드시 useTerrainMovement 뒤에 불러야 한다 — 그 훅이 매 프레임 reportRef.current 를 갈아끼운다.
  */
 export function useSceneFrame({
-  T,
+  controls,
   camera,
   gl,
   reportRef,
@@ -105,18 +105,18 @@ export function useSceneFrame({
     if (cloudRef.current) cloudRef.current.position.copy(camera.position);
     // 물결은 움직여야 물로 읽힌다
     if (river) {
-      const shift = waterShift ? waterDistortion(waterShift) : null;
-      river.surface.update(state.clock.elapsedTime * T.waveSpeed, shift);
-      setGrainStrength(T.groundGrain, T.groundRockGrain);
+      const shift = waterShift ? computeWaterDistortion(waterShift) : null;
+      river.surface.update(state.clock.elapsedTime * controls.waveSpeed, shift);
+      setGrainStrength(controls.groundGrain, controls.groundRockGrain);
       // 잔결도 같은 어긋남을 받아야 위화감이 반만 오지 않는다
-      rippleHandle.current?.update(state.clock.elapsedTime * T.waveSpeed, shift, T.waterRipple);
+      rippleHandle.current?.update(state.clock.elapsedTime * controls.waveSpeed, shift, controls.waterRipple);
     }
     const report = reportRef.current;
     if (report) {
       report.collapseStage = collapseNoticeRef.current;
       report.triangles = gl.info.render.triangles;
       // 지금 보는 땅이 어느 쪽인지 계기판에 박아 둔다 — 「차이가 미미하다」와 「안 바뀌었다」를 가린다.
-      report.terrainSource = !T.useBlenderTerrain
+      report.terrainSource = !controls.useBlenderTerrain
         ? "옛(코드)"
         : bakedTerrainStatus === "ready"
           ? "새(블렌더)"

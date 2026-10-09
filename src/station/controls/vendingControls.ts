@@ -1,7 +1,7 @@
 import { button } from "leva";
 
 import { useSavedControls } from "@/engine/leva/savedControls";
-import { forceCutscene } from "@/props/vendingPush";
+import { forceCutscene } from "@/props/vendingPushState";
 
 // 복도 자판기 두 대와 비밀문 컷신, 자판기 앞 동전.
 
@@ -120,7 +120,7 @@ export function useCoinControls() {
   });
 }
 
-export type VendingControls = ReturnType<typeof useVendingControls>;
-export type DrinkVendingValues = VendingControls["drink"];
-export type CoffeeVendingValues = VendingControls["coffee"];
+export type VendingControlValues = ReturnType<typeof useVendingControls>;
+export type DrinkVendingValues = VendingControlValues["drink"];
+export type CoffeeVendingValues = VendingControlValues["coffee"];
 export type CoinValues = ReturnType<typeof useCoinControls>;

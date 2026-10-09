@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef } from "react";
 import type * as THREE from "three";
 
-import type { MergeBox } from "@/engine/geometry";
+import type { BoxPiece } from "@/engine/geometry";
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { heldCoin, registerReturnLanding, registerReturnSlot, tryInsertCoin } from "@/props/coinState";
+import { getHeldCoin, registerReturnLanding, registerReturnSlot, tryInsertCoin } from "@/props/coinState";
 import type { VendingId } from "@/props/vendingMachineState";
-import { worldPositionOf } from "@/props/shared/aimTarget";
+import { getWorldPositionOf } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
-import { mergedBoxes } from "./geometry";
+import { buildMergedBoxGeometry } from "./vendingGeometry";
 
 interface PaymentPanelProps {
   y: number;
@@ -73,8 +73,8 @@ export default function PaymentPanel({
     let triesLeft = 20;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const measure = () => {
-      const slot = worldPositionOf(returnSlotRef);
-      const landing = worldPositionOf(returnLandingRef);
+      const slot = getWorldPositionOf(returnSlotRef);
+      const landing = getWorldPositionOf(returnLandingRef);
       if (slot && landing) {
         registerReturnSlot(vendingId, slot);
         registerReturnLanding(vendingId, landing);
@@ -107,7 +107,7 @@ export default function PaymentPanel({
     for (const hole of holes) edges.push(hole.y - hole.h / 2, hole.y + hole.h / 2);
     edges.push(height / 2);
     const zc = halfDepth - FRONT_THICKNESS / 2;
-    const boxes: MergeBox[] = [];
+    const boxes: BoxPiece[] = [];
     for (let i = 0; i < edges.length - 1; i++) {
       const h = edges[i + 1] - edges[i];
       if (h <= 1e-4) continue;
@@ -121,13 +121,13 @@ export default function PaymentPanel({
         boxes.push({ size: [side, h, FRONT_THICKNESS], position: [(PANEL_WIDTH - side) / 2, yc, zc] });
       }
     }
-    return mergedBoxes(boxes);
+    return buildMergedBoxGeometry(boxes);
   }, [holes, height, halfDepth]);
 
   // 구멍 뒤 어두운 공간. 뒤의 광고판·스트립을 덮어 가린다.
   const cavity = useMemo(
     () =>
-      mergedBoxes([
+      buildMergedBoxGeometry([
         { size: [PANEL_WIDTH, height, CAVITY_DEPTH], position: [0, 0, halfDepth - FRONT_THICKNESS - CAVITY_DEPTH / 2] },
       ]),
     [height, halfDepth],
@@ -141,7 +141,7 @@ export default function PaymentPanel({
     const protrude = 0.04;
     const zc = halfDepth + protrude / 2;
     const w = returnHole.w + rim * 2;
-    return mergedBoxes([
+    return buildMergedBoxGeometry([
       { size: [w, rim, protrude], position: [0, returnHole.y + returnHole.h / 2 + rim / 2, zc] },
       { size: [w, rim, protrude], position: [0, returnHole.y - returnHole.h / 2 - rim / 2, zc] },
       { size: [rim, returnHole.h, protrude], position: [-returnHole.w / 2 - rim / 2, returnHole.y, zc] },
@@ -172,11 +172,11 @@ export default function PaymentPanel({
           id={`vendingCoin:${vendingId}`}
           radius={0.6}
           reach={6}
-          position={() => worldPositionOf(slotRef) || worldPositionOf(rootRef)}
+          position={() => getWorldPositionOf(slotRef) || getWorldPositionOf(rootRef)}
           label="동전 넣기"
           // 맞는 동전이면 불이 켜지고 틀리면 반환구로 나온다. 동전을 안 들었으면 겨냥 대상에서 뺀다.
-          disabled={() => !heldCoin()}
-          run={() => tryInsertCoin(vendingId, worldPositionOf(slotRef) || worldPositionOf(rootRef))}
+          disabled={() => !getHeldCoin()}
+          run={() => tryInsertCoin(vendingId, getWorldPositionOf(slotRef) || getWorldPositionOf(rootRef))}
         />
       )}
       <mesh geometry={cavity}>

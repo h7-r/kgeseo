@@ -2,7 +2,7 @@ import { useRef } from "react";
 import type * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
-import { chalkMarkTexture } from "./textures";
+import { makeChalkMarkTexture } from "./labelTextures";
 
 interface ChalkMarkProps {
   position: [number, number, number];
@@ -30,7 +30,7 @@ export default function ChalkMark({
 }: ChalkMarkProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshBasicMaterial>(null);
-  const texture = chalkMarkTexture(order, glyph, color, seed);
+  const texture = makeChalkMarkTexture(order, glyph, color, seed);
   useFrame(() => {
     const mesh = meshRef.current;
     const material = materialRef.current;

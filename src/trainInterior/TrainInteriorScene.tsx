@@ -3,13 +3,19 @@ import * as THREE from "three";
 import { Outlines } from "@react-three/drei";
 
 import { scaleColor } from "@/engine/color";
-import { pickOutline } from "@/engine/leva/savedControls";
+import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { PLAYER_RADIUS } from "@/engine/movement/constants";
 import { useMovement } from "@/engine/movement/useMovement";
 import { TOON_GRADIENT } from "@/engine/toon";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 
-import { ATLAS_GRID, brokenLampTexture, crackTexture, darkOutsideTexture, seatFabricTexture } from "./atlasTextures";
+import {
+  ATLAS_GRID,
+  makeBrokenLampTexture,
+  makeCrackTexture,
+  makeDarkOutsideTexture,
+  makeSeatFabricTexture,
+} from "./atlasTextures";
 import {
   CAR_CROUCH_EYE,
   CAR_EYE,
@@ -33,14 +39,14 @@ import {
   buildSeats,
   buildShelf,
   buildWindowFrames,
-  layoutLamps,
-  layoutSeats,
+  computeLampSpots,
+  computeSeatSpots,
   pickBoardedWindows,
-  seatColliders,
+  computeSeatColliders,
 } from "./layout";
-import { trainFloorTexture, trainWallTexture } from "./surfaceTextures";
+import { makeTrainFloorTexture, makeTrainWallTexture } from "./surfaceTextures";
 import TeleportDevice from "./TeleportDevice";
-import { useTrainControls } from "./useTrainControls";
+import { useTrainInteriorControls } from "./useTrainInteriorControls";
 
 const OUTSIDE_IMAGE_URL = "/textures/train-window-hq.jpg";
 /** 들어온 문 안쪽 한 걸음 */
@@ -66,15 +72,15 @@ interface TrainInteriorSceneProps {
 
 /** 버려진 객차 안(`/train`). 텔레포트 장치와 목적지 홀로그램이 있다. */
 export default function TrainInteriorScene({ active, enabled = true, onNear }: TrainInteriorSceneProps) {
-  const controls = useTrainControls();
-  const outline = pickOutline(controls);
+  const controls = useTrainInteriorControls();
+  const outline = pickOutlineValues(controls);
   const outlineShell = outline.outline ? (
     <Outlines thickness={outline.outlineWidth} color={outline.outlineColor} />
   ) : null;
   const shade = (color: string) => scaleColor(color, controls.brightness);
 
-  const wallTexture = trainWallTexture(controls.wallSeed, controls.wallWear);
-  const floorTexture = trainFloorTexture(controls.floorSeed);
+  const wallTexture = makeTrainWallTexture(controls.wallSeed, controls.wallWear);
+  const floorTexture = makeTrainFloorTexture(controls.floorSeed);
   const outsideMap = useMemo(() => {
     const texture = new THREE.TextureLoader().load(OUTSIDE_IMAGE_URL);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -88,13 +94,13 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
     outsideMap.offset.x = controls.flipOutside ? 1 : 0;
     outsideMap.needsUpdate = true;
   }, [outsideMap, controls.flipOutside]);
-  const darkOutsideMap = useMemo(() => darkOutsideTexture(), []);
+  const darkOutsideMap = useMemo(() => makeDarkOutsideTexture(), []);
   useEffect(() => () => darkOutsideMap.dispose(), [darkOutsideMap]);
-  const seatFabricMap = useMemo(() => seatFabricTexture(), []);
+  const seatFabricMap = useMemo(() => makeSeatFabricTexture(), []);
   useEffect(() => () => seatFabricMap.dispose(), [seatFabricMap]);
-  const crackMap = useMemo(() => crackTexture(), []);
+  const crackMap = useMemo(() => makeCrackTexture(), []);
   useEffect(() => () => crackMap.dispose(), [crackMap]);
-  const brokenLampMap = useMemo(() => brokenLampTexture(), []);
+  const brokenLampMap = useMemo(() => makeBrokenLampTexture(), []);
   useEffect(() => () => brokenLampMap.dispose(), [brokenLampMap]);
 
   // 한 장이 약 8 유닛(바닥은 6)을 덮게 반복해야 무늬가 늘어나거나 뭉개지지 않는다.
@@ -122,7 +128,7 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
 
   const lamps = useMemo(
     () =>
-      layoutLamps(
+      computeLampSpots(
         controls.lampSeed,
         controls.lampCount,
         controls.deadLampRatio,
@@ -148,7 +154,7 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
 
   const seatSpots = useMemo(
     () =>
-      layoutSeats({
+      computeSeatSpots({
         groupCount: controls.seatGroupCount,
         groupSpacing: controls.groupSpacing,
         facingGap: controls.facingGap,
@@ -158,7 +164,7 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
     [controls.seatGroupCount, controls.groupSpacing, controls.facingGap, controls.seatStart, controls.seatWallGap],
   );
   const seats = useMemo(() => buildSeats(seatSpots, controls.seatScale), [seatSpots, controls.seatScale]);
-  const seatBoxes = useMemo(() => seatColliders(seatSpots, controls.seatScale), [seatSpots, controls.seatScale]);
+  const seatBoxes = useMemo(() => computeSeatColliders(seatSpots, controls.seatScale), [seatSpots, controls.seatScale]);
   const isBlocked = useCallback(
     (x: number, z: number) =>
       seatBoxes.some(

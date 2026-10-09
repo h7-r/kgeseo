@@ -7,7 +7,7 @@ import { MY_PAGE_CONTENT, MY_PAGE_TABS, type AccountAction, type MyPageTabId } f
 import { FONT } from "@/lib/style";
 import { ROUTES, launchGame, useSiteNavigate } from "@/navigation/routes";
 import type { AccountData } from "@/services/account/db";
-import { deleteAccount, exportMyData, getAccountData, saveAccountData } from "@/services/account/manageAccount";
+import { deleteAccount, exportMyData, readAccountData, writeAccountData } from "@/services/account/manageAccount";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
@@ -15,7 +15,7 @@ import LoginHistoryModal from "./LoginHistoryModal";
 import { AccountTab, AchievementsTab, HistoryTab, ItemsTab, SubscriptionTab } from "./MyPageTabs";
 import PasswordModal from "./PasswordModal";
 import ProfileCard, { type ProfileStats } from "./ProfileCard";
-import { modalDangerStyle } from "./styles";
+import { modalDangerStyle } from "./myPageStyles";
 
 type OpenModal = "password" | "loginHistory" | "deleteAccount" | null;
 
@@ -49,7 +49,7 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
   useEffect(() => {
     if (!user?.email) return;
     let isActive = true;
-    getAccountData(user.email).then((data) => {
+    readAccountData(user.email).then((data) => {
       if (isActive) setAccountData(data);
     });
     return () => {
@@ -70,7 +70,7 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
     else if (action === "deleteAccount") setOpenModal("deleteAccount");
     else if (!user) return;
     else if (action === "emailNotifications") {
-      const saved = await saveAccountData(user.email, {
+      const saved = await writeAccountData(user.email, {
         settings: { ...(accountData?.settings ?? {}), emailNotifications: !emailNotifications },
       });
       setAccountData(saved);
@@ -128,11 +128,11 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
           </div>
         )}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-          <button type="button" className="btn" style={modalSecondaryStyle} onClick={closeModal}>
-            <span className="btn__label">취소</span>
+          <button type="button" className="button" style={modalSecondaryStyle} onClick={closeModal}>
+            <span className="button__label">취소</span>
           </button>
-          <button type="button" className="btn" style={modalDangerStyle} onClick={handleDeleteAccount}>
-            <span className="btn__label">탈퇴하기</span>
+          <button type="button" className="button" style={modalDangerStyle} onClick={handleDeleteAccount}>
+            <span className="button__label">탈퇴하기</span>
           </button>
         </div>
       </Modal>

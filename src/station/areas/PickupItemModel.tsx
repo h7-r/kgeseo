@@ -1,21 +1,26 @@
 import { scaleColor } from "@/engine/color";
 import type { OutlineValues } from "@/engine/toon";
 import type { ItemSpot } from "@/lobby/interactions";
-import CollectionBox from "@/station/office/evidence/CollectionBox";
-import EvidenceBox from "@/station/office/evidence/EvidenceBox";
-import EvidenceNumberTag from "@/station/office/evidence/EvidenceNumberTag";
-import Fedora from "@/station/office/Fedora";
-import Laptop from "@/station/office/Laptop";
-import Mug from "@/station/office/Mug";
-import PaperStack from "@/station/office/PaperStack";
-import { Keyboard, Mouse } from "@/station/office/PcSet";
+import CollectionBox from "@/station/headquarters/evidence/CollectionBox";
+import EvidenceBox from "@/station/headquarters/evidence/EvidenceBox";
+import EvidenceNumberTag from "@/station/headquarters/evidence/EvidenceNumberTag";
+import Fedora from "@/station/headquarters/Fedora";
+import Laptop from "@/station/headquarters/Laptop";
+import Mug from "@/station/headquarters/Mug";
+import PaperStack from "@/station/headquarters/PaperStack";
+import { Keyboard, Mouse } from "@/station/headquarters/PcSet";
 
-import type { KeyboardValues, LaptopControls, MouseValues, MugControls } from "../controls/officePropControls";
+import type {
+  KeyboardValues,
+  LaptopControlValues,
+  MouseValues,
+  MugControlValues,
+} from "../controls/headquartersPropControls";
 import type { PickupItem } from "./usePickupItems";
 
 /** 들 수 있는 물건들의 공통 Leva 값 — 놓인 것·든 것·놓기 유령이 같은 모양으로 그려지도록 한 묶음으로 넘긴다. */
 export interface PickupLooks {
-  mug: MugControls["common"];
+  mug: MugControlValues["common"];
   mugOutline: OutlineValues;
   hatOutline: OutlineValues;
   evidenceSize: number;
@@ -24,7 +29,7 @@ export interface PickupLooks {
   keyboardOutline: OutlineValues;
   mouse: MouseValues;
   mouseOutline: OutlineValues;
-  laptop: LaptopControls["common"];
+  laptop: LaptopControlValues["common"];
   laptopOutline: OutlineValues;
   /** 「서류(공통·색) › 밝기」 */
   paperBrightness: number;
@@ -79,7 +84,7 @@ export default function PickupItemModel({ item, spot, looks, isHatHanging = fals
       );
     case "box":
     case "collectionBox": {
-      const v = item.values;
+      const values = item.values;
       return (
         <group position={[pos[0], y, pos[1]]} rotation={[0, rot, 0]} scale={looks.evidenceSize}>
           {item.kind === "box" ? (
@@ -88,9 +93,9 @@ export default function PickupItemModel({ item, spot, looks, isHatHanging = fals
             <CollectionBox
               caseNo={item.caseNo}
               outline={looks.evidenceOutline}
-              width={"width" in v ? v.width : undefined}
-              depth={"depth" in v ? v.depth : undefined}
-              boxHeight={"boxHeight" in v ? v.boxHeight : undefined}
+              width={"width" in values ? values.width : undefined}
+              depth={"depth" in values ? values.depth : undefined}
+              boxHeight={"boxHeight" in values ? values.boxHeight : undefined}
             />
           )}
         </group>
@@ -138,26 +143,26 @@ export default function PickupItemModel({ item, spot, looks, isHatHanging = fals
         />
       );
     case "paper": {
-      const v = item.values;
+      const values = item.values;
       return (
         <PaperStack
           pos={pos}
           y={y}
           rot={rot}
-          scale={v.size}
-          sheets={v.sheets}
-          spread={v.spread}
-          slide={v.slide}
-          thick={v.thickness}
-          lean={v.lean}
-          seed={v.seed}
-          paperColor={scaleColor(v.paperColor, looks.paperBrightness)}
-          folderColor={scaleColor(v.folderColor, looks.paperBrightness)}
-          clipCount={v.clipCount}
-          stickyCount={v.stickyCount}
-          printed={v.printed}
-          printedFolder={v.printedFolder}
-          textStyle={v.textStyle}
+          scale={values.size}
+          sheets={values.sheets}
+          spread={values.spread}
+          slide={values.slide}
+          thick={values.thickness}
+          lean={values.lean}
+          seed={values.seed}
+          paperColor={scaleColor(values.paperColor, looks.paperBrightness)}
+          folderColor={scaleColor(values.folderColor, looks.paperBrightness)}
+          clipCount={values.clipCount}
+          stickyCount={values.stickyCount}
+          printed={values.printed}
+          printedFolder={values.printedFolder}
+          textStyle={values.textStyle}
           outline={looks.paperOutline}
         />
       );

@@ -41,7 +41,7 @@ interface CollapseOptions {
   /** 다 무너진 뒤 알릴 한 줄. 도면에서는 차단물의 치움 안에 있어 부르는 쪽이 꺼내 넘긴다 */
   message?: string | null;
   /** 볼곳 높이를 알아야 시선이 하늘로 뜨지 않는다 */
-  groundHeight?: ((x: number, z: number) => number) | null;
+  heightAt?: ((x: number, z: number) => number) | null;
   durations?: CollapseDurations;
   /** 판정을 연다. 무너지기가 끝나는 순간 한 번만 부른다 */
   onClear?: () => void;
@@ -62,13 +62,13 @@ export function createCollapseSequence({
   blocker,
   lookAt,
   message,
-  groundHeight,
+  heightAt,
   durations = DEFAULT_DURATION,
   onClear,
   onNotify,
 }: CollapseOptions): CollapseSequence {
   const [vx, vz] = lookAt ?? blocker.center;
-  const lookY = (groundHeight?.(vx, vz) ?? 0) + 1.2;
+  const lookY = (heightAt?.(vx, vz) ?? 0) + 1.2;
 
   let stage: CollapseStage = "turn";
   let t = 0;
@@ -147,7 +147,7 @@ interface CollapseTransform {
 }
 
 // 가라앉히고 · 낮추고 · 살짝 기울인다. 그냥 투명하게 지우면 「없어졌다」가 아니라 「안 그려진다」로 보인다.
-export function collapseTransform(progress: number, heightMeters = 4): CollapseTransform {
+export function computeCollapseTransform(progress: number, heightMeters = 4): CollapseTransform {
   const p = THREE.MathUtils.clamp(progress, 0, 1);
   return {
     // 제 키만큼 땅 밑으로

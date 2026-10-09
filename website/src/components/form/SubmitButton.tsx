@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { glossStyle } from "./styles";
+import { glossStyle } from "./formStyles";
 
 interface SubmitButtonProps {
   label: string;
@@ -14,7 +14,7 @@ interface SubmitButtonProps {
 export default function SubmitButton({ label, isBusy, onClick, style, labelStyle }: SubmitButtonProps) {
   return (
     <div
-      className="btn"
+      className="button"
       role="button"
       tabIndex={0}
       aria-busy={isBusy}

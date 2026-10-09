@@ -23,14 +23,14 @@ const START_NOTES = [
 /** 마지막으로 미는 구간. 위아래에 심전도 선이 붙는다. */
 export default function Closing() {
   const navigate = useSiteNavigate();
-  const [sectionRef, visible] = useReveal<HTMLElement>();
+  const [sectionRef, isVisible] = useReveal<HTMLElement>();
   // 신호를 제목 칸 하나로 모아야 스크롤을 빨리 내려도 네 덩이의 순서가 뒤집히지 않는다.
   const [textRef, isTextVisible] = useReveal("0px 0px 30% 0px");
 
   return (
     <section
       ref={sectionRef}
-      className={`${revealClass(visible)} stagger${isTextVisible ? " is-active" : ""}`}
+      className={`${revealClass(isVisible)} u-stagger${isTextVisible ? " is-active" : ""}`}
       style={sectionStyle}
       {...sectionAnchor("start")}
     >
@@ -80,9 +80,9 @@ export default function Closing() {
         </div>
 
         <div ref={textRef} style={titleBlockStyle}>
-          <RisingText text="전설이 당신을 기다립니다." style={titleStyle} textClassName="flow-text" />
+          <RisingText text="전설이 당신을 기다립니다." style={titleStyle} textClassName="u-shine-text" />
           {/* 앞의 빈 줄 둘은 디자인 간격이다. 줄바꿈은 폭에 맡기면 글꼴에 따라 엉뚱한 곳에서 끊겨 <br /> 로 정한다. */}
-          <div className="stagger-item stagger-1" style={subtitleStyle}>
+          <div className="u-stagger__item u-stagger__item--step-1" style={subtitleStyle}>
             <p style={{ margin: 0 }}>{"​"}</p>
             <p style={{ margin: 0 }}>{"​"}</p>
             <p style={{ margin: 0 }}>
@@ -95,17 +95,17 @@ export default function Closing() {
         </div>
 
         <div
-          className="stagger-item stagger-2"
+          className="u-stagger__item u-stagger__item--step-2"
           style={{ display: "flex", flexDirection: "column", gap: "40px", alignItems: "center" }}
         >
           <div>
             <button
               type="button"
-              className="btn btn-outline-light"
+              className="button button--outline-light"
               style={startButtonStyle}
               onClick={() => navigate(START_GAME)}
             >
-              <span className="btn__label">지금 시작하기</span>
+              <span className="button__label">지금 시작하기</span>
             </button>
           </div>
           <RotatingText
@@ -118,7 +118,7 @@ export default function Closing() {
       </div>
 
       <div
-        className="stagger-item stagger-3"
+        className="u-stagger__item u-stagger__item--step-3"
         style={{
           display: "flex",
           height: "60px",

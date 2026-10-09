@@ -47,4 +47,4 @@ export function useLobbyAvatar() {
   };
 }
 
-export type LobbyAvatar = ReturnType<typeof useLobbyAvatar>;
+export type LobbyAvatarState = ReturnType<typeof useLobbyAvatar>;

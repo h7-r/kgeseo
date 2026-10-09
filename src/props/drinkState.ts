@@ -52,7 +52,7 @@ const state: DrinkState = {
 const signal = createChangeSignal();
 
 /** 지금 든 음료. 안 들고 있으면 null. */
-export function heldDrink(): HeldDrink | null {
+export function getHeldDrink(): HeldDrink | null {
   return state.held
     ? {
         kind: state.kind,
@@ -64,11 +64,11 @@ export function heldDrink(): HeldDrink | null {
     : null;
 }
 /** 지금 재생 중인 동작과 시작 시각(모션 그리기용). */
-export function drinkAction() {
+export function getDrinkAction() {
   return { action: state.action, startedAt: state.actionStartedAt };
 }
 
-function hold(kind: HeldDrinkKind, color: string, liquidColor: string | null, opened: boolean) {
+function holdDrink(kind: HeldDrinkKind, color: string, liquidColor: string | null, opened: boolean) {
   state.held = true;
   state.kind = kind;
   state.color = color;
@@ -83,25 +83,25 @@ function hold(kind: HeldDrinkKind, color: string, liquidColor: string | null, op
 /** 커피 종이컵을 집는다. 뚜껑이 없어 처음부터 딴 상태다. */
 export function pickUpCup(color: string, liquidColor: string) {
   if (state.held) return false;
-  hold("cup", color, liquidColor, true);
+  holdDrink("cup", color, liquidColor, true);
   return true;
 }
 
 /** 음료 캔을 집는다. 처음 E 는 따기다. */
 export function pickUpCan(color: string, liquidColor: string) {
   if (state.held) return false;
-  hold("can", color, liquidColor, false);
+  holdDrink("can", color, liquidColor, false);
   return true;
 }
 
 /** 밸브 힌트 종이를 집는다. 마실 것이 아니라 보는 물건이다. */
 export function pickUpPaper() {
   if (state.held) return false;
-  hold("paper", "#f3efe2", null, false);
+  holdDrink("paper", "#f3efe2", null, false);
   return true;
 }
 
-function startAction(action: DrinkAction) {
+function startDrinkAction(action: DrinkAction) {
   state.action = action;
   state.actionStartedAt = performance.now();
 }
@@ -112,7 +112,7 @@ export function interactWithHeldDrink(): DrinkUseResult | null {
   if (state.kind === "paper") {
     if (!state.opened) {
       state.opened = true;
-      startAction("view");
+      startDrinkAction("view");
       signal.notify();
       return "view";
     }
@@ -121,13 +121,13 @@ export function interactWithHeldDrink(): DrinkUseResult | null {
   }
   if (state.kind === "can" && !state.opened) {
     state.opened = true;
-    startAction("open");
+    startDrinkAction("open");
     signal.notify();
     return "open";
   }
   if (state.remaining > 0.001) {
     state.remaining = Math.max(0, state.remaining - SIP_AMOUNT);
-    startAction("sip");
+    startDrinkAction("sip");
     if (state.kind === "can" || state.kind === "cup") playSound("canDrink", { volume: 0.9 });
     signal.notify();
     return "sip";

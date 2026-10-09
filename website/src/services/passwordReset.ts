@@ -33,7 +33,7 @@ function isResetState(value: unknown): value is PasswordResetState {
 }
 
 // 모양이 어긋난 값(다른 판의 저장값·손으로 고친 값)은 진행 중인 재설정이 없는 것으로 본다.
-function read(): PasswordResetState | null {
+function readStoredReset(): PasswordResetState | null {
   try {
     const value: unknown = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null");
     return isResetState(value) ? value : null;
@@ -42,7 +42,7 @@ function read(): PasswordResetState | null {
   }
 }
 
-function write(state: PasswordResetState | null) {
+function writeStoredReset(state: PasswordResetState | null) {
   try {
     if (state) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     else sessionStorage.removeItem(STORAGE_KEY);
@@ -55,23 +55,29 @@ function write(state: PasswordResetState | null) {
 export function issueResetCode(email: string): string {
   const number = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
   const code = String(number).padStart(6, "0");
-  write({ email: normalizeEmail(email), code, expiresAt: Date.now() + CODE_TTL_MS, attempts: 0, verified: false });
+  writeStoredReset({
+    email: normalizeEmail(email),
+    code,
+    expiresAt: Date.now() + CODE_TTL_MS,
+    attempts: 0,
+    verified: false,
+  });
   return code;
 }
 
 /** 진행 중인 재설정. 없거나 만료됐으면 null */
-export function getResetState(): PasswordResetState | null {
-  const state = read();
+export function readResetState(): PasswordResetState | null {
+  const state = readStoredReset();
   if (!state) return null;
   if (Date.now() > state.expiresAt) {
-    write(null);
+    writeStoredReset(null);
     return null;
   }
   return state;
 }
 
 export function verifyResetCode(email: string, code: string): VerifyCodeResult {
-  const state = getResetState();
+  const state = readResetState();
   if (!state) return { ok: false, reason: "인증 시간이 지났습니다. 비밀번호 찾기부터 다시 해 주세요." };
   if (state.email !== normalizeEmail(email)) {
     return { ok: false, field: "email", reason: "인증코드를 받은 이메일과 다릅니다." };
@@ -79,17 +85,17 @@ export function verifyResetCode(email: string, code: string): VerifyCodeResult {
   if (state.code !== String(code).trim()) {
     const attempts = state.attempts + 1;
     if (attempts >= MAX_ATTEMPTS) {
-      write(null);
+      writeStoredReset(null);
       return { ok: false, reason: "인증코드를 5번 틀렸습니다. 비밀번호 찾기부터 다시 해 주세요." };
     }
-    write({ ...state, attempts });
+    writeStoredReset({ ...state, attempts });
     return { ok: false, field: "code", reason: `인증코드가 맞지 않습니다. (${MAX_ATTEMPTS - attempts}번 남음)` };
   }
-  write({ ...state, verified: true });
+  writeStoredReset({ ...state, verified: true });
   return { ok: true };
 }
 
 /** 재설정을 마치고 코드를 버린다. */
 export function clearResetState() {
-  write(null);
+  writeStoredReset(null);
 }

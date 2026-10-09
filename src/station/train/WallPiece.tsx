@@ -1,9 +1,9 @@
 import { useEffect, useMemo } from "react";
 
-import { wallTexture } from "@/engine/textures/surfaces";
+import { makeWallTexture } from "@/engine/textures/surfaces";
 import { TOON_GRADIENT } from "@/engine/toon";
 
-import { wallPieceGeometry } from "./wallPieceGeometry";
+import { buildWallPieceGeometry } from "./wallPieceGeometry";
 
 interface WallPieceProps {
   width: number;
@@ -33,12 +33,12 @@ export default function WallPiece({
   segments = 1,
   brightness = null,
 }: WallPieceProps) {
-  const texture = wallTexture(seed, wear);
+  const texture = makeWallTexture(seed, wear);
   // 배열은 렌더마다 새로 오므로 내용으로 비교한다. 숫자→문자→숫자는 값이 그대로 돌아온다.
   const brightnessKey = brightness ? brightness.join(",") : "";
   const geometry = useMemo(
     () =>
-      wallPieceGeometry({
+      buildWallPieceGeometry({
         width,
         height,
         x,

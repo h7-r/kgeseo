@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { Outlines } from "@react-three/drei";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import RubbleStones, { type RubbleStone } from "@/station/train/RubbleStones";
-import { stoneGeometry } from "@/station/train/stoneGeometry";
+import { buildStoneGeometry } from "@/station/train/stoneGeometry";
 
 interface EdgeChunk {
   y: number;
@@ -51,7 +51,7 @@ export default function BrokenDoorFrame({
   outline,
 }: BrokenDoorFrameProps) {
   const layout = useMemo(() => {
-    const rnd = makeRandom(seed + 909);
+    const rnd = createRandom(seed + 909);
     // 찢어진 테두리 — 위·좌·우만. 바닥 쪽은 잔해가 쌓이니 따로 안 한다.
     const edges: EdgeChunk[] = [];
     const place = (count: number, make: (r: () => number, i: number) => EdgeChunk) => {
@@ -116,7 +116,7 @@ export default function BrokenDoorFrame({
         layout.edges.map((edge, i) => (
           <mesh
             key={`edge${i}`}
-            geometry={stoneGeometry(edge.seed, roughness * 0.7)}
+            geometry={buildStoneGeometry(edge.seed, roughness * 0.7)}
             position={[x, edge.y, edge.z]}
             rotation={[edge.seed * 0.7, edge.seed * 1.3, edge.seed * 0.4]}
             scale={[thickness * 1.3, edge.size, edge.size * 0.9]}

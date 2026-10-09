@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { DESIGN_WIDTH, HEADER_HEIGHT, useStageScale } from "@/lib/layout";
 import { AUTH_PAGE_PATHS, QUERY, ROUTES, withQuery, type RoutePath } from "@/navigation/routes";
-import { sectionTops } from "@/navigation/sectionGeometry";
+import { measureSectionPositions } from "@/navigation/sectionGeometry";
 import { SUB_NAV_HEIGHT, getSubMenu } from "@/navigation/subMenus";
 import { signOut, useSessionUser } from "@/services/session";
 
@@ -38,7 +38,7 @@ function activeMenuFor(path: string): HeaderMenuId {
 
 export default function HeaderLayer() {
   const scale = useStageScale();
-  const { solid, hidden: wantsHidden } = useHeaderScrollState();
+  const { isSolid, isHidden: wantsHidden } = useHeaderScrollState();
   const user = useSessionUser();
   const navigate = useNavigate();
   const { pathname: path } = useLocation();
@@ -49,7 +49,7 @@ export default function HeaderLayer() {
   const subMenu = subMenuPath === path && menu?.showBar !== false ? menu : undefined;
 
   // 구간 맞춤 페이지에서 머리띠가 숨으면 「머리띠 아래 한가운데」 맞춤 자리 위에 빈 틈이 생긴다.
-  const hidden = wantsHidden && !menu;
+  const isHidden = wantsHidden && !menu;
   const headerHeight = Math.round((HEADER_HEIGHT + (subMenu ? SUB_NAV_HEIGHT : 0)) * scale);
 
   useSectionSnapMarkers(path, scale, headerHeight);
@@ -71,7 +71,9 @@ export default function HeaderLayer() {
     (id: string) => {
       if (!getSubMenu(path)) return;
       // 스크롤로 잡힐 때와 같은 자리(머리띠 아래 한가운데)로 간다.
-      scrollToSection(() => sectionTops(path, scale, headerHeight).find((section) => section.id === id)?.snapTop);
+      scrollToSection(
+        () => measureSectionPositions(path, scale, headerHeight).find((section) => section.id === id)?.snapTop,
+      );
     },
     [path, scale, headerHeight],
   );
@@ -89,7 +91,7 @@ export default function HeaderLayer() {
   return (
     // fixed 는 변형이 없는 바깥 칸에 건다. scale 이 걸린 안쪽에 주면 창이 아니라 그 칸이 기준이 된다.
     <div
-      className={["site-header", solid && "is-solid", hidden && "is-hidden"].filter(Boolean).join(" ")}
+      className={["site-header", isSolid && "is-solid", isHidden && "is-hidden"].filter(Boolean).join(" ")}
       style={{ position: "fixed", left: 0, top: 0, width: "100%", height: `${headerHeight}px`, zIndex: 20 }}
     >
       <div style={{ width: `${DESIGN_WIDTH}px`, transformOrigin: "top left", transform: `scale(${scale})` }}>

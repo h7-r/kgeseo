@@ -6,8 +6,8 @@ import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { openBoxGeometry } from "./geometry";
-import { junctionLabelTexture } from "./textures";
+import { buildOpenBoxGeometry } from "./puzzleGeometry";
+import { makeJunctionLabelTexture } from "./labelTextures";
 
 interface JunctionBoxProps {
   position: [number, number, number];
@@ -60,7 +60,7 @@ export default function JunctionBox({
   outline,
 }: JunctionBoxProps) {
   const d = direction;
-  const labelTexture = junctionLabelTexture(label, labelColor, "#131314", wear);
+  const labelTexture = makeJunctionLabelTexture(label, labelColor, "#131314", wear);
   const innerBrightness = Math.max(0.6, brightness);
   const wallThickness = 0.04;
   // 속 부품은 뒤판(x=0)에서부터 잰다
@@ -70,7 +70,7 @@ export default function JunctionBox({
   // 뚜껑은 두께 0.08 + 모서리 선 — 얇은 판에 외곽선을 두르면 각도마다 테두리가 떠 보인다
   const lidGeometry = useMemo(() => new THREE.BoxGeometry(0.08, height, width), [height, width]);
   const bodyGeometry = useMemo(
-    () => openBoxGeometry({ depth, height, width, wallThickness, direction: d }),
+    () => buildOpenBoxGeometry({ depth, height, width, wallThickness, direction: d }),
     [depth, height, width, d],
   );
   useEffect(

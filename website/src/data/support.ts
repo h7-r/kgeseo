@@ -10,12 +10,12 @@ export const SUPPORT_TABS = [
 export type SupportTabId = (typeof SUPPORT_TABS)[number]["id"];
 
 /** 분류 칩 맨 앞 칸. 고르면 모든 분류를 보여 준다. */
-export const ALL = "전체";
-export const NOTICE_FILTERS = [ALL, "점검", "이벤트", "업데이트", "안내"] as const;
-export const FAQ_FILTERS = [ALL, "계정", "게임플레이", "결제", "기술지원"] as const;
+export const ALL_CATEGORIES = "전체";
+export const NOTICE_FILTERS = [ALL_CATEGORIES, "점검", "이벤트", "업데이트", "안내"] as const;
+export const FAQ_FILTERS = [ALL_CATEGORIES, "계정", "게임플레이", "결제", "기술지원"] as const;
 
-export type NoticeCategory = Exclude<(typeof NOTICE_FILTERS)[number], typeof ALL>;
-export type FaqCategory = Exclude<(typeof FAQ_FILTERS)[number], typeof ALL>;
+export type NoticeCategory = Exclude<(typeof NOTICE_FILTERS)[number], typeof ALL_CATEGORIES>;
+export type FaqCategory = Exclude<(typeof FAQ_FILTERS)[number], typeof ALL_CATEGORIES>;
 
 interface Notice {
   category: NoticeCategory;

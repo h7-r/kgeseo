@@ -43,11 +43,11 @@ export default function MediaHero({ top = 129 }: MediaHeroProps) {
         </div>
 
         <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <button type="button" className="btn" style={filledButtonStyle} onClick={() => navigate(ROUTES.media)}>
-            <span className="btn__label">트레일러 보기</span>
+          <button type="button" className="button" style={filledButtonStyle} onClick={() => navigate(ROUTES.media)}>
+            <span className="button__label">트레일러 보기</span>
           </button>
-          <button type="button" className="btn" style={outlineButtonStyle} onClick={() => navigate(ROUTES.media)}>
-            <span className="btn__label">캐릭터 갤러리 →</span>
+          <button type="button" className="button" style={outlineButtonStyle} onClick={() => navigate(ROUTES.media)}>
+            <span className="button__label">캐릭터 갤러리 →</span>
           </button>
         </div>
       </div>

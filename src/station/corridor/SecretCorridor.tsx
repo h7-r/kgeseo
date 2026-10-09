@@ -2,19 +2,19 @@ import { useCallback, useEffect, useMemo } from "react";
 import * as THREE from "three";
 
 import { ToonOutline } from "@/engine/outline";
-import { makeRandom } from "@/engine/random";
-import { floorTexture } from "@/engine/textures/surfaces";
+import { createRandom } from "@/engine/random";
+import { makeFloorTexture } from "@/engine/textures/surfaces";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import RubbleStones, { type RubbleStone } from "@/station/train/RubbleStones";
 import WallPiece from "@/station/train/WallPiece";
 import { applySurfaceStains } from "@/station/vertexNoise";
 
-import { corridorDepthBrightness } from "./corridorLighting";
+import { computeCorridorDepthBrightness } from "./corridorLighting";
 
 interface SecretCorridorProps {
   /** 복도 바깥벽 */
   x0?: number;
-  /** 방과 맞닿은 벽(= MIN_X) */
+  /** 방과 맞닿은 벽(= HEADQUARTERS_MIN_X) */
   x1?: number;
   z0?: number;
   z1?: number;
@@ -88,7 +88,7 @@ export default function SecretCorridor({
 
   const depthBrightness = useCallback(
     (z: number) =>
-      corridorDepthBrightness(z, {
+      computeCorridorDepthBrightness(z, {
         doorZ,
         falloff,
         darkness,
@@ -123,7 +123,7 @@ export default function SecretCorridor({
     [wallSegments, z1, length, depthBrightness],
   );
 
-  const floorMap = floorTexture(floorSeed);
+  const floorMap = makeFloorTexture(floorSeed);
   const floorGeometry = useMemo(() => {
     const g = new THREE.PlaneGeometry(
       width,
@@ -148,7 +148,7 @@ export default function SecretCorridor({
 
   // 바닥 잔해 — 오래 안 쓴 통로라는 걸 말해 주는 단서
   const stones = useMemo(() => {
-    const rnd = makeRandom(seed + 17);
+    const rnd = createRandom(seed + 17);
     return Array.from({ length: rubbleCount }, (_, i): RubbleStone => ({
       x: x0 + 0.6 + rnd() * (width - 1.2),
       z: z0 + rnd() * length,

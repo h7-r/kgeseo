@@ -10,7 +10,7 @@ import type { AssetDefinition } from "./assetCatalog";
 let baked: Map<string, string> | null = null;
 
 /** 에셋 키 → PNG data URL. 렌더러가 아직 없으면 빈 표로 간다. */
-export function bakeThumbnail(
+export function bakeThumbnails(
   catalog: AssetDefinition[],
   getPrototype: (key: string) => THREE.BufferGeometry[] | null,
   renderer: THREE.WebGLRenderer | null,

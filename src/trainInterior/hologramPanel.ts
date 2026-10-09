@@ -2,8 +2,8 @@
 // 클릭은 평면 UV 를 캔버스 좌표로 바꿔 영역 판정한다 — 그리기와 판정이 아래 같은 좌표를 쓴다.
 
 /** 캔버스 해상도(px). 평면 비율도 이걸 따른다. */
-export const PANEL_WIDTH = 1024;
-export const PANEL_HEIGHT = 620;
+export const HOLOGRAM_CANVAS_WIDTH = 1024;
+export const HOLOGRAM_CANVAS_HEIGHT = 620;
 
 interface Destination {
   id: string;
@@ -65,18 +65,28 @@ interface Rect {
 }
 
 const LIST_X = 560;
-const LIST_W = PANEL_WIDTH - LIST_X - 60;
+const LIST_W = HOLOGRAM_CANVAS_WIDTH - LIST_X - 60;
 const ROW_H = 78;
 const ROW0_Y = 170;
 const ROW_GAP = 14;
-export const rowRect = (i: number): Rect => ({ x: LIST_X, y: ROW0_Y + i * (ROW_H + ROW_GAP), w: LIST_W, h: ROW_H });
-export const SELECT_RECT: Rect = { x: LIST_X, y: PANEL_HEIGHT - 110, w: LIST_W / 2 - 12, h: 66 };
-export const RESET_RECT: Rect = { x: LIST_X + LIST_W / 2 + 12, y: PANEL_HEIGHT - 110, w: LIST_W / 2 - 12, h: 66 };
+export const getDestinationRowRect = (i: number): Rect => ({
+  x: LIST_X,
+  y: ROW0_Y + i * (ROW_H + ROW_GAP),
+  w: LIST_W,
+  h: ROW_H,
+});
+export const SELECT_BUTTON_RECT: Rect = { x: LIST_X, y: HOLOGRAM_CANVAS_HEIGHT - 110, w: LIST_W / 2 - 12, h: 66 };
+export const RESET_BUTTON_RECT: Rect = {
+  x: LIST_X + LIST_W / 2 + 12,
+  y: HOLOGRAM_CANVAS_HEIGHT - 110,
+  w: LIST_W / 2 - 12,
+  h: 66,
+};
 
-export const isInside = (rect: Rect, cx: number, cy: number) =>
+export const isPointInRect = (rect: Rect, cx: number, cy: number) =>
   cx >= rect.x && cx <= rect.x + rect.w && cy >= rect.y && cy <= rect.y + rect.h;
 
-function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+function traceRoundedRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   g.beginPath();
   g.moveTo(x + r, y);
   g.arcTo(x + w, y, x + w, y + h, r);
@@ -86,7 +96,7 @@ function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number,
   g.closePath();
 }
 
-interface PanelState {
+interface HologramPanelState {
   selectedId: string | null;
   isNear: boolean;
 }
@@ -94,15 +104,15 @@ interface PanelState {
 const FONT = "'Apple SD Gothic Neo', sans-serif";
 
 /** 홀로그램 UI 한 장을 그린다. */
-export function drawPanel(g: CanvasRenderingContext2D, { selectedId, isNear }: PanelState) {
-  const W = PANEL_WIDTH,
-    H = PANEL_HEIGHT;
+export function drawHologramPanel(g: CanvasRenderingContext2D, { selectedId, isNear }: HologramPanelState) {
+  const W = HOLOGRAM_CANVAS_WIDTH,
+    H = HOLOGRAM_CANVAS_HEIGHT;
   const cyan = "#8fe6ff",
     brightCyan = "#d6f4ff",
     dim = "rgba(120,210,245,0.45)";
   g.clearRect(0, 0, W, H);
 
-  roundRect(g, 10, 10, W - 20, H - 20, 22);
+  traceRoundedRect(g, 10, 10, W - 20, H - 20, 22);
   g.fillStyle = "rgba(12,34,50,0.52)";
   g.fill();
   g.lineWidth = 3;
@@ -199,10 +209,10 @@ export function drawPanel(g: CanvasRenderingContext2D, { selectedId, isNear }: P
 
   // 오른쪽: 목적지 목록
   DESTINATIONS.forEach((destination, i) => {
-    const r = rowRect(i);
+    const r = getDestinationRowRect(i);
     const isOpen = destination.isOpen;
     const isSelected = selectedId === destination.id;
-    roundRect(g, r.x, r.y, r.w, r.h, 12);
+    traceRoundedRect(g, r.x, r.y, r.w, r.h, 12);
     g.fillStyle = isSelected ? "rgba(120,225,255,0.22)" : "rgba(90,170,210,0.10)";
     g.fill();
     g.lineWidth = 2;
@@ -217,7 +227,7 @@ export function drawPanel(g: CanvasRenderingContext2D, { selectedId, isNear }: P
     g.fillText(destination.subtitle, r.x + 26, r.y + r.h * 0.72);
     const boxX = r.x + r.w - 54,
       boxY = r.y + r.h / 2 - 16;
-    roundRect(g, boxX, boxY, 32, 32, 7);
+    traceRoundedRect(g, boxX, boxY, 32, 32, 7);
     g.lineWidth = 2.5;
     g.strokeStyle = isOpen ? cyan : "rgba(120,170,195,0.4)";
     g.stroke();
@@ -234,11 +244,11 @@ export function drawPanel(g: CanvasRenderingContext2D, { selectedId, isNear }: P
   });
 
   const buttons: [Rect, string, boolean][] = [
-    [SELECT_RECT, "SELECT", !!selectedId],
-    [RESET_RECT, "RESET", false],
+    [SELECT_BUTTON_RECT, "SELECT", !!selectedId],
+    [RESET_BUTTON_RECT, "RESET", false],
   ];
   for (const [rect, text, isHighlighted] of buttons) {
-    roundRect(g, rect.x, rect.y, rect.w, rect.h, 12);
+    traceRoundedRect(g, rect.x, rect.y, rect.w, rect.h, 12);
     g.fillStyle = isHighlighted ? "rgba(120,225,255,0.28)" : "rgba(90,170,210,0.10)";
     g.fill();
     g.lineWidth = 2.5;
@@ -254,8 +264,8 @@ export function drawPanel(g: CanvasRenderingContext2D, { selectedId, isNear }: P
   }
 
   if (isNear) {
-    const hy = SELECT_RECT.y - 58;
-    roundRect(g, LIST_X, hy, LIST_W, 44, 11);
+    const hy = SELECT_BUTTON_RECT.y - 58;
+    traceRoundedRect(g, LIST_X, hy, LIST_W, 44, 11);
     g.fillStyle = "rgba(120,225,255,0.18)";
     g.fill();
     g.lineWidth = 2;

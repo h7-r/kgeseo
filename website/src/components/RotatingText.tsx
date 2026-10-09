@@ -17,9 +17,9 @@ interface RotatingTextProps {
  * 동작 줄이기를 켠 사람에겐 첫 줄만 보여 준다.
  */
 export default function RotatingText({ lines, interval = 3600, style, lineStyle }: RotatingTextProps) {
-  const [ref, visible] = useReveal("0px 0px -10% 0px", "both");
+  const [ref, isVisible] = useReveal("0px 0px -10% 0px", "both");
   const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const reducedMotion = useRef(false);
 
   useEffect(() => {
@@ -27,10 +27,10 @@ export default function RotatingText({ lines, interval = 3600, style, lineStyle 
   }, []);
 
   useEffect(() => {
-    if (!visible || paused || reducedMotion.current || lines.length < 2) return;
+    if (!isVisible || isPaused || reducedMotion.current || lines.length < 2) return;
     const timer = window.setInterval(() => setIndex((n) => (n + 1) % lines.length), interval);
     return () => clearInterval(timer);
-  }, [visible, paused, interval, lines.length]);
+  }, [isVisible, isPaused, interval, lines.length]);
 
   const current = lines[index] ?? lines[0];
   const longest = lines.reduce((a, b) => (b.length > a.length ? b : a), "");
@@ -39,8 +39,8 @@ export default function RotatingText({ lines, interval = 3600, style, lineStyle 
     <div
       ref={ref}
       style={{ position: "relative", ...style }}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
       aria-live="polite"
     >
       {/* 가장 긴 문구로 자리를 잡아 글이 바뀌어도 칸 높이가 들썩이지 않게 한다. */}

@@ -12,7 +12,7 @@ import { ToneMappingMode } from "postprocessing";
 import { Leva } from "leva";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
 
-import ChibiTestPanel from "../avatar/ChibiTestPanel";
+import ChibiCustomizerPanel from "../avatar/ChibiCustomizerPanel";
 import SidekickCustomizerPanel from "../avatar/SidekickCustomizerPanel";
 import { readMeshAppearance, type MeshAppearanceConfig } from "../avatar/meshAppearance";
 import { readSidekickAppearance } from "../avatar/sidekickOptions";
@@ -54,8 +54,9 @@ import {
 type ViewMode = "1인칭" | "3인칭";
 
 // 시작 카메라 — V1 자리. Leva 저장값이 다르면 첫 프레임에 씬이 다시 앉힌다.
-const START = VIEWPOINTS[0];
-const START_HEIGHT = (DEFAULT_TERRAIN.groundAt(START.x, START.z).y + BASELINE.eyeHeight) * UNITS_PER_METER;
+const START_VIEWPOINT = VIEWPOINTS[0];
+const START_HEIGHT =
+  (DEFAULT_TERRAIN.groundAt(START_VIEWPOINT.x, START_VIEWPOINT.z).y + BASELINE.eyeHeight) * UNITS_PER_METER;
 
 const toggleViewMode = (mode: ViewMode): ViewMode => (mode === "1인칭" ? "3인칭" : "1인칭");
 
@@ -72,7 +73,7 @@ export default function App() {
 
   const controlsRef = useRef<PointerLockControlsImpl>(null);
   const reportRef = useRef<NajuSceneReport | null>(null); // 씬 → 계기판(리렌더 없이)
-  const [locked, setLocked] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("1인칭");
   const [sidekickConfig, setSidekickConfig] = useState(() =>
     readSidekickAppearance(SIDEKICK_APPEARANCE_KEY, LEGACY_SIDEKICK_APPEARANCE_KEY),
@@ -94,7 +95,12 @@ export default function App() {
   // 첫 프레임이 그려지면 검은 덮개가 걷힌다
   const [isArrivalRevealed, revealArrival] = useArrivalFade(IS_ARRIVING_FROM_HUB);
 
-  const [loading, setLoading] = useState<LoadingProgress>({ done: 0, total: 0, label: "", phase: "fetching" });
+  const [loadingProgress, setLoadingProgress] = useState<LoadingProgress>({
+    done: 0,
+    total: 0,
+    label: "",
+    phase: "fetching",
+  });
   const [isSceneReady, setIsSceneReady] = useState(false); // 다 받아서 씬을 붙여도 된다
   const [isSceneDrawn, setIsSceneDrawn] = useState(false);
   const [isCoverMounted, setIsCoverMounted] = useState(true);
@@ -103,10 +109,10 @@ export default function App() {
     let isAlive = true;
     let frame = 0;
     prefetchNajuAssets((done, total, label) => {
-      if (isAlive) setLoading({ done, total, label, phase: "fetching" });
+      if (isAlive) setLoadingProgress({ done, total, label, phase: "fetching" });
     }).then(() => {
       if (!isAlive) return;
-      setLoading((previous) => ({ ...previous, phase: "building" }));
+      setLoadingProgress((previous) => ({ ...previous, phase: "building" }));
       // 「세우는 중」이 한 번 그려진 뒤에 붙인다 — 같은 틱이면 수 초짜리 동기 세우기가 먼저 와 「받는 중」에서 얼어 보인다
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
@@ -128,7 +134,7 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code === "KeyT" && !locked) controlsRef.current?.lock();
+      if (event.code === "KeyT" && !isLocked) controlsRef.current?.lock();
       if (SHOW_DEV_TOOLS && event.code === "KeyH" && !event.repeat) setIsDashboardVisible((visible) => !visible);
       // 시점 전환은 카메라 회전을 만지지 않고 캐릭터 표시만 바꾼다.
       // 수식키가 눌린 V 는 편집기의 붙여넣기(⌘V/Ctrl+V)다.
@@ -138,10 +144,10 @@ export default function App() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [locked]);
+  }, [isLocked]);
 
   return (
-    <div className={`stage${IS_STAGE_16X9 ? " stage-16x9" : ""}`} style={{ position: "relative" }}>
+    <div className={`game-stage${IS_STAGE_16X9 ? " game-stage--16x9" : ""}`} style={{ position: "relative" }}>
       <Leva hidden={!SHOW_LEVA} theme={{ sizes: { numberInputMinWidth: "68px" } }} />
       <Canvas
         shadows={IS_LOW_QUALITY ? false : "percentage"}
@@ -156,7 +162,7 @@ export default function App() {
         }}
         // 야외라 건너편 뱃길 너머 산줄기까지 이어져야 한다. 900 m ≈ 3000 유닛.
         camera={{
-          position: [START.x * UNITS_PER_METER, START_HEIGHT, START.z * UNITS_PER_METER],
+          position: [START_VIEWPOINT.x * UNITS_PER_METER, START_HEIGHT, START_VIEWPOINT.z * UNITS_PER_METER],
           fov: BASELINE.fov,
           near: 0.3,
           far: 4000,
@@ -178,9 +184,9 @@ export default function App() {
               />
             )}
             <MemoNajuScene
-              active={locked}
+              active={isLocked}
               controlsRef={controlsRef}
-              onLockChange={setLocked}
+              onLockChange={setIsLocked}
               reportRef={reportRef}
               isThirdPerson={viewMode === "3인칭"}
               sidekickConfig={sidekickConfig}
@@ -211,16 +217,16 @@ export default function App() {
         )}
       </Canvas>
 
-      {IS_ARRIVING_FROM_HUB && <ArrivalCover revealed={isArrivalRevealed} />}
+      {IS_ARRIVING_FROM_HUB && <ArrivalCover isRevealed={isArrivalRevealed} />}
       {isDashboardVisible && <Dashboard reportRef={reportRef} />}
-      {SHOW_DEV_TOOLS && !locked && <ControlsHelp />}
+      {SHOW_DEV_TOOLS && !isLocked && <ControlsHelp />}
       {/* 다 숨겼을 때 되돌리는 법을 잊지 않게 작은 자국만 남긴다 */}
       {SHOW_DEV_TOOLS && !isDashboardVisible && <div style={hiddenHintStyle}>[H] 계기판</div>}
       <button type="button" onClick={() => setViewMode(toggleViewMode)} style={viewButtonStyle}>
         [V] {viewMode}
       </button>
       {SHOW_CUSTOMIZE_PANEL && meshConfig && (
-        <ChibiTestPanel
+        <ChibiCustomizerPanel
           config={meshConfig}
           setConfig={setPanelMeshConfig}
           storageKey={MESH_APPEARANCE_KEY}
@@ -230,7 +236,7 @@ export default function App() {
           setOutlineConfig={setOutlineConfig}
         />
       )}
-      {isCoverMounted && <LoadingCover progress={loading} fading={isSceneDrawn} />}
+      {isCoverMounted && <LoadingCover progress={loadingProgress} isFading={isSceneDrawn} />}
       {SHOW_CUSTOMIZE_PANEL && !meshConfig && (
         <SidekickCustomizerPanel
           config={sidekickConfig}

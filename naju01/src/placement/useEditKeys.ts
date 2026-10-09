@@ -5,12 +5,12 @@ import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 
 import { EDIT_BOUNDS, NUDGE_STEP, ROTATION_STEP, clamp, type Selection } from "./editorConfig";
-import { addInstances, modifyInstance, removeInstances, type Edits, type SpotPatch } from "./instanceGroups";
+import { addInstance, modifyInstance, removeInstance, type Edits, type SpotPatch } from "./instanceGroups";
 
 /** 복사해 둔 것을 (x, y, z) 에 하나 더 놓는다 */
 function pasteCopy(edits: Edits, copied: Selection, x: number, y: number, z: number) {
   // 복사는 같은 물건이어야 한다 — 색·모양·납작함·기울기까지
-  return addInstances(edits, copied.groupId, {
+  return addInstance(edits, copied.groupId, {
     x,
     y,
     z,
@@ -26,7 +26,7 @@ function pasteCopy(edits: Edits, copied: Selection, x: number, y: number, z: num
 }
 
 /** 화면 기준 수평 앞·오른쪽. 오른쪽은 걷기 훅과 같은 식(fwd × up) — 부호를 뒤집으면 좌우가 뒤바뀐다. */
-function screenAxes(camera: THREE.Camera) {
+function computeScreenAxes(camera: THREE.Camera) {
   const forward = new THREE.Vector3();
   camera.getWorldDirection(forward);
   forward.y = 0;
@@ -41,7 +41,7 @@ interface EditKeysOptions {
   selected: Selection | null;
   edits: Edits;
   setEdits: Dispatch<SetStateAction<Edits>>;
-  floorHeight: (x: number, z: number, fallback?: number) => number;
+  floorHeightAt: (x: number, z: number, fallback?: number) => number;
   save: () => Promise<void>;
   undoStack: MutableRefObject<Edits[]>;
   clipboard: MutableRefObject<Selection | null>;
@@ -58,7 +58,7 @@ export function useEditKeys({
   selected,
   edits,
   setEdits,
-  floorHeight,
+  floorHeightAt,
   save,
   undoStack,
   clipboard,
@@ -80,11 +80,11 @@ export function useEditKeys({
         return;
       }
       // 화면 오른쪽으로 한 걸음 띄운다 — 정확히 겹치면 안 보인다
-      const { right } = screenAxes(camera);
+      const { right } = computeScreenAxes(camera);
       const gap = Math.max(1, copied.size * 0.6);
       const x = clamp(copied.x + right.x * gap, EDIT_BOUNDS.x[0], EDIT_BOUNDS.x[1]);
       const z = clamp(copied.z + right.z * gap, EDIT_BOUNDS.z[0], EDIT_BOUNDS.z[1]);
-      const y = floorHeight(x, z, copied.y);
+      const y = floorHeightAt(x, z, copied.y);
       undoStack.current.push(edits);
       const { edits: next, id } = pasteCopy(edits, copied, x, y, z);
       setEdits(next);
@@ -97,7 +97,7 @@ export function useEditKeys({
     // 고른 것을 화면 기준으로 민다
     const nudgeByArrow = (chosen: Selection, ev: KeyboardEvent, nudge: (patch: SpotPatch) => void) => {
       const step = NUDGE_STEP * (ev.shiftKey ? 4 : 1);
-      const { forward, right } = screenAxes(camera);
+      const { forward, right } = computeScreenAxes(camera);
       const d = new THREE.Vector3();
       if (ev.code === "ArrowUp") d.copy(forward);
       if (ev.code === "ArrowDown") d.copy(forward).negate();
@@ -105,7 +105,7 @@ export function useEditKeys({
       if (ev.code === "ArrowLeft") d.copy(right).negate();
       const x = clamp(chosen.x + d.x * step, EDIT_BOUNDS.x[0], EDIT_BOUNDS.x[1]);
       const z = clamp(chosen.z + d.z * step, EDIT_BOUNDS.z[0], EDIT_BOUNDS.z[1]);
-      const y = floorHeight(x, z, chosen.y);
+      const y = floorHeightAt(x, z, chosen.y);
       setSelected((v) => v && { ...v, x, y, z });
       nudge({ x, y, z });
       setNotice(`(${x.toFixed(1)}, ${z.toFixed(1)}) · Ctrl+S 로 저장`);
@@ -161,7 +161,7 @@ export function useEditKeys({
         case "Backspace":
         case "KeyX":
           undoStack.current.push(edits);
-          setEdits((e) => removeInstances(e, selected.groupId, selected.id));
+          setEdits((e) => removeInstance(e, selected.groupId, selected.id));
           setSelected(null);
           setNotice("지움 · Ctrl+S 로 저장");
           break;
@@ -202,7 +202,7 @@ export function useEditKeys({
     edits,
     setEdits,
     camera,
-    floorHeight,
+    floorHeightAt,
     save,
     undoStack,
     clipboard,

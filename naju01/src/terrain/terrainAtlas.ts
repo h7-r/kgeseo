@@ -197,7 +197,7 @@ export function findCell(name: string): AtlasCellName | null {
  * 세계 사각형(m) → 바닥 칸의 아틀라스 사각형. 위에서 편 평면 투영이라 축 나란한 사각형이 그대로 옮겨진다.
  * 텍스처 합치기 도구가 다시 계산하면 언젠가 어긋나므로 내보낼 때 이 값을 .json 으로 같이 적는다.
  */
-export function groundCellRect(xRange: Range, zRange: Range): CellRect {
+export function computeGroundCellRect(xRange: Range, zRange: Range): CellRect {
   const cell = ATLAS_LAYOUT.ground;
   const box = PROJECTION_BOXES.ground;
   const minA = box.min[0] * UNITS_PER_METER;

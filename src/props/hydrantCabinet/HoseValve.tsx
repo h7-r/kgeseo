@@ -6,10 +6,10 @@ import type { Vector3Tuple } from "three";
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
-import { canTurnValve, turnValve, usePanelWiring, valveOpen } from "@/props/panelWiring";
+import { AimHighlight } from "@/lobby/AimHighlight";
+import { canTurnValve, turnValve, usePanelWiring, getValveOpening } from "@/props/panelWiringState";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { type HighlightSettings, worldPositionOf } from "@/props/shared/aimTarget";
+import { type AimHighlightSettings, getWorldPositionOf } from "@/props/shared/aimTarget";
 
 interface HoseValveProps {
   valveId: string;
@@ -19,7 +19,7 @@ interface HoseValveProps {
   metalColor: string;
   handleColor: string;
   canHandle: boolean;
-  highlight?: HighlightSettings;
+  highlight?: AimHighlightSettings;
   brightness: number;
   outline?: OutlineValues | null;
 }
@@ -45,7 +45,7 @@ export default function HoseValve({
   useFrame((_, dt) => {
     const handle = handleRef.current;
     if (!handle) return;
-    turned.current += (valveOpen() - turned.current) * (1 - Math.exp(-dt * 3.2));
+    turned.current += (getValveOpening() - turned.current) * (1 - Math.exp(-dt * 3.2));
     // 오른쪽(시계 방향)으로 두 바퀴
     handle.rotation.z = -turned.current * Math.PI * 4;
   });
@@ -77,7 +77,7 @@ export default function HoseValve({
       {/* 핸들은 몸통 바로 앞 — 옆으로 비키면 바퀴만 떠 보인다. 도는 것은 안쪽 그룹이다
           (바깥까지 돌리면 세워 둔 방향이 같이 틀어져 바퀴가 눕는다). */}
       <group position={[d * 0.11, 0.02, 0]} rotation={[0, Math.PI / 2, 0]}>
-        <Highlight
+        <AimHighlight
           id={valveId}
           anchor={() => [0, 0, 0]}
           color={highlight?.color}
@@ -101,7 +101,7 @@ export default function HoseValve({
               <ToonMaterial color={handleColor} brightness={brightness} />
             </mesh>
           </group>
-        </Highlight>
+        </AimHighlight>
         <Interactable
           id={valveId}
           radius={0.28}
@@ -109,7 +109,7 @@ export default function HoseValve({
           label="[E] 밸브 열기"
           // 눌러도 아무 일 없으면 고장으로 읽힌다 — 돌 수 있을 때만 뜬다
           disabled={() => !canHandle || !canTurnValve()}
-          position={() => worldPositionOf(handleRef)}
+          position={() => getWorldPositionOf(handleRef)}
           run={() => turnValve()}
         />
       </group>

@@ -3,7 +3,7 @@ import { useState, type ChangeEvent, type CSSProperties, type FormEvent } from "
 import Modal from "@/components/Modal";
 import { modalPrimaryStyle, modalSecondaryStyle } from "@/components/modalButtonStyles";
 import { FONT } from "@/lib/style";
-import { matchPasswords, RULES } from "@/lib/validation";
+import { validatePasswordConfirm, RULES } from "@/lib/validation";
 import { changePassword } from "@/services/account/manageAccount";
 import type { SessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
@@ -45,7 +45,7 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
   const errors: Record<PasswordField, string> = {
     current: !values.current ? "지금 비밀번호를 입력해주세요." : "",
     next: RULES.password(values.next, { email: user?.email, nickname: user?.name }),
-    confirm: matchPasswords(values.next, values.confirm),
+    confirm: validatePasswordConfirm(values.next, values.confirm),
   };
   const visibleError = (field: PasswordField) => (touched[field] ? errors[field] : "");
 
@@ -66,7 +66,7 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
 
   const renderField = (field: PasswordField, label: string, autoComplete: string) => {
     const error = visibleError(field);
-    const stateClass = error ? " is-invalid" : touched[field] && values[field] ? " is-valid" : "";
+    const stateClass = error ? " is-error" : touched[field] && values[field] ? " is-valid" : "";
     return (
       <label style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         <span style={passwordLabelStyle}>
@@ -96,8 +96,8 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
       <p style={{ margin: 0, fontFamily: FONT.body, fontSize: "16px", color: COLOR.success }}>
         ✓ 비밀번호를 바꿨습니다. 다음 로그인부터 새 비밀번호를 쓰세요.
       </p>
-      <button type="button" className="btn btn-sweep" style={modalPrimaryStyle} onClick={onClose}>
-        <span className="btn__label">확인</span>
+      <button type="button" className="button button--primary" style={modalPrimaryStyle} onClick={onClose}>
+        <span className="button__label">확인</span>
       </button>
     </div>
   ) : (
@@ -113,16 +113,16 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
         </div>
       )}
       <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "4px" }}>
-        <button type="button" className="btn" style={modalSecondaryStyle} onClick={onClose}>
-          <span className="btn__label">취소</span>
+        <button type="button" className="button" style={modalSecondaryStyle} onClick={onClose}>
+          <span className="button__label">취소</span>
         </button>
         <button
           type="submit"
-          className="btn btn-sweep"
+          className="button button--primary"
           style={{ ...modalPrimaryStyle, ...(isSubmitting ? { opacity: 0.65 } : {}) }}
           aria-busy={isSubmitting}
         >
-          <span className="btn__label">{isSubmitting ? "확인하는 중…" : "바꾸기"}</span>
+          <span className="button__label">{isSubmitting ? "확인하는 중…" : "바꾸기"}</span>
         </button>
       </div>
     </form>

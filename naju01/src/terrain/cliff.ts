@@ -7,10 +7,10 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
-import { CLIFF_OUTLINE, UNITS_PER_METER, type Cliff, type Range } from "../plan/sitePlan";
-import { applyVertexColors, createRockShape, type HeightAt, type Noise2D } from "./ground";
+import { cliffProfileAt, UNITS_PER_METER, type Cliff, type Range } from "../plan/sitePlan";
+import { applyVertexColors, buildRockShape, type HeightAt, type Noise2D } from "./ground";
 
 type CliffBand = Pick<Cliff, "x" | "zTop" | "zBottom" | "height">;
 
@@ -38,7 +38,7 @@ export const EARTH_WALL_STYLE: RockPalette = {
 };
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
-export const between = (v: number, a: number, b: number) => THREE.MathUtils.clamp((v - a) / (b - a), 0, 1);
+export const linearStep = (v: number, a: number, b: number) => THREE.MathUtils.clamp((v - a) / (b - a), 0, 1);
 
 interface CutSample {
   /** 안쪽으로 파는 깊이(m) */
@@ -156,7 +156,7 @@ interface PaintOptions {
 }
 
 /** 깎인 면 칠하기 — 층색 → 깊이 그늘 → 아래쪽 젖음 → 층 홈의 이끼. 절벽·비탈이 같이 쓴다. */
-export function paintCutFace(
+export function applyCutFaceColors(
   c: THREE.Color,
   { layerIndex, d, t, below = 0, speckle }: PaintSample,
   { palette, carveDepth, strataNoise, mossStrength = 0.35 }: PaintOptions,
@@ -164,9 +164,9 @@ export function paintCutFace(
   const layerTone = strataNoise(layerIndex * 7.1, 2.9) * 0.5 + 0.5;
   c.copy(palette.dark).lerp(palette.bright, 0.34 + layerTone * 0.66);
   // 0.8 이면 가장 깊은 데가 순수 어둠색이 되어 하늘을 등지면 새까맣게 뭉친다
-  c.lerp(palette.dark, between(d / Math.max(0.01, carveDepth), 0, 0.9) * 0.62);
-  c.lerp(palette.wet, between(below, 0.76, 1) * 0.4);
-  c.lerp(palette.moss, (1 - between(t, 0, 0.14)) * mossStrength * (1 - between(below, 0.72, 1)));
+  c.lerp(palette.dark, linearStep(d / Math.max(0.01, carveDepth), 0, 0.9) * 0.62);
+  c.lerp(palette.wet, linearStep(below, 0.76, 1) * 0.4);
+  c.lerp(palette.moss, (1 - linearStep(t, 0, 0.14)) * mossStrength * (1 - linearStep(below, 0.72, 1)));
   if (speckle !== undefined) c.offsetHSL(0, 0, speckle);
   return c;
 }
@@ -212,7 +212,7 @@ export function buildCliffFace({
 
   // 마루·발치·높이가 x 마다 흔들리므로 면의 바깥 방향도 x 마다 다르다
   const normalAt = (x: number) => {
-    const { crest, toe, height: wall } = CLIFF_OUTLINE(x);
+    const { crest, toe, height: wall } = cliffProfileAt(x);
     const span = Math.max(0.3, toe - crest);
     const L = Math.hypot(wall, span) || 1;
     return { nz: wall / L, ny: span / L, crest, toe, wall };
@@ -251,7 +251,7 @@ export function buildCliffFace({
   const c = new THREE.Color();
 
   const colorAt = (p: CliffFacePoint) => {
-    paintCutFace(
+    applyCutFaceColors(
       c,
       {
         layerIndex: p.layerIndex,
@@ -353,10 +353,10 @@ export interface StoneSpot {
 
 /**
  * 절벽 발치에 붙이는 큰 암괴 자리(도면 4 m 띠 밖). 띠 안에서는 아무리 흔들어도 판(벽)이다.
- * 네모 덩어리(buildBoulders)는 상자로 보여 정이십면체 돌(createRockShape)을 쓴다. 그림 전용이라 Z2 가장자리에 둔다.
+ * 네모 덩어리(buildBoulders)는 상자로 보여 정이십면체 돌(buildRockShape)을 쓴다. 그림 전용이라 Z2 가장자리에 둔다.
  * 마루에 얹은 큰 돌은 공중에 뜬 검은 덩어리로 보여 뺐다 — 둥근 머리는 Z3 고도를 바꾸는 도면 안건이다.
  */
-export function boulderSpots({ cliff, groundHeight }: { cliff: CliffBand; groundHeight?: HeightAt }) {
+export function computeBoulderSpots({ cliff, heightAt }: { cliff: CliffBand; heightAt?: HeightAt }) {
   const spots: StoneSpot[] = [];
   const { x: X } = cliff;
   const at = (u: number) => X[0] + (X[1] - X[0]) * u;
@@ -374,13 +374,13 @@ export function boulderSpots({ cliff, groundHeight }: { cliff: CliffBand; ground
   ];
   for (const [u, size, forward] of toeSeeds) {
     const x = at(u);
-    const { toe } = CLIFF_OUTLINE(x);
+    const { toe } = cliffProfileAt(x);
     const z = toe + forward;
     spots.push({
       x,
       z,
       // 밑동을 깊이 묻는다 — 얹혀 있으면 떠 보인다
-      y: (groundHeight ? groundHeight(x, z) : 0) - size * 0.42,
+      y: (heightAt ? heightAt(x, z) : 0) - size * 0.42,
       size,
     });
   }
@@ -409,7 +409,7 @@ interface CliffBushOptions {
  * 절벽 틈에 박히는 수풀 자리. 사진 속 바위는 맨살로 서 있지 않다 — 맨 암벽만 두면 모형으로 보인다.
  * 흙이 고이는 골(깎기 값이 깊은 자리)에 붙인다.
  */
-export function cliffBushSpots({
+export function computeCliffBushSpots({
   cliff,
   count = 90,
   seed,
@@ -420,7 +420,7 @@ export function cliffBushSpots({
   angularity,
 }: CliffBushOptions) {
   const { x: X, zTop, zBottom, height: h } = cliff;
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const batter = zBottom - zTop;
   const L = Math.hypot(h, batter) || 1;
   const nz = h / L;
@@ -461,15 +461,15 @@ interface ScreeOptions {
   seed: number;
   grainNoise: Noise2D;
   /** 주면 그 자리의 진짜 땅에서 잰다. 이상적인 빗면에 얹으면 깎아 낸 암벽보다 떠서 돌이 공중에 걸린다. */
-  groundHeight?: HeightAt;
+  heightAt?: HeightAt;
 }
 
 // 벼랑 밑 돌무더기 — 저 위에서 떨어졌다는 게 읽힌다. 배터 띠 안(설 수 없는 자리)에만 놓는다.
-export function buildScree({ cliff, count, seed, grainNoise, groundHeight }: ScreeOptions) {
+export function buildScree({ cliff, count, seed, grainNoise, heightAt }: ScreeOptions) {
   const { x: X, zTop, zBottom, height: h } = cliff;
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const shapes: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 5; i++) shapes.push(createRockShape(random));
+  for (let i = 0; i < 5; i++) shapes.push(buildRockShape(random));
   const pieces: THREE.BufferGeometry[] = [];
   const bright = new THREE.Color(CLIFF_STYLE.bright);
   const dark = new THREE.Color(CLIFF_STYLE.dark);
@@ -497,7 +497,7 @@ export function buildScree({ cliff, count, seed, grainNoise, groundHeight }: Scr
     quaternion.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
     scale.set(size * UNITS_PER_METER, size * flatness * UNITS_PER_METER, size * widthRatio * UNITS_PER_METER);
     // 얹지 말고 묻는다 — 비탈에 박혀 있어야 굴러떨어지지 않아 보인다
-    const base = groundHeight ? groundHeight(x, z) : y;
+    const base = heightAt ? heightAt(x, z) : y;
     position.set(x * UNITS_PER_METER, (base - size * 0.22) * UNITS_PER_METER, z * UNITS_PER_METER);
     matrix.compose(position, quaternion, scale);
     g.applyMatrix4(matrix);
@@ -569,7 +569,7 @@ export function buildBoulders({
 
   const emit = (p: BoulderPoint) => {
     positions.push(p.x * UNITS_PER_METER, p.y * UNITS_PER_METER, p.z * UNITS_PER_METER);
-    paintCutFace(
+    applyCutFaceColors(
       c,
       { layerIndex: p.layerIndex, d: p.d, t: p.t, below: 0 },
       { palette: { bright, dark, wet: dark, moss }, carveDepth, strataNoise, mossStrength: 0 },

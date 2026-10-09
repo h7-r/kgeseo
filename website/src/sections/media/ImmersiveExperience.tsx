@@ -8,7 +8,7 @@ import navigationIcon from "@/assets/images/imgNavigation.svg";
 import usersIcon from "@/assets/images/imgUsers.svg";
 import HeartbeatLine from "@/components/HeartbeatLine";
 import RisingText from "@/components/RisingText";
-import { approachClass, useReveal, useTilt } from "@/hooks/motion";
+import { depthRevealClass, useReveal, useTilt } from "@/hooks/motion";
 import { useProximity } from "@/hooks/proximity";
 import { fillImageStyle, FONT, glowImageStyle, gradientText } from "@/lib/style";
 import { sectionAnchor } from "@/navigation/subMenus";
@@ -155,13 +155,13 @@ interface FeatureCardProps extends Feature {
 /** 차례로 떠오르고 마우스를 따라 기우는 기능 카드. */
 function FeatureCard({ number, icon, title, description, order }: FeatureCardProps) {
   const { ref: tiltRef, onMouseMove, onMouseLeave } = useTilt<HTMLDivElement>(4);
-  const [revealRef, visible] = useReveal<HTMLDivElement>();
+  const [revealRef, isVisible] = useReveal<HTMLDivElement>();
   const proximityRef = useProximity<HTMLDivElement>(240);
 
   return (
     <div
       ref={revealRef}
-      className={`tilt-scene ${approachClass(visible)}`}
+      className={`u-tilt-scene ${depthRevealClass(isVisible)}`}
       style={{ flex: "1 0 0", minWidth: 0, transitionDelay: `${order * 30}ms` }}
     >
       <div
@@ -171,7 +171,7 @@ function FeatureCard({ number, icon, title, description, order }: FeatureCardPro
         }}
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
-        className="tilt proximity-inner"
+        className="u-tilt u-proximity-glow u-proximity-glow--inset"
         style={cardStyle}
       >
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>

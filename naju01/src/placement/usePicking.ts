@@ -5,12 +5,12 @@ import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 
 import { CORE, METERS_PER_UNIT, UNITS_PER_METER } from "../plan/sitePlan";
-import { GROUND_MESHES, SILENT_MESHES, UNPICKABLE, type Selection } from "./editorConfig";
+import { GROUND_MESHES, SILENT_MESH_PATTERN, UNPICKABLE_REASONS, type Selection } from "./editorConfig";
 
 const tempColor = new THREE.Color();
 
 // instanceColor 는 선형 값이다. getHex() 가 sRGB 로 돌려주므로 color.set(hex) 로 다시 읽으면 같은 값이 된다.
-function instanceColorHex(mesh: THREE.InstancedMesh, i: number | undefined) {
+function getInstanceColorHex(mesh: THREE.InstancedMesh, i: number | undefined) {
   const colors = mesh.instanceColor;
   if (!colors || i === undefined || i >= colors.count) return null;
   return tempColor.fromArray(colors.array, i * 3).getHex();
@@ -31,7 +31,7 @@ function readSelection(mesh: THREE.InstancedMesh, instanceId: number, groupId: s
   // 복사가 그 물건 그대로(색·납작함·기울기)를 물려받게 여기서 다 캐낸다.
   // 키는 높이 그대로 두고 가로·세로는 키에 대한 비로 넘긴다.
   const euler = new THREE.Euler().setFromQuaternion(quaternion, "YXZ");
-  const color = instanceColorHex(mesh, instanceId);
+  const color = getInstanceColorHex(mesh, instanceId);
   return {
     groupId,
     id,
@@ -57,7 +57,7 @@ function readSelection(mesh: THREE.InstancedMesh, instanceId: number, groupId: s
   };
 }
 
-export function usePicking(groundHeightAt: ((x: number, z: number) => number) | null | undefined) {
+export function usePicking(heightAt: ((x: number, z: number) => number) | null | undefined) {
   const { camera, scene, gl } = useThree();
   const raycaster = useRef(new THREE.Raycaster());
   const pointer = useRef(new THREE.Vector2());
@@ -75,7 +75,7 @@ export function usePicking(groundHeightAt: ((x: number, z: number) => number) | 
   );
 
   // 마우스 아래의 인스턴스
-  const pick = useCallback(
+  const pickInstance = useCallback(
     (ev: PointerEvent): Selection | null => {
       aimAt(ev);
       for (const hit of raycaster.current.intersectObjects(scene.children, true)) {
@@ -94,10 +94,10 @@ export function usePicking(groundHeightAt: ((x: number, z: number) => number) | 
   // 그 자리의 바닥 높이. 코어 지표는 무대 밖에서 0 을 내므로 밖에서는 원경 지면에 광선을 내리고,
   // 못 맞히면 원래 높이를 둔다.
   const down = useRef(new THREE.Vector3(0, -1, 0));
-  const floorHeight = useCallback(
+  const floorHeightAt = useCallback(
     (x: number, z: number, fallback = 0) => {
       if (x >= CORE.x[0] && x <= CORE.x[1] && z >= CORE.z[0] && z <= CORE.z[1])
-        return groundHeightAt ? groundHeightAt(x, z) : fallback;
+        return heightAt ? heightAt(x, z) : fallback;
       raycaster.current.set(
         new THREE.Vector3(x * UNITS_PER_METER, 400 * UNITS_PER_METER, z * UNITS_PER_METER),
         down.current,
@@ -108,7 +108,7 @@ export function usePicking(groundHeightAt: ((x: number, z: number) => number) | 
         .filter((h) => GROUND_MESHES.includes(h.object.name));
       return hits.length ? hits[0].point.y * METERS_PER_UNIT : fallback;
     },
-    [groundHeightAt, scene],
+    [heightAt, scene],
   );
 
   // 빈 하늘을 누른 것과 「옮길 수 없는 것」을 누른 것을 구별해 알린다
@@ -117,8 +117,8 @@ export function usePicking(groundHeightAt: ((x: number, z: number) => number) | 
       aimAt(ev);
       for (const hit of raycaster.current.intersectObjects(scene.children, true)) {
         const name = hit.object?.name;
-        if (!hit.object?.visible || !name || SILENT_MESHES.test(name)) continue;
-        const reason = UNPICKABLE[name];
+        if (!hit.object?.visible || !name || SILENT_MESH_PATTERN.test(name)) continue;
+        const reason = UNPICKABLE_REASONS[name];
         return reason ? `못 옮기는 것이다 — ${reason}` : `못 옮기는 것이다 — 「${name}」 (독립 요소가 아니다)`;
       }
       return "";
@@ -126,5 +126,5 @@ export function usePicking(groundHeightAt: ((x: number, z: number) => number) | 
     [aimAt, scene],
   );
 
-  return { raycaster, aimAt, pick, floorHeight, describeMiss };
+  return { raycaster, aimAt, pickInstance, floorHeightAt, describeMiss };
 }

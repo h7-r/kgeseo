@@ -17,7 +17,7 @@ const chestCache = new Map<string, number | null>();
 const GRIP_RATIO = 0.45;
 
 /** 그 뼈에 크게 물린 정점들의 무게중심(× GRIP_RATIO)을 뼈 로컬 좌표로. 없으면 null. */
-function fistCenter(skin: THREE.SkinnedMesh | null | undefined, boneName: string): THREE.Vector3 | null {
+function computeFistCenter(skin: THREE.SkinnedMesh | null | undefined, boneName: string): THREE.Vector3 | null {
   const geometry = skin?.geometry;
   const position = geometry?.attributes?.position;
   const skinIndex = geometry?.attributes?.skinIndex;
@@ -55,7 +55,7 @@ function fistCenter(skin: THREE.SkinnedMesh | null | undefined, boneName: string
  * 든 물건이 몸을 안 뚫게 손을 밀어낼 양이다. 걷기 캡슐 반경(0.6)은 어깨 폭까지 든 값이라 과하다.
  * 어깨 높이 근처 얇은 판의 몸통 정점 중 z 최댓값을 본다 — 체형 모프로 몸이 두꺼워지면 따라간다.
  */
-export function chestHalfDepth(
+export function measureChestHalfDepth(
   skin: THREE.SkinnedMesh | null | undefined,
   shoulderY: number,
   shoulderZ: number,
@@ -85,10 +85,10 @@ export function chestHalfDepth(
 export type FistCenters = Partial<Record<HandBone, THREE.Vector3>>;
 
 /** 양손을 한 번에. 없는 뼈는 열쇠가 안 생긴다. */
-export function bothFistCenters(skin: THREE.SkinnedMesh | null | undefined): FistCenters {
+export function computeFistCenters(skin: THREE.SkinnedMesh | null | undefined): FistCenters {
   const centers: FistCenters = {};
   (["hand_l", "hand_r"] as const).forEach((name) => {
-    const center = fistCenter(skin, name);
+    const center = computeFistCenter(skin, name);
     if (center) centers[name] = center;
   });
   return centers;

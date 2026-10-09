@@ -8,7 +8,7 @@ import { COLOR } from "@/styles/tokens";
 import FaqPanel from "./FaqPanel";
 import InquiryPanel from "./InquiryPanel";
 import NoticesPanel from "./NoticesPanel";
-import { ACTIVE_TAB_BACKGROUND, SUPPORT_CONTENT_OFFSET, SUPPORT_CONTENT_PADDING } from "./styles";
+import { ACTIVE_TAB_BACKGROUND, SUPPORT_CONTENT_OFFSET, SUPPORT_CONTENT_PADDING } from "./supportStyles";
 
 interface SupportCenterProps {
   tab: SupportTabId;
@@ -26,7 +26,7 @@ export default function SupportCenter({ tab, top, panelHeight, lightBgHeight, on
     <>
       {/* 머리·탭·내용이 한 장의 흰 종이 위에 놓인다. 헤더·푸터만 어둡다. */}
       <div
-        className="light-surface"
+        className="theme-light"
         style={{
           position: "absolute",
           left: 0,
@@ -65,7 +65,7 @@ export default function SupportCenter({ tab, top, panelHeight, lightBgHeight, on
         </div>
       </div>
 
-      <div className="light-surface" style={{ ...tabBarStyle, top: `${top + 230}px` }}>
+      <div className="theme-light" style={{ ...tabBarStyle, top: `${top + 230}px` }}>
         <TabBar
           items={SUPPORT_TABS}
           activeId={tab}
@@ -78,7 +78,7 @@ export default function SupportCenter({ tab, top, panelHeight, lightBgHeight, on
       </div>
 
       <div
-        className="light-surface"
+        className="theme-light"
         style={{ ...contentStyle, top: `${top + SUPPORT_CONTENT_OFFSET}px`, minHeight: `${panelHeight}px` }}
       >
         {tab === "notices" && <NoticesPanel />}

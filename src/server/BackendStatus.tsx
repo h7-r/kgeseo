@@ -1,7 +1,7 @@
 /** (?dev) 실제 백엔드 API·DB 연결 상태. */
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
-import { getBackendHealth, getDatabaseReadiness } from "./api";
+import { loadBackendHealth, loadDatabaseReadiness } from "./api";
 
 type CheckState = "checking" | "ok" | "failed";
 
@@ -13,7 +13,7 @@ interface ConnectionStatus {
 const CHECKING: ConnectionStatus = { api: "checking", db: "checking" };
 
 async function readConnectionStatus(): Promise<ConnectionStatus> {
-  const [apiResult, dbResult] = await Promise.allSettled([getBackendHealth(), getDatabaseReadiness()]);
+  const [apiResult, dbResult] = await Promise.allSettled([loadBackendHealth(), loadDatabaseReadiness()]);
 
   if (apiResult.status === "rejected") console.error("[Backend API]", apiResult.reason);
   if (dbResult.status === "rejected") console.error("[Backend DB]", dbResult.reason);

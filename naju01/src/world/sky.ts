@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import { UNITS_PER_METER } from "../plan/sitePlan";
 
@@ -31,7 +31,7 @@ interface CloudOptions {
 
 // 가깝게(150 m) 잡으면 한 덩이가 하늘의 4분의 1을 덮어 흰 파편이 된다. 멀리 두고 작게.
 export function buildClouds({ radius = 520, count = 30, seed = 4242, palette = SKY_STYLE }: CloudOptions = {}) {
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const pieces: THREE.BufferGeometry[] = [];
   const bright = new THREE.Color("#F2F0E8");
   const base = new THREE.Color(palette.horizon);

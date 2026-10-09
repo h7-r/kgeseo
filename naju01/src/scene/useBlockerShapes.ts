@@ -1,13 +1,13 @@
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import type { PresentedControls } from "../app/presentation";
 import { buildBoulders } from "../terrain/cliff";
 import { createNoise } from "../terrain/ground";
-import { treeBeltSpots } from "../world/vegetation";
-import { zoneOf, type GroundLayer, type Terrain } from "./useTerrainLayers";
+import { computeTreeBeltSpots } from "../world/vegetation";
+import { getZone, type GroundShapes, type Terrain } from "./useTerrainLayers";
 
 export type BlockerShapes = ReturnType<typeof useBlockerShapes>;
 
@@ -15,9 +15,9 @@ export type BlockerShapes = ReturnType<typeof useBlockerShapes>;
  * 차단물 조형 — 막는 부피는 그대로 두고 겉모습만 바꾼다. 바위는 안쪽으로만 파야 보이는 것과 막히는 것이 안 어긋난다.
  * 높이 있는 구역의 옆구리 바위와 발치 너덜 자리도 여기서 같이 낸다.
  */
-export function useBlockerShapes(T: PresentedControls, terrain: Terrain, ground: GroundLayer) {
+export function useBlockerShapes(controls: PresentedControls, terrain: Terrain, ground: GroundShapes) {
   const blockerShapes = useMemo(() => {
-    if (!T.blockerDetail) return null;
+    if (!controls.blockerDetail) return null;
     const grainNoise = createNoise(884412);
     const strataNoise = createNoise(220719);
     const rock = (
@@ -31,18 +31,18 @@ export function useBlockerShapes(T: PresentedControls, terrain: Terrain, ground:
         z,
         foot,
         top,
-        cellsPerMeter: T.rockCellsPerMeter,
-        carveDepth: T.rockCarveDepth,
-        angularity: T.angularity,
-        strataThickness: T.strataThickness * 0.5, // 작은 덩어리라 지층도 촘촘해야 어울린다
+        cellsPerMeter: controls.rockCellsPerMeter,
+        carveDepth: controls.rockCarveDepth,
+        angularity: controls.angularity,
+        strataThickness: controls.strataThickness * 0.5, // 작은 덩어리라 지층도 촘촘해야 어울린다
         grainNoise,
         strataNoise,
-        patternScale: T.rockPatternScale,
+        patternScale: controls.rockPatternScale,
       });
     // Z3(+14)와 Z4(+8) 사이 골은 비스듬한 능선으로 본다(도면에 고도가 없어 내린 해석 — 팀 확인 필요).
     // 평평한 +14 벽이면 V3 의 주 차단 장치인 수목대가 눈높이 위로 올라가 구실을 못 한다.
-    const z3Elevation = zoneOf(terrain, "Z3").elevation;
-    const z4Elevation = zoneOf(terrain, "Z4").elevation;
+    const z3Elevation = getZone(terrain, "Z3").elevation;
+    const z4Elevation = getZone(terrain, "Z4").elevation;
     const ridgeTop = (x: number) =>
       THREE.MathUtils.lerp(z3Elevation, z4Elevation, THREE.MathUtils.clamp((x - 58) / 4, 0, 1));
 
@@ -65,12 +65,12 @@ export function useBlockerShapes(T: PresentedControls, terrain: Terrain, ground:
         rock: rock(b.x, b.z, foot, top),
         // 나무는 자리만 낸다 — 심는 것은 인스턴스 무리다(편집기가 고를 수 있다).
         treeSpots: isTreeBelt
-          ? treeBeltSpots({
+          ? computeTreeBeltSpots({
               x: b.x,
               z: b.z,
-              ground: ridgeTop,
+              elevation: ridgeTop,
               height: b.height,
-              count: T.treeCount,
+              count: controls.treeCount,
               seed: 5511 + i,
             })
           : null,
@@ -93,7 +93,7 @@ export function useBlockerShapes(T: PresentedControls, terrain: Terrain, ground:
     // 발치 너덜 — 덩어리와 바닥이 만나는 선이 곧으면 얹어 놓은 것으로 보인다. 떨어져 나온 돌이 쌓여야 땅에서 솟은 것이 된다.
     const footScreeSpots: { x: number; z: number; y: number; size: number }[] = [];
     const scatterAround = (X: [number, number], Z: [number, number], floor: number, count: number, seed: number) => {
-      const random = makeRandom(seed >>> 0);
+      const random = createRandom(seed >>> 0);
       const w = X[1] - X[0];
       const d = Z[1] - Z[0];
       const perimeter = 2 * (w + d);
@@ -132,14 +132,14 @@ export function useBlockerShapes(T: PresentedControls, terrain: Terrain, ground:
     return { pieces, zoneRocks, footScreeSpots };
   }, [
     terrain,
-    T.blockerDetail,
-    T.rockCellsPerMeter,
-    T.rockCarveDepth,
-    T.rockPatternScale,
+    controls.blockerDetail,
+    controls.rockCellsPerMeter,
+    controls.rockCarveDepth,
+    controls.rockPatternScale,
     ground.surface,
-    T.angularity,
-    T.strataThickness,
-    T.treeCount,
+    controls.angularity,
+    controls.strataThickness,
+    controls.treeCount,
   ]);
   useEffect(
     () => () => {

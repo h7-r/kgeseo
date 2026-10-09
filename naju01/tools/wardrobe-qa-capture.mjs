@@ -111,7 +111,7 @@ async function capture(name, scene, { metrics = true, cell = 230, width, height 
 }
 
 const VIEWS = ["front", "side", "back"];
-const row = (base, overrides) =>
+const expandAvatars = (base, overrides) =>
   overrides.map(([patch, label, motion = "Idle_Loop", time = 0.6]) => ({
     settings: { ...base, ...COLORS, ...patch },
     label,
@@ -128,7 +128,7 @@ if (runsAll || stages.has("garments")) {
     for (const view of VIEWS) {
       const tops = TOPS[gender].map(([top, label]) => [{ top }, `상의 ${top}\n${label}`]);
       const bottoms = BOTTOMS[gender].map(([bottom, label]) => [{ bottom }, `하의 ${bottom}\n${label}`]);
-      await capture(`garments-${gender}-${view}`, { avatars: row(base, [...tops, ...bottoms]), view });
+      await capture(`garments-${gender}-${view}`, { avatars: expandAvatars(base, [...tops, ...bottoms]), view });
     }
   }
 }
@@ -162,8 +162,8 @@ if (runsAll || stages.has("extremes")) {
     const other = gender === "masculine" ? { feminine: 1 } : { feminine: 0 };
     shape.push([other, gender === "masculine" ? "여성형 1" : "여성형 0"]);
     for (const view of VIEWS) {
-      await capture(`extremes-shape-${gender}-${view}`, { avatars: row(base, shape), view });
-      await capture(`extremes-scale-${gender}-${view}`, { avatars: row(base, scale), view });
+      await capture(`extremes-shape-${gender}-${view}`, { avatars: expandAvatars(base, shape), view });
+      await capture(`extremes-scale-${gender}-${view}`, { avatars: expandAvatars(base, scale), view });
     }
     // 어깨 최소·최대에서 긴팔/맨투맨/속옷 + 걷기·질주 팔 스윙
     const longTop = gender === "masculine" ? 7 : 11;
@@ -179,7 +179,7 @@ if (runsAll || stages.has("extremes")) {
         0.22,
       ]);
     }
-    for (const view of VIEWS) await capture(`shoulder-${gender}-${view}`, { avatars: row(base, shoulders), view });
+    for (const view of VIEWS) await capture(`shoulder-${gender}-${view}`, { avatars: expandAvatars(base, shoulders), view });
   }
 }
 
@@ -237,11 +237,11 @@ if (runsAll || stages.has("face")) {
     { pupilScale: 1.45, headScale: 0.65, heightScale: 1.2, heavy: 1, buff: 1 },
     "1.45 머리.65 키1.2\n체격·근육1",
   ]);
-  await capture("face-pupil-front", { avatars: row(FEMALE, faces), view: "front", mode: "face" }, { cell: 200 });
+  await capture("face-pupil-front", { avatars: expandAvatars(FEMALE, faces), view: "front", mode: "face" }, { cell: 200 });
   await capture(
     "face-pupil-walk",
     {
-      avatars: row(
+      avatars: expandAvatars(
         FEMALE,
         faces.map(([p, l]) => [p, `${l}\nWalk`, "Walk_Loop", 0.3]),
       ),

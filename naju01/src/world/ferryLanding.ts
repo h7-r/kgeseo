@@ -6,10 +6,10 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import { FERRY_BOAT } from "../models/baked";
-import { bakedModelGeometry } from "../models/bakedGeometry";
+import { buildBakedModelGeometry } from "../models/bakedGeometry";
 import { UNITS_PER_METER } from "../plan/sitePlan";
 import { unindex } from "../story/pieceGeometry";
 import { applyVertexColors } from "../terrain/ground";
@@ -34,7 +34,7 @@ interface LandingOptions {
 
 // 월드 좌표로 바로 굽는다 — 물가·바닥높이를 받아 그 자리에 말뚝을 박는다
 function buildLanding({ xRange, waterEdge, reach = 3.2, floorHeight, seed = 8801 }: LandingOptions) {
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const pieces: THREE.BufferGeometry[] = [];
   const scratch = new THREE.Color();
   const stakeLight = new THREE.Color(LANDING_STYLE.stake);
@@ -126,7 +126,7 @@ function buildLanding({ xRange, waterEdge, reach = 3.2, floorHeight, seed = 8801
  * 국소 +Z(물 쪽)로 뻗고 원점은 뭍 쪽 끝 지면이다. 반대편 물가에는 rotation π 로 돌린다.
  * 균등 축소라 size(= 나루 길이 m) 하나만 주면 비례가 유지된다.
  */
-export function landingPrototypes(count = 3, seed = 8801): THREE.BufferGeometry[] {
+export function buildLandingPrototypes(count = 3, seed = 8801): THREE.BufferGeometry[] {
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const width = 4.6 + (i % 3) * 0.7; // 널 너비를 조금씩 달리한다
@@ -161,12 +161,12 @@ const WET_RATIO = 0.22;
  * 다른 모형과 달리 진짜 색을 굽는다. 이미 놓인 배들의 편집 기록에 흰색이 들어 있어,
  * 비율만 구우면 그 배들이 새하얗게 나온다.
  */
-export function ferryBoatPrototype(): THREE.BufferGeometry {
+export function buildFerryBoatPrototype(): THREE.BufferGeometry {
   const plank = new THREE.Color(LANDING_STYLE.plank);
   const plankDark = new THREE.Color(LANDING_STYLE.plankDark);
   const underwater = new THREE.Color(LANDING_STYLE.stakeDark);
   const scratch = new THREE.Color();
-  const geometry = bakedModelGeometry(FERRY_BOAT, {
+  const geometry = buildBakedModelGeometry(FERRY_BOAT, {
     paint: (surface, model, colors) => {
       const p = surface.attributes.position;
       const nor = surface.attributes.normal;

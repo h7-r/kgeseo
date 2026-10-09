@@ -11,17 +11,17 @@ import { useCrashWatch } from "@/debug/crashLog";
 import PerformanceMeter from "@/debug/PerformanceMeter";
 import { DEFAULT_FOV } from "@/engine/camera";
 import { useSavedControls } from "@/engine/leva/savedControls";
-import { EYE } from "@/engine/movement/constants";
+import { EYE_HEIGHT } from "@/engine/movement/constants";
 import { IS_LOW_QUALITY } from "@/engine/quality";
 import { PLAYER_MESHY_APPEARANCE_KEY, PLAYER_SIDEKICK_APPEARANCE_KEY } from "@/engine/storage";
 import HintHud from "@/game/HintHud";
 import HintPanel from "@/game/HintPanel";
 import { useDevInventorySeed } from "@/game/inventory";
 import InventoryPanel from "@/game/InventoryPanel";
-import { LAYERS } from "@/game/overlayLayer";
+import { OVERLAY_LAYERS } from "@/game/overlayLayer";
 import AimTracker from "@/lobby/AimTracker";
 import { LobbyChibiPanel, LobbySidekickPanel } from "@/naju";
-import { useCutscene } from "@/props/vendingPush";
+import { useIsCutscenePlaying } from "@/props/vendingPushState";
 import SettingsPanel from "@/settings/SettingsPanel";
 import { RESOLUTION_DPR, useSettings, type Settings } from "@/settings/settings";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
@@ -48,7 +48,7 @@ import {
   useIsMobile,
 } from "./runtimeFlags";
 import { useGameKeys } from "./useGameKeys";
-import { useLobbyAvatar, type LobbyAvatar } from "./useLobbyAvatar";
+import { useLobbyAvatar, type LobbyAvatarState } from "./useLobbyAvatar";
 import { TRAIN_PATH, useSceneTransition } from "./useSceneTransition";
 
 // 기본값(38px)이면 '−12.3' 같은 값의 뒷자리가 잘려 캡처로 값을 옮길 때 소수점을 못 읽는다.
@@ -65,7 +65,7 @@ const GL_OPTIONS = {
 // 비밀 복도 끝 비상계단 철문 앞, 복도 안쪽(+z)을 본다. 철문(z −60)에서 11 떨어져야 3인칭 붐(9.33)이 다 펴진다.
 // near/far 는 1:1600 — 제일 먼 판이 약 200 유닛이고 플레이어 반경 0.6 이라 0.25 로도 벽에서 안 잘린다.
 const CAMERA = {
-  position: [-25.5, EYE, -49] as THREE.Vector3Tuple,
+  position: [-25.5, EYE_HEIGHT, -49] as THREE.Vector3Tuple,
   rotation: [0, Math.PI, 0] as THREE.Vector3Tuple,
   // 이동의 1인칭 시야각과 같은 상수 — 따로 적으면 1인칭으로 돌아갈 때마다 시야가 밀린다.
   fov: DEFAULT_FOV,
@@ -99,7 +99,7 @@ function DevTools() {
 }
 
 /** 캐릭터 꾸미기 패널(왼쪽). 런타임에 맞는 하나만 띄운다. */
-function CustomizePanels({ avatar }: { avatar: LobbyAvatar }) {
+function CustomizePanels({ avatar }: { avatar: LobbyAvatarState }) {
   return (
     <Suspense fallback={null}>
       {USES_CHIBI_RUNTIME ? (
@@ -188,13 +188,14 @@ export default function App() {
   });
 
   // 창·자물쇠·자판기 컷신 동안은 이동·조준을 멈춘다. 컷신이 카메라를 모는데 입력까지 들어오면 화면이 떤다.
-  const isCutscenePlaying = useCutscene();
+  const isCutscenePlaying = useIsCutscenePlaying();
   const active = (isPointerLocked || IS_INPUT_ALWAYS_ON) && !openLayer && !lockControl && !isCutscenePlaying;
 
-  const toggleSettings = () => (openLayer === LAYERS.settings ? closeWindow() : openWindow(LAYERS.settings));
+  const toggleSettings = () =>
+    openLayer === OVERLAY_LAYERS.settings ? closeWindow() : openWindow(OVERLAY_LAYERS.settings);
 
   return (
-    <div className="stage" style={{ position: "relative" }}>
+    <div className="game-stage" style={{ position: "relative" }}>
       <Leva hidden={!SHOW_LEVA || isMobile} theme={LEVA_THEME} />
       <Canvas
         frameloop={isEnteringNaju ? "never" : "always"}
@@ -255,7 +256,7 @@ export default function App() {
       <TopBarButton right={384} onClick={toggleSettings} ariaLabel="설정 열기">
         ⚙ 설정 [P]
       </TopBarButton>
-      <SettingsPanel open={openLayer === LAYERS.settings} onClose={closeWindow} />
+      <SettingsPanel open={openLayer === OVERLAY_LAYERS.settings} onClose={closeWindow} />
       {!isTrain && (
         <TopBarButton right={300} onClick={toggleThirdPerson}>
           [V] {isThirdPerson ? "1인칭" : "3인칭"}
@@ -265,8 +266,8 @@ export default function App() {
       {active && <ActionHint near={near} />}
       <LockDialPanel />
       {/* 화면층이 지금 열린 창을 하나로 정하므로 두 창이 겹칠 수 없다 */}
-      <InventoryPanel open={openLayer === LAYERS.inventory} onClose={closeWindow} />
-      <HintPanel open={openLayer === LAYERS.hint} onClose={closeWindow} />
+      <InventoryPanel open={openLayer === OVERLAY_LAYERS.inventory} onClose={closeWindow} />
+      <HintPanel open={openLayer === OVERLAY_LAYERS.hint} onClose={closeWindow} />
       {/* 창이 떠도 숨기지 않는다 — 반짝임을 봐야 한다 */}
       <HintHud isPanelOpen={openLayer !== null} />
       <TutorialPanel covered={openLayer !== null || isTrain} />

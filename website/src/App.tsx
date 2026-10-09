@@ -135,7 +135,7 @@ function SiteBackdrop() {
 
 function ReadProgressBar() {
   const barRef = useReadProgress();
-  return <div ref={barRef} className="read-progress" aria-hidden="true" style={{ transform: "scaleX(0)" }} />;
+  return <div ref={barRef} className="read-progress-bar" aria-hidden="true" style={{ transform: "scaleX(0)" }} />;
 }
 
 /** 주소가 바뀌면 칸을 새로 만들고 맨 위에서 시작한다. */
@@ -183,7 +183,8 @@ class RouteErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
  * background-position · stroke-dashoffset · conic-gradient 각도를 돌리는 끝없는 장식은
  * 합성만으로 안 돼 매 프레임 다시 칠한다. 화면 밖(여유 200px)에 있을 때만 멈춘다.
  */
-const ANIMATED_SELECTOR = ".flow-text, .stripe-text, .arc-glow, .pulse-light, .pulse-glow, .ring, .photo-ring";
+const ANIMATED_SELECTOR =
+  ".u-shine-text, .divider-arc__glow, .heartbeat-line__pulse, .heartbeat-line__glow, .layered-rings__ring, .u-rotating-border";
 
 /** root 안의 끝없는 장식 애니메이션이 화면 밖이면 .is-paused 를 붙인다. resetKey 가 바뀌면 다시 건다. */
 function usePauseOffscreen(rootRef: RefObject<HTMLElement | null>, resetKey?: unknown): void {

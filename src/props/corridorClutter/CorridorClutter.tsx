@@ -5,8 +5,8 @@ import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
 import Drips from "./Drips";
-import { clutterGeometry, puddleGeometry, puddleSpots, type BrightnessAt } from "./geometry";
-import { makeCanAtlas, makePaperAtlas } from "./textures";
+import { buildClutterGeometry, buildPuddleGeometry, computePuddleSpots, type BrightnessAt } from "./clutterGeometry";
+import { makeCanAtlasTexture, makePaperAtlasTexture } from "./clutterTextures";
 
 const fullBrightness: BrightnessAt = () => 1;
 
@@ -54,16 +54,19 @@ export default function CorridorClutter({
 }: CorridorClutterProps) {
   const itemCount = count ?? Math.round(Math.min(90, Math.max(8, (z1 - z0) * 0.55)));
   const spots = useMemo(
-    () => puddleSpots({ x0, x1, z0, z1, count: puddleCount, seed }),
+    () => computePuddleSpots({ x0, x1, z0, z1, count: puddleCount, seed }),
     [x0, x1, z0, z1, puddleCount, seed],
   );
   const { cans, papers, others } = useMemo(
-    () => clutterGeometry({ x0, x1, z0, z1, count: itemCount, seed, brightness, floorY, size }),
+    () => buildClutterGeometry({ x0, x1, z0, z1, count: itemCount, seed, brightness, floorY, size }),
     [x0, x1, z0, z1, itemCount, seed, brightness, floorY, size],
   );
-  const puddles = useMemo(() => puddleGeometry({ spots, seed, floorY, brightness }), [spots, seed, floorY, brightness]);
-  const canAtlas = useMemo(() => makeCanAtlas(), []);
-  const paperAtlas = useMemo(() => makePaperAtlas(), []);
+  const puddles = useMemo(
+    () => buildPuddleGeometry({ spots, seed, floorY, brightness }),
+    [spots, seed, floorY, brightness],
+  );
+  const canAtlas = useMemo(() => makeCanAtlasTexture(), []);
+  const paperAtlas = useMemo(() => makePaperAtlasTexture(), []);
   useEffect(
     () => () => {
       cans?.dispose();

@@ -5,16 +5,16 @@ import { Outlines } from "@react-three/drei";
 import { scaleColor } from "@/engine/color";
 import { TOON_GRADIENT } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
+import { AimHighlight } from "@/lobby/AimHighlight";
 
-import DraggedWire from "./DraggedWire";
-import { connectorGeometry } from "./geometry";
+import DraggedBreakerWire from "./DraggedBreakerWire";
+import { buildConnectorGeometry } from "./puzzleGeometry";
 import WireStrand from "./WireStrand";
 import {
-  heldWireShape,
+  getHeldWireShape,
   isWireDangling,
   pickUpWire,
-  pluggedWires,
+  getPluggedWires,
   plugWireInto,
   useHeldWireShape,
   usePluggedWiresKey,
@@ -25,9 +25,9 @@ import {
 
 /** 꽂는 자리의 테·파인 홈 — 모양마다 한 번만 만든다 */
 const connectorSet = (size: number): Record<WireShape, BufferGeometry> => ({
-  round: connectorGeometry("round", size, 0.012),
-  square: connectorGeometry("square", size, 0.012),
-  triangle: connectorGeometry("triangle", size, 0.012),
+  round: buildConnectorGeometry("round", size, 0.012),
+  square: buildConnectorGeometry("square", size, 0.012),
+  triangle: buildConnectorGeometry("triangle", size, 0.012),
 });
 const SOCKET_SIDE: Record<WireShape, number> = { round: -1, square: 0, triangle: 1 };
 // 뿌리 순서를 자리 순서와 섞는다 — 바로 위에 꽂기가 되면 끝 모양을 볼 이유가 없다
@@ -61,7 +61,7 @@ export default function BreakerWiring({
 }: BreakerWiringProps) {
   const d = direction;
   usePluggedWiresKey(); // 꽂힌 상태가 바뀌면 다시 그린다(값은 아래에서 직접 읽는다)
-  const plugged = pluggedWires();
+  const plugged = getPluggedWires();
   const held = useHeldWireShape();
 
   // 뒤판(x=0)에서 앞으로 잰 깊이 · 함 가운데에서 잰 높이
@@ -172,7 +172,7 @@ export default function BreakerWiring({
         if (held === shape) {
           if (!isOpen) return null;
           return (
-            <DraggedWire
+            <DraggedBreakerWire
               key={`held${shape}`}
               shape={shape}
               root={[d * wireX.root, wireY.root, rootZ(shape)]}
@@ -185,11 +185,11 @@ export default function BreakerWiring({
         }
         if (!isWireDangling(shape)) return null;
         return (
-          <Highlight key={`dangling${shape}`} id={`wire:${shape}`} anchor={() => null} grow={0} strength={0.3}>
+          <AimHighlight key={`dangling${shape}`} id={`wire:${shape}`} anchor={() => null} grow={0} strength={0.3}>
             <group>
               <WireStrand shape={shape} points={danglingPoints(shape)} direction={d} brightness={brightness} />
             </group>
-          </Highlight>
+          </AimHighlight>
         );
       })}
 
@@ -204,7 +204,7 @@ export default function BreakerWiring({
             return [position[0] + tip[0], position[1] + tip[1], position[2] + tip[2]];
           }}
           label={`[E] ${WIRE_SHAPE_LABELS[shape]} 끝 전선 잡기`}
-          disabled={() => !isOpen || !!heldWireShape() || !isWireDangling(shape)}
+          disabled={() => !isOpen || !!getHeldWireShape() || !isWireDangling(shape)}
           run={() => pickUpWire(shape)}
         />
       ))}
@@ -223,7 +223,7 @@ export default function BreakerWiring({
                 ? `[E] ${WIRE_SHAPE_LABELS[socket]} 자리에서 빼기`
                 : `[E] ${WIRE_SHAPE_LABELS[socket]} 자리에 꽂기`
             }
-            disabled={() => !isOpen || (pluggedShape ? !!heldWireShape() : !heldWireShape())}
+            disabled={() => !isOpen || (pluggedShape ? !!getHeldWireShape() : !getHeldWireShape())}
             run={() => (pluggedShape ? pickUpWire(pluggedShape) : plugWireInto(socket))}
           />
         );

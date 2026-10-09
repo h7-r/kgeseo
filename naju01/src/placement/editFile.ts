@@ -6,7 +6,7 @@
 import type { Edits, Spot, SpotPatch } from "./instanceGroups";
 
 const EDIT_ENDPOINT = "/__naju-edit";
-const editFileUrl = () =>
+const getEditFileUrl = () =>
   import.meta.env.PROD
     ? `${import.meta.env.BASE_URL}naju-edit.json?t=${Date.now()}`
     : `${EDIT_ENDPOINT}?t=${Date.now()}`;
@@ -108,9 +108,9 @@ function mapValues<T, U>(record: Record<string, T>, map: (value: T) => U): Recor
   return out;
 }
 
-export const emptyEdits = (): Edits => ({ removed: {}, modified: {}, added: {} });
+export const createEmptyEdits = (): Edits => ({ removed: {}, modified: {}, added: {} });
 
-function fromFile(file: Partial<EditFile>): Edits {
+function parseEditFile(file: Partial<EditFile>): Edits {
   return {
     removed: file[EDIT_KEYS.removed] ?? {},
     modified: mapValues(file[EDIT_KEYS.modified] ?? {}, (group) =>
@@ -120,7 +120,7 @@ function fromFile(file: Partial<EditFile>): Edits {
   };
 }
 
-function toFile(edits: Edits): EditFile {
+function formatEditFile(edits: Edits): EditFile {
   return {
     [EDIT_KEYS.removed]: edits.removed,
     [EDIT_KEYS.modified]: mapValues(edits.modified, (group) =>
@@ -133,11 +133,11 @@ function toFile(edits: Edits): EditFile {
 /** 못 읽으면 빈 편집으로 간다 */
 export async function loadEdits(): Promise<Edits> {
   try {
-    const response = await fetch(editFileUrl());
-    if (!response.ok) return emptyEdits();
-    return fromFile((await response.json()) as Partial<EditFile>);
+    const response = await fetch(getEditFileUrl());
+    if (!response.ok) return createEmptyEdits();
+    return parseEditFile((await response.json()) as Partial<EditFile>);
   } catch {
-    return emptyEdits();
+    return createEmptyEdits();
   }
 }
 
@@ -157,7 +157,7 @@ export async function saveEdits(edits: Edits): Promise<true> {
   const response = await fetch(EDIT_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(toFile(edits), null, 2),
+    body: JSON.stringify(formatEditFile(edits), null, 2),
   });
   const body = await response.text();
   if (!response.ok) throw new Error(`저장 실패 (${response.status})`);

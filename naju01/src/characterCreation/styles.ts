@@ -31,50 +31,48 @@ export const MOTION = {
 
 // 포커스 링·슬라이더 모양·스크롤바. 전역 CSS 에 기대지 않도록 화면 안에서만 건다.
 export const SCREEN_CSS = `
-.cc-root { color: ${BASE_COLORS.text}; font-family: ${FONTS.body}; }
-.cc-root *:focus-visible { outline: 2px solid ${BASE_COLORS.accent}; outline-offset: 3px; border-radius: 8px; }
-.cc-root button:hover:not(:disabled) { color: #fff; }
-.cc-root .cc-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 14px 34px rgba(111,192,214,0.3); }
-.cc-root .cc-primary:active:not(:disabled) { transform: translateY(0); }
-.cc-root input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: none; cursor: pointer; }
+.character-creator { color: ${BASE_COLORS.text}; font-family: ${FONTS.body}; }
+.character-creator *:focus-visible { outline: 2px solid ${BASE_COLORS.accent}; outline-offset: 3px; border-radius: 8px; }
+.character-creator button:hover:not(:disabled) { color: #fff; }
+.character-creator input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 22px; background: none; cursor: pointer; }
 /* 눈금 슬라이더 — 칸이 다섯이라 자리를 점으로 보여 준다. datalist 기본 눈금은 브라우저마다 달라
    트랙에 반복 그라디언트로 직접 찍는다. 점 간격은 칸 사이(25%)와 같다. */
-.cc-root input[type="range"]::-webkit-slider-runnable-track {
+.character-creator input[type="range"]::-webkit-slider-runnable-track {
   height: 3px; border-radius: 2px;
   background:
     radial-gradient(circle at center, rgba(255,255,255,0.42) 1.6px, rgba(0,0,0,0) 1.7px) 0 50% / 25% 100% repeat-x,
     rgba(255,255,255,0.16);
 }
-.cc-root input[type="range"] + datalist { display: none; }
-.cc-root input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; margin-top: -6px; border-radius: 50%; background: ${BASE_COLORS.accent}; box-shadow: 0 0 0 4px rgba(154,216,232,0.16); transition: box-shadow ${MOTION.fast}; }
-.cc-root input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 7px rgba(154,216,232,0.20); }
-.cc-root input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.16); }
-.cc-root input[type="range"]::-moz-range-thumb { width: 15px; height: 15px; border: none; border-radius: 50%; background: ${BASE_COLORS.accent}; }
-.cc-root ::-webkit-scrollbar { width: 8px; }
-.cc-root ::-webkit-scrollbar-thumb { background: rgba(154,216,232,0.22); border-radius: 4px; }
-.cc-root ::-webkit-scrollbar-track { background: transparent; }
+.character-creator input[type="range"] + datalist { display: none; }
+.character-creator input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; margin-top: -6px; border-radius: 50%; background: ${BASE_COLORS.accent}; box-shadow: 0 0 0 4px rgba(154,216,232,0.16); transition: box-shadow ${MOTION.fast}; }
+.character-creator input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 7px rgba(154,216,232,0.20); }
+.character-creator input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.16); }
+.character-creator input[type="range"]::-moz-range-thumb { width: 15px; height: 15px; border: none; border-radius: 50%; background: ${BASE_COLORS.accent}; }
+.character-creator ::-webkit-scrollbar { width: 8px; }
+.character-creator ::-webkit-scrollbar-thumb { background: rgba(154,216,232,0.22); border-radius: 4px; }
+.character-creator ::-webkit-scrollbar-track { background: transparent; }
 @media (prefers-reduced-motion: reduce) {
-  .cc-root *, .cc-root *::before, .cc-root *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
+  .character-creator *, .character-creator *::before, .character-creator *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
 }
 `;
 
-// 심장박동 선의 훑는 빛. 웹사이트 CSS(.pulse-light)는 이 앱에 없어 여기서 따로 건다.
+// 심장박동 선의 훑는 빛. 웹사이트의 전역 CSS 는 이 앱에 없어 여기서 따로 건다.
 export const HEARTBEAT_LINE_CSS = `
-.cc-pulse-light, .cc-pulse-blur {
+.heartbeat-line__glow, .heartbeat-line__glow-blur {
   stroke-dasharray: 13 87;
-  animation-name: cc-pulse-flow;
+  animation-name: heartbeat-line-sweep;
   animation-timing-function: cubic-bezier(0.45, 0, 0.3, 1);
   animation-iteration-count: infinite;
 }
-.cc-pulse-blur { opacity: 0.55; }
-@keyframes cc-pulse-flow {
+.heartbeat-line__glow-blur { opacity: 0.55; }
+@keyframes heartbeat-line-sweep {
   0%   { stroke-dashoffset: 100; opacity: 0; }
   6%   { opacity: 1; }
   88%  { opacity: 1; }
   100% { stroke-dashoffset: -13; opacity: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cc-pulse-light, .cc-pulse-blur { animation: none; opacity: 0; }
+  .heartbeat-line__glow, .heartbeat-line__glow-blur { animation: none; opacity: 0; }
 }
 `;
 
@@ -173,33 +171,33 @@ export const confirmButtonStyle: CSSProperties = {
 // 이 화면 전용 호버 반응 — 인라인 스타일로는 :hover 를 못 건다.
 // 그라데이션은 부드럽게 안 넘어가서 가상 요소를 깔고 투명도만 바꾼다.
 export const SCREEN_HOVER_CSS = `
-.cc-root .cc-tile:hover:not(:disabled):not([aria-pressed="true"]) { border-color: rgba(255,255,255,0.38); background: rgba(255,255,255,0.06); color: #fff; }
-.cc-root .cc-tile:active:not(:disabled) { transform: translateY(1px); }
-.cc-root .cc-tile:disabled { opacity: 0.5; cursor: progress; }
-.cc-root .cc-swatch:hover { transform: translateY(-1px); }
-.cc-root .cc-segment:hover:not([aria-pressed="true"]) { color: #fff; }
-.cc-root .cc-text-button:hover:not(:disabled) { color: #fff; background: rgba(255,255,255,0.06); }
-.cc-root .cc-text-button:disabled { opacity: 0.35; cursor: default; }
-.cc-root .cc-back::before, .cc-root .cc-confirm::before, .cc-root .cc-tile::before {
+.character-creator .character-creator__tile:hover:not(:disabled):not([aria-pressed="true"]) { border-color: rgba(255,255,255,0.38); background: rgba(255,255,255,0.06); color: #fff; }
+.character-creator .character-creator__tile:active:not(:disabled) { transform: translateY(1px); }
+.character-creator .character-creator__tile:disabled { opacity: 0.5; cursor: progress; }
+.character-creator .color-picker__swatch:hover { transform: translateY(-1px); }
+.character-creator .view-switcher__option:hover:not([aria-pressed="true"]) { color: #fff; }
+.character-creator .character-creator__text-button:hover:not(:disabled) { color: #fff; background: rgba(255,255,255,0.06); }
+.character-creator .character-creator__text-button:disabled { opacity: 0.35; cursor: default; }
+.character-creator .character-creator__back-button::before, .character-creator .character-creator__confirm-button::before, .character-creator .character-creator__tile::before {
   content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -1;
   opacity: 0; transition: opacity 220ms ease; pointer-events: none;
 }
-.cc-root .cc-back::before { background: linear-gradient(135deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.04) 60%, rgba(255,255,255,0) 100%); }
-.cc-root .cc-confirm::before { background: linear-gradient(135deg, #FFFFFF 0%, #CDD3DA 100%); }
-.cc-root .cc-tile::before { background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 70%); }
-.cc-root .cc-back:hover::before, .cc-root .cc-confirm:hover:not(:disabled)::before, .cc-root .cc-tile:hover:not(:disabled)::before { opacity: 1; }
-.cc-root .cc-back:hover { border-color: rgba(255,255,255,0.4); }
-.cc-root .cc-confirm:hover:not(:disabled) { box-shadow: 0 10px 34px rgba(255,255,255,0.28); }
-.cc-root .cc-back:active, .cc-root .cc-confirm:active:not(:disabled) { transform: translateY(1px); }
-.cc-root .cc-tile { isolation: isolate; overflow: hidden; }
-.cc-root .cc-confirm:disabled { cursor: progress; filter: saturate(0.6); }
-.cc-root input[type="text"]:focus, .cc-root input:not([type]):focus { border-color: ${COLORS.accent}; box-shadow: 0 0 0 3px rgba(255,255,255,0.14); outline: none; }
-.cc-root .cc-slider-row .cc-fine { opacity: 0.45; transition: opacity 160ms; }
-.cc-root *:focus-visible { outline-color: #FFFFFF; }
-.cc-root input[type="range"]::-webkit-slider-thumb { background: #FFFFFF; box-shadow: 0 0 0 4px rgba(255,255,255,0.14); }
-.cc-root input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 7px rgba(255,255,255,0.16); }
-.cc-root input[type="range"]::-moz-range-thumb { background: #FFFFFF; }
-.cc-root .cc-slider-row:hover .cc-fine, .cc-root .cc-slider-row:focus-within .cc-fine { opacity: 1; }
+.character-creator .character-creator__back-button::before { background: linear-gradient(135deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.04) 60%, rgba(255,255,255,0) 100%); }
+.character-creator .character-creator__confirm-button::before { background: linear-gradient(135deg, #FFFFFF 0%, #CDD3DA 100%); }
+.character-creator .character-creator__tile::before { background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 70%); }
+.character-creator .character-creator__back-button:hover::before, .character-creator .character-creator__confirm-button:hover:not(:disabled)::before, .character-creator .character-creator__tile:hover:not(:disabled)::before { opacity: 1; }
+.character-creator .character-creator__back-button:hover { border-color: rgba(255,255,255,0.4); }
+.character-creator .character-creator__confirm-button:hover:not(:disabled) { box-shadow: 0 10px 34px rgba(255,255,255,0.28); }
+.character-creator .character-creator__back-button:active, .character-creator .character-creator__confirm-button:active:not(:disabled) { transform: translateY(1px); }
+.character-creator .character-creator__tile { isolation: isolate; overflow: hidden; }
+.character-creator .character-creator__confirm-button:disabled { cursor: progress; filter: saturate(0.6); }
+.character-creator input[type="text"]:focus, .character-creator input:not([type]):focus { border-color: ${COLORS.accent}; box-shadow: 0 0 0 3px rgba(255,255,255,0.14); outline: none; }
+.character-creator .tick-slider .tick-slider__step-buttons { opacity: 0.45; transition: opacity 160ms; }
+.character-creator *:focus-visible { outline-color: #FFFFFF; }
+.character-creator input[type="range"]::-webkit-slider-thumb { background: #FFFFFF; box-shadow: 0 0 0 4px rgba(255,255,255,0.14); }
+.character-creator input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 7px rgba(255,255,255,0.16); }
+.character-creator input[type="range"]::-moz-range-thumb { background: #FFFFFF; }
+.character-creator .tick-slider:hover .tick-slider__step-buttons, .character-creator .tick-slider:focus-within .tick-slider__step-buttons { opacity: 1; }
 `;
 
 // 화면 틀(배경 · 패널 · 무대)

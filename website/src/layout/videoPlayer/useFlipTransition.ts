@@ -11,7 +11,7 @@ interface Box {
 }
 
 /** 화면 가운데 16:9 상자 — 가로·세로 둘 다 넘치지 않게. */
-export function targetBox(): Box {
+export function computeTargetBox(): Box {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const margin = vw < 700 ? 12 : 48;
@@ -24,7 +24,7 @@ export function targetBox(): Box {
   return { left: (vw - width) / 2, top: (vh - height) / 2, width, height };
 }
 
-export const toPx = (box: Box) => ({
+export const formatBoxStyle = (box: Box) => ({
   left: `${box.left}px`,
   top: `${box.top}px`,
   width: `${box.width}px`,
@@ -57,9 +57,9 @@ export function useFlipTransition({ request, backdropRef, boxRef, videoRef }: Fl
 
   // 열기: 처음 자리에서 커진다.
   useLayoutEffect(() => {
-    const active = document.activeElement;
-    previousFocusRef.current = active instanceof HTMLElement || active instanceof SVGElement ? active : null;
-    const end = targetBox();
+    const focused = document.activeElement;
+    previousFocusRef.current = focused instanceof HTMLElement || focused instanceof SVGElement ? focused : null;
+    const end = computeTargetBox();
     const start = origin.isConnected ? origin.getBoundingClientRect() : null;
     const element = boxRef.current;
     backdropRef.current?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 280, easing: "ease-out" });
@@ -70,8 +70,8 @@ export function useFlipTransition({ request, backdropRef, boxRef, videoRef }: Fl
     }
     const animation = element.animate(
       [
-        { ...toPx(start), borderRadius: originRadius },
-        { ...toPx(end), borderRadius: "16px" },
+        { ...formatBoxStyle(start), borderRadius: originRadius },
+        { ...formatBoxStyle(end), borderRadius: "16px" },
       ],
       { duration: EXPAND_DURATION, easing: EASE_SMOOTH },
     );
@@ -115,8 +115,8 @@ export function useFlipTransition({ request, backdropRef, boxRef, videoRef }: Fl
     const current = boxElement.getBoundingClientRect();
     const animation = boxElement.animate(
       [
-        { ...toPx(current), borderRadius: "16px" },
-        { ...toPx(end), borderRadius: originRadius },
+        { ...formatBoxStyle(current), borderRadius: "16px" },
+        { ...formatBoxStyle(end), borderRadius: originRadius },
       ],
       { duration: COLLAPSE_DURATION, easing: EASE_SMOOTH, fill: "forwards" },
     );

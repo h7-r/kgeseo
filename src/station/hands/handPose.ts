@@ -4,7 +4,7 @@ import type { Vector3Tuple } from "three";
 
 import type { AvatarLink } from "@/engine/avatarLink";
 import { useSavedControls } from "@/engine/leva/savedControls";
-import { aimedPosition } from "@/lobby/interactions";
+import { getAimedPosition } from "@/lobby/interactions";
 import { itemSizes } from "@/lobby/placement";
 
 // 손 자세 — 손붙이기 Leva 값과, 손·품 앵커가 갈 자리 계산.
@@ -96,7 +96,7 @@ const bodyRight = new THREE.Vector3(1, 0, 0);
  * 길이를 팔 길이 배로 두어야 체형 슬라이더를 바꿔도 상자가 가슴에 박히거나 뜨지 않는다.
  * @param itemHalfDepth 물건의 몸 쪽 반깊이. 상수 앞 거리로는 두꺼운 물건이 몸에 박힌다.
  */
-export function chestAnchor(
+export function computeChestAnchor(
   st: AvatarLink,
   hug: HugValues,
   position: THREE.Vector3,
@@ -138,14 +138,14 @@ const shoulder = new THREE.Vector3();
  * 손이 물건을 뚫으면 통과한 것으로 보여 겉면 조금 앞에서 멈춘다.
  * @param maxRatio 팔 길이 대비 상한. 1인칭은 어깨가 카메라 바로 밑이라 다 뻗으면 소매가 화면을 덮는다.
  */
-export function reachTarget(
+export function computeReachTarget(
   st: AvatarLink,
   target: RefObject<Vector3Tuple | null>,
   out: THREE.Vector3,
   maxRatio = 0.92,
 ): boolean {
   // 뻗기 시작한 순간의 대상을 붙잡는다 — 고개를 조금만 돌려도 겨냥이 풀려 손이 딸꾹인다.
-  if (!target.current) target.current = aimedPosition();
+  if (!target.current) target.current = getAimedPosition();
   const p = target.current;
   if (!p) return false;
   const shoulderPoint = st.shoulderPosition;
@@ -166,7 +166,7 @@ export function reachTarget(
  * 위아래로 밀면 물건이 떠 보인다 — 사람도 큰 걸 들면 옆으로 벌린다.
  * 물건은 쥠점이 손에 오게 놓이므로 반폭은 쥠점에서 상자 모서리까지의 수평 거리다.
  */
-export function pushClearOfBody(
+export function applyBodyClearance(
   st: AvatarLink,
   itemId: string | null | undefined,
   position: THREE.Vector3,

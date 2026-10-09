@@ -1,17 +1,17 @@
-import { cachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
-import { makeRandom } from "@/engine/random";
+import { makeCachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
+import { createRandom } from "@/engine/random";
 
 import type { TrashBin } from "./workLampState";
 
 /** 통 몸통의 결 — 긁힘 · 바닥 때 · 흘러내린 얼룩 · 구청 스티커 */
-export function binBodyTexture(bin: TrashBin) {
+export function makeBinBodyTexture(bin: TrashBin) {
   const isPlastic = bin === "plastic";
-  return cachedCanvasTexture(
+  return makeCachedCanvasTexture(
     `workLampBinBody|${bin}`,
     (g, W, H) => {
       g.fillStyle = isPlastic ? "#2d64a8" : "#50574d";
       g.fillRect(0, 0, W, H);
-      const rnd = makeRandom(isPlastic ? 311 : 313);
+      const rnd = createRandom(isPlastic ? 311 : 313);
       // 사출 성형 세로 결
       for (let x = 0; x < W; x += 6) {
         g.fillStyle = `rgba(255,255,255,${0.015 + rnd() * 0.02})`;
@@ -74,9 +74,9 @@ export function binBodyTexture(bin: TrashBin) {
 }
 
 /** 통 앞 표지 — 색 띠 · 그림 기호 · 배출 요령 */
-export function binSignTexture(bin: TrashBin) {
+export function makeBinSignTexture(bin: TrashBin) {
   const isPlastic = bin === "plastic";
-  return cachedCanvasTexture(
+  return makeCachedCanvasTexture(
     `workLampBinSign|${bin}`,
     (g, W, H) => {
       const band = isPlastic ? "#1f5fae" : "#3d4439";
@@ -152,7 +152,7 @@ export function binSignTexture(bin: TrashBin) {
       g.font = `24px ${SIGN_FONT}`;
       g.fillStyle = "#3a3d42";
       g.fillText(isPlastic ? "PET · PP · PE 용기류" : "여러 재질 · 이물질 · 감열지", W / 2, 556);
-      const rnd = makeRandom(isPlastic ? 91 : 93);
+      const rnd = createRandom(isPlastic ? 91 : 93);
       g.globalAlpha = 0.18;
       for (let i = 0; i < 60; i++) {
         g.fillStyle = rnd() > 0.5 ? "#2b2a25" : "#efe6c8";
@@ -165,11 +165,11 @@ export function binSignTexture(bin: TrashBin) {
 }
 
 /** 통 둘레 바닥에 흘러 말라붙은 얼룩 */
-export function floorStainTexture() {
-  return cachedCanvasTexture(
+export function makeFloorStainTexture() {
+  return makeCachedCanvasTexture(
     "workLampBinStain",
     (g) => {
-      const rnd = makeRandom(404);
+      const rnd = createRandom(404);
       for (let i = 0; i < 9; i++) {
         const x = 60 + rnd() * 136,
           y = 60 + rnd() * 136,
@@ -206,9 +206,9 @@ const RECEIPT_LINES: [string, string][] = [
 ];
 
 /** 쓰레기에 붙은 작은 인쇄물 — 상표 띠 · 영수증 · 세제 라벨 · 빨대 줄무늬 */
-export function printTexture(kind: PrintKind) {
+export function makePrintTexture(kind: PrintKind) {
   const [width, height] = PRINT_SIZE[kind];
-  return cachedCanvasTexture(
+  return makeCachedCanvasTexture(
     `workLampPrint|${kind}`,
     (g) => {
       if (kind === "water") {
@@ -252,7 +252,7 @@ export function printTexture(kind: PrintKind) {
         g.fillText("막차 이용 감사합니다", 64, 196);
         for (let i = 0; i < 30; i++) g.fillRect(24 + i * 2.7, 214, (i * 7) % 3 === 0 ? 2 : 1, 26);
         // 감열지가 바래 글자가 군데군데 날아갔다
-        const rnd = makeRandom(55);
+        const rnd = createRandom(55);
         g.fillStyle = "rgba(244,242,234,0.7)";
         for (let i = 0; i < 26; i++) g.fillRect(rnd() * 128, rnd() * 260, 10 + rnd() * 30, 4 + rnd() * 8);
       } else if (kind === "detergent") {

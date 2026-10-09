@@ -7,7 +7,7 @@
 
 import * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import type { Spot } from "../placement/instanceGroups";
 import { RIVER } from "../plan/sitePlan";
@@ -24,8 +24,8 @@ export const STEPPING_STONE_STYLE = {
  * 디딤돌 — 물에 오래 씻겨 모서리가 닳고 윗면만 평평하다.
  * 상자를 흔들면 부서진 상자가 되므로 윗면은 거의 안 건드리고 옆구리만 크게 흔든다.
  */
-export function steppingStonePrototypes(count = 6, seed = 6101): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildSteppingStonePrototypes(count = 6, seed = 6101): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const corners = 7 + Math.floor(random() * 4);
@@ -90,8 +90,8 @@ interface SteppingStoneOptions {
   /** 줄이 좌우로 굽는 폭 — 자로 그은 징검다리는 없다 */
   sway?: number;
   seed?: number;
-  groundHeight?: HeightAt | null;
-  /** 이 너머로는 groundHeight 를 믿으면 안 된다 */
+  heightAt?: HeightAt | null;
+  /** 이 너머로는 heightAt 를 믿으면 안 된다 */
   coreZEnd?: number;
 }
 
@@ -104,16 +104,16 @@ interface SteppingStoneLayout {
  * x 자리에서 이쪽 물가 → 건너 물가를 잇는다. 물가 위치는 river 의 굽이 함수에서 그대로 가져온다 —
  * 강 모양을 고치면 징검다리가 저절로 따라와야 한다.
  */
-export function steppingStoneSpots({
+export function computeSteppingStoneSpots({
   x: centerX = 46.2,
   step = 1.75,
   aboveWater = 0.3,
   sway = 0.9,
   seed = 6301,
-  groundHeight = null,
+  heightAt = null,
   coreZEnd = 50,
 }: SteppingStoneOptions = {}): SteppingStoneLayout {
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const nearBank = RIVER.zStart + riverBendAt(centerX);
   const farBank = RIVER.zStart + RIVER.farBankWidth + 3 + farBankBendAt(centerX);
   // 양끝을 뭍으로 조금 물린다 — 물가에서 딱 끝나면 끊어진 다리로 보인다
@@ -132,10 +132,10 @@ export function steppingStoneSpots({
     const t = k / count;
     const z = startZ + length * t;
     const x = bend(t);
-    // 양끝 돌만 땅높이를 따르고 가운데는 물바닥(0)이다. 코어 밖에서 groundHeight 를 부르면
+    // 양끝 돌만 땅높이를 따르고 가운데는 물바닥(0)이다. 코어 밖에서 heightAt 를 부르면
     // 엉뚱한 값이 나와 돌이 물속으로 가라앉는다. 건너편(z > 77)은 수면과 같다.
     const isOnLand = k <= 1 || k >= count - 1;
-    const floor = groundHeight && isOnLand && z <= coreZEnd ? groundHeight(x, z) : 0;
+    const floor = heightAt && isOnLand && z <= coreZEnd ? heightAt(x, z) : 0;
     const size = 1.35 + random() * 0.55;
     // 두께가 표본마다 달라 윗면이 aboveWater 에 오도록 넉넉히 내려 박는다 — 조금 파묻혀야 놓은 돌로 보인다
     stones.push({

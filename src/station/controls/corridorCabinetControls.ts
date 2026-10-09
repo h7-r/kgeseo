@@ -236,8 +236,8 @@ export function usePadlockControls() {
   return { padlock, doorLatch, frameLatch };
 }
 
-export type HydrantControls = ReturnType<typeof useHydrantControls>;
-export type HydrantInteriorValues = HydrantControls["interior"];
-export type NozzleValues = HydrantControls["nozzle"];
+export type HydrantControlValues = ReturnType<typeof useHydrantControls>;
+export type HydrantInteriorValues = HydrantControlValues["interior"];
+export type NozzleValues = HydrantControlValues["nozzle"];
 export type PanelInteriorValues = ReturnType<typeof usePanelInteriorControls>;
-export type PadlockControls = ReturnType<typeof usePadlockControls>;
+export type PadlockControlValues = ReturnType<typeof usePadlockControls>;

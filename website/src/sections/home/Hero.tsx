@@ -33,12 +33,12 @@ export default function Hero({ top = 173 }: HeroProps) {
       </Suspense>
 
       <div
-        className="parallax-layer"
+        className="u-parallax"
         data-depth="1"
         style={{ ...crosshairVerticalStyle, pointerEvents: "none", zIndex: 1 }}
       />
       <div
-        className="parallax-layer"
+        className="u-parallax"
         data-depth="1"
         style={{ ...crosshairHorizontalStyle, pointerEvents: "none", zIndex: 1 }}
       />
@@ -46,7 +46,7 @@ export default function Hero({ top = 173 }: HeroProps) {
       {CORNER_BRACKETS.map((style, i) => (
         <div
           key={i}
-          className="parallax-layer"
+          className="u-parallax"
           data-depth="0.75"
           style={{
             position: "absolute",
@@ -64,39 +64,35 @@ export default function Hero({ top = 173 }: HeroProps) {
 
       {/* ESCAPE 와 THE LEGEND 가 한 칸에 겹쳐 놓여 있다. */}
       <div
-        className="parallax-layer"
+        className="u-parallax"
         data-depth="0.22"
         style={{ position: "relative", zIndex: 1, width: "470px", height: "233.3px", flexShrink: 0 }}
       >
         <div
-          className="stripe-text"
+          className="u-shine-text u-shine-text--solid"
           style={{ ...titleBaseStyle, left: "86px", top: 0, width: "298px", color: COLOR.textBright }}
         >
           ESCAPE
         </div>
-        <div className="flow-text navy-band" style={legendTitleStyle}>
+        <div className="u-shine-text u-shine-text--navy" style={legendTitleStyle}>
           THE LEGEND
         </div>
       </div>
 
-      <div
-        className="parallax-layer"
-        data-depth="0.12"
-        style={{ ...descriptionStyle, position: "relative", zIndex: 1 }}
-      >
+      <div className="u-parallax" data-depth="0.12" style={{ ...descriptionStyle, position: "relative", zIndex: 1 }}>
         {/* 그림자 글은 ::before 가 data-text 를 복사해 그린다. 글을 바꿀 땐 두 곳을 같이 바꾼다. */}
-        <span className="floor-shadow" data-text={DESCRIPTION}>
+        <span className="hero__description" data-text={DESCRIPTION}>
           {DESCRIPTION}
         </span>
       </div>
 
       <button
         type="button"
-        className="btn btn-text-glow"
+        className="button button--gradient-label"
         style={{ ...playButtonStyle, cursor: "pointer", position: "relative", zIndex: 1 }}
         onClick={() => navigate(START_GAME)}
       >
-        <span className="btn__label play-label">플레이하기</span>
+        <span className="button__label hero__play-label">플레이하기</span>
       </button>
     </section>
   );
@@ -165,7 +161,7 @@ const descriptionStyle: CSSProperties = {
   fontWeight: 400,
   fontSize: "38px",
   lineHeight: "150px",
-  // 밝은 영상 위라 검정. 입체감은 바닥에 눕는 그림자(.floor-shadow)가 준다.
+  // 밝은 영상 위라 검정. 입체감은 바닥에 눕는 그림자(.hero__description)가 준다.
   color: COLOR.black,
   whiteSpace: "nowrap",
   flexShrink: 0,
@@ -181,6 +177,6 @@ const playButtonStyle: CSSProperties = {
   color: COLOR.white,
   whiteSpace: "nowrap",
   flexShrink: 0,
-  // 호버 때 글자가 7% 커지는데 .btn 이 overflow: hidden 이라 좌우 여유가 없으면 양 끝이 잘린다.
+  // 호버 때 글자가 7% 커지는데 .button 이 overflow: hidden 이라 좌우 여유가 없으면 양 끝이 잘린다.
   padding: "0 32px",
 };

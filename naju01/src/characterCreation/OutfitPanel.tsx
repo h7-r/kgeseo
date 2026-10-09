@@ -2,9 +2,9 @@
 import { useEffect, type CSSProperties } from "react";
 
 import type { AvatarGender } from "../avatar/sidekickOptions";
-import { slotOptions, type DraftAppearance } from "./appearanceData";
-import { SLOT_LABELS, pickThumbnail, type CharacterCatalog } from "./catalog";
-import { ColorPicker, Group, ItemCard, TileButton } from "./controls";
+import { getSlotOptions, type DraftAppearance } from "./appearanceData";
+import { SLOT_LABELS, getItemThumbnail, type CharacterCatalog } from "./catalog";
+import { ColorPicker, SettingGroup, CatalogItemCard, TileButton } from "./controls";
 import { ICONS } from "./icons";
 import { OUTFIT_COLOR_SLOTS, OUTFIT_DESCRIPTIONS, OUTFIT_SLOTS, type OutfitSlot } from "./steps";
 import { COLORS, FONTS, SPACING, WHITE, cardGridStyle, confirmButtonStyle, smallTextStyle, tileStyle } from "./styles";
@@ -21,7 +21,7 @@ interface OutfitPanelProps {
 /** 상의 · 하의 · 신발 세 칸. 누르면 그 칸을 고르는 창이 열린다 */
 export function OutfitPanel({ catalog, appearance, gender, isWide, onOpenSlot }: OutfitPanelProps) {
   return (
-    <Group title="의상 항목" aside="누르면 고르는 창이 열립니다">
+    <SettingGroup title="의상 항목" aside="누르면 고르는 창이 열립니다">
       <div
         style={{
           display: "grid",
@@ -30,8 +30,8 @@ export function OutfitPanel({ catalog, appearance, gender, isWide, onOpenSlot }:
         }}
       >
         {OUTFIT_SLOTS.map((slot) => {
-          const current = slotOptions(catalog, slot, gender).find((it) => it.id === appearance.equipmentIds[slot]);
-          const thumbnail = current ? pickThumbnail(current, gender) : null;
+          const current = getSlotOptions(catalog, slot, gender).find((it) => it.id === appearance.equipmentIds[slot]);
+          const thumbnail = current ? getItemThumbnail(current, gender) : null;
           const color = appearance.colors[OUTFIT_COLOR_SLOTS[slot]] ?? WHITE;
           return (
             <TileButton
@@ -76,7 +76,7 @@ export function OutfitPanel({ catalog, appearance, gender, isWide, onOpenSlot }:
           );
         })}
       </div>
-    </Group>
+    </SettingGroup>
   );
 }
 
@@ -146,7 +146,7 @@ export function OutfitModal({ slot, catalog, appearance, gender, updateAppearanc
           </div>
           <button
             type="button"
-            className="cc-tile"
+            className="character-creator__tile"
             aria-label="닫기"
             onClick={onClose}
             style={{
@@ -163,23 +163,23 @@ export function OutfitModal({ slot, catalog, appearance, gender, updateAppearanc
           </button>
         </div>
         <div style={{ padding: SPACING.xl, display: "grid", gap: SPACING.xl, overflowY: "auto" }}>
-          <Group title={`${SLOT_LABELS[slot]} 종류`}>
+          <SettingGroup title={`${SLOT_LABELS[slot]} 종류`}>
             <div style={cardGridStyle}>
-              {slotOptions(catalog, slot, gender).map((it) => (
-                <ItemCard
+              {getSlotOptions(catalog, slot, gender).map((it) => (
+                <CatalogItemCard
                   key={it.id}
                   isSelected={appearance.equipmentIds[slot] === it.id}
                   label={it.label}
                   description={it.description}
-                  thumbnail={pickThumbnail(it, gender)}
+                  thumbnail={getItemThumbnail(it, gender)}
                   onClick={() =>
                     updateAppearance((v) => ({ ...v, equipmentIds: { ...v.equipmentIds, [slot]: it.id } }))
                   }
                 />
               ))}
             </div>
-          </Group>
-          <Group
+          </SettingGroup>
+          <SettingGroup
             title={`${SLOT_LABELS[slot]} 컬러`}
             aside={slot === "bottom" ? "검은 바지라 짙은 색만 또렷이 보입니다" : "원본에 색을 입힙니다"}
           >
@@ -189,7 +189,7 @@ export function OutfitModal({ slot, catalog, appearance, gender, updateAppearanc
               value={appearance.colors[colorSlot]}
               onChange={(hex) => updateAppearance((v) => ({ ...v, colors: { ...v.colors, [colorSlot]: hex } }))}
             />
-          </Group>
+          </SettingGroup>
         </div>
         <div
           style={{
@@ -200,7 +200,7 @@ export function OutfitModal({ slot, catalog, appearance, gender, updateAppearanc
         >
           <button
             type="button"
-            className="cc-confirm"
+            className="character-creator__confirm-button"
             onClick={onClose}
             style={{ ...confirmButtonStyle, height: 46, padding: "0 32px" }}
           >

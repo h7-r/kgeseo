@@ -17,7 +17,7 @@ export function parseGlb(buffer: ArrayBuffer): Promise<GLTF> {
 // instanceof 대신 is* 표식 — three 가 두 벌 실려도(도구·SSR) 메시를 알아본다
 export const isMesh = (o: THREE.Object3D): o is THREE.Mesh => (o as THREE.Mesh).isMesh === true;
 
-export function firstMesh(gltf: GLTF): THREE.Mesh | null {
+export function findFirstMesh(gltf: GLTF): THREE.Mesh | null {
   let found: THREE.Mesh | null = null;
   gltf.scene.traverse((o) => {
     if (o instanceof THREE.Mesh && !found) found = o;
@@ -27,7 +27,7 @@ export function firstMesh(gltf: GLTF): THREE.Mesh | null {
 
 type SizeBasis = "height" | "width" | "depth" | "max";
 
-interface FitRealSizeOptions {
+interface RealSizeOptions {
   basis?: SizeBasis;
   /** 그 축의 실제 길이(미터) */
   targetMeters: number;
@@ -36,9 +36,9 @@ interface FitRealSizeOptions {
 }
 
 /** 지오메트리를 실치수로 키우고, 가로는 한가운데 · 세로는 밑면을 원점에 둔다. */
-export function fitRealSize(
+export function applyRealSize(
   geometry: THREE.BufferGeometry,
-  { basis = "height", targetMeters, alignBottom = true }: FitRealSizeOptions,
+  { basis = "height", targetMeters, alignBottom = true }: RealSizeOptions,
 ): THREE.BufferGeometry {
   geometry.computeBoundingBox();
   const b = geometry.boundingBox;

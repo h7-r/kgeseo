@@ -1,7 +1,12 @@
 import type { Vector3Tuple } from "three";
 
 import type { LobbyState } from "@/lobby/interactions";
-import { CAB_FZ, CAB_OPEN_PLAN, CAB_SEAMS, type CabinetOpening } from "@/station/office/cabinet/cabinetGeometry";
+import {
+  CABINET_FRONT_Z,
+  CABINET_OPEN_PLAN,
+  CABINET_SEAMS,
+  type CabinetOpening,
+} from "@/station/headquarters/cabinet/cabinetGeometry";
 
 import type { CabinetCommonValues, CabinetValues } from "../controls/furnitureControls";
 
@@ -12,19 +17,19 @@ import type { CabinetCommonValues, CabinetValues } from "../controls/furnitureCo
 export const DRAWER_RIDERS: Readonly<Record<string, number>> = { "E-02": 0 };
 
 /**
- * 캐비닛 서랍 여닫기. 손대기 전에는 Leva 연출값(CAB_OPEN_PLAN)으로 몇 칸이 열려 있고,
+ * 캐비닛 서랍 여닫기. 손대기 전에는 Leva 연출값(CABINET_OPEN_PLAN)으로 몇 칸이 열려 있고,
  * 손댄 뒤로는 로비 상태(null = 닫음)를 따른다.
  */
-export function cabinetDrawers(
+export function computeCabinetDrawers(
   common: CabinetCommonValues,
   cabinets: readonly CabinetValues[],
   drawers: LobbyState["drawers"],
 ) {
-  const row = (i: number) => CAB_OPEN_PLAN[i]?.row ?? 1;
-  const hasPapers = (i: number) => !!CAB_OPEN_PLAN[i]?.hasPapers && common.showPapers;
+  const row = (i: number) => CABINET_OPEN_PLAN[i]?.row ?? 1;
+  const hasPapers = (i: number) => !!CABINET_OPEN_PLAN[i]?.hasPapers && common.showPapers;
 
   const defaultOpening = (i: number): CabinetOpening | null => {
-    const plan = CAB_OPEN_PLAN[i];
+    const plan = CABINET_OPEN_PLAN[i];
     if (!common.drawersOpen || !plan) return null;
     return {
       row: plan.row,
@@ -41,16 +46,16 @@ export function cabinetDrawers(
   };
 
   const isOpen = (i: number) => {
-    const v = opening(i);
-    return !!v && v.amount > 0.005;
+    const current = opening(i);
+    return !!current && current.amount > 0.005;
   };
 
   /** 만질 수 있는 서랍 한 칸의 앞면 가운데 */
   const handlePosition = (i: number): Vector3Tuple => {
     const c = cabinets[i];
     const r = row(i);
-    const centerY = (CAB_SEAMS[r] + CAB_SEAMS[r + 1]) / 2;
-    const frontZ = CAB_FZ * common.height;
+    const centerY = (CABINET_SEAMS[r] + CABINET_SEAMS[r + 1]) / 2;
+    const frontZ = CABINET_FRONT_Z * common.height;
     return [c.x + Math.sin(c.rotation) * frontZ, centerY * common.height, c.z + Math.cos(c.rotation) * frontZ];
   };
 

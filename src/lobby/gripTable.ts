@@ -174,13 +174,13 @@ const ID_PREFIXES: [prefix: string, kind: GripKind][] = [
 
 // 손각·쥠점은 화면을 봐야 아는 값이라 콘솔에서 덧씌워 다음 프레임부터 본다.
 // gripOffsets("mug", { handRotation: [0,0,-90] }) · ("mug", null) 로 되돌림 · () 로 전부 지움.
-const overrides = new Map<string, Partial<GripSpec>>();
+const gripOverrides = new Map<string, Partial<GripSpec>>();
 
 exposeDevHook("gripOffsets", (kind?: string, override?: Partial<GripSpec> | null) => {
-  if (kind === undefined) overrides.clear();
-  else if (override == null) overrides.delete(kind);
-  else overrides.set(kind, override);
-  return [...overrides.entries()];
+  if (kind === undefined) gripOverrides.clear();
+  else if (override == null) gripOverrides.delete(kind);
+  else gripOverrides.set(kind, override);
+  return [...gripOverrides.entries()];
 });
 exposeDevHook("gripTable", GRIP_TABLE);
 
@@ -189,9 +189,9 @@ exposeDevHook("gripTable", GRIP_TABLE);
  * @param kind 든 물건이 알려 준 종류(있으면 우선)
  * @param itemId 없으면 id 앞머리로 짐작한다. "coin"·"drink"·"nozzle" 은 id 가 곧 종류다.
  */
-export function gripSpec(kind?: string | null, itemId?: string | null): GripSpec {
+export function getGripSpec(kind?: string | null, itemId?: string | null): GripSpec {
   const withOverride = (spec: GripSpec, name: string) => {
-    const override = overrides.get(name);
+    const override = gripOverrides.get(name);
     return override ? { ...spec, ...override } : spec;
   };
   if (kind && isGripKind(kind)) return withOverride(GRIP_TABLE[kind], kind);

@@ -4,16 +4,23 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 import { scaleColor } from "@/engine/color";
-import { mergeBoxes, type MergeBox } from "@/engine/geometry";
+import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
 import { ToonOutline } from "@/engine/outline";
 import { requestShadowUpdates } from "@/engine/rendering";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { isOpen, isRestoredOpen, rattle, rattleOffset, toggleHinge, useIsOpen } from "@/props/hingeState";
-import { usePipeOffset } from "@/props/vendingPush";
+import {
+  isHingeOpen,
+  isHingeRestoredOpen,
+  rattleHinge,
+  computeRattleOffset,
+  toggleHinge,
+  useIsHingeOpen,
+} from "@/props/hingeState";
+import { usePipeOffset } from "@/props/vendingPushState";
 
-import { hydrantLabelTexture, LABEL_ASPECT, panelLabelTexture } from "./signTextures";
-import { wallCabinetDoorId, type WallCabinetKind } from "./wallCabinetId";
+import { makeHydrantLabelTexture, LABEL_ASPECT, makePanelLabelTexture } from "./signTextures";
+import { getWallCabinetDoorId, type WallCabinetKind } from "./wallCabinetId";
 
 // 잠긴 문이 덜컹일 때 젖혀지는 각. 걸쇠가 잡고 있으니 2도뿐이다.
 const RATTLE_ANGLE = (2 * Math.PI) / 180;
@@ -143,8 +150,8 @@ export default function WallCabinet({
   const label = useMemo(
     () =>
       kind === "hydrant"
-        ? hydrantLabelTexture(labelColor, lineColor, grime)
-        : panelLabelTexture(labelColor, lineColor, number, grime),
+        ? makeHydrantLabelTexture(labelColor, lineColor, grime)
+        : makePanelLabelTexture(labelColor, lineColor, number, grime),
     [kind, labelColor, lineColor, number, grime],
   );
 
@@ -159,8 +166,8 @@ export default function WallCabinet({
   // 경첩 2 + 아래 받침
   const fittings = useMemo(() => {
     const front = d * (depth / 2 + 0.02);
-    return mergeBoxes([
-      ...[-1, 1].map((sy): MergeBox => ({
+    return buildMergedBoxes([
+      ...[-1, 1].map((sy): BoxPiece => ({
         size: [0.1, 0.28, 0.1],
         position: [front, cy + sy * (height * 0.3), -(width / 2) + 0.06],
       })),
@@ -177,7 +184,7 @@ export default function WallCabinet({
     const zR = gripZ + gripWidth / 2 + gripRim;
     const yB = -gripHeight / 2 - gripRim;
     const yT = gripHeight / 2 + gripRim;
-    return mergeBoxes([
+    return buildMergedBoxes([
       { size: [thickness, gripHeight + gripRim * 2, gripRim], position: [x0, 0, zL + gripRim / 2] },
       { size: [thickness, gripHeight + gripRim * 2, gripRim], position: [x0, 0, zR - gripRim / 2] },
       { size: [thickness, gripRim, gripWidth], position: [x0, yT - gripRim / 2, gripZ] },
@@ -195,7 +202,7 @@ export default function WallCabinet({
   const shell = useMemo(() => {
     if (!canOpen) return null;
     const rim = 0.08;
-    return mergeBoxes([
+    return buildMergedBoxes([
       { size: [0.08, height, width], position: [-d * (depth / 2 - 0.04), cy, 0] },
       { size: [depth, height, rim], position: [0, cy, -width / 2 + rim / 2] },
       { size: [depth, height, rim], position: [0, cy, width / 2 - rim / 2] },
@@ -232,15 +239,15 @@ export default function WallCabinet({
         if (baseHeight <= Cy) continue;
         // ① 함 아래에서 꺾임 시작점까지
         const verticalLength = baseHeight - Cy;
-        const v = new THREE.CylinderGeometry(r, r, verticalLength, 8, 1);
-        v.translate(cx, Cy + verticalLength / 2, verticalZ);
-        pieces.push(v);
+        const riser = new THREE.CylinderGeometry(r, r, verticalLength, 8, 1);
+        riser.translate(cx, Cy + verticalLength / 2, verticalZ);
+        pieces.push(riser);
         // ② 90° 굽힘. rotateZ(π) → rotateY(π/2) 로 θ=0 에서 위, θ=π/2 에서 −z 쪽 가로로 이어진다.
-        const e = new THREE.TorusGeometry(R, r, 6, 10, Math.PI / 2);
-        e.rotateZ(Math.PI);
-        e.rotateY(Math.PI / 2);
-        e.translate(cx, Cy, Cz);
-        pieces.push(e);
+        const elbow = new THREE.TorusGeometry(R, r, 6, 10, Math.PI / 2);
+        elbow.rotateZ(Math.PI);
+        elbow.rotateY(Math.PI / 2);
+        elbow.translate(cx, Cy, Cz);
+        pieces.push(elbow);
         // ③ 벽을 따라 옆으로
         const horizontalLength = Math.abs(end - Cz);
         if (horizontalLength > 0.02) {
@@ -291,19 +298,19 @@ export default function WallCabinet({
   // 각도를 state 로 두면 여닫는 동안 매 프레임 복도 전체가 다시 그려진다.
   const doorRef = useRef<THREE.Group>(null);
   const doorPanelRef = useRef<THREE.Group>(null);
-  const doorId = wallCabinetDoorId(kind, x, z);
-  const openness = useRef(isOpen(doorId) ? 1 : 0);
-  const isDoorOpen = useIsOpen(doorId);
+  const doorId = getWallCabinetDoorId(kind, x, z);
+  const openness = useRef(isHingeOpen(doorId) ? 1 : 0);
+  const isDoorOpen = useIsHingeOpen(doorId);
   useFrame((_, dt) => {
     const door = doorRef.current;
     if (!door) return;
-    const target = canOpen && isOpen(doorId) ? 1 : 0;
+    const target = canOpen && isHingeOpen(doorId) ? 1 : 0;
     // 서버 진행 상태로 되살린 문은 여는 동작 없이 바로 열린 각도다
-    openness.current = isRestoredOpen(doorId)
+    openness.current = isHingeRestoredOpen(doorId)
       ? 1
       : openness.current + (target - openness.current) * (1 - Math.exp(-dt * 9));
     // 부호가 방향(d)을 따라간다. 덜컹은 더한다 — 경첩 쪽은 그대로인 채 손잡이 쪽만 들썩인다.
-    const angle = d * ((openAngle * Math.PI) / 180) * openness.current + rattleOffset(doorId) * RATTLE_ANGLE;
+    const angle = d * ((openAngle * Math.PI) / 180) * openness.current + computeRattleOffset(doorId) * RATTLE_ANGLE;
     if (Math.abs(angle - door.rotation.y) > 1e-4) requestShadowUpdates(0.2);
     door.rotation.y = angle;
   });
@@ -375,7 +382,7 @@ export default function WallCabinet({
               }}
               label=""
               // 아무 반응이 없으면 조작이 고장 난 줄 안다. 잠겼으면 덜컹거린다.
-              run={() => (locked ? rattle(doorId) : toggleHinge(doorId))}
+              run={() => (locked ? rattleHinge(doorId) : toggleHinge(doorId))}
             />
           )}
         </group>

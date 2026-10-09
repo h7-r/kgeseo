@@ -215,13 +215,13 @@ export const RULES = {
 } as const;
 
 /** 비밀번호 확인 칸. 비밀번호 칸 값이 있어야 판단할 수 있다. */
-export function matchPasswords(password: string | undefined, confirm: string | undefined): string {
+export function validatePasswordConfirm(password: string | undefined, confirm: string | undefined): string {
   if (!confirm) return "비밀번호를 한 번 더 입력해주세요.";
   return password === confirm ? "" : "비밀번호가 서로 다릅니다.";
 }
 
 /** 비밀번호 세기 0~3. 회원가입의 막대 세 칸에 쓴다. */
-export function passwordStrength(password = ""): number {
+export function computePasswordStrength(password = ""): number {
   let score = 0;
   if (password.length >= 8) score += 1;
   if (/[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password)) score += 1;
@@ -267,7 +267,7 @@ export function validateFields(
   const errors: FieldErrors = {};
   for (const name of fields) {
     if (name === "passwordConfirm")
-      errors[name] = matchPasswords(values.password ?? values.newPassword, values.passwordConfirm);
+      errors[name] = validatePasswordConfirm(values.password ?? values.newPassword, values.passwordConfirm);
     else if (name === "newPassword") errors[name] = RULES.password(values.newPassword, values);
     else if (name === "password")
       errors[name] = isLogin ? RULES.loginPassword(values.password) : RULES.password(values.password, values);

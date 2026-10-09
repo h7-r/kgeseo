@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { fieldLabelStyle } from "@/components/form/styles";
+import { fieldLabelStyle } from "@/components/form/formStyles";
 import type { FieldProps } from "@/hooks/useForm";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
@@ -42,7 +42,7 @@ export default function CodeBoxes({ value, onChange, error }: CodeBoxesProps) {
           </div>
         ))}
         <input
-          className="input"
+          className="text-input"
           inputMode="numeric"
           maxLength={CODE_LENGTH}
           value={value}
@@ -50,7 +50,7 @@ export default function CodeBoxes({ value, onChange, error }: CodeBoxesProps) {
           style={{ position: "absolute", inset: 0, opacity: 0, cursor: "text" }}
           aria-label="인증코드"
         />
-        {error && <span className="error-text">{error}</span>}
+        {error && <span className="form-error">{error}</span>}
       </div>
     </div>
   );

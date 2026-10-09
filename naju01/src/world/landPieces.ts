@@ -6,7 +6,7 @@
 
 import * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 export const LAND_PIECE_STYLE = {
   mound: 0x74804f, // 풀 덮인 둔덕
@@ -14,8 +14,8 @@ export const LAND_PIECE_STYLE = {
 };
 
 /** 언덕 — 매끈한 반구는 공을 반 자른 것으로 보여, 능선이 한쪽으로 흐르게 꼭짓점을 결대로 민다. */
-export function moundPrototypes(count = 4, seed = 8101): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildMoundPrototypes(count = 4, seed = 8101): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const geometry = new THREE.SphereGeometry(0.5, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
@@ -50,8 +50,8 @@ export function moundPrototypes(count = 4, seed = 8101): THREE.BufferGeometry[] 
  * 길 한 조각. 완전한 평면을 땅에 얹으면 z-파이팅으로 깜빡여 얇게라도 띄운다.
  * 가장자리를 조금 낮추면 땅에 파묻힌 것으로 보여 얹은 티가 덜 난다.
  */
-export function pathPiecePrototypes(count = 3, seed = 8303): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildPathPiecePrototypes(count = 3, seed = 8303): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const cells = 8;

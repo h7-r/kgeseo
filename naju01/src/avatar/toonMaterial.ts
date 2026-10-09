@@ -47,7 +47,7 @@ const gradientCache = new Map<string, THREE.DataTexture>();
  * softness 를 주면 계단 경계를 잇는다 — 낮은 폴리곤에서는 경계가 삼각형 모서리를 따라 톱니로 보여
  * 캐릭터를 크게 보는 생성 화면만 조금 푼다. 게임은 0 그대로다.
  */
-export function toonGradientMap(steps: number, threshold: number, softness = 0): THREE.DataTexture {
+export function makeToonGradientTexture(steps: number, threshold: number, softness = 0): THREE.DataTexture {
   const key = `${steps}:${threshold.toFixed(3)}:${softness.toFixed(3)}`;
   const cached = gradientCache.get(key);
   if (cached) return cached;
@@ -170,7 +170,11 @@ const TOON_SOURCE_KEY = "toonSource";
 // 우리가 채운 빈 _tint 를 GLB 가 준 것으로 오해하지 않게 남기는 표식.
 const EMPTY_TINT_KEY = "emptyTint";
 
-function patchShader(material: THREE.MeshToonMaterial, config: ToonBuildConfig, kind: ToonPartKind): ToonUniforms {
+function applyToonShaderPatch(
+  material: THREE.MeshToonMaterial,
+  config: ToonBuildConfig,
+  kind: ToonPartKind,
+): ToonUniforms {
   const uniforms: ToonUniforms = {
     _headCentre: { value: config.headCentre },
     _faceFlatten: { value: kind === "body" ? config.faceFlatten : 0 },
@@ -279,10 +283,10 @@ function createToonMaterial(
     depthTest: source.depthTest,
     emissive: fields.emissive ? fields.emissive.clone() : new THREE.Color(0x000000),
     emissiveMap: fields.emissiveMap ?? null,
-    gradientMap: toonGradientMap(config.steps, config.threshold, config.softness ?? 0),
+    gradientMap: makeToonGradientTexture(config.steps, config.threshold, config.softness ?? 0),
   });
   material.name = `${source.name || "material"}_toon`;
-  const uniforms = patchShader(material, config, kind);
+  const uniforms = applyToonShaderPatch(material, config, kind);
   return { material, uniforms };
 }
 

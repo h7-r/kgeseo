@@ -10,18 +10,18 @@ export interface LoadingProgress {
 interface LoadingCoverProps {
   progress: LoadingProgress;
   /** 씬이 그려졌다 — 덮개가 흐려진다 */
-  fading: boolean;
+  isFading: boolean;
 }
 
 /** 에셋을 받는 동안·씬을 세우는 동안 덮는다(app/prefetch) */
-export default function LoadingCover({ progress, fading }: LoadingCoverProps) {
+export default function LoadingCover({ progress, isFading }: LoadingCoverProps) {
   const ratio = progress.total ? progress.done / progress.total : 0;
   const text =
     progress.phase === "fetching"
       ? `에셋 받는 중 ${progress.done} / ${progress.total}${progress.label ? ` · ${progress.label}` : ""}`
       : "지형을 세우는 중…";
   return (
-    <div style={{ ...coverStyle, opacity: fading ? 0 : 1 }}>
+    <div style={{ ...coverStyle, opacity: isFading ? 0 : 1 }}>
       <div style={textBoxStyle}>
         <div style={titleStyle}>NAJU-01</div>
         <div style={barStyle}>

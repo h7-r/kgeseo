@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { usePinnedWipe } from "@/hooks/motion";
+import { usePinnedReveal } from "@/hooks/motion";
 import { FONT } from "@/lib/style";
 import { sectionAnchor } from "@/navigation/subMenus";
 import { COLOR } from "@/styles/tokens";
@@ -19,9 +19,9 @@ const FACTS = [
  * 그림의 확대·기울기·밝기는 CSS(.case-file)가 --enter·--progress 로 계산한다.
  */
 export default function CaseFile() {
-  const panelRef = usePinnedWipe<HTMLElement>({
+  const panelRef = usePinnedReveal<HTMLElement>({
     pinLength: CASE_FILE_PIN_LENGTH,
-    pinClass: "case-file-pin",
+    pinGroup: "case-file",
     writeProgress: true,
     span: 0.5,
     revealEnd: 0.9,
@@ -29,7 +29,13 @@ export default function CaseFile() {
   });
 
   return (
-    <section ref={panelRef} className="case-file-pin case-file" style={sectionStyle} {...sectionAnchor("case-file")}>
+    <section
+      ref={panelRef}
+      className="u-pin case-file"
+      data-pin-group="case-file"
+      style={sectionStyle}
+      {...sectionAnchor("case-file")}
+    >
       {/* decoding="async" — 그림 풀기를 주 스레드 밖에서 해 스크롤이 안 끊긴다. */}
       <div className="case-file__window">
         <img
@@ -46,21 +52,21 @@ export default function CaseFile() {
       <div className="case-file__shade" aria-hidden="true" />
 
       <div style={textBlockStyle}>
-        <div className="wipe" style={eyebrowStyle}>
+        <div className="u-pin-reveal" style={eyebrowStyle}>
           <span style={dotStyle} aria-hidden="true" />
           CASE FILE · NAJU-01 · 영산포
         </div>
-        <h2 className="wipe" style={titleStyle}>
+        <h2 className="u-pin-reveal" style={titleStyle}>
           영산강 절벽 위,
           <br />
           약속은 돌아오지 않았다.
         </h2>
-        <p className="wipe" style={bodyStyle}>
+        <p className="u-pin-reveal" style={bodyStyle}>
           영산포와 앙암바위 일대에서 사람들의 기억과 기록이 서로 어긋나기 시작했다.
           <br />
           합동수사본부는 현장 조사관을 이곳에 투입한다.
         </p>
-        <div className="wipe" style={factRowStyle}>
+        <div className="u-pin-reveal" style={factRowStyle}>
           {FACTS.map(([label, value]) => (
             <div key={label} style={factCellStyle}>
               <span style={factLabelStyle}>{label}</span>

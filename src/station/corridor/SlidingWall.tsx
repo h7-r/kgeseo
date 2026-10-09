@@ -2,9 +2,9 @@ import { useMemo } from "react";
 import { Outlines } from "@react-three/drei";
 
 import { scaleColor } from "@/engine/color";
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
-import { stoneGeometry } from "@/station/train/stoneGeometry";
+import { buildStoneGeometry } from "@/station/train/stoneGeometry";
 
 interface WallBlock {
   x: number;
@@ -48,7 +48,7 @@ export default function SlidingWall({
   outline,
 }: SlidingWallProps) {
   const blocks = useMemo(() => {
-    const rnd = makeRandom(seed + 5);
+    const rnd = createRandom(seed + 5);
     const columns = 4;
     const rows = 5;
     const out: WallBlock[] = [];
@@ -83,7 +83,7 @@ export default function SlidingWall({
       {blocks.map((block, i) => (
         <mesh
           key={`blk${i}`}
-          geometry={stoneGeometry(block.seed, roughness)}
+          geometry={buildStoneGeometry(block.seed, roughness)}
           position={[block.x, block.y, block.z]}
           rotation={block.rotation}
           scale={[thickness * 0.9, block.sy, block.sz]}

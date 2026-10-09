@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import { PLAYER_RADIUS } from "@/engine/movement/constants";
-import { draggedChair } from "@/lobby/interactions";
+import { getDraggedChair } from "@/lobby/interactions";
 import { provideWorldBoxes, type WorldBox } from "@/lobby/placement";
 import { isHoseTaut } from "@/props/nozzleState";
 
@@ -25,13 +25,13 @@ export const STATIC_COLLIDERS: ColliderBox[] = [
 export const dynamicColliders = new Map<string, ColliderBox>();
 
 /** 끌고 가는 의자가 등록하는 박스 이름. 끄는 사람 자신은 이 박스에 막히지 않는다. */
-export const dragBoxId = (id: string) => `${id}:drag`;
+export const getDragBoxId = (id: string) => `${id}:drag`;
 
 /** 벽 쪽 걸레받이(두께 0.35)가 튀어나온 만큼. 벽은 박스가 아니라 경계 사각형으로 막아 이 값으로 직접 가둔다. */
 export const WALL_MOLDING = 0.36;
 
 /** 정사각 박스. 회전하는 물건은 가장 긴 쪽 반지름이면 충분하다. 높이를 안 주면 천장까지 막는다. */
-export function squareBox(x: number, z: number, radius: number, height?: number): ColliderBox {
+export function computeSquareBox(x: number, z: number, radius: number, height?: number): ColliderBox {
   return {
     minX: x - radius,
     maxX: x + radius,
@@ -84,18 +84,18 @@ function blockedBy(x: number, z: number, r: number, y: number | undefined, exclu
 }
 
 /** 사람(반지름 PLAYER_RADIUS)이 이 자리에 설 수 없나. */
-export const hit = (x: number, z: number, y?: number): boolean => {
+export const isBlockedForPlayer = (x: number, z: number, y?: number): boolean => {
   // 관창을 들고 있으면 호스 길이만큼만 갈 수 있다.
   if (isHoseTaut(x, z)) return true;
   // 끌고 있는 의자는 주인을 막지 않는다 — 의자가 몸 바로 앞에 붙어 있어 막으면 모든 걸음이 막힌다.
-  const chair = draggedChair();
-  return blockedBy(x, z, PLAYER_RADIUS, y, chair ? dragBoxId(chair) : null);
+  const chair = getDraggedChair();
+  return blockedBy(x, z, PLAYER_RADIUS, y, chair ? getDragBoxId(chair) : null);
 };
 
 /** 반지름을 정해 막힘을 묻는다(끌고 가는 물건용). 자기 박스는 빼야 첫 프레임에 굳지 않는다. */
-export const blockedWithin = (x: number, z: number, r: number, excludeId: string | null = null) =>
+export const isBlockedWithin = (x: number, z: number, r: number, excludeId: string | null = null) =>
   blockedBy(x, z, r, undefined, excludeId);
 
 exposeDevHook("colliders", dynamicColliders);
 exposeDevHook("staticColliders", STATIC_COLLIDERS);
-exposeDevHook("blocked", (x: number, z: number) => hit(x, z));
+exposeDevHook("blocked", (x: number, z: number) => isBlockedForPlayer(x, z));

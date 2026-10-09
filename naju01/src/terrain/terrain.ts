@@ -5,7 +5,7 @@
 import {
   BLOCKERS,
   CLIFF,
-  CLIFF_OUTLINE,
+  cliffProfileAt,
   CORE,
   PATHS,
   RIVER,
@@ -137,7 +137,7 @@ type CenterlineSource = Pick<MeasuredPath, "segments" | "planarLength" | "startE
  * 도면 꼭짓점 사이를 spacing 마다 채우고, 진행 방향을 이웃과 평균 내어 모서리를 둥글린다.
  * 고도는 호 길이에 비례해 올린다.
  */
-export function extractCenterline(path: CenterlineSource, spacing = 0.4, smoothing = 2): CenterlinePoint[] {
+export function computeCenterline(path: CenterlineSource, spacing = 0.4, smoothing = 2): CenterlinePoint[] {
   const points: { x: number; z: number; arcLength: number }[] = [];
   for (const s of path.segments) {
     const n = Math.max(1, Math.round(s.length / spacing));
@@ -217,7 +217,7 @@ export function createTerrain({
   // 코너 안쪽에서 한 걸음에 0.5 m 가 꺼졌다.
   const measuredPaths: MeasuredPath[] = paths.map((t) => {
     const measured = { ...t, ...measurePath(t) };
-    const centerline = extractCenterline(measured);
+    const centerline = computeCenterline(measured);
     const fineSegments: PathSegment[] = [];
     let total = 0;
     for (let i = 0; i < centerline.length - 1; i++) {
@@ -505,9 +505,9 @@ export function createTerrain({
     }
 
     // 절벽 배터 띠 — 채우지 않는다. 그림과 같은 면을 돌려주고 isFall 로만 표시해 면을 따라 미끄러져 내려간다.
-    // 띠 안이라고 다 벼랑이 아니다 — CLIFF_OUTLINE 이 x 마다 마루·발치·높이를 흔든다(그림과 같은 함수).
+    // 띠 안이라고 다 벼랑이 아니다 — cliffProfileAt 이 x 마다 마루·발치·높이를 흔든다(그림과 같은 함수).
     if (isWithin(px, cliff.x) && pz >= cliff.zTop && pz <= cliff.zBottom) {
-      const { crest, toe, height: wallHeight } = CLIFF_OUTLINE(px);
+      const { crest, toe, height: wallHeight } = cliffProfileAt(px);
       if (pz <= crest) {
         // 마루보다 북쪽은 아직 어깨(선반) — 설 수 있다.
         return { y: wallHeight, zone: null, path: null, isFall: false, isWater: false };

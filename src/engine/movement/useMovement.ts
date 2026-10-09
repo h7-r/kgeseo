@@ -8,7 +8,7 @@ import { cameraOwner, DEFAULT_FOV, FRAME_PRIORITY, MAX_FRAME_DELTA } from "@/eng
 import { playerView } from "@/engine/playerView";
 
 import {
-  boomDistance,
+  computeBoomDistance,
   boomLimits,
   boomState,
   firstPersonSpeed,
@@ -22,15 +22,15 @@ import {
 } from "./boom";
 import {
   AIR_CONTROL,
-  CROUCH,
-  CROUCH_EYE,
-  EYE,
+  CROUCH_SPEED_MULTIPLIER,
+  CROUCH_EYE_HEIGHT,
+  EYE_HEIGHT,
   GRAVITY,
   HANDLED_KEYS,
-  JUMP,
+  JUMP_VELOCITY,
   PLAYER_RADIUS,
-  RUN,
-  WALK,
+  RUN_SPEED_MULTIPLIER,
+  WALK_SPEED,
 } from "./constants";
 
 /** 아바타가 읽는 몸 상태. useMovement 가 매 프레임 적는다. */
@@ -116,8 +116,8 @@ const VIEW_SWITCH_SECONDS = 0.25;
 export function useMovement(
   active: boolean,
   {
-    eyeHeight = EYE,
-    crouchEyeHeight = CROUCH_EYE,
+    eyeHeight = EYE_HEIGHT,
+    crouchEyeHeight = CROUCH_EYE_HEIGHT,
     bounds,
     isBlocked,
     nearby,
@@ -222,12 +222,12 @@ export function useMovement(
         if (sideLength > 1e-5) {
           sideScratch.multiplyScalar(1 / sideLength);
           // 어깨로 민 피벗이 벽 안이면 절반씩 되돌리고, 끝까지 안 되면 어깨 오프셋을 포기한다.
-          // 사각은 boomDistance 와 똑같이 붐 반경만큼 좁혀 본다 — 다르면 그만큼 어긋난 구간이 남는다.
-          const room = bounds ? bounds(p) : null;
+          // 사각은 computeBoomDistance 와 똑같이 붐 반경만큼 좁혀 본다 — 다르면 그만큼 어긋난 구간이 남는다.
+          const area = bounds ? bounds(p) : null;
           const margin = (config.boomRadius ?? 0) * UNITS_PER_METER;
           const isUnstandable = (x: number, z: number) =>
-            (room &&
-              (x < room.minX + margin || x > room.maxX - margin || z < room.minZ + margin || z > room.maxZ - margin)) ||
+            (area &&
+              (x < area.minX + margin || x > area.maxX - margin || z < area.minZ + margin || z > area.maxZ - margin)) ||
             (isBlocked ? isBlocked(x, z) : false);
           let shoulder = config.shoulderOffset * UNITS_PER_METER;
           pivot.addScaledVector(sideScratch, shoulder);
@@ -272,7 +272,7 @@ export function useMovement(
 
     // ③ 굵기 있는 붐으로 벽까지 밀어 본다
     const radius = config.enabled ? config.boomRadius * UNITS_PER_METER : 0;
-    const target = boomDistance(pivot, back, maxLength, bounds, isBlocked, radius);
+    const target = computeBoomDistance(pivot, back, maxLength, bounds, isBlocked, radius);
 
     // ④ 접힘은 즉시(한 프레임만 늦어도 벽이 뚫린다) · 펴짐은 천천히
     const previous = boomLength.current;
@@ -376,7 +376,7 @@ export function useMovement(
     const handleKeyDown = (event: KeyboardEvent) => {
       if (HANDLED_KEYS.has(event.code)) event.preventDefault();
       if (event.code === "Space" && isGrounded.current) {
-        verticalVelocity.current = JUMP;
+        verticalVelocity.current = JUMP_VELOCITY;
         isGrounded.current = false;
         isJumping.current = true;
       }
@@ -504,8 +504,8 @@ export function useMovement(
     if (wish.lengthSq() > 0.00001) bodyYaw.current = Math.atan2(wish.x, wish.z);
     const isCrouching = k.crouchToggle;
     const speedScale = isThirdPerson ? thirdPersonSpeed.scale : (firstPersonSpeedScale ?? firstPersonSpeed.scale);
-    const runMultiplier = isThirdPerson ? RUN : firstPersonSpeed.runMultiplier;
-    const speed = WALK * (isCrouching ? CROUCH : k.run ? runMultiplier : 1) * speedScale;
+    const runMultiplier = isThirdPerson ? RUN_SPEED_MULTIPLIER : firstPersonSpeed.runMultiplier;
+    const speed = WALK_SPEED * (isCrouching ? CROUCH_SPEED_MULTIPLIER : k.run ? runMultiplier : 1) * speedScale;
     const target = wish.multiplyScalar(speed);
     if (movementDebug.enabled) {
       movementDebug.commandedSpeed = speed;
@@ -543,7 +543,7 @@ export function useMovement(
     const marginZ = Math.abs(sideZ) * SHOULDER_REACH;
 
     for (let step = 0; step < substeps; step++) {
-      const room = bounds ? bounds(p) : UNBOUNDED;
+      const area = bounds ? bounds(p) : UNBOUNDED;
       // 이미 무언가 안에 있으면 양쪽이 다 막혀 못 움직인다 → 빠져나가게 허용
       const isTrapped = blocked(p.x, p.z);
       const currentOverlap = isTrapped ? 9 : bodyOverlap(p.x, p.z);
@@ -555,10 +555,10 @@ export function useMovement(
         return count === 0 || count <= currentOverlap;
       };
 
-      const minX = insetMin(room.minX, room.maxX, marginX);
-      const maxX = insetMax(room.minX, room.maxX, marginX);
-      const minZ = insetMin(room.minZ, room.maxZ, marginZ);
-      const maxZ = insetMax(room.minZ, room.maxZ, marginZ);
+      const minX = insetMin(area.minX, area.maxX, marginX);
+      const maxX = insetMax(area.minX, area.maxX, marginX);
+      const minZ = insetMin(area.minZ, area.maxZ, marginZ);
+      const maxZ = insetMax(area.minZ, area.maxZ, marginZ);
 
       const nx = THREE.MathUtils.clamp(p.x + velocity.current.x * stepDt, minX, maxX);
       if (canMoveTo(nx, p.z)) p.x = nx;

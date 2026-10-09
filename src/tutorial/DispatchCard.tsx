@@ -4,7 +4,7 @@
  */
 import { useEffect, useRef, type CSSProperties } from "react";
 
-import { acknowledgeDispatch, DISPATCH_COLOR, tickDispatch, useDispatchState } from "./dispatch";
+import { acknowledgeDispatch, DISPATCH_COLOR, tickDispatch, useDispatchState } from "./dispatchState";
 
 /** 무전 수신음을 WebAudio 로 짧게 만든다(파일 없음). 브라우저가 막으면 조용히 넘어간다. */
 function playRadioChirp() {
@@ -72,23 +72,23 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
   if (phase === "alert")
     return (
       <div style={overlayStyle} onClick={acknowledgeDispatch} role="alertdialog" aria-labelledby="dispatch-title">
-        <div style={cardStyle}>
+        <div style={dispatchCardStyle}>
           <div style={headerStyle}>
-            <span style={dotStyle} />
+            <span style={sirenDotStyle} />
             긴급 호출 · 수사본부 상황실
           </div>
           <h2 id="dispatch-title" style={titleStyle}>
             나주 앙암바위, 왜곡 발생
           </h2>
           <div style={bodyStyle}>
-            <p style={lineStyle}>영산강 앙암바위 일대의 시공간이 비틀리기 시작했다.</p>
-            <p style={lineStyle}>강물 위로 지워졌던 옛 장면이 겹쳐 떠오르고, 왜곡은 지금도 번지는 중이다.</p>
+            <p style={paragraphStyle}>영산강 앙암바위 일대의 시공간이 비틀리기 시작했다.</p>
+            <p style={paragraphStyle}>강물 위로 지워졌던 옛 장면이 겹쳐 떠오르고, 왜곡은 지금도 번지는 중이다.</p>
             <p style={commandLineStyle}>더 퍼지기 전에 막아야 한다. 즉시 기차에 올라 나주로 출동하라.</p>
           </div>
           <div style={footerStyle}>
             <span>— 상황실</span>
             <span>
-              <kbd style={chipStyle}>E</kbd> 출동
+              <kbd style={keyCapStyle}>E</kbd> 출동
             </span>
           </div>
         </div>
@@ -99,7 +99,7 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
     return (
       <div style={objectiveStyle} role="status">
         <div style={objectiveHeaderStyle}>
-          <span style={smallDotStyle} />
+          <span style={objectiveDotStyle} />
           임무 · 나주 앙암바위 왜곡 저지
         </div>
         <div style={objectiveTextStyle}>
@@ -127,7 +127,7 @@ const overlayStyle: CSSProperties = {
   animation: "dispatch-fade-in .45s ease-out",
 };
 
-const cardStyle: CSSProperties = {
+const dispatchCardStyle: CSSProperties = {
   width: "min(520px, 100%)",
   padding: "20px 24px 16px",
   borderRadius: 12,
@@ -148,7 +148,7 @@ const headerStyle: CSSProperties = {
   marginBottom: 10,
 };
 
-const dotStyle: CSSProperties = {
+const sirenDotStyle: CSSProperties = {
   width: 8,
   height: 8,
   borderRadius: 99,
@@ -164,9 +164,9 @@ const titleStyle: CSSProperties = {
   letterSpacing: "-0.01em",
 };
 const bodyStyle: CSSProperties = { fontSize: 15, color: "#d8d0c8" };
-const lineStyle: CSSProperties = { margin: "0 0 6px" };
+const paragraphStyle: CSSProperties = { margin: "0 0 6px" };
 const commandLineStyle: CSSProperties = {
-  ...lineStyle,
+  ...paragraphStyle,
   color: "#fff",
   fontWeight: 700,
   marginTop: 10,
@@ -181,7 +181,7 @@ const footerStyle: CSSProperties = {
   color: "#a0968c",
 };
 
-const chipStyle: CSSProperties = {
+const keyCapStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -219,7 +219,7 @@ const objectiveHeaderStyle: CSSProperties = {
   letterSpacing: "0.1em",
   color: DISPATCH_COLOR,
 };
-const smallDotStyle: CSSProperties = { width: 6, height: 6, borderRadius: 99, background: DISPATCH_COLOR };
+const objectiveDotStyle: CSSProperties = { width: 6, height: 6, borderRadius: 99, background: DISPATCH_COLOR };
 const objectiveTextStyle: CSSProperties = { fontSize: 14, marginTop: 3 };
 const distanceStyle: CSSProperties = { color: "#a0968c" };
 

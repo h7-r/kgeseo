@@ -11,14 +11,14 @@ export const ARRIVAL_FADE_MS = 500;
 const SAFETY_TIMEOUT_MS = 15000;
 
 /** [밝힐까, 첫 프레임이 왔다고 알리는 함수]. 꺼져 있으면 처음부터 밝다 */
-export function useArrivalFade(enabled: boolean): [boolean, () => void] {
-  const [isRevealed, setIsRevealed] = useState(!enabled);
+export function useArrivalFade(isEnabled: boolean): [boolean, () => void] {
+  const [isRevealed, setIsRevealed] = useState(!isEnabled);
 
   useEffect(() => {
-    if (!enabled || isRevealed) return undefined;
+    if (!isEnabled || isRevealed) return undefined;
     const timer = setTimeout(() => setIsRevealed(true), SAFETY_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [enabled, isRevealed]);
+  }, [isEnabled, isRevealed]);
 
   return [isRevealed, () => setIsRevealed(true)];
 }

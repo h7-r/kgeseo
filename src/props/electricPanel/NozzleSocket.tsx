@@ -6,11 +6,11 @@ import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
+import { AimHighlight } from "@/lobby/AimHighlight";
 import NozzleModel from "@/props/hydrantCabinet/NozzleModel";
-import { nozzleLocation, pickUpNozzle, plugNozzle, useNozzle } from "@/props/nozzleState";
+import { getNozzleLocation, pickUpNozzle, plugNozzle, useNozzle } from "@/props/nozzleState";
 import ToonMaterial from "@/props/shared/ToonMaterial";
-import { type HighlightSettings, worldPositionOf } from "@/props/shared/aimTarget";
+import { type AimHighlightSettings, getWorldPositionOf } from "@/props/shared/aimTarget";
 import { isWorkLampPuzzleHandFull } from "@/props/workLampPuzzle/workLampState";
 
 interface NozzleSocketProps {
@@ -27,7 +27,7 @@ interface NozzleSocketProps {
   /** 꽂힌 관창 색 — 소화전함 금속색과 같아야 옮겨 온 그 한 자루로 읽힌다 */
   nozzleColor: string;
   canHandle: boolean;
-  highlight?: HighlightSettings;
+  highlight?: AimHighlightSettings;
   brightness: number;
   outline?: OutlineValues | null;
 }
@@ -78,13 +78,13 @@ export default function NozzleSocket({
         radius={0.3}
         reach={4}
         label="[E] 관창 꽂기"
-        disabled={() => !canHandle || nozzleLocation() !== "hand"}
-        position={() => worldPositionOf(mouthRef)}
+        disabled={() => !canHandle || getNozzleLocation() !== "hand"}
+        position={() => getWorldPositionOf(mouthRef)}
         run={() => plugNozzle()}
       />
       {location === "plugged" && (
         <>
-          <Highlight
+          <AimHighlight
             id={unplugId}
             anchor={() => pluggedPosition}
             color={highlight?.color}
@@ -94,15 +94,15 @@ export default function NozzleSocket({
             <group position={pluggedPosition} rotation={pluggedRotation} ref={pluggedRef}>
               <NozzleModel metalColor={nozzleColor} brightness={brightness} outline={outline} />
             </group>
-          </Highlight>
+          </AimHighlight>
           <Interactable
             id={unplugId}
             radius={0.34}
             reach={4}
             label="[E] 관창 뽑기"
             // 조건은 한 함수에 모은다 — 따로 적으면 뒤엣것만 남는다
-            disabled={() => !canHandle || nozzleLocation() !== "plugged" || isWorkLampPuzzleHandFull()}
-            position={() => worldPositionOf(pluggedRef)}
+            disabled={() => !canHandle || getNozzleLocation() !== "plugged" || isWorkLampPuzzleHandFull()}
+            position={() => getWorldPositionOf(pluggedRef)}
             run={() => pickUpNozzle()}
           />
         </>

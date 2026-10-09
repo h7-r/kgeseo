@@ -18,10 +18,10 @@ export const GROUND_MESHES: string[] = [
   MESH_NAMES.distantFarFields,
 ];
 // 여기 맞았으면 그 점의 높이를 그대로 쓴다 — 코어 밖은 지표가 값을 안 갖고 있어 원경 나무가 땅에 박힌다
-export const OUTER_GROUND = new Set<string>([MESH_NAMES.distantFields, MESH_NAMES.distantFarFields]);
+export const OUTER_GROUND_MESHES = new Set<string>([MESH_NAMES.distantFields, MESH_NAMES.distantFarFields]);
 
 // 못 고르는 것을 눌렀을 때 이유를 말해 준다. 조용하면 편집기가 고장 난 줄 안다.
-export const UNPICKABLE: Record<string, string> = {
+export const UNPICKABLE_REASONS: Record<string, string> = {
   [MESH_NAMES.blockerRock]: "차단물 바위 — 도면 §4 가 시야를 막으려고 세운 것이다. 옮기면 V3 에서 사건 현장이 보인다",
   [MESH_NAMES.zoneSides]: "구역 옆구리 — 대지를 깎은 면이다. 걷는 높이와 한 몸이라 못 옮긴다",
   [MESH_NAMES.ground]: "땅 — 걷는 바닥 그 자체다",
@@ -31,10 +31,10 @@ export const UNPICKABLE: Record<string, string> = {
   [MESH_NAMES.grass]: "풀 — 한 장으로 합쳐 그린다(11만 삼각형이라 하나씩 나누면 느려진다)",
 };
 // 하늘·물·원경은 눌러도 알릴 것이 없다
-export const SILENT_MESHES = /^(river|sky|distant)/;
+export const SILENT_MESH_PATTERN = /^(river|sky|distant)/;
 
 // 부감 — 걸으면서 배치하면 전체가 안 보여 한쪽으로 쏠린 걸 뒤늦게 안다
-export const OVERVIEW = {
+export const OVERVIEW_CAMERA = {
   height: 22, // m
   heightRange: [4, 90] as const,
   pitch: -1.05, // ≈ -60°. 수직이면 방향 감각이 사라진다

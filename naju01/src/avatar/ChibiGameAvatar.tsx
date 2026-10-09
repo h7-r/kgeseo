@@ -13,7 +13,7 @@ import { alignWrists, solveArms } from "./armIk";
 import { registerDiagnostics } from "./avatarDiagnostics";
 import { attachClipPlanes, CLIPPING, updateClipPlane } from "./firstPersonClipping";
 import { applyFootContact, createFootContactState, lowestSoleY } from "./footContactIk";
-import { DEFAULT_MESH_CONFIG, type MeshAppearanceConfig, meshBodyUrl, meshShoesUrl } from "./meshAppearance";
+import { DEFAULT_MESH_CONFIG, type MeshAppearanceConfig, getMeshBodyUrl, getMeshShoesUrl } from "./meshAppearance";
 import {
   type CorrectionOverrides,
   type CorrectionValues,
@@ -39,7 +39,7 @@ import {
 } from "./preparedBody";
 import { DEFAULT_TOON, type ToonConfig } from "./toonMaterial";
 import { DEFAULT_OUTLINE, type OutlineConfig } from "./toonOutline";
-import { chooseMotion, type MotionTimers, useMotionPlayer } from "./useChibiMotion";
+import { chooseMotion, type MotionTimers, useMotionPlayer } from "./useMotionPlayer";
 import { useAppearancePaint, useDeferredDisposal, useToonAndOutline } from "./useChibiMaterials";
 
 export type { ChibiAvatarConfig, ChibiBody } from "./preparedBody";
@@ -136,11 +136,11 @@ function ChibiGameAvatar({
   const { gl, camera } = useThree();
   const isMeshy = body === "meshy";
   const appearanceBase = useMemo<MeshAppearanceConfig>(() => ({ ...DEFAULT_MESH_CONFIG, ...config }), [config]);
-  const modelUrl = isMeshy ? meshBodyUrl(appearanceBase) : null;
+  const modelUrl = isMeshy ? getMeshBodyUrl(appearanceBase) : null;
   const maleGltf = useGLTF(modelUrl ?? CHIBI_BODY_URLS.masculine);
   const femaleGltf = useGLTF(modelUrl ?? CHIBI_BODY_URLS.feminine);
   const motionGltf = useGLTF(MOTION_LIBRARY_URL);
-  const shoesGltf = useGLTF(isMeshy ? meshShoesUrl(appearanceBase) : CHIBI_BODY_URLS.masculine);
+  const shoesGltf = useGLTF(isMeshy ? getMeshShoesUrl(appearanceBase) : CHIBI_BODY_URLS.masculine);
   const tripoGltfs = useGLTF(TRIPO_MOTION_URLS);
   const usesTripo = (config.motionSource ?? DEFAULT_MESH_CONFIG.motionSource) === "tripo";
   const gender: Gender = config.gender === "feminine" ? "feminine" : "masculine";

@@ -45,8 +45,8 @@ interface SceneSlotProps {
  */
 export default function SceneSlot({ scene = "orbit", deferred = false, active = true, style }: SceneSlotProps) {
   const slotRef = useRef<HTMLDivElement>(null);
-  const [mounted, setMounted] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
   const [failed, setFailed] = useState(false);
 
@@ -66,9 +66,9 @@ export default function SceneSlot({ scene = "orbit", deferred = false, active = 
             setFailed(true);
             return;
           }
-          setVisible(entry.isIntersecting);
+          setIsVisible(entry.isIntersecting);
           // 한 번 붙이면 계속 둔다. 오갈 때마다 WebGL 문맥을 새로 만드는 쪽이 훨씬 비싸다.
-          if (entry.isIntersecting) setMounted(true);
+          if (entry.isIntersecting) setIsMounted(true);
         },
         // 화면에 닿기 한참 전에 붙여야 스크롤해 내려올 때 뒤늦게 툭 나타나지 않는다.
         { rootMargin: "1200px" },
@@ -96,10 +96,10 @@ export default function SceneSlot({ scene = "orbit", deferred = false, active = 
 
   return (
     <div ref={slotRef} aria-hidden="true" style={{ ...slotStyle, ...style }}>
-      {mounted && !failed && (
+      {isMounted && !failed && (
         <SceneErrorBoundary onError={() => setFailed(true)}>
           <Suspense fallback={null}>
-            <Scene visible={visible && active} reducedMotion={reducedMotion} />
+            <Scene visible={isVisible && active} reducedMotion={reducedMotion} />
           </Suspense>
         </SceneErrorBoundary>
       )}

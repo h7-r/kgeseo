@@ -1,9 +1,9 @@
 // 그림 「막차」 두 장 — 창이 전부 꺼진 밤 풍경(바탕)과 불 든 창만 그린 투명한 한 장(창빛).
 // 전류가 닿아야 창빛이 얹혀 어느 창이 켜지는지는 전기가 와야 안다.
-import { cachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
-import { makeRandom } from "@/engine/random";
+import { makeCachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
+import { createRandom } from "@/engine/random";
 
-import { PAINTING_HEIGHT_PX, PAINTING_WIDTH_PX } from "./geometry";
+import { PAINTING_HEIGHT_PX, PAINTING_WIDTH_PX } from "./puzzleGeometry";
 import { LAST_TRAIN_PASSENGERS, WINDOW_COUNT } from "./workLampState";
 
 interface WindowRect {
@@ -38,9 +38,9 @@ function drawSeatedPerson(g: CanvasRenderingContext2D, w: WindowRect, i: number,
 }
 
 /** 그린 그림에서 색을 떠서 짧은 붓질로 다시 얹는다 */
-function addBrushStrokes(g: CanvasRenderingContext2D, W: number, H: number, seed: number, count = 36000) {
+function drawBrushStrokes(g: CanvasRenderingContext2D, W: number, H: number, seed: number, count = 36000) {
   const source = g.getImageData(0, 0, W, H).data;
-  const rnd = makeRandom(seed);
+  const rnd = createRandom(seed);
   g.save();
   g.lineCap = "round";
   for (let i = 0; i < count; i++) {
@@ -66,11 +66,11 @@ function addBrushStrokes(g: CanvasRenderingContext2D, W: number, H: number, seed
 }
 
 /** 바탕 — 밤 승강장에 선 막차. 창은 전부 꺼져 있다. */
-export function lastTrainBackgroundTexture() {
-  return cachedCanvasTexture(
+export function makeLastTrainBackgroundTexture() {
+  return makeCachedCanvasTexture(
     "workLampPaintingBackground",
     (g, W, H) => {
-      const rnd = makeRandom(1987);
+      const rnd = createRandom(1987);
 
       // 하늘 — 위는 먹색 남빛, 지평선은 먼 읍내 불빛에 탁한 자줏빛
       const sky = g.createLinearGradient(0, 0, 0, H * 0.62);
@@ -196,7 +196,7 @@ export function lastTrainBackgroundTexture() {
       drawPlatform(g, W, H);
 
       // 유화 마감 — 붓결 · 캔버스 결 · 가장자리 어둡게 · 니스 누런 기
-      addBrushStrokes(g, W, H, 1987);
+      drawBrushStrokes(g, W, H, 1987);
       g.globalAlpha = 0.05;
       for (let y = 0; y < H; y += 3) {
         g.fillStyle = y % 6 ? "#000" : "#fff";
@@ -523,12 +523,12 @@ function drawPlatform(g: CanvasRenderingContext2D, W: number, H: number) {
 }
 
 /** 창빛 — 불 든 창 · 새어 나온 빛 · 웅덩이에 비친 빛만. 켜진 창은 스위치 무늬("101101")를 그대로 따른다. */
-export function lastTrainWindowLightTexture(switchKey: string | null) {
+export function makeLastTrainWindowLightTexture(switchKey: string | null) {
   const lit = String(switchKey ?? "").padStart(CAR_WINDOWS.length, "0");
-  return cachedCanvasTexture(
+  return makeCachedCanvasTexture(
     `workLampPaintingLights|${lit}`,
     (g) => {
-      const rnd = makeRandom(88);
+      const rnd = createRandom(88);
       CAR_WINDOWS.forEach((w, i) => {
         if (lit[i] !== "1") return;
         const cx = w.x + w.w / 2,

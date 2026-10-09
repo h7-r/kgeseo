@@ -5,15 +5,15 @@ import type { AvatarGender } from "../avatar/sidekickOptions";
 import {
   BODY_FIELD_GROUPS,
   BODY_FIELDS,
-  bodyFieldDefault,
-  genderOptions,
-  slotOptions,
+  getBodyFieldDefault,
+  getGenderOptions,
+  getSlotOptions,
   type BodyField,
   type BodyParameters,
   type DraftAppearance,
 } from "./appearanceData";
-import { pickThumbnail, type CharacterCatalog } from "./catalog";
-import { ColorPicker, Group, ItemCard, Switch, TileButton } from "./controls";
+import { getItemThumbnail, type CharacterCatalog } from "./catalog";
+import { ColorPicker, SettingGroup, CatalogItemCard, ToggleSwitch, TileButton } from "./controls";
 import { GENDER_ICONS } from "./icons";
 import { COLORS, FONTS, SPACING, cardGridStyle, smallTextStyle } from "./styles";
 import TickSlider from "./TickSlider";
@@ -45,9 +45,9 @@ export function BasicsPanel({
 }: BasicsPanelProps) {
   return (
     <>
-      <Group title="성별">
+      <SettingGroup title="성별">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: SPACING.m }}>
-          {genderOptions().map(([gender, label]) => {
+          {getGenderOptions().map(([gender, label]) => {
             const isSelected = currentGender === gender;
             return (
               <TileButton
@@ -77,21 +77,21 @@ export function BasicsPanel({
             );
           })}
         </div>
-      </Group>
-      <Group title="피부 컬러" aside="흰색은 원본 그대로입니다">
+      </SettingGroup>
+      <SettingGroup title="피부 컬러" aside="흰색은 원본 그대로입니다">
         <ColorPicker
           slot="skin"
           palette={catalog.palettes.skin}
           value={appearance.colors.skin}
           onChange={(hex) => updateAppearance((v) => ({ ...v, colors: { ...v.colors, skin: hex } }))}
         />
-      </Group>
-      <Group title="미리보기">
-        <Switch isOn={showUnderwear} onChange={onShowUnderwearChange}>
+      </SettingGroup>
+      <SettingGroup title="미리보기">
+        <ToggleSwitch isOn={showUnderwear} onChange={onShowUnderwearChange}>
           <span style={{ font: `600 14px/1.3 ${FONTS.body}`, color: COLORS.text }}>속옷으로 체형 보기</span>
           <span style={smallTextStyle}>골라 둔 옷은 그대로 남습니다.</span>
-        </Switch>
-      </Group>
+        </ToggleSwitch>
+      </SettingGroup>
     </>
   );
 }
@@ -109,7 +109,7 @@ export function BodyPanel({ gender, body, isWide, onChange, onDragStart, onDragE
   return (
     <>
       {BODY_FIELD_GROUPS.map(([group, label]) => (
-        <Group key={group} title={label}>
+        <SettingGroup key={group} title={label}>
           <div
             style={{
               display: "grid",
@@ -126,11 +126,11 @@ export function BodyPanel({ gender, body, isWide, onChange, onDragStart, onDragE
                 onChange={(value, isHistoryStep) => onChange(field, value, isHistoryStep)}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
-                onReset={() => onChange(field, bodyFieldDefault(field, gender), true)}
+                onReset={() => onChange(field, getBodyFieldDefault(field, gender), true)}
               />
             ))}
           </div>
-        </Group>
+        </SettingGroup>
       ))}
     </>
   );
@@ -146,27 +146,27 @@ interface HairPanelProps {
 export function HairPanel({ catalog, appearance, gender, updateAppearance }: HairPanelProps) {
   return (
     <>
-      <Group title="머리 모양">
+      <SettingGroup title="머리 모양">
         <div style={cardGridStyle}>
-          {slotOptions(catalog, "hair", gender).map((it) => (
-            <ItemCard
+          {getSlotOptions(catalog, "hair", gender).map((it) => (
+            <CatalogItemCard
               key={it.id}
               isSelected={appearance.hairId === it.id}
               label={it.label}
-              thumbnail={pickThumbnail(it, gender)}
+              thumbnail={getItemThumbnail(it, gender)}
               onClick={() => updateAppearance((v) => ({ ...v, hairId: it.id }))}
             />
           ))}
         </div>
-      </Group>
-      <Group title="헤어 컬러" aside="원본에 색을 입힙니다">
+      </SettingGroup>
+      <SettingGroup title="헤어 컬러" aside="원본에 색을 입힙니다">
         <ColorPicker
           slot="hair"
           palette={catalog.palettes.hair}
           value={appearance.colors.hair}
           onChange={(hex) => updateAppearance((v) => ({ ...v, colors: { ...v.colors, hair: hex } }))}
         />
-      </Group>
+      </SettingGroup>
     </>
   );
 }

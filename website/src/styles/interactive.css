@@ -1,5 +1,5 @@
 /* 단추·카드는 배경과 그림자를 인라인 style 로 갖고 있어 클래스로는 못 이긴다. 빛은 ::before 로 덮어 얹는다. */
-.btn {
+.button {
   transition:
     filter 0.16s ease,
     transform 0.16s var(--ease-smooth),
@@ -8,41 +8,41 @@
   overflow: hidden;
 }
 /* 글자는 scale 로 키운다 — font-size 를 바꾸면 단추 폭이 바뀌어 옆 요소까지 밀린다. */
-.btn > span,
-.btn > img,
-.btn__label {
+.button > span,
+.button > img,
+.button__label {
   display: inline-block;
   transition: transform 0.22s var(--ease-smooth);
 }
-.btn:hover > span,
-.btn:hover > img,
-.btn:hover .btn__label {
+.button:hover > span,
+.button:hover > img,
+.button:hover .button__label {
   transform: scale(1.07);
 }
-.btn:active {
+.button:active {
   transform: scale(0.97);
   filter: brightness(0.96);
 }
 
 /* 검정 바탕에선 밝기 필터가 티가 안 나서 흰 빛을 키운다 */
-.btn-outline-light:hover {
+.button--outline-light:hover {
   box-shadow: 0 0 34px rgba(255, 255, 255, 0.22) !important;
   background: #0b0b0e !important;
 }
 
-.link {
+.text-link {
   transition: color 0.16s ease;
 }
 /* 밑줄은 넣지 않는다 — nav 의 활성 밑줄과 겹친다 */
-.link:hover {
+.text-link:hover {
   color: var(--color-accent);
 }
-.light-surface .link:hover {
+.theme-light .text-link:hover {
   color: var(--color-navy);
 }
 
 /* transition 은 켜진 탭에도 건다. 안 그러면 이전 탭의 배경이 툭 사라진다. */
-.tab {
+.tab-button {
   position: relative;
   transition:
     background-color 0.22s ease,
@@ -54,18 +54,18 @@
     transform 0.14s var(--ease-smooth);
   will-change: transform;
 }
-.tab:not(.is-active):hover {
+.tab-button:not(.is-active):hover {
   filter: brightness(1.35);
   color: var(--color-text-bright);
   border-color: rgba(50, 82, 150, 0.55);
 }
-.tab:active {
+.tab-button:active {
   transform: translateY(0) scale(0.97);
 }
-.tab.is-active {
-  animation: tab-activate 0.28s var(--ease-smooth);
+.tab-button.is-active {
+  animation: activate-pulse 0.28s var(--ease-smooth);
 }
-@keyframes tab-activate {
+@keyframes activate-pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(50, 82, 150, 0.55);
   }
@@ -77,7 +77,7 @@
   }
 }
 
-.card {
+.interactive-card {
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease,
@@ -85,97 +85,97 @@
   position: relative;
 }
 /* translateY 는 쓰지 않는다 — 마우스 기울임이 inline transform 을 쓴다. */
-.card:hover {
+.interactive-card:hover {
   border-color: rgba(50, 82, 150, 0.7);
   box-shadow: 0 12px 32px rgba(47, 62, 112, 0.28);
 }
 
-.list-row:hover {
+.interactive-row:hover {
   filter: brightness(1.25);
 }
-.list-row {
+.interactive-row {
   transition: filter 0.16s ease;
 }
 
 /* 흰 면에서 글자를 밝히면 바탕에 묻힌다. 글자는 진하게, 바탕은 살짝 회색으로 뒤집는다. */
-.light-surface .tab:not(.is-active):hover {
+.theme-light .tab-button:not(.is-active):hover {
   filter: none;
   color: #1a1a1f;
   border-color: #b9c3d6;
 }
-.light-surface .list-row:hover {
+.theme-light .interactive-row:hover {
   filter: none;
   background: #f2f5f9 !important;
 }
 
-.pager-arrow {
+.pager__arrow {
   transition:
     color 0.18s ease,
     transform 0.18s ease;
 }
 /* 어두운 면에서 #2e4889 는 대비가 2.35:1 이라 사라져 보인다 */
-.pager-arrow:hover {
+.pager__arrow:hover {
   color: var(--color-accent);
 }
-.light-surface .pager-arrow:hover {
+.theme-light .pager__arrow:hover {
   color: var(--color-navy);
 }
-.pager-arrow:active {
+.pager__arrow:active {
   color: #2f3e70;
   transform: scale(0.92);
 }
 
-.pager-page {
+.pager__page {
   transition:
     background-color 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease,
     transform 0.14s var(--ease-smooth);
 }
-.pager-page:not(.is-active):hover {
+.pager__page:not(.is-active):hover {
   border-color: var(--color-navy);
   color: var(--color-navy);
   transform: translateY(-2px);
 }
-.pager-page:not(.is-active):active {
+.pager__page:not(.is-active):active {
   background-color: rgba(46, 72, 137, 0.16);
   transform: scale(0.94);
 }
-.pager-page.is-active {
-  animation: tab-activate 0.28s var(--ease-smooth);
+.pager__page.is-active {
+  animation: activate-pulse 0.28s var(--ease-smooth);
 }
 
-.plan-arrow {
+.pricing-plans__arrow {
   transition:
     background-color 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease,
     transform 0.2s ease;
 }
-.plan-arrow:hover {
+.pricing-plans__arrow:hover {
   background-color: rgba(46, 72, 137, 0.22);
   border-color: rgba(59, 94, 162, 0.8);
   color: #eef3fb;
 }
-.plan-arrow:active {
+.pricing-plans__arrow:active {
   transform: translateY(-50%) scale(0.9);
 }
 
 /* 키보드로 옮겨 다닐 때만 보인다 */
-.btn:focus-visible,
-.link:focus-visible,
-.tab:focus-visible,
-.list-row:focus-visible,
-.card:focus-visible,
-.pager-arrow:focus-visible,
-.pager-page:focus-visible,
-.plan-arrow:focus-visible {
+.button:focus-visible,
+.text-link:focus-visible,
+.tab-button:focus-visible,
+.interactive-row:focus-visible,
+.interactive-card:focus-visible,
+.pager__arrow:focus-visible,
+.pager__page:focus-visible,
+.pricing-plans__arrow:focus-visible {
   outline: 2px solid var(--color-blue-mid);
   outline-offset: 3px;
   border-radius: 6px;
 }
 
-.btn::before {
+.button::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -188,11 +188,11 @@
     opacity 0.2s ease,
     transform 0.55s cubic-bezier(0.23, 1, 0.32, 1);
 }
-.btn:hover::before {
+.button:hover::before {
   opacity: 1;
   transform: translateX(60%);
 }
-.btn:active::before {
+.button:active::before {
   opacity: 1;
   transform: translateX(0);
   background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.3), transparent 62%);
@@ -200,7 +200,7 @@
 }
 
 /* 테두리만 밝으면 「선택됐다」로 읽힌다. 그림자까지 깊어져야 「들렸다」로 읽힌다. */
-.card::before {
+.interactive-card::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -210,29 +210,29 @@
   background: linear-gradient(160deg, rgba(59, 94, 162, 0.16), transparent 46%);
   transition: opacity 0.26s ease;
 }
-.card:hover::before {
+.interactive-card:hover::before {
   opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn > span,
-  .btn > img,
-  .btn__label {
+  .button > span,
+  .button > img,
+  .button__label {
     transition: none;
   }
-  .btn::before,
-  .card::before {
+  .button::before,
+  .interactive-card::before {
     transition: none;
   }
 }
 
 /* 칸이 아니라 글자 자체가 빛나야 하는 단추 */
-.btn-text-glow::before {
+.button--gradient-label::before {
   display: none;
 }
 
 /* hover 때 빛줄기가 훑고 지나간다. screen 섞기라 남색 바탕 위에서 탁해지지 않는다. */
-.btn-sweep {
+.button--primary {
   position: relative;
   overflow: hidden;
   isolation: isolate;
@@ -241,10 +241,10 @@
     filter 0.2s ease,
     box-shadow 0.25s ease;
 }
-.btn-sweep::before {
+.button--primary::before {
   display: none;
 }
-.btn-sweep::after {
+.button--primary::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -269,31 +269,31 @@
   mix-blend-mode: screen;
   opacity: 0;
 }
-.btn-sweep > * {
+.button--primary > * {
   position: relative;
   z-index: 1;
 }
 
-.btn-sweep:hover {
+.button--primary:hover {
   filter: brightness(1.08);
   box-shadow:
     0 0 36px rgba(96, 165, 250, 0.35),
     0 4px 20px rgba(46, 72, 137, 0.45);
 }
-.btn-sweep:hover::after,
-.btn-sweep:focus-visible::after {
+.button--primary:hover::after,
+.button--primary:focus-visible::after {
   opacity: 1;
-  animation: flow-sweep 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: button-sheen 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
-.btn-sweep:active {
+.button--primary:active {
   transform: scale(0.98);
   filter: brightness(1.18);
 }
-.btn-sweep:active::after {
+.button--primary:active::after {
   opacity: 1;
-  animation: flow-sweep 0.4s cubic-bezier(0.2, 0, 0, 1) infinite;
+  animation: button-sheen 0.4s cubic-bezier(0.2, 0, 0, 1) infinite;
 }
-@keyframes flow-sweep {
+@keyframes button-sheen {
   0% {
     background-position: 130% 0;
   }
@@ -305,24 +305,24 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .btn-sweep::after {
+  .button--primary::after {
     animation: none !important;
   }
 }
 
-.card-arrow {
+.scenario-cards__arrow {
   padding: 0 6px;
   cursor: pointer;
   transition:
     color 0.18s ease,
     transform 0.18s ease;
 }
-.card-arrow:hover,
-.card-arrow:focus-visible {
+.scenario-cards__arrow:hover,
+.scenario-cards__arrow:focus-visible {
   color: #c9d2ee !important;
   transform: scale(1.15);
   outline: none;
 }
-.card-arrow:active {
+.scenario-cards__arrow:active {
   transform: scale(0.92);
 }

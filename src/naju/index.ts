@@ -51,5 +51,5 @@ export type { ChibiBody } from "../../naju01/src/avatar/ChibiGameAvatar";
 // 로비 아바타와 꾸미기 패널
 export const LobbyChibi = lazy(() => import("../../naju01/src/avatar/ChibiGameAvatar"));
 export const LobbySidekick = lazy(() => import("../../naju01/src/avatar/SidekickGameAvatar"));
-export const LobbyChibiPanel = lazy(() => import("../../naju01/src/avatar/ChibiTestPanel"));
+export const LobbyChibiPanel = lazy(() => import("../../naju01/src/avatar/ChibiCustomizerPanel"));
 export const LobbySidekickPanel = lazy(() => import("../../naju01/src/avatar/SidekickCustomizerPanel"));

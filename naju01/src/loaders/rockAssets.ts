@@ -5,7 +5,7 @@
 
 import type * as THREE from "three";
 
-import { firstMesh, fitRealSize, parseGlb } from "./glbImport";
+import { applyRealSize, findFirstMesh, parseGlb } from "./glbImport";
 
 // Vite 가 빌드에 넣도록 폴더째 훑는다(glob 인자는 문자열 그대로여야 한다). 파일이 없으면 빈 목록이다.
 const ROCK_URLS = import.meta.glob<string>("../../assets/rocks/*.glb", {
@@ -14,10 +14,10 @@ const ROCK_URLS = import.meta.glob<string>("../../assets/rocks/*.glb", {
   eager: true,
 });
 
-const fileName = (path: string) => path.split("/").pop() ?? path;
+const getFileName = (path: string) => path.split("/").pop() ?? path;
 
 /** 폴더에 든 바위 파일 이름들 */
-export const ROCK_FILES = Object.keys(ROCK_URLS).map(fileName);
+export const ROCK_FILES = Object.keys(ROCK_URLS).map(getFileName);
 
 interface LoadedRock {
   geometry: THREE.BufferGeometry;
@@ -41,13 +41,13 @@ export async function loadRock({ name = null, widthMeters = 22 }: LoadRockOption
   const response = await fetch(ROCK_URLS[key]);
   if (!response.ok) return null;
   const gltf = await parseGlb(await response.arrayBuffer());
-  const mesh = firstMesh(gltf);
+  const mesh = findFirstMesh(gltf);
   if (!mesh) return null;
 
   const geometry = mesh.geometry.clone();
   // 부모 변환까지 굳힌 뒤 실치수로 맞춘다
   mesh.updateWorldMatrix(true, false);
   geometry.applyMatrix4(mesh.matrixWorld);
-  fitRealSize(geometry, { basis: "width", targetMeters: widthMeters, alignBottom: true });
-  return { geometry, name: fileName(key) };
+  applyRealSize(geometry, { basis: "width", targetMeters: widthMeters, alignBottom: true });
+  return { geometry, name: getFileName(key) };
 }

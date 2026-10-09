@@ -35,7 +35,7 @@ const oldFloats = new Float32Array(oldBuffer.buffer, oldBuffer.byteOffset, oldBu
 const oldSurface = oldFloats.subarray(nx * nz, nx * nz * 2); // 둘째 판이 지표(그려지는 면)
 
 /** 격자를 쌍선형으로 읽는다. quantized 면 Uint16 을 [low, high] 로 펼친다 */
-const sample = (grid, x, z, quantized) => {
+const sampleGrid = (grid, x, z, quantized) => {
   const u = x / cellSize;
   const v = z / cellSize;
   const i = Math.floor(u);
@@ -63,8 +63,8 @@ for (const section of ["고침", "더함"]) {
     for (const item of Array.isArray(value) ? value : Object.values(value)) {
       if (!item || typeof item !== "object") continue;
       if (!("x" in item && "y" in item && "z" in item)) continue;
-      const oldGround = sample(oldSurface, item.x, item.z, false);
-      const newGround = sample(newGrid, item.x, item.z, true);
+      const oldGround = sampleGrid(oldSurface, item.x, item.z, false);
+      const newGround = sampleGrid(newGrid, item.x, item.z, true);
       if (oldGround === null || newGround === null) {
         outside++;
         continue;

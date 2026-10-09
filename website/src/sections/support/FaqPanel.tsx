@@ -2,25 +2,26 @@ import { useId, useState, type CSSProperties } from "react";
 
 import chevronDownIcon from "@/assets/images/imgChevronDown.svg";
 import chevronRightIcon from "@/assets/images/imgChevronRight2.svg";
-import { ALL, FAQ_FILTERS, FAQ_ITEMS } from "@/data/support";
+import { ALL_CATEGORIES, FAQ_FILTERS, FAQ_ITEMS } from "@/data/support";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
 
-import { CategoryBadge, FilterChips, PanelHeading } from "./PanelParts";
-import { emptyStyle, panelStyle, rowCardStyle } from "./styles";
+import CategoryFilter, { CategoryBadge } from "./CategoryFilter";
+import PanelHeading from "./PanelHeading";
+import { emptyStyle, panelStyle, rowCardStyle } from "./supportStyles";
 
 export default function FaqPanel() {
-  const [filter, setFilter] = useState<(typeof FAQ_FILTERS)[number]>(ALL);
+  const [filter, setFilter] = useState<(typeof FAQ_FILTERS)[number]>(ALL_CATEGORIES);
   // 디자인처럼 첫 항목이 펼쳐진 채로 시작한다.
   const [openIndex, setOpenIndex] = useState(0);
   const idPrefix = useId();
 
-  const filtered = filter === ALL ? FAQ_ITEMS : FAQ_ITEMS.filter((item) => item.category === filter);
+  const filtered = filter === ALL_CATEGORIES ? FAQ_ITEMS : FAQ_ITEMS.filter((item) => item.category === filter);
 
   return (
     <>
       <PanelHeading title="자주 묻는 질문" description="궁금한 점을 빠르게 찾아보세요" />
-      <FilterChips
+      <CategoryFilter
         options={FAQ_FILTERS}
         selected={filter}
         onSelect={(value) => {
@@ -41,7 +42,7 @@ export default function FaqPanel() {
           const isOpen = i === openIndex;
           const answerId = `${idPrefix}-answer-${i}`;
           return (
-            <div key={i} className="list-row" style={faqRowStyle}>
+            <div key={i} className="interactive-row" style={faqRowStyle}>
               {/* 질문 줄만 단추로 둔다. 줄 전체가 단추면 펼친 답까지 단추 이름에 섞여 읽힌다. */}
               <button
                 type="button"

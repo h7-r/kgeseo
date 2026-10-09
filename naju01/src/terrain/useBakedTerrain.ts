@@ -6,7 +6,7 @@ import { useEffect, useReducer } from "react";
 import type * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-import { firstMesh } from "../loaders/glbImport";
+import { findFirstMesh } from "../loaders/glbImport";
 import { loadHeightTable, type HeightTable } from "./heightTable";
 
 const TERRAIN_GLB_URL = new URL("../../assets/terrain.glb", import.meta.url).href;
@@ -38,7 +38,7 @@ function loadTerrainGeometry() {
     try {
       loader.load(
         TERRAIN_GLB_URL,
-        (gltf) => resolve(firstMesh(gltf)?.geometry ?? null),
+        (gltf) => resolve(findFirstMesh(gltf)?.geometry ?? null),
         undefined,
         (e) => {
           console.warn("[새지형] GLB 를 못 읽었다 — 옛 지형으로 간다:", e);

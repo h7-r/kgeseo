@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { scaleColor } from "@/engine/color";
 import { TOON_GRADIENT } from "@/engine/toon";
 
-import { stoneGeometry } from "./stoneGeometry";
+import { buildStoneGeometry } from "./stoneGeometry";
 
 /** 잔해 돌 하나의 배치 */
 export interface RubbleStone {
@@ -46,7 +46,7 @@ export default function RubbleStones({
       {stones.map((stone, i) => (
         <mesh
           key={i}
-          geometry={stoneGeometry(stone.seed, roughness)}
+          geometry={buildStoneGeometry(stone.seed, roughness)}
           position={[stone.x, stone.y, stone.z]}
           rotation={stone.rotation}
           scale={[stone.scale, stone.scale * flatten, stone.scale * depth]}

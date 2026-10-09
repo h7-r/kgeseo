@@ -95,7 +95,7 @@ export function setGrainStrength(strength = 1, rock = 1) {
 }
 
 /** 재질 하나에 한 번만 건다. 두 번 걸면 셰이더가 두 겹으로 붙어 터진다. */
-function attachGrain(material: THREE.Material | null, { path = false }: GrainOptions = {}): GrainHandle | null {
+function applyGroundGrain(material: THREE.Material | null, { path = false }: GrainOptions = {}): GrainHandle | null {
   if (!material) return null;
   if (material.userData.groundGrainAttached) return (material.userData.groundGrainHandle as GrainHandle) ?? null;
 
@@ -187,10 +187,13 @@ function attachGrain(material: THREE.Material | null, { path = false }: GrainOpt
  * 재질 ref 에 그대로 물리는 콜백. 바닥셰이딩을 바꾸면 재질이 새로 생기고 ref 가 다시 불려 새 재질에도 걸린다.
  * `box` 를 주면 손잡이를 담아 둔다.
  */
-export function groundGrainRef(box: { current: GrainHandle | null } | null = null, options: GrainOptions = {}) {
+export function createGroundGrainRef(
+  handleRef: { current: GrainHandle | null } | null = null,
+  options: GrainOptions = {},
+) {
   return (material: THREE.Material | null) => {
     if (!material) return;
-    const handle = attachGrain(material, options);
-    if (box) box.current = handle;
+    const handle = applyGroundGrain(material, options);
+    if (handleRef) handleRef.current = handle;
   };
 }

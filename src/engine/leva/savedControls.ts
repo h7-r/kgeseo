@@ -313,7 +313,7 @@ type ValueKeys<S> = { [K in keyof S]: S[K] extends ReturnType<typeof button> ? n
 /** 스키마에서 나오는 값 객체. leva 의 추론 타입은 폴더로 감싸면 너무 깊어져 직접 펼친다. */
 export type ControlValues<S extends LevaSchema> = { [K in ValueKeys<S>]: EntryValue<S[K]> };
 
-function readAll(): SavedControls {
+function readSavedFolders(): SavedControls {
   try {
     return JSON.parse(localStorage.getItem(LEVA_STORAGE_KEY) || "{}") ?? {};
   } catch {
@@ -321,8 +321,8 @@ function readAll(): SavedControls {
   }
 }
 
-function writeAll(data: unknown) {
-  writeStorage(LEVA_STORAGE_KEY, JSON.stringify(data));
+function writeSavedFolders(folders: unknown) {
+  writeStorage(LEVA_STORAGE_KEY, JSON.stringify(folders));
 }
 
 /** Leva 「★ 전체값 출력 › 저장값초기화」 가 쓴다. */
@@ -335,7 +335,7 @@ export function clearSavedControls() {
 function seedTeamBaseline() {
   if (readStorage(TEAM_BASELINE_VERSION_KEY) === TEAM_BASELINE_VERSION) return;
   if (readStorage(LEGACY_TEAM_BASELINE_VERSION_KEY) !== LEGACY_TEAM_BASELINE_VERSION) {
-    writeAll(teamBaseline);
+    writeSavedFolders(teamBaseline);
     writeStorage(LEGACY_TEAM_BASELINE_VERSION_KEY, LEGACY_TEAM_BASELINE_VERSION);
   }
   writeStorage(TEAM_BASELINE_VERSION_KEY, TEAM_BASELINE_VERSION);
@@ -343,7 +343,7 @@ function seedTeamBaseline() {
 
 /** 폴더 이름을 바꾸면 저장값이 통째로 끊긴다. 바뀐 이름으로 옮기고 안 쓰는 폴더는 지운다. */
 function migrateRenamedFolders() {
-  const all = readAll();
+  const all = readSavedFolders();
   let changed = false;
   if (all["외투(공통)"]) {
     if (!all["옷걸이(공통)"]) all["옷걸이(공통)"] = all["외투(공통)"];
@@ -356,7 +356,7 @@ function migrateRenamedFolders() {
       changed = true;
     }
   }
-  if (changed) writeAll(all);
+  if (changed) writeSavedFolders(all);
 }
 
 let isStoragePrepared = false;
@@ -371,7 +371,7 @@ let isAnnounced = false;
 function announceSavedState() {
   if (isAnnounced) return;
   isAnnounced = true;
-  const count = Object.keys(readAll()).length;
+  const count = Object.keys(readSavedFolders()).length;
   if (count === 0)
     console.log(
       "%c[Leva 자동저장] 저장된 값 없음 — 지금부터 조절하는 값이 자동 저장됩니다.",
@@ -384,22 +384,22 @@ function announceSavedState() {
     );
 }
 
-function entryLabel(key: string, entry: unknown): string {
+function getEntryLabel(key: string, entry: unknown): string {
   if (typeof entry === "object" && entry !== null && "label" in entry && typeof entry.label === "string")
     return entry.label;
   return key;
 }
 
 /** 저장값을 스키마의 value 자리에만 끼워 넣는다(범위·눈금은 코드 것). 열쇠로 못 찾으면 label(한글 이름)로 찾는다. */
-function applySaved<S extends LevaSchema>(folderName: string, schema: S): S {
-  const all = readAll();
+function applySavedValues<S extends LevaSchema>(folderName: string, schema: S): S {
+  const all = readSavedFolders();
   const saved = all[folderName];
   if (!saved) return schema;
 
   // 강제 항목은 저장소에서도 지워 둔다. 바로 뒤 저장 effect 가 새 기본값으로 다시 쓴다.
   const forced = FORCE_DEFAULT_LABELS[folderName];
   if (forced) {
-    const keyByLabel = new Map(Object.entries(schema).map(([key, entry]) => [entryLabel(key, entry), key]));
+    const keyByLabel = new Map(Object.entries(schema).map(([key, entry]) => [getEntryLabel(key, entry), key]));
     let removed = false;
     for (const label of forced) {
       for (const key of [label, keyByLabel.get(label)]) {
@@ -410,13 +410,13 @@ function applySaved<S extends LevaSchema>(folderName: string, schema: S): S {
       }
     }
     if (removed) {
-      writeAll(all);
+      writeSavedFolders(all);
       console.log(`%c[Leva] "${folderName}" 의 ${forced.join(", ")} 를 코드 기본값으로 되돌렸습니다.`, "color:#e0a94e");
     }
   }
 
   const applied = Object.entries(schema).map(([key, entry]) => {
-    const label = entryLabel(key, entry);
+    const label = getEntryLabel(key, entry);
     const savedKey = key in saved ? key : label in saved ? label : null;
     // 새로 생긴 항목은 코드 기본값
     if (savedKey === null) return [key, entry];
@@ -436,7 +436,7 @@ export function useSavedControls<S extends LevaSchema>(folderName: string, schem
   const [initial] = useState(() => {
     prepareStorage();
     announceSavedState();
-    return applySaved(folderName, schema);
+    return applySavedValues(folderName, schema);
   });
 
   // 폴더가 백 개 가까이라 펼친 채면 패널 높이를 잘못 재 줄이 겹친다. 접힘은 folder() 로만 줄 수 있다.
@@ -450,9 +450,9 @@ export function useSavedControls<S extends LevaSchema>(folderName: string, schem
   // leva 는 값이 그대로면 같은 객체를 돌려준다 — 참조가 바뀔 때만 직렬화한다.
   const json = useMemo(() => JSON.stringify(values), [values]);
   useEffect(() => {
-    const all = readAll();
+    const all = readSavedFolders();
     all[folderName] = JSON.parse(json);
-    writeAll(all);
+    writeSavedFolders(all);
   }, [folderName, json]);
   return values;
 }
@@ -466,7 +466,7 @@ interface OutlineDefaults {
 }
 
 /** 선 조절칸 6개. Leva 폴더 스키마에 펼쳐 넣는다. */
-export function outlineSchema({
+export function buildOutlineSchema({
   width = OUTLINE_THICKNESS,
   color = "#1A1614",
   crease = false,
@@ -484,7 +484,7 @@ export function outlineSchema({
 }
 
 /** Leva 폴더 값에서 선 6개만 꺼낸다(매번 새 객체). */
-export function pickOutline(values: OutlineValues): OutlineValues {
+export function pickOutlineValues(values: OutlineValues): OutlineValues {
   return {
     outline: values.outline,
     outlineWidth: values.outlineWidth,

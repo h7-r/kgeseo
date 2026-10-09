@@ -7,7 +7,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import { UNITS_PER_METER, type Range, type River } from "../plan/sitePlan";
 import { applyVertexColors, type HeightAt, type Noise2D } from "../terrain/ground";
@@ -276,7 +276,7 @@ export function buildForestVillages({
   seed = 7717,
   horizonColor = "#CFCBBE",
 }: ForestVillageOptions) {
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const pieces: THREE.BufferGeometry[] = [];
   const treeSpots: DistantTreeSpot[] = [];
   const houseSpots: DistantHouseSpot[] = []; // 진부촌 — 강 이쪽(북·내륙)
@@ -431,8 +431,8 @@ export function buildForestVillages({
 // 색은 거리에 따라 지평색으로 섞여 그루마다 다르므로 instanceColor 로 준다.
 
 /** 원경 나무 — 밑동이 원점, 키 1. 줄기 + 잎덩이 둘. */
-export function distantTreePrototypes(count = 6, seed = 4801) {
-  const random = makeRandom(seed);
+export function buildDistantTreePrototypes(count = 6, seed = 4801) {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   const paint = (g: THREE.BufferGeometry, v: number) => applyVertexColors(g, { r: v, g: v, b: v });
   for (let i = 0; i < count; i++) {
@@ -462,8 +462,8 @@ export function distantTreePrototypes(count = 6, seed = 4801) {
  * 원경 집 — 밑동이 원점, 용마루까지 키 1. 벽 + 초가지붕.
  * 네 벌 모두 초가다. 볕에 바랜 정도를 네 단계로 나눠야 마을이 복사해 붙인 것처럼 안 보인다.
  */
-export function distantHousePrototypes(seed = 6203) {
-  const random = makeRandom(seed);
+export function buildDistantHousePrototypes(seed = 6203) {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   const paint = (g: THREE.BufferGeometry, r: number, gg: number, bb: number) =>
     applyVertexColors(g, { r, g: gg, b: bb });

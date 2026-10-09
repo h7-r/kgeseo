@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import characterImage1 from "@/assets/images/imgCharImage.webp";
 import characterImage2 from "@/assets/images/imgCharImage1.webp";
 import characterImage3 from "@/assets/images/imgCharImage2.webp";
-import { approachClass, usePassBy, useReveal, useTilt } from "@/hooks/motion";
+import { depthRevealClass, useReveal, useScrollZoom, useTilt } from "@/hooks/motion";
 import { FONT } from "@/lib/style";
 import { sectionAnchor } from "@/navigation/subMenus";
 import { COLOR, GRADIENT } from "@/styles/tokens";
@@ -45,12 +45,12 @@ interface CharacterShowcaseProps {
 /** 캐릭터 소개 갤러리. */
 export default function CharacterShowcase({ top = 0 }: CharacterShowcaseProps) {
   // 카드마다 걸면 서로 어긋나 어지럽다. 덩어리째 한 번만 다가왔다 지나간다.
-  const passByRef = usePassBy<HTMLElement>({ enterScale: 0.95, exitScale: 1.03, depth: 60 });
+  const scrollZoomRef = useScrollZoom<HTMLElement>({ enterScale: 0.95, exitScale: 1.03, depth: 60 });
 
   return (
     <section
-      ref={passByRef}
-      className="pass-by"
+      ref={scrollZoomRef}
+      className="u-scroll-zoom"
       style={{ ...rootStyle, top: `${top}px`, willChange: "transform" }}
       {...sectionAnchor("characters")}
     >
@@ -71,23 +71,23 @@ interface CharacterCardProps extends Character {
 /** 스크롤로 차례차례 떠오르고 마우스를 따라 살짝 기우는 인물 카드. */
 function CharacterCard({ image, name, role, description, order }: CharacterCardProps) {
   const { ref: tiltRef, onMouseMove, onMouseLeave } = useTilt<HTMLDivElement>(5);
-  const [revealRef, visible] = useReveal<HTMLDivElement>();
+  const [revealRef, isVisible] = useReveal<HTMLDivElement>();
 
   return (
     <div
       ref={revealRef}
-      className={`tilt-scene ${approachClass(visible)}`}
+      className={`u-tilt-scene ${depthRevealClass(isVisible)}`}
       style={{ flex: "1 0 0", height: "100%", transitionDelay: `${order * 30}ms` }}
     >
       <div
         ref={tiltRef}
         onMouseMove={onMouseMove}
         onMouseLeave={onMouseLeave}
-        className="card tilt depth-scene"
+        className="interactive-card u-tilt u-depth"
         style={cardStyle}
       >
         {/* 사진을 276 으로 줄여야 이름·역할·설명 두 줄이 잘리지 않는다 */}
-        <div className="depth-back" style={{ height: "276px", width: "100%", overflow: "hidden", flexShrink: 0 }}>
+        <div className="u-depth__back" style={{ height: "276px", width: "100%", overflow: "hidden", flexShrink: 0 }}>
           <img
             loading="lazy"
             decoding="async"
@@ -96,7 +96,7 @@ function CharacterCard({ image, name, role, description, order }: CharacterCardP
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
           />
         </div>
-        <div className="depth-front" style={cardTextStyle}>
+        <div className="u-depth__front" style={cardTextStyle}>
           <div style={{ fontFamily: FONT.display, fontSize: "30px", lineHeight: 1.1, color: COLOR.textBright }}>
             {name}
           </div>

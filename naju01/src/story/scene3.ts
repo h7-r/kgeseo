@@ -8,15 +8,15 @@
 
 import type * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import type { Spot } from "../placement/instanceGroups";
 import {
-  ball,
-  box,
-  bundle,
-  cylinder,
-  paint,
+  applyColor,
+  buildBall,
+  buildBox,
+  buildCylinder,
+  mergePieces,
   placeOnGround,
   type SceneNote,
   type SceneSpotOptions,
@@ -43,45 +43,45 @@ const soleWidth = (t: number) => 0.34 + Math.sin((Math.min(t, 0.45) / 0.45) * Ma
  * 짚신 — 바닥창 · 둘레 울 · 들메끈이 다 있어야 신으로 읽힌다(창만 있으면 깔창).
  * 왼짝·오른짝이 따로다. shapeIndex 0 = 왼짝, 1 = 오른짝(Z 를 뒤집는다).
  */
-export function strawShoePrototypes(count = 2, seed = 6301): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildStrawShoePrototypes(count = 2, seed = 6301): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const pieces: THREE.BufferGeometry[] = [];
     const side = i % 2 === 0 ? 1 : -1;
-    // 길이 대 높이 비가 실물(약 4.2 : 1)과 맞아야 한다. toBaseOrigin 이 높이로 나누므로 길이를 줄인다.
+    // 길이 대 높이 비가 실물(약 4.2 : 1)과 맞아야 한다. applyBaseOrigin 이 높이로 나누므로 길이를 줄인다.
     const length = 0.45;
     // 마디를 나눠 짚을 삼은 결을 낸다
     const segments = 7;
     for (let k = 0; k < segments; k++) {
       const t = (k + 0.5) / segments;
-      const sole = box(soleWidth(t), 0.1, (length * 2.4) / segments - 0.04);
+      const sole = buildBox(soleWidth(t), 0.1, (length * 2.4) / segments - 0.04);
       sole.translate(0, 0.05, (-1.2 + 2.4 * t) * length);
-      pieces.push(paint(sole, k % 2 ? SCENE3_STYLE.straw : SCENE3_STYLE.strawShade));
+      pieces.push(applyColor(sole, k % 2 ? SCENE3_STYLE.straw : SCENE3_STYLE.strawShade));
     }
     // 울 — 바닥 둘레의 낮은 턱. 없으면 깔창이다.
     for (const s of [-1, 1])
       for (let k = 0; k < 5; k++) {
         const t = (k + 0.5) / 5;
-        const wall = box(0.045, 0.11, (length * 2.2) / 5 - 0.03);
+        const wall = buildBox(0.045, 0.11, (length * 2.2) / 5 - 0.03);
         wall.translate(s * (soleWidth(t) / 2 - 0.02), 0.12, (-1.1 + 2.2 * t) * length);
-        pieces.push(paint(wall, SCENE3_STYLE.strawShade));
+        pieces.push(applyColor(wall, SCENE3_STYLE.strawShade));
       }
     // 들메끈 — 한쪽이 풀려 늘어져 있다(벗겨진 신이다)
-    const strap = cylinder(0.022, 0.022, 0.42, 4);
+    const strap = buildCylinder(0.022, 0.022, 0.42, 4);
     strap.rotateZ(Math.PI / 2);
     strap.translate(0, 0.2, 0.15 * length);
-    pieces.push(paint(strap, SCENE3_STYLE.strap));
-    const loose = cylinder(0.02, 0.016, 0.5, 4);
+    pieces.push(applyColor(strap, SCENE3_STYLE.strap));
+    const loose = buildCylinder(0.02, 0.016, 0.5, 4);
     loose.rotateX(Math.PI / 2 - 0.25);
     loose.rotateY(side * (0.5 + random() * 0.3));
     loose.translate(side * 0.16, 0.05, -0.5 * length);
-    pieces.push(paint(loose, SCENE3_STYLE.strap));
+    pieces.push(applyColor(loose, SCENE3_STYLE.strap));
     // 뒤축 — 앞뒤를 갈라 준다
-    const heel = box(0.3, 0.16, 0.07);
+    const heel = buildBox(0.3, 0.16, 0.07);
     heel.translate(0, 0.13, -1.18 * length);
-    pieces.push(paint(heel, SCENE3_STYLE.straw));
-    const merged = bundle(pieces);
+    pieces.push(applyColor(heel, SCENE3_STYLE.straw));
+    const merged = mergePieces(pieces);
     if (side < 0) merged.scale(1, 1, -1); // 앞뒤 대칭이 아니라 뒤집어야 한다
     prototypes.push(merged);
   }
@@ -92,8 +92,8 @@ export function strawShoePrototypes(count = 2, seed = 6301): THREE.BufferGeometr
  * 댕기 — 땅에 떨어진 천은 판판하지 않다. 마디마다 꺾고 비틀어야 천이 된다.
  * 자갈밭이 전부 누런 잿빛이라 붉어야 눈에 든다. 마디가 많으면 밧줄이 되어 뱀처럼 보였다.
  */
-export function hairRibbonPrototypes(count = 3, seed = 6302): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildHairRibbonPrototypes(count = 3, seed = 6302): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const pieces: THREE.BufferGeometry[] = [];
@@ -105,15 +105,15 @@ export function hairRibbonPrototypes(count = 3, seed = 6302): THREE.BufferGeomet
       const length = 0.34 + random() * 0.12;
       angle += (random() - 0.5) * 1.5;
       // 손가락 두어 개 너비. 넓으면 머플러다.
-      const strip = box(0.13, 0.055 + random() * 0.03, length);
+      const strip = buildBox(0.13, 0.055 + random() * 0.03, length);
       strip.rotateX((random() - 0.5) * 0.5); // 접힌 데가 살짝 뜬다
       strip.rotateY(angle);
       strip.translate(x, 0.035, z);
-      pieces.push(paint(strip, k % 3 === 1 ? SCENE3_STYLE.ribbonShade : SCENE3_STYLE.ribbon));
+      pieces.push(applyColor(strip, k % 3 === 1 ? SCENE3_STYLE.ribbonShade : SCENE3_STYLE.ribbon));
       x += Math.sin(angle) * length * 0.88;
       z += Math.cos(angle) * length * 0.88;
     }
-    prototypes.push(bundle(pieces));
+    prototypes.push(mergePieces(pieces));
   }
   return prototypes;
 }
@@ -122,15 +122,15 @@ export function hairRibbonPrototypes(count = 3, seed = 6302): THREE.BufferGeomet
  * 무너진 마루의 흙덩이. 돌을 더 뿌리면 발치너덜·틈바위에 섞여 버린다.
  * 갓 떨어져 나온 흙은 속이 밝다 — 그 색 차이가 「최근」을 말한다.
  */
-export function dirtClodPrototypes(count = 4, seed = 6303): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildDirtClodPrototypes(count = 4, seed = 6303): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const pieces: THREE.BufferGeometry[] = [];
     const clodCount = 4 + Math.floor(random() * 4);
     for (let k = 0; k < clodCount; k++) {
       const r = 0.2 + random() * 0.3;
-      const clod = ball(r, 0);
+      const clod = buildBall(r, 0);
       // 찌그러뜨린다 — 정이십면체 그대로면 공깃돌이다
       clod.scale(0.7 + random() * 0.7, 0.5 + random() * 0.4, 0.7 + random() * 0.7);
       clod.rotateY(random() * 6.3);
@@ -138,48 +138,48 @@ export function dirtClodPrototypes(count = 4, seed = 6303): THREE.BufferGeometry
       clod.translate((random() - 0.5) * 1.4, r * 0.42 + random() * 0.12, (random() - 0.5) * 1.4);
       // 큰 덩이는 겉흙(어둡다), 부서진 작은 것은 속흙(밝다)
       pieces.push(
-        paint(clod, r > 0.33 ? SCENE3_STYLE.soil : random() < 0.3 ? SCENE3_STYLE.stone : SCENE3_STYLE.soilLight),
+        applyColor(clod, r > 0.33 ? SCENE3_STYLE.soil : random() < 0.3 ? SCENE3_STYLE.stone : SCENE3_STYLE.soilLight),
       );
     }
-    prototypes.push(bundle(pieces));
+    prototypes.push(mergePieces(pieces));
   }
   return prototypes;
 }
 
 /** 부러진 생가지 — 떨어지며 훑고 내려온 경로. 흰 속살이 「방금 꺾인 가지」를 가른다. */
-export function brokenBranchPrototypes(count = 3, seed = 6304): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildBrokenBranchPrototypes(count = 3, seed = 6304): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const pieces: THREE.BufferGeometry[] = [];
     const length = 2.6 + random() * 0.8;
-    const limb = cylinder(0.075, 0.13, length, 6);
+    const limb = buildCylinder(0.075, 0.13, length, 6);
     limb.rotateZ(Math.PI / 2);
     limb.rotateY((random() - 0.5) * 0.3);
     limb.translate(0, 0.13, 0);
-    pieces.push(paint(limb, SCENE3_STYLE.branch));
-    const core = cylinder(0.075, 0.075, 0.09, 6);
+    pieces.push(applyColor(limb, SCENE3_STYLE.branch));
+    const core = buildCylinder(0.075, 0.075, 0.09, 6);
     core.rotateZ(Math.PI / 2);
     core.translate(length / 2, 0.13, 0);
-    pieces.push(paint(core, SCENE3_STYLE.heartwood));
+    pieces.push(applyColor(core, SCENE3_STYLE.heartwood));
     // 잔가지 — 없으면 몽둥이다
     for (let k = 0; k < 4; k++) {
       const t = (k + 0.6) / 5;
-      const twig = cylinder(0.035, 0.015, 0.55 + random() * 0.4, 4);
+      const twig = buildCylinder(0.035, 0.015, 0.55 + random() * 0.4, 4);
       twig.rotateZ(Math.PI / 2 - (0.5 + random() * 0.6));
       twig.rotateY(random() * 6.3);
       twig.translate(-length / 2 + length * t, 0.16, 0);
-      pieces.push(paint(twig, SCENE3_STYLE.branch));
+      pieces.push(applyColor(twig, SCENE3_STYLE.branch));
     }
     // 아직 푸른 잎 — 시든 잎이면 오래된 가지가 된다
     for (let k = 0; k < 9; k++) {
-      const leaf = box(0.26, 0.03, 0.38);
+      const leaf = buildBox(0.26, 0.03, 0.38);
       leaf.rotateY(random() * 6.3);
       leaf.rotateX((random() - 0.5) * 0.7);
       leaf.translate((random() - 0.5) * length * 0.9, 0.16 + random() * 0.22, (random() - 0.5) * 1.1);
-      pieces.push(paint(leaf, SCENE3_STYLE.greenTwig));
+      pieces.push(applyColor(leaf, SCENE3_STYLE.greenTwig));
     }
-    prototypes.push(bundle(pieces));
+    prototypes.push(mergePieces(pieces));
   }
   return prototypes;
 }
@@ -196,10 +196,10 @@ export const SCENE3_NOTES: Record<Scene3PropKey, SceneNote> = {
 // 마루 띠(z 25.2~26.4)는 통째로 바위벽이라 거기 놓으면 파묻혀 안 보인다.
 // 사람이 설 수 있는 벼랑 끝은 z ≈ 24.0~24.5 다(씬1 화톳불·돌탑도 같은 띠).
 // (39, 11) 은 일부러 비워 둔다 — 그 서사는 씬1 이 이미 세웠고, 무엇을 둘지는 퍼즐이 정해진 뒤의 일이다.
-export function scene3Spots({ groundHeight }: SceneSpotOptions): Record<Scene3PropKey, Spot[]> {
+export function computeScene3Spots({ heightAt }: SceneSpotOptions): Record<Scene3PropKey, Spot[]> {
   return {
     // shapeIndex 를 손으로 준다. 안 주면 번호 순서에 따라 같은 짝이 둘 나올 수 있다.
-    strawShoe: placeOnGround(groundHeight, [
+    strawShoe: placeOnGround(heightAt, [
       // 벼랑 끝 바위 사이 빈 자리 — 벗겨져 남은 짝
       { x: 50.0, z: 24.2, size: 0.06, shapeIndex: 0, rotation: 2.35 },
       // 14 m 아래 조사점 그 자리. 바위벽을 치고 튕겨 나가 X 가 2 m 바깥으로 밀렸다.
@@ -207,10 +207,10 @@ export function scene3Spots({ groundHeight }: SceneSpotOptions): Record<Scene3Pr
     ]),
 
     // 짚신에서 1.5 m — 한눈에 둘이 한 자리로 잡히는 거리
-    hairRibbon: placeOnGround(groundHeight, [{ x: 48.6, z: 24.1, size: 0.05, shapeIndex: 0, rotation: 1.2 }]),
+    hairRibbon: placeOnGround(heightAt, [{ x: 48.6, z: 24.1, size: 0.05, shapeIndex: 0, rotation: 1.2 }]),
 
     // 한 군데가 무너졌다로 읽혀야 한다. z 25.9 를 넘기면 렌더 지면보다 판정 지면이 낮아져 묻힌다.
-    dirtClod: placeOnGround(groundHeight, [
+    dirtClod: placeOnGround(heightAt, [
       { x: 50.3, z: 25.5, size: 0.55, shapeIndex: 0, rotation: 0.4 },
       { x: 48.9, z: 25.2, size: 0.36, shapeIndex: 1, rotation: 2.2 },
       { x: 51.6, z: 25.7, size: 0.33, shapeIndex: 2, rotation: 4.9 },
@@ -219,7 +219,7 @@ export function scene3Spots({ groundHeight }: SceneSpotOptions): Record<Scene3Pr
       { x: 52.8, z: 31.2, size: 0.3, shapeIndex: 0, rotation: 3.4 },
     ]),
 
-    brokenBranch: placeOnGround(groundHeight, [
+    brokenBranch: placeOnGround(heightAt, [
       { x: 51.2, z: 31.6, size: 0.26, shapeIndex: 0, rotation: 0.9 },
       { x: 53.1, z: 32.6, size: 0.22, shapeIndex: 1, rotation: 2.6 },
     ]),

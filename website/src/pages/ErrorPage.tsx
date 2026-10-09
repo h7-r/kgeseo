@@ -103,19 +103,24 @@ export default function ErrorPage({ kind = "404" }: ErrorPageProps) {
         )}
 
         <div>
-          <button type="button" className="btn" style={primaryButtonStyle} onClick={handlePrimary}>
-            <span className="btn__label">{screen.primary.label}</span>
+          <button type="button" className="button" style={primaryButtonStyle} onClick={handlePrimary}>
+            <span className="button__label">{screen.primary.label}</span>
           </button>
         </div>
 
         <div style={{ display: "flex", gap: "20px", alignItems: "center" }}>
-          <button type="button" className="link" style={linkButtonStyle} onClick={() => window.history.back()}>
+          <button type="button" className="text-link" style={linkButtonStyle} onClick={() => window.history.back()}>
             이전 구역으로 돌아가기
           </button>
           {secondary && (
             <>
               <span style={{ color: COLOR.accent }}>·</span>
-              <button type="button" className="link" style={linkButtonStyle} onClick={() => navigate(secondary.path)}>
+              <button
+                type="button"
+                className="text-link"
+                style={linkButtonStyle}
+                onClick={() => navigate(secondary.path)}
+              >
                 {secondary.label}
               </button>
             </>

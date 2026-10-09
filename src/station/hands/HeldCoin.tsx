@@ -7,7 +7,7 @@ import { playerView } from "@/engine/playerView";
 import type { OutlineValues } from "@/engine/toon";
 import { HeldItem } from "@/lobby/HeldItem";
 import Coin from "@/props/Coin";
-import { coinInsertion, finishInsert, heldCoin, useCoins, type CoinKind } from "@/props/coinState";
+import { getCoinInsertion, finishCoinInsert, getHeldCoin, useCoins, type CoinKind } from "@/props/coinState";
 
 import type { CoinValues } from "../controls/vendingControls";
 
@@ -60,7 +60,7 @@ export default function HeldCoin({ look, outline }: HeldCoinProps) {
   const start = useRef<Vector3Tuple | null>(null);
   useFrame(() => {
     const group = flightRef.current;
-    const insertion = coinInsertion();
+    const insertion = getCoinInsertion();
     if (insertion && group) {
       if (!insertion.t0) {
         insertion.t0 = performance.now();
@@ -87,13 +87,13 @@ export default function HeldCoin({ look, outline }: HeldCoinProps) {
       );
       group.scale.setScalar(t < 0.75 ? 1 : Math.max(0.05, 1 - (t - 0.75) / 0.25));
       group.visible = true;
-      if (t >= 1) finishInsert();
+      if (t >= 1) finishCoinInsert();
     } else if (group) {
       group.visible = false;
     }
   });
-  const heldKind = heldCoin();
-  const inserting = coinInsertion();
+  const heldKind = getHeldCoin();
+  const inserting = getCoinInsertion();
   return (
     <>
       {heldKind && (

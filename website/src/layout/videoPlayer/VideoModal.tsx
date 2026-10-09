@@ -6,7 +6,7 @@ import { FONT } from "@/lib/style";
 
 import ControlBar, { ProgressBar } from "./ControlBar";
 import PlayerIcon, { type IconName } from "./PlayerIcon";
-import { targetBox, toPx, useFlipTransition } from "./useFlipTransition";
+import { computeTargetBox, formatBoxStyle, useFlipTransition } from "./useFlipTransition";
 import { useKeyboardShortcuts, useWheelControl } from "./usePlayerShortcuts";
 import { useVideoPlayback, useVolume } from "./useVideoPlayback";
 
@@ -48,12 +48,12 @@ function Player({ request }: PlayerProps) {
     videoRef,
     isDraggingRef,
   );
-  const { volumeLevel, setMuted, changeVolume, toggleMute } = useVolume({ videoRef, showToast, wakeControls });
+  const { volumeLevel, setIsMuted, changeVolume, toggleMute } = useVolume({ videoRef, showToast, wakeControls });
   const { isPlaying, hasEnded, duration, second, togglePlay, seekBy } = useVideoPlayback({
     videoRef,
     trackRef,
     startTime,
-    setMuted,
+    setIsMuted,
     setControlsVisible,
     showToast,
     wakeControls,
@@ -78,7 +78,7 @@ function Player({ request }: PlayerProps) {
   const playerClassName = [
     "player",
     isExpanded && !isCollapsing && "is-expanded",
-    isIdle && "is-hidden",
+    isIdle && "is-idle",
     isFullscreen && "is-fullscreen",
   ]
     .filter(Boolean)
@@ -95,7 +95,7 @@ function Player({ request }: PlayerProps) {
       <div
         ref={boxRef}
         className={playerClassName}
-        style={isFullscreen ? undefined : toPx(box)}
+        style={isFullscreen ? undefined : formatBoxStyle(box)}
         role="dialog"
         aria-modal="true"
         aria-label={`${video.title} 영상`}
@@ -215,12 +215,12 @@ function useControlsVisibility(videoRef: RefObject<HTMLVideoElement | null>, isD
 
 /** 전체 화면 여부와, 전체 화면이 아닐 때 창 크기에 맞춘 상자. */
 function useFullscreen(boxRef: RefObject<HTMLDivElement | null>) {
-  const [box, setBox] = useState(targetBox);
+  const [box, setBox] = useState(computeTargetBox);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
-      if (!document.fullscreenElement) setBox(targetBox());
+      if (!document.fullscreenElement) setBox(computeTargetBox());
     };
     const handleFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
     window.addEventListener("resize", handleResize);

@@ -42,7 +42,7 @@ export interface CharacterCatalog {
   palettes: Record<ColorSlot, readonly Option<string>[]>;
 }
 
-function item(
+function defineCatalogItem(
   id: string,
   slot: CatalogSlot,
   label: string,
@@ -54,13 +54,16 @@ function item(
 }
 
 // 썸네일은 실제 모델을 찍어 구운 그림이다(tools/character-thumbnails.mjs 가 gait 화면에서 잘라 낸다).
-const thumbnail = (name: string) => `${THUMBNAIL_DIR}/${name}.png`;
-const genderThumbnails = (name: string) => ({ masculine: thumbnail(`${name}.m`), feminine: thumbnail(`${name}.f`) });
+const thumbnailUrl = (name: string) => `${THUMBNAIL_DIR}/${name}.png`;
+const genderThumbnailUrls = (name: string) => ({
+  masculine: thumbnailUrl(`${name}.m`),
+  feminine: thumbnailUrl(`${name}.f`),
+});
 
 const BOTH: readonly AvatarGender[] = ["masculine", "feminine"];
 
 /** 그 성별에서 쓸 썸네일 한 장 */
-export function pickThumbnail(target: CatalogItem | null | undefined, gender: AvatarGender): string | null {
+export function getItemThumbnail(target: CatalogItem | null | undefined, gender: AvatarGender): string | null {
   const thumb = target?.thumbnail;
   if (!thumb) return null;
   return typeof thumb === "string" ? thumb : (thumb[gender] ?? null);
@@ -130,28 +133,32 @@ const PALETTES: CharacterCatalog["palettes"] = {
 export const DEFAULT_CATALOG: CharacterCatalog = {
   version: CATALOG_VERSION,
   items: [
-    item("hair.none", "hair", "민머리", BOTH, -1, { thumbnail: thumbnail("hair.none") }),
-    item("hair.m.crop", "hair", "짧은 머리", ["masculine"], 0, { thumbnail: thumbnail("hair.m.crop") }),
-    item("hair.m.long", "hair", "긴 머리", ["masculine"], 1, { thumbnail: thumbnail("hair.m.long") }),
-    item("hair.f.bob", "hair", "단발", ["feminine"], 0, { thumbnail: thumbnail("hair.f.bob") }),
-    item("hair.f.long", "hair", "긴 머리", ["feminine"], 1, { thumbnail: thumbnail("hair.f.long") }),
+    defineCatalogItem("hair.none", "hair", "민머리", BOTH, -1, { thumbnail: thumbnailUrl("hair.none") }),
+    defineCatalogItem("hair.m.crop", "hair", "짧은 머리", ["masculine"], 0, { thumbnail: thumbnailUrl("hair.m.crop") }),
+    defineCatalogItem("hair.m.long", "hair", "긴 머리", ["masculine"], 1, { thumbnail: thumbnailUrl("hair.m.long") }),
+    defineCatalogItem("hair.f.bob", "hair", "단발", ["feminine"], 0, { thumbnail: thumbnailUrl("hair.f.bob") }),
+    defineCatalogItem("hair.f.long", "hair", "긴 머리", ["feminine"], 1, { thumbnail: thumbnailUrl("hair.f.long") }),
 
-    item("top.none", "top", "입지 않음", BOTH, -1, {
+    defineCatalogItem("top.none", "top", "입지 않음", BOTH, -1, {
       description: "기본 속옷",
-      thumbnail: genderThumbnails("top.none"),
+      thumbnail: genderThumbnailUrls("top.none"),
     }),
-    item("top.tee.white", "top", "흰 티셔츠", BOTH, 0, { thumbnail: genderThumbnails("top.tee.white") }),
+    defineCatalogItem("top.tee.white", "top", "흰 티셔츠", BOTH, 0, {
+      thumbnail: genderThumbnailUrls("top.tee.white"),
+    }),
 
-    item("bottom.none", "bottom", "입지 않음", BOTH, -1, {
+    defineCatalogItem("bottom.none", "bottom", "입지 않음", BOTH, -1, {
       description: "기본 속옷",
-      thumbnail: genderThumbnails("bottom.none"),
+      thumbnail: genderThumbnailUrls("bottom.none"),
     }),
-    item("bottom.shorts.black", "bottom", "검은 반바지", BOTH, 0, {
-      thumbnail: genderThumbnails("bottom.shorts.black"),
+    defineCatalogItem("bottom.shorts.black", "bottom", "검은 반바지", BOTH, 0, {
+      thumbnail: genderThumbnailUrls("bottom.shorts.black"),
     }),
 
-    item("shoes.none", "shoes", "맨발", BOTH, -1, { thumbnail: genderThumbnails("shoes.none") }),
-    item("shoes.sneaker.white", "shoes", "흰 운동화", BOTH, 0, { thumbnail: genderThumbnails("shoes.sneaker.white") }),
+    defineCatalogItem("shoes.none", "shoes", "맨발", BOTH, -1, { thumbnail: genderThumbnailUrls("shoes.none") }),
+    defineCatalogItem("shoes.sneaker.white", "shoes", "흰 운동화", BOTH, 0, {
+      thumbnail: genderThumbnailUrls("shoes.sneaker.white"),
+    }),
   ],
   // 티셔츠·반바지·운동화 차림으로 시작한다. 속옷만 보고 싶으면 「속옷으로 체형 보기」를 켜면 된다.
   newDefaults: {
@@ -179,15 +186,15 @@ export function findItem(catalog: CharacterCatalog, id: string | null | undefine
   return catalog.items.find((it) => it.id === id) ?? null;
 }
 
-export function slotItems(catalog: CharacterCatalog, slot: CatalogSlot, gender: AvatarGender): CatalogItem[] {
+export function getSlotItems(catalog: CharacterCatalog, slot: CatalogSlot, gender: AvatarGender): CatalogItem[] {
   return catalog.items.filter((it) => it.slot === slot && it.genders.includes(gender));
 }
 
 /** 그 성별이 쓸 수 있는 기본값. 호환되지 않는 아이템을 대신할 때도 쓴다. */
-export function slotDefault(catalog: CharacterCatalog, slot: CatalogSlot, gender: AvatarGender): CatalogItem | null {
+export function getSlotDefault(catalog: CharacterCatalog, slot: CatalogSlot, gender: AvatarGender): CatalogItem | null {
   const candidate = findItem(catalog, catalog.newDefaults?.[gender]?.[slot]);
   if (candidate && candidate.slot === slot && candidate.genders.includes(gender)) return candidate;
-  const items = slotItems(catalog, slot, gender);
+  const items = getSlotItems(catalog, slot, gender);
   return items.find((it) => it.isNone) ?? items[0] ?? null;
 }
 

@@ -34,21 +34,21 @@ export default function RegionPicker({
   fieldStyle,
   listAlign = "right",
 }: RegionPickerProps) {
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const chipRefs = useRef<(HTMLButtonElement | null)[]>([]);
-  const listId = `region-listbox${useId()}`;
+  const listId = `region-list${useId()}`;
 
   // Esc·고르기는 초점을 단추로 돌려주고, 바깥 클릭은 돌려주지 않는다.
   const close = (returnFocus = false) => {
-    setOpen(false);
+    setIsOpen(false);
     onBlur?.();
     if (returnFocus) triggerRef.current?.focus();
   };
 
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
     const start = Math.max(0, REGIONS.indexOf(value));
     // 칩은 상자가 그려진 다음 프레임에야 생긴다.
     const frame = requestAnimationFrame(() => chipRefs.current[start]?.focus());
@@ -65,11 +65,11 @@ export default function RegionPicker({
       document.removeEventListener("pointerdown", handlePointerDown);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- close·value 는 열릴 때 한 번만 읽으면 된다.
-  }, [open]);
+  }, [isOpen]);
 
   const select = (region: string) => {
     onSelect(region);
-    setOpen(false);
+    setIsOpen(false);
     // 고른 뒤 초점은 단추로. 다음 칸으로 Tab 하기 쉽다.
     triggerRef.current?.focus();
   };
@@ -92,37 +92,37 @@ export default function RegionPicker({
   const handleTriggerKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      setOpen(true);
-    } else if (event.key === "Escape" && open) {
+      setIsOpen(true);
+    } else if (event.key === "Escape" && isOpen) {
       event.preventDefault();
       close(true);
     }
   };
 
-  const fieldState = error ? "field--error" : isValid ? "field--valid" : "";
+  const fieldState = error ? " is-error" : isValid ? " is-valid" : "";
 
   return (
-    <div style={{ position: "relative", width: "100%", zIndex: open ? 30 : "auto" }}>
+    <div style={{ position: "relative", width: "100%", zIndex: isOpen ? 30 : "auto" }}>
       <div
-        className={`underline-field ${fieldState} ${open ? "region-trigger--open" : ""}`}
+        className={`form-field region-picker__field${fieldState}${isOpen ? " is-open" : ""}`}
         style={{ ...fieldStyle, position: "relative" }}
       >
         <button
           ref={triggerRef}
           type="button"
-          className="region-trigger"
+          className="region-picker__trigger"
           role="combobox"
           aria-haspopup="listbox"
-          aria-expanded={open}
+          aria-expanded={isOpen}
           aria-controls={listId}
           aria-invalid={Boolean(error)}
           aria-label={`지역 선택${value ? `, 지금 ${value}` : ""}`}
-          onClick={() => (open ? close(false) : setOpen(true))}
+          onClick={() => (isOpen ? close(false) : setIsOpen(true))}
           onKeyDown={handleTriggerKeyDown}
           style={{ fontFamily: FONT.body, color: value ? "var(--color-white)" : placeholderColor }}
         >
           <span>{value || placeholder}</span>
-          <svg className="region-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+          <svg className="region-picker__chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
             <path
               d="M2.5 4.5 6 8l3.5-3.5"
               fill="none"
@@ -133,35 +133,35 @@ export default function RegionPicker({
             />
           </svg>
         </button>
-        {isValid && !open && (
-          <span className="valid-mark" aria-hidden="true" style={{ right: "26px" }}>
+        {isValid && !isOpen && (
+          <span className="form-field__check" aria-hidden="true" style={{ right: "26px" }}>
             ✓
           </span>
         )}
       </div>
 
-      {open && (
+      {isOpen && (
         <div
           ref={listRef}
           id={listId}
           role="listbox"
           aria-label="지역 목록"
-          className="region-listbox"
+          className="region-picker__list"
           style={{ [listAlign]: 0 }}
         >
-          <div className="region-listbox__head" style={{ fontFamily: FONT.mono }}>
+          <div className="region-picker__list-head" style={{ fontFamily: FONT.mono }}>
             <span>지역 선택</span>
-            <span className="region-listbox__help">탐험을 시작할 지역 · 나중에 바꿀 수 있어요</span>
+            <span className="region-picker__list-help">탐험을 시작할 지역 · 나중에 바꿀 수 있어요</span>
           </div>
           {REGION_GROUPS.map((group) => (
-            <div key={group.name} className="region-group" role="group" aria-label={group.name}>
-              <span className="region-group__name" style={{ fontFamily: FONT.mono }}>
+            <div key={group.name} className="region-picker__group" role="group" aria-label={group.name}>
+              <span className="region-picker__group-name" style={{ fontFamily: FONT.mono }}>
                 {group.name}
               </span>
-              <div className="region-chips">
+              <div className="region-picker__chips">
                 {group.regions.map((region) => {
                   const index = REGIONS.indexOf(region);
-                  const selected = region === value;
+                  const isSelected = region === value;
                   return (
                     <button
                       key={region}
@@ -170,14 +170,14 @@ export default function RegionPicker({
                       }}
                       type="button"
                       role="option"
-                      aria-selected={selected}
+                      aria-selected={isSelected}
                       tabIndex={-1} // 상자 안 이동은 방향키로. Tab 은 상자를 빠져나간다.
-                      className={`region-chip${selected ? " is-selected" : ""}`}
+                      className={`region-picker__chip${isSelected ? " is-selected" : ""}`}
                       onClick={() => select(region)}
                       onKeyDown={(event) => handleChipKeyDown(event, index)}
                       style={{ fontFamily: FONT.body }}
                     >
-                      {selected && <span aria-hidden="true">✓ </span>}
+                      {isSelected && <span aria-hidden="true">✓ </span>}
                       {region}
                     </button>
                   );

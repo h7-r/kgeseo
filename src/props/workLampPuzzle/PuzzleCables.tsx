@@ -1,6 +1,6 @@
 import type { WorkLampPuzzleValues } from "@/station/controls/workLampControls";
 
-import { BIN_SIZE, PAINTING_HEIGHT_PX, PAINTING_WIDTH_PX } from "./geometry";
+import { BIN_SIZE, PAINTING_HEIGHT_PX, PAINTING_WIDTH_PX } from "./puzzleGeometry";
 import PowerCable from "./PowerCable";
 
 interface PuzzleCablesProps {

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import { drawRoundStain, makeCanvasTexture } from "./canvas";
 
@@ -13,13 +13,13 @@ const WALL_COLUMNS = 8; // 텍스처 한 장에 들어가는 블록 수
 const WALL_ROWS = 16;
 
 /** 벽 텍스처 한 장이 덮는 실제 가로(유닛) */
-export const WALL_TEX_W = BLOCK_W * WALL_COLUMNS;
+export const WALL_TEXTURE_W = BLOCK_W * WALL_COLUMNS;
 /** 벽 텍스처 한 장이 덮는 실제 세로(유닛) — 캔버스가 정사각이라 가로와 같게 맞췄다 */
-export const WALL_TEX_H = BLOCK_H * WALL_ROWS;
+export const WALL_TEXTURE_H = BLOCK_H * WALL_ROWS;
 /** 바닥 판 한 칸(유닛, ≈1.8 m) */
-export const FLOOR_TEX = 6;
+export const FLOOR_TEXTURE_SIZE = 6;
 /** 천장 텍스처 한 장이 덮는 크기(유닛) — 칸 하나 2유닛 ≈ 0.6 m */
-export const CEIL_TEX = 8;
+export const CEILING_TEXTURE_SIZE = 8;
 
 const gray = (v: number) => `rgb(${v | 0},${v | 0},${v | 0})`;
 
@@ -38,13 +38,13 @@ export interface WallTextureOptions {
 const wallTextureCache = new Map<string, THREE.CanvasTexture>();
 
 /** 콘크리트 블록 벽. 옵션을 주면 천장에도 쓴다(기본값은 벽 그대로). */
-export function wallTexture(seed: number, wear = 0.7, options: WallTextureOptions = {}): THREE.CanvasTexture {
+export function makeWallTexture(seed: number, wear = 0.7, options: WallTextureOptions = {}): THREE.CanvasTexture {
   const { columns = WALL_COLUMNS, rows = WALL_ROWS, stagger = 0.5, drips = true, grimeBottom = true } = options;
   const cacheKey = `${seed}|${wear}|${columns}|${rows}|${stagger}|${drips}|${grimeBottom}`;
   const cached = wallTextureCache.get(cacheKey);
   if (cached) return cached;
   const texture = makeCanvasTexture(1024, (g, S) => {
-    const rnd = makeRandom(seed);
+    const rnd = createRandom(seed);
     const bw = S / columns;
     const bh = S / rows;
     const joint = 4; // 줄눈 두께 px ≈ 1cm
@@ -186,11 +186,11 @@ export function wallTexture(seed: number, wear = 0.7, options: WallTextureOption
 const floorTextureCache = new Map<number, THREE.CanvasTexture>();
 
 /** 민바닥 콘크리트. 텍스처 한 장이 곧 판 한 칸이다(테두리에 줄눈). */
-export function floorTexture(seed: number): THREE.CanvasTexture {
+export function makeFloorTexture(seed: number): THREE.CanvasTexture {
   const cached = floorTextureCache.get(seed);
   if (cached) return cached;
   const texture = makeCanvasTexture(1024, (g, S) => {
-    const rnd = makeRandom(seed + 5100);
+    const rnd = createRandom(seed + 5100);
     g.fillStyle = gray(242);
     g.fillRect(0, 0, S, S);
 
@@ -236,8 +236,8 @@ export function floorTexture(seed: number): THREE.CanvasTexture {
 }
 
 /** 천장 — 벽과 같은 그리기 코드를 크고 반듯한 격자로. 물자국은 번지고 아래 때는 없다. */
-export function ceilingTexture(seed: number, wear = 0.7): THREE.CanvasTexture {
-  return wallTexture(seed + 4400, wear, {
+export function makeCeilingTexture(seed: number, wear = 0.7): THREE.CanvasTexture {
+  return makeWallTexture(seed + 4400, wear, {
     columns: 4,
     rows: 4,
     stagger: 0,

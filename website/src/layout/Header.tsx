@@ -75,7 +75,7 @@ function Header({ activeId, user, onAccountClick, onSignOut, onSearch, onMenuNav
         }}
         onAnimationEnd={() => setIsSweeping(false)}
         aria-label="홈으로"
-        className={isSweeping ? "logo-sweep" : "logo-flow"}
+        className={isSweeping ? "header-logo is-sweeping" : "header-logo"}
         style={logoStyle}
       >
         latent-Space
@@ -83,7 +83,7 @@ function Header({ activeId, user, onAccountClick, onSignOut, onSearch, onMenuNav
 
       <div ref={rowRef} style={menuRowStyle}>
         {HEADER_MENU.map(({ id, label, path }) => {
-          const active = id === activeId;
+          const isActive = id === activeId;
           return (
             <button
               key={id}
@@ -92,12 +92,12 @@ function Header({ activeId, user, onAccountClick, onSignOut, onSearch, onMenuNav
                 itemRefs.current[id] = el;
                 registerProximity(el, 150);
               }}
-              aria-current={active ? "page" : undefined}
-              className="link proximity-text"
+              aria-current={isActive ? "page" : undefined}
+              className="text-link u-proximity-text"
               style={{
                 ...menuItemStyle,
-                color: active ? "#4f6cb0" : COLOR.white,
-                textShadow: active ? "0px 0px 8px rgba(46, 72, 137, 0.7)" : undefined,
+                color: isActive ? "#4f6cb0" : COLOR.white,
+                textShadow: isActive ? "0px 0px 8px rgba(46, 72, 137, 0.7)" : undefined,
               }}
               onClick={() => onMenuNavigate(path)}
               // 누르기까지 보통 0.1~0.3초 — 그 사이 화면 코드를 받아 둔다.
@@ -117,14 +117,14 @@ function Header({ activeId, user, onAccountClick, onSignOut, onSearch, onMenuNav
         <HeaderSearch size={22} onSubmit={onSearch} />
         <button
           type="button"
-          className="btn"
+          className="button"
           style={pillStyle}
           onClick={onAccountClick}
           title={user ? `${user.name} 님 · 마이페이지` : undefined}
           aria-label={user ? `${user.name} 님, 마이페이지로 이동` : undefined}
         >
           {user ? (
-            <span className="btn__label" style={userLabelStyle}>
+            <span className="button__label" style={userLabelStyle}>
               <svg
                 width="16"
                 height="16"
@@ -146,13 +146,13 @@ function Header({ activeId, user, onAccountClick, onSignOut, onSearch, onMenuNav
               <span style={{ fontWeight: 500, opacity: 0.8, fontSize: "0.88em" }}>님</span>
             </span>
           ) : (
-            <span className="btn__label">로그인 · 회원가입</span>
+            <span className="button__label">로그인 · 회원가입</span>
           )}
         </button>
         {user && (
           <button
             type="button"
-            className="link"
+            className="text-link"
             onClick={(event) => {
               event.stopPropagation();
               onSignOut();

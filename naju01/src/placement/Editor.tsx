@@ -113,7 +113,7 @@ interface EditorProps {
   edits: Edits;
   setEdits: Dispatch<SetStateAction<Edits>>;
   /** 코어 지표 높이(m). 무대 밖은 값이 없다. */
-  groundHeightAt?: ((x: number, z: number) => number) | null;
+  heightAt?: ((x: number, z: number) => number) | null;
   /** 포인터락을 풀어야 마우스로 집는다 */
   unlockPointer?: () => void;
   overview: boolean;
@@ -124,7 +124,7 @@ export default function Editor({
   enabled,
   edits,
   setEdits,
-  groundHeightAt,
+  heightAt,
   unlockPointer,
   overview,
   setOverview,
@@ -141,7 +141,7 @@ export default function Editor({
   const selectedRef = useRef<Selection | null>(null);
 
   const { hasUnsaved, isSaving, canSave, save } = useEditSave(enabled, edits, editsRef, setNotice);
-  const picking = usePicking(groundHeightAt);
+  const picking = usePicking(heightAt);
 
   // 마우스·키 리스너는 최신 값을 ref 로 본다(렌더마다 다시 붙으면 드래그가 끊긴다)
   useLayoutEffect(() => {
@@ -150,11 +150,11 @@ export default function Editor({
     selectedRef.current = selected;
   });
 
-  const pressedKeys = useOverviewCamera({ enabled, overview, groundHeightAt, selectedRef });
+  const pressedKeys = useOverviewCamera({ enabled, overview, heightAt, selectedRef });
   usePointerEditing({
     enabled,
     picking,
-    groundHeightAt,
+    heightAt,
     editsRef,
     brushRef,
     selectedRef,
@@ -168,7 +168,7 @@ export default function Editor({
     selected,
     edits,
     setEdits,
-    floorHeight: picking.floorHeight,
+    floorHeightAt: picking.floorHeightAt,
     save,
     undoStack,
     clipboard,
@@ -179,7 +179,7 @@ export default function Editor({
     setNotice,
   });
   usePressedKeys(pressedKeys, enabled, setOverview);
-  useOverviewWheel(enabled, overview, groundHeightAt);
+  useOverviewWheel(enabled, overview, heightAt);
 
   // 붓을 들면 십자 커서 — 클릭이 놓기라는 게 보여야 한다
   useEffect(() => {

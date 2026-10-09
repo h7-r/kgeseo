@@ -6,8 +6,8 @@ import { scaleColor } from "@/engine/color";
 import { TOON_GRADIENT } from "@/engine/toon";
 
 import { createCurrentMaterial, FLOW_SECONDS } from "./currentFlow";
-import { roundedPolyline } from "./geometry";
-import { flowStartedAt, isBinComplete, type TrashBin } from "./workLampState";
+import { computeRoundedPolyline } from "./puzzleGeometry";
+import { getFlowStartedAt, isBinComplete, type TrashBin } from "./workLampState";
 
 interface PowerCableProps {
   points: THREE.Vector3Tuple[];
@@ -23,7 +23,7 @@ export default function PowerCable({ points, bin, brightness = 1 }: PowerCablePr
     .map((v) => v.toFixed(2))
     .join(",");
   const { tube, glowTube, length, path, clips } = useMemo(() => {
-    const path = roundedPolyline(points, 0.3);
+    const path = computeRoundedPolyline(points, 0.3);
     const length = path.getLength();
     const segments = Math.max(40, Math.round(length * 12));
     // 벽에 박힌 전선 집게 — 1.1 유닛마다
@@ -49,7 +49,7 @@ export default function PowerCable({ points, bin, brightness = 1 }: PowerCablePr
   useEffect(() => () => glowMaterial.dispose(), [glowMaterial]);
   const headRef = useRef<THREE.Mesh>(null);
   useFrame(() => {
-    const start = bin ? flowStartedAt(bin) : -99;
+    const start = bin ? getFlowStartedAt(bin) : -99;
     const now = performance.now() / 1000;
     const isFlowing = !!bin && start > 0 && isBinComplete(bin);
     const progress = isFlowing ? Math.min(1, (now - start) / FLOW_SECONDS) : 0;

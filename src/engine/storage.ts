@@ -10,7 +10,7 @@ export const PLAYER_SIDEKICK_APPEARANCE_KEY = "kgeseo.lobby.sidekick.appearance.
  * 이전 열쇠는 지우지 않는다 — 아직 그 열쇠를 읽는 코드(나주 맵, 이전 빌드)가 값을 잃지 않게.
  * 저장소가 막힌 환경(사생활 보호 등)에서는 null.
  */
-export function readMigrated(key: string, legacyKey: string): string | null {
+export function readMigratedStorage(key: string, legacyKey: string): string | null {
   try {
     const current = localStorage.getItem(key);
     if (current !== null) return current;

@@ -2,7 +2,7 @@ import chevronDownIcon from "@/assets/images/imgChevronDown.svg";
 import { COLOR } from "@/styles/tokens";
 
 import InquiryTypeSelect from "./InquiryTypeSelect";
-import { fieldTextStyle, labelStyle } from "./styles";
+import { fieldTextStyle, labelStyle } from "./supportStyles";
 
 interface InquiryFieldProps {
   label: string;
@@ -29,7 +29,7 @@ export default function InquiryField({
     <div style={{ display: "flex", flexDirection: "column", gap: "9px", width: "100%" }}>
       <div style={labelStyle}>{label}</div>
       <div
-        className={error ? "field--error" : undefined}
+        className={error ? "inquiry-field__box is-error" : "inquiry-field__box"}
         style={{
           position: "relative",
           border: `1px solid ${COLOR.lightBorder}`,
@@ -47,7 +47,7 @@ export default function InquiryField({
           <InquiryTypeSelect placeholder={placeholder} value={value} onChange={onChange} />
         ) : height ? (
           <textarea
-            className="input"
+            className="text-input"
             placeholder={placeholder}
             value={value}
             onChange={(event) => onChange(event.target.value)}
@@ -55,7 +55,7 @@ export default function InquiryField({
           />
         ) : (
           <input
-            className="input"
+            className="text-input"
             placeholder={placeholder}
             value={value}
             onChange={(event) => onChange(event.target.value)}
@@ -71,7 +71,7 @@ export default function InquiryField({
             style={{ width: "16px", height: "16px", display: "block", flexShrink: 0 }}
           />
         )}
-        {error && <span className="error-text">{error}</span>}
+        {error && <span className="form-error">{error}</span>}
       </div>
     </div>
   );

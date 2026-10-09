@@ -1,6 +1,6 @@
 import { exposeDevHook } from "@/debug/devHooks";
 
-import { MAX_X, MAX_Z, MIN_X, MIN_Z } from "./dimensions";
+import { HEADQUARTERS_MAX_X, HEADQUARTERS_MAX_Z, HEADQUARTERS_MIN_X, HEADQUARTERS_MIN_Z } from "./dimensions";
 
 interface DoorPoint {
   x: number;
@@ -41,7 +41,13 @@ export const trainDoors = {
   rightmost: (x: number, z: number): DoorDetail | null => {
     let found: (DoorPoint & { car: number }) | null = null;
     for (const [car, q] of doors) {
-      if (q.z < MIN_Z || q.z > MAX_Z || q.x < MIN_X || q.x > MAX_X + 3) continue;
+      if (
+        q.z < HEADQUARTERS_MIN_Z ||
+        q.z > HEADQUARTERS_MAX_Z ||
+        q.x < HEADQUARTERS_MIN_X ||
+        q.x > HEADQUARTERS_MAX_X + 3
+      )
+        continue;
       if (!found || q.z > found.z) found = { car, x: q.x, z: q.z };
     }
     return found ? { ...found, distance: Math.hypot(x - found.x, z - found.z) } : null;

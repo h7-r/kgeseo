@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { RootState } from "@react-three/fiber";
 
-import { readMigrated, removeStorage, writeStorage } from "@/engine/storage";
+import { readMigratedStorage, removeStorage, writeStorage } from "@/engine/storage";
 
 import { exposeDevHook } from "./devHooks";
 
@@ -28,9 +28,9 @@ export interface CrashLogLine {
 }
 
 function readPrevious() {
-  const table = readMigrated(LOG_KEY, LEGACY_LOG_KEY);
+  const table = readMigratedStorage(LOG_KEY, LEGACY_LOG_KEY);
   if (!table) return null;
-  return { table, time: readMigrated(LOG_TIME_KEY, LEGACY_LOG_TIME_KEY) || "" };
+  return { table, time: readMigratedStorage(LOG_TIME_KEY, LEGACY_LOG_TIME_KEY) || "" };
 }
 
 /**

@@ -20,7 +20,7 @@ import { exposeDevHook } from "@/debug/devHooks";
 import type { PlayerMotionState } from "@/engine/movement/useMovement";
 
 import ChibiGameAvatar from "../avatar/ChibiGameAvatar";
-import { meshBodyUrl, meshShoesUrl, type MeshAppearanceConfig } from "../avatar/meshAppearance";
+import { getMeshBodyUrl, getMeshShoesUrl, type MeshAppearanceConfig } from "../avatar/meshAppearance";
 import type { AvatarGender } from "../avatar/sidekickOptions";
 import { DEFAULT_TOON } from "../avatar/toonMaterial";
 
@@ -56,7 +56,7 @@ const INITIAL_ORBIT: OrbitState = { yaw: -0.3, pitch: 0.06, zoom: 1 };
 
 // 손을 볼 때만 팔을 벌린 자세로 — 허리에 손을 얹은 대기 자세는 손을 가린다.
 // 걷기는 팔이 흔들려 손이 이미 다 보이고, 바꾸면 골라 둔 걷기가 멋대로 멈춘다 — 대기일 때만 바꾼다.
-function observationPose(view: PreviewView, pose: string): string {
+function getObservationPose(view: PreviewView, pose: string): string {
   return view === "hands" && pose === "Idle_Loop" ? "A_TPose" : pose;
 }
 
@@ -69,11 +69,11 @@ const QUALITY_SETTINGS: Record<PreviewQuality, { dpr: [number, number]; shadowRe
 
 type OutfitKeySource = Pick<MeshAppearanceConfig, "gender" | "top" | "bottom" | "shoes">;
 
-function makeFileKey(config: OutfitKeySource): string {
+function formatOutfitKey(config: OutfitKeySource): string {
   return `${config.gender}|${config.top}|${config.bottom}|${config.shoes}`;
 }
 
-function parseFileKey(key: string): OutfitKeySource {
+function parseOutfitKey(key: string): OutfitKeySource {
   const [gender, top, bottom, shoes] = key.split("|");
   return { gender: gender as AvatarGender, top: Number(top), bottom: Number(bottom), shoes: Number(shoes) };
 }
@@ -90,12 +90,12 @@ const OUTFIT_COMBOS = [
   { top: 0, bottom: 0 },
 ];
 
-function whenIdle(task: () => void) {
+function runWhenIdle(task: () => void) {
   if (typeof requestIdleCallback === "function") requestIdleCallback(() => task(), { timeout: 6000 });
   else setTimeout(task, 900);
 }
 
-function startPrefetch(gender: AvatarGender, isAlive: () => boolean, skipKey: string) {
+function prefetchOtherOutfits(gender: AvatarGender, isAlive: () => boolean, skipKey: string) {
   // 파일 이름은 성별·상의·하의 조합만 본다(신발 번호는 파일을 안 가른다)
   const [skipGender, skipTop, skipBottom] = skipKey.split("|");
   const queue: string[] = [];
@@ -103,7 +103,7 @@ function startPrefetch(gender: AvatarGender, isAlive: () => boolean, skipKey: st
     // 지금 보고 있는 조합은 이미 손에 있다
     if (gender === skipGender && String(combo.top) === skipTop && String(combo.bottom) === skipBottom) continue;
     const config = { gender, ...combo };
-    queue.push(meshShoesUrl(config), meshBodyUrl(config));
+    queue.push(getMeshShoesUrl(config), getMeshBodyUrl(config));
   }
   const step = () => {
     if (!isAlive()) return;
@@ -115,9 +115,9 @@ function startPrefetch(gender: AvatarGender, isAlive: () => boolean, skipKey: st
     } catch {
       // 미리 받기는 실패해도 화면은 그대로 돈다
     }
-    setTimeout(() => whenIdle(step), 1200);
+    setTimeout(() => runWhenIdle(step), 1200);
   };
-  whenIdle(step);
+  runWhenIdle(step);
 }
 
 // 생성 화면에는 플레이어가 없으니 아바타에 「가만히 서 있는」 상태를 준다.
@@ -149,8 +149,8 @@ function ModelWarmup({
   fileKey: string;
   onReady: (key: string) => void;
 }) {
-  const bodyUrl = meshBodyUrl(config);
-  const shoesUrl = meshShoesUrl(config);
+  const bodyUrl = getMeshBodyUrl(config);
+  const shoesUrl = getMeshShoesUrl(config);
   useGLTF(bodyUrl);
   useGLTF(shoesUrl);
   useEffect(() => {
@@ -163,7 +163,7 @@ function ModelWarmup({
 // 옷을 갈아입을 때마다 수백 ms 를 먹는다. 지오메트리 상자(한 번 구우면 GLB 캐시에 남는다)를 세계 행렬로 옮겨 합친다.
 // 쉴 때 자세 기준이라 동작에 따라 상자가 흔들리지 않아 카메라용으로 오히려 낫다.
 const pieceBox = new THREE.Box3();
-function groupBox(group: THREE.Object3D, target: THREE.Box3): THREE.Box3 {
+function computeGroupBox(group: THREE.Object3D, target: THREE.Box3): THREE.Box3 {
   target.makeEmpty();
   group.traverse((object) => {
     const mesh = object as THREE.Mesh;
@@ -208,7 +208,7 @@ function measureCharacter(scene: THREE.Scene, heightScale: number): Measurement 
   const { avatar } = found;
   if (!avatar) return null;
   avatar.updateWorldMatrix(false, true);
-  const box = groupBox(avatar, measuredBox);
+  const box = computeGroupBox(avatar, measuredBox);
   if (box.isEmpty() || !Number.isFinite(box.min.y)) return null;
   const height = box.max.y - box.min.y;
   if (!(height > 0.05)) return null;
@@ -239,7 +239,7 @@ interface Framing {
 }
 
 /** 어느 부위를 얼마나 크게 담을지 */
-function frameFor(view: PreviewView, measured: Measurement): Framing {
+function computeFraming(view: PreviewView, measured: Measurement): Framing {
   const H = measured.baseHeight;
   if (view === "head") return { center: measured.head.clone(), height: H * 0.3 };
   // 손은 좌우를 함께 봐야 비교가 된다 — 두 손 사이 거리에 맞춰 물러난다
@@ -287,7 +287,7 @@ function PreviewCamera({ orbit, view, heightScale, safeArea, reduceMotion, measu
     remeasureFrames.current = 40; // 10프레임마다 재니 ≈ 0.7초
     const measured = measureCharacter(scene, heightScaleRef.current);
     if (!measured) return;
-    target.current = frameFor(view, measured);
+    target.current = computeFraming(view, measured);
     if (!current.current.isFilled || reduceMotion) {
       current.current.center.copy(target.current.center);
       current.current.height = target.current.height;
@@ -305,7 +305,7 @@ function PreviewCamera({ orbit, view, heightScale, safeArea, reduceMotion, measu
     if ((!s.isFilled || view === "full" || remeasureFrames.current > 0) && frameCount.current % 10 === 0) {
       const measured = measureCharacter(scene, heightScaleRef.current);
       if (measured) {
-        target.current = frameFor(view, measured);
+        target.current = computeFraming(view, measured);
         if (!s.isFilled) {
           s.center.copy(target.current.center);
           s.height = target.current.height;
@@ -431,7 +431,7 @@ export default function CharacterPreview({
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistance = useRef(0);
   const wrapper = useRef<HTMLDivElement>(null);
-  const fileKey = makeFileKey(config);
+  const fileKey = formatOutfitKey(config);
   const [displayKey, setDisplayKey] = useState(fileKey);
   const [isVisible, setIsVisible] = useState(() => typeof document === "undefined" || !document.hidden);
 
@@ -440,7 +440,7 @@ export default function CharacterPreview({
     [],
   );
 
-  const displayConfig = useMemo(() => ({ ...config, ...parseFileKey(displayKey) }), [config, displayKey]);
+  const displayConfig = useMemo(() => ({ ...config, ...parseOutfitKey(displayKey) }), [config, displayKey]);
   const isLoading = fileKey !== displayKey;
 
   useEffect(() => {
@@ -451,7 +451,7 @@ export default function CharacterPreview({
   const gender = config.gender;
   useEffect(() => {
     let isAlive = true;
-    startPrefetch(gender, () => isAlive, displayKey);
+    prefetchOtherOutfits(gender, () => isAlive, displayKey);
     return () => {
       isAlive = false;
     };
@@ -522,7 +522,7 @@ export default function CharacterPreview({
   };
 
   const qualitySettings = QUALITY_SETTINGS[quality] ?? QUALITY_SETTINGS.medium;
-  const activePose = observationPose(view, pose);
+  const activePose = getObservationPose(view, pose);
   // 렌더마다 새 객체를 넘기면 값이 그대로여도 아바타의 config 의존 효과가 다시 돈다
   const avatarConfig = useMemo(() => ({ ...displayConfig, motion: activePose }), [displayConfig, activePose]);
 

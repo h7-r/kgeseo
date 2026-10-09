@@ -8,9 +8,9 @@
 
 import * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
-import { CLIFF_OUTLINE, UNITS_PER_METER, type Cliff, type Range, type ZoneCode } from "../plan/sitePlan";
+import { cliffProfileAt, UNITS_PER_METER, type Cliff, type Range, type ZoneCode } from "../plan/sitePlan";
 import type { GroundSurface } from "./groundSurface";
 
 export type GroundStyleCode = ZoneCode | "undesigned";
@@ -123,7 +123,7 @@ export type HeightAt = (x: number, z: number) => number;
 
 /** 시드 고정 값소음(세 겹). 시드가 같으면 팀원 화면에도 똑같이 뜬다. */
 export function createNoise(seed: number): Noise2D {
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const N = 128;
   // N 이 2의 거듭제곱이라 나머지 대신 비트 마스크 — 음수도 결과가 같다(-1 & 127 === 127).
   const mask = N - 1;
@@ -158,7 +158,7 @@ export function createNoise(seed: number): Noise2D {
  * 깎인 돌 하나(지름 1 기준). PolyhedronGeometry 는 인덱스가 없어 같은 자리 꼭짓점이 여러 번 들어 있으므로
  * 좌표를 열쇠로 같은 만큼 흔들어야 면이 안 찢어진다.
  */
-export function createRockShape(random: () => number): THREE.BufferGeometry {
+export function buildRockShape(random: () => number): THREE.BufferGeometry {
   const geometry = new THREE.IcosahedronGeometry(0.5, 0);
   const position = geometry.attributes.position;
   const scaleByCorner = new Map<string, number>();
@@ -249,7 +249,7 @@ export function buildGround({ surface, core, cliff, cellsPerMeter, normalExagger
   // 마루선이 x 마다 달라 그 x 의 마루 아래만 건너뛴다 — 물러난 마루가 만든 어깨에는 땅을 그린다.
   const isInsideCliffBand = (x0: number, x1: number, z0: number, z1: number) => {
     if (!(x0 >= cliff.x[0] - 0.05 && x1 <= cliff.x[1] + 0.05)) return false;
-    const crest = Math.max(CLIFF_OUTLINE(x0).crest, CLIFF_OUTLINE(x1).crest);
+    const crest = Math.max(cliffProfileAt(x0).crest, cliffProfileAt(x1).crest);
     return z0 > crest + 0.02 && z1 < cliff.zBottom - 0.02;
   };
 
@@ -297,7 +297,7 @@ interface PebbleSpot {
   color?: number;
 }
 
-interface BuildGroundScatterOptions {
+interface GroundScatterOptions {
   surface: Pick<GroundSurface, "styleAt" | "steepnessAt" | "heightAt">;
   core: { x: Range; z: Range };
   densityScale: number;
@@ -310,18 +310,18 @@ interface BuildGroundScatterOptions {
  * 맵 전체에 자갈·돌을 뿌린다. 밀도·크기는 그 자리의 결이 정해 경계에서 뚝 끊기지 않는다.
  * 난수를 뽑는 차례가 곧 자갈 배치라(edits.json 이 번호로 붙는다) 순서를 바꾸면 안 된다.
  */
-export function buildGroundScatter({
+export function computeGroundScatter({
   surface,
   core,
   densityScale,
   seed,
   clumpNoise,
   canPlace,
-}: BuildGroundScatterOptions) {
-  const random = makeRandom(seed);
+}: GroundScatterOptions) {
+  const random = createRandom(seed);
   // 돌 모양 여섯 벌 몫의 난수를 먼저 소비한다. 모양은 인스턴스 무리가 따로 만들지만,
   // 자리·색이 이 난수 차례로 손 배치(edits.json)와 맞물려 있다.
-  for (let i = 0; i < 6; i++) createRockShape(random).dispose();
+  for (let i = 0; i < 6; i++) buildRockShape(random).dispose();
 
   const w = core.x[1] - core.x[0];
   const d = core.z[1] - core.z[0];
@@ -376,7 +376,7 @@ export function buildGroundScatter({
 }
 
 /** 돌 발치를 어둡게 칠할 때 쓰는 조회기. 격자로 나눠 근처 돌만 본다. */
-export function buildContactShadows(footprints: ScatterFootprint[]): ShadeLookup {
+export function computeContactShadows(footprints: ScatterFootprint[]): ShadeLookup {
   if (!footprints.length) return () => 0;
   // 반경을 크게 잡으면 자갈밭처럼 촘촘한 데서 바닥 전체가 시커메진다 — 돌 바로 발치만.
   const reachOf = (a: ScatterFootprint) => a.radius * 2.1;
@@ -413,11 +413,11 @@ export function buildContactShadows(footprints: ScatterFootprint[]): ShadeLookup
  * 인스턴스용 돌 표본(지름 1 · 원점 중심). 병합한 돌은 하나를 고를 수 없어 길 위 돌을 못 치운다.
  * 돌은 반쯤 파묻히므로 나무와 달리 밑동이 아니라 중심이 원점이다.
  */
-export function rockPrototypes(count = 6, seed = 7301): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildRockPrototypes(count = 6, seed = 7301): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
-    const geometry = createRockShape(random);
+    const geometry = buildRockShape(random);
     geometry.computeBoundingSphere();
     const r = geometry.boundingSphere?.radius || 0.5;
     geometry.scale(0.5 / r, 0.5 / r, 0.5 / r);

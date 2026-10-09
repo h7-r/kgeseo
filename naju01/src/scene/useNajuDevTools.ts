@@ -4,13 +4,13 @@ import * as THREE from "three";
 import { exposeDevHook } from "@/debug/devHooks";
 
 import type { PresentedControls } from "../app/presentation";
-import { parseGlb, firstMesh, fitRealSize } from "../loaders/glbImport";
+import { applyRealSize, findFirstMesh, parseGlb } from "../loaders/glbImport";
 import type { TerrainTeleport } from "../movement/useTerrainMovement";
 import { VIEWPOINTS } from "../plan/sitePlan";
 import type { CollapseSequence } from "../story/blockerCollapse";
 import { applyBakedTerrainTexture } from "../terrain/bakedTerrainTexture";
 import type { ConnectorRamp } from "../terrain/connectorRamp";
-import { bakeUnderpaint, collectTerrain, exportTerrainGlb, groundCellRect } from "../terrain/terrainAtlas";
+import { bakeUnderpaint, collectTerrain, computeGroundCellRect, exportTerrainGlb } from "../terrain/terrainAtlas";
 import type { Terrain } from "./useTerrainLayers";
 
 const DIGIT_INDEX: Record<string, number> = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4 };
@@ -20,7 +20,7 @@ interface NajuDevHookOptions {
   gl: THREE.WebGLRenderer;
   scene: THREE.Scene;
   terrain: Terrain;
-  T: PresentedControls;
+  controls: PresentedControls;
   teleport: RefObject<TerrainTeleport | null>;
   endScene: (sceneNumber: number) => string;
   clearedBlockers: Set<string>;
@@ -34,7 +34,7 @@ export function useNajuDevHook({
   gl,
   scene,
   terrain,
-  T,
+  controls,
   teleport,
   endScene,
   clearedBlockers,
@@ -48,7 +48,7 @@ export function useNajuDevHook({
       gl,
       scene,
       terrain,
-      controls: T,
+      controls,
       teleport,
       THREE,
       // Meshy 에 넘길 지형 한 덩이를 뽑는다(굽는 규칙은 terrainAtlas)
@@ -59,7 +59,7 @@ export function useNajuDevHook({
       collapseStage: () =>
         collapseRef.current ? (collapseRef.current.isDone ? "끝" : collapseRef.current.stage()) : "없음",
       // 세계 사각형 → 아틀라스 사각형(구역별 굽기에서 도구가 쓴다)
-      groundCellRect,
+      groundCellRect: computeGroundCellRect,
       zoneList: () => terrain.zones.map((z) => ({ code: z.code, x: z.x, z: z.z })),
       // 밑그림 아틀라스를 캔버스로 — 색 대조용
       underpaint: (size = 2048) => {
@@ -67,11 +67,11 @@ export function useNajuDevHook({
         if (!collected) throw new Error("밑그림을 구울 지형 메시가 없다");
         return bakeUnderpaint(gl, collected.geometry, size);
       },
-      assets: { parseGlb, firstMesh, fitRealSize },
+      assets: { parseGlb, firstMesh: findFirstMesh, fitRealSize: applyRealSize },
       // 도구가 Leva 를 안 거치고 구운 텍스처를 껐다 켠다
       bakedTerrain: (enabled: boolean) => applyBakedTerrainTexture(scene, enabled),
     });
-  }, [camera, gl, scene, terrain, T, teleport, endScene, clearedBlockers, ramp, collapseRef]);
+  }, [camera, gl, scene, terrain, controls, teleport, endScene, clearedBlockers, ramp, collapseRef]);
 }
 
 /** 개발용 — 숫자키 V1~V3 텔레포트(§4 시야 검증), Shift+숫자 = 그 씬이 끝났다. IME 때문에 e.code 를 쓴다. */

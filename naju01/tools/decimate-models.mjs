@@ -86,7 +86,7 @@ for (const [name, target] of Object.entries(jobs)) {
 const { MeshoptSimplifier } = await import("meshoptimizer");
 await MeshoptSimplifier.ready;
 
-const decode = (base64, ArrayType) => {
+const decodeBase64 = (base64, ArrayType) => {
   const bytes = Buffer.from(base64, "base64");
   return new ArrayType(bytes.buffer, bytes.byteOffset, bytes.byteLength / ArrayType.BYTES_PER_ELEMENT);
 };
@@ -111,8 +111,8 @@ for (const [name, target] of Object.entries(jobs)) {
   const originalText = fs.readFileSync(archive, "utf8");
   const original = JSON.parse(originalText);
 
-  const positions0 = decode(original.positions, Float32Array);
-  const indices0 = decode(original.indices, Uint16Array);
+  const positions0 = decodeBase64(original.positions, Float32Array);
+  const indices0 = decodeBase64(original.indices, Uint16Array);
   const originalTriangles = indices0.length / 3;
   trianglesBefore += originalTriangles;
 

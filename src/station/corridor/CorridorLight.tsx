@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
 import { FLICKER_PATTERNS, type FlickerPattern } from "./corridorLighting";
-import { fluorescentPanelTexture } from "./fixtureTextures";
+import { makeFluorescentPanelTexture } from "./fixtureTextures";
 
 interface CorridorLightProps {
   x?: number;
@@ -66,7 +66,7 @@ export default function CorridorLight({
   const panelRef = useRef<THREE.MeshBasicMaterial>(null);
   const lightRef = useRef<THREE.SpotLight>(null);
   const targetRef = useRef<THREE.Object3D>(null);
-  const texture = fluorescentPanelTexture(stainSeed, grime);
+  const texture = makeFluorescentPanelTexture(stainSeed, grime);
   const baseColor = useMemo(() => new THREE.Color(panelColor), [panelColor]);
 
   // target 이 씬에 실제로 들어가 있지 않으면 스포트라이트는 조용히 원점을 비춘다.

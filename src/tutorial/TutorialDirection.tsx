@@ -12,17 +12,17 @@ import * as THREE from "three";
 
 import { playerView } from "@/engine/playerView";
 
-import { TUTORIAL_COLOR, TUTORIAL_STEPS, useTutorial } from "./tutorial";
+import { TUTORIAL_COLOR, TUTORIAL_STEPS, useTutorial } from "./tutorialState";
 
 const EDGE_MARGIN = 52; // 가장자리 화살표를 테두리에서 이만큼 안쪽에 둔다
 // 복도 바닥 높이. 눈 높이는 앉기·시점 설정에 따라 오르내려 머리에 안 붙는다 — 바닥에서 잰다.
 const FLOOR_Y = 0;
 
 // 캔버스 안(계산)과 밖(그리기)을 잇는 유일한 통로
-let edgeElement: HTMLDivElement | null = null;
+let edgeArrowElement: HTMLDivElement | null = null;
 
 // 원뿔은 어느 각도에서도 화살표로 안 읽혔다. 바닥과 나란히 눕힌 판이면 3인칭 카메라에서 그대로 "→" 로 읽힌다.
-function createArrowGeometry() {
+function buildArrowGeometry() {
   const shape = new THREE.Shape();
   shape.moveTo(0, 1.0); // 촉 끝
   shape.lineTo(-0.62, 0.15);
@@ -39,10 +39,10 @@ function createArrowGeometry() {
 }
 
 // 화면에 하나뿐이라 모듈에 둔다. 매 프레임 opacity 를 고치는 게 본체라 훅에 담으면 린트가 막는다.
-let arrowResources: { geometry: THREE.ShapeGeometry; material: THREE.MeshBasicMaterial } | null = null;
-function getArrowResources() {
-  arrowResources ??= {
-    geometry: createArrowGeometry(),
+let headArrowResources: { geometry: THREE.ShapeGeometry; material: THREE.MeshBasicMaterial } | null = null;
+function getHeadArrowResources() {
+  headArrowResources ??= {
+    geometry: buildArrowGeometry(),
     material: new THREE.MeshBasicMaterial({
       color: TUTORIAL_COLOR,
       transparent: true,
@@ -54,7 +54,7 @@ function getArrowResources() {
       side: THREE.DoubleSide,
     }),
   };
-  return arrowResources;
+  return headArrowResources;
 }
 
 const projected = new THREE.Vector3();
@@ -69,7 +69,7 @@ export function TutorialDirectionArrow({ enabled = true }: TutorialDirectionArro
   const { step, isHidden, isFinished } = useTutorial();
   const current = isHidden || isFinished ? null : TUTORIAL_STEPS[step];
   const groupRef = useRef<THREE.Group>(null);
-  const { geometry, material } = getArrowResources();
+  const { geometry, material } = getHeadArrowResources();
 
   useFrame(({ camera, size }, delta) => {
     const spot = enabled ? current?.spot : undefined;
@@ -96,7 +96,7 @@ export function TutorialDirectionArrow({ enabled = true }: TutorialDirectionArro
     }
 
     // ② 화면 가장자리 화살표
-    const edge = edgeElement;
+    const edge = edgeArrowElement;
     if (!edge) return;
     if (!spot) {
       edge.style.opacity = "0";
@@ -141,11 +141,11 @@ export function TutorialDirectionArrow({ enabled = true }: TutorialDirectionArro
 export default function TutorialDirectionHud() {
   // useEffect(…, []) 로 담으면 안내가 꺼진 첫 렌더에 요소가 없어 영영 비어 있는다 — ref 콜백으로 담는다
   const attach = (element: HTMLDivElement | null) => {
-    edgeElement = element;
+    edgeArrowElement = element;
   };
   useEffect(
     () => () => {
-      edgeElement = null;
+      edgeArrowElement = null;
     },
     [],
   );
@@ -153,7 +153,7 @@ export default function TutorialDirectionHud() {
   return (
     <>
       <style>{"@keyframes tutorialDirectionBlink{0%,100%{filter:brightness(1)}50%{filter:brightness(2.2)}}"}</style>
-      <div ref={attach} data-tutorial="edge" aria-hidden style={edgeStyle}>
+      <div ref={attach} data-tutorial="edge" aria-hidden style={edgeArrowStyle}>
         <svg width="38" height="38" viewBox="0 0 34 34">
           <path
             d="M6 17 L24 17 M17 8 L26 17 L17 26"
@@ -169,7 +169,7 @@ export default function TutorialDirectionHud() {
   );
 }
 
-const edgeStyle: CSSProperties = {
+const edgeArrowStyle: CSSProperties = {
   position: "fixed",
   left: 0,
   top: 0,

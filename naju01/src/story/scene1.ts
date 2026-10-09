@@ -8,10 +8,10 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import { FISH_TRAP, SERPENT, TENT } from "../models/baked";
-import { bakedModelGeometry, findThinParts, findTongue, measureHead } from "../models/bakedGeometry";
+import { buildBakedModelGeometry, findThinParts, findTongue, measureHead } from "../models/bakedGeometry";
 import type { Spot } from "../placement/instanceGroups";
 import { applyVertexColors } from "../terrain/ground";
 import { placeOnGround, type SceneNote, type SceneSpotOptions } from "./pieceGeometry";
@@ -42,8 +42,8 @@ function tint(geometry: THREE.BufferGeometry, color: THREE.ColorRepresentation):
 }
 
 /** 물가에 그물을 널어 말리는 틀 — 어부가 사는 물가라는 신호(F-05). 키 1 · 밑동 원점. */
-export function netFramePrototypes(count = 3, seed = 1301): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildNetFramePrototypes(count = 3, seed = 1301): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const pieces: THREE.BufferGeometry[] = [];
@@ -95,7 +95,7 @@ let tentCache: THREE.BufferGeometry[] | null = null;
  * 천막 — 천은 회색빛, 기둥은 나무색. 모형에 재질이 없어 모양으로 가른다(findThinParts).
  * 진짜 색을 굽으므로 자리에 색을 주지 않는다(주면 두 색 모두에 곱해진다).
  */
-export function tentPrototypes(): THREE.BufferGeometry[] {
+export function buildTentPrototypes(): THREE.BufferGeometry[] {
   if (tentCache) return tentCache;
   const cloth = new THREE.Color(SCENE1_STYLE.tentCloth);
   const clothShade = new THREE.Color(SCENE1_STYLE.tentClothShade);
@@ -103,7 +103,7 @@ export function tentPrototypes(): THREE.BufferGeometry[] {
   const poleDark = new THREE.Color(SCENE1_STYLE.tentPoleDark);
   const scratch = new THREE.Color();
   tentCache = [
-    bakedModelGeometry(TENT, {
+    buildBakedModelGeometry(TENT, {
       paint: (geometry, model, colors) => {
         const p = geometry.attributes.position;
         const nor = geometry.attributes.normal;
@@ -134,12 +134,12 @@ export function tentPrototypes(): THREE.BufferGeometry[] {
 }
 
 /** 통발 — 물가에 눕혀 둔다. 엮은 결이 있어 위아래 명암만으로 충분하다. */
-export function fishTrapPrototypes(): THREE.BufferGeometry[] {
-  return [bakedModelGeometry(FISH_TRAP, { bottom: 1.24, top: 0.72 })];
+export function buildFishTrapPrototypes(): THREE.BufferGeometry[] {
+  return [buildBakedModelGeometry(FISH_TRAP, { bottom: 1.24, top: 0.72 })];
 }
 
-export function cairnPrototypes(count = 3, seed = 2203): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildCairnPrototypes(count = 3, seed = 2203): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const pieces: THREE.BufferGeometry[] = [];
@@ -170,8 +170,8 @@ export function cairnPrototypes(count = 3, seed = 2203): THREE.BufferGeometry[] 
  * 돌을 둘러 불을 피운 자리. 다 타서 재만 남았다 — 밤마다 여기 있었다는 흔적(F-06).
  * 키 1 에 가로가 훨씬 넓다. 표본 자체를 넓게 만들어야 폭비로 늘이지 않아도 돌이 안 찌그러진다.
  */
-export function bonfirePrototypes(count = 3, seed = 3307): THREE.BufferGeometry[] {
-  const random = makeRandom(seed);
+export function buildBonfirePrototypes(count = 3, seed = 3307): THREE.BufferGeometry[] {
+  const random = createRandom(seed);
   const prototypes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < count; i++) {
     const pieces: THREE.BufferGeometry[] = [];
@@ -211,8 +211,8 @@ export function bonfirePrototypes(count = 3, seed = 3307): THREE.BufferGeometry[
  * 사람을 떠올리게 하는 표식은 하나도 넣지 않는다. 길이 1 · 누워 있음 · 밑동 원점.
  * 색은 비율로 굽는다(바탕은 instanceColor) — 비율을 올리고 다른 채널을 눌러야 색이 난다.
  */
-export function serpentPrototypes(): THREE.BufferGeometry[] {
-  const body = bakedModelGeometry(SERPENT, {
+export function buildSerpentPrototypes(): THREE.BufferGeometry[] {
+  const body = buildBakedModelGeometry(SERPENT, {
     paint: (geometry, _model, colors) => {
       const p = geometry.attributes.position;
       const nor = geometry.attributes.normal;
@@ -361,23 +361,21 @@ export const SCENE1_NOTES: Record<Scene1PropKey, SceneNote> = {
 };
 
 // 자리는 팀이 편집기(E)로 옮긴 결과를 구운 것이다. 편집이 살아 있으면 edits.json 이 덮는다.
-export function scene1Spots({ groundHeight }: SceneSpotOptions): Record<Scene1PropKey, Spot[]> {
+export function computeScene1Spots({ heightAt }: SceneSpotOptions): Record<Scene1PropKey, Spot[]> {
   return {
     // 강가에 한 채만 서서 배·통발·화톳불과 함께 물가 한쪽에 생활 구역을 이룬다
-    netFrame: placeOnGround(groundHeight, [
-      { x: 26.541, z: 43.033, size: 1.55, rotation: 1.387, widthRatio: 1.35 / 1.55 },
-    ]),
+    netFrame: placeOnGround(heightAt, [{ x: 26.541, z: 43.033, size: 1.55, rotation: 1.387, widthRatio: 1.35 / 1.55 }]),
 
     // 집어 보고 뒤집어 볼 수 있는 물건 — 이 방은 만질 수 있다는 것을 첫 씬에서 가르친다.
     // 색을 반드시 준다. 표본은 비율만 굽고, 안 주면 흰색이 채워져 새하얗게 나온다.
-    fishTrap: placeOnGround(groundHeight, [
+    fishTrap: placeOnGround(heightAt, [
       { x: 19.6, z: 41.9, size: 0.95, rotation: 0.9, color: SCENE1_STYLE.bamboo },
       { x: 20.5, z: 42.3, size: 0.88, rotation: 1.6, color: SCENE1_STYLE.bamboo },
       { x: 19.0, z: 42.5, size: 0.92, rotation: 0.2, tilt: 0.35, color: SCENE1_STYLE.bamboo },
     ]),
 
     // 같은 흔적이 두 군데 있어야 「오가던 자리」가 되고, 둘을 잇는 선이 아랑사–아비사의 동선이 된다
-    bonfire: placeOnGround(groundHeight, [
+    bonfire: placeOnGround(heightAt, [
       // 물가 — 아비사가 배를 기다리며 불을 피운 자리
       { x: 23.991, z: 42.503, size: 0.26, rotation: 0.5 },
       // 앙암바위 위 — 밤마다 만나던 자리. V2 시점에서 보여 씬 3 에서 다시 눈에 든다.
@@ -385,17 +383,17 @@ export function scene1Spots({ groundHeight }: SceneSpotOptions): Record<Scene1Pr
     ]),
 
     // 자연물 사이에서 유일하게 의도가 보이는 물건. 화톳불 곁에 하나씩 두어 같은 사람의 자리로 짝짓는다.
-    cairn: placeOnGround(groundHeight, [
+    cairn: placeOnGround(heightAt, [
       { x: 25.756, z: 41.864, size: 0.82, rotation: 0.7, widthRatio: 0.62, depthRatio: 0.62 },
       { x: 47.4, z: 23.7, size: 0.95, rotation: 2.1, widthRatio: 0.6, depthRatio: 0.6 },
     ]),
 
     // 물때를 기다리는 어부는 물가를 못 떠난다 — 그늘 한 채가 있어야 그 기다림이 그림이 된다
-    tent: placeOnGround(groundHeight, [{ x: 27.4, z: 40.6, size: 2.6, rotation: -0.5 }]),
+    tent: placeOnGround(heightAt, [{ x: 27.4, z: 40.6, size: 2.6, rotation: -0.5 }]),
 
     // 또아리 모형이라 size 2.6 은 몸 길이가 아니라 또아리 지름이다(풀면 7~8 m).
     // 생활 구역 바로 앞이라 사람의 자리와 구렁이가 한 화면에 잡힌다. T1 들머리(28, 36.5)와는 5 m 넘게 떨어져 있다.
     // 색은 흰색 — 구운 모형(색이 입혀진 것)에 곱해진다.
-    serpent: placeOnGround(groundHeight, [{ x: 22.667, z: 39.839, size: 2.6, rotation: 3.601, color: "#FFFFFF" }]),
+    serpent: placeOnGround(heightAt, [{ x: 22.667, z: 39.839, size: 2.6, rotation: 3.601, color: "#FFFFFF" }]),
   };
 }

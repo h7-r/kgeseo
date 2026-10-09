@@ -1,9 +1,9 @@
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 
-import { mergeBoxes, type MergeBox } from "@/engine/geometry";
-import { makeRandom } from "@/engine/random";
-import { CEIL_TEX, ceilingTexture, floorTexture } from "@/engine/textures/surfaces";
+import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
+import { createRandom } from "@/engine/random";
+import { CEILING_TEXTURE_SIZE, makeCeilingTexture, makeFloorTexture } from "@/engine/textures/surfaces";
 import { TOON_GRADIENT } from "@/engine/toon";
 import { applySurfaceStains } from "@/station/vertexNoise";
 
@@ -73,7 +73,7 @@ interface CeilingHole {
 }
 
 /** length 를 spacing 언저리 간격으로 고르게 나눈 z 좌표들(덕트 이음매·행거) */
-function evenlySpaced(length: number, spacing: number, centerZ: number): number[] {
+function computeEvenlySpacedZ(length: number, spacing: number, centerZ: number): number[] {
   const count = Math.max(1, Math.round(length / spacing));
   const step = length / count;
   return Array.from({ length: count }, (_, i) => centerZ - length / 2 + step / 2 + i * step);
@@ -134,9 +134,9 @@ export default function PlatformExtension({
 
   // 판 한 장으로는 구멍을 못 뚫어 마감판 격자로 쪼개고 일부는 빼고 일부는 처지게 한다.
   // 월드 좌표로 직접 짜서 판마다 네 귀퉁이 높이를 따로 준다. UV 를 월드 좌표로 잡아 무늬가 이어진다.
-  const ceilingMap = ceilingTexture(ceilingSeed, ceilingWear);
+  const ceilingMap = makeCeilingTexture(ceilingSeed, ceilingWear);
   const { ceilingGeometry, holes } = useMemo(() => {
-    const rnd = makeRandom(ceilingSeed + 5);
+    const rnd = createRandom(ceilingSeed + 5);
     const nx = Math.max(1, Math.round(ceilingWidth / tileSize));
     const nz = Math.max(1, Math.round(depth / tileSize));
     const tx = ceilingWidth / nx;
@@ -148,7 +148,7 @@ export default function PlatformExtension({
 
     const vertex = (vx: number, vy: number, vz: number) => {
       positions.push(vx, vy, vz);
-      uvs.push(vx / CEIL_TEX, vz / CEIL_TEX);
+      uvs.push(vx / CEILING_TEXTURE_SIZE, vz / CEILING_TEXTURE_SIZE);
     };
 
     for (let i = 0; i < nx; i++) {
@@ -201,23 +201,23 @@ export default function PlatformExtension({
   const utilityLength = depth + 6;
 
   const joints = useMemo(
-    () => evenlySpaced(utilityLength, jointSpacing, centerZ),
+    () => computeEvenlySpacedZ(utilityLength, jointSpacing, centerZ),
     [utilityLength, jointSpacing, centerZ],
   );
   const hangers = useMemo(
-    () => evenlySpaced(utilityLength, hangerSpacing, centerZ),
+    () => computeEvenlySpacedZ(utilityLength, hangerSpacing, centerZ),
     [utilityLength, hangerSpacing, centerZ],
   );
 
   // 철골과 행거는 전부 색 하나짜리 가는 막대라 한 덩어리로 합쳐 드로우콜을 줄인다.
   const frameGeometry = useMemo(() => {
     if (!hasFrame) return null;
-    return mergeBoxes([
-      ...frameXs.map((gx): MergeBox => ({
+    return buildMergedBoxes([
+      ...frameXs.map((gx): BoxPiece => ({
         size: [frameThickness, frameThickness * 2.4, depth],
         position: [gx, 0, centerZ],
       })),
-      ...frameZs.map((gz): MergeBox => ({
+      ...frameZs.map((gz): BoxPiece => ({
         size: [ceilingWidth, frameThickness, frameThickness * 2],
         position: [(startX + endX) / 2, frameThickness * 1.4, gz],
       })),
@@ -226,8 +226,8 @@ export default function PlatformExtension({
 
   const hangerGeometry = useMemo(() => {
     if (!hasUtilities) return null;
-    return mergeBoxes(
-      hangers.flatMap((hz): MergeBox[] => [
+    return buildMergedBoxes(
+      hangers.flatMap((hz): BoxPiece[] => [
         { size: [0.1, ductDrop, 0.1], position: [ductX, height - ductDrop / 2, hz] },
         // 배관 다발은 가로 받침대 하나로 통째로 건다
         {
@@ -249,7 +249,7 @@ export default function PlatformExtension({
 
   // 굵기를 조금씩 달리해야 다발로 보인다 — 다 같으면 빗살무늬가 된다.
   const pipes = useMemo(() => {
-    const rnd = makeRandom(seed + 41);
+    const rnd = createRandom(seed + 41);
     return Array.from({ length: pipeCount }, (_, i) => ({
       x: pipeX + (i - (pipeCount - 1) / 2) * pipeSpacing,
       r: pipeRadius * (0.6 + rnd() * 0.8),
@@ -258,7 +258,7 @@ export default function PlatformExtension({
   }, [pipeCount, pipeX, pipeSpacing, pipeRadius, seed]);
 
   const peeledInsulation = useMemo(() => {
-    const rnd = makeRandom(seed + 77);
+    const rnd = createRandom(seed + 77);
     return Array.from({ length: 5 }, () => ({
       pipe: Math.floor(rnd() * pipeCount),
       z: centerZ + (rnd() - 0.5) * utilityLength * 0.9,
@@ -267,7 +267,7 @@ export default function PlatformExtension({
   }, [pipeCount, utilityLength, centerZ, seed]);
 
   // 방 바닥과 같은 방식(텍스처 + 정점 얼룩). 면을 잘게 나눠야 정점 얼룩이 먹는다.
-  const floorMap = floorTexture(floorSeed);
+  const floorMap = makeFloorTexture(floorSeed);
   const floorGeometry = useMemo(() => {
     const geometry = new THREE.PlaneGeometry(floorWidth, depth, Math.round(floorWidth / 1.5), Math.round(depth / 1.5));
     applySurfaceStains(geometry, floorSeed + 7, { count: 26, strength: floorStain });

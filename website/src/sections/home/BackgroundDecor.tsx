@@ -4,6 +4,7 @@ import ellipseLeft from "@/assets/images/imgEllipse.svg";
 import ellipseRight from "@/assets/images/imgEllipse1.svg";
 import ellipseCenter from "@/assets/images/imgEllipse5.svg";
 import ellipseLarge from "@/assets/images/imgEllipse8.svg";
+import { PIN_CLASS } from "@/lib/layout";
 import { glowImageStyle, place } from "@/lib/style";
 
 import { CASE_FILE_PIN_LENGTH, SECTION_OFFSET } from "./homeLayout";
@@ -41,15 +42,15 @@ function RotatedGlow({ box, angle, width, height, overflow, src }: RotatedGlowPr
 export default function BackgroundDecor() {
   return (
     <>
-      {/* 고리는 딸린 구간과 같은 만큼 내린다. a = 지역 선택 뒤, b = 앙암바위 뒤(앙암바위와 같이 멈춘다). */}
+      {/* 고리는 딸린 구간과 같은 만큼 내린다. 앙암바위 뒤 고리는 앙암바위와 같이 멈춘다. */}
       <LayeredRings
         style={place(606, 3949 + CASE_FILE_PIN_LENGTH + SECTION_OFFSET.regionSelect, 960, 960)}
-        variant="a"
+        placement="regions"
       />
       <LayeredRings
         style={place(472, 6244 + CASE_FILE_PIN_LENGTH + SECTION_OFFSET.angam, 960, 960)}
-        variant="b"
-        className="angam-pin"
+        placement="angam"
+        pinGroup="angam-rock"
       />
 
       <RotatedGlow
@@ -112,8 +113,10 @@ export function LargeGlow() {
 interface LayeredRingsProps {
   /** 자리와 크기(place(...) 결과). */
   style: CSSProperties;
-  variant?: "a" | "b";
-  className?: string;
+  /** 어느 구간 뒤에 깔리는지. 구간마다 고리 기울기가 다르다. */
+  placement: "regions" | "angam";
+  /** 주면 그 구간과 같이 멈춘다. */
+  pinGroup?: string;
 }
 
 const perspectiveStyle: CSSProperties = { perspective: "1500px", pointerEvents: "none" };
@@ -122,14 +125,19 @@ const perspectiveStyle: CSSProperties = { perspective: "1500px", pointerEvents: 
  * 겹겹의 큰 원. 정원은 돌아도 안 보여서 고리마다 다르게 기울인 타원으로 돌린다 — 서로 앞뒤로 엇갈린다.
  * SVG 두 장(2.5MB)을 받는 대신 CSS 로 그린다.
  */
-function LayeredRings({ style, variant = "a", className }: LayeredRingsProps) {
+function LayeredRings({ style, placement, pinGroup }: LayeredRingsProps) {
   return (
-    <div className={className} style={{ ...style, ...perspectiveStyle }} aria-hidden="true">
-      <div className={`rings rings--${variant}`}>
+    <div
+      className={pinGroup ? PIN_CLASS : undefined}
+      data-pin-group={pinGroup}
+      style={{ ...style, ...perspectiveStyle }}
+      aria-hidden="true"
+    >
+      <div className={`layered-rings layered-rings--${placement}`}>
         {/* 바깥일수록 얇고 많이 누워 있어 멀리 있어 보인다. */}
-        <div className="ring ring--outer" />
-        <div className="ring ring--middle" />
-        <div className="ring ring--inner" />
+        <div className="layered-rings__ring layered-rings__ring--outer" />
+        <div className="layered-rings__ring layered-rings__ring--middle" />
+        <div className="layered-rings__ring layered-rings__ring--inner" />
       </div>
     </div>
   );

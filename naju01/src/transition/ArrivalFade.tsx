@@ -27,21 +27,21 @@ export function FirstFrameSignal({ onFirstFrame, frames = 2 }: FirstFrameSignalP
 }
 
 interface ArrivalCoverProps {
-  revealed: boolean;
+  isRevealed: boolean;
 }
 
-/** Canvas 밖에 둔다. 검게 덮고 있다가 revealed 면 걷히고, 다 걷히면 DOM 에서 빠진다(투명한 판이 클릭을 먹지 않게) */
-export function ArrivalCover({ revealed }: ArrivalCoverProps) {
+/** Canvas 밖에 둔다. 검게 덮고 있다가 isRevealed 면 걷히고, 다 걷히면 DOM 에서 빠진다(투명한 판이 클릭을 먹지 않게) */
+export function ArrivalCover({ isRevealed }: ArrivalCoverProps) {
   const [isDone, setIsDone] = useState(false);
 
   useEffect(() => {
-    if (!revealed || isDone) return undefined;
+    if (!isRevealed || isDone) return undefined;
     const timer = setTimeout(() => setIsDone(true), ARRIVAL_FADE_MS + 60);
     return () => clearTimeout(timer);
-  }, [revealed, isDone]);
+  }, [isRevealed, isDone]);
 
   if (isDone) return null;
-  return <div aria-hidden style={{ ...coverStyle, opacity: revealed ? 0 : 1 }} />;
+  return <div aria-hidden style={{ ...coverStyle, opacity: isRevealed ? 0 : 1 }} />;
 }
 
 const coverStyle: CSSProperties = {

@@ -72,7 +72,7 @@ interface OpeningPose {
   visible: boolean;
 }
 
-export function openingPose(t: number, motion: OpeningMotion = OPENING_MOTION): OpeningPose {
+export function computeOpeningPose(t: number, motion: OpeningMotion = OPENING_MOTION): OpeningPose {
   const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
   const progress = ([a, b]: Phase) => clamp01((t - a) / (b - a));
   const easeOut = (x: number) => 1 - Math.pow(1 - x, 3);
@@ -96,7 +96,7 @@ export function openingPose(t: number, motion: OpeningMotion = OPENING_MOTION): 
  * 쇠막대(피벗)를 제자리에 못 박은 채 몸만 돌리는 자리.
  * 피벗은 로컬 (0, pv, 0) 을 지나는 x 축 → 그룹 원점 = 피벗월드 − Rx(각)·피벗로컬, Rx·(0,pv,0) = (0, pv·cos, pv·sin).
  */
-export function openingPosition(
+export function computeOpeningPosition(
   pose: Pick<OpeningPose, "angle" | "slide" | "drop"> & Partial<Pick<OpeningPose, "up" | "forward">>,
   { x, y, z }: { x: number; y: number; z: number },
 ): [number, number, number] {

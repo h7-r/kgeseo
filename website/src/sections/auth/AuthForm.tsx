@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import ConsentGroup from "@/components/form/ConsentGroup";
 import InputLine, { type FieldBinding } from "@/components/form/InputLine";
-import { hairlineStyle, inputBoxStyle } from "@/components/form/styles";
+import { hairlineStyle, inputBoxStyle } from "@/components/form/formStyles";
 import SubmitButton, { Honeypot } from "@/components/form/SubmitButton";
 import TextField, { LabelRow, PasswordStrength } from "@/components/form/TextField";
 import RegionPicker from "@/components/RegionPicker";
@@ -24,7 +24,7 @@ import type { AuthMode } from "@/pages/AuthPage";
 import { authenticate, signUp } from "@/services/account/authApi";
 import { TEST_ACCOUNT_ENABLED, TEST_ACCOUNT_LOGIN } from "@/services/account/db";
 import { resetPassword } from "@/services/account/manageAccount";
-import { clearResetState, getResetState, issueResetCode, verifyResetCode } from "@/services/passwordReset";
+import { clearResetState, readResetState, issueResetCode, verifyResetCode } from "@/services/passwordReset";
 import { signIn } from "@/services/session";
 import { COLOR, GRADIENT, SHADOW, surfaceFillStyle } from "@/styles/tokens";
 
@@ -55,7 +55,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
   // 막혔던 화면으로 돌아가기. 사이트 안 주소만 받는다 — 아니면 열린 리다이렉트가 된다.
   const returnTo = safeNextPath(searchParams.get(QUERY.next));
   // 재설정 2·3단계는 1단계에서 적은 이메일을 이어받는다.
-  const carriedEmail = mode === "verifyCode" || mode === "resetPassword" ? getResetState()?.email : "";
+  const carriedEmail = mode === "verifyCode" || mode === "resetPassword" ? readResetState()?.email : "";
 
   // 시연용 테스트 계정은 미리 채워만 둔다. 로그인은 사람이 누른다. VITE_TEST_ACCOUNT=off 면 같이 꺼진다.
   const form = useForm({
@@ -123,7 +123,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
           }
         } else {
           // 주소를 직접 쳐서 인증 단계를 건너뛰지 못하게 한다.
-          const state = getResetState();
+          const state = readResetState();
           if (!state?.verified) {
             setAlertMessage("인증이 끝나지 않았거나 시간이 지났습니다. 비밀번호 찾기부터 다시 해 주세요.");
             return;
@@ -151,7 +151,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
   const bind = (name: FieldName): FieldBinding => ({ ...form.fieldProps(name), onEnter: submitOnEnter(handleSubmit) });
   const typo = mode !== "resetPassword" ? suggestEmailTypo(values.email) : "";
   const regionProps = form.fieldProps("region");
-  const resetState = getResetState();
+  const resetState = readResetState();
 
   return (
     <div
@@ -366,7 +366,7 @@ function AuthLink({ label, isBold = true, onClick }: { label: string; isBold?: b
   return (
     <button
       type="button"
-      className="link"
+      className="text-link"
       style={{ ...accentLinkStyle, fontWeight: isBold ? 700 : 400, cursor: "pointer" }}
       onClick={onClick}
     >

@@ -1,11 +1,11 @@
 import type { CSSProperties } from "react";
 
 import { FONT } from "@/lib/style";
-import { passwordStrength, type FieldName } from "@/lib/validation";
+import { computePasswordStrength, type FieldName } from "@/lib/validation";
 import { COLOR } from "@/styles/tokens";
 
 import InputLine, { type InputLineProps } from "./InputLine";
-import { fieldLabelStyle } from "./styles";
+import { fieldLabelStyle } from "./formStyles";
 
 interface TextFieldProps extends InputLineProps {
   label: string;
@@ -57,13 +57,13 @@ export function LabelRow({ label, name, error, typo, onFixTypo }: LabelRowProps)
     <div style={labelRowStyle}>
       <div style={{ ...fieldLabelStyle, flexShrink: 0 }}>{label}</div>
       {error ? (
-        <span id={`error-${name}`} className="field-error" role="alert" title={error}>
+        <span id={`error-${name}`} className="label-row__error" role="alert" title={error}>
           {error}
         </span>
       ) : typo ? (
         <button
           type="button"
-          className="typo-suggestion"
+          className="label-row__typo-fix"
           onMouseDown={(e) => e.preventDefault()}
           onClick={onFixTypo}
           style={{ fontFamily: FONT.mono }}
@@ -93,7 +93,7 @@ interface PasswordStrengthProps {
 
 /** 비밀번호 세기 막대 세 칸. */
 export function PasswordStrength({ password, style }: PasswordStrengthProps) {
-  const strength = passwordStrength(password);
+  const strength = computePasswordStrength(password);
   return (
     <div style={{ display: "flex", gap: "4px", width: "100%", ...style }}>
       {BAR_COLORS.map((color, i) => (

@@ -3,7 +3,7 @@ import { SUPPORT_TABS, type SupportTabId } from "@/data/support";
 import { useQueryTab } from "@/hooks/useQueryTab";
 import PageFooter from "@/layout/PageFooter";
 import { HEADER_HEIGHT, FOOTER_ALLOWANCE } from "@/lib/layout";
-import { SUPPORT_CONTENT_OFFSET, SUPPORT_CONTENT_PADDING } from "@/sections/support/styles";
+import { SUPPORT_CONTENT_OFFSET, SUPPORT_CONTENT_PADDING } from "@/sections/support/supportStyles";
 import SupportCenter from "@/sections/support/SupportCenter";
 
 /** 흰 면이 내용 칸 아래로 더 내려가는 길이 */

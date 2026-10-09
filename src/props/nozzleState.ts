@@ -13,7 +13,7 @@ import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 import { lobbyStore } from "@/lobby/interactions";
 
-import { heldCoin } from "./coinState";
+import { getHeldCoin } from "./coinState";
 
 /** cabinet — 소화전함 안 제자리 · hand — 들고 있음 · plugged — 배전반 구멍에 꽂힘 */
 export type NozzleLocation = "cabinet" | "hand" | "plugged";
@@ -22,11 +22,11 @@ const state: { location: NozzleLocation } = { location: "cabinet" };
 
 const signal = createChangeSignal();
 
-export const nozzleLocation = () => state.location;
+export const getNozzleLocation = () => state.location;
 
 /** 이미 뭔가 들고(끌고) 있나 — 관창을 집을 수 있는지의 기준. */
-export function handsBusy() {
-  if (heldCoin()) return true;
+export function isHoldingSomething() {
+  if (getHeldCoin()) return true;
   const lobby = lobbyStore.get();
   return !!lobby.heldItem || !!lobby.draggedChair;
 }
@@ -34,7 +34,7 @@ export function handsBusy() {
 /** 함 속이나 꽂힌 자리에서 집어 든다. */
 export function pickUpNozzle() {
   if (state.location === "hand") return false;
-  if (handsBusy()) return false;
+  if (isHoldingSomething()) return false;
   state.location = "hand";
   playSound("boxUp", { volume: 0.9 });
   signal.notify();
@@ -97,7 +97,7 @@ export function registerCabinetEnd(object: THREE.Object3D | null, forward: Vecto
   };
 }
 /** 움직이지 않는 기준점(관창 제자리) — 길이·한계 계산의 근거. */
-export function registerAnchor(x: number, y: number, z: number) {
+export function registerHoseAnchor(x: number, y: number, z: number) {
   anchors.anchor = [x, y, z];
 }
 /** 지금 화면에 있는 관창의 커플링(호스가 물리는 자리). */
@@ -135,11 +135,11 @@ export const useNozzle = () => {
 
 exposeDevHook("nozzle", {
   state,
-  nozzleLocation,
+  nozzleLocation: getNozzleLocation,
   pickUpNozzle,
   plugNozzle,
   resetNozzle,
-  handsBusy,
+  handsBusy: isHoldingSomething,
   hoseAnchors: anchors,
   isHoseTaut,
 });

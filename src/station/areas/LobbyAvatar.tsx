@@ -47,7 +47,7 @@ export default function LobbyAvatar({
           <LobbyChibi
             // 꺼진 씬(기차 안일 때의 역)에서는 믹서·IK·모프가 통째로 쉰다
             visible={isThirdPerson && enabled}
-            // 아바타 눈높이가 EYE 와 안 맞아 1인칭 몸은 아직 기본 꺼짐(「1인칭 몸」)
+            // 아바타 눈높이가 EYE_HEIGHT 와 안 맞아 1인칭 몸은 아직 기본 꺼짐(「1인칭 몸」)
             firstPersonBody={!isThirdPerson && showFirstPersonBody}
             playerRef={playerRef}
             config={chibiConfig}

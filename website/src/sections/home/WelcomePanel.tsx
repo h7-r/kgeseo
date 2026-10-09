@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
-import { glossStyle } from "@/components/form/styles";
+import { glossStyle } from "@/components/form/formStyles";
 import { FONT } from "@/lib/style";
 import { ROUTES, START_GAME, useSiteNavigate } from "@/navigation/routes";
 import { signOut, type SessionUser } from "@/services/session";
@@ -43,10 +43,10 @@ export default function WelcomePanel({ user }: WelcomePanelProps) {
   return (
     <div
       style={{ ...signupPanelStyle, display: "flex", flexDirection: "column", justifyContent: "center", gap: "24px" }}
-      className={`stagger${isActive ? " is-active" : ""}`}
+      className={`u-stagger${isActive ? " is-active" : ""}`}
     >
       {/* 모노의 넓은 자간이 한글에 걸리면 글자가 흩어져 보여 영문만 모노로 쓴다. */}
-      <div className="stagger-item" style={welcomeHeaderStyle}>
+      <div className="u-stagger__item" style={welcomeHeaderStyle}>
         <span style={onlineDotStyle} aria-hidden="true" />
         <span style={{ fontFamily: FONT.mono, letterSpacing: "2px" }}>WELCOME BACK</span>
         <span style={headerDividerStyle} aria-hidden="true" />
@@ -54,7 +54,10 @@ export default function WelcomePanel({ user }: WelcomePanelProps) {
         {user.isTest && <span style={testBadgeStyle}>테스트 계정</span>}
       </div>
 
-      <div className="stagger-item stagger-1" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+      <div
+        className="u-stagger__item u-stagger__item--step-1"
+        style={{ display: "flex", flexDirection: "column", gap: "4px" }}
+      >
         <div style={greetingStyle}>환영합니다,</div>
         <div style={{ display: "flex", alignItems: "baseline", gap: "10px", minWidth: 0 }}>
           <span style={nameStyle} title={user.name}>
@@ -65,7 +68,7 @@ export default function WelcomePanel({ user }: WelcomePanelProps) {
       </div>
 
       {/* 판 폭에서 어중간하게 꺾이지 않게 뜻 단위로 직접 줄을 나눈다. */}
-      <p className="stagger-item stagger-1" style={{ ...welcomeTextStyle, whiteSpace: "nowrap" }}>
+      <p className="u-stagger__item u-stagger__item--step-1" style={{ ...welcomeTextStyle, whiteSpace: "nowrap" }}>
         전설 속에 봉인된 첫 번째 사건이 조사관님을
         <br />
         기다리고 있습니다. 지역의 단서를 모아 봉인을 풀고,
@@ -73,7 +76,7 @@ export default function WelcomePanel({ user }: WelcomePanelProps) {
         잊혀진 이야기를 되찾아 주세요.
       </p>
 
-      <div className="stagger-item stagger-2" style={infoCardStyle}>
+      <div className="u-stagger__item u-stagger__item--step-2" style={infoCardStyle}>
         {infoItems.map(([label, value], i) => (
           <div key={label} style={{ ...infoCellStyle, ...(i ? { borderLeft: "1px solid rgba(50,82,150,0.22)" } : {}) }}>
             <span style={infoLabelStyle}>{label}</span>
@@ -82,28 +85,28 @@ export default function WelcomePanel({ user }: WelcomePanelProps) {
         ))}
       </div>
 
-      <div className="stagger-item stagger-3">
+      <div className="u-stagger__item u-stagger__item--step-3">
         <button
           type="button"
-          className="btn btn-sweep"
+          className="button button--primary"
           style={{ ...primaryButtonStyle, cursor: "pointer", wordSpacing: "inherit" }}
           onClick={() => navigate(START_GAME)}
         >
           <div style={glossStyle} />
-          <span className="btn__label" style={{ position: "relative", ...primaryLabelStyle }}>
+          <span className="button__label" style={{ position: "relative", ...primaryLabelStyle }}>
             모험 시작하기
           </span>
         </button>
 
         {/* 모노는 한글 띄어쓰기가 넓어 본문 글꼴을 쓴다. */}
         <div style={welcomeLinksStyle}>
-          <button type="button" className="link" style={textLinkStyle} onClick={() => navigate(ROUTES.myPage)}>
+          <button type="button" className="text-link" style={textLinkStyle} onClick={() => navigate(ROUTES.myPage)}>
             마이페이지에서 기록 보기 →
           </button>
           <span aria-hidden="true">·</span>
           <button
             type="button"
-            className="link"
+            className="text-link"
             style={{ ...textLinkStyle, color: COLOR.textSubtle }}
             onClick={signOut}
           >

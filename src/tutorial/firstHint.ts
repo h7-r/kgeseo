@@ -11,11 +11,11 @@ const NOTE_LINES: [text: string, tilt: number][] = [
   ["무척 좋아해!", 0.01],
 ];
 
-let cachedImage: string | null = null;
+let cachedNoteImageUrl: string | null = null;
 
 /** 찢어진 쪽지를 캔버스에 그려 PNG data URL 로 돌려준다. 한 번 그린 것을 계속 쓴다. */
-function drawNoteImage() {
-  if (cachedImage) return cachedImage;
+function makeNoteImageUrl() {
+  if (cachedNoteImageUrl) return cachedNoteImageUrl;
   if (typeof document === "undefined") return null;
   const S = CANVAS_SIZE;
   const canvas = document.createElement("canvas");
@@ -102,8 +102,8 @@ function drawNoteImage() {
   });
   g.restore();
 
-  cachedImage = canvas.toDataURL("image/png");
-  return cachedImage;
+  cachedNoteImageUrl = canvas.toDataURL("image/png");
+  return cachedNoteImageUrl;
 }
 
 // 바닥에 떨어진 실물이 없어 힌트함에서 버릴 수 없다.
@@ -117,7 +117,7 @@ const FIRST_HINT: Hint = {
 
 /** 튜토리얼이 끝나는 순간 부른다. 이미 넣었으면 아무 일도 안 한다. */
 export function giveFirstHint() {
-  const added = addHint({ ...FIRST_HINT, image: drawNoteImage() });
+  const added = addHint({ ...FIRST_HINT, image: makeNoteImageUrl() });
   if (added) flashHints();
   return added;
 }

@@ -2,13 +2,13 @@ import { useEffect, useMemo } from "react";
 import type * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { makeRandom } from "@/engine/random";
-import { wallTexture } from "@/engine/textures/surfaces";
+import { createRandom } from "@/engine/random";
+import { makeWallTexture } from "@/engine/textures/surfaces";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
 import RubbleStones, { type RubbleStone } from "./RubbleStones";
 import ShellOutline from "./ShellOutline";
-import { wallPieceGeometry } from "./wallPieceGeometry";
+import { buildWallPieceGeometry } from "./wallPieceGeometry";
 
 interface BrokenWallEndProps {
   /** 어느 벽인가 */
@@ -40,7 +40,7 @@ interface Band {
   d: number;
 }
 
-function mergeAll(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry | null {
+function mergeGeometryPieces(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry | null {
   if (!pieces.length) return null;
   if (pieces.length === 1) return pieces[0];
   const merged = mergeGeometries(pieces, false);
@@ -70,7 +70,7 @@ export default function BrokenWallEnd({
   outline,
 }: BrokenWallEndProps) {
   const { bands, rubble } = useMemo(() => {
-    const rnd = makeRandom(seed + 101);
+    const rnd = createRandom(seed + 101);
     const h = height / layers;
     // 기차가 지나간 높이(t≈0.45)가 가장 크게 헐렸으니 거기서 가장 짧게 되살린다.
     const bands: Band[] = Array.from({ length: layers }, (_, i) => {
@@ -102,7 +102,7 @@ export default function BrokenWallEnd({
     for (const band of bands) {
       if (band.d <= 0.05) continue; // 파먹힌 층은 기존 벽이 이미 있다
       const x = (flipped ? -1 : 1) * (endX + band.d / 2);
-      const piece = wallPieceGeometry({
+      const piece = buildWallPieceGeometry({
         width: band.d,
         height: band.h * 0.98,
         x,
@@ -112,7 +112,7 @@ export default function BrokenWallEnd({
       piece.translate(x, band.y, 0);
       (band.y < 4 ? lower : upper).push(piece);
     }
-    return { lower: mergeAll(lower), upper: mergeAll(upper) };
+    return { lower: mergeGeometryPieces(lower), upper: mergeGeometryPieces(upper) };
   }, [bands, endX, flipped]);
   useEffect(
     () => () => {
@@ -121,7 +121,7 @@ export default function BrokenWallEnd({
     },
     [bandGeometry],
   );
-  const texture = wallTexture(seed, wear);
+  const texture = makeWallTexture(seed, wear);
 
   return (
     <>

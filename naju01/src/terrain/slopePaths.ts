@@ -1,18 +1,18 @@
 // T1~T4 비탈길 — 길바닥·갓길·받침 비탈·길가 돌.
 // 판정(terrain)은 중심선에서 폭/2 안쪽을 길로 친다. 길바닥 폭은 도면 폭과 정확히 같게 두고
 // 갓길·비탈은 그 바깥으로만 낸다 — 보이는 길 위를 걷다가 갑자기 떨어지는 일이 없다.
-// 도면 중심선은 직각으로 꺾인다. 잘게 뽑아 이웃 방향을 평균 낸 선(extractCenterline)을 써야 꺾인 데서 면이 안 파고든다.
+// 도면 중심선은 직각으로 꺾인다. 잘게 뽑아 이웃 방향을 평균 낸 선(computeCenterline)을 써야 꺾인 데서 면이 안 파고든다.
 // 좌표·크기는 미터, 지오메트리만 유닛.
 
 import * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import { SHOULDER_DEFAULTS, UNITS_PER_METER } from "../plan/sitePlan";
-import { between, buildCutFace, EARTH_WALL_STYLE, paintCutFace, type BushSpot, type StoneSpot } from "./cliff";
+import { applyCutFaceColors, buildCutFace, EARTH_WALL_STYLE, linearStep, type BushSpot, type StoneSpot } from "./cliff";
 import type { HeightAt, Noise2D } from "./ground";
 // 중심선은 terrain 이 진실이다 — 그림이 판정과 같은 선을 봐야 보이는 길과 밟히는 길이 안 어긋난다
-import { extractCenterline, type CenterlinePoint, type MeasuredPath } from "./terrain";
+import { computeCenterline, type CenterlinePoint, type MeasuredPath } from "./terrain";
 
 export const PATH_STYLE = {
   packed: "#A2937A", // 밟혀 다져진 한가운데 — 밝고 마른 흙
@@ -24,7 +24,7 @@ export const PATH_STYLE = {
 // 비탈 색은 cliff 의 EARTH_WALL_STYLE — 절벽·바위 능선·길 비탈이 같은 칠하기 규칙을 타야 한 공간으로 보인다
 
 /** terrain 이 잰 통로(measuredPaths 한 칸). centerline 이 있으면 그것을, 없으면 새로 뽑는다. */
-type SlopePathInput = Parameters<typeof extractCenterline>[0] &
+type SlopePathInput = Parameters<typeof computeCenterline>[0] &
   Pick<MeasuredPath, "code" | "width" | "crevasse"> & { centerline?: CenterlinePoint[] };
 
 interface PathOptions {
@@ -42,7 +42,7 @@ interface PathOptions {
   strataThickness?: number;
   angularity?: number;
   noise: Noise2D;
-  groundHeight?: HeightAt;
+  heightAt?: HeightAt;
   /** 그 자리가 남의 걷는 길인가 — 비탈 치마가 다른 길 노면을 덮지 않게 */
   otherPathAt?: ((x: number, z: number) => boolean) | null;
 }
@@ -75,7 +75,7 @@ interface SkirtPoint {
 
 // 감기가 맞는 쪽은 통로 방향에 달려 도면을 고치면 또 뒤집힌다. 만들 때마다 재서 위를 보게 세운다.
 // 아래를 본 면은 위에서 컬링돼 안 보이다가 옆·아래에서 검은 면으로 튀어나온다.
-function faceUpward(geo: THREE.BufferGeometry) {
+function applyUpwardFacing(geo: THREE.BufferGeometry) {
   const n = geo.attributes.normal;
   let sum = 0;
   for (let i = 0; i < n.count; i++) sum += n.getY(i);
@@ -99,7 +99,7 @@ function faceUpward(geo: THREE.BufferGeometry) {
   return geo;
 }
 
-export function buildPaths({
+export function buildSlopePath({
   path,
   spacing = 0.4,
   shoulderWidth = 0.9,
@@ -110,10 +110,10 @@ export function buildPaths({
   strataThickness = 1.2,
   angularity = 0.7,
   noise,
-  groundHeight,
+  heightAt,
   otherPathAt = null,
 }: PathOptions) {
-  const line: CenterlinePoint[] = path.centerline ?? extractCenterline(path, spacing);
+  const line: CenterlinePoint[] = path.centerline ?? computeCenterline(path, spacing);
   const halfWidth = path.width / 2;
 
   const positions: number[] = [];
@@ -137,15 +137,15 @@ export function buildPaths({
     const x = p.x + p.nx * distance * Math.sign(u || 1);
     const z = p.z + p.nz * distance * Math.sign(u || 1);
     // 요철은 위로만 — 아래로도 주면 땅이 노면을 뚫고 나와 길에 구멍이 난 것처럼 보인다
-    const bump = (noise(x * 0.7, z * 0.7) * 0.5 + 0.5) * bumpiness * (1 - between(Math.abs(u), 0.8, 1));
+    const bump = (noise(x * 0.7, z * 0.7) * 0.5 + 0.5) * bumpiness * (1 - linearStep(Math.abs(u), 0.8, 1));
     // 요철 0 인 골에서도 땅보다 위에 있고 z-파이팅도 막게 더 띄운다. 갓길로 나가며 잦아들어 턱이 안 생긴다.
-    const raise = lift * (1 - between(Math.abs(u), 1, outerEdge));
+    const raise = lift * (1 - linearStep(Math.abs(u), 1, outerEdge));
     const design = p.y + bump + raise - shoulderDrop * Math.pow(outside / SHOULDER_DEFAULTS.reach, 1.5);
     // 갓길은 땅을 만나야 한다. 평평한 단면이면 산 쪽 갓길은 언덕에 묻히고 골 쪽은 허공에 뜬다.
     // 걷는 폭은 판정이 쓰는 설계 램프 그대로 두고, 갓길만 바깥으로 갈수록 그 자리 땅 높이로 옮겨 간다.
     let y = design;
-    if (outside > 0 && groundHeight) {
-      const ground = groundHeight(x, z);
+    if (outside > 0 && heightAt) {
+      const ground = heightAt(x, z);
       if (Number.isFinite(ground)) {
         // 제곱으로 눕혀 노면 쪽 이음매를 매끄럽게
         const share = Math.pow(outside / SHOULDER_DEFAULTS.reach, 1.4);
@@ -157,7 +157,7 @@ export function buildPaths({
 
   const colorAt = (q: RibbonPoint) => {
     if (q.outside > 0) {
-      c.copy(edge).lerp(shoulder, between(q.outside, 0, SHOULDER_DEFAULTS.reach));
+      c.copy(edge).lerp(shoulder, linearStep(q.outside, 0, SHOULDER_DEFAULTS.reach));
     } else {
       // 한가운데가 가장 많이 밟힌다
       const trodden = 1 - Math.pow(Math.abs(q.u), 1.6);
@@ -214,7 +214,7 @@ export function buildPaths({
   const skirtColors: number[] = [];
   const emitSkirt = (q: SkirtPoint) => {
     skirt.push(q.x * UNITS_PER_METER, q.y * UNITS_PER_METER, q.z * UNITS_PER_METER);
-    paintCutFace(
+    applyCutFaceColors(
       c,
       { layerIndex: q.layerIndex, d: q.d, t: q.t, below: q.below },
       {
@@ -236,8 +236,8 @@ export function buildPaths({
       const k = sideSign < 0 ? 0 : across.length - 1;
       const a = ribbonPoint(i, k);
       const b = ribbonPoint(i + 1, k);
-      const groundA = groundHeight ? groundHeight(a.x, a.z) : 0;
-      const groundB = groundHeight ? groundHeight(b.x, b.z) : 0;
+      const groundA = heightAt ? heightAt(a.x, a.z) : 0;
+      const groundB = heightAt ? heightAt(b.x, b.z) : 0;
       if (a.y - groundA < 0.15 && b.y - groundB < 0.15) continue; // 평지는 받칠 게 없다
       // 한 구간 안에서 높이차가 확 벌어지면(대지 가장자리) 거대한 삼각 지느러미가 선다 — 구역 바위가 덮는 자리다
       if (Math.abs(a.y - groundA - (b.y - groundB)) > 1.2) continue;
@@ -307,7 +307,7 @@ export function buildPaths({
   // 절벽(암반)과 길 비탈(흙)이 딱 잘려 보이는 게 이질감의 뿌리다. 같은 돌을 흩어 두 재질을 물려 넣는다.
   const decor: PathDecor = { rocks: [], bushes: [], crevasseRocks: [] };
   {
-    const random = makeRandom(path.code.charCodeAt(1) * 7919 + 12345);
+    const random = createRandom(path.code.charCodeAt(1) * 7919 + 12345);
     // 「바위틈」 — 걷는 폭 바깥 양옆에 큰 바위를 세워 좁은 틈으로 만든다
     if (path.crevasse) {
       const crevasse = path.crevasse;
@@ -323,7 +323,7 @@ export function buildPaths({
             x: bx,
             z: bz,
             // 밑동이 땅에 묻히게 — 더 띄우면 큰 돌이 뜬다
-            y: (groundHeight ? groundHeight(bx, bz) : 0) + size * 0.06,
+            y: (heightAt ? heightAt(bx, bz) : 0) + size * 0.06,
             size,
           });
         }
@@ -334,7 +334,7 @@ export function buildPaths({
       for (const sideSign of [-1, 1]) {
         const k = sideSign < 0 ? 0 : across.length - 1;
         const q = ribbonPoint(i, k);
-        const ground = groundHeight ? groundHeight(q.x, q.z) : 0;
+        const ground = heightAt ? heightAt(q.x, q.z) : 0;
         if (q.y - ground < 0.4) continue;
         const pick = random();
         const v = 0.15 + random() * 0.75; // 비탈 위 어디쯤
@@ -343,7 +343,7 @@ export function buildPaths({
         const z = q.z + q.p.nz * outward * sideSign;
         const y = q.y + (ground - q.y) * v;
         // 높이는 돌이 실제로 놓인 자리의 땅에서 다시 잰다 — 치마 보간 값을 쓰면 최대 5 m 떴다
-        const base = groundHeight ? groundHeight(x, z) : y;
+        const base = heightAt ? heightAt(x, z) : y;
         // 가파른 데는 바위, 완만한 데는 덤불
         if (pick < 0.34) {
           const size = 0.2 + Math.pow(random(), 2) * 1.1;
@@ -362,7 +362,7 @@ export function buildPaths({
   // three 가 속성 이름을 GLSL attribute 선언에 그대로 넣는다 — ASCII 여야 한다(groundGrain.ts 와 짝)
   pathGeo.setAttribute("pathGrain", new THREE.Float32BufferAttribute(pathGrain, 3));
   pathGeo.computeVertexNormals();
-  faceUpward(pathGeo);
+  applyUpwardFacing(pathGeo);
 
   let slopeGeo: THREE.BufferGeometry | null = null;
   if (skirt.length) {
@@ -380,21 +380,21 @@ interface RoadsideStoneOptions {
   seed: number;
   shoulderWidth?: number;
   /** 반드시 넘긴다 — 중심선 높이를 쓰면 옆으로 민 돌이 갓길·산허리 위 공중에 뜬다 */
-  groundHeight?: HeightAt;
+  heightAt?: HeightAt;
 }
 
 /**
  * 길 바깥(갓길 쪽)에만 놓는 길가 돌 자리. 길 위에 놓으면 걷다가 통과한다.
  * 인스턴스로 심으려고 자리만 뽑는다. 시드와 난수 순서가 손 배치(edits.json)에 묶여 있다.
  */
-export function roadsideStoneSpots({
+export function computeRoadsideStoneSpots({
   lines,
   density = 0.55,
   seed,
   shoulderWidth = 0.9,
-  groundHeight,
+  heightAt,
 }: RoadsideStoneOptions) {
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const spots: StoneSpot[] = [];
   for (const { centerline, halfWidth } of lines) {
     for (let i = 0; i < centerline.length; i++) {
@@ -412,7 +412,7 @@ export function roadsideStoneSpots({
       random();
       random();
       random();
-      const base = groundHeight ? groundHeight(x, z) : p.y;
+      const base = heightAt ? heightAt(x, z) : p.y;
       spots.push({ x, y: base - size * flatness * 0.35, z, size });
     }
   }

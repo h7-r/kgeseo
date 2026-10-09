@@ -62,7 +62,7 @@ export default function HeartbeatLine({
 
       <path d={path.d} fill="none" stroke={color} strokeWidth={strokeWidth} strokeOpacity={opacity} pathLength="100" />
       <path
-        className="pulse-glow"
+        className="heartbeat-line__glow"
         d={path.d}
         fill="none"
         stroke={glowColor}
@@ -73,7 +73,7 @@ export default function HeartbeatLine({
         style={timing}
       />
       <path
-        className="pulse-light"
+        className="heartbeat-line__pulse"
         d={path.d}
         fill="none"
         stroke={glowColor}

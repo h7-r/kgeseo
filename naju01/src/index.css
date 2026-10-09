@@ -26,13 +26,13 @@ body {
   width: 100%;
 }
 
-.stage {
+.game-stage {
   width: 100%; /* 100vw 가 아니라 100% — 위 주석 */
   height: 100vh;
 }
 
 /* ?stage=16x9 — 본편과 같은 16:9 레터박스(시야 검증용) */
-.stage.stage-16x9 {
+.game-stage.game-stage--16x9 {
   width: 100%;
   height: auto;
   max-width: 1280px;
@@ -40,14 +40,14 @@ body {
   margin: 0 auto;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
-body:has(.stage-16x9) {
+body:has(.game-stage--16x9) {
   display: grid;
   place-items: center;
   min-height: 100vh;
 }
 
 /* R3F 가 만든 canvas 가 무대를 꽉 채우도록 */
-.stage canvas {
+.game-stage canvas {
   display: block;
   width: 100% !important;
   height: 100% !important;

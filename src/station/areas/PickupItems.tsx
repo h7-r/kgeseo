@@ -1,16 +1,16 @@
 import { Suspense } from "react";
 
 import { Interactable } from "@/lobby/AimTracker";
-import { Highlight } from "@/lobby/Highlight";
-import { pickUp, type LobbyState } from "@/lobby/interactions";
-import { itemOnTop } from "@/lobby/placement";
-import { MeasureItem } from "@/lobby/PlacementViews";
-import { nozzleLocation } from "@/props/nozzleState";
+import { AimHighlight } from "@/lobby/AimHighlight";
+import { pickUpItem, type LobbyState } from "@/lobby/interactions";
+import { findItemOnTop } from "@/lobby/placement";
+import { MeasuredItem } from "@/lobby/ItemPlacement";
+import { getNozzleLocation } from "@/props/nozzleState";
 import { isWorkLampPuzzleHandFull } from "@/props/workLampPuzzle/workLampState";
 
 import type { HighlightValues } from "../controls/systemControls";
 import PickupItemModel, { type PickupLooks } from "./PickupItemModel";
-import { pickupSize, pickupSpot, type PickupItem, type PickupKind } from "./usePickupItems";
+import { getPickupSize, getPickupSpot, type PickupItem, type PickupKind } from "./usePickupItems";
 
 // 위에 물건을 올릴 수 있는 건 윗면이 평평한 것만 — 컵·모자·삼각 표지는 실제 윗면이 뾰족하거나 둥글어 허공에 걸쳐 보인다
 const FLAT_TOP_KINDS: ReadonlySet<PickupKind> = new Set(["laptop", "paper", "box", "collectionBox"]);
@@ -31,7 +31,7 @@ export default function PickupItems({ items, lobby, looks, highlight }: PickupIt
     <Suspense fallback={null}>
       {items.map((item) => {
         if (lobby.heldItem === item.id) return null;
-        const spot = pickupSpot(item, lobby.itemSpots);
+        const spot = getPickupSpot(item, lobby.itemSpots);
         const aimId = `pickup:${item.id}`;
         return (
           <group key={item.id}>
@@ -39,37 +39,40 @@ export default function PickupItems({ items, lobby, looks, highlight }: PickupIt
               id={aimId}
               radius={0.55}
               position={() => {
-                const c = pickupSpot(item, lobby.itemSpots);
+                const c = getPickupSpot(item, lobby.itemSpots);
                 return [c.x, c.y + 0.25, c.z];
               }}
               label={`[E] ${item.name} 들기`}
               disabled={() =>
-                !!lobby.heldItem || !!itemOnTop(item.id) || nozzleLocation() === "hand" || isWorkLampPuzzleHandFull()
+                !!lobby.heldItem ||
+                !!findItemOnTop(item.id) ||
+                getNozzleLocation() === "hand" ||
+                isWorkLampPuzzleHandFull()
               }
-              run={() => pickUp(item.id)}
+              run={() => pickUpItem(item.id)}
             />
             {/* 면 = 이 위에도 올린다 · 자리 = 겹침 검사 · 재기 = 발자국 크기 */}
-            <MeasureItem
+            <MeasuredItem
               id={item.id}
               isSurface={FLAT_TOP_KINDS.has(item.kind)}
               occupiesSpace
               isPickable
               baseY={spot.y}
-              remeasureKey={`${spot.x},${spot.y},${spot.z},${spot.rot},${pickupSize(item)},${looks.mug.size},${looks.laptop.size},${looks.evidenceSize},${looks.keyboard.size},${looks.keyboard.thickness},${looks.keyboard.depth},${looks.mouse.size}`}
+              remeasureKey={`${spot.x},${spot.y},${spot.z},${spot.rot},${getPickupSize(item)},${looks.mug.size},${looks.laptop.size},${looks.evidenceSize},${looks.keyboard.size},${looks.keyboard.thickness},${looks.keyboard.depth},${looks.mouse.size}`}
             >
-              <Highlight
+              <AimHighlight
                 id={aimId}
                 color={highlight.color}
                 strength={highlight.strength}
                 grow={highlight.grow}
                 anchor={() => {
-                  const c = pickupSpot(item, lobby.itemSpots);
+                  const c = getPickupSpot(item, lobby.itemSpots);
                   return [c.x, c.y, c.z];
                 }}
               >
                 <PickupItemModel item={item} spot={spot} looks={looks} isHatHanging={!lobby.itemSpots[item.id]} />
-              </Highlight>
-            </MeasureItem>
+              </AimHighlight>
+            </MeasuredItem>
           </group>
         );
       })}

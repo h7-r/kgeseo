@@ -1,7 +1,7 @@
 // 몸 모델 준비 중 메시·뼈를 훑는 부분 — 파츠 붙이기, 재질 복제·파츠 표식·밑창, IK·배율에 쓸 뼈 찾기.
 import * as THREE from "three";
 
-import { bothFistCenters } from "./fistCenter";
+import { computeFistCenters } from "./fistCenter";
 import type {
   BodyPart,
   Disposables,
@@ -125,7 +125,7 @@ export function collectMeshParts(model: THREE.Object3D, disposables: Disposables
   return { skinMaterials, parts, soles };
 }
 
-function bonesByName(skin: THREE.SkinnedMesh, names: string[]): THREE.Bone[] {
+function findBonesByName(skin: THREE.SkinnedMesh, names: string[]): THREE.Bone[] {
   return names.map((n) => skin.skeleton.getBoneByName(n)).filter((bone): bone is THREE.Bone => !!bone);
 }
 
@@ -164,24 +164,24 @@ export function findRigBones(
     .filter((leg): leg is Leg => !!leg);
   const pelvisBone = targetSkin.skeleton.getBoneByName("pelvis");
   // 신발을 신으면 발볼 뼈를 줄여 발가락을 신발 안으로 접는다.
-  const ballBones = bonesByName(targetSkin, ["ball_l", "ball_r"]);
+  const ballBones = findBonesByName(targetSkin, ["ball_l", "ball_r"]);
   // 신발을 신으면 발뼈를 foot_shrink 배율로 줄인다 — 신발은 그만큼 미리 키워 구워져 제 크기, 발만 작아진다.
-  const footBones = bonesByName(targetSkin, ["foot_l", "foot_r"]);
+  const footBones = findBonesByName(targetSkin, ["foot_l", "foot_r"]);
   const shrinkPart = shoeParts.find((m) => m.userData.foot_shrink);
   const shoeShrink = Number(shrinkPart?.userData.foot_shrink ?? 1);
   // 팔·다리 길이는 뿌리 뼈(위팔·허벅지)를 균등 배율로 줄인다 — 자식과 살이 함께 줄어든다.
   //   아래팔 위치만 당기면 위팔 살이 그대로라 팔꿈치에서 끊어져 보인다. 한 축만 줄이면 굽을 때 찌그러진다.
   //   손·발은 역배율로 되돌린다(제 크기 조절은 따로 있다).
-  const armRoots = bonesByName(targetSkin, ["upperarm_l", "upperarm_r"]);
-  const handBones = bonesByName(targetSkin, ["hand_l", "hand_r"]);
-  const legRoots = bonesByName(targetSkin, ["thigh_l", "thigh_r"]);
+  const armRoots = findBonesByName(targetSkin, ["upperarm_l", "upperarm_r"]);
+  const handBones = findBonesByName(targetSkin, ["hand_l", "hand_r"]);
+  const legRoots = findBonesByName(targetSkin, ["thigh_l", "thigh_r"]);
   // 어깨 폭 — 위팔 뼈의 쉴 때 위치에 배율. shoulderWidth 모프는 팔 정점까지 밀어 팔을 내리면 어깨가 처진다.
-  const shoulderBones = bonesByName(targetSkin, ["upperarm_l", "upperarm_r"]).map((bone) => ({
+  const shoulderBones = findBonesByName(targetSkin, ["upperarm_l", "upperarm_r"]).map((bone) => ({
     bone,
     rest: bone.position.clone(),
   }));
   // 손목 → 주먹 한가운데. 리그에서 재되 모델당 한 번만(fistCenter 의 캐시).
-  const palms = bothFistCenters(targetSkin);
+  const palms = computeFistCenters(targetSkin);
 
   // 물건 전용 소켓 뼈 — Synty 리그의 prop_l·prop_r. 스킨 웨이트 0 이고 모션 소스에 없어 어떤 클립에도
   // 안 덮이고 손을 따라다닌다. 손뼈 축(hand_r 로컬 +Y 가 세계 아래)을 물건마다 보정할 필요가 없다.

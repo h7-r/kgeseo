@@ -7,9 +7,9 @@ import {
   BackendError,
   createAnonymousSession,
   createPlaySession,
-  errorMessage,
-  getCaseBundle,
-  getPlaySession,
+  getErrorMessage,
+  loadCaseBundle,
+  loadPlaySession,
   submitInteraction,
   type CaseBundleResponse,
   type InteractionResult,
@@ -205,9 +205,9 @@ export function startPlaySession(caseId: string = PLAY_CONTRACT.caseId): Promise
       failedPhase = "restoreFailed";
       update({ phase: "restoring", error: null });
       try {
-        const play = await getPlaySession(record.playSessionId);
+        const play = await loadPlaySession(record.playSessionId);
         if (play.data.case_id === caseId && play.data.completed_at === null) {
-          const bundle = await getCaseBundle(caseId);
+          const bundle = await loadCaseBundle(caseId);
           assertBundle(bundle, caseId);
           update({
             phase: "restored",
@@ -229,7 +229,7 @@ export function startPlaySession(caseId: string = PLAY_CONTRACT.caseId): Promise
     }
 
     failedPhase = "prepareFailed";
-    const bundle = await getCaseBundle(caseId);
+    const bundle = await loadCaseBundle(caseId);
     assertBundle(bundle, caseId);
     const { anonymousSessionId, play } = await createFreshPlaySession(caseId, record);
     writeGuestPlay({ anonymousSessionId, playSessionId: play.data.play_session_id, caseId });
@@ -244,7 +244,7 @@ export function startPlaySession(caseId: string = PLAY_CONTRACT.caseId): Promise
     return play.data.play_session_id;
   })()
     .catch((error: unknown) => {
-      update({ phase: failedPhase, error: errorMessage(error) });
+      update({ phase: failedPhase, error: getErrorMessage(error) });
       throw error;
     })
     .finally(() => {
@@ -273,7 +273,7 @@ export function submitFireCabinetLock(answer: string): Promise<boolean> {
     });
 
     if (result.result_type === "correct" || result.result_type === "already_completed") {
-      const persisted = await getPlaySession(playSessionId);
+      const persisted = await loadPlaySession(playSessionId);
       update({
         phase: "correct",
         lastResult: result,
@@ -288,7 +288,7 @@ export function submitFireCabinetLock(answer: string): Promise<boolean> {
     return false;
   })()
     .catch((error: unknown) => {
-      update({ phase: "requestFailed", error: errorMessage(error) });
+      update({ phase: "requestFailed", error: getErrorMessage(error) });
       throw error;
     })
     .finally(() => {

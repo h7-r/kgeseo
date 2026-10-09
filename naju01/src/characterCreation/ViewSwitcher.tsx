@@ -12,7 +12,7 @@ const PREVIEW_VIEWS: readonly Option<PreviewView>[] = [
   ["feet", "발"],
 ];
 
-const segmentFrameStyle: CSSProperties = {
+const switcherFrameStyle: CSSProperties = {
   display: "flex",
   gap: 2,
   padding: 4,
@@ -21,7 +21,7 @@ const segmentFrameStyle: CSSProperties = {
   background: "rgba(8,9,11,0.7)",
   backdropFilter: "blur(10px)",
 };
-const segmentButtonStyle: CSSProperties = {
+const optionButtonStyle: CSSProperties = {
   appearance: "none",
   position: "relative", // 미끄러지는 상자 위로 글자가 오게
   zIndex: 1,
@@ -34,7 +34,7 @@ const segmentButtonStyle: CSSProperties = {
   cursor: "pointer",
   transition: `background ${MOTION.fast}, color ${MOTION.fast}`,
 };
-const segmentHighlightStyle: CSSProperties = {
+const optionHighlightStyle: CSSProperties = {
   position: "absolute",
   left: 0,
   top: 4,
@@ -56,10 +56,10 @@ interface ViewSwitcherProps {
  * 상자 하나가 움직여야 어디서 어디로 옮겼는지 눈이 따라간다. 자리는 단추의 실제 크기를 재서 맞춘다.
  */
 export default function ViewSwitcher({ selected, onSelect }: ViewSwitcherProps) {
-  const buttons = useRef<Partial<Record<PreviewView, HTMLButtonElement | null>>>({});
+  const buttonRefs = useRef<Partial<Record<PreviewView, HTMLButtonElement | null>>>({});
   const [highlight, setHighlight] = useState<{ x: number; w: number } | null>(null);
   useLayoutEffect(() => {
-    const element = buttons.current[selected];
+    const element = buttonRefs.current[selected];
     if (!element) {
       setHighlight(null);
       return;
@@ -67,11 +67,16 @@ export default function ViewSwitcher({ selected, onSelect }: ViewSwitcherProps) 
     setHighlight({ x: element.offsetLeft, w: element.offsetWidth });
   }, [selected]);
   return (
-    <div role="group" aria-label="보기" style={{ ...segmentFrameStyle, position: "relative", pointerEvents: "auto" }}>
+    <div
+      className="view-switcher"
+      role="group"
+      aria-label="보기"
+      style={{ ...switcherFrameStyle, position: "relative", pointerEvents: "auto" }}
+    >
       <span
         aria-hidden="true"
         style={{
-          ...segmentHighlightStyle,
+          ...optionHighlightStyle,
           opacity: highlight ? 1 : 0,
           transform: `translateX(${highlight?.x ?? 0}px)`,
           width: highlight?.w ?? 0,
@@ -83,13 +88,13 @@ export default function ViewSwitcher({ selected, onSelect }: ViewSwitcherProps) 
           <button
             key={view}
             ref={(element) => {
-              buttons.current[view] = element;
+              buttonRefs.current[view] = element;
             }}
             type="button"
-            className="cc-segment"
+            className="view-switcher__option"
             aria-pressed={isSelected}
             onClick={() => onSelect(view)}
-            style={{ ...segmentButtonStyle, color: isSelected ? "#fff" : COLORS.textMuted }}
+            style={{ ...optionButtonStyle, color: isSelected ? "#fff" : COLORS.textMuted }}
           >
             {label}
           </button>

@@ -6,11 +6,11 @@ import CanVendingMachine from "@/props/vending/CanVendingMachine";
 import CoffeeVendingMachine from "@/props/vending/CoffeeVendingMachine";
 import VendingPushCutscene from "@/props/vending/VendingPushCutscene";
 import type { CoffeeTemperature, VendingMachineState } from "@/props/vendingMachineState";
-import { pushOffset } from "@/props/vendingPush";
+import { getPushOffset } from "@/props/vendingPushState";
 import { VendingMachineCollider } from "@/station/layout/Colliders";
 
 import type { CorridorValues } from "../controls/corridorControls";
-import type { CoffeeVendingValues, DrinkVendingValues, VendingControls } from "../controls/vendingControls";
+import type { CoffeeVendingValues, DrinkVendingValues, VendingControlValues } from "../controls/vendingControls";
 
 /** 「비밀 복도 › 커피선택」 선택지 값(저장 데이터라 한글) → 온도 id. "없음" 이면 자판기 상태를 따른다. */
 const COFFEE_CHOICE: Record<string, CoffeeTemperature> = { 핫: "hot", 아이스: "iced" };
@@ -19,7 +19,7 @@ const COFFEE_CHOICE: Record<string, CoffeeTemperature> = { 핫: "hot", 아이스
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
 /** 몸통 선과 캔·버튼·배출구 같은 안쪽 선. 색만 다르다. */
-const machineOutline = (v: DrinkVendingValues | CoffeeVendingValues, color: string): OutlineValues => ({
+const getMachineOutline = (v: DrinkVendingValues | CoffeeVendingValues, color: string): OutlineValues => ({
   outline: v.outline,
   outlineWidth: v.outlineWidth,
   outlineColor: color,
@@ -30,7 +30,7 @@ const machineOutline = (v: DrinkVendingValues | CoffeeVendingValues, color: stri
 
 interface VendingAreaProps {
   corridor: CorridorValues;
-  vending: VendingControls;
+  vending: VendingControlValues;
   /** 컷신 카메라 높이의 기준(「시점(눈높이)」) */
   eyeHeight: number;
   brightnessAt: (z: number) => number;
@@ -81,7 +81,7 @@ export default function VendingArea({
           drinkZ + pushDistance / 2 - secretDoor.viewOffset,
         ]}
         lookAt={() => [drink.x, drink.y + drink.height * secretDoor.viewAim, drinkZ + pushDistance / 2]}
-        dustOrigin={() => [drink.x - corridor.vendingDepth / 2, drink.y + 0.12, drinkZ + pushOffset() * 0.5]}
+        dustOrigin={() => [drink.x - corridor.vendingDepth / 2, drink.y + 0.12, drinkZ + getPushOffset() * 0.5]}
         dustCount={secretDoor.dustCount}
         dustColor={secretDoor.dustColor}
         dustSize={secretDoor.dustSize}
@@ -138,8 +138,8 @@ export default function VendingArea({
             corridor.forcedCan >= 0 ? corridor.forcedCan : drinkMachine.dispensed >= 0 ? drinkMachine.dispensed : null
           }
           brightness={brightnessAt(drinkZ)}
-          outline={machineOutline(drink, drink.outlineColor)}
-          innerOutline={machineOutline(drink, drink.innerOutlineColor)}
+          outline={getMachineOutline(drink, drink.outlineColor)}
+          innerOutline={getMachineOutline(drink, drink.innerOutlineColor)}
         />
       </group>
       <CoffeeVendingMachine
@@ -165,8 +165,8 @@ export default function VendingArea({
         forcedDoorOpen={corridor.forcedCoffeeDoorOpen}
         doorOpenAngle={coffee.doorOpenAngle}
         brightness={brightnessAt(coffeeZ)}
-        outline={machineOutline(coffee, coffee.outlineColor)}
-        innerOutline={machineOutline(coffee, coffee.innerOutlineColor)}
+        outline={getMachineOutline(coffee, coffee.outlineColor)}
+        innerOutline={getMachineOutline(coffee, coffee.innerOutlineColor)}
       />
     </>
   );

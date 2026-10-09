@@ -1,23 +1,23 @@
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type * as THREE from "three";
 
-import { ASSET_CATALOG, assetPrototype } from "./assetCatalog";
+import { ASSET_CATALOG, getAssetPrototypes } from "./assetCatalog";
 import type { Selection } from "./editorConfig";
 import {
-  BRUSH_DROP_ID,
-  MORE_ID,
+  ASSET_TRAY_ID,
+  ASSET_TRAY_SCROLLBAR_CSS,
+  BRUSH_DROP_BUTTON_ID,
+  formatPanelHtml,
+  MORE_HINT_ID,
   PALETTE_TOGGLE_ID,
   PANEL_CSS,
   PANEL_ID,
+  PANEL_STYLE_ID,
   SAVE_BUTTON_ID,
-  STYLE_ID,
-  TRAY_DOWN_ID,
-  TRAY_ID,
-  TRAY_SCROLLBAR_CSS,
-  TRAY_UP_ID,
-  panelHtml,
-} from "./helpPanelHtml";
-import { bakeThumbnail } from "./thumbnails";
+  TRAY_DOWN_BUTTON_ID,
+  TRAY_UP_BUTTON_ID,
+} from "./editHelpPanelHtml";
+import { bakeThumbnails } from "./thumbnails";
 
 interface EditHelpPanelProps {
   notice: string;
@@ -79,7 +79,7 @@ export default function EditHelpPanel({
   useEffect(() => {
     if (!isOpen || thumbnails) return;
     // 한 프레임 넘기고 — 펼치는 순간 화면이 멈칫하지 않게
-    const timer = setTimeout(() => setThumbnails(bakeThumbnail(ASSET_CATALOG, assetPrototype, gl)), 0);
+    const timer = setTimeout(() => setThumbnails(bakeThumbnails(ASSET_CATALOG, getAssetPrototypes, gl)), 0);
     return () => clearTimeout(timer);
   }, [isOpen, thumbnails, gl]);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -101,8 +101,8 @@ export default function EditHelpPanel({
     document.body.appendChild(panel);
     panelRef.current = panel;
     const style = document.createElement("style");
-    style.id = STYLE_ID;
-    style.textContent = TRAY_SCROLLBAR_CSS;
+    style.id = PANEL_STYLE_ID;
+    style.textContent = ASSET_TRAY_SCROLLBAR_CSS;
     document.head.appendChild(style);
 
     const place = () => fitToVisualViewport(panel);
@@ -118,17 +118,17 @@ export default function EditHelpPanel({
         return;
       }
       // 한 줄(단추 한 칸 높이)씩 굴린다
-      const scroller = target.closest(`#${TRAY_UP_ID}, #${TRAY_DOWN_ID}`);
+      const scroller = target.closest(`#${TRAY_UP_BUTTON_ID}, #${TRAY_DOWN_BUTTON_ID}`);
       if (scroller) {
-        const tray = document.getElementById(TRAY_ID);
-        if (tray) tray.scrollTop += scroller.id === TRAY_UP_ID ? -78 : 78;
+        const tray = document.getElementById(ASSET_TRAY_ID);
+        if (tray) tray.scrollTop += scroller.id === TRAY_UP_BUTTON_ID ? -78 : 78;
         return;
       }
       if (target.closest(`#${PALETTE_TOGGLE_ID}`)) {
         setIsOpen((v) => !v);
         return;
       }
-      if (target.closest(`#${BRUSH_DROP_ID}`)) {
+      if (target.closest(`#${BRUSH_DROP_BUTTON_ID}`)) {
         setBrushRef.current?.(null);
         return;
       }
@@ -156,7 +156,7 @@ export default function EditHelpPanel({
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
-    panel.innerHTML = panelHtml({
+    panel.innerHTML = formatPanelHtml({
       notice,
       selected,
       hasUnsaved,
@@ -169,8 +169,8 @@ export default function EditHelpPanel({
       thumbnails,
     });
     // 그린 뒤에 재야 한다 — 그려지기 전엔 높이가 0 이다
-    const tray = panel.querySelector(`#${TRAY_ID}`);
-    const more = panel.querySelector(`#${MORE_ID}`);
+    const tray = panel.querySelector(`#${ASSET_TRAY_ID}`);
+    const more = panel.querySelector(`#${MORE_HINT_ID}`);
     if (tray && more && tray.scrollHeight > tray.clientHeight + 2) more.textContent = "  ↕ 굴려서 더 보기";
     // 내용이 바뀌면 판 높이가 달라진다 — 아래 12 px 을 다시 맞춘다
     placeRef.current?.();

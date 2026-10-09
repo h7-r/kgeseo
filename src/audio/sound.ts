@@ -60,7 +60,7 @@ function sfxOutput(ctx: AudioContext) {
   return master;
 }
 
-function getContext() {
+function getAudioContext() {
   if (!hasWindow) return null;
   if (!context) {
     const AudioContextClass: AudioContextConstructor | undefined =
@@ -72,7 +72,7 @@ function getContext() {
   return context;
 }
 
-function load(name: SoundName): Promise<AudioBuffer | null> {
+function loadSoundBuffer(name: SoundName): Promise<AudioBuffer | null> {
   const cached = buffers.get(name);
   if (cached) return Promise.resolve(cached);
   const pending = loading.get(name);
@@ -84,7 +84,7 @@ function load(name: SoundName): Promise<AudioBuffer | null> {
     .then(
       (data) =>
         new Promise<AudioBuffer | null>((resolve) => {
-          const ctx = getContext();
+          const ctx = getAudioContext();
           if (!ctx) {
             resolve(null);
             return;
@@ -107,16 +107,16 @@ function load(name: SoundName): Promise<AudioBuffer | null> {
 
 /** 모든 효과음을 미리 디코드한다. 사용자 입력 전에도 된다. */
 function preloadSounds() {
-  for (const name of Object.keys(SOUND_FILES) as SoundName[]) void load(name);
+  for (const name of Object.keys(SOUND_FILES) as SoundName[]) void loadSoundBuffer(name);
 }
 
 /** 한 번 재생(겹침 허용). 버퍼가 아직 없으면 불러오기만 하고 이번은 건너뛴다. */
 export function playSound(name: SoundName, { volume = 1, rate = 1 }: PlaySoundOptions = {}) {
-  const ctx = getContext();
+  const ctx = getAudioContext();
   if (!ctx) return null;
   const buffer = buffers.get(name);
   if (!buffer) {
-    void load(name);
+    void loadSoundBuffer(name);
     return null;
   }
   const source = ctx.createBufferSource();
@@ -134,11 +134,11 @@ const loops = new Map<SoundName, { source: AudioBufferSourceNode; gain: GainNode
 /** 반복 재생(발소리·물방울). 이미 돌고 있으면 그대로 둔다. */
 export function startLoop(name: SoundName, { volume = 1 }: LoopOptions = {}) {
   if (loops.has(name)) return;
-  const ctx = getContext();
+  const ctx = getAudioContext();
   if (!ctx) return;
   const buffer = buffers.get(name);
   if (!buffer) {
-    void load(name).then(() => startLoop(name, { volume }));
+    void loadSoundBuffer(name).then(() => startLoop(name, { volume }));
     return;
   }
   const source = ctx.createBufferSource();
@@ -166,7 +166,7 @@ export function stopLoop(name: SoundName) {
 if (hasWindow) {
   preloadSounds();
   const wake = () => {
-    getContext();
+    getAudioContext();
   };
   window.addEventListener("pointerdown", wake);
   window.addEventListener("keydown", wake);

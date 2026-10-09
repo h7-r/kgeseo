@@ -49,12 +49,12 @@ export default function ControlBar({
 
   return (
     <div className="player__controls">
-      <button type="button" className="player__btn" onClick={onTogglePlay} aria-label={playLabel} title={playLabel}>
+      <button type="button" className="player__button" onClick={onTogglePlay} aria-label={playLabel} title={playLabel}>
         <PlayerIcon name={hasEnded ? "replay" : isPlaying ? "pause" : "play"} />
       </button>
       <button
         type="button"
-        className="player__btn"
+        className="player__button"
         onClick={() => onSeekBy(-5)}
         aria-label="5초 뒤로 (←)"
         title="5초 뒤로 (←)"
@@ -63,7 +63,7 @@ export default function ControlBar({
       </button>
       <button
         type="button"
-        className="player__btn"
+        className="player__button"
         onClick={() => onSeekBy(5)}
         aria-label="5초 앞으로 (→)"
         title="5초 앞으로 (→)"
@@ -81,7 +81,7 @@ export default function ControlBar({
 
       <button
         type="button"
-        className="player__btn"
+        className="player__button"
         onClick={onToggleFullscreen}
         aria-label={fullscreenLabel}
         title={fullscreenLabel}
@@ -91,7 +91,7 @@ export default function ControlBar({
       {/* 축소 — 모달이 원래 자리로 줄어들고 그 자리에서 영상이 계속 흐른다. */}
       <button
         type="button"
-        className="player__btn player__btn--minimize"
+        className="player__button player__button--minimize"
         onClick={onClose}
         aria-label="축소해서 페이지로 돌아가기 (Esc)"
         title="축소 (Esc)"
@@ -115,7 +115,7 @@ function VolumeControl({ volumeLevel, onToggleMute, onChange }: VolumeControlPro
   const volumeStyle: CSSVars = { "--volume": volumeLevel };
   return (
     <div className="player__volume">
-      <button type="button" className="player__btn" onClick={onToggleMute} aria-label={muteLabel} title={muteLabel}>
+      <button type="button" className="player__button" onClick={onToggleMute} aria-label={muteLabel} title={muteLabel}>
         <PlayerIcon name={icon} />
       </button>
       <input

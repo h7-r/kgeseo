@@ -74,7 +74,7 @@ naju01/
     ├── story/            씬 1~5 단서 소품 · 왜곡 · 차단물 무너짐
     ├── placement/        인스턴스 무리 · 손 배치 파일 · 에셋 목록 · 편집기
     ├── models/           구운 모형 풀기 · 자연 모형 · baked/(도구가 만든 JSON)
-    ├── scene/            NajuScene — A-01 을 세운 씬(+ parts/)
+    ├── scene/            NajuScene — A-01 을 세운 씬(+ components/)
     ├── avatar/           치비·사이드킥 게임 아바타 · 모션 보정 · 툰 재질·외곽선 · 외형 옵션·패널
     ├── characterCreation/ 캐릭터 생성 화면·미리보기·카탈로그·이름 규칙
     └── transition/       로딩 영상 막 · 준비 검사

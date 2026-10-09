@@ -3,7 +3,7 @@ import { useState, type CSSProperties } from "react";
 import googleIcon from "@/assets/images/imgComponent1.svg";
 import ConsentGroup from "@/components/form/ConsentGroup";
 import InputLine, { type FieldBinding } from "@/components/form/InputLine";
-import { hairlineStyle, inputBoxStyle } from "@/components/form/styles";
+import { hairlineStyle, inputBoxStyle } from "@/components/form/formStyles";
 import SubmitButton, { Honeypot } from "@/components/form/SubmitButton";
 import TextField, { LabelRow, PasswordStrength } from "@/components/form/TextField";
 import RegionPicker from "@/components/RegionPicker";
@@ -236,7 +236,7 @@ export default function QuickSignup() {
         <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center" }}>
           <button
             type="button"
-            className="btn"
+            className="button"
             style={{ ...socialButtonStyle, background: COLOR.white, ...(isGoogleBusy ? busyStyle : {}) }}
             onClick={handleGoogle}
             title="Google 로 가입"
@@ -252,7 +252,7 @@ export default function QuickSignup() {
           </button>
           <button
             type="button"
-            className="btn"
+            className="button"
             style={{ ...socialButtonStyle, background: "#03c75a", borderColor: "#03c75a" }}
             onClick={() => setSocialMessage(startNaverLogin())}
             title="네이버로 가입"
@@ -270,7 +270,7 @@ export default function QuickSignup() {
           >
             이미 모험가이신가요?&nbsp;
           </span>
-          <button type="button" className="link" onClick={() => navigate(ROUTES.login)} style={loginLinkStyle}>
+          <button type="button" className="text-link" onClick={() => navigate(ROUTES.login)} style={loginLinkStyle}>
             로그인
           </button>
         </div>

@@ -4,7 +4,7 @@ import * as THREE from "three";
 
 import { claimCamera, releaseCamera } from "@/engine/camera";
 import { playerView } from "@/engine/playerView";
-import { endLockControl, lockControl } from "@/props/combinationLock";
+import { endLockControl, getLockControl } from "@/props/combinationLockState";
 
 const lockPoint = new THREE.Vector3();
 const approach = new THREE.Vector3();
@@ -42,14 +42,14 @@ export default function LockCloseUpCamera({ lockId, targetRef, distance }: LockC
         saved.current = null;
       }
       releaseCamera(lockId);
-      const control = lockControl();
+      const control = getLockControl();
       if (control && control.id === lockId) endLockControl();
     },
     [lockId, camera],
   );
 
   useFrame((_, dt) => {
-    const control = lockControl();
+    const control = getLockControl();
     const isActive = !!control && control.id === lockId && control.phase === "active";
     const target = targetRef.current;
     if (isActive && target) {

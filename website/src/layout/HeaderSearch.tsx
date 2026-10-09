@@ -16,36 +16,36 @@ interface HeaderSearchProps {
  * 빈 채로 바깥을 누르면 닫히지만 쓰다 만 글이 있으면 열어 둔다.
  */
 export default function HeaderSearch({ size = 22, onSubmit }: HeaderSearchProps) {
-  const [open, setOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
+    if (isOpen) inputRef.current?.focus();
+  }, [isOpen]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!isOpen) return;
     const handleMouseDown = (event: MouseEvent) => {
       if (rootRef.current?.contains(event.target as Node)) return;
       if (inputRef.current?.value.trim()) return;
-      setOpen(false);
+      setIsOpen(false);
     };
     document.addEventListener("mousedown", handleMouseDown);
     return () => document.removeEventListener("mousedown", handleMouseDown);
-  }, [open]);
+  }, [isOpen]);
 
   const handleIconClick = () => {
-    if (!open) {
-      setOpen(true);
+    if (!isOpen) {
+      setIsOpen(true);
       return;
     }
     const trimmed = query.trim();
     // 빈 채로 돋보기를 누르면 닫는다. 아무 일도 안 하면 고장으로 보인다.
     if (!trimmed) {
-      setOpen(false);
+      setIsOpen(false);
       return;
     }
     onSubmit?.(trimmed);
@@ -59,7 +59,7 @@ export default function HeaderSearch({ size = 22, onSubmit }: HeaderSearchProps)
       const trimmed = query.trim();
       if (trimmed) onSubmit?.(trimmed);
     } else if (event.key === "Escape") {
-      setOpen(false);
+      setIsOpen(false);
       setQuery("");
       // 입력 줄이 닫히며 탭 차례에서 빠지므로 초점을 연 단추로 돌려준다.
       buttonRef.current?.focus();
@@ -72,20 +72,20 @@ export default function HeaderSearch({ size = 22, onSubmit }: HeaderSearchProps)
       <div
         style={{
           ...fieldWrapStyle,
-          clipPath: open ? "inset(0 0 0 0)" : "inset(0 0 0 100%)",
-          opacity: open ? 1 : 0,
-          pointerEvents: open ? "auto" : "none",
+          clipPath: isOpen ? "inset(0 0 0 0)" : "inset(0 0 0 100%)",
+          opacity: isOpen ? 1 : 0,
+          pointerEvents: isOpen ? "auto" : "none",
         }}
       >
         <input
           ref={inputRef}
-          className="input header-search__input"
+          className="text-input header-search__input"
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={handleKeyDown}
           // 닫혀 있을 땐 보이지 않으니 탭 차례에서도 뺀다.
-          tabIndex={open ? 0 : -1}
+          tabIndex={isOpen ? 0 : -1}
           placeholder="무엇을 찾으세요?"
           aria-label="사이트 안에서 찾기"
           style={inputStyle}
@@ -96,8 +96,8 @@ export default function HeaderSearch({ size = 22, onSubmit }: HeaderSearchProps)
         ref={buttonRef}
         type="button"
         onClick={handleIconClick}
-        aria-label={open ? "찾기" : "검색 열기"}
-        aria-expanded={open}
+        aria-label={isOpen ? "찾기" : "검색 열기"}
+        aria-expanded={isOpen}
         style={iconButtonStyle}
       >
         <img src={searchIcon} alt="" style={{ width: `${size}px`, height: `${size}px`, display: "block" }} />
@@ -122,7 +122,7 @@ const inputStyle: CSSVars = {
   width: "240px",
   fontFamily: FONT.mono,
   fontSize: "16px",
-  "--hint-color": COLOR.textDim,
+  "--placeholder-color": COLOR.textDim,
 };
 
 const iconButtonStyle: CSSProperties = {

@@ -3,7 +3,7 @@ import { useEffect, useState, type RefObject } from "react";
 import type { AvatarLink } from "@/engine/avatarLink";
 import { requestShadowUpdates } from "@/engine/rendering";
 
-import { emptyEdits, getPrefetchedEdits, loadEdits } from "../placement/editFile";
+import { createEmptyEdits, getPrefetchedEdits, loadEdits } from "../placement/editFile";
 
 interface SceneModesOptions {
   active: boolean;
@@ -56,7 +56,7 @@ export function useSceneModes({ active, isThirdPerson, playerState }: SceneModes
 
   // 편집 층 — assets/edits.json 을 읽어 생성 결과 위에 덧씌운다.
   // 미리 읽어 뒀으면 첫 렌더부터 그 값으로 선다 — 빈 편집으로 무리를 세웠다가 통째로 다시 세우지 않게.
-  const [edits, setEdits] = useState(() => getPrefetchedEdits() ?? emptyEdits());
+  const [edits, setEdits] = useState(() => getPrefetchedEdits() ?? createEmptyEdits());
   useEffect(() => {
     if (getPrefetchedEdits()) return;
     let isAlive = true;

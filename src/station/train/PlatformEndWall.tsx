@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 import type { OutlineValues } from "@/engine/toon";
 
 import RubbleStones, { type RubbleStone } from "./RubbleStones";
@@ -64,7 +64,7 @@ export default function PlatformEndWall({
 }: PlatformEndWallProps) {
   const width = endX - startX;
   const { bars, stones } = useMemo(() => {
-    const rnd = makeRandom(seed + 313);
+    const rnd = createRandom(seed + 313);
     const w = width / strips;
     const bars = Array.from({ length: strips }, (_, i) => {
       const xc = startX + w * (i + 0.5);

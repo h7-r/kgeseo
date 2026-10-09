@@ -22,7 +22,7 @@ export default function AuthIntro() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
         <div style={{ ...headlineStyle, color: "#f1f7fc" }}>ESCAPE</div>
-        <div style={gradientHeadlineStyle} className="flow-text">
+        <div style={gradientHeadlineStyle} className="u-shine-text">
           {" THE LEGEND"}
         </div>
       </div>
@@ -47,11 +47,11 @@ export default function AuthIntro() {
       </div>
 
       <div style={{ display: "flex", gap: "16px", alignItems: "center", width: "100%" }}>
-        <button type="button" className="btn" style={filledButtonStyle} onClick={() => navigate(ROUTES.about)}>
-          <span className="btn__label">게임 소개</span>
+        <button type="button" className="button" style={filledButtonStyle} onClick={() => navigate(ROUTES.about)}>
+          <span className="button__label">게임 소개</span>
         </button>
-        <button type="button" className="btn" style={outlineButtonStyle} onClick={() => navigate(ROUTES.home)}>
-          <span className="btn__label">지역 탐험하기</span>
+        <button type="button" className="button" style={outlineButtonStyle} onClick={() => navigate(ROUTES.home)}>
+          <span className="button__label">지역 탐험하기</span>
         </button>
       </div>
     </div>

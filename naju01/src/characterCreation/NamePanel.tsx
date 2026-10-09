@@ -1,7 +1,7 @@
 import type { CSSProperties, Ref } from "react";
 
 import type { Option } from "../avatar/sidekickOptions";
-import { Group } from "./controls";
+import { SettingGroup } from "./controls";
 import type { NameRules } from "./nameRules";
 import { COLORS, FONTS, MOTION, SPACING, smallTextStyle, tileStyle } from "./styles";
 import type { NameStatusKind } from "./useNameCheck";
@@ -82,7 +82,7 @@ export default function NamePanel({
 }: NamePanelProps) {
   return (
     <>
-      <Group title="조사관 이름" aside={`${characterCount} / ${rules.max}자`}>
+      <SettingGroup title="조사관 이름" aside={`${characterCount} / ${rules.max}자`}>
         <div style={{ display: "flex", gap: SPACING.s }}>
           <input
             ref={inputRef}
@@ -106,7 +106,7 @@ export default function NamePanel({
           />
           <button
             type="button"
-            className="cc-tile"
+            className="character-creator__tile"
             style={{
               ...tileStyle,
               padding: "0 22px",
@@ -135,8 +135,8 @@ export default function NamePanel({
         >
           {message}
         </div>
-      </Group>
-      <Group title="조사관 정보">
+      </SettingGroup>
+      <SettingGroup title="조사관 정보">
         <div style={summaryGridStyle}>
           {summary.map(([label, value]) => (
             <div key={label} style={summaryRowStyle}>
@@ -145,7 +145,7 @@ export default function NamePanel({
             </div>
           ))}
         </div>
-      </Group>
+      </SettingGroup>
       {completeError ? <div style={{ ...messageStyle, color: COLORS.error }}>{completeError}</div> : null}
       {isCompleted ? (
         <div style={{ ...messageStyle, color: COLORS.success }}>캐릭터를 만들었습니다. 튜토리얼로 이동합니다.</div>

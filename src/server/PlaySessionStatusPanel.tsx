@@ -3,7 +3,7 @@ import { useEffect, type CSSProperties } from "react";
 
 import { PLAY_CONTRACT, PLAY_PHASE_LABELS, startPlaySession, usePlaySession } from "./playSession";
 
-function bootstrap() {
+function startDevPlaySession() {
   startPlaySession(PLAY_CONTRACT.caseId).catch((error: unknown) => {
     console.error("[Play Session] bootstrap 실패", error);
   });
@@ -13,7 +13,7 @@ export default function PlaySessionStatusPanel() {
   const status = usePlaySession();
 
   useEffect(() => {
-    bootstrap();
+    startDevPlaySession();
   }, []);
 
   const isCompleted = status.savedState?.completed_puzzle_ids.includes(PLAY_CONTRACT.puzzleId);
@@ -32,7 +32,7 @@ export default function PlaySessionStatusPanel() {
       )}
       {status.error && <span style={errorStyle}>{status.error}</span>}
       {status.error && (
-        <button type="button" style={retryStyle} onClick={bootstrap}>
+        <button type="button" style={retryStyle} onClick={startDevPlaySession}>
           다시 확인
         </button>
       )}

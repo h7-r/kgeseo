@@ -1,8 +1,13 @@
-import { MAX_Z, MIN_Z, ROOM_CZ, ROOM_H } from "@/station/layout/dimensions";
+import {
+  HEADQUARTERS_MAX_Z,
+  HEADQUARTERS_MIN_Z,
+  HEADQUARTERS_CENTER_Z,
+  HEADQUARTERS_H,
+} from "@/station/layout/dimensions";
 import PlatformExtension from "@/station/train/PlatformExtension";
 import TrainBackdrop from "@/station/train/TrainBackdrop";
 
-import type { SurfaceValues } from "../controls/roomControls";
+import type { SurfaceValues } from "../controls/headquartersControls";
 import type { BackdropValues } from "../controls/trainControls";
 
 interface BackdropAreaProps {
@@ -17,7 +22,7 @@ export default function BackdropArea({ backdrop: bg, surface }: BackdropAreaProp
       {bg.hasDarkPanel && (
         <TrainBackdrop
           x={bg.darkPanelDistance}
-          z={ROOM_CZ}
+          z={HEADQUARTERS_CENTER_Z}
           color={bg.darkColor}
           floorColor={bg.floorColor}
           floorY={bg.floorY}
@@ -28,9 +33,9 @@ export default function BackdropArea({ backdrop: bg, surface }: BackdropAreaProp
           startX={16}
           endX={bg.farWallX}
           // 기차(71유닛)가 방(26유닛) 밖으로 한참 빠져나가 앞뒤로 8유닛씩 더 길게 — 방 모서리 너머로 시선이 샌다
-          z0={MIN_Z - 8}
-          z1={MAX_Z + 8}
-          height={ROOM_H}
+          z0={HEADQUARTERS_MIN_Z - 8}
+          z1={HEADQUARTERS_MAX_Z + 8}
+          height={HEADQUARTERS_H}
           hasFarWall={bg.hasFarWall}
           hasCeiling={bg.hasCeiling}
           hasUtilities={bg.hasUtilities}

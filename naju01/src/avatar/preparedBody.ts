@@ -8,7 +8,7 @@ import { createClipLibrary, loadTripoSources } from "./chibiClipLibrary";
 import type { FistCenters } from "./fistCenter";
 import type { MeshAppearanceConfig } from "./meshAppearance";
 import { type CorrectionValues, DEFAULT_CORRECTION, TRIPO_CORRECTION } from "./motionCorrection";
-import { firstSkinnedMesh } from "./rig";
+import { findFirstSkinnedMesh } from "./rig";
 import { AUTO_MOTION } from "./sidekickOptions";
 
 export type Gender = "masculine" | "feminine";
@@ -24,7 +24,7 @@ export type ChibiAvatarConfig = Partial<MeshAppearanceConfig>;
 //   「플레이어가 안 움직인다」와 다른 말이다. 새 클립은 재고 넣을 것(3초 진폭 Idle_Loop 0.10mm · Walk_Loop 38mm).
 export const STATIONARY_CLIPS = new Set(["Idle_Loop"]);
 
-// meshy 는 착장마다 파일이 달라 meshBodyUrl 이 고른다. 여기는 chibi 몸체만.
+// meshy 는 착장마다 파일이 달라 getMeshBodyUrl 이 고른다. 여기는 chibi 몸체만.
 export const CHIBI_BODY_URLS: Record<Gender, string> = {
   masculine: "/models/chibi-male.glb",
   feminine: "/models/chibi-female.glb",
@@ -139,9 +139,9 @@ export function prepareBody(
   const model = clone(gltf.scene);
   const retargetModel = clone(gltf.scene);
   const source = clone(motionGltf.scene);
-  const targetSkin = firstSkinnedMesh(model);
-  const retargetSkin = firstSkinnedMesh(retargetModel);
-  const sourceSkin = firstSkinnedMesh(source);
+  const targetSkin = findFirstSkinnedMesh(model);
+  const retargetSkin = findFirstSkinnedMesh(retargetModel);
+  const sourceSkin = findFirstSkinnedMesh(source);
   if (!targetSkin || !retargetSkin || !sourceSkin)
     throw new Error("치비 몸 또는 모션 파일에서 스킨 리그를 찾지 못했습니다.");
   const tripo = loadTripoSources(tripoGltfs);

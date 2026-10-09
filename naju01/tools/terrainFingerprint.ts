@@ -78,7 +78,7 @@ function measureGrid(terrain: Terrain): GridResult {
 }
 
 /** 지형을 새로 만드는 비용(구역·통로 실측·중심선 다듬기)도 따로 잰다 */
-function measureCreate(options: TerrainOptions) {
+function measureTerrainCreation(options: TerrainOptions) {
   const startedAt = performance.now();
   const terrain = createTerrain(options);
   return { elapsedMs: Math.round(performance.now() - startedAt), terrain };
@@ -101,8 +101,8 @@ function measureNoise() {
 const noiseResult = measureNoise();
 
 // 색인을 끈 것과 켠 것을 같은 격자로 재서 지문과 시간을 견준다
-const legacyBuild = measureCreate({ useIndex: false });
-const indexedBuild = measureCreate({ useIndex: true });
+const legacyBuild = measureTerrainCreation({ useIndex: false });
+const indexedBuild = measureTerrainCreation({ useIndex: true });
 const legacy = measureGrid(legacyBuild.terrain);
 const indexed = measureGrid(indexedBuild.terrain);
 const indexedAgain = measureGrid(indexedBuild.terrain);

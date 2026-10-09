@@ -1,8 +1,8 @@
 import type { CSSProperties, ReactNode } from "react";
 
-import { useLock, useLockControl } from "@/props/combinationLock";
-import { heldDrink, useDrink } from "@/props/drinkState";
-import { PALETTE } from "@/station/layout/dimensions";
+import { useLock, useLockControl } from "@/props/combinationLockState";
+import { getHeldDrink, useDrink } from "@/props/drinkState";
+import { HEADQUARTERS_PALETTE } from "@/station/layout/dimensions";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 
 // 게임 화면 위에 얹는 작은 표시들. 모두 App 한 곳에서만 쓴다.
@@ -82,7 +82,7 @@ const actionHintStyle: CSSProperties = {
   transform: "translateX(-50%)",
   color: "#2C3444",
   font: "600 15px sans-serif",
-  background: PALETTE.gold,
+  background: HEADQUARTERS_PALETTE.gold,
   padding: "8px 16px",
   borderRadius: 20,
   pointerEvents: "none",
@@ -100,7 +100,7 @@ export function ActionHint({ near }: ActionHintProps) {
   // 판 번호만 구독한다. 집고 버리는 순간에만 바뀌어 자주 다시 그려지지 않는다.
   useDrink();
   const hint =
-    heldDrink()?.kind === "paper"
+    getHeldDrink()?.kind === "paper"
       ? "[H] 힌트함에 넣기   ·   [E] 내려놓기"
       : near === NEAR_TARGET.trainExit
         ? "[E] 기차에서 내리기"

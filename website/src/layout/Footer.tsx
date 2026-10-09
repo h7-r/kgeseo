@@ -19,7 +19,13 @@ export default function Footer() {
 
         <div style={linksStyle}>
           {FOOTER_LINKS.map(({ label, target }) => (
-            <button key={label} type="button" className="link" style={footerLinkStyle} onClick={() => navigate(target)}>
+            <button
+              key={label}
+              type="button"
+              className="text-link"
+              style={footerLinkStyle}
+              onClick={() => navigate(target)}
+            >
               {label}
             </button>
           ))}

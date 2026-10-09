@@ -4,8 +4,8 @@
  */
 import { useEffect, useState, type CSSProperties } from "react";
 
-import { useDispatchState } from "./dispatch";
-import { TUTORIAL_STEPS, toggleTutorialHidden, useTutorial } from "./tutorial";
+import { useDispatchState } from "./dispatchState";
+import { TUTORIAL_STEPS, toggleTutorialHidden, useTutorial } from "./tutorialState";
 
 const PUZZLE_COUNT = TUTORIAL_STEPS.filter((step) => step.puzzle).length;
 const CONTROL_STEP_COUNT = TUTORIAL_STEPS.findIndex((step) => step.puzzle);
@@ -92,9 +92,9 @@ export default function TutorialPanel({ covered = false }: TutorialPanelProps) {
         <div style={keyListStyle}>
           {current.keys.map(([keys, description], i) => (
             <div key={i} style={keyRowStyle}>
-              <span style={chipGroupStyle}>
+              <span style={keyCapGroupStyle}>
                 {keys.map((key) => (
-                  <kbd key={key} style={key.length > 2 ? wideChipStyle : chipStyle}>
+                  <kbd key={key} style={key.length > 2 ? wideKeyCapStyle : keyCapStyle}>
                     {key}
                   </kbd>
                 ))}
@@ -109,7 +109,7 @@ export default function TutorialPanel({ covered = false }: TutorialPanelProps) {
   );
 }
 
-const chipStyle: CSSProperties = {
+const keyCapStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   justifyContent: "center",
@@ -125,7 +125,7 @@ const chipStyle: CSSProperties = {
   boxShadow: "0 2px 0 #7f8a95, 0 3px 6px rgba(0,0,0,.35)",
 };
 
-const wideChipStyle: CSSProperties = { ...chipStyle, padding: "0 10px" };
+const wideKeyCapStyle: CSSProperties = { ...keyCapStyle, padding: "0 10px" };
 
 const panelStyle: CSSProperties = {
   position: "fixed",
@@ -177,7 +177,7 @@ const titleStyle: CSSProperties = { fontSize: 17, fontWeight: 700 };
 const textStyle: CSSProperties = { color: "#c9d4dd" };
 const keyListStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 7, marginTop: 10 };
 const keyRowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" };
-const chipGroupStyle: CSSProperties = { display: "inline-flex", gap: 5 };
+const keyCapGroupStyle: CSSProperties = { display: "inline-flex", gap: 5 };
 const descriptionStyle: CSSProperties = { color: "#e8eef3" };
 const footerStyle: CSSProperties = { marginTop: 8, fontSize: 11, color: "#7d8b97", textAlign: "right" };
 

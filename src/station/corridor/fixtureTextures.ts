@@ -1,16 +1,16 @@
 /** 복도 설비의 낡은 면 텍스처 — 형광등 확산판·문짝. */
-import { makeRandom } from "@/engine/random";
-import { cachedCanvasTexture } from "@/engine/textures/canvas";
+import { createRandom } from "@/engine/random";
+import { makeCachedCanvasTexture } from "@/engine/textures/canvas";
 
 /**
  * 형광등 확산판(우유빛 아크릴). 얼룩과 죽은 벌레 자국이 낡음을 가장 빨리 말해 준다.
  * planeGeometry(폭, 길이) 의 UV 세로가 긴 쪽이라 캔버스도 세로로 길어야 한다 — 가로로 그리면 얼룩이 나뭇결처럼 늘어난다.
  */
-export function fluorescentPanelTexture(seed = 1, grime = 1) {
-  return cachedCanvasTexture(
+export function makeFluorescentPanelTexture(seed = 1, grime = 1) {
+  return makeCachedCanvasTexture(
     `fluorescentPanel|${seed}|${grime.toFixed(2)}`,
     (g, W, H) => {
-      const rnd = makeRandom(seed * 977 + 13);
+      const rnd = createRandom(seed * 977 + 13);
       const A = (v: number) => Math.min(0.85, v * grime);
 
       // 바탕은 밝아야 한다. 등은 주변보다 밝아서 등으로 읽힌다.
@@ -250,11 +250,11 @@ export function fluorescentPanelTexture(seed = 1, grime = 1) {
  * 낡은 문짝. 낡음은 어둡게가 아니라 얼룩덜룩하게다 — 균일하게 어두우면 새 문을 어두운 데 둔 것으로 보인다.
  * 캔버스는 문 비율(폭 3 : 높이 6.4)에 맞춘 세로로 긴 256×544.
  */
-export function wornDoorTexture(seed = 1, grime = 1) {
-  return cachedCanvasTexture(
+export function makeWornDoorTexture(seed = 1, grime = 1) {
+  return makeCachedCanvasTexture(
     `wornDoor|${seed}|${grime.toFixed(2)}`,
     (g, W, H) => {
-      const rnd = makeRandom(seed * 613 + 29);
+      const rnd = createRandom(seed * 613 + 29);
       const A = (v: number) => Math.min(0.92, v * grime);
 
       g.fillStyle = "#9b968b";

@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import Stage from "@/components/Stage";
 import { submitOnEnter } from "@/hooks/useForm";
 import PageFooter from "@/layout/PageFooter";
-import { search } from "@/lib/searchIndex";
+import { searchSite } from "@/lib/searchIndex";
 import { FONT, gradientText, type CSSVars } from "@/lib/style";
 import { QUERY, useSiteNavigate } from "@/navigation/routes";
 import { COLOR, GRADIENT } from "@/styles/tokens";
@@ -27,7 +27,7 @@ export default function SearchPage() {
     setDraft(query);
   }
 
-  const results = useMemo(() => search(query), [query]);
+  const results = useMemo(() => searchSite(query), [query]);
 
   const runSearch = (next: string) => {
     const trimmed = next.trim();
@@ -46,7 +46,7 @@ export default function SearchPage() {
 
         <div style={searchRowStyle}>
           <input
-            className="input"
+            className="text-input"
             type="search"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
@@ -55,8 +55,8 @@ export default function SearchPage() {
             aria-label="다시 찾기"
             style={searchInputStyle}
           />
-          <button type="button" className="btn" style={searchButtonStyle} onClick={() => runSearch(draft)}>
-            <span className="btn__label">찾기</span>
+          <button type="button" className="button" style={searchButtonStyle} onClick={() => runSearch(draft)}>
+            <span className="button__label">찾기</span>
           </button>
         </div>
 
@@ -83,7 +83,7 @@ export default function SearchPage() {
               <button
                 key={`${result.path}-${i}`}
                 type="button"
-                className="list-row"
+                className="interactive-row"
                 style={resultRowStyle}
                 onClick={() => navigate(result.path)}
               >
@@ -112,7 +112,13 @@ export default function SearchPage() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", alignItems: "center", paddingTop: "8px" }}>
           <span style={{ fontFamily: FONT.mono, fontSize: "16px", color: COLOR.textSubtle }}>자주 찾는 말</span>
           {POPULAR_QUERIES.map((word) => (
-            <button key={word} type="button" className="tab" style={popularButtonStyle} onClick={() => runSearch(word)}>
+            <button
+              key={word}
+              type="button"
+              className="tab-button"
+              style={popularButtonStyle}
+              onClick={() => runSearch(word)}
+            >
               {word}
             </button>
           ))}
@@ -160,7 +166,7 @@ const searchRowStyle: CSSProperties = {
 const searchInputStyle: CSSVars = {
   fontFamily: FONT.mono,
   fontSize: "18px",
-  "--hint-color": COLOR.textDim,
+  "--placeholder-color": COLOR.textDim,
 };
 
 const searchButtonStyle: CSSProperties = {

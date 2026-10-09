@@ -13,7 +13,7 @@ export function requestShadowUpdates(seconds = 1.5) {
   shadowUrgentUntil = Math.max(shadowUrgentUntil, nowSeconds() + seconds);
 }
 
-interface ShadowManagerProps {
+interface ShadowMapUpdaterProps {
   /** 조용할 때 몇 프레임마다 한 번 다시 그릴지 */
   slowInterval?: number;
   /** 움직이는 동안 몇 프레임마다 다시 그릴지 */
@@ -22,7 +22,7 @@ interface ShadowManagerProps {
 }
 
 /** 그림자 맵 갱신을 관리한다. Canvas 안에 한 번만 놓는다. */
-export function ShadowManager({ slowInterval = 240, urgentInterval = 2, enabled = true }: ShadowManagerProps) {
+export function ShadowMapUpdater({ slowInterval = 240, urgentInterval = 2, enabled = true }: ShadowMapUpdaterProps) {
   const { gl } = useThree();
   const frameCount = useRef(0);
   const lastUpdate = useRef(-999);

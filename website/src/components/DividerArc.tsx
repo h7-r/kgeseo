@@ -71,7 +71,7 @@ export default function DividerArc({ centerX, top, height }: DividerArcProps) {
 
       {/* 호를 따라 내려가는 빛. 한 겹이면 흐릿하고 굵게만 하면 바탕선과 색이 따로 놀아 두 겹을 겹친다. */}
       <path
-        className="arc-glow"
+        className="divider-arc__glow"
         d={d}
         fill="none"
         stroke="#aab6d3"
@@ -82,7 +82,7 @@ export default function DividerArc({ centerX, top, height }: DividerArcProps) {
         style={{ opacity: 0.85 }}
       />
       <path
-        className="arc-glow"
+        className="divider-arc__glow"
         d={d}
         fill="none"
         stroke="#f2f8ff"

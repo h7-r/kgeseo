@@ -18,14 +18,14 @@ const perspectiveStyle: CSSProperties = { perspective: "900px", perspectiveOrigi
  * 낱말마다 transform 을 걸면 background-clip: text 글자가 낱말별로 합성돼 통째로 사라져서 줄 전체를 세운다.
  */
 export default function RisingText({ text, style, className, textClassName }: RisingTextProps) {
-  const [ref, visible] = useReveal<HTMLSpanElement>("0px 0px 30% 0px");
-  const wordClass = `rise-word${visible ? " is-standing" : ""}`;
+  const [ref, isVisible] = useReveal<HTMLSpanElement>("0px 0px 30% 0px");
+  const lineClass = `rising-text__line${isVisible ? " is-visible" : ""}`;
 
   return (
     <div className={className} style={perspectiveStyle}>
       <span
         ref={ref}
-        className={`${wordClass}${textClassName ? ` ${textClassName}` : ""}`}
+        className={`${lineClass}${textClassName ? ` ${textClassName}` : ""}`}
         style={{ ...style, display: "inline-block" }}
       >
         {text}

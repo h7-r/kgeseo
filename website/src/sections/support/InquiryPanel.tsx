@@ -6,8 +6,8 @@ import { hasNoErrors, validateFields, type FieldErrors, type FieldName, type For
 import { COLOR, SHADOW } from "@/styles/tokens";
 
 import InquiryField from "./InquiryField";
-import { PanelHeading } from "./PanelParts";
-import { ACTIVE_TAB_BACKGROUND, labelStyle } from "./styles";
+import PanelHeading from "./PanelHeading";
+import { ACTIVE_TAB_BACKGROUND, labelStyle } from "./supportStyles";
 
 const INQUIRY_FIELDS: readonly FieldName[] = ["inquiryType", "title", "content", "email"];
 
@@ -22,7 +22,7 @@ export default function InquiryPanel() {
   const [values, setValues] = useState<FormValues>({});
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitted, setSubmitted] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [isSent, setIsSent] = useState(false);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [fileError, setFileError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -39,7 +39,7 @@ export default function InquiryPanel() {
     const nextErrors = validateFields(INQUIRY_FIELDS, values);
     setErrors(nextErrors);
     // 보낼 서버가 아직 없어 접수됐다는 표시만 남긴다.
-    if (hasNoErrors(nextErrors)) setSent(true);
+    if (hasNoErrors(nextErrors)) setIsSent(true);
   };
 
   const fieldProps = (name: FieldName) => ({
@@ -128,7 +128,7 @@ export default function InquiryPanel() {
               {attachment && (
                 <button
                   type="button"
-                  className="link"
+                  className="text-link"
                   style={clearButtonStyle}
                   onClick={(event) => {
                     // 라벨 안이라 막지 않으면 파일 고르는 창이 다시 열린다.
@@ -153,8 +153,8 @@ export default function InquiryPanel() {
           </div>
 
           <InquiryField label="이메일" placeholder="답변 받으실 이메일 주소" {...fieldProps("email")} />
-          <button type="button" className="btn" style={submitButtonStyle} onClick={handleSubmit}>
-            <span className="btn__label">{sent ? "접수되었습니다 ✓" : "문의 접수하기"}</span>
+          <button type="button" className="button" style={submitButtonStyle} onClick={handleSubmit}>
+            <span className="button__label">{isSent ? "접수되었습니다 ✓" : "문의 접수하기"}</span>
           </button>
         </div>
 

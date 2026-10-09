@@ -4,7 +4,7 @@ import mokpoPhoto from "@/assets/images/imgBg.webp";
 import suncheonPhoto from "@/assets/images/imgBg1.webp";
 import yeosuPhoto from "@/assets/images/imgBg2.webp";
 import { VIDEOS, type Video } from "@/data/videos";
-import { approachClass, useReveal, useTilt } from "@/hooks/motion";
+import { depthRevealClass, useReveal, useTilt } from "@/hooks/motion";
 import { useProximity } from "@/hooks/proximity";
 import { useVideoPreview } from "@/hooks/useVideoPreview";
 import { FONT, place } from "@/lib/style";
@@ -80,7 +80,7 @@ export default function ScenarioCards() {
 
       <button
         type="button"
-        className="card-arrow"
+        className="scenario-cards__arrow"
         style={{ ...place(115, 5808), ...arrowStyle }}
         onClick={() => rotate(1)}
         aria-label="이전 시나리오"
@@ -90,7 +90,7 @@ export default function ScenarioCards() {
       </button>
       <button
         type="button"
-        className="card-arrow"
+        className="scenario-cards__arrow"
         style={{ ...place(1750, 5808), ...arrowStyle }}
         onClick={() => rotate(-1)}
         aria-label="다음 시나리오"
@@ -106,7 +106,7 @@ type ScenarioCardProps = Omit<Scenario, "id">;
 /** 카드 한 장. 마우스를 따라 살짝 기울고, 스크롤로 떠오르고, 호버하면 영상이 흐른다. */
 function ScenarioCard({ slot, photo, video, region, name, stars, description }: ScenarioCardProps) {
   const { ref: tiltRef, onMouseMove: handleTiltMove, onMouseLeave: resetTilt } = useTilt(5);
-  const [revealRef, visible] = useReveal();
+  const [revealRef, isVisible] = useReveal();
   const proximityRef = useProximity(240);
   // 카드 모서리(16px × 화면 배율쯤)에서 커지기 시작한다.
   const preview = useVideoPreview(video, "12px");
@@ -114,7 +114,7 @@ function ScenarioCard({ slot, photo, video, region, name, stars, description }: 
   return (
     <div
       ref={revealRef}
-      className={`tilt-scene ${approachClass(visible)}`}
+      className={`u-tilt-scene ${depthRevealClass(isVisible)}`}
       style={{ ...slot, ...slotFrameStyle, transition: "left .6s var(--ease-smooth), top .6s var(--ease-smooth)" }}
     >
       <div
@@ -128,11 +128,11 @@ function ScenarioCard({ slot, photo, video, region, name, stars, description }: 
           resetTilt();
           preview.triggerProps.onMouseLeave?.(event);
         }}
-        className={`card tilt depth-scene proximity-inner${preview.hasVideo ? " preview-trigger" : ""}`}
+        className={`interactive-card u-tilt u-depth u-proximity-glow u-proximity-glow--inset${preview.hasVideo ? " preview-trigger" : ""}`}
         style={cardStyle}
       >
         {/* 사진을 한 겹 뒤로 물려 기울일 때 글보다 적게 움직이게 한다. 카드에 두께가 생긴다. */}
-        <div className="depth-back" style={{ position: "absolute", inset: 0 }}>
+        <div className="u-depth__back" style={{ position: "absolute", inset: 0 }}>
           {preview.videoProps ? (
             <video {...preview.videoProps} style={mediaStyle} />
           ) : (
@@ -142,9 +142,9 @@ function ScenarioCard({ slot, photo, video, region, name, stars, description }: 
         </div>
 
         <div style={fadeStyle} />
-        {preview.hasVideo && <PreviewBadge card />}
+        {preview.hasVideo && <PreviewBadge isOnCard />}
 
-        <div className="depth-front" style={textBoxStyle}>
+        <div className="u-depth__front" style={textBoxStyle}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
             <div
               style={{

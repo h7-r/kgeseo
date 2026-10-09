@@ -12,7 +12,7 @@ export const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
  */
 export const UNIT_PLANE = new THREE.PlaneGeometry(1, 1);
 
-export interface MergeBox {
+export interface BoxPiece {
   size: Vec3Tuple;
   position: Vec3Tuple;
   rotation?: Vec3Tuple;
@@ -23,7 +23,7 @@ export interface MergeBox {
 }
 
 /** 상자 여러 개를 지오 하나로 합친다 — 드로우콜을 줄이는 핵심 부품. */
-export function mergeBoxes(boxes: MergeBox[]): THREE.BufferGeometry | null {
+export function buildMergedBoxes(boxes: BoxPiece[]): THREE.BufferGeometry | null {
   if (!boxes.length) return null;
   const pieces = boxes.map((box) => {
     const geometry = new THREE.BoxGeometry(box.size[0], box.size[1], box.size[2]);

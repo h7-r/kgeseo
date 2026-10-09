@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
-import { outlineSchema, useSavedControls } from "@/engine/leva/savedControls";
-import { DESK_SPOTS, type DeskSpot } from "@/station/office/deskLayout";
+import { buildOutlineSchema, useSavedControls } from "@/engine/leva/savedControls";
+import { DESK_SPOTS, type DeskSpot } from "@/station/headquarters/deskLayout";
 
 // 수사본부실 가구 — 책상·의자·캐비닛·옷걸이와 모자·게시판 둘.
 
@@ -10,7 +10,7 @@ export function useDeskCommonControls() {
   return useSavedControls("책상(공통)", {
     size: { value: 2.2, min: 0.5, max: 5, step: 0.05, label: "크기" },
     lift: { value: -0.3, min: -2, max: 2, step: 0.02, label: "높이미세" },
-    ...outlineSchema({ crease: true, creaseAngle: 50 }),
+    ...buildOutlineSchema({ crease: true, creaseAngle: 50 }),
   });
 }
 
@@ -53,7 +53,7 @@ export function useChairControls() {
     size: { value: 1.03, min: 0.2, max: 3, step: 0.01, label: "크기" },
     color: { value: "#363b46", label: "색" },
     collidable: { value: true, label: "충돌" },
-    ...outlineSchema({ width: 2.0, color: "#1a1614", crease: true, creaseAngle: 65 }),
+    ...buildOutlineSchema({ width: 2.0, color: "#1a1614", crease: true, creaseAngle: 65 }),
   });
   // 기본값은 보정 없이 끄는 상태다.
   const drag = useSavedControls("의자 끌기", {
@@ -97,7 +97,7 @@ export function useCabinetControls() {
     wideOpen: { value: 0.14, min: 0, max: 0.25, step: 0.005, label: "많이열림" },
     showPapers: { value: true, label: "서류보이기" },
     drawerWear: { value: 1.0, min: 0, max: 2, step: 0.05, label: "서랍낡음" },
-    ...outlineSchema({ crease: true, creaseAngle: 40 }),
+    ...buildOutlineSchema({ crease: true, creaseAngle: 40 }),
   });
   const cabinet1 = useSavedControls("캐비닛1", cabinetSchema(-11.6, 10.2, 6511));
   const cabinet2 = useSavedControls("캐비닛2", cabinetSchema(-10.0, 10.2, 6145));
@@ -112,7 +112,7 @@ export function useCoatRackControls() {
     visible: { value: true, label: "보이기" },
     standColor: { value: "#33373c", label: "스탠드색" },
     standHeight: { value: 4.3, min: 3, max: 9, step: 0.05, label: "스탠드높이" },
-    ...outlineSchema({ crease: true, creaseAngle: 45 }),
+    ...buildOutlineSchema({ crease: true, creaseAngle: 45 }),
   });
   const rack1 = useSavedControls("옷걸이1", {
     x: { value: -18.5, min: -20, max: 20, step: 0.1 },
@@ -123,7 +123,7 @@ export function useCoatRackControls() {
   });
   // 선은 모자 공통 폴더에 둔다 — 모자가 늘어도 같이 쓴다
   const hatOutline = useSavedControls("모자(공통·선)", {
-    ...outlineSchema({ width: 3.0, color: "#312922", crease: true, creaseAngle: 30 }),
+    ...buildOutlineSchema({ width: 3.0, color: "#312922", crease: true, creaseAngle: 30 }),
   });
   const hat = useSavedControls("모자1(옷걸이)", {
     visible: { value: true, label: "보이기" },
@@ -154,7 +154,7 @@ export function useBoardControls() {
     rotation: { value: -2.9, min: -Math.PI, max: Math.PI, step: 0.01, label: "회전" },
     size: { value: 1.08, min: 0.3, max: 3, step: 0.01, label: "크기" },
     frameColor: { value: "#2B3137", label: "테두리색" },
-    ...outlineSchema({ crease: true, creaseAngle: 15 }),
+    ...buildOutlineSchema({ crease: true, creaseAngle: 15 }),
   });
   const whiteboard = useSavedControls("화이트보드", {
     x: { value: -3.6, min: -20, max: 20, step: 0.1 },
@@ -163,17 +163,17 @@ export function useBoardControls() {
     rotation: { value: -2.98, min: -Math.PI, max: Math.PI, step: 0.01, label: "회전" },
     size: { value: 1.1, min: 0.3, max: 3, step: 0.01, label: "크기" },
     frameColor: { value: "#2B3137", label: "테두리색" },
-    ...outlineSchema({ crease: false }),
+    ...buildOutlineSchema({ crease: false }),
   });
   return { pinBoard, whiteboard };
 }
 
 export type DeskCommonValues = ReturnType<typeof useDeskCommonControls>;
 export type DeskValues = ReturnType<typeof useDeskControls>[number];
-export type ChairControls = ReturnType<typeof useChairControls>;
-export type CabinetControls = ReturnType<typeof useCabinetControls>;
-export type CabinetCommonValues = CabinetControls["common"];
-export type CabinetValues = CabinetControls["cabinets"][number];
-export type CoatRackControls = ReturnType<typeof useCoatRackControls>;
-export type HatValues = CoatRackControls["hat"];
-export type BoardControls = ReturnType<typeof useBoardControls>;
+export type ChairControlValues = ReturnType<typeof useChairControls>;
+export type CabinetControlValues = ReturnType<typeof useCabinetControls>;
+export type CabinetCommonValues = CabinetControlValues["common"];
+export type CabinetValues = CabinetControlValues["cabinets"][number];
+export type CoatRackControlValues = ReturnType<typeof useCoatRackControls>;
+export type HatValues = CoatRackControlValues["hat"];
+export type BoardControlValues = ReturnType<typeof useBoardControls>;

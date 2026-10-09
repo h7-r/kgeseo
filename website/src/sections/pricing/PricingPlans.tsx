@@ -7,14 +7,14 @@ import { PRICING, type PlanName, type PricingPlan } from "@/data/pricing";
 import { FONT } from "@/lib/style";
 import { QUERY, ROUTES, useSiteNavigate, withQuery } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
-import { getAccountData, saveAccountData } from "@/services/account/manageAccount";
+import { readAccountData, writeAccountData } from "@/services/account/manageAccount";
 import { useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import BenefitsBlock from "./BenefitsBlock";
 import BlockHeader from "./BlockHeader";
 import PaymentBox from "./PaymentBox";
-import { pricingSectionStyle } from "./styles";
+import { pricingSectionStyle } from "./pricingStyles";
 
 const PLAN_BACKGROUNDS: Readonly<Record<PlanName, string>> = {
   BASIC: "linear-gradient(180deg, #070f2a 0%, #01040a 100%)",
@@ -63,15 +63,15 @@ export default function PricingPlans({ top }: PricingPlansProps) {
       navigate(withQuery(ROUTES.login, { [QUERY.next]: ROUTES.pricing }));
       return;
     }
-    const data = await getAccountData(user.email);
+    const data = await readAccountData(user.email);
     setIsAlertRequested(data?.settings.launchAlertPlan === plan.name);
     setSelectedPlan(plan);
   };
 
   const handleRequestAlert = async () => {
     if (!user || !selectedPlan) return;
-    const data = await getAccountData(user.email);
-    await saveAccountData(user.email, {
+    const data = await readAccountData(user.email);
+    await writeAccountData(user.email, {
       settings: { ...data?.settings, launchAlertPlan: selectedPlan.name, launchAlertAt: Date.now() },
     });
     setIsAlertRequested(true);
@@ -96,30 +96,30 @@ export default function PricingPlans({ top }: PricingPlansProps) {
           {PRICING.plans.map((plan, i) => {
             const slotIndex = (i + rotation) % planCount;
             const slot = SLOTS[slotIndex];
-            const active = slotIndex === CENTER_SLOT;
+            const isActive = slotIndex === CENTER_SLOT;
             return (
               <div
                 key={plan.name}
-                onClick={() => !active && rotate(CENTER_SLOT - slotIndex)}
+                onClick={() => !isActive && rotate(CENTER_SLOT - slotIndex)}
                 style={{
                   ...cardSlotStyle,
                   transform: `translate3d(${slot.x}px, ${slot.y}px, 0) scale(${slot.scale})`,
-                  zIndex: active ? 2 : 1,
-                  cursor: active ? "default" : "pointer",
+                  zIndex: isActive ? 2 : 1,
+                  cursor: isActive ? "default" : "pointer",
                 }}
               >
                 <div
-                  className={active ? "bob" : undefined}
+                  className={isActive ? "pricing-plans__card is-active" : "pricing-plans__card"}
                   style={{
                     ...cardStyle,
                     background: PLAN_BACKGROUNDS[plan.name],
-                    border: active ? "1.5px solid rgba(50,82,150,0.85)" : "1px solid rgba(46,72,137,0.2)",
-                    boxShadow: active
+                    border: isActive ? "1.5px solid rgba(50,82,150,0.85)" : "1px solid rgba(46,72,137,0.2)",
+                    boxShadow: isActive
                       ? "0 0 72px 10px rgba(46,72,137,0.32), 0 20px 52px 0 rgba(47,62,112,0.45)"
                       : "0 8px 24px 0 rgba(0,0,0,0.35)",
                     // 옆 카드는 한 겹 뒤로 물러나 가운데가 먼저 눈에 든다.
-                    opacity: active ? 1 : 0.7,
-                    filter: active ? "none" : "saturate(0.75) brightness(0.88)",
+                    opacity: isActive ? 1 : 0.7,
+                    filter: isActive ? "none" : "saturate(0.75) brightness(0.88)",
                   }}
                 >
                   <div
@@ -128,27 +128,27 @@ export default function PricingPlans({ top }: PricingPlansProps) {
                     <span style={{ fontFamily: FONT.display, fontSize: "32px", color: COLOR.textBright }}>
                       {plan.name}
                     </span>
-                    <span style={{ ...priceStyle, color: active ? "#9fb4ea" : COLOR.accent }}>{plan.price}</span>
+                    <span style={{ ...priceStyle, color: isActive ? "#9fb4ea" : COLOR.accent }}>{plan.price}</span>
                   </div>
                   {/* 가운데로 온 플랜은 글을 밝혀 회색에 묻히지 않게 한다. */}
-                  <div style={{ ...summaryStyle, color: active ? "#dfe5f2" : COLOR.textMuted }}>{plan.summary}</div>
+                  <div style={{ ...summaryStyle, color: isActive ? "#dfe5f2" : COLOR.textMuted }}>{plan.summary}</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px", flex: "1 0 auto" }}>
                     {plan.features.map((line) => (
-                      <span key={line} style={{ ...featureStyle, color: active ? "#eef2f8" : COLOR.textMuted }}>
+                      <span key={line} style={{ ...featureStyle, color: isActive ? "#eef2f8" : COLOR.textMuted }}>
                         {line}
                       </span>
                     ))}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                     {plan.extras.map((line) => (
-                      <span key={line} style={{ ...extraStyle, color: active ? "#c9d2e6" : COLOR.textMuted }}>
+                      <span key={line} style={{ ...extraStyle, color: isActive ? "#c9d2e6" : COLOR.textMuted }}>
                         {line}
                       </span>
                     ))}
                   </div>
 
                   {/* 334 짜리 위에 270 짜리를 겹쳐 가운데가 진해 보인다. */}
-                  {active && (
+                  {isActive && (
                     <div style={waveBoxStyle} aria-hidden="true">
                       <HeartbeatLine
                         shape="card"
@@ -174,11 +174,11 @@ export default function PricingPlans({ top }: PricingPlansProps) {
 
                   <button
                     type="button"
-                    className="btn btn-sweep"
+                    className="button button--primary"
                     style={subscribeButtonStyle}
                     onClick={(e) => handleSubscribe(e, plan)}
                   >
-                    <span className="btn__label">구독하기</span>
+                    <span className="button__label">구독하기</span>
                   </button>
                 </div>
               </div>
@@ -188,7 +188,7 @@ export default function PricingPlans({ top }: PricingPlansProps) {
           {/* 카드 바깥 여백(57px)에 들어간다. */}
           <button
             type="button"
-            className="plan-arrow"
+            className="pricing-plans__arrow"
             style={{ ...arrowStyle, left: "-3px" }}
             onClick={() => rotate(1)}
             aria-label="이전 플랜"
@@ -197,7 +197,7 @@ export default function PricingPlans({ top }: PricingPlansProps) {
           </button>
           <button
             type="button"
-            className="plan-arrow"
+            className="pricing-plans__arrow"
             style={{ ...arrowStyle, right: "-3px" }}
             onClick={() => rotate(-1)}
             aria-label="다음 플랜"
@@ -242,16 +242,21 @@ export default function PricingPlans({ top }: PricingPlansProps) {
               받는 곳 · {user?.email}
             </span>
             <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-              <button type="button" className="btn" style={modalSecondaryStyle} onClick={closeModal}>
-                <span className="btn__label">닫기</span>
+              <button type="button" className="button" style={modalSecondaryStyle} onClick={closeModal}>
+                <span className="button__label">닫기</span>
               </button>
               {isAlertRequested ? (
                 <span style={{ alignSelf: "center", fontFamily: FONT.body, fontWeight: 700, color: COLOR.success }}>
                   ✓ 오픈 알림 신청됨
                 </span>
               ) : (
-                <button type="button" className="btn btn-sweep" style={modalPrimaryStyle} onClick={handleRequestAlert}>
-                  <span className="btn__label">오픈 알림 신청</span>
+                <button
+                  type="button"
+                  className="button button--primary"
+                  style={modalPrimaryStyle}
+                  onClick={handleRequestAlert}
+                >
+                  <span className="button__label">오픈 알림 신청</span>
                 </button>
               )}
             </div>

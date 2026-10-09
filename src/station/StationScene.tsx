@@ -3,10 +3,10 @@ import type * as THREE from "three";
 
 import { IS_ZONE_CULLING_DISABLED } from "@/app/runtimeFlags";
 import type { AvatarLink } from "@/engine/avatarLink";
-import { pickOutline } from "@/engine/leva/savedControls";
+import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { PLAYER_RADIUS } from "@/engine/movement/constants";
 import { OutlineViewportSync } from "@/engine/outline";
-import { requestShadowUpdates, ShaderWarmup, ShadowManager } from "@/engine/rendering";
+import { requestShadowUpdates, ShaderWarmup, ShadowMapUpdater } from "@/engine/rendering";
 import type { OutlineValues } from "@/engine/toon";
 import { useLobbyState } from "@/lobby/interactions";
 import { registerItemSize, registerSurface, unregisterSurface } from "@/lobby/placement";
@@ -16,8 +16,13 @@ import { useDrink } from "@/props/drinkState";
 import { useNozzle } from "@/props/nozzleState";
 import { useVendingMachine } from "@/props/vendingMachineState";
 import { ColliderDebugView } from "@/station/layout/Colliders";
-import { blockedWithin } from "@/station/layout/collision";
-import { MAX_X, MAX_Z, MIN_X, MIN_Z } from "@/station/layout/dimensions";
+import { isBlockedWithin } from "@/station/layout/collision";
+import {
+  HEADQUARTERS_MAX_X,
+  HEADQUARTERS_MAX_Z,
+  HEADQUARTERS_MIN_X,
+  HEADQUARTERS_MIN_Z,
+} from "@/station/layout/dimensions";
 import type { NearTarget } from "@/station/layout/passage";
 import { enteredDoor, exitedTrain, trainDoors } from "@/station/layout/trainDoors";
 import { usePlayer, type ReturnPose } from "@/station/layout/usePlayer";
@@ -26,11 +31,16 @@ import DispatchPath from "@/tutorial/DispatchPath";
 
 import BackdropArea from "./areas/BackdropArea";
 import CorridorArea from "./areas/CorridorArea";
-import { useCorridorBrightness, useCorridorSync, useWallCabinetDoors, wallCabinetSpots } from "./areas/corridorHooks";
+import {
+  useCorridorBrightness,
+  useCorridorSync,
+  useWallCabinetDoors,
+  computeWallCabinetSpots,
+} from "./areas/corridorHooks";
 import HeldItemsLayer from "./areas/HeldItemsLayer";
 import LobbyAvatar from "./areas/LobbyAvatar";
 import type { PickupLooks } from "./areas/PickupItemModel";
-import StationRoom from "./areas/StationRoom";
+import HeadquartersArea from "./areas/HeadquartersArea";
 import TrainArea from "./areas/TrainArea";
 import { usePickupItems } from "./areas/usePickupItems";
 import { useHydrantControls, usePadlockControls, usePanelInteriorControls } from "./controls/corridorCabinetControls";
@@ -49,7 +59,7 @@ import {
   useKeyboardMouseControls,
   useLaptopControls,
   useMugControls,
-} from "./controls/officePropControls";
+} from "./controls/headquartersPropControls";
 import { usePaperControls } from "./controls/paperControls";
 import {
   useCeilingLightControls,
@@ -58,7 +68,7 @@ import {
   useLightingControls,
   useStructureOutlineControls,
   useSurfaceControls,
-} from "./controls/roomControls";
+} from "./controls/headquartersControls";
 import {
   useDebugPrintControls,
   useInteractionControls,
@@ -125,7 +135,13 @@ export default function StationScene({
     registerItemSize("coin", { halfX: 0.25, halfZ: 0.25, height: 0.08 });
   }, []);
   useEffect(() => {
-    registerSurface("floor", { minX: MIN_X, maxX: MAX_X, minZ: MIN_Z, maxZ: MAX_Z, top: 0 });
+    registerSurface("floor", {
+      minX: HEADQUARTERS_MIN_X,
+      maxX: HEADQUARTERS_MAX_X,
+      minZ: HEADQUARTERS_MIN_Z,
+      maxZ: HEADQUARTERS_MAX_Z,
+      top: 0,
+    });
     return () => unregisterSurface("floor");
   }, []);
 
@@ -232,9 +248,9 @@ export default function StationScene({
     () => (corridor.visible ? { z: corridor.doorZ, width: corridor.doorWidth, height: corridor.doorHeight } : null),
     [corridor.visible, corridor.doorZ, corridor.doorWidth, corridor.doorHeight],
   );
-  const hoseBrightness = shading.brightnessAt(wallCabinetSpots(corridor).hydrant.z) * corridor.wallBrightness;
+  const hoseBrightness = shading.brightnessAt(computeWallCabinetSpots(corridor).hydrant.z) * corridor.wallBrightness;
 
-  const roomRef = useRef<THREE.Group>(null);
+  const headquartersRef = useRef<THREE.Group>(null);
   const corridorRef = useRef<THREE.Group>(null);
   const trainRef = useRef<THREE.Group>(null);
   const backdropRef = useRef<THREE.Group>(null);
@@ -272,7 +288,7 @@ export default function StationScene({
 
         <OutlineViewportSync />
         <ShaderWarmup enabled={performance.shaderWarmup} />
-        <ShadowManager
+        <ShadowMapUpdater
           enabled={performance.saveShadows}
           urgentInterval={performance.shadowInterval}
           slowInterval={performance.shadowSafetyInterval}
@@ -282,18 +298,18 @@ export default function StationScene({
         {/* 출동 화살표는 복도 그룹 밖 — 구역 컬링이 본부실에서 복도 그룹을 끈다 */}
         <DispatchPath
           findDoor={trainDoors.rightmost}
-          isBlocked={blockedWithin}
-          room={{
-            minX: MIN_X + PLAYER_RADIUS,
-            maxX: MAX_X - PLAYER_RADIUS,
-            minZ: MIN_Z + PLAYER_RADIUS,
-            maxZ: MAX_Z - PLAYER_RADIUS,
+          isBlocked={isBlockedWithin}
+          headquartersBounds={{
+            minX: HEADQUARTERS_MIN_X + PLAYER_RADIUS,
+            maxX: HEADQUARTERS_MAX_X - PLAYER_RADIUS,
+            minZ: HEADQUARTERS_MIN_Z + PLAYER_RADIUS,
+            maxZ: HEADQUARTERS_MAX_Z - PLAYER_RADIUS,
           }}
-          opening={[MIN_X + 1.2, corridor.doorZ]}
+          opening={[HEADQUARTERS_MIN_X + 1.2, corridor.doorZ]}
         />
         {/* 기차에 탄 동안은 돌리지 않는다 — 역이 통째로 안 보이는데 매 프레임 잴 필요가 없다 */}
         <ZoneCulling
-          room={roomRef}
+          headquarters={headquartersRef}
           corridor={corridorRef}
           train={trainRef}
           backdrop={backdropRef}
@@ -328,8 +344,8 @@ export default function StationScene({
           <TrainArea train={train} endWall={endWall} surface={surface} />
         </group>
 
-        <group ref={roomRef}>
-          <StationRoom
+        <group ref={headquartersRef}>
+          <HeadquartersArea
             lobby={lobby}
             ceilingLight={ceilingLight}
             deskLamps={deskLamps}
@@ -395,11 +411,11 @@ function usePickupLooks(
   { keyboard, mouse }: { keyboard: PickupLooks["keyboard"]; mouse: PickupLooks["mouse"] },
   laptop: PickupLooks["laptop"],
 ) {
-  const mugOutline = useMemo(() => pickOutline(mug), [mug]);
-  const evidenceOutline = useMemo(() => pickOutline(evidence), [evidence]);
-  const keyboardOutline = useMemo(() => pickOutline(keyboard), [keyboard]);
-  const mouseOutline = useMemo(() => pickOutline(mouse), [mouse]);
-  const laptopOutline = useMemo(() => pickOutline(laptop), [laptop]);
+  const mugOutline = useMemo(() => pickOutlineValues(mug), [mug]);
+  const evidenceOutline = useMemo(() => pickOutlineValues(evidence), [evidence]);
+  const keyboardOutline = useMemo(() => pickOutlineValues(keyboard), [keyboard]);
+  const mouseOutline = useMemo(() => pickOutlineValues(mouse), [mouse]);
+  const laptopOutline = useMemo(() => pickOutlineValues(laptop), [laptop]);
   return useMemo(
     () => ({
       mug,

@@ -11,10 +11,10 @@ import ToonMaterial from "@/props/shared/ToonMaterial";
 
 import { COFFEE_LIQUID_COLORS } from "./canLabels";
 import CoffeeDispenser from "./CoffeeDispenser";
-import { backPanelGeometry, bodyGeometry } from "./geometry";
+import { buildBackPanelGeometry, buildVendingBodyGeometry } from "./vendingGeometry";
 import PaymentPanel from "./PaymentPanel";
 import ProductButton from "./ProductButton";
-import { makeButtonLabelTexture, makePosterTexture, makeSignTexture } from "./textures";
+import { makeButtonLabelTexture, makePosterTexture, makeSignTexture } from "./vendingTextures";
 
 interface CoffeeMenuItem {
   /** 버튼 이름표에 보이는 글자 */
@@ -119,8 +119,8 @@ export default function CoffeeVendingMachine({
   const halfDepth = depth / 2;
   const frontZ = halfDepth - 0.02;
 
-  const body = useMemo(() => bodyGeometry({ width, height, depth, trim: TRIM }), [width, height, depth]);
-  const backPanel = useMemo(() => backPanelGeometry({ width, height, depth }), [width, height, depth]);
+  const body = useMemo(() => buildVendingBodyGeometry({ width, height, depth, trim: TRIM }), [width, height, depth]);
+  const backPanel = useMemo(() => buildBackPanelGeometry({ width, height, depth }), [width, height, depth]);
 
   // 위→아래: 포스터 / 버튼 / 종이컵 배출부 / 광고
   const ceiling = height - TRIM - 0.56;

@@ -7,10 +7,14 @@ import CombinationPadlock from "@/props/padlock/CombinationPadlock";
 import { submitFireCabinetLock } from "@/server/playSession";
 import WallCabinet from "@/station/corridor/WallCabinet";
 
-import type { HydrantControls, PadlockControls, PanelInteriorValues } from "../controls/corridorCabinetControls";
+import type {
+  HydrantControlValues,
+  PadlockControlValues,
+  PanelInteriorValues,
+} from "../controls/corridorCabinetControls";
 import type { CorridorValues } from "../controls/corridorControls";
 import type { HighlightValues } from "../controls/systemControls";
-import { wallCabinetSpots, type CorridorShading } from "./corridorHooks";
+import { computeWallCabinetSpots, type CorridorShading } from "./corridorHooks";
 
 /**
  * 두 함을 그리는 자리에만 더하는 올림 — 함 중심을 눈높이 가까이 올린다.
@@ -35,8 +39,8 @@ function splitOutline<T extends OutlineValues>(values: T) {
 interface CorridorCabinetsProps {
   corridor: CorridorValues;
   shading: CorridorShading;
-  hydrant: HydrantControls;
-  padlock: PadlockControls;
+  hydrant: HydrantControlValues;
+  padlock: PadlockControlValues;
   panelInterior: PanelInteriorValues;
   highlight: HighlightValues;
   /** 소화전 밑 배선관 끝이 밀리는 자판기를 따라가나(「자판기 비밀문」) */
@@ -58,7 +62,7 @@ export default function CorridorCabinets({
   isHydrantLocked,
 }: CorridorCabinetsProps) {
   const { outline, brightnessAt } = shading;
-  const spots = wallCabinetSpots(corridor);
+  const spots = computeWallCabinetSpots(corridor);
   const hydrantBrightness = brightnessAt(spots.hydrant.z) * corridor.wallBrightness;
 
   const [panelOutline, panelRest] = splitOutline(panelInterior);

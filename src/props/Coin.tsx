@@ -5,15 +5,15 @@ import type { Euler, Vector3Tuple } from "three";
 
 import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
-import { makeRandom } from "@/engine/random";
-import { cachedCanvasTexture } from "@/engine/textures/canvas";
+import { createRandom } from "@/engine/random";
+import { makeCachedCanvasTexture } from "@/engine/textures/canvas";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
 /** 동전 가운데 새긴 무늬. can 은 음료 자판기용, cup 은 커피 자판기용. */
 type CoinPattern = "star" | "keyhole" | "can" | "cup";
 
 // roundRect 가 없는 환경에서도 되게 arcTo 로 그린다
-function roundedRectPath(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius: number) {
+function traceRoundedRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius: number) {
   const r = Math.min(radius, w / 2, h / 2);
   g.beginPath();
   g.moveTo(x + r, y);
@@ -25,7 +25,7 @@ function roundedRectPath(g: CanvasRenderingContext2D, x: number, y: number, w: n
 }
 
 /** 가운데 심볼을 음각 느낌으로 새긴다. */
-function drawPattern(
+function drawCoinPattern(
   g: CanvasRenderingContext2D,
   cx: number,
   cy: number,
@@ -42,7 +42,7 @@ function drawPattern(
     const w = R * 0.5;
     const h = R * 0.98;
     const lidY = -h / 2;
-    roundedRectPath(g, -w / 2, lidY + R * 0.06, w, h - R * 0.06, w * 0.24);
+    traceRoundedRect(g, -w / 2, lidY + R * 0.06, w, h - R * 0.06, w * 0.24);
     g.fillStyle = dark;
     g.fill();
     g.beginPath();
@@ -137,11 +137,11 @@ function drawPattern(
 // 시드가 같으면 세월 얼룩·기스가 늘 같은 모양이라 캐시해 돌려 쓸 수 있다.
 const FACE_SEED = 3;
 
-function coinFaceTexture(pattern: CoinPattern, color: string, patternColor: string) {
-  return cachedCanvasTexture(
+function makeCoinFaceTexture(pattern: CoinPattern, color: string, patternColor: string) {
+  return makeCachedCanvasTexture(
     `coinFace|${pattern}:${color}:${patternColor}:${FACE_SEED}`,
     (g, S) => {
-      const rnd = makeRandom(FACE_SEED * 131 + 9);
+      const rnd = createRandom(FACE_SEED * 131 + 9);
       const cx = S / 2;
       const cy = S / 2;
       const R = S * 0.46;
@@ -186,7 +186,7 @@ function coinFaceTexture(pattern: CoinPattern, color: string, patternColor: stri
         g.fill();
       }
 
-      drawPattern(g, cx, cy, R * 0.9, pattern, deep, highlight);
+      drawCoinPattern(g, cx, cy, R * 0.9, pattern, deep, highlight);
 
       // 세월 — 옅은 얼룩·기스(원 안에서만)
       g.save();
@@ -221,8 +221,8 @@ function coinFaceTexture(pattern: CoinPattern, color: string, patternColor: stri
 }
 
 /** 옆면 빗살(세로 줄무늬). */
-function coinEdgeTexture(color: string) {
-  return cachedCanvasTexture(
+function makeCoinEdgeTexture(color: string) {
+  return makeCachedCanvasTexture(
     `coinEdge|${color}`,
     (g, W, H) => {
       g.fillStyle = scaleColor(color, 0.82);
@@ -284,8 +284,8 @@ export default function Coin({
 }: CoinProps) {
   const geometry = useMemo(() => new THREE.CylinderGeometry(radius, radius, thickness, 44, 1), [radius, thickness]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  const faceTexture = useMemo(() => coinFaceTexture(pattern, color, patternColor), [pattern, color, patternColor]);
-  const edgeTexture = useMemo(() => coinEdgeTexture(color), [color]);
+  const faceTexture = useMemo(() => makeCoinFaceTexture(pattern, color, patternColor), [pattern, color, patternColor]);
+  const edgeTexture = useMemo(() => makeCoinEdgeTexture(color), [color]);
 
   // 원통 그룹 순서: [옆면, 윗면, 아랫면]
   const materials = useMemo(

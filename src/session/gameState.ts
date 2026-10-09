@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { createChangeSignal } from "@/lib/changeSignal";
-import { server, type Progress } from "@/server/api";
+import { progressServer, type Progress } from "@/server/api";
 
 // 세션·진행 상태 상자(USR-110). 백엔드 계약용으로 남겨 두었고 아직 아무 화면도 쓰지 않는다.
 
@@ -80,7 +80,7 @@ export const useGameState = () => useSyncExternalStore(gameStateStore.subscribe,
  * 진행 상태로 첫 세션을 정한다(전역-002). 아바타가 없으면 캐릭터 생성, 있으면 로비.
  * 로비의 잠금 여부는 canEnterCase() 가 따로 판단한다.
  */
-export function resolveDestination(progress: Progress | null): Session {
+export function getStartSession(progress: Progress | null): Session {
   if (!progress || !progress.hasAvatar) return SESSIONS.characterCreation;
   return SESSIONS.lobby;
 }
@@ -92,10 +92,10 @@ export function canEnterCase(progress: Progress | null) {
 
 export const GATE_MESSAGE = "훈련실을 먼저 마쳐야 사건 현장에 들어갈 수 있습니다.";
 
-export async function boot() {
+export async function bootGameState() {
   try {
-    const progress = await server.getProgress();
-    setState({ progress, fetchFailed: false, session: resolveDestination(progress) });
+    const progress = await progressServer.getProgress();
+    setState({ progress, fetchFailed: false, session: getStartSession(progress) });
   } catch (error) {
     // 막아 세우면 아무것도 못 하므로 새 사람인 셈 치고 캐릭터 생성부터 보낸다.
     console.warn("[진행 상태] 조회 실패 → 게스트 신규로 취급합니다.", error);
@@ -116,9 +116,9 @@ export function moveToSession(target: Session) {
 export const dismissNotice = () => setState({ notice: null });
 
 /** 튜토리얼을 마쳤을 때 등 진행 상태를 서버에서 다시 받는다. */
-export async function reloadProgress() {
+export async function loadProgress() {
   try {
-    const progress = await server.getProgress();
+    const progress = await progressServer.getProgress();
     setState({ progress, fetchFailed: false });
     return progress;
   } catch {

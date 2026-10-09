@@ -1,15 +1,15 @@
 import { useEffect, useMemo } from "react";
 
-import { mergeBoxes, type MergeBox } from "@/engine/geometry";
+import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
 
 import type { PresentedControls } from "../app/presentation";
 import { CORE, SHOULDER_DEFAULTS, UNITS_PER_METER } from "../plan/sitePlan";
 import { createNoise } from "../terrain/ground";
-import { buildPaths, roadsideStoneSpots } from "../terrain/slopePaths";
-import { fenceSpots } from "../world/fences";
-import { roadsideBushSpots, scatterBushes } from "../world/vegetation";
-import type { PlanPoint } from "./parts/planPoint";
-import type { GroundLayer, Terrain } from "./useTerrainLayers";
+import { buildSlopePath, computeRoadsideStoneSpots } from "../terrain/slopePaths";
+import { computeFenceSpots } from "../world/fences";
+import { computeHillBushSpots, computeRoadsideBushSpots } from "../world/vegetation";
+import type { PlanPoint } from "./components/planPoint";
+import type { GroundShapes, Terrain } from "./useTerrainLayers";
 
 const U = UNITS_PER_METER;
 
@@ -17,23 +17,23 @@ export type PathShapes = ReturnType<typeof usePathShapes>;
 export type PathFallback = ReturnType<typeof usePathFallback>;
 
 /** 통로 T1~T4 — 걷는 폭은 도면 그대로, 갓길·비탈은 그 바깥으로만 낸다. */
-export function usePathShapes(T: PresentedControls, terrain: Terrain, ground: GroundLayer) {
+export function usePathShapes(controls: PresentedControls, terrain: Terrain, ground: GroundShapes) {
   const pathShapes = useMemo(() => {
-    if (!T.pathDetail) return null;
+    if (!controls.pathDetail) return null;
     const noise = createNoise(133707);
     // 비탈 발치가 닿을 땅 — 구역 고도(평평한 값)를 쓰면 요철 자리에서 비탈 끝이 뜨거나 묻힌다.
-    const groundHeight = (x: number, z: number) => ground.surface.heightAt(x, z);
+    const heightAt = (x: number, z: number) => ground.surface.heightAt(x, z);
     const built = terrain.measuredPaths.map((path) =>
-      buildPaths({
+      buildSlopePath({
         path,
-        shoulderWidth: T.shoulderWidth,
-        shoulderDrop: T.shoulderDrop,
+        shoulderWidth: controls.shoulderWidth,
+        shoulderDrop: controls.shoulderDrop,
         // 절벽과 같은 손잡이를 넘긴다 — 한 공간의 재질로 보이려면 함께 움직여야 한다.
-        slopeCarveDepth: T.slopeCarveDepth,
-        strataThickness: T.strataThickness * 0.65, // 흙비탈은 지층이 더 촘촘하다
-        angularity: T.angularity,
+        slopeCarveDepth: controls.slopeCarveDepth,
+        strataThickness: controls.strataThickness * 0.65, // 흙비탈은 지층이 더 촘촘하다
+        angularity: controls.angularity,
         noise,
-        groundHeight,
+        heightAt,
         // 비탈 치마가 다른 길을 덮지 않게 한다. 코드로 가르면 안 된다 — T4 스위치백은 위·아래 다리가 같은 T4 다.
         otherPathAt: (x, z) => {
           const sample = terrain.groundAt(x, z);
@@ -44,31 +44,31 @@ export function usePathShapes(T: PresentedControls, terrain: Terrain, ground: Gr
     return {
       built,
       // 절벽과 같은 돌을 비탈에 흩어 두 재질이 서로 물려 들어가게 한다
-      slopeRockSpots: T.slopeDecor ? built.flatMap((v) => v.decor.rocks) : [],
+      slopeRockSpots: controls.slopeDecor ? built.flatMap((v) => v.decor.rocks) : [],
       // 비탈 옆면은 기둥 없는 잎더미 자리 — 비스듬한 면에 기둥을 세우면 막대가 튀어나온다
-      slopeShrubSpots: T.slopeDecor ? built.flatMap((v) => v.decor.bushes) : [],
+      slopeShrubSpots: controls.slopeDecor ? built.flatMap((v) => v.decor.bushes) : [],
       // T1 「바위틈」 — 길 양옆의 큰 바위
       crevasseRockSpots: built.flatMap((v) => v.decor.crevasseRocks),
       // 지오메트리가 아니라 자리 — 길 위의 돌 하나를 집어 치울 수 있어야 한다
-      stoneSpots: roadsideStoneSpots({
+      stoneSpots: computeRoadsideStoneSpots({
         lines: built.map((v, i) => ({ centerline: v.centerline, halfWidth: terrain.measuredPaths[i].width / 2 })),
-        density: T.roadsideStones,
+        density: controls.roadsideStones,
         seed: 90211,
-        shoulderWidth: T.shoulderWidth,
-        groundHeight,
+        shoulderWidth: controls.shoulderWidth,
+        heightAt,
       }),
     };
   }, [
     terrain,
     ground,
-    T.pathDetail,
-    T.shoulderWidth,
-    T.shoulderDrop,
-    T.slopeCarveDepth,
-    T.strataThickness,
-    T.angularity,
-    T.roadsideStones,
-    T.slopeDecor,
+    controls.pathDetail,
+    controls.shoulderWidth,
+    controls.shoulderDrop,
+    controls.slopeCarveDepth,
+    controls.strataThickness,
+    controls.angularity,
+    controls.roadsideStones,
+    controls.slopeDecor,
   ]);
   useEffect(
     () => () => {
@@ -83,44 +83,52 @@ export function usePathShapes(T: PresentedControls, terrain: Terrain, ground: Gr
 }
 
 /** 길가 자리 — 낭떠러지 쪽 울타리, 길 양옆 수풀, 언덕 수풀. 전부 자리만 내고 인스턴스 무리가 심는다. */
-export function useWaysideSpots(T: PresentedControls, terrain: Terrain, ground: GroundLayer) {
+export function useRoadsideSpots(controls: PresentedControls, terrain: Terrain, ground: GroundShapes) {
   const { measuredPaths } = terrain;
   // 울타리는 낙차를 재서 세운다. 막지는 않는다(헛디디면 떨어지는 것이 이 공간의 사건이다).
   const fences = useMemo(() => {
-    if (!T.fences || !ground?.surface) return null;
-    return fenceSpots({
+    if (!controls.fences || !ground?.surface) return null;
+    return computeFenceSpots({
       measuredPaths,
-      groundHeight: (x, z) => ground.surface.heightAt(x, z),
-      minDrop: T.fenceMinDrop,
+      heightAt: (x, z) => ground.surface.heightAt(x, z),
+      minDrop: controls.fenceMinDrop,
     });
-  }, [T.fences, T.fenceMinDrop, measuredPaths, ground]);
+  }, [controls.fences, controls.fenceMinDrop, measuredPaths, ground]);
 
   // 실제 산길은 양옆이 가장 빽빽하다.
   const roadside = useMemo(() => {
-    if (!T.roadsideBushes) return null;
-    return roadsideBushSpots({
+    if (!controls.roadsideBushes) return null;
+    return computeRoadsideBushSpots({
       measuredPaths: terrain.measuredPaths,
       surface: ground.surface,
       terrain,
-      shoulderEdge: SHOULDER_DEFAULTS.reach * T.shoulderWidth,
-      margin: T.roadsideMargin,
-      band: T.roadsideBand,
-      spacing: T.roadsideDensity,
+      shoulderEdge: SHOULDER_DEFAULTS.reach * controls.shoulderWidth,
+      margin: controls.roadsideMargin,
+      band: controls.roadsideBand,
+      spacing: controls.roadsideDensity,
     });
-  }, [terrain, ground, T.roadsideBushes, T.roadsideMargin, T.roadsideBand, T.roadsideDensity, T.shoulderWidth]);
+  }, [
+    terrain,
+    ground,
+    controls.roadsideBushes,
+    controls.roadsideMargin,
+    controls.roadsideBand,
+    controls.roadsideDensity,
+    controls.shoulderWidth,
+  ]);
 
   const hill = useMemo(() => {
-    if (!T.hillVegetation) return null;
+    if (!controls.hillVegetation) return null;
     const noise = createNoise(818221);
-    return scatterBushes({
+    return computeHillBushSpots({
       terrain,
       surface: ground.surface,
       core: CORE,
-      treeCount: T.hillTreeCount,
-      shrubCount: T.hillShrubCount,
+      treeCount: controls.hillTreeCount,
+      shrubCount: controls.hillShrubCount,
       noise,
     });
-  }, [terrain, ground, T.hillVegetation, T.hillTreeCount, T.hillShrubCount]);
+  }, [terrain, ground, controls.hillVegetation, controls.hillTreeCount, controls.hillShrubCount]);
 
   return { fences, roadside, hill };
 }
@@ -145,7 +153,7 @@ export function usePathFallback(measuredPaths: Terrain["measuredPaths"]) {
 
   // 1.5 m 마다 상자를 세워 하나로 합친다(드로우콜 1).
   const embankment = useMemo(() => {
-    const boxes: MergeBox[] = [];
+    const boxes: BoxPiece[] = [];
     for (const t of measuredPaths) {
       if (t.rise === 0) continue; // 평지 통로(T1)는 받칠 것이 없다
       for (const s of t.segments) {
@@ -164,7 +172,7 @@ export function usePathFallback(measuredPaths: Terrain["measuredPaths"]) {
         }
       }
     }
-    return mergeBoxes(boxes);
+    return buildMergedBoxes(boxes);
   }, [measuredPaths]);
   useEffect(() => () => embankment?.dispose(), [embankment]);
 

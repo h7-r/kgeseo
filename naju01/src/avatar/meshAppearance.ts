@@ -70,25 +70,25 @@ export const MOTION_SOURCE_OPTIONS: readonly Option<MotionSource>[] = [
 
 type OutfitSelection = Pick<MeshAppearanceConfig, "gender" | "top" | "bottom">;
 
-function outfitCombo({ top, bottom }: OutfitSelection): string {
+function formatOutfitCombo({ top, bottom }: OutfitSelection): string {
   if (top >= 0 && bottom >= 0) return "both";
   if (top >= 0) return "top";
   if (bottom >= 0) return "bottom";
   return "base";
 }
 
-function genderFileSuffix(gender: AvatarGender): string {
+function getGenderFileSuffix(gender: AvatarGender): string {
   return gender === "feminine" ? "female" : "male";
 }
 
 // 신발은 몸 GLB 와 따로 굽는다(tools/meshy_fit_shoe.py). 착장마다 발 모양이 조금씩 달라 착장·성별 조합마다 한 파일이다.
-export function meshShoesUrl(config: OutfitSelection): string {
-  return `/models/shoes-${outfitCombo(config)}-${genderFileSuffix(config.gender)}.glb?v=${MESH_MODEL_VERSION}`;
+export function getMeshShoesUrl(config: OutfitSelection): string {
+  return `/models/shoes-${formatOutfitCombo(config)}-${getGenderFileSuffix(config.gender)}.glb?v=${MESH_MODEL_VERSION}`;
 }
 
 // 옷은 파츠를 얹지 않고 그 옷을 입은 전신 모델을 통째로 바꿔 끼운다 — 옷이 뜨거나 속살이 비치지 않는다.
-export function meshBodyUrl(config: OutfitSelection): string {
-  return `/models/meshy-${outfitCombo(config)}-${genderFileSuffix(config.gender)}.glb?v=${MESH_MODEL_VERSION}`;
+export function getMeshBodyUrl(config: OutfitSelection): string {
+  return `/models/meshy-${formatOutfitCombo(config)}-${getGenderFileSuffix(config.gender)}.glb?v=${MESH_MODEL_VERSION}`;
 }
 
 export type MeshSliderKey =

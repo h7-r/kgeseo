@@ -6,11 +6,11 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 import { UNITS_PER_METER, type Range } from "../plan/sitePlan";
 import type { WaterDistortion } from "../story/distortion";
-import { applyVertexColors, createRockShape, type Noise2D } from "../terrain/ground";
+import { applyVertexColors, buildRockShape, type Noise2D } from "../terrain/ground";
 
 const RIVER_STYLE = {
   shallow: "#6E8A86", // 물가 — 바닥이 비쳐 밝고 탁하다
@@ -151,9 +151,9 @@ interface RiverbankOptions {
 
 // 물가 선이 자로 그은 듯 곧으면 판을 잘라 붙인 것으로 보인다. 돌을 걸쳐 흐트러뜨린다.
 export function buildRiverbank({ x: X, zStart, width = 2.2, count, seed, canPlace }: RiverbankOptions) {
-  const random = makeRandom(seed);
+  const random = createRandom(seed);
   const shapes: THREE.BufferGeometry[] = [];
-  for (let i = 0; i < 4; i++) shapes.push(createRockShape(random));
+  for (let i = 0; i < 4; i++) shapes.push(buildRockShape(random));
   const pieces: THREE.BufferGeometry[] = [];
   const bright = new THREE.Color(RIVER_STYLE.bankStone);
   const dark = new THREE.Color(RIVER_STYLE.bankStoneDark);

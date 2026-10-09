@@ -23,19 +23,18 @@ function SubNav({ items, activeId, onSelect }: SubNavProps) {
   return (
     <nav aria-label="이 페이지 바로가기" style={barStyle}>
       {items.map(({ id, label }) => {
-        const active = id === activeId;
+        const isActive = id === activeId;
         return (
           <button
             key={id}
             type="button"
-            className="sub-nav__button"
-            aria-current={active ? "true" : undefined}
+            aria-current={isActive ? "true" : undefined}
             onClick={() => onSelect(id)}
             style={{
               ...buttonStyle,
-              color: active ? "#7d97d6" : "rgba(241,241,252,0.78)",
-              textShadow: active ? "0 0 8px rgba(46,72,137,0.7)" : undefined,
-              borderBottomColor: active ? "#395ca7" : "transparent",
+              color: isActive ? "#7d97d6" : "rgba(241,241,252,0.78)",
+              textShadow: isActive ? "0 0 8px rgba(46,72,137,0.7)" : undefined,
+              borderBottomColor: isActive ? "#395ca7" : "transparent",
             }}
           >
             {label}

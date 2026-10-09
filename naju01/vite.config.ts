@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 
-import { najuEditBundle, najuEditFile } from "./vite/editFilePlugin";
+import { editFileBundlePlugin, editFileServerPlugin } from "./vite/editFilePlugin";
 
 // NAJU-01 그레이박스 전용 개발 서버. 본편과 같은 node_modules 를 쓴다.
 //   실행: npx vite naju01 → http://localhost:5174
@@ -35,7 +35,7 @@ export default defineConfig({
     // three·drei·postprocessing 은 원래 크다 — 경고만 조용히 한다
     chunkSizeWarningLimit: 4000,
   },
-  plugins: [react(), najuEditFile({ writable: true }), najuEditBundle()],
+  plugins: [react(), editFileServerPlugin({ writable: true }), editFileBundlePlugin()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("../src", import.meta.url)) },
   },

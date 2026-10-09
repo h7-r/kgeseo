@@ -26,7 +26,7 @@ export interface CorridorDepthRule {
 }
 
 /** z 자리의 밝기 배수(0~1). */
-export function corridorDepthBrightness(z: number, rule: CorridorDepthRule): number {
+export function computeCorridorDepthBrightness(z: number, rule: CorridorDepthRule): number {
   const t = Math.min(1, Math.abs(z - rule.doorZ) / Math.max(1, rule.falloff));
   let b = Math.max(rule.minBrightness, 1 - rule.darkness * t);
   if (rule.endDarkness > 0 && z < rule.doorZ) {

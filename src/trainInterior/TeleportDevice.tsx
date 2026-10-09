@@ -16,7 +16,7 @@ const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 let glowTexture: THREE.CanvasTexture | null = null;
 
 /** 가운데가 꽉 차고 바깥으로 투명해지는 흰 원. 색은 스프라이트 재질이 입힌다. */
-function getGlowTexture(): THREE.CanvasTexture {
+function makeGlowTexture(): THREE.CanvasTexture {
   if (glowTexture) return glowTexture;
   const s = 256;
   const canvas = document.createElement("canvas");
@@ -46,7 +46,7 @@ interface ToonPart {
   scale: [number, number, number];
 }
 
-function textureOf(material: THREE.Material | THREE.Material[]): THREE.Texture | null {
+function findMaterialTexture(material: THREE.Material | THREE.Material[]): THREE.Texture | null {
   if (Array.isArray(material)) return null;
   return "map" in material && material.map instanceof THREE.Texture ? material.map : null;
 }
@@ -64,7 +64,7 @@ function useTexturedToonParts(url: string, tint: string): ToonPart[] {
       if (!(object instanceof THREE.Mesh)) return;
       object.matrixWorld.decompose(position, quaternion, scale);
       const material = new THREE.MeshToonMaterial({
-        map: textureOf(object.material),
+        map: findMaterialTexture(object.material),
         color: tint,
         gradientMap: TOON_GRADIENT,
       });
@@ -87,7 +87,7 @@ interface GlowSpriteProps {
 
 /** 늘 카메라를 보는 부드러운 빛 한 장 */
 function GlowSprite({ color, spriteRef }: GlowSpriteProps) {
-  const map = useMemo(() => getGlowTexture(), []);
+  const map = useMemo(() => makeGlowTexture(), []);
   return (
     <sprite ref={spriteRef}>
       <spriteMaterial

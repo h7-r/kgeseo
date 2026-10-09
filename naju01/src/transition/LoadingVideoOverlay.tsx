@@ -10,11 +10,11 @@ import {
   LINE_INTERVAL_MS,
   MAX_WAIT_SECONDS,
   SEQUENCES,
-  bgmVolume,
-  clipAt,
+  getBgmVolume,
+  getClipAt,
   hideLoadingVideo,
   isClipId,
-  musicTime,
+  getMusicTime,
   playMusic,
   setSceneReporter,
   stopMusic,
@@ -53,22 +53,22 @@ function LoadingCurtain({
 
   // 영상 두 칸을 번갈아 쓴다. 한 칸이 트는 동안 다른 칸이 다음 영상을 미리 받아 두고, 끝나기 0.4초 전에
   // 겹쳐 바꾸면 영상 사이에 검은 틈이 없다(한 칸이면 src 를 바꿀 때마다 깜빡인다).
-  const firstVideo = useRef<HTMLVideoElement>(null);
-  const secondVideo = useRef<HTMLVideoElement>(null);
-  const videos = [firstVideo, secondVideo];
+  const firstVideoRef = useRef<HTMLVideoElement>(null);
+  const secondVideoRef = useRef<HTMLVideoElement>(null);
+  const videoRefs = [firstVideoRef, secondVideoRef];
   const [deck, setDeck] = useState(() => ({
     front: 0, // 지금 보이는 칸
     clipIndices: [initialClipIndex, initialClipIndex + 1], // 각 칸이 맡은 「n 번째 클립」
   }));
-  const isSwitching = useRef(false);
-  const pendingStartTime = useRef(initialVideoTime); // 첫 클립만 이 초로 옮겨 시작한다(이어받기)
+  const isSwitchingRef = useRef(false);
+  const pendingStartTimeRef = useRef(initialVideoTime); // 첫 클립만 이 초로 옮겨 시작한다(이어받기)
 
   const deckRef = useRef(deck);
-  const advance = () => {
-    if (isSwitching.current) return;
-    isSwitching.current = true;
+  const advanceToNextClip = () => {
+    if (isSwitchingRef.current) return;
+    isSwitchingRef.current = true;
     const back = 1 - deckRef.current.front;
-    videos[back].current?.play().catch(() => {});
+    videoRefs[back].current?.play().catch(() => {});
     setDeck((previous) => ({ ...previous, front: back }));
     // 겹쳐 바뀌는 0.5초가 끝나면 뒤로 간 칸에 그다음 클립을 실어 둔다
     setTimeout(() => {
@@ -77,7 +77,7 @@ function LoadingCurtain({
         clipIndices[1 - previous.front] = previous.clipIndices[previous.front] + 1;
         return { ...previous, clipIndices };
       });
-      isSwitching.current = false;
+      isSwitchingRef.current = false;
     }, 520);
   };
 
@@ -95,8 +95,8 @@ function LoadingCurtain({
     setSceneReporter(() => ({
       kind,
       clipIndex: deck.clipIndices[deck.front],
-      videoTime: videos[deck.front].current?.currentTime || 0,
-      musicTime: musicTime(),
+      videoTime: videoRefs[deck.front].current?.currentTime || 0,
+      musicTime: getMusicTime(),
       lineIndex: (lineIndexRef.current + 1) % sequence.lines.length,
     })),
   );
@@ -147,7 +147,7 @@ function LoadingCurtain({
   useEffect(() => {
     if (!isSoundBlocked) return undefined;
     const unmute = () => {
-      for (const video of [firstVideo.current, secondVideo.current]) {
+      for (const video of [firstVideoRef.current, secondVideoRef.current]) {
         const clip = video?.dataset.clip;
         if (video && isClipId(clip) && CLIPS[clip].hasSound) video.muted = false;
       }
@@ -170,7 +170,7 @@ function LoadingCurtain({
     if (!isLifted) return undefined;
     stopMusic(1.4);
     // 소리 있는 영상(오프닝)도 막이 사라지는 동안 줄인다 — 뚝 끊기지 않게
-    for (const video of [firstVideo.current, secondVideo.current]) {
+    for (const video of [firstVideoRef.current, secondVideoRef.current]) {
       const clip = video?.dataset.clip;
       if (!video || video.muted || !isClipId(clip) || !CLIPS[clip].hasSound) continue;
       const initialVolume = video.volume;
@@ -186,23 +186,24 @@ function LoadingCurtain({
     return () => clearTimeout(timer);
   }, [isLifted]);
 
-  const frontClip = CLIPS[clipAt(sequence, deck.clipIndices[deck.front])];
+  const frontClip = CLIPS[getClipAt(sequence, deck.clipIndices[deck.front])];
 
   return (
     <div
+      className="loading-video-overlay"
       role="status"
       aria-live="off"
       aria-label={`${sequence.title} — 불러오는 중`}
       style={{ ...curtainStyle, opacity: isLifted ? 0 : 1, pointerEvents: isLifted ? "none" : "auto" }}
     >
       {[0, 1].map((slot) => {
-        const clipId = clipAt(sequence, deck.clipIndices[slot]);
+        const clipId = getClipAt(sequence, deck.clipIndices[slot]);
         const clip = CLIPS[clipId];
         const isFront = deck.front === slot;
         return (
           <video
             key={slot}
-            ref={videos[slot]}
+            ref={videoRefs[slot]}
             src={clip.url}
             poster={clip.poster}
             data-clip={clipId}
@@ -214,8 +215,8 @@ function LoadingCurtain({
             onLoadedMetadata={(event) => {
               if (!isFront) return; // 뒤 칸은 받아만 두고 멈춰 있는다
               const video = event.currentTarget;
-              const seconds = pendingStartTime.current;
-              pendingStartTime.current = 0;
+              const seconds = pendingStartTimeRef.current;
+              pendingStartTimeRef.current = 0;
               if (seconds > 0 && seconds < (video.duration || 0) - 0.5) {
                 try {
                   video.currentTime = seconds;
@@ -225,7 +226,7 @@ function LoadingCurtain({
               }
               if (clip.hasSound) {
                 video.muted = false;
-                video.volume = bgmVolume();
+                video.volume = getBgmVolume();
               }
               video.play().catch(() => {
                 // 소리 있는 영상은 새 페이지에서 막힐 수 있다 — 소리 없이 이어 틀고 첫 입력에 켠다
@@ -244,7 +245,7 @@ function LoadingCurtain({
                 setIsOpeningDone(true);
                 if (isReadyRef.current) return;
               }
-              advance();
+              advanceToNextClip();
             }}
             onEnded={() => {
               if (!isFront) return;
@@ -252,7 +253,7 @@ function LoadingCurtain({
                 setIsOpeningDone(true);
                 if (isReadyRef.current) return;
               }
-              advance();
+              advanceToNextClip();
             }}
           />
         );
@@ -269,7 +270,7 @@ function LoadingCurtain({
       {sequence.isOpening && isReady && !isOpeningDone && (
         <button
           type="button"
-          className="opening-skip"
+          className="loading-video-overlay__skip-button"
           style={skipStyle}
           onClick={() => setIsOpeningDone(true)}
           aria-label="Skip opening"
@@ -284,15 +285,15 @@ function LoadingCurtain({
         <strong style={titleStyle}>{sequence.title}</strong>
         <span style={subtitleStyle}>{sequence.subtitle}</span>
         <div style={trackStyle} aria-hidden="true">
-          <div className="loading-glow" style={glowStyle} />
+          <div className="loading-video-overlay__progress-glow" style={glowStyle} />
         </div>
         <span style={statusStyle}>{keepOpen ? "좌표 동기화 중" : waitingFor === READY ? "준비 완료" : waitingFor}</span>
         {/* key 가 바뀌면 새로 그려지며 나타나기 연출이 다시 돈다 */}
-        <p key={lineIndex} className="loading-line" style={lineStyle} aria-live="polite">
+        <p key={lineIndex} className="loading-video-overlay__caption" style={lineStyle} aria-live="polite">
           {sequence.lines[lineIndex]}
         </p>
       </div>
-      <style>{CSS}</style>
+      <style>{OVERLAY_CSS}</style>
     </div>
   );
 }
@@ -302,20 +303,20 @@ const MONO_FONT = '"IBM Plex Mono", "IBM Plex Sans KR", monospace';
 const DISPLAY_FONT = '"Paperlogy", "IBM Plex Sans KR", sans-serif';
 const BODY_FONT = '"IBM Plex Sans KR", "Pretendard", "Apple SD Gothic Neo", sans-serif';
 
-const CSS = `
-@keyframes loading-glow-flow { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
-.loading-glow { animation: loading-glow-flow 1.6s cubic-bezier(.4,0,.2,1) infinite; }
+const OVERLAY_CSS = `
+@keyframes loading-video-overlay-progress-sweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.loading-video-overlay__progress-glow { animation: loading-video-overlay-progress-sweep 1.6s cubic-bezier(.4,0,.2,1) infinite; }
 /* 문장 하나가 머무는 동안(3.8초): 0.5초 떠오르고 → 머물고 → 0.5초 사라진다 */
-@keyframes loading-line { 0% { opacity: 0; transform: translateY(6px); } 13% { opacity: 1; transform: none; } 87% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
-.loading-line { animation: loading-line ${LINE_INTERVAL_MS}ms ease both; }
-@keyframes skip-appear { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.opening-skip { animation: skip-appear .5s ease both; transition: background .2s ease, border-color .2s ease; }
-.opening-skip:hover { background: rgba(255,255,255,0.16) !important; border-color: rgba(255,255,255,0.75) !important; }
-.opening-skip:focus-visible { outline: 2px solid #9fb2ea; outline-offset: 3px; }
+@keyframes loading-video-overlay-caption-cycle { 0% { opacity: 0; transform: translateY(6px); } 13% { opacity: 1; transform: none; } 87% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-4px); } }
+.loading-video-overlay__caption { animation: loading-video-overlay-caption-cycle ${LINE_INTERVAL_MS}ms ease both; }
+@keyframes loading-video-overlay-skip-appear { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.loading-video-overlay__skip-button { animation: loading-video-overlay-skip-appear .5s ease both; transition: background .2s ease, border-color .2s ease; }
+.loading-video-overlay__skip-button:hover { background: rgba(255,255,255,0.16) !important; border-color: rgba(255,255,255,0.75) !important; }
+.loading-video-overlay__skip-button:focus-visible { outline: 2px solid #9fb2ea; outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) {
-  .opening-skip { animation: none; }
-  .loading-glow { animation: none; width: 100% !important; opacity: .5; }
-  .loading-line { animation: none; }
+  .loading-video-overlay__skip-button { animation: none; }
+  .loading-video-overlay__progress-glow { animation: none; width: 100% !important; opacity: .5; }
+  .loading-video-overlay__caption { animation: none; }
 }
 `;
 

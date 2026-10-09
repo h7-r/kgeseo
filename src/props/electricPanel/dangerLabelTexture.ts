@@ -1,4 +1,4 @@
-import { cachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
+import { makeCachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
 
 export const DANGER_LABEL_WIDTH = 384;
 export const DANGER_LABEL_HEIGHT = 88;
@@ -7,8 +7,8 @@ export const DANGER_LABEL_HEIGHT = 88;
  * 주차단기의 「전기위험」 딱지. 화면에서 8cm 남짓이라 빗금은 좌우 끝으로 보내고 세로를 통째로 글자에 준다.
  * 문을 열면 늘 비스듬히 보므로 anisotropy 를 높여 밉맵이 글자를 뭉개지 않게 한다.
  */
-export function dangerLabelTexture(background = "#e8c53a", text = "#c0281f") {
-  return cachedCanvasTexture(
+export function makeDangerLabelTexture(background = "#e8c53a", text = "#c0281f") {
+  return makeCachedCanvasTexture(
     `dangerLabel|${background}|${text}`,
     (g, w, h) => {
       const stripe = 46; // 좌우 빗금 폭

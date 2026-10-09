@@ -1,11 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 
-import { DESIGN_WIDTH, STAGE_INNER_CLASS } from "@/lib/layout";
+import { DESIGN_WIDTH, PIN_CLASS, STAGE_INNER_SELECTOR } from "@/lib/layout";
 import { clamp01 } from "@/lib/math";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 import { consumeProgrammaticScroll } from "@/lib/pageEvents";
-
-const STAGE_SELECTOR = `.${STAGE_INNER_CLASS}`;
 
 /** 스크롤에 물린 CSS 애니메이션을 지원하면 훅들은 물러나 CSS(합성 스레드)에 맡긴다. */
 function supportsScrollTimeline(timeline: string): boolean {
@@ -25,16 +23,16 @@ export function useReveal<T extends HTMLElement = HTMLDivElement>(
 ): [RefObject<T | null>, boolean] {
   const ref = useRef<T>(null);
   // 동작 줄이기를 켠 사람에겐 처음부터 보여 준다.
-  const [visible, setVisible] = useState(prefersReducedMotion);
+  const [isVisible, setIsVisible] = useState(prefersReducedMotion);
 
   useEffect(() => {
     const el = ref.current;
     if (!el || prefersReducedMotion()) return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) setVisible(true);
+        if (entry.isIntersecting) setIsVisible(true);
         // top > 0 이면 화면 아래쪽으로 빠진 것이다.
-        else if (rewind === "both" || entry.boundingClientRect.top > 0) setVisible(false);
+        else if (rewind === "both" || entry.boundingClientRect.top > 0) setIsVisible(false);
       },
       { rootMargin, threshold: 0 },
     );
@@ -42,7 +40,7 @@ export function useReveal<T extends HTMLElement = HTMLDivElement>(
     return () => observer.disconnect();
   }, [rootMargin, rewind]);
 
-  return [ref, visible];
+  return [ref, isVisible];
 }
 
 /** 읽은 만큼 차오르는 막대. 매 스크롤마다 리렌더하지 않도록 DOM 을 직접 쓴다. */
@@ -89,15 +87,15 @@ function offsetTopWithinStage(el: HTMLElement, stage: Element): number {
   return y;
 }
 
-interface PinnedWipeOptions {
+interface PinnedRevealOptions {
   /** 멈춘 채 스크롤하는 거리(무대 px). */
   pinLength?: number;
   /** 덩이 하나가 진행도에서 맡는 몫. 간격보다 넓어 앞 덩이가 끝나기 전에 다음이 시작된다. */
   span?: number;
   /** 이 진행도에서 모든 덩이가 다 드러난다. 나머지는 다 보인 채로 머문다. */
   revealEnd?: number;
-  /** 같이 멈출 요소들의 class. 구간마다 다르게 준다. */
-  pinClass?: string;
+  /** 같이 멈출 요소들의 data-pin-group 값. 구간마다 다르게 준다. */
+  pinGroup?: string;
   /** true 면 판에 --enter(가운데로 오는 동안 0→1)·--progress(멈춘 뒤 0→1)를 써 준다. */
   writeProgress?: boolean;
   /** 멈춘 뒤 이 진행도까지는 글을 숨겨 둔다. 그동안 그림이 먼저 움직인다. */
@@ -106,26 +104,26 @@ interface PinnedWipeOptions {
 
 /**
  * 판 가운데가 화면 가운데에 오면 그 자리에 멈추고, pinLength 만큼 더 스크롤하는 동안
- * 안의 .wipe 덩이들이 차례로 드러난다.
+ * 안의 .u-pin-reveal 덩이들이 차례로 드러난다.
  * view() 는 무대 축소(transform) 전 자리로 계산해 늦게 움직이므로 자리를 직접 잰다.
  */
-export function usePinnedWipe<T extends HTMLElement = HTMLDivElement>({
+export function usePinnedReveal<T extends HTMLElement = HTMLDivElement>({
   pinLength = 600,
   span = 0.52,
   revealEnd = 0.8,
-  pinClass = "angam-pin",
+  pinGroup = "angam-rock",
   writeProgress = false,
   textStart = 0,
-}: PinnedWipeOptions = {}): RefObject<T | null> {
+}: PinnedRevealOptions = {}): RefObject<T | null> {
   const ref = useRef<T>(null);
 
   // 첫 그림 전에 0 을 넣어야 다 보였다가 사라지는 깜빡임이 없다.
   useLayoutEffect(() => {
     const panel = ref.current;
-    const stage = panel?.closest<HTMLElement>(STAGE_SELECTOR);
+    const stage = panel?.closest<HTMLElement>(STAGE_INNER_SELECTOR);
     if (!panel || !stage) return;
-    const chunks = [...panel.querySelectorAll<HTMLElement>(".wipe")];
-    const pinned = [...document.querySelectorAll<HTMLElement>(`.${pinClass}`)];
+    const chunks = [...panel.querySelectorAll<HTMLElement>(".u-pin-reveal")];
+    const pinned = [...document.querySelectorAll<HTMLElement>(`.${PIN_CLASS}[data-pin-group="${pinGroup}"]`)];
     const cssPin = supportsScrollTimeline("scroll()");
     // 동작 줄이기: 글은 처음부터 다 보이게. 멈춤은 움직임이 아니라 자리라서 그대로 둔다.
     const reduced = prefersReducedMotion();
@@ -184,7 +182,7 @@ export function usePinnedWipe<T extends HTMLElement = HTMLDivElement>({
         ratio = Math.round(ratio * 1000) / 1000;
         if (lastValues.get(el) === ratio) return;
         lastValues.set(el, ratio);
-        el.style.setProperty("--wipe", String(ratio));
+        el.style.setProperty("--reveal-progress", String(ratio));
         el.classList.toggle("is-complete", ratio >= 1);
       });
     };
@@ -203,15 +201,15 @@ export function usePinnedWipe<T extends HTMLElement = HTMLDivElement>({
       window.removeEventListener("resize", schedule);
       resizeObserver.disconnect();
     };
-  }, [pinLength, span, revealEnd, pinClass, writeProgress, textStart]);
+  }, [pinLength, span, revealEnd, pinGroup, writeProgress, textStart]);
 
   return ref;
 }
 
-export const revealClass = (visible: boolean): string => `reveal${visible ? " is-visible" : ""}`;
+export const revealClass = (isVisible: boolean): string => `u-reveal${isVisible ? " is-visible" : ""}`;
 
 /** 깊이까지 주는 드러내기 — 안쪽에서 걸어 나오는 느낌. */
-export const approachClass = (visible: boolean): string => `approach${visible ? " is-visible" : ""}`;
+export const depthRevealClass = (isVisible: boolean): string => `u-depth-reveal${isVisible ? " is-visible" : ""}`;
 
 /** 마우스를 따라 [data-depth] 층이 깊이만큼 어긋난다. */
 export function useMouseParallax<T extends HTMLElement = HTMLDivElement>(maxOffset = 14): RefObject<T | null> {
@@ -317,7 +315,7 @@ function useScrollRange(
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el || !supportsScrollTimeline("scroll()")) return;
-    const stage = el.closest<HTMLElement>(STAGE_SELECTOR);
+    const stage = el.closest<HTMLElement>(STAGE_INNER_SELECTOR);
     let frame = 0;
     let last = "";
     const measure = () => {
@@ -358,14 +356,14 @@ function useScrollRange(
   }, [ref, startKind, startX, endKind, endX]);
 }
 
-/** 확대샷으로 시작해 들어오는 동안 제 크기로 물러난다(.recede). */
-export function useRecede<T extends HTMLElement = HTMLDivElement>(): RefObject<T | null> {
+/** 확대샷으로 시작해 들어오는 동안 제 크기로 물러난다(.u-scroll-zoom-out). */
+export function useScrollZoomOut<T extends HTMLElement = HTMLDivElement>(): RefObject<T | null> {
   const ref = useRef<T>(null);
   useScrollRange(ref, { start: ["entry", 0.1], end: ["cover", 0.42] });
   return ref;
 }
 
-interface PassByOptions {
+interface ScrollZoomOptions {
   /** 아래에서 들어올 때 배율. */
   enterScale?: number;
   /** 위로 빠져나갈 때 배율. */
@@ -378,18 +376,18 @@ interface PassByOptions {
  * 멀리서 다가와 한가운데에서 제 크기, 위로 빠질 땐 살짝 커지며 지나간다.
  * 배율 폭을 좁게 잡아야 글자가 출렁이지 않는다 — 그림·카드에만 쓴다.
  */
-export function usePassBy<T extends HTMLElement = HTMLDivElement>({
+export function useScrollZoom<T extends HTMLElement = HTMLDivElement>({
   enterScale = 0.92,
   exitScale = 1.05,
   depth = 70,
-}: PassByOptions = {}): RefObject<T | null> {
+}: ScrollZoomOptions = {}): RefObject<T | null> {
   const ref = useRef<T>(null);
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (prefersReducedMotion()) return;
-    // 지원하면 .pass-by + useScrollRange 로 CSS 가 맡는다.
+    // 지원하면 .u-scroll-zoom + useScrollRange 로 CSS 가 맡는다.
     if (supportsScrollTimeline("scroll()")) return;
 
     let frame = 0;
@@ -427,7 +425,7 @@ export function usePassBy<T extends HTMLElement = HTMLDivElement>({
  * 멈춤 판정이 짧으면 손을 떼는 찰나마다 깜빡이므로 900ms 쯤 기다린다.
  */
 export function useIsScrolling(idleDelay = 900): boolean {
-  const [scrolling, setScrolling] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
 
   useEffect(() => {
     if (prefersReducedMotion()) return;
@@ -439,12 +437,12 @@ export function useIsScrolling(idleDelay = 900): boolean {
       if (consumeProgrammaticScroll()) return;
       if (!active) {
         active = true;
-        setScrolling(true);
+        setIsScrolling(true);
       }
       clearTimeout(timer);
       timer = window.setTimeout(() => {
         active = false;
-        setScrolling(false);
+        setIsScrolling(false);
       }, idleDelay);
     };
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -454,5 +452,5 @@ export function useIsScrolling(idleDelay = 900): boolean {
     };
   }, [idleDelay]);
 
-  return scrolling;
+  return isScrolling;
 }

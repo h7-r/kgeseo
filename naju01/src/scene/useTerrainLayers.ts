@@ -6,65 +6,65 @@ import { loadRock, ROCK_FILES } from "../loaders/rockAssets";
 import type { Spot } from "../placement/instanceGroups";
 import { CORE, RIVER, SHOULDER_DEFAULTS, VIEWPOINTS } from "../plan/sitePlan";
 import { applyBakedTerrainTexture } from "../terrain/bakedTerrainTexture";
-import { boulderSpots, buildCliffFace, buildScree, cliffBushSpots } from "../terrain/cliff";
-import { buildContactShadows, buildGround, buildGroundScatter, createNoise } from "../terrain/ground";
+import { buildCliffFace, buildScree, computeBoulderSpots, computeCliffBushSpots } from "../terrain/cliff";
+import { buildGround, computeContactShadows, computeGroundScatter, createNoise } from "../terrain/ground";
 import { createGroundSurface } from "../terrain/groundSurface";
 import { createTerrain } from "../terrain/terrain";
 import { useBakedTerrain } from "../terrain/useBakedTerrain";
 
 export type Terrain = ReturnType<typeof createTerrain>;
-export type GroundLayer = ReturnType<typeof useGroundAndCliff>["ground"];
-export type CliffPieces = ReturnType<typeof useGroundAndCliff>["cliffPieces"];
+export type GroundShapes = ReturnType<typeof useGroundAndCliff>["ground"];
+export type CliffShapes = ReturnType<typeof useGroundAndCliff>["cliffShapes"];
 
 /** 도면에 늘 있는 구역(Z1~Z4) 하나. */
-export function zoneOf(terrain: Terrain, code: string) {
+export function getZone(terrain: Terrain, code: string) {
   const zone = terrain.zones.find((z) => z.code === code);
   if (!zone) throw new Error(`구역 ${code} 이 없다`);
   return zone;
 }
 
 /** 지형 한 벌 + 블렌더가 구운 땅. 절벽 높이를 돌리면 Z3 고도 → T3·T4 경사 → 그 위 차단물까지 같이 다시 만들어진다. */
-export function useTerrain(T: PresentedControls) {
+export function useTerrain(controls: PresentedControls) {
   const terrain = useMemo(
     () =>
       createTerrain({
-        cliffHeight: T.cliffHeight,
-        blockerScale: T.blockerHeight,
+        cliffHeight: controls.cliffHeight,
+        blockerScale: controls.blockerHeight,
         // 갓길을 돌리면 판정도 같이 움직여야 보이는 길과 밟히는 길이 안 갈린다.
-        shoulder: { width: T.shoulderWidth, drop: T.shoulderDrop, reach: SHOULDER_DEFAULTS.reach },
+        shoulder: { width: controls.shoulderWidth, drop: controls.shoulderDrop, reach: SHOULDER_DEFAULTS.reach },
       }),
-    [T.cliffHeight, T.blockerHeight, T.shoulderWidth, T.shoulderDrop],
+    [controls.cliffHeight, controls.blockerHeight, controls.shoulderWidth, controls.shoulderDrop],
   );
 
   // 판정은 높이표로 갈아끼운다 — y 만 바뀌고 구역·통로·물 깃발은 그대로다.
-  const bakedTerrain = useBakedTerrain(T.useBlenderTerrain);
+  const bakedTerrain = useBakedTerrain(controls.useBlenderTerrain);
   useEffect(() => {
-    terrain.setHeightTable(T.useBlenderTerrain ? bakedTerrain.heightTable : null);
-  }, [terrain, T.useBlenderTerrain, bakedTerrain.heightTable]);
-  const isBakedTerrainOn = T.useBlenderTerrain && bakedTerrain.status === "ready";
+    terrain.setHeightTable(controls.useBlenderTerrain ? bakedTerrain.heightTable : null);
+  }, [terrain, controls.useBlenderTerrain, bakedTerrain.heightTable]);
+  const isBakedTerrainOn = controls.useBlenderTerrain && bakedTerrain.status === "ready";
 
   return { terrain, bakedTerrain, isBakedTerrainOn };
 }
 
 /** 땅 표면·바닥 메시와 절벽면. 땅·길 비탈 발치·절벽 가장자리가 같은 surface 를 봐야 맞닿는 값이 같다. */
-export function useGroundAndCliff(T: PresentedControls, terrain: Terrain, isBakedTerrainOn: boolean) {
+export function useGroundAndCliff(controls: PresentedControls, terrain: Terrain, isBakedTerrainOn: boolean) {
   const ground = useMemo(() => {
     // 새 땅은 미세결이 이미 메시에 구워져 있다. 요철을 또 얹으면 에셋이 최대 12 cm 뜨거나 잠긴다.
-    const surface = createGroundSurface({ terrain, bumpScale: isBakedTerrainOn ? 0 : T.groundBumpScale });
-    if (!T.groundDetail) return { surface, mesh: null, pebbleSpots: [], shadeAt: () => 0 };
+    const surface = createGroundSurface({ terrain, bumpScale: isBakedTerrainOn ? 0 : controls.groundBumpScale });
+    if (!controls.groundDetail) return { surface, mesh: null, pebbleSpots: [], shadeAt: () => 0 };
     const clumpNoise = createNoise(310977);
     // 돌을 먼저 놓아야 땅이 그 발치를 어둡게 칠한다. 지오메트리는 안 쓰고 자리만 받아 인스턴스로 심는다.
-    const { footprints, spots: pebbleSpots } = buildGroundScatter({
+    const { footprints, spots: pebbleSpots } = computeGroundScatter({
       surface,
       core: CORE,
-      densityScale: T.scatterDensity,
+      densityScale: controls.scatterDensity,
       seed: 4101,
       clumpNoise,
       // 길 위·차단물 속·강에는 안 뿌린다
       canPlace: (x, z) =>
         !terrain.groundAt(x, z).path && !terrain.blockedAt(x, z, terrain.groundAt(x, z).y, 0.4) && z < RIVER.zStart,
     });
-    const shadeAt = buildContactShadows(footprints);
+    const shadeAt = computeContactShadows(footprints);
     return {
       surface,
       pebbleSpots,
@@ -73,107 +73,107 @@ export function useGroundAndCliff(T: PresentedControls, terrain: Terrain, isBake
         surface,
         core: CORE,
         cliff: terrain.cliff,
-        cellsPerMeter: T.groundCellsPerMeter,
-        normalExaggeration: T.normalExaggeration,
+        cellsPerMeter: controls.groundCellsPerMeter,
+        normalExaggeration: controls.normalExaggeration,
         shade: shadeAt,
       }),
     };
   }, [
     terrain,
-    T.groundDetail,
-    T.groundBumpScale,
-    T.groundCellsPerMeter,
-    T.scatterDensity,
-    T.normalExaggeration,
+    controls.groundDetail,
+    controls.groundBumpScale,
+    controls.groundCellsPerMeter,
+    controls.scatterDensity,
+    controls.normalExaggeration,
     isBakedTerrainOn,
   ]);
   useEffect(() => () => ground.mesh?.dispose(), [ground]);
 
   // 땅이 기준면 아래로 파일 수 있는 깊이 — 밑받침을 이만큼 낮춰야 z-파이팅이 안 난다.
-  const maxDip = T.groundDetail ? ground.surface.maxBump + 0.02 : 0;
+  const maxDip = controls.groundDetail ? ground.surface.maxBump + 0.02 : 0;
 
   // 절벽면 — 높이를 돌리면 지층 개수까지 통째로 다시 새겨진다.
-  const cliffPieces = useMemo(() => {
-    if (!T.cliffDetail) return null;
+  const cliffShapes = useMemo(() => {
+    if (!controls.cliffDetail) return null;
     const grainNoise = createNoise(51733);
     const strataNoise = createNoise(902114);
     const stainNoise = createNoise(63301);
     return {
       face: buildCliffFace({
         cliff: terrain.cliff,
-        cellsPerMeter: T.cliffCellsPerMeter,
-        carveDepth: T.cliffCarveDepth,
-        strataThickness: T.strataThickness,
-        angularity: T.angularity,
+        cellsPerMeter: controls.cliffCellsPerMeter,
+        carveDepth: controls.cliffCarveDepth,
+        strataThickness: controls.strataThickness,
+        angularity: controls.angularity,
         grainNoise,
         strataNoise,
         blotchNoise: stainNoise,
       }),
       scree: buildScree({
         cliff: terrain.cliff,
-        count: T.screeCount,
+        count: controls.screeCount,
         seed: 771123,
         grainNoise,
         // 발치 돌은 이상적인 빗면이 아니라 진짜 땅에 박혀야 한다
-        groundHeight: (x, z) => ground.surface.heightAt(x, z),
+        heightAt: (x, z) => ground.surface.heightAt(x, z),
       }),
       // 바위 덩어리는 도면의 4 m 띠 밖에 붙인다 — 띠 안에서는 아무리 흔들어도 벽이 된다.
-      boulderSpots: T.boulders
-        ? boulderSpots({ cliff: terrain.cliff, groundHeight: (x, z) => ground.surface.heightAt(x, z) })
+      boulderSpots: controls.boulders
+        ? computeBoulderSpots({ cliff: terrain.cliff, heightAt: (x, z) => ground.surface.heightAt(x, z) })
         : [],
       // 맨 암벽은 모형으로 보인다 — 틈마다 덤불을 박는다(자리만 내고 인스턴스로 심는다).
-      crevasseShrubSpots: T.cliffVegetation
-        ? cliffBushSpots({
+      crevasseShrubSpots: controls.cliffVegetation
+        ? computeCliffBushSpots({
             cliff: terrain.cliff,
-            count: T.cliffShrubCount,
+            count: controls.cliffShrubCount,
             seed: 330817,
             grainNoise,
             strataNoise,
-            carveDepth: T.cliffCarveDepth,
-            strataThickness: T.strataThickness,
-            angularity: T.angularity,
+            carveDepth: controls.cliffCarveDepth,
+            strataThickness: controls.strataThickness,
+            angularity: controls.angularity,
           })
         : [],
-      topTreeSpots: T.cliffVegetation
-        ? cliffTopTreeSpots(terrain.cliff, T.cliffTreeCount, ground.surface.heightAt)
+      topTreeSpots: controls.cliffVegetation
+        ? computeCliffTopTreeSpots(terrain.cliff, controls.cliffTreeCount, ground.surface.heightAt)
         : [],
     };
   }, [
     ground,
     terrain,
-    T.cliffDetail,
-    T.cliffCellsPerMeter,
-    T.cliffCarveDepth,
-    T.strataThickness,
-    T.angularity,
-    T.screeCount,
-    T.cliffVegetation,
-    T.cliffShrubCount,
-    T.cliffTreeCount,
-    T.boulders,
+    controls.cliffDetail,
+    controls.cliffCellsPerMeter,
+    controls.cliffCarveDepth,
+    controls.strataThickness,
+    controls.angularity,
+    controls.screeCount,
+    controls.cliffVegetation,
+    controls.cliffShrubCount,
+    controls.cliffTreeCount,
+    controls.boulders,
   ]);
   useEffect(
     () => () => {
-      cliffPieces?.face?.dispose();
-      cliffPieces?.scree?.dispose();
+      cliffShapes?.face?.dispose();
+      cliffShapes?.scree?.dispose();
     },
-    [cliffPieces],
+    [cliffShapes],
   );
 
-  return { ground, maxDip, cliffPieces };
+  return { ground, maxDip, cliffShapes };
 }
 
 /** 밖에서 만들어 온 바위(assets/rocks/*.glb) */
-export function useRockAsset(T: PresentedControls) {
+export function useRockAsset(controls: PresentedControls) {
   const [rockAsset, setRockAsset] = useState<Awaited<ReturnType<typeof loadRock>>>(null);
   useEffect(() => {
     let isAlive = true;
-    if (!T.rockAsset) {
+    if (!controls.rockAsset) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 끄면 읽어 둔 바위를 버려야 다시 켤 때 새로 읽는다
       setRockAsset(null);
       return;
     }
-    loadRock({ widthMeters: T.rockAssetWidth })
+    loadRock({ widthMeters: controls.rockAssetWidth })
       .then((rock) => {
         if (!isAlive) return;
         setRockAsset(rock);
@@ -183,7 +183,7 @@ export function useRockAsset(T: PresentedControls) {
     return () => {
       isAlive = false;
     };
-  }, [T.rockAsset, T.rockAssetWidth]);
+  }, [controls.rockAsset, controls.rockAssetWidth]);
   return rockAsset;
 }
 
@@ -199,7 +199,7 @@ export function useBakedTerrainTexture(scene: THREE.Scene, enabled: boolean) {
 const WINDOW_HALF_WIDTH = 3.5; // m — V2 에서 Z2 로 가는 광선다발이 마루를 넘는 폭
 const WINDOW_FADE = 3.0; // m — 키가 0 에서 제 키로 돌아오는 구간
 
-function cliffTopTreeSpots(
+function computeCliffTopTreeSpots(
   cliff: { x: [number, number]; zTop: number },
   count: number,
   heightAt: (x: number, z: number) => number,

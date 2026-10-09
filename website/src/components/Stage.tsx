@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
-import { DESIGN_WIDTH, STAGE_INNER_CLASS, useStageScale } from "@/lib/layout";
+import { DESIGN_WIDTH, STAGE_INNER_ATTR, useStageScale } from "@/lib/layout";
 
 const DEFAULT_BOTTOM_GAP = 72;
 
@@ -104,7 +104,7 @@ export default function Stage({ height, bottomGap = DEFAULT_BOTTOM_GAP, children
     >
       <div
         ref={innerRef}
-        className={STAGE_INNER_CLASS}
+        {...STAGE_INNER_ATTR}
         style={{
           position: "absolute",
           left: 0,

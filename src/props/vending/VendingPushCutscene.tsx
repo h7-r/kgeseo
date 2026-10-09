@@ -6,27 +6,27 @@ import type { Vector3Tuple } from "three";
 import { playSound } from "@/audio/sound";
 import { claimCamera, releaseCamera } from "@/engine/camera";
 import { requestShadowUpdates } from "@/engine/rendering";
-import { cachedCanvasTexture } from "@/engine/textures/canvas";
-import { valveOpen } from "@/props/panelWiring";
+import { makeCachedCanvasTexture } from "@/engine/textures/canvas";
+import { getValveOpening } from "@/props/panelWiringState";
 import {
   advancePush,
   endCutscene,
   hasSeenCutscene,
   isValveFaked,
   markCutsceneSeen,
-  pushOffset,
-  pushStage,
+  getPushOffset,
+  getPushStage,
   setPush,
   startCutscene,
-} from "@/props/vendingPush";
+} from "@/props/vendingPushState";
 
 const CAMERA_OWNER = "vendingPushCutscene";
 
 type Phase = "idle" | "goIn" | "push" | "return";
 
 // 네모난 점은 픽셀로 보인다. 가운데가 밝고 가장자리로 스러지는 동그라미여야 먼지로 읽힌다.
-const dustSprite = () =>
-  cachedCanvasTexture(
+const makeDustTexture = () =>
+  makeCachedCanvasTexture(
     "vendingDust",
     (g) => {
       const gradient = g.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -89,7 +89,7 @@ const smoothstep = (t: number) => t * t * (3 - 2 * t);
  * 밸브가 돌면 화면이 자판기로 넘어가 밀리는 걸 보여 준다 — 밸브 자리에서는 자판기가 등 뒤라 열린 걸 못 본다.
  * ① 넘어감 → ② 밀림(먼지·떨림) → ③ 들어갈 때의 자리·시선으로 정확히 돌아옴.
  * 조금이라도 다른 자리로 돌아오면 순간이동당한 느낌이라 들어갈 때 자리를 적어 둔다.
- * 연출 동안 조작을 멈추는 판단은 App 이 `isCutscenePlaying`/`useCutscene`(@/props/vendingPush) 으로 한다.
+ * 연출 동안 조작을 멈추는 판단은 App 이 `isCutscenePlaying`/`useIsCutscenePlaying`(@/props/vendingPushState) 으로 한다.
  */
 export default function VendingPushCutscene({
   enabled = true,
@@ -114,7 +114,7 @@ export default function VendingPushCutscene({
   const phaseStart = useRef(0);
   const lastShoveAt = useRef(0);
   const saved = useRef<{ position: THREE.Vector3; quaternion: THREE.Quaternion } | null>(null);
-  // '밸브가 막 돌았다' 는 판정은 vendingPush 모듈이 기억한다. 여기 ref 로 두면 씬이 다시 뜰 때 컷신이 또 돈다.
+  // '밸브가 막 돌았다' 는 판정은 vendingPushState 모듈이 기억한다. 여기 ref 로 두면 씬이 다시 뜰 때 컷신이 또 돈다.
   const lastStage = useRef(-1);
 
   const pool = useMemo(() => createDustPool(dustCount), [dustCount]);
@@ -129,7 +129,7 @@ export default function VendingPushCutscene({
       new THREE.PointsMaterial({
         color: dustColor,
         size: dustSize,
-        map: dustSprite(),
+        map: makeDustTexture(),
         transparent: true,
         opacity: 0.42,
         // 알갱이끼리 깊이 순서를 다투면 깜빡인다
@@ -174,7 +174,7 @@ export default function VendingPushCutscene({
     };
 
     // 미리보기는 컷신 없이 밀린다 — 고칠 때마다 컷신이 돌면 성가시다.
-    const open = enabled ? (preview || isValveFaked() || valveOpen() ? 1 : 0) : 0;
+    const open = enabled ? (preview || isValveFaked() || getValveOpening() ? 1 : 0) : 0;
 
     // 먼지는 연출이 끝난 뒤에도 남은 것이 계속 뜬다
     for (let i = 0; i < dustCount; i++) {
@@ -218,7 +218,7 @@ export default function VendingPushCutscene({
     if (phase.current === "idle") {
       // 컷신이 아닐 때(미리보기·되돌리기)도 자판기는 제자리로 간다
       advancePush(open, d, duration, distance);
-      const z = pushOffset();
+      const z = getPushOffset();
       if (target && Math.abs(target.position.z - z) > 1e-5) target.position.z = z;
       return;
     }
@@ -245,10 +245,10 @@ export default function VendingPushCutscene({
     if (phase.current === "push") {
       // 벽시계로 진행도를 정한다 — 「시간」 초에 정확히 끝난다
       const progress = setPush(elapsed() / Math.max(0.1, duration), distance);
-      if (target) target.position.z = pushOffset();
+      if (target) target.position.z = getPushOffset();
       // 미는 내내 조금씩 일고, 꾹 밀리는 순간 확 터진다
       const origin = dustOrigin?.();
-      const stage = pushStage(progress);
+      const stage = getPushStage(progress);
       if (origin) {
         const trickle = Math.max(0, Math.round(dustStrength * (1 - progress * 0.6) * 2));
         if (trickle > 0) emit(trickle, origin);

@@ -4,8 +4,8 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import type { AvatarGender } from "../avatar/sidekickOptions";
 import {
   createDefaultDraft,
-  defaultBodyParameters,
-  matchGender,
+  getDefaultBodyParameters,
+  adaptAppearanceToGender,
   normalizeDraft,
   type BodyField,
   type DraftAppearance,
@@ -29,7 +29,7 @@ export type UpdateAppearance = (update: (current: DraftAppearance) => DraftAppea
 
 const HISTORY_LIMIT = 50;
 
-function defaultAppearance(catalog: CharacterCatalog, gender: AvatarGender) {
+function getDefaultAppearance(catalog: CharacterCatalog, gender: AvatarGender) {
   return normalizeDraft(createDefaultDraft(catalog, gender), catalog).draft.appearance;
 }
 
@@ -45,7 +45,7 @@ export function useLookHistory(initialAppearance: DraftAppearance, catalog: Char
   const lookBeforeDrag = useRef<Look | null>(null);
 
   const appearance = useMemo(
-    () => look.drafts[look.gender] ?? defaultAppearance(catalog, look.gender),
+    () => look.drafts[look.gender] ?? getDefaultAppearance(catalog, look.gender),
     [look, catalog],
   );
 
@@ -60,7 +60,7 @@ export function useLookHistory(initialAppearance: DraftAppearance, catalog: Char
   const updateAppearance = useCallback<UpdateAppearance>(
     (update, isHistoryStep = true) => {
       const apply = (previous: Look): Look => {
-        const current = previous.drafts[previous.gender] ?? defaultAppearance(catalog, previous.gender);
+        const current = previous.drafts[previous.gender] ?? getDefaultAppearance(catalog, previous.gender);
         return { ...previous, drafts: { ...previous.drafts, [previous.gender]: update(current) } };
       };
       if (isHistoryStep) changeLook(apply);
@@ -73,9 +73,9 @@ export function useLookHistory(initialAppearance: DraftAppearance, catalog: Char
     if (nextGender === look.gender) return;
     changeLook((previous) => {
       if (previous.drafts[nextGender]) return { ...previous, gender: nextGender };
-      const current = previous.drafts[previous.gender] ?? defaultAppearance(catalog, previous.gender);
+      const current = previous.drafts[previous.gender] ?? getDefaultAppearance(catalog, previous.gender);
       // 바꾼 항목 알림은 띄우지 않는다 — 성별마다 다른 항목은 그 성별 기본값으로 조용히 맞춘다
-      const { appearance: matched } = matchGender(current, nextGender, catalog);
+      const { appearance: matched } = adaptAppearanceToGender(current, nextGender, catalog);
       return { ...previous, gender: nextGender, drafts: { ...previous.drafts, [nextGender]: matched } };
     });
   };
@@ -94,8 +94,8 @@ export function useLookHistory(initialAppearance: DraftAppearance, catalog: Char
     changeLook(() => ({ gender: look.gender, drafts: { masculine: null, feminine: null } }));
   };
   const resetSection = (section: AppearanceTab) => {
-    const fallback = defaultAppearance(catalog, look.gender);
-    if (section === "body") updateAppearance((v) => ({ ...v, bodyParameters: defaultBodyParameters(look.gender) }));
+    const fallback = getDefaultAppearance(catalog, look.gender);
+    if (section === "body") updateAppearance((v) => ({ ...v, bodyParameters: getDefaultBodyParameters(look.gender) }));
     else if (section === "hair")
       updateAppearance((v) => ({ ...v, hairId: fallback.hairId, colors: { ...v.colors, hair: WHITE } }));
     else if (section === "outfit")

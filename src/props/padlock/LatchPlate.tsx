@@ -4,7 +4,7 @@ import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
-import { latchPlateGeometry, screwGeometry, screwSpots } from "./padlockGeometry";
+import { buildLatchPlateGeometry, buildScrewGeometry, computeScrewSpots } from "./padlockGeometry";
 
 /**
  * 걸쇠 한 장의 설정(Leva 「걸쇠 문쪽」「걸쇠 테두리쪽」). 원점이 큰 구멍 한가운데라 x·y·z 만 맞추면
@@ -44,7 +44,7 @@ interface LatchPlateProps {
   outline?: OutlineValues | null;
 }
 
-function buildLatch(settings: LatchSettings, shackleThickness: number) {
+function buildLatchGeometry(settings: LatchSettings, shackleThickness: number) {
   const thickness = Math.max(shackleThickness * 0.18, (settings.thickness ?? 0.45) * shackleThickness);
   // 구멍은 쇠막대보다 넉넉해야 꿴다. 슬라이더를 어디로 끌든 여기서 묶는다.
   const holeRadius = Math.max(shackleThickness * 1.25, (settings.hole ?? 1.5) * shackleThickness);
@@ -59,8 +59,8 @@ function buildLatch(settings: LatchSettings, shackleThickness: number) {
     screwOnWing: settings.screwOnWing,
   };
   return {
-    plate: latchPlateGeometry(shape),
-    screws: screwGeometry(screwSpots(shape), shape.screwRadius, shape.thickness),
+    plate: buildLatchPlateGeometry(shape),
+    screws: buildScrewGeometry(computeScrewSpots(shape), shape.screwRadius, shape.thickness),
   };
 }
 
@@ -75,7 +75,7 @@ export default function LatchPlate({
   brightness,
   outline,
 }: LatchPlateProps) {
-  const latch = useMemo(() => buildLatch(settings, shackleThickness), [settings, shackleThickness]);
+  const latch = useMemo(() => buildLatchGeometry(settings, shackleThickness), [settings, shackleThickness]);
   useEffect(
     () => () => {
       latch.plate.dispose();

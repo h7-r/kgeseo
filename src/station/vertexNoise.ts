@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { makeRandom } from "@/engine/random";
+import { createRandom } from "@/engine/random";
 
 // 기준 1.19 = 캐비닛 본체의 대각선. 본체(높이 1)와 서랍 앞판(높이 0.22)이 같은 값으로 같은 만큼 낡아 보이게 크기에 비례시킨다.
 const CABINET_DIAGONAL = 1.19;
@@ -17,16 +17,10 @@ function sizeOf(geometry: THREE.BufferGeometry): { box: THREE.Box3; size: THREE.
  * 움푹 파인 자국 — 정점을 법선 반대쪽으로 밀어 넣는다.
  * radius 는 자국 하나의 크기(대각선 대비). 작은 부품은 크게 잡아야 눌린 게 보인다.
  */
-export function dentGeometry(
-  geometry: THREE.BufferGeometry,
-  seed: number,
-  count: number,
-  depth: number,
-  radius = 0.05,
-) {
+export function applyDents(geometry: THREE.BufferGeometry, seed: number, count: number, depth: number, radius = 0.05) {
   // cabinet.glb 에는 NORMAL 속성이 없다.
   if (!geometry.attributes.normal) geometry.computeVertexNormals();
-  const rnd = makeRandom(seed);
+  const rnd = createRandom(seed);
   const positions = geometry.attributes.position.array;
   const normals = geometry.attributes.normal.array;
   const n = geometry.attributes.position.count;
@@ -69,10 +63,10 @@ export function dentGeometry(
  * 면을 법선 방향으로 아주 조금씩 흔든다.
  * 코드로 만든 상자는 완벽한 평면이라 툰 명암 한 칸에 통째로 들어가, GLB 몸통 옆에서 혼자 매끈해 보인다.
  */
-export function jitterGeometry(geometry: THREE.BufferGeometry, seed: number, strength: number) {
+export function applySurfaceJitter(geometry: THREE.BufferGeometry, seed: number, strength: number) {
   if (strength <= 0) return;
   if (!geometry.attributes.normal) geometry.computeVertexNormals();
-  const rnd = makeRandom(seed + 4441);
+  const rnd = createRandom(seed + 4441);
   const positions = geometry.attributes.position.array;
   const normals = geometry.attributes.normal.array;
   const { size } = sizeOf(geometry);
@@ -92,14 +86,14 @@ export function jitterGeometry(geometry: THREE.BufferGeometry, seed: number, str
  * 얼룩을 정점 색으로 칠한다(UV 없이 툰 색에 곱해진다).
  * yOffset 은 이 지오가 캐비닛 안에서 놓이는 높이 — 부품도 바닥에 가까울수록 때가 타게 한다.
  */
-export function stainGeometry(
+export function applyGrimeStains(
   geometry: THREE.BufferGeometry,
   seed: number,
   count: number,
   strength: number,
   yOffset = 0,
 ) {
-  const rnd = makeRandom(seed + 9973);
+  const rnd = createRandom(seed + 9973);
   const positions = geometry.attributes.position.array;
   const n = geometry.attributes.position.count;
   const dark = new Float32Array(n);
@@ -154,7 +148,7 @@ export function applySurfaceStains(
   seed: number,
   { count = 16, strength = 0.5, verticalStretch = 1, bottomGrime = 0, heightOffset = 0 }: SurfaceStainOptions = {},
 ) {
-  const rnd = makeRandom(seed + 777);
+  const rnd = createRandom(seed + 777);
   const position = geometry.attributes.position;
   const n = position.count;
   const dark = new Float32Array(n);
