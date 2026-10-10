@@ -4,7 +4,7 @@ import * as THREE from "three";
 import type { Vector3Tuple } from "three";
 
 import { ToonOutline } from "@/engine/outline";
-import { requestShadowUpdates } from "@/engine/rendering";
+import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { AimHighlight } from "@/lobby/AimHighlight";

@@ -1,17 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 
-// three 는 기본으로 매 프레임 그림자 맵을 통째로 다시 그린다(본부실 한 프레임의 55%).
-// 자동 갱신을 끄고, 무언가 움직였다는 신호가 오면 잠깐 촘촘히, 그 밖에는 느린 안전망 주기로만 다시 그린다.
-let shadowUrgentUntil = 0;
-
-const nowSeconds = () => (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1000;
-
-/** 무언가 움직였다 — 이 시간(초) 동안 그림자를 촘촘히 다시 그린다. 안 불러도 안전망이 늦게라도 따라온다. */
-// eslint-disable-next-line react-refresh/only-export-components -- 그림자 신호는 이 관리자와 한 몸이라 같은 파일에 둔다
-export function requestShadowUpdates(seconds = 1.5) {
-  shadowUrgentUntil = Math.max(shadowUrgentUntil, nowSeconds() + seconds);
-}
+import { isShadowUpdateUrgent, requestShadowUpdates } from "./shadowUpdates";
 
 interface ShadowMapUpdaterProps {
   /** 조용할 때 몇 프레임마다 한 번 다시 그릴지 */
@@ -40,9 +30,9 @@ export function ShadowMapUpdater({ slowInterval = 240, urgentInterval = 2, enabl
   useFrame(() => {
     if (!enabled) return;
     frameCount.current++;
-    const urgent = nowSeconds() < shadowUrgentUntil;
+    const urgent = isShadowUpdateUrgent();
     // 한 번 다시 그리는 값은 1.4~2.3ms. 움직이는 동안에도 매 프레임은 안 그리고(2프레임이면 지연 33ms),
-    // 안전망은 신호를 깜빡한 물건을 따라잡는 장치라 4초(240프레임)면 된다 — 20 이면 그게 곧 끊김이었다.
+    // 안전망은 신호를 깜빡한 물건을 따라잡는 장치라 4초(240프레임)면 된다 — 더 잦으면 그 자체가 끊김이 된다.
     const due = urgent
       ? frameCount.current - lastUpdate.current >= Math.max(1, urgentInterval)
       : frameCount.current % slowInterval === 0;

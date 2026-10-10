@@ -9,6 +9,7 @@ import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { rattleHinge, computeRattleOffset, toggleHinge, useIsHingeOpen } from "@/props/hingeState";
 
+import { CORRIDOR_INK_COLOR } from "./corridorLighting";
 import { EXIT_SIGN_ASPECT, makeExitSignTexture } from "./signTextures";
 
 interface CorridorEndDoorProps {
@@ -74,7 +75,7 @@ export default function CorridorEndDoor({
   exitSignLit = true,
   outline,
 }: CorridorEndDoorProps) {
-  const signTexture = makeExitSignTexture(exitSignColor, outline?.outlineColor ?? "#131314");
+  const signTexture = makeExitSignTexture(exitSignColor, outline?.outlineColor ?? CORRIDOR_INK_COLOR);
   const isDoorOpen = useIsHingeOpen(openId ?? "");
   const doorRef = useRef<THREE.Group>(null);
   const doorAngle = useRef(0);

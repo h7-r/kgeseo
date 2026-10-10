@@ -8,7 +8,7 @@ import { createChangeSignal } from "@/lib/changeSignal";
 const STORAGE_KEY = "kgeseo.settings.v1";
 const LEGACY_STORAGE_KEY = "kgeseo.설정.v1";
 
-export type Resolution = "auto" | "low" | "medium" | "high" | "max";
+type Resolution = "auto" | "low" | "medium" | "high" | "max";
 
 export interface Settings {
   /** 0 ~ 1 */

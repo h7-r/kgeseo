@@ -91,7 +91,7 @@ export function getMeshBodyUrl(config: OutfitSelection): string {
   return `/models/meshy-${formatOutfitCombo(config)}-${getGenderFileSuffix(config.gender)}.glb?v=${MESH_MODEL_VERSION}`;
 }
 
-export type MeshSliderKey =
+type MeshSliderKey =
   | "heightScale"
   | "headScale"
   | "shoulderWidth"
@@ -124,7 +124,7 @@ export const MESH_SLIDERS: readonly Slider<MeshSliderKey>[] = [
   ["fistHands", "주먹 쥐기", 0, 1, 0.05],
 ];
 
-export type MeshColorKey = "skinColor" | "hairColor" | "clothColor" | "bottomColor" | "shoesColor";
+type MeshColorKey = "skinColor" | "hairColor" | "clothColor" | "bottomColor" | "shoesColor";
 
 // 텍스처 위에 곱해지는 색. 흰색이면 Meshy 원본 색 그대로다.
 export const MESH_COLOR_FIELDS: readonly Option<MeshColorKey>[] = [

@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
+import { mergeAndDispose } from "@/engine/geometry";
 import { createRandom } from "@/engine/random";
 
 import type { WireShape } from "./workLampState";
@@ -40,9 +40,7 @@ export function buildMergedGeometry(pieces: GeometryPiece[]): THREE.BufferGeomet
     placed.push(g);
   }
   if (!placed.length) return null;
-  const merged = placed.length === 1 ? placed[0] : mergeGeometries(placed, false);
-  if (merged !== placed[0]) for (const g of placed) g.dispose();
-  return merged ?? null;
+  return mergeAndDispose(placed, { keepSingle: true });
 }
 
 interface OpenBoxOptions {

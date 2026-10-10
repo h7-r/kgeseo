@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 
 import { setHeroCovering } from "@/app/siteState";
 import { HEADER_HEIGHT, useStageScale } from "@/lib/layout";
-import { clamp01 } from "@/lib/math";
+import { clamp01, smoothstep } from "@/lib/math";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 
 import Hero from "./Hero";
@@ -13,11 +13,6 @@ export const HERO_BOTTOM = HEADER_HEIGHT + 1149;
 
 /** sticky 가 붙어 있는 스크롤 거리. 트랙 350svh − 화면 100svh. */
 const SCRUB_LENGTH = "250svh";
-
-const smoothstep = (from: number, to: number, x: number) => {
-  const t = clamp01((x - from) / (to - from));
-  return t * t * (3 - 2 * t);
-};
 
 /**
  * 화면에 붙은 채 스크롤한 만큼 히어로 영상이 흐르고, 트랙 끝까지 내려야 풀리는 핀.

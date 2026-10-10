@@ -5,8 +5,8 @@
 // 좌표·크기는 미터, 지오메트리만 유닛.
 
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
+import { mergeAndDispose } from "@/engine/geometry";
 import { createRandom } from "@/engine/random";
 
 import { UNITS_PER_METER, type Range, type River } from "../plan/sitePlan";
@@ -419,11 +419,7 @@ export function buildForestVillages({
     taekchonSpots.push(house(x, z, () => Math.PI + (random() - 0.5) * 1.4));
   }
 
-  let geometry: THREE.BufferGeometry | null = null;
-  if (pieces.length) {
-    geometry = mergeGeometries(pieces, false);
-    pieces.forEach((g) => g.dispose());
-  }
+  const geometry = pieces.length ? mergeAndDispose(pieces) : null;
   return { geometry, treeSpots, houseSpots, taekchonSpots };
 }
 
@@ -450,8 +446,7 @@ export function buildDistantTreePrototypes(count = 6, seed = 4801) {
       g.translate((random() - 0.5) * 0.12, height, (random() - 0.5) * 0.12);
       pieces.push(paint(g, 1));
     }
-    const merged = mergeGeometries(pieces, false);
-    pieces.forEach((g) => g.dispose());
+    const merged = mergeAndDispose(pieces);
     merged.computeVertexNormals();
     prototypes.push(merged);
   }
@@ -495,8 +490,7 @@ export function buildDistantHousePrototypes(seed = 6203) {
     roof.rotateY(random() * Math.PI * 2);
     roof.translate(0, wallHeight + roofHeight / 2, 0);
     pieces.push(paint(roof, ...roofRatios[i]));
-    const merged = mergeGeometries(pieces, false);
-    pieces.forEach((g) => g.dispose());
+    const merged = mergeAndDispose(pieces);
     merged.computeVertexNormals();
     prototypes.push(merged);
   }
@@ -561,7 +555,5 @@ export function buildMountainRidges({ layers = 4, noise, horizonColor = "#CFCBBE
     g.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
     pieces.push(g);
   }
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((g) => g.dispose());
-  return merged;
+  return mergeAndDispose(pieces);
 }

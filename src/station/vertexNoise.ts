@@ -1,5 +1,6 @@
 import * as THREE from "three";
 
+import { smoothstep } from "@/engine/math";
 import { createRandom } from "@/engine/random";
 
 // 기준 1.19 = 캐비닛 본체의 대각선. 본체(높이 1)와 서랍 앞판(높이 0.22)이 같은 값으로 같은 만큼 낡아 보이게 크기에 비례시킨다.
@@ -50,7 +51,7 @@ export function applyDents(geometry: THREE.BufferGeometry, seed: number, count: 
       const d = Math.hypot(positions[i * 3] - cx, positions[i * 3 + 1] - cy, positions[i * 3 + 2] - cz);
       if (d >= r) continue;
       const t = 1 - d / r;
-      const s = t * t * (3 - 2 * t) * depth * scale;
+      const s = smoothstep(t) * depth * scale;
       positions[i * 3] -= normals[i * 3] * s;
       positions[i * 3 + 1] -= normals[i * 3 + 1] * s;
       positions[i * 3 + 2] -= normals[i * 3 + 2] * s;

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Vector3Tuple } from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
+import { mergeAndDispose } from "@/engine/geometry";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { AimHighlight } from "@/lobby/AimHighlight";
@@ -63,9 +63,7 @@ function buildCabinetShellGeometry(
     g.translate(...position);
     return g;
   });
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((g) => g.dispose());
-  return merged;
+  return mergeAndDispose(pieces);
 }
 
 export interface HydrantCabinetInteriorProps {

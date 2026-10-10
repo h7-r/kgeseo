@@ -32,7 +32,7 @@ import GroundMaterial from "./components/GroundMaterial";
 import InstanceGroupMesh from "./components/InstanceGroupMesh";
 import PathLayer from "./components/PathLayer";
 import PlanOverlays from "./components/PlanOverlays";
-import { planPoint } from "./components/planPoint";
+import { planPoint } from "../plan/sitePlan";
 import PlayerAvatar from "./components/PlayerAvatar";
 import SceneNotes from "./components/SceneNotes";
 import SkyAndLighting from "./components/SkyAndLighting";
@@ -227,7 +227,20 @@ export default function NajuScene({
     blockerShapes,
     ground,
   );
-  useNajuDevHook({ camera, gl, scene, terrain, controls, teleport, endScene, clearedBlockers, collapseRef, ramp });
+  useNajuDevHook({
+    camera,
+    gl,
+    scene,
+    terrain,
+    controls,
+    teleport,
+    endScene,
+    clearedBlockers,
+    collapseRef,
+    ramp,
+    instanceGroups,
+    edits,
+  });
 
   // 반드시 useTerrainMovement(usePlayerMovement) 뒤에 등록돼야 한다 — 그 훅이 매 프레임 reportRef.current 를 갈아끼운다.
   useSceneFrame({

@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { UNIT_BOX } from "@/engine/geometry";
+import { mergeAndDispose, UNIT_BOX } from "@/engine/geometry";
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
@@ -97,9 +96,7 @@ export default function DispenserFlap({
       geometry.translate(side * (width / 2) + sideThickness / 2, 0, 0);
       pieces.push(geometry);
     }
-    const merged = mergeGeometries(pieces, false);
-    pieces.forEach((geometry) => geometry.dispose());
-    return merged;
+    return mergeAndDispose(pieces);
   }, [width, height, halfDepth, sideFrontHeight, trayReach]);
   useEffect(() => () => inner.dispose(), [inner]);
 

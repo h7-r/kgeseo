@@ -328,7 +328,9 @@ export async function waitUntilReady(
       return finish();
     }
     report(breakReason || "프레임이 너무 적음");
-    console.info(`[로딩검사] 안정 확인 ${attempt}번째 실패 — ${breakReason || "프레임이 너무 적음"}`);
+    if (import.meta.env.DEV) {
+      console.info(`[로딩검사] 안정 확인 ${attempt}번째 실패 — ${breakReason || "프레임이 너무 적음"}`);
+    }
   }
   document.removeEventListener("visibilitychange", handleVisibilityChange);
   if (!isCancelled()) {

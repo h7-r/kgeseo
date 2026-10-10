@@ -4,7 +4,7 @@ import { useFrame } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import { playerView } from "@/engine/playerView";
-import { requestShadowUpdates } from "@/engine/rendering";
+import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { AimHighlight } from "@/lobby/AimHighlight";

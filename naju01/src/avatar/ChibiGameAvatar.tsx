@@ -59,10 +59,10 @@ function applyGrip(
   delta: number,
 ) {
   if (!fistMorphs.length) return;
-  const blend = Math.max(0, Math.min(1, state.gripBlend ?? 0));
+  const blend = THREE.MathUtils.clamp(state.gripBlend ?? 0, 0, 1);
   gripAmount.current += (blend - gripAmount.current) * (1 - Math.exp(-delta * GRIP_CLOSE_SPEED));
   // 쥘 때 값은 절대값 — 상자를 받치는 펴진 손(쥠세기 < 평소)을 만들 수 있어야 한다.
-  const gripping = Math.max(0, Math.min(1, state.gripStrength ?? resting));
+  const gripping = THREE.MathUtils.clamp(state.gripStrength ?? resting, 0, 1);
   const fist = resting + (gripping - resting) * gripAmount.current;
   fistMorphs.forEach(({ mesh, index }) => {
     if (mesh.morphTargetInfluences) mesh.morphTargetInfluences[index] = fist;

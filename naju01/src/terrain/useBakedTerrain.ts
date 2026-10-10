@@ -41,7 +41,7 @@ function loadTerrainGeometry() {
         (gltf) => resolve(findFirstMesh(gltf)?.geometry ?? null),
         undefined,
         (e) => {
-          console.warn("[새지형] GLB 를 못 읽었다 — 옛 지형으로 간다:", e);
+          console.warn("[새지형] GLB 를 못 읽었다 — 해석 지형으로 간다:", e);
           resolve(null);
         },
       );

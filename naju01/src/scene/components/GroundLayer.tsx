@@ -10,7 +10,7 @@ import type { GroundShading } from "../useNajuControls";
 import type { CliffShapes, GroundShapes, Terrain } from "../useTerrainLayers";
 import GroundMaterial from "./GroundMaterial";
 import DevLabel from "./DevLabel";
-import { planPoint } from "./planPoint";
+import { planPoint } from "../../plan/sitePlan";
 import SlopeSegment from "./SlopeSegment";
 
 const U = UNITS_PER_METER;

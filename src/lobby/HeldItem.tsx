@@ -8,8 +8,9 @@ import * as THREE from "three";
 import type { Vector3Tuple } from "three";
 
 import { FRAME_PRIORITY, MAX_FRAME_DELTA } from "@/engine/camera";
+import { smoothstep } from "@/engine/math";
 import { playerView } from "@/engine/playerView";
-import { requestShadowUpdates } from "@/engine/rendering";
+import { requestShadowUpdates } from "@/engine/shadowUpdates";
 
 import { getGripSpec, type GripSpec } from "./gripTable";
 import { itemSizes, computeSpringArmPoint } from "./placement";
@@ -36,9 +37,6 @@ const degreesToEuler = ([x, y, z]: Vector3Tuple) =>
   euler.set((x * Math.PI) / 180, (y * Math.PI) / 180, (z * Math.PI) / 180);
 
 const hasValue = ([x, y, z]: Vector3Tuple) => !!(x || y || z);
-
-/** 시작·끝 속도가 0 인 보간 비율. */
-const smoothstep = (progress: number) => progress * progress * (3 - 2 * progress);
 
 /** 물건별 회전(gripRotation)을 handQuaternion 에 얹는다. */
 function applyGripRotation(spec: GripSpec) {
@@ -195,7 +193,7 @@ export function HeldItem({
       socket.getWorldPosition(targetPosition);
 
       // 컵은 수평을 지켜야 하고 노즐은 손이 겨눈 쪽을 봐야 한다. 0 = 몸 기준 똑바로, 1 = 소켓 회전 그대로.
-      const follow = Math.max(0, Math.min(1, spec.followHand ?? 0));
+      const follow = THREE.MathUtils.clamp(spec.followHand ?? 0, 0, 1);
       handQuaternion.setFromAxisAngle(UP, playerView.bodyYaw ?? 0);
       if (follow > 0.001) {
         socket.getWorldQuaternion(socketQuaternion);

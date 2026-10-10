@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { exposeDevHook } from "@/debug/devHooks";
 
 /** 손뼈 기준 쥔 자리 보정. 뼈 축이 모델마다 달라 Leva 「손에 쥐기」 가 매 프레임 적는다. */
-export interface GripOffset {
+interface GripOffset {
   x: number;
   y: number;
   z: number;
@@ -12,7 +12,7 @@ export interface GripOffset {
   rz: number;
 }
 
-export interface PlayerView {
+interface PlayerView {
   eye: THREE.Vector3;
   isThirdPerson: boolean;
   ready: boolean;

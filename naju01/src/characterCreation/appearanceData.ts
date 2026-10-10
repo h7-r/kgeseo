@@ -35,7 +35,7 @@ export type BodyFieldKey =
   | "build"
   | "buff";
 
-export type BodyFieldGroup = "essentials" | "proportions" | "physique";
+type BodyFieldGroup = "essentials" | "proportions" | "physique";
 
 export interface BodyField {
   key: BodyFieldKey;
@@ -60,7 +60,7 @@ export interface DraftColors {
   shoes: string;
 }
 
-export interface EquipmentIds {
+interface EquipmentIds {
   top: string | null;
   bottom: string | null;
   shoes: string | null;
@@ -240,7 +240,7 @@ const TICK_WORDS: Record<BodyFieldKey, readonly [smaller: string, larger: string
   buff: ["가늘게", "다부지게"],
 };
 
-export interface Tick {
+interface Tick {
   value: number;
   label: string;
 }
@@ -416,7 +416,7 @@ export function adaptAppearanceToGender(
   };
 }
 
-export interface RendererOptions {
+interface RendererOptions {
   /** 속옷 보기 — 일시적인 미리보기라 골라 둔 옷은 초안에 그대로 남는다 */
   showUnderwear?: boolean;
   motion?: string;

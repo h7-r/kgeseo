@@ -95,7 +95,7 @@ const OVERRIDES: Preset = {
   ...(PRESENTATION_MOOD === "night" ? NIGHT_PRESET : null),
 };
 
-if (Object.keys(OVERRIDES).length > 0) {
+if (import.meta.env.DEV && Object.keys(OVERRIDES).length > 0) {
   console.log(
     `%c[발표] 프리셋 켬 — present: ${PRESENTATION_MODE ?? "없음"} · mood: ${PRESENTATION_MOOD ?? "없음"} · ` +
       `${Object.keys(OVERRIDES).length} 개 값 덮음`,

@@ -61,14 +61,14 @@ function getRigStore(key: string): RigStore {
   return store;
 }
 
-export interface TripoSource {
+interface TripoSource {
   scene: THREE.Object3D;
   skin: THREE.SkinnedMesh;
   clips: THREE.AnimationClip[];
   options?: RetargetSetup;
 }
 
-export interface TripoSources {
+interface TripoSources {
   sources: TripoSource[];
   clips: Map<string, { clip: THREE.AnimationClip; source: TripoSource }>;
 }
@@ -102,7 +102,7 @@ interface ClipLibraryInput {
   outerKey: string;
 }
 
-export interface ClipLibrary {
+interface ClipLibrary {
   clipFor: (name: string) => THREE.AnimationClip | null;
   strideFor: (name: string) => number;
   contactTimeFor: (name: string) => ContactTimes | null;

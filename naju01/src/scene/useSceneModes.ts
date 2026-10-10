@@ -1,7 +1,7 @@
 import { useEffect, useState, type RefObject } from "react";
 
 import type { AvatarLink } from "@/engine/avatarLink";
-import { requestShadowUpdates } from "@/engine/rendering";
+import { requestShadowUpdates } from "@/engine/shadowUpdates";
 
 import { createEmptyEdits, getPrefetchedEdits, loadEdits } from "../placement/editFile";
 
@@ -13,7 +13,7 @@ interface SceneModesOptions {
 
 /** 편집 모드(E)·부감(Tab)·3인칭 캐릭터 붙이기·좌클릭 공격, 그리고 손 배치 편집 층. */
 export function useSceneModes({ active, isThirdPerson, playerState }: SceneModesOptions) {
-  // Leva 항목이 135 개라 아무도 못 찾아 키로 뺐다. setter 가 없어 Leva 와 같이 두면 진실이 둘이 된다.
+  // Leva 는 항목이 많아 찾기 어려워 키(E)로 켠다. Leva 에는 setter 가 없어 같이 두면 상태가 둘이 된다.
   const [isEditing, setIsEditing] = useState(false);
   // 편집 중 공중에서 내려다보기(Tab). 편집을 끄면 같이 내려온다.
   const [isOverview, setIsOverview] = useState(false);

@@ -63,7 +63,7 @@ export function makeToonGradientTexture(steps: number, threshold: number, softne
       if (softness <= 0) {
         if (x >= edge) value = levels[k + 1];
       } else {
-        const t = Math.min(1, Math.max(0, (x - (edge - softness / 2)) / softness));
+        const t = THREE.MathUtils.clamp((x - (edge - softness / 2)) / softness, 0, 1);
         value = smooth(value, levels[k + 1], t);
       }
     });
@@ -140,7 +140,7 @@ const FRAGMENT_TINT = `#include <map_fragment>
     diffuseColor.rgb *= mix(_skinTint, vec3(1.0), sclera);
   }`;
 
-export interface ToonUniforms {
+interface ToonUniforms {
   _headCentre: THREE.IUniform<THREE.Vector3>;
   _faceFlatten: THREE.IUniform<number>;
   _rimPower: THREE.IUniform<number>;
@@ -290,7 +290,7 @@ function createToonMaterial(
   return { material, uniforms };
 }
 
-export interface ToonTint {
+interface ToonTint {
   skin?: string;
   cloth?: string;
   bottom?: string;

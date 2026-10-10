@@ -106,7 +106,7 @@ export default function AlarmDevices({
         <sphereGeometry args={[shelfHeight * 0.1, 10, 8]} />
         <meshBasicMaterial color={scaleColor(indicatorColor, 1 + glow * 0.8)} toneMapped={false} />
       </mesh>
-      {/* 왼쪽 끝 은색 표시창. 스피커 구멍은 그 크기에서 검은 점으로만 보여 뺐다. */}
+      {/* 왼쪽 끝 은색 표시창. 스피커 구멍은 이 크기에선 검은 점으로만 보여 그리지 않는다. */}
       <mesh position={[x, y, -innerWidth * 0.44]} rotation={[0, 0, Math.PI / 2]}>
         <boxGeometry args={[0.03, shelfHeight * 0.42, shelfHeight * 0.16]} />
         <ToonMaterial color={metalColor} brightness={brightness} />

@@ -2,11 +2,11 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
-import { requestShadowUpdates } from "@/engine/rendering";
+import { requestShadowUpdates } from "@/engine/shadowUpdates";
 
 import type { PresentedControls } from "../app/presentation";
 import { UNITS_PER_METER } from "../plan/sitePlan";
-import { planPoint } from "./components/planPoint";
+import { planPoint } from "../plan/sitePlan";
 
 const U = UNITS_PER_METER;
 

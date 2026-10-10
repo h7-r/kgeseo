@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 
+import { toRadians } from "@/engine/math";
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import ToonMaterial from "@/props/shared/ToonMaterial";
@@ -64,8 +65,6 @@ function buildLatchGeometry(settings: LatchSettings, shackleThickness: number) {
   };
 }
 
-const toRadians = (degrees: number | undefined) => ((degrees ?? 0) * Math.PI) / 180;
-
 /** 구멍 뚫린 철판 한 장. 자물쇠 쇠막대가 두 장의 구멍을 함께 꿴다. */
 export default function LatchPlate({
   settings,
@@ -94,7 +93,11 @@ export default function LatchPlate({
   return (
     <group
       position={[x, y, settings.z ?? 0]}
-      rotation={[toRadians(settings.rotationX), toRadians(settings.rotationY), toRadians(settings.rotationZ)]}
+      rotation={[
+        toRadians(settings.rotationX ?? 0),
+        toRadians(settings.rotationY ?? 0),
+        toRadians(settings.rotationZ ?? 0),
+      ]}
     >
       <mesh geometry={latch.plate} castShadow receiveShadow>
         <ToonMaterial color={settings.color ?? "#9aa0a6"} brightness={brightness} />

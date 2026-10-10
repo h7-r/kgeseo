@@ -305,13 +305,13 @@ type SavedFolder = Record<string, unknown>;
 type SavedControls = Record<string, SavedFolder>;
 
 /** leva 가 받는 스키마. 항목마다 label 에 한글 이름을 주면 그 이름으로 저장된 값도 찾아온다. */
-export type LevaSchema = Parameters<typeof folder>[0];
+type LevaSchema = Parameters<typeof folder>[0];
 type Widen<V> = V extends number ? number : V extends string ? string : V extends boolean ? boolean : V;
 type EntryValue<E> = E extends { value: infer V } ? Widen<V> : Widen<E>;
 // button() 은 값이 없다.
 type ValueKeys<S> = { [K in keyof S]: S[K] extends ReturnType<typeof button> ? never : K }[keyof S];
 /** 스키마에서 나오는 값 객체. leva 의 추론 타입은 폴더로 감싸면 너무 깊어져 직접 펼친다. */
-export type ControlValues<S extends LevaSchema> = { [K in ValueKeys<S>]: EntryValue<S[K]> };
+type ControlValues<S extends LevaSchema> = { [K in ValueKeys<S>]: EntryValue<S[K]> };
 
 function readSavedFolders(): SavedControls {
   try {

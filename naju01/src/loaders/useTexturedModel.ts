@@ -89,7 +89,7 @@ function loadGlb(url: string): Promise<LoadedModel | null> {
       },
       undefined,
       (e) => {
-        console.warn("[구운모형] 못 읽었다 — 옛 표본으로 간다:", url, e);
+        console.warn("[구운모형] 못 읽었다 — 코드 표본으로 간다:", url, e);
         resolve(null);
       },
     );
@@ -106,12 +106,14 @@ export function loadTexturedModel(name: TexturedModelName): Promise<TexturedMode
     .then((result): TexturedModel => {
       if (!result) return FAILED;
       const { geometry, material } = result;
-      const triangles = (geometry.index ? geometry.index.count : geometry.attributes.position.count) / 3;
-      console.log(
-        `[구운모형] ${name} 준비됨 — ${triangles.toLocaleString()} 삼각형 · ` +
-          `${geometry.attributes.color ? "정점색" : getTextureMap(material) ? "텍스처" : "색 없음"} · ` +
-          `${((performance.now() - startedAt) / 1000).toFixed(1)}초`,
-      );
+      if (import.meta.env.DEV) {
+        const triangles = (geometry.index ? geometry.index.count : geometry.attributes.position.count) / 3;
+        console.log(
+          `[구운모형] ${name} 준비됨 — ${triangles.toLocaleString()} 삼각형 · ` +
+            `${geometry.attributes.color ? "정점색" : getTextureMap(material) ? "텍스처" : "색 없음"} · ` +
+            `${((performance.now() - startedAt) / 1000).toFixed(1)}초`,
+        );
+      }
       return { prototypes: [geometry], geometry, material, status: "ready" };
     })
     .then((model) => {

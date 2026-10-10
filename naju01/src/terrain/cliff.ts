@@ -70,7 +70,7 @@ interface CutFaceOptions {
 /**
  * 깎인 면의 파임 규칙 — 절벽도 통로 비탈도 이것 하나를 세기만 달리해 쓴다.
  * 사진 속 앙암바위는 가로 지층·각진 절리 대신 둥글게 부푼 암괴에 세로 홈이 지배한다.
- * 그래서 세 세기를 손잡이로 뺐다. 비탈은 기본값 그대로, 절벽만 다른 값을 넘긴다.
+ * 그래서 세 세기를 손잡이로 둔다. 비탈은 기본값 그대로, 절벽만 다른 값을 넘긴다.
  */
 export function buildCutFace({
   carveDepth,
@@ -354,7 +354,7 @@ export interface StoneSpot {
 /**
  * 절벽 발치에 붙이는 큰 암괴 자리(도면 4 m 띠 밖). 띠 안에서는 아무리 흔들어도 판(벽)이다.
  * 네모 덩어리(buildBoulders)는 상자로 보여 정이십면체 돌(buildRockShape)을 쓴다. 그림 전용이라 Z2 가장자리에 둔다.
- * 마루에 얹은 큰 돌은 공중에 뜬 검은 덩어리로 보여 뺐다 — 둥근 머리는 Z3 고도를 바꾸는 도면 안건이다.
+ * 마루에는 큰 돌을 얹지 않는다 — 공중에 뜬 검은 덩어리로 보인다. 둥근 머리는 Z3 고도를 바꾸는 도면 안건이다.
  */
 export function computeBoulderSpots({ cliff, heightAt }: { cliff: CliffBand; heightAt?: HeightAt }) {
   const spots: StoneSpot[] = [];

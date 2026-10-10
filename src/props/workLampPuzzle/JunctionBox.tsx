@@ -5,6 +5,7 @@ import { Outlines } from "@react-three/drei";
 import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
+import { CORRIDOR_INK_COLOR } from "@/station/corridor/corridorLighting";
 
 import { buildOpenBoxGeometry } from "./puzzleGeometry";
 import { makeJunctionLabelTexture } from "./labelTextures";
@@ -60,7 +61,7 @@ export default function JunctionBox({
   outline,
 }: JunctionBoxProps) {
   const d = direction;
-  const labelTexture = makeJunctionLabelTexture(label, labelColor, "#131314", wear);
+  const labelTexture = makeJunctionLabelTexture(label, labelColor, CORRIDOR_INK_COLOR, wear);
   const innerBrightness = Math.max(0.6, brightness);
   const wallThickness = 0.04;
   // 속 부품은 뒤판(x=0)에서부터 잰다

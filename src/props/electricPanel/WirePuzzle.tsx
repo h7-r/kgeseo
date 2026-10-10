@@ -1,7 +1,7 @@
 import { createRef, useEffect, useMemo, type RefObject } from "react";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type * as THREE from "three";
 
+import { mergeAndDispose } from "@/engine/geometry";
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
@@ -32,10 +32,7 @@ function copperTips(hanging: WirePath[], shapes: WirePath[][], radius: number, h
   const male = buildCopperTipGeometry(maleStrands, radius * 0.82, radius * 0.44, 0.066);
   const pieces = [female, male].filter((g): g is THREE.BufferGeometry => !!g);
   if (!pieces.length) return null;
-  if (pieces.length === 1) return pieces[0];
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((g) => g.dispose());
-  return merged;
+  return mergeAndDispose(pieces, { keepSingle: true });
 }
 
 interface WirePuzzleProps {

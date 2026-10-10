@@ -1,6 +1,6 @@
 import { buildOutlineSchema, useSavedControls } from "@/engine/leva/savedControls";
 
-import { FORCE_LEGACY_TERRAIN } from "../app/runtimeFlags";
+import { FORCE_ANALYTIC_TERRAIN } from "../app/runtimeFlags";
 import { MOVEMENT_CONSTANTS } from "../movement/useTerrainMovement";
 import { getTunableControl } from "../plan/sitePlan";
 import { DISTORTION_STAGE_ORDER } from "../story/distortion";
@@ -37,7 +37,7 @@ export function useNajuControls() {
     groundDetail: { value: true, label: "바닥디테일" },
     // label 이 `새지형` 이 아닌 것은 그 열쇠에 false 가 저장된 브라우저가 있어서다.
     // 끄면 코드 지형으로 돌아간다(비교·되돌리기용 — edits.json 은 블렌더 지형 높이 기준이다).
-    useBlenderTerrain: { value: !FORCE_LEGACY_TERRAIN, label: "블렌더지형" },
+    useBlenderTerrain: { value: !FORCE_ANALYTIC_TERRAIN, label: "블렌더지형" },
     // 본편 로비와 같은 툰 그라디언트라야 두 공간이 같은 게임으로 보인다.
     groundShading: { value: "툰", options: ["부드럽게", "툰"], label: "바닥셰이딩" },
     // 3 = 33 cm 간격. 판이 촘촘해야 돌 발치 그늘이 뭉개지지 않는다.

@@ -2,7 +2,7 @@ import type * as THREE from "three";
 
 import type { PresentedControls } from "../../app/presentation";
 import { CORE, SECTIONS, UNITS_PER_METER } from "../../plan/sitePlan";
-import { planPoint } from "./planPoint";
+import { planPoint } from "../../plan/sitePlan";
 
 const U = UNITS_PER_METER;
 

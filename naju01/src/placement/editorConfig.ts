@@ -47,7 +47,6 @@ export const EDIT_BOUNDS = {
   z: [CORE.z[0] - 250, CORE.z[1] + 250],
 };
 
-export const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 // 긴 프레임 하나에 시점이 몇 바퀴씩 돌지 않게 dt 를 50 ms 로 물린다
 export const clampDelta = (dt: number) => Math.min(dt, 0.05);
 

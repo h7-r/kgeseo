@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
+import { easeOutCubic } from "@/engine/math";
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { vendingMachineStore, type VendingId } from "@/props/vendingMachineState";
@@ -59,7 +60,7 @@ export default function DispensedCan({
       y = lyingY + Math.sin(b * Math.PI) * 0.14 * (1 - b); // 한 번 튕긴다
     }
     const rk = Math.min(1, t / 0.45);
-    const eased = 1 - Math.pow(1 - rk, 3);
+    const eased = easeOutCubic(rk);
     can.position.y = Math.max(lyingY, y);
     can.rotation.z = eased * (Math.PI / 2) + Math.sin(rk * Math.PI) * 0.18; // 눕는 회전 + 오버슈트
   });

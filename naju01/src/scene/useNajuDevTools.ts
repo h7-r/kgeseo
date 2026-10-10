@@ -6,6 +6,7 @@ import { exposeDevHook } from "@/debug/devHooks";
 import type { PresentedControls } from "../app/presentation";
 import { applyRealSize, findFirstMesh, parseGlb } from "../loaders/glbImport";
 import type { TerrainTeleport } from "../movement/useTerrainMovement";
+import { computeEditAnchors, type Edits, type InstanceGroup } from "../placement/instanceGroups";
 import { VIEWPOINTS } from "../plan/sitePlan";
 import type { CollapseSequence } from "../story/blockerCollapse";
 import { applyBakedTerrainTexture } from "../terrain/bakedTerrainTexture";
@@ -26,6 +27,8 @@ interface NajuDevHookOptions {
   clearedBlockers: Set<string>;
   collapseRef: RefObject<CollapseSequence | null>;
   ramp: ConnectorRamp | null;
+  instanceGroups: InstanceGroup[];
+  edits: Edits;
 }
 
 /** 개발용 `__game.naju` — 헤드리스 스크린샷·콘솔이 쓴다. teleport 를 쓰므로 useTerrainMovement 뒤여야 한다. */
@@ -40,6 +43,8 @@ export function useNajuDevHook({
   clearedBlockers,
   collapseRef,
   ramp,
+  instanceGroups,
+  edits,
 }: NajuDevHookOptions) {
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -70,8 +75,24 @@ export function useNajuDevHook({
       assets: { parseGlb, firstMesh: findFirstMesh, fitRealSize: applyRealSize },
       // 도구가 Leva 를 안 거치고 구운 텍스처를 껐다 켠다
       bakedTerrain: (enabled: boolean) => applyBakedTerrainTexture(scene, enabled),
+      // 손 편집 번호가 가리키는 생성 자리(tools/check-edit-anchors 가 읽는다)
+      editAnchors: () => computeEditAnchors(instanceGroups, edits),
+      generatedCounts: () => Object.fromEntries(instanceGroups.map((g) => [g.groupId, g.generatedSpots.length])),
     });
-  }, [camera, gl, scene, terrain, controls, teleport, endScene, clearedBlockers, ramp, collapseRef]);
+  }, [
+    camera,
+    gl,
+    scene,
+    terrain,
+    controls,
+    teleport,
+    endScene,
+    clearedBlockers,
+    ramp,
+    collapseRef,
+    instanceGroups,
+    edits,
+  ]);
 }
 
 /** 개발용 — 숫자키 V1~V3 텔레포트(§4 시야 검증), Shift+숫자 = 그 씬이 끝났다. IME 때문에 e.code 를 쓴다. */

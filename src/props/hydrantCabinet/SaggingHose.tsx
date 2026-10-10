@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { scaleColor } from "@/engine/color";
 import { ToonOutline } from "@/engine/outline";
 import { playerView } from "@/engine/playerView";
-import { requestShadowUpdates } from "@/engine/rendering";
+import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { hoseAnchors, useNozzle } from "@/props/nozzleState";
 

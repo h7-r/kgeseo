@@ -8,7 +8,7 @@ import { LOCOMOTION_CLIPS, TRIPO_CORRECTION } from "./motionCorrection";
 import type { Leg, PreparedBody, Side, Sole } from "./preparedBody";
 import { applyWorldRotation } from "./rig";
 
-export interface FootContactDebug {
+interface FootContactDebug {
   other: Side;
   gap: number;
   weight: number;
@@ -17,7 +17,7 @@ export interface FootContactDebug {
 }
 
 /** 아바타마다 하나. 프레임을 넘어 남는 값과 그릇이다. */
-export interface FootContactState {
+interface FootContactState {
   // IK 가 만진 다리 뼈의 클립 자세 보관함. 믹서는 값이 지난 프레임과 같으면 본에 안 쓰므로(정지·검증시각)
   // 안 쓴 프레임엔 되돌려야 IK 가 누적되지 않는다(0.7cm 요청이 몇 프레임 뒤 14cm 에서 포화).
   legStore: Map<THREE.Bone, { clip: THREE.Quaternion; ik: THREE.Quaternion | null }>;
@@ -220,7 +220,7 @@ export function applyFootContact(
   const goal: Record<Side, { lift: number; drop: number }> = { l: { lift: 0, drop: 0 }, r: { lift: 0, drop: 0 } };
   if (inContact && isAhead && gap > 0) {
     // 틈을 두 다리가 나눈다. 앞다리만 내리면 무릎이 2° 로 잠기고, 디딘 다리만 올리면 80° 로 꺾인다.
-    // 앞다리 몫엔 낮은 상한을 두고 남는 틈은 둔다(원본도 뒤꿈치 접지 때 1cm 떠 있다).
+    // 앞다리 몫엔 낮은 상한을 두고 남는 틈은 둔다(리타게팅 전 클립도 뒤꿈치 접지 때 1cm 떠 있다).
     const weight = contactWeight * aheadWeight * gapWeight;
     const limit = (prepared.correction?.footContactDrop ?? 0.03) * 1.45 * weight;
     const frontLimit = (prepared.correction?.footContactFrontLimit ?? 0.015) * 1.45 * weight * frontShare;

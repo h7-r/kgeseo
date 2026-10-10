@@ -4,7 +4,7 @@ import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } 
 import * as THREE from "three";
 import { useThree } from "@react-three/fiber";
 
-import { EDIT_BOUNDS, NUDGE_STEP, ROTATION_STEP, clamp, type Selection } from "./editorConfig";
+import { EDIT_BOUNDS, NUDGE_STEP, ROTATION_STEP, type Selection } from "./editorConfig";
 import { addInstance, modifyInstance, removeInstance, type Edits, type SpotPatch } from "./instanceGroups";
 
 /** 복사해 둔 것을 (x, y, z) 에 하나 더 놓는다 */
@@ -82,8 +82,8 @@ export function useEditKeys({
       // 화면 오른쪽으로 한 걸음 띄운다 — 정확히 겹치면 안 보인다
       const { right } = computeScreenAxes(camera);
       const gap = Math.max(1, copied.size * 0.6);
-      const x = clamp(copied.x + right.x * gap, EDIT_BOUNDS.x[0], EDIT_BOUNDS.x[1]);
-      const z = clamp(copied.z + right.z * gap, EDIT_BOUNDS.z[0], EDIT_BOUNDS.z[1]);
+      const x = THREE.MathUtils.clamp(copied.x + right.x * gap, EDIT_BOUNDS.x[0], EDIT_BOUNDS.x[1]);
+      const z = THREE.MathUtils.clamp(copied.z + right.z * gap, EDIT_BOUNDS.z[0], EDIT_BOUNDS.z[1]);
       const y = floorHeightAt(x, z, copied.y);
       undoStack.current.push(edits);
       const { edits: next, id } = pasteCopy(edits, copied, x, y, z);
@@ -103,8 +103,8 @@ export function useEditKeys({
       if (ev.code === "ArrowDown") d.copy(forward).negate();
       if (ev.code === "ArrowRight") d.copy(right);
       if (ev.code === "ArrowLeft") d.copy(right).negate();
-      const x = clamp(chosen.x + d.x * step, EDIT_BOUNDS.x[0], EDIT_BOUNDS.x[1]);
-      const z = clamp(chosen.z + d.z * step, EDIT_BOUNDS.z[0], EDIT_BOUNDS.z[1]);
+      const x = THREE.MathUtils.clamp(chosen.x + d.x * step, EDIT_BOUNDS.x[0], EDIT_BOUNDS.x[1]);
+      const z = THREE.MathUtils.clamp(chosen.z + d.z * step, EDIT_BOUNDS.z[0], EDIT_BOUNDS.z[1]);
       const y = floorHeightAt(x, z, chosen.y);
       setSelected((v) => v && { ...v, x, y, z });
       nudge({ x, y, z });

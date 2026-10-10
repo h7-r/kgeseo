@@ -9,12 +9,7 @@ import { createRandom } from "@/engine/random";
  */
 export const SIGN_FONT = '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif';
 
-export type CanvasDraw = (
-  g: CanvasRenderingContext2D,
-  width: number,
-  height: number,
-  canvas: HTMLCanvasElement,
-) => void;
+type CanvasDraw = (g: CanvasRenderingContext2D, width: number, height: number, canvas: HTMLCanvasElement) => void;
 
 function getContext2d(canvas: HTMLCanvasElement, willReadFrequently: boolean): CanvasRenderingContext2D {
   const g = canvas.getContext("2d", willReadFrequently ? { willReadFrequently: true } : undefined);
@@ -56,7 +51,7 @@ export function makeCanvasTexture(
   return makeTextureFromCanvas(canvas, 8);
 }
 
-export interface CachedCanvasTextureOptions {
+interface CachedCanvasTextureOptions {
   width: number;
   /** 비우면 width 와 같다 */
   height?: number;

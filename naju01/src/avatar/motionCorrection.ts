@@ -1,5 +1,5 @@
 // 리타게팅한 클립에 걸어 주는 자세 보정 — 값과 계산을 한곳에 모은다.
-//   gait.html 에서 켜고 끄며 원본 클립·원본 캐릭터와 나란히 비교한다.
+//   gait.html 에서 켜고 끄며 리타게팅 전 클립·캐릭터와 나란히 비교한다.
 // 값 단위: 이름 끝이 Scale 이면 배율(1 = 클립 그대로), footContact* 는 키 비율, 그 밖 숫자는 도(°).
 import * as THREE from "three";
 
@@ -71,7 +71,7 @@ export interface CorrectionValues {
   strideScale: number;
   /** 발 피치(+ 발끝 올림). 쉴 때 뒤꿈치가 10° 떠 있어 디딜 때 발끝부터 닿는 것을 되돌린다. */
   footPitch: number;
-  /** 무릎 굽힘에서 뺄 각(배율로 줄였더니 행진하듯 걸어 빼기로 했다) */
+  /** 무릎 굽힘에서 뺄 각. 배율로 줄이면 행진하듯 걸어 각을 뺀다. */
   kneeStraighten: number;
   /** 목을 뒤로(+) */
   neckLift: number;
@@ -81,7 +81,7 @@ export interface CorrectionValues {
   footContactWindow: number;
   /** 한 다리가 맡는 최대 높이(키 비율) */
   footContactDrop: number;
-  /** 앞다리가 맡을 수 있는 최대 — 사실상 0. 남는 1cm 안팎은 그대로 둔다(원본도 떠 있다). */
+  /** 앞다리가 맡을 수 있는 최대 — 사실상 0. 남는 1cm 안팎은 그대로 둔다(리타게팅 전 클립도 떠 있다). */
   footContactFrontLimit: number;
   footContactEnabled: boolean;
   /** 무릎만 바깥으로(허벅지 a, 정강이 −2a, 발 a). 정강이가 짧아 발이 벌어져 보인다. */
@@ -102,7 +102,7 @@ export interface CorrectionValues {
 export type CorrectionOverrides = Partial<CorrectionValues>;
 
 // 이 캐릭터는 팔이 짧고 골반이 넓어 팔이 몸을 파고들고 걸을 때 허리가 과하게 숙여진다.
-// 클립을 고치는 대신 본 몇 개를 조금 돌린다. 무릎은 끝까지 펴지 않는다 — 원본 걷기도 최소 10.8°
+// 클립을 고치는 대신 본 몇 개를 조금 돌린다. 무릎은 끝까지 펴지 않는다 — 리타게팅 전 걷기도 늘 조금
 // 굽혀 있고, 억지로 펴면 발의 상하 이동이 커져 행진하듯 걷는다.
 // 팔을 옆축 둘레로 돌리는 보정은 쓰지 않는다 — 쉴 때 팔이 X 를 향해 그 축 회전은 비틀림이고,
 // 비틀림 뼈에 웨이트가 없어 아래팔이 통째로 돌아 팔꿈치가 틀어져 보인다.
@@ -112,7 +112,7 @@ export const DEFAULT_CORRECTION: CorrectionValues = {
   walkArmTuck: 8,
   armForward: 0,
   clavicleForward: 0,
-  // 우리 클립은 팔꿈치가 옆으로 벌어지며 접혀(옆/뒤 성분비 1.14, 원본 0.21) 팔이 엇나가 보인다.
+  // 이 클립은 팔꿈치가 뒤가 아니라 옆으로 벌어지며 접혀 팔이 엇나가 보인다.
   walkArmRoll: 0,
   walkArmBack: 10,
   armSwingScale: 0.7,
@@ -135,11 +135,11 @@ export const DEFAULT_CORRECTION: CorrectionValues = {
   pelvisTilt: 0,
   lumbarCurve: 0,
   chestLift: 8,
-  // 보폭을 키우면 발이 호를 그리며 올라가 앞발이 높은 곳을 딛는 듯 보인다(앞뒤발 높이차 원본 0.054,
-  // 1.2배 0.074). 접지 IK 를 넣은 뒤엔 오히려 줄인다 — 다리가 짧아 클립 보폭에선 앞발이 뜬다.
+  // 보폭을 키우면 발이 호를 그리며 올라가 앞발이 높은 곳을 딛는 듯 보인다.
+  // 접지 IK 와 함께라 오히려 줄인다 — 다리가 짧아 클립 보폭에선 앞발이 뜬다.
   strideScale: 0.8,
   footPitch: 10,
-  // 접지 IK 가 디딜 때 다리를 뻗어 주므로 4 로 낮춘다(8 + IK 는 너무 반듯하다. 원본은 11~27°).
+  // 접지 IK 가 디딜 때 다리를 뻗어 주므로 조금만 편다(크게 펴면 IK 와 겹쳐 너무 반듯하다).
   kneeStraighten: 4,
   neckLift: 0,
   headBow: 0,
@@ -148,7 +148,7 @@ export const DEFAULT_CORRECTION: CorrectionValues = {
   // 거의 뻗은 다리는 1.5cm 만 더 내려도 무릎이 15°→2° 로 잠겨 '힘줘 뻗는' 경직이 된다.
   footContactFrontLimit: 0.003,
   footContactEnabled: true,
-  // 무릎→발목 좌우 벌어짐은 원본과 같은데 정강이가 짧아 더 가파르게 읽힌다.
+  // 무릎→발목 좌우 벌어짐은 클립 그대로인데 정강이가 짧아 더 가파르게 읽힌다.
   kneeSpread: 3,
   legSpread: 0,
   footToeIn: 0,
@@ -158,7 +158,7 @@ export const DEFAULT_CORRECTION: CorrectionValues = {
 
 // 성별별 덧값 — 같은 클립·보정인데 몸체가 달라 다르게 읽힌다.
 //   남성 몸체는 등이 곧은 판이라 가슴을 더 세운다. 목은 가슴과 반대 부호로 되돌려 머리는 클립대로 둔다
-//   (가슴을 세우면 자식인 목·머리가 같이 젖혀져 턱이 든다). 가슴 12 면 몸통이 원본보다 4° 더 젖혀진다.
+//   (가슴을 세우면 자식인 목·머리가 같이 젖혀져 턱이 든다).
 //   남성 발 살은 뼈보다 5~8° 바깥으로 틀어져 있어 발끝을 안으로 돌리고, 어깨가 넓어 걸을 때 팔을 더 붙인다.
 //   허벅지가 길고 종아리가 짧아 같은 굽힘이 더 구부정해 무릎을 더 펴고 접지 내림도 줄인다.
 //   골반 기울기는 0 — 기울이면 고관절이 뒤로 밀려 몸이 발보다 뒤에 앉은 꼴이 된다.
@@ -241,7 +241,7 @@ export const TRIPO_GENDER_CORRECTION: Record<"masculine" | "feminine", Correctio
 };
 
 /** 보정이 걸린 뼈마다 미리 만들어 두는 값 */
-export interface BoneCorrection {
+interface BoneCorrection {
   /** 모든 클립에 앞에 곱할 회전 */
   rotation?: THREE.Quaternion;
   /** 이동 클립에만 앞에 곱할 회전 */

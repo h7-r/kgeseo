@@ -1,0 +1,10 @@
+{
+  "description": "본편 — 튜토리얼·복도 퍼즐·본부실·기차·캐릭터 생성·주소 스위치",
+  "appDir": ".",
+  "route": "route.json",
+  "defaultPort": 5302,
+  "leva": {
+    "paths": ["/", "/train"],
+    "readyText": { "/": "조작 익히기 1 / 8" }
+  }
+}

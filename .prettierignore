@@ -1,4 +1,4 @@
-# Prettier 는 TS 로 옮긴 곳에만 쓴다. naju01 은 이식 중이라 새 TS 파일만 대상이다.
+# Prettier 는 앱 소스·설정·저장소 도구에만 쓴다. 생성물·정적 파일·naju01 의 에셋 도구는 뺀다.
 /*
 !/website/
 !/src/
@@ -11,8 +11,6 @@
 !/naju01/vite/
 !/naju01/vite.config.ts
 !/naju01/tsconfig.json
-/naju01/src/**/*.js
-/naju01/src/**/*.jsx
 /naju01/src/models/baked/
 /website/dist/
 /website/public/

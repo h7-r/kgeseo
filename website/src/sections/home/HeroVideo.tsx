@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 
 import { runWhenIdle } from "@/lib/idle";
-import { clamp01 } from "@/lib/math";
+import { clamp01, easeOutCubic } from "@/lib/math";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 
 import HeroVideoFrame from "./HeroVideoFrame";
@@ -166,8 +166,6 @@ function createResources(isScrub: boolean, isReducedMotion: boolean): HeroResour
   scene.add(new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material));
   return { renderer, scene, camera, video, texture, uniforms };
 }
-
-const easeOutCubic = (x: number) => 1 - Math.pow(1 - x, 3);
 
 /** 캔버스를 붙이고 렌더 루프를 돌린다. 떼어 낼 때 부를 정리 함수를 돌려준다. */
 function mount(container: HTMLElement): (() => void) | undefined {

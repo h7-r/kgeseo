@@ -1,22 +1,20 @@
 /**
  * 주소 스위치와 저장 열쇠 — 로드 때 한 번 읽는다.
- * 본편과 같은 개발용 스위치(?q=low · ?leva · ?fx=off)에 나주 전용 스위치를 더했다.
+ * 본편과 같은 개발용 스위치(?fx=off)와 나주 전용 스위치. 나주맵은 Leva 패널을 띄우지 않는다.
+ * 저사양(?q=low)은 본편과 같은 `@/engine/quality` 의 IS_LOW_QUALITY 를 쓴다.
  */
+import { IS_LOW_QUALITY } from "@/engine/quality";
 import { PLAYER_MESHY_APPEARANCE_KEY, readStorage } from "@/engine/storage";
 
 const QUERY = typeof location !== "undefined" ? new URLSearchParams(location.search) : new URLSearchParams();
 
-/** ?q=low — 그림자 끔 · dpr 1 · 후처리 끔 */
-export const IS_LOW_QUALITY = QUERY.get("q") === "low";
-/** ?leva — 개발 서버에서도 기본은 숨긴다 */
-export const SHOW_LEVA = QUERY.has("leva");
 /** ?fx=off — 후처리 끔(+ antialias 켬) */
 export const IS_POSTFX_DISABLED = QUERY.get("fx") === "off";
 // 후처리 효과를 하나씩 끄고 견주는 스위치
 export const IS_BLOOM_DISABLED = QUERY.get("bloom") === "off";
 export const IS_VIGNETTE_DISABLED = QUERY.get("vig") === "off";
 export const IS_TONE_MAPPING_ENABLED = QUERY.get("tm") === "on";
-/** ?fb=half — 후처리 버퍼를 HalfFloat 로 되돌려 3D 가 까맣게 나오던 증상을 재현한다 */
+/** ?fb=half — 후처리 버퍼를 HalfFloat 로 쓴다. 이 버퍼에서 3D 가 까맣게 나오는 증상을 재현할 때 */
 export const USE_HALF_FLOAT_BUFFER = QUERY.get("fb") === "half";
 /** ?stage=16x9 — 본편과 같은 레터박스(시야 검증용). 기본은 창을 꽉 채운다 */
 export const IS_STAGE_16X9 = QUERY.get("stage") === "16x9";
@@ -49,12 +47,18 @@ export const MAX_DPR = Math.min(3, Math.max(1, +(DPR_PARAM || DEFAULT_MAX_DPR) |
 export const MIN_DPR = 1;
 export const IS_DPR_AUTO = !DPR_PARAM && !IS_LOW_QUALITY;
 
-/** ?customize — 꾸미기 패널(개발용) */
-export const SHOW_CUSTOMIZE_PANEL = QUERY.has("customize");
-/** ?dev — 계기판·조작 안내·H 키 */
+// 작업 화면(꾸미기 패널·계기판·구역 이름표)은 기본으로 띄우고, 발표 프리셋(?present)에서만 숨긴다
+const IS_PRESENTING = PRESENTATION_MODE !== null;
+/** 캐릭터 꾸미기 패널(왼쪽) */
+export const SHOW_CUSTOMIZE_PANEL = !IS_PRESENTING;
+/** 도면 계기판 — 처음엔 접어 두고(?dev 는 펼쳐서) H 로 연다 */
+export const HAS_DASHBOARD = !IS_PRESENTING;
+/** 계기판과 그 안내의 왼쪽 위치. 꾸미기 패널(왼쪽 14px · 폭 320px)이 떠 있으면 그 오른쪽에 둔다 */
+export const DASHBOARD_LEFT_PX = SHOW_CUSTOMIZE_PANEL ? 348 : 12;
+/** 구역·통로·씬 요소 이름표 */
+export const SHOW_PLAN_LABELS = !IS_PRESENTING;
+/** ?dev — 조작 안내 문구·시점 V1~V3 표식(시작 자리가 V1 이라 캐릭터를 관통한다) */
 export const SHOW_DEV_TOOLS = QUERY.has("dev");
-/** ?dev — 구역·풀이 이름표는 도면 점검용이다. Leva 「라벨」 저장값이 켜져 있어도 여기서 막는다 */
-export const SHOW_DEV_LABELS = SHOW_DEV_TOOLS;
 /** ?avatar=sidekick — 3인칭을 Sidekick 몸으로(기본 Meshy). 본편 홀로그램이 붙여 넘긴다 */
 export const USE_SIDEKICK_AVATAR = QUERY.get("avatar") === "sidekick";
 /** ?toon=off · ?outline=off — 모형 본래 PBR 재질과 비교 */
@@ -62,8 +66,8 @@ export const IS_TOON_DISABLED = QUERY.get("toon") === "off";
 export const IS_OUTLINE_DISABLED = QUERY.get("outline") === "off";
 /** ?worldtoon=off — 캐릭터는 툰으로 두고 세계만 본래 질감으로 */
 export const IS_WORLD_TOON_DISABLED = QUERY.get("worldtoon") === "off";
-/** ?terrain=legacy — 코드 지형으로 뜬다. 두 창을 나란히 띄워 fps 를 견줄 때 */
-export const FORCE_LEGACY_TERRAIN = QUERY.get("terrain") === "legacy";
+/** ?terrain=legacy — 블렌더 지형 대신 코드로 만든 해석 지형으로 뜬다. 두 창을 나란히 띄워 fps 를 견줄 때 */
+export const FORCE_ANALYTIC_TERRAIN = QUERY.get("terrain") === "legacy";
 /** ?motion=<클립> — Sidekick 모션을 강제(검증용) */
 export const FORCED_MOTION = QUERY.get("motion");
 

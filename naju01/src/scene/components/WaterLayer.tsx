@@ -9,7 +9,7 @@ import type { GroundShading } from "../useNajuControls";
 import type { RiverShapes } from "../useWorldLayers";
 import GroundMaterial from "./GroundMaterial";
 import DevLabel from "./DevLabel";
-import { planPoint } from "./planPoint";
+import { planPoint } from "../../plan/sitePlan";
 
 const U = UNITS_PER_METER;
 

@@ -94,7 +94,7 @@ export default function Painting({ position, width = 2.6, direction = -1, bright
         ? Math.max(getFlowStartedAt("general"), getFlowStartedAt("plastic")) + FLOW_SECONDS
         : Infinity;
     const now = performance.now() / 1000;
-    rimCurrentMaterial.uniforms.uProg.value = Math.min(1, Math.max(0, (now - arrived) / 1.2));
+    rimCurrentMaterial.uniforms.uProg.value = THREE.MathUtils.clamp((now - arrived) / 1.2, 0, 1);
     rimCurrentMaterial.uniforms.uTime.value = now;
     rimCurrentMaterial.uniforms.uLen.value = width + height;
     const on = computeWindowStartup(now - arrived - 1.2);

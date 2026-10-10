@@ -5,6 +5,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -448,14 +449,15 @@ export default function CharacterPreview({
   }, [isLoading, onLoadingChange]);
 
   // 보여 줄 한 벌이 붙고 한가해지면 나머지 조합을 하나씩 받는다. 성별이 바뀌면 앞 줄은 멈추고 다시 건다.
+  // displayKey 는 지금 보는 조합을 건너뛰는 데만 쓴다 — 바뀌었다고 다시 걸지 않는다.
   const gender = config.gender;
+  const readDisplayKey = useEffectEvent(() => displayKey);
   useEffect(() => {
     let isAlive = true;
-    prefetchOtherOutfits(gender, () => isAlive, displayKey);
+    prefetchOtherOutfits(gender, () => isAlive, readDisplayKey());
     return () => {
       isAlive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- displayKey 는 지금 보는 조합을 건너뛰는 데만 쓴다
   }, [gender]);
 
   const handleWarmupReady = useCallback((key: string) => {

@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { UNIT_BOX } from "@/engine/geometry";
+import { easeOutCubic } from "@/engine/math";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
@@ -93,7 +94,7 @@ export default function CoffeeDispenser({
     let dy = 0;
     if (t < CUP_DROP_SECONDS) {
       const k = t / CUP_DROP_SECONDS;
-      const eased = 1 - Math.pow(1 - k, 3); // 처음 빠르고 끝에서 부드럽게 앉는다
+      const eased = easeOutCubic(k); // 처음 빠르고 끝에서 부드럽게 앉는다
       dy = (1 - eased) * 0.55 + Math.sin(k * Math.PI) * 0.03;
     }
     cup.position.y = cupRestY + Math.max(0, dy);
@@ -104,7 +105,7 @@ export default function CoffeeDispenser({
     const stream = streamRef.current;
     const droppedAt = vendingId ? vendingMachineStore.get(vendingId).cupDroppedAt : 0;
     const pouring = droppedAt ? (performance.now() - droppedAt) / 1000 - POUR_DELAY : -1;
-    const fill = Math.max(0, Math.min(1, POUR_SECONDS > 0 ? pouring / POUR_SECONDS : 1));
+    const fill = THREE.MathUtils.clamp(POUR_SECONDS > 0 ? pouring / POUR_SECONDS : 1, 0, 1);
     const surfaceY = LIQUID_BOTTOM + (LIQUID_TOP - LIQUID_BOTTOM) * fill;
     // 그 높이에서의 컵 안쪽 반지름(아래가 좁은 원뿔대)
     const radiusAtY = 0.185 + 0.085 * ((surfaceY + 0.27) / 0.54);

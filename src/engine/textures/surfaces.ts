@@ -23,7 +23,7 @@ export const CEILING_TEXTURE_SIZE = 8;
 
 const gray = (v: number) => `rgb(${v | 0},${v | 0},${v | 0})`;
 
-export interface WallTextureOptions {
+interface WallTextureOptions {
   /** 텍스처 한 장에 들어가는 블록 수 */
   columns?: number;
   rows?: number;

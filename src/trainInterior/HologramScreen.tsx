@@ -4,6 +4,7 @@ import * as THREE from "three";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import { useSavedControls } from "@/engine/leva/savedControls";
+import { toRadians } from "@/engine/math";
 import { playerView } from "@/engine/playerView";
 import { NAJU_ENTER_EVENT, type NajuEnterDetail } from "@/station/najuEnter";
 
@@ -17,8 +18,6 @@ import {
   getDestinationRowRect,
   SELECT_BUTTON_RECT,
 } from "./hologramPanel";
-
-const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
 /** 저장값 위에 더하는 높이(화면에서 ≈4 px). 저장된 Y 가 기본값을 이겨 기본값을 고쳐서는 안 올라간다. */
 const LIFT = 0.03;
@@ -38,7 +37,7 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
   const controls = useSavedControls("홀로그램 스크린", {
     visible: { value: true, label: "보이기" },
     x: { value: -16.4, min: -26, max: 26, step: 0.1, label: "X" },
-    // 0.1 유닛이 화면에서 약 19 px 이라 잔조정용으로 눈금을 줄였다.
+    // 0.1 유닛이 화면에서 약 19 px 이라 잔조정이 되게 눈금을 잘게 둔다.
     y: { value: 5.0, min: 0, max: 12, step: 0.02, label: "Y" },
     z: { value: 4.0, min: -5, max: 6, step: 0.1, label: "Z" },
     // 4~7 유닛 거리에서 판 전체가 시야(fov 60)에 들어오는 가로

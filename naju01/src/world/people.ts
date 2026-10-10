@@ -4,8 +4,8 @@
 // 키는 미터, 지오메트리만 유닛(× UNITS_PER_METER).
 
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
+import { mergeAndDispose } from "@/engine/geometry";
 import { createRandom } from "@/engine/random";
 
 import { applyBaseOrigin } from "../placement/instanceGroups";
@@ -81,8 +81,7 @@ function buildPerson({
     );
   }
 
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((g) => g.dispose());
+  const merged = mergeAndDispose(pieces);
   merged.applyMatrix4(
     new THREE.Matrix4().compose(
       new THREE.Vector3(x * u, y * u, z * u),
@@ -97,9 +96,7 @@ function buildPerson({
 export function buildPeople(people: PersonOptions[]): THREE.BufferGeometry | null {
   const pieces = people.map((person) => buildPerson(person));
   if (!pieces.length) return null;
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((g) => g.dispose());
-  return merged;
+  return mergeAndDispose(pieces);
 }
 
 /** 인스턴스용 사람 표본 — 높이 1 · 밑동 원점. 옷 색을 조금씩 달리한다(다 같으면 복제 티가 난다). */

@@ -5,7 +5,7 @@ import * as THREE from "three";
 
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
-import { FLICKER_PATTERNS, type FlickerPattern } from "./corridorLighting";
+import { CORRIDOR_INK_COLOR, FLICKER_PATTERNS, type FlickerPattern } from "./corridorLighting";
 import { makeFluorescentPanelTexture } from "./fixtureTextures";
 
 interface CorridorLightProps {
@@ -128,7 +128,7 @@ export default function CorridorLight({
       {rims.map(([bx, by, bz, size], i) => (
         <mesh key={`rim${i}`} position={[bx, by, bz]}>
           <boxGeometry args={size} />
-          <meshToonMaterial color={outline?.outlineColor ?? "#131314"} gradientMap={TOON_GRADIENT} />
+          <meshToonMaterial color={outline?.outlineColor ?? CORRIDOR_INK_COLOR} gradientMap={TOON_GRADIENT} />
         </mesh>
       ))}
       {/* 점광원은 천장에도 동그란 얼룩을 남긴다. 스포트라이트는 아래 원뿔만 비춘다. */}

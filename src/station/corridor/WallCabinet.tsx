@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
 import { scaleColor } from "@/engine/color";
-import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
+import { buildMergedBoxes, mergeAndDispose, type BoxPiece } from "@/engine/geometry";
 import { ToonOutline } from "@/engine/outline";
-import { requestShadowUpdates } from "@/engine/rendering";
+import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import {
@@ -19,6 +18,7 @@ import {
 } from "@/props/hingeState";
 import { usePipeOffset } from "@/props/vendingPushState";
 
+import { CORRIDOR_INK_COLOR } from "./corridorLighting";
 import { makeHydrantLabelTexture, LABEL_ASPECT, makePanelLabelTexture } from "./signTextures";
 import { getWallCabinetDoorId, type WallCabinetKind } from "./wallCabinetId";
 
@@ -119,7 +119,7 @@ export default function WallCabinet({
   doorColor = "#4b5057",
   fittingColor = "#7b828a",
   labelColor = "#c9a83c",
-  lineColor = "#131314",
+  lineColor = CORRIDOR_INK_COLOR,
   number = "N-3",
   grime = 1,
   conduit = true,
@@ -259,9 +259,7 @@ export default function WallCabinet({
       }
     }
     if (!pieces.length) return null;
-    const merged = mergeGeometries(pieces, false);
-    pieces.forEach((g) => g.dispose());
-    return merged;
+    return mergeAndDispose(pieces);
   }, [
     conduit,
     conduitShape,

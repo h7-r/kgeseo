@@ -3,7 +3,7 @@
  * 화면은 숫자(version)만 구독하고 내용은 그때 꺼내 읽는다 — 객체를 스냅샷으로 주면
  * 매번 다른 값으로 보여 useSyncExternalStore 가 끝없이 다시 그린다.
  */
-export interface ChangeSignal {
+interface ChangeSignal {
   version(): number;
   subscribe(listener: () => void): () => void;
   notify(): void;

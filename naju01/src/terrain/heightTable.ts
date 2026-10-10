@@ -41,7 +41,7 @@ export async function loadHeightTable(url = HEIGHT_TABLE_URL): Promise<HeightTab
     if (!response.ok) throw new Error(`${response.status}`);
     buffer = await response.arrayBuffer();
   } catch (e) {
-    console.warn("[지형표] 못 읽었다 — 옛 해석식으로 간다:", e instanceof Error ? e.message : e);
+    console.warn("[지형표] 못 읽었다 — 해석식으로 간다:", e instanceof Error ? e.message : e);
     return null;
   }
   return parseHeightTable(buffer);

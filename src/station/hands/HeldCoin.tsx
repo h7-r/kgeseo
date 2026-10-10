@@ -3,6 +3,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Vector3Tuple } from "three";
 
+import { smoothstep } from "@/engine/math";
 import { playerView } from "@/engine/playerView";
 import type { OutlineValues } from "@/engine/toon";
 import { HeldItem } from "@/lobby/HeldItem";
@@ -79,7 +80,7 @@ export default function HeldCoin({ look, outline }: HeldCoinProps) {
       if (!from) return;
       const goal = insertion.slot || from;
       const t = Math.min(1, (performance.now() - insertion.t0) / 460);
-      const e = t * t * (3 - 2 * t);
+      const e = smoothstep(t);
       group.position.set(
         from[0] + (goal[0] - from[0]) * e,
         from[1] + (goal[1] - from[1]) * e + Math.sin(t * Math.PI) * 0.12,

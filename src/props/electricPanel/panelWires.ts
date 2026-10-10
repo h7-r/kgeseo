@@ -4,7 +4,8 @@
  */
 import * as THREE from "three";
 import type { Vector3Tuple } from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+
+import { mergeAndDispose } from "@/engine/geometry";
 
 import { PULL_SIDE, WIRE_BACK_OFFSET, type PanelLayout } from "./panelLayout";
 
@@ -27,9 +28,7 @@ export function buildWireTubeGeometry(points: WirePath, radius: number, segments
 export function buildWireBundleGeometry(paths: WirePath[], radius: number, segments = 24) {
   if (!paths.length) return null;
   const pieces = paths.map((points) => buildWireTubeGeometry(points, radius, segments));
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((g) => g.dispose());
-  return merged;
+  return mergeAndDispose(pieces);
 }
 
 /**
@@ -48,9 +47,7 @@ export function buildCopperTipGeometry(paths: WirePath[], baseRadius: number, ti
     g.translate(center.x, center.y, center.z);
     return g;
   });
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((g) => g.dispose());
-  return merged;
+  return mergeAndDispose(pieces);
 }
 
 const mix = (a: number, b: number, k: number) => a + (b - a) * k;

@@ -1,4 +1,4 @@
-// NAJU-01 그레이박스의 시작점. 본편 main 과 같은 구조에서 라우터만 뺐다.
+// NAJU-01 그레이박스를 단독으로 띄우는 엔트리. 본편 main 과 같은 구조이고 라우터만 없다.
 import { createRoot } from "react-dom/client";
 
 import App from "./app/App";

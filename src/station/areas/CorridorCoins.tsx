@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import type * as THREE from "three";
 import type { Vector3Tuple } from "three";
 
+import { easeOutCubic } from "@/engine/math";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { AimHighlight } from "@/lobby/AimHighlight";
@@ -78,7 +79,7 @@ function CoinDrop({ kind, position, lift = 0, from, children }: CoinDropProps) {
       }
       group.position.set(x, y, z);
       const rk = Math.min(1, t / 0.58);
-      const ease = 1 - Math.pow(1 - rk, 3);
+      const ease = easeOutCubic(rk);
       group.rotation.z = (1 - ease) * 1.4; // 구르며 눕는다
       return;
     }
@@ -99,7 +100,7 @@ function CoinDrop({ kind, position, lift = 0, from, children }: CoinDropProps) {
       }
       dy = Math.max(0, dy);
       const rk = Math.min(1, t / 0.42);
-      const ease = 1 - Math.pow(1 - rk, 3);
+      const ease = easeOutCubic(rk);
       rz = (1 - ease) * 1.35 - Math.sin(rk * Math.PI) * 0.14;
     }
     group.position.set(bx, landY + dy, bz);

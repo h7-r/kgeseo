@@ -6,6 +6,7 @@
  * ③ 다 누운 뒤에야 구멍 축(+x)으로 밀려 나간다 ④ 빠진 뒤 떨어진다.
  * z 축으로 돌리면 도는 동안 구멍 선을 벗어나 본체가 걸쇠를 때린다 — 쇠막대 자체가 회전축이어야 한다.
  */
+import { easeOutCubic } from "@/engine/math";
 
 type Phase = readonly [number, number];
 
@@ -75,11 +76,10 @@ interface OpeningPose {
 export function computeOpeningPose(t: number, motion: OpeningMotion = OPENING_MOTION): OpeningPose {
   const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
   const progress = ([a, b]: Phase) => clamp01((t - a) / (b - a));
-  const easeOut = (x: number) => 1 - Math.pow(1 - x, 3);
-  const release = easeOut(progress(motion.phases.release));
-  const tilt = easeOut(progress(motion.phases.tilt));
-  const slide = easeOut(progress(motion.phases.slide));
-  const drift = easeOut(progress(motion.phases.drift));
+  const release = easeOutCubic(progress(motion.phases.release));
+  const tilt = easeOutCubic(progress(motion.phases.tilt));
+  const slide = easeOutCubic(progress(motion.phases.slide));
+  const drift = easeOutCubic(progress(motion.phases.drift));
   const drop = progress(motion.phases.drop) ** 2; // 제곱 = 가속(중력감)
   return {
     release: release * motion.releaseDistance,

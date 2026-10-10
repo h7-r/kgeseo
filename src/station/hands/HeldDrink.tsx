@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
+import { mergeAndDispose } from "@/engine/geometry";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { HeldItem } from "@/lobby/HeldItem";
@@ -74,13 +74,10 @@ function HeldCupModel({ color, coffeeColor, remaining = 1, outline }: HeldCupMod
     const bottom = new THREE.CircleGeometry(0.083, 28);
     bottom.rotateX(-Math.PI / 2); // 컵 속에서 내려다보는 면
     bottom.translate(0, -0.12, 0);
-    const merged = mergeGeometries([wall, bottom], false);
-    wall.dispose();
-    bottom.dispose();
-    return merged;
+    return mergeAndDispose([wall, bottom]);
   }, []);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  const fill = Math.max(0, Math.min(1, remaining));
+  const fill = THREE.MathUtils.clamp(remaining, 0, 1);
   const surfaceY = -0.1 + 0.2 * fill;
   const surfaceRadius = (0.083 + (0.12 - 0.083) * ((surfaceY + 0.12) / 0.24)) * 0.9;
   return (

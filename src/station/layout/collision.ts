@@ -41,20 +41,15 @@ export function computeSquareBox(x: number, z: number, radius: number, height?: 
   };
 }
 
-/** 컴포넌트가 살아 있는 동안만 박스를 등록한다. */
+/** 컴포넌트가 살아 있는 동안만 박스를 등록한다. 박스는 좌표가 바뀔 때만 새로 만들어(useMemo) 넘긴다. */
 export function useColliderBox(name: string, box: ColliderBox | null | undefined, enabled = true) {
-  const minX = box?.minX;
-  const maxX = box?.maxX;
-  const minZ = box?.minZ;
-  const maxZ = box?.maxZ;
   useEffect(() => {
     if (!enabled || !box) return;
     dynamicColliders.set(name, box);
     return () => {
       dynamicColliders.delete(name);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 박스 객체가 아니라 좌표가 바뀔 때(Leva 로 옮길 때)만 다시 등록한다
-  }, [name, enabled, minX, maxX, minZ, maxZ]);
+  }, [name, enabled, box]);
 }
 
 // 배치(놓기·들기) 계산이 이 목록을 봐야 겹침을 막는다. placement 가 이 모듈을 import 하면 순환이라 여기서 넣어 준다.

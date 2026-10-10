@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 
 import { REGIONS, REGION_GROUPS } from "@/data/regions";
 import { FONT } from "@/lib/style";
@@ -47,9 +47,13 @@ export default function RegionPicker({
     if (returnFocus) triggerRef.current?.focus();
   };
 
+  // 열릴 때만 다시 건다. 고른 값·닫기는 그 순간의 것을 읽는다.
+  const readStartIndex = useEffectEvent(() => Math.max(0, REGIONS.indexOf(value)));
+  const closeFromOutside = useEffectEvent(() => close(false));
+
   useEffect(() => {
     if (!isOpen) return;
-    const start = Math.max(0, REGIONS.indexOf(value));
+    const start = readStartIndex();
     // 칩은 상자가 그려진 다음 프레임에야 생긴다.
     const frame = requestAnimationFrame(() => chipRefs.current[start]?.focus());
 
@@ -57,14 +61,13 @@ export default function RegionPicker({
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (listRef.current?.contains(target) || triggerRef.current?.contains(target)) return;
-      close(false);
+      closeFromOutside();
     };
     document.addEventListener("pointerdown", handlePointerDown);
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener("pointerdown", handlePointerDown);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- close·value 는 열릴 때 한 번만 읽으면 된다.
   }, [isOpen]);
 
   const select = (region: string) => {

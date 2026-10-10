@@ -6,6 +6,7 @@ import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
 import { createRandom } from "@/engine/random";
 import { TOON_GRADIENT } from "@/engine/toon";
 
+import { CORRIDOR_INK_COLOR } from "./corridorLighting";
 import { makeWornDoorTexture } from "./fixtureTextures";
 
 interface CorridorSideDoorProps {
@@ -68,7 +69,7 @@ export default function CorridorSideDoor({
   inset = 0.03,
   thresholdProtrusion = 0.06,
   showOutline = true,
-  outlineColor = "#131314",
+  outlineColor = CORRIDOR_INK_COLOR,
   outlineWidth = 5,
   doorThickness = 0.09,
   grime = 1,
