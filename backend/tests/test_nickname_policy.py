@@ -17,8 +17,8 @@ def anyio_backend():
         "abcdefghijkl",
         "shitake",
         "classic",
-        "보지마",
-        "자지않는",
+        "Shitake",
+        "administer",
         "TestUser",
     ],
 )
@@ -39,6 +39,18 @@ def test_valid_nickname(value):
         "씨발",
         "f_u_c_k",
         "sh1t",
+        "시발",
+        "시발년",
+        "개시발",
+        "병신",
+        "병신새끼",
+        "개병신",
+        "f_u_c_k_you",
+        "sh1thead",
+        "보지마",
+        "자지않는",
+        "shitakefuck",
+        "shitake123",
         "admin",
         "ADMIN_123",
     ],
@@ -82,7 +94,23 @@ def test_get_availability_removed(client):
     assert client.get("/api/v1/auth/nickname-exists").status_code == 405
 
 
-@pytest.mark.parametrize("nickname", ["", "f_u_c_k", "a", "a b", "ab\u200b", "a" * 33])
+@pytest.mark.parametrize(
+    "nickname",
+    [
+        "",
+        "f_u_c_k",
+        "a",
+        "a b",
+        "ab\u200b",
+        "a" * 33,
+        "시발년",
+        "개시발",
+        "병신새끼",
+        "개병신",
+        "f_u_c_k_you",
+        "sh1thead",
+    ],
+)
 def test_register_cannot_bypass_policy(client, db_session, nickname):
     response = client.post(
         "/api/v1/auth/register",
@@ -110,105 +138,33 @@ def test_availability_no_store(client):
 
 
 @pytest.mark.anyio
-async def test_social_nickname_collision(db_session):
-    from app.services.social_auth import make_unique_nickname
-
-    db_session.scalar_result = [object(), None]
-    nickname = await make_unique_nickname(db_session, "Explorer", "private@example.com")
-    assert nickname.startswith("Explore_")
-    assert len(nickname) == 12
-    assert validate_nickname(nickname) == nickname
-
-
-@pytest.mark.anyio
 @pytest.mark.parametrize("display_name", ["admin", "f_u_c_k", "Name With Space", None])
-async def test_social_fallback_never_uses_email(db_session, display_name):
-    from app.services.social_auth import make_unique_nickname
-
-    nickname = await make_unique_nickname(
-        db_session, display_name, "private@example.com"
-    )
-    assert nickname.startswith("user_")
-    assert len(nickname) == 9
-    assert validate_nickname(nickname) == nickname
-
-
-@pytest.mark.anyio
-async def test_social_valid_provider_name(db_session):
-    from app.services.social_auth import make_unique_nickname
-
-    assert (
-        await make_unique_nickname(db_session, "Explorer", "private@example.com")
-        == "Explorer"
-    )
-
-
-@pytest.mark.anyio
-@pytest.mark.parametrize("provider", ["google", "naver"])
-async def test_social_commit_nickname_race(db_session, provider):
-    from sqlalchemy.exc import IntegrityError
-
+async def test_invalid_provider_name_has_empty_suggestion(db_session, display_name):
     from app.schemas.auth import GoogleUserResponse
     from app.services.social_auth import authenticate_social_user
 
-    db_session.scalar_result = [
-        None,
-        None,
-        None,
-        None,
-        None,
-        object(),
-        None,
-        None,
-        object(),
-        None,
-    ]
-
-    async def commit():
-        db_session.commit_count += 1
-        if db_session.commit_count == 1:
-            raise IntegrityError("synthetic", {}, Exception("collision"))
-
-    db_session.commit = commit
     profile = GoogleUserResponse(
-        provider=provider,
+        provider="google",
         subject="synthetic-subject",
         email="private@example.com",
-        name="Explorer",
+        name=display_name,
     )
-    assert await authenticate_social_user(db_session, profile) == profile
-    assert db_session.commit_count == 2
-    assert db_session.rollback_count == 1
-    assert db_session.added[2].nickname != db_session.added[0].nickname
+    response = await authenticate_social_user(db_session, profile)
+    assert response.suggested_nickname == ""
+    assert len(db_session.added) == 1
 
 
 @pytest.mark.anyio
-async def test_social_commit_nickname_race_is_bounded(db_session):
-    from sqlalchemy.exc import IntegrityError
-
+async def test_duplicate_provider_name_has_empty_suggestion(db_session):
     from app.schemas.auth import GoogleUserResponse
-    from app.services.social_auth import (
-        MAX_NICKNAME_ATTEMPTS,
-        SocialAuthConflictError,
-        authenticate_social_user,
-    )
+    from app.services.social_auth import authenticate_social_user
 
-    db_session.scalar_result = [
-        None,
-        None,
-        None,
-        None,
-        None,
-        object(),
-    ] * MAX_NICKNAME_ATTEMPTS
-    db_session.commit_error = IntegrityError("synthetic", {}, Exception("collision"))
+    db_session.scalar_result = [None, None, object()]
     profile = GoogleUserResponse(
         provider="google",
         subject="synthetic-subject",
         email="private@example.com",
         name="Explorer",
     )
-    with pytest.raises(SocialAuthConflictError):
-        await authenticate_social_user(db_session, profile)
-    assert db_session.commit_count == MAX_NICKNAME_ATTEMPTS
-    assert db_session.rollback_count == MAX_NICKNAME_ATTEMPTS
+    response = await authenticate_social_user(db_session, profile)
+    assert response.suggested_nickname == ""

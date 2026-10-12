@@ -19,6 +19,7 @@ FORBIDDEN = frozenset(
     {"시발", "씨발", "병신", "개새끼", "좆", "보지", "자지", "fuck", "shit", "bitch"}
 )
 LEET = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t"})
+FORBIDDEN_EXACT_EXCEPTIONS = frozenset({"shitake"})
 
 
 class InvalidNicknameError(Exception):
@@ -40,8 +41,12 @@ def validate_nickname(value: str) -> str:
         raise InvalidNicknameError
     key = nickname.casefold().replace("_", "")
     translated = key.translate(LEET)
-    # Exact comparison avoids blocking innocent words containing short terms.
     candidates = {key, translated, key.rstrip("0123456789")}
-    if candidates & (RESERVED | FORBIDDEN):
+    if candidates & RESERVED:
+        raise InvalidNicknameError
+    # Exceptions cover whole normalized names, never arbitrary containing names.
+    if key not in FORBIDDEN_EXACT_EXCEPTIONS and any(
+        term in candidate for candidate in candidates for term in FORBIDDEN
+    ):
         raise InvalidNicknameError
     return nickname

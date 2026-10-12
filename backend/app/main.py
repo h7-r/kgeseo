@@ -1,4 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 # 익명 세션 Router
 from app.api.v1.anonymous_sessions import (
@@ -19,6 +22,39 @@ app = FastAPI(
     title="왜곡 Backend API",
     version="0.1.0",
 )
+
+
+FIELD_ERRORS = {
+    "email": ("invalid_email", "올바른 이메일 형식이 아닙니다."),
+    "password": ("invalid_password", "비밀번호 형식을 확인해 주세요."),
+    "nickname": ("invalid_nickname", "사용할 수 없는 닉네임입니다."),
+}
+# Routes whose validation errors never echo inputs, with fields checked in order.
+SENSITIVE_INPUT_FIELDS = {
+    "/api/v1/auth/register": ("email", "password", "nickname"),
+    "/api/v1/auth/login": ("email", "password"),
+    "/api/v1/auth/social-onboarding/complete": ("nickname",),
+}
+
+
+@app.exception_handler(RequestValidationError)
+async def sensitive_input_validation_error(
+    request: Request, error: RequestValidationError
+):
+    checked_fields = SENSITIVE_INPUT_FIELDS.get(request.url.path)
+    if request.method != "POST" or checked_fields is None:
+        return await request_validation_exception_handler(request, error)
+    # Pydantic errors can contain submitted passwords or onboarding proofs.
+    fields = {item["loc"][1] for item in error.errors() if len(item["loc"]) > 1}
+    code, message = next(
+        (FIELD_ERRORS[field] for field in checked_fields if field in fields),
+        ("invalid_input", "입력값을 다시 확인해 주세요."),
+    )
+    return JSONResponse(
+        status_code=422,
+        content={"detail": {"code": code, "message": message}},
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 # 자동화된 프로세스 상태 확인용 API 등록

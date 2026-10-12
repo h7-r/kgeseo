@@ -14,6 +14,10 @@ from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
 from app.schemas.auth import LocalRegisterRequest
 from app.services.nickname_policy import validate_nickname
+from app.services.registration_input_policy import (
+    validate_registration_email,
+    validate_registration_password,
+)
 
 PASSWORD_HASH_ALGORITHM = "pbkdf2_sha256"
 PASSWORD_HASH_ITERATIONS = 210_000
@@ -85,6 +89,10 @@ def verify_password(password: str, stored_hash: str) -> bool:
         return False
 
 
+# Computed once at import; verified against when no local password hash exists.
+DUMMY_PASSWORD_HASH = hash_password(os.urandom(PASSWORD_SALT_LENGTH).hex())
+
+
 def user_to_payload(user: AppUser) -> dict[str, str | None]:
     return {
         "user_id": user.id,
@@ -126,13 +134,19 @@ async def nickname_exists(db: AsyncSession, nickname: str) -> bool:
 
 
 async def register_user(db: AsyncSession, request: LocalRegisterRequest) -> AppUser:
+    validate_registration_email(request.email)
     email = normalize_email(request.email)
     nickname = validate_nickname(request.nickname)
+    validate_registration_password(request.password, email=email, nickname=nickname)
     region = normalize_nickname(request.region or "") or None
 
     if not email or not nickname:
         raise InvalidLocalAuthInputError
-    if not request.consent.terms or not request.consent.privacy or not request.consent.age:
+    if (
+        not request.consent.terms
+        or not request.consent.privacy
+        or not request.consent.age
+    ):
         raise ConsentRequiredError
     if await email_exists(db, email):
         raise EmailAlreadyRegisteredError
@@ -180,11 +194,11 @@ async def register_user(db: AsyncSession, request: LocalRegisterRequest) -> AppU
 
 async def login_user(db: AsyncSession, email: str, password: str) -> AppUser:
     identity = await get_local_identity_by_email(db, email)
-    if (
-        identity is None
-        or identity.password_hash is None
-        or not verify_password(password, identity.password_hash)
-    ):
+    if identity is None or identity.password_hash is None:
+        # Spend the same hashing work so timing does not reveal account existence.
+        verify_password(password, DUMMY_PASSWORD_HASH)
+        raise InvalidLocalCredentialsError
+    if not verify_password(password, identity.password_hash):
         raise InvalidLocalCredentialsError
     user = await db.get(AppUser, identity.app_user_id)
     if user is None:

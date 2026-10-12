@@ -6,13 +6,15 @@ from app.db.session import get_db
 from app.schemas.auth import (
     EmailExistsRequest,
     GoogleLoginRequest,
-    GoogleUserResponse,
     LocalAuthResponse,
     LocalExistsResponse,
     LocalLoginRequest,
     LocalRegisterRequest,
     NaverLoginRequest,
     NicknameExistsRequest,
+    SocialOnboardingCompleteRequest,
+    SocialOnboardingRequiredResponse,
+    SocialUserResponse,
 )
 from app.services import local_auth
 from app.services.google_auth import (
@@ -29,10 +31,18 @@ from app.services.naver_auth import (
     verify_naver_authorization_code,
 )
 from app.services.nickname_policy import InvalidNicknameError, validate_nickname
+from app.services.registration_input_policy import (
+    InvalidEmailError,
+    InvalidPasswordError,
+)
 from app.services.social_auth import (
-    AccountLinkRequiredError,
-    SocialAuthConflictError,
     authenticate_social_user,
+)
+from app.services.social_onboarding import (
+    AccountLinkRequiredError,
+    OnboardingError,
+    SocialAuthConflictError,
+    complete_onboarding,
 )
 
 router = APIRouter(
@@ -41,11 +51,15 @@ router = APIRouter(
 )
 
 
-@router.post("/google", response_model=GoogleUserResponse)
+@router.post(
+    "/google", response_model=SocialUserResponse | SocialOnboardingRequiredResponse
+)
 async def login_with_google(
     request: GoogleLoginRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
-) -> GoogleUserResponse:
+) -> SocialUserResponse | SocialOnboardingRequiredResponse:
+    response.headers["Cache-Control"] = "no-store"
     try:
         profile = verify_google_credential(
             request.credential,
@@ -56,11 +70,13 @@ async def login_with_google(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Google authentication is not configured.",
+            headers={"Cache-Control": "no-store"},
         ) from error
     except InvalidGoogleCredentialError as error:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Google credential.",
+            headers={"Cache-Control": "no-store"},
         ) from error
     except AccountLinkRequiredError as error:
         raise account_link_required_exception() from error
@@ -68,14 +84,19 @@ async def login_with_google(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Social account login could not be completed.",
+            headers={"Cache-Control": "no-store"},
         ) from error
 
 
-@router.post("/naver", response_model=GoogleUserResponse)
+@router.post(
+    "/naver", response_model=SocialUserResponse | SocialOnboardingRequiredResponse
+)
 async def login_with_naver(
     request: NaverLoginRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
-) -> GoogleUserResponse:
+) -> SocialUserResponse | SocialOnboardingRequiredResponse:
+    response.headers["Cache-Control"] = "no-store"
     try:
         profile = verify_naver_authorization_code(
             request.code,
@@ -89,26 +110,31 @@ async def login_with_naver(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Naver authentication is not configured.",
+            headers={"Cache-Control": "no-store"},
         ) from error
     except InvalidNaverAuthorizationCodeError as error:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Naver authorization code.",
+            headers={"Cache-Control": "no-store"},
         ) from error
     except NaverTokenExchangeError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Naver token exchange failed.",
+            headers={"Cache-Control": "no-store"},
         ) from error
     except NaverProfileError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Naver profile request failed.",
+            headers={"Cache-Control": "no-store"},
         ) from error
     except InvalidNaverProfileError as error:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Naver profile.",
+            headers={"Cache-Control": "no-store"},
         ) from error
     except AccountLinkRequiredError as error:
         raise account_link_required_exception() from error
@@ -116,6 +142,7 @@ async def login_with_naver(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Social account login could not be completed.",
+            headers={"Cache-Control": "no-store"},
         ) from error
 
 
@@ -130,6 +157,24 @@ async def register_local_account(
 ) -> LocalAuthResponse:
     try:
         user = await local_auth.register_user(db, request)
+    except InvalidEmailError as error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_email",
+                "message": "올바른 이메일 형식이 아닙니다.",
+            },
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    except InvalidPasswordError as error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_password",
+                "message": "비밀번호 형식을 확인해 주세요.",
+            },
+            headers={"Cache-Control": "no-store"},
+        ) from error
     except InvalidNicknameError as error:
         raise invalid_nickname_exception() from error
     except local_auth.EmailAlreadyRegisteredError as error:
@@ -159,14 +204,17 @@ async def register_local_account(
 @router.post("/login", response_model=LocalAuthResponse)
 async def login_local_account(
     request: LocalLoginRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> LocalAuthResponse:
+    response.headers["Cache-Control"] = "no-store"
     try:
         user = await local_auth.login_user(db, request.email, request.password)
     except local_auth.InvalidLocalCredentialsError as error:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password.",
+            headers={"Cache-Control": "no-store"},
         ) from error
 
     return LocalAuthResponse(user=local_auth.user_to_payload(user))
@@ -209,6 +257,7 @@ def invalid_nickname_exception() -> HTTPException:
 def account_link_required_exception() -> HTTPException:
     return HTTPException(
         status_code=status.HTTP_409_CONFLICT,
+        headers={"Cache-Control": "no-store"},
         detail={
             "code": "account_link_required",
             "message": (
@@ -217,3 +266,35 @@ def account_link_required_exception() -> HTTPException:
             ),
         },
     )
+
+
+@router.post(
+    "/social-onboarding/complete", response_model=SocialUserResponse, status_code=201
+)
+async def complete_social_account(
+    request: SocialOnboardingCompleteRequest,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> SocialUserResponse:
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        return await complete_onboarding(db, request)
+    except AccountLinkRequiredError as error:
+        raise account_link_required_exception() from error
+    except InvalidNicknameError as error:
+        raise invalid_nickname_exception() from error
+    except OnboardingError as error:
+        raise HTTPException(
+            status_code=error.status_code,
+            detail={
+                "code": error.code,
+                "message": "Social signup could not be completed.",
+            },
+            headers={"Cache-Control": "no-store"},
+        ) from error
+    except SocialAuthConflictError as error:
+        raise HTTPException(
+            status_code=409,
+            detail="Social account login could not be completed.",
+            headers={"Cache-Control": "no-store"},
+        ) from error

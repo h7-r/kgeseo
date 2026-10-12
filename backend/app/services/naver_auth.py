@@ -129,7 +129,7 @@ def normalize_naver_profile(payload: dict[str, Any]) -> GoogleUserResponse:
     email = response.get("email")
     if not subject:
         raise InvalidNaverProfileError
-    if not email:
+    if not str(email or "").strip():
         raise InvalidNaverProfileError
 
     return GoogleUserResponse(

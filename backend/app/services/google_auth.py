@@ -34,7 +34,7 @@ def verify_google_credential(
     subject = claims.get("sub")
     email = claims.get("email")
     email_verified = claims.get("email_verified") is True
-    if not subject or not email or not email_verified:
+    if not subject or not str(email or "").strip() or not email_verified:
         raise InvalidGoogleCredentialError
 
     return GoogleUserResponse(
