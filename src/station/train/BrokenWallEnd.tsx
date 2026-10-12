@@ -1,13 +1,13 @@
 import { useEffect, useMemo } from "react";
 import type * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
+import { mergeAndDispose } from "@/engine/geometry";
 import { createRandom } from "@/engine/random";
+import ShellOutline from "@/engine/ShellOutline";
 import { makeWallTexture } from "@/engine/textures/surfaces";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
 import RubbleStones, { type RubbleStone } from "./RubbleStones";
-import ShellOutline from "./ShellOutline";
 import { buildWallPieceGeometry } from "./wallPieceGeometry";
 
 interface BrokenWallEndProps {
@@ -38,14 +38,6 @@ interface Band {
   y: number;
   h: number;
   d: number;
-}
-
-function mergeGeometryPieces(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry | null {
-  if (!pieces.length) return null;
-  if (pieces.length === 1) return pieces[0];
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((piece) => piece.dispose());
-  return merged;
 }
 
 /**
@@ -112,7 +104,10 @@ export default function BrokenWallEnd({
       piece.translate(x, band.y, 0);
       (band.y < 4 ? lower : upper).push(piece);
     }
-    return { lower: mergeGeometryPieces(lower), upper: mergeGeometryPieces(upper) };
+    return {
+      lower: lower.length ? mergeAndDispose(lower, { keepSingle: true }) : null,
+      upper: upper.length ? mergeAndDispose(upper, { keepSingle: true }) : null,
+    };
   }, [bands, endX, flipped]);
   useEffect(
     () => () => {

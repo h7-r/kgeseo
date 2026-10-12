@@ -27,7 +27,7 @@ export default function PasswordModal({ open, onClose, user }: PasswordModalProp
       open={open}
       onClose={onClose}
       title="비밀번호 변경"
-      description="지금 비밀번호를 확인한 뒤 새 비밀번호로 바꿉니다."
+      description="현재 비밀번호를 확인한 뒤 새 비밀번호로 바꿉니다."
     >
       {/* Modal 은 닫히면 자식을 내리므로 다시 열 때 폼이 처음부터 시작한다. */}
       <PasswordForm onClose={onClose} user={user} />
@@ -43,7 +43,7 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
   const [isDone, setIsDone] = useState(false);
 
   const errors: Record<PasswordField, string> = {
-    current: !values.current ? "지금 비밀번호를 입력해주세요." : "",
+    current: !values.current ? "현재 비밀번호를 입력해 주세요." : "",
     next: RULES.password(values.next, { email: user?.email, nickname: user?.name }),
     confirm: validatePasswordConfirm(values.next, values.confirm),
   };
@@ -94,7 +94,7 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
   return isDone ? (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
       <p style={{ margin: 0, fontFamily: FONT.body, fontSize: "16px", color: COLOR.success }}>
-        ✓ 비밀번호를 바꿨습니다. 다음 로그인부터 새 비밀번호를 쓰세요.
+        ✓ 비밀번호를 바꿨습니다. 다음 로그인부터 새 비밀번호를 사용하세요.
       </p>
       <button type="button" className="button button--primary" style={modalPrimaryStyle} onClick={onClose}>
         <span className="button__label">확인</span>
@@ -104,7 +104,7 @@ function PasswordForm({ onClose, user }: Omit<PasswordModalProps, "open">) {
     <form onSubmit={handleSubmit} noValidate style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       {/* 비밀번호 관리자가 어느 계정인지 알도록 숨은 아이디 칸을 둔다. */}
       <input type="text" name="username" autoComplete="username" value={user?.email ?? ""} readOnly hidden />
-      {renderField("current", "지금 비밀번호", "current-password")}
+      {renderField("current", "현재 비밀번호", "current-password")}
       {renderField("next", "새 비밀번호 (8자 이상 · 대문자 · 소문자 · 숫자)", "new-password")}
       {renderField("confirm", "새 비밀번호 확인", "new-password")}
       {warning && (

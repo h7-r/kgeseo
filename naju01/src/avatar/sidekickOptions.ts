@@ -205,7 +205,7 @@ export const DEFAULT_SIDEKICK_CONFIG: SidekickConfig = {
   accessoryColor: "#8aa7b7",
 };
 
-export type SidekickSliderKey =
+type SidekickSliderKey =
   "heightScale" | "headScale" | "feminine" | "skinny" | "buff" | "heavy" | "shoulderWidth" | "pupilScale";
 
 /** [키, 이름, 최소, 최대, step] */
@@ -222,7 +222,7 @@ export const BODY_SLIDERS: readonly Slider<SidekickSliderKey>[] = [
   ["pupilScale", "눈동자", 0.55, 1.45, 0.01],
 ];
 
-export type SidekickColorKey =
+type SidekickColorKey =
   "skinColor" | "eyeColor" | "hairColor" | "topColor" | "bottomColor" | "shoesColor" | "accessoryColor";
 
 export const COLOR_FIELDS: readonly Option<SidekickColorKey>[] = [

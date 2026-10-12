@@ -6,6 +6,7 @@ import keyIcon from "@/assets/images/imgKey.svg";
 import dividerLine from "@/assets/images/imgLine2.svg";
 import navigationIcon from "@/assets/images/imgNavigation.svg";
 import usersIcon from "@/assets/images/imgUsers.svg";
+import ComingSoonChip from "@/components/ComingSoonChip";
 import HeartbeatLine from "@/components/HeartbeatLine";
 import RisingText from "@/components/RisingText";
 import { depthRevealClass, useReveal, useTilt } from "@/hooks/motion";
@@ -19,6 +20,8 @@ interface Feature {
   icon: string;
   title: string;
   description: string;
+  /** 아직 열리지 않은 기능이면 제목 옆에 「출시 예정」을 단다. */
+  isComingSoon?: boolean;
 }
 
 const FEATURES: readonly Feature[] = [
@@ -26,33 +29,35 @@ const FEATURES: readonly Feature[] = [
     number: "01",
     icon: navigationIcon,
     title: "실시간 3D 탐험",
-    description: "완전한 자유도의 1인칭 시점으로 미스터리한 공간을 직접 탐험하세요.",
+    description: "1인칭 시점으로 수사 현장 구석구석을 직접 걸으며 살펴보세요.",
   },
   {
     number: "02",
     icon: keyIcon,
     title: "정교한 퍼즐",
-    description: "논리적 추론과 창의적 사고가 필요한 다층 구조의 퍼즐 시스템.",
+    description: "단서를 맞춰 보고 추론해야 풀리는, 여러 겹으로 얽힌 퍼즐.",
   },
   {
     number: "03",
     icon: bookOpenIcon,
     title: "스토리 몰입",
-    description: "각 지역의 전설과 역사를 기반으로 한 깊이 있는 내러티브.",
+    description: "지역의 전설과 역사에 뿌리를 둔 깊이 있는 이야기.",
   },
   {
     number: "04",
     icon: usersIcon,
     title: "멀티플레이",
-    description: "최대 4인 협동 플레이로 함께 단서를 찾고 탈출하세요.",
+    description: "최대 4인이 함께 단서를 찾는 협동 플레이를 준비하고 있습니다.",
+    isComingSoon: true,
   },
 ];
 
+// 지금 사실인 숫자만 둔다. 한 판 시간은 홈 마무리 글·게임 소개와 같은 값이다.
 const STATS: readonly (readonly [value: string, label: string])[] = [
-  ["50+", "탈출 맵"],
-  ["100K+", "플레이어"],
-  ["4.9", "평균 평점"],
-  ["24/7", "실시간 서버"],
+  ["1", "공개 맵 · 나주"],
+  ["4", "출시 예정 지역"],
+  ["15~25분", "한 판 플레이"],
+  ["1인칭", "실시간 3D 추리"],
 ];
 
 interface ImmersiveExperienceProps {
@@ -153,7 +158,7 @@ interface FeatureCardProps extends Feature {
 }
 
 /** 차례로 떠오르고 마우스를 따라 기우는 기능 카드. */
-function FeatureCard({ number, icon, title, description, order }: FeatureCardProps) {
+function FeatureCard({ number, icon, title, description, isComingSoon, order }: FeatureCardProps) {
   const { ref: tiltRef, onMouseMove, onMouseLeave } = useTilt<HTMLDivElement>(4);
   const [revealRef, isVisible] = useReveal<HTMLDivElement>();
   const proximityRef = useProximity<HTMLDivElement>(240);
@@ -187,7 +192,10 @@ function FeatureCard({ number, icon, title, description, order }: FeatureCardPro
           <div style={numberBadgeStyle}>{number}</div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-          <div style={cardTitleStyle}>{title}</div>
+          <div style={cardTitleRowStyle}>
+            <div style={cardTitleStyle}>{title}</div>
+            {isComingSoon && <ComingSoonChip style={{ fontSize: "15px" }} />}
+          </div>
           <div style={cardDescriptionStyle}>{description}</div>
         </div>
       </div>
@@ -368,13 +376,14 @@ const numberBadgeStyle: CSSProperties = {
   color: COLOR.textMuted,
 };
 
+const cardTitleRowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "12px", width: "100%" };
+
 const cardTitleStyle: CSSProperties = {
   fontFamily: FONT.body,
   fontWeight: 700,
   fontSize: "26px",
   lineHeight: 1.35,
   color: "#eef2f6",
-  width: "100%",
 };
 
 const cardDescriptionStyle: CSSProperties = {

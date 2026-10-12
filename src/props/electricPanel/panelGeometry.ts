@@ -1,17 +1,9 @@
 /** 배전반 함·기기 몸통 지오. 실물 저압 분전반 그대로 — 위: 주차단기·변류기함·접지 동판, 가운데: 부스바, 아래: 분기 스위치. */
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
+import { buildMergedBoxes, mergeAndDispose, type BoxPiece } from "@/engine/geometry";
 
 import type { PanelLayout } from "./panelLayout";
-
-function mergeAndDispose(pieces: THREE.BufferGeometry[]) {
-  if (pieces.length === 1) return pieces[0];
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((g) => g.dispose());
-  return merged;
-}
 
 /** 함 속 통 — 앞이 열린 어두운 상자 */
 function buildShellGeometry({ X, innerWidth, innerHeight, dims }: PanelLayout) {
@@ -165,7 +157,7 @@ function buildSocketGeometry({ dims, socketRadius, socketY, socketHollow, plateF
   const rimWall = new THREE.CylinderGeometry(rimRadius, rimRadius, 0.016, 20, 1, true);
   rimWall.rotateZ(Math.PI / 2);
   rimWall.translate(X(front + 0.008), socketY, meterZ);
-  const rim = mergeAndDispose([ring, rimWall]);
+  const rim = mergeAndDispose([ring, rimWall], { keepSingle: true });
   const bore = new THREE.CylinderGeometry(socketRadius, socketRadius, socketHollow + 0.016, 20, 1, true);
   bore.rotateZ(Math.PI / 2);
   bore.translate(X((back + front + 0.016) / 2), socketY, meterZ);
@@ -192,6 +184,7 @@ function buildLampDiscGeometry(
       g.translate(deep(depthOffset), y, lampZ);
       return g;
     }),
+    { keepSingle: true },
   );
 }
 
@@ -226,7 +219,7 @@ function buildMetalPartGeometry(layout: PanelLayout) {
     g.translate(deep(0.07), mainY, meterZ + (k - 1) * meterWidth * 0.28);
     pieces.push(g);
   }
-  return mergeAndDispose(pieces);
+  return mergeAndDispose(pieces, { keepSingle: true });
 }
 
 export function buildPanelGeometries(layout: PanelLayout) {

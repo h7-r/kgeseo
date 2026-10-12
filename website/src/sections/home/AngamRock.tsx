@@ -25,8 +25,8 @@ interface MissionSpec {
 
 const MISSION_SPECS: readonly MissionSpec[] = [
   { label: "난이도", value: "★★★☆☆", width: 197, isStarColor: true },
-  { label: "제한시간", amount: "30", unit: "분", width: 196 },
-  { label: "최대인원", amount: "1", unit: "명", width: 197 },
+  { label: "제한 시간", amount: "30", unit: "분", width: 196 },
+  { label: "플레이 인원", amount: "1", unit: "명", width: 197 },
 ];
 
 /** SECRET OF ANGAM — 왼쪽은 겹겹의 링에 담긴 사건 필름, 오른쪽은 미션 설명. 가운데 온 뒤 잠깐 멈춘다. */
@@ -164,8 +164,8 @@ export default function AngamRock() {
           className="u-pin-reveal"
           style={{ fontFamily: FONT.body, fontWeight: 400, fontSize: "26px", lineHeight: 1.7, color: COLOR.textMuted }}
         >
-          나주의 전설 속 앙암바위에 숨겨진 고대의 비밀을 풀어라. 깊은 역사의 장막을 걷어내고, 시간 안에 모든 단서를 찾아
-          무사히 탈출해야 합니다. 지금 미션을 시작하세요.
+          영산강 절벽 앙암바위에 얽힌 옛이야기가 지워지고 있습니다. 제한 시간 안에 흩어진 단서를 모아 사라진 전설을
+          되살리고, 현장을 무사히 빠져나오세요.
         </div>
 
         <div className="u-pin-reveal" style={{ display: "flex", gap: "24px", alignItems: "center" }}>

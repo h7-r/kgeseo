@@ -2,9 +2,8 @@ import { useEffect, useMemo } from "react";
 
 import { buildMergedBoxes, type BoxPiece } from "@/engine/geometry";
 import { createRandom } from "@/engine/random";
+import ShellOutline from "@/engine/ShellOutline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
-
-import ShellOutline from "./ShellOutline";
 
 interface TrainTracksProps {
   /** [x, z] */

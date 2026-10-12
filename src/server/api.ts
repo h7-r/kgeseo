@@ -74,16 +74,16 @@ export interface GoogleUser {
   picture?: string;
 }
 
-export interface AnonymousSessionResponse {
+interface AnonymousSessionResponse {
   data: { anonymous_session_id: string };
 }
 
-export interface CaseBundleObject {
+interface CaseBundleObject {
   object_id: string;
   interaction?: { type: string };
 }
 
-export interface CaseBundleZone {
+interface CaseBundleZone {
   zone_id: string;
   objects: CaseBundleObject[];
 }
@@ -97,16 +97,16 @@ export interface PlaySessionState {
   flags: Record<string, unknown>;
 }
 
-export interface PlaySessionResponse {
+interface PlaySessionResponse {
   data: { play_session_id: string; case_id: string; state: PlaySessionState };
 }
 
 /** 조회(GET) 응답에만 completed_at 이 있다. */
-export interface PlaySessionReadResponse {
+interface PlaySessionReadResponse {
   data: PlaySessionResponse["data"] & { completed_at: string | null };
 }
 
-export interface InteractionRequest {
+interface InteractionRequest {
   client_event_id: string;
   client_timestamp: string;
   zone_id: string;
@@ -193,9 +193,9 @@ const DEFAULT_PROGRESS: Progress = {
   marketingAgreed: false,
 };
 
-export type ConsentKey = "terms" | "privacy" | "marketing";
+type ConsentKey = "terms" | "privacy" | "marketing";
 
-export interface ConsentItem {
+interface ConsentItem {
   key: ConsentKey;
   /** 화면에 보이는 항목 이름 */
   name: string;
@@ -204,7 +204,7 @@ export interface ConsentItem {
 }
 
 /** 누가 · 언제 · 어느 버전에 · 무엇에 동의했는가 */
-export interface ConsentRecord {
+interface ConsentRecord {
   termsVersion: string;
   /** 지금은 클라이언트가 찍지만 실제 서버에서는 서버 시각으로 덮어써야 한다. */
   agreedAt: string;
@@ -212,7 +212,7 @@ export interface ConsentRecord {
   items: ConsentItem[];
 }
 
-export interface NameCheckResult {
+interface NameCheckResult {
   available: boolean;
   reason?: string;
 }

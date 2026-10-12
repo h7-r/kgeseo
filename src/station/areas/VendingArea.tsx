@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import type * as THREE from "three";
 
+import { toRadians } from "@/engine/math";
 import type { OutlineValues } from "@/engine/toon";
 import CanVendingMachine from "@/props/vending/CanVendingMachine";
 import CoffeeVendingMachine from "@/props/vending/CoffeeVendingMachine";
@@ -16,8 +17,6 @@ import type { CoffeeVendingValues, DrinkVendingValues, VendingControlValues } fr
 const COFFEE_CHOICE: Record<string, CoffeeTemperature> = { 핫: "hot", 아이스: "iced" };
 
 // (도 × π) ÷ 180 순서를 지킨다 — 곱셈 순서가 바뀌면 마지막 자리가 달라질 수 있다
-const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
-
 /** 몸통 선과 캔·버튼·배출구 같은 안쪽 선. 색만 다르다. */
 const getMachineOutline = (v: DrinkVendingValues | CoffeeVendingValues, color: string): OutlineValues => ({
   outline: v.outline,

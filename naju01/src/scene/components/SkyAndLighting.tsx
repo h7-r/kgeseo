@@ -6,7 +6,7 @@ import { ShaderWarmup, ShadowMapUpdater } from "@/engine/rendering";
 import type { PresentedControls } from "../../app/presentation";
 import { MESH_NAMES } from "../../plan/meshNames";
 import { UNITS_PER_METER } from "../../plan/sitePlan";
-import { planPoint } from "./planPoint";
+import { planPoint } from "../../plan/sitePlan";
 
 const U = UNITS_PER_METER;
 

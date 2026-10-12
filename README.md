@@ -27,9 +27,7 @@ npm run dev      # http://localhost:5173
 | 나주 맵(naju01) | `npx vite naju01` | `localhost:5174` |
 | 웹사이트(website) | `npm run web:dev` | `localhost:5175` |
 
-> 웹사이트 폴더는 `시작페이지/` 에서 `website/` 로 이름이 바뀌었다. 옛 명령 `npx vite 시작페이지` 는
-> **없는 폴더로 빈 서버를 5173 에 띄워** 본편 포트를 막는다. `Port 5173 is already in use` 가 뜨면
-> `lsof -nP -iTCP:5173 -sTCP:LISTEN` 으로 무엇이 잡고 있는지 먼저 본다.
+> `Port 5173 is already in use` 가 뜨면 `lsof -nP -iTCP:5173 -sTCP:LISTEN` 으로 무엇이 잡고 있는지 먼저 본다.
 
 ## 기술 스택
 
@@ -57,9 +55,11 @@ src/
 ├── lobby/              겨냥 · 줍기 · 놓기 상호작용
 ├── tutorial/           튜토리얼 단계 · 출동
 ├── trainInterior/      기차 안 씬
-├── game/ · investigation/  소지품 · 힌트 · 조사
+├── game/               소지품 · 힌트
+├── investigation/ · session/  퍼즐·조사 시스템 뼈대(아직 화면 없음)
 ├── settings/ · audio/  설정 · 효과음 · 배경음악
-├── server/ · session/  백엔드 연결(계약 v0.3.1)
+├── server/             백엔드 연결(계약 v0.3.1)
+├── lib/                여러 곳이 쓰는 작은 도구(상태 변경 신호)
 ├── characterCreation/  캐릭터 생성 화면(naju01 컴포넌트를 감싼다)
 ├── naju/               본편이 naju01 에서 가져다 쓰는 것의 입구
 ├── debug/              성능 계기 · 오류 기록 · window.__game

@@ -1,9 +1,10 @@
 // 글자는 폴리곤으로 깎지 않고 캔버스에 그린다 — 비싸기만 하고 안 예쁘다(벽함 라벨과 같은 원칙).
 import { createRandom } from "@/engine/random";
 import { makeCachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
+import { CORRIDOR_INK_COLOR } from "@/station/corridor/corridorLighting";
 
 /** 분기함에 붙은 작은 명판 — 「A-1 / 조명분기」 */
-export function makeJunctionLabelTexture(text = "A-1", background = "#aeb6bd", ink = "#131314", wear = 1) {
+export function makeJunctionLabelTexture(text = "A-1", background = "#aeb6bd", ink = CORRIDOR_INK_COLOR, wear = 1) {
   return makeCachedCanvasTexture(
     `workLampJunctionLabel|${text}|${background}|${ink}|${wear}`,
     (g, W, H) => {
@@ -44,7 +45,7 @@ export function makeReleaseLabelTexture(background = "#b5443a", ink = "#f4f6f8",
     (g, W, H) => {
       g.fillStyle = background;
       g.fillRect(0, 0, W, H);
-      g.strokeStyle = "#131314";
+      g.strokeStyle = CORRIDOR_INK_COLOR;
       g.lineWidth = 7;
       g.strokeRect(3.5, 3.5, W - 7, H - 7);
       g.fillStyle = ink;

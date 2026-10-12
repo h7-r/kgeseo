@@ -6,7 +6,7 @@ import { ROUTES } from "@/navigation/routes";
 import { signInWithNaverCallback } from "@/services/account/naverAuth";
 import { signIn } from "@/services/session";
 
-const CHECKING_MESSAGE = "Naver 로그인 확인 중…";
+const CHECKING_MESSAGE = "네이버 로그인을 확인하는 중…";
 
 /** 네이버 인가 화면에서 돌아오는 자리. 백엔드 확인이 끝나면 로그인하고 홈으로 간다. */
 export default function SocialCallbackPage() {
@@ -24,7 +24,7 @@ export default function SocialCallbackPage() {
       })
       .catch((error: unknown) => {
         if (!alive) return;
-        setMessage((error instanceof Error && error.message) || "Naver 로그인에 실패했습니다.");
+        setMessage((error instanceof Error && error.message) || "네이버 로그인에 실패했습니다.");
       });
     return () => {
       alive = false;

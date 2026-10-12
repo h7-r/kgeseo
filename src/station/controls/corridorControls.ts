@@ -1,4 +1,5 @@
 import { buildOutlineSchema, useSavedControls } from "@/engine/leva/savedControls";
+import { CORRIDOR_INK_COLOR } from "@/station/corridor/corridorLighting";
 
 /**
  * 「비밀 복도」 — 왼쪽 벽 뒤 복도와 그 안의 벽함·자판기 자리·옆문·끝문·복도등.
@@ -106,7 +107,7 @@ export function useCorridorControls() {
     sideDoorBoardColor: { value: "#36210d", label: "측면문판자색" },
     sideDoorNailColor: { value: "#363534", label: "측면문못색" },
     sideDoorOutline: { value: true, label: "측면문외곽선" },
-    sideDoorOutlineColor: { value: "#131314", label: "측면문외곽선색" },
+    sideDoorOutlineColor: { value: CORRIDOR_INK_COLOR, label: "측면문외곽선색" },
     sideDoorOutlineWidth: { value: 5, min: 0, max: 20, step: 0.5, label: "측면문외곽선굵기" },
     sideDoorBrightness: { value: 1.85, min: 0.3, max: 3, step: 0.05, label: "측면문밝기" },
     sideDoorGrime: { value: 0.6, min: 0, max: 2, step: 0.05, label: "측면문때" },
@@ -145,7 +146,13 @@ export function useCorridorControls() {
     flicker: { value: true, label: "깜빡임" },
     lightIntensity: { value: 14.5, min: 0, max: 60, step: 0.5, label: "불세기" },
     lightColor: { value: "#8fa6c4", label: "불색" },
-    ...buildOutlineSchema({ width: 5, color: "#131314", crease: true, creaseAngle: 40, creaseColor: "#808080" }),
+    ...buildOutlineSchema({
+      width: 5,
+      color: CORRIDOR_INK_COLOR,
+      crease: true,
+      creaseAngle: 40,
+      creaseColor: "#808080",
+    }),
   });
 }
 

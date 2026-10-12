@@ -17,11 +17,11 @@ export default function LoginHistoryModal({ open, onClose, logins }: LoginHistor
       open={open}
       onClose={onClose}
       title="로그인 기록"
-      description="최근 10번의 로그인입니다. 모르는 기록이 있으면 비밀번호를 바꿔 주세요."
+      description="최근 로그인 10건입니다. 모르는 기록이 있으면 비밀번호를 바꿔 주세요."
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
         {logins.length === 0 && (
-          <span style={{ fontFamily: FONT.body, color: COLOR.textDim }}>아직 남은 기록이 없습니다.</span>
+          <span style={{ fontFamily: FONT.body, color: COLOR.textDim }}>아직 로그인 기록이 없습니다.</span>
         )}
         {logins.map((entry, i) => (
           <div key={entry.at} style={{ ...darkRowStyle, padding: "12px 16px", background: "#0b1224" }}>

@@ -20,7 +20,7 @@ export default function FaqPanel() {
 
   return (
     <>
-      <PanelHeading title="자주 묻는 질문" description="궁금한 점을 빠르게 찾아보세요" />
+      <PanelHeading title="자주 묻는 질문" description="궁금한 점을 빠르게 찾아보세요." />
       <CategoryFilter
         options={FAQ_FILTERS}
         selected={filter}
@@ -77,7 +77,7 @@ export default function FaqPanel() {
                 <>
                   <div style={{ height: "1px", background: COLOR.lightDivider }} />
                   <div id={answerId} role="region" aria-label={item.question} style={answerStyle}>
-                    {item.answer || "준비 중인 답변입니다."}
+                    {item.answer || "답변을 준비하고 있습니다. 급한 내용은 1:1 문의로 남겨 주세요."}
                   </div>
                 </>
               )}

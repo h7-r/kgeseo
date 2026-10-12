@@ -12,7 +12,7 @@ export interface WorldPoint {
   z: number;
 }
 
-export interface QuaternionValues {
+interface QuaternionValues {
   x: number;
   y: number;
   z: number;

@@ -1,0 +1,1414 @@
+{
+  "version": 1,
+  "viewport": { "width": 1600, "height": 900 },
+  "radPerPx": 0.002,
+  "steps": [
+    {
+      "op": "section",
+      "name": "map",
+      "desc": "NAJU 맵 첫 로드 · T 잠금 · 걷기 · V 인칭 전환 · 3인칭 펀치"
+    },
+    { "op": "goto", "page": "map", "query": "", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "001-map-first-load",
+      "desc": "?쿼리 없는 첫 화면 — V1(Z1 나루터) 1인칭, 오른쪽 위 [V] 1인칭 단추",
+      "expect": ["[V] 1인칭"]
+    },
+    { "op": "key", "code": "KeyT", "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "002-map-locked",
+      "desc": "T — 포인터 잠금(조작 시작)",
+      "expect": []
+    },
+    { "op": "hold", "codes": ["KeyW"], "ms": 2500, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "003-map-walk-forward",
+      "desc": "W 2.5초 앞으로 걷기(+X, 나루터 쪽)",
+      "expect": []
+    },
+    { "op": "key", "code": "KeyV", "after": 5000 },
+    {
+      "op": "checkpoint",
+      "name": "004-map-third-person",
+      "desc": "V — 3인칭(캐릭터 GLB 를 처음 붙임)",
+      "expect": ["[V] 3인칭"]
+    },
+    { "op": "mouse", "dx": 600, "dy": 0, "after": 500 },
+    {
+      "op": "checkpoint",
+      "name": "005-map-third-orbit",
+      "desc": "3인칭에서 마우스 오른쪽 600px — 카메라가 캐릭터 둘레를 돈다",
+      "expect": []
+    },
+    { "op": "mclick", "after": 500 },
+    {
+      "op": "checkpoint",
+      "name": "006-map-third-punch",
+      "desc": "3인칭 좌클릭 — 잽(Punch_Jab) 0.5초 뒤",
+      "expect": []
+    },
+    { "op": "hold", "codes": ["ShiftLeft", "KeyW"], "ms": 1500, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "007-map-third-run",
+      "desc": "3인칭 Shift+W 달리기 1.5초",
+      "expect": []
+    },
+    { "op": "key", "code": "KeyV", "after": 500 },
+    {
+      "op": "checkpoint",
+      "name": "008-map-back-first-person",
+      "desc": "V — 다시 1인칭",
+      "expect": ["[V] 1인칭"]
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "map-dev",
+      "desc": "?dev 계기판 · H · 걷기/달리기/점프/앉기 · 숫자키 V1·V2·V3 · Shift+숫자 차단물 연출 · 잠금 풀기"
+    },
+    { "op": "goto", "page": "map", "query": "?dev", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "009-dev-first-load",
+      "desc": "?dev 첫 화면 — 계기판(좌표 X 11.0 · Z 38.5) + 조작 안내",
+      "expect": ["Z1 나루터 · 시작 테라스", "X 11.0 · Z 38.5", "[T] 시작"]
+    },
+    { "op": "key", "code": "KeyH", "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "010-dev-hud-hidden",
+      "desc": "H — 계기판 숨김(왼쪽 위 [H] 계기판 자국만)",
+      "expect": ["[H] 계기판"]
+    },
+    { "op": "key", "code": "KeyH", "after": 300 },
+    { "op": "key", "code": "KeyT", "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "011-dev-locked",
+      "desc": "T — 잠금(조작 안내가 사라진다)",
+      "expect": []
+    },
+    { "op": "hold", "codes": ["KeyW"], "ms": 3000, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "012-dev-walk",
+      "desc": "W 3초 — 보행 거리·좌표가 계기판에 찍힘",
+      "expect": []
+    },
+    { "op": "hold", "codes": ["ShiftLeft", "KeyW"], "ms": 2000, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "013-dev-run",
+      "desc": "Shift+W 2초 달리기",
+      "expect": []
+    },
+    { "op": "hold", "codes": ["KeyA"], "ms": 1500, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "014-dev-strafe-left",
+      "desc": "A 1.5초 왼쪽 옆걸음",
+      "expect": []
+    },
+    { "op": "key", "code": "Space", "after": 250 },
+    {
+      "op": "checkpoint",
+      "name": "015-dev-jump-air",
+      "desc": "Space 점프 0.25초 뒤 — 공중",
+      "expect": ["공중"]
+    },
+    { "op": "run", "ms": 1500 },
+    { "op": "key", "code": "KeyC", "after": 600 },
+    {
+      "op": "checkpoint",
+      "name": "016-dev-crouch",
+      "desc": "C — 앉기",
+      "expect": ["앉음"]
+    },
+    { "op": "hold", "codes": ["KeyW"], "ms": 1500, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "017-dev-crouch-walk",
+      "desc": "앉은 채 W 1.5초",
+      "expect": []
+    },
+    { "op": "key", "code": "KeyC", "after": 600 },
+    {
+      "op": "checkpoint",
+      "name": "018-dev-stand",
+      "desc": "C — 일어섬",
+      "expect": []
+    },
+    { "op": "mouse", "dx": 785, "dy": 0, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "019-dev-look-right",
+      "desc": "마우스 오른쪽 90°",
+      "expect": []
+    },
+    { "op": "mouse", "dx": 0, "dy": -200, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "020-dev-look-up",
+      "desc": "마우스 위로 200px",
+      "expect": []
+    },
+    { "op": "mouse", "dx": 0, "dy": 200, "after": 300 },
+    { "op": "mouse", "dx": -1570, "dy": 0, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "021-dev-look-left",
+      "desc": "왼쪽으로 180°(처음 방향의 왼쪽 90°)",
+      "expect": []
+    },
+    { "op": "mouse", "dx": 785, "dy": 0, "after": 300 },
+    { "op": "key", "code": "Digit2", "after": 800 },
+    {
+      "op": "checkpoint",
+      "name": "022-dev-v2-cliff-top",
+      "desc": "2 — V2(Z3 절벽 위, +Z) 강 건너 진부촌이 보인다",
+      "expect": ["Z3 바위 위 · 절벽 상단", "X 45.0 · Z 25.4"]
+    },
+    { "op": "mouse", "dx": -785, "dy": 0, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "023-dev-v2-look-left",
+      "desc": "V2 에서 왼쪽 90°(절벽 마루)",
+      "expect": []
+    },
+    { "op": "hold", "codes": ["KeyW"], "ms": 2000, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "024-dev-v2-walk",
+      "desc": "V2 에서 W 2초",
+      "expect": []
+    },
+    { "op": "key", "code": "Digit3", "after": 800 },
+    {
+      "op": "checkpoint",
+      "name": "025-dev-v3-ridge",
+      "desc": "3 — V3(Z4 증언 능선, -X)",
+      "expect": ["Z4 진부촌 방향 증언 능선", "X 65.0 · Z 19.0"]
+    },
+    { "op": "mouse", "dx": 1570, "dy": 0, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "026-dev-v3-look-back",
+      "desc": "V3 에서 180° 돌아봄",
+      "expect": []
+    },
+    { "op": "key", "code": "Digit1", "after": 800 },
+    {
+      "op": "checkpoint",
+      "name": "027-dev-v1-ferry",
+      "desc": "1 — V1(Z1 나루터, +X)",
+      "expect": ["Z1 나루터 · 시작 테라스", "X 11.0 · Z 38.5"]
+    },
+    { "op": "mouse", "dx": 500, "dy": 0, "after": 300 },
+    { "op": "hold", "codes": ["KeyW"], "ms": 4000, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "028-dev-walk-to-river",
+      "desc": "V1 에서 오른쪽으로 틀어 4초 — 나룻배·강가 쪽",
+      "expect": []
+    },
+    { "op": "hold", "codes": ["KeyS"], "ms": 1500, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "029-dev-walk-back",
+      "desc": "S 1.5초 뒷걸음",
+      "expect": []
+    },
+    { "op": "key", "code": "KeyV", "after": 2500 },
+    {
+      "op": "checkpoint",
+      "name": "030-dev-third-person",
+      "desc": "V — 3인칭(계기판 있음)",
+      "expect": ["[V] 3인칭"]
+    },
+    { "op": "mouse", "dx": -900, "dy": 100, "after": 500 },
+    {
+      "op": "checkpoint",
+      "name": "031-dev-third-orbit",
+      "desc": "3인칭 카메라 돌리기",
+      "expect": []
+    },
+    { "op": "key", "code": "KeyV", "after": 500 },
+    { "op": "hold", "codes": ["ShiftLeft", "Digit1"], "ms": 100, "after": 500 },
+    {
+      "op": "checkpoint",
+      "name": "032-dev-scene1-nothing",
+      "desc": "Shift+1 — 씬 1 은 치울 차단물이 없다는 알림",
+      "expect": ["씬 1 에 치울 차단물이 없다"]
+    },
+    { "op": "key", "code": "Digit3", "after": 800 },
+    {
+      "op": "hold",
+      "codes": ["ShiftLeft", "Digit2"],
+      "ms": 100,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "033-dev-scene2-collapse-start",
+      "desc": "V3 에서 Shift+2 — 씬 2 끝 → B2 북측 바위 무너지는 연출 1초",
+      "expect": ["연출"]
+    },
+    { "op": "run", "ms": 2000 },
+    {
+      "op": "checkpoint",
+      "name": "034-dev-scene2-collapse-mid",
+      "desc": "연출 3초",
+      "expect": []
+    },
+    { "op": "run", "ms": 7000 },
+    {
+      "op": "checkpoint",
+      "name": "035-dev-scene2-collapse-end",
+      "desc": "연출 10초 뒤",
+      "expect": []
+    },
+    { "op": "hold", "codes": ["ShiftLeft", "Digit2"], "ms": 100, "after": 500 },
+    {
+      "op": "checkpoint",
+      "name": "036-dev-scene2-again",
+      "desc": "Shift+2 다시 — 이미 치움",
+      "expect": []
+    },
+    { "op": "exitPointerLock", "after": 500 },
+    {
+      "op": "checkpoint",
+      "name": "037-dev-unlocked",
+      "desc": "잠금 풀기 — 조작 안내가 다시 보인다",
+      "expect": ["[T] 시작"]
+    },
+    { "op": "clickText", "text": "[V] 1인칭", "exact": true, "after": 2000 },
+    {
+      "op": "checkpoint",
+      "name": "038-dev-view-button",
+      "desc": "오른쪽 위 [V] 단추 클릭 — 3인칭",
+      "expect": ["[V] 3인칭"]
+    },
+    { "op": "clickText", "text": "[V] 3인칭", "exact": true, "after": 500 },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "editor",
+      "desc": "E 편집기 — 고르기 · 해제 · 못 고르는 것 · 우클릭 시점 · Tab 부감 · 놓을 것 펼치기 (저장 금지)"
+    },
+    { "op": "goto", "page": "map", "query": "?dev", "warmMs": 3000 },
+    { "op": "key", "code": "KeyE", "after": 800 },
+    {
+      "op": "checkpoint",
+      "name": "039-editor-open",
+      "desc": "E — 편집 모드(잠금 풀림, 왼쪽 아래 안내판·저장 단추)",
+      "expect": ["편집 모드", "Tab — 공중에서 내려다보기"]
+    },
+    {
+      "op": "clickText",
+      "text": "캐릭터 꾸미기",
+      "exact": false,
+      "after": 300
+    },
+    { "op": "click", "x": 300, "y": 150, "after": 400 },
+    {
+      "op": "checkpoint",
+      "name": "040-editor-select-tree",
+      "desc": "나무 하나 클릭 — 노란 테두리 + 이름·번호·좌표",
+      "expect": ["길가수풀.나무 #31"]
+    },
+    { "op": "key", "code": "Escape", "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "041-editor-deselect",
+      "desc": "ESC — 고르기 해제",
+      "expect": []
+    },
+    { "op": "click", "x": 1500, "y": 550, "after": 400 },
+    {
+      "op": "checkpoint",
+      "name": "042-editor-select-boat",
+      "desc": "나룻배 클릭",
+      "expect": ["나룻배 #0"]
+    },
+    { "op": "click", "x": 500, "y": 550, "after": 400 },
+    {
+      "op": "checkpoint",
+      "name": "043-editor-cannot-move",
+      "desc": "땅 클릭 — 못 옮기는 것 안내",
+      "expect": ["못 옮기는 것이다"]
+    },
+    {
+      "op": "rclickDrag",
+      "x": 800,
+      "y": 450,
+      "dx": 300,
+      "dy": 0,
+      "after": 400
+    },
+    {
+      "op": "checkpoint",
+      "name": "044-editor-rotate-view",
+      "desc": "우클릭 끌기 300px — 시점 돌리기",
+      "expect": []
+    },
+    { "op": "key", "code": "Tab", "after": 800 },
+    {
+      "op": "checkpoint",
+      "name": "045-editor-overhead",
+      "desc": "Tab — 부감(공중에서 내려다보기)",
+      "expect": ["부감"]
+    },
+    { "op": "wheel", "dy": 200, "after": 400 },
+    {
+      "op": "checkpoint",
+      "name": "046-editor-overhead-wheel",
+      "desc": "부감에서 휠 — 시점 돌리기",
+      "expect": []
+    },
+    { "op": "hold", "codes": ["KeyW"], "ms": 1000, "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "047-editor-overhead-pan",
+      "desc": "부감에서 W 1초 — 화면 밀기",
+      "expect": []
+    },
+    { "op": "click", "x": 800, "y": 450, "after": 400 },
+    {
+      "op": "checkpoint",
+      "name": "048-editor-overhead-select",
+      "desc": "부감에서 가운데 클릭(고르기 또는 안내)",
+      "expect": []
+    },
+    { "op": "key", "code": "Escape", "after": 300 },
+    { "op": "key", "code": "Tab", "after": 800 },
+    {
+      "op": "checkpoint",
+      "name": "049-editor-overhead-off",
+      "desc": "Tab — 내려옴",
+      "expect": []
+    },
+    { "op": "clickText", "text": "놓을 것", "exact": false, "after": 1500 },
+    {
+      "op": "checkpoint",
+      "name": "050-editor-palette-open",
+      "desc": "「놓을 것」 펼침 — 에셋 썸네일 목록(누르지 않는다)",
+      "expect": []
+    },
+    { "op": "clickText", "text": "놓을 것", "exact": false, "after": 500 },
+    { "op": "key", "code": "KeyE", "after": 800 },
+    {
+      "op": "checkpoint",
+      "name": "051-editor-closed",
+      "desc": "E — 편집 끝",
+      "expect": []
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "handoff",
+      "desc": "sessionStorage kgeseo.loading.handoff.v2 로 나주 로딩 막을 이어받는다 (영상은 진짜 시간이라 경고만)"
+    },
+    {
+      "op": "storage",
+      "path": "/__harness/blank",
+      "session": {
+        "kgeseo.loading.handoff.v2": {
+          "kind": "naju",
+          "clipIndex": 0,
+          "videoTime": 0,
+          "musicTime": 0,
+          "lineIndex": 0,
+          "writtenAt": "{{now}}"
+        }
+      }
+    },
+    { "op": "goto", "page": "map", "query": "", "warmMs": 1000 },
+    {
+      "op": "checkpoint",
+      "name": "052-handoff-overlay",
+      "desc": "이어받은 로딩 막 — TELEPORT · NAJU-01 · 왜곡영역 진입",
+      "expect": ["왜곡영역 진입", "TELEPORT · NAJU-01"],
+      "warnOnly": true
+    },
+    {
+      "op": "waitText",
+      "text": "왜곡영역 진입",
+      "maxMs": 90000,
+      "absent": true
+    },
+    { "op": "run", "ms": 1500 },
+    {
+      "op": "checkpoint",
+      "name": "053-handoff-done",
+      "desc": "막이 걷힌 뒤 — 맵 첫 화면, 이어받기 키는 지워짐",
+      "expect": ["[V] 1인칭"]
+    },
+    { "op": "newContext" },
+    { "op": "goto", "page": "map", "query": "?transition=3", "warmMs": 1000 },
+    {
+      "op": "checkpoint",
+      "name": "054-transition-opening",
+      "desc": "?transition=3 — 입장 묶음(오프닝 시네마틱) 막, 글 없이 영상만",
+      "expect": [],
+      "warnOnly": true
+    },
+    { "op": "waitText", "text": "SKIP", "maxMs": 60000, "absent": false },
+    {
+      "op": "checkpoint",
+      "name": "055-transition-skip-visible",
+      "desc": "준비가 끝나 오른쪽 아래 SKIP 이 뜬 막",
+      "expect": ["SKIP"],
+      "warnOnly": true
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "Skip opening",
+      "exact": true,
+      "nth": 0,
+      "after": 1500
+    },
+    {
+      "op": "checkpoint",
+      "name": "056-transition-skipped",
+      "desc": "SKIP — 막이 걷힌 맵",
+      "expect": ["[V] 1인칭"]
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "cc",
+      "desc": "character-creation.html — 탭 5개 · 성별 · 피부 · 체형 · 헤어 · 의상 · 초기화 · 되돌리기 · 이름 규칙 · 중복확인 · 완료"
+    },
+    { "op": "goto", "page": "characterCreation", "query": "", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "057-cc-first",
+      "desc": "첫 화면 — 01 기본, 남성",
+      "expect": ["캐릭터 생성", "MALE · 조사관", "확인 · 게임 시작"]
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "피부 색 짙게",
+      "exact": true,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "058-cc-skin-dark",
+      "desc": "피부 색 짙게",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "여성",
+      "exact": true,
+      "nth": 0,
+      "after": 2000
+    },
+    {
+      "op": "checkpoint",
+      "name": "059-cc-female",
+      "desc": "여성으로 — 단발 기본",
+      "expect": ["FEMALE · 조사관"]
+    },
+    {
+      "op": "clickText",
+      "text": "속옷으로 체형 보기",
+      "exact": false,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "060-cc-underwear",
+      "desc": "속옷으로 체형 보기 켬",
+      "expect": []
+    },
+    {
+      "op": "clickText",
+      "text": "속옷으로 체형 보기",
+      "exact": false,
+      "after": 1000
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "머리",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "061-cc-view-head",
+      "desc": "미리보기 보기: 머리",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "손",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "062-cc-view-hand",
+      "desc": "미리보기 보기: 손",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "발",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "전신",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "체형 키 · 비율 · 체격",
+      "exact": false,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "063-cc-body-tab",
+      "desc": "02 체형 탭 — 슬라이더 12개",
+      "expect": ["키", "어깨 너비"]
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "키 한 칸 늘리기",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "키 한 칸 늘리기",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "어깨 너비 한 칸 늘리기",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "다리 길이 한 칸 줄이기",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "체형 한 칸 늘리기",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "체형 한 칸 늘리기",
+      "exact": true,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "064-cc-body-edited",
+      "desc": "키 +2 · 어깨 +1 · 다리 −1 · 체형 +2",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "키 초기화",
+      "exact": true,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "065-cc-body-height-reset",
+      "desc": "키 ↺ 초기화",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "되돌리기",
+      "exact": false,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "066-cc-undo",
+      "desc": "되돌리기 — 키가 다시 +2",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "다시 실행",
+      "exact": false,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "067-cc-redo",
+      "desc": "다시 실행",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "이 항목 초기화",
+      "exact": false,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "068-cc-body-section-reset",
+      "desc": "이 항목(체형) 초기화",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "헤어 머리 모양 · 색",
+      "exact": false,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "069-cc-hair-tab",
+      "desc": "03 헤어 탭(여성: 민머리·단발·긴 머리)",
+      "expect": ["단발"]
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "긴 머리",
+      "exact": false,
+      "nth": 0,
+      "after": 1500
+    },
+    {
+      "op": "checkpoint",
+      "name": "070-cc-hair-long",
+      "desc": "긴 머리",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "헤어 색 와인",
+      "exact": true,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "071-cc-hair-wine",
+      "desc": "헤어 색 와인",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "민머리",
+      "exact": false,
+      "nth": 0,
+      "after": 1500
+    },
+    {
+      "op": "checkpoint",
+      "name": "072-cc-hair-bald",
+      "desc": "민머리",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "의상 옷 · 신발 · 색",
+      "exact": false,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "073-cc-outfit-tab",
+      "desc": "04 의상 탭",
+      "expect": ["흰 티셔츠", "검은 반바지", "흰 운동화"]
+    },
+    { "op": "clickText", "text": "흰 티셔츠", "exact": true, "after": 800 },
+    {
+      "op": "checkpoint",
+      "name": "074-cc-outfit-top-dialog",
+      "desc": "상의 고르기 창",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "상의 색 네이비",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "075-cc-outfit-top-navy",
+      "desc": "상의 색 네이비",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "완료",
+      "exact": true,
+      "nth": 0,
+      "after": 600
+    },
+    { "op": "clickText", "text": "검은 반바지", "exact": true, "after": 800 },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "입지 않음 기본 속옷",
+      "exact": false,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "076-cc-outfit-bottom-none",
+      "desc": "하의 입지 않음",
+      "expect": []
+    },
+    { "op": "press", "keys": "Escape", "after": 500 },
+    { "op": "clickText", "text": "흰 운동화", "exact": true, "after": 800 },
+    {
+      "op": "checkpoint",
+      "name": "077-cc-outfit-shoes-dialog",
+      "desc": "신발 고르기 창",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "닫기",
+      "exact": true,
+      "nth": 0,
+      "after": 500
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "외형 초기화",
+      "exact": false,
+      "nth": 0,
+      "after": 1500
+    },
+    {
+      "op": "checkpoint",
+      "name": "078-cc-reset-all",
+      "desc": "외형 초기화 — 안내 문구",
+      "expect": ["외형을 기본값으로 되돌렸습니다"]
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "확인",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "기본 성별 · 피부",
+      "exact": false,
+      "nth": 0,
+      "after": 600
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "남성",
+      "exact": true,
+      "nth": 0,
+      "after": 2000
+    },
+    {
+      "op": "checkpoint",
+      "name": "079-cc-male-again",
+      "desc": "다시 남성",
+      "expect": ["MALE · 조사관"]
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "확인 · 게임 시작",
+      "exact": false,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "080-cc-confirm-without-name",
+      "desc": "이름 없이 확인 — 이름 탭으로 데려간다",
+      "expect": ["이름 중복확인"]
+    },
+    { "op": "fill", "label": "조사관 이름", "text": "가", "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "081-cc-name-too-short",
+      "desc": "이름 1자",
+      "expect": ["2자 이상 입력해 주세요."]
+    },
+    { "op": "fill", "label": "조사관 이름", "text": "abc!@", "after": 300 },
+    {
+      "op": "checkpoint",
+      "name": "082-cc-name-bad-chars",
+      "desc": "허용 안 되는 문자",
+      "expect": ["한글·영문·숫자를 쓸 수 있습니다."]
+    },
+    {
+      "op": "fill",
+      "label": "조사관 이름",
+      "text": "가나다라마바사아자차카타파",
+      "after": 300
+    },
+    {
+      "op": "checkpoint",
+      "name": "083-cc-name-too-long",
+      "desc": "13자",
+      "expect": ["12자까지 쓸 수 있습니다."]
+    },
+    { "op": "fill", "label": "조사관 이름", "text": "조사관", "after": 200 },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "중복확인",
+      "exact": true,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "084-cc-name-taken",
+      "desc": "「조사관」 — 이미 쓰는 이름(가짜 서버)",
+      "expect": []
+    },
+    {
+      "op": "clickText",
+      "text": "개발 도구 열기",
+      "exact": true,
+      "after": 500
+    },
+    {
+      "op": "checkpoint",
+      "name": "085-cc-devtools",
+      "desc": "개발 도구 열기 — 가짜 서버 조종판·기록",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "허용되지 않는 이름",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    { "op": "fill", "label": "조사관 이름", "text": "나주탐정", "after": 200 },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "중복확인",
+      "exact": true,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "086-cc-name-server-invalid",
+      "desc": "가짜 서버 「허용되지 않는 이름」",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "확인 실패(통신 오류)",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "중복확인",
+      "exact": true,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "087-cc-name-server-reject",
+      "desc": "가짜 서버 통신 오류",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "사용 가능",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    {
+      "op": "fill",
+      "label": "조사관 이름",
+      "text": "  나주   탐정 ",
+      "after": 200
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "중복확인",
+      "exact": true,
+      "nth": 0,
+      "after": 800
+    },
+    {
+      "op": "checkpoint",
+      "name": "088-cc-name-available",
+      "desc": "「나주 탐정」(공백 정규화) — 사용 가능",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "저장 실패",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "확인 · 게임 시작",
+      "exact": false,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "089-cc-complete-failed",
+      "desc": "완료 — 가짜 서버 저장 실패",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "성공",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "확인 · 게임 시작",
+      "exact": false,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "090-cc-complete-ok",
+      "desc": "완료 — 성공, onComplete 로 나간 데이터",
+      "expect": ["캐릭터를 만들었습니다"]
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "초안을 initialValue 로 다시 열기",
+      "exact": true,
+      "nth": 0,
+      "after": 1500
+    },
+    {
+      "op": "checkpoint",
+      "name": "091-cc-reopen-draft",
+      "desc": "받은 초안을 initialValue 로 다시 마운트",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "뒤로",
+      "exact": true,
+      "nth": 0,
+      "after": 500
+    },
+    {
+      "op": "checkpoint",
+      "name": "092-cc-cancel",
+      "desc": "뒤로 — onCancel 기록",
+      "expect": []
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "gait",
+      "desc": "gait.html 보행 비교 — 동작·방향·스켈레톤·보정·속도 단추"
+    },
+    { "op": "goto", "page": "gait", "query": "", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "093-gait-first",
+      "desc": "첫 화면 — 원본 · 새 몸체(남) · 새 몸체(여)",
+      "expect": ["원본 캐릭터"]
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "걷기",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "정면",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "094-gait-walk-front",
+      "desc": "걷기 · 정면",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "질주",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "후면",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "095-gait-sprint-back",
+      "desc": "질주 · 후면",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "45°",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "스켈레톤",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "096-gait-45-skeleton",
+      "desc": "45° · 스켈레톤",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "보정 켬",
+      "exact": false,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "접지 IK 켬",
+      "exact": false,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "097-gait-toggles-off",
+      "desc": "보정·접지 IK 끔",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "Tripo 동작",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "0.25x",
+      "exact": true,
+      "nth": 0,
+      "after": 300
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "재생",
+      "exact": true,
+      "nth": 0,
+      "after": 1500
+    },
+    {
+      "op": "checkpoint",
+      "name": "098-gait-play-quarter",
+      "desc": "Tripo 동작 · 0.25x 재생 1.5초",
+      "expect": []
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "대기",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "clickRole",
+      "role": "button",
+      "name": "측면",
+      "exact": true,
+      "nth": 0,
+      "after": 1000
+    },
+    {
+      "op": "checkpoint",
+      "name": "099-gait-idle-side",
+      "desc": "대기 · 측면",
+      "expect": []
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "wardrobe",
+      "desc": "qa-wardrobe.html — 화면 조작이 없다(window.__qa 로만 움직이는 QA 무대) · 빈 무대만"
+    },
+    { "op": "goto", "page": "wardrobe", "query": "", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "100-wardrobe-empty-stage",
+      "desc": "빈 QA 무대(지면선)",
+      "expect": []
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "terrain",
+      "desc": "terrain-check.html — 지형 높이 지문"
+    },
+    { "op": "goto", "page": "terrainCheck", "query": "", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "101-terrain-fingerprint",
+      "desc": "지형 동일성 검사 — 높이 지문 96546cd5 · 갈래 지문 150fe27c",
+      "expect": ["결과 지문 같음: 예", "96546cd5", "150fe27c", "c775b2b3"]
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "switch-leva-panel",
+      "desc": "?leva — Leva 패널"
+    },
+    { "op": "goto", "page": "map", "query": "?leva", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "102-switch-leva-panel",
+      "desc": "?leva — Leva 패널",
+      "expect": []
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "switch-q-low",
+      "desc": "?q=low 저사양(그림자·후처리 끔)"
+    },
+    { "op": "goto", "page": "map", "query": "?q=low", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "103-switch-q-low",
+      "desc": "?q=low 저사양(그림자·후처리 끔)",
+      "expect": []
+    },
+    { "op": "newContext" },
+    { "op": "section", "name": "switch-fx-off", "desc": "?fx=off 후처리 끔" },
+    { "op": "goto", "page": "map", "query": "?fx=off", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "104-switch-fx-off",
+      "desc": "?fx=off 후처리 끔",
+      "expect": []
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "switch-toon-off",
+      "desc": "?toon=off&outline=off&worldtoon=off"
+    },
+    {
+      "op": "goto",
+      "page": "map",
+      "query": "?toon=off&outline=off&worldtoon=off",
+      "warmMs": 3000
+    },
+    {
+      "op": "checkpoint",
+      "name": "105-switch-toon-off",
+      "desc": "?toon=off&outline=off&worldtoon=off",
+      "expect": []
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "switch-post-variants",
+      "desc": "?bloom=off&vig=off&tm=on"
+    },
+    {
+      "op": "goto",
+      "page": "map",
+      "query": "?bloom=off&vig=off&tm=on",
+      "warmMs": 3000
+    },
+    {
+      "op": "checkpoint",
+      "name": "106-switch-post-variants",
+      "desc": "?bloom=off&vig=off&tm=on",
+      "expect": []
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "switch-stage-16x9",
+      "desc": "?stage=16x9 레터박스"
+    },
+    { "op": "goto", "page": "map", "query": "?stage=16x9", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "107-switch-stage-16x9",
+      "desc": "?stage=16x9 레터박스",
+      "expect": []
+    },
+    { "op": "newContext" },
+    { "op": "section", "name": "switch-dpr-1", "desc": "?dpr=1 배율 고정" },
+    { "op": "goto", "page": "map", "query": "?dpr=1", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "108-switch-dpr-1",
+      "desc": "?dpr=1 배율 고정",
+      "expect": []
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "switch-customize",
+      "desc": "?customize — 치비 꾸미기 패널"
+    },
+    { "op": "goto", "page": "map", "query": "?customize", "warmMs": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "109-switch-customize",
+      "desc": "?customize — 치비 테스트 패널",
+      "expect": []
+    },
+    { "op": "key", "code": "KeyT", "after": 300 },
+    { "op": "key", "code": "KeyV", "after": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "110-switch-customize-third",
+      "desc": "?customize 에서 T · V 3인칭",
+      "expect": []
+    },
+    { "op": "newContext" },
+    {
+      "op": "section",
+      "name": "switch-sidekick",
+      "desc": "?avatar=sidekick — 예전 사이드킥 캐릭터"
+    },
+    {
+      "op": "goto",
+      "page": "map",
+      "query": "?avatar=sidekick&customize",
+      "warmMs": 3000
+    },
+    {
+      "op": "checkpoint",
+      "name": "111-switch-sidekick",
+      "desc": "?avatar=sidekick&customize — 사이드킥 꾸미기 패널",
+      "expect": []
+    },
+    { "op": "key", "code": "KeyT", "after": 300 },
+    { "op": "key", "code": "KeyV", "after": 3000 },
+    {
+      "op": "checkpoint",
+      "name": "112-switch-sidekick-third",
+      "desc": "사이드킥 3인칭",
+      "expect": []
+    }
+  ]
+}

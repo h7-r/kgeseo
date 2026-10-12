@@ -70,3 +70,8 @@ public/references/
 !.env.example
 # 개발 서버용 주소만 적힌 파일(비밀값 없음)
 !.env.development
+
+# 회귀 검사 결과 — 스크린샷 수백 장이라 각자 컴퓨터에서 뜬다(tools/regression/README.md)
+tools/regression/*/baseline/
+tools/regression/*/runs/
+tools/regression/.cache/

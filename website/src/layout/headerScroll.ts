@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 
+import { HEADER_HEIGHT, useStageScale } from "@/lib/layout";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 import { measureSectionPositions, measureSectionPositionsCached } from "@/navigation/sectionGeometry";
 import { getSubMenu } from "@/navigation/subMenus";
@@ -18,6 +20,21 @@ function isHeaderHeld(now: number): boolean {
 
 export function cancelSectionScroll(): void {
   sectionScroll.cancel?.();
+}
+
+/** 본문 단추가 같은 페이지의 구간으로 내려갈 때 쓴다. 머리띠 하위 메뉴를 눌렀을 때와 같은 자리에 멈춘다. */
+export function useScrollToSection(): (id: string) => void {
+  const scale = useStageScale();
+  const { pathname } = useLocation();
+  return useCallback(
+    (id: string) => {
+      const headerHeight = Math.round(HEADER_HEIGHT * scale);
+      scrollToSection(
+        () => measureSectionPositions(pathname, scale, headerHeight).find((section) => section.id === id)?.snapTop,
+      );
+    },
+    [pathname, scale],
+  );
 }
 
 /**

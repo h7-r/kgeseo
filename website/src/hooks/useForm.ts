@@ -252,7 +252,7 @@ export function useBotGuard() {
   return { honeypot, setHoneypot, isLikelyBot };
 }
 
-const CONSENT_REQUIRED_MESSAGE = "필수 항목에 모두 동의해주세요.";
+const CONSENT_REQUIRED_MESSAGE = "필수 항목에 모두 동의해 주세요.";
 
 /**
  * 「전체」(terms)는 아래 두 항목이 다 켜졌는지로 정한다.

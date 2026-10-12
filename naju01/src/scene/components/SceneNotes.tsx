@@ -6,7 +6,7 @@ import { SCENE4_NOTES } from "../../story/scene4";
 import { SCENE5_NOTES } from "../../story/scene5";
 import type { StoryProps } from "../useStoryProps";
 import DevLabel from "./DevLabel";
-import { planPoint } from "./planPoint";
+import { planPoint } from "../../plan/sitePlan";
 
 interface NoteSpot {
   x: number;

@@ -8,14 +8,14 @@ import * as THREE from "three";
 import { exposeDevHook } from "@/debug/devHooks";
 
 /** 진단이 읽는 아바타 준비물 */
-export interface DiagnosticsTarget {
+interface DiagnosticsTarget {
   model: THREE.Object3D;
   targetSkin: THREE.SkinnedMesh | null;
   clipFor?: (name: string) => THREE.AnimationClip | null;
   clipCount?: number;
 }
 
-export interface DiagnosticsOptions {
+interface DiagnosticsOptions {
   clipNames?: readonly string[];
 }
 

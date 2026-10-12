@@ -47,7 +47,7 @@ import { useLookHistory } from "./useLookHistory";
 import { useNameCheck } from "./useNameCheck";
 import ViewSwitcher from "./ViewSwitcher";
 
-export interface CharacterCreationScreenProps {
+interface CharacterCreationScreenProps {
   /** 이어 만들 초안(믿지 않고 보정한다) */
   initialValue?: unknown;
   catalog?: CharacterCatalog | null;

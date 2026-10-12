@@ -6,7 +6,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { METERS_PER_UNIT, UNITS_PER_METER } from "../plan/sitePlan";
 import type { HeightAt } from "../terrain/ground";
-import { clamp, clampDelta, EDIT_BOUNDS, OVERVIEW_CAMERA, type Selection } from "./editorConfig";
+import { clampDelta, EDIT_BOUNDS, OVERVIEW_CAMERA, type Selection } from "./editorConfig";
 import { ASSET_TRAY_ID, PANEL_ID } from "./editHelpPanelHtml";
 
 type MaybeHeightAt = HeightAt | null | undefined;
@@ -49,8 +49,8 @@ export function panCamera(camera: THREE.Camera, sideM: number, aheadM: number) {
   tempSide.crossVectors(tempForward, camera.up).normalize();
   const x = camera.position.x * METERS_PER_UNIT + tempForward.x * aheadM + tempSide.x * sideM;
   const z = camera.position.z * METERS_PER_UNIT + tempForward.z * aheadM + tempSide.z * sideM;
-  camera.position.x = clamp(x, EDIT_BOUNDS.x[0], EDIT_BOUNDS.x[1]) * UNITS_PER_METER;
-  camera.position.z = clamp(z, EDIT_BOUNDS.z[0], EDIT_BOUNDS.z[1]) * UNITS_PER_METER;
+  camera.position.x = THREE.MathUtils.clamp(x, EDIT_BOUNDS.x[0], EDIT_BOUNDS.x[1]) * UNITS_PER_METER;
+  camera.position.z = THREE.MathUtils.clamp(z, EDIT_BOUNDS.z[0], EDIT_BOUNDS.z[1]) * UNITS_PER_METER;
 }
 
 /** 카메라 발밑 지표 높이(m). 무대 밖은 값이 없어 0 이다. */

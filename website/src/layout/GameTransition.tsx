@@ -124,7 +124,7 @@ function TransitionCurtain({ destination }: TransitionCurtainProps) {
       <div style={progressTrackStyle} aria-hidden="true">
         <div style={{ ...progressBarStyle, transform: `scaleX(${progress})` }} />
       </div>
-      <span style={hintStyle}>Esc 로 취소</span>
+      <span style={hintStyle}>Esc 키로 취소</span>
     </div>
   );
 }

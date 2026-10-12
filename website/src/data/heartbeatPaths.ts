@@ -1,5 +1,5 @@
 /** 길 하나와 그 길이 실제로 그려진 범위. */
-export interface HeartbeatPath {
+interface HeartbeatPath {
   x: number;
   y: number;
   w: number;

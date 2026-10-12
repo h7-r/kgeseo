@@ -229,7 +229,7 @@ export function buildSerpentPrototypes(): THREE.BufferGeometry[] {
       }
 
       // 눈은 머리에서 자리가 정해져 있으니 계산으로 놓고, 그 점에 가장 가까운 표면 점을 칠 중심으로 삼는다.
-      // 표면 최댓값으로 찾으면 울퉁불퉁한 데로 튀어 좌우가 비대칭이 됐다.
+      // 표면 최댓값으로 찾으면 울퉁불퉁한 데로 튀어 좌우가 비대칭이 된다.
       const up = new THREE.Vector3(0, 1, 0);
       // 머리폭만 하게(9 cm 쯤) 키워야 멀리서도 「눈이 있다」가 읽힌다
       const eyeSize = headWidth * 1.15;

@@ -9,7 +9,7 @@ import type { Terrain } from "../useTerrainLayers";
 import type { PeopleShapes } from "../useWorldLayers";
 import GroundMaterial from "./GroundMaterial";
 import DevLabel from "./DevLabel";
-import { planPoint } from "./planPoint";
+import { planPoint } from "../../plan/sitePlan";
 
 const U = UNITS_PER_METER;
 
@@ -44,7 +44,7 @@ export default function DevMarkers({ controls, terrain, people, hasBakedAbisa, s
           );
         })}
 
-      {/* 조사점 후보 슬롯 — 구슬이 크면 공간보다 표식이 먼저 보여 낮은 고리 + 가는 핀으로 줄였다 */}
+      {/* 조사점 후보 슬롯 — 구슬이 크면 공간보다 표식이 먼저 보여 낮은 고리 + 가는 핀으로 그린다 */}
       {controls.showInvestigationPoints &&
         INVESTIGATION_POINTS.map((s) =>
           s.points.map(([x, z], i) => {

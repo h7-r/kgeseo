@@ -60,7 +60,7 @@ export default function SupportCenter({ tab, top, panelHeight, lightBgHeight, on
               width: "100%",
             }}
           >
-            공지사항, 자주 묻는 질문, 그리고 합동수사본부 1:1 문의 채널을 통해 해결되지 않은 미션을 제보하세요.
+            공지사항과 자주 묻는 질문을 먼저 확인하고, 해결되지 않은 문제는 1:1 문의로 남겨 주세요.
           </div>
         </div>
       </div>

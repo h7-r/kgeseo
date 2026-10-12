@@ -8,7 +8,7 @@ import { createNoise } from "../terrain/ground";
 import { buildSlopePath, computeRoadsideStoneSpots } from "../terrain/slopePaths";
 import { computeFenceSpots } from "../world/fences";
 import { computeHillBushSpots, computeRoadsideBushSpots } from "../world/vegetation";
-import type { PlanPoint } from "./components/planPoint";
+import type { PlanPoint } from "../plan/sitePlan";
 import type { GroundShapes, Terrain } from "./useTerrainLayers";
 
 const U = UNITS_PER_METER;

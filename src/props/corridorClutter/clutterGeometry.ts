@@ -3,8 +3,8 @@
  * 40여 개를 따로 그리면 외곽선까지 80 드로우콜이라, 재질이 같은 것끼리 합치고 색은 정점색으로 물건마다 다르게 넣는다.
  */
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
+import { mergeAndDispose } from "@/engine/geometry";
 import { createRandom } from "@/engine/random";
 import { CAN_FLAVORS } from "@/props/vending/canLabels";
 
@@ -242,7 +242,7 @@ interface ClutterType {
   aspect?: [number, number];
 }
 
-// 남긴 것은 전부 한눈에 무엇인지 읽히는 크기다(병뚜껑·꽁초는 점으로만 보여 뺐다).
+// 전부 한눈에 무엇인지 읽히는 크기만 둔다(병뚜껑·꽁초는 점으로만 보인다).
 const CLUTTER_TYPES: ClutterType[] = [
   { kind: "can", weight: 6 },
   { kind: "cup", weight: 3 },
@@ -273,13 +273,6 @@ function applyAtlasCell(g: THREE.BufferGeometry, cell: number, columns: number, 
   }
   uv.needsUpdate = true;
   return g;
-}
-
-function mergeAndDispose(pieces: THREE.BufferGeometry[]) {
-  if (!pieces.length) return null;
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((g) => g.dispose());
-  return merged;
 }
 
 interface ClutterOptions {
@@ -394,7 +387,11 @@ export function buildClutterGeometry({ x0, x1, z0, z1, count, seed, brightness, 
     bucket.push(g);
   }
 
-  return { cans: mergeAndDispose(cans), papers: mergeAndDispose(papers), others: mergeAndDispose(others) };
+  return {
+    cans: cans.length ? mergeAndDispose(cans) : null,
+    papers: papers.length ? mergeAndDispose(papers) : null,
+    others: others.length ? mergeAndDispose(others) : null,
+  };
 }
 
 export interface PuddleSpot {
@@ -470,7 +467,7 @@ export function buildPuddleGeometry({
     g.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     pieces.push(g);
   }
-  return mergeAndDispose(pieces);
+  return pieces.length ? mergeAndDispose(pieces) : null;
 }
 
 // 채도를 낮춘 흙빛 녹. 주황빛이 세면 칠한 것으로 보이고 어두운 복도에서 그 부분만 튄다.
@@ -644,5 +641,5 @@ export function buildCorrosionGeometry({
     }
   }
 
-  return mergeAndDispose(pieces);
+  return pieces.length ? mergeAndDispose(pieces) : null;
 }

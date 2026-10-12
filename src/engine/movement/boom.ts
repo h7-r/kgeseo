@@ -42,7 +42,7 @@ exposeDevHook("thirdPersonSpeed", thirdPersonSpeed);
  * 3인칭 붐 설정(미터). App 의 Leva 「3인칭 시점」 폴더가 매 프레임 Object.assign 으로 덮어쓴다 —
  * 그래서 그 폴더의 열쇠 이름은 이 객체의 필드 이름과 같아야 한다.
  */
-export interface ThirdPersonConfig {
+interface ThirdPersonConfig {
   /** 피벗에서 카메라까지 */
   distance: number;
   /** 눈높이에서 이만큼 위에서 돈다 — 머리 너머로 본다 */
@@ -78,15 +78,13 @@ export const thirdPersonConfig: ThirdPersonConfig = {
 
 exposeDevHook("thirdPersonConfig", thirdPersonConfig);
 
-export interface BoomState {
+interface BoomState {
   distance: number;
   group: THREE.Object3D | null;
   visible: boolean;
   collapsedFrames: number;
   pivotPulledFrames: number;
   pivotDroppedFrames: number;
-  fixPivot: boolean;
-  useLegacyEscape: boolean;
 }
 
 /**
@@ -102,16 +100,12 @@ export const boomState: BoomState = {
   collapsedFrames: 0,
   pivotPulledFrames: 0,
   pivotDroppedFrames: 0,
-  /** false 면 피벗 되돌리기를 끈다(A/B 비교용) */
-  fixPivot: true,
-  /** true 면 「갇힘 면제」(벽 안에서 시작하면 충돌을 무시하는 동작)로 돈다(A/B 비교용) */
-  useLegacyEscape: false,
 };
 
 exposeDevHook("boom", boomState);
 
 /** 걸음 진단. enabled 를 켜면 useMovement 가 매 프레임 숫자를 적는다. */
-export interface MovementDebug {
+interface MovementDebug {
   enabled: boolean;
   commandedSpeed?: number;
   speedScale?: number;
@@ -203,28 +197,19 @@ export function computeBoomDistance(
     return isBlocked(x, z, y) || isBlocked(x + ox, z + oz, y) || isBlocked(x - ox, z - oz, y);
   };
 
-  // 시작점을 안쪽 사각 안으로 끌어다 놓는다. 「갇힘 면제」 는 벽에 조금만 다가가도 켜져 충돌을 통째로 무시해
-  // 카메라를 방 밖으로 내보낸다.
+  // 시작점을 안쪽 사각 안으로 끌어다 놓는다. 벽 안에서 시작했다고 충돌을 무시하면 카메라가 방 밖으로 나간다.
   let startX = pivot.x;
   let startZ = pivot.z;
-  if (inner && !boomState.useLegacyEscape) {
+  if (inner) {
     startX = Math.min(Math.max(startX, inner.minX), inner.maxX);
     startZ = Math.min(Math.max(startZ, inner.minZ), inner.maxZ);
   }
 
   let reachable = 0;
-  let isStillTrapped = boomState.useLegacyEscape ? blockedAt(startX, startZ, pivot.y) : false;
   for (let d = step; d <= maxDistance; d += step) {
-    const blocked = blockedAt(startX + back.x * d, startZ + back.z * d, pivot.y + back.y * d);
-    if (isStillTrapped) {
-      reachable = d;
-      if (!blocked) isStillTrapped = false;
-      continue;
-    }
-    if (blocked) break;
+    if (blockedAt(startX + back.x * d, startZ + back.z * d, pivot.y + back.y * d)) break;
     reachable = d;
   }
-  if (isStillTrapped) reachable = Math.min(reachable, maxDistance * 0.35);
   if (reachable === 0) boomState.collapsedFrames += 1;
   return Math.min(reachable, maxDistance);
 }

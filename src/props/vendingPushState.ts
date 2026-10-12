@@ -6,6 +6,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { smoothstep } from "@/engine/math";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 let progress = 0; // 0 = 제자리, 1 = 다 밀렸다
@@ -16,9 +17,8 @@ const STEP_SIZE = 0.08;
 const signal = createChangeSignal();
 
 // 진행 자체를 지수 감쇠로 굴리면 끝이 늘어져 「시간」 값이 거짓이 된다.
-// 진행은 시간대로 선형으로 올리고 부드러움은 읽을 때 입힌다.
-const smoothstep = (t: number) => t * t * (3 - 2 * t);
-
+// 진행은 시간대로 선형으로 올리고 부드러움(smoothstep)은 읽을 때 입힌다.
+//
 // 매끈하게 흐르면 저절로 미끄러지는 물건이 된다. 무거운 자판기를 억지로 미는 것이라
 // 세 번 '툭' 힘이 실리게 한다. 멈칫이 크면 무게감이 아니라 렉으로 읽혀 각 칸의 앞 83% 동안 민다.
 const PUSH_STAGES = 3;
@@ -35,7 +35,7 @@ const computeStrainedProgress = (t: number) => {
 /** 지금 밀린 거리(연속) — 자판기 그룹이 매 프레임 쓴다 */
 export const getPushOffset = () => computeStrainedProgress(progress) * distance;
 /** 관이 쓰는 밀림(칸으로 끊어져 있다) */
-export const getPipeOffset = () => steppedOffset;
+const getPipeOffset = () => steppedOffset;
 const getPushProgress = () => progress;
 
 function updateSteppedOffset() {

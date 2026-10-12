@@ -120,7 +120,7 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
         onClose={closeModal}
         danger
         title="정말 탈퇴할까요?"
-        description="탈퇴하면 플레이 기록과 보유 재화가 모두 사라지며 되돌릴 수 없습니다. (관계 법령에 따라 보관 의무가 있는 기록은 정해진 기간 동안 분리 보관됩니다.)"
+        description="탈퇴하면 플레이 기록과 보유 아이템이 모두 사라지고 되돌릴 수 없습니다. (관계 법령에 따라 보관해야 하는 기록은 정해진 기간 동안 따로 보관합니다.)"
       >
         {deleteWarning && (
           <div role="alert" style={warningStyle}>

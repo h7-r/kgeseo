@@ -1,12 +1,14 @@
-import { useEffect, useEffectEvent, useRef, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
+import { usePrefersReducedMotion } from "@/lib/motionPreference";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
 
 const FIRST_FOCUS_SELECTOR = "input, button, [tabindex]:not([tabindex='-1'])";
 const FOCUSABLE_SELECTOR = "input, button, select, textarea, a[href], [tabindex]:not([tabindex='-1'])";
-const TITLE_ID = "modal-title";
+// modal.css 의 닫힘 애니메이션 이름. 이 애니메이션이 끝나야 상자를 내린다.
+const BACKDROP_CLOSE_ANIMATION = "modal-backdrop-out";
 
 interface ModalProps {
   open: boolean;
@@ -18,11 +20,14 @@ interface ModalProps {
   width?: number;
   /** 되돌릴 수 없는 일을 묻는 상자. 제목이 붉어진다. */
   danger?: boolean;
+  /** 상자에 덧붙일 BEM 변형 클래스(예: "modal--detail"). */
+  className?: string;
 }
 
 /**
  * 페이지 위에 뜨는 대화 상자. 시스템 confirm 창은 이 페이지 결과 따로 놀아 직접 그린다.
  * 1920 무대는 transform 으로 줄어 있어 그 안에서는 fixed 가 무대 기준이 된다. 그래서 body 로 포털한다.
+ * 닫을 때는 짧게 사라진 뒤에 내린다. 그동안 자식은 부모가 넘긴 그대로 남으니, 내용을 바로 비우지 말 것.
  */
 export default function Modal({
   open,
@@ -32,7 +37,16 @@ export default function Modal({
   children,
   width = 520,
   danger = false,
+  className,
 }: ModalProps) {
+  const titleId = useId();
+  const isReducedMotion = usePrefersReducedMotion();
+  // open 이 꺼진 뒤에도 사라지는 애니메이션 동안은 그려 둔다.
+  const [isMounted, setIsMounted] = useState(open);
+  if (open && !isMounted) setIsMounted(true);
+  if (!open && isMounted && isReducedMotion) setIsMounted(false);
+  const isClosing = isMounted && !open;
+
   const boxRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<Element | null>(null);
   // onClose 는 부모가 그릴 때마다 새로 생긴다. 의존성에 넣으면 글자를 칠 때마다 초점이 첫 칸으로 튄다.
@@ -82,27 +96,35 @@ export default function Modal({
     };
   }, [open]);
 
-  if (!open) return null;
+  if (!isMounted) return null;
 
   return createPortal(
     <div
-      className="modal-backdrop"
+      className={isClosing ? "modal-backdrop is-closing" : "modal-backdrop"}
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (!open || event.target !== event.currentTarget) return;
+        // 막지 않으면 이어지는 mousedown 이 초점을 body 로 옮겨, 카드로 돌려 놓은 초점을 잃는다.
+        event.preventDefault();
+        onClose();
       }}
+      onAnimationEnd={(event) => {
+        if (isClosing && event.animationName === BACKDROP_CLOSE_ANIMATION) setIsMounted(false);
+      }}
+      // 사라지는 동안에는 눌리지도, 읽히지도 않는다.
+      inert={isClosing}
     >
       <div
         ref={boxRef}
-        className="modal"
+        className={["modal", className].filter(Boolean).join(" ")}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={TITLE_ID}
+        aria-labelledby={titleId}
         tabIndex={-1}
         style={{ width: `min(${width}px, calc(100vw - 32px))` }}
       >
         <div style={headerStyle}>
           <div style={headingStyle}>
-            <h2 id={TITLE_ID} style={{ ...titleStyle, color: danger ? "#fca5a5" : COLOR.textBright }}>
+            <h2 id={titleId} style={{ ...titleStyle, color: danger ? "#fca5a5" : COLOR.textBright }}>
               {title}
             </h2>
             {description && <p style={descriptionStyle}>{description}</p>}

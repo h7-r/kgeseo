@@ -16,8 +16,8 @@ const START_NOTES = [
   "브라우저에서 바로 시작합니다. 설치할 것이 없습니다.",
   "한 판은 15~25분. 앉은 자리에서 끝납니다.",
   "혼자 하는 1인칭 추리입니다. 일행을 모으지 않아도 됩니다.",
-  "저장은 자동입니다. 중간에 나가도 이어서 할 수 있습니다.",
-  "WebGL 을 지원하는 PC 브라우저면 됩니다.",
+  "저장은 자동입니다. 중간에 나가도 이어서 하면 됩니다.",
+  "WebGL을 지원하는 PC 브라우저면 충분합니다.",
 ];
 
 /** 마지막으로 미는 구간. 위아래에 심전도 선이 붙는다. */
@@ -86,11 +86,11 @@ export default function Closing() {
             <p style={{ margin: 0 }}>{"​"}</p>
             <p style={{ margin: 0 }}>{"​"}</p>
             <p style={{ margin: 0 }}>
-              지금 바로 당신의 본능과 지혜를 시험해 보세요.
+              지금 바로 당신의 추리력을 시험해 보세요.
               <br />
-              3D 입체 공간에서 시작되는 가장 신비로운
+              브라우저 속 3D 현장에서 펼쳐지는
             </p>
-            <p style={{ margin: 0 }}>방탈출 어드벤처</p>
+            <p style={{ margin: 0 }}>지역 전설 방탈출 어드벤처</p>
           </div>
         </div>
 
@@ -131,13 +131,12 @@ export default function Closing() {
       >
         <ThinLine />
         <div style={{ position: "relative", width: "288px", height: "20px" }}>
-          {/* 위 선과 늦춤을 달리 줘서 두 줄이 번갈아 뛴다. */}
+          {/* 늦춤 없이 둔다. 덩이가 드러날 때까지 motion.css 가 멈춰 두어 보이자마자 첫 박동이 지나간다. */}
           <HeartbeatLine
             shape="large"
             width="346px"
             height="21px"
             duration={3.8}
-            delay={1.6}
             opacity={0.6}
             strokeWidth={1.6}
             style={{ position: "absolute", left: "-29px", top: 0 }}

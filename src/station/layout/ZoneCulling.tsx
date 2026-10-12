@@ -56,7 +56,7 @@ export default function ZoneCulling({ headquarters, corridor, train, backdrop, e
   const camera = useThree((s) => s.camera);
   // 이동(FRAME_PRIORITY.movement)이 먼저 사람 자리를 적고 기본 순서(0)인 여기서 읽는다.
   useFrame(() => {
-    // 어느 구역인가는 사람 자리로, 무엇이 보이나는 카메라 방향으로. 3인칭 카메라 자리로 보면 벽 뒤로 넘어가 드로우콜이 17배로 튀었다.
+    // 어느 구역인가는 사람 자리로, 무엇이 보이나는 카메라 방향으로. 3인칭 카메라 자리로 보면 벽 뒤로 넘어가 드로우콜이 크게 튄다.
     const p = playerView.ready ? playerView.eye : camera.position;
     const pass = passage.get();
 

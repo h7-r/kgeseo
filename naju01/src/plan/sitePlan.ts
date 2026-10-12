@@ -1,3 +1,7 @@
+import * as THREE from "three";
+
+import { UNITS_PER_METER } from "@/engine/movement/constants";
+
 // NAJU-01 공간 설계 통합본 v3 의 숫자만 모은 곳.
 // 그림(지형 메시)과 판정(이동·충돌·고도)이 같은 숫자를 봐야 한다 — 양쪽에 따로 적으면 한쪽만 고쳐져 어긋난다.
 //
@@ -11,8 +15,16 @@ export type PathCode = "T1" | "T2" | "T3" | "T4";
 export type Heading = "+X" | "-X" | "+Z" | "-Z";
 type SceneNumber = 1 | 2 | 3 | 4 | 5;
 
-/** 미터 → 유닛 */
-export const UNITS_PER_METER = 1 / 0.3;
+// 미터 → 유닛은 본편 이동과 한 값이다. 나주 쪽은 도면 숫자와 함께 여기서 가져간다.
+export { UNITS_PER_METER };
+
+/** 도면 점 [X, Z, 고도] (미터) */
+export type PlanPoint = readonly [number, number, number];
+
+/** 도면 좌표(X, Z, 고도 — 미터) → three 좌표(유닛). */
+export function planPoint(x: number, z: number, elevation: number): THREE.Vector3 {
+  return new THREE.Vector3(x * UNITS_PER_METER, elevation * UNITS_PER_METER, z * UNITS_PER_METER);
+}
 /** 유닛 → 미터 */
 export const METERS_PER_UNIT = 0.3;
 

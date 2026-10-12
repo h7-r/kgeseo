@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type * as THREE from "three";
 import { Html } from "@react-three/drei";
 
-import { SHOW_DEV_LABELS } from "../../app/runtimeFlags";
+import { SHOW_PLAN_LABELS } from "../../app/runtimeFlags";
 
 interface DevLabelProps {
   position: THREE.Vector3 | [number, number, number];
@@ -14,7 +14,7 @@ interface DevLabelProps {
 
 /**
  * 도면 점검용 이름표. 한글이 필요해서 3D 글자 대신 DOM 을 띄운다.
- * 평소엔 안 띄운다 — `?dev` 일 때만(Leva 「라벨」 저장값이 켜져 있어도 여기서 막는다).
+ * 발표 프리셋(`?present`)에서는 Leva 「라벨」 저장값과 상관없이 숨긴다.
  */
 export default function DevLabel({
   position,
@@ -23,7 +23,7 @@ export default function DevLabel({
   background = "rgba(20,24,34,.72)",
   size = 13,
 }: DevLabelProps) {
-  if (!SHOW_DEV_LABELS) return null;
+  if (!SHOW_PLAN_LABELS) return null;
   return (
     <Html position={position} center distanceFactor={26} zIndexRange={[10, 0]}>
       <div

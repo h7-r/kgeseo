@@ -100,32 +100,23 @@ export default function QuickSignup() {
   // 가입을 막 끝낸 사람도 signIn 으로 로그인되므로 바로 환영 판으로 바뀐다.
   if (user) return <WelcomePanel user={user} />;
 
+  // 제목부터 로그인 줄까지 한 덩이로 쌓는다. 높이를 정하지 않아야 보이는 글의 가운데가 호의 가운데에 온다.
   return (
     <div style={signupPanelStyle}>
-      <div style={{ position: "absolute", left: 0, right: 0, top: "64px", padding: "5px 0 3px" }}>
+      <div style={{ paddingTop: "5px" }}>
         <div style={titleStyle}>탈출을 시작하세요.</div>
       </div>
 
-      <div style={{ position: "absolute", left: 0, right: 0, top: "115px", padding: "1px 0 2px" }}>
-        <div style={subtitleStyle}>계정을 만들고 전국의 방탈출 미션에 도전하세요.</div>
+      <div style={{ padding: "1px 0 2px" }}>
+        <div style={subtitleStyle}>계정을 만들고 나주 앙암바위부터 탈출을 시작하세요.</div>
       </div>
 
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          right: 0,
-          top: "161px",
-          display: "flex",
-          flexDirection: "column",
-          gap: "14px",
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "16px" }}>
         <div style={{ display: "flex", gap: "12px", height: "73px", alignItems: "flex-start" }}>
           <TextField
             variant="home"
             label="닉네임"
-            placeholder="모험가 이름"
+            placeholder="조사관 이름"
             grow
             autoComplete="nickname"
             {...bind("nickname")}
@@ -239,7 +230,8 @@ export default function QuickSignup() {
             className="button"
             style={{ ...socialButtonStyle, background: COLOR.white, ...(isGoogleBusy ? busyStyle : {}) }}
             onClick={handleGoogle}
-            title="Google 로 가입"
+            title="Google 계정으로 가입 (팝업 창)"
+            aria-label="Google 계정으로 가입 (팝업 창)"
             aria-busy={isGoogleBusy}
           >
             <img
@@ -255,7 +247,8 @@ export default function QuickSignup() {
             className="button"
             style={{ ...socialButtonStyle, background: "#03c75a", borderColor: "#03c75a" }}
             onClick={() => setSocialMessage(startNaverLogin())}
-            title="네이버로 가입"
+            title="네이버로 가입 (네이버 화면으로 이동)"
+            aria-label="네이버로 가입 (네이버 화면으로 이동)"
           >
             <span style={naverMarkStyle}>N</span>
           </button>
@@ -268,7 +261,7 @@ export default function QuickSignup() {
               whiteSpace: "nowrap",
             }}
           >
-            이미 모험가이신가요?&nbsp;
+            이미 계정이 있으신가요?&nbsp;
           </span>
           <button type="button" className="text-link" onClick={() => navigate(ROUTES.login)} style={loginLinkStyle}>
             로그인

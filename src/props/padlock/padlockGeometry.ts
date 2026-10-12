@@ -4,16 +4,10 @@
  */
 import * as THREE from "three";
 import type { Vector3Tuple } from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
+import { mergeAndDispose } from "@/engine/geometry";
 import { createRandom } from "@/engine/random";
 import { makeCachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
-
-function mergeAndDispose(pieces: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  const merged = mergeGeometries(pieces, false);
-  pieces.forEach((g) => g.dispose());
-  return merged;
-}
 
 // 몸통 — 좌우 두 덩이. 가운데는 다이얼이 통째로 채운다
 // 통으로 막으면 몸통 앞면이 다이얼을 가려 얇은 조각만 삐져나온다.
@@ -44,7 +38,7 @@ function buildLobeGeometry({ lobeWidth, height, depth, side, sideRoundness = 1 }
   const inner = bevel;
   const outer = lobeWidth - bevel;
   // 1 이면 반원, 0 이면 각진 네모. 그 사이는 모서리만 둥근 네모로 한 식에 이어 놓았다.
-  const round = Math.min(r * Math.max(0, Math.min(1, sideRoundness)), Math.max(0, (outer - inner) * 0.98));
+  const round = Math.min(r * THREE.MathUtils.clamp(sideRoundness, 0, 1), Math.max(0, (outer - inner) * 0.98));
   const center = Math.max(inner + 0.0002, outer - round);
   const shape = new THREE.Shape();
   shape.moveTo(inner, -r);

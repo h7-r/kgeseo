@@ -27,7 +27,7 @@ const SOUND_FILES = {
   vendingOff: "/sfx/vending_off.mp3",
 } as const;
 
-export type SoundName = keyof typeof SOUND_FILES;
+type SoundName = keyof typeof SOUND_FILES;
 
 interface PlaySoundOptions {
   volume?: number;

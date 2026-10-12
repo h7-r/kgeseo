@@ -6,7 +6,7 @@ import { useThree } from "@react-three/fiber";
 
 import { METERS_PER_UNIT, UNITS_PER_METER } from "../plan/sitePlan";
 import { findAsset } from "./assetCatalog";
-import { clamp, EDIT_BOUNDS, GROUND_MESHES, OUTER_GROUND_MESHES, type Selection } from "./editorConfig";
+import { EDIT_BOUNDS, GROUND_MESHES, OUTER_GROUND_MESHES, type Selection } from "./editorConfig";
 import { addInstance, modifyInstance, type Edits } from "./instanceGroups";
 import { heightBelowCamera, panCamera } from "./overviewCamera";
 import type { usePicking } from "./usePicking";
@@ -97,7 +97,11 @@ export function usePointerEditing({
         z = planeHit.z * METERS_PER_UNIT;
       }
       // 면 교점은 수백 m 밖까지 간다
-      return [clamp(x, EDIT_BOUNDS.x[0], EDIT_BOUNDS.x[1]), clamp(z, EDIT_BOUNDS.z[0], EDIT_BOUNDS.z[1]), hitY];
+      return [
+        THREE.MathUtils.clamp(x, EDIT_BOUNDS.x[0], EDIT_BOUNDS.x[1]),
+        THREE.MathUtils.clamp(z, EDIT_BOUNDS.z[0], EDIT_BOUNDS.z[1]),
+        hitY,
+      ];
     };
 
     // 붓이 들려 있으면 놓는다. 이어 놓을 수 있게 붓은 그대로 든다(ESC 로 내려놓는다).

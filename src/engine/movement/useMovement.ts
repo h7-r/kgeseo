@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { startLoop, stopLoop } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
 import { cameraOwner, DEFAULT_FOV, FRAME_PRIORITY, MAX_FRAME_DELTA } from "@/engine/camera";
+import { smoothstep } from "@/engine/math";
 import { playerView } from "@/engine/playerView";
 
 import {
@@ -30,6 +31,7 @@ import {
   JUMP_VELOCITY,
   PLAYER_RADIUS,
   RUN_SPEED_MULTIPLIER,
+  UNITS_PER_METER,
   WALK_SPEED,
 } from "./constants";
 
@@ -79,9 +81,6 @@ interface TeleportRequest {
   z: number;
   y?: number;
 }
-
-/** 1 m 가 몇 유닛인가 */
-const UNITS_PER_METER = 1 / 0.3;
 
 // 걷기 계산에 돌려 쓰는 그릇. 이동은 늘 한 사람뿐이라 모듈에 두면 GC 끊김이 없다.
 const moveForward = new THREE.Vector3();
@@ -231,7 +230,7 @@ export function useMovement(
             (isBlocked ? isBlocked(x, z) : false);
           let shoulder = config.shoulderOffset * UNITS_PER_METER;
           pivot.addScaledVector(sideScratch, shoulder);
-          if (boomState.fixPivot && isUnstandable(pivot.x, pivot.z)) {
+          if (isUnstandable(pivot.x, pivot.z)) {
             boomState.pivotPulledFrames += 1;
             for (let i = 0; i < 4 && shoulder > 1e-3; i += 1) {
               shoulder *= 0.5;
@@ -332,7 +331,7 @@ export function useMovement(
     if (switchRemaining.current <= 0) return;
     switchRemaining.current = Math.max(0, switchRemaining.current - Math.min(rawDt, MAX_FRAME_DELTA));
     const progress = 1 - switchRemaining.current / VIEW_SWITCH_SECONDS;
-    const remaining = 1 - progress * progress * (3 - 2 * progress); // smoothstep 의 나머지
+    const remaining = 1 - smoothstep(progress);
     appliedOffset.current.copy(switchFrom.current).sub(camera.position).multiplyScalar(remaining);
     camera.position.add(appliedOffset.current);
     // 3인칭은 붐이 매 프레임 새로 계산하므로 걷어낼 필요가 없다.
@@ -393,15 +392,8 @@ export function useMovement(
   }, []);
 
   // 씬에 들어설 때(꺼짐 → 켜짐) 한 번 자리를 잡는다. 커밋 중에 해야 새 씬이 이전 좌표로 한 프레임 그려지지 않는다.
-  // 그 뒤 start/facing 이 바뀌었다고 걷던 사람을 도로 끌어다 놓으면 안 되므로 deps 는 enabled 뿐이다.
-  const hasEntered = useRef(false);
-  useLayoutEffect(() => {
-    if (!enabled) {
-      hasEntered.current = false;
-      return;
-    }
-    if (hasEntered.current) return;
-    hasEntered.current = true;
+  // 그 뒤 start/facing 이 바뀌었다고 걷던 사람을 도로 끌어다 놓으면 안 되므로 start/facing 은 effect 이벤트로 읽는다.
+  const placeAtStart = useEffectEvent(() => {
     if (start) {
       camera.position.set(start[0], start[1] ?? eyeRef.current, start[2]);
       // 3인칭에서 사람이 실제로 선 자리는 logicalPosition 이다. 씬을 안 버리므로 같이 맞춰야
@@ -417,7 +409,16 @@ export function useMovement(
       // 몸 방향은 atan2(x, z) 규약이라 0 이 +z 다 — 카메라 yaw θ 의 몸 방향은 θ + π.
       bodyYaw.current = facing + Math.PI;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 들어설 때 한 번만. 걷던 사람을 start 로 끌어다 놓지 않는다
+  });
+  const hasEntered = useRef(false);
+  useLayoutEffect(() => {
+    if (!enabled) {
+      hasEntered.current = false;
+      return;
+    }
+    if (hasEntered.current) return;
+    hasEntered.current = true;
+    placeAtStart();
   }, [enabled]);
 
   // 씬을 떠날 때 발소리 루프가 남아 계속 울리지 않게 끈다.

@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import characterImage1 from "@/assets/images/imgCharImage.webp";
 import characterImage2 from "@/assets/images/imgCharImage1.webp";
 import characterImage3 from "@/assets/images/imgCharImage2.webp";
+import ComingSoonChip from "@/components/ComingSoonChip";
 import { depthRevealClass, useReveal, useScrollZoom, useTilt } from "@/hooks/motion";
 import { FONT } from "@/lib/style";
 import { sectionAnchor } from "@/navigation/subMenus";
@@ -34,7 +35,7 @@ const CHARACTERS: readonly Character[] = [
     image: characterImage3,
     name: "윤하은",
     role: "암호 해독가",
-    description: "고대 문자부터 현대 암호까지 해독하는 천재.",
+    description: "옛 문자부터 현대 암호까지 읽어 내는 천재.",
   },
 ];
 
@@ -54,7 +55,12 @@ export default function CharacterShowcase({ top = 0 }: CharacterShowcaseProps) {
       style={{ ...rootStyle, top: `${top}px`, willChange: "transform" }}
       {...sectionAnchor("characters")}
     >
-      <div style={{ fontFamily: FONT.display, fontSize: "40px", color: COLOR.textBright }}>캐릭터 소개</div>
+      {/* 아래 셋은 분위기를 보여 주는 예시다 — 게임은 캐릭터 생성에서 만든 조사관 한 명으로 한다. */}
+      <div style={headingRowStyle}>
+        <div style={{ fontFamily: FONT.display, fontSize: "40px", color: COLOR.textBright }}>캐릭터 소개</div>
+        <ComingSoonChip label="예시" style={{ fontSize: "15px" }} />
+        <div style={headingNoteStyle}>실제 게임에서는 캐릭터 생성에서 직접 만든 조사관 한 명으로 플레이합니다.</div>
+      </div>
       <div style={{ display: "flex", gap: "16px", height: "429px", width: "100%" }}>
         {CHARACTERS.map((character, i) => (
           <CharacterCard key={character.name} {...character} order={i} />
@@ -111,6 +117,9 @@ function CharacterCard({ image, name, role, description, order }: CharacterCardP
     </div>
   );
 }
+
+const headingRowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: "16px" };
+const headingNoteStyle: CSSProperties = { fontFamily: FONT.body, fontSize: "16px", color: COLOR.textSubtle };
 
 const rootStyle: CSSProperties = {
   position: "absolute",

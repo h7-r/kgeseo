@@ -53,6 +53,8 @@ export interface InstanceGroup {
   batches: InstanceBatch[];
   doubleSided: boolean;
   material: THREE.Material | null;
+  /** 편집을 얹기 전 생성기 자리 — 손 편집 번호가 아직 같은 물건을 가리키는지 확인할 때 쓴다 */
+  generatedSpots: Spot[];
 }
 
 export interface InstanceGroupOptions {
@@ -173,7 +175,7 @@ export function createInstanceGroup({
     if (!material) fillWhite(shapes[k]);
     batches.push({ geometry: shapes[k], matrices, colors, ids, shapeIndex: k });
   }
-  return { groupId, batches, doubleSided, material };
+  return { groupId, batches, doubleSided, material, generatedSpots: spots };
 }
 
 // vertexColors 재질에 color 속성이 없으면 (0,0,0) 으로 읽혀 통째로 검게 나온다
@@ -222,6 +224,37 @@ export function addInstance(edits: Edits, groupId: string, spot: Spot): { edits:
   const list = [...(next.added[groupId] ?? []), spot];
   next.added[groupId] = list;
   return { edits: next, id: ADDED_ID_START + list.length - 1 };
+}
+
+/** 손 편집이 걸린 생성 자리 하나 — 번호와 그 번호가 가리키던 좌표(m) */
+export interface EditAnchor {
+  groupId: string;
+  id: number;
+  /** 번호가 생성 개수를 넘으면 null */
+  x: number | null;
+  z: number | null;
+}
+
+const roundCm = (v: number) => Math.round(v * 100) / 100;
+
+/**
+ * 지움·고침이 걸린 생성 번호마다 그 자리의 좌표를 뽑는다(더함은 좌표를 스스로 갖고 있어 뺀다).
+ * 생성기를 고친 뒤 이 값이 달라지면 손 편집이 다른 물건에 붙은 것이다 — tools/check-edit-anchors 가 비교한다.
+ */
+export function computeEditAnchors(groups: InstanceGroup[], edits: Edits): EditAnchor[] {
+  const spotsByGroup = new Map(groups.map((group) => [group.groupId, group.generatedSpots]));
+  const anchors: EditAnchor[] = [];
+  const groupIds = new Set([...Object.keys(edits.removed), ...Object.keys(edits.modified)]);
+  for (const groupId of [...groupIds].sort()) {
+    const spots = spotsByGroup.get(groupId);
+    if (!spots) continue;
+    const ids = new Set([...(edits.removed[groupId] ?? []), ...Object.keys(edits.modified[groupId] ?? {}).map(Number)]);
+    for (const id of [...ids].filter((n) => n < ADDED_ID_START).sort((a, b) => a - b)) {
+      const spot = spots[id];
+      anchors.push({ groupId, id, x: spot ? roundCm(spot.x) : null, z: spot ? roundCm(spot.z) : null });
+    }
+  }
+  return anchors;
 }
 
 /** 저장 안 한 변경 수 */

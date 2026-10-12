@@ -1,10 +1,10 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, type ReactNode } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { FRAME_PRIORITY, MAX_FRAME_DELTA } from "@/engine/camera";
 import { playerView } from "@/engine/playerView";
-import { requestShadowUpdates } from "@/engine/rendering";
+import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import {
   isBlockedWithin,
   getDragBoxId,
@@ -63,16 +63,21 @@ export default function ChairDrag({
   const boxId = getDragBoxId(id);
 
   // 따라오는 계산이 한 번도 안 돈 채 놓아도 제자리에 놓이게 지금 자리로 채운다.
-  useEffect(() => {
+  const placeAtOrigin = useEffectEvent(() => {
     drag.current = { x: origin[0], z: origin[1], angle: 0, isFirst: true };
     chairDragState.x = origin[0];
     chairDragState.z = origin[1];
+    return boxId;
+  });
+
+  // 잡는 순간 한 번만. 바뀐 origin 으로 다시 채우면 의자가 원래 자리로 튄다.
+  useEffect(() => {
+    const placedBoxId = placeAtOrigin();
     return () => {
-      dynamicColliders.delete(boxId);
+      dynamicColliders.delete(placedBoxId);
       // 안 거두면 빈손인데 팔이 허공을 붙잡고 있다.
       chairDragState.isHeld = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 잡는 순간 한 번만. 바뀐 origin 으로 다시 채우면 의자가 원래 자리로 튄다.
   }, []);
 
   useFrame((_, rawDelta) => {

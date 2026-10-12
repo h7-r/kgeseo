@@ -12,7 +12,7 @@ const LEGACY_LOG_TIME_KEY = "왜곡_블랙박스_시각";
 
 const MAX_LINES = 40; // 0.5초마다 한 줄 → 20초
 
-export interface CrashLogLine {
+interface CrashLogLine {
   /** 시작 뒤 초 */
   t: number;
   fps: number;

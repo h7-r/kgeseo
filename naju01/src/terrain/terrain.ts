@@ -526,7 +526,7 @@ export function createTerrain({
     }
 
     const isWater = pz >= RIVER.zStart;
-    // 강바닥은 물가에서부터 내려간다. 수면과 같은 높이면 물결 사이로 바닥이 비쳐 젖은 자갈밭처럼 보였다.
+    // 강바닥은 물가에서부터 내려간다. 수면과 같은 높이면 물결 사이로 바닥이 비쳐 젖은 자갈밭처럼 보인다.
     const riverbedDepth = isWater ? -Math.min(2.6, (pz - RIVER.zStart) * 0.55) : 0;
     if (outerGround && isOutsideCore(px, pz) && !isWater)
       return { y: outerGround(px, pz), zone: null, path: null, isFall: false, isWater: false };

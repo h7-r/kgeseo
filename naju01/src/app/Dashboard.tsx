@@ -8,6 +8,7 @@ import { useEffect, useState, type CSSProperties, type RefObject } from "react";
 import { MOVEMENT_CONSTANTS } from "../movement/useTerrainMovement";
 import { BASELINE, LOOP, TUNABLE_RANGES, type ZoneCode } from "../plan/sitePlan";
 import type { NajuSceneReport } from "../scene/NajuScene";
+import { DASHBOARD_LEFT_PX } from "./runtimeFlags";
 
 interface DashboardProps {
   reportRef: RefObject<NajuSceneReport | null>;
@@ -140,7 +141,7 @@ export default function Dashboard({ reportRef }: DashboardProps) {
       </table>
 
       <div style={dividerStyle} />
-      <div style={headingStyle}>§9 미결값 — Leva 에서 돌리는 중</div>
+      <div style={headingStyle}>§9 미결값 — 도면 기본값과 비교</div>
       <table style={tableStyle}>
         <tbody>
           <tr>
@@ -180,7 +181,7 @@ export default function Dashboard({ reportRef }: DashboardProps) {
 
 const panelStyle: CSSProperties = {
   position: "absolute",
-  left: 12,
+  left: DASHBOARD_LEFT_PX,
   top: 12,
   zIndex: 20,
   minWidth: 268,

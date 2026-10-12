@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { TOON_GRADIENT } from "@/engine/toon";
 
 import { UNITS_PER_METER } from "../../plan/sitePlan";
-import { planPoint, type PlanPoint } from "./planPoint";
+import { planPoint, type PlanPoint } from "../../plan/sitePlan";
 
 interface SlopeSegmentProps {
   a: PlanPoint;

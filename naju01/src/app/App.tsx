@@ -12,6 +12,8 @@ import { ToneMappingMode } from "postprocessing";
 import { Leva } from "leva";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
 
+import { IS_LOW_QUALITY } from "@/engine/quality";
+
 import ChibiCustomizerPanel from "../avatar/ChibiCustomizerPanel";
 import SidekickCustomizerPanel from "../avatar/SidekickCustomizerPanel";
 import { readMeshAppearance, type MeshAppearanceConfig } from "../avatar/meshAppearance";
@@ -30,7 +32,6 @@ import {
   IS_ARRIVING_FROM_HUB,
   IS_BLOOM_DISABLED,
   IS_DPR_AUTO,
-  IS_LOW_QUALITY,
   IS_OUTLINE_DISABLED,
   IS_POSTFX_DISABLED,
   IS_STAGE_16X9,
@@ -44,8 +45,9 @@ import {
   MIN_DPR,
   MSAA_SAMPLES,
   SHOW_CUSTOMIZE_PANEL,
+  DASHBOARD_LEFT_PX,
+  HAS_DASHBOARD,
   SHOW_DEV_TOOLS,
-  SHOW_LEVA,
   SIDEKICK_APPEARANCE_KEY,
   USE_HALF_FLOAT_BUFFER,
   USE_SIDEKICK_AVATAR,
@@ -91,6 +93,7 @@ export default function App() {
   const setPanelMeshConfig: Dispatch<SetStateAction<MeshAppearanceConfig>> = (action) =>
     setMeshConfig((previous) => (typeof action === "function" ? previous && action(previous) : action));
   // 계기판·조작 안내는 화면을 꽤 가려서 그림을 볼 때는 H 로 치운다
+  // 평소엔 접어 두고 H 로 연다. 개발 확인용 주소(?dev)에서는 처음부터 연다
   const [isDashboardVisible, setIsDashboardVisible] = useState(SHOW_DEV_TOOLS);
   // 첫 프레임이 그려지면 검은 덮개가 걷힌다
   const [isArrivalRevealed, revealArrival] = useArrivalFade(IS_ARRIVING_FROM_HUB);
@@ -135,7 +138,7 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code === "KeyT" && !isLocked) controlsRef.current?.lock();
-      if (SHOW_DEV_TOOLS && event.code === "KeyH" && !event.repeat) setIsDashboardVisible((visible) => !visible);
+      if (HAS_DASHBOARD && event.code === "KeyH" && !event.repeat) setIsDashboardVisible((visible) => !visible);
       // 시점 전환은 카메라 회전을 만지지 않고 캐릭터 표시만 바꾼다.
       // 수식키가 눌린 V 는 편집기의 붙여넣기(⌘V/Ctrl+V)다.
       if (event.code === "KeyV" && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey) {
@@ -148,7 +151,8 @@ export default function App() {
 
   return (
     <div className={`game-stage${IS_STAGE_16X9 ? " game-stage--16x9" : ""}`} style={{ position: "relative" }}>
-      <Leva hidden={!SHOW_LEVA} theme={{ sizes: { numberInputMinWidth: "68px" } }} />
+      {/* 나주맵은 Leva 를 조절 창으로 쓰지 않는다 — 값은 코드 기본·저장값 그대로 돌고 패널만 숨긴다 */}
+      <Leva hidden theme={{ sizes: { numberInputMinWidth: "68px" } }} />
       <Canvas
         shadows={IS_LOW_QUALITY ? false : "percentage"}
         // [1, 상한] 배열을 주면 three 가 기기 픽셀비로 골라 PerformanceMonitor 가 정한 값이 묻힌다
@@ -221,7 +225,7 @@ export default function App() {
       {isDashboardVisible && <Dashboard reportRef={reportRef} />}
       {SHOW_DEV_TOOLS && !isLocked && <ControlsHelp />}
       {/* 다 숨겼을 때 되돌리는 법을 잊지 않게 작은 자국만 남긴다 */}
-      {SHOW_DEV_TOOLS && !isDashboardVisible && <div style={hiddenHintStyle}>[H] 계기판</div>}
+      {HAS_DASHBOARD && !isDashboardVisible && <div style={hiddenHintStyle}>[H] 누르면 계기판이 열립니다</div>}
       <button type="button" onClick={() => setViewMode(toggleViewMode)} style={viewButtonStyle}>
         [V] {viewMode}
       </button>
@@ -259,10 +263,7 @@ function ControlsHelp() {
       <span style={mutedStyle}>
         3인칭에서 마우스로 캐릭터 앞·뒤를 자유롭게 회전 · [1][2][3] V1·V2·V3 시점으로 이동(개발용)
         <br />
-        [L] Leva 패널 · 낙하하면 마지막 안전 지점으로 복귀
-        <br />
-        Leva 아래쪽 「절벽높이·차단물높이·눈높이·FOV·걷기속도」가 문서 §9 의 미결값입니다 — 돌려 보고 정한 값은{" "}
-        <b>공간도면.js 에 박아야</b> 팀에 전달됩니다
+        낙하하면 마지막 안전 지점으로 복귀
       </span>
     </div>
   );
@@ -286,14 +287,15 @@ const helpStyle: CSSProperties = {
 
 const hiddenHintStyle: CSSProperties = {
   position: "absolute",
-  left: 12,
-  top: 12,
+  left: DASHBOARD_LEFT_PX,
+  top: 14,
   zIndex: 20,
-  padding: "3px 8px",
-  borderRadius: 6,
-  background: "rgba(14,18,26,.45)",
-  color: "#8B94A6",
-  font: "11px/1.4 ui-monospace, Menlo, monospace",
+  padding: "6px 10px",
+  border: "1px solid rgba(170,190,220,.35)",
+  borderRadius: 7,
+  background: "rgba(14,18,26,.72)",
+  color: "#E8EFFA",
+  font: "12px/1.2 ui-monospace, Menlo, monospace",
   pointerEvents: "none",
 };
 

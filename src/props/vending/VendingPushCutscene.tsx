@@ -5,7 +5,8 @@ import type { Vector3Tuple } from "three";
 
 import { playSound } from "@/audio/sound";
 import { claimCamera, releaseCamera } from "@/engine/camera";
-import { requestShadowUpdates } from "@/engine/rendering";
+import { smoothstep } from "@/engine/math";
+import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import { makeCachedCanvasTexture } from "@/engine/textures/canvas";
 import { getValveOpening } from "@/props/panelWiringState";
 import {
@@ -82,8 +83,6 @@ const lookPoint = new THREE.Vector3();
 const lookMatrix = new THREE.Matrix4();
 const lookRotation = new THREE.Quaternion();
 const currentRotation = new THREE.Quaternion();
-
-const smoothstep = (t: number) => t * t * (3 - 2 * t);
 
 /**
  * 밸브가 돌면 화면이 자판기로 넘어가 밀리는 걸 보여 준다 — 밸브 자리에서는 자판기가 등 뒤라 열린 걸 못 본다.
@@ -279,7 +278,7 @@ export default function VendingPushCutscene({
       return;
     }
 
-    // return
+    // 단계 "return" — 카메라를 컷신 전 자리로 되돌린다
     const t = Math.min(1, elapsed() / Math.max(0.05, transitionTime));
     const s = smoothstep(t);
     if (saved.current) {

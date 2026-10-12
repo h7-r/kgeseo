@@ -108,21 +108,60 @@
   background: #f2f5f9 !important;
 }
 
-.pager__arrow {
+/* 넘기기 화살표 ‹ › — 홈 시나리오·요금 플랜·미디어·소개·고객센터가 같은 모양을 쓴다. 테두리 없이 꺾쇠만.
+   ‹ 글자는 글꼴마다(대체 글꼴까지) 굵기·크기가 달라 선 두 줄로 그리고, 글자는 숨겨 둔다.
+   색은 --arrow-color 하나로 돌린다.
+   눌림·호버는 transform 대신 scale 을 써서 자리 잡기용 인라인 transform(translateY)과 겹치지 않는다. */
+.carousel-arrow {
+  --arrow-color: var(--color-accent);
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0;
+  color: var(--arrow-color);
+  background: none;
+  border: 0;
+  cursor: pointer;
   transition:
     color 0.18s ease,
-    transform 0.18s ease;
+    scale 0.18s ease;
 }
-/* 어두운 면에서 #2e4889 는 대비가 2.35:1 이라 사라져 보인다 */
-.pager__arrow:hover {
-  color: var(--color-accent);
+.carousel-arrow::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-top: 2.5px solid currentColor;
+  border-left: 2.5px solid currentColor;
+  border-radius: 1px;
 }
-.theme-light .pager__arrow:hover {
-  color: var(--color-navy);
+/* 꺾인 꼭짓점이 상자 가운데 오도록 열린 쪽으로 조금 민다. */
+.carousel-arrow--prev::before {
+  transform: translateX(3px) rotate(-45deg);
 }
-.pager__arrow:active {
-  color: #2f3e70;
-  transform: scale(0.92);
+.carousel-arrow--next::before {
+  transform: translateX(-3px) rotate(135deg);
+}
+.carousel-arrow:hover {
+  --arrow-color: #c9d2ee;
+  scale: 1.15;
+}
+.carousel-arrow:active {
+  scale: 0.92;
+}
+.carousel-arrow:disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+/* 흰 면에서는 밝히면 묻힌다. 회색에서 남색으로 진해진다. */
+.theme-light .carousel-arrow {
+  --arrow-color: #4a5263;
+}
+.theme-light .carousel-arrow:hover {
+  --arrow-color: var(--color-navy);
 }
 
 .pager__page {
@@ -145,31 +184,14 @@
   animation: activate-pulse 0.28s var(--ease-smooth);
 }
 
-.pricing-plans__arrow {
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease;
-}
-.pricing-plans__arrow:hover {
-  background-color: rgba(46, 72, 137, 0.22);
-  border-color: rgba(59, 94, 162, 0.8);
-  color: #eef3fb;
-}
-.pricing-plans__arrow:active {
-  transform: translateY(-50%) scale(0.9);
-}
-
 /* 키보드로 옮겨 다닐 때만 보인다 */
 .button:focus-visible,
 .text-link:focus-visible,
 .tab-button:focus-visible,
 .interactive-row:focus-visible,
 .interactive-card:focus-visible,
-.pager__arrow:focus-visible,
-.pager__page:focus-visible,
-.pricing-plans__arrow:focus-visible {
+.carousel-arrow:focus-visible,
+.pager__page:focus-visible {
   outline: 2px solid var(--color-blue-mid);
   outline-offset: 3px;
   border-radius: 6px;
@@ -310,19 +332,56 @@
   }
 }
 
-.scenario-cards__arrow {
-  padding: 0 6px;
-  cursor: pointer;
+/* 시나리오 카드 호버 빛. 카드는 overflow 로 잘리니 바깥 칸의 ::before 로 카드 둘레에 번지게 하고,
+   카드 자체 그림자도 파랗게 키워 떠오른 카드를 따라 다닌다. 움직임은 motion.css 가 맡는다. */
+.scenario-card {
+  isolation: isolate; /* 빛이 배경 장식 뒤로 숨지 않게 */
+}
+.scenario-card::before {
+  content: "";
+  position: absolute;
+  inset: -56px -48px -72px;
+  z-index: -1;
+  border-radius: 48px;
+  pointer-events: none;
+  background: radial-gradient(
+    closest-side,
+    rgba(79, 108, 176, 0.62) 0%,
+    rgba(46, 72, 137, 0.34) 55%,
+    rgba(46, 72, 137, 0) 100%
+  );
+  opacity: 0;
+  transform: scale(0.9);
   transition:
-    color 0.18s ease,
-    transform 0.18s ease;
+    opacity 0.5s ease,
+    transform 0.6s var(--ease-smooth);
 }
-.scenario-cards__arrow:hover,
-.scenario-cards__arrow:focus-visible {
-  color: #c9d2ee !important;
-  transform: scale(1.15);
-  outline: none;
+.scenario-card:hover::before,
+.scenario-card:focus-within::before {
+  opacity: 1;
+  transform: scale(1);
 }
-.scenario-cards__arrow:active {
-  transform: scale(0.92);
+
+.scenario-card__body {
+  box-shadow:
+    0 0 28px 0 rgba(46, 72, 137, 0.2),
+    0 18px 40px 0 rgba(0, 0, 0, 0.4);
+  transition:
+    --float-lift 0.6s var(--ease-smooth),
+    box-shadow 0.5s ease;
+}
+.scenario-card:hover .scenario-card__body,
+.scenario-card:focus-within .scenario-card__body {
+  box-shadow:
+    0 0 0 1px rgba(111, 134, 191, 0.5),
+    0 0 44px 8px rgba(79, 108, 176, 0.5),
+    0 0 100px 28px rgba(46, 72, 137, 0.34),
+    0 34px 48px 0 rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scenario-card::before,
+  .scenario-card__body {
+    transition: none;
+  }
 }

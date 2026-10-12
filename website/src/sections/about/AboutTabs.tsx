@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
 import monitorIcon from "@/assets/images/imgMonitor.svg";
-import { activePageStyle, inactivePageStyle, pagerArrowStyle } from "@/components/pagerStyles";
+import { activePageStyle, inactivePageStyle } from "@/components/pagerStyles";
 import TabBar from "@/components/TabBar";
 import { ABOUT_CONTENT, ABOUT_TABS, type AboutTabId } from "@/data/about";
 import { FONT } from "@/lib/style";
@@ -44,7 +44,12 @@ export default function AboutTabs({ tab, top, onTabChange }: AboutTabsProps) {
 
       {/* 쪽 번호 1~5 는 탭 다섯 개와 짝이다. */}
       <div style={pagerStyle}>
-        <button type="button" className="pager__arrow" style={pagerArrowStyle} onClick={() => onTabChange(previousTab)}>
+        <button
+          type="button"
+          className="carousel-arrow carousel-arrow--prev"
+          onClick={() => onTabChange(previousTab)}
+          aria-label="이전 탭"
+        >
           ‹
         </button>
         {ABOUT_TABS.map(({ id }, index) => {
@@ -62,7 +67,12 @@ export default function AboutTabs({ tab, top, onTabChange }: AboutTabsProps) {
             </button>
           );
         })}
-        <button type="button" className="pager__arrow" style={pagerArrowStyle} onClick={() => onTabChange(nextTab)}>
+        <button
+          type="button"
+          className="carousel-arrow carousel-arrow--next"
+          onClick={() => onTabChange(nextTab)}
+          aria-label="다음 탭"
+        >
           ›
         </button>
       </div>

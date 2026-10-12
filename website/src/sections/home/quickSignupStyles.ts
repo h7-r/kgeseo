@@ -7,11 +7,8 @@ import { INTRO_CENTER_Y, SIGNUP_FORM_LEFT, SIGNUP_FORM_WIDTH } from "./homeLayou
 
 // 가입 폼과 환영 판이 같은 자리·같은 단추를 쓴다.
 
-// 왼쪽 소개 덩이와 같은 중심선에 맞춘다.
-export const signupPanelStyle: CSSProperties = {
-  ...placeCentered(SIGNUP_FORM_LEFT, INTRO_CENTER_Y, SIGNUP_FORM_WIDTH),
-  height: "660px",
-};
+// 왼쪽 소개 덩이·가르는 호와 같은 중심선에 맞춘다. 높이는 내용이 정한다.
+export const signupPanelStyle: CSSProperties = placeCentered(SIGNUP_FORM_LEFT, INTRO_CENTER_Y, SIGNUP_FORM_WIDTH);
 
 export const primaryButtonStyle: CSSProperties = {
   position: "relative",

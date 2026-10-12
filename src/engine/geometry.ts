@@ -47,6 +47,18 @@ export function buildMergedBoxes(boxes: BoxPiece[]): THREE.BufferGeometry | null
     geometry.applyMatrix4(matrix);
     return geometry;
   });
+  return mergeAndDispose(pieces);
+}
+
+/**
+ * 조각 지오를 하나로 합치고 조각은 버린다. 빈 목록은 mergeGeometries 가 못 받으니 부르는 쪽이 거른다.
+ * keepSingle 이면 조각이 하나일 때 합치지 않고 그 조각을 그대로 돌려준다(새 버퍼가 생기지 않는다).
+ */
+export function mergeAndDispose(
+  pieces: THREE.BufferGeometry[],
+  { keepSingle = false }: { keepSingle?: boolean } = {},
+): THREE.BufferGeometry {
+  if (keepSingle && pieces.length === 1) return pieces[0];
   const merged = mergeGeometries(pieces, false);
   pieces.forEach((geometry) => geometry.dispose());
   return merged;

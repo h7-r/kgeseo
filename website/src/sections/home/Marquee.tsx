@@ -1,32 +1,22 @@
-import { useId, type CSSProperties } from "react";
+import { Fragment, useEffect, useId, useRef, type CSSProperties, type RefObject } from "react";
 
 import marqueeBackground from "@/assets/images/imgMarqueeBg.svg";
 import { FONT } from "@/lib/style";
+import { usePrefersReducedMotion } from "@/lib/motionPreference";
 import { QUERY, ROUTES, SOCIAL_LINKS, useSiteNavigate, withQuery, type NavTarget } from "@/navigation/routes";
 import { COLOR } from "@/styles/tokens";
 
-/**
- * 호를 그리며 늘어선 글귀. 가로는 flex 로 차례대로 놓고(디자인 x 대로 두면 글자와 ✦ 가 겹친다),
- * 높낮이는 가운데가 가장 높은 좌우 대칭 포물선 cy = -2 + 30·(2u-1)², 기울기는 그 접선 각도다.
- */
-const BAND_ITEMS = [
-  { text: "ESCAPE THE LEGEND 2026", y: 28.0, rotate: -4.43 },
-  { text: "✦", y: 20.97, rotate: -3.88 },
-  { text: "REGIONAL ESCAPE ADVENTURE", y: 14.88, rotate: -3.32 },
-  { text: "✦", y: 9.72, rotate: -2.77 },
-  { text: "역사 · 설화 · 탐험", y: 5.5, rotate: -2.22 },
-  { text: "✦", y: 2.22, rotate: -1.66 },
-  { text: "퀘스트 · 보상 · 방문", y: -0.12, rotate: -1.11 },
-  { text: "✦", y: -1.53, rotate: -0.55 },
-  { text: "게임으로 되살리는 우리 지역", y: -2.0, rotate: 0.0 },
-  { text: "✦", y: -1.53, rotate: 0.55 },
-  { text: "전국 50+ 방탈출 맵", y: -0.12, rotate: 1.11 },
-  { text: "✦", y: 2.22, rotate: 1.66 },
-  { text: "지역 탐험을 시작하세요", y: 5.5, rotate: 2.22 },
-  { text: "✦", y: 9.72, rotate: 2.77 },
-  { text: "숨겨진 미션을 찾아라", y: 14.88, rotate: 3.32 },
-  { text: "✦", y: 20.97, rotate: 3.88 },
-  { text: "실제 방문 · 특별 보상", y: 28.0, rotate: 4.43 },
+/** 띠를 따라 오른쪽으로 흐르는 글귀. 한 벌 끝에 ✦ 를 붙여 다음 벌과 이어 붙인다. */
+const BAND_PHRASES = [
+  "ESCAPE THE LEGEND 2026",
+  "REGIONAL ESCAPE ADVENTURE",
+  "역사 · 설화 · 탐험",
+  "퀘스트 · 보상 · 방문",
+  "게임으로 되살리는 우리 지역",
+  "나주 앙암바위 첫 공개",
+  "지역 탐험을 시작하세요",
+  "숨겨진 미션을 찾아라",
+  "실제 방문 · 특별 보상",
 ] as const;
 
 /** 소셜 아이콘. 파일로 불러오면 깨진 그림으로 뜬 적이 있어 선 모양을 코드에 직접 둔다. */
@@ -60,7 +50,7 @@ const FOOTER_LINKS: readonly { label: string; color: string; target: NavTarget }
   { label: "고객센터", color: COLOR.textSubtle, target: ROUTES.support },
 ];
 
-/** 페이지 맨 아래, 기울어진 글귀가 호를 그리는 띠와 사업자 정보. */
+/** 페이지 맨 아래, 글귀가 호를 따라 흐르는 띠와 사업자 정보. */
 export default function Marquee() {
   const navigate = useSiteNavigate();
 
@@ -98,25 +88,11 @@ export default function Marquee() {
             }}
           />
 
-          {/* 높이 0 인 줄 위에 가운데 맞춤으로 얹고, 각자 제 높낮이만큼 내린다. */}
-          <div style={bandRowStyle}>
-            {BAND_ITEMS.map(({ text, y, rotate }, index) => (
-              <span
-                key={index}
-                style={{
-                  ...(text === "✦" ? starStyle : phraseStyle),
-                  flex: "none",
-                  transform: `translateY(${y}px) rotate(${rotate}deg)`,
-                }}
-              >
-                {text}
-              </span>
-            ))}
-          </div>
+          <BandText />
 
           <div style={legalStyle}>
             <p style={{ margin: 0, lineHeight: 1.55 }}>
-              ESCAPE THE LEGEND 및 관련 로고, 캐릭터, 명칭 및 이와 관련된 모든 고유한 표현은 ESCAPE THE LEGEND의 독점
+              ESCAPE THE LEGEND의 로고 · 캐릭터 · 명칭을 비롯해 이와 관련된 모든 고유한 표현은 LATENT SPACE의 독점
               자산입니다.
             </p>
             <p style={{ margin: 0, lineHeight: 1.55 }}>
@@ -174,7 +150,7 @@ export default function Marquee() {
         </div>
 
         <div style={bottomRowStyle}>
-          <span style={{ color: COLOR.textSubtle }}>© 2026 ESCAPE THE LEGEND. All Rights Reserved.</span>
+          <span style={{ color: COLOR.textSubtle }}>™ &amp; © 2026 ESCAPE THE LEGEND. All Rights Reserved.</span>
           <div style={{ display: "flex", gap: "24px" }}>
             {FOOTER_LINKS.map(({ label, color, target }) => (
               <button key={label} type="button" style={{ ...linkButtonStyle, color }} onClick={() => navigate(target)}>
@@ -187,6 +163,171 @@ export default function Marquee() {
     </>
   );
 }
+
+// 글귀가 앉는 곡선. 예전 글귀 자리에 맞춘 포물선 y = -2 + 30·((x - 957) / 668)² 를 띠 폭 전체로 늘린 것.
+const BAND_WIDTH = 1915;
+const CURVE_CENTER_X = 957;
+const CURVE_TOP_Y = -2;
+const curveY = (x: number) => CURVE_TOP_Y + 30 * ((x - CURVE_CENTER_X) / 668) ** 2;
+// 포물선은 2차 베지에로 꼭 맞게 그려진다. 조절점 = 양 끝 접선이 만나는 곳.
+const BAND_PATH = `M 0 ${curveY(0)} Q ${CURVE_CENTER_X} ${2 * CURVE_TOP_Y - curveY(0)} ${BAND_WIDTH} ${curveY(BAND_WIDTH)}`;
+
+/** 글귀 사이 간격(무대 px). ✦ 와 글자가 붙지 않는 폭. */
+const BAND_GAP = 13;
+/** 흐르는 빠르기(무대 px/초). 시작 단추 밑 심장박동 빛보다 조금 느리다. */
+const BAND_SPEED = 58;
+/** 멈춰 있을 때 한 벌이 예전 자리(첫 글자 x 226)에 오도록 앞 간격만큼 당긴 값. */
+const BAND_REST_OFFSET = 226 - BAND_GAP;
+/** 띠 폭(1915)보다 한 벌(≈1500)이 짧아, 밀리는 동안 빈틈이 없으려면 세 벌이 필요하다. */
+const BAND_COPIES = 3;
+
+/** ✦ 까지 포함한 한 벌의 글자 수. 둘째 벌 첫 글자의 자리를 재는 데 쓴다. */
+const COPY_CHAR_COUNT = BAND_PHRASES.reduce((sum, phrase) => sum + phrase.length + 1, 0);
+
+/**
+ * 곡선 위를 오른쪽으로 끝없이 흐르는 글귀 띠. 같은 글을 세 벌 이어 textPath 에 얹고
+ * startOffset 을 한 벌 길이만큼 밀었다가 되돌린다 — 되돌리는 순간 다음 벌이 같은 자리에 있어 이음매가 없다.
+ */
+function BandText() {
+  const id = useId().replace(/:/g, "");
+  const pathId = `band-path${id}`;
+  const maskId = `band-mask${id}`;
+  const fadeId = `band-fade${id}`;
+  const svgRef = useRef<SVGSVGElement>(null);
+  const textPathRef = useRef<SVGTextPathElement>(null);
+  const measureRef = useRef<SVGTextElement>(null);
+  useBandFlow(svgRef, textPathRef, measureRef);
+
+  const copies = Array.from({ length: BAND_COPIES }, (_, copy) => <BandCopy key={copy} />);
+
+  return (
+    <svg
+      ref={svgRef}
+      aria-hidden="true"
+      width={BAND_WIDTH}
+      height="120"
+      viewBox={`0 -60 ${BAND_WIDTH} 120`}
+      style={{ position: "absolute", left: 0, top: "-60px", overflow: "visible", pointerEvents: "none" }}
+    >
+      <defs>
+        <path id={pathId} d={BAND_PATH} />
+        {/* 양 끝은 띠 바탕 가장자리라 글자가 툭 끊기지 않게 흐려서 들이고 내보낸다. */}
+        <linearGradient id={fadeId} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={BAND_WIDTH} y2="0">
+          <stop offset={107 / BAND_WIDTH} stopColor="#fff" stopOpacity="0" />
+          <stop offset={277 / BAND_WIDTH} stopColor="#fff" stopOpacity="1" />
+          <stop offset={1637 / BAND_WIDTH} stopColor="#fff" stopOpacity="1" />
+          <stop offset={1807 / BAND_WIDTH} stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+        <mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="-60" width={BAND_WIDTH} height="120">
+          <rect x="0" y="-60" width={BAND_WIDTH} height="120" fill={`url(#${fadeId})`} />
+        </mask>
+      </defs>
+
+      {/* 한 벌 길이를 곧은 줄에서 잰다. 글꼴이 늦게 와도 다시 잰다. */}
+      <text ref={measureRef} visibility="hidden" style={bandTextStyle}>
+        <BandCopy />
+        <BandCopy />
+      </text>
+
+      <text mask={`url(#${maskId})`} dominantBaseline="central" style={bandTextStyle}>
+        <textPath ref={textPathRef} href={`#${pathId}`} startOffset={BAND_REST_OFFSET}>
+          {copies}
+        </textPath>
+      </text>
+    </svg>
+  );
+}
+
+/** 글귀 한 벌. 모든 조각 앞을 dx 로 띄워 벌과 벌 사이도 같은 간격이 된다. */
+function BandCopy() {
+  return BAND_PHRASES.map((phrase) => (
+    <Fragment key={phrase}>
+      <tspan dx={BAND_GAP}>{phrase}</tspan>
+      <tspan dx={BAND_GAP} style={{ fontFamily: FONT.mono }}>
+        ✦
+      </tspan>
+    </Fragment>
+  ));
+}
+
+/**
+ * startOffset 을 시간에 따라 민다. 매 프레임 바뀌는 값이라 React 상태 대신 속성을 직접 쓴다.
+ * 화면 밖이면 멈추고, 돌아오면 멈춘 자리에서 이어 간다. 동작 줄이기면 제자리에 둔다.
+ */
+function useBandFlow(
+  svgRef: RefObject<SVGSVGElement | null>,
+  textPathRef: RefObject<SVGTextPathElement | null>,
+  measureRef: RefObject<SVGTextElement | null>,
+): void {
+  const isReducedMotion = usePrefersReducedMotion();
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    const textPath = textPathRef.current;
+    const measure = measureRef.current;
+    if (!svg || !textPath || !measure) return;
+
+    let copyLength = 0;
+    let travelled = 0;
+    let lastTime = 0;
+    let frame = 0;
+
+    const place = () => {
+      // 첫 벌을 한 벌 왼쪽에서 시작해 세 벌이 언제나 띠 끝까지 덮는다.
+      const offset = ((BAND_REST_OFFSET + travelled) % copyLength) - copyLength;
+      textPath.setAttribute("startOffset", offset.toFixed(2));
+    };
+    const tick = (time: number) => {
+      if (lastTime) travelled += ((time - lastTime) / 1000) * BAND_SPEED;
+      lastTime = time;
+      place();
+      frame = requestAnimationFrame(tick);
+    };
+    const start = () => {
+      if (frame || isReducedMotion || !copyLength) return;
+      lastTime = 0;
+      frame = requestAnimationFrame(tick);
+    };
+    const stop = () => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+    };
+
+    let isOnScreen = false;
+    const measureCopy = () => {
+      copyLength = measure.getStartPositionOfChar(COPY_CHAR_COUNT).x - measure.getStartPositionOfChar(0).x;
+      if (copyLength <= 0) return;
+      place();
+      if (isOnScreen) start();
+    };
+    measureCopy();
+    let isDisposed = false;
+    void document.fonts.ready.then(() => {
+      if (!isDisposed) measureCopy();
+    });
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isOnScreen = entry.isIntersecting;
+        if (isOnScreen) start();
+        else stop();
+      },
+      { rootMargin: "200px 0px" },
+    );
+    observer.observe(svg);
+    return () => {
+      isDisposed = true;
+      observer.disconnect();
+      stop();
+    };
+  }, [svgRef, textPathRef, measureRef, isReducedMotion]);
+}
+
+const bandTextStyle: CSSProperties = {
+  fontFamily: FONT.display,
+  fontSize: "16px",
+  fill: COLOR.navyMuted,
+};
 
 const ARC_WIDTH = 1917;
 const ARC_HEIGHT = 100;
@@ -256,33 +397,6 @@ const innerStyle: CSSProperties = {
   width: "1915px",
   height: "220px",
   boxSizing: "border-box",
-};
-
-// 사이 간격 13px 이 ✦ 와 글자가 붙는 걸 막는다.
-const bandRowStyle: CSSProperties = {
-  position: "absolute",
-  left: 0,
-  top: 0,
-  width: "100%",
-  height: 0,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "13px",
-};
-
-const phraseStyle: CSSProperties = {
-  fontFamily: FONT.display,
-  fontWeight: 400,
-  fontSize: "16px",
-  color: COLOR.navyMuted,
-  whiteSpace: "nowrap",
-};
-const starStyle: CSSProperties = {
-  fontFamily: FONT.mono,
-  fontSize: "16px",
-  color: COLOR.navyMuted,
-  whiteSpace: "nowrap",
 };
 
 const legalStyle: CSSProperties = {

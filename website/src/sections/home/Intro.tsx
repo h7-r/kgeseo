@@ -12,8 +12,8 @@ const DIVIDER = "1px solid rgba(26,48,95,0.25)";
 // 디자인은 숫자를 덩이 밖에 따로 띄우고 덩이 안엔 칸막이만 둔다.
 // 좌표대로 두면 행간을 넓힐 때 숫자가 단추 위로 올라타서, 칸막이 줄 안에 숫자를 넣는다.
 const STATS = [
-  { value: "50+", label: "전국 방탈출 맵", cellStyle: { width: "129px", paddingRight: "48px", borderRight: DIVIDER } },
-  { value: "100+", label: "역사 설화 퀘스트", cellStyle: { width: "188px", padding: "0 48px", borderRight: DIVIDER } },
+  { value: "1", label: "공개 맵 · 나주", cellStyle: { width: "129px", paddingRight: "48px", borderRight: DIVIDER } },
+  { value: "4", label: "출시 예정 지역", cellStyle: { width: "129px", padding: "0 48px", borderRight: DIVIDER } },
   { value: "∞", label: "숨겨진 보상", cellStyle: { width: "117px", paddingLeft: "48px" } },
 ] satisfies { value: string; label: string; cellStyle: CSSProperties }[];
 
@@ -40,11 +40,10 @@ export default function Intro() {
 
       <div style={descriptionStyle}>
         <p style={descriptionLineStyle}>
-          각 지역의 역사와 설화를 바탕으로 만들어진 몰입형 방탈출 게임. 퀘스트를 클리어하고 실제 지역을 방문하면 숨겨진
-          보상이 열린다.
+          지역의 역사와 설화로 만든 몰입형 방탈출 게임. 사건을 풀고 실제로 그 지역을 찾아가면 숨겨진 보상이 열립니다.
         </p>
         <p style={descriptionLineStyle}>
-          잊혀진 지역의 이야기를 게임으로 되살리고, 당신의 발걸음으로 그 지역을 다시 빛나게 하세요.
+          잊혀 가는 지역의 이야기를 게임으로 되살리고, 당신의 발걸음으로 그 지역을 다시 빛나게 하세요.
         </p>
       </div>
 
@@ -166,7 +165,7 @@ const statValueStyle: CSSProperties = {
   fontSize: "84px",
   letterSpacing: "2px",
   lineHeight: 1,
-  whiteSpace: "nowrap", // "50+" 가 쪼개지거나 ∞ 가 잘리지 않게.
+  whiteSpace: "nowrap", // ∞ 가 잘리지 않게.
   ...gradientText("linear-gradient(90deg, #3b5ea2 0%, #325296 100%)"),
 };
 

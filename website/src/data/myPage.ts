@@ -59,8 +59,8 @@ interface MyPageContent {
   };
   achievements: {
     stats: readonly Pair[];
-    /** [이름, 조건, 진행] */
-    badges: readonly (readonly [name: string, condition: string, progress: string])[];
+    /** [이름, 조건, 진행]. 진행이 null 이면 아직 열리지 않은 기능의 배지다. */
+    badges: readonly (readonly [name: string, condition: string, progress: string | null])[];
   };
   items: { stats: readonly Pair[]; items: readonly OwnedItem[] };
 }
@@ -75,7 +75,7 @@ export const MY_PAGE_CONTENT: MyPageContent = {
         title: "앙암바위의 비밀",
         result: "성공",
         playedAgo: "1시간 전",
-        difficulty: "상급",
+        difficulty: "중급",
         clearTime: "18:42",
         date: "2026.09.03",
         image: "/case-film-poster.webp",
@@ -112,7 +112,7 @@ export const MY_PAGE_CONTENT: MyPageContent = {
         items: [
           { label: "계정 연동", value: "연동 관리" },
           { label: "데이터 관리", value: "내보내기", action: "exportData" },
-          { label: "로그아웃", value: "즉시 종료", action: "signOut" },
+          { label: "로그아웃", value: "로그아웃하기", action: "signOut" },
           { label: "개인정보 처리 정지", value: "요청하기" },
           { label: "회원 탈퇴", value: "탈퇴 진행", action: "deleteAccount" },
         ],
@@ -130,7 +130,7 @@ export const MY_PAGE_CONTENT: MyPageContent = {
       ["2026.09.12", "PREMIUM", "₩14,900"],
       ["2026.08.12", "PREMIUM", "₩14,900"],
       ["2026.07.12", "PREMIUM", "₩14,900"],
-      ["2026.06.12", "BASIC", "₩9,900"],
+      ["2026.06.12", "PREMIUM", "₩14,900"],
     ],
   },
   achievements: {
@@ -141,12 +141,12 @@ export const MY_PAGE_CONTENT: MyPageContent = {
       ["희귀 배지", "3개"],
     ],
     badges: [
-      ["첫 번째 탈출", "첫 방탈출 성공", "완료"],
+      ["첫 번째 탈출", "첫 사건 해결", "완료"],
       ["퍼즐 마스터", "퍼즐 50개 해결", "완료"],
       ["스피드러너", "10분 이내 클리어", "70%"],
-      ["전설의 탐험가", "모든 맵 방문", "완료"],
+      ["전설의 탐험가", "열린 지역 모두 방문", "완료"],
       ["속도의 왕", "5분 이내 클리어", "15%"],
-      ["협동 전문가", "멀티플레이 100회", "42%"],
+      ["협동 전문가", "멀티플레이 출시 후 열림", null],
       ["수집가", "아이템 50개 수집", "60%"],
       ["불굴의 의지", "실패 후 재도전 성공", "완료"],
     ],

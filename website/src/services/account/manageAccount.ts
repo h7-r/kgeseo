@@ -15,6 +15,12 @@ import {
   type ConsentRecord,
 } from "./db";
 
+/**
+ * 비밀번호 변경·재설정·회원 탈퇴는 백엔드 Account Management API 가 생기면 켠다.
+ * 아래 함수들은 이 브라우저 저장소에서만 도는 임시 구현이라, 그전엔 화면에서 「준비 중」으로 막는다.
+ */
+export const IS_ACCOUNT_MANAGEMENT_READY = false;
+
 type ChangePasswordResult = { ok: true } | AccountFailure<"currentPassword" | "newPassword">;
 type AccountActionResult = { ok: true } | AccountFailure;
 
@@ -29,6 +35,10 @@ interface ExportedAccountData {
 }
 
 const PBKDF2_ITERATIONS = 210_000;
+
+/** 사생활 보호 모드처럼 IndexedDB 가 막혔을 때 화면에 띄우는 말. 인증 화면도 같은 말을 쓴다. */
+export const STORAGE_UNAVAILABLE_REASON =
+  "이 브라우저에서는 계정 정보를 쓸 수 없습니다. 사생활 보호 모드를 끄고 다시 시도해 주세요.";
 
 function toHex(buffer: ArrayBuffer | Uint8Array): string {
   return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -119,7 +129,7 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<ChangePasswordResult> {
-  if (!isStorageAvailable()) return { ok: false, reason: "저장소를 쓸 수 없습니다." };
+  if (!isStorageAvailable()) return { ok: false, reason: STORAGE_UNAVAILABLE_REASON };
   const key = normalizeEmail(email);
   const account = await readAccount(key);
   if (!account) return { ok: false, reason: "계정을 찾을 수 없습니다." };
@@ -127,17 +137,17 @@ export async function changePassword(
   const stored = parseHash(account.passwordHash);
   const hash = await hashPassword(currentPassword, fromHex(stored.salt), stored.iterations);
   if (!constantTimeEqual(hash, stored.hash)) {
-    return { ok: false, field: "currentPassword", reason: "지금 비밀번호가 맞지 않습니다." };
+    return { ok: false, field: "currentPassword", reason: "현재 비밀번호가 맞지 않습니다." };
   }
   if (currentPassword === newPassword) {
-    return { ok: false, field: "newPassword", reason: "지금과 다른 비밀번호를 써 주세요." };
+    return { ok: false, field: "newPassword", reason: "현재와 다른 비밀번호를 써 주세요." };
   }
   return resetPassword(key, newPassword);
 }
 
 /** 비밀번호 재설정. 가입되지 않은 메일이면 code 가 "unknownEmail" 이다. */
 export async function resetPassword(email: string, newPassword: string): Promise<AccountActionResult> {
-  if (!isStorageAvailable()) return { ok: false, reason: "저장소를 쓸 수 없습니다." };
+  if (!isStorageAvailable()) return { ok: false, reason: STORAGE_UNAVAILABLE_REASON };
   const key = normalizeEmail(email);
   const account = await readAccount(key);
   if (!account) return { ok: false, code: "unknownEmail", reason: "가입되지 않은 이메일입니다." };
@@ -201,7 +211,7 @@ export async function exportMyData(email: string): Promise<ExportedAccountData |
 
 /** 탈퇴. 계정과 그 계정의 데이터를 지우고, 동의 기록은 지우지 않고 철회로 남긴다. */
 export async function deleteAccount(email: string): Promise<AccountActionResult> {
-  if (!isStorageAvailable()) return { ok: false, reason: "저장소를 쓸 수 없습니다." };
+  if (!isStorageAvailable()) return { ok: false, reason: STORAGE_UNAVAILABLE_REASON };
   const key = normalizeEmail(email);
   const account = await readAccount(key);
   if (account?.id) await withdrawConsents(account.id);

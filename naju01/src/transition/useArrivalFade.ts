@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from "react";
 
-/** 밝아지는 데 걸리는 시간(ms). 연출 담당이 정한 값 — 검정 → 투명, ease-out */
+/** 밝아지는 데 걸리는 시간(ms). 검정 → 투명, ease-out */
 export const ARRIVAL_FADE_MS = 500;
 // 첫 프레임이 이때까지 안 오면 그냥 밝힌다. 화면이 영영 까만 것이 제일 나쁜 실패다.
 const SAFETY_TIMEOUT_MS = 15000;

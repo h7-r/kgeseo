@@ -23,7 +23,7 @@ function computeDripVolume(ear: THREE.Vector3, spot: PuddleSpot, quietZs: readon
   let byVending = 1;
   for (const z of quietZs) {
     const k = (Math.abs(ear.z - z) - VENDING_SILENT) / (VENDING_FADE_END - VENDING_SILENT);
-    byVending = Math.min(byVending, Math.max(0, Math.min(1, k)));
+    byVending = Math.min(byVending, THREE.MathUtils.clamp(k, 0, 1));
   }
   return 0.5 * byDistance * byVending;
 }

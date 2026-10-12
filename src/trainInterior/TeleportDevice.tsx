@@ -4,14 +4,13 @@ import { useGLTF } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 
 import { useSavedControls } from "@/engine/leva/savedControls";
+import { toRadians } from "@/engine/math";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
 // Meshy 에서 뽑은 사실적 모델. 텍스처는 살리고 툰 + 외곽선만 입혀 화풍에 맞춘다. 모델 로컬 크기 ≈ 1.9×1.84×0.97.
 const MODEL_URL = "/models/teleport.glb";
 useGLTF.preload(MODEL_URL);
-
-const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
 let glowTexture: THREE.CanvasTexture | null = null;
 

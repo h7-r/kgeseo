@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 
 import { createRandom } from "@/engine/random";
+import ShellOutline from "@/engine/ShellOutline";
 import type { OutlineValues } from "@/engine/toon";
 
 import RubbleStones, { type RubbleStone } from "./RubbleStones";
-import ShellOutline from "./ShellOutline";
 import WallPiece from "./WallPiece";
 
 interface PlatformEndWallProps {

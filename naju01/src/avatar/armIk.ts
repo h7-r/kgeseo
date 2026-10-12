@@ -34,7 +34,7 @@ interface ArmIkDebug {
 }
 const armIkDebug: ArmIkDebug = {};
 
-export type ArmRequests = Record<Side, { weight: number; target: WorldPoint | null | undefined }>;
+type ArmRequests = Record<Side, { weight: number; target: WorldPoint | null | undefined }>;
 
 // 팔 IK 그릇 — 매 프레임 새로 만들면 GC 끊김이 보인다.
 const _S = new THREE.Vector3();
@@ -209,8 +209,8 @@ function solveBySignTest(
  */
 export function solveArms(prepared: PreparedBody, state: AvatarLink, group: THREE.Object3D): ArmRequests {
   const armRequests: ArmRequests = {
-    r: { weight: Math.max(0, Math.min(1, state.handIk ?? 0)), target: state.handTarget },
-    l: { weight: Math.max(0, Math.min(1, state.leftHandIk ?? 0)), target: state.leftHandTarget },
+    r: { weight: THREE.MathUtils.clamp(state.handIk ?? 0, 0, 1), target: state.handTarget },
+    l: { weight: THREE.MathUtils.clamp(state.leftHandIk ?? 0, 0, 1), target: state.leftHandTarget },
   };
   // 폴은 화면을 봐야 맞출 수 있어 게임이 상자로 내려 준다. 없으면 꺼짐.
   const pole = state.armPole ?? DEFAULT_ARM_POLE;
@@ -295,7 +295,7 @@ function alignWrist(arm: Arm, target: { x: number; y: number; z: number; w: numb
 
 /** 팔 IK 뒤에 부른다. 그 팔에 IK 가 걸려 있을 때만 돌린다. */
 export function alignWrists(arms: Arm[], state: AvatarLink, armRequests: ArmRequests) {
-  const wristStrength = Math.max(0, Math.min(1, state.handRotationWeight ?? 0));
+  const wristStrength = THREE.MathUtils.clamp(state.handRotationWeight ?? 0, 0, 1);
   if (!(wristStrength > 0.001)) return;
   const rightArm = arms.find((a) => a.side === "r");
   const leftArm = arms.find((a) => a.side === "l");

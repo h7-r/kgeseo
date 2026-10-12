@@ -1,0 +1,10 @@
+{
+  "description": "naju01 — 맵·?dev 계기판·편집기(저장 안 함)·로딩 이어받기·캐릭터 생성 미리보기·개발 페이지·주소 스위치",
+  "appDir": "naju01",
+  "route": "route.json",
+  "pages": "pages.json",
+  "defaultPort": 5322,
+  "leva": {
+    "paths": ["{map}?leva"]
+  }
+}

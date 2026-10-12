@@ -23,7 +23,11 @@ import { QUERY, ROUTES, safeNextPath, withQuery, type RoutePath } from "@/naviga
 import type { AuthMode } from "@/pages/AuthPage";
 import { authenticate, signUp } from "@/services/account/authApi";
 import { TEST_ACCOUNT_ENABLED, TEST_ACCOUNT_LOGIN } from "@/services/account/db";
-import { resetPassword } from "@/services/account/manageAccount";
+import {
+  IS_ACCOUNT_MANAGEMENT_READY,
+  STORAGE_UNAVAILABLE_REASON,
+  resetPassword,
+} from "@/services/account/manageAccount";
 import { clearResetState, readResetState, issueResetCode, verifyResetCode } from "@/services/passwordReset";
 import { signIn } from "@/services/session";
 import { COLOR, GRADIENT, SHADOW, surfaceFillStyle } from "@/styles/tokens";
@@ -35,10 +39,10 @@ import SocialLogin from "./SocialLogin";
 // 사생활 보호 모드처럼 IndexedDB 가 막혀 저장소 호출이 던질 때 보여 준다. 문구는 저장소가 같은 상황에 쓰는 말과 같다.
 const STORAGE_ERROR_MESSAGE: Record<AuthMode, string> = {
   signup: "가입 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.",
-  login: "이 브라우저에서는 계정을 읽을 수 없습니다.",
-  forgotPassword: "저장소를 쓸 수 없습니다.",
-  verifyCode: "저장소를 쓸 수 없습니다.",
-  resetPassword: "저장소를 쓸 수 없습니다.",
+  login: STORAGE_UNAVAILABLE_REASON,
+  forgotPassword: STORAGE_UNAVAILABLE_REASON,
+  verifyCode: STORAGE_UNAVAILABLE_REASON,
+  resetPassword: STORAGE_UNAVAILABLE_REASON,
 };
 
 interface AuthFormProps {
@@ -174,7 +178,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
             <TextField
               variant="card"
               label="닉네임"
-              placeholder="모험가 이름"
+              placeholder="조사관 이름"
               grow
               autoComplete="nickname"
               {...bind("nickname")}
@@ -249,7 +253,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
             {/* 메일 서버가 붙기 전까지만 받은 코드를 화면에 보여 준다. */}
             {resetState ? (
               <div style={testCodeBoxStyle} role="note">
-                <span>메일 발송은 서버 연결 후 동작합니다 · 테스트용 인증코드</span>
+                <span>시험 운영 중이라 메일 대신 여기에 인증코드를 보여 드립니다</span>
                 <b style={{ fontFamily: FONT.mono, fontSize: "20px", letterSpacing: "4px", color: "#fde68a" }}>
                   {resetState.code}
                 </b>
@@ -337,29 +341,35 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
       <div style={footerStyle}>
         {mode === "login" && (
           <>
-            <span style={footerPromptStyle}>아직 모험가가 아닌가요?</span>
+            <span style={footerPromptStyle}>아직 계정이 없으신가요?</span>
             <AuthLink label="회원가입" onClick={() => goTo(ROUTES.signup)} />
             <span style={footerPromptStyle}>&nbsp;·&nbsp;</span>
-            <AuthLink label="비밀번호 찾기" onClick={() => goTo(ROUTES.forgotPassword)} />
+            <PasswordResetLink onClick={() => goTo(ROUTES.forgotPassword)} />
           </>
         )}
         {mode === "signup" && (
           <>
-            <span style={footerPromptStyle}>이미 모험가이신가요?</span>
+            <span style={footerPromptStyle}>이미 계정이 있으신가요?</span>
             <AuthLink label="로그인" isBold={false} onClick={() => goTo(ROUTES.login)} />
             <span style={footerPromptStyle}>&nbsp;·&nbsp;</span>
-            <AuthLink label="비밀번호 찾기" onClick={() => goTo(ROUTES.forgotPassword)} />
+            <PasswordResetLink onClick={() => goTo(ROUTES.forgotPassword)} />
           </>
         )}
         {(mode === "forgotPassword" || mode === "verifyCode" || mode === "resetPassword") && (
           <>
-            <span style={footerPromptStyle}>로그인으로 돌아가기</span>
+            <span style={footerPromptStyle}>비밀번호가 기억나셨나요?</span>
             <AuthLink label="로그인" onClick={() => goTo(ROUTES.login)} />
           </>
         )}
       </div>
     </div>
   );
+}
+
+// 비밀번호 찾기는 백엔드가 준비될 때까지 누를 수 없는 「준비 중」 표시로 둔다
+function PasswordResetLink({ onClick }: { onClick: () => void }) {
+  if (IS_ACCOUNT_MANAGEMENT_READY) return <AuthLink label="비밀번호 찾기" onClick={onClick} />;
+  return <span style={footerPromptStyle}>비밀번호 찾기 · 준비 중</span>;
 }
 
 function AuthLink({ label, isBold = true, onClick }: { label: string; isBold?: boolean; onClick: () => void }) {

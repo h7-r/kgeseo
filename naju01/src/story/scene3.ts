@@ -90,7 +90,7 @@ export function buildStrawShoePrototypes(count = 2, seed = 6301): THREE.BufferGe
 
 /**
  * 댕기 — 땅에 떨어진 천은 판판하지 않다. 마디마다 꺾고 비틀어야 천이 된다.
- * 자갈밭이 전부 누런 잿빛이라 붉어야 눈에 든다. 마디가 많으면 밧줄이 되어 뱀처럼 보였다.
+ * 자갈밭이 전부 누런 잿빛이라 붉어야 눈에 든다. 마디가 많으면 밧줄이 되어 뱀처럼 보인다.
  */
 export function buildHairRibbonPrototypes(count = 3, seed = 6302): THREE.BufferGeometry[] {
   const random = createRandom(seed);

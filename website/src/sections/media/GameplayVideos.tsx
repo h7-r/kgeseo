@@ -28,19 +28,19 @@ const CHALLENGES: readonly Challenge[] = [
     image: videoCard1,
     title: "탈출의 시작",
     category: "GAMEPLAY",
-    description: "첫 번째 방에서의 긴장감 넘치는 탈출 시퀀스. 숨겨진 단서를 찾아 퍼즐을 풀어라.",
+    description: "첫 현장에 들어선 순간. 숨겨진 단서를 찾아 첫 퍼즐을 풀어라.",
   },
   {
     image: videoCard2,
     title: "암호 해독 챌린지",
     category: "PUZZLE",
-    description: "고대 문자와 현대 암호가 뒤섞인 난이도 최상의 퍼즐. 당신의 두뇌를 시험하라.",
+    description: "옛 문자와 현대 암호가 뒤섞인 가장 어려운 퍼즐. 당신의 추리력을 시험하라.",
   },
   {
     image: videoCard3,
     title: "최후의 대결",
     category: "CLIMAX",
-    description: "모든 단서가 하나로 모이는 클라이막스. 진실을 밝혀낼 수 있는가?",
+    description: "모든 단서가 하나로 모이는 클라이맥스. 진실을 밝혀낼 수 있는가?",
   },
   {
     image: backgroundImage1,
@@ -110,8 +110,7 @@ export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 
       <div style={{ ...pagerStyle, top: `${pagerTop}px` }}>
         <button
           type="button"
-          className="pager__arrow"
-          style={arrowStyle}
+          className="carousel-arrow carousel-arrow--prev"
           onClick={() => select(selectedIndex - 1)}
           aria-label="이전 챌린지"
         >
@@ -136,8 +135,7 @@ export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 
         ))}
         <button
           type="button"
-          className="pager__arrow"
-          style={arrowStyle}
+          className="carousel-arrow carousel-arrow--next"
           onClick={() => select(selectedIndex + 1)}
           aria-label="다음 챌린지"
         >
@@ -355,18 +353,6 @@ const pagerStyle: CSSProperties = {
   display: "flex",
   gap: "16px",
   alignItems: "center",
-};
-
-const arrowStyle: CSSProperties = {
-  width: "40px",
-  height: "40px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontFamily: FONT.body,
-  fontSize: "24px",
-  color: COLOR.textSubtle,
-  cursor: "pointer",
 };
 
 const pageBaseStyle: CSSProperties = {

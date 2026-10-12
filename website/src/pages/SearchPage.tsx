@@ -52,7 +52,7 @@ export default function SearchPage() {
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={submitOnEnter(() => runSearch(draft))}
             placeholder="무엇을 찾으세요?"
-            aria-label="다시 찾기"
+            aria-label="검색어"
             style={searchInputStyle}
           />
           <button type="button" className="button" style={searchButtonStyle} onClick={() => runSearch(draft)}>
@@ -62,7 +62,7 @@ export default function SearchPage() {
 
         {query && (
           <div style={{ fontFamily: FONT.mono, fontSize: "16px", color: COLOR.textMuted }}>
-            <b style={{ color: COLOR.accent }}>{query}</b> 에 대한 결과 {results.length}건
+            「<b style={{ color: COLOR.accent }}>{query}</b>」 검색 결과 {results.length}건
           </div>
         )}
 
@@ -72,7 +72,7 @@ export default function SearchPage() {
               찾는 내용이 없습니다
             </div>
             <div style={{ fontFamily: FONT.reading, fontSize: "16px", lineHeight: 1.7, color: COLOR.textMuted }}>
-              맞춤법을 확인하거나 더 짧은 말로 찾아 보세요. 아직 만들지 않은 화면일 수도 있습니다.
+              맞춤법을 확인하거나 더 짧은 낱말로 다시 찾아 보세요.
             </div>
           </div>
         )}

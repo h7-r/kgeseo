@@ -5,6 +5,8 @@
 import { createRandom } from "@/engine/random";
 import { makeCachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
 
+import { CORRIDOR_INK_COLOR } from "./corridorLighting";
+
 /** 벽함 라벨 캔버스 비율(320×208). 라벨 판 크기를 이 비율로 맞춘다. */
 export const LABEL_ASPECT = 208 / 320;
 /** 비상계단 표지 캔버스 비율(512×176) */
@@ -35,7 +37,12 @@ function drawLabelWeathering(g: CanvasRenderingContext2D, width: number, height:
 }
 
 /** 배전반 라벨 — 노란 바탕 + 경고 삼각형 + 고압 문구 */
-export function makePanelLabelTexture(background = "#c9a83c", lineColor = "#131314", number = "N-3", grime = 1) {
+export function makePanelLabelTexture(
+  background = "#c9a83c",
+  lineColor = CORRIDOR_INK_COLOR,
+  number = "N-3",
+  grime = 1,
+) {
   return makeCachedCanvasTexture(
     `panelLabel|${background}${lineColor}${number}${grime.toFixed(2)}`,
     (g, W, H) => {
@@ -95,7 +102,7 @@ export function makePanelLabelTexture(background = "#c9a83c", lineColor = "#1313
 }
 
 /** 소화전 라벨 — 붉은 바탕 + 흰 글자 */
-export function makeHydrantLabelTexture(background = "#a5342a", lineColor = "#131314", grime = 1) {
+export function makeHydrantLabelTexture(background = "#a5342a", lineColor = CORRIDOR_INK_COLOR, grime = 1) {
   return makeCachedCanvasTexture(
     `hydrantLabel|${background}${lineColor}${grime.toFixed(2)}`,
     (g, W, H) => {
@@ -129,7 +136,7 @@ export function makeHydrantLabelTexture(background = "#a5342a", lineColor = "#13
 }
 
 /** 비상계단 유도등 표지. 흰 문 + 달려 나오는 초록 사람 + 글자. */
-export function makeExitSignTexture(green = "#3f9e63", lineColor = "#131314") {
+export function makeExitSignTexture(green = "#3f9e63", lineColor = CORRIDOR_INK_COLOR) {
   return makeCachedCanvasTexture(
     `exitSign|${green}|${lineColor}`,
     (g, W, H) => {
