@@ -1,4 +1,8 @@
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
+
+from app.core.terms import CURRENT_TERMS_VERSION
 
 
 class GoogleLoginRequest(BaseModel):
@@ -23,12 +27,14 @@ class LocalRegisterConsent(BaseModel):
     terms: bool
     privacy: bool
     age: bool
-    terms_version: str = Field(default="2026-09", min_length=1, max_length=32)
+    terms_version: str = Field(
+        default=CURRENT_TERMS_VERSION, min_length=1, max_length=32
+    )
 
 
 class LocalRegisterRequest(BaseModel):
     email: str = Field(min_length=1, max_length=254)
-    password: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=1, max_length=128, repr=False)
     nickname: str
     region: str | None = Field(default=None, max_length=32)
     consent: LocalRegisterConsent
@@ -62,3 +68,35 @@ class EmailExistsRequest(BaseModel):
 
 class NicknameExistsRequest(BaseModel):
     nickname: str
+
+
+class SocialUserResponse(BaseModel):
+    provider: Literal["google", "naver"]
+    email: str
+    nickname: str
+    picture: str | None = None
+
+
+class SocialOnboardingRequiredResponse(BaseModel):
+    result: Literal["onboarding_required"] = "onboarding_required"
+    onboarding_token: str
+    expires_in: int = 600
+    suggested_nickname: str
+    terms_version: str = CURRENT_TERMS_VERSION
+
+
+class SocialOnboardingConsent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    terms: StrictBool = False
+    privacy: StrictBool = False
+    age: StrictBool = False
+
+
+class SocialOnboardingCompleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    onboarding_token: str = Field(default="", repr=False)
+    nickname: str = ""
+    terms_version: str = ""
+    consent: SocialOnboardingConsent = Field(default_factory=SocialOnboardingConsent)
