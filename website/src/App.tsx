@@ -17,6 +17,7 @@ import {
   MyPage,
   PricingPage,
   SearchPage,
+  SocialOnboardingPage,
   SupportPage,
   TermsPage,
 } from "@/app/pageRegistry";
@@ -50,6 +51,7 @@ export default function App() {
           <Route path={ROUTES.login} element={<AuthPage mode="login" />} />
           <Route path={ROUTES.socialCallback} element={<SocialCallbackPage />} />
           <Route path={ROUTES.signup} element={<AuthPage mode="signup" />} />
+          <Route path={ROUTES.socialOnboarding} element={<SocialOnboardingPage />} />
           {/* 비밀번호 찾기는 백엔드가 준비될 때까지 막는다 — 주소로 들어와도 로그인으로 보낸다 */}
           <Route path={ROUTES.forgotPassword} element={<PasswordResetRoute mode="forgotPassword" />} />
           <Route path={ROUTES.verifyCode} element={<PasswordResetRoute mode="verifyCode" />} />

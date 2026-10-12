@@ -22,6 +22,7 @@ import { ROUTES, useSiteNavigate } from "@/navigation/routes";
 import { signUp } from "@/services/account/authApi";
 import { signInWithGoogle } from "@/services/account/googleAuth";
 import { startNaverLogin } from "@/services/account/naverAuth";
+import { holdOnboarding } from "@/services/account/socialAuthApi";
 import { signIn, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
@@ -51,7 +52,14 @@ export default function QuickSignup() {
     setSocialMessage("");
     setIsGoogleBusy(true);
     try {
-      signIn(await signInWithGoogle());
+      const result = await signInWithGoogle();
+      if (result.kind === "signedIn") {
+        signIn(result.user);
+        return;
+      }
+      // 처음 온 계정은 로그인시키지 않고 가입 화면으로. 증표는 메모리로만 넘긴다.
+      holdOnboarding(result.onboarding);
+      navigate(ROUTES.socialOnboarding);
     } catch (error) {
       setSocialMessage((error instanceof Error && error.message) || "Google 로그인에 실패했습니다.");
     } finally {

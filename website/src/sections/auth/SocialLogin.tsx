@@ -4,16 +4,19 @@ import googleIcon from "@/assets/images/imgComponent12.svg";
 import { FONT } from "@/lib/style";
 import { signInWithGoogle } from "@/services/account/googleAuth";
 import { startNaverLogin } from "@/services/account/naverAuth";
+import type { OnboardingRequired } from "@/services/account/socialAuthApi";
 import type { SessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 interface SocialLoginProps {
   /** 구글은 이 화면에서 끝나므로 로그인한 사용자를 넘긴다. 네이버는 콜백 화면이 맡는다. */
   onSignedIn: (user: SessionUser) => void;
+  /** 처음 온 구글 계정. 로그인시키지 않고 가입 화면으로 넘긴다. */
+  onOnboardingRequired: (onboarding: OnboardingRequired) => void;
 }
 
 /** 키(.env)가 없으면 창을 띄우지 않고 그 자리에서 까닭을 알려 준다. */
-export default function SocialLogin({ onSignedIn }: SocialLoginProps) {
+export default function SocialLogin({ onSignedIn, onOnboardingRequired }: SocialLoginProps) {
   const [message, setMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
 
@@ -22,7 +25,9 @@ export default function SocialLogin({ onSignedIn }: SocialLoginProps) {
     setMessage("");
     setIsBusy(true);
     try {
-      onSignedIn(await signInWithGoogle());
+      const result = await signInWithGoogle();
+      if (result.kind === "signedIn") onSignedIn(result.user);
+      else onOnboardingRequired(result.onboarding);
     } catch (error) {
       setMessage((error instanceof Error && error.message) || "Google 로그인에 실패했습니다.");
     } finally {

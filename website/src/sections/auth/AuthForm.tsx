@@ -28,6 +28,7 @@ import {
   STORAGE_UNAVAILABLE_REASON,
   resetPassword,
 } from "@/services/account/manageAccount";
+import { holdOnboarding } from "@/services/account/socialAuthApi";
 import { clearResetState, readResetState, issueResetCode, verifyResetCode } from "@/services/passwordReset";
 import { signIn } from "@/services/session";
 import { COLOR, GRADIENT, SHADOW, surfaceFillStyle } from "@/styles/tokens";
@@ -332,6 +333,11 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
             onSignedIn={(user) => {
               signIn(user);
               navigate(returnTo || config.next);
+            }}
+            onOnboardingRequired={(onboarding) => {
+              // 증표는 메모리로만 넘긴다. 가입을 마치면 원래 가려던 곳으로 간다.
+              holdOnboarding(onboarding, returnTo);
+              navigate(ROUTES.socialOnboarding);
             }}
           />
         </>

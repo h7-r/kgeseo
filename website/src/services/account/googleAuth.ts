@@ -1,6 +1,11 @@
-import type { SessionUser } from "@/services/session";
-
-import { BackendAuthError, postSocialAuth, toSessionUserFromProfile } from "./socialAuthApi";
+import {
+  BackendAuthError,
+  postSocialAuth,
+  socialAuthErrorMessage,
+  socialInvalidResponseMessage,
+  socialNotReadyMessage,
+  type SocialAuthResult,
+} from "./socialAuthApi";
 
 /**
  * 구글 로그인. Google Identity Services 창에서 credential(ID 토큰)을 받아
@@ -34,20 +39,10 @@ declare global {
 let scriptPromise: Promise<void> | null = null;
 let credentialPromise: Promise<string> | null = null;
 
-function backendErrorMessage(error: BackendAuthError): string {
-  if (error.status === 401) return "Google 인증에 실패했습니다. 다른 계정으로 다시 시도해 주세요.";
-  if (error.needsAccountLink) {
-    return "이미 같은 이메일로 가입된 계정이 있습니다. 기존 로그인 후 Google 계정을 연결해 주세요.";
-  }
-  if (error.status === 503) return "Google 로그인이 아직 서버에 설정되지 않았습니다.";
-  if (error.status) return `Google 로그인 처리 중 문제가 생겼습니다. (${error.status})`;
-  return "Backend에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.";
-}
-
 function requireClientId(): string {
-  if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === "YOUR_GOOGLE_CLIENT_ID") {
-    throw new Error("Google 로그인 키(VITE_GOOGLE_CLIENT_ID)가 아직 없습니다.");
-  }
+  // 키가 없다는 사실만 알린다. 환경변수 이름은 화면에 내지 않는다.
+  if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === "YOUR_GOOGLE_CLIENT_ID")
+    throw new Error(socialNotReadyMessage("google"));
   return GOOGLE_CLIENT_ID;
 }
 
@@ -100,7 +95,7 @@ function requestCredential(clientId: string): Promise<string> {
       client_id: clientId,
       callback: (response) => {
         if (!response?.credential) {
-          finish(new Error("Google credential을 받지 못했습니다."));
+          finish(new Error(socialInvalidResponseMessage("google")));
           return;
         }
         finish(null, response.credential);
@@ -120,16 +115,18 @@ function requestCredential(clientId: string): Promise<string> {
   return credentialPromise;
 }
 
-/** 구글 창을 띄워 로그인하고 세션에 넣을 사용자를 돌려준다. 실패하면 화면에 띄울 문구로 던진다. */
-export async function signInWithGoogle(): Promise<SessionUser> {
+/**
+ * 구글 창을 띄워 백엔드에 확인받는다. 기존 회원이면 로그인할 사용자, 처음이면 가입 안내를 돌려준다.
+ * 실패하면 화면에 띄울 문구로 던진다.
+ */
+export async function signInWithGoogle(): Promise<SocialAuthResult> {
   try {
     const clientId = requireClientId();
     await loadScript();
     const credential = await requestCredential(clientId);
-    const profile = await postSocialAuth("/google", { credential }, "Google 인증에 실패했습니다.");
-    return toSessionUserFromProfile(profile);
+    return await postSocialAuth("google", { credential });
   } catch (error) {
-    if (error instanceof BackendAuthError) throw new Error(backendErrorMessage(error), { cause: error });
+    if (error instanceof BackendAuthError) throw new Error(socialAuthErrorMessage("google", error), { cause: error });
     throw error;
   }
 }

@@ -8,6 +8,8 @@ export const ROUTES = {
   home: "/",
   login: "/login",
   signup: "/signup",
+  // 처음 온 소셜 계정이 닉네임·동의를 마치는 곳. 가입 증표는 주소에 싣지 않는다.
+  socialOnboarding: "/signup/social",
   forgotPassword: "/forgot-password",
   verifyCode: "/reset-password",
   resetPassword: "/reset-password/done",
@@ -87,6 +89,7 @@ export const GAME_TRANSITION_PARAM = "transition";
 export const AUTH_PAGE_PATHS: readonly string[] = [
   ROUTES.login,
   ROUTES.signup,
+  ROUTES.socialOnboarding,
   ROUTES.forgotPassword,
   ROUTES.verifyCode,
   ROUTES.resetPassword,

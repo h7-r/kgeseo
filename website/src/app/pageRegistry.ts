@@ -50,6 +50,7 @@ export const PricingPage = preloadable(() => import("@/pages/PricingPage"));
 export const MyPage = preloadable(() => import("@/pages/MyPage"));
 export const MediaPage = preloadable(() => import("@/pages/MediaPage"));
 export const SearchPage = preloadable(() => import("@/pages/SearchPage"));
+export const SocialOnboardingPage = preloadable(() => import("@/pages/SocialOnboardingPage"));
 
 interface Preloadable {
   preload: () => Promise<unknown>;
@@ -66,6 +67,7 @@ const PAGE_BY_PATH: Readonly<Record<string, Preloadable | undefined>> = {
   [ROUTES.search]: SearchPage,
   [ROUTES.login]: AuthPage,
   [ROUTES.signup]: AuthPage,
+  [ROUTES.socialOnboarding]: SocialOnboardingPage,
   [ROUTES.forgotPassword]: AuthPage,
   [ROUTES.verifyCode]: AuthPage,
   [ROUTES.resetPassword]: AuthPage,
