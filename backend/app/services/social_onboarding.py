@@ -17,7 +17,12 @@ from app.schemas.auth import (
     SocialOnboardingRequiredResponse,
     SocialUserResponse,
 )
-from app.services.local_auth import get_user_by_email, nickname_exists, utc_now
+from app.services.local_auth import (
+    get_user_by_email,
+    nickname_exists,
+    user_to_payload,
+    utc_now,
+)
 from app.services.nickname_policy import validate_nickname
 
 ONBOARDING_TTL_SECONDS = 600
@@ -44,9 +49,7 @@ def token_digest(token: str) -> str:
 
 
 def user_response(user: AppUser, provider: str) -> SocialUserResponse:
-    return SocialUserResponse(
-        provider=provider, email=user.email, nickname=user.nickname
-    )
+    return SocialUserResponse(user=user_to_payload(user, provider))
 
 
 async def get_identity(

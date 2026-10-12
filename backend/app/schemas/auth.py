@@ -70,11 +70,12 @@ class NicknameExistsRequest(BaseModel):
     nickname: str
 
 
-class SocialUserResponse(BaseModel):
+class SocialAccountUser(LocalAccountUser):
     provider: Literal["google", "naver"]
-    email: str
-    nickname: str
-    picture: str | None = None
+
+
+class SocialUserResponse(BaseModel):
+    user: SocialAccountUser
 
 
 class SocialOnboardingRequiredResponse(BaseModel):

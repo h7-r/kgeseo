@@ -94,11 +94,19 @@ def test_naver_login_returns_verified_profile(
 
     assert response.status_code == 200
     assert response.json() == {
-        "provider": "naver",
-        "email": "user@example.com",
-        "nickname": "Naver User",
-        "picture": "https://example.com/profile.png",
+        "user": {
+            "user_id": user.id,
+            "email": "user@example.com",
+            "nickname": "Naver User",
+            "region": None,
+            "created_at": user.created_at.isoformat(),
+            "provider": "naver",
+        }
     }
+    assert response.headers["cache-control"] == "no-store"
+    assert db_session.get_calls == [(AppUser, user.id)]
+    assert "naver-subject" not in response.text
+    assert "picture" not in response.text
     assert "valid-code" not in response.text
     assert "app_user_id" not in response.text
     assert "password_hash" not in response.text
@@ -131,6 +139,13 @@ def test_naver_login_creates_only_pending_for_new_email(
     assert response.status_code == 200
     assert "app_user_id" not in response.json()
     body = response.json()
+    assert set(body) == {
+        "result",
+        "onboarding_token",
+        "expires_in",
+        "suggested_nickname",
+        "terms_version",
+    }
     assert body["result"] == "onboarding_required"
     assert body["suggested_nickname"] == ""
     assert "email" not in body and "subject" not in body

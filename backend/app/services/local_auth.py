@@ -93,14 +93,14 @@ def verify_password(password: str, stored_hash: str) -> bool:
 DUMMY_PASSWORD_HASH = hash_password(os.urandom(PASSWORD_SALT_LENGTH).hex())
 
 
-def user_to_payload(user: AppUser) -> dict[str, str | None]:
+def user_to_payload(user: AppUser, provider: str = "local") -> dict[str, str | None]:
     return {
         "user_id": user.id,
         "email": user.email,
         "nickname": user.nickname,
         "region": user.region,
         "created_at": user.created_at.isoformat(),
-        "provider": "local",
+        "provider": provider,
     }
 
 

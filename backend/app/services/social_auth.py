@@ -30,9 +30,7 @@ async def authenticate_social_user(
         raise SocialAuthInvalidProfileError
     identity = await get_identity(db, provider, subject)
     if identity is not None:
-        response = await identity_response(db, identity)
-        response.picture = profile.picture
-        return response
+        return await identity_response(db, identity)
     if await get_user_by_email(db, email) is not None:
         raise AccountLinkRequiredError
     try:
