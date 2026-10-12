@@ -229,7 +229,7 @@ async def test_concurrent_unique_races(mysql_url, monkeypatch, race):
         )
         if race == "identity":
             assert all(not isinstance(r, Exception) for r in results)
-            assert results[0].nickname == results[1].nickname
+            assert results[0].user == results[1].user
         elif race == "email":
             assert sum(isinstance(r, AccountLinkRequiredError) for r in results) == 1
         else:
@@ -329,7 +329,7 @@ async def test_pending_cleanup_and_legacy_login_preserve_data(mysql_url):
                     provider="google", subject=tag, email=f"{tag}@example.com"
                 ),
             )
-            assert response.nickname == "Old Nickname"
+            assert response.user.nickname == "Old Nickname"
             await db.rollback()
         await issue(sessions, tag + "new", f"new{tag}@example.com")
         async with sessions() as db:

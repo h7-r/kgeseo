@@ -63,6 +63,7 @@ def test_google_login_returns_verified_profile(
     monkeypatch,
 ) -> None:
     user = make_user()
+    user.region = "전남"
     db_session.scalar_result = make_identity(user=user)
     db_session.get_result = user
 
@@ -86,11 +87,19 @@ def test_google_login_returns_verified_profile(
 
     assert response.status_code == 200
     assert response.json() == {
-        "provider": "google",
-        "email": "user@example.com",
-        "nickname": "Test User",
-        "picture": "https://example.com/profile.png",
+        "user": {
+            "user_id": user.id,
+            "email": "user@example.com",
+            "nickname": "Test User",
+            "region": "전남",
+            "created_at": user.created_at.isoformat(),
+            "provider": "google",
+        }
     }
+    assert response.headers["cache-control"] == "no-store"
+    assert db_session.get_calls == [(AppUser, user.id)]
+    assert "google-subject" not in response.text
+    assert "picture" not in response.text
     assert "valid-id-token" not in response.text
     assert "app_user_id" not in response.text
     assert "password_hash" not in response.text
@@ -122,6 +131,13 @@ def test_google_login_creates_only_pending_for_new_email(
 
     assert response.status_code == 200
     body = response.json()
+    assert set(body) == {
+        "result",
+        "onboarding_token",
+        "expires_in",
+        "suggested_nickname",
+        "terms_version",
+    }
     assert body["result"] == "onboarding_required"
     assert body["suggested_nickname"] == ""
     assert body["expires_in"] == 600

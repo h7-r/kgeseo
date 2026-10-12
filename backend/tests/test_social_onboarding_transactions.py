@@ -75,8 +75,12 @@ async def test_real_transaction_validation_retry_consumption_and_reuse():
             session.rollback()
             request.nickname = "Explorer"
             response = await complete_onboarding(db, request)
-            assert response.nickname == "Explorer"
+            assert response.user.nickname == "Explorer"
             session.expire_all()
+            stored = session.scalar(select(AppUser))
+            assert response.user.user_id == stored.id
+            assert response.user.created_at == stored.created_at.isoformat()
+            assert response.user.region is None and stored.region is None
             assert (
                 session.scalar(select(SocialOnboardingPending)).consumed_at is not None
             )

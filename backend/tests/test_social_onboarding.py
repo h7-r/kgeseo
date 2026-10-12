@@ -69,14 +69,18 @@ def test_complete_creates_member_and_consumes_atomically(client, db_session, pro
     db_session.scalar_result = [pending, None, None, None]
     response = client.post(COMPLETE_PATH, json=payload(nickname=" ＡＢ１２ "))
     assert response.status_code == 201
+    user, identity = db_session.added
     assert response.json() == {
-        "provider": provider,
-        "email": pending.email,
-        "nickname": "AB12",
-        "picture": None,
+        "user": {
+            "user_id": user.id,
+            "email": pending.email,
+            "nickname": "AB12",
+            "region": None,
+            "created_at": user.created_at.isoformat(),
+            "provider": provider,
+        }
     }
     assert response.headers["cache-control"] == "no-store"
-    user, identity = db_session.added
     assert isinstance(user, AppUser) and isinstance(identity, AuthIdentity)
     assert user.terms_version == CURRENT_TERMS_VERSION
     assert (
@@ -95,7 +99,7 @@ def test_complete_creates_member_and_consumes_atomically(client, db_session, pro
         "verified-subject",
         "password_hash",
         "app_user_id",
-        user.id,
+        "picture",
         identity.id,
     ]:
         assert secret not in response.text
@@ -209,11 +213,23 @@ def test_existing_identity_consumes_other_proof_without_new_user(client, db_sess
     identity = AuthIdentity(provider="google", app_user_id="existing")
     db_session.scalar_result = [pending, object(), identity]
     db_session.get_result = AppUser(
-        email="existing@example.com", nickname="Old Nickname"
+        id="existing",
+        email="existing@example.com",
+        nickname="Old Nickname",
+        region="전남",
+        created_at=utc_now() - timedelta(days=30),
     )
     response = client.post(COMPLETE_PATH, json=payload())
     assert response.status_code == 201
-    assert response.json()["nickname"] == "Old Nickname"
+    assert response.json()["user"] == {
+        "user_id": "existing",
+        "email": "existing@example.com",
+        "nickname": "Old Nickname",
+        "region": "전남",
+        "created_at": db_session.get_result.created_at.isoformat(),
+        "provider": "google",
+    }
+    assert db_session.get_calls == [(AppUser, "existing")]
     assert pending.consumed_at is not None
     assert db_session.added == []
 
@@ -229,7 +245,12 @@ def test_commit_conflict_is_rechecked_after_rollback(client, db_session, collisi
         "unknown": [recovered, None, None, None],
     }[collision]
     db_session.scalar_result = [first, None, None, None, *recovery]
-    db_session.get_result = AppUser(email="synthetic@example.com", nickname="Winner")
+    db_session.get_result = AppUser(
+        id="existing",
+        email="synthetic@example.com",
+        nickname="Winner",
+        created_at=utc_now(),
+    )
 
     async def commit():
         db_session.commit_count += 1
@@ -244,7 +265,8 @@ def test_commit_conflict_is_rechecked_after_rollback(client, db_session, collisi
     response = client.post(COMPLETE_PATH, json=payload())
     if collision == "identity":
         assert response.status_code == 201
-        assert response.json()["nickname"] == "Winner"
+        assert response.json()["user"]["nickname"] == "Winner"
+        assert response.json()["user"]["user_id"] == "existing"
         assert recovered.consumed_at is not None
     else:
         assert response.status_code == 409
@@ -303,3 +325,17 @@ def test_complete_malformed_json_does_not_echo_proof(client, db_session):
     assert response.json()["detail"]["code"] == "invalid_input"
     assert TOKEN not in response.text
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_complete_rejects_region_and_keeps_proof(client, db_session):
+    pending = pending_record()
+    db_session.scalar_result = pending
+
+    response = client.post(COMPLETE_PATH, json=payload(region="전남"))
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "invalid_input"
+    assert response.headers["cache-control"] == "no-store"
+    assert pending.consumed_at is None
+    assert db_session.scalar_calls == []
+    assert db_session.added == []
