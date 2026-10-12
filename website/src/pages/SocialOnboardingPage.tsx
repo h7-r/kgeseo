@@ -25,12 +25,12 @@ const PROVIDER_LABEL = { google: "Google", naver: "네이버" } as const;
  * 형식만 먼저 본다(길이·글자). 서버와 같은 순서로 다듬는다: 제어 문자 확인 → NFKC → 앞뒤 공백 제거.
  * 금칙어·예약어는 서버만 안다 — 목록을 화면에 두지 않는다.
  */
+const NICKNAME_FORMAT_MESSAGE = "닉네임은 2~12자, 한글·영문·숫자·밑줄(_)만 쓸 수 있습니다.";
+
 function nicknameFormatError(raw: string): string {
-  if (/\p{C}/u.test(raw)) return "사용할 수 없는 글자가 들어 있습니다.";
+  if (/\p{C}/u.test(raw)) return NICKNAME_FORMAT_MESSAGE;
   const value = raw.normalize("NFKC").trim();
-  if (!value) return "닉네임을 입력해 주세요.";
-  if (value.length < 2 || value.length > 12) return "2~12자로 입력해 주세요.";
-  if (!/^[가-힣A-Za-z0-9_]+$/.test(value)) return "한글·영문·숫자·_ 만 쓸 수 있습니다.";
+  if (value.length < 2 || value.length > 12 || !/^[가-힣A-Za-z0-9_]+$/.test(value)) return NICKNAME_FORMAT_MESSAGE;
   return "";
 }
 

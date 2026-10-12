@@ -129,7 +129,9 @@ export function clearOnboarding() {
 
 export const ACCOUNT_LINK_MESSAGE = "이미 다른 방법으로 가입된 이메일입니다. 처음 가입한 방법으로 로그인해 주세요.";
 export const CONNECTION_ERROR_MESSAGE = "로그인 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.";
-export const ONBOARDING_RESTART_MESSAGE = "로그인 시간이 만료되었습니다. 소셜 로그인을 다시 진행해 주세요.";
+/** 증표가 없거나(새로고침) 만료·사용됨. 소셜 로그인부터 다시 한다. */
+export const ONBOARDING_RESTART_MESSAGE = "가입 확인 시간이 지났습니다. 처음부터 다시 시도해 주세요.";
+const TERMS_CHANGED_MESSAGE = "약관이 바뀌었습니다. 처음부터 다시 진행해 주세요.";
 
 /** 키가 없거나 서버 설정 전(503). 환경변수 이름은 화면에 내지 않는다. */
 export function socialNotReadyMessage(provider: SocialProvider): string {
@@ -165,8 +167,9 @@ export function onboardingFailure(error: BackendAuthError): {
   switch (error.code) {
     case "invalid_onboarding_token":
     case "onboarding_token_used":
-    case "terms_version_mismatch":
       return { action: "restart", message: ONBOARDING_RESTART_MESSAGE };
+    case "terms_version_mismatch":
+      return { action: "restart", message: TERMS_CHANGED_MESSAGE };
     case "account_link_required":
       return { action: "restart", message: ACCOUNT_LINK_MESSAGE };
     case "invalid_nickname":
