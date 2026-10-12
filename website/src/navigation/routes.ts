@@ -37,6 +37,7 @@ const SERVICE_NAME = "ESCAPE THE LEGEND";
 const PAGE_TITLES: Readonly<Partial<Record<string, string>>> = {
   [ROUTES.login]: "로그인",
   [ROUTES.signup]: "회원가입",
+  [ROUTES.socialOnboarding]: "가입 마무리",
   [ROUTES.forgotPassword]: "비밀번호 찾기",
   [ROUTES.verifyCode]: "비밀번호 재설정",
   [ROUTES.resetPassword]: "비밀번호 재설정",
