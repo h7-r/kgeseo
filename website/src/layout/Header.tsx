@@ -74,7 +74,7 @@ function Header({ activeId, user, onAccountClick, onSignOut, onSearch, onMenuNav
           onMenuNavigate(ROUTES.home);
         }}
         onAnimationEnd={() => setIsSweeping(false)}
-        aria-label="홈으로"
+        aria-label="LATENT SPACE 홈으로"
         className={isSweeping ? "header-logo is-sweeping" : "header-logo"}
         style={logoStyle}
       >

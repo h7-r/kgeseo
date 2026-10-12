@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type MouseEvent } from "react";
+import { useState, type CSSProperties } from "react";
 
 import HeartbeatLine from "@/components/HeartbeatLine";
 import Modal from "@/components/Modal";
@@ -14,6 +14,7 @@ import { COLOR } from "@/styles/tokens";
 import BenefitsBlock from "./BenefitsBlock";
 import BlockHeader from "./BlockHeader";
 import PaymentBox from "./PaymentBox";
+import PlanDetailModal from "./PlanDetailModal";
 import { pricingSectionStyle } from "./pricingStyles";
 
 const PLAN_BACKGROUNDS: Readonly<Record<PlanName, string>> = {
@@ -50,15 +51,18 @@ export default function PricingPlans({ top }: PricingPlansProps) {
   const user = useSessionUser();
   // 돌린 칸 수. 0 이면 BASIC·PREMIUM·ULTIMATE 원래 순서.
   const [rotation, setRotation] = useState(0);
+  // 모달은 닫히며 잠깐 사라지는 동안에도 내용을 그린다. 그래서 플랜은 남겨 두고 열림만 끈다.
   const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
+  const [isSubscribeOpen, setIsSubscribeOpen] = useState(false);
+  const [detailPlan, setDetailPlan] = useState<PricingPlan | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isAlertRequested, setIsAlertRequested] = useState(false);
   const planCount = PRICING.plans.length;
 
   const rotate = (steps: number) => setRotation((value) => (value + steps + planCount) % planCount);
 
   // 결제(PG)는 서버가 있어야 해서, 그 전까지는 로그인을 받고 오픈 알림 신청을 받는다.
-  const handleSubscribe = async (event: MouseEvent<HTMLButtonElement>, plan: PricingPlan) => {
-    event.stopPropagation(); // 카드 돌리기로 번지지 않게
+  const subscribe = async (plan: PricingPlan) => {
     if (!user) {
       navigate(withQuery(ROUTES.login, { [QUERY.next]: ROUTES.pricing }));
       return;
@@ -66,6 +70,13 @@ export default function PricingPlans({ top }: PricingPlansProps) {
     const data = await readAccountData(user.email);
     setIsAlertRequested(data?.settings.launchAlertPlan === plan.name);
     setSelectedPlan(plan);
+    setIsSubscribeOpen(true);
+  };
+
+  // 자세히 보기의 「구독하기」는 카드 단추와 같은 길로 간다. 겹쳐 뜨지 않게 자세히 보기를 먼저 닫는다.
+  const subscribeFromDetail = (plan: PricingPlan) => {
+    setIsDetailOpen(false);
+    void subscribe(plan);
   };
 
   const handleRequestAlert = async () => {
@@ -77,7 +88,7 @@ export default function PricingPlans({ top }: PricingPlansProps) {
     setIsAlertRequested(true);
   };
 
-  const closeModal = () => setSelectedPlan(null);
+  const closeModal = () => setIsSubscribeOpen(false);
 
   return (
     <div style={{ ...rootStyle, top: `${top}px` }}>
@@ -89,7 +100,7 @@ export default function PricingPlans({ top }: PricingPlansProps) {
         <BlockHeader
           eyebrow="Plans"
           title="구독 플랜 비교"
-          description="가장 적합한 플랜을 선택하고, 혜택을 한눈에 비교하세요."
+          description="플랜별 혜택을 한눈에 비교하고 나에게 맞는 플랜을 고르세요."
         />
 
         <div style={{ position: "relative", width: "1587px", height: "640px" }}>
@@ -100,12 +111,10 @@ export default function PricingPlans({ top }: PricingPlansProps) {
             return (
               <div
                 key={plan.name}
-                onClick={() => !isActive && rotate(CENTER_SLOT - slotIndex)}
                 style={{
                   ...cardSlotStyle,
                   transform: `translate3d(${slot.x}px, ${slot.y}px, 0) scale(${slot.scale})`,
                   zIndex: isActive ? 2 : 1,
-                  cursor: isActive ? "default" : "pointer",
                 }}
               >
                 <div
@@ -122,6 +131,23 @@ export default function PricingPlans({ top }: PricingPlansProps) {
                     filter: isActive ? "none" : "saturate(0.75) brightness(0.88)",
                   }}
                 >
+                  {/* 옆 카드는 한 번 누르면 가운데로만 온다. 가운데 카드를 다시 눌러야 자세히 보기가 뜬다. */}
+                  <button
+                    type="button"
+                    className="card-trigger"
+                    aria-label={isActive ? `${plan.name} 플랜 자세히 보기` : `${plan.name} 플랜 가운데로`}
+                    aria-haspopup={isActive ? "dialog" : undefined}
+                    onClick={(event) => {
+                      // 사파리는 눌러도 단추에 초점을 주지 않는다. 그래야 닫은 뒤 이 카드로 초점이 돌아온다.
+                      event.currentTarget.focus();
+                      if (!isActive) {
+                        rotate(CENTER_SLOT - slotIndex);
+                        return;
+                      }
+                      setDetailPlan(plan);
+                      setIsDetailOpen(true);
+                    }}
+                  />
                   <div
                     style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}
                   >
@@ -176,7 +202,7 @@ export default function PricingPlans({ top }: PricingPlansProps) {
                     type="button"
                     className="button button--primary"
                     style={subscribeButtonStyle}
-                    onClick={(e) => handleSubscribe(e, plan)}
+                    onClick={() => void subscribe(plan)}
                   >
                     <span className="button__label">구독하기</span>
                   </button>
@@ -188,7 +214,7 @@ export default function PricingPlans({ top }: PricingPlansProps) {
           {/* 카드 바깥 여백(57px)에 들어간다. */}
           <button
             type="button"
-            className="pricing-plans__arrow"
+            className="carousel-arrow carousel-arrow--prev pricing-plans__arrow"
             style={{ ...arrowStyle, left: "-3px" }}
             onClick={() => rotate(1)}
             aria-label="이전 플랜"
@@ -197,7 +223,7 @@ export default function PricingPlans({ top }: PricingPlansProps) {
           </button>
           <button
             type="button"
-            className="pricing-plans__arrow"
+            className="carousel-arrow carousel-arrow--next pricing-plans__arrow"
             style={{ ...arrowStyle, right: "-3px" }}
             onClick={() => rotate(-1)}
             aria-label="다음 플랜"
@@ -211,7 +237,7 @@ export default function PricingPlans({ top }: PricingPlansProps) {
         <BlockHeader
           eyebrow="Payment"
           title="결제 정보"
-          description="결제 수단을 등록하고, 자동 결제/환불 정책을 확인하세요."
+          description="결제 수단과 자동 결제 · 환불 기준을 미리 확인하세요."
         />
         <div style={{ display: "flex", gap: "24px", width: "100%" }}>
           {PRICING.paymentBoxes.map((box) => (
@@ -222,11 +248,20 @@ export default function PricingPlans({ top }: PricingPlansProps) {
 
       <BenefitsBlock />
 
+      {detailPlan && (
+        <PlanDetailModal
+          plan={detailPlan}
+          open={isDetailOpen}
+          onClose={() => setIsDetailOpen(false)}
+          onSubscribe={() => subscribeFromDetail(detailPlan)}
+        />
+      )}
+
       <Modal
-        open={Boolean(selectedPlan)}
+        open={isSubscribeOpen}
         onClose={closeModal}
         title={`${selectedPlan?.name ?? ""} 플랜 구독`}
-        description="결제는 서비스 오픈과 함께 열립니다. 오픈 알림을 신청하면 가입한 이메일로 가장 먼저 알려 드려요."
+        description="결제는 정식 오픈과 함께 열립니다. 오픈 알림을 신청하면 가입한 이메일로 가장 먼저 알려 드립니다."
       >
         {selectedPlan && (
           <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
@@ -287,6 +322,8 @@ const cardSlotStyle: CSSProperties = {
 };
 
 const cardStyle: CSSProperties = {
+  // 자세히 보기 덮개가 카드 크기에 맞춰 깔린다.
+  position: "relative",
   width: "100%",
   height: "100%",
   padding: "32px",
@@ -325,7 +362,9 @@ const extraStyle: CSSProperties = {
 };
 
 const subscribeButtonStyle: CSSProperties = {
-  // 카드 오른쪽 아래에 붙는 작은 알약.
+  // 카드 오른쪽 아래에 붙는 작은 알약. 자세히 보기 덮개(z 1)보다 위에 있어야 눌린다.
+  position: "relative",
+  zIndex: 2,
   alignSelf: "flex-end",
   display: "flex",
   alignItems: "center",
@@ -360,23 +399,11 @@ const waveStyle: CSSProperties = {
   display: "block",
 };
 
+// 모양은 공용 .carousel-arrow 가 정한다. 여기서는 카드 띠 양옆에 세우는 자리만.
 const arrowStyle: CSSProperties = {
   position: "absolute",
   top: "50%",
   transform: "translateY(-50%)",
-  width: "46px",
-  height: "46px",
-  borderRadius: "999px",
-  background: "rgba(5,11,26,0.75)",
-  border: "1px solid rgba(50,82,150,0.35)",
-  color: COLOR.accent,
-  fontFamily: FONT.body,
-  fontSize: "26px",
-  lineHeight: 1,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  cursor: "pointer",
   zIndex: 3,
 };
 

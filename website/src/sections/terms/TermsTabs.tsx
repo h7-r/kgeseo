@@ -1,7 +1,8 @@
-import type { CSSProperties } from "react";
+import { Fragment, type CSSProperties } from "react";
 
 import TabBar from "@/components/TabBar";
 import { TERMS_CONTENT, TERMS_HEIGHTS, TERMS_TABS, type TermsTabId } from "@/data/terms";
+import { parseEmphasis, type EmphasisTone } from "@/lib/emphasis";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
 
@@ -57,7 +58,7 @@ export default function TermsTabs({ tab, top, left = 80, width = 1760, onTabChan
             <div key={i} style={paragraphStyle}>
               {section.lines.map((line, j) => (
                 <p key={j} style={{ ...lineStyle, marginBottom: j === section.lines.length - 1 ? 0 : "10px" }}>
-                  {line}
+                  <EmphasizedLine text={line} />
                 </p>
               ))}
             </div>
@@ -67,6 +68,25 @@ export default function TermsTabs({ tab, top, left = 80, width = 1760, onTabChan
     </section>
   );
 }
+
+/** 본문 한 줄. 데이터의 강조 표기를 흰색·빨간색 굵은 글로 바꾼다. */
+function EmphasizedLine({ text }: { text: string }) {
+  return parseEmphasis(text).map((run, i) =>
+    run.tone ? (
+      <strong key={i} style={EMPHASIS_STYLE[run.tone]}>
+        {run.text}
+      </strong>
+    ) : (
+      <Fragment key={i}>{run.text}</Fragment>
+    ),
+  );
+}
+
+// 짚어 둘 것은 흰색, 경고는 빨강. 빨강은 남색 바탕에서 눈이 시리지 않게 채도를 낮춘 공용 danger(대비 7.3:1).
+const EMPHASIS_STYLE: Record<EmphasisTone, CSSProperties> = {
+  key: { color: COLOR.white, fontWeight: 700 },
+  warn: { color: COLOR.danger, fontWeight: 600 },
+};
 
 const rootStyle: CSSProperties = {
   position: "absolute",
@@ -148,7 +168,8 @@ const paragraphStyle: CSSProperties = {
   letterSpacing: "-0.1px",
   fontWeight: 400,
   fontSize: "16px",
-  color: COLOR.textMuted,
+  // 공용 textMuted(대비 7.9:1)보다 한 단 밝혀 긴 글을 덜 피곤하게 읽는다(9.7:1).
+  color: "#a9b4c5",
   width: "100%",
   whiteSpace: "pre-wrap",
   // 한 줄이 너무 길면 눈이 다음 줄을 못 찾는다.

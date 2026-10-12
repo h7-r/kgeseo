@@ -50,6 +50,14 @@
   border-color: var(--color-blue-light);
   outline: none;
 }
+/* 닫힘은 열림보다 짧게. 사라지는 쪽을 기다리게 하면 굼떠 보인다. */
+.modal-backdrop.is-closing {
+  pointer-events: none;
+  animation: modal-backdrop-out 0.16s ease-in forwards;
+}
+.modal-backdrop.is-closing .modal {
+  animation: modal-out 0.16s ease-in forwards;
+}
 @keyframes modal-backdrop-in {
   from {
     opacity: 0;
@@ -68,10 +76,23 @@
     transform: none;
   }
 }
+@keyframes modal-backdrop-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes modal-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .modal-backdrop,
-  .modal {
+  .modal,
+  .modal-backdrop.is-closing,
+  .modal-backdrop.is-closing .modal {
     animation: none;
   }
 }

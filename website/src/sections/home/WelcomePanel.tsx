@@ -42,7 +42,14 @@ export default function WelcomePanel({ user }: WelcomePanelProps) {
 
   return (
     <div
-      style={{ ...signupPanelStyle, display: "flex", flexDirection: "column", justifyContent: "center", gap: "24px" }}
+      style={{
+        ...signupPanelStyle,
+        height: "660px",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        gap: "24px",
+      }}
       className={`u-stagger${isActive ? " is-active" : ""}`}
     >
       {/* 모노의 넓은 자간이 한글에 걸리면 글자가 흩어져 보여 영문만 모노로 쓴다. */}

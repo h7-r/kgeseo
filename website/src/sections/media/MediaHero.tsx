@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
+import { useScrollToSection } from "@/layout/headerScroll";
 import { FONT, gradientText } from "@/lib/style";
-import { ROUTES, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
 import { COLOR, CORNER_BRACKETS, GRADIENT, SHADOW, badgePillStyle } from "@/styles/tokens";
 
@@ -11,7 +11,7 @@ interface MediaHeroProps {
 
 /** 게임영상·캐릭터 페이지 첫 화면. 가운데 정렬판이라 옆 영상 패널은 없다. */
 export default function MediaHero({ top = 129 }: MediaHeroProps) {
-  const navigate = useSiteNavigate();
+  const scrollToSection = useScrollToSection();
 
   return (
     <section style={{ ...rootStyle, top: `${top}px` }} {...sectionAnchor("media-hero")}>
@@ -38,15 +38,20 @@ export default function MediaHero({ top = 129 }: MediaHeroProps) {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "center", width: "100%" }}>
-          <div style={titleStyle}>게임영상 및 캐릭터</div>
-          <div style={descriptionStyle}>게임 플레이 영상과 캐릭터 소개를 확인해보세요.</div>
+          <div style={titleStyle}>게임 영상 · 캐릭터</div>
+          <div style={descriptionStyle}>플레이 영상과 등장인물을 먼저 만나 보세요.</div>
         </div>
 
         <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <button type="button" className="button" style={filledButtonStyle} onClick={() => navigate(ROUTES.media)}>
+          <button type="button" className="button" style={filledButtonStyle} onClick={() => scrollToSection("videos")}>
             <span className="button__label">트레일러 보기</span>
           </button>
-          <button type="button" className="button" style={outlineButtonStyle} onClick={() => navigate(ROUTES.media)}>
+          <button
+            type="button"
+            className="button"
+            style={outlineButtonStyle}
+            onClick={() => scrollToSection("characters")}
+          >
             <span className="button__label">캐릭터 갤러리 →</span>
           </button>
         </div>

@@ -5,20 +5,6 @@ import { COLOR } from "@/styles/tokens";
 
 // 흰 면 위 쪽번호(게임 소개 · 고객센터 공지)가 같이 쓴다.
 
-export const pagerArrowStyle: CSSProperties = {
-  width: "40px",
-  height: "40px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontFamily: FONT.body,
-  fontWeight: 400,
-  fontSize: "28px",
-  color: "#4a5263",
-  whiteSpace: "nowrap",
-  cursor: "pointer",
-};
-
 const pageBaseStyle: CSSProperties = {
   width: "36px",
   height: "36px",

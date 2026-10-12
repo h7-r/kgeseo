@@ -59,6 +59,11 @@
 .heartbeat-line__glow {
   opacity: 0.55;
 }
+/* 아직 드러나지 않은 덩이 안의 선은 쉰다. 그동안 돌아 버리면 보이는 순간 박동 사이의 빈 구간에 걸린다. */
+.u-stagger:not(.is-active) .u-stagger__item .heartbeat-line__pulse,
+.u-stagger:not(.is-active) .u-stagger__item .heartbeat-line__glow {
+  animation-play-state: paused;
+}
 @keyframes heartbeat-pulse {
   0% {
     stroke-dashoffset: 100;
@@ -713,5 +718,43 @@ html.is-scrolling .header-logo:not(.is-sweeping),
     animation-timeline: scroll(root block);
     animation-range: var(--pin-start, 0px) var(--pin-end, 0px);
     will-change: transform;
+  }
+}
+
+/* 시나리오 카드 호버 — 떠오르는 높이(--float-lift 0→1)는 transition 으로, 흔들림(--float-bob)은 애니메이션으로 따로 둔다.
+   손을 떼면 흔들림을 그 자리에 멈추고 높이만 0 으로 내려 툭 떨어지지 않고 내려앉는다. */
+@property --float-lift {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
+@property --float-bob {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+.scenario-card__body {
+  transform: translateY(calc(var(--float-lift) * (var(--float-bob) - 22px)));
+  animation: scenario-card-bob 3.2s ease-in-out infinite paused;
+}
+.scenario-card:hover .scenario-card__body,
+.scenario-card:focus-within .scenario-card__body {
+  --float-lift: 1;
+  animation-play-state: running;
+}
+@keyframes scenario-card-bob {
+  0%,
+  100% {
+    --float-bob: 0px;
+  }
+  50% {
+    --float-bob: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scenario-card__body {
+    transform: none;
+    animation: none;
   }
 }

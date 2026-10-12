@@ -26,7 +26,7 @@ export default function NoticesPanel() {
     <>
       <PanelHeading
         title="공지사항"
-        description="게임 관련 최신 패치 노트, 정기 점검, 이벤트 공지 및 중요 안내를 신속하게 확인하세요."
+        description="패치 노트 · 정기 점검 · 이벤트 소식과 중요한 안내를 한곳에서 확인하세요."
       />
       <div style={panelStyle}>
         <div style={{ padding: "0 32px" }}>

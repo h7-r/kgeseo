@@ -87,7 +87,7 @@ export default function HeaderSearch({ size = 22, onSubmit }: HeaderSearchProps)
           // 닫혀 있을 땐 보이지 않으니 탭 차례에서도 뺀다.
           tabIndex={isOpen ? 0 : -1}
           placeholder="무엇을 찾으세요?"
-          aria-label="사이트 안에서 찾기"
+          aria-label="사이트 검색"
           style={inputStyle}
         />
       </div>
@@ -96,7 +96,7 @@ export default function HeaderSearch({ size = 22, onSubmit }: HeaderSearchProps)
         ref={buttonRef}
         type="button"
         onClick={handleIconClick}
-        aria-label={isOpen ? "찾기" : "검색 열기"}
+        aria-label={isOpen ? "검색하기" : "검색 열기"}
         aria-expanded={isOpen}
         style={iconButtonStyle}
       >

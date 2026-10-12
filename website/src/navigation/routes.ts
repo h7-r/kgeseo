@@ -29,6 +29,37 @@ export const ROUTES = {
 
 export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];
 
+/** 서비스 이름. 회사·팀 이름(LATENT SPACE)과 구분해 탭 제목·푸터·저작권 표시에 쓴다. */
+const SERVICE_NAME = "ESCAPE THE LEGEND";
+
+const PAGE_TITLES: Readonly<Partial<Record<string, string>>> = {
+  [ROUTES.login]: "로그인",
+  [ROUTES.signup]: "회원가입",
+  [ROUTES.forgotPassword]: "비밀번호 찾기",
+  [ROUTES.verifyCode]: "비밀번호 재설정",
+  [ROUTES.resetPassword]: "비밀번호 재설정",
+  [ROUTES.about]: "게임 소개",
+  [ROUTES.terms]: "약관 및 정책",
+  [ROUTES.support]: "고객센터",
+  [ROUTES.pricing]: "구독",
+  [ROUTES.myPage]: "마이페이지",
+  [ROUTES.media]: "게임 영상 · 캐릭터",
+  [ROUTES.search]: "검색",
+  [ROUTES.play]: "게임 시작",
+  [ROUTES.forbidden]: "로그인이 필요합니다",
+  [ROUTES.serverError]: "일시적인 오류",
+  [ROUTES.maintenance]: "점검 중",
+  [ROUTES.offline]: "인터넷 연결 없음",
+  [ROUTES.socialCallback]: "로그인",
+};
+
+/** 브라우저 탭 제목. 모르는 주소는 404 화면이 뜨므로 그에 맞춘다. */
+export function pageTitle(pathname: string): string {
+  if (pathname === ROUTES.home) return `${SERVICE_NAME} — 지역 전설 방탈출`;
+  const name = PAGE_TITLES[decodeURIComponent(pathname)] ?? "페이지를 찾을 수 없습니다";
+  return `${name} · ${SERVICE_NAME}`;
+}
+
 /** 주소 질의 이름. 탭은 각 데이터 파일의 탭 id 를 값으로 쓴다. */
 export const QUERY = {
   tab: "tab",
@@ -122,8 +153,8 @@ export const SOCIAL_LINKS = {
 
 /** 홈 푸터와 하위 페이지 푸터가 함께 쓰는 링크. */
 export const FOOTER_LINKS: readonly { label: string; target: NavTarget }[] = [
-  { label: "탐험", target: ROUTES.media },
-  { label: "지역 맵", target: ROUTES.home },
-  { label: "퀘스트", target: ROUTES.about },
-  { label: "보상", target: ROUTES.pricing },
+  { label: "게임 소개", target: ROUTES.about },
+  { label: "컬렉션", target: ROUTES.media },
+  { label: "구독 혜택", target: ROUTES.pricing },
+  { label: "고객센터", target: ROUTES.support },
 ];

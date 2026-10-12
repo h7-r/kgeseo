@@ -1,10 +1,11 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 
 import type { PaymentBoxContent } from "@/data/pricing";
 import { depthRevealClass, useReveal, useTilt } from "@/hooks/motion";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
 
+import PaymentDetailModal from "./PaymentDetailModal";
 import { bulletStyle } from "./pricingStyles";
 
 type PaymentBoxProps = PaymentBoxContent;
@@ -12,14 +13,27 @@ type PaymentBoxProps = PaymentBoxContent;
 /**
  * 결제 정보 한 상자. 항목 앞 「•」는 데이터에 글자로 들어 있어 떼고 따로 그린다 —
  * 그래야 줄이 넘어갈 때 둘째 줄이 점 아래로 파고들지 않는다.
+ * 상자를 누르면 같은 주제를 풀어 쓴 모달이 뜬다.
  */
-export default function PaymentBox({ icon, title, summary, lines }: PaymentBoxProps) {
+export default function PaymentBox({ id, icon, title, summary, lines }: PaymentBoxProps) {
   const tilt = useTilt(3);
   const [ref, isVisible] = useReveal();
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   return (
     <div ref={ref} className={`u-tilt-scene ${depthRevealClass(isVisible)}`} style={{ flex: "1 0 0", minWidth: 0 }}>
       <div {...tilt} className="interactive-card u-tilt" style={{ ...paymentBoxStyle, width: "100%", height: "100%" }}>
+        <button
+          type="button"
+          className="card-trigger"
+          aria-label={`${title} 자세히 보기`}
+          aria-haspopup="dialog"
+          onClick={(event) => {
+            // 사파리는 눌러도 단추에 초점을 주지 않는다. 그래야 닫은 뒤 이 상자로 초점이 돌아온다.
+            event.currentTarget.focus();
+            setIsDetailOpen(true);
+          }}
+        />
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <div style={iconBoxStyle}>
             <img
@@ -40,6 +54,9 @@ export default function PaymentBox({ icon, title, summary, lines }: PaymentBoxPr
             }}
           >
             {title}
+          </span>
+          <span className="payment-box__more" aria-hidden="true">
+            자세히 ›
           </span>
         </div>
 
@@ -65,6 +82,7 @@ export default function PaymentBox({ icon, title, summary, lines }: PaymentBoxPr
           ))}
         </div>
       </div>
+      <PaymentDetailModal topic={id} title={title} open={isDetailOpen} onClose={() => setIsDetailOpen(false)} />
     </div>
   );
 }

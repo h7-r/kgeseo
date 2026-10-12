@@ -30,7 +30,7 @@ const ERROR_SCREENS: Record<ErrorKind, ErrorScreen> = {
   "404": {
     code: "404",
     title: "미션 경로를 찾을 수 없습니다",
-    description: "이 구역은 잠겨 있거나 존재하지 않는 경로입니다. 주소를 다시 확인해 주세요.",
+    description: "주소가 바뀌었거나 없는 페이지입니다. 주소를 다시 확인해 주세요.",
     primary: { label: "본부로 복귀하기", path: ROUTES.home },
   },
   "403": {
@@ -38,25 +38,25 @@ const ERROR_SCREENS: Record<ErrorKind, ErrorScreen> = {
     title: "조사관 인증이 필요합니다",
     description: "이 구역은 등록된 조사관만 들어갈 수 있습니다. 로그인한 뒤 다시 시도해 주세요.",
     primary: { label: "로그인하러 가기", path: ROUTES.login },
-    secondary: { label: "아직 계정이 없다면 회원가입", path: ROUTES.signup },
+    secondary: { label: "계정이 없다면 회원가입", path: ROUTES.signup },
   },
   "500": {
     code: "500",
     title: "본부와 연결이 끊겼습니다",
-    description: "서버에서 문제가 생겼습니다. 잠시 뒤 다시 시도해 주세요. 계속된다면 고객센터로 알려 주세요.",
+    description: "서버에 문제가 생겼습니다. 잠시 후 다시 시도해 주세요. 계속되면 고객센터로 알려 주세요.",
     primary: { label: "다시 시도하기" },
     secondary: { label: "고객센터에 알리기", path: ROUTES.support },
   },
   "503": {
     code: "503",
     title: "점검 중입니다",
-    description: "더 나은 탐험을 위해 잠시 문을 닫았습니다. 점검이 끝나면 바로 열립니다.",
+    description: "더 나은 조사 환경을 위해 잠시 문을 닫았습니다. 점검 시간은 공지사항에서 확인할 수 있습니다.",
     primary: { label: "공지 확인하기", path: ROUTES.support },
   },
   offline: {
     code: "﹖",
     title: "인터넷에 연결되어 있지 않습니다",
-    description: "네트워크 연결을 확인한 뒤 다시 시도해 주세요. 연결되면 이 화면이 저절로 사라집니다.",
+    description: "네트워크 연결을 확인한 뒤 다시 시도해 주세요.",
     primary: { label: "다시 시도하기" },
   },
 };

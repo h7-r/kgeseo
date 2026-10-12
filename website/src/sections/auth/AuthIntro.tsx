@@ -5,9 +5,9 @@ import { ROUTES, useSiteNavigate } from "@/navigation/routes";
 import { COLOR, GRADIENT, SHADOW } from "@/styles/tokens";
 
 const BENEFITS = [
-  ["[01]", "나주 앙암바위 첫 번째 사건 즉시 접근"],
-  ["[02]", "수사 기록 저장 및 진행 상황 동기화"],
-  ["[03]", "실제 지역 방문 보상 미션 해제"],
+  ["[01]", "첫 사건 「나주 앙암바위」 바로 플레이"],
+  ["[02]", "수사 기록 자동 저장 · 이어 하기"],
+  ["[03]", "실제 지역 방문 보상 미션 열림"],
 ] as const;
 
 /** 인증 화면 오른쪽에 붙는 소개 글. */
@@ -30,7 +30,7 @@ export default function AuthIntro() {
       <div style={{ fontFamily: FONT.mono, fontWeight: 300, fontSize: "16px", color: COLOR.textMuted, width: "100%" }}>
         <p style={paragraphStyle}>조사관 등록을 완료하고 합동수사본부에 합류하세요.</p>
         <p style={paragraphStyle}>전국 각지에서 사라진 기록을 추적하고,</p>
-        <p style={paragraphStyle}>잊혀진 전설의 진실을 밝혀낼 당신을 기다리고 있습니다.</p>
+        <p style={paragraphStyle}>잊힌 전설의 진실을 밝혀내 주세요.</p>
       </div>
 
       <div style={benefitListStyle}>

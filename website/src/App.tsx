@@ -8,7 +8,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import {
   AboutPage,
@@ -27,10 +27,11 @@ import HeaderLayer from "@/layout/HeaderLayer";
 import VideoModal from "@/layout/videoPlayer/VideoModal";
 import { BACKDROP_ORIGIN } from "@/lib/layout";
 import { dispatchPageChange, scrollToTopSilently } from "@/lib/pageEvents";
-import { ROUTES, launchGame } from "@/navigation/routes";
+import { ROUTES, launchGame, pageTitle } from "@/navigation/routes";
 import ErrorPage from "@/pages/ErrorPage";
 import HomePage from "@/pages/HomePage";
 import SocialCallbackPage from "@/pages/SocialCallbackPage";
+import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 import { getSessionUser, useSessionUser } from "@/services/session";
 import SceneSlot from "@/three/SceneSlot";
 
@@ -49,9 +50,10 @@ export default function App() {
           <Route path={ROUTES.login} element={<AuthPage mode="login" />} />
           <Route path={ROUTES.socialCallback} element={<SocialCallbackPage />} />
           <Route path={ROUTES.signup} element={<AuthPage mode="signup" />} />
-          <Route path={ROUTES.forgotPassword} element={<AuthPage mode="forgotPassword" />} />
-          <Route path={ROUTES.verifyCode} element={<AuthPage mode="verifyCode" />} />
-          <Route path={ROUTES.resetPassword} element={<AuthPage mode="resetPassword" />} />
+          {/* 비밀번호 찾기는 백엔드가 준비될 때까지 막는다 — 주소로 들어와도 로그인으로 보낸다 */}
+          <Route path={ROUTES.forgotPassword} element={<PasswordResetRoute mode="forgotPassword" />} />
+          <Route path={ROUTES.verifyCode} element={<PasswordResetRoute mode="verifyCode" />} />
+          <Route path={ROUTES.resetPassword} element={<PasswordResetRoute mode="resetPassword" />} />
           <Route path={ROUTES.about} element={<AboutPage />} />
           <Route path={ROUTES.terms} element={<TermsPage />} />
           <Route path={ROUTES.support} element={<SupportPage />} />
@@ -88,7 +90,12 @@ function PlayRedirect() {
     else navigate(ROUTES.login, { replace: true });
   }, [navigate]);
 
-  return <p style={{ padding: "160px 24px", textAlign: "center", color: "#8fa0c4" }}>게임으로 이동하는 중…</p>;
+  return <p style={{ padding: "160px 24px", textAlign: "center", color: "#8fa0c4" }}>게임으로 이동하고 있습니다…</p>;
+}
+
+function PasswordResetRoute({ mode }: { mode: "forgotPassword" | "verifyCode" | "resetPassword" }) {
+  if (!IS_ACCOUNT_MANAGEMENT_READY) return <Navigate to={ROUTES.login} replace />;
+  return <AuthPage mode={mode} />;
 }
 
 /** 로그인해야 들어가는 화면. 말없이 튕기지 않고 403 화면으로 이유를 알린다. 보안이 아니라 흐름용 잠금이다. */
@@ -148,6 +155,7 @@ function PageFrame({ children }: { children: ReactNode }) {
   useLayoutEffect(() => {
     scrollToTopSilently();
     dispatchPageChange();
+    document.title = pageTitle(pathname);
   }, [pathname]);
 
   return (

@@ -23,7 +23,7 @@ export default function BenefitsBlock() {
       <BlockHeader
         eyebrow="Benefits"
         title="혜택 안내"
-        description="구독 혜택을 한눈에 확인하고, 시즌 드롭을 미리 준비하세요."
+        description="구독 혜택을 한눈에 확인하고 다음 시즌 드롭을 미리 준비하세요."
       />
       <div style={benefitsRowStyle}>
         <div style={{ width: "520px", height: "356px", borderRadius: "16px", overflow: "hidden", flexShrink: 0 }}>

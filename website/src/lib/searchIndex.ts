@@ -3,7 +3,9 @@ import { MY_PAGE_CONTENT, MY_PAGE_TABS } from "@/data/myPage";
 import { PRICING } from "@/data/pricing";
 import { FAQ_ITEMS, NOTICES } from "@/data/support";
 import { TERMS_CONTENT, TERMS_TABS } from "@/data/terms";
+import { stripEmphasis } from "@/lib/emphasis";
 import { QUERY, ROUTES, withQuery, type NavTarget } from "@/navigation/routes";
+import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 
 /**
  * 사이트 검색 색인. 검색용으로 글을 따로 베껴 두면 언젠가 본문과 어긋나므로
@@ -28,8 +30,8 @@ interface IndexEntry {
   lowerBody: string;
 }
 
-// 글이 아닌 칸. kind 는 약관 조각의 종류 표시, icon 은 그림 주소라 검색 본문에 넣지 않는다.
-const NON_TEXT_KEYS = new Set(["kind", "icon"]);
+// 글이 아닌 칸. kind 는 약관 조각의 종류 표시, icon 은 그림 주소, action 은 마이페이지 동작 이름이라 검색 본문에 넣지 않는다.
+const NON_TEXT_KEYS = new Set(["kind", "icon", "action"]);
 
 /** 글 묶음을 한 줄 문자열로 편다. */
 function flatten(value: unknown): string {
@@ -59,18 +61,21 @@ function buildIndex(): IndexEntry[] {
   const entries = [
     entry("홈", "홈", ROUTES.home, [
       "ESCAPE THE LEGEND 지역 전설 방탈출 어드벤처",
-      "각 지역의 역사와 설화를 바탕으로 만들어진 몰입형 방탈출 게임",
-      "전국 방탈출 맵 역사 설화 퀘스트 숨겨진 보상",
-      "지역을 선택하세요 경주 나주 목포 여수 순천 앙암바위 갓바위 거북선 이순신 순천만",
+      "지역의 역사와 설화로 만든 몰입형 방탈출 게임 지워진 기록 1인칭",
+      "공개 맵 나주 출시 예정 지역 숨겨진 보상 나주 앙암바위 첫 공개",
+      "지역을 선택하세요 나주 앙암바위 경주 목포 여수 순천 출시 예정 갓바위 거북선 이순신 순천만",
       "SECRET OF ANGAM 앙암바위의 비밀 미션 시작하기",
     ]),
     entry("회원가입", "인증", ROUTES.signup, "회원가입 닉네임 지역 이메일 비밀번호 약관 동의 만 14세"),
     entry("로그인", "인증", ROUTES.login, "로그인 이메일 비밀번호 간편 로그인 구글 네이버"),
-    entry("비밀번호 찾기", "인증", ROUTES.forgotPassword, "비밀번호 찾기 재설정 링크 인증코드"),
+    // 비밀번호 찾기는 백엔드가 준비될 때까지 검색에도 내놓지 않는다
+    ...(IS_ACCOUNT_MANAGEMENT_READY
+      ? [entry("비밀번호 찾기", "인증", ROUTES.forgotPassword, "비밀번호 찾기 재설정 인증코드 6자리")]
+      : []),
     entry("영상 · 캐릭터", "컬렉션", ROUTES.media, [
       "게임 영상 챌린지 탈출의 시작 암호 해독 챌린지 최후의 대결 지워진 기록 복원 멈춘 시계 탈출",
       "캐릭터 소개 한서진 프로파일러 강민혁 보안 전문가 윤하은 암호 해독가",
-      "몰입감 넘치는 게임 경험 실시간 3D 탐험",
+      "몰입감 넘치는 게임 경험 실시간 3D 탐험 정교한 퍼즐 스토리 몰입 멀티플레이 출시 예정",
     ]),
   ];
 
@@ -80,7 +85,13 @@ function buildIndex(): IndexEntry[] {
 
   for (const tab of TERMS_TABS) {
     entries.push(
-      entry(`약관 · ${tab.label}`, "약관", withQuery(ROUTES.terms, { [QUERY.tab]: tab.id }), TERMS_CONTENT[tab.id]),
+      entry(
+        `약관 · ${tab.label}`,
+        "약관",
+        withQuery(ROUTES.terms, { [QUERY.tab]: tab.id }),
+        // 강조 표기(**·!!)가 검색어와 미리보기에 끼지 않게 걷어 낸다.
+        stripEmphasis(flatten(TERMS_CONTENT[tab.id])),
+      ),
     );
   }
 

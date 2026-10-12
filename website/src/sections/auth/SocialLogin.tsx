@@ -43,7 +43,8 @@ export default function SocialLogin({ onSignedIn }: SocialLoginProps) {
           className="button"
           style={{ ...socialButtonStyle, background: COLOR.white, ...(isBusy ? busyStyle : {}) }}
           onClick={handleGoogle}
-          title="Google 로 로그인"
+          title="Google 계정으로 계속하기 (팝업 창)"
+          aria-label="Google 계정으로 계속하기 (팝업 창)"
           aria-busy={isBusy}
         >
           <img
@@ -59,7 +60,8 @@ export default function SocialLogin({ onSignedIn }: SocialLoginProps) {
           className="button"
           style={{ ...socialButtonStyle, background: "#03c75a", borderColor: "#03c75a" }}
           onClick={handleNaver}
-          title="네이버로 로그인"
+          title="네이버로 계속하기 (네이버 화면으로 이동)"
+          aria-label="네이버로 계속하기 (네이버 화면으로 이동)"
         >
           <span style={naverMarkStyle}>N</span>
         </button>

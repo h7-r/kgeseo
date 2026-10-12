@@ -51,7 +51,7 @@ export default function InquiryPanel() {
   const acceptFile = (file: File | undefined) => {
     if (!file) return;
     if (file.size > MAX_FILE_BYTES) {
-      setFileError("10MB 를 넘는 파일은 첨부할 수 없습니다");
+      setFileError("10MB를 넘는 파일은 첨부할 수 없습니다.");
       return;
     }
     setAttachment({ name: file.name, size: formatFileSize(file.size) });
@@ -65,20 +65,20 @@ export default function InquiryPanel() {
 
   return (
     <>
-      <PanelHeading title="1:1 문의하기" description="궁금한 점이나 불편사항을 남겨주시면 빠르게 답변드리겠습니다." />
+      <PanelHeading title="1:1 문의하기" description="궁금한 점이나 불편한 점을 남겨 주시면 빠르게 답변드리겠습니다." />
       {/* 위로 맞춰야 오른쪽 안내 상자가 왼쪽 상자 키를 따라 늘어나지 않는다. */}
       <div style={{ display: "flex", gap: "40px", width: "100%", alignItems: "flex-start" }}>
         <div style={{ ...inquiryCardStyle, flex: "1 0 0", minWidth: 0, gap: "24px" }}>
           <InquiryField
             label="문의 유형"
-            placeholder="문의 유형을 선택해주세요"
+            placeholder="문의 유형을 선택해 주세요"
             isSelect
             {...fieldProps("inquiryType")}
           />
-          <InquiryField label="제목" placeholder="문의 제목을 입력해주세요" {...fieldProps("title")} />
+          <InquiryField label="제목" placeholder="문의 제목을 입력해 주세요" {...fieldProps("title")} />
           <InquiryField
             label="내용"
-            placeholder="문의 내용을 자세히 작성해주세요"
+            placeholder="문의 내용을 자세히 적어 주세요"
             height={200}
             {...fieldProps("content")}
           />
@@ -123,7 +123,7 @@ export default function InquiryPanel() {
               >
                 {attachment
                   ? `${attachment.name} · ${attachment.size}`
-                  : "파일을 드래그하거나 클릭하여 첨부 (최대 10MB)"}
+                  : "파일을 끌어다 놓거나 눌러서 첨부 (최대 10MB)"}
               </span>
               {attachment && (
                 <button
@@ -152,7 +152,7 @@ export default function InquiryPanel() {
             )}
           </div>
 
-          <InquiryField label="이메일" placeholder="답변 받으실 이메일 주소" {...fieldProps("email")} />
+          <InquiryField label="이메일" placeholder="답변 받을 이메일 주소" {...fieldProps("email")} />
           <button type="button" className="button" style={submitButtonStyle} onClick={handleSubmit}>
             <span className="button__label">{isSent ? "접수되었습니다 ✓" : "문의 접수하기"}</span>
           </button>
@@ -163,13 +163,13 @@ export default function InquiryPanel() {
             운영 시간
           </div>
           <div style={infoListStyle}>
-            <span>평일 10:00 - 18:00</span>
-            <span>주말/공휴일 휴무</span>
+            <span>평일 10:00~18:00</span>
+            <span>주말 · 공휴일 휴무</span>
           </div>
           <div style={{ height: "1px", background: COLOR.lightDivider }} />
           <div style={infoListStyle}>
             <span>긴급 문의: support@escapethelegend.kr</span>
-            <span>평균 답변 시간: 1-2 영업일</span>
+            <span>평균 답변 시간: 1~2영업일</span>
           </div>
         </div>
       </div>

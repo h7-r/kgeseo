@@ -17,6 +17,9 @@
   --color-blue-light: #4f6cb0;
 
   --font-korean: "IBM Plex Sans KR", "Apple SD Gothic Neo", sans-serif;
+  /* lib/style.ts 의 FONT 와 같은 묶음. CSS 에서 쓸 때 여기서 가져간다. */
+  --font-mono: "IBM Plex Mono", "IBM Plex Sans KR", monospace;
+  --font-display: "Bebas Neue", "Paperlogy", "IBM Plex Sans KR", sans-serif;
 
   /* 끝이 확 붙는 곡선. 기본 ease 는 일부러 넣은 움직임처럼 보이지 않는다. */
   --ease-smooth: cubic-bezier(0.23, 1, 0.32, 1);

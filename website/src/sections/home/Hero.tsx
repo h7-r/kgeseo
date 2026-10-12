@@ -10,7 +10,7 @@ import HeroVideoFrame from "./HeroVideoFrame";
 // three.js 를 첫 번들에서 뺀다. 받는 동안은 같은 포스터가 보인다.
 const HeroVideo = lazy(() => import("@/sections/home/HeroVideo"));
 
-const DESCRIPTION = "이스케이프 더 레전드는 지역의 전설 속으로 떠나는 몰입형 방탈출 어드벤처 게임입니다.";
+const DESCRIPTION = "지역의 전설 속으로 들어가 지워진 기록을 되찾는 1인칭 방탈출 어드벤처";
 
 interface HeroProps {
   top?: number;

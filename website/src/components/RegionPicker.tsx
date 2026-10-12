@@ -154,7 +154,7 @@ export default function RegionPicker({
         >
           <div className="region-picker__list-head" style={{ fontFamily: FONT.mono }}>
             <span>지역 선택</span>
-            <span className="region-picker__list-help">탐험을 시작할 지역 · 나중에 바꿀 수 있어요</span>
+            <span className="region-picker__list-help">내가 사는 지역 · 나중에 바꿀 수 있습니다</span>
           </div>
           {REGION_GROUPS.map((group) => (
             <div key={group.name} className="region-picker__group" role="group" aria-label={group.name}>

@@ -13,12 +13,14 @@ import dividerLine from "@/assets/images/imgLine.svg";
 import mountainIcon from "@/assets/images/imgMountainIcon.svg";
 import najuPhoto from "@/assets/images/imgPortalImageNaju.webp";
 import showcasePhoto from "@/assets/images/imgShowcaseCircle.webp";
+import ComingSoonChip from "@/components/ComingSoonChip";
 import { VIDEOS, type Video } from "@/data/videos";
 import { useScrollZoomOut } from "@/hooks/motion";
 import { useProximity } from "@/hooks/proximity";
 import { useVideoPreview } from "@/hooks/useVideoPreview";
+import { useScrollToSection } from "@/layout/headerScroll";
 import { fillImageStyle, FONT, glowImageStyle, gradientText, place } from "@/lib/style";
-import { ROUTES, useSiteNavigate } from "@/navigation/routes";
+import { START_GAME, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
 import { COLOR, GRADIENT, SHADOW, badgePillStyle } from "@/styles/tokens";
 
@@ -31,6 +33,8 @@ interface Branch {
   video?: Video;
   title: string;
   description: string;
+  /** 아직 플레이할 수 없는 지역. 지금 열린 곳은 나주뿐이다. */
+  isComingSoon?: boolean;
 }
 
 /** 갈래 다섯 — 각각 실제 지역 하나를 가리킨다. 누르면 오른쪽 원이 그 지역으로 바뀐다. */
@@ -43,13 +47,14 @@ const BRANCHES: readonly Branch[] = [
     video: VIDEOS.gyeongju,
     title: "경주 (Gyeongju) · 신라의 비밀",
     description: "천년의 역사가 숨겨진 고분 아래, 잃어버린 전설의 열쇠가 깨어납니다.",
+    isComingSoon: true,
   },
   {
     label: "전설 추적",
     icon: filePaperIcon,
     iconSize: 30,
     photo: najuPhoto,
-    title: "나주 (Naju) · 앙암바위의 전설",
+    title: "나주 (Naju) · 앙암바위의 비밀",
     description: "강가에 선 바위에 얽힌 오래된 이야기, 그 진짜 결말을 찾아내세요.",
   },
   {
@@ -60,6 +65,7 @@ const BRANCHES: readonly Branch[] = [
     video: VIDEOS.yeosu,
     title: "여수 (Yeosu) · 거북선의 비밀",
     description: "이순신의 전라좌수영이 있던 바다, 거북선이 남긴 단서를 따라 봉인을 푸세요.",
+    isComingSoon: true,
   },
   {
     label: "자연 모험",
@@ -69,6 +75,7 @@ const BRANCHES: readonly Branch[] = [
     video: VIDEOS.suncheon,
     title: "순천 (Suncheon) · 순천만의 비밀",
     description: "갈대숲 사이로 굽이치는 S자 물길, 그 끝에 숨은 단서를 따라가세요.",
+    isComingSoon: true,
   },
   {
     label: "미스터리",
@@ -77,13 +84,15 @@ const BRANCHES: readonly Branch[] = [
     photo: mysteryPhoto,
     video: VIDEOS.mokpo,
     title: "목포 (Mokpo) · 갓바위의 전설",
-    description: "성자가 두고 간 갓이 바위로 굳었다는 바닷가, 그 전설 속 단서를 따라가세요.",
+    description: "성자가 두고 간 갓이 바위로 굳었다는 바닷가, 그 전설에 남은 단서를 따라가세요.",
+    isComingSoon: true,
   },
 ];
 
 /** 지역 선택 구간 — 큰 제목, 왼쪽 글과 갈래, 오른쪽 둥근 사진. */
 export default function RegionSelect() {
   const navigate = useSiteNavigate();
+  const scrollToSection = useScrollToSection();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const scrollZoomRef = useScrollZoomOut();
   const branch = BRANCHES[selectedIndex];
@@ -143,6 +152,7 @@ export default function RegionSelect() {
           {preview.hasVideo && <PreviewBadge />}
         </div>
         <div key={`caption${selectedIndex}`} className="region-select__caption" style={captionStyle}>
+          {branch.isComingSoon && <ComingSoonChip style={{ fontSize: "16px" }} />}
           <div style={photoTitleStyle}>{branch.title}</div>
           <div style={photoDescriptionStyle}>{branch.description}</div>
         </div>
@@ -178,10 +188,15 @@ export default function RegionSelect() {
         </div>
 
         <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-          <button type="button" className="button" style={outlineButtonStyle} onClick={() => navigate(ROUTES.media)}>
+          <button
+            type="button"
+            className="button"
+            style={outlineButtonStyle}
+            onClick={() => scrollToSection("scenarios")}
+          >
             <span className="button__label">모든 지역 보기</span>
           </button>
-          <button type="button" className="button" style={filledButtonStyle} onClick={() => navigate(ROUTES.media)}>
+          <button type="button" className="button" style={filledButtonStyle} onClick={() => navigate(START_GAME)}>
             <span className="button__label">지금 탐험하기</span>
           </button>
         </div>

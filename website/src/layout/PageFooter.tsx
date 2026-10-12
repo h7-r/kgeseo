@@ -34,10 +34,10 @@ export default function PageFooter() {
 
       <div style={bottomRowStyle}>
         <p style={lineStyle}>
-          ESCAPE THE LEGEND 및 관련 로고, 캐릭터, 명칭 및 이와 관련된 모든 고유한 표현은 ESCAPE THE LEGEND의 독점
+          ESCAPE THE LEGEND의 로고 · 캐릭터 · 명칭을 비롯해 이와 관련된 모든 고유한 표현은 LATENT SPACE의 독점
           자산입니다.
         </p>
-        <p style={lineStyle}>대표자 : Team Legend | 대표전화 : 000-0000-0000 | 광주광역시 인공지능 사관학교</p>
+        <p style={lineStyle}>대표자 : Team · Legend | 대표전화 : 000-0000-0000 | 광주광역시 인공지능 사관학교</p>
         <p style={lineStyle}>사업자등록번호 : 000-00-00000 | 통신판매업신고 : 2026-광주남구-00000</p>
       </div>
     </footer>

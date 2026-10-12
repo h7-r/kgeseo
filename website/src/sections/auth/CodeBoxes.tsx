@@ -71,7 +71,7 @@ export function VerifiedCode({ code = "------" }: { code?: string }) {
     >
       <div style={{ display: "flex", gap: "8px", width: "100%", fontSize: "16px" }}>
         <span style={{ flex: "1 0 0", fontFamily: FONT.mono, color: COLOR.textMuted }}>인증코드</span>
-        <span style={{ flex: "1 0 0", fontFamily: FONT.mono, fontWeight: 700, color: "#33d98c" }}>✓ 인증완료</span>
+        <span style={{ flex: "1 0 0", fontFamily: FONT.mono, fontWeight: 700, color: "#33d98c" }}>✓ 인증 완료</span>
       </div>
       <div style={{ display: "flex", gap: "10px", width: "100%" }}>
         {code.split("").map((digit, i) => (

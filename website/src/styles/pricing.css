@@ -1,0 +1,315 @@
+/* 요금제 카드 → 자세히 보기 모달 */
+
+/*
+ * 카드 전체를 덮는 투명 단추. 카드 안에 「구독하기」 단추가 따로 있어 카드 자체를 단추로 만들면
+ * 단추 안에 단추가 들어간다. 그래서 덮개를 깔고, 안쪽 단추만 그 위로 올린다.
+ */
+.card-trigger {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: none;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.card-trigger:focus-visible {
+  outline: 2px solid var(--color-blue-light);
+  outline-offset: -3px;
+}
+
+/* 결제 정보 상자 제목 줄 오른쪽의 「자세히」. 눌리는 곳은 덮개라 글자는 표시만 한다. */
+.payment-box__more {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-accent);
+  opacity: 0.7;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s var(--ease-smooth);
+}
+.interactive-card:hover .payment-box__more,
+.card-trigger:focus-visible ~ * .payment-box__more {
+  opacity: 1;
+  transform: translateX(3px);
+}
+
+/*
+ * 카드와 같은 남색 그라디언트에 테두리를 한 단계 밝혀, 카드가 앞으로 나온 것처럼 보이게 한다.
+ * 높이는 화면 위아래에 넉넉히 남기고, 넘치는 내용은 본문(.pricing-detail)만 넘긴다.
+ */
+.modal--detail {
+  gap: 18px;
+  max-height: min(640px, calc(100vh - 160px));
+  overflow: hidden;
+  background: linear-gradient(180deg, #0a1a46 0%, #061030 48%, #040b24 100%);
+  border-color: rgba(59, 94, 162, 0.55);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.6),
+    0 0 64px rgba(46, 72, 137, 0.3);
+}
+
+.pricing-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+  /* 스크롤 막대가 글자에 붙지 않게 오른쪽으로 비켜 둔다. */
+  margin-right: -14px;
+  padding-right: 14px;
+  overflow-y: auto;
+  /* 아래 끝을 흐려 더 있다는 걸 알린다. 마지막 줄은 아래 여백만큼 흐림 밖으로 올라온다. */
+  padding-bottom: 20px;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 94, 162, 0.55) transparent;
+}
+/* 흐림 마스크가 바깥 테두리를 지우므로 안쪽에 그린다. */
+.pricing-detail:focus-visible {
+  outline: 2px solid var(--color-blue-light);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+
+/* 가격 띠 — 플랜 모달 맨 위 */
+.pricing-detail__price {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(50, 82, 150, 0.4);
+  background: rgba(9, 15, 32, 0.6);
+}
+/* 카드의 가격과 같은 글꼴. 표제 글꼴은 ₩ 가 없어 다른 글꼴로 튄다. */
+.pricing-detail__amount {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text-bright);
+}
+.pricing-detail__unit {
+  margin-left: 6px;
+  font-family: var(--font-korean);
+  font-size: 14px;
+  color: var(--color-accent);
+}
+.pricing-detail__billing {
+  font-family: var(--font-korean);
+  font-size: 13px;
+  color: #96a3b6;
+  text-align: right;
+}
+
+.pricing-detail__block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(46, 72, 137, 0.3);
+}
+/* 고정폭 글꼴은 띄어쓰기가 넓어 한글 제목이 벌어진다. 한글 글꼴로 쓴다. */
+.pricing-detail__heading {
+  margin: 0;
+  font-family: var(--font-korean);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--color-accent-light);
+}
+
+.pricing-detail__list,
+.pricing-detail__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pricing-detail__item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-family: var(--font-korean);
+  font-size: 14px;
+  line-height: 1.55;
+  color: #c3ccda;
+}
+/* 카드의 점과 같은 크기·색. 첫 줄 가운데에 맞춘다. */
+.pricing-detail__list .pricing-detail__item::before {
+  content: "";
+  flex-shrink: 0;
+  width: 5px;
+  height: 5px;
+  margin-top: 8px;
+  border-radius: 50%;
+  background: var(--color-blue-light);
+}
+.pricing-detail__steps {
+  counter-reset: detail-step;
+}
+.pricing-detail__steps .pricing-detail__item::before {
+  counter-increment: detail-step;
+  content: counter(detail-step);
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 1px solid rgba(59, 94, 162, 0.6);
+  background: rgba(46, 72, 137, 0.22);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  color: var(--color-accent-light);
+  box-sizing: border-box;
+}
+
+/* 이름 + 한 줄 풀이. 이름은 밝게, 풀이는 한 단계 흐리게 해 이름만 훑어 내려가도 읽힌다. */
+.pricing-detail__terms {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+.pricing-detail__term {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pricing-detail__term-name {
+  font-family: var(--font-korean);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #e4e9f2;
+}
+.pricing-detail__term-text {
+  margin: 0;
+  font-family: var(--font-korean);
+  font-size: 13px;
+  line-height: 1.55;
+  color: #a3aec0;
+}
+
+/* 이름만 늘어놓는 갈래 */
+.pricing-detail__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+.pricing-detail__group {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.pricing-detail__group-label {
+  padding-top: 3px;
+  font-family: var(--font-korean);
+  font-size: 13px;
+  color: #96a3b6;
+}
+.pricing-detail__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.pricing-detail__chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(50, 82, 150, 0.45);
+  background: rgba(9, 15, 32, 0.75);
+  font-family: var(--font-korean);
+  font-size: 13px;
+  color: #dbe2ee;
+}
+
+/* 환불 계산 예시. 영수증처럼 왼쪽 항목 · 오른쪽 값, 맨 아래 합계. */
+.pricing-detail__calculation {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 4px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(46, 72, 137, 0.35);
+  background: rgba(1, 4, 10, 0.45);
+}
+.pricing-detail__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+  font-family: var(--font-korean);
+  font-size: 13px;
+  color: #aab5c4;
+}
+.pricing-detail__row + .pricing-detail__row {
+  border-top: 1px dashed rgba(46, 72, 137, 0.35);
+}
+/* 숫자만 고정폭으로 — 자릿수가 세로로 맞는다. */
+.pricing-detail__value {
+  margin: 0;
+  font-family: var(--font-mono);
+  color: #dbe2ee;
+  text-align: right;
+}
+.pricing-detail__row--total {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--color-text-bright);
+}
+.pricing-detail__row--total .pricing-detail__value {
+  color: var(--color-accent-light);
+}
+.pricing-detail__note {
+  margin: 0;
+  font-family: var(--font-korean);
+  font-size: 12px;
+  color: #6f7a8c;
+}
+
+/* 본문이 넘겨져도 늘 보이는 아래 줄. 선으로 본문과 가른다. */
+.pricing-detail__actions {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid rgba(46, 72, 137, 0.3);
+}
+
+@media (max-width: 480px) {
+  .modal--detail {
+    max-height: calc(100dvh - 48px);
+    padding: 22px 20px;
+  }
+  .pricing-detail__group {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .pricing-detail__price {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .pricing-detail__billing {
+    text-align: left;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .payment-box__more {
+    transition: none;
+  }
+}

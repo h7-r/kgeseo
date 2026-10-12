@@ -1,7 +1,9 @@
 import type { CSSProperties } from "react";
 
+import ComingSoonChip from "@/components/ComingSoonChip";
 import { MY_PAGE_CONTENT, type AccountAction } from "@/data/myPage";
 import { FONT } from "@/lib/style";
+import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 import { COLOR } from "@/styles/tokens";
 
 import {
@@ -81,7 +83,7 @@ export function HistoryTab({ onRetry }: HistoryTabProps) {
           COMING SOON
         </span>
         <span style={{ fontFamily: FONT.body, fontSize: "16px", color: COLOR.textDim }}>
-          다음 지역의 사건을 준비하고 있어요. 새 전설이 열리면 여기에 기록이 쌓입니다.
+          다음 지역의 사건을 준비하고 있습니다. 새 전설이 열리면 이곳에 기록이 쌓입니다.
         </span>
       </div>
     </>
@@ -153,7 +155,11 @@ export function AccountTab({ emailNotifications, onAction }: AccountTabProps) {
       {MY_PAGE_CONTENT.account.groups.map((group) => (
         <div key={group.title} style={{ display: "flex", flexDirection: "column", gap: "10px", width: "100%" }}>
           <span style={subheadingStyle}>{group.title}</span>
-          {group.items.map(({ label, value, action }) => {
+          {group.items.map(({ label, value, action: listedAction }) => {
+            // 비밀번호 변경·탈퇴는 백엔드가 준비될 때까지 「준비 중」으로 둔다
+            const isPending =
+              !IS_ACCOUNT_MANAGEMENT_READY && (listedAction === "changePassword" || listedAction === "deleteAccount");
+            const action = isPending ? undefined : listedAction;
             const isDanger = action === "deleteAccount";
             const isSwitch = action === "emailNotifications";
             return (
@@ -210,7 +216,7 @@ export function AccountTab({ emailNotifications, onAction }: AccountTabProps) {
                     {value} →
                   </span>
                 ) : (
-                  <span style={comingSoonChipStyle}>준비 중</span>
+                  <ComingSoonChip label="준비 중" />
                 )}
               </div>
             );
@@ -220,15 +226,6 @@ export function AccountTab({ emailNotifications, onAction }: AccountTabProps) {
     </>
   );
 }
-
-const comingSoonChipStyle: CSSProperties = {
-  padding: "4px 10px",
-  borderRadius: "999px",
-  border: "1px dashed #3a4258",
-  fontFamily: FONT.mono,
-  fontSize: "13px",
-  color: COLOR.textDim,
-};
 
 export function SubscriptionTab() {
   const { plan, payments } = MY_PAGE_CONTENT.subscription;
@@ -264,7 +261,8 @@ export function AchievementsTab() {
       <StatsBox stats={stats} />
       <div style={{ display: "flex", flexWrap: "wrap", gap: "16px" }}>
         {badges.map(([name, condition, progress], i) => (
-          <div key={i} style={badgeCardStyle}>
+          // 진행이 없는 배지는 아직 열리지 않은 기능의 것이라 흐리게 두고 딱지를 단다.
+          <div key={i} style={progress === null ? { ...badgeCardStyle, opacity: 0.72 } : badgeCardStyle}>
             <div
               style={{ width: "40px", height: "40px", borderRadius: "20px", background: "#1b2135", flexShrink: 0 }}
             />
@@ -272,7 +270,7 @@ export function AchievementsTab() {
               <span style={valueTextStyle}>{name}</span>
               <span style={labelTextStyle}>{condition}</span>
             </div>
-            <span style={labelTextStyle}>{progress}</span>
+            {progress === null ? <ComingSoonChip /> : <span style={labelTextStyle}>{progress}</span>}
           </div>
         ))}
       </div>
