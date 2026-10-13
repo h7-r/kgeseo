@@ -5,6 +5,7 @@ import ConsentGroup from "@/components/form/ConsentGroup";
 import SubmitButton, { Honeypot } from "@/components/form/SubmitButton";
 import TextField from "@/components/form/TextField";
 import { BOT_SUSPECTED_MESSAGE, submitOnEnter, useBotGuard, useConsents, useSubmitLock } from "@/hooks/useForm";
+import { checkNickname } from "@/lib/nicknamePolicy";
 import { FONT } from "@/lib/style";
 import { MAX_LENGTH, normalizeInput } from "@/lib/validation";
 import { ROUTES } from "@/navigation/routes";
@@ -20,19 +21,6 @@ import { signIn } from "@/services/session";
 import { COLOR, GRADIENT, SHADOW, surfaceFillStyle } from "@/styles/tokens";
 
 const PROVIDER_LABEL = { google: "Google", naver: "네이버" } as const;
-
-/**
- * 형식만 먼저 본다(길이·글자). 서버와 같은 순서로 다듬는다: 제어 문자 확인 → NFKC → 앞뒤 공백 제거.
- * 금칙어·예약어는 서버만 안다 — 목록을 화면에 두지 않는다.
- */
-const NICKNAME_FORMAT_MESSAGE = "닉네임은 2~12자, 한글·영문·숫자·밑줄(_)만 쓸 수 있습니다.";
-
-function nicknameFormatError(raw: string): string {
-  if (/\p{C}/u.test(raw)) return NICKNAME_FORMAT_MESSAGE;
-  const value = raw.normalize("NFKC").trim();
-  if (value.length < 2 || value.length > 12 || !/^[가-힣A-Za-z0-9_]+$/.test(value)) return NICKNAME_FORMAT_MESSAGE;
-  return "";
-}
 
 /** 처음 온 소셜 계정의 가입 마무리. 증표는 메모리에서만 받아 새로고침하면 로그인부터 다시 한다. */
 export default function SocialOnboardingPage() {
@@ -71,7 +59,8 @@ export default function SocialOnboardingPage() {
     return () => window.clearTimeout(timer);
   }, [onboarding]);
 
-  const formatError = nicknameFormatError(nickname);
+  // 회원가입과 같은 규칙(형식·예약어·금칙어). 쓸 수 있는지(중복)는 서버만 안다.
+  const formatError = checkNickname(nickname);
   const isNicknameShown = isNicknameTouched || submitted;
   const nicknameError = isNicknameShown ? formatError || serverNicknameError : "";
 
