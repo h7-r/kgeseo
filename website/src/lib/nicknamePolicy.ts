@@ -14,8 +14,9 @@ import {
 } from "./koreanText";
 
 /**
- * 닉네임 판정과 금칙어 찾기. 목록은 저장소 공용 shared/nickname-policy.json 하나를 백엔드와 같이 읽는다.
- * 프론트가 먼저 막아 바로 안내하고, 서버가 같은 목록으로 한 번 더 막는다.
+ * 닉네임 판정과 금칙어 찾기. 목록은 저장소 공용 shared/nickname-policy.json 이고, 지금은 프론트가 이 파일로 판정한다.
+ * 백엔드는 아직 backend/app/services/nickname_policy.py 의 자체 목록으로 따로 검사한다. 이 JSON 으로의 통합은
+ * 후속 작업이며, 그때 JSON 의 matching.$steps 를 따르면 같은 판정이 난다.
  *
  * 한국어 욕은 한 끗 차이라 글자 그대로 비교하면 씨빨·쒸발·tlqkf 가 다 빠져나가고, 반대로 넓게 잡으면
  * 시바견·포지션·십 년이 걸린다. 그래서 글을 여러 모양으로 바꿔 보되, 받침 유무처럼 뜻을 가르는 차이는 남겨 둔다.

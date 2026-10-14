@@ -75,3 +75,6 @@ public/references/
 tools/regression/*/baseline/
 tools/regression/*/runs/
 tools/regression/.cache/
+
+# 닉네임 판정 검사 — 묶은 판정 코드·외부 말뭉치(라이선스상 저장소에 넣지 않음)·결과(tools/nickname-policy/README.md)
+tools/nickname-policy/.cache/

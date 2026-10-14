@@ -1,5 +1,5 @@
 {
-  "$comment": "닉네임·자유 글 금칙 규칙. 웹사이트(website/src/lib/nicknamePolicy.ts)가 판정하고 백엔드도 같은 파일을 읽어 다시 막는다. 낱말은 NFKC·소문자로 적는다. 판정 순서는 matching.$steps, 목록 종류(contains·strict·word·allow)는 forbidden.$comment 참고.",
+  "$comment": "닉네임·자유 글 금칙 규칙. 지금은 웹사이트(website/src/lib/nicknamePolicy.ts)가 이 파일로 판정한다. 백엔드는 아직 backend/app/services/nickname_policy.py 의 자체 목록으로 따로 검사하며, 이 JSON 으로의 통합은 후속 작업이다(통합 때 matching.$steps 를 따르면 같은 판정이 난다). 낱말은 NFKC·소문자로 적는다. 판정 순서는 matching.$steps, 목록 종류(contains·strict·word·allow)는 forbidden.$comment 참고.",
   "version": 2,
   "minLength": 2,
   "maxLength": 12,
@@ -37,7 +37,7 @@
     }
   ],
   "matching": {
-    "$comment": "판정 순서. 백엔드도 이 순서를 그대로 따르면 화면과 같은 결과가 난다(구현: website/src/lib/nicknamePolicy.ts·koreanText.ts).",
+    "$comment": "판정 순서(구현: website/src/lib/nicknamePolicy.ts·koreanText.ts). 백엔드는 아직 이 순서를 쓰지 않는다 — 이 JSON 으로 통합할 때 이 순서를 그대로 따르면 화면과 같은 판정이 난다.",
     "$steps": [
       "1. NFKC → 소문자. 닉네임은 밑줄을 지우고, 자유 글은 띄어쓰기·문장부호 자리를 '경계'로 표시한다(비교할 때는 건너뛰어 붙이되 연음은 넘지 않는다). leet 표의 기호(@ $ !)는 남긴다.",
       "2. 비교할 글 모양: 그대로 / 글자만(숫자·기호를 몇 개든 뺌, 경계는 남김) / 글자만+셋 이상 겹친 영문을 둘로 / leet / leet+leetAlternatives / 두벌식 자판 조합(영문 낱말마다, 낱자모가 남으면 조합하지 않음; 원래 대소문자·소문자·글자만 세 번) / 닉네임만 digitReadings 로 숫자 읽기(1 다음 숫자 하나로 끝나는 두 자리는 십+일의 자리: 18 → 십팔, 10 → 십) / 자유 글만 띄어쓰기를 경계 글자로 남긴 모양(word 낱말용).",
@@ -1162,7 +1162,7 @@
       "snigger",
       "thorny"
     ],
-    "$comment_allowSuspended": "보류 중인 정상 낱말. 서버(backend nickname_policy)가 아직 옛 목록으로 '들어 있으면 막음'만 해서 이 낱말들은 서버가 거절한다. 화면만 통과시키면 가입 단계에서 어긋나므로, 백엔드가 이 JSON 을 그대로 읽게 될 때까지 판정기는 이 칸을 읽지 않고 막아 둔다. 다시 살릴 때는 이 칸의 낱말을 allow 로 옮긴다(다시발 은 자유 글 전용이라 allowInText 로).",
+    "$comment_allowSuspended": "보류 중인 정상 낱말. 백엔드는 아직 backend/app/services/nickname_policy.py 의 자체 목록으로 '들어 있으면 막음' 검사를 따로 해서 이 낱말들을 거절한다. 화면만 통과시키면 가입 단계에서 어긋나므로, 백엔드가 이 JSON 으로 통합될 때까지(후속 작업) 판정기는 이 칸을 읽지 않고 막아 둔다. 다시 살릴 때는 이 칸의 낱말을 allow 로 옮긴다(다시발 은 자유 글 전용이라 allowInText 로).",
     "allowSuspended": [
       "yamashita시발점",
       "다시발",

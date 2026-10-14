@@ -7,7 +7,7 @@ import prettierConfig from 'eslint-config-prettier/flat'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', '**/dist', '**/dist-*', '.claude', 'web-hero/vendor', 'naju01/src/models/baked', 'tools/regression/.cache']),
+  globalIgnores(['dist', '**/dist', '**/dist-*', '.claude', 'web-hero/vendor', 'naju01/src/models/baked', 'tools/regression/.cache', 'tools/nickname-policy/.cache']),
   {
     // 설정 파일과 Node 도구. page.evaluate 안의 코드는 브라우저에서 돈다.
     files: ['*.js', 'tools/**/*.mjs', 'naju01/tools/**/*.mjs'],
