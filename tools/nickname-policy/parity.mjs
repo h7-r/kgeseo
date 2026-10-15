@@ -1,6 +1,6 @@
 // ① 백엔드 비교 — 같은 입력을 화면 판정(website)과 서버 판정(backend/*.py)에 넣어 결과가 어긋나는 것을 찾는다.
 // 중요한 것은 「서버는 막는데 화면은 통과」 — 화면을 믿고 제출했다가 서버에서 거절당하는 경우다.
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { CACHE, HERE, ROOT, loadPolicy, seeded } from "./common.mjs";
@@ -115,11 +115,37 @@ function buildCases(policy) {
   return { nicknames: [...nicknames], passwords, emails: [...emails] };
 }
 
+/**
+ * 서버만 막는 닉네임 중 이미 알고 있는 것 — 백엔드가 「황보지○」 실제 이름 예외를 검토 중이다.
+ * 백엔드가 고치면 이 줄을 지운다. 이 밖의 「서버만 막음」은 검사 실패다.
+ */
+const KNOWN_SERVER_ONLY = /황보지/;
+const isKnownServerOnly = (nickname) => KNOWN_SERVER_ONLY.test(nickname.replace(/[^가-힣]/g, ""));
+
+/**
+ * 파이썬 3.9 이상을 찾는다: PYTHON 환경변수 → python3 → python → py -3(윈도우 런처).
+ * 맥·리눅스는 python3, 윈도우는 python 이나 py 로 깔리는 경우가 많다.
+ */
+function findPython() {
+  const candidates = process.env.PYTHON
+    ? [process.env.PYTHON.trim().split(/\s+/)]
+    : [["python3"], ["python"], ["py", "-3"]];
+  for (const [command, ...args] of candidates) {
+    const probe = spawnSync(command, [...args, "-c", "import sys; print(sys.version_info >= (3, 9))"], {
+      encoding: "utf8",
+    });
+    if (probe.status === 0 && probe.stdout.trim() === "True") return { command, args };
+  }
+  const tried = candidates.map((c) => c.join(" ")).join(", ");
+  throw new Error(`Python 3.9 이상을 찾지 못했습니다(시도: ${tried}). PYTHON 환경변수로 실행 파일을 알려 주세요.`);
+}
+
 function runBackend(cases) {
   const input = path.join(CACHE, "parity-input.json");
   const output = path.join(CACHE, "parity-backend.json");
   fs.writeFileSync(input, JSON.stringify(cases));
-  execFileSync("python3", [path.join(HERE, "backend.py"), ROOT, input, output], { stdio: "inherit" });
+  const { command, args } = findPython();
+  execFileSync(command, [...args, path.join(HERE, "backend.py"), ROOT, input, output], { stdio: "inherit" });
   return JSON.parse(fs.readFileSync(output, "utf8"));
 }
 
@@ -127,26 +153,30 @@ export function runParity(judge) {
   const cases = buildCases(loadPolicy());
   const server = runBackend(cases);
 
+  // 서버 결과가 null 이면 판정이 아니라 실행 오류다 — 비교에서 빼고 errors 로 따로 보인다.
   const screenPass = cases.nicknames.map((nickname) => judge.findNicknameProblem(nickname) === null);
-  const serverOnly = cases.nicknames.filter((_, i) => !server.nicknames[i] && screenPass[i]);
+  const serverOnly = cases.nicknames.filter((_, i) => server.nicknames[i] === false && screenPass[i]);
   const screenOnly = {};
   cases.nicknames.forEach((nickname, i) => {
-    if (server.nicknames[i] && !screenPass[i]) (screenOnly[judge.findNicknameProblem(nickname)] ??= []).push(nickname);
+    if (server.nicknames[i] === true && !screenPass[i])
+      (screenOnly[judge.findNicknameProblem(nickname)] ??= []).push(nickname);
   });
 
-  const passwordDiff = cases.passwords.filter(
-    ({ password, email, nickname }, i) =>
-      (judge.RULES.password(password, { email, nickname }) === "") !== server.passwords[i],
+  const differs = (screenPasses, serverPasses) => serverPasses !== null && screenPasses !== serverPasses;
+  const passwordDiff = cases.passwords.filter(({ password, email, nickname }, i) =>
+    differs(judge.RULES.password(password, { email, nickname }) === "", server.passwords[i]),
   );
-  const emailDiff = cases.emails.filter((email, i) => (judge.RULES.email(email) === "") !== server.emails[i]);
-  const trimmedEmailDiff = cases.emails.filter(
-    (email, i) => (judge.RULES.email(email.trim()) === "") !== server.trimmedEmails[i],
+  const emailDiff = cases.emails.filter((email, i) => differs(judge.RULES.email(email) === "", server.emails[i]));
+  const trimmedEmailDiff = cases.emails.filter((email, i) =>
+    differs(judge.RULES.email(email.trim()) === "", server.trimmedEmails[i]),
   );
 
   return {
+    backendErrors: server.errors,
     nicknames: {
       total: cases.nicknames.length,
       serverBlocksScreenPasses: serverOnly,
+      unexpectedServerOnly: serverOnly.filter((nickname) => !isKnownServerOnly(nickname)),
       screenBlocksServerPasses: Object.fromEntries(Object.entries(screenOnly).map(([k, v]) => [k, v.length])),
     },
     passwords: { total: cases.passwords.length, different: passwordDiff.length, examples: passwordDiff.slice(0, 10) },

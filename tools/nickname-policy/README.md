@@ -13,6 +13,7 @@ npm run check:nickname -- --false-positives   # ③ 오탐만
 ```
 
 콘솔에 요약을 찍고, 목록까지 담은 결과를 `tools/nickname-policy/.cache/report.json` 에 남긴다.
+기준(아래 「통과 기준」)에 못 미치면 **종료 코드 1** 로 끝난다 — 병합 전 검사·CI 에 그대로 쓸 수 있다.
 
 ```
 tools/nickname-policy/
@@ -28,8 +29,15 @@ tools/nickname-policy/
 ## 준비
 
 - 루트에서 `npm install` 만 하면 된다. 따로 받을 패키지는 없다(번들은 루트의 vite 를 쓴다).
-- ① 은 **Python 3.9 이상**이 필요하다(macOS 기본 `python3` 3.9 로 돈다). FastAPI 같은 백엔드 의존성은 필요 없다 —
+- ① 은 **Python 3.9 이상**이 필요하다. FastAPI 같은 백엔드 의존성은 필요 없다 —
   `backend/app/services/nickname_policy.py` · `registration_input_policy.py` 두 파일만 불러온다.
+  파이썬은 `PYTHON` 환경변수 → `python3` → `python` → `py -3`(윈도우 런처) 순서로 찾는다. 다른 것을 쓰려면:
+  ```bash
+  PYTHON=python npm run check:nickname -- --parity          # macOS·Linux·Git Bash
+  $env:PYTHON="py -3"; npm run check:nickname -- --parity   # Windows PowerShell
+  ```
+- 백엔드 판정은 백엔드가 정한 검증 오류(`InvalidNicknameError` · `InvalidEmailError` · `InvalidPasswordError`)만 「거절」로 센다.
+  그 밖의 예외는 판정이 아니라 실행 오류로 보고 입력·오류 내용과 함께 따로 모으며, 하나라도 있으면 검사가 실패한다.
 - ③ 의 외부 말뭉치는 처음 실행할 때 인터넷에서 받아 `.cache/` 에 둔다. 받지 못하면(오프라인) 그 부분만 건너뛰고 알린다.
 
 ## 세 검사
@@ -69,6 +77,19 @@ tools/nickname-policy/
 - **정상 문장** — 한 끗 차이 함정 문장 31개 + 자막 낱말 4~8개를 띄어 이은 문장 5,000개.
 - **외부 말뭉치** — 자막 빈도 낱말 5만(한국어·영어)과 그 둘을 이어 붙인 닉네임형, 욕설 여부가 표시된 문장.
   낱말 목록에는 원래 욕도 들어 있어, 걸린 목록(`report.json`)을 사람이 보고 판단한다.
+
+## 통과 기준
+
+하나라도 걸리면 종료 코드 1 이다. 외부 말뭉치에 따라 달라지는 비율(낱말·합성 문장·욕설 표시 문장)은 참고로만 보인다.
+
+| 검사          | 실패 조건                                                                                                                                                               |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ① 백엔드 비교 | 백엔드 판정 실행 오류가 있다                                                                                                                                            |
+|               | 서버는 막는데 화면은 통과하는 닉네임이 **알려진 예외** 밖에 있다 — 알려진 예외는 `parity.mjs` 의 `KNOWN_SERVER_ONLY`(지금은 「황보지○」 실제 이름, 백엔드 예외 검토 중) |
+|               | 비밀번호 판정이 다르다 / 이메일 판정이 다르다(화면이 실제로 보내는 앞뒤 공백 뗀 값 기준)                                                                                |
+| ② 변형        | 자유 글이나 닉네임에서 놓친 변형이 하나라도 있다(100% 미만)                                                                                                             |
+| ③ 오탐        | 이름에서 예상 밖 오탐이 있다(`false-positives.mjs` 의 `EXPECTED_NAME_HITS` 밖)                                                                                          |
+|               | 함정 문장(정상이지만 걸리기 쉬운 문장 31개)이 하나라도 걸린다                                                                                                           |
 
 ## 외부 말뭉치 (저장소에 넣지 않음)
 

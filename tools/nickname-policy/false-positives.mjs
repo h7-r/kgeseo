@@ -156,6 +156,11 @@ export async function runFalsePositives(judge) {
     return match ? [`${sentence} [${match.word}: ${sentence.slice(match.start, match.end)}]`] : [];
   });
   result.sentences = { ...summarize(sentences, sentenceHits), list: sentenceHits };
+  // 함정 문장은 말뭉치와 상관없이 늘 같다 — 하나라도 걸리면 검사 실패(합성 문장은 말뭉치에 따라 달라 참고만).
+  result.traps = {
+    total: TRAPS.length,
+    hits: TRAPS.filter((sentence) => judge.findProfanity(sentence)),
+  };
 
   // 욕설 여부가 표시된 문장(문장|0/1) — 정상(0) 문장 중 걸린 비율과 욕(1) 문장 중 잡은 비율
   if (curse) {
