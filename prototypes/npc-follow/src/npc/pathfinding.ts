@@ -1,10 +1,14 @@
 import * as THREE from 'three'
-import { blocksAtHeight, isPointClear, isSegmentClear } from './collision'
-import type { CollisionWorld } from './collision'
-import type { CircleXZ } from './avoidance'
+import { blocksAtHeight, isPointClear, isSegmentClear } from './collision.ts'
+import type { CollisionWorld } from './collision.ts'
+import type { CircleXZ } from './avoidance.ts'
+import { isTerrainSegmentWalkable } from './terrain.ts'
+import type { NpcTerrain } from './terrain.ts'
 
-// 장애물 외곽 꼭짓점 경유점 + 가시성 그래프 기반의 가벼운 XZ 경로 탐색.
-// 장애물 수가 적은 테스트 맵용으로, 매 프레임 그래프를 새로 만들어도 부담이 작다.
+// 장애물 외곽 경유점 + 가시성 그래프 기반의 가벼운 XZ 경로 탐색.
+// 상자는 네 꼭짓점, 원기둥은 둘레 여덟 점을 경유점으로 쓴다. 지형(terrain)이 주어지면
+// 모든 직선 구간이 걸을 수 있는 땅인지도 함께 확인한다(강·절벽·높은 턱을 가로지르지 않음).
+// 장애물 수가 적은 범위(호출 측이 근처만 넘김)를 전제로 매 프레임 그래프를 새로 만든다.
 
 export const PATH_CONFIG = {
   // 경유점을 충돌 반경 바깥으로 더 띄우는 여유 (m). 경유점 사이 직선이 장애물을 스치지 않게 한다.
@@ -18,6 +22,8 @@ export const PATH_CONFIG = {
   // 플레이어가 꼭짓점 옆을 지나갈 때 먼 우회로로 잠깐 바뀌었다 돌아오는 흔들림을 막고,
   // 플레이어가 그 자리에 계속 서 있으면 시간이 지난 뒤 다른 경로로 바꾼다.
   circleGraceTime: 1.0,
+  // 원기둥 둘레에 놓는 경유점 수. 정팔각형이면 꼭짓점 사이 직선이 원을 스치지 않게 반경을 키운다.
+  circleNodeCount: 8,
 } as const
 
 // direct = 직선으로 갈 수 있음, detour = 경유점으로 우회 중, blocked = 경로 없음(제자리 대기)
@@ -67,27 +73,52 @@ function buildNodes(
   y: number,
   circles: readonly CircleXZ[],
   graceKey: string | null,
+  terrain: NpcTerrain | null,
 ): PathNode[] {
   const offset = world.radius + PATH_CONFIG.cornerClearance
   const nodes: PathNode[] = []
+  const tryAdd = (key: string, x: number, z: number) => {
+    const inCircle = circles.some((c) => Math.hypot(x - c.x, z - c.z) < c.radius)
+    const graced = inCircle && key === graceKey
+    if (!inCircle || graced) {
+      if (!isPointClear(world, x, z, y)) return
+      if (terrain && !terrain.sample(x, z).walkable) return
+      nodes.push({ key, position: new THREE.Vector3(x, y, z), graced })
+    }
+  }
   for (const box of world.boxes) {
     if (!blocksAtHeight(box, y, world.radius)) continue
-    const corners: [number, number][] = [
-      [box.minX - offset, box.minZ - offset],
-      [box.maxX + offset, box.minZ - offset],
-      [box.maxX + offset, box.maxZ + offset],
-      [box.minX - offset, box.maxZ + offset],
-    ]
-    corners.forEach(([x, z], index) => {
-      const key = `${box.id}:${index}`
-      const inCircle = circles.some((c) => Math.hypot(x - c.x, z - c.z) < c.radius)
-      const graced = inCircle && key === graceKey
-      if ((!inCircle || graced) && isPointClear(world, x, z, y)) {
-        nodes.push({ key, position: new THREE.Vector3(x, y, z), graced })
-      }
-    })
+    tryAdd(`${box.id}:0`, box.minX - offset, box.minZ - offset)
+    tryAdd(`${box.id}:1`, box.maxX + offset, box.minZ - offset)
+    tryAdd(`${box.id}:2`, box.maxX + offset, box.maxZ + offset)
+    tryAdd(`${box.id}:3`, box.minX - offset, box.maxZ + offset)
   }
+  const count = PATH_CONFIG.circleNodeCount
+  const apothemToRadius = 1 / Math.cos(Math.PI / count)
+  for (const c of world.circles) {
+    if (!blocksAtHeight(c, y, world.radius)) continue
+    const ring = (c.radius + offset) * apothemToRadius
+    for (let k = 0; k < count; k++) {
+      const angle = (k / count) * Math.PI * 2
+      tryAdd(`${c.id}:c${k}`, c.x + Math.cos(angle) * ring, c.z + Math.sin(angle) * ring)
+    }
+  }
+  for (const w of world.waypoints ?? []) tryAdd(`wp:${w.id}`, w.x, w.z)
   return nodes
+}
+
+// 장애물에 닿지 않고, 지형이 있으면 그 직선이 걸을 수 있는 땅이어야 한다.
+// fromNpc: NPC 현재 위치에서 나가는 구간이면, 못 걷는 땅 위에서 빠져나가는 것은 허용한다.
+function segmentPassable(
+  world: CollisionWorld,
+  a: THREE.Vector3,
+  b: THREE.Vector3,
+  y: number,
+  terrain: NpcTerrain | null,
+  fromNpc = false,
+): boolean {
+  if (!isSegmentClear(world, a, b, y)) return false
+  return !terrain || isTerrainSegmentWalkable(terrain, a.x, a.z, b.x, b.z, fromNpc)
 }
 
 function distanceXZ(a: THREE.Vector3, b: THREE.Vector3): number {
@@ -129,8 +160,9 @@ function linkClear(
   circles: readonly CircleXZ[],
   exemptA: boolean,
   exemptB: boolean,
+  terrain: NpcTerrain | null,
 ): boolean {
-  return clearOfCircles(a, b, circles, exemptA, exemptB) && isSegmentClear(world, a, b, y)
+  return clearOfCircles(a, b, circles, exemptA, exemptB) && segmentPassable(world, a, b, y, terrain)
 }
 
 // 목표에서 거꾸로 Dijkstra: 각 경유점에서 목표까지 최단 거리와 다음 지점(-1 = 목표)
@@ -140,6 +172,7 @@ function solveToGoal(
   goal: THREE.Vector3,
   y: number,
   circles: readonly CircleXZ[],
+  terrain: NpcTerrain | null,
 ): { cost: number[]; next: number[] } {
   const count = nodes.length
   const cost = new Array<number>(count).fill(Infinity)
@@ -150,7 +183,7 @@ function solveToGoal(
     // 목표로 들어가는 마지막 구간은 원(플레이어 이격 범위)으로 막지 않는다.
     // 목표는 플레이어 바로 옆이라 이 구간이 원을 스치기 쉽고, 막으면 반대편 먼 우회로로
     // 바뀌었다 돌아오는 흔들림이 생긴다. 플레이어 주변을 도는 처리는 avoidance가 맡는다.
-    if (linkClear(world, nodes[i].position, goal, y, [], nodes[i].graced, true)) {
+    if (linkClear(world, nodes[i].position, goal, y, [], nodes[i].graced, true, terrain)) {
       cost[i] = distanceXZ(nodes[i].position, goal)
     }
   }
@@ -175,6 +208,7 @@ function solveToGoal(
           circles,
           nodes[u].graced,
           nodes[v].graced,
+          terrain,
         )
       ) {
         cost[v] = candidate
@@ -205,10 +239,11 @@ export function planPath(
   path: PathState,
   avoidCircles: readonly CircleXZ[] = [],
   delta = 0,
+  terrain: NpcTerrain | null = null,
 ): PathState {
   const y = from.y
 
-  if (isSegmentClear(world, from, goal, y)) {
+  if (segmentPassable(world, from, goal, y, terrain, true)) {
     path.status = 'direct'
     path.committedKey = null
     path.nextWaypoint.copy(goal)
@@ -219,11 +254,11 @@ export function planPath(
   }
 
   const graceKey = path.graceRemaining > 0 ? path.committedKey : null
-  const nodes = buildNodes(world, y, avoidCircles, graceKey)
+  const nodes = buildNodes(world, y, avoidCircles, graceKey, terrain)
   // 따라가던 경유점이 원에 덮여 있으면 유예 시간을 줄이고, 아니면 다시 채운다
   if (nodes.some((n) => n.graced)) path.graceRemaining -= delta
   else path.graceRemaining = PATH_CONFIG.circleGraceTime
-  const { cost, next } = solveToGoal(world, nodes, goal, y, avoidCircles)
+  const { cost, next } = solveToGoal(world, nodes, goal, y, avoidCircles, terrain)
 
   const candidates: Candidate[] = []
   const addCandidate = (index: number, viaCost: number) => {
@@ -241,7 +276,7 @@ export function planPath(
       const after = next[i]
       const afterPosition = after < 0 ? goal : nodes[after].position
       addCandidate(after, distanceXZ(from, afterPosition) + (after < 0 ? 0 : cost[after]))
-    } else if (isSegmentClear(world, from, nodes[i].position, y)) {
+    } else if (segmentPassable(world, from, nodes[i].position, y, terrain, true)) {
       addCandidate(i, d + cost[i])
     }
   }

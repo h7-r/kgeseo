@@ -21,17 +21,39 @@ export interface CollisionBox {
   maxZ: number
 }
 
+// 수직 원기둥 장애물 (나무·바위·울타리 같은 소품). x·z 는 중심, minY~maxY 는 높이 범위 (m)
+export interface CollisionCircle {
+  id: string
+  x: number
+  z: number
+  radius: number
+  minY: number
+  maxY: number
+}
+
+// 장애물이 아니라 지형 때문에 생기는 길목(통로 중심선 등)을 경로 탐색에 알려 주는 고정 경유점 (m)
+export interface NavWaypoint {
+  id: string
+  x: number
+  z: number
+}
+
 export interface CollisionWorld {
   boxes: readonly CollisionBox[]
+  circles: readonly CollisionCircle[]
   radius: number
+  // 강·절벽 사이 좁은 통로처럼 장애물 꼭짓점만으로는 찾을 수 없는 길을 잇는다 (선택)
+  waypoints?: readonly NavWaypoint[]
 }
 
 export function createCollisionWorld(
   obstacles: readonly BoxObstacle[],
   radius = NPC_COLLISION_RADIUS,
+  circles: readonly CollisionCircle[] = [],
 ): CollisionWorld {
   return {
     radius,
+    circles,
     boxes: obstacles.map(({ id, center, size }) => ({
       id,
       minX: center[0] - size[0] / 2,
@@ -51,9 +73,13 @@ export interface MoveResult {
   hitId: string | null
 }
 
-// 구체 높이 범위와 겹치는 상자만 막는다. 거리 판정과 같은 추적 높이(부유 오프셋 제외)를 쓴다.
-export function blocksAtHeight(box: CollisionBox, y: number, radius: number): boolean {
-  return y + radius > box.minY && y - radius < box.maxY
+// 구체 높이 범위와 겹치는 장애물만 막는다. 거리 판정과 같은 추적 높이(부유 오프셋 제외)를 쓴다.
+export function blocksAtHeight(
+  shape: { minY: number; maxY: number },
+  y: number,
+  radius: number,
+): boolean {
+  return y + radius > shape.minY && y - radius < shape.maxY
 }
 
 interface Hit {
@@ -152,6 +178,11 @@ function sweepCircleXZ(
     consider(sweepCircle(px, pz, dx, dz, box.maxX, box.minZ, r), box.id)
     consider(sweepCircle(px, pz, dx, dz, box.maxX, box.maxZ, r), box.id)
   }
+  // 원기둥은 반경을 NPC 반경만큼 키운 원과의 반직선 검사와 같다
+  for (const c of world.circles) {
+    if (!blocksAtHeight(c, py, world.radius)) continue
+    consider(sweepCircle(px, pz, dx, dz, c.x, c.z, c.radius + r), c.id)
+  }
   return best
 }
 
@@ -188,6 +219,22 @@ export function resolvePenetration(world: CollisionWorld, position: THREE.Vector
         position.x = exit.x
         position.z = exit.z
       }
+      any = true
+      moved = true
+    }
+    for (const c of world.circles) {
+      if (!blocksAtHeight(c, position.y, r)) continue
+      const ox = position.x - c.x
+      const oz = position.z - c.z
+      const reach = c.radius + r
+      const distSq = ox * ox + oz * oz
+      if (distSq >= reach * reach) continue
+      const dist = Math.sqrt(distSq)
+      // 중심이 정확히 겹치면 +X 쪽으로 뺀다 (방향을 정할 근거가 없음)
+      const nx = dist > EPSILON ? ox / dist : 1
+      const nz = dist > EPSILON ? oz / dist : 0
+      position.x = c.x + nx * (reach + SKIN)
+      position.z = c.z + nz * (reach + SKIN)
       any = true
       moved = true
     }
@@ -321,6 +368,10 @@ export function isSegmentClear(
     if (!blocksAtHeight(box, y, world.radius)) continue
     if (segmentRectDistance(from.x, from.z, to.x, to.z, box) < r) return false
   }
+  for (const c of world.circles) {
+    if (!blocksAtHeight(c, y, world.radius)) continue
+    if (pointSegmentDistance(c.x, c.z, from.x, from.z, to.x, to.z) < c.radius + r) return false
+  }
   return true
 }
 
@@ -335,6 +386,10 @@ export function isPointClear(
   for (const box of world.boxes) {
     if (!blocksAtHeight(box, y, world.radius)) continue
     if (pointRectDistance(x, z, box) < clearance - 1e-4) return false
+  }
+  for (const c of world.circles) {
+    if (!blocksAtHeight(c, y, world.radius)) continue
+    if (Math.hypot(x - c.x, z - c.z) - c.radius < clearance - 1e-4) return false
   }
   return true
 }

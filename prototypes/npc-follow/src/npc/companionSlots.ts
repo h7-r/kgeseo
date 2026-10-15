@@ -1,8 +1,10 @@
 import * as THREE from 'three'
-import { isPointClear, isSegmentClear } from './collision'
-import type { CollisionWorld } from './collision'
-import { HOVER_CONFIG } from './hover'
-import { createPathState, planPath, resetPath } from './pathfinding'
+import { isPointClear, isSegmentClear } from './collision.ts'
+import type { CollisionWorld } from './collision.ts'
+import { HOVER_CONFIG } from './hover.ts'
+import { createPathState, planPath, resetPath } from './pathfinding.ts'
+import { groundHeight, isTerrainSegmentWalkable } from './terrain.ts'
+import type { NpcTerrain } from './terrain.ts'
 
 // 플레이어 기준 동행 위치 후보와 선택 로직.
 // 기본은 오른쪽 측후방이고, 장애물 때문에 쓸 수 없을 때만 다른 후보를 고른다.
@@ -38,6 +40,7 @@ export const SLOT_CONFIG = {
   stuckProgress: 0.1, // 이만큼 가까워져야 진전으로 본다 (m)
   blockedTime: 2.5, // 포기한 위치를 다시 시도하지 않는 시간 (s)
   blockedClearMove: 0.5, // 플레이어가 이만큼 움직이면 포기 기록을 지운다 (m)
+  maxHeightFromPlayer: 1.0, // 지형이 있을 때 후보 지면과 플레이어 발 높이 차 허용치 (m)
 } as const
 
 export interface SlotState {
@@ -92,6 +95,8 @@ export interface SlotContext {
   npc: THREE.Vector3 // NPC 추적 위치
   minSeparation: number
   delta: number
+  // 지형. 있으면 후보 높이를 지면에서 재고, 걸을 수 없는 땅·플레이어와 이어지지 않는 자리를 뺀다
+  terrain?: NpcTerrain | null
 }
 
 const candidate = new THREE.Vector3()
@@ -99,8 +104,22 @@ const playerAtNpcHeight = new THREE.Vector3()
 const probe = createPathState()
 
 // 위치 자체가 안전한지: 장애물 간격, 플레이어 거리, 플레이어와 같은 쪽(벽 너머가 아님)
+// 지형이 있으면 후보 높이를 그 자리 지면 + 부유 기준 높이로 맞춘다 (없으면 플레이어 발 기준 그대로)
+function placeOnGround(position: THREE.Vector3, ctx: SlotContext): void {
+  if (!ctx.terrain) return
+  position.y = groundHeight(ctx.terrain, position.x, position.z) + HOVER_CONFIG.baseHeight
+}
+
 function isPositionSafe(position: THREE.Vector3, ctx: SlotContext): boolean {
-  const { world, player, minSeparation } = ctx
+  const { world, player, minSeparation, terrain } = ctx
+  if (terrain) {
+    // 강·절벽 같은 못 걷는 땅, 플레이어와 높이가 크게 다른 자리(턱 위·아래),
+    // 플레이어에게서 걸어서 이어지지 않는 자리(강 건너 등)는 동행 위치로 쓰지 않는다
+    if (!terrain.sample(position.x, position.z).walkable) return false
+    const ground = position.y - HOVER_CONFIG.baseHeight
+    if (Math.abs(ground - player.y) > SLOT_CONFIG.maxHeightFromPlayer) return false
+    if (!isTerrainSegmentWalkable(terrain, player.x, player.z, position.x, position.z)) return false
+  }
   const y = position.y
   if (!isPointClear(world, position.x, position.z, y, world.radius + SLOT_CONFIG.obstacleMargin)) {
     return false
@@ -119,10 +138,19 @@ function isPositionSafe(position: THREE.Vector3, ctx: SlotContext): boolean {
 function isSlotUsable(slot: CompanionSlot, ctx: SlotContext, out: THREE.Vector3): boolean {
   const { world, player, minSeparation } = ctx
   computeSlotPosition(slot, player, ctx.settledYaw, out)
+  placeOnGround(out, ctx)
   if (!isPositionSafe(out, ctx)) return false
 
   resetPath(probe)
-  planPath(world, ctx.npc, out, probe, [{ x: player.x, z: player.z, radius: minSeparation }])
+  planPath(
+    world,
+    ctx.npc,
+    out,
+    probe,
+    [{ x: player.x, z: player.z, radius: minSeparation }],
+    0,
+    ctx.terrain ?? null,
+  )
   return probe.status !== 'blocked'
 }
 
@@ -201,8 +229,10 @@ export function selectCompanionSlot(
   if (state.current) {
     // 회전 중에는 지연된 방향으로 부드럽게 옮기되, 그 위치가 안전하지 않으면 최종 방향 위치를 쓴다
     computeSlotPosition(state.current, ctx.player, ctx.yaw, out)
+    placeOnGround(out, ctx)
     if (!isPositionSafe(out, ctx)) {
       computeSlotPosition(state.current, ctx.player, ctx.settledYaw, out)
+      placeOnGround(out, ctx)
     }
   }
   return state.current

@@ -1,24 +1,27 @@
 import * as THREE from 'three'
-import { planDetourXZ, pushOutOfCircleXZ } from './avoidance'
-import type { CircleXZ, DetourSide } from './avoidance'
+import { planDetourXZ, pushOutOfCircleXZ } from './avoidance.ts'
+import type { CircleXZ, DetourSide } from './avoidance.ts'
 import {
+  createCollisionWorld,
   createMoveResult,
   moveAndSlide,
   NPC_COLLISION_RADIUS,
   resolvePenetration,
-} from './collision'
-import type { CollisionWorld } from './collision'
-import { createPathState, planPath, resetPath } from './pathfinding'
-import type { PathState } from './pathfinding'
+} from './collision.ts'
+import type { CollisionWorld } from './collision.ts'
+import { createPathState, planPath, resetPath } from './pathfinding.ts'
+import type { PathState } from './pathfinding.ts'
 import {
   createSlotState,
   DEFAULT_SLOT,
   resetSlotState,
   selectCompanionSlot,
   trackSlotProgress,
-} from './companionSlots'
-import type { SlotState } from './companionSlots'
-import { HOVER_CONFIG } from './hover'
+} from './companionSlots.ts'
+import type { SlotState } from './companionSlots.ts'
+import { HOVER_CONFIG } from './hover.ts'
+import { groundHeight, guardTerrainMove } from './terrain.ts'
+import type { NpcTerrain } from './terrain.ts'
 
 // NPC가 따라갈 대상의 자세. 실제 게임 플레이어도 이 형태로만 넘겨주면 된다.
 // position: 발 기준 월드 좌표, yaw: Y축 회전(라디안, 정면 = (sin yaw, 0, cos yaw))
@@ -59,6 +62,10 @@ export const FOLLOW_CONFIG = {
   detourOrbitRadius: MIN_SEPARATION + 0.25, // 경유점을 놓는 반경 (m)
   detourLookahead: 0.5, // 경유점 선행 각도 (rad)
   detourSwitchMargin: 0.6, // 우회 방향 전환에 필요한 각도 이득 (rad)
+
+  // 플레이어가 한 프레임에 이보다 멀리 옮겨지면 텔레포트(낙하 복귀·시점 이동 등)로 본다 (m).
+  // 걷기·달리기로는 한 프레임(최대 0.05 s)에 0.2 m 도 못 간다. NPC 는 따라 순간이동하지 않는다.
+  teleportDistance: 3.0,
 } as const
 
 export interface FollowState {
@@ -92,6 +99,12 @@ export interface FollowState {
   obstacleContact: boolean
   // 플레이어와 장애물 사이에 끼어 최소 이격 거리를 지키지 못했는지 (장애물 관통 방지가 우선)
   pinned: boolean
+  // 이번 프레임에 지형(강·절벽·턱·허용 구역 밖) 때문에 이동이 막혔는지
+  terrainBlocked: boolean
+  // 플레이어 텔레포트 감지
+  lastPlayerPosition: THREE.Vector3 | null
+  teleportedThisFrame: boolean
+  teleportCount: number
 }
 
 export function createFollowState(start: THREE.Vector3): FollowState {
@@ -117,6 +130,10 @@ export function createFollowState(start: THREE.Vector3): FollowState {
     separationCorrected: false,
     obstacleContact: false,
     pinned: false,
+    terrainBlocked: false,
+    lastPlayerPosition: null,
+    teleportedThisFrame: false,
+    teleportCount: 0,
   }
 }
 
@@ -216,6 +233,9 @@ const fallback = new THREE.Vector3()
 const motion = new THREE.Vector3()
 const pushed = new THREE.Vector3()
 const moveResult = createMoveResult()
+const beforeMove = new THREE.Vector3()
+// 지형만 있고 장애물 목록이 없을 때 쓰는 빈 충돌 세계
+const EMPTY_WORLD = createCollisionWorld([])
 
 // 속도에서 접촉면을 파고드는 성분을 제거한다 (면을 따라 미끄러지는 속도만 남김)
 function removeInto(velocity: THREE.Vector3, normal: THREE.Vector3): void {
@@ -227,18 +247,57 @@ function removeInto(velocity: THREE.Vector3, normal: THREE.Vector3): void {
 }
 
 // 장애물이 있으면 관통하지 않도록 미끄러지며, 없으면 그대로 이동한다. 닿았으면 true.
+// 지형이 있으면 그 결과를 다시 지형으로 걸러, 못 걷는 땅·높은 턱 앞에서 멈추거나 축을 따라 미끄러진다.
 function applyMotion(
   state: FollowState,
   delta: THREE.Vector3,
   world: CollisionWorld | null,
+  terrain: NpcTerrain | null,
 ): boolean {
   if (!world) {
     state.position.add(delta)
     return false
   }
+  beforeMove.copy(state.position)
   moveAndSlide(world, state.position, delta, moveResult)
   if (moveResult.blocked) removeInto(state.velocity, moveResult.normal)
-  return moveResult.blocked
+  let blocked = moveResult.blocked
+  if (terrain) {
+    const guarded = guardTerrainMove(terrain, beforeMove.x, beforeMove.z, state.position.x, state.position.z)
+    state.position.x = guarded.x
+    state.position.z = guarded.z
+    if (guarded.blocked) {
+      if (guarded.blockedX) state.velocity.x = 0
+      if (guarded.blockedZ) state.velocity.z = 0
+      state.terrainBlocked = true
+      blocked = true
+    }
+    state.position.y = groundHeight(terrain, state.position.x, state.position.z) + HOVER_CONFIG.baseHeight
+  }
+  return blocked
+}
+
+// 플레이어가 순간이동했으면 진행 방향·목표 회전·경로를 새 자리 기준으로 다시 잡는다.
+// NPC 자신은 옮기지 않는다 — 갈 수 있으면 걸어서 따라가고, 길이 없으면 그 자리에서 기다린다.
+function detectTeleport(state: FollowState, pose: FollowTargetPose): void {
+  state.teleportedThisFrame = false
+  const last = state.lastPlayerPosition
+  if (last && last.distanceTo(pose.position) > FOLLOW_CONFIG.teleportDistance) {
+    state.teleportedThisFrame = true
+    state.teleportCount += 1
+    state.headingYaw = pose.yaw
+    state.headingOrigin.copy(pose.position)
+    state.anchorYaw = pose.yaw
+    state.targetYaw = pose.yaw
+    state.lastPoseYaw = pose.yaw
+    state.turnDir = 0
+    state.turnHold = 0
+    state.detourSide = 0
+    resetPath(state.path)
+    resetSlotState(state.slots)
+  }
+  if (last) last.copy(pose.position)
+  else state.lastPlayerPosition = pose.position.clone()
 }
 
 // 장애물을 고려해 동행 위치를 고른다. 기본 오른쪽 측후방이 장애물에 가깝거나 플레이어와
@@ -249,6 +308,7 @@ function updateGoal(
   world: CollisionWorld | null,
   yaw: number,
   delta: number,
+  terrain: NpcTerrain | null,
 ) {
   state.goal.copy(state.anchor)
   state.waiting = false
@@ -263,6 +323,7 @@ function updateGoal(
       npc: state.position,
       minSeparation: FOLLOW_CONFIG.minSeparation,
       delta,
+      terrain,
     },
     state.goal,
   )
@@ -272,20 +333,30 @@ function updateGoal(
 // 추적 위치를 delta(초)만큼 진행시킨다. 프레임레이트와 무관하게 동작한다.
 // 순서: 목표 계산 → 장애물 우회 경로 → 플레이어 회피 경유점 → 이동(장애물 충돌)
 //       → 최소 이격 보정(장애물 충돌)
-// world가 없으면 장애물을 무시한다.
+// world가 없으면 장애물을 무시한다. terrain(지면 높이·이동 가능 영역)이 없으면 평지로 본다.
 export function stepFollow(
   state: FollowState,
   pose: FollowTargetPose,
   delta: number,
   world: CollisionWorld | null = null,
+  terrain: NpcTerrain | null = null,
 ): void {
+  if (terrain && !world) world = EMPTY_WORLD
+  state.terrainBlocked = false
+  detectTeleport(state, pose)
+  if (terrain) {
+    state.position.y = groundHeight(terrain, state.position.x, state.position.z) + HOVER_CONFIG.baseHeight
+  }
   // 외부 요인으로 장애물 안에 들어가 있으면 먼저 빼낸다
   if (world) resolvePenetration(world, state.position)
   let contact = false
 
   const yaw = updateAnchorYaw(state, updateHeading(state, pose), delta)
   computeFollowAnchor(pose.position, yaw, state.anchor)
-  updateGoal(state, pose, world, yaw, delta)
+  if (terrain) {
+    state.anchor.y = groundHeight(terrain, state.anchor.x, state.anchor.z) + HOVER_CONFIG.baseHeight
+  }
+  updateGoal(state, pose, world, yaw, delta, terrain)
 
   const distance = state.position.distanceTo(state.goal)
 
@@ -310,9 +381,15 @@ export function stepFollow(
   let remaining = distance
   if (state.following && world) {
     // 플레이어 이격 범위를 지나는 경유 경로는 고르지 않는다 (플레이어와 장애물 사이 좁은 틈 등)
-    planPath(world, state.position, state.goal, state.path, [
-      { x: pose.position.x, z: pose.position.z, radius: FOLLOW_CONFIG.minSeparation },
-    ], delta)
+    planPath(
+      world,
+      state.position,
+      state.goal,
+      state.path,
+      [{ x: pose.position.x, z: pose.position.z, radius: FOLLOW_CONFIG.minSeparation }],
+      delta,
+      terrain,
+    )
     waypoint = state.path.nextWaypoint
     remaining = state.path.remaining
   } else {
@@ -368,7 +445,7 @@ export function stepFollow(
   if (state.following) step = Math.min(step, state.position.distanceTo(state.steerTarget))
   if (step > 0) {
     motion.copy(state.velocity).multiplyScalar(step / velocityLength)
-    contact = applyMotion(state, motion, world)
+    contact = applyMotion(state, motion, world, terrain)
   }
 
   // 최종 안전장치: 플레이어가 NPC 쪽으로 걸어오는 경우 등에도 몸체를 겹치지 않는다.
@@ -383,7 +460,7 @@ export function stepFollow(
   )
   if (state.separationCorrected) {
     motion.subVectors(pushed, state.position)
-    if (applyMotion(state, motion, world)) contact = true
+    if (applyMotion(state, motion, world, terrain)) contact = true
   }
 
   state.obstacleContact = contact
@@ -411,6 +488,7 @@ export function advanceFollow(
   delta: number,
   world: CollisionWorld | null,
   active: boolean,
+  terrain: NpcTerrain | null = null,
 ): void {
   if (!active) {
     state.velocity.set(0, 0, 0)
@@ -420,7 +498,7 @@ export function advanceFollow(
   }
   if (!state.active) resumeFollow(state, pose)
   state.active = true
-  stepFollow(state, pose, delta, world)
+  stepFollow(state, pose, delta, world, terrain)
 }
 
 // 대화 등으로 추적을 멈췄다가 다시 시작할 때 호출한다.
@@ -432,4 +510,6 @@ export function resumeFollow(state: FollowState, pose: FollowTargetPose): void {
   resetPath(state.path)
   resetSlotState(state.slots)
   if (state.headingYaw !== null) state.headingOrigin.copy(pose.position)
+  // 멈춘 동안 플레이어가 걸어서 멀어진 것을 텔레포트로 오인하지 않게 기준을 새로 잡는다
+  state.lastPlayerPosition = null
 }
