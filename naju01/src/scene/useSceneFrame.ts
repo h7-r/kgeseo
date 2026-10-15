@@ -11,6 +11,9 @@ import type { BakedTerrain } from "../terrain/useBakedTerrain";
 import type { RippleHandle } from "../world/waterRipples";
 import type { CollapseState } from "./useBlockerCollapse";
 import type { RiverShapes } from "./useWorldLayers";
+import type { AvatarLink } from "@/engine/avatarLink";
+import type { Terrain } from "./useTerrainLayers";
+import { focusTick } from "./immersion/focusFog";
 
 /** 걷기 훅이 매 프레임 갈아 끼우는 보고에 씬이 렌더 통계를 덧붙인다(계기판이 읽는다). */
 export interface NajuSceneReport extends MovementReport {
@@ -57,6 +60,9 @@ interface SceneFrameOptions {
   waterShift: number;
   rippleHandle: RefObject<RippleHandle | null>;
   bakedTerrainStatus: BakedTerrain["status"];
+  /** 구역 초점(immersion/focusFog) — 지금 구역 판정 · 안개 조임 · 먼 면 */
+  terrain: Terrain;
+  playerState: RefObject<AvatarLink>;
 }
 
 /**
@@ -77,6 +83,8 @@ export function useSceneFrame({
   waterShift,
   rippleHandle,
   bakedTerrainStatus,
+  terrain,
+  playerState,
 }: SceneFrameOptions) {
   // 프레임 시간 — 평균 60 이어도 가끔 120 ms 가 끼면 끊겨 보인다. 최근 120 프레임의 평균과 가장 느린 프레임을 같이 낸다.
   const frameTimes = useRef(new Float32Array(120));
@@ -90,6 +98,8 @@ export function useSceneFrame({
       frameSlot.current = (frameSlot.current + 1) % frameTimes.current.length;
       frameCount.current = Math.min(frameCount.current + 1, frameTimes.current.length);
     }
+    // 구역 초점(?초점) — 지금 구역 판정 · 안개 조임 · 먼 면. 무너짐 연출 앞에서 돈다.
+    focusTick({ scene: state.scene, camera, terrain, position: playerState.current.position, dt: Math.min(dt, 0.1) });
     // 무너뜨리기 연출이 카메라를 직접 돌린다 — 걷기 훅 뒤라야 이번 프레임 값이 안 지워진다.
     const sequence = collapseRef.current;
     if (sequence && !sequence.isDone) {

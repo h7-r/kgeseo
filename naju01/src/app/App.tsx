@@ -26,6 +26,7 @@ import { DEFAULT_TERRAIN } from "../terrain/terrain";
 import { ArrivalCover, FirstFrameSignal } from "../transition/ArrivalFade";
 import { useArrivalFade } from "../transition/useArrivalFade";
 import Dashboard from "./Dashboard";
+import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
 import LoadingCover, { type LoadingProgress } from "./LoadingCover";
 import { prefetchNajuAssets } from "./prefetch";
 import {
@@ -223,6 +224,7 @@ export default function App() {
 
       {IS_ARRIVING_FROM_HUB && <ArrivalCover isRevealed={isArrivalRevealed} />}
       {isDashboardVisible && <Dashboard reportRef={reportRef} />}
+      {IS_REVIEW_REQUESTED && <ReviewHud />}
       {SHOW_DEV_TOOLS && !isLocked && <ControlsHelp />}
       {/* 다 숨겼을 때 되돌리는 법을 잊지 않게 작은 자국만 남긴다 */}
       {HAS_DASHBOARD && !isDashboardVisible && <div style={hiddenHintStyle}>[H] 누르면 계기판이 열립니다</div>}

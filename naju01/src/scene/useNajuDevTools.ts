@@ -1,4 +1,6 @@
 import { useEffect, type RefObject } from "react";
+import type { Director } from "./immersion/director";
+import type { focus } from "./immersion/focusFog";
 import * as THREE from "three";
 
 import { exposeDevHook } from "@/debug/devHooks";
@@ -29,6 +31,9 @@ interface NajuDevHookOptions {
   ramp: ConnectorRamp | null;
   instanceGroups: InstanceGroup[];
   edits: Edits;
+  /** 몰입연출 콘솔 API(옛 window.__연출) · 구역 초점 상태 */
+  director?: Director;
+  focus?: typeof focus;
 }
 
 /** 개발용 `__game.naju` — 헤드리스 스크린샷·콘솔이 쓴다. teleport 를 쓰므로 useTerrainMovement 뒤여야 한다. */
@@ -45,6 +50,8 @@ export function useNajuDevHook({
   ramp,
   instanceGroups,
   edits,
+  director,
+  focus,
 }: NajuDevHookOptions) {
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -59,6 +66,9 @@ export function useNajuDevHook({
       // Meshy 에 넘길 지형 한 덩이를 뽑는다(굽는 규칙은 terrainAtlas)
       exportTerrainGlb: (options?: Parameters<typeof exportTerrainGlb>[1]) => exportTerrainGlb(scene, options, gl),
       endScene,
+      // 몰입연출 — __game.naju.director.beat("단서발견") · .event("구렁이") · .scenePassed(3) · .sceneFog() · .replayCut("Z1") · .state()
+      director,
+      focus,
       rampMeasurements: () => ramp?.measurements ?? null,
       clearedBlockers: () => [...clearedBlockers],
       collapseStage: () =>
@@ -92,6 +102,8 @@ export function useNajuDevHook({
     collapseRef,
     instanceGroups,
     edits,
+    director,
+    focus,
   ]);
 }
 

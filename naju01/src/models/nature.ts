@@ -42,10 +42,44 @@ import {
   TREE_7,
   WEED_1,
   WEED_2,
+  BUSH_2_FAR,
+  BUSH_3_FAR,
+  FLOWER_1_FAR,
+  FLOWER_2_FAR,
+  PEBBLE_1_FAR,
+  PEBBLE_2_FAR,
+  PEBBLE_3_FAR,
+  PEBBLE_4_FAR,
+  PEBBLE_5_FAR,
+  PEBBLE_6_FAR,
+  PEBBLE_7_FAR,
+  ROCK_1_FAR,
+  ROCK_2_FAR,
+  ROCK_3_FAR,
+  ROCK_4_FAR,
+  ROCK_5_FAR,
+  ROCK_6_FAR,
+  ROCK_7_FAR,
+  THATCHED_HOUSE_1_FAR,
+  THATCHED_HOUSE_3_FAR,
+  TREE_2_FAR,
+  TREE_4_FAR,
+  TREE_5_FAR,
+  TREE_6_FAR,
+  TREE_7_FAR,
+  WEED_1_FAR,
+  WEED_2_FAR,
 } from "./baked";
 import { buildBakedModelGeometry, findThinParts, findTrunk, type PaintVertices } from "./bakedGeometry";
 
 type Geometries = THREE.BufferGeometry[];
+
+// ── 원경판 (10/13 원근 LOD) ─────────────────────────────────
+//   표본 함수마다 `far = true` 를 주면 **같은 모형의 원경판**(약 1/4 삼각형)을 같은 칠로 돌려준다.
+//   순서가 원본과 같아야 한다 — 원근 나눔(scene/lodBatches)이 「원본 k 번 ↔ 원경판 k 번」으로 짝짓는다.
+//   [왜]  면수표에서 나무 171그루 × 1.8천 = 30만, 덤불 190개 × 860 = 16만이 상위였다.
+//         한 그루는 이미 가볍다 — **개수**가 무겁다. 그래서 22 m 밖은 원경판으로 그린다.
+const farKey = (key: string, far: boolean) => (far ? `${key}Far` : key);
 
 // 씬과 팔레트 썸네일이 따로 부르므로 한 번만 굽고 돌려쓴다
 const cache = new Map<string, Geometries>();
@@ -66,8 +100,8 @@ const facingUp = (normal: THREE.BufferAttribute | THREE.InterleavedBufferAttribu
   THREE.MathUtils.clamp(normal.getY(i) * 0.5 + 0.5, 0, 1);
 
 /** 나무 — 줄기는 나무색, 잎은 초록. 손으로 깎던 나무와 같은 팔레트여야 원경과 안 겉돈다. */
-export function buildBakedTreePrototypes(): Geometries {
-  return getCached("tree", () => {
+export function buildBakedTreePrototypes(far = false): Geometries {
+  return getCached(farKey("tree", far), () => {
     const trunk = new THREE.Color(VEGETATION_STYLE.trunk);
     const trunkDark = new THREE.Color(VEGETATION_STYLE.trunkDark);
     const leaf = new THREE.Color(VEGETATION_STYLE.leaf);
@@ -75,7 +109,10 @@ export function buildBakedTreePrototypes(): Geometries {
     const leafLight = new THREE.Color(VEGETATION_STYLE.leafLight);
     const temp = new THREE.Color();
     // 나무1·나무3 은 쓰지 않는다
-    return [TREE_2, TREE_4, TREE_5, TREE_6, TREE_7].map((model) =>
+    const models = far
+      ? [TREE_2_FAR, TREE_4_FAR, TREE_5_FAR, TREE_6_FAR, TREE_7_FAR]
+      : [TREE_2, TREE_4, TREE_5, TREE_6, TREE_7];
+    return models.map((model) =>
       buildBakedModelGeometry(model, {
         paint: (geometry, _model, colors) => {
           const p = geometry.attributes.position;
@@ -117,21 +154,23 @@ const paintStone: PaintVertices = (geometry, _model, colors) => {
 };
 
 /** 바위 — 강돌은 원래 납작하다. 세워 맞추지 않는다. */
-export function buildBakedRockPrototypes(): Geometries {
-  return getCached("rock", () =>
-    [ROCK_1, ROCK_2, ROCK_3, ROCK_4, ROCK_5, ROCK_6, ROCK_7].map((model) =>
-      buildBakedModelGeometry(model, { paint: paintStone }),
-    ),
+export function buildBakedRockPrototypes(far = false): Geometries {
+  return getCached(farKey("rock", far), () =>
+    (far
+      ? [ROCK_1_FAR, ROCK_2_FAR, ROCK_3_FAR, ROCK_4_FAR, ROCK_5_FAR, ROCK_6_FAR, ROCK_7_FAR]
+      : [ROCK_1, ROCK_2, ROCK_3, ROCK_4, ROCK_5, ROCK_6, ROCK_7]
+    ).map((model) => buildBakedModelGeometry(model, { paint: paintStone })),
   );
 }
 
 // 같은 바위를 아주 낮게(90 삼각형) 구운 것. 1,699 개가 깔려서 근경 바위를 쓰면 맵 전체보다 무겁다.
 // 근경 바위는 한 개 9,000 삼각형이라 차이가 100 배다 — 면수는 재고 적는다.
-function buildBakedPebblePrototypes(): Geometries {
-  return getCached("pebble", () =>
-    [PEBBLE_1, PEBBLE_2, PEBBLE_3, PEBBLE_4, PEBBLE_5, PEBBLE_6, PEBBLE_7].map((model) =>
-      buildBakedModelGeometry(model, { paint: paintStone }),
-    ),
+function buildBakedPebblePrototypes(far = false): Geometries {
+  return getCached(farKey("pebble", far), () =>
+    (far
+      ? [PEBBLE_1_FAR, PEBBLE_2_FAR, PEBBLE_3_FAR, PEBBLE_4_FAR, PEBBLE_5_FAR, PEBBLE_6_FAR, PEBBLE_7_FAR]
+      : [PEBBLE_1, PEBBLE_2, PEBBLE_3, PEBBLE_4, PEBBLE_5, PEBBLE_6, PEBBLE_7]
+    ).map((model) => buildBakedModelGeometry(model, { paint: paintStone })),
   );
 }
 
@@ -139,8 +178,12 @@ function buildBakedPebblePrototypes(): Geometries {
  * 자갈 무리 표본 — 앞 일곱이 근경 바위, 뒤 일곱이 자갈돌. 순서가 중요하다:
  * 손으로 놓은 큰 돌은 모양 0~6 으로 저장돼 있어 앞에 바위가 있어야 제대로 된 바위가 된다.
  */
-export function buildPebblePrototypes(): Geometries {
-  return getCached("pebbleSet", () => [...buildBakedRockPrototypes(), ...buildBakedPebblePrototypes()]);
+export function buildPebblePrototypes(far = false): Geometries {
+  // 원경판: 22 m 밖은 바위 700 → 150 · 자갈돌 90 → 24 삼각형(10/13)
+  return getCached(farKey("pebbleSet", far), () => [
+    ...buildBakedRockPrototypes(far),
+    ...buildBakedPebblePrototypes(far),
+  ]);
 }
 /** 이 앞이 바위 · 이 뒤가 자갈돌 */
 export const PEBBLE_START_INDEX = 7;
@@ -163,34 +206,40 @@ const paintPlant =
   };
 
 /** 수풀 — 가로가 키의 1.8 배인 덩이 그대로. 수풀1 은 지피식물이라 쓰지 않는다. */
-export function buildBakedBushPrototypes(): Geometries {
-  return getCached("bush", () => {
+export function buildBakedBushPrototypes(far = false): Geometries {
+  return getCached(farKey("bush", far), () => {
     const paint = paintPlant(
       new THREE.Color(VEGETATION_STYLE.leafDark),
       new THREE.Color(VEGETATION_STYLE.leaf),
       new THREE.Color(VEGETATION_STYLE.leafLight),
     );
-    return [BUSH_2, BUSH_3].map((model) => buildBakedModelGeometry(model, { paint }));
+    return (far ? [BUSH_2_FAR, BUSH_3_FAR] : [BUSH_2, BUSH_3]).map((model) =>
+      buildBakedModelGeometry(model, { paint }),
+    );
   });
 }
 
 /** 잡초 — 잎보다 마른 빛. 숲과 같은 초록이면 어린 나무로 보인다. */
-export function buildBakedWeedPrototypes(): Geometries {
-  return getCached("weed", () => {
+export function buildBakedWeedPrototypes(far = false): Geometries {
+  return getCached(farKey("weed", far), () => {
     const paint = paintPlant(new THREE.Color("#3E4A31"), new THREE.Color("#77864F"), new THREE.Color("#A3AC66"));
-    return [WEED_1, WEED_2].map((model) => buildBakedModelGeometry(model, { paint }));
+    return (far ? [WEED_1_FAR, WEED_2_FAR] : [WEED_1, WEED_2]).map((model) =>
+      buildBakedModelGeometry(model, { paint }),
+    );
   });
 }
 
 /** 꽃 — 한 송이가 아니라 무더기다. 팔레트에서 「꽃밭 한 뙈기」로 쓴다. */
-export function buildBakedFlowerPrototypes(): Geometries {
-  return getCached("flower", () => {
+export function buildBakedFlowerPrototypes(far = false): Geometries {
+  return getCached(farKey("flower", far), () => {
     const paint = paintPlant(
       new THREE.Color("#42502F"),
       new THREE.Color("#7C8C55"),
       new THREE.Color("#D9D2B4"), // 흰빛이 도는 들꽃
     );
-    return [FLOWER_1, FLOWER_2].map((model) => buildBakedModelGeometry(model, { paint }));
+    return (far ? [FLOWER_1_FAR, FLOWER_2_FAR] : [FLOWER_1, FLOWER_2]).map((model) =>
+      buildBakedModelGeometry(model, { paint }),
+    );
   });
 }
 
@@ -208,8 +257,9 @@ const STRAW_SHADE = "#8C7C4E";
  * 면 수 4,000 은 눈으로 재서 정했다(1,596 은 뭉개지고 3,966 부터 기둥·창이 다 읽힌다).
  * 초가집2 는 집 한 채가 아니라 마을 한 덩이라 여기 넣지 않는다.
  */
-export function buildBakedThatchedHousePrototypes(): Geometries {
-  return getCached("thatchedHouse", () => {
+export function buildBakedThatchedHousePrototypes(far = false): Geometries {
+  // 원경판 2,500 → 600 삼각형(10/13)
+  return getCached(farKey("thatchedHouse", far), () => {
     const straw = new THREE.Color(STRAW);
     const strawShade = new THREE.Color(STRAW_SHADE);
     const wall = new THREE.Color(DISTANT_STYLE.earthWall);
@@ -221,7 +271,7 @@ export function buildBakedThatchedHousePrototypes(): Geometries {
     const temp = new THREE.Color();
     const roofFrom = 0.45;
     const plinthTo = 0.08;
-    return [THATCHED_HOUSE_1, THATCHED_HOUSE_3].map((model) => {
+    return (far ? [THATCHED_HOUSE_1_FAR, THATCHED_HOUSE_3_FAR] : [THATCHED_HOUSE_1, THATCHED_HOUSE_3]).map((model) => {
       const geometry = buildBakedModelGeometry(model, {
         paint: (g, m, colors) => {
           const p = g.attributes.position;

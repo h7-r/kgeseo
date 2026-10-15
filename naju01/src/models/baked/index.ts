@@ -34,6 +34,36 @@ import tree6 from "./tree6.json";
 import tree7 from "./tree7.json";
 import weed1 from "./weed1.json";
 import weed2 from "./weed2.json";
+// 원경판(…Far) — 같은 모형을 약 1/4 삼각형으로 줄인 것. 멀리(22 m 밖) 있는 것만 이것으로 그린다(10/13 원근 LOD).
+//   옛 가지의 `도구/모형감면.mjs <이름> <목표> --원경` 산출물(src/모형/*원.js)을 JSON 으로 옮겼다.
+//   순서가 원본과 같아야 한다 — 원근 나눔이 「원본 k 번 ↔ 원경판 k 번」으로 짝짓는다.
+import bush2Far from "./bush2Far.json";
+import bush3Far from "./bush3Far.json";
+import flower1Far from "./flower1Far.json";
+import flower2Far from "./flower2Far.json";
+import pebble1Far from "./pebble1Far.json";
+import pebble2Far from "./pebble2Far.json";
+import pebble3Far from "./pebble3Far.json";
+import pebble4Far from "./pebble4Far.json";
+import pebble5Far from "./pebble5Far.json";
+import pebble6Far from "./pebble6Far.json";
+import pebble7Far from "./pebble7Far.json";
+import rock1Far from "./rock1Far.json";
+import rock2Far from "./rock2Far.json";
+import rock3Far from "./rock3Far.json";
+import rock4Far from "./rock4Far.json";
+import rock5Far from "./rock5Far.json";
+import rock6Far from "./rock6Far.json";
+import rock7Far from "./rock7Far.json";
+import thatchedHouse1Far from "./thatchedHouse1Far.json";
+import thatchedHouse3Far from "./thatchedHouse3Far.json";
+import tree2Far from "./tree2Far.json";
+import tree4Far from "./tree4Far.json";
+import tree5Far from "./tree5Far.json";
+import tree6Far from "./tree6Far.json";
+import tree7Far from "./tree7Far.json";
+import weed1Far from "./weed1Far.json";
+import weed2Far from "./weed2Far.json";
 
 export interface BakedModel {
   name: string;
@@ -87,3 +117,32 @@ export const THATCHED_HOUSE_1 = thatchedHouse1 satisfies BakedModel;
 export const THATCHED_HOUSE_2 = thatchedHouse2 satisfies BakedModel;
 export const THATCHED_HOUSE_3 = thatchedHouse3 satisfies BakedModel;
 export const FISH_TRAP = fishTrap satisfies BakedModel;
+
+// 원경판
+export const BUSH_2_FAR = bush2Far satisfies BakedModel;
+export const BUSH_3_FAR = bush3Far satisfies BakedModel;
+export const FLOWER_1_FAR = flower1Far satisfies BakedModel;
+export const FLOWER_2_FAR = flower2Far satisfies BakedModel;
+export const PEBBLE_1_FAR = pebble1Far satisfies BakedModel;
+export const PEBBLE_2_FAR = pebble2Far satisfies BakedModel;
+export const PEBBLE_3_FAR = pebble3Far satisfies BakedModel;
+export const PEBBLE_4_FAR = pebble4Far satisfies BakedModel;
+export const PEBBLE_5_FAR = pebble5Far satisfies BakedModel;
+export const PEBBLE_6_FAR = pebble6Far satisfies BakedModel;
+export const PEBBLE_7_FAR = pebble7Far satisfies BakedModel;
+export const ROCK_1_FAR = rock1Far satisfies BakedModel;
+export const ROCK_2_FAR = rock2Far satisfies BakedModel;
+export const ROCK_3_FAR = rock3Far satisfies BakedModel;
+export const ROCK_4_FAR = rock4Far satisfies BakedModel;
+export const ROCK_5_FAR = rock5Far satisfies BakedModel;
+export const ROCK_6_FAR = rock6Far satisfies BakedModel;
+export const ROCK_7_FAR = rock7Far satisfies BakedModel;
+export const THATCHED_HOUSE_1_FAR = thatchedHouse1Far satisfies BakedModel;
+export const THATCHED_HOUSE_3_FAR = thatchedHouse3Far satisfies BakedModel;
+export const TREE_2_FAR = tree2Far satisfies BakedModel;
+export const TREE_4_FAR = tree4Far satisfies BakedModel;
+export const TREE_5_FAR = tree5Far satisfies BakedModel;
+export const TREE_6_FAR = tree6Far satisfies BakedModel;
+export const TREE_7_FAR = tree7Far satisfies BakedModel;
+export const WEED_1_FAR = weed1Far satisfies BakedModel;
+export const WEED_2_FAR = weed2Far satisfies BakedModel;

@@ -11,6 +11,7 @@ import {
   computeAfterimageSway,
   type DistortionKind,
 } from "../../story/distortion";
+import type { LodInstanceGroup } from "../lodBatches";
 
 interface AfterimageGroupProps {
   group: InstanceGroup;
@@ -25,6 +26,8 @@ const ignoreRaycast = () => {};
  * 왜곡 잔상 — 같은 무리를 조금씩 어긋나게 여러 벌 겹쳐 그린다.
  * 색은 지평선 쪽으로 당긴다(마을 색 그대로 겹치면 진해져 오히려 또렷해진다).
  * 잔상은 그림일 뿐이라 광선에서 뺀다 — 편집기가 집으면 있지도 않은 마을을 고른다.
+ * 반투명 잔상은 윤곽만 읽히면 된다 — 원경판 짝(farBatches)이 있으면 그것으로 그린다(2,484 → 약 590 삼각형, 10/13).
+ * 원본 묶음(batches)만 돈다 — 원경판 짝까지 따로 그리면 두 번 그린다.
  */
 export default function AfterimageGroup({ group, kind, strength, horizonColor }: AfterimageGroupProps) {
   const meshes = useRef<(THREE.InstancedMesh | null)[]>([]);
@@ -50,6 +53,7 @@ export default function AfterimageGroup({ group, kind, strength, horizonColor }:
   });
 
   if (!afterimages.length) return null;
+  const farBatches = (group as LodInstanceGroup).farBatches;
   let meshIndex = -1;
   return (
     <>
@@ -70,7 +74,7 @@ export default function AfterimageGroup({ group, kind, strength, horizonColor }:
                   meshes.current[slot] = mesh;
                 }}
                 name={distortionMeshName(group.groupId)}
-                args={[batch.geometry, undefined, batch.ids.length]}
+                args={[farBatches?.[i]?.geometry ?? batch.geometry, undefined, batch.ids.length]}
                 frustumCulled={false}
                 onUpdate={(mesh) => {
                   mesh.instanceMatrix.array.set(batch.matrices);

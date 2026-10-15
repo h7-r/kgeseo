@@ -1,0 +1,16 @@
+{
+  "name": "pebble4Far",
+  "source": "자갈돌4.glb",
+  "rule": "center",
+  "bakeCommand": "(옛 가지) node 도구/모형감면.mjs 자갈돌4 24 --원경 → 원경판 JSON 으로 옮김(10/13 원근 LOD)",
+  "decimatedFrom": 88,
+  "size": {
+    "x": 0.6987,
+    "y": 0.4528,
+    "z": 0.8
+  },
+  "vertexCount": 14,
+  "triangleCount": 24,
+  "positions": "OmSrvhDRk72IkiU+SOCyvor0i71c9VO+7vekvl+IYr7p0pI+ZGsnvss6Mj7Y51W+TfppvhluVb3NzMw+fVVavm6oUj55CoY+xVFEPCUSDb7NzMy+WkBoPoM4ZL67OK8+WGn0PeUgUD4Jep0+p21XPmLXZz7X6wY9kuRrPmLXZ77gsg49knarPY+rqz1jQ8W+sbaGPppTjj2ZM0m+SOCyPthNlb2ko3k+",
+  "indices": "AAABAAIAAQAAAAMAAAACAAQAAAAFAAMABQAAAAQAAQAGAAIAAwAGAAEAAgAHAAQABQAIAAMAAwAIAAkAAgAGAAoAAgAKAAcABgADAAsAAwAJAAsABQAHAAgABAAHAAUACwAJAAwABgALAAwABwANAAgACAANAAkABgAMAAoADQAMAAkADAANAAoACgANAAcA"
+}
