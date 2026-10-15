@@ -9,8 +9,6 @@ export const INTERACTION_CONFIG = {
 // 임시 대사. 실제 게임에서는 대화 데이터/백엔드에서 받아온다.
 export const NPC_GREETING = '안녕? 뭔가 찾고 있어?'
 
-export type NpcInteractionPhase = 'idle' | 'talking'
-
 // 대화를 끝낸 입력. 'button'은 클릭이라 Pointer Lock 재요청이 가능하고,
 // 'key'(ESC)는 브라우저의 잠금 해제 키와 겹치므로 재요청하지 않는다.
 export type NpcDialogEndReason = 'button' | 'key'

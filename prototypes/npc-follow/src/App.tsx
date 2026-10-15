@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentRef, CSSProperties, RefObject } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Grid, PointerLockControls } from '@react-three/drei'
@@ -12,6 +12,8 @@ import { useNpcInteraction } from './npc/useNpcInteraction'
 import type { FollowTargetPose } from './npc/followLogic'
 import type { NpcDialogEndReason } from './npc/interaction'
 import { usePointerRelock } from './usePointerRelock'
+import { createFollowCommands, createNpcBehaviorStore } from './npc/behaviorState'
+import type { NpcBehavior, NpcBehaviorResult } from './npc/behaviorState'
 import { createCollisionWorld } from './npc/collision'
 import { TEST_MAP_OBSTACLES } from './world/testMap'
 
@@ -145,15 +147,16 @@ function PlayerDummy({
 
 function TestWorld({
   mode,
-  talking,
+  npcBehavior,
   onTargetChange,
   controlsRef,
 }: {
   mode: CameraMode
-  talking: boolean
+  npcBehavior: NpcBehavior
   onTargetChange: (targetable: boolean) => void
   controlsRef: RefObject<PointerLockHandle | null>
 }) {
+  const talking = npcBehavior === 'Interact'
   const playerPose = useRef<FollowTargetPose>({
     position: new THREE.Vector3(...PLAYER_START),
     yaw: Math.PI,
@@ -190,11 +193,11 @@ function TestWorld({
       {/* 관찰용 플레이어 더미 (자세를 먼저 갱신하도록 NPC보다 앞에 둔다) */}
       <PlayerDummy mode={mode} poseRef={playerPose} inputEnabled={!talking} />
 
-      {/* NPC: 플레이어 자세만 전달받아 측후방을 따라다닌다. 대화 중에는 제자리 고정 */}
+      {/* NPC: Follow 상태에서만 플레이어를 따라다닌다. Idle·Interact에서는 제자리 고정(부유 유지) */}
       <NpcCompanion
         targetPose={playerPose}
         showAnchor={mode === 'third'}
-        frozen={talking}
+        frozen={npcBehavior !== 'Follow'}
         bodyRef={npcBody}
         collisionWorld={NPC_COLLISION_WORLD}
       />
@@ -261,6 +264,81 @@ const relockNoticeStyle: CSSProperties = {
   pointerEvents: 'none',
 }
 
+// ---------- 테스트 전용: NPC 행동 상태 디버그 패널 ----------
+const BEHAVIOR_COLOR: Record<NpcBehavior, string> = {
+  Idle: '#ffd36e',
+  Follow: '#70e099',
+  Interact: '#8de5ff',
+}
+
+const debugPanelStyle: CSSProperties = {
+  position: 'absolute',
+  top: 16,
+  right: 16,
+  padding: '10px 14px',
+  borderRadius: 6,
+  background: 'rgba(0, 0, 0, 0.55)',
+  color: 'white',
+  fontFamily: 'sans-serif',
+  fontSize: 13,
+  lineHeight: 1.6,
+  maxWidth: 'calc(100vw - 32px)',
+}
+
+const debugButtonStyle: CSSProperties = {
+  marginRight: 6,
+  marginTop: 6,
+  padding: '4px 10px',
+  borderRadius: 4,
+  border: '1px solid #aab3c0',
+  background: '#2a3240',
+  color: 'white',
+  cursor: 'pointer',
+}
+
+function NpcBehaviorDebugPanel({
+  behavior,
+  lastResult,
+  onStartFollow,
+  onStopFollow,
+}: {
+  behavior: NpcBehavior
+  lastResult: NpcBehaviorResult | null
+  onStartFollow: () => void
+  onStopFollow: () => void
+}) {
+  const talking = behavior === 'Interact'
+  const disabledStyle: CSSProperties = { opacity: 0.4, cursor: 'not-allowed' }
+  return (
+    <div style={debugPanelStyle}>
+      <div>
+        NPC 상태 (테스트):{' '}
+        <strong style={{ color: BEHAVIOR_COLOR[behavior] }}>{behavior}</strong>
+      </div>
+      <button
+        type="button"
+        style={{ ...debugButtonStyle, ...(talking || behavior === 'Follow' ? disabledStyle : {}) }}
+        disabled={talking || behavior === 'Follow'}
+        onClick={onStartFollow}
+      >
+        동행 시작
+      </button>
+      <button
+        type="button"
+        style={{ ...debugButtonStyle, ...(talking || behavior === 'Idle' ? disabledStyle : {}) }}
+        disabled={talking || behavior === 'Idle'}
+        onClick={onStopFollow}
+      >
+        동행 중지
+      </button>
+      {talking && <div style={{ color: '#aab3c0' }}>대화 중에는 전환할 수 없습니다</div>}
+      {lastResult && !lastResult.accepted && (
+        <div style={{ color: '#ff9f5a' }}>마지막 명령 거부: {lastResult.reason}</div>
+      )}
+    </div>
+  )
+}
+
 const crosshairStyle: CSSProperties = {
   position: 'absolute',
   top: '50%',
@@ -285,8 +363,14 @@ export default function App() {
     },
     [requestRelock, requestClickHint],
   )
+  // NPC 행동 상태(Idle/Follow/Interact)의 단일 저장소. 모든 전환은 dispatch로만 일어난다.
+  const [behaviorStore] = useState(createNpcBehaviorStore)
+  // 게임 이벤트·백엔드가 쓸 동행 시작·중지 명령. 지금은 디버그 패널만 사용한다.
+  const followCommands = useMemo(() => createFollowCommands(behaviorStore), [behaviorStore])
+  const [lastCommand, setLastCommand] = useState<NpcBehaviorResult | null>(null)
   // 대화 종료 처리는 끝낸 입력(버튼/ESC)에 따라 onDialogEnd에서 나뉜다
   const npc = useNpcInteraction({
+    store: behaviorStore,
     enabled: mode === 'first',
     onEnd: onDialogEnd,
   })
@@ -310,7 +394,7 @@ export default function App() {
         <color attach="background" args={['#202733']} />
         <TestWorld
           mode={mode}
-          talking={talking}
+          npcBehavior={npc.behavior.current}
           onTargetChange={npc.reportTarget}
           controlsRef={controls}
         />
@@ -326,6 +410,13 @@ export default function App() {
         <div>WASD: 이동 · V: 1인칭/3인칭 전환 · ESC: 잠금 해제</div>
         <div>NPC 조준 후 E: 대화 · ESC: 대화 닫기</div>
       </div>
+
+      <NpcBehaviorDebugPanel
+        behavior={npc.behavior.current}
+        lastResult={lastCommand}
+        onStartFollow={() => setLastCommand(followCommands.startFollow('debug-ui'))}
+        onStopFollow={() => setLastCommand(followCommands.stopFollow('debug-ui'))}
+      />
 
       {mode === 'first' && !talking && <div style={crosshairStyle}>+</div>}
       {npc.canInteract && <div style={promptStyle}>E · 대화하기</div>}

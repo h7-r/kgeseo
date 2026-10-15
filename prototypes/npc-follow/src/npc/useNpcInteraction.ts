@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { INTERACTION_CONFIG } from './interaction'
-import type { NpcDialogEndReason, NpcInteractionPhase } from './interaction'
+import type { NpcDialogEndReason } from './interaction'
+import type { NpcBehaviorStore } from './behaviorState'
+import { useNpcBehavior } from './useNpcBehavior'
 
 interface UseNpcInteractionOptions {
+  // 행동 상태 저장소. 대화 시작·종료는 이 저장소의 Interact 전환으로만 처리한다.
+  store: NpcBehaviorStore
   // false면 조준해도 대화를 시작하지 않는다 (예: 3인칭 관찰 모드)
   enabled: boolean
   // 대화가 실제로 끝난 순간 한 번 호출된다 (닫기 버튼·ESC 공통).
@@ -10,13 +14,13 @@ interface UseNpcInteractionOptions {
   onEnd?: (reason: NpcDialogEndReason) => void
 }
 
-// 대화 상태와 E/ESC 키 입력을 관리한다. NPC 이동 상태는 다루지 않는다.
-export function useNpcInteraction({ enabled, onEnd }: UseNpcInteractionOptions) {
-  const [phase, setPhase] = useState<NpcInteractionPhase>('idle')
+// 조준 판정과 E/ESC 키 입력을 행동 상태(Interact) 전환으로 연결한다. NPC 이동은 다루지 않는다.
+export function useNpcInteraction({ store, enabled, onEnd }: UseNpcInteractionOptions) {
+  const behavior = useNpcBehavior(store)
+  const talking = behavior.current === 'Interact'
   const [canInteract, setCanInteract] = useState(false)
 
-  // 키 이벤트에서 최신 값을 동기적으로 읽기 위한 사본 (같은 입력이 두 번 처리되지 않게)
-  const phaseRef = useRef<NpcInteractionPhase>('idle')
+  // 키 이벤트에서 최신 값을 동기적으로 읽기 위한 사본
   const canInteractRef = useRef(false)
   const enabledRef = useRef(enabled)
   const onEndRef = useRef(onEnd)
@@ -33,27 +37,23 @@ export function useNpcInteraction({ enabled, onEnd }: UseNpcInteractionOptions) 
   }, [])
 
   const startTalk = useCallback(() => {
-    if (
-      phaseRef.current !== 'idle' ||
-      !canInteractRef.current ||
-      !enabledRef.current
-    ) {
-      return
-    }
-    phaseRef.current = 'talking'
-    setPhase('talking')
+    if (!canInteractRef.current || !enabledRef.current) return
+    // 이미 대화 중이면 저장소가 거부한다 (중복 입력 방지)
+    if (!store.dispatch({ type: 'START_INTERACT', source: 'dialog' }).accepted) return
     canInteractRef.current = false
     setCanInteract(false)
     // 대화창 버튼을 누를 수 있도록 마우스 잠금을 푼다
     if (document.pointerLockElement) document.exitPointerLock()
-  }, [])
+  }, [store])
 
-  const endTalk = useCallback((reason: NpcDialogEndReason) => {
-    if (phaseRef.current !== 'talking') return
-    phaseRef.current = 'idle'
-    setPhase('idle')
-    onEndRef.current?.(reason)
-  }, [])
+  const endTalk = useCallback(
+    (reason: NpcDialogEndReason) => {
+      // 대화 중이 아니면 거부되므로 onEnd(재잠금 등)가 두 번 실행되지 않는다
+      if (!store.dispatch({ type: 'END_INTERACT', source: 'dialog' }).accepted) return
+      onEndRef.current?.(reason)
+    },
+    [store],
+  )
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -66,9 +66,9 @@ export function useNpcInteraction({ enabled, onEnd }: UseNpcInteractionOptions) 
   }, [startTalk, endTalk])
 
   return {
-    phase,
-    talking: phase === 'talking',
-    canInteract: canInteract && enabled && phase === 'idle',
+    behavior,
+    talking,
+    canInteract: canInteract && enabled && !talking,
     reportTarget,
     startTalk,
     endTalk,

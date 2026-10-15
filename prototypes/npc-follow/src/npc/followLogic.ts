@@ -79,8 +79,10 @@ export interface FollowState {
   // 실제로 가려는 위치: 장애물을 고려해 고른 동행 위치 (slots.current)
   goal: THREE.Vector3
   slots: SlotState // 동행 위치 후보 선택 상태
-  // 쓸 수 있는 동행 위치가 없어 제자리에서 대기 중인지 (부유는 계속)
+  // 쓸 수 있는 동행 위치가 없어 제자리에서 대기 중인지 (Follow 내부 상태, 부유는 계속)
   waiting: boolean
+  // 직전 프레임에 추적이 켜져 있었는지 (Idle·Interact에서 Follow로 돌아올 때 재시작 판단)
+  active: boolean
   path: PathState // 장애물 우회 경로
   steerTarget: THREE.Vector3 // 이번 프레임에 실제로 향하는 지점 (목표 또는 경유점)
   detourSide: DetourSide
@@ -108,6 +110,7 @@ export function createFollowState(start: THREE.Vector3): FollowState {
     goal: start.clone(),
     slots: createSlotState(),
     waiting: false,
+    active: true,
     path: createPathState(),
     steerTarget: start.clone(),
     detourSide: 0,
@@ -397,6 +400,27 @@ export function stepFollow(
   state.pinned =
     Math.hypot(state.position.x - pose.position.x, state.position.z - pose.position.z) <
     FOLLOW_CONFIG.minSeparation - 1e-3
+}
+
+// 행동 상태에 따라 한 프레임을 진행한다.
+// active=false(Idle·Interact): 위치를 그대로 두고 속도만 버린다. 경로·동행 위치 데이터는 유지한다.
+// active로 돌아온 첫 프레임: 현재 NPC 위치에서 추적을 새로 시작한다(resumeFollow).
+export function advanceFollow(
+  state: FollowState,
+  pose: FollowTargetPose,
+  delta: number,
+  world: CollisionWorld | null,
+  active: boolean,
+): void {
+  if (!active) {
+    state.velocity.set(0, 0, 0)
+    state.following = false
+    state.active = false
+    return
+  }
+  if (!state.active) resumeFollow(state, pose)
+  state.active = true
+  stepFollow(state, pose, delta, world)
 }
 
 // 대화 등으로 추적을 멈췄다가 다시 시작할 때 호출한다.

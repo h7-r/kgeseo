@@ -2,7 +2,7 @@ import { useCallback, useRef } from 'react'
 import type { RefObject } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { createFollowState, resumeFollow, stepFollow } from './followLogic'
+import { advanceFollow, createFollowState } from './followLogic'
 import type { FollowTargetPose } from './followLogic'
 import { hoverOffset } from './hover'
 import { NPC_COLLISION_RADIUS } from './collision'
@@ -17,7 +17,7 @@ interface NpcCompanionProps {
   start?: [number, number, number]
   // 관찰용 목표 위치·우회 경유점 표시
   showAnchor?: boolean
-  // true인 동안 추적을 멈추고 현재 위치에 고정한다 (부유는 계속)
+  // true인 동안 추적을 멈추고 현재 위치에 고정한다 (부유는 계속). 행동 상태 Idle·Interact에 해당
   frozen?: boolean
   // 상호작용 판정 등 외부에서 NPC 메시를 참조할 때 사용
   bodyRef?: RefObject<THREE.Mesh | null>
@@ -42,7 +42,6 @@ export function NpcCompanion({
     },
     [bodyRef],
   )
-  const wasFrozen = useRef(frozen)
   const anchorMarker = useRef<THREE.Mesh>(null)
   const waypointMarker = useRef<THREE.Mesh>(null)
   const pathMarkers = useRef<(THREE.Mesh | null)[]>([])
@@ -54,14 +53,8 @@ export function NpcCompanion({
     const follow = state.current
     const groundY = targetPose.current.position.y + 0.02
 
-    if (frozen) {
-      follow.velocity.set(0, 0, 0)
-    } else {
-      // 고정이 풀린 첫 프레임: 플레이어의 현재 위치 기준으로 추적을 새로 시작
-      if (wasFrozen.current) resumeFollow(follow, targetPose.current)
-      stepFollow(follow, targetPose.current, dt, collisionWorld)
-    }
-    wasFrozen.current = frozen
+    // 고정 중에는 위치를 유지하고, 풀린 첫 프레임에 현재 위치에서 추적을 새로 시작한다
+    advanceFollow(follow, targetPose.current, dt, collisionWorld, !frozen)
 
     const mesh = body.current
     if (mesh) {
