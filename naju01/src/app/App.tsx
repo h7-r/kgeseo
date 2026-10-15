@@ -46,6 +46,7 @@ import {
   MIN_DPR,
   MSAA_SAMPLES,
   SHOW_CUSTOMIZE_PANEL,
+  IS_FIRST_PERSON_ONLY,
   DASHBOARD_LEFT_PX,
   HAS_DASHBOARD,
   SHOW_DEV_TOOLS,
@@ -142,7 +143,14 @@ export default function App() {
       if (HAS_DASHBOARD && event.code === "KeyH" && !event.repeat) setIsDashboardVisible((visible) => !visible);
       // 시점 전환은 카메라 회전을 만지지 않고 캐릭터 표시만 바꾼다.
       // 수식키가 눌린 V 는 편집기의 붙여넣기(⌘V/Ctrl+V)다.
-      if (event.code === "KeyV" && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      if (
+        !IS_FIRST_PERSON_ONLY &&
+        event.code === "KeyV" &&
+        !event.repeat &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
         setViewMode(toggleViewMode);
       }
     };
@@ -228,9 +236,11 @@ export default function App() {
       {SHOW_DEV_TOOLS && !isLocked && <ControlsHelp />}
       {/* 다 숨겼을 때 되돌리는 법을 잊지 않게 작은 자국만 남긴다 */}
       {HAS_DASHBOARD && !isDashboardVisible && <div style={hiddenHintStyle}>[H] 누르면 계기판이 열립니다</div>}
-      <button type="button" onClick={() => setViewMode(toggleViewMode)} style={viewButtonStyle}>
-        [V] {viewMode}
-      </button>
+      {!IS_FIRST_PERSON_ONLY && (
+        <button type="button" onClick={() => setViewMode(toggleViewMode)} style={viewButtonStyle}>
+          [V] {viewMode}
+        </button>
+      )}
       {SHOW_CUSTOMIZE_PANEL && meshConfig && (
         <ChibiCustomizerPanel
           config={meshConfig}
@@ -259,8 +269,8 @@ export default function App() {
 function ControlsHelp() {
   return (
     <div style={helpStyle}>
-      <b>[T] 시작</b> · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · ESC 나가기 · <b>[V] 1·3인칭 전환</b> ·{" "}
-      <b>[E] 편집</b> · <b>[H] 계기판 숨기기</b>
+      <b>[T] 시작</b> · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · ESC 나가기 · <b>[E] 편집</b> ·{" "}
+      <b>[H] 계기판 숨기기</b>
       <br />
       <span style={mutedStyle}>
         3인칭에서 마우스로 캐릭터 앞·뒤를 자유롭게 회전 · [1][2][3] V1·V2·V3 시점으로 이동(개발용)

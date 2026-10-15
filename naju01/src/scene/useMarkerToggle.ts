@@ -1,7 +1,8 @@
 // ── 주석·표식 켜고 끄기 (N 키, 10/13 미르) ─────────────────
 //   이름표(구역·씬 요소·차단물·시점), 조사점 고리·핀, 시점 V1~V3 핀, 왜곡의 문 반원,
 //   사람 자 · 격자 · 단면선을 **한 번에** 끈다. Leva 의 개별 손잡이는 그대로 두고 그 위에 건다.
-//   브라우저에 기억한다(못 읽으면 켠 상태로 시작). 옛 공간그레이박스 `표식켬` 이식 — 저장 열쇠도 그대로 「왜곡.표식」.
+//   브라우저에 기억한다. **기본은 꺼짐**(10/15 미르) — N 을 눌러 켠 적이 있을 때만 켠 상태로 시작한다.
+//   옛 공간그레이박스 `표식켬` 이식. 저장 열쇠는 「왜곡.표식.v2」 — 예전 열쇠(「왜곡.표식」)에 남은 「켬」이 새 기본값을 덮지 않게 바꿨다.
 //
 //   쓰는 법(NajuScene):
 //     const showMarkers = useMarkerToggle();
@@ -14,13 +15,13 @@ import { useEffect, useState } from "react";
 
 import { readStorage, writeStorage } from "@/engine/storage";
 
-const STORAGE_KEY = "왜곡.표식";
+const STORAGE_KEY = "왜곡.표식.v2";
 const OFF = "끔";
 const ON = "켬";
 
 /** N 키로 뒤집히는 「표식 보이기」. 입력칸에 글을 쓰는 중이거나 Ctrl/⌘ 조합이면 건드리지 않는다. */
 export function useMarkerToggle(): boolean {
-  const [showMarkers, setShowMarkers] = useState(() => readStorage(STORAGE_KEY) !== OFF);
+  const [showMarkers, setShowMarkers] = useState(() => readStorage(STORAGE_KEY) === ON);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== "KeyN" || e.repeat || e.ctrlKey || e.metaKey) return;
