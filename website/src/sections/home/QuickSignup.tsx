@@ -81,7 +81,8 @@ export default function QuickSignup() {
         }
 
         const result = await signUp({
-          email: values.email ?? "",
+          // 화면 검사는 앞뒤 공백을 떼고 본다 — 서버에도 뗀 값을 보내야 같은 판정이 난다(회원가입 화면과 같다).
+          email: (values.email ?? "").trim(),
           password: values.password ?? "",
           nickname: values.nickname,
           region: values.region,
