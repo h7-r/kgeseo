@@ -1,6 +1,23 @@
 import * as THREE from 'three'
 import { planDetourXZ, pushOutOfCircleXZ } from './avoidance'
 import type { CircleXZ, DetourSide } from './avoidance'
+import {
+  createMoveResult,
+  moveAndSlide,
+  NPC_COLLISION_RADIUS,
+  resolvePenetration,
+} from './collision'
+import type { CollisionWorld } from './collision'
+import { createPathState, planPath, resetPath } from './pathfinding'
+import type { PathState } from './pathfinding'
+import {
+  createSlotState,
+  DEFAULT_SLOT,
+  resetSlotState,
+  selectCompanionSlot,
+  trackSlotProgress,
+} from './companionSlots'
+import type { SlotState } from './companionSlots'
 import { HOVER_CONFIG } from './hover'
 
 // NPC가 따라갈 대상의 자세. 실제 게임 플레이어도 이 형태로만 넘겨주면 된다.
@@ -11,11 +28,11 @@ export interface FollowTargetPose {
   yaw: number
 }
 
-const SIDE_OFFSET = 1.1 // 대상 오른쪽 거리 (m)
-const BACK_OFFSET = 0.8 // 대상 뒤쪽 거리 (m)
+const SIDE_OFFSET = DEFAULT_SLOT.side // 대상 오른쪽 거리 (m)
+const BACK_OFFSET = DEFAULT_SLOT.back // 대상 뒤쪽 거리 (m)
 const MAX_SPEED = 2.8 // 최대 이동 속도 (m/s)
 const PLAYER_RADIUS = 0.3 // 플레이어 더미 캡슐 반경 (m)
-const NPC_RADIUS = 0.35 // NPC 구체 반경 (m)
+const NPC_RADIUS = NPC_COLLISION_RADIUS // NPC 구체 반경 (m)
 const MIN_SEPARATION = PLAYER_RADIUS + NPC_RADIUS + 0.1
 
 export const FOLLOW_CONFIG = {
@@ -58,11 +75,21 @@ export interface FollowState {
   lastPoseYaw: number // 직전 프레임의 대상 회전값 (래핑된 원본)
   turnDir: -1 | 0 | 1 // 대상이 현재 돌고 있는 방향
   turnHold: number // turnDir 유지 남은 시간 (s)
-  anchor: THREE.Vector3 // 최종 목표 위치
+  anchor: THREE.Vector3 // 기본 동행 위치(오른쪽 측후방, 장애물 무시)
+  // 실제로 가려는 위치: 장애물을 고려해 고른 동행 위치 (slots.current)
+  goal: THREE.Vector3
+  slots: SlotState // 동행 위치 후보 선택 상태
+  // 쓸 수 있는 동행 위치가 없어 제자리에서 대기 중인지 (부유는 계속)
+  waiting: boolean
+  path: PathState // 장애물 우회 경로
   steerTarget: THREE.Vector3 // 이번 프레임에 실제로 향하는 지점 (목표 또는 경유점)
   detourSide: DetourSide
   // 이번 프레임에 최소 이격 보정이 일어났는지 (우회가 제대로 동작하면 플레이어가 다가올 때만 true)
   separationCorrected: boolean
+  // 이번 프레임에 장애물에 닿아 이동이 제한됐는지
+  obstacleContact: boolean
+  // 플레이어와 장애물 사이에 끼어 최소 이격 거리를 지키지 못했는지 (장애물 관통 방지가 우선)
+  pinned: boolean
 }
 
 export function createFollowState(start: THREE.Vector3): FollowState {
@@ -78,9 +105,15 @@ export function createFollowState(start: THREE.Vector3): FollowState {
     turnDir: 0,
     turnHold: 0,
     anchor: start.clone(),
+    goal: start.clone(),
+    slots: createSlotState(),
+    waiting: false,
+    path: createPathState(),
     steerTarget: start.clone(),
     detourSide: 0,
     separationCorrected: false,
+    obstacleContact: false,
+    pinned: false,
   }
 }
 
@@ -177,21 +210,87 @@ function updateAnchorYaw(state: FollowState, poseYaw: number, delta: number): nu
 const toSteer = new THREE.Vector3()
 const desired = new THREE.Vector3()
 const fallback = new THREE.Vector3()
+const motion = new THREE.Vector3()
+const pushed = new THREE.Vector3()
+const moveResult = createMoveResult()
+
+// 속도에서 접촉면을 파고드는 성분을 제거한다 (면을 따라 미끄러지는 속도만 남김)
+function removeInto(velocity: THREE.Vector3, normal: THREE.Vector3): void {
+  const into = velocity.x * normal.x + velocity.z * normal.z
+  if (into < 0) {
+    velocity.x -= into * normal.x
+    velocity.z -= into * normal.z
+  }
+}
+
+// 장애물이 있으면 관통하지 않도록 미끄러지며, 없으면 그대로 이동한다. 닿았으면 true.
+function applyMotion(
+  state: FollowState,
+  delta: THREE.Vector3,
+  world: CollisionWorld | null,
+): boolean {
+  if (!world) {
+    state.position.add(delta)
+    return false
+  }
+  moveAndSlide(world, state.position, delta, moveResult)
+  if (moveResult.blocked) removeInto(state.velocity, moveResult.normal)
+  return moveResult.blocked
+}
+
+// 장애물을 고려해 동행 위치를 고른다. 기본 오른쪽 측후방이 장애물에 가깝거나 플레이어와
+// 벽을 사이에 두거나 도달할 수 없으면 다른 후보를, 모두 안 되면 대기(waiting)를 택한다.
+function updateGoal(
+  state: FollowState,
+  pose: FollowTargetPose,
+  world: CollisionWorld | null,
+  yaw: number,
+  delta: number,
+) {
+  state.goal.copy(state.anchor)
+  state.waiting = false
+  if (!world) return
+  const slot = selectCompanionSlot(
+    state.slots,
+    {
+      world,
+      player: pose.position,
+      yaw,
+      settledYaw: state.headingYaw ?? yaw,
+      npc: state.position,
+      minSeparation: FOLLOW_CONFIG.minSeparation,
+      delta,
+    },
+    state.goal,
+  )
+  state.waiting = slot === null
+}
 
 // 추적 위치를 delta(초)만큼 진행시킨다. 프레임레이트와 무관하게 동작한다.
-// 순서: 목표 계산 → 플레이어 회피 경유점 → 이동 → 최소 이격 보정
+// 순서: 목표 계산 → 장애물 우회 경로 → 플레이어 회피 경유점 → 이동(장애물 충돌)
+//       → 최소 이격 보정(장애물 충돌)
+// world가 없으면 장애물을 무시한다.
 export function stepFollow(
   state: FollowState,
   pose: FollowTargetPose,
   delta: number,
+  world: CollisionWorld | null = null,
 ): void {
+  // 외부 요인으로 장애물 안에 들어가 있으면 먼저 빼낸다
+  if (world) resolvePenetration(world, state.position)
+  let contact = false
+
   const yaw = updateAnchorYaw(state, updateHeading(state, pose), delta)
   computeFollowAnchor(pose.position, yaw, state.anchor)
+  updateGoal(state, pose, world, yaw, delta)
 
-  const distance = state.position.distanceTo(state.anchor)
+  const distance = state.position.distanceTo(state.goal)
 
-  // 시작/중단 거리를 달리해 경계에서 떨림 없이 상태가 바뀌도록 한다
-  if (state.following && distance <= FOLLOW_CONFIG.stopDistance) {
+  // 시작/중단 거리를 달리해 경계에서 떨림 없이 상태가 바뀌도록 한다.
+  // 대기 중에는 이동하지 않는다 (벽을 밀지 않음).
+  if (state.waiting) {
+    state.following = false
+  } else if (state.following && distance <= FOLLOW_CONFIG.stopDistance) {
     state.following = false
   } else if (!state.following && distance >= FOLLOW_CONFIG.startDistance) {
     state.following = true
@@ -203,11 +302,30 @@ export function stepFollow(
     radius: FOLLOW_CONFIG.detourCheckRadius,
   }
 
-  if (state.following) {
-    // 직선 경로가 플레이어를 지나면 플레이어 둘레의 경유점으로 향한다
+  // 장애물 우회: 직선이 막혀 있으면 장애물 꼭짓점 경유점을 다음 지점으로 삼는다
+  let waypoint = state.goal
+  let remaining = distance
+  if (state.following && world) {
+    // 플레이어 이격 범위를 지나는 경유 경로는 고르지 않는다 (플레이어와 장애물 사이 좁은 틈 등)
+    planPath(world, state.position, state.goal, state.path, [
+      { x: pose.position.x, z: pose.position.z, radius: FOLLOW_CONFIG.minSeparation },
+    ], delta)
+    waypoint = state.path.nextWaypoint
+    remaining = state.path.remaining
+  } else {
+    resetPath(state.path)
+  }
+
+  if (state.following && state.path.status === 'blocked') {
+    // 갈 수 있는 경로가 없으면 벽을 뚫거나 순간이동하지 않고 제자리에서 기다린다
+    state.detourSide = 0
+    state.steerTarget.copy(state.position)
+    desired.set(0, 0, 0)
+  } else if (state.following) {
+    // 다음 지점까지의 직선이 플레이어를 지나면 플레이어 둘레의 경유점으로 향한다
     state.detourSide = planDetourXZ(
       state.position,
-      state.anchor,
+      waypoint,
       player,
       state.detourSide,
       {
@@ -220,9 +338,9 @@ export function stepFollow(
 
     toSteer.subVectors(state.steerTarget, state.position)
     const steerDistance = toSteer.length()
-    // 감속은 최종 목표까지의 거리로 판단 (경유점에서 멈칫하지 않도록)
+    // 감속은 최종 목표까지 남은 경로 길이로 판단 (경유점에서 멈칫하지 않도록)
     const speed =
-      FOLLOW_CONFIG.maxSpeed * Math.min(1, distance / FOLLOW_CONFIG.slowRadius)
+      FOLLOW_CONFIG.maxSpeed * Math.min(1, remaining / FOLLOW_CONFIG.slowRadius)
     if (steerDistance > 1e-6) {
       desired.copy(toSteer).multiplyScalar(speed / steerDistance)
     } else {
@@ -230,7 +348,7 @@ export function stepFollow(
     }
   } else {
     state.detourSide = 0
-    state.steerTarget.copy(state.anchor)
+    state.steerTarget.copy(state.goal)
     desired.set(0, 0, 0)
   }
 
@@ -246,17 +364,39 @@ export function stepFollow(
   let step = velocityLength * delta
   if (state.following) step = Math.min(step, state.position.distanceTo(state.steerTarget))
   if (step > 0) {
-    state.position.addScaledVector(state.velocity, step / velocityLength)
+    motion.copy(state.velocity).multiplyScalar(step / velocityLength)
+    contact = applyMotion(state, motion, world)
   }
 
-  // 최종 안전장치: 플레이어가 NPC 쪽으로 걸어오는 경우 등에도 몸체를 겹치지 않는다
+  // 최종 안전장치: 플레이어가 NPC 쪽으로 걸어오는 경우 등에도 몸체를 겹치지 않는다.
+  // 밀어내는 이동도 장애물 충돌을 거치므로 벽 쪽으로 밀리면 벽을 따라 옆으로 빠져나간다.
   fallback.set(-Math.cos(yaw), 0, Math.sin(yaw)) // 겹친 중심이면 진행 방향 기준 오른쪽으로 밀어냄
+  pushed.copy(state.position)
   state.separationCorrected = pushOutOfCircleXZ(
-    state.position,
+    pushed,
     state.velocity,
     { x: pose.position.x, z: pose.position.z, radius: FOLLOW_CONFIG.minSeparation },
     fallback,
   )
+  if (state.separationCorrected) {
+    motion.subVectors(pushed, state.position)
+    if (applyMotion(state, motion, world)) contact = true
+  }
+
+  state.obstacleContact = contact
+
+  // 막힌 채(벽 접촉·플레이어에게 밀림·경로 없음) 목표에 가까워지지 못하면 그 위치를 포기한다.
+  // 다음 프레임에 다른 후보를 고르거나, 없으면 대기한다.
+  if (world && state.following) {
+    const pressing =
+      contact || state.separationCorrected || state.path.status === 'blocked'
+    trackSlotProgress(state.slots, remaining, pressing, pose.position, delta)
+  }
+
+  // 장애물 관통 방지가 우선이라, 플레이어와 벽 사이에 끼면 이격 거리가 일시적으로 줄 수 있다
+  state.pinned =
+    Math.hypot(state.position.x - pose.position.x, state.position.z - pose.position.z) <
+    FOLLOW_CONFIG.minSeparation - 1e-3
 }
 
 // 대화 등으로 추적을 멈췄다가 다시 시작할 때 호출한다.
@@ -265,5 +405,7 @@ export function resumeFollow(state: FollowState, pose: FollowTargetPose): void {
   state.velocity.set(0, 0, 0)
   state.following = false
   state.detourSide = 0
+  resetPath(state.path)
+  resetSlotState(state.slots)
   if (state.headingYaw !== null) state.headingOrigin.copy(pose.position)
 }

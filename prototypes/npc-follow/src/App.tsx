@@ -12,6 +12,8 @@ import { useNpcInteraction } from './npc/useNpcInteraction'
 import type { FollowTargetPose } from './npc/followLogic'
 import type { NpcDialogEndReason } from './npc/interaction'
 import { usePointerRelock } from './usePointerRelock'
+import { createCollisionWorld } from './npc/collision'
+import { TEST_MAP_OBSTACLES } from './world/testMap'
 
 // NPC 로직 관찰용 더미 조작 값 (실제 게임 플레이어 시스템 아님)
 const EYE_HEIGHT = 1.6
@@ -25,6 +27,9 @@ const SCENE_ID = 'scene'
 const NO_CLICK_LOCK = '[data-no-click-lock]'
 
 type PointerLockHandle = ComponentRef<typeof PointerLockControls>
+
+// 렌더링과 같은 장애물 정의로 NPC 충돌 데이터를 만든다
+const NPC_COLLISION_WORLD = createCollisionWorld(TEST_MAP_OBSTACLES)
 
 type CameraMode = 'first' | 'third'
 
@@ -174,13 +179,12 @@ function TestWorld({
         sectionColor="#d1d5db"
       />
 
-      {/* 시선을 가리는 물체: NPC 상호작용 판정에서 가림 검사 대상 */}
+      {/* 벽·큐브 장애물 (TEST_MAP_OBSTACLES). NPC 충돌 검사와 같은 정의를 쓰며,
+          상호작용 판정에서는 시선을 가리는 물체로 쓰인다 */}
       <group ref={occluders}>
-        {/* 벽 */}
-        <Box position={[-2, 1, -2]} scale={[0.5, 2, 5]} />
-
-        {/* 장애물 */}
-        <Box position={[2, 0.5, -1]} />
+        {TEST_MAP_OBSTACLES.map(({ id, center, size }) => (
+          <Box key={id} position={[...center]} scale={[...size]} />
+        ))}
       </group>
 
       {/* 관찰용 플레이어 더미 (자세를 먼저 갱신하도록 NPC보다 앞에 둔다) */}
@@ -192,6 +196,7 @@ function TestWorld({
         showAnchor={mode === 'third'}
         frozen={talking}
         bodyRef={npcBody}
+        collisionWorld={NPC_COLLISION_WORLD}
       />
 
       {/* 1인칭 조준점으로 NPC를 바라보는지 판정 */}
