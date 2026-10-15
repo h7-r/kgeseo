@@ -14,6 +14,10 @@ import type { NpcDialogEndReason } from './npc/interaction'
 import { usePointerRelock } from './usePointerRelock'
 import { createFollowCommands, createNpcBehaviorStore } from './npc/behaviorState'
 import type { NpcBehavior, NpcBehaviorResult } from './npc/behaviorState'
+import { createNpcEventController } from './npc/npcEventController'
+import type { NpcEventController, NpcEventResult } from './npc/npcEventController'
+import type { GameEvent } from './npc/gameEvents'
+import { useNpcEventSnapshot } from './npc/useNpcEventSnapshot'
 import { createCollisionWorld } from './npc/collision'
 import { TEST_MAP_OBSTACLES } from './world/testMap'
 
@@ -271,10 +275,17 @@ const BEHAVIOR_COLOR: Record<NpcBehavior, string> = {
   Interact: '#8de5ff',
 }
 
-const debugPanelStyle: CSSProperties = {
+const debugColumnStyle: CSSProperties = {
   position: 'absolute',
   top: 16,
   right: 16,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  width: 'min(320px, calc(100vw - 32px))',
+}
+
+const debugPanelStyle: CSSProperties = {
   padding: '10px 14px',
   borderRadius: 6,
   background: 'rgba(0, 0, 0, 0.55)',
@@ -339,6 +350,78 @@ function NpcBehaviorDebugPanel({
   )
 }
 
+// ---------- 테스트 전용: 더미 게임 이벤트 발생 ----------
+const DUMMY_EVENT_BUTTONS: { label: string; event_type: GameEvent['event_type']; target_id: string }[] = [
+  { label: '테스트 단서 획득', event_type: 'clue_acquired', target_id: 'test_clue_01' },
+  { label: '테스트 퍼즐 완료', event_type: 'puzzle_completed', target_id: 'test_puzzle_01' },
+  { label: '테스트 구역 진입', event_type: 'zone_entered', target_id: 'test_zone_01' },
+  { label: '정의 안 된 단서', event_type: 'clue_acquired', target_id: 'unknown_clue' },
+]
+
+const EVENT_STATUS_COLOR: Record<NpcEventResult['status'], string> = {
+  applied: '#70e099',
+  deferred: '#ffd36e',
+  ignored: '#aab3c0',
+}
+
+function describeResult(result: NpcEventResult): string {
+  const target = result.event ? `${result.event.event_type}/${result.event.target_id}` : '(잘못된 데이터)'
+  const id = result.event ? ` [${result.event.event_id}]` : ''
+  const reason = result.reason ? ` (${result.reason})` : ''
+  const flush = result.phase === 'flush' ? ' · 대화 종료 후' : ''
+  return `#${result.seq} ${target}${id} → ${result.status}${reason}${flush}`
+}
+
+function NpcEventDebugPanel({ controller }: { controller: NpcEventController }) {
+  const { pending, log } = useNpcEventSnapshot(controller)
+  const counter = useRef(0)
+  const lastEvent = useRef<GameEvent | null>(null)
+
+  const send = (button: (typeof DUMMY_EVENT_BUTTONS)[number]) => {
+    counter.current += 1
+    const event = {
+      event_id: `debug-${counter.current}`,
+      event_type: button.event_type,
+      target_id: button.target_id,
+      source: 'debug-ui',
+    } as GameEvent
+    lastEvent.current = event
+    controller.handle(event)
+  }
+
+  return (
+    <div style={debugPanelStyle}>
+      <div>게임 이벤트 (테스트)</div>
+      {DUMMY_EVENT_BUTTONS.map((button) => (
+        <button key={button.label} type="button" style={debugButtonStyle} onClick={() => send(button)}>
+          {button.label}
+        </button>
+      ))}
+      <button
+        type="button"
+        style={debugButtonStyle}
+        onClick={() => lastEvent.current && controller.handle(lastEvent.current)}
+      >
+        같은 ID 다시 보내기
+      </button>
+      <div style={{ marginTop: 6 }}>
+        보류 중: {pending.length === 0 ? '없음' : pending.map((e) => e.event_id).join(', ')}
+      </div>
+      <div style={{ marginTop: 4, fontSize: 12 }}>
+        {log.length === 0 && <div style={{ color: '#aab3c0' }}>처리 결과 없음</div>}
+        {log
+          .slice(-6)
+          .reverse()
+          .map((result) => (
+            <div key={result.seq} style={{ color: EVENT_STATUS_COLOR[result.status] }}>
+              {describeResult(result)}
+            </div>
+          ))}
+      </div>
+    </div>
+  )
+}
+
 const crosshairStyle: CSSProperties = {
   position: 'absolute',
   top: '50%',
@@ -364,7 +447,11 @@ export default function App() {
     [requestRelock, requestClickHint],
   )
   // NPC 행동 상태(Idle/Follow/Interact)의 단일 저장소. 모든 전환은 dispatch로만 일어난다.
-  const [behaviorStore] = useState(createNpcBehaviorStore)
+  // 게임 이벤트 컨트롤러도 같은 저장소를 통해서만 상태를 바꾼다.
+  const [{ behaviorStore, eventController }] = useState(() => {
+    const store = createNpcBehaviorStore()
+    return { behaviorStore: store, eventController: createNpcEventController(store) }
+  })
   // 게임 이벤트·백엔드가 쓸 동행 시작·중지 명령. 지금은 디버그 패널만 사용한다.
   const followCommands = useMemo(() => createFollowCommands(behaviorStore), [behaviorStore])
   const [lastCommand, setLastCommand] = useState<NpcBehaviorResult | null>(null)
@@ -411,12 +498,15 @@ export default function App() {
         <div>NPC 조준 후 E: 대화 · ESC: 대화 닫기</div>
       </div>
 
-      <NpcBehaviorDebugPanel
-        behavior={npc.behavior.current}
-        lastResult={lastCommand}
-        onStartFollow={() => setLastCommand(followCommands.startFollow('debug-ui'))}
-        onStopFollow={() => setLastCommand(followCommands.stopFollow('debug-ui'))}
-      />
+      <div style={debugColumnStyle}>
+        <NpcBehaviorDebugPanel
+          behavior={npc.behavior.current}
+          lastResult={lastCommand}
+          onStartFollow={() => setLastCommand(followCommands.startFollow('debug-ui'))}
+          onStopFollow={() => setLastCommand(followCommands.stopFollow('debug-ui'))}
+        />
+        <NpcEventDebugPanel controller={eventController} />
+      </div>
 
       {mode === 'first' && !talking && <div style={crosshairStyle}>+</div>}
       {npc.canInteract && <div style={promptStyle}>E · 대화하기</div>}

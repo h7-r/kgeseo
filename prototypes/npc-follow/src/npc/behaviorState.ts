@@ -90,13 +90,27 @@ export function createNpcBehaviorStore(
 ): NpcBehaviorStore {
   let state = initial
   const listeners = new Set<NpcBehaviorListener>()
+  // 구독자 안에서 다시 dispatch해도(예: 대화 종료 시 보류 이벤트 처리) 상태는 즉시 바뀌고,
+  // 알림은 앞선 알림이 모두 끝난 뒤 발생 순서대로 전달된다.
+  const queue: NpcBehaviorResult[] = []
+  let notifying = false
   return {
     getState: () => state,
     dispatch(event) {
       const result = reduceNpcBehavior(state, event)
-      if (result.accepted) {
-        state = result.state
-        listeners.forEach((listener) => listener(result))
+      if (!result.accepted) return result
+      state = result.state
+      queue.push(result)
+      if (!notifying) {
+        notifying = true
+        try {
+          for (let next = queue.shift(); next; next = queue.shift()) {
+            const current = next
+            listeners.forEach((listener) => listener(current))
+          }
+        } finally {
+          notifying = false
+        }
       }
       return result
     },
