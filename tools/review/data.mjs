@@ -14,7 +14,7 @@ const PUBLIC_MANIFEST = `${PUBLIC_ASSET_ROOT}/manifest.json`;
 const VISUAL_VIEWS = 'naju01/src/review/reviewViews.json';
 // This exact shared source file also loads the allowed src=sf public dataset.
 // Its filename is not permission to ingest any AIHub data or other preview code.
-const forbidden = (value) => nfc(value) !== SHARED_PUBLIC_LOADER && /aihub|AI허브|원본보관|\/원본(?:\/|$)/iu.test(nfc(value));
+export const forbidden = (value) => nfc(value) !== SHARED_PUBLIC_LOADER && /aihub|AI허브|원본보관|\/원본(?:\/|$)/iu.test(nfc(value));
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 const byPath = (a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
 
@@ -40,7 +40,7 @@ async function existing(root, relative) {
   } catch (error) { if (error.code === 'ENOENT') return false; throw error; }
 }
 
-async function noSymlinkFile(root, relative) {
+export async function noSymlinkFile(root, relative) {
   const parts = relative.split('/');
   for (let index = 0; index < parts.length; index++) {
     let stat;
@@ -271,6 +271,8 @@ export async function getBootstrap(root) {
   const sourceRevision = digest(JSON.stringify(documents.map(({ id, path: file, sha256 }) => ({ id, path: file, sha256 }))));
   const game = { ...runtimeProfile, visualViews: visualReview.views, publicAssetCount: runtimeProfile.publicAssetPaths.length, revision, files: files.sort(byPath), capabilities: { spaceReview: true, puzzlePlay: false }, revisionScope: '현재 나주 소스·배치·에셋 + 공통 src·public 자원 + 실행 주소·공개 에셋 구성. 검수 대상으로 연결한 경우 변경 시 보수적으로 재검수합니다.' };
   const runtimes = files.some(file => file.path.startsWith('naju01/')) ? [{ id: 'NAJU-01', title: '나주 앙암바위 · 현재 공간 초안', url: game.url, profile: game.profile, presentation: game.presentation, available: game.available, reviewBlockers: game.reviewBlockers, visualViews: game.visualViews, publicAssetCount: game.publicAssetCount, revision, sourceRevision, capabilities: { ...game.capabilities } }] : [];
+  // 빈 지형(10/19 에이전트 시험) — 같은 나주 공간에서 사람이 놓은 물체만 숨긴 실행 구성. 에이전트 배치 초안을 여기서 본다.
+  if (runtimes.length && game.profile === 'naju-public-sf-v1') runtimes.push({ ...runtimes[0], id: 'NAJU-01-EMPTY', title: '나주 앙암바위 · 빈 지형(에이전트 시험)', url: `${game.url}&base=empty`, presentation: '지형·강·절벽·원경만 — 사람이 놓은 물체 숨김' });
   return {
     caseId: 'NAJU-01', title: '설화 제작 검수 · 연결 가능한 나주 공간 포함',
     source: fact ? { name: '나주 앙암바위 설화 사실 계약서 · 원전 전체 본문 아님', path: fact.path, text: fact.text, kind: 'fact-contract', sha256: fact.sha256 } : null,

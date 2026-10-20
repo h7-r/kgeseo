@@ -46,6 +46,8 @@ export interface LodPair {
   /** 자리(월드) */
   positions: THREE.Vector3[];
   idTable: Int32Array;
+  /** 놓기 원경 짝 — idTable 이 자리 번호라 userData.placeSpots 로 넘긴다(10/20) */
+  placeSpots?: boolean;
 }
 
 /** 세운 교체본 한 묶음(바꿔치기 한 항목 · 덮기 한 항목 · 놓기 한 항목) */
@@ -57,6 +59,8 @@ export interface BuiltEntry {
   lodPairs?: LodPair[];
   /** 놓기 「차단물」 — 치워지면 같이 가라앉는다 */
   blocker?: string | null;
+  /** 에이전트 시험 — 이 씬들에서만 보인다(10/20) */
+  scenes?: number[] | null;
   sinkStartedAt?: number | null;
   sinkDepth?: number;
   originalY?: number[];
@@ -67,6 +71,8 @@ interface OriginalSnapshot {
   matrices: Float32Array;
   ids: Int32Array;
   colors: Float32Array | null;
+  /** 마지막으로 압축해 userData.ids 에 넣은 배열(같은 배열이면 다시 압축하지 않는다) */
+  compactedIds?: Int32Array;
 }
 
 // ── 길 침범 검사 (10/14 미르: 「T4 하강로가 덮기 바위 속에 묻혀 카메라가 바위를 뚫고 지나간다」) ──
@@ -130,7 +136,9 @@ export function collectPathPieces(scene: THREE.Scene): PathPiece[] {
       M.premultiply(mesh.matrixWorld);
       pieces.push({
         inverse: M.clone().invert(),
-        box: box.clone().expandByScalar((0.4 * U) / Math.max(1e-6, new THREE.Vector3().setFromMatrixColumn(M, 0).length())),
+        box: box
+          .clone()
+          .expandByScalar((0.4 * U) / Math.max(1e-6, new THREE.Vector3().setFromMatrixColumn(M, 0).length())),
       });
     }
   });
@@ -197,7 +205,7 @@ const snapshotOf = (o: THREE.InstancedMesh): OriginalSnapshot | undefined =>
 export const originalMatrices = (o: THREE.InstancedMesh): Float32Array =>
   snapshotOf(o)?.matrices ?? (o.instanceMatrix.array as Float32Array);
 const originalIds = (o: THREE.InstancedMesh): Int32Array | null =>
-  snapshotOf(o)?.ids ?? ((o.userData.ids as Int32Array | undefined) ?? null);
+  snapshotOf(o)?.ids ?? (o.userData.ids as Int32Array | undefined) ?? null;
 
 /**
  * 등록부에 든 무리의 원본 InstancedMesh 에서 교체본이 맡는 자리를 **앞으로 몰아 담아** 뺀다(count 를 줄인다).
@@ -210,7 +218,7 @@ export function compactOriginal(o: THREE.InstancedMesh): boolean {
   const ids = o.userData.ids as Int32Array | undefined;
   if (!ids) return false;
   let snap = snapshotOf(o);
-  if (!snap || snap.ids !== ids) {
+  if (!snap || (snap.compactedIds ?? snap.ids) !== ids) {
     const n = ids.length;
     snap = {
       matrices: (o.instanceMatrix.array as Float32Array).slice(0, n * 16),
@@ -233,13 +241,16 @@ export function compactOriginal(o: THREE.InstancedMesh): boolean {
       ) / U;
     if (publicAssetRegistry.isReplaced(groupId, sizeM)) continue;
     (o.instanceMatrix.array as Float32Array).set(A.subarray(off, off + 16), j * 16);
-    if (snap.colors && o.instanceColor) (o.instanceColor.array as Float32Array).set(snap.colors.subarray(k * 3, k * 3 + 3), j * 3);
+    if (snap.colors && o.instanceColor)
+      (o.instanceColor.array as Float32Array).set(snap.colors.subarray(k * 3, k * 3 + 3), j * 3);
     kept[j++] = snap.ids[k];
   }
   o.count = j;
   o.userData.ids = kept.subarray(0, j);
-  // ids 를 새 배열로 바꿨으니 스냅샷 쪽 ids 도 그것을 가리키게 — 다음 틱에 「새 무리」로 오해하지 않게
-  snap.ids = o.userData.ids as Int32Array;
+  // 압축한 배열을 따로 기억해 다음 틱에 「새 무리」로 오해하지 않게 한다.
+  //   ※ snap.ids 는 **압축 전 전체 번호**로 남겨야 한다 — 교체본이 원래 무리 번호로 편집되려면 matrices 와 같은 순서·길이여야 한다
+  //     (10/15: 여기서 snap.ids 를 압축본으로 덮어써서 교체본 번호가 -1 로 나와 편집이 막혔다)
+  snap.compactedIds = o.userData.ids as Int32Array;
   o.instanceMatrix.needsUpdate = true;
   if (o.instanceColor) o.instanceColor.needsUpdate = true;
   o.computeBoundingSphere();
@@ -287,7 +298,11 @@ export function buildSwap(
     .map((o) => `${o.uuid}:${originalMatrices(o).length / 16}:${arrayId(originalIds(o) ?? originalMatrices(o))}`)
     .join(";");
   if (previous && previous.signature === signature) return "same";
-  if (previous) for (const m of previous.meshes) { parent.remove(m); m.dispose(); }
+  if (previous)
+    for (const m of previous.meshes) {
+      parent.remove(m);
+      m.dispose();
+    }
   const candidates: Candidate[] = [];
   const t = new THREE.Matrix4();
   const p = new THREE.Vector3();
@@ -315,7 +330,8 @@ export function buildSwap(
     }
   }
   let chosen = candidates;
-  if (item.최소키 != null) chosen = chosen.filter((c) => c.sizeM >= item.최소키! && c.sizeM < (item.sizeUpper ?? Infinity));
+  if (item.최소키 != null)
+    chosen = chosen.filter((c) => c.sizeM >= item.최소키! && c.sizeM < (item.sizeUpper ?? Infinity));
   if (item.최대) chosen = [...chosen].sort((a, b) => a.distance - b.distance).slice(0, item.최대);
   if (item.길피하기) {
     const pathPieces = collectPathPieces(scene);
@@ -354,7 +370,11 @@ export function buildSwap(
           const e = new THREE.Euler().setFromQuaternion(qq, "YXZ");
           const factor = U * (a + (b - a) * hash01(c.i * 131 + k));
           return new THREE.Matrix4()
-            .compose(pp, new THREE.Quaternion().setFromEuler(new THREE.Euler(0, e.y, 0)), new THREE.Vector3(factor, factor, factor))
+            .compose(
+              pp,
+              new THREE.Quaternion().setFromEuler(new THREE.Euler(0, e.y, 0)),
+              new THREE.Vector3(factor, factor, factor),
+            )
             .premultiply(inverse);
         });
       } else if (item.맞춤 === "높이") fitHeight(bundle, list[0].mesh.geometry);
@@ -370,7 +390,12 @@ export function buildSwap(
         matrices.forEach((M, k) => {
           const n = list[k].id ?? list[k].i;
           const factor = a + (b - a) * hash01(n * 31 + 7);
-          E.set((hash01(n * 17 + 3) - 0.5) * 2 * tilt, hash01(n * 13 + 1) * Math.PI * 2, (hash01(n * 19 + 5) - 0.5) * 2 * tilt, "YXZ");
+          E.set(
+            (hash01(n * 17 + 3) - 0.5) * 2 * tilt,
+            hash01(n * 13 + 1) * Math.PI * 2,
+            (hash01(n * 19 + 5) - 0.5) * 2 * tilt,
+            "YXZ",
+          );
           M.multiply(R.makeRotationFromEuler(E).scale(new THREE.Vector3(factor, factor, factor)));
         });
       }
@@ -385,7 +410,8 @@ export function buildSwap(
         const v = new THREE.Vector3();
         for (const M of matrices) {
           const realHeightM = (height * v.setFromMatrixColumn(M, 1).length()) / U;
-          if (realHeightM > limit) M.multiply(new THREE.Matrix4().makeScale(limit / realHeightM, limit / realHeightM, limit / realHeightM));
+          if (realHeightM > limit)
+            M.multiply(new THREE.Matrix4().makeScale(limit / realHeightM, limit / realHeightM, limit / realHeightM));
         }
       }
       return { bundle, matrices };
@@ -414,9 +440,18 @@ export function buildSwap(
       const farMeshes = buildInstancedMeshes(parent, far.bundle, far.matrices, `${item.target}·원경`);
       markEditable(farMeshes, idTable);
       meshes.push(...farMeshes);
-      const positions = near.matrices.map((M) => new THREE.Vector3().setFromMatrixPosition(M).applyMatrix4(parent.matrixWorld));
+      const positions = near.matrices.map((M) =>
+        new THREE.Vector3().setFromMatrixPosition(M).applyMatrix4(parent.matrixWorld),
+      );
       for (const m of [...nearMeshes, ...farMeshes]) m.userData.lodPaired = true;
-      lodPairs.push({ nearMeshes, farMeshes, nearMatrices: near.matrices, farMatrices: far.matrices, positions, idTable });
+      lodPairs.push({
+        nearMeshes,
+        farMeshes,
+        nearMatrices: near.matrices,
+        farMatrices: far.matrices,
+        positions,
+        idTable,
+      });
     }
   });
   return { signature, meshes, triangles, lodPairs, label: `${item.target} ${chosen.length}개` };
@@ -567,6 +602,14 @@ export function buildCover(
   return { signature: "", meshes, triangles, label: `덮기${index} ${count}개` };
 }
 
+/** 놓기 메시의 userData.placeEdit — 편집 모드가 manifest 의 어느 항목·자리인지 안다 */
+export interface PlaceEditInfo {
+  manifestIndex: number;
+  file: string;
+  spots: [number, number, number?, number?, number?][];
+  label: string;
+}
+
 // ── 놓기 (한 번만) — 땅 높이에 밑면을 붙여 세운다. 키m = 실제 높이(m) ──
 export function buildPlace(
   item: PlaceItem,
@@ -583,26 +626,66 @@ export function buildPlace(
   for (const { geometry } of bundle) geometry.translate(-center.x, -box.min.y, -center.z);
   const factor = ((item.키m ?? 1) * U) / (size.y || 1);
   const matrices: THREE.Matrix4[] = [];
-  for (const [x, z, rotationDeg = 0, heightFactor = 1] of item.자리 || []) {
+  const spotIds: number[] = [];
+  for (const [spot, [x, z, rotationDeg = 0, heightFactor = 1, dy = 0]] of (item.자리 || []).entries()) {
     const ground = groundAt(x, z);
     if (!ground) continue;
+    spotIds.push(spot);
     const sc = factor * heightFactor;
     const M = new THREE.Matrix4()
-      .makeTranslation(x * U, (ground.y - (item.묻힘m ?? 0)) * U, z * U)
+      .makeTranslation(x * U, (ground.y - (item.묻힘m ?? 0) + dy) * U, z * U)
       .multiply(new THREE.Matrix4().makeRotationY((rotationDeg * Math.PI) / 180))
       .multiply(new THREE.Matrix4().makeScale(sc, sc, sc));
     M.premultiply(inverse);
     matrices.push(M);
   }
   if (!matrices.length) return null;
-  const meshes = buildInstancedMeshes(parent, bundle, matrices, "놓기");
+  const meshes = buildInstancedMeshes(parent, bundle, matrices, item.무리 ? `놓기·${item.무리}` : "놓기"); // 에이전트 식물은 무리 이름에 「나무·덤불·풀…」 → 바람
+  // ★ 편집 모드(E)가 이 놓기 한 자리를 집어 고치게 — manifest 위치 · 파일 · 자리 목록. placeSpots = 인스턴스 → 자리 번호
+  //   (구역 초점 거르기가 인스턴스를 앞으로 몰아 담으면 placeSpots 도 같이 옮긴다 — publicAssets.tsx ⑥)
+  //   userData.ids 는 쓰지 않는다 — 검수 작업대가 ids 를 「무리#번호」 정확 식별로 읽는데, 놓기는 모두 같은 이름이라 섞인다.
+  const placeEdit: PlaceEditInfo = {
+    manifestIndex: item.manifestIndex,
+    file: item.file ?? item.files?.[0] ?? "",
+    spots: item.자리 || [],
+    label: item.메모 ?? item.file ?? "놓기",
+  };
+  for (const m of meshes) {
+    m.userData.placeSpots = Int32Array.from(spotIds);
+    m.userData.placeEdit = placeEdit;
+    if (item.항목?.length) m.userData.trialItems = item.항목; // 에이전트 시험 항목(10/19) — 검수 물체 의견을 항목으로 잇는다
+  }
+  // ★ 원경판(10/20) — 에이전트 시험 나무처럼 원경판 파일이 있으면 바꿔치기와 같이 22 m 밖은 원경판으로(면수 줄이기, publicAssets.tsx ⑤)
+  const lodPairs: LodPair[] = [];
+  let farTriangles = 0;
+  if (item.farBundle?.length) {
+    const far = cloneBundle(item.farBundle);
+    const fbox = bundleBox(far);
+    const fsize = fbox.getSize(new THREE.Vector3());
+    const fcenter = fbox.getCenter(new THREE.Vector3());
+    for (const { geometry } of far) geometry.translate(-fcenter.x, -fbox.min.y, -fcenter.z);
+    const ratio = (size.y || 1) / (fsize.y || 1); // 원경판 키를 근경판 키에 맞춘다
+    const farMatrices = matrices.map((M) => M.clone().multiply(new THREE.Matrix4().makeScale(ratio, ratio, ratio)));
+    const farMeshes = buildInstancedMeshes(parent, far, farMatrices, item.무리 ? `놓기·${item.무리}·원경` : "놓기·원경");
+    for (const m of farMeshes) {
+      m.userData.placeSpots = Int32Array.from(spotIds);
+      m.userData.placeEdit = placeEdit;
+      if (item.항목?.length) m.userData.trialItems = item.항목;
+    }
+    for (const m of [...meshes, ...farMeshes]) m.userData.lodPaired = true;
+    lodPairs.push({ nearMeshes: meshes.slice(), farMeshes, nearMatrices: matrices, farMatrices, positions: matrices.map((M) => new THREE.Vector3().setFromMatrixPosition(M).applyMatrix4(parent.matrixWorld)), idTable: Int32Array.from(spotIds), placeSpots: true });
+    meshes.push(...farMeshes);
+    farTriangles = triangleCount(far) * matrices.length;
+  }
   // 「차단물」이 적힌 놓기(10/14) — 그 차단물의 겉돌이다. 씬이 끝나 차단물이 치워지면 같이 가라앉아 사라진다.
   return {
     signature: "",
     meshes,
-    triangles: triangleCount(bundle) * matrices.length,
+    triangles: triangleCount(bundle) * matrices.length + farTriangles,
     label: `놓기${index} ${matrices.length}개`,
+    ...(lodPairs.length ? { lodPairs } : {}),
     blocker: item.차단물 ?? null,
+    scenes: item.씬?.length ? item.씬 : null,
     sinkStartedAt: null,
     sinkDepth: ((item.키m ?? 1) * 1.6 + 1) * U,
   };

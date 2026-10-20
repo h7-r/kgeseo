@@ -34,6 +34,30 @@ const QUERY = typeof location !== "undefined" ? new URLSearchParams(location.sea
 const SOURCE_PARAM = QUERY.get("src");
 /** `?aihub` 가 있고 `src=sf` 일 때만 켜진다 — 공개 에셋 경로 전용(AI허브 경로는 이식하지 않음) */
 export const IS_PUBLIC_ASSETS_ENABLED = QUERY.has("aihub") && SOURCE_PARAM === "sf";
+/**
+ * &base=empty — 「빈 지형」(10/19 에이전트 시험). 지형·강·절벽(덮기)·원경·차단물만 남기고 사람이 놓은 물체(생성 무리·바꿔치기·놓기)는 그리지 않는다.
+ *   에이전트가 같은 나주 공간 위에 처음부터 고르고 놓은 결과를 사람본과 견주려고 쓴다. 게임 데이터는 바꾸지 않는다.
+ */
+export const IS_EMPTY_BASE = QUERY.get("base") === "empty";
+/**
+ * &trial=<시험 id> — 에이전트 시험 배치 화면(10/19). 검수 작업대(5180)의 /__review/trials/<id>/places 가 준
+ * 「놓기」 항목을 manifest 놓기 뒤에 붙여 그린다(파일에는 쓰지 않는다). 빈 지형에서도 이 항목은 그린다(에이전트 표시).
+ */
+export const TRIAL_ID = /^[a-f0-9-]{36}$/.test(QUERY.get("trial") || "") ? QUERY.get("trial") : null;
+
+/** 시험 배치 항목을 받아 m.놓기 뒤에 붙인다 — 실패하면 조용히 넘기고 콘솔에 남긴다 */
+export async function appendTrialPlaces(m: PublicAssetManifest): Promise<void> {
+  if (!TRIAL_ID) return;
+  try {
+    const r = await fetch(`/__review/trials/${TRIAL_ID}/places`, { cache: "no-store" });
+    if (!r.ok) throw new Error(`에이전트 시험 배치 읽기 실패 (${r.status})`);
+    const body = (await r.json()) as { places?: PlaceEntry[]; skipped?: unknown[] };
+    m.놓기 = [...(m.놓기 || []), ...(body.places || []).map((entry) => ({ ...entry, 에이전트: true }))];
+    console.info("[publicAssets] 에이전트 시험 배치", body.places?.length ?? 0, "건 · 못 놓음", body.skipped?.length ?? 0);
+  } catch (error) {
+    console.warn("[publicAssets] 에이전트 시험 배치를 읽지 못했습니다:", error);
+  }
+}
 /** `&애니판` — 변환판(원신 방향). 에셋(anime_bake/anime)과 셰이더(animeStyle.ts)가 같이 켜진다 */
 export const IS_ANIME_VARIANT = QUERY.has("애니판");
 /** 공개 에셋 폴더(뿌리 public/_sf_local/) */
@@ -93,7 +117,18 @@ export interface PlaceEntry {
   차단물?: string | null;
   /** 변환판 화면에만 놓는다(메타버스데이터랩 소품 등) */
   애니판?: boolean;
-  자리?: [number, number, number?, number?][];
+  /** 에이전트 시험 배치(&trial=) — 빈 지형에서도 그린다 */
+  에이전트?: boolean;
+  /** 원경판 파일(10/20) — 카메라 22 m 밖은 이것으로 그린다(면수 줄이기) */
+  원경file?: string;
+  /** 에이전트 시험 — 무리 이름(10/20). 「에이전트.나무」처럼 식물 이름이 들어가면 바람 흔들림(windShader.findPlants)이 붙는다 */
+  무리?: string;
+  /** 에이전트 시험 — 보이는 씬 번호들(10/20). 없으면 늘 보임. 지금 씬 = window.__agentTrialScene(검수 작업대 「씬 보기」) 또는 끝낸 씬 수 + 1 */
+  씬?: number[];
+  /** 에이전트 시험 — 자리마다 「항목id|에셋id|이름」(검수에서 물체를 누르면 이 항목으로 기록) */
+  항목?: string[];
+  /** [X m, Z m, 돌림°, 키배, 높이 보정 m(지면 위 +/아래 −, 에이전트 배치가 물 위·비탈에 맞춤)] */
+  자리?: [number, number, number?, number?, number?][];
   메모?: string;
 }
 

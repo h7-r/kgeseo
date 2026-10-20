@@ -1,14 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AssetViewer from './AssetViewer.jsx';
 import GameReviewFrame from './GameReviewFrame.jsx';
 import SceneReviewBoard from './SceneReviewBoard.jsx';
 import ObjectReviewPanel from './ObjectReviewPanel.jsx';
-import { api, gates, statusText, date, shortHash, download } from './api.js';
+import BriefPanel from './BriefPanel.jsx';
+import AgentTrialPage from './AgentTrialPage.jsx';
+import { LibraryDrawer, PickedPointCard, PlacementAdjustPanel, PlacementHistory, PlacementImportPanel, ProposalActionsCard, ProposalList, SceneTabs } from './PlacementPanels.jsx';
+import { api, gates, statusText, date, shortHash, download, dispositionText } from './api.js';
 
 const empty = { title: '새 설화 검수', caseId: '', runtimeId: null, runtimeUse: null, assetReviewMode: 'individual', sourceText: '', sourceName: '직접 입력', synopsis: '', sceneNotes: '', selectedAssetIds: [] };
 const editable = project => Object.fromEntries(Object.keys(empty).map(key => [key, project[key] ?? empty[key]]));
 const size = bytes => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 const gateName = id => gates.find(gate => gate.id === id)?.label || id;
+const finitePoint = value => value && ['x', 'y', 'z'].every(key => Number.isFinite(value[key]));
 const eventName = { ready: '실제 공간 표시', frame: '프레임 수신', navigation: '이동 관측', metrics: '성능 관측', interaction: '상호작용', completed: '완료', error: '오류', diagnostic: '진단 조작', checkpoint: '사람 관찰' };
 
 function Tag({ status = 'pending' }) { return <span className={`tag ${status}`}>{statusText[status] || status}</span>; }
@@ -22,7 +26,7 @@ export default function App() {
   const [project, setProject] = useState(null);
   const [loadedRevision, setLoadedRevision] = useState(null);
   const [draft, setDraft] = useState({ ...empty });
-  const [gate, setGate] = useState('source');
+  const [gate, setGate] = useState(() => (new URLSearchParams(location.search).get('trial') ? 'trial' : 'source'));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -36,6 +40,8 @@ export default function App() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerRound, setViewerRound] = useState(0);
   const [docId, setDocId] = useState('fact-contract');
+  // 핵심 검수 카드 판정 현황(없으면 null) — 설화 관문 승인 조건
+  const [briefStatus, setBriefStatus] = useState(null);
   const [launch, setLaunch] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [inspections, setInspections] = useState({});
@@ -46,6 +52,21 @@ export default function App() {
   const [capturing, setCapturing] = useState(false);
   const [captureProgress, setCaptureProgress] = useState('');
   const [captureRun, setCaptureRun] = useState(null);
+  const [sceneNo, setSceneNo] = useState(0);
+  const [sceneInfo, setSceneInfo] = useState(null);
+  const [pickedPoint, setPickedPoint] = useState(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [placeDraft, setPlaceDraft] = useState(null);
+  const [placeAsset, setPlaceAsset] = useState(null);
+  const [placeMode, setPlaceMode] = useState('move');
+  const [placeNote, setPlaceNote] = useState('');
+  const [placeSaving, setPlaceSaving] = useState(false);
+  // 고치는 중인 변경안(규약 §6-2) — 없으면 새 배치
+  const [placeReplacing, setPlaceReplacing] = useState(null);
+  // 배치 진행 맥락(에셋·세션·씬). 게임 알림 처리기가 최신 값을 읽도록 ref 로 둔다.
+  const placeRef = useRef(null);
+  const latest = useRef({});
+  latest.current = { reviewer, placeNote, sceneNo, launch };
   const captureStarted = useRef(null);
   const activeRef = useRef(null);
   const decisionRef = useRef(null);
@@ -59,6 +80,10 @@ export default function App() {
   const conflicted = project && project.revision !== loadedRevision;
   const dirty = project ? JSON.stringify(editable(project)) !== JSON.stringify(draft) : Boolean(draft.sourceText.trim());
   useEffect(() => { activeRef.current = conflicted ? null : project; }, [project, conflicted]);
+  useEffect(() => {
+    placeRef.current = null;
+    setSceneNo(0); setSceneInfo(null); setPickedPoint(null); setLibraryOpen(false); setPlaceDraft(null); setPlaceAsset(null); setPlaceReplacing(null); setPlaceSaving(false); setPlaceNote('');
+  }, [launch?.session.id]);
 
   const fail = useCallback(err => {
     const details = err.details?.blockers?.map(item => item.message || item).join(' / ');
@@ -185,12 +210,29 @@ export default function App() {
   }, [refresh, fail]);
   const decide = decision => perform(async () => {
     if (!project || dirty || conflicted) throw new Error('현재 입력을 먼저 저장해주세요.');
-    await api(`/projects/${project.id}/decisions`, { method: 'POST', body: {
-      expectedRevision: project.revision, gate, decision, reviewer, note: notes[gate] || '', checks: checks[gate] || [],
+    const response = await api(`/projects/${project.id}/decisions`, { method: 'POST', body: {
+      expectedRevision: project.revision, gate, decision, reviewer, note: notes[gate] || '', checks: (checks[gate] || []).filter(key => gateChecks.some(([id]) => id === key)),
     } });
     await refresh(); await list();
-    setNotice(`${gateName(gate)} · ${statusText[decision]} 판정을 서버 파일에 기록했습니다.`);
+    const applied = response.decisions?.at(-1)?.placementApply === 'applied' ? response.decisions.at(-1).placementIds.length : 0;
+    setNotice(applied ? `반영됨 — 배치 변경안 ${applied}건을 게임 데이터(manifest 「놓기」)에 반영했습니다. 다음 회차에서 실제 공간으로 확인하세요. (반영 전 manifest 는 .local/review/ 에 백업)` : `${gateName(gate)} · ${statusText[decision]} 판정을 서버 파일에 기록했습니다.`);
   });
+  /** 카드의 「원문에서 보기」 — 그 문서 입력 칸으로 가서 인용 구간을 골라 둔다 */
+  const jumpTo = useCallback((docKey, at, quote) => {
+    const field = { A: 'sourceText', B: 'synopsis', C: 'sceneNotes' }[docKey];
+    const element = document.getElementById(`field-${field}`);
+    if (!element) return;
+    const start = Math.max(0, at ?? element.value.indexOf(quote));
+    const end = Math.min(element.value.length, start + (quote?.length || 0));
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    element.focus({ preventScroll: true });
+    element.setSelectionRange(start, end);
+    const lineHeight = parseFloat(getComputedStyle(element).lineHeight) || 22;
+    const lines = element.value.slice(0, start).split('\n').length;
+    element.scrollTop = Math.max(0, (lines - 3) * lineHeight);
+  }, []);
+  // 에이전트 시험 → 만든 「빈 지형」 시험 검수 기록을 공간·에셋 검수 화면으로 연다
+  const openTrialProject = id => perform(async () => { await stopGame(); await loadProject(id); await list(); setGate('space'); setViewerOpen(false); });
   const exportProject = () => perform(async () => {
     const latest = await api(`/projects/${project.id}`);
     download(`설화_검수_${project.id}_v${latest.revision}.json`, JSON.stringify(latest, null, 2));
@@ -209,8 +251,14 @@ export default function App() {
   const gateState = project?.gateStatus?.[gate];
   const currentChecks = checks[gate] || [];
   const prerequisites = gateState?.blockers || [];
-  const allChecks = selectedGate?.checks.every(([key]) => currentChecks.includes(key));
-  const canApprove = project && !capturing && !dirty && !conflicted && gate !== 'play' && allChecks && reviewer.trim() && !prerequisites.length && !gateState?.decisionId;
+  const gateChecks = selectedGate ? [...selectedGate.checks, ...(gate === 'assets' && project?.decisionChecks?.assets?.includes('placements') ? [['placements', `배치 변경안 ${project.currentPlacementIds.length}건을 실제 공간에서 확인했습니다. 공간(동선·충돌) 승인 때 게임 데이터에 반영됩니다.`]] : [])] : [];
+  const allChecks = gateChecks.every(([key]) => currentChecks.includes(key));
+  // 설화 관문: 지금 내용의 핵심 검수 카드가 있으면 모두 판정 · 「문제」 없음이어야 승인(서버도 다시 확인)
+  const briefBlocked = gate === 'source' && briefStatus ? [
+    ...(briefStatus.pending ? [{ code: 'brief_pending', message: `핵심 검수 카드 ${briefStatus.pending}장이 아직 판정 전입니다.` }] : []),
+    ...(briefStatus.issue ? [{ code: 'brief_issue', message: `핵심 검수 카드 ${briefStatus.issue}장에 「문제」가 있습니다 — 문서를 고치거나 반려하세요.` }] : []),
+  ] : [];
+  const canApprove = project && !capturing && !dirty && !conflicted && gate !== 'play' && allChecks && reviewer.trim() && !prerequisites.length && !briefBlocked.length && !gateState?.decisionId;
   const staleGame = project && (project.currentValidity?.game === false || project.currentValidity?.source === false);
   const savedSessions = project?.sessions || [];
   const savedInspections = project?.inspections || [];
@@ -264,40 +312,149 @@ export default function App() {
   });
   const issueObject = input => perform(async () => {
     if (!launch?.visual || dirty || staleGame || conflicted) throw new Error('현재 회차의 배치 둘러보기에서 물체를 다시 선택해주세요.');
-    const value = await api(`/projects/${project.id}/object-issues`, { method: 'POST', body: { expectedRevision: loadedRevision, sessionId: launch.session.id, gameRevision: project.gameRevision, reviewer, ...input } });
-    setProject(value); setNotice('물체의 수정·반려 요청을 저장했습니다. 실제 모델·배치에는 아직 반영되지 않았습니다.'); return true;
+    const value = await api(`/projects/${project.id}/object-issues`, { method: 'POST', body: { expectedRevision: loadedRevision, sessionId: launch.session.id, gameRevision: project.gameRevision, reviewer, sceneNo, ...input } });
+    setProject(value); setNotice(`물체 ${dispositionText[input.disposition] || '의견'}을 저장했습니다. ${input.disposition === 'regenerate' ? '생성 공정은 아직 연결 전이라 요청 기록만 남습니다. ' : ''}실제 모델·배치에는 아직 반영되지 않았습니다.`); return true;
   });
+  const selectScene = value => perform(async () => {
+    if (placeRef.current) throw new Error('배치 조정을 먼저 확정하거나 취소해주세요.');
+    const result = await gameFrameRef.current.scene(value);
+    setSceneNo(result.scene ?? value); setSceneInfo(result); setPickedPoint(null); setSelectedObject(null);
+  });
+  const jumpZone = viewId => perform(async () => { await gameFrameRef.current.view(viewId); setSelectedObject(null); });
+  const commitPlacement = useCallback(async draft => {
+    const context = placeRef.current; const current = activeRef.current;
+    if (!context || context.saving || !current || latest.current.launch?.session.id !== context.sessionId) return;
+    context.saving = true; setPlaceSaving(true); setError('');
+    try {
+      if (!draft || !finitePoint(draft.position)) throw new Error('게임에서 받은 배치 초안이 올바르지 않습니다. 다시 배치해주세요.');
+      const value = await api(`/projects/${current.id}/placements`, { method: 'POST', body: {
+        expectedRevision: current.revision, sessionId: context.sessionId, gameRevision: current.gameRevision, sceneNo: context.sceneNo, zoneId: draft.zoneId || context.zoneId || '',
+        asset: context.asset, position: draft.position, rotationY: draft.rotationY ?? 0, scale: draft.scale ?? 1, ...(Number.isFinite(draft.groundY) ? { groundY: draft.groundY } : {}), ...(Number.isFinite(draft.heightM) ? { heightM: draft.heightM } : {}),
+        reviewer: latest.current.reviewer, note: latest.current.placeNote, ...(context.replaces ? { replaces: context.replaces } : {}),
+      } });
+      if (activeRef.current?.id === current.id) setProject(value);
+      setNotice(context.replaces ? `「${context.asset.nameKo}」 변경안을 고쳤습니다. 새 변경안으로 기록하고 원래 변경안은 철회(고침)로 남겼습니다.` : `「${context.asset.nameKo}」 배치 변경안을 기록했습니다. 게임 데이터에는 공간(동선·충돌) 승인 때 반영됩니다.`);
+    } catch (err) { fail(err); gameFrameRef.current?.post('kgeseo-review-place-cancel'); }
+    finally { placeRef.current = null; setPlaceDraft(null); setPlaceAsset(null); setPlaceReplacing(null); setPlaceSaving(false); setPickedPoint(null); setPlaceNote(''); }
+  }, [fail]);
+  const onGameMessage = useCallback(message => {
+    if (message.type === 'kgeseo-review-point-selected') {
+      if (placeRef.current || !finitePoint(message.point)) return;
+      setPickedPoint({ point: message.point, zoneId: typeof message.zoneId === 'string' ? message.zoneId : '', surface: typeof message.surface === 'string' ? message.surface : '' }); setSelectedObject(null);
+    } else if (message.type === 'kgeseo-review-scene-changed') {
+      if (message.ok) { setSceneNo(message.scene || 0); setSceneInfo(message); }
+    } else if (message.type === 'kgeseo-review-place-changed') {
+      if (!placeRef.current) return;
+      if (!message.ok) { setError(message.error || '게임에서 배치 초안을 만들지 못했습니다.'); if (!placeRef.current.started) { placeRef.current = null; setPlaceAsset(null); setPlaceReplacing(null); } return; }
+      if (placeRef.current.saving) return;
+      if (message.draft) { placeRef.current.started = true; setPlaceDraft(message.draft); }
+      else { placeRef.current = null; setPlaceDraft(null); setPlaceAsset(null); setPlaceReplacing(null); }
+    } else if (message.type === 'kgeseo-review-place-committed') {
+      if (!message.ok) { setError(message.error || '게임에서 배치를 확정하지 못했습니다.'); setPlaceSaving(false); return; }
+      commitPlacement(message.draft);
+    }
+  }, [commitPlacement]);
+  const startPlacement = item => {
+    const current = latest.current;
+    if (!pickedPoint || !current.launch?.visual) { setError('먼저 공간에서 땅이나 길을 클릭해 자리를 골라주세요.'); return; }
+    if (!item?.placeable || !item.url) { setError('이 항목은 아직 3D 파일이 없어 배치할 수 없습니다. 생성 요청을 남겨주세요.'); return; }
+    const asset = { id: item.id, url: item.url, nameKo: item.nameKo || item.nameEn || item.id, source: item.source, ...(item.sha256 ? { sha256: item.sha256 } : {}) };
+    placeRef.current = { asset, sessionId: current.launch.session.id, sceneNo: current.sceneNo, zoneId: pickedPoint.zoneId, started: false, saving: false };
+    setPlaceAsset(asset); setPlaceDraft(null); setPlaceMode('move'); setLibraryOpen(false); setError('');
+    gameFrameRef.current?.post('kgeseo-review-place-start', { asset, at: pickedPoint.point });
+  };
+  const adjustPlacement = patch => gameFrameRef.current?.post('kgeseo-review-place-adjust', patch);
+  const changePlaceMode = mode => { setPlaceMode(mode); adjustPlacement({ mode }); };
+  const cancelPlacement = () => { gameFrameRef.current?.post('kgeseo-review-place-cancel'); placeRef.current = null; setPlaceDraft(null); setPlaceAsset(null); setPlaceReplacing(null); setPlaceSaving(false); };
+  const confirmPlacement = () => {
+    if (!placeRef.current || !reviewer.trim()) { setError('검수자 이름을 적은 뒤 확정해주세요.'); return; }
+    setPlaceSaving(true); gameFrameRef.current?.post('kgeseo-review-place-commit');
+    const context = placeRef.current;
+    setTimeout(() => { if (placeRef.current === context && !context.saving) { setPlaceSaving(false); setError('게임의 확정 응답을 받지 못했습니다. 게임 화면 상태를 확인한 뒤 다시 확정해주세요.'); } }, 15000);
+  };
+  const requestGenerate = item => {
+    if (!pickedPoint) { setError('생성 요청을 남길 자리를 먼저 골라주세요.'); return; }
+    const note = prompt('새로 생성할 에셋 요청 내용을 적어주세요.', `${item?.nameKo || '새 에셋'} — 이 자리에 놓을 3D 에셋 생성 요청`);
+    if (!note?.trim()) return;
+    const { point, zoneId } = pickedPoint;
+    issueObject({ disposition: 'regenerate', note, object: { objectId: `library:${item?.id || 'unknown'}`.slice(0, 400), name: item?.nameKo || '라이브러리 항목', meshName: '', groupName: item?.categoryKo || '', zoneId: zoneId || '', identityQuality: 'library-generation-request', position: [point.x, point.y, point.z] } })
+      .then(saved => { if (saved) setLibraryOpen(false); });
+  };
+  const withdrawPlacement = id => perform(async () => {
+    if (!reviewer.trim()) throw new Error('철회하려면 검수자 이름을 적어주세요.');
+    const value = await api(`/projects/${project.id}/placements/${id}/withdraw`, { method: 'POST', body: { expectedRevision: loadedRevision, reviewer } });
+    setProject(value); setNotice('배치 변경안을 철회했습니다. 기록은 이력에 남습니다.');
+    setSelectedObject(old => old?.objectId === `review-proposal:${id}` ? null : old);
+  });
+  // 변경안 고치기(규약 §6-2) — 게임이 그 변경안으로 초안을 만든다. 확정하면 replaces 로 새 변경안 + 옛 것 철회
+  const editProposal = id => {
+    const current = latest.current;
+    const placement = project?.placements?.find(value => value.id === id);
+    if (!placement || placement.status !== 'proposed' || !project.currentPlacementIds?.includes(id)) { setError('이번 회차의 제안 상태 변경안만 고칠 수 있습니다.'); return; }
+    if (!current.launch?.visual) { setError('「배치된 공간 둘러보기」를 연 뒤 고칠 수 있습니다.'); return; }
+    if (placeRef.current) { setError('진행 중인 배치 조정을 먼저 확정하거나 취소해주세요.'); return; }
+    if (!reviewer.trim()) { setError('고치려면 검수자 이름을 먼저 적어주세요.'); return; }
+    const asset = { id: placement.asset.id, url: placement.asset.url, nameKo: placement.asset.nameKo.slice(0, 120), source: placement.asset.source, ...(placement.asset.sha256 ? { sha256: placement.asset.sha256 } : {}) };
+    placeRef.current = { asset, sessionId: current.launch.session.id, sceneNo: placement.sceneNo ?? current.sceneNo, zoneId: placement.zoneId, started: false, saving: false, replaces: id };
+    setPlaceAsset(asset); setPlaceReplacing(placement); setPlaceDraft(null); setPlaceMode('move'); setPlaceNote(placement.note || ''); setSelectedObject(null); setPickedPoint(null); setLibraryOpen(false); setError('');
+    gameFrameRef.current?.post('kgeseo-review-proposal-edit-start', { proposalId: id });
+  };
+  // AI 배치 초안 가져오기(개발용, 규약 §6-1)
+  const importPlan = async body => {
+    if (!project) throw new Error('검수 자료를 먼저 저장해주세요.');
+    const value = await api(`/projects/${project.id}/placements/import`, { method: 'POST', body: { ...body, expectedRevision: loadedRevision, reviewer } });
+    if (activeRef.current?.id === project.id) setProject(value.project);
+    setNotice(`AI 배치 초안 ${value.accepted.length}건을 변경안으로 가져왔습니다.${value.rejected.length ? ` 거절 ${value.rejected.length}건은 가져오기 칸에서 이유를 확인하세요.` : ''}`);
+    return { accepted: value.accepted, rejected: value.rejected };
+  };
   const spatial = ['assets', 'space'].includes(gate);
+  const closeLibrary = useCallback(() => setLibraryOpen(false), []);
   const canUseSceneReview = draft.runtimeUse === 'target' && Boolean(draftRuntime?.visualViews?.length);
   const currentObjectIssues = (project?.objectIssues || []).filter(issue => issue.projectRevision === project.revision && issue.gameRevision === project.gameRevision);
+  const currentPlacementIds = useMemo(() => project?.currentPlacementIds || [], [project]);
+  // groundSnap(AI 초안 · y 없음)은 y 를 빼고 보낸다 — 게임이 그 자리 땅 높이에 세운다(규약 §6-3)
+  const proposalMessage = useMemo(() => JSON.stringify((project?.placements || []).filter(value => currentPlacementIds.includes(value.id)).map(value => {
+    const snap = Boolean(value.groundSnap) || !Number.isFinite(value.position?.y);
+    return { id: value.id, asset: { id: value.asset.id, url: value.asset.url, nameKo: value.asset.nameKo.slice(0, 120), source: value.asset.source, sha256: value.asset.sha256 }, position: snap ? { x: value.position.x, z: value.position.z } : value.position, rotationY: value.rotationY, scale: value.scale, status: value.status, zoneId: value.zoneId, sceneNo: value.sceneNo, groundSnap: snap, ...(value.origin ? { origin: value.origin } : {}) };
+  })), [project, currentPlacementIds]);
+  const selectedProposalId = selectedObject?.objectId?.startsWith('review-proposal:') ? selectedObject.objectId.slice('review-proposal:'.length) : null;
+  const selectedProposal = selectedProposalId && currentPlacementIds.includes(selectedProposalId) ? project?.placements?.find(value => value.id === selectedProposalId) : null;
+  useEffect(() => {
+    if (!launch?.visual || !captureReady) return;
+    gameFrameRef.current?.post('kgeseo-review-proposals', { proposals: JSON.parse(proposalMessage) });
+  }, [launch?.visual, launch?.session.id, captureReady, proposalMessage]);
+  const placementCount = currentPlacementIds.length;
+  const lastApplied = project?.history?.at(-1)?.type === 'placements-applied' ? project.history.at(-1) : null;
 
   if (!boot) return <main className="fatal"><p className="eyebrow">왜곡 · 실제 자료 검수</p><h1>{error ? '검수 서버 연결이 필요합니다.' : '검수 자료와 에셋을 확인하고 있습니다.'}</h1><p role="alert">{error || '실제 파일의 버전과 목록을 읽습니다.'}</p>{error && <><p>프로젝트에서 <code>npm run review</code>를 실행한 뒤 <code>http://127.0.0.1:5180/review/</code>를 열어주세요.</p><button onClick={() => location.reload()}>다시 연결</button></>}</main>;
 
   return <div className="workbench">
     <header className="topbar"><div className="brand"><span className="brand-mark">왜</span><div><strong>왜곡 <span>검수실</span></strong><small>{project?.title || '설화 입력부터 공간 검수까지'}</small></div></div><div className="header-info"><span className="local-dot" /> 이 컴퓨터에 저장 <span className="divider">/</span> 실제 자료 연결</div><button className="quiet" onClick={() => selectProject('')} disabled={busy || capturing}>＋ 새 검수</button></header>
     <aside className="sidebar"><label className="field"><span>검수 기록</span><select value={project?.id || ''} onChange={event => selectProject(event.target.value)} disabled={busy || capturing}><option value="">새 입력</option>{projects.map(item => <option key={item.id} value={item.id}>{item.title} · v{item.revision}</option>)}</select></label>
-      <nav aria-label="검수 단계">{gates.filter(item => item.id !== 'assets').map((item, index) => <button key={item.id} className={`step ${gate === item.id || (item.id === 'space' && gate === 'assets') ? 'active' : ''}`} onClick={() => changeGate(item.id)} disabled={busy || capturing} aria-current={gate === item.id ? 'step' : undefined}><span className="step-number">0{index + 1}</span><span><strong>{item.id === 'space' ? '공간·에셋 검수' : item.label}</strong><small>{item.id === 'play' ? '퍼즐 연결 전' : statusText[project?.gateStatus?.[item.id]?.status] || '검수 전'}</small></span></button>)}<button className={`step ${gate === 'history' ? 'active' : ''}`} onClick={() => changeGate('history')} disabled={busy || capturing}><span className="step-number">↗</span><span><strong>판정·관찰 이력</strong><small>{project?.decisions?.length || 0}건의 판정 기록</small></span></button></nav>
+      <nav aria-label="검수 단계">{gates.filter(item => item.id !== 'assets').map((item, index) => <button key={item.id} className={`step ${gate === item.id || (item.id === 'space' && gate === 'assets') ? 'active' : ''}`} onClick={() => changeGate(item.id)} disabled={busy || capturing} aria-current={gate === item.id ? 'step' : undefined}><span className="step-number">0{index + 1}</span><span><strong>{item.id === 'space' ? '공간·에셋 검수' : item.label}</strong><small>{item.id === 'play' ? '퍼즐 연결 전' : statusText[project?.gateStatus?.[item.id]?.status] || '검수 전'}</small></span></button>)}<button className={`step ${gate === 'history' ? 'active' : ''}`} onClick={() => changeGate('history')} disabled={busy || capturing}><span className="step-number">↗</span><span><strong>판정·관찰 이력</strong><small>{project?.decisions?.length || 0}건의 판정 기록</small></span></button><button className={`step ${gate === 'trial' ? 'active' : ''}`} onClick={() => changeGate('trial')} disabled={busy || capturing}><span className="step-number">AI</span><span><strong>에이전트 시험</strong><small>설화 → 문서 → 선정 → 배치</small></span></button></nav>
       <div className="sidebar-bottom"><b>현재 테스트 범위</b><p>설화 입력 → 연결한 공간에서 에셋·배치 확인 → 승인·반려 기록</p><p>설화 기반 에셋 자동 선정·새 공간 생성·퍼즐 자동 제작은 아직 연결 전입니다.</p><a href="/docs/검수설계/왜곡_에이전트_구조_v5.html" target="_blank" rel="noreferrer">시스템 설계 보기 ↗</a></div>
     </aside>
-    <main className="main">
+    <main className={`main ${gate === 'trial' ? 'trial-mode' : ''}`}>
+      {gate === 'trial' && <AgentTrialPage onOpenProject={openTrialProject} />}
       <div className="page-head"><div><p className="eyebrow">LOCAL REVIEW / {gate === 'history' ? 'HISTORY' : gate.toUpperCase()}</p><h1>{spatial ? '공간·에셋 검수' : selectedGate?.label || '판정·관찰 이력'}</h1><p>{project ? `${project.title} · 검수 자료 v${project.revision}` : '설화 자료를 입력하고 검수할 공간을 연결하세요.'}</p></div>{project && <Tag status={gateState?.status} />}</div>
       {error && <div className="message error" role="alert">{error}<button className="quiet" onClick={() => setError('')} aria-label="오류 알림 닫기">×</button></div>}
       {notice && <div className="message success" role="status">{notice}</div>}
-      {(dirty || staleGame) && <div className="message warning">{dirty ? '저장하지 않은 변경이 있습니다. 저장하면 검수 버전이 올라가고 이전 승인과 관찰 증거를 다시 확인해야 합니다.' : '연결한 게임 또는 참조 자료가 바뀌었습니다. 현재 버전으로 재검수를 열어주세요.'}</div>}
+      {(dirty || staleGame) && <div className="message warning">{dirty ? '저장하지 않은 변경이 있습니다. 저장하면 검수 버전이 올라가고 이전 승인과 관찰 증거를 다시 확인해야 합니다.' : lastApplied ? `반영됨 — 배치 변경안 ${lastApplied.placementIds.length}건이 게임 데이터에 들어가 게임 버전이 바뀌었습니다. 다음 회차에서 실제 공간으로 확인하세요. 「현재 자료로 재검수 회차 열기」를 누르면 반영된 공간으로 새 회차를 시작합니다.` : '연결한 게임 또는 참조 자료가 바뀌었습니다. 현재 버전으로 재검수를 열어주세요.'}</div>}
       {conflicted && <div className="message error" role="alert"><div><b>다른 창에서 검수 자료가 바뀌었습니다.</b><p>기존 초안을 덮어쓰지 않도록 저장과 판정을 중단했습니다.</p><div className="button-row"><button className="secondary" onClick={() => download('설화_미저장_초안.json', JSON.stringify(draft, null, 2))}>내 초안 내려받기</button><button onClick={() => perform(() => loadProject(project.id))}>최신 저장본 다시 읽기</button></div></div></div>}
       <div className={`content-layout ${spatial ? 'spatial-layout' : ''}`}><section className="content">
       {gate === 'source' && <>
+        {project && <BriefPanel project={project} dirty={dirty} reviewer={reviewer} setReviewer={setReviewer} onJump={jumpTo} onStatus={setBriefStatus} />}
         <section className="panel"><div className="panel-head"><div><h2>설화 자료 입력</h2><p>MD·TXT를 불러오거나 텍스트를 그대로 붙여넣으세요.</p></div><span className="pill">외부 전송 없음</span></div>
           <div className="button-row"><button onClick={useNaju} disabled={busy || !boot.source}>나주 기존 자료로 채우기</button><label className="button secondary file-button">MD·TXT 파일 가져오기<input type="file" accept=".md,.txt,text/plain,text/markdown" onChange={readFile} /></label></div>
           <div className="form-grid"><label className="field"><span>검수 제목</span><input value={draft.title} maxLength={160} onChange={event => update('title', event.target.value)} /></label><label className="field"><span>입력 자료 이름·출처</span><input value={draft.sourceName} maxLength={300} onChange={event => update('sourceName', event.target.value)} /></label></div>
-          <TextField label="설화 원문 또는 사실 계약서" hint="원문은 입력 그대로 보존합니다. MD 안의 HTML이나 명령은 실행하지 않습니다." value={draft.sourceText} onChange={value => update('sourceText', value)} rows={15} placeholder="설화 본문을 여기에 붙여넣으세요." />
+          <TextField label="설화 원문 또는 사실 계약서" hint="원문은 입력 그대로 보존합니다. MD 안의 HTML이나 명령은 실행하지 않습니다." id="field-sourceText" value={draft.sourceText} onChange={value => update('sourceText', value)} rows={15} placeholder="설화 본문을 여기에 붙여넣으세요." />
           <div className="runtime-link">
             <div className="form-grid"><label className="field"><span>설화 관리 코드 (선택)</span><input value={draft.caseId} maxLength={100} onChange={event => update('caseId', event.target.value)} placeholder="예: NAJU-01, 새로운 설화 코드" /></label><label className="field"><span>연결할 구현 공간</span><select value={draft.runtimeId || ''} onChange={event => { const id = event.target.value || null; setDraft(old => ({ ...old, runtimeId: id, runtimeUse: id ? 'reference' : null })); }}><option value="">아직 연결하지 않음</option>{boot.runtimes?.map(item => <option key={item.id} value={item.id}>{item.title} · {item.id}</option>)}</select></label></div>
             {draftRuntime && <label className="field"><span>연결 용도</span><select value={draft.runtimeUse || 'reference'} onChange={event => update('runtimeUse', event.target.value)}><option value="reference">참고용 공간 — 이 설화의 공간 승인에는 사용 안 함</option><option value="target">이 설화의 검수 대상 공간</option></select><small>{draft.runtimeUse === 'target' ? '입력한 설화를 구현한 공간인지 확인해주세요. 설화와 실제 배치의 대응은 사람이 판정합니다.' : '다른 설화의 공간을 참고할 수 있습니다. 참고용 관찰은 이 설화의 공간 승인 근거가 되지 않습니다.'}</small></label>}
             <p className="note">현재는 설화를 입력해도 에셋이 자동 선정되거나 배치되지 않습니다. 연결한 기존 공간의 실제 배치를 불러와 검수합니다.</p><p className="muted">어떤 지역의 설화든 입력할 수 있습니다. 현재 실행 가능한 공간은 나주 앙암바위이며, 새 설화의 공간을 자동 생성하는 기능은 아직 연결 전입니다. 공간 없이도 설화와 GLB 에셋 검수를 시작할 수 있습니다.</p>
           </div>
         </section>
-        <section className="panel"><h2>검수용 시놉시스와 씬 계획</h2><p className="muted">직접 작성하거나 기존 문서를 수정해 저장합니다. 자동 분석 결과로 표시하지 않습니다.</p><TextField label="시놉시스" value={draft.synopsis} onChange={value => update('synopsis', value)} rows={9} placeholder="핵심 사건, 인물, 보존할 설화 내용과 각색 범위" /><TextField label="씬별 경험·상호작용·에셋 계획" value={draft.sceneNotes} onChange={value => update('sceneNotes', value)} rows={10} placeholder="씬 구성 / 사용자 경험 / 확인할 에셋 / 상호작용 / 미구현 항목" /></section>
+        <section className="panel"><h2>검수용 시놉시스와 씬 계획</h2><p className="muted">직접 작성하거나 기존 문서를 수정해 저장합니다. 자동 분석 결과로 표시하지 않습니다.</p><TextField label="시놉시스" id="field-synopsis" value={draft.synopsis} onChange={value => update('synopsis', value)} rows={9} placeholder="핵심 사건, 인물, 보존할 설화 내용과 각색 범위" /><TextField label="씬별 경험·상호작용·에셋 계획" id="field-sceneNotes" value={draft.sceneNotes} onChange={value => update('sceneNotes', value)} rows={10} placeholder="씬 구성 / 사용자 경험 / 확인할 에셋 / 상호작용 / 미구현 항목" /></section>
         <details className="panel evidence"><summary>나주 예제의 저장소 근거 문서 보기</summary><label className="field"><span>근거 자료</span><select value={docId} onChange={event => setDocId(event.target.value)}>{boot.documents.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label><small className="path">{doc?.path}</small><pre>{doc?.text}</pre></details>
         <details className="panel evidence"><summary>자료 상태와 검수 범위</summary>{boot.warnings.map(warning => <p key={warning}>{warning}</p>)}</details>
       </>}
@@ -310,11 +467,13 @@ export default function App() {
           {runtime?.available === false && <p className="warning-text" role="alert">{runtime.reviewBlockers?.join(' ') || '연결한 공간의 실행 자료를 확인해주세요.'}</p>}
           {!runtime ? <div className="game-empty"><h3>아직 구현 공간이 없습니다.</h3><p>새 설화의 자동 배치 결과가 준비되면 이곳에서 검수합니다.</p><button className="secondary" onClick={() => changeGate('source')}>설화와 공간 연결 설정</button></div> : <>
             <div className="button-row"><button disabled={busy || capturing || dirty || conflicted || staleGame || runtime.available === false} onClick={() => launchGame('diagnostic', true)}>배치된 공간 둘러보기</button><button className="secondary" disabled={busy || capturing || dirty || conflicted || staleGame || runtime.available === false} onClick={() => launchGame('normal')}>직접 걸으며 동선·충돌 검수</button></div>
-            {launch?.visual && <div className="zone-jumps" aria-label="구역 바로 이동">{runtime.visualViews?.filter(view => view.id.endsWith('-wide')).map(view => <button className="secondary" key={view.id} disabled={busy || capturing || !captureReady || staleGame || conflicted} onClick={() => perform(async () => { await gameFrameRef.current.view(view.id); setSelectedObject(null); })}>{view.zoneId} · {view.zoneName}</button>)}</div>}
-            {launch ? <GameReviewFrame launch={launch} runtime={runtime} projectId={project.id} events={activeSession?.events} stale={staleGame || conflicted} controlRef={gameFrameRef} visual={launch.visual} onObjectSelected={setSelectedObject} onClose={() => perform(async () => { if (capturing) throw new Error('사진 촬영이 끝난 뒤 종료해주세요.'); await stopGame(); await refresh(); })} onForceClose={() => { setLaunch(null); refresh(); }} onReturn={returnToDecision} /> : <div className="game-empty"><span aria-hidden="true">▷</span><p>공간을 한 번 열고 구역별로 이동하며 배치된 물체를 확인하세요.<br />120개 목록을 하나씩 열 필요가 없습니다.</p></div>}
+            {launch?.visual && <SceneTabs sceneNo={sceneNo} sceneInfo={sceneInfo} views={runtime.visualViews} disabled={busy || capturing || !captureReady || staleGame || conflicted || Boolean(placeAsset)} onSelect={selectScene} onZone={jumpZone} />}
+            {launch ? <GameReviewFrame launch={launch} runtime={runtime} projectId={project.id} events={activeSession?.events} stale={staleGame || conflicted} controlRef={gameFrameRef} visual={launch.visual} onObjectSelected={value => { if (!placeRef.current) { setSelectedObject(value); setPickedPoint(null); } }} onGameMessage={onGameMessage} onClose={() => perform(async () => { if (capturing) throw new Error('사진 촬영이 끝난 뒤 종료해주세요.'); await stopGame(); await refresh(); })} onForceClose={() => { setLaunch(null); refresh(); }} onReturn={returnToDecision} /> : <div className="game-empty"><span aria-hidden="true">▷</span><p>공간을 한 번 열고 구역별로 이동하며 배치된 물체를 확인하세요.<br />120개 목록을 하나씩 열 필요가 없습니다.</p></div>}
           </>}
         </section>
 
+        {spaceTab === 'live' && runtime && <ProposalList placements={project?.placements} currentIds={currentPlacementIds} disabled={busy || capturing || dirty || conflicted || Boolean(placeAsset)} editDisabled={busy || capturing || dirty || conflicted || staleGame || !launch?.visual || !captureReady || Boolean(placeAsset)} onWithdraw={withdrawPlacement} onEdit={editProposal} />}
+        {spaceTab === 'live' && runtime && project && import.meta.env.DEV && <PlacementImportPanel reviewer={reviewer} disabled={busy || dirty || conflicted || staleGame || project.runtimeUse !== 'target'} onImport={importPlan} />}
         {spaceTab === 'photos' && <SceneReviewBoard project={project} runtime={runtime} busy={busy} disabled={dirty || staleGame || conflicted || !project || runtime?.available === false} reviewer={reviewer} onReviewerChange={setReviewer} onCaptureAll={startCaptures} onReview={reviewZone} capturing={capturing} captureProgress={captureProgress} />}
         <details className="panel"><summary>실제 게임 관찰 기록</summary><button className="secondary" onClick={refresh} disabled={refreshing || !project}>{refreshing ? '확인 중…' : '기록 새로 읽기'}</button><SessionList sessions={savedSessions} /></details>
         <details className="panel"><summary>현재 검수에 저장한 씬 계획</summary><pre className="document-text">{project?.sceneNotes || '설화와 기획 단계에서 씬별 경험·배치 기준을 작성해주세요.'}</pre></details>
@@ -334,19 +493,33 @@ export default function App() {
       {gate === 'history' && <>
         <section className="panel"><div className="panel-head"><div><h2>검수 기록 내보내기</h2><p>입력 원문·버전·판정자·의견·게임 관찰 기록을 함께 보관합니다.</p></div><button disabled={!project || busy} onClick={exportProject}>JSON 내보내기 ↓</button></div><p className="note">서버 저장 위치: <code>.local/review/</code> · 이 컴퓨터의 내부 검수 기록이며 공개 배포 승인이나 학습 데이터 등록은 아닙니다.</p></section>
         <section className="panel"><h2>판정 이력</h2>{project?.decisions?.length ? <ol className="timeline">{[...project.decisions].reverse().map((record, index) => <li key={record.id || index}><div className="panel-head"><strong>{gateName(record.gate)}</strong><Tag status={record.decision} /></div><p>{record.note || '추가 의견 없음'}</p><small>{record.reviewer} · {date(record.createdAt || record.at)} · 검수 v{record.projectRevision ?? record.revision}</small>{record.invalidatedAt && <p className="warning-text">입력 변경으로 과거 기록이 되었습니다.</p>}</li>)}</ol> : <p className="empty">아직 판정이 없습니다.</p>}</section>
+        <section className="panel"><div className="panel-head"><div><h2>생성 대기 요청</h2><p>「반려 · 새로 생성 요청」과 라이브러리 생성 요청입니다. 생성 공정은 아직 연결 전이라 기록만 남습니다.</p></div><span className="pill">{project?.regenerationRequests?.length || 0}건</span></div>{project?.regenerationRequests?.length ? <ul className="records">{[...project.regenerationRequests].reverse().map(request => <li key={request.id}><strong>{request.object?.name || '이름 미등록 물체'}{request.sceneNo ? ` · 씬${request.sceneNo}` : ''}{request.object?.zoneId ? ` · ${request.object.zoneId}` : ''}</strong><span>검수 v{request.projectRevision}</span><small>{request.note}</small><small>{request.reviewer} · {date(request.at)}</small></li>)}</ul> : <p className="empty">생성 대기 요청이 없습니다.</p>}</section>
+        <section className="panel"><h2>배치 변경안 기록</h2><PlacementHistory placements={project?.placements} currentIds={currentPlacementIds} /></section>
         <section className="panel"><h2>게임 관찰 이력</h2><SessionList sessions={savedSessions} /></section>
       </>}
       </section>
       <aside className="decision-rail">
-        {spatial && spaceTab === 'live' && <ObjectReviewPanel key={selectedObject?.objectId || 'none'} object={selectedObject} issues={currentObjectIssues} reviewer={reviewer} onReviewerChange={setReviewer} onIssue={issueObject} disabled={busy || capturing || dirty || staleGame || conflicted || !captureReady || project?.runtimeUse !== 'target'} />}
+        {spatial && spaceTab === 'live' && placeAsset && <PlacementAdjustPanel draft={placeDraft} asset={placeAsset} mode={placeMode} note={placeNote} saving={placeSaving} replacing={placeReplacing} disabled={busy || staleGame || conflicted} onNote={setPlaceNote} onMode={changePlaceMode} onAdjust={adjustPlacement} onCancel={cancelPlacement} onCommit={confirmPlacement} />}
+        {spatial && spaceTab === 'live' && !placeAsset && <PickedPointCard picked={pickedPoint} reviewer={reviewer} onReviewerChange={setReviewer} placing={Boolean(placeAsset)} disabled={busy || capturing || dirty || staleGame || conflicted || !captureReady || project?.runtimeUse !== 'target'} blockedReasons={[
+          ...(dirty ? ['입력 변경을 먼저 저장해 주세요.'] : []),
+          ...(staleGame ? ['게임·참조 자료가 바뀌었습니다 — 「현재 자료로 재검수 회차 열기」.'] : []),
+          ...(conflicted ? ['다른 창에서 자료가 바뀌었습니다 — 최신 저장본을 다시 읽어 주세요.'] : []),
+          ...(!captureReady ? ['게임 화면이 아직 연결 중입니다(「실제 공간 표시」 뒤 가능).'] : []),
+          ...(project?.runtimeUse !== 'target' ? ['참고용 공간에는 배치할 수 없습니다 — 설화와 기획에서 「검수 대상 공간」으로 연결.'] : []),
+          ...(capturing ? ['사진 촬영 중입니다.'] : []),
+        ]} onPlace={() => setLibraryOpen(true)} onClear={() => setPickedPoint(null)} />}
+        {spatial && spaceTab === 'live' && selectedProposalId && !placeAsset && <ProposalActionsCard selected={selectedObject} placement={selectedProposal} disabled={busy || capturing || dirty || conflicted} editDisabled={busy || capturing || dirty || conflicted || staleGame || !captureReady} onEdit={editProposal} onWithdraw={withdrawPlacement} onClear={() => setSelectedObject(null)} />}
+        {spatial && spaceTab === 'live' && !selectedProposalId && <ObjectReviewPanel key={selectedObject?.objectId || 'none'} object={selectedObject} sceneNo={sceneNo} issues={currentObjectIssues} reviewer={reviewer} onReviewerChange={setReviewer} onIssue={issueObject} disabled={busy || capturing || dirty || staleGame || conflicted || !captureReady || project?.runtimeUse !== 'target'} />}
         <section className="panel save-panel"><p className="eyebrow">REVIEW SNAPSHOT</p><h2>{project ? `검수 자료 v${project.revision}` : '새 검수 만들기'}</h2><dl><dt>설화 코드</dt><dd>{draft.caseId || '미지정'}</dd><dt>연결 공간</dt><dd>{draftRuntime?.title || '미연결'}{draftRuntime && <small>{draft.runtimeUse === 'target' ? '검수 대상' : '참고용'}</small>}</dd><dt>게임 버전</dt><dd><code>{shortHash(project?.gameRevision)}</code></dd><dt>추가 개별 확인</dt><dd>{draft.selectedAssetIds.length}개</dd></dl><button className="wide" onClick={() => save()} disabled={busy || capturing || conflicted || !draft.sourceText.trim() || (project && !dirty)}> {busy ? '처리 중…' : project ? '수정 내용 저장' : '검수 자료 저장·시작'}</button>{project && <button className="secondary wide" onClick={() => save(true)} disabled={busy || capturing || dirty || conflicted}>현재 자료로 재검수 회차 열기</button>}<small>수정·재검수 시 기존 판정은 지우지 않고 새 버전에서 다시 확인합니다.</small></section>
-        {selectedGate && <section className="panel decision" ref={decisionRef} tabIndex={-1} aria-label={`${selectedGate.short} 판정 입력`}><div className="panel-head"><h2>{gate === 'assets' ? '배치·에셋' : gate === 'space' ? '동선·충돌' : selectedGate.short} 판정</h2><Tag status={gateState?.status} /></div>{spatial && <div className="judgment-tabs"><button className={gate === 'assets' ? '' : 'secondary'} disabled={busy || capturing} onClick={() => changeGate('assets')}>배치·에셋 판정</button><button className={gate === 'space' ? '' : 'secondary'} disabled={busy || capturing} onClick={() => changeGate('space')}>동선·충돌 판정</button></div>}<label className="field"><span>검수자</span><input value={reviewer} onChange={event => setReviewer(event.target.value)} maxLength={100} placeholder="이름 또는 담당자명" /></label><div className="check-list">{selectedGate.checks.map(([id, label]) => <label key={id} className="check"><input type="checkbox" checked={currentChecks.includes(id)} disabled={gate === 'play' || !project || dirty} onChange={event => setChecks(old => ({ ...old, [gate]: event.target.checked ? [...(old[gate] || []), id] : (old[gate] || []).filter(key => key !== id) }))} /><span>{gate === 'assets' && draft.assetReviewMode === 'scene' && id === 'shape' ? '구역 사진·실제 공간에서 배치와 외형을 확인하고 필요한 추가 물체 검수를 마쳤습니다.' : label}</span></label>)}</div><TextField label="판정 의견·수정 요청" value={notes[gate] || ''} onChange={value => setNotes(old => ({ ...old, [gate]: value }))} rows={5} placeholder="반려·보류 시에는 구체적인 이유를 적어주세요." />
-          {prerequisites.length > 0 && <div className="blockers"><b>승인 전 필요한 확인</b><ul>{prerequisites.map((blocker, index) => <li key={`${blocker.code || "blocker"}:${index}`}>{blocker.message || String(blocker)}</li>)}</ul></div>}
+        {selectedGate && <section className="panel decision" ref={decisionRef} tabIndex={-1} aria-label={`${selectedGate.short} 판정 입력`}><div className="panel-head"><h2>{gate === 'assets' ? '배치·에셋' : gate === 'space' ? '동선·충돌' : selectedGate.short} 판정</h2><Tag status={gateState?.status} /></div>{spatial && <div className="judgment-tabs"><button className={gate === 'assets' ? '' : 'secondary'} disabled={busy || capturing} onClick={() => changeGate('assets')}>배치·에셋 판정</button><button className={gate === 'space' ? '' : 'secondary'} disabled={busy || capturing} onClick={() => changeGate('space')}>동선·충돌 판정</button></div>}<label className="field"><span>검수자</span><input value={reviewer} onChange={event => setReviewer(event.target.value)} maxLength={100} placeholder="이름 또는 담당자명" /></label><div className="check-list">{gateChecks.map(([id, label]) => <label key={id} className="check"><input type="checkbox" checked={currentChecks.includes(id)} disabled={gate === 'play' || !project || dirty} onChange={event => setChecks(old => ({ ...old, [gate]: event.target.checked ? [...(old[gate] || []), id] : (old[gate] || []).filter(key => key !== id) }))} /><span>{gate === 'assets' && draft.assetReviewMode === 'scene' && id === 'shape' ? '구역 사진·실제 공간에서 배치와 외형을 확인하고 필요한 추가 물체 검수를 마쳤습니다.' : label}</span></label>)}</div><TextField label="판정 의견·수정 요청" value={notes[gate] || ''} onChange={value => setNotes(old => ({ ...old, [gate]: value }))} rows={5} placeholder="반려·보류 시에는 구체적인 이유를 적어주세요." />
+          {[...prerequisites, ...briefBlocked].length > 0 && <div className="blockers"><b>승인 전 필요한 확인</b><ul>{[...prerequisites, ...briefBlocked].map((blocker, index) => <li key={`${blocker.code || "blocker"}:${index}`}>{blocker.message || String(blocker)}</li>)}</ul></div>}
+          {gate === 'space' && placementCount > 0 && <p className="note">승인하면 이번 회차의 배치 변경안 {placementCount}건을 게임 데이터(manifest 「놓기」)에 반영합니다. 반영 뒤에는 게임 버전이 바뀌므로 다음 회차에서 실제 공간으로 다시 확인합니다.</p>}
           {gate === 'play' && <p className="warning-text">퍼즐 구현 연결 전에는 승인할 수 없습니다.</p>}{gateState?.decisionId && <p className="note">이 회차의 판정이 저장되어 있습니다. 변경하려면 재검수 회차를 열어주세요.</p>}
           <button className="wide" disabled={busy || !canApprove} onClick={() => decide('approved')}>현재 {selectedGate.short} 승인</button><div className="decision-actions"><button className="danger" disabled={busy || !project || dirty || conflicted || Boolean(gateState?.decisionId) || !reviewer.trim() || !notes[gate]?.trim()} onClick={() => decide('rejected')}>반려</button><button className="secondary" disabled={busy || !project || dirty || conflicted || Boolean(gateState?.decisionId) || !reviewer.trim() || !notes[gate]?.trim()} onClick={() => decide('held')}>보류</button></div><small>승인 조건은 서버가 다시 확인합니다. 실제 공개·배포는 실행하지 않습니다.</small>
         </section>}
       </aside></div>
     </main>
+    <LibraryDrawer open={libraryOpen && spatial} pickedPoint={pickedPoint} disabled={busy || !pickedPoint || Boolean(placeAsset)} onClose={closeLibrary} onPick={startPlacement} onRequestGenerate={requestGenerate} />
   </div>;
 }
 

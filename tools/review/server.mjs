@@ -1,7 +1,13 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { lstat, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { briefBlockers, currentBrief, decideBriefItem } from './brief.mjs';
+import { realHeight, scaledHeight } from './realSize.mjs';
+import * as agentTrial from './agentTrial.mjs';
+import { noSymlinkFile } from './data.mjs';
+import { PUBLIC_MANIFEST, commitManifestText, fileSha256, finite, placementAsset, placementPosition, readPublicManifest } from './manifestPlace.mjs';
 
 export const REQUIRED_CHECKS = Object.freeze({
   source: ['fidelity', 'adaptation'], assets: ['shape', 'fit'],
@@ -14,6 +20,17 @@ const EVENTS = new Set(['ready', 'frame', 'navigation', 'metrics', 'checkpoint',
 const MAX_BODY = 600_000;
 const CAPTURE_LIMITS = Object.freeze({ imageBytes: 700 * 1024, projectBytes: 12 * 1024 * 1024, perViewRevision: 3, projectCount: 72 });
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+// 검수 배치 변경안(10/15 규약 §3) — 공개 GLB(_sf_local)만, 공간 승인 때 manifest 「놓기」에 덧붙인다
+const PLACEMENT_LIMIT = 300;
+const SCENE_COUNT = 5;
+const DISPOSITIONS = ['rejected', 'change_requested', 'regenerate'];
+// AI 공간 배치 초안 가져오기(규약 §6) — 한 번에 300개까지, 출처는 ai-draft 만
+const IMPORT_ORIGINS = ['ai-draft'];
+const PLACEMENT_ORIGINS = ['ai-draft', 'human'];
+const IMPORT_ITEM_LIMIT = 300;
+/** 씬 탭 경계 여유(m) — naju01/src/review/sceneScope.ts SCENE_MARGIN_M 과 같은 값 */
+const SCENE_MARGIN_M = 8;
+const SITE_PLAN = 'naju01/src/plan/sitePlan.ts';
 const hash = value => createHash('sha256').update(value).digest('hex');
 const now = () => new Date().toISOString();
 const issue = (code, message) => ({ code, message });
@@ -156,6 +173,193 @@ function selectedObject(value) {
     instanceId: value.instanceId ?? null, originalInstanceId: value.originalInstanceId ?? null, position: [...position], clientReported: true, identityVerified: false,
   };
 }
+function sceneNumber(value) {
+  if (value == null || value === 0) return null;
+  if (!Number.isInteger(value) || value < 0 || value > SCENE_COUNT) fail(400, 'invalid_scene', `씬 번호는 0(전체)~${SCENE_COUNT} 사이의 정수여야 합니다.`);
+  return value;
+}
+const round = (value, digits = 3) => Math.round(value * 10 ** digits) / 10 ** digits || 0;
+function currentPlacements(project) {
+  return (project.placements || []).filter(value => value.status === 'proposed' && value.projectRevision === project.revision && value.gameRevision === project.gameRevision);
+}
+function checksFor(project, gate) {
+  return gate === 'assets' && currentPlacements(project).length ? [...REQUIRED_CHECKS.assets, 'placements'] : REQUIRED_CHECKS[gate];
+}
+// ── AI 배치 초안 가져오기(규약 §6) ─────────────────────────────────────────
+// 구역 표는 게임 도면(sitePlan.ts ZONES · CORE)을 글자로 읽는다 — 표를 고치면 경계도 따라 바뀐다(코드 실행 없음).
+let sitePlanCache = null;
+async function siteZones(root) {
+  const safe = await noSymlinkFile(root, SITE_PLAN);
+  if (!safe.ok) fail(422, 'site_plan_unavailable', `${SITE_PLAN}: ${safe.reason} — 구역 경계를 읽지 못해 배치 초안을 가져오지 않았습니다.`);
+  const stat = await lstat(join(root, SITE_PLAN));
+  const key = `${root}:${stat.mtimeMs}:${stat.size}`;
+  if (sitePlanCache?.key === key) return sitePlanCache.value;
+  const source = await readFile(join(root, SITE_PLAN), 'utf8');
+  const range = (block, name) => {
+    const found = block.match(new RegExp(`\\b${name}:\\s*\\[\\s*(-?[\\d.]+)\\s*,\\s*(-?[\\d.]+)\\s*\\]`));
+    return found ? [Number(found[1]), Number(found[2])] : null;
+  };
+  const coreBlock = source.match(/export const CORE\b[^=]*=\s*(\{[^}]*\})/)?.[1] || '';
+  const zonesBlock = source.match(/export const ZONES\b[^=]*=\s*\[([\s\S]*?)\n\];/)?.[1] || '';
+  const zones = zonesBlock.split(/\n\s*\{/).map(block => {
+    const code = block.match(/\bcode:\s*"([^"]+)"/)?.[1];
+    const x = range(block, 'x'); const z = range(block, 'z');
+    const scenes = [...(block.match(/\bscenes:\s*"([^"]*)"/)?.[1] || '').matchAll(/S(\d)/g)].map(found => Number(found[1]));
+    return code && x && z ? { code, x, z, scenes } : null;
+  }).filter(Boolean);
+  const core = { x: range(coreBlock, 'x'), z: range(coreBlock, 'z') };
+  if (!zones.length || !core.x || !core.z || [...zones.flatMap(zone => [...zone.x, ...zone.z]), ...core.x, ...core.z].some(value => !Number.isFinite(value))) fail(422, 'site_plan_unavailable', '게임 도면의 구역 표(ZONES·CORE)를 읽지 못해 배치 초안을 가져오지 않았습니다.');
+  const value = { zones, core };
+  sitePlanCache = { key, value };
+  return value;
+}
+const inside = (bounds, x, z) => x >= bounds.x[0] && x <= bounds.x[1] && z >= bounds.z[0] && z <= bounds.z[1];
+const grow = (zone, margin) => ({ x: [zone.x[0] - margin, zone.x[1] + margin], z: [zone.z[0] - margin, zone.z[1] + margin] });
+/** 씬 N 의 경계(구역 합 + 여유) — 게임 sceneScope.sceneScopeFor 와 같은 계산. 0/null = 전체(CORE) */
+function sceneBounds(site, sceneNo) {
+  if (!sceneNo) return site.core;
+  const zones = site.zones.filter(zone => zone.scenes.includes(sceneNo));
+  if (!zones.length) return null;
+  return grow({ x: [Math.min(...zones.map(zone => zone.x[0])), Math.max(...zones.map(zone => zone.x[1]))], z: [Math.min(...zones.map(zone => zone.z[0])), Math.max(...zones.map(zone => zone.z[1]))] }, SCENE_MARGIN_M);
+}
+/** 점의 구역 — 구역 안이면 그 구역, 아니면 여유 8 m 안의 가장 가까운 구역(씬이 있으면 그 씬 구역 중에서) */
+function zoneForPoint(site, x, z, sceneNo) {
+  let best = null; let bestDistance = SCENE_MARGIN_M;
+  for (const zone of site.zones) {
+    if (sceneNo && !zone.scenes.includes(sceneNo)) continue;
+    const distance = Math.hypot(Math.max(zone.x[0] - x, 0, x - zone.x[1]), Math.max(zone.z[0] - z, 0, z - zone.z[1]));
+    if (distance <= bestDistance) { bestDistance = distance; best = zone.code; }
+  }
+  return best;
+}
+/** 라이브러리 ID(public:<파일> · khs:<파일>) → /_sf_local 주소. 라이브러리 색인이 있으면 이름·출처도 거기서 */
+async function importAsset(root, item, libraryItems) {
+  const assetId = item.assetId == null ? null : text(item.assetId, '에셋 ID', 200, true);
+  if (item.url != null && typeof item.url !== 'string') fail(400, 'invalid_asset_url', '에셋 주소를 확인하세요.');
+  if (!assetId && !item.url) fail(400, 'invalid_placement_asset', 'assetId 또는 url 중 하나가 필요합니다.');
+  const known = libraryItems?.find(entry => (assetId && entry.id === assetId) || (!assetId && item.url && entry.url === item.url)) || null;
+  if (known && !known.placeable) fail(400, 'asset_not_placeable', `${known.nameKo || known.id}: 아직 3D가 없는 항목이라 배치할 수 없습니다. 「생성 요청」으로 남기세요.`);
+  let url = item.url ?? known?.url ?? null;
+  let source = item.source ?? known?.source ?? null;
+  if (!url && assetId) {
+    const found = assetId.match(/^(public|khs):(.+\.glb)$/u);
+    if (!found) fail(400, 'asset_not_placeable', `${assetId}: 공개 3D(public:)·국가유산(khs:) GLB 의 ID 만 배치할 수 있습니다.`);
+    source ??= found[1];
+    url = `/_sf_local/${found[1] === 'khs' ? 'khs/' : ''}${found[2]}`;
+  }
+  const decoded = value => { try { return decodeURIComponent(value).normalize('NFC'); } catch { return value; } };
+  if (known && decoded(known.url) !== decoded(url)) fail(409, 'placement_asset_mismatch', `${assetId || url}: 에셋 ID 와 주소가 라이브러리와 다릅니다.`);
+  return placementAsset(root, { id: assetId ?? known?.id ?? undefined, url, source: source ?? 'public', nameKo: item.nameKo ?? known?.nameKo ?? undefined, ...(item.sha256 != null ? { sha256: item.sha256 } : {}) }, { requireNames: false });
+}
+/** 가져올 항목 하나 확인 — 문제가 있으면 fail(던짐), 통과하면 저장할 값 */
+async function importItem(root, site, item, libraryItems) {
+  if (!item || typeof item !== 'object' || Array.isArray(item) || Buffer.byteLength(JSON.stringify(item)) > 6000) fail(400, 'invalid_item', '항목은 6KB 이하 JSON 객체여야 합니다.');
+  const sceneNo = sceneNumber(item.sceneNo);
+  const raw = item.position;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail(400, 'invalid_placement_position', '배치 위치는 {x, z, y?}(m) 형식이어야 합니다.');
+  const snap = raw.y == null;
+  const position = placementPosition({ x: raw.x, y: snap ? 0 : raw.y, z: raw.z });
+  if (snap) position.y = null;
+  const rotationY = ((round(finite(item.rotationY ?? 0, '회전(도)', -3600, 3600), 2) % 360) + 360) % 360;
+  const scale = round(finite(item.scale ?? 1, '크기 배율', 0.05, 20), 4);
+  const reqId = item.reqId == null ? null : text(item.reqId, '요구 ID', 200, true);
+  const reason = item.reason == null ? '' : text(item.reason, '배치 이유', 3000);
+  let zoneId = item.zoneId == null || item.zoneId === '' ? null : text(item.zoneId, '구역', 200);
+  if (zoneId) {
+    const zone = site.zones.find(value => value.code === zoneId);
+    if (!zone) fail(400, 'unknown_zone', `${zoneId}: 게임 도면에 없는 구역입니다(${site.zones.map(value => value.code).join('·')}).`);
+    if (sceneNo && !zone.scenes.includes(sceneNo)) fail(422, 'zone_not_in_scene', `${zoneId} 는 씬${sceneNo} 의 구역이 아닙니다.`);
+    if (!inside(grow(zone, SCENE_MARGIN_M), position.x, position.z)) fail(422, 'placement_out_of_bounds', `X ${position.x} · Z ${position.z} m 는 ${zoneId} 구역 경계(+${SCENE_MARGIN_M} m) 밖입니다.`);
+  } else {
+    const bounds = sceneBounds(site, sceneNo);
+    if (!bounds) fail(422, 'scene_without_zones', `씬${sceneNo} 에 연결된 구역이 도면에 없습니다.`);
+    if (!inside(bounds, position.x, position.z)) fail(422, 'placement_out_of_bounds', `X ${position.x} · Z ${position.z} m 는 ${sceneNo ? `씬${sceneNo} 경계` : '전체 공간(CORE)'} 밖입니다.`);
+    zoneId = zoneForPoint(site, position.x, position.z, sceneNo);
+  }
+  if (item.groundSnap != null && typeof item.groundSnap !== 'boolean') fail(400, 'invalid_ground_snap', 'groundSnap 은 참·거짓 값이어야 합니다.');
+  const asset = await importAsset(root, item, libraryItems);
+  const heightM = asset.naturalHeightM && round(asset.naturalHeightM * scale, 4);
+  if (!heightM) fail(422, 'placement_height_unknown', `${asset.nameKo}: GLB 에서 실제 높이를 읽지 못해 게임 데이터로 옮길 수 없습니다.`);
+  return { sceneNo, zoneId: zoneId || '', asset, position, rotationY, scale, heightM, reqId, reason, groundSnap: snap || item.groundSnap === true };
+}
+/**
+ * 에이전트 시험 배치 한 항목 → importItem. 키는 realSize 로 정한다(GLB 원래 키를 그대로 쓰면 stone21 이 30 m 가 된다).
+ * 씬 번호는 사람 기획의 씬→구역 표에 묶여 있어 넣지 않는다(에이전트 씬은 reason 머리에).
+ */
+async function trialImport(root, site, item, libraryItems, reason) {
+  const base = { assetId: item.asset_id, position: { x: item.x, z: item.z }, rotationY: item.rotationY, scale: 1, reqId: item.req_id, reason, zoneId: item.zone, sceneNo: null };
+  const probe = await importItem(root, site, base, libraryItems);
+  const natural = probe.asset.naturalHeightM;
+  const heightM = Number.isFinite(item.heightM) ? item.heightM : scaledHeight(await realHeight(root, { file: probe.asset.file, naturalHeightM: natural, boundsM: item.boundsM }), item.scale);
+  if (!natural) return probe;
+  return importItem(root, site, { ...base, scale: Math.min(20, Math.max(0.05, heightM / natural)) }, libraryItems);
+}
+/**
+ * 공정 2판 배치(layout2.json) → 게임 「놓기」 항목. 에셋마다 한 항목(자리 여럿) — 수백 개 배경도 인스턴스 하나로.
+ * 키m = 에셋 실제 키(realSize), 자리마다 키배 = 그 자리 키 / 실제 키. 에셋 확인(placementAsset)은 에셋마다 한 번.
+ */
+// 배경 식물 → 게임 무리 이름(바람 흔들림이 이름의 「나무·덤불·풀·꽃·갈대」를 보고 붙는다, 10/20). 바위·자갈은 흔들리지 않는다
+const PLANT_GROUP = { tree: '에이전트.나무', shrub: '에이전트.덤불', grass: '에이전트.풀', flower: '에이전트.꽃', reed: '에이전트.갈대' };
+async function trialPlacesV2(root, detail, off) {
+  const { buildLibrary } = await import('./library.mjs');
+  const library = new Map((await buildLibrary(root)).items.map(i => [i.id, i]));
+  const byAsset = new Map(); const skipped = [];
+  for (const s of detail.layout2.spots) {
+    if (!s.assetId || off.has(s.assetId) || off.has(`layer:${s.layer}`)) continue; // 자리 표식(marker)은 그리지 않는다
+    const key = `${s.assetId}#${(s.scenes || []).join(',')}`; // 씬이 다르면 따로 묶는다(게임이 씬마다 켜고 끈다)
+    (byAsset.get(key) || byAsset.set(key, []).get(key)).push(s);
+  }
+  const places = [];
+  for (const [key, spots] of byAsset) {
+    const assetId = key.split('#')[0];
+    const item = library.get(assetId);
+    try {
+      if (!item) throw Object.assign(new Error('라이브러리에 없는 id'), { status: 404 });
+      const asset = await placementAsset(root, { id: item.id, nameKo: item.nameKo, url: item.url, source: item.source === 'khs' ? 'khs' : 'public' });
+      const real = await realHeight(root, { file: asset.file, naturalHeightM: asset.naturalHeightM, boundsM: item.boundsM });
+      const clampH = h => Math.min(real.range[1], Math.max(real.range[0], h));
+      // 낱개(시설·이야기 물건·인물)는 에셋 실제 키를 따른다 — LLM 이 적은 크기는 길이·높이가 섞여(배 길이 4 m 를 키로) 거대해졌다(10/19).
+      //   실제 키를 모를 때(분류 기본값)만 LLM 크기를 범위 안에서 쓴다. 배경 층은 LLM 크기(나무 3~8 m 등)를 범위 안에서.
+      const knownReal = !/기본값/.test(real.source);
+      const heightOf = s => (s.layer !== 'environment' && knownReal ? real.heightM * (Number.isFinite(s.hf) ? s.hf : 0.95 + ((Math.abs(Math.round(s.x * 31 + s.z * 17)) % 11) / 100)) : clampH(s.heightM || real.heightM)); // hf: 배치 코드가 정한 크기 배(줄·무리 0.86~1.12)
+      // 원경판(10/20) — 같은 이름의 _far.glb 가 있으면 넘긴다(게임이 22 m 밖은 그것으로 그려 면수를 줄인다)
+      const farFile = asset.file.replace(/(_lod\d+)?\.glb$/u, '_far.glb');
+      const hasFar = farFile !== asset.file && existsSync(join(root, 'public/_sf_local', farFile));
+      places.push({ ...(hasFar ? { 원경file: farFile } : {}), 에셋: { id: item.id, url: asset.url, nameKo: item.nameKo, source: asset.source }, 원래키: asset.naturalHeightM, file: asset.file, 키m: real.heightM, 묻힘m: 0, 자리: spots.map(s => [s.x, s.z, s.rotationY || 0, +(heightOf(s) / real.heightM).toFixed(3), +(s.dy || 0).toFixed(3)]), /* 5번째 = 앉힘 높이 보정(배는 수면·바위는 낮은 쪽, scatter.mjs seatSpot) */ 항목: spots.map(s => `${s.itemId}|${assetId}|${String(s.name || '').replace(/\|/g, '/').slice(0, 60)}`), 메모: `에이전트 시험 · ${item.nameKo} × ${spots.length} · ${[...new Set(spots.map(s => s.layer))].join('/')}`, 에이전트: true, ...(spots[0].scenes?.length ? { 씬: spots[0].scenes } : {}), ...(PLANT_GROUP[spots[0].cls] ? { 무리: PLANT_GROUP[spots[0].cls] } : {}) });
+    } catch (error) {
+      if (!error?.status) throw error;
+      skipped.push({ assetId, count: spots.length, reason: error.message });
+    }
+  }
+  return { trialId: detail.id, version: 2, places, skipped, off: [...off] };
+}
+/** 기존 「놓기」 항목 형식: { file, 키m, 묻힘m, 자리:[[X m, Z m, 돌림°, 키배]], 메모 } + 출처 */
+function placeEntry(placement) {
+  return {
+    file: placement.asset.file, 키m: placement.heightM, 묻힘m: placement.groundY == null ? 0 : round(placement.groundY - placement.position.y),
+    자리: [[placement.position.x, placement.position.z, round(placement.rotationY, 2), 1]],
+    메모: `${placement.at.slice(5, 10).replace('-', '/')} 검수 배치 — ${placement.asset.nameKo}${placement.sceneNo ? ` · 씬${placement.sceneNo}` : ''}${placement.zoneId ? ` · ${placement.zoneId}` : ''}${placement.note ? ` · ${placement.note.slice(0, 200)}` : ''} (${placement.reviewer})`,
+    출처: `review:${placement.id}`,
+  };
+}
+/** 승인 기록 전에 모든 확인을 끝낸다 — 여기서 실패하면 아무것도 기록하지 않는다. */
+async function prepareManifestApply(root, placements) {
+  const { raw, manifest } = await readPublicManifest(root);
+  const problems = [];
+  for (const placement of placements) {
+    const fileSafe = await noSymlinkFile(root, placement.asset.path);
+    if (!fileSafe.ok) problems.push(issue('placement_asset_missing', `${placement.asset.nameKo}: ${fileSafe.reason}`));
+    else if (await fileSha256(join(root, placement.asset.path)) !== placement.asset.sha256) problems.push(issue('placement_asset_changed', `${placement.asset.nameKo}: 변경안을 기록한 뒤 파일 내용이 바뀌었습니다. 철회하고 다시 배치하세요.`));
+    if ((manifest.놓기 || []).some(entry => entry?.출처 === `review:${placement.id}`)) problems.push(issue('placement_already_applied', `${placement.asset.nameKo}: 이미 manifest에 반영된 변경안입니다.`));
+  }
+  if (problems.length) fail(422, 'approval_blocked', '배치 변경안을 게임 데이터에 반영할 수 없어 승인을 기록하지 않았습니다.', { blockers: problems });
+  const entries = placements.map(placeEntry);
+  const next = { ...manifest, 놓기: [...(manifest.놓기 || []), ...entries] };
+  return { raw, text: `${JSON.stringify(next, null, 2)}\n`, entries, ids: placements.map(value => value.id) };
+}
+function commitManifestApply(root, dataDir, apply, timestamp) {
+  return commitManifestText(root, dataDir, apply.raw, apply.text, timestamp);
+}
 function sessionReady(project, kind) {
   return project.sessions.some(s => isReadySession(project, s) && (kind === 'space' || s.kind === kind));
 }
@@ -225,7 +429,7 @@ function blockers(project, gate, bootstrap) {
   }
   if (gate === 'space' || (gate === 'assets' && project.assetReviewMode === 'scene')) {
     const openIssues = project.objectIssues.filter(value => value.projectRevision === project.revision && value.gameRevision === project.gameRevision);
-    if (openIssues.length) out.push(issue('object_issues_unresolved', `현재 공간에 반려·수정 요청 ${openIssues.length}건이 있습니다. 수정 후 새 검수 회차로 확인하세요.`));
+    if (openIssues.length) out.push(issue('object_issues_unresolved', `현재 공간에 반려·수정·새로 생성 요청 ${openIssues.length}건이 있습니다. 수정 후 새 검수 회차로 확인하세요.`));
   }
   if (['space', 'play'].includes(gate)) {
     const bindingProblem = runtimeBlocker(project, bootstrap);
@@ -253,6 +457,10 @@ function publicProject(project, bootstrap) {
     return [gate, { status: decision?.decision === 'approved' && problems.length ? 'stale' : decision?.decision || 'pending', blockers: problems, decisionId: decision?.id || null }];
   }));
   copy.requiredChecks = REQUIRED_CHECKS;
+  copy.decisionChecks = Object.fromEntries(GATES.map(gate => [gate, checksFor(project, gate)]));
+  copy.placements ??= [];
+  copy.currentPlacementIds = currentPlacements(project).map(value => value.id);
+  copy.regenerationRequests = copy.objectIssues.filter(value => value.disposition === 'regenerate');
   copy.currentValidity = referenceValidity(project, bootstrap);
   copy.sceneReviewStatus = sceneReviewStatus(project, bootstrap);
   copy.captureLimits = CAPTURE_LIMITS;
@@ -288,6 +496,18 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
   const database = resolve(dataDir, 'projects.json');
   const bootstrapLoader = getBootstrap || (async () => (await import('./data.mjs')).getBootstrap(root));
   let queue = Promise.resolve();
+  // 라이브러리 색인(tools/review/library.mjs, 별도 작업) — 파일이 없으면 503 으로 알리고 나머지 검수는 그대로 쓴다
+  let library;
+  const libraryRoute = async () => {
+    if (library) return library;
+    // 없을 때는 기억하지 않는다 — 서버를 켠 뒤에 파일이 생겨도 다음 요청에서 바로 잡히게
+    try { library = (await import('./library.mjs')).libraryRoutes(root); }
+    catch (error) {
+      if (error?.code !== 'ERR_MODULE_NOT_FOUND' || !String(error.message).includes('library.mjs')) throw error;
+      return null;
+    }
+    return library;
+  };
   const serial = fn => {
     const task = queue.then(fn);
     queue = task.catch(() => {});
@@ -299,7 +519,7 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
       for (const project of db.projects) {
         // Only pre-generalization records lack the field. Explicit null means unlinked.
         if (!Object.hasOwn(project, 'runtimeId')) { project.runtimeId = 'NAJU-01'; project.runtimeUse = 'target'; }
-        project.assetReviewMode ??= 'individual'; project.sceneCaptures ??= []; project.sceneReviews ??= []; project.objectIssues ??= [];
+        project.assetReviewMode ??= 'individual'; project.sceneCaptures ??= []; project.sceneReviews ??= []; project.objectIssues ??= []; project.placements ??= [];
         for (const session of project.sessions || []) if (!Object.hasOwn(session, 'runtimeId')) { session.runtimeId = 'NAJU-01'; session.runtimeUse = 'target'; }
       }
       return db;
@@ -324,7 +544,56 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
     };
     try {
       guardRequest(req);
+      if (path === '/__review/library' || path.startsWith('/__review/library/')) {
+        const route = await libraryRoute();
+        if (!route) return send(503, { error: 'library_unavailable', message: '라이브러리 색인이 아직 준비되지 않았습니다.' });
+        if (await route(req, res, path, send)) return;
+        return send(404, { error: 'not_found', message: '라이브러리 경로를 찾을 수 없습니다.' });
+      }
       const input = ['POST', 'PATCH'].includes(req.method) ? await body(req, path.endsWith('/scene-captures') ? 1_000_000 : MAX_BODY) : null;
+      // ── 에이전트 시험(agentTrial.mjs, 10/19) — 긴 LLM 단계는 직렬 큐 밖에서 돈다. 검수 기록을 만드는 /space 만 큐 안에서 ──
+      if (path === '/__review/trials' || path.startsWith('/__review/trials/')) {
+        if (path === '/__review/trials/llm-status' && req.method === 'GET') return send(200, await (await import('../llm/local.mjs')).localStatus());
+        const m = path.match(/^\/__review\/trials(?:\/(preset)|\/([a-f0-9-]{36})(?:\/(steps)\/(s0[1-9]|s10)\/(estimate|run)|\/(missing|compare|space|places|view|llm|feedback|relayout|spot-edit))?)?$/);
+        if (!m) return send(404, { error: 'not_found', message: '에이전트 시험 경로를 찾을 수 없습니다.' });
+        const [, preset, trialId, , stepId, stepAction, sub] = m;
+        if (preset && req.method === 'GET') return send(200, await agentTrial.presetSource(root));
+        if (!trialId && req.method === 'GET') return send(200, { trials: await agentTrial.listTrials(root), steps: agentTrial.STEPS, defaultBudgetUsd: agentTrial.DEFAULT_BUDGET_USD });
+        if (!trialId && req.method === 'POST') return send(201, await agentTrial.createTrial(root, input));
+        if (trialId && !stepId && !sub && req.method === 'GET') return send(200, await agentTrial.trialDetail(root, trialId));
+        if (stepAction === 'estimate' && req.method === 'POST') return send(200, await agentTrial.estimateStep(root, trialId, stepId));
+        if (stepAction === 'run' && req.method === 'POST') return send(202, await agentTrial.startStep(root, trialId, stepId));
+        // 코드만 다시 앉히기(LLM 없음·비용 0) — 앉힘 규칙·지형 칸 지도를 고친 뒤 같은 계획으로 다시 깐다
+        if (sub === 'spot-edit' && req.method === 'POST') return send(200, await agentTrial.editSpot(root, trialId, input)); // 배치 화면에서 사람이 자리 고침·빼기(10/20)
+        if (sub === 'relayout' && req.method === 'POST') return send(200, await agentTrial.relayoutTrial(root, trialId));
+        if (sub === 'missing' && req.method === 'POST') return send(200, await agentTrial.decideMissing(root, trialId, input));
+        if (sub === 'compare' && req.method === 'GET') return send(200, await agentTrial.compareWithHuman(root, trialId));
+        if (sub === 'feedback' && req.method === 'POST') return send(200, await agentTrial.setFeedback(root, trialId, input));
+        if (sub === 'llm' && req.method === 'POST') return send(200, await agentTrial.setLlm(root, trialId, input));
+        if (sub === 'view' && req.method === 'POST') return send(200, await agentTrial.setView(root, trialId, input));
+        // 배치 화면(10/19) — 게임이 &trial=<id> 로 읽는 「놓기」 항목. layout.accepted 를 /space 와 같은 확인(importItem)으로 바꾼다. 게임 데이터(manifest)는 건드리지 않는다
+        if (sub === 'places' && req.method === 'GET') {
+          const detail = await agentTrial.trialDetail(root, trialId);
+          const off = new Set(detail.view?.off || []);
+          if (detail.layout2?.version === 2) return send(200, await trialPlacesV2(root, detail, off));
+          const site = await siteZones(root);
+          let libraryItems = null;
+          try { libraryItems = (await (await import('./library.mjs')).buildLibrary(root)).items; } catch { libraryItems = null; }
+          const places = []; const skipped = [];
+          for (const item of detail.layout?.accepted || []) {
+            if (off.has(item.asset_id)) continue;
+            try {
+              const value = await trialImport(root, site, item, libraryItems, '');
+              places.push({ file: value.asset.file, 키m: value.heightM, 묻힘m: 0, 자리: [[value.position.x, value.position.z, value.rotationY, 1]], 메모: `에이전트 시험 ${item.req_id} · ${value.asset.nameKo} · ${item.scene_id} · ${item.zone}`, 에이전트: true });
+            } catch (error) {
+              if (!error?.status) throw error;
+              skipped.push({ reqId: item.req_id, assetId: item.asset_id, reason: error.message });
+            }
+          }
+          return send(200, { trialId, places, skipped, off: [...off] });
+        }
+        if (sub !== 'space' || req.method !== 'POST') return send(405, { error: 'method_not_allowed', message: '허용되지 않는 요청입니다.' });
+      }
       if (req.method === 'GET' && path === '/__review/bootstrap') return send(200, { ...await bootstrapLoader(root), reviewPolicy: { requiredChecks: REQUIRED_CHECKS, localOnly: true, decisions: ['approved', 'rejected', 'held'] } });
       const result = await serial(async () => {
         // Read current references when this operation owns the queue, not before waiting.
@@ -340,7 +609,7 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
             sourceText: text(input.sourceText, '설화 원문', 400_000, true), sourceName: text(input.sourceName || '직접 입력', '자료 이름', 1000),
             synopsis: text(input.synopsis || '', '시놉시스', 50_000), sceneNotes: text(input.sceneNotes || '', '씬 구성', 80_000),
             selectedAssetIds: assetIds(input.selectedAssetIds || [], bootstrap), revision: 1,
-            createdAt: timestamp, updatedAt: timestamp, decisions: [], sessions: [], inspections: [], sceneCaptures: [], sceneReviews: [], objectIssues: [], history: [],
+            createdAt: timestamp, updatedAt: timestamp, decisions: [], sessions: [], inspections: [], sceneCaptures: [], sceneReviews: [], objectIssues: [], placements: [], history: [],
           };
           project.assetReviewMode = assetReviewMode(input.assetReviewMode ?? 'individual', project, bootstrap);
           assignReferences(project, bootstrap);
@@ -348,14 +617,87 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
           db.projects.push(project); await save(db);
           return { status: 201, value: publicProject(project, bootstrap) };
         }
-        const match = path.match(/^\/__review\/projects\/([a-zA-Z0-9-]+)(?:\/(decisions|sessions|inspections|scene-captures|scene-reviews|object-issues)(?:\/([a-zA-Z0-9-]+)\/(events))?)?$/);
+        // 에이전트 시험 → 빈 지형 검수 기록 만들기 + 배치 초안 가져오기(공간 승인해도 manifest 반영 안 함)
+        const trialSpace = path.match(/^\/__review\/trials\/([a-f0-9-]{36})\/space$/);
+        if (trialSpace) {
+          const detail = await agentTrial.trialDetail(root, trialSpace[1]);
+          if (!detail.layout?.accepted?.length && detail.layout2?.version !== 2) fail(409, 'layout_missing', '배치 초안이 없습니다.'); // 2판은 검수 기록만 만들고 배치는 게임이 &trial= 로 읽는다
+          const runtime = runtimes(bootstrap).find(r => r.id === 'NAJU-01-EMPTY');
+          if (!runtime) fail(422, 'runtime_missing', '빈 지형 실행 구성(NAJU-01-EMPTY)이 없습니다. 공개 에셋 구성을 확인하세요.');
+          const reviewer = text(input.reviewer || '', '검수자', 200, true);
+          const timestamp = now();
+          let project = detail.reviewProjectId ? db.projects.find(p => p.id === detail.reviewProjectId) : null;
+          if (!project) {
+            project = {
+              id: randomUUID(), caseId: 'AGENT-TRIAL', runtimeId: runtime.id, runtimeUse: 'target', title: `[에이전트 시험] ${detail.title}`.slice(0, 400),
+              sourceText: detail.source.text, sourceName: `${detail.source.name} · 에이전트 시험 입력`.slice(0, 900),
+              synopsis: (detail.files['AI-02.md'] || '').slice(0, 49_000), sceneNotes: (detail.files['AI-04.md'] || '').slice(0, 79_000),
+              selectedAssetIds: [], revision: 1, createdAt: timestamp, updatedAt: timestamp, decisions: [], sessions: [], inspections: [], sceneCaptures: [], sceneReviews: [], objectIssues: [], placements: [], history: [],
+              agentTrial: { trialId: detail.id, noApply: true },
+            };
+            project.assetReviewMode = assetReviewMode('scene', project, bootstrap);
+            assignReferences(project, bootstrap);
+            project.referenceSnapshot = referenceSnapshot(bootstrap, project, timestamp);
+            db.projects.push(project);
+          }
+          const site = await siteZones(root);
+          let libraryItems = null;
+          try { libraryItems = (await (await import('./library.mjs')).buildLibrary(root)).items; } catch { libraryItems = null; }
+          const accepted = []; const rejected = [];
+          for (const [index, item] of (detail.layout?.accepted || []).entries()) {
+            try {
+              const value = await trialImport(root, site, item, libraryItems, `[${item.scene_id}] ${item.reason || ''}`.slice(0, 2900)); // 씬 번호는 사람 기획의 씬→구역 표에 묶여 있어 넣지 않는다(에이전트 씬은 reason 머리에)
+              const signature = hash(JSON.stringify({ origin: 'ai-draft', trialId: detail.id, reqId: value.reqId, url: value.asset.url, position: value.position, rotationY: value.rotationY, scale: value.scale }));
+              if (project.placements.some(other => other.signature === signature && other.status === 'proposed')) continue;
+              project.placements.push({ id: randomUUID(), at: timestamp, reviewer, note: '', projectRevision: project.revision, gameRevision: project.gameRevision, runtimeId: project.runtimeId, sessionId: null, sceneNo: value.sceneNo, zoneId: value.zoneId, asset: value.asset, position: value.position, rotationY: value.rotationY, scale: value.scale, groundY: null, heightM: value.heightM, heightSource: 'glb-bounds', signature, status: 'proposed', origin: 'ai-draft', trialId: detail.id, reqId: value.reqId, reason: value.reason, groundSnap: value.groundSnap, clientReported: true });
+              accepted.push(index);
+            } catch (error) {
+              if (!error?.status) throw error;
+              rejected.push({ index, reqId: item.req_id, assetId: item.asset_id, reason: error.message });
+            }
+          }
+          project.history.push({ id: randomUUID(), type: 'agent-trial-imported', at: timestamp, projectRevision: project.revision, trialId: detail.id, accepted: accepted.length, rejected: rejected.length });
+          project.updatedAt = timestamp; await save(db);
+          await agentTrial.setReviewProject(root, detail.id, project.id);
+          return { status: 200, value: { projectId: project.id, accepted: accepted.length, rejected } };
+        }
+        // 설화·기획 핵심 검수 카드(brief.mjs) — 읽기 · 카드 판정. 카드 만들기(API 호출)는 터미널 `npm run story:brief` 만 한다.
+        const briefMatch = path.match(/^\/__review\/projects\/([a-zA-Z0-9-]+)\/brief(?:\/items\/([a-zA-Z0-9-]+))?$/);
+        if (briefMatch) {
+          const target = db.projects.find(p => p.id === briefMatch[1]);
+          if (!target) fail(404, 'project_not_found', '검수 프로젝트를 찾을 수 없습니다.');
+          const command = `npm run story:brief -- ${target.id}`;
+          if (req.method === 'GET' && !briefMatch[2]) return { status: 200, value: { ...await currentBrief(dataDir, target), command } };
+          if (req.method === 'POST' && briefMatch[2]) {
+            try { await decideBriefItem(dataDir, target, { ...input, itemId: briefMatch[2] }); }
+            catch (error) { fail(error.status || 500, 'brief_error', error.message); }
+            return { status: 200, value: { ...await currentBrief(dataDir, target), command } };
+          }
+          fail(405, 'method_not_allowed', '허용되지 않는 요청입니다.');
+        }
+        const match = path.match(/^\/__review\/projects\/([a-zA-Z0-9-]+)(?:\/(decisions|sessions|inspections|scene-captures|scene-reviews|object-issues|placements)(?:\/([a-zA-Z0-9-]+)\/(events|withdraw)|\/(import))?)?$/);
         if (!match) fail(404, 'not_found', '검수 경로를 찾을 수 없습니다.');
-        const [, id, action, sessionId] = match;
+        const [, id, action, childId, sub, importRoute] = match;
+        if (sub && !((action === 'sessions' && sub === 'events') || (action === 'placements' && sub === 'withdraw'))) fail(404, 'not_found', '검수 경로를 찾을 수 없습니다.');
+        if (importRoute && action !== 'placements') fail(404, 'not_found', '검수 경로를 찾을 수 없습니다.');
+        const sessionId = action === 'sessions' ? childId : undefined;
         const project = db.projects.find(p => p.id === id);
         if (!project) fail(404, 'project_not_found', '검수 프로젝트를 찾을 수 없습니다.');
         if (req.method === 'GET' && !action) return { status: 200, value: publicProject(project, bootstrap) };
+        if (req.method === 'GET' && action === 'placements' && !childId && !importRoute) {
+          // 배치 변경안 조회 — ?origin=ai-draft|human · ?trialId= · ?current=1(이번 회차 제안만)
+          const params = new URL(req.url || '', 'http://localhost').searchParams;
+          const origin = params.get('origin') || '';
+          if (origin && !PLACEMENT_ORIGINS.includes(origin)) fail(400, 'invalid_origin', `origin 은 ${PLACEMENT_ORIGINS.join('·')} 중 하나여야 합니다.`);
+          const trialId = params.get('trialId') || '';
+          const currentIds = new Set(currentPlacements(project).map(value => value.id));
+          const placements = project.placements.filter(value => (!origin || (value.origin || 'human') === origin) && (!trialId || value.trialId === trialId) && (params.get('current') !== '1' || currentIds.has(value.id)));
+          return { status: 200, value: { projectId: project.id, revision: project.revision, gameRevision: project.gameRevision, currentPlacementIds: [...currentIds], placements: structuredClone(placements) } };
+        }
         if (!((req.method === 'PATCH' && !action) || (req.method === 'POST' && action))) fail(405, 'method_not_allowed', '허용되지 않는 요청입니다.');
-        if (!sessionId && input.expectedRevision !== project.revision) fail(409, 'revision_conflict', '다른 창에서 입력이 변경되었습니다. 최신 내용을 다시 불러오세요.', { currentRevision: project.revision });
+        // 일괄 가져오기는 바깥 생성 공정이 보내므로 expectedRevision 이 없어도 된다(주면 맞아야 한다)
+        const revisionOptional = Boolean(importRoute) && input.expectedRevision === undefined;
+        if (!sessionId && !revisionOptional && input.expectedRevision !== project.revision) fail(409, 'revision_conflict', '다른 창에서 입력이 변경되었습니다. 최신 내용을 다시 불러오세요.', { currentRevision: project.revision });
         const timestamp = now();
         if (req.method === 'PATCH' && !action) {
           const previousSnapshot = inputSnapshot(project);
@@ -389,14 +731,115 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
           if (currentDecision(project, gate)) fail(409, 'already_decided', '이미 판정한 관문입니다. 입력 저장으로 새 검수 회차를 시작하세요.');
           const reviewer = text(input.reviewer, '검수자', 200, true);
           const note = text(input.note || '', '판정 의견', 15_000, decision !== 'approved');
-          if (!Array.isArray(input.checks) || input.checks.some(c => !REQUIRED_CHECKS[gate].includes(c))) fail(400, 'invalid_checks', '확인 항목을 다시 선택하세요.');
+          const allowedChecks = checksFor(project, gate);
+          if (!Array.isArray(input.checks) || input.checks.some(c => !allowedChecks.includes(c))) fail(400, 'invalid_checks', '확인 항목을 다시 선택하세요.');
           const checks = [...new Set(input.checks)];
+          const proposals = currentPlacements(project);
+          let apply = null;
           if (decision === 'approved') {
             const problems = blockers(project, gate, bootstrap);
-            for (const check of REQUIRED_CHECKS[gate]) if (!checks.includes(check)) problems.push(issue('check_required', `${check} 항목의 사람 확인이 필요합니다.`));
+            if (gate === 'source') problems.push(...briefBlockers((await currentBrief(dataDir, project)).brief));
+            for (const check of allowedChecks) if (!checks.includes(check)) problems.push(check === 'placements' ? issue('placements_check_required', `배치 변경안 ${proposals.length}건을 확인하세요.`) : issue('check_required', `${check} 항목의 사람 확인이 필요합니다.`));
             if (problems.length) fail(422, 'approval_blocked', '승인 조건이 충족되지 않았습니다.', { blockers: problems });
+            // 공간 승인 = 배치 변경안 반영. 파일·manifest 확인을 승인 기록 전에 모두 끝낸다.
+            // 에이전트 시험 기록은 승인해도 게임 데이터(manifest)에 반영하지 않는다(10/19)
+            if (gate === 'space' && proposals.length && !project.agentTrial?.noApply) apply = await prepareManifestApply(root, proposals);
           }
-          project.decisions.push({ id: randomUUID(), at: timestamp, gate, decision, reviewer, note, checks, projectRevision: project.revision, runtimeId: project.runtimeId, runtimeUse: project.runtimeUse, assetReviewMode: project.assetReviewMode, gameRevision: project.gameRevision, sourceRevision: project.sourceRevision, evidenceSessionIds: project.sessions.filter(s => s.projectRevision === project.revision).map(s => s.id), inspectionIds: project.inspections.filter(i => i.projectRevision === project.revision).map(i => i.id), sceneReviewIds: project.sceneReviews.filter(value => value.projectRevision === project.revision).map(value => value.id) });
+          const record = { id: randomUUID(), at: timestamp, gate, decision, reviewer, note, checks, projectRevision: project.revision, runtimeId: project.runtimeId, runtimeUse: project.runtimeUse, assetReviewMode: project.assetReviewMode, gameRevision: project.gameRevision, sourceRevision: project.sourceRevision, evidenceSessionIds: project.sessions.filter(s => s.projectRevision === project.revision).map(s => s.id), inspectionIds: project.inspections.filter(i => i.projectRevision === project.revision).map(i => i.id), sceneReviewIds: project.sceneReviews.filter(value => value.projectRevision === project.revision).map(value => value.id), placementIds: proposals.map(value => value.id) };
+          project.decisions.push(record);
+          if (apply) {
+            // ① 승인을 먼저 저장한다(이 시점의 gameRevision 으로). ② 그다음 manifest 를 바꾼다 →
+            // 게임 버전 해시가 바뀌어 이 승인을 포함한 현재 판정은 「버전 변경」이 된다(의도). 반영 사실은 이력에 남긴다.
+            record.placementApply = 'pending';
+            project.updatedAt = timestamp; await save(db);
+            let written;
+            try { written = await commitManifestApply(root, dataDir, apply, timestamp); }
+            catch {
+              record.placementApply = 'failed';
+              project.history.push({ id: randomUUID(), type: 'placements-apply-failed', at: timestamp, projectRevision: project.revision, decisionId: record.id, placementIds: apply.ids });
+              await save(db);
+              fail(500, 'manifest_write_failed', '공간 승인은 기록했지만 manifest 반영에 실패했습니다. 변경안은 제안 상태로 남아 있습니다. 재검수 회차를 열어 다시 배치·승인하세요.');
+            }
+            for (const placement of proposals) Object.assign(placement, { status: 'applied', appliedAt: timestamp, decisionId: record.id, manifestEntryId: `review:${placement.id}` });
+            record.placementApply = 'applied';
+            project.history.push({ id: randomUUID(), type: 'placements-applied', at: timestamp, projectRevision: project.revision, gameRevision: project.gameRevision, decisionId: record.id, placementIds: apply.ids, manifest: PUBLIC_MANIFEST, backup: written.backup, previousManifestSha256: written.previousSha256, manifestSha256: written.sha256, entries: apply.entries });
+          }
+        } else if (req.method === 'POST' && action === 'placements' && importRoute) {
+          // AI 공간 배치 초안 일괄 가져오기(규약 §6) — 세션 없이, 항목마다 일반 배치와 같은 에셋 확인 + 구역 경계 확인
+          const bindingProblem = runtimeBlocker(project, bootstrap);
+          if (bindingProblem) fail(422, bindingProblem.code, bindingProblem.message);
+          const runtime = runtimeFor(project, bootstrap);
+          if (runtime.revision !== project.gameRevision) fail(409, 'placement_stale', '연결 게임 버전이 바뀌었습니다. 재검수 회차를 연 뒤 다시 가져오세요.');
+          if (!IMPORT_ORIGINS.includes(input.origin)) fail(400, 'invalid_origin', '가져오기 origin 은 "ai-draft" 여야 합니다.');
+          const reviewer = text(input.reviewer, '검수자', 200, true);
+          const trialId = text(input.trialId, '시행 ID', 200, true);
+          if (!Array.isArray(input.items) || !input.items.length) fail(400, 'invalid_items', 'items 는 1개 이상의 배열이어야 합니다.');
+          if (input.items.length > IMPORT_ITEM_LIMIT) fail(413, 'import_too_many', `한 번에 ${IMPORT_ITEM_LIMIT}개까지 가져올 수 있습니다(${input.items.length}개).`);
+          const site = await siteZones(root);
+          let libraryItems = null;
+          try { libraryItems = (await (await import('./library.mjs')).buildLibrary(root)).items; } catch { libraryItems = null; }
+          const accepted = []; const rejected = [];
+          for (const [index, item] of input.items.entries()) {
+            const label = { index, reqId: typeof item?.reqId === 'string' ? item.reqId.slice(0, 200) : null, assetId: typeof item?.assetId === 'string' ? item.assetId.slice(0, 200) : null, url: typeof item?.url === 'string' ? item.url.slice(0, 300) : null };
+            try {
+              const value = await importItem(root, site, item, libraryItems);
+              const signature = hash(JSON.stringify({ origin: input.origin, trialId, reqId: value.reqId, url: value.asset.url, position: value.position, rotationY: value.rotationY, scale: value.scale }));
+              if (project.placements.some(other => other.projectRevision === project.revision && other.status === 'proposed' && other.signature === signature)) fail(409, 'placement_duplicate', '같은 시행·자리·에셋의 변경안이 이미 제안 상태로 있습니다.');
+              if (project.placements.length >= PLACEMENT_LIMIT) fail(409, 'placement_limit', `배치 변경안 보존 한도(${PLACEMENT_LIMIT}건)에 도달해 이 항목은 넣지 못했습니다.`);
+              const record = { id: randomUUID(), at: timestamp, reviewer, note: '', projectRevision: project.revision, gameRevision: project.gameRevision, runtimeId: project.runtimeId, sessionId: null, sceneNo: value.sceneNo, zoneId: value.zoneId, asset: value.asset, position: value.position, rotationY: value.rotationY, scale: value.scale, groundY: null, heightM: value.heightM, heightSource: 'glb-bounds', signature, status: 'proposed', origin: input.origin, trialId, reqId: value.reqId, reason: value.reason, groundSnap: value.groundSnap, clientReported: true };
+              project.placements.push(record); accepted.push(record.id);
+            } catch (error) {
+              if (!error?.status) throw error;
+              rejected.push({ ...label, code: error.code || 'invalid_item', reason: error.message });
+            }
+          }
+          if (!accepted.length) fail(422, 'import_all_rejected', '가져올 수 있는 항목이 없습니다. rejected 의 이유를 확인하세요.', { accepted, rejected });
+          project.history.push({ id: randomUUID(), type: 'placements-imported', at: timestamp, projectRevision: project.revision, gameRevision: project.gameRevision, origin: input.origin, trialId, reviewer, acceptedIds: accepted, rejectedCount: rejected.length });
+          invalidateForEvidence(project, 'assets', timestamp, 'placements_imported');
+          project.updatedAt = timestamp; await save(db);
+          return { status: 200, value: { project: publicProject(project, bootstrap), accepted, rejected } };
+        } else if (req.method === 'POST' && action === 'placements' && !childId) {
+          const bindingProblem = runtimeBlocker(project, bootstrap);
+          if (bindingProblem) fail(422, bindingProblem.code, bindingProblem.message);
+          const runtime = runtimeFor(project, bootstrap);
+          const session = project.sessions.find(value => value.id === input.sessionId);
+          if (input.gameRevision !== project.gameRevision || runtime.revision !== project.gameRevision) fail(409, 'placement_stale', '배치한 게임과 현재 버전이 다릅니다. 새 검수 화면에서 다시 배치하세요.');
+          if (!diagnosticReady(project, session, bootstrap)) fail(422, 'placement_session_required', '현재 회차의 둘러보기 화면이 실제 렌더된 뒤 배치 변경안을 기록하세요.');
+          const reviewer = text(input.reviewer, '검수자', 200, true);
+          const note = text(input.note || '', '배치 메모', 3000);
+          const position = placementPosition(input.position);
+          const rotationY = ((round(finite(input.rotationY ?? 0, '회전(도)', -3600, 3600), 2) % 360) + 360) % 360;
+          const scale = round(finite(input.scale ?? 1, '크기 배율', 0.05, 20), 4);
+          const groundY = input.groundY == null ? null : round(finite(input.groundY, '땅 높이(m)', -100_000, 100_000));
+          const zoneId = text(input.zoneId || '', '구역', 200);
+          const sceneNo = sceneNumber(input.sceneNo);
+          const asset = await placementAsset(root, input.asset);
+          const heightM = input.heightM == null ? asset.naturalHeightM && round(asset.naturalHeightM * scale, 4) : round(finite(input.heightM, '실제 높이(m)', 0.01, 500), 4);
+          if (!heightM) fail(422, 'placement_height_unknown', '에셋의 실제 높이를 알 수 없어 게임 데이터로 옮길 수 없습니다. 게임 화면에서 다시 배치하세요.');
+          const replacesId = input.replaces == null ? null : text(input.replaces, '바꿀 변경안 ID', 100, true);
+          const signature = hash(JSON.stringify({ sessionId: session.id, url: asset.url, position, rotationY, scale, reviewer, ...(replacesId ? { replaces: replacesId } : {}) }));
+          if (project.placements.some(value => value.projectRevision === project.revision && value.status === 'proposed' && value.signature === signature)) return { status: 200, value: publicProject(project, bootstrap) };
+          // 변경안 고치기(규약 §6-2) — 옛 변경안 철회와 새 변경안 기록을 한 번에 저장한다(같은 줄 세운 쓰기 안)
+          const replaced = replacesId ? project.placements.find(value => value.id === replacesId) : null;
+          if (replacesId && !replaced) fail(404, 'placement_not_found', '고칠 배치 변경안을 찾을 수 없습니다.');
+          if (replaced && replaced.status !== 'proposed') fail(409, 'placement_not_proposed', '제안 상태의 변경안만 고칠 수 있습니다. 목록을 새로 읽어 주세요.');
+          if (replaced && (replaced.projectRevision !== project.revision || replaced.gameRevision !== project.gameRevision)) fail(409, 'placement_past_revision', '지난 회차의 변경안은 기록으로만 남습니다.');
+          if (project.placements.length >= PLACEMENT_LIMIT) fail(409, 'placement_limit', '배치 변경안 보존 한도에 도달했습니다. 기록을 내보내고 새 프로젝트를 시작하세요.');
+          const record = { id: randomUUID(), at: timestamp, reviewer, note, projectRevision: project.revision, gameRevision: project.gameRevision, runtimeId: project.runtimeId, sessionId: session.id, sceneNo, zoneId, asset, position, rotationY, scale, groundY, heightM, heightSource: input.heightM == null ? 'glb-bounds' : 'game-reported', signature, status: 'proposed', origin: 'human', groundSnap: false, clientReported: true };
+          if (replaced) {
+            Object.assign(record, { replaces: replaced.id, ...(replaced.trialId ? { trialId: replaced.trialId } : {}), ...(replaced.reqId ? { reqId: replaced.reqId } : {}), ...(replaced.reason ? { reason: replaced.reason } : {}), editedFrom: replaced.origin || 'human' });
+            Object.assign(replaced, { status: 'withdrawn', withdrawnAt: timestamp, withdrawnBy: reviewer, replacedBy: record.id });
+          }
+          project.placements.push(record);
+          invalidateForEvidence(project, 'assets', timestamp, replaced ? 'placement_replaced' : 'placement_added');
+        } else if (req.method === 'POST' && action === 'placements' && sub === 'withdraw') {
+          const placement = project.placements.find(value => value.id === childId);
+          if (!placement) fail(404, 'placement_not_found', '배치 변경안을 찾을 수 없습니다.');
+          if (placement.status !== 'proposed') fail(409, 'placement_not_proposed', '제안 상태의 변경안만 철회할 수 있습니다.');
+          if (placement.projectRevision !== project.revision) fail(409, 'placement_past_revision', '지난 회차의 변경안은 기록으로만 남습니다.');
+          const reviewer = text(input.reviewer, '검수자', 200, true);
+          Object.assign(placement, { status: 'withdrawn', withdrawnAt: timestamp, withdrawnBy: reviewer });
+          invalidateForEvidence(project, 'assets', timestamp, 'placement_withdrawn');
         } else if (req.method === 'POST' && action === 'scene-captures' && !sessionId) {
           const runtime = runtimeFor(project, bootstrap);
           const session = project.sessions.find(value => value.id === input.sessionId);
@@ -432,15 +875,23 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
           const session = project.sessions.find(value => value.id === input.sessionId);
           if (input.gameRevision !== project.gameRevision || runtime.revision !== project.gameRevision) fail(409, 'object_issue_stale', '물체를 선택한 게임과 현재 버전이 다릅니다. 새 검수 화면에서 선택하세요.');
           if (!diagnosticReady(project, session, bootstrap)) fail(422, 'object_issue_session_required', '현재 회차의 진단 화면이 실제 렌더된 뒤 물체 의견을 기록하세요.');
-          if (!['rejected', 'change_requested'].includes(input.disposition)) fail(400, 'invalid_disposition', '물체 의견은 반려 또는 수정 요청으로 기록하세요.');
+          if (!DISPOSITIONS.includes(input.disposition)) fail(400, 'invalid_disposition', '물체 의견은 수정 요청·반려·반려 후 새로 생성 요청 중 하나로 기록하세요.');
+          const sceneNo = sceneNumber(input.sceneNo);
           const reviewer = text(input.reviewer, '검수자', 200, true);
           const note = text(input.note, '물체 수정 의견', 6000, true);
           const object = selectedObject(input.object);
           const signature = hash(JSON.stringify({ sessionId: session.id, object, reviewer, note, disposition: input.disposition }));
           if (project.objectIssues.some(value => value.projectRevision === project.revision && value.signature === signature)) return { status: 200, value: publicProject(project, bootstrap) };
           if (project.objectIssues.length >= 200) fail(409, 'object_issue_limit', '물체 의견 보존 한도에 도달했습니다. 기록을 내보내고 새 프로젝트를 시작하세요.');
-          project.objectIssues.push({ id: randomUUID(), at: timestamp, sessionId: session.id, object, disposition: input.disposition, reviewer, note, signature, status: 'unresolved', projectRevision: project.revision, gameRevision: project.gameRevision, runtimeId: project.runtimeId, runtimeProfile: runtime.profile ?? null, clientReported: true, identityVerified: false });
+          project.objectIssues.push({ id: randomUUID(), at: timestamp, sessionId: session.id, object, disposition: input.disposition, reviewer, note, signature, status: 'unresolved', sceneNo, ...(input.disposition === 'regenerate' ? { generation: 'requested-not-connected' } : {}), projectRevision: project.revision, gameRevision: project.gameRevision, runtimeId: project.runtimeId, runtimeProfile: runtime.profile ?? null, clientReported: true, identityVerified: false });
           invalidateForEvidence(project, project.assetReviewMode === 'scene' ? 'assets' : 'space', timestamp, 'object_issue_added');
+          // 에이전트 시험 물체(groupName 「에이전트:항목id|에셋id」) → 시험 항목 판정으로도 남긴다(10/19) — 10 단계가 원인 단계로 돌린다
+          if (project.agentTrial?.trialId && /^에이전트:/.test(object.groupName)) {
+            const [itemId] = object.groupName.slice('에이전트:'.length).split('|');
+            const verdict = { change_requested: 'adjust', rejected: 'remove', regenerate: 'regenerate' }[input.disposition];
+            try { await agentTrial.setFeedback(root, project.agentTrial.trialId, { itemId, verdict, note, reviewer, name: object.name, source: 'object-issue' }); }
+            catch (error) { if (!error?.status) throw error; }
+          }
         } else if (req.method === 'POST' && action === 'inspections' && !sessionId) {
           const asset = (bootstrap.assets || []).find(a => a.id === input.assetId);
           if (!asset || !project.selectedAssetIds.includes(asset.id)) fail(400, 'invalid_asset', '선택한 에셋만 검수할 수 있습니다.');

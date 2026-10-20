@@ -21,7 +21,10 @@
     "web:dev": "vite website",
     "web:build": "tsc -p website && vite build website",
     "web:typecheck": "tsc -p website",
-    "web:preview": "vite preview website --port 5175"
+    "web:preview": "vite preview website --port 5175",
+    "llm:check": "node tools/llm/check.mjs",
+    "story:trial": "node tools/llm/story-trial.mjs",
+    "story:brief": "node tools/llm/story-brief.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
@@ -50,5 +53,11 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.0",
     "vite": "^8.2.0"
+  },
+  "optionalDependencies": {
+    "@huggingface/transformers": "^3.8.1"
+  },
+  "allowScripts": {
+    "onnxruntime-node@1.21.0": true
   }
 }

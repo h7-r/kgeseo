@@ -75,3 +75,6 @@ public/references/
 tools/regression/*/baseline/
 tools/regression/*/runs/
 tools/regression/.cache/
+
+# 로컬 검수 기록·실험 입력·라이브러리 검색 캐시 (외부 공개하지 않음)
+.local/

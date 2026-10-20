@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import { transform } from 'rolldown/utils';
 import * as THREE from 'three';
 // TS 이식(2026-10-15): 검수정책.js → review/reviewPolicy.ts (Node 22.18+ 는 .ts 를 타입만 벗겨 바로 읽는다) · reviewViews.json → review/reviewViews.json
-import { readReviewUrl, shouldBlockKeyInReview, readReviewMetrics, reviewErrorText, reviewReturnMessage, readVisualRequest, identifyReviewObject } from '../../naju01/src/review/reviewPolicy.ts';
+import { readReviewUrl, shouldBlockKeyInReview, readReviewMetrics, reviewErrorText, reviewReturnMessage, readVisualRequest, identifyReviewObject, classifyReviewSurface } from '../../naju01/src/review/reviewPolicy.ts';
 const reviewViews = JSON.parse(await fs.readFile(new URL('../../naju01/src/review/reviewViews.json', import.meta.url), 'utf8'));
 
 const token = 'a'.repeat(48);
@@ -75,7 +75,10 @@ test('error messages never retain the session token', () => {
 async function bridgeHarness(url = href, { embedded = false } = {}) {
   // ReviewBridge.tsx 는 TSX — import 는 여러 줄(prettier)이라 `;` 까지 통째로 걷어내고, 하네스 전역으로 대신 준다
   const text = await fs.readFile(new URL('../../naju01/src/review/ReviewBridge.tsx', import.meta.url), 'utf8');
-  const source = text.replace(/^import\b[\s\S]*?;\s*$/gm, '').replace(/^export (const|function|class) /gm, '$1 ').replaceAll('import.meta.env.DEV', 'true').replaceAll('import.meta.hot', 'null');
+  // 둘러보기 카메라(FreeCamera)는 review/freeCamera.ts 로 떼어 냈다(10/15) — 같은 방식으로 걷어 앞에 붙인다(이름 겹침은 함수로 가둔다)
+  const cameraText = await fs.readFile(new URL('../../naju01/src/review/freeCamera.ts', import.meta.url), 'utf8');
+  const cameraSource = cameraText.replace(/^import\b[\s\S]*?;\s*$/gm, '').replace(/^export (const|function|class) /gm, '$1 ');
+  const source = `const FreeCamera = (() => {\n${cameraSource}\nreturn FreeCamera;\n})();\n` + text.replace(/^import\b[\s\S]*?;\s*$/gm, '').replace(/^export (const|function|class) /gm, '$1 ').replaceAll('import.meta.env.DEV', 'true').replaceAll('import.meta.hot', 'null');
   const converted = await transform('bridge.tsx', source, { jsx: { runtime: 'classic' } });
   converted.code = converted.code.replace(/^export \{\};?$/gm, ''); // 변환기가 모듈 표식으로 남기는 빈 export
   // 옛 window.__공개에셋상태 는 loaders/publicAssetManifest 의 publicAssetStatus(자리에서 바뀌는 객체) import 가 됐다
@@ -90,7 +93,7 @@ async function bridgeHarness(url = href, { embedded = false } = {}) {
   browserWindow.parent = embedded ? { postMessage: (...args) => messages.push(args) } : browserWindow;
   const context = vm.createContext({
     URL, URLSearchParams, Date, JSON, console, AbortController, THREE, reviewViewsJson: reviewViews, publicAssetStatus,
-    PUBLIC_ASSET_MESH_PREFIX: 'AI허브:', METERS_PER_UNIT: 0.3,
+    PUBLIC_ASSET_MESH_PREFIX: 'AI허브:', METERS_PER_UNIT: 0.3, UNITS_PER_METER: 1 / 0.3,
     OrbitControls: class {
       constructor() { this.target = new THREE.Vector3(); this.enabled = true; }
       update() {} dispose() {}
@@ -114,7 +117,7 @@ async function bridgeHarness(url = href, { embedded = false } = {}) {
     useRef: value => ({ current: value }), useFrame: callback => frames.push(callback),
     addAfterEffect: callback => { afterFrames.push(callback); return () => { afterFrames.splice(afterFrames.indexOf(callback), 1); }; },
     useState: value => [value, () => {}], useSyncExternalStore: (_sub, snapshot) => snapshot(), useEffect: callback => effects.push(callback),
-    readReviewUrl, shouldBlockKeyInReview, readReviewMetrics, reviewErrorText, reviewReturnMessage, readVisualRequest, identifyReviewObject,
+    readReviewUrl, shouldBlockKeyInReview, readReviewMetrics, reviewErrorText, reviewReturnMessage, readVisualRequest, identifyReviewObject, classifyReviewSurface,
     VISUAL_REQUEST_TYPES: ['kgeseo-review-capture', 'kgeseo-review-view', 'kgeseo-review-inspection'],
   });
   vm.runInContext(`${converted.code}\n globalThis.bridge = { ReviewBridge, ReviewHud, snapshot, flush, record, returnToWorkbench, toggleFullscreen };`, context);

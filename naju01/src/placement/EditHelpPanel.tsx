@@ -8,6 +8,7 @@ import {
   ASSET_TRAY_SCROLLBAR_CSS,
   BRUSH_DROP_BUTTON_ID,
   formatPanelHtml,
+  LIBRARY_BUTTON_ID,
   MORE_HINT_ID,
   PALETTE_TOGGLE_ID,
   PANEL_CSS,
@@ -31,6 +32,10 @@ interface EditHelpPanelProps {
   setBrush: Dispatch<SetStateAction<string | null>>;
   overview: boolean;
   gl: THREE.WebGLRenderer;
+  /** L 「라이브러리 배치」 중인가 · 쓸 수 있는가(공개 에셋 화면) · 켜고 끄기 */
+  libraryMode?: boolean;
+  libraryAvailable?: boolean;
+  onToggleLibrary?: () => void;
 }
 
 /**
@@ -71,6 +76,9 @@ export default function EditHelpPanel({
   setBrush,
   overview,
   gl,
+  libraryMode = false,
+  libraryAvailable = false,
+  onToggleLibrary,
 }: EditHelpPanelProps) {
   // 팔레트는 접어 둔다 — 펼치면 놓을 자리를 가린다
   const [isOpen, setIsOpen] = useState(false);
@@ -85,10 +93,12 @@ export default function EditHelpPanel({
   const panelRef = useRef<HTMLDivElement | null>(null);
   const onSaveRef = useRef(onSave);
   const setBrushRef = useRef(setBrush);
+  const onToggleLibraryRef = useRef(onToggleLibrary);
   const placeRef = useRef<(() => void) | null>(null);
   useLayoutEffect(() => {
     onSaveRef.current = onSave;
     setBrushRef.current = setBrush;
+    onToggleLibraryRef.current = onToggleLibrary;
   });
 
   // 판은 한 번만 만든다
@@ -113,6 +123,10 @@ export default function EditHelpPanel({
     placeRef.current = place;
     const handleClick = (e: MouseEvent) => {
       const target = e.target as Element;
+      if (target.closest(`#${LIBRARY_BUTTON_ID}`)) {
+        onToggleLibraryRef.current?.();
+        return;
+      }
       if (target.closest(`#${SAVE_BUTTON_ID}`)) {
         onSaveRef.current?.();
         return;
@@ -167,6 +181,8 @@ export default function EditHelpPanel({
       isOpen,
       overview,
       thumbnails,
+      libraryMode,
+      libraryAvailable,
     });
     // 그린 뒤에 재야 한다 — 그려지기 전엔 높이가 0 이다
     const tray = panel.querySelector(`#${ASSET_TRAY_ID}`);
@@ -174,7 +190,20 @@ export default function EditHelpPanel({
     if (tray && more && tray.scrollHeight > tray.clientHeight + 2) more.textContent = "  ↕ 굴려서 더 보기";
     // 내용이 바뀌면 판 높이가 달라진다 — 아래 12 px 을 다시 맞춘다
     placeRef.current?.();
-  }, [notice, selected, hasUnsaved, editCount, isSaving, canSave, brush, isOpen, overview, thumbnails]);
+  }, [
+    notice,
+    selected,
+    hasUnsaved,
+    editCount,
+    isSaving,
+    canSave,
+    brush,
+    isOpen,
+    overview,
+    thumbnails,
+    libraryMode,
+    libraryAvailable,
+  ]);
 
   return null;
 }

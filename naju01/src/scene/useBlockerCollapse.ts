@@ -50,5 +50,5 @@ export function useBlockerCollapse(terrain: Terrain, blockerShapes: BlockerShape
     [blockerShapes, clearedBlockers, ground],
   );
 
-  return { clearedBlockers, collapseRef, collapseNoticeRef, collapse, setCollapse, endScene };
+  return { clearedBlockers, setClearedBlockers, collapseRef, collapseNoticeRef, collapse, setCollapse, endScene };
 }

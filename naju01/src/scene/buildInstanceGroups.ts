@@ -346,7 +346,12 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
     add(GROUP_IDS.scene1Cairns, scene1.cairn, shapes.cairns);
     add(GROUP_IDS.scene1Bonfires, scene1.bonfire, shapes.bonfires, { doubleSided: true });
     // 구운 모형이 오기 전에 깎은 표본으로 세우면 흰 구렁이가 한 번 번쩍 뜬다 — 늦게 나타나는 편이 낫다.
-    if (!input.bakedNature || input.serpent.prototypes) add(GROUP_IDS.scene1Serpent, scene1.serpent, shapes.serpents);
+    if (!input.bakedNature || input.serpent.prototypes) {
+      // 구렁이 고품질판(10/20)은 텍스처 모형이라 제 재질을 넘긴다 — 바닥 재질(정점색 전용)로 그리면 하얗게 나온다. 자리 색은 이미 흰색.
+      const serpentMaterial = input.serpent.material;
+      const hasTexture = !!input.bakedNature && !!input.serpent.prototypes && !!serpentMaterial && "map" in serpentMaterial && !!serpentMaterial.map;
+      add(GROUP_IDS.scene1Serpent, scene1.serpent, shapes.serpents, hasTexture ? { material: serpentMaterial } : {});
+    }
     // 하나뿐인 사람도 무리로 넣어야 편집기로 집어 자리·방향을 잡는다. 도착 전에는 담을 것이 없다.
     if (input.abisa.prototypes)
       add(

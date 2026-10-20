@@ -1,0 +1,45 @@
+.brief .panel-head{align-items:flex-start}
+.brief-pill-issue{background:#faeae6;color:#ab5147}
+.brief-pill-done{background:#e7f3ed;color:#347253}
+.brief-empty{background:#f8f7fb;border:1px dashed #d6cfe7;border-radius:10px;padding:16px 18px}
+.brief-empty p{font-size:12px;color:var(--muted)}
+.brief-command{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.brief-command code{flex:1;min-width:0;background:#fff;border:1px solid var(--line);border-radius:7px;padding:8px 10px}
+.brief-command button{font-size:12px;padding:7px 12px}
+.brief-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.brief-meta button{font-size:12px;padding:4px 8px}
+.brief-summaries{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.brief-summaries>div{background:var(--soft);border-radius:9px;padding:12px 14px;min-width:0}
+.brief-summaries b{font-size:13px}
+.brief-summaries b small{font-weight:400;margin-left:4px}
+.brief-summaries ul{margin:8px 0 0;padding-left:16px;font-size:12px;line-height:1.7}
+.brief-summaries li{margin-bottom:4px}
+.brief-filters{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 12px}
+.brief-filters button{font-size:12px;padding:6px 12px}
+.brief-reviewer{display:flex;align-items:center;gap:6px;margin-left:auto;font-size:12px}
+.brief-reviewer input{width:120px;padding:6px 8px}
+.brief-cards{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px}
+.brief-card{border:1px solid var(--line);border-left:4px solid #c9c3dd;border-radius:10px;padding:13px 15px}
+.brief-card.sev-high{border-left-color:#c8574b}
+.brief-card.sev-mid{border-left-color:#d9a441}
+.brief-card.decided-ok{opacity:.72}
+.brief-card.decided-issue{background:#fff8f6}
+.brief-card-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.brief-card-head b{font-size:13px}
+.brief-card-head .tag{margin-left:auto}
+.brief-sev{font-size:10px;font-weight:700;border-radius:5px;padding:2px 6px;background:#efeef3;color:#6f6a7d}
+.brief-sev.sev-high{background:#faeae6;color:#ab5147}
+.brief-sev.sev-mid{background:#fff1d7;color:#96702a}
+.brief-why{font-size:13px;margin:8px 0}
+.brief-card blockquote{margin:6px 0;padding:8px 12px;background:#f7f7fa;border-radius:7px;font-size:12px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+.brief-card blockquote>span{display:block;font-size:10px;font-weight:700;color:#8a7ab9;letter-spacing:.3px}
+.brief-card blockquote button{font-size:11px;padding:2px 6px;margin-left:6px}
+.brief-card blockquote em{display:block;font-size:11px;color:#a3423a;font-style:normal}
+.brief-card blockquote.against{background:#f3f6f4}
+.brief-actions{display:flex;gap:6px;align-items:center;margin-top:8px}
+.brief-actions input{flex:1;min-width:0;padding:6px 9px;font-size:12px}
+.brief-actions button{font-size:12px;padding:6px 12px}
+.brief-rejected{margin-top:14px;font-size:12px}
+.brief-rejected summary{cursor:pointer;color:var(--muted)}
+.brief-rejected li{margin:6px 0}
+@media(max-width:900px){.brief-summaries{grid-template-columns:1fr}.brief-actions{flex-wrap:wrap}}

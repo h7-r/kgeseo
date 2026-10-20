@@ -21,6 +21,8 @@ export const gates = [
   { id: 'play', label: '퍼즐 연결 현황', short: '퍼즐', checks: [['logic', '실제 연결된 퍼즐의 풀이·연결·완주를 확인했습니다.'], ['story', '퍼즐과 스토리의 개연성을 확인했습니다.'], ['fun', '재미와 난이도를 직접 검토했습니다.']] },
 ];
 export const statusText = { approved: '승인', rejected: '반려', held: '보류', pending: '검수 전', invalidated: '재검수 필요', stale: '버전 변경', blocked: '연결 대기', unreviewed: '검수 전' };
+export const dispositionText = { change_requested: '수정 요청', rejected: '반려', regenerate: '반려 · 새로 생성 요청' };
+export const placementStatusText = { proposed: '제안', withdrawn: '철회', applied: '반영됨' };
 export const date = value => value ? new Date(value).toLocaleString('ko-KR') : '—';
 export const shortHash = value => value ? value.slice(0, 10) : '—';
 export function download(name, text, type = 'application/json') {

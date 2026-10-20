@@ -37,17 +37,19 @@ import React, {
 } from "react";
 import * as THREE from "three";
 import { addAfterEffect, useFrame } from "@react-three/fiber";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 import type { PlayerMotionState } from "@/engine/movement/useMovement";
 
 import { PUBLIC_ASSET_MESH_PREFIX } from "../loaders/publicAssetGeometry";
 import { publicAssetStatus, type PublicAssetStatus } from "../loaders/publicAssetManifest";
 import type { TerrainTeleport } from "../movement/useTerrainMovement";
-import { METERS_PER_UNIT } from "../plan/sitePlan";
+import { METERS_PER_UNIT, UNITS_PER_METER } from "../plan/sitePlan";
 import type { NajuSceneReport } from "../scene/useSceneFrame";
 import type { Terrain } from "../terrain/terrain";
+import { FreeCamera } from "./freeCamera";
+import { PlacementLayer, type PlacementDraft } from "./placementLayer";
 import {
+  classifyReviewSurface,
   identifyReviewObject,
   readReviewMetrics,
   readReviewUrl,
@@ -56,6 +58,7 @@ import {
   reviewReturnMessage,
   shouldBlockKeyInReview,
   VISUAL_REQUEST_TYPES,
+  type PlacementProposal,
   type ReviewMetrics,
   type ReviewObjectIdentity,
   type ReviewView,
@@ -63,6 +66,20 @@ import {
   type VisualRequestType,
 } from "./reviewPolicy";
 import reviewViewsJson from "./reviewViews.json";
+import {
+  blockersClearedBefore,
+  CAMERA_CEILING_M,
+  CAMERA_FLOOR_M,
+  clampToBounds,
+  FULL_BOUNDS,
+  insideBounds,
+  isolationTargetFor,
+  sceneScopeFor,
+  setSceneFog,
+  zoneForPoint,
+  type SceneScope,
+} from "./sceneScope";
+import { clampCameraXZ, isInsideActive, isolate, maintainIsolation, type IsolationBounds } from "./sceneIsolation";
 
 const reviewViews = reviewViewsJson as ReviewView[];
 
@@ -104,6 +121,12 @@ interface ReviewState {
   capturing: boolean;
   viewId: string | null;
   selected: SelectedObject | null;
+  /** 씬 탭으로 묶인 씬(1..5) — 없으면 null */
+  scene: number | null;
+  /** 진행 중인 배치 초안 */
+  draft: { nameKo: string; mode: "move" | "rotate" } | null;
+  /** 마지막으로 고른 빈 자리 */
+  point: { x: number; z: number; zoneId: string | null; surface: string } | null;
 }
 
 const subscribers = new Set<() => void>();
@@ -122,6 +145,9 @@ let state: ReviewState = {
   capturing: false,
   viewId: null,
   selected: null,
+  scene: null,
+  draft: null,
+  point: null,
 };
 
 interface ReviewEvent {
@@ -179,6 +205,8 @@ interface VisualJob {
   start?: number;
   frames?: number;
   afterRender?: boolean;
+  /** 답장에 덧붙일 값(씬 탭: scene · zoneIds · bounds) */
+  extra?: Record<string, unknown>;
 }
 
 /** 씬이 넘기는 연결 — 안 넘기면 개발 훅(window.__game.naju)에서 찾는다 */
@@ -189,6 +217,11 @@ export interface ReviewBridgeProps {
   terrain?: Pick<Terrain, "groundAt"> | null;
   /** 개발용으로 치운 차단물 — Set 이나 목록을 돌려주는 함수 */
   clearedBlockers?: Set<string> | (() => string[]) | null;
+  /**
+   * 검수 씬 탭(10/15) — 치운 차단물 집합을 **정확히 이 목록으로** 바꾼다(무너짐 연출 없이 바로).
+   * 안 넘기면 씬 탭은 차단물을 건드리지 않고 답장에 warning 을 싣는다.
+   */
+  clearBlockersInstant?: ((codes: string[]) => void) | null;
 }
 
 interface NajuDevHook {
@@ -199,9 +232,16 @@ interface NajuDevHook {
 
 type ResolvedLinks = Required<Pick<ReviewBridgeProps, "teleport" | "playerState" | "terrain">> & {
   clearedBlockers: (() => string[]) | null;
+  clearBlockersInstant: ((codes: string[]) => void) | null;
 };
 
-let links: ResolvedLinks = { teleport: null, playerState: null, terrain: null, clearedBlockers: null };
+let links: ResolvedLinks = {
+  teleport: null,
+  playerState: null,
+  terrain: null,
+  clearedBlockers: null,
+  clearBlockersInstant: null,
+};
 function resolveLinks(props: ReviewBridgeProps): ResolvedLinks {
   const hook = typeof window === "undefined" ? undefined : (window.__game?.naju as NajuDevHook | undefined);
   const cleared = props.clearedBlockers ?? hook?.clearedBlockers ?? null;
@@ -210,25 +250,41 @@ function resolveLinks(props: ReviewBridgeProps): ResolvedLinks {
     playerState: props.playerState ?? null,
     terrain: props.terrain ?? hook?.terrain ?? null,
     clearedBlockers: cleared instanceof Set ? () => [...cleared] : cleared,
+    clearBlockersInstant: props.clearBlockersInstant ?? null,
   };
 }
 
 let frameEnv: FrameEnv | null = null;
-let orbit: OrbitControls | null = null;
+/** 씬 탭 고립 — 경계 밖은 그리지 않는다(sceneIsolation). 묶음(sceneScope)과 같이 켜고 끈다 */
+function setIsolation(bounds: IsolationBounds | null) {
+  if (frameEnv) isolate(frameEnv.gl as unknown as THREE.WebGLRenderer, bounds);
+}
+// 둘러보기 카메라(FreeCamera)는 freeCamera.ts — 5174 편집 모드 「라이브러리 배치」(L)도 같은 조작을 쓴다(10/15)
+let orbit: FreeCamera | null = null;
 let selectionBox: THREE.Box3Helper | null = null;
 let detachPick: (() => void) | null = null;
 let visualQueue: VisualJob[] = [];
 let visualJob: (VisualJob & { start: number; frames: number }) | null = null;
 const handledVisualRequests = new Set<string>();
 
+/** 요청 type → 답장 type. proposals 는 답장이 없다(프로토콜 §1) */
+const REPLY_TYPES: Record<VisualRequestType, string | null> = {
+  "kgeseo-review-capture": "kgeseo-review-captured",
+  "kgeseo-review-view": "kgeseo-review-view-changed",
+  "kgeseo-review-inspection": "kgeseo-review-inspection-changed",
+  "kgeseo-review-scene": "kgeseo-review-scene-changed",
+  "kgeseo-review-place-start": "kgeseo-review-place-changed",
+  "kgeseo-review-place-adjust": "kgeseo-review-place-changed",
+  "kgeseo-review-place-cancel": "kgeseo-review-place-changed",
+  "kgeseo-review-place-commit": "kgeseo-review-place-committed",
+  "kgeseo-review-proposals": null,
+  // 변경안 고치기(규약 §6-2) — 초안 시작과 같은 답장
+  "kgeseo-review-proposal-edit-start": "kgeseo-review-place-changed",
+};
 function replyVisual(request: VisualRequest, result: Record<string, unknown>) {
   if (isClosed || !IS_EMBEDDED || !run) return;
-  const type =
-    request.type === "kgeseo-review-inspection"
-      ? "kgeseo-review-inspection-changed"
-      : request.type === "kgeseo-review-view"
-        ? "kgeseo-review-view-changed"
-        : "kgeseo-review-captured";
+  const type = REPLY_TYPES[request.type] ?? null;
+  if (!type) return;
   window.parent.postMessage(
     {
       type,
@@ -249,15 +305,15 @@ function finishVisualJob(result: Record<string, unknown>) {
   const job = visualJob;
   visualJob = null;
   clearTimeout(job.timeout);
-  if (orbit) orbit.enabled = state.inspection;
+  if (orbit) orbit.enabled = state.inspection && !placement?.isGizmoBusy();
   notify({ capturing: false });
-  replyVisual(job.request, result);
+  replyVisual(job.request, { ...job.extra, ...result });
 }
 function cancelVisual(message = "검수 실행이 종료되어 시각 점검을 취소했습니다.") {
   finishVisualJob({ ok: false, error: message });
   for (const job of visualQueue.splice(0)) {
     clearTimeout(job.timeout);
-    replyVisual(job.request, { ok: false, error: message });
+    replyVisual(job.request, { ...job.extra, ok: false, error: message });
   }
 }
 function clearHighlight() {
@@ -288,15 +344,153 @@ function clearSelection(alwaysPost = false) {
   if (alwaysPost || state.selected) postObjectSelected(null);
   notify({ selected: null });
 }
+// ── 둘러보기 조작 (10/15 미르: 회전만 되고 줌·이동이 안 된다) ─────────────
+//   [왜] 예전 값(minDistance 2 · 목표 20 앞)은 「장면 단위」였다. 1 m = 1/0.3 단위라 목표가 6 m 앞에 박혀
+//        휠은 한 번에 수십 cm, 오른쪽 끌기 이동도 그 거리에 비례해 거의 안 움직였다.
+//   [어떻게] 휠 = 커서 쪽으로 카메라와 목표를 **함께** 밀어 넣는다(목표에 막히지 않는 날기 줌).
+//           오른쪽 끌기 = 화면 평면 이동(목표 거리 25 m 기준이라 맵 크기에 맞게 움직임).
+//           WASD = 수평 이동 · Q/E = 내리기/올리기 · Shift = 3배. 키는 검수 고정 중 게임으로 안 새게 아래 keydown 이 먼저 받는다.
+const U = UNITS_PER_METER;
+const flyKeys = new Set<string>();
+let lastFlyAt = 0;
+// 방향키(10/15 미르): ↑↓ = 시점 높이 올리기·내리기, ←→ = 옆으로. 배치 초안이 있을 때는 초안 미세 이동이 먼저 받는다.
+const FLY_CODES = new Set([
+  "KeyW",
+  "KeyA",
+  "KeyS",
+  "KeyD",
+  "KeyQ",
+  "KeyE",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "ShiftLeft",
+  "ShiftRight",
+]);
+const _fly = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _ray = new THREE.Raycaster();
+const _ndc = new THREE.Vector2();
+function flyStep(camera: THREE.Camera, dt: number) {
+  if (!orbit || !flyKeys.size) return;
+  const speed = 9 * U * (flyKeys.has("ShiftLeft") || flyKeys.has("ShiftRight") ? 3 : 1) * Math.min(dt, 0.1);
+  const forward = camera.getWorldDirection(_fly).setY(0);
+  if (forward.lengthSq() < 1e-6) forward.set(0, 0, -1);
+  forward.normalize();
+  _right.crossVectors(forward, camera.up).normalize();
+  const move = new THREE.Vector3();
+  if (flyKeys.has("KeyW")) move.add(forward);
+  if (flyKeys.has("KeyS")) move.sub(forward);
+  if (flyKeys.has("KeyD") || flyKeys.has("ArrowRight")) move.add(_right);
+  if (flyKeys.has("KeyA") || flyKeys.has("ArrowLeft")) move.sub(_right);
+  if (flyKeys.has("KeyE") || flyKeys.has("ArrowUp")) move.y += 1;
+  if (flyKeys.has("KeyQ") || flyKeys.has("ArrowDown")) move.y -= 1;
+  if (move.lengthSq() === 0) return;
+  move.normalize().multiplyScalar(speed);
+  camera.position.add(move);
+  orbit.target.add(move);
+}
 function detachOrbit() {
+  flyKeys.clear();
   detachPick?.();
   detachPick = null;
   orbit?.dispose();
   orbit = null;
   clearHighlight();
+  // 배치 초안·손잡이·변경안 미리보기·빈 자리 표시를 모두 치운다(변경안 목록 데이터는 다시 켤 때 그리려고 둔다)
+  placement?.dispose();
+  placement = null;
+  sceneScope = null;
+  setIsolation(null);
+  if (state.scene != null || state.draft || state.point) notify({ scene: null, draft: null, point: null });
 }
+
+// ── 씬 탭 · 배치 편집 (10/15 · 검수_배치편집_프로토콜_1015) ─────────────────
+/** 씬 탭으로 묶인 범위 — null 이면 전체 */
+let sceneScope: SceneScope | null = null;
+/** 배치 층 — 둘러보기 중 처음 필요할 때 만든다 */
+let placement: PlacementLayer | null = null;
+/** 마지막으로 받은 변경안 목록 — 둘러보기를 다시 켜면 이것으로 다시 그린다 */
+let proposalList: readonly PlacementProposal[] = [];
+
+/** 요청 없이 게임이 먼저 보내는 알림(손잡이·키로 바뀐 초안, Enter 확정, 빈 자리 선택) — requestId 는 null */
+function postToParent(type: string, payload: Record<string, unknown>, requestId: string | null = null) {
+  if (isClosed || !IS_EMBEDDED || !run) return;
+  window.parent.postMessage(
+    {
+      type,
+      projectId: run.projectId,
+      sessionId: run.sessionId,
+      requestId,
+      gameRevision: run.gameRevision,
+      runtimeProfile: run.runtimeProfile,
+      mode: "diagnostic",
+      ...payload,
+    },
+    location.origin,
+  );
+}
+function syncDraftState() {
+  const draft = placement?.draftSummary() ?? null;
+  if (draft?.nameKo !== state.draft?.nameKo || draft?.mode !== state.draft?.mode) notify({ draft });
+}
+function ensurePlacement(): PlacementLayer | null {
+  if (placement) return placement;
+  if (!frameEnv || !state.inspection) return null;
+  const { scene, camera, gl } = frameEnv;
+  placement = new PlacementLayer({
+    scene,
+    camera,
+    dom: gl.domElement,
+    groundAt: (x, z) => links.terrain?.groundAt(x, z),
+    zoneAt: (x, z, groundZone) => zoneForPoint(x, z, groundZone, sceneScope),
+    bounds: () => sceneScope?.bounds ?? null,
+    onDragging: (active) => {
+      if (orbit) orbit.enabled = !active && state.inspection && !visualJob;
+    },
+  });
+  if (proposalList.length) placement.setProposals(proposalList);
+  return placement;
+}
+function postDraftChanged(draft: PlacementDraft | null, requestId: string | null = null) {
+  placement?.markPosted(performance.now());
+  postToParent("kgeseo-review-place-changed", { ok: true, draft }, requestId);
+}
+/** Enter 확정 / Esc 취소 — 키로 한 것은 requestId 없이 알린다 */
+function commitDraftByKey() {
+  const draft = placement?.commit() ?? null;
+  syncDraftState();
+  if (draft) postToParent("kgeseo-review-place-committed", { ok: true, draft });
+}
+function cancelDraftByKey() {
+  placement?.cancel();
+  syncDraftState();
+  postDraftChanged(null);
+}
+/** 씬 탭으로 묶인 동안 카메라를 그 경계(+8 m) · 땅 −2 m ~ +60 m 안에 둔다. target 도 같이 옮겨 보는 방향을 지킨다 */
+function clampCamera(camera: THREE.Camera) {
+  if (!sceneScope || !orbit) return;
+  const x = camera.position.x * METERS_PER_UNIT;
+  const z = camera.position.z * METERS_PER_UNIT;
+  const [cx, cz] = clampToBounds(sceneScope.bounds, x, z);
+  const ground = links.terrain?.groundAt(cx, cz);
+  let cy = camera.position.y * METERS_PER_UNIT;
+  if (ground && Number.isFinite(ground.y))
+    cy = Math.min(ground.y + CAMERA_CEILING_M, Math.max(ground.y + CAMERA_FLOOR_M, cy));
+  const delta = _clamp.set((cx - x) * U, cy * U - camera.position.y, (cz - z) * U);
+  if (delta.lengthSq() < 1e-10) return;
+  camera.position.add(delta);
+  orbit.target.add(delta);
+  camera.updateMatrixWorld();
+}
+const _clamp = new THREE.Vector3();
 const isMeshObject = (o: THREE.Object3D): o is THREE.Mesh => (o as THREE.Mesh).isMesh === true;
-function pickObject(event: { clientX: number; clientY: number }) {
+/**
+ * 짧은 클릭 — 물체면 이름(object-selected), 땅·길·물·절벽이면(또는 Alt+클릭이면) 그 지점(point-selected).
+ * 배치 초안 자체를 누르면 아무것도 하지 않는다(손잡이로 다룬다). 변경안 미리보기는 `review-proposal:<id>` 로 식별한다.
+ */
+function pickObject(event: { clientX: number; clientY: number; altKey?: boolean }) {
   if (!state.inspection || visualJob || !frameEnv) return;
   const { scene, camera, gl } = frameEnv;
   const rect = gl.domElement.getBoundingClientRect();
@@ -312,38 +506,79 @@ function pickObject(event: { clientX: number; clientY: number }) {
   const hit = ray.intersectObjects(scene.children, true).find((item) => {
     if (!isMeshObject(item.object) || item.object.userData.reviewSelection) return false;
     for (let node: THREE.Object3D | null = item.object; node; node = node.parent) if (!node.visible) return false;
+    if (!isInsideActive(item.point)) return false; // 씬 고립 경계 밖 — 잘려 안 보인다
+    // 땅 위 풀 무더기는 클릭을 통과시킨다 — 땅을 눌렀는데 「땅.풀」이 물체로 잡혀 자리 고르기가 안 됐다(10/15, 5174 편집 모드와 같은 규칙)
+    if (item.object.userData.groupId === "땅.풀") return false;
     const materials = Array.isArray(item.object.material) ? item.object.material : [item.object.material];
     return materials.some(
       (material) => material?.visible !== false && !(material?.transparent && material.opacity < 0.05),
     );
   });
+  if (hit && placement?.isDraftObject(hit.object)) return;
   clearHighlight();
+  placement?.clearMarker();
+  if (state.point) notify({ point: null });
   if (!hit) {
     clearSelection(true);
     return;
   }
   const mesh = hit.object as THREE.Mesh;
+  const proposal = placement?.proposalOf(mesh) ?? null;
+  const surface = proposal ? null : classifyReviewSurface(mesh.name);
+  if (surface || event.altKey) {
+    pickPoint(hit.point, surface || classifyReviewSurface(mesh.name) || "object");
+    return;
+  }
   const data = mesh.userData as {
+    trialItems?: string[];
+    placeSpots?: ArrayLike<number>;
     groupId?: string;
     ids?: ArrayLike<number>;
     publicAssetOriginal?: { ids?: ArrayLike<number> | null };
   };
   const original =
     hit.instanceId == null ? null : ((data.ids ?? data.publicAssetOriginal?.ids)?.[hit.instanceId] ?? null);
-  const identity = identifyReviewObject({
-    meshName: mesh.name,
-    groupName: data.groupId || mesh.name?.replace(PUBLIC_ASSET_MESH_PREFIX, ""),
-    instanceId: hit.instanceId ?? null,
-    originalInstanceId: original,
-  });
-  const transform = mesh.matrixWorld.clone();
-  if (hit.instanceId != null) {
-    const instance = new THREE.Matrix4();
-    (mesh as unknown as THREE.InstancedMesh).getMatrixAt(hit.instanceId, instance);
-    transform.multiply(instance);
+  // 에이전트 시험 배치 물체(10/19) — 자리 번호 → 「항목id|에셋id|이름」. groupName 을 「에이전트:항목id|에셋id」로 남겨 작업대가 항목으로 잇는다
+  const trialKey = !proposal && data.trialItems && hit.instanceId != null ? data.trialItems[data.placeSpots?.[hit.instanceId] ?? -1] : null;
+  const [trialItem, trialAsset, trialName] = trialKey ? trialKey.split("|") : [];
+  const identity: ReviewObjectIdentity = trialKey
+    ? {
+        objectId: `agent-trial:${trialItem}:${data.placeSpots?.[hit.instanceId!] ?? 0}`,
+        name: `${trialName || trialItem} (에이전트 ${trialItem})`,
+        meshName: mesh.name,
+        groupName: `에이전트:${trialItem}|${trialAsset}`,
+        instanceId: hit.instanceId ?? null,
+        originalInstanceId: null,
+        identityQuality: "exact",
+      }
+    : proposal
+    ? {
+        objectId: `review-proposal:${proposal.id}`,
+        name: proposal.nameKo,
+        meshName: mesh.name,
+        groupName: `review-proposal:${proposal.id}`,
+        instanceId: null,
+        originalInstanceId: null,
+        identityQuality: "exact",
+      }
+    : identifyReviewObject({
+        meshName: mesh.name,
+        groupName: data.groupId || mesh.name?.replace(PUBLIC_ASSET_MESH_PREFIX, ""),
+        instanceId: hit.instanceId ?? null,
+        originalInstanceId: original,
+      });
+  let box: THREE.Box3;
+  if (proposal) box = new THREE.Box3().setFromObject(proposal.root);
+  else {
+    const transform = mesh.matrixWorld.clone();
+    if (hit.instanceId != null) {
+      const instance = new THREE.Matrix4();
+      (mesh as unknown as THREE.InstancedMesh).getMatrixAt(hit.instanceId, instance);
+      transform.multiply(instance);
+    }
+    mesh.geometry.computeBoundingBox();
+    box = mesh.geometry.boundingBox!.clone().applyMatrix4(transform);
   }
-  mesh.geometry.computeBoundingBox();
-  const box = mesh.geometry.boundingBox!.clone().applyMatrix4(transform);
   selectionBox = new THREE.Box3Helper(box, 0xffd166);
   selectionBox.userData.reviewSelection = true;
   (selectionBox.material as THREE.Material).depthTest = false;
@@ -361,22 +596,50 @@ function pickObject(event: { clientX: number; clientY: number }) {
   notify({ selected: object });
   postObjectSelected(object);
 }
+/** 빈 자리 고르기 — 씬 탭 경계 밖이면 보내지 않는다(프로토콜 §2) */
+function pickPoint(hitPoint: THREE.Vector3, surface: string) {
+  clearSelection();
+  const x = Math.round(hitPoint.x * METERS_PER_UNIT * 1000) / 1000;
+  const y = Math.round(hitPoint.y * METERS_PER_UNIT * 1000) / 1000;
+  const z = Math.round(hitPoint.z * METERS_PER_UNIT * 1000) / 1000;
+  if (sceneScope && !insideBounds(sceneScope.bounds, x, z)) {
+    notify({ blocked: "지금 씬 탭의 구역 경계 밖입니다. 경계 안의 땅을 골라 주세요." });
+    return;
+  }
+  const zoneId = zoneForPoint(x, z, links.terrain?.groundAt(x, z)?.zone, sceneScope);
+  ensurePlacement()?.showMarker({ x, y, z });
+  notify({ point: { x, z, zoneId, surface }, ...(state.blocked.startsWith("지금 씬 탭") ? { blocked: "" } : {}) });
+  postToParent("kgeseo-review-point-selected", { point: { x, y, z }, zoneId, surface });
+}
 function attachOrbit() {
   if (!frameEnv || orbit || !state.inspection) return;
   const { camera, gl } = frameEnv;
-  orbit = new OrbitControls(camera, gl.domElement);
-  orbit.enableDamping = false;
-  orbit.minDistance = 2;
-  orbit.maxDistance = 110;
-  orbit.target.copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(20));
-  orbit.update();
+  orbit = new FreeCamera(camera, gl.domElement);
+  const onWheel = (event: WheelEvent) => {
+    if (!orbit || visualJob) return;
+    event.preventDefault();
+    const rect = gl.domElement.getBoundingClientRect();
+    _ndc.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+    _ray.setFromCamera(_ndc, camera);
+    // 한 칸(deltaY≈100)에 2.5 m, 트랙패드의 작은 값도 비례해서 — 너무 큰 한 번은 15 m 로 자른다
+    const meters = Math.max(-15, Math.min(15, -event.deltaY * 0.025 * (event.shiftKey ? 3 : 1)));
+    const move = _ray.ray.direction.clone().multiplyScalar(meters * U);
+    camera.position.add(move);
+    orbit.target.add(move);
+    orbit.update();
+  };
+  gl.domElement.addEventListener("wheel", onWheel, { passive: false });
   let down: { x: number; y: number } | null = null;
   const onDown = (event: PointerEvent) => {
-    if (event.button === 0) down = { x: event.clientX, y: event.clientY };
+    if (event.button !== 0) return;
+    down = { x: event.clientX, y: event.clientY };
+    // 손잡이(TransformControls)는 이 뒤에 등록돼 같은 누름에서 dragging-changed 로 다시 켠다
+    if (placement) placement.gizmoPressed = false;
   };
   const onUp = (event: PointerEvent) => {
     const start = down;
     down = null;
+    if (placement?.isGizmoBusy()) return;
     if (event.button === 0 && start && Math.hypot(event.clientX - start.x, event.clientY - start.y) < 5)
       pickObject(event);
   };
@@ -387,6 +650,7 @@ function attachOrbit() {
   gl.domElement.addEventListener("pointerup", onUp);
   gl.domElement.addEventListener("pointercancel", onCancel);
   detachPick = () => {
+    gl.domElement.removeEventListener("wheel", onWheel);
     gl.domElement.removeEventListener("pointerdown", onDown);
     gl.domElement.removeEventListener("pointerup", onUp);
     gl.domElement.removeEventListener("pointercancel", onCancel);
@@ -398,6 +662,13 @@ function onVisualRequest(event: MessageEvent) {
   const { request, view, error } = checked;
   if (error) {
     replyVisual(request, { ok: false, error });
+    return;
+  }
+  // 변경안 목록은 답장이 없다 — 화면 준비 전이거나 둘러보기가 꺼져 있어도 받아 두었다가 둘러보기에서 그린다
+  if (request.type === "kgeseo-review-proposals") {
+    proposalList = request.proposals ?? [];
+    if (placement) placement.setProposals(proposalList);
+    else if (state.inspection) ensurePlacement();
     return;
   }
   if (!state.ready || !frameEnv || state.flushing || state.quiescent) {
@@ -416,6 +687,12 @@ function onVisualRequest(event: MessageEvent) {
     replyVisual(request, { ok: true, enabled: request.enabled });
     return;
   }
+  if (request.type.startsWith("kgeseo-review-place-") || request.type === "kgeseo-review-proposal-edit-start") {
+    onPlacementRequest(request);
+    return;
+  }
+  const sceneWarning = request.type === "kgeseo-review-scene" ? onSceneRequest(request) : "";
+  if (sceneWarning === false) return;
   if (handledVisualRequests.has(request.requestId) || visualQueue.length >= 8) {
     replyVisual(request, { ok: false, error: "이미 처리한 요청이거나 대기 중인 시점이 많습니다." });
     return;
@@ -423,29 +700,180 @@ function onVisualRequest(event: MessageEvent) {
   handledVisualRequests.add(request.requestId);
   if (handledVisualRequests.size > 64)
     handledVisualRequests.delete(handledVisualRequests.values().next().value as string);
+  const scope = request.type === "kgeseo-review-scene" ? sceneScope : null;
   const job: VisualJob = {
     request,
-    view: view!,
+    view: scope ? reviewViews.find((item) => item.id === `${scope.startZone}-wide`)! : view!,
+    ...(scope ? { extra: sceneReply(scope, sceneWarning) } : {}),
     timeout: setTimeout(
       () => {
         const message = "구역 화면이 안정되기를 기다리는 시간이 초과되었습니다.";
         if (visualJob?.request === request) finishVisualJob({ ok: false, error: message });
         else {
           visualQueue = visualQueue.filter((item) => item !== job);
-          replyVisual(request, { ok: false, error: message });
+          replyVisual(request, { ...job.extra, ok: false, error: message });
         }
       },
-      request.type === "kgeseo-review-view" ? 14000 : 19000,
+      request.type === "kgeseo-review-capture" ? 19000 : 14000,
     ),
   };
   visualQueue.push(job);
+}
+/** 씬 탭 답장 값 */
+function sceneReply(scope: SceneScope | null, warning = ""): Record<string, unknown> {
+  return {
+    scene: scope?.scene ?? 0,
+    zoneIds: scope ? scope.zoneIds : ["Z1", "Z2", "Z3", "Z4"],
+    bounds: scope ? scope.bounds : FULL_BOUNDS,
+    ...(warning ? { warning } : {}),
+  };
+}
+/**
+ * kgeseo-review-scene — 씬 상태(차단물·씬안개)를 맞추고 묶음을 건다. 카메라 이동은 시점 작업(visualJob)으로 넘긴다.
+ * 씬 0 은 묶음만 풀고 바로 답한다(차단물·안개는 그대로). 시점 작업으로 넘길 때 경고 문장("" = 없음), 끝났으면 false.
+ */
+function onSceneRequest(request: VisualRequest): string | false {
+  const scene = request.scene ?? 0;
+  if (!state.inspection) {
+    replyVisual(request, {
+      ...sceneReply(null),
+      scene,
+      ok: false,
+      error: "둘러보기(시각 점검)를 켠 뒤 씬을 고를 수 있습니다.",
+    });
+    return false;
+  }
+  const scope = sceneScopeFor(scene);
+  if (!scope) {
+    sceneScope = null;
+    setIsolation(null);
+    notify({ scene: null });
+    replyVisual(request, { ...sceneReply(null), ok: true });
+    return false;
+  }
+  let warning = "";
+  if (links.clearBlockersInstant) links.clearBlockersInstant(blockersClearedBefore(scene));
+  else warning = "차단물 즉시 정리 연결(clearBlockersInstant)이 없어 차단물 상태는 바꾸지 않았습니다.";
+  setSceneFog(scene);
+  sceneScope = scope;
+  setIsolation(isolationTargetFor(`S${scene}`)?.bounds ?? scope.bounds); // 고립은 여유 2 m(묶음 8 m 보다 좁게)
+  // 진행 중 초안은 새 경계 안으로 당긴다
+  const draft = placement?.read();
+  if (draft) placement!.adjust({ position: draft.position });
+  notify({ scene, ...(warning ? { blocked: warning } : {}) });
+  return warning;
+}
+/** kgeseo-review-place-* — 초안 시작·조정·취소·확정 */
+function onPlacementRequest(request: VisualRequest) {
+  const layer = state.inspection ? ensurePlacement() : null;
+  if (!layer) {
+    replyVisual(request, { ok: false, draft: null, error: "둘러보기(시각 점검)를 켠 뒤 배치할 수 있습니다." });
+    return;
+  }
+  if (request.type === "kgeseo-review-place-start") {
+    const at = request.at!;
+    if (sceneScope && !insideBounds(sceneScope.bounds, at.x, at.z)) {
+      replyVisual(request, { ok: false, draft: null, error: "지금 씬 탭의 구역 경계 밖에는 놓을 수 없습니다." });
+      return;
+    }
+    clearSelection();
+    layer
+      .startDraft(request.asset!, at, request.rotationY ?? 0, request.scale ?? 1)
+      .then((draft) => {
+        syncDraftState();
+        layer.markPosted(performance.now());
+        replyVisual(request, { ok: true, draft });
+      })
+      .catch((error: unknown) => {
+        syncDraftState();
+        replyVisual(request, { ok: false, draft: null, error: reviewErrorText(error, run?.token) });
+      });
+    syncDraftState();
+    return;
+  }
+  if (request.type === "kgeseo-review-proposal-edit-start") {
+    // 변경안 고치기 — 그 변경안으로 초안을 만들고(draft.replaces) 미리보기는 숨긴다. 이후 조정·취소·확정은 배치 초안과 같다
+    const proposal = layer.findProposal(request.proposalId!);
+    if (!proposal || proposal.status !== "proposed") {
+      replyVisual(request, {
+        ok: false,
+        draft: null,
+        error: proposal ? "제안 상태의 변경안만 고칠 수 있습니다." : "게임에 그려진 변경안 목록에 없는 변경안입니다.",
+      });
+      return;
+    }
+    if (sceneScope && !insideBounds(sceneScope.bounds, proposal.position.x, proposal.position.z)) {
+      replyVisual(request, {
+        ok: false,
+        draft: null,
+        error: "이 변경안은 지금 씬 탭의 구역 경계 밖에 있습니다. 「전체」 또는 그 씬 탭에서 고쳐 주세요.",
+      });
+      return;
+    }
+    clearSelection();
+    layer
+      .startEdit(proposal)
+      .then((draft) => {
+        syncDraftState();
+        layer.markPosted(performance.now());
+        replyVisual(request, { ok: true, draft });
+      })
+      .catch((error: unknown) => {
+        syncDraftState();
+        replyVisual(request, { ok: false, draft: null, error: reviewErrorText(error, run?.token) });
+      });
+    syncDraftState();
+    return;
+  }
+  if (request.type === "kgeseo-review-place-cancel") {
+    layer.cancel();
+    syncDraftState();
+    layer.markPosted(performance.now());
+    replyVisual(request, { ok: true, draft: null });
+    return;
+  }
+  if (!layer.hasDraft() || layer.loading) {
+    replyVisual(request, {
+      ok: false,
+      draft: null,
+      error: layer.loading ? "에셋을 아직 불러오는 중입니다." : "진행 중인 배치 초안이 없습니다.",
+    });
+    return;
+  }
+  if (request.type === "kgeseo-review-place-adjust") {
+    layer.adjust({
+      position: request.position,
+      rotationY: request.rotationY,
+      scale: request.scale,
+      mode: request.mode,
+    });
+    syncDraftState();
+    layer.markPosted(performance.now());
+    replyVisual(request, { ok: true, draft: layer.read() });
+    return;
+  }
+  const draft = layer.commit();
+  syncDraftState();
+  replyVisual(request, { ok: true, draft });
 }
 function visualFrame(frame: FrameEnv) {
   if (!run?.valid || run.mode !== "diagnostic") return;
   frameEnv = frame;
   if (state.inspection) {
     attachOrbit();
+    const now = performance.now();
+    if (!visualJob) {
+      flyStep(frame.camera, lastFlyAt ? (now - lastFlyAt) / 1000 : 0);
+      clampCamera(frame.camera);
+      clampCameraXZ(frame.camera);
+    }
+    lastFlyAt = now;
+    maintainIsolation(frame.scene as THREE.Scene);
     orbit?.update();
+    // 둘러보기를 다시 켰으면 받아 둔 변경안 목록을 다시 그린다
+    if (!placement && proposalList.length) ensurePlacement();
+    const changed = placement?.takeChanged(now);
+    if (changed) postToParent("kgeseo-review-place-changed", { ok: true, draft: changed });
   }
   if (!visualJob && visualQueue.length) {
     const job = visualQueue.shift()!;
@@ -508,7 +936,12 @@ function copyVisualFrame() {
     }
     record("checkpoint", {
       source: "diagnostic-visual-review",
-      label: job.request.type === "kgeseo-review-capture" ? "구역 화면 촬영" : "구역 시점 이동",
+      label:
+        job.request.type === "kgeseo-review-capture"
+          ? "구역 화면 촬영"
+          : job.request.type === "kgeseo-review-scene"
+            ? `씬 ${job.request.scene} 탭 이동`
+            : "구역 시점 이동",
       viewId: job.view.id,
       countsAsPuzzleProgress: false,
     });
@@ -672,10 +1105,41 @@ if (run) {
     window.addEventListener(type, handler, capture);
     listeners.push([type, handler as EventListener, capture]);
   };
+  on("keyup", (event) => {
+    flyKeys.delete(event.code);
+  });
+  on("blur", () => flyKeys.clear());
   on(
     "keydown",
     (event) => {
       const target = event.target as { closest?: (s: string) => unknown } | null;
+      // 배치 초안이 있으면 G/R·화살표·[ ]·PageUp/Down·, .·Enter·Esc 를 초안 조작으로 먼저 받는다(날기 키보다 앞)
+      if (
+        placement?.hasDraft() &&
+        state.inspection &&
+        !visualJob &&
+        !target?.closest?.("[data-review-hud]") &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
+        const result = placement.handleKey(event.code, event.shiftKey);
+        if (result) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+          if (result === "commit") commitDraftByKey();
+          else if (result === "cancel") cancelDraftByKey();
+          else syncDraftState();
+          return;
+        }
+      }
+      // 둘러보기 중 WASD·Q/E·Shift 는 날기 조작으로 받는다(게임 걷기로는 안 샌다)
+      if (orbit && state.inspection && FLY_CODES.has(event.code) && !target?.closest?.("[data-review-hud]")) {
+        flyKeys.add(event.code);
+        event.stopImmediatePropagation();
+        event.preventDefault();
+        return;
+      }
       if (
         readCameraHold() &&
         !target?.closest?.("[data-review-hud]") &&
@@ -793,6 +1257,7 @@ export function ReviewBridge(props: ReviewBridgeProps) {
       release();
       cancelVisual();
       detachOrbit();
+      proposalList = [];
       frameEnv = null;
     };
   }, []);
@@ -964,11 +1429,23 @@ export function ReviewHud() {
         >
           {s.capturing
             ? "구역 화면 준비 중…"
-            : s.selected
-              ? `선택 · ${s.selected.name}${s.selected.identityQuality === "group" ? " (무리)" : ""}`
-              : "물체를 클릭하면 이름이 표시됩니다."}
+            : s.draft
+              ? `배치 초안 · ${s.draft.nameKo} (${s.draft.mode === "rotate" ? "회전" : "이동"})`
+              : s.selected
+                ? `선택 · ${s.selected.name}${s.selected.identityQuality === "group" ? " (무리)" : ""}`
+                : s.point
+                  ? `빈 자리 · ${s.point.zoneId ?? "구역 밖"} (${s.point.x.toFixed(1)}, ${s.point.z.toFixed(1)} m)`
+                  : "물체를 클릭하면 이름이, 땅을 클릭하면 자리가 표시됩니다."}
           {(s.error || s.blocked) && " · 확인 필요"}
         </p>
+        {s.scene != null && (
+          <p style={{ ...smallStyle, margin: "2px 0 0" }}>씬 {s.scene} 탭 · 그 구역 안에서만 둘러봅니다.</p>
+        )}
+        {s.draft && (
+          <p style={{ ...smallStyle, margin: "2px 0 0" }}>
+            G 이동 · R 회전 · 화살표 10 cm(Shift 1 m) · [ ] 크기 · PageUp/Down 높이 5 cm · , . 회전 5° · Enter 확정 · Esc 취소
+          </p>
+        )}
         {isInfoOpen && (
           <div style={{ marginTop: 8, borderTop: "1px solid #ffffff24", paddingTop: 6 }}>
             <p style={smallStyle}>
@@ -1032,7 +1509,10 @@ export function ReviewHud() {
       {s.metrics?.terrain && <p style={{ ...smallStyle, margin: "6px 0" }}>지형: {s.metrics.terrain}</p>}
       {s.inspection && (
         <p style={smallStyle}>
-          시각 점검 · 드래그 회전 · 오른쪽 드래그 이동 · 휠 확대 · 물체 클릭 선택
+          시각 점검 · 드래그 회전 · 오른쪽 드래그 이동 · 휠/WASD·←→ 이동 · Q/E·↑↓ 높이 · 물체 클릭 선택 · 땅
+          클릭(Alt+클릭) 자리
+          {s.draft &&
+            " · 배치 초안: G 이동 · R 회전 · 화살표 10 cm(Shift 1 m) · [ ] 크기 · PageUp/Down 높이 · , . 회전 5° · Enter 확정 · Esc 취소"}
           <br />
           {s.capturing
             ? "구역 화면 준비 중…"

@@ -29,11 +29,13 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { isEditModeActive } from "../placement/libraryPlaceApi";
 import { UNITS_PER_METER } from "../plan/sitePlan";
 import { drawRadius, focus } from "../scene/immersion/focusFog";
-import { loadPublicAssetTable, type PublicAssetTable } from "./publicAssetLoader";
+import { loadPublicAssetTable, loadPublicPlaces, readPlaceBundles, type PlaceItem, type PublicAssetTable } from "./publicAssetLoader";
 import {
   hiddenCovers,
+  IS_EMPTY_BASE,
   IS_PUBLIC_ASSETS_ENABLED,
   IS_REVIEW_NORMAL_MODE,
   publicAssetRegistry,
@@ -66,6 +68,18 @@ const LOD_BOUNDARY_FOCUSED_M = 10;
 /** 차단물 겉돌이 가라앉는 시간(초) */
 const SINK_SECONDS = 2.4;
 
+// ── 「놓기」 다시 읽기 (10/15) — 통합 편집 모드(E)가 manifest 「놓기」를 쓴 뒤(놓기·고치기·지우기) 새로고침 없이 보이게 ──
+const reloadHandlers = new Set<() => Promise<boolean>>();
+/**
+ * manifest 를 다시 받아 「놓기」를 다시 세운다(바꿔치기·덮기는 그대로). 세워진 층이 없거나 첫 읽기 전이면 false
+ * — 그때는 첫 읽기가 새 manifest 를 읽으니 따로 할 일이 없다.
+ */
+export async function reloadPublicAssets(): Promise<boolean> {
+  if (!reloadHandlers.size) return false;
+  const results = await Promise.all([...reloadHandlers].map((handler) => handler()));
+  return results.some(Boolean);
+}
+
 /**
  * 등록부(publicAssetRegistry)를 구독한다 — 「땅.풀」 같은 합본 메시를 숨길지 등을 React 가 다시 판단하게.
  * 예: `const hidden = usePublicAssetRegistry().hiddenGroups.has("땅.풀")` → 풀 합본 메시를 안 그린다.
@@ -88,6 +102,8 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
   const [table, setTable] = useState<PublicAssetTable | null>(null);
   const built = useRef(new Map<string, BuiltEntry>()); // 키 → 세운 묶음
   const groupRef = useRef<THREE.Group>(null);
+  // 다시 읽은 「놓기」 — 있으면 table.places 대신 쓴다(상태로 바꾸면 한 틱 동안 옛 목록으로 다시 세울 수 있다)
+  const placesOverride = useRef<PlaceItem[] | null>(null);
   const tick = useRef(0);
   const focusTick = useRef(0);
   const clearedRef = useRef(clearedBlockers);
@@ -111,6 +127,34 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     };
   }, []);
 
+  // 「놓기」 다시 읽기 — 새 목록을 받은 뒤 세운 놓기를 모두 치우면 다음 틱이 새 목록으로 다시 세운다
+  useEffect(() => {
+    if (!IS_PUBLIC_ASSETS_ENABLED) return undefined;
+    let isAlive = true;
+    const handler = async () => {
+      const places = await loadPublicPlaces();
+      const group = groupRef.current;
+      if (!isAlive || !places || !group) return false;
+      placesOverride.current = places;
+      for (const [key, v] of built.current) {
+        if (!key.startsWith("놓기:")) continue;
+        for (const m of v.meshes) {
+          group.remove(m);
+          m.geometry.dispose(); // cloneBundle 로 복제한 것 — 재질은 캐시와 같이 쓰므로 두고 간다
+          m.dispose();
+        }
+        built.current.delete(key);
+      }
+      tick.current = 19; // 다음 프레임에 바로 세운다(20 틱마다 돈다)
+      return true;
+    };
+    reloadHandlers.add(handler);
+    return () => {
+      isAlive = false;
+      reloadHandlers.delete(handler);
+    };
+  }, []);
+
   // Alt+클릭 덮기 판 빼기 · 개발 훅 — 한 번
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
@@ -119,7 +163,8 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     if (!IS_PUBLIC_ASSETS_ENABLED) return undefined;
     const el = gl.domElement;
     const onPointerDown = (ev: PointerEvent) => {
-      if (IS_REVIEW_NORMAL_MODE || !ev.altKey || !groupRef.current) return;
+      // 통합 편집 모드(E)에서 Alt+클릭은 「물체 위 땅 자리 고르기」다 — 덮기 판을 빼지 않는다
+      if (IS_REVIEW_NORMAL_MODE || !ev.altKey || !groupRef.current || isEditModeActive()) return;
       const rect = el.getBoundingClientRect();
       const ray = new THREE.Raycaster();
       ray.setFromCamera(
@@ -204,6 +249,7 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
 
     // ── ② 바꿔치기 ──
     table.swaps.forEach((item, index) => {
+      if (IS_EMPTY_BASE) return; // 빈 지형 — 교체본(사람 배치 무리의 겉모습)도 그리지 않는다
       const key = `바꿔:${index}:${item.target}`;
       const result = buildSwap(item, ctx, built.current.get(key));
       if (result === "same" || result === null) return;
@@ -220,7 +266,33 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
       built.current.set(key, result);
       changed = true;
     });
-    table.places.forEach((item, index) => {
+    // ── ③-0 씬별 불러오기(10/20) — 에이전트 시험 놓기 중 「씬」이 적힌 것은 지금 씬과 다음 씬 것만 받아 세우고,
+    //   지나간 씬에만 나오던 것은 치운다(메시·복제 형상 정리). 처음에 전부 받지 않아 첫 읽기·메모리가 가볍다.
+    //   -1(검수 「모든 씬 겹쳐 보기」)이면 다 받는다.
+    const forcedScene = Number((window as unknown as { __agentTrialScene?: number }).__agentTrialScene);
+    const nowScene = Number.isFinite(forcedScene) && forcedScene !== 0 ? forcedScene : focus.clearedScenes + 1;
+    (placesOverride.current ?? table.places).forEach((item, index) => {
+      if (!item.lazy || !item.씬?.length) return;
+      const wanted = nowScene === -1 || item.씬.includes(nowScene) || item.씬.includes(nowScene + 1);
+      const key = `놓기:${index}`;
+      if (wanted && !item.bundles.length && !item.loading) {
+        item.loading = true;
+        void readPlaceBundles(item).then((r) => {
+          item.loading = false;
+          if (r) { item.bundles = r.bundles; item.farBundle = r.farBundle; }
+        });
+      } else if (!wanted && item.bundles.length && Math.max(...item.씬) < nowScene) {
+        const v = built.current.get(key);
+        if (v) {
+          for (const m of v.meshes) { m.removeFromParent(); m.geometry.dispose(); m.dispose(); }
+          built.current.delete(key);
+          changed = true;
+        }
+        item.bundles = []; item.farBundle = null; // 지나간 씬 — 다시 돌아오면 캐시에서 다시 세운다
+      }
+    });
+    (placesOverride.current ?? table.places).forEach((item, index) => {
+      if (IS_EMPTY_BASE && !item.차단물 && !item.에이전트) return; // 빈 지형 — 차단물 겉돌 · 에이전트 시험 배치만 남긴다
       const key = `놓기:${index}`;
       if (built.current.has(key)) return;
       const result = buildPlace(item, index, ctx, groundAtRef.current);
@@ -229,6 +301,9 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
       changed = true;
     });
 
+    // ── ③-2 씬별 보이기(10/20) — 에이전트 시험 놓기에 「씬」이 적혀 있으면 지금 씬에서만 보인다.
+    //   사건 뒤에 생긴 흔적(의례·굴린 자국 등)이 씬 1부터 보여 이야기 흐름이 깨지던 것(미르 10/20).
+    for (const v of built.current.values()) if (v.scenes) for (const m of v.meshes) m.visible = nowScene === -1 || v.scenes.includes(nowScene); // -1 = 모든 씬 겹쳐 보기 · 다음 씬 것은 미리 받아 두되 숨김
     // ── ④ 차단물 겉돌 가라앉히기 (10/14) — endScene 으로 차단물이 치워지면 2.4 초에 걸쳐 땅속으로 ──
     const cleared = clearedRef.current;
     if (cleared.size)
@@ -255,7 +330,7 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     const boundary2 = ((radius ? LOD_BOUNDARY_FOCUSED_M : LOD_BOUNDARY_M) * U) ** 2;
     const eye = camera.position;
     for (const v of built.current.values())
-      for (const { nearMeshes, farMeshes, nearMatrices, farMatrices, positions, idTable } of v.lodPairs || []) {
+      for (const { nearMeshes, farMeshes, nearMatrices, farMatrices, positions, idTable, placeSpots } of v.lodPairs || []) {
         let a = 0;
         let b = 0;
         const nearIds = new Int32Array(positions.length);
@@ -272,13 +347,15 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
           }
         }
         for (const m of nearMeshes) {
-          m.userData.ids = nearIds.subarray(0, a);
+          if (placeSpots) m.userData.placeSpots = nearIds.subarray(0, a);
+          else m.userData.ids = nearIds.subarray(0, a);
           m.count = a;
           m.instanceMatrix.needsUpdate = true;
           m.computeBoundingSphere();
         }
         for (const m of farMeshes) {
-          m.userData.ids = farIds.subarray(0, b);
+          if (placeSpots) m.userData.placeSpots = farIds.subarray(0, b);
+          else m.userData.ids = farIds.subarray(0, b);
           m.count = b;
           m.instanceMatrix.needsUpdate = true;
           m.computeBoundingSphere();
@@ -298,15 +375,18 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
             n: m.count,
             ids: m.userData.ids ? Array.from(m.userData.ids as Int32Array) : null,
             coverIds: m.userData.coverIds ? [...(m.userData.coverIds as string[])] : null,
+            placeSpots: m.userData.placeSpots ? Array.from(m.userData.placeSpots as Int32Array) : null,
           };
         const full = m.userData.fullSet as {
           matrices: Float32Array;
           n: number;
           ids: number[] | null;
           coverIds: string[] | null;
+          placeSpots: number[] | null;
         };
         const ids: number[] = [];
         const coverIds: string[] = [];
+        const placeSpots: number[] = [];
         m.updateMatrixWorld();
         let j = 0;
         for (let k = 0; k < full.n; k++) {
@@ -317,11 +397,13 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
           (m.instanceMatrix.array as Float32Array).set(full.matrices.subarray(k * 16, k * 16 + 16), j * 16);
           if (full.ids) ids.push(full.ids[k]);
           if (full.coverIds) coverIds.push(full.coverIds[k]);
+          if (full.placeSpots) placeSpots.push(full.placeSpots[k]);
           j++;
         }
         m.count = j;
         if (full.ids) m.userData.ids = Int32Array.from(ids);
         if (full.coverIds) m.userData.coverIds = coverIds;
+        if (full.placeSpots) m.userData.placeSpots = Int32Array.from(placeSpots);
         m.instanceMatrix.needsUpdate = true;
         m.computeBoundingSphere();
       });

@@ -1,7 +1,7 @@
 // NAJU-01 A-01 도면을 그대로 세운 그레이박스. 상자와 치수로 공간을 세우고 1인칭으로 걸어 보며
 // 넓이·높이·경사·동선·시야(V1~V3)가 도면과 맞는지 먼저 확인한다 — 꾸미기는 그 뒤다.
 // 훅 순서가 곧 생성·효과·프레임 등록 순서다 — 손 배치(edits.json)가 생성 순서에 걸려 있으니 순서를 바꾸지 않는다.
-import { useMemo, useRef, type RefObject } from "react";
+import { useCallback, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { Outlines, PointerLockControls } from "@react-three/drei";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
@@ -18,6 +18,7 @@ import type { ToonConfig } from "../avatar/toonMaterial";
 import type { OutlineConfig } from "../avatar/toonOutline";
 import Editor from "../placement/Editor";
 import { GROUP_IDS } from "../placement/editFile";
+import { useEditModeActive } from "../placement/libraryPlaceApi";
 import { MESH_NAMES } from "../plan/meshNames";
 import { CORE, UNITS_PER_METER } from "../plan/sitePlan";
 import { SKY_STYLE } from "../world/sky";
@@ -48,6 +49,7 @@ import PublicAssetLayer, {
   IS_PUBLIC_ASSETS_ENABLED,
   usePublicAssetRegistry,
 } from "../loaders/publicAssets";
+import { IS_EMPTY_BASE } from "../loaders/publicAssetManifest";
 import { applyMarkerToggle, useMarkerToggle } from "./useMarkerToggle";
 import { AnimeStyleLayer, IS_ANIME_VARIANT } from "../world/animeStyle";
 import { IS_REVIEW_REQUESTED, ReviewBridge, useReviewCameraHold } from "../review/ReviewBridge";
@@ -147,7 +149,7 @@ export default function NajuScene({
   const { ferryShape, ferrySpot } = useFerry(controls, terrain);
   const pathShapes = usePathShapes(controls, terrain, ground);
 
-  const { isEditing, isOverview, setIsOverview, isAvatarMounted, edits, setEdits } = useSceneModes({
+  const { isEditing, exitEditing, isOverview, setIsOverview, isAvatarMounted, edits, setEdits } = useSceneModes({
     active,
     isThirdPerson,
     playerState,
@@ -227,9 +229,13 @@ export default function NajuScene({
 
   const { camera, gl, scene } = useRendererSetup(controls.fov);
   // 검수 작업대가 시점을 잡고 있는 동안은 걷기·연출을 멈춘다
-  const isReviewHold = useReviewCameraHold();
+  //   통합 편집 모드(E)도 같다 — 그 모드가 둘러보기 카메라를 몬다(걷기·안개를 멈춘다, 10/15)
+  const isReviewCameraHold = useReviewCameraHold();
+  const isEditHold = useEditModeActive();
+  const isReviewHold = isReviewCameraHold || isEditHold;
   // 구역 초점은 편집 부감(E → Tab 전체보기) 동안 잠시 끈다 — 맵 전체를 밝게(10/13 미르)
-  const isFocusNow = IS_FOCUS_ENABLED && !(isEditing && isOverview);
+  //   검수 카메라가 잡고 있는 동안(둘러보기·촬영)도 끈다 — 안개 속에선 어떤 에셋이 있는지 못 본다(10/15 미르)
+  const isFocusNow = IS_FOCUS_ENABLED && !(isEditing && isOverview) && !isReviewHold;
   focus.paused = IS_FOCUS_ENABLED && !isFocusNow;
   // 왜곡의 문 — 통로 T1~T4 한가운데(위치음·표식)
   const gates = useMemo(() => (IS_FOCUS_ENABLED ? gateSpots((x, z) => terrain.groundAt(x, z).y) : null), [terrain]);
@@ -251,10 +257,12 @@ export default function NajuScene({
   const rockAsset = useRockAsset(controls);
   useBakedTerrainTexture(scene, controls.bakedTerrainTexture);
 
-  const { clearedBlockers, collapseRef, collapseNoticeRef, collapse, setCollapse, endScene } = useBlockerCollapse(
-    terrain,
-    blockerShapes,
-    ground,
+  const { clearedBlockers, setClearedBlockers, collapseRef, collapseNoticeRef, collapse, setCollapse, endScene } =
+    useBlockerCollapse(terrain, blockerShapes, ground);
+  // 검수 씬 탭 — 그 씬 상태로 차단물을 연출 없이 맞춘다(앞 씬으로 돌아가면 되살아남)
+  const clearBlockersInstant = useCallback(
+    (codes: string[]) => setClearedBlockers(new Set(codes)),
+    [setClearedBlockers],
   );
   useNajuDevHook({
     camera,
@@ -326,6 +334,7 @@ export default function NajuScene({
           playerState={playerState}
           terrain={terrain}
           clearedBlockers={clearedBlockers}
+          clearBlockersInstant={clearBlockersInstant}
         />
       )}
       <DistantLandscapeLayer distantLandscape={distantLandscape} shading={shading} brightness={controls.brightness} />
@@ -414,8 +423,9 @@ export default function NajuScene({
         <PublicAssetLayer clearedBlockers={clearedBlockers} groundAt={(x, z) => terrain.groundAt(x, z)} />
       )}
       {/* 「땅.풀」 숨은 무리 — 코드 풀과 같은 자리를 든 보이지 않는 무리, 교체본이 이 자리를 읽어 공개 3D 풀을 심는다(10/13) */}
-      {IS_PUBLIC_ASSETS_ENABLED && <GrassSpotMarkers spots={grass?.tuftSpots ?? null} />}
-      {instanceGroups.map((group) => (
+      {IS_PUBLIC_ASSETS_ENABLED && !IS_EMPTY_BASE && <GrassSpotMarkers spots={grass?.tuftSpots ?? null} />}
+      {/* &base=empty 빈 지형 — 원경(공간의 일부)만 남기고 사람이 놓은 생성 무리는 그리지 않는다(10/19) */}
+      {(IS_EMPTY_BASE ? instanceGroups.filter((group) => group.groupId.startsWith("원경.") || group.groupId === "땅.길" /* 길 조각은 지형(공간)의 일부 — 사람이 놓은 장식이 아니다(10/19) */) : instanceGroups).map((group) => (
         <InstanceGroupMesh
           key={group.groupId}
           group={group}
@@ -432,10 +442,12 @@ export default function NajuScene({
         enabled={isEditing}
         edits={edits}
         setEdits={setEdits}
-        heightAt={(x: number, z: number) => ground.surface.heightAt(x, z)}
+        instanceGroups={instanceGroups}
+        groundAt={terrain.groundAt}
         unlockPointer={() => controlsRef.current?.unlock?.()}
         overview={isOverview}
         setOverview={setIsOverview}
+        onExit={exitEditing}
       />
 
       {/* 게임 공간 전체를 캐릭터와 같은 cel 질감으로(같은 그라디언트라 계단이 맞는다). ?worldtoon=off 로 비교. */}

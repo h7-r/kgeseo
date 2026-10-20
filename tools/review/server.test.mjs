@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer, request as httpRequest } from 'node:http';
+import { createHash } from 'node:crypto';
 import { createReviewHandler, REQUIRED_CHECKS, reviewWorkbenchPlugin } from './server.mjs';
 
 const bootstrap = () => ({
@@ -19,10 +20,10 @@ function jpegFixture(seed = 1, width = 640, height = 360, padding = 0) {
   const frame = Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x0b, 8, height >> 8, height & 255, width >> 8, width & 255, 1, 1, 0x11, 0, 0xff, 0xda, 0, 8, 1, 1, 0, 0, 63, 0]);
   return 'data:image/jpeg;base64,' + Buffer.concat([frame, Buffer.alloc(padding + 1, seed), Buffer.from([0xff, 0xd9])]).toString('base64');
 }
-async function fixture(t) {
+async function fixture(t, { root } = {}) {
   const dir = await mkdtemp(join(tmpdir(), 'kgeseo-review-api-'));
   const data = bootstrap();
-  const handler = createReviewHandler({ dataDir: dir, getBootstrap: async () => structuredClone(data) });
+  const handler = createReviewHandler({ ...(root ? { root } : {}), dataDir: dir, getBootstrap: async () => structuredClone(data) });
   const server = createServer((req, res) => handler(req, res, () => { res.statusCode = 404; res.end(); }));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -49,8 +50,8 @@ async function fixture(t) {
   return { dir, data, base, request, create, decide, session, event, inspect, observe, capture, reviewScene, objectIssue };
 }
 
-async function sceneFixture(t, overrides = {}) {
-  const f = await fixture(t); f.data.game.visualViews = visualViews(); f.data.game.publicAssetCount = 92;
+async function sceneFixture(t, overrides = {}, options = {}) {
+  const f = await fixture(t, options); f.data.game.visualViews = visualViews(); f.data.game.publicAssetCount = 92;
   const p = await f.create({ assetReviewMode: 'scene', selectedAssetIds: [], ...overrides });
   const s = await f.session(p, 'space', 'diagnostic'); await f.event(p, s);
   return { ...f, p, s };
@@ -601,4 +602,218 @@ test('Vite plugin is dev-only and prevents direct reads of local persisted data'
     handlers[0]({ url }, response, () => { next = true; });
     assert.equal(response.statusCode, 404); assert.equal(next, false);
   }
+});
+
+// 검수 배치 변경안(10/15) — 임시 저장소 뿌리에 _sf_local 공개 GLB 와 manifest 를 만든다
+function glbFixture(nodeScaleY = 2) {
+  const json = Buffer.from(JSON.stringify({ asset: { version: '2.0' }, scene: 0, scenes: [{ nodes: [0] }], nodes: [{ children: [1], scale: [1, nodeScaleY, 1] }, { mesh: 0, translation: [0, 5, 0] }], meshes: [{ primitives: [{ attributes: { POSITION: 0 } }] }], accessors: [{ componentType: 5126, count: 3, type: 'VEC3', min: [-0.5, 0, -0.5], max: [0.5, 1, 0.5] }] }));
+  const padded = Buffer.concat([json, Buffer.alloc((4 - (json.length % 4)) % 4, 0x20)]);
+  const header = Buffer.alloc(20);
+  header.writeUInt32LE(0x46546c67, 0); header.writeUInt32LE(2, 4); header.writeUInt32LE(20 + padded.length, 8); header.writeUInt32LE(padded.length, 12); header.writeUInt32LE(0x4e4f534a, 16);
+  return Buffer.concat([header, padded]);
+}
+const baseManifest = { 설명: '시험', 바꿔치기: [], 놓기: [{ file: 'rock/stone21.glb', 키m: 3.6, 묻힘m: 0.8, 자리: [[32.9, 21.8, 20, 1]], 메모: '기존' }], 검수: {} };
+async function placementRoot(t) {
+  const root = await mkdtemp(join(tmpdir(), 'kgeseo-review-root-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(join(root, 'public/_sf_local/prop'), { recursive: true }); await mkdir(join(root, 'public/_sf_local/rock'), { recursive: true });
+  await writeFile(join(root, 'public/_sf_local/prop/jar.glb'), glbFixture());
+  await writeFile(join(root, 'public/_sf_local/rock/stone21.glb'), glbFixture(1));
+  await mkdir(join(root, 'public/_sf_local/AI허브'), { recursive: true }); await writeFile(join(root, 'public/_sf_local/AI허브/x.glb'), glbFixture());
+  await symlink(join(root, 'public/_sf_local/prop/jar.glb'), join(root, 'public/_sf_local/prop/link.glb'));
+  await writeFile(join(root, 'public/_sf_local/manifest.json'), `${JSON.stringify(baseManifest, null, 2)}\n`);
+  return root;
+}
+const jarAsset = (extra = {}) => ({ id: 'public:prop/jar.glb', nameKo: '항아리', source: 'public', url: '/_sf_local/prop/jar.glb', ...extra });
+const place = (f, p, s, extra = {}) => f.request(`/projects/${p.id}/placements`, 'POST', { expectedRevision: p.revision, sessionId: s.id, gameRevision: p.gameRevision, sceneNo: 2, zoneId: 'Z2', asset: jarAsset(), position: { x: 150.25, y: 3.1, z: 120.5 }, rotationY: -30, scale: 1.5, groundY: 3.2, reviewer: '검수자', note: '바위 아래 빈 자리', ...extra });
+
+test('regenerate disposition records a generation request and blocks visual and space approval like other issues', async t => {
+  const f = await sceneFixture(t); let p = await captureAndReviewAll(f);
+  assert.equal((await f.objectIssue(p, f.s, { disposition: 'regenerate', sceneNo: 9 })).status, 400);
+  const result = await f.objectIssue(p, f.s, { disposition: 'regenerate', sceneNo: 2, note: '형태가 시대와 맞지 않음. 새로 생성 요청' });
+  assert.equal(result.status, 200); p = result.body;
+  assert.equal(p.objectIssues[0].disposition, 'regenerate'); assert.equal(p.objectIssues[0].sceneNo, 2);
+  assert.equal(p.regenerationRequests.length, 1); assert.equal(p.regenerationRequests[0].id, p.objectIssues[0].id);
+  assert.ok(p.gateStatus.assets.blockers.some(value => value.code === 'object_issues_unresolved'));
+  assert.equal((await f.objectIssue(p, f.s, { disposition: 'regenerate', sceneNo: 2, note: '형태가 시대와 맞지 않음. 새로 생성 요청' })).body.objectIssues.length, 1);
+  assert.equal((await f.objectIssue(p, f.s, { disposition: 'change_requested' })).body.regenerationRequests.length, 1);
+});
+
+test('placements validate public GLB paths, numbers and file identity, and can be withdrawn', async t => {
+  const root = await placementRoot(t);
+  const f = await sceneFixture(t, {}, { root }); const { p, s } = f;
+  for (const asset of [jarAsset({ url: '/naju01/assets/models/a.glb' }), jarAsset({ url: '/_sf_local/AI허브/x.glb' }), jarAsset({ url: '/_sf_local/../manifest.json' }), jarAsset({ url: '/_sf_local/prop/jar.png' }), jarAsset({ source: 'catalog' }), jarAsset({ nameKo: '' })]) assert.equal((await place(f, p, s, { asset })).status, 400, JSON.stringify(asset));
+  assert.equal((await place(f, p, s, { asset: jarAsset({ url: '/_sf_local/prop/none.glb' }) })).status, 422);
+  assert.equal((await place(f, p, s, { asset: jarAsset({ url: '/_sf_local/prop/link.glb' }) })).status, 422);
+  assert.equal((await place(f, p, s, { asset: jarAsset({ sha256: 'f'.repeat(64) }) })).status, 409);
+  for (const extra of [{ position: { x: null, y: 0, z: 0 } }, { position: [1, 2, 3] }, { scale: 0 }, { scale: 99 }, { rotationY: 'x' }, { heightM: -1 }, { sceneNo: 6 }]) assert.equal((await place(f, p, s, extra)).status, 400, JSON.stringify(extra));
+  assert.equal((await place(f, p, s, { gameRevision: 'old-game' })).status, 409);
+  const normal = await f.session(p); await f.event(p, normal);
+  assert.equal((await place(f, p, normal)).status, 422);
+  const created = await place(f, p, s); assert.equal(created.status, 200);
+  const [placement] = created.body.placements;
+  const sha = createHash('sha256').update(await readFile(join(root, 'public/_sf_local/prop/jar.glb'))).digest('hex');
+  assert.equal(placement.status, 'proposed'); assert.equal(placement.asset.sha256, sha); assert.equal(placement.asset.file, 'prop/jar.glb');
+  assert.equal(placement.rotationY, 330); assert.equal(placement.heightM, 3); assert.equal(placement.heightSource, 'glb-bounds'); assert.equal(placement.sceneNo, 2);
+  assert.deepEqual(created.body.currentPlacementIds, [placement.id]); assert.ok(created.body.decisionChecks.assets.includes('placements'));
+  assert.equal((await place(f, p, s)).body.placements.length, 1);
+  assert.equal((await place(f, p, s, { heightM: 0.8, position: { x: 1, y: 2, z: 3 } })).body.placements[1].heightM, 0.8);
+  assert.equal((await f.request(`/projects/${p.id}/placements/${placement.id}/withdraw`, 'POST', { expectedRevision: p.revision, reviewer: '' })).status, 400);
+  const withdrawn = await f.request(`/projects/${p.id}/placements/${placement.id}/withdraw`, 'POST', { expectedRevision: p.revision, reviewer: '검수자' });
+  assert.equal(withdrawn.status, 200); assert.equal(withdrawn.body.placements[0].status, 'withdrawn'); assert.equal(withdrawn.body.currentPlacementIds.length, 1);
+  assert.equal((await f.request(`/projects/${p.id}/placements/${placement.id}/withdraw`, 'POST', { expectedRevision: p.revision, reviewer: '검수자' })).status, 409);
+  assert.equal((await f.request(`/projects/${p.id}/placements/${placement.id}/events`, 'POST', { expectedRevision: p.revision })).status, 404);
+  assert.equal((await f.request(`/projects/${p.id}/sessions/${s.id}/withdraw`, 'POST', { expectedRevision: p.revision })).status, 404);
+});
+
+test('space approval applies current proposals to the manifest after recording approval and keeps a backup', async t => {
+  const root = await placementRoot(t);
+  const f = await sceneFixture(t, {}, { root });
+  let p = (await place(f, f.p, f.s)).body;
+  const placementId = p.placements[0].id;
+  p = await captureAndReviewAll(f, p);
+  assert.equal((await f.decide(p, 'source')).status, 200);
+  const unchecked = await f.decide(p, 'assets'); assert.equal(unchecked.status, 422); assert.ok(unchecked.body.blockers.some(value => value.code === 'placements_check_required' && value.message.includes('1건')));
+  assert.equal((await f.decide(p, 'assets', 'approved', { checks: [...REQUIRED_CHECKS.assets, 'placements'] })).status, 200);
+  assert.equal((await f.decide(p, 'space', 'approved', { checks: [...REQUIRED_CHECKS.space, 'placements'] })).status, 400);
+  const normal = await f.session(p); await f.event(p, normal);
+  const before = await readFile(join(root, 'public/_sf_local/manifest.json'), 'utf8');
+  const approved = await f.decide(p, 'space'); assert.equal(approved.status, 200);
+  const manifest = JSON.parse(await readFile(join(root, 'public/_sf_local/manifest.json'), 'utf8'));
+  assert.equal(manifest.놓기.length, 2); assert.deepEqual(Object.keys(manifest), Object.keys(baseManifest));
+  const entry = manifest.놓기[1];
+  assert.equal(entry.출처, `review:${placementId}`); assert.equal(entry.file, 'prop/jar.glb'); assert.equal(entry.키m, 3); assert.equal(entry.묻힘m, 0.1);
+  assert.deepEqual(entry.자리, [[150.25, 120.5, 330, 1]]); assert.match(entry.메모, /항아리/);
+  const backups = (await readdir(f.dir)).filter(name => name.startsWith('manifest_bak_'));
+  assert.equal(backups.length, 1); assert.equal(await readFile(join(f.dir, backups[0]), 'utf8'), before);
+  const after = approved.body;
+  const decision = after.decisions.find(value => value.gate === 'space');
+  assert.equal(decision.placementApply, 'applied'); assert.deepEqual(decision.placementIds, [placementId]);
+  assert.equal(after.placements[0].status, 'applied'); assert.equal(after.placements[0].manifestEntryId, `review:${placementId}`); assert.ok(after.placements[0].appliedAt);
+  assert.equal(after.history.at(-1).type, 'placements-applied'); assert.equal(after.history.at(-1).backup.split('/').at(-1), backups[0]);
+  assert.equal(after.currentPlacementIds.length, 0);
+  const reopened = (await f.request(`/projects/${p.id}`, 'PATCH', { expectedRevision: p.revision })).body;
+  assert.equal(reopened.placements.length, 1); assert.equal(reopened.placements[0].status, 'applied');
+  assert.equal(JSON.parse(await readFile(join(root, 'public/_sf_local/manifest.json'), 'utf8')).놓기.length, 2);
+});
+
+test('a changed placement file blocks space approval before anything is recorded and old revisions are never applied', async t => {
+  const root = await placementRoot(t);
+  const f = await sceneFixture(t, {}, { root });
+  let p = (await place(f, f.p, f.s)).body;
+  p = await captureAndReviewAll(f, p);
+  await f.decide(p, 'source'); await f.decide(p, 'assets', 'approved', { checks: [...REQUIRED_CHECKS.assets, 'placements'] });
+  const normal = await f.session(p); await f.event(p, normal);
+  await writeFile(join(root, 'public/_sf_local/prop/jar.glb'), glbFixture(3));
+  const blocked = await f.decide(p, 'space'); assert.equal(blocked.status, 422); assert.ok(blocked.body.blockers.some(value => value.code === 'placement_asset_changed'));
+  const current = (await f.request(`/projects/${p.id}`)).body;
+  assert.ok(!current.decisions.some(value => value.gate === 'space')); assert.equal(current.placements[0].status, 'proposed');
+  assert.equal(JSON.parse(await readFile(join(root, 'public/_sf_local/manifest.json'), 'utf8')).놓기.length, 1);
+  const reopened = (await f.request(`/projects/${p.id}`, 'PATCH', { expectedRevision: p.revision })).body;
+  assert.equal(reopened.currentPlacementIds.length, 0); assert.ok(!reopened.decisionChecks.assets.includes('placements'));
+  assert.equal((await f.request(`/projects/${p.id}/placements/${reopened.placements[0].id}/withdraw`, 'POST', { expectedRevision: reopened.revision, reviewer: '검수자' })).status, 409);
+});
+
+// ── AI 배치 초안 가져오기 · 변경안 고치기(규약 §6) ─────────────────────────────
+async function importRoot(t) {
+  const root = await placementRoot(t);
+  await mkdir(join(root, 'naju01/src/plan'), { recursive: true });
+  await writeFile(join(root, 'naju01/src/plan/sitePlan.ts'), await readFile(new URL('../../naju01/src/plan/sitePlan.ts', import.meta.url)));
+  return root;
+}
+const importPlan = (f, p, items, extra = {}) => f.request(`/projects/${p.id}/placements/import`, 'POST', { origin: 'ai-draft', trialId: 'trial-0001', reviewer: 'AI 배치 초안', items, ...extra });
+const draftItem = (extra = {}) => ({ assetId: 'public:prop/jar.glb', source: 'public', position: { x: 45, z: 35 }, rotationY: 0, scale: 1, sceneNo: 5, reqId: 'R-01', reason: '바위 아래 자갈밭 — 추락 흔적 근처에 깨진 항아리', ...extra });
+
+test('ai-draft import validates each item like a placement plus scene/zone bounds and stores the rest as proposals', async t => {
+  const root = await importRoot(t);
+  const f = await fixture(t, { root }); const p = await f.create(); // 진단 세션 없이도 가져온다
+  const items = [
+    draftItem(),
+    draftItem({ assetId: undefined, url: '/_sf_local/prop/jar.glb', position: { x: 20, y: 0.5, z: 35 }, rotationY: -90, scale: 2, sceneNo: 1, zoneId: 'Z1', reqId: 'R-02' }),
+    draftItem({ sceneNo: 2, position: { x: 10, z: 10 }, reqId: 'R-out' }),
+    draftItem({ sceneNo: 1, zoneId: 'Z3', position: { x: 40, z: 15 } }),
+    draftItem({ assetId: undefined, url: '/_sf_local/AI허브/x.glb' }),
+    draftItem({ assetId: undefined, url: '/_sf_local/prop/link.glb' }),
+    draftItem({ assetId: 'catalog:jar_01' }),
+    draftItem({ assetId: undefined, url: '/_sf_local/prop/jar.png' }),
+    draftItem({ scale: 0 }),
+    draftItem({ zoneId: 'Z9' }),
+    draftItem({ sha256: 'f'.repeat(64) }),
+    draftItem({ sceneNo: 0, position: { x: 90, z: 10 } }),
+    'not-an-object',
+  ];
+  const result = await importPlan(f, p, items);
+  assert.equal(result.status, 200, JSON.stringify(result.body));
+  assert.equal(result.body.accepted.length, 2);
+  assert.deepEqual(result.body.rejected.map(value => value.index), [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+  const codes = Object.fromEntries(result.body.rejected.map(value => [value.index, value.code]));
+  assert.equal(codes[2], 'placement_out_of_bounds'); assert.equal(codes[3], 'zone_not_in_scene'); assert.equal(codes[4], 'asset_forbidden');
+  assert.equal(codes[5], 'placement_asset_missing'); assert.equal(codes[6], 'asset_not_placeable'); assert.equal(codes[7], 'invalid_asset_url');
+  assert.equal(codes[8], 'invalid_placement_number'); assert.equal(codes[9], 'unknown_zone'); assert.equal(codes[10], 'placement_asset_changed');
+  assert.equal(codes[11], 'placement_out_of_bounds'); assert.equal(codes[12], 'invalid_item');
+  assert.equal(result.body.rejected[0].reqId, 'R-out'); assert.ok(result.body.rejected.every(value => value.reason));
+  const project = result.body.project;
+  const [snap, given] = project.placements;
+  const sha = createHash('sha256').update(await readFile(join(root, 'public/_sf_local/prop/jar.glb'))).digest('hex');
+  assert.equal(snap.origin, 'ai-draft'); assert.equal(snap.trialId, 'trial-0001'); assert.equal(snap.reqId, 'R-01'); assert.match(snap.reason, /항아리/);
+  assert.equal(snap.status, 'proposed'); assert.equal(snap.groundSnap, true); assert.equal(snap.position.y, null); assert.equal(snap.zoneId, 'Z2'); assert.equal(snap.sessionId, null);
+  assert.equal(snap.asset.sha256, sha); assert.equal(snap.asset.file, 'prop/jar.glb'); assert.equal(snap.heightM, 2);
+  assert.equal(given.groundSnap, false); assert.equal(given.position.y, 0.5); assert.equal(given.rotationY, 270); assert.equal(given.zoneId, 'Z1'); assert.equal(given.heightM, 4);
+  assert.deepEqual(project.currentPlacementIds, result.body.accepted); assert.ok(project.decisionChecks.assets.includes('placements'));
+  assert.equal(project.history.at(-1).type, 'placements-imported'); assert.equal(project.history.at(-1).rejectedCount, 11);
+  // 같은 시행·자리 다시 가져오기 = 중복 → 넣을 것이 없으면 422 + rejected
+  const again = await importPlan(f, project, [draftItem()]);
+  assert.equal(again.status, 422); assert.equal(again.body.error, 'import_all_rejected'); assert.equal(again.body.rejected[0].code, 'placement_duplicate');
+  // 조회 — origin 필터
+  const drafts = await f.request(`/projects/${p.id}/placements?origin=ai-draft`);
+  assert.equal(drafts.status, 200); assert.equal(drafts.body.placements.length, 2); assert.deepEqual(drafts.body.currentPlacementIds, result.body.accepted);
+  assert.equal((await f.request(`/projects/${p.id}/placements?origin=human`)).body.placements.length, 0);
+  assert.equal((await f.request(`/projects/${p.id}/placements?origin=robot`)).status, 400);
+  assert.equal((await f.request(`/projects/${p.id}/placements/import`)).status, 405);
+});
+
+test('ai-draft import rejects bad envelopes, stale revisions and more than 300 items', async t => {
+  const root = await importRoot(t);
+  const f = await fixture(t, { root }); const p = await f.create();
+  assert.equal((await importPlan(f, p, [draftItem()], { origin: 'human' })).status, 400);
+  assert.equal((await importPlan(f, p, [draftItem()], { trialId: '' })).status, 400);
+  assert.equal((await importPlan(f, p, [draftItem()], { reviewer: '' })).status, 400);
+  assert.equal((await importPlan(f, p, [])).status, 400);
+  assert.equal((await importPlan(f, p, 'items')).status, 400);
+  const tooMany = await importPlan(f, p, Array.from({ length: 301 }, (_, index) => draftItem({ reqId: `R-${index}` })));
+  assert.equal(tooMany.status, 413); assert.equal(tooMany.body.error, 'import_too_many');
+  assert.equal((await importPlan(f, p, [draftItem()], { expectedRevision: p.revision + 1 })).status, 409);
+  assert.equal((await importPlan(f, p, [draftItem()], { expectedRevision: p.revision })).status, 200);
+  const unlinked = await f.create({ runtimeId: null, runtimeUse: null });
+  assert.equal((await importPlan(f, unlinked, [draftItem()])).status, 422);
+  assert.equal((await f.request(`/projects/${p.id}/decisions/import`, 'POST', { expectedRevision: p.revision })).status, 404);
+  // 도면이 없으면 경계를 확인할 수 없어 가져오지 않는다
+  await rm(join(root, 'naju01/src/plan/sitePlan.ts'));
+  const noPlan = await importPlan(f, p, [draftItem({ reqId: 'R-x' })]);
+  assert.equal(noPlan.status, 422); assert.equal(noPlan.body.error, 'site_plan_unavailable');
+});
+
+test('committing an edited proposal records a new placement and withdraws the old one in the same write', async t => {
+  const root = await importRoot(t);
+  const f = await sceneFixture(t, {}, { root });
+  const imported = await importPlan(f, f.p, [draftItem()]); assert.equal(imported.status, 200);
+  const oldId = imported.body.accepted[0]; const p = imported.body.project;
+  assert.equal((await place(f, p, f.s, { replaces: '00000000-0000-0000-0000-000000000000' })).status, 404);
+  const edited = await place(f, p, f.s, { replaces: oldId, sceneNo: 5, position: { x: 46, y: 1.2, z: 36 }, rotationY: 15, scale: 1, groundY: 1.1 });
+  assert.equal(edited.status, 200, JSON.stringify(edited.body));
+  const old = edited.body.placements.find(value => value.id === oldId);
+  const next = edited.body.placements.find(value => value.id !== oldId);
+  assert.equal(old.status, 'withdrawn'); assert.equal(old.replacedBy, next.id); assert.equal(old.withdrawnBy, '검수자'); assert.ok(old.withdrawnAt);
+  assert.equal(next.status, 'proposed'); assert.equal(next.replaces, oldId); assert.equal(next.origin, 'human'); assert.equal(next.editedFrom, 'ai-draft');
+  assert.equal(next.groundSnap, false); assert.equal(next.position.y, 1.2); assert.equal(next.reqId, 'R-01'); assert.equal(next.trialId, 'trial-0001');
+  assert.deepEqual(edited.body.currentPlacementIds, [next.id]);
+  // 같은 요청 재전송은 같은 결과(새로 쌓지 않음), 이미 바뀐 변경안을 다시 고치면 409
+  const retry = await place(f, p, f.s, { replaces: oldId, sceneNo: 5, position: { x: 46, y: 1.2, z: 36 }, rotationY: 15, scale: 1, groundY: 1.1 });
+  assert.equal(retry.status, 200); assert.equal(retry.body.placements.length, 2);
+  assert.equal((await place(f, p, f.s, { replaces: oldId, position: { x: 47, y: 1.2, z: 36 } })).status, 409);
+  // 사람이 고친 것도 다시 고칠 수 있다
+  const twice = await place(f, p, f.s, { replaces: next.id, position: { x: 47, y: 1.3, z: 36 } });
+  assert.equal(twice.status, 200); assert.equal(twice.body.placements.find(value => value.id === next.id).status, 'withdrawn'); assert.equal(twice.body.currentPlacementIds.length, 1);
+  const human = await f.request(`/projects/${p.id}/placements?origin=human&current=1`);
+  assert.equal(human.body.placements.length, 1); assert.equal(human.body.placements[0].replaces, next.id);
 });

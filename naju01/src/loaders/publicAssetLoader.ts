@@ -15,6 +15,7 @@ import { flattenGltf, type Bundle } from "./publicAssetGeometry";
 import {
   animeCoverPath,
   animePath,
+  appendTrialPlaces,
   entryFiles,
   IS_ANIME_VARIANT,
   IS_PUBLIC_ASSETS_ENABLED,
@@ -42,6 +43,13 @@ export interface CoverItem extends CoverEntry {
 }
 export interface PlaceItem extends PlaceEntry {
   bundles: Bundle[];
+  /** 원경판(10/20) — 있으면 22 m 밖은 이것으로(에이전트 시험 나무 등) */
+  farBundle?: Bundle | null;
+  /** 씬별 불러오기(10/20) — 에이전트 시험 놓기 중 「씬」이 적힌 것은 그 씬(과 다음 씬)이 될 때 받는다. publicAssets.tsx ③-0 */
+  lazy?: boolean;
+  loading?: boolean;
+  /** manifest 「놓기」 안 원래 위치(애니판 거르기 전) — 편집 모드가 이 항목을 고칠 때 서버에 넘긴다 */
+  manifestIndex: number;
 }
 export interface PublicAssetTable {
   swaps: SwapItem[];
@@ -59,6 +67,41 @@ type MaterialWithMaps = THREE.Material & {
   vertexColors: boolean;
 };
 
+/** 첫 읽기(loadPublicAssetTable)가 만든 GLB 읽기 함수 — 이미 읽은 파일은 다시 받지 않는다 */
+let placeReader: ((file: string) => Promise<Bundle | null>) | null = null;
+
+/** 씬별 불러오기(10/20) — 늦게 받는 놓기 항목의 GLB(근경·원경)를 지금 받는다. 첫 읽기 전이면 null */
+export async function readPlaceBundles(item: PlaceItem): Promise<{ bundles: Bundle[]; farBundle: Bundle | null } | null> {
+  const read = placeReader;
+  if (!read) return null;
+  const bundles = (await Promise.all(entryFiles(item).map((f) => read(f)))).filter((b): b is Bundle => !!b);
+  return { bundles, farBundle: item.원경file ? await read(item.원경file) : null };
+}
+
+/**
+ * 「놓기」만 다시 읽는다 (10/15 — 5174 편집 모드 「라이브러리 배치」가 manifest 에 저장한 뒤).
+ *   manifest 를 캐시 없이 다시 받고, 놓기 항목의 GLB 는 첫 읽기의 캐시를 그대로 쓴다(새 파일만 받는다).
+ *   첫 읽기가 아직이면 null(그때는 첫 읽기가 새 manifest 를 읽는다).
+ */
+export async function loadPublicPlaces(): Promise<PlaceItem[] | null> {
+  const read = placeReader;
+  if (!IS_PUBLIC_ASSETS_ENABLED || !read) return null;
+  const r = await fetch(`${PUBLIC_ASSET_FOLDER}manifest.json`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`공개 에셋 목록 읽기 실패 (${r.status})`);
+  const m = (await r.json()) as PublicAssetManifest;
+  await appendTrialPlaces(m);
+  const entries = (m.놓기 || [])
+    .map((entry, manifestIndex) => ({ entry, manifestIndex }))
+    .filter(({ entry }) => IS_ANIME_VARIANT || !entry.애니판);
+  return Promise.all(
+    entries.map(async ({ entry, manifestIndex }) => ({
+      ...entry,
+      manifestIndex: entry.에이전트 ? -1 : manifestIndex,
+      bundles: (await Promise.all(entryFiles(entry).map((f) => read(f)))).filter((b): b is Bundle => !!b),
+    })),
+  );
+}
+
 /**
  * manifest 와 모든 GLB 를 읽는다. 켜져 있지 않거나 manifest 가 없으면 null.
  * 진행은 publicAssetStatus 에, 「어느 무리를 / 몇 m 이상을」 교체본이 그리는지는 publicAssetRegistry 에 알린다.
@@ -74,11 +117,13 @@ export async function loadPublicAssetTable(isAlive: () => boolean): Promise<Publ
     reportAssetFailure("manifest.json", error);
     return null;
   }
-  // 「애니판」 표시가 붙은 놓기(메타버스데이터랩 소품 등)는 변환판 화면에만
+  await appendTrialPlaces(m); // &trial= — 에이전트 시험 배치(manifest 파일은 그대로)
+  // 「애니판」 표시가 붙은 놓기(메타버스데이터랩 소품 등)는 변환판 화면에만 — 거르기 전 위치를 기억해 둔다(편집 모드)
+  const placeIndex = new Map((m.놓기 || []).filter((entry) => !entry.에이전트).map((entry, index) => [entry, index])); // 시험 배치는 manifest 밖(-1)
   if (!IS_ANIME_VARIANT) m.놓기 = (m.놓기 || []).filter((e) => !e.애니판);
   const files = new Set<string>();
-  for (const entry of [...(m.바꿔치기 || []), ...(m.덮기 || []), ...(m.놓기 || [])]) {
-    for (const file of [...entryFiles(entry), ...((entry as SwapEntry).원경files || [])]) if (file) files.add(file);
+  for (const entry of [...(m.바꿔치기 || []), ...(m.덮기 || []), ...(m.놓기 || []).filter((e) => !(e.에이전트 && e.씬?.length))]) {
+    for (const file of [...entryFiles(entry), ...((entry as SwapEntry).원경files || []), ...((entry as PlaceEntry).원경file ? [(entry as PlaceEntry).원경file as string] : [])]) if (file) files.add(file);
   }
   publicAssetStatus.phase = "loading";
   publicAssetStatus.total = files.size;
@@ -127,6 +172,8 @@ export async function loadPublicAssetTable(isAlive: () => boolean): Promise<Publ
               }
             loadedFiles.add(file);
             publicAssetStatus.loaded = loadedFiles.size;
+            // 씬별로 늦게 받은 파일(10/20)은 처음 목록에 없다 — 전체 수도 같이 늘려 「읽음 = 전체」(검수 준비 판정)를 깨지 않게
+            if (publicAssetStatus.loaded > publicAssetStatus.total) publicAssetStatus.total = publicAssetStatus.loaded;
             return bundle;
           })
           .catch((e: unknown) => {
@@ -137,6 +184,8 @@ export async function loadPublicAssetTable(isAlive: () => boolean): Promise<Publ
       );
     return cache.get(key)!;
   };
+  // 다시 읽기(loadPublicPlaces)가 같은 캐시·색맞춤·툰질감을 쓰게 남겨 둔다
+  placeReader = (file) => readBundle(file);
   const readEntryBundles = async (entry: { files?: string[]; file?: string }, forCover = false): Promise<Bundle[]> =>
     (await Promise.all(entryFiles(entry).map((f) => readBundle(f, forCover)))).filter((b): b is Bundle => !!b);
 
@@ -150,7 +199,10 @@ export async function loadPublicAssetTable(isAlive: () => boolean): Promise<Publ
   for (const entry of m.덮기 || []) covers.push({ ...entry, bundles: await readEntryBundles(entry, true) });
   // 「놓기」(10/14) — 원본 무리 없이 새 자리에 소품을 놓는다(장식 전용). [{ file, 키m, 자리:[[X m, Z m, 돌림°, 키배]] }]
   const places: PlaceItem[] = [];
-  for (const entry of m.놓기 || []) places.push({ ...entry, bundles: await readEntryBundles(entry) });
+  for (const entry of m.놓기 || []) {
+    if (entry.에이전트 && entry.씬?.length) { places.push({ ...entry, manifestIndex: -1, bundles: [], farBundle: null, lazy: true }); continue; }
+    places.push({ ...entry, manifestIndex: placeIndex.get(entry) ?? -1, bundles: await readEntryBundles(entry), farBundle: entry.원경file ? await readBundle(entry.원경file) : null });
+  }
 
   // 게임 쪽에 「어느 무리를 / 몇 m 이상을」 교체본이 그린다고 알린다 → 원본은 그 자리를 아예 안 그린다(면수·집기에서 빠짐)
   const hidden = new Set<string>();

@@ -1,7 +1,10 @@
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { shortHash } from './api.js';
 
-export default function GameReviewFrame({ launch, runtime, projectId, events = [], stale, onClose, onForceClose, onReturn, onObjectSelected, controlRef, visual = false }) {
+// 검수 배치 편집(10/15 규약 §1·§2) — 요청 응답이 아닌 게임 쪽 알림
+const GAME_NOTICES = new Set(['kgeseo-review-point-selected', 'kgeseo-review-scene-changed', 'kgeseo-review-place-changed', 'kgeseo-review-place-committed']);
+
+export default function GameReviewFrame({ launch, runtime, projectId, events = [], stale, onClose, onForceClose, onReturn, onObjectSelected, onGameMessage, controlRef, visual = false }) {
   const frame = useRef(null);
   const container = useRef(null);
   const [error, setError] = useState('');
@@ -32,6 +35,9 @@ export default function GameReviewFrame({ launch, runtime, projectId, events = [
     capture: viewId => request('kgeseo-review-capture', 'kgeseo-review-captured', { viewId }),
     view: viewId => request('kgeseo-review-view', 'kgeseo-review-view-changed', { viewId }),
     inspect: enabled => request('kgeseo-review-inspection', 'kgeseo-review-inspection-changed', { enabled }),
+    scene: scene => request('kgeseo-review-scene', 'kgeseo-review-scene-changed', { scene }),
+    // 답장을 기다리지 않는 알림(배치 시작·조정·취소·확정, 변경안 목록). 결과는 onGameMessage 로 온다.
+    post: (type, detail = {}) => frame.current?.contentWindow?.postMessage({ type, projectId, sessionId: launch.session.id, requestId: crypto.randomUUID(), ...detail }, location.origin),
     flush: () => new Promise((resolve, reject) => {
       setClosing(true); setFlushFailed(false);
       const requestId = crypto.randomUUID();
@@ -65,6 +71,10 @@ export default function GameReviewFrame({ launch, runtime, projectId, events = [
           message?.type === 'kgeseo-review-object-selected' && message.projectId === projectId && message.sessionId === launch.session.id) {
         onObjectSelected?.(message.object); return;
       }
+      if (visual && event.origin === location.origin && event.source === frame.current?.contentWindow &&
+          GAME_NOTICES.has(message?.type) && message.projectId === projectId && message.sessionId === launch.session.id) {
+        onGameMessage?.(message); return;
+      }
       if (event.origin !== location.origin || event.source !== frame.current?.contentWindow ||
           message?.type !== 'kgeseo-review-return' || message.projectId !== projectId ||
           message.sessionId !== launch.session.id) return;
@@ -73,7 +83,7 @@ export default function GameReviewFrame({ launch, runtime, projectId, events = [
     };
     addEventListener('message', receive);
     return () => removeEventListener('message', receive);
-  }, [projectId, launch.session.id, onReturn, onObjectSelected, visual]);
+  }, [projectId, launch.session.id, onReturn, onObjectSelected, onGameMessage, visual]);
 
   const fullscreen = async () => {
     try {
@@ -93,7 +103,7 @@ export default function GameReviewFrame({ launch, runtime, projectId, events = [
     </div>
     <iframe key={launch.session.id} ref={frame} title={`${runtime.title} 실제 게임 공간 검수`} src={launch.url} allow="fullscreen" allowFullScreen referrerPolicy="no-referrer" />
     <div className={`game-connection ${gameError || stale ? 'failed' : ready ? 'ready' : ''}`} role="status"><span className="connection-dot" /><span>{stale ? '연결한 자료의 버전이 바뀌어 기록을 중단했습니다. 실행을 종료하고 재검수 회차를 열어주세요.' : gameError ? '게임 오류가 기록되었습니다. 아래 관찰 기록을 확인해주세요.' : ready ? '연결한 구성의 게임 표시가 확인되었습니다. 저장된 관찰은 아래에서 확인할 수 있습니다.' : '게임과 연결 에셋을 불러오는 중입니다. 준비 상태는 게임 안 검수 패널에서 확인할 수 있습니다.'}</span></div>
-    <p className="game-help">{visual ? '드래그로 회전 · 오른쪽 드래그로 이동 · 휠로 확대 · 물체를 짧게 클릭해 이름과 수정 요청 확인. 둘러보기는 외형 검수용이며 동선·충돌 통과로 기록되지 않습니다.' : '게임 화면 클릭 → T 탐색·진입 카메라 연출 시작 · WASD 이동 · 마우스 시점 · Esc 마우스 해제. 검수 패널의 ‘검수 화면으로’로 판정을 이어갈 수 있습니다.'}</p>
+    <p className="game-help">{visual ? '드래그 회전 · 오른쪽 드래그 이동 · 휠 앞뒤 이동(커서 쪽) · WASD·←→ 이동 · Q/E·↑↓ 높이 · Shift 빠르게 · 물체를 짧게 클릭해 이름과 수정 요청 확인 · 땅·길을 짧게 클릭(물체 위는 Alt+클릭)하면 그 자리를 골라 라이브러리 에셋을 놓을 수 있음. 둘러보기는 외형 검수용이며 동선·충돌 통과로 기록되지 않습니다.' : '게임 화면 클릭 → T 탐색·진입 카메라 연출 시작 · WASD 이동 · 마우스 시점 · Esc 마우스 해제. 검수 패널의 ‘검수 화면으로’로 판정을 이어갈 수 있습니다.'}</p>
     {error && <p className="warning-text" role="alert">{error}</p>}
     {flushFailed && <div className="button-row"><button className="secondary" onClick={onClose}>저장 후 종료 재시도</button><button className="danger" onClick={() => { if (confirm('서버에 도착하지 않은 게임 관찰은 유실될 수 있습니다. 이미 저장된 기록은 남습니다. 저장을 기다리지 않고 실행을 종료할까요?')) onForceClose(); }}>저장하지 못한 실행 강제 종료</button></div>}
   </div>;
