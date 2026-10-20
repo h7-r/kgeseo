@@ -78,3 +78,6 @@ tools/regression/.cache/
 
 # 로컬 검수 기록·실험 입력·라이브러리 검색 캐시 (외부 공개하지 않음)
 .local/
+
+# 공개 3D 경량본 묶음 중 작업용 임시 폴더(게임이 안 씀)
+public/_sf_local/tmp/

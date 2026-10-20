@@ -1,0 +1,30 @@
+<!doctype html><html><head><meta charset="utf-8"><title>KHS 검수판</title>
+<style>body{zoom:.62;margin:0;background:#e9e9e6;font:13px sans-serif}#g{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;padding:4px}
+.c{background:#fff;position:relative;aspect-ratio:1}.c canvas{width:100%;height:100%;display:block}.l{position:absolute;left:4px;bottom:3px;right:4px;color:#222;font-size:12px}</style>
+<script type="importmap">{"imports":{"three":"/@id/three","three/addons/":"/@id/three/examples/jsm/"}}</script></head>
+<body><div id="g"></div><script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
+import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
+const q=new URLSearchParams(location.search), grp=q.get('g')||'KHS1014_1';
+const man=await (await fetch('./manifest.json')).json(); const files=man['검수'][grp]||[];
+const L=new GLTFLoader(); L.setMeshoptDecoder(MeshoptDecoder);
+const R=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); R.setSize(320,320);
+L.setKTX2Loader(new KTX2Loader().setTranscoderPath('/basis/').detectSupport(R));
+for(const [i,f] of files.entries()){
+  const c=document.createElement('div'); c.className='c'; const cv=document.createElement('canvas'); cv.width=320; cv.height=320; c.appendChild(cv);
+  const lab=document.createElement('div'); lab.className='l'; c.appendChild(lab); document.getElementById('g').appendChild(c);
+  try{
+    const g=(await L.loadAsync('./'+f)).scene; const s=new THREE.Scene(); s.background=new THREE.Color(0xf4f4f1);
+    s.add(new THREE.HemisphereLight(0xffffff,0x887766,2.2)); const d=new THREE.DirectionalLight(0xffffff,1.6); d.position.set(3,5,4); s.add(d);
+    let tris=0; g.traverse(o=>{if(o.isMesh){const n=o.geometry.index?o.geometry.index.count:o.geometry.attributes.position.count; tris+=n/3}});
+    const b=new THREE.Box3().setFromObject(g), sz=b.getSize(new THREE.Vector3()), ce=b.getCenter(new THREE.Vector3());
+    g.position.sub(ce); const k=1/Math.max(sz.x,sz.y,sz.z); g.scale.setScalar(k); g.position.multiplyScalar(k); s.add(g);
+    const cam=new THREE.PerspectiveCamera(30,1,0.01,100); cam.position.set(1.5,1.1,2.1); cam.lookAt(0,0,0);
+    R.render(s,cam); cv.getContext('2d').drawImage(R.domElement,0,0);
+    lab.textContent=(i+1)+'. '+f.replace('khs/','').replace('.glb','')+' · '+Math.round(tris)+'면 · '+sz.x.toFixed(1)+'×'+sz.y.toFixed(1)+'×'+sz.z.toFixed(1);
+  }catch(e){lab.textContent=(i+1)+'. 실패 '+f}
+}
+document.title='done';
+</script></body></html>
