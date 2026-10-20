@@ -56,6 +56,7 @@ import { toGroundShading, useNajuControls } from "./useNajuControls";
 import { useNajuDevHook, useViewpointKeys } from "./useNajuDevTools";
 import { usePathFallback, usePathShapes, useRoadsideSpots } from "./usePathLayers";
 import { usePlayerMovement } from "./usePlayerMovement";
+import { IS_MANGA_STYLE } from "../world/mangaStyle";
 import { useRendererSetup, useSceneFrame, type NajuSceneReport } from "./useSceneFrame";
 import { useSceneModes } from "./useSceneModes";
 import { usePrototypes, useStoryModels, useStoryProps } from "./useStoryProps";
@@ -124,7 +125,8 @@ export default function NajuScene({
   const shading = toGroundShading(controls.groundShading);
   const outlineValues = pickOutlineValues(controls);
   // screenspace 를 켜야 thickness 가 월드 단위가 된다.
-  const outline = outlineValues.outline ? (
+  // ?만화 는 화면 전체에 선을 그리므로 껍데기 외곽선은 끈다(두 겹 방지)
+  const outline = outlineValues.outline && !IS_MANGA_STYLE ? (
     <Outlines thickness={controls.outlineWorldWidth} color={outlineValues.outlineColor} screenspace />
   ) : null;
   const shade = (color: string) => scaleColor(color, controls.brightness);

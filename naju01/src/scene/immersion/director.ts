@@ -257,11 +257,24 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
     Math.hypot(Math.max(r[0] - xm, 0, xm - r[2]), Math.max(r[1] - zm, 0, zm - r[3]));
   let rainTarget = 0;
   let rainRect: [number, number, number, number] | null = null;
-  const candidates: [string | null, number][] = stage.eventRain
-    ? [[stage.eventRain.zone, stage.eventRain.strength]]
-    : Object.entries(cueTable.구역 ?? {})
-        .filter(([, v]) => v?.날씨 === "비")
-        .map(([c, v]) => [c, v?.비세기 ?? 0.7]);
+  // (10/20 미르: 「씬1 은 비가 안 내리는 설정인데 비가 온다 — 두 번째 구역에서만 내린다」)
+  //   ① 사건 비(구렁이 등)도 날씨가 「비」인 구역에서 난 것만 내린다 — 맑은 구역의 사건은 비 없이(소리·번개는 그대로)
+  //   ② 맑은 구역 안에 서 있으면 옆 구역 비가 6 m 에 걸쳐 새어 들어오지 않게 0 — Z1 동쪽 끝(x 26~28 m)이 Z2 의 잦아드는 띠에 걸렸다
+  const rainZoneCodes = new Set(
+    Object.entries(cueTable.구역 ?? {})
+      .filter(([, v]) => v?.날씨 === "비")
+      .map(([c]) => c),
+  );
+  const isInDryZone = ZONES.some(
+    (z) => !rainZoneCodes.has(z.code) && xm >= z.x[0] && xm <= z.x[1] && zm >= z.z[0] && zm <= z.z[1],
+  );
+  const candidates: [string | null, number][] = isInDryZone
+    ? []
+    : stage.eventRain && stage.eventRain.zone !== null && rainZoneCodes.has(stage.eventRain.zone)
+      ? [[stage.eventRain.zone, stage.eventRain.strength]]
+      : Object.entries(cueTable.구역 ?? {})
+          .filter(([, v]) => v?.날씨 === "비")
+          .map(([c, v]) => [c, v?.비세기 ?? 0.7]);
   for (const [c, strength] of candidates) {
     const r = zoneRect(c);
     if (!r) continue;

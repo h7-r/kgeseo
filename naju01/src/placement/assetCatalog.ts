@@ -237,6 +237,8 @@ export const ASSET_CATALOG: AssetDefinition[] = [
     category: "씬 1",
     defaultSize: 0.92,
     defaultColor: "#9A8757",
+    // 살이 납작한 띠라 양면(10/20 코드 생성 통발)
+    doubleSided: true,
     prototype: () => buildFishTrapPrototypes(),
   },
   // 천(회색)과 기둥(나무색)이 구워져 있어 색을 주지 않는다

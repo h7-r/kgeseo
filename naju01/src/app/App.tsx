@@ -29,6 +29,7 @@ import Dashboard from "./Dashboard";
 import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
 import LoadingCover, { type LoadingProgress } from "./LoadingCover";
 import { prefetchNajuAssets } from "./prefetch";
+import { IS_MANGA_STYLE, MangaEffect } from "../world/mangaStyle";
 import {
   IS_ARRIVING_FROM_HUB,
   IS_BLOOM_DISABLED,
@@ -221,6 +222,8 @@ export default function App() {
             enableNormalPass={false}
             frameBufferType={USE_HALF_FLOAT_BUFFER ? THREE.HalfFloatType : THREE.UnsignedByteType}
           >
+            {/* ?만화 — 만화 v3: 깊이 선 + 색 보정(world/mangaStyle). 다른 효과보다 먼저 */}
+            {IS_MANGA_STYLE && <MangaEffect />}
             {/* ACES 는 본편처럼 기본 끔 — 화풍 선택지(?tm=on) */}
             {IS_TONE_MAPPING_ENABLED && <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />}
             {!IS_BLOOM_DISABLED && <Bloom intensity={0.35} luminanceThreshold={0.9} mipmapBlur />}
