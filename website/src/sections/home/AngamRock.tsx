@@ -3,11 +3,11 @@ import type { CSSProperties } from "react";
 import lockIcon from "@/assets/images/imgLock.svg";
 import playIcon from "@/assets/images/imgPlay.svg";
 import { usePinnedReveal } from "@/hooks/motion";
+import { SCRIM_ATTR } from "@/lib/layout";
 import { FONT, gradientText, place } from "@/lib/style";
 import { ROUTES, START_GAME, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
 import { COLOR, GRADIENT, surfaceFillStyle } from "@/styles/tokens";
-import SceneSlot from "@/three/SceneSlot";
 
 import CircleVideo from "./CircleVideo";
 import { ANGAM_PIN_LENGTH } from "./homeLayout";
@@ -29,7 +29,7 @@ const MISSION_SPECS: readonly MissionSpec[] = [
   { label: "플레이 인원", amount: "1", unit: "명", width: 197 },
 ];
 
-/** SECRET OF ANGAM — 왼쪽은 겹겹의 링에 담긴 사건 필름, 오른쪽은 미션 설명. 가운데 온 뒤 잠깐 멈춘다. */
+/** SECRET OF ANGAM — 왼쪽은 링에 담긴 사건 필름, 오른쪽은 미션 설명. 가운데 온 뒤 잠깐 멈춘다. 뒤로는 홈 배경 장면이 앙암바위 앞에 닿아 있다. */
 export default function AngamRock() {
   const navigate = useSiteNavigate();
   // 멈춰 있는 동안 오른쪽 글 덩이(.u-pin-reveal)들이 차례로 드러난다.
@@ -49,13 +49,9 @@ export default function AngamRock() {
         }}
         {...sectionAnchor("angam")}
       >
-        {/* 링 뒤에 깔리는 입체 궤도. 링보다 넓게 잡아 사진 바깥까지 퍼지게 한다. */}
-        <div style={{ position: "absolute", inset: 0 }}>
-          <SceneSlot scene="orbit" style={{ inset: "-140px", zIndex: 0 }} />
-        </div>
-
-        {/* 링 테두리는 사진과 따로 그린다. 묶여 있으면 사진과 링이 다른 때에 나타날 수 없다. */}
-        <div style={{ ...ringSlotStyle, position: "relative", zIndex: 1 }}>
+        {/* 링 테두리는 사진과 따로 그린다. 묶여 있으면 사진과 링이 다른 때에 나타날 수 없다.
+            data-seal-anchor — 배경 장면의 봉인 조각이 이 원 둘레에 맞물린다(three/river/homeScroll). */}
+        <div data-seal-anchor="" style={{ ...ringSlotStyle, position: "relative", zIndex: 1 }}>
           <div style={photoFrameStyle}>
             {/* 포스터는 영상의 첫 장면이다. 다른 사진을 두면 영상으로 바뀔 때 화면이 튄다. */}
             <CircleVideo src="/case-film-long.mp4" poster="/case-film-poster.webp" style={circleVideoStyle} />
@@ -113,6 +109,7 @@ export default function AngamRock() {
 
       <div
         ref={revealRef}
+        {...SCRIM_ATTR}
         className="u-pin"
         data-pin-group="angam-rock"
         style={{ ...place(1040, 6490, 720), display: "flex", flexDirection: "column", gap: "40px" }}

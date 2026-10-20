@@ -20,12 +20,11 @@ import {
   SupportPage,
   TermsPage,
 } from "@/app/pageRegistry";
-import { useHeroCovering } from "@/app/siteState";
-import { useIsScrolling, useReadProgress } from "@/hooks/motion";
+import { useReadProgress } from "@/hooks/motion";
 import GameTransition from "@/layout/GameTransition";
 import HeaderLayer from "@/layout/HeaderLayer";
+import SiteBackdrop from "@/layout/SiteBackdrop";
 import VideoModal from "@/layout/videoPlayer/VideoModal";
-import { BACKDROP_ORIGIN } from "@/lib/layout";
 import { dispatchPageChange, scrollToTopSilently } from "@/lib/pageEvents";
 import { ROUTES, launchGame, pageTitle } from "@/navigation/routes";
 import ErrorPage from "@/pages/ErrorPage";
@@ -33,7 +32,6 @@ import HomePage from "@/pages/HomePage";
 import SocialCallbackPage from "@/pages/SocialCallbackPage";
 import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 import { getSessionUser, useSessionUser } from "@/services/session";
-import SceneSlot from "@/three/SceneSlot";
 
 export default function App() {
   return (
@@ -102,42 +100,6 @@ function PasswordResetRoute({ mode }: { mode: "forgotPassword" | "verifyCode" | 
 function RequireSession({ children }: { children: ReactNode }) {
   const user = useSessionUser();
   return user ? children : <ErrorPage kind="403" />;
-}
-
-const BACKDROP_SHADE =
-  `radial-gradient(150% 112% at ${Math.round(BACKDROP_ORIGIN.x * 100)}% ${Math.round(BACKDROP_ORIGIN.y * 100)}%,` +
-  " rgba(1,4,10,0) 0%, rgba(1,4,10,0.05) 34%, rgba(1,4,10,0.6) 70%, rgba(1,4,10,1) 100%)";
-
-/**
- * 스크롤하는 동안에만 보이는 3D 공간. 멈추면 사라지고 렌더도 멈춘다.
- * 소실점에서 멀어질수록 바탕색 덮개로 지워 본문 자리를 잔잔하게 둔다.
- */
-function SiteBackdrop() {
-  const isScrolling = useIsScrolling(900);
-  const heroCovering = useHeroCovering();
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("is-scrolling", isScrolling);
-  }, [isScrolling]);
-
-  return (
-    <div
-      aria-hidden="true"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 0,
-        pointerEvents: "none",
-        opacity: isScrolling ? 1 : 0,
-        // 나타날 땐 빠르게, 사라질 땐 천천히.
-        transition: isScrolling ? "opacity .22s ease-out" : "opacity .7s ease-in",
-      }}
-    >
-      <SceneSlot scene="deepSpace" deferred active={isScrolling && !heroCovering} />
-      {/* mask-image 는 WebGL 층마다 렌더 패스를 늘린다. 뒤가 단색이라 바탕색 덮개로 결과가 같다. */}
-      <div style={{ position: "absolute", inset: 0, background: BACKDROP_SHADE }} />
-    </div>
-  );
 }
 
 function ReadProgressBar() {

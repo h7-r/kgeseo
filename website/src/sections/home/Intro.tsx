@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 
+import { SCRIM_ATTR } from "@/lib/layout";
 import { FONT, gradientText, placeCentered } from "@/lib/style";
 import { ROUTES, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
@@ -25,6 +26,7 @@ export default function Intro() {
     // 배지도 덩이 안에 둔다. 따로 띄우면 덩이 높이가 바뀔 때 배지만 남아 제목과 겹친다.
     <div
       style={{ ...placeCentered(INTRO_LEFT, INTRO_CENTER_Y, INTRO_WIDTH), ...columnStyle }}
+      {...SCRIM_ATTR}
       {...sectionAnchor("intro")}
     >
       <div style={badgeStyle}>

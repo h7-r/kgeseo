@@ -56,6 +56,144 @@
   pointer-events: none;
 }
 
+/* 히어로 예고편 → 끝 화면. 예고편 동안 글은 DOM 에 있되 보이지 않고(단추는 눌리지 않는다),
+   끝나면 로고만 크게 끊기고 찢기며 떠오르고, 카메라가 뒤로 빠지듯 제자리 크기로 줄어들면 설명·단추가 아래에서 따라온다.
+   크기는 scale 속성으로 따로 움직인다 — transform 은 찢김 연출이 쓴다. 로고만 흔드는 까닭: 바깥 칸의 transform 은 마우스 시차가 쓴다. */
+.hero[data-phase="trailer"] .hero__logo,
+.hero[data-phase="trailer"] .hero__lead,
+.hero[data-phase="trailer"] .hero__play,
+.hero[data-phase="trailer"] .hero__crosshair {
+  opacity: 0;
+}
+.hero[data-phase="trailer"] .hero__play {
+  pointer-events: none;
+}
+.hero[data-phase="end"] .hero__logo {
+  animation:
+    hero-logo-glitch 1.15s steps(1, end) both,
+    hero-logo-pullback 1.7s 1.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hero[data-phase="end"] .hero__lead {
+  animation: hero-rise-in 0.9s 2.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hero[data-phase="end"] .hero__play {
+  animation: hero-rise-in 0.9s 2.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hero[data-phase="end"] .hero__crosshair {
+  animation: hero-fade-in 1s 2.6s ease-out both;
+}
+.hero__replay {
+  opacity: 0.72;
+  transition:
+    opacity 0.2s ease,
+    border-color 0.2s ease;
+  animation: hero-fade-in 0.8s 3.2s ease-out both;
+}
+.hero__replay:hover,
+.hero__replay:focus-visible {
+  opacity: 1;
+  border-color: rgba(159, 178, 234, 0.8);
+}
+.hero[data-still] .hero__logo,
+.hero[data-still] .hero__lead,
+.hero[data-still] .hero__play,
+.hero[data-still] .hero__crosshair,
+.hero[data-still] .hero__replay {
+  animation: none;
+}
+
+/* 붉은·푸른 그림자로 색을 가르고, 띠만 남기고 잘라 옆으로 밀었다 놓기를 끊어 가며 되풀이한다 */
+@keyframes hero-logo-glitch {
+  0% {
+    opacity: 0;
+    clip-path: inset(0 0 100% 0);
+  }
+  6% {
+    opacity: 1;
+    clip-path: inset(38% 0 44% 0);
+    transform: translateX(-28px) skewX(-12deg);
+    filter: drop-shadow(9px 0 rgba(255, 46, 99, 0.85)) drop-shadow(-9px 0 rgba(159, 178, 234, 0.95));
+  }
+  10% {
+    opacity: 0;
+  }
+  16% {
+    opacity: 1;
+    clip-path: inset(8% 0 60% 0);
+    transform: translateX(22px);
+    filter: drop-shadow(-12px 0 rgba(255, 46, 99, 0.8)) drop-shadow(12px 0 rgba(111, 134, 191, 0.95));
+  }
+  22% {
+    clip-path: inset(55% 0 12% 0);
+    transform: translateX(-14px) scaleY(1.06);
+  }
+  27% {
+    opacity: 0.2;
+    clip-path: inset(0);
+  }
+  34% {
+    opacity: 1;
+    transform: translateX(10px) skewX(8deg);
+    filter: drop-shadow(6px 0 rgba(255, 46, 99, 0.7)) drop-shadow(-6px 0 rgba(159, 178, 234, 0.9)) brightness(1.6);
+  }
+  40% {
+    clip-path: inset(20% 0 30% 0);
+    transform: translateX(-6px);
+  }
+  48% {
+    clip-path: inset(0);
+    transform: translateX(3px);
+    filter: drop-shadow(3px 0 rgba(255, 46, 99, 0.5)) drop-shadow(-3px 0 rgba(159, 178, 234, 0.7));
+  }
+  60% {
+    transform: none;
+    filter: drop-shadow(1px 0 rgba(255, 46, 99, 0.35)) drop-shadow(-1px 0 rgba(159, 178, 234, 0.5));
+  }
+  70% {
+    transform: translateX(-2px);
+  }
+  76%,
+  100% {
+    opacity: 1;
+    clip-path: inset(0);
+    transform: none;
+    filter: none;
+  }
+}
+/* 크게 뜬 로고에서 카메라가 뒤로 물러난다. 아래로 살짝 내려앉으며 줄어 깊이가 느껴진다. */
+@keyframes hero-logo-pullback {
+  from {
+    scale: 2.3;
+    translate: 0 -40px;
+  }
+  to {
+    scale: 1;
+    translate: 0 0;
+  }
+}
+@keyframes hero-rise-in {
+  from {
+    opacity: 0;
+    translate: 0 36px;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    translate: 0 0;
+    filter: none;
+  }
+}
+@keyframes hero-fade-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+
 /* --enter(가운데로 올라오는 동안 0→1)와 --progress(멈춘 뒤 0→1)는 JS 가 넣는다.
    --camera 는 멈춘 뒤 앞 42% 동안 0→1, 끝에서 느려지게 1-(1-t)² 로 휜다.
    scale·rotateX·rotate 가 한 숫자에 묶여 줌이 아니라 카메라가 물러나는 느낌이 난다. */
@@ -102,6 +240,30 @@
     transform: none;
     filter: brightness(0.85);
   }
+}
+
+/* 홈 강 장면(SiteBackdrop)이 그려지는 동안은 사진 대신 장면이 비친다. 글 뒤 그늘도 장면이 글 자리만 눌러 대신한다.
+   장면이 없거나 멈추면(WebGL 불가·문맥 잃음·오류) 이 클래스가 빠져 사진과 그늘이 그대로 돌아온다. */
+html.has-river-backdrop .case-file {
+  background: transparent !important;
+}
+html.has-river-backdrop .case-file__window,
+html.has-river-backdrop .case-file__shade {
+  visibility: hidden;
+}
+
+/* 마지막 구간. 통짜 검정이면 뒤 배경이 다 가려져 글이 읽힐 만큼만 덮는다. */
+.closing {
+  background: rgba(1, 4, 10, 0.82);
+}
+/* 강 장면 위에서는 판 대신 가운데만 옅게 눌러 달과 마을이 비치게 한다. */
+html.has-river-backdrop .closing {
+  background: radial-gradient(
+    60% 55% at 50% 45%,
+    rgba(1, 4, 10, 0.55) 0%,
+    rgba(1, 4, 10, 0.25) 60%,
+    rgba(1, 4, 10, 0) 100%
+  );
 }
 
 /* .interactive-card:focus-visible 보다 뒤에 와야 카드 위의 미리보기 초점선이 이긴다 */

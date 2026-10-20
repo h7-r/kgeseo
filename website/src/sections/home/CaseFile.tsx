@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 
 import { usePinnedReveal } from "@/hooks/motion";
+import { SCRIM_ATTR } from "@/lib/layout";
 import { FONT } from "@/lib/style";
 import { sectionAnchor } from "@/navigation/subMenus";
 import { COLOR } from "@/styles/tokens";
@@ -51,7 +52,7 @@ export default function CaseFile() {
       {/* 아래·왼쪽을 어둡게 해 그림 위에서도 글이 읽히게 한다. */}
       <div className="case-file__shade" aria-hidden="true" />
 
-      <div style={textBlockStyle}>
+      <div style={textBlockStyle} {...SCRIM_ATTR}>
         <div className="u-pin-reveal" style={eyebrowStyle}>
           <span style={dotStyle} aria-hidden="true" />
           CASE FILE · NAJU-01 · 영산포

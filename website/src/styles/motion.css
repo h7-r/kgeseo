@@ -406,6 +406,8 @@
   -webkit-text-fill-color: transparent;
   color: transparent;
   animation: gradient-pan 6s linear infinite;
+  /* 회색 본부실 영상 위에서 짙은 파랑 구간이 묻히지 않게 바닥 그림자를 깐다. */
+  filter: drop-shadow(0 2px 6px rgba(1, 4, 10, 0.85));
 }
 @media (prefers-reduced-motion: reduce) {
   .hero__play-label {

@@ -3,26 +3,38 @@ import type { CSSProperties, Ref } from "react";
 interface HeroVideoFrameProps {
   /** HeroVideo 가 캔버스를 붙일 칸. 받는 동안의 자리 채움에는 없다. */
   boxRef?: Ref<HTMLDivElement>;
+  /** 끝 화면인가 — 바탕을 끝 화면 영상의 정지 장면으로 바꾼다(동작 줄이기·WebGL 불가일 때 보인다). */
+  isEnded?: boolean;
 }
 
 /** 히어로 영상 칸. HeroVideo(three.js)를 받는 동안에도 같은 칸을 그려 포스터가 먼저 보인다. */
-export default function HeroVideoFrame({ boxRef }: HeroVideoFrameProps) {
+export default function HeroVideoFrame({ boxRef, isEnded = false }: HeroVideoFrameProps) {
   return (
     <>
-      <div ref={boxRef} style={boxStyle} aria-hidden="true" />
+      <div ref={boxRef} style={isEnded ? endBoxStyle : boxStyle} aria-hidden="true" />
       <div style={shadeStyle} aria-hidden="true" />
     </>
   );
 }
 
 // 영상 첫 장면을 바탕에 깔아 둔다. 캔버스가 같은 장면 위로 0.8초 동안 떠올라 바뀌는 순간이 안 보인다.
+// 영상과 같은 판 이름을 쓴다(index.html 의 미리 받기도 같은 주소).
+const POSTER_URL = "/hero-trailer-v6-poster.webp";
+// 끝 화면 반복 영상의 첫 장면. 끝 화면에 들어설 때에야 받는다.
+const AMBIENT_STILL_URL = "/hero-ambient-v1-poster.webp";
+
 const boxStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
   zIndex: 0,
   pointerEvents: "none",
   overflow: "hidden",
-  background: "#43587f url(/hero-scrub-poster.webp) center / cover no-repeat",
+  background: `#43587f url(${POSTER_URL}) center / cover no-repeat`,
+};
+
+const endBoxStyle: CSSProperties = {
+  ...boxStyle,
+  background: `#01040a url(${AMBIENT_STILL_URL}) center / cover no-repeat`,
 };
 
 // 가장자리를 눌러 빨려드는 느낌을 키우고 흰 글자를 읽히게 한다.

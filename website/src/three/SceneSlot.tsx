@@ -5,8 +5,8 @@ import { usePrefersReducedMotion } from "@/lib/motionPreference";
 
 // three.js 는 수백 KB 라 첫 화면을 늦추지 않도록 장면 코드를 따로 떼어 받는다.
 const SCENES = {
-  orbit: lazy(() => import("./OrbitScene")),
   deepSpace: lazy(() => import("./DeepSpaceScene")),
+  river: lazy(() => import("./river/RiverScene")),
 };
 
 type SceneName = keyof typeof SCENES;
@@ -31,19 +31,24 @@ function isWebglSupported(): boolean {
 const slotStyle: CSSProperties = { position: "absolute", inset: 0, pointerEvents: "none" };
 
 interface SceneSlotProps {
-  scene?: SceneName;
+  scene: SceneName;
   /** 페이지 load 뒤 한가할 때 붙인다. 장식이 본문 이미지 로딩과 경쟁하지 않게 한다. */
   deferred?: boolean;
   /** false 면 화면 안에 있어도 렌더 루프를 세운다. */
   active?: boolean;
   style?: CSSProperties;
+  /**
+   * 장면이 화면을 맡을 수 있는지 알린다 — 첫 장을 그릴 준비가 끝나면 true,
+   * 문맥을 잃거나·오류로 꺼지거나·떼어지거나·그리기가 멈추면 false. 바깥은 false 면 원래 바탕으로 돌아가야 한다.
+   */
+  onReadyChange?: (ready: boolean) => void;
 }
 
 /**
  * 3D 장면을 안전하게 얹는 칸. 화면 근처에 올 때만 붙이고, 밖으로 나가면 렌더를 세운다.
  * WebGL 이 없거나 장면이 죽으면 조용히 비워 둔다 — 뒤의 배경이 그대로 보인다.
  */
-export default function SceneSlot({ scene = "orbit", deferred = false, active = true, style }: SceneSlotProps) {
+export default function SceneSlot({ scene, deferred = false, active = true, style, onReadyChange }: SceneSlotProps) {
   const slotRef = useRef<HTMLDivElement>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -92,6 +97,11 @@ export default function SceneSlot({ scene = "orbit", deferred = false, active = 
     };
   }, [deferred, failed]);
 
+  // 오류 경계가 장면을 껐으면 바깥에 알린다 — 빈 캔버스를 배경인 줄 알고 구역 바탕을 걷어 둔 채로 두지 않게.
+  useEffect(() => {
+    if (failed) onReadyChange?.(false);
+  }, [failed, onReadyChange]);
+
   const Scene = SCENES[scene];
 
   return (
@@ -99,7 +109,7 @@ export default function SceneSlot({ scene = "orbit", deferred = false, active = 
       {isMounted && !failed && (
         <SceneErrorBoundary onError={() => setFailed(true)}>
           <Suspense fallback={null}>
-            <Scene visible={isVisible && active} reducedMotion={reducedMotion} />
+            <Scene visible={isVisible && active} reducedMotion={reducedMotion} onReadyChange={onReadyChange} />
           </Suspense>
         </SceneErrorBoundary>
       )}

@@ -16,6 +16,7 @@ import {
   useForm,
   useSubmitLock,
 } from "@/hooks/useForm";
+import { SCRIM_ATTR } from "@/lib/layout";
 import { FONT } from "@/lib/style";
 import { suggestEmailTypo, type FieldName } from "@/lib/validation";
 import { ROUTES, useSiteNavigate } from "@/navigation/routes";
@@ -102,7 +103,7 @@ export default function QuickSignup() {
 
   // 제목부터 로그인 줄까지 한 덩이로 쌓는다. 높이를 정하지 않아야 보이는 글의 가운데가 호의 가운데에 온다.
   return (
-    <div style={signupPanelStyle}>
+    <div style={signupPanelStyle} {...SCRIM_ATTR}>
       <div style={{ paddingTop: "5px" }}>
         <div style={titleStyle}>탈출을 시작하세요.</div>
       </div>
