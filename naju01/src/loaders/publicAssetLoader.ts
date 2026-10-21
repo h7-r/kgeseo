@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { TOON_GRADIENT } from "@/engine/toon";
 
 import { createCompressedGltfLoader } from "./compressedGlb";
+import { openScenePacks, packedBytes } from "./packSource";
 import { flattenGltf, type Bundle } from "./publicAssetGeometry";
 import {
   animeCoverPath,
@@ -132,6 +133,7 @@ export async function loadPublicAssetTable(isAlive: () => boolean): Promise<Publ
     return null;
   }
   if (IS_ANIME_VARIANT) await loadAnimeLookup();
+  await openScenePacks(m.팩); // 장면 팩(10/21) — 받기는 뒤에서 이어지고, 든 파일은 아래 readBundle 이 팩에서 꺼낸다
 
   const loader = createCompressedGltfLoader();
   const cache = new Map<string, Promise<Bundle | null>>();
@@ -142,8 +144,8 @@ export async function loadPublicAssetTable(isAlive: () => boolean): Promise<Publ
     if (!cache.has(key))
       cache.set(
         key,
-        loader
-          .loadAsync(PUBLIC_ASSET_FOLDER + path)
+        packedBytes(path)
+          .then((bytes) => (bytes ? loader.parseAsync(bytes, "") : loader.loadAsync(PUBLIC_ASSET_FOLDER + path)))
           .then(flattenGltf)
           .then((bundle) => {
             if (!bundle.length) throw new Error("표시할 메시가 없습니다.");

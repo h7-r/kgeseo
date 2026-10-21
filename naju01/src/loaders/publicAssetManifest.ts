@@ -142,6 +142,8 @@ export interface PublicAssetManifest {
   잘린면?: Record<string, [number, number, number]>;
   검수?: unknown;
   반려?: unknown;
+  /** 장면 팩 id 목록(10/21 에셋보호) — 여기 든 파일은 팩에서 읽는다(packSource.ts). 유니티 KHS 에셋은 팩으로만 */
+  팩?: string[];
 }
 
 /** 항목이 읽는 파일 목록(files 또는 file) */

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>장면 팩 로딩 비교</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;margin:24px;max-width:860px}table{border-collapse:collapse;margin-top:12px}td,th{border:1px solid #ccc;padding:6px 10px;text-align:right}th:first-child,td:first-child{text-align:left}button{font-size:15px;padding:6px 14px}#log{color:#555;white-space:pre-wrap;margin-top:10px}</style>
+<script type="importmap">{"imports":{"three":"/three/build/three.module.js","three/addons/":"/three/examples/jsm/"}}</script>
+</head><body>
+<h2>장면 팩 로딩 비교</h2>
+<p>같은 GLB 들을 ① 지금 방식(파일 따로, 받는 대로 읽기) ② 장면 팩(암호화 덩이를 받는 대로 풀고 읽기)으로 번갈아 3번씩 받아 「다 읽을 때까지」 시간을 잽니다. 캐시는 끕니다. 「인터넷 모의」는 이 컴퓨터 서버가 회선 속도·지연을 흉내 냅니다.</p>
+<button id="go">재기 시작</button>
+<div id="log"></div>
+<table id="t"><tr><th>조건</th><th>① 지금 방식</th><th>② 장면 팩</th><th>② 첫 파일까지</th><th>차이</th></tr></table>
+<script type="module">
+import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';
+import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
+import {openPack} from '/securePack.js';
+const renderer=new THREE.WebGLRenderer();
+const ktx=new KTX2Loader().setTranscoderPath('/three/examples/jsm/libs/basis/').detectSupport(renderer);
+const loader=new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder); loader.setKTX2Loader(ktx);
+const log=(s)=>{document.getElementById('log').textContent+=s+'\n'};
+const files=await (await fetch('/files.json',{cache:'no-store'})).json();
+const key=(await (await fetch('/key',{cache:'no-store'})).json()).key;
+const runFiles=async()=>{const t0=performance.now();await Promise.all(files.map(f=>fetch('/assets/'+f,{cache:'no-store'}).then(r=>r.arrayBuffer()).then(b=>loader.parseAsync(b,''))));return {total:performance.now()-t0};};
+const runPack=async()=>{const t0=performance.now();const p=openPack('/pack',key,{cache:'no-store'});const names=await p.names;let first=0;
+  for(const n of names){const b=await p.get(n);if(!first)first=performance.now()-t0;await loader.parseAsync(b,'');}await p.done;return {total:performance.now()-t0,first};};
+const conds=[['이 컴퓨터(제한 없음)',0,0],['빠른 인터넷 모의(지연 20ms·100Mbps)',20,100e6],['보통 인터넷 모의(지연 50ms·25Mbps)',50,25e6]];
+const med=(a)=>a.sort((x,y)=>x-y)[Math.floor(a.length/2)];
+document.getElementById('go').onclick=async()=>{
+  document.getElementById('go').disabled=true;
+  log(`파일 ${files.length}개 · 팩 1개`);
+  await runFiles(); await runPack(); // 데우기(첫 실행은 셰이더·디코더 준비 시간이 섞인다)
+  for(const [name,lat,bps] of conds){
+    await fetch(`/sim?latency=${lat}&bps=${bps}`);
+    const A=[],B=[],F=[];
+    for(let i=0;i<3;i++){A.push((await runFiles()).total);const r=await runPack();B.push(r.total);F.push(r.first);log(`${name} ${i+1}/3`);}
+    const a=med(A),b=med(B),f=med(F);
+    const tr=document.createElement('tr');tr.innerHTML=`<td>${name}</td><td>${(a/1000).toFixed(2)}초</td><td>${(b/1000).toFixed(2)}초</td><td>${(f/1000).toFixed(2)}초</td><td>${((b-a)/a*100).toFixed(0)}%</td>`;
+    document.getElementById('t').appendChild(tr);
+  }
+  await fetch('/sim?latency=0&bps=0'); log('끝 — 표를 캡처하거나 숫자를 붙여 주세요');
+};
+</script></body></html>

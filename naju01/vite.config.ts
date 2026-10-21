@@ -6,6 +6,7 @@ import { editFileBundlePlugin, editFileServerPlugin } from "./vite/editFilePlugi
 import { codePropExportPlugin } from "./vite/codePropExportPlugin";
 import { spaceMaskPlugin } from "./vite/spaceMaskPlugin";
 import { libraryPlacePlugin } from "./vite/libraryPlacePlugin";
+import { scenePackPlugin } from "./vite/scenePackPlugin";
 
 // NAJU-01 그레이박스 전용 개발 서버. 본편과 같은 node_modules 를 쓴다.
 //   실행: npx vite naju01 → http://localhost:5174
@@ -39,7 +40,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 4000,
   },
   // libraryPlacePlugin — 편집 모드 L 「라이브러리 배치」: 라이브러리 색인 + manifest 「놓기」 즉시 저장·되돌리기(개발 서버만)
-  plugins: [react(), editFileServerPlugin({ writable: true }), editFileBundlePlugin(), libraryPlacePlugin(), codePropExportPlugin(), spaceMaskPlugin()],
+  plugins: [react(), editFileServerPlugin({ writable: true }), editFileBundlePlugin(), libraryPlacePlugin(), codePropExportPlugin(), spaceMaskPlugin(), scenePackPlugin()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("../src", import.meta.url)) },
   },
