@@ -62,7 +62,7 @@ views.forEach((v, zi) => {
 let inspN = 0;
 for (const p of PZ) {
   for (const c of p.clues) {
-    server.clues.push({ clue_id: c.id, title: c.carrier?.name || c.id, carrier_kind: c.carrier?.kind || 'mark', body: c.content || c.text, summary: c.text });
+    server.clues.push({ clue_id: c.id, title: c.carrier?.name || (SOLVE_ONLY.includes(c.get_by) ? `${p.title} — 알아낸 것` : null) || String(c.text || '').slice(0, 24) || c.id, /* 10/23 BE: CL-03-R 제목이 ID 그대로 */ carrier_kind: c.carrier?.kind || 'mark', body: c.content || c.text, summary: c.text });
     if (SOLVE_ONLY.includes(c.get_by)) continue;
     const h = p.hosts.find(h => h.need_id === c.from); const at = h?.at?.[0];
     if (!at) { warn.push(`${c.id}: 호스트가 공간에 없음 — 건너뜀`); continue; }
@@ -96,7 +96,9 @@ for (const p of PZ) {
     if (zi == null || zi < 0) { warn.push(`${p.id}: 장치 자리를 못 찾음`); continue; }
     const lock = { object_id: oid(zi, 'LOCK'), object_name: d.name || p.title, object_type: 'lock', asset_key: `device:${d.kind}`, visible: true, enabled: true, interaction: { type: 'input', target_id: p.id } };
     zones[zi].objects.push(lock);
-    server.puzzles.push({ puzzle_id: p.id, accepted_answers: [answerOf(p)], ...(PROPOSED && (p.solve.required_clue_ids || []).length ? { requires_clue_ids: p.solve.required_clue_ids } : {}), on_correct: { ...effect(), grant_clue_ids: reward, set_object_states: unlock } });
+    const ans = answerOf(p); const accepted = [...new Set([ans, ...(d.kind === 'sangaji' ? [String(Number(ans))] : [])])]; /* 10/23 BE: 산가지 「05」·「5」 */
+    const last = p.scene_id === SC[SC.length - 1]?.id && PZ.filter(q => q.scene_id === p.scene_id).slice(-1)[0] === p;
+    server.puzzles.push({ puzzle_id: p.id, accepted_answers: accepted, ...(PROPOSED && (p.solve.required_clue_ids || []).length ? { requires_clue_ids: p.solve.required_clue_ids } : {}), on_correct: { ...effect(), grant_clue_ids: reward, set_object_states: unlock, ...(last ? { set_flags: { case_cleared: true } } : {}) } }); /* 10/23 BE: 마지막 장치 정답 뒤 효과 없음 → 게임 끝 표시 */
   } else if (p.solve.interaction === 'combine_clues') {
     const ids = p.solve.required_clue_ids || [];
     if (ids.length !== 2) { warn.push(`${p.id}: 짝짓기 단서가 2개가 아님(${ids.length})`); continue; }
@@ -124,8 +126,18 @@ const clueIds = new Set(server.clues.map(c => c.clue_id));
 for (const e of effs) { for (const s of e.set_object_states) if (!allObj.has(s.object_id)) errs.push(`상태 변경 대상 없음 ${s.object_id}`); for (const c of e.grant_clue_ids) if (!clueIds.has(c)) errs.push(`없는 단서 ${c}`); }
 for (const x of [...server.puzzles, ...server.inspections]) for (const c of x.requires_clue_ids || []) if (!clueIds.has(c)) errs.push(`${x.puzzle_id || x.inspection_id}: 선행 단서 없음 ${c}`);
 for (const c of server.clue_combinations) for (const x of c.clue_ids) if (!clueIds.has(x)) errs.push(`${c.combination_id}: 없는 단서 ${x}`);
+// 10/23 BE 계약 맞춤(김세진 실제 로더 검증): inspection_id → inspect_id · 조사 object_id 빼기(Object 쪽 interaction 이 가리킴) · set_object_states 에 zone_id
+//   message·carrier_kind·requires_clue_ids 는 협의 중인 제안 필드 — --no-proposed 면 뺀다
+const zoneOfObj = new Map(zones.flatMap(z => z.objects.map(o => [o.object_id, z.zone_id])));
+const fixEff = e => e && { ...e, set_object_states: (e.set_object_states || []).map(x => ({ zone_id: zoneOfObj.get(x.object_id), ...x })) };
+const out = { ...server,
+  puzzles: server.puzzles.map(p => { const q = { ...p, on_correct: fixEff(p.on_correct) }; if (!PROPOSED) delete q.requires_clue_ids; return q; }),
+  clue_combinations: server.clue_combinations.map(c => ({ ...c, on_success: fixEff(c.on_success) })),
+  inspections: server.inspections.map(({ inspection_id, object_id, message, requires_clue_ids, on_inspect }) => ({ inspect_id: inspection_id, on_inspect: fixEff(on_inspect), ...(PROPOSED && requires_clue_ids?.length ? { requires_clue_ids } : {}), ...(PROPOSED && message ? { message } : {}) })),
+  clues: server.clues.map(({ carrier_kind, ...c }) => (PROPOSED ? { ...c, carrier_kind } : c)) };
+for (const e of [...out.puzzles.map(p => p.on_correct), ...out.clue_combinations.map(c => c.on_success), ...out.inspections.map(i => i.on_inspect)]) for (const x of e.set_object_states) if (!x.zone_id) errs.push(`상태 변경 ${x.object_id}: zone 없음`);
 await fs.mkdir(outDir, { recursive: true });
 await fs.writeFile(path.join(outDir, `${caseId}.client.json`), JSON.stringify(client, null, 2));
-await fs.writeFile(path.join(outDir, `${caseId}.server.json`), JSON.stringify(server, null, 2));
+await fs.writeFile(path.join(outDir, `${caseId}.server.json`), JSON.stringify(out, null, 2));
 console.log(JSON.stringify({ caseId, zones: zones.length, objects: allObj.size, inspections: server.inspections.length, puzzles: server.puzzles.length, combinations: server.clue_combinations.length, clues: server.clues.length, errors: errs, warnings: warn }, null, 1));
 if (errs.length) process.exit(1);
