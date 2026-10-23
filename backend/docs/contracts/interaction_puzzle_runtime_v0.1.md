@@ -244,7 +244,10 @@ state 포함을 강제하지 않는다.
 | `ObjectNotEnabledError` (확장) | 409 | `Object is not enabled.` |
 | `RequiredCluesMissingError` (Q5) | 409 | `Required clues are not acquired.` + 최상위 `missing_clue_count` |
 | `IdempotencyConflictError` | 409 | `Client event ID conflicts with a previous interaction.` |
-| `UnsupportedInteractionActionError` | 501 | `Interaction action '<action>' is not implemented.` (`navigate`, `select`) |
+| `CurrentZoneUnknownError` (Q6) | 409 | `Current zone is unknown.` |
+| `ZoneNotCurrentError` (Q6) | 409 | `Zone is not current.` |
+| `NavigationUnavailableError` (Q6) | 409 | `Navigation is unavailable.` |
+| `UnsupportedInteractionActionError` | 501 | `Interaction action '<action>' is not implemented.` (`select`. **Q6 변경**: navigate 제외) |
 | `CaseClientContentError` | 500 | `Case content is unavailable.` |
 | `CaseContentLinkValidationError` (확장) | 500 | `Case content is unavailable.` |
 | `PuzzleRuntimeError` | 500 | `Puzzle runtime is unavailable.` |
@@ -835,7 +838,7 @@ v0.1 Runtime Definition은 다음 정보를 다루지 않는다.
 멱등성 확인, Interaction Event 기록, Transaction 처리가 구현되어 있다.
 외부 HTTP 계약은 `interaction_api_v0.3.2.md`, 변환 규칙은
 `fe_backend_interaction_mapping_v0.1.md`를 따른다. `input`, `combine_clues`, (확장)
-`inspect`를 지원하며 `navigate`, `select`의 Runtime 동작은 WIP다.
+`inspect`, (Q6) `navigate`를 지원하며 `select`의 Runtime 동작은 WIP다.
 
 확장 구현(Object 상태·inspect) 검증 상태(2026-10-23): pytest 358개 통과, Ruff check 통과,
 실제 `TestClient` HTTP 테스트 통과. DB는 테스트용 가짜 세션만 사용했고 실제 MySQL

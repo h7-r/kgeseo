@@ -528,12 +528,13 @@ async def test_play_sessions_keep_inspection_state_separate(
 
 @pytest.mark.anyio
 async def test_same_object_id_in_other_zone_is_separate(case_directory: Path) -> None:
-    play_session = make_play_session()
+    play_session = make_play_session(make_state(current_zone_id="ZONE_HALL"))
 
     result, _ = await inspect(play_session, "OBJ_LETTER", zone_id="ZONE_HALL")
 
     assert changes(result) == [{"type": "clue_acquired", "clue_id": "CLUE_HALL"}]
     assert play_session.state_json["completed_inspect_ids"] == ["INSPECT_HALL_LETTER"]
+    play_session.state_json["current_zone_id"] = "ZONE_SARANG"
     with pytest.raises(ObjectNotVisibleError):
         await inspect(play_session, "OBJ_LETTER")
 

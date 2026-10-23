@@ -17,12 +17,15 @@ from app.services.external_interaction import (
 )
 from app.services.interaction import (
     ClueNotAcquiredError,
+    CurrentZoneUnknownError,
     IdempotencyConflictError,
     InspectionNotFoundError,
+    NavigationUnavailableError,
     ObjectNotEnabledError,
     ObjectNotVisibleError,
     PuzzleNotFoundError,
     RequiredCluesMissingError,
+    ZoneNotCurrentError,
 )
 from app.services.object_resolver import (
     InteractionTypeMismatchError,
@@ -104,6 +107,21 @@ async def create_interaction_endpoint(
             status_code=status.HTTP_409_CONFLICT,
             detail="Interaction action does not match the object.",
         ) from error
+    except CurrentZoneUnknownError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Current zone is unknown.",
+        ) from error
+    except ZoneNotCurrentError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Zone is not current.",
+        ) from error
+    except NavigationUnavailableError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Navigation is unavailable.",
+        ) from error
     except ObjectNotVisibleError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -150,6 +168,7 @@ def _to_external_response(
         "already_completed": "already_completed",
         "inspected": "ok",
         "already_inspected": "ok",
+        "navigated": "ok",
     }
 
     return InteractionApiResponse(

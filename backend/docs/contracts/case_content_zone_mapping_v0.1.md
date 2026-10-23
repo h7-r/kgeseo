@@ -98,6 +98,33 @@ Client Content Schema에서 명시해야 한다. `clue_combinations`의 두 입�
   `combine_clues`는 Object 기반 해석 대상이 아니다. `select`·`navigate`는
   선언된 mapping만 읽을 수 있으며 Backend 동작이나 target 의미를 확정하지 않는다.
   (확장) `inspect`의 target은 Server `inspect_id`로 해석한다.
+  **(Q6 변경)** `navigate` 요청은 Object Resolver를 거치지 않는다(§5.1).
+
+### 5.1 문 연결(Navigation) 규칙 (Q6, 팀 검토 대기)
+
+`navigation` 필드는 배열이다(Frontend Zone Contract v0.2 예시의 `{"exits": [...]}` 객체 형식은
+Backend가 받지 않는다). Client Content 로드 시 Schema가 Zone마다 다음을 검사하며, 하나라도
+어기면 `CaseClientContentValidationError`로 로드에 실패한다(세션 생성, Bundle, Interaction 모두
+`Case content is unavailable.`).
+
+| 규칙 | 내용 | 구분 |
+|---|---|---|
+| N1 | `door_object_id`는 같은 Zone의 `objects[]`에 있어야 한다 | 기존 |
+| N2 | `target_zone_id`는 같은 Case의 Zone이어야 한다 | 기존 |
+| N3 | `target_zone_id`는 자기 Zone일 수 없다 | **Q6 신규** |
+| N4 | 한 Zone 안에서 `target_zone_id`는 중복될 수 없다 | **Q6 신규** |
+| N5 | 한 Zone 안에서 `door_object_id`는 중복될 수 없다 | **Q6 신규** |
+| N6 | 문 Object는 `interaction: {"type": "navigate", "target_id": <그 항목의 target_zone_id>}`를 선언해야 한다 | **Q6 신규** |
+| N7 | `interaction.type == "navigate"`인 Object는 그 Zone의 `navigation[]`에 등록돼야 한다 | **Q6 신규** |
+
+N4 덕분에 navigate 요청의 (출발 Zone, 목적지 Zone)으로 문이 하나로 정해진다. 문 하나가
+자물쇠를 겸할 수 없으므로(Object 상호작용은 하나), 잠긴 문은 별도 `input` Object의 정답
+효과(`set_object_states`의 `enabled: true`)로 연다. 문 잠금(`enabled: false` 효과)은 지원하지
+않는다. 문이 숨김이면 그 방향의 이동은 409다.
+
+이동 가능 여부는 요청마다 PlaySession 잠금 안에서 판정한다. 출발 Zone은 서버의
+`current_zone_id`와 같아야 하고, 문의 서버 유효 `visible`·`enabled`(콘텐츠 초기값 +
+`object_states`)가 모두 true여야 한다. Frontend 표시 상태는 판정에 쓰지 않는다.
 
 ## 6. Client Content Definition 필요 여부
 
@@ -182,22 +209,26 @@ PlaySession GET의 `state.object_states`와 Object 상태 change(`object_reveale
 | `ObjectNotVisibleError` (확장, inspect만) | 409 | `Object is not visible.` |
 | `ObjectNotEnabledError` (확장, inspect만) | 409 | `Object is not enabled.` |
 
-`visible`·`enabled`를 이용한 요청 가능 여부 판정은 현재 `inspect`에만 적용한다.
+`visible`·`enabled`를 이용한 요청 가능 여부 판정은 `inspect` 대상과 (Q6) `navigate`의 문에
+적용한다. `input` 대상 Object에는 적용하지 않는다.
 
 ## 9. Contract Gap
 
 - Frontend v0.3.1 Zone 원문의 정확한 응답 Schema, 오류 응답, `metadata` 구조 미확인
-- `select` target 의미와 `navigate.interaction.target_id` 규칙 미확정
+- `select` target 의미 미확정 (`navigate.interaction.target_id`는 Q6에서 목적지 Zone ID로
+  확정·검증, §5.1)
   (`inspect`는 Server `inspect_id`로 구현됨, 팀 검토 대기)
 - Clue ID registry 및 공개 Clue와 Server Runtime의 연결 검증 미확정
   (Server `clues[]`가 있으면 지급·조합 단서 ID를 검증함. `clue_api_v0.1.md`)
 - Session 상태가 정적 `visible`·`enabled`를 덮어쓰는 규칙: Effect 기반 덮어쓰기는
   구현됨(`object_states`). 조건식 기반 공개·활성 규칙은 미정
 - Object/Navigation의 조건식 기반 공개·활성 조건, 조건 표현과 Server-only 보관 위치
-- Interaction Adapter의 Object 상태 판정 정책: `inspect`만 구현됨. `input`·`navigate`
-  적용 여부는 미정
+- Interaction Adapter의 Object 상태 판정 정책: `inspect`와 (Q6) `navigate` 문에 구현됨.
+  `input` 적용 여부는 미정
 - 공개 가능한 Puzzle/Clue 표시 필드와 에셋 참조 범위
-- `current_zone_id`의 저장·갱신 주체 및 요청 Zone 접근 정책
+- ~~`current_zone_id`의 저장·갱신 주체 및 요청 Zone 접근 정책~~ → Q6: navigate만 갱신,
+  input·inspect·navigate는 현재 Zone만 허용(`interaction_api_v0.3.2.md` §2.3)
+- 접근할 수 없는 Zone의 Bundle·Zone 조회 제한(미구현)
 - Frontend `status`와 Backend `completed_at`의 관계; 일시정지 등 상태는 현재 모델에 없음
 - `input`·`inspect`·`set_object_states` 이외의 파일 간 ID 참조 무결성 정책
 - Production Content 검증·배포 단계에서 `scripts/validate_case.py`를 실행하는 자동화 위치

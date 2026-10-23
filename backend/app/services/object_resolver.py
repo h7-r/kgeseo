@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 
-from app.schemas.case_content import CaseClientContent, ObjectDefinition
+from app.schemas.case_content import (
+    CaseClientContent,
+    ObjectDefinition,
+    ZoneDefinition,
+)
 
 
 @dataclass(frozen=True)
@@ -35,16 +39,24 @@ class UnsupportedObjectInteractionTypeError(ObjectResolverError):
     pass
 
 
-def find_object(
+def find_zone(
     client_content: CaseClientContent,
     zone_id: str,
-    object_id: str,
-) -> ObjectDefinition:
+) -> ZoneDefinition:
     zone = next(
         (zone for zone in client_content.zones if zone.zone_id == zone_id), None
     )
     if zone is None:
         raise ZoneNotFoundError(f"Zone '{zone_id}' not found.")
+    return zone
+
+
+def find_object(
+    client_content: CaseClientContent,
+    zone_id: str,
+    object_id: str,
+) -> ObjectDefinition:
+    zone = find_zone(client_content, zone_id)
 
     obj = next((obj for obj in zone.objects if obj.object_id == object_id), None)
     if obj is None:

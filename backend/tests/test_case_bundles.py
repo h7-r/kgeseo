@@ -44,7 +44,10 @@ def make_client_content() -> dict:
                         "asset_key": None,
                         "visible": False,
                         "enabled": False,
-                        "interaction": None,
+                        "interaction": {
+                            "type": "navigate",
+                            "target_id": "ZONE_002",
+                        },
                     },
                 ],
                 "navigation": [
@@ -162,7 +165,7 @@ def test_get_case_bundle_returns_public_content(
         "enabled": True,
         "interaction": {"type": "input"},
     }
-    assert first_zone["objects"][1]["interaction"] is None
+    assert first_zone["objects"][1]["interaction"] == {"type": "navigate"}
 
 
 def test_get_case_bundle_does_not_expose_server_only_content(

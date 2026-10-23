@@ -146,7 +146,8 @@ def test_combine_clues_is_not_object_based(client_data: dict) -> None:
         resolve_object_interaction(content, "ZONE_01", "OBJ_LOCK_01", "combine_clues")
 
 
-@pytest.mark.parametrize("interaction_type", ["inspect", "select", "navigate"])
+# navigate는 Object 해석 없이 목적지 Zone과 navigation[]으로 처리한다.
+@pytest.mark.parametrize("interaction_type", ["inspect", "select"])
 def test_other_declared_types_only_resolve_mapping(
     client_data: dict, interaction_type: str
 ) -> None:

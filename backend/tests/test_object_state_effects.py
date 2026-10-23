@@ -52,6 +52,7 @@ CLIENT_DATA = {
                     "object_type": "door",
                     "visible": True,
                     "enabled": False,
+                    "interaction": {"type": "navigate", "target_id": "ZONE_HALL"},
                 },
                 {
                     "object_id": "OBJ_LETTER",
@@ -224,6 +225,7 @@ def submit(puzzle_id: str, answer: str, client_event_id: str = "event-1"):
         client_event_id=client_event_id,
         interaction_type="submit_answer",
         target_id=puzzle_id,
+        zone_id="ZONE_SARANG",
         payload=SubmitAnswerPayload(answer=answer),
     )
 

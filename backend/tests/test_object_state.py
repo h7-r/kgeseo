@@ -42,6 +42,7 @@ def content() -> CaseClientContent:
                             "object_type": "door",
                             "visible": True,
                             "enabled": False,
+                            "interaction": {"type": "navigate", "target_id": "ZONE_02"},
                         },
                     ],
                     "navigation": [

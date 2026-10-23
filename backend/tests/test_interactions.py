@@ -135,7 +135,12 @@ def client_content_directory(
                                 },
                             },
                         ],
-                        "navigation": [],
+                        "navigation": [
+                            {
+                                "door_object_id": "OBJ_NAVIGATE",
+                                "target_zone_id": "ZONE_004",
+                            },
+                        ],
                     },
                     {
                         "zone_id": "ZONE_004",
@@ -322,6 +327,7 @@ def test_legacy_completed_state_returns_null_attempt_count(
 ) -> None:
     play_session = make_play_session(
         state={
+            "current_zone_id": "ZONE_003",
             "completed_puzzle_ids": ["puzzle_01"],
             "acquired_clue_ids": [],
             "hint_levels": {},
@@ -553,7 +559,6 @@ def test_interaction_returns_404_for_missing_play_session(
 @pytest.mark.parametrize(
     ("action", "target_type", "target_id", "payload"),
     [
-        ("navigate", "zone", "ZONE_004", {}),
         ("select", "object", "OBJ_CHOICES", {"choice": "optA"}),
     ],
 )

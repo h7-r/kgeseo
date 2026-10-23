@@ -15,6 +15,7 @@ from app.schemas.case_content import CaseClientContent
 from app.schemas.interaction import (
     ClueAcquiredStateChange,
     CombineCluesInteraction,
+    CurrentZoneChangedStateChange,
     FlagUpdatedStateChange,
     InspectInteraction,
     InteractionProcessResult,
@@ -22,6 +23,7 @@ from app.schemas.interaction import (
     InteractionResult,
     InteractionResultType,
     InteractionStateChange,
+    NavigateInteraction,
     ObjectHiddenStateChange,
     ObjectRevealedStateChange,
     ObjectUnlockedStateChange,
@@ -32,6 +34,7 @@ from app.schemas.play_session import PlaySessionState
 from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition, RuntimeEffect
 from app.services.case_content import load_case_client_content
 from app.services.case_content_validation import validate_case_content_links
+from app.services.object_resolver import ZoneNotFoundError, find_zone
 from app.services.object_state import resolve_effective_object_state
 from app.services.play_session import PlaySessionNotFoundError
 from app.services.puzzle_runtime import load_case_runtime, normalize_answer
@@ -65,6 +68,18 @@ class ObjectNotVisibleError(InteractionServiceError):
 
 
 class ObjectNotEnabledError(InteractionServiceError):
+    pass
+
+
+class ZoneNotCurrentError(InteractionServiceError):
+    pass
+
+
+class CurrentZoneUnknownError(InteractionServiceError):
+    pass
+
+
+class NavigationUnavailableError(InteractionServiceError):
     pass
 
 
@@ -124,15 +139,28 @@ async def process_interaction(
                 attempt_count,
             ) = _process_submit_answer(
                 interaction,
-                current_state,
+                _ensure_current_zone(
+                    current_state, interaction.zone_id, load_client_content
+                ),
                 runtime,
                 load_client_content,
             )
         elif isinstance(interaction, InspectInteraction):
             result_type, result_state, state_changes = _process_inspect(
                 interaction,
-                current_state,
+                _ensure_current_zone(
+                    current_state, interaction.zone_id, load_client_content
+                ),
                 runtime,
+                load_client_content,
+            )
+            attempt_count = None
+        elif isinstance(interaction, NavigateInteraction):
+            result_type, result_state, state_changes = _process_navigate(
+                interaction,
+                _ensure_current_zone(
+                    current_state, interaction.zone_id, load_client_content
+                ),
                 load_client_content,
             )
             attempt_count = None
@@ -467,6 +495,90 @@ def _process_inspect(
     return "inspected", updated_state, state_changes
 
 
+def _process_navigate(
+    interaction: NavigateInteraction,
+    state: dict[str, Any],
+    load_client_content: Callable[[], CaseClientContent],
+) -> tuple[
+    InteractionResultType,
+    dict[str, Any],
+    list[InteractionStateChange],
+]:
+    client_content = load_client_content()
+    zone = find_zone(client_content, interaction.zone_id)
+    find_zone(client_content, interaction.target_id)
+
+    # 콘텐츠 검증으로 Zone 안의 목적지가 유일하므로 문은 최대 하나다.
+    navigation = next(
+        (
+            navigation
+            for navigation in zone.navigation
+            if navigation.target_zone_id == interaction.target_id
+        ),
+        None,
+    )
+    if navigation is None:
+        raise NavigationUnavailableError(interaction.target_id)
+
+    door = resolve_effective_object_state(
+        client_content,
+        state.get("object_states", {}),
+        zone.zone_id,
+        navigation.door_object_id,
+    )
+    if not door.visible:
+        raise ObjectNotVisibleError(navigation.door_object_id)
+    if not door.enabled:
+        raise ObjectNotEnabledError(navigation.door_object_id)
+
+    updated_state = deepcopy(state)
+    updated_state["current_zone_id"] = interaction.target_id
+    return (
+        "navigated",
+        updated_state,
+        [
+            CurrentZoneChangedStateChange(
+                type="current_zone_changed",
+                zone_id=interaction.target_id,
+            ),
+        ],
+    )
+
+
+def _ensure_current_zone(
+    state: dict[str, Any],
+    zone_id: str,
+    load_client_content: Callable[[], CaseClientContent],
+) -> dict[str, Any]:
+    """요청 Zone이 서버의 현재 위치인지 확인하고, 판정에 쓸 상태를 반환한다.
+
+    current_zone_id가 없는 과거 세션은 Zone이 하나뿐인 콘텐츠에서만 입구로 복원한다.
+    복원한 값은 반환 상태에 담겨 이번 상호작용과 함께 저장된다.
+    """
+
+    current_zone_id = state.get("current_zone_id")
+    if current_zone_id is not None and current_zone_id == zone_id:
+        return state
+
+    client_content = load_client_content()
+    zone_ids = {zone.zone_id for zone in client_content.zones}
+    if zone_id not in zone_ids:
+        raise ZoneNotFoundError(f"Zone '{zone_id}' not found.")
+
+    if current_zone_id is None:
+        # Zone이 여러 개면 실제 위치를 알 수 없으므로 입구로 간주하지 않는다.
+        if len(client_content.zones) != 1:
+            raise CurrentZoneUnknownError()
+        current_zone_id = client_content.entry_zone_id
+        state = {**state, "current_zone_id": current_zone_id}
+    elif current_zone_id not in zone_ids:
+        raise CurrentZoneUnknownError()
+
+    if current_zone_id != zone_id:
+        raise ZoneNotCurrentError(zone_id)
+    return state
+
+
 def _ensure_required_clues(required_clue_ids: list[str], state: dict[str, Any]) -> None:
     acquired = set(state.get("acquired_clue_ids", []))
     missing = [clue_id for clue_id in required_clue_ids if clue_id not in acquired]
@@ -479,7 +591,10 @@ def _request_values(
 ) -> tuple[str | None, dict[str, Any]]:
     target_id = (
         interaction.target_id
-        if isinstance(interaction, SubmitAnswerInteraction | InspectInteraction)
+        if isinstance(
+            interaction,
+            SubmitAnswerInteraction | InspectInteraction | NavigateInteraction,
+        )
         else None
     )
     return target_id, interaction.payload.model_dump(mode="json")

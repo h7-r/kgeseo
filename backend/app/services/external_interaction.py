@@ -6,6 +6,8 @@ from app.schemas.interaction import (
     InspectInteraction,
     InspectPayload,
     InteractionProcessResult,
+    NavigateInteraction,
+    NavigatePayload,
     SubmitAnswerInteraction,
     SubmitAnswerPayload,
 )
@@ -14,6 +16,7 @@ from app.schemas.interaction_api import (
     InputInteractionRequest,
     InspectInteractionRequest,
     InteractionApiRequest,
+    NavigateInteractionRequest,
 )
 from app.services.case_content import load_case_client_content
 from app.services.interaction import process_interaction
@@ -44,6 +47,7 @@ async def process_external_interaction(
             client_timestamp=request.client_timestamp,
             interaction_type="submit_answer",
             target_id=resolved.target_id,
+            zone_id=resolved.zone_id,
             payload=SubmitAnswerPayload(answer=request.payload.answer),
         )
     elif isinstance(request, InspectInteractionRequest):
@@ -56,6 +60,16 @@ async def process_external_interaction(
             zone_id=resolved.zone_id,
             object_id=resolved.object_id,
             payload=InspectPayload(),
+        )
+    elif isinstance(request, NavigateInteractionRequest):
+        # 문과 목적지 판정은 재전송 확인 뒤 세션 잠금 안에서 한다.
+        interaction = NavigateInteraction(
+            client_event_id=client_event_id,
+            client_timestamp=request.client_timestamp,
+            interaction_type="navigate",
+            target_id=request.target_id,
+            zone_id=request.zone_id,
+            payload=NavigatePayload(),
         )
     elif isinstance(request, CombineCluesInteractionRequest):
         interaction = CombineCluesInteraction(

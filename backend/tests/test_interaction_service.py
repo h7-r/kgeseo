@@ -115,11 +115,13 @@ def submit_answer(
     answer: str = "아랑사",
     client_event_id: str = "client-event-id",
     target_id: str = "puzzle_01",
+    zone_id: str = "ZONE_001",
 ) -> SubmitAnswerInteraction:
     return SubmitAnswerInteraction(
         client_event_id=client_event_id,
         interaction_type="submit_answer",
         target_id=target_id,
+        zone_id=zone_id,
         payload=SubmitAnswerPayload(answer=answer),
     )
 
@@ -348,6 +350,7 @@ async def test_submit_answer_already_completed_does_not_reapply_effect() -> None
     db = FakeAsyncSession()
     play_session = make_play_session(
         state={
+            "current_zone_id": "ZONE_001",
             "completed_puzzle_ids": ["puzzle_01"],
             "acquired_clue_ids": [],
             "hint_levels": {},
@@ -372,7 +375,7 @@ async def test_submit_answer_already_completed_does_not_reapply_effect() -> None
         )
         == original_state
     )
-    assert result.result.state.current_zone_id is None
+    assert result.result.state.current_zone_id == "ZONE_001"
     assert result.result.state_changes == []
     assert result.result.attempt_count is None
     assert play_session.state_json == original_state
@@ -385,6 +388,7 @@ async def test_submit_answer_records_only_actual_changes_in_stable_order() -> No
     db = FakeAsyncSession()
     play_session = make_play_session(
         state={
+            "current_zone_id": "ZONE_001",
             "completed_puzzle_ids": [],
             "acquired_clue_ids": ["clue_03"],
             "hint_levels": {},
@@ -538,11 +542,13 @@ async def test_combine_clues_incorrect_combination_records_result() -> None:
 
 @pytest.mark.anyio
 async def test_legacy_state_mutation_does_not_invent_current_zone() -> None:
+    # combine_clues는 위치와 무관하므로 과거 세션의 위치를 복원하지 않는다.
+    # input·inspect·navigate의 복원 규칙은 test_navigation에서 검증한다.
     db = FakeAsyncSession()
     play_session = make_play_session(
         state={
             "completed_puzzle_ids": [],
-            "acquired_clue_ids": [],
+            "acquired_clue_ids": ["clue_03", "clue_07"],
             "hint_levels": {},
             "flags": {},
         },
@@ -552,11 +558,11 @@ async def test_legacy_state_mutation_does_not_invent_current_zone() -> None:
     result = await process_interaction(
         db,
         play_session.id,
-        submit_answer(),
+        combine_clues(["clue_03", "clue_07"]),
         runtime_loader=runtime_loader(make_runtime()),
     )
 
-    assert result.result.result_type == "correct"
+    assert result.result.result_type == "combined"
     assert result.result.state.current_zone_id is None
     assert "current_zone_id" not in play_session.state_json
     assert db.commit_count == 1

@@ -134,7 +134,8 @@ def test_object_without_interaction_is_skipped(
     validate_data(client_data, server_data)
 
 
-@pytest.mark.parametrize("interaction_type", ["select", "navigate"])
+# navigate는 Client 스키마의 문 연결 규칙(test_case_content)으로 검증한다.
+@pytest.mark.parametrize("interaction_type", ["select"])
 def test_non_input_interaction_is_not_mapped_to_server_target(
     client_data: dict, server_data: dict, interaction_type: str
 ) -> None:
