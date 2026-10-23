@@ -431,14 +431,27 @@ function animStep(){const now=performance.now();for(let i=ANIM.length-1;i>=0;i--
 // 물건 반응 — 플레이어 반대쪽 모서리를 축으로(들추기·열기), 반대쪽으로(밀기), 제자리(뒤집기)
 function react(g,act,side,instant){if(!cur||act==='look')return;{const st=stateFor(g,act);if(st!==undefined){const prev=STATES.get(g).now;stateSet(g,st,instant);return {swap:g,prev}}}const roots=groupRoots(g);if(!roots.length)return;const b=groupBox(g),c=b.getCenter(new THREE.Vector3());
  let dx=side?side[0]:c.x-pos.x,dz=side?side[1]:c.z-pos.z;const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
- const piv=new THREE.Group();const far=new THREE.Vector3(c.x+dx*(b.max.x-b.min.x)/2,act==='lift'?b.max.y:b.min.y,c.z+dz*(b.max.z-b.min.z)/2);
+ /* 10/23 미르: 이불을 눌렀더니 공중에 떴다 — 들추기를 위 모서리 축으로 100° 세워서였다. 납작한 것(이불·멍석·방석·보자기)은 먼 쪽 바닥 모서리를 축으로 가까운 쪽만 45° 들어 올리고, 두툼한 것(가마니·자루)은 옆으로 민다 */
+ const flat=(b.max.y-b.min.y)<0.3*Math.max(b.max.x-b.min.x,b.max.z-b.min.z);if(act==='lift'&&!flat)act='slide';if(act==='lift')return foldSoft(roots,b,c,dx,dz,instant);
+ const piv=new THREE.Group();const far=new THREE.Vector3(c.x+dx*(b.max.x-b.min.x)/2,b.min.y,c.z+dz*(b.max.z-b.min.z)/2);
  if(act==='flip'||act==='slide')piv.position.copy(c);else piv.position.copy(far);piv.userData.p0=piv.position.clone();cur.add(piv);cur.updateMatrixWorld(true);for(const r of roots)piv.attach(r);
  const axis=new THREE.Vector3(dz,0,-dx);let to;
- if(act==='lift')to={q:new THREE.Quaternion().setFromAxisAngle(axis,1.75),p:piv.position.clone().add(new THREE.Vector3(0,0.04,0))};
- else if(act==='open')to={q:new THREE.Quaternion().setFromAxisAngle(axis,0.55)};
+  if(act==='open')to={q:new THREE.Quaternion().setFromAxisAngle(axis,0.55)};
  else if(act==='slide')to={p:piv.position.clone().add(new THREE.Vector3(dz*0.7,0,-dx*0.7))};
  else if(act==='flip')to={q:new THREE.Quaternion().setFromAxisAngle(axis,Math.PI)};
  if(!to)return piv;if(instant){if(to.p)piv.position.copy(to.p);if(to.q)piv.quaternion.copy(to.q)}else tween(piv,to,650,()=>buildBoxes());return piv}
+/* 10/23: 납작한 천·자리(변형판 없는 것)는 통째로 세우지 않고, 보는 사람 쪽 절반을 위로 접어 넘긴다(꼭짓점을 그 자리에서 접음 → 내려놓으면 원래대로) */
+function foldSoft(roots,b,c,dx,dz,instant){const meshes=[];roots.forEach(r=>r.traverse(o=>{if(o.isMesh)meshes.push(o)}));if(!meshes.length)return;cur.updateMatrixWorld(true);
+ /* 긴 쪽을 반으로 접는다(가까운 쪽 절반이 넘어감) — 보는 방향으로만 접으면 이불이 옆으로 구겨졌다 */const lx=b.max.x-b.min.x,lz=b.max.z-b.min.z;if(lx>=lz){dx=Math.sign(dx)||1;dz=0}else{dz=Math.sign(dz)||1;dx=0}
+ meshes.forEach(m=>{(Array.isArray(m.material)?m.material:[m.material]).forEach(x=>{if(x.side!==THREE.DoubleSide){x.side=THREE.DoubleSide;x.needsUpdate=true}})});/* 재질은 복제하지 않는다 — 복제하면 만화 셰이딩(onBeforeCompile)이 빠져 색이 바뀌었다 */
+ /* 경량본은 꼭짓점이 정수로 압축(KHR_mesh_quantization)돼 있어 그대로 고치면 깨진다 → 실수 배열로 풀어 쓴다 */
+ const fl=a=>{const f=new Float32Array(a.count*3);for(let i=0;i<a.count;i++){f[i*3]=a.getX(i);f[i*3+1]=a.getY(i);f[i*3+2]=a.getZ(i)}return f};
+ const D=meshes.map(m=>{m.geometry=m.geometry.clone();const g=m.geometry,P=g.attributes.position,N=g.attributes.normal;const op=fl(P),on=N?fl(N):null;g.setAttribute('position',new THREE.BufferAttribute(op.slice(),3));if(on)g.setAttribute('normal',new THREE.BufferAttribute(on.slice(),3));return {m,orig:op,norm:on,mw:m.matrixWorld.clone(),inv:m.matrixWorld.clone().invert()}});
+ const d=new THREE.Vector3(dx,0,dz),axis=new THREE.Vector3(dz,0,-dx).normalize(),O=new THREE.Vector3(c.x,b.max.y+0.006,c.z),v=new THREE.Vector3();
+ const apply=t=>{for(const e of D){const P=e.m.geometry.attributes.position,a=P.array;for(let i=0;i<a.length;i+=3){v.set(e.orig[i],e.orig[i+1],e.orig[i+2]).applyMatrix4(e.mw);if((v.x-c.x)*d.x+(v.z-c.z)*d.z<0){v.sub(O).applyAxisAngle(axis,t).add(O)}v.applyMatrix4(e.inv);a[i]=v.x;a[i+1]=v.y;a[i+2]=v.z}P.needsUpdate=true;e.m.geometry.computeVertexNormals();e.m.geometry.computeBoundingBox();e.m.geometry.computeBoundingSphere()}};
+ const run=(t0,t1,done)=>{if(instant){apply(t1);done&&done();return}const st=performance.now();const step=()=>{const k=Math.min(1,(performance.now()-st)/600);apply(t0+(t1-t0)*k);if(k<1)requestAnimationFrame(step);else{done&&done();buildBoxes()}};step()};
+ run(0,Math.PI*0.96);const len=Math.abs(dx)*(b.max.x-b.min.x)+Math.abs(dz)*(b.max.z-b.min.z);
+ return {fold:true,spot:new THREE.Vector3(c.x-dx*len/4,b.min.y,c.z-dz*len/4),restore:()=>run(Math.PI*0.96,0,()=>{for(const e of D){const g=e.m.geometry;g.attributes.position.array.set(e.orig);g.attributes.position.needsUpdate=true;if(e.norm){g.attributes.normal.array.set(e.norm);g.attributes.normal.needsUpdate=true}g.computeBoundingBox();g.computeBoundingSphere()}buildBoxes()})}}
 // 단서를 꺼낸 뒤 물건은 제자리로(10/22 미르)
 // 상태 변형판(10/22 다른 세션 설계 → 10/23 반영) — compose 가 넣은 「물건__상태_<state>」 노드를 떼어 두었다가 반응할 때 바꿔 끼운다
 let STATES=new Map();
@@ -462,7 +475,7 @@ function planReveal(g,c){const r=roleOf(g),act0=(c.reveal&&c.reveal.action)||'lo
  if(act0==='flip'&&SMALL.test(g))return {act:'flip',spawn:true};
  if(act0==='lift'&&MOVABLE.test(g))return {act:'slide',spawn:true};
  return {act:'look',spawn:!!(c&&c.carrier&&c.carrier.kind&&c.carrier.kind!=='mark')}}/* 10/23: 물건이 그 몸짓을 못 해도(등잔 뒤집기 등) 단서 물건은 옆에 보이게 — 카드만 뜨면 「집어 든다」가 없다 */
-function unreact(key){const m=MOVED.get(key);if(!m||m.restored)return;m.restored=true;const [r]=key.split('|');const piv=m.piv;if(piv&&piv.swap){if(STATES.get(piv.swap)?.now==='broken')return;/* 10/23: 깬 것은 되돌리지 않는다 */if(+r===ci)stateSet(piv.swap,piv.prev);return}if(+r!==ci||!piv||!piv.parent||!cur)return;tween(piv,{p:piv.userData.p0.clone(),q:new THREE.Quaternion()},600,()=>{if(!cur)return;cur.updateMatrixWorld(true);for(const ch of [...piv.children])cur.attach(ch);piv.parent&&piv.parent.remove(piv);buildBoxes()})}
+function unreact(key){const m=MOVED.get(key);if(!m||m.restored)return;m.restored=true;const [r]=key.split('|');const piv=m.piv;if(piv&&piv.fold){if(+r===ci)piv.restore();return}if(piv&&piv.swap){if(STATES.get(piv.swap)?.now==='broken')return;/* 10/23: 깬 것은 되돌리지 않는다 */if(+r===ci)stateSet(piv.swap,piv.prev);return}if(+r!==ci||!piv||!piv.parent||!cur)return;tween(piv,{p:piv.userData.p0.clone(),q:new THREE.Quaternion()},600,()=>{if(!cur)return;cur.updateMatrixWorld(true);for(const ch of [...piv.children])cur.attach(ch);piv.parent&&piv.parent.remove(piv);buildBoxes()})}
 // 단서 물건(절차 생성 — 서신·쪽지·열쇠·조각은 라이브러리 에셋 없이 코드로)
 function paperTex(lines){const cv2=document.createElement('canvas');cv2.width=256;cv2.height=160;const x=cv2.getContext('2d');x.fillStyle='#efe4c8';x.fillRect(0,0,256,160);x.strokeStyle='#3a2c1e';x.lineWidth=2;for(let i=0;i<lines;i++){x.beginPath();const X=220-i*26;x.moveTo(X,18);for(let y=18;y<142;y+=9)x.lineTo(X+(Math.random()-.5)*4,y);x.stroke()}const t=new THREE.CanvasTexture(cv2);t.colorSpace=THREE.SRGBColorSpace;return t}
 function makeCarrier(kind){const g=new THREE.Group();const M=(c,o={})=>new THREE.MeshStandardMaterial({color:c,roughness:.8,emissive:new THREE.Color(0x221a08),...o});
@@ -477,7 +490,7 @@ function swapSpot(hostNode){const e=STATES.get(hostNode);if(!e||!cur)return null
  for(const k of [0,0.18,0.32,0.42]){const p=c.clone().addScaledVector(f,d*k);rc.set(new THREE.Vector3(p.x,b.max.y+0.5,p.z),new THREE.Vector3(0,-1,0));const h=rc.intersectObjects(objs,true)[0];if(h&&h.point.y>b.min.y+sz.y*0.02&&(!best||h.point.y<best.y))best=h.point.clone()}return best}
 function spawn(id,name,kind,hostNode,where){if(!cur)return;let b=groupBox(hostNode),c;if(b.isEmpty()){console.warn('단서 물건 자리 없음 — 방 가운데에 둠',hostNode);const w=meta.walk||{x:[0,0],z:[0,0]};c=new THREE.Vector3((w.x[0]+w.x[1])/2,meta.floor_y||0,(w.z[0]+w.z[1])/2);b=new THREE.Box3(c.clone(),c.clone())}else c=b.getCenter(new THREE.Vector3());const g=makeCarrier(kind);
  const st=MOVED.get(`${ci}|${hostNode}`);const y=where==='on'||where==='inside'?b.max.y+0.01:Math.max(meta.floor_y||0,b.min.y)+(st&&st.act==='lift'?0.02:0.012);/* 밑·뒤: 그 물건이 놓인 면(부뚜막 위 솥뚜껑이면 부뚜막 위) — 방바닥으로 두면 부뚜막 속에 묻혔다(10/22) */
- g.position.set(c.x+(where==='on'?0:0.02),y,c.z);if(st&&st.piv&&st.piv.swap){const sp=swapSpot(hostNode);if(sp)g.position.set(sp.x,sp.y+0.01,sp.z)}g.rotation.y=0.4;g.name=`${name}__단서`;g.userData.carrier=id;g.scale.setScalar(1.6);cur.add(g);buildBoxes()}
+ g.position.set(c.x+(where==='on'?0:0.02),y,c.z);if(st&&st.piv&&st.piv.swap){const sp=swapSpot(hostNode);if(sp)g.position.set(sp.x,sp.y+0.01,sp.z)}if(st&&st.piv&&st.piv.spot)g.position.set(st.piv.spot.x,Math.max(meta.floor_y||0,st.piv.spot.y)+0.012,st.piv.spot.z);g.rotation.y=0.4;g.name=`${name}__단서`;g.userData.carrier=id;g.scale.setScalar(1.6);cur.add(g);buildBoxes()}
 const carrierAt=g=>{for(const [id,r] of REV)if(r.state==='shown'&&r.room===ci&&carrierName(clueById(id))===g)return id;for(const [sid,k] of KEYS)if(k.state==='shown'&&k.room===ci&&sceneExit(sid).exit.key.name===g)return 'KEY-'+sid;return null};
 function unspawn(g){if(!cur)return;const rm=[];cur.traverse(o=>{if(o.name===`${g}__단서`)rm.push(o)});rm.forEach(o=>o.parent.remove(o));buildBoxes()}
 // 손에 든 모습(확대해 읽기)
