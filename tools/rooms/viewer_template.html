@@ -485,20 +485,24 @@ const hold=document.createElement('div');hold.id='hold';hold.hidden=true;documen
 function openHold(id,mode2){const isKey=id.startsWith('KEY-');const c=isKey?null:clueById(id);const sx=isKey?sceneExit(id.slice(4)):null;
  const kind=isKey?'key':c.carrier.kind,name=isKey?sx.exit.key.name:carrierName(c),body=isKey?(sx.exit.key.found||''):(c.content||c.text);
  const paper=kind==='letter'||kind==='note';endPlay();
- hold.innerHTML=`<div class="hold-card ${paper?'paper':''}"><div class="k">${mode2==='take'?(kind==='mark'?'가까이 들여다본다':'손에 들었다'):'조사수첩'}</div><b>${esc(name)}</b><div class="hold-body">${esc(body)}</div>${isKey?`<div class="k">${esc(sx.exit.lock||'')}</div>`:''}<div class="row"><button id="holdOk">${mode2==='take'?(kind==='mark'?'수첩에 적기':isKey?'챙기기':'수첩에 넣기'):'닫기'}</button></div></div>`;hold.classList.toggle('low',mode2==='take');hold.hidden=false;uiPlay();
+ hold.innerHTML=`<div class="hold-card ${paper?'paper':''}"><div class="k">${mode2==='take'?(kind==='mark'?'가까이 들여다본다':'손에 들었다'):'다시 본다 · 조사수첩'}</div><b>${esc(name)}</b><div class="hold-body">${esc(body)}</div>${isKey?`<div class="k">${esc(sx.exit.lock||'')}</div>`:''}<div class="row"><button id="holdOk">${mode2==='take'?(kind==='mark'?'수첩에 적기':isKey?'챙기기':'수첩에 넣기'):'닫기'}</button></div></div>`;hold.classList.toggle('low',mode2==='take');hold.hidden=false;uiPlay();
  hold.querySelector('#holdOk').onclick=()=>{hold.hidden=true;if(mode2==='take'){if(isKey){const k=KEYS.get(id.slice(4));k.state='taken';NB.set(id,`${name} — 다음 방 문의 자물쇠에 대 보자`);unspawn(name)}else{const rv=REV.get(id);rv.state='taken';NB.set(id,c.text);if(kind!=='mark')unspawn(name);if(![...REV.values()].some(x=>x.state==='shown'&&x.room===rv.room&&x.node===rv.node))setTimeout(()=>unreact(`${rv.room}|${rv.node}`),250)}pzMsg=`<div class="card pz-clue"><span class="pill">수첩</span> ${esc(name)}을(를) 챙겼다</div>`}info();startLock()}}
 function nbLabel(id,t){if(id.startsWith('KEY-'))return `🗝️ ${esc(t)}`;const c=clueById(id);if(c&&c.carrier&&c.carrier.kind)return `${({letter:'✉️',note:'📜',key:'🗝️',piece:'🧶',mark:'👁️'})[c.carrier.kind]||''} <b>${esc(carrierName(c))}</b> — ${esc(t)}`;return esc(t)}
 const nbRead=id=>{const c=clueById(id);return (id.startsWith('KEY-')||(c&&c.carrier&&c.carrier.kind))?` <button class="mini" data-nb-read="${id}">다시 보기</button>`:''};
 // 조사 — 단서 물건이 있으면 반응 → 보이게 → (집으면) 수첩
+const REREAD=new Map();
 pzHit=function(g){const out=[];const cr=carrierAt(g);if(cr){openHold(cr,'take');return}
- let one=false;for(const {p,h} of pzBound(ci,g)){for(const c of p.clues){if(SOLVE_ONLY.includes(c.get_by)||c.from!==h.need_id||NB.has(c.id))continue;
+ let one=false,devOpen=false;for(const {p,h} of pzBound(ci,g)){for(const c of p.clues){if(SOLVE_ONLY.includes(c.get_by)||c.from!==h.need_id||NB.has(c.id))continue;
    if(c.carrier&&c.carrier.kind){if(REV.has(c.id)||one)continue;one=true;/* 한 번 누를 때 하나씩 — 두 번째로 누르면 다음 것(가까이 들여다보기 등) */const pl=planReveal(g,c),act=pl.act;const key=`${ci}|${g}`;
     if(!MOVED.has(key)&&act!=='look'){const b=groupBox(g),cc=b.getCenter(new THREE.Vector3());const side=[cc.x-pos.x,cc.z-pos.z];MOVED.set(key,{act,side,piv:react(g,act,side)})}
     REV.set(c.id,{room:ci,node:g,state:'shown',act});
     if(c.carrier.kind==='mark'||!pl.spawn){out.push(`<div class="card pz-clue">${esc(c.reveal&&c.reveal.reaction||'')}</div>`);setTimeout(()=>openHold(c.id,'take'),act==='look'?50:pl.swap?1300:700)}
     else{setTimeout(()=>spawn(c.id,carrierName(c),c.carrier.kind,g,c.reveal&&c.reveal.where),act==='look'?0:500);out.push(`<div class="card pz-clue"><span class="pill">발견</span> ${esc((c.reveal&&c.reveal.reaction)||`${carrierName(c)}이(가) 보인다`)}<div class="k">반짝이는 「${esc(carrierName(c))}」을(를) 눌러 집는다</div></div>`)}}
    else{NB.set(c.id,c.text);out.push(`<div class="card pz-clue"><span class="pill">단서</span> ${esc(c.text)}</div>`)}}
-  if(p.solve&&p.solve.at===h.need_id&&!DONE.has(p.id)){if(devOf(p)&&devOf(p).on!=='exit_door')setTimeout(()=>openDevice(p),30);else out.push(pzSolveUI(p))}}
+  if(p.solve&&p.solve.at===h.need_id&&!DONE.has(p.id)){if(devOf(p)&&devOf(p).on!=='exit_door'){devOpen=true;setTimeout(()=>openDevice(p),30)}else out.push(pzSolveUI(p))}}
+ /* 10/23 미르: 한 번 조사하고 내려놓은 물건을 다시 누르면 그 단서를 다시 읽는다(여럿이면 누를 때마다 다음 것) */
+ if(!one&&!out.length&&!devOpen){const got=[];for(const {p,h} of pzBound(ci,g))for(const c of p.clues)if(c.from===h.need_id&&NB.has(c.id)&&!SOLVE_ONLY.includes(c.get_by))got.push(c);
+  if(got.length){const k=`${ci}|${g}`,n=(REREAD.get(k)||0)%got.length;REREAD.set(k,n+1);const c=got[n];if(c.carrier&&c.carrier.kind){setTimeout(()=>openHold(c.id,'read'),30);return}out.push(`<div class="card pz-clue"><span class="pill">다시 보기</span> ${esc(c.text)}</div>`)}}
  pzMsg=out.join('')}
 // 장면 마지막 퍼즐을 풀면 열쇠가 그 자리에 나온다
 const pzDone0=pzDone;pzDone=function(p){pzDone0(p);const sx=p.exit&&p.exit.key&&p.exit.key.name?p:null;if(!sx||KEYS.has(p.scene_id))return;const at=(p.hosts.find(h=>h.need_id===p.solve.at)||p.hosts[0])?.at?.[0];if(!at)return;
