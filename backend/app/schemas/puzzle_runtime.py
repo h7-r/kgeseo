@@ -1,6 +1,12 @@
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 
+class ServerContentModel(BaseModel):
+    """Server Runtime 콘텐츠 모델. 정의되지 않은 필드는 조용히 버리지 않고 거부한다."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class ObjectStateEffect(BaseModel):
     """Object 하나의 visible/enabled를 바꾸는 효과. 기록한 속성만 바꾼다."""
 
@@ -24,7 +30,7 @@ class ObjectStateEffect(BaseModel):
         return self
 
 
-class RuntimeEffect(BaseModel):
+class RuntimeEffect(ServerContentModel):
     grant_clue_ids: list[str]
     complete_puzzle_ids: list[str] = Field(default_factory=list)
     set_flags: dict[str, bool]
@@ -44,24 +50,24 @@ class RuntimeEffect(BaseModel):
         return self
 
 
-class PuzzleDefinition(BaseModel):
+class PuzzleDefinition(ServerContentModel):
     puzzle_id: str
     accepted_answers: list[str] = Field(min_length=1)
     on_correct: RuntimeEffect
 
 
-class ClueCombinationDefinition(BaseModel):
+class ClueCombinationDefinition(ServerContentModel):
     combination_id: str
     clue_ids: list[str] = Field(min_length=2, max_length=2)
     on_success: RuntimeEffect
 
 
-class InspectionDefinition(BaseModel):
+class InspectionDefinition(ServerContentModel):
     inspect_id: str = Field(min_length=1)
     on_inspect: RuntimeEffect
 
 
-class PuzzleRuntimeDefinition(BaseModel):
+class PuzzleRuntimeDefinition(ServerContentModel):
     schema_version: str
     case_id: str
     puzzles: list[PuzzleDefinition]

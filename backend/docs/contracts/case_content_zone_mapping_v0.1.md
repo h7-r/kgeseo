@@ -113,6 +113,8 @@ Server 파일은 정답, 조합 매칭, Effect와 내부 공개 조건을 담당
 Contract 확정 후 확장한다.
 
 Client Content Schema는 모든 구조적 모델에 `extra="forbid"`를 적용한다.
+(2026-10-23) Server Runtime Schema도 모든 모델에 같은 규칙을 적용한다
+(`interaction_puzzle_runtime_v0.1.md` §7.7). 두 파일 모두 정의되지 않은 필드는 로드 오류다.
 `accepted_answers`, `on_success`, `complete_puzzle_ids`, `grant_clue_ids`, `set_flags`
 등은 공개 Schema에 정의하지 않으며 잘못 삽입된 필드는 검증 오류로 처리한다.
 `metadata`는 공개 필드가 확정되지 않아 빈 `ClientMetadata` 모델만 허용하며,
@@ -198,6 +200,7 @@ PlaySession GET의 `state.object_states`와 Object 상태 change(`object_reveale
 - Frontend `status`와 Backend `completed_at`의 관계; 일시정지 등 상태는 현재 모델에 없음
 - `input`·`inspect`·`set_object_states` 이외의 파일 간 ID 참조 무결성 정책
 - Production Content 검증·배포 단계에서 `scripts/validate_case.py`를 실행하는 자동화 위치
+  (CLI는 스키마 오류의 파일·경로·종류·메시지를 출력한다. `interaction_puzzle_runtime_v0.1.md` §7.7 참고)
 
 `current_zone_id`와 `status`가 현재 PlaySession 모델/GET 응답에 없어도
 Zone ID로 **정적 Zone을 조회**하는 형태 자체는 설계할 수 있다. 하지만 현재 위치

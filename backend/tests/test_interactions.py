@@ -503,6 +503,26 @@ def test_object_resolution_errors_are_mapped(
     assert db_session.added == []
 
 
+def test_unsupported_server_field_returns_safe_500(
+    client: TestClient,
+    db_session: FakeAsyncSession,
+    client_content_directory: Path,
+) -> None:
+    runtime_path = client_content_directory / "case_001.server.json"
+    runtime_data = json.loads(runtime_path.read_text(encoding="utf-8"))
+    runtime_data["puzzles"][0]["requires_clue_ids"] = ["clue_07"]
+    runtime_path.write_text(json.dumps(runtime_data), encoding="utf-8")
+    db_session.get_result = make_play_session()
+
+    response = client.post(INTERACTIONS_URL, json=input_body())
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Puzzle runtime is unavailable."}
+    assert "requires_clue_ids" not in response.text
+    assert db_session.added == []
+    assert db_session.commit_count == 0
+
+
 def test_missing_client_content_returns_safe_500(
     client: TestClient,
     db_session: FakeAsyncSession,

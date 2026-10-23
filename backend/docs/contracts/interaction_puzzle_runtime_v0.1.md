@@ -447,6 +447,7 @@ clue_07 + clue_03
 
 - Runtime Definition은 필요한 요청 시점에 해당 Case의 `.server.json` 파일을 읽는다.
 - Python 표준 JSON parser로 읽은 후 Pydantic Runtime Schema로 검증한다.
+  정의되지 않은 필드는 검증 오류다(§7.7).
 - v0.1에서는 별도 cache를 사용하지 않는다.
 - cache는 실제 필요가 확인된 후 별도 작업으로 검토한다.
 - Loader는 DB에 접근하거나 원본 JSON을 변경하지 않는다.
@@ -493,6 +494,45 @@ Server Runtime에 선택 필드 `inspections`(기본값 `[]`)가 추가됐다.
 - Client Object의 `interaction: {"type": "inspect", "target_id": "<inspect_id>"}`로 연결한다.
   조사 효과는 Client Content에 두지 않는다.
 - 위 JSON의 ID는 **Example**이다.
+
+### 7.7 Schema 엄격 검증 (2026-10-23)
+
+Server Runtime 모델 6개는 모두 정의되지 않은 필드를 거부한다(`extra="forbid"`).
+이전에는 `ObjectStateEffect`를 뺀 5개가 정의되지 않은 필드를 **오류 없이 버렸다**.
+
+| 모델 | JSON 위치 |
+|---|---|
+| `PuzzleRuntimeDefinition` | 최상위 |
+| `PuzzleDefinition` | `puzzles[]` |
+| `ClueCombinationDefinition` | `clue_combinations[]` |
+| `InspectionDefinition` | `inspections[]` |
+| `RuntimeEffect` | `on_correct`, `on_success`, `on_inspect` |
+| `ObjectStateEffect` | `set_object_states[]` (원래부터 거부) |
+
+- 필드 목록, 필수 여부, 기본값은 바뀌지 않았다. 기존 `case_001`과 테스트 콘텐츠는 그대로 로드된다.
+- 다음은 여전히 **미지원**이며 로드 오류(`extra_forbidden`)가 난다:
+  `puzzles[].requires_clue_ids`, `inspections[].requires_clue_ids`, 최상위 `clues[]`,
+  정의되지 않은 효과(예: `set_clue_states`), 임의 메타데이터 필드.
+  `on_correct` 대신 `success_effects`를 쓰면 `on_correct` 누락(`missing`)과
+  `success_effects`(`extra_forbidden`)가 함께 보고된다.
+- 런타임에서 로드에 실패하면 응답 문구는 그대로다. Interaction은 HTTP 500
+  `Puzzle runtime is unavailable.`, Case Bundle은 HTTP 500 `Case content is unavailable.`이며
+  필드 이름이나 파일 경로를 응답에 넣지 않는다.
+- `python -m scripts.validate_case <case_id>`는 스키마 실패 시 기존
+  `[FAIL] <단계>: <예외 이름>` 줄 아래에 오류마다 한 줄씩
+  `<파일> → <경로> → <오류 종류> → <메시지>`를 출력하고 종료 코드 1로 끝난다.
+  JSON 문법 오류는 `<파일> → line L, column C → json_invalid → <메시지>`다.
+  입력값(정답 등)은 출력하지 않는다. 예:
+
+  ```text
+  [FAIL] Server Runtime Schema: CaseRuntimeValidationError
+  case_x.server.json → puzzles.0.requires_clue_ids → extra_forbidden → Extra inputs are not permitted
+  Case 'case_x': INVALID
+  ```
+
+- **이번 변경에 포함하지 않은 것:** 값 타입의 느슨한 변환. 예를 들어 `set_flags`의 `"yes"`·`1`은
+  `true`로, Client Content의 `"visible": "false"`는 `false`로 바뀌어 로드된다.
+  `puzzle_id`, `combination_id`의 빈 문자열도 아직 막지 않는다.
 
 ## 8. State Mutation Rules
 
@@ -704,6 +744,10 @@ v0.1 Runtime Definition은 다음 정보를 다루지 않는다.
 5. (확장) 세션에 저장된 `object_states`가 콘텐츠 수정으로 사라진 Object를 가리킬 때의
    처리. 현재는 Object 상태 계산 시 404(`Zone/Object not found.`)로 실패한다.
 6. (확장) Object 상태 처리 시 Client Content를 행 잠금 전·후 두 번 읽는 비용의 허용 여부
+7. 값 타입 엄격 검증(`set_flags` boolean, Client `visible`·`enabled`, ID 빈 문자열)의 적용 여부
+8. 생성 에이전트 결과물의 메타데이터(설명, 근거, 힌트 등)를 Server JSON에 둘 허용 영역을 만들지.
+   지금은 정의되지 않은 필드로 거부된다.
+9. 선행 조건(`requires_clue_ids` 또는 `requires: {clue_ids, puzzle_ids, flags}`)의 구현 여부와 형식
 
 ## 14. 다음 구현 단계
 

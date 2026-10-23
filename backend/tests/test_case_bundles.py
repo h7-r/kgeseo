@@ -270,6 +270,30 @@ def test_get_case_bundle_returns_500_for_cross_file_mismatch(
     assert "other" not in response.text
 
 
+@pytest.mark.parametrize(
+    "unsupported",
+    [
+        pytest.param({"clues": [{"clue_id": "CLUE_SECRET"}]}, id="top_level_clues"),
+        pytest.param({"version_note": "draft"}, id="top_level_unknown"),
+    ],
+)
+def test_get_case_bundle_returns_500_for_unsupported_runtime_field(
+    client: TestClient,
+    case_directory: Path,
+    unsupported: dict,
+) -> None:
+    write_case_pair(
+        case_directory, server_runtime={**make_server_runtime(), **unsupported}
+    )
+
+    response = client.get("/api/v1/cases/case_001/bundle")
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Case content is unavailable."}
+    for key in unsupported:
+        assert key not in response.text
+
+
 def test_get_case_bundle_returns_500_for_missing_runtime_puzzle(
     client: TestClient,
     case_directory: Path,

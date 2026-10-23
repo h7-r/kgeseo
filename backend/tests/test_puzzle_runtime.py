@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -193,6 +194,159 @@ def test_load_case_runtime_rejects_invalid_schema(
 
     with pytest.raises(CaseRuntimeValidationError):
         load_case_runtime("case_001")
+
+
+INSPECTION = {
+    "inspect_id": "inspect_01",
+    "on_inspect": {"grant_clue_ids": [], "set_flags": {}},
+}
+
+
+def put_field(data: dict, path: tuple, key: str, value: object) -> None:
+    node = data
+    for part in path:
+        node = node[part]
+    node[key] = value
+
+
+def validation_errors(error: pytest.ExceptionInfo) -> list[tuple[tuple, str]]:
+    return [(item["loc"], item["type"]) for item in error.value.__cause__.errors()]
+
+
+def test_load_case_runtime_accepts_all_defined_optional_fields(
+    cases_directory: Path,
+    valid_runtime_data: dict,
+) -> None:
+    valid_runtime_data["puzzles"][0]["on_correct"]["complete_puzzle_ids"] = []
+    valid_runtime_data["puzzles"][0]["on_correct"]["set_object_states"] = [
+        {"zone_id": "ZONE_01", "object_id": "OBJ_01", "visible": True}
+    ]
+    valid_runtime_data["inspections"] = [deepcopy(INSPECTION)]
+    write_runtime(cases_directory, valid_runtime_data)
+
+    runtime = load_case_runtime("case_001")
+
+    assert runtime.inspections[0].inspect_id == "inspect_01"
+    assert runtime.puzzles[0].on_correct.set_object_states[0].visible is True
+
+
+@pytest.mark.parametrize(
+    ("path", "key", "value", "expected_loc"),
+    [
+        pytest.param((), "version_note", "x", ("version_note",), id="top_level"),
+        pytest.param(
+            ("puzzles", 0), "hint_text", "x", ("puzzles", 0, "hint_text"), id="puzzle"
+        ),
+        pytest.param(
+            ("inspections", 0),
+            "note",
+            "x",
+            ("inspections", 0, "note"),
+            id="inspection",
+        ),
+        pytest.param(
+            ("clue_combinations", 0),
+            "combo_hint",
+            "x",
+            ("clue_combinations", 0, "combo_hint"),
+            id="clue_combination",
+        ),
+        pytest.param(
+            ("puzzles", 0, "on_correct"),
+            "set_clue_states",
+            {},
+            ("puzzles", 0, "on_correct", "set_clue_states"),
+            id="on_correct_effect",
+        ),
+        pytest.param(
+            ("clue_combinations", 0, "on_success"),
+            "unlock_ending",
+            True,
+            ("clue_combinations", 0, "on_success", "unlock_ending"),
+            id="on_success_effect",
+        ),
+        pytest.param(
+            ("inspections", 0, "on_inspect"),
+            "play_sound",
+            "x",
+            ("inspections", 0, "on_inspect", "play_sound"),
+            id="on_inspect_effect",
+        ),
+        pytest.param(
+            ("puzzles", 0),
+            "requires_clue_ids",
+            ["clue_03"],
+            ("puzzles", 0, "requires_clue_ids"),
+            id="puzzle_requires_clue_ids",
+        ),
+        pytest.param(
+            ("inspections", 0),
+            "requires_clue_ids",
+            ["clue_03"],
+            ("inspections", 0, "requires_clue_ids"),
+            id="inspection_requires_clue_ids",
+        ),
+        pytest.param(
+            (),
+            "clues",
+            [{"clue_id": "clue_03", "title": "Letter"}],
+            ("clues",),
+            id="top_level_clues",
+        ),
+    ],
+)
+def test_load_case_runtime_rejects_unsupported_field(
+    cases_directory: Path,
+    valid_runtime_data: dict,
+    path: tuple,
+    key: str,
+    value: object,
+    expected_loc: tuple,
+) -> None:
+    valid_runtime_data["inspections"] = [deepcopy(INSPECTION)]
+    put_field(valid_runtime_data, path, key, value)
+    write_runtime(cases_directory, valid_runtime_data)
+
+    with pytest.raises(CaseRuntimeValidationError) as error:
+        load_case_runtime("case_001")
+
+    assert validation_errors(error) == [(expected_loc, "extra_forbidden")]
+
+
+def test_load_case_runtime_reports_renamed_effect_field(
+    cases_directory: Path,
+    valid_runtime_data: dict,
+) -> None:
+    puzzle = valid_runtime_data["puzzles"][0]
+    puzzle["success_effects"] = puzzle.pop("on_correct")
+    write_runtime(cases_directory, valid_runtime_data)
+
+    with pytest.raises(CaseRuntimeValidationError) as error:
+        load_case_runtime("case_001")
+
+    assert sorted(validation_errors(error)) == [
+        (("puzzles", 0, "on_correct"), "missing"),
+        (("puzzles", 0, "success_effects"), "extra_forbidden"),
+    ]
+
+
+def test_load_case_runtime_reports_every_unsupported_field(
+    cases_directory: Path,
+    valid_runtime_data: dict,
+) -> None:
+    valid_runtime_data["clues"] = []
+    valid_runtime_data["puzzles"][0]["requires_clue_ids"] = []
+    valid_runtime_data["puzzles"][0]["on_correct"]["set_clue_states"] = {}
+    write_runtime(cases_directory, valid_runtime_data)
+
+    with pytest.raises(CaseRuntimeValidationError) as error:
+        load_case_runtime("case_001")
+
+    assert sorted(validation_errors(error)) == [
+        (("clues",), "extra_forbidden"),
+        (("puzzles", 0, "on_correct", "set_clue_states"), "extra_forbidden"),
+        (("puzzles", 0, "requires_clue_ids"), "extra_forbidden"),
+    ]
 
 
 def test_load_case_runtime_rejects_path_traversal(
