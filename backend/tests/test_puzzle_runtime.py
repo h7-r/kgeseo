@@ -200,6 +200,10 @@ INSPECTION = {
     "inspect_id": "inspect_01",
     "on_inspect": {"grant_clue_ids": [], "set_flags": {}},
 }
+CLUES = [
+    {"clue_id": clue_id, "title": clue_id}
+    for clue_id in ("clue_03", "clue_07", "clue_10")
+]
 
 
 def put_field(data: dict, path: tuple, key: str, value: object) -> None:
@@ -288,10 +292,17 @@ def test_load_case_runtime_accepts_all_defined_optional_fields(
         ),
         pytest.param(
             (),
-            "clues",
-            [{"clue_id": "clue_03", "title": "Letter"}],
-            ("clues",),
-            id="top_level_clues",
+            "companion",
+            {"npc_id": "companion_01"},
+            ("companion",),
+            id="top_level_companion",
+        ),
+        pytest.param(
+            ("clues", 0),
+            "carrier_kind",
+            "letter",
+            ("clues", 0, "carrier_kind"),
+            id="clue_carrier_kind",
         ),
     ],
 )
@@ -304,6 +315,7 @@ def test_load_case_runtime_rejects_unsupported_field(
     expected_loc: tuple,
 ) -> None:
     valid_runtime_data["inspections"] = [deepcopy(INSPECTION)]
+    valid_runtime_data["clues"] = deepcopy(CLUES)
     put_field(valid_runtime_data, path, key, value)
     write_runtime(cases_directory, valid_runtime_data)
 
@@ -334,7 +346,7 @@ def test_load_case_runtime_reports_every_unsupported_field(
     cases_directory: Path,
     valid_runtime_data: dict,
 ) -> None:
-    valid_runtime_data["clues"] = []
+    valid_runtime_data["companion"] = {}
     valid_runtime_data["puzzles"][0]["requires_clue_ids"] = []
     valid_runtime_data["puzzles"][0]["on_correct"]["set_clue_states"] = {}
     write_runtime(cases_directory, valid_runtime_data)
@@ -343,10 +355,152 @@ def test_load_case_runtime_reports_every_unsupported_field(
         load_case_runtime("case_001")
 
     assert sorted(validation_errors(error)) == [
-        (("clues",), "extra_forbidden"),
+        (("companion",), "extra_forbidden"),
         (("puzzles", 0, "on_correct", "set_clue_states"), "extra_forbidden"),
         (("puzzles", 0, "requires_clue_ids"), "extra_forbidden"),
     ]
+
+
+def test_load_case_runtime_reads_clue_definitions(
+    cases_directory: Path,
+    valid_runtime_data: dict,
+) -> None:
+    valid_runtime_data["clues"] = [
+        {"clue_id": "clue_03", "title": "낡은 서신", "summary": "요약", "body": "본문"},
+        {"clue_id": "clue_07", "title": "일기"},
+        {"clue_id": "clue_10", "title": "진실", "summary": None},
+    ]
+    write_runtime(cases_directory, valid_runtime_data)
+
+    runtime = load_case_runtime("case_001")
+
+    assert [clue.clue_id for clue in runtime.clues] == ["clue_03", "clue_07", "clue_10"]
+    assert runtime.clues[0].body == "본문"
+    assert (runtime.clues[1].summary, runtime.clues[1].body) == (None, None)
+
+
+def test_load_case_runtime_without_clues_keeps_id_only_clues(
+    cases_directory: Path,
+    valid_runtime_data: dict,
+) -> None:
+    write_runtime(cases_directory, valid_runtime_data)
+
+    runtime = load_case_runtime("case_001")
+
+    assert runtime.clues == []
+    assert runtime.puzzles[0].on_correct.grant_clue_ids == ["clue_03"]
+
+
+@pytest.mark.parametrize(
+    "clue",
+    [
+        pytest.param({"clue_id": "", "title": "t"}, id="empty_id"),
+        pytest.param({"clue_id": "   ", "title": "t"}, id="blank_id"),
+        pytest.param({"clue_id": "clue_03"}, id="missing_title"),
+        pytest.param({"clue_id": "clue_03", "title": "  "}, id="blank_title"),
+        pytest.param(
+            {"clue_id": "clue_03", "title": "t", "summary": ""}, id="empty_summary"
+        ),
+        pytest.param(
+            {"clue_id": "clue_03", "title": "t", "body": " \n"}, id="blank_body"
+        ),
+        pytest.param({"clue_id": "clue_03", "title": 3}, id="non_string_title"),
+        pytest.param(
+            {"clue_id": "clue_03", "title": "t", "asset_key": "x"}, id="asset_key"
+        ),
+    ],
+)
+def test_load_case_runtime_rejects_invalid_clue(
+    cases_directory: Path,
+    valid_runtime_data: dict,
+    clue: dict,
+) -> None:
+    # 다른 참조는 모두 정의해 두고, 잘못된 단서 정의 자체 때문에 실패하는지 확인한다.
+    valid_runtime_data["clues"] = [clue, *deepcopy(CLUES[1:])]
+    write_runtime(cases_directory, valid_runtime_data)
+
+    with pytest.raises(CaseRuntimeValidationError) as error:
+        load_case_runtime("case_001")
+
+    locations = [loc for loc, _ in validation_errors(error)]
+    assert locations and all(loc[:2] == ("clues", 0) for loc in locations)
+
+
+def test_load_case_runtime_rejects_duplicate_clue_id(
+    cases_directory: Path,
+    valid_runtime_data: dict,
+) -> None:
+    valid_runtime_data["clues"] = deepcopy(CLUES) + [deepcopy(CLUES[0])]
+    write_runtime(cases_directory, valid_runtime_data)
+
+    with pytest.raises(CaseRuntimeValidationError) as error:
+        load_case_runtime("case_001")
+
+    assert "Duplicate clue_id: 'clue_03'" in str(error.value.__cause__)
+
+
+@pytest.mark.parametrize(
+    ("missing", "owner"),
+    [
+        pytest.param("clue_03", "Puzzle 'puzzle_01'", id="puzzle_grant"),
+        pytest.param(
+            "clue_07", "Clue combination 'combination_01'", id="combination_input"
+        ),
+        pytest.param(
+            "clue_10", "Clue combination 'combination_01'", id="combination_grant"
+        ),
+        pytest.param("clue_99", "Inspection 'inspect_01'", id="inspection_grant"),
+    ],
+)
+def test_load_case_runtime_rejects_undefined_clue_reference(
+    cases_directory: Path,
+    valid_runtime_data: dict,
+    missing: str,
+    owner: str,
+) -> None:
+    inspection = deepcopy(INSPECTION)
+    inspection["on_inspect"]["grant_clue_ids"] = ["clue_99"]
+    valid_runtime_data["inspections"] = [inspection]
+    valid_runtime_data["clues"] = [
+        clue
+        for clue in deepcopy(CLUES) + [{"clue_id": "clue_99", "title": "t"}]
+        if clue["clue_id"] != missing
+    ]
+    write_runtime(cases_directory, valid_runtime_data)
+
+    with pytest.raises(CaseRuntimeValidationError) as error:
+        load_case_runtime("case_001")
+
+    assert f"{owner} references clue '{missing}' not defined in clues" in str(
+        error.value.__cause__
+    )
+
+
+def test_load_case_runtime_explicit_empty_clues_requires_definitions(
+    cases_directory: Path,
+    valid_runtime_data: dict,
+) -> None:
+    valid_runtime_data["clues"] = []
+    write_runtime(cases_directory, valid_runtime_data)
+
+    with pytest.raises(CaseRuntimeValidationError) as error:
+        load_case_runtime("case_001")
+
+    assert "references clue 'clue_03' not defined in clues" in str(
+        error.value.__cause__
+    )
+
+
+def test_load_case_runtime_allows_defined_but_never_granted_clue(
+    cases_directory: Path,
+    valid_runtime_data: dict,
+) -> None:
+    valid_runtime_data["clues"] = deepcopy(CLUES) + [
+        {"clue_id": "clue_extra", "title": "t"}
+    ]
+    write_runtime(cases_directory, valid_runtime_data)
+
+    assert len(load_case_runtime("case_001").clues) == 4
 
 
 def test_load_case_runtime_rejects_path_traversal(

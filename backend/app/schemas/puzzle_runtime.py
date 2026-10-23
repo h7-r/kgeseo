@@ -67,12 +67,36 @@ class InspectionDefinition(ServerContentModel):
     on_inspect: RuntimeEffect
 
 
+class ClueDefinition(ServerContentModel):
+    """획득한 PlaySession에만 공개하는 단서 표시 정보."""
+
+    clue_id: str = Field(min_length=1)
+    title: str
+    summary: str | None = None
+    body: str | None = None
+
+    @model_validator(mode="after")
+    def validate_text(self) -> "ClueDefinition":
+        if not self.clue_id.strip():
+            raise ValueError("clue_id must not be blank")
+        if not self.title.strip():
+            raise ValueError(f"Clue '{self.clue_id}' title must not be blank")
+        for field in ("summary", "body"):
+            value = getattr(self, field)
+            if value is not None and not value.strip():
+                raise ValueError(
+                    f"Clue '{self.clue_id}' {field} must be omitted or not blank"
+                )
+        return self
+
+
 class PuzzleRuntimeDefinition(ServerContentModel):
     schema_version: str
     case_id: str
     puzzles: list[PuzzleDefinition]
     clue_combinations: list[ClueCombinationDefinition]
     inspections: list[InspectionDefinition] = Field(default_factory=list)
+    clues: list[ClueDefinition] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_unique_puzzle_ids(self) -> "PuzzleRuntimeDefinition":
@@ -90,4 +114,39 @@ class PuzzleRuntimeDefinition(ServerContentModel):
             if inspection.inspect_id in seen_ids:
                 raise ValueError(f"Duplicate inspect_id: '{inspection.inspect_id}'")
             seen_ids.add(inspection.inspect_id)
+        return self
+
+    @model_validator(mode="after")
+    def validate_clue_references(self) -> "PuzzleRuntimeDefinition":
+        seen_ids: set[str] = set()
+        for clue in self.clues:
+            if clue.clue_id in seen_ids:
+                raise ValueError(f"Duplicate clue_id: '{clue.clue_id}'")
+            seen_ids.add(clue.clue_id)
+
+        # clues를 명시하지 않은 기존 콘텐츠는 단서 정의 없이 ID만 쓰는 방식을 유지한다.
+        if "clues" not in self.model_fields_set:
+            return self
+
+        references = [
+            (f"Puzzle '{puzzle.puzzle_id}'", puzzle.on_correct.grant_clue_ids)
+            for puzzle in self.puzzles
+        ]
+        for combination in self.clue_combinations:
+            owner = f"Clue combination '{combination.combination_id}'"
+            references.append((owner, combination.clue_ids))
+            references.append((owner, combination.on_success.grant_clue_ids))
+        references += [
+            (
+                f"Inspection '{inspection.inspect_id}'",
+                inspection.on_inspect.grant_clue_ids,
+            )
+            for inspection in self.inspections
+        ]
+        for owner, clue_ids in references:
+            for clue_id in clue_ids:
+                if clue_id not in seen_ids:
+                    raise ValueError(
+                        f"{owner} references clue '{clue_id}' not defined in clues"
+                    )
         return self

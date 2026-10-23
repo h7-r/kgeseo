@@ -183,7 +183,8 @@ replay는 그 사이 Object가 숨김·비활성이 됐어도 최초 응답을 �
 - navigate Runtime과 current zone mutation, 비활성 문 이동의 서버 검증
 - select Runtime
 - Session 상태를 반영한 Zone 조회 API
-- 단서 표시 데이터(제목·본문 등) 제공 — `clue_acquired`에는 `clue_id`만 담긴다
+- 단서 표시 데이터(제목·본문 등)를 Interaction 응답에 싣는 것 — `clue_acquired`에는 계속
+  `clue_id`만 담긴다. 표시 정보는 별도 `GET /play-sessions/{id}/clues`(`clue_api_v0.1.md`)
 - `enabled` true → false(잠금) 효과와 대응 change 타입
 - Hint API
 - remaining time/server timer

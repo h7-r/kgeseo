@@ -511,8 +511,9 @@ Server Runtime 모델 6개는 모두 정의되지 않은 필드를 거부한다(
 
 - 필드 목록, 필수 여부, 기본값은 바뀌지 않았다. 기존 `case_001`과 테스트 콘텐츠는 그대로 로드된다.
 - 다음은 여전히 **미지원**이며 로드 오류(`extra_forbidden`)가 난다:
-  `puzzles[].requires_clue_ids`, `inspections[].requires_clue_ids`, 최상위 `clues[]`,
+  `puzzles[].requires_clue_ids`, `inspections[].requires_clue_ids`,
   정의되지 않은 효과(예: `set_clue_states`), 임의 메타데이터 필드.
+  최상위 `clues[]`는 이후 Q4에서 지원됐다(§7.8).
   `on_correct` 대신 `success_effects`를 쓰면 `on_correct` 누락(`missing`)과
   `success_effects`(`extra_forbidden`)가 함께 보고된다.
 - 런타임에서 로드에 실패하면 응답 문구는 그대로다. Interaction은 HTTP 500
@@ -533,6 +534,19 @@ Server Runtime 모델 6개는 모두 정의되지 않은 필드를 거부한다(
 - **이번 변경에 포함하지 않은 것:** 값 타입의 느슨한 변환. 예를 들어 `set_flags`의 `"yes"`·`1`은
   `true`로, Client Content의 `"visible": "false"`는 `false`로 바뀌어 로드된다.
   `puzzle_id`, `combination_id`의 빈 문자열도 아직 막지 않는다.
+
+### 7.8 단서 정의 `clues[]` (Q4, 2026-10-23, 팀 검토 대기)
+
+Server Runtime 최상위 선택 필드 `clues`(기본값 `[]`)에 단서 표시 정보를 둔다.
+필드는 `clue_id`(필수), `title`(필수), `summary`(선택), `body`(선택)이며
+정의되지 않은 필드(`carrier_kind`, `asset_key` 등)는 거부한다.
+
+- `clue_id` 빈 값·공백만 있는 값, `title` 공백만 있는 값, 값을 쓴 `summary`·`body`의
+  공백만 있는 값은 거부한다. `clue_id` 중복도 거부한다.
+- `clues` 키가 있으면(빈 목록 포함) 모든 `grant_clue_ids`와 단서 조합 `clue_ids`가
+  정의돼 있어야 한다. 키가 없으면 기존처럼 ID만 쓰며 이 검증을 하지 않는다.
+- 단서 정의는 Server 전용이다. 획득한 단서만 `GET /api/v1/play-sessions/{id}/clues`로
+  공개한다. 상세 계약은 `clue_api_v0.1.md`.
 
 ## 8. State Mutation Rules
 

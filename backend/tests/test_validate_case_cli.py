@@ -300,7 +300,7 @@ def test_every_server_schema_error_is_reported(
     write_client(case_directory)
 
     def break_runtime(data: dict) -> None:
-        data["clues"] = []
+        data["companion"] = {}
         puzzle = data["puzzles"][0]
         puzzle["success_effects"] = puzzle.pop("on_correct")
 
@@ -311,7 +311,7 @@ def test_every_server_schema_error_is_reported(
     error_lines = capsys.readouterr().err.splitlines()
     assert exit_code == 1
     assert sorted(error_lines[1:-1]) == [
-        "CASE_TEST.server.json → clues → extra_forbidden"
+        "CASE_TEST.server.json → companion → extra_forbidden"
         " → Extra inputs are not permitted",
         "CASE_TEST.server.json → puzzles.0.on_correct → missing → Field required",
         "CASE_TEST.server.json → puzzles.0.success_effects → extra_forbidden"
@@ -364,7 +364,7 @@ def test_detail_output_survives_stream_without_arrow_support(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     write_client(case_directory)
-    rewrite_server(case_directory, lambda data: data.update({"clues": []}))
+    rewrite_server(case_directory, lambda data: data.update({"companion": {}}))
     stream = io.TextIOWrapper(io.BytesIO(), encoding="ascii")
     monkeypatch.setattr(sys, "stderr", stream)
 
@@ -373,5 +373,5 @@ def test_detail_output_survives_stream_without_arrow_support(
     stream.flush()
     written = stream.buffer.getvalue().decode("ascii")
     assert exit_code == 1
-    assert "CASE_TEST.server.json \\u2192 clues \\u2192 extra_forbidden" in written
+    assert "CASE_TEST.server.json \\u2192 companion \\u2192 extra_forbidden" in written
     assert "Case 'CASE_TEST': INVALID" in written

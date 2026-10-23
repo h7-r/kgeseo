@@ -273,7 +273,9 @@ def test_get_case_bundle_returns_500_for_cross_file_mismatch(
 @pytest.mark.parametrize(
     "unsupported",
     [
-        pytest.param({"clues": [{"clue_id": "CLUE_SECRET"}]}, id="top_level_clues"),
+        pytest.param(
+            {"companion": {"npc_id": "companion_01"}}, id="top_level_companion"
+        ),
         pytest.param({"version_note": "draft"}, id="top_level_unknown"),
     ],
 )

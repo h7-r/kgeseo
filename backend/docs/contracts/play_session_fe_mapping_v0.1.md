@@ -48,6 +48,7 @@ Interaction Service는 `state_json` 변경 시 `updated_at`을 갱신하지만,
 | `acquired_clue_ids`, `completed_puzzle_ids`, `hint_levels`, `flags` | `state_json`, `PlaySessionState` | 기존 API에서는 `data.state` 안에 있음 |
 | Object `visible`·`enabled` 세션 변경값 (확장) | `state_json.object_states` | `{zone_id: {object_id: {visible?, enabled?}}}`. Bundle 정적 값 위에 덮어씀 |
 | 조사 완료 목록 (확장) | `state_json.completed_inspect_ids` | 재조사 판정용. FE 화면 표시 의미는 미정 |
+| 획득 단서 표시 정보 (Q4) | `GET .../clues` (Server `clues[]` + `acquired_clue_ids`) | 획득한 단서만 반환. 정의 없으면 `title: null`. `clue_api_v0.1.md` |
 | `started_at` | `created_at` 후보 | 의미가 일치하면 외부 별칭으로 매핑 |
 | `updated_at` | `PlaySession.updated_at` | 기존 GET에 있으며 POST에는 없음 |
 | `completed_at` | `PlaySession.completed_at` | 기존 GET에 있음; FE 전용 형태에서 생략 가능 여부 결정 |

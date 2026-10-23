@@ -190,6 +190,7 @@ PlaySession GET의 `state.object_states`와 Object 상태 change(`object_reveale
 - `select` target 의미와 `navigate.interaction.target_id` 규칙 미확정
   (`inspect`는 Server `inspect_id`로 구현됨, 팀 검토 대기)
 - Clue ID registry 및 공개 Clue와 Server Runtime의 연결 검증 미확정
+  (Server `clues[]`가 있으면 지급·조합 단서 ID를 검증함. `clue_api_v0.1.md`)
 - Session 상태가 정적 `visible`·`enabled`를 덮어쓰는 규칙: Effect 기반 덮어쓰기는
   구현됨(`object_states`). 조건식 기반 공개·활성 규칙은 미정
 - Object/Navigation의 조건식 기반 공개·활성 조건, 조건 표현과 Server-only 보관 위치
