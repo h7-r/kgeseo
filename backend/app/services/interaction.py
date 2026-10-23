@@ -11,24 +11,33 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.interaction_event import InteractionEvent
 from app.models.play_session import PlaySession
+from app.schemas.case_content import CaseClientContent
 from app.schemas.interaction import (
     ClueAcquiredStateChange,
     CombineCluesInteraction,
     FlagUpdatedStateChange,
+    InspectInteraction,
     InteractionProcessResult,
     InteractionRequest,
     InteractionResult,
     InteractionResultType,
     InteractionStateChange,
+    ObjectHiddenStateChange,
+    ObjectRevealedStateChange,
+    ObjectUnlockedStateChange,
     PuzzleCompletedStateChange,
     SubmitAnswerInteraction,
 )
 from app.schemas.play_session import PlaySessionState
 from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition, RuntimeEffect
+from app.services.case_content import load_case_client_content
+from app.services.case_content_validation import validate_case_content_links
+from app.services.object_state import resolve_effective_object_state
 from app.services.play_session import PlaySessionNotFoundError
 from app.services.puzzle_runtime import load_case_runtime, normalize_answer
 
 RuntimeLoader = Callable[[str], PuzzleRuntimeDefinition]
+ClientContentLoader = Callable[[str], CaseClientContent]
 
 
 class InteractionServiceError(Exception):
@@ -47,12 +56,25 @@ class IdempotencyConflictError(InteractionServiceError):
     pass
 
 
+class InspectionNotFoundError(InteractionServiceError):
+    pass
+
+
+class ObjectNotVisibleError(InteractionServiceError):
+    pass
+
+
+class ObjectNotEnabledError(InteractionServiceError):
+    pass
+
+
 async def process_interaction(
     db: AsyncSession,
     play_session_id: str,
     interaction: InteractionRequest,
     *,
     runtime_loader: RuntimeLoader = load_case_runtime,
+    client_content_loader: ClientContentLoader = load_case_client_content,
 ) -> InteractionProcessResult:
     target_id, payload_json = _request_values(interaction)
     try:
@@ -76,6 +98,15 @@ async def process_interaction(
 
         runtime = runtime_loader(play_session.case_id)
         current_state = deepcopy(play_session.state_json)
+        loaded_client_content: list[CaseClientContent] = []
+
+        # Object 상태가 필요할 때만 Client Content를 읽고 교차 검증한다.
+        def load_client_content() -> CaseClientContent:
+            if not loaded_client_content:
+                client_content = client_content_loader(play_session.case_id)
+                validate_case_content_links(client_content, runtime)
+                loaded_client_content.append(client_content)
+            return loaded_client_content[0]
 
         if isinstance(interaction, SubmitAnswerInteraction):
             (
@@ -87,12 +118,22 @@ async def process_interaction(
                 interaction,
                 current_state,
                 runtime,
+                load_client_content,
             )
+        elif isinstance(interaction, InspectInteraction):
+            result_type, result_state, state_changes = _process_inspect(
+                interaction,
+                current_state,
+                runtime,
+                load_client_content,
+            )
+            attempt_count = None
         else:
             result_type, result_state, state_changes = _process_combine_clues(
                 interaction,
                 current_state,
                 runtime,
+                load_client_content,
             )
             attempt_count = None
 
@@ -172,6 +213,7 @@ def apply_runtime_effect(
     effect: RuntimeEffect,
     *,
     complete_puzzle_ids: list[str] | None = None,
+    client_content: CaseClientContent | None = None,
 ) -> tuple[dict[str, Any], list[InteractionStateChange]]:
     updated_state = deepcopy(state)
     state_changes: list[InteractionStateChange] = []
@@ -208,13 +250,88 @@ def apply_runtime_effect(
                 ),
             )
 
+    if effect.set_object_states:
+        if client_content is None:
+            raise ValueError("client_content is required for set_object_states")
+        state_changes.extend(
+            _apply_object_state_effects(updated_state, effect, client_content)
+        )
+
     return updated_state, state_changes
+
+
+def _apply_object_state_effects(
+    state: dict[str, Any],
+    effect: RuntimeEffect,
+    client_content: CaseClientContent,
+) -> list[InteractionStateChange]:
+    """콘텐츠 초기값과 세션 변경값을 합친 최종 상태와 다를 때만 기록하고 알린다."""
+
+    state_changes: list[InteractionStateChange] = []
+    for object_effect in effect.set_object_states:
+        zone_id = object_effect.zone_id
+        object_id = object_effect.object_id
+        current = resolve_effective_object_state(
+            client_content,
+            state.get("object_states", {}),
+            zone_id,
+            object_id,
+        )
+
+        def record(field: str, value: bool) -> None:
+            overrides = (
+                state.setdefault("object_states", {})
+                .setdefault(zone_id, {})
+                .setdefault(object_id, {})
+            )
+            overrides[field] = value
+
+        if (
+            object_effect.visible is not None
+            and object_effect.visible != current.visible
+        ):
+            record("visible", object_effect.visible)
+            if object_effect.visible:
+                state_changes.append(
+                    ObjectRevealedStateChange(
+                        type="object_revealed",
+                        zone_id=zone_id,
+                        object_id=object_id,
+                    ),
+                )
+            else:
+                state_changes.append(
+                    ObjectHiddenStateChange(
+                        type="object_hidden",
+                        zone_id=zone_id,
+                        object_id=object_id,
+                    ),
+                )
+
+        if (
+            object_effect.enabled is not None
+            and object_effect.enabled != current.enabled
+        ):
+            # enabled=false는 RuntimeEffect 스키마에서 거부되므로 여기서는 잠금 해제만 온다.
+            if not object_effect.enabled:
+                raise ValueError("set_object_states enabled=false is not supported")
+            record("enabled", True)
+            state_changes.append(
+                ObjectUnlockedStateChange(
+                    type="object_unlocked",
+                    zone_id=zone_id,
+                    object_id=object_id,
+                ),
+            )
+
+    return state_changes
 
 
 def _process_submit_answer(
     interaction: SubmitAnswerInteraction,
     state: dict[str, Any],
     runtime: PuzzleRuntimeDefinition,
+    load_client_content: Callable[[], CaseClientContent],
 ) -> tuple[
     InteractionResultType,
     dict[str, Any],
@@ -250,6 +367,9 @@ def _process_submit_answer(
         graded_state,
         puzzle.on_correct,
         complete_puzzle_ids=[interaction.target_id],
+        client_content=(
+            load_client_content() if puzzle.on_correct.set_object_states else None
+        ),
     )
     return "correct", updated_state, state_changes, attempt_count
 
@@ -258,6 +378,7 @@ def _process_combine_clues(
     interaction: CombineCluesInteraction,
     state: dict[str, Any],
     runtime: PuzzleRuntimeDefinition,
+    load_client_content: Callable[[], CaseClientContent],
 ) -> tuple[
     InteractionResultType,
     dict[str, Any],
@@ -281,8 +402,57 @@ def _process_combine_clues(
     updated_state, state_changes = apply_runtime_effect(
         state,
         combination.on_success,
+        client_content=(
+            load_client_content() if combination.on_success.set_object_states else None
+        ),
     )
     return "combined", updated_state, state_changes
+
+
+def _process_inspect(
+    interaction: InspectInteraction,
+    state: dict[str, Any],
+    runtime: PuzzleRuntimeDefinition,
+    load_client_content: Callable[[], CaseClientContent],
+) -> tuple[
+    InteractionResultType,
+    dict[str, Any],
+    list[InteractionStateChange],
+]:
+    inspection = next(
+        (
+            inspection
+            for inspection in runtime.inspections
+            if inspection.inspect_id == interaction.target_id
+        ),
+        None,
+    )
+    if inspection is None:
+        raise InspectionNotFoundError(interaction.target_id)
+
+    # 효과를 이미 적용한 조사는 지금 숨김·비활성이어도 오류 없이 변화 없음으로 응답한다.
+    if interaction.target_id in state.get("completed_inspect_ids", []):
+        return "already_inspected", state, []
+
+    client_content = load_client_content()
+    current = resolve_effective_object_state(
+        client_content,
+        state.get("object_states", {}),
+        interaction.zone_id,
+        interaction.object_id,
+    )
+    if not current.visible:
+        raise ObjectNotVisibleError(interaction.object_id)
+    if not current.enabled:
+        raise ObjectNotEnabledError(interaction.object_id)
+
+    updated_state, state_changes = apply_runtime_effect(
+        state,
+        inspection.on_inspect,
+        client_content=client_content,
+    )
+    updated_state.setdefault("completed_inspect_ids", []).append(interaction.target_id)
+    return "inspected", updated_state, state_changes
 
 
 def _request_values(
@@ -290,7 +460,7 @@ def _request_values(
 ) -> tuple[str | None, dict[str, Any]]:
     target_id = (
         interaction.target_id
-        if isinstance(interaction, SubmitAnswerInteraction)
+        if isinstance(interaction, SubmitAnswerInteraction | InspectInteraction)
         else None
     )
     return target_id, interaction.payload.model_dump(mode="json")

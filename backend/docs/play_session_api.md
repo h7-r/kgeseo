@@ -45,9 +45,12 @@ HTTP Status:
     "state": {
       "current_zone_id": "ZONE_001",
       "completed_puzzle_ids": [],
+      "completed_inspect_ids": [],
       "acquired_clue_ids": [],
       "hint_levels": {},
-      "flags": {}
+      "attempt_counts": {},
+      "flags": {},
+      "object_states": {}
     }
   }
 }
@@ -133,9 +136,12 @@ JSON parse 또는 Client Schema 검증이 실패하면 내부 상세를 노출�
 {
   "current_zone_id": "ZONE_001",
   "completed_puzzle_ids": [],
+  "completed_inspect_ids": [],
   "acquired_clue_ids": [],
   "hint_levels": {},
-  "flags": {}
+  "attempt_counts": {},
+  "flags": {},
+  "object_states": {}
 }
 ```
 
@@ -232,9 +238,12 @@ HTTP Status:
     "state": {
       "current_zone_id": null,
       "completed_puzzle_ids": [],
+      "completed_inspect_ids": [],
       "acquired_clue_ids": [],
       "hint_levels": {},
-      "flags": {}
+      "attempt_counts": {},
+      "flags": {},
+      "object_states": {}
     }
   }
 }
@@ -245,6 +254,13 @@ HTTP Status:
 과거 `state_json`에 `current_zone_id`가 없으면 API에서 `null`로 반환하며 DB row를
 수정하거나 현재 Content에서 위치를 추론하지 않습니다. 신규 세션은 non-null
 `current_zone_id`로 생성됩니다.
+
+`attempt_counts`, `completed_inspect_ids`, `object_states`도 과거 `state_json`에 없으면
+각각 `{}`, `[]`, `{}`로 반환하며 조회만으로 DB row를 수정하지 않습니다.
+`object_states`는 `{zone_id: {object_id: {"visible"?: bool, "enabled"?: bool}}}` 구조의
+세션별 Object 변경값이며, 기록되지 않은 속성은 Client Content 초기값을 따릅니다.
+이 값은 Interaction 처리로만 바뀝니다(`docs/contracts/interaction_api_v0.3.2.md` §4.1).
+새로고침·이어하기에서 Frontend는 Case Bundle 정적 값 위에 이 값을 덮어써 화면을 복원합니다.
 
 ### Not Found Response
 

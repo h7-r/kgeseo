@@ -533,12 +533,11 @@ def test_interaction_returns_404_for_missing_play_session(
 @pytest.mark.parametrize(
     ("action", "target_type", "target_id", "payload"),
     [
-        ("inspect", "object", "OBJ_NOTE", {}),
         ("navigate", "zone", "ZONE_004", {}),
         ("select", "object", "OBJ_CHOICES", {"choice": "optA"}),
     ],
 )
-def test_phase_one_unsupported_actions_return_501(
+def test_unsupported_actions_return_501(
     client: TestClient,
     db_session: FakeAsyncSession,
     action: str,

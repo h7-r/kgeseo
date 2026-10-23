@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from app.schemas.case_content import CaseClientContent
+from app.schemas.case_content import CaseClientContent, ObjectDefinition
 
 
 @dataclass(frozen=True)
@@ -35,17 +35,11 @@ class UnsupportedObjectInteractionTypeError(ObjectResolverError):
     pass
 
 
-def resolve_object_interaction(
+def find_object(
     client_content: CaseClientContent,
     zone_id: str,
     object_id: str,
-    interaction_type: str,
-) -> ResolvedObjectInteraction:
-    if interaction_type == "combine_clues":
-        raise UnsupportedObjectInteractionTypeError(
-            "combine_clues does not resolve through an Object."
-        )
-
+) -> ObjectDefinition:
     zone = next(
         (zone for zone in client_content.zones if zone.zone_id == zone_id), None
     )
@@ -57,6 +51,21 @@ def resolve_object_interaction(
         raise ObjectNotFoundError(
             f"Object '{object_id}' not found in Zone '{zone_id}'."
         )
+    return obj
+
+
+def resolve_object_interaction(
+    client_content: CaseClientContent,
+    zone_id: str,
+    object_id: str,
+    interaction_type: str,
+) -> ResolvedObjectInteraction:
+    if interaction_type == "combine_clues":
+        raise UnsupportedObjectInteractionTypeError(
+            "combine_clues does not resolve through an Object."
+        )
+
+    obj = find_object(client_content, zone_id, object_id)
 
     interaction = obj.interaction
     if interaction is None:
@@ -70,7 +79,7 @@ def resolve_object_interaction(
         )
 
     return ResolvedObjectInteraction(
-        zone_id=zone.zone_id,
+        zone_id=zone_id,
         object_id=obj.object_id,
         interaction_type=interaction.type,
         target_id=interaction.target_id,

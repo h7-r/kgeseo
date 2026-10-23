@@ -29,13 +29,33 @@ class CombineCluesInteraction(BaseModel):
     payload: CombineCluesPayload
 
 
-InteractionRequest = SubmitAnswerInteraction | CombineCluesInteraction
+class InspectPayload(BaseModel):
+    pass
+
+
+class InspectInteraction(BaseModel):
+    client_event_id: str
+    client_timestamp: datetime | None = None
+    interaction_type: Literal["inspect"]
+    # Server Runtime의 inspect_id
+    target_id: str
+    # 조사한 Object. 유효 visible/enabled 판정에 쓴다.
+    zone_id: str
+    object_id: str
+    payload: InspectPayload
+
+
+InteractionRequest = (
+    SubmitAnswerInteraction | CombineCluesInteraction | InspectInteraction
+)
 InteractionResultType = Literal[
     "correct",
     "incorrect",
     "combined",
     "incorrect_combination",
     "already_completed",
+    "inspected",
+    "already_inspected",
 ]
 
 
@@ -66,12 +86,33 @@ class FlagUpdatedStateChange(BaseModel):
     value: Any
 
 
+class ObjectRevealedStateChange(BaseModel):
+    type: Literal["object_revealed"]
+    zone_id: str
+    object_id: str
+
+
+class ObjectHiddenStateChange(BaseModel):
+    type: Literal["object_hidden"]
+    zone_id: str
+    object_id: str
+
+
+class ObjectUnlockedStateChange(BaseModel):
+    type: Literal["object_unlocked"]
+    zone_id: str
+    object_id: str
+
+
 InteractionStateChange = Annotated[
     PuzzleCompletedStateChange
     | ClueAcquiredStateChange
     | ZoneUnlockedStateChange
     | HintLevelChangedStateChange
-    | FlagUpdatedStateChange,
+    | FlagUpdatedStateChange
+    | ObjectRevealedStateChange
+    | ObjectHiddenStateChange
+    | ObjectUnlockedStateChange,
     Field(discriminator="type"),
 ]
 

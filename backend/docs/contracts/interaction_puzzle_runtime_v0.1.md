@@ -51,14 +51,16 @@ Puzzle Runtime Definition은 Backend가 퍼즐 정답과 상태 변경 효과를
 
 ### 2.3 v0.1 Interaction Type
 
-**Confirmed Decision**
+**Confirmed Decision** (`submit_answer`, `combine_clues`)
 
-v0.1은 다음 두 Interaction type만 지원한다.
+v0.1은 다음 두 Interaction type을 지원한다. `inspect`는 이후 확장 구현으로
+추가됐다(팀 검토 대기, §7.6).
 
 | `interaction_type` | 목적 |
 |---|---|
 | `submit_answer` | 퍼즐 정답 제출 |
 | `combine_clues` | 조사수첩에서 단서 두 개 조합 |
+| `inspect` | Object 조사. `target_id`는 Server `inspect_id`, 판정용 `zone_id`·`object_id` 포함 |
 
 클라이언트는 다음 상태 변경을 직접 명령하지 않는다.
 
@@ -189,6 +191,8 @@ v0.1 결과 후보는 다음과 같다.
 - `combined`
 - `incorrect_combination`
 - `already_completed`
+- `inspected` (확장, 외부 `ok`)
+- `already_inspected` (확장, 외부 `ok`, `state_changes=[]`)
 
 이미 완료된 Puzzle에 새로운 `client_event_id`로 답을 다시 제출하면
 Backend 내부 Service는 `already_completed`를 반환한다.
@@ -230,14 +234,18 @@ state 포함을 강제하지 않는다.
 |---|---:|---|
 | `PlaySessionNotFoundError` | 404 | `Play session not found.` |
 | `PuzzleNotFoundError` | 404 | `Puzzle not found.` |
+| `InspectionNotFoundError` (확장) | 404 | `Inspection not found.` |
 | `ZoneNotFoundError` | 404 | `Zone not found.` |
 | `ObjectNotFoundError` | 404 | `Object not found.` |
 | `ClueNotAcquiredError` | 409 | `Clue is not acquired.` |
 | `ObjectInteractionNotFoundError` | 409 | `Object interaction is unavailable.` |
 | `InteractionTypeMismatchError` | 409 | `Interaction action does not match the object.` |
+| `ObjectNotVisibleError` (확장) | 409 | `Object is not visible.` |
+| `ObjectNotEnabledError` (확장) | 409 | `Object is not enabled.` |
 | `IdempotencyConflictError` | 409 | `Client event ID conflicts with a previous interaction.` |
-| `UnsupportedInteractionActionError` | 501 | `Interaction action '<action>' is not implemented.` |
+| `UnsupportedInteractionActionError` | 501 | `Interaction action '<action>' is not implemented.` (`navigate`, `select`) |
 | `CaseClientContentError` | 500 | `Case content is unavailable.` |
+| `CaseContentLinkValidationError` (확장) | 500 | `Case content is unavailable.` |
 | `PuzzleRuntimeError` | 500 | `Puzzle runtime is unavailable.` |
 
 Runtime 파일 없음, JSON decode 실패, Runtime Schema validation 실패는
@@ -413,8 +421,13 @@ v0.1 Effect가 지원하는 필드는 다음 세 개다.
 - `complete_puzzle_ids`
 - `set_flags`
 
+확장 구현으로 네 번째 필드가 추가됐다(팀 검토 대기).
+
+- `set_object_states` (선택, 기본값 `[]`): §7.6
+
 퍼즐 성공 시 `completed_puzzle_ids`에 `puzzle_id`를 추가하는 것은 Backend 공통 규칙이다.
 Runtime JSON에는 `complete_puzzle: true` 같은 중복 필드를 두지 않는다.
+`on_correct`, `on_success`, `on_inspect`는 모두 같은 Effect 구조를 사용한다.
 
 ### 7.4 Clue Combination
 
@@ -438,19 +451,68 @@ clue_07 + clue_03
 - cache는 실제 필요가 확인된 후 별도 작업으로 검토한다.
 - Loader는 DB에 접근하거나 원본 JSON을 변경하지 않는다.
 - 원본 server-only JSON을 Frontend에 반환하는 API를 제공하지 않는다.
+- (확장) Object 상태가 필요한 처리(`set_object_states`가 있는 Effect 적용, `inspect`)에서만
+  Client Content도 읽고 `validate_case_content_links`로 교차 검증한 뒤 진행한다.
+  검증 실패는 아무것도 적용하지 않고 HTTP 500으로 변환한다.
 
-## 8. State Mutation Rules
+### 7.6 Object 상태 Effect와 Inspection (확장 구현, 팀 검토 대기)
 
-현재 PlaySession의 `state_json` 구조는 다음과 같다.
+`set_object_states` 항목 형식:
+
+```json
+{ "zone_id": "ZONE_SARANG", "object_id": "OBJ_DOOR", "enabled": true }
+```
+
+- `zone_id`, `object_id`는 필수이며 빈 문자열을 허용하지 않는다.
+- `visible`, `enabled`는 선택이지만 최소 하나는 있어야 하며 JSON boolean만 허용한다
+  (`"true"`, `1`, `null` 거부). 정의되지 않은 필드는 거부한다.
+- `enabled: false`는 지원하지 않는다. 대응하는 state change 계약이 없어 Schema에서 거부한다.
+- 한 Effect 안에서 같은 `(zone_id, object_id)`를 두 번 쓰면 값이 같든 다르든 거부한다.
+  다른 Zone의 같은 `object_id`는 별개 대상이다.
+
+Server Runtime에 선택 필드 `inspections`(기본값 `[]`)가 추가됐다.
 
 ```json
 {
-  "completed_puzzle_ids": [],
-  "acquired_clue_ids": [],
-  "hint_levels": {},
-  "flags": {}
+  "inspections": [
+    {
+      "inspect_id": "INSPECT_BEDDING",
+      "on_inspect": {
+        "grant_clue_ids": [],
+        "set_flags": {},
+        "set_object_states": [
+          { "zone_id": "ZONE_SARANG", "object_id": "OBJ_LETTER", "visible": true }
+        ]
+      }
+    }
+  ]
 }
 ```
+
+- `inspect_id`는 빈 문자열 불가, Runtime 안에서 유일하다(중복은 Schema validation error).
+- Client Object의 `interaction: {"type": "inspect", "target_id": "<inspect_id>"}`로 연결한다.
+  조사 효과는 Client Content에 두지 않는다.
+- 위 JSON의 ID는 **Example**이다.
+
+## 8. State Mutation Rules
+
+현재 신규 PlaySession의 `state_json` 구조는 다음과 같다.
+
+```json
+{
+  "current_zone_id": "ZONE_001",
+  "completed_puzzle_ids": [],
+  "completed_inspect_ids": [],
+  "acquired_clue_ids": [],
+  "hint_levels": {},
+  "attempt_counts": {},
+  "flags": {},
+  "object_states": {}
+}
+```
+
+`current_zone_id`, `attempt_counts`, `completed_inspect_ids`, `object_states`는 과거 row에
+없을 수 있으며 읽을 때 각각 `null`, `{}`, `[]`, `{}`로 해석한다.
 
 Interaction 성공 시 Backend는 다음 규칙으로 상태를 변경한다.
 
@@ -473,13 +535,32 @@ Interaction 성공 시 Backend는 다음 규칙으로 상태를 변경한다.
 
 - `submit_answer`와 `combine_clues`에서는 변경하지 않는다.
 
+### `object_states` (확장)
+
+- 구조: `{zone_id: {object_id: {"visible"?: bool, "enabled"?: bool}}}`. Zone과 Object를
+  중첩 key로 나눈다. ID에 문자 제약이 없어 `"ZONE/OBJ"` 같은 합친 key는 충돌할 수 있다.
+- 유효 상태 = Client Content Object 초기값 위에 기록된 속성만 덮어쓴 값
+  (`app/services/object_state.py`의 `resolve_effective_object_state`).
+- `set_object_states`의 각 속성은 유효 상태와 다를 때만 기록하고 change를 만든다.
+- 기록할 때만 키를 만든다. 변화가 없으면 과거 row에 키를 추가하지 않는다.
+- 저장값 형식이 잘못되면(알 수 없는 속성, boolean 아님) 읽기 검증 오류다.
+
+### `completed_inspect_ids` (확장)
+
+- `inspect` 효과를 처음 적용할 때 `inspect_id`를 추가한다.
+- 목록에 있는 `inspect_id`는 다시 적용하지 않는다(`already_inspected`). 효과 중복 방지만으로는
+  부족하다. 예: 서신을 조사해 숨긴 뒤 이부자리를 재조사하면 "다시 표시"가 실제 변화로
+  계산돼 서신이 되살아난다.
+
 클라이언트는 위 상태 변화의 최종 값을 직접 지정하지 않는다.
 
 ### Interaction State Changes
 
 Service는 실제 상태가 변경된 항목만 `puzzle_completed`, `clue_acquired`,
-`flag_updated`로 기록한다. 순서는 puzzle, clue, flag 순이며 같은 종류 안에서는
-Runtime Effect의 순서를 유지한다. 이미 반영된 값에는 중복 change를 만들지 않는다.
+`flag_updated`, (확장) `object_revealed`, `object_hidden`, `object_unlocked`로 기록한다.
+순서는 puzzle, clue, flag, Object 순이며 같은 종류 안에서는 Runtime Effect의 순서를
+유지한다. 한 Object 안에서는 visible change가 enabled change보다 먼저다.
+이미 반영된 값에는 중복 change를 만들지 않는다.
 
 신규 Event의 `response_json`에는 이 목록을 저장한다. 기존 Event에 목록이 없으면
 빈 배열로 읽고 과거 변경 내역을 추론하지 않는다.
@@ -557,6 +638,8 @@ def normalize_answer(value: str) -> str:
 - `.server.json` Runtime Definition을 Frontend에 그대로 제공하지 않는다.
 - Interaction 요청의 정답 여부와 상태 변화는 Backend가 판정한다.
 - 클라이언트가 `grant_clue_ids`, `completed_puzzle_ids`, `set_flags`를 직접 명령하지 못하게 한다.
+- (확장) `set_object_states`, `inspections`, `on_inspect`도 Server-only다. 별도 Object 상태
+  변경 API는 없고, Object 상태는 Interaction 판정 결과로만 바뀐다.
 
 정답 비교에는 정규화된 값을 사용하지만,
 `interaction_events.payload_json`에는 사용자가 보낸 원본 값을 저장하는 방향이다.
@@ -617,6 +700,10 @@ v0.1 Runtime Definition은 다음 정보를 다루지 않는다.
 1. Interaction Event 보존 기간
 2. `interaction_events`를 Analytics 용도로 어느 수준까지 활용할지
 3. 향후 Puzzle Runtime Definition을 DB로 이전할 시점
+4. (확장) `set_object_states`·`inspections` 구조와 `enabled: false` 미지원 정책의 확정
+5. (확장) 세션에 저장된 `object_states`가 콘텐츠 수정으로 사라진 Object를 가리킬 때의
+   처리. 현재는 Object 상태 계산 시 404(`Zone/Object not found.`)로 실패한다.
+6. (확장) Object 상태 처리 시 Client Content를 행 잠금 전·후 두 번 읽는 비용의 허용 여부
 
 ## 14. 다음 구현 단계
 
@@ -635,5 +722,9 @@ v0.1 Runtime Definition은 다음 정보를 다루지 않는다.
 현재 Interaction Service v0.1에는 정답·단서 조합 판정, state 변경,
 멱등성 확인, Interaction Event 기록, Transaction 처리가 구현되어 있다.
 외부 HTTP 계약은 `interaction_api_v0.3.2.md`, 변환 규칙은
-`fe_backend_interaction_mapping_v0.1.md`를 따른다. Phase 1은 `input`과
-`combine_clues`를 지원하며, `inspect`, `navigate`, `select`의 Runtime 동작은 WIP다.
+`fe_backend_interaction_mapping_v0.1.md`를 따른다. `input`, `combine_clues`, (확장)
+`inspect`를 지원하며 `navigate`, `select`의 Runtime 동작은 WIP다.
+
+확장 구현(Object 상태·inspect) 검증 상태(2026-10-23): pytest 358개 통과, Ruff check 통과,
+실제 `TestClient` HTTP 테스트 통과. DB는 테스트용 가짜 세션만 사용했고 실제 MySQL
+영속성 검증은 하지 않았다.

@@ -3,6 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.interaction import (
     CombineCluesInteraction,
     CombineCluesPayload,
+    InspectInteraction,
+    InspectPayload,
     InteractionProcessResult,
     SubmitAnswerInteraction,
     SubmitAnswerPayload,
@@ -10,11 +12,15 @@ from app.schemas.interaction import (
 from app.schemas.interaction_api import (
     CombineCluesInteractionRequest,
     InputInteractionRequest,
+    InspectInteractionRequest,
     InteractionApiRequest,
 )
 from app.services.case_content import load_case_client_content
 from app.services.interaction import process_interaction
-from app.services.object_resolver import resolve_object_interaction
+from app.services.object_resolver import (
+    ResolvedObjectInteraction,
+    resolve_object_interaction,
+)
 from app.services.play_session import get_play_session
 
 
@@ -32,25 +38,24 @@ async def process_external_interaction(
     client_event_id = str(request.client_event_id)
 
     if isinstance(request, InputInteractionRequest):
-        try:
-            play_session = await get_play_session(db, play_session_id)
-            client_content = load_case_client_content(play_session.case_id)
-            resolved = resolve_object_interaction(
-                client_content,
-                request.zone_id,
-                request.target_id,
-                request.action,
-            )
-        except Exception:
-            await db.rollback()
-            raise
-
+        resolved = await _resolve_object_request(db, play_session_id, request)
         interaction = SubmitAnswerInteraction(
             client_event_id=client_event_id,
             client_timestamp=request.client_timestamp,
             interaction_type="submit_answer",
             target_id=resolved.target_id,
             payload=SubmitAnswerPayload(answer=request.payload.answer),
+        )
+    elif isinstance(request, InspectInteractionRequest):
+        resolved = await _resolve_object_request(db, play_session_id, request)
+        interaction = InspectInteraction(
+            client_event_id=client_event_id,
+            client_timestamp=request.client_timestamp,
+            interaction_type="inspect",
+            target_id=resolved.target_id,
+            zone_id=resolved.zone_id,
+            object_id=resolved.object_id,
+            payload=InspectPayload(),
         )
     elif isinstance(request, CombineCluesInteractionRequest):
         interaction = CombineCluesInteraction(
@@ -67,3 +72,22 @@ async def process_external_interaction(
         play_session_id=play_session_id,
         interaction=interaction,
     )
+
+
+async def _resolve_object_request(
+    db: AsyncSession,
+    play_session_id: str,
+    request: InputInteractionRequest | InspectInteractionRequest,
+) -> ResolvedObjectInteraction:
+    try:
+        play_session = await get_play_session(db, play_session_id)
+        client_content = load_case_client_content(play_session.case_id)
+        return resolve_object_interaction(
+            client_content,
+            request.zone_id,
+            request.target_id,
+            request.action,
+        )
+    except Exception:
+        await db.rollback()
+        raise

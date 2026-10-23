@@ -25,7 +25,9 @@ Navigation은 `door_object_id`와 `target_zone_id`를 연결한다.
 Client Content의 Object는 플레이어가 상호작용 가능한 대상의 정의다.
 `visible=false`인 Object도 Client Content에는 존재하고 Frontend에서 숨김 처리한다.
 `enabled=false`는 Object가 존재하지만 Interaction 불가임을 뜻한다.
-이 두 값의 Session별 동적 계산 조건과 Zone HTTP 응답 조립은 아직 구현되지 않았다.
+(확장, 2026-10-23) 두 값의 Session별 변경값은 `PlaySession.state_json.object_states`에
+저장되고 Interaction Effect로만 바뀐다. 조건식 기반 동적 계산과 Zone HTTP 응답 조립은
+아직 구현되지 않았다.
 
 ## 3. Backend Runtime 현황
 
@@ -33,6 +35,8 @@ Client Content의 Object는 플레이어가 상호작용 가능한 대상의 정
 `clue_combinations`를 정의한다. Puzzle에는 `puzzle_id`, `accepted_answers`,
 `on_correct`가 있고, Clue Combination에는 `combination_id`, 두 `clue_ids`,
 `on_success`가 있다. Effect는 `grant_clue_ids`, `complete_puzzle_ids`, `set_flags`다.
+(확장) Effect에 `set_object_states`, Runtime에 `inspections[].on_inspect`가 추가됐다.
+상세는 `interaction_puzzle_runtime_v0.1.md` §7.6.
 
 `app/services/puzzle_runtime.py`는 `<case_id>.server.json`을 요청 시 읽어 검증한다.
 현재 `app/content/cases/`에는 production Case JSON이 없다.
@@ -80,13 +84,20 @@ Client Content Schema에서 명시해야 한다. `clue_combinations`의 두 입�
   `interaction.target_id`가 Server `puzzles[].puzzle_id`에 존재하는지 검사한다.
   이후 Zone 순서, Object 순서대로 첫 오류에서 실패한다.
   두 Loader는 독립적이며 이 검증을 자동 실행하지 않는다.
+- (확장) 같은 Validator가 추가로 검사한다:
+  `inspect` Object의 `interaction.target_id`가 Server `inspections[].inspect_id`에 있는지
+  (효과 없는 조사 대상도 빈 `on_inspect`로 정의해야 함), 그리고 모든 `on_correct`·
+  `on_success`·`on_inspect`의 `set_object_states` `(zone_id, object_id)`가 Client Content에
+  있는지. Bundle 생성, `scripts/validate_case.py`, Object 상태가 필요한 Interaction 처리에서
+  실행된다. Server `inspect_id`는 Runtime 안에서 유일해야 한다.
 - **Confirmed v0.1:** Server Runtime의 `puzzles[].puzzle_id`는 한 Runtime 안에서
   유일해야 하며, 중복은 Runtime Schema validation error다.
 - **Confirmed v0.1:** Object Resolver는 이미 Load된 Client Content에서 요청
   `zone_id`와 `object_id`로 Object를 찾고, 선언된 `interaction.type`이 요청
   `interaction_type`과 같을 때 `interaction.target_id`를 반환한다.
-  `combine_clues`는 Object 기반 해석 대상이 아니다. `inspect`·`select`·`navigate`는
+  `combine_clues`는 Object 기반 해석 대상이 아니다. `select`·`navigate`는
   선언된 mapping만 읽을 수 있으며 Backend 동작이나 target 의미를 확정하지 않는다.
+  (확장) `inspect`의 target은 Server `inspect_id`로 해석한다.
 
 ## 6. Client Content Definition 필요 여부
 
@@ -113,9 +124,13 @@ v0.1의 `visible`·`enabled`는 작성자가 명시하는 정적 초기값이다
 Session-derived 조건 문법과 보관 위치는 아직 미정이다. 조건이 정답·숨김 정보를
 드러낼 수 있다면 Server-only로 둔다. Production JSON은 이번 단계에서 만들지 않는다.
 Object Resolver는 Zone/Object/interaction 존재와 type 일치만 검사하여 target ID를
-해석한다. Object State Resolver와 달리 정적 또는 Session-derived `visible`·`enabled`로
-요청 가능 여부를 판정하지 않는다. Interaction Adapter는 input target 해석에만
-이 Resolver를 사용하며 Object 상태 판정은 아직 없다.
+해석한다. `visible`·`enabled`로 요청 가능 여부를 판정하지 않는다.
+
+(확장) 별도의 Object State 계산(`app/services/object_state.py`)이 추가됐다.
+유효 상태 = Client Content 초기값 위에 Session `object_states`에 기록된 속성만 덮어쓴 값이다.
+기록 형식이나 참조(Zone/Object)가 잘못되면 거부한다. Interaction Service는 이 계산을
+`set_object_states` 적용 전후 비교와 `inspect` 요청 가능 판정(숨김·비활성 409)에 쓴다.
+`input`·`combine_clues`의 요청 가능 여부에는 아직 쓰지 않는다.
 
 ## 7. Zone 조회 처리 흐름
 
@@ -145,7 +160,9 @@ Object의 공개 `interaction`에는 `type`만 포함한다. 내부 puzzle 연�
 
 Bundle의 `visible`·`enabled`는 정적 초기값이다. Session 파생 상태는 포함하지 않으며,
 향후 Zone API 또는 Interaction `state_changes`가 별도로 담당한다. 상세 계약은
-`docs/contracts/case_bundle_api_v0.1.md`에 기록한다.
+`docs/contracts/case_bundle_api_v0.1.md`에 기록한다. (확장) 현재 Session 값은
+PlaySession GET의 `state.object_states`와 Object 상태 change(`object_revealed`,
+`object_hidden`, `object_unlocked`)로 제공된다.
 
 ### 8.1 Interaction Adapter 오류 매핑
 
@@ -159,22 +176,27 @@ Bundle의 `visible`·`enabled`는 정적 초기값이다. Session 파생 상태�
 | `ObjectInteractionNotFoundError` | 409 | `Object interaction is unavailable.` |
 | `InteractionTypeMismatchError` | 409 | `Interaction action does not match the object.` |
 | `CaseClientContentError` | 500 | `Case content is unavailable.` |
+| `CaseContentLinkValidationError` (확장) | 500 | `Case content is unavailable.` |
+| `ObjectNotVisibleError` (확장, inspect만) | 409 | `Object is not visible.` |
+| `ObjectNotEnabledError` (확장, inspect만) | 409 | `Object is not enabled.` |
 
-Object의 정적 또는 Session-derived `visible`·`enabled`를 이용한 요청 가능 여부 판정은
-아직 구현하지 않았으므로 이 표에 새로운 오류 규칙을 추가하지 않는다.
+`visible`·`enabled`를 이용한 요청 가능 여부 판정은 현재 `inspect`에만 적용한다.
 
 ## 9. Contract Gap
 
 - Frontend v0.3.1 Zone 원문의 정확한 응답 Schema, 오류 응답, `metadata` 구조 미확인
-- `inspect`·`select` target 의미와 `navigate.interaction.target_id` 규칙 미확정
+- `select` target 의미와 `navigate.interaction.target_id` 규칙 미확정
+  (`inspect`는 Server `inspect_id`로 구현됨, 팀 검토 대기)
 - Clue ID registry 및 공개 Clue와 Server Runtime의 연결 검증 미확정
-- Session 상태가 정적 `visible`·`enabled`를 덮어쓰는 구체적인 규칙
-- Object/Navigation의 공개·활성 조건, 조건 표현과 Server-only 보관 위치
-- Interaction Adapter의 Object 상태 판정 정책 미정
+- Session 상태가 정적 `visible`·`enabled`를 덮어쓰는 규칙: Effect 기반 덮어쓰기는
+  구현됨(`object_states`). 조건식 기반 공개·활성 규칙은 미정
+- Object/Navigation의 조건식 기반 공개·활성 조건, 조건 표현과 Server-only 보관 위치
+- Interaction Adapter의 Object 상태 판정 정책: `inspect`만 구현됨. `input`·`navigate`
+  적용 여부는 미정
 - 공개 가능한 Puzzle/Clue 표시 필드와 에셋 참조 범위
 - `current_zone_id`의 저장·갱신 주체 및 요청 Zone 접근 정책
 - Frontend `status`와 Backend `completed_at`의 관계; 일시정지 등 상태는 현재 모델에 없음
-- `input` 이외의 파일 간 ID 참조 무결성 정책
+- `input`·`inspect`·`set_object_states` 이외의 파일 간 ID 참조 무결성 정책
 - Production Content 검증·배포 단계에서 `scripts/validate_case.py`를 실행하는 자동화 위치
 
 `current_zone_id`와 `status`가 현재 PlaySession 모델/GET 응답에 없어도

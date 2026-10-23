@@ -134,7 +134,7 @@ def test_object_without_interaction_is_skipped(
     validate_data(client_data, server_data)
 
 
-@pytest.mark.parametrize("interaction_type", ["inspect", "select", "navigate"])
+@pytest.mark.parametrize("interaction_type", ["select", "navigate"])
 def test_non_input_interaction_is_not_mapped_to_server_target(
     client_data: dict, server_data: dict, interaction_type: str
 ) -> None:
@@ -142,6 +142,38 @@ def test_non_input_interaction_is_not_mapped_to_server_target(
         "type": interaction_type,
         "target_id": "UNMAPPED",
     }
+
+    validate_data(client_data, server_data)
+
+
+def test_inspect_target_requires_server_inspection(
+    client_data: dict, server_data: dict
+) -> None:
+    client_data["zones"][0]["objects"][0]["interaction"] = {
+        "type": "inspect",
+        "target_id": "INSPECT_MISSING",
+    }
+
+    with pytest.raises(
+        CaseContentLinkValidationError,
+        match="OBJ_01.*missing inspection.*INSPECT_MISSING",
+    ):
+        validate_data(client_data, server_data)
+
+
+def test_inspect_target_with_empty_effect_is_valid(
+    client_data: dict, server_data: dict
+) -> None:
+    client_data["zones"][0]["objects"][0]["interaction"] = {
+        "type": "inspect",
+        "target_id": "INSPECT_01",
+    }
+    server_data["inspections"] = [
+        {
+            "inspect_id": "INSPECT_01",
+            "on_inspect": {"grant_clue_ids": [], "set_flags": {}},
+        }
+    ]
 
     validate_data(client_data, server_data)
 

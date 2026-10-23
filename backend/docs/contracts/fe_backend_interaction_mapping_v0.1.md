@@ -1,6 +1,9 @@
 # Frontend / Backend Interaction Mapping v0.1
 
-**Status: Confirmed for Interaction v0.3.2 Phase 1**
+**Status: Confirmed for Interaction v0.3.2 Phase 1 + inspect·Object 상태 확장 (팀 검토 대기)**
+
+확장 부분(`inspect`, Object 상태 change, `object_states`)은 2026-10-23 구현 기준이다.
+합의 필요 사항은 `interaction_api_v0.3.2.md` §10에 모았다.
 
 ## 1. 기준 문서
 
@@ -18,7 +21,7 @@ Router는 DB를 직접 조회하거나 게임 결과와 상태 변화를 다시 
 - `client_timestamp`는 timezone offset이 있는 datetime이어야 한다.
 - `client_timestamp`는 UTC naive datetime으로 `interaction_events.client_timestamp`에 저장한다.
 - `client_timestamp`는 서버 권위 시각이나 v0.1 멱등 equality 비교에 사용하지 않는다.
-- `zone_id`는 input Object 검색에 사용하지만 DB에 저장하지 않고 멱등 equality 비교에도 사용하지 않는다.
+- `zone_id`는 input·inspect Object 검색(inspect는 유효 상태 판정 포함)에 사용하지만 DB에 저장하지 않고 멱등 equality 비교에도 사용하지 않는다.
 
 ## 3. Request Mapping
 
@@ -49,13 +52,26 @@ Object의 `object_id`와 Backend target ID는 서로 다른 역할이며,
 
 `clue_ids`는 서로 다른 값 두 개여야 하며 조합 판정에서 순서는 의미가 없다.
 
+### `inspect` (확장)
+
+| External v0.3.2 | Backend Internal |
+|---|---|
+| `action: "inspect"` | `interaction_type: "inspect"` |
+| `target_type: "object"` | Request validation (다른 값은 422) |
+| `zone_id` + `target_id` | Client Content Object를 찾아 `interaction.target_id`를 `inspect_id`로 사용. `zone_id`·`object_id`는 유효 상태 판정에 전달 |
+| `payload: {}` | `payload: {}` |
+| `client_event_id` | `client_event_id` |
+| `client_timestamp` | Event의 UTC naive `client_timestamp` |
+
+Event에는 `interaction_type=inspect`, `target_id=<inspect_id>`, `payload_json={}`로 저장한다.
+
 ## 4. Action 지원 상태
 
-| External Action | Internal Type | Phase 1 상태 |
+| External Action | Internal Type | 상태 |
 |---|---|---|
 | `input` | `submit_answer` | 구현됨 |
 | `combine_clues` | `combine_clues` | 구현됨 |
-| `inspect` | 없음 | 계약상 허용, HTTP 501 |
+| `inspect` | `inspect` | 구현됨 (확장, 팀 검토 대기) |
 | `navigate` | 없음 | 계약상 허용, HTTP 501 |
 | `select` | 없음 | 계약상 허용, HTTP 501 |
 
@@ -71,6 +87,8 @@ Object의 `object_id`와 Backend target ID는 서로 다른 역할이며,
 | `combined` | `correct` |
 | `incorrect_combination` | `incorrect` |
 | `already_completed` | `already_completed` |
+| `inspected` (확장) | `ok` |
+| `already_inspected` (확장) | `ok` (`state_changes=[]`) |
 
 성공 Response는 Interaction 전용 flat 구조를 사용한다. Phase 1의 `message`는 항상 `null`,
 `ui_actions`는 항상 빈 배열이다. 다른 Session API의 `success/data` envelope는 유지한다.
@@ -87,17 +105,25 @@ Object의 `object_id`와 Backend target ID는 서로 다른 역할이며,
 
 ## 7. State Changes
 
-External 목록은 다음 다섯 종류로 닫혀 있다.
+External 목록은 다음 여덟 종류로 닫혀 있다. 마지막 세 종류는 확장 구현으로 추가됐다.
 
 - `clue_acquired`
 - `puzzle_completed`
 - `zone_unlocked`
 - `hint_level_changed`
 - `flag_updated`
+- `object_revealed` (`zone_id`, `object_id`)
+- `object_hidden` (`zone_id`, `object_id`)
+- `object_unlocked` (`zone_id`, `object_id`)
 
-현재 input/combine Runtime은 실제로 적용한 `puzzle_completed`, `clue_acquired`,
-`flag_updated`만 생성한다. 생성 순서는 puzzle, clue, flag 순이고 같은 종류 안에서는
-Runtime Effect 순서를 유지한다. 이미 적용된 값은 상태와 change 양쪽에 중복하지 않는다.
+현재 input/combine/inspect Runtime은 실제로 적용한 `puzzle_completed`, `clue_acquired`,
+`flag_updated`, Object 상태 change만 생성한다. 생성 순서는 puzzle, clue, flag, Object 순이고
+같은 종류 안에서는 Runtime Effect 순서를 유지한다. 이미 적용된 값은 상태와 change 양쪽에
+중복하지 않는다.
+
+Frontend Object 표시 규칙(확장): Case Bundle의 정적 `visible`·`enabled` 위에
+`GET /play-sessions/{id}`의 `state.object_states`를 덮어쓰고, 이후 Object 상태 change를
+`(zone_id, object_id)` 기준으로 반영한다. Frontend 표시 상태는 서버 판정에 쓰이지 않는다.
 
 Router는 DB 재조회나 전체 state diff로 change를 만들지 않는다.
 
@@ -119,17 +145,23 @@ Router는 DB 재조회나 전체 state diff로 change를 만들지 않는다.
 | 조건 | HTTP Status |
 |---|---:|
 | Request/Path validation 실패 | 422 |
-| PlaySession, Puzzle, Zone, Object 없음 | 404 |
+| PlaySession, Puzzle, Zone, Object 없음, inspect의 `inspect_id` 없음 | 404 |
 | 획득하지 않은 Clue, Object interaction 불일치, idempotency conflict | 409 |
-| `inspect`, `navigate`, `select` | 501 |
-| Client Content 또는 Puzzle Runtime 로드 실패 | 500 |
+| inspect 대상 Object 숨김(`Object is not visible.`)·비활성(`Object is not enabled.`) | 409 |
+| `navigate`, `select` | 501 |
+| Client Content·Puzzle Runtime 로드 실패, Client/Server 교차 참조 오류 | 500 |
 
 오답과 잘못된 clue 조합은 HTTP 오류가 아니라 200의 `incorrect` 게임 결과다.
+inspect 재조사는 HTTP 오류가 아니라 200의 `ok`, `state_changes=[]`다.
 
 ## 10. 남은 WIP
 
-- `inspect`, `navigate`, `select` 실제 Runtime 동작
+- `navigate`, `select` 실제 Runtime 동작
 - `zone_unlocked`, `hint_level_changed`를 생성하는 Runtime Effect
+- Session 상태를 반영한 Zone 조회 API
+- 단서 표시 데이터(제목·본문 등) 공개 방식
+- `enabled` true → false(잠금) 효과
+- 실제 MySQL 영속성 검증
 - 콘텐츠 기반 `message` Source of Truth
 - Hint API
 - `remaining_sec` 및 server timer

@@ -54,10 +54,12 @@ def make_play_session(*, state: dict | None = None) -> PlaySession:
             else {
                 "current_zone_id": "ZONE_001",
                 "completed_puzzle_ids": [],
+                "completed_inspect_ids": [],
                 "acquired_clue_ids": [],
                 "hint_levels": {"puzzle_01": 0},
                 "attempt_counts": {},
                 "flags": {"existing_flag": True},
+                "object_states": {},
             }
         ),
         created_at=now,
@@ -189,6 +191,36 @@ async def test_interaction_raises_when_play_session_is_missing() -> None:
         {"with_for_update": True, "populate_existing": True},
     ]
     assert db.operation_log == ["get", "rollback"]
+
+
+@pytest.mark.anyio
+async def test_submit_answer_keeps_object_states_for_legacy_and_stored_state() -> None:
+    legacy = make_play_session()
+    del legacy.state_json["object_states"]
+    stored = make_play_session()
+    stored.state_json["object_states"] = {"ZONE_001": {"OBJ_DOOR": {"enabled": True}}}
+
+    results = []
+    for play_session in (legacy, stored):
+        db = FakeAsyncSession()
+        db.get_result = play_session
+        results.append(
+            await process_interaction(
+                db,
+                play_session.id,
+                submit_answer(),
+                runtime_loader=runtime_loader(make_runtime()),
+            )
+        )
+
+    assert results[0].result.result_type == "correct"
+    assert results[0].result.state.object_states == {}
+    assert results[1].result.state.object_states == {
+        "ZONE_001": {"OBJ_DOOR": {"enabled": True}},
+    }
+    assert stored.state_json["object_states"] == {
+        "ZONE_001": {"OBJ_DOOR": {"enabled": True}},
+    }
 
 
 @pytest.mark.anyio

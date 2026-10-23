@@ -24,15 +24,19 @@ PlaySession 생성 시 요청의 `case_id`를 Client Content와 연결하고, �
 5. PlaySession ORM 객체를 Session에 추가한다.
 6. 한 번의 commit 후 refresh하고 결과를 반환한다.
 
-현재 초기 상태는 다음과 같다.
+현재 초기 상태는 다음과 같다. (2026-10-23 갱신: `attempt_counts`, 확장 구현의
+`completed_inspect_ids`·`object_states` 포함)
 
 ```json
 {
   "current_zone_id": "ZONE_001",
   "completed_puzzle_ids": [],
+  "completed_inspect_ids": [],
   "acquired_clue_ids": [],
   "hint_levels": {},
-  "flags": {}
+  "attempt_counts": {},
+  "flags": {},
+  "object_states": {}
 }
 ```
 
@@ -226,7 +230,8 @@ POST 응답은 non-null 위치를 반환한다. 기존 row의 GET 응답은 호�
 - External Interaction의 `request.zone_id == current_zone_id`를 강제하지 않는다.
 - Object Resolver의 현재 target 해석 규칙을 변경하지 않는다.
 - Navigation 요청이나 위치 갱신 API를 추가하지 않는다.
-- Session-derived `visible`/`enabled`를 계산하지 않는다.
+- Session-derived `visible`/`enabled`를 계산하지 않는다. (이후 확장 구현에서 Effect 기반
+  `object_states`와 inspect 판정이 별도로 추가됐다. `interaction_api_v0.3.2.md` 참고)
 - Zone 조회가 현재 위치 외 Zone을 허용할지는 별도 Contract로 결정한다.
 
 Interaction Service는 전체 `state_json`을 복사해 변경하므로 신규 위치 key를

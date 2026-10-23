@@ -111,10 +111,12 @@ async def create_play_session(
     initial_state = {
         "current_zone_id": client_content.entry_zone_id,
         "completed_puzzle_ids": [],
+        "completed_inspect_ids": [],
         "acquired_clue_ids": [],
         "hint_levels": {},
         "attempt_counts": {},
         "flags": {},
+        "object_states": {},
     }
 
     # 실제 DB에 저장할 PlaySession ORM 객체 생성

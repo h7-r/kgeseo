@@ -9,6 +9,7 @@ from app.schemas.interaction_api import InteractionApiRequest, InteractionApiRes
 from app.services.case_content import (
     CaseClientContentError,
 )
+from app.services.case_content_validation import CaseContentLinkValidationError
 from app.services.external_interaction import (
     UnsupportedInteractionActionError,
     process_external_interaction,
@@ -16,6 +17,9 @@ from app.services.external_interaction import (
 from app.services.interaction import (
     ClueNotAcquiredError,
     IdempotencyConflictError,
+    InspectionNotFoundError,
+    ObjectNotEnabledError,
+    ObjectNotVisibleError,
     PuzzleNotFoundError,
 )
 from app.services.object_resolver import (
@@ -59,6 +63,11 @@ async def create_interaction_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Puzzle not found.",
         ) from error
+    except InspectionNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Inspection not found.",
+        ) from error
     except ZoneNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -84,6 +93,16 @@ async def create_interaction_endpoint(
             status_code=status.HTTP_409_CONFLICT,
             detail="Interaction action does not match the object.",
         ) from error
+    except ObjectNotVisibleError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Object is not visible.",
+        ) from error
+    except ObjectNotEnabledError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Object is not enabled.",
+        ) from error
     except IdempotencyConflictError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -94,7 +113,7 @@ async def create_interaction_endpoint(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=f"Interaction action '{error.action}' is not implemented.",
         ) from error
-    except CaseClientContentError as error:
+    except (CaseClientContentError, CaseContentLinkValidationError) as error:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Case content is unavailable.",
@@ -118,6 +137,8 @@ def _to_external_response(
         "combined": "correct",
         "incorrect_combination": "incorrect",
         "already_completed": "already_completed",
+        "inspected": "ok",
+        "already_inspected": "ok",
     }
 
     return InteractionApiResponse(
