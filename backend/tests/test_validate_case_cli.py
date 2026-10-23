@@ -273,7 +273,7 @@ def test_unsupported_server_field_reports_file_path_type_and_message(
 
     def add_requires(data: dict) -> None:
         data["puzzles"][0]["accepted_answers"] = ["SECRET_ANSWER"]
-        data["puzzles"][0]["requires_clue_ids"] = ["SECRET_CLUE"]
+        data["puzzles"][0]["required_clues"] = ["SECRET_CLUE"]
 
     rewrite_server(case_directory, add_requires)
 
@@ -284,7 +284,7 @@ def test_unsupported_server_field_reports_file_path_type_and_message(
     assert "[OK] Client Content Schema" in output.out
     assert output.err.splitlines() == [
         "[FAIL] Server Runtime Schema: CaseRuntimeValidationError",
-        "CASE_TEST.server.json → puzzles.0.requires_clue_ids → extra_forbidden"
+        "CASE_TEST.server.json → puzzles.0.required_clues → extra_forbidden"
         " → Extra inputs are not permitted",
         "Case 'CASE_TEST': INVALID",
     ]

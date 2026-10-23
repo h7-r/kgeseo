@@ -131,5 +131,6 @@ GET /api/v1/play-sessions/{play_session_id}/clues
 - `title: null`(정의 없음) 단서의 Frontend 표시 방식
 - 세션 인증·접근 제어
 - Content Version 고정(현재 콘텐츠 파일을 요청마다 읽으므로 수정이 진행 중 세션에 바로 반영됨)
-- 향후 선행 조건 `requires.clue_ids` 연동(정의된 단서인지 검증)
+- 선행 조건 연동: Q5 `requires_clue_ids`로 구현됨. `clues`를 명시하면 정의된 단서인지
+  검증한다(`interaction_puzzle_runtime_v0.1.md` §7.9)
 - 글자 수 상한, 획득 직후 표시 지연이 문제일 때 Interaction 응답 확장 여부

@@ -148,6 +148,7 @@ Router는 DB 재조회나 전체 state diff로 change를 만들지 않는다.
 | PlaySession, Puzzle, Zone, Object 없음, inspect의 `inspect_id` 없음 | 404 |
 | 획득하지 않은 Clue, Object interaction 불일치, idempotency conflict | 409 |
 | inspect 대상 Object 숨김(`Object is not visible.`)·비활성(`Object is not enabled.`) | 409 |
+| 퍼즐·조사 선행 단서 미획득(`Required clues are not acquired.`, `missing_clue_count` 포함) | 409 |
 | `navigate`, `select` | 501 |
 | Client Content·Puzzle Runtime 로드 실패, Client/Server 교차 참조 오류 | 500 |
 

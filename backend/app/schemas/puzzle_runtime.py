@@ -50,10 +50,29 @@ class RuntimeEffect(ServerContentModel):
         return self
 
 
+def _validate_required_clue_ids(owner: str, clue_ids: list[str]) -> None:
+    seen: set[str] = set()
+    for clue_id in clue_ids:
+        if not clue_id.strip():
+            raise ValueError(f"{owner} requires_clue_ids must not contain blank IDs")
+        if clue_id in seen:
+            raise ValueError(f"{owner} requires_clue_ids has duplicate '{clue_id}'")
+        seen.add(clue_id)
+
+
 class PuzzleDefinition(ServerContentModel):
     puzzle_id: str
     accepted_answers: list[str] = Field(min_length=1)
+    # 정답 판정 전에 PlaySession이 모두 획득해야 하는 단서. 비어 있으면 조건 없음.
+    requires_clue_ids: list[str] = Field(default_factory=list)
     on_correct: RuntimeEffect
+
+    @model_validator(mode="after")
+    def validate_requirements(self) -> "PuzzleDefinition":
+        _validate_required_clue_ids(
+            f"Puzzle '{self.puzzle_id}'", self.requires_clue_ids
+        )
+        return self
 
 
 class ClueCombinationDefinition(ServerContentModel):
@@ -64,7 +83,16 @@ class ClueCombinationDefinition(ServerContentModel):
 
 class InspectionDefinition(ServerContentModel):
     inspect_id: str = Field(min_length=1)
+    # 조사 효과 적용 전에 PlaySession이 모두 획득해야 하는 단서. 비어 있으면 조건 없음.
+    requires_clue_ids: list[str] = Field(default_factory=list)
     on_inspect: RuntimeEffect
+
+    @model_validator(mode="after")
+    def validate_requirements(self) -> "InspectionDefinition":
+        _validate_required_clue_ids(
+            f"Inspection '{self.inspect_id}'", self.requires_clue_ids
+        )
+        return self
 
 
 class ClueDefinition(ServerContentModel):
@@ -140,6 +168,17 @@ class PuzzleRuntimeDefinition(ServerContentModel):
             (
                 f"Inspection '{inspection.inspect_id}'",
                 inspection.on_inspect.grant_clue_ids,
+            )
+            for inspection in self.inspections
+        ]
+        references += [
+            (f"Puzzle '{puzzle.puzzle_id}' requires_clue_ids", puzzle.requires_clue_ids)
+            for puzzle in self.puzzles
+        ]
+        references += [
+            (
+                f"Inspection '{inspection.inspect_id}' requires_clue_ids",
+                inspection.requires_clue_ids,
             )
             for inspection in self.inspections
         ]

@@ -510,7 +510,7 @@ def test_unsupported_server_field_returns_safe_500(
 ) -> None:
     runtime_path = client_content_directory / "case_001.server.json"
     runtime_data = json.loads(runtime_path.read_text(encoding="utf-8"))
-    runtime_data["puzzles"][0]["requires_clue_ids"] = ["clue_07"]
+    runtime_data["puzzles"][0]["requires"] = {"clue_ids": ["clue_07"]}
     runtime_path.write_text(json.dumps(runtime_data), encoding="utf-8")
     db_session.get_result = make_play_session()
 
@@ -518,7 +518,7 @@ def test_unsupported_server_field_returns_safe_500(
 
     assert response.status_code == 500
     assert response.json() == {"detail": "Puzzle runtime is unavailable."}
-    assert "requires_clue_ids" not in response.text
+    assert "requires" not in response.text
     assert db_session.added == []
     assert db_session.commit_count == 0
 

@@ -278,17 +278,17 @@ def test_load_case_runtime_accepts_all_defined_optional_fields(
         ),
         pytest.param(
             ("puzzles", 0),
-            "requires_clue_ids",
-            ["clue_03"],
-            ("puzzles", 0, "requires_clue_ids"),
-            id="puzzle_requires_clue_ids",
+            "requires",
+            {"clue_ids": ["clue_03"]},
+            ("puzzles", 0, "requires"),
+            id="puzzle_requires_alias",
         ),
         pytest.param(
             ("inspections", 0),
-            "requires_clue_ids",
+            "required_clues",
             ["clue_03"],
-            ("inspections", 0, "requires_clue_ids"),
-            id="inspection_requires_clue_ids",
+            ("inspections", 0, "required_clues"),
+            id="inspection_required_clues_alias",
         ),
         pytest.param(
             (),
@@ -347,7 +347,7 @@ def test_load_case_runtime_reports_every_unsupported_field(
     valid_runtime_data: dict,
 ) -> None:
     valid_runtime_data["companion"] = {}
-    valid_runtime_data["puzzles"][0]["requires_clue_ids"] = []
+    valid_runtime_data["puzzles"][0]["requires"] = {}
     valid_runtime_data["puzzles"][0]["on_correct"]["set_clue_states"] = {}
     write_runtime(cases_directory, valid_runtime_data)
 
@@ -357,7 +357,7 @@ def test_load_case_runtime_reports_every_unsupported_field(
     assert sorted(validation_errors(error)) == [
         (("companion",), "extra_forbidden"),
         (("puzzles", 0, "on_correct", "set_clue_states"), "extra_forbidden"),
-        (("puzzles", 0, "requires_clue_ids"), "extra_forbidden"),
+        (("puzzles", 0, "requires"), "extra_forbidden"),
     ]
 
 

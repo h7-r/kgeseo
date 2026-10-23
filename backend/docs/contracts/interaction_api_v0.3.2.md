@@ -58,10 +58,32 @@ Runtime 처리하는 action은 `input`, `combine_clues`, `inspect`다. `navigate
    숨김·비활성이어도 오류로 만들지 않고 효과를 다시 적용하지 않는다.
 4. 서버 유효 상태(콘텐츠 초기값 + 세션 `object_states`)에서 Object가 숨김이면 409,
    비활성이면 409다. Frontend 표시 상태는 판정에 쓰지 않는다.
-5. `on_inspect` 효과를 적용하고 `inspect_id`를 `completed_inspect_ids`에 추가한다.
+5. (Q5) 조사의 `requires_clue_ids` 중 획득하지 않은 단서가 있으면 409다(§2.2).
+6. `on_inspect` 효과를 적용하고 `inspect_id`를 `completed_inspect_ids`에 추가한다.
 
 효과가 없는 조사 대상도 빈 `on_inspect`로 Server Runtime에 정의해야 한다
 (정의 없으면 콘텐츠 교차 검증 오류).
+
+### 2.2 선행 단서 조건 (Q5, 팀 검토 대기)
+
+Server Runtime의 `puzzles[].requires_clue_ids`·`inspections[].requires_clue_ids`에 나열한
+단서를 모두 획득하지 않았으면 409로 거절한다. `input`은 이미 완료한 퍼즐 확인 뒤,
+시도 횟수 증가와 정답 비교 **전에** 판정하므로 정답·오답이 같은 409다.
+`inspect`는 숨김·비활성 판정 뒤에 판정한다. 거절 시 상태, 시도 횟수, Event, commit이 없다.
+
+```http
+HTTP/1.1 409 Conflict
+```
+
+```json
+{
+  "detail": "Required clues are not acquired.",
+  "missing_clue_count": 2
+}
+```
+
+`detail`은 다른 오류와 같은 문자열이고 `missing_clue_count`만 추가된다. 부족한 단서 ID는
+응답에 넣지 않는다.
 
 ## 3. Response
 
@@ -170,6 +192,7 @@ replay는 그 사이 Object가 숨김·비활성이 됐어도 최초 응답을 �
 | 미획득 Clue, Object interaction 불일치, idempotency conflict | 409 | 기존 문구 |
 | inspect 대상 Object가 서버 유효 상태에서 숨김 | 409 | `Object is not visible.` |
 | inspect 대상 Object가 서버 유효 상태에서 비활성 | 409 | `Object is not enabled.` |
+| 퍼즐·조사의 선행 단서 미획득 (Q5) | 409 | `Required clues are not acquired.` + `missing_clue_count` |
 | `navigate`, `select` Runtime 미구현 | 501 | `Interaction action '<action>' is not implemented.` |
 | Client Content·Runtime 구성 오류, Client/Server 교차 참조 오류 | 500 | `Case content is unavailable.` 등 |
 | `incorrect`, `already_completed`, inspect `ok` | 200 | — |
@@ -202,4 +225,6 @@ replay는 그 사이 Object가 숨김·비활성이 됐어도 최초 응답을 �
 - `input` 대상 Object에도 `visible`·`enabled` 판정을 적용할지
 - 첫 조사(무효과)와 재조사를 Frontend가 구분할 수단이 필요한지
 - 효과가 없는 조사 대상도 Server 정의를 필수로 하는 규칙
+- (Q5) 선행 조건 409 응답에 `missing_clue_count`를 추가하는 형식, 개수 공개 범위
+- (Q5) 현재 Zone 밖 대상의 상호작용 허용(Zone 접근 검사 미구현, navigate 501)
 - 실제 MySQL 영속성 검증(미완료)

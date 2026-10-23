@@ -242,6 +242,7 @@ state 포함을 강제하지 않는다.
 | `InteractionTypeMismatchError` | 409 | `Interaction action does not match the object.` |
 | `ObjectNotVisibleError` (확장) | 409 | `Object is not visible.` |
 | `ObjectNotEnabledError` (확장) | 409 | `Object is not enabled.` |
+| `RequiredCluesMissingError` (Q5) | 409 | `Required clues are not acquired.` + 최상위 `missing_clue_count` |
 | `IdempotencyConflictError` | 409 | `Client event ID conflicts with a previous interaction.` |
 | `UnsupportedInteractionActionError` | 501 | `Interaction action '<action>' is not implemented.` (`navigate`, `select`) |
 | `CaseClientContentError` | 500 | `Case content is unavailable.` |
@@ -511,9 +512,10 @@ Server Runtime 모델 6개는 모두 정의되지 않은 필드를 거부한다(
 
 - 필드 목록, 필수 여부, 기본값은 바뀌지 않았다. 기존 `case_001`과 테스트 콘텐츠는 그대로 로드된다.
 - 다음은 여전히 **미지원**이며 로드 오류(`extra_forbidden`)가 난다:
-  `puzzles[].requires_clue_ids`, `inspections[].requires_clue_ids`,
-  정의되지 않은 효과(예: `set_clue_states`), 임의 메타데이터 필드.
-  최상위 `clues[]`는 이후 Q4에서 지원됐다(§7.8).
+  정의되지 않은 효과(예: `set_clue_states`), 임의 메타데이터 필드,
+  선행 조건 별칭(`requires`, `required_clues` 등).
+  최상위 `clues[]`는 이후 Q4(§7.8), `puzzles[]`·`inspections[]`의 `requires_clue_ids`는
+  Q5(§7.9)에서 지원됐다.
   `on_correct` 대신 `success_effects`를 쓰면 `on_correct` 누락(`missing`)과
   `success_effects`(`extra_forbidden`)가 함께 보고된다.
 - 런타임에서 로드에 실패하면 응답 문구는 그대로다. Interaction은 HTTP 500
@@ -527,7 +529,7 @@ Server Runtime 모델 6개는 모두 정의되지 않은 필드를 거부한다(
 
   ```text
   [FAIL] Server Runtime Schema: CaseRuntimeValidationError
-  case_x.server.json → puzzles.0.requires_clue_ids → extra_forbidden → Extra inputs are not permitted
+  case_x.server.json → puzzles.0.required_clues → extra_forbidden → Extra inputs are not permitted
   Case 'case_x': INVALID
   ```
 
@@ -547,6 +549,57 @@ Server Runtime 최상위 선택 필드 `clues`(기본값 `[]`)에 단서 표시 
   정의돼 있어야 한다. 키가 없으면 기존처럼 ID만 쓰며 이 검증을 하지 않는다.
 - 단서 정의는 Server 전용이다. 획득한 단서만 `GET /api/v1/play-sessions/{id}/clues`로
   공개한다. 상세 계약은 `clue_api_v0.1.md`.
+
+### 7.9 선행 단서 조건 `requires_clue_ids` (Q5, 2026-10-23, 팀 검토 대기)
+
+`puzzles[]`와 `inspections[]`에 선택 필드 `requires_clue_ids`(기본값 `[]`)를 둔다.
+나열한 단서를 PlaySession이 **모두** 획득해야 정답 판정·조사 효과가 실행된다.
+필드가 없거나 빈 배열이면 조건이 없다(기존 콘텐츠와 호환).
+
+- 원소는 문자열이며 빈 값·공백만 있는 값, 같은 항목 안의 중복은 Schema 오류다.
+- `clues`를 명시한 콘텐츠는 `requires_clue_ids`의 모든 ID가 `clues`에 정의돼 있어야 한다.
+  `clues`가 없으면 존재 검증을 하지 않는다(ID만 쓰는 기존 방식).
+- 별칭(`requires`, `required_clues`, `requires: {clue_ids}` 등)은 허용하지 않는다.
+
+PM 생성 JSON 형식 예 (구조만 PM 생성 케이스와 같고 ID·정답은 실제 콘텐츠가 아닌 **Example**):
+
+```json
+{
+  "puzzles": [
+    {
+      "puzzle_id": "PZ-LOCK",
+      "accepted_answers": ["ANSWER_EXAMPLE"],
+      "requires_clue_ids": ["CL-A-1", "CL-A-2", "CL-A-3"],
+      "on_correct": {
+        "grant_clue_ids": [],
+        "set_flags": {},
+        "set_object_states": [
+          { "zone_id": "ZONE_A", "object_id": "OBJ_A_DOOR", "enabled": true }
+        ]
+      }
+    }
+  ],
+  "inspections": [
+    {
+      "inspect_id": "INSP_SEAL",
+      "requires_clue_ids": ["CL-B-1", "CL-B-2"],
+      "on_inspect": { "grant_clue_ids": [], "complete_puzzle_ids": ["PZ-SEAL"], "set_flags": {} }
+    }
+  ]
+}
+```
+
+런타임 판정 위치(행 잠금 안, 같은 `client_event_id` replay가 가장 먼저):
+
+- `input`: 퍼즐 없음 404 → 완료 퍼즐 `already_completed` → **선행 조건** → 시도 횟수 +1
+  → 정답 비교 → 효과. 정답 비교 전에 판정하므로 정답·오답 모두 같은 409이고,
+  응답으로 정답 여부가 드러나지 않는다.
+- `inspect`: 조사 정의 없음 404 → 완료 조사 `ok`·`[]` → 숨김·비활성 409 → **선행 조건**
+  → 효과. 완료 확인을 숨김 판정보다 먼저 하는 기존 순서(`interaction_api_v0.3.2.md` §2.1)는 유지한다.
+
+조건이 부족하면 `RequiredCluesMissingError` → HTTP 409. 상태·시도 횟수·Interaction Event·
+commit 모두 없다. 이벤트가 남지 않으므로 같은 `client_event_id`로 단서를 얻은 뒤 다시
+보내면 새로 처리된다. 응답에는 부족한 **개수**만 넣고 단서 ID는 넣지 않는다.
 
 ## 8. State Mutation Rules
 
@@ -761,7 +814,8 @@ v0.1 Runtime Definition은 다음 정보를 다루지 않는다.
 7. 값 타입 엄격 검증(`set_flags` boolean, Client `visible`·`enabled`, ID 빈 문자열)의 적용 여부
 8. 생성 에이전트 결과물의 메타데이터(설명, 근거, 힌트 등)를 Server JSON에 둘 허용 영역을 만들지.
    지금은 정의되지 않은 필드로 거부된다.
-9. 선행 조건(`requires_clue_ids` 또는 `requires: {clue_ids, puzzle_ids, flags}`)의 구현 여부와 형식
+9. 선행 조건: `requires_clue_ids`(단서만)로 구현됨(§7.9). 퍼즐 완료·flag 조건과
+   `excludes`를 추가할지, NPC 대사 조건과 모델을 함께 쓸지는 미정
 
 ## 14. 다음 구현 단계
 

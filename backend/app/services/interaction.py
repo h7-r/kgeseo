@@ -68,6 +68,14 @@ class ObjectNotEnabledError(InteractionServiceError):
     pass
 
 
+class RequiredCluesMissingError(InteractionServiceError):
+    """선행 단서가 부족하다. 외부에는 부족한 개수만 알리고 단서 ID는 알리지 않는다."""
+
+    def __init__(self, missing_clue_count: int) -> None:
+        self.missing_clue_count = missing_clue_count
+        super().__init__(missing_clue_count)
+
+
 async def process_interaction(
     db: AsyncSession,
     play_session_id: str,
@@ -353,6 +361,9 @@ def _process_submit_answer(
         attempt_count = state.get("attempt_counts", {}).get(interaction.target_id)
         return "already_completed", state, [], attempt_count
 
+    # 정답 비교·시도 횟수 증가 전에 판정해 정답 여부가 드러나지 않게 한다.
+    _ensure_required_clues(puzzle.requires_clue_ids, state)
+
     graded_state = deepcopy(state)
     attempt_counts = graded_state.setdefault("attempt_counts", {})
     attempt_count = attempt_counts.get(interaction.target_id, 0) + 1
@@ -445,6 +456,7 @@ def _process_inspect(
         raise ObjectNotVisibleError(interaction.object_id)
     if not current.enabled:
         raise ObjectNotEnabledError(interaction.object_id)
+    _ensure_required_clues(inspection.requires_clue_ids, state)
 
     updated_state, state_changes = apply_runtime_effect(
         state,
@@ -453,6 +465,13 @@ def _process_inspect(
     )
     updated_state.setdefault("completed_inspect_ids", []).append(interaction.target_id)
     return "inspected", updated_state, state_changes
+
+
+def _ensure_required_clues(required_clue_ids: list[str], state: dict[str, Any]) -> None:
+    acquired = set(state.get("acquired_clue_ids", []))
+    missing = [clue_id for clue_id in required_clue_ids if clue_id not in acquired]
+    if missing:
+        raise RequiredCluesMissingError(len(missing))
 
 
 def _request_values(

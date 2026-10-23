@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -21,6 +22,7 @@ from app.services.interaction import (
     ObjectNotEnabledError,
     ObjectNotVisibleError,
     PuzzleNotFoundError,
+    RequiredCluesMissingError,
 )
 from app.services.object_resolver import (
     InteractionTypeMismatchError,
@@ -46,12 +48,21 @@ async def create_interaction_endpoint(
     play_session_id: UUID,
     request: InteractionApiRequest,
     db: AsyncSession = Depends(get_db),
-) -> InteractionApiResponse:
+) -> InteractionApiResponse | JSONResponse:
     try:
         result = await process_external_interaction(
             db=db,
             play_session_id=str(play_session_id),
             request=request,
+        )
+    except RequiredCluesMissingError as error:
+        # 기존 {"detail": "<문자열>"} 구조를 유지하고 부족한 단서 개수만 덧붙인다.
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "detail": "Required clues are not acquired.",
+                "missing_clue_count": error.missing_clue_count,
+            },
         )
     except PlaySessionNotFoundError as error:
         raise HTTPException(
