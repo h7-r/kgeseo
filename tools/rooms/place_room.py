@@ -168,7 +168,7 @@ if role:
     plan["items"] = keepit
 D_ = {it["id"]: dims(it) for it in plan["items"]}
 ORDER = {"wall": 0, "wall_low": 1, "corner": 2, "floor": 3}   # 큰 가구(벽)부터, 이부자리·바닥 물건은 나중
-base_items = sorted([it for it in plan["items"] if not it["cls"].startswith("on:")], key=lambda it: (ORDER.get(it["cls"], 9), -np.prod(D_[it["id"]][0][[0, 2]])))
+base_items = sorted([it for it in plan["items"] if not it["cls"].startswith("on:")], key=lambda it: (0 if it.get("role") == "puzzle_host" else 1, ORDER.get(it["cls"], 9), -np.prod(D_[it["id"]][0][[0, 2]])))  # 10/23: 퍼즐 호스트 먼저 — 쟁기·도리깨 같은 살림이 자리를 다 차지해 독·가마니·멍석이 표식으로 빠짐
 for it in base_items:
     e, sc = D_[it["id"]]; cls = it["cls"]
     p = {"wall": lambda: try_wall(it, e), "wall_low": lambda: try_wall(it, e, low=True), "corner": lambda: try_wall(it, e, corner=True), "floor": lambda: try_floor(it, e)}[cls]()

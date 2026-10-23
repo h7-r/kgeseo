@@ -36,8 +36,8 @@ const PROPOSED = !process.argv.includes('--no-proposed');
 const ZONE = i => `ZONE_${String(build.rooms[i].id).toUpperCase()}`;
 let seq = 0; const oid = (zi, kind) => `OBJ_${build.rooms[zi].id.toUpperCase()}_${kind}_${String(++seq).padStart(2, '0')}`;
 const SOLVE_ONLY = ['combine_clues', 'select', 'input', 'solve'];
-const devOf = p => (p.solve?.device && ['yundo', 'sangaji', 'bimil', 'geulja'].includes(p.solve.device.kind)) ? p.solve.device : null;
-const answerOf = p => { const d = devOf(p), a = p.solve.answer; if (d?.kind === 'sangaji') return String(a).replace(/\D/g, ''); if (Array.isArray(a)) return a.map(String).join('-'); return String(a); };
+const devOf = p => (p.solve?.device && ['yundo', 'sangaji', 'bimil', 'geulja', 'munsal', 'maedeup', 'pae', 'buk'].includes(p.solve.device.kind)) ? p.solve.device : null;
+const answerOf = p => { const d = devOf(p), a = p.solve.answer; if (d?.kind === 'sangaji') return String(a).replace(/\D/g, ''); if (d?.kind === 'munsal') return (Array.isArray(a) ? a : String(a).split(/[,\s]+/)).filter(Boolean).map(String).sort().join(','); /* 10/23 문살: 누른 칸 "행-열" 정렬해 쉼표로 */ if (Array.isArray(a)) return a.map(String).join('-'); return String(a); };
 
 const zones = build.rooms.map((r, i) => ({ zone_id: ZONE(i), zone_name: r.name, zone_type: r.role === '대청' ? 'transition' : 'exploration', description: String(r.why || '').slice(0, 200), objects: [], navigation: [], metadata: {} }));
 const server = { schema_version: '0.2-draft', case_id: caseId, puzzles: [], clue_combinations: [], inspections: [], clues: [] };
