@@ -14,7 +14,7 @@ export const STEPS_V2 = Object.freeze([
   { id: 's02', no: '02', label: '지역 테마 시놉시스', tier: 'judgment', maxTokens: 40000, effort: 'low' },
   { id: 's03', no: '03', label: '게임 시나리오 기획서', tier: 'judgment', maxTokens: 40000, effort: 'low' },
   { id: 's04', no: '04', label: 'Scene 구성표(JSON)', tier: 'judgment', maxTokens: 48000, effort: 'low' },
-  { id: 's05', no: '05', label: '퍼즐 초안', tier: 'judgment', maxTokens: 32000, effort: 'medium', v2: true },
+  { id: 's05', no: '05', label: '퍼즐 초안', tier: 'judgment', maxTokens: 64000, effort: 'medium', v2: true },
   { id: 's06', no: '06', label: '공간 구성', tier: 'judgment', maxTokens: 40000, effort: 'medium', v2: true },
   { id: 's07', no: '07', label: '에셋 선정', tier: 'judgment', maxTokens: 32000, effort: 'low', v2: true },
   { id: 's08', no: '08', label: '배치(코드 산포) · 자기 검사', tier: 'judgment', maxTokens: 24000, effort: 'low', v2: true },
@@ -29,7 +29,40 @@ const PUZZLE_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」
 팀 계약(반드시 지킴)
 - 플레이어 행동은 5종뿐: inspect(물건·기록·단서 조사) · navigate(구역·조사 지점으로 이동) · input(글자·숫자 입력) · select(선택지·대상 고르기) · combine_clues(얻은 단서 2개를 조사수첩에서 짝짓기). 옛 이름(observe·compare·rotate·align·connect·sequence·collect 등)은 쓰지 않는다.
 - 퍼즐 유형(puzzle_type)은 7종뿐: code_input · text_input · single_choice · multiple_choice · observation · navigation · clue_combination.
-- 아이템 인벤토리·아이템 소모·끌어 놓기·밀기·돌리기 같은 물리 조작은 없다. 얻는 것은 단서(clue)뿐이고 조사수첩에 쌓인다. 되돌릴 수 없는 선택·막힘 상태를 만들지 않는다.
+- 서버 상태가 바뀌는 아이템 인벤토리·아이템 소모·끌어 놓기는 없다. 얻는 것은 단서(clue)뿐이고 조사수첩에 쌓인다(집어 든 서신·쪽지·열쇠도 수첩에 단서로 들어간다). 되돌릴 수 없는 선택·막힘 상태를 만들지 않는다.
+- 단, 단서가 「눈에 보이게 나오는」 화면 연출(FE 물리 조작 — 되돌릴 수 있고 서버 상태 없음)은 반드시 적는다: 이불을 들추면 밑에 서신, 반닫이를 열면 안에 쪽지, 짚단을 밀면 뒤에 끈 조각처럼.
+발견 연출(10/22 — 방탈출의 기본 흐름: 물건을 만진다 → 물건이 반응한다 → 단서 물건이 보인다 → 집어서 읽는다 → 다음 단서를 짐작한다 → 마지막에 다음 방으로 가는 열쇠를 얻는다)
+- inspect·navigate 단서마다 reveal 과 carrier 와 content 를 쓴다.
+  · reveal.action: lift(들추기·걷기 — 이불·멍석·덮개) | open(열기 — 반닫이·함·궤·문짝·뚜껑) | empty(비우기 — 물·곡식 든 독·항아리) | slide(밀기·옮기기 — 짚단·항아리·상) | flip(뒤집기 — 바가지·소반·책) | break(깨기·찢기 — 봉한 옹기 항아리·동이·사기 그릇·북 가죽·창호지처럼 깨지거나 찢어질 만한 것. 깬 것은 되돌리지 않는다) | look(가까이 들여다보기 — 바닥 자국·벽·문살처럼 움직이지 않는 것) · reveal.where: under | inside | behind | on · reveal.reaction: 화면에서 일어나는 일 한 문장(예: 「이불이 접혀 올라가고 요 위에 접힌 서신이 드러난다」).
+  · carrier: 손에 드는 단서 물건 {kind: letter(서신) | note(쪽지·명부 한 장) | key(열쇠) | piece(물건 조각 — 끈·천 조각·짚신 한 짝 등) | mark(집을 수 없는 자국·빛·소리 — 이때 reveal.action 은 look), name: 화면에 뜨는 이름(예: 「접힌 서신」)}.
+  · content: 플레이어가 집어서 읽거나 들여다볼 때 보이는 것 그대로 — 서신·쪽지는 그 안에 적힌 글 원문(그 시대 말투, 1~4줄), 조각·자국은 눈에 보이는 모습 묘사. 결론을 말하지 않는다(「…이므로 신랑이다」 금지). 추론은 플레이어가 풀이에서 한다.
+  · text(수첩 요약)는 「무엇을 어디서 찾았다」 한 줄 — 역시 결론이 아니라 사실.
+  · 물건(호스트) 하나 = 조사 결과 하나(BE 계약 v1): inspect·navigate 단서는 호스트마다 최대 1개(host_needs.gives 도 1개 이하). 같은 물건에서 둘을 얻게 하지 말고, 둘째 단서는 다른 물건·자리에 둔다(예: 이부자리 밑 서신 + 요 눌린 자국 ✗ → 서신은 이부자리, 눌린 자국은 「베개 자리」 같은 다른 흔적). 답을 넣는 자리(answer_device)는 단서를 주지 않는다.
+  · 물건에 맞는 반응만(10/23 미르: 바닥 불빛이 움직이며 쪽지가 나옴 · 문갑이 통째로 들려 위에 쪽지 → 부자연스럽다):
+    - 빛·그림자·자국·소리·자리(standing_spot · sound_source · landmark, 또는 흔적 이름)는 움직이지 않는다 → action look, carrier 는 mark 만(빛에서 쪽지가 나오지 않는다).
+    - lift(들추기)는 이불·요·멍석·가마니·덮개·보자기·방석처럼 부드럽고 납작한 것만. 장·궤·문갑·반닫이 같은 가구는 들지 않는다.
+    - open(열기)은 문·뚜껑·서랍이 있는 것(장·궤·뒤주·반닫이·함·솥). empty(비우기)는 물·곡식이 든 독·항아리·동이.
+    - slide(밀기)는 옮길 만한 것(항아리·짚단·상·소반·바구니), flip(뒤집기)은 작은 것(바가지·소반·그릇·책).
+    - break(깨기, 10/23 미르)는 게임 전체에서 한 번 이하 — 다른 방법으로는 속을 볼 수 없는 것(입을 봉한 항아리, 북 속)에만, 이야기에서 깰 까닭이 있을 때. 깬 물건은 다른 단서·장치 자리로 다시 쓰지 않는다. 귀한 유물(사리함·왕실 물건·불상)은 깨지 않는다. carrier 는 보통 piece·key(깨진 틈에서 나온 물건).
+  · 단서 물건을 섞는다(쪽지만 나오면 단조롭다): letter·note 는 이 게임 단서 물건의 3분의 1 이하. 나머지는 piece(물건 — 짚신 한 짝, 끊어진 끈, 반쯤 탄 심지, 엽전 꾸러미, 비녀, 깨진 사기 조각, 젖은 짚) 와 mark(그 자리의 모습 — 자국의 개수·방향, 그릇의 수, 문살 칸).
+  · 문장은 그 시대 사람이 실제로 쓸 법한 자연스러운 한국어로. 뜻이 어색하거나 문법이 틀린 문장 금지(나쁜 예: 「손님 한 분은 한방에 드심」 — 「한방」의 뜻이 안 통한다). 쪽지·서신은 누가 누구에게 왜 쓴 것인지가 보이게.
+  · 한 퍼즐에서 carrier 가 모두 mark 이면 안 된다 — 적어도 하나는 손에 드는 물건(letter·note·key·piece).
+- 풀이 장치(10/22 미르 — 단서를 다 모았는데 「뭘 해야 할지 모르겠다」를 막는다): 고르기·입력 퍼즐(solve.interaction 이 select·input)은 반드시 눈에 보이는 장치에서 푼다. solve 에 device 를 쓴다 — 장치 목록(시대에 맞는 것):
+  · yundo(윤도 방위 자물쇠 — 조선 나침반 윤도의 방위 눈금을 돌려 맞춤. spec {"labels":["자","축","인","묘","진","사","오","미","신","유","술","해"] 또는 8방위 ["북","북동",…], "count":맞출 칸 수 1~3}, answer = 방위 이름(칸이 여럿이면 순서대로 배열)) → interaction input
+  · sangaji(산가지 셈판 자물쇠 — 산가지를 놓아 수를 맞춤. spec {"digits":2~4}, answer = 숫자 문자열) → input
+  · bimil(비밀자물쇠 — 장석 여러 개 중 열쇠구멍이 숨은 하나를 찾아 누름. 한국민족문화대백과 「비밀자물쇠」. spec {"knobs":["매화 장석","박쥐 장석","나비 장석","거북 장석"] 3~6개}, answer = 장석 이름) → select(options = knobs)
+  · geulja(글자 바퀴 자물쇠 — 바퀴 3~4개의 글자를 맞춤. 조선 실물 근거가 약하니 invented 에 「글자 바퀴 자물쇠는 게임 장치」라 적는다. spec {"rings":[["갑","을","병",…],[…]]}, answer = 글자 배열) → input
+  · 형식: "solve":{…,"device":{"kind":"yundo","name":"대청 문 윤도 자물쇠","on":"exit_door 또는 이 퍼즐 호스트 need_id(반닫이·궤·함·서안처럼 잠글 수 있는 물건)","spec":{…}}}
+  · 비밀자물쇠 장석 이름은 문양(매화·박쥐·나비·거북·연꽃·학 등)이다 — 답 문장(「신랑 장석」「스스로 나선 장석」)을 장석에 쓰면 퀴즈가 된다. 단서가 어느 문양인지 가리키게 한다(예: 서신 끝의 박쥐 그림 + 명부의 「복을 비는」 → 박쥐 장석).
+  · 찍어서 맞히지 못하게: 글자 바퀴는 바퀴마다 글자 6~10개(그럴듯한 헛글자 포함), 윤도는 8방위 이상, 산가지는 2자리 이상, 비밀자물쇠는 장석 4개 이상.
+  · 퍼즐은 「다 줍고 고르기」가 아니다(10/23 미르: 방 안 물건을 다 누르고 쪽지를 다 읽으면 정답을 누를 수 있다 → 유치원생도 푼다).
+    - 고르기(select)의 선택지는 문장·해석이 아니라 물건·문양·사람 패·방위처럼 장치에 새겨진 것이다. 단서를 다 읽어도 답이 글자 그대로 보이지 않는다.
+    - 답은 단서를 한 번 이상 「바꿔야」 나온다: 세기(자국 몇 개) · 방향 돌리기(해 뜨는 쪽에서 두 칸) · 순서 맞추기(빛이 든 차례) · 대응표(문양 ↔ 사람) · 빼기(명부에서 없는 사람). answer_from 에 그 바꾸기를 적는다.
+    - 윤도(방위) 퍼즐은 방 안에 방위 기준이 보여야 한다: device.spec.reference = {"label":"동","what":"해가 드는 뒷창"} 처럼 실제 공간의 무엇이 어느 방위인지. 단서는 그 기준에서 몇 칸·어느 쪽인지를 준다.
+  · 답은 단서 하나에 그대로 적혀 있으면 안 된다 — 단서 2개 이상을 합치거나 바꿔야 나온다(예: 서신의 「해 뜨는 쪽」 + 명부의 「두 칸 돌려」 → 묘에서 두 칸 → 사). answer_from 에 그 계산을 적는다. 장치에 들어갈 수 없는 답(긴 문장)은 쓰지 않는다.
+  · combine_clues 퍼즐은 장치 없이 수첩에서 푼다.
+- 장면 출구: 마지막 Scene(결말 연출 제외)을 뺀 모든 Scene 은 그 Scene 의 마지막 퍼즐을 출구 장치로 푼다 — solve.device.on = "exit_door"(다음 Scene 공간으로 가는 문에 걸린 자물쇠), interaction 은 input 또는 select. 이 장치가 풀리면 문이 열린다. 열쇠(exit.key)는 쓰지 않아도 된다(장치가 kind "key" 일 때만 — 앞 퍼즐에서 열쇠를 얻어 문 자물쇠에 대는 방식). exit 는 {"lock":"…","key":null} 처럼 적어도 된다.
+- (옛 방식) 장면 출구: 마지막 Scene(결말 연출 제외)을 뺀 모든 Scene 은, 그 Scene 의 마지막 퍼즐에 exit 를 둔다 — {"key":{"kind":"key|code","name":"예: 사랑방 문 열쇠 / 자물쇠 번호 쪽지","found":"풀이에 성공하면 어디서 어떻게 나오는지 한 문장(예: 서안 서랍이 열리며 놋쇠 열쇠가 나온다)"},"lock":"다음 Scene 공간으로 가는 문·길에 걸린 것(예: 대청으로 나가는 문의 무쇠 자물쇠)"} 그리고 success_effects 에 {"type":"object_unlocked","target_id":"EXIT-<scene_id>"} 를 넣는다. 열쇠를 자물쇠에 대면 문이 열리는 연출이 이 Scene 의 끝이다.
 - clue_combination 은 정확히 단서 2개의 짝(순서 무관). 단서는 이 퍼즐 또는 앞 퍼즐에서 얻은 것만.
 - 힌트는 2단계: hint_1(방향만) · hint_2(정답).
 재미 규칙
@@ -43,7 +76,7 @@ host_needs(공간에 있어야 할 물건·자리)
 - kind: inspectable_object(눌러 살피면 단서가 나오는 생활 물건) | readable_surface(글·그림·표식 면) | npc(말을 거는 인물) | landmark(멀리서 보이는 기준물) | standing_spot(서서 보는 자리 — 물건 아님) | sound_source(소리 나는 곳 — 물건 아님) | answer_device(답을 넣거나 고르는 자리 — 자물쇠 함·제단·문 등 그 장소에 맞는 물건)
 - what 은 기능, object_examples 는 그 시대·장소에 맞는 눈에 보이는 물건 2~3개(한국어 명사), place_hint 는 이야기 속 장소. 단서를 주는 호스트는 gives 에 clue_id.
 출력: \`\`\`json 코드블록 하나만. 순수 JSON.
-{"puzzles":[{"puzzle_id":"PZ-01","scene_id":"scene-01","title":"","discoveries":["RD-S1-01"],"puzzle_type":"code_input","belief_before":"","how":"플레이어가 하는 일을 순서대로","learns":"","clues":[{"clue_id":"CL-01-1","text":"이 단서로 알게 되는 것","get_by":"inspect|navigate|combine_clues","from":"PZ-01-H1","basis":["F-01"]}],"solve":{"interaction":"input|select|combine_clues|navigate|inspect","at":"PZ-01-H3","prompt":"화면에 뜨는 질문","options":null,"answer":"","answer_from":"CL-01-1 과 CL-01-2 로 …","required_clue_ids":["CL-01-1"]},"invented":[],"hint_1":"","hint_2":"","success_effects":[{"type":"clue_acquired","target_id":"CL-01-R"},{"type":"puzzle_completed","target_id":"PZ-01"}],"basis":["F-01"],"logic":null,"difficulty":"easy","host_needs":[{"need_id":"PZ-01-H1","kind":"inspectable_object","what":"","object_examples":[],"place_hint":"","count":1,"gives":["CL-01-1"]}],"status":"draft","blocked_reason":null}]}`;
+{"puzzles":[{"puzzle_id":"PZ-01","scene_id":"scene-01","title":"","discoveries":["RD-S1-01"],"puzzle_type":"code_input","belief_before":"","how":"플레이어가 하는 일을 순서대로","learns":"","clues":[{"clue_id":"CL-01-1","text":"무엇을 어디서 찾았다(사실 한 줄)","get_by":"inspect|navigate|combine_clues","from":"PZ-01-H1","reveal":{"action":"lift","where":"under","reaction":""},"carrier":{"kind":"letter","name":""},"content":"집어 들면 읽히는 글·보이는 모습 그대로","basis":["F-01"]}],"solve":{"interaction":"input|select|combine_clues|navigate|inspect","at":"PZ-01-H3","prompt":"화면에 뜨는 질문","options":null,"answer":"","answer_from":"CL-01-1 과 CL-01-2 로 …","required_clue_ids":["CL-01-1"]},"invented":[],"hint_1":"","hint_2":"","success_effects":[{"type":"clue_acquired","target_id":"CL-01-R"},{"type":"puzzle_completed","target_id":"PZ-01"},{"type":"object_unlocked","target_id":"EXIT-scene-01"}],"exit":{"key":{"kind":"key","name":"","found":""},"lock":""},"basis":["F-01"],"logic":null,"difficulty":"easy","host_needs":[{"need_id":"PZ-01-H1","kind":"inspectable_object","what":"","object_examples":[],"place_hint":"","count":1,"gives":["CL-01-1"]}],"status":"draft","blocked_reason":null}]}`;
 
 // ── 06 공간 구성 ──
 const regionList = Object.entries(REGION_KINDS).map(([k, v]) => `  - ${k}: ${v}`).join('\n');
@@ -413,31 +446,83 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
         json = extractJson(text);
         if (json.__error) fail(422, 'json_invalid', `JSON 을 읽지 못했습니다: ${json.__error}`);
       }
-      const all = new Set(scenes.flatMap(s => (s.required_discoveries || []).map(r => r.id)));
-      const used = (json.puzzles || []).flatMap(p => p.discoveries || []);
-      const check = { missing: [...all].filter(id => !used.includes(id)), duplicated: used.filter((id, i) => used.indexOf(id) !== i), unknown: used.filter(id => !all.has(id)), blocked: (json.puzzles || []).filter(p => p.status === 'blocked_by_story_input').map(p => p.puzzle_id) };
-      // 계약·재미 검사(10/20) — 사람 답안 없이
-      {
-        const P = (json.puzzles || []).filter(p => p.presentation !== 'ending_cinematic');
-        const TYPES = ['code_input', 'text_input', 'single_choice', 'multiple_choice', 'observation', 'navigation', 'clue_combination'];
-        const ACTS = ['inspect', 'navigate', 'input', 'select', 'combine_clues'];
-        const hosts = P.flatMap(p => p.host_needs || []);
-        const clueIds = new Set(P.flatMap(p => (p.clues || []).map(c => c.clue_id)).concat(P.flatMap(p => (p.success_effects || []).filter(e => e.type === 'clue_acquired').map(e => e.target_id))));
-        check.contract = [
-          ...P.filter(p => !TYPES.includes(p.puzzle_type)).map(p => `${p.puzzle_id}: 계약에 없는 유형 ${p.puzzle_type}`),
-          ...P.filter(p => !ACTS.includes(p.solve?.interaction)).map(p => `${p.puzzle_id}: 계약에 없는 풀이 행동 ${p.solve?.interaction}`),
-          ...P.flatMap(p => (p.clues || []).filter(c => !ACTS.includes(c.get_by)).map(c => `${c.clue_id}: 계약에 없는 행동 ${c.get_by}`)),
-          ...P.filter(p => !String(p.solve?.answer ?? '').trim() && p.puzzle_type !== 'navigation' && p.puzzle_type !== 'observation').map(p => `${p.puzzle_id}: 정답 없음`),
-          ...P.filter(p => !p.hint_1 || !p.hint_2).map(p => `${p.puzzle_id}: 힌트 2단계 없음`),
-          ...P.flatMap(p => (p.solve?.required_clue_ids || []).filter(id => !clueIds.has(id)).map(id => `${p.puzzle_id}: 없는 단서 ${id}`)),
-          ...P.filter(p => p.puzzle_type === 'clue_combination' && (p.solve?.required_clue_ids || []).length !== 2).map(p => `${p.puzzle_id}: 단서 조합은 정확히 2개`),
-        ];
-        const types = new Set(P.map(p => p.puzzle_type));
-        const readable = hosts.filter(h => h.kind === 'readable_surface').length;
-        check.fun = [
-          ...(types.size < Math.min(3, P.length) ? [`유형이 ${types.size}가지뿐(3가지 이상)`] : []),
-          ...(hosts.length && readable / hosts.length > 0.34 ? [`글 새긴 면 호스트 ${readable}/${hosts.length} — 3분의 1 넘음`] : []),
-        ];
+      const runChecks = (json) => {
+        const all = new Set(scenes.flatMap(s => (s.required_discoveries || []).map(r => r.id)));
+        const used = (json.puzzles || []).flatMap(p => p.discoveries || []);
+        const check = { missing: [...all].filter(id => !used.includes(id)), duplicated: used.filter((id, i) => used.indexOf(id) !== i), unknown: used.filter(id => !all.has(id)), blocked: (json.puzzles || []).filter(p => p.status === 'blocked_by_story_input').map(p => p.puzzle_id) };
+        // 계약·재미 검사(10/20) — 사람 답안 없이
+        {
+          const P = (json.puzzles || []).filter(p => p.presentation !== 'ending_cinematic');
+          const TYPES = ['code_input', 'text_input', 'single_choice', 'multiple_choice', 'observation', 'navigation', 'clue_combination'];
+          const ACTS = ['inspect', 'navigate', 'input', 'select', 'combine_clues'];
+          const hosts = P.flatMap(p => p.host_needs || []);
+          const clueIds = new Set(P.flatMap(p => (p.clues || []).map(c => c.clue_id)).concat(P.flatMap(p => (p.success_effects || []).filter(e => e.type === 'clue_acquired').map(e => e.target_id))));
+          check.contract = [
+            ...P.filter(p => !TYPES.includes(p.puzzle_type)).map(p => `${p.puzzle_id}: 계약에 없는 유형 ${p.puzzle_type}`),
+            ...P.filter(p => !ACTS.includes(p.solve?.interaction)).map(p => `${p.puzzle_id}: 계약에 없는 풀이 행동 ${p.solve?.interaction}`),
+            ...P.flatMap(p => (p.clues || []).filter(c => !ACTS.includes(c.get_by)).map(c => `${c.clue_id}: 계약에 없는 행동 ${c.get_by}`)),
+            ...P.filter(p => !String(p.solve?.answer ?? '').trim() && p.puzzle_type !== 'navigation' && p.puzzle_type !== 'observation').map(p => `${p.puzzle_id}: 정답 없음`),
+            ...P.filter(p => !p.hint_1 || !p.hint_2).map(p => `${p.puzzle_id}: 힌트 2단계 없음`),
+            ...P.flatMap(p => (p.solve?.required_clue_ids || []).filter(id => !clueIds.has(id)).map(id => `${p.puzzle_id}: 없는 단서 ${id}`)),
+            ...P.filter(p => p.puzzle_type === 'clue_combination' && (p.solve?.required_clue_ids || []).length !== 2).map(p => `${p.puzzle_id}: 단서 조합은 정확히 2개`),
+          ];
+          const types = new Set(P.map(p => p.puzzle_type));
+          const readable = hosts.filter(h => h.kind === 'readable_surface').length;
+          const GETS = ['inspect', 'navigate'], CARRY = ['letter', 'note', 'key', 'piece', 'mark'], REV = ['lift', 'open', 'slide', 'flip', 'look', 'empty', 'break'];
+          const BREAKABLE = /항아리|독$|단지|동이|옹기|사발|대접|그릇|병$|북$|북 |장구|창호|문풍지|초롱|등롱|인형|기와|주전자|뚝배기|질그릇|사기/; const RELIC = /사리|불상|왕실|어보|옥새|보물|국보/;
+          const sceneOrder = scenes.map(s => s.scene_id);
+          const exitScenes = sceneOrder.filter(id => P.some(p => p.scene_id === id)).slice(0, -1);
+          const STILL = ['standing_spot', 'sound_source', 'landmark'];
+        const hostOf = (p, id) => (p.host_needs || []).find(h => h.need_id === id);
+        const carriers = P.flatMap(p => (p.clues || []).filter(c => GETS.includes(c.get_by)).map(c => c.carrier?.kind)).filter(Boolean);
+        const paper = carriers.filter(k => k === 'letter' || k === 'note').length;
+        check.reveal = [
+          ...P.flatMap(p => (p.clues || []).filter(c => GETS.includes(c.get_by) && (STILL.includes(hostOf(p, c.from)?.kind) || /(빛|그림자|자국|얼룩|소리|(?<!이부|돗|잠|꽃|앉은)자리)$/.test(String((hostOf(p, c.from)?.object_examples || [])[0] || '').trim())) && (c.carrier?.kind !== 'mark' || c.reveal?.action !== 'look')).map(c => `${c.clue_id}: 빛·자국·자리(${(hostOf(p, c.from)?.object_examples || [])[0] || hostOf(p, c.from)?.kind})는 움직이지 않는다 — look + mark 만`)),
+          ...(carriers.length >= 4 && paper / carriers.length > 0.34 ? [`단서 물건 ${carriers.length}개 중 쪽지·서신 ${paper}개 — 3분의 1 이하로(물건 조각·자국으로)`] : []),
+          ...P.filter(p => p.solve?.device?.kind === 'yundo' && !p.solve.device.spec?.reference).map(p => `${p.puzzle_id}: 윤도에 방위 기준(spec.reference) 없음`),
+          ...P.filter(p => p.solve?.interaction === 'select' && (p.solve.options || p.solve.device?.spec?.knobs || []).some(o => String(o).length > 8)).map(p => `${p.puzzle_id}: 선택지가 문장(물건·문양·패로)`),
+            ...P.flatMap(p => (p.clues || []).filter(c => GETS.includes(c.get_by)).flatMap(c => [
+              ...(!CARRY.includes(c.carrier?.kind) ? [`${c.clue_id}: 단서 물건(carrier) 없음`] : []),
+              ...(!REV.includes(c.reveal?.action) ? [`${c.clue_id}: 발견 연출(reveal) 없음`] : []),
+              ...(!String(c.content || '').trim() ? [`${c.clue_id}: 읽히는 내용(content) 없음`] : []),
+            ])),
+            ...(() => { const br = P.flatMap(p => (p.clues || []).filter(c => GETS.includes(c.get_by) && c.reveal?.action === 'break').map(c => ({ p, c, h: hostOf(p, c.from) }))); const nm = x => [x.h?.name, ...(x.h?.object_examples || [])].filter(Boolean).join(' ');
+              const VES = /독|항아리|단지|동이|솥|두멍|자배기|함지|바가지|통$|물통|뒤주|쌀|확$|돌확|대야|버치|옹기/;
+              const em = P.flatMap(p => (p.clues || []).filter(c => GETS.includes(c.get_by) && c.reveal?.action === 'empty').map(c => ({ c, h: hostOf(p, c.from) }))).filter(x => !VES.test([x.h?.name, ...(x.h?.object_examples || [])].filter(Boolean).join(' ')));
+              return [...em.map(x => `${x.c.clue_id}: 비우기(empty)는 물·곡식 든 독·항아리·솥만(「${(x.h?.object_examples || [])[0] || x.c.from}」 — 10/23 등잔에 비우기가 붙음)`), ...(br.length > 1 ? [`깨기(break)가 ${br.length}번 — 게임 전체에서 한 번 이하`] : []),
+                ...br.filter(x => !BREAKABLE.test(nm(x))).map(x => `${x.c.clue_id}: 「${nm(x) || x.c.from}」은(는) 깨질 만한 물건이 아님(옹기·사기·북 가죽·창호지)`),
+                ...br.filter(x => RELIC.test(nm(x))).map(x => `${x.c.clue_id}: 귀한 유물은 깨지 않는다`),
+                ...br.filter(x => P.some(q => q.solve?.at === x.c.from || q.solve?.device?.on === x.c.from || (q.clues || []).some(d => d !== x.c && d.from === x.c.from))).map(x => `${x.c.clue_id}: 깬 물건(${x.c.from})을 다른 단서·장치 자리로 또 씀`)]; })(),
+            ...P.filter(p => (p.clues || []).some(c => GETS.includes(c.get_by)) && (p.clues || []).filter(c => GETS.includes(c.get_by)).every(c => c.carrier?.kind === 'mark')).map(p => `${p.puzzle_id}: 손에 드는 단서 물건이 하나도 없음`),
+            ...Object.entries(P.flatMap(p => (p.clues || []).filter(c => GETS.includes(c.get_by))).reduce((a, c) => ((a[c.from] ||= []).push(c.clue_id), a), {})).filter(([, ids]) => ids.length > 1).map(([h, ids]) => `${h}: 물건 하나에 단서 ${ids.length}개(${ids.join(', ')}) — 하나만`),
+            ...Object.entries(P.flatMap(p => (p.host_needs || []).filter(h => (h.gives || []).length || (p.clues || []).some(c => GETS.includes(c.get_by) && c.from === h.need_id)).map(h => [`${String(h.place_hint || '').replace(/\s/g, '')}|${String((h.object_examples || [])[0] || h.what || '').replace(/\s/g, '')}`, h.need_id])).reduce((a, [k, id]) => ((a[k] ||= []).push(id), a), {})).filter(([k, ids]) => ids.length > 1 && !k.endsWith('|') && !/(바닥|널|자국|흙|웅덩이|발자국|마당|땅)$/.test(k.split('|')[1])) /* 바닥 자국은 자리마다 따로 표식이 생긴다 */.map(([k, ids]) => `「${k.split('|')[1]}」(${k.split('|')[0]})을 단서 자리 ${ids.join('·')}가 같이 씀 — 물건 하나 = 조사 하나(BE). 다른 퍼즐이라도 다른 물건으로`),
+            ...P.flatMap(p => (p.host_needs || []).filter(h => h.need_id === p.solve?.at && P.some(q => (q.clues || []).some(c => GETS.includes(c.get_by) && c.from === h.need_id))).map(h => `${h.need_id}: 답 넣는 자리가 단서도 줌 — 그 단서를 다른 물건으로 옮기거나, 풀이 자리(solve.at)를 단서를 주지 않는 새 물건(host_needs 에 추가)으로`)),
+            ...exitScenes.filter(id => !P.some(p => p.scene_id === id && ((p.solve?.device?.on === 'exit_door') || (p.exit?.key?.name && p.exit?.lock)))).map(id => `${id}: 다음 장면으로 가는 출구 장치(device on exit_door) 없음`),
+            ...P.filter(p => ['select', 'input'].includes(p.solve?.interaction) && !['yundo', 'sangaji', 'bimil', 'geulja', 'key'].includes(p.solve?.device?.kind)).map(p => `${p.puzzle_id}: 고르기·입력 풀이에 장치(device) 없음`),
+            ...P.filter(p => p.solve?.device?.kind === 'geulja' && (p.solve.device.spec?.rings || []).some(r => r.length < 6)).map(p => `${p.puzzle_id}: 글자 바퀴 글자가 적음(바퀴마다 6개 이상)`),
+            ...P.filter(p => p.solve?.device?.kind === 'bimil' && (p.solve.device.spec?.knobs || []).some(k => String(k).replace(/\s*장석$/, '').length > 4)).map(p => `${p.puzzle_id}: 비밀자물쇠 장석 이름이 문양이 아니라 문장(답을 장석에 씀)`),
+          ...P.filter(p => p.solve?.device?.kind === 'bimil' && (p.solve.device.spec?.knobs || []).length < 4).map(p => `${p.puzzle_id}: 비밀자물쇠 장석이 적음(4개 이상)`),
+            ...P.filter(p => p.solve?.device?.kind === 'sangaji' && !/^\d{2,4}$/.test(String(p.solve.answer))).map(p => `${p.puzzle_id}: 산가지 답은 숫자 2~4자리`),
+            ...P.filter(p => p.solve?.device?.kind === 'bimil' && !(p.solve.device.spec?.knobs || []).includes(p.solve.answer)).map(p => `${p.puzzle_id}: 비밀자물쇠 답이 장석 목록에 없음`),
+            ...P.filter(p => p.solve?.device && (p.solve.required_clue_ids || []).length < 2).map(p => `${p.puzzle_id}: 장치 답이 단서 하나로 나옴(2개 이상)`),
+          ];
+          check.fun = [
+            ...(types.size < Math.min(3, P.length) ? [`유형이 ${types.size}가지뿐(3가지 이상)`] : []),
+            ...(hosts.length && readable / hosts.length > 0.34 ? [`글 새긴 면 호스트 ${readable}/${hosts.length} — 3분의 1 넘음`] : []),
+          ];
+        }
+        return check;
+      };
+      let check = runChecks(json);
+      // 자동 고쳐 쓰기 1회(10/22): 발견 연출·풀이 장치 규칙을 어기면(모델이 장치를 통째로 빠뜨린 일) 문제 목록을 주고 한 번 다시 쓰게 한다
+      // 10/23: 고쳐 쓰기를 최대 2번 — 고친 판이 걸린 것이 더 적을 때만 바꿔 든다
+      const issues = c => [...(c.reveal || []), ...(c.contract || [])]; // 10/23: 계약(단서 조합 2개 등)도 같이 — 고쳐 쓰다 계약을 깬 판을 받아들였다
+      for (let round = 1; round <= 2 && !local && issues(check).length; round++) {
+        const user2 = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', '[네가 쓴 퍼즐 초안]', JSON.stringify({ puzzles: json.puzzles }), '', '[자동 검사에서 걸린 것 — 모두 고쳐서 전체 JSON 을 다시 써라. 이미 맞는 퍼즐은 그대로 둔다]', ...issues(check).map(x => `- ${x}`)].join('\n');
+        const text2 = await llm(root, trial, step, { system: PUZZLE_SYSTEM, user: user2 });
+        await writeOut(root, trial, round === 1 ? 'raw-s05-fix.txt' : `raw-s05-fix${round}.txt`, text2);
+        const json2 = extractJson(text2);
+        if (!json2.__error && (json2.puzzles || []).length) { const check2 = runChecks(json2); if (issues(check2).length <= issues(check).length) { check2.repaired = { round, before: check.repaired?.before || issues(check), after: issues(check2) }; json = json2; check = check2; } }
       }
       await writeOut(root, trial, 'puzzle.json', JSON.stringify({ ...json, check }, null, 2));
       return { puzzles: (json.puzzles || []).length, hostNeeds: (json.puzzles || []).reduce((a, p) => a + (p.host_needs || []).length, 0), types: [...new Set((json.puzzles || []).map(p => p.puzzle_type))], ...check };

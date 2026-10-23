@@ -1,11 +1,13 @@
 // 「에이전트 시험」 — 설화 원문 하나로 이야기 에이전트(01~04) → 에셋 선정(05) → 공간 배치 초안(06)을 단계마다 돌려 본다 (10/19)
 // 서버: tools/review/agentTrial.mjs. 사람 문서·나주 공간은 읽기만, 결과는 .local/review/trials/ 에만.
 // 06 결과는 「빈 지형」 시험 검수 기록으로 가져와 공간·에셋 검수 화면에서 본다(공간 승인해도 게임 데이터에 반영 안 함).
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, date } from './api.js';
 import GameReviewFrame from './GameReviewFrame.jsx';
 import { PlacementAdjustPanel } from './PlacementPanels.jsx';
 import './AgentTrialPage.css';
+import AgentExplain from './AgentExplain.jsx';
+import PuzzleReview from './PuzzleReview.jsx';
 
 const STATUS = { idle: '대기', running: '실행 중', done: '완료', failed: '실패' };
 const usd = value => `$${Number(value || 0).toFixed(3)}`;
@@ -18,28 +20,153 @@ function NewTrial({ onCreated, defaultBudget, trials = [] }) {
   const [sourceName, setSourceName] = useState('');
   const [sourceText, setSourceText] = useState('');
   const [budget, setBudget] = useState(defaultBudget || 8);
+  const [adaptation, setAdaptation] = useState('');
+  const [spaceKind, setSpaceKind] = useState('outdoor');
   const [error, setError] = useState('');
   const loadPreset = async () => {
     try { const preset = await api('/trials/preset'); if (preset) { setSourceText(preset.text); setSourceName(preset.name); } } catch (err) { setError(err.message); }
   };
   const create = async () => {
     setError('');
-    try { onCreated(await api('/trials', { method: 'POST', body: { title, sourceName, sourceText, budgetUsd: Number(budget), fromTrialId: fromTrialId || undefined } })); } catch (err) { setError(err.message); }
+    try { onCreated(await api('/trials', { method: 'POST', body: { title, sourceName, sourceText, adaptation, spaceKind, budgetUsd: Number(budget), fromTrialId: fromTrialId || undefined } })); } catch (err) { setError(err.message); }
   };
   return <section className="panel trial-new">
     <div className="panel-head"><div><h2>새 에이전트 시험</h2><p>설화 원문 하나만 넣습니다. 사람이 쓴 01~06 문서와 나주 공간은 에이전트에게 주지 않습니다(공통 틀 문서·작성 규격만).</p></div></div>
     <div className="form-grid"><label className="field"><span>시험 이름</span><input value={title} maxLength={120} onChange={e => setTitle(e.target.value)} /></label><label className="field"><span>시험 예산(달러) — 넘을 것 같으면 단계가 멈춥니다</span><input type="number" min="1" max="30" step="1" value={budget} onChange={e => setBudget(e.target.value)} /></label></div>
     <label className="field"><span>원문 출처</span><input value={sourceName} maxLength={200} onChange={e => setSourceName(e.target.value)} placeholder="예: 나주문화원 「앙암바위」" /></label>
     <label className="field"><span>설화 원문</span><textarea rows={10} value={sourceText} onChange={e => setSourceText(e.target.value)} placeholder="설화 원문을 붙여넣으세요." /></label>
+    <label className="field"><span>각색 조건(선택) — 제작팀이 정한 각색 방침. 01 사실 계약서에는 넣지 않고 02~06 에만 넣습니다(원전과 창작이 섞이지 않게)</span><textarea rows={6} value={adaptation} onChange={e => setAdaptation(e.target.value)} placeholder="예: 플레이어는 합동수사본부 현장 조사관 강도윤. 인물 모형 없음 — 흔적으로만. 실내 방만." /></label>
+    <label className="field"><span>게임 공간</span><select value={spaceKind} onChange={e => setSpaceKind(e.target.value)}><option value="outdoor">나주 앙암바위(야외 지형)</option><option value="indoor">실내 방 세트(코드로 생성하는 한옥 방 2~4칸)</option></select></label>
     <label className="field"><span>앞 시험의 01~04 문서 이어받기(같은 원문일 때 — 문서 단계 비용 없이 05부터 시험)</span><select value={fromTrialId} onChange={e => setFromTrialId(e.target.value)}><option value="">이어받지 않음(01부터)</option>{trials.map(t => <option key={t.id} value={t.id}>{t.title} · {date(t.createdAt)}</option>)}</select></label>
     <div className="button-row"><button className="secondary" onClick={loadPreset}>나주문화원 원문 불러오기</button><button onClick={create} disabled={!sourceText.trim()}>시험 만들기</button></div>
     {error && <div className="message error">{error}</div>}
   </section>;
 }
 
-function StepCard({ step, state, previousDone, running, onEstimate, onRun, estimate, provider, onProvider }) {
+// 실내 방 세트 결과(10/21) — 06 계획 · 07 선정 · 08 방 만들기 결과와 뷰어 링크
+
+const STEP_SHORT = { s01: '사실 뽑기', s02: '세계관·각색', s03: '이야기 구조', s04: '장면·에셋 요구', s05: '퍼즐 초안', s06: '실내 공간 구성', s07: '에셋 선정', s08: '방 만들기·배치' };
+function stepOut(id, st, detail) {
+  const r = st?.result || {};
+  if (id === 's04' && r.counts) return `장면 ${r.counts.scenes} · 에셋 요구 ${r.counts.assetReqs}`;
+  if (id === 's05' && r.puzzles != null) return `퍼즐 ${r.puzzles} · 호스트 ${r.hostNeeds}`;
+  if (id === 's06' && detail.indoor?.plan) return `방 ${detail.indoor.plan.rooms?.length || 0} · 물건 ${detail.indoor.plan.contents?.length || 0}`;
+  if (id === 's07' && r.picked != null) return `고름 ${r.picked} · 없음 ${r.missing}`;
+  if (id === 's08' && detail.indoor?.build) { const b = detail.indoor.build; return `방 ${b.rooms.length} · 연결 ${b.checks.filter(c => c.ok).length}/${b.checks.length} · 호스트 ${b.hosts.placed}/${b.hosts.total}`; }
+  if (r.chars) return `${r.chars.toLocaleString()}자`;
+  return '';
+}
+function FlowView({ detail, steps, big }) {
+  const secs = st => st?.startedAt && st?.finishedAt ? Math.max(0, Math.round((new Date(st.finishedAt) - new Date(st.startedAt)) / 1000)) : null;
+  const hasOut = id => (id === 's06' && detail.indoor?.plan) || (id === 's07' && detail.indoor?.selection) || (id === 's08' && detail.indoor?.build);
+  return <div className={`flow ${big ? 'flow-big' : ''}`}>
+    <div className="flow-node flow-in"><b>설화 원문</b><small>{detail.source?.name}</small><small>{detail.source?.text?.length?.toLocaleString()}자{detail.adaptation?.text ? ' + 각색 조건' : ''}</small></div>
+    {steps.map(s => { const st = detail.steps[s.id] || {}; const who = s.codeOnly ? '코드' : st.provider === 'local' ? '로컬 모델' : 'Claude'; const failedButHas = st.status === 'failed' && hasOut(s.id); const status = failedButHas ? 'done' : st.status || 'idle';
+      return <Fragment key={s.id}><span className="flow-arrow">→</span>
+        <a className={`flow-node flow-${status}`} href={`#step-${s.id}`}><span className="flow-no">{s.no}</span><b>{STEP_SHORT[s.id] || s.label}</b><small className={`flow-who flow-who-${s.codeOnly ? 'code' : st.provider === 'local' ? 'local' : 'llm'}`}>{who}</small>
+          <small>{stepOut(s.id, st, detail) || STATUS[st.status || 'idle']}</small>
+          <small className="muted">{secs(st) != null ? `${secs(st)}초` : ''}{st.costUsd > 0 ? ` · ${usd(st.costUsd)}` : s.codeOnly ? ' · 비용 0' : ''}</small>
+          {failedButHas && <small className="flow-warn">결과 있음 · 마지막 재실행 실패</small>}</a></Fragment>; })}
+    <span className="flow-arrow">→</span>
+    <div className="flow-node flow-out"><b>방 세트</b>{detail.indoor?.build ? <a href={`${detail.indoor.build.viewer}?v=${encodeURIComponent(detail.indoor.build.at)}`} target="_blank" rel="noreferrer">둘러보기</a> : <small>아직 없음</small>}
+      {detail.indoor?.compare?.summary && <small>모범답안 대조 {detail.indoor.compare.summary.final.pass}/{detail.indoor.compare.summary.final.total}</small>}</div>
+  </div>;
+}
+function FlowPanel({ detail, steps }) {
+  const [show, setShow] = useState(false);
+  const c = detail.indoor?.compare;
+  return <section className="panel">
+    <div className="panel-head"><div><h2>작동 흐름</h2><p>설화가 어떤 단계를 거쳐 공간이 되는지 — 단계마다 누가(LLM·코드) 무엇을 냈는지, 걸린 시간·비용. 칸을 누르면 그 단계로 갑니다.</p></div><button className="secondary" onClick={() => setShow(true)}>시연 화면으로 크게</button></div>
+    <FlowView detail={detail} steps={steps} />
+    {show && <div className="flow-overlay" role="dialog" aria-label="작동 흐름 시연">
+      <div className="flow-overlay-head"><div><p className="eyebrow">왜곡 · AI 제작 공정</p><h2>{detail.title}</h2></div><button onClick={() => setShow(false)}>닫기 ✕</button></div>
+      <FlowView detail={detail} steps={steps} big />
+      {c?.summary && <div className="flow-score"><div><b>에이전트 원안</b><span>{c.summary.raw.pass}/{c.summary.raw.total}</span><small>06 LLM 이 낸 그대로</small></div><span className="flow-arrow">→</span><div><b>규칙 적용 뒤</b><span>{c.summary.final.pass}/{c.summary.final.total}</span><small>코드가 고친 것 {c.fixes.length}건</small></div><div className="flow-score-note"><small>기준: 방 유형 사전 + 사람 눈 검수로 정한 규칙(사람 모범답안)</small></div></div>}
+      {detail.spaceKind === 'indoor' && <AgentExplain detail={detail} steps={steps} />}
+      {detail.indoor?.build && <iframe className="flow-frame" title="방 둘러보기" src={`${detail.indoor.build.viewer}?v=${encodeURIComponent(detail.indoor.build.at)}`} />}
+    </div>}
+  </section>;
+}
+const OK = x => x.na ? <span className="muted">—</span> : x.ok ? '🟢' : '🔴';
+function IndoorCompare({ detail }) {
+  const c = detail.indoor?.compare;
+  if (!c) return null;
+  if (c.error) return <div className="message error">모범답안 대조 오류: {c.error}</div>;
+  return <section className="panel">
+    <div className="panel-head"><div><h2>사람 모범답안과 대조</h2><p>기준 = 방 유형 사전 + 사람(미르) 눈 검수로 정한 규칙. 에이전트에 답으로 주지 않고, 결과를 같은 잣대로 잴 때만 씁니다. 「원안」은 06 LLM 이 낸 그대로, 「최종」은 코드 규칙을 적용해 08 로 만든 결과입니다.</p></div>
+      <span className="pill">원안 {c.summary.raw.pass}/{c.summary.raw.total} → 최종 {c.summary.final.pass}/{c.summary.final.total}</span></div>
+    <table className="trial-table"><thead><tr><th>기준</th><th>근거</th><th>원안</th><th>최종</th></tr></thead><tbody>
+      {c.rules.map(r => <tr key={r.id}><td><b>{r.title}</b>{r.code && <small className="muted"> (코드·뷰어 담당)</small>}</td><td><small>{r.src}</small></td>
+        <td>{OK(r.raw)} <small className="muted">{r.raw.detail || ''}</small></td><td>{OK(r.final)} <small className="muted">{r.final.detail || ''}</small></td></tr>)}
+    </tbody></table>
+    {c.fixes.length > 0 && <details><summary>원안 → 최종 사이 코드가 고친 것 {c.fixes.length}건</summary><ul>{c.fixes.map((f, i) => <li key={i}>{f}</li>)}</ul></details>}
+    <p className="muted"><small>기준 출처: {c.basis}</small></p>
+  </section>;
+}
+
+/** 에이전트 단독 결과 ↔ 사람 완성본을 화면 안에서 나란히(10/22) — 에이전트 시험 · 공간·에셋 검수 두 곳에서 쓴다
+ *  사람 완성본 = humanFinal 표시가 있는 시험(같은 원문)의 결과. 그 시험 자신을 볼 때는 첫 실행 재현본(buildAgent)이 에이전트 단독 */
+export function IndoorSide({ detail }) {
+  const [side, setSide] = useState(true);
+  const I = detail.indoor || {}, own = I.build;
+  const human = detail.humanFinal ? (own && { ...own, title: detail.title }) : I.humanRef;
+  const opts = [];
+  if (detail.humanFinal && I.buildAgent) opts.push(['agent', I.buildAgent, '에이전트 단독 결과', '이 시험의 사람 검수 전 첫 실행(10/21) — 계획·선정·배치 그대로, 화풍·배경·바람은 자동']);
+  if (!detail.humanFinal && own) opts.push(['own', own, '에이전트 단독 결과', '이 시험 — 사람 손 없이 지금 공정(에이전트 + 자동 규칙)이 만든 그대로']);
+  if (I.buildRaw) opts.push(['raw', I.buildRaw, '06 계획 그대로', '코드 보정(방 유형 사전 맞춤·대청 고정 규칙) 전 — LLM 판단만 얼마나 맞는지']);
+  const [pick, setPick] = useState(opts[0]?.[0] || '');
+  const left = opts.find(o => o[0] === pick) || opts[0];
+  if (!own) return null;
+  const sum = b => `방 ${b.rooms.length} · 놓음 ${b.rooms.reduce((a, r) => a + r.placed, 0)} · 퍼즐 호스트 ${b.hosts.placed}/${b.hosts.total}`;
+  const pair = side && left && human;
+  const right = human || own;
+  return <>
+      <label className="trial-compare-check"><input type="checkbox" checked={side} disabled={!left || !human} onChange={e => setSide(e.target.checked)} /> 에이전트 단독 결과와 사람 완성본을 나란히 비교{!human ? ' — 사람 완성본이 아직 없음' : ''}</label>
+      {pair && opts.length > 1 && <label className="field indoor-left-pick"><span>왼쪽 화면</span><select value={left[0]} onChange={e => setPick(e.target.value)}>{opts.map(o => <option key={o[0]} value={o[0]}>{o[2]} — {o[3].split(' — ')[0]}</option>)}</select></label>}
+      <div className={pair ? 'indoor-side' : ''}>
+        {pair && <figure className="indoor-pane"><figcaption><b>{left[2]}</b> <small className="muted">{left[3]}</small></figcaption><iframe className="indoor-frame" title="에이전트 결과 둘러보기" src={`${left[1].viewer}?compact=1&v=${encodeURIComponent(left[1].at)}`} /></figure>}
+        <figure className="indoor-pane"><figcaption><b>{pair ? '사람 완성본' : '방 둘러보기'}</b> <small className="muted">{pair ? `${human.title || ''} — 사람 눈 검수 26건을 규칙·생성기에 반영` : ''}</small></figcaption><iframe className="indoor-frame" title="방 둘러보기" src={`${(pair ? right : own).viewer}?${pair ? 'compact=1&' : ''}v=${encodeURIComponent((pair ? right : own).at)}`} /></figure>
+      </div>
+      {pair && <p className="muted"><small>두 화면은 따로 움직입니다(방 구성이 다를 수 있음). {left[2]}: {sum(left[1])} / 사람 완성본: {sum(human)}</small></p>}
+  </>;
+}
+
+function IndoorResult({ detail, onRebuild, onOpenSpace }) {
+  const [view, setView] = useState(true);
+  const plan = detail.indoor?.plan, sel = detail.indoor?.selection?.selections || [], build = detail.indoor?.build;
+  if (!plan && !build) return null;
+  const roomName = id => plan?.rooms?.find(r => r.id === id)?.name || id;
+  return <section className="panel">
+    <div className="panel-head"><div><h2>실내 방 세트</h2><p>06 계획(방·연결·살림) → 07 에셋 선정 → 08 코드가 방을 만들고 실내 배치 규칙으로 놓음. 「방 둘러보기」는 나주맵과 같은 조작(T 시작 · WASD · 클릭/E 조사 · 문으로 이동).</p></div>
+      <div className="button-row">{build && <button className={view ? 'secondary' : ''} onClick={() => setView(v => !v)}>{view ? '둘러보기 닫기' : '방 둘러보기'}</button>}{build && onOpenSpace && <button className="secondary" onClick={() => onOpenSpace(detail)}>공간·에셋 검수에서 보기</button>}{build && <a className="button secondary" href={`${build.viewer}?v=${encodeURIComponent(build.at)}`} target="_blank" rel="noreferrer">새 탭</a>}{plan && sel.length > 0 && <button className="secondary" onClick={onRebuild}>방 다시 만들기(코드만, 비용 0)</button>}</div></div>
+    {build && view && <IndoorSide detail={detail} />}
+    {build && <>
+      <h3>방 {build.rooms.length}개 · 연결 검사 {build.checks.filter(c => c.ok).length}/{build.checks.length} · 퍼즐 호스트 {build.hosts.placed}/{build.hosts.total}</h3>
+      <table className="trial-table"><thead><tr><th>방</th><th>성격</th><th>칸·바닥</th><th>놓음/계획</th><th>바닥 점유</th><th>못 놓은 것</th></tr></thead><tbody>
+        {build.rooms.map(r => <tr key={r.id}><td><b>{r.name}</b><br /><small className="muted">{r.why}</small></td><td>{r.role}</td><td>{r.kanX}칸 · {r.floor}</td><td>{r.placed}/{r.planned}</td><td>{r.coverPct}%</td><td>{r.failed.length ? r.failed.map(f => `${f.name}(${typeof f.why === 'object' ? Object.values(f.why || {}).join('·') : f.result})`).join(', ') : '—'}</td></tr>)}
+      </tbody></table>
+      {build.puzzle && <div className="indoor-puzzle"><h3>퍼즐 연결 — 코드로 미리 풀어 보면 {build.puzzle.solvable}/{build.puzzle.total} 풀림</h3><p className="muted"><small>05 퍼즐의 호스트를 08 에 놓인 물건·흔적에 잇고, 조사 → 단서 → 풀이를 코드가 차례로 돌려 본 결과입니다. 「방 둘러보기」에서 직접 풀어 볼 수 있습니다(시험 화면이라 정답 판정이 브라우저에 있음).</small></p>
+        <table className="trial-table"><thead><tr><th>퍼즐</th><th>장면</th><th>풀이 방식</th><th>호스트 놓임</th><th>풀림</th><th>못 푸는 이유</th></tr></thead><tbody>
+          {build.puzzle.checks.map(c => <tr key={c.id}><td><b>{c.id}</b> {c.title}</td><td>{c.scene_id}</td><td>{c.interaction}</td><td>{c.hostsBound}/{c.hostsTotal}</td><td>{c.solvable ? '🟢' : '🔴'}</td><td><small>{c.why}</small></td></tr>)}
+        </tbody></table></div>}
+      {build.regress && <div className="indoor-regress"><h3>자동 회귀 검사 {build.regress.filter(x => x.ok || x.warn).length}/{build.regress.length}{build.regress.some(x => !x.ok && !x.warn) ? ' — 🔴 있음: 다음 단계로 넘기지 않음' : ''}</h3><p className="muted"><small>사람이 짚었던 문제가 다시 생기지 않았는지 08 이 매번 코드로 잽니다.</small></p>
+        <ul className="trial-checks">{build.regress.map(x => <li key={x.id} className={x.ok ? 'ok' : 'bad'}>{x.ok ? '🟢' : x.warn ? '🟡' : '🔴'} <b>{x.id}</b> {x.what}{!x.ok && <small className="muted"> — {x.bad.slice(0, 6).join(', ')}</small>}</li>)}</ul></div>}
+      <details><summary>연결 개연성 검사</summary><ul>{build.checks.map((c, i) => <li key={i}>{c.ok ? '🟢' : '🔴'} {c.what} <small className="muted">{c.detail}</small></li>)}</ul></details>
+      {build.hosts.missing.length > 0 && <p className="message warning">공간에 못 놓은 퍼즐 호스트: {build.hosts.missing.join(', ')}</p>}
+      {build.notes.length > 0 && <details><summary>코드가 고친 것·메모 {build.notes.length}건</summary><ul>{build.notes.map((n, i) => <li key={i}>{n}</li>)}</ul></details>}
+      {build.lightStory && <p className="muted">빛 연출(기록만): {build.lightStory}</p>}
+    </>}
+    {sel.length > 0 && <details><summary>07 에셋 선정 — 고름 {sel.filter(s => s.pick).length} · 없음 {sel.filter(s => !s.pick).length}</summary>
+      <table className="trial-table"><thead><tr><th>항목</th><th>방</th><th>역할</th><th>고른 에셋</th><th>이유 / 없는 것</th></tr></thead><tbody>
+        {sel.map(s => <tr key={s.item_id}><td>{s.item_id} {s.name_ko}</td><td>{roomName(s.room)}</td><td>{s.role}</td><td>{s.pick ? <>{s.pick.thumbnail && <img src={s.pick.thumbnail} alt="" width="40" height="40" loading="lazy" />} {s.pick.nameKo}{s.pick.needsReplacement ? ' (임시본)' : ''}</> : '—'}</td><td><small>{s.pick ? s.reason : `없음: ${s.missing?.description_ko || s.missing?.why || ''}`}</small></td></tr>)}
+      </tbody></table></details>}
+    {plan && <details><summary>06 계획 원본 — 방 {plan.rooms?.length || 0} · 물건 {plan.contents?.length || 0}{plan.check?.hostsMissing?.length ? ` · 계획에서 빠진 호스트 ${plan.check.hostsMissing.length}` : ''}</summary><pre>{JSON.stringify({ rooms: plan.rooms, links: plan.links, light_story: plan.light_story, notes: plan.notes }, null, 1)}</pre></details>}
+  </section>;
+}
+
+function StepCard({ step, state, previousDone, running, onEstimate, onRun, estimate, provider, onProvider, anchor }) {
   const status = state?.status || 'idle';
-  return <li className={`trial-step ${status}`}>
+  return <li className={`trial-step ${status}`} id={anchor}>
     <div className="trial-step-head">
       <span className="trial-step-no">{step.no}</span>
       <div><strong>{step.label}</strong><small>{step.tier} · 출력 한도 {step.maxTokens.toLocaleString()} · 생각 양 {step.effort}</small></div>
@@ -525,7 +652,7 @@ function Compare({ trialId, version }) {
   </section>;
 }
 
-export default function AgentTrialPage({ onOpenProject }) {
+export default function AgentTrialPage({ onOpenProject, onOpenIndoor }) {
   const [list, setList] = useState(null);
   const [trialId, setTrialId] = useState(() => new URLSearchParams(location.search).get('trial') || '');
   const [detail, setDetail] = useState(null);
@@ -568,7 +695,7 @@ export default function AgentTrialPage({ onOpenProject }) {
   const checkLocal = async () => { try { setLocalStatus(await api('/trials/llm-status')); } catch (err) { setLocalStatus({ ok: false, error: err.message }); } };
   const run = async stepId => {
     const value = estimates[stepId];
-    if (providerOf(stepId) === 'local') { setError(''); try { await api(`/trials/${trialId}/steps/${stepId}/run`, { method: 'POST', body: {} }); await load(); } catch (err) { setError(err.message); } return; }
+    if (providerOf(stepId) === 'local' || steps.find(s => s.id === stepId)?.codeOnly) { setError(''); try { await api(`/trials/${trialId}/steps/${stepId}/run`, { method: 'POST', body: {} }); await load(); } catch (err) { setError(err.message); } return; }
     if (!confirm(`${stepId} 단계를 실행합니다(Claude API 호출 — 비용 발생).${value ? `\n예상 보통 ${usd(value.typicalUsd)} · 최악 ${usd(value.worstUsd)}` : ''}\n계속할까요?`)) return;
     setError('');
     try { await api(`/trials/${trialId}/steps/${stepId}/run`, { method: 'POST', body: {} }); await load(); } catch (err) { setError(err.message); }
@@ -597,20 +724,28 @@ export default function AgentTrialPage({ onOpenProject }) {
     </section>
     {creating && <NewTrial trials={list?.trials || []} defaultBudget={list?.defaultBudgetUsd} onCreated={trial => { loadList(); pick(trial.id); }} />}
     {detail && <>
+      <FlowPanel detail={detail} steps={steps} />
+      {detail.spaceKind === 'indoor' && <AgentExplain detail={detail} steps={steps} />}
       <section className="panel">
         {detail.pipeline !== 2 && <div className="message warning">이 시험은 <b>1판 공정</b>(소품 고르기 → 좌표 찍기, 배경·인물 없음)입니다. 퍼즐 초안·공간 구성·배경 층이 들어간 2판은 위 「시험」에서 「· 2판」이 붙은 것을 고르세요.{list?.trials?.find(t => t.pipeline === 2) && <button className="secondary" onClick={() => pick(list.trials.find(t => t.pipeline === 2).id)}>최신 2판 시험 열기</button>}</div>}
-        <div className="panel-head"><div><h2>{detail.title}</h2><p>원문: {detail.source.name} · {detail.source.text.length.toLocaleString()}자 · 공간: 나주 앙암바위(야외, 직접 지정)</p></div><span className="pill">{usd(detail.spentUsd)} / 예산 ${detail.budgetUsd}</span></div>
+        <div className="panel-head"><div><h2>{detail.title}</h2><p>원문: {detail.source.name} · {detail.source.text.length.toLocaleString()}자 · 공간: {detail.spaceKind === 'indoor' ? '실내 방 세트(코드 생성)' : '나주 앙암바위(야외, 직접 지정)'}{detail.adaptation?.text ? ` · 각색 조건 ${detail.adaptation.text.length.toLocaleString()}자` : ''}</p></div><span className="pill">{usd(detail.spentUsd)} / 예산 ${detail.budgetUsd}</span></div>
         <div className="trial-local"><button className="secondary" onClick={checkLocal}>로컬 모델 연결 확인</button>{localStatus && <span className={localStatus.ok ? 'ok' : 'bad'}>{localStatus.ok ? `🟢 연결됨 · ${localStatus.model}` : `🔴 ${localStatus.error}`}</span>}<small className="muted">단계마다 Claude(유료)와 로컬 맥북(무료)을 고를 수 있습니다. 같은 01~04 를 이어받은 시험 둘을 Claude·로컬로 돌려 자기 검사·배치 화면으로 견주면 됩니다.</small></div>
-        <ol className="trial-steps">{steps.map((step, index) => <StepCard key={step.id} step={step} state={detail.steps[step.id]} estimate={estimates[step.id]} running={isRunning}
+        <ol className="trial-steps">{steps.map((step, index) => <StepCard key={step.id} anchor={`step-${step.id}`} step={step} state={detail.steps[step.id]} estimate={estimates[step.id]} running={isRunning}
           previousDone={index === 0 || detail.steps[order[index - 1]]?.status === 'done'} onEstimate={() => estimate(step.id)} onRun={() => run(step.id)}
-          provider={providerOf(step.id)} onProvider={detail.pipeline === 2 ? value => setProvider(step.id, value) : null} />)}</ol>
+          provider={step.codeOnly ? 'local' : providerOf(step.id)} onProvider={detail.pipeline === 2 && !step.codeOnly ? value => setProvider(step.id, value) : null} />)}</ol>
       </section>
       <section className="panel">
         <div className="panel-head"><div><h2>01~04 문서</h2><p>에이전트가 쓴 문서(원본 아님). 핵심 검수 카드는 「빈 지형 공간에서 보기」로 만든 시험 검수 기록의 설화와 기획 화면에서 만들 수 있습니다.</p></div></div>
         {['01', '02', '03', '04'].map(no => detail.files[`AI-${no}.md`] && <details key={no} className="trial-doc"><summary>AI-{no} · {steps.find(s => s.no === no)?.label}</summary><pre>{detail.files[`AI-${no}.md`]}</pre></details>)}
         {!['01', '02', '03', '04'].some(no => detail.files[`AI-${no}.md`]) && <p className="empty">아직 문서가 없습니다. 01부터 실행하세요.</p>}
       </section>
-      {detail.pipeline === 2 ? <>
+      {detail.adaptation?.text && <details className="trial-doc"><summary>각색 조건(02~06 입력)</summary><pre>{detail.adaptation.text}</pre></details>}
+      {detail.spaceKind === 'indoor' ? <>
+        <PuzzleDraft detail={detail} />
+        <IndoorResult detail={detail} onOpenSpace={onOpenIndoor} onRebuild={async () => { setError(''); try { await api(`/trials/${trialId}/relayout`, { method: 'POST', body: {} }); await load(); } catch (err) { setError(err.message); } }} />
+        <PuzzleReview key={detail.indoor?.build?.at} detail={detail} reviewer={reviewer} />
+        <IndoorCompare detail={detail} />
+      </> : detail.pipeline === 2 ? <>
         <PuzzleDraft detail={detail} />
         <SpacePlan detail={detail} />
         <Selection2 detail={detail} reviewer={reviewer} onDecide={decide} />
@@ -620,8 +755,8 @@ export default function AgentTrialPage({ onOpenProject }) {
         <Selection detail={detail} reviewer={reviewer} onDecide={decide} />
         <Layout detail={detail} reviewer={reviewer} onOpenSpace={openSpace} busy={busy} />
       </>}
-      <PlacedView key={detail.id} detail={detail} reviewer={reviewer} onChanged={load} onFocusItem={setFocusItem} />
-      <Compare trialId={detail.id} version={detail.updatedAt} />
+      {detail.spaceKind !== 'indoor' && <PlacedView key={detail.id} detail={detail} reviewer={reviewer} onChanged={load} onFocusItem={setFocusItem} />}
+      {detail.spaceKind !== 'indoor' && <Compare trialId={detail.id} version={detail.updatedAt} />}
     </>}
     {!detail && !creating && <p className="empty">시험을 고르거나 「＋ 새 시험」으로 시작하세요.</p>}
   </div>;

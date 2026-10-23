@@ -31,7 +31,11 @@ export const STEPS = Object.freeze([
 ]);
 // 공정 2판(10/19, agentTrialV2.mjs) — 새 시험의 기본. 1판 시험(pipeline 없음)은 1판 표 그대로
 import { STEPS_V2, v2Kit } from './agentTrialV2.mjs';
-const stepsFor = trial => (trial?.pipeline === 2 ? STEPS_V2 : STEPS);
+// 실내 방 세트 공정(10/21, indoorTrial.mjs) — 시험의 spaceKind 가 indoor 일 때 06~08 이 실내판
+import { STEPS_INDOOR, INDOOR_SPACE_ID, indoorKit, indoorCompare } from './indoorTrial.mjs';
+const stepsFor = trial => (trial?.spaceKind === 'indoor' ? STEPS_INDOOR : trial?.pipeline === 2 ? STEPS_V2 : STEPS);
+/** 각색 조건(10/21) — 제작팀이 정한 각색 방침. 01(사실 추출)에는 넣지 않는다(원전과 창작이 섞이지 않게) */
+const adaptText = trial => trial?.adaptation?.text ? `[각색 조건 — 제작팀이 정한 게임 각색 방침. 원전 사실이 아니다. 01 의 F 근거로 쓰지 않고, 이 조건에서 나온 내용은 [NEW] 또는 GF 로 표시한다. 반드시 따른다]\n${trial.adaptation.text}${trial.spaceKind === 'indoor' ? '\n\n[공간] 이 시험의 게임 공간은 한옥 한 채다(10/22): 방(문을 닫는 실내)과 마루(대청처럼 지붕은 있지만 앞이 마당으로 트인 반외부 — 실내가 아니다)를 합쳐 2~4칸. 공간은 하나씩 불러오고 문으로 이동한다. 마당은 걸어 다니지 않지만 마루와 문에서 늘 보이는 배경(담·대문·나무·하늘)이라, 마루에서 보이는 것(대문·디딤돌·달 등)을 단서로 쓸 수 있다. 그 밖의 야외 무대·원경 landmark·npc(말을 거는 인물) 호스트는 만들지 않는다.' : ''}` : '';
 const stepOf = (id, trial) => stepsFor(trial).find(s => s.id === id);
 
 // ── 비용 ── story-trial 과 같은 단가표 + 캐시(쓰기 1.25배 · 읽기 0.1배)
@@ -85,9 +89,9 @@ export async function listTrials(root) {
   for (const name of names) {
     try { const t = JSON.parse(await fs.readFile(path.join(dir, name, 'trial.json'), 'utf8')); out.push(summary(t)); } catch { /* 깨진 폴더는 건너뜀 */ }
   }
-  return out.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return out.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 }
-const summary = t => ({ id: t.id, title: t.title, createdAt: t.createdAt, updatedAt: t.updatedAt, spentUsd: t.spentUsd, budgetUsd: t.budgetUsd, done: stepsFor(t).filter(s => t.steps[s.id]?.status === 'done').length, total: stepsFor(t).length, pipeline: t.pipeline || 1, llm: t.llm || 'claude', running: stepsFor(t).find(s => t.steps[s.id]?.status === 'running')?.id || null });
+const summary = t => ({ id: t.id, title: t.title, createdAt: t.createdAt, updatedAt: t.updatedAt, spentUsd: t.spentUsd, budgetUsd: t.budgetUsd, done: stepsFor(t).filter(s => t.steps[s.id]?.status === 'done').length, total: stepsFor(t).length, pipeline: t.pipeline || 1, spaceKind: t.spaceKind || 'outdoor', hasAdaptation: Boolean(t.adaptation?.text), llm: t.llm || 'claude', running: stepsFor(t).find(s => t.steps[s.id]?.status === 'running')?.id || null });
 
 export async function presetSource(root) {
   const text = await fs.readFile(path.join(root, PRESET_SOURCE), 'utf8').catch(() => null);
@@ -106,11 +110,17 @@ export async function createTrial(root, input) {
     spaceId: SPACE_ID, budgetUsd: budget, spentUsd: 0, calls: [], steps: {}, missingDecisions: {}, reviewProjectId: null,
     llm: input?.llm === 'local' ? 'local' : 'claude',
   };
+  const adaptation = String(input?.adaptation || '');
+  if (adaptation.length > 20000) fail(400, 'invalid_adaptation', '각색 조건은 20,000자 이하로 넣어 주세요.');
+  if (adaptation.trim()) trial.adaptation = { text: adaptation, sha: sha(adaptation) };
+  if (input?.spaceKind === 'indoor') { trial.spaceKind = 'indoor'; trial.spaceId = INDOOR_SPACE_ID; }
   // 앞 시험의 01~04 를 그대로 이어받기(같은 원문일 때만) — 문서 단계 비용을 다시 쓰지 않고 뒤 공정만 시험
   if (input?.fromTrialId) {
     const from = await readTrial(root, String(input.fromTrialId));
     if (from.source.sha !== trial.source.sha) fail(409, 'source_mismatch', '이어받을 시험의 원문이 다릅니다.');
-    for (const no of ['01', '02', '03', '04']) {
+    // 각색 조건이 다르면 02~04 는 다시 써야 한다 — 01(원문만 보고 쓴 사실 계약)만 이어받는다
+    const sameAdapt = (from.adaptation?.sha || null) === (trial.adaptation?.sha || null);
+    for (const no of sameAdapt ? ['01', '02', '03', '04'] : ['01']) {
       for (const name of [`AI-${no}.md`, `AI-${no}.json`]) { const text = await readOut(root, from, name); if (text) await writeOut(root, trial, name, text); }
       const st = from.steps[`s${no}`];
       if (st?.status === 'done') trial.steps[`s${no}`] = { ...st, costUsd: 0, copiedFrom: from.id };
@@ -288,7 +298,10 @@ async function llm(root, trial, step, { system, user, cacheSystem = false }) {
 
 async function runStepBody(root, trial, step) {
   const docs = await docsSoFar(root, trial);
-  if (trial.pipeline === 2 && step.v2) return v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spaceText, fail, clip })(root, trial, step, docs);
+  if (trial.spaceKind === 'indoor' && step.indoor) return indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip, trialDirOf: trialDir })(root, trial, step, docs);
+  // 05 퍼즐 초안에도 각색 조건을 붙인다(인물 없음·실내만 같은 조건이 호스트 종류를 바꾼다)
+  const llmAdapt = (r0, t, st, opts) => llm(r0, t, st, st.id === 's05' && adaptText(t) ? { ...opts, user: `${opts.user}\n\n${adaptText(t)}` } : opts);
+  if (trial.pipeline === 2 && step.v2) return v2Kit({ readJsonOut, writeOut, extractJson, llm: llmAdapt, spaceItem, spaceText, fail, clip })(root, trial, step, docs);
   const need = (...nos) => { for (const n of nos) if (!docs[n]?.json) fail(409, 'previous_step_missing', `앞 단계 ${n} 결과(JSON)가 없습니다.`); };
   if (['s01', 's02', 's03', 's04'].includes(step.id)) {
     const kit = await storyKit(root);
@@ -299,6 +312,9 @@ async function runStepBody(root, trial, step) {
     if (step.id === 's03') { need('01', '02'); Object.assign(ctx, { d01: docIn(docs['01']), d02: docIn(docs['02']), hash: sha(docs['01'].md + docs['02'].md) }); }
     if (step.id === 's04') { need('01', '02', '03'); Object.assign(ctx, { d01: docIn(docs['01']), d02: docIn(docs['02']), d03: docIn(docs['03']), hash: sha(docs['01'].md + docs['02'].md + docs['03'].md) }); }
     let user = kit.userPrompt(step.no, ctx);
+    // 앙암바위 원문(제목 + 4문단) 전제 문구를 다른 원문에서는 일반화(10/21)
+    if (step.id === 's01' && (trial.adaptation || trial.spaceKind === 'indoor')) user = user.replace('그 아래 제목 한 줄과 본문 4문단이 원문이다.', '그 아래 제목 한 줄과 본문이 원문이다.');
+    if (step.id !== 's01' && adaptText(trial)) user = `${user}\n\n${adaptText(trial)}`;
     if (step.id === 's04') user = scene04Only(user);
     const text = await llm(root, trial, step, { system, user, cacheSystem: true });
     await writeOut(root, trial, `raw-${step.id}.txt`, text);
@@ -395,6 +411,7 @@ async function runStepBody(root, trial, step) {
 export async function estimateStep(root, id, stepId) {
   const trial = await readTrial(root, id);
   const step = stepOf(stepId, trial) || fail(400, 'unknown_step', stepId);
+  if (step.codeOnly) return { model: 'code', inputTokensApprox: 0, maxTokens: 0, worstUsd: 0, typicalUsd: 0, spentUsd: trial.spentUsd, budgetUsd: trial.budgetUsd };
   const { MODELS } = await import('../llm/claude.mjs');
   const model = MODELS[step.tier];
   // 입력은 단계마다 다르다 — 대략치(원문·앞 문서 글자 수 ÷ 1.6 + 공통 틀). 실제 값은 실행 직전 count_tokens 로 다시 잰다.
@@ -411,7 +428,8 @@ export async function startStep(root, id, stepId, { onDone } = {}) {
   const step = stepOf(stepId, trial) || fail(400, 'unknown_step', stepId);
   if (running.has(id)) fail(409, 'step_running', `이미 ${running.get(id)} 단계가 돌고 있습니다.`);
   const provider = trial.llmSteps?.[stepId] || trial.llm || 'claude';
-  if (provider === 'local') {
+  if (step.codeOnly) { /* 코드만 — 모델 확인 없음 */ }
+  else if (provider === 'local') {
     const { localStatus } = await import('../llm/local.mjs');
     const st = await localStatus();
     if (!st.ok) fail(503, 'local_llm_down', `로컬 LLM — ${st.error}`);
@@ -442,8 +460,9 @@ export async function startStep(root, id, stepId, { onDone } = {}) {
 /** 코드만 다시 앉히기(비용 0) — 계획·선정·자리 힌트는 그대로, 배치 코드(scatter.mjs)만 다시 */
 export async function relayoutTrial(root, id) {
   const trial = await readTrial(root, id);
-  if (trial.pipeline !== 2) fail(409, 'not_v2', '공정 2판 시험만 됩니다.');
   if (running.has(id)) fail(409, 'step_running', `이미 ${running.get(id)} 단계가 돌고 있습니다.`);
+  if (trial.spaceKind === 'indoor') { const docs0 = await docsSoFar(root, trial); const r = await indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip, trialDirOf: trialDir })(root, trial, { id: 'relayout' }, docs0); await saveTrial(root, trial); return r; }
+  if (trial.pipeline !== 2) fail(409, 'not_v2', '공정 2판 시험만 됩니다.');
   const docs = await docsSoFar(root, trial);
   const result = await v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spaceText, fail, clip })(root, trial, { id: 'relayout', v2: true }, docs);
   await saveTrial(root, trial);
@@ -459,7 +478,20 @@ export async function trialDetail(root, id) {
   const s04 = await readJsonOut(root, trial, 'AI-04.json').catch(() => null);
   const candidates = await readJsonOut(root, trial, 'candidates.json').catch(() => null);
   const v2 = trial.pipeline === 2 ? { puzzle: await readJsonOut(root, trial, 'puzzle.json').catch(() => null), spacePlan: await readJsonOut(root, trial, 'spaceplan.json').catch(() => null), selection2: await readJsonOut(root, trial, 'selection2.json').catch(() => null), layout2: await readJsonOut(root, trial, 'layout2.json').catch(() => null) } : {};
-  return { ...trial, ...v2, candidates, running: running.get(id) || null, steps: Object.fromEntries(stepsFor(trial).map(s => [s.id, trial.steps[s.id] || { status: 'idle' }])), stepTable: stepsFor(trial), files, selection, layout, scenes: (s04?.scenes || []).map(s => ({ scene_id: s.scene_id, title: s.title })) };
+  const indoor = trial.spaceKind === 'indoor' ? { plan: await readJsonOut(root, trial, 'indoor_plan.json').catch(() => null), selection: await readJsonOut(root, trial, 'indoor_selection.json').catch(() => null), build: await readJsonOut(root, trial, 'indoor_build.json').catch(() => null), buildRaw: await readJsonOut(root, trial, 'indoor_build_raw.json').catch(() => null), buildAgent: await readJsonOut(root, trial, 'indoor_build_agent.json').catch(() => null), puzzleReview: await readJsonOut(root, trial, 'puzzle_review.json').catch(() => null), puzzleCriteria: PUZZLE_CRITERIA, compare: await indoorCompare(root, trial, { readJsonOut, trialDirOf: trialDir }).catch(e => ({ error: e.message })) } : null;
+  // 사람 완성본(10/22) — 같은 원문의 다른 시험 중 humanFinal 표시가 있는 것. 에이전트 단독 결과와 나란히 비교하는 기준
+  if (indoor && !trial.humanFinal) {
+    try {
+      for (const name of await fs.readdir(path.join(root, TRIAL_ROOT))) {
+        if (name === trial.id) continue;
+        const t = JSON.parse(await fs.readFile(path.join(root, TRIAL_ROOT, name, 'trial.json'), 'utf8'));
+        if (!t.humanFinal || t.source?.sha !== trial.source?.sha) continue;
+        const b = await readJsonOut(root, t, 'indoor_build.json').catch(() => null);
+        if (b) { indoor.humanRef = { id: t.id, title: t.title, viewer: b.viewer, at: b.at, rooms: b.rooms, hosts: b.hosts }; break; }
+      }
+    } catch { /* 없음 */ }
+  }
+  return { ...trial, ...v2, indoor, candidates, running: running.get(id) || null, steps: Object.fromEntries(stepsFor(trial).map(s => [s.id, trial.steps[s.id] || { status: 'idle' }])), stepTable: stepsFor(trial), files, selection, layout, scenes: (s04?.scenes || []).map(s => ({ scene_id: s.scene_id, title: s.title })) };
 }
 
 export async function decideMissing(root, id, input) {
@@ -499,6 +531,27 @@ export async function setLlm(root, id, input) {
  * 승인은 「고정」(locked), 나머지는 「열림」(open) — 10 단계가 열린 의견만 원인 단계로 돌려 다시 만든다.
  * 모든 판정은 feedbackHistory 에 남긴다(승인·반려 짝 = 이후 학습 자료).
  */
+// 퍼즐 검수(10/22 미르: 퍼즐은 사람이 눈으로 — 이야기 개연성 · 에셋 연결 · 상호작용 · 잠금 · 넘어가는 연출 · 재미 · 난이도)
+export const PUZZLE_CRITERIA = Object.freeze({ story: '이야기와 개연성', assets: '연결된 에셋이 자연스러움', interact: '상호작용 방식이 납득됨', count: '상호작용 수·동선이 적당함', gate: '풀기 전엔 다음 공간으로 못 감', transit: '넘어가는 연출(자물쇠·문)이 자연스러움', fun: '재미있고 납득됨' });
+export async function setPuzzleReview(root, id, input) {
+  const trial = await readTrial(root, id);
+  const pid = clip(input?.puzzle_id, 40);
+  if (!/^[A-Za-z][\w-]{0,30}$/.test(pid)) fail(400, 'invalid_puzzle', '퍼즐 ID 형식이 아닙니다.');
+  const reviewer = clip(input?.reviewer, 100);
+  if (!reviewer.trim()) fail(400, 'reviewer_required', '검수자 이름을 적어 주세요.');
+  const criteria = {};
+  for (const [k, v] of Object.entries(input?.criteria || {})) if (PUZZLE_CRITERIA[k] && ['ok', 'issue', null].includes(v)) criteria[k] = v;
+  const difficulty = ['easy', 'fit', 'hard', null].includes(input?.difficulty ?? null) ? (input?.difficulty ?? null) : null;
+  const verdict = ['approve', 'revise', null].includes(input?.verdict ?? null) ? (input?.verdict ?? null) : null;
+  const note = clip(input?.note, 2000);
+  if (verdict === 'revise' && !note.trim()) fail(400, 'note_required', '무엇을 고칠지 메모를 적어 주세요.');
+  const cur = (await readJsonOut(root, trial, 'puzzle_review.json').catch(() => null)) || { reviews: {}, history: [] };
+  const entry = { criteria, difficulty, verdict, note, reviewer, at: new Date().toISOString() };
+  cur.reviews[pid] = entry; cur.history.push({ puzzle_id: pid, ...entry });
+  await writeOut(root, trial, 'puzzle_review.json', JSON.stringify(cur, null, 2));
+  return cur;
+}
+
 export async function setFeedback(root, id, input) {
   const { VERDICTS } = await import('./agentTrialV2.mjs');
   const trial = await readTrial(root, id);

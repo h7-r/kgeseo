@@ -4,6 +4,7 @@ import GameReviewFrame from './GameReviewFrame.jsx';
 import SceneReviewBoard from './SceneReviewBoard.jsx';
 import ObjectReviewPanel from './ObjectReviewPanel.jsx';
 import BriefPanel from './BriefPanel.jsx';
+import { IndoorSide } from './AgentTrialPage.jsx';
 import AgentTrialPage from './AgentTrialPage.jsx';
 import { LibraryDrawer, PickedPointCard, PlacementAdjustPanel, PlacementHistory, PlacementImportPanel, ProposalActionsCard, ProposalList, SceneTabs } from './PlacementPanels.jsx';
 import { api, gates, statusText, date, shortHash, download, dispositionText } from './api.js';
@@ -232,6 +233,9 @@ export default function App() {
     element.scrollTop = Math.max(0, (lines - 3) * lineHeight);
   }, []);
   // 에이전트 시험 → 만든 「빈 지형」 시험 검수 기록을 공간·에셋 검수 화면으로 연다
+  // 실내 시험(10/22) — 검수 기록 없이 원안 ↔ 사람 검수 반영본을 공간·에셋 검수 화면에서 나란히
+  const [indoorDetail, setIndoorDetail] = useState(null);
+  const openIndoor = d => { setIndoorDetail(d); setGate('space'); };
   const openTrialProject = id => perform(async () => { await stopGame(); await loadProject(id); await list(); setGate('space'); setViewerOpen(false); });
   const exportProject = () => perform(async () => {
     const latest = await api(`/projects/${project.id}`);
@@ -435,7 +439,7 @@ export default function App() {
       <div className="sidebar-bottom"><b>현재 테스트 범위</b><p>설화 입력 → 연결한 공간에서 에셋·배치 확인 → 승인·반려 기록</p><p>설화 기반 에셋 자동 선정·새 공간 생성·퍼즐 자동 제작은 아직 연결 전입니다.</p><a href="/docs/검수설계/왜곡_에이전트_구조_v5.html" target="_blank" rel="noreferrer">시스템 설계 보기 ↗</a></div>
     </aside>
     <main className={`main ${gate === 'trial' ? 'trial-mode' : ''}`}>
-      {gate === 'trial' && <AgentTrialPage onOpenProject={openTrialProject} />}
+      {gate === 'trial' && <AgentTrialPage onOpenProject={openTrialProject} onOpenIndoor={openIndoor} />}
       <div className="page-head"><div><p className="eyebrow">LOCAL REVIEW / {gate === 'history' ? 'HISTORY' : gate.toUpperCase()}</p><h1>{spatial ? '공간·에셋 검수' : selectedGate?.label || '판정·관찰 이력'}</h1><p>{project ? `${project.title} · 검수 자료 v${project.revision}` : '설화 자료를 입력하고 검수할 공간을 연결하세요.'}</p></div>{project && <Tag status={gateState?.status} />}</div>
       {error && <div className="message error" role="alert">{error}<button className="quiet" onClick={() => setError('')} aria-label="오류 알림 닫기">×</button></div>}
       {notice && <div className="message success" role="status">{notice}</div>}
@@ -458,6 +462,7 @@ export default function App() {
         <details className="panel evidence"><summary>나주 예제의 저장소 근거 문서 보기</summary><label className="field"><span>근거 자료</span><select value={docId} onChange={event => setDocId(event.target.value)}>{boot.documents.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label><small className="path">{doc?.path}</small><pre>{doc?.text}</pre></details>
         <details className="panel evidence"><summary>자료 상태와 검수 범위</summary>{boot.warnings.map(warning => <p key={warning}>{warning}</p>)}</details>
       </>}
+      {spatial && indoorDetail && <section className="panel"><div className="panel-head"><div><h2>실내 시험 · {indoorDetail.title}</h2><p>에이전트 혼자 만든 결과(사람 검수 전 첫 실행)와 사람 수정본을 나란히 봅니다. 에이전트 혼자 일했을 때 어디까지 되는지 가늠하는 화면입니다.</p></div><div className="button-row"><button className="secondary" onClick={() => changeGate('trial')}>에이전트 시험으로</button><button className="quiet" onClick={() => setIndoorDetail(null)}>닫기 ✕</button></div></div><IndoorSide detail={indoorDetail} /></section>}
       {spatial && <>
         <section className="panel spatial-intro"><div className="panel-head"><div><h2>공간을 보고, 어색한 물체만 짚어주세요.</h2><p>기존에 구현된 배치를 불러옵니다. 설화 기반 자동 에셋 선정은 아직 연결 전입니다.</p></div><span className="pill">{runtime ? project.runtimeUse === 'target' ? '검수 대상' : '참고용 공간' : '공간 미연결'}</span></div>
           <label className="field"><span>에셋 확인 방식</span><select value={draft.assetReviewMode} disabled={Boolean(launch) || capturing} onChange={event => update('assetReviewMode', event.target.value)}><option value="individual">추가로 선택한 파일·표본 개별 확인</option><option value="scene" disabled={!canUseSceneReview}>공간에서 확인 · 구역별 배치 판정</option></select><small>{draft.assetReviewMode === 'scene' ? '구역별 배치 사진과 사람 판정으로 외형을 검수합니다. 아래 상세 도구에서 선택한 에셋만 추가 확인합니다.' : '기존 회차의 개별 검수 방식입니다. 대상 공간이 연결되어 있으면 구역별 방식으로 바꾸고 저장할 수 있습니다.'}</small></label>

@@ -554,7 +554,21 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
       // ── 에이전트 시험(agentTrial.mjs, 10/19) — 긴 LLM 단계는 직렬 큐 밖에서 돈다. 검수 기록을 만드는 /space 만 큐 안에서 ──
       if (path === '/__review/trials' || path.startsWith('/__review/trials/')) {
         if (path === '/__review/trials/llm-status' && req.method === 'GET') return send(200, await (await import('../llm/local.mjs')).localStatus());
-        const m = path.match(/^\/__review\/trials(?:\/(preset)|\/([a-f0-9-]{36})(?:\/(steps)\/(s0[1-9]|s10)\/(estimate|run)|\/(missing|compare|space|places|view|llm|feedback|relayout|spot-edit))?)?$/);
+        // 실내 방 세트 뷰어·파일(10/21, indoorTrial.mjs 08 결과) — .local/review/trials/<id>/rooms/ 안의 이름만, 읽기만
+        const roomFile = path.match(/^\/__review\/trials\/([a-f0-9-]{36})\/(rooms|rooms_raw|rooms_agent)\/([\w\u3131-\uD79D.-]+\.(html|glb|json))$/u); // rooms_raw = 원안 비교판(10/22)
+        if (roomFile) {
+          if (req.method !== 'GET' && req.method !== 'HEAD') return send(405, { error: 'method_not_allowed', message: '읽기만 됩니다.' });
+          const file = join(root, '.local/review/trials', roomFile[1], roomFile[2], roomFile[3]);
+          const safe = await noSymlinkFile(root, `.local/review/trials/${roomFile[1]}/${roomFile[2]}/${roomFile[3]}`);
+          if (!safe.ok) return send(404, { error: 'not_found', message: '방 파일이 없습니다. 08 「방 만들기·배치」를 먼저 실행하세요.' });
+          const buf = await readFile(file);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', { html: 'text/html; charset=utf-8', glb: 'model/gltf-binary', json: 'application/json; charset=utf-8' }[roomFile[4]]);
+          res.setHeader('Cache-Control', 'no-store');
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          return res.end(req.method === 'HEAD' ? undefined : buf);
+        }
+        const m = path.match(/^\/__review\/trials(?:\/(preset)|\/([a-f0-9-]{36})(?:\/(steps)\/(s0[1-9]|s10)\/(estimate|run|run-fresh)|\/(missing|compare|space|places|view|llm|feedback|relayout|spot-edit|puzzle-review))?)?$/);
         if (!m) return send(404, { error: 'not_found', message: '에이전트 시험 경로를 찾을 수 없습니다.' });
         const [, preset, trialId, , stepId, stepAction, sub] = m;
         if (preset && req.method === 'GET') return send(200, await agentTrial.presetSource(root));
@@ -563,12 +577,20 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
         if (trialId && !stepId && !sub && req.method === 'GET') return send(200, await agentTrial.trialDetail(root, trialId));
         if (stepAction === 'estimate' && req.method === 'POST') return send(200, await agentTrial.estimateStep(root, trialId, stepId));
         if (stepAction === 'run' && req.method === 'POST') return send(202, await agentTrial.startStep(root, trialId, stepId));
+        // 10/23: 새 프로세스에서 돌리기 — 도구 코드를 고친 뒤 서버를 다시 켜지 않아도 고친 코드로 돈다
+        if (stepAction === 'run-fresh' && req.method === 'POST') {
+          const { spawn } = await import('node:child_process'); const { openSync } = await import('node:fs');
+          const log = openSync(join(root, '.local/review/trials', trialId, `run-${stepId}.log`), 'a');
+          const ch = spawn(process.execPath, [join(root, 'tools/review/runStepFresh.mjs'), root, trialId, stepId], { detached: true, stdio: ['ignore', log, log] }); ch.unref();
+          return send(202, { spawned: true, pid: ch.pid, trialId, stepId });
+        }
         // 코드만 다시 앉히기(LLM 없음·비용 0) — 앉힘 규칙·지형 칸 지도를 고친 뒤 같은 계획으로 다시 깐다
         if (sub === 'spot-edit' && req.method === 'POST') return send(200, await agentTrial.editSpot(root, trialId, input)); // 배치 화면에서 사람이 자리 고침·빼기(10/20)
         if (sub === 'relayout' && req.method === 'POST') return send(200, await agentTrial.relayoutTrial(root, trialId));
         if (sub === 'missing' && req.method === 'POST') return send(200, await agentTrial.decideMissing(root, trialId, input));
         if (sub === 'compare' && req.method === 'GET') return send(200, await agentTrial.compareWithHuman(root, trialId));
         if (sub === 'feedback' && req.method === 'POST') return send(200, await agentTrial.setFeedback(root, trialId, input));
+        if (sub === 'puzzle-review' && req.method === 'POST') return send(200, await agentTrial.setPuzzleReview(root, trialId, input)); // 퍼즐 검수(10/22)
         if (sub === 'llm' && req.method === 'POST') return send(200, await agentTrial.setLlm(root, trialId, input));
         if (sub === 'view' && req.method === 'POST') return send(200, await agentTrial.setView(root, trialId, input));
         // 배치 화면(10/19) — 게임이 &trial=<id> 로 읽는 「놓기」 항목. layout.accepted 를 /space 와 같은 확인(importItem)으로 바꾼다. 게임 데이터(manifest)는 건드리지 않는다

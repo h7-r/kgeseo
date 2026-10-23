@@ -1,0 +1,610 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>실내 방 둘러보기</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600&display=swap">
+<style>
+/* 작업대: 왼쪽 뷰(플레이/검수) + 오른쪽 정보. 먹빛 회청 + 장판 황토 강조 */
+:root{--bg:#eef0f2;--fg:#1f2730;--mut:#5f6b78;--card:#ffffff;--line:#d5dbe1;--acc:#a8641c;--stage:#c9ced4;--hl:#e8b04a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#151a20;--fg:#e4e9ee;--mut:#97a3b0;--card:#1d242c;--line:#2f3943;--acc:#e0a052;--stage:#2a323b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#151a20;--fg:#e4e9ee;--mut:#97a3b0;--card:#1d242c;--line:#2f3943;--acc:#e0a052;--stage:#2a323b;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.55 "IBM Plex Sans KR","Apple SD Gothic Neo",sans-serif;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px}
+h1{font-size:18px;margin:4px 0;text-wrap:balance}.k{color:var(--mut)}
+.bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-block:6px}
+.bar button,.row button{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:5px 12px;border-radius:999px;cursor:pointer;font:inherit}
+.bar button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;padding-bottom:16px}@media(max-width:860px){.wrap{grid-template-columns:1fr}}
+.stage{position:relative}
+#v{width:100%;height:68vh;min-height:360px;border-radius:12px;border:1px solid var(--line);background:var(--stage);display:block;touch-action:none}
+#tag{position:absolute;pointer-events:none;background:rgba(20,20,20,.75);color:#fff;font-size:12px;padding:2px 8px;border-radius:6px;transform:translate(-50%,-140%)}
+#hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:10px 20px;border-radius:8px;background:rgba(16,20,27,.82);border:1px solid #2c3648;color:#cfe3ff;font-size:14px;text-align:center;pointer-events:none;white-space:nowrap}
+#cross{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(255,255,255,.7);pointer-events:none}
+aside{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:13px;overflow:auto;max-height:68vh;min-width:0}
+aside h3{font-size:13px;margin:12px 0 4px}aside ul{margin:0;padding-left:16px}aside li[data-g]{cursor:pointer}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.row button{border-radius:8px;font-size:12px;padding:4px 10px}
+.card{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;background:var(--bg)}
+.pz-clue{border-color:#c9a45a}.pz-lock{border-color:#b4452f}.pz-focus{border-color:#5a3fb0}.pz-ok{border-color:#4f8b6c}.pz-opt{display:block;margin:3px 0}.pz-list,.pz-nb{padding-left:16px}.pz-list li,.pz-nb li{margin:3px 0}button.mini{font-size:11px;padding:1px 6px}
+#hold{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(10,12,16,.45);border-radius:12px;z-index:5}#hold[hidden]{display:none}#hold.low{align-items:flex-end;background:linear-gradient(to top,rgba(10,12,16,.45),rgba(10,12,16,0) 45%);padding-bottom:14px}#hold.low .hold-card{width:min(560px,92%)}
+.hold-card{width:min(420px,86%);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}.hold-card b{font-size:16px;display:block;margin:4px 0 8px}
+.hold-card.paper{background:#f1e6c9;color:#2b2116;border-color:#cdb98a;font-family:'Nanum Myeongjo','Batang',serif}.hold-body{white-space:pre-wrap;line-height:1.85;font-size:14px;margin:6px 0 10px}
+.pz-goal{border-color:#8a6a3a;background:#fbf4e4}.dev-card{width:min(560px,92%);background:#f4ead2;border-color:#b9a173;color:#2b2116}.dev-card .k{color:#6b5a40}.dev-card button.mini,.dev-card button{color:#2b2116;background:#fff8e8;border:1px solid #b9a173}.dev-card .dev-knob{color:#f3e6c4;background:#3b3a36}.dev-how{font-size:13px;color:#4a3a22;background:#fff8e8;border-radius:8px;padding:6px 10px;margin:6px 0}.dev-card .dev-row{background:#4a3220;border-radius:10px;padding:10px;color:#f3e6c4}.dev-card .dev-row .k{color:#e8d6a8}.dev-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:8px 0}.dev-col{display:flex;flex-direction:column;align-items:center;gap:4px}.dev-ring{color:#2b2116;display:flex;flex-direction:column;align-items:center;width:52px;padding:4px 0;border:2px solid #b08d3c;border-radius:10px;background:#f3e6c4}.dev-ring b{font-size:22px}.dev-plate{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:10px;background:#c9a66b;border-radius:10px}.dev-knob{min-width:72px;background:#3b3a36;color:#f3e6c4;border-radius:10px}.dev-msg{color:#a3423a;min-height:1.2em;font-size:13px}.shake{animation:shk .35s}@keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.pill{display:inline-block;font-size:11px;padding:0 6px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head><body>
+<h1>실내 방 둘러보기 <span class="k" id="trialName" style="font-size:13px;font-weight:400"></span></h1>
+<div class="k">조작은 게임(나주맵)과 같습니다 — 화면을 한 번 누르고 <b>[T] 시작</b> · 마우스 = 시점 · WASD/방향키 = 이동 · Shift 달리기 · Space 점프 · C 앉기 · 조준점을 물건에 맞추고 <b>클릭 또는 E</b> = 조사(문은 바로 열고 이동) · ESC 나가기. 「검수」: 위에서 내려다보기.</div>
+<script>/* 검수 화면 안에 나란히 띄울 때(?compact) 설명 줄을 숨겨 3D 화면을 넓게(10/22) */if(new URLSearchParams(location.search).has('compact')){const s=document.currentScript;s.previousElementSibling.style.display='none';s.previousElementSibling.previousElementSibling.style.display='none'}</script>
+<div class="bar" id="tabs"></div>
+<div class="bar"><button id="mPlay" class="on">플레이</button><button id="mRev">검수(위에서)</button><span class="sep"></span><button id="sReal">사실 질감</button><button id="sAni" hidden>원신 v1(필터)</button><button id="sToon" hidden>만화 v2(평면색+외곽선)</button><button id="sToon3" class="on">만화(기본)</button><span id="sky" hidden><span class="sep"></span><button data-sky="night" class="on">달밤</button><button data-sky="day">낮(해로 바뀜)</button></span></div>
+<div class="wrap"><div class="stage"><canvas id="v"></canvas><div id="cross"></div><div id="tag" hidden></div>
+<div id="hint">화면을 누르고 <b>[T]</b> 를 누르면 시작합니다<br><span style="opacity:.75">WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · 클릭/E 조사 · ESC 나가기</span></div></div>
+<aside id="info"></aside></div>
+<script type="module">
+import * as THREE from 'three';import {OrbitControls} from 'three/addons/controls/OrbitControls.js';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';import {mergeVertices} from 'three/addons/utils/BufferGeometryUtils.js';
+const ITEMS=/*ITEMS*/[];const TRIAL=/*TRIAL*/{};const PZ=/*PUZZLES*/[];const SC=/*SCENES*/[];
+const cv=document.getElementById('v');const R=new THREE.WebGLRenderer({canvas:cv,antialias:true});R.useLegacyLights=true;R.setPixelRatio(Math.min(devicePixelRatio,1.5));R.outputColorSpace=THREE.SRGBColorSpace;R.shadowMap.enabled=true;
+const S=new THREE.Scene();const C=new THREE.PerspectiveCamera(70,1,0.03,200);const O=new OrbitControls(C,cv);O.enabled=false;O.enableDamping=true;
+const hemi=new THREE.HemisphereLight(0xfff4e0,0x6b5a45,1.1);S.add(hemi);const sun=new THREE.DirectionalLight(0xffffff,1.6);sun.position.set(-4,9,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-8,right:8,top:8,bottom:-8});S.add(sun);
+const gnd=new THREE.Mesh(new THREE.PlaneGeometry(60,60),new THREE.MeshStandardMaterial({color:0x8f8674}));gnd.rotation.x=-Math.PI/2;gnd.position.y=-0.01;gnd.receiveShadow=true;S.add(gnd);
+let style='toon3';let tgt=null,cur=null,ci=0,mode='play',meta={},lightsG=new THREE.Group(),kc=null,found=new Set(),sel=null,yaw=0,pitch=-0.12,pos=new THREE.Vector3(),pend=null;S.add(lightsG);
+const L=new GLTFLoader();L.setMeshoptDecoder(MeshoptDecoder);{const k2=new KTX2Loader().setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/basis/');k2.detectSupport(R);L.setKTX2Loader(k2)}const tag=document.getElementById('tag');
+const b64ab=b=>{const s=atob(b),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a.buffer};
+const RAMP=`vec3 getGradientIrradiance( vec3 normal, vec3 lightDirection ) {
+  float dotNL = dot( normal, lightDirection );
+  vec2 coord = vec2( dotNL * 0.5 + 0.5, 0.0 );
+  float g = mix( 0.55, 1.0, smoothstep( 0.40, 0.58, coord.x ) );
+  return g * mix( vec3( 0.646, 0.694, 1.088 ), vec3( 1.0 ), smoothstep( 0.45, 0.95, g ) );
+}`;
+const GRADE=`{
+  vec3 wgC = gl_FragColor.rgb; float wgL = dot( wgC, vec3( 0.299, 0.587, 0.114 ) );
+  float wgMid = smoothstep( 0.06, 0.3, wgL );
+  wgC = mix( vec3( wgL ), wgC, mix( 1.0, 1.15, wgMid ) );
+  wgC = mix( wgC, ( wgC - 0.5 ) * 1.08 + 0.5, smoothstep( 0.15, 0.4, wgL ) );
+  float wgCool = smoothstep( 0.04, 0.14, wgL ) * ( 1.0 - smoothstep( 0.14, 0.5, wgL ) );
+  wgC *= mix( vec3( 1.0 ), vec3( 0.92, 0.96, 1.08 ), wgCool );
+  wgC *= mix( vec3( 1.0 ), vec3( 1.06, 1.02, 0.94 ), smoothstep( 0.6, 1.0, wgL ) );
+  gl_FragColor.rgb = clamp( wgC, 0.0, 1.0 );
+}`;
+
+const GRAD2=(()=>{const d=new Uint8Array([150,150,150,255,210,210,210,255,255,255,255,255]);const t=new THREE.DataTexture(d,3,1);t.minFilter=t.magFilter=THREE.NearestFilter;t.needsUpdate=true;return t})();
+const FLAT=new Map();
+function flatMap(tex){if(!tex||!tex.image)return null;if(FLAT.has(tex))return FLAT.get(tex);const im=tex.image,a=document.createElement('canvas');a.width=a.height=6;const ca=a.getContext('2d');ca.imageSmoothingEnabled=true;ca.drawImage(im,0,0,6,6);
+ const b=document.createElement('canvas');b.width=b.height=128;const cb=b.getContext('2d');cb.imageSmoothingEnabled=true;cb.drawImage(a,0,0,128,128);cb.globalAlpha=0.16;cb.drawImage(im,0,0,128,128);
+ const t=new THREE.CanvasTexture(b);t.colorSpace=THREE.SRGBColorSpace;t.flipY=tex.flipY;t.wrapS=tex.wrapS;t.wrapT=tex.wrapT;t.channel=tex.channel;t.repeat.copy(tex.repeat);t.offset.copy(tex.offset);FLAT.set(tex,t);
+ const p=ca.getImageData(0,0,6,6).data;let r=0,g=0,bb=0;for(let i=0;i<p.length;i+=4){r+=p[i];g+=p[i+1];bb+=p[i+2]}const n=p.length/4;t.userData.avg=new THREE.Color(r/n/255,g/n/255,bb/n/255);return t}
+const GRADE2=`
+  vec3 c2=gl_FragColor.rgb; float l2=dot(c2,vec3(0.299,0.587,0.114));
+  c2=mix(vec3(l2),c2,1.06);
+  c2*=mix(vec3(0.86,0.9,1.06),vec3(1.0),smoothstep(0.12,0.42,l2));
+  gl_FragColor.rgb=clamp(c2,0.0,1.0);`;
+function toonify2(root){const list=[];root.traverse(o=>{if(o.isMesh)list.push(o)});list.forEach(o=>{const m=o.material;const rl=roleOf(G(o)).role;const isProp=rl==='prop';const fm=isProp?null:flatMap(m.map);
+ const t=new THREE.MeshToonMaterial({vertexColors:!!(o.geometry&&o.geometry.attributes.color),color:m.color,map:fm||m.map,gradientMap:GRAD2,emissive:m.emissive,emissiveMap:m.emissiveMap,emissiveIntensity:m.emissiveIntensity,side:THREE.DoubleSide,transparent:m.transparent,alphaTest:m.alphaTest,opacity:m.opacity});
+ if(m.transparent)t.map=m.map;if((m.metalness||0)>0.5)t.color=m.color.clone().multiplyScalar(0.4);
+ t.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <colorspace_fragment>','#include <colorspace_fragment>\n'+GRADE2)};o.material=t;
+ if(m.transparent||(m.emissive&&m.emissive.r>0.5)||!(isProp||rl==='interactive'||rl==='fixture'||rl==='surface'))return;
+ let g=o.geometry.clone();for(const k of Object.keys(g.attributes))if(k!=='position')g.deleteAttribute(k);g=mergeVertices(g,1e-4);g.computeVertexNormals();
+ const base=(fm&&fm.userData.avg)?fm.userData.avg.clone().multiply(m.color):m.color.clone();const hc=base.multiplyScalar(0.28).lerp(new THREE.Color(0x1a1210),0.5);
+ const hm=new THREE.MeshBasicMaterial({color:hc,side:THREE.BackSide});hm.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <begin_vertex>','vec3 transformed=position+normalize(normal)*0.011/length((modelMatrix*vec4(1.,0.,0.,0.)).xyz);')};
+ const h=new THREE.Mesh(g,hm);h.userData.hull=true;h.raycast=()=>{};h.castShadow=false;h.receiveShadow=false;o.add(h)})}
+function toonLights(){lightsG.children.forEach(p=>{p.color.lerp(new THREE.Color(0xffffff),0.6)});hemi.intensity=Math.max(hemi.intensity,0.6)}
+
+// ── 만화 v3: 재질별로 새로 칠한 텍스처 + 화면 전체 선(깊이·법선 경계) + 방향만 있는 부드러운 빛 ──
+function matKey(o){let n=o;while(n){if(n.name&&n.name.includes('__'))return n.name.split('__')[1].replace(/_\d+$/,'');n=n.parent}return (o.material&&o.material.name)||''}
+const PAINT=new Map();
+function paintMap(tex,key,tint){const ck=(tex?tex.uuid:'none')+key;if(PAINT.has(ck))return PAINT.get(ck);
+ let avg=new THREE.Color(0.8,0.75,0.65);if(tex){const f=flatMap(tex);if(f&&f.userData.avg)avg=f.userData.avg.clone()}
+ avg.multiply(tint);const N=256,c=document.createElement('canvas');c.width=c.height=N;const x=c.getContext('2d');
+ const hex=(col,k=1)=>'#'+col.clone().multiplyScalar(k).getHexString();
+ const g=x.createLinearGradient(0,0,0,N);g.addColorStop(0,hex(avg,1.04));g.addColorStop(1,hex(avg,0.96));x.fillStyle=g;x.fillRect(0,0,N,N);
+ let rnd=7;const r=()=>(rnd=(rnd*16807)%2147483647)/2147483647;
+ const line=(pts,w,col,a)=>{x.globalAlpha=a;x.strokeStyle=col;x.lineWidth=w;x.lineCap='round';x.beginPath();pts.forEach((q,i)=>i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]));x.stroke();x.globalAlpha=1};
+ if(/^wood|^maru/.test(key)){for(let i=0;i<9;i++){const y0=r()*N,amp=2+r()*4,ph=r()*6;const pts=[];for(let t=-8;t<=N+8;t+=16)pts.push([t,y0+Math.sin(t/40+ph)*amp]);line(pts,1+r()*1.5,hex(avg,0.72),0.55)}
+   if(key==='maru'){line([[0,1],[N,1]],2.5,hex(avg,0.6),0.8)}}
+ else if(key==='floor'){line([[1,0],[1,N]],2,hex(avg,0.7),0.7);line([[0,1],[N,1]],2,hex(avg,0.7),0.7);x.globalAlpha=0.18;x.fillStyle=hex(avg,1.15);x.fillRect(20,20,N*0.45,N*0.12);x.globalAlpha=1}
+ else if(key==='earth'){for(let i=0;i<26;i++){x.fillStyle=hex(avg,r()<0.5?0.8:1.12);x.globalAlpha=0.6;x.beginPath();x.ellipse(r()*N,r()*N,2+r()*4,1.5+r()*3,r()*3,0,7);x.fill()}x.globalAlpha=1}
+ else if(key==='clay'){for(let i=0;i<4;i++){let px=r()*N,py=r()*N;const pts=[[px,py]];for(let k=0;k<4;k++){px+=(r()-0.5)*40;py+=10+r()*20;pts.push([px,py])}line(pts,1.2,hex(avg,0.62),0.7)}
+   for(let i=0;i<5;i++){x.globalAlpha=0.12;x.fillStyle=hex(avg,1.18);x.beginPath();x.ellipse(r()*N,r()*N,30+r()*30,8+r()*8,r()*3,0,7);x.fill()}x.globalAlpha=1}
+ else if(key==='stone'){for(let i=0;i<5;i++){x.globalAlpha=0.25;x.fillStyle=hex(avg,r()<0.5?0.85:1.12);x.beginPath();x.ellipse(r()*N,r()*N,20+r()*30,14+r()*20,r()*3,0,7);x.fill()}x.globalAlpha=1}
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;if(tex){t.flipY=tex.flipY;t.channel=tex.channel;t.repeat.copy(tex.repeat);t.offset.copy(tex.offset)}else t.flipY=false;t.anisotropy=4;PAINT.set(ck,t);return t}
+const GRAD3=(()=>{const d=new Uint8Array([165,165,165,255,165,165,165,255,225,225,225,255,255,255,255,255]);const t=new THREE.DataTexture(d,4,1);t.minFilter=t.magFilter=THREE.NearestFilter;t.needsUpdate=true;return t})();
+const GRADE3=`
+  // 이 단계의 값은 선형(화면 밖 버퍼에 그림) — 눈에 보이는 밝기로 바꿔 보정한 뒤 되돌린다
+  vec3 c3=gl_FragColor.rgb; float mx3=max(c3.r,max(c3.g,c3.b)); c3/=max(1.0,mx3);
+  c3=pow(c3,vec3(1.0/2.2)); float l3=dot(c3,vec3(0.299,0.587,0.114));
+  float sat3=max(c3.r,max(c3.g,c3.b))-min(c3.r,min(c3.g,c3.b));
+  // 쨍한 빨강·자홍(옻칠·붉은 천)만 골라 누른다 — 나무 갈색(초록이 빨강의 절반 넘음)은 그대로
+  float red3=smoothstep(0.5,0.25,c3.g/max(c3.r,0.02))*smoothstep(0.2,0.45,sat3)*step(c3.b,c3.r);
+  float hot3=max(red3,smoothstep(0.6,0.85,sat3));
+  c3=mix(vec3(l3),c3,mix(1.05,0.5,hot3));
+  c3*=0.86*mix(1.0,0.88,hot3);
+  c3*=mix(vec3(0.86,0.9,1.06),vec3(1.0),smoothstep(0.2,0.55,l3));
+  c3*=mix(vec3(1.0),vec3(1.03,1.01,0.96),smoothstep(0.7,1.0,l3));
+  gl_FragColor.rgb=pow(clamp(c3,0.0,1.0),vec3(2.2));`;
+// ── 사진 질감 단순화(10/21 미르: 시험 화면 화풍 전체 통일) — 텍스처를 GPU 로 작게 뽑아 색을 몇 단계로 묶고 다시 키워 큰 색면으로.
+//    KTX2(압축)도 GPU 로 읽으므로 된다. 투명 잎 카드는 해상도를 높게 둬 잎 모양(알파)을 지킨다. 원본 파일은 바꾸지 않는다.
+const SIMP=new Map();let simpS=null,simpQ=null;
+function postz(d){const h=new THREE.Color();const hsl={};for(let i=0;i<d.length;i+=4){h.setRGB(d[i]/255,d[i+1]/255,d[i+2]/255);h.getHSL(hsl);const L=Math.round(Math.min(1,Math.max(0,hsl.l))*7)/7,S=Math.round(hsl.s*0.9*10)/10,H=Math.round(hsl.h*36)/36;h.setHSL(H,S,Math.min(0.97,Math.max(0.04,L)));d[i]=h.r*255;d[i+1]=h.g*255;d[i+2]=h.b*255}}
+function gpuRead(tex,S){if(!simpS){simpS=new THREE.Scene();simpQ=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:{t:{value:null}},vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',fragmentShader:'uniform sampler2D t;varying vec2 vUv;void main(){gl_FragColor=texture2D(t,vUv);}',depthTest:false,depthWrite:false}));simpS.add(simpQ)}
+ const rt=new THREE.WebGLRenderTarget(S,S);simpQ.material.uniforms.t.value=tex;const prev=R.getRenderTarget();R.setRenderTarget(rt);R.render(simpS,PP.cam);const buf=new Uint8Array(S*S*4);R.readRenderTargetPixels(rt,0,0,S,S,buf);R.setRenderTarget(prev);rt.dispose();
+ const sr=tex.colorSpace===THREE.SRGBColorSpace;const a=document.createElement('canvas');a.width=a.height=S;const ca=a.getContext('2d');const id=ca.createImageData(S,S);
+ for(let y=0;y<S;y++)for(let x=0;x<S;x++){const s=((S-1-y)*S+x)*4,d=(y*S+x)*4;for(let k=0;k<3;k++){const v=buf[s+k]/255;id.data[d+k]=255*(sr?Math.pow(v,1/2.2):v)}id.data[d+3]=buf[s+3]}ca.putImageData(id,0,0);return a}
+// 방 벽·마루와 같은 칠: 큰 덩어리 색(6×6) 위에 원래 결을 16 %만 — 빈 방 v3 의 flatMap 과 같은 비율
+function simplifyMap(tex,transp){if(!tex)return null;if(SIMP.has(tex))return SIMP.get(tex);let out=tex;try{
+ const N=256,sr=tex.colorSpace===THREE.SRGBColorSpace;const b=document.createElement('canvas');b.width=b.height=N;const cb=b.getContext('2d');cb.imageSmoothingEnabled=true;
+ if(transp){cb.drawImage(gpuRead(tex,256),0,0,N,N);const id2=cb.getImageData(0,0,N,N);postz(id2.data);cb.putImageData(id2,0,0)}
+ else{cb.drawImage(gpuRead(tex,6),0,0,N,N);cb.globalAlpha=0.16;cb.drawImage(gpuRead(tex,128),0,0,N,N);cb.globalAlpha=1}
+ const t=new THREE.CanvasTexture(b);t.colorSpace=sr?THREE.SRGBColorSpace:THREE.NoColorSpace;t.flipY=true;t.wrapS=tex.wrapS;t.wrapT=tex.wrapT;t.channel=tex.channel;t.repeat.copy(tex.repeat);t.offset.copy(tex.offset);t.rotation=tex.rotation;t.center.copy(tex.center);out=t
+ }catch(e){console.warn('simplifyMap',e)}SIMP.set(tex,out);return out}
+// ── 바람(10/21) — 나주맵 naju01/src/scene/immersion/windShader.ts 와 같은 흔들림·잎 떨림. 세상 좌표(미터)로 계산 ──
+const WIND={uWindTime:{value:0},uWindAmp:{value:0.8}};
+const WIND_GLSL=`
+vec4 wgP4=vec4(transformed,1.0);
+vec3 wgB=(modelMatrix*vec4(0.0,0.0,0.0,1.0)).xyz;
+#ifdef USE_INSTANCING
+  wgP4=instanceMatrix*wgP4;
+  wgB=(modelMatrix*vec4(instanceMatrix[3].xyz,1.0)).xyz;
+#endif
+vec4 wgW=modelMatrix*wgP4;
+{
+  float wgH=max(wgW.y-uWindBase,0.0);
+  float wgS=0.025*wgH+0.15*min(wgH,1.0);
+  float wgPh=uWindTime*1.7+wgB.x*0.7+wgB.z*0.55;
+  float wgG=sin(wgPh)+0.35*sin(wgPh*2.7+1.3);
+  wgW.x+=uWindAmp*wgS*wgG;
+  wgW.z+=uWindAmp*wgS*0.6*cos(wgPh*0.8);
+  float wgL=clamp(wgH/3.0,0.0,1.0);
+  float wgF=sin(uWindTime*7.3+dot(wgW.xyz,vec3(3.1,1.7,2.3)))+0.5*sin(uWindTime*11.7+wgW.y*4.0+wgB.x);
+  wgW.xyz+=vec3(1.0,0.35,0.8)*uWindAmp*0.02*wgL*wgF;
+}
+vec4 mvPosition=viewMatrix*wgW;
+gl_Position=projectionMatrix*mvPosition;
+`;
+function windy(m,baseY=0){if(!m||m.userData.wind)return m;m.userData.wind=true;const prev=m.onBeforeCompile,pk=m.customProgramCacheKey;const ub={value:baseY};
+ m.onBeforeCompile=function(sh,r){if(prev)prev.call(this,sh,r);if(!sh.vertexShader.includes('#include <project_vertex>'))return;sh.uniforms.uWindTime=WIND.uWindTime;sh.uniforms.uWindAmp=WIND.uWindAmp;sh.uniforms.uWindBase=ub;sh.vertexShader='uniform float uWindTime;\nuniform float uWindAmp;\nuniform float uWindBase;\n'+sh.vertexShader.replace('#include <project_vertex>',WIND_GLSL)};
+ m.customProgramCacheKey=function(){return (pk?pk.call(this):'')+'|wind'};m.needsUpdate=true;return m}
+// 불러온 방·마당에서 식물(이름으로) 재질에 바람을 건다 — 나무 그릇·나무 함처럼 「나무」 재료 이름은 빼고 식물 이름만
+const PLANT=/소나무|피나무|느티나무|덤불|수풀|풀포기|풀꽃|들국화|담 밑 꽃|갈대|화초|꽃나무/;
+function windPlants(root){root.traverse(o=>{if(!o.isMesh)return;const g=G(o);if(!PLANT.test(g))return;const base=(roleOf(g).cls==='yard'||/마당|담 /.test(g))?0:(meta.floor_y||0);const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>windy(m,base))})}
+// ── 흙바닥(10/22 미르: 부엌 바닥도 마당처럼) — 흙바닥 방이면 바닥 위에 흙 결 + 낮은 높낮이(1 cm 안팎) + 잔자갈 ──
+let earthG=null;
+function earthFloor(){earthG=null;if(!cur||!meta.spec||meta.spec.floor!=='earth'||!meta.walk)return;const W=meta.walk.x[1]+meta.walk.x[0],D=meta.spec.depth_m,FY=meta.floor_y||0;earthG=new THREE.Group();earthG.name='흙바닥__덮개';
+ const gg=new THREE.PlaneGeometry(W,D,Math.ceil(W*8),Math.ceil(D*8));gg.rotateX(-Math.PI/2);const P=gg.attributes.position;
+ for(let i=0;i<P.count;i++){const X=P.getX(i)+W/2,Z=P.getZ(i)+D/2;let h=0.006*Math.sin(X*2.3+Z*0.9)*Math.sin(Z*1.9-X*0.6)+0.003*Math.sin(X*7.1+Z*5.3);const e=Math.min(X,W-X,Z,D-Z);if(e<0.12)h*=Math.max(0.15,e/0.12);P.setY(i,0.025+h)}gg.computeVertexNormals();
+ const dt=dirtTex().clone();dt.needsUpdate=true;dt.repeat.set(W/2.2,D/2.2);const g=new THREE.Mesh(gg,tm({color:0x9c8c74,map:dt}));g.position.set(W/2,FY,D/2);earthG.add(g);
+ let rs=31;const R=()=>(rs=(rs*16807)%2147483647)/2147483647;const peb=[];for(let i=0;i<220;i++){let x=0.1+R()*(W-0.2),z=0.1+R()*(D-0.2);if(R()<0.6){const s=R();if(s<0.3)z=0.08+R()*0.4;else if(s<0.55)x=0.08+R()*0.4;else if(s<0.8)x=W-0.08-R()*0.4;else z=D-0.08-R()*0.5}const sz=0.02+R()*0.05;peb.push({x,z,y:FY+0.03+sz*0.1,ry:R()*6.3,rx:(R()-0.5)*0.4,sx:sz,sy:sz*(0.7+R()*0.4),sz:sz,k:i%3})}
+ ['pebble1','pebble2','pebble4'].forEach((n,k)=>{const m=inst(painted(n,['#6f6a62','#8f897e','#a8a294'],71+k),peb.filter(b=>b.k===k),tm({vertexColors:true}),true);if(m)earthG.add(m)});
+ cur.add(earthG)}
+// ── 횃대에 걸친 옷(10/22 미르: 입은 모양 그대로 떠 있음 → 흐물흐물 늘어지게) ──
+//    옷 3D 대신, 그 옷 색으로 「횃대에 반으로 걸쳐 앞·뒤로 축 처진 천」을 그린다. 이름은 그대로라 조사(E)도 그대로.
+function drapeHangs(){if(!cur||!meta.hangs||!meta.hangs.length||!meta.spec||!(meta.spec.rails||[]).length)return;const FY=meta.floor_y||0,W=meta.walk?meta.walk.x[1]+meta.walk.x[0]:5;
+ for(const hg of meta.hangs){const rl=meta.spec.rails[0];const ms=[];cur.traverse(o=>{if(o.isMesh&&G(o)===hg.name)ms.push(o)});if(!ms.length)continue;
+  let col=new THREE.Color(0.55,0.66,0.52);const m0=ms[0].material;try{if(m0.map){const c=gpuRead(m0.map,4).getContext('2d').getImageData(0,0,4,4).data;let r=0,g=0,b=0;for(let i=0;i<c.length;i+=4){r+=c[i];g+=c[i+1];b+=c[i+2]}const n=c.length/4;col.setRGB(r/n/255,g/n/255,b/n/255,THREE.SRGBColorSpace);if(m0.color)col.multiply(m0.color)}else if(m0.color)col.copy(m0.color)}catch(e){}
+  const ry=FY+rl.y,uc=rl.wall==='back'?hg.x:hg.z,w=Math.min(0.8,Math.max(0.45,(hg.dims?hg.dims[0]:0.9)*0.6)),Lf=0.82,Lb=0.62,nb=0.122,nf=0.178,nc=0.15,rr=0.028;
+  const path=[];const NB=14,NA=8,NF=18;for(let j=0;j<=NB;j++){const t=j/NB;path.push([nb,ry-Lb*(1-t),Lb*(1-t)])}for(let j=1;j<NA;j++){const a=Math.PI*(1-j/NA);path.push([nc+Math.cos(a)*rr*(nc-nb>0?1:1)*((nf-nb)/2/rr),ry+Math.sin(a)*rr,0])}for(let j=0;j<=NF;j++){const t=j/NF;path.push([nf,ry-Lf*t,Lf*t])}
+  const NW=18,pos=[],cols=[],idx=[];let sd=[...hg.name].reduce((a,c)=>a+c.charCodeAt(0),5);const R=()=>(sd=(sd*16807)%2147483647)/2147483647;const ph=[R()*6.3,R()*6.3,R()*6.3];
+  path.forEach(([n,y,dep],j)=>{const side=j<=NB?-1:(j>=NB+NA?1:0),k=dep/Math.max(Lf,Lb);for(let i=0;i<=NW;i++){const v=i/NW-0.5;let u=uc+v*w*(1+0.18*k);
+    const fold=(0.01+0.05*k)*(Math.sin(v*Math.PI*5+ph[0])+0.45*Math.sin(v*Math.PI*11+ph[1]+k*2));let nn=n+side*fold;let yy=y;if(k>0.92)yy+=0.025*Math.sin(v*Math.PI*7+ph[2])*(k-0.92)/0.08;
+    if(side!==0)nn=side<0?Math.max(0.05,nn):nn;const P=rl.wall==='back'?[u,yy,nn]:rl.wall==='left'?[nn,yy,u]:[W-nn,yy,u];pos.push(...P);let sh=0.78+0.22*(0.5+0.5*Math.sin(v*Math.PI*5+ph[0]));if(side>0&&k<0.5&&Math.abs(v-(-0.22+k*0.55))<0.04)sh*=1.45;cols.push(Math.min(1,col.r*sh),Math.min(1,col.g*sh),Math.min(1,col.b*sh))}});
+  const RW=NW+1;for(let j=0;j<path.length-1;j++)for(let i=0;i<NW;i++){const a=j*RW+i,b=a+1,c=a+RW,d=c+1;idx.push(a,c,b,b,c,d)}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));g.setIndex(idx);g.computeVertexNormals();
+  const mesh=new THREE.Mesh(g,tm({vertexColors:true,side:THREE.DoubleSide}));mesh.name=hg.name+'__걸침';mesh.castShadow=true;
+  ms.forEach(o=>{if(o.parent)o.parent.remove(o)});cur.add(mesh)}}
+function toonify3(root){const list=[];root.traverse(o=>{if(o.isMesh)list.push(o)});list.forEach(o=>{const m=o.material;const rl=roleOf(G(o)).role;const key=matKey(o);
+ const isProp=rl==='prop'||!(key in {wood:1,wood_dk:1,plaster:1,paper:1,floor:1,stone:1,maru:1,hanji:1,earth:1,clay:1,cloth_a:1,cloth_b:1,cloth_c:1});
+ let map=m.map; // 나주맵(WorldToon)처럼 원래 텍스처 그대로 — paintMap·simplifyMap 은 쓰지 않음(10/22)
+ const t=new THREE.MeshToonMaterial({vertexColors:!!(o.geometry&&o.geometry.attributes.color),color:m.color,map,gradientMap:GRAD3,emissive:m.emissive,emissiveMap:m.emissiveMap,emissiveIntensity:m.emissiveIntensity,side:THREE.DoubleSide,transparent:m.transparent,alphaTest:(m.transparent&&m.map)?Math.max(m.alphaTest||0,0.35):m.alphaTest,opacity:m.opacity,depthWrite:!m.transparent});
+ if((m.metalness||0)>0.5)t.color=m.color.clone().multiplyScalar(0.4);
+ t.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <colorspace_fragment>','#include <colorspace_fragment>\n'+GRADE3)};o.material=t;o.userData.own=true;if(m.transparent)o.userData.noLine=true})}
+// 화면 전체 선: 색 + 깊이 한 번, 법선 한 번 그린 뒤 경계를 찾아 선을 얹는다
+const PP={rc:null,rn:null,q:null,cam:new THREE.OrthographicCamera(-1,1,1,-1,0,1),nm:new THREE.MeshNormalMaterial({side:THREE.DoubleSide}),sz:new THREE.Vector2()};
+function ppEnsure(){R.getDrawingBufferSize(PP.sz);const w=PP.sz.x,h=PP.sz.y;if(PP.rc&&PP.rc.width===w&&PP.rc.height===h)return;if(PP.rc){PP.rc.dispose();PP.rn.dispose()}
+ PP.rc=new THREE.WebGLRenderTarget(w,h,{depthTexture:new THREE.DepthTexture(w,h),samples:0});PP.rc.texture.colorSpace=THREE.SRGBColorSpace;PP.rn=new THREE.WebGLRenderTarget(w,h);
+ if(!PP.q){PP.q=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:{tC:{value:null},tN:{value:null},tD:{value:null},px:{value:new THREE.Vector2()},cn:{value:0.03},cf:{value:200}},
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader:`uniform sampler2D tC,tN,tD;uniform vec2 px;uniform float cn,cf;varying vec2 vUv;
+  float ld(vec2 u){float z=texture2D(tD,u).x*2.-1.;return 2.*cn*cf/(cf+cn-z*(cf-cn));}
+  void main(){vec3 col=texture2D(tC,vUv).rgb;float e=0.;float z0=texture2D(tD,vUv).x;
+   if(z0<0.99999){float d0=ld(vUv);vec2 p=px*1.5;float l=ld(vUv-vec2(p.x,0.)),r=ld(vUv+vec2(p.x,0.)),uu=ld(vUv+vec2(0.,p.y)),b=ld(vUv-vec2(0.,p.y));
+    float i0=1./d0;float lap=max(abs(1./l+1./r-2.*i0),abs(1./uu+1./b-2.*i0))*d0;
+    float eDisc=smoothstep(0.04,0.12,lap)*(1.-smoothstep(54.,90.,d0));float eCrease=smoothstep(0.003,0.012,lap)*(1.-smoothstep(9.,18.,d0));
+    e=clamp(max(eDisc,eCrease),0.,1.)*0.9;}
+   vec3 lc=col*vec3(0.28,0.24,0.24);gl_FragColor=vec4(mix(col,lc,e),1.);
+   #include <colorspace_fragment>
+  }`,depthTest:false,depthWrite:false}))}
+ PP.q.material.uniforms.px.value.set(1/w,1/h)}
+function renderToon3(){ppEnsure();const u=PP.q.material.uniforms;u.cn.value=C.near;u.cf.value=C.far;
+ R.setRenderTarget(PP.rc);R.render(S,C);
+ // 선은 깊이만으로(나주맵과 같음) — 법선 그리기 생략
+ R.setRenderTarget(null);u.tC.value=PP.rc.texture;u.tD.value=PP.rc.depthTexture;u.tN.value=PP.rn.texture;R.render(PP.q,PP.cam)}
+function toon3Lights(){hemi.color.set(0xfff0da);hemi.groundColor.set(0x8d86a0);hemi.intensity=0.46;lightsG.children.forEach(p=>{const day=p.userData.kind==='daylight';if(day){p.decay=0;p.distance=0;p.intensity*=0.17}else{p.intensity*=0.6;p.color.lerp(new THREE.Color(0xffffff),0.35)}})}
+function toonify(root){root.traverse(o=>{if(!o.isMesh)return;const m=o.material;const t=new THREE.MeshToonMaterial({vertexColors:!!(o.geometry&&o.geometry.attributes.color),color:m.color,map:m.map,emissive:m.emissive,emissiveMap:m.emissiveMap,emissiveIntensity:m.emissiveIntensity,side:THREE.DoubleSide,transparent:m.transparent,alphaTest:m.alphaTest});
+ t.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <gradientmap_pars_fragment>',RAMP).replace('#include <colorspace_fragment>','#include <colorspace_fragment>\n'+GRADE)};o.material=t})}
+
+// ── 흔적(10/21) — 3D 에셋이 아니라 바닥·창에 그린다. 이름이 곧 조사 대상(조준점·E) ──
+function tCanvas(draw,w=256,h=256){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t}
+function gbm(o){const m=new THREE.MeshBasicMaterial(o);m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <colorspace_fragment>','#include <colorspace_fragment>\n'+GRADE3)};return m}
+function tPlane(tex,w,h,opts={}){const m=gbm({map:tex,transparent:true,depthWrite:false,opacity:opts.opacity??1,blending:opts.add?THREE.AdditiveBlending:THREE.NormalBlending,polygonOffset:true,polygonOffsetFactor:-4,side:THREE.DoubleSide});const g=new THREE.Mesh(new THREE.PlaneGeometry(w,h),m);g.userData.noLine=true;g.receiveShadow=false;g.castShadow=false;return g}
+const TT={};
+function footTex(wet){const k='f'+wet;if(TT[k])return TT[k];return TT[k]=tCanvas((x,w,h)=>{x.filter='blur(2.5px)';x.fillStyle=wet?'rgba(52,44,36,0.55)':'rgba(88,64,40,0.42)';x.beginPath();x.moveTo(w*0.5,h*0.06);x.bezierCurveTo(w*0.86,h*0.08,w*0.84,h*0.55,w*0.68,h*0.8);x.bezierCurveTo(w*0.6,h*0.97,w*0.4,h*0.97,w*0.32,h*0.8);x.bezierCurveTo(w*0.16,h*0.55,w*0.14,h*0.08,w*0.5,h*0.06);x.fill();x.filter='none';x.strokeStyle=wet?'rgba(30,26,22,0.18)':'rgba(60,44,28,0.16)';x.lineWidth=2;for(let i=1;i<9;i++){x.beginPath();x.moveTo(w*0.26,h*0.1*i);x.lineTo(w*0.74,h*0.1*i+3);x.stroke()}},96,192)}
+function lightTex(col){const k='l'+col;if(TT[k])return TT[k];return TT[k]=tCanvas((x,w,h)=>{const nx=4,ny=3,gx=w/nx,gy=h/ny;x.filter='blur(3px)';x.fillStyle=col;for(let i=0;i<nx;i++)for(let j=0;j<ny;j++)x.fillRect(i*gx+gx*0.12,j*gy+gy*0.14,gx*0.76,gy*0.72)})}
+function waterTex(){if(TT.w)return TT.w;return TT.w=tCanvas((x,w,h)=>{let r=7;const R=()=>(r=(r*16807)%2147483647)/2147483647;x.filter='blur(3px)';x.fillStyle='rgba(60,70,78,0.32)';x.beginPath();for(let a=0;a<=Math.PI*2+0.01;a+=0.25){const rr=0.32+R()*0.14;const px=w/2+Math.cos(a)*w*rr,py=h/2+Math.sin(a)*h*rr;a?x.lineTo(px,py):x.moveTo(px,py)}x.closePath();x.fill();x.filter='none';x.strokeStyle='rgba(235,240,245,0.35)';x.lineWidth=2;x.beginPath();x.ellipse(w*0.44,h*0.44,w*0.12,h*0.035,-0.3,0.2,2.6);x.stroke()})}
+function bloodTex(){if(TT.b)return TT.b;return TT.b=tCanvas((x,w,h)=>{x.fillStyle='rgba(96,20,18,0.85)';[[0.4,0.5,0.09],[0.58,0.42,0.05],[0.5,0.66,0.04],[0.66,0.6,0.03],[0.32,0.36,0.03]].forEach(([a,b,c])=>{x.beginPath();x.arc(a*w,b*h,c*w,0,7);x.fill()})})}
+function shadowTex(){if(TT.s)return TT.s;return TT.s=tCanvas((x,w,h)=>{x.filter='blur(6px)';x.fillStyle='rgba(20,22,30,0.75)';x.beginPath();x.ellipse(w*0.5,h*0.28,w*0.11,h*0.12,0,0,7);x.fill();x.beginPath();x.moveTo(w*0.3,h*1.02);x.quadraticCurveTo(w*0.32,h*0.42,w*0.5,h*0.4);x.quadraticCurveTo(w*0.68,h*0.42,w*0.72,h*1.02);x.fill();x.fillRect(w*0.2,h*0.5,w*0.12,h*0.04)})}
+function soundTex(){if(TT.n)return TT.n;return TT.n=tCanvas((x,w,h)=>{x.strokeStyle='rgba(120,150,210,0.55)';x.lineCap='round';[0.18,0.3,0.42].forEach((r,i)=>{x.lineWidth=7-i*2;x.beginPath();x.arc(w/2,h/2,w*r,-0.9,0.9);x.stroke();x.beginPath();x.arc(w/2,h/2,w*r,Math.PI-0.9,Math.PI+0.9);x.stroke()})})}
+function spotTex(){if(TT.p)return TT.p;return TT.p=tCanvas((x,w,h)=>{const g=x.createRadialGradient(w/2,h/2,w*0.1,w/2,h/2,w*0.48);g.addColorStop(0,'rgba(255,240,200,0.35)');g.addColorStop(0.7,'rgba(255,230,180,0.18)');g.addColorStop(1,'rgba(255,230,180,0)');x.fillStyle=g;x.fillRect(0,0,w,h)})}
+function doorLightTex(col){const k='dl'+col;if(TT[k])return TT[k];return TT[k]=tCanvas((x,w,h)=>{x.filter='blur(3px)';const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,col);g.addColorStop(0.6,col);g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.beginPath();x.moveTo(w*0.12,0);x.lineTo(w*0.88,0);x.lineTo(w*0.98,h);x.lineTo(w*0.02,h);x.closePath();x.fill();x.globalCompositeOperation='destination-out';x.fillStyle='rgba(0,0,0,0.38)';for(let i=1;i<14;i++){const u=i/14;x.beginPath();x.moveTo(w*(0.12+0.76*u)-1.5,0);x.lineTo(w*(0.12+0.76*u)+1.5,0);x.lineTo(w*(0.02+0.96*u)+3,h);x.lineTo(w*(0.02+0.96*u)-3,h);x.fill()}x.fillStyle='rgba(0,0,0,0.5)';[0.14,0.5,0.86].forEach(v=>x.fillRect(0,h*v-5,w,10));x.globalCompositeOperation='source-over'},256,384)}
+const FLICK=[];
+function doorGlowTex(){if(TT.dg)return TT.dg;return TT.dg=tCanvas((x,w,h)=>{const g=x.createRadialGradient(w/2,h*0.45,w*0.05,w/2,h*0.45,w*0.75);g.addColorStop(0,'rgba(255,190,110,0.55)');g.addColorStop(1,'rgba(240,150,80,0.12)');x.fillStyle=g;x.fillRect(0,0,w,h)},128,256)}
+function addTraces(){(meta.traces||[]).forEach((t,ti)=>{const G0=new THREE.Group();G0.name=t.name;const y=(t.y??meta.floor_y??0)+(meta.spec&&meta.spec.floor==='earth'&&t.kind!=='step'?0.045:0.006)+ti*0.0008;const nm=i=>`${t.name}__흔적_${i}`;
+ const flat=(tex,w,h,x,z,rot=0,o={})=>{const m=tPlane(tex,w,h,o);m.rotation.x=-Math.PI/2;m.rotation.z=rot;m.position.set(x,y,z);m.name=nm(G0.children.length);G0.add(m);return m};
+ if(t.kind==='foot'&&t.steps){const S0=t.steps;const ang=S0.length>1?Math.atan2(S0[S0.length-1][0]-S0[0][0],S0[S0.length-1][1]-S0[0][1]):0;S0.forEach((st,i)=>{const op=(t.faint?0.45:0.85)*(i===0||i===S0.length-1?0.75:1);flat(footTex(t.wet),0.11*st[3],0.25*st[3],st[0],st[1],ang+Math.PI+st[2],{opacity:op})})}
+ else if(t.kind==='light'&&t.src){const [w,h]=t.size,r=t.rot||0,s=t.src;flat(doorLightTex('rgba(255,170,90,0.7)'),w,h,t.pos.x,t.pos.z,r,{add:true});flat(doorLightTex('rgba(255,222,160,0.38)'),w*0.94,h*0.9,t.pos.x+0.06,t.pos.z+0.03,r+0.08,{add:true});const g=tPlane(doorGlowTex(),s.w*0.94,s.h*0.94,{add:true,opacity:0.9});g.position.set(s.x+s.nx*0.035,(t.y??meta.floor_y??0)+s.h*0.5,s.z+s.nz*0.035);g.rotation.y=Math.atan2(s.nx,s.nz);g.name=nm(G0.children.length);g.userData.flick=Math.random()*6.3;FLICK.push(g);G0.add(g)}
+ else if(t.kind==='light'){const [w,h]=t.size;const r=t.axis==='z'?Math.PI/2:0;flat(lightTex('rgba(120,160,255,0.55)'),w,h,t.pos.x-0.08,t.pos.z-0.05,r,{add:true});flat(lightTex('rgba(255,205,120,0.55)'),w,h,t.pos.x+0.09,t.pos.z+0.06,r+0.12,{add:true})}
+ else if(t.kind==='water'){flat(waterTex(),t.size[0],t.size[1],t.pos.x,t.pos.z,t.rot||0)}
+ else if(t.kind==='step'){const m=flat(spotTex(),t.size[0],t.size[1],t.pos.x,t.pos.z);m.material.opacity=0.02}
+ else if(t.kind==='blood'){flat(bloodTex(),t.size[0],t.size[1],t.pos.x,t.pos.z,0.5)}
+ else if(t.kind==='spot'||t.kind==='sound'){const m=flat(t.kind==='spot'?spotTex():soundTex(),t.size[0],t.size[1],t.pos.x,t.pos.z);if(PZ.some(p=>p.hosts.some(h=>h.at.some(b=>b.room===ci&&b.node===t.name)))){m.material.opacity=0.35}else{m.userData.reviewOnly=true;m.visible=mode!=='play'}}
+ else if(t.kind==='shadow'){const m=tPlane(shadowTex(),t.size[0]*0.9,t.size[1]*0.95,{opacity:0.85});m.position.set(t.pos.x,t.y+t.size[1]/2,t.pos.z);m.rotation.y=Math.atan2(t.normal[0],t.normal[1]);m.name=nm(0);G0.add(m)}
+ if(G0.children.length)cur.add(G0)})}
+
+// ── 마당 풍광(10/21) — 대청 앞. 땅·댓돌·돌단은 여기서 그리고, 담·대문·장독·나무·꽃은 방 GLB 에 들어 있다 ──
+let yardG=null,yardLight=null,sky='night';const SKY={night:{top:'#16213d',mid:'#2c4472',low:'#5b6f96',mtn:['#1d2a45','#27385a','#34486e'],light:0x9fb6ff,li:0.9,fog:0x3a4d75,moon:true},day:{top:'#5d8fd0',mid:'#9cc3ea',low:'#e8eef2',mtn:['#52708a','#6f8ba3','#94aabd'],light:0xfff2dc,li:1.6,fog:0xc9d8e6,moon:false}};
+function skyTex(k){const c=SKY[k];return tCanvas((x,w,h)=>{const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,c.top);g.addColorStop(0.55,c.mid);g.addColorStop(1,c.low);x.fillStyle=g;x.fillRect(0,0,w,h);if(c.moon){x.fillStyle='rgba(255,250,225,0.95)';x.beginPath();x.arc(w*0.72,h*0.22,w*0.035,0,7);x.fill();x.fillStyle='rgba(255,250,225,0.12)';x.beginPath();x.arc(w*0.72,h*0.22,w*0.09,0,7);x.fill();for(let i=0;i<60;i++){x.fillStyle='rgba(255,255,255,'+(0.2+Math.random()*0.5)+')';x.fillRect(Math.random()*w,Math.random()*h*0.5,1.5,1.5)}}},512,512)}
+function ridgeTex(col,seed){return tCanvas((x,w,h)=>{let r=seed;const R=()=>(r=(r*16807)%2147483647)/2147483647;x.fillStyle=col;x.beginPath();x.moveTo(0,h);const ph=[R()*6.3,R()*6.3,R()*6.3],fq=[2,5,11];for(let i=0;i<=200;i++){const u=i/200;const y=h*(0.5-0.22*Math.sin(u*fq[0]*2*Math.PI+ph[0])-0.1*Math.sin(u*fq[1]*2*Math.PI+ph[1])-0.035*Math.sin(u*fq[2]*2*Math.PI+ph[2]));x.lineTo(u*w,Math.min(h*0.9,Math.max(h*0.06,y)))}x.lineTo(w,h);x.closePath();x.fill()},1024,256)}
+// ── 마당 v2(10/21) — 하늘 구(달이 제자리), 산 원통, 울퉁불퉁 흙마당·자갈·풀, 나주맵 덤불·잡초, 대문까지 돌길 ──
+const BK=/*BAKED*/{};const BG={};
+function bakedGeo(n){if(BG[n])return BG[n];const m=BK[n];if(!m)return null;const dec=(s,T)=>{const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return new T(u.buffer)};const g0=new THREE.BufferGeometry();g0.setIndex(new THREE.BufferAttribute(dec(m.indices,Uint16Array),1));g0.setAttribute('position',new THREE.BufferAttribute(dec(m.positions,Float32Array),3));const g=g0.toNonIndexed();g.computeVertexNormals();g.computeBoundingBox();return BG[n]=g}
+function painted(n,cols,seed){const g0=bakedGeo(n);if(!g0)return null;const g=g0.clone();const p=g.attributes.position,b0=g0.boundingBox,hh=Math.max(1e-3,b0.max.y-b0.min.y),col=new Float32Array(p.count*3);let r=seed;const R=()=>(r=(r*16807)%2147483647)/2147483647;const a=new THREE.Color(cols[0]),b=new THREE.Color(cols[1]),c=new THREE.Color(cols[2]),t0=new THREE.Color();for(let i=0;i<p.count;i+=3){const t=Math.min(1,Math.max(0,(p.getY(i)-b0.min.y)/hh));t0.copy(a).lerp(b,0.35+R()*0.5).lerp(c,t*0.45);for(let k=0;k<3;k++){col[(i+k)*3]=t0.r;col[(i+k)*3+1]=t0.g;col[(i+k)*3+2]=t0.b}}g.setAttribute('color',new THREE.BufferAttribute(col,3));return g}
+function tm(o={}){const m=new THREE.MeshToonMaterial({gradientMap:GRAD3,...o});m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <colorspace_fragment>','#include <colorspace_fragment>\n'+GRADE3)};return m}
+function inst(geo,list,mat,noLine){if(!geo||!list.length)return null;const im=new THREE.InstancedMesh(geo,mat,list.length);const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),v=new THREE.Vector3(),s=new THREE.Vector3();list.forEach((o,i)=>{e.set(o.rx||0,o.ry||0,o.rz||0);q.setFromEuler(e);m4.compose(v.set(o.x,o.y||0,o.z),q,s.set(o.sx,o.sy,o.sz));im.setMatrixAt(i,m4)});im.instanceMatrix.needsUpdate=true;im.userData.noLine=!!noLine;im.frustumCulled=false;return im}
+function skyTex2(k){const c=SKY[k];return tCanvas((x,w,h)=>{const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,c.top);g.addColorStop(0.3,c.mid);g.addColorStop(0.5,c.low);g.addColorStop(1,c.low);x.fillStyle=g;x.fillRect(0,0,w,h);if(c.moon){let r=3;const R=()=>(r=(r*16807)%2147483647)/2147483647;for(let i=0;i<320;i++){x.fillStyle='rgba(255,255,255,'+(0.25+R()*0.6)+')';const s=R()<0.1?2:1.2;x.fillRect(R()*w,R()*h*0.42,s,s)}}},1024,512)}
+function dirtTex(){if(TT.dirt)return TT.dirt;const t=tCanvas((x,w,h)=>{let r=5;const R=()=>(r=(r*16807)%2147483647)/2147483647;x.fillStyle='#d6cdbb';x.fillRect(0,0,w,h);for(let i=0;i<80;i++){x.fillStyle=`rgba(${110+R()*40|0},${96+R()*35|0},${78+R()*30|0},${0.07+R()*0.12})`;x.beginPath();x.ellipse(R()*w,R()*h,10+R()*60,8+R()*40,R()*3,0,7);x.fill()}for(let i=0;i<3200;i++){const g=R()<0.55?85+R()*60:195+R()*50;x.fillStyle=`rgba(${g|0},${g*0.94|0},${g*0.85|0},${0.3+R()*0.45})`;const s=0.8+R()*2.4;x.fillRect(R()*w,R()*h,s,s)}},512,512);t.wrapS=t.wrapT=THREE.RepeatWrapping;return TT.dirt=t}
+function buildYard(){if(yardG){S.remove(yardG);yardG=null}if(yardLight){S.remove(yardLight);yardLight=null}S.background=null;S.fog=null;document.getElementById('sky').hidden=!meta.yard;gnd.visible=!meta.yard;if(!meta.yard)return;const Y=meta.yard,c=SKY[sky],night=sky==='night';yardG=new THREE.Group();
+ const [x0,z0,x1,z1]=Y.ground;const cx=(x0+x1)/2,cz=(z0+Y.wallZ)/2,D0=Y.step.z-0.35;let rs=97;const R=()=>(rs=(rs*16807)%2147483647)/2147483647;
+ // 돌길: 디딤돌 → 대문(살짝 휜 곡선)
+ const A={x:Y.step.x,z:Y.step.z+0.45},B={x:Y.gateX,z:Y.wallZ-0.7},M={x:(A.x+B.x)/2-0.8,z:(A.z+B.z)/2};const bz=t=>({x:(1-t)*(1-t)*A.x+2*(1-t)*t*M.x+t*t*B.x,z:(1-t)*(1-t)*A.z+2*(1-t)*t*M.z+t*t*B.z});
+ const PTS=[];for(let i=0;i<=80;i++)PTS.push(bz(i/80));const pathD=(x,z)=>{let d=1e9;for(const p of PTS)d=Math.min(d,Math.hypot(x-p.x,z-p.z));return d};
+ const pad=(r,x,z,m)=>r&&Math.abs(x-r.x)<r.w/2+m&&Math.abs(z-r.z)<r.d/2+m;
+ const okAt=(x,z,m)=>x>x0+0.45&&x<x1-0.45&&z>D0+1.5&&z<Y.wallZ-0.45&&pathD(x,z)>0.85+m&&!pad(Y.platform,x,z,0.45+m)&&!pad(Y.bench,x,z,0.3+m);
+ // 흙마당: 잘게 나눠 높낮이(±3 cm 안팎), 길·집 앞은 평평하게, 흙 결 그림
+ const gw=x1-x0,gd=Y.wallZ-z0+0.4,gx=cx,gz=(z0+Y.wallZ+0.4)/2;const gg=new THREE.PlaneGeometry(gw,gd,Math.ceil(gw*5),Math.ceil(gd*5));gg.rotateX(-Math.PI/2);const P=gg.attributes.position;
+ for(let i=0;i<P.count;i++){const X=P.getX(i)+gx,Z=P.getZ(i)+gz;let h=0.022*Math.sin(X*1.7+Z*0.6)*Math.sin(Z*1.3-X*0.4)+0.01*Math.sin(X*5.1+Z*3.7)+0.006*Math.sin(X*11.3-Z*9.1);const dp=pathD(X,Z);if(dp<0.9)h*=Math.max(0,dp-0.3)/0.6;if(Z<D0+1.2)h*=Math.max(0,(Z-D0-0.4)/0.8);P.setY(i,h+0.012)}gg.computeVertexNormals();
+ const dt=dirtTex().clone();dt.needsUpdate=true;dt.repeat.set(gw/2.2,gd/2.2);const g=new THREE.Mesh(gg,tm({color:night?0x7a7264:0xa99a80,map:dt}));g.position.set(gx,0,gz);yardG.add(g);
+ const f=new THREE.Mesh(new THREE.PlaneGeometry(400,400),tm({color:night?0x34402f:0x7f9a5a}));f.rotation.x=-Math.PI/2;f.position.set(cx,-0.06,(z0+z1)/2);yardG.add(f);
+ const sm=tm({color:0x9a958a});const st=new THREE.Mesh(new THREE.BoxGeometry(Y.step.w,(meta.floor_y||0.45)*0.55,Y.step.d),sm);st.position.set(Y.step.x,(meta.floor_y||0.45)*0.275,Y.step.z);yardG.add(st);
+ const pf=new THREE.Mesh(new THREE.BoxGeometry(Y.platform.w,Y.platform.h,Y.platform.d),sm);pf.position.set(Y.platform.x,Y.platform.h/2,Y.platform.z);yardG.add(pf);
+ // 디딤돌길
+ const stones=[];let acc=0,prev=PTS[0];for(let i=1;i<PTS.length;i++){const p=PTS[i];acc+=Math.hypot(p.x-prev.x,p.z-prev.z);prev=p;if(acc>=0.6){acc=0;const ang=Math.atan2(PTS[Math.min(i+1,80)].x-p.x,PTS[Math.min(i+1,80)].z-p.z);const s=0.95+R()*0.25;stones.push({x:p.x+(R()-0.5)*0.12,y:0.018,z:p.z+(R()-0.5)*0.08,ry:ang+(R()-0.5)*0.6,sx:0.62*s,sy:0.14,sz:0.5*s})}}
+ const stoneCols=night?['#55534e','#6a675f','#7c786e']:['#7d786f','#999387','#b3ad9f'];
+ [['pebble4',0],['pebble1',1]].forEach(([n,k])=>{const m=inst(painted(n,stoneCols,11+k),stones.filter((_,i)=>i%2===k),tm({vertexColors:true}));if(m)yardG.add(m)});
+ // 나무 둘레·담 밑·장독대 뒤에 덤불(나주맵 수풀2·3), 마당 곳곳 잡초, 잔자갈
+ const leaf=night?['#2c3526','#435035','#566643']:['#46543A','#6B8052','#8AA05F'],weed=night?['#2a3221','#4a5432','#636c40']:['#3E4A31','#77864F','#A3AC66'];
+ const bushes=[];const near=(Y.trees||[]).filter(t=>t.in);let tries=0;
+ while(bushes.length<30&&tries++<3000){let x,z;const u=R();if(u<0.55){const side=R();if(side<0.5){x=x0+0.5+R()*(x1-x0-1);z=Y.wallZ-0.55-R()*0.9}else if(side<0.75){x=x0+0.55+R()*0.9;z=D0+1.6+R()*(Y.wallZ-D0-2)}else{x=x1-0.55-R()*0.9;z=D0+1.6+R()*(Y.wallZ-D0-2)}}else if(u<0.8&&near.length){const t=near[Math.floor(R()*near.length)];const a=R()*6.3,d=0.7+R()*1.0;x=t.x+Math.cos(a)*d;z=t.z+Math.sin(a)*d}else{const p=Y.platform;x=p.x+(R()-0.5)*(p.w+1.2);z=p.z+p.d/2+0.5+R()*0.6}
+  if(!okAt(x,z,0.15))continue;if(bushes.some(b=>Math.hypot(b.x-x,b.z-z)<0.75))continue;const h=0.32+R()*0.36,k=R()<0.5?1:0;bushes.push({x,z,y:-0.02,ry:R()*6.3,sx:h*(0.9+R()*0.25)*(k?0.55:1),sy:h,sz:h*(0.9+R()*0.25)*(k?0.55:1),k})}
+ [0,1].forEach(k=>{const m=inst(painted(k?'bush3':'bush2',leaf,21+k),bushes.filter(b=>b.k===k),windy(tm({vertexColors:true}),0));if(m)yardG.add(m)});
+ const tuftGeo=(()=>{const pos=[],col=[];let r=13;const Rr=()=>(r=(r*16807)%2147483647)/2147483647;const a=new THREE.Color(weed[0]),b=new THREE.Color(weed[1]),c2=new THREE.Color(weed[2]);for(let k=0;k<9;k++){const ang=Rr()*6.3,lean=0.25+Rr()*0.5,hh=0.6+Rr()*0.4,w=0.035+Rr()*0.025,ox=Math.cos(ang)*0.06*Rr(),oz=Math.sin(ang)*0.06*Rr();const tx=ox+Math.cos(ang)*lean*hh*0.6,tz=oz+Math.sin(ang)*lean*hh*0.6;const px=-Math.sin(ang)*w,pz=Math.cos(ang)*w;pos.push(ox-px,0,oz-pz, ox+px,0,oz+pz, tx,hh,tz);const cb=a.clone().lerp(b,Rr()*0.6),ct=b.clone().lerp(c2,0.3+Rr()*0.6);col.push(cb.r,cb.g,cb.b,cb.r,cb.g,cb.b,ct.r,ct.g,ct.b)}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.computeVertexNormals();return g})();
+ const tufts=[];tries=0;while(tufts.length<520&&tries++<9000){let x=x0+0.4+R()*(x1-x0-0.8),z=D0+1.2+R()*(Y.wallZ-D0-1.5);if(R()<0.5){const s=R();if(s<0.4)z=Y.wallZ-0.35-R()*0.9;else if(s<0.7)x=x0+0.35+R()*0.9;else x=x1-0.35-R()*0.9}
+  const dp=pathD(x,z);if(dp<0.4)continue;if(!(x>x0+0.3&&x<x1-0.3&&z>D0+1.1&&z<Y.wallZ-0.3))continue;if(pad(Y.platform,x,z,0.05)||pad(Y.bench,x,z,0))continue;const h=0.12+R()*0.22;const n=1+Math.floor(R()*3);for(let q=0;q<n;q++)tufts.push({x:x+(R()-0.5)*0.18,z:z+(R()-0.5)*0.18,y:0,ry:R()*6.3,sx:h,sy:h*(0.8+R()*0.5),sz:h})}
+ {const m=inst(tuftGeo,tufts,windy(tm({vertexColors:true,side:THREE.DoubleSide}),0),true);if(m)yardG.add(m)}
+ const peb=[];for(let i=0;i<700;i++){const x=x0+0.4+R()*(x1-x0-0.8),z=D0+0.9+R()*(Y.wallZ-D0-1.2);if(pad(Y.platform,x,z,0)||pathD(x,z)<0.3)continue;const s=0.03+R()*0.07;peb.push({x,z,y:s*0.12+0.008,ry:R()*6.3,rx:(R()-0.5)*0.4,sx:s,sy:s*(0.7+R()*0.4),sz:s,k:i%3})}
+ ['pebble1','pebble2','pebble4'].forEach((n,k)=>{const m=inst(painted(n,stoneCols,41+k),peb.filter(b=>b.k===k),tm({vertexColors:true}),true);if(m)yardG.add(m)});
+ // 산: 마당을 둘러싼 원통 3겹 — 나무·지붕(반투명 잎) 뒤에 그려지도록 먼저 그림
+ c.mtn.forEach((col,i)=>{const rad=74-i*14,ht=28-i*7;const tx=ridgeTex(col,17+i*31);tx.wrapS=THREE.RepeatWrapping;tx.repeat.x=2;const m=new THREE.Mesh(new THREE.CylinderGeometry(rad,rad,ht,96,1,true),gbm({map:tx,transparent:true,depthWrite:false,side:THREE.BackSide,fog:false}));m.userData.noLine=true;m.renderOrder=-10+i;m.position.set(cx,ht/2-1.5,cz);m.rotation.y=i*1.3;yardG.add(m)});
+ // 하늘: 화면에 붙은 그림이 아니라 세상에 고정된 구 — 달·별이 시선을 따라 움직이지 않음
+ const skyM=new THREE.Mesh(new THREE.SphereGeometry(150,32,16),gbm({map:skyTex2(sky),side:THREE.BackSide,depthWrite:false,fog:false}));skyM.position.set(cx,0,cz);skyM.renderOrder=-20;skyM.userData.noLine=true;yardG.add(skyM);
+ if(c.moon){const az=0.55,el=0.5,dir=new THREE.Vector3(Math.sin(az)*Math.cos(el),Math.sin(el),Math.cos(az)*Math.cos(el));const mp=new THREE.Vector3(cx,0,cz).addScaledVector(dir,120);[[12,0.13],[4,1]].forEach(([r,op],i)=>{const m=new THREE.Mesh(new THREE.CircleGeometry(r,48),gbm({color:0xfffae1,transparent:true,opacity:op,depthWrite:false,fog:false}));m.position.copy(mp).addScaledVector(dir,-i*0.5);m.lookAt(cx,1.5,cz);m.renderOrder=-16+i;m.userData.noLine=true;yardG.add(m)})}
+ S.background=new THREE.Color(c.low);S.fog=new THREE.Fog(c.fog,24,95);
+ yardLight=new THREE.DirectionalLight(c.light,c.li);yardLight.position.set(-6,10,(Y.wallZ||8)+6);yardLight.target.position.set(cx,0,(meta.walk?meta.walk.z[1]:3));S.add(yardLight);S.add(yardLight.target);
+ S.add(yardG)}
+function setSky(k){sky=k;document.querySelectorAll('#sky button').forEach(b=>b.classList.toggle('on',b.dataset.sky===k));buildYard()}
+// three GLTFLoader 는 노드 이름의 공백을 _ 로 바꾼다(PropertyBinding.sanitizeNodeName) → 「걸쇠 자물쇠」가 「걸쇠_자물쇠」가 되어 퍼즐 호스트·살림 정보와 이름이 안 맞던 일(10/22) — 불러온 뒤 원래 이름으로 되돌린다
+const SAN=s=>String(s).replace(/\s/g,'_').replace(/[\[\]\.:\/]/g,'');
+function fixNames(root){const keys=new Set([...Object.keys(meta.nodes||{}),...PZ.flatMap(p=>p.hosts.flatMap(h=>h.at.map(b=>b.node))),...(meta.goes||[]).map(g=>g.door)]);const map=new Map();for(const k of keys){const s2=SAN(k);if(s2!==k)map.set(s2,k)}if(!map.size)return;root.traverse(o=>{if(!o.name)return;if(o.name.includes('__')){const [a,...rest]=o.name.split('__');if(map.has(a))o.name=[map.get(a),...rest].join('__')}else if(map.has(o.name))o.name=map.get(o.name)})}
+function G(o){let n=o;while(n){if(n.name&&n.name.includes('__'))return n.name.split('__')[0];n=n.parent}return o.name}
+const roleOf=g=>((meta.nodes||{})[g]||{});
+const clickable=g=>{const r=roleOf(g);if(typeof pzIsBound==='function'&&pzIsBound(g))return true;if(typeof carrierAt==='function'&&carrierAt(g))return true;if(r.cls==='trace'&&(r.kind==='spot'||r.kind==='sound'))return false;return r.role==='interactive'||r.role==='prop'};
+function reviewOnly(){if(!cur)return;cur.traverse(o=>{if(o.userData.reviewOnly)o.visible=mode!=='play'})}
+function setCut(on){if(!cur)return;cur.traverse(o=>{if(o.isMesh){const n=roleOf(G(o));if(n.role==='ceiling'||n.role==='cutaway'||n.cutaway)o.visible=on}})}
+function applyLights(){lightsG.clear();const play=mode==='play';sun.castShadow=!play;R.shadowMap.enabled=!play;hemi.intensity=play?0.42:1.1;sun.intensity=play?0.0:1.6;if(!play)return;(meta.lights||[]).forEach(l=>{const p=new THREE.PointLight(l.color,l.intensity,l.distance,1.6);p.position.set(...l.pos);p.userData.kind=l.kind;lightsG.add(p)});if(style==='toon2')toonLights();if(style==='toon3')toon3Lights()}
+
+function lookApply(){const d=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));C.position.copy(pos);C.lookAt(pos.clone().add(d))}
+function placeAt(a){jy=0;vy=0;grounded=true;vel.x=vel.z=0;pos.set(a.x,(a.y??meta.floor_y??0)+eyeCur,a.z);yaw=(a.yaw_deg||0)*Math.PI/180;pitch=-0.12;lookApply()}
+function setMode(m){mode=m;setTimeout(reviewOnly,0);document.getElementById('mPlay').classList.toggle('on',m==='play');document.getElementById('mRev').classList.toggle('on',m==='rev');if(m!=='play')endPlay();uiPlay();
+ if(!cur)return;applyLights();if(m==='play'){O.enabled=false;C.fov=60;C.updateProjectionMatrix();setCut(true);placeAt(meta.entry||{x:1,z:1,yaw_deg:180})}else{O.enabled=true;setCut(false);C.fov=40;C.updateProjectionMatrix();const bb=new THREE.Box3().setFromObject(cur),c=bb.getCenter(new THREE.Vector3()),r=bb.getSize(new THREE.Vector3()).length();C.position.copy(c).add(new THREE.Vector3(-0.35,0.8,1).normalize().multiplyScalar(r*1.25));O.target.copy(c);O.update()}info()}
+// ── 조작: 나주맵(naju01 useTerrainMovement + engine/movement/constants)과 같은 키·값 ──
+// 1 유닛 = 0.3 m 로 미터 환산. 걷기 3.0 u/s = 0.9 m/s · 달리기 ×2.58 · 앉기 ×0.55 · 중력 -30 u/s² · 점프 10.5 u/s · 공중 제어 0.18
+// 눈높이 1.6 m · 앉은 눈높이 0.9 m · 시야각 60° (sitePlan BASELINE) · 시작은 [T] 로 포인터 잠금, ESC 로 해제
+const MPU=0.3,EYE=1.6,CEYE=0.9,WALK=3.0*MPU,RUNM=2.58,CRM=0.55,GRAV=-30*MPU,JUMPV=10.5*MPU,AIRC=0.18,SENS=0.002;
+let locked=false,fakeLock=false,grounded=true,crouch=false,vy=0,jy=0,eyeCur=EYE;const vel={x:0,z:0};
+const K={f:false,b:false,l:false,r:false,run:false};
+const HK=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','KeyC','Space']);
+const active=()=>mode==='play'&&(locked||fakeLock);
+function clearKeys(){for(const k in K)K[k]=false;vel.x=vel.z=0}
+function uiPlay(){const a=active();document.getElementById('cross').hidden=!a;{const hd=document.getElementById('hold');document.getElementById('hint').hidden=a||mode!=='play'||Boolean(hd&&!hd.hidden)}if(!a)tag.hidden=true}
+function startLock(){fakeLock=false;try{const r=cv.requestPointerLock();if(r&&r.catch)r.catch(()=>{fakeLock=true;uiPlay()})}catch(_){fakeLock=true}uiPlay()}
+function endPlay(){if(document.pointerLockElement===cv)document.exitPointerLock();fakeLock=false;clearKeys();uiPlay()}
+document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===cv;if(!locked)clearKeys();uiPlay()});
+document.addEventListener('pointerlockerror',()=>{fakeLock=true;uiPlay()});
+const setK=(c,v)=>{if(c==='KeyW'||c==='ArrowUp')K.f=v;else if(c==='KeyS'||c==='ArrowDown')K.b=v;else if(c==='KeyA'||c==='ArrowLeft')K.l=v;else if(c==='KeyD'||c==='ArrowRight')K.r=v;else if(c==='ShiftLeft'||c==='ShiftRight')K.run=v};
+addEventListener('keydown',e=>{if(mode!=='play')return;
+ // Ctrl/⌘ 를 누른 채면 이동으로 안 친다 (게임과 같음)
+ if(e.ctrlKey||e.metaKey)return;
+ if(e.code==='KeyT'&&!active()&&cur){startLock();return}
+ if(e.code==='Escape'&&fakeLock){fakeLock=false;clearKeys();uiPlay();return}
+ if(!active())return;if(HK.has(e.code))e.preventDefault();
+ if(e.code==='Space'&&grounded){vy=JUMPV;grounded=false}
+ if(e.code==='KeyC'&&!e.repeat)crouch=!crouch;
+ if(e.code==='KeyE'&&!e.repeat)interact();
+ setK(e.code,true)});
+addEventListener('keyup',e=>setK(e.code,false));addEventListener('blur',clearKeys);
+addEventListener('pointerdown',()=>{try{window.focus()}catch(_){}});
+addEventListener('mousemove',e=>{if(!active())return;if(fakeLock&&e.target!==cv)return;yaw-=e.movementX*SENS;pitch=Math.max(-1.55,Math.min(1.55,pitch-e.movementY*SENS));lookApply()});
+cv.addEventListener('mousedown',e=>{if(e.button===0&&active())interact()});
+function free(x,z){const w=meta.walk;if(!w)return true;const m=0.18;if(x<w.x[0]+m||x>w.x[1]-m||z<w.z[0]+m||z>w.z[1]-m)return false;for(const s of meta.solids||[]){const r=s.rect;if(x>r[0]-m&&x<r[2]+m&&z>r[1]-m&&z<r[3]+m)return false}return true}
+const ray=new THREE.Raycaster(),mv=new THREE.Vector2();let hov=null;
+function glow(g,on){if(!cur||!g)return;cur.traverse(o=>{if(o.isMesh&&!o.userData.hull&&G(o)===g){if(!o.material||!o.material.emissive){if(o.material){if(o.userData.op0===undefined)o.userData.op0=o.material.opacity;o.material.opacity=on?Math.min(1,o.userData.op0+0.35):o.userData.op0}return}if(!o.userData.e0)o.userData.e0=o.material.emissive.clone();if(on&&!o.userData.own){const m0=o.material,m1=m0.clone();m1.onBeforeCompile=m0.onBeforeCompile;m1.customProgramCacheKey=m0.customProgramCacheKey;o.material=m1;o.userData.own=true}o.material.emissive.copy(on?new THREE.Color(0x2e2b26):o.userData.e0)}})}
+let BOX=[],lastPick=0;const _v=new THREE.Vector3();
+function buildBoxes(){BOX=[];if(!cur)return;cur.updateMatrixWorld(true);const by=new Map();cur.traverse(o=>{if(!o.isMesh||o.userData.hull)return;const g=G(o);if(!clickable(g))return;const b=by.get(g)||new THREE.Box3();b.expandByObject(o);by.set(g,b)});by.forEach((b,g)=>{const isT=roleOf(g).cls==='trace';if(isT){b.min.y-=0.02;b.max.y+=0.25}else b.expandByScalar(0.02);BOX.push({g,b})})}
+// 조준(10/22): 상자만 보면 바닥에 깔린 흔적 상자(위로 0.25 m)나 옆 물건 상자가 가로채 「눌러도 다른 것이 잡히던」 일 → 실제 메시에 먼저 쏜다
+function pickRay(){if(!cur)return null;ray.far=3.0;const hits=ray.intersectObject(cur,true);ray.far=Infinity;
+ /* 단서 물건은 호스트 위·안·밑에 붙어 있어 호스트 메시가 먼저 맞는다 → 처음 맞은 것에서 0.5 m 안에 단서 물건이 있으면 그것을 */
+ if(typeof carrierAt==='function'){const first=hits.find(h=>h.object.isMesh&&!h.object.userData.hull);const ch=hits.find(h=>carrierAt(G(h.object)));if(ch&&first&&ch.distance<=first.distance+0.5)return G(ch.object)}
+ let block=3.0,hitG=null,hitD=0;for(const h of hits){const o=h.object;if(!o.isMesh||o.userData.hull||!o.visible)continue;let vis=true;for(let n=o;n;n=n.parent)if(n.visible===false)vis=false;if(!vis)continue;const g=G(o);if(clickable(g)){hitG=g;hitD=h.distance;break}if(o.material&&o.material.transparent&&o.material.opacity<0.5)continue;block=h.distance;break}
+ if(hitG){/* 겹쳐 놓인 것: 퍼즐 호스트 > 그냥 살림(디딤돌 위 짚신 등), 실제 물건 > 흔적 표식 */const near=hits.filter(h=>h.distance<=hitD+0.2&&h.object.isMesh&&clickable(G(h.object))).map(h=>G(h.object));const rank=g=>(pzIsBound(g)?2:0)+(roleOf(g).cls!=='trace'?1:0);let bestG=hitG;for(const g of near)if(rank(g)>rank(bestG))bestG=g;hitG=bestG}
+ if(hitG)return hitG;
+ let g=null,best=block+0.3;for(const x of BOX){if(roleOf(x.g).cls!=='trace'&&!(typeof carrierAt==='function'&&carrierAt(x.g)))continue;const hit=ray.ray.intersectBox(x.b,_v);if(hit){const d=hit.distanceTo(ray.ray.origin);if(d<best-0.05||(d<best+0.2&&g&&pzIsBound(x.g)&&!pzIsBound(g))){best=Math.min(best,d);g=x.g}}}return g}
+function pickCenter(){if(!cur||!active()){if(hov&&hov!==sel)glow(hov,false);hov=null;return}const now=performance.now();if(now-lastPick<100)return;lastPick=now;mv.set(0,0);ray.setFromCamera(mv,C);let g=pickRay();
+ if(g!==hov){if(hov&&hov!==sel)glow(hov,false);hov=g;if(g)glow(g,true)}if(g){const gd=(meta.goes||[]).find(x=>x.door===g);tag.hidden=false;tag.textContent=gd?(PZ.length&&(exitScene(ci,gd)||!roomOpen(gd.tab))?`🔒 ${gd.to}(으)로 — ${exitScene(ci,gd)?'자물쇠':'잠김'}`:`[클릭/E] ${gd.to}(으)로`):`[클릭/E] ${g}`;tag.style.left='50%';tag.style.top='50%'}else tag.hidden=true}
+function interact(){const g=hov;if(!g)return;if(sel&&sel!==g)glow(sel,false);sel=g;glow(g,true);found.add(g);const gd=(meta.goes||[]).find(x=>x.door===g);if(gd){if(PZ.length&&exitTry(gd))return;if(!roomOpen(gd.tab)){pzMsg=lockMsg(gd.tab);info();return}show(gd.tab,gd.arrive);return}const ob=snapOpen();pzHit(g);const oa=snapOpen();ITEMS.forEach((it,i)=>{if(!ob[i]&&oa[i])pzMsg+=`<div class="card pz-ok"><b>🔓 ${esc(it.name)}(으)로 가는 문의 자물쇠가 풀렸다</b></div>`});info()}
+function show(i,arr){ci=i;tag.hidden=true;pend=arr||null;document.querySelectorAll('#tabs button').forEach((b,j)=>b.classList.toggle('on',i===j));if(cur){S.remove(cur);cur=null}const it=ITEMS[i];meta=it.meta||{};found=new Set();sel=null;hov=null;
+ const go=ab=>L.parse(ab,'',g=>{cur=g.scene;fixNames(cur);cur.traverse(o=>{if(o.isMesh){if(!o.geometry.attributes.normal)o.geometry.computeVertexNormals();o.castShadow=o.receiveShadow=true;o.material.side=THREE.DoubleSide}});if(style==='anime')toonify(cur);if(style==='toon2')toonify2(cur);if(style==='toon3')toonify3(cur);windPlants(cur);earthFloor();addTraces();stateInit(cur);if(PZ.length)revRestore(); /* drapeHangs() 끔 — 10/22 미르: 걸친 천은 두루마기로 안 보임, 전용 에셋 전까지 기존대로 */ S.add(cur);buildBoxes();buildYard();setMode(mode);setTimeout(focusGlow,50);if(pend&&mode==='play'){placeAt(pend);pend=null}});
+ document.getElementById('info').innerHTML='<div class="k">불러오는 중…</div>';const keep={p:pos.clone(),y:yaw,pt:pitch};fetch(it.url).then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(go).catch(e=>{document.getElementById('info').innerHTML='<div class="k">불러오지 못함: '+e.message+'</div>'})}
+// ── 퍼즐 플레이(10/22) — 조사하면 단서가 조사수첩에, 풀이 자리에서 고르기·입력·이동·짝짓기. 시험용 화면이라 정답 판정이 브라우저에 있음(게임 런타임은 서버 판정) ──
+const NB=new Map(),DONE=new Set(),HL={};let pzMsg='';
+const pzBound=(ri,g)=>PZ.flatMap(p=>p.hosts.filter(h=>h.at.some(b=>b.room===ri&&b.node===g)).map(h=>({p,h})));
+const pzIsBound=g=>pzBound(ci,g).length>0;
+const clueText=id=>{for(const p of PZ){const c=p.clues.find(c=>c.id===id);if(c)return c.text}const q=PZ.find(p=>p.effects.some(e=>e.type==='clue_acquired'&&e.target_id===id));return q?`풀어서 알게 된 것 — ${q.learns}`:id};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+function pzHave(p){return (p.solve.required_clue_ids||[]).filter(id=>!p.effects.some(e=>e.type==='clue_acquired'&&e.target_id===id)).every(id=>NB.has(id))}
+function pzDone(p){DONE.add(p.id);for(const e of p.effects)if(e.type==='clue_acquired')NB.set(e.target_id,clueText(e.target_id));pzMsg=`<div class="card pz-ok"><b>풀었다 — ${esc(p.title)}</b><div>${esc(p.learns)}</div></div>`+pzMsg}
+function pzSolveUI(p){if(typeof devOf==='function'&&devOf(p)){const d=devOf(p);return `<div class="card"><b>${esc(p.title)}</b><div class="k">${d.on==='exit_door'?'출구 문':'이 물건'}에 걸린 「${esc(d.name||DEV_KIND[d.kind])}」에서 푼다</div><div class="row"><button data-dev="${p.id}">장치 보기</button></div></div>`}const s=p.solve,need=(s.required_clue_ids||[]).filter(id=>!p.effects.some(e=>e.type==='clue_acquired'&&e.target_id===id));const have=need.filter(id=>NB.has(id)).length;
+ if(['inspect','navigate'].includes(s.interaction)){if(pzHave(p)){pzDone(p);return ''}return `<div class="card"><b>${esc(p.title)}</b><div class="k">아직 단서가 모자란다 (${have}/${need.length})</div></div>`}
+ if(s.interaction==='combine_clues')return `<div class="card"><b>${esc(s.prompt||p.title)}</b><div class="k">아래 조사수첩에서 단서 두 개를 골라 「짝짓기」</div></div>`;
+ if(s.interaction==='select'){const multi=Array.isArray(s.answer);return `<div class="card" data-pz="${p.id}"><b>${esc(s.prompt||p.title)}</b>${(s.options||[]).map((o,i)=>`<label class="pz-opt"><input type="${multi?'checkbox':'radio'}" name="pz_${p.id}" value="${i}"> ${esc(o)}</label>`).join('')}<div class="row"><button data-pz-select="${p.id}">이걸로</button></div></div>`}
+ if(s.interaction==='input')return `<div class="card" data-pz="${p.id}"><b>${esc(s.prompt||p.title)}</b><div class="row"><input data-pz-in="${p.id}" style="flex:1" placeholder="답"><button data-pz-input="${p.id}">넣기</button></div></div>`;
+ return ''}
+function pzHit(g){const out=[];for(const {p,h} of pzBound(ci,g)){for(const c of p.clues)if(!['combine_clues','select','input','solve'].includes(c.get_by)&&c.from===h.need_id&&!NB.has(c.id)){NB.set(c.id,c.text);out.push(`<div class="card pz-clue"><span class="pill">단서</span> ${esc(c.text)}</div>`)}
+ if(p.solve&&p.solve.at===h.need_id&&!DONE.has(p.id))out.push(pzSolveUI(p))}pzMsg=out.join('')}
+function pzBlock(){const open=PZ.filter(p=>!DONE.has(p.id));let h=goalCard()+pzMsg;
+ h+=`<h3>퍼즐 ${DONE.size} / ${PZ.length}</h3><ul class="pz-list">${PZ.map(p=>`<li>${DONE.has(p.id)?'🟢':'○'} ${esc(p.title)} <span class="k">${esc(p.scene_id)} · ${esc(p.solve.interaction)}</span>${DONE.has(p.id)?'':` <button class="mini" data-pz-hint="${p.id}">${(HL[p.id]||0)===0?'힌트':(HL[p.id]===1?'정답 보기':'정답')}</button>`}${(HL[p.id]||0)>=1?`<div class="k">힌트: ${esc(p.hint_1)}</div>`:''}${(HL[p.id]||0)>=2?`<div class="k">정답: ${esc(p.hint_2)}</div>`:''}</li>`).join('')}</ul>`;
+ h+=`<h3>조사수첩 ${NB.size}</h3>${NB.size?`<ul class="pz-nb">${[...NB].map(([id,t])=>`<li><label><input type="checkbox" data-nb="${id}"> ${nbLabel(id,t)}</label>${nbRead(id)}</li>`).join('')}</ul><div class="row"><button data-pz-combine>고른 두 단서 짝짓기</button></div>`:'<div class="k">아직 얻은 단서가 없다</div>'}`;return h}
+function pzWire(el){
+ el.querySelectorAll('[data-dev]').forEach(b=>b.onclick=()=>openDevice(PZ.find(x=>x.id===b.dataset.dev)));
+ el.querySelectorAll('[data-nb-read]').forEach(b=>b.onclick=()=>openHold(b.dataset.nbRead,'read'));
+ el.querySelectorAll('[data-pz-hint]').forEach(b=>b.onclick=()=>{const id=b.dataset.pzHint;HL[id]=Math.min(2,(HL[id]||0)+1);info()});
+ el.querySelectorAll('[data-pz-select]').forEach(b=>b.onclick=()=>{const p=PZ.find(x=>x.id===b.dataset.pzSelect),s=p.solve;const picked=[...el.querySelectorAll(`input[name="pz_${p.id}"]:checked`)].map(x=>s.options[+x.value]);
+  const ok=Array.isArray(s.answer)?(picked.length===s.answer.length&&s.answer.every(a=>picked.includes(a))):(picked.length===1&&(picked[0]===s.answer||String(picked[0]).trim().startsWith(String(s.answer).trim()+'.')||String(picked[0]).trim().startsWith(String(s.answer).trim()+' ')));
+  if(ok&&pzHave(p)){pzMsg='';pzDone(p)}else pzMsg=`<div class="card"><b>${esc(p.title)}</b><div class="k">${ok?'답은 맞지만 아직 근거 단서를 다 찾지 못했다':'맞지 않는다 — 단서를 다시 살펴보자'}</div></div>`+pzSolveUI(p);info()});
+ el.querySelectorAll('[data-pz-input]').forEach(b=>b.onclick=()=>{const p=PZ.find(x=>x.id===b.dataset.pzInput);const v=(el.querySelector(`[data-pz-in="${p.id}"]`).value||'').replace(/\s/g,'');const ok=v===String(p.solve.answer).replace(/\s/g,'');
+  if(ok&&pzHave(p)){pzMsg='';pzDone(p)}else pzMsg=`<div class="card"><b>${esc(p.title)}</b><div class="k">${ok?'답은 맞지만 아직 근거 단서를 다 찾지 못했다':'맞지 않는다'}</div></div>`+pzSolveUI(p);info()});
+ const cb=el.querySelector('[data-pz-combine]');if(cb)cb.onclick=()=>{const ids=[...el.querySelectorAll('[data-nb]:checked')].map(x=>x.dataset.nb);if(ids.length!==2){pzMsg='<div class="card"><div class="k">단서를 꼭 두 개 고르세요</div></div>';info();return}
+  const p=PZ.find(p=>!DONE.has(p.id)&&p.solve.interaction==='combine_clues'&&(p.solve.required_clue_ids||[]).length===2&&p.solve.required_clue_ids.every(id=>ids.includes(id)));
+  if(p){pzMsg='';pzDone(p)}else pzMsg='<div class="card"><div class="k">두 단서가 서로 이어지지 않는다</div></div>';info()}}
+
+// ── 장면 잠금(10/22) — 앞 장면 퍼즐을 다 풀어야 다음 장면 방으로 가는 문이 열린다(04 「나가는 조건」) ──
+const scOrder=[...SC].sort((a,b)=>(a.order||0)-(b.order||0));
+const scDone=id=>PZ.filter(p=>p.scene_id===id).every(p=>DONE.has(p.id));
+const scOpen=id=>{for(const s of scOrder){if(s.id===id)return true;if(!scPassed(s.id))return false}return true};
+const roomOpen=ri=>!SC.length||!PZ.length||SC.some(s=>s.rooms.includes(ri)&&scOpen(s.id))||!SC.some(s=>s.rooms.includes(ri));
+const lockMsg=ri=>{const cur=scOrder.find(s=>!scDone(s.id));const left=cur?PZ.filter(p=>p.scene_id===cur.id&&!DONE.has(p.id)):[];return `<div class="card pz-lock"><b>🔒 ${esc(ITEMS[ri]?.name)}(으)로 가는 문이 잠겨 있다</b><div class="k">${cur?esc(cur.title)+' — 남은 퍼즐: '+left.map(p=>esc(p.title)).join(', '):''}</div></div>`};
+let openBefore=null;const snapOpen=()=>ITEMS.map((_,i)=>roomOpen(i));
+const FOCUS=new URLSearchParams(location.search).get('focus');
+const focusP=()=>PZ.find(p=>p.id===FOCUS);
+function focusGlow(){const p=focusP();if(!p||!cur)return;for(const h of p.hosts)for(const b of h.at)if(b.room===ci)glow(b.node,true)}
+function focusCard(){const p=focusP();if(!p)return '';const steps=p.hosts.map((h,i)=>{const a=h.assets[0];return `<li>${h.need_id===p.solve.at?'<b>[풀이]</b> ':''}${esc(a?a.roomName+' · '+(a.node||a.name)+(a.pending?' (임시)':''):'(연결 안 됨)')} <span class="k">— ${esc(h.what)}</span></li>`}).join('');
+ return `<div class="card pz-focus"><span class="pill">검수 중</span> <b>${esc(p.id)} ${esc(p.title)}</b><div class="k">${esc(p.scene_id)} · ${esc(p.solve.interaction)} · 상호작용 ${p.hosts.length}곳</div><ol>${steps}</ol></div>`}
+
+// ── 발견 연출 v0(10/22 미르) — 만지면 물건이 반응하고 → 단서 물건이 눈에 보이고 → 집어서 읽고 → 조사수첩에.
+//    장면 마지막 퍼즐을 풀면 열쇠가 나오고 → 다음 방 문의 자물쇠에 대면 자물쇠가 풀린다.
+//    05 가 단서마다 reveal(들추기·열기·밀기·뒤집기·들여다보기) · carrier(서신·쪽지·열쇠·조각·자국) · content(읽히는 글) 를 쓴다.
+//    통짜 모델이라 뚜껑만 따로 열 수는 없다(물건 전체가 움직임) — 상태 변형 에셋은 퍼즐 에셋 공정 몫.
+const REV=new Map();      // clue id → {room,node,state:'shown'|'taken',act}
+const MOVED=new Map();    // `${room}|${node}` → {act, side:[x,z]} 이미 반응한 물건(방을 다시 불러와도 그대로)
+const KEYS=new Map();     // scene id → {state:'hidden'|'shown'|'taken'|'used', room, node}
+const UNLOCKED=new Set(); // 자물쇠가 풀린 장면
+const ANIM=[];
+const SOLVE_ONLY=['combine_clues','select','input','solve'];
+const sceneExit=id=>PZ.find(p=>p.scene_id===id&&p.exit&&p.exit.key&&p.exit.key.name)||PZ.find(p=>p.scene_id===id&&p.solve&&p.solve.device&&p.solve.device.on==='exit_door');
+const scPassed=id=>(typeof exitDevP==='function'&&exitDevP(id))?UNLOCKED.has(id):scDone(id)&&(!sceneExit(id)||UNLOCKED.has(id));
+const clueById=id=>{for(const p of PZ){const c=p.clues.find(c=>c.id===id);if(c)return c}return null};
+const hostOf=need=>{for(const p of PZ){const h=p.hosts.find(h=>h.need_id===need);if(h)return h}return null};
+function groupRoots(g){const out=new Set();if(!cur)return [];cur.traverse(o=>{if(!o.isMesh||o.userData.hull||G(o)!==g)return;let n=o;while(n.parent&&n.parent!==cur&&G(n.parent)===g)n=n.parent;out.add(n)});return [...out]}
+function groupBox(g){const b=new THREE.Box3();if(!cur)return b;cur.updateMatrixWorld(true);for(const r of groupRoots(g))b.expandByObject(r);return b}
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+function tween(obj,to,dur,done){const fr={p:obj.position.clone(),q:obj.quaternion.clone()};ANIM.push({obj,fr,to,t0:performance.now(),dur,done})}
+function animStep(){const now=performance.now();for(let i=ANIM.length-1;i>=0;i--){const a=ANIM[i];const k=Math.min(1,(now-a.t0)/a.dur),e=ease(k);if(a.to.p)a.obj.position.lerpVectors(a.fr.p,a.to.p,e);if(a.to.q)a.obj.quaternion.slerpQuaternions(a.fr.q,a.to.q,e);if(k>=1){ANIM.splice(i,1);a.done&&a.done()}}
+ const ts=now/1000;if(cur)cur.traverse(o=>{if(o.userData.pulse&&o.material&&o.material.emissive)o.material.emissive.setRGB(.22+.16*Math.sin(ts*4),.17+.12*Math.sin(ts*4),.05)})}
+// 물건 반응 — 플레이어 반대쪽 모서리를 축으로(들추기·열기), 반대쪽으로(밀기), 제자리(뒤집기)
+function react(g,act,side,instant){if(!cur||act==='look')return;{const st=stateFor(g,act==='empty'?'open':act);if(st!==undefined){const prev=STATES.get(g).now;stateSet(g,st,instant);return {swap:g,prev}}}const roots=groupRoots(g);if(!roots.length)return;const b=groupBox(g),c=b.getCenter(new THREE.Vector3());
+ let dx=side?side[0]:c.x-pos.x,dz=side?side[1]:c.z-pos.z;const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
+ const piv=new THREE.Group();const far=new THREE.Vector3(c.x+dx*(b.max.x-b.min.x)/2,act==='lift'?b.max.y:b.min.y,c.z+dz*(b.max.z-b.min.z)/2);
+ if(act==='flip'||act==='slide')piv.position.copy(c);else piv.position.copy(far);piv.userData.p0=piv.position.clone();cur.add(piv);cur.updateMatrixWorld(true);for(const r of roots)piv.attach(r);
+ const axis=new THREE.Vector3(dz,0,-dx);let to;
+ if(act==='lift')to={q:new THREE.Quaternion().setFromAxisAngle(axis,1.75),p:piv.position.clone().add(new THREE.Vector3(0,0.04,0))};
+ else if(act==='open')to={q:new THREE.Quaternion().setFromAxisAngle(axis,0.55)};
+ else if(act==='slide')to={p:piv.position.clone().add(new THREE.Vector3(dz*0.7,0,-dx*0.7))};
+ else if(act==='flip')to={q:new THREE.Quaternion().setFromAxisAngle(axis,Math.PI)};
+ if(!to)return piv;if(instant){if(to.p)piv.position.copy(to.p);if(to.q)piv.quaternion.copy(to.q)}else tween(piv,to,650,()=>buildBoxes());return piv}
+// 단서를 꺼낸 뒤 물건은 제자리로(10/22 미르)
+// 상태 변형판(10/22 다른 세션 설계 → 10/23 반영) — compose 가 넣은 「물건__상태_<state>」 노드를 떼어 두었다가 반응할 때 바꿔 끼운다
+let STATES=new Map();
+function stateInit(root){STATES=new Map();const vs=[];root.traverse(o=>{if(o.name&&o.name.includes('__상태_'))vs.push(o)});
+ for(const o of vs){const [g,st]=o.name.split('__상태_');const top=(o.parent&&o.parent!==root&&o.parent.name.startsWith(g+'__기댐'))?o.parent:o;const e=STATES.get(g)||{v:{},base:[],now:null};e.v[st]=top;STATES.set(g,e);top.parent.remove(top)}
+ root.traverse(o=>{if(o.name&&o.name.endsWith('__배치')){const g=o.name.slice(0,-4);const e=STATES.get(g);if(!e)return;e.base.push(o.parent!==root&&o.parent.name.startsWith(g+'__기댐')?o.parent:o);e.initial=o.userData.initial||null}});
+ for(const [g,e] of STATES)if(e.initial&&e.v[e.initial])stateSet(g,e.initial,true)}
+function stateSet(g,st,quiet){const e=STATES.get(g);if(!e||!cur)return;if(e.now)cur.remove(e.v[e.now]);else e.base.forEach(o=>cur.remove(o));if(st&&e.v[st])cur.add(e.v[st]);else{st=null;e.base.forEach(o=>cur.add(o))}e.now=st;if(!quiet)buildBoxes()}
+function stateFor(g,act){const e=STATES.get(g);if(!e)return undefined;if(e.initial&&String(e.initial).startsWith('filled'))return null;if(e.v.opened&&['open','lift','slide'].includes(act))return 'opened';if(e.v.folded&&['lift','slide','open'].includes(act))return 'folded';if(e.v.unfolded&&['open','lift'].includes(act))return 'unfolded';if(e.v.emptied&&act==='open')return 'emptied';if(e.v.broken&&act==='break')return 'broken';return undefined}/* 10/23: 기본판이 찬 것(돌확)은 비우면 빈 판(emptied)으로 *//* 10/23: 걷힌(folded)·펼친(unfolded) 판 */
+// 반응을 그럴듯할 때만(10/23 미르: 바닥 불빛이 움직이고 쪽지가 나옴 · 문갑이 통째로 들려 위에 쪽지 → 부자연스럽다)
+//  흔적(빛·그림자·자국)은 절대 안 움직인다 · 열기는 열린 판이 있을 때만 · 들추기는 천·짚·자리 같은 부드러운 것만 · 밀기는 옮길 만한 것 · 뒤집기는 작은 것
+//  그럴듯한 움직임이 없으면 물건은 그대로 두고 「꺼내 든 모습」 카드로 바로 보여 준다(허공에 뜨는 쪽지 없음)
+const SOFT=/이불|요$|이부자리|멍석|가마니|덮개|보자기|보|천|방석|돗자리|거적|짚|발$|휘장|포대|자루/;
+const MOVABLE=/항아리|독|단지|동이|짚단|상$|소반|바구니|광주리|키$|체$|함$|궤$|목침|방석|등잔|화로|다듬잇돌|맷돌|절구|자루|가마니|채반|함지/;
+const SMALL=/바가지|소반|그릇|사발|대접|책|패$|판$|목침|접시|종지|함지|키$|체$/;
+function planReveal(g,c){const r=roleOf(g),act0=(c.reveal&&c.reveal.action)||'look';
+ if(r.cls==='trace'||r.role==='fixture')return {act:'look',spawn:false};
+ const st=stateFor(g,act0==='empty'?'open':act0);if(st!==undefined)return {act:act0,swap:true,spawn:true};/* 10/23: 판을 바꿔 끼워도 단서 물건은 눈에 보이게 놓는다(카드만 뜨면 「집어 든다」가 없다) */
+ if(act0==='lift'&&SOFT.test(g))return {act:'lift',spawn:true};
+ if(act0==='slide'&&MOVABLE.test(g))return {act:'slide',spawn:true};
+ if(act0==='flip'&&SMALL.test(g))return {act:'flip',spawn:true};
+ if(act0==='lift'&&MOVABLE.test(g))return {act:'slide',spawn:true};
+ return {act:'look',spawn:!!(c&&c.carrier&&c.carrier.kind&&c.carrier.kind!=='mark')}}/* 10/23: 물건이 그 몸짓을 못 해도(등잔 뒤집기 등) 단서 물건은 옆에 보이게 — 카드만 뜨면 「집어 든다」가 없다 */
+function unreact(key){const m=MOVED.get(key);if(!m||m.restored)return;m.restored=true;const [r]=key.split('|');const piv=m.piv;if(piv&&piv.swap){if(STATES.get(piv.swap)?.now==='broken')return;/* 10/23: 깬 것은 되돌리지 않는다 */if(+r===ci)stateSet(piv.swap,piv.prev);return}if(+r!==ci||!piv||!piv.parent||!cur)return;tween(piv,{p:piv.userData.p0.clone(),q:new THREE.Quaternion()},600,()=>{if(!cur)return;cur.updateMatrixWorld(true);for(const ch of [...piv.children])cur.attach(ch);piv.parent&&piv.parent.remove(piv);buildBoxes()})}
+// 단서 물건(절차 생성 — 서신·쪽지·열쇠·조각은 라이브러리 에셋 없이 코드로)
+function paperTex(lines){const cv2=document.createElement('canvas');cv2.width=256;cv2.height=160;const x=cv2.getContext('2d');x.fillStyle='#efe4c8';x.fillRect(0,0,256,160);x.strokeStyle='#3a2c1e';x.lineWidth=2;for(let i=0;i<lines;i++){x.beginPath();const X=220-i*26;x.moveTo(X,18);for(let y=18;y<142;y+=9)x.lineTo(X+(Math.random()-.5)*4,y);x.stroke()}const t=new THREE.CanvasTexture(cv2);t.colorSpace=THREE.SRGBColorSpace;return t}
+function makeCarrier(kind){const g=new THREE.Group();const M=(c,o={})=>new THREE.MeshStandardMaterial({color:c,roughness:.8,emissive:new THREE.Color(0x221a08),...o});
+ if(kind==='letter'){const m=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.012,0.09),M(0xffffff,{map:paperTex(3)}));m.userData.pulse=1;g.add(m);const cord=new THREE.Mesh(new THREE.BoxGeometry(0.006,0.014,0.092),M(0x8b2a1d));g.add(cord)}
+ else if(kind==='note'){const m=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.004,0.21),M(0xffffff,{map:paperTex(5)}));m.userData.pulse=1;g.add(m)}
+ else if(kind==='key'){const br=M(0xb08d3c,{metalness:.7,roughness:.35});const bow=new THREE.Mesh(new THREE.TorusGeometry(0.024,0.007,8,18),br);bow.rotation.x=Math.PI/2;bow.position.x=-0.06;const sh=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.005,0.1,8),br);sh.rotation.z=Math.PI/2;sh.position.x=0.01;const t1=new THREE.Mesh(new THREE.BoxGeometry(0.012,0.004,0.022),br);t1.position.set(0.05,0,0.012);const t2=t1.clone();t2.position.x=0.034;for(const m of [bow,sh,t1,t2]){m.userData.pulse=1;g.add(m)};g.position.y=0.008}
+ else{const m=new THREE.Mesh(new THREE.TorusGeometry(0.04,0.008,6,20,Math.PI*1.6),M(0x7a5b3a));m.rotation.x=Math.PI/2;m.userData.pulse=1;g.add(m)}
+ g.traverse(o=>{if(o.isMesh)o.castShadow=true});return g}
+const carrierName=c=>(c.carrier&&c.carrier.name)||({letter:'서신',note:'쪽지',key:'열쇠',piece:'조각'})[c.carrier&&c.carrier.kind]||'단서';
+/* 10/23: 바꿔 낀 판(열린 궤·걷힌 이불·뺀 서랍·비운 독)에서 단서 물건 자리 — 위에서 아래로 쏜 광선이 그 물건에 맞는 가장 낮은 곳(열린 속·드러난 요·빈 바닥) */
+function swapSpot(hostNode){const e=STATES.get(hostNode);if(!e||!cur)return null;const objs=e.now?[e.v[e.now]]:e.base;if(!objs||!objs.length)return null;const b=new THREE.Box3();objs.forEach(o=>b.expandByObject(o));if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),sz=b.getSize(new THREE.Vector3());const q=new THREE.Quaternion();objs[0].getWorldQuaternion(q);const f=new THREE.Vector3(0,0,1).applyQuaternion(q);f.y=0;if(f.lengthSq()<1e-6)f.set(0,0,1);f.normalize();const d=Math.max(sz.x,sz.z),rc=new THREE.Raycaster();let best=null;
+ for(const k of [0,0.18,0.32,0.42]){const p=c.clone().addScaledVector(f,d*k);rc.set(new THREE.Vector3(p.x,b.max.y+0.5,p.z),new THREE.Vector3(0,-1,0));const h=rc.intersectObjects(objs,true)[0];if(h&&h.point.y>b.min.y+sz.y*0.02&&(!best||h.point.y<best.y))best=h.point.clone()}return best}
+function spawn(id,name,kind,hostNode,where){if(!cur)return;let b=groupBox(hostNode),c;if(b.isEmpty()){console.warn('단서 물건 자리 없음 — 방 가운데에 둠',hostNode);const w=meta.walk||{x:[0,0],z:[0,0]};c=new THREE.Vector3((w.x[0]+w.x[1])/2,meta.floor_y||0,(w.z[0]+w.z[1])/2);b=new THREE.Box3(c.clone(),c.clone())}else c=b.getCenter(new THREE.Vector3());const g=makeCarrier(kind);
+ const st=MOVED.get(`${ci}|${hostNode}`);const y=where==='on'||where==='inside'?b.max.y+0.01:Math.max(meta.floor_y||0,b.min.y)+(st&&st.act==='lift'?0.02:0.012);/* 밑·뒤: 그 물건이 놓인 면(부뚜막 위 솥뚜껑이면 부뚜막 위) — 방바닥으로 두면 부뚜막 속에 묻혔다(10/22) */
+ g.position.set(c.x+(where==='on'?0:0.02),y,c.z);if(st&&st.piv&&st.piv.swap){const sp=swapSpot(hostNode);if(sp)g.position.set(sp.x,sp.y+0.01,sp.z)}g.rotation.y=0.4;g.name=`${name}__단서`;g.userData.carrier=id;g.scale.setScalar(1.6);cur.add(g);buildBoxes()}
+const carrierAt=g=>{for(const [id,r] of REV)if(r.state==='shown'&&r.room===ci&&carrierName(clueById(id))===g)return id;for(const [sid,k] of KEYS)if(k.state==='shown'&&k.room===ci&&sceneExit(sid).exit.key.name===g)return 'KEY-'+sid;return null};
+function unspawn(g){if(!cur)return;const rm=[];cur.traverse(o=>{if(o.name===`${g}__단서`)rm.push(o)});rm.forEach(o=>o.parent.remove(o));buildBoxes()}
+// 손에 든 모습(확대해 읽기)
+const hold=document.createElement('div');hold.id='hold';hold.hidden=true;document.querySelector('.stage').appendChild(hold);
+function openHold(id,mode2){const isKey=id.startsWith('KEY-');const c=isKey?null:clueById(id);const sx=isKey?sceneExit(id.slice(4)):null;
+ const kind=isKey?'key':c.carrier.kind,name=isKey?sx.exit.key.name:carrierName(c),body=isKey?(sx.exit.key.found||''):(c.content||c.text);
+ const paper=kind==='letter'||kind==='note';endPlay();
+ hold.innerHTML=`<div class="hold-card ${paper?'paper':''}"><div class="k">${mode2==='take'?(kind==='mark'?'가까이 들여다본다':'손에 들었다'):'조사수첩'}</div><b>${esc(name)}</b><div class="hold-body">${esc(body)}</div>${isKey?`<div class="k">${esc(sx.exit.lock||'')}</div>`:''}<div class="row"><button id="holdOk">${mode2==='take'?(kind==='mark'?'수첩에 적기':isKey?'챙기기':'수첩에 넣기'):'닫기'}</button></div></div>`;hold.classList.toggle('low',mode2==='take');hold.hidden=false;uiPlay();
+ hold.querySelector('#holdOk').onclick=()=>{hold.hidden=true;if(mode2==='take'){if(isKey){const k=KEYS.get(id.slice(4));k.state='taken';NB.set(id,`${name} — 다음 방 문의 자물쇠에 대 보자`);unspawn(name)}else{const rv=REV.get(id);rv.state='taken';NB.set(id,c.text);if(kind!=='mark')unspawn(name);if(![...REV.values()].some(x=>x.state==='shown'&&x.room===rv.room&&x.node===rv.node))setTimeout(()=>unreact(`${rv.room}|${rv.node}`),250)}pzMsg=`<div class="card pz-clue"><span class="pill">수첩</span> ${esc(name)}을(를) 챙겼다</div>`}info();startLock()}}
+function nbLabel(id,t){if(id.startsWith('KEY-'))return `🗝️ ${esc(t)}`;const c=clueById(id);if(c&&c.carrier&&c.carrier.kind)return `${({letter:'✉️',note:'📜',key:'🗝️',piece:'🧶',mark:'👁️'})[c.carrier.kind]||''} <b>${esc(carrierName(c))}</b> — ${esc(t)}`;return esc(t)}
+const nbRead=id=>{const c=clueById(id);return (id.startsWith('KEY-')||(c&&c.carrier&&c.carrier.kind))?` <button class="mini" data-nb-read="${id}">다시 보기</button>`:''};
+// 조사 — 단서 물건이 있으면 반응 → 보이게 → (집으면) 수첩
+pzHit=function(g){const out=[];const cr=carrierAt(g);if(cr){openHold(cr,'take');return}
+ let one=false;for(const {p,h} of pzBound(ci,g)){for(const c of p.clues){if(SOLVE_ONLY.includes(c.get_by)||c.from!==h.need_id||NB.has(c.id))continue;
+   if(c.carrier&&c.carrier.kind){if(REV.has(c.id)||one)continue;one=true;/* 한 번 누를 때 하나씩 — 두 번째로 누르면 다음 것(가까이 들여다보기 등) */const pl=planReveal(g,c),act=pl.act;const key=`${ci}|${g}`;
+    if(!MOVED.has(key)&&act!=='look'){const b=groupBox(g),cc=b.getCenter(new THREE.Vector3());const side=[cc.x-pos.x,cc.z-pos.z];MOVED.set(key,{act,side,piv:react(g,act,side)})}
+    REV.set(c.id,{room:ci,node:g,state:'shown',act});
+    if(c.carrier.kind==='mark'||!pl.spawn){out.push(`<div class="card pz-clue">${esc(c.reveal&&c.reveal.reaction||'')}</div>`);setTimeout(()=>openHold(c.id,'take'),act==='look'?50:pl.swap?1300:700)}
+    else{setTimeout(()=>spawn(c.id,carrierName(c),c.carrier.kind,g,c.reveal&&c.reveal.where),act==='look'?0:500);out.push(`<div class="card pz-clue"><span class="pill">발견</span> ${esc((c.reveal&&c.reveal.reaction)||`${carrierName(c)}이(가) 보인다`)}<div class="k">반짝이는 「${esc(carrierName(c))}」을(를) 눌러 집는다</div></div>`)}}
+   else{NB.set(c.id,c.text);out.push(`<div class="card pz-clue"><span class="pill">단서</span> ${esc(c.text)}</div>`)}}
+  if(p.solve&&p.solve.at===h.need_id&&!DONE.has(p.id)){if(devOf(p)&&devOf(p).on!=='exit_door')setTimeout(()=>openDevice(p),30);else out.push(pzSolveUI(p))}}
+ pzMsg=out.join('')}
+// 장면 마지막 퍼즐을 풀면 열쇠가 그 자리에 나온다
+const pzDone0=pzDone;pzDone=function(p){pzDone0(p);const sx=p.exit&&p.exit.key&&p.exit.key.name?p:null;if(!sx||KEYS.has(p.scene_id))return;const at=(p.hosts.find(h=>h.need_id===p.solve.at)||p.hosts[0])?.at?.[0];if(!at)return;
+ KEYS.set(p.scene_id,{state:'shown',room:at.room,node:at.node});if(at.room===ci&&cur)setTimeout(()=>spawn('KEY-'+p.scene_id,p.exit.key.name,'key',at.node,'on'),400);
+ pzMsg=`<div class="card pz-ok"><b>🗝️ ${esc(p.exit.key.found||p.exit.key.name+'이(가) 나왔다')}</b><div class="k">「${esc(p.exit.key.name)}」을(를) 집어 들고 문의 자물쇠에 대 보자</div></div>`+pzMsg};
+// 다음 장면 방으로 가는 문의 자물쇠
+function exitScene(ri,gd){const i=scOrder.findIndex(s=>s.rooms.includes(ri));if(i<0)return null;const s=scOrder[i];const nx=scOrder[i+1];/* 다음 장면이 결말 연출(퍼즐 없음)이어도 그 문은 잠근다(10/22) */if(!nx||!nx.rooms.includes(gd.tab)||!sceneExit(s.id)||UNLOCKED.has(s.id))return null;return s}
+function lockMeshes(){if(!cur)return;for(const gd of (meta.goes||[])){const s=exitScene(ci,gd);if(!s||exitDevP(s.id))continue;const b=groupBox(gd.door);if(b.isEmpty())continue;const c=b.getCenter(new THREE.Vector3());const thinX=(b.max.x-b.min.x)<(b.max.z-b.min.z);
+  const w=meta.walk;const rc=w?[(w.x[0]+w.x[1])/2,(w.z[0]+w.z[1])/2]:[0,0];const off=thinX?Math.sign(rc[0]-c.x)*((b.max.x-b.min.x)/2+0.03):Math.sign(rc[1]-c.z)*((b.max.z-b.min.z)/2+0.03);
+  const L=new THREE.Group();L.name=`${gd.door}__자물쇠`;L.userData.lockOf=s.id;const iron=new THREE.MeshStandardMaterial({color:0x3b3a36,metalness:.6,roughness:.45,emissive:new THREE.Color(0x120d06)});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.11,0.075,0.04),iron);const sh=new THREE.Mesh(new THREE.TorusGeometry(0.032,0.008,8,16,Math.PI),iron);sh.position.y=0.037;sh.name='고리';const hasp=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.02,0.012),iron);hasp.position.y=0.06;
+  L.add(body,sh,hasp);if(thinX)L.rotation.y=Math.PI/2;L.position.set(thinX?c.x+off:c.x,(meta.floor_y||0)+1.0,thinX?c.z:c.z+off);cur.add(L)}}
+function unlockAnim(s){if(!cur)return;let L=null;cur.traverse(o=>{if(o.userData.lockOf===s.id)L=o});if(!L)return;const sh=L.children.find(o=>o.name==='고리');if(!sh){tween(L,{q:L.quaternion.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),1.2))},600,()=>{L.userData.lockOf=null});return}tween(sh,{p:sh.position.clone().add(new THREE.Vector3(0,0.03,0))},350,()=>{const q=L.quaternion.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),1.3));tween(L,{p:L.position.clone().setY((meta.floor_y||0)+0.04),q},600,()=>{L.userData.lockOf=null})})}
+function exitTry(gd){const s=exitScene(ci,gd);if(!s)return false;{const dp=exitDevP(s.id);if(dp){openDevice(dp);return true}}const left=PZ.filter(p=>p.scene_id===s.id&&!DONE.has(p.id));const sx=sceneExit(s.id),k=KEYS.get(s.id);
+ if(k&&k.state==='taken'){k.state='used';UNLOCKED.add(s.id);NB.delete('KEY-'+s.id);unlockAnim(s);pzMsg=`<div class="card pz-ok"><b>🔓 「${esc(sx.exit.key.name)}」을(를) 자물쇠에 꽂아 돌리자 자물쇠가 풀려 떨어졌다</b><div class="k">이제 문을 열고 ${esc(ITEMS[gd.tab]?.name)}(으)로 갈 수 있다</div></div>`;info();return true}
+ pzMsg=`<div class="card pz-lock"><b>🔒 ${esc(sx.exit.lock||'문에 자물쇠가 걸려 있다')}</b><div class="k">${left.length?'아직 풀지 못한 것: '+left.map(p=>esc(p.title)).join(', '):k&&k.state==='shown'?`「${esc(sx.exit.key.name)}」이(가) 어딘가 나와 있다 — 집어 오자`:'열쇠가 필요하다'}</div></div>`;info();return true}
+// 방을 다시 불러올 때 반응한 물건·나와 있는 단서·자물쇠를 그대로
+function revRestore(){for(const [key,m] of MOVED){const [r,node]=key.split('|');if(+r===ci&&!m.restored)m.piv=react(node,m.act,m.side,true)}
+ for(const [id,r] of REV)if(r.room===ci&&r.state==='shown'){const c=clueById(id);if(c.carrier.kind!=='mark')spawn(id,carrierName(c),c.carrier.kind,r.node,c.reveal&&c.reveal.where)}
+ for(const [sid,k] of KEYS)if(k.room===ci&&k.state==='shown')spawn('KEY-'+sid,sceneExit(sid).exit.key.name,'key',k.node,'on');lockMeshes();devMeshes()}
+
+// ── 풀이 장치 v0(10/22 미르) — 「단서를 다 읽었는데 문도 안 열리고 뭘 해야 할지 모르겠다」 → 문·궤에 시대에 맞는 장치가 보이고, 눌러 맞춘다 ──
+//    윤도 방위 자물쇠 · 산가지 셈판 · 비밀자물쇠(숨은 열쇠구멍 장석) · 글자 바퀴(게임 장치). 05 가 solve.device 를 쓴다.
+const DEV_KIND={yundo:'윤도 방위 자물쇠',sangaji:'산가지 셈판 자물쇠',bimil:'비밀자물쇠',geulja:'글자 바퀴 자물쇠',key:'자물쇠'};
+const devOf=p=>p&&p.solve&&p.solve.device&&DEV_KIND[p.solve.device.kind]&&p.solve.device.kind!=='key'?p.solve.device:null;
+const exitDevP=sid=>PZ.find(p=>p.scene_id===sid&&devOf(p)&&devOf(p).on==='exit_door');
+const hostDevP=(ri,g)=>PZ.find(p=>{const d=devOf(p);if(!d||d.on==='exit_door')return false;const h=p.hosts.find(h=>h.need_id===p.solve.at);return h&&h.at.some(b=>b.room===ri&&b.node===g)});
+const DV={};// 장치 상태(돌려 둔 칸)
+const devLabels=d=>(d.spec&&(d.spec.labels||d.spec.dirs))||['자','축','인','묘','진','사','오','미','신','유','술','해'];
+const ansArr=p=>{const k=p.solve.device.kind,a=p.solve.answer;if(k==='sangaji')return [String(a).replace(/\D/g,'')];if(Array.isArray(a))return a.map(String);if(k==='bimil'||devCount(p)===1)return [String(a)];return String(a).split(/\s*[,·\s]\s*/).filter(Boolean)};/* 비밀자물쇠 「신랑 장석」을 띄어쓰기로 쪼개 오답이 되던 일(10/22) */
+function devCount(p){const d=devOf(p);if(d.kind==='sangaji')return Math.max(1,Math.min(4,d.spec?.digits||ansArr(p).length));if(d.kind==='geulja')return (d.spec?.rings||[]).length||ansArr(p).length;if(d.kind==='yundo')return Math.max(1,Math.min(3,d.spec?.count||ansArr(p).length));return 1}
+function sangajiSvg(v,col){const W=46,H=70;let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;const vert=col%2===0;/* 일·백 자리는 세로, 십·천 자리는 가로(산가지 놓는 법) */const n=v%5,top=v>=5;
+ if(v===0)s+=`<circle cx="23" cy="35" r="9" fill="none" stroke="#b9a173" stroke-dasharray="3 3"/>`;
+ if(vert){for(let i=0;i<(v>=5?v-5:v);i++)s+=`<rect x="${8+i*8}" y="${top?24:12}" width="4" height="44" rx="2" fill="#c9a66b"/>`;if(top)s+=`<rect x="6" y="10" width="34" height="4" rx="2" fill="#c9a66b"/>`}
+ else{for(let i=0;i<(v>=5?v-5:v);i++)s+=`<rect x="4" y="${12+i*10}" width="38" height="4" rx="2" fill="#c9a66b"/>`;if(top)s+=`<rect x="21" y="6" width="4" height="60" rx="2" fill="#c9a66b"/>`}
+ return s+'</svg>'}
+function yundoSvg(labels,idx){const N=labels.length,R=62;let s=`<svg width="150" height="150" viewBox="-75 -75 150 150"><circle r="70" fill="#3b2a18"/><circle r="66" fill="#d8c08a"/><circle r="40" fill="#e8d6a8" stroke="#8a6a3a"/>`;
+ labels.forEach((l,i)=>{const a=i/N*Math.PI*2-Math.PI/2;s+=`<text x="${(Math.cos(a)*R*0.86).toFixed(1)}" y="${(Math.sin(a)*R*0.86+5).toFixed(1)}" text-anchor="middle" font-size="${N>12?10:13}" fill="${i===idx?'#8b1e12':'#3b2a18'}" font-weight="${i===idx?700:400}">${esc(l)}</text>`});
+ const a=idx/N*Math.PI*2-Math.PI/2;s+=`<line x1="0" y1="0" x2="${(Math.cos(a)*34).toFixed(1)}" y2="${(Math.sin(a)*34).toFixed(1)}" stroke="#8b1e12" stroke-width="4" stroke-linecap="round"/><line x1="0" y1="0" x2="${(-Math.cos(a)*22).toFixed(1)}" y2="${(-Math.sin(a)*22).toFixed(1)}" stroke="#2b2b2b" stroke-width="4" stroke-linecap="round"/><circle r="5" fill="#2b2b2b"/></svg>`;return s}
+function openDevice(p){const d=devOf(p);if(!d)return;endPlay();const st=DV[p.id]||(DV[p.id]={v:Array(devCount(p)).fill(0),msg:''});const k=d.kind;
+ const need=(p.solve.required_clue_ids||[]).filter(id=>!p.effects.some(e=>e.type==='clue_acquired'&&e.target_id===id));const have=need.filter(id=>NB.has(id)).length;
+ let body='';
+ if(k==='yundo'){const L=devLabels(d);body=st.v.map((v,i)=>`<div class="dev-col"><div class="k">${st.v.length>1?`${i+1}번째`:''}</div>${yundoSvg(L,v)}<div class="row"><button class="mini" data-dv="${i}" data-dd="-1">◀ 돌리기</button><button class="mini" data-dv="${i}" data-dd="1">돌리기 ▶</button></div></div>`).join('')}
+ else if(k==='sangaji')body=st.v.map((v,i)=>`<div class="dev-col"><button class="mini" data-dv="${i}" data-dd="1">산가지 더 놓기 ▲</button>${sangajiSvg(v,st.v.length-1-i)}<button class="mini" data-dv="${i}" data-dd="-1">▼ 빼기</button></div>`).join('');
+ else if(k==='geulja'){const R=d.spec?.rings||[];body=st.v.map((v,i)=>{const ring=R[i]||['?'];const c=ring[(v%ring.length+ring.length)%ring.length];const pr=ring[((v-1)%ring.length+ring.length)%ring.length],nx=ring[((v+1)%ring.length+ring.length)%ring.length];return `<div class="dev-col"><button class="mini" data-dv="${i}" data-dd="-1">▲</button><div class="dev-ring"><span class="k">${esc(pr)}</span><b>${esc(c)}</b><span class="k">${esc(nx)}</span></div><button class="mini" data-dv="${i}" data-dd="1">▼</button></div>`}).join('')}
+ else if(k==='bimil')body=`<div class="dev-plate">${(d.spec?.knobs||p.solve.options||[]).map((n,i)=>`<button class="dev-knob" data-knob="${i}">◉<br><small>${esc(n)}</small></button>`).join('')}</div><div class="k">열쇠구멍이 숨은 장석은 하나뿐이다 — 잘못 누르면 그대로다</div>`;
+ const HOW={yundo:'◀ ▶ 로 바늘을 돌려 답이 되는 방위를 가리킨 뒤 「맞춰 보기」.',sangaji:'자리마다 ▲ 로 산가지를 더 놓고 ▼ 로 뺀다(일·백 자리는 세로, 십·천 자리는 가로로 놓는다). 수를 다 놓으면 「맞춰 보기」.',geulja:'바퀴마다 ▲ ▼ 로 글자를 돌려 가운데 줄을 맞춘 뒤 「맞춰 보기」.',bimil:'장석 하나를 눌러 본다. 열쇠구멍이 숨은 것이면 열린다.'};const ref=d.spec&&d.spec.reference;
+ hold.classList.remove('low');hold.innerHTML=`<div class="hold-card dev-card"><div class="k">${esc(DEV_KIND[k])}${k==='geulja'?' · 게임 장치':''}</div><b>${esc(d.name||DEV_KIND[k])}</b><div class="hold-body">${esc(p.solve.prompt||'')}</div><div class="dev-how">${HOW[k]}${k==='yundo'&&ref?`<br>방위 기준: ${esc(Array.isArray(ref)?ref.map(x=>`${x.label} = ${x.what}`).join(' · '):`${ref.label} = ${ref.what}`)}`:''}</div><div class="dev-row">${body}</div><div class="k">수첩 「다시 보기」로 모은 단서를 다시 읽을 수 있다</div><div class="dev-msg">${esc(st.msg)}</div><div class="row">${k==='bimil'?'':'<button id="devTry">맞춰 보기</button>'}<button class="secondary" id="devClose">닫기</button></div></div>`;hold.hidden=false;uiPlay();
+ hold.querySelectorAll('[data-dv]').forEach(b=>b.onclick=()=>{const i=+b.dataset.dv,dd=+b.dataset.dd;const M=k==='sangaji'?10:k==='yundo'?devLabels(d).length:((d.spec?.rings||[])[i]||[1]).length;st.v[i]=((st.v[i]+dd)%M+M)%M;st.msg='';openDevice(p)});
+ const close=()=>{hold.hidden=true;info();startLock()};hold.querySelector('#devClose').onclick=close;
+ const tryIt=val=>{const ans=ansArr(p).map(s=>s.trim());const ok=val.length===ans.length&&val.every((v,i)=>String(v).trim()===ans[i]);
+  if(ok){hold.hidden=true;pzMsg='';pzDone(p);devSolved(p);info();startLock()}
+  else{st.msg='덜컥, 열리지 않는다';openDevice(p);const c=hold.querySelector('.dev-card');c.classList.add('shake');setTimeout(()=>c.classList.remove('shake'),400)}};
+ const tb=hold.querySelector('#devTry');if(tb)tb.onclick=()=>{const v=k==='sangaji'?st.v.map(String):k==='yundo'?st.v.map(i=>devLabels(d)[i]):st.v.map((v,i)=>{const r=(d.spec?.rings||[])[i]||[];return r[(v%r.length+r.length)%r.length]});tryIt(k==='sangaji'?[v.join('')]:v)};
+ hold.querySelectorAll('[data-knob]').forEach(b=>b.onclick=()=>tryIt([(d.spec?.knobs||p.solve.options||[])[+b.dataset.knob]]))}
+function devSolved(p){const d=devOf(p);if(d.on==='exit_door'){UNLOCKED.add(p.scene_id);let s=scOrder.find(x=>x.id===p.scene_id);if(s)unlockAnim(s);const nx=scOrder[scOrder.findIndex(x=>x.id===p.scene_id)+1];pzMsg=`<div class="card pz-ok"><b>🔓 ${esc(d.name||DEV_KIND[d.kind])}이(가) 풀렸다</b><div>${esc(p.learns)}</div><div class="k">이제 문을 열고 ${esc(nx?nx.title:'다음 곳')}(으)로 갈 수 있다</div></div>`}
+ else pzMsg=`<div class="card pz-ok"><b>🔓 ${esc(d.name||DEV_KIND[d.kind])}이(가) 풀렸다</b><div>${esc(p.learns)}</div></div>`}
+// 3D — 문·궤에 붙은 장치(멀리서도 보여서 「저걸 풀어야 한다」를 안다)
+function devMesh(kind){const g=new THREE.Group();const brass=new THREE.MeshStandardMaterial({color:0xb08d3c,metalness:.6,roughness:.4,emissive:new THREE.Color(0x1a1206)}),wood=new THREE.MeshStandardMaterial({color:0x5a3a20,roughness:.8}),iron=new THREE.MeshStandardMaterial({color:0x3b3a36,metalness:.6,roughness:.45});
+ if(kind==='yundo'){const base=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,0.025,28),wood);base.rotation.x=Math.PI/2;const face=new THREE.Mesh(new THREE.CylinderGeometry(0.095,0.095,0.028,28),brass);face.rotation.x=Math.PI/2;const nd=new THREE.Mesh(new THREE.BoxGeometry(0.012,0.07,0.01),iron);nd.position.z=0.018;g.add(base,face,nd)}
+ else if(kind==='sangaji'){const b=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.14,0.02),wood);g.add(b);for(let i=0;i<5;i++){const r=new THREE.Mesh(new THREE.BoxGeometry(0.008,0.1,0.008),brass);r.position.set(-0.1+i*0.05,0,0.014);g.add(r)}}
+ else if(kind==='geulja'){const ax=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.24,8),iron);ax.rotation.z=Math.PI/2;g.add(ax);for(let i=0;i<4;i++){const r=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.045,12),brass);r.rotation.z=Math.PI/2;r.position.x=-0.075+i*0.05;g.add(r)}}
+ else{const pl=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.16,0.012),brass);g.add(pl);for(let i=0;i<4;i++){const k=new THREE.Mesh(new THREE.SphereGeometry(0.018,10,8),iron);k.position.set(-0.09+i*0.06,0,0.012);g.add(k)}}
+ g.traverse(o=>{if(o.isMesh)o.castShadow=true});return g}
+function devMeshes(){if(!cur)return;
+ for(const gd of (meta.goes||[])){const s=exitScene(ci,gd);if(!s)continue;const p=exitDevP(s.id);if(!p)continue;const b=groupBox(gd.door);if(b.isEmpty())continue;const c=b.getCenter(new THREE.Vector3());const thinX=(b.max.x-b.min.x)<(b.max.z-b.min.z);const w=meta.walk;const rc=w?[(w.x[0]+w.x[1])/2,(w.z[0]+w.z[1])/2]:[0,0];const off=thinX?Math.sign(rc[0]-c.x)*((b.max.x-b.min.x)/2+0.025):Math.sign(rc[1]-c.z)*((b.max.z-b.min.z)/2+0.025);
+  const M=devMesh(devOf(p).kind);M.name=`${gd.door}__장치`;M.userData.lockOf=s.id;if(thinX)M.rotation.y=(rc[0]>c.x?1:-1)*Math.PI/2;else if(rc[1]<c.z)M.rotation.y=Math.PI;M.position.set(thinX?c.x+off:c.x,(meta.floor_y||0)+1.15,thinX?c.z:c.z+off);cur.add(M)}
+ for(const p of PZ){const d=devOf(p);if(!d||d.on==='exit_door'||DONE.has(p.id))continue;const h=p.hosts.find(h=>h.need_id===p.solve.at);const at=h&&h.at.find(b=>b.room===ci);if(!at)continue;const b=groupBox(at.node);if(b.isEmpty())continue;const c=b.getCenter(new THREE.Vector3());const M=devMesh(d.kind);M.scale.setScalar(0.8);M.name=`${at.node}__장치`;M.position.set(c.x,b.max.y+0.06,c.z);M.rotation.x=-0.5;cur.add(M)}}
+// 지금 할 일(목표) — 열린 장면의 출구와 남은 것
+function goalCard(){const s=scOrder.find(x=>PZ.some(p=>p.scene_id===x.id)&&!scPassed(x.id));if(!s)return '<div class="card pz-ok"><b>🎯 모든 문이 열렸다</b></div>';const ex=exitDevP(s.id)||sceneExit(s.id);const left=PZ.filter(p=>p.scene_id===s.id&&!DONE.has(p.id));
+ const rc=PZ.filter(p=>p.scene_id===s.id).flatMap(p=>p.clues.filter(c=>!SOLVE_ONLY.includes(c.get_by)));const got=rc.filter(c=>NB.has(c.id)).length;
+ const d=ex&&devOf(ex);return `<div class="card pz-goal"><b>🎯 지금 할 일 — ${esc(s.title)}</b>${d?`<div>${d.on==='exit_door'?'출구 문에':'이곳에'} <b>${esc(d.name||DEV_KIND[d.kind])}</b>이(가) 걸려 있다. ${esc(ex.solve.prompt||'')}</div>`:ex&&ex.exit?`<div>${esc(ex.exit.lock||'')}</div>`:''}<div class="k">이 장면 단서 ${got}/${rc.length} · 남은 퍼즐 ${left.map(p=>`${esc(p.title)}${devOf(p)?` (${esc(DEV_KIND[devOf(p).kind])})`:p.solve.interaction==='combine_clues'?' (수첩에서 짝짓기)':''}`).join(', ')||'없음'}</div></div>`}
+
+// 검수 보기(?focus): 그 퍼즐 장면 앞 장면들은 푼 것으로 시작 — 검수자가 잠긴 방에 갇히지 않고, 다음 장면 문은 그대로 잠김
+if(FOCUS){const fp=focusP();if(fp){const o=id=>scOrder.findIndex(x=>x.id===id);for(const p of PZ)if(o(p.scene_id)<o(fp.scene_id))pzDone(p);for(const s of scOrder)if(o(s.id)<o(fp.scene_id)){UNLOCKED.add(s.id);const k=KEYS.get(s.id);if(k)k.state='used';NB.delete('KEY-'+s.id)}pzMsg=''}}
+window.__pz={PZ,NB,DONE,REV,KEYS,UNLOCKED,MOVED,carrierAt,exitTry,box:g=>groupBox(g),states:()=>[...STATES].map(([g,e])=>g+':'+Object.keys(e.v).join('/')+':'+(e.now||'기본')),plan:(g,id)=>planReveal(g,clueById(id)),openDevice:id=>openDevice(PZ.find(p=>p.id===id)),DV,devOf,devLabels,aim:name=>{/* 시험용: 실제로 설 수 있는 자리(벽·가구 밖)에서 여러 점을 겨눠 하나라도 그 물건이 잡히면 통과 */const B0=groupBox(name);if(B0.isEmpty())return {err:'empty'};let g=null,stood=0;const S0=B0.getSize(new THREE.Vector3());const parts=(S0.x>2||S0.z>2)?groupRoots(name).map(r=>new THREE.Box3().expandByObject(r)):[B0];
+ for(const b of parts){const c=b.getCenter(new THREE.Vector3()),sz=b.getSize(new THREE.Vector3());for(const r of [0.8,1.1,1.5,2.0])for(let k=0;k<12;k++){const a=k/12*Math.PI*2,x=c.x+Math.cos(a)*(r+Math.max(sz.x,sz.z)/2),z=c.z+Math.sin(a)*(r+Math.max(sz.x,sz.z)/2);if(!free(x,z))continue;stood++;placeAt({x,z,yaw_deg:0});
+  for(const [ox,oy,oz] of [[0,0,0],[.25,0,0],[-.25,0,0],[0,.3,0],[0,0,.25],[0,0,-.25],[0,-.3,0]]){const v=c.clone().add(new THREE.Vector3(ox*sz.x,oy*sz.y,oz*sz.z)).sub(pos);yaw=Math.atan2(v.x,v.z);pitch=Math.atan2(v.y,Math.hypot(v.x,v.z));lookApply();C.updateMatrixWorld();ray.setFromCamera(new THREE.Vector2(0,0),C);g=pickRay();if(g===name)return {hit:g,stood}}}}
+ /* 그래도 못 잡으면(벽에 붙은 기둥처럼 큰 덩어리) 방 안 설 수 있는 모든 자리에서 사방을 둘러본다 */const w=meta.walk;if(w)for(let x=w.x[0]+0.3;x<w.x[1];x+=0.4)for(let z=w.z[0]+0.3;z<w.z[1];z+=0.4){if(!free(x,z))continue;stood++;placeAt({x,z,yaw_deg:0});for(let k=0;k<16;k++)for(const pt of [0,-0.35,0.3]){yaw=k/16*Math.PI*2;pitch=pt;lookApply();C.updateMatrixWorld();ray.setFromCamera(new THREE.Vector2(0,0),C);g=pickRay();if(g===name)return {hit:g,stood,grid:true}}}
+ return {hit:g,stood,clickable:clickable(name)}},rayDbg:(x,z,tx,ty,tz)=>{placeAt({x,z,yaw_deg:0});const v=new THREE.Vector3(tx,ty,tz).sub(pos);yaw=Math.atan2(v.x,v.z);pitch=Math.atan2(v.y,Math.hypot(v.x,v.z));lookApply();C.updateMatrixWorld();ray.setFromCamera(new THREE.Vector2(0,0),C);ray.far=4;const hs=ray.intersectObject(cur,true).slice(0,6).map(h=>G(h.object)+'@'+h.distance.toFixed(2)+(h.object.visible?'':'(hidden)')+(h.object.material?.transparent?'(t'+h.object.material.opacity+')':''));ray.far=Infinity;return {hs,pick:pickRay(),pos:[pos.x,pos.y,pos.z]}},moved:()=>[...MOVED].map(([k,m])=>k+':'+m.act+(m.restored?':제자리':'')),solve:id=>{pzDone(PZ.find(p=>p.id===id));info()},placeAt:a=>placeAt(a),look:(pt)=>{pitch=pt;lookApply()},goes:()=>meta.goes,roomOpen,hit:g=>{pzHit(g);info()},room:()=>ci,show:i=>show(i)}; // 검수·자동 시험용
+function info(){const it=ITEMS[ci],m=meta,el=document.getElementById('info');const groups=[];if(cur)cur.traverse(o=>{if(o.isMesh){const g=G(o);if(!groups.includes(g))groups.push(g)}});
+ const cands=groups.filter(clickable);let h=`<b>${it.name}</b> <span class="k">${it.mb} MB${m.note?' · '+m.note:''}</span>`;
+ if(mode==='play'){if(FOCUS)h+=focusCard();if(PZ.length)h+=pzBlock();h+=`<h3>찾은 조사 대상 ${[...found].filter(g=>cands.includes(g)).length} / ${cands.length}</h3>`;
+  if(sel){const r=roleOf(sel),gd=(m.goes||[]).find(x=>x.door===sel);h+=`<div class="card"><b>${sel}</b> <span class="pill">${r.cls==='trace'?'흔적':r.role==='interactive'?'상호작용 후보':'살림'}${r.type?' · '+r.type:''}</span><div class="k" style="margin-top:4px">${gd?`${gd.to}(으)로 이어진 문${gd.step?` · 턱 ${gd.step} m`:''}`:r.role==='interactive'?'퍼즐을 붙일 수 있는 자리(조사 → 단서 → 입력)':'조사하면 설명·단서를 보여 줄 물건'}</div>${gd?`<div class="row"><button data-go="${m.goes.indexOf(gd)}">문 열고 ${gd.to}(으)로</button></div>`:''}</div>`}
+  else h+=`<div class="k">조준점을 빛나는 물건에 맞추면 이름이 뜨고, 클릭 또는 E 로 조사합니다. 문은 바로 열고 넘어갑니다.</div>`;
+  if((m.goes||[]).length)h+=`<h3>이어진 방</h3><div class="row">${m.goes.map((g,i)=>`<button data-go="${i}">${g.door} → ${g.to}</button>`).join('')}</div>`;
+  h+=`<h3>조명(방이 닫혀 있어 안에서 비춤)</h3><ul>${(m.lights||[]).map(l=>`<li>${l.name}</li>`).join('')}</ul>`}
+ else{h+=`<div class="row"><button data-k>비워 둘 곳 보기/끄기</button></div><h3>부품 (누르면 강조)</h3><ul>${groups.map(g=>`<li data-g="${g}">${g} <span class="k">${(roleOf(g).cls==='trace'?'· 흔적':({interactive:'· 상호작용 후보',walkable:'· 걷는 바닥',ceiling:'· 천장',cutaway:'· 앞쪽',fixture:'· 붙박이',surface:'· 올려놓는 자리',prop:'· 살림'})[roleOf(g).role]||'')}</span></li>`).join('')}</ul>`;
+  if(m.log)h+=`<h3>배치 결과</h3><ul>${m.log.map(l=>`<li>${l.name} · ${l.result}</li>`).join('')}</ul>`;
+  if(m.set_checks)h+=`<h3>연결 개연성 검사</h3><ul>${m.set_checks.map(c=>`<li>${c.ok?'🟢':'🔴'} ${c.what} <span class="k">${c.detail}</span></li>`).join('')}</ul>`}
+ el.innerHTML=h;if(PZ.length)pzWire(el);el.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const g=m.goes[+b.dataset.go];if(mode==='play'&&PZ.length&&exitTry(g))return;if(mode==='play'&&PZ.length&&!roomOpen(g.tab)){pzMsg=lockMsg(g.tab);info();return}show(g.tab,g.arrive)});
+ el.querySelectorAll('[data-g]').forEach(li=>li.onclick=()=>{if(sel)glow(sel,false);sel=li.dataset.g;glow(sel,true)});const kb=el.querySelector('[data-k]');if(kb)kb.onclick=keepViz}
+function keepViz(){if(kc){S.remove(kc);kc=null;return}kc=new THREE.Group();const y=(meta.floor_y||0)+0.03,mat=new THREE.MeshBasicMaterial({color:0xd23c2c,transparent:true,opacity:0.35,depthWrite:false});(meta.keep_clear||[]).forEach(k=>{if(k.rect){const [a,b,c,d]=k.rect;const g=new THREE.Mesh(new THREE.PlaneGeometry(c-a,d-b),mat);g.rotation.x=-Math.PI/2;g.position.set((a+c)/2,y,(b+d)/2);kc.add(g)}else{const [a,b]=k.path,Ln=Math.hypot(b[0]-a[0],b[1]-a[1]);const g=new THREE.Mesh(new THREE.PlaneGeometry(Ln,k.width),mat);g.rotation.x=-Math.PI/2;g.rotation.z=-Math.atan2(b[1]-a[1],b[0]-a[0]);g.position.set((a[0]+b[0])/2,y,(a[1]+b[1])/2);kc.add(g)}});S.add(kc)}
+document.getElementById('mPlay').onclick=()=>setMode('play');
+function setStyle(s){style=s;document.getElementById('sReal').classList.toggle('on',s==='real');document.getElementById('sAni').classList.toggle('on',s==='anime');document.getElementById('sToon').classList.toggle('on',s==='toon2');document.getElementById('sToon3').classList.toggle('on',s==='toon3');const a={x:pos.x,z:pos.z,y:meta.floor_y,yaw_deg:yaw*180/Math.PI};show(ci,mode==='play'?a:null)}
+document.getElementById('sReal').onclick=()=>setStyle('real');document.getElementById('sAni').onclick=()=>setStyle('anime');document.getElementById('sToon').onclick=()=>setStyle('toon2');document.getElementById('sToon3').onclick=()=>setStyle('toon3');document.getElementById('mRev').onclick=()=>setMode('rev');
+document.querySelectorAll('#sky button').forEach(b=>b.onclick=()=>setSky(b.dataset.sky));
+const tabs=document.getElementById('tabs');ITEMS.forEach((it,i)=>{const b=document.createElement('button');b.textContent=it.name;b.onclick=()=>show(i);tabs.appendChild(b)});
+function rs(){const w=cv.clientWidth,h=cv.clientHeight;R.setSize(w,h,false);C.aspect=w/h;C.updateProjectionMatrix()}addEventListener('resize',rs);rs();document.getElementById('trialName').textContent=TRIAL.title?('— '+TRIAL.title+' · 에이전트 시험 생성본(원본 아님)'):'';show((()=>{const p=typeof focusP==='function'&&focusP();const a=p&&p.hosts.flatMap(h=>h.at)[0];return a?a.room:0})());
+let t0=performance.now();(function loop(t){requestAnimationFrame(loop);{const ts=t/1000;WIND.uWindTime.value=ts;WIND.uWindAmp.value=0.55;for(const m of FLICK){if(!m.parent)continue;const f=m.userData.flick;m.material.opacity=0.82+0.08*Math.sin(ts*8.7+f)+0.05*Math.sin(ts*21.3+f*2.1)+0.03*Math.sin(ts*3.1+f)}}const dt=Math.min(0.05,(t-t0)/1000);t0=t;animStep();
+ if(mode==='play'&&cur){
+  if(active()){const fx=Math.sin(yaw),fz=Math.cos(yaw),rx=-fz,rz=fx;let wx=0,wz=0;if(K.f){wx+=fx;wz+=fz}if(K.b){wx-=fx;wz-=fz}if(K.r){wx+=rx;wz+=rz}if(K.l){wx-=rx;wz-=rz}const wl=Math.hypot(wx,wz);if(wl>0){wx/=wl;wz/=wl}
+   const sp=WALK*(crouch?CRM:K.run?RUNM:1);if(grounded){vel.x=wx*sp;vel.z=wz*sp}else{vel.x+=(wx*sp-vel.x)*AIRC;vel.z+=(wz*sp-vel.z)*AIRC}
+   const nx=pos.x+vel.x*dt;if(free(nx,pos.z))pos.x=nx;else vel.x=0;const nz=pos.z+vel.z*dt;if(free(pos.x,nz))pos.z=nz;else vel.z=0}
+  if(!grounded){vy+=GRAV*dt;jy+=vy*dt;if(jy<=0){jy=0;vy=0;grounded=true}}
+  eyeCur+=((crouch?CEYE:EYE)-eyeCur)*Math.min(1,dt*10);pos.y=(meta.floor_y||0)+eyeCur+jy;lookApply();try{pickCenter()}catch(e){if(!window.__pickErr){window.__pickErr=1;console.error('조준 판정 오류',e)}}}
+ else O.update();if(style==='toon3')renderToon3();else R.render(S,C)})(t0);
+</script>
+</body></html>
