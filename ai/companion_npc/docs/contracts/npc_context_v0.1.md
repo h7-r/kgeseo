@@ -38,14 +38,18 @@ FE 가 이 객체를 직접 만들어 보내는 구조는 피한다. 정답 근�
 
 | 필드 | 상태 |
 |---|---|
-| `client_event_id`, `interaction_id`, `zone_id`, `target_id` | [확정·호환] |
+| `source` (live·event_log, 기본 live) | [제안 · P2-B] 이 기록을 어디서 얻었나 |
+| `client_event_id`, `interaction_id` | [확정·호환] |
+| `zone_id` | [확정·호환] live 는 필수. **event_log 는 null** — interaction_events 에 저장되지 않는다 |
+| `target_id` | [확정·호환] 관측된 외부 target(input 이면 오브젝트). **event_log 는 null** — 그 테이블의 target_id 는 puzzle_id 다 |
+| `inferred_object_id` | [제안 · P2-B] 팩에서 puzzle→오브젝트로 거꾸로 짚은 **추정값**. target_id 가 null 일 때만, 특성에는 쓰지 않음 |
 | `action` (inspect·navigate·input·select·combine_clues) | [확정·호환] 외부 계약 5종. 내부 이름 `submit_answer` 는 받지 않음 |
 | `target_type` (object·puzzle·clue·zone) | [확정·호환] |
 | `result_type` (ok·correct·incorrect·already_completed) | [확정·호환] 외부 응답 값 |
 | `attempt_count` | [확정·호환] |
 | `state_changes[]` → `{type, target_id}` | type 은 [확정·호환] 5종. 모양은 NPC 용으로 줄인 [제안] |
 | `occurred_at` | [제안] `interaction_events.created_at` (서버 시각) 기준 |
-| `resolved_puzzle_id` | [제안] object→puzzle 로 풀린 값 |
+| `resolved_puzzle_id` | [제안] object→puzzle 로 풀린 값. event_log 는 interaction_events.target_id 를 그대로 옮긴다 |
 | `answer_fingerprint` | [제안] 서버가 정규화한 답을 세션별 salt 로 해시. **원문(`payload.answer`)은 넣지 않는다** |
 
 ## 3. 검증 규칙

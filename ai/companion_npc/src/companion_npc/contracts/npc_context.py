@@ -57,23 +57,49 @@ class StateChangeRef(ContractModel):
     target_id: str | None = None  # puzzle_id · clue_id · zone_id · flag 이름
 
 
-class InteractionRecord(ContractModel):
-    """interaction_events 한 줄을 NPC 용으로 옮긴 것."""
+RecordSource = Literal["live", "event_log"]
 
+
+class InteractionRecord(ContractModel):
+    """interaction_events 한 줄을 NPC 용으로 옮긴 것.
+
+    [source — 이 기록을 어디서 얻었나] (P2-B 추가)
+      live      : 요청을 처리하던 그 자리에서 만든 기록. zone_id 를 실제로 안다.
+      event_log : 저장된 interaction_events 에서 다시 만든 기록. 그 테이블에는
+                  zone_id 가 없고, target_id 칸에는 오브젝트가 아니라 **puzzle_id** 가
+                  들어 있다. 그래서 zone_id · target_id(오브젝트)는 null 이고,
+                  puzzle_id 는 resolved_puzzle_id 로 옮긴다.
+    """
+
+    source: RecordSource = "live"
     client_event_id: str = Field(min_length=1)
     interaction_id: str | None = None
     occurred_at: AwareDatetime
-    zone_id: Id
+    # live 는 필수, event_log 는 관측되지 않았으므로 null.
+    zone_id: Id | None = None
     action: InteractionAction
     target_type: InteractionTargetType
-    target_id: str | None
+    # 플레이어가 겨냥한 외부 target (input 이면 오브젝트 ID). 관측된 값만 넣는다.
+    target_id: str | None = None
     # 서버가 처리한 퍼즐 ID (object → puzzle 로 풀린 값). 피처 계산에 쓴다.
     resolved_puzzle_id: Id | None = None
+    # 팩에서 puzzle → 오브젝트로 거꾸로 짚은 **추정값**. 관측값이 아니다.
+    #   target_id 를 모를 때만 넣을 수 있고, 특성 계산에는 쓰지 않는다.
+    inferred_object_id: Id | None = None
     result_type: ExternalInteractionResultType
     attempt_count: int | None = Field(default=None, ge=0)
     state_changes: list[StateChangeRef] = Field(default_factory=list)
     # 제안 — 서버가 정규화한 답을 세션별 salt 로 해시한 값. 원문은 넣지 않는다.
     answer_fingerprint: str | None = Field(default=None, max_length=128)
+
+    @model_validator(mode="after")
+    def _observed_vs_inferred(self) -> "InteractionRecord":
+        if self.source == "live" and self.zone_id is None:
+            raise ValueError("live record requires zone_id")
+        if self.inferred_object_id is not None and self.target_id is not None:
+            # 관측값이 있으면 추정값을 두지 않는다 — 둘이 섞이면 어느 쪽이 사실인지 모른다.
+            raise ValueError("inferred_object_id only when target_id is unobserved")
+        return self
 
 
 class NpcHistoryItem(ContractModel):

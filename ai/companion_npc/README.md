@@ -34,6 +34,27 @@ $env:PYTHONPATH = "src"
 
 `--out-dir` 로 파일을 쓸 때는 `runs/` 처럼 깃에서 빠지는 폴더를 쓴다.
 
+## P2-B — 플레이어 행동 특성 추출
+
+PlaySessionState 와 상호작용 기록을 판단층 입력(FeatureVector fs-0.1, 25개 특성)으로 바꾼다.
+규칙은 [docs/03_P2-B_특성.md](docs/03_P2-B_특성.md)에 있다.
+
+| 기능 | 코드 |
+|---|---|
+| 공통 특성 추출 — 온라인·오프라인이 같은 함수 | `features/extract.py` `extract_features(context, pack)` |
+| 오프라인 재생 — interaction_events 행 → 판단 시점별 NpcContext | `features/replay.py` `replay_session(...)` |
+| 대리 라벨 `no_progress_within_120s` · `needs_help` 계약 | `features/labels.py` |
+| 오답 지문 (비밀 키 필요, 오답만) | `features/fingerprint.py` |
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_features.py
+```
+
+**현재 범위**
+- 특성 **계산**까지만 만들었다. 모델 학습·성능 검증·합성 플레이어(P2-C)는 없다.
+- DB 에 접속하지 않는다. 실제 운영 로그로는 아직 돌려 보지 않았다.
+- 검증 범위와 한계는 [docs/01_합의_필요_사항.md](docs/01_합의_필요_사항.md) 「P2-B 검증 범위」에 있다.
+
 ## 폴더
 
 ```
@@ -41,7 +62,8 @@ ai/companion_npc/
 ├─ docs/                     범위·원칙, 계약 문서, 합의 사항
 ├─ src/companion_npc/
 │  ├─ contracts/             Pydantic 계약 · RAG 차단(visibility) · 누설 검사(spoiler)
-│  └─ adapters/              P2-A Case 파일 → ScenarioPack 변환기 · CLI
+│  ├─ adapters/              P2-A Case 파일 → ScenarioPack 변환기 · CLI
+│  └─ features/              P2-B 특성 추출 · 오프라인 재생 · 대리 라벨
 ├─ tests/                    계약 · 차단 · 누설 · 변환기 · backend 호환 테스트
 │  └─ fixtures/              case_001 팩 · 가상 사건 팩 · Context · Utterance 견본
 │     └─ cases/              backend 형식의 가상 사건 한 쌍 (변환기 입력)
