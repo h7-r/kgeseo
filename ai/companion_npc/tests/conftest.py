@@ -6,6 +6,8 @@ import pytest
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BACKEND_DIR = REPO_ROOT / "backend"
+BACKEND_CASES = BACKEND_DIR / "app" / "content" / "cases"
+FIXTURE_CASES = FIXTURES / "cases"
 
 
 def load_fixture(name: str) -> dict:

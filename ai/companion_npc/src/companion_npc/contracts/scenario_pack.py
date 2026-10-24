@@ -28,7 +28,8 @@ from companion_npc.contracts.common import (
 )
 
 PublicationStatus = Literal["draft", "approved", "published", "withdrawn"]
-ProducerKind = Literal["human", "agent", "mixed"]
+# unknown — 변환기가 원본만 보고는 누가 만들었는지 알 수 없을 때. 추측해 적지 않는다.
+ProducerKind = Literal["human", "agent", "mixed", "unknown"]
 ProvenanceMode = Literal["direct", "inherited", "mechanical"]
 FactGrade = Literal["F", "U", "GF", "NG"]
 KnowledgeKind = Literal[
@@ -51,6 +52,8 @@ class PackSource(ContractModel):
 
     producer: ProducerKind
     client_content_ref: str  # 예: "backend/app/content/cases/case_001.client.json"
+    # 파싱한 JSON 을 정규화해 잰 해시(줄바꿈·공백·key 순서와 무관 — OS 마다 같다).
+    client_content_sha256: str | None = None
     # 서버 전용 파일은 내용 대신 해시만 적는다 — 판이 바뀌었는지만 알면 된다.
     server_runtime_sha256: str | None = None
     # 생성 에이전트 산출물 ID (파이프라인 §9.2 artifact_id). GameSpec 확정 전까지 비어 있을 수 있다.
@@ -91,6 +94,13 @@ class NpcPersona(ContractModel):
     forbidden_topics: list[str] = Field(default_factory=list)
 
 
+class PackNavigation(ContractModel):
+    """CaseClientContent.zones[].navigation[] 과 같다."""
+
+    door_object_id: Id
+    target_zone_id: Id
+
+
 class PackZone(ContractModel):
     """CaseClientContent.zones[] 에서 그대로 옮긴다."""
 
@@ -98,6 +108,7 @@ class PackZone(ContractModel):
     zone_name: str = Field(min_length=1)
     zone_type: str = Field(min_length=1)
     description: str
+    navigation: list[PackNavigation] = Field(default_factory=list)
 
 
 class PackObject(ContractModel):
@@ -110,13 +121,17 @@ class PackObject(ContractModel):
     interaction_type: InteractionAction | None = None
     # interaction.target_id. Case Bundle 은 이 값을 FE 에 숨기지만 팩은 서버 쪽 데이터라 둔다.
     puzzle_id: Id | None = None
+    # client.json 의 정적 visible·enabled. 처음에 숨은 물건은 NPC 가 먼저 말하면 안 된다.
+    initially_visible: bool = True
+    initially_enabled: bool = True
 
 
 class PackPuzzle(ContractModel):
     """퍼즐의 '구조'만. 정답과 판정 규칙은 없다."""
 
     puzzle_id: Id
-    title: str = Field(min_length=1)
+    # 원본에 사람이 읽는 제목이 없으면 비워 둔다(지어내지 않는다).
+    title: str | None = Field(default=None, min_length=1)
     puzzle_type: PuzzleType | None = None  # 제안 — backend server.json 에는 아직 없다
     zone_id: Id | None = None
     host_object_ids: list[Id] = Field(default_factory=list)
@@ -124,13 +139,17 @@ class PackPuzzle(ContractModel):
     required_clue_ids: list[Id] = Field(default_factory=list)  # 제안
     # on_correct.grant_clue_ids 와 같다. ID 만이라 정답을 드러내지 않는다.
     grants_clue_ids: list[Id] = Field(default_factory=list)
+    # on_correct.complete_puzzle_ids · set_flags 와 같다. 정답이 아니라 '풀면 무엇이 바뀌나'.
+    completes_puzzle_ids: list[Id] = Field(default_factory=list)
+    sets_flags: dict[str, bool] = Field(default_factory=dict)
     required_discovery_ref: str | None = None  # 제안 — ADM-081 필수 발견
 
 
 class PackClue(ContractModel):
     clue_id: Id
-    title: str = Field(min_length=1)
-    description: str
+    # backend 에 단서 목록(registry)이 없어 ID 만 알 수 있을 때가 있다 — 그땐 비워 둔다.
+    title: str | None = Field(default=None, min_length=1)
+    description: str | None = None
     source_object_id: Id | None = None
 
 
@@ -185,10 +204,12 @@ class ScenarioPack(ContractModel):
     pack_id: Id
     case_id: CaseId
     case_version: str | None = None  # 제안 — ADM-090 case_version
-    locale: str = "ko-KR"
+    # 원본에 언어 표시가 없으면 비워 둔다. case_001 처럼 영어 자리표시 문구도 있다.
+    locale: str | None = None
     source: PackSource
     publication: Publication
-    premise: Premise
+    # 초안(draft)에서는 비울 수 있다. 승인·공개하려면 사람이 써 넣어야 한다.
+    premise: Premise | None = None
     persona: NpcPersona | None = None
     entry_zone_id: Id
     zones: list[PackZone] = Field(min_length=1)
@@ -224,6 +245,19 @@ class ScenarioPack(ContractModel):
                 raise ValueError(f"unknown {label}: {unknown}")
 
         missing([self.entry_zone_id], zones, "entry_zone_id")
+        zone_objects = {
+            z.zone_id: {o.object_id for o in self.objects if o.zone_id == z.zone_id}
+            for z in self.zones
+        }
+        for z in self.zones:
+            for nav in z.navigation:
+                # backend 와 같은 규칙: 문은 그 zone 의 물건이고, 목적지는 이 사건의 zone
+                missing(
+                    [nav.door_object_id],
+                    zone_objects[z.zone_id],
+                    f"door_object_id in zone {z.zone_id}",
+                )
+                missing([nav.target_zone_id], zones, f"target_zone_id in {z.zone_id}")
         for o in self.objects:
             missing([o.zone_id], zones, f"zone_id in object {o.object_id}")
             if o.puzzle_id is not None:
@@ -246,6 +280,11 @@ class ScenarioPack(ContractModel):
                 p.required_clue_ids + p.grants_clue_ids,
                 clues,
                 f"clue ids in puzzle {p.puzzle_id}",
+            )
+            missing(
+                p.completes_puzzle_ids,
+                puzzles,
+                f"completes_puzzle_ids in puzzle {p.puzzle_id}",
             )
         for c in self.clues:
             if c.source_object_id is not None:
@@ -277,6 +316,15 @@ class ScenarioPack(ContractModel):
                     raise ValueError(
                         f"hint chunk {k.chunk_id} spoiler_tier must equal npc_hint_level"
                     )
+        return self
+
+    @model_validator(mode="after")
+    def _approved_pack_has_premise(self) -> "ScenarioPack":
+        if (
+            self.publication.status in ("approved", "published")
+            and self.premise is None
+        ):
+            raise ValueError("approved/published pack requires premise")
         return self
 
     @model_validator(mode="after")

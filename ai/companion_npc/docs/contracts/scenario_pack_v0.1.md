@@ -17,6 +17,13 @@
 
 모든 모델이 `extra="forbid"` 라서 위 필드가 섞여 들어오면 검증에서 거부된다.
 
+## 변경 기록
+
+- **P2-A (2026-10-24)**: 원본에 없는 것을 지어내지 않도록 다음을 바꿨다. 기존 견본은 그대로 통과한다.
+  - 선택으로 바꿈: `premise`(draft 일 때만, approved·published 면 필수), `locale`(기본값 ko-KR 제거), `puzzles[].title`, `clues[].title·description`
+  - 추가 [제안]: `source.producer = "unknown"`, `source.client_content_sha256`, `zones[].navigation[]`, `objects[].initially_visible·initially_enabled`, `puzzles[].completes_puzzle_ids·sets_flags`
+  - 검증 추가: navigation 참조, completes_puzzle_ids 참조, 승인·공개 팩의 premise 필수
+
 ## 3. 필드
 
 | 필드 | 형식 | 출처 · 상태 |
@@ -25,10 +32,10 @@
 | `pack_id` | id | [제안] |
 | `case_id` | `^[A-Za-z0-9_-]+$`, ≤64 | [확정·호환] backend `CASE_ID_PATTERN` |
 | `case_version` | str \| null | [제안] PRD ADM-090 `case_version`. 형식 [미정] |
-| `locale` | 기본 `ko-KR` | [제안] |
+| `locale` | str \| null (기본 null) | [제안] 원본에 표시가 없으면 비움 |
 | `source` | `producer`(human·agent·mixed), `client_content_ref`, `server_runtime_sha256`, `artifact_ids[]` | [제안] artifact_ids 는 파이프라인 §9.2 `artifact_id` |
 | `publication` | `status`(draft·approved·published·withdrawn), `approved_by`, `approved_at` | [제안] approved·published 면 승인자·시각 필수 |
-| `premise` | `title`, `public_synopsis` | [제안] 브리핑 수준까지만 |
+| `premise` | `title`, `public_synopsis` \| null | [제안] 브리핑 수준까지만. draft 에서만 비울 수 있음 |
 | `persona` | `npc_id`, `display_name`, `role`, `speech_style`, `forbidden_topics[]` | [제안] 마스코트·사투리 방향은 PRD USR-108 비고 |
 | `entry_zone_id` | id | [확정·호환] `CaseClientContent.entry_zone_id` |
 | `zones[]` | `zone_id`, `zone_name`, `zone_type`, `description` | [확정·호환] `CaseClientContent.zones[]` |
@@ -61,7 +68,9 @@
 - `kind == "hint"` 조각은 `hint_id` 가 있어야 하고, `spoiler_tier` 가 그 힌트의 `npc_hint_level` 과 같아야 한다. 등급을 낮춰 적어 일찍 꺼내지는 일을 막는다.
 - `published` 팩은 `safety_audit.answer_leak_check == "passed"` 여야 한다.
 
-## 5. 기존 콘텐츠로 만드는 방법 (P2 변환기 기준)
+## 5. 기존 콘텐츠로 만드는 방법
+
+구현과 세부 규칙은 [../02_P2-A_변환기.md](../02_P2-A_변환기.md)에 있다. 아래는 처음 계획이다.
 
 | ScenarioPack | 원천 |
 |---|---|

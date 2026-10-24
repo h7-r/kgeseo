@@ -31,5 +31,27 @@ def find_answer_leaks(texts: dict[str, str], forbidden_terms: list[str]) -> list
 
     terms = [t for t in (normalize(x) for x in forbidden_terms) if t]
     return [
-        key for key, text in texts.items() if any(t in normalize(text) for t in terms)
+        key for key, text in texts.items() if any(_contains(text, t) for t in terms)
     ]
+
+
+# 영문·숫자로만 된 짧은 금지어는 부분 문자열로 찾으면 엉뚱한 곳에 걸린다
+#   (정답 "1" 이 "case_001" 안에서 잡히는 식). 그런 말은 낱말 단위로만 비교한다.
+# 한글은 이 규칙에서 뺀다 — "밸브예요" 처럼 조사가 붙어 낱말로 안 떨어지고,
+#   두 글자 정답이 흔해서 낱말 비교로는 놓친다. 한글은 짧아도 부분 문자열로 찾는다
+#   (오탐이 나더라도 막는 쪽으로).
+SHORT_TERM_LENGTH = 3
+_TOKEN_SPLIT = re.compile(r"[\s\W_]+", re.UNICODE)
+_ASCII_ALNUM = re.compile(r"^[0-9a-z]+$")
+
+
+def is_short_term(term: str) -> bool:
+    """normalize 된 금지어가 낱말 단위 비교 대상인가."""
+
+    return len(term) < SHORT_TERM_LENGTH and _ASCII_ALNUM.fullmatch(term) is not None
+
+
+def _contains(text: str, term: str) -> bool:
+    if not is_short_term(term):
+        return term in normalize(text)
+    return term in {normalize(token) for token in _TOKEN_SPLIT.split(text)}

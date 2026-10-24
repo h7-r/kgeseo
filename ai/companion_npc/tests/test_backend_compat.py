@@ -33,8 +33,91 @@ def backend_schemas():
         sys.path.remove(str(BACKEND_DIR))
 
 
+@pytest.fixture(scope="module")
+def backend_content_schemas():
+    sys.dont_write_bytecode = True
+    sys.path.insert(0, str(BACKEND_DIR))
+    try:
+        from app.schemas import case_content, puzzle_runtime
+
+        yield case_content, puzzle_runtime
+    finally:
+        sys.path.remove(str(BACKEND_DIR))
+
+
 def _values(literal) -> set:
     return set(typing.get_args(literal))
+
+
+# ── P2-A 변환기 입력 모델 (adapters/source_models.py) ─────────────
+MIRRORED = [
+    ("case_content", name)
+    for name in [
+        "ObjectInteractionDefinition",
+        "ObjectDefinition",
+        "NavigationDefinition",
+        "ZoneDefinition",
+        "CaseClientContent",
+    ]
+] + [
+    ("puzzle_runtime", name)
+    for name in [
+        "RuntimeEffect",
+        "PuzzleDefinition",
+        "ClueCombinationDefinition",
+        "PuzzleRuntimeDefinition",
+    ]
+]
+
+
+@pytest.mark.parametrize("module, name", MIRRORED)
+def test_source_models_mirror_backend(backend_content_schemas, module, name):
+    from companion_npc.adapters import source_models
+
+    backend = dict(zip(["case_content", "puzzle_runtime"], backend_content_schemas))
+    ours = getattr(source_models, name).model_fields
+    theirs = getattr(backend[module], name).model_fields
+    assert set(ours) == set(theirs)
+    for field in ours:
+        assert ours[field].is_required() == theirs[field].is_required(), field
+        assert ours[field].metadata == theirs[field].metadata, field
+
+
+def _accepts(model, data) -> bool:
+    try:
+        model.model_validate(data)
+        return True
+    except Exception:
+        return False
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda c, s: None,
+        lambda c, s: c.pop("entry_zone_id"),
+        lambda c, s: c["zones"][0].update(extra="x"),
+        lambda c, s: c["zones"][0]["objects"].append(dict(c["zones"][0]["objects"][0])),
+        lambda c, s: c.update(entry_zone_id="ZONE_NOPE"),
+        lambda c, s: s["puzzles"][0].update(accepted_answers=[]),
+        lambda c, s: s["puzzles"].append(dict(s["puzzles"][0])),
+        lambda c, s: s["puzzles"][0].update(extra="x"),
+        lambda c, s: s["puzzles"][0]["on_correct"].pop("complete_puzzle_ids"),
+    ],
+)
+def test_source_models_accept_what_backend_accepts(backend_content_schemas, mutate):
+    from companion_npc.adapters import source_models
+
+    case_content, puzzle_runtime = backend_content_schemas
+    client = json.loads((CASES / "case_001.client.json").read_text(encoding="utf-8"))
+    server = json.loads((CASES / "case_001.server.json").read_text(encoding="utf-8"))
+    mutate(client, server)
+    assert _accepts(source_models.CaseClientContent, client) == _accepts(
+        case_content.CaseClientContent, client
+    )
+    assert _accepts(source_models.PuzzleRuntimeDefinition, server) == _accepts(
+        puzzle_runtime.PuzzleRuntimeDefinition, server
+    )
 
 
 def test_play_session_state_fields_match(backend_schemas):

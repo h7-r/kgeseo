@@ -21,15 +21,30 @@
 
 팀이 정할 것은 [docs/01_합의_필요_사항.md](docs/01_합의_필요_사항.md)에 모았다.
 
+## P2-A — 기존 Case 파일 변환기
+
+backend 의 `<case_id>.client.json` · `.server.json` 을 읽어 **draft** ScenarioPack 과 변환 보고서를 만든다.
+정답과 조합 짝은 옮기지 않는다. 원본에 없는 힌트·설정·설화는 만들지 않는다.
+규칙은 [docs/02_P2-A_변환기.md](docs/02_P2-A_변환기.md)에 있다.
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m companion_npc.adapters case_001
+```
+
+`--out-dir` 로 파일을 쓸 때는 `runs/` 처럼 깃에서 빠지는 폴더를 쓴다.
+
 ## 폴더
 
 ```
 ai/companion_npc/
 ├─ docs/                     범위·원칙, 계약 문서, 합의 사항
 ├─ src/companion_npc/
-│  └─ contracts/             Pydantic 계약 · RAG 차단(visibility) · 누설 검사(spoiler)
-├─ tests/                    계약 · 차단 · 누설 · backend 호환 테스트
+│  ├─ contracts/             Pydantic 계약 · RAG 차단(visibility) · 누설 검사(spoiler)
+│  └─ adapters/              P2-A Case 파일 → ScenarioPack 변환기 · CLI
+├─ tests/                    계약 · 차단 · 누설 · 변환기 · backend 호환 테스트
 │  └─ fixtures/              case_001 팩 · 가상 사건 팩 · Context · Utterance 견본
+│     └─ cases/              backend 형식의 가상 사건 한 쌍 (변환기 입력)
 ├─ pyproject.toml            pytest · ruff 설정 (이 폴더 전용)
 ├─ requirements*.txt
 └─ .env.예시                 키 이름만. 실제 값은 .env (깃 제외)
@@ -69,7 +84,7 @@ backend 계약이 바뀌면 이 테스트가 먼저 깨진다. backend 가 없�
 `tests/fixtures/` 의 팩에 든 힌트·지식 문구는 **계약 검증용 견본**이다. 실제로 승인된 힌트가 아니다.
 
 - `approved_by: "test-fixture"`, `provenance.rationale: "테스트 견본 — 실제 승인 힌트 아님"` 으로 표시해 두었다.
-- `scenario_pack_fictional.json`(꺼진 등대)은 가상 사건이다. 실제 설화·지역과 관계없다.
+- `scenario_pack_fictional.json` 과 `cases/case_fixture_lighthouse.*.json`(꺼진 등대)은 가상 사건이다. 실제 설화·지역과 관계없다. 그 안의 정답(`0412` 등)도 테스트용이다.
 - 이 문구를 게임·정적 힌트(USR-108)·학습 정답지로 옮겨 쓰지 않는다. 운영 힌트는 사람이 따로 작성·승인한다.
 
 ## 깃에 올리지 않는 것
