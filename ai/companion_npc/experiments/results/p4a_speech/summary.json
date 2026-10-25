@@ -1,0 +1,57 @@
+{
+  "addition_attacks": {
+    "blocked": 8,
+    "not_blocked": [],
+    "total": 8
+  },
+  "cases": {
+    "case_001": 38,
+    "case_fixture_archive": 42
+  },
+  "categories": {
+    "addition_attack": 8,
+    "generator_attack": 25,
+    "legit_paraphrase": 10,
+    "normal": 14,
+    "player_attack": 10,
+    "precondition": 11,
+    "semantic_limit": 2
+  },
+  "failure_counts": {
+    "answer_leak": 9,
+    "internal_id": 4,
+    "kind:check_in_mentions_case_content": 2,
+    "too_long": 2,
+    "undisclosed_content": 10,
+    "ungrounded": 25,
+    "unsupported_sentence": 33
+  },
+  "fallback_count": 38,
+  "final_leaks": 0,
+  "held_count": 5,
+  "legit_paraphrases": {
+    "allowed": 3,
+    "false_positive_blocked": [
+      "case_001/legit_H_FIRE_1_1:unsupported_sentence",
+      "case_001/legit_H_FIRE_1_2:ungrounded,unsupported_sentence",
+      "case_001/legit_H_FIRE_2_1:unsupported_sentence",
+      "case_001/legit_H_FIRE_2_2:ungrounded,unsupported_sentence",
+      "case_fixture_archive/legit_H_CAB_1_2:ungrounded,unsupported_sentence",
+      "case_fixture_archive/legit_H_CAB_2_2:ungrounded,unsupported_sentence",
+      "case_fixture_archive/legit_H_KEY_1_2:ungrounded,unsupported_sentence"
+    ],
+    "total": 10
+  },
+  "note": "구조 지표다. 발화 품질(말투 · 도움 정도) 평가가 아니다. 네트워크·LLM 을 쓰지 않았다.",
+  "semantic_undetected": [
+    "case_001/gen_inline_insertion",
+    "case_fixture_archive/gen_inline_insertion"
+  ],
+  "status_counts": {
+    "fallback": 38,
+    "held": 5,
+    "spoke": 37
+  },
+  "total": 80,
+  "unexpected": []
+}

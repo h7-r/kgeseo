@@ -108,6 +108,24 @@ $env:PYTHONPATH = "src"
 - 자동 개입은 두 가지다. 대상이 불명확하면 `check_in`(도움 필요 여부만 묻기), 확인된 포커스와 승인 콘텐츠가 있으면 퍼즐 힌트다. 합성 평가에서는 모든 개입이 `check_in` 이었다.
 - 탐색 중 오개입 · 종료 후 개입률 같은 진단 지표는 시뮬레이터 정답으로 계산한 사후 진단이다. 온라인 정책 조건이 아니다.
 
+## P4-A — NPC 발화층 (안전한 발화 기반)
+
+승인된 NPC 콘텐츠(`.npc.json` v0.1 초안)를 사건 팩과 합친다. 그다음 거른 지식만 근거로 `check_in` · `clarify` · `nudge` · `hint` 발화를 만들고, 공통 안전 검증을 거친다. 실패하면 승인 템플릿으로 대체하고, 그것도 실패하면 보류한다.
+설계와 결과는 [docs/07_P4-A_발화층_설계.md](docs/07_P4-A_발화층_설계.md)에 있다.
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m companion_npc.speech --config experiments\p4\p4a_speech.json --publish
+.\.venv\Scripts\python.exe -m pytest tests\test_speech.py
+```
+
+- 네트워크와 LLM 을 쓰지 않는다. GPT · Qwen 은 P4-B 다.
+- `.npc.json` 은 테스트 fixture 기준의 초안이다. backend 공식 게시 계약이 아니다.
+- 정답 별칭은 서버 비공개 정보다. 테스트에서는 `tests/fixtures/private/` 이 그 자리를 대신한다.
+- 평가는 구조 지표(누설 · 차단 · 대체)다. 발화 품질 평가가 아니다.
+- 근거 검사는 문장·절 단위다. 승인 힌트 뒤에 덧붙인 문장은 막지만(8/8), 정당한 바꿔 말하기도 많이 막고(오탐 7/10), 문장 안에 끼워 넣은 짧은 표현은 못 막는다. 의미 수준 누설을 완전히 막는다고 주장하지 않는다.
+- `.npc.json` 견본의 approved · published 는 테스트용 상태다. 실제 팀 승인이 아니다.
+
 ## 폴더
 
 ```
@@ -118,7 +136,8 @@ ai/companion_npc/
 │  ├─ adapters/              P2-A Case 파일 → ScenarioPack 변환기 · CLI
 │  ├─ features/              P2-B 특성 추출 · 오프라인 재생 · 대리 라벨
 │  ├─ simulation/            P2-C 합성 플레이어 시뮬레이터 · 분석
-│  └─ training/              P3 학습·평가 (데이터 · 분할 · 기준선 · 모델 · ActivityGate · 정책 · 부트스트랩 · 재현 정보)
+│  ├─ training/              P3 학습·평가 (데이터 · 분할 · 기준선 · 모델 · ActivityGate · 정책 · 부트스트랩 · 재현 정보)
+│  └─ speech/                P4 발화층 (검색 · 생성기 · 안전 검증 · 파이프라인 · 평가)
 ├─ experiments/              실험 설정(p2c_default.json) · 결과 요약(results/)
 ├─ tests/                    계약 · 차단 · 누설 · 변환기 · backend 호환 테스트
 │  └─ fixtures/              case_001 팩 · 가상 사건 팩 · Context · Utterance 견본

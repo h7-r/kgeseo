@@ -39,8 +39,14 @@ ReasonCode = Literal[
     "level_cap_reached",
     "policy_blocked",  # 안전 검사 실패 등으로 막힘
 ]
-DecisionMethod = Literal["rule", "logreg", "lightgbm"]
-GenerationMethod = Literal["template", "gpt_rag", "qwen_local"]
+# external — 판단 모델이 아니라 바깥(플레이어 요청 · 테스트)이 정한 결정 (P4-A 추가)
+DecisionMethod = Literal["rule", "logreg", "lightgbm", "external"]
+# fake — 테스트 전용 가짜 생성기 (P4-A 추가)
+GenerationMethod = Literal["template", "gpt_rag", "qwen_local", "fake"]
+# 발화 유형 · 시작 주체 (P4-A 추가). NPC 힌트 단계는 Hint API 의 hint_levels 와 별개다.
+UtteranceKind = Literal["check_in", "clarify", "nudge", "hint"]
+Initiator = Literal["auto", "player"]
+KIND_LEVEL = {"check_in": 0, "clarify": 0, "nudge": 1, "hint": 2}
 LeakCheck = Literal["passed", "failed", "not_run"]
 
 
@@ -93,11 +99,16 @@ class NpcUtterance(ContractModel):
     grounding: Grounding
     generation: Generation | None = None
     safety: Safety
+    # P4-A 추가 — 이전 데이터(없음)와 호환되도록 선택 항목
+    kind: UtteranceKind | None = None
+    initiator: Initiator | None = None
 
     @model_validator(mode="after")
     def _rules(self) -> "NpcUtterance":
         d = self.decision
         if not d.intervene:
+            if self.kind is not None:
+                raise ValueError("kind only when the NPC speaks")
             if self.speech is not None or self.generation is not None:
                 raise ValueError("no speech/generation when intervene is false")
             if d.npc_hint_level != 0:
@@ -114,6 +125,18 @@ class NpcUtterance(ContractModel):
                 raise ValueError(
                     "hint utterance requires at least one approved hint_id"
                 )
+        if self.kind is not None:
+            # 유형마다 NPC 힌트 단계가 정해져 있다. check_in 은 검색을 하지 않는다.
+            if d.npc_hint_level != KIND_LEVEL[self.kind]:
+                raise ValueError(
+                    f"{self.kind} requires npc_hint_level {KIND_LEVEL[self.kind]}"
+                )
+            if self.kind == "check_in" and (
+                self.grounding.chunk_ids or self.grounding.hint_ids
+            ):
+                raise ValueError("check_in must not use retrieved knowledge or hints")
+            if self.kind == "clarify" and self.grounding.hint_ids:
+                raise ValueError("clarify must not use hints")
         if self.grounding.max_spoiler_tier_used > d.npc_hint_level:
             raise ValueError("used knowledge above the decided npc_hint_level")
         # 말을 내보내려면 누설 검사를 통과해야 한다.

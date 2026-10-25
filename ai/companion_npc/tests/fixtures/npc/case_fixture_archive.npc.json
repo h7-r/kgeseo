@@ -1,0 +1,232 @@
+{
+  "contract": "npc_content",
+  "contract_version": "0.1",
+  "content_id": "npc_archive_fixture",
+  "content_version": "0.1.0",
+  "case_id": "case_fixture_archive",
+  "case_content": {
+    "client_content_sha256": "8c767b3fcbc8f1d4f6f3a818744f3d162a1df8f722874a93fc63fab7c605777c",
+    "server_runtime_sha256": "f9da10aaf450c8920807a1ffbfc4a83e1e39e55ba1eacc7eda9d15f076358ce4"
+  },
+  "publication": {
+    "status": "published",
+    "approved_by": "test-fixture",
+    "approved_at": "2026-10-26T10:00:00+09:00",
+    "history": [
+      {
+        "status": "draft",
+        "by": "test-fixture",
+        "at": "2026-10-26T09:00:00+09:00"
+      },
+      {
+        "status": "approved",
+        "by": "test-fixture",
+        "at": "2026-10-26T10:00:00+09:00",
+        "note": "테스트 견본 승인 — 실제 승인 아님"
+      },
+      {
+        "status": "published",
+        "by": "test-fixture",
+        "at": "2026-10-26T11:00:00+09:00"
+      }
+    ]
+  },
+  "premise": {
+    "title": "지워진 이름의 기록 보관소",
+    "public_synopsis": "오래된 기록 보관소. 누군가의 기록만 군데군데 비어 있다."
+  },
+  "persona": {
+    "npc_id": "npc_partner",
+    "display_name": "기록 담당 조사관",
+    "role": "현장에 함께 들어온 동료. 답을 알려 주지 않고 같이 생각한다.",
+    "speech_style": "짧고 차분한 존댓말",
+    "forbidden_topics": [
+      "정답",
+      "내부 ID"
+    ]
+  },
+  "hints": [
+    {
+      "hint_id": "H_CAB_1",
+      "puzzle_id": "PUZZLE_CABINET",
+      "npc_hint_level": 1,
+      "text": "게시판에 붙은 공지문의 날짜들을 다시 한번 살펴볼까요?",
+      "approved_by": "test-fixture",
+      "approved_at": "2026-10-26T10:00:00+09:00",
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    },
+    {
+      "hint_id": "H_CAB_2",
+      "puzzle_id": "PUZZLE_CABINET",
+      "npc_hint_level": 2,
+      "text": "공지문 날짜 가운데 붉게 표시된 것만 순서대로 모아 보세요.",
+      "approved_by": "test-fixture",
+      "approved_at": "2026-10-26T10:00:00+09:00",
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    },
+    {
+      "hint_id": "H_KEY_1",
+      "puzzle_id": "PUZZLE_KEYPAD",
+      "npc_hint_level": 1,
+      "text": "금고 앞 키패드에서 닳은 버튼이 어느 것인지 보세요.",
+      "approved_by": "test-fixture",
+      "approved_at": "2026-10-26T10:00:00+09:00",
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    }
+  ],
+  "knowledge": [
+    {
+      "chunk_id": "K_PREMISE",
+      "kind": "premise",
+      "text": "오래된 기록 보관소. 누군가의 기록만 군데군데 비어 있다.",
+      "spoiler_tier": 0,
+      "gate": {},
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    },
+    {
+      "chunk_id": "K_CAB_H1",
+      "kind": "hint",
+      "text": "게시판에 붙은 공지문의 날짜들을 다시 한번 살펴볼까요?",
+      "spoiler_tier": 1,
+      "gate": {
+        "requires_zone_ids": [
+          "ZONE_ARCHIVE_HALL"
+        ]
+      },
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      },
+      "puzzle_id": "PUZZLE_CABINET",
+      "hint_id": "H_CAB_1"
+    },
+    {
+      "chunk_id": "K_CAB_H2",
+      "kind": "hint",
+      "text": "공지문 날짜 가운데 붉게 표시된 것만 순서대로 모아 보세요.",
+      "spoiler_tier": 2,
+      "gate": {
+        "requires_zone_ids": [
+          "ZONE_ARCHIVE_HALL"
+        ]
+      },
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      },
+      "puzzle_id": "PUZZLE_CABINET",
+      "hint_id": "H_CAB_2"
+    },
+    {
+      "chunk_id": "K_KEY_H1",
+      "kind": "hint",
+      "text": "금고 앞 키패드에서 닳은 버튼이 어느 것인지 보세요.",
+      "spoiler_tier": 1,
+      "gate": {
+        "requires_zone_ids": [
+          "ZONE_VAULT"
+        ]
+      },
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      },
+      "puzzle_id": "PUZZLE_KEYPAD",
+      "hint_id": "H_KEY_1"
+    },
+    {
+      "chunk_id": "K_LEDGER_NOTE",
+      "kind": "clue",
+      "text": "장부 색인 카드에는 새를 그린 작은 도장이 찍혀 있다.",
+      "spoiler_tier": 1,
+      "gate": {
+        "requires_clue_ids": [
+          "CLUE_INDEX_CARD"
+        ]
+      },
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      },
+      "puzzle_id": "PUZZLE_LEDGER"
+    },
+    {
+      "chunk_id": "K_TWIST",
+      "kind": "lore",
+      "text": "금고 속 명단에서 보관소 설립자의 딸 이름만 칼로 도려내져 있었다.",
+      "spoiler_tier": 2,
+      "gate": {
+        "requires_completed_puzzle_ids": [
+          "PUZZLE_KEYPAD"
+        ]
+      },
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    }
+  ],
+  "templates": {
+    "check_in": [
+      {
+        "template_id": "T_CHECK_1",
+        "text": "혹시 막힌 곳이 있으면 언제든 말해 주세요."
+      },
+      {
+        "template_id": "T_CHECK_2",
+        "text": "천천히 둘러봐도 괜찮아요. 도움이 필요하면 불러 주세요."
+      }
+    ],
+    "clarify_general": [
+      {
+        "template_id": "T_CLARIFY_1",
+        "text": "어느 쪽이 궁금한지 조금만 더 알려 줄래요?"
+      }
+    ],
+    "clarify_with_object": [
+      {
+        "template_id": "T_CLARIFY_OBJ_1",
+        "text": "{object} 이야기인가요? 맞으면 같이 살펴봐요."
+      }
+    ]
+  }
+}
