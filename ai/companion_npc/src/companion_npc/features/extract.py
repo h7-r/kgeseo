@@ -18,6 +18,7 @@ from companion_npc.contracts.scenario_pack import ScenarioPack
 from companion_npc.features.config import FeatureConfig
 from companion_npc.features.schema import (
     FEATURE_NAMES,
+    TARGET_OBSERVATION,
     DecisionPhase,
     FeatureMeta,
     FeatureStatus,
@@ -237,6 +238,8 @@ def extract_features(
             decision_at=t,
             phase=phase,
             target_source=target_source,
+            target_puzzle_id=target,
+            target_observation=TARGET_OBSERVATION[target_source],
         ),
         values={name: values[name] for name in FEATURE_NAMES},
         status={name: status[name] for name in FEATURE_NAMES},

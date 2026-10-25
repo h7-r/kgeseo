@@ -21,6 +21,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from companion_npc.training.activity import gate_active
 from companion_npc.training.dataset import ExampleSet
 
 PRODUCTIVE = ("working", "exploring")
@@ -31,16 +32,45 @@ class PolicyConfig:
     threshold: float = 0.5
     cooldown_sec: float = 60.0
     max_per_session: int | None = None
+    # 퍼즐별 자동 힌트 상한 — 대상이 observed_focus 일 때만 쓰인다
+    max_per_puzzle: int | None = None
+    # ActivityGate: 마지막 이벤트 뒤 이 초를 넘으면 개입하지 않는다 (None = 차단 없음)
+    gate_cutoff_sec: float | None = None
 
 
-def run_policy(
+@dataclass(frozen=True)
+class PolicyResult:
+    alerts: np.ndarray  # bool, rows 와 같은 순서
+    kinds: np.ndarray  # "" · "puzzle_hint" · "check_in"
+    held: dict[str, int]  # 점수는 넘었지만 보류한 이유별 수
+
+
+def run_policy_detailed(
     examples: ExampleSet, rows: np.ndarray, scores: np.ndarray, config: PolicyConfig
-) -> np.ndarray:
-    """rows 와 같은 순서의 개입 여부(bool). 세션마다 시간 순서로 판단한다."""
+) -> PolicyResult:
+    """세션마다 시간 순서로 판단한다. 관측 가능한 값(점수 · 시각 · 대상 meta · target_solved)만 쓴다.
+
+    [개입 종류]
+      puzzle_hint  대상이 observed_focus 이고, 그 퍼즐을 아직 안 풀었고, 퍼즐 상한 안일 때
+      check_in     대상이 last_attempt · none 일 때 — 퍼즐을 짚지 않는 일반 확인 발화
+                   (마지막 채점 퍼즐은 그 이벤트의 ID 일 뿐, 지금 보고 있는 퍼즐이라는 뜻이 아니다)
+    [보류]
+      observed_focus 인데 이미 푼 퍼즐 → completed_target · 퍼즐 상한 도달 → puzzle_cap
+    """
 
     alerts = np.zeros(len(rows), dtype=bool)
-    # 임계값을 넘는 후보만 시간 순서로 본다 (나머지는 개입할 수 없다)
-    candidates = np.flatnonzero(scores >= config.threshold)
+    kinds = np.full(len(rows), "", dtype=object)
+    held = {
+        "activity_gate": 0,
+        "cooldown": 0,
+        "session_cap": 0,
+        "completed_target": 0,
+        "puzzle_cap": 0,
+    }
+    over = scores >= config.threshold
+    active = gate_active(examples.X[rows], examples.columns, config.gate_cutoff_sec)
+    held["activity_gate"] = int((over & ~active).sum())
+    candidates = np.flatnonzero(over & active)
     order = candidates[
         np.lexsort(
             (
@@ -49,19 +79,46 @@ def run_policy(
             )
         )
     ]
+    solved_col = examples.columns.index("target_solved")
     last_session, last_alert, count = None, -np.inf, 0
+    per_puzzle: dict[str, int] = {}
     for position in order:
         row = rows[position]
         session = examples.session[row]
         if session != last_session:
-            last_session, last_alert, count = session, -np.inf, 0
+            last_session, last_alert, count, per_puzzle = session, -np.inf, 0, {}
         if examples.t[row] - last_alert < config.cooldown_sec:
+            held["cooldown"] += 1
             continue
         if config.max_per_session is not None and count >= config.max_per_session:
+            held["session_cap"] += 1
             continue
+        if examples.target_observation[row] == "observed_focus":
+            puzzle = examples.target_puzzle[row]
+            if examples.X[row, solved_col] == 1:
+                held["completed_target"] += 1
+                continue
+            if (
+                config.max_per_puzzle is not None
+                and per_puzzle.get(puzzle, 0) >= config.max_per_puzzle
+            ):
+                held["puzzle_cap"] += 1
+                continue
+            per_puzzle[puzzle] = per_puzzle.get(puzzle, 0) + 1
+            kinds[position] = "puzzle_hint"
+        else:
+            kinds[position] = "check_in"
         alerts[position] = True
         last_alert, count = examples.t[row], count + 1
-    return alerts
+    return PolicyResult(alerts=alerts, kinds=kinds, held=held)
+
+
+def run_policy(
+    examples: ExampleSet, rows: np.ndarray, scores: np.ndarray, config: PolicyConfig
+) -> np.ndarray:
+    """rows 와 같은 순서의 개입 여부(bool)."""
+
+    return run_policy_detailed(examples, rows, scores, config).alerts
 
 
 def _minutes(examples: ExampleSet, sessions: set[str], modes: tuple[str, ...]) -> float:
@@ -75,7 +132,12 @@ def _minutes(examples: ExampleSet, sessions: set[str], modes: tuple[str, ...]) -
     return total / 60
 
 
-def policy_report(examples: ExampleSet, rows: np.ndarray, alerts: np.ndarray) -> dict:
+def policy_report(
+    examples: ExampleSet,
+    rows: np.ndarray,
+    alerts: np.ndarray,
+    kinds: np.ndarray | None = None,
+) -> dict:
     modes = examples.oracle.latent_mode[rows]
     sessions = set(examples.session[rows].tolist())
     alert_rows = rows[alerts]
@@ -126,6 +188,14 @@ def policy_report(examples: ExampleSet, rows: np.ndarray, alerts: np.ndarray) ->
         ),
         "away_alerts": by_mode["away"],
         "post_termination_alerts": by_mode["post_end"],
+        "post_termination_alert_share": (
+            round(by_mode["post_end"] / int(alerts.sum()), 4) if alerts.sum() else None
+        ),
+        "alerts_by_kind": (
+            {k: int(np.sum(kinds == k)) for k in ("puzzle_hint", "check_in")}
+            if kinds is not None
+            else None
+        ),
         "stuck_episodes": episodes,
         "stuck_episodes_with_decision_point": detectable,
         "stuck_episode_detection_rate": round(detected / episodes, 4)

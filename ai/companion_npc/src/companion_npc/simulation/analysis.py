@@ -62,6 +62,9 @@ class DecisionRecord:
     synthetic_needs_help: int | None
     proxy: ProxyLabel
     features: dict[str, float | int | None]  # FeatureVector.model_row()
+    # 정책 메타데이터 (FeatureMeta) — 학습 행에는 넣지 않는다
+    target_puzzle_id: str | None = None
+    target_observation: str = "none"
 
     @property
     def final_status(self) -> "FinalStatus":
@@ -140,6 +143,8 @@ def analyze_session(
                 synthetic_needs_help=needs_help_of(mode),
                 proxy=label,
                 features=vector.model_row(),
+                target_puzzle_id=vector.meta.target_puzzle_id,
+                target_observation=vector.meta.target_observation,
             )
         )
     return records

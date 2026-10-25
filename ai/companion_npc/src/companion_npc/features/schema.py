@@ -193,6 +193,12 @@ FEATURE_NAMES: tuple[str, ...] = tuple(spec.name for spec in FEATURE_SPECS)
 
 DecisionPhase = Literal["live", "post_event", "tick"]
 TargetSource = Literal["focus", "last_attempt", "none"]
+TargetObservation = Literal["observed_focus", "last_attempt", "none"]
+TARGET_OBSERVATION: dict[str, str] = {
+    "focus": "observed_focus",
+    "last_attempt": "last_attempt",
+    "none": "none",
+}
 
 
 class FeatureMeta(ContractModel):
@@ -205,6 +211,26 @@ class FeatureMeta(ContractModel):
     decision_at: AwareDatetime
     phase: DecisionPhase
     target_source: TargetSource
+    # ── 정책 메타데이터 (P3-B 추가) — 학습 열(model_row)에는 나가지 않는다 ──
+    # 정책이 퍼즐별 상한·완료 퍼즐 금지를 적용할 때만 읽는다.
+    target_puzzle_id: str | None = None
+    # observed_focus  FE 가 지금 그 퍼즐을 보고 있다고 알려 왔다 (온라인에서만)
+    # last_attempt    마지막으로 채점한 퍼즐일 뿐이다 — 지금 그 퍼즐을 보고 있다는 뜻이 아니다
+    # none            대상을 정할 수 없다
+    target_observation: TargetObservation = "none"
+
+    @model_validator(mode="after")
+    def _target_consistent(self) -> "FeatureMeta":
+        expected = {
+            "focus": "observed_focus",
+            "last_attempt": "last_attempt",
+            "none": "none",
+        }
+        if self.target_observation != expected[self.target_source]:
+            raise ValueError("target_observation must follow target_source")
+        if (self.target_puzzle_id is None) != (self.target_observation == "none"):
+            raise ValueError("target_puzzle_id is required iff a target was observed")
+        return self
 
 
 class FeatureVector(ContractModel):

@@ -71,6 +71,11 @@ class ExampleSet:
     t: np.ndarray  # float64, UTC epoch 초
     oracle: OracleColumns
     sessions: dict[str, SessionOutput] = field(repr=False)  # 정책 평가(Oracle 진단)용
+    # 정책 메타데이터 — 관측 가능하지만 모델 입력(X)이 아니다. 정책만 읽는다
+    target_puzzle: np.ndarray = field(default=None, repr=False)  # str | None
+    target_observation: np.ndarray = field(
+        default=None, repr=False
+    )  # observed_focus · last_attempt · none
 
     def __len__(self) -> int:
         return len(self.y)
@@ -118,6 +123,10 @@ def examples_from_records(
             final_status=np.array([r.final_status for r in records], dtype=object),
         ),
         sessions={o.truth.play_session_id: o for o in outputs},
+        target_puzzle=np.array([r.target_puzzle_id for r in records], dtype=object),
+        target_observation=np.array(
+            [r.target_observation for r in records], dtype=object
+        ),
     )
 
 

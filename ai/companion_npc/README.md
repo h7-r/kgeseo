@@ -93,6 +93,21 @@ $env:PYTHONPATH = "src"
 - 커밋하는 결과는 `experiments/results/<exp_id>/` 의 `report.md` · `metrics.json`(핵심 지표 + 재현 정보)뿐이다. 원본 `results.json` 은 `runs/`(깃 제외)에 둔다.
 - 로지스틱 회귀 · LightGBM 학습은 P3-B 에서 한다.
 
+## P3-B — 판단 모델 비교와 개입 정책 평가
+
+로지스틱 회귀 · LightGBM · 규칙 기준선을 같은 조건(사건 단위 바깥 분할 · 세션 단위 안쪽 선택 · 세션 부트스트랩)으로 비교했다. 정책 쪽은 ActivityGate(마지막 이벤트 뒤 2·5·10분 차단) · 세션당 3회 · 퍼즐당 2회 · cooldown 60초를 평가했다.
+결과와 확정된 개입 정책은 [docs/06_P3-B_모델비교.md](docs/06_P3-B_모델비교.md)에 있다.
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m companion_npc.training.p3b_cli --config experiments\p3\p3b_models.json --publish   # 약 16분
+.\.venv\Scripts\python.exe -m pytest tests\test_p3b.py
+```
+
+- **합성 데이터 평가값이다.** 실제 플레이어 성능이 아니고, 운영 모델은 정하지 않았다.
+- 자동 개입은 두 가지다. 대상이 불명확하면 `check_in`(도움 필요 여부만 묻기), 확인된 포커스와 승인 콘텐츠가 있으면 퍼즐 힌트다. 합성 평가에서는 모든 개입이 `check_in` 이었다.
+- 탐색 중 오개입 · 종료 후 개입률 같은 진단 지표는 시뮬레이터 정답으로 계산한 사후 진단이다. 온라인 정책 조건이 아니다.
+
 ## 폴더
 
 ```
@@ -103,7 +118,7 @@ ai/companion_npc/
 │  ├─ adapters/              P2-A Case 파일 → ScenarioPack 변환기 · CLI
 │  ├─ features/              P2-B 특성 추출 · 오프라인 재생 · 대리 라벨
 │  ├─ simulation/            P2-C 합성 플레이어 시뮬레이터 · 분석
-│  └─ training/              P3 학습·평가 (데이터 · 분할 · 기준선 · 지표 · 정책 · 재현 정보)
+│  └─ training/              P3 학습·평가 (데이터 · 분할 · 기준선 · 모델 · ActivityGate · 정책 · 부트스트랩 · 재현 정보)
 ├─ experiments/              실험 설정(p2c_default.json) · 결과 요약(results/)
 ├─ tests/                    계약 · 차단 · 누설 · 변환기 · backend 호환 테스트
 │  └─ fixtures/              case_001 팩 · 가상 사건 팩 · Context · Utterance 견본
