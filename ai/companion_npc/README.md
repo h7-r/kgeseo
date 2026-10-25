@@ -70,6 +70,29 @@ $env:PYTHONPATH = "src"
 - 잠재 상태·유형 같은 시뮬레이터 정답(`session_truth`, `latent_segments`)은 라벨·평가에만 쓴다. 모델 입력에는 넣지 않는다.
 - 대량 출력은 `data/synthetic/`(깃 제외)에 쓴다. 깃에는 15세션 견본(`tests/fixtures/synthetic/`)과 요약(`experiments/results/`)만 둔다.
 
+## P3-A — 학습·평가 기반과 규칙 기준선
+
+`synthetic_needs_help` 를 목표로 하는 판단층의 학습·평가 골격이다. 구성은 다음과 같다.
+- 데이터셋 로더 · 라벨 결합 검사 · 모델 입력과 Oracle 정보 분리
+- 사건 단위 leave-one-case-out + 세션 단위 GroupKFold · 누수 검사
+- 항상 개입 / 개입 안 함 / 규칙 기준선
+- 분류 지표와 개입 정책 지표 (관측 가능 · Oracle 필터)
+
+설계와 결과는 [docs/05_P3_학습평가_설계.md](docs/05_P3_학습평가_설계.md)에 있다.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-ml.txt    # scikit-learn · LightGBM
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m companion_npc.training --config experiments\p3\p3a_baselines.json --publish
+.\.venv\Scripts\python.exe -m pytest tests\test_training.py
+```
+
+- **결과는 모두 합성 데이터 평가값이다.** 실제 플레이어 성능이 아니다. 테스트 통과는 기능 검증이다.
+- 관측 가능 평가에서 규칙 기준선 개입의 74~95% 가 세션 종료 후였다. 규칙 기준선은 오개입 예산을 충족하지 못했다.
+- `generator_reference` 는 Oracle(플레이어 유형)을 쓰는 참고 기준선이다. 운영에 쓸 수 없다.
+- 커밋하는 결과는 `experiments/results/<exp_id>/` 의 `report.md` · `metrics.json`(핵심 지표 + 재현 정보)뿐이다. 원본 `results.json` 은 `runs/`(깃 제외)에 둔다.
+- 로지스틱 회귀 · LightGBM 학습은 P3-B 에서 한다.
+
 ## 폴더
 
 ```
@@ -79,7 +102,8 @@ ai/companion_npc/
 │  ├─ contracts/             Pydantic 계약 · RAG 차단(visibility) · 누설 검사(spoiler)
 │  ├─ adapters/              P2-A Case 파일 → ScenarioPack 변환기 · CLI
 │  ├─ features/              P2-B 특성 추출 · 오프라인 재생 · 대리 라벨
-│  └─ simulation/            P2-C 합성 플레이어 시뮬레이터 · 분석
+│  ├─ simulation/            P2-C 합성 플레이어 시뮬레이터 · 분석
+│  └─ training/              P3 학습·평가 (데이터 · 분할 · 기준선 · 지표 · 정책 · 재현 정보)
 ├─ experiments/              실험 설정(p2c_default.json) · 결과 요약(results/)
 ├─ tests/                    계약 · 차단 · 누설 · 변환기 · backend 호환 테스트
 │  └─ fixtures/              case_001 팩 · 가상 사건 팩 · Context · Utterance 견본
