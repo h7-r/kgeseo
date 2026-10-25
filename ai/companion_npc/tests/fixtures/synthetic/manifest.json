@@ -1,0 +1,94 @@
+{
+  "cases": [
+    {
+      "answerable_puzzle_ids": [
+        "PUZZLE_FIRE_CABINET_LOCK"
+      ],
+      "case_id": "case_001",
+      "client_content_sha256": "ecc52dfd05f288816944893c341fb3344099385d66b320c73f9868e107a29d5c",
+      "pack_id": "pack_case_001",
+      "reachable_puzzle_ids": [
+        "PUZZLE_FIRE_CABINET_LOCK"
+      ],
+      "server_runtime_sha256": "b2ff93a7bf246ce7ce867f2ded29a94d378366a2f513fd066eecc80251e5c1ca",
+      "unreachable_puzzle_ids": []
+    },
+    {
+      "answerable_puzzle_ids": [
+        "PUZZLE_DRAWER",
+        "PUZZLE_LENS"
+      ],
+      "case_id": "case_fixture_lighthouse",
+      "client_content_sha256": "ed288481c67bde63da0f946e40dafdd2bc11ad8e79eeae245e0e4e4983de5bc8",
+      "pack_id": "pack_case_fixture_lighthouse",
+      "reachable_puzzle_ids": [
+        "PUZZLE_DRAWER",
+        "PUZZLE_FINALE",
+        "PUZZLE_LENS"
+      ],
+      "server_runtime_sha256": "046f2a930e1c2192e3ad46d767d38dbf2dd3dd7dcaf47b17428618bf88aca7d3",
+      "unreachable_puzzle_ids": [
+        "PUZZLE_RECONSTRUCT"
+      ]
+    },
+    {
+      "answerable_puzzle_ids": [
+        "PUZZLE_CABINET",
+        "PUZZLE_LEDGER",
+        "PUZZLE_MAP",
+        "PUZZLE_KEYPAD",
+        "PUZZLE_SEAL"
+      ],
+      "case_id": "case_fixture_archive",
+      "client_content_sha256": "8c767b3fcbc8f1d4f6f3a818744f3d162a1df8f722874a93fc63fab7c605777c",
+      "pack_id": "pack_case_fixture_archive",
+      "reachable_puzzle_ids": [
+        "PUZZLE_CABINET",
+        "PUZZLE_KEYPAD",
+        "PUZZLE_LEDGER",
+        "PUZZLE_MAP",
+        "PUZZLE_SEAL",
+        "PUZZLE_VAULT_ENTRY"
+      ],
+      "server_runtime_sha256": "f9da10aaf450c8920807a1ffbfc4a83e1e39e55ba1eacc7eda9d15f076358ce4",
+      "unreachable_puzzle_ids": [
+        "PUZZLE_RECONCILE"
+      ]
+    }
+  ],
+  "config_sha256": "be68daf4764ed4c2dff7355cac116e16f8b1e8581a65484d5ca6a1c68b81af1c",
+  "files": {
+    "interaction_events.jsonl": {
+      "lines": 83,
+      "sha256": "0f02839cfa74000273709e41d14e4e899ac2dbd6eff7984ac9966af6c0330d30"
+    },
+    "latent_segments.jsonl": {
+      "lines": 130,
+      "sha256": "6820b3f05f376b97dc028cccee5cf0f6077b4f147cf72c524c93f593c5b7c45c"
+    },
+    "session_truth.jsonl": {
+      "lines": 15,
+      "sha256": "8b8b7d741ecc0a9361c0a195e4d83939cd349f58aac279a95fcc8d571d39a940"
+    },
+    "synthetic_exploration_events.jsonl": {
+      "lines": 103,
+      "sha256": "036df6410d2e91d9fcd460f6f5ee3a4391facef245ab0caf0654518f550d98b8"
+    }
+  },
+  "generator_version": "sim/0.1",
+  "model_input_files": [
+    "interaction_events.jsonl"
+  ],
+  "non_operational_files": [
+    "synthetic_exploration_events.jsonl"
+  ],
+  "parameters_note": "유형별 매개변수는 관찰 근거가 없는 초기 가정값이다.",
+  "purpose": "학습 파이프라인 기능 검증용 합성 데이터. 실제 플레이어 행동 분포를 대표하지 않는다.",
+  "representative": false,
+  "seed": 20261025,
+  "sessions": 15,
+  "truth_files": [
+    "session_truth.jsonl",
+    "latent_segments.jsonl"
+  ]
+}

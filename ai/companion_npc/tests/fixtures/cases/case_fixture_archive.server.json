@@ -1,0 +1,62 @@
+{
+  "schema_version": "0.1",
+  "case_id": "case_fixture_archive",
+  "puzzles": [
+    {
+      "puzzle_id": "PUZZLE_CABINET",
+      "accepted_answers": ["3807"],
+      "on_correct": {
+        "grant_clue_ids": ["CLUE_INDEX_CARD"],
+        "complete_puzzle_ids": [],
+        "set_flags": { "cabinet_open": true }
+      }
+    },
+    {
+      "puzzle_id": "PUZZLE_LEDGER",
+      "accepted_answers": ["HERON"],
+      "on_correct": {
+        "grant_clue_ids": ["CLUE_LEDGER_PAGE"],
+        "complete_puzzle_ids": [],
+        "set_flags": { "ledger_open": true }
+      }
+    },
+    {
+      "puzzle_id": "PUZZLE_MAP",
+      "accepted_answers": ["SALTMARSH"],
+      "on_correct": {
+        "grant_clue_ids": [],
+        "complete_puzzle_ids": [],
+        "set_flags": { "map_aligned": true }
+      }
+    },
+    {
+      "puzzle_id": "PUZZLE_KEYPAD",
+      "accepted_answers": ["5126"],
+      "on_correct": {
+        "grant_clue_ids": ["CLUE_VAULT_LIST"],
+        "complete_puzzle_ids": ["PUZZLE_VAULT_ENTRY"],
+        "set_flags": { "vault_open": true }
+      }
+    },
+    {
+      "puzzle_id": "PUZZLE_SEAL",
+      "accepted_answers": ["AMBER"],
+      "on_correct": {
+        "grant_clue_ids": [],
+        "complete_puzzle_ids": [],
+        "set_flags": { "seal_pressed": true }
+      }
+    }
+  ],
+  "clue_combinations": [
+    {
+      "combination_id": "COMBO_INDEX_LEDGER",
+      "clue_ids": ["CLUE_INDEX_CARD", "CLUE_LEDGER_PAGE"],
+      "on_success": {
+        "grant_clue_ids": ["CLUE_MISSING_NAME"],
+        "complete_puzzle_ids": ["PUZZLE_RECONCILE"],
+        "set_flags": { "names_reconciled": true }
+      }
+    }
+  ]
+}

@@ -55,6 +55,21 @@ PlaySessionState 와 상호작용 기록을 판단층 입력(FeatureVector fs-0.
 - DB 에 접속하지 않는다. 실제 운영 로그로는 아직 돌려 보지 않았다.
 - 검증 범위와 한계는 [docs/01_합의_필요_사항.md](docs/01_합의_필요_사항.md) 「P2-B 검증 범위」에 있다.
 
+## P2-C — 합성 플레이어 시뮬레이터
+
+5가지 유형(빠른 해결 · 시행착오 · 반복 오답 · 장시간 탐색 · 중도 이탈)의 합성 세션을 만든다. 출력의 `interaction_events.jsonl` 은 운영 로그와 같은 형식이라 P2-B 파이프라인을 그대로 지난다.
+규칙·결과·한계는 [docs/04_P2-C_시뮬레이터.md](docs/04_P2-C_시뮬레이터.md)에 있다.
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m companion_npc.simulation --config experiments\p2c_default.json --out-dir data\synthetic\p2c_default --analyze
+.\.venv\Scripts\python.exe -m pytest tests\test_simulation.py
+```
+
+- **합성 데이터는 파이프라인 기능 검증용이다.** 실제 플레이어 분포를 대표하지 않는다. 매개변수(`experiments/p2c_default.json`)는 관찰 근거가 없는 가정값이다.
+- 잠재 상태·유형 같은 시뮬레이터 정답(`session_truth`, `latent_segments`)은 라벨·평가에만 쓴다. 모델 입력에는 넣지 않는다.
+- 대량 출력은 `data/synthetic/`(깃 제외)에 쓴다. 깃에는 15세션 견본(`tests/fixtures/synthetic/`)과 요약(`experiments/results/`)만 둔다.
+
 ## 폴더
 
 ```
@@ -63,7 +78,9 @@ ai/companion_npc/
 ├─ src/companion_npc/
 │  ├─ contracts/             Pydantic 계약 · RAG 차단(visibility) · 누설 검사(spoiler)
 │  ├─ adapters/              P2-A Case 파일 → ScenarioPack 변환기 · CLI
-│  └─ features/              P2-B 특성 추출 · 오프라인 재생 · 대리 라벨
+│  ├─ features/              P2-B 특성 추출 · 오프라인 재생 · 대리 라벨
+│  └─ simulation/            P2-C 합성 플레이어 시뮬레이터 · 분석
+├─ experiments/              실험 설정(p2c_default.json) · 결과 요약(results/)
 ├─ tests/                    계약 · 차단 · 누설 · 변환기 · backend 호환 테스트
 │  └─ fixtures/              case_001 팩 · 가상 사건 팩 · Context · Utterance 견본
 │     └─ cases/              backend 형식의 가상 사건 한 쌍 (변환기 입력)
