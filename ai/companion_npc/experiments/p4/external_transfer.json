@@ -1,0 +1,12 @@
+{
+  "_note": "외부 API(OpenAI)로 보내도 되는 사건 — 2026-10-26 결정. 실제 프로젝트 사건 case_001 의 내용(비공식 힌트 · 사건 소개 · 오브젝트 이름)은 외부 전송을 승인하지 않았다. 테스트용으로 새로 지은 가상 사건만 허용한다. 실제 사건을 이름만 바꾼 콘텐츠는 여기에 넣지 않는다.",
+  "decided_at": "2026-10-26",
+  "allowed_cases": [
+    "case_fixture_archive",
+    "case_fixture_lighthouse"
+  ],
+  "allowed_cases_dir_prefix": "tests/fixtures/",
+  "denied_cases": [
+    "case_001"
+  ]
+}

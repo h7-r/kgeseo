@@ -36,6 +36,11 @@ class OfflineEchoTransport:
 
     def complete(self, messages, config: LLMConfig, api_key) -> ChatResponse:
         data = json.loads(messages[-1]["content"])
+        if config.prompt_mode == "select":
+            reply = json.dumps({"opener": "좋아요.", "closer": ""}, ensure_ascii=False)
+            return ChatResponse(
+                reply, tokens_in=len(messages[-1]["content"]), tokens_out=len(reply)
+            )
         hint = data.get("approved_hint")
         if hint:
             text, used = hint["text"], [hint["label"]]

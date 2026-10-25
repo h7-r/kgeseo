@@ -29,6 +29,16 @@ from companion_npc.speech.guard_eval import (
     run_guard_eval,
 )
 from companion_npc.speech.llm import BudgetLedger, LLMConfig, LLMGenerator
+from companion_npc.speech.p4b2 import (
+    ExternalTransferPolicy,
+    P4B2Config,
+    external_transfer_problems,
+    load_private_texts,
+    public_error,
+    reproduction,
+    run_p4b2,
+    summary_is_clean,
+)
 from companion_npc.speech.records import RawLog, restricted_dir
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -39,7 +49,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--publish", action="store_true")
     parser.add_argument(
-        "--mode", choices=("p4a", "guard_eval", "compare"), default="p4a"
+        "--mode", choices=("p4a", "guard_eval", "compare", "p4b2"), default="p4a"
+    )
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="p4b2: 실제 요청. 설정 승인 + COMPANION_NPC_ALLOW_NETWORK=1 이 모두 필요",
+    )
+    parser.add_argument(
+        "--phases",
+        default=None,
+        help="p4b2: 돌릴 단계 (쉼표로 구분: smoke,arm,repeat). 없으면 전부",
     )
     args = parser.parse_args(argv)
     raw = json.loads(args.config.read_text(encoding="utf-8"))
@@ -53,6 +73,8 @@ def main(argv: list[str] | None = None) -> int:
         _write(g.exp_id, result["records"], result["summary"], args.publish)
         print(json.dumps(result["summary"]["overall"], ensure_ascii=False))
         return 0 if not result["summary"]["invalid"] else 1
+    if args.mode == "p4b2":
+        return _p4b2(raw, args.publish, args.execute, args.phases)
     config = P4AConfig.model_validate(raw)
     if args.mode == "compare":
         return _compare(config, args.publish)
@@ -136,6 +158,81 @@ def _compare(config: P4AConfig, publish: bool) -> int:
     )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0 if not summary["input_mismatch"] else 1
+
+
+def _p4b2(raw: dict, publish: bool, execute: bool, phases: str | None = None) -> int:
+    """기본은 모의 실행(오프라인 전송 · 장부는 메모리). --execute 는 승인된 설정 + 환경변수가 있어야 한다."""
+
+    config = P4B2Config.model_validate(raw)
+    old = (
+        ROOT
+        / "experiments"
+        / "results"
+        / (config.exp_id + ("" if execute else "_dryrun"))
+        / "summary.json"
+    )
+    if publish and old.exists() and json.loads(old.read_text(encoding="utf-8")).get("eval_set") != config.eval_set:  # fmt: skip
+        print(
+            "refused: 다른 평가 세트의 기존 결과를 덮어쓰지 않습니다 — exp_id 를 바꾸세요"
+        )
+        return 2
+    sources = load_sources(config, ROOT)
+    private = load_private_texts(ROOT, config.private_files)
+    if execute:
+        from companion_npc.llm_net.openai_chat import (
+            ALLOW_ENV,
+            OpenAIChatTransport,
+            network_allowed,
+        )
+
+        if not network_allowed(config.execution_approved):
+            print(
+                f"refused: execution_approved=true 와 {ALLOW_ENV}=1 이 모두 필요합니다"
+            )
+            return 2
+        policy = ExternalTransferPolicy.model_validate(_strip(json.loads((ROOT / "experiments" / "p4" / "external_transfer.json").read_text(encoding="utf-8"))))  # fmt: skip
+        problems = external_transfer_problems(config, policy)
+        if problems:
+            print("refused: " + "; ".join(problems))
+            return 2
+        transport, env = OpenAIChatTransport(approved=True), None
+        if (
+            config.generator.provider == "openai"
+        ):  # 생성 요청 전에 모델 접근만 확인(토큰을 쓰지 않는다)
+            import os
+
+            from companion_npc.speech.llm import TransportError
+
+            try:
+                access = transport.check_model_access(config.generator, os.environ.get(config.generator.api_key_env or ""))  # fmt: skip
+            except TransportError as error:
+                print(json.dumps({"refused": "model_access", **public_error({"kind": error.kind, **error.detail})}, ensure_ascii=False))  # fmt: skip
+                return 2
+            print(json.dumps({"model_access": access}, ensure_ascii=False))
+    else:
+        transport = OfflineEchoTransport()
+        env = {config.generator.api_key_env: "dry-run-placeholder"} if config.generator.api_key_env else {}  # fmt: skip
+    result = run_p4b2(config, sources, transport, ROOT, private_texts=private, env=env, dry_run=not execute, phases=tuple(phases.split(",")) if phases else None)  # fmt: skip
+    summary = result["summary"] | {"reproduction": reproduction(config, raw, ROOT)}
+    forbidden = [t for _, terms in sources for t in terms] + private
+    if not summary_is_clean(summary, forbidden):
+        print("refused: summary contains forbidden text")
+        return 1
+    exp_id = config.exp_id + ("" if execute else "_dryrun")
+    out = ROOT / "runs" / "p4" / exp_id
+    out.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(summary, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    (out / "summary.json").write_text(text, encoding="utf-8", newline="\n")
+    if publish:
+        target = ROOT / "experiments" / "results" / exp_id
+        target.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(out / "summary.json", target / "summary.json")
+    print(json.dumps({k: summary[k] for k in ("eval_set", "dry_run", "stop_reason", "sent_requests", "ledger")}, ensure_ascii=False))  # fmt: skip
+    return 0 if summary["stop_reason"] is None else 1
+
+
+def _strip(raw: dict) -> dict:
+    return {k: v for k, v in raw.items() if not k.startswith("_")}
 
 
 if __name__ == "__main__":

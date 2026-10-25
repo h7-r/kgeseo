@@ -1,0 +1,77 @@
+{
+  "_note": "P4-B2 로컬 Qwen 실험 설정 — 가상 사건 평가 세트 p4b2-fictional/1.0 (GPT 와 같은 36건). execution_approved=false · 설치 전. runtime 은 설치 때 실제 값으로 채운다.",
+  "exp_id": "p4b2_qwen_fictional",
+  "cases": [
+    {
+      "case_id": "case_fixture_archive",
+      "cases_dir": "tests/fixtures/cases",
+      "npc_dir": "tests/fixtures/npc"
+    },
+    {
+      "case_id": "case_fixture_lighthouse",
+      "cases_dir": "tests/fixtures/cases",
+      "npc_dir": "tests/fixtures/npc"
+    }
+  ],
+  "aliases_file": "tests/fixtures/private/aliases.json",
+  "private_files": [
+    "tests/fixtures/private/guard_eval_attacks.json"
+  ],
+  "now": "2026-10-26T12:00:00+09:00",
+  "generator": {
+    "generator": "qwen_local",
+    "provider": "openai_compatible_local",
+    "model": "Qwen3-4B-Q4_K_M.gguf",
+    "base_url": "http://127.0.0.1:8080/v1",
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "min_p": 0.0,
+    "max_output_tokens": 256,
+    "structured_output": true,
+    "disable_thinking": true,
+    "timeout_sec": 60,
+    "max_retries": 1,
+    "backoff_sec": 1.0,
+    "budget": {
+      "max_usd": 0.0,
+      "max_requests": 100
+    }
+  },
+  "arms": [
+    "select",
+    "free"
+  ],
+  "repeat_arm": "free",
+  "plan": {
+    "smoke": 4,
+    "arm_cases": 36,
+    "repeat_cases": 8,
+    "repeat_times": 2
+  },
+  "expected_cases": 36,
+  "eval_set": "p4b2-fictional/1.0",
+  "config_version": "1",
+  "ledger_name": "local_qwen3-4b-q4km",
+  "model_record": {
+    "distribution": "huggingface:Qwen/Qwen3-4B-GGUF (공식)",
+    "model_id": "Qwen3-4B",
+    "file": "Qwen3-4B-Q4_K_M.gguf",
+    "file_sha256": "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5",
+    "revision": "a9a60d009fa7ff9606305047c2bf77ac25dbec49",
+    "license": "apache-2.0",
+    "runtime": null,
+    "runtime_asset": null,
+    "runtime_sha256": null,
+    "checked_at": "2026-10-26",
+    "sources": [
+      "https://huggingface.co/Qwen/Qwen3-4B-GGUF",
+      "https://huggingface.co/Qwen/Qwen3-4B-GGUF/blob/main/Qwen3-4B-Q4_K_M.gguf",
+      "https://huggingface.co/Qwen/Qwen3-4B-GGUF/blob/main/LICENSE",
+      "https://github.com/ggml-org/llama.cpp/releases",
+      "https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md"
+    ],
+    "verified_locally": false
+  },
+  "execution_approved": false
+}

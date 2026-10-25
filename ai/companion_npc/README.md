@@ -144,6 +144,19 @@ $env:PYTHONPATH = "src"
 - P4-B2 기본 운영 후보는 승인 문장 선택 · 제한적 빈칸 채우기다. 자유 바꿔 말하기는 별도 실험군이다.
 - 생성기 원문은 `runs/restricted/`(깃 제외)에만 둔다. 결과 파일에는 집계와 정당한 문장 예시만 둔다.
 
+## P4-B2 — 실제 LLM 실행 준비 (실행 전)
+
+GPT(`gpt-6-luna`)와 로컬 Qwen(`Qwen3-4B-Q4_K_M.gguf` · llama.cpp)을 같은 36 사례로 비교할 실행기 · 설정 · 점검을 갖췄다. 외부 전송(OpenAI)용 사례는 **테스트용 가상 사건만** 쓴다(평가 세트 `p4b2-fictional/1.0` · 설정 `p4b2_*_fictional.json`). 실제 프로젝트 사건 case_001 내용은 외부로 보내지 않는다(`experiments/p4/external_transfer.json`). 실행안 · 설치 명령 · 남은 위험은 [docs/08 §9](docs/08_P4-B1_실험준비.md) 에 있다.
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m companion_npc.speech --mode p4b2 --config experiments\p4\p4b2_gpt_fictional.json    # 모의 실행(오프라인)
+```
+
+- **실제 요청 · 다운로드 · 설치는 하지 않았다.** `--execute` 는 설정 승인(`execution_approved`)과 `COMPANION_NPC_ALLOW_NETWORK=1` 이 모두 있어야 돈다. 네트워크 코드는 `src/companion_npc/llm_net/` 에만 있다.
+- LLM SDK 는 `requirements-llm.txt`(openai==3.29.0)로 따로 설치한다. **아직 설치하지 않았다.** 기본 의존성에는 없다.
+- 원문 · 장부 · 캐시 · 사람 평가 양식은 `runs/restricted/`(깃 제외)에만 둔다.
+
 ## 폴더
 
 ```
@@ -157,6 +170,8 @@ ai/companion_npc/
 │  ├─ training/              P3 학습·평가 (데이터 · 분할 · 기준선 · 모델 · ActivityGate · 정책 · 부트스트랩 · 재현 정보)
 │  └─ speech/                P4 발화층 (검색 · 생성기 · 안전 검증 · 파이프라인 · 평가)
 │                            + P4-B1 검증기 평가(guard_eval) · 비교 기록(records · compare) · LLM 골격(llm)
+│                            + P4-B2 실행기(p4b2)
+│  ├─ llm_net/               네트워크를 쓸 수 있는 유일한 자리 — Chat Completions 전송 (승인된 실행에서만)
 ├─ experiments/              실험 설정(p2c_default.json) · 결과 요약(results/)
 ├─ tests/                    계약 · 차단 · 누설 · 변환기 · backend 호환 테스트
 │  └─ fixtures/              case_001 팩 · 가상 사건 팩 · Context · Utterance 견본

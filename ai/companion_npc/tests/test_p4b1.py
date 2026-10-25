@@ -605,7 +605,7 @@ def test_cache_hit_spends_nothing_and_key_tracks_config(tmp_path, archive):
         Cache.key(messages, _gpt_config()),
         Cache.key(messages, _gpt_config(model="other")),
         Cache.key(messages, _gpt_config(temperature=0.9)),
-        Cache.key(messages, _gpt_config(prompt_version="p4b/0.2")),
+        Cache.key(messages, _gpt_config(prompt_version="p4b/0.9")),
     }
     assert len(keys) == 4
     assert all(

@@ -1,0 +1,75 @@
+{
+  "_note": "P4-B2 GPT 실험 설정 — **외부 전송용 가상 사건 평가 세트 p4b2-fictional/1.0** (기록 보관소 19 + 꺼진 등대 17 = 36건, 유형 분포는 원래 세트와 같음). execution_approved=false. 가격 · 모델 정보는 2026-10-26 공식 문서 확인값이며 실행 직전 다시 확인한다. 요청 인자를 바꾸려면 config_version 을 올린 새 설정으로 나눈다. 키 값은 넣지 않는다.",
+  "exp_id": "p4b2_gpt_fictional",
+  "cases": [
+    {
+      "case_id": "case_fixture_archive",
+      "cases_dir": "tests/fixtures/cases",
+      "npc_dir": "tests/fixtures/npc"
+    },
+    {
+      "case_id": "case_fixture_lighthouse",
+      "cases_dir": "tests/fixtures/cases",
+      "npc_dir": "tests/fixtures/npc"
+    }
+  ],
+  "aliases_file": "tests/fixtures/private/aliases.json",
+  "private_files": [
+    "tests/fixtures/private/guard_eval_attacks.json"
+  ],
+  "now": "2026-10-26T12:00:00+09:00",
+  "generator": {
+    "generator": "gpt_rag",
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "api_key_env": "OPENAI_API_KEY",
+    "prices": {
+      "usd_per_1m_input": 0.1,
+      "usd_per_1m_cached_input": 0.01,
+      "usd_per_1m_output": 0.5,
+      "source": "https://developers.openai.com/api/docs/pricing (Standard, <=272K input) · https://developers.openai.com/api/docs/models/gpt-6-luna",
+      "checked_at": "2026-10-26T00:00:00+09:00"
+    },
+    "reasoning_effort": "none",
+    "temperature": 0.7,
+    "max_output_tokens": 256,
+    "structured_output": true,
+    "timeout_sec": 30,
+    "max_retries": 2,
+    "backoff_sec": 2.0,
+    "budget": {
+      "max_usd": 2.0,
+      "max_requests": 100
+    }
+  },
+  "arms": [
+    "select",
+    "free"
+  ],
+  "repeat_arm": "free",
+  "plan": {
+    "smoke": 4,
+    "arm_cases": 36,
+    "repeat_cases": 8,
+    "repeat_times": 2
+  },
+  "expected_cases": 36,
+  "eval_set": "p4b2-fictional/1.0",
+  "config_version": "1",
+  "ledger_name": "openai_gpt-6-luna",
+  "model_record": {
+    "distribution": "OpenAI API (Chat Completions)",
+    "model_id": "gpt-6-luna",
+    "snapshot": "gpt-6-luna",
+    "license": "OpenAI 서비스 약관 (API)",
+    "sdk": "openai==3.29.0",
+    "checked_at": "2026-10-26",
+    "sources": [
+      "https://developers.openai.com/api/docs/models/gpt-6-luna",
+      "https://developers.openai.com/api/docs/pricing",
+      "https://developers.openai.com/api/docs/guides/latest-model",
+      "https://pypi.org/project/openai/"
+    ]
+  },
+  "execution_approved": false
+}
