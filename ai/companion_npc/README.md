@@ -126,6 +126,24 @@ $env:PYTHONPATH = "src"
 - 근거 검사는 문장·절 단위다. 승인 힌트 뒤에 덧붙인 문장은 막지만(8/8), 정당한 바꿔 말하기도 많이 막고(오탐 7/10), 문장 안에 끼워 넣은 짧은 표현은 못 막는다. 의미 수준 누설을 완전히 막는다고 주장하지 않는다.
 - `.npc.json` 견본의 approved · published 는 테스트용 상태다. 실제 팀 승인이 아니다.
 
+## P4-B1 — 실제 LLM 비교 실험 준비 · 발화 검증기 평가
+
+검증기 평가 세트를 212 항목으로 넓혔다. 정당한 문장이 막힌 오탐과 공격 문장이 통과한 미탐을 따로 잰다. 생성기 비교 계약(같은 입력 · 원문과 최종 문장 분리 기록)과 GPT · 로컬 Qwen 공통 생성기 골격(예산 $2 · 100 요청 상한 · 캐시 · 재시도 · 키 가리기)을 만들었다.
+설계와 결과는 [docs/08_P4-B1_실험준비.md](docs/08_P4-B1_실험준비.md)에 있다.
+
+```powershell
+$env:PYTHONPATH = "src"
+.\.venv\Scripts\python.exe -m companion_npc.speech --mode guard_eval --config experiments\p4\p4b1_guard_eval.json --publish
+.\.venv\Scripts\python.exe -m companion_npc.speech --mode compare --config experiments\p4\p4b1_compare.json --publish
+.\.venv\Scripts\python.exe -m pytest tests\test_p4b1.py
+```
+
+- **실제 GPT 요청 · Qwen 설치는 하지 않았다.** 실제 전송은 항상 거부한다(`UnavailableTransport`). 모델명 · 공식 가격 · API · SDK 는 실행 승인 전에 확인한다.
+- **check_in 은 승인 템플릿만 쓴다**(LLM 생성 없음 · 검증기도 템플릿과 같은 문장만 통과).
+- 검증기 임계값은 P4-A 그대로다. 보완 후 결과는 오탐 25/65(바꿔 말하기 21 · 미승인 check_in 인사 4), 미탐 2/147(문장 안 끼워 넣기)이다. 보완 전은 오탐 21 · 미탐 15였다. 테스트 견본 기준이며, 일반화된 성능이 아니다.
+- P4-B2 기본 운영 후보는 승인 문장 선택 · 제한적 빈칸 채우기다. 자유 바꿔 말하기는 별도 실험군이다.
+- 생성기 원문은 `runs/restricted/`(깃 제외)에만 둔다. 결과 파일에는 집계와 정당한 문장 예시만 둔다.
+
 ## 폴더
 
 ```
@@ -138,6 +156,7 @@ ai/companion_npc/
 │  ├─ simulation/            P2-C 합성 플레이어 시뮬레이터 · 분석
 │  ├─ training/              P3 학습·평가 (데이터 · 분할 · 기준선 · 모델 · ActivityGate · 정책 · 부트스트랩 · 재현 정보)
 │  └─ speech/                P4 발화층 (검색 · 생성기 · 안전 검증 · 파이프라인 · 평가)
+│                            + P4-B1 검증기 평가(guard_eval) · 비교 기록(records · compare) · LLM 골격(llm)
 ├─ experiments/              실험 설정(p2c_default.json) · 결과 요약(results/)
 ├─ tests/                    계약 · 차단 · 누설 · 변환기 · backend 호환 테스트
 │  └─ fixtures/              case_001 팩 · 가상 사건 팩 · Context · Utterance 견본

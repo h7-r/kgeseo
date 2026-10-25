@@ -2,7 +2,7 @@
 
   TemplateGenerator  승인 템플릿 · 승인 힌트 본문을 그대로 쓴다 (모델 없음, 결정적)
   FakeGenerator      테스트용. 정해 둔 문장을 돌려준다 — 공격 문장으로 검증기를 시험한다
-  GPTGenerator · QwenGenerator  P4-B (이 단계에서는 만들지 않는다 · 네트워크 없음)
+  LLMGenerator       llm.py — GPT API · 로컬 Qwen 공통 골격 (P4-B1: 실제 전송 없음)
 
 모델별로 달라지는 설정(model_name · prompt_version)은 Draft 에 기록한다. 입력 범위는 같다.
 """

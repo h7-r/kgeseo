@@ -12,12 +12,15 @@
   · clarify 는 플레이어 요청에서만. 오브젝트 이름은 플레이어 메시지가 그 이름을 짚었을 때만
     (현재 구역에서 보이는 이름 조각과 TF-IDF 유사도 ≥ 0.3). 아니면 일반 질문.
   · LLM 생성기는 NpcContext.limits.allow_llm 이 참일 때만 쓴다. 아니면 템플릿으로 바꾼다.
+  · check_in 은 생성기와 관계없이 승인 템플릿에서만 고른다(P4-B1 보완). 자유 생성 · 플레이어 입력 반향 ·
+    사건 정보 추가가 없다. 고른 템플릿도 검증기를 거친다(검증기는 승인 템플릿과 같은 문장만 통과시킨다).
 
 [검증 실패] 승인 템플릿으로 대체하고 **그것도 검증**한다. 그래도 실패하면 보류한다.
 """
 
 import hashlib
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from companion_npc.adapters.npc_merge import MergedPack
@@ -38,7 +41,11 @@ from companion_npc.contracts.scenario_pack import ApprovedHint
 from companion_npc.contracts.visibility import visible_chunks
 from companion_npc.speech.generators import Draft, Generator, TemplateGenerator
 from companion_npc.speech.guard import SpeechGuard
-from companion_npc.speech.payload import build_payload, sanitize_player_message
+from companion_npc.speech.payload import (
+    PromptPayload,
+    build_payload,
+    sanitize_player_message,
+)
 from companion_npc.speech.retrieval import allowed_chunks, rank
 
 OBJECT_MATCH_MIN = 0.3
@@ -70,6 +77,15 @@ class SpeechOutcome:
     final_kind: UtteranceKind | None
     failures: tuple[str, ...]
     downgrade_reason: str | None
+    # ↓ P4-B1 — 생성기 비교 기록용 (게임에 내보내지 않는다)
+    raw: Draft | None = (
+        None  # 생성기가 만든 원문 (대체 전). 민감할 수 있어 제한 경로에만 남긴다
+    )
+    generation_ms: float = 0.0
+    validation_ms: float = 0.0
+    payload: PromptPayload | None = (
+        None  # 생성기에 준 입력 — 같은 사례면 생성기와 관계없이 같아야 한다
+    )
 
 
 def _uid(*parts: str) -> str:
@@ -206,16 +222,26 @@ def speak(
         player_message=message,
     )
 
+    # check_in 은 승인 템플릿에서만 고른다 — LLM · 가짜 생성기를 부르지 않는다 (P4-B1 보완)
+    if kind == "check_in" and generator.uses_llm:
+        generator, downgrade = (
+            TemplateGenerator(),
+            downgrade or "check_in_template_only",
+        )
     if generator.uses_llm and not context.limits.allow_llm:
         generator, downgrade = TemplateGenerator(), downgrade or "llm_not_allowed"
+    started = time.perf_counter()
     try:
         draft = generator.generate(payload)
     except Exception as error:  # 생성기 오류도 대체 경로로
         draft, gen_error = None, type(error).__name__
     else:
         gen_error = None
+    generation_ms = (time.perf_counter() - started) * 1000
+    raw = draft
     failures: tuple[str, ...] = ()
     status = "spoke"
+    started = time.perf_counter()
     if draft is not None:
         result = guard.check(draft.text, payload, chunks)
         failures = result.failures
@@ -226,7 +252,15 @@ def speak(
         draft = TemplateGenerator().generate(payload)
         status = "fallback"
         if draft is None or not guard.check(draft.text, payload, chunks).passed:
-            return _hold(context, plan, merged, now, "fallback_failed", failures)
+            held = _hold(context, plan, merged, now, "fallback_failed", failures)
+            return replace(
+                held,
+                raw=raw,
+                generation_ms=generation_ms,
+                validation_ms=(time.perf_counter() - started) * 1000,
+                payload=payload,
+            )
+    validation_ms = (time.perf_counter() - started) * 1000
 
     return SpeechOutcome(
         _utterance(
@@ -237,6 +271,10 @@ def speak(
         kind,
         failures,
         downgrade,
+        raw=raw,
+        generation_ms=generation_ms,
+        validation_ms=validation_ms,
+        payload=payload,
     )
 
 

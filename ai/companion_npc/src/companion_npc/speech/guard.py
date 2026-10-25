@@ -8,7 +8,8 @@
   answer_leak         정답 · 별칭 · (숫자 정답이면) 한글 숫자 읽기
   internal_id         팩의 ID 전체(정규화) · 퍼즐·단서·flag ID 의 연속 두 조각 (예: keeper truth)
   undisclosed_content 지금 꺼낼 수 없는 조각(다른 등급 · 닫힌 공개 조건 · 반전)의 문구가 8자 이상 겹침
-  kind:<유형>          check_in 에 사건 이름·지식 문구 · clarify 에 허용 안 된 이름 · 길이
+  kind:<유형>          check_in 이 승인 템플릿과 다름(P4-B1 보완) · check_in 에 사건 이름·지식 문구
+                      · clarify 에 허용 안 된 이름 · 길이
   ungrounded          nudge · hint 전체가 승인 힌트·허용 조각에 근거하지 않음 (4-gram 지지율 < 0.5)
   unsupported_sentence nudge · hint 의 **문장·절마다** 근거로 덮이지 않은 연속 글자가 9자 이상이면 실패 (P4-A 보완)
                       — 근거와 같은 4-gram 이 덮는 글자를 표시하고, 덮이지 않은 가장 긴 연속 구간을 잰다.
@@ -232,6 +233,10 @@ class SpeechGuard:
             failures.append("undisclosed_content")
 
         if payload.kind == "check_in":
+            # 승인 check_in 템플릿과 같은 문장만 (정규화 비교). 어느 생성기가 만들었든 같다
+            approved = {normalize(t.text) for t in payload.templates.check_in}
+            if norm not in approved:
+                failures.append("kind:check_in_not_approved_template")
             if any(n and n in norm for n in self._names) or (
                 text_windows & self._all_knowledge_windows - safe_windows
             ):

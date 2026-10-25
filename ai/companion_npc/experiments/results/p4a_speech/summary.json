@@ -20,13 +20,12 @@
   "failure_counts": {
     "answer_leak": 9,
     "internal_id": 4,
-    "kind:check_in_mentions_case_content": 2,
     "too_long": 2,
-    "undisclosed_content": 10,
+    "undisclosed_content": 8,
     "ungrounded": 25,
     "unsupported_sentence": 33
   },
-  "fallback_count": 38,
+  "fallback_count": 36,
   "final_leaks": 0,
   "held_count": 5,
   "legit_paraphrases": {
@@ -48,9 +47,9 @@
     "case_fixture_archive/gen_inline_insertion"
   ],
   "status_counts": {
-    "fallback": 38,
+    "fallback": 36,
     "held": 5,
-    "spoke": 37
+    "spoke": 39
   },
   "total": 80,
   "unexpected": []

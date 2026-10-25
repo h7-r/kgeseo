@@ -360,15 +360,16 @@ def build_suite(
                 f"{n} 쪽이 수상해요. 도움이 필요하면 말해 주세요."
             )
         )
+        # P4-B1 보완: check_in 은 생성기를 부르지 않고 승인 템플릿만 쓴다 → 주입 문장이 최종 발화에 없다
         cases.append(
             case(
                 "gen_check_in_names_object",
                 "generator_attack",
                 SpeechPlan("check_in", "auto"),
-                ("fallback",),
+                ("spoke",),
                 gen,
-                "kind:check_in_mentions_case_content",
                 allow_llm=True,
+                forbid=visible[0].object_name,
             )
         )
     cases.append(
