@@ -315,6 +315,8 @@ async function runStepBody(root, trial, step) {
     // 앙암바위 원문(제목 + 4문단) 전제 문구를 다른 원문에서는 일반화(10/21)
     if (step.id === 's01' && (trial.adaptation || trial.spaceKind === 'indoor')) user = user.replace('그 아래 제목 한 줄과 본문 4문단이 원문이다.', '그 아래 제목 한 줄과 본문이 원문이다.');
     if (step.id !== 's01' && adaptText(trial)) user = `${user}\n\n${adaptText(trial)}`;
+    // 10/26 미르: 원문 「한방에서 안 재우고」(같은 방에서)를 방 이름 「한방」으로 옮겨 플레이어가 뜻을 몰랐다 → 방언·옛말은 풀어 쓴다
+    if (step.id === 's01') user = `${user}\n\n[방언·옛말] 사실(F)·해석 유보(U) 문장은 표준어로 풀어 쓴다. 원문의 방언·옛말·구어는 뜻을 풀고 원문 표현은 괄호에 남긴다(예: 「신랑은 신부와 같은 방(원문 「한방」)이 아니라 사랑방에서 재워졌다」). 방 이름·물건 이름처럼 보이는 말이 실제로는 방언 표현일 수 있으니 확인하고, 뜻이 확실하지 않으면 사실로 확정하지 말고 해석 유보(U)에 넣는다.`;
     if (step.id === 's04') user = scene04Only(user);
     const text = await llm(root, trial, step, { system, user, cacheSystem: true });
     await writeOut(root, trial, `raw-${step.id}.txt`, text);

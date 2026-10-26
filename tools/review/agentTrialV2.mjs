@@ -25,6 +25,15 @@ export const STEPS_V2 = Object.freeze([
 // ── 05 퍼즐 초안 ──
 // 05 퍼즐 초안 2판(10/20, 미르 결정: 팀 계약에 맞춤) — 공용 인터랙션 카탈로그 v2.0(docs/공용-인터랙션-카탈로그-v2.0.md) ·
 //   Puzzle Contract v0.3.1(docs/계약서/03_Puzzle_Contract_v0.3.1.md) · 단조성 규칙(아이템 소모·되돌릴 수 없는 선택·막힘 없음)
+// 10/26 미르: 매 판 같은 장치가 반복되면 재미가 없다 — 지난 시험들에서 쓴 장치 횟수를 05 에 알려 덜 쓴 것부터 고르게
+const DEVICE_KINDS = ['yundo', 'sangaji', 'bimil', 'geulja', 'munsal', 'maedeup', 'pae', 'buk'];
+async function deviceHistory(root, trial) {
+  const { readdir, readFile } = await import('node:fs/promises'); const path = await import('node:path');
+  const dir = path.join(root, '.local/review/trials'); const cnt = Object.fromEntries(DEVICE_KINDS.map(k => [k, 0]));
+  try { for (const id of await readdir(dir)) { if (id === trial.id) continue; try { const p = JSON.parse(await readFile(path.join(dir, id, 'puzzle.json'), 'utf8')); for (const z of p.puzzles || []) { const k = z.solve?.device?.kind; if (k in cnt) cnt[k]++; } } catch {} } } catch {}
+  const order = Object.entries(cnt).sort((a, b) => a[1] - b[1]);
+  return `[지난 시험에서 쓴 장치 — 덜 쓴 것부터 고른다] ${order.map(([k, n]) => `${k} ${n}번`).join(' · ')}`;
+}
 const PUZZLE_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」의 퍼즐 초안(Planner) 에이전트다. 01 설화 사실 계약서와 04 Scene 구성표를 읽고 Scene 마다 퍼즐을 만든다. 아직 공간·에셋은 없다(보지 않는다). 뒤 단계가 네 host_needs 를 보고 공간에 물건을 놓고, 게임이 그 물건을 눌러 조사하게 만든다.
 팀 계약(반드시 지킴)
 - 플레이어 행동은 5종뿐: inspect(물건·기록·단서 조사) · navigate(구역·조사 지점으로 이동) · input(글자·숫자 입력) · select(선택지·대상 고르기) · combine_clues(얻은 단서 2개를 조사수첩에서 짝짓기). 옛 이름(observe·compare·rotate·align·connect·sequence·collect 등)은 쓰지 않는다.
@@ -57,7 +66,7 @@ const PUZZLE_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」
   · maedeup(오방색 매듭 — 청·적·황·백·흑 매듭 끈을 순서대로 당김. spec {"colors":["청","적","황","백","흑"],"count":3~5}, answer = 색 배열(당기는 순서)) → input. 색 ↔ 방위·사람·물건 대응표 단서에 맞다(동=청, 남=적, 가운데=황, 서=백, 북=흑).
   · pae(패 끼우기 — 호패·나무패를 홈에 순서대로 끼움. spec {"tags":["…",…] 4~6개(사람·물건 이름 2~4자, 헛패 포함),"slots":3~4}, answer = 패 이름 배열(홈 순서, 겹치지 않음)) → input. 사건의 차례·자리 배정을 맞추는 퍼즐에 맞다.
   · buk(북 장단 — 북을 정해진 장단으로 침. spec {"strokes":["덩","쿵","딱"],"beats":4~8}, answer = 장단 배열(덩=가운데 세게, 쿵=가운데 약하게, 딱=테)) → input. 소리 단서(몇 번·어떤 소리)를 박으로 옮기는 퍼즐에 맞다. 게임 장치이므로 invented 에 적는다.
-  · 장치를 고르게 쓴다(10/23 미르: 글자 바퀴·산가지만 보인다): 한 게임에서 같은 장치는 두 번까지, 장치 퍼즐이 4개 이상이면 3종 이상. 방 안에 물건으로 보이는 장치(이 퍼즐 호스트에 다는 것)와 출구 문에 다는 것을 섞는다.
+  · 장치를 고르게 쓴다(10/23·10/26 미르: 같은 퍼즐만 반복되면 다시 할 맛이 없다): 한 게임에서 같은 장치는 한 번만. 퍼즐이 6개 이상이면 장치 퍼즐(select·input)을 절반 넘게(8개면 5개 이상) — 서로 다른 장치로. 「살펴보기만 하면 풀리는」 observation 은 게임 전체에서 2개 이하, combine_clues 도 2개 이하. 사용자 글에 [지난 시험에서 쓴 장치] 가 있으면 덜 쓴 장치부터 고른다. 방 안에 물건으로 보이는 장치(이 퍼즐 호스트에 다는 것)와 출구 문에 다는 것을 섞는다.
   · 형식: "solve":{…,"device":{"kind":"yundo","name":"대청 문 윤도 자물쇠","on":"exit_door 또는 이 퍼즐 호스트 need_id(반닫이·궤·함·서안처럼 잠글 수 있는 물건)","spec":{…}}}
   · 비밀자물쇠 장석 이름은 문양(매화·박쥐·나비·거북·연꽃·학 등)이다 — 답 문장(「신랑 장석」「스스로 나선 장석」)을 장석에 쓰면 퀴즈가 된다. 단서가 어느 문양인지 가리키게 한다(예: 서신 끝의 박쥐 그림 + 명부의 「복을 비는」 → 박쥐 장석).
   · 찍어서 맞히지 못하게: 글자 바퀴는 바퀴마다 글자 6~10개(그럴듯한 헛글자 포함), 윤도는 8방위 이상, 산가지는 2자리 이상, 비밀자물쇠는 장석 4개 이상.
@@ -446,7 +455,7 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
         await writeOut(root, trial, 'raw-s05.txt', raws.join('\n\n----\n\n'));
         json = { puzzles: all };
       } else {
-        const user = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines()].join('\n');
+        const user = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', await deviceHistory(root, trial)].join('\n');
         const text = await llm(root, trial, step, { system: PUZZLE_SYSTEM, user });
         await writeOut(root, trial, 'raw-s05.txt', text);
         json = extractJson(text);
@@ -508,7 +517,7 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
             ...P.flatMap(p => (p.host_needs || []).filter(h => h.need_id === p.solve?.at && P.some(q => (q.clues || []).some(c => GETS.includes(c.get_by) && c.from === h.need_id))).map(h => `${h.need_id}: 답 넣는 자리가 단서도 줌 — 그 단서를 다른 물건으로 옮기거나, 풀이 자리(solve.at)를 단서를 주지 않는 새 물건(host_needs 에 추가)으로`)),
             ...exitScenes.filter(id => !P.some(p => p.scene_id === id && ((p.solve?.device?.on === 'exit_door') || (p.exit?.key?.name && p.exit?.lock)))).map(id => `${id}: 다음 장면으로 가는 출구 장치(device on exit_door) 없음`),
             ...P.filter(p => ['select', 'input'].includes(p.solve?.interaction) && !['yundo', 'sangaji', 'bimil', 'geulja', 'munsal', 'maedeup', 'pae', 'buk', 'key'].includes(p.solve?.device?.kind)).map(p => `${p.puzzle_id}: 고르기·입력 풀이에 장치(device) 없음`),
-            ...(() => { const ks = P.map(p => p.solve?.device?.kind).filter(k => k && k !== 'key'); const cnt = ks.reduce((a, k) => (a[k] = (a[k] || 0) + 1, a), {}); return [...Object.entries(cnt).filter(([, n]) => n > 2).map(([k, n]) => `장치 ${k} 를 ${n}번 씀 — 같은 장치는 두 번까지`), ...(ks.length >= 4 && Object.keys(cnt).length < 3 ? [`장치 퍼즐 ${ks.length}개에 장치 종류 ${Object.keys(cnt).length}가지 — 3종 이상으로`] : [])]; })(),
+            ...(() => { const ks = P.map(p => p.solve?.device?.kind).filter(k => k && k !== 'key'); const cnt = ks.reduce((a, k) => (a[k] = (a[k] || 0) + 1, a), {}); const need = P.length >= 6 ? Math.floor(P.length / 2) + 1 : 0; const obs = P.filter(p => p.puzzle_type === 'observation').length, cmb = P.filter(p => p.puzzle_type === 'clue_combination').length; return [...Object.entries(cnt).filter(([, n]) => n > 1).map(([k, n]) => `장치 ${k} 를 ${n}번 씀 — 같은 장치는 한 번만`), ...(ks.length < need ? [`장치 퍼즐이 ${ks.length}개 — 퍼즐 ${P.length}개면 ${need}개 이상(서로 다른 장치)`] : []), ...(obs > 2 ? [`observation 퍼즐 ${obs}개 — 2개 이하`] : []), ...(cmb > 2 ? [`clue_combination 퍼즐 ${cmb}개 — 2개 이하`] : [])]; })(),
             ...P.filter(p => p.solve?.device?.kind === 'munsal').flatMap(p => { const sp = p.solve.device.spec || {}, R = +sp.rows || 0, C = +sp.cols || 0; const cells = (Array.isArray(p.solve.answer) ? p.solve.answer : String(p.solve.answer || '').split(/[,\s]+/)).filter(Boolean); const bad = cells.filter(x => { const m = /^(\d+)-(\d+)$/.exec(String(x)); return !m || +m[1] < 1 || +m[1] > R || +m[2] < 1 || +m[2] > C; }); return [...(R * C < 9 ? [`${p.puzzle_id}: 문살 무늬판이 작음(9칸 이상)`] : []), ...(bad.length ? [`${p.puzzle_id}: 문살 답 칸이 판 밖이거나 형식이 틀림(${bad.join(',')}) — "행-열"`] : []), ...(cells.length < 3 || cells.length > R * C / 2 ? [`${p.puzzle_id}: 문살 누를 칸은 3칸 이상·절반 이하`] : [])]; }),
             ...P.filter(p => ['maedeup', 'pae', 'buk'].includes(p.solve?.device?.kind)).flatMap(p => { const d = p.solve.device, sp = d.spec || {}; const opts = d.kind === 'maedeup' ? (sp.colors || ['청', '적', '황', '백', '흑']) : d.kind === 'pae' ? (sp.tags || []) : (sp.strokes || ['덩', '쿵', '딱']); const ans = (Array.isArray(p.solve.answer) ? p.solve.answer : String(p.solve.answer || '').split(/[,·\s-]+/)).filter(Boolean).map(String); const need = d.kind === 'buk' ? 4 : 3;
               return [...(ans.length < need ? [`${p.puzzle_id}: ${d.kind} 답이 짧음(${need}개 이상)`] : []), ...(ans.some(a => !opts.includes(a)) ? [`${p.puzzle_id}: ${d.kind} 답 「${ans.join('·')}」이 장치 목록(${opts.join('·')})에 없음`] : []), ...(d.kind === 'pae' && (opts.length < 4 || opts.some(t => String(t).length > 5) || new Set(ans).size !== ans.length) ? [`${p.puzzle_id}: 패는 4~6개·이름 짧게·답에서 겹치지 않게`] : [])]; }),
