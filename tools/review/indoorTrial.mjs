@@ -553,7 +553,9 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
       if (c.place === 'on_shelf') cls = shelf ? `on:${shelf}` : 'wall';
       if (c.place === 'on_pot') cls = pots.length ? `on:${pots.shift()}` : 'floor';
       if (c.place === 'on_item') {
-        const sup = mine.find(x => x.item_id === c.on_item);
+        // 10/26 미르: 「도둑 든 것 같다」 — 받침(서안)에 에셋이 없어 서책·장부가 방바닥 한가운데 흩어졌다 → 실제로 놓이는 다른 평평한 가구 위로
+        let sup = mine.find(x => x.item_id === c.on_item);
+        if (!sup || !byItem.get(sup.item_id)?.pick) { const alt = mine.find(x => x !== c && byItem.get(x.item_id)?.pick && /서안|문갑|반닫이|궤$|궤짝|소반|탁자|사방탁자|함$|뒤주/.test(x.name_ko || '') && !ROUND.test(x.name_ko || '')); if (alt) { notes.push(`${r.name} 「${c.name_ko}」: 받침 「${sup?.name_ko || c.on_item}」이(가) 없어 「${alt.name_ko}」 위로`); c.on_item = alt.item_id; sup = alt; } }
         if (sup && ROUND.test(sup.name_ko || '')) { cls = 'floor'; notes.push(`${r.name} 「${c.name_ko}」: 「${sup.name_ko}」 은 윗면이 둥글어 올리지 않고 바닥에 둠`); }
         else cls = sup ? `on:${c.on_item}` : 'floor';
       }
