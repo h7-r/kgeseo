@@ -162,7 +162,7 @@ def record(it, p, e, sc, cls):
 def host_retry(it, e, p):
     if "fail" not in p or it.get("role") != "puzzle_host": return p
     f0 = p.get("fallback") or p["fail"]
-    for f in (1.0, 0.8, 0.65):   # 그래도 없으면 조금 작게(멍석·자리처럼 크기 폭이 넓은 것) — 퍼즐이 빠지는 것보다 낫다
+    for f in (1.0, 0.8, 0.65, 0.5):   # 그래도 없으면 조금 작게(멍석·자리처럼 크기 폭이 넓은 것) — 퍼즐이 빠지는 것보다 낫다
         ef = e * f
         for alt in (lambda: try_wall(it, ef, low=True), lambda: try_floor(it, ef), lambda: try_wall(it, ef, corner=True)):
             q = alt()
@@ -174,7 +174,7 @@ role = plan.get("room_role") or room.get("spec", {}).get("role")
 if role:
     keepit = []
     for it in plan["items"]:
-        bad = next((r for r in FIT["rules"] if any(k in it["name"] for k in r["match"]) and role not in r["rooms"]), None)
+        bad = None if it.get("role") == "puzzle_host" else next((r for r in FIT["rules"] if any(k in it["name"] for k in r["match"]) and role not in r["rooms"]), None)  # 10/26: 퍼즐 호스트는 빼지 않는다(부엌 뒤주가 빠져 단서가 카드로만 뜸)
         if bad: log.append({"id": it["id"], "name": it["name"], "result": "뺌 — 방 성격과 안 맞음", "why": {"규칙": f"{'/'.join(bad['match'])} → {', '.join(bad['rooms'])}에만 ({bad.get('why','')})"}})
         else: keepit.append(it)
     plan["items"] = keepit

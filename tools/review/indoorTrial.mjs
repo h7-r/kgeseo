@@ -31,7 +31,7 @@ const typeText = T => [...Object.entries(T.kinds || {}).map(([k, d]) => `- [공�
 // 옷인가 = 이름의 마지막 낱말(머리 명사)이 옷(10/22): 「끊어진 끈 두루마기」는 옷, 「두루마기 끈」·「옷자락 얼룩」은 옷이 아님
 export const isGarment = (T, name) => { const n = String(name || '').trim(); const head = n.split(/\s+/).pop() || ''; return T.garment_words.some(w => head.endsWith(w) || head === w) && !/(끈|고름|조각|얼룩|자국|흔적)$/.test(head); };
 /** 붙박이(방 생성기가 이미 짓는 구조) — 에셋을 찾지 않고 방 노드에 잇는다(10/22) */
-export const FIXTURES = [[/기둥/, n => n === '기둥'], [/문창호|방문|문살|문짝|여닫이|덧문/, n => /^문_/.test(n)], [/환기창|창호|창살|들창|봉창|^창$|\s창$/, n => /^창_/.test(n)], [/시렁/, n => /^시렁_/.test(n)], [/부뚜막/, n => /^부뚜막_/.test(n)], [/아궁이/, n => /^아궁이_/.test(n)], [/벽장/, n => /^벽장/.test(n)], [/횃대/, n => /^횃대_/.test(n)]];
+export const FIXTURES = [[/기둥/, n => n === '기둥'], [/문창호|방문|문살|문짝|여닫이|덧문|부엌문|사랑방문|뒷문|쪽문/, n => /^문_/.test(n)], [/환기창|창호|창살|들창|봉창|^창$|\s창$/, n => /^창_/.test(n)], [/시렁/, n => /^시렁_/.test(n)], [/부뚜막/, n => /^부뚜막_/.test(n)], [/아궁이/, n => /^아궁이_/.test(n)], [/벽장/, n => /^벽장/.test(n)], [/횃대/, n => /^횃대_/.test(n)]];
 export const fixtureOf = name => { const n = String(name || '').trim(); if (/자물쇠|쪽지|기록|서찰|궤|함$|장$/.test(n) || TRACE_NAME.test(n)) return null; return FIXTURES.find(([re]) => re.test(n)) || null; };
 const STONE = /디딤돌|댓돌|섬돌/;
 // 단서 글 속 가구·살림 이름(10/26) — 앞은 글 시작·띄어쓰기·괄호, 뒤는 조사·띄어쓰기·끝
@@ -57,7 +57,12 @@ export function enforceTypes(plan, T) {
     }
     // 옷 — 횃대에 건다(흙바닥 방은 횃대가 없어 뺌). 횃대 물건(3D)은 방이 횃대를 그리므로 뺀다
     const garments = mine().filter(c => isGarment(T, c.name_ko));
+    // 10/26 미르: 사람이 입은 모양으로 굳은 옷 에셋(두루마기 등)은 쓰지 않기로 함 — 걸린·개킨 옷 에셋이 생길 때까지 살림 옷은 놓지 않는다. 퍼즐 호스트인 옷은 표식으로
     for (const g of garments) {
+      if (!(g.serves || []).length) { out = out.filter(x => x !== g); fixes.push(`${r.name || r.role}: 「${g.name_ko}」 뺌 — 입은 모양 옷 에셋은 쓰지 않음(걸린 옷 에셋 전까지)`); continue; }
+      if (g.place !== 'marker') { g.place = 'marker'; fixes.push(`${r.name || r.role}: 「${g.name_ko}」 퍼즐 호스트 — 입은 모양 옷 에셋 대신 자리 표식으로`); }
+    }
+    for (const g of garments.filter(g => out.includes(g) && g.place !== 'marker')) {
       if (r.floor === 'earth' && ['furniture', 'life_trace'].includes(g.role)) { out = out.filter(x => x !== g); fixes.push(`${r.name || r.role}: 「${g.name_ko}」 뺌 — 흙바닥 방 살림으로 옷을 두지 않음`); continue; }
       // 이야기·퍼즐 물건인 옷은 흙바닥 방이라도 벽 걸이(횃대)에 건다 — 서 있는 옷 금지(10/22)
       if (g.place !== 'hang') fixes.push(`${r.name || r.role}: 「${g.name_ko}」 을 횃대에 검(사람이 입지 않은 옷은 서 있을 수 없음)`);
@@ -291,10 +296,10 @@ export function traceKind(name) {
   if (/자리|지점|위치/.test(n) && !/자국|발자국|그림자/.test(n)) return /목소리|소리/.test(n) ? 'sound' : 'spot';
   if (/그림자/.test(n)) return 'shadow';
   if (/목소리|소리|울음|부르는/.test(n)) return 'sound';
-  if (/피|코피/.test(n)) return 'blood';
+  if (/피|핏|코피/.test(n)) return 'blood';
   if (/물 고인|물길|웅덩이|젖은 바닥|물 자국|물웅덩이/.test(n)) return 'water';
+  if (/빛|달빛|햇빛|낮빛|창살/.test(n) && !/발자국|신 자국|신자국/.test(n)) return 'light'; // 10/26: 「창살 빛 자국」이 발자국으로 그려져 첫 방 단서를 못 찾음
   if (/발자국|신 자국|신자국|걸음|자국|흔적/.test(n)) return 'foot';
-  if (/빛|달빛|햇빛|낮빛|창살/.test(n)) return 'light';
   return 'spot';
 }
 function openingAt(meta, o) {
