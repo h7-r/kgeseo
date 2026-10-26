@@ -297,6 +297,8 @@ async function llm(root, trial, step, { system, user, cacheSystem = false }) {
   trial.calls.push({ step: step.id, model: r.model || model, usage: r.usage, costUsd: +cost.toFixed(5), ms: Date.now() - t0, stopReason: r.stopReason, thinkingParam: r.thinkingParam, at: new Date().toISOString() });
   Object.assign(trial.steps[step.id], { costUsd: +((trial.steps[step.id].costUsd || 0) + cost).toFixed(5), stopReason: r.stopReason, outputTokens: r.usage?.output_tokens, thinkingTokens: r.usage?.output_tokens_details?.thinking_tokens ?? null, thinkingParam: r.thinkingParam, thinkingError: r.thinkingError || null });
   if (r.stopReason === 'max_tokens') trial.steps[step.id].truncated = true;
+  // 10/26: 생각이 출력 한도를 다 써 05 JSON 이 잘렸다(생각 41.6k / 56k) — 한 번은 생각을 줄여(effort low) 다시 쓴다
+  if (r.stopReason === 'max_tokens' && step.effort && step.effort !== 'low' && !step._retried) { trial.steps[step.id].retriedLowEffort = true; trial.steps[step.id].truncated = false; return llm(root, trial, { ...step, effort: 'low', _retried: true }, { system, user, cacheSystem }); }
   if (!String(r.text || '').trim()) fail(502, 'empty_output', `본문이 비었습니다(끝난 이유 ${r.stopReason}, 출력 ${r.usage?.output_tokens} 토큰). 생각에 출력 한도를 다 썼을 수 있습니다.`);
   return r.text;
 }

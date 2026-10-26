@@ -15,7 +15,7 @@ export const STEPS_INDOOR = Object.freeze([
   { id: 's02', no: '02', label: '지역 테마 시놉시스', tier: 'judgment', maxTokens: 40000, effort: 'low' },
   { id: 's03', no: '03', label: '게임 시나리오 기획서', tier: 'judgment', maxTokens: 40000, effort: 'low' },
   { id: 's04', no: '04', label: 'Scene 구성표(JSON)', tier: 'judgment', maxTokens: 48000, effort: 'low' },
-  { id: 's05', no: '05', label: '퍼즐 초안', tier: 'judgment', maxTokens: 56000, effort: 'medium', v2: true },
+  { id: 's05', no: '05', label: '퍼즐 초안', tier: 'judgment', maxTokens: 64000, effort: 'medium', v2: true },
   { id: 's06', no: '06', label: '실내 공간 구성(방 세트·살림 계획)', tier: 'judgment', maxTokens: 32000, effort: 'medium', indoor: true },
   { id: 's07', no: '07', label: '에셋 선정', tier: 'judgment', maxTokens: 24000, effort: 'low', indoor: true },
   { id: 's08', no: '08', label: '방 만들기·배치(코드, 비용 0)', tier: 'judgment', maxTokens: 1000, effort: 'low', indoor: true, codeOnly: true },
@@ -34,6 +34,8 @@ export const isGarment = (T, name) => { const n = String(name || '').trim(); con
 export const FIXTURES = [[/기둥/, n => n === '기둥'], [/문창호|방문|문살|문짝|여닫이|덧문/, n => /^문_/.test(n)], [/환기창|창호|창살|들창|봉창|^창$|\s창$/, n => /^창_/.test(n)], [/시렁/, n => /^시렁_/.test(n)], [/부뚜막/, n => /^부뚜막_/.test(n)], [/아궁이/, n => /^아궁이_/.test(n)], [/벽장/, n => /^벽장/.test(n)], [/횃대/, n => /^횃대_/.test(n)]];
 export const fixtureOf = name => { const n = String(name || '').trim(); if (/자물쇠|쪽지|기록|서찰|궤|함$|장$/.test(n) || TRACE_NAME.test(n)) return null; return FIXTURES.find(([re]) => re.test(n)) || null; };
 const STONE = /디딤돌|댓돌|섬돌/;
+// 단서 글 속 가구·살림 이름(10/26) — 앞은 글 시작·띄어쓰기·괄호, 뒤는 조사·띄어쓰기·끝
+export const FURN_IN_TEXT = /(?:^|[\s「(])(서안|문갑|반닫이|뒤주|찬장|사방탁자|탁자장|의걸이장|장롱|궤짝|궤|함|이부자리|이불|베개|병풍|소반|가마니|멍석|방석|돗자리|보자기|짚단|항아리|단지|동이|가마솥|솥|바가지|광주리|바구니|소쿠리|등잔|화로|맷돌|절구|시루)(?=[\s이가을를의에은는도과와로만,.」)]|$)/g;
 /** 풀이의 결과로만 얻는 단서 — 이 밖의 get_by(inspect·navigate·observe …)는 그 호스트에 가면 얻는다 */
 export const SOLVE_GET = new Set(['combine_clues', 'select', 'input', 'solve']);
 /** 07 고른 에셋의 상식 검사(10/22) — 평상은 마당 가구라 실내 살림 대체 금지, 2 m 넘는 후보는 이름이 같을 때만 */
@@ -731,6 +733,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     { id: 'RG-ORDER', what: '창고는 부엌 다음(마루·방에 바로 붙지 않음)', bad: (() => { const L = conv.set.links || []; const role = n => conv.rooms.find(r => r.name === n)?.role; const hasK = conv.rooms.some(r => r.role === '부엌'); return hasK ? L.filter(l => [l.a, l.b].some(n => ['헛간', '곳간'].includes(role(n))) && [l.a, l.b].some(n => !['헛간', '곳간', '부엌'].includes(role(n)))).map(l => `${l.a}–${l.b}`) : []; })() },
     { id: 'RG-HOST', what: '05 퍼즐 호스트가 모두 공간에 연결됨', bad: PZ.flatMap(p => p.hosts.filter(h => !h.at.length).map(h => `${p.id}:${h.need_id}`)) },
     { id: 'RG-PENDING', what: '퍼즐 호스트가 임시 표식이 아니라 실제 물건(없으면 에셋 생성 요청)', warn: true, bad: Object.values(markersBy).flat().filter(c => c.pending).map(c => c.name_ko) },
+    { id: 'RG-NAME', what: '단서 글의 물건 이름 = 그 단서를 주는 물건', warn: true, bad: PZ.flatMap(p => p.clues.filter(c => c.reveal && c.reveal.action !== 'look').flatMap(c => { const h = p.hosts.find(h => h.need_id === c.from); const node = String(h?.at?.[0]?.node || '').replace(/·+$/, ''); if (!node) return []; const named = [...new Set([...String(c.text || '').matchAll(FURN_IN_TEXT)].map(m => m[1]))]; return named.length && !named.some(n => node.includes(n)) ? [`${c.id}: 글 「${named.join('·')}」 ↔ 물건 「${node}」`] : []; })) },
     { id: 'RG-DIALECT', what: '화면 글에 원문 방언이 그대로 없음(01 이 풀어 쓴 뜻으로)', bad: (() => { const toks = [...new Set([...(a01?.facts || []), ...(a01?.open || [])].flatMap(f => [...String(f.text || '').matchAll(/원문 「([^」]{2,8})」/g)].map(m => m[1].trim())))].filter(t => t.length >= 2); const txt = JSON.stringify({ PZ, SCENES }); return toks.filter(t => txt.includes(t)).map(t => `「${t}」`); })() },
     { id: 'RG-PUZZLE', what: '장면 순서대로 모든 퍼즐을 풀 수 있음', bad: puzzleChecks.filter(c => !c.solvable).map(c => `${c.id}: ${c.why}`) },
   ].map(x => ({ ...x, ok: !x.bad.length }));
@@ -825,6 +828,15 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
             typeFix.push(`「${c.name_ko}」: 단서 자리 ${cl.join('·')} 를 혼자 맡음 → ${id} 는 「${add[add.length - 1].name_ko}」로 나눔`); });
         }
         plan.contents.push(...add);
+      }
+      // 10/26 미르: 단서 글은 「서안 서랍」인데 놓인 물건 이름은 「문갑」 — 단서 글이 가리키는 가구 이름 하나로 호스트 이름을 맞춘다
+      {
+        const needOfId = new Map((puzzleDoc?.puzzles || []).flatMap(p => (p.host_needs || []).map(h => [h.need_id, p])));
+        for (const c of plan.contents.filter(c => c.role === 'puzzle_host' && !c.fixture && c.place !== 'marker' && (c.serves || []).length)) {
+          const txt = (c.serves || []).flatMap(id => (needOfId.get(id)?.clues || []).filter(k => k.from === id).map(k => `${k.text || ''} ${k.reveal?.reaction || ''}`)).join(' ');
+          const named = [...new Set([...txt.matchAll(FURN_IN_TEXT)].map(m => m[1]))];
+          if (named.length === 1 && !String(c.name_ko || '').includes(named[0])) { typeFix.push(`「${c.name_ko}」 → 「${named[0]}」: 단서 글이 가리키는 물건 이름으로 맞춤`); c.q = [...new Set([named[0], ...(c.q || [])])]; c.name_ko = named[0]; }
+        }
       }
       const conv = planToSet(plan); // 방 사양을 만들 수 없는 계획이면 여기서 바로 알린다
       const contents = plan.contents;
