@@ -41,6 +41,7 @@ from companion_npc.speech.p4b2 import (
     reproduction,
     run_p4b2,
     summary_is_clean,
+    write_rater_reference,
 )
 from companion_npc.speech.records import RawLog, restricted_dir
 
@@ -52,7 +53,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--publish", action="store_true")
     parser.add_argument(
-        "--mode", choices=("p4a", "guard_eval", "compare", "p4b2"), default="p4a"
+        "--mode",
+        choices=("p4a", "guard_eval", "compare", "p4b2", "rater_reference"),
+        default="p4a",
     )
     parser.add_argument(
         "--execute",
@@ -76,6 +79,8 @@ def main(argv: list[str] | None = None) -> int:
         _write(g.exp_id, result["records"], result["summary"], args.publish)
         print(json.dumps(result["summary"]["overall"], ensure_ascii=False))
         return 0 if not result["summary"]["invalid"] else 1
+    if args.mode == "rater_reference":
+        return _rater_reference(raw)
     if args.mode == "p4b2":
         return _p4b2(raw, args.publish, args.execute, args.phases)
     config = P4AConfig.model_validate(raw)
@@ -247,6 +252,23 @@ def _p4b2(raw: dict, publish: bool, execute: bool, phases: str | None = None) ->
         shutil.copyfile(out / name, target / name)
     print(json.dumps({k: summary[k] for k in ("eval_set", "dry_run", "stop_reason", "sent_requests", "ledger")}, ensure_ascii=False))  # fmt: skip
     return 0 if summary["stop_reason"] is None else 1
+
+
+def _rater_reference(raw: dict) -> int:
+    """평가자 참고 자료(제한 경로) — 네트워크 없음 · 평가 양식 · 대응표는 건드리지 않는다."""
+
+    config = P4B2Config.model_validate(raw)
+    sources = load_sources(config, ROOT)
+    private = load_private_texts(ROOT, config.private_files)
+    policy = ExternalTransferPolicy.model_validate(_strip(json.loads((ROOT / "experiments" / "p4" / "external_transfer.json").read_text(encoding="utf-8"))))  # fmt: skip
+    forbidden = [t for _, terms in sources for t in terms] + denied_forbidden_terms(
+        policy, config, ROOT
+    )
+    path = write_rater_reference(
+        config, sources, ROOT, private, forbidden, policy.denied_cases
+    )
+    print(f"wrote {path.relative_to(ROOT).as_posix()}")
+    return 0
 
 
 def _strip(raw: dict) -> dict:

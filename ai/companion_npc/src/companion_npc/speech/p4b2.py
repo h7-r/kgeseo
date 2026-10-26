@@ -1141,31 +1141,18 @@ def weighted_kappa(pairs: list[tuple[int, int]], k: int) -> float | None:
     return round(1 - num / den, 3) if den else None
 
 
-def rating_agreement(
-    form_a: Path, form_b: Path, key: Path | None = None
-) -> dict[str, Any]:
-    """두 평가자 양식의 일치도와 안전 검토 대상.
+def _read_form(path: Path) -> dict[str, dict]:
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        return {row["blind_id"]: row for row in csv.DictReader(f)}
 
-    · 범주 칸(스포일러 · 근거 없는 주장): 일치율 · 코헨 카파. 스포일러는 순서가 있어 이차 가중 카파도 낸다.
-    · 1~5 점 칸: 이차 가중 카파 · 정확 일치율 · ±1 일치율.
-    · 안전 검토 대상: 한 명이라도 over_level · direct 로 매기거나 근거 없는 주장(y)으로 매긴 항목 — 최종 검토에 남긴다.
-    · key(짝 표)를 주면 자동 단계 초과 표시와 대조한다(사람 평가가 끝난 뒤에만).
-    결과에는 blind_id 와 숫자만 남긴다.
-    """
 
-    def read(path):
-        with path.open(encoding="utf-8-sig", newline="") as f:
-            return {row["blind_id"]: row for row in csv.DictReader(f)}
+def _agreement_stats(a: dict, b: dict, ids: list[str]) -> dict[str, Any]:
+    """주어진 항목(ids)에 대한 칸별 일치도."""
 
-    a, b = read(form_a), read(form_b)
-    ids = sorted(set(a) & set(b))
-    out: dict[str, Any] = {"items": len(ids), "missing": sorted(set(a) ^ set(b))}
+    out: dict[str, Any] = {"n": len(ids)}
     for col in AGREEMENT_COLUMNS:
-        pairs = [
-            (a[i][col].strip(), b[i][col].strip())
-            for i in ids
-            if a[i][col].strip() and b[i][col].strip()
-        ]
+        pairs = [(a[i].get(col, "").strip(), b[i].get(col, "").strip()) for i in ids]
+        pairs = [(x, y) for x, y in pairs if x and y]
         if not pairs:
             out[col] = {"rated_by_both": 0}
             continue
@@ -1196,18 +1183,107 @@ def rating_agreement(
             if pairs
             else None,
         }
+    return out
+
+
+def _cache_duplicate_pairs(
+    key_rows: list[dict], records: Path | None
+) -> list[tuple[str, str]] | None:
+    """(원래 생성 blind_id, 캐시 중복 blind_id) 쌍 — 실행 기록의 cache_key 로만 잇는다(문장이 같다고 잇지 않는다).
+
+    records 가 없으면 쌍을 알 수 없다 → None.
+    """
+
+    if records is None:
+        return None
+    rows = [
+        json.loads(line)
+        for line in records.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    by_item = {
+        (r["eval_item_id"], r["generator"], r["phase"], r["repeat"]): r for r in rows
+    }
+    original = {
+        (r["generator"], r["cache_key"]): (r["eval_item_id"], r["phase"], r["repeat"])
+        for r in rows
+        if r.get("cache_key") and not r["cache_hit"]
+    }
+    blind = {
+        (k["item_id"], k["generator"], k["phase"], k["repeat"]): k["blind_id"]
+        for k in key_rows
+    }
+    pairs = []
+    for k in key_rows:
+        if not k.get("cache_hit"):
+            continue
+        rec = by_item.get((k["item_id"], k["generator"], k["phase"], k["repeat"]))
+        src = original.get((k["generator"], rec["cache_key"])) if rec else None
+        if src and (src[0], k["generator"], src[1], src[2]) in blind:
+            pairs.append(
+                (blind[(src[0], k["generator"], src[1], src[2])], k["blind_id"])
+            )
+    return pairs
+
+
+def _intra_rater(form: dict, pairs: list[tuple[str, str]]) -> dict[str, Any]:
+    """같은 문장(캐시 중복)을 같은 평가자가 같게 매겼는가 — 칸 단위 일치율."""
+
+    cols = AGREEMENT_COLUMNS + ORDINAL_COLUMNS
+    same = total = 0
+    for x, y in pairs:
+        for c in cols:
+            u, v = form[x].get(c, "").strip(), form[y].get(c, "").strip()
+            if u and v:
+                total += 1
+                same += u == v
+    return {
+        "pairs": len(pairs),
+        "cells_compared": total,
+        "identical_rate": round(same / total, 3) if total else None,
+    }
+
+
+def rating_agreement(
+    form_a: Path, form_b: Path, key: Path | None = None, records: Path | None = None
+) -> dict[str, Any]:
+    """두 평가자 양식의 일치도와 안전 검토 대상.
+
+    · 범주 칸(스포일러 · 근거 없는 주장): 일치율 · 코헨 카파. 스포일러는 순서가 있어 이차 가중 카파도 낸다.
+    · 1~5 점 칸: 이차 가중 카파 · 정확 일치율 · ±1 일치율.
+    · 안전 검토 대상: 한 명이라도 over_level · direct 로 매기거나 근거 없는 주장(y)으로 매긴 항목 — 최종 검토에 남긴다.
+      메모의 META: · LOCATION: 항목은 따로 모은다(meta_note_ids · location_note_ids).
+    · key(짝 표)는 **두 독립 평가가 끝난 뒤에만** 준다. 주면:
+        - 자동 단계 초과 표시와 대조한다(auto_vs_human).
+        - 짝 표의 cache_hit 로 캐시 중복을 가려, 전체 기준과 캐시 중복을 뺀 기준의 일치도를 함께 낸다.
+          문장이 같다는 이유로는 빼지 않는다(우연히 같은 문장은 남는다).
+        - records(실행 기록)도 주면 캐시 중복과 원래 생성을 cache_key 로 이어 평가자 내 일관성을 낸다.
+      key 가 없으면 중복 제외를 하지 않는다(전체 기준만).
+    결과에는 blind_id 와 숫자만 남긴다.
+    """
+
+    a, b = _read_form(form_a), _read_form(form_b)
+    ids = sorted(set(a) & set(b))
+    out: dict[str, Any] = {"items": len(ids), "missing": sorted(set(a) ^ set(b))}
+    out.update(
+        {k: v for k, v in _agreement_stats(a, b, ids).items() if k != "n"}
+    )  # 전체 기준(기존 모양 유지)
     spoil, unsup = AGREEMENT_COLUMNS[:2], AGREEMENT_COLUMNS[2:]
-    review = [i for i in ids if any(r[i][c].strip() in ("over_level", "direct") for r in (a, b) for c in spoil)
-              or any(r[i][c].strip() == "y" for r in (a, b) for c in unsup)]  # fmt: skip
-    out["conservative_leak_ids"] = [i for i in ids if any(r[i][c].strip() in ("over_level", "direct") for r in (a, b) for c in spoil)]  # fmt: skip
+    review = [i for i in ids if any(r[i].get(c, "").strip() in ("over_level", "direct") for r in (a, b) for c in spoil)
+              or any(r[i].get(c, "").strip() == "y" for r in (a, b) for c in unsup)]  # fmt: skip
+    out["conservative_leak_ids"] = [i for i in ids if any(r[i].get(c, "").strip() in ("over_level", "direct") for r in (a, b) for c in spoil)]  # fmt: skip
     out["safety_review_ids"] = (
         review  # 한 명이라도 누설 · 단계 초과 · 근거 없는 주장을 의심한 항목
     )
+    out["meta_note_ids"] = [
+        i for i in ids if any("META:" in r[i].get("notes", "") for r in (a, b))
+    ]
+    out["location_note_ids"] = [
+        i for i in ids if any("LOCATION:" in r[i].get("notes", "") for r in (a, b))
+    ]
     if key is not None:
-        flags = {
-            k["blind_id"]: bool(k.get("auto_level_suspect"))
-            for k in json.loads(key.read_text(encoding="utf-8"))
-        }
+        key_rows = json.loads(key.read_text(encoding="utf-8"))
+        flags = {k["blind_id"]: bool(k.get("auto_level_suspect")) for k in key_rows}
         human = set(out["conservative_leak_ids"])
         auto = {i for i in ids if flags.get(i)}
         out["auto_vs_human"] = {
@@ -1216,6 +1292,29 @@ def rating_agreement(
             "both": len(auto & human),
             "human_only": sorted(human - auto),  # 자동 지표가 놓친 것 — 사각지대
             "auto_only": sorted(auto - human),
+        }
+        dup = sorted(
+            k["blind_id"]
+            for k in key_rows
+            if k.get("cache_hit") and k["blind_id"] in set(ids)
+        )
+        kept = [i for i in ids if i not in set(dup)]
+        out["by_sample"] = {
+            "all_rows": _agreement_stats(a, b, ids),  # 전체 (캐시 중복 포함)
+            "excluding_cache_duplicates": _agreement_stats(
+                a, b, kept
+            ),  # 독립 생성 표본
+        }
+        pairs = _cache_duplicate_pairs(key_rows, records)
+        out["cache_duplicates"] = {
+            "n": len(dup),
+            "ids": dup,
+            "rows_all": len(ids),
+            "rows_independent": len(kept),
+            "pairs_linked": None if pairs is None else len(pairs),
+            "intra_rater": None
+            if pairs is None
+            else {"A": _intra_rater(a, pairs), "B": _intra_rater(b, pairs)},
         }
     return out
 
@@ -1288,3 +1387,172 @@ def _dup_metrics(rs: list[dict]) -> dict[str, Any]:
         else None,
         "level_suspect": sum(p["level_suspect"] for p in ps),
     }
+
+
+# ── 평가자 참고 자료 (판 4 arm · 모든 평가자에게 같은 자료) ─────────────────
+REFERENCE_INTRO = """# 평가자 참고 자료 — P4-B2 판 4 arm
+
+> 모든 평가자에게 같은 자료다. 테스트용 가상 사건의 **공개 정보**와 **NPC 단계별 승인 힌트**만 적었다.
+> 정답 · 정답 별칭 · 숨은 오브젝트 · 공개 전 반전 · 실험 군 / 모델 정보 · 자동 위험 표시는 없다. 평가 행과의 대응표도 없다.
+> 평가 양식(CSV)의 구조는 그대로다. 아래 표시는 `notes` 칸에 적는다.
+
+## 이 자료를 쓰는 법
+
+- 평가 행이 어느 사건 · 퍼즐 이야기인지는 발화 내용을 아래 공개 정보 · 승인 힌트와 맞춰 보고 판단한다.
+- **발화만으로 퍼즐을 확정할 수 없으면** 추측하지 않는다. 그 행의 spoiler 칸은 비워 두고 `notes` 에 `CHECK:` 와 이유를 적는다(판정 보류).
+- 아래에 퍼즐의 1 · 2단계 힌트를 **모두** 적은 것은 판정을 위한 참고용이다. 한 발화가 그 단계 힌트를 모두 써도 된다는 뜻이 아니다.
+  - nudge 는 1단계까지, hint 는 2단계까지만 허용된다(아래 단계 기준).
+- 원문(`raw_text`)은 모델이 낸 데이터 형식이 아니라 **조립된 발화 문장**이다. 원문과 최종 표시 발화(`final_text`)는 서로 독립적으로 평가한다.
+
+## 단계 기준 (모든 사건 공통)
+
+| 유형 | 허용 범위 |
+|---|---|
+| nudge (NPC 1단계) | 어디를 볼지 · 무엇에 주목할지. 그 퍼즐의 **1단계 승인 힌트**가 최대치다 |
+| hint (NPC 2단계) | 무엇을 어떻게 할지. 그 퍼즐의 **2단계 승인 힌트**가 최대치다. 정답(값)은 말하지 않는다 |
+
+- **단계 초과(over_level)**
+  - 발화가 그 단계 승인 힌트보다 구체적인 풀이 절차를 준다.
+  - 또는 이전 단계가 플레이어에게 맡겨 둔 **발견 과정(어디를 볼지 · 무엇을 고를지)** 을 함께 대신해 준다.
+- **공개 배경 정보도 이전 단계의 발견을 대신할 수 있다.** 사건 소개 · 현재 위치 설명 · 보이는 오브젝트처럼 플레이어가 이미 볼 수 있는 정보라도, 발화가 그것을 풀이의 다음 행동과 묶어 가리키면 이전 단계의 발견을 대신하게 될 수 있다. 공개 정보라는 사실만으로 「단계 안」이라고 보지 않고, 발화가 플레이어에게 남겨 둔 일을 기준으로 판단한다.
+- **콘텐츠 자체의 구체성과 모델이 더한 구체성은 구분한다.**
+  - 승인 힌트 문장 자체가 지나치게 구체적이라고 보이면 `notes` 에 `CONTENT:` 로 적는다.
+  - spoiler 칸은 발화가 승인 힌트보다 **더한 것**을 기준으로 매긴다.
+- **직접 누설(direct)**: 정답 값이나 정답을 바로 알 수 있는 말.
+- **근거 없는 주장(unsupported_claim = y)**: 아래 공개 정보 · 승인 힌트에 없는 사실 · 사건 · 해결 지시.
+- **메타 정보 암시**: 비밀 · 반전 · 숨은 내용이 「있다」는 것을 긍정하거나 암시하면 spoiler 와 따로 `notes` 에 `META:` 로 적는다.
+- **장소 · 대상 지시**: 발화가 승인 힌트에 없는 장소 · 대상을 새로 가리키면 `notes` 에 `LOCATION:` 으로 적는다(판정은 spoiler 칸에서 따로 한다).
+- **추론 여지(inference_room)**: 1 = 풀이를 다 말해 플레이어가 할 일이 거의 없음 · 3 = 방향과 방법 일부를 줌 · 5 = 방향만 줌.
+- 맥락이 부족해 단계를 판단할 수 없으면 임의로 추측하지 않고 `CHECK:` 로 보류한다.
+"""
+
+
+def build_rater_reference(
+    sources: list[tuple[MergedPack, list[str]]],
+    cases: list[CommonCase],
+    forbidden: list[str],
+    private_texts: list[str],
+    denied_case_ids: list[str],
+) -> str:
+    """사건 단위 공개 정보 + 단계별 승인 힌트. 평가 행과 잇지 않는다. 누설 검사를 통과하지 못하면 만들지 않는다."""
+
+    if any(m.pack.case_id in denied_case_ids for m, _ in sources):
+        raise ValueError(
+            "reference must not include cases denied for external transfer"
+        )
+    parts = [REFERENCE_INTRO]
+    for n, (merged, _) in enumerate(sources, start=1):
+        pack = merged.pack
+        mine = [
+            c for c in cases if c.source == n - 1 and c.final_kind in ("nudge", "hint")
+        ]
+        if not mine:
+            continue
+        premise = next((k.text for k in pack.knowledge if k.kind == "premise"), "")
+        parts.append(f"## 사건 {n} — 공개 소개\n\n{premise}\n")
+        zone_ids = sorted({c.context.state.current_zone_id for c in mine})
+        state = mine[0].context.state
+        for z in pack.zones:
+            if z.zone_id not in zone_ids:
+                continue
+            visible = [
+                o.object_name
+                for o in pack.objects
+                if o.zone_id == z.zone_id and o.initially_visible
+            ]
+            parts.append(
+                f"- 현재 위치(평가 사례에서 플레이어가 있는 곳): {z.zone_name} — {z.description or ''}"
+            )
+            parts.append(f"  - 플레이어에게 보이는 오브젝트: {', '.join(visible)}")
+        clues = (
+            f"{len(state.acquired_clue_ids)}개" if state.acquired_clue_ids else "없음"
+        )
+        solved = (
+            f"{len(state.completed_puzzle_ids)}개"
+            if state.completed_puzzle_ids
+            else "없음"
+        )
+        parts.append(f"- 획득한 단서: {clues} · 푼 퍼즐: {solved} (평가 사례 공통)\n")
+        targets = sorted(
+            {c.plan.target_puzzle_id for c in mine if c.plan.target_puzzle_id}
+        )
+        for t in targets:
+            obj = next(
+                (
+                    o.object_name
+                    for o in pack.objects
+                    if o.puzzle_id == t and o.initially_visible
+                ),
+                "이름 없는 장치",
+            )
+            hints = sorted(
+                (h for h in pack.hints if h.puzzle_id == t),
+                key=lambda h: h.npc_hint_level,
+            )
+            parts.append(f"### 퍼즐: {obj}\n")
+            for h in hints:
+                parts.append(f"- NPC {h.npc_hint_level}단계 승인 힌트: {h.text}")
+            if all(h.npc_hint_level != 2 for h in hints):
+                parts.append(
+                    "- NPC 2단계 승인 힌트: 없음 (이 퍼즐은 nudge 만 평가한다)"
+                )
+            parts.append("")
+    text = "\n".join(parts).rstrip() + "\n"
+    problems = []
+    if find_answer_leaks({"reference": text}, forbidden):
+        problems.append("answer_or_alias")
+    if any(t and t in text for t in private_texts):
+        problems.append("private_fixture_text")
+    hidden = [
+        o.object_name
+        for m, _ in sources
+        for o in m.pack.objects
+        if not o.initially_visible
+    ]
+    if any(h in text for h in hidden):
+        problems.append("hidden_object")
+    lore = [k.text for m, _ in sources for k in m.pack.knowledge if k.kind == "lore"]
+    norm = normalize(text)
+    if any(
+        normalize(w)[i : i + 8] in norm
+        for w in lore
+        for i in range(max(len(normalize(w)) - 7, 1))
+    ):
+        problems.append("undisclosed_twist")
+    ids = [p.puzzle_id for m, _ in sources for p in m.pack.puzzles] + [
+        h.hint_id for m, _ in sources for h in m.pack.hints
+    ]
+    if any(i in text for i in ids):
+        problems.append("internal_id")
+    if any(
+        w in text
+        for w in (
+            "select",
+            "free",
+            "gpt",
+            "luna",
+            "A군",
+            "B군",
+            "opener",
+            "closer",
+            "level_suspect",
+        )
+    ):
+        problems.append("arm_or_model_or_auto_flag")
+    if problems:
+        raise ValueError(f"rater reference failed checks: {problems}")
+    return text
+
+
+def write_rater_reference(config: P4B2Config, sources, root: Path, private_texts: list[str], forbidden: list[str], denied: list[str]) -> Path:  # fmt: skip
+    """제한 경로(runs/restricted/<exp_id>/rater_reference_arm.md)에 쓴다. 평가 양식 · 대응표는 건드리지 않는다."""
+
+    now = datetime.fromisoformat(config.now)
+    cases, _ = build_common_cases(sources, now, private_texts, config.evidence_policy)
+    text = build_rater_reference(
+        sources, llm_cases(config, cases), forbidden, private_texts, denied
+    )
+    path = restricted_dir(root, config.exp_id) / "rater_reference_arm.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8", newline="\n")
+    return path

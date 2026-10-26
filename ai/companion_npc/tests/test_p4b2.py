@@ -1735,3 +1735,180 @@ def test_weighted_kappa_and_safety_review(tmp_path):
         "human_only": ["r"],
         "auto_only": ["p"],
     }
+
+
+# ── 12. 사람 평가 참고 자료 · 캐시 중복 집계 ───────────────────────────
+def _form(tmp_path, name, rows):
+    import csv
+
+    from companion_npc.speech.p4b2 import RATING_COLUMNS
+
+    path = tmp_path / name
+    fields = [
+        "blind_id",
+        "kind",
+        "player_message",
+        "raw_text",
+        "final_text",
+        "replaced_by_template",
+        *RATING_COLUMNS,
+    ]
+    with path.open("w", encoding="utf-8-sig", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: r.get(k, "") for k in fields})
+    return path
+
+
+def _rated(bid, spoiler="none", nat="4", notes="", text="t"):
+    from companion_npc.speech.p4b2 import AGREEMENT_COLUMNS
+
+    return {"blind_id": bid, "raw_text": text, "final_text": text, AGREEMENT_COLUMNS[0]: spoiler, AGREEMENT_COLUMNS[1]: spoiler,
+            AGREEMENT_COLUMNS[2]: "n", AGREEMENT_COLUMNS[3]: "n", "raw_naturalness(1-5)": nat, "notes": notes}  # fmt: skip
+
+
+def _eval_fixture(tmp_path):
+    # x1 · x2: 원래 생성 · 캐시 중복(같은 cache_key) / x3: 우연히 x1 과 같은 문장(다른 cache_key · 캐시 아님)
+    a = _form(tmp_path, "a.csv", [_rated("x1"), _rated("x2"), _rated("x3"), _rated("x4", "over_level", notes="LOCATION: 장소"), _rated("x5", notes="META: 비밀 언급")])  # fmt: skip
+    b = _form(
+        tmp_path,
+        "b.csv",
+        [_rated("x1"), _rated("x2", nat="2"), _rated("x3"), _rated("x4"), _rated("x5")],
+    )
+    key = tmp_path / "key.json"
+    key.write_text(json.dumps([
+        {"blind_id": "x1", "generator": "g:free", "item_id": "c/one", "phase": "arm", "repeat": 0, "cache_hit": False, "auto_level_suspect": False},
+        {"blind_id": "x2", "generator": "g:free", "item_id": "c/two", "phase": "arm", "repeat": 0, "cache_hit": True, "auto_level_suspect": False},
+        {"blind_id": "x3", "generator": "g:free", "item_id": "c/three", "phase": "arm", "repeat": 0, "cache_hit": False, "auto_level_suspect": False},
+        {"blind_id": "x4", "generator": "g:free", "item_id": "c/four", "phase": "arm", "repeat": 0, "cache_hit": False, "auto_level_suspect": False},
+        {"blind_id": "x5", "generator": "g:free", "item_id": "c/five", "phase": "arm", "repeat": 0, "cache_hit": False, "auto_level_suspect": True},
+    ]), encoding="utf-8")  # fmt: skip
+    rec = tmp_path / "records.jsonl"
+    rows = [("c/one", "k1", False), ("c/two", "k1", True), ("c/three", "k3", False), ("c/four", "k4", False), ("c/five", "k5", False)]  # fmt: skip
+    rec.write_text("".join(json.dumps({"eval_item_id": i, "generator": "g:free", "phase": "arm", "repeat": 0, "cache_key": k, "cache_hit": h}) + "\n" for i, k, h in rows), encoding="utf-8")  # fmt: skip
+    return a, b, key, rec
+
+
+def test_without_key_no_duplicate_exclusion(tmp_path):
+    from companion_npc.speech.p4b2 import rating_agreement
+
+    a, b, _, _ = _eval_fixture(tmp_path)
+    r = rating_agreement(a, b)
+    assert (
+        r["items"] == 5 and "by_sample" not in r and "cache_duplicates" not in r
+    )  # 짝 표 없으면 전체 기준만
+    assert r["location_note_ids"] == ["x4"] and r["meta_note_ids"] == ["x5"]
+    assert r["safety_review_ids"] == ["x4"] and r["conservative_leak_ids"] == ["x4"]
+
+
+def test_with_key_all_vs_independent_and_intra_rater(tmp_path):
+    from companion_npc.speech.p4b2 import rating_agreement
+
+    a, b, key, rec = _eval_fixture(tmp_path)
+    r = rating_agreement(a, b, key, rec)
+    assert (
+        r["by_sample"]["all_rows"]["n"] == 5
+        and r["by_sample"]["excluding_cache_duplicates"]["n"] == 4
+    )
+    d = r["cache_duplicates"]
+    assert d["ids"] == ["x2"] and (d["rows_all"], d["rows_independent"]) == (
+        5,
+        4,
+    )  # 실제 캐시 중복만 뺀다
+    assert "x3" not in d["ids"]  # 우연히 같은 문장(캐시 아님)은 남는다
+    assert d["pairs_linked"] == 1
+    assert d["intra_rater"]["A"]["identical_rate"] == 1.0  # A 는 x1 · x2 를 같게 매김
+    assert (
+        d["intra_rater"]["B"]["identical_rate"] < 1.0
+    )  # B 는 자연스러움을 다르게 매김
+    assert r["auto_vs_human"]["human_only"] == ["x4"] and r["auto_vs_human"][
+        "auto_only"
+    ] == ["x5"]
+    no_records = rating_agreement(a, b, key)
+    assert (
+        no_records["cache_duplicates"]["n"] == 1
+        and no_records["cache_duplicates"]["intra_rater"] is None
+    )
+
+
+def test_real_eval_inputs_are_untouched_by_aggregation(tmp_path):
+    base = ROOT / "runs" / "restricted" / "p4b2_gpt_fictional_v4"
+    files = [base / n for n in ("rating_form_arm_rater_A.csv", "rating_form_arm_rater_B.csv", "rating_key_arm.json", "records_arm.jsonl")]  # fmt: skip
+    if not all(f.exists() for f in files):
+        pytest.skip("local evaluation files not present")
+    import hashlib as _h
+
+    from companion_npc.speech.p4b2 import rating_agreement
+
+    before = [_h.sha256(f.read_bytes()).hexdigest() for f in files]
+    r = rating_agreement(files[0], files[1])  # 대응표 없이 — 평가 전 점검과 같은 호출
+    assert r["items"] == 56 and "cache_duplicates" not in r
+    assert [_h.sha256(f.read_bytes()).hexdigest() for f in files] == before
+
+
+def test_rater_reference_is_public_only(
+    v4, fictional_sources, sources, private, tmp_path, policy
+):
+    from companion_npc.contracts.spoiler import find_answer_leaks
+    from companion_npc.speech.p4b2 import (
+        build_rater_reference,
+        denied_forbidden_terms,
+        write_rater_reference,
+    )
+
+    forbidden = [t for _, ts in fictional_sources for t in ts] + denied_forbidden_terms(
+        policy, v4, ROOT
+    )
+    path = write_rater_reference(
+        v4, fictional_sources, tmp_path, private, forbidden, policy.denied_cases
+    )
+    assert (
+        path
+        == tmp_path.resolve()
+        / "runs"
+        / "restricted"
+        / "p4b2_gpt_fictional_v4"
+        / "rater_reference_arm.md"
+    )
+    text = path.read_text(encoding="utf-8")
+    for need in ("공개 소개", "현재 위치", "보이는 오브젝트", "획득한 단서", "1단계 승인 힌트", "2단계 승인 힌트", "단계 초과", "근거 없는 주장", "추론 여지", "CHECK:", "META:", "LOCATION:", "CONTENT:", "써도 된다는 뜻이 아니다", "이전 단계의 발견"):  # fmt: skip
+        assert need in text, need
+    all_terms = [t for _, ts in sources + fictional_sources for t in ts]
+    assert not find_answer_leaks(
+        {"x": text}, all_terms
+    )  # case_001 포함 모든 정답 · 별칭 없음
+    real = next(m for m, _ in sources if m.pack.case_id == "case_001")
+    assert all(h.text not in text for h in real.pack.hints) and all(
+        k.text not in text for k in real.pack.knowledge
+    )
+    hidden = [
+        o.object_name
+        for m, _ in fictional_sources
+        for o in m.pack.objects
+        if not o.initially_visible
+    ]
+    assert hidden and not any(h in text for h in hidden)  # 숨은 오브젝트 없음
+    assert not any(
+        k.text in text
+        for m, _ in fictional_sources
+        for k in m.pack.knowledge
+        if k.kind == "lore"
+    )
+    for word in (
+        "select",
+        "free",
+        "gpt",
+        "luna",
+        "A군",
+        "B군",
+        "level_suspect",
+        "blind_id",
+        "PUZZLE_",
+        "H_",
+    ):
+        assert word not in text, word  # 군 · 모델 · 자동 표시 · 행 대응 · 내부 ID 없음
+    with pytest.raises(ValueError, match="denied"):
+        build_rater_reference(
+            sources, [], [], [], policy.denied_cases
+        )  # case_001 이 섞인 원천은 거부
