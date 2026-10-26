@@ -523,6 +523,8 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
   const plansOut = {};
   const markersBy = {}; // 방별 흔적·자리 표식(물건 3D 없이 그린다)
   const fixturesBy = {}; // 방별 붙박이 호스트(방 노드에 연결)
+  // 10/27 미르: 출구 문 장치(패 자물쇠 등)의 호스트는 물건이 아니라 문이다 — 뷰어가 문에 자물쇠를 그린다. 07 이 「자물쇠」를 살림으로 넣으면 라이브러리에 없어 방 가운데 바닥 표식(쓸모없는 불빛)이 됐다
+  const exitHosts = new Set((puzzleDoc?.puzzles || []).filter(p => p.solve?.device?.on === 'exit_door' && p.solve.at).map(p => p.solve.at));
   for (const r of conv.rooms) {
     const rj = JSON.parse(await fs.readFile(path.join(dir, `room_${r.id}.json`), 'utf8'));
     const shelf = (rj.surfaces || []).find(s => s.kind === 'shelf')?.name || null;
@@ -530,6 +532,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     const items = []; const hangs = []; const edges = [];
     const mine = plan.contents.filter(c => conv.byPlan.get(c.room)?.id === r.id);
     for (const c of mine) {
+      if ((c.serves || []).length && c.serves.every(n => exitHosts.has(n))) { notes.push(`${r.name} 「${c.name_ko}」: 출구 문 장치 자리 — 물건으로 놓지 않고 문에 그림`); continue; }
       // 붙박이 호스트는 자리(마루 끝·횃대 …)와 상관없이 방 구조에 잇는다(10/22) — 흔적·표식은 제외
       if (c.place !== 'marker' && c.role !== 'marker' && (c.fixture || (fixtureOf(c.name_ko) && !byItem.get(c.item_id)?.pick))) { (fixturesBy[r.id] ||= []).push(c); continue; }
       if (c.place === 'hang') { if (!r.spec.rails?.[0] && (c.serves || []).length) { edges.push(c); notes.push(`${r.name} 「${c.name_ko}」: 횃대가 없어 마루 끝 바닥에 둠(퍼즐 호스트라 빼지 않음)`); continue; } hangs.push(c); continue; } // 10/23: 횃대 없는 방의 초롱(퍼즐 호스트)이 통째로 빠져 단서를 못 얻음
