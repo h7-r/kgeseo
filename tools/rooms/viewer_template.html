@@ -257,7 +257,7 @@ function addTraces(){(meta.traces||[]).forEach((t,ti)=>{if(exitHostNode(ci,t.nam
  else if(t.kind==='step'){const m=flat(spotTex(),t.size[0],t.size[1],t.pos.x,t.pos.z);m.material.opacity=0.02}
  else if(t.kind==='blood'){flat(bloodTex(),t.size[0],t.size[1],t.pos.x,t.pos.z,0.5)}
  else if(t.kind==='spot'||t.kind==='sound'){const m=flat(t.kind==='spot'?spotTex():soundTex(),t.size[0],t.size[1],t.pos.x,t.pos.z);if(PZ.some(p=>p.hosts.some(h=>h.at.some(b=>b.room===ci&&b.node===t.name)))){m.material.opacity=0.35}else{m.userData.reviewOnly=true;m.visible=mode!=='play'}}
- else if(t.kind==='shadow'){const m=tPlane(shadowTex(t.figure),t.size[0]*0.9,Math.max(t.size[1],t.figure?0.95:0)*0.95,{opacity:0.85});m.position.set(t.pos.x,t.y+t.size[1]/2,t.pos.z);m.rotation.y=Math.atan2(t.normal[0],t.normal[1]);m.name=nm(0);G0.add(m)}
+ else if(t.kind==='shadow'){const sh_=t.size[1]*0.86,sw_=t.figure?Math.min(t.size[0]*0.9,sh_*0.8):t.size[0]*0.9;/* 10/27: 실루엣은 창 안에 머리부터 발까지 다 들어가게(창보다 크면 머리가 창틀에 잘렸다) */const m=tPlane(shadowTex(t.figure),sw_,sh_,{opacity:t.figure?0.95:0.85});m.position.set(t.pos.x,t.y+t.size[1]/2,t.pos.z);m.rotation.y=Math.atan2(t.normal[0],t.normal[1]);m.name=nm(0);G0.add(m)}
  if(G0.children.length)cur.add(G0)})}
 
 // ── 마당 풍광(10/21) — 대청 앞. 땅·댓돌·돌단은 여기서 그리고, 담·대문·장독·나무·꽃은 방 GLB 에 들어 있다 ──
