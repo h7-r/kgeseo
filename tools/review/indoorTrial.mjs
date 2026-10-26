@@ -331,7 +331,7 @@ export function traceLayout(meta, markers, rooms, room) {
   let lightAt = null;
   for (const [k, c] of markers.entries()) {
     const kind = c.pending ? 'spot' : (c.show?.kind && c.show.kind !== 'object') ? c.show.kind : c.place === 'edge_step' ? 'step' : traceKind(c.name_ko); // 10/26: 단서가 「발자국」이라 하면 디딤돌 자리라도 발자국을 그린다 // pending = 에셋 없는 퍼즐 호스트의 임시 자리(10/22) · 10/26: 05 가 적은 shows.kind 를 먼저
-    const t = { id: c.item_id, name: String(c.name_ko).slice(0, 30), kind, ...(c.show?.cells?.length ? { cells: c.show.cells, grid: c.show.grid || null } : {}), wet: /젖은|물/.test(c.name_ko || ''), faint: /옅|희미|사라/.test(c.name_ko || ''), y: FY };
+    const t = { id: c.item_id, name: String(c.name_ko).slice(0, 30), kind, ...(c.show?.cells?.length ? { cells: c.show.cells, grid: c.show.grid || null } : {}), ...(c.show?.figure ? { figure: c.show.figure } : {}), wet: /젖은|물/.test(c.name_ko || ''), faint: /옅|희미|사라/.test(c.name_ko || ''), y: FY };
     if (kind === 'foot') {
       if (!target) { notes.push(`「${c.name_ko}」: 이어질 문이 없어 못 그림`); continue; }
       const end = clampIn({ x: target.x + target.nx * 0.45, z: target.z + target.nz * 0.45 });
@@ -792,6 +792,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     { id: 'RG-SHOW', what: '단서가 말하는 것이 화면에 그려짐(빛·발자국 개수·물건) — 안 그려지면 그 단서는 얻을 수 없음', bad: [...showBad].map(([id, why]) => `${id}: ${why}`) },
     { id: 'RG-REVEAL', what: '손에 드는 단서는 실제 물건 밑·안·뒤에서 드러남(표식 자리면 카드로만 뜸)', warn: true, bad: PZ.flatMap(p => p.clues.filter(c => c.carrier && c.carrier.kind && c.carrier.kind !== 'mark' && c.reveal && c.reveal.action !== 'look').flatMap(c => { const h = p.hosts.find(h => h.need_id === c.from); const a = (h?.assets || [])[0]; return a && (a.kind !== 'object' || a.pending) ? [`${c.id}: 「${a.name}」(${a.pending ? '임시 표식' : a.kind})`] : []; })) },
     { id: 'RG-DIALECT', what: '화면 글에 원문 방언이 그대로 없음(01 이 풀어 쓴 뜻으로)', bad: (() => { const toks = [...new Set([...(a01?.facts || []), ...(a01?.open || [])].flatMap(f => [...String(f.text || '').matchAll(/원문 「([^」]{2,8})」/g)].map(m => m[1].trim())))].filter(t => t.length >= 2); const txt = JSON.stringify({ PZ, SCENES }); return toks.filter(t => txt.includes(t)).map(t => `「${t}」`); })() },
+    { id: 'RG-LOGIC', what: '05 가 고치지 못한 풀이 문제 없음(답이 단서에 보이고, 짐작·소거 없이 풀림)', bad: puzzleDoc?.check?.unresolved || [] }, // 10/27 미르: 「여인」을 찍어야 맞히는 퍼즐이 검사를 통과한 것처럼 지나갔다
     { id: 'RG-PUZZLE', what: '장면 순서대로 모든 퍼즐을 풀 수 있음', bad: puzzleChecks.filter(c => !c.solvable).map(c => `${c.id}: ${c.why}`) },
   ].map(x => ({ ...x, ok: !x.bad.length }));
   const vdata = { SC: SCENES, PZ, BK, ITEMS: viewItems, TRIAL: { id: trial.id, title: trial.title } };

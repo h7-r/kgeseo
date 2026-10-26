@@ -40,6 +40,7 @@ const PUZZLE_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」
 - 추론은 한 걸음: 단서를 본 사람이 「아, 그래서 이거구나」 하고 바로 잇는 정도. 처음 하는 사람이 힌트 없이 1~3분에 푼다.
 - 조작법을 일러 주는 쪽지 금지: 「발자국 수를 앞자리에, 신 짝 수를 뒷자리에」「시계 방향으로 두 칸 돌린 곳」처럼 퍼즐 규칙을 적은 글은 이야기 속 사람이 쓸 까닭이 없다.
 - 장치의 답 = 화면에 보이는 것 그대로: 문살 무늬판이면 바닥에 비친 창살 빛에서 밝은 칸이 곧 누를 칸(그 빛 단서의 shows.cells 에 그 칸을 적는다), 패 끼우기면 기록에 적힌 차례, 매듭이면 실제로 색이 보이는 물건들의 차례, 비밀자물쇠면 단서 물건에 그려진 문양. 외워야 하는 대응표(오방색↔방위 등)를 쓰려면 그 대응표 자체가 방 안에 단서로 있어야 한다.
+- 답은 단서로 「확인」한다 — 남는 것을 고르는 소거·짐작으로 정해지는 답 금지(10/27 미르: 그림자가 여인인지 알 단서가 없어 「여인」은 찍어야 맞혔다). 답이 사람·물건이면 그것임을 알아볼 특징이 단서 content 에 그 말 그대로 있고(예: 「쪽진 머리에 치마폭이 넓은 여인의 그림자」), 흔적(mark)이면 화면에도 그 모습으로 그린다(shows.figure). 기록에 없는 사람이 답이면 「기록에 없는 사람」이 아니라 그 사람을 직접 보여 준다.
 - 풀면 반드시 무슨 일이 일어난다: 다음 방 문이 열리거나(출구 장치), 다음 퍼즐에 쓰이는 단서를 얻는다(clue_acquired 가 뒤 퍼즐의 required_clue_ids 에 들어감). 풀어도 아무 것도 안 나오는 퍼즐 금지.
 팀 계약(반드시 지킴)
 - 플레이어 행동은 5종뿐: inspect(물건·기록·단서 조사) · navigate(구역·조사 지점으로 이동) · input(글자·숫자 입력) · select(선택지·대상 고르기) · combine_clues(얻은 단서 2개를 조사수첩에서 짝짓기). 옛 이름(observe·compare·rotate·align·connect·sequence·collect 등)은 쓰지 않는다.
@@ -65,7 +66,7 @@ const PUZZLE_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」
   · 01 사실에 (원문 「…」)로 남은 방언·옛말은 게임 글(단서·쪽지·힌트·제목)에 그대로 쓰지 않는다 — 01 이 풀어 쓴 뜻으로 쓴다(예: 원문 「한방」 → 「신부와 같은 방」).
   · 문장은 그 시대 사람이 실제로 쓸 법한 자연스러운 한국어로. 뜻이 어색하거나 문법이 틀린 문장 금지(나쁜 예: 「손님 한 분은 한방에 드심」 — 「한방」의 뜻이 안 통한다). 쪽지·서신은 누가 누구에게 왜 쓴 것인지가 보이게.
   · 화면에 보여야 할 것(10/26 미르: 장판의 「흰 줄·누런 줄」 빛을 적어 놓고 화면엔 발자국이 그려져 풀 수 없었다): look 단서(carrier mark)는 shows 를 쓴다 — {"kind":"foot|light|shadow|water|blood|object","count":숫자(foot 만, 1~8)}. 게임이 그릴 수 있는 것은 이것뿐이다:
-    - foot: 발자국 한 줄(개수 count 만큼, 젖은 것 가능) · light: 창에서 든 빛 한 덩어리(색·줄 수 구분 못 함) — 단, 창살 칸 모양으로 비치게 하려면 shows 에 "cells":["행-열",…],"grid":[행 수,열 수] 를 적으면 그 칸만 밝게 그린다(문살 무늬판 답과 같은 칸) · shadow: 창호지에 비친 그림자 한 덩어리 · water: 물 고인 자리 하나 · blood: 작은 핏자국 하나 · object: 그 자리에 놓인 물건 자체.
+    - foot: 발자국 한 줄(개수 count 만큼, 젖은 것 가능) · light: 창에서 든 빛 한 덩어리(색·줄 수 구분 못 함) — 단, 창살 칸 모양으로 비치게 하려면 shows 에 "cells":["행-열",…],"grid":[행 수,열 수] 를 적으면 그 칸만 밝게 그린다(문살 무늬판 답과 같은 칸) · shadow: 창호지에 비친 사람 그림자 하나 — 누구인지가 풀이에 쓰이면 "figure":"woman|man|child|elder" 를 적는다(woman=쪽진 머리·넓은 치마폭 실루엣, man=갓 쓴 실루엣, child=작은 키·댕기머리, elder=굽은 등·지팡이). figure 없이는 「사람 모양」만 보인다 · water: 물 고인 자리 하나 · blood: 작은 핏자국 하나 · object: 그 자리에 놓인 물건 자체.
     - content 는 이 그림으로 확인할 수 있는 것만 쓴다. 색·줄 수·글씨·세밀한 무늬처럼 그림으로 못 보이는 정보가 풀이에 필요하면 mark 가 아니라 손에 드는 단서(note·letter — 그것을 적은 기록)로 준다.
   · 한 퍼즐에서 carrier 가 모두 mark 이면 안 된다 — 적어도 하나는 손에 드는 물건(letter·note·key·piece).
 - 풀이 장치(10/22 미르 — 단서를 다 모았는데 「뭘 해야 할지 모르겠다」를 막는다): 고르기·입력 퍼즐(solve.interaction 이 select·input)은 반드시 눈에 보이는 장치에서 푼다. solve 에 device 를 쓴다 — 장치 목록(시대에 맞는 것):
@@ -535,8 +536,10 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
             ...P.filter(p => p.solve?.device?.kind === 'munsal').flatMap(p => { const req = new Set(p.solve.required_clue_ids || []); const ans = (Array.isArray(p.solve.answer) ? p.solve.answer : String(p.solve.answer || '').split(/[,\s]+/)).filter(Boolean).map(String).sort().join(','); const ok = P.some(q => (q.clues || []).some(c => req.has(c.clue_id) && Array.isArray(c.shows?.cells) && c.shows.cells.map(String).sort().join(',') === ans)); return ok ? [] : [`${p.puzzle_id}: 문살 답 칸이 화면에 보이는 빛 단서(shows.cells)와 같지 않음 — 바닥에 비친 밝은 칸이 곧 답이어야 한다`]; }),
             // 10/26 미르: 화면에 못 그리는 것을 look 단서로 쓰지 않는다
             ...P.flatMap(p => (p.clues || []).filter(c => c.carrier?.kind === 'mark' || c.reveal?.action === 'look').flatMap(c => { const k = c.shows?.kind; if (!['foot', 'light', 'shadow', 'water', 'blood', 'object'].includes(k)) return [`${c.clue_id}: look 단서에 shows.kind(foot·light·shadow·water·blood·object) 없음`]; if (k === 'foot' && c.shows.count != null && !(c.shows.count >= 1 && c.shows.count <= 8)) return [`${c.clue_id}: 발자국 개수는 1~8`]; return []; })),
+            // 10/27 미르: 그림자 글이 「여인」이라 하면 화면 실루엣도 여인이어야 한다(그 반대도)
+            ...P.flatMap(p => (p.clues || []).filter(c => c.shows?.kind === 'shadow').flatMap(c => { const t = `${c.content || ''} ${c.text || ''}`; const FIG = { woman: /여인|여자|아낙|부인|색시|처녀|신부|치마|쪽진/, man: /사내|남자|선비|갓|도령|신랑/, child: /아이|어린/, elder: /노인|늙은|할미|할아비|지팡이/ }; const said = Object.keys(FIG).filter(k => FIG[k].test(t)); const f = c.shows.figure; if (f && !FIG[f]) return [`${c.clue_id}: shows.figure 는 woman·man·child·elder 중 하나`]; if (said.length && !said.includes(f)) return [`${c.clue_id}: 그림자 글은 ${said.join('/')} 인데 화면 실루엣(shows.figure)은 ${f || '없음(그냥 사람 모양)'} — 같게`]; if (f && !said.includes(f)) return [`${c.clue_id}: 화면 실루엣은 ${f} 인데 글에는 그 특징이 없음 — content 에 보이는 모습을 쓴다`]; return []; })),
             // 10/26 미르: 글자 바퀴 답 「스스로」를 어디서도 읽을 수 없었다 — 글자·패·장석 답은 필요한 단서 content 에 실제로 있어야 한다
-            ...P.filter(p => ['geulja', 'pae', 'bimil'].includes(p.solve?.device?.kind)).flatMap(p => { const req = new Set(p.solve.required_clue_ids || []); const txt = P.flatMap(q => (q.clues || []).filter(c => req.has(c.clue_id)).map(c => `${c.content || ''} ${c.text || ''}`)).join(' '); const k = p.solve.device.kind; const parts = k === 'bimil' ? [String(p.solve.answer || '').replace(/\s*장석$/, '')] : (Array.isArray(p.solve.answer) ? p.solve.answer : String(p.solve.answer || '').split(/[,·\s-]+/)).map(String).filter(Boolean); const miss = parts.filter(x => !txt.includes(x)); return miss.length ? [`${p.puzzle_id}: 답 ${miss.map(x => `「${x}」`).join('')} 이(가) 필요한 단서 어디에도 적혀 있지 않음 — 단서에 보이는 글자·이름을 모아 답을 만든다(판단하는 말 금지)`] : []; }),
+            ...P.filter(p => ['geulja', 'pae', 'bimil'].includes(p.solve?.device?.kind)).flatMap(p => { const req = new Set(p.solve.required_clue_ids || []); const txt = P.flatMap(q => (q.clues || []).filter(c => req.has(c.clue_id)).map(c => `${c.content || ''} ${c.text || ''}`)).join(' '); const k = p.solve.device.kind; const parts = k === 'bimil' ? [String(p.solve.answer || '').replace(/\s*장석$/, '')] : (Array.isArray(p.solve.answer) ? p.solve.answer : String(p.solve.answer || '').split(/[,·\s-]+/)).map(String).filter(Boolean); const miss = parts.filter(x => !txt.includes(x)); return miss.length ? [`${p.puzzle_id}: 답 ${miss.map(x => `「${x}」`).join('')} 이(가) 필요한 단서 어디에도 적혀 있지 않음 — 단서에 보이는 글자·이름을 모아 답을 만든다(판단하는 말 금지). 흔적 단서(그림자·발자국)가 그 답을 가리키면 그 단서 content 에 답 말을 그대로 쓰고(「여인의 그림자」) shows.figure 로 그 모습을 그린다 — 소거로 고르게 하지 않는다`] : []; }),
             // 10/26 미르: 「한방」(원문 방언 = 같은 방)이 단서 글에 그대로 나왔다 — 01 이 (원문 「…」)로 남긴 방언·옛말은 게임 글에 쓰지 않고 풀어 쓴 말로
             ...(() => { const toks = [...new Set([...(facts?.facts || []), ...(facts?.open || [])].flatMap(f => [...String(f.text || '').matchAll(/원문 「([^」]{2,8})」/g)].map(m => m[1].trim())))].filter(t => t.length >= 2); return P.flatMap(p => { const txt = [p.title, p.solve?.prompt, p.hint_1, p.hint_2, ...(p.clues || []).flatMap(c => [c.text, c.content, c.carrier?.name, c.reveal?.reaction])].filter(Boolean).join(' '); return toks.filter(t => txt.includes(t)).map(t => `${p.puzzle_id}: 원문 방언 「${t}」을(를) 게임 글에 그대로 씀 — 01 이 풀어 쓴 뜻으로`); }); })(),
             ...P.filter(p => ['select', 'input'].includes(p.solve?.interaction) && !['yundo', 'sangaji', 'bimil', 'geulja', 'munsal', 'maedeup', 'pae', 'buk', 'key'].includes(p.solve?.device?.kind)).map(p => `${p.puzzle_id}: 고르기·입력 풀이에 장치(device) 없음`),
@@ -568,13 +571,13 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
         return check;
       };
       // 10/26 미르: 「자연스럽게 추론이 가능해야 하는데 중구난방」 — 답을 모르는 풀이 시험 에이전트가 플레이어가 보는 것만 가지고 풀어 본다. 못 풀거나 다른 답이 나오면 고쳐 쓴다
-      const SOLVER_SYSTEM = `너는 방탈출 게임을 처음 하는 플레이어다. 정답은 모른다. 아래는 화면에서 보고 읽은 것 전부다(장면별 단서·자국, 장치 모양). 퍼즐마다 이것만으로 답을 낸다. 짐작으로 고른 답은 confidence 를 낮게. 너무 어렵거나 근거가 없으면 솔직히 적는다.
+      const SOLVER_SYSTEM = `너는 방탈출 게임을 처음 하는 플레이어다. 정답은 모른다. 아래는 화면에서 보고 읽은 것 전부다(장면별 단서·자국, 장치 모양). 퍼즐마다 이것만으로 답을 낸다. 짐작으로 고른 답·남는 것을 고른 답(소거)은 confidence 를 0.4 이하로, why 에 「소거」라고 적는다. 너무 어렵거나 근거가 없으면 솔직히 적는다.
 JSON 만: {"answers":[{"puzzle_id":"PZ-..","answer":"장치에 넣을 값(배열이면 배열)","used":["CL-.."],"confidence":0.0~1.0,"difficulty":1~5,"why":"어떻게 이었는지 한 문장 또는 막힌 곳"}]}`;
       const solve = async (js) => {
         if (local) return [];
         const P = (js.puzzles || []).filter(p => p.presentation !== 'ending_cinematic' && p.puzzle_type);
         const SO = ['combine_clues', 'select', 'input', 'solve'];
-        const see = c => { const sh = c.shows ? ` [화면: ${c.shows.kind}${c.shows.count ? ` ${c.shows.count}개` : ''}${c.shows.cells ? ` 밝은 칸 ${c.shows.cells.join(',')}${c.shows.grid ? ` (${c.shows.grid.join('×')})` : ''}` : ''}]` : ''; return `- ${c.clue_id} ${c.text}${c.content ? ` — ${c.content}` : ''}${sh}`; };
+        const see = c => { const sh = c.shows ? ` [화면: ${c.shows.kind}${c.shows.count ? ` ${c.shows.count}개` : ''}${c.shows.figure ? ` 실루엣 ${({ woman: '쪽진 머리·넓은 치마의 여인', man: '갓 쓴 남자', child: '작은 아이', elder: '굽은 등·지팡이 노인' })[c.shows.figure] || c.shows.figure}` : ''}${c.shows.cells ? ` 밝은 칸 ${c.shows.cells.join(',')}${c.shows.grid ? ` (${c.shows.grid.join('×')})` : ''}` : ''}]` : ''; return `- ${c.clue_id} ${c.text}${c.content ? ` — ${c.content}` : ''}${sh}`; };
         const scenesIn = [...new Set(P.map(p => p.scene_id))];
         const pack = scenesIn.map(sc => [`## ${sc}`, '[찾은 단서]', ...P.filter(p => p.scene_id === sc).flatMap(p => (p.clues || []).filter(c => !SO.includes(c.get_by)).map(see)),
           '[풀 것]', ...P.filter(p => p.scene_id === sc).map(p => { const d = p.solve?.device; return `- ${p.puzzle_id} ${p.title} — ${p.solve?.prompt || ''} · ${p.solve?.interaction}${d ? ` · 장치 ${d.kind} ${JSON.stringify(d.spec || {})}` : ''}${p.solve?.options ? ` · 선택지 ${JSON.stringify(p.solve.options)}` : ''}${p.solve?.interaction === 'combine_clues' ? ' · (수첩의 단서 두 개를 짝짓는다 — answer 는 "CL-a+CL-b")' : ''}`; })].join('\n')).join('\n\n');
@@ -585,7 +588,7 @@ JSON 만: {"answers":[{"puzzle_id":"PZ-..","answer":"장치에 넣을 값(배열
         for (const p of P) { if (p.puzzle_type === 'observation' || !p.solve?.answer) continue; const a = (res.answers || []).find(x => x.puzzle_id === p.puzzle_id);
           if (!a) { out.push(`${p.puzzle_id}: 풀이 시험 — 플레이어가 풀지 못함`); continue; }
           if (!same(p, a.answer)) out.push(`${p.puzzle_id}: 풀이 시험 — 단서만 보고 낸 답 ${JSON.stringify(a.answer)} ≠ 정답 ${JSON.stringify(p.solve.answer)} (${String(a.why || '').slice(0, 120)}) — 단서에서 답으로 바로 이어지게`);
-          else if ((a.difficulty || 0) >= 4 || (a.confidence ?? 1) < 0.5) out.push(`${p.puzzle_id}: 풀이 시험 — 맞혔지만 너무 어렵거나 짐작(난이도 ${a.difficulty}, 확신 ${a.confidence}): ${String(a.why || '').slice(0, 120)}`); }
+          else if ((a.difficulty || 0) >= 4 || (a.confidence ?? 1) < 0.5 || /소거|짐작|찍/.test(String(a.why || ''))) out.push(`${p.puzzle_id}: 풀이 시험 — 맞혔지만 너무 어렵거나 짐작(난이도 ${a.difficulty}, 확신 ${a.confidence}): ${String(a.why || '').slice(0, 120)}`); }
         return out;
       };
       let check = runChecks(json);
@@ -600,6 +603,14 @@ JSON 만: {"answers":[{"puzzle_id":"PZ-..","answer":"장치에 넣을 값(배열
         const json2 = extractJson(text2);
         if (!json2.__error && (json2.puzzles || []).length) { const check2 = runChecks(json2); check2.solver = await solve(json2); if (issues(check2).length <= issues(check).length) { check2.repaired = { round, before: check.repaired?.before || issues(check), after: issues(check2) }; json = json2; check = check2; } }
       }
+      // 10/27 미르: 3번 고쳐 써도 「여인」이 단서에 없는 채로 남아 그대로 다음 단계로 갔다 — 남은 퍼즐만 따로 꺼내 한 번 더 고치고, 그래도 남으면 unresolved 로 적어 08 검수에서 빨갛게 보인다
+      { const pid = x => (/^(PZ-[\w-]+?)(?=:)/.exec(x) || [])[1]; const bad = [...new Set(issues(check).map(pid).filter(Boolean))].filter(id => (json.puzzles || []).some(p => p.puzzle_id === id));
+        if (bad.length && !local) {
+          const sub = (json.puzzles || []).filter(p => bad.includes(p.puzzle_id));
+          const user3 = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', '[게임 전체 퍼즐 — 참고만]', JSON.stringify({ puzzles: (json.puzzles || []).map(p => ({ puzzle_id: p.puzzle_id, scene_id: p.scene_id, title: p.title, clue_ids: (p.clues || []).map(c => c.clue_id) })) }), '', '[고칠 퍼즐 — 이 퍼즐들만 고쳐서 {"puzzles":[…]} 로 돌려준다. puzzle_id·scene_id·clue_id 는 그대로, 다른 퍼즐은 쓰지 않는다]', JSON.stringify({ puzzles: sub }), '', '[걸린 것]', ...issues(check).filter(x => bad.includes(pid(x))).map(x => `- ${x}`), '', '고치는 길: 답을 바꾸기보다 단서를 고쳐 답이 「보이게」 한다 — 답 말을 단서 content 에 그대로, 흔적이면 shows 로 그 모습을 그린다.'].join('\n');
+          try { const text3 = await llm(root, trial, step, { system: PUZZLE_SYSTEM, user: user3 }); await writeOut(root, trial, 'raw-s05-fix-focus.txt', text3); const j3 = extractJson(text3);
+            if (!j3.__error && (j3.puzzles || []).length) { const json3 = { ...json, puzzles: (json.puzzles || []).map(p => (j3.puzzles || []).find(q => q.puzzle_id === p.puzzle_id) || p) }; const check3 = runChecks(json3); check3.solver = await solve(json3); if (issues(check3).length < issues(check).length) { check3.repaired = { round: 'focus', before: check.repaired?.before || issues(check), after: issues(check3) }; json = json3; check = check3; } } } catch (e) { check.focusError = String(e.message).slice(0, 160); } }
+        check.unresolved = [...(check.reveal || []), ...(check.solver || [])].filter(x => pid(x)); }
       await writeOut(root, trial, 'puzzle.json', JSON.stringify({ ...json, check }, null, 2));
       return { puzzles: (json.puzzles || []).length, hostNeeds: (json.puzzles || []).reduce((a, p) => a + (p.host_needs || []).length, 0), types: [...new Set((json.puzzles || []).map(p => p.puzzle_type))], ...check };
     }
