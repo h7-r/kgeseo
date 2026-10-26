@@ -561,7 +561,17 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
           const file = join(root, '.local/review/trials', roomFile[1], roomFile[2], roomFile[3]);
           const safe = await noSymlinkFile(root, `.local/review/trials/${roomFile[1]}/${roomFile[2]}/${roomFile[3]}`);
           if (!safe.ok) return send(404, { error: 'not_found', message: '방 파일이 없습니다. 08 「방 만들기·배치」를 먼저 실행하세요.' });
-          const buf = await readFile(file);
+          let buf = await readFile(file);
+          // 10/26: 뷰어는 늘 지금 템플릿으로 — 08 을 돌린 때의 템플릿이 굳어 예전 시험에 고친 것이 안 보였다
+          if (roomFile[3] === 'index.html') {
+            try {
+              const rv = await import('../rooms/renderViewer.mjs');
+              const tpl = await readFile(join(root, 'tools/rooms/viewer_template.html'), 'utf8');
+              let data = null; try { data = JSON.parse(await readFile(join(root, '.local/review/trials', roomFile[1], roomFile[2], 'viewer_data.json'), 'utf8')); } catch {}
+              data ||= rv.extractViewerData(buf.toString('utf8'));
+              if (data) buf = Buffer.from(rv.renderViewer(tpl, data), 'utf8');
+            } catch (error) { console.warn('[review] 뷰어 다시 만들기 실패 — 저장된 index.html 을 줍니다', error.message); }
+          }
           res.statusCode = 200;
           res.setHeader('Content-Type', { html: 'text/html; charset=utf-8', glb: 'model/gltf-binary', json: 'application/json; charset=utf-8' }[roomFile[4]]);
           res.setHeader('Cache-Control', 'no-store');

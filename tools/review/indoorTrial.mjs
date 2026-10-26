@@ -728,7 +728,9 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     { id: 'RG-PENDING', what: '퍼즐 호스트가 임시 표식이 아니라 실제 물건(없으면 에셋 생성 요청)', warn: true, bad: Object.values(markersBy).flat().filter(c => c.pending).map(c => c.name_ko) },
     { id: 'RG-PUZZLE', what: '장면 순서대로 모든 퍼즐을 풀 수 있음', bad: puzzleChecks.filter(c => !c.solvable).map(c => `${c.id}: ${c.why}`) },
   ].map(x => ({ ...x, ok: !x.bad.length }));
-  const html = tpl.replace('/*SCENES*/[]', JSON.stringify(SCENES).replace(/</g, '\\u003c')).replace('/*PUZZLES*/[]', JSON.stringify(PZ).replace(/</g, '\\u003c')).replace('/*BAKED*/{}', JSON.stringify(BK)).replace('/*ITEMS*/[]', JSON.stringify(viewItems).replace(/</g, '\\u003c')).replace('/*TRIAL*/{}', JSON.stringify({ id: trial.id, title: trial.title }).replace(/</g, '\\u003c'));
+  const vdata = { SC: SCENES, PZ, BK, ITEMS: viewItems, TRIAL: { id: trial.id, title: trial.title } };
+  const html = (await import('../rooms/renderViewer.mjs')).renderViewer(tpl, vdata);
+  await fs.writeFile(path.join(dir, 'viewer_data.json'), JSON.stringify(vdata));
   await fs.writeFile(path.join(dir, 'index.html'), html);
   // 자기 검사 — 사람 답안 없이
   const places = {};
