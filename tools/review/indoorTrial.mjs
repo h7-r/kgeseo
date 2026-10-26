@@ -354,7 +354,7 @@ export function traceLayout(meta, markers, rooms, room) {
         // 바깥(뒤뜰) 달빛이 문 창호지를 지나 마루로 든다 — 문지방에서 시작해 안쪽으로 길게, 문 자체도 밝게
         const L = 1.5; t.pos = { x: +(w.x + w.nx * (L / 2 + 0.04)).toFixed(3), z: +(w.z + w.nz * (L / 2 + 0.04)).toFixed(3) }; t.size = [+(w.w * 1.1).toFixed(2), L];
         t.rot = +Math.atan2(w.nx, w.nz).toFixed(4); t.src = { x: +w.x.toFixed(3), z: +w.z.toFixed(3), nx: w.nx, nz: w.nz, w: w.w, h: w.h, from: '바깥(뒤뜰) 달빛·햇빛' };
-        lightAt = { x: w.x + w.nx * 1.0, z: w.z + w.nz * 1.0 }; t.window = w.name;
+        lightAt = { x: w.x + w.nx * 1.0, z: w.z + w.nz * 1.0 }; t.window = w.name; t.n = [w.nx, w.nz];
       } else if (kind === 'light' && w) { t.pos = clampIn({ x: w.x + w.nx * 1.0, z: w.z + w.nz * 1.0 }); t.size = [+(w.w * 1.5).toFixed(2), 0.9]; t.axis = w.wall === 'back' || w.wall === 'front' ? 'x' : 'z'; lightAt = t.pos; t.window = w.name; t.n = [w.nx, w.nz]; }
       else if (kind === 'light') { t.pos = clampIn(center); t.size = [1.0, 0.8]; t.axis = 'x'; lightAt = t.pos; notes.push(`「${c.name_ko}」: 창이 없어 방 가운데에 그림`); }
       else { const base = lightAt || (w ? { x: w.x + w.nx * 1.0, z: w.z + w.nz * 1.0 } : center); t.pos = clampIn({ x: base.x + (w ? w.nx : 0) * 0.7, z: base.z + (w ? w.nz : 0.6) * 0.7 }); t.size = [0.6, 0.6]; }
