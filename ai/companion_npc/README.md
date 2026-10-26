@@ -157,7 +157,8 @@ $env:PYTHONPATH = "src"
 - LLM SDK 는 `requirements-llm.txt`(openai==3.29.0)로 따로 설치한다(설치 · `pip check` 통과). 기본 의존성에는 없다.
 - 원문 · 장부 · 캐시 · 사람 평가 양식은 `runs/restricted/`(깃 제외)에만 둔다.
 - **check_in · clarify 는 승인 템플릿 전용**이다. LLM 비교는 nudge · hint 만 한다(설정 판 3 · `p4b2_*_fictional_v3.json` · 76 요청 계획 · 실행 미승인).
-- GPT smoke 4건(설정 판 2)을 실행했다: 성공 4 · 비용 $0.000223 · 누설 0. 분석은 docs/08 §9.11 에 있다.
+- GPT smoke 는 설정 판 2 · 판 3 에서 4건씩 실행했다(누적 8 / 100 요청 · $0.000491 · 자동 누설 0). 분석은 docs/08 §9.11 · §9.13 에 있다.
+- 판 3 smoke 에서 hint 가 1 · 2단계를 합쳐 풀이 절차를 완성했다. 그래서 **설정 판 4 의 근거 정책 `same_level`**(nudge 1단계 · hint 2단계 승인 힌트 중심, 다른 단계 힌트 조각 제외)을 기본으로 바꿨다. 판 4 는 실행 미승인이다(§9.14).
 
 ## 폴더
 

@@ -472,7 +472,15 @@ def run_suite(
     for merged, terms in sources:
         guard = SpeechGuard(merged.pack, terms)
         for c in build_suite(merged, terms, paraphrases):
-            outcome = speak(c.context, c.plan, merged, c.generator, guard, now=now)
+            outcome = speak(
+                c.context,
+                c.plan,
+                merged,
+                c.generator,
+                guard,
+                now=now,
+                evidence_policy="tier_le",
+            )  # P4-A · P4-B1 결과 재현
             speech = outcome.utterance.speech.text if outcome.utterance.speech else None
             status_ok = outcome.status in c.expect_status
             failure_ok = (

@@ -73,7 +73,15 @@ def run_comparison(
             limits = case.context.limits.model_copy(update={"allow_llm": True})
             context = case.context.model_copy(update={"limits": limits})
             for name, factory in generators.items():
-                outcome = speak(context, case.plan, merged, factory(), guard, now=now)
+                outcome = speak(
+                    context,
+                    case.plan,
+                    merged,
+                    factory(),
+                    guard,
+                    now=now,
+                    evidence_policy="tier_le",
+                )  # P4-A · P4-B1 결과 재현
                 record = to_record(
                     outcome,
                     eval_item_id=f"{case.case_id}/{case.name}",

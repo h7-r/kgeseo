@@ -387,7 +387,9 @@ def evaluate_item(
         plan = SpeechPlan(item.kind, "player", hint.puzzle_id, True)
     context = _context(merged, item.item_id.rsplit("/", 1)[-1], zone, allow_llm=True)
     gen = FakeGenerator(lambda p, t=item.text: t, labels=("H1",) if hint else ())
-    outcome = speak(context, plan, merged, gen, guard, now=now)
+    outcome = speak(
+        context, plan, merged, gen, guard, now=now, evidence_policy="tier_le"
+    )  # P4-A · P4-B1 결과 재현
     final = outcome.utterance.speech.text if outcome.utterance.speech else None
     # 끝까지(파이프라인): 항목 문장이 그대로 최종 발화가 되었는가
     delivered = outcome.status == "spoke" and final == item.text

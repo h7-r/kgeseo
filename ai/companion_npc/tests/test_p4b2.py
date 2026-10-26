@@ -1215,9 +1215,9 @@ def test_v3_config_and_comparison_layout(
         and v3.eval_set == "p4b2-fictional/1.1"
         and v3.llm_kinds == ["nudge", "hint"]
     )
-    assert (
-        v3.execution_approved is False and v3.approved_phases == []
-    )  # 새 판은 다시 승인받는다
+    assert v3.execution_approved is True and v3.approved_phases == [
+        "smoke"
+    ]  # 2026-10-26 사용자 승인: 판 3 smoke 만. arm · repeat 미승인
     assert (
         planned_requests(v3) == 76 and v3.ledger_name == fictional.ledger_name
     )  # 장부는 판 2 와 함께
@@ -1252,3 +1252,265 @@ def test_v2_config_and_smoke_record_are_preserved(fictional):
             and s["sent_requests"] == 4
         )
         assert s["experiment_version"] == "p4b2/0.1"
+
+
+# ── 9. 판 4 — 힌트 단계 분리(근거 정책 same_level) · 비교 지표 ─────────────────
+@pytest.fixture(scope="module")
+def v4():
+    return P4B2Config.model_validate(_raw("p4b2_gpt_fictional_v4.json"))
+
+
+def _hint_ctx(sources, case_id, level):
+    from companion_npc.speech.evaluate import _context
+
+    merged, terms = next(s for s in sources if s[0].pack.case_id == case_id)
+    hint = next(h for h in merged.pack.hints if h.npc_hint_level == level)
+    zone = next(p.zone_id for p in merged.pack.puzzles if p.puzzle_id == hint.puzzle_id)
+    return merged, terms, hint, _context(merged, f"lvl{level}", zone, allow_llm=True)
+
+
+def test_same_level_evidence_drops_other_level_hints(fictional_sources):
+    from companion_npc.speech.retrieval import allowed_chunks
+
+    for case_id in ("case_fixture_archive", "case_fixture_lighthouse"):
+        for kind, level in (("nudge", 1), ("hint", 2)):
+            merged, _, hint, ctx = _hint_ctx(fictional_sources, case_id, level)
+            old = allowed_chunks(
+                merged.pack,
+                ctx.case_id,
+                ctx.state,
+                kind,
+                hint.puzzle_id,
+                policy="tier_le",
+            )
+            new = allowed_chunks(
+                merged.pack,
+                ctx.case_id,
+                ctx.state,
+                kind,
+                hint.puzzle_id,
+                policy="same_level",
+            )
+            assert not any(
+                c.kind == "hint" for c in new
+            )  # 힌트 조각은 근거에서 뺀다(승인 힌트는 따로 간다)
+            assert all(
+                c.kind in ("zone", "object", "premise") or c.spoiler_tier == level
+                for c in new
+            )  # 대상 퍼즐 지식은 같은 등급만
+            assert all(
+                c.spoiler_tier == 0
+                for c in new
+                if c.kind in ("zone", "object", "premise")
+            )  # 배경은 등급 0 만
+            assert {c.chunk_id for c in new} <= {
+                c.chunk_id for c in old
+            }  # 공개 조건을 넓히지 않는다
+            if kind == "hint":
+                assert any(
+                    c.kind == "hint" and c.spoiler_tier == 1 for c in old
+                )  # 판 3 까지는 1단계 힌트가 함께 갔다
+    with pytest.raises(ValueError):
+        allowed_chunks(
+            merged.pack,
+            ctx.case_id,
+            ctx.state,
+            "hint",
+            hint.puzzle_id,
+            policy="anything",
+        )
+
+
+def test_pipeline_default_is_same_level_and_tier_le_reproduces_old_input(
+    fictional_sources,
+):
+    from datetime import datetime
+
+    from companion_npc.speech.generators import TemplateGenerator
+    from companion_npc.speech.guard import SpeechGuard
+    from companion_npc.speech.pipeline import speak
+
+    now = datetime.fromisoformat("2026-10-26T12:00:00+09:00")
+    merged, terms, hint, ctx = _hint_ctx(
+        fictional_sources, "case_fixture_lighthouse", 2
+    )
+    plan = SpeechPlan("hint", "player", hint.puzzle_id, True, "이거 어떻게 해?")
+    g = SpeechGuard(merged.pack, terms)
+    default = speak(ctx, plan, merged, TemplateGenerator(), g, now=now)
+    same = speak(
+        ctx, plan, merged, TemplateGenerator(), g, now=now, evidence_policy="same_level"
+    )
+    old = speak(
+        ctx, plan, merged, TemplateGenerator(), g, now=now, evidence_policy="tier_le"
+    )
+    assert default.payload == same.payload and default.payload != old.payload
+    level1 = next(
+        h
+        for h in merged.pack.hints
+        if h.puzzle_id == hint.puzzle_id and h.npc_hint_level == 1
+    )
+    assert level1.text in json.dumps(old.payload.to_model_input(), ensure_ascii=False)
+    assert level1.text not in json.dumps(
+        same.payload.to_model_input(), ensure_ascii=False
+    )  # 1단계 문구가 모델에 가지 않는다
+
+
+def test_merged_levels_are_blocked_under_same_level(fictional_sources):
+    """판 3 smoke 에서 나온 꼴(1 · 2단계를 한 문장으로 합침)은 판 4 에서 근거 없음으로 막힌다."""
+
+    from datetime import datetime
+
+    from companion_npc.speech.generators import FakeGenerator
+    from companion_npc.speech.guard import SpeechGuard
+    from companion_npc.speech.pipeline import speak
+
+    now = datetime.fromisoformat("2026-10-26T12:00:00+09:00")
+    merged, terms, hint, ctx = _hint_ctx(
+        fictional_sources, "case_fixture_lighthouse", 2
+    )
+    level1 = next(
+        h
+        for h in merged.pack.hints
+        if h.puzzle_id == hint.puzzle_id and h.npc_hint_level == 1
+    )
+    merged_text = (
+        level1.text.split("?")[0] + "고, " + hint.text
+    )  # 테스트 견본 문구로 같은 꼴을 만든다
+    plan = SpeechPlan("hint", "player", hint.puzzle_id, True, "이거 어떻게 해?")
+    gen = FakeGenerator(lambda p, t=merged_text: t, labels=("H1",))
+    g = SpeechGuard(merged.pack, terms)
+    old = speak(ctx, plan, merged, gen, g, now=now, evidence_policy="tier_le")
+    new = speak(ctx, plan, merged, gen, g, now=now, evidence_policy="same_level")
+    assert old.status == "spoke"  # 판 3: 두 단계 근거가 모두 있어 통과했다
+    assert (
+        new.status == "fallback" and new.utterance.speech.text == hint.text
+    )  # 판 4: 승인 2단계 힌트로 대체
+    assert {"unsupported_sentence", "ungrounded"} & set(new.failures)
+
+
+def test_paraphrase_metrics(fictional_sources):
+    from datetime import datetime
+
+    from companion_npc.speech.generators import FakeGenerator
+    from companion_npc.speech.guard import SpeechGuard
+    from companion_npc.speech.p4b2 import edit_distance, paraphrase_metrics
+    from companion_npc.speech.pipeline import speak
+
+    assert (
+        edit_distance("abc", "abc") == 0
+        and edit_distance("abc", "abd") == 1
+        and edit_distance("", "ab") == 2
+    )
+    now = datetime.fromisoformat("2026-10-26T12:00:00+09:00")
+    merged, terms, hint, ctx = _hint_ctx(
+        fictional_sources, "case_fixture_lighthouse", 2
+    )
+    level1 = next(
+        h
+        for h in merged.pack.hints
+        if h.puzzle_id == hint.puzzle_id and h.npc_hint_level == 1
+    )
+    plan = SpeechPlan("hint", "player", hint.puzzle_id, True, "이거 어떻게 해?")
+    g = SpeechGuard(merged.pack, terms)
+
+    def metrics(text, labels=("H1",), policy="tier_le"):
+        out = speak(ctx, plan, merged, FakeGenerator(lambda p, t=text: t, labels=labels), g, now=now, evidence_policy=policy)  # fmt: skip
+        return paraphrase_metrics(out, merged)
+
+    same = metrics(hint.text)
+    assert (
+        same["exact_match"]
+        and same["contains_verbatim"]
+        and same["edit_distance_norm"] == 0.0
+    )
+    assert (
+        not same["level_suspect"]
+        and same["evidence_count"] == 0
+        and not same["multi_evidence"]
+    )
+    wrapped = metrics("좋아요. " + hint.text)
+    assert (
+        not wrapped["exact_match"]
+        and wrapped["contains_verbatim"]
+        and 0 < wrapped["edit_distance_norm"] < 0.2
+    )
+    combo = metrics(level1.text + " " + hint.text)
+    assert combo["level_suspect"]  # 다른 단계 힌트 문구가 보인다 → 사람 검토 표시
+    many = metrics(
+        hint.text, labels=("H1", "K1", "K2"), policy="same_level"
+    )  # 근거는 공개 배경뿐
+    assert (
+        many["multi_evidence"]
+        and many["evidence_count"] >= 1
+        and not many["level_suspect"]
+    )  # 근거 수만으로 켜지 않는다
+
+
+def test_v4_config_and_comparison(v4, v3, fictional_sources, private, tmp_path):
+    assert (
+        v4.config_version == "4"
+        and v4.evidence_policy == "same_level"
+        and v4.eval_set == "p4b2-fictional/1.2"
+    )
+    assert (
+        v4.execution_approved is False and v4.approved_phases == []
+    )  # 판 3 승인을 잇지 않는다
+    assert v4.ledger_name == v3.ledger_name and planned_requests(v4) == 76
+    assert (
+        v4.generator == v3.generator and v4.llm_kinds == v3.llm_kinds
+    )  # 요청 인자 · 비교 대상 그대로
+    assert v3.evidence_policy == "tier_le" and v3.approved_phases == [
+        "smoke"
+    ]  # 판 3 보존
+    assert (
+        v4.expected_items_inputs_sha256 != v3.expected_items_inputs_sha256
+    )  # 근거가 바뀌어 입력이 다르다
+    s = _run(v4, fictional_sources, private, OfflineEchoTransport(), tmp_path)[
+        "summary"
+    ]
+    assert (
+        s["evidence_policy"] == "same_level"
+        and s["sent_requests"] == 76
+        and s["stop_reason"] is None
+    )
+    cmp = s["evidence_policy_comparison"]
+    assert cmp["tier_le"]["hint"]["cases_with_other_level_hint"] == 20
+    assert cmp["same_level"]["hint"]["cases_with_other_level_hint"] == 0
+    assert all(
+        not k.startswith("hint:")
+        for kind in ("hint", "nudge")
+        for k in cmp["same_level"][kind]["by_kind_tier"]
+    )
+    assert set(s["paraphrase"]) == {"select", "free"} and {"nudge", "hint"} <= set(
+        s["paraphrase"]["free"]
+    )
+    form = (
+        tmp_path
+        / "runs"
+        / "restricted"
+        / "p4b2_gpt_fictional_v4_dryrun"
+        / "rating_form.csv"
+    ).read_text(encoding="utf-8-sig")
+    assert "review_level_suspect" in form.splitlines()[0]
+    assert summary_is_clean(
+        s, [t for _, terms in fictional_sources for t in terms] + private
+    )
+
+
+def test_v4_real_run_requires_matching_input_hash(
+    v4, fictional_sources, private, tmp_path
+):
+    t = OpenAIChatTransport(True, _sdk_ok(), env={ALLOW_ENV: "1"})
+    s = _real(
+        v4, fictional_sources, private, t, tmp_path
+    )  # 해시 일치 → smoke 4 (가짜 SDK)
+    assert s["sent_requests"] == 4 and s["evidence_policy"] == "same_level"
+    wrong = v4.model_copy(
+        update={
+            "expected_items_inputs_sha256": v4.expected_items_inputs_sha256.replace(
+                "e", "f"
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="eval set changed"):
+        _real(wrong, fictional_sources, private, t, tmp_path)

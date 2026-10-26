@@ -115,6 +115,8 @@ class P4B2Config(ContractModel):
     expected_llm_cases: int | None = None  # 없으면 expected_cases
     # smoke · 반복 사례 고르기 — first: 앞에서부터(판 1 · 2) · stratified: 사건 × 유형마다 고루
     sampling: Literal["first", "stratified"] = "first"
+    # nudge · hint 근거 범위 — 판 1~3: tier_le · 판 4: same_level (retrieval.allowed_chunks)
+    evidence_policy: Literal["tier_le", "same_level"] = "tier_le"
     model_record: ModelRecord
     # 평가 세트 판 — 사례 구성이 바뀌면 새 판. 결과 요약에 사례 목록 해시와 함께 남는다
     eval_set: str = Field(min_length=1)
@@ -169,11 +171,19 @@ def _llm_context(context: NpcContext) -> NpcContext:
     )
 
 
-def _model_input_text(merged: MergedPack, terms: list[str], c: CommonCase, now: datetime) -> tuple[str | None, str | None]:  # fmt: skip
+def _model_input_text(merged: MergedPack, terms: list[str], c: CommonCase, now: datetime, policy: str = "tier_le") -> tuple[str | None, str | None]:  # fmt: skip
     """(모델에 갈 입력 문자열, 최종 유형). LLM 까지 가지 않으면 입력은 None."""
 
     guard = SpeechGuard(merged.pack, terms)
-    out = speak(c.context, c.plan, merged, TemplateGenerator(), guard, now=now)
+    out = speak(
+        c.context,
+        c.plan,
+        merged,
+        TemplateGenerator(),
+        guard,
+        now=now,
+        evidence_policy=policy,
+    )
     if out.payload is None or out.final_kind not in ("nudge", "hint", "clarify"):
         return None, out.final_kind
     texts = [
@@ -215,7 +225,10 @@ def audit_input(
 
 
 def build_common_cases(
-    sources: list[tuple[MergedPack, list[str]]], now: datetime, private_texts: list[str]
+    sources: list[tuple[MergedPack, list[str]]],
+    now: datetime,
+    private_texts: list[str],
+    policy: str = "tier_le",
 ) -> tuple[list[CommonCase], dict[str, Any]]:
     cases, audit = [], {"excluded": [], "checked": 0, "kinds": Counter()}
     for index, (merged, terms) in enumerate(sources):
@@ -238,7 +251,7 @@ def build_common_cases(
                 ctx = _context(merged, name, zone, allow_llm=True)
                 candidates.append(CommonCase(merged.pack.case_id, name, index, ctx, SpeechPlan(kind, "player", h.puzzle_id, True, message)))  # fmt: skip
         for c in candidates:
-            text, kind = _model_input_text(merged, terms, c, now)
+            text, kind = _model_input_text(merged, terms, c, now, policy)
             if text is None:
                 continue  # 보류 · check_in → LLM 대상 아님
             audit["checked"] += 1
@@ -327,14 +340,15 @@ def run_p4b2(
     session_max_requests: 이번 실행의 요청 상한(재시도 포함). 실제 실행에서 smoke 만 돌리면 plan.smoke."""
 
     now = datetime.fromisoformat(config.now)
-    cases, audit = build_common_cases(sources, now, private_texts)
+    policy = config.evidence_policy
+    cases, audit = build_common_cases(sources, now, private_texts, policy)
     if len(cases) != config.expected_cases:
         raise ValueError(
             f"common cases {len(cases)} != expected {config.expected_cases}"
         )
     if len(llm_cases(config, cases)) != config.plan.arm_cases:
         raise ValueError("LLM case count != plan.arm_cases")
-    pre = pre_manifest(sources, cases, now)
+    pre = pre_manifest(sources, cases, now, policy)
     if (
         not dry_run
         and config.expected_items_inputs_sha256 != pre["items_inputs_sha256"]
@@ -372,7 +386,13 @@ def run_p4b2(
             **({"sleep": sleep} if sleep else {}),
         )
         outcome = speak(
-            case.context, case.plan, merged, gen, guards[case.source], now=now
+            case.context,
+            case.plan,
+            merged,
+            gen,
+            guards[case.source],
+            now=now,
+            evidence_policy=policy,
         )
         record = to_record(outcome, eval_item_id=case.item_id, case_id=case.case_id, generator=f"{config.generator.generator}:{arm}", experiment_version=EXPERIMENT_VERSION)  # fmt: skip
         raw_log.write(record, outcome)
@@ -396,6 +416,7 @@ def run_p4b2(
                 "repeat": rep,
                 **record.model_dump(mode="json"),
                 "usage_detail": _usage_detail(outcome),
+                "paraphrase": paraphrase_metrics(outcome, merged),
             }
         )
         failures = outcome.failures
@@ -421,7 +442,7 @@ def run_p4b2(
     # 승인 템플릿 공통 기능 평가 — LLM 대상이 아닌 공통 사례(판 3: clarify)는 템플릿 경로로만
     for case in [c for c in cases if c.final_kind not in config.llm_kinds]:
         merged = sources[case.source][0]
-        outcome = speak(case.context, case.plan, merged, TemplateGenerator(), guards[case.source], now=now)  # fmt: skip
+        outcome = speak(case.context, case.plan, merged, TemplateGenerator(), guards[case.source], now=now, evidence_policy=policy)  # fmt: skip
         record = to_record(outcome, eval_item_id=case.item_id, case_id=case.case_id, generator="template", experiment_version=EXPERIMENT_VERSION)  # fmt: skip
         rows.append({"phase": "template_feature", "arm": "template", "repeat": 0, **record.model_dump(mode="json")})  # fmt: skip
     for case in check_in_cases(sources):
@@ -455,6 +476,14 @@ def run_p4b2(
     summary["phases_run"] = list(phases) if phases else None
     summary["session_max_requests"] = session_max_requests
     summary["usage_fields"] = usage_fields(rows)
+    summary["paraphrase"] = {arm: paraphrase_block([r for r in rows if r["phase"] == "arm" and r["arm"] == arm]) for arm in config.arms}  # fmt: skip
+    summary["paraphrase_smoke"] = paraphrase_block(
+        [r for r in rows if r["phase"] == "smoke"]
+    )
+    summary["evidence_policy"] = policy
+    summary["evidence_policy_comparison"] = evidence_comparison(
+        sources, llm_cases(config, cases), now
+    )
     summary["smoke_rows"] = [
         {k: r[k] for k in ("eval_item_id", "arm", "status", "final_kind", "guard_passed", "guard_failures", "fallback_reason", "tokens_in", "tokens_out", "estimated_cost_usd", "actual_cost_usd", "usage_detail")}
         for r in rows
@@ -611,6 +640,8 @@ def write_rating_form(
             "model_reply": replies.get(r.get("model_reply_sha256") or "", ""),  # 1) 모델 답(JSON)
             "raw_text": raw.get(r["raw_sha256"], ""), "final_text": r["final_text"] or "",  # 2) 조립 발화 · 3) 최종
             "replaced_by_template": "y" if r["status"] == "fallback" else "n",
+            # 사람 검토 우선 표시 — 자동 판정이 아니다(다른 단계 힌트 문구가 보이거나 근거를 여럿 썼다)
+            "review_level_suspect": "y" if (r.get("paraphrase") or {}).get("level_suspect") else "n",
             **{col: "" for col in RATING_COLUMNS},
         })  # fmt: skip
         key.append({"blind_id": blind, "generator": r["generator"], "item_id": r["eval_item_id"], "phase": r["phase"], "repeat": r["repeat"]})  # fmt: skip
@@ -752,7 +783,9 @@ def external_transfer_problems(
     return problems
 
 
-def pre_manifest(sources, cases: list[CommonCase], now: datetime) -> dict[str, Any]:
+def pre_manifest(
+    sources, cases: list[CommonCase], now: datetime, policy: str = "tier_le"
+) -> dict[str, Any]:
     """실행 전에 계산하는 평가 세트 해시 — 사례 ID 와 모델 입력 해시(템플릿 경로로 만든 같은 입력)."""
 
     pairs = []
@@ -765,6 +798,7 @@ def pre_manifest(sources, cases: list[CommonCase], now: datetime) -> dict[str, A
             TemplateGenerator(),
             SpeechGuard(merged.pack, terms),
             now=now,
+            evidence_policy=policy,
         )
         pairs.append(f"{c.item_id}\t{input_sha256(out)}")
     return {
@@ -876,3 +910,161 @@ def denied_forbidden_terms(
             root / policy.denied_cases_dir, case_id, tuple(aliases.get(case_id, []))
         )
     return terms
+
+
+# ── 바꿔 말하기 · 근거 지표 (판 4) ───────────────────────────
+def edit_distance(a: str, b: str) -> int:
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def paraphrase_metrics(outcome, merged: MergedPack) -> dict | None:
+    """nudge · hint 의 조립 발화를 승인 힌트와 비교 — 숫자만 남긴다(본문 없음).
+
+    level_suspect 는 사람 검토용 표시다. 다른 단계 힌트 문구(8자)가 보이거나, 다른 단계 힌트 조각을 근거로
+    썼다고 답했으면 켠다. 근거 개수만으로는 켜지 않는다 — 단계 초과를 자동으로 확정하지 않는다.
+    """
+
+    payload, raw = outcome.payload, outcome.raw
+    if (
+        payload is None
+        or raw is None
+        or payload.approved_hint is None
+        or payload.kind not in ("nudge", "hint")
+    ):
+        return None
+    hint_norm, raw_norm = normalize(payload.approved_hint.text), normalize(raw.text)
+    level = payload.npc_hint_level
+    approved_id = payload.label_map.get(payload.approved_hint.label)
+    target = next(
+        (h.puzzle_id for h in merged.pack.hints if h.hint_id == approved_id), None
+    )
+    other = [
+        normalize(h.text)
+        for h in merged.pack.hints
+        if h.puzzle_id == target and h.npc_hint_level != level
+    ]
+    other_windows = {t[i : i + 8] for t in other for i in range(max(len(t) - 7, 1))}
+    chunks = {k.chunk_id: k for k in merged.pack.knowledge}
+    used = [payload.label_map.get(label) for label in raw.used_labels]
+    used_chunks = [chunks[c] for c in used if c in chunks]
+    other_level_used = any(
+        c.kind == "hint" and c.spoiler_tier != level for c in used_chunks
+    )
+    distance = edit_distance(raw_norm, hint_norm)
+    return {
+        "exact_match": raw_norm == hint_norm,
+        "contains_verbatim": hint_norm in raw_norm,
+        "edit_distance_norm": round(
+            distance / max(len(raw_norm), len(hint_norm), 1), 3
+        ),
+        "evidence_count": len([u for u in used if u and u != approved_id]),
+        "multi_evidence": len(raw.used_labels) > 1,
+        "level_suspect": bool(
+            other_windows and any(w in raw_norm for w in other_windows)
+        )
+        or other_level_used,
+    }
+
+
+def paraphrase_block(rows: list[dict]) -> dict[str, Any]:
+    out = {}
+    for kind in ("nudge", "hint"):
+        ms = [
+            r["paraphrase"]
+            for r in rows
+            if r.get("paraphrase") and r["final_kind"] == kind
+        ]
+        mine = [
+            r
+            for r in rows
+            if r["final_kind"] == kind and r.get("guard_passed") is not None
+        ]
+        if not ms and not mine:
+            continue
+        out[kind] = {
+            "n": len(ms),
+            "exact_match_rate": round(sum(m["exact_match"] for m in ms) / len(ms), 3)
+            if ms
+            else None,
+            "contains_verbatim_rate": round(
+                sum(m["contains_verbatim"] for m in ms) / len(ms), 3
+            )
+            if ms
+            else None,
+            "edit_distance_norm_mean": round(
+                statistics.mean(m["edit_distance_norm"] for m in ms), 3
+            )
+            if ms
+            else None,
+            "evidence_count_mean": round(
+                statistics.mean(m["evidence_count"] for m in ms), 2
+            )
+            if ms
+            else None,
+            "multi_evidence_rate": round(
+                sum(m["multi_evidence"] for m in ms) / len(ms), 3
+            )
+            if ms
+            else None,
+            "guard_block_rate": round(
+                sum(not r["guard_passed"] for r in mine) / len(mine), 3
+            )
+            if mine
+            else None,
+            "fallback_rate": round(
+                sum(r["status"] == "fallback" for r in mine) / len(mine), 3
+            )
+            if mine
+            else None,
+            "level_suspect_items": sorted(
+                r["eval_item_id"]
+                for r in rows
+                if (r.get("paraphrase") or {}).get("level_suspect")
+                and r["final_kind"] == kind
+            ),  # fmt: skip
+        }
+    return out
+
+
+def evidence_comparison(
+    sources, cases: list[CommonCase], now: datetime
+) -> dict[str, Any]:
+    """같은 LLM 사례에서 근거 정책별로 모델에 가는 근거 조각을 센다(본문 · ID 없음, 종류 · 등급 집계만)."""
+
+    out = {}
+    for policy in ("tier_le", "same_level"):
+        per_kind: dict[str, dict] = {}
+        for c in cases:
+            merged, terms = sources[c.source]
+            o = speak(c.context, c.plan, merged, TemplateGenerator(), SpeechGuard(merged.pack, terms), now=now, evidence_policy=policy)  # fmt: skip
+            if o.payload is None:
+                continue
+            chunks = {k.chunk_id: k for k in merged.pack.knowledge}
+            ev = [
+                chunks.get(o.payload.label_map.get(e.label)) for e in o.payload.evidence
+            ]
+            ev = [e for e in ev if e is not None]
+            level = o.payload.npc_hint_level
+            k = per_kind.setdefault(o.final_kind, {"cases": 0, "evidence_total": 0, "by_kind_tier": Counter(), "cases_with_other_level_hint": 0, "cases_with_lower_tier_target": 0})  # fmt: skip
+            k["cases"] += 1
+            k["evidence_total"] += len(ev)
+            k["by_kind_tier"].update(f"{e.kind}:{e.spoiler_tier}" for e in ev)
+            k["cases_with_other_level_hint"] += any(
+                e.kind == "hint" and e.spoiler_tier != level for e in ev
+            )
+            k["cases_with_lower_tier_target"] += any(
+                e.puzzle_id is not None and 0 < e.spoiler_tier < level for e in ev
+            )
+        for k in per_kind.values():
+            k["by_kind_tier"] = dict(sorted(k["by_kind_tier"].items()))
+            k["evidence_mean"] = (
+                round(k["evidence_total"] / k["cases"], 2) if k["cases"] else None
+            )
+        out[policy] = per_kind
+    return out

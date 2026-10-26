@@ -156,7 +156,11 @@ def speak(
     guard: SpeechGuard,
     *,
     now: datetime,
+    evidence_policy: str = "same_level",
 ) -> SpeechOutcome:
+    """evidence_policy: nudge · hint 의 근거 범위(retrieval.allowed_chunks). 기본은 same_level(P4-B2 판 4).
+    P4-A · P4-B1 평가와 P4-B2 판 1~3 은 결과를 다시 만들 수 있도록 tier_le 를 명시해 부른다."""
+
     pack = merged.pack
     if (
         pack.publication.status != "published"
@@ -201,6 +205,7 @@ def speak(
         kind,
         plan.target_puzzle_id,
         frozenset(plan.confirmed_visible_object_ids),
+        policy=evidence_policy,
     )
     object_name = None
     if kind == "clarify":
