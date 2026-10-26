@@ -569,7 +569,8 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
               const tpl = await readFile(join(root, 'tools/rooms/viewer_template.html'), 'utf8');
               let data = null; try { data = JSON.parse(await readFile(join(root, '.local/review/trials', roomFile[1], roomFile[2], 'viewer_data.json'), 'utf8')); } catch {}
               data ||= rv.extractViewerData(buf.toString('utf8'));
-              if (data) buf = Buffer.from(rv.renderViewer(tpl, data), 'utf8');
+              let gloss = null; try { gloss = JSON.parse(await readFile(join(root, 'tools/review/dialect_gloss.json'), 'utf8')); } catch {}
+              if (data) buf = Buffer.from(rv.renderViewer(tpl, data, gloss), 'utf8');
             } catch (error) { console.warn('[review] 뷰어 다시 만들기 실패 — 저장된 index.html 을 줍니다', error.message); }
           }
           res.statusCode = 200;
@@ -584,7 +585,12 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
         if (preset && req.method === 'GET') return send(200, await agentTrial.presetSource(root));
         if (!trialId && req.method === 'GET') return send(200, { trials: await agentTrial.listTrials(root), steps: agentTrial.STEPS, defaultBudgetUsd: agentTrial.DEFAULT_BUDGET_USD });
         if (!trialId && req.method === 'POST') return send(201, await agentTrial.createTrial(root, input));
-        if (trialId && !stepId && !sub && req.method === 'GET') return send(200, await agentTrial.trialDetail(root, trialId));
+        if (trialId && !stepId && !sub && req.method === 'GET') {
+          // 10/26: 검수 화면의 퍼즐 글도 원문 방언을 풀어 쓴 말로(dialect_gloss.json) — 원본 파일은 그대로
+          const detail = await agentTrial.trialDetail(root, trialId);
+          try { const gloss = JSON.parse(await readFile(join(root, 'tools/review/dialect_gloss.json'), 'utf8')); const rules = (gloss.rules || []).map(r => [new RegExp(r.from, 'g'), r.to]); const fix = v => typeof v === 'string' ? rules.reduce((t, [re, to]) => t.replace(re, to), v) : Array.isArray(v) ? v.map(fix) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fix(x)])) : v; if (detail.puzzle) detail.puzzle = fix(detail.puzzle); } catch {}
+          return send(200, detail);
+        }
         if (stepAction === 'estimate' && req.method === 'POST') return send(200, await agentTrial.estimateStep(root, trialId, stepId));
         if (stepAction === 'run' && req.method === 'POST') return send(202, await agentTrial.startStep(root, trialId, stepId));
         // 10/23: 새 프로세스에서 돌리기 — 도구 코드를 고친 뒤 서버를 다시 켜지 않아도 고친 코드로 돈다
