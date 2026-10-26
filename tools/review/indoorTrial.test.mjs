@@ -42,14 +42,11 @@ test('옷 판정은 머리 명사 — 「끊어진 끈 두루마기」가 서 �
   assert.ok(!isGarment(T, '옷자락 얼룩'));
 });
 
-test('이야기·퍼즐 물건인 옷은 흙바닥 방에서도 횃대에 건다', () => {
-  const plan = { rooms: [room('r1', '곳간')], links: [], contents: [{ item_id: 'C1', room: 'r1', name_ko: '끊어진 끈 두루마기', place: 'on_item', role: 'puzzle_host', serves: ['PZ-1-H1'] }] };
+test('옷 — 입은 모양 에셋은 쓰지 않는다(10/26 미르): 퍼즐 호스트 옷은 표식, 살림 옷은 뺌', () => {
+  const plan = { rooms: [room('r1', '곳간')], links: [], contents: [{ item_id: 'C1', room: 'r1', name_ko: '끊어진 끈 두루마기', place: 'on_item', role: 'puzzle_host', serves: ['PZ-1-H1'] }, { item_id: 'C2', room: 'r1', name_ko: '두루마기', place: 'hang', role: 'furniture' }] };
   const out = enforceTypes(plan, T);
-  const g = out.contents.find(c => c.item_id === 'C1');
-  assert.equal(g.place, 'hang');
-  assert.ok(plan.rooms[0].rail);
-  const { set } = planToSet({ ...plan, contents: out.contents }, null);
-  assert.ok(set.rooms[0].spec.rails.length, '흙바닥 방에도 걸 자리(횃대)를 짓는다');
+  assert.equal(out.contents.find(c => c.item_id === 'C1').place, 'marker');
+  assert.ok(!out.contents.some(c => c.item_id === 'C2'));
 });
 
 test('붙박이 호스트는 에셋 대신 방 구조에 — 「굵은 기둥」「물 자국 남은 기둥」이 라이브러리에 없어 퍼즐을 못 풀던 일', () => {
