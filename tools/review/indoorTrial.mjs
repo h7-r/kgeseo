@@ -19,6 +19,7 @@ export const STEPS_INDOOR = Object.freeze([
   { id: 's06', no: '06', label: '실내 공간 구성(방 세트·살림 계획)', tier: 'judgment', maxTokens: 32000, effort: 'medium', indoor: true },
   { id: 's07', no: '07', label: '에셋 선정', tier: 'judgment', maxTokens: 24000, effort: 'low', indoor: true },
   { id: 's08', no: '08', label: '방 만들기·배치(코드, 비용 0)', tier: 'judgment', maxTokens: 1000, effort: 'low', indoor: true, codeOnly: true },
+  { id: 's09', no: '09', label: '시각 자기 검수(사진 → 판정 → 고쳐 다시 짓기)', tier: 'judgment', maxTokens: 16000, effort: 'low', indoor: true },
 ]);
 
 const ROOMS_DIR = 'tools/rooms';
@@ -326,7 +327,7 @@ export function traceLayout(meta, markers, rooms, room) {
   const pl = meta.placements || [];
   let lightAt = null;
   for (const [k, c] of markers.entries()) {
-    const kind = c.pending ? 'spot' : c.place === 'edge_step' ? 'step' : traceKind(c.name_ko); // pending = 에셋 없는 퍼즐 호스트의 임시 자리(10/22)
+    const kind = c.pending ? 'spot' : c.place === 'edge_step' ? 'step' : (c.show?.kind && c.show.kind !== 'object' ? c.show.kind : traceKind(c.name_ko)); // pending = 에셋 없는 퍼즐 호스트의 임시 자리(10/22) · 10/26: 05 가 적은 shows.kind 를 먼저
     const t = { id: c.item_id, name: String(c.name_ko).slice(0, 30), kind, wet: /젖은|물/.test(c.name_ko || ''), faint: /옅|희미|사라/.test(c.name_ko || ''), y: FY };
     if (kind === 'foot') {
       if (!target) { notes.push(`「${c.name_ko}」: 이어질 문이 없어 못 그림`); continue; }
@@ -340,8 +341,9 @@ export function traceLayout(meta, markers, rooms, room) {
       const steps = [];
       const at = (d, i) => { const side = (i % 2 ? 1 : -1) * (0.075 + rnd() * 0.03); return [+(start.x + ux * d - uz * side).toFixed(3), +(start.z + uz * d + ux * side).toFixed(3), +((rnd() - 0.5) * 0.35).toFixed(3), +(0.9 + rnd() * 0.2).toFixed(2)]; };
       const stride = () => 0.5 + rnd() * 0.12;
-      if (L > 1.6) { let d = 0.1; for (let i = 0; i < 2; i++) { steps.push(at(d, i)); d += stride(); } }
-      { let d = Math.max(0.2, L - 0.15); const tail = []; for (let i = 0; i < 3 && d > 0.2; i++) { tail.unshift(at(d, i + (L > 1.6 ? 2 : 0))); d -= stride(); } steps.push(...tail); }
+      if (c.show?.count) { /* 10/26: 단서가 「발자국 n개」라 하면 정확히 n개를 문 쪽으로 고르게 */ const n = Math.max(1, Math.min(8, c.show.count)); const st = Math.min(0.62, Math.max(0.3, (L - 0.3) / Math.max(1, n - 1))); let d = Math.max(0.15, L - 0.15 - st * (n - 1)); for (let i = 0; i < n; i++) { steps.push(at(d, i)); d += st; } }
+      else { if (L > 1.6) { let d = 0.1; for (let i = 0; i < 2; i++) { steps.push(at(d, i)); d += stride(); } }
+      { let d = Math.max(0.2, L - 0.15); const tail = []; for (let i = 0; i < 3 && d > 0.2; i++) { tail.unshift(at(d, i + (L > 1.6 ? 2 : 0))); d -= stride(); } steps.push(...tail); } }
       t.steps = steps; t.to = target.name;
     } else if (kind === 'light' || kind === 'spot') {
       const w = windows[0];
@@ -660,6 +662,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     await run(process.execPath, [process.env.ROOMS_COMPOSE || path.join(tools, 'compose.mjs'), path.join(dir, `room_${r.id}.glb`), placeForCompose, path.join(dir, glb)], { cwd: root, timeoutMs: 175000 });
     const meta = JSON.parse(await fs.readFile(path.join(dir, `room_${r.id}_furnished_view.json`), 'utf8'));
     meta.placements = places_[r.id] || [];
+    { const showOf = new Map((puzzleDoc?.puzzles || []).flatMap(p => (p.clues || []).filter(c => c.shows && c.from).map(c => [c.from, c.shows]))); for (const m of markersBy[r.id] || []) { const sh = (m.serves || []).map(id => showOf.get(id)).find(Boolean); if (sh) m.show = sh; } }
     const tr = traceLayout(meta, markersBy[r.id] || [], conv.rooms, r);
     delete meta.placements;
     if (yard) meta.yard = yard;
@@ -704,6 +707,21 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
       assets: (binds[h.need_id] || []).map(b => ({ room: b.room, roomName: b.roomName, node: b.node, name: b.name, kind: b.kind, pending: (markersBy[conv.rooms[b.room]?.id] || []).some(x => x.item_id === b.item_id && x.pending), asset: pickOf(b.item_id) ? { nameKo: pickOf(b.item_id).nameKo, thumbnail: pickOf(b.item_id).thumbnail || null } : null })) })),
   }));
   const bound = need => (binds[need] || []).some(b => b.node);
+  // 10/26 미르: 「화면에 빛 무늬가 없는데 왜 풀린다고 봤나」 — 단서 글이 아니라 화면에 그려진 것으로 얻을 수 있는지를 잰다
+  const traceOf = (ri, name) => (viewItems[ri]?.meta?.traces || []).find(t => t.name === name || t.id === name) || null;
+  const showBad = new Map();
+  for (const p of puzzleDoc?.puzzles || []) for (const c of p.clues || []) {
+    if (!c.from || SOLVE_GET.has(c.get_by)) continue;
+    const bs = (binds[c.from] || []).filter(b => b.node); if (!bs.length) continue;
+    const b = bs[0], isMark = c.carrier?.kind === 'mark' || c.reveal?.action === 'look';
+    if (isMark && c.shows?.kind) {
+      const want = c.shows.kind, got = String(b.kind || '');
+      if (want === 'object') { if (!/^(object|fixture)$/.test(got)) showBad.set(c.clue_id, `「${b.name}」은(는) ${got} — 놓인 물건이어야 함`); }
+      else if (got !== `trace:${want}`) showBad.set(c.clue_id, `「${b.name}」이(가) ${got.replace('trace:', '') || '없음'}(으)로 그려짐 — ${want} 이어야 함`);
+      else if (want === 'foot' && c.shows.count) { const t = traceOf(b.room, b.node); const n = t?.steps?.length || 0; if (n !== c.shows.count) showBad.set(c.clue_id, `발자국 ${n}개 그려짐 — 단서는 ${c.shows.count}개`); }
+    }
+  }
+
   // 풀이 자리: 단서 짝짓기는 수첩에서, 출구 장치는 다음 방 문에서 — 공간에 따로 놓을 자리가 없어도 된다(10/22)
   const solveOk = p => p.solve.interaction === 'combine_clues' || p.solve.device?.on === 'exit_door' || bound(p.solve.at);
   // 장면 순서대로(10/22): 첫 장면부터, 앞 장면의 퍼즐을 다 풀어야 다음 장면이 열린다(NPC 계약 v0.3 enter_when 기본). 열린 장면의 호스트만 조사할 수 있다
@@ -716,7 +734,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     const live = new Set(sceneIds.slice(0, open));
     for (const p of PZ) {
       if (!live.has(p.scene_id)) continue;
-      for (const c of p.clues) if (!SOLVE_GET.has(c.get_by) && bound(c.from) && !got.has(c.id)) { got.add(c.id); moved = true; } // 조사·이동·관찰로 얻는 단서(10/22: navigate 단서를 못 얻던 일)
+      for (const c of p.clues) if (!SOLVE_GET.has(c.get_by) && bound(c.from) && !showBad.has(c.id) && !got.has(c.id)) { got.add(c.id); moved = true; } // 조사·이동·관찰로 얻는 단서(10/22: navigate 단서를 못 얻던 일)
       if (done.has(p.id)) continue;
       if (solveOk(p) && (p.solve.required_clue_ids || []).every(id => got.has(id) || p.effects.some(e => e.type === 'clue_acquired' && e.target_id === id))) { done.add(p.id); for (const e of p.effects) if (e.type === 'clue_acquired') got.add(e.target_id); moved = true; }
     }
@@ -739,6 +757,8 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     { id: 'RG-HOST', what: '05 퍼즐 호스트가 모두 공간에 연결됨', bad: PZ.flatMap(p => p.hosts.filter(h => !h.at.length).map(h => `${p.id}:${h.need_id}`)) },
     { id: 'RG-PENDING', what: '퍼즐 호스트가 임시 표식이 아니라 실제 물건(없으면 에셋 생성 요청)', warn: true, bad: Object.values(markersBy).flat().filter(c => c.pending).map(c => c.name_ko) },
     { id: 'RG-NAME', what: '단서 글의 물건 이름 = 그 단서를 주는 물건', warn: true, bad: PZ.flatMap(p => p.clues.filter(c => c.reveal && c.reveal.action !== 'look').flatMap(c => { const h = p.hosts.find(h => h.need_id === c.from); const node = String(h?.at?.[0]?.node || '').replace(/·+$/, ''); if (!node) return []; const named = [...new Set([...String(c.text || '').matchAll(FURN_IN_TEXT)].map(m => m[1]))]; return named.length && !named.some(n => node.includes(n)) ? [`${c.id}: 글 「${named.join('·')}」 ↔ 물건 「${node}」`] : []; })) },
+    { id: 'RG-SHOW', what: '단서가 말하는 것이 화면에 그려짐(빛·발자국 개수·물건) — 안 그려지면 그 단서는 얻을 수 없음', bad: [...showBad].map(([id, why]) => `${id}: ${why}`) },
+    { id: 'RG-REVEAL', what: '손에 드는 단서는 실제 물건 밑·안·뒤에서 드러남(표식 자리면 카드로만 뜸)', warn: true, bad: PZ.flatMap(p => p.clues.filter(c => c.carrier && c.carrier.kind && c.carrier.kind !== 'mark' && c.reveal && c.reveal.action !== 'look').flatMap(c => { const h = p.hosts.find(h => h.need_id === c.from); const a = (h?.assets || [])[0]; return a && (a.kind !== 'object' || a.pending) ? [`${c.id}: 「${a.name}」(${a.pending ? '임시 표식' : a.kind})`] : []; })) },
     { id: 'RG-DIALECT', what: '화면 글에 원문 방언이 그대로 없음(01 이 풀어 쓴 뜻으로)', bad: (() => { const toks = [...new Set([...(a01?.facts || []), ...(a01?.open || [])].flatMap(f => [...String(f.text || '').matchAll(/원문 「([^」]{2,8})」/g)].map(m => m[1].trim())))].filter(t => t.length >= 2); const txt = JSON.stringify({ PZ, SCENES }); return toks.filter(t => txt.includes(t)).map(t => `「${t}」`); })() },
     { id: 'RG-PUZZLE', what: '장면 순서대로 모든 퍼즐을 풀 수 있음', bad: puzzleChecks.filter(c => !c.solvable).map(c => `${c.id}: ${c.why}`) },
   ].map(x => ({ ...x, ok: !x.bad.length }));
@@ -859,6 +879,7 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
       const { items } = await buildLibrary(root);
       const targets = plan.contents.filter(c => c.place !== 'marker' && c.role !== 'marker' && !c.fixture && !(c.place === 'edge_step' && (STONE.test(c.name_ko || '') || TRACE_NAME.test(c.name_ko || ''))));
       const cands = {}; const stripDropped = [];
+      let block = {}; try { block = JSON.parse(await fs.readFile(path.join(trialDirOf(root, trial.id), 'asset_block.json'), 'utf8')); } catch { block = {}; }
       // 퍼즐이 그 물건을 열거나 비우면(05 reveal) 상태 변형판이 있는 에셋을 고른다(10/23 미르: 서랍이 열리는 판을 만들어 놓고 쓰지 않았다)
       const puzzleDoc7 = await readJsonOut(root, trial, 'puzzle.json').catch(() => null);
       const VESSEL = /솥|항아리|독$|동이|단지|대야|자배기|병$|사발|그릇/;
@@ -883,7 +904,7 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
           const found = qCache.get(q);
           for (const r of found.results.slice(0, 10)) if (r.item.source !== 'space' && /^\/?_sf_local\//.test(decodeURIComponent(r.item.url || ''))) best.set(r.item.id, Math.max(best.get(r.item.id) || 0, r.score));
         }
-        const ranked = [...best.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => items.find(i => i.id === id)).filter(c => c && !tooBig(c));
+        const ranked = [...best.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => items.find(i => i.id === id)).filter(c => c && !tooBig(c) && !(block[t.item_id] || []).includes(c.id) && !(block[`name:${t.name_ko}`] || []).includes(c.id)); // 10/26: 09 시각 검수가 「이 물건에 이 에셋은 안 된다」고 한 것은 빼고 고른다
         const kept = [];
         for (const c of ranked) {
           if (kept.length >= 10) break;
@@ -937,6 +958,61 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
       try { res.raw = await buildIndoor(root, trial, { readJsonOut, writeOut, fail, trialDirOf }, { raw: true }); } catch (e) { res.rawError = e.message; }
       return res;
     }
-    fail(409, 'indoor_step', `실내 공간 시험은 ${step.id} 단계가 없습니다(06~08 까지).`);
+    if (step.id === 's09') {
+      // 10/26 미르: 에이전트가 자기 결과를 눈으로 보고 고친다 — 사진 → 판정 → (에셋 바꾸기·살림 빼기) 07·08 다시 → 다시 보기. 최대 2바퀴
+      const vr = await import('./visualReview.mjs');
+      const dir = trialDirOf(root, trial.id);
+      const set = JSON.parse(await fs.readFile(path.join(dir, 'rooms', 'rooms_set.json'), 'utf8'));
+      const rel = f => path.relative(dir, f);
+      const rounds = [];
+      for (let round = 1; round <= 2; round++) {
+        const shot = await vr.shoot(root, trial.id, { outDir: path.join(dir, 'vr', `r${round}`) });
+        const res = [];
+        for (const room of shot.rooms) {
+          const rr = set.rooms[room.room]; if (!rr) continue;
+          room.name = rr.name;
+          let place = { placements: [] }; try { place = JSON.parse(await fs.readFile(path.join(dir, 'rooms', `place_${rr.id}.json`), 'utf8')); } catch {}
+          const names = [...new Set((place.placements || []).map(q => q.name))];
+          const text = await vr.judgeRoom({ llm, root, trial, step, room, items: names });
+          const j = extractJson(text);
+          res.push({ room: room.room, id: rr.id, name: rr.name, clues: (j.clues || []), issues: (j.room || []), shots: room.shots.map(x => ({ tag: x.tag, file: rel(x.file) })), clueShots: room.clues.map(c => ({ clue_id: c.clue_id, node: c.node, before: rel(c.before), after: rel(c.after) })), placements: place.placements || [] });
+        }
+        const clueBad = res.flatMap(r => r.clues.filter(c => c.judged !== false && c.ok === false).map(c => ({ ...c, room: r.name })));
+        const roomBad = res.flatMap(r => r.issues.map(x => ({ ...x, room: r.name })));
+        rounds.push({ round, rooms: res.map(({ placements, ...x }) => x), clueBad, roomBad, errors: shot.errors });
+        await writeOut(root, trial, 'visual_review.json', JSON.stringify({ checklist: vr.CHECKLIST, rounds }, null, 2));
+        if (round === 2) break;
+        // 고치기 — 에셋 바꾸기(그 물건에 그 에셋 금지) · 퍼즐과 상관없는 살림 빼기
+        const plan = await readJsonOut(root, trial, 'indoor_plan.json');
+        const sel = await readJsonOut(root, trial, 'indoor_selection.json');
+        let block = {}; try { block = JSON.parse(await fs.readFile(path.join(dir, 'asset_block.json'), 'utf8')); } catch {}
+        const byName = new Map(); for (const r of res) for (const q of r.placements) byName.set(`${r.name}|${String(q.name).replace(/·+$/, '')}`, { q, r });
+        const findItem = (roomName, nm) => { const k = String(nm || '').replace(/·+$/, ''); const hit = byName.get(`${roomName}|${k}`) || [...byName.entries()].find(([kk]) => kk.endsWith(`|${k}`))?.[1]; return hit ? (plan.contents || []).find(c => c.item_id === hit.q.id) : null; };
+        const applied = [];
+        for (const x of [...roomBad, ...clueBad]) {
+          if (!['replace_asset', 'remove'].includes(x.fix) || !x.item) continue;
+          const c = findItem(x.room, x.item); if (!c) continue;
+          if (x.fix === 'remove' && !(c.serves || []).length) { plan.contents = plan.contents.filter(z => z !== c); applied.push(`${x.room} 「${c.name_ko}」 뺌 — ${x.check || (x.fails || []).join(',')}: ${x.why}`); continue; }
+          const pick = (sel.selections || []).find(z => z.item_id === c.item_id)?.pick?.id; if (!pick) continue;
+          (block[c.item_id] ||= []).includes(pick) || block[c.item_id].push(pick);
+          (block[`name:${c.name_ko}`] ||= []).includes(pick) || block[`name:${c.name_ko}`].push(pick);
+          applied.push(`${x.room} 「${c.name_ko}」 에셋 바꿈(${pick} 금지) — ${x.check || (x.fails || []).join(',')}: ${x.why}`);
+        }
+        // 단서 글이 화면에 그릴 수 없는 것을 말함 → 05 를 그 메모와 함께 다시 쓰고 06~08 을 다시(에이전트가 이야기 쪽도 스스로 고친다)
+        const clueFix = clueBad.filter(c => c.fix === 'clue');
+        if (clueFix.length) { await writeOut(root, trial, 'vr_feedback.json', JSON.stringify({ at: new Date().toISOString(), clues: clueFix.map(c => ({ clue_id: c.clue_id, why: c.why })) }, null, 2)); applied.push(`단서 ${clueFix.length}개가 화면에 그릴 수 없는 것을 말함 → 05 를 다시 씀(${clueFix.map(c => c.clue_id).join(', ')})`); }
+        rounds[rounds.length - 1].applied = applied;
+        await writeOut(root, trial, 'visual_review.json', JSON.stringify({ checklist: vr.CHECKLIST, rounds }, null, 2));
+        if (!applied.length) break;
+        await writeOut(root, trial, 'indoor_plan.json', JSON.stringify(plan, null, 2));
+        await fs.writeFile(path.join(dir, 'asset_block.json'), JSON.stringify(block, null, 2));
+        const { runStepInline } = await import('./agentTrial.mjs');
+        if (clueFix.length) { for (const id of ['s05', 's06', 's07', 's08']) await runStepInline(root, trial, id); }
+        else { for (const id of ['s07', 's08']) await runStepInline(root, trial, id); }
+      }
+      const first = rounds[0], last = rounds[rounds.length - 1];
+      return { rounds: rounds.length, firstClueBad: first.clueBad.length, firstRoomBad: first.roomBad.length, lastClueBad: last.clueBad.length, lastRoomBad: last.roomBad.length, applied: (first.applied || []).length };
+    }
+    fail(409, 'indoor_step', `실내 공간 시험은 ${step.id} 단계가 없습니다(06~09 까지).`);
   };
 }

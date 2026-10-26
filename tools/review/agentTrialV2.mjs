@@ -58,6 +58,9 @@ const PUZZLE_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」
   · 단서 물건을 섞는다(쪽지만 나오면 단조롭다): letter·note 는 이 게임 단서 물건의 3분의 1 이하. 나머지는 piece(물건 — 짚신 한 짝, 끊어진 끈, 반쯤 탄 심지, 엽전 꾸러미, 비녀, 깨진 사기 조각, 젖은 짚) 와 mark(그 자리의 모습 — 자국의 개수·방향, 그릇의 수, 문살 칸).
   · 01 사실에 (원문 「…」)로 남은 방언·옛말은 게임 글(단서·쪽지·힌트·제목)에 그대로 쓰지 않는다 — 01 이 풀어 쓴 뜻으로 쓴다(예: 원문 「한방」 → 「신부와 같은 방」).
   · 문장은 그 시대 사람이 실제로 쓸 법한 자연스러운 한국어로. 뜻이 어색하거나 문법이 틀린 문장 금지(나쁜 예: 「손님 한 분은 한방에 드심」 — 「한방」의 뜻이 안 통한다). 쪽지·서신은 누가 누구에게 왜 쓴 것인지가 보이게.
+  · 화면에 보여야 할 것(10/26 미르: 장판의 「흰 줄·누런 줄」 빛을 적어 놓고 화면엔 발자국이 그려져 풀 수 없었다): look 단서(carrier mark)는 shows 를 쓴다 — {"kind":"foot|light|shadow|water|blood|object","count":숫자(foot 만, 1~8)}. 게임이 그릴 수 있는 것은 이것뿐이다:
+    - foot: 발자국 한 줄(개수 count 만큼, 젖은 것 가능) · light: 창에서 든 빛 한 덩어리(색·줄 수 구분 못 함) · shadow: 창호지에 비친 그림자 한 덩어리 · water: 물 고인 자리 하나 · blood: 작은 핏자국 하나 · object: 그 자리에 놓인 물건 자체.
+    - content 는 이 그림으로 확인할 수 있는 것만 쓴다. 색·줄 수·글씨·세밀한 무늬처럼 그림으로 못 보이는 정보가 풀이에 필요하면 mark 가 아니라 손에 드는 단서(note·letter — 그것을 적은 기록)로 준다.
   · 한 퍼즐에서 carrier 가 모두 mark 이면 안 된다 — 적어도 하나는 손에 드는 물건(letter·note·key·piece).
 - 풀이 장치(10/22 미르 — 단서를 다 모았는데 「뭘 해야 할지 모르겠다」를 막는다): 고르기·입력 퍼즐(solve.interaction 이 select·input)은 반드시 눈에 보이는 장치에서 푼다. solve 에 device 를 쓴다 — 장치 목록(시대에 맞는 것):
   · yundo(윤도 방위 자물쇠 — 조선 나침반 윤도의 방위 눈금을 돌려 맞춤. spec {"labels":["자","축","인","묘","진","사","오","미","신","유","술","해"] 또는 8방위 ["북","북동",…], "count":맞출 칸 수 1~3}, answer = 방위 이름(칸이 여럿이면 순서대로 배열)) → interaction input
@@ -460,7 +463,8 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
         await writeOut(root, trial, 'raw-s05.txt', raws.join('\n\n----\n\n'));
         json = { puzzles: all };
       } else {
-        const user = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', await deviceHistory(root, trial)].join('\n');
+        let vrNote = ''; try { const fb = await readJsonOut(root, trial, 'vr_feedback.json'); if (fb?.clues?.length) vrNote = ['[지난 시각 검수 — 플레이 화면 사진에서 이 단서들이 보이지 않았다. 화면에 그릴 수 있는 것(shows 목록)으로 바꾸거나, 그 정보를 손에 드는 기록(note·letter)으로 옮긴다]', ...fb.clues.map(c => `- ${c.clue_id}: ${c.why}`)].join('\n'); } catch {}
+        const user = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', await deviceHistory(root, trial), ...(vrNote ? ['', vrNote] : [])].join('\n');
         const text = await llm(root, trial, step, { system: PUZZLE_SYSTEM, user });
         await writeOut(root, trial, 'raw-s05.txt', text);
         json = extractJson(text);
@@ -521,6 +525,8 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
             ...Object.entries(P.flatMap(p => (p.host_needs || []).filter(h => (h.gives || []).length || (p.clues || []).some(c => GETS.includes(c.get_by) && c.from === h.need_id)).map(h => [`${String(h.place_hint || '').replace(/\s/g, '')}|${String((h.object_examples || [])[0] || h.what || '').replace(/\s/g, '')}`, h.need_id])).reduce((a, [k, id]) => ((a[k] ||= []).push(id), a), {})).filter(([k, ids]) => ids.length > 1 && !k.endsWith('|') && !/(바닥|널|자국|흙|웅덩이|발자국|마당|땅)$/.test(k.split('|')[1])) /* 바닥 자국은 자리마다 따로 표식이 생긴다 */.map(([k, ids]) => `「${k.split('|')[1]}」(${k.split('|')[0]})을 단서 자리 ${ids.join('·')}가 같이 씀 — 물건 하나 = 조사 하나(BE). 다른 퍼즐이라도 다른 물건으로`),
             ...P.flatMap(p => (p.host_needs || []).filter(h => h.need_id === p.solve?.at && P.some(q => (q.clues || []).some(c => GETS.includes(c.get_by) && c.from === h.need_id))).map(h => `${h.need_id}: 답 넣는 자리가 단서도 줌 — 그 단서를 다른 물건으로 옮기거나, 풀이 자리(solve.at)를 단서를 주지 않는 새 물건(host_needs 에 추가)으로`)),
             ...exitScenes.filter(id => !P.some(p => p.scene_id === id && ((p.solve?.device?.on === 'exit_door') || (p.exit?.key?.name && p.exit?.lock)))).map(id => `${id}: 다음 장면으로 가는 출구 장치(device on exit_door) 없음`),
+            // 10/26 미르: 화면에 못 그리는 것을 look 단서로 쓰지 않는다
+            ...P.flatMap(p => (p.clues || []).filter(c => c.carrier?.kind === 'mark' || c.reveal?.action === 'look').flatMap(c => { const k = c.shows?.kind; if (!['foot', 'light', 'shadow', 'water', 'blood', 'object'].includes(k)) return [`${c.clue_id}: look 단서에 shows.kind(foot·light·shadow·water·blood·object) 없음`]; if (k === 'foot' && c.shows.count != null && !(c.shows.count >= 1 && c.shows.count <= 8)) return [`${c.clue_id}: 발자국 개수는 1~8`]; return []; })),
             // 10/26 미르: 글자 바퀴 답 「스스로」를 어디서도 읽을 수 없었다 — 글자·패·장석 답은 필요한 단서 content 에 실제로 있어야 한다
             ...P.filter(p => ['geulja', 'pae', 'bimil'].includes(p.solve?.device?.kind)).flatMap(p => { const req = new Set(p.solve.required_clue_ids || []); const txt = P.flatMap(q => (q.clues || []).filter(c => req.has(c.clue_id)).map(c => `${c.content || ''} ${c.text || ''}`)).join(' '); const k = p.solve.device.kind; const parts = k === 'bimil' ? [String(p.solve.answer || '').replace(/\s*장석$/, '')] : (Array.isArray(p.solve.answer) ? p.solve.answer : String(p.solve.answer || '').split(/[,·\s-]+/)).map(String).filter(Boolean); const miss = parts.filter(x => !txt.includes(x)); return miss.length ? [`${p.puzzle_id}: 답 ${miss.map(x => `「${x}」`).join('')} 이(가) 필요한 단서 어디에도 적혀 있지 않음 — 단서에 보이는 글자·이름을 모아 답을 만든다(판단하는 말 금지)`] : []; }),
             // 10/26 미르: 「한방」(원문 방언 = 같은 방)이 단서 글에 그대로 나왔다 — 01 이 (원문 「…」)로 남긴 방언·옛말은 게임 글에 쓰지 않고 풀어 쓴 말로

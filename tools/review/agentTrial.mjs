@@ -303,6 +303,14 @@ async function llm(root, trial, step, { system, user, cacheSystem = false }) {
   return r.text;
 }
 
+/** 10/26: 09 시각 검수가 05~08 을 안에서 다시 돌릴 때 쓴다 — 단계 기록(끝난 시각·결과)도 갱신 */
+export async function runStepInline(root, trial, stepId) {
+  const step = stepOf(stepId, trial); if (!step) fail(400, 'unknown_step', stepId);
+  trial.steps[stepId] = { ...(trial.steps[stepId] || {}), status: 'running', startedAt: new Date().toISOString(), progressChars: 0, costUsd: 0, by: 's09' };
+  const result = await runStepBody(root, trial, step);
+  Object.assign(trial.steps[stepId], { status: 'done', finishedAt: new Date().toISOString(), result, error: null });
+  return result;
+}
 async function runStepBody(root, trial, step) {
   const docs = await docsSoFar(root, trial);
   if (trial.spaceKind === 'indoor' && step.indoor) return indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip, trialDirOf: trialDir })(root, trial, step, docs);
