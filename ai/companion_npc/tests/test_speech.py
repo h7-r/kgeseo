@@ -59,6 +59,7 @@ def no_network(monkeypatch):
 
     monkeypatch.setattr(socket.socket, "connect", refuse)
     monkeypatch.setattr(socket, "create_connection", refuse)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse)  # DNS 조회도 막는다
 
 
 @pytest.fixture(scope="module")

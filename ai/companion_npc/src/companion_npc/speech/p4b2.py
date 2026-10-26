@@ -483,6 +483,7 @@ def run_p4b2(
         for case in sorted({r["case_id"] for r in rows if r["phase"] == "arm"})
     }  # fmt: skip
     summary["status_by_cell"] = status_by_cell(rows)
+    summary["duplicates"] = duplicate_report(rows, config)
     summary["paraphrase_smoke"] = paraphrase_block(
         [r for r in rows if r["phase"] == "smoke"]
     )
@@ -539,8 +540,8 @@ def consistency(rows: list[dict], arm: str) -> dict[str, Any]:
 
     groups: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
-        if r["arm"] == arm and r["phase"] in ("arm", "repeat"):
-            groups[r["eval_item_id"]].append(r)
+        if r["arm"] == arm and r["phase"] in ("arm", "repeat") and not r["cache_hit"]:
+            groups[r["eval_item_id"]].append(r)  # 캐시 적중은 독립 생성이 아니다
     groups = {k: v for k, v in groups.items() if len(v) > 1}
     if not groups:
         return {"cases": 0}
@@ -611,10 +612,11 @@ def summarize(
 
 RATING_COLUMNS = (
     "raw_spoiler(none/in_level/over_level/direct)", "raw_unsupported_claim(y/n)", "raw_naturalness(1-5)",
-    "raw_tone(1-5)", "raw_helpfulness(1-5)", "raw_inference_room(1-5)",
+    "raw_tone(1-5)", "raw_helpfulness(1-5)", "raw_grounding(1-5)", "raw_inference_room(1-5)",
     "final_spoiler(none/in_level/over_level/direct)", "final_unsupported_claim(y/n)", "final_naturalness(1-5)",
-    "final_tone(1-5)", "final_helpfulness(1-5)", "final_inference_room(1-5)", "notes", "rater_id",
+    "final_tone(1-5)", "final_helpfulness(1-5)", "final_grounding(1-5)", "final_inference_room(1-5)", "notes", "rater_id",
 )  # fmt: skip
+# grounding: 승인 힌트 · 근거에 충실한 정도 (1 = 근거 밖 내용이 많음 · 5 = 근거에만 기댐)
 # inference_room: 플레이어에게 남겨 둔 추론의 여지 (1 = 풀이를 다 말함 · 5 = 방향만 줌)
 RATERS = ("A", "B")  # 두 평가자가 서로 보지 않고 매기도록 파일을 나눈다
 
@@ -645,14 +647,14 @@ def write_rating_form(
         ).hexdigest()[:12]
         form.append({
             "blind_id": blind, "kind": r["final_kind"], "player_message": c.plan.player_message or "",
-            "model_reply": replies.get(r.get("model_reply_sha256") or "", ""),  # 1) 모델 답(JSON)
             "raw_text": raw.get(r["raw_sha256"], ""), "final_text": r["final_text"] or "",  # 2) 조립 발화 · 3) 최종
             "replaced_by_template": "y" if r["status"] == "fallback" else "n",
-            # 사람 검토 우선 표시 — 자동 판정이 아니다(다른 단계 힌트 문구가 보이거나 근거를 여럿 썼다)
-            "review_level_suspect": "y" if (r.get("paraphrase") or {}).get("level_suspect") else "n",
             **{col: "" for col in RATING_COLUMNS},
         })  # fmt: skip
-        key.append({"blind_id": blind, "generator": r["generator"], "item_id": r["eval_item_id"], "phase": r["phase"], "repeat": r["repeat"]})  # fmt: skip
+        # 짝 표 — 평가가 끝날 때까지 열지 않는다. 군 · 모델 · 모델 답(JSON 모양이 군을 드러낸다) · 자동 단계 초과 표시
+        key.append({"blind_id": blind, "generator": r["generator"], "item_id": r["eval_item_id"], "phase": r["phase"], "repeat": r["repeat"],
+                    "cache_hit": r["cache_hit"], "model_reply": replies.get(r.get("model_reply_sha256") or "", ""),
+                    "auto_level_suspect": bool((r.get("paraphrase") or {}).get("level_suspect"))})  # fmt: skip
     form.sort(key=lambda x: x["blind_id"])
     base.mkdir(parents=True, exist_ok=True)
     fields = list(form[0]) if form else ["blind_id"]
@@ -1118,12 +1120,37 @@ def status_by_cell(rows: list[dict]) -> dict[str, Any]:
 
 
 AGREEMENT_COLUMNS = ("raw_spoiler(none/in_level/over_level/direct)", "final_spoiler(none/in_level/over_level/direct)", "raw_unsupported_claim(y/n)", "final_unsupported_claim(y/n)")  # fmt: skip
+ORDINAL_COLUMNS = tuple(c for c in RATING_COLUMNS if c.endswith("(1-5)"))
+SPOILER_ORDER = {"none": 0, "in_level": 1, "over_level": 2, "direct": 3}
 
 
-def rating_agreement(form_a: Path, form_b: Path) -> dict[str, Any]:
-    """두 평가자 양식의 일치율 · 코헨 카파(범주 칸)와 보수적 누설 판정(한 명이라도 over_level · direct → 누설).
+def weighted_kappa(pairs: list[tuple[int, int]], k: int) -> float | None:
+    """이차 가중 카파 (순서가 있는 1~k 점 · 0 부터 k-1 로 바꿔 넣는다)."""
 
-    양식 본문은 읽기만 하고, 결과에는 blind_id 와 숫자만 남긴다.
+    n = len(pairs)
+    if n == 0:
+        return None
+    obs = [[0.0] * k for _ in range(k)]
+    for x, y in pairs:
+        obs[x][y] += 1
+    ra = [sum(row) for row in obs]
+    rb = [sum(obs[i][j] for i in range(k)) for j in range(k)]
+    w = [[((i - j) ** 2) / ((k - 1) ** 2) for j in range(k)] for i in range(k)]
+    num = sum(w[i][j] * obs[i][j] for i in range(k) for j in range(k))
+    den = sum(w[i][j] * ra[i] * rb[j] / n for i in range(k) for j in range(k))
+    return round(1 - num / den, 3) if den else None
+
+
+def rating_agreement(
+    form_a: Path, form_b: Path, key: Path | None = None
+) -> dict[str, Any]:
+    """두 평가자 양식의 일치도와 안전 검토 대상.
+
+    · 범주 칸(스포일러 · 근거 없는 주장): 일치율 · 코헨 카파. 스포일러는 순서가 있어 이차 가중 카파도 낸다.
+    · 1~5 점 칸: 이차 가중 카파 · 정확 일치율 · ±1 일치율.
+    · 안전 검토 대상: 한 명이라도 over_level · direct 로 매기거나 근거 없는 주장(y)으로 매긴 항목 — 최종 검토에 남긴다.
+    · key(짝 표)를 주면 자동 단계 초과 표시와 대조한다(사람 평가가 끝난 뒤에만).
+    결과에는 blind_id 와 숫자만 남긴다.
     """
 
     def read(path):
@@ -1145,7 +1172,119 @@ def rating_agreement(form_a: Path, form_b: Path) -> dict[str, Any]:
         po = sum(x == y for x, y in pairs) / len(pairs)
         labels = {x for p in pairs for x in p}
         pe = sum((sum(x == lab for x, _ in pairs) / len(pairs)) * (sum(y == lab for _, y in pairs) / len(pairs)) for lab in labels)  # fmt: skip
-        out[col] = {"rated_by_both": len(pairs), "agreement": round(po, 3), "kappa": round((po - pe) / (1 - pe), 3) if pe < 1 else None}  # fmt: skip
-    leak = [i for i in ids if any(r[i][c].strip() in ("over_level", "direct") for r in (a, b) for c in AGREEMENT_COLUMNS[:2])]  # fmt: skip
-    out["conservative_leak_ids"] = leak  # 한 명이라도 단계 초과 · 직접 누설로 매긴 항목
+        block = {"rated_by_both": len(pairs), "agreement": round(po, 3), "kappa": round((po - pe) / (1 - pe), 3) if pe < 1 else None}  # fmt: skip
+        if "spoiler" in col and all(
+            x in SPOILER_ORDER and y in SPOILER_ORDER for x, y in pairs
+        ):
+            block["weighted_kappa"] = weighted_kappa(
+                [(SPOILER_ORDER[x], SPOILER_ORDER[y]) for x, y in pairs], 4
+            )
+        out[col] = block
+    for col in ORDINAL_COLUMNS:
+        pairs = []
+        for i in ids:
+            x, y = a[i].get(col, "").strip(), b[i].get(col, "").strip()
+            if x.isdigit() and y.isdigit() and 1 <= int(x) <= 5 and 1 <= int(y) <= 5:
+                pairs.append((int(x) - 1, int(y) - 1))
+        out[col] = {
+            "rated_by_both": len(pairs),
+            "weighted_kappa": weighted_kappa(pairs, 5),
+            "exact": round(sum(x == y for x, y in pairs) / len(pairs), 3)
+            if pairs
+            else None,
+            "within_1": round(sum(abs(x - y) <= 1 for x, y in pairs) / len(pairs), 3)
+            if pairs
+            else None,
+        }
+    spoil, unsup = AGREEMENT_COLUMNS[:2], AGREEMENT_COLUMNS[2:]
+    review = [i for i in ids if any(r[i][c].strip() in ("over_level", "direct") for r in (a, b) for c in spoil)
+              or any(r[i][c].strip() == "y" for r in (a, b) for c in unsup)]  # fmt: skip
+    out["conservative_leak_ids"] = [i for i in ids if any(r[i][c].strip() in ("over_level", "direct") for r in (a, b) for c in spoil)]  # fmt: skip
+    out["safety_review_ids"] = (
+        review  # 한 명이라도 누설 · 단계 초과 · 근거 없는 주장을 의심한 항목
+    )
+    if key is not None:
+        flags = {
+            k["blind_id"]: bool(k.get("auto_level_suspect"))
+            for k in json.loads(key.read_text(encoding="utf-8"))
+        }
+        human = set(out["conservative_leak_ids"])
+        auto = {i for i in ids if flags.get(i)}
+        out["auto_vs_human"] = {
+            "auto_flagged": len(auto),
+            "human_flagged": len(human),
+            "both": len(auto & human),
+            "human_only": sorted(human - auto),  # 자동 지표가 놓친 것 — 사각지대
+            "auto_only": sorted(auto - human),
+        }
     return out
+
+
+def phase_gate(config: P4B2Config, wanted: tuple[str, ...]) -> str | None:
+    """--execute 로 돌릴 단계가 승인됐는지. 문제가 있으면 이유 문자열."""
+
+    if not wanted:
+        return "--phases 를 지정해야 합니다"
+    unknown = set(wanted) - {"smoke", "arm", "repeat"}
+    if unknown:
+        return f"알 수 없는 단계 {sorted(unknown)}"
+    if not set(wanted) <= set(config.approved_phases):
+        return f"--phases 는 승인된 단계 {config.approved_phases} 안에서만 지정할 수 있습니다"
+    return None
+
+
+def duplicate_report(rows: list[dict], config: P4B2Config) -> dict[str, Any]:
+    """사례 수 · 고유 입력 수 · 캐시 적중 · 실제 신규 요청을 나눠 센다. 원본 사례 기준과 고유 입력 기준 지표를 함께 낸다.
+
+    캐시 적중은 재생성이 아니다 — 같은 답을 다시 쓴 것이다. 반복 실험(repeat)으로도 세지 않는다.
+    """
+
+    out = {}
+    for arm in config.arms:
+        rs = [r for r in rows if r["phase"] == "arm" and r["arm"] == arm]
+        if not rs:
+            continue
+        uniq: dict[str, dict] = {}
+        for r in rs:
+            uniq.setdefault(r["input_sha256"], r)  # 같은 입력의 첫 행(실제 생성)만
+        unique_rows = list(uniq.values())
+        out[arm] = {
+            "cases": len(rs),
+            "unique_inputs": len(unique_rows),
+            "cache_hits": sum(r["cache_hit"] for r in rs),
+            "new_generations": sum(
+                1 for r in rs if r["model_reply_sha256"] and not r["cache_hit"]
+            ),
+            "duplicate_case_ids": sorted(
+                {r["eval_item_id"] for r in rs if r["cache_hit"]}
+            ),
+            "by_cases": _dup_metrics(rs),  # 원본 사례 기준(같은 답이 두 번 들어간다)
+            "by_unique_inputs": _dup_metrics(unique_rows),  # 고유 입력 기준
+        }
+    return out
+
+
+def _dup_metrics(rs: list[dict]) -> dict[str, Any]:
+    ps = [r["paraphrase"] for r in rs if r.get("paraphrase")]
+    raw = [r for r in rs if r["guard_passed"] is not None]
+    return {
+        "n": len(rs),
+        "guard_pass_rate": round(sum(r["guard_passed"] for r in raw) / len(raw), 3)
+        if raw
+        else None,
+        "fallback_rate": round(sum(r["status"] == "fallback" for r in rs) / len(rs), 3)
+        if rs
+        else None,
+        "exact_match_rate": round(sum(p["exact_match"] for p in ps) / len(ps), 3)
+        if ps
+        else None,
+        "edit_distance_norm_mean": round(
+            statistics.mean(p["edit_distance_norm"] for p in ps), 3
+        )
+        if ps
+        else None,
+        "multi_evidence_rate": round(sum(p["multi_evidence"] for p in ps) / len(ps), 3)
+        if ps
+        else None,
+        "level_suspect": sum(p["level_suspect"] for p in ps),
+    }

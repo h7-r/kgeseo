@@ -7,8 +7,8 @@
       "estimated_cost_usd": 0,
       "fallback_rate": 0.0,
       "generation_ms": {
-        "median": 0.55,
-        "p90": 0.888
+        "median": 0.555,
+        "p90": 0.596
       },
       "generator_errors": {},
       "guard_pass_rate": 1.0,
@@ -28,8 +28,8 @@
         "unsupported_sentence": 0
       },
       "validation_ms": {
-        "median": 0.173,
-        "p90": 0.182
+        "median": 0.172,
+        "p90": 0.184
       }
     },
     "select": {
@@ -40,7 +40,7 @@
       "fallback_rate": 0.0,
       "generation_ms": {
         "median": 0.52,
-        "p90": 0.814
+        "p90": 0.614
       },
       "generator_errors": {},
       "guard_pass_rate": 1.0,
@@ -60,8 +60,8 @@
         "unsupported_sentence": 0
       },
       "validation_ms": {
-        "median": 0.18,
-        "p90": 0.191
+        "median": 0.177,
+        "p90": 0.186
       }
     }
   },
@@ -141,6 +141,58 @@
     }
   },
   "dry_run": true,
+  "duplicates": {
+    "free": {
+      "by_cases": {
+        "edit_distance_norm_mean": 0.0,
+        "exact_match_rate": 1.0,
+        "fallback_rate": 0.0,
+        "guard_pass_rate": 1.0,
+        "level_suspect": 0,
+        "multi_evidence_rate": 0.0,
+        "n": 28
+      },
+      "by_unique_inputs": {
+        "edit_distance_norm_mean": 0.0,
+        "exact_match_rate": 1.0,
+        "fallback_rate": 0.0,
+        "guard_pass_rate": 1.0,
+        "level_suspect": 0,
+        "multi_evidence_rate": 0.0,
+        "n": 26
+      },
+      "cache_hits": 0,
+      "cases": 28,
+      "duplicate_case_ids": [],
+      "new_generations": 28,
+      "unique_inputs": 26
+    },
+    "select": {
+      "by_cases": {
+        "edit_distance_norm_mean": 0.101,
+        "exact_match_rate": 0.0,
+        "fallback_rate": 0.0,
+        "guard_pass_rate": 1.0,
+        "level_suspect": 0,
+        "multi_evidence_rate": 0.0,
+        "n": 28
+      },
+      "by_unique_inputs": {
+        "edit_distance_norm_mean": 0.101,
+        "exact_match_rate": 0.0,
+        "fallback_rate": 0.0,
+        "guard_pass_rate": 1.0,
+        "level_suspect": 0,
+        "multi_evidence_rate": 0.0,
+        "n": 26
+      },
+      "cache_hits": 0,
+      "cases": 28,
+      "duplicate_case_ids": [],
+      "new_generations": 28,
+      "unique_inputs": 26
+    }
+  },
   "eval_set": "p4b2-fictional/1.2",
   "eval_set_manifest": {
     "by_case": {
@@ -437,7 +489,7 @@
       "top_k": 20,
       "top_p": 0.8
     },
-    "git_commit": "705256908ee6fd8cfda1a93761580ec72241e5fa",
+    "git_commit": "b7abbc943ccb16caa03b2cfb7abbd10e01b42eac",
     "git_dirty": true,
     "model_record": {
       "checked_at": "2026-10-26",
@@ -467,7 +519,7 @@
     },
     "prompt_version": "p4b/0.2",
     "python": "3.12.10",
-    "source_sha256": "f6e656016134657f68e724c72cb5d389232b73b2438fb001bb5c4f2f21f19981"
+    "source_sha256": "eccd4f1d13b10ba1bf6bc675eef422a272576bf66169d93ab873fb43f59d6ab1"
   },
   "request_params": {
     "free": {
@@ -516,8 +568,8 @@
     "estimated_cost_usd": 0,
     "fallback_rate": 0.0,
     "generation_ms": {
-      "median": 0.591,
-      "p90": 1.021
+      "median": 0.552,
+      "p90": 0.738
     },
     "generator_errors": {},
     "guard_pass_rate": 1.0,
@@ -537,8 +589,8 @@
       "unsupported_sentence": 0
     },
     "validation_ms": {
-      "median": 0.179,
-      "p90": 0.199
+      "median": 0.18,
+      "p90": 0.192
     }
   },
   "smoke_rows": [
@@ -625,7 +677,7 @@
   ],
   "status_by_cell": {
     "arm|free|case_fixture_archive|hint": {
-      "generation_ms_median": 0.547,
+      "generation_ms_median": 0.551,
       "guard_pass_rate": 1.0,
       "n": 10,
       "status_counts": {
@@ -634,7 +686,7 @@
       "tokens_out": 330
     },
     "arm|free|case_fixture_archive|nudge": {
-      "generation_ms_median": 0.548,
+      "generation_ms_median": 0.549,
       "guard_pass_rate": 1.0,
       "n": 5,
       "status_counts": {
@@ -643,7 +695,7 @@
       "tokens_out": 148
     },
     "arm|free|case_fixture_lighthouse|hint": {
-      "generation_ms_median": 0.552,
+      "generation_ms_median": 0.56,
       "guard_pass_rate": 1.0,
       "n": 10,
       "status_counts": {
@@ -652,7 +704,7 @@
       "tokens_out": 460
     },
     "arm|free|case_fixture_lighthouse|nudge": {
-      "generation_ms_median": 0.563,
+      "generation_ms_median": 0.561,
       "guard_pass_rate": 1.0,
       "n": 3,
       "status_counts": {
@@ -661,7 +713,7 @@
       "tokens_out": 132
     },
     "arm|select|case_fixture_archive|hint": {
-      "generation_ms_median": 0.52,
+      "generation_ms_median": 0.519,
       "guard_pass_rate": 1.0,
       "n": 10,
       "status_counts": {
@@ -670,7 +722,7 @@
       "tokens_out": 320
     },
     "arm|select|case_fixture_archive|nudge": {
-      "generation_ms_median": 0.517,
+      "generation_ms_median": 0.508,
       "guard_pass_rate": 1.0,
       "n": 5,
       "status_counts": {
@@ -679,7 +731,7 @@
       "tokens_out": 160
     },
     "arm|select|case_fixture_lighthouse|hint": {
-      "generation_ms_median": 0.525,
+      "generation_ms_median": 0.524,
       "guard_pass_rate": 1.0,
       "n": 10,
       "status_counts": {
@@ -688,7 +740,7 @@
       "tokens_out": 320
     },
     "arm|select|case_fixture_lighthouse|nudge": {
-      "generation_ms_median": 0.509,
+      "generation_ms_median": 0.514,
       "guard_pass_rate": 1.0,
       "n": 3,
       "status_counts": {
@@ -697,7 +749,7 @@
       "tokens_out": 96
     },
     "repeat|free|case_fixture_archive|hint": {
-      "generation_ms_median": 0.547,
+      "generation_ms_median": 0.542,
       "guard_pass_rate": 1.0,
       "n": 4,
       "status_counts": {
@@ -706,7 +758,7 @@
       "tokens_out": 132
     },
     "repeat|free|case_fixture_archive|nudge": {
-      "generation_ms_median": 0.54,
+      "generation_ms_median": 0.546,
       "guard_pass_rate": 1.0,
       "n": 4,
       "status_counts": {
@@ -715,7 +767,7 @@
       "tokens_out": 120
     },
     "repeat|free|case_fixture_lighthouse|hint": {
-      "generation_ms_median": 0.564,
+      "generation_ms_median": 0.56,
       "guard_pass_rate": 1.0,
       "n": 4,
       "status_counts": {
@@ -724,7 +776,7 @@
       "tokens_out": 184
     },
     "repeat|free|case_fixture_lighthouse|nudge": {
-      "generation_ms_median": 0.571,
+      "generation_ms_median": 0.55,
       "guard_pass_rate": 1.0,
       "n": 4,
       "status_counts": {
@@ -733,7 +785,7 @@
       "tokens_out": 176
     },
     "smoke|free|case_fixture_archive|nudge": {
-      "generation_ms_median": 1.021,
+      "generation_ms_median": 0.554,
       "guard_pass_rate": 1.0,
       "n": 1,
       "status_counts": {
@@ -742,7 +794,7 @@
       "tokens_out": 30
     },
     "smoke|free|case_fixture_lighthouse|hint": {
-      "generation_ms_median": 0.565,
+      "generation_ms_median": 0.55,
       "guard_pass_rate": 1.0,
       "n": 1,
       "status_counts": {
@@ -751,7 +803,7 @@
       "tokens_out": 46
     },
     "smoke|select|case_fixture_archive|hint": {
-      "generation_ms_median": 0.617,
+      "generation_ms_median": 0.738,
       "guard_pass_rate": 1.0,
       "n": 1,
       "status_counts": {
@@ -760,7 +812,7 @@
       "tokens_out": 32
     },
     "smoke|select|case_fixture_lighthouse|nudge": {
-      "generation_ms_median": 0.515,
+      "generation_ms_median": 0.521,
       "guard_pass_rate": 1.0,
       "n": 1,
       "status_counts": {

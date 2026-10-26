@@ -35,6 +35,7 @@ from companion_npc.speech.p4b2 import (
     denied_forbidden_terms,
     external_transfer_problems,
     load_private_texts,
+    phase_gate,
     phase_request_budget,
     public_error,
     reproduction,
@@ -193,10 +194,9 @@ def _p4b2(raw: dict, publish: bool, execute: bool, phases: str | None = None) ->
             )
             return 2
         wanted = tuple(phases.split(",")) if phases else ()
-        if not wanted or not set(wanted) <= set(config.approved_phases):
-            print(
-                f"refused: --phases 는 승인된 단계 {config.approved_phases} 안에서만 지정할 수 있습니다"
-            )
+        problem = phase_gate(config, wanted)
+        if problem:
+            print(f"refused: {problem}")
             return 2
         policy = ExternalTransferPolicy.model_validate(_strip(json.loads((ROOT / "experiments" / "p4" / "external_transfer.json").read_text(encoding="utf-8"))))  # fmt: skip
         problems = external_transfer_problems(config, policy)

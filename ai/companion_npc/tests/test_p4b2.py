@@ -68,6 +68,7 @@ def no_network(monkeypatch):
 
     monkeypatch.setattr(socket.socket, "connect", refuse)
     monkeypatch.setattr(socket, "create_connection", refuse)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse)  # DNS 조회도 막는다
     monkeypatch.delenv(ALLOW_ENV, raising=False)
 
 
@@ -1454,9 +1455,14 @@ def test_v4_config_and_comparison(v4, v3, fictional_sources, private, tmp_path):
         and v4.evidence_policy == "same_level"
         and v4.eval_set == "p4b2-fictional/1.2"
     )
-    assert v4.execution_approved is True and v4.approved_phases == [
-        "smoke"
-    ]  # 2026-10-26 사용자 승인: 판 4 smoke 만 (판 3 승인을 이은 것이 아님)
+    assert (
+        v4.execution_approved is True
+        and v4.approved_phases
+        == [
+            "smoke",
+            "arm",
+        ]
+    )  # 2026-10-26 사용자 승인: 판 4 smoke · arm 만 (repeat 미승인 · 판 3 승인을 이은 것이 아님)
     assert v4.ledger_name == v3.ledger_name and planned_requests(v4) == 76
     assert (
         v4.generator == v3.generator and v4.llm_kinds == v3.llm_kinds
@@ -1493,7 +1499,22 @@ def test_v4_config_and_comparison(v4, v3, fictional_sources, private, tmp_path):
         / "p4b2_gpt_fictional_v4_dryrun"
         / "rating_form.csv"
     ).read_text(encoding="utf-8-sig")
-    assert "review_level_suspect" in form.splitlines()[0]
+    assert (
+        "review_level_suspect" not in form and "model_reply" not in form.splitlines()[0]
+    )  # 자동 표시 · 군을 드러내는 칸은 가린다
+    key = json.loads(
+        (
+            tmp_path
+            / "runs"
+            / "restricted"
+            / "p4b2_gpt_fictional_v4_dryrun"
+            / "rating_key.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert all(
+        "auto_level_suspect" in k and "model_reply" in k and "cache_hit" in k
+        for k in key
+    )  # 짝 표에만
     assert summary_is_clean(
         s, [t for _, terms in fictional_sources for t in terms] + private
     )
@@ -1565,19 +1586,20 @@ def test_duplicate_inputs_are_served_from_cache(
     }
 
 
-def test_main_run_requires_its_own_approval(tmp_path, monkeypatch):
-    from companion_npc.speech.__main__ import main
+def test_main_run_requires_its_own_approval(v4, tmp_path, monkeypatch):
+    """repeat 은 승인 전 — CLI 가 실행 전에 거부한다.
+    arm 은 승인됐으므로 CLI 로 돌리면 실제 전송 경로에 들어간다 → 여기서는 단계 문(phase_gate)만 검사한다."""
 
+    from companion_npc.speech.__main__ import main
+    from companion_npc.speech.p4b2 import phase_gate
+
+    assert phase_gate(v4, ("arm",)) is None and phase_gate(v4, ("smoke",)) is None
+    for wanted in (("repeat",), ("arm", "repeat"), ("smoke", "repeat"), (), ("bogus",)):
+        assert phase_gate(v4, wanted), wanted
     monkeypatch.setenv(ALLOW_ENV, "1")
-    cfg = str(
-        ROOT / "experiments" / "p4" / "p4b2_gpt_fictional_v4.json"
-    )  # smoke 만 승인
-    for phases in ("arm", "repeat", "arm,repeat", "smoke,arm"):
-        assert (
-            main(["--mode", "p4b2", "--config", cfg, "--execute", "--phases", phases])
-            == 2
-        )
-    assert "openai" not in sys.modules
+    cfg = str(ROOT / "experiments" / "p4" / "p4b2_gpt_fictional_v4.json")
+    for phases in ("repeat", "arm,repeat", "smoke,repeat"):
+        assert main(["--mode", "p4b2", "--config", cfg, "--execute", "--phases", phases]) == 2  # fmt: skip
 
 
 def test_cell_breakdown_and_rater_forms(v4, fictional_sources, private, tmp_path):
@@ -1629,3 +1651,87 @@ def test_rating_agreement_and_conservative_leak(tmp_path):
         r[cols[0]]["agreement"] == pytest.approx(2 / 3, abs=1e-3)
         and r[cols[1]]["agreement"] == 1.0
     )
+
+
+# ── 11. 판 4 arm 준비 — 중복 입력 · 평가 일치도 ─────────────────────
+def test_arm_only_cap_and_duplicate_accounting(
+    v4, fictional_sources, private, tmp_path
+):
+    from companion_npc.speech.p4b2 import phase_request_budget
+
+    assert phase_request_budget(v4, ("arm",)) == 56
+    s = run_p4b2(v4, fictional_sources, OfflineEchoTransport(), tmp_path, private_texts=private, env={"OPENAI_API_KEY": FAKE_KEY}, dry_run=False, phases=("arm",), session_max_requests=56)["summary"]  # fmt: skip
+    assert (
+        s["sent_requests"] == 52 and s["stop_reason"] is None
+    )  # 사례 56 · 고유 입력 52 · 캐시 4
+    for arm in ("select", "free"):
+        d = s["duplicates"][arm]
+        assert (
+            d["cases"],
+            d["unique_inputs"],
+            d["cache_hits"],
+            d["new_generations"],
+        ) == (28, 26, 2, 26)
+        assert {i.split("/")[1] for i in d["duplicate_case_ids"]} <= {"gen_safe_greeting_prefix", "gen_safe_encouragement_suffix"}  # fmt: skip
+        assert d["by_cases"]["n"] == 28 and d["by_unique_inputs"]["n"] == 26
+    assert s["phase_counts"].get("repeat") is None  # repeat 은 돌지 않았다
+
+
+def test_cache_hits_are_not_counted_as_repeats(
+    v4, fictional_sources, private, tmp_path
+):
+    from companion_npc.speech.p4b2 import consistency
+
+    rows = [
+        {"arm": "free", "phase": "arm", "eval_item_id": "x", "cache_hit": False, "final_text": "a", "raw_sha256": "1", "guard_passed": True},
+        {"arm": "free", "phase": "arm", "eval_item_id": "x", "cache_hit": True, "final_text": "a", "raw_sha256": "1", "guard_passed": True},
+    ]  # fmt: skip
+    assert consistency(rows, "free") == {"cases": 0}  # 같은 답 재사용은 반복이 아니다
+
+
+def test_weighted_kappa_and_safety_review(tmp_path):
+    import csv
+
+    from companion_npc.speech.p4b2 import (
+        AGREEMENT_COLUMNS,
+        ORDINAL_COLUMNS,
+        rating_agreement,
+        weighted_kappa,
+    )
+
+    assert weighted_kappa([(0, 0), (1, 1), (4, 4)], 5) == 1.0
+    assert weighted_kappa([(0, 4), (4, 0)], 5) < 0
+    cols = AGREEMENT_COLUMNS
+    ordinal = ORDINAL_COLUMNS[0]
+
+    def write(name, rows):
+        path = tmp_path / name
+        with path.open("w", encoding="utf-8-sig", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=["blind_id", *cols, ordinal])
+            w.writeheader()
+            w.writerows(rows)
+        return path
+
+    base = {cols[0]: "none", cols[1]: "none", cols[2]: "n", cols[3]: "n"}
+    a = write("a.csv", [{"blind_id": "p", **base, ordinal: "4"}, {"blind_id": "q", **base, cols[2]: "y", ordinal: "2"}, {"blind_id": "r", **base, ordinal: "5"}])  # fmt: skip
+    b = write("b.csv", [{"blind_id": "p", **base, ordinal: "4"}, {"blind_id": "q", **base, ordinal: "3"}, {"blind_id": "r", **base, cols[1]: "over_level", ordinal: "5"}])  # fmt: skip
+    key = tmp_path / "key.json"
+    key.write_text(json.dumps([{"blind_id": "p", "auto_level_suspect": True}, {"blind_id": "q", "auto_level_suspect": False}, {"blind_id": "r", "auto_level_suspect": False}]), encoding="utf-8")  # fmt: skip
+    r = rating_agreement(a, b, key)
+    assert r["safety_review_ids"] == [
+        "q",
+        "r",
+    ]  # 근거 없는 주장 의심(q) · 단계 초과 의심(r) — 한 명이라도
+    assert r["conservative_leak_ids"] == ["r"]
+    assert (
+        r[ordinal]["rated_by_both"] == 3
+        and r[ordinal]["within_1"] == 1.0
+        and r[ordinal]["weighted_kappa"] is not None
+    )
+    assert r["auto_vs_human"] == {
+        "auto_flagged": 1,
+        "human_flagged": 1,
+        "both": 0,
+        "human_only": ["r"],
+        "auto_only": ["p"],
+    }
