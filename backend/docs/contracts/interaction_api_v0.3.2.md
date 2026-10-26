@@ -73,6 +73,21 @@ Runtime 처리하는 action은 `input`, `combine_clues`, `inspect`, `navigate`�
 효과가 없는 조사 대상도 빈 `on_inspect`로 Server Runtime에 정의해야 한다
 (정의 없으면 콘텐츠 교차 검증 오류).
 
+**(Q7, 팀 검토 대기) 조사 문구.** Server Runtime의 `inspections[].message`(선택)가 있으면
+6단계까지 성공한 응답의 `message`에 그 문구를 싣는다. 효과가 없는 조사도 같다.
+문구가 없거나 `null`이면 `message=null`이다(기존과 같음).
+
+- 1·2·4·5단계 오류(Zone 409·404·숨김/비활성 409·선행 단서 409)는 문구를 싣지 않는다.
+  오류 응답은 기존처럼 `detail`(선행 단서는 `missing_clue_count` 포함)만 있다.
+  상태·Event·commit도 없다.
+- 3단계(이미 조사함)는 `ok`, `state_changes=[]`, **`message=null`**이다. 조사를 다시
+  수행하지 않으므로 문구도 다시 싣지 않는다. Object가 지금 숨김·비활성이어도 문구가
+  드러나지 않는다. 새 Event는 기존처럼 이 응답(문구 없음)으로 기록된다.
+- 같은 `client_event_id` 재전송은 저장된 최초 응답을 그대로 돌려준다(§6). 첫 성공 응답을
+  놓친 Frontend는 같은 Event ID로 다시 보내 문구를 받는다. 이후 콘텐츠 문구가 바뀌어도
+  재전송 응답은 최초 문구다.
+- 문구는 표시용이다. 정답 판정·단서 조건·효과 판정에 쓰지 않는다.
+
 ### 2.2 선행 단서 조건 (Q5, 팀 검토 대기)
 
 Server Runtime의 `puzzles[].requires_clue_ids`·`inspections[].requires_clue_ids`에 나열한
@@ -176,13 +191,15 @@ Interaction endpoint만 envelope 없는 flat response를 사용한다.
 ```
 
 - `result_type`: `ok | correct | incorrect | already_completed`
-- `message`: Phase 1에서는 항상 `null`
+- `message`: 기본값 `null`. **(Q7)** `inspect` 첫 성공에서만 콘텐츠의
+  `inspections[].message`를 싣는다(§2.1). 다른 action과 재조사·오류에는 싣지 않는다.
 - `attempt_count`: input 채점 결과는 누적값, 비채점 Interaction은 `null`
 - `ui_actions`: Phase 1에서는 항상 빈 배열
 - 오답은 HTTP 오류가 아니라 HTTP 200의 `incorrect` 결과다.
 - `already_completed`는 HTTP 200이며 `state_changes=[]`다.
 - **(Q6 변경)** `navigate` 성공은 HTTP 200의 `ok`, `attempt_count=null`이다.
-- `inspect`는 첫 조사와 재조사 모두 HTTP 200의 `ok`다. 재조사는 `state_changes=[]`다.
+- `inspect`는 첫 조사와 재조사 모두 HTTP 200의 `ok`다. 재조사는 `state_changes=[]`,
+  `message=null`이다. 최상위 응답 구조는 바뀌지 않는다.
   효과가 없는 대상을 처음 조사해도 `state_changes=[]`이므로, Frontend는
   `state_changes`가 비었는지만으로 재조사 여부를 구분할 수 없다.
 

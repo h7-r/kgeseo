@@ -86,12 +86,18 @@ class InspectionDefinition(ServerContentModel):
     # 조사 효과 적용 전에 PlaySession이 모두 획득해야 하는 단서. 비어 있으면 조건 없음.
     requires_clue_ids: list[str] = Field(default_factory=list)
     on_inspect: RuntimeEffect
+    # 조사에 처음 성공한 응답에만 싣는 표시 문구. 정답 판정·단서 조건에는 쓰지 않는다.
+    message: str | None = None
 
     @model_validator(mode="after")
     def validate_requirements(self) -> "InspectionDefinition":
         _validate_required_clue_ids(
             f"Inspection '{self.inspect_id}'", self.requires_clue_ids
         )
+        if self.message is not None and not self.message.strip():
+            raise ValueError(
+                f"Inspection '{self.inspect_id}' message must be omitted or not blank"
+            )
         return self
 
 

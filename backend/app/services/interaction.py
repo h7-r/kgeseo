@@ -131,6 +131,7 @@ async def process_interaction(
                 loaded_client_content.append(client_content)
             return loaded_client_content[0]
 
+        message = None
         if isinstance(interaction, SubmitAnswerInteraction):
             (
                 result_type,
@@ -146,7 +147,7 @@ async def process_interaction(
                 load_client_content,
             )
         elif isinstance(interaction, InspectInteraction):
-            result_type, result_state, state_changes = _process_inspect(
+            result_type, result_state, state_changes, message = _process_inspect(
                 interaction,
                 _ensure_current_zone(
                     current_state, interaction.zone_id, load_client_content
@@ -177,7 +178,7 @@ async def process_interaction(
             result_type=result_type,
             state=PlaySessionState.model_validate(result_state),
             state_changes=state_changes,
-            message=None,
+            message=message,
             attempt_count=attempt_count,
             ui_actions=[],
         )
@@ -457,6 +458,7 @@ def _process_inspect(
     InteractionResultType,
     dict[str, Any],
     list[InteractionStateChange],
+    str | None,
 ]:
     inspection = next(
         (
@@ -470,8 +472,9 @@ def _process_inspect(
         raise InspectionNotFoundError(interaction.target_id)
 
     # 효과를 이미 적용한 조사는 지금 숨김·비활성이어도 오류 없이 변화 없음으로 응답한다.
+    # 조사를 다시 수행하지 않으므로 문구도 싣지 않는다(첫 성공 응답은 같은 이벤트 재전송으로 재현).
     if interaction.target_id in state.get("completed_inspect_ids", []):
-        return "already_inspected", state, []
+        return "already_inspected", state, [], None
 
     client_content = load_client_content()
     current = resolve_effective_object_state(
@@ -492,7 +495,7 @@ def _process_inspect(
         client_content=client_content,
     )
     updated_state.setdefault("completed_inspect_ids", []).append(interaction.target_id)
-    return "inspected", updated_state, state_changes
+    return "inspected", updated_state, state_changes, inspection.message
 
 
 def _process_navigate(

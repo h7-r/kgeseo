@@ -499,6 +499,27 @@ Server Runtime에 선택 필드 `inspections`(기본값 `[]`)가 추가됐다.
   조사 효과는 Client Content에 두지 않는다.
 - 위 JSON의 ID는 **Example**이다.
 
+**조사 문구 `message` (Q7, 2026-10-26, 팀 검토 대기)**
+
+```json
+{
+  "inspect_id": "INSPECT_SCREEN",
+  "on_inspect": { "grant_clue_ids": [], "set_flags": {} },
+  "message": "병풍 뒤에는 먼지뿐입니다."
+}
+```
+
+- 선택 필드다. 생략하거나 `null`이면 문구가 없다(기존 콘텐츠와 호환).
+- 문자열만 허용한다. 빈 문자열·공백만 있는 값은 Schema 오류다(`clues[].summary`·`body`와
+  같은 규칙). 다른 정의되지 않은 필드는 계속 거부한다.
+- 응답 동작: 첫 조사 성공 응답의 `message`에만 싣는다. 이미 조사한 대상의 재조사는
+  `message=null`, 모든 오류(Zone·숨김·비활성·선행 단서)는 문구를 싣지 않는다.
+  같은 Event 재전송은 저장된 최초 응답을 그대로 돌려준다
+  (`interaction_api_v0.3.2.md` §2.1).
+- 표시용 문구다. 정답 판정·단서 조건·단서 참조 검증 대상이 아니다.
+  Client Content가 아니라 Server Runtime에 두므로 조사 전에는 Frontend에 내려가지 않는다.
+- 위 JSON의 ID와 문구는 **Example**이다.
+
 ### 7.7 Schema 엄격 검증 (2026-10-23)
 
 Server Runtime 모델 6개는 모두 정의되지 않은 필드를 거부한다(`extra="forbid"`).
@@ -598,7 +619,8 @@ PM 생성 JSON 형식 예 (구조만 PM 생성 케이스와 같고 ID·정답은
   → 정답 비교 → 효과. 정답 비교 전에 판정하므로 정답·오답 모두 같은 409이고,
   응답으로 정답 여부가 드러나지 않는다.
 - `inspect`: 조사 정의 없음 404 → 완료 조사 `ok`·`[]` → 숨김·비활성 409 → **선행 조건**
-  → 효과. 완료 확인을 숨김 판정보다 먼저 하는 기존 순서(`interaction_api_v0.3.2.md` §2.1)는 유지한다.
+  → 효과(Q7: 이때만 `message`를 싣는다). 완료 확인을 숨김 판정보다 먼저 하는 기존 순서
+  (`interaction_api_v0.3.2.md` §2.1)는 유지한다.
 
 조건이 부족하면 `RequiredCluesMissingError` → HTTP 409. 상태·시도 횟수·Interaction Event·
 commit 모두 없다. 이벤트가 남지 않으므로 같은 `client_event_id`로 단서를 얻은 뒤 다시

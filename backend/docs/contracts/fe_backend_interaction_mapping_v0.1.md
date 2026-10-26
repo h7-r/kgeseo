@@ -110,11 +110,16 @@ Event에는 `interaction_type=navigate`, `target_id=<목적지 Zone ID>`, `paylo
 | `incorrect_combination` | `incorrect` |
 | `already_completed` | `already_completed` |
 | `inspected` (확장) | `ok` |
-| `already_inspected` (확장) | `ok` (`state_changes=[]`) |
+| `already_inspected` (확장) | `ok` (`state_changes=[]`, `message=null`) |
 | `navigated` (**Q6**) | `ok` (`state_changes=[current_zone_changed]`, `attempt_count=null`) |
 
-성공 Response는 Interaction 전용 flat 구조를 사용한다. Phase 1의 `message`는 항상 `null`,
+성공 Response는 Interaction 전용 flat 구조를 사용한다. `message`는 기본값 `null`이고,
 `ui_actions`는 항상 빈 배열이다. 다른 Session API의 `success/data` envelope는 유지한다.
+
+**(Q7, 팀 검토 대기)** `inspected`(첫 조사 성공)만 Server Runtime `inspections[].message`를
+`message`에 싣는다(없으면 `null`). Frontend는 `message`가 문자열이면 조사 결과 문구로
+표시하고 `null`이면 표시하지 않는다. 재조사(`already_inspected`)와 모든 오류 응답에는
+문구가 없다. 같은 `client_event_id` 재전송은 최초 응답(문구 포함)을 그대로 받는다.
 
 ## 6. Attempt Count
 
@@ -200,7 +205,8 @@ inspect 재조사는 HTTP 오류가 아니라 200의 `ok`, `state_changes=[]`다
   `carrier_kind`·이미지와 FE 표시 방식은 미정
 - `enabled` true → false(잠금) 효과
 - 실제 MySQL 영속성 검증
-- 콘텐츠 기반 `message` Source of Truth
+- 콘텐츠 기반 `message` Source of Truth: `inspect`는 Q7로 구현됨(`inspections[].message`,
+  팀 검토 대기). `input`·`combine_clues`·`navigate`의 문구는 미정
 - Hint API
 - `remaining_sec` 및 server timer
 - Session 외부 Contract 정합성
