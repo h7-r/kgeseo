@@ -696,11 +696,35 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
   const rdText = id => plain((a04?.scenes || []).flatMap(sc => sc.required_discoveries || []).find(d => d.id === id)?.text);
   const pickOf = id => byItem.get(id)?.pick || null;
   const SCENES = (a04?.scenes || []).map(sc => ({ id: sc.scene_id, title: sc.title, order: sc.order, rooms: conv.rooms.map((r, i) => ((r.scenes || []).includes(sc.scene_id) ? i : -1)).filter(i => i >= 0), exit: sc.exit?.trigger || '', complete_when: sc.exit?.complete_when || '' }));
+  // 10/26: 손에 드는 단서 물건(짚신 한 짝·놋대접·버선·끈…)을 공용 라이브러리의 실제 작은 물건으로 — 노란 고리 같은 대용 모형만 보여 「무엇이 나왔는지」 화면에서 알 수 없었다(09 시각 검수)
+  const carrierAsset = new Map();
+  try {
+    const { buildLibrary, searchLibrary } = await import('./library.mjs');
+    const { glbSize, placementAsset } = await import('./manifestPlace.mjs');
+    const { items } = await buildLibrary(root);
+    for (const p of puzzleDoc?.puzzles || []) for (const c of p.clues || []) {
+      const k = c.carrier?.kind, nm = String(c.carrier?.name || '').trim();
+      if (!nm || !['piece', 'key'].includes(k) || carrierAsset.has(nm)) continue;
+      const words = nm.replace(/[()·,]/g, ' ').split(/\s+/).filter(w => w.length >= 2 && !/^(한|두|세|반쯤|끊어진|젖은|낡은|작은|헌|새|짝|조각|가닥|묶음|꾸러미)$/.test(w));
+      if (!words.length) continue;
+      let pick = null;
+      for (const q of [nm, ...words]) {
+        const found = await searchLibrary(items, q, { placeableOnly: true, root, waitSemanticMs: 15000, limit: 12 });
+        for (const r of found.results) {
+          const it = r.item; if (!/^\/?_sf_local\//.test(decodeURIComponent(it.url || '')) || it.source === 'space') continue;
+          { const head = words[words.length - 1]; const nk = String(it.nameKo || ''); if (!(nk.includes(head) || (head.length >= 3 && nk.includes(head.slice(-2))))) continue; } // 머리 명사가 같은 물건만(「새김 놋대접」에 「나무 새김판」이 오던 일)
+          try { const a = await placementAsset(root, { id: it.id, nameKo: it.nameKo, url: it.url, source: it.source === 'khs' ? 'khs' : 'public' }); const ext = await glbSize(path.join(root, a.path)); const L = ext ? Math.max(ext[0], ext[1], ext[2]) : null; if (L && L > 1.2) continue; pick = { url: a.url, nameKo: it.nameKo, size: L && L >= 0.05 ? +Math.min(0.3, L).toFixed(3) : 0.22 }; break; } catch { continue; }
+        }
+        if (pick) break;
+      }
+      carrierAsset.set(nm, pick);
+    }
+  } catch (e) { notes.push(`단서 물건 에셋 찾기 실패: ${e.message}`); }
   const PZ = (puzzleDoc?.puzzles || []).filter(p => p.presentation !== 'ending_cinematic').map(p => ({
     id: p.puzzle_id, scene_id: p.scene_id, title: p.title, type: p.puzzle_type, learns: p.learns || '',
     review: { belief_before: p.belief_before || '', how: p.how || '', difficulty: p.difficulty || '', invented: p.invented || [],
       basis: (p.basis || []).map(id => ({ id, text: factText(id) })), discoveries: (p.discoveries || []).map(id => ({ id, text: rdText(id) })) },
-    clues: (p.clues || []).map(c => ({ id: c.clue_id, text: c.text, get_by: c.get_by, from: c.from, reveal: c.reveal || null, carrier: c.carrier || null, content: c.content || '' })),
+    clues: (p.clues || []).map(c => ({ id: c.clue_id, text: c.text, get_by: c.get_by, from: c.from, reveal: c.reveal || null, carrier: c.carrier ? { ...c.carrier, asset: carrierAsset.get(String(c.carrier.name || '').trim()) || null } : null, content: c.content || '' })),
     exit: p.exit || null, // 10/22: 장면 마지막 퍼즐 — 풀면 나오는 열쇠와 다음 방 문의 자물쇠
     solve: p.solve || {}, hint_1: p.hint_1 || '', hint_2: p.hint_2 || '', effects: p.success_effects || [],
     hosts: (p.host_needs || []).map(h => ({ need_id: h.need_id, kind: h.kind, what: h.what, at: (binds[h.need_id] || []).filter(b => b.node).map(b => ({ room: b.room, node: b.node })),
@@ -991,6 +1015,7 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
         const applied = [];
         for (const x of [...roomBad, ...clueBad]) {
           if (!['replace_asset', 'remove'].includes(x.fix) || !x.item) continue;
+          if (x.clue_id && !(x.fails || []).some(f => f === 'C2' || f === 'C4')) continue; // 단서 판정에서 에셋을 바꾸는 것은 움직임 없음(C2)·종류 다름(C4)일 때만 — 단서 모형이 안 보이는 것(C3)은 호스트 에셋 탓이 아니다
           const c = findItem(x.room, x.item); if (!c) continue;
           if (x.fix === 'remove' && !(c.serves || []).length) { plan.contents = plan.contents.filter(z => z !== c); applied.push(`${x.room} 「${c.name_ko}」 뺌 — ${x.check || (x.fails || []).join(',')}: ${x.why}`); continue; }
           const pick = (sel.selections || []).find(z => z.item_id === c.item_id)?.pick?.id; if (!pick) continue;
@@ -999,7 +1024,8 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
           applied.push(`${x.room} 「${c.name_ko}」 에셋 바꿈(${pick} 금지) — ${x.check || (x.fails || []).join(',')}: ${x.why}`);
         }
         // 단서 글이 화면에 그릴 수 없는 것을 말함 → 05 를 그 메모와 함께 다시 쓰고 06~08 을 다시(에이전트가 이야기 쪽도 스스로 고친다)
-        const clueFix = clueBad.filter(c => c.fix === 'clue');
+        let rgShow = []; try { const ib = await readJsonOut(root, trial, 'indoor_build.json'); rgShow = ((ib.regress || []).find(r => r.id === 'RG-SHOW')?.bad || []).map(t => ({ clue_id: String(t).split(':')[0], why: `화면에 그릴 수 없음(코드 검사) — ${String(t).split(':').slice(1).join(':').trim()}`, fix: 'clue' })); } catch {}
+        const clueFix = [...clueBad.filter(c => c.fix === 'clue'), ...rgShow.filter(r => !clueBad.some(c => c.clue_id === r.clue_id && c.fix === 'clue'))];
         if (clueFix.length) { await writeOut(root, trial, 'vr_feedback.json', JSON.stringify({ at: new Date().toISOString(), clues: clueFix.map(c => ({ clue_id: c.clue_id, why: c.why })) }, null, 2)); applied.push(`단서 ${clueFix.length}개가 화면에 그릴 수 없는 것을 말함 → 05 를 다시 씀(${clueFix.map(c => c.clue_id).join(', ')})`); }
         rounds[rounds.length - 1].applied = applied;
         await writeOut(root, trial, 'visual_review.json', JSON.stringify({ checklist: vr.CHECKLIST, rounds }, null, 2));

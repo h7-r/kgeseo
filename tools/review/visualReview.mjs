@@ -28,11 +28,19 @@ export const CHECKLIST = {
 
 const JUDGE_SYSTEM = `너는 지역 설화 방탈출 게임 「왜곡」의 공간 검수 에이전트다. 에이전트가 지은 조선 후기 민가 방을 플레이 화면 사진으로 보고, 사람 검수자가 짚었을 문제를 미리 찾는다.
 - 사진에 보이는 것만 판정한다. 단서 글을 믿지 말고 사진과 대조한다.
-- 단서 판정(C1~C4): 단서마다 누르기 전(before)·누른 뒤(after) 사진이 있다. after 사진 아래쪽 카드 글은 화면 안내이므로 판정 근거가 아니다.
+- 단서 판정(C1~C4): 단서마다 누르기 전(before)·누른 뒤(after) 사진이 있다.
+  · 흔적 단서(단서 물건 mark — 빛·그림자·발자국·물·피·물건 자체): 단서 내용이 말하는 것이 사진에 보여야 한다(C1).
+  · 손에 드는 단서 물건(letter·note·piece·key): 게임은 이것을 작은 모형(종이·고리 등)으로만 그린다 — 생김새·무늬·글씨는 판정하지 않는다. 모형이 보이는지, 물건 밑·안·뒤에서 드러났는지, 공중에 뜨거나 물건을 뚫지 않았는지만 본다(C3).
+  · 몸짓(열기·들추기·밀기·뒤집기)이 있는데 before·after 가 같으면 C2.
 - 방 판정(R1~R10): 둘러보기 사진과 단서 사진 전체에서 찾는다. 물건 이름은 [놓인 물건] 목록의 이름 그대로 쓴다.
-- 고치는 방법(fix): replace_asset(그 물건을 다른 에셋으로) · remove(퍼즐과 상관없는 살림이면 빼기) · none(에셋·배치로 못 고침 — 예: 단서 글이 화면에 그릴 수 없는 것을 말함).
+- 고치는 방법(fix) — 누가 고칠 문제인지:
+  · replace_asset: 그 에셋 자체가 문제(입은 모양 옷·크기·묶음 에셋·열리지 않는 물건에 「열기」·단서 글과 다른 종류의 물건)
+  · remove: 퍼즐과 상관없는 살림이 어색함
+  · clue: 단서 내용이 화면에 그릴 수 없는 것을 말함(등잔 눈금·불꽃, 기둥 물 줄, 색실 가닥 같은 세밀한 모양) — 이야기 쪽에서 다시 써야 함
+  · viewer: 연출·배치 코드 문제(물건이 기둥을 뚫음, 단서 모형이 공중에 뜸, 움직임이 작아 안 보임, 카메라가 물건을 못 잡음)
+  · none: 위에 해당 없음
 - 확실하지 않으면 문제로 적지 않는다. 사진이 가려져 판정할 수 없으면 judged:false.
-JSON 만 답한다: {"clues":[{"clue_id":"CL-..","judged":true,"ok":true,"fails":["C1"],"why":"한 문장","fix":"none|replace_asset","item":"물건 이름"}],"room":[{"check":"R1","item":"물건 이름","why":"한 문장","fix":"replace_asset|remove|none"}]}`;
+JSON 만 답한다: {"clues":[{"clue_id":"CL-..","judged":true,"ok":true,"fails":["C1"],"why":"한 문장","fix":"none|replace_asset|clue|viewer","item":"물건 이름"}],"room":[{"check":"R1","item":"물건 이름","why":"한 문장","fix":"replace_asset|remove|viewer|none"}]}`;
 
 /** 08 이 지은 방을 띄워 사진을 찍는다. 반환: [{room, name, shots:[{tag, file}], clues:[{clue_id, node, before, after}]}] */
 export async function shoot(root, trialId, { origin = process.env.REVIEW_ORIGIN || 'http://127.0.0.1:5180', outDir }) {
