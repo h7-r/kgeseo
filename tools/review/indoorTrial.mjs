@@ -327,7 +327,7 @@ export function traceLayout(meta, markers, rooms, room) {
   const pl = meta.placements || [];
   let lightAt = null;
   for (const [k, c] of markers.entries()) {
-    const kind = c.pending ? 'spot' : c.place === 'edge_step' ? 'step' : (c.show?.kind && c.show.kind !== 'object' ? c.show.kind : traceKind(c.name_ko)); // pending = 에셋 없는 퍼즐 호스트의 임시 자리(10/22) · 10/26: 05 가 적은 shows.kind 를 먼저
+    const kind = c.pending ? 'spot' : (c.show?.kind && c.show.kind !== 'object') ? c.show.kind : c.place === 'edge_step' ? 'step' : traceKind(c.name_ko); // 10/26: 단서가 「발자국」이라 하면 디딤돌 자리라도 발자국을 그린다 // pending = 에셋 없는 퍼즐 호스트의 임시 자리(10/22) · 10/26: 05 가 적은 shows.kind 를 먼저
     const t = { id: c.item_id, name: String(c.name_ko).slice(0, 30), kind, wet: /젖은|물/.test(c.name_ko || ''), faint: /옅|희미|사라/.test(c.name_ko || ''), y: FY };
     if (kind === 'foot') {
       if (!target) { notes.push(`「${c.name_ko}」: 이어질 문이 없어 못 그림`); continue; }
@@ -989,7 +989,13 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
       const set = JSON.parse(await fs.readFile(path.join(dir, 'rooms', 'rooms_set.json'), 'utf8'));
       const rel = f => path.relative(dir, f);
       const rounds = [];
-      for (let round = 1; round <= 2; round++) {
+      const SNAP = ['puzzle.json', 'indoor_plan.json', 'indoor_selection.json', 'indoor_build.json', 'AI-05.json'];
+      const snap = async n => { const d = path.join(dir, 'vr', `r${n}`, 'snapshot'); await fs.mkdir(d, { recursive: true }); for (const f of SNAP) { try { await fs.copyFile(path.join(dir, f), path.join(d, f)); } catch {} } await fs.cp(path.join(dir, 'rooms'), path.join(d, 'rooms'), { recursive: true }).catch(() => {}); };
+      const restore = async n => { const d = path.join(dir, 'vr', `r${n}`, 'snapshot'); for (const f of SNAP) { try { await fs.copyFile(path.join(d, f), path.join(dir, f)); } catch {} } await fs.rm(path.join(dir, 'rooms'), { recursive: true, force: true }); await fs.cp(path.join(d, 'rooms'), path.join(dir, 'rooms'), { recursive: true }); };
+      const unsolved = async () => { try { const ib = await readJsonOut(root, trial, 'indoor_build.json'); return ((ib.regress || []).find(r => r.id === 'RG-PUZZLE')?.bad || []).length; } catch { return 99; } };
+      const MAXR = 3;
+      for (let round = 1; round <= MAXR; round++) {
+        await snap(round);
         const shot = await vr.shoot(root, trial.id, { outDir: path.join(dir, 'vr', `r${round}`) });
         const res = [];
         for (const room of shot.rooms) {
@@ -1003,9 +1009,9 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
         }
         const clueBad = res.flatMap(r => r.clues.filter(c => c.judged !== false && c.ok === false).map(c => ({ ...c, room: r.name })));
         const roomBad = res.flatMap(r => r.issues.map(x => ({ ...x, room: r.name })));
-        rounds.push({ round, rooms: res.map(({ placements, ...x }) => x), clueBad, roomBad, errors: shot.errors });
+        rounds.push({ round, rooms: res.map(({ placements, ...x }) => x), clueBad, roomBad, unsolved: await unsolved(), errors: shot.errors });
         await writeOut(root, trial, 'visual_review.json', JSON.stringify({ checklist: vr.CHECKLIST, rounds }, null, 2));
-        if (round === 2) break;
+        if (round === MAXR) break;
         // 고치기 — 에셋 바꾸기(그 물건에 그 에셋 금지) · 퍼즐과 상관없는 살림 빼기
         const plan = await readJsonOut(root, trial, 'indoor_plan.json');
         const sel = await readJsonOut(root, trial, 'indoor_selection.json');
@@ -1036,8 +1042,14 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
         if (clueFix.length) { for (const id of ['s05', 's06', 's07', 's08']) await runStepInline(root, trial, id); }
         else { for (const id of ['s07', 's08']) await runStepInline(root, trial, id); }
       }
+      // 마지막 바퀴가 더 나빠질 수 있다(이야기를 다시 쓰면 새 문제가 생김) — 풀 수 있고 문제가 가장 적은 바퀴의 결과를 남긴다
+      const score = r => r.unsolved * 100 + r.clueBad.length + r.roomBad.length;
+      const best = rounds.reduce((a, r) => (score(r) < score(a) ? r : a), rounds[0]);
+      if (best !== rounds[rounds.length - 1]) { await restore(best.round); }
+      const kept = { round: best.round, unsolved: best.unsolved, clueBad: best.clueBad.length, roomBad: best.roomBad.length };
+      await writeOut(root, trial, 'visual_review.json', JSON.stringify({ checklist: vr.CHECKLIST, rounds, kept }, null, 2));
       const first = rounds[0], last = rounds[rounds.length - 1];
-      return { rounds: rounds.length, firstClueBad: first.clueBad.length, firstRoomBad: first.roomBad.length, lastClueBad: last.clueBad.length, lastRoomBad: last.roomBad.length, applied: (first.applied || []).length };
+      return { rounds: rounds.length, firstClueBad: first.clueBad.length, firstRoomBad: first.roomBad.length, firstUnsolved: first.unsolved, lastClueBad: last.clueBad.length, lastRoomBad: last.roomBad.length, kept };
     }
     fail(409, 'indoor_step', `실내 공간 시험은 ${step.id} 단계가 없습니다(06~09 까지).`);
   };
