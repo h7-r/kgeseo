@@ -7,8 +7,8 @@
       "estimated_cost_usd": 0,
       "fallback_rate": 0.0,
       "generation_ms": {
-        "median": 0.559,
-        "p90": 0.725
+        "median": 0.55,
+        "p90": 0.888
       },
       "generator_errors": {},
       "guard_pass_rate": 1.0,
@@ -28,8 +28,8 @@
         "unsupported_sentence": 0
       },
       "validation_ms": {
-        "median": 0.172,
-        "p90": 0.256
+        "median": 0.173,
+        "p90": 0.182
       }
     },
     "select": {
@@ -39,8 +39,8 @@
       "estimated_cost_usd": 0,
       "fallback_rate": 0.0,
       "generation_ms": {
-        "median": 0.514,
-        "p90": 0.578
+        "median": 0.52,
+        "p90": 0.814
       },
       "generator_errors": {},
       "guard_pass_rate": 1.0,
@@ -60,8 +60,8 @@
         "unsupported_sentence": 0
       },
       "validation_ms": {
-        "median": 0.176,
-        "p90": 0.192
+        "median": 0.18,
+        "p90": 0.191
       }
     }
   },
@@ -279,6 +279,104 @@
       }
     }
   },
+  "paraphrase_by_case": {
+    "free|case_fixture_archive": {
+      "hint": {
+        "contains_verbatim_rate": 1.0,
+        "edit_distance_norm_mean": 0.0,
+        "evidence_count_mean": 0,
+        "exact_match_rate": 1.0,
+        "fallback_rate": 0.0,
+        "guard_block_rate": 0.0,
+        "level_suspect_items": [],
+        "multi_evidence_rate": 0.0,
+        "n": 10
+      },
+      "nudge": {
+        "contains_verbatim_rate": 1.0,
+        "edit_distance_norm_mean": 0.0,
+        "evidence_count_mean": 0,
+        "exact_match_rate": 1.0,
+        "fallback_rate": 0.0,
+        "guard_block_rate": 0.0,
+        "level_suspect_items": [],
+        "multi_evidence_rate": 0.0,
+        "n": 5
+      }
+    },
+    "free|case_fixture_lighthouse": {
+      "hint": {
+        "contains_verbatim_rate": 1.0,
+        "edit_distance_norm_mean": 0.0,
+        "evidence_count_mean": 0,
+        "exact_match_rate": 1.0,
+        "fallback_rate": 0.0,
+        "guard_block_rate": 0.0,
+        "level_suspect_items": [],
+        "multi_evidence_rate": 0.0,
+        "n": 10
+      },
+      "nudge": {
+        "contains_verbatim_rate": 1.0,
+        "edit_distance_norm_mean": 0.0,
+        "evidence_count_mean": 0,
+        "exact_match_rate": 1.0,
+        "fallback_rate": 0.0,
+        "guard_block_rate": 0.0,
+        "level_suspect_items": [],
+        "multi_evidence_rate": 0.0,
+        "n": 3
+      }
+    },
+    "select|case_fixture_archive": {
+      "hint": {
+        "contains_verbatim_rate": 1.0,
+        "edit_distance_norm_mean": 0.111,
+        "evidence_count_mean": 0,
+        "exact_match_rate": 0.0,
+        "fallback_rate": 0.0,
+        "guard_block_rate": 0.0,
+        "level_suspect_items": [],
+        "multi_evidence_rate": 0.0,
+        "n": 10
+      },
+      "nudge": {
+        "contains_verbatim_rate": 1.0,
+        "edit_distance_norm_mean": 0.119,
+        "evidence_count_mean": 0,
+        "exact_match_rate": 0.0,
+        "fallback_rate": 0.0,
+        "guard_block_rate": 0.0,
+        "level_suspect_items": [],
+        "multi_evidence_rate": 0.0,
+        "n": 5
+      }
+    },
+    "select|case_fixture_lighthouse": {
+      "hint": {
+        "contains_verbatim_rate": 1.0,
+        "edit_distance_norm_mean": 0.086,
+        "evidence_count_mean": 0,
+        "exact_match_rate": 0.0,
+        "fallback_rate": 0.0,
+        "guard_block_rate": 0.0,
+        "level_suspect_items": [],
+        "multi_evidence_rate": 0.0,
+        "n": 10
+      },
+      "nudge": {
+        "contains_verbatim_rate": 1.0,
+        "edit_distance_norm_mean": 0.086,
+        "evidence_count_mean": 0,
+        "exact_match_rate": 0.0,
+        "fallback_rate": 0.0,
+        "guard_block_rate": 0.0,
+        "level_suspect_items": [],
+        "multi_evidence_rate": 0.0,
+        "n": 3
+      }
+    }
+  },
   "paraphrase_smoke": {
     "hint": {
       "contains_verbatim_rate": 1.0,
@@ -339,7 +437,7 @@
       "top_k": 20,
       "top_p": 0.8
     },
-    "git_commit": "8908aeedf90ddb5cd4b171357a53fe92f00b6a3d",
+    "git_commit": "705256908ee6fd8cfda1a93761580ec72241e5fa",
     "git_dirty": true,
     "model_record": {
       "checked_at": "2026-10-26",
@@ -369,7 +467,7 @@
     },
     "prompt_version": "p4b/0.2",
     "python": "3.12.10",
-    "source_sha256": "2ccc8a534cad00cff491c6ec4a1b728709308907c1202732ec538da1e0486ed6"
+    "source_sha256": "f6e656016134657f68e724c72cb5d389232b73b2438fb001bb5c4f2f21f19981"
   },
   "request_params": {
     "free": {
@@ -418,8 +516,8 @@
     "estimated_cost_usd": 0,
     "fallback_rate": 0.0,
     "generation_ms": {
-      "median": 0.562,
-      "p90": 0.653
+      "median": 0.591,
+      "p90": 1.021
     },
     "generator_errors": {},
     "guard_pass_rate": 1.0,
@@ -439,8 +537,8 @@
       "unsupported_sentence": 0
     },
     "validation_ms": {
-      "median": 0.175,
-      "p90": 0.271
+      "median": 0.179,
+      "p90": 0.199
     }
   },
   "smoke_rows": [
@@ -525,6 +623,152 @@
       }
     }
   ],
+  "status_by_cell": {
+    "arm|free|case_fixture_archive|hint": {
+      "generation_ms_median": 0.547,
+      "guard_pass_rate": 1.0,
+      "n": 10,
+      "status_counts": {
+        "spoke": 10
+      },
+      "tokens_out": 330
+    },
+    "arm|free|case_fixture_archive|nudge": {
+      "generation_ms_median": 0.548,
+      "guard_pass_rate": 1.0,
+      "n": 5,
+      "status_counts": {
+        "spoke": 5
+      },
+      "tokens_out": 148
+    },
+    "arm|free|case_fixture_lighthouse|hint": {
+      "generation_ms_median": 0.552,
+      "guard_pass_rate": 1.0,
+      "n": 10,
+      "status_counts": {
+        "spoke": 10
+      },
+      "tokens_out": 460
+    },
+    "arm|free|case_fixture_lighthouse|nudge": {
+      "generation_ms_median": 0.563,
+      "guard_pass_rate": 1.0,
+      "n": 3,
+      "status_counts": {
+        "spoke": 3
+      },
+      "tokens_out": 132
+    },
+    "arm|select|case_fixture_archive|hint": {
+      "generation_ms_median": 0.52,
+      "guard_pass_rate": 1.0,
+      "n": 10,
+      "status_counts": {
+        "spoke": 10
+      },
+      "tokens_out": 320
+    },
+    "arm|select|case_fixture_archive|nudge": {
+      "generation_ms_median": 0.517,
+      "guard_pass_rate": 1.0,
+      "n": 5,
+      "status_counts": {
+        "spoke": 5
+      },
+      "tokens_out": 160
+    },
+    "arm|select|case_fixture_lighthouse|hint": {
+      "generation_ms_median": 0.525,
+      "guard_pass_rate": 1.0,
+      "n": 10,
+      "status_counts": {
+        "spoke": 10
+      },
+      "tokens_out": 320
+    },
+    "arm|select|case_fixture_lighthouse|nudge": {
+      "generation_ms_median": 0.509,
+      "guard_pass_rate": 1.0,
+      "n": 3,
+      "status_counts": {
+        "spoke": 3
+      },
+      "tokens_out": 96
+    },
+    "repeat|free|case_fixture_archive|hint": {
+      "generation_ms_median": 0.547,
+      "guard_pass_rate": 1.0,
+      "n": 4,
+      "status_counts": {
+        "spoke": 4
+      },
+      "tokens_out": 132
+    },
+    "repeat|free|case_fixture_archive|nudge": {
+      "generation_ms_median": 0.54,
+      "guard_pass_rate": 1.0,
+      "n": 4,
+      "status_counts": {
+        "spoke": 4
+      },
+      "tokens_out": 120
+    },
+    "repeat|free|case_fixture_lighthouse|hint": {
+      "generation_ms_median": 0.564,
+      "guard_pass_rate": 1.0,
+      "n": 4,
+      "status_counts": {
+        "spoke": 4
+      },
+      "tokens_out": 184
+    },
+    "repeat|free|case_fixture_lighthouse|nudge": {
+      "generation_ms_median": 0.571,
+      "guard_pass_rate": 1.0,
+      "n": 4,
+      "status_counts": {
+        "spoke": 4
+      },
+      "tokens_out": 176
+    },
+    "smoke|free|case_fixture_archive|nudge": {
+      "generation_ms_median": 1.021,
+      "guard_pass_rate": 1.0,
+      "n": 1,
+      "status_counts": {
+        "spoke": 1
+      },
+      "tokens_out": 30
+    },
+    "smoke|free|case_fixture_lighthouse|hint": {
+      "generation_ms_median": 0.565,
+      "guard_pass_rate": 1.0,
+      "n": 1,
+      "status_counts": {
+        "spoke": 1
+      },
+      "tokens_out": 46
+    },
+    "smoke|select|case_fixture_archive|hint": {
+      "generation_ms_median": 0.617,
+      "guard_pass_rate": 1.0,
+      "n": 1,
+      "status_counts": {
+        "spoke": 1
+      },
+      "tokens_out": 32
+    },
+    "smoke|select|case_fixture_lighthouse|nudge": {
+      "generation_ms_median": 0.515,
+      "guard_pass_rate": 1.0,
+      "n": 1,
+      "status_counts": {
+        "spoke": 1
+      },
+      "tokens_out": 32
+    }
+  },
   "stop_detail": null,
   "stop_reason": null,
   "template_feature": {

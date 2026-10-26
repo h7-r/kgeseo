@@ -73,11 +73,14 @@
       "https://pypi.org/project/openai/"
     ]
   },
-  "execution_approved": false,
+  "execution_approved": true,
   "_changelog": [
-    "config_version 3 → 4 (2026-10-26, 실제 요청 없음): nudge · hint 근거 정책 tier_le → same_level (retrieval.allowed_chunks · pipeline.speak). 프롬프트(p4b/0.2) · 요청 인자 · 요청 계획(76) · 외부 전송 정책 · 사례 목록 그대로. 판 3 의 smoke 승인을 잇지 않는다(execution_approved=false · approved_phases=[]). 비교 지표(승인 힌트 일치 · 편집 거리 · 근거 수 · 단계 초과 의심 표시) 추가."
+    "config_version 3 → 4 (2026-10-26, 실제 요청 없음): nudge · hint 근거 정책 tier_le → same_level (retrieval.allowed_chunks · pipeline.speak). 프롬프트(p4b/0.2) · 요청 인자 · 요청 계획(76) · 외부 전송 정책 · 사례 목록 그대로. 판 3 의 smoke 승인을 잇지 않는다(execution_approved=false · approved_phases=[]). 비교 지표(승인 힌트 일치 · 편집 거리 · 근거 수 · 단계 초과 의심 표시) 추가.",
+    "2026-10-26: 사용자 승인 — 판 4 smoke 단계(최대 4요청)만 실행 승인. arm · repeat 미승인. 요청 인자 · 근거 정책 · config_version 그대로."
   ],
-  "approved_phases": [],
+  "approved_phases": [
+    "smoke"
+  ],
   "llm_kinds": [
     "nudge",
     "hint"

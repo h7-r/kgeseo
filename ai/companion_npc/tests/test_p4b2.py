@@ -473,6 +473,8 @@ def test_records_and_raw_stay_in_restricted_path(gpt, sources, private, tmp_path
         "records.jsonl",
         "raw.jsonl",
         "rating_form.csv",
+        "rating_form_rater_A.csv",
+        "rating_form_rater_B.csv",
         "rating_key.json",
     }
     form = (base / "rating_form.csv").read_text(encoding="utf-8-sig")
@@ -1452,9 +1454,9 @@ def test_v4_config_and_comparison(v4, v3, fictional_sources, private, tmp_path):
         and v4.evidence_policy == "same_level"
         and v4.eval_set == "p4b2-fictional/1.2"
     )
-    assert (
-        v4.execution_approved is False and v4.approved_phases == []
-    )  # 판 3 승인을 잇지 않는다
+    assert v4.execution_approved is True and v4.approved_phases == [
+        "smoke"
+    ]  # 2026-10-26 사용자 승인: 판 4 smoke 만 (판 3 승인을 이은 것이 아님)
     assert v4.ledger_name == v3.ledger_name and planned_requests(v4) == 76
     assert (
         v4.generator == v3.generator and v4.llm_kinds == v3.llm_kinds
@@ -1514,3 +1516,116 @@ def test_v4_real_run_requires_matching_input_hash(
     )
     with pytest.raises(ValueError, match="eval set changed"):
         _real(wrong, fictional_sources, private, t, tmp_path)
+
+
+# ── 10. 판 4 본 실험 준비 (실행 없음) ───────────────────────────────
+def test_phase_request_budget_matches_plan(v4):
+    from companion_npc.speech.p4b2 import phase_request_budget
+
+    assert phase_request_budget(v4, ("smoke",)) == 4
+    assert phase_request_budget(v4, ("arm",)) == 56
+    assert phase_request_budget(v4, ("repeat",)) == 16
+    assert (
+        phase_request_budget(v4, ("arm", "repeat")) == 72
+    )  # 신규 최대 72 · 누적 12 + 72 = 84 / 100
+
+
+def test_main_run_cap_stops_instead_of_exceeding(
+    v4, fictional_sources, private, tmp_path
+):
+    """재시도가 나면 이번 실행 상한을 넘지 않고 뒤 사례에서 멈춘다."""
+
+    class Flaky:
+        n = 0
+
+        def complete(self, messages, config, api_key):
+            Flaky.n += 1
+            if Flaky.n <= 3:
+                raise TransportError("timeout")
+            return OfflineEchoTransport().complete(messages, config, api_key)
+
+    s = run_p4b2(v4, fictional_sources, Flaky(), tmp_path, private_texts=private, env={"OPENAI_API_KEY": FAKE_KEY}, dry_run=False, phases=("arm", "repeat"), session_max_requests=10, sleep=lambda x: None)["summary"]  # fmt: skip
+    assert (
+        s["sent_requests"] == 10
+        and Flaky.n == 10
+        and s["stop_reason"] == "BudgetExceeded"
+    )
+
+
+def test_duplicate_inputs_are_served_from_cache(
+    v4, fictional_sources, private, tmp_path
+):
+    """공통 28건 중 입력이 완전히 같은 2쌍(P4-A 의 생성기만 다른 사례) → 같은 실행 안에서는 캐시로 처리된다."""
+
+    s = run_p4b2(v4, fictional_sources, OfflineEchoTransport(), tmp_path, private_texts=private, env={"OPENAI_API_KEY": FAKE_KEY}, dry_run=False, phases=("arm", "repeat"), session_max_requests=72)["summary"]  # fmt: skip
+    assert s["sent_requests"] == 68 and s["stop_reason"] is None  # 72 계획 - 캐시 4
+    assert {a: b["cache_hits"] for a, b in s["arms"].items()} == {
+        "select": 2,
+        "free": 2,
+    }
+
+
+def test_main_run_requires_its_own_approval(tmp_path, monkeypatch):
+    from companion_npc.speech.__main__ import main
+
+    monkeypatch.setenv(ALLOW_ENV, "1")
+    cfg = str(
+        ROOT / "experiments" / "p4" / "p4b2_gpt_fictional_v4.json"
+    )  # smoke 만 승인
+    for phases in ("arm", "repeat", "arm,repeat", "smoke,arm"):
+        assert (
+            main(["--mode", "p4b2", "--config", cfg, "--execute", "--phases", phases])
+            == 2
+        )
+    assert "openai" not in sys.modules
+
+
+def test_cell_breakdown_and_rater_forms(v4, fictional_sources, private, tmp_path):
+    s = _run(v4, fictional_sources, private, OfflineEchoTransport(), tmp_path)[
+        "summary"
+    ]
+    cells = s["status_by_cell"]
+    assert {k.split("|")[0] for k in cells} == {"smoke", "arm", "repeat"}
+    assert sum(v["n"] for k, v in cells.items() if k.startswith("arm|")) == 56
+    assert set(s["paraphrase_by_case"]) == {f"{a}|{c}" for a in ("select", "free") for c in ("case_fixture_archive", "case_fixture_lighthouse")}  # fmt: skip
+    base = tmp_path / "runs" / "restricted" / "p4b2_gpt_fictional_v4_dryrun"
+    a = (base / "rating_form_rater_A.csv").read_text(encoding="utf-8-sig").splitlines()
+    b = (base / "rating_form_rater_B.csv").read_text(encoding="utf-8-sig").splitlines()
+    assert (
+        len(a) == len(b) == 1 + 56 + 16
+        and "raw_inference_room(1-5)" in a[0]
+        and "final_inference_room(1-5)" in a[0]
+    )
+    assert all(line.endswith(",A") for line in a[1:]) and all(
+        line.endswith(",B") for line in b[1:]
+    )
+
+
+def test_rating_agreement_and_conservative_leak(tmp_path):
+    import csv
+
+    from companion_npc.speech.p4b2 import AGREEMENT_COLUMNS, rating_agreement
+
+    def write(name, rows):
+        path = tmp_path / name
+        with path.open("w", encoding="utf-8-sig", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=["blind_id", *AGREEMENT_COLUMNS])
+            w.writeheader()
+            w.writerows(rows)
+        return path
+
+    cols = AGREEMENT_COLUMNS
+    a = write("a.csv", [{"blind_id": "x1", cols[0]: "none", cols[1]: "none", cols[2]: "n", cols[3]: "n"},
+                        {"blind_id": "x2", cols[0]: "in_level", cols[1]: "in_level", cols[2]: "n", cols[3]: "n"},
+                        {"blind_id": "x3", cols[0]: "none", cols[1]: "none", cols[2]: "y", cols[3]: "n"}])  # fmt: skip
+    b = write("b.csv", [{"blind_id": "x1", cols[0]: "none", cols[1]: "none", cols[2]: "n", cols[3]: "n"},
+                        {"blind_id": "x2", cols[0]: "over_level", cols[1]: "in_level", cols[2]: "n", cols[3]: "n"},
+                        {"blind_id": "x3", cols[0]: "none", cols[1]: "none", cols[2]: "y", cols[3]: "n"}])  # fmt: skip
+    r = rating_agreement(a, b)
+    assert r["items"] == 3 and r["conservative_leak_ids"] == [
+        "x2"
+    ]  # 한 명이라도 단계 초과 → 누설로 센다
+    assert (
+        r[cols[0]]["agreement"] == pytest.approx(2 / 3, abs=1e-3)
+        and r[cols[1]]["agreement"] == 1.0
+    )

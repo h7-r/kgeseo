@@ -35,6 +35,7 @@ from companion_npc.speech.p4b2 import (
     denied_forbidden_terms,
     external_transfer_problems,
     load_private_texts,
+    phase_request_budget,
     public_error,
     reproduction,
     run_p4b2,
@@ -205,7 +206,8 @@ def _p4b2(raw: dict, publish: bool, execute: bool, phases: str | None = None) ->
         extra = denied_forbidden_terms(
             policy, config, ROOT
         )  # 외부 전송이 금지된 사건의 정답 · 별칭도 전송 직전 검사에 넣는다
-        session_cap = config.plan.smoke if wanted == ("smoke",) else None
+        # 이번 실행 상한 = 고른 단계의 계획 요청 수(재시도 포함). 예: smoke 4 · arm+repeat 72
+        session_cap = phase_request_budget(config, wanted)
         transport, env = OpenAIChatTransport(approved=True), None
         if (
             config.generator.provider == "openai"

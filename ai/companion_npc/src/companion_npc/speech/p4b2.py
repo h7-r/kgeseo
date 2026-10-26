@@ -477,6 +477,12 @@ def run_p4b2(
     summary["session_max_requests"] = session_max_requests
     summary["usage_fields"] = usage_fields(rows)
     summary["paraphrase"] = {arm: paraphrase_block([r for r in rows if r["phase"] == "arm" and r["arm"] == arm]) for arm in config.arms}  # fmt: skip
+    summary["paraphrase_by_case"] = {
+        f"{arm}|{case}": paraphrase_block([r for r in rows if r["phase"] == "arm" and r["arm"] == arm and r["case_id"] == case])
+        for arm in config.arms
+        for case in sorted({r["case_id"] for r in rows if r["phase"] == "arm"})
+    }  # fmt: skip
+    summary["status_by_cell"] = status_by_cell(rows)
     summary["paraphrase_smoke"] = paraphrase_block(
         [r for r in rows if r["phase"] == "smoke"]
     )
@@ -605,10 +611,12 @@ def summarize(
 
 RATING_COLUMNS = (
     "raw_spoiler(none/in_level/over_level/direct)", "raw_unsupported_claim(y/n)", "raw_naturalness(1-5)",
-    "raw_tone(1-5)", "raw_helpfulness(1-5)",
+    "raw_tone(1-5)", "raw_helpfulness(1-5)", "raw_inference_room(1-5)",
     "final_spoiler(none/in_level/over_level/direct)", "final_unsupported_claim(y/n)", "final_naturalness(1-5)",
-    "final_tone(1-5)", "final_helpfulness(1-5)", "notes", "rater_id",
+    "final_tone(1-5)", "final_helpfulness(1-5)", "final_inference_room(1-5)", "notes", "rater_id",
 )  # fmt: skip
+# inference_room: 플레이어에게 남겨 둔 추론의 여지 (1 = 풀이를 다 말함 · 5 = 방향만 줌)
+RATERS = ("A", "B")  # 두 평가자가 서로 보지 않고 매기도록 파일을 나눈다
 
 
 def write_rating_form(
@@ -647,12 +655,17 @@ def write_rating_form(
         key.append({"blind_id": blind, "generator": r["generator"], "item_id": r["eval_item_id"], "phase": r["phase"], "repeat": r["repeat"]})  # fmt: skip
     form.sort(key=lambda x: x["blind_id"])
     base.mkdir(parents=True, exist_ok=True)
-    with (base / f"rating_form{tag}.csv").open(
-        "w", encoding="utf-8-sig", newline=""
-    ) as f:
-        writer = csv.DictWriter(f, fieldnames=list(form[0]) if form else ["blind_id"])
-        writer.writeheader()
-        writer.writerows(form)
+    fields = list(form[0]) if form else ["blind_id"]
+    for name in [f"rating_form{tag}.csv"] + [
+        f"rating_form{tag}_rater_{r}.csv" for r in RATERS
+    ]:
+        rater = name.rsplit("_rater_", 1)[1][0] if "_rater_" in name else ""
+        with (base / name).open("w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(
+                [row | {"rater_id": rater} for row in form] if form else []
+            )
     (base / f"rating_key{tag}.json").write_text(json.dumps(key, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")  # fmt: skip
 
 
@@ -1067,4 +1080,72 @@ def evidence_comparison(
                 round(k["evidence_total"] / k["cases"], 2) if k["cases"] else None
             )
         out[policy] = per_kind
+    return out
+
+
+def phase_request_budget(config: P4B2Config, phases: tuple[str, ...]) -> int:
+    """고른 단계의 계획 요청 수 — 이번 실행의 요청 상한(재시도 포함). 재시도가 나면 뒤 사례가 남는다(넘지 않는다)."""
+
+    p = config.plan
+    per = {
+        "smoke": p.smoke,
+        "arm": p.arm_cases * len(config.arms),
+        "repeat": p.repeat_cases * p.repeat_times,
+    }
+    return sum(per[ph] for ph in phases)
+
+
+def status_by_cell(rows: list[dict]) -> dict[str, Any]:
+    """단계 · 군 · 사건 · 유형별 상태(통과 · 대체 · 보류) · 검증 통과율 · 지연 중앙값 — 본문 없음."""
+
+    cells: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        if r["phase"] in ("smoke", "arm", "repeat"):
+            cells[f"{r['phase']}|{r['arm']}|{r['case_id']}|{r['final_kind']}"].append(r)
+    out = {}
+    for key, rs in sorted(cells.items()):
+        raw = [r for r in rs if r["guard_passed"] is not None]
+        out[key] = {
+            "n": len(rs),
+            "status_counts": dict(Counter(r["status"] for r in rs)),
+            "guard_pass_rate": round(sum(r["guard_passed"] for r in raw) / len(raw), 3)
+            if raw
+            else None,
+            "generation_ms_median": _median(r["generation_ms"] for r in rs),
+            "tokens_out": sum(r["tokens_out"] or 0 for r in rs),
+        }
+    return out
+
+
+AGREEMENT_COLUMNS = ("raw_spoiler(none/in_level/over_level/direct)", "final_spoiler(none/in_level/over_level/direct)", "raw_unsupported_claim(y/n)", "final_unsupported_claim(y/n)")  # fmt: skip
+
+
+def rating_agreement(form_a: Path, form_b: Path) -> dict[str, Any]:
+    """두 평가자 양식의 일치율 · 코헨 카파(범주 칸)와 보수적 누설 판정(한 명이라도 over_level · direct → 누설).
+
+    양식 본문은 읽기만 하고, 결과에는 blind_id 와 숫자만 남긴다.
+    """
+
+    def read(path):
+        with path.open(encoding="utf-8-sig", newline="") as f:
+            return {row["blind_id"]: row for row in csv.DictReader(f)}
+
+    a, b = read(form_a), read(form_b)
+    ids = sorted(set(a) & set(b))
+    out: dict[str, Any] = {"items": len(ids), "missing": sorted(set(a) ^ set(b))}
+    for col in AGREEMENT_COLUMNS:
+        pairs = [
+            (a[i][col].strip(), b[i][col].strip())
+            for i in ids
+            if a[i][col].strip() and b[i][col].strip()
+        ]
+        if not pairs:
+            out[col] = {"rated_by_both": 0}
+            continue
+        po = sum(x == y for x, y in pairs) / len(pairs)
+        labels = {x for p in pairs for x in p}
+        pe = sum((sum(x == lab for x, _ in pairs) / len(pairs)) * (sum(y == lab for _, y in pairs) / len(pairs)) for lab in labels)  # fmt: skip
+        out[col] = {"rated_by_both": len(pairs), "agreement": round(po, 3), "kappa": round((po - pe) / (1 - pe), 3) if pe < 1 else None}  # fmt: skip
+    leak = [i for i in ids if any(r[i][c].strip() in ("over_level", "direct") for r in (a, b) for c in AGREEMENT_COLUMNS[:2])]  # fmt: skip
+    out["conservative_leak_ids"] = leak  # 한 명이라도 단계 초과 · 직접 누설로 매긴 항목
     return out
