@@ -569,6 +569,15 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
               const tpl = await readFile(join(root, 'tools/rooms/viewer_template.html'), 'utf8');
               let data = null; try { data = JSON.parse(await readFile(join(root, '.local/review/trials', roomFile[1], roomFile[2], 'viewer_data.json'), 'utf8')); } catch {}
               data ||= rv.extractViewerData(buf.toString('utf8'));
+              // 10/26: 예전 규칙으로 만든 시험이면 화면에 알리고 최신 시험으로 잇는다
+              try {
+                const rules = JSON.parse(await readFile(join(root, 'tools/review/rules_version.json'), 'utf8')); const cut = Date.parse(rules.puzzleRules);
+                const t = await agentTrial.readTrial(root, roomFile[1]); const at = Date.parse(t.steps?.s05?.finishedAt || t.createdAt || 0);
+                if (data && at < cut) {
+                  const all = []; for (const x of await agentTrial.listTrials(root)) { if (x.spaceKind !== 'indoor') continue; try { all.push(await agentTrial.readTrial(root, x.id)); } catch {} } const fresh = all.filter(x => Date.parse(x.steps?.s05?.finishedAt || 0) >= cut && x.steps?.s08?.status === 'done').sort((a, b) => Date.parse(b.steps.s08.finishedAt || 0) - Date.parse(a.steps.s08.finishedAt || 0))[0];
+                  data.TRIAL = { ...(data.TRIAL || {}), stale: rules.label || '예전', latest: fresh ? { title: fresh.title, url: `/__review/trials/${fresh.id}/rooms/index.html` } : null };
+                }
+              } catch {}
               let gloss = null; try { gloss = JSON.parse(await readFile(join(root, 'tools/review/dialect_gloss.json'), 'utf8')); } catch {}
               if (data) buf = Buffer.from(rv.renderViewer(tpl, data, gloss), 'utf8');
             } catch (error) { console.warn('[review] 뷰어 다시 만들기 실패 — 저장된 index.html 을 줍니다', error.message); }
@@ -589,6 +598,7 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
           // 10/26: 검수 화면의 퍼즐 글도 원문 방언을 풀어 쓴 말로(dialect_gloss.json) — 원본 파일은 그대로
           const detail = await agentTrial.trialDetail(root, trialId);
           try { const gloss = JSON.parse(await readFile(join(root, 'tools/review/dialect_gloss.json'), 'utf8')); const rules = (gloss.rules || []).map(r => [new RegExp(r.from, 'g'), r.to]); const fix = v => typeof v === 'string' ? rules.reduce((t, [re, to]) => t.replace(re, to), v) : Array.isArray(v) ? v.map(fix) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fix(x)])) : v; if (detail.puzzle) detail.puzzle = fix(detail.puzzle); } catch {}
+          try { const rules = JSON.parse(await readFile(join(root, 'tools/review/rules_version.json'), 'utf8')); const cut = Date.parse(rules.puzzleRules); if (detail.spaceKind === 'indoor' && detail.steps?.s05?.status === 'done' && Date.parse(detail.steps.s05.finishedAt || 0) < cut) { let latest = null; for (const x of await agentTrial.listTrials(root)) { if (x.spaceKind !== 'indoor' || x.id === trialId) continue; try { const t = await agentTrial.readTrial(root, x.id); if (Date.parse(t.steps?.s05?.finishedAt || 0) >= cut && t.steps?.s08?.status === 'done' && (!latest || Date.parse(t.steps.s08.finishedAt) > Date.parse(latest.at))) latest = { id: t.id, title: t.title, at: t.steps.s08.finishedAt }; } catch {} } detail.stale = { label: rules.label || '예전', latest }; } } catch {}
           return send(200, detail);
         }
         if (stepAction === 'estimate' && req.method === 'POST') return send(200, await agentTrial.estimateStep(root, trialId, stepId));
