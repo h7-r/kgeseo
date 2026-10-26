@@ -27,8 +27,9 @@
       "usd_per_1m_input": 0.1,
       "usd_per_1m_cached_input": 0.01,
       "usd_per_1m_output": 0.5,
-      "source": "https://developers.openai.com/api/docs/pricing (Standard, <=272K input) · https://developers.openai.com/api/docs/models/gpt-6-luna",
-      "checked_at": "2026-10-26T00:00:00+09:00"
+      "source": "https://developers.openai.com/api/docs/pricing (Standard, <=272K input) · https://developers.openai.com/api/docs/models/gpt-6-luna · cache writes $0.125 (모델 페이지, 2026-10-26 재확인)",
+      "checked_at": "2026-10-26T00:00:00+09:00",
+      "usd_per_1m_cache_write": 0.125
     },
     "reasoning_effort": "none",
     "temperature": 0.7,
@@ -55,15 +56,16 @@
   },
   "expected_cases": 36,
   "eval_set": "p4b2-fictional/1.0",
-  "config_version": "1",
+  "config_version": "2",
   "ledger_name": "openai_gpt-6-luna",
+  "expected_items_inputs_sha256": "b22786abac0520b2076f4eea18c27867ef2fd3bf54836d6b15cb3c1240144ca4",
   "model_record": {
     "distribution": "OpenAI API (Chat Completions)",
     "model_id": "gpt-6-luna",
     "snapshot": "gpt-6-luna",
     "license": "OpenAI 서비스 약관 (API)",
-    "sdk": "openai==3.29.0",
-    "checked_at": "2026-10-26",
+    "sdk": "openai==3.29.0 (설치 · pip check 통과 2026-10-26)",
+    "checked_at": "2026-10-26 (재확인)",
     "sources": [
       "https://developers.openai.com/api/docs/models/gpt-6-luna",
       "https://developers.openai.com/api/docs/pricing",
@@ -71,5 +73,12 @@
       "https://pypi.org/project/openai/"
     ]
   },
-  "execution_approved": false
+  "execution_approved": true,
+  "_changelog": [
+    "config_version 1 → 2 (2026-10-26, 실제 요청 전): 공식 모델 페이지의 캐시 쓰기 단가 $0.125/1M 을 가격표에 추가 — 추정 상한 입력 단가를 max(입력, 캐시 쓰기)로, 실제 비용에 cache_write_tokens 반영. 승인한 평가 세트 해시(expected_items_inputs_sha256) 추가 · 실행 단계 승인(approved_phases) 추가. 요청 인자는 그대로.",
+    "2026-10-26: 사용자 승인 — smoke 단계(최대 4요청)만 실행 승인. arm · repeat 은 미승인. 요청 인자 · config_version 그대로."
+  ],
+  "approved_phases": [
+    "smoke"
+  ]
 }

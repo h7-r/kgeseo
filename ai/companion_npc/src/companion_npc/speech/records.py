@@ -46,7 +46,13 @@ class GenerationRecord(ContractModel):
     requested_kind: str
     final_kind: str | None
     status: Literal["spoke", "fallback", "held"]
-    # 1) 원문 — 해시와 길이만. 본문은 RawLog 에
+    # 1) 원문 — 해시와 길이만. 본문은 RawLog 에. 세 층을 나눈다:
+    #    model_reply  모델이 실제로 돌려준 답(JSON) — LLM 일 때만
+    #    raw          생성기가 만든 발화 문장(select 면 고른 말 + 승인 본문을 조립한 것) = 검증 대상
+    #    final_text   검증 · 대체를 거쳐 UI 에 보일 문장
+    model_reply_sha256: str | None = None
+    model_reply_chars: int | None = None
+    cache_key: str | None = None  # 캐시 파일 · 장부 항목과 잇는 키
     raw_sha256: str | None
     raw_chars: int | None
     # 2) 안전 검증 결과 (원문에 대해)
@@ -80,6 +86,7 @@ def to_record(
     utterance = outcome.utterance
     notes = raw.notes if raw else {}
     free = raw is not None and raw.method in ("template", "fake")
+    reply = notes.get("model_reply")
     guard_failures = [
         f
         for f in outcome.failures
@@ -102,6 +109,11 @@ def to_record(
         requested_kind=outcome.requested_kind,
         final_kind=outcome.final_kind,
         status=outcome.status,
+        model_reply_sha256=hashlib.sha256(reply.encode()).hexdigest()
+        if reply is not None
+        else None,
+        model_reply_chars=len(reply) if reply is not None else None,
+        cache_key=notes.get("cache_key"),
         raw_sha256=hashlib.sha256(raw.text.encode()).hexdigest() if raw else None,
         raw_chars=len(raw.text) if raw else None,
         guard_passed=(not guard_failures) if raw else None,
@@ -141,11 +153,36 @@ class RawLog:
         if outcome.raw is None:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        reply = outcome.raw.notes.get("model_reply")
         line = {
             "eval_item_id": record.eval_item_id,
             "generator": record.generator,
+            "cache_key": record.cache_key,
+            "model_reply_sha256": record.model_reply_sha256,
+            "model_reply": mask_secrets(reply, self._secrets)
+            if reply is not None
+            else None,
             "raw_sha256": record.raw_sha256,
-            "raw_text": mask_secrets(outcome.raw.text, self._secrets),
+            "raw_text": mask_secrets(
+                outcome.raw.text, self._secrets
+            ),  # 조립된 발화(검증 대상)
+        }
+        with self.path.open("a", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps(line, ensure_ascii=False, sort_keys=True) + "\n")
+
+    def write_failed(
+        self, eval_item_id: str, generator: str, cache_key: str | None, reply: str
+    ) -> None:
+        """해석에 실패한 모델 답(형식 오류 · 잘림 · 거절). 발화는 템플릿으로 대체됐다."""
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        line = {
+            "eval_item_id": eval_item_id,
+            "generator": generator,
+            "cache_key": cache_key,
+            "model_reply_sha256": hashlib.sha256(reply.encode()).hexdigest(),
+            "model_reply": mask_secrets(reply, self._secrets),
+            "parse_failed": True,
         }
         with self.path.open("a", encoding="utf-8", newline="\n") as f:
             f.write(json.dumps(line, ensure_ascii=False, sort_keys=True) + "\n")

@@ -8,5 +8,6 @@
   "allowed_cases_dir_prefix": "tests/fixtures/",
   "denied_cases": [
     "case_001"
-  ]
+  ],
+  "denied_cases_dir": "../../backend/app/content/cases"
 }

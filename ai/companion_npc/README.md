@@ -154,8 +154,10 @@ $env:PYTHONPATH = "src"
 ```
 
 - **실제 요청 · 다운로드 · 설치는 하지 않았다.** `--execute` 는 설정 승인(`execution_approved`)과 `COMPANION_NPC_ALLOW_NETWORK=1` 이 모두 있어야 돈다. 네트워크 코드는 `src/companion_npc/llm_net/` 에만 있다.
-- LLM SDK 는 `requirements-llm.txt`(openai==3.29.0)로 따로 설치한다. **아직 설치하지 않았다.** 기본 의존성에는 없다.
+- LLM SDK 는 `requirements-llm.txt`(openai==3.29.0)로 따로 설치한다(설치 · `pip check` 통과). 기본 의존성에는 없다.
 - 원문 · 장부 · 캐시 · 사람 평가 양식은 `runs/restricted/`(깃 제외)에만 둔다.
+- **check_in · clarify 는 승인 템플릿 전용**이다. LLM 비교는 nudge · hint 만 한다(설정 판 3 · `p4b2_*_fictional_v3.json` · 76 요청 계획 · 실행 미승인).
+- GPT smoke 4건(설정 판 2)을 실행했다: 성공 4 · 비용 $0.000223 · 누설 0. 분석은 docs/08 §9.11 에 있다.
 
 ## 폴더
 

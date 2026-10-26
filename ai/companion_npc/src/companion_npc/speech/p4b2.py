@@ -23,7 +23,7 @@ import re
 import statistics
 from collections import Counter, defaultdict
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -50,16 +50,19 @@ from companion_npc.speech.llm import (
 from companion_npc.speech.pipeline import SpeechPlan, speak
 from companion_npc.speech.records import (
     RawLog,
+    input_sha256,
     restricted_dir,
     to_record,
 )
 
-EXPERIMENT_VERSION = "p4b2/0.1"
+EXPERIMENT_VERSION = "p4b2/0.2"  # 0.2: 원문 3층 기록(model_reply · 조립 발화 · 최종) · clarify 템플릿 전용
 BASE_CATEGORIES = ("normal", "precondition", "player_attack")
 HINT_REQUESTS = ("이거 어떻게 해야 해?", "힌트 좀 줄래?")
 LEVEL2_EXTRA = "조금만 더 구체적으로 알려 줘."
 # client(400 등)도 멈춘다 — 지원하지 않는 인자처럼 모든 요청에 되풀이될 오류에 예산을 쓰지 않으려고
-STOP_KINDS = frozenset({"quota", "auth", "unavailable", "client"})
+STOP_KINDS = frozenset(
+    {"quota", "auth", "unavailable", "client", "blocked"}
+)  # blocked: 전송 직전 페이로드 검사
 _EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")
 _PHONE = re.compile(r"01[016789][-\s]?\d{3,4}[-\s]?\d{4}")
 SPOILER_FAILURES = ("answer_leak", "internal_id", "undisclosed_content")
@@ -107,6 +110,11 @@ class P4B2Config(ContractModel):
     repeat_arm: Literal["select", "free"] = "free"
     plan: Plan = Plan()
     expected_cases: int = 36
+    # LLM 비교 대상 유형. 기본(판 1 · 2)은 clarify 포함 — 판 3 부터 clarify 는 승인 템플릿 공통 기능 평가로 나눈다
+    llm_kinds: list[Literal["nudge", "hint", "clarify"]] = ["nudge", "hint", "clarify"]
+    expected_llm_cases: int | None = None  # 없으면 expected_cases
+    # smoke · 반복 사례 고르기 — first: 앞에서부터(판 1 · 2) · stratified: 사건 × 유형마다 고루
+    sampling: Literal["first", "stratified"] = "first"
     model_record: ModelRecord
     # 평가 세트 판 — 사례 구성이 바뀌면 새 판. 결과 요약에 사례 목록 해시와 함께 남는다
     eval_set: str = Field(min_length=1)
@@ -115,6 +123,12 @@ class P4B2Config(ContractModel):
     # 예산 장부 이름 — 같은 계정 예산을 쓰는 설정끼리 같은 장부를 쓴다(판을 나눠도 $2 · 100 요청이 이어진다)
     ledger_name: str = Field(pattern=r"^[a-z0-9_.-]+$")
     execution_approved: bool = False  # 사람이 승인한 뒤에만 true
+    # 실제 실행을 승인한 단계(예: ["smoke"]). 여기 없는 단계는 --execute 로 돌리지 않는다
+    approved_phases: list[Literal["smoke", "arm", "repeat"]] = Field(
+        default_factory=list
+    )
+    # 승인한 평가 세트의 (사례 ID · 입력 해시) 해시. 실행 직전에 다시 계산해 다르면 멈춘다(외부 전송 대상이 바뀜)
+    expected_items_inputs_sha256: str | None = None
 
     @model_validator(mode="after")
     def _within_budget(self) -> "P4B2Config":
@@ -123,8 +137,8 @@ class P4B2Config(ContractModel):
             raise ValueError(
                 f"plan needs {total} requests > cap {self.generator.budget.max_requests}"
             )
-        if self.plan.arm_cases != self.expected_cases:
-            raise ValueError("arm_cases must equal expected_cases")
+        if self.plan.arm_cases != (self.expected_llm_cases or self.expected_cases):
+            raise ValueError("arm_cases must equal the number of LLM cases")
         return self
 
 
@@ -140,6 +154,9 @@ class CommonCase:
     source: int  # sources 안의 순번
     context: NpcContext
     plan: SpeechPlan
+    final_kind: str | None = (
+        None  # 파이프라인이 정한 최종 유형(사전 조건 반영) — 군 · 유형 분포 · LLM 대상 판단
+    )
 
     @property
     def item_id(self) -> str:
@@ -230,7 +247,7 @@ def build_common_cases(
                 audit["excluded"].append({"item_id": c.item_id, "reasons": reasons})
                 continue
             audit["kinds"][kind] += 1
-            cases.append(c)
+            cases.append(replace(c, final_kind=kind))
     audit["kinds"] = dict(audit["kinds"])
     audit["included"] = len(cases)
     return cases, audit
@@ -261,15 +278,31 @@ def request_plan(
     """(단계, 군, 사례, 반복 번호) 목록 — 결정적이다."""
 
     p = config.plan
-    items = [
-        ("smoke", config.arms[i % len(config.arms)], cases[i], 0)
-        for i in range(min(p.smoke, len(cases)))
-    ]
+    cases = llm_cases(config, cases)
+    if config.sampling == "stratified":
+        smoke = stratified(cases, p.smoke)
+        # 사건마다 군을 한 칸씩 밀어, 4 칸이면 두 사건 × 두 유형 × 두 군(A nudge · A hint · B nudge · B hint)이 다 들어간다
+        order = sorted({c.case_id for c in cases})
+        items = [
+            (
+                "smoke",
+                config.arms[(i + order.index(c.case_id)) % len(config.arms)],
+                c,
+                0,
+            )
+            for i, c in enumerate(smoke)
+        ]
+        chosen = stratified(cases, p.repeat_cases)
+    else:
+        items = [
+            ("smoke", config.arms[i % len(config.arms)], cases[i], 0)
+            for i in range(min(p.smoke, len(cases)))
+        ]
+        chosen = sorted(
+            cases, key=lambda c: hashlib.sha256(c.item_id.encode()).hexdigest()
+        )[: p.repeat_cases]
     for arm in config.arms:
         items += [("arm", arm, c, 0) for c in cases[: p.arm_cases]]
-    chosen = sorted(
-        cases, key=lambda c: hashlib.sha256(c.item_id.encode()).hexdigest()
-    )[: p.repeat_cases]
     for r in range(1, p.repeat_times + 1):
         items += [("repeat", config.repeat_arm, c, r) for c in chosen]
     return items
@@ -286,20 +319,39 @@ def run_p4b2(
     dry_run: bool = True,
     phases: tuple[str, ...] | None = None,
     sleep: Callable[[float], None] | None = None,
+    extra_forbidden: list[str] | None = None,
+    session_max_requests: int | None = None,
+    model_access: dict | None = None,
 ) -> dict[str, Any]:
+    """extra_forbidden: 전송 직전 검사에 더할 금지어(예: 외부 전송이 금지된 사건의 정답 · 별칭).
+    session_max_requests: 이번 실행의 요청 상한(재시도 포함). 실제 실행에서 smoke 만 돌리면 plan.smoke."""
+
     now = datetime.fromisoformat(config.now)
     cases, audit = build_common_cases(sources, now, private_texts)
     if len(cases) != config.expected_cases:
         raise ValueError(
             f"common cases {len(cases)} != expected {config.expected_cases}"
         )
+    if len(llm_cases(config, cases)) != config.plan.arm_cases:
+        raise ValueError("LLM case count != plan.arm_cases")
+    pre = pre_manifest(sources, cases, now)
+    if (
+        not dry_run
+        and config.expected_items_inputs_sha256 != pre["items_inputs_sha256"]
+    ):
+        raise ValueError("eval set changed since approval — refusing to send")
+    all_terms = [t for _, terms in sources for t in terms] + list(extra_forbidden or [])
     exp = config.exp_id + ("_dryrun" if dry_run else "")
     base = restricted_dir(root, exp)
+    tag = (
+        "" if phases is None else "_" + "-".join(phases)
+    )  # 단계별로 기록을 나눠 앞 실행을 덮어쓰지 않는다
     if dry_run:
-        for name in ("raw.jsonl", "records.jsonl"):
+        for name in ("raw.jsonl", f"records{tag}.jsonl"):
             if (base / name).exists():
                 (base / name).unlink()
     ledger = BudgetLedger(config.generator.budget) if dry_run else BudgetLedger.load(config.generator.budget, ledger_path(root, config))  # fmt: skip
+    ledger.session_max_requests = session_max_requests
     errors_path = base / "errors.jsonl"
     cache = Cache(None if dry_run else base / "cache")
     raw_log = RawLog(root, exp)
@@ -316,6 +368,7 @@ def run_p4b2(
             cache,
             env=env,
             cache_salt=f"{phase}:{rep}",
+            pre_send=_pre_send(merged, all_terms, private_texts),
             **({"sleep": sleep} if sleep else {}),
         )
         outcome = speak(
@@ -323,6 +376,15 @@ def run_p4b2(
         )
         record = to_record(outcome, eval_item_id=case.item_id, case_id=case.case_id, generator=f"{config.generator.generator}:{arm}", experiment_version=EXPERIMENT_VERSION)  # fmt: skip
         raw_log.write(record, outcome)
+        if (
+            gen.last_failed_reply is not None
+        ):  # 해석 실패한 모델 답도 원문 로그에(제한 경로)
+            raw_log.write_failed(
+                case.item_id,
+                record.generator,
+                gen.last_cache_key,
+                gen.last_failed_reply,
+            )
         if gen.last_error_detail:  # 오류 원인(가린 메시지 포함)은 제한 경로에만
             errors_path.parent.mkdir(parents=True, exist_ok=True)
             with errors_path.open("a", encoding="utf-8", newline="\n") as f:
@@ -333,6 +395,7 @@ def run_p4b2(
                 "arm": arm,
                 "repeat": rep,
                 **record.model_dump(mode="json"),
+                "usage_detail": _usage_detail(outcome),
             }
         )
         failures = outcome.failures
@@ -347,10 +410,20 @@ def run_p4b2(
         ):
             stop_reason = f"transport:{gen.last_error_kind}"
             stop_detail = gen.last_error_detail
+        elif phase == "smoke" and "generator_error:TransportError" in failures:
+            # 연결 확인 단계는 어떤 전송 오류에서도 멈춘다(원인을 보고 사람이 판단한다)
+            stop_reason = f"smoke_error:{gen.last_error_kind}"
+            stop_detail = gen.last_error_detail
         elif "generator_error:NotReadyError" in failures:
             stop_reason = "not_ready"
         if stop_reason:
             break
+    # 승인 템플릿 공통 기능 평가 — LLM 대상이 아닌 공통 사례(판 3: clarify)는 템플릿 경로로만
+    for case in [c for c in cases if c.final_kind not in config.llm_kinds]:
+        merged = sources[case.source][0]
+        outcome = speak(case.context, case.plan, merged, TemplateGenerator(), guards[case.source], now=now)  # fmt: skip
+        record = to_record(outcome, eval_item_id=case.item_id, case_id=case.case_id, generator="template", experiment_version=EXPERIMENT_VERSION)  # fmt: skip
+        rows.append({"phase": "template_feature", "arm": "template", "repeat": 0, **record.model_dump(mode="json")})  # fmt: skip
     for case in check_in_cases(sources):
         merged = sources[case.source][0]
         outcome = speak(
@@ -370,12 +443,23 @@ def run_p4b2(
                 **record.model_dump(mode="json"),
             }
         )
-    (base / "records.jsonl").parent.mkdir(parents=True, exist_ok=True)
-    (base / "records.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in rows), encoding="utf-8", newline="\n")  # fmt: skip
-    write_rating_form(base, rows, cases, sources, now)
+    (base / f"records{tag}.jsonl").parent.mkdir(parents=True, exist_ok=True)
+    (base / f"records{tag}.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in rows), encoding="utf-8", newline="\n")  # fmt: skip
+    write_rating_form(base, rows, cases, sources, now, tag)
     summary = summarize(rows, ledger, stop_reason, audit, config, dry_run)
     summary["stop_detail"] = public_error(stop_detail)
     summary["eval_set_manifest"] = manifest(cases, rows)
+    summary["eval_set_pre_manifest"] = pre
+    summary["request_params"] = request_params(config)
+    summary["model_access"] = model_access
+    summary["phases_run"] = list(phases) if phases else None
+    summary["session_max_requests"] = session_max_requests
+    summary["usage_fields"] = usage_fields(rows)
+    summary["smoke_rows"] = [
+        {k: r[k] for k in ("eval_item_id", "arm", "status", "final_kind", "guard_passed", "guard_failures", "fallback_reason", "tokens_in", "tokens_out", "estimated_cost_usd", "actual_cost_usd", "usage_detail")}
+        for r in rows
+        if r["phase"] == "smoke"
+    ]  # fmt: skip
     return {"summary": summary, "rows": rows, "cases": cases}
 
 
@@ -442,7 +526,9 @@ def summarize(
         for arm in config.arms
     }
     baseline = [r for r in rows if r["phase"] == "check_in_baseline"]
-    llm_rows = [r for r in rows if r["phase"] != "check_in_baseline"]
+    llm_rows = [
+        r for r in rows if r["phase"] not in ("check_in_baseline", "template_feature")
+    ]
     by_case: dict[str, set] = defaultdict(set)
     for r in rows:
         if r["phase"] == "arm":
@@ -468,6 +554,19 @@ def summarize(
             "all_template": all(r["method"] == "template" for r in baseline),
             "status_counts": dict(Counter(r["status"] for r in baseline)),
         },
+        "template_feature": {
+            "n": len(feature := [r for r in rows if r["phase"] == "template_feature"]),
+            "kinds": dict(Counter(r["final_kind"] for r in feature)),
+            "all_template": all(r["method"] == "template" for r in feature),
+            "guard_pass_rate": round(
+                sum(bool(r["guard_passed"]) for r in feature) / len(feature), 3
+            )
+            if feature
+            else None,
+            "status_counts": dict(Counter(r["status"] for r in feature)),
+        },
+        "llm_kinds": list(config.llm_kinds),
+        "distribution": distribution(rows),
         "input_mismatch_between_arms": sorted(
             k for k, v in by_case.items() if len(v) > 1
         ),
@@ -484,16 +583,20 @@ RATING_COLUMNS = (
 
 
 def write_rating_form(
-    base: Path, rows: list[dict], cases: list[CommonCase], sources, now
+    base: Path, rows: list[dict], cases: list[CommonCase], sources, now, tag: str = ""
 ) -> None:
     """사람 평가 양식(가림) — 생성기 · 군을 숨기고 섞는다. 짝 표(key)는 따로 둔다. 둘 다 제한 경로에만."""
 
     raw = {}
     raw_path = base / "raw.jsonl"
+    replies: dict[str, str] = {}
     if raw_path.exists():
         for line in raw_path.read_text(encoding="utf-8").splitlines():
             d = json.loads(line)
-            raw[d["raw_sha256"]] = d["raw_text"]
+            if d.get("raw_sha256"):  # 해석 실패 줄(parse_failed)에는 조립 발화가 없다
+                raw[d["raw_sha256"]] = d["raw_text"]
+            if d.get("model_reply_sha256"):
+                replies[d["model_reply_sha256"]] = d.get("model_reply") or ""
     by_id = {c.item_id: c for c in cases}
     form, key = [], []
     for r in rows:
@@ -505,18 +608,21 @@ def write_rating_form(
         ).hexdigest()[:12]
         form.append({
             "blind_id": blind, "kind": r["final_kind"], "player_message": c.plan.player_message or "",
-            "raw_text": raw.get(r["raw_sha256"], ""), "final_text": r["final_text"] or "",
+            "model_reply": replies.get(r.get("model_reply_sha256") or "", ""),  # 1) 모델 답(JSON)
+            "raw_text": raw.get(r["raw_sha256"], ""), "final_text": r["final_text"] or "",  # 2) 조립 발화 · 3) 최종
             "replaced_by_template": "y" if r["status"] == "fallback" else "n",
             **{col: "" for col in RATING_COLUMNS},
         })  # fmt: skip
         key.append({"blind_id": blind, "generator": r["generator"], "item_id": r["eval_item_id"], "phase": r["phase"], "repeat": r["repeat"]})  # fmt: skip
     form.sort(key=lambda x: x["blind_id"])
     base.mkdir(parents=True, exist_ok=True)
-    with (base / "rating_form.csv").open("w", encoding="utf-8-sig", newline="") as f:
+    with (base / f"rating_form{tag}.csv").open(
+        "w", encoding="utf-8-sig", newline=""
+    ) as f:
         writer = csv.DictWriter(f, fieldnames=list(form[0]) if form else ["blind_id"])
         writer.writeheader()
         writer.writerows(form)
-    (base / "rating_key.json").write_text(json.dumps(key, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")  # fmt: skip
+    (base / f"rating_key{tag}.json").write_text(json.dumps(key, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")  # fmt: skip
 
 
 def reproduction(config: P4B2Config, raw_config: dict, root: Path) -> dict[str, Any]:
@@ -625,6 +731,9 @@ class ExternalTransferPolicy(ContractModel):
     allowed_cases: list[str]
     allowed_cases_dir_prefix: str  # 이 경로 아래의 테스트용 사건만
     denied_cases: list[str] = Field(default_factory=list)
+    denied_cases_dir: str | None = (
+        None  # 금지 사건의 정답을 읽어 전송 직전 검사에 넣는다(서버 쪽에서만)
+    )
 
 
 def external_transfer_problems(
@@ -641,3 +750,129 @@ def external_transfer_problems(
         if not Path(c.cases_dir).as_posix().startswith(policy.allowed_cases_dir_prefix):
             problems.append(f"cases_dir is not a test fixture path: {c.case_id}")
     return problems
+
+
+def pre_manifest(sources, cases: list[CommonCase], now: datetime) -> dict[str, Any]:
+    """실행 전에 계산하는 평가 세트 해시 — 사례 ID 와 모델 입력 해시(템플릿 경로로 만든 같은 입력)."""
+
+    pairs = []
+    for c in sorted(cases, key=lambda x: x.item_id):
+        merged, terms = sources[c.source]
+        out = speak(
+            c.context,
+            c.plan,
+            merged,
+            TemplateGenerator(),
+            SpeechGuard(merged.pack, terms),
+            now=now,
+        )
+        pairs.append(f"{c.item_id}\t{input_sha256(out)}")
+    return {
+        "n": len(pairs),
+        "items_inputs_sha256": hashlib.sha256("\n".join(pairs).encode()).hexdigest(),
+    }
+
+
+def llm_cases(config: P4B2Config, cases: list[CommonCase]) -> list[CommonCase]:
+    return [c for c in cases if c.final_kind in config.llm_kinds]
+
+
+def stratified(cases: list[CommonCase], n: int) -> list[CommonCase]:
+    """사건 × 유형 묶음을 돌아가며 하나씩 — 결정적. n 이 묶음 수보다 크면 다시 돈다."""
+
+    groups: dict[tuple, list[CommonCase]] = defaultdict(list)
+    for c in cases:
+        groups[(c.case_id, c.final_kind)].append(c)
+    keys = sorted(groups)
+    picked, round_ = [], 0
+    while len(picked) < n and any(len(groups[k]) > round_ for k in keys):
+        for k in keys:
+            if len(picked) < n and len(groups[k]) > round_:
+                picked.append(groups[k][round_])
+        round_ += 1
+    return picked
+
+
+def distribution(rows: list[dict]) -> dict[str, Any]:
+    """단계 · 군 · 사건 · 유형별 사례 수 — 본 실험 전에 부족한 칸을 본다."""
+
+    out: dict[str, Counter] = defaultdict(Counter)
+    for r in rows:
+        out[r["phase"]][f"{r['arm']}|{r['case_id']}|{r['final_kind']}"] += 1
+    return {k: dict(sorted(v.items())) for k, v in out.items()}
+
+
+def _pre_send(merged: MergedPack, terms: list[str], private_texts: list[str]):
+    def check(messages: list[dict[str, str]]) -> list[str]:
+        return audit_input(
+            "\n".join(m["content"] for m in messages), merged, terms, private_texts
+        )
+
+    return check
+
+
+def _usage_detail(outcome) -> dict | None:
+    if outcome.raw is None or outcome.raw.method == "template":
+        return None
+    n = outcome.raw.notes
+    return {
+        k: n.get(k)
+        for k in (
+            "cached_tokens",
+            "cache_write_tokens",
+            "reasoning_tokens",
+            "finish_reason",
+            "cache_hit",
+        )
+    }
+
+
+def usage_fields(rows: list[dict]) -> dict[str, Any]:
+    """실제 응답에서 사용량 필드가 왔는지 — 필드별로 값이 있던 요청 수."""
+
+    llm = [r for r in rows if r.get("usage_detail")]
+    out = {"responses": len(llm)}
+    out["prompt_tokens"] = sum(r["tokens_in"] is not None for r in llm)
+    out["completion_tokens"] = sum(r["tokens_out"] is not None for r in llm)
+    for k in (
+        "cached_tokens",
+        "cache_write_tokens",
+        "reasoning_tokens",
+        "finish_reason",
+    ):
+        out[k] = sum(r["usage_detail"].get(k) is not None for r in llm)
+    return out
+
+
+def request_params(config: P4B2Config) -> dict[str, Any]:
+    """보낸 요청 인자(메시지 본문 제외) — 군별."""
+
+    from companion_npc.speech.llm import build_request
+
+    out = {}
+    for arm in config.arms:
+        cfg = config.generator.model_copy(update={"prompt_mode": arm})
+        req = build_request([{"role": "user", "content": ""}], cfg)
+        req.pop("messages")
+        if "response_format" in req:
+            req["response_format"] = {"type": req["response_format"]["type"], "name": req["response_format"]["json_schema"]["name"], "strict": req["response_format"]["json_schema"]["strict"]}  # fmt: skip
+        out[arm] = req
+    return out
+
+
+def denied_forbidden_terms(
+    policy: ExternalTransferPolicy, config: P4B2Config, root: Path
+) -> list[str]:
+    """외부 전송이 금지된 사건의 정답 · 별칭 — 전송 직전 검사용. 이 목록은 요청 · 기록 · 요약에 넣지 않는다."""
+
+    from companion_npc.adapters.npc_merge import forbidden_terms_for
+
+    if not policy.denied_cases_dir:
+        return []
+    aliases = json.loads((root / config.aliases_file).read_text(encoding="utf-8"))
+    terms = []
+    for case_id in policy.denied_cases:
+        terms += forbidden_terms_for(
+            root / policy.denied_cases_dir, case_id, tuple(aliases.get(case_id, []))
+        )
+    return terms

@@ -1,0 +1,87 @@
+{
+  "_note": "P4-B2 GPT 실험 설정 판 3 — 평가 세트 p4b2-fictional/1.1 (공통 사례 36건 그대로: LLM 비교 대상 nudge · hint 28건 + 승인 템플릿 공통 기능 평가 clarify 8건). check_in · clarify 는 승인 템플릿 전용. 실행 승인 전(execution_approved=false · approved_phases=[]). 판 2(p4b2_gpt_fictional.json)와 그 smoke 결과는 보존한다.",
+  "exp_id": "p4b2_gpt_fictional_v3",
+  "cases": [
+    {
+      "case_id": "case_fixture_archive",
+      "cases_dir": "tests/fixtures/cases",
+      "npc_dir": "tests/fixtures/npc"
+    },
+    {
+      "case_id": "case_fixture_lighthouse",
+      "cases_dir": "tests/fixtures/cases",
+      "npc_dir": "tests/fixtures/npc"
+    }
+  ],
+  "aliases_file": "tests/fixtures/private/aliases.json",
+  "private_files": [
+    "tests/fixtures/private/guard_eval_attacks.json"
+  ],
+  "now": "2026-10-26T12:00:00+09:00",
+  "generator": {
+    "generator": "gpt_rag",
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "api_key_env": "OPENAI_API_KEY",
+    "prices": {
+      "usd_per_1m_input": 0.1,
+      "usd_per_1m_cached_input": 0.01,
+      "usd_per_1m_output": 0.5,
+      "source": "https://developers.openai.com/api/docs/pricing (Standard, <=272K input) · https://developers.openai.com/api/docs/models/gpt-6-luna · cache writes $0.125 (모델 페이지, 2026-10-26 재확인)",
+      "checked_at": "2026-10-26T00:00:00+09:00",
+      "usd_per_1m_cache_write": 0.125
+    },
+    "reasoning_effort": "none",
+    "temperature": 0.7,
+    "max_output_tokens": 256,
+    "structured_output": true,
+    "timeout_sec": 30,
+    "max_retries": 2,
+    "backoff_sec": 2.0,
+    "budget": {
+      "max_usd": 2.0,
+      "max_requests": 100
+    }
+  },
+  "arms": [
+    "select",
+    "free"
+  ],
+  "repeat_arm": "free",
+  "plan": {
+    "smoke": 4,
+    "arm_cases": 28,
+    "repeat_cases": 8,
+    "repeat_times": 2
+  },
+  "expected_cases": 36,
+  "eval_set": "p4b2-fictional/1.1",
+  "config_version": "3",
+  "ledger_name": "openai_gpt-6-luna",
+  "expected_items_inputs_sha256": "b22786abac0520b2076f4eea18c27867ef2fd3bf54836d6b15cb3c1240144ca4",
+  "model_record": {
+    "distribution": "OpenAI API (Chat Completions)",
+    "model_id": "gpt-6-luna",
+    "snapshot": "gpt-6-luna",
+    "license": "OpenAI 서비스 약관 (API)",
+    "sdk": "openai==3.29.0 (설치 · pip check 통과 2026-10-26)",
+    "checked_at": "2026-10-26 (재확인)",
+    "sources": [
+      "https://developers.openai.com/api/docs/models/gpt-6-luna",
+      "https://developers.openai.com/api/docs/pricing",
+      "https://developers.openai.com/api/docs/guides/latest-model",
+      "https://pypi.org/project/openai/"
+    ]
+  },
+  "execution_approved": false,
+  "_changelog": [
+    "config_version 2 → 3 (2026-10-26, 실제 요청 없음): ① clarify 생성 정책 — GPT · Qwen 자유 clarify 금지, 승인 템플릿 선택 + 확인된 가시 대상 이름 자리표시자만(파이프라인 · 검증기 양쪽). ② 원문 기록 계약 — model_reply(JSON) · 조립 발화 · 최종 발화를 나눠 기록(실험 기록 판 p4b2/0.2). ③ LLM 비교 대상 nudge · hint 28건(clarify 8건은 template_feature 로 분리, 재배분 없음). ④ 요청 계획 smoke 4 + A 28 + B 28 + 반복 16 = 76 (판 2: 92). ⑤ smoke · 반복 사례를 사건 × 유형으로 고르게(stratified). 요청 인자는 그대로."
+  ],
+  "approved_phases": [],
+  "llm_kinds": [
+    "nudge",
+    "hint"
+  ],
+  "expected_llm_cases": 28,
+  "sampling": "stratified"
+}

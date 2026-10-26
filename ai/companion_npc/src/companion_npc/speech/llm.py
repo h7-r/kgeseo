@@ -84,6 +84,8 @@ class PriceTable(ContractModel):
     usd_per_1m_input: float = Field(ge=0)
     usd_per_1m_output: float = Field(ge=0)
     usd_per_1m_cached_input: float | None = Field(default=None, ge=0)
+    # 캐시 쓰기 단가(모델 페이지 「Cache writes」). 입력 단가보다 비쌀 수 있어 추정 상한에 쓴다
+    usd_per_1m_cache_write: float | None = Field(default=None, ge=0)
     source: str = Field(min_length=1)
     checked_at: AwareDatetime
 
@@ -167,8 +169,17 @@ class CostUnknown(RuntimeError):
 
 
 TransportKind = Literal[
-    "timeout", "rate_limit", "server", "connection", "client", "auth", "quota", "format", "unavailable"
-]  # fmt: skip
+    "timeout",
+    "rate_limit",
+    "server",
+    "connection",
+    "client",
+    "auth",
+    "quota",
+    "format",
+    "unavailable",
+    "blocked",
+]  # fmt: skip  — blocked: 전송 직전 페이로드 검사에 걸림
 
 
 class TransportError(RuntimeError):
@@ -280,20 +291,11 @@ def compose_select(reply: str, payload: PromptPayload) -> tuple[str, tuple[str, 
         raise TransportError("format") from error
     if opener not in OPENERS or closer not in CLOSERS:
         raise TransportError("format")
-    t = payload.templates
-    if payload.approved_hint is not None:
-        body, used = payload.approved_hint.text, (payload.approved_hint.label,)
-    elif payload.kind == "clarify" and payload.object_name and t.clarify_with_object:
-        body = t.clarify_with_object[0].text.format(object=payload.object_name)
-        used = tuple(
-            e.label for e in payload.evidence if e.text == payload.object_name
-        )[:1]
-    elif payload.kind == "clarify" and t.clarify_general:
-        body, used = t.clarify_general[0].text, ()
-    else:
+    if payload.kind not in ("nudge", "hint") or payload.approved_hint is None:
         raise TransportError(
             "format"
-        )  # check_in 은 파이프라인이 생성기를 부르지 않는다
+        )  # check_in · clarify 는 파이프라인이 생성기를 부르지 않는다
+    body, used = payload.approved_hint.text, (payload.approved_hint.label,)
     return " ".join(p for p in (opener, body, closer) if p), used
 
 
@@ -310,10 +312,12 @@ def estimate_cost(
     if config.prices is None:
         return tokens_in, tokens_out, None
     p = config.prices
+    # 입력은 전부 「캐시 안 된 입력」과 「캐시 쓰기」 중 비싼 단가로 잡는다(보수적 상한)
+    input_price = max(p.usd_per_1m_input, p.usd_per_1m_cache_write or 0.0)
     return (
         tokens_in,
         tokens_out,
-        (tokens_in * p.usd_per_1m_input + tokens_out * p.usd_per_1m_output) / 1e6,
+        (tokens_in * input_price + tokens_out * p.usd_per_1m_output) / 1e6,
     )
 
 
@@ -324,16 +328,23 @@ def actual_cost(response: "ChatResponse", config: LLMConfig) -> float | None:
     if p is None or response.tokens_in is None or response.tokens_out is None:
         return None
     cached = response.cached_tokens or 0
+    written = response.cache_write_tokens or 0
     cached_price = (
         p.usd_per_1m_cached_input
         if p.usd_per_1m_cached_input is not None
         else p.usd_per_1m_input
     )
-    uncached = max(response.tokens_in - cached, 0)
+    write_price = (
+        p.usd_per_1m_cache_write
+        if p.usd_per_1m_cache_write is not None
+        else p.usd_per_1m_input
+    )
+    uncached = max(response.tokens_in - cached - written, 0)
     # 출력 토큰(completion_tokens)에는 추론 토큰이 이미 들어 있다 — 따로 더하지 않는다
     return (
         uncached * p.usd_per_1m_input
         + cached * cached_price
+        + written * write_price
         + response.tokens_out * p.usd_per_1m_output
     ) / 1e6
 
@@ -348,6 +359,9 @@ class BudgetLedger:
     requests: int = 0
     spent_usd: float = 0.0  # 상한 판단용 — 정산된 것은 실제, 아니면 추정
     entries: list[dict] = field(default_factory=list)
+    # 이번 실행만의 요청 상한(예: smoke 4). 재시도 포함. 파일에 남기지 않는다(전체 상한은 limit)
+    session_max_requests: int | None = None
+    session_requests: int = 0
 
     @classmethod
     def load(cls, limit: BudgetLimit, path: Path) -> "BudgetLedger":
@@ -363,9 +377,15 @@ class BudgetLedger:
             raise CostUnknown("cost cannot be estimated safely")
         if self.requests + 1 > self.limit.max_requests:
             raise BudgetExceeded("request cap reached")
+        if (
+            self.session_max_requests is not None
+            and self.session_requests + 1 > self.session_max_requests
+        ):
+            raise BudgetExceeded("session request cap reached")
         if self.spent_usd + estimated_usd > self.limit.max_usd:
             raise BudgetExceeded("budget cap would be exceeded")
         self.requests += 1
+        self.session_requests += 1
         self.spent_usd += estimated_usd  # 정산 전까지는 추정값으로 막아 둔다
         self.entries.append(
             {
@@ -424,6 +444,7 @@ class ChatResponse:
     tokens_in: int | None = None  # prompt_tokens
     tokens_out: int | None = None  # completion_tokens (추론 토큰 포함)
     cached_tokens: int | None = None  # prompt_tokens_details.cached_tokens
+    cache_write_tokens: int | None = None  # prompt_tokens_details.cache_write_tokens
     reasoning_tokens: int | None = None  # completion_tokens_details.reasoning_tokens
     finish_reason: str | None = None
     refusal: str | None = None
@@ -495,6 +516,8 @@ class LLMGenerator:
     sleep: Callable[[float], None] = time.sleep
     env: dict[str, str] | None = None  # 테스트용. 없으면 os.environ
     cache_salt: str = ""  # 같은 입력을 일부러 다시 생성할 때(반복 실험) 캐시를 나눈다
+    # 전송 직전 검사 — 문제 목록을 돌려주면 보내지 않는다(TransportError("blocked")). 실행기가 공개 가능 검사를 건다
+    pre_send: Callable[[list[dict[str, str]]], list[str]] | None = None
     uses_llm: bool = True
     last_error_kind: str | None = (
         None  # 마지막 전송 오류 종류 — 실행기가 quota · auth · client 에서 멈추는 데 쓴다
@@ -502,6 +525,9 @@ class LLMGenerator:
     last_error_detail: dict | None = (
         None  # 그 오류의 원인(kind · 상태 · 코드 · 인자 · 가린 메시지)
     )
+    # 해석에 실패한 모델 답 원문(형식 오류 · 잘림 · 거절) — 실행기가 제한 경로 원문 로그에만 남긴다
+    last_failed_reply: str | None = None
+    last_cache_key: str | None = None
 
     @property
     def name(self) -> str:
@@ -515,6 +541,7 @@ class LLMGenerator:
             payload, self.config.prompt_mode, self.config.disable_thinking
         )
         key = Cache.key(messages, self.config, self.cache_salt)
+        self.last_cache_key, self.last_failed_reply = key, None
         started = time.perf_counter()
         cached = self.cache.get(key)
         if cached is not None:
@@ -528,6 +555,12 @@ class LLMGenerator:
             raise NotReadyError(
                 "api key is not set in the configured environment variable"
             )
+        if self.pre_send is not None:
+            problems = self.pre_send(messages)
+            if problems:
+                self.last_error_kind = "blocked"
+                self.last_error_detail = {"kind": "blocked", "reasons": problems}
+                raise TransportError("blocked", {"reasons": problems})
         _, _, estimated = estimate_cost(messages, self.config)
         last_error: TransportError | None = None
         for attempt in range(self.config.max_retries + 1):
@@ -561,6 +594,9 @@ class LLMGenerator:
             except TransportError as error:
                 self.last_error_kind = error.kind
                 self.last_error_detail = {"kind": error.kind, **error.detail}
+                self.last_failed_reply = (
+                    response.text
+                )  # 원문은 남기고, 발화는 템플릿으로 대체된다
                 raise
             self.cache.put(key, response)  # 해석에 성공한 답만 캐시한다
             return draft
@@ -589,9 +625,10 @@ class LLMGenerator:
             latency_ms=int((time.perf_counter() - started) * 1000),
             tokens_in=response.tokens_in,
             tokens_out=response.tokens_out,
-            notes={"cache_hit": cache_hit, "estimated_cost_usd": estimated, "actual_cost_usd": actual,
-                   "cached_tokens": response.cached_tokens, "reasoning_tokens": response.reasoning_tokens,
-                   "raw_reply_sha256": hashlib.sha256(response.text.encode()).hexdigest()},
+            notes={"cache_hit": cache_hit, "estimated_cost_usd": estimated, "actual_cost_usd": actual, "finish_reason": response.finish_reason,
+                   "cached_tokens": response.cached_tokens, "cache_write_tokens": response.cache_write_tokens, "reasoning_tokens": response.reasoning_tokens,
+                   "raw_reply_sha256": hashlib.sha256(response.text.encode()).hexdigest(),
+                   "model_reply": response.text, "cache_key": self.last_cache_key},
         )  # fmt: skip
 
 

@@ -32,6 +32,7 @@ from companion_npc.speech.llm import BudgetLedger, LLMConfig, LLMGenerator
 from companion_npc.speech.p4b2 import (
     ExternalTransferPolicy,
     P4B2Config,
+    denied_forbidden_terms,
     external_transfer_problems,
     load_private_texts,
     public_error,
@@ -190,11 +191,21 @@ def _p4b2(raw: dict, publish: bool, execute: bool, phases: str | None = None) ->
                 f"refused: execution_approved=true 와 {ALLOW_ENV}=1 이 모두 필요합니다"
             )
             return 2
+        wanted = tuple(phases.split(",")) if phases else ()
+        if not wanted or not set(wanted) <= set(config.approved_phases):
+            print(
+                f"refused: --phases 는 승인된 단계 {config.approved_phases} 안에서만 지정할 수 있습니다"
+            )
+            return 2
         policy = ExternalTransferPolicy.model_validate(_strip(json.loads((ROOT / "experiments" / "p4" / "external_transfer.json").read_text(encoding="utf-8"))))  # fmt: skip
         problems = external_transfer_problems(config, policy)
         if problems:
             print("refused: " + "; ".join(problems))
             return 2
+        extra = denied_forbidden_terms(
+            policy, config, ROOT
+        )  # 외부 전송이 금지된 사건의 정답 · 별칭도 전송 직전 검사에 넣는다
+        session_cap = config.plan.smoke if wanted == ("smoke",) else None
         transport, env = OpenAIChatTransport(approved=True), None
         if (
             config.generator.provider == "openai"
@@ -209,24 +220,29 @@ def _p4b2(raw: dict, publish: bool, execute: bool, phases: str | None = None) ->
                 print(json.dumps({"refused": "model_access", **public_error({"kind": error.kind, **error.detail})}, ensure_ascii=False))  # fmt: skip
                 return 2
             print(json.dumps({"model_access": access}, ensure_ascii=False))
+        else:
+            access = None
     else:
+        extra, session_cap, access = None, None, None
         transport = OfflineEchoTransport()
         env = {config.generator.api_key_env: "dry-run-placeholder"} if config.generator.api_key_env else {}  # fmt: skip
-    result = run_p4b2(config, sources, transport, ROOT, private_texts=private, env=env, dry_run=not execute, phases=tuple(phases.split(",")) if phases else None)  # fmt: skip
+    result = run_p4b2(config, sources, transport, ROOT, private_texts=private, env=env, dry_run=not execute, phases=tuple(phases.split(",")) if phases else None, extra_forbidden=extra, session_max_requests=session_cap, model_access=access)  # fmt: skip
     summary = result["summary"] | {"reproduction": reproduction(config, raw, ROOT)}
-    forbidden = [t for _, terms in sources for t in terms] + private
+    forbidden = [t for _, terms in sources for t in terms] + private + list(extra or [])
     if not summary_is_clean(summary, forbidden):
         print("refused: summary contains forbidden text")
         return 1
     exp_id = config.exp_id + ("" if execute else "_dryrun")
     out = ROOT / "runs" / "p4" / exp_id
     out.mkdir(parents=True, exist_ok=True)
+    # 단계를 골라 돌리면 단계별 요약 파일 — 앞 실행(예: smoke)을 덮어쓰지 않는다
+    name = "summary.json" if not phases else f"summary_{phases.replace(',', '-')}.json"
     text = json.dumps(summary, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
-    (out / "summary.json").write_text(text, encoding="utf-8", newline="\n")
+    (out / name).write_text(text, encoding="utf-8", newline="\n")
     if publish:
         target = ROOT / "experiments" / "results" / exp_id
         target.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(out / "summary.json", target / "summary.json")
+        shutil.copyfile(out / name, target / name)
     print(json.dumps({k: summary[k] for k in ("eval_set", "dry_run", "stop_reason", "sent_requests", "ledger")}, ensure_ascii=False))  # fmt: skip
     return 0 if summary["stop_reason"] is None else 1
 

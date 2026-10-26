@@ -93,6 +93,7 @@ def _usage(response: Any) -> dict:
         "tokens_in": getattr(usage, "prompt_tokens", None),
         "tokens_out": getattr(usage, "completion_tokens", None),
         "cached_tokens": getattr(prompt_details, "cached_tokens", None),
+        "cache_write_tokens": getattr(prompt_details, "cache_write_tokens", None),
         "reasoning_tokens": getattr(completion_details, "reasoning_tokens", None),
     }
 

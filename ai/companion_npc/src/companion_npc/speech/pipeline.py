@@ -12,6 +12,9 @@
   · clarify 는 플레이어 요청에서만. 오브젝트 이름은 플레이어 메시지가 그 이름을 짚었을 때만
     (현재 구역에서 보이는 이름 조각과 TF-IDF 유사도 ≥ 0.3). 아니면 일반 질문.
   · LLM 생성기는 NpcContext.limits.allow_llm 이 참일 때만 쓴다. 아니면 템플릿으로 바꾼다.
+  · check_in · clarify 는 생성기와 관계없이 승인 템플릿에서만 고른다(check_in: P4-B1 · clarify: P4-B2 smoke 뒤).
+    clarify 의 {object} 자리에는 FE 가 확인한 가시 대상의 이름만 들어간다. 없으면 일반 확인 질문이다.
+    (이 제한은 대상 확인 질문에 관한 것이다. 이후의 자유 대화 기능을 금지하는 결정이 아니다.)
   · check_in 은 생성기와 관계없이 승인 템플릿에서만 고른다(P4-B1 보완). 자유 생성 · 플레이어 입력 반향 ·
     사건 정보 추가가 없다. 고른 템플릿도 검증기를 거친다(검증기는 승인 템플릿과 같은 문장만 통과시킨다).
 
@@ -223,10 +226,12 @@ def speak(
     )
 
     # check_in 은 승인 템플릿에서만 고른다 — LLM · 가짜 생성기를 부르지 않는다 (P4-B1 보완)
-    if kind == "check_in" and generator.uses_llm:
+    # check_in · clarify 는 승인 템플릿에서만 고른다 — LLM · 가짜 생성기를 부르지 않는다
+    #   (check_in: P4-B1 보완 · clarify: P4-B2 smoke 뒤 보완 — 대상 확인 질문은 템플릿 + 확인된 이름 자리표시자만)
+    if kind in ("check_in", "clarify") and generator.uses_llm:
         generator, downgrade = (
             TemplateGenerator(),
-            downgrade or "check_in_template_only",
+            downgrade or f"{kind}_template_only",
         )
     if generator.uses_llm and not context.limits.allow_llm:
         generator, downgrade = TemplateGenerator(), downgrade or "llm_not_allowed"

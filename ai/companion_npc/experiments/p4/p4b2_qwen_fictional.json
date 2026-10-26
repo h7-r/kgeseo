@@ -53,6 +53,7 @@
   "eval_set": "p4b2-fictional/1.0",
   "config_version": "1",
   "ledger_name": "local_qwen3-4b-q4km",
+  "expected_items_inputs_sha256": "b22786abac0520b2076f4eea18c27867ef2fd3bf54836d6b15cb3c1240144ca4",
   "model_record": {
     "distribution": "huggingface:Qwen/Qwen3-4B-GGUF (공식)",
     "model_id": "Qwen3-4B",
@@ -73,5 +74,8 @@
     ],
     "verified_locally": false
   },
-  "execution_approved": false
+  "execution_approved": false,
+  "_changelog": [
+    "2026-10-26: expected_items_inputs_sha256 추가(GPT 와 같은 평가 세트 고정). 요청 인자 · config_version 그대로."
+  ]
 }
