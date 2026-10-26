@@ -98,8 +98,15 @@ LETTER = {
     "title": "낡은 서신",
     "summary": "서신의 핵심 요약",
     "body": "서신에 적힌 전체 내용",
+    "carrier_kind": None,
 }
-DIARY = {"clue_id": "CLUE_DIARY", "title": "젖은 일기", "summary": None, "body": None}
+DIARY = {
+    "clue_id": "CLUE_DIARY",
+    "title": "젖은 일기",
+    "summary": None,
+    "body": None,
+    "carrier_kind": None,
+}
 
 
 @pytest.fixture
@@ -314,7 +321,13 @@ def test_content_without_clue_definitions_returns_null_display_fields(
     client.post(INTERACTIONS_URL, json=inspect_body("OBJ_LETTER"))
 
     assert get_clues(client) == [
-        {"clue_id": "CLUE_LETTER", "title": None, "summary": None, "body": None}
+        {
+            "clue_id": "CLUE_LETTER",
+            "title": None,
+            "summary": None,
+            "body": None,
+            "carrier_kind": None,
+        }
     ]
 
 
@@ -326,7 +339,13 @@ def test_acquired_clue_missing_from_current_definitions_is_not_invented(
     db_session.get_result = make_play_session(acquired=["CLUE_REMOVED", "CLUE_DIARY"])
 
     assert get_clues(client) == [
-        {"clue_id": "CLUE_REMOVED", "title": None, "summary": None, "body": None},
+        {
+            "clue_id": "CLUE_REMOVED",
+            "title": None,
+            "summary": None,
+            "body": None,
+            "carrier_kind": None,
+        },
         DIARY,
     ]
 
@@ -366,7 +385,7 @@ def test_invalid_server_content_returns_safe_500(
     case_directory: Path,
 ) -> None:
     runtime = deepcopy(RUNTIME_DATA)
-    runtime["clues"][0]["carrier_kind"] = "letter"
+    runtime["clues"][0]["carrier_kind"] = "scroll"
     write_case(case_directory, runtime=runtime)
     db_session.get_result = make_play_session(acquired=["CLUE_LETTER"])
 
@@ -375,6 +394,7 @@ def test_invalid_server_content_returns_safe_500(
     assert response.status_code == 500
     assert response.json() == {"detail": "Case content is unavailable."}
     assert "carrier_kind" not in response.text
+    assert "scroll" not in response.text
     assert "낡은 서신" not in response.text
 
 
@@ -388,5 +408,11 @@ def test_case_001_has_no_clue_definitions(
 
     db_session.get_result = make_play_session(acquired=["CLUE_ANY"])
     assert get_clues(client) == [
-        {"clue_id": "CLUE_ANY", "title": None, "summary": None, "body": None}
+        {
+            "clue_id": "CLUE_ANY",
+            "title": None,
+            "summary": None,
+            "body": None,
+            "carrier_kind": None,
+        }
     ]

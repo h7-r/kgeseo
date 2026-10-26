@@ -1,4 +1,9 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
+
+# 단서 수첩의 아이콘·표시 유형. 정답·선행 조건·상태 판정에는 쓰지 않는다.
+ClueCarrierKind = Literal["letter", "note", "key", "piece", "mark", "deduction"]
 
 
 class ServerContentModel(BaseModel):
@@ -108,6 +113,7 @@ class ClueDefinition(ServerContentModel):
     title: str
     summary: str | None = None
     body: str | None = None
+    carrier_kind: ClueCarrierKind | None = None
 
     @model_validator(mode="after")
     def validate_text(self) -> "ClueDefinition":

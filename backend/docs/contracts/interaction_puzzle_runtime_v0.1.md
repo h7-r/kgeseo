@@ -564,8 +564,12 @@ Server Runtime 모델 6개는 모두 정의되지 않은 필드를 거부한다(
 ### 7.8 단서 정의 `clues[]` (Q4, 2026-10-23, 팀 검토 대기)
 
 Server Runtime 최상위 선택 필드 `clues`(기본값 `[]`)에 단서 표시 정보를 둔다.
-필드는 `clue_id`(필수), `title`(필수), `summary`(선택), `body`(선택)이며
-정의되지 않은 필드(`carrier_kind`, `asset_key` 등)는 거부한다.
+필드는 `clue_id`(필수), `title`(필수), `summary`(선택), `body`(선택),
+`carrier_kind`(선택, **Q8**)이며 정의되지 않은 필드(`asset_key` 등)는 거부한다.
+
+- `carrier_kind`(Q8, 2026-10-26, 팀 검토 대기): `letter`·`note`·`key`·`piece`·`mark`·`deduction`
+  중 하나, 또는 생략·`null`(유형 없음). 다른 값·대소문자 차이·문자열이 아닌 값은 Schema 오류다.
+  단서 수첩 표시용 메타데이터일 뿐이며 정답 판정·선행 조건·Effect·상태에 쓰지 않는다.
 
 - `clue_id` 빈 값·공백만 있는 값, `title` 공백만 있는 값, 값을 쓴 `summary`·`body`의
   공백만 있는 값은 거부한다. `clue_id` 중복도 거부한다.

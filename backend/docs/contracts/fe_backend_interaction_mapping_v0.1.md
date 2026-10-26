@@ -202,7 +202,8 @@ inspect 재조사는 HTTP 오류가 아니라 200의 `ok`, `state_changes=[]`다
 - `zone_unlocked`, `hint_level_changed`를 생성하는 Runtime Effect
 - Session 상태를 반영한 Zone 조회 API
 - 단서 표시 데이터: 획득 단서 조회 API로 구현됨(`clue_api_v0.1.md`, 팀 검토 대기).
-  `carrier_kind`·이미지와 FE 표시 방식은 미정
+  `carrier_kind`는 Q8로 조회 응답에 포함됨(`null` 가능). 이미지와 FE 아이콘·`category`
+  매핑은 미정
 - `enabled` true → false(잠금) 효과
 - 실제 MySQL 영속성 검증
 - 콘텐츠 기반 `message` Source of Truth: `inspect`는 Q7로 구현됨(`inspections[].message`,

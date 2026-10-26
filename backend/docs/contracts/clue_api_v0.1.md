@@ -15,7 +15,8 @@ pytest·실제 `TestClient` HTTP 테스트로 검증했으며 실제 MySQL 검�
       "clue_id": "CLUE_LETTER",
       "title": "낡은 서신",
       "summary": "서신의 핵심 요약",
-      "body": "서신에 적힌 전체 내용"
+      "body": "서신에 적힌 전체 내용",
+      "carrier_kind": "letter"
     }
   ]
 }
@@ -27,8 +28,13 @@ pytest·실제 `TestClient` HTTP 테스트로 검증했으며 실제 MySQL 검�
 | `title` | 필수 | 문자열, 공백만 있는 값 거부 |
 | `summary` | 선택 | 생략 또는 `null`. 값을 쓰면 공백만 있는 값 거부 |
 | `body` | 선택 | 생략 또는 `null`. 값을 쓰면 공백만 있는 값 거부 |
+| `carrier_kind` | 선택 | **(Q8)** 생략 또는 `null`, 또는 `letter`·`note`·`key`·`piece`·`mark`·`deduction` 중 하나 |
 
-- 정의되지 않은 필드(`carrier_kind`, `asset_key` 등)는 거부한다(`extra_forbidden`).
+- 정의되지 않은 필드(`asset_key` 등)는 거부한다(`extra_forbidden`).
+- **(Q8, 2026-10-26, 팀 검토 대기)** `carrier_kind`는 단서 수첩의 아이콘·표시 유형을 고르는
+  메타데이터다. 소문자 여섯 값만 허용한다. 대소문자가 다르거나(`Letter`), 앞뒤 공백, 빈 문자열,
+  다른 값, 문자열이 아닌 값은 Schema 오류다. 생략과 `null`은 같은 뜻(유형 없음)이다.
+  기본값을 추측해 채우지 않는다. 정답 판정·선행 조건·단서 획득·상태 변경에는 쓰지 않는다.
 - 글자 수 상한은 아직 두지 않았다(팀 검토 대기).
 - 글은 일반 텍스트로 다룬다. Frontend는 HTML로 해석하지 않고 텍스트로 표시한다.
 - `client.json`에는 두지 않는다. Case Bundle로 획득 전에 공개되기 때문이다.
@@ -63,13 +69,15 @@ GET /api/v1/play-sessions/{play_session_id}/clues
         "clue_id": "CLUE_DIARY",
         "title": "젖은 일기",
         "summary": null,
-        "body": null
+        "body": null,
+        "carrier_kind": null
       },
       {
         "clue_id": "CLUE_LETTER",
         "title": "낡은 서신",
         "summary": "서신의 핵심 요약",
-        "body": "서신에 적힌 전체 내용"
+        "body": "서신에 적힌 전체 내용",
+        "carrier_kind": "letter"
       }
     ]
   }
@@ -78,8 +86,11 @@ GET /api/v1/play-sessions/{play_session_id}/clues
 
 - 해당 PlaySession `state.acquired_clue_ids`에 있는 단서만, 그 순서(획득 순서)대로 반환한다.
 - 획득하지 않은 단서는 ID·제목·본문은 물론 개수도 드러내지 않는다.
-- 응답은 공개용 모델(`clue_id`, `title`, `summary`, `body`)로만 만든다. 정답, Effect, flags,
-  선행 조건 같은 Server 전용 정보는 포함하지 않는다.
+- 응답은 공개용 모델(`clue_id`, `title`, `summary`, `body`, `carrier_kind`)로만 만든다.
+  정답, Effect, flags, 선행 조건 같은 Server 전용 정보는 포함하지 않는다.
+- **(Q8)** 각 단서에 `carrier_kind` 키가 항상 있다. 정의에 값이 없으면 `null`이다.
+  `summary`·`body`와 같은 방식이며, 그 밖의 응답 구조는 바뀌지 않는다.
+  획득하지 않은 단서의 `carrier_kind`는 드러내지 않는다.
 - 조회만 한다. PlaySession 상태, Interaction Event, commit을 만들지 않는다.
 - 획득한 단서가 없으면 콘텐츠를 읽지 않고 빈 목록을 반환한다.
 
@@ -89,7 +100,7 @@ GET /api/v1/play-sessions/{play_session_id}/clues
 정의가 사라진 경우)는 임의 제목을 만들지 않고 다음처럼 반환한다.
 
 ```json
-{ "clue_id": "CLUE_LETTER", "title": null, "summary": null, "body": null }
+{ "clue_id": "CLUE_LETTER", "title": null, "summary": null, "body": null, "carrier_kind": null }
 ```
 
 `title`은 정의에서 필수이므로 `title: null`은 "정의 없음"을 뜻한다. Frontend 표시 방식은
@@ -122,11 +133,13 @@ GET /api/v1/play-sessions/{play_session_id}/clues
 1. 시작·새로고침: `GET /play-sessions/{id}`와 `GET /play-sessions/{id}/clues`로 상태와
    단서를 복원한다(인벤토리 `addAll(..., { silent: true })` 등).
 2. Interaction 응답에 `clue_acquired`가 있으면 `GET .../clues`를 다시 받아 새 단서를 추가한다.
-3. 대응 예: `title` → 인벤토리 `name`, `summary` → `description`, `body` → 상세 보기.
+3. 대응 예: `title` → 인벤토리 `name`, `summary` → `description`, `body` → 상세 보기,
+   `carrier_kind` → 아이콘·표시 유형(`null`이면 기본 아이콘).
 
 ## 5. 팀 검토 대기
 
-- `carrier_kind` 도입과 Frontend `category`("열쇠" | "기록") 매핑
+- `carrier_kind`: Q8로 Schema·조회 응답 구현됨. Frontend `category`("열쇠" | "기록")와
+  아이콘 매핑(예: `key`·`piece` → 열쇠, 그 밖 → 기록 여부)은 미정
 - `asset_key`와 이미지 지원
 - `title: null`(정의 없음) 단서의 Frontend 표시 방식
 - 세션 인증·접근 제어

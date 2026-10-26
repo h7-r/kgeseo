@@ -299,10 +299,10 @@ def test_load_case_runtime_accepts_all_defined_optional_fields(
         ),
         pytest.param(
             ("clues", 0),
-            "carrier_kind",
-            "letter",
-            ("clues", 0, "carrier_kind"),
-            id="clue_carrier_kind",
+            "asset_key",
+            "letter_icon",
+            ("clues", 0, "asset_key"),
+            id="clue_asset_key",
         ),
     ],
 )

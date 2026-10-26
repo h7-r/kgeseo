@@ -39,6 +39,7 @@ async def get_acquired_clues(
                 title=definition.title if definition else None,
                 summary=definition.summary if definition else None,
                 body=definition.body if definition else None,
+                carrier_kind=definition.carrier_kind if definition else None,
             )
         )
     return clues
