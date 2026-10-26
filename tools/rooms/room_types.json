@@ -431,7 +431,7 @@
     "소반",
     "요강"
    ],
-   "min_items": 12,
+   "min_items": 8,
    "fill": [
     {
      "name_ko": "항아리",
@@ -608,7 +608,7 @@
     "요강",
     "가마솥"
    ],
-   "min_items": 12,
+   "min_items": 8,
    "fill": [
     {
      "name_ko": "항아리",

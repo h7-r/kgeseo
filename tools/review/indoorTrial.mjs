@@ -111,6 +111,9 @@ export function enforceTypes(plan, T) {
         } else if (['floor', 'corner', 'wall_low'].includes(c.place)) { c.place = 'edge'; fixes.push(`${r.name || r.role}: 「${nm}」 → 마루 끝(가운데 비움)`); }
       }
     }
+    // 10/26 미르: 「방 전체 배치가 엉망 — 도둑이라도 든 것 같다」 — 살림 수에 상한. 사전 필수 살림을 먼저 남기고 나머지(LLM 이 더 넣은 것)를 덜어 낸다. 퍼즐·이야기 물건은 세지 않는다
+    { const CAP = { 대청: 3, 부엌: 7, 헛간: 9, 곳간: 9 }[r.role] ?? 6; const life = mine().filter(c => ['furniture', 'life_trace'].includes(c.role) && c.place !== 'marker');
+      if (life.length > CAP) { const isMust = c => t.must.some(m => [m.name_ko, ...(m.q || [])].some(w => String(c.name_ko || '').includes(w))); const keep = [...life.filter(isMust), ...life.filter(c => !isMust(c))].slice(0, CAP); for (const c of life) if (!keep.includes(c) && !out.some(x => x.on_item === c.item_id && (x.serves || []).length)) { out = out.filter(x => x !== c); fixes.push(`${r.name || r.role}: 「${c.name_ko}」 뺌 — 살림이 너무 많음(${r.role} ${CAP}개까지)`); } } }
     // 검색어 붙이기(07) — 사전의 같은 물건 이름
     for (const c of mine()) if (!c.q) { const m = t.must.find(x => [x.name_ko, ...x.q].some(w => String(c.name_ko || '').includes(w))); if (m) c.q = m.q; }
   }
@@ -328,7 +331,7 @@ export function traceLayout(meta, markers, rooms, room) {
   let lightAt = null;
   for (const [k, c] of markers.entries()) {
     const kind = c.pending ? 'spot' : (c.show?.kind && c.show.kind !== 'object') ? c.show.kind : c.place === 'edge_step' ? 'step' : traceKind(c.name_ko); // 10/26: 단서가 「발자국」이라 하면 디딤돌 자리라도 발자국을 그린다 // pending = 에셋 없는 퍼즐 호스트의 임시 자리(10/22) · 10/26: 05 가 적은 shows.kind 를 먼저
-    const t = { id: c.item_id, name: String(c.name_ko).slice(0, 30), kind, wet: /젖은|물/.test(c.name_ko || ''), faint: /옅|희미|사라/.test(c.name_ko || ''), y: FY };
+    const t = { id: c.item_id, name: String(c.name_ko).slice(0, 30), kind, ...(c.show?.cells?.length ? { cells: c.show.cells, grid: c.show.grid || null } : {}), wet: /젖은|물/.test(c.name_ko || ''), faint: /옅|희미|사라/.test(c.name_ko || ''), y: FY };
     if (kind === 'foot') {
       if (!target) { notes.push(`「${c.name_ko}」: 이어질 문이 없어 못 그림`); continue; }
       const end = clampIn({ x: target.x + target.nx * 0.45, z: target.z + target.nz * 0.45 });
@@ -352,7 +355,7 @@ export function traceLayout(meta, markers, rooms, room) {
         const L = 1.5; t.pos = { x: +(w.x + w.nx * (L / 2 + 0.04)).toFixed(3), z: +(w.z + w.nz * (L / 2 + 0.04)).toFixed(3) }; t.size = [+(w.w * 1.1).toFixed(2), L];
         t.rot = +Math.atan2(w.nx, w.nz).toFixed(4); t.src = { x: +w.x.toFixed(3), z: +w.z.toFixed(3), nx: w.nx, nz: w.nz, w: w.w, h: w.h, from: '바깥(뒤뜰) 달빛·햇빛' };
         lightAt = { x: w.x + w.nx * 1.0, z: w.z + w.nz * 1.0 }; t.window = w.name;
-      } else if (kind === 'light' && w) { t.pos = clampIn({ x: w.x + w.nx * 1.0, z: w.z + w.nz * 1.0 }); t.size = [+(w.w * 1.5).toFixed(2), 0.9]; t.axis = w.wall === 'back' || w.wall === 'front' ? 'x' : 'z'; lightAt = t.pos; t.window = w.name; }
+      } else if (kind === 'light' && w) { t.pos = clampIn({ x: w.x + w.nx * 1.0, z: w.z + w.nz * 1.0 }); t.size = [+(w.w * 1.5).toFixed(2), 0.9]; t.axis = w.wall === 'back' || w.wall === 'front' ? 'x' : 'z'; lightAt = t.pos; t.window = w.name; t.n = [w.nx, w.nz]; }
       else if (kind === 'light') { t.pos = clampIn(center); t.size = [1.0, 0.8]; t.axis = 'x'; lightAt = t.pos; notes.push(`「${c.name_ko}」: 창이 없어 방 가운데에 그림`); }
       else { const base = lightAt || (w ? { x: w.x + w.nx * 1.0, z: w.z + w.nz * 1.0 } : center); t.pos = clampIn({ x: base.x + (w ? w.nx : 0) * 0.7, z: base.z + (w ? w.nz : 0.6) * 0.7 }); t.size = [0.6, 0.6]; }
     } else if (kind === 'water') {

@@ -100,11 +100,13 @@ def try_floor(it, e):
             r = rect(x, z, e[0] / 2, e[2] / 2)
             if free(r, e[1]) is None:
                 tgt = it.get("near"); 
-                sc = math.hypot(x - center[0], z - center[1]) if not tgt else math.hypot(x - placed[tgt]["x"], z - placed[tgt]["z"])
+                # 10/26 미르: 「도둑 든 것 같다」 — 바닥 물건을 방 한가운데로 모으지 않고 벽 가까이(한옥 방은 가운데를 비운다)
+                wall_d = min(x - W[0], W[1] - x, z - Z[0], Z[1] - z)
+                sc = wall_d if not tgt else math.hypot(x - placed[tgt]["x"], z - placed[tgt]["z"])
                 sc += random.random() * 0.15
                 if best is None or sc < best[0]: best = (sc, x, z, r)
     if not best: return {"fail": {"바닥": "빈 곳 없음"}}
-    return dict(x=best[1], z=best[2], y=FY, rot=random.uniform(-15, 15), rect=best[3])
+    return dict(x=best[1], z=best[2], y=FY, rot=random.choice([0, 180]) + random.uniform(-4, 4), rect=best[3])  # 10/26: 벽과 나란히(제멋대로 돌아간 물건이 어지러워 보임)
 
 def pack_on(sup, group):
     """같은 받침 위 물건들을 한꺼번에 — 가장자리 안쪽으로 물리고 줄 맞춰 모은다."""
