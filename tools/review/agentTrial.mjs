@@ -98,6 +98,11 @@ export async function presetSource(root) {
   return text ? { name: '나주문화원 「앙암바위」 (SRC-01, 10/15 수집)', text } : null;
 }
 
+// 01 사실에서 (원문 「…」)로 남긴 방언·옛말 낱말
+export function dialectTokens(d01) {
+  return [...new Set([...(d01?.facts || []), ...(d01?.open || [])].flatMap(f => [...String(f.text || '').matchAll(/원문 「([^」]{2,8})」/g)].map(m => m[1].trim())))].filter(t => t.length >= 2 && !/[?？]/.test(t));
+}
+
 export async function createTrial(root, input) {
   const title = clip(String(input?.title || '').trim(), 120) || '에이전트 시험';
   const sourceText = String(input?.sourceText || '');
@@ -317,6 +322,8 @@ async function runStepBody(root, trial, step) {
     if (step.id !== 's01' && adaptText(trial)) user = `${user}\n\n${adaptText(trial)}`;
     // 10/26 미르: 원문 「한방에서 안 재우고」(같은 방에서)를 방 이름 「한방」으로 옮겨 플레이어가 뜻을 몰랐다 → 방언·옛말은 풀어 쓴다
     if (step.id === 's01') user = `${user}\n\n[방언·옛말] 사실(F)·해석 유보(U) 문장은 표준어로 풀어 쓴다. 원문의 방언·옛말·구어는 뜻을 풀고 원문 표현은 괄호에 남긴다(예: 「신랑은 신부와 같은 방(원문 「한방」)이 아니라 사랑방에서 재워졌다」). 방 이름·물건 이름처럼 보이는 말이 실제로는 방언 표현일 수 있으니 확인하고, 뜻이 확실하지 않으면 사실로 확정하지 말고 해석 유보(U)에 넣는다.`;
+    // 10/26 미르(세 번째 지적): 01 이 풀어 쓴 「한방」을 02~04 가 다시 「신부와 한방이 아닌」으로 써서 화면에 남았다 — 01 의 (원문 「…」) 낱말을 뒤 문서에서 못 쓰게
+    if (step.id !== 's01') { const toks = dialectTokens(docs['01']?.json); if (toks.length) user = `${user}\n\n[방언·옛말 — 쓰지 말 것] 01 이 원문 표현으로만 남긴 말: ${toks.map(t => `「${t}」`).join(' · ')}. 이 문서에서는 이 말을 쓰지 않고 01 이 풀어 쓴 뜻으로 쓴다(예: 「한방」 → 「신부와 같은 방」). 플레이어가 처음 보는 사람이라고 생각하고 쓴다.`; }
     if (step.id === 's04') user = scene04Only(user);
     const text = await llm(root, trial, step, { system, user, cacheSystem: true });
     await writeOut(root, trial, `raw-${step.id}.txt`, text);

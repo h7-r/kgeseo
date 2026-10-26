@@ -680,8 +680,10 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
   }
   // 검수용 정보(10/22 미르: 퍼즐은 사람이 눈으로 검수 — 이야기 근거 · 연결된 에셋 · 상호작용 순서 · 장면 잠금)
   const a01 = await readJsonOut(root, trial, 'AI-01.json').catch(() => null), a04 = await readJsonOut(root, trial, 'AI-04.json').catch(() => null);
-  const factText = id => [...(a01?.facts || []), ...(a01?.open || []), ...(a01?.gf || [])].find(f => f.id === id)?.text || '';
-  const rdText = id => (a04?.scenes || []).flatMap(sc => sc.required_discoveries || []).find(d => d.id === id)?.text || '';
+  // 10/26 미르: 화면에는 풀어 쓴 말만 — 「(원문 「한방」)」 같은 원문 괄호는 검수 문서(01)에만 남긴다
+  const plain = t => String(t || '').replace(/\s*\(원문 「[^」]*」[^)]*\)/g, '');
+  const factText = id => plain([...(a01?.facts || []), ...(a01?.open || []), ...(a01?.gf || [])].find(f => f.id === id)?.text);
+  const rdText = id => plain((a04?.scenes || []).flatMap(sc => sc.required_discoveries || []).find(d => d.id === id)?.text);
   const pickOf = id => byItem.get(id)?.pick || null;
   const SCENES = (a04?.scenes || []).map(sc => ({ id: sc.scene_id, title: sc.title, order: sc.order, rooms: conv.rooms.map((r, i) => ((r.scenes || []).includes(sc.scene_id) ? i : -1)).filter(i => i >= 0), exit: sc.exit?.trigger || '', complete_when: sc.exit?.complete_when || '' }));
   const PZ = (puzzleDoc?.puzzles || []).filter(p => p.presentation !== 'ending_cinematic').map(p => ({
@@ -729,6 +731,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     { id: 'RG-ORDER', what: '창고는 부엌 다음(마루·방에 바로 붙지 않음)', bad: (() => { const L = conv.set.links || []; const role = n => conv.rooms.find(r => r.name === n)?.role; const hasK = conv.rooms.some(r => r.role === '부엌'); return hasK ? L.filter(l => [l.a, l.b].some(n => ['헛간', '곳간'].includes(role(n))) && [l.a, l.b].some(n => !['헛간', '곳간', '부엌'].includes(role(n)))).map(l => `${l.a}–${l.b}`) : []; })() },
     { id: 'RG-HOST', what: '05 퍼즐 호스트가 모두 공간에 연결됨', bad: PZ.flatMap(p => p.hosts.filter(h => !h.at.length).map(h => `${p.id}:${h.need_id}`)) },
     { id: 'RG-PENDING', what: '퍼즐 호스트가 임시 표식이 아니라 실제 물건(없으면 에셋 생성 요청)', warn: true, bad: Object.values(markersBy).flat().filter(c => c.pending).map(c => c.name_ko) },
+    { id: 'RG-DIALECT', what: '화면 글에 원문 방언이 그대로 없음(01 이 풀어 쓴 뜻으로)', bad: (() => { const toks = [...new Set([...(a01?.facts || []), ...(a01?.open || [])].flatMap(f => [...String(f.text || '').matchAll(/원문 「([^」]{2,8})」/g)].map(m => m[1].trim())))].filter(t => t.length >= 2); const txt = JSON.stringify({ PZ, SCENES }); return toks.filter(t => txt.includes(t)).map(t => `「${t}」`); })() },
     { id: 'RG-PUZZLE', what: '장면 순서대로 모든 퍼즐을 풀 수 있음', bad: puzzleChecks.filter(c => !c.solvable).map(c => `${c.id}: ${c.why}`) },
   ].map(x => ({ ...x, ok: !x.bad.length }));
   const vdata = { SC: SCENES, PZ, BK, ITEMS: viewItems, TRIAL: { id: trial.id, title: trial.title } };
