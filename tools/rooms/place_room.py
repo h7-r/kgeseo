@@ -153,9 +153,21 @@ for sf in room.get("surfaces", []):
 
 def record(it, p, e, sc, cls):
     if "fail" in p: log.append({"id": it["id"], "name": it["name"], "result": "못 놓음", "why": p["fail"]}); return
+    f = p.pop("shrink", 1.0); e = e * f; sc = sc * f
     p.update(id=it["id"], name=it["name"], file=it["file"], scale=sc, h=float(e[1]), cls=cls, dims=np.round(e, 3).tolist())
     placed[it["id"]] = p
     log.append({"id": it["id"], "name": it["name"], "result": "놓음" + (" (받침 대신 옆 바닥)" if p.get("fallback") else ""), "where": p.get("wall") or ("위: " + (placed[p["on"]]["name"]) if p.get("on") else "바닥"), "pos": [round(float(p["x"]), 2), round(float(p["y"]), 2), round(float(p["z"]), 2)]})
+
+# 10/26: 퍼즐 호스트는 빠지면 퍼즐이 안 된다(마루에 멍석 1.9m → 「바닥 빈 곳 없음」으로 빠져 단서가 카드로만 뜸) — 벽 따라 낮게 · 바닥 · 구석 순으로 다시 찾는다
+def host_retry(it, e, p):
+    if "fail" not in p or it.get("role") != "puzzle_host": return p
+    f0 = p.get("fallback") or p["fail"]
+    for f in (1.0, 0.8, 0.65):   # 그래도 없으면 조금 작게(멍석·자리처럼 크기 폭이 넓은 것) — 퍼즐이 빠지는 것보다 낫다
+        ef = e * f
+        for alt in (lambda: try_wall(it, ef, low=True), lambda: try_floor(it, ef), lambda: try_wall(it, ef, corner=True)):
+            q = alt()
+            if "fail" not in q: q["fallback"] = f0; q["shrink"] = f; return q
+    return p
 
 FIT = json.load(open(Path(__file__).resolve().parent / "room_fit.json")) if (Path(__file__).resolve().parent / "room_fit.json").exists() else {"rules": []}
 role = plan.get("room_role") or room.get("spec", {}).get("role")
@@ -174,6 +186,7 @@ for it in base_items:
     p = {"wall": lambda: try_wall(it, e), "wall_low": lambda: try_wall(it, e, low=True), "corner": lambda: try_wall(it, e, corner=True), "floor": lambda: try_floor(it, e)}[cls]()
     if "fail" in p and cls == "wall_low":   # 이부자리처럼 낮게 까는 것은 벽에 못 붙이면 방바닥 빈 곳에
         f0 = p["fail"]; p = try_floor(it, e); p["fallback"] = f0
+    p = host_retry(it, e, p)
     record(it, p, e, sc, cls)
 sups = []
 for it in plan["items"]:
@@ -184,6 +197,7 @@ for sup in sups:  # 받침 위의 받침(이불 위 베개 등)도 순서대로
     for it, e in grp:
         p = res_[it["id"]]
         if "fail" in p: f0 = p["fail"]; p = try_floor({**it, "near": sup} if sup in placed and not placed[sup].get("fixed") else it, e); p["fallback"] = f0
+        p = host_retry(it, e, p)
         record(it, p, e, D_[it["id"]][1], it["cls"])
 cover = sum((p["rect"][2] - p["rect"][0]) * (p["rect"][3] - p["rect"][1]) for p in placed.values() if not p.get("on") and not p.get("fixed")) / ((W[1] - W[0]) * (Z[1] - Z[0]))
 print("바닥 점유율", round(cover * 100, 1), "%")

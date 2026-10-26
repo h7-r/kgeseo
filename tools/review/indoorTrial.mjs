@@ -551,7 +551,10 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
       // 이름 겹침 막기(뷰어가 노드 이름으로 물건을 묶음)
       let name = String(c.name_ko || s.pick.nameKo).replace(/__/g, '_').slice(0, 30);
       while (items.some(x => x.name === name)) name += '·';
-      items.push({ id: c.item_id, name, file: path.join(root, a.path), ext, cls, size: ['h', real.heightM], role: c.role, serves: c.serves || [] });
+      // 10/26: 납작한 자리(멍석 mat.glb 두께 0.8cm)를 「키 1m」로 맞추면 125배(가로 240m)가 돼 어디에도 못 놓였다 — 납작한 것은 긴 변으로 맞춘다
+      const longE = Math.max(ext[0], ext[2]); let size = ['h', real.heightM];
+      if (ext[1] < 0.06 * longE && real.heightM / ext[1] * longE > 3) size = ['L', longE <= 3 && longE >= 0.3 ? longE : 1.8];
+      items.push({ id: c.item_id, name, file: path.join(root, a.path), ext, cls, size, role: c.role, serves: c.serves || [] });
     }
     // 솥 자리마다 솥 하나(아궁이가 둘이면 솥도 둘) — 모자라면 고른 솥을 하나 더
     const potItems = items.filter(it => it.cls.startsWith('on:솥자리'));
@@ -839,7 +842,7 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
       // 퍼즐이 그 물건을 열거나 비우면(05 reveal) 상태 변형판이 있는 에셋을 고른다(10/23 미르: 서랍이 열리는 판을 만들어 놓고 쓰지 않았다)
       const puzzleDoc7 = await readJsonOut(root, trial, 'puzzle.json').catch(() => null);
       const VESSEL = /솥|항아리|독$|동이|단지|대야|자배기|병$|사발|그릇/;
-      const needOf = t => { const acts = (puzzleDoc7?.puzzles || []).flatMap(p => (p.clues || []).filter(c => (t.serves || []).includes(c.from)).map(c => c.reveal?.action)); if (VESSEL.test(t.name_ko || '')) return acts.includes('empty') ? 'filled' : null; if (acts.includes('lift') && /이불|요$|이부자리|멍석|돗자리|보료|자리$|방석/.test(t.name_ko || '')) return 'folded'; if (acts.includes('break')) return 'broken'; return acts.includes('open') ? 'opened' : acts.includes('empty') ? 'filled' : null; };
+      const needOf = t => { const acts = (puzzleDoc7?.puzzles || []).flatMap(p => (p.clues || []).filter(c => (t.serves || []).includes(c.from)).map(c => c.reveal?.action)); if (VESSEL.test(t.name_ko || '')) return acts.includes('empty') ? 'filled' : null; /* 10/26: 들추기(lift)는 뷰어가 그 자리에서 접는다(foldSoft) — 접힌 판을 요구하면 방석에 1.9m 돗자리(mat.glb)가 골라져 방에 못 놓였다 */ if (acts.includes('break')) return 'broken'; return acts.includes('open') ? 'opened' : acts.includes('empty') ? 'filled' : null; };
       const hasState = (c, need) => need === 'broken' ? Boolean(c?.states?.broken) : need === 'folded' ? Boolean(c?.states?.folded) : need === 'opened' ? Boolean(c?.states?.opened) : need === 'filled' ? Boolean((c?.initialState && String(c.initialState).startsWith('filled')) || c?.states?.emptied) : false; // 10/23: 기본판이 찬 것(돌확) — 빈 판(emptied)이 있으면 찬 판으로 친다
       const STATE_Q = { folded: ['이불', '이부자리', '멍석', '돗자리', '보료'], opened: ['반닫이', '탁자장', '사방탁자', '다기장', '찬장', '뒤주', '의걸이장', '함', '궤'], filled: ['항아리', '독', '물독', '동이', '가마솥', '대야', '말'], broken: ['항아리', '옹기', '동이', '단지', '북', '사발'] };
       const { placementAsset: pa, glbSize: gs } = await import('./manifestPlace.mjs');

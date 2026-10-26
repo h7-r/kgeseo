@@ -510,7 +510,10 @@ function swapSpot(hostNode){const e=STATES.get(hostNode);if(!e||!cur)return null
  for(const k of [0,0.18,0.32,0.42]){const p=c.clone().addScaledVector(f,d*k);rc.set(new THREE.Vector3(p.x,b.max.y+0.5,p.z),new THREE.Vector3(0,-1,0));const h=rc.intersectObjects(objs,true)[0];if(h&&h.point.y>b.min.y+sz.y*0.02&&(!best||h.point.y<best.y))best=h.point.clone()}return best}
 function spawn(id,name,kind,hostNode,where){if(!cur)return;let b=groupBox(hostNode),c;if(b.isEmpty()){console.warn('단서 물건 자리 없음 — 방 가운데에 둠',hostNode);const w=meta.walk||{x:[0,0],z:[0,0]};c=new THREE.Vector3((w.x[0]+w.x[1])/2,meta.floor_y||0,(w.z[0]+w.z[1])/2);b=new THREE.Box3(c.clone(),c.clone())}else c=b.getCenter(new THREE.Vector3());const g=makeCarrier(kind);
  const st=MOVED.get(`${ci}|${hostNode}`);const y=where==='on'||where==='inside'?b.max.y+0.01:Math.max(meta.floor_y||0,b.min.y)+(st&&st.act==='lift'?0.02:0.012);/* 밑·뒤: 그 물건이 놓인 면(부뚜막 위 솥뚜껑이면 부뚜막 위) — 방바닥으로 두면 부뚜막 속에 묻혔다(10/22) */
- g.position.set(c.x+(where==='on'?0:0.02),y,c.z);if(st&&st.piv&&st.piv.swap){const sp=swapSpot(hostNode);if(sp)g.position.set(sp.x,sp.y+0.01,sp.z)}if(st&&st.piv&&st.piv.spot)g.position.set(st.piv.spot.x,Math.max(meta.floor_y||0,st.piv.spot.y)+0.012,st.piv.spot.z);g.rotation.y=0.4;g.name=`${name}__단서`;g.userData.carrier=id;g.scale.setScalar(1.6);cur.add(g);buildBoxes()}
+ g.position.set(c.x+(where==='on'?0:0.02),y,c.z);if(st&&st.piv&&st.piv.swap){const sp=swapSpot(hostNode);if(sp)g.position.set(sp.x,sp.y+0.01,sp.z)}if(st&&st.piv&&st.piv.spot)g.position.set(st.piv.spot.x,Math.max(meta.floor_y||0,st.piv.spot.y)+0.012,st.piv.spot.z);g.rotation.y=0.4;g.name=`${name}__단서`;g.userData.carrier=id;cur.add(g);
+ /* 10/26 미르: 「서신이 갑자기 띡 나타난다」 — 물건이 놓일 자리 안쪽(서랍 속·이불 밑·뒤)에서 작게 시작해 제자리로 밀려 나오며 커진다 */
+ const to=g.position.clone(),from=to.clone();if(where==='inside'){from.y-=0.08}else if(where==='under'||where==='behind'){from.lerp(new THREE.Vector3(c.x,to.y,c.z),0.7)}else{from.y+=0.12}
+ g.position.copy(from);g.scale.setScalar(0.25);const t0=performance.now();const step=()=>{if(!g.parent)return;const k=Math.min(1,(performance.now()-t0)/520),e=ease(k);g.position.lerpVectors(from,to,e);g.scale.setScalar(0.25+1.35*e);g.rotation.y=0.4+(1-e)*0.9;if(k<1)requestAnimationFrame(step);else buildBoxes()};step()}
 const carrierAt=g=>{for(const [id,r] of REV)if(r.state==='shown'&&r.room===ci&&carrierName(clueById(id))===g)return id;for(const [sid,k] of KEYS)if(k.state==='shown'&&k.room===ci&&sceneExit(sid).exit.key.name===g)return 'KEY-'+sid;return null};
 function unspawn(g){if(!cur)return;const rm=[];cur.traverse(o=>{if(o.name===`${g}__단서`)rm.push(o)});rm.forEach(o=>o.parent.remove(o));buildBoxes()}
 // 손에 든 모습(확대해 읽기)
@@ -530,12 +533,14 @@ pzHit=function(g){const out=[];const cr=carrierAt(g);if(cr){openHold(cr,'take');
     if(!MOVED.has(key)&&act!=='look'){const b=groupBox(g),cc=b.getCenter(new THREE.Vector3());const side=[cc.x-pos.x,cc.z-pos.z];MOVED.set(key,{act,side,piv:react(g,act,side)})}
     REV.set(c.id,{room:ci,node:g,state:'shown',act});
     if(c.carrier.kind==='mark'||!pl.spawn){out.push(`<div class="card pz-clue">${esc(c.reveal&&c.reveal.reaction||'')}</div>`);setTimeout(()=>openHold(c.id,'take'),act==='look'?50:pl.swap?1300:700)}
-    else{setTimeout(()=>spawn(c.id,carrierName(c),c.carrier.kind,g,c.reveal&&c.reveal.where),act==='look'?0:500);out.push(`<div class="card pz-clue"><span class="pill">발견</span> ${esc((c.reveal&&c.reveal.reaction)||`${carrierName(c)}이(가) 보인다`)}<div class="k">반짝이는 「${esc(carrierName(c))}」을(를) 눌러 집는다</div></div>`)}}
+    else{setTimeout(()=>spawn(c.id,carrierName(c),c.carrier.kind,g,c.reveal&&c.reveal.where),act==='look'?0:620)/* 10/26: 물건이 다 움직인 뒤 단서가 나온다 */;out.push(`<div class="card pz-clue"><span class="pill">발견</span> ${esc((c.reveal&&c.reveal.reaction)||`${carrierName(c)}이(가) 보인다`)}<div class="k">반짝이는 「${esc(carrierName(c))}」을(를) 눌러 집는다</div></div>`)}}
    else{NB.set(c.id,c.text);out.push(`<div class="card pz-clue"><span class="pill">단서</span> ${esc(c.text)}</div>`)}}
   if(p.solve&&p.solve.at===h.need_id&&!DONE.has(p.id)){if(devOf(p)&&devOf(p).on!=='exit_door'){devOpen=true;setTimeout(()=>openDevice(p),30)}else out.push(pzSolveUI(p))}}
  /* 10/23 미르: 한 번 조사하고 내려놓은 물건을 다시 누르면 그 단서를 다시 읽는다(여럿이면 누를 때마다 다음 것) */
  if(!one&&!out.length&&!devOpen){const got=[];for(const {p,h} of pzBound(ci,g))for(const c of p.clues)if(c.from===h.need_id&&NB.has(c.id)&&!SOLVE_ONLY.includes(c.get_by))got.push(c);
-  if(got.length){const k=`${ci}|${g}`,n=(REREAD.get(k)||0)%got.length;REREAD.set(k,n+1);const c=got[n];if(c.carrier&&c.carrier.kind){setTimeout(()=>openHold(c.id,'read'),30);return}out.push(`<div class="card pz-clue"><span class="pill">다시 보기</span> ${esc(c.text)}</div>`)}}
+  if(got.length){const k=`${ci}|${g}`,n=(REREAD.get(k)||0)%got.length;REREAD.set(k,n+1);const c=got[n];
+  /* 10/26 미르: 「이불이 접혔다가 다시 펴지지 않는다」 — 다 챙긴 물건을 다시 누르면 제자리로(펴기·닫기), 또 누르면 다시 연다. 단서는 그때마다 다시 읽는다 */
+  {const mk=MOVED.get(k);if(mk&&mk.act&&mk.act!=='look'&&mk.act!=='break'){if(!mk.restored)unreact(k);else{const bb=groupBox(g),cc=bb.getCenter(new THREE.Vector3());const side=[cc.x-pos.x,cc.z-pos.z];MOVED.set(k,{act:mk.act,side,piv:react(g,mk.act,side)})}}}if(c.carrier&&c.carrier.kind){setTimeout(()=>openHold(c.id,'read'),30);return}out.push(`<div class="card pz-clue"><span class="pill">다시 보기</span> ${esc(c.text)}</div>`)}}
  pzMsg=out.join('')}
 // 장면 마지막 퍼즐을 풀면 열쇠가 그 자리에 나온다
 const pzDone0=pzDone;pzDone=function(p){pzDone0(p);const sx=p.exit&&p.exit.key&&p.exit.key.name?p:null;if(!sx||KEYS.has(p.scene_id))return;const at=(p.hosts.find(h=>h.need_id===p.solve.at)||p.hosts[0])?.at?.[0];if(!at)return;
