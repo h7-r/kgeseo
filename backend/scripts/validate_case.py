@@ -9,6 +9,10 @@ from app.services.case_content_validation import (
     CaseContentLinkValidationError,
     validate_case_content_links,
 )
+from app.services.content_integrity import (
+    find_undefined_completion_references,
+    format_completion_reference_warnings,
+)
 from app.services.puzzle_runtime import PuzzleRuntimeError, load_case_runtime
 
 
@@ -40,6 +44,14 @@ def _print_error(line: str) -> None:
         encoding = sys.stderr.encoding or "ascii"
         safe = line.encode(encoding, "backslashreplace").decode(encoding)
         print(safe, file=sys.stderr)
+
+
+def _print_line(line: str) -> None:
+    try:
+        print(line)
+    except UnicodeEncodeError:
+        encoding = sys.stdout.encoding or "ascii"
+        print(line.encode(encoding, "backslashreplace").decode(encoding))
 
 
 def _report_failure(
@@ -84,6 +96,11 @@ def main(argv: list[str] | None = None) -> int:
     except CaseContentLinkValidationError as error:
         return _report_failure("Client-Server Links", case_id, error)
     print("[OK] Client-Server Links")
+    # 경고는 판정(VALID/INVALID · 종료 코드)을 바꾸지 않는다. 경고가 없으면 출력도 이전과 같다.
+    for line in format_completion_reference_warnings(
+        find_undefined_completion_references(server_runtime)
+    ):
+        _print_line(line)
     print(f"Case {case_id!r}: VALID")
     return 0
 
