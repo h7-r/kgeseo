@@ -8,9 +8,11 @@ from typing import Any
 import pytest
 
 from app.services.content_fingerprint import (
+    EXCLUDED_HEADER_FIELDS,
     FINGERPRINT_PREFIX,
     MissingContentPartError,
     NonCanonicalJsonError,
+    UnexpectedContentPartError,
     compute_content_fingerprint,
     content_body,
     header_mismatches,
@@ -58,7 +60,6 @@ def fp(**overrides: Any) -> str:
         "server": encode(SERVER),
         "npc": encode(NPC),
         "idmap": encode(IDMAP),
-        "generated_at_fields": (),
     }
     parts.update(overrides)
     return compute_content_fingerprint(**parts)
@@ -318,39 +319,101 @@ def test_header_fields_are_excluded_from_body() -> None:
         "content_fingerprint": "sha256:new",
         "status": "draft",
         "approvals": [],
+        "generated_at": "2026-10-27T01:00:00Z",
+        "published_at": "2026-10-27T02:00:00Z",
     }
-    no_header = {
-        k: v
-        for k, v in NPC.items()
-        if k not in {"content_fingerprint", "status", "approvals"}
-    }
+    no_header = {k: v for k, v in NPC.items() if k not in EXCLUDED_HEADER_FIELDS}
 
+    assert EXCLUDED_HEADER_FIELDS == {
+        "content_fingerprint",
+        "approvals",
+        "status",
+        "generated_at",
+        "published_at",
+    }
     assert fp(npc=encode(changed)) == fp()
     assert fp(npc=encode(no_header)) == fp()
-    # content_version · case_id는 본문에 남는다.
-    assert fp(npc=encode({**NPC, "content_version": 4})) != fp()
-    # 머리 필드는 최상위에서만 뺀다.
+
+
+@pytest.mark.parametrize("role", ["client", "server", "npc", "idmap"])
+def test_generated_and_published_timestamps_do_not_change_fingerprint(
+    role: str,
+) -> None:
+    source = {"client": CLIENT, "server": SERVER, "npc": NPC, "idmap": IDMAP}[role]
+    first = {
+        **source,
+        "generated_at": "2026-10-27T00:00:00Z",
+        "published_at": "2026-10-27T00:00:01Z",
+    }
+    second = {**source, "generated_at": "2026-12-31T23:59:59Z", "published_at": None}
+
+    assert fp(**{role: encode(first)}) == fp(**{role: encode(second)}) == fp()
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["content_fingerprint", "approvals", "status", "generated_at", "published_at"],
+)
+def test_nested_fields_with_header_names_are_kept(field: str) -> None:
     nested = deepcopy(NPC)
-    nested["general_nudges"][0]["status"] = "x"
+    nested["general_nudges"][0][field] = "kept"
+
+    assert content_body(nested, role="npc")["general_nudges"][0][field] == "kept"
     assert fp(npc=encode(nested)) != fp()
 
 
-def test_generated_at_fields_must_be_named_explicitly() -> None:
-    stamped = {**NPC, "generated_at": "2026-10-27T00:00:00Z"}
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("case_id", "case_other"),
+        ("content_version", 4),
+        ("schema_version", "npc-pack 0.2"),
+    ],
+)
+def test_identity_fields_stay_in_body(field: str, value: Any) -> None:
+    assert fp(npc=encode({**NPC, field: value})) != fp()
+    assert fp(server=encode({**SERVER, field: value})) != fp()
 
-    assert fp(npc=encode(stamped)) != fp()
-    assert fp(npc=encode(stamped), generated_at_fields=("generated_at",)) == fp()
-    with pytest.raises(TypeError):
-        compute_content_fingerprint(
-            client=encode(CLIENT), server=encode(SERVER), npc=encode(NPC)
-        )
+
+def test_idmap_content_change_changes_fingerprint() -> None:
+    changed = {**IDMAP, "zones": [{"local": "Z1", "zone_id": "ZONE_A"}]}
+
+    assert fp(idmap=encode(changed)) != fp()
 
 
-def test_missing_npc_is_not_computed() -> None:
+def test_missing_npc_is_rejected_for_published_cases() -> None:
     with pytest.raises(MissingContentPartError) as raised:
         fp(npc=None)
 
     assert str(raised.value) == "npc"
+    with pytest.raises(MissingContentPartError):
+        compute_content_fingerprint(client=encode(CLIENT), server=encode(SERVER))
+
+
+def test_legacy_fingerprint_uses_client_and_server_only() -> None:
+    legacy = compute_content_fingerprint(
+        client=encode(CLIENT), server=encode(SERVER), legacy=True
+    )
+    body = {"client": CLIENT, "server": SERVER}
+
+    assert legacy == "sha256:" + hashlib.sha256(jcs_canonicalize(body)).hexdigest()
+    assert legacy != fp()
+    assert verify_content_fingerprint(
+        legacy, client=encode(CLIENT), server=encode(SERVER), legacy=True
+    )
+
+
+@pytest.mark.parametrize("part", ["npc", "idmap"])
+def test_legacy_rejects_extra_parts(part: str) -> None:
+    with pytest.raises(UnexpectedContentPartError) as raised:
+        compute_content_fingerprint(
+            client=encode(CLIENT),
+            server=encode(SERVER),
+            legacy=True,
+            **{part: encode({})},
+        )
+
+    assert str(raised.value) == part
 
 
 @pytest.mark.parametrize("role", ["client", "server", "npc", "idmap"])
@@ -371,19 +434,13 @@ def test_verify_and_input_immutability() -> None:
     before = deepcopy(raw)
     expected = fp()
 
-    assert verify_content_fingerprint(expected, **raw, generated_at_fields=()) is True
-    assert (
-        verify_content_fingerprint(expected.upper(), **raw, generated_at_fields=())
-        is False
-    )
-    assert (
-        verify_content_fingerprint("sha256:" + "0" * 64, **raw, generated_at_fields=())
-        is False
-    )
+    assert verify_content_fingerprint(expected, **raw) is True
+    assert verify_content_fingerprint(expected.upper(), **raw) is False
+    assert verify_content_fingerprint("sha256:" + "0" * 64, **raw) is False
     assert raw == before
 
     document = deepcopy(NPC)
-    content_body(document, role="npc", generated_at_fields=())
+    content_body(document, role="npc")
     assert document == NPC
 
 
@@ -412,22 +469,24 @@ def test_header_mismatches_reports_role_and_field_only() -> None:
 CASES_DIR = Path(__file__).resolve().parents[1] / "app" / "content" / "cases"
 
 
-def test_case_001_files_canonicalize_but_full_fingerprint_needs_npc() -> None:
+def test_case_001_legacy_fingerprint_is_computed_and_stable() -> None:
     client = (CASES_DIR / "case_001.client.json").read_bytes()
     server = (CASES_DIR / "case_001.server.json").read_bytes()
 
-    assert jcs_canonicalize(parse_i_json(client))
-    assert jcs_canonicalize(parse_i_json(server))
+    first = compute_content_fingerprint(client=client, server=server, legacy=True)
+
+    assert first.startswith(FINGERPRINT_PREFIX)
+    assert first == compute_content_fingerprint(
+        client=client, server=server, legacy=True
+    )
     with pytest.raises(MissingContentPartError):
-        compute_content_fingerprint(
-            client=client, server=server, npc=None, generated_at_fields=()
-        )
+        compute_content_fingerprint(client=client, server=server)
 
 
 def test_differs_from_diagnostic_integrity_hashes() -> None:
     parts = {"client": encode(CLIENT), "server": encode(SERVER), "npc": encode(NPC)}
 
-    official = compute_content_fingerprint(**parts, generated_at_fields=())
+    official = compute_content_fingerprint(**parts)
 
     assert official != "sha256:" + content_fingerprint(parts)
     assert official[len(FINGERPRINT_PREFIX) :] != canonical_json_sha256(parts["npc"])

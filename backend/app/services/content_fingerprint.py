@@ -1,23 +1,26 @@
 """공식 콘텐츠 fingerprint 계산기 v0.1 (팀 검토 대기, 로더 · 세션 · 서비스에 연결하지 않음).
 
-근거: NPC 콘텐츠 데이터 계약 v0.3 §6 · v0.4 §6(10/27).
+근거: NPC 콘텐츠 데이터 계약 v0.3 §6 · v0.4 §6(10/27) · PM 확정 규칙 v0.4.1(10/27, 작업 지시로 전달).
 
     content_fingerprint = "sha256:" + sha256( canonical({"client": …, "server": …, "npc": …, "idmap": …}) )
 
-- 각 값은 그 파일의 **본문** = 최상위 객체에서 머리 필드 `content_fingerprint` · `approvals` · `status` ·
-  생성 시각을 뺀 것. idmap이 없는 케이스는 `"idmap"` 키를 빼고 계산한다(v0.4).
+- 각 값은 그 파일의 **본문** = 최상위 객체에서 머리 필드 다섯 개(`EXCLUDED_HEADER_FIELDS`:
+  `content_fingerprint` · `approvals` · `status` · `generated_at` · `published_at`)를 뺀 것(v0.4.1).
+  최상위에서만 뺀다. 중첩 객체의 같은 이름 필드는 그대로 둔다. `case_id` · `content_version` ·
+  `schema_version`은 본문에 남는다. idmap이 없는 케이스는 `"idmap"` 키를 빼고 계산한다(v0.4).
+- 레거시 케이스(`case_001`)는 `legacy=True`로 client · server 두 파일만 계산한다(v0.4.1). 이것은 계산
+  지원일 뿐이다. 레거시 세션에 버전을 강제하거나 NPC 게시 승인을 검증하는 정책이 아니다.
+  일반 케이스(`legacy=False`)에서 npc가 없으면 계산하지 않는다.
 - canonical = JSON Canonicalization Scheme(RFC 8785). 외부 라이브러리 없이 RFC 본문대로 구현했다.
   - 입력은 I-JSON(RFC 7493)이어야 한다: 중복 키 · NaN/Infinity · 짝 없는 서로게이트 · BOM 거부,
     정수는 ±2^53 범위만(밖이면 IEEE 754 배정밀도로 바뀌어 구현마다 값이 갈린다).
   - 객체 키는 UTF-16 코드 단위 순으로 정렬, 공백 없음, 숫자는 ECMAScript Number→String 규칙,
     문자열은 JSON.stringify 이스케이프 규칙, UTF-8 출력. Unicode 정규화(NFC 등)는 하지 않는다.
 
-[계약 미정 — 호출하는 쪽이 정하거나 계산하지 않음]
-- 생성 시각 필드 이름: 계약에 이름이 없다. `generated_at_fields`로 반드시 넘겨야 한다(기본값 없음).
-- npc 파일이 없는 케이스(`case_001` 등): 계약은 세 파일 게시만 말한다. 계산하지 않고 오류로 둔다.
-- sha256 출력 표기: 계약은 `"sha256:" + sha256(...)`만 적었다. 소문자 16진수로 구현했고 확인이 필요하다.
-- G3 `target_hash`: 승인 대상 산출물의 해시로, 이 fingerprint와 다른 값이다. 계산 대상이 정의되지 않아
-  구현하지 않는다.
+[출력 표기] `sha256:` + 소문자 16진수 64자(v0.4.1에서 기존 형식 유지로 확정).
+
+[구현하지 않음] G3 `target_hash`: 승인 대상 산출물의 해시로, 이 fingerprint와 다른 값이다.
+계산 대상이 정의되지 않았다.
 
 기존 `content_integrity`(파일 · 정규화 해시, 진단용)와 다르다. 그 해시는 공식 fingerprint가 아니다.
 결과 · 오류에는 콘텐츠 내용을 담지 않는다.
@@ -27,13 +30,15 @@ import hashlib
 import hmac
 import json
 import math
-from collections.abc import Collection, Mapping
+from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
 
 FINGERPRINT_PREFIX = "sha256:"
-# v0.3 §6에 이름이 나온 머리 필드
-NAMED_HEADER_FIELDS = frozenset({"content_fingerprint", "approvals", "status"})
+# v0.4.1 확정: 각 파일 최상위에서만 빼는 머리 필드
+EXCLUDED_HEADER_FIELDS = frozenset(
+    {"content_fingerprint", "approvals", "status", "generated_at", "published_at"}
+)
 # 배정밀도 실수로 정확히 나타낼 수 있는 정수 범위(I-JSON 권고)
 MAX_SAFE_INTEGER = 2**53
 
@@ -48,6 +53,10 @@ class NonCanonicalJsonError(FingerprintError):
 
 class MissingContentPartError(FingerprintError):
     pass
+
+
+class UnexpectedContentPartError(FingerprintError):
+    """레거시 계산에 npc · idmap이 들어왔다."""
 
 
 def _reject_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -183,35 +192,40 @@ def jcs_canonicalize(value: Any) -> bytes:
     return "".join(out).encode("utf-8")
 
 
-def content_body(
-    document: Any, *, role: str, generated_at_fields: Collection[str]
-) -> dict[str, Any]:
-    """최상위 객체에서 머리 필드를 뺀 새 dict(얕은 복사)."""
+def content_body(document: Any, *, role: str) -> dict[str, Any]:
+    """최상위 객체에서 머리 필드(`EXCLUDED_HEADER_FIELDS`)만 뺀 새 dict(얕은 복사)."""
 
     if not isinstance(document, Mapping):
         raise NonCanonicalJsonError(f"{role}: top level must be an object")
-    excluded = NAMED_HEADER_FIELDS | frozenset(generated_at_fields)
-    return {key: value for key, value in document.items() if key not in excluded}
+    return {
+        key: value
+        for key, value in document.items()
+        if key not in EXCLUDED_HEADER_FIELDS
+    }
 
 
 def compute_content_fingerprint(
     *,
     client: bytes,
     server: bytes,
-    npc: bytes | None,
+    npc: bytes | None = None,
     idmap: bytes | None = None,
-    generated_at_fields: Collection[str],
+    legacy: bool = False,
 ) -> str:
-    if npc is None:
-        # 계약에 npc 없는 케이스의 계산 규칙이 없다(idmap만 "없으면 키를 뺀다"가 정의돼 있다).
-        raise MissingContentPartError("npc")
-    parts: dict[str, bytes] = {"client": client, "server": server, "npc": npc}
-    if idmap is not None:
-        parts["idmap"] = idmap
+    parts: dict[str, bytes] = {"client": client, "server": server}
+    if legacy:
+        # 레거시(case_001): client · server만. 다른 파일이 오면 섞지 않고 거부한다.
+        for role, content in (("npc", npc), ("idmap", idmap)):
+            if content is not None:
+                raise UnexpectedContentPartError(role)
+    else:
+        if npc is None:
+            raise MissingContentPartError("npc")
+        parts["npc"] = npc
+        if idmap is not None:
+            parts["idmap"] = idmap
     combined = {
-        role: content_body(
-            parse_i_json(content), role=role, generated_at_fields=generated_at_fields
-        )
+        role: content_body(parse_i_json(content), role=role)
         for role, content in parts.items()
     }
     return FINGERPRINT_PREFIX + hashlib.sha256(jcs_canonicalize(combined)).hexdigest()
@@ -222,16 +236,12 @@ def verify_content_fingerprint(
     *,
     client: bytes,
     server: bytes,
-    npc: bytes | None,
+    npc: bytes | None = None,
     idmap: bytes | None = None,
-    generated_at_fields: Collection[str],
+    legacy: bool = False,
 ) -> bool:
     actual = compute_content_fingerprint(
-        client=client,
-        server=server,
-        npc=npc,
-        idmap=idmap,
-        generated_at_fields=generated_at_fields,
+        client=client, server=server, npc=npc, idmap=idmap, legacy=legacy
     )
     return hmac.compare_digest(actual, expected)
 
