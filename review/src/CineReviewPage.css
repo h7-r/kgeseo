@@ -28,3 +28,10 @@
 @media (max-width:900px){.cr-top,.cr-main{grid-template-columns:1fr}}
 .cr-gate{font-size:12px;background:#fff6e5;color:#8a5a12;border-radius:6px;padding:4px 10px}.cr-gate.ok{background:#e7f3ed;color:#347253}
 .cr-summary select{width:auto;max-width:180px}
+.story-summary .ss-body{font-size:14px;line-height:1.75}.story-summary .ss-body h3{margin:4px 0}.story-summary .ss-one{font-size:15px;color:#3d3654;background:#f6f4fb;border-radius:8px;padding:8px 12px}
+.story-summary .ss-body ul,.story-summary .ss-body ol{margin:4px 0 10px;padding-left:20px}
+.cr-cap-edit{width:100%;font-size:14px;line-height:1.6;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin:6px 0;resize:vertical;font-family:inherit}
+.cr-sec-edit{display:grid;gap:6px;margin:4px 0 8px}.cr-sec-edit label,.cr-add label{display:grid;gap:3px;font-size:12px;color:#5e5873}
+.cr-sec-edit textarea,.cr-add textarea{font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;resize:vertical}
+.cr-add{display:grid;gap:8px;border-style:dashed;border-left-color:#6252b5}.cr-add small{color:var(--muted);font-size:11px}
+.story-summary .panel-head button{white-space:nowrap}.story-summary .ss-body h3{font-size:18px;line-height:1.4}

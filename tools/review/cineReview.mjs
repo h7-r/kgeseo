@@ -45,7 +45,7 @@ export async function detail(root, id) {
   const sections = [];
   for (const x of panelRefs(doc)) {
     let s = sections.find(v => v.section === x.section);
-    if (!s) { s = { section: x.section, title: x.section === 'ending' ? '결말' : x.section.startsWith('recall:') ? `회상 ${x.section.slice(7)}` : `${titles[x.c.scene_id] || x.c.scene_id}`, goal: x.c.goal || '', reveal: x.c.reveal || '', field: x.c.field || null, panels: [] }; sections.push(s); }
+    if (!s) { s = { section: x.section, kind: x.section === 'ending' ? 'ending' : x.section.startsWith('recall:') ? 'recall' : 'intro', title: x.section === 'ending' ? '결말' : x.section.startsWith('recall:') ? `회상 ${x.section.slice(7)}` : `${titles[x.c.scene_id] || x.c.scene_id}`, goal: x.c.goal || '', reveal: x.c.reveal || '', left_open: x.c.left_open || '', field: x.c.field || null, panels: [] }; sections.push(s); }
     const q = x.q; s.panels.push({ key: x.key, id: q.id, caption: q.caption || '', image_prompt: q.image_prompt || '', img: q.img || null, candidates: q.candidates || (q.img ? [q.img] : []), review: q.review?.status ? q.review : { status: 'pending' }, aiReview: q.aiReview || (q.review && 'ok' in q.review ? q.review : null) /* 10/27 이전 판: Claude 그림 판정이 review 자리에 있었다 */, job: jobs[x.key] || null });
   }
   const all = sections.flatMap(s => s.panels); const pending = all.filter(p => p.review.status === 'pending').length;
@@ -56,11 +56,25 @@ export async function detail(root, id) {
 /** 사람 결정 — pick(후보 고르기) · approve(승인) · reject(반려) · reset(검수 전으로) · edit(글·그림 지시 고치기) */
 export async function decide(root, id, input = {}) {
   const f = path.join(tdir(root, id), 'cinematics.json'); const doc = await readJ(f);
-  const { panelRefs } = await director(root); const x = panelRefs(doc).find(v => v.key === input.key); if (!x) fail(404, '컷을 찾을 수 없습니다.');
-  const q = x.q; const now = new Date().toISOString(); const act = String(input.action || '');
+  const { panelRefs } = await director(root); const now = new Date().toISOString(); const act = String(input.action || '');
+  // 10/28 미르: 「대본은 직접 수정 및 입력도 가능해야」 — 장면 글(goal·결말)·컷 추가·컷 빼기
+  const secOf = sec => (doc.cinematics || []).find(c => sec === 'ending' ? c.kind === 'ending' : c.kind === 'intro' && `intro:${c.scene_id}` === sec) || fail(404, '장면을 찾을 수 없습니다.');
+  const T = (v, n) => String(v ?? '').trim().slice(0, n);
+  if (act === 'section' || act === 'add' || act === 'remove') {
+    if (act === 'section') { const c = secOf(input.section); if (c.kind === 'intro' && input.goal != null) c.goal = T(input.goal, 300); if (c.kind === 'ending') { if (input.reveal != null) c.reveal = T(input.reveal, 500); if (input.left_open != null) c.left_open = T(input.left_open, 500); c.field ||= {}; if (input.place != null) c.field.place = T(input.place, 120); if (input.seal != null) c.field.seal = T(input.seal, 400); if (input.question != null) c.field.question = T(input.question, 200); } }
+    if (act === 'add') { const c = secOf(input.section); const cap = T(input.caption, 300); if (!cap) fail(422, '컷 글을 입력하세요.'); c.panels ||= []; const ids = new Set(c.panels.map(q => String(q.id))); let k = 1; while (ids.has(`H${k}`)) k++;
+      const q = { id: `H${k}`, caption: cap, image_prompt: T(input.image_prompt, 1200) || '', fact_ids: [], uses: ['house'], candidates: [], review: { status: 'pending', by: 'human', at: now, note: '사람이 추가한 컷' } };
+      const at = input.after_key ? c.panels.findIndex(z => `${input.section}|${z.id}` === input.after_key) : -1; c.panels.splice(at >= 0 ? at + 1 : c.panels.length, 0, q); input.key = `${input.section}|${q.id}`; }
+    if (act === 'remove') { const x = panelRefs(doc).find(v => v.key === input.key) || fail(404, '컷을 찾을 수 없습니다.'); const c = x.c; if ((c.panels || []).length <= 1) fail(422, '장면에 컷이 하나뿐입니다 — 빼지 말고 고치거나 반려하세요.'); c.panels = c.panels.filter(q => q !== x.q); }
+    (doc.humanReview ||= []).push({ key: input.key || input.section, action: act, at: now });
+    await fs.writeFile(f, JSON.stringify(doc, null, 2)); const synced = await sync(root, id, doc); return { ok: true, synced, ...(await detail(root, id)) };
+  }
+  const x = panelRefs(doc).find(v => v.key === input.key); if (!x) fail(404, '컷을 찾을 수 없습니다.');
+  const q = x.q;
   if (act === 'pick') { const c = q.candidates || []; if (!c.includes(input.img)) fail(422, '후보에 없는 그림입니다.'); q.img = input.img; }
   else if (act === 'approve' || act === 'reject' || act === 'reset') { if (act === 'approve' && !q.img) fail(422, '고른 그림이 없습니다 — 그림 없이 쓰려면 반려(글만)로.'); q.review = { status: act === 'reset' ? 'pending' : act === 'approve' ? 'approved' : 'rejected', by: 'human', at: now, note: String(input.note || '').slice(0, 500) }; }
-  else if (act === 'edit') { if (typeof input.caption === 'string' && input.caption.trim()) q.caption = input.caption.trim().slice(0, 300); if (typeof input.image_prompt === 'string' && input.image_prompt.trim()) q.image_prompt = input.image_prompt.trim().slice(0, 1200); q.review = { status: 'pending', by: 'human', at: now, note: '글·그림 지시 고침' }; }
+  else if (act === 'edit') { if (typeof input.caption === 'string' && input.caption.trim()) q.caption = input.caption.trim().slice(0, 300); /* 사람이 고친 글은 그 사람의 결정 — 상태 그대로 */
+    if (typeof input.image_prompt === 'string' && input.image_prompt.trim() && input.image_prompt.trim() !== q.image_prompt) { q.image_prompt = input.image_prompt.trim().slice(0, 1200); if (q.review?.status === 'approved') q.review = { status: 'pending', by: 'human', at: now, note: '그림 지시 고침 — 다시 그려 확인' }; } }
   else fail(422, '알 수 없는 결정입니다.');
   if (!STATUS.includes(q.review?.status || 'pending')) q.review = { status: 'pending' };
   (doc.humanReview ||= []).push({ key: input.key, action: act, img: act === 'pick' ? input.img : undefined, note: input.note || undefined, at: now });
@@ -106,7 +120,7 @@ async function sync(root, id, doc) {
   const vdF = path.join(T, 'rooms/viewer_data.json');
   if (await exists(vdF)) {
     const vd = await readJ(vdF); const C = doc.cinematics || [];
-    for (const sc of vd.SC || []) { const it = C.find(c => c.kind === 'intro' && c.scene_id === sc.id); if (it) sc.intro = { goal: it.goal || '', panels: (it.panels || []).map(show) }; if (sc.ending) { const en = C.find(c => c.kind === 'ending'); if (en) sc.ending = { ...sc.ending, panels: (en.panels || []).map(show), reveal: en.reveal || sc.ending.reveal } } }
+    for (const sc of vd.SC || []) { const it = C.find(c => c.kind === 'intro' && c.scene_id === sc.id); if (it) sc.intro = { goal: it.goal || '', panels: (it.panels || []).map(show) }; if (sc.ending) { const en = C.find(c => c.kind === 'ending'); if (en) sc.ending = { ...sc.ending, panels: (en.panels || []).map(show), reveal: en.reveal || sc.ending.reveal, left_open: en.left_open ?? sc.ending.left_open, field: en.field || sc.ending.field } } }
     for (const q of C.flatMap(c => c.panels || [])) if (q.img && q.review?.status === 'approved') { const src = path.join(T, 'cine', q.img), dst = path.join(T, 'rooms', q.img); if (await exists(src) && !(await exists(dst))) await fs.copyFile(src, dst); }
     await fs.writeFile(vdF, JSON.stringify(vd)); out.push('방 뷰어');
   }

@@ -552,6 +552,11 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
       }
       const input = ['POST', 'PATCH'].includes(req.method) ? await body(req, path.endsWith('/scene-captures') ? 1_000_000 : MAX_BODY) : null;
       // ── 에이전트 시험(agentTrial.mjs, 10/19) — 긴 LLM 단계는 직렬 큐 밖에서 돈다. 검수 기록을 만드는 /space 만 큐 안에서 ──
+      // ── 설화 전문 요약 정리본(10/28 미르: 설화와 기획 맨 위에) — 요청마다 storySummary.mjs 를 새로 읽는다 ──
+      if (path.startsWith('/__review/story-summary/')) {
+        try { const ss = await import(new URL(`./storySummary.mjs?t=${Date.now()}`, import.meta.url).href); const [code, out] = await ss.handle(root, req.method, path, input); return send(code, out); }
+        catch (error) { if (error?.status) return send(error.status, { error: 'story_summary', message: error.message }); throw error; }
+      }
       // ── 이야기 컷 사람 검수(10/28 미르: 그림 검수·선택·미세 조정·반려는 사람이) — 요청마다 cineReview.mjs 를 새로 읽는다 ──
       if (path === '/__review/cine' || path.startsWith('/__review/cine/')) {
         try { const cr = await import(new URL(`./cineReview.mjs?t=${Date.now()}`, import.meta.url).href); const [code, out] = await cr.handle(root, req.method, path, input); return send(code, out); }
