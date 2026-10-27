@@ -12,12 +12,14 @@ import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { TOON_GRADIENT } from "@/engine/toon";
 
 import { usePresentationOverrides } from "../app/presentation";
+import { IS_NPC_TEST } from "../app/runtimeFlags";
 import type { MeshAppearanceConfig } from "../avatar/meshAppearance";
 import type { SidekickConfig } from "../avatar/sidekickOptions";
 import type { ToonConfig } from "../avatar/toonMaterial";
 import type { OutlineConfig } from "../avatar/toonOutline";
 import Editor from "../placement/Editor";
 import { GROUP_IDS } from "../placement/editFile";
+import NajuNpcMarker from "../npc/NajuNpcMarker";
 import { MESH_NAMES } from "../plan/meshNames";
 import { CORE, UNITS_PER_METER } from "../plan/sitePlan";
 import { SKY_STYLE } from "../world/sky";
@@ -442,6 +444,9 @@ export default function NajuScene({
       )}
       {/* &애니판 — 2톤 부드러운 명암·색 보정·먼 곳 바램(world/animeStyle). WorldToon 의 램프 조각을 덮는다 */}
       {IS_ANIME_VARIANT && <AnimeStyleLayer />}
+
+      {/* NPC 동행 개발 테스트(?npc) — 고정 임시 NPC. 플레이어 이동·지형·카메라와 무관하게 그리기만 한다 */}
+      {IS_NPC_TEST && <NajuNpcMarker terrain={terrain} />}
 
       <PlayerAvatar
         isMounted={isAvatarMounted}

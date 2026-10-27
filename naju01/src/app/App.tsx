@@ -46,7 +46,7 @@ import {
   MIN_DPR,
   MSAA_SAMPLES,
   SHOW_CUSTOMIZE_PANEL,
-  IS_FIRST_PERSON_ONLY,
+  ALLOW_VIEW_TOGGLE,
   DASHBOARD_LEFT_PX,
   HAS_DASHBOARD,
   SHOW_DEV_TOOLS,
@@ -144,7 +144,7 @@ export default function App() {
       // 시점 전환은 카메라 회전을 만지지 않고 캐릭터 표시만 바꾼다.
       // 수식키가 눌린 V 는 편집기의 붙여넣기(⌘V/Ctrl+V)다.
       if (
-        !IS_FIRST_PERSON_ONLY &&
+        ALLOW_VIEW_TOGGLE &&
         event.code === "KeyV" &&
         !event.repeat &&
         !event.ctrlKey &&
@@ -201,7 +201,8 @@ export default function App() {
               controlsRef={controlsRef}
               onLockChange={setIsLocked}
               reportRef={reportRef}
-              isThirdPerson={viewMode === "3인칭"}
+              // 전환이 허용된 실행(?npc)에서만 3인칭이 된다 — 그 밖에서는 상태와 무관하게 1인칭
+              isThirdPerson={ALLOW_VIEW_TOGGLE && viewMode === "3인칭"}
               sidekickConfig={sidekickConfig}
               meshConfig={meshConfig}
               toonConfig={toonConfig}
@@ -236,7 +237,7 @@ export default function App() {
       {SHOW_DEV_TOOLS && !isLocked && <ControlsHelp />}
       {/* 다 숨겼을 때 되돌리는 법을 잊지 않게 작은 자국만 남긴다 */}
       {HAS_DASHBOARD && !isDashboardVisible && <div style={hiddenHintStyle}>[H] 누르면 계기판이 열립니다</div>}
-      {!IS_FIRST_PERSON_ONLY && (
+      {ALLOW_VIEW_TOGGLE && (
         <button type="button" onClick={() => setViewMode(toggleViewMode)} style={viewButtonStyle}>
           [V] {viewMode}
         </button>

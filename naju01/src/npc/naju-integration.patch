@@ -1,0 +1,103 @@
+diff --git a/naju01/src/app/App.tsx b/naju01/src/app/App.tsx
+index 0c52888..473a790 100644
+--- a/naju01/src/app/App.tsx
++++ b/naju01/src/app/App.tsx
+@@ -46,7 +46,7 @@ import {
+   MIN_DPR,
+   MSAA_SAMPLES,
+   SHOW_CUSTOMIZE_PANEL,
+-  IS_FIRST_PERSON_ONLY,
++  ALLOW_VIEW_TOGGLE,
+   DASHBOARD_LEFT_PX,
+   HAS_DASHBOARD,
+   SHOW_DEV_TOOLS,
+@@ -144,7 +144,7 @@ export default function App() {
+       // 시점 전환은 카메라 회전을 만지지 않고 캐릭터 표시만 바꾼다.
+       // 수식키가 눌린 V 는 편집기의 붙여넣기(⌘V/Ctrl+V)다.
+       if (
+-        !IS_FIRST_PERSON_ONLY &&
++        ALLOW_VIEW_TOGGLE &&
+         event.code === "KeyV" &&
+         !event.repeat &&
+         !event.ctrlKey &&
+@@ -201,7 +201,8 @@ export default function App() {
+               controlsRef={controlsRef}
+               onLockChange={setIsLocked}
+               reportRef={reportRef}
+-              isThirdPerson={viewMode === "3인칭"}
++              // 전환이 허용된 실행(?npc)에서만 3인칭이 된다 — 그 밖에서는 상태와 무관하게 1인칭
++              isThirdPerson={ALLOW_VIEW_TOGGLE && viewMode === "3인칭"}
+               sidekickConfig={sidekickConfig}
+               meshConfig={meshConfig}
+               toonConfig={toonConfig}
+@@ -236,7 +237,7 @@ export default function App() {
+       {SHOW_DEV_TOOLS && !isLocked && <ControlsHelp />}
+       {/* 다 숨겼을 때 되돌리는 법을 잊지 않게 작은 자국만 남긴다 */}
+       {HAS_DASHBOARD && !isDashboardVisible && <div style={hiddenHintStyle}>[H] 누르면 계기판이 열립니다</div>}
+-      {!IS_FIRST_PERSON_ONLY && (
++      {ALLOW_VIEW_TOGGLE && (
+         <button type="button" onClick={() => setViewMode(toggleViewMode)} style={viewButtonStyle}>
+           [V] {viewMode}
+         </button>
+diff --git a/naju01/src/app/runtimeFlags.ts b/naju01/src/app/runtimeFlags.ts
+index adf5f26..9563344 100644
+--- a/naju01/src/app/runtimeFlags.ts
++++ b/naju01/src/app/runtimeFlags.ts
+@@ -53,6 +53,10 @@ const IS_PRESENTING = PRESENTATION_MODE !== null;
+ export const IS_REVIEW_RUN = QUERY.get("review") === "1";
+ /** 나주 본편은 1인칭 고정(10/15 미르) — 3인칭·캐릭터 꾸미기는 로비에서만. V 전환 없음 */
+ export const IS_FIRST_PERSON_ONLY = true;
++/** ?npc — NPC 동행 개발 테스트(Sandbox 전용). 검수 실행(?review=1)에서는 켜지지 않는다 */
++export const IS_NPC_TEST = QUERY.has("npc") && !IS_REVIEW_RUN;
++/** 개발용 V 1·3인칭 전환 — NPC 테스트에서만 허용한다. 본편은 IS_FIRST_PERSON_ONLY 로 1인칭 고정 */
++export const ALLOW_VIEW_TOGGLE = IS_NPC_TEST;
+ /** 캐릭터 꾸미기 패널(왼쪽) */
+ export const SHOW_CUSTOMIZE_PANEL = !IS_PRESENTING && !IS_REVIEW_RUN && !IS_FIRST_PERSON_ONLY;
+ /** 도면 계기판 — 처음엔 접어 두고(?dev 는 펼쳐서) H 로 연다 */
+diff --git a/naju01/src/scene/NajuScene.tsx b/naju01/src/scene/NajuScene.tsx
+--- a/naju01/src/scene/NajuScene.tsx
++++ b/naju01/src/scene/NajuScene.tsx
+@@ -12,12 +12,15 @@
+ import { TOON_GRADIENT } from "@/engine/toon";
+ 
+ import { usePresentationOverrides } from "../app/presentation";
++import { IS_NPC_TEST } from "../app/runtimeFlags";
+ import type { MeshAppearanceConfig } from "../avatar/meshAppearance";
+ import type { SidekickConfig } from "../avatar/sidekickOptions";
+ import type { ToonConfig } from "../avatar/toonMaterial";
+ import type { OutlineConfig } from "../avatar/toonOutline";
+ import Editor from "../placement/Editor";
+ import { GROUP_IDS } from "../placement/editFile";
++import NajuNpcBody from "../npc/NajuNpcBody";
++import { useNajuNpcFollow } from "../npc/useNajuNpcFollow";
+ import { MESH_NAMES } from "../plan/meshNames";
+ import { CORE, UNITS_PER_METER } from "../plan/sitePlan";
+ import { SKY_STYLE } from "../world/sky";
+@@ -246,6 +249,17 @@
+     reportRef,
+     playerState,
+   });
++  // NPC 동행(?npc) — 반드시 usePlayerMovement 바로 뒤. 그래야 같은 프레임의 플레이어 자리를 읽는다(npc/INTEGRATION.md)
++  const npcFollow = useNajuNpcFollow({
++    enabled: IS_NPC_TEST,
++    // 플레이어가 걷는 동안과 같은 조건(usePlayerMovement 의 active·paused)
++    active: (active || isEditing) && !((isEditing && isOverview) || isReviewHold),
++    playerState,
++    terrain,
++    instanceGroups,
++    ramp,
++    allowLeavingCore: controls.allowLeavingCore,
++  });
+   const rockAsset = useRockAsset(controls);
+   useBakedTerrainTexture(scene, controls.bakedTerrainTexture);
+ 
+@@ -443,6 +457,9 @@
+       {/* &애니판 — 2톤 부드러운 명암·색 보정·먼 곳 바램(world/animeStyle). WorldToon 의 램프 조각을 덮는다 */}
+       {IS_ANIME_VARIANT && <AnimeStyleLayer />}
+ 
++      {/* NPC 동행 개발 테스트(?npc) — 자리는 useNajuNpcFollow 가 매 프레임 직접 고친다. 여기서는 그리기만 */}
++      {IS_NPC_TEST && <NajuNpcBody meshRef={npcFollow.meshRef} />}
++
+       <PlayerAvatar
+         isMounted={isAvatarMounted}
+         visible={isThirdPerson}

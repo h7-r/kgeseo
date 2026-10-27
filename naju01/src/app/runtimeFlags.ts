@@ -53,6 +53,10 @@ const IS_PRESENTING = PRESENTATION_MODE !== null;
 export const IS_REVIEW_RUN = QUERY.get("review") === "1";
 /** 나주 본편은 1인칭 고정(10/15 미르) — 3인칭·캐릭터 꾸미기는 로비에서만. V 전환 없음 */
 export const IS_FIRST_PERSON_ONLY = true;
+/** ?npc — NPC 동행 개발 테스트(Sandbox 전용). 검수 실행(?review=1)에서는 켜지지 않는다 */
+export const IS_NPC_TEST = QUERY.has("npc") && !IS_REVIEW_RUN;
+/** 개발용 V 1·3인칭 전환 — NPC 테스트에서만 허용한다. 본편은 IS_FIRST_PERSON_ONLY 로 1인칭 고정 */
+export const ALLOW_VIEW_TOGGLE = IS_NPC_TEST;
 /** 캐릭터 꾸미기 패널(왼쪽) */
 export const SHOW_CUSTOMIZE_PANEL = !IS_PRESENTING && !IS_REVIEW_RUN && !IS_FIRST_PERSON_ONLY;
 /** 도면 계기판 — 처음엔 접어 두고(?dev 는 펼쳐서) H 로 연다 */
