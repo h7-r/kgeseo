@@ -12,6 +12,7 @@ const SYSTEM = `너는 지역 설화 방탈출 게임 「왜곡」의 장면 연
 원칙(10/27 미르)
 - 한 판의 게임은 하나의 서사로 완결되고, 새로운 사실을 알며 끝난다. 현장에 가야만 확인할 수 있는 마지막 봉인 하나만 완주자에게 제안한다.
 - 컷은 공간에서 다음 공간으로 넘어갈 때마다 이야기를 읽게 하고, 다음 공간에서 무엇을 왜 풀어야 하는지 당위를 준다.
+- 세계관(사용자 글의 [세계관 요약])을 어기지 않는다 — 현대의 조사관 강도윤이 텔레포트로 현재의 그 장소에 겹친 왜곡 영역에 들어간다(시간 여행 아님). 설화 속 인물에게 「신고」「실종 접수」 같은 현대 행정 말을 쓰지 않는다. 첫 장면은 본부가 감지한 현재의 이상 징후 → 진입 → 이 이야기의 어디가 어긋났나로 연다(10/28 미르: 「신고가 들어왔다는 건 과거 시대에 신고가 들어왔다는 말인가?」).
 - 01 설화 사실만 쓴다. U(해석 유보) 항목은 단정하지 않는다. NG(금지 왜곡)는 어기지 않는다. 원문 방언·옛말은 풀어 쓴 지금 말로.
 - 퍼즐의 답, 뒤 공간에서 밝혀질 것은 앞 컷에서 말하지 않는다.
 쓸 것(JSON 하나)
@@ -51,7 +52,7 @@ S3 01 사실과 맞나 — 사실에 없는 장소·인물·인물 속성·사�
 S4 누설 — 그 장면 퍼즐의 답이나 뒤 장면에서 밝혀질 것을 미리 말함.
 S5 goal 이 그 장면 실제 퍼즐(무엇을 찾나)과 맞나.
 S6 흐름 — 앞 장면에서 알게 된 것에서 이 장면 질문으로 자연스럽게 이어지나. 결말은 이 판을 닫고 새 사실을 밝히나.
-S7 세계관 — 첫 장면에서 플레이어가 누구이고 왜 여기 왔는지(각색 조건) 알 수 있나.
+S7 세계관 — 첫 장면에서 플레이어가 누구이고 왜 여기 왔는지 알 수 있나. [세계관 요약]과 어긋나면 실패: 시간 여행처럼 씀, 설화 속 인물에게 「신고가 들어왔다」「실종 신고」 같은 현대 행정 말, 설화 속 일을 지금 벌어지는 사건처럼 씀, 본부·도윤을 전지·면역으로 씀.
 S8 재미·몰입(10/27 미르: 「너무 간결하고 어색하고 재미도 없다」) — 구체적인 장면·감각이 있나, 장면 마지막 컷이 궁금증이나 긴장을 남기나. 설명문투·요약문투, 같은 문형 되풀이, 빈 수식어면 실패.
 S9 말이 되나 — 왜 이 장소에 왔고 왜 이것을 풀어야 하는지 인과가 이어지나. 앞뒤 컷과 모순, 소개 없이 튀어나오는 인물·물건, 소리 내어 읽으면 어색한 문장(이 글은 그대로 음성으로 읽힌다)이면 실패.
 엄격하게 본다 — 게임 첫 화면에 그대로 나갈 글이다. 모든 컷·goal·자막·reveal 을 하나씩 판정하고, 통과도 까닭을 한 줄 적는다.
@@ -169,9 +170,10 @@ export async function runDirector({ root, trial, step, docs, readJsonOut, writeO
   const scOrder = scenes.map(s => s.scene_id);
   const learnsOf = sid => P.filter(p => p.scene_id === sid).map(p => `${p.puzzle_id}: ${p.learns || p.title || ''}`);
   const knowLines = scOrder.map((sid, i) => [`## ${sid} intro 를 쓸 때`, `- 말해도 되는 것(앞 장면에서 플레이어가 이미 알아냄): ${scOrder.slice(0, i).flatMap(learnsOf).join(' / ') || '없음 — 각색 조건(플레이어가 누구, 왜 왔나)과 이 장면의 겉모습·물음만'}`, `- 아직 말하면 안 되는 것(이 장면부터 퍼즐이 밝힐 것 — 물음으로만 던진다): ${scOrder.slice(i).flatMap(learnsOf).join(' / ') || '없음'}`].join('\n')).join('\n\n');
+  const world = await fs.readFile(path.join(root, 'tools/review/world_brief.md'), 'utf8').catch(() => '');
   const adapt = trial.adaptation?.text ? `\n\n[각색 조건 — 제작팀 방침, 원전 사실 아님]\n${trial.adaptation.text}` : '';
   const eras = [...new Set(scenes.flatMap(s => (s.space_reqs || []).map(r => r.era)).filter(Boolean))]; const settings = [...new Set(scenes.flatMap(s => (s.space_reqs || []).flatMap(r => r.setting || [])))];
-  const user = [`[시대·무대] 시대: ${eras.join(', ') || '01 사실에서'} · 무대: ${settings.join(', ') || '04 장면에서'}`, '', '[01 설화 사실]', factLines, '', '[01 사건 순서]', orderLines, '', '[04 장면 + 05 퍼즐]', sceneLines, '', '[02 결말 · 현장 연결]', endLines, '', '[장면별로 말해도 되는 것 · 아직 말하면 안 되는 것 — 반드시 지킨다]', knowLines].join('\n') + adapt;
+  const user = [`[시대·무대] 시대: ${eras.join(', ') || '01 사실에서'} · 무대: ${settings.join(', ') || '04 장면에서'}`, '', '[01 설화 사실]', factLines, '', '[01 사건 순서]', orderLines, '', '[04 장면 + 05 퍼즐]', sceneLines, '', '[02 결말 · 현장 연결]', endLines, '', '[장면별로 말해도 되는 것 · 아직 말하면 안 되는 것 — 반드시 지킨다]', knowLines].join('\n') + adapt + (world ? `\n\n[세계관 요약 — 반드시 지킨다]\n${world}` : '');
 
   let out = extractJson(await llm(root, trial, step, { system: SYSTEM, user }));
   if (out.__error) fail(422, 'json_invalid', `JSON 을 읽지 못했습니다: ${out.__error}`);
@@ -184,7 +186,7 @@ export async function runDirector({ root, trial, step, docs, readJsonOut, writeO
   // 회상 장면 맞추기가 있는 장면은 회상 패널이 intro 역할 — 검수자에게 함께 보여 준다(12차: 「scene-02 intro 컷이 없다」 오탐)
   const recallOf = (o, sid) => (o.recall || []).filter(r => P.some(p => p.puzzle_id === r.puzzle_id && p.scene_id === sid)).flatMap(r => (r.panels || []).map(q => `${r.puzzle_id} ${q.id}(회상 — 이 장면 intro 역할, 플레이어가 차례를 맞춘다): ${q.caption}`));
   const scriptOf = o => (o.cinematics || []).map(c => [`## ${c.kind === 'ending' ? 'ending' : c.scene_id} (${c.transition || ''})`, c.goal ? `goal: ${c.goal}` : '', c.sweep_line ? `자막: ${c.sweep_line}` : '', ...(c.kind === 'intro' && !(c.panels || []).length ? recallOf(o, c.scene_id) : []), ...(c.panels || []).map(q => `${q.id}: ${q.caption} [${(q.fact_ids || []).join(',')}]`), c.reveal ? `reveal: ${c.reveal}` : '', c.left_open ? `left_open: ${c.left_open}` : '', c.field ? `현장 봉인: ${c.field.place} — ${c.field.seal}` : ''].filter(Boolean).join('\n')).join('\n\n');
-  const review = async o => { try { const v = extractJson(await llm(root, trial, { ...step, maxTokens: 6000, effort: 'low' }, { system: SCRIPT_JUDGE, user: ['[01 설화 사실]', factLines, '', '[04 장면 + 05 퍼즐]', sceneLines, '', '[장면별로 말해도 되는 것 · 아직 말하면 안 되는 것 — S4 판정 기준]', knowLines, adapt, '', '[대본]', scriptOf(o)].join('\n') })); await writeOut(root, trial, 'raw-s05b-script.json', JSON.stringify(v, null, 1)).catch(() => {}); if (v.__error) return [{ target: '대본 검수', fails: ['ERR'], why: '검수 답을 읽지 못함', rewrite: '' }].slice(0, 0); return (v.items || v.issues || []).filter(x => x.pass === false || (x.pass == null && (x.fails || []).length)); } catch (e) { notes.push(`대본 검수 실패: ${String(e.message).slice(0, 120)}`); return []; } };
+  const review = async o => { try { const v = extractJson(await llm(root, trial, { ...step, maxTokens: 6000, effort: 'low' }, { system: SCRIPT_JUDGE, user: ['[01 설화 사실]', factLines, '', '[04 장면 + 05 퍼즐]', sceneLines, '', '[장면별로 말해도 되는 것 · 아직 말하면 안 되는 것 — S4 판정 기준]', knowLines, adapt, '', '[세계관 요약 — S7 판정 기준]', world, '', '[대본]', scriptOf(o)].join('\n') })); await writeOut(root, trial, 'raw-s05b-script.json', JSON.stringify(v, null, 1)).catch(() => {}); if (v.__error) return [{ target: '대본 검수', fails: ['ERR'], why: '검수 답을 읽지 못함', rewrite: '' }].slice(0, 0); return (v.items || v.issues || []).filter(x => x.pass === false || (x.pass == null && (x.fails || []).length)); } catch (e) { notes.push(`대본 검수 실패: ${String(e.message).slice(0, 120)}`); return []; } };
   // 검수자가 고친 문장을 걸린 자리에만 그대로 넣는다(전체를 다시 쓰게 하면 잘 맞던 컷까지 흔들렸다) → 다시 검수
   const applyRewrites = (o, items) => { const c2 = JSON.parse(JSON.stringify(o)); let n = 0;
     for (const it of items) { const rw = String(it.rewrite || '').trim(); if (!rw) continue; const t = String(it.target || ''); const sc = (t.match(/scene-0\d/) || [])[0]; const isEnd = /^ending/.test(t);
