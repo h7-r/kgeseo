@@ -760,7 +760,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     id: p.puzzle_id, scene_id: p.scene_id, title: p.title, type: p.puzzle_type, learns: p.learns || '',
     review: { belief_before: p.belief_before || '', how: p.how || '', difficulty: p.difficulty || '', invented: p.invented || [],
       basis: (p.basis || []).map(id => ({ id, text: factText(id) })), discoveries: (p.discoveries || []).map(id => ({ id, text: rdText(id) })) },
-    clues: (p.clues || []).map(c => ({ id: c.clue_id, text: c.text, get_by: c.get_by, from: c.from, reveal: c.reveal || null, carrier: c.carrier ? { ...c.carrier, asset: carrierAsset.get(String(c.carrier.name || '').trim()) || null } : null, content: c.content || '' })),
+    clues: (p.clues || []).map(c => ({ id: c.clue_id, text: c.text, get_by: c.get_by, from: c.from, reveal: c.reveal || null, carrier: c.carrier ? { ...c.carrier, asset: carrierAsset.get(String(c.carrier.name || '').trim()) || null } : null, content: c.content || '', gate: c.gate || null })),
     exit: p.exit || null, // 10/22: 장면 마지막 퍼즐 — 풀면 나오는 열쇠와 다음 방 문의 자물쇠
     solve: p.solve || {}, hint_1: p.hint_1 || '', hint_2: p.hint_2 || '', effects: p.success_effects || [],
     hosts: (p.host_needs || []).map(h => ({ need_id: h.need_id, kind: h.kind, what: h.what, at: (binds[h.need_id] || []).filter(b => b.node).map(b => ({ room: b.room, node: b.node })),
