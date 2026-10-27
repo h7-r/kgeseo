@@ -365,7 +365,10 @@ async def test_play_session_creation_uses_bound_client_loader() -> None:
 @pytest.mark.anyio
 async def test_interaction_uses_bound_runtime_and_client_loaders() -> None:
     db = FakeAsyncSession()
+    # 고정 묶음 로더는 같은 버전으로 고정된 세션에서만 쓸 수 있다.
     db.get_result = make_play_session()
+    db.get_result.content_version = 1
+    db.get_result.content_fingerprint = FP_V1
     bundle = make_bundle()
 
     result = await process_interaction(

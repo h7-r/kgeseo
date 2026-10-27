@@ -18,6 +18,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from app.models.play_session import check_content_pin_columns
 from app.schemas.case_content import CaseClientContent
 from app.schemas.npc import ApprovedNpcLine
 from app.schemas.npc_content import NpcContentPack
@@ -50,6 +51,14 @@ class ContentFingerprintMismatchError(PinnedContentError):
 
 class ContentCaseMismatchError(PinnedContentError):
     """묶음에 묶인 로더를 다른 case_id로 불렀다."""
+
+
+class PinnedContentRequiredError(PinnedContentError):
+    """버전이 고정된 세션에 그 버전의 묶음 로더가 아닌 로더(기본 로더 등)를 썼다."""
+
+
+class LegacySessionLoaderError(PinnedContentError):
+    """버전이 없는 레거시 세션에 고정 묶음 로더를 썼다."""
 
 
 @dataclass(frozen=True)
@@ -145,14 +154,14 @@ class PinnedContent:
             self._ensure_case(case_id)
             return self.server()
 
-        return load
+        return self._tag(load)
 
     def client_content_loader(self) -> Callable[[str], CaseClientContent]:
         def load(case_id: str) -> CaseClientContent:
             self._ensure_case(case_id)
             return self.client()
 
-        return load
+        return self._tag(load)
 
     def hint_source(
         self, resolver: HintTextResolver
@@ -161,7 +170,7 @@ class PinnedContent:
             self._ensure_case(case_id)
             return resolver(self.server(), puzzle_id, level)
 
-        return source
+        return self._tag(source)
 
     def line_source(self) -> Callable[[str, str, str], ApprovedNpcLine | None]:
         def source(case_id: str, npc_id: str, line_id: str) -> ApprovedNpcLine | None:
@@ -190,7 +199,12 @@ class PinnedContent:
                         )
             return None
 
-        return source
+        return self._tag(source)
+
+    def _tag(self, function: Any) -> Any:
+        # 이 로더가 어느 고정 버전의 것인지 표시한다(세션과 맞는지 서비스가 확인한다).
+        function.content_pin = self._pin
+        return function
 
 
 class PinnedContentStore:
@@ -216,3 +230,39 @@ class PinnedContentStore:
 
     def versions(self, case_id: str) -> tuple[int, ...]:
         return tuple(sorted(v for c, v in self._bundles if c == case_id))
+
+
+def session_content_pin(play_session: Any) -> ContentPin | None:
+    """세션 행의 고정 값. 둘 다 NULL이면 None(레거시), 하나만 있으면 ContentPinColumnsError."""
+
+    version = getattr(play_session, "content_version", None)
+    fingerprint = getattr(play_session, "content_fingerprint", None)
+    check_content_pin_columns(version, fingerprint)
+    if version is None:
+        return None
+    return ContentPin(play_session.case_id, version, fingerprint)
+
+
+def resolve_session_content(
+    play_session: Any, store: PinnedContentStore
+) -> PinnedContent | None:
+    """세션이 고정한 묶음을 돌려준다. 레거시 세션은 None. 최신 버전으로 바꾸지 않는다."""
+
+    pin = session_content_pin(play_session)
+    return None if pin is None else store.get(pin)
+
+
+def ensure_loaders_match_session(play_session: Any, *loaders: Any) -> None:
+    """고정 세션은 그 버전 묶음의 로더만, 레거시 세션은 고정 묶음이 아닌 로더만 쓴다.
+
+    기본 로더(`load_case_runtime` 등)는 고정 표시가 없으므로 고정 세션에서 거부된다.
+    """
+
+    pin = session_content_pin(play_session)
+    for loader in loaders:
+        loader_pin = getattr(loader, "content_pin", None)
+        if pin is None:
+            if loader_pin is not None:
+                raise LegacySessionLoaderError(loader_pin.label())
+        elif loader_pin != pin:
+            raise PinnedContentRequiredError(pin.label())
