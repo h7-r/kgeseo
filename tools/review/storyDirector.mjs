@@ -107,6 +107,7 @@ export function checkDirector(out, { facts, d02, puzzles, indoor = false }) {
   const bibleKeys = new Set(['house', ...Object.keys(out.bible?.people || {})]);
   const places = (d02?.field_link || []).map(f => String(f.place || '').trim()).filter(Boolean);
   const pan = (tag, ps) => { for (const q of ps || []) {
+    if (!String(q.id || '').trim()) bad.push(`${tag}: 컷 id 없음 — 컷마다 id(S1-1, E1 …)`); /* 13차: id 없는 컷이 그림 파일 이름에 undefined 로 남음 */
     const c = String(q.caption || ''); if (c.length < 25 || c.length > 130) bad.push(`${tag} ${q.id}: 컷 글 ${c.length}자 — 40~110자`);
     if (!/[a-z]{3}/i.test(String(q.image_prompt || ''))) bad.push(`${tag} ${q.id}: image_prompt(영어) 없음`);
     const bf = (q.fact_ids || []).filter(f => !fid.has(f)); if (!(q.fact_ids || []).length || bf.length) bad.push(`${tag} ${q.id}: fact_ids 가 01 사실이 아님(${bf.join(',') || '없음'})`);

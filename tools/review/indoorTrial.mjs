@@ -142,6 +142,7 @@ const INDOOR_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」
    - 창고(헛간·곳간)는 자주 쓰지 않고 오래 쌓아 둔 여러 종류의 물건으로 빽빽하게(10~16개): 농기구·바구니·독·가마니·낡은 궤 등을 벽을 따라 겹쳐 둔다.
    - on_item 은 윗면이 평평한 받침(궤·반닫이·뒤주·소반·서안·장) 위에만. 항아리·독·동이·솥·바구니처럼 둥근 것 위에는 올리지 않는다.
    - 이야기 물건·퍼즐 호스트도 그 방의 쓰임 안에서 자연스러운 자리에 둔다(사랑방이면 서안 위 장부, 부엌이면 부뚜막 옆 쪽지). 방 한가운데 뜬금없는 물건을 세우지 않는다.
+   - 단서로 손에 드는 물건(쪽지·편지·서신·문서·패·열쇠 등 05 단서의 carrier)은 방에 따로 두지 않는다 — 조사하면 그 호스트(궤·서랍·방석 밑)에서 나온다. 같은 것을 story_prop 로 또 두면 누를 수 없는 가짜 물건이 생긴다(13차: 대청 궤 위에 「여인의 말 쪽지」 게시판).
    - 발자국·자국·흔적·얼룩·그림자·「~자리」 같은 흔적은 물건이 아니다 — place 를 marker 로(뷰어가 바닥·창에 그린다). 흔적을 대신할 가구를 두지 않는다.
    - 방마다 살림 4~9개 + 이야기 물건·퍼즐 호스트. 바닥에 놓는 것(floor·corner·wall·wall_low)은 칸 하나에 4개 안팎까지 — 좁은 방에 몰면 놓을 자리가 없다. 방 성격에 안 맞는 것(안방에 장독, 부엌에 이불)은 넣지 않는다.
    - 인물(npc)·귀신·사람 모형은 넣지 않는다(각색 조건). 05 에 npc·sound_source·standing_spot 호스트가 있으면 그 자리를 보여 줄 물건이나 흔적(신발·등잔·문창호 그림자 자국 등)으로 바꾸거나 place 를 marker 로 한다.
@@ -879,6 +880,9 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
       for (const r of plan.rooms || []) if (r && !ROLES.includes(r.role)) { typeFix.push(`${r.name || r.role}: 방 유형 「${r.role}」 은 쓰지 않음 → 헛간`); r.role = '헛간'; r.floor = 'earth'; }
       const roomIds = new Set((plan.rooms || []).map(r => r.id));
       plan.contents = (plan.contents || []).filter(c => c && c.item_id && roomIds.has(c.room)).slice(0, 80);
+      // 10/27 미르: 「대청 여인의 말 쪽지 에셋은 상호작용도 안 되고 배치가 잘못됐고 시대에도 안 맞는다」 — 단서 carrier(쪽지·편지 등)를 이야기 물건으로 또 두면 누를 수 없는 가짜가 된다 → 뺀다
+      { const carrierNames = new Set((puzzleDoc?.puzzles || []).flatMap(p => (p.clues || []).map(c => String(c.carrier?.name || '').trim())).filter(Boolean)); const NOTE = /쪽지|편지|서찰|서신|서간|문서|기록|증서/;
+        plan.contents = plan.contents.filter(c => { if (c.role === 'puzzle_host' || (c.serves || []).length) return true; const n = String(c.name_ko || '').trim(); if (carrierNames.has(n) || ((c.role === 'story_prop' || c.role === 'life_trace') && NOTE.test(n))) { typeFix.push(`「${n}」: 단서로 손에 드는 물건 — 방에 따로 두지 않음(호스트에서 나온다)`); return false; } return true; }); }
       // 흔적 이름인데 물건 자리로 적힌 것 → 표식(10/22 미르: 「마루 젖은 발자국」에 평상이 놓임)
       for (const c of plan.contents) if (TRACE_NAME.test(String(c.name_ko || '').trim()) && c.place !== 'marker' && c.place !== 'edge_step') { typeFix.push(`「${c.name_ko}」: 흔적이라 물건 대신 표식으로`); c.place = 'marker'; }
       const enforced = enforceTypes(plan, T);
@@ -1008,6 +1012,8 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
         let auto = false;
         if (!c && t.role === 'puzzle_host') { const head = String(t.name_ko || '').trim().split(/\s+/).pop(); const same = (cands[t.item_id] || []).find(x => head && String(x.nameKo || '').includes(head) && sane(t, x)); if (same) { c = same; auto = true; } }
         // (10/23) 코드로 강제로 바꾸지 않는다 — 가마솥 자리에 탁자장이 들어간 일. 표시와 규칙으로 모델이 고르게 하고, 결과는 검사로 본다
+        // 10/27: 이야기 물건인데 맞는 에셋이 없어 「바꿔야 함」 후보(방문 게시판 1.3×1.8 m)를 고른 것은 놓지 않는다 — 어울리지 않는 물건보다 빈자리가 낫다
+        if (c && c.needsReplacement && t.role === 'story_prop') { s.missing = { name_ko: t.name_ko, description_ko: '', why: `맞는 에셋 없음(${c.nameKo} 는 바꿔야 할 임시 후보) — 놓지 않음` }; c = null; }
         return { item_id: t.item_id, room: t.room, name_ko: t.name_ko, role: t.role, pick: c ? { id: c.id, nameKo: c.nameKo, url: c.url, source: c.source, thumbnail: c.thumbnail || null, boundsM: c.boundsM || null, needsReplacement: Boolean(c.needsReplacement) } : null,
           candidates: (cands[t.item_id] || []).map(x => ({ id: x.id, nameKo: x.nameKo })), reason: auto ? `(자동) 같은 이름 후보로 채움 — 모델 이유: ${clip(s.reason, 200)}` : clip(s.reason, 300), missing: c ? null : (s.missing || { name_ko: t.name_ko, description_ko: '', why: (cands[t.item_id] || []).length ? '후보 중 고르지 않음' : '검색된 후보 없음' }), invalid: s.pick && !c ? s.pick : null };
       });
