@@ -530,3 +530,104 @@ def test_direct_link_validation_never_passes_bad_syntax() -> None:
     nudge_path(raw)["reveal_when"] = {}
 
     assert link_codes(raw) == [("SCHEMA_INVALID", "invalid")]
+
+
+# --- 힌트 단계 참조 (PM v0.4.1) ---
+
+
+def with_hints(levels: list[Any], *, puzzle_id: str = "PUZZLE_A") -> dict[str, Any]:
+    raw = valid_pack()
+    if puzzle_id == "PUZZLE_A":
+        raw["puzzles"][0]["hints"] = [{"level": level} for level in levels]
+    else:
+        raw["puzzles"].append(
+            {
+                "puzzle_id": puzzle_id,
+                "nudges": [
+                    {
+                        "line_id": "NUDGE_OTHER_PUZZLE",
+                        "text": "(가상) 다른 곳도 보자.",
+                        "reveal_when": {"always": True},
+                    }
+                ],
+                "hints": [{"level": level} for level in levels],
+            }
+        )
+    return raw
+
+
+@pytest.mark.parametrize("levels", [[1], [2], [1, 2], [2, 1]])
+def test_hint_level_references_are_accepted(levels: list[int]) -> None:
+    raw = with_hints(levels)
+
+    pack = NpcContentPack.model_validate(raw)
+    readiness = assess(raw)
+
+    assert [hint.level for hint in pack.puzzles[0].hints] == levels
+    assert (readiness.schema_valid, readiness.links_valid) == (True, True)
+    # 형식 · 참조가 맞아도 승인 검증이 없으므로 내보내지 않는다.
+    assert readiness.publish_approved is False
+    assert readiness.servable is False
+
+
+def test_hints_are_optional_and_default_empty() -> None:
+    assert NpcContentPack.model_validate(valid_pack()).puzzles[0].hints == []
+
+
+def test_duplicate_hint_level_is_rejected() -> None:
+    readiness = assess(with_hints([1, 1]))
+
+    assert readiness.schema_valid is False
+
+
+@pytest.mark.parametrize("level", [0, 3, -1, True, False, "1", 1.0, 2.0, None])
+def test_invalid_hint_level_is_rejected(level: Any) -> None:
+    assert assess(with_hints([level])).schema_valid is False
+
+
+@pytest.mark.parametrize(
+    "hint",
+    [
+        {"level": 1, "text": "(가상) 원문"},
+        {"level": 1, "answer": "x"},
+        {"level": 1, "content": "x"},
+        {"level": 2, "reveal_when": {"always": True}},
+        {"text": "(가상) 원문"},
+        {},
+    ],
+)
+def test_hint_reference_rejects_text_and_extra_fields(hint: dict) -> None:
+    raw = valid_pack()
+    raw["puzzles"][0]["hints"] = [hint]
+
+    readiness = assess(raw)
+
+    assert readiness.schema_valid is False
+    assert "(가상) 원문" not in repr(readiness)
+
+
+def test_hint_reference_to_unknown_puzzle_reports_puzzle_only() -> None:
+    assert link_codes(with_hints([1, 2], puzzle_id="PUZZLE_MISSING")) == [
+        ("UNKNOWN_PUZZLE", "PUZZLE_MISSING")
+    ]
+
+
+def test_hint_level_missing_in_server_hint_source_blocks_publication() -> None:
+    raw = with_hints([1, 2], puzzle_id="PUZZLE_B")
+
+    readiness = assess(raw)
+    [issue] = [i for i in readiness.issues if i.code == "UNDEFINED_HINT_LEVEL"]
+
+    assert readiness.schema_valid is True
+    assert readiness.links_valid is False
+    assert issue.location == "$.puzzles.1.hints.1"
+    assert issue.reference == "PUZZLE_B:2"
+    for text in HINTS.values():
+        assert text not in repr(readiness)
+
+
+def test_hint_references_do_not_relax_text_protection() -> None:
+    raw = with_hints([1, 2])
+    nudge_path(raw)["text"] = "(가상) (가상) A 2단계 원문 그대로"
+
+    assert ("PROTECTED_TEXT", "PUZZLE_A") in link_codes(raw)

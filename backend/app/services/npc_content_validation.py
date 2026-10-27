@@ -145,6 +145,18 @@ def validate_npc_content_links(
                     "UNKNOWN_PUZZLE", f"$.puzzles.{index}.puzzle_id", entry.puzzle_id
                 )
             )
+            continue
+        # 힌트 단계 참조는 공식 HintSource(server.json, 위치는 주입)에 그 단계가 있어야 한다.
+        for hint_index, hint in enumerate(entry.hints):
+            text = hint_source(runtime.case_id, entry.puzzle_id, hint.level)
+            if text is None or not text.strip():
+                issues.append(
+                    NpcContentIssue(
+                        "UNDEFINED_HINT_LEVEL",
+                        f"$.puzzles.{index}.hints.{hint_index}",
+                        f"{entry.puzzle_id}:{hint.level}",
+                    )
+                )
 
     for location, nudge in _located_nudges(pack):
         issues.extend(
