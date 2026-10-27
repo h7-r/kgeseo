@@ -736,7 +736,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     const have = H.length ? await fs.access(bin).then(() => true, () => false) : false;
     if (H.length && !have) notes.push(`회상 컷: 그림 생성기(mflux)를 찾지 못함(${bin}) — 글만 나옴`);
     for (const p of H) for (const [k, q] of (p.solve.device.spec?.panels || []).entries()) {
-      const file = `recall_${String(p.puzzle_id).replace(/[^\w-]/g, '')}_${String(q.id).replace(/[^\w-]/g, '')}.png`; const out = path.join(dir, file);
+      const h8 = (await import('node:crypto')).createHash('sha1').update(String(q.image_prompt || q.caption || '')).digest('hex').slice(0, 8); /* 그림 글이 바뀌면 새로 그린다 */ const file = `recall_${String(p.puzzle_id).replace(/[^\w-]/g, '')}_${String(q.id).replace(/[^\w-]/g, '')}_${h8}.png`; const out = path.join(dir, file);
       if (await fs.access(out).then(() => true, () => false)) { q.img = file; continue; }
       if (!have) continue;
       try { await run(bin, ['--model', 'flux2-klein-4b', '--prompt', STYLE + String(q.image_prompt || q.caption || ''), '--steps', '4', '--width', '1024', '--height', '576', '--seed', String(11 + k), '--output', out], { cwd: dir, timeoutMs: 300000 }); q.img = file; notes.push(`회상 컷 ${p.puzzle_id} ${q.id}: 그림 생성`); }
