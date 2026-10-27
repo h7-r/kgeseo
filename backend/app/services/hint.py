@@ -97,13 +97,16 @@ async def unlock_hint(
             result = _replay_existing_event(
                 existing_event, puzzle_id=puzzle_id, payload_json=payload_json
             )
+            # rollback은 ORM 객체를 만료시키므로 필요한 값은 그 전에 읽어 둔다.
+            event_id = existing_event.id
+            case_id = play_session.case_id
             await db.rollback()
             return _with_text(
-                existing_event.id,
+                event_id,
                 result,
                 request.target_level,
                 _require_hint_text(
-                    hint_source, play_session.case_id, puzzle_id, request.target_level
+                    hint_source, case_id, puzzle_id, request.target_level
                 ),
             )
 
@@ -177,8 +180,9 @@ async def unlock_hint(
             result = _replay_existing_event(
                 existing_event, puzzle_id=puzzle_id, payload_json=payload_json
             )
+            event_id = existing_event.id
             await db.rollback()
-            return _with_text(existing_event.id, result, request.target_level, text)
+            return _with_text(event_id, result, request.target_level, text)
     except asyncio.CancelledError:
         await db.rollback()
         raise

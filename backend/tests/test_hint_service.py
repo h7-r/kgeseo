@@ -32,7 +32,7 @@ from app.services.interaction import (
     process_interaction,
 )
 from app.services.play_session import PlaySessionNotFoundError
-from tests.conftest import FakeAsyncSession
+from tests.conftest import ExpiringSession, FakeAsyncSession
 
 # 가상 테스트 데이터. 실제 PM 콘텐츠가 아니다.
 PUZZLE_ID = "PZ_TEST_01"
@@ -386,6 +386,47 @@ async def test_replay_returns_stored_result_without_writes() -> None:
     assert replay_db.added == []
     assert replay_db.commit_count == 0
     assert replay_db.rollback_count == 1
+
+
+@pytest.mark.anyio
+async def test_replay_reads_no_orm_attributes_after_rollback() -> None:
+    """실제 SQLAlchemy는 rollback 때 객체를 만료시킨다. 재전송 경로가 그 뒤에 속성을 읽으면 안 된다."""
+    db = FakeAsyncSession()
+    db.get_result = make_play_session()
+    first = await call_unlock(db, 1)
+
+    replay_db = ExpiringSession()
+    replay_db.get_result = make_play_session(hint_levels={PUZZLE_ID: 1})
+    replay_db.scalar_result = stored_event(db)
+
+    replay = await call_unlock(replay_db, 1)
+
+    assert replay.interaction_id == first.interaction_id
+    assert replay.hint == first.hint
+    assert replay_db.rollback_count == 1
+
+
+@pytest.mark.anyio
+async def test_integrity_race_reads_no_orm_attributes_after_rollback() -> None:
+    winner_db = FakeAsyncSession()
+    winner_db.get_result = make_play_session()
+    winner = await call_unlock(winner_db, 1)
+
+    class ExpiringRace(ExpiringSession):
+        async def scalar(self, statement):
+            self.scalar_calls.append(statement)
+            if len(self.scalar_calls) == 1:
+                return None
+            return await ExpiringSession.scalar(self, statement)
+
+    db = ExpiringRace()
+    db.get_result = make_play_session()
+    db.scalar_result = stored_event(winner_db)
+    db.commit_error = IntegrityError("INSERT interaction_events", {}, RuntimeError())
+
+    result = await call_unlock(db, 1)
+
+    assert result.interaction_id == winner.interaction_id
 
 
 @pytest.mark.anyio
