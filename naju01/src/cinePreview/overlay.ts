@@ -104,26 +104,48 @@ function arrival(n: number): { x: number; z: number; zones: string[] } {
 }
 function zoneAt(x: number, z: number) { return ZONES.find((v) => x >= v.x[0] && x <= v.x[1] && z >= v.z[0] && z <= v.z[1])?.code; }
 
-// ── 「왜곡의 문」 — 씬을 마치면 그 자리 앞에 선다. 들어가면 다음 씬으로 ──
-type Gate = { group: any; disc: any; x: number; z: number; to: number }; // eslint-disable-line @typescript-eslint/no-explicit-any
-let gate: Gate | null = null;
-function openGate(to: number) {
-  const g = naju(); const T = g?.THREE; if (!g || !T || !g.camera || !g.scene) return;
-  const cx = g.camera.position.x / U, cz = g.camera.position.z / U;
-  const fwd = new T.Vector3(); (g.camera as any).getWorldDirection?.(fwd); fwd.y = 0; if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1); fwd.normalize(); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const x = cx + fwd.x * 4, z = cz + fwd.z * 4; const y = g.terrain?.groundAt(x, z).y ?? 0;
-  const group = new T.Group(); group.name = "cinePreview.gate";
-  const ring = new T.Mesh(new T.TorusGeometry(1.2 * U, 0.07 * U, 10, 64), new T.MeshBasicMaterial({ color: 0xb59cff, fog: false, toneMapped: false }));
+// ── 「왜곡의 문」(10/27 미르(3): 「씬과 씬 사이에 문 같은 게 안 보인다」) ──
+//   씬 1~4 의 끝자리마다 문을 처음부터 세워 둔다. 씬을 마치기 전에는 잿빛으로 닫혀 있고(가까이 가면 「아직 잠겨 있다」),
+//   씬을 마치면 보라빛으로 열리며 하늘로 빛기둥이 솟아 멀리서도 보인다. 열린 문으로 걸어 들어가면 다음 씬으로.
+//   자리 = 그 씬 마지막 조사점에서 다음 씬 쪽으로 2.5 m. 문 위에 「씬 n · 이름」 표지.
+type Gate = { group: any; ring: any; disc: any; beam: any; label: any; x: number; z: number; to: number; open: boolean }; // eslint-disable-line @typescript-eslint/no-explicit-any
+const gates: Gate[] = [];
+function labelTex(T: any, text: string, open: boolean) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cv = document.createElement("canvas"); cv.width = 512; cv.height = 128; const c = cv.getContext("2d")!;
+  c.fillStyle = open ? "rgba(40,20,80,0.82)" : "rgba(30,30,30,0.7)"; c.beginPath(); c.roundRect(8, 16, 496, 96, 40); c.fill();
+  c.fillStyle = open ? "#f1e8ff" : "#cfcfcf"; c.font = "bold 44px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(text, 256, 66);
+  const t = new T.CanvasTexture(cv); t.colorSpace = T.SRGBColorSpace; return t;
+}
+function buildGates(titleOf: (n: number) => string) {
+  const g = naju(); const T = g?.THREE; if (!g || !T || !g.scene) return;
   const cv = document.createElement("canvas"); cv.width = cv.height = 256; const c2 = cv.getContext("2d")!;
   const gr = c2.createRadialGradient(128, 128, 8, 128, 128, 128); gr.addColorStop(0, "rgba(255,255,255,0.95)"); gr.addColorStop(0.35, "rgba(170,140,255,0.6)"); gr.addColorStop(1, "rgba(60,30,120,0)");
   c2.fillStyle = gr; c2.fillRect(0, 0, 256, 256); c2.strokeStyle = "rgba(255,255,255,0.35)"; c2.lineWidth = 3;
   for (let a = 0; a < 6; a++) { c2.beginPath(); for (let t = 0; t < 1; t += 0.02) { const r = 120 * t, ang = a * 1.047 + t * 5; c2.lineTo(128 + Math.cos(ang) * r, 128 + Math.sin(ang) * r); } c2.stroke(); }
-  const disc = new T.Mesh(new T.CircleGeometry(1.15 * U, 48), new T.MeshBasicMaterial({ map: new T.CanvasTexture(cv), transparent: true, depthWrite: false, fog: false, toneMapped: false, side: T.DoubleSide, blending: T.AdditiveBlending }));
-  group.add(ring, disc); group.position.set(x * U, (y + 1.3) * U, z * U); group.rotation.y = Math.atan2(fwd.x, fwd.z);
-  g.scene.add(group); gate = { group, disc, x, z, to };
-  toast(`🌀 다음 씬으로 가는 「왜곡의 문」이 열렸다 — 앞에 보이는 문으로 걸어 들어가라`);
+  const swirl = new T.CanvasTexture(cv);
+  for (let n = 1; n <= 4; n++) {
+    const pts = INVESTIGATION_POINTS.find((v) => v.scene === n)?.points || []; const last = pts[pts.length - 1] || [18, 38];
+    const next = INVESTIGATION_POINTS.find((v) => v.scene === n + 1)?.points[0] || last;
+    let dx = next[0] - last[0], dz = next[1] - last[1]; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+    const x = last[0] + dx * 2.5, z = last[1] + dz * 2.5; const y = g.terrain?.groundAt(x, z).y ?? 0;
+    const group = new T.Group(); group.name = `cinePreview.gate.${n}`;
+    const ring = new T.Mesh(new T.TorusGeometry(1.2 * U, 0.08 * U, 10, 64), new T.MeshBasicMaterial({ color: 0x8a8a8a, fog: false, toneMapped: false }));
+    const disc = new T.Mesh(new T.CircleGeometry(1.15 * U, 48), new T.MeshBasicMaterial({ map: swirl, transparent: true, opacity: 0.12, depthWrite: false, fog: false, toneMapped: false, side: T.DoubleSide, blending: T.AdditiveBlending }));
+    const beam = new T.Mesh(new T.CylinderGeometry(0.35 * U, 0.6 * U, 40 * U, 16, 1, true), new T.MeshBasicMaterial({ color: 0xb59cff, transparent: true, opacity: 0.28, depthWrite: false, fog: false, toneMapped: false, side: T.DoubleSide, blending: T.AdditiveBlending }));
+    beam.position.y = 20 * U; beam.visible = false;
+    const label = new T.Sprite(new T.SpriteMaterial({ map: labelTex(T, `🔒 씬 ${n + 1} · ${titleOf(n + 1)}`, false), fog: false, depthTest: false, toneMapped: false }));
+    label.scale.set(4 * U, 1 * U, 1); label.position.y = 2.1 * U; label.renderOrder = 999;
+    group.add(ring, disc, beam, label); group.position.set(x * U, (y + 1.3) * U, z * U); group.rotation.y = Math.atan2(dx, dz);
+    g.scene.add(group); gates.push({ group, ring, disc, beam, label, x, z, to: n + 1, open: false });
+  }
 }
-function closeGate() { if (gate) { naju()?.scene?.remove(gate.group); gate = null; } }
+function openGate(to: number, titleOf: (n: number) => string) {
+  const gt = gates.find((v) => v.to === to); const T = naju()?.THREE; if (!gt || !T) return;
+  gt.open = true; gt.ring.material.color.set(0xb59cff); gt.disc.material.opacity = 1; gt.beam.visible = true;
+  gt.label.material.map = labelTex(T, `🌀 씬 ${to} · ${titleOf(to)}`, true); gt.label.material.needsUpdate = true;
+  toast(`🌀 「씬 ${to}」으로 가는 「왜곡의 문」이 열렸다 — 하늘로 솟은 보라빛 기둥을 따라가 문으로 들어가라`, 6500);
+}
+function closeGate(gt: Gate) { naju()?.scene?.remove(gt.group); gates.splice(gates.indexOf(gt), 1); }
 
 async function main() {
   document.head.appendChild(el("style", "", css)); document.body.appendChild(fadeEl);
@@ -165,36 +187,44 @@ async function main() {
     if (it) showGoal(it.goal);
   };
 
+  const titleOf = (n: number) => title(`scene-0${n}`);
+  buildGates(titleOf);
   let current = 1;
   await enterScene(1, true);
 
   const dev = el("div", "cp-dev"); document.body.appendChild(dev);
   const render = () => {
     const nextMode = current < 5 ? modeOf(intros.find((c) => c.scene_id === `scene-0${current + 1}`)) : null;
+    const gate = gates.find((v) => v.open);
     dev.innerHTML = current <= 5
-      ? `미리보기 · 지금 씬 ${current}${gate ? ` · 문이 열림 → 씬 ${gate.to}(${nextMode === "cine" ? "이야기 컷" : "공간 훑기"})` : ""} <button class="cp-btn">${gate ? "문 앞으로 옮기기" : `씬 ${current} 마치기 ▶`}</button>`
+      ? `미리보기 · 지금 씬 ${current}${gate ? ` · 문이 열림 → 씬 ${gate.to}(${nextMode === "cine" ? "이야기 컷" : "공간 훑기"})` : ""} <button class="cp-btn">${gate ? "문 앞으로 옮기기" : `씬 ${current} 마치기 ▶`}</button><button class="cp-btn" data-look>문 자리 보기</button>`
       : `미리보기 · 완주 <button class="cp-btn">결말 다시 보기</button>`;
     const sr = doc.scriptReview; if (sr) { const left = sr.after?.length || 0; const b = el("span", "", ` · 대본 검수 ${sr.before}→${left}건`); b.style.cursor = "help"; b.title = (sr.after || []).map((x) => `${x.target} [${(x.fails || []).join(",")}] ${x.why || ""}`).join("\n") || "걸린 것 없음"; dev.appendChild(b); }
+    const look = dev.querySelector("[data-look]") as HTMLElement | null; if (look) look.onclick = () => { const gt = gates.find((v) => v.to === current + 1); if (gt) naju()?.teleport?.current?.(gt.x - Math.sin(gt.group.rotation.y) * 6, gt.z - Math.cos(gt.group.rotation.y) * 6); };
     (dev.querySelector("button") as HTMLElement).onclick = async () => {
       if (current > 5) { if (ending) { await playCine(ending.panels, "이야기의 끝"); endingCard(ending); } return; }
-      if (gate) { naju()?.teleport?.current?.(gate.x - 2, gate.z); return; } // 시험용: 문 바로 앞으로
+      if (gate) { naju()?.teleport?.current?.(gate.x - Math.sin(gate.group.rotation.y) * 3, gate.z - Math.cos(gate.group.rotation.y) * 3); return; } // 시험용: 문 바로 앞으로
       try { naju()?.endScene?.(current); } catch (e) { console.warn(e); }
       if (current === 5) { current = 6; render(); goalEl?.remove(); if (ending) { await playCine(ending.panels, "이야기의 끝"); endingCard(ending); } return; }
-      openGate(current + 1); render();
+      openGate(current + 1, titleOf); render();
     };
   };
   render();
 
-  // 문 들어가기 판정 — 플레이어(카메라)가 문 고리 안 1.3 m
+  // 문 들어가기 판정 — 플레이어(카메라)가 문 고리 안 1.3 m. 닫힌 문은 안내만
+  let lockedToast = 0;
   const tick = async () => {
     const g = naju();
-    if (gate && g?.camera) {
-      gate.disc.rotation.z += 0.02;
+    if (g?.camera) {
       const px = g.camera.position.x / U, pz = g.camera.position.z / U;
-      if (Math.hypot(px - gate.x, pz - gate.z) < 1.3) {
-        const to = gate.to; closeGate(); // 마우스 잠금은 그대로 — 공간 훑기는 플레이 중일 때만 열린다(이야기 컷은 playCine 이 푼다)
+      for (const gt of gates) {
+        if (gt.open) gt.disc.rotation.z += 0.02;
+        if (Math.hypot(px - gt.x, pz - gt.z) >= 1.3) continue;
+        if (!gt.open) { if (performance.now() - lockedToast > 5000) { lockedToast = performance.now(); toast(`🔒 아직 잠겨 있다 — 씬 ${gt.to - 1}의 조사를 마쳐야 열린다`); } continue; }
+        const to = gt.to; closeGate(gt); // 마우스 잠금은 그대로 — 공간 훑기는 플레이 중일 때만 열린다(이야기 컷은 playCine 이 푼다)
         await fade(1); current = to; render(); goalEl?.remove();
         await enterScene(to, false);
+        break;
       }
     }
     requestAnimationFrame(tick);
