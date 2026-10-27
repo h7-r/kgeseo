@@ -70,6 +70,9 @@ export default function CineReviewPage() {
         <div className="cr-summary">
           <span>컷 {all.length}</span><span className="cr-pill cr-pending">검수 전 {cnt('pending')}</span><span className="cr-pill cr-approved">승인 {cnt('approved')}</span><span className="cr-pill cr-rejected">반려 {cnt('rejected')}</span>
           <select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">모두 보기</option><option value="pending">검수 전만</option><option value="approved">승인만</option><option value="rejected">반려만</option></select>
+          <span className={`cr-gate ${d.next?.ready ? 'ok' : ''}`}>{d.next?.ready ? '✅ 모든 컷 확인 끝 — 다음 단계로 갈 수 있습니다' : `⏸ 검수 전 ${d.next?.pending}컷 — 모두 승인·반려해야 다음 단계(06 공간 구성)로 넘어갑니다`}</span>
+          {d.next?.ready && !['done', 'running'].includes(d.next?.status) && <button disabled={busy} onClick={() => change(async () => { await api(`/trials/${d.trial.id}/steps/s06/run-fresh`, { method: 'POST', body: {} }); return api(`/cine/${d.trial.id}`); })}>다음 단계(06) 시작</button>}
+          {d.next?.status && <small>06 상태: {d.next.status === 'done' ? '끝남' : d.next.status === 'running' ? '도는 중' : d.next.status === 'failed' ? '실패' : d.next.status}</small>}
           {d.trial.spaceKind === 'indoor' && <a href={`/__review/trials/${d.trial.id}/rooms/index.html`} target="_blank" rel="noreferrer">방 둘러보기에서 보기 ↗</a>}
         </div>
         {d.sections.map(s => s.panels.some(shown) && <div key={s.section} className="cr-section">

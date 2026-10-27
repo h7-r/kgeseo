@@ -48,7 +48,9 @@ export async function detail(root, id) {
     if (!s) { s = { section: x.section, title: x.section === 'ending' ? '결말' : x.section.startsWith('recall:') ? `회상 ${x.section.slice(7)}` : `${titles[x.c.scene_id] || x.c.scene_id}`, goal: x.c.goal || '', reveal: x.c.reveal || '', field: x.c.field || null, panels: [] }; sections.push(s); }
     const q = x.q; s.panels.push({ key: x.key, id: q.id, caption: q.caption || '', image_prompt: q.image_prompt || '', img: q.img || null, candidates: q.candidates || (q.img ? [q.img] : []), review: q.review?.status ? q.review : { status: 'pending' }, aiReview: q.aiReview || (q.review && 'ok' in q.review ? q.review : null) /* 10/27 이전 판: Claude 그림 판정이 review 자리에 있었다 */, job: jobs[x.key] || null });
   }
-  return { trial: { id, title: t.title || id, spaceKind: t.spaceKind || 'outdoor' }, bible: doc.bible || {}, sections, history: (doc.humanReview || []).slice(-40).reverse() };
+  const all = sections.flatMap(s => s.panels); const pending = all.filter(p => p.review.status === 'pending').length;
+  const next = { id: 's06', status: t.steps?.s06?.status || null, pending, ready: pending === 0 };
+  return { next, trial: { id, title: t.title || id, spaceKind: t.spaceKind || 'outdoor' }, bible: doc.bible || {}, sections, history: (doc.humanReview || []).slice(-40).reverse() };
 }
 
 /** 사람 결정 — pick(후보 고르기) · approve(승인) · reject(반려) · reset(검수 전으로) · edit(글·그림 지시 고치기) */
@@ -100,12 +102,12 @@ async function redrawWorker(root, id, key, n) {
 
 /** 결정을 게임 화면에 바로 반영 — 실내 방 뷰어 · 나주 미리보기 */
 async function sync(root, id, doc) {
-  const out = []; const T = tdir(root, id); const show = q => (q.review?.status === 'rejected' ? { ...q, img: undefined } : q);
+  const out = []; const T = tdir(root, id); const show = q => (q.review?.status === 'approved' ? q : { ...q, img: undefined }); /* 승인한 그림만 게임에 */
   const vdF = path.join(T, 'rooms/viewer_data.json');
   if (await exists(vdF)) {
     const vd = await readJ(vdF); const C = doc.cinematics || [];
     for (const sc of vd.SC || []) { const it = C.find(c => c.kind === 'intro' && c.scene_id === sc.id); if (it) sc.intro = { goal: it.goal || '', panels: (it.panels || []).map(show) }; if (sc.ending) { const en = C.find(c => c.kind === 'ending'); if (en) sc.ending = { ...sc.ending, panels: (en.panels || []).map(show), reveal: en.reveal || sc.ending.reveal } } }
-    for (const q of C.flatMap(c => c.panels || [])) if (q.img && q.review?.status !== 'rejected') { const src = path.join(T, 'cine', q.img), dst = path.join(T, 'rooms', q.img); if (await exists(src) && !(await exists(dst))) await fs.copyFile(src, dst); }
+    for (const q of C.flatMap(c => c.panels || [])) if (q.img && q.review?.status === 'approved') { const src = path.join(T, 'cine', q.img), dst = path.join(T, 'rooms', q.img); if (await exists(src) && !(await exists(dst))) await fs.copyFile(src, dst); }
     await fs.writeFile(vdF, JSON.stringify(vd)); out.push('방 뷰어');
   }
   const base = path.join(root, 'naju01/cine-preview');

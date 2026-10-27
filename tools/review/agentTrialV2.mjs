@@ -15,7 +15,7 @@ export const STEPS_V2 = Object.freeze([
   { id: 's03', no: '03', label: '게임 시나리오 기획서', tier: 'judgment', maxTokens: 40000, effort: 'low' },
   { id: 's04', no: '04', label: 'Scene 구성표(JSON)', tier: 'judgment', maxTokens: 48000, effort: 'low' },
   { id: 's05', no: '05', label: '퍼즐 초안', tier: 'judgment', maxTokens: 64000, effort: 'medium', v2: true },
-  { id: 's11', no: '05b', label: '장면 연출(이야기 컷·결말 + 그림 검수)', tier: 'judgment', maxTokens: 24000, effort: 'medium', director: true }, // 10/27: 나주(야외)에도
+  { id: 's11', no: '05b', label: '장면 연출(이야기 컷·결말 + 그림 후보 → 사람 검수 후 다음 단계)', tier: 'judgment', maxTokens: 24000, effort: 'medium', director: true }, // 10/27: 나주(야외)에도
   { id: 's06', no: '06', label: '공간 구성', tier: 'judgment', maxTokens: 40000, effort: 'medium', v2: true },
   { id: 's07', no: '07', label: '에셋 선정', tier: 'judgment', maxTokens: 32000, effort: 'low', v2: true },
   { id: 's08', no: '08', label: '배치(코드 산포) · 자기 검사', tier: 'judgment', maxTokens: 24000, effort: 'low', v2: true },

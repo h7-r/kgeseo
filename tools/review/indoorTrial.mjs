@@ -16,7 +16,7 @@ export const STEPS_INDOOR = Object.freeze([
   { id: 's03', no: '03', label: '게임 시나리오 기획서', tier: 'judgment', maxTokens: 40000, effort: 'low' },
   { id: 's04', no: '04', label: 'Scene 구성표(JSON)', tier: 'judgment', maxTokens: 48000, effort: 'low' },
   { id: 's05', no: '05', label: '퍼즐 초안', tier: 'judgment', maxTokens: 64000, effort: 'medium', v2: true },
-  { id: 's10', no: '05b', label: '장면 연출(이야기 컷·회상·결말 + 그림 검수)', tier: 'judgment', maxTokens: 24000, effort: 'medium', indoor: true, director: true }, // 10/27 미르: 장면 연출은 따로 뗀다
+  { id: 's10', no: '05b', label: '장면 연출(이야기 컷·결말 + 그림 후보 → 사람 검수 후 다음 단계)', tier: 'judgment', maxTokens: 24000, effort: 'medium', indoor: true, director: true }, // 10/27 미르: 장면 연출은 따로 뗀다
   { id: 's06', no: '06', label: '실내 공간 구성(방 세트·살림 계획)', tier: 'judgment', maxTokens: 32000, effort: 'medium', indoor: true },
   { id: 's07', no: '07', label: '에셋 선정', tier: 'judgment', maxTokens: 24000, effort: 'low', indoor: true },
   { id: 's08', no: '08', label: '방 만들기·배치(코드, 비용 0)', tier: 'judgment', maxTokens: 1000, effort: 'low', indoor: true, codeOnly: true },
@@ -740,7 +740,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     // 10/27 미르: 공간마다 이야기 컷(intro) · 결말(ending)도 같은 방식으로 그린다
     const cineDoc = await readJsonOut(root, trial, 'cinematics.json').catch(() => null); // 10/27: 05b 장면 연출 결과(그림 포함)가 있으면 그것을 쓴다
     if (cineDoc) { for (const r of cineDoc.recall || []) { const p = H.find(x => x.puzzle_id === r.puzzle_id); if (p && (r.panels || []).length === (p.solve.device.spec?.panels || []).length) p.solve.device.spec.panels = r.panels; }
-      for (const q of [...(cineDoc.cinematics || []).flatMap(c => c.panels || []), ...(cineDoc.recall || []).flatMap(r => r.panels || [])]) if (q.review?.status === 'rejected') delete q.img; /* 10/28: 사람이 반려한 그림은 싣지 않는다(글만) */ else if (q.img) { const src = path.join(trialDirOf(root, trial.id), 'cine', q.img); if (await fs.access(src).then(() => true, () => false)) await fs.copyFile(src, path.join(dir, q.img)); else delete q.img; } }
+      for (const q of [...(cineDoc.cinematics || []).flatMap(c => c.panels || []), ...(cineDoc.recall || []).flatMap(r => r.panels || [])]) if (q.review?.status !== 'approved') delete q.img; /* 10/28: 사람이 승인한 그림만 싣는다(검수 전·반려는 글만) */ else if (q.img) { const src = path.join(trialDirOf(root, trial.id), 'cine', q.img); if (await fs.access(src).then(() => true, () => false)) await fs.copyFile(src, path.join(dir, q.img)); else delete q.img; } }
     const CINE = cineDoc ? [] : (puzzleDoc?.cinematics || []);
     const jobs = [...H.flatMap(p => (p.solve.device.spec?.panels || []).map((q, k) => ({ tag: p.puzzle_id, q, k }))), ...CINE.flatMap(c => (c.panels || []).map((q, k) => ({ tag: c.kind === 'ending' ? 'ending' : `intro-${c.scene_id}`, q, k })))];
     if (CINE.length && !have && !H.length) notes.push(`이야기 컷: 그림 생성기(mflux)를 찾지 못함(${bin}) — 글만 나옴`);
@@ -755,7 +755,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
       catch (e) { notes.push(`회상 컷 ${p.puzzle_id} ${q.id}: 그림 생성 실패 — ${String(e.message).slice(0, 160)}`); }
     }
   }
-  { const CINE = ((await readJsonOut(root, trial, 'cinematics.json').catch(() => null))?.cinematics || puzzleDoc?.cinematics || []).map(c => ({ ...c, panels: (c.panels || []).map(q => q.review?.status === 'rejected' ? { ...q, img: undefined } : q) })); for (const sc of SCENES) { const it = CINE.find(c => c.kind === 'intro' && c.scene_id === sc.id); if (it) sc.intro = { goal: it.goal || '', panels: it.panels || [] }; }
+  { const CINE = ((await readJsonOut(root, trial, 'cinematics.json').catch(() => null))?.cinematics || puzzleDoc?.cinematics || []).map(c => ({ ...c, panels: (c.panels || []).map(q => q.review?.status !== 'approved' ? { ...q, img: undefined } : q) })); for (const sc of SCENES) { const it = CINE.find(c => c.kind === 'intro' && c.scene_id === sc.id); if (it) sc.intro = { goal: it.goal || '', panels: it.panels || [] }; }
     const en = CINE.find(c => c.kind === 'ending'); const lastSc = [...SCENES].sort((a, b) => (a.order || 0) - (b.order || 0)).pop(); if (en && lastSc) lastSc.ending = { panels: en.panels || [], reveal: en.reveal || '', left_open: en.left_open || '', field: en.field || null }; }
   const PZ = (puzzleDoc?.puzzles || []).filter(p => p.presentation !== 'ending_cinematic').map(p => ({
     id: p.puzzle_id, scene_id: p.scene_id, title: p.title, type: p.puzzle_type, learns: p.learns || '',
@@ -1094,7 +1094,8 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
       const kept = { round: best.round, unsolved: best.unsolved, clueBad: best.clueBad.length, roomBad: best.roomBad.length };
       await writeOut(root, trial, 'visual_review.json', JSON.stringify({ checklist: vr.CHECKLIST, rounds, kept }, null, 2));
       const first = rounds[0], last = rounds[rounds.length - 1];
-      return { rounds: rounds.length, firstClueBad: first.clueBad.length, firstRoomBad: first.roomBad.length, firstUnsolved: first.unsolved, lastClueBad: last.clueBad.length, lastRoomBad: last.roomBad.length, kept };
+      const cineWait = await (await import('./agentTrial.mjs')).cinePending(root, trial.id); // 10/28: 09 가 장면 연출을 다시 돌렸으면 바뀐 컷은 사람 검수를 기다린다
+      return { cinePending: cineWait, rounds: rounds.length, firstClueBad: first.clueBad.length, firstRoomBad: first.roomBad.length, firstUnsolved: first.unsolved, lastClueBad: last.clueBad.length, lastRoomBad: last.roomBad.length, kept };
     }
     fail(409, 'indoor_step', `실내 공간 시험은 ${step.id} 단계가 없습니다(06~09 까지).`);
   };

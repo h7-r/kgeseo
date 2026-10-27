@@ -610,6 +610,7 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
         if (stepAction === 'run' && req.method === 'POST') return send(202, await agentTrial.startStep(root, trialId, stepId));
         // 10/23: 새 프로세스에서 돌리기 — 도구 코드를 고친 뒤 서버를 다시 켜지 않아도 고친 코드로 돈다
         if (stepAction === 'run-fresh' && req.method === 'POST') {
+          await agentTrial.cineGate(root, trialId, stepId); // 10/28: 이야기 컷 사람 검수 전이면 띄우지 않는다(409)
           const { spawn } = await import('node:child_process'); const { openSync } = await import('node:fs');
           const log = openSync(join(root, '.local/review/trials', trialId, `run-${stepId}.log`), 'a');
           const ch = spawn(process.execPath, [join(root, 'tools/review/runStepFresh.mjs'), root, trialId, stepId], { detached: true, stdio: ['ignore', log, log] }); ch.unref();

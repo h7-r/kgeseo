@@ -15,6 +15,7 @@ const a04 = JSON.parse(await fs.readFile(path.join(src, 'AI-04.json'), 'utf8'));
 const out = path.join(root, 'naju01/cine-preview', name); await fs.mkdir(out, { recursive: true });
 let n = 0, v = 0;
 for (const q of [...(doc.cinematics || []).flatMap(c => c.panels || []), ...(doc.recall || []).flatMap(r => r.panels || [])]) {
+  if (q.img && q.review?.status !== 'approved') delete q.img; // 10/28: 사람이 승인한 그림만
   if (q.img) { try { await fs.copyFile(path.join(src, 'cine', q.img), path.join(out, q.img)); n++; } catch { delete q.img; } }
   if (q.voice) { try { await fs.copyFile(path.join(src, 'cine', q.voice), path.join(out, q.voice)); v++; } catch { delete q.voice; } }
 }

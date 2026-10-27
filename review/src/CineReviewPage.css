@@ -26,3 +26,5 @@
 .cr-err{background:#fff0ee;color:#9b433f;border-radius:6px;padding:6px 8px;font-size:11px;margin-top:6px}
 .cr-hist{font-size:12px;margin:6px 0;padding-left:18px}
 @media (max-width:900px){.cr-top,.cr-main{grid-template-columns:1fr}}
+.cr-gate{font-size:12px;background:#fff6e5;color:#8a5a12;border-radius:6px;padding:4px 10px}.cr-gate.ok{background:#e7f3ed;color:#347253}
+.cr-summary select{width:auto;max-width:180px}

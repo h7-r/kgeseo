@@ -442,11 +442,27 @@ export async function estimateStep(root, id, stepId) {
   return { model, inputTokensApprox: inTok, maxTokens: step.maxTokens, worstUsd: +costOf(model, { input_tokens: inTok, output_tokens: step.maxTokens }).toFixed(3), typicalUsd: +costOf(model, { input_tokens: inTok, output_tokens: Math.round(step.maxTokens * 0.4) }).toFixed(3), spentUsd: trial.spentUsd, budgetUsd: trial.budgetUsd };
 }
 
+/** 장면 연출(05b) 뒤 단계는 이야기 컷 사람 검수가 끝나야 — 서버의 run-fresh 도 띄우기 전에 부른다 */
+export async function cineGate(root, trialOrId, stepId) {
+  const trial = typeof trialOrId === 'string' ? await readTrial(root, trialOrId) : trialOrId;
+  const list = stepsFor(trial); const di = list.findIndex(s => s.director), si = list.findIndex(s => s.id === stepId);
+  if (di >= 0 && si > di) { const n = await cinePending(root, trial.id); if (n > 0) fail(409, 'cine_review_pending', `이야기 컷 사람 검수가 끝나지 않았습니다(검수 전 ${n}컷). 좌측 「이야기 컷 검수」에서 그림을 보고 승인·반려한 뒤 진행하세요.`); }
+}
+
+/** 이야기 컷 중 사람이 아직 승인·반려하지 않은 컷 수(cinematics.json 이 없으면 0) */
+export async function cinePending(root, id) {
+  let doc; try { doc = JSON.parse(await fs.readFile(path.join(trialDir(root, id), 'cinematics.json'), 'utf8')); } catch { return 0; }
+  const P = [...(doc.cinematics || []).flatMap(c => c.panels || []), ...(doc.recall || []).flatMap(r => r.panels || [])];
+  return P.filter(q => !['approved', 'rejected'].includes(q.review?.status)).length;
+}
+
 /** 단계 실행 — 바로 돌려주고 뒤에서 돈다. 화면은 GET 으로 상태를 읽는다 */
 export async function startStep(root, id, stepId, { onDone } = {}) {
   const trial = await readTrial(root, id);
   const step = stepOf(stepId, trial) || fail(400, 'unknown_step', stepId);
   if (running.has(id)) fail(409, 'step_running', `이미 ${running.get(id)} 단계가 돌고 있습니다.`);
+  // 10/28 미르: 「사람이 눈으로 확인하고 승인해야 넘어가도록」 — 장면 연출(05b) 뒤 단계는 이야기 컷 사람 검수가 끝나야(검수 전 0컷) 돈다
+  await cineGate(root, trial, stepId);
   const provider = trial.llmSteps?.[stepId] || trial.llm || 'claude';
   if (step.codeOnly) { /* 코드만 — 모델 확인 없음 */ }
   else if (provider === 'local') {
