@@ -46,7 +46,7 @@ export async function detail(root, id) {
   for (const x of panelRefs(doc)) {
     let s = sections.find(v => v.section === x.section);
     if (!s) { s = { section: x.section, title: x.section === 'ending' ? '결말' : x.section.startsWith('recall:') ? `회상 ${x.section.slice(7)}` : `${titles[x.c.scene_id] || x.c.scene_id}`, goal: x.c.goal || '', reveal: x.c.reveal || '', field: x.c.field || null, panels: [] }; sections.push(s); }
-    const q = x.q; s.panels.push({ key: x.key, id: q.id, caption: q.caption || '', image_prompt: q.image_prompt || '', img: q.img || null, candidates: q.candidates || (q.img ? [q.img] : []), review: q.review || { status: 'pending' }, aiReview: q.aiReview || null, job: jobs[x.key] || null });
+    const q = x.q; s.panels.push({ key: x.key, id: q.id, caption: q.caption || '', image_prompt: q.image_prompt || '', img: q.img || null, candidates: q.candidates || (q.img ? [q.img] : []), review: q.review?.status ? q.review : { status: 'pending' }, aiReview: q.aiReview || (q.review && 'ok' in q.review ? q.review : null) /* 10/27 이전 판: Claude 그림 판정이 review 자리에 있었다 */, job: jobs[x.key] || null });
   }
   return { trial: { id, title: t.title || id, spaceKind: t.spaceKind || 'outdoor' }, bible: doc.bible || {}, sections, history: (doc.humanReview || []).slice(-40).reverse() };
 }

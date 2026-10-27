@@ -24,7 +24,7 @@ function Panel({ trialId, p, onChange, busy }) {
           <div className="cr-actions">
             <button disabled={busy || !p.img} onClick={() => act('approve')}>승인</button>
             <button className="secondary" disabled={busy} onClick={() => act('reject')}>반려(글만)</button>
-            {p.review?.status !== 'pending' && <button className="secondary" disabled={busy} onClick={() => act('reset')}>검수 전으로</button>}
+            {(p.review?.status || 'pending') !== 'pending' && <button className="secondary" disabled={busy} onClick={() => act('reset')}>검수 전으로</button>}
             <button className="secondary" disabled={busy} onClick={() => setOpen(!open)}>{open ? '고치기 닫기' : '미세 조정'}</button>
           </div>
           <input className="cr-note" placeholder="검수 메모(반려 까닭 등)" value={note} onChange={e => setNote(e.target.value)} />
