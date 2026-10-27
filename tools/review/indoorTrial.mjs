@@ -735,14 +735,22 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     const STYLE = 'Korean traditional ink-wash manhwa illustration, Joseon-era countryside house, muted earthy palette, soft moonlight and lamplight, cinematic wide shot, painterly brush texture, quiet eerie mood, people only as dark silhouettes or seen from behind, no faces, no text, no letters, no watermark. Scene: ';
     const have = H.length ? await fs.access(bin).then(() => true, () => false) : false;
     if (H.length && !have) notes.push(`회상 컷: 그림 생성기(mflux)를 찾지 못함(${bin}) — 글만 나옴`);
-    for (const p of H) for (const [k, q] of (p.solve.device.spec?.panels || []).entries()) {
+    // 10/27 미르: 공간마다 이야기 컷(intro) · 결말(ending)도 같은 방식으로 그린다
+    const CINE = puzzleDoc?.cinematics || [];
+    const jobs = [...H.flatMap(p => (p.solve.device.spec?.panels || []).map((q, k) => ({ tag: p.puzzle_id, q, k }))), ...CINE.flatMap(c => (c.panels || []).map((q, k) => ({ tag: c.kind === 'ending' ? 'ending' : `intro-${c.scene_id}`, q, k })))];
+    if (CINE.length && !have && !H.length) notes.push(`이야기 컷: 그림 생성기(mflux)를 찾지 못함(${bin}) — 글만 나옴`);
+    const haveBin = have || (CINE.length ? await fs.access(bin).then(() => true, () => false) : false);
+    for (const { tag, q, k } of jobs) {
+      const p = { puzzle_id: tag };
       const h8 = (await import('node:crypto')).createHash('sha1').update(String(q.image_prompt || q.caption || '')).digest('hex').slice(0, 8); /* 그림 글이 바뀌면 새로 그린다 */ const file = `recall_${String(p.puzzle_id).replace(/[^\w-]/g, '')}_${String(q.id).replace(/[^\w-]/g, '')}_${h8}.png`; const out = path.join(dir, file);
       if (await fs.access(out).then(() => true, () => false)) { q.img = file; continue; }
-      if (!have) continue;
+      if (!haveBin) continue;
       try { await run(bin, ['--model', 'flux2-klein-4b', '--prompt', STYLE + String(q.image_prompt || q.caption || ''), '--steps', '4', '--width', '1024', '--height', '576', '--seed', String(11 + k), '--output', out], { cwd: dir, timeoutMs: 300000 }); q.img = file; notes.push(`회상 컷 ${p.puzzle_id} ${q.id}: 그림 생성`); }
       catch (e) { notes.push(`회상 컷 ${p.puzzle_id} ${q.id}: 그림 생성 실패 — ${String(e.message).slice(0, 160)}`); }
     }
   }
+  { const CINE = puzzleDoc?.cinematics || []; for (const sc of SCENES) { const it = CINE.find(c => c.kind === 'intro' && c.scene_id === sc.id); if (it) sc.intro = { goal: it.goal || '', panels: it.panels || [] }; }
+    const en = CINE.find(c => c.kind === 'ending'); const lastSc = [...SCENES].sort((a, b) => (a.order || 0) - (b.order || 0)).pop(); if (en && lastSc) lastSc.ending = { panels: en.panels || [], reveal: en.reveal || '', left_open: en.left_open || '', field: en.field || null }; }
   const PZ = (puzzleDoc?.puzzles || []).filter(p => p.presentation !== 'ending_cinematic').map(p => ({
     id: p.puzzle_id, scene_id: p.scene_id, title: p.title, type: p.puzzle_type, learns: p.learns || '',
     review: { belief_before: p.belief_before || '', how: p.how || '', difficulty: p.difficulty || '', invented: p.invented || [],

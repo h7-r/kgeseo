@@ -42,6 +42,13 @@ const PUZZLE_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」
 - 장치의 답 = 화면에 보이는 것 그대로: 문살 무늬판이면 바닥에 비친 창살 빛에서 밝은 칸이 곧 누를 칸(그 빛 단서의 shows.cells 에 그 칸을 적는다), 패 끼우기면 기록에 적힌 차례, 매듭이면 실제로 색이 보이는 물건들의 차례, 비밀자물쇠면 단서 물건에 그려진 문양. 외워야 하는 대응표(오방색↔방위 등)를 쓰려면 그 대응표 자체가 방 안에 단서로 있어야 한다.
 - 답은 단서로 「확인」한다 — 남는 것을 고르는 소거·짐작으로 정해지는 답 금지(10/27 미르: 그림자가 여인인지 알 단서가 없어 「여인」은 찍어야 맞혔다). 답이 사람·물건이면 그것임을 알아볼 특징이 단서 content 에 그 말 그대로 있고(예: 「쪽진 머리에 치마폭이 넓은 여인의 그림자」), 흔적(mark)이면 화면에도 그 모습으로 그린다(shows.figure). 기록에 없는 사람이 답이면 「기록에 없는 사람」이 아니라 그 사람을 직접 보여 준다.
 - 풀면 반드시 무슨 일이 일어난다: 다음 방 문이 열리거나(출구 장치), 다음 퍼즐에 쓰이는 단서를 얻는다(clue_acquired 가 뒤 퍼즐의 required_clue_ids 에 들어감). 풀어도 아무 것도 안 나오는 퍼즐 금지.
+이야기 컷 cinematics(10/27 미르: 「한 판의 게임이 하나의 서사로 완결되고 새로운 사실을 알며 끝나야 한다. 현장에 가야만 확인할 수 있는 마지막 해금 장치 하나만 완주자에게 제안. 시네마틱은 공간을 넘어갈 때마다 이야기를 읽게 하고 다음 공간에서 무엇을 왜 풀어야 하는지 당위를 준다」)
+- 퍼즐과 함께 맨 위에 "cinematics" 배열을 쓴다. 패널 = {"id":"C1","caption":"30~70자, 지금 말로 쓴 서술(01 사실 그대로, U 항목은 단정 금지)","fact_ids":["F-.."],"image_prompt":"English. ONE moment: place, time, light, key objects. People only as dark silhouettes or seen from behind — no faces, no text"}.
+- 장면마다 intro 하나: {"scene_id":"scene-0N","kind":"intro","panels":[1~2개],"goal":"이 공간에서 무엇을 왜 찾는지 한 문장 — 플레이어에게 하는 말"}. 그 공간에 처음 들어설 때 나온다.
+  · 첫 장면 intro = 게임의 시작(왜곡 영역에 들어선 까닭, 무엇이 어긋나 있나). 다음 장면 intro = 앞 장면에서 알게 된 것(04 「나갈 때 들고 가는 것」)을 잇고, 이 장면이 풀어야 할 질문으로 끝난다.
+  · 퍼즐 답·뒤 장면에서 밝혀질 것은 말하지 않는다. 회상 장면 맞추기(hoesang)가 있는 장면은 그 회상이 intro 역할 — panels 는 [] 로 두고 goal 만 쓴다.
+- 결말 하나: {"kind":"ending","panels":[2~4개],"reveal":"이 판을 끝까지 풀어 새로 알게 된 사실 한 문장(01 근거)","left_open":"아직 모르는 것 한 문장(02 결말의 열린 것)","field":{"place":"02 현장 연결의 장소 이름 그대로","seal":"그곳에 가야만 풀리는 마지막 봉인 — 현장에서 무엇을 직접 보고 확인하면 풀리는지 한 문장","question":"현장에서 답할 물음 한 문장"}}.
+  · 마지막 장면의 마지막 퍼즐을 풀면 곧바로 결말이 나온다(마지막 장면 퍼즐에는 출구 장치가 없다). 결말은 이 판의 이야기를 닫고, 새 사실(reveal)을 밝히고, 남은 하나를 현장 봉인으로 넘긴다.
 팀 계약(반드시 지킴)
 - 플레이어 행동은 5종뿐: inspect(물건·기록·단서 조사) · navigate(구역·조사 지점으로 이동) · input(글자·숫자 입력) · select(선택지·대상 고르기) · combine_clues(얻은 단서 2개를 조사수첩에서 짝짓기). 옛 이름(observe·compare·rotate·align·connect·sequence·collect 등)은 쓰지 않는다.
 - 퍼즐 유형(puzzle_type)은 7종뿐: code_input · text_input · single_choice · multiple_choice · observation · navigation · clue_combination.
@@ -232,6 +239,7 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
     const sceneOrder = scenes.map(s => s.scene_id);
     const puzzleDoc = await readJsonOut(root, trial, 'puzzle.json').catch(() => null);
     const factLines = () => [...(facts?.facts || []).map(f => `- ${f.id} [${f.category}] ${f.text}`), ...(facts?.open || []).map(f => `- ${f.id} [해석 유보] ${f.text || f.question || ''}`), ...(facts?.ng || []).map(f => `- ${f.id} [금지 왜곡] ${f.text || ''}`)].join('\n');
+    const storyEnd = () => { const d2 = docs['02']?.json || {}; const e = d2.ending || {}; return ['[02 결말 · 현장 연결 — 결말 컷과 현장 봉인 재료]', `- 결말 상태: ${e.final_state || ''}`, `- 마지막 그림: ${e.last_image || ''}`, `- 열린 채 남는 것: ${e.left_open || ''}`, ...(d2.field_link || []).map(f => `- 현장: ${f.place} · 물음 「${f.online_question || ''}」 · 현장에서 볼 것: ${f.onsite || ''}`)].join('\n'); };
     const sceneLines = (doc) => ((doc?.scenes) || scenes).map(s => [
       `## ${s.scene_id} · ${s.title || ''} — ${s.purpose || ''}`,
       `- 분위기: ${s.mood?.base || ''} · 질문: ${(s.questions || []).join(' / ')}`,
@@ -239,6 +247,7 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
       ...(s.space_reqs || []).map(r => `- ${r.space_req_id}: ${r.must_read_as} (장소 ${(r.setting || []).join('/')}, ${r.playable === false ? '걷지 않음' : '걷는 곳'}, ${r.layer || ''})`),
       ...(s.asset_reqs || []).map(r => `- ${r.req_id} (${r.category}): ${r.role_hint || ''} · ${(r.tags_any || []).join('/')} · ${r.lore_reason || ''}`),
       s.exit ? `- 나가는 조건: ${s.exit.complete_when || ''}` : '',
+      s.exit?.carry_info?.length ? `- 나갈 때 들고 가는 것(다음 장면 intro 재료): ${s.exit.carry_info.join(' / ')}` : '',
     ].join('\n')).join('\n\n');
 
     // 에셋 실제 크기(키 m · 발판 비율) — 앉힘 규칙(공중에 뜨기·비탈에 박히기 막기, 10/19)에 쓴다. 에셋마다 한 번
@@ -474,7 +483,7 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
         json = { puzzles: all };
       } else {
         let vrNote = ''; try { const fb = await readJsonOut(root, trial, 'vr_feedback.json'); if (fb?.clues?.length) vrNote = ['[지난 시각 검수 — 플레이 화면 사진에서 이 단서들이 보이지 않았다. 화면에 그릴 수 있는 것(shows 목록)으로 바꾸거나, 그 정보를 손에 드는 기록(note·letter)으로 옮긴다]', ...fb.clues.map(c => `- ${c.clue_id}: ${c.why}`)].join('\n'); } catch {}
-        const user = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', await deviceHistory(root, trial), ...(vrNote ? ['', vrNote] : [])].join('\n');
+        const user = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', storyEnd(), '', await deviceHistory(root, trial), ...(vrNote ? ['', vrNote] : [])].join('\n');
         const text = await llm(root, trial, step, { system: PUZZLE_SYSTEM, user });
         await writeOut(root, trial, 'raw-s05.txt', text);
         json = extractJson(text);
@@ -585,6 +594,20 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
             ...(hosts.length && readable / hosts.length > 0.34 ? [`글 새긴 면 호스트 ${readable}/${hosts.length} — 3분의 1 넘음`] : []),
           ];
         }
+        // 10/27 미르: 공간마다 이야기 컷(intro) · 결말(새 사실 + 현장 봉인)
+        { const C = json.cinematics || [], out = []; const P = (json.puzzles || []).filter(p => p.presentation !== 'ending_cinematic' && p.puzzle_type); const scIds = [...new Set(P.map(p => p.scene_id))];
+          const fid = new Set([...(facts?.facts || []), ...(facts?.open || [])].map(f => f.id)); const places = (docs['02']?.json?.field_link || []).map(f => String(f.place || '').trim()).filter(Boolean);
+          const pan = (tag, ps) => { for (const q of ps || []) { const c = String(q.caption || ''); if (c.length < 15 || c.length > 90) out.push(`${tag} ${q.id}: 컷 글 ${c.length}자 — 30~70자`); if (!/[a-z]{3}/i.test(String(q.image_prompt || ''))) out.push(`${tag} ${q.id}: image_prompt(영어) 없음`); const bad = (q.fact_ids || []).filter(f => !fid.has(f)); if (!(q.fact_ids || []).length || bad.length) out.push(`${tag} ${q.id}: fact_ids 가 01 사실이 아님(${bad.join(',') || '없음'})`); } };
+          for (const sc of scIds) { const it = C.find(c => c.kind === 'intro' && c.scene_id === sc); const hasRecall = P.some(p => p.scene_id === sc && p.solve?.device?.kind === 'hoesang');
+            if (!it) { out.push(`${sc}: 이야기 컷(intro) 없음 — 이 공간에서 무엇을 왜 푸는지`); continue; }
+            if (!String(it.goal || '').trim()) out.push(`${sc}: intro goal(무엇을 왜) 없음`);
+            const n = (it.panels || []).length; if (!hasRecall && (n < 1 || n > 2)) out.push(`${sc}: intro 컷 ${n}개 — 1~2개`); pan(`${sc} intro`, it.panels); }
+          const en = C.find(c => c.kind === 'ending');
+          if (!en) out.push('결말 컷(ending) 없음 — 새로 알게 된 사실 + 현장 봉인으로 마무리');
+          else { const n = (en.panels || []).length; if (n < 2 || n > 4) out.push(`결말 컷 ${n}개 — 2~4개`); pan('ending', en.panels); if (!String(en.reveal || '').trim()) out.push('결말 reveal(새로 알게 된 사실) 없음');
+            if (!en.field?.place || !en.field?.seal) out.push('결말 field(현장 장소·봉인) 없음'); else if (places.length && !places.includes(String(en.field.place).trim())) out.push(`결말 현장 「${en.field.place}」이(가) 02 현장 연결(${places.join(', ')})에 없음`); }
+          const last = scIds[scIds.length - 1]; for (const p of P.filter(p => p.scene_id === last)) if (p.solve?.device?.on === 'exit_door') out.push(`${p.puzzle_id}: 마지막 장면 퍼즐에 출구 장치 — 마지막 퍼즐을 풀면 결말로`);
+          check.story = out; }
         return check;
       };
       // 10/26 미르: 「자연스럽게 추론이 가능해야 하는데 중구난방」 — 답을 모르는 풀이 시험 에이전트가 플레이어가 보는 것만 가지고 풀어 본다. 못 풀거나 다른 답이 나오면 고쳐 쓴다
@@ -612,13 +635,13 @@ JSON 만: {"answers":[{"puzzle_id":"PZ-..","answer":"장치에 넣을 값(배열
       check.solver = await solve(json);
       // 자동 고쳐 쓰기 1회(10/22): 발견 연출·풀이 장치 규칙을 어기면(모델이 장치를 통째로 빠뜨린 일) 문제 목록을 주고 한 번 다시 쓰게 한다
       // 10/23: 고쳐 쓰기를 최대 2번 — 고친 판이 걸린 것이 더 적을 때만 바꿔 든다
-      const issues = c => [...(c.reveal || []), ...(c.contract || []), ...(c.solver || [])]; // 10/23: 계약(단서 조합 2개 등)도 같이 — 고쳐 쓰다 계약을 깬 판을 받아들였다
+      const issues = c => [...(c.reveal || []), ...(c.contract || []), ...(c.solver || []), ...(c.story || [])]; // 10/23: 계약(단서 조합 2개 등)도 같이 — 고쳐 쓰다 계약을 깬 판을 받아들였다
       for (let round = 1; round <= 3 && !local && issues(check).length; round++) {
-        const user2 = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', '[네가 쓴 퍼즐 초안]', JSON.stringify({ puzzles: json.puzzles }), '', '[자동 검사에서 걸린 것 — 모두 고쳐서 전체 JSON 을 다시 써라. 이미 맞는 퍼즐은 그대로 둔다]', ...issues(check).map(x => `- ${x}`)].join('\n');
+        const user2 = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', storyEnd(), '', '[네가 쓴 퍼즐 초안]', JSON.stringify({ puzzles: json.puzzles, cinematics: json.cinematics || [] }), '', '[자동 검사에서 걸린 것 — 모두 고쳐서 전체 JSON 을 다시 써라. 이미 맞는 퍼즐은 그대로 둔다]', ...issues(check).map(x => `- ${x}`)].join('\n');
         const text2 = await llm(root, trial, step, { system: PUZZLE_SYSTEM, user: user2 });
         await writeOut(root, trial, round === 1 ? 'raw-s05-fix.txt' : `raw-s05-fix${round}.txt`, text2);
         const json2 = extractJson(text2);
-        if (!json2.__error && (json2.puzzles || []).length) { const check2 = runChecks(json2); check2.solver = await solve(json2); if (issues(check2).length <= issues(check).length) { check2.repaired = { round, before: check.repaired?.before || issues(check), after: issues(check2) }; json = json2; check = check2; } }
+        if (!json2.__error && (json2.puzzles || []).length) { if (!(json2.cinematics || []).length && (json.cinematics || []).length) json2.cinematics = json.cinematics; const check2 = runChecks(json2); check2.solver = await solve(json2); if (issues(check2).length <= issues(check).length) { check2.repaired = { round, before: check.repaired?.before || issues(check), after: issues(check2) }; json = json2; check = check2; } }
       }
       // 10/27 미르: 3번 고쳐 써도 「여인」이 단서에 없는 채로 남아 그대로 다음 단계로 갔다 — 남은 퍼즐만 따로 꺼내 한 번 더 고치고, 그래도 남으면 unresolved 로 적어 08 검수에서 빨갛게 보인다
       { const pid = x => (/^(PZ-[\w-]+?)(?=:)/.exec(x) || [])[1]; const bad = [...new Set(issues(check).map(pid).filter(Boolean))].filter(id => (json.puzzles || []).some(p => p.puzzle_id === id));
@@ -627,7 +650,7 @@ JSON 만: {"answers":[{"puzzle_id":"PZ-..","answer":"장치에 넣을 값(배열
           const user3 = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', '[게임 전체 퍼즐 — 참고만]', JSON.stringify({ puzzles: (json.puzzles || []).map(p => ({ puzzle_id: p.puzzle_id, scene_id: p.scene_id, title: p.title, clue_ids: (p.clues || []).map(c => c.clue_id) })) }), '', '[고칠 퍼즐 — 이 퍼즐들만 고쳐서 {"puzzles":[…]} 로 돌려준다. puzzle_id·scene_id·clue_id 는 그대로, 다른 퍼즐은 쓰지 않는다]', JSON.stringify({ puzzles: sub }), '', '[걸린 것]', ...issues(check).filter(x => bad.includes(pid(x))).map(x => `- ${x}`), '', '고치는 길: 답을 바꾸기보다 단서를 고쳐 답이 「보이게」 한다 — 답 말을 단서 content 에 그대로, 흔적이면 shows 로 그 모습을 그린다.'].join('\n');
           try { const text3 = await llm(root, trial, step, { system: PUZZLE_SYSTEM, user: user3 }); await writeOut(root, trial, 'raw-s05-fix-focus.txt', text3); const j3 = extractJson(text3);
             if (!j3.__error && (j3.puzzles || []).length) { const json3 = { ...json, puzzles: (json.puzzles || []).map(p => (j3.puzzles || []).find(q => q.puzzle_id === p.puzzle_id) || p) }; const check3 = runChecks(json3); check3.solver = await solve(json3); if (issues(check3).length < issues(check).length) { check3.repaired = { round: 'focus', before: check.repaired?.before || issues(check), after: issues(check3) }; json = json3; check = check3; } } } catch (e) { check.focusError = String(e.message).slice(0, 160); } }
-        check.unresolved = [...(check.reveal || []), ...(check.solver || [])].filter(x => pid(x)); }
+        check.unresolved = [...(check.reveal || []), ...(check.solver || [])].filter(x => pid(x)).concat(check.story || []); }
       await writeOut(root, trial, 'puzzle.json', JSON.stringify({ ...json, check }, null, 2));
       return { puzzles: (json.puzzles || []).length, hostNeeds: (json.puzzles || []).reduce((a, p) => a + (p.host_needs || []).length, 0), types: [...new Set((json.puzzles || []).map(p => p.puzzle_type))], ...check };
     }
