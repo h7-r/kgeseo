@@ -78,6 +78,17 @@ const exists = f => fs.access(f).then(() => true, () => false);
 const h8 = s => crypto.createHash('sha1').update(String(s)).digest('hex').slice(0, 8);
 const safe = s => String(s).replace(/[^\w-]/g, '');
 
+/** 컷 목록 — 검수 페이지·05b 가 같은 열쇠(key)를 쓴다: intro:scene-0N|컷id · ending|컷id · recall:PZ|컷id */
+export function panelRefs(doc) {
+  const out = [];
+  for (const c of doc.cinematics || []) { const sec = c.kind === 'ending' ? 'ending' : `intro:${c.scene_id}`; const tag = c.kind === 'ending' ? 'ending' : `intro-${c.scene_id}`; (c.panels || []).forEach((q, k) => out.push({ key: `${sec}|${q.id || k}`, section: sec, tag, q, k, c })); }
+  for (const r of doc.recall || []) (r.panels || []).forEach((q, k) => out.push({ key: `recall:${r.puzzle_id}|${q.id || k}`, section: `recall:${r.puzzle_id}`, tag: r.puzzle_id, q, k, c: r }));
+  return out;
+}
+/** 그림 생성 문구 — 고정 화풍 + 집·인물 고정 묘사 + 컷 지시 */
+export function promptFor(bible, q) { const people = (bible || {}).people || {}; return [STYLE, (q.uses || []).includes('house') || !(q.uses || []).length ? `The house: ${(bible || {}).house || ''}` : '', ...(q.uses || []).filter(u => people[u]).map(u => `${u}: ${people[u]}`), `Scene: ${q.image_prompt || q.caption || ''}`].filter(Boolean).join(' '); }
+export { STYLE };
+
 /** 컷 글 → 음성 파일(macOS say + afconvert). 파일 이름에 글·목소리 해시 — 글이 바뀌면 새로 만든다 */
 async function makeVoices({ out, dir, notes }) {
   const list = await new Promise(res => { const p = spawn('say', ['-v', '?']); let o = ''; p.stdout.on('data', d => { o += d; }); p.on('error', () => res('')); p.on('close', () => res(o)); });
@@ -211,45 +222,38 @@ export async function runDirector({ root, trial, step, docs, readJsonOut, writeO
   }
   void applyRewrites;
 
-  // 그림 — 컷마다 한 장, Claude 가 보고 검수, 걸리면 그 컷만 다시(최대 2번)
+  // 그림 — 10/28 미르: 「그림을 보고 검수·선택·미세 조정·반려는 클로드가 아니라 사람이」 → 컷마다 후보를 CINE_CANDIDATES 장(기본 2) 그려 두고 사람 검수(검수 페이지 「이야기 컷 검수」)를 기다린다.
+  //   Claude 그림 검수는 CINE_AI_JUDGE=1 일 때만(기본 끔). 첫 후보를 임시로 싣고, 사람 결정(고른 그림·승인·반려)은 글·그림 지시가 같으면 다시 돌아도 이어받는다
   const bin = process.env.MFLUX_BIN || path.join(process.env.HOME || '', 'flux-test/.venv/bin/mflux-generate-flux2');
   const haveBin = await exists(bin);
   const dir = path.join(trialDirOf(root, trial.id), 'cine'); await fs.mkdir(dir, { recursive: true });
-  const bible = out.bible || {}; const people = bible.people || {};
-  const promptOf = q => [STYLE, (q.uses || []).includes('house') || !(q.uses || []).length ? `The house: ${bible.house || ''}` : '', ...(q.uses || []).filter(u => people[u]).map(u => `${u}: ${people[u]}`), `Scene: ${q.image_prompt || q.caption || ''}`].filter(Boolean).join(' ');
-  const jobs = [...(out.cinematics || []).flatMap(c => (c.panels || []).map((q, k) => ({ tag: c.kind === 'ending' ? 'ending' : `intro-${c.scene_id}`, q, k }))), ...(out.recall || []).flatMap(r => (r.panels || []).map((q, k) => ({ tag: r.puzzle_id, q, k })))];
-  const judged = { ok: 0, redrawn: 0, failed: 0 };
+  const bible = out.bible || {};
+  const NC = Math.max(1, Math.min(4, Number(process.env.CINE_CANDIDATES) || 2)); const AI_JUDGE = process.env.CINE_AI_JUDGE === '1';
+  const prev = await readJsonOut(root, trial, 'cinematics.json').catch(() => null); const prevBy = new Map(); for (const x of panelRefs(prev || {})) prevBy.set(x.key, x.q);
+  const jobs = panelRefs(out);
+  const judged = { candidates: 0, carried: 0, failed: 0, aiJudge: AI_JUDGE };
   if (!haveBin) notes.push(`그림 생성기(mflux)를 찾지 못함(${bin}) — 글만`);
-  for (const { tag, q, k } of jobs) {
-    if (!haveBin) break;
-    let extra = '', last = null;
-    for (let t = 0; t <= 2; t++) {
-      const prompt = promptOf(q) + (extra ? ` ${extra}` : '');
-      const file = `cine_${safe(tag)}_${safe(q.id)}_${h8(prompt + t)}.png`; const f = path.join(dir, file);
-      if (!(await exists(f))) {
-        try { await run(bin, ['--model', 'flux2-klein-4b', '--prompt', prompt, '--steps', '4', '--width', '1024', '--height', '576', '--seed', String(11 + k + t * 100), '--output', f], { cwd: dir }); }
-        catch (e) { notes.push(`${tag} ${q.id}: 그림 생성 실패 — ${String(e.message).slice(0, 140)}`); break; }
-      }
-      q.img = file; last = file;
-      // 검수 — 작게 줄여(macOS sips) 보낸다. 못 줄이면 원본
-      let img = f, mt = 'image/png'; const small = f.replace(/\.png$/, '_s.jpg');
-      try { if (!(await exists(small))) await run('sips', ['-s', 'format', 'jpeg', '-Z', '640', f, '--out', small], { timeoutMs: 30000 }); img = small; mt = 'image/jpeg'; } catch { /* 원본 그대로 */ }
-      let v = null;
-      try {
-        const text = await llm(root, trial, { ...step, maxTokens: 1500, effort: 'low' }, { system: JUDGE, user: [{ type: 'text', text: `[컷 글] ${q.caption}\n[고정 묘사] house: ${bible.house || ''} · ${(q.uses || []).filter(u => people[u]).map(u => `${u}: ${people[u]}`).join(' · ')}\n[그림 지시] ${q.image_prompt}` }, { type: 'image', source: { type: 'base64', media_type: mt, data: (await fs.readFile(img)).toString('base64') } }] });
-        v = extractJson(text);
-      } catch (e) { notes.push(`${tag} ${q.id}: 그림 검수 실패 — ${String(e.message).slice(0, 120)}`); }
-      q.review = v && !v.__error ? { ok: !!v.ok, fails: v.fails || [], why: v.why || '', try: t } : { ok: null, try: t };
-      if (!v || v.__error || v.ok) break;
-      if (t < 2) { extra = String(v.fix || '') + ' ' + (v.fails || []).map(x => ({ F1: 'Absolutely no visible faces.', F2: 'No text, letters or seals anywhere.', F5: 'Empty swept earth courtyard and bare wooden porch floor.', F6: 'One single continuous image, no panels.' })[x] || '').join(' '); judged.redrawn++; }
+  for (const { key, tag, q, k } of jobs) {
+    const old = prevBy.get(key);
+    if (old && old.caption === q.caption && old.image_prompt === q.image_prompt && (old.candidates || []).length) { q.candidates = old.candidates; q.img = old.img; q.review = old.review || { status: 'pending' }; judged.carried++; continue; }
+    q.candidates = []; q.review = { status: 'pending' };
+    if (!haveBin) continue;
+    const prompt = promptFor(bible, q);
+    for (let t = 0; t < NC; t++) {
+      const seed = 11 + k + t * 100; const file = `cine_${safe(tag)}_${safe(q.id)}_${h8(prompt + seed)}.png`; const f = path.join(dir, file);
+      if (!(await exists(f))) { try { await run(bin, ['--model', 'flux2-klein-4b', '--prompt', prompt, '--steps', '4', '--width', '1024', '--height', '576', '--seed', String(seed), '--output', f], { cwd: dir }); } catch (e) { judged.failed++; notes.push(`${tag} ${q.id}: 그림 생성 실패 — ${String(e.message).slice(0, 140)}`); continue; } }
+      q.candidates.push(file); judged.candidates++;
     }
-    if (q.review?.ok) judged.ok++; else if (q.review && q.review.ok === false) judged.failed++;
-    if (last) q.img = last;
+    q.img = q.candidates[0];
+    if (AI_JUDGE && q.img) { /* 예전 방식 참고용 — 사람 검수가 기본 */
+      try { const small = path.join(dir, q.img.replace(/\.png$/, '_s.jpg')); await run('sips', ['-s', 'format', 'jpeg', '-Z', '640', path.join(dir, q.img), '--out', small], { timeoutMs: 30000 }).catch(() => {});
+        const v = extractJson(await llm(root, trial, { ...step, maxTokens: 1500, effort: 'low' }, { system: JUDGE, user: [{ type: 'text', text: `[컷 글] ${q.caption}\n[그림 지시] ${q.image_prompt}` }, { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: (await fs.readFile(small)).toString('base64') } }] }));
+        if (!v.__error) q.aiReview = { ok: !!v.ok, fails: v.fails || [], why: v.why || '' }; } catch { /* 참고용 */ } }
   }
   // 목소리(10/27 미르: 「시네마틱 음성 지원」) — 컷 글을 맥 기본 한국어 음성(say)으로 읽어 m4a 로. 로컬·무료. 없으면 글만
   // 10/27 미르: 「지금 음성은 쓸 수 없다(나이 든 남성 음성이 아니면) — 우선 꺼 두자」 → 기본 끔. TTS_ON=1 일 때만 만든다
   const voice = process.env.TTS_ON === '1' ? await makeVoices({ out, dir, notes }) : null;
-  const doc = { ...out, voice, check: { script: { before: scriptBefore, rounds: scriptRounds, after: script }, issues: bad, before: before.length !== bad.length ? before : undefined, images: judged, notes } };
+  const doc = { ...out, voice, check: { script: { before: scriptBefore, rounds: scriptRounds, after: script }, issues: bad, before: before.length !== bad.length ? before : undefined, images: judged, notes }, humanReview: prev?.humanReview || [] };
   await writeOut(root, trial, 'cinematics.json', JSON.stringify(doc, null, 2));
-  return { script: `${scriptBefore}→${script.length}`, intros: (out.cinematics || []).filter(c => c.kind === 'intro').length, ending: !!(out.cinematics || []).find(c => c.kind === 'ending'), panels: jobs.length, issues: bad.length, images: judged };
+  return { script: `${scriptBefore}→${script.length}`, intros: (out.cinematics || []).filter(c => c.kind === 'intro').length, ending: !!(out.cinematics || []).find(c => c.kind === 'ending'), panels: jobs.length, issues: bad.length, images: judged, humanReview: 'pending' };
 }

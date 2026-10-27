@@ -740,7 +740,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     // 10/27 미르: 공간마다 이야기 컷(intro) · 결말(ending)도 같은 방식으로 그린다
     const cineDoc = await readJsonOut(root, trial, 'cinematics.json').catch(() => null); // 10/27: 05b 장면 연출 결과(그림 포함)가 있으면 그것을 쓴다
     if (cineDoc) { for (const r of cineDoc.recall || []) { const p = H.find(x => x.puzzle_id === r.puzzle_id); if (p && (r.panels || []).length === (p.solve.device.spec?.panels || []).length) p.solve.device.spec.panels = r.panels; }
-      for (const q of [...(cineDoc.cinematics || []).flatMap(c => c.panels || []), ...(cineDoc.recall || []).flatMap(r => r.panels || [])]) if (q.img) { const src = path.join(trialDirOf(root, trial.id), 'cine', q.img); if (await fs.access(src).then(() => true, () => false)) await fs.copyFile(src, path.join(dir, q.img)); else delete q.img; } }
+      for (const q of [...(cineDoc.cinematics || []).flatMap(c => c.panels || []), ...(cineDoc.recall || []).flatMap(r => r.panels || [])]) if (q.review?.status === 'rejected') delete q.img; /* 10/28: 사람이 반려한 그림은 싣지 않는다(글만) */ else if (q.img) { const src = path.join(trialDirOf(root, trial.id), 'cine', q.img); if (await fs.access(src).then(() => true, () => false)) await fs.copyFile(src, path.join(dir, q.img)); else delete q.img; } }
     const CINE = cineDoc ? [] : (puzzleDoc?.cinematics || []);
     const jobs = [...H.flatMap(p => (p.solve.device.spec?.panels || []).map((q, k) => ({ tag: p.puzzle_id, q, k }))), ...CINE.flatMap(c => (c.panels || []).map((q, k) => ({ tag: c.kind === 'ending' ? 'ending' : `intro-${c.scene_id}`, q, k })))];
     if (CINE.length && !have && !H.length) notes.push(`이야기 컷: 그림 생성기(mflux)를 찾지 못함(${bin}) — 글만 나옴`);
@@ -755,7 +755,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
       catch (e) { notes.push(`회상 컷 ${p.puzzle_id} ${q.id}: 그림 생성 실패 — ${String(e.message).slice(0, 160)}`); }
     }
   }
-  { const CINE = (await readJsonOut(root, trial, 'cinematics.json').catch(() => null))?.cinematics || puzzleDoc?.cinematics || []; for (const sc of SCENES) { const it = CINE.find(c => c.kind === 'intro' && c.scene_id === sc.id); if (it) sc.intro = { goal: it.goal || '', panels: it.panels || [] }; }
+  { const CINE = ((await readJsonOut(root, trial, 'cinematics.json').catch(() => null))?.cinematics || puzzleDoc?.cinematics || []).map(c => ({ ...c, panels: (c.panels || []).map(q => q.review?.status === 'rejected' ? { ...q, img: undefined } : q) })); for (const sc of SCENES) { const it = CINE.find(c => c.kind === 'intro' && c.scene_id === sc.id); if (it) sc.intro = { goal: it.goal || '', panels: it.panels || [] }; }
     const en = CINE.find(c => c.kind === 'ending'); const lastSc = [...SCENES].sort((a, b) => (a.order || 0) - (b.order || 0)).pop(); if (en && lastSc) lastSc.ending = { panels: en.panels || [], reveal: en.reveal || '', left_open: en.left_open || '', field: en.field || null }; }
   const PZ = (puzzleDoc?.puzzles || []).filter(p => p.presentation !== 'ending_cinematic').map(p => ({
     id: p.puzzle_id, scene_id: p.scene_id, title: p.title, type: p.puzzle_type, learns: p.learns || '',

@@ -552,10 +552,15 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
       }
       const input = ['POST', 'PATCH'].includes(req.method) ? await body(req, path.endsWith('/scene-captures') ? 1_000_000 : MAX_BODY) : null;
       // ── 에이전트 시험(agentTrial.mjs, 10/19) — 긴 LLM 단계는 직렬 큐 밖에서 돈다. 검수 기록을 만드는 /space 만 큐 안에서 ──
+      // ── 이야기 컷 사람 검수(10/28 미르: 그림 검수·선택·미세 조정·반려는 사람이) — 요청마다 cineReview.mjs 를 새로 읽는다 ──
+      if (path === '/__review/cine' || path.startsWith('/__review/cine/')) {
+        try { const cr = await import(new URL(`./cineReview.mjs?t=${Date.now()}`, import.meta.url).href); const [code, out] = await cr.handle(root, req.method, path, input); return send(code, out); }
+        catch (error) { if (error?.status) return send(error.status, { error: 'cine_review', message: error.message }); throw error; }
+      }
       if (path === '/__review/trials' || path.startsWith('/__review/trials/')) {
         if (path === '/__review/trials/llm-status' && req.method === 'GET') return send(200, await (await import('../llm/local.mjs')).localStatus());
         // 실내 방 세트 뷰어·파일(10/21, indoorTrial.mjs 08 결과) — .local/review/trials/<id>/rooms/ 안의 이름만, 읽기만
-        const roomFile = path.match(/^\/__review\/trials\/([a-f0-9-]{36})\/(rooms|rooms_raw|rooms_agent)\/([\w\u3131-\uD79D.-]+\.(html|glb|json|jpg|png))$/u); // 10/27: 회상 컷 그림(jpg·png) · rooms_raw = 원안 비교판(10/22)
+        const roomFile = path.match(/^\/__review\/trials\/([a-f0-9-]{36})\/(rooms|rooms_raw|rooms_agent|cine)\/([\w\u3131-\uD79D.-]+\.(html|glb|json|jpg|png))$/u); // 10/28: cine = 이야기 컷 후보 그림(사람 검수) // 10/27: 회상 컷 그림(jpg·png) · rooms_raw = 원안 비교판(10/22)
         if (roomFile) {
           if (req.method !== 'GET' && req.method !== 'HEAD') return send(405, { error: 'method_not_allowed', message: '읽기만 됩니다.' });
           const file = join(root, '.local/review/trials', roomFile[1], roomFile[2], roomFile[3]);
