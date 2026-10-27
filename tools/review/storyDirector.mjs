@@ -14,7 +14,7 @@ const SYSTEM = `너는 지역 설화 방탈출 게임 「왜곡」의 장면 연
 - 01 설화 사실만 쓴다. U(해석 유보) 항목은 단정하지 않는다. NG(금지 왜곡)는 어기지 않는다. 원문 방언·옛말은 풀어 쓴 지금 말로.
 - 퍼즐의 답, 뒤 공간에서 밝혀질 것은 앞 컷에서 말하지 않는다.
 쓸 것(JSON 하나)
-1) bible — 컷 그림이 서로 이어지게 하는 고정 묘사(영어). {"house":"이 처갓집의 생김새 한 줄(기와지붕·흙마당·마루·창호)","people":{"groom":"…","woman":"…", …}}. 화풍은 코드가 정한다(수묵 만화풍) — 화풍·분위기를 바꾸는 말은 쓰지 않는다. 사람은 어두운 실루엣이나 뒷모습으로 그린다 — 얼굴 없음. 옷차림·머리 모양으로만 구별(예: groom = young man in a white durumagi coat and black gat hat, woman = long loose black hair, plain white hanbok skirt).
+1) bible — 컷 그림이 서로 이어지게 하는 고정 묘사(영어). {"house":"이 이야기의 주 무대 생김새 한 줄 — 시대 포함(예: Joseon-era tile-roofed hanok with earthen yard / Three Kingdoms-era riverside cliff above the Yeongsan river with two fishing villages)","people":{"groom":"…","woman":"…", …}}. 화풍은 코드가 정한다(수묵 만화풍) — 화풍·분위기를 바꾸는 말은 쓰지 않는다. 사람은 어두운 실루엣이나 뒷모습으로 그린다 — 얼굴 없음. 옷차림·머리 모양으로만 구별(예: groom = young man in a white durumagi coat and black gat hat, woman = long loose black hair, plain white hanbok skirt).
    · 한 컷 = 한 화면 한 장면. 물건은 조선 민가 것만: 잠자리는 온돌 바닥에 바로 편 요와 이불(침대 아님), 의자·다리 긴 탁자·전등·전선·유리창 없음.
 2) cinematics — 장면마다 intro 하나 + 결말 하나.
    - intro: {"scene_id":"scene-0N","kind":"intro","panels":[1~2개],"goal":"이 공간에서 무엇을 왜 찾는지 한 문장 — 플레이어에게 하는 말"}
@@ -26,17 +26,17 @@ const SYSTEM = `너는 지역 설화 방탈출 게임 「왜곡」의 장면 연
 - uses 는 이 컷에 나오는 bible 항목(house 와 people 의 키). 그림 지시문에는 bible 문장을 다시 쓰지 않는다(코드가 붙인다).
 - 한 컷 = 한 순간. 글이 말하는 것이 그림에 보여야 한다(달이 해로 바뀌면 하늘의 해가, 여인이 나타나면 여인의 실루엣이).
 - 사람(10/27 미르가 「탁월하다」고 한 대청 회상 컷 기준): 컷 그림에서는 사람을 어두운 실루엣·뒷모습으로 그린다. 각색 조건의 「인물 모형 없음」은 3D 공간 이야기다 — 컷에서 사람을 빼라는 뜻이 아니다. bible.people 에 「그리지 않음」을 쓰지 않는다.
-- bible 은 짧게: house 15단어 이내(지붕·마당·마루·창호만 — 살림·이부자리 금지), people 은 실루엣 생김새(옷·머리)만 — 흔적·물건(이불·신·갓)은 bible 에 쓰지 않는다(쓰면 모든 컷에 같은 물건이 붙는다).
+- bible 은 짧게: house 20단어 이내(시대 + 지형·건물 생김새만 — 살림·이부자리 금지), people 은 실루엣 생김새(옷·머리)만 — 흔적·물건(이불·신·갓)은 bible 에 쓰지 않는다(쓰면 모든 컷에 같은 물건이 붙는다).
 - 컷마다 장소·구도를 바꾼다(11차 1회: 모든 컷이 「마당 전경 + 마루에 편 이부자리」로 같아졌다). 예: 창호지에 비친 그림자 클로즈업 · 하늘의 달이 해로 바뀌는 장면 · 등잔 켠 부엌 안 · 물 고인 곳간 안 · 대문 밖 길 · 디딤돌의 신 클로즈업. 마당 전경은 게임 전체에 한두 번만. 이부자리는 그리지 않는다.
 - 그림 생성기는 방 안 살림(이불·상·궤)을 서양식 침대·탁자로 잘못 그린다. 방 안 살림을 크게 그리는 컷은 피하고, 마당·마루·창호·문·하늘의 빛·디딤돌의 신처럼 바깥에서 보이는 것으로 장면을 잡는다.
 JSON 만 답한다: {"bible":{…},"cinematics":[…],"recall":[…]}`;
 
 const JUDGE = `너는 「왜곡」 이야기 컷 그림 검수자다. 그림 한 장과 그 컷 글·고정 묘사를 받는다. 사진에 보이는 것만 판정한다.
-점검: F1 사람 얼굴(이목구비)이 또렷이 보임(어두운 실루엣·뒷모습은 괜찮다) · F2 글자·낙관·워터마크가 보임 · F3 컷 글의 주인공(무엇이 — 사람·물건·하늘의 해/달)이 그림에 아예 없음(빛 세기·소품 하나 차이는 통과) · F4 고정 묘사와 어긋남(여인이어야 하는데 남자로 보임, 기와집이어야 하는데 초가) · F5 조선 민가에 어색한 것이 눈에 띔(서양식 침대·의자·구두·전선·유리창, 마당에 깔린 이부자리) · F6 한 장에 여러 칸(만화 페이지)으로 나뉨.
+점검: F1 사람 얼굴(이목구비)이 또렷이 보임(어두운 실루엣·뒷모습은 괜찮다) · F2 글자·낙관·워터마크가 보임 · F3 컷 글의 주인공(무엇이 — 사람·물건·하늘의 해/달)이 그림에 아예 없음(빛 세기·소품 하나 차이는 통과) · F4 고정 묘사와 어긋남(여인이어야 하는데 남자로 보임, 기와집이어야 하는데 초가) · F5 조선 민가에 어색한 것이 눈에 띔(서양식 침대·의자·구두·전선·유리창) — 특히 마당·마루 바닥에 이불·요·방석이 깔려 있으면 반드시 실패(방 밖에 이부자리를 펴지 않는다) · F6 한 장에 여러 칸(만화 페이지)으로 나뉨.
 확실하지 않으면 통과시킨다.
 JSON 만: {"ok":true|false,"fails":["F1"],"why":"한 문장","fix":"다시 그릴 때 덧붙일 영어 지시(없으면 빈 문자열)"}`;
 
-const STYLE = 'Single full-frame illustration, not a comic page, no panel borders. Korean traditional ink-wash manhwa style, Joseon-era countryside hanok, muted earthy palette, soft moonlight and oil-lamp light, cinematic wide shot, painterly brush texture, quiet eerie mood. People only as dark silhouettes or seen from behind, no faces. Only Joseon-era things, paper-lattice doors, no glass windows, no electric lights, no wires, no western furniture. No text, no letters, no watermark.'; // 10/27: 화풍은 코드 고정(05b 가 「귀여운 동화풍」으로 바꾼 일). 이부자리를 문구에 넣으면 모든 컷 마당에 이불이 깔려(11차 2·3회) 넣지 않는다
+const STYLE = 'Single full-frame illustration. Korean traditional ink-wash manhwa illustration, muted earthy palette, soft moonlight and lamplight, cinematic wide shot, painterly brush texture, quiet eerie mood, people only as dark silhouettes or seen from behind, no faces, no text, no letters, no watermark.'; // 10/27: 10차(미르가 좋다고 한 대청 회상 컷)와 같은 문구. 「~없음」 목록(침대·가구·이부자리)을 넣으면 그림 생성기가 오히려 그 물건을 그려 모든 컷 마당에 이불이 깔렸다(11차 2~4회)
 
 function run(cmd, args, { cwd, timeoutMs = 300000 } = {}) {
   return new Promise((resolve, reject) => {
@@ -145,7 +145,7 @@ export async function runDirector({ root, trial, step, docs, readJsonOut, writeO
       } catch (e) { notes.push(`${tag} ${q.id}: 그림 검수 실패 — ${String(e.message).slice(0, 120)}`); }
       q.review = v && !v.__error ? { ok: !!v.ok, fails: v.fails || [], why: v.why || '', try: t } : { ok: null, try: t };
       if (!v || v.__error || v.ok) break;
-      if (t < 2) { extra = String(v.fix || '') + ' ' + (v.fails || []).map(x => ({ F1: 'Absolutely no visible faces.', F2: 'No text, letters or seals anywhere.', F5: 'Strictly Joseon-era objects only, no beds or chairs, show the scene from the courtyard.', F6: 'One single continuous image, no panels.' })[x] || '').join(' '); judged.redrawn++; }
+      if (t < 2) { extra = String(v.fix || '') + ' ' + (v.fails || []).map(x => ({ F1: 'Absolutely no visible faces.', F2: 'No text, letters or seals anywhere.', F5: 'Empty swept earth courtyard and bare wooden porch floor.', F6: 'One single continuous image, no panels.' })[x] || '').join(' '); judged.redrawn++; }
     }
     if (q.review?.ok) judged.ok++; else if (q.review && q.review.ok === false) judged.failed++;
     if (last) q.img = last;

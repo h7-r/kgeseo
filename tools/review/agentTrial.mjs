@@ -313,6 +313,7 @@ export async function runStepInline(root, trial, stepId) {
 }
 async function runStepBody(root, trial, step) {
   const docs = await docsSoFar(root, trial);
+  if (step.director && trial.spaceKind !== 'indoor') { const { runDirector } = await import('./storyDirector.mjs'); return runDirector({ root, trial, step, docs, readJsonOut, writeOut, extractJson, llm, fail, trialDirOf: trialDir }); } // 10/27: 05b 장면 연출 — 야외(나주) 시험
   if (trial.spaceKind === 'indoor' && step.indoor) return indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip, trialDirOf: trialDir })(root, trial, step, docs);
   // 05 퍼즐 초안에도 각색 조건을 붙인다(인물 없음·실내만 같은 조건이 호스트 종류를 바꾼다)
   const llmAdapt = (r0, t, st, opts) => llm(r0, t, st, st.id === 's05' && adaptText(t) ? { ...opts, user: `${opts.user}\n\n${adaptText(t)}` } : opts);

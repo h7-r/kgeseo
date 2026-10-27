@@ -588,7 +588,7 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
           res.setHeader('X-Content-Type-Options', 'nosniff');
           return res.end(req.method === 'HEAD' ? undefined : buf);
         }
-        const m = path.match(/^\/__review\/trials(?:\/(preset)|\/([a-f0-9-]{36})(?:\/(steps)\/(s0[1-9]|s10)\/(estimate|run|run-fresh)|\/(missing|compare|space|places|view|llm|feedback|relayout|spot-edit|puzzle-review))?)?$/);
+        const m = path.match(/^\/__review\/trials(?:\/(preset)|\/([a-f0-9-]{36})(?:\/(steps)\/(s0[1-9]|s1[01])\/(estimate|run|run-fresh)|\/(missing|compare|space|places|view|llm|feedback|relayout|spot-edit|puzzle-review))?)?$/);
         if (!m) return send(404, { error: 'not_found', message: '에이전트 시험 경로를 찾을 수 없습니다.' });
         const [, preset, trialId, , stepId, stepAction, sub] = m;
         if (preset && req.method === 'GET') return send(200, await agentTrial.presetSource(root));

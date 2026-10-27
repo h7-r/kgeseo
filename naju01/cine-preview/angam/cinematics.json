@@ -1,0 +1,285 @@
+{
+ "from": "e3e66d47-4ff4-46bb-8a6d-73171d1c12c4",
+ "sceneTitles": {
+  "scene-01": "강 건너의 두 이름",
+  "scene-02": "물고기와 밤의 바위",
+  "scene-03": "시기의 낭떠러지",
+  "scene-04": "구렁이와 굴림",
+  "scene-05": "음력 8월의 씻김굿"
+ },
+ "cinematics": [
+  {
+   "scene_id": "scene-01",
+   "kind": "intro",
+   "panels": [
+    {
+     "id": "S1-1",
+     "caption": "영산강 물길을 따라 올라오자 깎아지른 절벽이 눈앞을 막아선다. 이야기가 어긋난 자리에 닿았다.",
+     "fact_ids": [
+      "F-01",
+      "F-02"
+     ],
+     "uses": [
+      "house"
+     ],
+     "image_prompt": "Wide view from a boat on the river at dusk, a sheer rock cliff looming over the water, mist on the surface, no people",
+     "img": "cine_intro-scene-01_S1-1_18f9aaf8.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "절벽·강·안개·초가 어촌 두 곳이 모두 보이고, 사람은 어두운 실루엣뿐이라 얼굴이 또렷이 보이지 않으며 글자나 어색한 소품도 없다.",
+      "try": 0
+     }
+    },
+    {
+     "id": "S1-2",
+     "caption": "이곳 이야기에서는 사람이 지워지고 구렁이만 남아 가고 있다. 누가 어디 사람이었는지부터 되짚어야 한다.",
+     "fact_ids": [
+      "F-03"
+     ],
+     "uses": [
+      "house",
+      "groom",
+      "woman"
+     ],
+     "image_prompt": "Two small dark silhouettes standing on opposite banks of the river, far apart, faint lights of villages behind each, cliff in the background, blurred ink wash fading at the edges",
+     "img": "cine_intro-scene-01_S1-2_38e7da99.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "강 양쪽에 상투 튼 남자와 댕기머리 여인이 어두운 실루엣으로 서 있고 초가 마을과 절벽도 고정 묘사와 맞으며, 또렷한 얼굴이나 글자, 어색한 소품, 여러 칸 분할은 보이지 않는다.",
+      "try": 1
+     }
+    }
+   ],
+   "goal": "흐려진 절벽의 이름과 강 양쪽 마을의 짝을 바로잡아야, 이 이야기가 누구의 것인지 알 수 있다."
+  },
+  {
+   "scene_id": "scene-02",
+   "kind": "intro",
+   "panels": [
+    {
+     "id": "S2-1",
+     "caption": "절벽 허리 쪽 마을과 강 건너 마을, 두 사람의 자리가 바로잡혔다. 강을 사이에 둔 둘은 어떻게 알게 되었을까?",
+     "fact_ids": [
+      "F-03",
+      "F-04",
+      "F-05"
+     ],
+     "uses": [
+      "house",
+      "groom",
+      "woman"
+     ],
+     "image_prompt": "Night on the river, a small boat silhouette on the water near one bank, a lone figure standing on the far bank, pale moonlight on the water",
+     "img": "cine_intro-scene-02_S2-1_3e214aeb.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "얼굴은 뒷모습·옆모습이라 또렷하지 않고, 글자나 워터마크도 없다. 초가 마을, 절벽, 강, 달, 배, 땋은 머리 여인과 상투 어부가 모두 고정 묘사와 맞는다. 눈에 띄게 어색한 소품이나 마당 이부자리, 여러 칸 분할도 없다.",
+      "try": 0
+     }
+    }
+   ],
+   "goal": "두 사람이 어떻게 만났고 왜 하필 밤마다 바위에서 만났는지 찾아라."
+  },
+  {
+   "scene_id": "scene-03",
+   "kind": "intro",
+   "panels": [
+    {
+     "id": "S3-1",
+     "caption": "두 사람은 밤마다 앙암바위에서 만나 사랑을 속삭였다. 사랑이 깊어 갈수록 바위 아래 어둠도 깊어 갔다.",
+     "fact_ids": [
+      "F-09"
+     ],
+     "uses": [
+      "house",
+      "groom",
+      "woman"
+     ],
+     "image_prompt": "Top of the cliff at night under a large moon, two dark silhouettes sitting side by side seen from behind, looking down at the river far below",
+     "img": "cine_intro-scene-03_S3-1_eaf71ba9.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "두 사람이 뒷모습으로 보여 얼굴이 드러나지 않고, 글자나 워터마크도 없다. 달, 강, 맞보는 초가 두 채, 상투 튼 남자와 땋은 머리의 여인이 고정 묘사와 맞고, 어색한 소품이나 이부자리, 여러 칸 나눔도 없다.",
+      "try": 2
+     }
+    },
+    {
+     "id": "S3-2",
+     "caption": "그러나 이 사랑을 곱지 않게 지켜보는 눈이 있었다. 그 끝에 무슨 일이 닥쳤을까?",
+     "fact_ids": [
+      "F-10"
+     ],
+     "uses": [
+      "house",
+      "youths"
+     ],
+     "image_prompt": "Edge of a village path under the cliff at dusk, a group of dark silhouettes standing close together watching the cliff above, seen from behind",
+     "img": "cine_intro-scene-03_S3-2_acb9fffc.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "젊은이들이 뒷모습으로 서 있어 얼굴이 보이지 않고, 글자도 없으며, 절벽·초가 마을·강이 고정 묘사와 맞고 한 장면으로 그려졌다.",
+      "try": 0
+     }
+    }
+   ],
+   "goal": "이 사랑이 왜 비극이 되었는지, 그 까닭과 벌인 사람들을 바위 위에서 확인하라."
+  },
+  {
+   "scene_id": "scene-04",
+   "kind": "intro",
+   "panels": [
+    {
+     "id": "S4-1",
+     "caption": "아랑사는 돌아오지 않았다. 그러나 아비사는 그 뒤에도 앙암바위를 계속 찾아갔다.",
+     "fact_ids": [
+      "F-11",
+      "F-12"
+     ],
+     "uses": [
+      "house",
+      "woman"
+     ],
+     "image_prompt": "Dusk on the cliff top, a lone white-skirted silhouette seen from behind walking up the rocky path alone, empty rock edge ahead, river glimmering below",
+     "img": "cine_intro-scene-04_S4-1_1928995a.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "흰 치마에 땋은 머리의 여인이 뒷모습으로 강가를 향해 걷고 있고, 초가집과 강, 달이 보이며 얼굴·글자·이부자리·여러 칸 분할 문제가 없다.",
+      "try": 1
+     }
+    },
+    {
+     "id": "S4-2",
+     "caption": "어느 날 마을 젊은이들이 바위로 올라가 무언가를 보았다. 그것이 무엇인지, 언제의 일인지 가려야 한다.",
+     "fact_ids": [
+      "F-13"
+     ],
+     "uses": [
+      "house",
+      "youths"
+     ],
+     "image_prompt": "Night, a group of dark silhouettes climbing a rock path with a faint glow ahead, pausing and staring toward the cliff top, seen from behind",
+     "img": "cine_intro-scene-04_S4-2_aa2e50e5.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "밤 강가 절벽 위로 상투 튼 젊은이들이 뒷모습·실루엣으로 바위길을 오르고, 초가 마을이 강 건너에 보여 고정 묘사와 맞으며 얼굴·글자·여러 칸 문제도 없다.",
+      "try": 0
+     }
+    }
+   ],
+   "goal": "바위 위에서 본 것과 그 뒤의 일을 순서대로 확인하되, 이야기마다 다른 부분은 섣불리 정하지 마라."
+  },
+  {
+   "scene_id": "scene-05",
+   "kind": "intro",
+   "panels": [
+    {
+     "id": "S5-1",
+     "caption": "그 뒤로 진부촌 젊은이들은 시름시름 앓다 죽어 갔고, 밤마다 얽힌 구렁이 두 마리가 나타났다.",
+     "fact_ids": [
+      "F-16",
+      "F-17"
+     ],
+     "uses": [
+      "house",
+      "serpent"
+     ],
+     "image_prompt": "Night in the village lane near the cliff, two intertwined dark serpents sliding across a moonlit dirt road, shut wooden doors and dim paper windows on both sides, no people",
+     "img": "cine_intro-scene-05_S5-1_798e8eea.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "사람 없이 달밤 마을 골목에 구렁이 두 마리, 초가집과 절벽, 강이 보이며 글자나 칸 나뉨, 마당 이부자리도 없다.",
+      "try": 1
+     }
+    }
+   ],
+   "goal": "마을이 이 일을 어떻게 넘겼는지 밝히고, 흩어진 사건을 원래 순서대로 맞춰 복원을 마쳐라."
+  },
+  {
+   "kind": "ending",
+   "panels": [
+    {
+     "id": "E1",
+     "caption": "씻김굿을 마친 뒤부터 진부촌은 화를 면했다고 전해진다. 두 마을 위로 긴 저녁이 내린다.",
+     "fact_ids": [
+      "F-18",
+      "F-19"
+     ],
+     "uses": [
+      "house"
+     ],
+     "image_prompt": "Sunset over the cliff and the river, two villages on opposite banks with thin smoke rising, warm low sun behind the rock, no people",
+     "img": "cine_ending_E1_e8126d4f.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "절벽·강·양쪽 초가 마을·저녁 해와 연기가 보이고, 얼굴·글자·여러 칸 분할·마루 위 이부자리도 없어 큰 문제가 없다.",
+      "try": 1
+     }
+    },
+    {
+     "id": "E2",
+     "caption": "물가에는 흰 천이 길게 놓여 있다. 노인들이 협의해 무당들이 음력 8월에 넋을 위로한 자취다.",
+     "fact_ids": [
+      "F-18"
+     ],
+     "uses": [
+      "house",
+      "shaman"
+     ],
+     "image_prompt": "Riverbank at dusk, a long white cloth laid out on the pebbles at the water's edge, a dark silhouette of a robed woman standing at a distance, cliff behind",
+     "img": "cine_ending_E2_1830d242.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "뒷모습의 흰옷 여인과 길게 늘어진 흰 천, 절벽과 강, 양쪽의 초가가 모두 보이며 얼굴·글자·이부자리·여러 칸 분할 문제가 없다.",
+      "try": 1
+     }
+    },
+    {
+     "id": "E3",
+     "caption": "아랑사와 아비사의 이야기는 지금도 가슴 아프게 전해진다. 풀리지 않은 것은 그대로 남았다.",
+     "fact_ids": [
+      "F-20"
+     ],
+     "uses": [
+      "house"
+     ],
+     "image_prompt": "The sheer cliff face against a darkening sky with the first star, still river below reflecting the last light, no people",
+     "img": "cine_ending_E3_e6c4678a.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "절벽, 잔잔한 강, 첫 별, 강 양쪽의 초가 어촌이 보이고 사람 얼굴이나 글자, 만화 같은 분할도 없다.",
+      "try": 1
+     }
+    }
+   ],
+   "reveal": "아랑사는 택촌 어부, 아비사는 진부촌 처녀였고, 노인들의 협의로 무당들이 음력 8월에 씻김굿을 하여 넋을 위로한 뒤부터 진부촌은 화를 면했다고 전해진다.",
+   "left_open": "구렁이의 정체, 굴려진 뒤 아비사의 최후, 씻김굿이 위로한 대상의 범위, 병사와 구렁이 출몰의 인과는 원문이 말하지 않아 열린 채 남는다.",
+   "field": {
+    "place": "앙암바위에서 강 건너편을 바라보는 자리",
+    "seal": "그 자리에 서서 물가와 건너편 사이의 거리감, 건너편 소리가 이쪽까지 건너오는 정도를 직접 보고 들어 확인하면 풀린다.",
+    "question": "강 건너편에서 들려오는 소리를 들은 적이 있다면 어떤 소리였습니까?"
+   }
+  }
+ ],
+ "bible": {
+  "house": "Three Kingdoms-era riverside cliff above the Yeongsan river, two thatched fishing villages facing each other across the water",
+  "people": {
+   "groom": "young fisherman, topknot, short rough hemp jacket, rolled-up trousers",
+   "woman": "young woman, long braid down her back, plain white hanbok skirt",
+   "youths": "group of young men, topknots, grey hemp clothes",
+   "serpent": "huge dark serpent, thick coiled body",
+   "elder": "old man, white beard, long white coat",
+   "shaman": "woman in a white robe holding a long white cloth"
+  }
+ }
+}

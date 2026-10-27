@@ -16,7 +16,7 @@ export const STEPS_INDOOR = Object.freeze([
   { id: 's03', no: '03', label: '게임 시나리오 기획서', tier: 'judgment', maxTokens: 40000, effort: 'low' },
   { id: 's04', no: '04', label: 'Scene 구성표(JSON)', tier: 'judgment', maxTokens: 48000, effort: 'low' },
   { id: 's05', no: '05', label: '퍼즐 초안', tier: 'judgment', maxTokens: 64000, effort: 'medium', v2: true },
-  { id: 's10', no: '05b', label: '장면 연출(이야기 컷·회상·결말 + 그림 검수)', tier: 'judgment', maxTokens: 24000, effort: 'medium', indoor: true }, // 10/27 미르: 장면 연출은 따로 뗀다
+  { id: 's10', no: '05b', label: '장면 연출(이야기 컷·회상·결말 + 그림 검수)', tier: 'judgment', maxTokens: 24000, effort: 'medium', indoor: true, director: true }, // 10/27 미르: 장면 연출은 따로 뗀다
   { id: 's06', no: '06', label: '실내 공간 구성(방 세트·살림 계획)', tier: 'judgment', maxTokens: 32000, effort: 'medium', indoor: true },
   { id: 's07', no: '07', label: '에셋 선정', tier: 'judgment', maxTokens: 24000, effort: 'low', indoor: true },
   { id: 's08', no: '08', label: '방 만들기·배치(코드, 비용 0)', tier: 'judgment', maxTokens: 1000, effort: 'low', indoor: true, codeOnly: true },
