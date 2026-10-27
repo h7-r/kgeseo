@@ -26,7 +26,9 @@ from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition
 
 # 초안에서 허용하지만 게시를 막는 상태
 PENDING_STATUSES = frozenset({"unplaced", "placed_no_interaction"})
-KNOWN_STATUSES = PENDING_STATUSES
+# 실행 가능 상태(PM v0.4.1). 물건은 상호작용이, 퍼즐 · 단서는 로컬 호스트가 있어야 실제로 실행 가능하다.
+PLACED_STATUS = "placed"
+KNOWN_STATUSES = PENDING_STATUSES | {PLACED_STATUS}
 
 OBJECT_LOCAL_KEY = re.compile(r"^(?P<group>.+)#(?P<index>\d+)$")
 # rules.object_id: OBJ_S<씬>_<영문 이름>_<로컬 인스턴스 번호>
@@ -65,6 +67,7 @@ IdmapIssueCode = Literal[
     "UNKNOWN_STATUS",
     "UNPLACED",
     "PLACED_NO_INTERACTION",
+    "PLACED_WITHOUT_INTERACTION",
     "NO_LOCAL_HOST",
     "NO_RUNTIME_TARGET",
     "MISSING_IN_CLIENT",
@@ -366,6 +369,11 @@ def _pending_issues(idmap: NajuIdmap) -> list[IdmapIssue]:
                 )
             elif item.status not in KNOWN_STATUSES:
                 issues.append(IdmapIssue("UNKNOWN_STATUS", "pending", where, ref))
+            elif section == "objects" and item.interaction is None:
+                # placed라고 적었지만 상호작용이 없다 → 실행 불가
+                issues.append(
+                    IdmapIssue("PLACED_WITHOUT_INTERACTION", "pending", where, ref)
+                )
             if (
                 section != "objects"
                 and item.local is None
@@ -483,8 +491,9 @@ def _local_id_issues(
 class IdmapLookup:
     """FE 어댑터 경계용 변환 표. 내부 참조가 유효한 대응표로만 만든다.
 
-    서버로 보낼 수 있는 것만 정방향 변환한다. `not_mapped` · 런타임 대응 없음 · 상호작용 없는 물건 ·
-    `unplaced`/`placed_no_interaction`은 None(보내지 않음)이다. 매핑에 없는 로컬 ID를 만들어 내지 않는다.
+    서버로 보낼 수 있는 것만 정방향 변환한다. 물건은 `status="placed"`이고 상호작용이 있을 때만이다.
+    `not_mapped` · 런타임 대응 없음 · 상호작용 없는 물건 · `unplaced`/`placed_no_interaction` · 모르는 상태는
+    None(보내지 않음)이다. 매핑에 없는 로컬 ID를 만들어 내지 않는다.
     """
 
     def __init__(self, idmap: NajuIdmap) -> None:
@@ -496,7 +505,7 @@ class IdmapLookup:
         self._objects = {
             o.local: (o.zone_id, o.object_id)
             for o in idmap.objects
-            if o.interaction is not None and o.status not in PENDING_STATUSES
+            if o.interaction is not None and o.status == PLACED_STATUS
         }
         self._blockers = {
             b.local: b.object_id for b in idmap.blockers if b.object_id is not None

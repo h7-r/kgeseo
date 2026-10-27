@@ -414,7 +414,7 @@ def test_not_mapped_local_mapped_elsewhere_is_error() -> None:
 
 def test_lookup_never_sends_not_mapped_or_pending_items() -> None:
     raw = draft()
-    raw["objects"][1]["status"] = "ready"
+    raw["objects"][1]["status"] = "placed"
     raw["objects"][1]["interaction"] = {"type": "inspect"}
     lookup = IdmapLookup(NajuIdmap.model_validate(raw))
 
@@ -559,3 +559,33 @@ def test_validation_does_not_mutate_input() -> None:
     IdmapLookup(NajuIdmap.model_validate(raw))
 
     assert raw == before
+
+
+# --- placed 상태 (PM v0.4.1) ---
+
+
+def test_placed_status_is_known_and_requires_interaction() -> None:
+    raw = draft()
+    raw["objects"][0]["status"] = "placed"
+    raw["objects"][0]["interaction"] = {"type": "inspect"}
+    raw["objects"][1]["status"] = "placed"  # 상호작용 없음
+
+    report = validate_idmap(raw)
+
+    pending = codes(report, "pending")
+    assert ("UNKNOWN_STATUS", "OBJ_S1_BASKET_1") not in pending
+    assert ("PLACED_WITHOUT_INTERACTION", "OBJ_S2_POLE_3") in pending
+    assert ("PLACED_WITHOUT_INTERACTION", "OBJ_S1_BASKET_1") not in pending
+    assert report.internal_valid is True
+
+
+def test_lookup_sends_only_placed_objects_with_interaction() -> None:
+    raw = draft()
+    raw["objects"][0]["status"] = "ready"
+    raw["objects"][0]["interaction"] = {"type": "inspect"}
+    raw["objects"][1]["status"] = "placed"
+    raw["objects"][1]["interaction"] = None
+    lookup = IdmapLookup(NajuIdmap.model_validate(raw))
+
+    assert lookup.runtime_object("씬1.통#1") is None  # 모르는 상태
+    assert lookup.runtime_object("씬2.깃#3") is None  # placed지만 상호작용 없음
