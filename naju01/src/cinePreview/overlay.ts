@@ -61,6 +61,8 @@ const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&
 const ro = (w: string) => { const ch = w.trim().slice(-1); if (/[0-9]/.test(ch)) return "036".includes(ch) ? "으로" : "로"; const c = ch.charCodeAt(0) - 0xac00; if (c < 0 || c > 11171) return "로"; const j = c % 28; return j === 0 || j === 8 ? "로" : "으로"; };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// 10/27 미르: 음성은 우선 끈다 — ?voice 를 붙여야 켜진다(🔊 단추도 그때만)
+const VOICE_ON = q.has("voice");
 let muted = (() => { try { return localStorage.getItem("cp-mute") === "1"; } catch { return false; } })();
 function playCine(panels: Panel[], title: string): Promise<void> {
   return new Promise((done) => {
@@ -75,7 +77,7 @@ function playCine(panels: Panel[], title: string): Promise<void> {
       stopAudio();
       if (i >= panels.length) { end(); return; }
       const p = panels[i];
-      ov.innerHTML = `${p.img ? `<img src="${BASE}${esc(p.img)}" alt="">` : '<div class="cp-ph"></div>'}<div class="cp-top">${esc(title)} · ${i + 1} / ${panels.length}</div><div class="cp-band"><div class="cp-cap"></div><button class="cp-btn" data-n>${i < panels.length - 1 ? "다음 ▶" : "계속 ▶"}</button><button class="cp-btn" data-s>건너뛰기</button>${p.voice ? `<button class="cp-btn" data-m title="음성 켜기/끄기">${muted ? "🔇" : "🔊"}</button>` : ""}</div>`;
+      ov.innerHTML = `${p.img ? `<img src="${BASE}${esc(p.img)}" alt="">` : '<div class="cp-ph"></div>'}<div class="cp-top">${esc(title)} · ${i + 1} / ${panels.length}</div><div class="cp-band"><div class="cp-cap"></div><button class="cp-btn" data-n>${i < panels.length - 1 ? "다음 ▶" : "계속 ▶"}</button><button class="cp-btn" data-s>건너뛰기</button>${p.voice && VOICE_ON ? `<button class="cp-btn" data-m title="음성 켜기/끄기">${muted ? "🔇" : "🔊"}</button>` : ""}</div>`;
       const im = ov.querySelector("img, .cp-ph") as HTMLElement; const on = () => im.classList.add("on");
       if (im instanceof HTMLImageElement) { im.onload = on; im.onerror = on; if (im.complete) on(); } else setTimeout(on, 30);
       const cap = ov.querySelector(".cp-cap") as HTMLElement, txt = p.caption || "";
@@ -84,7 +86,7 @@ function playCine(panels: Panel[], title: string): Promise<void> {
       clearInterval(typer); typer = window.setInterval(() => { const k = Math.min(txt.length, Math.floor((performance.now() - t0) / perChar) + 1); cap.textContent = txt.slice(0, k); if (k >= txt.length) clearInterval(typer); }, 30);
       const silentWait = () => Math.max(4500, txt.length * 45 + 2600);
       clearTimeout(timer); timer = window.setTimeout(next, silentWait());
-      if (p.voice && !muted) {
+      if (p.voice && VOICE_ON && !muted) {
         const a = new Audio(`${BASE}${p.voice}`); audio = a;
         a.onloadedmetadata = () => { if (audio !== a || !isFinite(a.duration)) return; perChar = Math.max(25, (a.duration * 1000 * 0.92) / Math.max(1, txt.length)); clearTimeout(timer); timer = window.setTimeout(next, a.duration * 1000 + 1400); };
         a.play().catch(() => { /* 자동 재생이 막히면 글만 — 🔊 를 누르면 다시 */ });

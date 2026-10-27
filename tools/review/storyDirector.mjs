@@ -244,7 +244,8 @@ export async function runDirector({ root, trial, step, docs, readJsonOut, writeO
     if (last) q.img = last;
   }
   // 목소리(10/27 미르: 「시네마틱 음성 지원」) — 컷 글을 맥 기본 한국어 음성(say)으로 읽어 m4a 로. 로컬·무료. 없으면 글만
-  const voice = await makeVoices({ out, dir, notes });
+  // 10/27 미르: 「지금 음성은 쓸 수 없다(나이 든 남성 음성이 아니면) — 우선 꺼 두자」 → 기본 끔. TTS_ON=1 일 때만 만든다
+  const voice = process.env.TTS_ON === '1' ? await makeVoices({ out, dir, notes }) : null;
   const doc = { ...out, voice, check: { script: { before: scriptBefore, rounds: scriptRounds, after: script }, issues: bad, before: before.length !== bad.length ? before : undefined, images: judged, notes } };
   await writeOut(root, trial, 'cinematics.json', JSON.stringify(doc, null, 2));
   return { script: `${scriptBefore}→${script.length}`, intros: (out.cinematics || []).filter(c => c.kind === 'intro').length, ending: !!(out.cinematics || []).find(c => c.kind === 'ending'), panels: jobs.length, issues: bad.length, images: judged };
