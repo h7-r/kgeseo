@@ -39,6 +39,18 @@ class UnsupportedInteractionActionError(Exception):
         super().__init__(action)
 
 
+def is_supported_action(request: InteractionApiRequest) -> bool:
+    """어댑터가 처리하는 action인가. 아니면 DB에 닿기 전에 501이다."""
+
+    return isinstance(
+        request,
+        InputInteractionRequest
+        | InspectInteractionRequest
+        | NavigateInteractionRequest
+        | CombineCluesInteractionRequest,
+    )
+
+
 async def process_external_interaction(
     db: AsyncSession,
     play_session_id: str,

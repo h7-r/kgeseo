@@ -14,6 +14,7 @@ from app.schemas.play_session import (
     PlaySessionState,
 )
 from app.services.clue_catalog import get_acquired_clues
+from app.services.pinned_content import PinnedContentStore
 from app.services.play_session import (
     AnonymousSessionExpiredError,
     AnonymousSessionNotFoundError,
@@ -25,6 +26,12 @@ from app.services.play_session import (
     get_play_session,
 )
 from app.services.puzzle_runtime import PuzzleRuntimeError
+from app.services.session_content import (
+    CASE_VERSION_UNAVAILABLE,
+    CONTENT_VERSION_ERRORS,
+    get_pinned_content_store,
+    resolve_session_loaders,
+)
 
 # PlaySession 관련 API들을 묶는 Router
 #
@@ -162,10 +169,22 @@ async def get_play_session_endpoint(
 async def get_play_session_clues_endpoint(
     play_session_id: str,
     db: AsyncSession = Depends(get_db),
+    content_store: PinnedContentStore = Depends(get_pinned_content_store),
 ) -> PlaySessionCluesResponse:
     # 기존 PlaySession 조회와 같은 접근 정책: play_session_id만으로 조회한다(인증 없음).
     try:
-        clues = await get_acquired_clues(db=db, play_session_id=play_session_id)
+        # 단서 표시 정보도 세션이 고정한 버전의 Server Runtime에서 읽는다.
+        loaders = await resolve_session_loaders(db, play_session_id, content_store)
+        clues = await get_acquired_clues(
+            db=db,
+            play_session_id=play_session_id,
+            runtime_loader=loaders.runtime_loader,
+        )
+    except CONTENT_VERSION_ERRORS as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=CASE_VERSION_UNAVAILABLE,
+        ) from error
     except PlaySessionNotFoundError:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
