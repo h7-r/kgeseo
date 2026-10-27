@@ -19,5 +19,5 @@ for (const q of [...(doc.cinematics || []).flatMap(c => c.panels || []), ...(doc
   try { await fs.copyFile(path.join(src, 'cine', q.img), path.join(out, q.img)); n++; } catch { delete q.img; }
 }
 const sceneTitles = Object.fromEntries((a04.scenes || []).map(s => [s.scene_id, s.title || s.scene_id]));
-await fs.writeFile(path.join(out, 'cinematics.json'), JSON.stringify({ from: tdir, sceneTitles, cinematics: doc.cinematics, bible: doc.bible }, null, 1));
+await fs.writeFile(path.join(out, 'cinematics.json'), JSON.stringify({ from: tdir, sceneTitles, cinematics: doc.cinematics, bible: doc.bible, scriptReview: doc.check?.script || null }, null, 1));
 console.log(`그림 ${n}장 · ${path.relative(root, out)}/cinematics.json`);

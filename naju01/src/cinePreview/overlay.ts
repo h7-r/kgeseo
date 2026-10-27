@@ -1,18 +1,38 @@
 /**
- * cinePreview/overlay.ts — 나주 게임에 05b 장면 연출(이야기 컷·결말·현장 봉인)을 얹어 보는 미리보기 (10/27 미르: 「나주 게임에도 적용이 가능하다면 어떤 식일지 보고 싶다」)
- *   본편 코드는 건드리지 않는다 — cine-preview.html 이 같은 게임(main.tsx)을 띄우고, 이 파일이 화면 위에 DOM 막을 얹는다.
- *   · 게임을 켜면: 씬 1 이야기 컷 → 「이 씬에서 무엇을 왜」
- *   · 씬을 마치면(개발 훅 __game.naju.endScene(n) — 씬 진행 장치가 아직 없어 화면 아래 「씬 n 마치기」 단추로 부른다): 다음 씬 이야기 컷
- *   · 씬 5 를 마치면: 결말 컷 → 새로 알게 된 것 · 아직 모르는 것 · 🔒 마지막 봉인(현장)
- *   자료: /cine-preview/cinematics.json (05b 결과) + 같은 폴더의 그림. 주소 ?cine=<폴더> 로 다른 결과를 고를 수 있다.
+ * cinePreview/overlay.ts — 나주 게임에 05b 장면 연출을 얹어 보는 미리보기 (10/27)
+ *   본편 코드는 건드리지 않는다 — cine-preview.html 이 같은 게임(main.tsx)을 띄우고, 이 파일이 화면 위에 DOM 막과 3D 문을 얹는다.
+ *
+ * 10/27 미르(2): 「씬을 이동하다가 갑자기 시네마틱이나 씬을 비추는 연출이 나올 게 아니라, 다음 씬으로 가는 문·텔레포트·게이트가 있어야 한다」
+ *               「씬마다 빙 둘러 비추는 연출(공간 훑기)과 시네마틱이 겹치지 않게 양자택일」
+ *   흐름: 씬을 마친다(지금은 「씬 n 마치기」 단추 = 본편 개발 훅 endScene) → 그 자리 앞에 「왜곡의 문」이 열린다
+ *        → 플레이어가 문으로 걸어 들어간다 → 화면이 어두워지고 다음 씬 자리로 옮겨진다
+ *        → 다음 씬의 전환 방식(05b 가 정함) 하나만: cine = 이야기 컷(공간 훑기는 끔) / sweep = 공간 훑기 + 대본 자막(그림 컷 없음)
+ *        → 🧭 「이 씬에서 무엇을 왜」
+ *   씬 5 를 마치면 문 대신 결말 컷 → 새로 알게 된 것 · 아직 모르는 것 · 🔒 마지막 봉인(현장).
  */
-type Panel = { id: string; caption: string; img?: string };
-type Intro = { scene_id: string; kind: "intro"; panels: Panel[]; goal: string };
-type Ending = { kind: "ending"; panels: Panel[]; reveal: string; left_open?: string; field?: { place: string; seal: string; question?: string } };
-type Doc = { cinematics: (Intro | Ending)[]; sceneTitles?: Record<string, string> };
+import { INVESTIGATION_POINTS, UNITS_PER_METER, ZONES } from "../plan/sitePlan";
+import { settings, stage } from "../scene/immersion/state";
 
+type Panel = { id: string; caption: string; img?: string };
+type Intro = { scene_id: string; kind: "intro"; panels: Panel[]; goal: string; transition?: "cine" | "sweep"; sweep_line?: string };
+type Ending = { kind: "ending"; panels: Panel[]; reveal: string; left_open?: string; field?: { place: string; seal: string; question?: string } };
+type Doc = { cinematics: (Intro | Ending)[]; sceneTitles?: Record<string, string>; scriptReview?: { before: number; after: { target: string; fails?: string[]; why?: string }[] } | null };
+type V3 = { x: number; y: number; z: number; set: (x: number, y: number, z: number) => V3 };
+type Naju = {
+  endScene?: (n: number) => string;
+  teleport?: { current: ((x: number, z: number, heading?: number) => void) | null };
+  camera?: { position: V3 };
+  scene?: { add: (o: unknown) => void; remove: (o: unknown) => void };
+  terrain?: { groundAt: (x: number, z: number) => { y: number } };
+  THREE?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  director?: { replayCut?: (code: string) => void };
+};
+
+const U = UNITS_PER_METER;
 const q = new URLSearchParams(location.search);
 const BASE = `/cine-preview/${q.get("cine") || "angam"}/`;
+const w = window as unknown as { __game?: { naju?: Naju } };
+const naju = () => w.__game?.naju;
 
 const css = `
 .cp-ov{position:fixed;inset:0;z-index:2147483000;background:#000;color:#f3ead6;font-family:"Pretendard","Apple SD Gothic Neo",system-ui,sans-serif}
@@ -25,6 +45,8 @@ const css = `
 .cp-card>div{width:min(560px,92vw);background:#f4ead2;color:#2b2116;border:1px solid #b9a173;border-radius:12px;padding:18px 20px;font-size:15px;line-height:1.6}
 .cp-seal{margin-top:12px;border:1px solid #8a6a3a;background:#fbf4e4;border-radius:10px;padding:10px 12px}
 .cp-goal{position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:2147482000;max-width:min(720px,92vw);background:#1b1610e6;color:#f3ead6;border:1px solid #b9a17366;border-radius:10px;padding:10px 16px;font-size:15px;line-height:1.5;transition:opacity .8s}
+.cp-sub{position:fixed;left:50%;bottom:9%;transform:translateX(-50%);z-index:2147482500;max-width:min(980px,90vw);color:#fff;font-size:clamp(16px,2.1vw,26px);line-height:1.6;text-align:center;text-shadow:0 2px 8px #000,0 0 2px #000;word-break:keep-all;pointer-events:none;transition:opacity .6s}
+.cp-fade{position:fixed;inset:0;z-index:2147482800;background:#000;opacity:0;pointer-events:none;transition:opacity .7s}
 .cp-dev{position:fixed;left:12px;bottom:12px;z-index:2147482000;display:flex;gap:6px;align-items:center;background:#000a;padding:6px 8px;border-radius:10px;font-size:12px;color:#ddd}
 @keyframes cppan{from{object-position:0% 45%}to{object-position:100% 45%}}
 @media (max-aspect-ratio:1/1){.cp-ov img{object-fit:cover}.cp-ov img.on{animation:cppan 8s ease-in-out forwards}}`;
@@ -33,6 +55,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", html = ""):
   const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e;
 }
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function playCine(panels: Panel[], title: string): Promise<void> {
   return new Promise((done) => {
@@ -63,6 +86,9 @@ function showGoal(text: string) {
   goalEl = el("div", "cp-goal", `🧭 ${esc(text)}`); document.body.appendChild(goalEl);
   const g = goalEl; setTimeout(() => { g.style.opacity = "0.55"; }, 9000);
 }
+function toast(text: string, ms = 4500) { const t = el("div", "cp-goal", esc(text)); t.style.top = "auto"; t.style.bottom = "22%"; document.body.appendChild(t); setTimeout(() => t.remove(), ms); }
+const fadeEl = el("div", "cp-fade");
+async function fade(to: 0 | 1) { fadeEl.style.opacity = String(to); await sleep(750); }
 
 function endingCard(e: Ending) {
   const f = e.field;
@@ -70,38 +96,109 @@ function endingCard(e: Ending) {
   document.body.appendChild(c); (c.querySelector("button") as HTMLElement).onclick = () => c.remove();
 }
 
+/** 씬 n 의 도착 자리(m) — 그 씬 첫 조사점, 그 씬이 걸친 첫 구역 코드 */
+function arrival(n: number): { x: number; z: number; zones: string[] } {
+  const p = INVESTIGATION_POINTS.find((v) => v.scene === n)?.points[0] ?? [18, 38];
+  const zones = ZONES.filter((z) => z.scenes.split(/\s*·\s*/).includes(`S${n}`)).map((z) => z.code);
+  return { x: p[0], z: p[1], zones };
+}
+function zoneAt(x: number, z: number) { return ZONES.find((v) => x >= v.x[0] && x <= v.x[1] && z >= v.z[0] && z <= v.z[1])?.code; }
+
+// ── 「왜곡의 문」 — 씬을 마치면 그 자리 앞에 선다. 들어가면 다음 씬으로 ──
+type Gate = { group: any; disc: any; x: number; z: number; to: number }; // eslint-disable-line @typescript-eslint/no-explicit-any
+let gate: Gate | null = null;
+function openGate(to: number) {
+  const g = naju(); const T = g?.THREE; if (!g || !T || !g.camera || !g.scene) return;
+  const cx = g.camera.position.x / U, cz = g.camera.position.z / U;
+  const fwd = new T.Vector3(); (g.camera as any).getWorldDirection?.(fwd); fwd.y = 0; if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1); fwd.normalize(); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const x = cx + fwd.x * 4, z = cz + fwd.z * 4; const y = g.terrain?.groundAt(x, z).y ?? 0;
+  const group = new T.Group(); group.name = "cinePreview.gate";
+  const ring = new T.Mesh(new T.TorusGeometry(1.2 * U, 0.07 * U, 10, 64), new T.MeshBasicMaterial({ color: 0xb59cff, fog: false, toneMapped: false }));
+  const cv = document.createElement("canvas"); cv.width = cv.height = 256; const c2 = cv.getContext("2d")!;
+  const gr = c2.createRadialGradient(128, 128, 8, 128, 128, 128); gr.addColorStop(0, "rgba(255,255,255,0.95)"); gr.addColorStop(0.35, "rgba(170,140,255,0.6)"); gr.addColorStop(1, "rgba(60,30,120,0)");
+  c2.fillStyle = gr; c2.fillRect(0, 0, 256, 256); c2.strokeStyle = "rgba(255,255,255,0.35)"; c2.lineWidth = 3;
+  for (let a = 0; a < 6; a++) { c2.beginPath(); for (let t = 0; t < 1; t += 0.02) { const r = 120 * t, ang = a * 1.047 + t * 5; c2.lineTo(128 + Math.cos(ang) * r, 128 + Math.sin(ang) * r); } c2.stroke(); }
+  const disc = new T.Mesh(new T.CircleGeometry(1.15 * U, 48), new T.MeshBasicMaterial({ map: new T.CanvasTexture(cv), transparent: true, depthWrite: false, fog: false, toneMapped: false, side: T.DoubleSide, blending: T.AdditiveBlending }));
+  group.add(ring, disc); group.position.set(x * U, (y + 1.3) * U, z * U); group.rotation.y = Math.atan2(fwd.x, fwd.z);
+  g.scene.add(group); gate = { group, disc, x, z, to };
+  toast(`🌀 다음 씬으로 가는 「왜곡의 문」이 열렸다 — 앞에 보이는 문으로 걸어 들어가라`);
+}
+function closeGate() { if (gate) { naju()?.scene?.remove(gate.group); gate = null; } }
+
 async function main() {
-  document.head.appendChild(el("style", "", css));
+  document.head.appendChild(el("style", "", css)); document.body.appendChild(fadeEl);
   let doc: Doc;
   try { doc = await (await fetch(BASE + "cinematics.json")).json(); } catch { console.warn("cine-preview: cinematics.json 없음", BASE); return; }
   const intros = doc.cinematics.filter((c): c is Intro => c.kind === "intro");
   const ending = doc.cinematics.find((c): c is Ending => c.kind === "ending");
   const title = (sid: string) => doc.sceneTitles?.[sid] || sid;
-  const playScene = async (n: number) => {
-    const it = intros.find((c) => c.scene_id === `scene-0${n}`);
-    if (!it) return;
-    await playCine(it.panels, `씬 ${n} · ${title(it.scene_id)}`);
-    showGoal(it.goal);
+  const modeOf = (it?: Intro) => (it?.transition || ((it?.panels?.length || 0) ? "cine" : "sweep")) as "cine" | "sweep";
+
+  for (let k = 0; k < 240 && !naju()?.endScene; k++) await sleep(500);
+  await sleep(2500);
+
+  /** 씬 n 들어가기 — 전환 방식 하나만 */
+  const enterScene = async (n: number, first: boolean) => {
+    const it = intros.find((c) => c.scene_id === `scene-0${n}`); const mode = modeOf(it); const a = arrival(n);
+    if (mode === "cine") {
+      // 이야기 컷이 이 씬의 연출 — 공간 훑기는 이 씬 구역에서 나오지 않게(이미 본 것으로 둔다)
+      for (const z of a.zones) stage.visitedZones.add(z);
+      if (!first) { naju()?.teleport?.current?.(a.x, a.z); await sleep(300); }
+      if (it) await playCine(it.panels, `씬 ${n} · ${title(it.scene_id)}`);
+      await fade(0);
+    } else {
+      // 공간 훑기가 이 씬의 연출 — 그림 컷 없이, 훑는 동안 대본 한 줄을 자막으로
+      settings.시점컷 = true;
+      const z0 = zoneAt(a.x, a.z) || a.zones[0];
+      if (z0) stage.visitedZones.delete(z0);
+      if (!first) { naju()?.teleport?.current?.(a.x, a.z); }
+      await fade(0);
+      const line = it?.sweep_line || it?.panels?.[0]?.caption || "";
+      if (line) {
+        // 공간 훑기는 플레이 중(마우스 잠금)일 때 그 구역 첫 진입에서 본편이 연다 — 열리면 그 동안, 안 열리면 4.5초 자막
+        for (let k = 0; k < 30 && !stage.cut; k++) await sleep(100);
+        const sub = el("div", "cp-sub", esc(line)); document.body.appendChild(sub);
+        if (stage.cut) { for (let k = 0; k < 80 && stage.cut; k++) await sleep(100); await sleep(400); } else await sleep(4500);
+        sub.style.opacity = "0"; setTimeout(() => sub.remove(), 700);
+      }
+    }
+    if (it) showGoal(it.goal);
   };
-  // 게임이 서고(개발 훅이 생기고) 로딩 막이 걷힐 때까지 기다린다
-  const w = window as unknown as { __game?: { naju?: { endScene?: (n: number) => string } } };
-  for (let k = 0; k < 240 && !w.__game?.naju?.endScene; k++) await new Promise((r) => setTimeout(r, 500));
-  await new Promise((r) => setTimeout(r, 2500));
+
   let current = 1;
-  await playScene(1);
-  // 씬 진행 장치가 아직 없어 개발 단추로 씬을 마친다(본편의 endScene 그대로 — 막힌 길이 무너져 열린다)
+  await enterScene(1, true);
+
   const dev = el("div", "cp-dev"); document.body.appendChild(dev);
   const render = () => {
-    dev.innerHTML = current <= 5 ? `미리보기 · 지금 씬 ${current} <button class="cp-btn">씬 ${current} 마치기 ▶</button>` : `미리보기 · 완주 <button class="cp-btn">결말 다시 보기</button>`;
+    const nextMode = current < 5 ? modeOf(intros.find((c) => c.scene_id === `scene-0${current + 1}`)) : null;
+    dev.innerHTML = current <= 5
+      ? `미리보기 · 지금 씬 ${current}${gate ? ` · 문이 열림 → 씬 ${gate.to}(${nextMode === "cine" ? "이야기 컷" : "공간 훑기"})` : ""} <button class="cp-btn">${gate ? "문 앞으로 옮기기" : `씬 ${current} 마치기 ▶`}</button>`
+      : `미리보기 · 완주 <button class="cp-btn">결말 다시 보기</button>`;
+    const sr = doc.scriptReview; if (sr) { const left = sr.after?.length || 0; const b = el("span", "", ` · 대본 검수 ${sr.before}→${left}건`); b.style.cursor = "help"; b.title = (sr.after || []).map((x) => `${x.target} [${(x.fails || []).join(",")}] ${x.why || ""}`).join("\n") || "걸린 것 없음"; dev.appendChild(b); }
     (dev.querySelector("button") as HTMLElement).onclick = async () => {
       if (current > 5) { if (ending) { await playCine(ending.panels, "이야기의 끝"); endingCard(ending); } return; }
-      try { w.__game?.naju?.endScene?.(current); } catch (e) { console.warn(e); }
-      current++;
-      render();
-      if (current <= 5) await playScene(current);
-      else if (ending) { goalEl?.remove(); await playCine(ending.panels, "이야기의 끝"); endingCard(ending); }
+      if (gate) { naju()?.teleport?.current?.(gate.x - 2, gate.z); return; } // 시험용: 문 바로 앞으로
+      try { naju()?.endScene?.(current); } catch (e) { console.warn(e); }
+      if (current === 5) { current = 6; render(); goalEl?.remove(); if (ending) { await playCine(ending.panels, "이야기의 끝"); endingCard(ending); } return; }
+      openGate(current + 1); render();
     };
   };
   render();
+
+  // 문 들어가기 판정 — 플레이어(카메라)가 문 고리 안 1.3 m
+  const tick = async () => {
+    const g = naju();
+    if (gate && g?.camera) {
+      gate.disc.rotation.z += 0.02;
+      const px = g.camera.position.x / U, pz = g.camera.position.z / U;
+      if (Math.hypot(px - gate.x, pz - gate.z) < 1.3) {
+        const to = gate.to; closeGate(); // 마우스 잠금은 그대로 — 공간 훑기는 플레이 중일 때만 열린다(이야기 컷은 playCine 이 푼다)
+        await fade(1); current = to; render(); goalEl?.remove();
+        await enterScene(to, false);
+      }
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
 main();

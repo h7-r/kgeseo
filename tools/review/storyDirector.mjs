@@ -14,11 +14,14 @@ const SYSTEM = `너는 지역 설화 방탈출 게임 「왜곡」의 장면 연
 - 01 설화 사실만 쓴다. U(해석 유보) 항목은 단정하지 않는다. NG(금지 왜곡)는 어기지 않는다. 원문 방언·옛말은 풀어 쓴 지금 말로.
 - 퍼즐의 답, 뒤 공간에서 밝혀질 것은 앞 컷에서 말하지 않는다.
 쓸 것(JSON 하나)
-1) bible — 컷 그림이 서로 이어지게 하는 고정 묘사(영어). {"house":"이 이야기의 주 무대 생김새 한 줄 — 시대 포함(예: Joseon-era tile-roofed hanok with earthen yard / Three Kingdoms-era riverside cliff above the Yeongsan river with two fishing villages)","people":{"groom":"…","woman":"…", …}}. 화풍은 코드가 정한다(수묵 만화풍) — 화풍·분위기를 바꾸는 말은 쓰지 않는다. 사람은 어두운 실루엣이나 뒷모습으로 그린다 — 얼굴 없음. 옷차림·머리 모양으로만 구별(예: groom = young man in a white durumagi coat and black gat hat, woman = long loose black hair, plain white hanbok skirt).
-   · 한 컷 = 한 화면 한 장면. 물건은 조선 민가 것만: 잠자리는 온돌 바닥에 바로 편 요와 이불(침대 아님), 의자·다리 긴 탁자·전등·전선·유리창 없음.
+1) bible — 컷 그림이 서로 이어지게 하는 고정 묘사(영어). {"house":"이 이야기의 주 무대 생김새 한 줄 — 사용자 글의 [시대·무대] 그대로(조선 처갓집이면 tile-roofed hanok with earthen yard, 삼국시대 강가면 Three Kingdoms-era thatched fishing huts below a steep riverside cliff — 삼국시대에 기와집·한옥을 그리지 않는다)","people":{"groom":"…","woman":"…", …}}. 화풍은 코드가 정한다(수묵 만화풍) — 화풍·분위기를 바꾸는 말은 쓰지 않는다. 사람은 어두운 실루엣이나 뒷모습으로 그린다 — 얼굴 없음. 옷차림·머리 모양으로만 구별(예: groom = young man in a white durumagi coat and black gat hat, woman = long loose black hair, plain white hanbok skirt).
+   · 한 컷 = 한 화면 한 장면. 물건·건물·옷은 그 시대·무대 것만(조선 민가면 온돌 방·창호, 삼국시대 어촌이면 초가·나룻배·그물) — 현대 물건·서양 가구 없음.
 2) cinematics — 장면마다 intro 하나 + 결말 하나.
-   - intro: {"scene_id":"scene-0N","kind":"intro","panels":[1~2개],"goal":"이 공간에서 무엇을 왜 찾는지 한 문장 — 플레이어에게 하는 말"}
+   - intro: {"scene_id":"scene-0N","kind":"intro","transition":"cine|sweep","sweep_line":"sweep 일 때 공간 훑기 동안 띄울 자막 한 문장","panels":[1~2개],"goal":"이 공간에서 무엇을 왜 찾는지 한 문장 — 플레이어에게 하는 말"}
      · 첫 장면 = 게임의 시작(왜곡 영역에 들어선 까닭, 무엇이 어긋나 있나). 다음 장면 = 앞 장면에서 알게 된 것(04 「나갈 때 들고 가는 것」·앞 퍼즐 learns)을 잇고 이 장면의 질문으로 끝난다.
+     · transition(10/27 미르: 「씬을 빙 둘러 비추는 연출(공간 훑기)과 시네마틱이 겹치지 않게 양자택일」): 이 장면으로 넘어갈 때 연출 하나만 고른다.
+       cine = 이야기 컷(그림) — 앞 장면에서 새 사실이 밝혀졌거나 시간·인물이 바뀌어 이야기를 들려줘야 할 때. 공간 훑기는 나오지 않는다.
+       sweep = 공간 훑기(카메라가 새 공간을 한 바퀴 비춤) + 자막 한 줄 — 같은 이야기가 이어지고 새 공간을 보여 주는 것이 더 중요할 때. 그림 컷은 쓰지 않는다(panels 는 []). 첫 장면은 cine.
      · 회상 장면 맞추기(hoesang)가 있는 장면은 그 회상이 intro 역할 — panels 는 [] 로, goal 만.
    - 결말: {"kind":"ending","panels":[2~4개],"reveal":"이 판을 끝까지 풀어 새로 알게 된 사실 한 문장(01 근거)","left_open":"아직 모르는 것 한 문장(02 결말의 열린 것)","field":{"place":"02 현장 연결의 장소 이름 그대로","seal":"그곳에 가야만 풀리는 마지막 봉인 — 현장에서 무엇을 직접 보고 확인하면 풀리는지 한 문장","question":"현장에서 답할 물음"}}
 3) recall — 회상 장면 맞추기 퍼즐의 패널을 다듬는다: [{"puzzle_id":"PZ-..","panels":[…]}]. 패널 id 와 개수·차례(정답)는 그대로 두고 caption·fact_ids·uses·image_prompt 만 고친다.
@@ -31,8 +34,21 @@ const SYSTEM = `너는 지역 설화 방탈출 게임 「왜곡」의 장면 연
 - 그림 생성기는 방 안 살림(이불·상·궤)을 서양식 침대·탁자로 잘못 그린다. 방 안 살림을 크게 그리는 컷은 피하고, 마당·마루·창호·문·하늘의 빛·디딤돌의 신처럼 바깥에서 보이는 것으로 장면을 잡는다.
 JSON 만 답한다: {"bible":{…},"cinematics":[…],"recall":[…]}`;
 
+const SCRIPT_JUDGE = `너는 「왜곡」 이야기 컷 대본 검수자다(10/27 미르: 「나주 씬1 앞 시네마틱 대본이 이상하다 — 대본 적합성 판단·검증을 추가하라」). 플레이어가 처음 보는 사람이라고 생각하고 대본(컷 글·goal·자막)을 장면 차례대로 읽는다.
+점검(걸린 것만 적는다):
+S1 처음 보는 사람이 이해하나 — 누가(플레이어/인물)·어디·무엇이 분명. 앞에서 소개하지 않은 인물·대상을 대뜸 「두 사람」「사람이 지워지고」처럼 쓰면 실패.
+S2 자연스러운 한국어 — 뜻이 모호한 추상·문학 표현(「이야기가 어긋난 자리에 닿았다」), 번역투, 과장 금지. 소리 내어 읽어 바로 뜻이 통해야 한다.
+S3 01 사실과 맞나 — 사실에 없는 장소·인물 속성·사건을 덧붙이지 않음, U(해석 유보)를 단정하지 않음, NG 를 어기지 않음. (현장 봉인의 장소는 02 현장 연결 — 제작팀이 정한 것이라 S3 대상이 아니다. 봉인 글이 원전 사실을 단정할 때만 본다)
+S4 누설 — 그 장면 퍼즐의 답이나 뒤 장면에서 밝혀질 것을 미리 말함.
+S5 goal 이 그 장면 실제 퍼즐(무엇을 찾나)과 맞나.
+S6 흐름 — 앞 장면에서 알게 된 것에서 이 장면 질문으로 자연스럽게 이어지나. 결말은 이 판을 닫고 새 사실을 밝히나.
+S7 세계관 — 첫 장면에서 플레이어가 누구이고 왜 여기 왔는지(각색 조건) 알 수 있나.
+엄격하게 본다 — 게임 첫 화면에 그대로 나갈 글이다. 모든 컷·goal·자막·reveal 을 하나씩 판정하고, 통과도 까닭을 한 줄 적는다.
+특히 첫 장면 첫 컷: 「강은 말없이 흐르는데 이 땅의 이야기는 어긋나 있다」처럼 분위기만 있고 누가 왜 여기 왔는지 없는 글은 S1·S7 실패.
+JSON 만: {"items":[{"target":"scene-01 S1-1 | scene-02 goal | ending reveal …","pass":true|false,"fails":["S2"],"why":"한 문장","rewrite":"실패면 그 자리에 그대로 넣을 고친 문장(한 컷 글이면 30~70자, 앞뒤 컷과 이어지게)"}]}`;
+
 const JUDGE = `너는 「왜곡」 이야기 컷 그림 검수자다. 그림 한 장과 그 컷 글·고정 묘사를 받는다. 사진에 보이는 것만 판정한다.
-점검: F1 사람 얼굴(이목구비)이 또렷이 보임(어두운 실루엣·뒷모습은 괜찮다) · F2 글자·낙관·워터마크가 보임 · F3 컷 글의 주인공(무엇이 — 사람·물건·하늘의 해/달)이 그림에 아예 없음(빛 세기·소품 하나 차이는 통과) · F4 고정 묘사와 어긋남(여인이어야 하는데 남자로 보임, 기와집이어야 하는데 초가) · F5 조선 민가에 어색한 것이 눈에 띔(서양식 침대·의자·구두·전선·유리창) — 특히 마당·마루 바닥에 이불·요·방석이 깔려 있으면 반드시 실패(방 밖에 이부자리를 펴지 않는다) · F6 한 장에 여러 칸(만화 페이지)으로 나뉨.
+점검: F1 사람 얼굴(이목구비)이 또렷이 보임(어두운 실루엣·뒷모습은 괜찮다) · F2 글자·낙관·워터마크가 보임 · F3 컷 글의 주인공(무엇이 — 사람·물건·하늘의 해/달)이 그림에 아예 없음(빛 세기·소품 하나 차이는 통과) · F4 고정 묘사와 어긋남(여인이어야 하는데 남자로 보임, 기와집이어야 하는데 초가) · F5 이야기의 시대·무대(고정 묘사)에 어색한 것이 눈에 띔(서양식 침대·의자·구두·전선·유리창, 삼국시대 이야기에 기와 한옥) — 특히 마당·마루 바닥에 이불·요·방석이 깔려 있으면 반드시 실패(방 밖에 이부자리를 펴지 않는다) · F6 한 장에 여러 칸(만화 페이지)으로 나뉨.
 확실하지 않으면 통과시킨다.
 JSON 만: {"ok":true|false,"fails":["F1"],"why":"한 문장","fix":"다시 그릴 때 덧붙일 영어 지시(없으면 빈 문자열)"}`;
 
@@ -52,7 +68,7 @@ const h8 = s => crypto.createHash('sha1').update(String(s)).digest('hex').slice(
 const safe = s => String(s).replace(/[^\w-]/g, '');
 
 /** 검사 — 고칠 것 목록 */
-export function checkDirector(out, { facts, d02, puzzles }) {
+export function checkDirector(out, { facts, d02, puzzles, indoor = false }) {
   const bad = []; const C = out.cinematics || [];
   const fid = new Set([...(facts?.facts || []), ...(facts?.open || [])].map(f => f.id));
   const P = (puzzles || []).filter(p => p.presentation !== 'ending_cinematic' && p.puzzle_type);
@@ -73,7 +89,10 @@ export function checkDirector(out, { facts, d02, puzzles }) {
     const it = C.find(c => c.kind === 'intro' && c.scene_id === sc); const hasRecall = P.some(p => p.scene_id === sc && p.solve?.device?.kind === 'hoesang');
     if (!it) { bad.push(`${sc}: 이야기 컷(intro) 없음 — 이 공간에서 무엇을 왜 푸는지`); continue; }
     if (!String(it.goal || '').trim()) bad.push(`${sc}: intro goal(무엇을 왜) 없음`);
-    const n = (it.panels || []).length; if (!hasRecall && (n < 1 || n > 2)) bad.push(`${sc}: intro 컷 ${n}개 — 1~2개`); if (hasRecall && n) bad.push(`${sc}: 회상 장면이 있는 장면은 intro panels 를 [] 로`);
+    const n = (it.panels || []).length; const tr = it.transition || (n ? 'cine' : 'sweep');
+    if ((sc === scIds[0] || indoor) && tr !== 'cine') bad.push(`${sc}: ${indoor ? '실내는 공간 훑기가 없다 — 이야기 컷(cine)만' : '첫 장면은 이야기 컷(cine)으로 시작'}`);
+    if (tr === 'sweep') { if (n) bad.push(`${sc}: sweep(공간 훑기) 장면에 그림 컷 ${n}개 — 둘 중 하나만(panels 는 [])`); if (!String(it.sweep_line || '').trim()) bad.push(`${sc}: sweep 자막(sweep_line) 없음`); }
+    else if (!hasRecall && (n < 1 || n > 2)) bad.push(`${sc}: intro 컷 ${n}개 — 1~2개`); if (hasRecall && n) bad.push(`${sc}: 회상 장면이 있는 장면은 intro panels 를 [] 로`);
     pan(`${sc} intro`, it.panels);
   }
   const en = C.find(c => c.kind === 'ending');
@@ -105,14 +124,37 @@ export async function runDirector({ root, trial, step, docs, readJsonOut, writeO
     ...P.filter(p => p.scene_id === s.scene_id).map(p => `- 퍼즐 ${p.puzzle_id} 「${p.title}」(${p.solve?.device?.kind || p.solve?.interaction}) → 풀면 알게 되는 것: ${p.learns || ''}${p.solve?.device?.kind === 'hoesang' ? `\n  · 회상 장면 맞추기 — 05 패널(차례대로): ${(p.solve.device.spec?.panels || []).map(q => `${q.id} 「${q.caption}」[${(q.fact_ids || []).join(',')}]`).join(' / ')}` : ''}`)].filter(Boolean).join('\n')).join('\n\n');
   const endLines = ['- 결말 상태: ' + (d02.ending?.final_state || ''), '- 마지막 그림: ' + (d02.ending?.last_image || ''), '- 열린 채 남는 것: ' + (d02.ending?.left_open || ''), ...(d02.field_link || []).map(f => `- 현장: ${f.place} · 물음 「${f.online_question || ''}」 · 현장에서 볼 것: ${f.onsite || ''}`)].join('\n');
   const adapt = trial.adaptation?.text ? `\n\n[각색 조건 — 제작팀 방침, 원전 사실 아님]\n${trial.adaptation.text}` : '';
-  const user = ['[01 설화 사실]', factLines, '', '[01 사건 순서]', orderLines, '', '[04 장면 + 05 퍼즐]', sceneLines, '', '[02 결말 · 현장 연결]', endLines].join('\n') + adapt;
+  const eras = [...new Set(scenes.flatMap(s => (s.space_reqs || []).map(r => r.era)).filter(Boolean))]; const settings = [...new Set(scenes.flatMap(s => (s.space_reqs || []).flatMap(r => r.setting || [])))];
+  const user = [`[시대·무대] 시대: ${eras.join(', ') || '01 사실에서'} · 무대: ${settings.join(', ') || '04 장면에서'}`, '', '[01 설화 사실]', factLines, '', '[01 사건 순서]', orderLines, '', '[04 장면 + 05 퍼즐]', sceneLines, '', '[02 결말 · 현장 연결]', endLines].join('\n') + adapt;
 
   let out = extractJson(await llm(root, trial, step, { system: SYSTEM, user }));
   if (out.__error) fail(422, 'json_invalid', `JSON 을 읽지 못했습니다: ${out.__error}`);
-  let bad = checkDirector(out, { facts, d02, puzzles: P }); const before = bad.slice();
+  let bad = checkDirector(out, { facts, d02, puzzles: P, indoor: trial.spaceKind === 'indoor' }); const before = bad.slice();
   for (let r = 1; r <= 2 && bad.length; r++) {
     const o2 = extractJson(await llm(root, trial, step, { system: SYSTEM, user: `${user}\n\n[네가 쓴 것]\n${JSON.stringify(out)}\n\n[자동 검사에서 걸린 것 — 모두 고쳐 전체 JSON 을 다시 써라]\n${bad.map(x => `- ${x}`).join('\n')}` }));
-    if (!o2.__error) { const b2 = checkDirector(o2, { facts, d02, puzzles: P }); if (b2.length <= bad.length) { out = o2; bad = b2; } }
+    if (!o2.__error) { const b2 = checkDirector(o2, { facts, d02, puzzles: P, indoor: trial.spaceKind === 'indoor' }); if (b2.length <= bad.length) { out = o2; bad = b2; } }
+  }
+  // 대본 검수 — 다른 눈(검수자)이 플레이어처럼 읽고 걸린 것만 고쳐 쓴다(2번까지)
+  const scriptOf = o => (o.cinematics || []).map(c => [`## ${c.kind === 'ending' ? 'ending' : c.scene_id} (${c.transition || ''})`, c.goal ? `goal: ${c.goal}` : '', c.sweep_line ? `자막: ${c.sweep_line}` : '', ...(c.panels || []).map(q => `${q.id}: ${q.caption} [${(q.fact_ids || []).join(',')}]`), c.reveal ? `reveal: ${c.reveal}` : '', c.left_open ? `left_open: ${c.left_open}` : '', c.field ? `현장 봉인: ${c.field.place} — ${c.field.seal}` : ''].filter(Boolean).join('\n')).join('\n\n');
+  const review = async o => { try { const v = extractJson(await llm(root, trial, { ...step, maxTokens: 6000, effort: 'low' }, { system: SCRIPT_JUDGE, user: ['[01 설화 사실]', factLines, '', '[04 장면 + 05 퍼즐]', sceneLines, adapt, '', '[대본]', scriptOf(o)].join('\n') })); await writeOut(root, trial, 'raw-s05b-script.json', JSON.stringify(v, null, 1)).catch(() => {}); if (v.__error) return [{ target: '대본 검수', fails: ['ERR'], why: '검수 답을 읽지 못함', rewrite: '' }].slice(0, 0); return (v.items || v.issues || []).filter(x => x.pass === false || (x.pass == null && (x.fails || []).length)); } catch (e) { notes.push(`대본 검수 실패: ${String(e.message).slice(0, 120)}`); return []; } };
+  // 검수자가 고친 문장을 걸린 자리에만 그대로 넣는다(전체를 다시 쓰게 하면 잘 맞던 컷까지 흔들렸다) → 다시 검수
+  const applyRewrites = (o, items) => { const c2 = JSON.parse(JSON.stringify(o)); let n = 0;
+    for (const it of items) { const rw = String(it.rewrite || '').trim(); if (!rw) continue; const t = String(it.target || ''); const sc = (t.match(/scene-0\d/) || [])[0]; const isEnd = /^ending/.test(t);
+      const C = (c2.cinematics || []).find(c => isEnd ? c.kind === 'ending' : c.kind === 'intro' && c.scene_id === sc) || (sc ? null : null);
+      const R = !C && sc ? null : null; void R;
+      if (!C) { for (const r of c2.recall || []) for (const q of r.panels || []) if (t.includes(` ${q.id}`) || t.endsWith(q.id)) { q.caption = rw; n++; } continue; }
+      if (/goal/.test(t)) { C.goal = rw; n++; continue; }
+      if (/자막|sweep/.test(t)) { C.sweep_line = rw; n++; continue; }
+      if (/reveal/.test(t)) { C.reveal = rw; n++; continue; }
+      if (/left_open|아직 모르는/.test(t)) { C.left_open = rw; n++; continue; }
+      if (/봉인|seal|field/.test(t) && C.field) { C.field.seal = rw; n++; continue; }
+      const q = (C.panels || []).find(q => t.includes(` ${q.id}`) || t.endsWith(q.id)); if (q) { q.caption = rw; n++; } }
+    return { o: c2, n }; };
+  let script = await review(out); const scriptBefore = script.length;
+  for (let r = 1; r <= 2 && script.length; r++) {
+    const { o: o2, n } = applyRewrites(out, script); if (!n) break;
+    const b2 = checkDirector(o2, { facts, d02, puzzles: P, indoor: trial.spaceKind === 'indoor' }); if (b2.length > bad.length) break;
+    const s2 = await review(o2); if (s2.length < script.length) { out = o2; bad = b2; script = s2; } else break;
   }
 
   // 그림 — 컷마다 한 장, Claude 가 보고 검수, 걸리면 그 컷만 다시(최대 2번)
@@ -150,7 +192,7 @@ export async function runDirector({ root, trial, step, docs, readJsonOut, writeO
     if (q.review?.ok) judged.ok++; else if (q.review && q.review.ok === false) judged.failed++;
     if (last) q.img = last;
   }
-  const doc = { ...out, check: { issues: bad, before: before.length !== bad.length ? before : undefined, images: judged, notes } };
+  const doc = { ...out, check: { script: { before: scriptBefore, after: script }, issues: bad, before: before.length !== bad.length ? before : undefined, images: judged, notes } };
   await writeOut(root, trial, 'cinematics.json', JSON.stringify(doc, null, 2));
-  return { intros: (out.cinematics || []).filter(c => c.kind === 'intro').length, ending: !!(out.cinematics || []).find(c => c.kind === 'ending'), panels: jobs.length, issues: bad.length, images: judged };
+  return { script: `${scriptBefore}→${script.length}`, intros: (out.cinematics || []).filter(c => c.kind === 'intro').length, ending: !!(out.cinematics || []).find(c => c.kind === 'ending'), panels: jobs.length, issues: bad.length, images: judged };
 }
