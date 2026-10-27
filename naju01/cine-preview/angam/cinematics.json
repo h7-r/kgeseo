@@ -12,61 +12,124 @@
    "scene_id": "scene-01",
    "kind": "intro",
    "transition": "cine",
-   "sweep_line": "",
    "panels": [
     {
      "id": "I1-1",
-     "caption": "영산강을 따라 영산포구로 올라오면 깎아지른 절벽이 나온다. 기록 조사자인 당신은 이곳에 전해 오는 삼국시대 사랑 이야기를 바로잡으러 왔다.",
+     "caption": "삼국시대의 일로 전하는 사랑 이야기가 영산강 가에 있다. 어부 아랑사와 처녀 아비사의 이야기다. 당신은 두 사람의 고향을 바로잡으러 배를 타고 영산포구 쪽으로 강을 거슬러 오른다.",
      "fact_ids": [
       "F-01",
-      "F-02"
+      "F-02",
+      "F-04",
+      "F-05"
      ],
      "uses": [
       "house"
      ],
-     "image_prompt": "Wide dusk view of a river bending beneath a sheer rock cliff, thatched huts tiny on the far bank, low mist on the water, pale sun low in the sky",
-     "img": "cine_intro-scene-01_I1-1_03a50d3e.png",
+     "image_prompt": "Wide view from a small wooden boat moving upriver at dusk, a huge sheer cliff rising above the water, Three Kingdoms-era thatched huts tiny at the shore",
+     "img": "cine_intro-scene-01_I1-1_ec3c7cad.png",
      "review": {
       "ok": true,
       "fails": [],
-      "why": "절벽, 넓은 강, 작은 나룻배, 먼 강변의 초가, 낮게 뜬 해가 모두 보이고 얼굴이나 글자도 없으며 한 장면이라 문제가 없다.",
+      "why": "절벽 아래 초가 어부 오두막, 넓은 강, 나무배, 해질녘 풍경이 컷 글·고정 묘사와 맞고 얼굴·글자·칸 나눔·이부자리도 없다.",
       "try": 0
-     }
+     },
+     "voice": "voice_I1-1_923d3e01.m4a"
     },
     {
      "id": "I1-2",
-     "caption": "이곳에는 어부 아랑사와 처녀 아비사의 사랑 이야기가 전한다. 그런데 두 사람이 어느 마을 사람인지, 두 마을이 어디 있는지는 기록마다 달리 적혀 있다.",
+     "caption": "뱃전을 치는 물소리 속에서 기록 두 장을 나란히 펼친다. 이름은 어느 쪽이나 아랑사와 아비사인데, 고향을 적은 줄만 서로 다르다.",
      "fact_ids": [
-      "F-03",
       "F-04",
       "F-05"
+     ],
+     "uses": [
+      "house",
+      "youths"
+     ],
+     "image_prompt": "Close view over the gunwale of a wooden boat, water rippling, a dark silhouette seen from behind holding two unrolled paper scrolls, the shore dim in the background",
+     "img": "cine_intro-scene-01_I1-2_cc598595.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "어두운 뒷모습 인물들이 두루마리를 펼쳐 들고 있고, 초가 오두막·절벽·강·나무배가 보이며 글자나 기와, 여러 칸 분할도 없다.",
+      "try": 0
+     },
+     "voice": "voice_I1-2_82846d4f.m4a"
+    },
+    {
+     "id": "I1-3",
+     "caption": "고개를 들자 강 위로 깎아지른 절벽이 솟아 있다. 이 고장 사람들은 저 벼랑을 따로 이름 붙여 부른다. 그 이름이 무엇일까? 이름부터 알아야 두 사람의 고향이 어느 쪽 기슭인지도 가릴 수 있다.",
+     "fact_ids": [
+      "F-01",
+      "F-03"
+     ],
+     "uses": [
+      "house"
+     ],
+     "image_prompt": "Close view of the sheer cliff face and the dark river below, the far bank visible across the water, a single wooden boat tied at the shore",
+     "img": "cine_intro-scene-01_I1-3_7bb3bd49.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "깎아지른 절벽, 넓은 강, 나무 배, 초가 오두막이 보이고 얼굴·글자는 없으며 시대에 어긋나는 요소도 뚜렷하지 않다.",
+      "try": 0
+     },
+     "voice": "voice_I1-3_11e1d67a.m4a"
+    }
+   ],
+   "goal": "절벽의 이름을 알아내고, 강 양쪽 마을에 어부 아랑사와 처녀 아비사를 각각 알맞게 짝지어라."
+  },
+  {
+   "scene_id": "scene-02",
+   "kind": "intro",
+   "transition": "cine",
+   "panels": [
+    {
+     "id": "I2-1",
+     "caption": "앙암바위 맞은편, 강 건너에 택촌이 있다. 바로잡은 기록대로라면 아랑사는 이 마을 어부다. 어부이니 이 물가에서 그물을 다뤘을 것이다.",
+     "fact_ids": [
+      "F-03",
+      "F-04"
      ],
      "uses": [
       "house",
       "arangsa",
       "abisa"
      ],
-     "image_prompt": "Two dark silhouettes seen from behind on opposite riverbanks, facing each other across wide water, mist blurring the far huts, cliff looming overhead, dusk",
-     "img": "cine_intro-scene-01_I1-2_640e9865.png",
+     "image_prompt": "Fisherman's silhouette seen from behind on a thatched-hut shore, handling a net by the river at evening, the cliff across the water",
+     "img": "cine_intro-scene-02_I2-1_2753512e.png",
      "review": {
       "ok": true,
       "fails": [],
-      "why": "얼굴은 또렷하지 않고 글자도 없으며, 어부·처녀·초가·강·절벽이 모두 보이고 이부자리도 없다. 가운데 인물이 하나 더 있지만 심각한 어긋남은 아니다.",
-      "try": 1
-     }
-    }
-   ],
-   "goal": "당신은 잘못 전해진 사랑 이야기를 바로잡는 기록 조사자다. 먼저 이 절벽의 이름을 확인하고, 아랑사와 아비사가 어느 마을 사람인지 가려내라."
-  },
-  {
-   "scene_id": "scene-02",
-   "kind": "intro",
-   "transition": "cine",
-   "sweep_line": "",
-   "panels": [
+      "why": "초가 어촌, 강, 절벽, 나룻배, 그물을 다루는 상투 튼 어부(뒷모습)가 보이고 얼굴·글자·칸 나눔 문제도 없으며, 이부자리도 없다.",
+      "try": 0
+     },
+     "voice": "voice_I2-1_7d6f8154.m4a"
+    },
     {
-     "id": "I2-1",
-     "caption": "택촌의 어부 아랑사와 진부촌의 처녀 아비사. 강을 사이에 둔 두 사람은 어떻게 처음 만났고, 왜 밤마다 바위에서 만나게 되었을까.",
+     "id": "I2-2",
+     "caption": "그리고 앙암바위 허리쯤, 벼랑 곁의 진부촌에는 처녀 아비사가 산다. 같은 강을 마주 보고 있어도 두 사람의 마을은 서로 다른 쪽 기슭이다.",
+     "fact_ids": [
+      "F-03",
+      "F-05"
+     ],
+     "uses": [
+      "house",
+      "arangsa"
+     ],
+     "image_prompt": "Young woman's silhouette seen from behind on the cliff-side shore at dusk, looking across the river toward the far thatched huts",
+     "img": "cine_intro-scene-02_I2-2_8903e9df.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "두 사람 모두 뒷모습·실루엣이라 얼굴이 또렷하지 않고, 초가집·강·나무배·절벽이 고정 묘사와 맞으며 글자나 칸 나뉨도 없다.",
+      "try": 0
+     },
+     "voice": "voice_I2-2_906ac479.m4a"
+    },
+    {
+     "id": "I2-3",
+     "caption": "저물어 가는 강 위로 배 한 척이 떠 있다. 서로 다른 기슭에 사는 어부와 처녀는 무슨 일로 처음 마주쳤을까?",
      "fact_ids": [
       "F-03",
       "F-04",
@@ -74,249 +137,478 @@
      ],
      "uses": [
       "house",
-      "arangsa"
+      "abisa"
      ],
-     "image_prompt": "Evening on the river, a small wooden fishing boat with a dark fisherman silhouette seen from behind, nets over the side, far shore thatched huts glowing faintly in dusk light",
-     "img": "cine_intro-scene-02_I2-1_685f9151.png",
+     "image_prompt": "Wide river at twilight with a small fishing boat midstream, the two shores dark on either side, tiny silhouettes on each bank",
+     "img": "cine_intro-scene-02_I2-3_66600352.png",
      "review": {
       "ok": true,
       "fails": [],
-      "why": "어부는 뒷모습 실루엣이라 얼굴이 안 보이고, 초가 오두막·강·나룻배가 고정 묘사에 맞으며 글자나 여러 칸 나뉨도 없다.",
-      "try": 0
-     }
+      "why": "얼굴은 뒷모습·실루엣이라 또렷하지 않고, 글자·워터마크도 없으며, 강 위의 배와 양쪽 기슭의 초가, 긴 검은 머리에 흰 치마 차림의 여인이 모두 고정 묘사와 맞는다.",
+      "try": 1
+     },
+     "voice": "voice_I2-3_2df9648e.m4a"
     }
    ],
-   "goal": "아랑사와 아비사가 어떻게 처음 만났는지, 그 일이 밤마다 바위에서 만나는 사이로 어떻게 이어졌는지 찾아라."
+   "goal": "두 사람이 처음 마주친 사연과, 그 인연이 어떻게 이어졌는지 알아내라."
   },
   {
    "scene_id": "scene-03",
    "kind": "intro",
-   "transition": "sweep",
-   "sweep_line": "밤마다 사랑을 속삭이던 바위. 그런데 두 사람의 사랑을 곱지 않게 보는 소문이 마을에 돌기 시작했다.",
-   "panels": [],
-   "goal": "두 사람의 사랑을 시기한 이들의 소문을 찾고, 바위 아래에서 아랑사에게 무슨 일이 있었는지 현장의 흔적에서 확인하라."
+   "transition": "cine",
+   "panels": [
+    {
+     "id": "I3-1",
+     "caption": "병든 아버지께 드릴 물고기를 아랑사가 잡아 준 일이 아비사와 아랑사의 인연이 되었다. 두 사람은 밤마다 앙암바위에서 만나 사랑을 속삭였다.",
+     "fact_ids": [
+      "F-07",
+      "F-08",
+      "F-09"
+     ],
+     "uses": [
+      "house",
+      "arangsa",
+      "abisa"
+     ],
+     "image_prompt": "Two silhouettes seated side by side on a ledge of the cliff under a bright moon, the river shining below",
+     "img": "cine_intro-scene-03_I3-1_247614e6.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "두 사람이 뒷모습 실루엣으로 달 아래 바위에 앉아 있고, 초가집과 나무배, 강이 고정 묘사와 맞으며 글자나 시대에 어긋나는 것도 없다.",
+      "try": 0
+     },
+     "voice": "voice_I3-1_747d32dd.m4a"
+    },
+    {
+     "id": "I3-2",
+     "caption": "달빛 아래 당신도 그 바위 위에 선다. 바람이 벼랑을 타고 올라오고, 발밑은 아득한 낭떠러지다.",
+     "fact_ids": [
+      "F-01",
+      "F-09"
+     ],
+     "uses": [
+      "house"
+     ],
+     "image_prompt": "Moonlit top of the cliff with a sheer drop at its edge, the river far below, a lone dark silhouette seen from behind at the edge",
+     "img": "cine_intro-scene-03_I3-2_90e4e317.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "달빛 아래 벼랑 끝과 강, 배, 초가집이 보이고 인물들은 작은 실루엣이라 얼굴이 안 보이며, 글자나 시대에 어긋나는 요소도 없다.",
+      "try": 0
+     },
+     "voice": "voice_I3-2_e1c44426.m4a"
+    },
+    {
+     "id": "I3-3",
+     "caption": "그토록 다정하던 밤이 어째서 가슴 아픈 이야기로 남았을까? 이 바위 어딘가에, 그 밤들을 지켜본 누군가의 흔적이 남아 있다.",
+     "fact_ids": [
+      "F-09",
+      "F-20"
+     ],
+     "uses": [
+      "house"
+     ],
+     "image_prompt": "Rough rock at the cliff edge under the moon, a dark river below, scuffed ground near the drop, empty and quiet",
+     "img": "cine_intro-scene-03_I3-3_5fdb902f.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "초가 오두막, 절벽, 강, 목선, 달이 보이고 인물은 어두운 뒷모습 실루엣이라 얼굴이 안 보이며 글자·이부자리·만화 칸 나뉨도 없다.",
+      "try": 1
+     },
+     "voice": "voice_I3-3_b797a38b.m4a"
+    }
+   ],
+   "goal": "이 사랑이 왜 가슴 아픈 이야기가 되었는지, 바위 위의 단서를 살펴 그 까닭과 벌어진 일을 밝혀라."
   },
   {
    "scene_id": "scene-04",
    "kind": "intro",
    "transition": "cine",
-   "sweep_line": "",
    "panels": [
     {
      "id": "I4-1",
-     "caption": "진부촌 젊은이들이 아랑사를 죽인 뒤에도 아비사는 바위를 계속 찾아갔다. 어느 날 그곳에 간 마을 젊은이들은 믿기 어려운 광경을 보게 된다.",
+     "caption": "시기하던 진부촌 젊은이들 손에 아랑사가 목숨을 잃은 뒤에도, 아비사는 앙암바위를 찾는 걸음을 멈추지 않았다.",
      "fact_ids": [
       "F-11",
       "F-12"
      ],
      "uses": [
       "house",
+      "youths",
       "abisa"
      ],
-     "image_prompt": "Night on the cliff top, a lone dark silhouette of a woman with long hair seen from behind standing near the edge, moonlight on the river far below, empty rock ledge",
-     "img": "cine_intro-scene-04_I4-1_75209e97.png",
+     "image_prompt": "Woman's silhouette seen from behind walking up the cliff path at night, dark river below, moonlight on the rocks",
+     "img": "cine_intro-scene-04_I4-1_91df91c9.png",
      "review": {
       "ok": true,
       "fails": [],
-      "why": "뒷모습의 긴 머리 여인이 바위 위에 서 있고, 초가 어막과 나룻배, 넓은 강, 달이 보이며 글자나 얼굴 노출, 칸 나눔도 없다.",
-      "try": 0
-     }
-    }
-   ],
-   "goal": "아랑사가 죽은 뒤 바위에서 무엇이 목격되었고 마을 젊은이들이 어떻게 했는지, 그 뒤의 피해와 함께 순서대로 가려내라."
-  },
-  {
-   "scene_id": "scene-05",
-   "kind": "intro",
-   "transition": "sweep",
-   "sweep_line": "젊은이들이 앓다 죽어 가고 구렁이 두 마리가 밤마다 나타나자, 진부촌 사람들은 이 일을 어떻게 풀어야 할지 고민했다.",
-   "panels": [],
-   "goal": "진부촌의 피해가 어떻게 멈췄는지 찾고, 아랑사의 죽음부터 이어진 사건을 원래 순서대로 맞춰라."
-  },
-  {
-   "kind": "ending",
-   "panels": [
+      "why": "뒷모습의 긴 검은 머리 여인이 달빛 아래 벼랑길을 걷고, 초가집·강·나룻배와 어두운 청년들 실루엣이 보이며 얼굴·글자·시대 어긋남·컷 분할 문제는 없다.",
+      "try": 2
+     },
+     "voice": "voice_I4-1_76b51713.m4a"
+    },
     {
-     "id": "E1",
-     "caption": "강을 사이에 둔 택촌과 진부촌, 그리고 앙암바위. 아랑사는 택촌의 어부였고 아비사는 진부촌의 처녀였다.",
+     "id": "I4-2",
+     "caption": "그 바위 위로 이번에는 당신이 오른다. 아래에서는 강물 소리만 올라오고, 돌에는 밤이슬이 차갑게 맺혀 있다.",
      "fact_ids": [
-      "F-03",
-      "F-19"
+      "F-12"
+     ],
+     "uses": [
+      "house",
+      "abisa"
+     ],
+     "image_prompt": "Rock at the top of the cliff at night seen from behind a lone viewer, dark river far below, moonlight on the wet stone",
+     "img": "cine_intro-scene-04_I4-2_53fcb183.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "뒷모습의 흰 옷 여인, 달빛 아래 강과 초가·배가 보이고 얼굴·글자·이부자리·여러 칸 문제는 없다. 바위 위가 아니라 나무 마루 같지만 확실한 어긋남은 아니다.",
+      "try": 1
+     },
+     "voice": "voice_I4-2_ab558d71.m4a"
+    },
+    {
+     "id": "I4-3",
+     "caption": "아랑사가 떠난 바위에서 어떤 밤이 이어졌고, 그 밤을 본 사람들이 있었다고 전한다. 그들은 무엇을 보았을까?",
+     "fact_ids": [
+      "F-13"
      ],
      "uses": [
       "house"
      ],
-     "image_prompt": "Wide sunset over the river, thatched huts on both banks and the great cliff, sun sinking behind the ridge, warm light on the water",
-     "img": "cine_ending_E1_ce8ef0d5.png",
+     "image_prompt": "Moonlit rock at the top of the cliff seen from a distance, the dark river far below, dark silhouettes of young men climbing toward it",
+     "img": "cine_intro-scene-04_I4-3_57962726.png",
      "review": {
       "ok": true,
       "fails": [],
-      "why": "초가 오두막, 넓은 강, 절벽, 작은 배, 지는 해가 모두 보이고 인물은 작은 실루엣이라 얼굴이 또렷하지 않으며 글자나 칸 나눔도 없다.",
+      "why": "초가 오두막, 절벽, 강, 나무배, 달빛 아래 오르는 실루엣이 모두 보이며 얼굴·글자·여러 칸 분할 없이 시대에도 맞는다.",
       "try": 0
-     }
+     },
+     "voice": "voice_I4-3_3f60c8cc.m4a"
+    }
+   ],
+   "goal": "바위 위에서 목격된 것과 그 뒤의 일을 일어난 순서대로 밝히고, 이야기가 끝내 답하지 않는 것을 가려내라."
+  },
+  {
+   "scene_id": "scene-05",
+   "kind": "intro",
+   "transition": "cine",
+   "panels": [
+    {
+     "id": "I5-1",
+     "caption": "젊은이들이 아비사와 구렁이를 바위 아래로 굴린 뒤부터, 진부촌 젊은이들은 시름시름 앓다 죽어 갔다. 얽힌 구렁이 두 마리도 밤마다 마을에 나타났다.",
+     "fact_ids": [
+      "F-15",
+      "F-16",
+      "F-17"
+     ],
+     "uses": [
+      "house",
+      "youths"
+     ],
+     "image_prompt": "Night village of thatched huts, two entwined snake-like shapes crossing the dirt road, dark silhouettes standing at a distance",
+     "img": "cine_intro-scene-05_I5-1_2d35b09e.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "초가 오두막, 강, 나무배, 절벽이 보이고 상투 튼 젊은이들은 어두운 실루엣이며 얼굴이 또렷하지 않다. 뱀 형상도 있고 글자나 이부자리, 여러 칸 분할도 없다.",
+      "try": 0
+     },
+     "voice": "voice_I5-1_9a3d82b4.m4a"
     },
     {
-     "id": "E2",
-     "caption": "노인들의 뜻을 모아 음력 8월에 무당들이 씻김굿을 했고, 그 뒤부터 진부촌은 화를 면했다고 한다.",
+     "id": "I5-2",
+     "caption": "사람이 줄어 가는 마을에서 노인들이 한자리에 모인다. 낮은 목소리가 오래도록 이어진다.",
+     "fact_ids": [
+      "F-18"
+     ],
+     "uses": [
+      "house",
+      "elder"
+     ],
+     "image_prompt": "Elders in white robes gathered under a big tree in the village at night, dark thatched huts behind them",
+     "img": "cine_intro-scene-05_I5-2_97bbab77.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "흰 도포의 노인들이 밤에 큰 나무 아래 모여 있고, 초가와 강, 목선, 절벽 등 고정 묘사에 부합하며 얼굴이 또렷하지 않고 글자나 칸 나눔도 없다.",
+      "try": 0
+     },
+     "voice": "voice_I5-2_bffaabd4.m4a"
+    },
+    {
+     "id": "I5-3",
+     "caption": "노인들은 이 밤을 어떻게, 언제 끝내려 했을까?",
      "fact_ids": [
       "F-18",
       "F-19"
      ],
      "uses": [
       "house",
-      "shamans"
+      "elder"
      ],
-     "image_prompt": "Riverside at dusk, dark silhouettes of shamans in white robes and elders standing on the shore, long white cloths spread on the water's edge",
-     "img": "cine_ending_E2_970f5ea9.png",
+     "image_prompt": "Elders in white robes standing in a row facing the river at dawn, the cliff beyond",
+     "img": "cine_intro-scene-05_I5-3_a20d8f06.png",
      "review": {
       "ok": true,
       "fails": [],
-      "why": "얼굴은 실루엣이라 이목구비가 또렷하지 않고, 글자도 없으며, 무당과 노인, 흰 천, 초가 오두막, 강과 배가 모두 고정 묘사에 맞고 한 장면으로 그려졌다.",
+      "why": "흰 도포 입은 노인들이 강을 향해 서 있고 절벽·초가·나무배가 보이며, 얼굴은 뒷모습이라 또렷하지 않고 글자나 칸 나눔도 없다.",
       "try": 0
-     }
+     },
+     "voice": "voice_I5-3_aabe2c28.m4a"
+    }
+   ],
+   "goal": "노인들이 낸 방법과 때를 확인하고, 아랑사의 죽음부터 이어진 사건들을 일어난 순서대로 맞춰라."
+  },
+  {
+   "kind": "ending",
+   "panels": [
+    {
+     "id": "E1",
+     "caption": "노인들이 뜻을 모으자 무당들이 음력 8월에 씻김굿을 했다. 그들의 넋을 위로하기 위한 굿이었다.",
+     "fact_ids": [
+      "F-18"
+     ],
+     "uses": [
+      "house",
+      "elder",
+      "shaman"
+     ],
+     "image_prompt": "Shaman's silhouette dancing with white cloth strips on a riverside sandbar at dusk, elders standing behind, the cliff beyond",
+     "img": "cine_ending_E1_d23bc703.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "흰 천을 든 무당이 강가 모래톱에서 춤추고 뒤에 노인들이 서 있으며, 절벽과 초가·나룻배가 보이고 얼굴이 또렷하지 않으며 글자도 없다.",
+      "try": 0
+     },
+     "voice": "voice_E1_5fd21b71.m4a"
+    },
+    {
+     "id": "E2",
+     "caption": "그 뒤부터 진부촌은 화를 면했다고 전한다. 구렁이가 무엇이었는지, 아비사가 어찌 되었는지는 이야기가 끝내 말해 주지 않는다.",
+     "fact_ids": [
+      "F-19"
+     ],
+     "uses": [
+      "house"
+     ],
+     "image_prompt": "Quiet riverside at dusk, the cliff reflected in calm water, an empty path leading to the shore",
+     "img": "cine_ending_E2_d75af5ae.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "초가 오두막, 절벽, 강, 나룻배가 고정 묘사와 맞고, 인물은 어두운 실루엣이라 얼굴이 보이지 않으며 글자나 이부자리도 없다.",
+      "try": 1
+     },
+     "voice": "voice_E2_9f0a5637.m4a"
     },
     {
      "id": "E3",
-     "caption": "앙암바위는 지금도 서 있고, 아랑사와 아비사의 이야기는 가슴 아픈 이야기로 전해진다.",
+     "caption": "벼랑 허리쯤에는 진부촌이, 강 건너에는 택촌이 있다. 해가 기우는 앙암바위 아래로 영산강은 두 마을 사이를 지나 흐른다.",
+     "fact_ids": [
+      "F-03"
+     ],
+     "uses": [
+      "house"
+     ],
+     "image_prompt": "Two small thatched villages facing each other across the river with the cliff at one side, sun setting behind the cliff, wide view",
+     "img": "cine_ending_E3_eb8d6a43.png",
+     "review": {
+      "ok": true,
+      "fails": [],
+      "why": "초가 마을, 절벽, 넓은 강, 나룻배, 지는 해가 모두 보이고 얼굴은 실루엣이며 글자나 칸 나눔도 없다.",
+      "try": 0
+     },
+     "voice": "voice_E3_dad89b41.m4a"
+    },
+    {
+     "id": "E4",
+     "caption": "아랑사와 아비사의 이야기는 깎아지른 암벽을 소재로, 지금도 가슴 아픈 이야기로 전해진다.",
      "fact_ids": [
       "F-20"
      ],
      "uses": [
       "house"
      ],
-     "image_prompt": "Close view of a white cloth laid at the water's edge, rippling gently, the sheer cliff wall rising dim in the background at twilight",
-     "img": "cine_ending_E3_6708b307.png",
+     "image_prompt": "The sheer cliff above the river in last evening light, the dark water below, no people, quiet",
+     "img": "cine_ending_E4_3adbcb5c.png",
      "review": {
-      "ok": false,
-      "fails": [
-       "F2"
-      ],
-      "why": "오른쪽 아래 모서리에 낙관이나 서명처럼 보이는 글자 표시가 있다.",
-      "try": 2
-     }
+      "ok": true,
+      "fails": [],
+      "why": "깎아지른 암벽, 넓은 강, 나룻배, 초가 오두막이 보이고 얼굴은 어두운 실루엣이라 흐릿하며 글자나 여러 칸 분할도 없다.",
+      "try": 0
+     },
+     "voice": "voice_E4_3c9213bb.m4a"
     }
    ],
-   "reveal": "아랑사는 택촌의 어부, 아비사는 진부촌의 처녀였다. 진부촌 젊은이들이 아랑사를 죽였고, 뒤에 구렁이와 아비사를 바위 아래로 굴렸다. 그 뒤부터 젊은이들이 앓다 죽어 가자 노인들의 협의로 음력 8월에 씻김굿을 했고, 이후 진부촌은 화를 면했다고 전한다.",
-   "left_open": "구렁이의 정체, 아비사의 최후, 젊은이들의 죽음과 앞선 사건의 인과, 씻김굿이 누구의 넋을 위로했는지는 원문에 없어 알 수 없다.",
+   "reveal": "택촌 어부 아랑사는 진부촌 처녀 아비사와의 사랑을 시기한 진부촌 젊은이들 손에 죽었고, 그 뒤의 일들 끝에 노인들의 협의로 무당들이 음력 8월에 씻김굿을 했으며, 그 뒤부터 진부촌은 화를 면했다고 전해진다.",
+   "left_open": "구렁이의 정체, 아비사의 최후, 씻김굿으로 위로한 넋의 범위, 젊은이들의 죽음과 굴림 사이의 인과는 이야기가 말하지 않아 아직 알 수 없다.",
    "field": {
     "place": "앙암바위에서 강 건너편을 바라보는 자리",
-    "seal": "앙암바위에서 강 건너편을 바라보며 물가와 건너편 사이의 거리감, 소리가 건너오는 정도를 직접 느껴 보면 풀린다.",
+    "seal": "그 자리에 서서 물가와 강 건너편 사이에 어떤 거리가 있는지 눈으로 보고, 건너편에서 소리가 건너오는지 직접 들어 보면 풀린다.",
     "question": "강 건너편에서 들려오는 소리를 들은 적이 있다면 어떤 소리였습니까?"
    }
   }
  ],
  "bible": {
-  "house": "Three Kingdoms-era thatched fishing huts below a steep riverside cliff, wide river, small wooden boats, no tiled roofs",
+  "house": "Three Kingdoms-era thatched fishing huts and farm huts beneath a steep riverside cliff, a wide river, wooden fishing boats, no tiled roofs",
   "people": {
-   "arangsa": "young fisherman in rough short hemp tunic and trousers, hair in a topknot",
-   "abisa": "young woman with long loose black hair, plain white short jacket and long skirt",
-   "youths": "group of young men in dark hemp tunics and trousers, topknots",
-   "elders": "old men in long white robes with long beards, hair tied up",
-   "shamans": "women in white robes with long white cloths in their hands"
+   "arangsa": "young fisherman in rough undyed hemp tunic and trousers, hair tied in a topknot with cloth band",
+   "abisa": "young woman with long loose black hair, plain white hemp skirt and short jacket",
+   "youths": "group of young village men in coarse hemp clothes, topknots, seen as dark shapes",
+   "elder": "old man in white hemp robe with a long thin beard and a topknot",
+   "shaman": "woman shaman in layered white robes with long white cloth strips in her hands"
   }
  },
+ "voice": {
+  "engine": "macos-say",
+  "name": "Yuna",
+  "rate": 175,
+  "made": 19,
+  "failed": 0
+ },
  "scriptReview": {
-  "before": 14,
+  "before": 19,
+  "rounds": [
+   19,
+   17,
+   16,
+   13
+  ],
   "after": [
-   {
-    "target": "scene-01 goal",
-    "pass": false,
-    "fails": [
-     "S4",
-     "S5"
-    ],
-    "why": "goal이 '어느 마을 사람인지' 가려내라고만 하고, 실제 퍼즐 PZ-01(절벽 이름 입력)·PZ-02(마을 위치 짝)와 달리 두 마을의 위치 관계를 빠뜨렸다. '잘못 전해진'이라는 표현은 처음 보는 사람에게 근거 없이 나온다.",
-    "rewrite": "당신은 이 사랑 이야기를 바로잡는 기록 조사자다. 먼저 절벽의 두 이름을 확인하고, 강 건너 두 마을의 위치와 아랑사·아비사의 마을을 짝지어라."
-   },
    {
     "target": "scene-01 I1-1",
     "pass": false,
     "fails": [
-     "S1",
-     "S7",
-     "S3"
+     "S9",
+     "S2"
     ],
-    "why": "'깎아지른 절벽'이 앙암바위라는 이름 없이 나오고, 조사자가 왜 바로잡으러 왔는지도 없다. 영산포구는 F-01의 '영산포구 쪽'을 단정형으로 바꿨다.",
-    "rewrite": "영산강을 따라 영산포구 쪽으로 오르면 깎아지른 절벽이 있다. 기록 조사자인 당신은 이곳에 전하는 삼국시대 사랑 이야기를 확인하러 왔다."
+    "why": "플레이어가 누구인지 불분명하고 '고향을 바로잡으러'는 이유가 갑작스러우며, 두 사람의 고향이 잘못 적혔다는 PZ-02 결론을 앞질러 전제한다.",
+    "rewrite": "삼국시대, 영산강 가에 아랑사와 아비사라는 두 연인의 이야기가 전해 온다. 당신은 이 이야기를 기록하러 온 사람이다. 어긋난 기록을 바로잡으려 배를 타고 영산포구 쪽으로 강을 거슬러 오른다."
    },
    {
     "target": "scene-01 I1-2",
     "pass": false,
     "fails": [
      "S1",
-     "S3",
-     "S4"
+     "S9"
     ],
-    "why": "'기록마다 달리 적혀 있다'는 01에 없는 사건이다. 두 마을은 아직 소개되지 않았는데 '두 마을'이라 쓰였고, 마을 이름·위치 문제를 미리 밝혀 PZ-02를 앞서 말한다.",
-    "rewrite": "이 절벽에는 어부 아랑사와 처녀 아비사의 사랑 이야기가 전한다. 두 사람은 강 양쪽 서로 다른 마을 사람이었다고 한다. 어느 쪽이 어느 마을인지부터 확인하자."
+    "why": "'기록 두 장'이 어떤 기록인지 소개가 없고 고향이 다르다는 말은 PZ-02의 답을 흘린다.",
+    "rewrite": "뱃전을 치는 물소리 속에서 당신은 이야기를 적은 기록 두 장을 펼친다. 두 장 모두 아랑사와 아비사의 사랑을 말하지만, 두 사람이 어느 마을 사람인지는 서로 다르게 적혀 있다."
+   },
+   {
+    "target": "scene-01 I1-3",
+    "pass": false,
+    "fails": [
+     "S9",
+     "S6"
+    ],
+    "why": "절벽 이름을 알아야 어느 기슭인지 가린다는 인과가 맞지 않고 두 퍼즐의 연결이 억지다.",
+    "rewrite": "고개를 들자 강 위로 깎아지른 절벽이 솟아 있다. 이 고장 사람들은 저 벼랑을 따로 이름 붙여 부른다. 그 이름이 무엇일까? 이 절벽이 두 마을을 찾는 길잡이가 된다."
    },
    {
     "target": "scene-02 I2-1",
     "pass": false,
     "fails": [
-     "S2",
-     "S4"
+     "S3",
+     "S8"
     ],
-    "why": "장면의 질문을 그대로 던져 PZ-03·04 두 퍼즐의 문제를 컷에서 미리 드러낸다. 앞 장면에서 확정한 마을 정보를 반복할 뿐 이 장면으로 넘어가는 연결이 약하다.",
-    "rewrite": "이제 마을 짝은 분명하다. 강을 사이에 둔 두 사람이 처음 어떻게 만났는지, 그리고 왜 밤마다 바위에서 만나게 되었는지 알아보자."
+    "why": "'그물을 다뤘을 것이다'는 원전에 없는 추측이고 설명문투다.",
+    "rewrite": "앙암바위 맞은편 강 건너에 택촌이 있다. 앞서 바로잡은 대로 아랑사는 이 마을의 어부다. 해 질 녘이면 그는 강으로 나가 고기를 잡았다."
+   },
+   {
+    "target": "scene-02 I2-3",
+    "pass": false,
+    "fails": [
+     "S3",
+     "S8"
+    ],
+    "why": "배 한 척은 사실에 없는 덧붙임이고, 아비사가 울었다는 단서 없이 '처음 마주쳤을까'만 던져 PZ-03과 어긋난다.",
+    "rewrite": "저물어 가는 강 위로 물소리가 낮게 깔린다. 그때 건너편 기슭에서 가느다란 울음소리가 건너온다. 서로 다른 기슭에 사는 어부와 처녀는 무슨 일로 만났을까?"
    },
    {
     "target": "scene-03 goal",
     "pass": false,
     "fails": [
-     "S4"
+     "S5"
     ],
-    "why": "'아랑사에게 무슨 일이 있었는지'는 PZ-06의 답인 죽음을 암시한다. 하지만 퍼즐과는 맞는다. 다만 '소문'은 PZ-05 퍼즐 답(시기)을 이미 전제한다.",
-    "rewrite": "두 사람을 시기한 이들이 누구인지 찾고, 바위 아래 현장의 흔적에서 아랑사에게 닥친 일을 확인하라."
+    "why": "실제 퍼즐은 시기와 죽임, 그 뒤의 발길인데 '바위 위의 단서' 표현이 모호하다.",
+    "rewrite": "두 사람의 사랑을 누가, 왜 가슴 아픈 이야기로 만들었는지 바위 위 단서를 살펴 밝혀라."
    },
    {
-    "target": "scene-03 자막",
+    "target": "scene-03 I3-2",
+    "pass": false,
+    "fails": [
+     "S8",
+     "S9"
+    ],
+    "why": "당신이 달빛 아래 선 이유가 없고 '달빛'은 덧붙인 감각이다.",
+    "rewrite": "당신은 두 사람이 밤마다 만났다는 앙암바위 위에 올라선다. 바람이 벼랑을 타고 올라오고 발밑은 아득한 낭떠러지다."
+   },
+   {
+    "target": "scene-03 I3-3",
     "pass": false,
     "fails": [
      "S3",
      "S4"
     ],
-    "why": "'소문이 마을에 돌았다'는 01에 없는 창작 사건이고, '곱지 않게 보는'으로 시기라는 PZ-05 답을 미리 말한다.",
-    "rewrite": "밤마다 바위에서 사랑을 속삭이던 두 사람. 그러나 이 사랑을 곱게 보지 않는 이들이 있었다."
+    "why": "'그 밤들을 지켜본 누군가'는 원전에 없는 인물을 만들고 시기라는 가해 주체를 암시한다.",
+    "rewrite": "그토록 다정하던 밤이 어째서 가슴 아픈 이야기로 남았을까? 이 바위 어딘가에 그 사랑을 못마땅해한 이들의 흔적이 남아 있다."
    },
    {
     "target": "scene-04 I4-1",
+    "pass": false,
+    "fails": [
+     "S4",
+     "S6"
+    ],
+    "why": "PZ-05·06에서 밝힌 사실을 되풀이하며 '시기하던 …손에'는 가해를 단정하므로 앞 장면 정리로는 괜찮으나 문장이 어색하다.",
+    "rewrite": "진부촌 젊은이들은 두 사람의 사랑을 시기해 아랑사를 죽였다. 그런데도 아비사는 앙암바위를 찾는 걸음을 멈추지 않았다."
+   },
+   {
+    "target": "scene-04 I4-2",
+    "pass": false,
+    "fails": [
+     "S9",
+     "S8"
+    ],
+    "why": "'이번에는 당신이'가 앞 컷과 겹치고 밤이슬은 덧붙임이다.",
+    "rewrite": "당신은 아비사가 걸었을 길을 따라 다시 바위에 오른다. 아래에서는 강물 소리만 올라온다."
+   },
+   {
+    "target": "scene-04 I4-3",
+    "pass": false,
+    "fails": [
+     "S3",
+     "S4"
+    ],
+    "why": "'어떤 밤이 이어졌고'는 모호하고 '아랑사가 떠난 바위'는 어색하며, 본 사람이 마을 젊은이라는 점도 불분명하다.",
+    "rewrite": "아랑사가 죽은 뒤에도 아비사는 바위를 찾았다. 그러던 어느 날 마을 젊은이들이 그곳에 올라가 보았다. 그들은 무엇을 보았을까?"
+   },
+   {
+    "target": "scene-05 I5-1",
     "pass": false,
     "fails": [
      "S3",
      "S4",
      "S6"
     ],
-    "why": "U-07상 '마을 젊은이'와 '진부촌 젊은이'의 동일성을 사실로 이었다. '믿기 어려운 광경'은 구렁이 목격을 암시하는 모호한 표현이다. 앞 장면 결말(아비사가 바위를 계속 찾음)과도 중복된다.",
-    "rewrite": "아랑사가 죽은 뒤에도 아비사는 바위를 찾았다. 어느 날 마을 젊은이들이 그곳에 올라가 아비사가 무엇과 함께 있는지 보게 된다."
-   },
-   {
-    "target": "scene-05 자막",
-    "pass": false,
-    "fails": [
-     "S3",
-     "S6"
-    ],
-    "why": "'고민했다'는 01에 없는 창작이다. 앞 장면에서 굴림 뒤 피해를 이미 알려 중복되고, 노인 협의를 암시해 PZ-09 답을 앞당긴다.",
-    "rewrite": "굴림 뒤로 젊은이들은 앓다 죽어 갔고, 얽힌 구렁이 두 마리가 밤마다 나타났다. 진부촌은 이 일을 어떻게 멈추었을까."
+    "why": "'젊은이들이'로 굴림 주체를 이어 쓰고 앞 장면에서 밝힌 것과 이어지나, 굴림 뒤 피해(PZ-08)를 PZ-10 순서 퍼즐 전에 이미 길게 말해 '굴린 뒤부터'가 인과로 읽힐 위험이 있다.",
+    "rewrite": "젊은이들이 구렁이와 아비사를 바위 아래로 굴려 버린 뒤, 진부촌 젊은이들이 시름시름 앓다 죽어 갔다. 얽힌 구렁이 두 마리도 밤마다 마을에 나타났다."
    },
    {
     "target": "ending E1",
     "pass": false,
     "fails": [
+     "S1",
      "S3"
     ],
-    "why": "F-19는 이 문장과 무관한 결말 사실이라 근거 표기가 틀렸다. 내용은 맞지만 마지막 판의 첫 문장으로는 scene-01의 반복이다.",
-    "rewrite": "강을 사이에 둔 택촌과 진부촌, 그리고 앙암바위. 이야기는 그 사이에서 벌어졌다. 아랑사는 택촌의 어부, 아비사는 진부촌의 처녀였다."
-   },
-   {
-    "target": "ending reveal",
-    "pass": false,
-    "fails": [
-     "S3"
-    ],
-    "why": "'뒤에 구렁이와 아비사를 바위 아래로 굴렸다'에서 주체가 진부촌 젊은이들로 이어져 U-07의 동일성을 단정했다. 또 '그 뒤부터 앓아 죽어 가자'가 인과처럼 읽힌다.",
-    "rewrite": "아랑사는 택촌의 어부, 아비사는 진부촌의 처녀였다. 진부촌 젊은이들이 아랑사를 죽였고, 뒤에 마을 젊은이들이 구렁이와 아비사를 바위 아래로 굴렸다. 그 뒤부터 젊은이들이 앓다 죽어 가자 노인들의 협의로 음력 8월에 씻김굿을 했고, 이후 진부촌은 화를 면했다고 전한다."
+    "why": "'그들'이 누구인지 U-05상 불명한데 앞에서 소개하지 않았다.",
+    "rewrite": "노인들이 뜻을 모으자 무당들이 음력 8월에 씻김굿을 했다. 죽은 이들의 넋을 위로하기 위한 굿이었다."
    }
   ]
  }

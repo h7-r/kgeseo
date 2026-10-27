@@ -8,12 +8,14 @@
  *        → 플레이어가 문으로 걸어 들어간다 → 화면이 어두워지고 다음 씬 자리로 옮겨진다
  *        → 다음 씬의 전환 방식(05b 가 정함) 하나만: cine = 이야기 컷(공간 훑기는 끔) / sweep = 공간 훑기 + 대본 자막(그림 컷 없음)
  *        → 🧭 「이 씬에서 무엇을 왜」
+ * 10/27 미르(6): 「차단막을 넘어갈 때마다 스토리 이해를 돕는 시네마틱」 → 씬 사이 막을 걷으면 늘 이야기 컷. 공간 훑기는 그 씬의 다른 구역에 처음 들어설 때(본편 그대로).
+ *               「시네마틱 음성」 → 컷마다 05b 가 만든 음성(voice_*.m4a)을 읽어 주고, 컷 넘김을 음성 길이에 맞춘다. 🔊/🔇 단추.
  *   씬 5 를 마치면 문 대신 결말 컷 → 새로 알게 된 것 · 아직 모르는 것 · 🔒 마지막 봉인(현장).
  */
 import { INVESTIGATION_POINTS, PATHS, UNITS_PER_METER, ZONES } from "../plan/sitePlan";
 import { settings, stage } from "../scene/immersion/state";
 
-type Panel = { id: string; caption: string; img?: string };
+type Panel = { id: string; caption: string; img?: string; voice?: string };
 type Intro = { scene_id: string; kind: "intro"; panels: Panel[]; goal: string; transition?: "cine" | "sweep"; sweep_line?: string };
 type Ending = { kind: "ending"; panels: Panel[]; reveal: string; left_open?: string; field?: { place: string; seal: string; question?: string } };
 type Doc = { cinematics: (Intro | Ending)[]; sceneTitles?: Record<string, string>; scriptReview?: { before: number; after: { target: string; fails?: string[]; why?: string }[] } | null };
@@ -59,24 +61,38 @@ const esc = (s: unknown) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&
 const ro = (w: string) => { const ch = w.trim().slice(-1); if (/[0-9]/.test(ch)) return "036".includes(ch) ? "으로" : "로"; const c = ch.charCodeAt(0) - 0xac00; if (c < 0 || c > 11171) return "로"; const j = c % 28; return j === 0 || j === 8 ? "로" : "으로"; };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+let muted = (() => { try { return localStorage.getItem("cp-mute") === "1"; } catch { return false; } })();
 function playCine(panels: Panel[], title: string): Promise<void> {
   return new Promise((done) => {
     if (!panels.length) { done(); return; }
     document.exitPointerLock?.();
     const ov = el("div", "cp-ov"); document.body.appendChild(ov);
-    let i = 0, timer = 0, typer = 0;
-    const end = () => { clearTimeout(timer); clearInterval(typer); ov.remove(); done(); };
+    let i = 0, timer = 0, typer = 0, audio: HTMLAudioElement | null = null;
+    const stopAudio = () => { if (audio) { audio.pause(); audio.src = ""; audio = null; } };
+    const end = () => { clearTimeout(timer); clearInterval(typer); stopAudio(); ov.remove(); done(); };
+    const next = () => { i++; step(); };
     const step = () => {
+      stopAudio();
       if (i >= panels.length) { end(); return; }
       const p = panels[i];
-      ov.innerHTML = `${p.img ? `<img src="${BASE}${esc(p.img)}" alt="">` : '<div class="cp-ph"></div>'}<div class="cp-top">${esc(title)} · ${i + 1} / ${panels.length}</div><div class="cp-band"><div class="cp-cap"></div><button class="cp-btn" data-n>${i < panels.length - 1 ? "다음 ▶" : "계속 ▶"}</button><button class="cp-btn" data-s>건너뛰기</button></div>`;
+      ov.innerHTML = `${p.img ? `<img src="${BASE}${esc(p.img)}" alt="">` : '<div class="cp-ph"></div>'}<div class="cp-top">${esc(title)} · ${i + 1} / ${panels.length}</div><div class="cp-band"><div class="cp-cap"></div><button class="cp-btn" data-n>${i < panels.length - 1 ? "다음 ▶" : "계속 ▶"}</button><button class="cp-btn" data-s>건너뛰기</button>${p.voice ? `<button class="cp-btn" data-m title="음성 켜기/끄기">${muted ? "🔇" : "🔊"}</button>` : ""}</div>`;
       const im = ov.querySelector("img, .cp-ph") as HTMLElement; const on = () => im.classList.add("on");
       if (im instanceof HTMLImageElement) { im.onload = on; im.onerror = on; if (im.complete) on(); } else setTimeout(on, 30);
-      const cap = ov.querySelector(".cp-cap") as HTMLElement, txt = p.caption || ""; let k = 0;
-      clearInterval(typer); typer = window.setInterval(() => { k++; cap.textContent = txt.slice(0, k); if (k >= txt.length) clearInterval(typer); }, 45);
-      (ov.querySelector("[data-n]") as HTMLElement).onclick = () => { i++; step(); };
+      const cap = ov.querySelector(".cp-cap") as HTMLElement, txt = p.caption || "";
+      // 글자는 음성 속도에 맞춰 찍는다(음성이 없으면 45ms/자)
+      let perChar = 45; const t0 = performance.now();
+      clearInterval(typer); typer = window.setInterval(() => { const k = Math.min(txt.length, Math.floor((performance.now() - t0) / perChar) + 1); cap.textContent = txt.slice(0, k); if (k >= txt.length) clearInterval(typer); }, 30);
+      const silentWait = () => Math.max(4500, txt.length * 45 + 2600);
+      clearTimeout(timer); timer = window.setTimeout(next, silentWait());
+      if (p.voice && !muted) {
+        const a = new Audio(`${BASE}${p.voice}`); audio = a;
+        a.onloadedmetadata = () => { if (audio !== a || !isFinite(a.duration)) return; perChar = Math.max(25, (a.duration * 1000 * 0.92) / Math.max(1, txt.length)); clearTimeout(timer); timer = window.setTimeout(next, a.duration * 1000 + 1400); };
+        a.play().catch(() => { /* 자동 재생이 막히면 글만 — 🔊 를 누르면 다시 */ });
+      }
+      (ov.querySelector("[data-n]") as HTMLElement).onclick = next;
       (ov.querySelector("[data-s]") as HTMLElement).onclick = end;
-      clearTimeout(timer); timer = window.setTimeout(() => { i++; step(); }, Math.max(4500, txt.length * 45 + 2600));
+      const mb = ov.querySelector("[data-m]") as HTMLElement | null;
+      if (mb) mb.onclick = () => { muted = !muted; try { localStorage.setItem("cp-mute", muted ? "1" : "0"); } catch { /* 저장 못 해도 이번 판은 그대로 */ } if (muted) { stopAudio(); mb.textContent = "🔇"; } else { i += 0; step(); } };
     };
     step();
   });
@@ -193,8 +209,8 @@ async function main() {
   const enterScene = async (n: number, first: boolean) => {
     const it = intros.find((c) => c.scene_id === `scene-0${n}`); const mode = modeOf(it); const a = arrival(n);
     if (mode === "cine") {
-      // 이야기 컷이 이 씬의 연출 — 공간 훑기는 이 씬 구역에서 나오지 않게(이미 본 것으로 둔다)
-      for (const z of a.zones) stage.visitedZones.add(z);
+      // 이야기 컷이 이 씬 도착의 연출 — 도착 구역만 「이미 본 것」으로(공간 훑기와 겹치지 않게). 이 씬의 다른 구역은 처음 들어설 때 본편이 훑는다
+      { const z0 = zoneAt(a.x, a.z) || a.zones[0]; if (z0) stage.visitedZones.add(z0); }
       if (!first) { naju()?.teleport?.current?.(a.x, a.z); await sleep(300); }
       if (it) await playCine(it.panels, `씬 ${n} · ${title(it.scene_id)}`);
       await fade(0);
