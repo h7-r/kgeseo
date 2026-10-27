@@ -10,7 +10,7 @@
  *        → 🧭 「이 씬에서 무엇을 왜」
  *   씬 5 를 마치면 문 대신 결말 컷 → 새로 알게 된 것 · 아직 모르는 것 · 🔒 마지막 봉인(현장).
  */
-import { INVESTIGATION_POINTS, UNITS_PER_METER, ZONES } from "../plan/sitePlan";
+import { INVESTIGATION_POINTS, PATHS, UNITS_PER_METER, ZONES } from "../plan/sitePlan";
 import { settings, stage } from "../scene/immersion/state";
 
 type Panel = { id: string; caption: string; img?: string };
@@ -104,48 +104,72 @@ function arrival(n: number): { x: number; z: number; zones: string[] } {
 }
 function zoneAt(x: number, z: number) { return ZONES.find((v) => x >= v.x[0] && x <= v.x[1] && z >= v.z[0] && z <= v.z[1])?.code; }
 
-// ── 「왜곡의 문」(10/27 미르(3): 「씬과 씬 사이에 문 같은 게 안 보인다」) ──
-//   씬 1~4 의 끝자리마다 문을 처음부터 세워 둔다. 씬을 마치기 전에는 잿빛으로 닫혀 있고(가까이 가면 「아직 잠겨 있다」),
-//   씬을 마치면 보라빛으로 열리며 하늘로 빛기둥이 솟아 멀리서도 보인다. 열린 문으로 걸어 들어가면 다음 씬으로.
-//   자리 = 그 씬 마지막 조사점에서 다음 씬 쪽으로 2.5 m. 문 위에 「씬 n · 이름」 표지.
-type Gate = { group: any; ring: any; disc: any; beam: any; label: any; x: number; z: number; to: number; open: boolean }; // eslint-disable-line @typescript-eslint/no-explicit-any
-const gates: Gate[] = [];
+// ── 「왜곡의 막」(10/27 미르(4): 「원형 고리 말고, 다음 씬으로 넘어가는 길 입구를 다음 씬의 모습이 가려진 흐릿한 가림막으로 전부 막아 두고,
+//     상호작용해야 할 것처럼 연출 — 상호작용하면 다음 씬 시작 지점으로 바로 이동」) ──
+//   다음 씬으로 이어지는 통로 들머리마다 막을 처음부터 세워 둔다(흐릿하게 일렁이는 안개 막 — 건너편이 보이지 않는다).
+//   씬을 마치기 전: 잿빛으로 탁하고, 다가가면 「🔒 왜곡의 막이 단단하다 — 씬 n 의 조사를 마쳐야 걷힌다」. 지나가려 하면 막 앞으로 밀려난다.
+//   씬을 마치면: 그 막만 보랏빛으로 맥동하고 빛 알갱이가 오른다. 다가가면 「[E] 왜곡의 막을 걷어 낸다」 → 막이 흩어지고 → 다음 씬 시작 지점으로.
+//   막 자리(통로 들머리): 씬1→2 T2 강변 우회 비탈(→진부촌 능선) · 씬2→3 T3 북측 스위치백(→바위 위) · 씬3→4 T4 서측 하강로(→나루터) · 씬4→5 T2 들머리(다시 막힌 자리).
+//   T1 바위틈(Z1↔Z2)은 씬1·씬4 안에서 오가는 길이라 막지 않는다.
+type Veil = { group: any; plane: any; tex: any; label: any; motes: any; x: number; z: number; nx: number; nz: number; w: number; to: number; from: number; open: boolean; gone: boolean }; // eslint-disable-line @typescript-eslint/no-explicit-any
+const veils: Veil[] = [];
+const VEIL_AT: { from: number; path: string }[] = [{ from: 1, path: "T2" }, { from: 2, path: "T3" }, { from: 3, path: "T4" }, { from: 4, path: "T2" }];
 function labelTex(T: any, text: string, open: boolean) { // eslint-disable-line @typescript-eslint/no-explicit-any
   const cv = document.createElement("canvas"); cv.width = 512; cv.height = 128; const c = cv.getContext("2d")!;
-  c.fillStyle = open ? "rgba(40,20,80,0.82)" : "rgba(30,30,30,0.7)"; c.beginPath(); c.roundRect(8, 16, 496, 96, 40); c.fill();
-  c.fillStyle = open ? "#f1e8ff" : "#cfcfcf"; c.font = "bold 44px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(text, 256, 66);
+  c.fillStyle = open ? "rgba(40,20,80,0.82)" : "rgba(30,30,30,0.62)"; c.beginPath(); c.roundRect(8, 16, 496, 96, 40); c.fill();
+  c.fillStyle = open ? "#f1e8ff" : "#cfcfcf"; c.font = "bold 40px sans-serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(text, 256, 66);
   const t = new T.CanvasTexture(cv); t.colorSpace = T.SRGBColorSpace; return t;
 }
-function buildGates(titleOf: (n: number) => string) {
+function veilTex(T: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  // 흐릿한 안개 막 — 가운데가 짙고 가장자리로 갈수록 옅다. 반복 무늬라 결을 흘려 일렁이게 한다
+  const cv = document.createElement("canvas"); cv.width = cv.height = 256; const c = cv.getContext("2d")!;
+  c.fillStyle = "rgba(214,211,228,0.9)"; c.fillRect(0, 0, 256, 256); for (let k = 0; k < 40; k++) { const x = Math.random() * 256; c.fillStyle = `rgba(255,255,255,${0.05 + Math.random() * 0.12})`; c.fillRect(x, 0, 2 + Math.random() * 6, 256); } /* 늘어뜨린 천처럼 세로 결 */
+  for (let k = 0; k < 160; k++) { const x = Math.random() * 256, y = Math.random() * 256, r = 18 + Math.random() * 46; const g = c.createRadialGradient(x, y, 0, x, y, r); const a = 0.08 + Math.random() * 0.16; g.addColorStop(0, `rgba(245,242,255,${a})`); g.addColorStop(1, "rgba(245,242,255,0)"); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); }
+  const t = new T.CanvasTexture(cv); t.wrapS = t.wrapT = T.RepeatWrapping; t.colorSpace = T.SRGBColorSpace; return t;
+}
+function maskTex(T: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const cv = document.createElement("canvas"); cv.width = 128; cv.height = 128; const c = cv.getContext("2d")!;
+  const g = c.createRadialGradient(64, 70, 10, 64, 70, 70); g.addColorStop(0, "#fff"); g.addColorStop(0.75, "#f0f0f0"); g.addColorStop(1, "#111"); c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+  return new T.CanvasTexture(cv);
+}
+function cloudMask(T: any) { // eslint-disable-line @typescript-eslint/no-explicit-any
+  // 구름 덩어리 모양 — 가운데는 꽉 차고 가장자리는 들쭉날쭉한 안개 자락. 알파 0.45 를 넘는 곳만 「막」으로 남아 깊이를 쓴다
+  const cv = document.createElement("canvas"); cv.width = cv.height = 256; const c = cv.getContext("2d")!; c.fillStyle = "#000"; c.fillRect(0, 0, 256, 256);
+  const core = c.createRadialGradient(128, 140, 20, 128, 140, 120); core.addColorStop(0, "rgba(255,255,255,1)"); core.addColorStop(0.7, "rgba(255,255,255,0.8)"); core.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = core; c.fillRect(0, 0, 256, 256);
+  for (let k = 0; k < 70; k++) { const a = Math.random() * Math.PI * 2, rr = 70 + Math.random() * 50; const x = 128 + Math.cos(a) * rr, y = 140 + Math.sin(a) * rr * 0.95; const r = 14 + Math.random() * 26; const g = c.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(255,255,255,${0.5 + Math.random() * 0.5})`); g.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2); }
+  return new T.CanvasTexture(cv);
+}
+function buildVeils(titleOf: (n: number) => string) {
   const g = naju(); const T = g?.THREE; if (!g || !T || !g.scene) return;
-  const cv = document.createElement("canvas"); cv.width = cv.height = 256; const c2 = cv.getContext("2d")!;
-  const gr = c2.createRadialGradient(128, 128, 8, 128, 128, 128); gr.addColorStop(0, "rgba(255,255,255,0.95)"); gr.addColorStop(0.35, "rgba(170,140,255,0.6)"); gr.addColorStop(1, "rgba(60,30,120,0)");
-  c2.fillStyle = gr; c2.fillRect(0, 0, 256, 256); c2.strokeStyle = "rgba(255,255,255,0.35)"; c2.lineWidth = 3;
-  for (let a = 0; a < 6; a++) { c2.beginPath(); for (let t = 0; t < 1; t += 0.02) { const r = 120 * t, ang = a * 1.047 + t * 5; c2.lineTo(128 + Math.cos(ang) * r, 128 + Math.sin(ang) * r); } c2.stroke(); }
-  const swirl = new T.CanvasTexture(cv);
-  for (let n = 1; n <= 4; n++) {
-    const pts = INVESTIGATION_POINTS.find((v) => v.scene === n)?.points || []; const last = pts[pts.length - 1] || [18, 38];
-    const next = INVESTIGATION_POINTS.find((v) => v.scene === n + 1)?.points[0] || last;
-    let dx = next[0] - last[0], dz = next[1] - last[1]; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
-    const x = last[0] + dx * 2.5, z = last[1] + dz * 2.5; const y = g.terrain?.groundAt(x, z).y ?? 0;
-    const group = new T.Group(); group.name = `cinePreview.gate.${n}`;
-    const ring = new T.Mesh(new T.TorusGeometry(1.2 * U, 0.08 * U, 10, 64), new T.MeshBasicMaterial({ color: 0x8a8a8a, fog: false, toneMapped: false }));
-    const disc = new T.Mesh(new T.CircleGeometry(1.15 * U, 48), new T.MeshBasicMaterial({ map: swirl, transparent: true, opacity: 0.12, depthWrite: false, fog: false, toneMapped: false, side: T.DoubleSide, blending: T.AdditiveBlending }));
-    const beam = new T.Mesh(new T.CylinderGeometry(0.35 * U, 0.6 * U, 40 * U, 16, 1, true), new T.MeshBasicMaterial({ color: 0xb59cff, transparent: true, opacity: 0.28, depthWrite: false, fog: false, toneMapped: false, side: T.DoubleSide, blending: T.AdditiveBlending }));
-    beam.position.y = 20 * U; beam.visible = false;
-    const label = new T.Sprite(new T.SpriteMaterial({ map: labelTex(T, `🔒 씬 ${n + 1} · ${titleOf(n + 1)}`, false), fog: false, depthTest: false, toneMapped: false }));
-    label.scale.set(4 * U, 1 * U, 1); label.position.y = 2.1 * U; label.renderOrder = 999;
-    group.add(ring, disc, beam, label); group.position.set(x * U, (y + 1.3) * U, z * U); group.rotation.y = Math.atan2(dx, dz);
-    g.scene.add(group); gates.push({ group, ring, disc, beam, label, x, z, to: n + 1, open: false });
+  const alpha = maskTex(T), cloud = cloudMask(T);
+  for (const { from, path } of VEIL_AT) {
+    const P = PATHS.find((v) => v.code === path); if (!P) continue;
+    const [a, b] = P.points; let nx = b[0] - a[0], nz = b[1] - a[1]; const d = Math.hypot(nx, nz) || 1; nx /= d; nz /= d;
+    const x = a[0] + nx * 0.8, z = a[1] + nz * 0.8; const y = g.terrain?.groundAt(x, z).y ?? 0; const w = P.width + 4, h = 7; // 오르막 길 너머 언덕까지 가리게 넉넉히
+    const tex = veilTex(T); tex.repeat.set(1.5, 1);
+    // 막 = 꽉 찬 안개 덩어리(알파 잘라 깊이를 씀 → 만화 외곽선이 막 너머 선을 덧그리지 않고, 덩어리 가장자리만 먹선처럼 그린다) + 둘레 옅은 안개 자락
+    const plane = new T.Mesh(new T.PlaneGeometry(w * U, h * U), new T.MeshBasicMaterial({ map: tex, alphaMap: cloud, alphaTest: 0.45, transparent: false, depthWrite: true, fog: false, toneMapped: false, side: T.DoubleSide, color: 0xb4b2c0 }));
+    plane.position.y = (h / 2 - 0.2) * U;
+    const back = new T.Mesh(new T.PlaneGeometry(w * 1.25 * U, h * 1.15 * U), new T.MeshBasicMaterial({ map: tex, alphaMap: alpha, transparent: true, opacity: 0.55, depthWrite: false, fog: false, toneMapped: false, side: T.DoubleSide, color: 0xc8c6d4 })); back.position.set(0, (h / 2 - 0.2) * U, 0.3 * U); // 둘레 옅은 자락(앞쪽)
+    const label = new T.Sprite(new T.SpriteMaterial({ map: labelTex(T, `🔒 씬 ${from + 1} · ${titleOf(from + 1)}`, false), fog: false, depthTest: false, toneMapped: false, transparent: true, opacity: 0.85 }));
+    label.scale.set(4 * U, 1 * U, 1); label.position.y = (h + 0.5) * U; label.renderOrder = 999;
+    const mg = new T.BufferGeometry(); const N = 60, pos = new Float32Array(N * 3); for (let k = 0; k < N; k++) { pos[k * 3] = (Math.random() - 0.5) * w * U; pos[k * 3 + 1] = Math.random() * h * U; pos[k * 3 + 2] = (Math.random() - 0.5) * 0.6 * U; }
+    mg.setAttribute("position", new T.BufferAttribute(pos, 3));
+    const motes = new T.Points(mg, new T.PointsMaterial({ map: (() => { const c = document.createElement("canvas"); c.width = c.height = 32; const x = c.getContext("2d")!; const gg = x.createRadialGradient(16, 16, 0, 16, 16, 16); gg.addColorStop(0, "rgba(255,255,255,1)"); gg.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = gg; x.fillRect(0, 0, 32, 32); return new T.CanvasTexture(c); })(), color: 0xd9c8ff, size: 0.18 * U, transparent: true, opacity: 0.9, depthWrite: false, fog: false, toneMapped: false, blending: T.AdditiveBlending }));
+    motes.visible = false;
+    const group = new T.Group(); group.name = `cinePreview.veil.${from}`; group.add(back, plane, motes, label);
+    group.position.set(x * U, y * U, z * U); group.rotation.y = Math.atan2(nx, nz);
+    group.visible = from === 1 || from === 2 || from === 3; // 씬4→5 막(T2 들머리)은 씬1→2 막을 지난 뒤 다시 세운다
+    g.scene.add(group); veils.push({ group, plane, tex, label, motes, x, z, nx, nz, w, to: from + 1, from, open: false, gone: false });
   }
 }
-function openGate(to: number, titleOf: (n: number) => string) {
-  const gt = gates.find((v) => v.to === to); const T = naju()?.THREE; if (!gt || !T) return;
-  gt.open = true; gt.ring.material.color.set(0xb59cff); gt.disc.material.opacity = 1; gt.beam.visible = true;
-  gt.label.material.map = labelTex(T, `🌀 씬 ${to} · ${titleOf(to)}`, true); gt.label.material.needsUpdate = true;
-  toast(`🌀 「씬 ${to}」으로 가는 「왜곡의 문」이 열렸다 — 하늘로 솟은 보라빛 기둥을 따라가 문으로 들어가라`, 6500);
+function openVeil(from: number, titleOf: (n: number) => string) {
+  const v = veils.find((q) => q.from === from && !q.gone); const T = naju()?.THREE; if (!v || !T) return;
+  v.open = true; v.group.visible = true; v.motes.visible = true; v.plane.material.color.set(0xc9b6ff);
+  v.label.material.map = labelTex(T, `🌀 씬 ${v.to} · ${titleOf(v.to)}`, true); v.label.material.needsUpdate = true;
+  toast(`🌀 「씬 ${v.to}」으로 가는 길을 가린 「왜곡의 막」이 흔들리기 시작했다 — 보랏빛으로 일렁이는 막에 다가가 걷어 내라`, 6500);
 }
-function closeGate(gt: Gate) { naju()?.scene?.remove(gt.group); gates.splice(gates.indexOf(gt), 1); }
+const prompt = el("div", "cp-goal"); prompt.style.top = "auto"; prompt.style.bottom = "16%"; prompt.style.display = "none";
 
 async function main() {
   document.head.appendChild(el("style", "", css)); document.body.appendChild(fadeEl);
@@ -188,45 +212,58 @@ async function main() {
   };
 
   const titleOf = (n: number) => title(`scene-0${n}`);
-  buildGates(titleOf);
+  buildVeils(titleOf); document.body.appendChild(prompt);
   let current = 1;
   await enterScene(1, true);
 
   const dev = el("div", "cp-dev"); document.body.appendChild(dev);
   const render = () => {
     const nextMode = current < 5 ? modeOf(intros.find((c) => c.scene_id === `scene-0${current + 1}`)) : null;
-    const gate = gates.find((v) => v.open);
+    const gate = veils.find((v) => v.open && !v.gone);
     dev.innerHTML = current <= 5
-      ? `미리보기 · 지금 씬 ${current}${gate ? ` · 문이 열림 → 씬 ${gate.to}(${nextMode === "cine" ? "이야기 컷" : "공간 훑기"})` : ""} <button class="cp-btn">${gate ? "문 앞으로 옮기기" : `씬 ${current} 마치기 ▶`}</button><button class="cp-btn" data-look>문 자리 보기</button>`
+      ? `미리보기 · 지금 씬 ${current}${gate ? ` · 막이 흔들림 → 씬 ${gate.to}(${nextMode === "cine" ? "이야기 컷" : "공간 훑기"})` : ""} <button class="cp-btn">${gate ? "막 앞으로 옮기기" : `씬 ${current} 마치기 ▶`}</button><button class="cp-btn" data-look>막 자리 보기</button>`
       : `미리보기 · 완주 <button class="cp-btn">결말 다시 보기</button>`;
     const sr = doc.scriptReview; if (sr) { const left = sr.after?.length || 0; const b = el("span", "", ` · 대본 검수 ${sr.before}→${left}건`); b.style.cursor = "help"; b.title = (sr.after || []).map((x) => `${x.target} [${(x.fails || []).join(",")}] ${x.why || ""}`).join("\n") || "걸린 것 없음"; dev.appendChild(b); }
-    const look = dev.querySelector("[data-look]") as HTMLElement | null; if (look) look.onclick = () => { const gt = gates.find((v) => v.to === current + 1); if (gt) naju()?.teleport?.current?.(gt.x - Math.sin(gt.group.rotation.y) * 6, gt.z - Math.cos(gt.group.rotation.y) * 6); };
+    const look = dev.querySelector("[data-look]") as HTMLElement | null; if (look) look.onclick = () => { const v = veils.find((q) => q.from === current && !q.gone); if (v) naju()?.teleport?.current?.(v.x - v.nx * 6, v.z - v.nz * 6); };
     (dev.querySelector("button") as HTMLElement).onclick = async () => {
       if (current > 5) { if (ending) { await playCine(ending.panels, "이야기의 끝"); endingCard(ending); } return; }
-      if (gate) { naju()?.teleport?.current?.(gate.x - Math.sin(gate.group.rotation.y) * 3, gate.z - Math.cos(gate.group.rotation.y) * 3); return; } // 시험용: 문 바로 앞으로
+      if (gate) { naju()?.teleport?.current?.(gate.x - gate.nx * 2.2, gate.z - gate.nz * 2.2); return; } // 시험용: 막 바로 앞으로
       try { naju()?.endScene?.(current); } catch (e) { console.warn(e); }
       if (current === 5) { current = 6; render(); goalEl?.remove(); if (ending) { await playCine(ending.panels, "이야기의 끝"); endingCard(ending); } return; }
-      openGate(current + 1, titleOf); render();
+      openVeil(current, titleOf); render();
     };
   };
   render();
 
-  // 문 들어가기 판정 — 플레이어(카메라)가 문 고리 안 1.3 m. 닫힌 문은 안내만
-  let lockedToast = 0;
-  const tick = async () => {
-    const g = naju();
+  // 막 판정 — 앞(씬 쪽)에서 2.6 m 안이면 안내. 열린 막은 E(또는 안내 단추)로 걷는다. 막을 뚫고 지나가려 하면 앞으로 밀어낸다
+  let near: Veil | null = null, busy = false, promptKey = "", pushToast = 0;
+  const lift = async (v: Veil) => {
+    if (busy) return; busy = true; prompt.style.display = "none";
+    const t0 = performance.now(); await new Promise<void>((res) => { const f = () => { const k = Math.min(1, (performance.now() - t0) / 900); v.plane.material.alphaTest = 0.45 + 0.55 * k; v.plane.material.needsUpdate = true; v.group.children[0].material.opacity = 0.55 * (1 - k); v.group.scale.set(1 + k * 0.3, 1 + k * 0.1, 1); if (k < 1) requestAnimationFrame(f); else res(); }; f(); });
+    v.gone = true; v.group.visible = false;
+    await fade(1); current = v.to; render(); goalEl?.remove();
+    if (v.to === 4) { const v4 = veils.find((q) => q.from === 4); if (v4) v4.group.visible = true; } // 씬4 에서 T2 들머리를 다시 막는다
+    await enterScene(v.to, false); busy = false;
+  };
+  window.addEventListener("keydown", (e) => { if ((e.code === "KeyE" || e.key === "e" || e.key === "ㄷ") && near?.open && !busy) { e.preventDefault(); lift(near); } });
+  const tick = () => {
+    const g = naju(); const t = performance.now() / 1000;
+    near = null;
     if (g?.camera) {
       const px = g.camera.position.x / U, pz = g.camera.position.z / U;
-      for (const gt of gates) {
-        if (gt.open) gt.disc.rotation.z += 0.02;
-        if (Math.hypot(px - gt.x, pz - gt.z) >= 1.3) continue;
-        if (!gt.open) { if (performance.now() - lockedToast > 5000) { lockedToast = performance.now(); toast(`🔒 아직 잠겨 있다 — 씬 ${gt.to - 1}의 조사를 마쳐야 열린다`); } continue; }
-        const to = gt.to; closeGate(gt); // 마우스 잠금은 그대로 — 공간 훑기는 플레이 중일 때만 열린다(이야기 컷은 playCine 이 푼다)
-        await fade(1); current = to; render(); goalEl?.remove();
-        await enterScene(to, false);
-        break;
+      for (const v of veils) {
+        if (v.gone || !v.group.visible) continue;
+        v.tex.offset.x = t * 0.03; v.tex.offset.y = Math.sin(t * 0.4) * 0.05;
+        if (v.open) { const k = 0.5 + 0.5 * Math.sin(t * 2.2); v.plane.material.color.setRGB(0.72 + 0.15 * k, 0.62 + 0.1 * k, 1); const ps = v.motes.geometry.attributes.position; for (let i = 0; i < ps.count; i++) { let y = ps.getY(i) + 0.02 * U; if (y > 7 * U) y = 0; ps.setY(i, y); } ps.needsUpdate = true; }
+        // 막 기준 좌표 — 앞뒤(along: 씬 쪽이 음수) · 옆(side)
+        const dx = px - v.x, dz = pz - v.z; const along = dx * v.nx + dz * v.nz, side = -dx * v.nz + dz * v.nx;
+        if (Math.abs(side) <= v.w / 2 + 0.3 && along > -0.4 && along < 1.5 && !busy) { g.teleport?.current?.(v.x - v.nx * 1.2 + -v.nz * side * 0, v.z - v.nz * 1.2); if (!v.open && performance.now() - pushToast > 4000) { pushToast = performance.now(); toast(`🔒 왜곡의 막이 단단하다 — 씬 ${v.from}의 조사를 마쳐야 걷힌다`, 2500); } } // 뚫고 지나가지 못하게
+        if (Math.abs(side) <= v.w / 2 + 0.6 && along <= -0.4 && along > -3.4) near = v;
       }
     }
+    const key = near && !busy ? `${near.from}:${near.open}` : "";
+    if (key !== promptKey) { promptKey = key; if (near && !busy) { prompt.style.display = ""; prompt.innerHTML = near.open ? `🌀 <b>[E]</b> 왜곡의 막을 걷어 낸다 — 씬 ${near.to}으로 <button class="cp-btn" data-lift>걷어 내기</button>` : `🔒 왜곡의 막이 단단하다 — 씬 ${near.from}의 조사를 마쳐야 걷힌다`; const bt = prompt.querySelector("[data-lift]") as HTMLElement | null; const nv = near; if (bt) bt.onclick = () => lift(nv); }
+    else prompt.style.display = "none"; }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
