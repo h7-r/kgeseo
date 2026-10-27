@@ -728,6 +728,21 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
       carrierAsset.set(nm, pick);
     }
   } catch (e) { notes.push(`단서 물건 에셋 찾기 실패: ${e.message}`); }
+  // 10/27 미르: 회상 장면(hoesang) 컷 그림 — 맥북 FLUX(mflux, 무료·로컬)로 패널마다 한 장. 이미 있으면 다시 그리지 않는다. 없으면 글만 나온다
+  {
+    const bin = process.env.MFLUX_BIN || path.join(process.env.HOME || '', 'flux-test/.venv/bin/mflux-generate-flux2');
+    const H = (puzzleDoc?.puzzles || []).filter(p => p.solve?.device?.kind === 'hoesang');
+    const STYLE = 'Korean traditional ink-wash manhwa illustration, Joseon-era countryside house, muted earthy palette, soft moonlight and lamplight, cinematic wide shot, painterly brush texture, quiet eerie mood, people only as dark silhouettes or seen from behind, no faces, no text, no letters, no watermark. Scene: ';
+    const have = H.length ? await fs.access(bin).then(() => true, () => false) : false;
+    if (H.length && !have) notes.push(`회상 컷: 그림 생성기(mflux)를 찾지 못함(${bin}) — 글만 나옴`);
+    for (const p of H) for (const [k, q] of (p.solve.device.spec?.panels || []).entries()) {
+      const file = `recall_${String(p.puzzle_id).replace(/[^\w-]/g, '')}_${String(q.id).replace(/[^\w-]/g, '')}.png`; const out = path.join(dir, file);
+      if (await fs.access(out).then(() => true, () => false)) { q.img = file; continue; }
+      if (!have) continue;
+      try { await run(bin, ['--model', 'flux2-klein-4b', '--prompt', STYLE + String(q.image_prompt || q.caption || ''), '--steps', '4', '--width', '1024', '--height', '576', '--seed', String(11 + k), '--output', out], { cwd: dir, timeoutMs: 300000 }); q.img = file; notes.push(`회상 컷 ${p.puzzle_id} ${q.id}: 그림 생성`); }
+      catch (e) { notes.push(`회상 컷 ${p.puzzle_id} ${q.id}: 그림 생성 실패 — ${String(e.message).slice(0, 160)}`); }
+    }
+  }
   const PZ = (puzzleDoc?.puzzles || []).filter(p => p.presentation !== 'ending_cinematic').map(p => ({
     id: p.puzzle_id, scene_id: p.scene_id, title: p.title, type: p.puzzle_type, learns: p.learns || '',
     review: { belief_before: p.belief_before || '', how: p.how || '', difficulty: p.difficulty || '', invented: p.invented || [],
@@ -755,7 +770,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
   }
 
   // 풀이 자리: 단서 짝짓기는 수첩에서, 출구 장치는 다음 방 문에서 — 공간에 따로 놓을 자리가 없어도 된다(10/22)
-  const solveOk = p => p.solve.interaction === 'combine_clues' || p.solve.device?.on === 'exit_door' || bound(p.solve.at);
+  const solveOk = p => p.solve.interaction === 'combine_clues' || p.solve.device?.on === 'exit_door' || p.solve.device?.on === 'scene_enter' /* 10/27 회상 장면 — 그 장면에 들어서면 */ || bound(p.solve.at);
   // 장면 순서대로(10/22): 첫 장면부터, 앞 장면의 퍼즐을 다 풀어야 다음 장면이 열린다(NPC 계약 v0.3 enter_when 기본). 열린 장면의 호스트만 조사할 수 있다
   const sceneIds = [...new Set(PZ.map(p => p.scene_id))].sort((x, y) => (parseInt(String(x).replace(/\D/g, ''), 10) || 0) - (parseInt(String(y).replace(/\D/g, ''), 10) || 0));
   const got = new Set(), done = new Set(); let moved = true, open = 1;

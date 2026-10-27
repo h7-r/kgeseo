@@ -555,7 +555,7 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
       if (path === '/__review/trials' || path.startsWith('/__review/trials/')) {
         if (path === '/__review/trials/llm-status' && req.method === 'GET') return send(200, await (await import('../llm/local.mjs')).localStatus());
         // 실내 방 세트 뷰어·파일(10/21, indoorTrial.mjs 08 결과) — .local/review/trials/<id>/rooms/ 안의 이름만, 읽기만
-        const roomFile = path.match(/^\/__review\/trials\/([a-f0-9-]{36})\/(rooms|rooms_raw|rooms_agent)\/([\w\u3131-\uD79D.-]+\.(html|glb|json))$/u); // rooms_raw = 원안 비교판(10/22)
+        const roomFile = path.match(/^\/__review\/trials\/([a-f0-9-]{36})\/(rooms|rooms_raw|rooms_agent)\/([\w\u3131-\uD79D.-]+\.(html|glb|json|jpg|png))$/u); // 10/27: 회상 컷 그림(jpg·png) · rooms_raw = 원안 비교판(10/22)
         if (roomFile) {
           if (req.method !== 'GET' && req.method !== 'HEAD') return send(405, { error: 'method_not_allowed', message: '읽기만 됩니다.' });
           const file = join(root, '.local/review/trials', roomFile[1], roomFile[2], roomFile[3]);
@@ -583,7 +583,7 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
             } catch (error) { console.warn('[review] 뷰어 다시 만들기 실패 — 저장된 index.html 을 줍니다', error.message); }
           }
           res.statusCode = 200;
-          res.setHeader('Content-Type', { html: 'text/html; charset=utf-8', glb: 'model/gltf-binary', json: 'application/json; charset=utf-8' }[roomFile[4]]);
+          res.setHeader('Content-Type', { html: 'text/html; charset=utf-8', glb: 'model/gltf-binary', json: 'application/json; charset=utf-8', jpg: 'image/jpeg', png: 'image/png' }[roomFile[4]]);
           res.setHeader('Cache-Control', 'no-store');
           res.setHeader('X-Content-Type-Options', 'nosniff');
           return res.end(req.method === 'HEAD' ? undefined : buf);
