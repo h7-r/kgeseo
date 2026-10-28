@@ -189,9 +189,22 @@ export function TrialPuzzleMain({ tf, reviewer, onBack }) {
     {flow && !flow.space.done && <div className="cr-wait"><b>공간·에셋 승인이 아직 없습니다</b><p>「03 공간·에셋」에서 방 세트를 보고 승인하면 여기서 퍼즐을 검수합니다.</p><button className="secondary" onClick={onBack}>03 공간·에셋으로</button></div>}
     {flow?.puzzle.done && <div className="cr-wait ok"><b>✅ 퍼즐 {flow.puzzle.total}개 모두 승인 — 이 시험의 공정이 끝났습니다</b><p>설화·기획 → 이야기 컷 → 공간·에셋 → 퍼즐 연결까지 사람 승인이 모두 남았습니다.</p></div>}
     {vb && flow?.space.done && <div className="button-row"><button onClick={() => setPlay(true)}>▶ 처음부터 끝까지 해 보기(창 가득)</button><small className="muted">사랑방부터 마지막 방, 결말 이야기 컷, 게임 엔딩, 현장 봉인까지 실제 게임처럼. Esc 두 번(마우스 풀기 → 닫기) 또는 왼쪽 아래 ✕.</small></div>}
+    {flow?.space.done && <FinaleCard tf={tf} />}
     {play && vb && <><iframe className="pr-play" allow="fullscreen" title="처음부터 끝까지" src={`${vb.viewer}?v=${encodeURIComponent(vb.at)}`} /><button className="sv-wide-close" onClick={() => setPlay(false)}>✕ 플레이 닫기</button></>}
     {detail && flow?.space.done && <>{reviewer.trim() ? null : <p className="warning-text">오른쪽에 검수자 이름을 적어야 퍼즐 판정이 저장됩니다.</p>}<PuzzleReview key={detail.indoor?.build?.at} detail={detail} reviewer={reviewer} onChange={() => tf.reload()} /><PuzzleDraft detail={detail} /></>}
   </section>;
+}
+
+function FinaleCard({ tf }) {
+  const F = tf.flow?.puzzle?.finale; const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const make = async () => { setBusy(true); setErr(''); try { await api(`/trial-flow/${tf.id}/finale`, { method: 'POST', body: {} }); await tf.reload(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
+  return <div className="sv-pz fin-review"><b>🕯 마지막 방 장치 — {F?.title || '왜곡된 기록 바로잡기'}</b>
+    <p className="muted">마지막 퍼즐을 풀면 이 장치가 열립니다. 줄마다 맞는 답과 그걸 증명하는 단서를 함께 골라야 풀리고, 다 바로잡으면 결말 이야기 컷 → 엔딩 → 현장 봉인으로 갑니다.</p>
+    {F ? <>{F.intro && <p>{F.intro}</p>}{(F.claims || []).map(c => <div key={c.id} className="fin-row"><small className="muted">왜곡된 기록 — <s>{c.distorted}</s></small><p><b>{c.question}</b> {(c.options || []).map(o => <span key={o} className={`sv-badge ${o === c.answer ? 'ok' : ''}`}>{o === c.answer ? '✓ ' : ''}{o}</span>)}</p><small>증명 단서: {(c.proof_text || c.proof || []).join(' / ')}</small><br /><small className="muted">바로잡힌 기록: {c.restored}</small></div>)}
+      {F.success && <p>✨ {F.success}</p>}{(F.check || []).length > 0 && <p className="warning-text">자동 검사에서 남은 것: {F.check.join(' · ')}</p>}</> : <p className="warning-text">아직 없습니다 — 이 시험은 마지막 장치가 생기기 전에 만들어졌습니다.</p>}
+    <div className="button-row"><button className="secondary" disabled={busy} onClick={make}>{busy ? '만드는 중…(30초 안팎)' : F ? '다시 만들기' : '마지막 장치 만들기'}</button><small className="muted">Claude 한 번(몇십 원). 방은 다시 짓지 않고 바로 게임에 들어갑니다.</small></div>
+    {err && <p className="error">{err}</p>}
+  </div>;
 }
 
 export function TrialPuzzleRail({ tf, reviewer, setReviewer }) {

@@ -257,5 +257,8 @@ export async function runDirector({ root, trial, step, docs, readJsonOut, writeO
   const voice = process.env.TTS_ON === '1' ? await makeVoices({ out, dir, notes }) : null;
   const doc = { ...out, voice, check: { script: { before: scriptBefore, rounds: scriptRounds, after: script }, issues: bad, before: before.length !== bad.length ? before : undefined, images: judged, notes }, humanReview: prev?.humanReview || [] };
   await writeOut(root, trial, 'cinematics.json', JSON.stringify(doc, null, 2));
+  // 10/28 미르: 마지막 방의 「진상 복원」 장치 — 결말이 정해진 뒤 한 번 더(실패해도 05b 는 성공)
+  try { const { makeFinale } = await import(new URL(`./finale.mjs?t=${Date.now()}`, import.meta.url).href); await makeFinale(root, trial.id, async (system, user) => llm(root, trial, { ...step, maxTokens: 4000, effort: 'low' }, { system, user })); notes.push('마지막 장치(진상 복원) 만듦'); }
+  catch (e) { notes.push(`마지막 장치 실패 — ${String(e.message || e).slice(0, 160)}`); }
   return { script: `${scriptBefore}→${script.length}`, intros: (out.cinematics || []).filter(c => c.kind === 'intro').length, ending: !!(out.cinematics || []).find(c => c.kind === 'ending'), panels: jobs.length, issues: bad.length, images: judged, humanReview: 'pending' };
 }

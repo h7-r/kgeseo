@@ -61,3 +61,4 @@ body.pr-wide .pr-viewer iframe{position:fixed;left:0;top:0;width:100vw;height:10
 .indoor-frame.pr-big{height:640px}
 .pr-play{position:fixed;inset:0;width:100vw;height:100vh;border:0;z-index:60;background:#151a20}
 .pr-viewer iframe{height:600px}
+.fin-review{margin:12px 0}.fin-row{border-top:1px solid #f0e2c3;padding:6px 0}.fin-row p{margin:4px 0}.fin-row .sv-badge{margin-right:4px}

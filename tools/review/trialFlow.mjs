@@ -45,6 +45,7 @@ export async function status(root, id) {
   const rev = pr?.reviews || {};
   const puzzle = { total: list.length, approved: list.filter(p => rev[p.id]?.verdict === 'approve').length, revise: list.filter(p => rev[p.id]?.verdict === 'revise').length, solvable: build?.puzzle?.solvable ?? null };
   puzzle.pending = puzzle.total - puzzle.approved - puzzle.revise;
+  { const cd = await readJ(path.join(tdir(root, id), 'cinematics.json')); puzzle.finale = (cd?.cinematics || []).find(c => c.kind === 'ending')?.finale || null; }
   puzzle.done = space.done && puzzle.total > 0 && puzzle.approved === puzzle.total;
   return { id, title: t.title, spaceKind: t.spaceKind || 'outdoor', story, cine, space, puzzle };
 }
@@ -166,9 +167,10 @@ export async function approveSpace(root, id, input = {}) {
 }
 
 export async function handle(root, method, urlPath, input) {
-  const m = urlPath.match(/^\/__review\/trial-flow\/([a-f0-9-]{36})(?:\/(space\/approve|space\/review|space\/item|space\/apply))?$/); if (!m) fail(404, '경로를 찾을 수 없습니다.');
+  const m = urlPath.match(/^\/__review\/trial-flow\/([a-f0-9-]{36})(?:\/(space\/approve|space\/review|space\/item|space\/apply|finale))?$/); if (!m) fail(404, '경로를 찾을 수 없습니다.');
   const [, id, act] = m;
   if (method === 'GET' && !act) return [200, await status(root, id)];
+  if (method === 'POST' && act === 'finale') { const F = await mod(root, 'tools/review/finale.mjs'); await F.makeFinaleClaude(root, id); return [200, await status(root, id)]; }
   if (method === 'GET' && act === 'space/review') return [200, await spaceReview(root, id)];
   if (method === 'POST' && act === 'space/item') return [200, await setSpaceItem(root, id, input || {})];
   if (method === 'POST' && act === 'space/apply') return [202, await applySpace(root, id)];

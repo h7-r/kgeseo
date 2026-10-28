@@ -786,7 +786,7 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     }
   }
   { const CINE = ((await readJsonOut(root, trial, 'cinematics.json').catch(() => null))?.cinematics || puzzleDoc?.cinematics || []).map(c => ({ ...c, panels: (c.panels || []).map(q => q.review?.status !== 'approved' ? { ...q, img: undefined } : q) })); for (const sc of SCENES) { const it = CINE.find(c => c.kind === 'intro' && c.scene_id === sc.id); if (it) sc.intro = { goal: it.goal || '', panels: it.panels || [] }; }
-    const en = CINE.find(c => c.kind === 'ending'); const lastSc = [...SCENES].sort((a, b) => (a.order || 0) - (b.order || 0)).pop(); if (en && lastSc) lastSc.ending = { panels: en.panels || [], reveal: en.reveal || '', left_open: en.left_open || '', field: en.field || null }; }
+    const en = CINE.find(c => c.kind === 'ending'); const lastSc = [...SCENES].sort((a, b) => (a.order || 0) - (b.order || 0)).pop(); if (en && lastSc) lastSc.ending = { panels: en.panels || [], reveal: en.reveal || '', left_open: en.left_open || '', field: en.field || null, finale: en.finale || null }; }
   const PZ = (puzzleDoc?.puzzles || []).filter(p => p.presentation !== 'ending_cinematic').map(p => ({
     id: p.puzzle_id, scene_id: p.scene_id, title: p.title, type: p.puzzle_type, learns: p.learns || '',
     review: { belief_before: p.belief_before || '', how: p.how || '', difficulty: p.difficulty || '', invented: p.invented || [],
