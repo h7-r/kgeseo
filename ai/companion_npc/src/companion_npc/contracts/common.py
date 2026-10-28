@@ -30,9 +30,16 @@ StateChangeType = Literal[
     "puzzle_completed",
     "clue_acquired",
     "zone_unlocked",
+    "current_zone_changed",
     "hint_level_changed",
     "flag_updated",
+    "object_revealed",
+    "object_hidden",
+    "object_unlocked",
 ]
+
+# ── backend/app/schemas/play_session.py (object_states 속성) ────
+ObjectStateField = Literal["visible", "enabled"]
 
 # ── origin/dev 파이프라인 설계요청 v2.1 §4.4 (Puzzle Type 7종) ──
 PuzzleType = Literal[
@@ -97,10 +104,16 @@ class PlaySessionStateSnapshot(ContractModel):
 
     current_zone_id: str | None = None
     completed_puzzle_ids: list[str]
+    completed_inspect_ids: list[str] = Field(default_factory=list)
     acquired_clue_ids: list[str]
+    # 정식 힌트 해금 단계(0 미열람 · 1 힌트 · 2 정답 공개). NpcHintLevel 과 다른 축이다.
     hint_levels: dict[str, int]
     attempt_counts: dict[str, int] = Field(default_factory=dict)
     flags: dict[str, object]
+    # zone_id → object_id → {"visible" | "enabled": bool}. 기록한 속성만 담는다.
+    object_states: dict[str, dict[str, dict[ObjectStateField, bool]]] = Field(
+        default_factory=dict
+    )
 
 
 def find_duplicates(values: list[str]) -> list[str]:

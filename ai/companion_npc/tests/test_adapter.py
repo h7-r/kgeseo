@@ -200,14 +200,24 @@ def test_input_target_must_exist(lighthouse):
         convert_case(client, lighthouse.server, client_ref="x")
 
 
-def test_unknown_server_field_is_reported_not_copied(lighthouse):
+def test_server_rejects_unknown_field_like_backend(lighthouse):
     server = copy.deepcopy(lighthouse.server)
     server["puzzles"][0]["designer_note"] = "secret plan"
-    result = convert_case(lighthouse.client, server, client_ref="x")
-    unknown = [o for o in result.report.omissions if o.category == "unknown_field"]
-    assert unknown and "puzzles[0].designer_note" in unknown[0].source_path
-    assert "secret plan" not in canonical_json(result.pack)
-    assert "secret plan" not in canonical_json(result.report)
+    with pytest.raises(ServerRuntimeInvalidError) as info:
+        convert_case(lighthouse.client, server, client_ref="x")
+    assert info.value.locations == ["puzzles.0.<unknown key>: extra_forbidden"]
+    assert "designer_note" not in str(info.value)
+    assert "secret plan" not in str(info.value)
+
+
+def test_unknown_key_name_with_answer_is_not_echoed(lighthouse):
+    server = copy.deepcopy(lighthouse.server)
+    server["puzzles"][0]["note_northeast"] = "x"
+    with pytest.raises(ServerRuntimeInvalidError) as info:
+        convert_case(lighthouse.client, server, client_ref="x")
+    shown = str(info.value).casefold()
+    for answer in LIGHTHOUSE_ANSWERS:
+        assert answer.casefold() not in shown
 
 
 def test_unknown_interaction_type_is_warned(lighthouse):
@@ -253,9 +263,8 @@ def test_lighthouse_hides_combination_linkage(lighthouse):
         lambda c, s: s["puzzles"][0]["on_correct"]["set_flags"].update(
             {"code_0412_ok": True}
         ),
-        lambda c, s: s["puzzles"][0].update(note_northeast="x"),  # 모르는 key 이름
     ],
-    ids=["object_name", "description", "flag_key", "unknown_key_name"],
+    ids=["object_name", "description", "flag_key"],
 )
 def test_leak_blocks_pack(lighthouse, mutate):
     client, server = copy.deepcopy(lighthouse.client), copy.deepcopy(lighthouse.server)

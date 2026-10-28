@@ -4,16 +4,22 @@
   pydantic 의 ValidationError 를 그대로 문자열로 만들면 잘못 들어온 **값**이 찍힌다.
   server.json 이 깨졌을 때 그 값이 accepted_answers 일 수 있으므로, 여기서는
   「어느 위치에서 · 어떤 종류의 오류」만 남긴다.
+  모르는 key(extra_forbidden)는 위치의 마지막 칸이 key 이름이라, 정답이 섞일 수 있어 가린다.
 """
 
 from pydantic import ValidationError
 
+UNKNOWN_KEY = "<unknown key>"
+
 
 def error_locations(error: ValidationError) -> list[str]:
-    return [
-        f"{'.'.join(str(part) for part in item['loc']) or '<root>'}: {item['type']}"
-        for item in error.errors(include_input=False, include_url=False)
-    ]
+    locations = []
+    for item in error.errors(include_input=False, include_url=False):
+        loc = [str(part) for part in item["loc"]]
+        if item["type"] == "extra_forbidden" and loc:
+            loc[-1] = UNKNOWN_KEY
+        locations.append(f"{'.'.join(loc) or '<root>'}: {item['type']}")
+    return locations
 
 
 class AdapterError(Exception):

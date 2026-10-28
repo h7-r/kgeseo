@@ -540,15 +540,6 @@ def convert_case(
             count=non_input_targets,
         ),
     ]
-    unknown = src.extra_field_paths(server)
-    if unknown:
-        omissions.append(
-            Omission(
-                source_path="server: " + ", ".join(unknown),
-                category="unknown_field",
-                count=len(unknown),
-            )
-        )
     # 개수 대신 ID 를 적는다 — 숫자가 섞이면 짧은 숫자 정답 검사에 걸린다.
     warnings += [
         f"object {oid}: initially hidden — no knowledge chunk until reveal conditions exist"
