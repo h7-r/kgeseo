@@ -33,7 +33,7 @@ export const STEPS = Object.freeze([
 import { STEPS_V2, v2Kit } from './agentTrialV2.mjs';
 // 실내 방 세트 공정(10/21, indoorTrial.mjs) — 시험의 spaceKind 가 indoor 일 때 06~08 이 실내판
 import { STEPS_INDOOR, INDOOR_SPACE_ID, indoorKit, indoorCompare } from './indoorTrial.mjs';
-const stepsFor = trial => (trial?.spaceKind === 'indoor' ? STEPS_INDOOR : trial?.pipeline === 2 ? STEPS_V2 : STEPS);
+export const stepsFor = trial => (trial?.spaceKind === 'indoor' ? STEPS_INDOOR : trial?.pipeline === 2 ? STEPS_V2 : STEPS);
 /** 각색 조건(10/21) — 제작팀이 정한 각색 방침. 01(사실 추출)에는 넣지 않는다(원전과 창작이 섞이지 않게) */
 const adaptText = trial => trial?.adaptation?.text ? `[각색 조건 — 제작팀이 정한 게임 각색 방침. 원전 사실이 아니다. 01 의 F 근거로 쓰지 않고, 이 조건에서 나온 내용은 [NEW] 또는 GF 로 표시한다. 반드시 따른다]\n${trial.adaptation.text}${trial.spaceKind === 'indoor' ? '\n\n[공간] 이 시험의 게임 공간은 한옥 한 채다(10/22): 방(문을 닫는 실내)과 마루(대청처럼 지붕은 있지만 앞이 마당으로 트인 반외부 — 실내가 아니다)를 합쳐 2~4칸. 공간은 하나씩 불러오고 문으로 이동한다. 마당은 걸어 다니지 않지만 마루와 문에서 늘 보이는 배경(담·대문·나무·하늘)이라, 마루에서 보이는 것(대문·디딤돌·달 등)을 단서로 쓸 수 있다. 그 밖의 야외 무대·원경 landmark·npc(말을 거는 인물) 호스트는 만들지 않는다.' : ''}` : '';
 const stepOf = (id, trial) => stepsFor(trial).find(s => s.id === id);
@@ -447,7 +447,7 @@ export async function cineGate(root, trialOrId, stepId) {
   const trial = typeof trialOrId === 'string' ? await readTrial(root, trialOrId) : trialOrId;
   const list = stepsFor(trial); const di = list.findIndex(s => s.director), si = list.findIndex(s => s.id === stepId);
   // 10/28 미르: 설화·기획 사람 확인 — 04 뒤 단계는 핵심 검수 카드가 모두 「확인」이어야(카드가 있을 때만)
-  { const i4 = list.findIndex(s => s.id === 's04'); if (i4 >= 0 && si > i4) { const tb = await import(new URL(`./trialBrief.mjs?t=${Date.now()}`, import.meta.url).href); const why = await tb.gate(root, trial.id); if (why) fail(409, 'brief_review_pending', `설화·기획 사람 확인이 끝나지 않았습니다 — ${why} 좌측 「01 설화와 기획」에서 카드를 판정한 뒤 진행하세요.`); } }
+  { const i4 = list.findIndex(s => s.id === 's04'); if (i4 >= 0 && si > i4) { const tb = await import(new URL(`./trialBrief.mjs?t=${Date.now()}`, import.meta.url).href); const why = await tb.gate(root, trial.id); if (why) fail(409, 'brief_review_pending', `설화·기획 사람 확인이 끝나지 않았습니다 — ${why} 좌측 「01 설화와 기획」에서 카드를 판정하고 오른쪽 「설화·기획 승인」을 누르면 05·05b 가 이어서 돕니다.`); } }
   if (di >= 0 && si > di) { const n = await cinePending(root, trial.id); if (n > 0) fail(409, 'cine_review_pending', `이야기 컷 사람 검수가 끝나지 않았습니다(검수 전 ${n}컷). 좌측 「이야기 컷 검수」에서 그림을 보고 승인·반려한 뒤 진행하세요.`); }
 }
 

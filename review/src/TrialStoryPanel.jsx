@@ -8,7 +8,7 @@ import StorySummaryPanel from './StorySummaryPanel.jsx';
 
 export const TRIAL_KEY = 'review.trial';
 export const readTrialKey = () => { try { return localStorage.getItem(TRIAL_KEY) || localStorage.getItem('cineReview.trial') || ''; } catch { return ''; } };
-export const writeTrialKey = id => { try { localStorage.setItem(TRIAL_KEY, id); localStorage.setItem('cineReview.trial', id); } catch { /* 저장 못 해도 됨 */ } };
+export const writeTrialKey = id => { try { localStorage.setItem(TRIAL_KEY, id); localStorage.setItem('cineReview.trial', id); } catch { /* 저장 못 해도 됨 */ } try { window.dispatchEvent(new CustomEvent('review-trial', { detail: id })); } catch { /* 없어도 됨 */ } };
 const DOCS = [['AI-01.md', '01 설화 사실 계약서'], ['AI-02.md', '02 지역 테마 시놉시스'], ['AI-03.md', '03 게임 시나리오 기획서'], ['AI-04.md', '04 Scene 구성표']];
 
 const EMPTY = { title: '', sourceName: '', sourceText: '', adaptation: '' };
@@ -31,14 +31,14 @@ export default function TrialStoryPanel({ reviewer, setReviewer }) {
   const [trials, setTrials] = useState([]); const [id, setId] = useState(readTrialKey); const [d, setD] = useState(null); const [err, setErr] = useState('');
   const loadList = () => api('/trials').then(v => { const list = (v.trials || []).slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))); setTrials(list); if (!id && list[0]) setId(list[0].id); }).catch(e => setErr(e.message));
   useEffect(() => { loadList(); }, []);
-  useEffect(() => { if (!id || id === '__new') { setD(null); return; } writeTrialKey(id); setD(null); api(`/trials/${id}`).then(setD).catch(e => setErr(e.message)); }, [id]);
+  useEffect(() => { if (!id || id === '__new') { setD(null); try { window.dispatchEvent(new CustomEvent('review-trial', { detail: id })); } catch { /* 없어도 됨 */ } return; } writeTrialKey(id); setD(null); api(`/trials/${id}`).then(setD).catch(e => setErr(e.message)); }, [id]);
   // 01~04 가 도는 동안은 문서가 채워지는 대로 다시 읽는다
   const runningDocs = d && ['s01', 's02', 's03', 's04'].some(k => !['done', 'failed'].includes(d.steps?.[k]?.status));
   useEffect(() => { if (!runningDocs) return; const t = setTimeout(() => api(`/trials/${d.id}`).then(setD).catch(() => {}), 8000); return () => clearTimeout(t); }, [d, runningDocs]);
   const st = no => d?.steps?.[`s${no}`]?.status;
   return (
     <section className="panel trial-story">
-      <div className="panel-head"><div><h2>에이전트 시험 — 설화와 기획</h2><p>① 설화 요약 → ② 사람 확인이 필요한 곳(카드 판정) → ③ 게임 문서 양식 원본. 카드를 모두 확인해야 05 퍼즐 단계로 넘어갑니다.</p></div></div>
+      <div className="panel-head"><div><h2>에이전트 시험 — 설화와 기획</h2><p>① 설화 요약 → ② 사람 확인이 필요한 곳(카드 판정) → ③ 게임 문서 양식 원본. 카드를 모두 판정한 뒤 오른쪽 「설화·기획 승인」을 누르면 05·05b 가 돌고 이야기 컷 검수로 넘어갑니다.</p></div></div>
       <label className="field"><span>시험</span><select value={id} onChange={e => setId(e.target.value)}><option value="__new">＋ 새 설화 입력</option>{trials.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select></label>
       {err && <p className="error">{err}</p>}
       {id === '__new' && <SourceForm d={null} onCreated={nid => { loadList(); setId(nid); }} />}

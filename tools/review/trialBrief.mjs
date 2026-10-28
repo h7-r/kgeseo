@@ -5,6 +5,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import crypto from 'node:crypto';
 
 const fail = (status, message) => { const e = new Error(message); e.status = status; throw e; };
 const mod = async (root, rel) => import(pathToFileURL(path.join(root, rel)).href + `?t=${Date.now()}`);
@@ -54,7 +55,50 @@ export async function get(root, id, { auto = true } = {}) {
   let busy = await making(root, p);
   if (auto && !cur.brief && ready && !busy) { kick(root, id, p); busy = true; }
   const lastError = cur.brief || busy ? null : await fs.readFile(lockOf(root, p) + '.err', 'utf8').catch(() => null);
-  return { ...cur, command: '', auto: true, making: busy, lastError, blockers: B.briefBlockers(cur.brief), ready };
+  const ap = p._trial ? await approvalOf(root, p, cur.brief) : null;
+  return { ...cur, command: '', auto: true, making: busy, lastError, blockers: B.briefBlockers(cur.brief), ready, approval: ap, ...(p._trial ? await chainOf(root, p._trial) : {}) };
+}
+
+/** 화면용: 01~04 문서 상태 + 승인 뒤 이어서 도는 단계(05~05b) 상태 */
+async function chainOf(root, t) {
+  const T = await mod(root, 'tools/review/agentTrial.mjs'); const list = T.stepsFor(t);
+  const i4 = list.findIndex(s => s.id === 's04'); const di = list.findIndex(s => s.director);
+  const row = s => ({ id: s.id, label: s.label || s.title || s.id, status: t.steps?.[s.id]?.status || 'idle', error: t.steps?.[s.id]?.error || null });
+  return { docs: list.slice(0, i4 + 1).map(row), chain: list.slice(i4 + 1, di >= 0 ? di + 1 : i4 + 2).map(row) };
+}
+
+// ── 설화·기획 승인(10/28 미르: 「중앙 내용을 다 검토하고 승인한 다음에 이야기 컷으로 넘어가는 단계」) ──
+//   사람이 요약·카드·문서를 보고 승인 → trial.json 의 storyApproval 에 남기고, 05(퍼즐)→05b(장면 연출)를 뒤에서 돌린다. 끝나면 「02 이야기 컷 검수」.
+//   승인 뒤 문서나 카드 판정이 바뀌면 승인은 무효(지문 비교) — 05 부터 다시 막힌다.
+const fingerprint = (p, brief) => crypto.createHash('sha256').update([p.sourceText, p.synopsis, p.sceneNotes, JSON.stringify((brief?.items || []).map(i => [i.id, i.decision || null]))].join('\u0000')).digest('hex').slice(0, 16);
+async function approvalOf(root, p, brief) {
+  const a = p._trial?.storyApproval; if (!a) return null;
+  return { ...a, valid: a.fingerprint === fingerprint(p, brief) };
+}
+const trialPath = (root, id) => path.join(DATA(root), 'trials', id, 'trial.json');
+export async function approve(root, id, input = {}) {
+  if (String(id).startsWith('p:')) fail(400, '에이전트 시험에서만 쓰는 승인입니다.');
+  const reviewer = String(input.reviewer || '').trim().slice(0, 100); if (!reviewer) fail(422, '검수자 이름을 적어 주세요.');
+  const p = await asProject(root, id); const B = await mod(root, 'tools/review/brief.mjs'); const T = await mod(root, 'tools/review/agentTrial.mjs');
+  const list = T.stepsFor(p._trial); const i4 = list.findIndex(s => s.id === 's04'); const di = list.findIndex(s => s.director);
+  const notDone = list.slice(0, i4 + 1).filter(s => p._trial.steps?.[s.id]?.status !== 'done').map(s => s.id);
+  if (notDone.length) fail(409, `문서가 아직 다 나오지 않았습니다(${notDone.join('·')}).`);
+  if (list.some(s => p._trial.steps?.[s.id]?.status === 'running')) fail(409, '다른 단계가 돌고 있습니다.');
+  const cur = await B.currentBrief(DATA(root), p); if (!cur.brief) fail(409, '사람 확인 카드가 아직 없습니다.');
+  const bl = B.briefBlockers(cur.brief); if (bl.length) fail(409, `카드 판정이 남았습니다 — ${bl.map(b => b.message).join(' ')}`);
+  const t = JSON.parse(await fs.readFile(trialPath(root, p._trial.id), 'utf8'));
+  t.storyApproval = { by: reviewer, at: new Date().toISOString(), note: String(input.note || '').slice(0, 2000), fingerprint: fingerprint(p, cur.brief), cards: cur.brief.items.length };
+  t.updatedAt = new Date().toISOString();
+  await fs.writeFile(trialPath(root, p._trial.id), JSON.stringify(t, null, 2));
+  // 05 ~ 05b 를 이어서(이미 끝난 단계는 건너뜀). 05b 가 끝나면 이야기 컷 사람 검수
+  const chain = list.slice(i4 + 1, di >= 0 ? di + 1 : i4 + 2).map(s => s.id).filter(sid => t.steps?.[sid]?.status !== 'done');
+  let started = [];
+  if (chain.length) {
+    const { spawn } = await import('node:child_process'); const { openSync } = await import('node:fs');
+    const log = openSync(path.join(DATA(root), 'trials', t.id, 'run-chain.log'), 'a');
+    const ch = spawn(process.execPath, [path.join(root, 'tools/review/runChain.mjs'), root, t.id, ...chain], { detached: true, stdio: ['ignore', log, log] }); ch.unref(); started = chain;
+  }
+  return { ...(await get(root, id, { auto: false })), started };
 }
 
 export async function decide(root, id, itemId, input) {
@@ -65,8 +109,10 @@ export async function decide(root, id, itemId, input) {
 
 /** 05 부터: 카드가 있고 판정 전·문제가 남아 있으면 막는다. 카드가 아직 없으면(만드는 중·실패) 막지 않고 알림만 */
 export async function gate(root, id) {
-  const g = await get(root, id, { auto: false }).catch(() => null); if (!g?.brief) return null;
-  return g.blockers.length ? g.blockers.map(b => b.message).join(' ') : null;
+  const g = await get(root, id, { auto: false }).catch(() => null); if (!g?.brief) return String(id).startsWith('p:') ? null : '사람 확인 카드가 아직 없습니다.';
+  if (g.blockers.length) return g.blockers.map(b => b.message).join(' ');
+  if (!String(id).startsWith('p:') && !g.approval?.valid) return g.approval ? '승인 뒤 문서·카드가 바뀌어 승인이 무효가 됐습니다 — 다시 승인해 주세요.' : '「설화·기획 승인」을 아직 누르지 않았습니다.';
+  return null;
 }
 
 /** 단계가 끝난 뒤 자동으로(실패해도 단계는 성공) */
@@ -77,10 +123,11 @@ export async function afterStep(root, id, stepId) {
 }
 
 export async function handle(root, method, urlPath, input) {
-  const m = urlPath.match(/^\/__review\/trial-brief\/(?:(p)\/)?([a-zA-Z0-9-]{8,})(?:\/(make)|\/items\/([a-zA-Z0-9-]+))?$/); if (!m) fail(404, '경로를 찾을 수 없습니다.');
+  const m = urlPath.match(/^\/__review\/trial-brief\/(?:(p)\/)?([a-zA-Z0-9-]{8,})(?:\/(make|approve)|\/items\/([a-zA-Z0-9-]+))?$/); if (!m) fail(404, '경로를 찾을 수 없습니다.');
   const [, isP, rawId, act, itemId] = m; const id = isP ? `p:${rawId}` : rawId;
   if (method === 'GET' && !act && !itemId) return [200, await get(root, id)];
   if (method === 'POST' && act === 'make') return [200, await make(root, id)];
+  if (method === 'POST' && act === 'approve') return [200, await approve(root, id, input || {})];
   if (method === 'POST' && itemId) return [200, await decide(root, id, itemId, input || {})];
   fail(405, '지원하지 않는 요청입니다.');
 }
