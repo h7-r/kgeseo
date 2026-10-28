@@ -91,6 +91,11 @@ function ObjectPanel({ tf, reviewer }) {
   const [mode, setMode] = useState(''); const [note, setNote] = useState(''); const [adj, setAdj] = useState({ dx: 0, dz: 0, rot: 0, scale: 1 });
   const [q, setQ] = useState(''); const [found, setFound] = useState(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
   useEffect(() => { setMode(''); setErr(''); setFound(null); setQ(it?.name || ''); setNote(cur?.note || ''); setAdj(cur?.adjust || { dx: 0, dz: 0, rot: 0, scale: 1 }); }, [it?.item_id]);
+  // 실시간 미리보기 — 화면(뷰어)에 지금 값과 이미 반영된 값의 차이만 보낸다. 저장하지 않고 닫으면 되돌림
+  const applied = it && cur?.verdict === 'adjust' && !rv.unapplied.includes(it.item_id) ? cur.adjust : { dx: 0, dz: 0, rot: 0, scale: 1 };
+  const preview = a => { if (!it || it.roomIdx == null || !it.node) return; tf.frame.current?.contentWindow?.postMessage({ type: 'kgeseo-review-adjust', room: it.roomIdx, node: it.node, riders: it.riders || [], adjust: { dx: (a.dx || 0) - (applied.dx || 0), dz: (a.dz || 0) - (applied.dz || 0), rot: (a.rot || 0) - (applied.rot || 0), scale: (a.scale || 1) / (applied.scale || 1) } }, '*'); };
+  useEffect(() => { if (mode === 'adjust') preview(adj); }, [adj, mode]);
+  const closeAdjust = () => { const back = cur?.verdict === 'adjust' ? cur.adjust : { dx: 0, dz: 0, rot: 0, scale: 1 }; setAdj(back); preview(back); setMode(''); };
   if (!sel) return <section className="panel approve-panel"><p className="eyebrow">물건 판정</p><p className="muted">왼쪽 화면에서 물건을 클릭하거나 목록에서 고르세요.</p></section>;
   if (!it) return <section className="panel approve-panel"><p className="eyebrow">물건 판정</p><h2>{sel.node}</h2><p className="muted">{sel.roomName} — 방 구조(기둥·창·문)나 마당 풍광은 여기서 고치지 않습니다.</p></section>;
   const save = async body => { if (!reviewer.trim()) { setErr('오른쪽 아래 검수자 이름을 먼저 적어 주세요.'); return; } setBusy(true); setErr(''); try { tf.setReview(await api(`/trial-flow/${tf.id}/space/item`, { method: 'POST', body: { item_id: it.item_id, reviewer, ...body } })); setMode(''); tf.reload(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
@@ -106,7 +111,7 @@ function ObjectPanel({ tf, reviewer }) {
     <div className="sv-acts">
       <button disabled={busy || !it.pick} onClick={() => save({ verdict: 'approve' })}>좋음</button>
       <button className="secondary" onClick={() => setMode(m => m === 'swap' ? '' : 'swap')}>다른 에셋</button>
-      <button className="secondary" disabled={!it.placed} onClick={() => setMode(m => m === 'adjust' ? '' : 'adjust')}>위치·크기</button>
+      <button className="secondary" disabled={!it.placed} onClick={() => (mode === 'adjust' ? closeAdjust() : setMode('adjust'))}>위치·크기</button>
       <button className="danger" disabled={busy || it.host} title={it.host ? '퍼즐 단서가 나오는 물건은 뺄 수 없음' : ''} onClick={() => save({ verdict: 'remove' })}>빼기</button>
       <button className="secondary" onClick={() => setMode(m => m === 'replan' ? '' : 'replan')}>수정 요청</button>
       <button className="secondary" onClick={() => setMode(m => m === 'regenerate' ? '' : 'regenerate')}>새로 만들기</button>
@@ -117,8 +122,8 @@ function ObjectPanel({ tf, reviewer }) {
     {mode === 'adjust' && <div className="sv-mode"><b>위치·크기</b><small className="muted">방 기준 — 뒷벽 쪽 / 앞(문·마당) 쪽 · 왼벽 / 오른벽</small>
       <div className="sv-pad"><button onClick={() => step('dz', -0.25, -4, 4)}>↑ 뒷벽 쪽</button><div><button onClick={() => step('dx', -0.25, -4, 4)}>← 왼벽</button><button onClick={() => step('dx', 0.25, -4, 4)}>오른벽 →</button></div><button onClick={() => step('dz', 0.25, -4, 4)}>↓ 앞쪽</button></div>
       <div className="button-row"><button className="secondary" onClick={() => step('rot', -90, -180, 180)}>⟲ 90°</button><button className="secondary" onClick={() => step('rot', 90, -180, 180)}>⟳ 90°</button><button className="secondary" onClick={() => step('scale', -0.1, 0.5, 2)}>작게</button><button className="secondary" onClick={() => step('scale', 0.1, 0.5, 2)}>크게</button></div>
-      <p className="muted">옮김 좌우 {adj.dx} m · 앞뒤 {adj.dz} m · 돌림 {adj.rot}° · 크기 ×{adj.scale}</p>
-      <button disabled={busy} onClick={() => save({ verdict: 'adjust', adjust: adj })}>저장</button></div>}
+      <p className="muted">옮김 좌우 {adj.dx} m · 앞뒤 {adj.dz} m · 돌림 {adj.rot}° · 크기 ×{adj.scale} — 왼쪽 화면에 바로 보입니다(미리보기). 저장 뒤 「반영해서 다시 만들기」를 눌러야 실제 방에 들어갑니다(부딪힘·동선 다시 계산).</p>
+      <div className="button-row"><button disabled={busy} onClick={() => save({ verdict: 'adjust', adjust: adj })}>저장</button><button className="secondary" onClick={closeAdjust}>취소(되돌리기)</button></div></div>}
     {(mode === 'replan' || mode === 'regenerate') && <div className="sv-mode"><b>{mode === 'replan' ? '수정 요청 — 에이전트가 의견대로 다시 고름' : '새로 만들기 요청 — 맞는 에셋이 라이브러리에 없을 때(생성 대기열에 기록)'}</b><textarea rows={3} value={note} onChange={e => setNote(e.target.value)} placeholder={mode === 'replan' ? '예: 양반집 사랑방에 어울리는 낮은 문갑으로' : '예: 짚으로 엮은 둥근 멍석, 지름 1.5 m'} /><button disabled={busy || !note.trim()} onClick={() => save({ verdict: mode, note })}>저장</button></div>}
     {err && <div className="blockers ap-err"><p>{err}</p></div>}
   </section>;

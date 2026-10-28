@@ -662,10 +662,18 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
     for (const q of pj.placements) {
       const a = human[q.id]?.verdict === 'adjust' ? human[q.id].adjust : null; if (!a) continue;
       const sc = Math.min(2, Math.max(0.5, Number(a.scale) || 1));
+      const ox = q.x, oz = q.z, oy = q.y;
       if (sc !== 1) { q.scale = +(q.scale * sc).toFixed(4); if (Array.isArray(q.dims)) q.dims = q.dims.map(v => +(v * sc).toFixed(3)); if (q.h) q.h = +(q.h * sc).toFixed(3); }
       q.x = +Math.min(W - 0.15, Math.max(0.15, q.x + (Number(a.dx) || 0))).toFixed(3);
       q.z = +Math.min(D - 0.15, Math.max(0.15, q.z + (Number(a.dz) || 0))).toFixed(3);
       q.rot = (((q.rot || 0) + (Number(a.rot) || 0)) % 360 + 360) % 360;
+      // 위에 얹힌 물건(서책·벼루 등 on: 이 물건)도 같이 — 받침 가운데를 축으로 돌리고 옮기고, 높이는 받침 크기만큼
+      const ang = (Number(a.rot) || 0) * Math.PI / 180, cs = Math.cos(ang), sn = Math.sin(ang);
+      for (const r2 of pj.placements) if (r2 !== q && (r2.on === q.id || r2.cls === `on:${q.id}`)) {
+        const lx = (r2.x - ox) * sc, lz = (r2.z - oz) * sc;
+        r2.x = +(q.x + cs * lx + sn * lz).toFixed(3); r2.z = +(q.z - sn * lx + cs * lz).toFixed(3);
+        r2.y = +(q.y + (r2.y - oy) * sc).toFixed(3); r2.rot = (((r2.rot || 0) + (Number(a.rot) || 0)) % 360 + 360) % 360;
+      }
       n++; notes.push(`${r.name} 「${q.name}」: 사람 조정 — 옮김 ${Number(a.dx) || 0}·${Number(a.dz) || 0} m · 돌림 ${Number(a.rot) || 0}° · 크기 ×${sc}`);
     }
     if (n) await fs.writeFile(placeF, JSON.stringify(pj, null, 1));
