@@ -9,6 +9,8 @@ import AgentTrialPage from './AgentTrialPage.jsx';
 import CineReviewPage from './CineReviewPage.jsx';
 import StorySummaryPanel from './StorySummaryPanel.jsx';
 import TrialStoryPanel from './TrialStoryPanel.jsx';
+// 10/28 미르: 「밑에 설화자료 입력은 왜 동문다리로 안 채워져 있나」 — 검수 기록(예전 방식) 새로 만들기 칸이었다. 에이전트 시험을 볼 때는 접어 두고, 시험의 설화 자료는 위 「에이전트 시험」 칸에 채워 보여 준다
+const LegacyWrap = ({ on, children }) => on ? <details className="panel legacy-wrap"><summary>검수 기록(예전 방식)으로 새로 만들기 — 에이전트 시험과 별개</summary>{children}</details> : <>{children}</>;
 import { LibraryDrawer, PickedPointCard, PlacementAdjustPanel, PlacementHistory, PlacementImportPanel, ProposalActionsCard, ProposalList, SceneTabs } from './PlacementPanels.jsx';
 import { api, gates, statusText, date, shortHash, download, dispositionText } from './api.js';
 
@@ -453,6 +455,7 @@ export default function App() {
       {gate === 'source' && <>
         {project ? <StorySummaryPanel project={project} /> : <TrialStoryPanel reviewer={reviewer} setReviewer={setReviewer} />}
         {project && <BriefPanel apiBase={`/trial-brief/p/${project.id}`} makePath={`/trial-brief/p/${project.id}/make`} project={project} dirty={dirty} reviewer={reviewer} setReviewer={setReviewer} onJump={jumpTo} onStatus={setBriefStatus} />}
+        <LegacyWrap on={!project}>
         <section className="panel"><div className="panel-head"><div><h2>설화 자료 입력</h2><p>MD·TXT를 불러오거나 텍스트를 그대로 붙여넣으세요.</p></div><span className="pill">외부 전송 없음</span></div>
           <div className="button-row"><button onClick={useNaju} disabled={busy || !boot.source}>나주 기존 자료로 채우기</button><label className="button secondary file-button">MD·TXT 파일 가져오기<input type="file" accept=".md,.txt,text/plain,text/markdown" onChange={readFile} /></label></div>
           <div className="form-grid"><label className="field"><span>검수 제목</span><input value={draft.title} maxLength={160} onChange={event => update('title', event.target.value)} /></label><label className="field"><span>입력 자료 이름·출처</span><input value={draft.sourceName} maxLength={300} onChange={event => update('sourceName', event.target.value)} /></label></div>
@@ -466,6 +469,7 @@ export default function App() {
         <section className="panel"><h2>검수용 시놉시스와 씬 계획</h2><p className="muted">직접 작성하거나 기존 문서를 수정해 저장합니다. 자동 분석 결과로 표시하지 않습니다.</p><TextField label="시놉시스" id="field-synopsis" value={draft.synopsis} onChange={value => update('synopsis', value)} rows={9} placeholder="핵심 사건, 인물, 보존할 설화 내용과 각색 범위" /><TextField label="씬별 경험·상호작용·에셋 계획" id="field-sceneNotes" value={draft.sceneNotes} onChange={value => update('sceneNotes', value)} rows={10} placeholder="씬 구성 / 사용자 경험 / 확인할 에셋 / 상호작용 / 미구현 항목" /></section>
         <details className="panel evidence"><summary>나주 예제의 저장소 근거 문서 보기</summary><label className="field"><span>근거 자료</span><select value={docId} onChange={event => setDocId(event.target.value)}>{boot.documents.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label><small className="path">{doc?.path}</small><pre>{doc?.text}</pre></details>
         <details className="panel evidence"><summary>자료 상태와 검수 범위</summary>{boot.warnings.map(warning => <p key={warning}>{warning}</p>)}</details>
+        </LegacyWrap>
       </>}
       {spatial && indoorDetail && <section className="panel"><div className="panel-head"><div><h2>실내 시험 · {indoorDetail.title}</h2><p>에이전트 혼자 만든 결과(사람 검수 전 첫 실행)와 사람 수정본을 나란히 봅니다. 에이전트 혼자 일했을 때 어디까지 되는지 가늠하는 화면입니다.</p></div><div className="button-row"><button className="secondary" onClick={() => changeGate('trial')}>에이전트 시험으로</button><button className="quiet" onClick={() => setIndoorDetail(null)}>닫기 ✕</button></div></div><IndoorSide detail={indoorDetail} /></section>}
       {spatial && <>
