@@ -60,7 +60,7 @@ function Card({ p, idx, scenes, check, review, criteria, reviewer, onSaved, onFo
   </li>;
 }
 
-export default function PuzzleReview({ detail, reviewer }) {
+export default function PuzzleReview({ detail, reviewer, onChange }) {
   const b = detail.indoor?.build; const list = b?.puzzle?.list;
   const [reviews, setReviews] = useState(detail.indoor?.puzzleReview?.reviews || {});
   const [focus, setFocus] = useState(null);
@@ -74,6 +74,6 @@ export default function PuzzleReview({ detail, reviewer }) {
     {focus && <div className="pr-viewer"><div className="button-row"><b>화면에서 보기 — {focus}</b><small className="muted">빛나는 것이 이 퍼즐의 물건 · 문은 장면 퍼즐을 다 풀어야 열림 · 플레이(T)로 직접 조사</small><button className="quiet" onClick={() => setFocus(null)}>닫기 ✕</button></div>
       <iframe className="indoor-frame" title="퍼즐 화면" src={`${b.viewer}?focus=${encodeURIComponent(focus)}&v=${encodeURIComponent(b.at)}`} /></div>}
     <ol className="pr-list">{order.map((p, i) => <Card key={p.id} p={p} idx={i} scenes={scenes} check={b.puzzle.checks.find(c => c.id === p.id)} review={reviews[p.id]} criteria={detail.indoor.puzzleCriteria || {}} reviewer={reviewer} trialId={detail.id}
-      onSaved={r => setReviews(r.reviews)} onFocus={id => { setFocus(id); setTimeout(() => document.querySelector('.pr-viewer')?.scrollIntoView({ behavior: 'smooth' }), 50); }} />)}</ol>
+      onSaved={r => { setReviews(r.reviews); onChange?.(r); }} onFocus={id => { setFocus(id); setTimeout(() => document.querySelector('.pr-viewer')?.scrollIntoView({ behavior: 'smooth' }), 50); }} />)}</ol>
   </section>;
 }

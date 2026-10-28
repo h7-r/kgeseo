@@ -102,8 +102,8 @@ export default function CineReviewPage({ onNext }) {
         <div className="cr-summary">
           <span>컷 {all.length}</span><span className="cr-pill cr-pending">검수 전 {cnt('pending')}</span><span className="cr-pill cr-approved">승인 {cnt('approved')}</span><span className="cr-pill cr-rejected">반려 {cnt('rejected')}</span>
           <select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">모두 보기</option><option value="pending">검수 전만</option><option value="approved">승인만</option><option value="rejected">반려만</option></select>
-          <span className={`cr-gate ${d.next?.ready ? 'ok' : ''}`}>{d.next?.ready ? '✅ 모든 컷 확인 끝 — 다음 단계로 갈 수 있습니다' : `⏸ 검수 전 ${d.next?.pending}컷 — 모두 승인·반려하면 06~09가 이어서 돌고 「에이전트 시험」 탭으로 넘어갑니다`}</span>
-          {d.next?.ready && <button disabled={busy} onClick={() => { setBusy(true); goNext(d.trial.id).catch(e => setErr(e.message)).finally(() => setBusy(false)); }}>{!d.next?.left?.length || d.next?.running ? '에이전트 시험 탭에서 보기 →' : `${d.next.left.map(x => x.slice(1)).join('·')} 이어서 시작 → 에이전트 시험 탭`}</button>}
+          <span className={`cr-gate ${d.next?.ready ? 'ok' : ''}`}>{d.next?.ready ? '✅ 모든 컷 확인 끝 — 다음 단계로 갈 수 있습니다' : `⏸ 검수 전 ${d.next?.pending}컷 — 모두 승인·반려하면 06~09가 이어서 돌고 「03 공간·에셋」으로 넘어갑니다`}</span>
+          {d.next?.ready && <button disabled={busy} onClick={() => { setBusy(true); goNext(d.trial.id).catch(e => setErr(e.message)).finally(() => setBusy(false)); }}>{!d.next?.left?.length || d.next?.running ? '03 공간·에셋으로 →' : `${d.next.left.map(x => x.slice(1)).join('·')} 이어서 시작 → 03 공간·에셋`}</button>}
           {d.next?.status && <small>06 상태: {d.next.status === 'done' ? '끝남' : d.next.status === 'running' ? '도는 중' : d.next.status === 'failed' ? '실패' : d.next.status}</small>}
           {d.trial.spaceKind === 'indoor' && <a href={`/__review/trials/${d.trial.id}/rooms/index.html`} target="_blank" rel="noreferrer">방 둘러보기에서 보기 ↗</a>}
         </div>

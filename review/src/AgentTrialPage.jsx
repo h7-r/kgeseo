@@ -131,7 +131,7 @@ export function IndoorSide({ detail }) {
   </>;
 }
 
-function IndoorResult({ detail, onRebuild, onOpenSpace }) {
+export function IndoorResult({ detail, onRebuild, onOpenSpace }) {
   const [view, setView] = useState(true);
   const plan = detail.indoor?.plan, sel = detail.indoor?.selection?.selections || [], build = detail.indoor?.build;
   if (!plan && !build) return null;
@@ -507,7 +507,7 @@ const ROLE_KO = { facility: '시설', life_trace: '생활 흔적', landmark: '�
 const DENSITY_KO = { sparse: '성김', medium: '보통', dense: '빽빽' };
 const PUZZLE_TYPE_KO = { code_input: '숫자·암호 입력', text_input: '글자 입력', single_choice: '하나 고르기', multiple_choice: '여럿 고르기', observation: '살펴서 찾기', navigation: '그 자리로 가기', clue_combination: '단서 2개 짝짓기' };
 const ACT_KO = { inspect: '살피기', navigate: '가기', input: '입력', select: '고르기', combine_clues: '단서 짝짓기' };
-function PuzzleDraft({ detail }) {
+export function PuzzleDraft({ detail }) {
   const p = detail.puzzle;
   if (!p) return null;
   // 호스트 → 실제 에셋·놓임(06 serves · 07 선정 · 08 배치)

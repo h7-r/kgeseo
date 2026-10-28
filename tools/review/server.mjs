@@ -553,6 +553,11 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
       const input = ['POST', 'PATCH'].includes(req.method) ? await body(req, path.endsWith('/scene-captures') ? 1_000_000 : MAX_BODY) : null;
       // ── 에이전트 시험(agentTrial.mjs, 10/19) — 긴 LLM 단계는 직렬 큐 밖에서 돈다. 검수 기록을 만드는 /space 만 큐 안에서 ──
       // ── 에이전트 시험의 설화·기획 핵심 검수 카드(10/28 미르: 설화가 들어오면 요약 + 사람 확인 리스트 + 문서 원본) ──
+      // ── 에이전트 시험의 정식 공정 흐름 상태 · 공간·에셋 승인(10/28 미르: 01 → 02 → 03 공간·에셋 → 04 퍼즐) ──
+      if (path.startsWith('/__review/trial-flow/')) {
+        try { const tf = await import(new URL(`./trialFlow.mjs?t=${Date.now()}`, import.meta.url).href); const [code, out] = await tf.handle(root, req.method, path, input); return send(code, out); }
+        catch (error) { if (error?.status) return send(error.status, { error: 'trial_flow', message: error.message }); throw error; }
+      }
       if (path.startsWith('/__review/trial-brief/')) {
         try { const tb = await import(new URL(`./trialBrief.mjs?t=${Date.now()}`, import.meta.url).href); const [code, out] = await tb.handle(root, req.method, path, input); return send(code, out); }
         catch (error) { if (error?.status) return send(error.status, { error: 'trial_brief', message: error.message }); throw error; }
