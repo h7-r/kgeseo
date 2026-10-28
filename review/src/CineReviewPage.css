@@ -37,3 +37,4 @@
 .story-summary .panel-head button{white-space:nowrap}.story-summary .ss-body h3{font-size:18px;line-height:1.4}
 .trial-story .ts-pre{white-space:pre-wrap;word-break:keep-all;font-size:12.5px;line-height:1.65;max-height:520px;overflow:auto;background:#fafafa;border-radius:7px;padding:12px}
 .trial-story .story-summary{border:none;padding:0;margin:10px 0;box-shadow:none}
+.trial-story .ts-h{margin:18px 0 6px;font-size:15px}.trial-story .brief{border:none;box-shadow:none;padding:0}

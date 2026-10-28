@@ -10,7 +10,10 @@ const SEVERITY = { high: '높음', mid: '보통', low: '낮음' };
 const DOC = { A: '설화 원천', B: '시놉시스', C: '씬 계획' };
 const FILTERS = [['pending', '판정 전'], ['issue', '문제'], ['ok', '확인'], ['all', '전체']];
 
-export default function BriefPanel({ project, dirty, reviewer, setReviewer, onJump, onStatus }) {
+// 10/28: 에이전트 시험에서도 같은 카드(apiBase = /trial-brief/<시험 id>, 04 가 끝나면 자동으로 만들어진다)
+export default function BriefPanel({ project, dirty, reviewer, setReviewer, onJump = () => {}, onStatus, apiBase, makePath }) {
+  const base = apiBase || (project?.id ? `/projects/${project.id}/brief` : '');
+  const [making, setMaking] = useState(false);
   const [state, setState] = useState(null);
   const [error, setError] = useState('');
   const [filter, setFilter] = useState('pending');
@@ -19,10 +22,10 @@ export default function BriefPanel({ project, dirty, reviewer, setReviewer, onJu
   const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
-    if (!project?.id) return;
-    try { setState(await api(`/projects/${project.id}/brief`)); setError(''); }
+    if (!base) return;
+    try { setState(await api(base)); setError(''); }
     catch (err) { setError(err.message); }
-  }, [project?.id]);
+  }, [base]);
   useEffect(() => { setState(null); load(); }, [load, project?.revision]);
 
   const brief = state?.brief;
@@ -35,7 +38,7 @@ export default function BriefPanel({ project, dirty, reviewer, setReviewer, onJu
   const decide = async (item, decision) => {
     setBusyId(item.id); setError('');
     try {
-      setState(await api(`/projects/${project.id}/brief/items/${item.id}`, { method: 'POST', body: { contentHash: state.contentHash, decision, note: notes[item.id] ?? item.note ?? '', reviewer } }));
+      setState(await api(`${base}/items/${item.id}`, { method: 'POST', body: { contentHash: state.contentHash, decision, note: notes[item.id] ?? item.note ?? '', reviewer } }));
     } catch (err) { setError(err.message); }
     finally { setBusyId(''); }
   };
@@ -43,7 +46,8 @@ export default function BriefPanel({ project, dirty, reviewer, setReviewer, onJu
     try { await navigator.clipboard.writeText(state.command); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* 복사 막힘 — 글자는 화면에 있다 */ }
   };
 
-  if (!project) return null;
+  if (!base) return null;
+  const make = async () => { setMaking(true); setError(''); try { setState(await api(makePath, { method: 'POST', body: {} })); } catch (err) { setError(err.message); } finally { setMaking(false); } };
   const shown = (brief?.items || []).filter(item => filter === 'all' || (filter === 'pending' ? !item.decision : item.decision === filter));
 
   return (
@@ -61,8 +65,13 @@ export default function BriefPanel({ project, dirty, reviewer, setReviewer, onJu
       {state && !brief && (
         <div className="brief-empty">
           <b>{state.stale ? '문서 내용이 바뀌어 예전 카드는 쓰지 않습니다.' : '아직 카드가 없습니다.'}</b>
+          {state.auto ? <>
+            <p>{state.ready ? '04 Scene 구성표가 끝나면 자동으로 만들어집니다. 만들어지지 않았거나 문서가 바뀌었으면 아래 단추로 만드세요(Claude, 약 $0.2~0.4).' : '01·02·04 문서가 모두 생기면(04 가 끝나면) 자동으로 만들어집니다.'}</p>
+            <div className="brief-command">{state.ready && makePath && <button onClick={make} disabled={making}>{making ? '만드는 중… (1분 안팎)' : '카드 만들기'}</button>}<button className="secondary" onClick={load}>다시 읽기</button></div>
+          </> : <>
           <p>카드 만들기는 제작 단계라 이 화면에서 API 를 부르지 않습니다. 저장소 폴더의 터미널에서 아래 명령을 실행한 뒤 「다시 읽기」를 누르세요. (한 번에 약 $0.2~0.4, 상한 $1)</p>
           <div className="brief-command"><code>{state.command}</code><button className="secondary" onClick={copy}>{copied ? '복사됨' : '복사'}</button><button onClick={load}>다시 읽기</button></div>
+          </>}
         </div>
       )}
 
@@ -122,7 +131,7 @@ export default function BriefPanel({ project, dirty, reviewer, setReviewer, onJu
             <ul>{brief.rejected.map(item => <li key={item.id}><b>{KIND[item.kind] || '종류 없음'} · {DOC[item.doc] || '문서 없음'}</b> {item.why}<br /><small>「{item.quote}」 — {item.reason}</small></li>)}</ul>
           </details>
         )}
-        <p className="note">설화 관문은 카드를 모두 판정해야 승인할 수 있고, 「문제」가 하나라도 있으면 승인되지 않습니다(문서를 고쳐 저장하면 카드를 다시 만듭니다).</p>
+        <p className="note">{state.auto ? '카드를 모두 「확인」해야 05 퍼즐 단계부터 진행됩니다. 「문제」가 있으면 문서를 고쳐(01~04 다시) 카드를 다시 만듭니다.' : '설화 관문은 카드를 모두 판정해야 승인할 수 있고, 「문제」가 하나라도 있으면 승인되지 않습니다(문서를 고쳐 저장하면 카드를 다시 만듭니다).'}</p>
       </>}
     </section>
   );

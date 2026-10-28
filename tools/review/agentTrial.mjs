@@ -446,6 +446,8 @@ export async function estimateStep(root, id, stepId) {
 export async function cineGate(root, trialOrId, stepId) {
   const trial = typeof trialOrId === 'string' ? await readTrial(root, trialOrId) : trialOrId;
   const list = stepsFor(trial); const di = list.findIndex(s => s.director), si = list.findIndex(s => s.id === stepId);
+  // 10/28 미르: 설화·기획 사람 확인 — 04 뒤 단계는 핵심 검수 카드가 모두 「확인」이어야(카드가 있을 때만)
+  { const i4 = list.findIndex(s => s.id === 's04'); if (i4 >= 0 && si > i4) { const tb = await import(new URL(`./trialBrief.mjs?t=${Date.now()}`, import.meta.url).href); const why = await tb.gate(root, trial.id); if (why) fail(409, 'brief_review_pending', `설화·기획 사람 확인이 끝나지 않았습니다 — ${why} 좌측 「01 설화와 기획」에서 카드를 판정한 뒤 진행하세요.`); } }
   if (di >= 0 && si > di) { const n = await cinePending(root, trial.id); if (n > 0) fail(409, 'cine_review_pending', `이야기 컷 사람 검수가 끝나지 않았습니다(검수 전 ${n}컷). 좌측 「이야기 컷 검수」에서 그림을 보고 승인·반려한 뒤 진행하세요.`); }
 }
 
@@ -481,6 +483,8 @@ export async function startStep(root, id, stepId, { onDone } = {}) {
     try {
       const result = await runStepBody(root, trial, step);
       Object.assign(trial.steps[stepId], { status: 'done', finishedAt: new Date().toISOString(), result, error: null });
+      // 10/28: 01 이 끝나면 설화 요약, 04 가 끝나면 핵심 검수 카드를 자동으로(실패해도 단계는 성공 — 화면에서 다시 만들 수 있다)
+      try { const tb = await import(new URL(`./trialBrief.mjs?t=${Date.now()}`, import.meta.url).href); const note = await tb.afterStep(root, id, stepId); if (note) trial.steps[stepId].after = note; } catch (e) { trial.steps[stepId].afterError = String(e.message || e).slice(0, 300); }
       if (onDone) await onDone(trial, stepId).catch(error => { trial.steps[stepId].postError = String(error.message || error).slice(0, 500); });
     } catch (error) {
       Object.assign(trial.steps[stepId], { status: 'failed', finishedAt: new Date().toISOString(), error: String(error.message || error).slice(0, 800), code: error.code || null });
