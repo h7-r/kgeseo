@@ -178,12 +178,18 @@ export function TrialSpaceRail({ tf, reviewer, setReviewer, onNext }) {
 
 export function TrialPuzzleMain({ tf, reviewer, onBack }) {
   const { flow, detail, err } = tf;
+  // 10/28 미르: 끝까지 해 봐야 결말·엔딩·현장 봉인이 보인다 — 처음부터 끝까지 창 가득 플레이
+  const [play, setPlay] = useState(false);
+  useEffect(() => { const k = e => { if (e.key === 'Escape' && !document.pointerLockElement) setPlay(false); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  const vb = detail?.indoor?.build;
   return <section className="panel trial-story">
     <div className="panel-head"><div><h2>에이전트 시험 — 퍼즐 연결</h2><p>05 퍼즐 초안이 08 방 세트의 물건에 어떻게 이어졌는지 보고, 퍼즐마다 「화면에서 보기」로 직접 풀어 본 뒤 승인 또는 수정 요청을 고릅니다. 모두 승인하면 이 시험의 공정이 끝납니다.</p></div></div>
     <Picker tf={tf} />
     {err && <p className="error">{err}</p>}
     {flow && !flow.space.done && <div className="cr-wait"><b>공간·에셋 승인이 아직 없습니다</b><p>「03 공간·에셋」에서 방 세트를 보고 승인하면 여기서 퍼즐을 검수합니다.</p><button className="secondary" onClick={onBack}>03 공간·에셋으로</button></div>}
     {flow?.puzzle.done && <div className="cr-wait ok"><b>✅ 퍼즐 {flow.puzzle.total}개 모두 승인 — 이 시험의 공정이 끝났습니다</b><p>설화·기획 → 이야기 컷 → 공간·에셋 → 퍼즐 연결까지 사람 승인이 모두 남았습니다.</p></div>}
+    {vb && flow?.space.done && <div className="button-row"><button onClick={() => setPlay(true)}>▶ 처음부터 끝까지 해 보기(창 가득)</button><small className="muted">사랑방부터 마지막 방, 결말 이야기 컷, 게임 엔딩, 현장 봉인까지 실제 게임처럼. Esc 두 번(마우스 풀기 → 닫기) 또는 왼쪽 아래 ✕.</small></div>}
+    {play && vb && <><iframe className="pr-play" allow="fullscreen" title="처음부터 끝까지" src={`${vb.viewer}?v=${encodeURIComponent(vb.at)}`} /><button className="sv-wide-close" onClick={() => setPlay(false)}>✕ 플레이 닫기</button></>}
     {detail && flow?.space.done && <>{reviewer.trim() ? null : <p className="warning-text">오른쪽에 검수자 이름을 적어야 퍼즐 판정이 저장됩니다.</p>}<PuzzleReview key={detail.indoor?.build?.at} detail={detail} reviewer={reviewer} onChange={() => tf.reload()} /><PuzzleDraft detail={detail} /></>}
   </section>;
 }

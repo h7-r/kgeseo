@@ -1,7 +1,7 @@
 // 퍼즐 검수(10/22 미르) — 퍼즐은 코드가 「풀린다」고 끝나는 게 아니라 사람이 눈으로 본다.
 //   퍼즐마다: 이야기 근거 · 연결된 에셋과 상호작용 순서(몇 곳, 몇 방) · 장면 잠금 · 힌트, 그리고 「화면에서 보기」(그 퍼즐의 물건만 빛남).
 //   판정은 기준별 좋음/문제 + 난이도 + 승인/수정 요청(메모) → puzzle_review.json. 수정 요청 메모는 다음 퍼즐 공정의 입력이 된다.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from './api.js';
 
 const KIND = { object: '에셋', fixture: '방 구조', 'trace:foot': '흔적', 'trace:light': '빛 흔적', 'trace:shadow': '그림자 흔적', 'trace:spot': '자리', 'trace:sound': '소리 나는 곳', 'trace:step': '디딤돌', 'trace:water': '물 흔적', 'trace:blood': '핏자국', missing: '연결 안 됨' };
@@ -64,6 +64,9 @@ export default function PuzzleReview({ detail, reviewer, onChange }) {
   const b = detail.indoor?.build; const list = b?.puzzle?.list;
   const [reviews, setReviews] = useState(detail.indoor?.puzzleReview?.reviews || {});
   const [focus, setFocus] = useState(null);
+  // 10/28 미르: 「퍼즐 연결 확인 탭에서도 검수 화면을 키워 달라」 — 크게 보기(창 가득) · 전체 화면
+  const [wide, setWide] = useState(false);
+  useEffect(() => { document.body.classList.toggle('pr-wide', wide); const k = e => { if (e.key === 'Escape') setWide(false); }; window.addEventListener('keydown', k); return () => { document.body.classList.remove('pr-wide'); window.removeEventListener('keydown', k); }; }, [wide]);
   if (!list?.length) return null;
   const scenes = b.puzzle.scenes || [];
   const done = list.filter(p => reviews[p.id]?.verdict === 'approve').length;
@@ -71,8 +74,9 @@ export default function PuzzleReview({ detail, reviewer, onChange }) {
   return <section className="panel puzzle-review">
     <div className="panel-head"><div><h2>퍼즐 검수 (G3)</h2><p>퍼즐마다 이야기 근거 · 연결된 에셋 · 상호작용 순서 · 장면 잠금을 보고, 「화면에서 보기」로 그 퍼즐의 물건만 빛나게 띄워 직접 조사·풀이·문 이동을 해 봅니다. 판정은 기준별로 남기고, 수정 요청 메모는 퍼즐 공정의 다음 입력이 됩니다.</p></div>
       <span className="pill">승인 {done}/{list.length}</span></div>
-    {focus && <div className="pr-viewer"><div className="button-row"><b>화면에서 보기 — {focus}</b><small className="muted">빛나는 것이 이 퍼즐의 물건 · 문은 장면 퍼즐을 다 풀어야 열림 · 플레이(T)로 직접 조사</small><button className="quiet" onClick={() => setFocus(null)}>닫기 ✕</button></div>
-      <iframe className="indoor-frame" title="퍼즐 화면" src={`${b.viewer}?focus=${encodeURIComponent(focus)}&v=${encodeURIComponent(b.at)}`} /></div>}
+    {focus && <div className="pr-viewer"><div className="button-row"><b>화면에서 보기 — {focus}</b><small className="muted">빛나는 것이 이 퍼즐의 물건 · 문은 장면 퍼즐을 다 풀어야 열림 · 플레이(T)로 직접 조사</small><button className="secondary" onClick={() => setWide(true)}>⤢ 크게 보기</button><button className="secondary" onClick={() => document.querySelector('.pr-viewer iframe')?.requestFullscreen?.()}>⛶ 전체 화면</button><button className="quiet" onClick={() => setFocus(null)}>닫기 ✕</button></div>
+      {wide && <button className="sv-wide-close" onClick={() => setWide(false)}>✕ 작게 보기 (Esc)</button>}
+      <iframe className="indoor-frame" allow="fullscreen" title="퍼즐 화면" src={`${b.viewer}?focus=${encodeURIComponent(focus)}&v=${encodeURIComponent(b.at)}`} /></div>}
     <ol className="pr-list">{order.map((p, i) => <Card key={p.id} p={p} idx={i} scenes={scenes} check={b.puzzle.checks.find(c => c.id === p.id)} review={reviews[p.id]} criteria={detail.indoor.puzzleCriteria || {}} reviewer={reviewer} trialId={detail.id}
       onSaved={r => { setReviews(r.reviews); onChange?.(r); }} onFocus={id => { setFocus(id); setTimeout(() => document.querySelector('.pr-viewer')?.scrollIntoView({ behavior: 'smooth' }), 50); }} />)}</ol>
   </section>;

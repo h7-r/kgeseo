@@ -27,7 +27,7 @@ export const STEPS_V2 = Object.freeze([
 // 05 퍼즐 초안 2판(10/20, 미르 결정: 팀 계약에 맞춤) — 공용 인터랙션 카탈로그 v2.0(docs/공용-인터랙션-카탈로그-v2.0.md) ·
 //   Puzzle Contract v0.3.1(docs/계약서/03_Puzzle_Contract_v0.3.1.md) · 단조성 규칙(아이템 소모·되돌릴 수 없는 선택·막힘 없음)
 // 10/26 미르: 매 판 같은 장치가 반복되면 재미가 없다 — 지난 시험들에서 쓴 장치 횟수를 05 에 알려 덜 쓴 것부터 고르게
-const DEVICE_KINDS = ['yundo', 'sangaji', 'bimil', 'geulja', 'munsal', 'maedeup', 'pae', 'buk'];
+const DEVICE_KINDS = ['yundo', 'sangaji', 'geulja', 'munsal', 'maedeup', 'pae', 'buk']; // 10/28 미르: bimil(장석 고르기) 뺌 — 하나씩 눌러 보면 무조건 풀리는 장치
 async function deviceHistory(root, trial) {
   const { readdir, readFile } = await import('node:fs/promises'); const path = await import('node:path');
   const dir = path.join(root, '.local/review/trials'); const cnt = Object.fromEntries(DEVICE_KINDS.map(k => [k, 0]));
@@ -74,7 +74,7 @@ const PUZZLE_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」
 - 풀이 장치(10/22 미르 — 단서를 다 모았는데 「뭘 해야 할지 모르겠다」를 막는다): 고르기·입력 퍼즐(solve.interaction 이 select·input)은 반드시 눈에 보이는 장치에서 푼다. solve 에 device 를 쓴다 — 장치 목록(시대에 맞는 것):
   · yundo(윤도 방위 자물쇠 — 조선 나침반 윤도의 방위 눈금을 돌려 맞춤. spec {"labels":["자","축","인","묘","진","사","오","미","신","유","술","해"] 또는 8방위 ["북","북동",…], "count":맞출 칸 수 1~3}, answer = 방위 이름(칸이 여럿이면 순서대로 배열)) → interaction input
   · sangaji(산가지 셈판 자물쇠 — 산가지를 놓아 수를 맞춤. spec {"digits":2~4}, answer = 숫자 문자열) → input
-  · bimil(비밀자물쇠 — 장석 여러 개 중 열쇠구멍이 숨은 하나를 찾아 누름. 한국민족문화대백과 「비밀자물쇠」. spec {"knobs":["매화 장석","박쥐 장석","나비 장석","거북 장석"] 3~6개}, answer = 장석 이름) → select(options = knobs)
+  · bimil(장석 하나 고르기 비밀자물쇠)은 쓰지 않는다 — 10/28 미르: 「하나씩 클릭하다 보면 무조건 풀리는 의미 없는 장치」. 보기 몇 개 중 하나를 고르는 자물쇠는 틀려도 잃는 게 없어 추리 없이 풀린다.
   · geulja(글자 바퀴 자물쇠 — 바퀴 3~4개의 글자를 맞춤. 조선 실물 근거가 약하니 invented 에 「글자 바퀴 자물쇠는 게임 장치」라 적는다. spec {"rings":[["갑","을","병",…],[…]]}, answer = 글자 배열) → input
   · munsal(문살 무늬판 — 창호 문살 칸을 눌러 무늬를 맞춤. spec {"rows":3,"cols":3 또는 4}, answer = 누를 칸 배열 ["1-2","2-3",…](행-열, 1부터) — 3칸 이상, 전체의 절반 이하) → input. 빛·그림자·자국 단서를 칸으로 옮기는 퍼즐에 맞다(달빛 든 칸, 그림자 진 칸).
   · maedeup(오방색 매듭 — 청·적·황·백·흑 매듭 끈을 순서대로 당김. spec {"colors":["청","적","황","백","흑"],"count":3~5}, answer = 색 배열(당기는 순서)) → input. 색 ↔ 방위·사람·물건 대응표 단서에 맞다(동=청, 남=적, 가운데=황, 서=백, 북=흑).
@@ -555,6 +555,7 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
               for (const p of PA) { const sp = p.solve.device.spec || {}; const sl = +sp.slots || 0; if (sl < 2 || sl > 3) out.push(`${p.puzzle_id}: 패 홈 ${sl}칸 — 2~3칸`); const bad = (sp.tags || []).filter(t => ABS.test(String(t).trim())); if (bad.length) out.push(`${p.puzzle_id}: 패 이름 「${bad.join('」「')}」 — 일·현상·말은 패가 될 수 없다(방에 보이는 사람·물건 이름만)`); }
               return out; })(),
             // 10/27 미르: 회상 장면 맞추기 금지 · 게이지 미니게임 1~2개, 드러낸 단서는 뒤 퍼즐에 쓰임
+            ...P.filter(p => p.solve?.device?.kind === 'bimil').map(p => `${p.puzzle_id}: 비밀자물쇠(장석 고르기)는 쓰지 않는다 — 하나씩 눌러 보면 풀림. 다른 장치나 단서 맞추기로`),
             ...(() => { const out = []; const H = P.filter(p => p.solve?.device?.kind === 'hoesang'); if (H.length) out.push(`회상 장면 맞추기(hoesang) ${H.length}개 — 쓰지 않는다(회상은 05b 이야기 컷)`);
               const G = P.flatMap(p => (p.clues || []).filter(c => c.gate).map(c => ({ p, c }))); if (G.length < 1 || G.length > 2) out.push(`게이지 미니게임(clue.gate) ${G.length}개 — 게임 전체에 1~2개`);
               const req = new Set(P.flatMap(p => p.solve?.required_clue_ids || []));

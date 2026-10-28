@@ -793,7 +793,8 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
       basis: (p.basis || []).map(id => ({ id, text: factText(id) })), discoveries: (p.discoveries || []).map(id => ({ id, text: rdText(id) })) },
     clues: (p.clues || []).map(c => ({ id: c.clue_id, text: c.text, get_by: c.get_by, from: c.from, reveal: c.reveal || null, carrier: c.carrier ? { ...c.carrier, asset: carrierAsset.get(String(c.carrier.name || '').trim()) || null } : null, content: c.content || '', gate: c.gate || null })),
     exit: p.exit || null, // 10/22: 장면 마지막 퍼즐 — 풀면 나오는 열쇠와 다음 방 문의 자물쇠
-    solve: p.solve || {}, hint_1: p.hint_1 || '', hint_2: p.hint_2 || '', effects: p.success_effects || [],
+    // 10/28 미르: 장석 고르기 자물쇠(bimil) 빼기 — 예전 판에 남아 있으면 장치를 떼고, 단서를 다 모은 뒤 그 자리를 조사하면 풀리게
+    solve: p.solve?.device?.kind === 'bimil' ? { ...p.solve, interaction: 'inspect', device: null, removed_device: 'bimil' } : (p.solve || {}), hint_1: p.hint_1 || '', hint_2: p.hint_2 || '', effects: p.success_effects || [],
     hosts: (p.host_needs || []).map(h => ({ need_id: h.need_id, kind: h.kind, what: h.what, at: (binds[h.need_id] || []).filter(b => b.node).map(b => ({ room: b.room, node: b.node })),
       assets: (binds[h.need_id] || []).map(b => ({ room: b.room, roomName: b.roomName, node: b.node, name: b.name, kind: b.kind, pending: (markersBy[conv.rooms[b.room]?.id] || []).some(x => x.item_id === b.item_id && x.pending), asset: pickOf(b.item_id) ? { nameKo: pickOf(b.item_id).nameKo, thumbnail: pickOf(b.item_id).thumbnail || null } : null })) })),
   }));
