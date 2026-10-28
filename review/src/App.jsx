@@ -446,7 +446,7 @@ export default function App() {
     </aside>
     <main className={`main ${gate === 'trial' || gate === 'cine' ? 'trial-mode' : ''}`}>
       {gate === 'trial' && <AgentTrialPage onOpenProject={openTrialProject} onOpenIndoor={openIndoor} />}
-      {gate === 'cine' && <CineReviewPage />}
+      {gate === 'cine' && <CineReviewPage onNext={tid => { history.replaceState({}, '', `/review/?trial=${encodeURIComponent(tid)}`); changeGate('trial'); }} />}
       <div className="page-head"><div><p className="eyebrow">LOCAL REVIEW / {gate === 'history' ? 'HISTORY' : gate.toUpperCase()}</p><h1>{spatial ? '공간·에셋 검수' : selectedGate?.label || '판정·관찰 이력'}</h1><p>{project ? `${project.title} · 검수 자료 v${project.revision}` : (gate === 'source' ? '가운데 요약 · 확인 카드 · 문서 원본을 검토하고 오른쪽에서 승인하면 이야기 컷 단계로 넘어갑니다.' : '설화 자료를 입력하고 검수할 공간을 연결하세요.')}</p></div>{project && <Tag status={gateState?.status} />}</div>
       {error && <div className="message error" role="alert">{error}<button className="quiet" onClick={() => setError('')} aria-label="오류 알림 닫기">×</button></div>}
       {notice && <div className="message success" role="status">{notice}</div>}

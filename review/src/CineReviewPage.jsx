@@ -69,7 +69,7 @@ function AddPanel({ trialId, section, afterKey, busy, onChange, onClose }) {
     <small>추가한 컷은 「검수 전」입니다. 그림 지시를 넣었으면 「그림 미세 조정 → 그림 그리기」로 후보를 그린 뒤 승인하고, 그림 없이 쓸 컷은 반려(글만)로 확정하세요.</small></div>;
 }
 
-export default function CineReviewPage() {
+export default function CineReviewPage({ onNext }) {
   const [trials, setTrials] = useState([]); const [id, setId] = useState(readTrialKey);
   const [adding, setAdding] = useState(null); /* {section, afterKey} */
   const [d, setD] = useState(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [filter, setFilter] = useState('all');
@@ -85,7 +85,9 @@ export default function CineReviewPage() {
   useEffect(() => { if (id) writeTrialKey(id); setD(null); load(id); }, [id]);
   const drawing = d?.sections?.some(s => s.panels.some(p => p.job?.status === 'running'));
   useEffect(() => { clearInterval(timer.current); if (drawing) timer.current = setInterval(() => load(), 4000); return () => clearInterval(timer.current); }, [drawing, id]);
-  const change = async fn => { setBusy(true); try { const v = await fn(); if (v?.sections) setD(v); else await load(); setErr(''); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
+  // 10/28 미르: 컷 승인·반려가 모두 끝나면 06~09 를 이어서 돌리고 「에이전트 시험」 탭으로 자동 이동
+  const goNext = async tid => { const r = await api(`/cine/${tid}/continue`, { method: 'POST', body: {} }); onNext?.(tid, r); return r; };
+  const change = async fn => { setBusy(true); const before = d?.next?.pending ?? 0; try { const v = await fn(); if (v?.sections) setD(v); else await load(); setErr(''); if (before > 0 && v?.next?.ready && v?.trial?.id) await goNext(v.trial.id); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
   const all = d?.sections?.flatMap(s => s.panels) || []; const cnt = k => all.filter(p => (p.review?.status || 'pending') === k).length;
   const shown = p => filter === 'all' || (p.review?.status || 'pending') === filter;
   return (
@@ -100,8 +102,8 @@ export default function CineReviewPage() {
         <div className="cr-summary">
           <span>컷 {all.length}</span><span className="cr-pill cr-pending">검수 전 {cnt('pending')}</span><span className="cr-pill cr-approved">승인 {cnt('approved')}</span><span className="cr-pill cr-rejected">반려 {cnt('rejected')}</span>
           <select value={filter} onChange={e => setFilter(e.target.value)}><option value="all">모두 보기</option><option value="pending">검수 전만</option><option value="approved">승인만</option><option value="rejected">반려만</option></select>
-          <span className={`cr-gate ${d.next?.ready ? 'ok' : ''}`}>{d.next?.ready ? '✅ 모든 컷 확인 끝 — 다음 단계로 갈 수 있습니다' : `⏸ 검수 전 ${d.next?.pending}컷 — 모두 승인·반려해야 다음 단계(06 공간 구성)로 넘어갑니다`}</span>
-          {d.next?.ready && !['done', 'running'].includes(d.next?.status) && <button disabled={busy} onClick={() => change(async () => { await api(`/trials/${d.trial.id}/steps/s06/run-fresh`, { method: 'POST', body: {} }); return api(`/cine/${d.trial.id}`); })}>다음 단계(06) 시작</button>}
+          <span className={`cr-gate ${d.next?.ready ? 'ok' : ''}`}>{d.next?.ready ? '✅ 모든 컷 확인 끝 — 다음 단계로 갈 수 있습니다' : `⏸ 검수 전 ${d.next?.pending}컷 — 모두 승인·반려하면 06~09가 이어서 돌고 「에이전트 시험」 탭으로 넘어갑니다`}</span>
+          {d.next?.ready && <button disabled={busy} onClick={() => { setBusy(true); goNext(d.trial.id).catch(e => setErr(e.message)).finally(() => setBusy(false)); }}>{['done', 'running'].includes(d.next?.status) ? '에이전트 시험 탭에서 보기 →' : '06~09 이어서 시작 → 에이전트 시험 탭'}</button>}
           {d.next?.status && <small>06 상태: {d.next.status === 'done' ? '끝남' : d.next.status === 'running' ? '도는 중' : d.next.status === 'failed' ? '실패' : d.next.status}</small>}
           {d.trial.spaceKind === 'indoor' && <a href={`/__review/trials/${d.trial.id}/rooms/index.html`} target="_blank" rel="noreferrer">방 둘러보기에서 보기 ↗</a>}
         </div>

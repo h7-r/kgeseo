@@ -136,13 +136,31 @@ async function sync(root, id, doc) {
 }
 
 /** 서버에서 부른다: [상태, 본문] */
+/** 10/28 미르: 「이야기 컷 승인이 모두 끝나면 다음 에이전트 탭으로」 — 05b 뒤 남은 단계(06~09)를 이어서 돌린다(이미 끝난 단계는 건너뜀) */
+export async function cont(root, id) {
+  const T = await import(pathToFileURL(path.join(root, 'tools/review/agentTrial.mjs')).href + `?t=${Date.now()}`);
+  const t = await T.readTrial(root, id); const L = T.stepsFor(t); const di = L.findIndex(s => s.director);
+  if (di < 0) fail(409, '이 시험에는 장면 연출 단계가 없습니다.');
+  const n = await T.cinePending(root, id); if (n > 0) fail(409, `검수 전 컷이 ${n}개 남았습니다.`);
+  await T.cineGate(root, t, L[di + 1]?.id || L[di].id); // 설화·기획 승인도 다시 확인
+  if (L.some(s => t.steps?.[s.id]?.status === 'running')) return { started: [], running: true };
+  const rest = L.slice(di + 1).map(s => s.id).filter(sid => t.steps?.[sid]?.status !== 'done');
+  if (rest.length) {
+    const { openSync } = await import('node:fs');
+    const log = openSync(path.join(tdir(root, id), 'run-chain.log'), 'a');
+    const ch = spawn(process.execPath, [path.join(root, 'tools/review/runChain.mjs'), root, id, ...rest], { detached: true, stdio: ['ignore', log, log] }); ch.unref();
+  }
+  return { started: rest, running: false };
+}
+
 export async function handle(root, method, urlPath, input) {
-  const m = urlPath.match(/^\/__review\/cine(?:\/([a-f0-9-]{36})(?:\/(decide|redraw))?)?$/);
+  const m = urlPath.match(/^\/__review\/cine(?:\/([a-f0-9-]{36})(?:\/(decide|redraw|continue))?)?$/);
   if (!m) fail(404, '이야기 컷 검수 경로를 찾을 수 없습니다.');
   const [, id, act] = m;
   if (!id && method === 'GET') return [200, await list(root)];
   if (id && !act && method === 'GET') return [200, await detail(root, id)];
   if (id && act === 'decide' && method === 'POST') return [200, await decide(root, id, input || {})];
+  if (id && act === 'continue' && method === 'POST') return [202, await cont(root, id)];
   if (id && act === 'redraw' && method === 'POST') return [202, await redraw(root, id, input || {})];
   fail(405, '지원하지 않는 요청입니다.');
 }
