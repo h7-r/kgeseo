@@ -1122,7 +1122,10 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
         }
         // 단서 글이 화면에 그릴 수 없는 것을 말함 → 05 를 그 메모와 함께 다시 쓰고 06~08 을 다시(에이전트가 이야기 쪽도 스스로 고친다)
         let rgShow = []; try { const ib = await readJsonOut(root, trial, 'indoor_build.json'); rgShow = ((ib.regress || []).find(r => r.id === 'RG-SHOW')?.bad || []).map(t => ({ clue_id: String(t).split(':')[0], why: `화면에 그릴 수 없음(코드 검사) — ${String(t).split(':').slice(1).join(':').trim()}`, fix: 'clue' })); } catch {}
-        const clueFix = [...clueBad.filter(c => c.fix === 'clue'), ...rgShow.filter(r => !clueBad.some(c => c.clue_id === r.clue_id && c.fix === 'clue'))];
+        let clueFix = [...clueBad.filter(c => c.fix === 'clue'), ...rgShow.filter(r => !clueBad.some(c => c.clue_id === r.clue_id && c.fix === 'clue'))];
+        // 10/29 미르: 사람이 설화·기획을 승인하고 이야기 컷을 검수한 뒤에는 09 가 05(퍼즐)·05b(이야기 컷)를 다시 쓰지 않는다 — 승인한 컷이 바뀌고 공간 승인이 막혔다.
+        //   단서 문제는 기록만 남기고(vr_feedback.json · 03 화면), 09 는 에셋 교체·배치(07·08)만 고친다
+        if (clueFix.length && trial.storyApproval) { await writeOut(root, trial, 'vr_feedback.json', JSON.stringify({ at: new Date().toISOString(), heldForHuman: true, clues: clueFix.map(c => ({ clue_id: c.clue_id, why: c.why })) }, null, 2)); applied.push(`단서 ${clueFix.length}개 문제는 사람 검수로 넘김(승인 뒤라 05·05b 는 다시 쓰지 않음): ${clueFix.map(c => c.clue_id).join(', ')}`); clueFix = []; }
         if (clueFix.length) { await writeOut(root, trial, 'vr_feedback.json', JSON.stringify({ at: new Date().toISOString(), clues: clueFix.map(c => ({ clue_id: c.clue_id, why: c.why })) }, null, 2)); applied.push(`단서 ${clueFix.length}개가 화면에 그릴 수 없는 것을 말함 → 05 를 다시 씀(${clueFix.map(c => c.clue_id).join(', ')})`); }
         rounds[rounds.length - 1].applied = applied;
         await writeOut(root, trial, 'visual_review.json', JSON.stringify({ checklist: vr.CHECKLIST, rounds }, null, 2));

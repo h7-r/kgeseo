@@ -167,9 +167,16 @@ export async function approveSpace(root, id, input = {}) {
 }
 
 export async function handle(root, method, urlPath, input) {
-  const m = urlPath.match(/^\/__review\/trial-flow\/([a-f0-9-]{36})(?:\/(space\/approve|space\/review|space\/item|space\/apply|finale))?$/); if (!m) fail(404, '경로를 찾을 수 없습니다.');
+  const m = urlPath.match(/^\/__review\/trial-flow\/([a-f0-9-]{36})(?:\/(space\/approve|space\/review|space\/item|space\/apply|finale|stop))?$/); if (!m) fail(404, '경로를 찾을 수 없습니다.');
   const [, id, act] = m;
   if (method === 'GET' && !act) return [200, await status(root, id)];
+  if (method === 'POST' && act === 'stop') { // 10/29: 이 시험에서 도는 단계(이어 돌리기·단독 실행)를 멈춘다 — 도는 중으로 남은 단계는 실패(사람이 멈춤)로
+    const { spawnSync } = await import('node:child_process');
+    for (const pat of [`runChain.mjs ${root} ${id}`, `runStepFresh.mjs ${root} ${id}`]) spawnSync('pkill', ['-f', pat]);
+    const f = path.join(tdir(root, id), 'trial.json'); const t = JSON.parse(await fs.readFile(f, 'utf8'));
+    for (const [k, v] of Object.entries(t.steps || {})) if (v?.status === 'running') t.steps[k] = { ...v, status: v.result ? 'done' : 'failed', error: v.result ? v.error : '사람이 멈춤', stoppedAt: new Date().toISOString() };
+    t.updatedAt = new Date().toISOString(); await fs.writeFile(f, JSON.stringify(t, null, 2));
+    return [200, await status(root, id)]; }
   if (method === 'POST' && act === 'finale') { const F = await mod(root, 'tools/review/finale.mjs'); await F.makeFinaleClaude(root, id); return [200, await status(root, id)]; }
   if (method === 'GET' && act === 'space/review') return [200, await spaceReview(root, id)];
   if (method === 'POST' && act === 'space/item') return [200, await setSpaceItem(root, id, input || {})];
