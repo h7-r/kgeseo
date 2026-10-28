@@ -66,6 +66,19 @@ export async function spaceReview(root, id) {
   if (!plan || !sel || !build) return { ready: false, items: [], review: rv.items, verdicts: SPACE_VERDICTS };
   const L = await mod(root, 'tools/review/library.mjs'); const { items: lib } = await L.buildLibrary(root); const byId = new Map(lib.map(x => [x.id, x]));
   const thumb = aid => byId.get(aid)?.thumbnail || null;
+  // 썸네일 없는 에셋(국가유산청·코드 모형)은 화면이 GLB 로 그린다 → url·source 도 넘긴다
+  const asset = (aid, extra = {}) => { const a = byId.get(aid); return { id: aid, nameKo: a?.nameKo || extra.nameKo || aid, thumbnail: a?.thumbnail || null, url: a?.url || null, source: a?.source || null, ...extra }; };
+  // 10/28 미르: 「후보가 무슨 기준인지 모르겠다」 — 07 은 계획한 물건 이름(+낱말·사전 동의어)으로 라이브러리를 검색해 후보를 모은다.
+  //   검수 화면에서는 그 이름으로 다시 검색한 관련도·까닭을 붙이고 관련도 순으로 보인다(낮으면 「관련 약함」)
+  // 07 과 같은 검색어 목록(물건 이름 · 06 이 준 검색어 · 낱말 · 방 유형 사전의 같은 종류 이름)으로 글자 검색만 다시 돌려, 후보마다 「어느 검색어로 찾았나」를 붙인다(의미 검색은 느려서 뺌 — 거기서만 나온 후보는 「의미 검색으로 찾음」)
+  let TYPES = null; try { TYPES = JSON.parse(await fs.readFile(path.join(root, 'tools/rooms/room_types.json'), 'utf8')); } catch { TYPES = null; }
+  const dictQ = name => Object.values(TYPES?.types || {}).flatMap(t => t.must || []).filter(m => [m.name_ko, ...(m.q || [])].some(w => String(name || '').includes(w))).flatMap(m => [m.name_ko, ...(m.q || [])]);
+  const qCache = new Map();
+  const relOf = async c => { const words = String(c.name_ko || '').replace(/[()（）·,]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
+    const qs = [...new Set([c.name_ko, ...(c.q || []), ...words, ...dictQ(c.name_ko)])].filter(Boolean).slice(0, 9); const out = new Map();
+    for (const q of qs) { if (!qCache.has(q)) { try { qCache.set(q, (await L.searchLibrary(lib, q, { placeableOnly: true, root, limit: 30, semantic: false })).results || []); } catch { qCache.set(q, []); } }
+      for (const r of qCache.get(q)) if (!out.has(r.item.id)) out.set(r.item.id, { q, score: r.score, reasons: r.reasons || [] }); }
+    return out; };
   const roomName = new Map((plan.rooms || []).map(r => [r.id, r.name || r.role]));
   const placed = new Map(); (vd?.ITEMS || []).forEach((it, i) => (it.meta?.log || []).forEach(l => { if (l.id && String(l.result || '').startsWith('놓음')) placed.set(l.id, { roomIdx: i, roomName: it.name, node: l.name, where: l.where }); }));
   const selBy = new Map(sel.selections.map(x => [x.item_id, x]));
@@ -79,11 +92,12 @@ export async function spaceReview(root, id) {
     puzzle_id: P.puzzle_id, title: P.title, role: h.what || '',
     clues: (P.clues || []).filter(cl => cl.from === h.need_id || (h.gives || []).includes(cl.clue_id)).map(cl => ({ id: cl.clue_id, how: cl.reveal?.reaction || (ACT[cl.reveal?.action] ? `${ACT[cl.reveal.action]} 나온다` : ''), text: cl.text || '', carrier: cl.carrier?.name || '' })),
   })));
-  const items = (plan.contents || []).map(c => { const x = selBy.get(c.item_id); const pl = placed.get(c.item_id);
+  const rel = new Map(); for (const c of plan.contents || []) if (selBy.get(c.item_id)?.candidates?.length && !rel.has(c.item_id)) rel.set(c.item_id, await relOf(c));
+  const items = (plan.contents || []).map(c => { const x = selBy.get(c.item_id); const pl = placed.get(c.item_id); const R = rel.get(c.item_id) || new Map();
     return { item_id: c.item_id, name: c.name_ko, room: c.room, roomName: pl?.roomName || roomName.get(c.room) || c.room, role: c.role, host: (c.serves || []).length > 0, place: c.place, kind: x ? 'asset' : c.place === 'marker' || c.role === 'marker' ? 'marker' : c.fixture ? 'fixture' : 'other',
       placed: Boolean(pl), node: pl?.node || null, roomIdx: pl?.roomIdx ?? null, riders: riders.get(c.item_id) || [], puzzles: (c.serves || []).length ? cluesOf(c.serves) : [],
-      pick: x?.pick ? { id: x.pick.id, nameKo: x.pick.nameKo, thumbnail: x.pick.thumbnail || thumb(x.pick.id), needsReplacement: x.pick.needsReplacement } : null,
-      candidates: (x?.candidates || []).map(cd => ({ ...cd, thumbnail: thumb(cd.id) })), reason: x?.reason || '', missing: x?.missing || null };
+      pick: x?.pick ? asset(x.pick.id, { nameKo: x.pick.nameKo, needsReplacement: x.pick.needsReplacement }) : null,
+      candidates: (x?.candidates || []).map(cd => { const r = R.get(cd.id); return asset(cd.id, { nameKo: cd.nameKo, via: r ? (r.q === c.name_ko ? '이름' : `「${r.q}」`) : '의미 검색', score: r?.score ?? null, reasons: r?.reasons || [] }); }).sort((a, b) => (a.via === '이름' ? 0 : 1) - (b.via === '이름' ? 0 : 1) || (b.score ?? 0) - (a.score ?? 0)), reason: x?.reason || '', missing: x?.missing || null };
   });
   const unapplied = Object.entries(rv.items).filter(([, v]) => NEEDS_BUILD.includes(v.verdict) && v.at > (build.at || '')).map(([k]) => k);
   return { ready: true, buildAt: build.at, items, review: rv.items, unapplied, verdicts: SPACE_VERDICTS, history: (rv.history || []).slice(-30).reverse() };

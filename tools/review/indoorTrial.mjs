@@ -1004,7 +1004,8 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
       for (const t of targets) {
         const words = String(t.name_ko || '').replace(/[()（）·,]/g, ' ').split(/\s+/).filter(w => w.length >= 2);
         const best = new Map();
-        for (const q of [...new Set([t.name_ko, ...(t.q || []), ...words, ...dictQ(t.name_ko)])].filter(Boolean).slice(0, 9)) {
+        // 10/28 미르: 「후보가 고른 에셋과 연관이 없어 보인다」 — 한 글자 검색어(「요」→요강·요고, 「갑」→판갑옷)가 엉뚱한 후보를 끌어왔다 → 물건 이름 그대로가 아니면 두 글자 이상만
+        for (const q of [...new Set([t.name_ko, ...(t.q || []), ...words, ...dictQ(t.name_ko)])].filter(q => q && (q === t.name_ko || String(q).trim().length >= 2)).slice(0, 9)) {
           if (!qCache.has(q)) qCache.set(q, await searchLibrary(items, q, { placeableOnly: true, root, waitSemanticMs: 15000, limit: 20 }));
           const found = qCache.get(q);
           for (const r of found.results.slice(0, 10)) if (r.item.source !== 'space' && /^\/?_sf_local\//.test(decodeURIComponent(r.item.url || ''))) best.set(r.item.id, Math.max(best.get(r.item.id) || 0, r.score));

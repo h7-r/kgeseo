@@ -5,6 +5,9 @@ import { api, date } from './api.js';
 import { readTrialKey, writeTrialKey } from './TrialStoryPanel.jsx';
 import { IndoorResult, PuzzleDraft } from './AgentTrialPage.jsx';
 import PuzzleReview from './PuzzleReview.jsx';
+import { Thumb } from './LibraryPanel.jsx';
+// 썸네일: 라이브러리 그림이 있으면 그것, 없으면(국가유산청·코드 모형) GLB 를 그려서
+const Pic = ({ a, size }) => a?.thumbnail ? <img src={a.thumbnail} alt="" width={size} height={size} loading="lazy" style={{ objectFit: 'cover', borderRadius: 6 }} /> : a?.url ? <div className="sv-pic" style={{ width: size, height: size }}><Thumb item={{ id: a.id, url: a.url, nameKo: a.nameKo, source: a.source }} /></div> : <span className="sv-noimg" style={{ width: size, height: size }}>—</span>;
 
 const ST = { done: '끝남', running: '도는 중', failed: '실패', idle: '대기' };
 
@@ -77,7 +80,7 @@ function SpaceWalk({ tf, build }) {
         <select value={only} onChange={e => setOnly(e.target.value)}><option value="all">모두</option><option value="pending">판정 전만</option><option value="unapplied">반영 대기만</option></select></div>
       {rooms.map(r => <details key={r} open><summary>{r} — {shown.filter(x => x.roomName === r).length}</summary>
         <ul className="sv-rows">{shown.filter(x => x.roomName === r).map(x => <li key={x.item_id} className={tf.selected?.item_id === x.item_id ? 'on' : ''} onClick={() => tf.focus(x)}>
-          {x.pick?.thumbnail ? <img src={x.pick.thumbnail} alt="" width="34" height="34" loading="lazy" /> : <span className="sv-noimg">{x.kind === 'marker' ? '표식' : '—'}</span>}
+          {x.pick ? <Pic a={x.pick} size={34} /> : <span className="sv-noimg">{x.kind === 'marker' ? '표식' : '—'}</span>}
           <span><b>{x.name}</b>{x.host && <span className="sv-host">퍼즐</span>}<small className="muted">{x.pick ? x.pick.nameKo : x.placed ? '흔적·표식' : '못 놓음'}</small></span>
           <Badge v={rv.review[x.item_id]} />{rv.unapplied.includes(x.item_id) && <span className="sv-badge wait">반영 대기</span>}</li>)}</ul></details>)}
     </div>}
@@ -99,14 +102,14 @@ function ObjectPanel({ tf, reviewer }) {
   if (!sel) return <section className="panel approve-panel"><p className="eyebrow">물건 판정</p><p className="muted">왼쪽 화면에서 물건을 클릭하거나 목록에서 고르세요.</p></section>;
   if (!it) return <section className="panel approve-panel"><p className="eyebrow">물건 판정</p><h2>{sel.node}</h2><p className="muted">{sel.roomName} — 방 구조(기둥·창·문)나 마당 풍광은 여기서 고치지 않습니다.</p></section>;
   const save = async body => { if (!reviewer.trim()) { setErr('오른쪽 아래 검수자 이름을 먼저 적어 주세요.'); return; } setBusy(true); setErr(''); try { tf.setReview(await api(`/trial-flow/${tf.id}/space/item`, { method: 'POST', body: { item_id: it.item_id, reviewer, ...body } })); setMode(''); tf.reload(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
-  const search = async () => { if (!q.trim()) return; try { const v = await api(`/library/search?${new URLSearchParams({ q: q.trim(), placeableOnly: '1' })}`); setFound((v.results || []).slice(0, 16).map(r => r.item)); } catch (e) { setErr(e.message); } };
+  const search = async () => { if (!q.trim()) return; try { const v = await api(`/library/search?${new URLSearchParams({ q: q.trim(), placeableOnly: '1' })}`); setFound((v.results || []).slice(0, 16).map(r => ({ ...r.item, score: r.score, reasons: r.reasons || [] }))); } catch (e) { setErr(e.message); } };
   const step = (k, d, lo, hi) => setAdj(a => ({ ...a, [k]: +Math.min(hi, Math.max(lo, (a[k] || 0) + d)).toFixed(2) }));
-  const grid = list => <div className="sv-grid">{list.filter(a => a.id !== it.pick?.id).map(a => <button key={a.id} className="sv-cand" disabled={busy} onClick={() => save({ verdict: 'swap', assetId: a.id })} title={a.nameKo}>{a.thumbnail ? <img src={a.thumbnail} alt="" loading="lazy" /> : <span className="sv-noimg">—</span>}<small>{a.nameKo}</small></button>)}</div>;
+  const grid = list => <div className="sv-grid">{list.filter(a => a.id !== it.pick?.id).map(a => <button key={a.id} className={`sv-cand ${(a.via ? a.via === '의미 검색' || (a.score ?? 0) < 0.5 : a.score != null && a.score < 0.5) ? 'weak' : ''}`} disabled={busy} onClick={() => save({ verdict: 'swap', assetId: a.id })} title={`${a.nameKo}${a.reasons?.length ? ' — ' + a.reasons.join(' · ') : ''}`}><Pic a={a} size={88} /><small>{a.nameKo}</small>{a.via ? <small className="sv-score">{a.via === '이름' ? '이름으로 찾음' : a.via === '의미 검색' ? '의미 검색으로 찾음' : `${a.via}(으)로 찾음`}{a.reasons?.[0] ? ` · ${a.reasons[0]}` : ''}</small> : a.score != null ? <small className="sv-score">{Math.round(a.score * 100)}점{a.reasons?.[0] ? ` · ${a.reasons[0]}` : ''}</small> : null}</button>)}</div>;
   return <section className="panel approve-panel sv-obj">
     <p className="eyebrow">물건 판정</p>
     <h2>{it.name}{it.host && <span className="sv-host">퍼즐 단서</span>}</h2>
     <p className="muted">{it.roomName} · {it.item_id}{it.reason ? ` — ${it.reason.slice(0, 120)}` : ''}</p>
-    {it.pick ? <div className="sv-cur">{it.pick.thumbnail && <img src={it.pick.thumbnail} alt="" />}<span><b>{it.pick.nameKo}</b>{it.pick.needsReplacement && <small className="warning-text"> 임시본</small>}</span></div> : <p className="warning-text">고른 에셋 없음{it.missing?.why ? ` — ${it.missing.why}` : ''}</p>}
+    {it.pick ? <div className="sv-cur"><Pic a={it.pick} size={56} /><span><b>{it.pick.nameKo}</b>{it.pick.needsReplacement && <small className="warning-text"> 임시본</small>}</span></div> : <p className="warning-text">고른 에셋 없음{it.missing?.why ? ` — ${it.missing.why}` : ''}</p>}
     <p>지금 판정: <Badge v={cur} />{cur?.note ? <small className="muted"> {cur.note}</small> : null}{cur && <button className="quiet" disabled={busy} onClick={() => save({ verdict: null })}>판정 취소</button>}</p>
     <div className="sv-acts">
       <button disabled={busy || !it.pick} onClick={() => save({ verdict: 'approve' })}>좋음</button>
@@ -118,7 +121,7 @@ function ObjectPanel({ tf, reviewer }) {
     </div>
     {(it.puzzles || []).length > 0 && <div className="sv-pz"><b>이 물건에서 나오는 단서</b>{it.puzzles.map(z => <div key={z.puzzle_id + z.role}><small className="muted">{z.puzzle_id} 「{z.title}」 — {z.role}</small>{z.clues.map(c => <p key={c.id}>🔎 {c.how ? <span>{c.how} </span> : null}<b>{c.carrier || c.id}</b>{c.text ? <> — {c.text}</> : null}</p>)}</div>)}</div>}
     {it.host && <p className="warning-text sv-why">「빼기」가 꺼진 까닭: 이 물건에서 퍼즐 단서가 나옵니다(목록의 「퍼즐」 표시). 빼면 그 퍼즐을 풀 수 없게 됩니다 — 모양이 문제면 「다른 에셋」, 있어서 안 되는 물건이면 「수정 요청」에 까닭을 적어 주세요.</p>}
-    {mode === 'swap' && <div className="sv-mode"><b>후보에서 고르기</b>{grid(it.candidates)}<div className="button-row"><input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()} placeholder="라이브러리 검색" /><button className="secondary" onClick={search}>찾기</button></div>{found && grid(found)}</div>}
+    {mode === 'swap' && <div className="sv-mode"><b>후보 — 계획한 물건 「{it.name}」 이름으로 찾은 것(관련도 순)</b><small className="muted"> 지금 고른 에셋과 닮은 것이 아니라, 이 자리에 올 물건 이름으로 07 이 라이브러리를 검색해 모은 후보입니다. 후보마다 어느 검색어로 찾았는지 적었습니다(이름 · 같은 종류 낱말 · 의미 검색). 흐린 것은 관련이 약한 후보. 원하는 게 없으면 아래에서 직접 검색하세요.</small>{grid(it.candidates)}<div className="button-row"><input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()} placeholder="라이브러리 검색" /><button className="secondary" onClick={search}>찾기</button></div>{found && grid(found)}</div>}
     {mode === 'adjust' && <div className="sv-mode"><b>위치·크기</b><small className="muted">방 기준 — 뒷벽 쪽 / 앞(문·마당) 쪽 · 왼벽 / 오른벽</small>
       <div className="sv-pad"><button onClick={() => step('dz', -0.25, -4, 4)}>↑ 뒷벽 쪽</button><div><button onClick={() => step('dx', -0.25, -4, 4)}>← 왼벽</button><button onClick={() => step('dx', 0.25, -4, 4)}>오른벽 →</button></div><button onClick={() => step('dz', 0.25, -4, 4)}>↓ 앞쪽</button></div>
       <div className="button-row"><button className="secondary" onClick={() => step('rot', -90, -180, 180)}>⟲ 90°</button><button className="secondary" onClick={() => step('rot', 90, -180, 180)}>⟳ 90°</button><button className="secondary" onClick={() => step('scale', -0.1, 0.5, 2)}>작게</button><button className="secondary" onClick={() => step('scale', 0.1, 0.5, 2)}>크게</button></div>
