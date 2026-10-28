@@ -1,14 +1,15 @@
 import json
+import uuid
 from copy import deepcopy
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from app.services.approval_history import ReviewRecord
 from app.services.content_fingerprint import compute_content_fingerprint
 from app.services.pinned_content import ContentPin, PinnedContentStore
-from app.services.publication_gate import ApprovalRecord, evaluate_publication
+from app.services.publication_gate import evaluate_publication
 
 # 가상 테스트 데이터. 실제 PM 콘텐츠 · 실제 승인 기록이 아니다.
 CASE_ID = "case_gate_test"
@@ -206,13 +207,28 @@ def seal(documents: dict[str, dict[str, Any]]) -> tuple[dict[str, bytes], str]:
     return encode(documents), fingerprint
 
 
+def review(
+    gate: str,
+    decision: str,
+    fingerprint: str,
+    at: str = "2026-10-27T00:00:00.000Z",
+    **extra: Any,
+) -> ReviewRecord:
+    if decision != "approved":
+        extra.setdefault("reason", "(가상) 사유")
+    return ReviewRecord(
+        review_id=str(uuid.uuid4()),
+        gate=gate,
+        target_hash=fingerprint,
+        decision=decision,
+        reviewer="reviewer-test",
+        reviewed_at=at,
+        **extra,
+    )
+
+
 def approvals_for(fingerprint: str, gates=("G1", "G2", "G3"), decision="approved"):
-    records = [
-        ApprovalRecord(
-            gate, decision, fingerprint, "reviewer-test", datetime(2026, 10, 27)
-        )
-        for gate in gates
-    ]
+    records = [review(gate, decision, fingerprint) for gate in gates]
     return lambda case_id, version: records
 
 
@@ -399,15 +415,8 @@ def test_approval_for_previous_content_requires_reapproval() -> None:
 
 def test_rejected_decision_blocks_publication() -> None:
     files, fingerprint = no_idmap_files()
-    records = [
-        ApprovalRecord(
-            g, "approved", fingerprint, "reviewer-test", datetime(2026, 10, 27)
-        )
-        for g in ("G1", "G3")
-    ] + [
-        ApprovalRecord(
-            "G2", "rejected", fingerprint, "reviewer-test", datetime(2026, 10, 27)
-        )
+    records = [review(g, "approved", fingerprint) for g in ("G1", "G3")] + [
+        review("G2", "rejected", fingerprint)
     ]
 
     result, store = run(files, fingerprint, approval_source=lambda c, v: records)
@@ -416,20 +425,43 @@ def test_rejected_decision_blocks_publication() -> None:
     assert store.versions(CASE_ID) == ()
 
 
-def test_conflicting_decisions_for_same_fingerprint_are_refused() -> None:
+def test_latest_record_for_same_fingerprint_decides() -> None:
+    # PM v0.4.3: 같은 해시의 최신 (reviewed_at, review_id) 기록이 최종 결정이다
+    # (v0.4.2 까지는 승인 · 반려가 섞이면 무조건 거부했다).
     files, fingerprint = no_idmap_files()
-    records = list(approvals_for(fingerprint)(CASE_ID, 1)) + [
-        ApprovalRecord(
-            "G2", "rejected", fingerprint, "reviewer-test", datetime(2026, 10, 28)
+    records = list(approvals_for(fingerprint)(CASE_ID, 1))
+    g2_approval = next(r for r in records if r.gate == "G2")
+    records.append(
+        review(
+            "G2",
+            "rejected",
+            fingerprint,
+            "2026-10-28T00:00:00.000Z",
+            supersedes=g2_approval.review_id,
         )
-    ]
+    )
 
     result, store = run(files, fingerprint, approval_source=lambda c, v: records)
 
-    # 더 늦은 시각이라도 최종 판정을 추측하지 않는다.
-    assert result.check("APPROVALS").reasons == ("G2:conflicting decisions",)
+    assert result.check("APPROVALS").reasons == ("G2:rejected",)
     assert result.registered is False
     assert store.versions(CASE_ID) == ()
+
+
+def test_legacy_approval_record_objects_are_not_converted() -> None:
+    files, fingerprint = no_idmap_files()
+    legacy = {
+        "gate": "G1",
+        "decision": "approved",
+        "target_hash": fingerprint,
+        "approver": "reviewer-test",
+        "decided_at": "2026-10-27",
+    }
+
+    result, _ = run(files, fingerprint, approval_source=lambda c, v: [legacy])
+
+    assert result.check("APPROVALS").reasons == ("incompatible approval record",)
+    assert result.approved is False
 
 
 # --- fingerprint · 파일 머리 ---
