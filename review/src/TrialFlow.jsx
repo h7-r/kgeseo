@@ -106,6 +106,7 @@ function ObjectPanel({ tf, reviewer }) {
       <button className="secondary" onClick={() => setMode(m => m === 'replan' ? '' : 'replan')}>수정 요청</button>
       <button className="secondary" onClick={() => setMode(m => m === 'regenerate' ? '' : 'regenerate')}>새로 만들기</button>
     </div>
+    {(it.puzzles || []).length > 0 && <div className="sv-pz"><b>이 물건에서 나오는 단서</b>{it.puzzles.map(z => <div key={z.puzzle_id + z.role}><small className="muted">{z.puzzle_id} 「{z.title}」 — {z.role}</small>{z.clues.map(c => <p key={c.id}>🔎 {c.how ? <span>{c.how} </span> : null}<b>{c.carrier || c.id}</b>{c.text ? <> — {c.text}</> : null}</p>)}</div>)}</div>}
     {it.host && <p className="warning-text sv-why">「빼기」가 꺼진 까닭: 이 물건에서 퍼즐 단서가 나옵니다(목록의 「퍼즐」 표시). 빼면 그 퍼즐을 풀 수 없게 됩니다 — 모양이 문제면 「다른 에셋」, 있어서 안 되는 물건이면 「수정 요청」에 까닭을 적어 주세요.</p>}
     {mode === 'swap' && <div className="sv-mode"><b>후보에서 고르기</b>{grid(it.candidates)}<div className="button-row"><input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && search()} placeholder="라이브러리 검색" /><button className="secondary" onClick={search}>찾기</button></div>{found && grid(found)}</div>}
     {mode === 'adjust' && <div className="sv-mode"><b>위치·크기</b><small className="muted">방 기준 — 뒷벽 쪽 / 앞(문·마당) 쪽 · 왼벽 / 오른벽</small>

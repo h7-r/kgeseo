@@ -69,9 +69,16 @@ export async function spaceReview(root, id) {
   const roomName = new Map((plan.rooms || []).map(r => [r.id, r.name || r.role]));
   const placed = new Map(); (vd?.ITEMS || []).forEach((it, i) => (it.meta?.log || []).forEach(l => { if (l.id && String(l.result || '').startsWith('놓음')) placed.set(l.id, { roomIdx: i, roomName: it.name, node: l.name, where: l.where }); }));
   const selBy = new Map(sel.selections.map(x => [x.item_id, x]));
+  // 10/28 미르: 「무슨 에셋이 어떻게 단서가 나오는지 확인이 안 된다」 — 퍼즐 물건마다 어느 퍼즐의 무슨 단서가 어떻게 나오는지
+  const pz = await readJ(path.join(D, 'puzzle.json'));
+  const ACT = { lift: '들추면', open: '열면', empty: '비우면', break: '깨면', look: '살펴보면', move: '옮기면', fold: '젖히면', read: '읽으면' };
+  const cluesOf = needs => (pz?.puzzles || []).flatMap(P => (P.host_needs || []).filter(h => needs.includes(h.need_id)).map(h => ({
+    puzzle_id: P.puzzle_id, title: P.title, role: h.what || '',
+    clues: (P.clues || []).filter(cl => cl.from === h.need_id || (h.gives || []).includes(cl.clue_id)).map(cl => ({ id: cl.clue_id, how: cl.reveal?.reaction || (ACT[cl.reveal?.action] ? `${ACT[cl.reveal.action]} 나온다` : ''), text: cl.text || '', carrier: cl.carrier?.name || '' })),
+  })));
   const items = (plan.contents || []).map(c => { const x = selBy.get(c.item_id); const pl = placed.get(c.item_id);
     return { item_id: c.item_id, name: c.name_ko, room: c.room, roomName: pl?.roomName || roomName.get(c.room) || c.room, role: c.role, host: (c.serves || []).length > 0, place: c.place, kind: x ? 'asset' : c.place === 'marker' || c.role === 'marker' ? 'marker' : c.fixture ? 'fixture' : 'other',
-      placed: Boolean(pl), node: pl?.node || null, roomIdx: pl?.roomIdx ?? null,
+      placed: Boolean(pl), node: pl?.node || null, roomIdx: pl?.roomIdx ?? null, puzzles: (c.serves || []).length ? cluesOf(c.serves) : [],
       pick: x?.pick ? { id: x.pick.id, nameKo: x.pick.nameKo, thumbnail: x.pick.thumbnail || thumb(x.pick.id), needsReplacement: x.pick.needsReplacement } : null,
       candidates: (x?.candidates || []).map(cd => ({ ...cd, thumbnail: thumb(cd.id) })), reason: x?.reason || '', missing: x?.missing || null };
   });
