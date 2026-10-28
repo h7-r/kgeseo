@@ -46,12 +46,15 @@ HINTS = {
     (CASE_ID, "PZ_B", 1): "(가상) B 1단계 원문",
     (CASE_ID, "PZ_B", 2): "(가상) B 2단계 원문 가상정답비",
 }
+# PM v0.4.3: 공개 조건이 없는 대사는 내보내지 않으므로 늘 공개 조건을 명시한다.
+OPEN = {"always": True}
 LINES = {
     "NUDGE_GENERAL": ApprovedNpcLine(
         line_id="NUDGE_GENERAL",
         kind="nudge",
         text="(가상) 주변을 더 살펴보자.",
         approved=True,
+        reveal_when=OPEN,
     ),
     "NUDGE_PZ_A": ApprovedNpcLine(
         line_id="NUDGE_PZ_A",
@@ -59,27 +62,59 @@ LINES = {
         text="(가상) 그 자물쇠 근처가 수상해.",
         approved=True,
         puzzle_id="PZ_A",
+        reveal_when=OPEN,
     ),
     "NUDGE_DRAFT": ApprovedNpcLine(
-        line_id="NUDGE_DRAFT", kind="nudge", text="(가상) 검수 전 초안", approved=False
+        line_id="NUDGE_DRAFT",
+        kind="nudge",
+        text="(가상) 검수 전 초안",
+        approved=False,
+        reveal_when=OPEN,
     ),
     "NUDGE_BLANK": ApprovedNpcLine(
-        line_id="NUDGE_BLANK", kind="nudge", text="   ", approved=True
+        line_id="NUDGE_BLANK",
+        kind="nudge",
+        text="   ",
+        approved=True,
+        reveal_when=OPEN,
     ),
     "NUDGE_LEAK": ApprovedNpcLine(
         line_id="NUDGE_LEAK",
         kind="nudge",
         text="(가상) 답은 가상 정답비 야",
         approved=True,
+        reveal_when=OPEN,
     ),
     "NUDGE_HINT_COPY": ApprovedNpcLine(
         line_id="NUDGE_HINT_COPY",
         kind="nudge",
         text="(가상) 참고로 (가상) B 1단계 원문",
         approved=True,
+        reveal_when=OPEN,
     ),
     "NUDGE_WRONG_ID": ApprovedNpcLine(
-        line_id="NUDGE_OTHER", kind="nudge", text="(가상) 다른 줄", approved=True
+        line_id="NUDGE_OTHER",
+        kind="nudge",
+        text="(가상) 다른 줄",
+        approved=True,
+        reveal_when=OPEN,
+    ),
+    "NUDGE_NO_REVEAL": ApprovedNpcLine(
+        line_id="NUDGE_NO_REVEAL", kind="nudge", text="(가상) 조건 없음", approved=True
+    ),
+    "NUDGE_LOCKED": ApprovedNpcLine(
+        line_id="NUDGE_LOCKED",
+        kind="nudge",
+        text="(가상) 아직 닫힌 대사",
+        approved=True,
+        reveal_when={"puzzle_completed": "PZ_A"},
+    ),
+    "NUDGE_BAD_REVEAL": ApprovedNpcLine(
+        line_id="NUDGE_BAD_REVEAL",
+        kind="nudge",
+        text="(가상) 판정할 수 없는 조건",
+        approved=True,
+        reveal_when={"scene_reached": "SCENE_1"},
     ),
 }
 ALL_TEXTS = [*HINTS.values(), *(line.text for line in LINES.values())]
@@ -261,7 +296,17 @@ async def test_approved_nudge_is_returned_and_recorded_without_text() -> None:
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    "line_id", ["NUDGE_DRAFT", "NUDGE_MISSING", "NUDGE_BLANK", "NUDGE_WRONG_ID"]
+    "line_id",
+    [
+        "NUDGE_DRAFT",
+        "NUDGE_MISSING",
+        "NUDGE_BLANK",
+        "NUDGE_WRONG_ID",
+        # PM v0.4.3: 공개 조건이 없거나 · 닫혀 있거나 · 판정할 수 없으면 없는 대사와 같다
+        "NUDGE_NO_REVEAL",
+        "NUDGE_LOCKED",
+        "NUDGE_BAD_REVEAL",
+    ],
 )
 async def test_unapproved_missing_or_mismatched_nudge_is_rejected(line_id: str) -> None:
     db = session_db()

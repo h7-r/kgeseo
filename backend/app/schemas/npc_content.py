@@ -166,3 +166,24 @@ class NpcContentPack(NpcContentModel):
             *self.general_nudges,
             *(nudge for entry in self.puzzles for nudge in entry.nudges),
         ]
+
+
+class GeneralLinePack(NpcContentModel):
+    """케이스와 무관한 일반 팩 대사(계약 준비 v0.1 — 파일 위치 · 게시 절차 미정).
+
+    PM 기본 안내 문구(NPC_GENERIC_PUZZLE_*) 같은 공용 대사를 담는다. 승인은 팩 내용의 해시
+    (`app.services.npc_line_supply.general_pack_fingerprint`)에 대한 G1~G3 승인 이력으로만 정한다.
+    """
+
+    schema_version: Literal["npc-general-pack 0.1"]
+    pack_id: NonBlank
+    pack_version: int = Field(ge=1)
+    lines: list[NpcFallbackLine] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_unique_ids(self) -> "GeneralLinePack":
+        _require_text(self.pack_id, "pack_id")
+        line_ids = [line.line_id for line in self.lines]
+        if len(line_ids) != len(set(line_ids)):
+            raise ValueError("Duplicate line_id in general pack")
+        return self

@@ -10,7 +10,8 @@
 - 넣을 때와 꺼낼 때 깊은 복사를 해서, 호출하는 쪽이 고쳐도 묶음은 바뀌지 않는다.
 - 기존 서비스의 주입식 인터페이스(`runtime_loader` · `client_content_loader` · `hint_source` ·
   `line_source`)에 맞춘 함수를 만들어 준다. 서비스 코드는 바꾸지 않는다.
-- NPC 대사의 승인 여부는 v0.1에서 늘 미승인이다(승인 판정 규칙 미정).
+- NPC 대사의 승인 여부는 PM v0.4.3 승인 이력(`approval_source`)으로만 정한다. 승인 정보가 없으면
+  늘 미승인이다(기본 차단). 콘텐츠 안의 `status` · `approvals`는 쓰지 않는다.
 """
 
 import json
@@ -23,6 +24,7 @@ from app.schemas.case_content import CaseClientContent
 from app.schemas.npc import ApprovedNpcLine
 from app.schemas.npc_content import NpcContentPack
 from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition
+from app.services.approval_history import ApprovalSource, gate_decisions
 
 
 class PinnedContentError(Exception):
@@ -173,31 +175,44 @@ class PinnedContent:
 
         return self._tag(source)
 
-    def line_source(self) -> Callable[[str, str, str], ApprovedNpcLine | None]:
+    def is_approved(self, approval_source: ApprovalSource | None) -> bool:
+        """이 고정 버전이 G1~G3 승인 이력으로 승인됐는가. 승인 정보가 없으면 False(기본 차단)."""
+
+        if approval_source is None:
+            return False
+        records = approval_source(self._pin.case_id, self._pin.content_version)
+        return gate_decisions(records, self._pin.content_fingerprint) == ()
+
+    def line_source(
+        self, approval_source: ApprovalSource | None = None
+    ) -> Callable[[str, str, str], ApprovedNpcLine | None]:
+        """npc.json nudge 공급. 승인은 콘텐츠 안 값이 아니라 `approval_source`(승인 이력)로만 정한다.
+
+        `approval_source`가 없거나 이 버전의 세 관문이 모두 최종 승인이 아니면 늘 미승인이다.
+        공개 조건(`reveal_when`)을 함께 넘겨, 서비스가 세션 상태로 판정하게 한다.
+        """
+
         def source(case_id: str, npc_id: str, line_id: str) -> ApprovedNpcLine | None:
             self._ensure_case(case_id)
             pack = self._npc
             if pack is None or npc_id != pack.npc_id:
                 return None
-            for nudge in pack.general_nudges:
+            located = [(None, nudge) for nudge in pack.general_nudges] + [
+                (entry.puzzle_id, nudge)
+                for entry in pack.puzzles
+                for nudge in entry.nudges
+            ]
+            for puzzle_id, nudge in located:
                 if nudge.line_id == line_id:
                     return ApprovedNpcLine(
                         line_id=nudge.line_id,
                         kind="nudge",
                         text=nudge.text,
-                        approved=False,
+                        # 부를 때마다 이력을 다시 본다(나중에 반려 기록이 붙으면 바로 막힌다).
+                        approved=self.is_approved(approval_source),
+                        puzzle_id=puzzle_id,
+                        reveal_when=nudge.reveal_when,
                     )
-            for entry in pack.puzzles:
-                for nudge in entry.nudges:
-                    if nudge.line_id == line_id:
-                        # v0.1: 승인 판정 규칙이 정해지지 않아 늘 미승인이다.
-                        return ApprovedNpcLine(
-                            line_id=nudge.line_id,
-                            kind="nudge",
-                            text=nudge.text,
-                            approved=False,
-                            puzzle_id=entry.puzzle_id,
-                        )
             return None
 
         return self._tag(source)

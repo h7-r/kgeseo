@@ -8,6 +8,8 @@ NPC는 게임 진행 상태를 바꾸지 않는다. 승인된 nudge 문장을 �
 - 승인 콘텐츠(`npc.json` 위치 미정)와 힌트 원문은 호출하는 쪽이 넘긴다. 힌트 원문의 공식 원본은
   server.json `puzzles[].hints[]`이며 `app.services.hint.server_hint_source()`로 만든다.
 - 대사 · 힌트 원문은 이벤트에 저장하지 않는다. 응답할 때마다 원본에서 읽는다.
+- nudge는 승인(`approved`)과 함께 공개 조건(`reveal_when`)이 서버 상태로 열려 있어야 내보낸다.
+  공개 조건이 없거나 판정할 수 없으면 내보내지 않는다(PM v0.4.3).
 - 요청의 `trigger`는 인가 근거가 아니다(플레이어가 실제로 눌렀다는 증명이 아니다).
   허용 판정은 늘 서버의 `hint_levels`로 한다. 다만 자동 도움 제안은 nudge만 쓰므로,
   `trigger="auto_help_offer"`라고 밝힌 재표시 요청은 단계와 상관없이 거부한다
@@ -54,6 +56,7 @@ from app.services.interaction import (
     _is_same_request,
     _to_db_datetime,
 )
+from app.services.npc_reveal import is_revealed
 from app.services.play_session import PlaySessionNotFoundError
 from app.services.puzzle_runtime import load_case_runtime, normalize_answer
 
@@ -228,13 +231,17 @@ def _resolve(
     hint_source: HintSource,
 ) -> tuple[NpcLineText | None, ReshownHint | None]:
     if isinstance(request, NpcNudgeRequest):
-        return _resolve_nudge(request, case_id, runtime, line_source, hint_source), None
+        nudge = _resolve_nudge(
+            request, case_id, state, runtime, line_source, hint_source
+        )
+        return nudge, None
     return None, _resolve_reshow(request, case_id, state, runtime, hint_source)
 
 
 def _resolve_nudge(
     request: NpcNudgeRequest,
     case_id: str,
+    state: dict[str, Any],
     runtime: PuzzleRuntimeDefinition,
     line_source: NpcLineSource,
     hint_source: HintSource,
@@ -246,6 +253,10 @@ def _resolve_nudge(
         or line.kind != "nudge"
         or line.line_id != request.line_id
         or not line.text.strip()
+        # 공개 조건이 없거나 판정할 수 없거나 아직 열리지 않았으면 없는 대사와 같게 다룬다
+        # (닫힌 대사가 있다는 사실도 알리지 않는다).
+        or line.reveal_when is None
+        or not is_revealed(line.reveal_when, state)
     ):
         raise NpcLineNotFoundError(request.line_id)
     if request.puzzle_id is not None:
