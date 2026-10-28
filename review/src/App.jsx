@@ -221,6 +221,9 @@ export default function App() {
       expectedRevision: project.revision, gate, decision, reviewer, note: notes[gate] || '', checks: (checks[gate] || []).filter(key => gateChecks.some(([id]) => id === key)),
     } });
     await refresh(); await list();
+    // 10/28 미르: 「모든 탭에서 승인이 끝나면 자동으로 다음 탭으로」 — 예전 검수 기록 방식: 설화 → 공간(배치·에셋 → 동선·충돌) → 퍼즐
+    const NEXT = { source: 'assets', assets: 'space', space: 'play' };
+    if (decision === 'approved' && NEXT[gate]) { if (!['space', 'assets'].includes(NEXT[gate])) await stopGame(); setGate(NEXT[gate]); setViewerOpen(false); }
     const applied = response.decisions?.at(-1)?.placementApply === 'applied' ? response.decisions.at(-1).placementIds.length : 0;
     setNotice(applied ? `반영됨 — 배치 변경안 ${applied}건을 게임 데이터(manifest 「놓기」)에 반영했습니다. 다음 회차에서 실제 공간으로 확인하세요. (반영 전 manifest 는 .local/review/ 에 백업)` : `${gateName(gate)} · ${statusText[decision]} 판정을 서버 파일에 기록했습니다.`);
   });

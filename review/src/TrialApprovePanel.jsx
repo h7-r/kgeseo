@@ -51,6 +51,6 @@ export default function TrialApprovePanel({ reviewer, setReviewer, onGoCine }) {
       <button className="wide" disabled={busy || why.length > 0} onClick={doApprove}>{busy ? '승인하는 중…' : '설화·기획 승인 → 이야기 컷 검수로'}</button>
       <small className="muted">05·05b 는 Claude 로 돕니다(시험마다 약 $1~2).</small>
     </>}
-    {err && <p className="error">{err}</p>}
+    {err && <div className="blockers ap-err"><b>승인하지 못했습니다</b><p>{err}</p></div>}
   </section>;
 }

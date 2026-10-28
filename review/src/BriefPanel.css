@@ -45,3 +45,5 @@
 @media(max-width:900px){.brief-summaries{grid-template-columns:1fr}.brief-actions{flex-wrap:wrap}}
 /* 10/28 설화·기획 승인 칸 */
 .approve-panel h2{font-size:16px;margin-bottom:4px}.approve-panel>p.muted{line-height:1.7}.ap-dl{display:grid;grid-template-columns:80px 1fr;gap:6px;font-size:12px;margin:14px 0}.ap-dl dt{color:var(--muted)}.ap-dl dd{margin:0;text-align:right}.ap-ok{font-size:12px;color:#347253;background:#e7f3ed;border-radius:8px;padding:10px 12px}.ap-chain{list-style:none;padding:0;margin:12px 0;font-size:12px}.ap-chain li{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid #eee}.ap-chain b{color:#6855a9}.ap-st{margin-left:auto;font-size:11px;border-radius:10px;padding:2px 8px;background:#f0f1f5;color:#838795}.ap-st.done{background:#e7f3ed;color:#347253}.ap-st.running{background:#fff1d7;color:#96702a}.ap-st.failed{background:#faeae6;color:#ab5147}
+
+.ap-err{background:#fff0ee;color:#9b433f}.ap-err p{margin:6px 0 0;font-size:12px}

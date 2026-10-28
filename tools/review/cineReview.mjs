@@ -15,6 +15,9 @@ const exists = f => fs.access(f).then(() => true, () => false);
 const h8 = s => crypto.createHash('sha1').update(String(s)).digest('hex').slice(0, 8);
 const fail = (status, message) => { const e = new Error(message); e.status = status; throw e; };
 const director = async root => import(pathToFileURL(path.join(root, 'tools/review/storyDirector.mjs')).href + `?t=${Date.now()}`);
+// 10/28: 맥이 잠들어 끊긴 단계는 「running」으로 남는다 — 3분 넘게 저장이 없으면 끊긴 것으로 본다. 끊겼어도 결과가 저장돼 있으면 끝난 것으로
+const live = (t, sid) => t.steps?.[sid]?.status === 'running' && Date.now() - Date.parse(t.updatedAt || 0) < 180e3;
+const doneish = (t, sid) => { const x = t.steps?.[sid]; return x?.status === 'done' || (x?.status === 'running' && Boolean(x.result) && !live(t, sid)); };
 const STATUS = ['pending', 'approved', 'rejected'];
 
 async function sceneTitles(root, id) { try { const a = await readJ(path.join(tdir(root, id), 'AI-04.json')); return Object.fromEntries((a.scenes || []).map(s => [s.scene_id, s.title || s.scene_id])); } catch { return {}; } }
@@ -49,7 +52,9 @@ export async function detail(root, id) {
     const q = x.q; s.panels.push({ key: x.key, id: q.id, caption: q.caption || '', image_prompt: q.image_prompt || '', img: q.img || null, candidates: q.candidates || (q.img ? [q.img] : []), review: q.review?.status ? q.review : { status: 'pending' }, aiReview: q.aiReview || (q.review && 'ok' in q.review ? q.review : null) /* 10/27 이전 판: Claude 그림 판정이 review 자리에 있었다 */, job: jobs[x.key] || null });
   }
   const all = sections.flatMap(s => s.panels); const pending = all.filter(p => p.review.status === 'pending').length;
-  const next = { id: 's06', status: t.steps?.s06?.status || null, pending, ready: pending === 0 };
+  let left = [];
+  try { const T = await import(pathToFileURL(path.join(root, 'tools/review/agentTrial.mjs')).href + `?t=${Date.now()}`); const L = T.stepsFor(t); const di = L.findIndex(x => x.director); if (di >= 0) left = L.slice(di + 1).map(x => x.id).filter(sid => !doneish(t, sid)); } catch { /* 없어도 됨 */ }
+  const next = { id: 's06', status: t.steps?.s06?.status || null, pending, ready: pending === 0, left, running: left.some(sid => live(t, sid)) };
   return { next, trial: { id, title: t.title || id, spaceKind: t.spaceKind || 'outdoor' }, bible: doc.bible || {}, sections, history: (doc.humanReview || []).slice(-40).reverse() };
 }
 
@@ -143,8 +148,8 @@ export async function cont(root, id) {
   if (di < 0) fail(409, '이 시험에는 장면 연출 단계가 없습니다.');
   const n = await T.cinePending(root, id); if (n > 0) fail(409, `검수 전 컷이 ${n}개 남았습니다.`);
   await T.cineGate(root, t, L[di + 1]?.id || L[di].id); // 설화·기획 승인도 다시 확인
-  if (L.some(s => t.steps?.[s.id]?.status === 'running')) return { started: [], running: true };
-  const rest = L.slice(di + 1).map(s => s.id).filter(sid => t.steps?.[sid]?.status !== 'done');
+  if (L.some(s => live(t, s.id) && !doneish(t, s.id))) return { started: [], running: true };
+  const rest = L.slice(di + 1).map(s => s.id).filter(sid => !doneish(t, sid));
   if (rest.length) {
     const { openSync } = await import('node:fs');
     const log = openSync(path.join(tdir(root, id), 'run-chain.log'), 'a');

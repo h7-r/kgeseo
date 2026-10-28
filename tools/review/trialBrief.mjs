@@ -9,6 +9,9 @@ import crypto from 'node:crypto';
 
 const fail = (status, message) => { const e = new Error(message); e.status = status; throw e; };
 const mod = async (root, rel) => import(pathToFileURL(path.join(root, rel)).href + `?t=${Date.now()}`);
+// 10/28: 맥이 잠들어 끊긴 단계는 「running」으로 남는다 — 3분 넘게 저장이 없으면 끊긴 것으로 본다. 끊겼어도 결과가 저장돼 있으면 끝난 것으로
+const live = (t, sid) => t.steps?.[sid]?.status === 'running' && Date.now() - Date.parse(t.updatedAt || 0) < 180e3;
+const doneish = (t, sid) => { const x = t.steps?.[sid]; return x?.status === 'done' || (x?.status === 'running' && Boolean(x.result) && !live(t, sid)); };
 const DATA = root => path.join(root, '.local/review');
 
 /** 시험을 brief.mjs 가 다루는 「프로젝트 모양」으로. id 가 p:<검수 id> 면 검수 기록(프로젝트) 그대로 */
@@ -63,7 +66,7 @@ export async function get(root, id, { auto = true } = {}) {
 async function chainOf(root, t) {
   const T = await mod(root, 'tools/review/agentTrial.mjs'); const list = T.stepsFor(t);
   const i4 = list.findIndex(s => s.id === 's04'); const di = list.findIndex(s => s.director);
-  const row = s => ({ id: s.id, label: s.label || s.title || s.id, status: t.steps?.[s.id]?.status || 'idle', error: t.steps?.[s.id]?.error || null });
+  const row = s => ({ id: s.id, label: s.label || s.title || s.id, status: doneish(t, s.id) ? 'done' : live(t, s.id) ? 'running' : (t.steps?.[s.id]?.status === 'running' ? 'failed' : t.steps?.[s.id]?.status || 'idle'), error: t.steps?.[s.id]?.error || null });
   return { docs: list.slice(0, i4 + 1).map(row), chain: list.slice(i4 + 1, di >= 0 ? di + 1 : i4 + 2).map(row) };
 }
 
@@ -81,9 +84,9 @@ export async function approve(root, id, input = {}) {
   const reviewer = String(input.reviewer || '').trim().slice(0, 100); if (!reviewer) fail(422, '검수자 이름을 적어 주세요.');
   const p = await asProject(root, id); const B = await mod(root, 'tools/review/brief.mjs'); const T = await mod(root, 'tools/review/agentTrial.mjs');
   const list = T.stepsFor(p._trial); const i4 = list.findIndex(s => s.id === 's04'); const di = list.findIndex(s => s.director);
-  const notDone = list.slice(0, i4 + 1).filter(s => p._trial.steps?.[s.id]?.status !== 'done').map(s => s.id);
+  const notDone = list.slice(0, i4 + 1).filter(s => !doneish(p._trial, s.id)).map(s => s.id);
   if (notDone.length) fail(409, `문서가 아직 다 나오지 않았습니다(${notDone.join('·')}).`);
-  if (list.some(s => p._trial.steps?.[s.id]?.status === 'running')) fail(409, '다른 단계가 돌고 있습니다.');
+  { const busy = list.filter(s => live(p._trial, s.id) && !doneish(p._trial, s.id)).map(s => s.id); if (busy.length) fail(409, `${busy.join('·')} 단계가 돌고 있습니다 — 끝난 뒤 승인해 주세요.`); }
   const cur = await B.currentBrief(DATA(root), p); if (!cur.brief) fail(409, '사람 확인 카드가 아직 없습니다.');
   const bl = B.briefBlockers(cur.brief); if (bl.length) fail(409, `카드 판정이 남았습니다 — ${bl.map(b => b.message).join(' ')}`);
   const t = JSON.parse(await fs.readFile(trialPath(root, p._trial.id), 'utf8'));
@@ -91,7 +94,7 @@ export async function approve(root, id, input = {}) {
   t.updatedAt = new Date().toISOString();
   await fs.writeFile(trialPath(root, p._trial.id), JSON.stringify(t, null, 2));
   // 05 ~ 05b 를 이어서(이미 끝난 단계는 건너뜀). 05b 가 끝나면 이야기 컷 사람 검수
-  const chain = list.slice(i4 + 1, di >= 0 ? di + 1 : i4 + 2).map(s => s.id).filter(sid => t.steps?.[sid]?.status !== 'done');
+  const chain = list.slice(i4 + 1, di >= 0 ? di + 1 : i4 + 2).map(s => s.id).filter(sid => !doneish(t, sid));
   let started = [];
   if (chain.length) {
     const { spawn } = await import('node:child_process'); const { openSync } = await import('node:fs');
