@@ -34,6 +34,8 @@ export default function BriefPanel({ project, dirty, reviewer, setReviewer, onJu
     return { total: items.length, pending: items.filter(i => !i.decision).length, issue: items.filter(i => i.decision === 'issue').length, ok: items.filter(i => i.decision === 'ok').length };
   }, [brief]);
   useEffect(() => { onStatus?.(brief ? counts : null); }, [brief, counts, onStatus]);
+  // 10/28 미르: 버튼 없이 — 카드가 없고 문서가 다 있으면 서버가 뒤에서 만들고, 화면은 끝날 때까지 다시 읽는다
+  useEffect(() => { if (!state?.making) return; const t = setTimeout(load, 6000); return () => clearTimeout(t); }, [state, load]);
 
   const decide = async (item, decision) => {
     setBusyId(item.id); setError('');
@@ -66,8 +68,8 @@ export default function BriefPanel({ project, dirty, reviewer, setReviewer, onJu
         <div className="brief-empty">
           <b>{state.stale ? '문서 내용이 바뀌어 예전 카드는 쓰지 않습니다.' : '아직 카드가 없습니다.'}</b>
           {state.auto ? <>
-            <p>{state.ready ? '04 Scene 구성표가 끝나면 자동으로 만들어집니다. 만들어지지 않았거나 문서가 바뀌었으면 아래 단추로 만드세요(Claude, 약 $0.2~0.4).' : '01·02·04 문서가 모두 생기면(04 가 끝나면) 자동으로 만들어집니다.'}</p>
-            <div className="brief-command">{state.ready && makePath && <button onClick={make} disabled={making}>{making ? '만드는 중… (1분 안팎)' : '카드 만들기'}</button>}<button className="secondary" onClick={load}>다시 읽기</button></div>
+            <p>{state.making ? '문서를 대조해 사람이 확인할 곳을 뽑고 있습니다(1~2분). 끝나면 여기에 저절로 나옵니다.' : state.ready ? '곧 만들어집니다.' : '설화 원천·시놉시스·씬 계획 문서가 모두 생기면 저절로 만들어집니다.'}</p>
+            {state.lastError && <p className="error">카드를 만들지 못했습니다: {state.lastError} {makePath && <button className="quiet" onClick={make} disabled={making}>다시 시도</button>}</p>}
           </> : <>
           <p>카드 만들기는 제작 단계라 이 화면에서 API 를 부르지 않습니다. 저장소 폴더의 터미널에서 아래 명령을 실행한 뒤 「다시 읽기」를 누르세요. (한 번에 약 $0.2~0.4, 상한 $1)</p>
           <div className="brief-command"><code>{state.command}</code><button className="secondary" onClick={copy}>{copied ? '복사됨' : '복사'}</button><button onClick={load}>다시 읽기</button></div>

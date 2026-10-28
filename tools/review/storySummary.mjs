@@ -26,10 +26,18 @@ async function projectOf(root, id) {
 }
 const fileOf = (root, id) => isTrial(id) ? path.join(root, '.local/review/trials', id.slice(6), 'story_summary.json') : path.join(root, '.local/review/summaries', `${id}.json`);
 
-export async function get(root, id) {
+// 10/28 미르: 「버튼 없이 설화를 입력하면 자동으로」 — 화면이 읽을 때 요약이 없거나 원문이 바뀌었으면 뒤에서 만든다
+const lockOf = (root, id) => fileOf(root, id) + '.making';
+async function makingNow(root, id) { try { return Date.now() - Number(await fs.readFile(lockOf(root, id), 'utf8')) < 5 * 60e3; } catch { return false; } }
+function kick(root, id) { (async () => { await fs.mkdir(path.dirname(lockOf(root, id)), { recursive: true }); await fs.writeFile(lockOf(root, id), String(Date.now())); try { await make(root, id); } catch (e) { await fs.writeFile(lockOf(root, id) + '.err', String(e.message || e)).catch(() => {}); } finally { await fs.rm(lockOf(root, id), { force: true }).catch(() => {}); } })(); }
+export async function get(root, id, { auto = true } = {}) {
   const p = await projectOf(root, id); const hash = sha(p.sourceText);
   let saved = null; try { saved = JSON.parse(await fs.readFile(fileOf(root, id), 'utf8')); } catch { /* 아직 없음 */ }
-  return { projectId: id, hasSource: Boolean((p.sourceText || '').trim()), sourceChars: (p.sourceText || '').length, summary: saved?.summary || null, at: saved?.at || null, costUsd: saved?.costUsd ?? null, stale: Boolean(saved && saved.sourceHash !== hash) };
+  const has = Boolean((p.sourceText || '').trim()); const stale = Boolean(saved && saved.sourceHash !== hash);
+  let busy = await makingNow(root, id);
+  if (auto && has && (!saved || stale) && !busy) { kick(root, id); busy = true; }
+  const lastError = busy || (saved && !stale) ? null : await fs.readFile(lockOf(root, id) + '.err', 'utf8').catch(() => null);
+  return { projectId: id, hasSource: has, sourceChars: (p.sourceText || '').length, summary: saved?.summary || null, at: saved?.at || null, costUsd: saved?.costUsd ?? null, stale, making: busy, lastError };
 }
 
 export async function make(root, id) {
@@ -41,7 +49,8 @@ export async function make(root, id) {
   const u = r.usage || {}; const costUsd = +(((u.input_tokens || 0) * 2 + (u.output_tokens || 0) * 10) / 1e6).toFixed(4);
   await fs.mkdir(path.dirname(fileOf(root, id)), { recursive: true });
   await fs.writeFile(fileOf(root, id), JSON.stringify({ summary, sourceHash: sha(p.sourceText), at: new Date().toISOString(), model: r.model, costUsd }, null, 2));
-  return get(root, id);
+  await fs.rm(lockOf(root, id) + '.err', { force: true }).catch(() => {});
+  return get(root, id, { auto: false });
 }
 
 export async function handle(root, method, urlPath) {

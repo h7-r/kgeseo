@@ -10,8 +10,9 @@ const fail = (status, message) => { const e = new Error(message); e.status = sta
 const mod = async (root, rel) => import(pathToFileURL(path.join(root, rel)).href + `?t=${Date.now()}`);
 const DATA = root => path.join(root, '.local/review');
 
-/** 시험을 brief.mjs 가 다루는 「프로젝트 모양」으로 */
+/** 시험을 brief.mjs 가 다루는 「프로젝트 모양」으로. id 가 p:<검수 id> 면 검수 기록(프로젝트) 그대로 */
 export async function asProject(root, id) {
+  if (String(id).startsWith('p:')) { const db = JSON.parse(await fs.readFile(path.join(DATA(root), 'projects.json'), 'utf8')); const p = db.projects.find(x => x.id === id.slice(2)); if (!p) fail(404, '검수 기록을 찾을 수 없습니다.'); return p; }
   if (!/^[a-f0-9-]{36}$/.test(id)) fail(400, '시험 id 가 잘못됐습니다.');
   const dir = path.join(DATA(root), 'trials', id); const t = JSON.parse(await fs.readFile(path.join(dir, 'trial.json'), 'utf8'));
   const read = f => fs.readFile(path.join(dir, f), 'utf8').catch(() => '');
@@ -35,24 +36,36 @@ export async function make(root, id) {
   const u = r.usage || {}; const cost = ((u.input_tokens || 0) * 2 + (u.output_tokens || 0) * 10) / 1e6;
   const checked = B.validateBrief(p, raw);
   await B.storeBrief(DATA(root), p, { createdAt: new Date().toISOString(), model: r.model, usage: { ...u, cost_usd: +cost.toFixed(5) }, truncated: r.stopReason === 'max_tokens', ...checked });
-  return get(root, id);
+  await fs.rm(path.join(DATA(root), 'briefs', `${p.id}.making.err`), { force: true }).catch(() => {});
+  return get(root, id, { auto: false });
 }
 
-export async function get(root, id) {
+// 10/28 미르: 「버튼이 따로 있다 — 설화를 입력하면 자동으로 다 채워져 나와 있어야」 → 화면이 읽을 때 카드가 없고 문서가 다 있으면 뒤에서 만든다(버튼 없음). 같은 것을 두 번 만들지 않게 표시 파일
+const lockOf = (root, p) => path.join(DATA(root), 'briefs', `${p.id}.making`);
+async function making(root, p) { try { const t = Number(await fs.readFile(lockOf(root, p), 'utf8')); return Date.now() - t < 10 * 60e3; } catch { return false; } }
+function kick(root, id, p) {
+  (async () => { await fs.mkdir(path.dirname(lockOf(root, p)), { recursive: true }); await fs.writeFile(lockOf(root, p), String(Date.now()));
+    try { await make(root, id); } catch (e) { await fs.writeFile(lockOf(root, p) + '.err', String(e.message || e)).catch(() => {}); } finally { await fs.rm(lockOf(root, p), { force: true }).catch(() => {}); } })();
+}
+export async function get(root, id, { auto = true } = {}) {
   const p = await asProject(root, id); const B = await mod(root, 'tools/review/brief.mjs');
   const cur = await B.currentBrief(DATA(root), p);
-  return { ...cur, command: '', auto: true, blockers: B.briefBlockers(cur.brief), ready: Boolean(p.sourceText && p.synopsis && p.sceneNotes) };
+  const ready = Boolean(String(p.sourceText || '').trim() && String(p.synopsis || '').trim() && String(p.sceneNotes || '').trim());
+  let busy = await making(root, p);
+  if (auto && !cur.brief && ready && !busy) { kick(root, id, p); busy = true; }
+  const lastError = cur.brief || busy ? null : await fs.readFile(lockOf(root, p) + '.err', 'utf8').catch(() => null);
+  return { ...cur, command: '', auto: true, making: busy, lastError, blockers: B.briefBlockers(cur.brief), ready };
 }
 
 export async function decide(root, id, itemId, input) {
   const p = await asProject(root, id); const B = await mod(root, 'tools/review/brief.mjs');
   await B.decideBriefItem(DATA(root), p, { ...input, itemId });
-  return get(root, id);
+  return get(root, id, { auto: false });
 }
 
 /** 05 부터: 카드가 있고 판정 전·문제가 남아 있으면 막는다. 카드가 아직 없으면(만드는 중·실패) 막지 않고 알림만 */
 export async function gate(root, id) {
-  const g = await get(root, id).catch(() => null); if (!g?.brief) return null;
+  const g = await get(root, id, { auto: false }).catch(() => null); if (!g?.brief) return null;
   return g.blockers.length ? g.blockers.map(b => b.message).join(' ') : null;
 }
 
@@ -64,8 +77,8 @@ export async function afterStep(root, id, stepId) {
 }
 
 export async function handle(root, method, urlPath, input) {
-  const m = urlPath.match(/^\/__review\/trial-brief\/([a-f0-9-]{36})(?:\/(make)|\/items\/([a-zA-Z0-9-]+))?$/); if (!m) fail(404, '경로를 찾을 수 없습니다.');
-  const [, id, act, itemId] = m;
+  const m = urlPath.match(/^\/__review\/trial-brief\/(?:(p)\/)?([a-zA-Z0-9-]{8,})(?:\/(make)|\/items\/([a-zA-Z0-9-]+))?$/); if (!m) fail(404, '경로를 찾을 수 없습니다.');
+  const [, isP, rawId, act, itemId] = m; const id = isP ? `p:${rawId}` : rawId;
   if (method === 'GET' && !act && !itemId) return [200, await get(root, id)];
   if (method === 'POST' && act === 'make') return [200, await make(root, id)];
   if (method === 'POST' && itemId) return [200, await decide(root, id, itemId, input || {})];

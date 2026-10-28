@@ -608,7 +608,12 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
         const [, preset, trialId, , stepId, stepAction, sub] = m;
         if (preset && req.method === 'GET') return send(200, await agentTrial.presetSource(root));
         if (!trialId && req.method === 'GET') return send(200, { trials: await agentTrial.listTrials(root), steps: agentTrial.STEPS, defaultBudgetUsd: agentTrial.DEFAULT_BUDGET_USD });
-        if (!trialId && req.method === 'POST') return send(201, await agentTrial.createTrial(root, input));
+        if (!trialId && req.method === 'POST') {
+          // 10/28 미르: 「설화를 입력하면 자동으로 다 채워져 나와 있어야」 — 만들자마자 01~04 를 이어 돌린다(요약·핵심 검수 카드는 단계 뒤에 자동). 05 부터는 사람 확인 뒤
+          const created = await agentTrial.createTrial(root, input);
+          if (input?.autoRun !== false && created?.id) { const { spawn } = await import('node:child_process'); const { openSync } = await import('node:fs'); const log = openSync(join(root, '.local/review/trials', created.id, 'run-chain.log'), 'a'); const ch = spawn(process.execPath, [join(root, 'tools/review/runChain.mjs'), root, created.id], { detached: true, stdio: ['ignore', log, log] }); ch.unref(); }
+          return send(201, created);
+        }
         if (trialId && !stepId && !sub && req.method === 'GET') {
           // 10/26: 검수 화면의 퍼즐 글도 원문 방언을 풀어 쓴 말로(dialect_gloss.json) — 원본 파일은 그대로
           const detail = await agentTrial.trialDetail(root, trialId);

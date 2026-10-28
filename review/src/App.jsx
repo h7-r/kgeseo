@@ -452,7 +452,7 @@ export default function App() {
       <div className={`content-layout ${spatial ? 'spatial-layout' : ''}`}><section className="content">
       {gate === 'source' && <>
         {project ? <StorySummaryPanel project={project} /> : <TrialStoryPanel reviewer={reviewer} setReviewer={setReviewer} />}
-        {project && <BriefPanel project={project} dirty={dirty} reviewer={reviewer} setReviewer={setReviewer} onJump={jumpTo} onStatus={setBriefStatus} />}
+        {project && <BriefPanel apiBase={`/trial-brief/p/${project.id}`} makePath={`/trial-brief/p/${project.id}/make`} project={project} dirty={dirty} reviewer={reviewer} setReviewer={setReviewer} onJump={jumpTo} onStatus={setBriefStatus} />}
         <section className="panel"><div className="panel-head"><div><h2>설화 자료 입력</h2><p>MD·TXT를 불러오거나 텍스트를 그대로 붙여넣으세요.</p></div><span className="pill">외부 전송 없음</span></div>
           <div className="button-row"><button onClick={useNaju} disabled={busy || !boot.source}>나주 기존 자료로 채우기</button><label className="button secondary file-button">MD·TXT 파일 가져오기<input type="file" accept=".md,.txt,text/plain,text/markdown" onChange={readFile} /></label></div>
           <div className="form-grid"><label className="field"><span>검수 제목</span><input value={draft.title} maxLength={160} onChange={event => update('title', event.target.value)} /></label><label className="field"><span>입력 자료 이름·출처</span><input value={draft.sourceName} maxLength={300} onChange={event => update('sourceName', event.target.value)} /></label></div>
