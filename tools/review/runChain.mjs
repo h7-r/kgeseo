@@ -4,12 +4,14 @@
 //   사용: node tools/review/runChain.mjs <저장소 뿌리> <시험 id> [s01 s02 s03 s04]
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
-const [, , root, id, ...rest] = process.argv;
+const [, , root, id, ...rest0] = process.argv;
+// --force: 이미 끝난 단계도 다시 돈다(10/28 공간·에셋 사람 판정 반영 — 07·08 다시)
+const force = rest0.includes('--force'); const rest = rest0.filter(x => x !== '--force');
 const steps = rest.length ? rest : ['s01', 's02', 's03', 's04'];
 const m = await import(pathToFileURL(path.join(root, 'tools/review/agentTrial.mjs')).href);
 for (const s of steps) {
   const t0 = await m.readTrial(root, id);
-  if (t0.steps?.[s]?.status === 'done') { console.log(new Date().toISOString(), s, 'already done'); continue; }
+  if (!force && t0.steps?.[s]?.status === 'done') { console.log(new Date().toISOString(), s, 'already done'); continue; }
   try { await m.startStep(root, id, s); } catch (e) { console.log(new Date().toISOString(), s, 'NOT STARTED', e.message); process.exit(1); }
   for (;;) {
     await new Promise(r => setTimeout(r, 3000));

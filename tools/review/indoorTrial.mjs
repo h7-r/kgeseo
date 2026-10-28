@@ -505,6 +505,13 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
   const sel = await readJsonOut(root, trial, 'indoor_selection.json');
   if (!plan || !sel) fail(409, 'previous_step_missing', '06 계획·07 선정 결과가 없습니다.');
   const puzzleDoc = await readJsonOut(root, trial, 'puzzle.json').catch(() => null);
+  // 10/28 미르: 03 공간·에셋에서 사람이 걸어 다니며 내린 판정(space_review.json) — 빼기 · 다른 에셋 · 그대로 고정 · 위치·크기. 원안 비교판(raw)에는 넣지 않는다
+  let human = null; if (!raw) { try { human = JSON.parse(await fs.readFile(path.join(trialDirOf(root, trial.id), 'space_review.json'), 'utf8')).items || null; } catch { human = null; } }
+  if (human) {
+    const drop = new Set(Object.entries(human).filter(([, v]) => v.verdict === 'remove').map(([k]) => k));
+    if (drop.size) plan = { ...plan, contents: plan.contents.filter(c => !drop.has(c.item_id) || (c.serves || []).length) }; // 퍼즐 호스트는 빼지 않는다(단서가 끊김)
+    for (const x of sel.selections) { const h = human[x.item_id]; if (h && ['swap', 'approve'].includes(h.verdict) && h.pick) x.pick = h.pick; }
+  }
   const conv = planToSet(plan, new Set(sel.selections.filter(x => x.pick).map(x => x.item_id)), { raw });
   const dir = path.join(trialDirOf(root, trial.id), raw ? 'rooms_raw' : 'rooms');
   // 지우지 않고 덮어쓴다(같은 이름 파일만 바뀜) — 지우기 권한이 없는 환경에서도 돌게
@@ -647,6 +654,21 @@ export async function buildIndoor(root, trial, { readJsonOut, writeOut, fail, tr
       }
       await fs.writeFile(placeF, JSON.stringify(pj, null, 1));
     }
+  }
+  // 사람 위치·크기 조정 — 배치 결과(place_*.json)에 그대로 더한다. 부딪힘·문 이동은 아래 build_view 가 새 자리로 다시 계산
+  if (human) for (const r of conv.rooms) {
+    const placeF = path.join(dir, `place_${r.id}.json`); let pj; try { pj = JSON.parse(await fs.readFile(placeF, 'utf8')); } catch { continue; }
+    const W = r.spec.kan_m * r.spec.kan_x, D = r.spec.depth_m; let n = 0;
+    for (const q of pj.placements) {
+      const a = human[q.id]?.verdict === 'adjust' ? human[q.id].adjust : null; if (!a) continue;
+      const sc = Math.min(2, Math.max(0.5, Number(a.scale) || 1));
+      if (sc !== 1) { q.scale = +(q.scale * sc).toFixed(4); if (Array.isArray(q.dims)) q.dims = q.dims.map(v => +(v * sc).toFixed(3)); if (q.h) q.h = +(q.h * sc).toFixed(3); }
+      q.x = +Math.min(W - 0.15, Math.max(0.15, q.x + (Number(a.dx) || 0))).toFixed(3);
+      q.z = +Math.min(D - 0.15, Math.max(0.15, q.z + (Number(a.dz) || 0))).toFixed(3);
+      q.rot = (((q.rot || 0) + (Number(a.rot) || 0)) % 360 + 360) % 360;
+      n++; notes.push(`${r.name} 「${q.name}」: 사람 조정 — 옮김 ${Number(a.dx) || 0}·${Number(a.dz) || 0} m · 돌림 ${Number(a.rot) || 0}° · 크기 ×${sc}`);
+    }
+    if (n) await fs.writeFile(placeF, JSON.stringify(pj, null, 1));
   }
   await run(py, [path.join(tools, 'build_view.py'), dir], { cwd: tools });
   const places_ = {};
@@ -944,9 +966,17 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
       if (!plan) fail(409, 'previous_step_missing', '06 실내 공간 구성 결과가 없습니다.');
       const { buildLibrary, searchLibrary } = await import('./library.mjs');
       const { items } = await buildLibrary(root);
-      const targets = plan.contents.filter(c => c.place !== 'marker' && c.role !== 'marker' && !c.fixture && !(c.place === 'edge_step' && (STONE.test(c.name_ko || '') || TRACE_NAME.test(c.name_ko || ''))));
+      let targets = plan.contents.filter(c => c.place !== 'marker' && c.role !== 'marker' && !c.fixture && !(c.place === 'edge_step' && (STONE.test(c.name_ko || '') || TRACE_NAME.test(c.name_ko || ''))));
       const cands = {}; const stripDropped = [];
       let block = {}; try { block = JSON.parse(await fs.readFile(path.join(trialDirOf(root, trial.id), 'asset_block.json'), 'utf8')); } catch { block = {}; }
+      // 10/28 미르: 03 공간·에셋 사람 「수정 요청」 — 그 항목만 다시 고른다(지금 고른 에셋은 빼고, 사람 의견을 붙여). 나머지 선정은 그대로 둔다
+      const reworkF = path.join(trialDirOf(root, trial.id), 'space_rework.json');
+      let rework = null; try { rework = JSON.parse(await fs.readFile(reworkF, 'utf8')); } catch { rework = null; }
+      const prevSel = rework && !rework.doneAt && Object.keys(rework.items || {}).length ? await readJsonOut(root, trial, 'indoor_selection.json').catch(() => null) : null;
+      if (prevSel) {
+        targets = targets.filter(t => rework.items[t.item_id]);
+        for (const t of targets) { t.__human = rework.items[t.item_id].note; const cur = prevSel.selections.find(x => x.item_id === t.item_id)?.pick?.id; if (cur) (block[t.item_id] ||= []).push(cur); }
+      }
       // 퍼즐이 그 물건을 열거나 비우면(05 reveal) 상태 변형판이 있는 에셋을 고른다(10/23 미르: 서랍이 열리는 판을 만들어 놓고 쓰지 않았다)
       const puzzleDoc7 = await readJsonOut(root, trial, 'puzzle.json').catch(() => null);
       const VESSEL = /솥|항아리|독$|동이|단지|대야|자배기|병$|사발|그릇/;
@@ -997,7 +1027,7 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
       // 12개씩 나눠 부른다 — 로컬 작은 모델이 긴 목록의 앞부분만 답하는 문제(10/19) 대비
       for (let i = 0; i < targets.length; i += 12) {
         const chunk = targets.slice(i, i + 12);
-        const user = chunk.map(t => [`### ${t.item_id} 「${t.name_ko}」 — ${roomName.get(t.room) || t.room} · ${t.role} · ${t.why || ''}${t.__need === 'opened' ? ' · 필요: 열려야 함(문·뚜껑·서랍)' : t.__need === 'filled' ? ' · 필요: 물·곡식이 들어 있어야 함' : t.__need === 'folded' ? ' · 필요: 걷혀야 함(이불·자리)' : t.__need === 'broken' ? ' · 필요: 깨져야 함(옹기·북)' : ''}`, ...(cands[t.item_id] || []).map(c => `- ${line(c)}${c.states?.opened ? ' [열리는 판]' : ''}${c.states?.folded ? ' [걷히는 판]' : ''}${c.states?.broken ? ' [깨지는 판]' : ''}${String(c.initialState || '').startsWith('filled') || c.states?.emptied ? ' [찬 판]' : ''}`), (cands[t.item_id] || []).length ? '' : '- (검색된 후보 없음)'].join('\n')).join('\n\n');
+        const user = chunk.map(t => [`### ${t.item_id} 「${t.name_ko}」 — ${roomName.get(t.room) || t.room} · ${t.role} · ${t.why || ''}${t.__human ? ` · 사람 검수 의견(꼭 따를 것 — 지금 에셋은 후보에서 뺐다): ${t.__human}` : ''}${t.__need === 'opened' ? ' · 필요: 열려야 함(문·뚜껑·서랍)' : t.__need === 'filled' ? ' · 필요: 물·곡식이 들어 있어야 함' : t.__need === 'folded' ? ' · 필요: 걷혀야 함(이불·자리)' : t.__need === 'broken' ? ' · 필요: 깨져야 함(옹기·북)' : ''}`, ...(cands[t.item_id] || []).map(c => `- ${line(c)}${c.states?.opened ? ' [열리는 판]' : ''}${c.states?.folded ? ' [걷히는 판]' : ''}${c.states?.broken ? ' [깨지는 판]' : ''}${String(c.initialState || '').startsWith('filled') || c.states?.emptied ? ' [찬 판]' : ''}`), (cands[t.item_id] || []).length ? '' : '- (검색된 후보 없음)'].join('\n')).join('\n\n');
         const text = await llm(root, trial, step, { system: SELECT_SYSTEM, user });
         await writeOut(root, trial, `raw-s07-${i / 12 + 1}.txt`, text);
         const json = extractJson(text);
@@ -1017,6 +1047,12 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
         return { item_id: t.item_id, room: t.room, name_ko: t.name_ko, role: t.role, pick: c ? { id: c.id, nameKo: c.nameKo, url: c.url, source: c.source, thumbnail: c.thumbnail || null, boundsM: c.boundsM || null, needsReplacement: Boolean(c.needsReplacement) } : null,
           candidates: (cands[t.item_id] || []).map(x => ({ id: x.id, nameKo: x.nameKo })), reason: auto ? `(자동) 같은 이름 후보로 채움 — 모델 이유: ${clip(s.reason, 200)}` : clip(s.reason, 300), missing: c ? null : (s.missing || { name_ko: t.name_ko, description_ko: '', why: (cands[t.item_id] || []).length ? '후보 중 고르지 않음' : '검색된 후보 없음' }), invalid: s.pick && !c ? s.pick : null };
       });
+      if (prevSel) {
+        const merged = prevSel.selections.map(x => selections.find(y => y.item_id === x.item_id) || x);
+        await writeOut(root, trial, 'indoor_selection.json', JSON.stringify({ ...prevSel, selections: merged, rework: { items: Object.keys(rework.items), at: new Date().toISOString() } }, null, 2));
+        await fs.writeFile(reworkF, JSON.stringify({ ...rework, doneAt: new Date().toISOString() }, null, 2));
+        return { picked: selections.filter(x => x.pick).length, missing: selections.filter(x => !x.pick).length, rework: targets.length };
+      }
       await writeOut(root, trial, 'indoor_selection.json', JSON.stringify({ selections, stripDropped, searchStatus }, null, 2));
       return { picked: selections.filter(s => s.pick).length, missing: selections.filter(s => !s.pick).length };
     }

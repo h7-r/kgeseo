@@ -132,14 +132,14 @@ export function IndoorSide({ detail, noHuman }) {
   </>;
 }
 
-export function IndoorResult({ detail, onRebuild, onOpenSpace, noHuman }) {
-  const [view, setView] = useState(true);
+export function IndoorResult({ detail, onRebuild, onOpenSpace, noHuman, noView }) {
+  const [view, setView] = useState(!noView);
   const plan = detail.indoor?.plan, sel = detail.indoor?.selection?.selections || [], build = detail.indoor?.build;
   if (!plan && !build) return null;
   const roomName = id => plan?.rooms?.find(r => r.id === id)?.name || id;
   return <section className="panel">
     <div className="panel-head"><div><h2>실내 방 세트</h2><p>06 계획(방·연결·살림) → 07 에셋 선정 → 08 코드가 방을 만들고 실내 배치 규칙으로 놓음. 「방 둘러보기」는 나주맵과 같은 조작(T 시작 · WASD · 클릭/E 조사 · 문으로 이동).</p></div>
-      <div className="button-row">{build && <button className={view ? 'secondary' : ''} onClick={() => setView(v => !v)}>{view ? '둘러보기 닫기' : '방 둘러보기'}</button>}{build && onOpenSpace && <button className="secondary" onClick={() => onOpenSpace(detail)}>공간·에셋 검수에서 보기</button>}{build && <a className="button secondary" href={`${build.viewer}?v=${encodeURIComponent(build.at)}`} target="_blank" rel="noreferrer">새 탭</a>}{plan && sel.length > 0 && <button className="secondary" onClick={onRebuild}>방 다시 만들기(코드만, 비용 0)</button>}</div></div>
+      <div className="button-row">{build && !noView && <button className={view ? 'secondary' : ''} onClick={() => setView(v => !v)}>{view ? '둘러보기 닫기' : '방 둘러보기'}</button>}{build && onOpenSpace && <button className="secondary" onClick={() => onOpenSpace(detail)}>공간·에셋 검수에서 보기</button>}{build && <a className="button secondary" href={`${build.viewer}?v=${encodeURIComponent(build.at)}`} target="_blank" rel="noreferrer">새 탭</a>}{plan && sel.length > 0 && onRebuild && <button className="secondary" onClick={onRebuild}>방 다시 만들기(코드만, 비용 0)</button>}</div></div>
     {build && view && <IndoorSide detail={detail} noHuman={noHuman} />}
     {build && <>
       <h3>방 {build.rooms.length}개 · 연결 검사 {build.checks.filter(c => c.ok).length}/{build.checks.length} · 퍼즐 호스트 {build.hosts.placed}/{build.hosts.total}</h3>
