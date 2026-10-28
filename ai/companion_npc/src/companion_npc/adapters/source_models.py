@@ -61,11 +61,54 @@ class ZoneDefinition(ClientContentModel):
 
         if any(item.door_object_id not in object_ids for item in self.navigation):
             raise ValueError("navigation door_object_id must reference a zone object")
-        # [backend 와 다른 점] backend 는 navigation 규칙(자기 Zone 금지 · 목적지 / 문 유일 ·
-        # 문 Object 의 navigate 선언과 양방향 일치)을 더 검사한다. 테스트 견본 Case 의
-        # 돌아오는 문에는 navigate 선언이 없어, 견본과 그 해시에 묶인 실험을 정리하기 전까지
-        # 여기서는 옮기지 않는다.
+        # [backend 와 다른 점] backend 는 navigation 규칙을 모델 검증에서 더 검사한다.
+        # 테스트 견본 Case 의 돌아오는 문에는 navigate 선언이 없어, 견본과 그 해시에 묶인 실험을
+        # 지키려고 여기서는 넣지 않는다. 같은 규칙은 navigation_contract_violations() 로 따로 본다.
         return self
+
+
+def navigation_contract_violations(client: "CaseClientContent") -> list[str]:
+    """backend ZoneDefinition 의 navigation 추가 규칙 — 런타임에 연결할 Case 는 비어 있어야 한다.
+
+    자기 Zone 금지 · Zone 안에서 목적지 / 문 유일 · 문 Object 의 navigate 선언과 navigation[] 의
+    양방향 일치. 메시지는 backend 와 같고 Zone ID 만 붙인다(ID 는 정답이 아니다).
+    """
+
+    violations: list[str] = []
+    for zone in client.zones:
+        reasons: list[str] = []
+        if any(item.target_zone_id == zone.zone_id for item in zone.navigation):
+            reasons.append("navigation target_zone_id must not be its own zone")
+
+        target_zone_ids = [item.target_zone_id for item in zone.navigation]
+        if len(target_zone_ids) != len(set(target_zone_ids)):
+            reasons.append("navigation target_zone_id must be unique within a zone")
+
+        door_object_ids = [item.door_object_id for item in zone.navigation]
+        if len(door_object_ids) != len(set(door_object_ids)):
+            reasons.append("navigation door_object_id must be unique within a zone")
+
+        navigation_targets = {
+            item.door_object_id: item.target_zone_id for item in zone.navigation
+        }
+        for obj in zone.objects:
+            interaction = obj.interaction
+            is_navigate = interaction is not None and interaction.type == "navigate"
+            if obj.object_id in navigation_targets:
+                if (
+                    not is_navigate
+                    or interaction.target_id != navigation_targets[obj.object_id]
+                ):
+                    reasons.append(
+                        "navigation door object must declare a matching "
+                        "navigate interaction"
+                    )
+            elif is_navigate:
+                reasons.append(
+                    "navigate interaction object must be registered in navigation"
+                )
+        violations += [f"zone {zone.zone_id}: {reason}" for reason in reasons]
+    return violations
 
 
 class CaseClientContent(ClientContentModel):

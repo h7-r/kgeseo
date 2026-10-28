@@ -166,9 +166,12 @@ def test_missing_client_field(lighthouse):
 
 def test_client_rejects_unknown_field_like_backend(lighthouse):
     client = copy.deepcopy(lighthouse.client)
-    client["zones"][0]["secret"] = "x"
-    with pytest.raises(ClientContentInvalidError):
+    client["zones"][0]["secret_0412"] = "x"
+    with pytest.raises(ClientContentInvalidError) as info:
         convert_case(client, lighthouse.server, client_ref="x")
+    assert info.value.locations == ["zones.0.<unknown key>: extra_forbidden"]
+    assert "secret" not in str(info.value)
+    assert "0412" not in str(info.value)
 
 
 def test_invalid_server_error_does_not_echo_answer(lighthouse):
