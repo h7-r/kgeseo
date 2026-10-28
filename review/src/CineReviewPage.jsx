@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, date } from './api.js';
 import './CineReviewPage.css';
+import { readTrialKey, writeTrialKey } from './TrialStoryPanel.jsx';
 
 const STATUS = { pending: ['검수 전', 'cr-pending'], approved: ['승인', 'cr-approved'], rejected: ['반려 · 글만', 'cr-rejected'] };
 const img = (id, f) => `/__review/trials/${id}/cine/${encodeURIComponent(f)}`;
@@ -69,13 +70,13 @@ function AddPanel({ trialId, section, afterKey, busy, onChange, onClose }) {
 }
 
 export default function CineReviewPage() {
-  const [trials, setTrials] = useState([]); const [id, setId] = useState(() => { try { return localStorage.getItem('cineReview.trial') || ''; } catch { return ''; } });
+  const [trials, setTrials] = useState([]); const [id, setId] = useState(readTrialKey);
   const [adding, setAdding] = useState(null); /* {section, afterKey} */
   const [d, setD] = useState(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [filter, setFilter] = useState('all');
   const timer = useRef(0);
   const load = async (tid = id) => { if (!tid) return; try { setD(await api(`/cine/${tid}`)); setErr(''); } catch (e) { setErr(e.message); } };
   useEffect(() => { api('/cine').then(v => { setTrials(v.trials || []); if (!id && v.trials?.[0]) setId(v.trials[0].id); }).catch(e => setErr(e.message)); }, []);
-  useEffect(() => { try { localStorage.setItem('cineReview.trial', id); } catch { /* 저장 못 해도 됨 */ } setD(null); load(id); }, [id]);
+  useEffect(() => { if (id) writeTrialKey(id); setD(null); load(id); }, [id]);
   const drawing = d?.sections?.some(s => s.panels.some(p => p.job?.status === 'running'));
   useEffect(() => { clearInterval(timer.current); if (drawing) timer.current = setInterval(() => load(), 4000); return () => clearInterval(timer.current); }, [drawing, id]);
   const change = async fn => { setBusy(true); try { const v = await fn(); if (v?.sections) setD(v); else await load(); setErr(''); } catch (e) { setErr(e.message); } finally { setBusy(false); } };

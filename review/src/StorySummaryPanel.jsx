@@ -3,17 +3,18 @@
 import { useEffect, useState } from 'react';
 import { api, date } from './api.js';
 
-export default function StorySummaryPanel({ project }) {
+export default function StorySummaryPanel({ project, trialId }) {
   const [s, setS] = useState(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
-  useEffect(() => { if (!project?.id) return; setS(null); api(`/story-summary/${project.id}`).then(setS).catch(e => setErr(e.message)); }, [project?.id, project?.revision]);
-  const make = async () => { setBusy(true); setErr(''); try { setS(await api(`/story-summary/${project.id}`, { method: 'POST', body: {} })); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
+  const url = trialId ? `/story-summary/trial/${trialId}` : project?.id ? `/story-summary/${project.id}` : '';
+  useEffect(() => { if (!url) return; setS(null); setErr(''); api(url).then(setS).catch(e => setErr(e.message)); }, [url, project?.revision]);
+  const make = async () => { setBusy(true); setErr(''); try { setS(await api(url, { method: 'POST', body: {} })); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
   const v = s?.summary;
   return (
     <section className="panel story-summary">
       <div className="panel-head"><div><h2>이 설화는 어떤 이야기인가 — 전문 요약</h2><p>설화 원문만 읽고 정리했습니다(게임 각색은 섞지 않음). 원문에 없는 것은 쓰지 않고, 원문이 답하지 않는 것은 「아직 모르는 것」에 둡니다.</p></div>
         <div className="button-row">{s?.stale && <span className="pill">원문이 바뀜 — 다시 만들기 권장</span>}<button onClick={make} disabled={busy || !s?.hasSource}>{busy ? '정리하는 중… (30초 안팎)' : v ? '다시 만들기' : '요약 만들기'}</button></div></div>
       {err && <p className="error">{err}</p>}
-      {s && !s.hasSource && <p className="muted">설화 원문이 아직 없습니다. 아래 「설화 자료 입력」에 원문을 넣고 저장하세요.</p>}
+      {s && !s.hasSource && <p className="muted">설화 원문이 아직 없습니다.</p>}
       {s?.hasSource && !v && !busy && <p className="muted">아직 요약이 없습니다. 「요약 만들기」를 누르면 원문({s.sourceChars.toLocaleString()}자)을 읽어 정리합니다(Claude, 약 $0.03~0.10).</p>}
       {v && <div className="ss-body">
         <h3>{v.title}</h3><p className="ss-one">{v.one_line}</p>

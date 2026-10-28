@@ -8,6 +8,7 @@ import { IndoorSide } from './AgentTrialPage.jsx';
 import AgentTrialPage from './AgentTrialPage.jsx';
 import CineReviewPage from './CineReviewPage.jsx';
 import StorySummaryPanel from './StorySummaryPanel.jsx';
+import TrialStoryPanel from './TrialStoryPanel.jsx';
 import { LibraryDrawer, PickedPointCard, PlacementAdjustPanel, PlacementHistory, PlacementImportPanel, ProposalActionsCard, ProposalList, SceneTabs } from './PlacementPanels.jsx';
 import { api, gates, statusText, date, shortHash, download, dispositionText } from './api.js';
 
@@ -450,7 +451,7 @@ export default function App() {
       {conflicted && <div className="message error" role="alert"><div><b>다른 창에서 검수 자료가 바뀌었습니다.</b><p>기존 초안을 덮어쓰지 않도록 저장과 판정을 중단했습니다.</p><div className="button-row"><button className="secondary" onClick={() => download('설화_미저장_초안.json', JSON.stringify(draft, null, 2))}>내 초안 내려받기</button><button onClick={() => perform(() => loadProject(project.id))}>최신 저장본 다시 읽기</button></div></div></div>}
       <div className={`content-layout ${spatial ? 'spatial-layout' : ''}`}><section className="content">
       {gate === 'source' && <>
-        {project && <StorySummaryPanel project={project} />}
+        {project ? <StorySummaryPanel project={project} /> : <TrialStoryPanel />}
         {project && <BriefPanel project={project} dirty={dirty} reviewer={reviewer} setReviewer={setReviewer} onJump={jumpTo} onStatus={setBriefStatus} />}
         <section className="panel"><div className="panel-head"><div><h2>설화 자료 입력</h2><p>MD·TXT를 불러오거나 텍스트를 그대로 붙여넣으세요.</p></div><span className="pill">외부 전송 없음</span></div>
           <div className="button-row"><button onClick={useNaju} disabled={busy || !boot.source}>나주 기존 자료로 채우기</button><label className="button secondary file-button">MD·TXT 파일 가져오기<input type="file" accept=".md,.txt,text/plain,text/markdown" onChange={readFile} /></label></div>

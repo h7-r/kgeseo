@@ -35,3 +35,5 @@
 .cr-sec-edit textarea,.cr-add textarea{font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;resize:vertical}
 .cr-add{display:grid;gap:8px;border-style:dashed;border-left-color:#6252b5}.cr-add small{color:var(--muted);font-size:11px}
 .story-summary .panel-head button{white-space:nowrap}.story-summary .ss-body h3{font-size:18px;line-height:1.4}
+.trial-story .ts-pre{white-space:pre-wrap;word-break:keep-all;font-size:12.5px;line-height:1.65;max-height:520px;overflow:auto;background:#fafafa;border-radius:7px;padding:12px}
+.trial-story .story-summary{border:none;padding:0;margin:10px 0;box-shadow:none}
