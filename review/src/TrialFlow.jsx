@@ -62,11 +62,16 @@ function SpaceWalk({ tf, build }) {
   const rv = tf.review; const items = (rv?.items || []).filter(x => x.placed || x.kind === 'asset');
   const rooms = [...new Set(items.map(x => x.roomName))];
   const [only, setOnly] = useState('all');
+  // 10/28 미르: 「검수할 때 화면을 크게」 — 크게 보기: 3D 화면이 창을 채우고 오른쪽에 판정 칸만 남김 · 전체 화면: 3D만(Esc)
+  const [wide, setWide] = useState(false);
+  useEffect(() => { document.body.classList.toggle('sv-wide', wide); const k = e => { if (e.key === 'Escape') setWide(false); }; window.addEventListener('keydown', k); return () => { document.body.classList.remove('sv-wide'); window.removeEventListener('keydown', k); }; }, [wide]);
   const shown = items.filter(x => only === 'all' || (only === 'pending' ? !rv.review[x.item_id] : only === 'unapplied' ? rv.unapplied.includes(x.item_id) : true));
   return <>
     <h3 className="ts-h">걸어 다니며 검수</h3>
     <p className="muted">화면을 누르고 <b>T</b>로 시작 · WASD 이동 · 물건을 <b>클릭/E</b> 하면 오른쪽 칸에 그 물건이 뜹니다. 문은 잠김 없이 지나갑니다(퍼즐·이야기 컷은 04 에서). 아래 목록에서 골라도 됩니다.</p>
-    <iframe ref={tf.frame} className="indoor-frame sv-frame" title="공간·에셋 검수" src={`${build.viewer}?review=1&v=${encodeURIComponent(build.at)}`} />
+    <div className="button-row"><button className="secondary" onClick={() => setWide(true)}>⤢ 크게 보기(판정 칸 같이)</button><button className="secondary" onClick={() => tf.frame.current?.requestFullscreen?.()}>⛶ 전체 화면(Esc로 나가기)</button></div>
+    {wide && <button className="sv-wide-close" onClick={() => setWide(false)}>✕ 작게 보기 (Esc)</button>}
+    <iframe ref={tf.frame} className="indoor-frame sv-frame" allow="fullscreen" title="공간·에셋 검수" src={`${build.viewer}?review=1&v=${encodeURIComponent(build.at)}`} />
     {rv?.ready && <div className="sv-list">
       <div className="button-row"><b>물건 {items.length}개 · 판정 {Object.keys(rv.review).length} · 반영 대기 {rv.unapplied.length}</b>
         <select value={only} onChange={e => setOnly(e.target.value)}><option value="all">모두</option><option value="pending">판정 전만</option><option value="unapplied">반영 대기만</option></select></div>
