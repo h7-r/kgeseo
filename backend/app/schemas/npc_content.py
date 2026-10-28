@@ -11,6 +11,14 @@ NPC 콘텐츠 데이터 계약 v0.3의 부분집합이다. nudge와 힌트 단�
   그래서 이 모델을 통과했다고 게시 가능한 묶음이 아니다 — 판정은 `assess_npc_content()`로 한다.
 - `content_version` · `content_fingerprint` · `approvals`는 형식만 받는다. 공식 fingerprint 정의와
   G3 승인 해시 검증은 정해지지 않았으므로 여기서 판정하지 않는다.
+
+[PM v0.4.3 추가 필드] 모두 선택이며, 없으면 「없음(미제공)」이다. 빈 목록과 구별한다.
+- `npc_scenario`: `address`(호칭) · `avoid_topics`(회피 주제) — 생성 대화 model_context에 들어가는 공개 설정.
+- `ng[]`: `text` · `patterns` — 금지 왜곡. 서버 정책 검사 전용, model_context에 넣지 않는다.
+- `open[]`: `text` · `patterns` — 해석 유보(U) 주제. 단정을 막는다. `text`만 공개 주제 이름으로 쓴다.
+- `fallback_lines[]`: `line_id` · `text` · `use` — 생성 대사가 막혔을 때의 승인 대체 대사(G3 승인 필요).
+  `use` 값의 목록 · 뜻은 정해지지 않아 비어 있지 않은 문자열만 확인한다.
+항목에 ID가 없는 `ng` · `open`은 정책 검사 결과에서 위치(`ng[0]`)를 규칙 ID로 쓴다.
 """
 
 from datetime import datetime
@@ -77,6 +85,45 @@ class NpcApprovalRecord(NpcContentModel):
     at: datetime
 
 
+class NpcScenario(NpcContentModel):
+    # 호칭 · 회피 주제. 공개 설정이라 model_context에 들어간다.
+    address: NonBlank
+    avoid_topics: list[NonBlank] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_text(self) -> "NpcScenario":
+        _require_text(self.address, "npc_scenario.address")
+        for topic in self.avoid_topics:
+            _require_text(topic, "npc_scenario.avoid_topics")
+        return self
+
+
+class NpcPolicyRule(NpcContentModel):
+    """NG · U(open) 규칙 한 줄. patterns가 비어 있으면 text로 맞춘다(NG)."""
+
+    text: NonBlank
+    patterns: list[NonBlank] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_text(self) -> "NpcPolicyRule":
+        _require_text(self.text, "policy rule text")
+        for pattern in self.patterns:
+            _require_text(pattern, "policy rule pattern")
+        return self
+
+
+class NpcFallbackLine(NpcContentModel):
+    line_id: NonBlank
+    text: NonBlank = Field(max_length=MAX_NUDGE_TEXT_LENGTH)
+    use: NonBlank
+
+    @model_validator(mode="after")
+    def validate_text(self) -> "NpcFallbackLine":
+        for field in ("line_id", "text", "use"):
+            _require_text(getattr(self, field), f"Fallback line {field}")
+        return self
+
+
 class NpcContentPack(NpcContentModel):
     schema_version: Literal["npc-pack 0.1"]
     case_id: NonBlank
@@ -89,6 +136,11 @@ class NpcContentPack(NpcContentModel):
     general_nudges: list[NpcNudgeContent] = Field(default_factory=list)
     # 퍼즐별 nudge
     puzzles: list[NpcPuzzleNudges] = Field(default_factory=list)
+    # PM v0.4.3 — None은 「제공하지 않음」(정책 검사 불가), []는 「규칙 없음」
+    npc_scenario: NpcScenario | None = None
+    ng: list[NpcPolicyRule] | None = None
+    open: list[NpcPolicyRule] | None = None
+    fallback_lines: list[NpcFallbackLine] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_unique_ids(self) -> "NpcContentPack":
@@ -100,10 +152,13 @@ class NpcContentPack(NpcContentModel):
                 raise ValueError(f"Duplicate puzzle entry: '{entry.puzzle_id}'")
             seen_puzzles.add(entry.puzzle_id)
         seen_lines: set[str] = set()
-        for nudge in self.all_nudges():
-            if nudge.line_id in seen_lines:
-                raise ValueError(f"Duplicate line_id: '{nudge.line_id}'")
-            seen_lines.add(nudge.line_id)
+        line_ids = [nudge.line_id for nudge in self.all_nudges()] + [
+            line.line_id for line in self.fallback_lines
+        ]
+        for line_id in line_ids:
+            if line_id in seen_lines:
+                raise ValueError(f"Duplicate line_id: '{line_id}'")
+            seen_lines.add(line_id)
         return self
 
     def all_nudges(self) -> list[NpcNudgeContent]:
