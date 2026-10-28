@@ -42,3 +42,4 @@
 /* 10/28 승인 직후 기다림 */
 .cr-wait{background:#f8f7fb;border:1px solid #e1dbf2;border-radius:12px;padding:18px 20px;margin:14px 0}.cr-wait ul{list-style:none;padding:0;margin:10px 0 0;font-size:13px}.cr-wait li{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid #eee}.cr-wait li b{color:#6855a9}.cr-wait .ap-st{margin-left:auto;font-size:11px;border-radius:10px;padding:2px 8px;background:#f0f1f5;color:#838795}.cr-wait .ap-st.done{background:#e7f3ed;color:#347253}.cr-wait .ap-st.running{background:#fff1d7;color:#96702a}.cr-wait .ap-st.failed{background:#faeae6;color:#ab5147}
 .cr-wait.ok{background:#edf5ef;border-color:#d0e5d5;color:#3f7355}
+.cr-ko{background:#f8f7fb;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:12px}.cr-ko p{margin:4px 0 0;line-height:1.7}

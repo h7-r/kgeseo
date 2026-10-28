@@ -49,7 +49,7 @@ export async function detail(root, id) {
   for (const x of panelRefs(doc)) {
     let s = sections.find(v => v.section === x.section);
     if (!s) { s = { section: x.section, kind: x.section === 'ending' ? 'ending' : x.section.startsWith('recall:') ? 'recall' : 'intro', title: x.section === 'ending' ? '결말' : x.section.startsWith('recall:') ? `회상 ${x.section.slice(7)}` : `${titles[x.c.scene_id] || x.c.scene_id}`, goal: x.c.goal || '', reveal: x.c.reveal || '', left_open: x.c.left_open || '', field: x.c.field || null, panels: [] }; sections.push(s); }
-    const q = x.q; s.panels.push({ key: x.key, id: q.id, caption: q.caption || '', image_prompt: q.image_prompt || '', img: q.img || null, candidates: q.candidates || (q.img ? [q.img] : []), review: q.review?.status ? q.review : { status: 'pending' }, aiReview: q.aiReview || (q.review && 'ok' in q.review ? q.review : null) /* 10/27 이전 판: Claude 그림 판정이 review 자리에 있었다 */, job: jobs[x.key] || null });
+    const q = x.q; s.panels.push({ key: x.key, id: q.id, caption: q.caption || '', image_prompt: q.image_prompt || '', image_prompt_ko: q.image_prompt_ko && q.image_prompt_ko_src === q.image_prompt ? q.image_prompt_ko : null, img: q.img || null, candidates: q.candidates || (q.img ? [q.img] : []), review: q.review?.status ? q.review : { status: 'pending' }, aiReview: q.aiReview || (q.review && 'ok' in q.review ? q.review : null) /* 10/27 이전 판: Claude 그림 판정이 review 자리에 있었다 */, job: jobs[x.key] || null });
   }
   const all = sections.flatMap(s => s.panels); const pending = all.filter(p => p.review.status === 'pending').length;
   let left = [];
@@ -158,14 +158,44 @@ export async function cont(root, id) {
   return { started: rest, running: false };
 }
 
+// 10/28 미르: 그림 지시(영어)를 한글로 같이 보이고, 한글로 덧붙인 요청을 영어 지시로 고쳐 쓴다 — Claude Haiku(호출당 약 1~3원)
+const KO_SYS = '너는 그림 생성용 영어 지시문을 다루는 번역가다. 설명·인사 없이 요청한 JSON 만 출력한다.';
+async function promptKo(root, id, input = {}) {
+  const f = path.join(tdir(root, id), 'cinematics.json'); const doc = await readJ(f); const { panelRefs } = await director(root);
+  const x = panelRefs(doc).find(v => v.key === input.key) || fail(404, '컷을 찾을 수 없습니다.');
+  const base = String(input.image_prompt ?? x.q.image_prompt ?? '').slice(0, 2000);
+  const { callClaude } = await import(pathToFileURL(path.join(root, 'tools/llm/claude.mjs')).href);
+  const ask = async user => { const r = await callClaude({ tier: 'mechanical', system: KO_SYS, maxTokens: 1200, messages: [{ role: 'user', content: user }] }); const m = String(r.text || '').match(/\{[\s\S]*\}/); try { return JSON.parse(m[0]); } catch { fail(502, '번역 답을 읽지 못했습니다 — 다시 눌러 주세요.'); } };
+  const ins = String(input.instruction_ko || '').trim().slice(0, 600);
+  if (!ins) {
+    if (!base) return { ko: '' };
+    if (x.q.image_prompt_ko && x.q.image_prompt_ko_src === base) return { ko: x.q.image_prompt_ko };
+    const j = await ask(`아래 영어 그림 지시를 자연스러운 한국어로 옮겨라. 고유명사는 한글로. JSON: {"ko": "..."}\n\n${base}`);
+    if (base === x.q.image_prompt) { x.q.image_prompt_ko = String(j.ko || ''); x.q.image_prompt_ko_src = base; await fs.writeFile(f, JSON.stringify(doc, null, 2)); }
+    return { ko: String(j.ko || '') };
+  }
+  const j = await ask(`지금 영어 그림 지시와 사람이 한국어로 적은 고칠 점이다. 고칠 점을 반영해 영어 지시를 다시 써라.
+규칙: 영어로, 한 단락, 지금 지시의 장면·구도·시대 배경은 고칠 점이 바꾸라고 하지 않는 한 그대로 둔다. 화풍 문구는 넣지 않는다(따로 붙는다). 그림 속 글자·현대 물건은 넣지 않는다. 지금 지시에 있는 「no people」 같은 금지는 사람이 풀라고 하지 않는 한 유지.
+JSON: {"en": "새 영어 지시", "ko": "새 지시의 한국어 번역"}
+
+[지금 지시]
+${base}
+
+[고칠 점(한국어)]
+${ins}`);
+  if (!j.en) fail(502, '고친 지시를 만들지 못했습니다 — 다시 눌러 주세요.');
+  return { en: String(j.en).trim(), ko: String(j.ko || '').trim() };
+}
+
 export async function handle(root, method, urlPath, input) {
-  const m = urlPath.match(/^\/__review\/cine(?:\/([a-f0-9-]{36})(?:\/(decide|redraw|continue))?)?$/);
+  const m = urlPath.match(/^\/__review\/cine(?:\/([a-f0-9-]{36})(?:\/(decide|redraw|continue|prompt-ko))?)?$/);
   if (!m) fail(404, '이야기 컷 검수 경로를 찾을 수 없습니다.');
   const [, id, act] = m;
   if (!id && method === 'GET') return [200, await list(root)];
   if (id && !act && method === 'GET') return [200, await detail(root, id)];
   if (id && act === 'decide' && method === 'POST') return [200, await decide(root, id, input || {})];
   if (id && act === 'continue' && method === 'POST') return [202, await cont(root, id)];
+  if (id && act === 'prompt-ko' && method === 'POST') return [200, await promptKo(root, id, input || {})];
   if (id && act === 'redraw' && method === 'POST') return [202, await redraw(root, id, input || {})];
   fail(405, '지원하지 않는 요청입니다.');
 }
