@@ -158,15 +158,16 @@ BE ──(reply{source, text, line_id?})──▶ FE
 {
   "npc_event_id": "<uuid>",
   "reply": {
-    "source": "<PM v0.4.2 확정 값 — §8.1 D8>",
+    "source": "generated | approved_line",
     "text": "<표시할 문장>",
-    "line_id": "NUDGE_… (nudge · 대체 대사일 때)"
+    "line_id": "<approved_line 이면 필수>"
   },
   "reshown_hint": null
 }
 ```
 
-- `reply.source` 의 값 목록은 PM v0.4.2 에서 확정됐다(§8.1 D8). 값은 계약 원문을 따르며 이 문서에는 아직 옮겨 적지 않았다. 구현 전에 원문 값을 여기에 옮긴다.
+- `reply.source` 는 PM 확정 값 두 개만 쓴다(§8.1 D8): `generated` = AI 생성 일반 대화 · `approved_line` = 승인된 원문 대사(`line_id` 필수).
+- 발화가 없으면 `reply` 를 만들지 않는다(빈 reply · 다른 source 값 금지). 발화가 없는 이유는 서버 내부 상태로만 둔다(§9).
 - 재열람은 지금 BE 처럼 `reshown_hint` 로 따로 두고 대사와 섞지 않는다(기존 `NpcProcessResult` 방침 유지).
 
 ### 3.5 기록 (C9)
@@ -260,7 +261,7 @@ LLM 이 없어도 1~5 단계로 nudge · 재열람 · 개입은 동작해야 한
 | # | 항목 | 상태 |
 |---|---|---|
 | D4 | NPC 재열람으로 `hint_level` 2(정답 보기) 단계 원문도 다시 보여 줄 수 있는가 | 확정 — 내용은 v0.4.2 원문 |
-| D8 | `reply.source` 값 목록과 이름 | 확정 — 값은 v0.4.2 원문 |
+| D8 | `reply.source` 값 목록과 이름 | 확정 — `generated` · `approved_line`(`line_id` 필수) 두 값만 |
 
 ### 8.2 PM 결정 필요 [PM 결정 필요]
 
@@ -283,3 +284,22 @@ v0.4.2 에 정해지지 않았거나 해석이 둘 이상인 것이다. 이 문�
 | D15 | PM 게시 전환의 방법 · 기록(누가 · 언제) · 게이트 통과와 전환 사이에 내용이 바뀌면 | P7 |
 | D16 | 생성 모델 제공자 · 외부 전송 동의 · 비용 · 호출 상한 · 지연 시간 기준 | C1(운영). `docs/09` §3 미결정 항목과 같다 |
 | D17 | `reveal_when` 을 nudge 반환 때 적용할지(지금은 문법 검사만) | C3 미공개 단서 |
+
+## 9. PM v0.4.3 1차 구현 메모 [확인됨]
+
+> 2026-10-28 · 라우터 · DB 미연결(순수 서비스 함수) · 일반 대화 생성 OFF
+
+| 항목 | 구현 | 위치 |
+|---|---|---|
+| 퍼즐 풀이 질문 판별 | 규칙 기반(LLM 없음). 신호 A(PM 목록) → 퍼즐 질문 · 신호 B(세션의 공개 맥락: 보이는 호스트 Object 이름 · 획득한 필요 단서 제목 · 주입된 공개 퍼즐 제목) + 물음 → 퍼즐 질문 · 평서 → 일반 대화 · 애매 → 퍼즐 질문. 진단에는 신호 종류만(원문 · 낱말 없음) | `backend/app/services/puzzle_question.py` |
+| 퍼즐 질문 응답 | 생성기를 부르지 않는다. 공개 조건을 충족하고 승인된 nudge 원문 → 없으면 PM 기본 안내 문구 | `backend/app/services/npc_dialogue.py` |
+| `reply.source` | `generated` · `approved_line`(line_id 필수)만. 발화가 없으면 reply 없이 `no_reply_reason`(`generation_disabled` · `generic_line_unapproved`) | 같은 파일 `NpcReply` · `NpcDialogueOutcome` |
+| 자동 개입 권한 | `intervention_level` 0 → 없음 · 1 → nudge · 2 → nudge · 힌트 안내. 힌트 원문 · 재표시 · 해금 · 정답은 어느 단계에서도 불가 | `backend/app/services/npc_intervention.py` |
+| `intervention_level` (NPC) | 런타임 계약 `RuntimeDecision` · 호환 어댑터 `to_runtime_decision()`. 실험 `npc_hint_level` · 페이로드 · 입력 해시는 그대로 | `ai/companion_npc/src/companion_npc/contracts/intervention.py` |
+
+**임시 · 미정으로 남긴 것**
+
+- **기본 안내 문구의 승인 상태**: 문구 3개는 PM 확정 원문이지만 일반 팩의 승인 · 버전 관리에 연결되지 않았다. 서버는 승인 기록을 만들지 않으며, 호출하는 쪽이 검증된 승인 확인(`generic_line_approval`)을 넘기지 않으면 **운영에 내보내지 않는다**(`generic_line_unapproved`). 테스트는 개발 전용 승인 함수를 쓴다.
+- **기본 안내 선택 규칙(임시)**: 대상 퍼즐이 하나이고 server.json 힌트가 있으면 02 + `suggest_hint`, 그 밖에는 01. 03의 사용 조건은 정하지 않아 쓰지 않는다. 후보 퍼즐이 없거나 여럿이면 `suggest_hint` 를 보내지 않는다.
+- **check_in**: 실험의 check_in(개입 · 단계 0)은 런타임 「0 = 개입 없음」과 뜻이 달라 같은 것으로 보지 않는다. 호환 어댑터는 그 조합을 거부한다. 런타임에서 쓰려면 명시적 매핑(단계 · 동작)을 정해야 한다.
+- **퍼즐 제목**: 공개 콘텐츠에 제목 필드가 없어 신호 B 제목은 호출하는 쪽이 넘길 때만 쓴다.
