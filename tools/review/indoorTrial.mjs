@@ -1070,7 +1070,7 @@ export function indoorKit({ readJsonOut, writeOut, extractJson, llm, fail, clip,
       const set = JSON.parse(await fs.readFile(path.join(dir, 'rooms', 'rooms_set.json'), 'utf8'));
       const rel = f => path.relative(dir, f);
       const rounds = [];
-      const SNAP = ['puzzle.json', 'indoor_plan.json', 'indoor_selection.json', 'indoor_build.json', 'AI-05.json'];
+      const SNAP = ['puzzle.json', 'indoor_plan.json', 'indoor_selection.json', 'indoor_build.json', 'AI-05.json', 'cinematics.json']; // 10/28: 이야기 컷도 — 09 가 05·05b 를 다시 돌린 바퀴를 되돌릴 때 사람이 승인한 컷이 사라지고 퍼즐과 어긋났다
       const snap = async n => { const d = path.join(dir, 'vr', `r${n}`, 'snapshot'); await fs.mkdir(d, { recursive: true }); for (const f of SNAP) { try { await fs.copyFile(path.join(dir, f), path.join(d, f)); } catch {} } await fs.cp(path.join(dir, 'rooms'), path.join(d, 'rooms'), { recursive: true }).catch(() => {}); };
       const restore = async n => { const d = path.join(dir, 'vr', `r${n}`, 'snapshot'); for (const f of SNAP) { try { await fs.copyFile(path.join(d, f), path.join(dir, f)); } catch {} } await fs.rm(path.join(dir, 'rooms'), { recursive: true, force: true }); await fs.cp(path.join(d, 'rooms'), path.join(dir, 'rooms'), { recursive: true }); };
       const unsolved = async () => { try { const ib = await readJsonOut(root, trial, 'indoor_build.json'); return ((ib.regress || []).find(r => r.id === 'RG-PUZZLE')?.bad || []).length; } catch { return 99; } };
