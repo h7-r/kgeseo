@@ -158,14 +158,21 @@ export async function cont(root, id) {
   return { started: rest, running: false };
 }
 
-// 10/28 미르: 그림 지시(영어)를 한글로 같이 보이고, 한글로 덧붙인 요청을 영어 지시로 고쳐 쓴다 — Claude Haiku(호출당 약 1~3원)
+// 10/28 미르: 그림 지시(영어)를 한글로 같이 보이고, 한글로 덧붙인 요청을 영어 지시로 고쳐 쓴다
+//   기본은 맥북 로컬 모델(무료, LOCAL_LLM_URL). 로컬이 꺼져 있으면 오류를 돌려주고, 사람이 「Claude 로」를 고른 때만 Haiku(호출당 몇 원)
 const KO_SYS = '너는 그림 생성용 영어 지시문을 다루는 번역가다. 설명·인사 없이 요청한 JSON 만 출력한다.';
 async function promptKo(root, id, input = {}) {
   const f = path.join(tdir(root, id), 'cinematics.json'); const doc = await readJ(f); const { panelRefs } = await director(root);
   const x = panelRefs(doc).find(v => v.key === input.key) || fail(404, '컷을 찾을 수 없습니다.');
   const base = String(input.image_prompt ?? x.q.image_prompt ?? '').slice(0, 2000);
-  const { callClaude } = await import(pathToFileURL(path.join(root, 'tools/llm/claude.mjs')).href);
-  const ask = async user => { const r = await callClaude({ tier: 'mechanical', system: KO_SYS, maxTokens: 1200, messages: [{ role: 'user', content: user }] }); const m = String(r.text || '').match(/\{[\s\S]*\}/); try { return JSON.parse(m[0]); } catch { fail(502, '번역 답을 읽지 못했습니다 — 다시 눌러 주세요.'); } };
+  const useClaude = input.provider === 'claude';
+  const call = async user => {
+    if (useClaude) { const { callClaude } = await import(pathToFileURL(path.join(root, 'tools/llm/claude.mjs')).href); return (await callClaude({ tier: 'mechanical', system: KO_SYS, maxTokens: 1200, messages: [{ role: 'user', content: user }] })).text; }
+    const { streamLocal } = await import(pathToFileURL(path.join(root, 'tools/llm/local.mjs')).href);
+    try { return (await streamLocal({ system: KO_SYS + ' /no_think', maxTokens: 1500, messages: [{ role: 'user', content: user }] })).text; }
+    catch (e) { const er = new Error(`맥북 로컬 모델에 연결하지 못했습니다(${String(e.message || e).slice(0, 120)}) — 로컬 모델을 켜거나 「Claude 로」를 눌러 주세요.`); er.status = 503; er.code = 'local_down'; throw er; }
+  };
+  const ask = async user => { const t = await call(user); const m = String(t || '').match(/\{[\s\S]*\}/); try { return JSON.parse(m[0]); } catch { fail(502, '번역 답을 읽지 못했습니다 — 다시 눌러 주세요.'); } };
   const ins = String(input.instruction_ko || '').trim().slice(0, 600);
   if (!ins) {
     if (!base) return { ko: '' };

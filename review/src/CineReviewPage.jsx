@@ -13,11 +13,11 @@ const confirmRemove = p => window.confirm(`컷 ${p.id}을(를) 뺄까요? 글과
 function Panel({ trialId, p, onChange, busy, onAdd }) {
   const [cap, setCap] = useState(p.caption); const [prompt, setPrompt] = useState(p.image_prompt); const [note, setNote] = useState(p.review?.note || ''); const [open, setOpen] = useState(false);
   useEffect(() => { setCap(p.caption); setPrompt(p.image_prompt); }, [p.caption, p.image_prompt]);
-  // 10/28 미르: 영어 그림 지시를 한글로 같이 보이고, 한글로 적은 고칠 점을 영어 지시로 바꿔 넣는다(Claude Haiku, 호출당 약 1~3원)
+  // 10/28 미르: 영어 그림 지시를 한글로 같이 보이고, 한글로 적은 고칠 점을 영어 지시로 바꿔 넣는다 — 맥북 로컬 모델(무료). 로컬이 꺼져 있을 때만 사람이 고르면 Claude(몇 원)
   const [ko, setKo] = useState(p.image_prompt_ko || ''); const [koFor, setKoFor] = useState(p.image_prompt_ko ? p.image_prompt : ''); const [ins, setIns] = useState(''); const [kBusy, setKBusy] = useState(false); const [kErr, setKErr] = useState('');
-  const translate = async text => { setKBusy(true); setKErr(''); try { const r = await api(`/cine/${trialId}/prompt-ko`, { method: 'POST', body: { key: p.key, image_prompt: text } }); setKo(r.ko); setKoFor(text); } catch (e) { setKErr(e.message); } finally { setKBusy(false); } };
+  const translate = async (text, provider) => { setKBusy(true); setKErr(''); try { const r = await api(`/cine/${trialId}/prompt-ko`, { method: 'POST', body: { key: p.key, image_prompt: text, provider } }); setKo(r.ko); setKoFor(text); } catch (e) { setKErr(e.message); } finally { setKBusy(false); } };
   useEffect(() => { if (open && prompt && koFor !== prompt && !kBusy && !kErr) { const t = setTimeout(() => translate(prompt), 600); return () => clearTimeout(t); } }, [open, prompt, koFor]);
-  const applyKo = async () => { setKBusy(true); setKErr(''); try { const r = await api(`/cine/${trialId}/prompt-ko`, { method: 'POST', body: { key: p.key, image_prompt: prompt, instruction_ko: ins } }); setPrompt(r.en); setKo(r.ko); setKoFor(r.en); setIns(''); } catch (e) { setKErr(e.message); } finally { setKBusy(false); } };
+  const applyKo = async provider => { setKBusy(true); setKErr(''); try { const r = await api(`/cine/${trialId}/prompt-ko`, { method: 'POST', body: { key: p.key, image_prompt: prompt, instruction_ko: ins, provider } }); setPrompt(r.en); setKo(r.ko); setKoFor(r.en); setIns(''); } catch (e) { setKErr(e.message); } finally { setKBusy(false); } };
   const st = STATUS[p.review?.status || 'pending'] || STATUS.pending; const drawing = p.job?.status === 'running';
   const act = (action, extra = {}) => onChange(() => api(`/cine/${trialId}/decide`, { method: 'POST', body: { key: p.key, action, note, ...extra } }));
   const redraw = () => onChange(() => api(`/cine/${trialId}/redraw`, { method: 'POST', body: { key: p.key, n: 2, image_prompt: prompt !== p.image_prompt ? prompt : undefined } }));
@@ -48,8 +48,8 @@ function Panel({ trialId, p, onChange, busy, onAdd }) {
         <label>그림 지시(영어 — 그림 모델에 들어가는 원문)<textarea rows={3} value={prompt} onChange={e => setPrompt(e.target.value)} /></label>
         <div className="cr-ko"><b>한글 번역</b> {kBusy && !ins ? <small className="muted">옮기는 중…</small> : koFor === prompt ? <p>{ko}</p> : <small className="muted">영어 지시가 바뀌었습니다 — 잠시 뒤 다시 옮깁니다</small>}</div>
         <label>한글로 고칠 점 추가<textarea rows={2} value={ins} onChange={e => setIns(e.target.value)} placeholder="예: 대문을 조금 더 낡게, 담 너머로 초승달이 보이게" /></label>
-        <div className="cr-actions"><button className="secondary" disabled={kBusy || !ins.trim()} onClick={applyKo}>{kBusy && ins ? '영어 지시로 바꾸는 중…' : '영어 지시에 반영'}</button><small className="muted">반영하면 위 영어 지시가 바뀝니다 — 확인하고 「고친 지시로 다시 그리기」. 번역·반영은 Claude(호출당 약 1~3원).</small></div>
-        {kErr && <div className="cr-err">{kErr}</div>}
+        <div className="cr-actions"><button className="secondary" disabled={kBusy || !ins.trim()} onClick={() => applyKo()}>{kBusy && ins ? '영어 지시로 바꾸는 중…' : '영어 지시에 반영'}</button><small className="muted">반영하면 위 영어 지시가 바뀝니다 — 확인하고 「고친 지시로 다시 그리기」. 번역·반영은 맥북 로컬 모델(무료). 번역은 컷마다 한 번만 하고 저장해 둡니다.</small></div>
+        {kErr && <div className="cr-err">{kErr}{/로컬 모델/.test(kErr) && <div className="cr-actions"><button className="secondary" disabled={kBusy} onClick={() => (ins.trim() ? applyKo('claude') : translate(prompt, 'claude'))}>이번만 Claude 로(약 1~5원)</button></div>}</div>}
         <div className="cr-actions">
           <button disabled={busy || prompt === p.image_prompt} onClick={() => act('edit', { image_prompt: prompt })}>그림 지시만 저장</button>
           <button disabled={busy || drawing || !prompt.trim()} onClick={redraw}>{prompt !== p.image_prompt ? '고친 지시로 다시 그리기(2장)' : (p.candidates || []).length ? '같은 지시로 2장 더 그리기' : '그림 그리기(2장)'}</button>
