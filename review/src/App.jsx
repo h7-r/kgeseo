@@ -478,7 +478,7 @@ export default function App() {
         <details className="panel evidence"><summary>자료 상태와 검수 범위</summary>{boot.warnings.map(warning => <p key={warning}>{warning}</p>)}</details>
         </LegacyWrap>
       </>}
-      {spatial && indoorDetail && <section className="panel"><div className="panel-head"><div><h2>실내 시험 · {indoorDetail.title}</h2><p>에이전트 혼자 만든 결과(사람 검수 전 첫 실행)와 사람 수정본을 나란히 봅니다. 에이전트 혼자 일했을 때 어디까지 되는지 가늠하는 화면입니다.</p></div><div className="button-row"><button className="secondary" onClick={() => changeGate('trial')}>에이전트 시험으로</button><button className="quiet" onClick={() => setIndoorDetail(null)}>닫기 ✕</button></div></div><IndoorSide detail={indoorDetail} /></section>}
+      {spatial && project && indoorDetail && <section className="panel"><div className="panel-head"><div><h2>실내 시험 · {indoorDetail.title}</h2><p>에이전트 혼자 만든 결과(사람 검수 전 첫 실행)와 사람 수정본을 나란히 봅니다. 에이전트 혼자 일했을 때 어디까지 되는지 가늠하는 화면입니다.</p></div><div className="button-row"><button className="secondary" onClick={() => changeGate('trial')}>에이전트 시험으로</button><button className="quiet" onClick={() => setIndoorDetail(null)}>닫기 ✕</button></div></div><IndoorSide detail={indoorDetail} /></section>}
       {spatial && !project && <TrialSpaceMain tf={tf} onBack={() => changeGate(tf.flow && !tf.flow.story.done ? 'source' : 'cine')} />}
       {gate === 'play' && !project && <TrialPuzzleMain tf={tf} reviewer={reviewer} onBack={() => changeGate('space')} />}
       {spatial && project && <>

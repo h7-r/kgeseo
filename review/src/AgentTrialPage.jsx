@@ -106,10 +106,11 @@ function IndoorCompare({ detail }) {
 
 /** 에이전트 단독 결과 ↔ 사람 완성본을 화면 안에서 나란히(10/22) — 에이전트 시험 · 공간·에셋 검수 두 곳에서 쓴다
  *  사람 완성본 = humanFinal 표시가 있는 시험(같은 원문)의 결과. 그 시험 자신을 볼 때는 첫 실행 재현본(buildAgent)이 에이전트 단독 */
-export function IndoorSide({ detail }) {
+export function IndoorSide({ detail, noHuman }) {
   const [side, setSide] = useState(true);
   const I = detail.indoor || {}, own = I.build;
-  const human = detail.humanFinal ? (own && { ...own, title: detail.title }) : I.humanRef;
+  // 10/28 미르: 공간·에셋 검수 탭에서는 사람 완성본을 보이지 않는다(noHuman)
+  const human = noHuman ? null : detail.humanFinal ? (own && { ...own, title: detail.title }) : I.humanRef;
   const opts = [];
   if (detail.humanFinal && I.buildAgent) opts.push(['agent', I.buildAgent, '에이전트 단독 결과', '이 시험의 사람 검수 전 첫 실행(10/21) — 계획·선정·배치 그대로, 화풍·배경·바람은 자동']);
   if (!detail.humanFinal && own) opts.push(['own', own, '에이전트 단독 결과', '이 시험 — 사람 손 없이 지금 공정(에이전트 + 자동 규칙)이 만든 그대로']);
@@ -121,7 +122,7 @@ export function IndoorSide({ detail }) {
   const pair = side && left && human;
   const right = human || own;
   return <>
-      <label className="trial-compare-check"><input type="checkbox" checked={side} disabled={!left || !human} onChange={e => setSide(e.target.checked)} /> 에이전트 단독 결과와 사람 완성본을 나란히 비교{!human ? ' — 사람 완성본이 아직 없음' : ''}</label>
+      {!noHuman && <label className="trial-compare-check"><input type="checkbox" checked={side} disabled={!left || !human} onChange={e => setSide(e.target.checked)} /> 에이전트 단독 결과와 사람 완성본을 나란히 비교{!human ? ' — 사람 완성본이 아직 없음' : ''}</label>}
       {pair && opts.length > 1 && <label className="field indoor-left-pick"><span>왼쪽 화면</span><select value={left[0]} onChange={e => setPick(e.target.value)}>{opts.map(o => <option key={o[0]} value={o[0]}>{o[2]} — {o[3].split(' — ')[0]}</option>)}</select></label>}
       <div className={pair ? 'indoor-side' : ''}>
         {pair && <figure className="indoor-pane"><figcaption><b>{left[2]}</b> <small className="muted">{left[3]}</small></figcaption><iframe className="indoor-frame" title="에이전트 결과 둘러보기" src={`${left[1].viewer}?compact=1&v=${encodeURIComponent(left[1].at)}`} /></figure>}
@@ -131,7 +132,7 @@ export function IndoorSide({ detail }) {
   </>;
 }
 
-export function IndoorResult({ detail, onRebuild, onOpenSpace }) {
+export function IndoorResult({ detail, onRebuild, onOpenSpace, noHuman }) {
   const [view, setView] = useState(true);
   const plan = detail.indoor?.plan, sel = detail.indoor?.selection?.selections || [], build = detail.indoor?.build;
   if (!plan && !build) return null;
@@ -139,7 +140,7 @@ export function IndoorResult({ detail, onRebuild, onOpenSpace }) {
   return <section className="panel">
     <div className="panel-head"><div><h2>실내 방 세트</h2><p>06 계획(방·연결·살림) → 07 에셋 선정 → 08 코드가 방을 만들고 실내 배치 규칙으로 놓음. 「방 둘러보기」는 나주맵과 같은 조작(T 시작 · WASD · 클릭/E 조사 · 문으로 이동).</p></div>
       <div className="button-row">{build && <button className={view ? 'secondary' : ''} onClick={() => setView(v => !v)}>{view ? '둘러보기 닫기' : '방 둘러보기'}</button>}{build && onOpenSpace && <button className="secondary" onClick={() => onOpenSpace(detail)}>공간·에셋 검수에서 보기</button>}{build && <a className="button secondary" href={`${build.viewer}?v=${encodeURIComponent(build.at)}`} target="_blank" rel="noreferrer">새 탭</a>}{plan && sel.length > 0 && <button className="secondary" onClick={onRebuild}>방 다시 만들기(코드만, 비용 0)</button>}</div></div>
-    {build && view && <IndoorSide detail={detail} />}
+    {build && view && <IndoorSide detail={detail} noHuman={noHuman} />}
     {build && <>
       <h3>방 {build.rooms.length}개 · 연결 검사 {build.checks.filter(c => c.ok).length}/{build.checks.length} · 퍼즐 호스트 {build.hosts.placed}/{build.hosts.total}</h3>
       <table className="trial-table"><thead><tr><th>방</th><th>성격</th><th>칸·바닥</th><th>놓음/계획</th><th>바닥 점유</th><th>못 놓은 것</th></tr></thead><tbody>

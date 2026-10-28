@@ -42,7 +42,7 @@ export function TrialSpaceMain({ tf, onBack }) {
     {err && <p className="error">{err}</p>}
     {flow && !flow.cine.done && <div className="cr-wait"><b>이야기 컷 검수가 아직 끝나지 않았습니다</b><p>{!flow.story.done ? '「01 설화와 기획」 승인부터 해 주세요.' : flow.cine.pending ? `검수 전 컷 ${flow.cine.pending}개 — 「02 이야기 컷 검수」에서 승인·반려하면 공간 단계가 저절로 돕니다.` : '05·05b 가 도는 중입니다.'}</p><button className="secondary" onClick={onBack}>{!flow.story.done ? '01 설화와 기획으로' : '02 이야기 컷 검수로'}</button></div>}
     {flow && flow.cine.done && <div className="cr-wait"><b>공간 단계</b><Steps rows={flow.space.steps} />{flow.space.steps.some(r => r.status === 'running') && <p className="muted">도는 중 — 끝나는 대로 아래에 방 세트가 나옵니다(이 화면은 저절로 새로 읽습니다).</p>}</div>}
-    {detail && detail.spaceKind === 'indoor' && <IndoorResult detail={detail} onOpenSpace={null} onRebuild={async () => { try { await api(`/trials/${detail.id}/relayout`, { method: 'POST', body: {} }); await tf.reload(); } catch (e) { alert(e.message); } }} />}
+    {detail && detail.spaceKind === 'indoor' && <IndoorResult detail={detail} noHuman onOpenSpace={null} onRebuild={async () => { try { await api(`/trials/${detail.id}/relayout`, { method: 'POST', body: {} }); await tf.reload(); } catch (e) { alert(e.message); } }} />}
     {detail && detail.spaceKind !== 'indoor' && <p className="note">야외(나주) 시험의 공간 결과는 아직 이 화면에 연결하지 않았습니다 — 「에이전트 시험」에서 보세요.</p>}
   </section>;
 }
