@@ -553,6 +553,14 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
       const input = ['POST', 'PATCH'].includes(req.method) ? await body(req, path.endsWith('/scene-captures') ? 1_000_000 : MAX_BODY) : null;
       // ── 에이전트 시험(agentTrial.mjs, 10/19) — 긴 LLM 단계는 직렬 큐 밖에서 돈다. 검수 기록을 만드는 /space 만 큐 안에서 ──
       // ── 에이전트 시험의 설화·기획 핵심 검수 카드(10/28 미르: 설화가 들어오면 요약 + 사람 확인 리스트 + 문서 원본) ──
+      // ── 한영 번역 모델 비교(10/28 미르: 맥북에서 돌려 보고 하나만 남기기) — POST 실행 · GET 진행 로그·결과 ──
+      if (path === '/__review/mt/bench') {
+        const { spawn } = await import('node:child_process'); const fsp = await import('node:fs/promises'); const { openSync, mkdirSync } = await import('node:fs');
+        const dir = join(root, '.local/mt'); mkdirSync(dir, { recursive: true });
+        if (req.method === 'POST') { if (input?.action === 'stop-server') { spawn('pkill', ['-f', 'tools/mt/mt_server.py']).unref(); return send(200, { stopped: true }); } const script = input?.action === 'cleanup' ? 'cleanup.sh' : 'bench_setup.sh'; const log = openSync(join(dir, 'bench.log'), 'a'); const ch = spawn('bash', [join(root, 'tools/mt', script), root], { detached: true, stdio: ['ignore', log, log] }); ch.unref(); return send(202, { started: true, pid: ch.pid }); }
+        const logText = await fsp.readFile(join(dir, 'bench.log'), 'utf8').catch(() => ''); const result = await fsp.readFile(join(dir, 'bench_result.json'), 'utf8').then(JSON.parse).catch(() => null);
+        return send(200, { log: logText.slice(-4000), result });
+      }
       // ── 에이전트 시험의 정식 공정 흐름 상태 · 공간·에셋 승인(10/28 미르: 01 → 02 → 03 공간·에셋 → 04 퍼즐) ──
       if (path.startsWith('/__review/trial-flow/')) {
         try { const tf = await import(new URL(`./trialFlow.mjs?t=${Date.now()}`, import.meta.url).href); const [code, out] = await tf.handle(root, req.method, path, input); return send(code, out); }

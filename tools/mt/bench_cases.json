@@ -1,0 +1,136 @@
+{
+ "en": [
+  {
+   "id": "S1-1",
+   "en": "Night, a ring of pale turquoise light glowing on bare dark ground before an old wooden gate, faint mist, no people, no modern objects"
+  },
+  {
+   "id": "S1-2",
+   "en": "Wide view from the earthen yard toward the tiled gate and main house under a dim blue night sky, faint glow fading at the ground"
+  },
+  {
+   "id": "S1-3",
+   "en": "Close view of a paper-lattice sarangbang door from the maru, a thin pale light slipping through the back lattice, stone step below, no people"
+  },
+  {
+   "id": "S2-1",
+   "en": "Close view of worn wooden maru floorboards at night, a sarangbang paper door behind with a warm lamp glow, no people"
+  },
+  {
+   "id": "S2-2",
+   "en": "View from the maru out across the earthen yard, a large round full moon in the night sky, cool blue light on the roof tiles"
+  },
+  {
+   "id": "S2-3",
+   "en": "Paper-lattice window lit by a lamp from inside, an indistinct dark shadow falling on it from the yard side, quiet night"
+  },
+  {
+   "id": "S3-1",
+   "en": "A heavy wooden granary door pushed slightly open at night, cold pale light and mist seeping out, stone doorstep in the foreground"
+  },
+  {
+   "id": "S3-2",
+   "en": "Inside the granary, shallow water covering the floor, tall wooden pillars stretching up like bridge piers, dim light through slatted walls"
+  },
+  {
+   "id": "S3-3",
+   "en": "Lone dark silhouette seen from behind standing in dark flooded space between tall pillars, a faint pale light reflected on the water"
+  },
+  {
+   "id": "S4-1",
+   "en": "View through the open kitchen doorway to the empty earthen yard under a deep blue pre-dawn sky, a lone dark silhouette seen from behind at the far gate"
+  },
+  {
+   "id": "S4-2",
+   "en": "Close-up of a cold kitchen hearth and a small oil lamp, a snapped cord and a folded paper lying on the earthen floor"
+  },
+  {
+   "id": "S4-3",
+   "en": "Kitchen interior at night, lamp glow on soot-dark walls, a snapped cord and a folded paper near the doorway, the dark yard visible beyond, no people"
+  },
+  {
+   "id": "E-1",
+   "en": "Sarangbang paper-lattice door glowing with calm, steady moonlight, shadows of the lattice on the maru floor, no people"
+  },
+  {
+   "id": "E-2",
+   "en": "Close-up of a snapped cord lying on a worn wooden threshold in soft moonlight, a stone step and the yard blurred behind"
+  },
+  {
+   "id": "E-3",
+   "en": "Quiet earthen yard in calm moonlight, a dark silhouette of an older man seen from behind standing on the maru, no ritual objects"
+  },
+  {
+   "id": "E-4",
+   "en": "An old stone fortress gate with an arched passage at dusk, soft light, an empty road leading toward it, no people"
+  }
+ ],
+ "edits": [
+  {
+   "id": "S1-1",
+   "ko": "밤, 낡은 나무 대문 앞 맨땅 위에 옅은 청록빛 고리가 빛난다, 옅은 안개, 담 너머로 가는 초승달이 보인다, 사람 없음, 현대 물건 없음",
+   "want": [
+    "crescent"
+   ],
+   "keep": [
+    "no people",
+    "no modern",
+    "turquoise",
+    "gate",
+    "mist"
+   ]
+  },
+  {
+   "id": "S2-2",
+   "ko": "마루에서 흙 마당 너머를 바라본 모습, 밤하늘에 가느다란 초승달, 기와지붕 위의 차가운 푸른 빛",
+   "want": [
+    "crescent"
+   ],
+   "not": [
+    "full moon"
+   ],
+   "keep": [
+    "tile",
+    "yard"
+   ]
+  },
+  {
+   "id": "S3-2",
+   "ko": "곳간 안, 무릎까지 차오른 물이 바닥을 덮고, 높은 나무 기둥들이 다리 교각처럼 솟아 있다, 널판 벽 틈으로 희미한 빛",
+   "want": [
+    "knee"
+   ],
+   "keep": [
+    "pillar",
+    "light"
+   ]
+  },
+  {
+   "id": "S4-2",
+   "ko": "차갑게 식은 부엌 아궁이와 꺼진 작은 등잔 클로즈업, 흙바닥에 끊어진 끈과 접힌 종이가 놓여 있다",
+   "want": [
+    "unlit|extinguished|out|off"
+   ],
+   "keep": [
+    "hearth|stove|furnace",
+    "cord|string|rope",
+    "paper"
+   ]
+  },
+  {
+   "id": "E-3",
+   "ko": "고요한 달빛 아래 흙 마당, 마루에 서 있는 젊은 신랑의 어두운 뒷모습, 제례 물건 없음",
+   "want": [
+    "young",
+    "groom|bridegroom"
+   ],
+   "not": [
+    "old"
+   ],
+   "keep": [
+    "moonlight",
+    "no ritual|without ritual"
+   ]
+  }
+ ]
+}
