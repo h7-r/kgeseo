@@ -1,0 +1,414 @@
+{
+  "arms": {
+    "free": {
+      "actual_cost_unknown": 0,
+      "actual_cost_usd": 0.001878,
+      "cache_hits": 0,
+      "estimated_cost_usd": 0.006666,
+      "fallback_rate": 0.0,
+      "generation_ms": {
+        "median": 0.561,
+        "p90": 0.619
+      },
+      "generator_errors": {},
+      "guard_pass_rate": 1.0,
+      "n": 28,
+      "spoiler_flags": {
+        "answer_leak": 0,
+        "internal_id": 0,
+        "undisclosed_content": 0
+      },
+      "status_counts": {
+        "spoke": 28
+      },
+      "tokens_in": 13431,
+      "tokens_out": 1070,
+      "unsupported_flags": {
+        "ungrounded": 0,
+        "unsupported_sentence": 0
+      },
+      "validation_ms": {
+        "median": 0.179,
+        "p90": 0.186
+      }
+    },
+    "select": {
+      "actual_cost_unknown": 0,
+      "actual_cost_usd": 0.001791,
+      "cache_hits": 0,
+      "estimated_cost_usd": 0.00647,
+      "fallback_rate": 0.0,
+      "generation_ms": {
+        "median": 0.52,
+        "p90": 0.66
+      },
+      "generator_errors": {},
+      "guard_pass_rate": 1.0,
+      "n": 28,
+      "spoiler_flags": {
+        "answer_leak": 0,
+        "internal_id": 0,
+        "undisclosed_content": 0
+      },
+      "status_counts": {
+        "spoke": 28
+      },
+      "tokens_in": 13431,
+      "tokens_out": 896,
+      "unsupported_flags": {
+        "ungrounded": 0,
+        "unsupported_sentence": 0
+      },
+      "validation_ms": {
+        "median": 0.186,
+        "p90": 0.202
+      }
+    }
+  },
+  "audit": {
+    "checked": 38,
+    "excluded": [
+      {
+        "item_id": "case_fixture_archive/player_alias_probe",
+        "reasons": [
+          "answer_or_alias"
+        ]
+      },
+      {
+        "item_id": "case_fixture_lighthouse/player_alias_probe",
+        "reasons": [
+          "answer_or_alias"
+        ]
+      }
+    ],
+    "included": 36,
+    "kinds": {
+      "clarify": 8,
+      "hint": 20,
+      "nudge": 8
+    }
+  },
+  "check_in_baseline": {
+    "all_template": true,
+    "n": 4,
+    "status_counts": {
+      "spoke": 4
+    }
+  },
+  "config_version": "3",
+  "consistency": {
+    "free": {
+      "cases": 8,
+      "distinct_raw_mean": 1,
+      "final_text_identical_rate": 1.0,
+      "guard_decision_agreement_rate": 1.0,
+      "runs_per_case": 3
+    },
+    "select": {
+      "cases": 0
+    }
+  },
+  "distribution": {
+    "arm": {
+      "free|case_fixture_archive|hint": 10,
+      "free|case_fixture_archive|nudge": 5,
+      "free|case_fixture_lighthouse|hint": 10,
+      "free|case_fixture_lighthouse|nudge": 3,
+      "select|case_fixture_archive|hint": 10,
+      "select|case_fixture_archive|nudge": 5,
+      "select|case_fixture_lighthouse|hint": 10,
+      "select|case_fixture_lighthouse|nudge": 3
+    },
+    "check_in_baseline": {
+      "template|case_fixture_archive|check_in": 2,
+      "template|case_fixture_lighthouse|check_in": 2
+    },
+    "repeat": {
+      "free|case_fixture_archive|hint": 4,
+      "free|case_fixture_archive|nudge": 4,
+      "free|case_fixture_lighthouse|hint": 4,
+      "free|case_fixture_lighthouse|nudge": 4
+    },
+    "smoke": {
+      "free|case_fixture_archive|nudge": 1,
+      "free|case_fixture_lighthouse|hint": 1,
+      "select|case_fixture_archive|hint": 1,
+      "select|case_fixture_lighthouse|nudge": 1
+    },
+    "template_feature": {
+      "template|case_fixture_archive|clarify": 4,
+      "template|case_fixture_lighthouse|clarify": 4
+    }
+  },
+  "dry_run": true,
+  "eval_set": "p4b2-fictional/1.1",
+  "eval_set_manifest": {
+    "by_case": {
+      "case_fixture_archive": 19,
+      "case_fixture_lighthouse": 17
+    },
+    "item_ids_sha256": "7772457757aaabc1d06755a8e6d6f2e4dc28118f263db20b31428b57cd9c1320",
+    "items_inputs_sha256": "cedd4e954fd80953a7aba09b08a1aa9b04ad781c5a8270d4d8a814a7abb644b3",
+    "n": 36
+  },
+  "eval_set_pre_manifest": {
+    "items_inputs_sha256": "b22786abac0520b2076f4eea18c27867ef2fd3bf54836d6b15cb3c1240144ca4",
+    "n": 36
+  },
+  "experiment_version": "p4b2/0.2",
+  "input_mismatch_between_arms": [],
+  "ledger": {
+    "actual_unknown_requests": 0,
+    "actual_usd_known": 0.004993,
+    "charged_for_cap_usd": 0.004993,
+    "estimated_usd": 0.017869,
+    "max_requests": 100,
+    "max_usd": 2.0,
+    "requests": 76
+  },
+  "llm_kinds": [
+    "nudge",
+    "hint"
+  ],
+  "llm_rows": 76,
+  "model_access": null,
+  "note": "문장 본문 없음 · 구조 지표와 비용만. 품질(원문 · 최종)은 사람 평가 양식으로 따로 잰다. 오프라인 전송 — 실제 모델 결과가 아니다.",
+  "phase_counts": {
+    "arm": 56,
+    "check_in_baseline": 4,
+    "repeat": 16,
+    "smoke": 4,
+    "template_feature": 8
+  },
+  "phases_run": null,
+  "planned_requests": 76,
+  "reproduction": {
+    "experiment_config_sha256": "304957a9a6b207d2779e9a4c19d946d037540d4bf7c1cdff3ab834ca3fe349f2",
+    "generator_config": {
+      "api_key_env": "OPENAI_API_KEY",
+      "backoff_sec": 2.0,
+      "base_url": null,
+      "budget": {
+        "max_requests": 100,
+        "max_usd": 2.0
+      },
+      "disable_thinking": false,
+      "generator": "gpt_rag",
+      "max_output_tokens": 256,
+      "max_retries": 2,
+      "min_p": null,
+      "model": "gpt-6-luna",
+      "prices": {
+        "checked_at": "2026-10-26T00:00:00+09:00",
+        "source": "https://developers.openai.com/api/docs/pricing (Standard, <=272K input) · https://developers.openai.com/api/docs/models/gpt-6-luna · cache writes $0.125 (모델 페이지, 2026-10-26 재확인)",
+        "usd_per_1m_cache_write": 0.125,
+        "usd_per_1m_cached_input": 0.01,
+        "usd_per_1m_input": 0.1,
+        "usd_per_1m_output": 0.5
+      },
+      "prompt_mode": "free",
+      "prompt_version": "p4b/0.2",
+      "provider": "openai",
+      "reasoning_effort": "none",
+      "structured_output": true,
+      "temperature": 0.7,
+      "timeout_sec": 30.0,
+      "top_k": null,
+      "top_p": null
+    },
+    "git_commit": "b34eea82bf83b12346b7112b13de387238da2e07",
+    "git_dirty": true,
+    "model_record": {
+      "checked_at": "2026-10-26 (재확인)",
+      "distribution": "OpenAI API (Chat Completions)",
+      "file": null,
+      "file_sha256": null,
+      "license": "OpenAI 서비스 약관 (API)",
+      "model_id": "gpt-6-luna",
+      "revision": null,
+      "runtime": null,
+      "runtime_asset": null,
+      "runtime_sha256": null,
+      "sdk": "openai==3.29.0 (설치 · pip check 통과 2026-10-26)",
+      "snapshot": "gpt-6-luna",
+      "sources": [
+        "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "https://developers.openai.com/api/docs/pricing",
+        "https://developers.openai.com/api/docs/guides/latest-model",
+        "https://pypi.org/project/openai/"
+      ],
+      "verified_locally": false
+    },
+    "packages": {
+      "openai": "3.29.0",
+      "pydantic": "2.13.5"
+    },
+    "prompt_version": "p4b/0.2",
+    "python": "3.12.10",
+    "source_sha256": "60724578e4fc04f87028b5889c6ad716c8320fd15d3c0e49e95772215cc5e435"
+  },
+  "request_params": {
+    "free": {
+      "max_completion_tokens": 256,
+      "model": "gpt-6-luna",
+      "reasoning_effort": "none",
+      "response_format": {
+        "name": "npc_free",
+        "strict": true,
+        "type": "json_schema"
+      },
+      "store": false,
+      "temperature": 0.7
+    },
+    "select": {
+      "max_completion_tokens": 256,
+      "model": "gpt-6-luna",
+      "reasoning_effort": "none",
+      "response_format": {
+        "name": "npc_select",
+        "strict": true,
+        "type": "json_schema"
+      },
+      "store": false,
+      "temperature": 0.7
+    }
+  },
+  "sent_requests": 76,
+  "session_max_requests": null,
+  "smoke": {
+    "actual_cost_unknown": 0,
+    "actual_cost_usd": 0.000259,
+    "cache_hits": 0,
+    "estimated_cost_usd": 0.000934,
+    "fallback_rate": 0.0,
+    "generation_ms": {
+      "median": 0.573,
+      "p90": 0.827
+    },
+    "generator_errors": {},
+    "guard_pass_rate": 1.0,
+    "n": 4,
+    "spoiler_flags": {
+      "answer_leak": 0,
+      "internal_id": 0,
+      "undisclosed_content": 0
+    },
+    "status_counts": {
+      "spoke": 4
+    },
+    "tokens_in": 1885,
+    "tokens_out": 140,
+    "unsupported_flags": {
+      "ungrounded": 0,
+      "unsupported_sentence": 0
+    },
+    "validation_ms": {
+      "median": 0.18,
+      "p90": 0.195
+    }
+  },
+  "smoke_rows": [
+    {
+      "actual_cost_usd": 6.110000000000001e-05,
+      "arm": "select",
+      "estimated_cost_usd": 0.0002275,
+      "eval_item_id": "case_fixture_archive/hint_player_selected",
+      "fallback_reason": null,
+      "final_kind": "hint",
+      "guard_failures": [],
+      "guard_passed": true,
+      "status": "spoke",
+      "tokens_in": 451,
+      "tokens_out": 32,
+      "usage_detail": {
+        "cache_hit": false,
+        "cache_write_tokens": null,
+        "cached_tokens": null,
+        "finish_reason": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "actual_cost_usd": 5.97e-05,
+      "arm": "free",
+      "estimated_cost_usd": 0.000234,
+      "eval_item_id": "case_fixture_archive/nudge_auto_focus",
+      "fallback_reason": null,
+      "final_kind": "nudge",
+      "guard_failures": [],
+      "guard_passed": true,
+      "status": "spoke",
+      "tokens_in": 447,
+      "tokens_out": 30,
+      "usage_detail": {
+        "cache_hit": false,
+        "cache_write_tokens": null,
+        "cached_tokens": null,
+        "finish_reason": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "actual_cost_usd": 7.280000000000001e-05,
+      "arm": "free",
+      "estimated_cost_usd": 0.000240375,
+      "eval_item_id": "case_fixture_lighthouse/hint_player_selected",
+      "fallback_reason": null,
+      "final_kind": "hint",
+      "guard_failures": [],
+      "guard_passed": true,
+      "status": "spoke",
+      "tokens_in": 498,
+      "tokens_out": 46,
+      "usage_detail": {
+        "cache_hit": false,
+        "cache_write_tokens": null,
+        "cached_tokens": null,
+        "finish_reason": null,
+        "reasoning_tokens": null
+      }
+    },
+    {
+      "actual_cost_usd": 6.49e-05,
+      "arm": "select",
+      "estimated_cost_usd": 0.00023225,
+      "eval_item_id": "case_fixture_lighthouse/nudge_auto_focus",
+      "fallback_reason": null,
+      "final_kind": "nudge",
+      "guard_failures": [],
+      "guard_passed": true,
+      "status": "spoke",
+      "tokens_in": 489,
+      "tokens_out": 32,
+      "usage_detail": {
+        "cache_hit": false,
+        "cache_write_tokens": null,
+        "cached_tokens": null,
+        "finish_reason": null,
+        "reasoning_tokens": null
+      }
+    }
+  ],
+  "stop_detail": null,
+  "stop_reason": null,
+  "template_feature": {
+    "all_template": true,
+    "guard_pass_rate": 1.0,
+    "kinds": {
+      "clarify": 8
+    },
+    "n": 8,
+    "status_counts": {
+      "spoke": 8
+    }
+  },
+  "usage_fields": {
+    "cache_write_tokens": 0,
+    "cached_tokens": 0,
+    "completion_tokens": 76,
+    "finish_reason": 0,
+    "prompt_tokens": 76,
+    "reasoning_tokens": 0,
+    "responses": 76
+  }
+}

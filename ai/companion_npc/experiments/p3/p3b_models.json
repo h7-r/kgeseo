@@ -1,0 +1,181 @@
+{
+  "_note": "P3-B 모델 비교 설정. 격자는 실행 전에 고정했다. 모든 값은 실험 설정값이며 운영 확정값이 아니다. 합성 데이터 결과는 실제 플레이어 성능이 아니다.",
+  "exp_id": "p3b_models",
+  "representative": false,
+  "simulation_config": "experiments/p2c_default.json",
+  "shifted_simulation_config": "experiments/p2c_shifted.json",
+  "seeds": [
+    20261025,
+    20261026,
+    20261027
+  ],
+  "sessions_per_case_archetype": 200,
+  "inner_folds": 5,
+  "split_seed": 7,
+  "weightings": [
+    "session",
+    "thin60",
+    "thin90",
+    "none"
+  ],
+  "logreg_C": [
+    0.001,
+    0.01,
+    0.1,
+    1.0,
+    10.0,
+    100.0
+  ],
+  "lgbm_grid": [
+    {
+      "num_leaves": 7,
+      "learning_rate": 0.05,
+      "n_estimators": 100,
+      "min_child_samples": 50
+    },
+    {
+      "num_leaves": 7,
+      "learning_rate": 0.05,
+      "n_estimators": 100,
+      "min_child_samples": 200
+    },
+    {
+      "num_leaves": 7,
+      "learning_rate": 0.05,
+      "n_estimators": 300,
+      "min_child_samples": 50
+    },
+    {
+      "num_leaves": 7,
+      "learning_rate": 0.05,
+      "n_estimators": 300,
+      "min_child_samples": 200
+    },
+    {
+      "num_leaves": 7,
+      "learning_rate": 0.1,
+      "n_estimators": 100,
+      "min_child_samples": 50
+    },
+    {
+      "num_leaves": 7,
+      "learning_rate": 0.1,
+      "n_estimators": 100,
+      "min_child_samples": 200
+    },
+    {
+      "num_leaves": 7,
+      "learning_rate": 0.1,
+      "n_estimators": 300,
+      "min_child_samples": 50
+    },
+    {
+      "num_leaves": 7,
+      "learning_rate": 0.1,
+      "n_estimators": 300,
+      "min_child_samples": 200
+    },
+    {
+      "num_leaves": 15,
+      "learning_rate": 0.05,
+      "n_estimators": 100,
+      "min_child_samples": 50
+    },
+    {
+      "num_leaves": 15,
+      "learning_rate": 0.05,
+      "n_estimators": 100,
+      "min_child_samples": 200
+    },
+    {
+      "num_leaves": 15,
+      "learning_rate": 0.05,
+      "n_estimators": 300,
+      "min_child_samples": 50
+    },
+    {
+      "num_leaves": 15,
+      "learning_rate": 0.05,
+      "n_estimators": 300,
+      "min_child_samples": 200
+    },
+    {
+      "num_leaves": 15,
+      "learning_rate": 0.1,
+      "n_estimators": 100,
+      "min_child_samples": 50
+    },
+    {
+      "num_leaves": 15,
+      "learning_rate": 0.1,
+      "n_estimators": 100,
+      "min_child_samples": 200
+    },
+    {
+      "num_leaves": 15,
+      "learning_rate": 0.1,
+      "n_estimators": 300,
+      "min_child_samples": 50
+    },
+    {
+      "num_leaves": 15,
+      "learning_rate": 0.1,
+      "n_estimators": 300,
+      "min_child_samples": 200
+    }
+  ],
+  "lgbm_threads": 4,
+  "rule_grid": {
+    "consecutive_min": [
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
+    "idle_min_sec": [
+      60,
+      90,
+      120,
+      180,
+      240
+    ]
+  },
+  "threshold_candidates": 99,
+  "policy": {
+    "cooldowns_sec": [
+      60,
+      30
+    ],
+    "gate_cutoffs_sec": [
+      null,
+      120,
+      300,
+      600
+    ],
+    "caps": [
+      {
+        "session": null,
+        "puzzle": null
+      },
+      {
+        "session": 3,
+        "puzzle": 2
+      }
+    ],
+    "primary_cooldown_sec": 60,
+    "primary_gate_cutoff_sec": null,
+    "primary_caps": {
+      "session": 3,
+      "puzzle": 2
+    }
+  },
+  "diagnostic_targets": {
+    "max_unnecessary_per_10min_exploring": 1.0,
+    "max_active_time_blocked_share": 0.2
+  },
+  "bootstrap": {
+    "n": 1000,
+    "seed": 0
+  }
+}

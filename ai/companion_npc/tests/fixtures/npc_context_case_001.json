@@ -1,0 +1,67 @@
+{
+  "contract": "npc_context",
+  "contract_version": "0.1",
+  "request_id": "req-0001",
+  "requested_at": "2026-10-24T12:05:00+09:00",
+  "play_session_id": "6f1c2a9e-1111-4c1a-9e2b-000000000001",
+  "case_id": "case_001",
+  "pack_id": "pack_case_001_fixture",
+  "trigger": { "type": "interaction_result", "source": "backend", "event_ref": "3b8e0c55-0000-4000-8000-000000000003" },
+  "state": {
+    "current_zone_id": "ZONE_SECRET_CORRIDOR",
+    "completed_puzzle_ids": [],
+    "acquired_clue_ids": [],
+    "hint_levels": {},
+    "attempt_counts": { "PUZZLE_FIRE_CABINET_LOCK": 3 },
+    "flags": {}
+  },
+  "recent_interactions": [
+    {
+      "client_event_id": "3b8e0c55-0000-4000-8000-000000000001",
+      "occurred_at": "2026-10-24T12:03:10+09:00",
+      "zone_id": "ZONE_SECRET_CORRIDOR",
+      "action": "input",
+      "target_type": "object",
+      "target_id": "OBJ_FIRE_CABINET_LOCK",
+      "resolved_puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "result_type": "incorrect",
+      "attempt_count": 1,
+      "answer_fingerprint": "fp-a1"
+    },
+    {
+      "client_event_id": "3b8e0c55-0000-4000-8000-000000000002",
+      "occurred_at": "2026-10-24T12:04:02+09:00",
+      "zone_id": "ZONE_SECRET_CORRIDOR",
+      "action": "input",
+      "target_type": "object",
+      "target_id": "OBJ_FIRE_CABINET_LOCK",
+      "resolved_puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "result_type": "incorrect",
+      "attempt_count": 2,
+      "answer_fingerprint": "fp-a1"
+    },
+    {
+      "client_event_id": "3b8e0c55-0000-4000-8000-000000000003",
+      "occurred_at": "2026-10-24T12:04:58+09:00",
+      "zone_id": "ZONE_SECRET_CORRIDOR",
+      "action": "input",
+      "target_type": "object",
+      "target_id": "OBJ_FIRE_CABINET_LOCK",
+      "resolved_puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "result_type": "incorrect",
+      "attempt_count": 3,
+      "answer_fingerprint": "fp-b2"
+    }
+  ],
+  "npc_history": [],
+  "timing": {
+    "session_active_sec": 410,
+    "since_last_progress_sec": 410,
+    "since_last_interaction_sec": 2,
+    "since_last_npc_utterance_sec": null,
+    "paused": false
+  },
+  "focus": { "zone_id": "ZONE_SECRET_CORRIDOR", "object_id": "OBJ_FIRE_CABINET_LOCK", "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK" },
+  "npc_behavior": "Follow",
+  "limits": { "max_npc_hint_level": 2, "allow_llm": false, "cooldown_sec": 30 }
+}

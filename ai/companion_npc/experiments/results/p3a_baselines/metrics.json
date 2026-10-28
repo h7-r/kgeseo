@@ -1,0 +1,2128 @@
+{
+  "config": {
+    "budget_per_10min_exploring": 1.0,
+    "cooldowns_sec": [
+      60.0,
+      30.0
+    ],
+    "exp_id": "p3a_baselines",
+    "inner_folds": 5,
+    "max_interventions_per_session": null,
+    "primary_cooldown_sec": 60.0,
+    "representative": false,
+    "rule_grid": {
+      "consecutive_min": [
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "idle_min_sec": [
+        60.0,
+        90.0,
+        120.0,
+        180.0,
+        240.0
+      ]
+    },
+    "seeds": [
+      20261025,
+      20261026,
+      20261027
+    ],
+    "sessions_per_case_archetype": 200,
+    "shifted_simulation_config": "experiments/p2c_shifted.json",
+    "simulation_config": "experiments/p2c_default.json",
+    "split_seed": 7,
+    "weighting": [
+      "session",
+      "thin60",
+      "thin90"
+    ]
+  },
+  "exp_id": "p3a_baselines",
+  "note": "합성 데이터의 기능 검증 결과다. 실제 플레이어 성능이 아니다.",
+  "oracle_note": "generator_reference_oracle 는 Oracle(유형)을 쓰는 참고 기준선이다. 운영에 적용할 수 없고 성능 상한선이 아니다.",
+  "provenance": {
+    "cases": {
+      "case_001": {
+        "client_content_sha256": "ecc52dfd05f288816944893c341fb3344099385d66b320c73f9868e107a29d5c",
+        "pack_id": "pack_case_001",
+        "server_runtime_sha256": "b2ff93a7bf246ce7ce867f2ded29a94d378366a2f513fd066eecc80251e5c1ca"
+      },
+      "case_fixture_archive": {
+        "client_content_sha256": "8c767b3fcbc8f1d4f6f3a818744f3d162a1df8f722874a93fc63fab7c605777c",
+        "pack_id": "pack_case_fixture_archive",
+        "server_runtime_sha256": "f9da10aaf450c8920807a1ffbfc4a83e1e39e55ba1eacc7eda9d15f076358ce4"
+      },
+      "case_fixture_lighthouse": {
+        "client_content_sha256": "ed288481c67bde63da0f946e40dafdd2bc11ad8e79eeae245e0e4e4983de5bc8",
+        "pack_id": "pack_case_fixture_lighthouse",
+        "server_runtime_sha256": "046f2a930e1c2192e3ad46d767d38dbf2dd3dd7dcaf47b17428618bf88aca7d3"
+      }
+    },
+    "comparison_label": "no_progress_within_120s",
+    "experiment_config_sha256": "97673b613e51e2eee504050cbebf2cf73691b5a06a9be13bca53a2aea2d44583",
+    "feature_set_version": "fs-0.1",
+    "generator_version": "sim/0.1",
+    "git_commit": "dd9f38b3ffcb98821fd38c601a9d60af8607781e",
+    "git_dirty": true,
+    "label": "synthetic_needs_help",
+    "packages": {
+      "lightgbm": "4.7.0",
+      "numpy": "2.5.4",
+      "pydantic": "2.13.5",
+      "scikit-learn": "1.9.1",
+      "scipy": "1.18.1"
+    },
+    "python": "3.12.10",
+    "shifted_simulation_config_sha256": "c397f239866494017f4e7bdebaa256e6240e6245b468f1dd84b802476c9d0fbb",
+    "simulation_config_sha256": "d1b48e9411bb02e2cb965cc7e824fd98d3eac3abbed4ba8e02656992838d6fe2",
+    "source_sha256": "c50c7c941607b9fb0baf679e07daf4bf69e12a7caa67e08607000ec2bf2251dc"
+  },
+  "raw_results": {
+    "path": "runs/p3/p3a_baselines/results.json (깃 제외)",
+    "sha256": "771f80b334fd2059b38fb79f9290a7ea2c6f2318b7873d9d4e7a9c34c0c158d5"
+  },
+  "representative": false,
+  "seeds": {
+    "20261025": {
+      "data_sha256": "410c9177474ad6b7a457ee62ef2e57d104a46a8a4ad842f69647b29f0deebaed",
+      "folds": {
+        "case_001": {
+          "baselines": {
+            "always_intervene": {
+              "classification": {
+                "average_precision": 0.1345,
+                "f1": 0.2371,
+                "false_discovery_rate": 0.8655,
+                "false_positive_rate": 1.0,
+                "precision": 0.1345,
+                "recall": 1.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.8663,
+                    "stuck_episode_detection_rate": 0.9783,
+                    "unnecessary_per_10min_exploring": 9.3568
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 25.5793,
+                    "away_alerts": 728,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.8533,
+                    "post_termination_alerts": 21739,
+                    "stuck_episode_detection_rate": 0.9402,
+                    "unnecessary_per_10min_exploring": 4.9524,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 3.117,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.9321,
+                    "unnecessary_per_10min_exploring": 5.0202,
+                    "within_budget": false
+                  }
+                }
+              }
+            },
+            "never_intervene": {
+              "classification": {
+                "average_precision": 0.1345,
+                "f1": null,
+                "false_discovery_rate": null,
+                "false_positive_rate": 0.0,
+                "precision": null,
+                "recall": 0.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": null,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  }
+                }
+              }
+            },
+            "rule[session]": {
+              "classification": {
+                "average_precision": 0.1781,
+                "f1": 0.2478,
+                "false_discovery_rate": 0.6321,
+                "false_positive_rate": 0.0499,
+                "precision": 0.3679,
+                "recall": 0.1868
+              },
+              "parameter_shift": {
+                "f1": 0.225,
+                "observable_cooldown_60s": {
+                  "alerts_per_session": 19.2041,
+                  "away_alerts": 706,
+                  "latency_median_sec": 41.2,
+                  "post_termination_alert_share": 0.9091,
+                  "post_termination_alerts": 17197,
+                  "stuck_episode_detection_rate": 0.374,
+                  "unnecessary_per_10min_exploring": 1.8464,
+                  "within_budget": false
+                }
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.9476,
+                    "stuck_episode_detection_rate": 0.4049,
+                    "unnecessary_per_10min_exploring": 2.1216
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 20.0964,
+                    "away_alerts": 299,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.9451,
+                    "post_termination_alerts": 18918,
+                    "stuck_episode_detection_rate": 0.3967,
+                    "unnecessary_per_10min_exploring": 1.1607,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 0.8383,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.3967,
+                    "unnecessary_per_10min_exploring": 1.1785,
+                    "within_budget": false
+                  }
+                }
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.2231,
+                "inner_unnecessary_per_10min": 2.2495
+              }
+            },
+            "rule[thin60]": {
+              "classification": {
+                "average_precision": 0.1781,
+                "f1": 0.2478,
+                "false_discovery_rate": 0.6321,
+                "false_positive_rate": 0.0499,
+                "precision": 0.3679,
+                "recall": 0.1868
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3481,
+                "inner_unnecessary_per_10min": 2.2495
+              }
+            },
+            "rule[thin90]": {
+              "classification": {
+                "average_precision": 0.1781,
+                "f1": 0.2478,
+                "false_discovery_rate": 0.6321,
+                "false_positive_rate": 0.0499,
+                "precision": 0.3679,
+                "recall": 0.1868
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3417,
+                "inner_unnecessary_per_10min": 2.2495
+              }
+            }
+          },
+          "generator_reference_oracle": {
+            "classification": {
+              "average_precision": 0.4411,
+              "f1": 0.6289,
+              "false_discovery_rate": 0.4111,
+              "false_positive_rate": 0.0732,
+              "precision": 0.5889,
+              "recall": 0.6748
+            },
+            "policy": {
+              "cooldown_30s": {
+                "observable": {
+                  "post_termination_alert_share": 0.507,
+                  "stuck_episode_detection_rate": 0.8723,
+                  "unnecessary_per_10min_exploring": 1.1027
+                }
+              },
+              "cooldown_60s": {
+                "observable": {
+                  "alerts_per_session": 3.1245,
+                  "away_alerts": 254,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.4978,
+                  "post_termination_alerts": 1549,
+                  "stuck_episode_detection_rate": 0.8587,
+                  "unnecessary_per_10min_exploring": 0.5739,
+                  "within_budget": true
+                },
+                "oracle_filtered": {
+                  "alerts_per_session": 1.3459,
+                  "away_alerts": 0,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.0,
+                  "post_termination_alerts": 0,
+                  "stuck_episode_detection_rate": 0.8587,
+                  "unnecessary_per_10min_exploring": 0.586,
+                  "within_budget": true
+                }
+              }
+            }
+          },
+          "leak_check": {
+            "inner_folds": 5,
+            "test_rows": 51947,
+            "test_sessions": 996,
+            "train_rows": 109622,
+            "train_sessions": 1999
+          }
+        },
+        "case_fixture_archive": {
+          "baselines": {
+            "always_intervene": {
+              "classification": {
+                "average_precision": 0.187,
+                "f1": 0.3151,
+                "false_discovery_rate": 0.813,
+                "false_positive_rate": 1.0,
+                "precision": 0.187,
+                "recall": 1.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.508,
+                    "stuck_episode_detection_rate": 0.989,
+                    "unnecessary_per_10min_exploring": 16.0749
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 24.865,
+                    "away_alerts": 3433,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.4985,
+                    "post_termination_alerts": 12396,
+                    "stuck_episode_detection_rate": 0.9259,
+                    "unnecessary_per_10min_exploring": 8.1798,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 9.3929,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.9314,
+                    "unnecessary_per_10min_exploring": 8.2851,
+                    "within_budget": false
+                  }
+                }
+              }
+            },
+            "never_intervene": {
+              "classification": {
+                "average_precision": 0.187,
+                "f1": null,
+                "false_discovery_rate": null,
+                "false_positive_rate": 0.0,
+                "precision": null,
+                "recall": 0.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": null,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  }
+                }
+              }
+            },
+            "rule[session]": {
+              "classification": {
+                "average_precision": 0.199,
+                "f1": 0.2105,
+                "false_discovery_rate": 0.7467,
+                "false_positive_rate": 0.1221,
+                "precision": 0.2533,
+                "recall": 0.1801
+              },
+              "parameter_shift": {
+                "f1": 0.1748,
+                "observable_cooldown_60s": {
+                  "alerts_per_session": 13.5704,
+                  "away_alerts": 2547,
+                  "latency_median_sec": 55.3,
+                  "post_termination_alert_share": 0.5854,
+                  "post_termination_alerts": 7896,
+                  "stuck_episode_detection_rate": 0.3527,
+                  "unnecessary_per_10min_exploring": 3.1919,
+                  "within_budget": false
+                }
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.7511,
+                    "stuck_episode_detection_rate": 0.3786,
+                    "unnecessary_per_10min_exploring": 4.1728
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 14.365,
+                    "away_alerts": 1347,
+                    "latency_median_sec": 48.9,
+                    "post_termination_alert_share": 0.7402,
+                    "post_termination_alerts": 10633,
+                    "stuck_episode_detection_rate": 0.369,
+                    "unnecessary_per_10min_exploring": 2.2697,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 2.5299,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.3704,
+                    "unnecessary_per_10min_exploring": 2.3185,
+                    "within_budget": false
+                  }
+                }
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.2401,
+                "inner_unnecessary_per_10min": 1.8381
+              }
+            },
+            "rule[thin60]": {
+              "classification": {
+                "average_precision": 0.199,
+                "f1": 0.2105,
+                "false_discovery_rate": 0.7467,
+                "false_positive_rate": 0.1221,
+                "precision": 0.2533,
+                "recall": 0.1801
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.4116,
+                "inner_unnecessary_per_10min": 1.8381
+              }
+            },
+            "rule[thin90]": {
+              "classification": {
+                "average_precision": 0.199,
+                "f1": 0.2105,
+                "false_discovery_rate": 0.7467,
+                "false_positive_rate": 0.1221,
+                "precision": 0.2533,
+                "recall": 0.1801
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3972,
+                "inner_unnecessary_per_10min": 1.8381
+              }
+            }
+          },
+          "generator_reference_oracle": {
+            "classification": {
+              "average_precision": 0.4699,
+              "f1": 0.6378,
+              "false_discovery_rate": 0.3888,
+              "false_positive_rate": 0.0976,
+              "precision": 0.6112,
+              "recall": 0.6668
+            },
+            "policy": {
+              "cooldown_30s": {
+                "observable": {
+                  "post_termination_alert_share": 0.4875,
+                  "stuck_episode_detection_rate": 0.8532,
+                  "unnecessary_per_10min_exploring": 0.6805
+                }
+              },
+              "cooldown_60s": {
+                "observable": {
+                  "alerts_per_session": 5.627,
+                  "away_alerts": 555,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.4763,
+                  "post_termination_alerts": 2680,
+                  "stuck_episode_detection_rate": 0.8272,
+                  "unnecessary_per_10min_exploring": 0.3646,
+                  "within_budget": true
+                },
+                "oracle_filtered": {
+                  "alerts_per_session": 2.464,
+                  "away_alerts": 0,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.0,
+                  "post_termination_alerts": 0,
+                  "stuck_episode_detection_rate": 0.8285,
+                  "unnecessary_per_10min_exploring": 0.3818,
+                  "within_budget": true
+                }
+              }
+            }
+          },
+          "leak_check": {
+            "inner_folds": 5,
+            "test_rows": 55023,
+            "test_sessions": 1000,
+            "train_rows": 106546,
+            "train_sessions": 1995
+          }
+        },
+        "case_fixture_lighthouse": {
+          "baselines": {
+            "always_intervene": {
+              "classification": {
+                "average_precision": 0.1759,
+                "f1": 0.2992,
+                "false_discovery_rate": 0.8241,
+                "false_positive_rate": 1.0,
+                "precision": 0.1759,
+                "recall": 1.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.7235,
+                    "stuck_episode_detection_rate": 0.9905,
+                    "unnecessary_per_10min_exploring": 13.7202
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 25.9489,
+                    "away_alerts": 1837,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.7136,
+                    "post_termination_alerts": 18499,
+                    "stuck_episode_detection_rate": 0.9286,
+                    "unnecessary_per_10min_exploring": 7.1103,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 5.8112,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.9302,
+                    "unnecessary_per_10min_exploring": 7.232,
+                    "within_budget": false
+                  }
+                }
+              }
+            },
+            "never_intervene": {
+              "classification": {
+                "average_precision": 0.1759,
+                "f1": null,
+                "false_discovery_rate": null,
+                "false_positive_rate": 0.0,
+                "precision": null,
+                "recall": 0.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": null,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  }
+                }
+              }
+            },
+            "rule[session]": {
+              "classification": {
+                "average_precision": 0.1965,
+                "f1": 0.2354,
+                "false_discovery_rate": 0.7234,
+                "false_positive_rate": 0.1144,
+                "precision": 0.2766,
+                "recall": 0.2049
+              },
+              "parameter_shift": {
+                "f1": 0.216,
+                "observable_cooldown_60s": {
+                  "alerts_per_session": 17.5065,
+                  "away_alerts": 1397,
+                  "latency_median_sec": 53.1,
+                  "post_termination_alert_share": 0.7885,
+                  "post_termination_alerts": 13708,
+                  "stuck_episode_detection_rate": 0.4,
+                  "unnecessary_per_10min_exploring": 3.0179,
+                  "within_budget": false
+                }
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.8653,
+                    "stuck_episode_detection_rate": 0.4349,
+                    "unnecessary_per_10min_exploring": 4.0867
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 18.5806,
+                    "away_alerts": 770,
+                    "latency_median_sec": 43.7,
+                    "post_termination_alert_share": 0.8597,
+                    "post_termination_alerts": 15957,
+                    "stuck_episode_detection_rate": 0.4254,
+                    "unnecessary_per_10min_exploring": 2.2021,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 1.9289,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.427,
+                    "unnecessary_per_10min_exploring": 2.2516,
+                    "within_budget": false
+                  }
+                }
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.2243,
+                "inner_unnecessary_per_10min": 2.0116
+              }
+            },
+            "rule[thin60]": {
+              "classification": {
+                "average_precision": 0.1965,
+                "f1": 0.2354,
+                "false_discovery_rate": 0.7234,
+                "false_positive_rate": 0.1144,
+                "precision": 0.2766,
+                "recall": 0.2049
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3486,
+                "inner_unnecessary_per_10min": 2.0116
+              }
+            },
+            "rule[thin90]": {
+              "classification": {
+                "average_precision": 0.1965,
+                "f1": 0.2354,
+                "false_discovery_rate": 0.7234,
+                "false_positive_rate": 0.1144,
+                "precision": 0.2766,
+                "recall": 0.2049
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3414,
+                "inner_unnecessary_per_10min": 2.0116
+              }
+            }
+          },
+          "generator_reference_oracle": {
+            "classification": {
+              "average_precision": 0.4941,
+              "f1": 0.6646,
+              "false_discovery_rate": 0.3789,
+              "false_positive_rate": 0.0931,
+              "precision": 0.6211,
+              "recall": 0.7147
+            },
+            "policy": {
+              "cooldown_30s": {
+                "observable": {
+                  "post_termination_alert_share": 0.441,
+                  "stuck_episode_detection_rate": 0.9048,
+                  "unnecessary_per_10min_exploring": 1.2529
+                }
+              },
+              "cooldown_60s": {
+                "observable": {
+                  "alerts_per_session": 5.1932,
+                  "away_alerts": 675,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.4323,
+                  "post_termination_alerts": 2243,
+                  "stuck_episode_detection_rate": 0.8698,
+                  "unnecessary_per_10min_exploring": 0.6489,
+                  "within_budget": true
+                },
+                "oracle_filtered": {
+                  "alerts_per_session": 2.3411,
+                  "away_alerts": 0,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.0,
+                  "post_termination_alerts": 0,
+                  "stuck_episode_detection_rate": 0.8714,
+                  "unnecessary_per_10min_exploring": 0.6537,
+                  "within_budget": true
+                }
+              }
+            }
+          },
+          "leak_check": {
+            "inner_folds": 5,
+            "test_rows": 54599,
+            "test_sessions": 999,
+            "train_rows": 106970,
+            "train_sessions": 1996
+          }
+        }
+      },
+      "stats": {
+        "decision_points": 161569,
+        "rows_by_reason": {
+          "excluded_away": 12873,
+          "excluded_other": 0,
+          "excluded_post_termination": 105681,
+          "usable_for_synthetic_needs_help": 43015
+        },
+        "sessions": 3000,
+        "sum_check": true,
+        "usable_but_proxy_censored": 1571,
+        "usable_positive": 8909
+      }
+    },
+    "20261026": {
+      "data_sha256": "24e3acb92bc080b27b3678b1d34df9de4cf2072b494ce76635e82885a6d68c18",
+      "folds": {
+        "case_001": {
+          "baselines": {
+            "always_intervene": {
+              "classification": {
+                "average_precision": 0.1474,
+                "f1": 0.2569,
+                "false_discovery_rate": 0.8526,
+                "false_positive_rate": 1.0,
+                "precision": 0.1474,
+                "recall": 1.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.8586,
+                    "stuck_episode_detection_rate": 0.9757,
+                    "unnecessary_per_10min_exploring": 9.981
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 26.2312,
+                    "away_alerts": 758,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.8466,
+                    "post_termination_alerts": 22095,
+                    "stuck_episode_detection_rate": 0.9204,
+                    "unnecessary_per_10min_exploring": 5.1874,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 3.3818,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.9314,
+                    "unnecessary_per_10min_exploring": 5.2174,
+                    "within_budget": false
+                  }
+                }
+              }
+            },
+            "never_intervene": {
+              "classification": {
+                "average_precision": 0.1474,
+                "f1": null,
+                "false_discovery_rate": null,
+                "false_positive_rate": 0.0,
+                "precision": null,
+                "recall": 0.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": null,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  }
+                }
+              }
+            },
+            "rule[session]": {
+              "classification": {
+                "average_precision": 0.1969,
+                "f1": 0.269,
+                "false_discovery_rate": 0.6121,
+                "false_positive_rate": 0.0562,
+                "precision": 0.3879,
+                "recall": 0.2059
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.9378,
+                    "stuck_episode_detection_rate": 0.4248,
+                    "unnecessary_per_10min_exploring": 2.5303
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 20.7025,
+                    "away_alerts": 333,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.9354,
+                    "post_termination_alerts": 19269,
+                    "stuck_episode_detection_rate": 0.4137,
+                    "unnecessary_per_10min_exploring": 1.3686,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 1.0461,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.4159,
+                    "unnecessary_per_10min_exploring": 1.4016,
+                    "within_budget": false
+                  }
+                }
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.233,
+                "inner_unnecessary_per_10min": 2.1704
+              }
+            },
+            "rule[thin60]": {
+              "classification": {
+                "average_precision": 0.1969,
+                "f1": 0.269,
+                "false_discovery_rate": 0.6121,
+                "false_positive_rate": 0.0562,
+                "precision": 0.3879,
+                "recall": 0.2059
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3721,
+                "inner_unnecessary_per_10min": 2.1704
+              }
+            },
+            "rule[thin90]": {
+              "classification": {
+                "average_precision": 0.1969,
+                "f1": 0.269,
+                "false_discovery_rate": 0.6121,
+                "false_positive_rate": 0.0562,
+                "precision": 0.3879,
+                "recall": 0.2059
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3656,
+                "inner_unnecessary_per_10min": 2.1704
+              }
+            }
+          },
+          "generator_reference_oracle": {
+            "classification": {
+              "average_precision": 0.4378,
+              "f1": 0.6228,
+              "false_discovery_rate": 0.4258,
+              "false_positive_rate": 0.0872,
+              "precision": 0.5742,
+              "recall": 0.6805
+            },
+            "policy": {
+              "cooldown_30s": {
+                "observable": {
+                  "post_termination_alert_share": 0.4478,
+                  "stuck_episode_detection_rate": 0.8872,
+                  "unnecessary_per_10min_exploring": 2.123
+                }
+              },
+              "cooldown_60s": {
+                "observable": {
+                  "alerts_per_session": 3.4332,
+                  "away_alerts": 302,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.4385,
+                  "post_termination_alerts": 1498,
+                  "stuck_episode_detection_rate": 0.8562,
+                  "unnecessary_per_10min_exploring": 1.1149,
+                  "within_budget": false
+                },
+                "oracle_filtered": {
+                  "alerts_per_session": 1.6725,
+                  "away_alerts": 0,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.0,
+                  "post_termination_alerts": 0,
+                  "stuck_episode_detection_rate": 0.8673,
+                  "unnecessary_per_10min_exploring": 1.1401,
+                  "within_budget": false
+                }
+              }
+            }
+          },
+          "leak_check": {
+            "inner_folds": 5,
+            "test_rows": 53388,
+            "test_sessions": 995,
+            "train_rows": 108995,
+            "train_sessions": 1998
+          }
+        },
+        "case_fixture_archive": {
+          "baselines": {
+            "always_intervene": {
+              "classification": {
+                "average_precision": 0.195,
+                "f1": 0.3264,
+                "false_discovery_rate": 0.805,
+                "false_positive_rate": 1.0,
+                "precision": 0.195,
+                "recall": 1.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.5176,
+                    "stuck_episode_detection_rate": 0.9863,
+                    "unnecessary_per_10min_exploring": 16.0231
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 25.2492,
+                    "away_alerts": 3265,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.5079,
+                    "post_termination_alerts": 12811,
+                    "stuck_episode_detection_rate": 0.9351,
+                    "unnecessary_per_10min_exploring": 8.1302,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 9.4848,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.9413,
+                    "unnecessary_per_10min_exploring": 8.2148,
+                    "within_budget": false
+                  }
+                }
+              }
+            },
+            "never_intervene": {
+              "classification": {
+                "average_precision": 0.195,
+                "f1": null,
+                "false_discovery_rate": null,
+                "false_positive_rate": 0.0,
+                "precision": null,
+                "recall": 0.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": null,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  }
+                }
+              }
+            },
+            "rule[session]": {
+              "classification": {
+                "average_precision": 0.2087,
+                "f1": 0.2164,
+                "false_discovery_rate": 0.7292,
+                "false_positive_rate": 0.1175,
+                "precision": 0.2708,
+                "recall": 0.1802
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.7564,
+                    "stuck_episode_detection_rate": 0.3883,
+                    "unnecessary_per_10min_exploring": 4.0517
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 14.7638,
+                    "away_alerts": 1295,
+                    "latency_median_sec": 42.6,
+                    "post_termination_alert_share": 0.7449,
+                    "post_termination_alerts": 10986,
+                    "stuck_episode_detection_rate": 0.3833,
+                    "unnecessary_per_10min_exploring": 2.2094,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 2.6105,
+                    "away_alerts": 0,
+                    "latency_median_sec": 35.8,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.3845,
+                    "unnecessary_per_10min_exploring": 2.2486,
+                    "within_budget": false
+                  }
+                }
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.2582,
+                "inner_unnecessary_per_10min": 1.8576
+              }
+            },
+            "rule[thin60]": {
+              "classification": {
+                "average_precision": 0.2087,
+                "f1": 0.2164,
+                "false_discovery_rate": 0.7292,
+                "false_positive_rate": 0.1175,
+                "precision": 0.2708,
+                "recall": 0.1802
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.4429,
+                "inner_unnecessary_per_10min": 1.8576
+              }
+            },
+            "rule[thin90]": {
+              "classification": {
+                "average_precision": 0.2087,
+                "f1": 0.2164,
+                "false_discovery_rate": 0.7292,
+                "false_positive_rate": 0.1175,
+                "precision": 0.2708,
+                "recall": 0.1802
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.4277,
+                "inner_unnecessary_per_10min": 1.8576
+              }
+            }
+          },
+          "generator_reference_oracle": {
+            "classification": {
+              "average_precision": 0.5102,
+              "f1": 0.6718,
+              "false_discovery_rate": 0.3565,
+              "false_positive_rate": 0.0943,
+              "precision": 0.6435,
+              "recall": 0.7027
+            },
+            "policy": {
+              "cooldown_30s": {
+                "observable": {
+                  "post_termination_alert_share": 0.475,
+                  "stuck_episode_detection_rate": 0.8789,
+                  "unnecessary_per_10min_exploring": 0.6705
+                }
+              },
+              "cooldown_60s": {
+                "observable": {
+                  "alerts_per_session": 6.2853,
+                  "away_alerts": 636,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.4633,
+                  "post_termination_alerts": 2909,
+                  "stuck_episode_detection_rate": 0.8502,
+                  "unnecessary_per_10min_exploring": 0.3734,
+                  "within_budget": true
+                },
+                "oracle_filtered": {
+                  "alerts_per_session": 2.8083,
+                  "away_alerts": 0,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.0,
+                  "post_termination_alerts": 0,
+                  "stuck_episode_detection_rate": 0.8539,
+                  "unnecessary_per_10min_exploring": 0.3796,
+                  "within_budget": true
+                }
+              }
+            }
+          },
+          "leak_check": {
+            "inner_folds": 5,
+            "test_rows": 55859,
+            "test_sessions": 999,
+            "train_rows": 106524,
+            "train_sessions": 1994
+          }
+        },
+        "case_fixture_lighthouse": {
+          "baselines": {
+            "always_intervene": {
+              "classification": {
+                "average_precision": 0.1747,
+                "f1": 0.2974,
+                "false_discovery_rate": 0.8253,
+                "false_positive_rate": 1.0,
+                "precision": 0.1747,
+                "recall": 1.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.7277,
+                    "stuck_episode_detection_rate": 0.9794,
+                    "unnecessary_per_10min_exploring": 13.8547
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 25.2713,
+                    "away_alerts": 1717,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.718,
+                    "post_termination_alerts": 18126,
+                    "stuck_episode_detection_rate": 0.9333,
+                    "unnecessary_per_10min_exploring": 7.1403,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 5.6327,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.9286,
+                    "unnecessary_per_10min_exploring": 7.2395,
+                    "within_budget": false
+                  }
+                }
+              }
+            },
+            "never_intervene": {
+              "classification": {
+                "average_precision": 0.1747,
+                "f1": null,
+                "false_discovery_rate": null,
+                "false_positive_rate": 0.0,
+                "precision": null,
+                "recall": 0.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": null,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  }
+                }
+              }
+            },
+            "rule[session]": {
+              "classification": {
+                "average_precision": 0.2027,
+                "f1": 0.2533,
+                "false_discovery_rate": 0.6964,
+                "false_positive_rate": 0.1055,
+                "precision": 0.3036,
+                "recall": 0.2173
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.8682,
+                    "stuck_episode_detection_rate": 0.427,
+                    "unnecessary_per_10min_exploring": 3.8961
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 18.0891,
+                    "away_alerts": 730,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.8629,
+                    "post_termination_alerts": 15593,
+                    "stuck_episode_detection_rate": 0.4238,
+                    "unnecessary_per_10min_exploring": 2.1147,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 1.8418,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.4222,
+                    "unnecessary_per_10min_exploring": 2.1689,
+                    "within_budget": false
+                  }
+                }
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.2357,
+                "inner_unnecessary_per_10min": 2.0136
+              }
+            },
+            "rule[thin60]": {
+              "classification": {
+                "average_precision": 0.2027,
+                "f1": 0.2533,
+                "false_discovery_rate": 0.6964,
+                "false_positive_rate": 0.1055,
+                "precision": 0.3036,
+                "recall": 0.2173
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3784,
+                "inner_unnecessary_per_10min": 2.0136
+              }
+            },
+            "rule[thin90]": {
+              "classification": {
+                "average_precision": 0.2027,
+                "f1": 0.2533,
+                "false_discovery_rate": 0.6964,
+                "false_positive_rate": 0.1055,
+                "precision": 0.3036,
+                "recall": 0.2173
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3693,
+                "inner_unnecessary_per_10min": 2.0136
+              }
+            }
+          },
+          "generator_reference_oracle": {
+            "classification": {
+              "average_precision": 0.5031,
+              "f1": 0.6727,
+              "false_discovery_rate": 0.3713,
+              "false_positive_rate": 0.0905,
+              "precision": 0.6287,
+              "recall": 0.7233
+            },
+            "policy": {
+              "cooldown_30s": {
+                "observable": {
+                  "post_termination_alert_share": 0.4689,
+                  "stuck_episode_detection_rate": 0.8952,
+                  "unnecessary_per_10min_exploring": 1.2407
+                }
+              },
+              "cooldown_60s": {
+                "observable": {
+                  "alerts_per_session": 5.1522,
+                  "away_alerts": 497,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.4603,
+                  "post_termination_alerts": 2369,
+                  "stuck_episode_detection_rate": 0.873,
+                  "unnecessary_per_10min_exploring": 0.6481,
+                  "within_budget": true
+                },
+                "oracle_filtered": {
+                  "alerts_per_session": 2.3684,
+                  "away_alerts": 0,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.0,
+                  "post_termination_alerts": 0,
+                  "stuck_episode_detection_rate": 0.8714,
+                  "unnecessary_per_10min_exploring": 0.6845,
+                  "within_budget": true
+                }
+              }
+            }
+          },
+          "leak_check": {
+            "inner_folds": 5,
+            "test_rows": 53136,
+            "test_sessions": 999,
+            "train_rows": 109247,
+            "train_sessions": 1994
+          }
+        }
+      },
+      "stats": {
+        "decision_points": 162383,
+        "rows_by_reason": {
+          "excluded_away": 12237,
+          "excluded_other": 0,
+          "excluded_post_termination": 106504,
+          "usable_for_synthetic_needs_help": 43642
+        },
+        "sessions": 3000,
+        "sum_check": true,
+        "usable_but_proxy_censored": 1522,
+        "usable_positive": 9819
+      }
+    },
+    "20261027": {
+      "data_sha256": "a94d1f9a23e2c397125dab77422720ed564000db6702eb8e11302952f59235e6",
+      "folds": {
+        "case_001": {
+          "baselines": {
+            "always_intervene": {
+              "classification": {
+                "average_precision": 0.1508,
+                "f1": 0.2621,
+                "false_discovery_rate": 0.8492,
+                "false_positive_rate": 1.0,
+                "precision": 0.1508,
+                "recall": 1.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.852,
+                    "stuck_episode_detection_rate": 0.9827,
+                    "unnecessary_per_10min_exploring": 9.9405
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 26.194,
+                    "away_alerts": 947,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.8398,
+                    "post_termination_alerts": 21889,
+                    "stuck_episode_detection_rate": 0.9381,
+                    "unnecessary_per_10min_exploring": 5.1908,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 3.3445,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.9356,
+                    "unnecessary_per_10min_exploring": 5.2663,
+                    "within_budget": false
+                  }
+                }
+              }
+            },
+            "never_intervene": {
+              "classification": {
+                "average_precision": 0.1508,
+                "f1": null,
+                "false_discovery_rate": null,
+                "false_positive_rate": 0.0,
+                "precision": null,
+                "recall": 0.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": null,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  }
+                }
+              }
+            },
+            "rule[session]": {
+              "classification": {
+                "average_precision": 0.1908,
+                "f1": 0.2551,
+                "false_discovery_rate": 0.6498,
+                "false_positive_rate": 0.0661,
+                "precision": 0.3502,
+                "recall": 0.2006
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.9314,
+                    "stuck_episode_detection_rate": 0.4406,
+                    "unnecessary_per_10min_exploring": 2.8852
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 20.6543,
+                    "away_alerts": 435,
+                    "latency_median_sec": 41.7,
+                    "post_termination_alert_share": 0.9284,
+                    "post_termination_alerts": 19080,
+                    "stuck_episode_detection_rate": 0.4233,
+                    "unnecessary_per_10min_exploring": 1.5623,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 1.0866,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.4233,
+                    "unnecessary_per_10min_exploring": 1.5875,
+                    "within_budget": false
+                  }
+                }
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.2214,
+                "inner_unnecessary_per_10min": 2.1638
+              }
+            },
+            "rule[thin60]": {
+              "classification": {
+                "average_precision": 0.1908,
+                "f1": 0.2551,
+                "false_discovery_rate": 0.6498,
+                "false_positive_rate": 0.0661,
+                "precision": 0.3502,
+                "recall": 0.2006
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3497,
+                "inner_unnecessary_per_10min": 2.1638
+              }
+            },
+            "rule[thin90]": {
+              "classification": {
+                "average_precision": 0.1908,
+                "f1": 0.2551,
+                "false_discovery_rate": 0.6498,
+                "false_positive_rate": 0.0661,
+                "precision": 0.3502,
+                "recall": 0.2006
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3413,
+                "inner_unnecessary_per_10min": 2.1638
+              }
+            }
+          },
+          "generator_reference_oracle": {
+            "classification": {
+              "average_precision": 0.4567,
+              "f1": 0.6371,
+              "false_discovery_rate": 0.3917,
+              "false_positive_rate": 0.0764,
+              "precision": 0.6083,
+              "recall": 0.6687
+            },
+            "policy": {
+              "cooldown_30s": {
+                "observable": {
+                  "post_termination_alert_share": 0.4822,
+                  "stuck_episode_detection_rate": 0.8639,
+                  "unnecessary_per_10min_exploring": 1.1969
+                }
+              },
+              "cooldown_60s": {
+                "observable": {
+                  "alerts_per_session": 3.5327,
+                  "away_alerts": 355,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.4725,
+                  "post_termination_alerts": 1661,
+                  "stuck_episode_detection_rate": 0.8416,
+                  "unnecessary_per_10min_exploring": 0.674,
+                  "within_budget": true
+                },
+                "oracle_filtered": {
+                  "alerts_per_session": 1.5494,
+                  "away_alerts": 0,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.0,
+                  "post_termination_alerts": 0,
+                  "stuck_episode_detection_rate": 0.8366,
+                  "unnecessary_per_10min_exploring": 0.6803,
+                  "within_budget": true
+                }
+              }
+            }
+          },
+          "leak_check": {
+            "inner_folds": 5,
+            "test_rows": 53243,
+            "test_sessions": 995,
+            "train_rows": 109873,
+            "train_sessions": 1996
+          }
+        },
+        "case_fixture_archive": {
+          "baselines": {
+            "always_intervene": {
+              "classification": {
+                "average_precision": 0.1819,
+                "f1": 0.3078,
+                "false_discovery_rate": 0.8181,
+                "false_positive_rate": 1.0,
+                "precision": 0.1819,
+                "recall": 1.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.5177,
+                    "stuck_episode_detection_rate": 0.9848,
+                    "unnecessary_per_10min_exploring": 16.1219
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 25.5035,
+                    "away_alerts": 3418,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.5086,
+                    "post_termination_alerts": 12933,
+                    "stuck_episode_detection_rate": 0.9267,
+                    "unnecessary_per_10min_exploring": 8.2633,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 9.4776,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.9281,
+                    "unnecessary_per_10min_exploring": 8.312,
+                    "within_budget": false
+                  }
+                }
+              }
+            },
+            "never_intervene": {
+              "classification": {
+                "average_precision": 0.1819,
+                "f1": null,
+                "false_discovery_rate": null,
+                "false_positive_rate": 0.0,
+                "precision": null,
+                "recall": 0.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": null,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  }
+                }
+              }
+            },
+            "rule[session]": {
+              "classification": {
+                "average_precision": 0.1921,
+                "f1": 0.2011,
+                "false_discovery_rate": 0.7593,
+                "false_positive_rate": 0.1211,
+                "precision": 0.2407,
+                "recall": 0.1727
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.757,
+                    "stuck_episode_detection_rate": 0.3734,
+                    "unnecessary_per_10min_exploring": 4.2563
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 14.8385,
+                    "away_alerts": 1333,
+                    "latency_median_sec": 37.7,
+                    "post_termination_alert_share": 0.7467,
+                    "post_termination_alerts": 11046,
+                    "stuck_episode_detection_rate": 0.3568,
+                    "unnecessary_per_10min_exploring": 2.2926,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 2.5837,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.3582,
+                    "unnecessary_per_10min_exploring": 2.3626,
+                    "within_budget": false
+                  }
+                }
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.249,
+                "inner_unnecessary_per_10min": 1.7835
+              }
+            },
+            "rule[thin60]": {
+              "classification": {
+                "average_precision": 0.1921,
+                "f1": 0.2011,
+                "false_discovery_rate": 0.7593,
+                "false_positive_rate": 0.1211,
+                "precision": 0.2407,
+                "recall": 0.1727
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.42,
+                "inner_unnecessary_per_10min": 1.7835
+              }
+            },
+            "rule[thin90]": {
+              "classification": {
+                "average_precision": 0.1921,
+                "f1": 0.2011,
+                "false_discovery_rate": 0.7593,
+                "false_positive_rate": 0.1211,
+                "precision": 0.2407,
+                "recall": 0.1727
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.4089,
+                "inner_unnecessary_per_10min": 1.7835
+              }
+            }
+          },
+          "generator_reference_oracle": {
+            "classification": {
+              "average_precision": 0.4853,
+              "f1": 0.6526,
+              "false_discovery_rate": 0.3694,
+              "false_positive_rate": 0.0881,
+              "precision": 0.6306,
+              "recall": 0.6761
+            },
+            "policy": {
+              "cooldown_30s": {
+                "observable": {
+                  "post_termination_alert_share": 0.5162,
+                  "stuck_episode_detection_rate": 0.8658,
+                  "unnecessary_per_10min_exploring": 0.8034
+                }
+              },
+              "cooldown_60s": {
+                "observable": {
+                  "alerts_per_session": 5.9398,
+                  "away_alerts": 474,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.5061,
+                  "post_termination_alerts": 2997,
+                  "stuck_episode_detection_rate": 0.8271,
+                  "unnecessary_per_10min_exploring": 0.4246,
+                  "within_budget": true
+                },
+                "oracle_filtered": {
+                  "alerts_per_session": 2.5316,
+                  "away_alerts": 0,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.0,
+                  "post_termination_alerts": 0,
+                  "stuck_episode_detection_rate": 0.8285,
+                  "unnecessary_per_10min_exploring": 0.4381,
+                  "within_budget": true
+                }
+              }
+            }
+          },
+          "leak_check": {
+            "inner_folds": 5,
+            "test_rows": 56262,
+            "test_sessions": 997,
+            "train_rows": 106854,
+            "train_sessions": 1994
+          }
+        },
+        "case_fixture_lighthouse": {
+          "baselines": {
+            "always_intervene": {
+              "classification": {
+                "average_precision": 0.1842,
+                "f1": 0.3111,
+                "false_discovery_rate": 0.8158,
+                "false_positive_rate": 1.0,
+                "precision": 0.1842,
+                "recall": 1.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.7212,
+                    "stuck_episode_detection_rate": 0.9789,
+                    "unnecessary_per_10min_exploring": 13.8941
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 25.5085,
+                    "away_alerts": 1873,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.7117,
+                    "post_termination_alerts": 18135,
+                    "stuck_episode_detection_rate": 0.9319,
+                    "unnecessary_per_10min_exploring": 7.0885,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 5.7061,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.9335,
+                    "unnecessary_per_10min_exploring": 7.2409,
+                    "within_budget": false
+                  }
+                }
+              }
+            },
+            "never_intervene": {
+              "classification": {
+                "average_precision": 0.1842,
+                "f1": null,
+                "false_discovery_rate": null,
+                "false_positive_rate": 0.0,
+                "precision": null,
+                "recall": 0.0
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": null,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 0.0,
+                    "away_alerts": 0,
+                    "latency_median_sec": null,
+                    "post_termination_alert_share": null,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.0,
+                    "unnecessary_per_10min_exploring": 0.0,
+                    "within_budget": true
+                  }
+                }
+              }
+            },
+            "rule[session]": {
+              "classification": {
+                "average_precision": 0.2078,
+                "f1": 0.2443,
+                "false_discovery_rate": 0.7013,
+                "false_positive_rate": 0.1096,
+                "precision": 0.2987,
+                "recall": 0.2067
+              },
+              "policy": {
+                "cooldown_30s": {
+                  "observable": {
+                    "post_termination_alert_share": 0.8716,
+                    "stuck_episode_detection_rate": 0.4165,
+                    "unnecessary_per_10min_exploring": 3.5478
+                  }
+                },
+                "cooldown_60s": {
+                  "observable": {
+                    "alerts_per_session": 18.1111,
+                    "away_alerts": 769,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.865,
+                    "post_termination_alerts": 15650,
+                    "stuck_episode_detection_rate": 0.4068,
+                    "unnecessary_per_10min_exploring": 1.9332,
+                    "within_budget": false
+                  },
+                  "oracle_filtered": {
+                    "alerts_per_session": 1.7735,
+                    "away_alerts": 0,
+                    "latency_median_sec": 30.0,
+                    "post_termination_alert_share": 0.0,
+                    "post_termination_alerts": 0,
+                    "stuck_episode_detection_rate": 0.41,
+                    "unnecessary_per_10min_exploring": 1.9722,
+                    "within_budget": false
+                  }
+                }
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.2236,
+                "inner_unnecessary_per_10min": 2.1154
+              }
+            },
+            "rule[thin60]": {
+              "classification": {
+                "average_precision": 0.2078,
+                "f1": 0.2443,
+                "false_discovery_rate": 0.7013,
+                "false_positive_rate": 0.1096,
+                "precision": 0.2987,
+                "recall": 0.2067
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3634,
+                "inner_unnecessary_per_10min": 2.1154
+              }
+            },
+            "rule[thin90]": {
+              "classification": {
+                "average_precision": 0.2078,
+                "f1": 0.2443,
+                "false_discovery_rate": 0.7013,
+                "false_positive_rate": 0.1096,
+                "precision": 0.2987,
+                "recall": 0.2067
+              },
+              "selected": {
+                "consecutive_min": 6,
+                "feasible": false,
+                "idle_min_sec": 240.0,
+                "inner_f1": 0.3504,
+                "inner_unnecessary_per_10min": 2.1154
+              }
+            }
+          },
+          "generator_reference_oracle": {
+            "classification": {
+              "average_precision": 0.5,
+              "f1": 0.6665,
+              "false_discovery_rate": 0.3668,
+              "false_positive_rate": 0.092,
+              "precision": 0.6332,
+              "recall": 0.7034
+            },
+            "policy": {
+              "cooldown_30s": {
+                "observable": {
+                  "post_termination_alert_share": 0.4399,
+                  "stuck_episode_detection_rate": 0.8768,
+                  "unnecessary_per_10min_exploring": 1.0489
+                }
+              },
+              "cooldown_60s": {
+                "observable": {
+                  "alerts_per_session": 4.8498,
+                  "away_alerts": 567,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.4312,
+                  "post_termination_alerts": 2089,
+                  "stuck_episode_detection_rate": 0.8476,
+                  "unnecessary_per_10min_exploring": 0.5585,
+                  "within_budget": true
+                },
+                "oracle_filtered": {
+                  "alerts_per_session": 2.2724,
+                  "away_alerts": 0,
+                  "latency_median_sec": 30.0,
+                  "post_termination_alert_share": 0.0,
+                  "post_termination_alerts": 0,
+                  "stuck_episode_detection_rate": 0.8525,
+                  "unnecessary_per_10min_exploring": 0.5826,
+                  "within_budget": true
+                }
+              }
+            }
+          },
+          "leak_check": {
+            "inner_folds": 5,
+            "test_rows": 53611,
+            "test_sessions": 999,
+            "train_rows": 109505,
+            "train_sessions": 1992
+          }
+        }
+      },
+      "stats": {
+        "decision_points": 163116,
+        "rows_by_reason": {
+          "excluded_away": 13319,
+          "excluded_other": 0,
+          "excluded_post_termination": 106296,
+          "usable_for_synthetic_needs_help": 43501
+        },
+        "sessions": 3000,
+        "sum_check": true,
+        "usable_but_proxy_censored": 1504,
+        "usable_positive": 9211
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "cases": 35,
+  "experiment_version": "p4b1/0.1",
+  "generators": {
+    "offline_echo": {
+      "cache_hits": 0,
+      "cost_unknown": 0,
+      "cost_usd": 0,
+      "generation_ms_median": 0.06,
+      "guard_failure_counts": {},
+      "guard_pass_rate": 1.0,
+      "n": 35,
+      "status_counts": {
+        "held": 5,
+        "spoke": 30
+      },
+      "tokens_in": 10196,
+      "tokens_out": 943,
+      "validation_ms_median": 0.121
+    },
+    "template": {
+      "cache_hits": 0,
+      "cost_unknown": 0,
+      "cost_usd": 0,
+      "generation_ms_median": 0.004,
+      "guard_failure_counts": {},
+      "guard_pass_rate": 1.0,
+      "n": 35,
+      "status_counts": {
+        "held": 5,
+        "spoke": 30
+      },
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "validation_ms_median": 0.122
+    }
+  },
+  "input_mismatch": [],
+  "note": "생성기 비교 배관 확인(오프라인). 품질 비교가 아니다. 네트워크 · 실제 LLM 을 쓰지 않았다."
+}
