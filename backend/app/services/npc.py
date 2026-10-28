@@ -5,7 +5,8 @@ NPC는 게임 진행 상태를 바꾸지 않는다. 승인된 nudge 문장을 �
 
 - `state_json` · `hint_levels`를 쓰지 않고 `hint_level_changed`를 만들지 않는다.
   그래서 PlaySession 행 잠금을 잡지 않는다. 트랜잭션은 이벤트 한 줄 INSERT뿐이다.
-- 승인 콘텐츠(`npc.json` 위치 미정)와 힌트 원문(필드 위치 미정)은 호출하는 쪽이 넘긴다.
+- 승인 콘텐츠(`npc.json` 위치 미정)와 힌트 원문은 호출하는 쪽이 넘긴다. 힌트 원문의 공식 원본은
+  server.json `puzzles[].hints[]`이며 `app.services.hint.server_hint_source()`로 만든다.
 - 대사 · 힌트 원문은 이벤트에 저장하지 않는다. 응답할 때마다 원본에서 읽는다.
 - 요청의 `trigger`는 인가 근거가 아니다(플레이어가 실제로 눌렀다는 증명이 아니다).
   허용 판정은 늘 서버의 `hint_levels`로 한다. 다만 자동 도움 제안은 nudge만 쓰므로,

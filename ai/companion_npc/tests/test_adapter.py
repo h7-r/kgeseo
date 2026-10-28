@@ -213,6 +213,15 @@ def test_server_rejects_unknown_field_like_backend(lighthouse):
     assert "secret plan" not in str(info.value)
 
 
+def test_server_hint_text_is_accepted_but_not_copied(lighthouse):
+    server = copy.deepcopy(lighthouse.server)
+    secret = "(가상) 서버 전용 힌트 원문"
+    server["puzzles"][0]["hints"] = [{"level": 1, "text": secret}]
+    result = convert_case(lighthouse.client, server, client_ref="x")
+    assert secret not in canonical_json(result.pack)
+    assert secret not in canonical_json(result.report)
+
+
 def test_unknown_key_name_with_answer_is_not_echoed(lighthouse):
     server = copy.deepcopy(lighthouse.server)
     server["puzzles"][0]["note_northeast"] = "x"

@@ -63,6 +63,7 @@ MIRRORED = [
     ("puzzle_runtime", name)
     for name in [
         "RuntimeEffect",
+        "HintDefinition",
         "PuzzleDefinition",
         "ClueCombinationDefinition",
         "PuzzleRuntimeDefinition",
@@ -103,6 +104,17 @@ def _accepts(model, data) -> bool:
         lambda c, s: s["puzzles"].append(dict(s["puzzles"][0])),
         lambda c, s: s["puzzles"][0].update(extra="x"),
         lambda c, s: s["puzzles"][0]["on_correct"].pop("complete_puzzle_ids"),
+        # server.json 정식 힌트 원문 (PM v0.4.2)
+        lambda c, s: s["puzzles"][0].update(
+            hints=[{"level": 1, "text": "h1"}, {"level": 2, "text": "h2"}]
+        ),
+        lambda c, s: s["puzzles"][0].update(
+            hints=[{"level": 1, "text": "h1"}, {"level": 1, "text": "h1b"}]
+        ),
+        lambda c, s: s["puzzles"][0].update(hints=[{"level": 2, "text": "h2"}]),
+        lambda c, s: s["puzzles"][0].update(hints=[{"level": 1, "text": " "}]),
+        lambda c, s: s["puzzles"][0].update(hints=[{"level": True, "text": "h1"}]),
+        lambda c, s: s["puzzles"][0].update(hints=[{"level": 1}]),
     ],
 )
 def test_source_models_accept_what_backend_accepts(backend_content_schemas, mutate):

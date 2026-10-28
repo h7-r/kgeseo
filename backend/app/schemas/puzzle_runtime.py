@@ -1,9 +1,13 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 # 단서 수첩의 아이콘·표시 유형. 정답·선행 조건·상태 판정에는 쓰지 않는다.
 ClueCarrierKind = Literal["letter", "note", "key", "piece", "mark", "deduction"]
+
+# 정식 힌트 단계(1 = 힌트 보기, 2 = 정답 보기). app.schemas.hint.HintLevel과 같은 값이다.
+# bool · 문자열 · 실수는 받지 않는다.
+ServerHintLevel = Annotated[int, Field(strict=True, ge=1, le=2)]
 
 
 class ServerContentModel(BaseModel):
@@ -65,19 +69,47 @@ def _validate_required_clue_ids(owner: str, clue_ids: list[str]) -> None:
         seen.add(clue_id)
 
 
+class HintDefinition(ServerContentModel):
+    """정식 힌트 한 단계의 원문. 원문은 server.json 한 곳에만 둔다(PM v0.4.2).
+
+    client.json · npc.json에는 원문을 두지 않는다. npc.json은 `{"level": n}` 참조만 갖는다.
+    """
+
+    level: ServerHintLevel
+    text: str
+
+    @model_validator(mode="after")
+    def validate_text(self) -> "HintDefinition":
+        # 오류에는 단계만 싣는다(원문 없음).
+        if not self.text.strip():
+            raise ValueError(f"Hint level {self.level} text must not be blank")
+        return self
+
+
 class PuzzleDefinition(ServerContentModel):
     puzzle_id: str
     accepted_answers: list[str] = Field(min_length=1)
     # 정답 판정 전에 PlaySession이 모두 획득해야 하는 단서. 비어 있으면 조건 없음.
     requires_clue_ids: list[str] = Field(default_factory=list)
     on_correct: RuntimeEffect
+    # 정식 힌트 원문. 비어 있으면 이 퍼즐에는 힌트가 없다(Hint API는 HintNotFoundError).
+    hints: list[HintDefinition] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_requirements(self) -> "PuzzleDefinition":
         _validate_required_clue_ids(
             f"Puzzle '{self.puzzle_id}'", self.requires_clue_ids
         )
+        levels = [hint.level for hint in self.hints]
+        if len(levels) != len(set(levels)):
+            raise ValueError(f"Puzzle '{self.puzzle_id}' has duplicate hint levels")
+        # 힌트는 한 단계씩만 해금되므로(Hint API), 1단계 없는 2단계는 열 수 없다.
+        if 2 in levels and 1 not in levels:
+            raise ValueError(f"Puzzle '{self.puzzle_id}' hint level 2 requires level 1")
         return self
+
+    def hint_text(self, level: int) -> str | None:
+        return next((hint.text for hint in self.hints if hint.level == level), None)
 
 
 class ClueCombinationDefinition(ServerContentModel):

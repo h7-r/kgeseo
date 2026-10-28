@@ -10,7 +10,7 @@
   key 이름에 정답이 섞일 수 있으므로 오류 위치에서 key 이름은 가린다(errors.py).
 """
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
@@ -190,17 +190,35 @@ def _validate_required_clue_ids(owner: str, clue_ids: list[str]) -> None:
         seen.add(clue_id)
 
 
+class HintDefinition(ServerModel):
+    # 정식 힌트 원문(server.json 에만 있다). 변환기는 이 원문을 팩으로 옮기지 않는다.
+    level: Annotated[int, Field(strict=True, ge=1, le=2)]
+    text: str
+
+    @model_validator(mode="after")
+    def validate_text(self) -> "HintDefinition":
+        if not self.text.strip():
+            raise ValueError(f"Hint level {self.level} text must not be blank")
+        return self
+
+
 class PuzzleDefinition(ServerModel):
     puzzle_id: str
     accepted_answers: list[str] = Field(min_length=1)
     requires_clue_ids: list[str] = Field(default_factory=list)
     on_correct: RuntimeEffect
+    hints: list[HintDefinition] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_requirements(self) -> "PuzzleDefinition":
         _validate_required_clue_ids(
             f"Puzzle '{self.puzzle_id}'", self.requires_clue_ids
         )
+        levels = [hint.level for hint in self.hints]
+        if len(levels) != len(set(levels)):
+            raise ValueError(f"Puzzle '{self.puzzle_id}' has duplicate hint levels")
+        if 2 in levels and 1 not in levels:
+            raise ValueError(f"Puzzle '{self.puzzle_id}' hint level 2 requires level 1")
         return self
 
 

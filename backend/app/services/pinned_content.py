@@ -86,7 +86,8 @@ class ContentPin:
         return f"{self.case_id}@v{self.content_version}"
 
 
-# (Server Runtime, puzzle_id, level) -> 힌트 원문. 원문 필드 위치가 미정이라 호출하는 쪽이 넘긴다.
+# (Server Runtime, puzzle_id, level) -> 힌트 원문. 공식 구현은 app.services.hint.server_hint_text
+# (server.json `puzzles[].hints[]`)이고, 테스트 등은 다른 resolver를 넘길 수 있다.
 HintTextResolver = Callable[[PuzzleRuntimeDefinition, str, int], str | None]
 
 
