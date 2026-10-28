@@ -74,7 +74,13 @@ export default function CineReviewPage() {
   const [adding, setAdding] = useState(null); /* {section, afterKey} */
   const [d, setD] = useState(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState(''); const [filter, setFilter] = useState('all');
   const timer = useRef(0);
-  const load = async (tid = id) => { if (!tid) return; try { setD(await api(`/cine/${tid}`)); setErr(''); } catch (e) { setErr(e.message); } };
+  const [wait, setWait] = useState(null); /* 10/28: 승인 직후 — 05·05b 가 도는 동안 컷이 아직 없을 때 */
+  const load = async (tid = id) => { if (!tid) return; try { setD(await api(`/cine/${tid}`)); setErr(''); if (wait) { setWait(null); api('/cine').then(v => setTrials(v.trials || [])).catch(() => {}); } } catch (e) {
+    if (!/cinematics/.test(e.message)) { setErr(e.message); return; }
+    try { const t = await api(`/trials/${tid}`); const L = t.stepTable || []; const i4 = L.findIndex(x => x.id === 's04'); const di = L.findIndex(x => x.director);
+      setWait({ id: tid, title: t.title, approved: Boolean(t.storyApproval), rows: L.slice(i4 + 1, di >= 0 ? di + 1 : i4 + 2).map(x => ({ id: x.id, label: x.label, status: t.steps?.[x.id]?.status || 'idle', error: t.steps?.[x.id]?.error })) }); setErr(''); }
+    catch (e2) { setErr(e2.message); } } };
+  useEffect(() => { if (!wait) return; const t = setInterval(() => load(wait.id), 6000); return () => clearInterval(t); }, [wait]);
   useEffect(() => { api('/cine').then(v => { setTrials(v.trials || []); if (!id && v.trials?.[0]) setId(v.trials[0].id); }).catch(e => setErr(e.message)); }, []);
   useEffect(() => { if (id) writeTrialKey(id); setD(null); load(id); }, [id]);
   const drawing = d?.sections?.some(s => s.panels.some(p => p.job?.status === 'running'));
@@ -86,9 +92,10 @@ export default function CineReviewPage() {
     <section className="agent-trial cine-review">
       <div className="cr-top">
         <div><p className="eyebrow">LOCAL REVIEW / CINEMATIC</p><h1>이야기 컷 검수</h1><p className="cr-sub">장면 연출 에이전트(05b)가 그린 후보 그림을 사람이 고르고, 고쳐 다시 그리고, 승인하거나 반려합니다. 결정은 바로 게임 화면(실내 방 · 나주 미리보기)에 반영됩니다.</p></div>
-        <label className="field">시험<select value={id} onChange={e => setId(e.target.value)}>{trials.map(t => <option key={t.id} value={t.id}>{t.title} — 검수 전 {t.pending} · 승인 {t.approved} · 반려 {t.rejected}</option>)}</select></label>
+        <label className="field">시험<select value={id} onChange={e => setId(e.target.value)}>{wait && !trials.some(t => t.id === wait.id) && <option value={wait.id}>{wait.title} — 이야기 컷 만드는 중</option>}{trials.map(t => <option key={t.id} value={t.id}>{t.title} — 검수 전 {t.pending} · 승인 {t.approved} · 반려 {t.rejected}</option>)}</select></label>
       </div>
       {err && <div className="trial-error">{err}</div>}
+      {wait && <div className="cr-wait"><b>{wait.approved ? '설화·기획 승인 완료 — 이야기 컷을 만드는 중입니다' : '이 시험은 아직 설화·기획 승인 전입니다'}</b><p>{wait.approved ? '05 퍼즐 → 05b 장면 연출이 끝나면 후보 그림이 여기에 나옵니다(보통 10~20분). 이 화면은 저절로 새로 읽습니다.' : '「01 설화와 기획」에서 카드를 판정하고 승인하면 이야기 컷이 만들어집니다.'}</p><ul>{wait.rows.map(r => <li key={r.id}><b>{r.id.slice(1)}</b> {r.label} <span className={`ap-st ${r.status}`}>{{ done: '끝남', running: '도는 중', failed: '실패', idle: '대기' }[r.status] || r.status}</span>{r.error && <small className="error"> {r.error}</small>}</li>)}</ul></div>}
       {d && <>
         <div className="cr-summary">
           <span>컷 {all.length}</span><span className="cr-pill cr-pending">검수 전 {cnt('pending')}</span><span className="cr-pill cr-approved">승인 {cnt('approved')}</span><span className="cr-pill cr-rejected">반려 {cnt('rejected')}</span>

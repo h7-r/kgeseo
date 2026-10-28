@@ -29,12 +29,12 @@ export default function TrialApprovePanel({ reviewer, setReviewer, onGoCine }) {
   ];
   const chain = s?.chain || []; const last = chain[chain.length - 1];
   const cineReady = approved && last?.status === 'done';
-  const doApprove = async () => { setBusy(true); setErr(''); try { setS(await api(`/trial-brief/${id}/approve`, { method: 'POST', body: { reviewer, note } })); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
+  const doApprove = async () => { setBusy(true); setErr(''); try { setS(await api(`/trial-brief/${id}/approve`, { method: 'POST', body: { reviewer, note } })); onGoCine?.(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
 
   return <section className="panel approve-panel">
     <p className="eyebrow">설화·기획 승인</p>
     <h2>{approved ? '승인됨' : '가운데 내용을 보고 승인'}</h2>
-    <p className="muted">요약 · 사람 확인 카드 · 문서 원본을 검토한 뒤 승인하면 05 퍼즐 → 05b 장면 연출(이야기 컷)이 이어서 돌고, 「02 이야기 컷 검수」로 넘어갑니다.</p>
+    <p className="muted">요약 · 사람 확인 카드 · 문서 원본을 검토한 뒤 승인하면 05 퍼즐 → 05b 장면 연출(이야기 컷)이 이어서 돌고, 화면은 바로 「02 이야기 컷 검수」로 넘어갑니다.</p>
     <dl className="ap-dl">
       <dt>문서 01~04</dt><dd>{docsLeft.length ? `${(s?.docs || []).length - docsLeft.length}/${(s?.docs || []).length}` : '다 나옴'}</dd>
       <dt>확인 카드</dt><dd>{s?.brief ? `확인 ${c.ok} · 문제 ${c.issue} · 판정 전 ${c.pending}` : s?.making ? '만드는 중' : '없음'}</dd>
@@ -48,7 +48,7 @@ export default function TrialApprovePanel({ reviewer, setReviewer, onGoCine }) {
       <label className="field"><span>검수자</span><input value={reviewer} onChange={e => setReviewer(e.target.value)} maxLength={100} placeholder="이름" /></label>
       <label className="field"><span>의견(선택)</span><textarea rows={3} value={note} onChange={e => setNote(e.target.value)} /></label>
       {why.length > 0 && <div className="blockers"><b>승인 전 필요한 것</b><ul>{why.map(w => <li key={w}>{w}</li>)}</ul></div>}
-      <button className="wide" disabled={busy || why.length > 0} onClick={doApprove}>{busy ? '승인하는 중…' : '설화·기획 승인 → 05 · 05b 시작'}</button>
+      <button className="wide" disabled={busy || why.length > 0} onClick={doApprove}>{busy ? '승인하는 중…' : '설화·기획 승인 → 이야기 컷 검수로'}</button>
       <small className="muted">05·05b 는 Claude 로 돕니다(시험마다 약 $1~2).</small>
     </>}
     {err && <p className="error">{err}</p>}
