@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.schemas.case_bundle import CaseBundleResponse
 from app.schemas.clue import PlaySessionCluesData, PlaySessionCluesResponse
 from app.schemas.play_session import (
     PlaySessionCreateRequest,
@@ -13,8 +14,19 @@ from app.schemas.play_session import (
     PlaySessionReadResponse,
     PlaySessionState,
 )
+from app.services.case_bundle import get_case_bundle, get_pinned_case_bundle
+from app.services.case_content import (
+    CaseClientContentError,
+    CaseClientContentNotFoundError,
+    InvalidClientCaseIdError,
+)
+from app.services.case_content_validation import CaseContentLinkValidationError
 from app.services.clue_catalog import get_acquired_clues
-from app.services.pinned_content import PinnedContentStore
+from app.services.pinned_content import (
+    ContentCaseMismatchError,
+    PinnedContentStore,
+    resolve_session_content,
+)
 from app.services.play_session import (
     AnonymousSessionExpiredError,
     AnonymousSessionNotFoundError,
@@ -25,7 +37,12 @@ from app.services.play_session import (
     create_play_session,
     get_play_session,
 )
-from app.services.puzzle_runtime import PuzzleRuntimeError
+from app.services.puzzle_runtime import (
+    CASE_ID_PATTERN,
+    CaseRuntimeNotFoundError,
+    InvalidCaseIdError,
+    PuzzleRuntimeError,
+)
 from app.services.session_content import (
     CASE_VERSION_UNAVAILABLE,
     CONTENT_VERSION_ERRORS,
@@ -56,7 +73,28 @@ async def create_play_session_endpoint(
     request: PlaySessionCreateRequest,
     # 이 요청에서 사용할 DB Session을 주입받는다.
     db: AsyncSession = Depends(get_db),
+    # 게시 검증을 통과해 등록된 콘텐츠 묶음 저장소(기본은 비어 있다)
+    content_store: PinnedContentStore = Depends(get_pinned_content_store),
 ) -> PlaySessionCreateResponse:
+    pinned_content = None
+    if request.content_version is not None:
+        # (제안) 버전을 지정하면 저장소에 등록된 정확히 그 버전으로만 세션을 고정한다.
+        # 파일에서 새로 읽거나 다른 버전으로 바꾸지 않는다.
+        if CASE_ID_PATTERN.fullmatch(request.case_id) is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Invalid case ID.",
+            )
+        try:
+            pinned_content = content_store.get_version(
+                request.case_id, request.content_version
+            )
+        except CONTENT_VERSION_ERRORS as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=CASE_VERSION_UNAVAILABLE,
+            ) from error
+
     try:
         # 실제 게임 플레이 세션 생성 로직은
         # Service 계층에 맡긴다.
@@ -64,6 +102,7 @@ async def create_play_session_endpoint(
             db=db,
             anonymous_session_id=request.anonymous_session_id,
             case_id=request.case_id,
+            pinned_content=pinned_content,
         )
 
     except AnonymousSessionNotFoundError:
@@ -100,6 +139,12 @@ async def create_play_session_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Case content is unavailable.",
         )
+
+    except CONTENT_VERSION_ERRORS as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=CASE_VERSION_UNAVAILABLE,
+        ) from error
 
     # MySQL DATETIME은 timezone 정보를 저장하지 않으므로
     # DB에서 읽어온 created_at에 UTC임을 다시 명시한다.
@@ -200,3 +245,60 @@ async def get_play_session_clues_endpoint(
         success=True,
         data=PlaySessionCluesData(play_session_id=play_session_id, clues=clues),
     )
+
+
+@router.get(
+    "/{play_session_id}/bundle",
+    response_model=CaseBundleResponse,
+)
+async def get_play_session_bundle_endpoint(
+    play_session_id: str,
+    db: AsyncSession = Depends(get_db),
+    content_store: PinnedContentStore = Depends(get_pinned_content_store),
+) -> CaseBundleResponse:
+    """(제안 · 팀 검토 대기) 이 세션이 쓰는 Client Bundle.
+
+    응답 형식은 `GET /cases/{case_id}/bundle`과 같다. 버전 고정 세션은 고정한 버전의 Client 콘텐츠,
+    레거시 세션은 기존 케이스 번들을 돌려준다. 최신 버전으로 바꾸지 않는다.
+    """
+
+    try:
+        play_session = await get_play_session(db, play_session_id)
+        pinned = resolve_session_content(play_session, content_store)
+        if pinned is None:
+            bundle = get_case_bundle(play_session.case_id)
+        else:
+            if pinned.pin.case_id != play_session.case_id:
+                raise ContentCaseMismatchError(pinned.pin.label())
+            bundle = get_pinned_case_bundle(pinned)
+    except PlaySessionNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Play session not found.",
+        )
+    except CONTENT_VERSION_ERRORS as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=CASE_VERSION_UNAVAILABLE,
+        ) from error
+    except (InvalidClientCaseIdError, InvalidCaseIdError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Invalid case ID.",
+        ) from error
+    except (CaseClientContentNotFoundError, CaseRuntimeNotFoundError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Case not found.",
+        ) from error
+    except (
+        CaseClientContentError,
+        PuzzleRuntimeError,
+        CaseContentLinkValidationError,
+    ) as error:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Case content is unavailable.",
+        ) from error
+
+    return CaseBundleResponse(success=True, data=bundle)

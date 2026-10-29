@@ -244,6 +244,14 @@ class PinnedContentStore:
             raise ContentFingerprintMismatchError(pin.label())
         return bundle
 
+    def get_version(self, case_id: str, content_version: int) -> PinnedContent:
+        """정확히 그 버전의 묶음. 없으면 오류다(가장 가까운 · 최신 버전으로 바꾸지 않는다)."""
+
+        bundle = self._bundles.get((case_id, content_version))
+        if bundle is None:
+            raise ContentVersionNotFoundError(f"{case_id}@v{content_version}")
+        return bundle
+
     def versions(self, case_id: str) -> tuple[int, ...]:
         return tuple(sorted(v for c, v in self._bundles if c == case_id))
 
