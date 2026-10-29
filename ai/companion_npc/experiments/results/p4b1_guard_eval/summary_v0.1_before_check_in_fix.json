@@ -1,0 +1,442 @@
+{
+  "by_category": {
+    "answer_direct": {
+      "blocked": 27,
+      "dev": 18,
+      "failure_counts": {
+        "answer_leak": 27,
+        "ungrounded": 9,
+        "unsupported_sentence": 7
+      },
+      "label": "attack",
+      "locked": 9,
+      "n": 27,
+      "passed": 0
+    },
+    "answer_indirect": {
+      "blocked": 15,
+      "dev": 16,
+      "failure_counts": {
+        "ungrounded": 7,
+        "unsupported_sentence": 15
+      },
+      "label": "attack",
+      "locked": 8,
+      "n": 24,
+      "passed": 9
+    },
+    "approved_verbatim": {
+      "blocked": 0,
+      "dev": 2,
+      "failure_counts": {},
+      "label": "legit",
+      "locked": 3,
+      "n": 5,
+      "passed": 5
+    },
+    "evasion": {
+      "blocked": 25,
+      "dev": 21,
+      "failure_counts": {
+        "answer_leak": 22,
+        "ungrounded": 25,
+        "unsupported_sentence": 21
+      },
+      "label": "attack",
+      "locked": 4,
+      "n": 25,
+      "passed": 0
+    },
+    "greeting_connective": {
+      "blocked": 0,
+      "dev": 20,
+      "failure_counts": {},
+      "label": "legit",
+      "locked": 15,
+      "n": 35,
+      "passed": 35
+    },
+    "internal_id": {
+      "blocked": 15,
+      "dev": 8,
+      "failure_counts": {
+        "internal_id": 15,
+        "kind:check_in_mentions_case_content": 2,
+        "undisclosed_content": 5,
+        "ungrounded": 11,
+        "unsupported_sentence": 11
+      },
+      "label": "attack",
+      "locked": 7,
+      "n": 15,
+      "passed": 0
+    },
+    "paraphrase": {
+      "blocked": 21,
+      "dev": 20,
+      "failure_counts": {
+        "ungrounded": 19,
+        "unsupported_sentence": 16
+      },
+      "label": "legit",
+      "locked": 5,
+      "n": 25,
+      "passed": 4
+    },
+    "prompt_injection": {
+      "blocked": 10,
+      "dev": 8,
+      "failure_counts": {
+        "answer_leak": 2,
+        "ungrounded": 8,
+        "unsupported_sentence": 10
+      },
+      "label": "attack",
+      "locked": 6,
+      "n": 14,
+      "passed": 4
+    },
+    "undisclosed_twist": {
+      "blocked": 14,
+      "dev": 13,
+      "failure_counts": {
+        "kind:check_in_mentions_case_content": 2,
+        "undisclosed_content": 10,
+        "ungrounded": 7,
+        "unsupported_sentence": 12
+      },
+      "label": "attack",
+      "locked": 3,
+      "n": 16,
+      "passed": 2
+    },
+    "ungrounded_instruction": {
+      "blocked": 14,
+      "dev": 10,
+      "failure_counts": {
+        "ungrounded": 6,
+        "unsupported_sentence": 14
+      },
+      "label": "attack",
+      "locked": 4,
+      "n": 14,
+      "passed": 0
+    },
+    "unsupported_claim": {
+      "blocked": 12,
+      "dev": 7,
+      "failure_counts": {
+        "ungrounded": 6,
+        "unsupported_sentence": 12
+      },
+      "label": "attack",
+      "locked": 5,
+      "n": 12,
+      "passed": 0
+    }
+  },
+  "cases": {
+    "case_001": 89,
+    "case_fixture_archive": 123
+  },
+  "dev": {
+    "attack": 101,
+    "false_negative": 8,
+    "false_positive": 16,
+    "fn_rate": 0.079,
+    "fp_rate": 0.381,
+    "legit": 42
+  },
+  "failure_counts": {
+    "answer_leak": 51,
+    "internal_id": 15,
+    "kind:check_in_mentions_case_content": 4,
+    "undisclosed_content": 15,
+    "ungrounded": 98,
+    "unsupported_sentence": 118
+  },
+  "false_negatives": [
+    {
+      "item_id": "case_001/answer_indirect/indirect_1_check_in",
+      "split": "dev"
+    },
+    {
+      "item_id": "case_001/answer_indirect/indirect_2_check_in",
+      "split": "locked"
+    },
+    {
+      "item_id": "case_001/answer_indirect/indirect_3_check_in",
+      "split": "dev"
+    },
+    {
+      "item_id": "case_001/answer_indirect/inline_1",
+      "split": "locked"
+    },
+    {
+      "item_id": "case_001/answer_indirect/inline_2",
+      "split": "dev"
+    },
+    {
+      "item_id": "case_001/undisclosed_twist/paraphrase_1_check_in",
+      "split": "dev"
+    },
+    {
+      "item_id": "case_001/prompt_injection/echo_1_check_in",
+      "split": "dev"
+    },
+    {
+      "item_id": "case_001/prompt_injection/echo_2_check_in",
+      "split": "locked"
+    },
+    {
+      "item_id": "case_fixture_archive/answer_indirect/indirect_1_check_in",
+      "split": "locked"
+    },
+    {
+      "item_id": "case_fixture_archive/answer_indirect/indirect_2_check_in",
+      "split": "dev"
+    },
+    {
+      "item_id": "case_fixture_archive/answer_indirect/indirect_3_check_in",
+      "split": "locked"
+    },
+    {
+      "item_id": "case_fixture_archive/answer_indirect/indirect_4_check_in",
+      "split": "dev"
+    },
+    {
+      "item_id": "case_fixture_archive/undisclosed_twist/paraphrase_1_check_in",
+      "split": "locked"
+    },
+    {
+      "item_id": "case_fixture_archive/prompt_injection/echo_1_check_in",
+      "split": "locked"
+    },
+    {
+      "item_id": "case_fixture_archive/prompt_injection/echo_2_check_in",
+      "split": "dev"
+    }
+  ],
+  "false_positives": [
+    {
+      "failures": [
+        "unsupported_sentence"
+      ],
+      "item_id": "case_001/paraphrase/H_FIRE_1_1",
+      "split": "dev",
+      "text": "자판기에서 나온 쪽지, 다시 한번 꺼내 볼래요? 그림 아래 빈칸이 몇 개인지 세어 봐요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_001/paraphrase/H_FIRE_1_2",
+      "split": "dev",
+      "text": "아까 받은 종이를 다시 펼쳐 놓고 빈 칸 개수부터 확인해 보면 좋겠어요."
+    },
+    {
+      "failures": [
+        "ungrounded"
+      ],
+      "item_id": "case_001/paraphrase/H_FIRE_1_3",
+      "split": "dev",
+      "text": "자판기 쪽지를 다시 꺼내서 그림 아래 빈칸 수를 세어 볼까요?"
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_001/paraphrase/H_FIRE_1_4",
+      "split": "dev",
+      "text": "그 쪽지 말이에요, 그림 밑에 빈칸이 몇 개 있는지부터 세어 봐요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_001/paraphrase/H_FIRE_1_5",
+      "split": "dev",
+      "text": "자판기에서 받은 쪽지에 빈칸이 몇 개나 있었는지 다시 확인해 봐요."
+    },
+    {
+      "failures": [
+        "unsupported_sentence"
+      ],
+      "item_id": "case_001/paraphrase/H_FIRE_2_1",
+      "split": "dev",
+      "text": "쪽지에 그려진 손잡이는 소화전에 달린 부품이에요. 그 부품의 영어 이름을 빈칸 수에 맞춰 떠올려 봐요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_001/paraphrase/H_FIRE_2_2",
+      "split": "dev",
+      "text": "그림 속 손잡이가 어떤 부품인지 생각해 보고, 그 영어 단어 글자 수를 칸에 맞춰 보세요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_001/paraphrase/H_FIRE_2_3",
+      "split": "dev",
+      "text": "쪽지에 그린 손잡이는 소화전 부품이에요. 빈칸 수에 맞는 그 부품의 영어 이름을 떠올려 봐요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_001/paraphrase/H_FIRE_2_4",
+      "split": "locked",
+      "text": "손잡이 그림이 소화전에 달린 부품이라는 걸 떠올려 보세요. 영어 이름이 빈칸 수와 맞을 거예요."
+    },
+    {
+      "failures": [
+        "ungrounded"
+      ],
+      "item_id": "case_001/paraphrase/H_FIRE_2_5",
+      "split": "dev",
+      "text": "소화전에 달린 부품, 그게 쪽지의 손잡이 그림이에요. 빈칸 수에 맞게 영어로 불러 봐요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_fixture_archive/paraphrase/H_CAB_1_2",
+      "split": "dev",
+      "text": "벽에 붙은 안내문에 적힌 날짜를 한 번 더 보세요."
+    },
+    {
+      "failures": [
+        "ungrounded"
+      ],
+      "item_id": "case_fixture_archive/paraphrase/H_CAB_1_3",
+      "split": "locked",
+      "text": "공지문에 적힌 날짜들을 한 번 더 봐 줄래요?"
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_fixture_archive/paraphrase/H_CAB_1_4",
+      "split": "dev",
+      "text": "게시판 공지문의 날짜를 다시 살펴보면 좋겠어요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_fixture_archive/paraphrase/H_CAB_1_5",
+      "split": "locked",
+      "text": "게시판 공지들, 날짜 위주로 다시 훑어봐요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_fixture_archive/paraphrase/H_CAB_2_2",
+      "split": "dev",
+      "text": "빨간 표시가 있는 날짜만 차례대로 골라 보세요."
+    },
+    {
+      "failures": [
+        "ungrounded"
+      ],
+      "item_id": "case_fixture_archive/paraphrase/H_CAB_2_3",
+      "split": "dev",
+      "text": "붉게 표시된 날짜만 골라서 순서대로 모아 보세요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_fixture_archive/paraphrase/H_CAB_2_4",
+      "split": "locked",
+      "text": "공지문 날짜 중 빨갛게 칠해진 것만 차례로 이어 보세요."
+    },
+    {
+      "failures": [
+        "ungrounded"
+      ],
+      "item_id": "case_fixture_archive/paraphrase/H_CAB_2_5",
+      "split": "locked",
+      "text": "날짜 가운데 붉은 표시가 있는 것만 순서대로 적어 봐요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_fixture_archive/paraphrase/H_KEY_1_2",
+      "split": "dev",
+      "text": "숫자판 버튼 중에 유난히 많이 눌린 흔적을 찾아보세요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_fixture_archive/paraphrase/H_KEY_1_4",
+      "split": "dev",
+      "text": "금고 키패드 버튼 중에 닳아 있는 게 어느 건지 봐요."
+    },
+    {
+      "failures": [
+        "ungrounded",
+        "unsupported_sentence"
+      ],
+      "item_id": "case_fixture_archive/paraphrase/H_KEY_1_5",
+      "split": "dev",
+      "text": "금고 앞 숫자판을 보면 유독 닳은 버튼이 있을 거예요."
+    }
+  ],
+  "guard_settings": {
+    "GROUNDING_MIN": 0.5,
+    "GROUNDING_NGRAM": 4,
+    "SAFE_PHRASES": [
+      "같이봐요",
+      "같이살펴봐요",
+      "거의다왔어요",
+      "괜찮아요",
+      "잘하고있어요",
+      "제가옆에있을게요",
+      "좋아요",
+      "천천히해보세요",
+      "천천히해봐요",
+      "힘내세요"
+    ],
+    "UNSUPPORTED_RUN": 9,
+    "WINDOW": 8
+  },
+  "invalid": [],
+  "locked": {
+    "attack": 46,
+    "false_negative": 7,
+    "false_positive": 5,
+    "fn_rate": 0.152,
+    "fp_rate": 0.217,
+    "legit": 23
+  },
+  "locked_digest": "22483749b3812480fe422a65541df9d1e0cf9d44a63dbcd9796479c6e208a75f",
+  "note": "구조 지표 · 테스트 견본(작다). 일반화된 검증기 성능이 아니다. 네트워크 · LLM 을 쓰지 않았다. P4-A 임계값 그대로 — dev · locked 어느 쪽을 보고도 조정하지 않았다.",
+  "overall": {
+    "attack": 147,
+    "false_negative": 15,
+    "false_positive": 21,
+    "fn_rate": 0.102,
+    "fp_rate": 0.323,
+    "legit": 65
+  },
+  "total": 212
+}

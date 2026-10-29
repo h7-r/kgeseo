@@ -1,0 +1,8 @@
+# P4-B2 LLM 실험 전용 (선택 설치) — 기본 requirements.txt 와 분리한다.
+#   .\.venv\Scripts\python.exe -m pip install -r requirements-llm.txt
+#   .\.venv\Scripts\python.exe -m pip check
+# openai: 2026-10-26 PyPI 확인 — 최신 3.37.0(2026-10-22). 공급망 위험을 줄이려고 공개 2주가 지난 판을 고정했다.
+#   3.29.0 = 2026-10-11 공개. Python >= 3.10. 설치 전에 PyPI 의 판 · 공개일을 다시 확인한다.
+#   SDK 자체 재시도는 쓰지 않는다(max_retries=0) — companion_npc.llm_net.openai_chat 참고.
+# 로컬 Qwen 은 같은 SDK 로 llama.cpp llama-server 의 OpenAI 호환 주소(127.0.0.1)에 붙는다. 추가 패키지 없음.
+openai==3.29.0

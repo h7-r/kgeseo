@@ -1,0 +1,19 @@
+{
+  "_note": "P4-B1 생성기 비교 배관 확인 설정 (템플릿 vs 오프라인 전송). 실제 GPT · Qwen 을 부르지 않는다. 네트워크·LLM 을 쓰지 않는다. 정답 별칭은 이 파일에 두지 않는다(aliases_file 은 서버 비공개 자리의 테스트 대역).",
+  "exp_id": "p4b1_compare",
+  "cases": [
+    {
+      "case_id": "case_001",
+      "cases_dir": "../../backend/app/content/cases",
+      "npc_dir": "tests/fixtures/npc"
+    },
+    {
+      "case_id": "case_fixture_archive",
+      "cases_dir": "tests/fixtures/cases",
+      "npc_dir": "tests/fixtures/npc"
+    }
+  ],
+  "aliases_file": "tests/fixtures/private/aliases.json",
+  "now": "2026-10-26T12:00:00+09:00",
+  "paraphrases_file": "tests/fixtures/npc/paraphrases.json"
+}

@@ -1,0 +1,236 @@
+{
+  "arms": {
+    "free": {
+      "actual_cost_unknown": 0,
+      "actual_cost_usd": 0,
+      "cache_hits": 0,
+      "estimated_cost_usd": 0,
+      "fallback_rate": 0.0,
+      "generation_ms": {
+        "median": 0.08,
+        "p90": 0.107
+      },
+      "generator_errors": {},
+      "guard_pass_rate": 1.0,
+      "n": 36,
+      "spoiler_flags": {
+        "answer_leak": 0,
+        "internal_id": 0,
+        "undisclosed_content": 0
+      },
+      "status_counts": {
+        "spoke": 36
+      },
+      "tokens_in": 15291,
+      "tokens_out": 1249,
+      "unsupported_flags": {
+        "ungrounded": 0,
+        "unsupported_sentence": 0
+      },
+      "validation_ms": {
+        "median": 0.182,
+        "p90": 0.199
+      }
+    },
+    "select": {
+      "actual_cost_unknown": 0,
+      "actual_cost_usd": 0,
+      "cache_hits": 0,
+      "estimated_cost_usd": 0,
+      "fallback_rate": 0.0,
+      "generation_ms": {
+        "median": 0.081,
+        "p90": 0.097
+      },
+      "generator_errors": {},
+      "guard_pass_rate": 1.0,
+      "n": 36,
+      "spoiler_flags": {
+        "answer_leak": 0,
+        "internal_id": 0,
+        "undisclosed_content": 0
+      },
+      "status_counts": {
+        "spoke": 36
+      },
+      "tokens_in": 15291,
+      "tokens_out": 1152,
+      "unsupported_flags": {
+        "ungrounded": 0,
+        "unsupported_sentence": 0
+      },
+      "validation_ms": {
+        "median": 0.189,
+        "p90": 0.23
+      }
+    }
+  },
+  "audit": {
+    "checked": 38,
+    "excluded": [
+      {
+        "item_id": "case_fixture_archive/player_alias_probe",
+        "reasons": [
+          "answer_or_alias"
+        ]
+      },
+      {
+        "item_id": "case_fixture_lighthouse/player_alias_probe",
+        "reasons": [
+          "answer_or_alias"
+        ]
+      }
+    ],
+    "included": 36,
+    "kinds": {
+      "clarify": 8,
+      "hint": 20,
+      "nudge": 8
+    }
+  },
+  "check_in_baseline": {
+    "all_template": true,
+    "n": 4,
+    "status_counts": {
+      "spoke": 4
+    }
+  },
+  "config_version": "1",
+  "consistency": {
+    "free": {
+      "cases": 8,
+      "distinct_raw_mean": 1,
+      "final_text_identical_rate": 1.0,
+      "guard_decision_agreement_rate": 1.0,
+      "runs_per_case": 3
+    },
+    "select": {
+      "cases": 0
+    }
+  },
+  "dry_run": true,
+  "eval_set": "p4b2-fictional/1.0",
+  "eval_set_manifest": {
+    "by_case": {
+      "case_fixture_archive": 19,
+      "case_fixture_lighthouse": 17
+    },
+    "item_ids_sha256": "7772457757aaabc1d06755a8e6d6f2e4dc28118f263db20b31428b57cd9c1320",
+    "items_inputs_sha256": "b22786abac0520b2076f4eea18c27867ef2fd3bf54836d6b15cb3c1240144ca4",
+    "n": 36
+  },
+  "experiment_version": "p4b2/0.1",
+  "input_mismatch_between_arms": [],
+  "ledger": {
+    "actual_unknown_requests": 0,
+    "actual_usd_known": 0,
+    "charged_for_cap_usd": 0.0,
+    "estimated_usd": 0.0,
+    "max_requests": 100,
+    "max_usd": 0.0,
+    "requests": 92
+  },
+  "llm_rows": 92,
+  "note": "문장 본문 없음 · 구조 지표와 비용만. 품질(원문 · 최종)은 사람 평가 양식으로 따로 잰다. 오프라인 전송 — 실제 모델 결과가 아니다.",
+  "phase_counts": {
+    "arm": 72,
+    "check_in_baseline": 4,
+    "repeat": 16,
+    "smoke": 4
+  },
+  "planned_requests": 92,
+  "reproduction": {
+    "experiment_config_sha256": "808d45194571c4e6c87282e67e67e50979d912737962eb9264967ba91528d519",
+    "generator_config": {
+      "api_key_env": null,
+      "backoff_sec": 1.0,
+      "base_url": "http://127.0.0.1:8080/v1",
+      "budget": {
+        "max_requests": 100,
+        "max_usd": 0.0
+      },
+      "disable_thinking": true,
+      "generator": "qwen_local",
+      "max_output_tokens": 256,
+      "max_retries": 1,
+      "min_p": 0.0,
+      "model": "Qwen3-4B-Q4_K_M.gguf",
+      "prices": null,
+      "prompt_mode": "free",
+      "prompt_version": "p4b/0.2",
+      "provider": "openai_compatible_local",
+      "reasoning_effort": null,
+      "structured_output": true,
+      "temperature": 0.7,
+      "timeout_sec": 60.0,
+      "top_k": 20,
+      "top_p": 0.8
+    },
+    "git_commit": "22a0d15e0d54581cfce7f2c12bd2514da99806b1",
+    "git_dirty": true,
+    "model_record": {
+      "checked_at": "2026-10-26",
+      "distribution": "huggingface:Qwen/Qwen3-4B-GGUF (공식)",
+      "file": "Qwen3-4B-Q4_K_M.gguf",
+      "file_sha256": "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5",
+      "license": "apache-2.0",
+      "model_id": "Qwen3-4B",
+      "revision": "a9a60d009fa7ff9606305047c2bf77ac25dbec49",
+      "runtime": null,
+      "runtime_asset": null,
+      "runtime_sha256": null,
+      "sdk": null,
+      "snapshot": null,
+      "sources": [
+        "https://huggingface.co/Qwen/Qwen3-4B-GGUF",
+        "https://huggingface.co/Qwen/Qwen3-4B-GGUF/blob/main/Qwen3-4B-Q4_K_M.gguf",
+        "https://huggingface.co/Qwen/Qwen3-4B-GGUF/blob/main/LICENSE",
+        "https://github.com/ggml-org/llama.cpp/releases",
+        "https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md"
+      ],
+      "verified_locally": false
+    },
+    "packages": {
+      "openai": null,
+      "pydantic": "2.13.5"
+    },
+    "prompt_version": "p4b/0.2",
+    "python": "3.12.10",
+    "source_sha256": "97637831251b5c0c4c3291c06572ec1664fc33f1075a81d41092ef741986c257"
+  },
+  "sent_requests": 92,
+  "smoke": {
+    "actual_cost_unknown": 0,
+    "actual_cost_usd": 0,
+    "cache_hits": 0,
+    "estimated_cost_usd": 0,
+    "fallback_rate": 0.0,
+    "generation_ms": {
+      "median": 0.09,
+      "p90": 0.097
+    },
+    "generator_errors": {},
+    "guard_pass_rate": 1.0,
+    "n": 4,
+    "spoiler_flags": {
+      "answer_leak": 0,
+      "internal_id": 0,
+      "undisclosed_content": 0
+    },
+    "status_counts": {
+      "spoke": 4
+    },
+    "tokens_in": 1327,
+    "tokens_out": 117,
+    "unsupported_flags": {
+      "ungrounded": 0,
+      "unsupported_sentence": 0
+    },
+    "validation_ms": {
+      "median": 0.146,
+      "p90": 0.187
+    }
+  },
+  "stop_detail": null,
+  "stop_reason": null
+}
