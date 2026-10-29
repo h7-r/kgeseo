@@ -45,9 +45,12 @@ HTTP Status:
     "state": {
       "current_zone_id": "ZONE_001",
       "completed_puzzle_ids": [],
+      "completed_inspect_ids": [],
       "acquired_clue_ids": [],
       "hint_levels": {},
-      "flags": {}
+      "attempt_counts": {},
+      "flags": {},
+      "object_states": {}
     }
   }
 }
@@ -133,9 +136,12 @@ JSON parse 또는 Client Schema 검증이 실패하면 내부 상세를 노출�
 {
   "current_zone_id": "ZONE_001",
   "completed_puzzle_ids": [],
+  "completed_inspect_ids": [],
   "acquired_clue_ids": [],
   "hint_levels": {},
-  "flags": {}
+  "attempt_counts": {},
+  "flags": {},
+  "object_states": {}
 }
 ```
 
@@ -232,9 +238,12 @@ HTTP Status:
     "state": {
       "current_zone_id": null,
       "completed_puzzle_ids": [],
+      "completed_inspect_ids": [],
       "acquired_clue_ids": [],
       "hint_levels": {},
-      "flags": {}
+      "attempt_counts": {},
+      "flags": {},
+      "object_states": {}
     }
   }
 }
@@ -245,6 +254,13 @@ HTTP Status:
 과거 `state_json`에 `current_zone_id`가 없으면 API에서 `null`로 반환하며 DB row를
 수정하거나 현재 Content에서 위치를 추론하지 않습니다. 신규 세션은 non-null
 `current_zone_id`로 생성됩니다.
+
+`attempt_counts`, `completed_inspect_ids`, `object_states`도 과거 `state_json`에 없으면
+각각 `{}`, `[]`, `{}`로 반환하며 조회만으로 DB row를 수정하지 않습니다.
+`object_states`는 `{zone_id: {object_id: {"visible"?: bool, "enabled"?: bool}}}` 구조의
+세션별 Object 변경값이며, 기록되지 않은 속성은 Client Content 초기값을 따릅니다.
+이 값은 Interaction 처리로만 바뀝니다(`docs/contracts/interaction_api_v0.3.2.md` §4.1).
+새로고침·이어하기에서 Frontend는 Case Bundle 정적 값 위에 이 값을 덮어써 화면을 복원합니다.
 
 ### Not Found Response
 
@@ -266,6 +282,18 @@ HTTP Status:
 - 완료된 PlaySession도 정상 리소스로 조회합니다.
 - 조회 과정에서는 PlaySession을 추가하거나 갱신하지 않습니다.
 - 장애 자동 복구가 아니라 DB에 저장된 게임 진행 상태를 반환하는 API입니다.
+
+### 획득 단서 조회 (Q4, 팀 검토 대기)
+
+```http
+GET /api/v1/play-sessions/{play_session_id}/clues
+```
+
+`state.acquired_clue_ids`에 있는 단서만 획득 순서대로 표시 정보와 함께 반환합니다.
+조회만 하며 DB를 바꾸지 않습니다. 단서 정의는 Server 전용 `clues[]`에 있고,
+정의가 없는 단서는 `title`·`summary`·`body`가 `null`로 나옵니다.
+접근 정책은 위 조회 API와 같습니다(`play_session_id`만으로 조회, 인증 없음).
+응답 형식과 오류는 `docs/contracts/clue_api_v0.1.md`를 따릅니다.
 
 ## 10. 조회 API 검증 상태
 

@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 
-from app.schemas.case_content import CaseClientContent
+from app.schemas.case_content import (
+    CaseClientContent,
+    ObjectDefinition,
+    ZoneDefinition,
+)
 
 
 @dataclass(frozen=True)
@@ -35,6 +39,33 @@ class UnsupportedObjectInteractionTypeError(ObjectResolverError):
     pass
 
 
+def find_zone(
+    client_content: CaseClientContent,
+    zone_id: str,
+) -> ZoneDefinition:
+    zone = next(
+        (zone for zone in client_content.zones if zone.zone_id == zone_id), None
+    )
+    if zone is None:
+        raise ZoneNotFoundError(f"Zone '{zone_id}' not found.")
+    return zone
+
+
+def find_object(
+    client_content: CaseClientContent,
+    zone_id: str,
+    object_id: str,
+) -> ObjectDefinition:
+    zone = find_zone(client_content, zone_id)
+
+    obj = next((obj for obj in zone.objects if obj.object_id == object_id), None)
+    if obj is None:
+        raise ObjectNotFoundError(
+            f"Object '{object_id}' not found in Zone '{zone_id}'."
+        )
+    return obj
+
+
 def resolve_object_interaction(
     client_content: CaseClientContent,
     zone_id: str,
@@ -46,17 +77,7 @@ def resolve_object_interaction(
             "combine_clues does not resolve through an Object."
         )
 
-    zone = next(
-        (zone for zone in client_content.zones if zone.zone_id == zone_id), None
-    )
-    if zone is None:
-        raise ZoneNotFoundError(f"Zone '{zone_id}' not found.")
-
-    obj = next((obj for obj in zone.objects if obj.object_id == object_id), None)
-    if obj is None:
-        raise ObjectNotFoundError(
-            f"Object '{object_id}' not found in Zone '{zone_id}'."
-        )
+    obj = find_object(client_content, zone_id, object_id)
 
     interaction = obj.interaction
     if interaction is None:
@@ -70,7 +91,7 @@ def resolve_object_interaction(
         )
 
     return ResolvedObjectInteraction(
-        zone_id=zone.zone_id,
+        zone_id=zone_id,
         object_id=obj.object_id,
         interaction_type=interaction.type,
         target_id=interaction.target_id,

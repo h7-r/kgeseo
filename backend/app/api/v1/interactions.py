@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
@@ -9,14 +10,22 @@ from app.schemas.interaction_api import InteractionApiRequest, InteractionApiRes
 from app.services.case_content import (
     CaseClientContentError,
 )
+from app.services.case_content_validation import CaseContentLinkValidationError
 from app.services.external_interaction import (
     UnsupportedInteractionActionError,
     process_external_interaction,
 )
 from app.services.interaction import (
     ClueNotAcquiredError,
+    CurrentZoneUnknownError,
     IdempotencyConflictError,
+    InspectionNotFoundError,
+    NavigationUnavailableError,
+    ObjectNotEnabledError,
+    ObjectNotVisibleError,
     PuzzleNotFoundError,
+    RequiredCluesMissingError,
+    ZoneNotCurrentError,
 )
 from app.services.object_resolver import (
     InteractionTypeMismatchError,
@@ -42,12 +51,21 @@ async def create_interaction_endpoint(
     play_session_id: UUID,
     request: InteractionApiRequest,
     db: AsyncSession = Depends(get_db),
-) -> InteractionApiResponse:
+) -> InteractionApiResponse | JSONResponse:
     try:
         result = await process_external_interaction(
             db=db,
             play_session_id=str(play_session_id),
             request=request,
+        )
+    except RequiredCluesMissingError as error:
+        # 기존 {"detail": "<문자열>"} 구조를 유지하고 부족한 단서 개수만 덧붙인다.
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "detail": "Required clues are not acquired.",
+                "missing_clue_count": error.missing_clue_count,
+            },
         )
     except PlaySessionNotFoundError as error:
         raise HTTPException(
@@ -58,6 +76,11 @@ async def create_interaction_endpoint(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Puzzle not found.",
+        ) from error
+    except InspectionNotFoundError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Inspection not found.",
         ) from error
     except ZoneNotFoundError as error:
         raise HTTPException(
@@ -84,6 +107,31 @@ async def create_interaction_endpoint(
             status_code=status.HTTP_409_CONFLICT,
             detail="Interaction action does not match the object.",
         ) from error
+    except CurrentZoneUnknownError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Current zone is unknown.",
+        ) from error
+    except ZoneNotCurrentError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Zone is not current.",
+        ) from error
+    except NavigationUnavailableError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Navigation is unavailable.",
+        ) from error
+    except ObjectNotVisibleError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Object is not visible.",
+        ) from error
+    except ObjectNotEnabledError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Object is not enabled.",
+        ) from error
     except IdempotencyConflictError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -94,7 +142,7 @@ async def create_interaction_endpoint(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=f"Interaction action '{error.action}' is not implemented.",
         ) from error
-    except CaseClientContentError as error:
+    except (CaseClientContentError, CaseContentLinkValidationError) as error:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Case content is unavailable.",
@@ -118,6 +166,9 @@ def _to_external_response(
         "combined": "correct",
         "incorrect_combination": "incorrect",
         "already_completed": "already_completed",
+        "inspected": "ok",
+        "already_inspected": "ok",
+        "navigated": "ok",
     }
 
     return InteractionApiResponse(
