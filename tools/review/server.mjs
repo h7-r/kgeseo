@@ -543,6 +543,20 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
       res.end(JSON.stringify(value));
     };
     try {
+      // 10/29 발표 트레일러: 나주 맵(5174)에서 캔버스를 녹화한 webm 을 .local/review/rec 에 받는다. 이 경로 하나만, 루프백·5174 출처만.
+      if (path.startsWith('/__review/rec/')) {
+        const okOrigin = ['http://localhost:5174', 'http://127.0.0.1:5174', `http://${req.headers.host}`].includes(req.headers.origin);
+        const addr = req.socket?.remoteAddress;
+        if (!okOrigin || (addr && !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(addr))) return send(403, { error: 'rec_forbidden' });
+        res.setHeader('Access-Control-Allow-Origin', req.headers.origin); res.setHeader('Access-Control-Allow-Methods', 'POST'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
+        const name = decodeURIComponent(path.slice('/__review/rec/'.length));
+        if (req.method !== 'POST' || !/^[A-Za-z0-9_-]{1,48}$/.test(name)) return send(400, { error: 'rec_bad_request' });
+        const chunks = []; let size = 0; for await (const c of req) { size += c.length; if (size > 400e6) return send(413, { error: 'rec_too_large' }); chunks.push(c); }
+        const fsp = await import('node:fs/promises'); const dir = join(root, '.local/review/rec'); await fsp.mkdir(dir, { recursive: true });
+        await fsp.writeFile(join(dir, name + '.webm'), Buffer.concat(chunks));
+        return send(200, { saved: name + '.webm', bytes: size });
+      }
       guardRequest(req);
       if (path === '/__review/library' || path.startsWith('/__review/library/')) {
         const route = await libraryRoute();

@@ -45,12 +45,23 @@ aside h3{font-size:13px;margin:12px 0 4px}aside ul{margin:0;padding-left:16px}as
 .end-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(#1c1710,#000);overflow:auto;padding:24px}.end-card{width:min(720px,94%);background:#f1e6c9;color:#2b2116;border:2px solid #b9a173;border-radius:14px;padding:26px 30px;font-family:'Nanum Myeongjo','Batang',serif;box-shadow:0 20px 60px #000a}.end-k{font-size:12px;letter-spacing:.1em;color:#7a6440}.end-h{font-size:30px;margin:6px 0 14px;letter-spacing:.04em}.end-sec{margin:10px 0}.end-sec p{margin:4px 0;line-height:1.85}.end-card .mut{color:#6b5a3e}.end-seal{margin:16px 0;padding:14px 16px;border:1px dashed #8a6a3a;border-radius:10px;background:#fbf4e4}.end-place{font-size:18px;font-weight:700;margin:4px 0}.end-seal input{width:100%;padding:8px;border:1px solid #b9a173;border-radius:6px;margin:6px 0;background:#fffdf5;color:#2b2116}.end-done{text-align:center;font-size:18px;margin:16px 0 8px;letter-spacing:.06em}.end-card button{border:1px solid #8a6a3a;background:#fff8e6;color:#2b2116;border-radius:999px;padding:6px 16px;cursor:pointer;font:inherit}
 .fin-card{width:min(640px,94%);max-height:88vh;overflow:auto}.fin-card .card{background:#fffaf0;color:#2b2116;border-color:#d8c79c}.fin-card .card.pz-lock{border-color:#b4452f}.fin-card .card.pz-ok{border-color:#4f8b6c}.fin-d{font-size:12px;color:#6b5a3e}.fin-card select{width:100%;margin-top:4px;padding:5px;border-radius:6px;border:1px solid #c9b88c;background:#fffdf5;color:#2b2116}
 .pill{display:inline-block;font-size:11px;padding:0 6px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+
+/* 10/29 ?cinema — 발표 트레일러 녹화용: 3D 화면만 창 가득, 글자·버튼·카드 모두 숨김 */
+html.cinema body{margin:0;overflow:hidden;background:#000}
+html.cinema body>*:not(.wrap):not(#cineFade):not(#cineHint){display:none!important}
+html.cinema .wrap{display:block!important;margin:0!important;padding:0!important}
+html.cinema .wrap>*:not(.stage){display:none!important}
+html.cinema .stage{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;margin:0!important;border:0!important;border-radius:0!important}
+html.cinema .stage>*:not(canvas){display:none!important}
+html.cinema canvas#v{width:100vw!important;height:100vh!important;border-radius:0!important}
+#cineFade{position:fixed;inset:0;background:#000;pointer-events:none;opacity:1;transition:opacity .9s ease;z-index:99}
+#cineHint{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);color:#777;font:13px sans-serif;z-index:100}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head><body>
 <h1>실내 방 둘러보기 <span class="k" id="trialName" style="font-size:13px;font-weight:400"></span></h1>
 <div class="k">조작은 게임(나주맵)과 같습니다 — 화면을 한 번 누르고 <b>[T] 시작</b> · 마우스 = 시점 · WASD/방향키 = 이동 · Shift 달리기 · Space 점프 · C 앉기 · 조준점을 물건에 맞추고 <b>클릭 또는 E</b> = 조사(문은 바로 열고 이동) · ESC 나가기. 「검수」: 위에서 내려다보기.</div>
-<script>/* 검수 화면 안에 나란히 띄울 때(?compact) 설명 줄을 숨겨 3D 화면을 넓게(10/22) *//* 10/28 03 공간·에셋 검수(?review): 설명·퍼즐 칸을 빼고 3D 화면을 창 가득 */if(new URLSearchParams(location.search).has('review'))document.documentElement.classList.add('review');if(new URLSearchParams(location.search).has('compact')){const s=document.currentScript;s.previousElementSibling.style.display='none';s.previousElementSibling.previousElementSibling.style.display='none'}</script>
+<script>/* 검수 화면 안에 나란히 띄울 때(?compact) 설명 줄을 숨겨 3D 화면을 넓게(10/22) *//* 10/28 03 공간·에셋 검수(?review): 설명·퍼즐 칸을 빼고 3D 화면을 창 가득 */if(new URLSearchParams(location.search).has('review'))document.documentElement.classList.add('review');if(new URLSearchParams(location.search).has('cinema'))document.documentElement.classList.add('cinema');if(new URLSearchParams(location.search).has('compact')){const s=document.currentScript;s.previousElementSibling.style.display='none';s.previousElementSibling.previousElementSibling.style.display='none'}</script>
 <div class="bar" id="tabs"></div>
 <div class="bar"><button id="mPlay" class="on">플레이</button><button id="mRev">검수(위에서)</button><span class="sep"></span><button id="sReal">사실 질감</button><button id="sAni" hidden>원신 v1(필터)</button><button id="sToon" hidden>만화 v2(평면색+외곽선)</button><button id="sToon3" class="on">만화(기본)</button><span id="sky" hidden><span class="sep"></span><button data-sky="night" class="on">달밤</button><button data-sky="day">낮(해로 바뀜)</button></span></div>
 <div class="wrap"><div class="stage"><canvas id="v"></canvas><div id="cross"></div><div id="tag" hidden></div>
@@ -708,7 +719,7 @@ function playCine(seq,title,then){if(!seq.length){then&&then();return}endPlay();
 function playRecall(p,then){RECALL_SEEN.add(p.id);playCine(recallOrder(p),p.solve.device.name||'그날 밤의 기억',then)}
 // 10/27 미르: 「시네마틱은 공간에서 다음 공간으로 넘어갈 때마다 이야기를 읽게 하고, 다음 공간에서 무엇을 왜 풀어야 하는지 당위를 준다 · 한 판은 서사가 완결되고 새 사실을 알며 끝나고, 현장에서만 풀리는 마지막 봉인 하나를 완주자에게 제안」
 const INTRO_SEEN=new Set();let ENDING_SHOWN=false;
-const shootMode=/[?&](shoot|review)=/.test(location.search);
+const shootMode=/[?&](shoot|review|cinema)=/.test(location.search);
 function introCard(s){if(!s)return '';const last=s.ending?PZ.filter(p=>p.scene_id===s.id):[];const fin=last.length?`<div style="margin-top:6px"><b>🏁 마지막 방</b> — ${last.map(p=>`「${esc(p.title)}」`).join(' · ')}을(를) ${s.ending&&s.ending.finale?'풀고, 모은 단서로 <b>왜곡된 기록을 바로잡으면</b>':'풀면'} 왜곡이 복원되고 이야기가 끝납니다.</div>`:'';return (s.intro&&s.intro.goal)||fin?`<div class="card pz-goal"><b>🧭 ${esc(s.title)}</b>${s.intro&&s.intro.goal?`<div>${esc(s.intro.goal)}</div>`:''}${fin}</div>`:''}
 /* 10/27 미르: 「방으로 넘어가 다음 방을 보여 준 뒤 시네마틱이 뜬다 — 이동하기 전에 시네마틱부터, 그다음 다음 방」 → 문을 열면 이야기 컷을 먼저(지금 방 위를 덮어서) 보여 주고, 끝나면 다음 방을 불러온다 */
 let PRE_INTRO=null;
@@ -797,9 +808,46 @@ document.getElementById('sReal').onclick=()=>setStyle('real');document.getElemen
 document.querySelectorAll('#sky button').forEach(b=>b.onclick=()=>setSky(b.dataset.sky));
 const tabs=document.getElementById('tabs');ITEMS.forEach((it,i)=>{const b=document.createElement('button');b.textContent=it.name;b.onclick=()=>show(i);tabs.appendChild(b)});
 function rs(){const w=cv.clientWidth,h=cv.clientHeight;R.setSize(w,h,false);C.aspect=w/h;C.updateProjectionMatrix()}addEventListener('resize',rs);rs();document.getElementById('trialName').textContent=TRIAL.title?('— '+TRIAL.title+' · 에이전트 시험 생성본(원본 아님)'):'';if(TRIAL.stale){const h=document.querySelector('h1');const d=document.createElement('div');d.style.cssText='margin:6px 0;padding:8px 12px;border-radius:8px;background:#fde8e1;color:#7a2a12;font-size:13px';d.innerHTML='⚠️ 이 시험은 '+TRIAL.stale+' 규칙으로 만든 예전 판입니다 — 그 뒤 고친 퍼즐 규칙(장치 다양화·단서에서 읽히는 답·방언 풀어 쓰기)이 들어 있지 않습니다.'+(TRIAL.latest?' <a href="'+TRIAL.latest.url+'" style="color:#7a2a12;font-weight:600">최신 시험 열기: '+TRIAL.latest.title.replace(/</g,'&lt;')+'</a>':'');h.after(d)}/* 10/26 미르: 예전 시험을 보고 「아직도 고쳐지지 않았다」 — 예전 판임을 화면에 알린다 */show((()=>{const p=typeof focusP==='function'&&focusP();const a=p&&p.hosts.flatMap(h=>h.at)[0];return a?a.room:0})());
+
+/* 10/29 ?cinema=1 — 발표 트레일러 녹화용 자동 카메라.
+   &room=0  &shots=이부자리,창 앞 빛 자리   (물건 이름, 쉼표)   &next=1 마지막에 다음 방 문으로 넘어감
+   Enter = 시작(녹화를 먼저 켜고 누름) · R = 처음부터. 동선: 입구에서 천천히 둘러보기 → 물건마다 다가가 멈춤 → 조사(드러나는 연출) → 다음 물건.
+   길은 직선이고 벽 통과 검사는 하지 않는다 — 서는 자리만 벽·가구 밖으로 고른다. */
+const CINE=(()=>{const q=new URLSearchParams(location.search);if(!q.has('cinema'))return null;
+ const fade=document.createElement('div');fade.id='cineFade';document.body.appendChild(fade);
+ const hint=document.createElement('div');hint.id='cineHint';hint.textContent='Enter = 시작 · R = 처음부터';document.body.appendChild(hint);
+ const room=Number(q.get('room')||0),names=(q.get('shots')||'').split(',').map(x=>x.trim()).filter(Boolean),goNext=q.get('next')==='1';
+ const SPD=Number(q.get('speed')||1);
+ const E=k=>k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2; const lerpA=(a,b,k)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return a+d*k};
+ const C0=()=>{const w=meta.walk;return w?{x:(w.x[0]+w.x[1])/2,z:(w.z[0]+w.z[1])/2}:{x:0,z:0}};
+ function standFor(name){const b=groupBox(name);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),sz=b.getSize(new THREE.Vector3());const m=C0();let best=null;
+  for(const r of [1.7,1.4,2.1,1.1,2.6])for(let k=0;k<24;k++){const a=k/24*Math.PI*2,R0=r+Math.max(sz.x,sz.z)/2,x=c.x+Math.cos(a)*R0,z=c.z+Math.sin(a)*R0;if(!free(x,z))continue;
+   const yawv=Math.atan2(c.x-x,c.z-z),eye=(meta.floor_y||0)+EYE,pv=Math.atan2(c.y-eye,Math.hypot(c.x-x,c.z-z))*0.85;
+   const save={x:pos.x,y:pos.y,z:pos.z,yaw,pitch};pos.set(x,eye,z);yaw=yawv;pitch=pv;lookApply();C.updateMatrixWorld();ray.setFromCamera(new THREE.Vector2(0,0),C);const hit=pickRay();pos.set(save.x,save.y,save.z);yaw=save.yaw;pitch=save.pitch;
+   if(hit!==name)continue;const toMid=Math.hypot(m.x-x,m.z-z),score=-Math.abs(r-1.7)*2-toMid*0.3;if(!best||score>best.score)best={x,z,yaw:yawv,pitch:pv,score}}
+  return best}
+ let plan=[],t0=0,on=false,fired=new Set();
+ function build(){plan=[];const ent=meta.entry||{x:1,z:1,yaw_deg:180};let p={x:ent.x,z:ent.z,yaw:(ent.yaw_deg||0)*Math.PI/180,pitch:-0.08};
+  const m=C0();const look=Math.atan2(m.x-p.x,m.z-p.z);
+  plan.push({from:p,to:{...p,yaw:look-0.6,pitch:-0.1},dur:2.2/SPD});p={...p,yaw:look-0.6,pitch:-0.1};
+  plan.push({from:p,to:{...p,yaw:look+0.35,pitch:-0.14},dur:3.0/SPD});p={...p,yaw:look+0.35,pitch:-0.14};
+  for(const n of names){const s=standFor(n);if(!s){console.warn('[cinema] 설 자리를 못 찾음',n);continue}const to={x:s.x,z:s.z,yaw:s.yaw,pitch:s.pitch};const d=Math.hypot(to.x-p.x,to.z-p.z);
+   plan.push({from:p,to,dur:Math.max(2.2,d/0.75)/SPD});plan.push({from:to,to:{...to,pitch:to.pitch-0.03},dur:3.2/SPD,act:n});p=to}
+  if(goNext){const g=(meta.goes||[])[0];if(g){const b=groupBox(g.door);if(!b.isEmpty()){const c=b.getCenter(new THREE.Vector3());const yawv=Math.atan2(c.x-p.x,c.z-p.z);const st={x:p.x+(c.x-p.x)*0.55,z:p.z+(c.z-p.z)*0.55,yaw:yawv,pitch:-0.04};plan.push({from:p,to:{...p,yaw:yawv,pitch:-0.04},dur:1.4/SPD});plan.push({from:{...p,yaw:yawv,pitch:-0.04},to:st,dur:2.6/SPD,next:g});}}}
+  return plan}
+ function start(){hint.remove();if(cur&&ci!==room){show(room);setTimeout(start2,900)}else start2()}
+ function start2(){build();fired=new Set();t0=performance.now();on=true;fade.style.opacity='0'}
+ addEventListener('keydown',e=>{if(e.key==='Enter'&&!on)start();if((e.key==='r'||e.key==='R')){on=false;fade.style.transition='none';fade.style.opacity='1';setTimeout(()=>{fade.style.transition='';location.reload()},50)}});
+ setTimeout(()=>{if(cur&&ci!==room)show(room)},600);
+ return {get on(){return on},step(t){let el=(performance.now()-t0)/1000;for(let i=0;i<plan.length;i++){const s=plan[i];if(el>s.dur&&i<plan.length-1){el-=s.dur;if(s.act&&!fired.has(i)){fired.add(i);hov=s.act;try{interact();glow(s.act,false)}catch(e){console.error(e)}}continue}
+   const k=E(Math.min(1,el/s.dur));pos.x=s.from.x+(s.to.x-s.from.x)*k;pos.z=s.from.z+(s.to.z-s.from.z)*k;yaw=lerpA(s.from.yaw,s.to.yaw,k);pitch=s.from.pitch+(s.to.pitch-s.from.pitch)*k;
+   if(s.act&&el>s.dur*0.25&&!fired.has(i)){fired.add(i);hov=s.act;try{interact();glow(s.act,false)}catch(e){console.error(e)}}
+   if(i===plan.length-1&&el>=s.dur){on=false;if(s.next){fade.style.opacity='1';setTimeout(()=>{try{show(s.next.tab,s.next.arrive)}catch(e){}setTimeout(()=>{fade.style.opacity='0';const m=C0(),p0={x:pos.x,z:pos.z,yaw,pitch:-0.06},ly=Math.atan2(m.x-p0.x,m.z-p0.z);plan=[{from:{...p0,yaw:ly-0.5},to:{x:p0.x+(m.x-p0.x)*0.25,z:p0.z+(m.z-p0.z)*0.25,yaw:ly+0.3,pitch:-0.1},dur:5/SPD}];fired=new Set();t0=performance.now();on=true},1100)},950)}}
+   break}}}})();
 let t0=performance.now();(function loop(t){requestAnimationFrame(loop);{const ts=t/1000;WIND.uWindTime.value=ts;WIND.uWindAmp.value=0.55;for(const m of FLICK){if(!m.parent)continue;const f=m.userData.flick;m.material.opacity=0.82+0.08*Math.sin(ts*8.7+f)+0.05*Math.sin(ts*21.3+f*2.1)+0.03*Math.sin(ts*3.1+f)}}const dt=Math.min(0.05,(t-t0)/1000);t0=t;animStep();
  if(mode==='play'&&cur){
-  if(active()){const fx=Math.sin(yaw),fz=Math.cos(yaw),rx=-fz,rz=fx;let wx=0,wz=0;if(K.f){wx+=fx;wz+=fz}if(K.b){wx-=fx;wz-=fz}if(K.r){wx+=rx;wz+=rz}if(K.l){wx-=rx;wz-=rz}const wl=Math.hypot(wx,wz);if(wl>0){wx/=wl;wz/=wl}
+  if(CINE&&CINE.on)CINE.step(t);
+  if(active()&&!(CINE&&CINE.on)){const fx=Math.sin(yaw),fz=Math.cos(yaw),rx=-fz,rz=fx;let wx=0,wz=0;if(K.f){wx+=fx;wz+=fz}if(K.b){wx-=fx;wz-=fz}if(K.r){wx+=rx;wz+=rz}if(K.l){wx-=rx;wz-=rz}const wl=Math.hypot(wx,wz);if(wl>0){wx/=wl;wz/=wl}
    const sp=WALK*(crouch?CRM:K.run?RUNM:1);if(grounded){vel.x=wx*sp;vel.z=wz*sp}else{vel.x+=(wx*sp-vel.x)*AIRC;vel.z+=(wz*sp-vel.z)*AIRC}
    const nx=pos.x+vel.x*dt;if(free(nx,pos.z))pos.x=nx;else vel.x=0;const nz=pos.z+vel.z*dt;if(free(pos.x,nz))pos.z=nz;else vel.z=0}
   if(!grounded){vy+=GRAV*dt;jy+=vy*dt;if(jy<=0){jy=0;vy=0;grounded=true}}
