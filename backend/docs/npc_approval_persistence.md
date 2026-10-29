@@ -1,0 +1,101 @@
+# NPC G1~G3 승인 이력 영속화
+
+기준: `feat/SJ-ai-npc-integration` / `6264576`.
+
+## 구현 범위와 운영 연결 상태
+
+- `ReviewRecord`, `gate_decisions()`, 기존 메모리 저장소 및 기존 테스트는 변경하지 않았다.
+- Async MySQL Repository와 관리자 기록 서비스, DB 이력을 읽는 내부 게시 판정 경계를 추가했다.
+- 검증된 관리자 인증·권한 체계가 기존 코드에 없어 관리자 HTTP 라우트는 **연결하지 않았다**. 무인증 POST는 404이며 승인 입력이 불가능하다.
+- 공개 게시 API, 서버 시작 등록, NPC 턴의 매 요청 DB 조회, 게시 중단, 신규 멱등 저장소, hint_ref, 자동 개입 정책은 추가하지 않았다. 운영 LLM도 OFF다.
+- 기존 NPC 경로의 메모리 승인 공급 방식은 그대로다. 이 기능만으로 운영 NPC 연결이 완료되지는 않는다.
+
+## 저장 범위
+
+`npc_approval_reviews`는 `review_id` PK, `target_type`, `target_id`, `content_version`, `gate`, `target_hash`, `decision`, `reviewer`, `reviewed_at`, `reason`, `supersedes`를 저장한다.
+
+- `target_type`: `case_content` / `dialogue_pack`. 같은 ID라도 타입별로 조회가 분리된다.
+- 이력 조회·쓰기 직렬화 범위: `(target_type, target_id, content_version)`.
+- 판정은 그 범위 안에서 기존 함수가 `(gate, target_hash)`별 최신 `(reviewed_at, review_id)` 기록을 선택한다. PM의 대상·gate 개념에 버전·fingerprint 범위를 함께 적용한다.
+- 두 대상 모두 G1~G3가 기본이다. dialogue_pack의 G3 전용 정책은 도입하지 않았다.
+- 세션 FK나 대사 본문은 저장하지 않는다. 콘텐츠의 `approvals[]`는 승인 원본으로 사용하지 않는다.
+- ID·해시는 binary collation으로 비교한다. 새 target_id 입력은 앞뒤 공백을 거부한다.
+
+UUID·UTC 밀리초 문자열·decision 5종·사유 규칙은 기존 `ReviewRecord`로 검증한다. DB에는 UUID `CHAR(36)`, 해시 `CHAR(71)`, 검토 시각 `DATETIME(3)`를 사용한다.
+
+## 추가만 가능한 이력과 동시성
+
+Repository의 `append()`는 대상 잠금 후 중복 ID와 supersedes의 존재를 검사하고 flush만 한다. commit/rollback은 서비스가 관리한다.
+
+기존과 같이 supersedes는 전체 이력에서의 존재를 검사한다. 다른 hash의 이전 기록 참조를 허용하며, 참조 범위를 임의로 강화하지 않았다. 조회 범위 밖 참조나 잘못된 재승인 연결은 기존 `gate_decisions()`에서 FAIL이 될 수 있다. 저장 성공은 게시 승인 성공이 아니다.
+
+`npc_approval_targets`의 `(target_type, target_id, content_version)` PK 행을 upsert하고 잠근다. 기록이 0건이어도 동시 쓰기가 직렬화된다. 잠금 행에는 UPDATE가 있지만 승인 이력에는 없다.
+
+`records(current=True)`는 쓰기 잠금 안에서 최신 커밋 이력을 읽는다. 조회 시 현재 hash만 미리 필터링하지 않아 stale hash 및 supersedes 판정 의미를 유지한다.
+
+관리자 서비스가 UUID와 UTC 시각을 생성한다. 같은 밀리초의 UUID 정렬로 재승인이 과거로 배치되지 않게 서버 시각을 밀리초로 내린 값과 해당 범위 최종 시각+1ms 중 큰 값을 쓴다. 검토 순서를 보존하는 서버 발급 시각이며 클라이언트는 지정할 수 없다.
+
+- 같은 review_id 재시도는 기존처럼 오류다. 자동 성공 재반환 정책을 도입하지 않았다.
+- 오래된 supersedes를 자동 보정하거나 새 이력으로 재기준화하지 않는다. 동시 기록 결과가 유효한지는 기존 판정 규칙을 따른다.
+- ORM UPDATE/DELETE는 이벤트로 거부한다. migration의 MySQL 트리거는 직접 SQL UPDATE/DELETE도 거부한다. migration 실행 계정은 TRIGGER 권한이 필요하다.
+- DB 장애·취소·검증 실패는 승인으로 바꾸지 않으며 기록 서비스는 rollback한다.
+
+## 관리자 HTTP 연결 보류 계약
+
+`GateReviewCreate`는 target과 gate/hash/decision/reason/supersedes만 입력받는다. `review_id`, `reviewed_at`, `reviewer` 및 알 수 없는 필드는 거부한다.
+
+내부 `create_gate_review()`는 `VerifiedAdmin` 신원을 요구한다. 이 객체는 인증 기능 자체가 아니며 요청 JSON의 역할 이름이나 reviewer 문자열로 만들면 안 된다. 향후 검증된 관리자 인증 의존성에서만 생성해야 한다. 현재는 어떤 HTTP 라우트도 이 서비스를 호출하지 않는다.
+
+팀 확정이 필요한 내용:
+
+1. 관리자 로그인 검증 방식 및 서버 권한 판정 원본
+2. 인증 주체에서 `reviewer`를 생성하는 규칙
+3. 최종 prefix, 인증 실패(401/403), 검증 실패 및 중복/참조 오류의 HTTP 계약
+4. 승인 기록의 유일한 운영 입력 경로 및 운영 DB 계정의 직접 쓰기 제한
+
+## 게시 판정 경계
+
+`check_target_approval()`는 두 target_type에 대해 DB 이력을 읽고 기존 `gate_decisions()`를 실행한다.
+
+`evaluate_publication_with_db_reviews()`는 case_content 이력 snapshot을 읽은 뒤 동기 `ApprovalSource`로 기존 `evaluate_publication()`에 전달한다. fingerprint는 기존 PUB-GATE가 콘텐츠에서 재계산한다. 대상·버전이 다르면 빈 이력을 공급한다. DB 오류는 전파·rollback하며 승인으로 처리하지 않는다.
+
+기존 게이트의 store 인자를 명시적으로 넘기면 기존 방식으로 등록할 수 있지만 새 공개 게시 경로나 자동 등록은 없다. store가 없을 때의 UNVERIFIED 등 기존 판정도 유지한다. 이 조회 경계의 성공 트랜잭션 종료는 호출하는 게시 절차가 관리한다.
+
+미승인 기록을 추가해도 이 경계가 기존 게시 store나 진행 세션을 제거하지 않는다. 게시 중단과 신규 NPC 멱등 응답의 철회 우선순위는 별도 작업이다.
+
+## Alembic
+
+새 revision `d2a6f8b1c903`의 부모는 `c9e1a4b7d2f0`다. 기존 revision은 수정하지 않았다.
+
+온보딩 병합 시 `d2a6f8b1c903`(또는 후속 최신 head)과 `c9d8e7f6a5b4`를 새 merge revision으로 합쳐야 한다. 이번 변경에는 그 merge를 넣지 않았다. downgrade는 이력 테이블을 삭제하므로 운영 적용 전 별도 검토가 필요하다.
+
+## 검증 방법
+
+일반 pytest는 실제 DB에 연결하지 않는다. `test_approval_persistence_mysql.py`는 기본 skip이며 다음을 **모두** 충족해야 한다.
+
+- `APPROVAL_MYSQL_ISOLATED=1`
+- `APPROVAL_MYSQL_URL`: mysql+aiomysql, localhost 또는 127.0.0.1, 명시된 3306 외 포트, `test_npc_approval_` 접두사의 전용 DB
+- `APPROVAL_MYSQL_DATADIR`: 새 테스트 인스턴스의 실제 데이터 디렉터리
+- 접속 후 `SELECT DATABASE(), @@datadir`가 위 설정과 일치
+- 테스트 schema가 비어 있음
+
+조건을 확인한 뒤에만 새 revision을 적용하고, 시나리오 종료 후 해당 revision의 테이블만 회수한다. 앱 `.env`의 DB 주소는 사용하지 않는다. 테스트 DB에는 별도 프로세스를 사용하고 종료 후 서버도 중지한다.
+
+```powershell
+python -B -m pytest tests/test_approval_persistence.py tests/test_approval_history.py -q -p no:cacheprovider
+# 격리 조건을 설정·확인한 전용 환경에서만:
+python -B -m pytest tests/test_approval_persistence_mysql.py -q -p no:cacheprovider
+```
+
+실제 테스트 결과와 전체 회귀 검증 결과는 구현 완료 보고에 별도로 기록한다.
+
+### 2026-10-29 구현 검증 기록
+
+- 기존 가상환경 재사용: BE Python 3.13.14, NPC Python 3.12.13. 패키지 설치 없음.
+- 전용 MySQL 8.0.46 인스턴스를 새 datadir와 포트 13317로 실행하고 격리 확인 후 테스트했다. 기존 MySQL 서비스·운영 DB에는 연결하지 않았다.
+- BE 전체: **1490 passed, 1 skipped**, 그 안에 실제 MySQL 테스트 **8개 통과** 포함.
+- BE/NPC Ruff check 통과. 변경한 Python 파일의 format 검사 통과.
+- 전체 BE format 검사는 기존 `local_auth.py`, `test_local_auth.py` 2개를 지적한다. 기준 `6264576`에서도 동일한 실패를 확인했으며 이 파일들은 수정하지 않았다.
+- 기존 콘텐츠 고정 migration 테스트는 새 revision이 추가되어 최종 head가 바뀐 부분만 갱신했다. 이전 revision의 부모 관계와 DDL 검증은 유지했다.
+- 기존 NPC의 `test_no_game_code_changes`는 Git clean 상태를 요구하므로 기능 커밋 이후 최종 전체 회귀 결과를 완료 보고에 기재한다. 해당 테스트나 NPC 코드는 수정하지 않았다.
+- 실제 MySQL 테스트는 새 revision의 DDL을 격리 DB에서 적용·회수했다. 테스트 종료 시 스키마가 빈 것을 확인하고 전용 서버를 정상 종료했다. 운영 migration 적용·HTTP 연결은 완료 범위가 아니다.
