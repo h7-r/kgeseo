@@ -232,6 +232,14 @@ export async function runDirector({ root, trial, step, docs, readJsonOut, writeO
   const bible = out.bible || {};
   const NC = Math.max(1, Math.min(4, Number(process.env.CINE_CANDIDATES) || 2)); const AI_JUDGE = process.env.CINE_AI_JUDGE === '1';
   const prev = await readJsonOut(root, trial, 'cinematics.json').catch(() => null); const prevBy = new Map(); for (const x of panelRefs(prev || {})) prevBy.set(x.key, x.q);
+  // 10/29 미르: 공간 검수로 퍼즐 일부만 다시 설계했으면(puzzle.json rework) 그 퍼즐의 장면만 새 컷 — 나머지 장면·결말은 사람이 검수한 컷을 그대로 둔다
+  if (puzzleDoc?.rework?.puzzles?.length && !puzzleDoc.rework.cineDone && prev?.cinematics?.length) {
+    const affected = new Set(P.filter(p => puzzleDoc.rework.puzzles.includes(p.puzzle_id)).map(p => p.scene_id));
+    const lastId = [...scenes].sort((a, b) => (a.order || 0) - (b.order || 0)).pop()?.scene_id;
+    out.cinematics = (out.cinematics || []).map(c => { const keepIt = c.kind === 'ending' ? !affected.has(lastId) : !affected.has(c.scene_id); if (!keepIt) return c; const pc = prev.cinematics.find(x => x.kind === c.kind && (c.kind === 'ending' || x.scene_id === c.scene_id)); return pc ? JSON.parse(JSON.stringify(pc)) : c; });
+    notes.push(`퍼즐 일부 다시 설계(${puzzleDoc.rework.puzzles.join(', ')}) — 새 컷은 ${[...affected].join(', ')} 장면만, 나머지는 검수한 컷 유지`);
+    await writeOut(root, trial, 'puzzle.json', JSON.stringify({ ...puzzleDoc, rework: { ...puzzleDoc.rework, cineDone: new Date().toISOString() } }, null, 2));
+  }
   const jobs = panelRefs(out);
   const judged = { candidates: 0, carried: 0, failed: 0, aiJudge: AI_JUDGE };
   if (!haveBin) notes.push(`그림 생성기(mflux)를 찾지 못함(${bin}) — 글만`);

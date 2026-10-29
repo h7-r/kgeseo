@@ -137,13 +137,14 @@ function ApplyPanel({ tf }) {
   if (!rv?.ready) return null;
   const vals = Object.values(rv.review); const n = k => vals.filter(v => v.verdict === k).length;
   const memo = rv.unapplied.filter(k => rv.review[k]?.verdict === 'replan').length;
+  const hostTouched = rv.unapplied.filter(k => ['swap', 'replan'].includes(rv.review[k]?.verdict) && rv.items.find(x => x.item_id === k)?.host).length;
   const running = fl?.space?.steps?.some(r => r.status === 'running');
-  const apply = async () => { setBusy(true); setErr(''); try { const r = await api(`/trial-flow/${tf.id}/space/apply`, { method: 'POST', body: {} }); setMsg(`${r.started.map(x => x.slice(1)).join(' → ')} 시작 — 끝나면 화면이 새 방으로 바뀝니다`); tf.reload(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
+  const apply = async () => { setBusy(true); setErr(''); try { const r = await api(`/trial-flow/${tf.id}/space/apply`, { method: 'POST', body: {} }); setMsg(r.redesign?.length ? `퍼즐 물건이 바뀌어 ${r.redesign.join(', ')} 퍼즐을 다시 설계합니다(05 → 그 장면 이야기 컷 05b). 끝나면 「02 이야기 컷 검수」에서 바뀐 컷을 승인하면 방을 다시 짓고 여기로 돌아옵니다.` : `${r.started.map(x => x.slice(1)).join(' → ')} 시작 — 끝나면 화면이 새 방으로 바뀝니다`); tf.reload(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
   return <section className="panel approve-panel">
     <p className="eyebrow">판정 반영</p>
     <dl className="ap-dl"><dt>좋음</dt><dd>{n('approve')}</dd><dt>다른 에셋</dt><dd>{n('swap')}</dd><dt>위치·크기</dt><dd>{n('adjust')}</dd><dt>빼기</dt><dd>{n('remove')}</dd><dt>수정 요청</dt><dd>{n('replan')}</dd><dt>새로 만들기</dt><dd>{n('regenerate')}</dd></dl>
     <button className="wide" disabled={busy || running || !rv.unapplied.length} onClick={apply}>{running ? '다시 만드는 중…' : `반영해서 다시 만들기 (${rv.unapplied.length}건)`}</button>
-    <small className="muted">{memo ? `수정 요청 ${memo}건은 07 이 그 물건만 다시 고릅니다(Claude 소액) → 08 방 다시 짓기.` : '08 방 다시 짓기만 — 코드, 비용 0.'} 1~3분 걸립니다. 새로 만들기 요청은 생성 대기열 기록만 합니다.</small>
+    <small className="muted">{hostTouched ? `퍼즐 물건 ${hostTouched}개를 바꿨습니다 — 그 퍼즐을 다시 설계하고(05) 그 장면 이야기 컷을 새로 만든 뒤(05b, Claude 약 $1), 02 에서 바뀐 컷을 검수하면 방을 다시 짓습니다. 다른 퍼즐·장면은 그대로.` : memo ? `수정 요청 ${memo}건은 07 이 그 물건만 다시 고릅니다(Claude 소액) → 08 방 다시 짓기.` : '08 방 다시 짓기만 — 코드, 비용 0.'} 위치·크기만 바꾼 것은 퍼즐을 건드리지 않습니다. 새로 만들기 요청은 생성 대기열 기록만 합니다.</small>
     {msg && <p className="ap-ok">{msg}</p>}{err && <div className="blockers ap-err"><p>{err}</p></div>}
   </section>;
 }
@@ -166,7 +167,7 @@ export function TrialSpaceRail({ tf, reviewer, setReviewer, onNext }) {
     <p className="muted">방 구성 · 고른 에셋 · 배치를 둘러보고 승인하면 「04 퍼즐 연결」로 넘어갑니다.</p>
     {sp.regressRed.length > 0 && <p className="warning-text">자동 회귀 검사 🔴 {sp.regressRed.join(', ')} — 확인하고 승인하세요.</p>}
     {sp.approval && !sp.approval.valid && <p className="warning-text">승인({sp.approval.by} · {date(sp.approval.at)}) 뒤 방 세트가 다시 만들어져 승인이 풀렸습니다.</p>}
-    {ok ? <><p className="ap-ok">✓ {sp.approval.by} · {date(sp.approval.at)}{sp.approval.note ? ` — ${sp.approval.note}` : ''}</p><button className="wide" onClick={onNext}>04 퍼즐 연결로 →</button></> : <>
+    {ok ? <><p className="ap-ok">✓ {sp.approval.by} · {date(sp.approval.at)}{sp.approval.note ? ` — ${sp.approval.note}` : ''}</p><p className="muted">승인 뒤에도 위에서 물건을 고칠 수 있습니다. 「반영해서 다시 만들기」를 하면 방이 바뀌어 다시 승인해야 하고, 퍼즐 검수는 바뀐 퍼즐만 다시 합니다.</p><button className="wide" onClick={onNext}>04 퍼즐 연결로 →</button></> : <>
       <label className="field"><span>검수자</span><input value={reviewer} onChange={e => setReviewer(e.target.value)} maxLength={100} placeholder="이름" /></label>
       <label className="field"><span>의견(선택)</span><textarea rows={3} value={note} onChange={e => setNote(e.target.value)} /></label>
       {why.length > 0 && <div className="blockers"><b>승인 전 필요한 것</b><ul>{why.map(w => <li key={w}>{w}</li>)}</ul></div>}

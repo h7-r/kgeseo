@@ -4,6 +4,7 @@
 //   → 07 에셋 선정(구체 이름으로 검색) → 08 배치(LLM 은 자리 힌트만, 좌표·산포는 scatter.mjs) + 자기 검사.
 // 사람 모범답안(나주 공간·사람 문서·장소유형사전)은 어떤 단계의 입력에도 넣지 않는다 — 평가 전용.
 import path from 'node:path';
+import { readFile, writeFile } from 'node:fs/promises';
 import { loadMask, scatterLayer, placeItem, seatSpot, seatRule, understory, REGION_KINDS, CLASSES } from './scatter.mjs';
 
 // 앉힐 자리가 없을 때 넓혀 볼 이웃 영역(물리적으로 이어진 띠)
@@ -466,7 +467,22 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
       need('01', '04');
       const local = (trial.llmSteps?.[step.id] || trial.llm) === 'local';
       let json;
-      if (local) {
+      // 10/29 미르: 「공간에서 퍼즐과 연결된 물건을 건드리면 퍼즐도 다시 설계」 — puzzle_rework.json 이 있으면 그 퍼즐만 다시 쓰고 나머지는 그대로 둔다
+      const reworkF = path.join(root, '.local/review/trials', trial.id, 'puzzle_rework.json');
+      let rework = null; try { rework = JSON.parse(await readFile(reworkF, 'utf8')); } catch { rework = null; }
+      const prevPz = rework && !rework.doneAt ? await readJsonOut(root, trial, 'puzzle.json').catch(() => null) : null;
+      const reworkIds = prevPz && Object.keys(rework.puzzles || {}).length ? new Set(Object.keys(rework.puzzles)) : null;
+      if (reworkIds && !local) {
+        const keep = (prevPz.puzzles || []);
+        const userR = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', '[게임 전체 퍼즐 — 지금 판. 아래 「다시 설계할 퍼즐」 말고는 바꾸지 않는다]', JSON.stringify({ puzzles: keep.map(p => ({ puzzle_id: p.puzzle_id, scene_id: p.scene_id, title: p.title, learns: p.learns, clue_ids: (p.clues || []).map(c => c.clue_id) })) }), '',
+          '[다시 설계할 퍼즐 — 사람이 공간 검수에서 이 퍼즐의 물건을 바꿨다. 같은 puzzle_id·scene_id 를 지키고, 바뀐 물건에 맞게 단서(드러나는 방식 reveal·carrier)·호스트(host_needs)·풀이를 다시 설계한다. 이 퍼즐이 밝히는 것(learns·discoveries)과 다른 퍼즐이 기대는 단서 id 는 되도록 유지. {"puzzles":[…]} 로 이 퍼즐들만 돌려준다]',
+          ...[...reworkIds].map(id => `## ${id}\n바뀐 것: ${(rework.puzzles[id] || []).map(x => `${x.name}: ${x.change}`).join(' / ')}\n지금 퍼즐: ${JSON.stringify(keep.find(p => p.puzzle_id === id) || {})}`)].join('\n');
+        const textR = await llm(root, trial, step, { system: PUZZLE_SYSTEM, user: userR });
+        await writeOut(root, trial, 'raw-s05-rework.txt', textR);
+        const jR = extractJson(textR); if (jR.__error || !(jR.puzzles || []).length) fail(422, 'json_invalid', `다시 설계한 퍼즐 JSON 을 읽지 못했습니다: ${jR.__error || '빈 답'}`);
+        json = { ...prevPz, puzzles: keep.map(p => reworkIds.has(p.puzzle_id) ? ({ ...((jR.puzzles || []).find(q => q.puzzle_id === p.puzzle_id) || p), puzzle_id: p.puzzle_id, scene_id: p.scene_id }) : p) };
+        delete json.check;
+      } else if (local) {
         // 로컬 작은 모델은 Scene 5개를 한 번에 맡기면 첫 Scene 하나만 쓰고 끝낸다(10/19 Qwen3-30B 1차) → Scene 마다 한 번씩 부르고 합친다
         const all = []; const raws = [];
         for (const [i, scene] of scenes.entries()) {
@@ -622,7 +638,7 @@ JSON 만: {"answers":[{"puzzle_id":"PZ-..","answer":"장치에 넣을 값(배열
       // 자동 고쳐 쓰기 1회(10/22): 발견 연출·풀이 장치 규칙을 어기면(모델이 장치를 통째로 빠뜨린 일) 문제 목록을 주고 한 번 다시 쓰게 한다
       // 10/23: 고쳐 쓰기를 최대 2번 — 고친 판이 걸린 것이 더 적을 때만 바꿔 든다
       const issues = c => [...(c.reveal || []), ...(c.contract || []), ...(c.solver || []), ...(c.story || [])]; // 10/23: 계약(단서 조합 2개 등)도 같이 — 고쳐 쓰다 계약을 깬 판을 받아들였다
-      for (let round = 1; round <= 3 && !local && issues(check).length; round++) {
+      for (let round = 1; round <= 3 && !local && !reworkIds && issues(check).length; round++) {
         const user2 = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', '[네가 쓴 퍼즐 초안]', JSON.stringify({ puzzles: json.puzzles }), '', '[자동 검사에서 걸린 것 — 모두 고쳐서 전체 JSON 을 다시 써라. 이미 맞는 퍼즐은 그대로 둔다]', ...issues(check).map(x => `- ${x}`)].join('\n');
         const text2 = await llm(root, trial, step, { system: PUZZLE_SYSTEM, user: user2 });
         await writeOut(root, trial, round === 1 ? 'raw-s05-fix.txt' : `raw-s05-fix${round}.txt`, text2);
@@ -630,14 +646,15 @@ JSON 만: {"answers":[{"puzzle_id":"PZ-..","answer":"장치에 넣을 값(배열
         if (!json2.__error && (json2.puzzles || []).length) { if (!(json2.cinematics || []).length && (json.cinematics || []).length) json2.cinematics = json.cinematics; const check2 = runChecks(json2); check2.solver = await solve(json2); if (issues(check2).length <= issues(check).length) { check2.repaired = { round, before: check.repaired?.before || issues(check), after: issues(check2) }; json = json2; check = check2; } }
       }
       // 10/27 미르: 3번 고쳐 써도 「여인」이 단서에 없는 채로 남아 그대로 다음 단계로 갔다 — 남은 퍼즐만 따로 꺼내 한 번 더 고치고, 그래도 남으면 unresolved 로 적어 08 검수에서 빨갛게 보인다
-      { const pid = x => (/^(PZ-[\w-]+?)(?=:)/.exec(x) || [])[1]; const bad = [...new Set(issues(check).map(pid).filter(Boolean))].filter(id => (json.puzzles || []).some(p => p.puzzle_id === id));
+      { const pid = x => (/^(PZ-[\w-]+?)(?=:)/.exec(x) || [])[1]; const bad = [...new Set(issues(check).map(pid).filter(Boolean))].filter(id => (json.puzzles || []).some(p => p.puzzle_id === id) && (!reworkIds || reworkIds.has(id)));
         if (bad.length && !local) {
           const sub = (json.puzzles || []).filter(p => bad.includes(p.puzzle_id));
           const user3 = ['[01 설화 사실]', factLines(), '', '[04 Scene 구성표]', sceneLines(), '', '[게임 전체 퍼즐 — 참고만]', JSON.stringify({ puzzles: (json.puzzles || []).map(p => ({ puzzle_id: p.puzzle_id, scene_id: p.scene_id, title: p.title, clue_ids: (p.clues || []).map(c => c.clue_id) })) }), '', '[고칠 퍼즐 — 이 퍼즐들만 고쳐서 {"puzzles":[…]} 로 돌려준다. puzzle_id·scene_id·clue_id 는 그대로, 다른 퍼즐은 쓰지 않는다]', JSON.stringify({ puzzles: sub }), '', '[걸린 것]', ...issues(check).filter(x => bad.includes(pid(x))).map(x => `- ${x}`), '', '고치는 길: 답을 바꾸기보다 단서를 고쳐 답이 「보이게」 한다 — 답 말을 단서 content 에 그대로, 흔적이면 shows 로 그 모습을 그린다.'].join('\n');
           try { const text3 = await llm(root, trial, step, { system: PUZZLE_SYSTEM, user: user3 }); await writeOut(root, trial, 'raw-s05-fix-focus.txt', text3); const j3 = extractJson(text3);
             if (!j3.__error && (j3.puzzles || []).length) { const json3 = { ...json, puzzles: (json.puzzles || []).map(p => (j3.puzzles || []).find(q => q.puzzle_id === p.puzzle_id) || p) }; const check3 = runChecks(json3); check3.solver = await solve(json3); if (issues(check3).length < issues(check).length) { check3.repaired = { round: 'focus', before: check.repaired?.before || issues(check), after: issues(check3) }; json = json3; check = check3; } } } catch (e) { check.focusError = String(e.message).slice(0, 160); } }
         check.unresolved = [...(check.reveal || []), ...(check.solver || [])].filter(x => pid(x)).concat(check.story || []); }
-      await writeOut(root, trial, 'puzzle.json', JSON.stringify({ ...json, check }, null, 2));
+      await writeOut(root, trial, 'puzzle.json', JSON.stringify({ ...json, check, ...(reworkIds ? { rework: { puzzles: [...reworkIds], at: new Date().toISOString() } } : {}) }, null, 2));
+      if (reworkIds) await writeFile(reworkF, JSON.stringify({ ...rework, doneAt: new Date().toISOString() }, null, 2));
       return { puzzles: (json.puzzles || []).length, hostNeeds: (json.puzzles || []).reduce((a, p) => a + (p.host_needs || []).length, 0), types: [...new Set((json.puzzles || []).map(p => p.puzzle_type))], ...check };
     }
 

@@ -4,6 +4,7 @@
 //   POST /__review/trial-flow/<id>/space/approve   공간·에셋 승인 { reviewer, note }
 //   서버가 요청마다 이 파일을 새로 읽는다.
 import fs from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -137,18 +138,35 @@ export async function setSpaceItem(root, id, input = {}) {
 }
 
 /** 사람 판정을 공간에 반영 — 수정 요청이 있으면 07(그 항목만) → 08, 없으면 08 만(코드, 비용 0) */
-export async function applySpace(root, id) {
+export async function applySpace(root, id, opts = {}) {
   const s = await status(root, id); if (!s.cine.done) fail(409, '이야기 컷 검수가 먼저 끝나야 합니다.');
-  if (s.space.steps.some(r => r.status === 'running')) fail(409, '공간 단계가 도는 중입니다.');
+  if (s.space.steps.some(r => r.status === 'running') || s.cine.steps.some(r => r.status === 'running')) fail(409, '단계가 도는 중입니다.');
   const r = await spaceReview(root, id); if (!r.unapplied.length) fail(409, '반영할 판정이 없습니다.');
+  const D = tdir(root, id);
   const memo = Object.fromEntries(r.unapplied.filter(k => r.review[k].verdict === 'replan').map(k => [k, { note: r.review[k].note }]));
+  // 10/29 미르: 퍼즐과 이어진 물건(호스트)을 바꾸면 그 퍼즐을 다시 설계 — 위치·크기만 바꾼 것은 퍼즐을 건드리지 않음
+  const plan = await readJ(path.join(D, 'indoor_plan.json')); const pz = await readJ(path.join(D, 'puzzle.json'));
+  const byItem = new Map((plan?.contents || []).map(c => [c.item_id, c])); const itemOf = new Map((r.items || []).map(x => [x.item_id, x]));
+  const rework = {};
+  for (const k of r.unapplied) {
+    const v = r.review[k]; const c = byItem.get(k); if (!c || !(c.serves || []).length || !['swap', 'replan'].includes(v.verdict)) continue;
+    const it = itemOf.get(k); const change = v.verdict === 'swap' ? `에셋을 「${it?.pick?.nameKo || '?'}」에서 「${v.pick?.nameKo || '?'}」(으)로 바꿈` : `사람 의견으로 물건을 다시 고름 — ${v.note}`;
+    for (const P of pz?.puzzles || []) if ((P.host_needs || []).some(h => c.serves.includes(h.need_id))) (rework[P.puzzle_id] ||= []).push({ item_id: k, name: c.name_ko, change });
+  }
   const steps = [];
-  if (Object.keys(memo).length) { await fs.writeFile(path.join(tdir(root, id), 'space_rework.json'), JSON.stringify({ items: memo, at: new Date().toISOString() }, null, 2)); steps.push('s07'); }
-  steps.push('s08');
-  const { spawn } = await import('node:child_process'); const { openSync } = await import('node:fs');
-  const log = openSync(path.join(tdir(root, id), 'run-chain.log'), 'a');
+  if (opts.dry) return { dry: true, memo: Object.keys(memo), redesign: Object.keys(rework), rework, steps: [...(Object.keys(memo).length ? ['s07'] : []), ...(Object.keys(rework).length ? ['s05', 's10'] : ['s08'])] };
+  if (Object.keys(memo).length) { await fs.writeFile(path.join(D, 'space_rework.json'), JSON.stringify({ items: memo, at: new Date().toISOString() }, null, 2)); steps.push('s07'); }
+  const redesign = Object.keys(rework);
+  if (redesign.length) {
+    await fs.writeFile(path.join(D, 'puzzle_rework.json'), JSON.stringify({ at: new Date().toISOString(), puzzles: rework }, null, 2));
+    steps.push('s05', 's10'); // 퍼즐 → 그 장면 이야기 컷. 방(08)은 02 에서 바뀐 컷을 검수한 뒤 「이어서」로 다시 짓는다
+    const f = path.join(D, 'trial.json'); const t = JSON.parse(await fs.readFile(f, 'utf8')); t.steps.s08 = { ...(t.steps.s08 || {}), status: 'idle', resetNote: '퍼즐 다시 설계 — 이야기 컷 검수 뒤 방 다시 짓기' }; t.updatedAt = new Date().toISOString(); await fs.writeFile(f, JSON.stringify(t, null, 2));
+    const prf = path.join(D, 'puzzle_review.json'); const pr = (await readJ(prf)) || { reviews: {}, history: [] }; for (const pid of redesign) delete pr.reviews[pid]; await fs.writeFile(prf, JSON.stringify(pr, null, 2));
+  } else steps.push('s08');
+  const { openSync } = await import('node:fs');
+  const log = openSync(path.join(D, 'run-chain.log'), 'a');
   const ch = spawn(process.execPath, [path.join(root, 'tools/review/runChain.mjs'), root, id, '--force', ...steps], { detached: true, stdio: ['ignore', log, log] }); ch.unref();
-  return { started: steps, memo: Object.keys(memo).length };
+  return { started: steps, memo: Object.keys(memo).length, redesign };
 }
 
 export async function approveSpace(root, id, input = {}) {
@@ -180,7 +198,7 @@ export async function handle(root, method, urlPath, input) {
   if (method === 'POST' && act === 'finale') { const F = await mod(root, 'tools/review/finale.mjs'); await F.makeFinaleClaude(root, id); return [200, await status(root, id)]; }
   if (method === 'GET' && act === 'space/review') return [200, await spaceReview(root, id)];
   if (method === 'POST' && act === 'space/item') return [200, await setSpaceItem(root, id, input || {})];
-  if (method === 'POST' && act === 'space/apply') return [202, await applySpace(root, id)];
+  if (method === 'POST' && act === 'space/apply') return [202, await applySpace(root, id, input || {})];
   if (method === 'POST' && act === 'space/approve') return [200, await approveSpace(root, id, input || {})];
   fail(405, '지원하지 않는 요청입니다.');
 }
