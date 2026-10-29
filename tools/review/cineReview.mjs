@@ -149,7 +149,8 @@ export async function cont(root, id) {
   const n = await T.cinePending(root, id); if (n > 0) fail(409, `검수 전 컷이 ${n}개 남았습니다.`);
   await T.cineGate(root, t, L[di + 1]?.id || L[di].id); // 설화·기획 승인도 다시 확인
   if (L.some(s => live(t, s.id) && !doneish(t, s.id))) return { started: [], running: true };
-  const rest = L.slice(di + 1).map(s => s.id).filter(sid => !doneish(t, sid));
+  // 10/29: 공간을 이미 사람이 승인했으면 09(시각 자기 검수, Claude 비용)는 다시 돌리지 않는다 — 컷 하나 다시 승인했다고 유료 단계가 저절로 돌지 않게
+  const rest = L.slice(di + 1).map(s => s.id).filter(sid => !doneish(t, sid)).filter(sid => !(t.spaceApproval && sid === 's09'));
   if (rest.length) {
     const { openSync } = await import('node:fs');
     const log = openSync(path.join(tdir(root, id), 'run-chain.log'), 'a');
@@ -181,6 +182,8 @@ async function mt(text, to) {
   const j = await r.json().catch(() => ({})); if (!r.ok) fail(502, `번역 실패: ${j.error || r.status}`); return String(j.text || '').trim();
 }
 const clauses = en => String(en || '').split(/,\s+/).map(x => x.trim()).filter(Boolean);
+// 번역 모델이 가끔 한글 낱말 뒤에 한자를 붙인다(예: 황혼時의) — 한글에 붙은 한자는 뺀다
+const noHan = t => String(t).replace(/(?<=[\uAC00-\uD7A3])[\u4E00-\u9FFF]+|[\u4E00-\u9FFF]+(?=[\uAC00-\uD7A3])/g, '');
 const tidyEn = (t, first) => { let x = String(t).trim().replace(/[.。]+$/, ''); if (!first && /^[A-Z](?=[a-z\s])/.test(x) && !/^(I|Korean|Joseon)\b/.test(x)) x = x[0].toLowerCase() + x.slice(1); return x; };
 async function promptKo(root, id, input = {}) {
   const f = path.join(tdir(root, id), 'cinematics.json'); const doc = await readJ(f); const { panelRefs } = await director(root);
@@ -188,7 +191,7 @@ async function promptKo(root, id, input = {}) {
   const base = String(input.image_prompt ?? x.q.image_prompt ?? '').slice(0, 2000);
   if (x.q.image_prompt_ko_pairs && x.q.image_prompt_ko_src === base) return { pairs: x.q.image_prompt_ko_pairs };
   await ensureMt(root);
-  const pairs = []; for (const en of clauses(base)) pairs.push({ en, ko: (await mt(en, 'ko')).replace(/[.。]+$/, '') });
+  const pairs = []; for (const en of clauses(base)) pairs.push({ en, ko: noHan((await mt(en, 'ko')).replace(/[.。]+$/, '')) });
   if (base === x.q.image_prompt) { const d2 = await readJ(f); const y = panelRefs(d2).find(v => v.key === input.key); if (y) { y.q.image_prompt_ko_pairs = pairs; y.q.image_prompt_ko_src = base; await fs.writeFile(f, JSON.stringify(d2, null, 2)); } }
   return { pairs };
 }
@@ -202,7 +205,10 @@ async function promptEn(root, id, input = {}) {
     if (!changed) await ensureMt(root); changed++;
     pairs.push({ en: tidyEn(await mt(ko, 'en'), k === 0), ko });
   }
-  return { en: pairs.map(p => p.en).join(', '), pairs, changed };
+  const en = pairs.map(p => p.en).join(', ');
+  // 사람이 쓴 한글 줄을 그대로 남긴다 — 다시 그린 뒤 영어를 거꾸로 번역해 한글이 바뀌어 보이지 않게
+  try { const f = path.join(tdir(root, id), 'cinematics.json'); const d2 = await readJ(f); const { panelRefs } = await director(root); const y = panelRefs(d2).find(v => v.key === input.key); if (y) { y.q.image_prompt_ko_pairs = pairs; y.q.image_prompt_ko_src = en; await fs.writeFile(f, JSON.stringify(d2, null, 2)); } } catch {}
+  return { en, pairs, changed };
 }
 
 export async function handle(root, method, urlPath, input) {

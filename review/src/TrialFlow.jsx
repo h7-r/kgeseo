@@ -87,7 +87,9 @@ function SpaceWalk({ tf, build }) {
   </>;
 }
 
-function ObjectPanel({ tf, reviewer }) {
+function ObjectPanel({ tf, reviewer: rv0 }) {
+  // 10/29: 공간을 승인한 뒤에는 검수자 칸이 숨는다 — 그때는 승인한 사람 이름으로 판정을 남긴다
+  const reviewer = (rv0 || '').trim() ? rv0 : (tf.flow?.space?.approval?.by || '');
   const rv = tf.review; const sel = tf.selected;
   const it = sel?.item_id ? rv?.items?.find(x => x.item_id === sel.item_id) : null;
   const cur = it ? rv.review[it.item_id] : null;
