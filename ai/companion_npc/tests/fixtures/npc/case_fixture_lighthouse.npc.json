@@ -1,0 +1,178 @@
+{
+  "contract": "npc_content",
+  "contract_version": "0.1",
+  "content_id": "npc_lighthouse_fixture",
+  "content_version": "0.1.0",
+  "case_id": "case_fixture_lighthouse",
+  "case_content": {
+    "client_content_sha256": "ed288481c67bde63da0f946e40dafdd2bc11ad8e79eeae245e0e4e4983de5bc8",
+    "server_runtime_sha256": "046f2a930e1c2192e3ad46d767d38dbf2dd3dd7dcaf47b17428618bf88aca7d3"
+  },
+  "publication": {
+    "status": "published",
+    "approved_by": "test-fixture",
+    "approved_at": "2026-10-26T10:00:00+09:00",
+    "history": [
+      {
+        "status": "draft",
+        "by": "test-fixture",
+        "at": "2026-10-26T09:00:00+09:00"
+      },
+      {
+        "status": "approved",
+        "by": "test-fixture",
+        "at": "2026-10-26T10:00:00+09:00",
+        "note": "테스트 견본 승인 — 실제 승인 아님"
+      },
+      {
+        "status": "published",
+        "by": "test-fixture",
+        "at": "2026-10-26T11:00:00+09:00"
+      }
+    ]
+  },
+  "premise": {
+    "title": "꺼진 등대의 마지막 일지",
+    "public_synopsis": "불이 꺼진 등대의 관리인 숙소. 마지막 근무 일지가 책상 위에 펼쳐져 있다."
+  },
+  "persona": {
+    "npc_id": "npc_partner",
+    "display_name": "등대 조사관",
+    "role": "현장에 함께 들어온 동료. 답을 알려 주지 않고 같이 생각한다.",
+    "speech_style": "짧고 차분한 존댓말",
+    "forbidden_topics": [
+      "정답",
+      "내부 ID"
+    ]
+  },
+  "hints": [
+    {
+      "hint_id": "H_DRAWER_1",
+      "puzzle_id": "PUZZLE_DRAWER",
+      "npc_hint_level": 1,
+      "text": "일지에 적힌 날짜들을 다시 훑어볼까요? 유난히 자주 나오는 날이 있는지 보세요.",
+      "approved_by": "test-fixture",
+      "approved_at": "2026-10-26T10:00:00+09:00",
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님 · P4-B2 외부 전송용으로 새로 지은 가상 사건 문구",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    },
+    {
+      "hint_id": "H_DRAWER_2",
+      "puzzle_id": "PUZZLE_DRAWER",
+      "npc_hint_level": 2,
+      "text": "가장 자주 적힌 날짜의 월과 일을 네 자리 숫자로 바꿔 서랍 자물쇠에 맞춰 보세요.",
+      "approved_by": "test-fixture",
+      "approved_at": "2026-10-26T10:00:00+09:00",
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님 · P4-B2 외부 전송용으로 새로 지은 가상 사건 문구",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    }
+  ],
+  "knowledge": [
+    {
+      "chunk_id": "K_PREMISE",
+      "kind": "premise",
+      "text": "불이 꺼진 등대의 관리인 숙소. 마지막 근무 일지가 책상 위에 펼쳐져 있다.",
+      "spoiler_tier": 0,
+      "gate": {},
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님 · P4-B2 외부 전송용으로 새로 지은 가상 사건 문구",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    },
+    {
+      "chunk_id": "K_DRAWER_H1",
+      "kind": "hint",
+      "text": "일지에 적힌 날짜들을 다시 훑어볼까요? 유난히 자주 나오는 날이 있는지 보세요.",
+      "spoiler_tier": 1,
+      "gate": {
+        "requires_zone_ids": [
+          "ZONE_KEEPER_HOUSE"
+        ]
+      },
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님 · P4-B2 외부 전송용으로 새로 지은 가상 사건 문구",
+        "source_refs": [
+          "npc fixture"
+        ]
+      },
+      "puzzle_id": "PUZZLE_DRAWER",
+      "hint_id": "H_DRAWER_1"
+    },
+    {
+      "chunk_id": "K_DRAWER_H2",
+      "kind": "hint",
+      "text": "가장 자주 적힌 날짜의 월과 일을 네 자리 숫자로 바꿔 서랍 자물쇠에 맞춰 보세요.",
+      "spoiler_tier": 2,
+      "gate": {
+        "requires_zone_ids": [
+          "ZONE_KEEPER_HOUSE"
+        ]
+      },
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님 · P4-B2 외부 전송용으로 새로 지은 가상 사건 문구",
+        "source_refs": [
+          "npc fixture"
+        ]
+      },
+      "puzzle_id": "PUZZLE_DRAWER",
+      "hint_id": "H_DRAWER_2"
+    },
+    {
+      "chunk_id": "K_TWIST",
+      "kind": "lore",
+      "text": "서랍 속 쪽지에는 관리인이 등대를 떠난 날이 일지와 다르게 적혀 있었다.",
+      "spoiler_tier": 2,
+      "gate": {
+        "requires_completed_puzzle_ids": [
+          "PUZZLE_DRAWER"
+        ]
+      },
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님 · P4-B2 외부 전송용으로 새로 지은 가상 사건 문구",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    }
+  ],
+  "templates": {
+    "check_in": [
+      {
+        "template_id": "T_CHECK_1",
+        "text": "혹시 막힌 곳이 있으면 언제든 말해 주세요."
+      },
+      {
+        "template_id": "T_CHECK_2",
+        "text": "천천히 둘러봐도 괜찮아요. 도움이 필요하면 불러 주세요."
+      }
+    ],
+    "clarify_general": [
+      {
+        "template_id": "T_CLARIFY_1",
+        "text": "어느 쪽이 궁금한지 조금만 더 알려 줄래요?"
+      }
+    ],
+    "clarify_with_object": [
+      {
+        "template_id": "T_CLARIFY_OBJ_1",
+        "text": "{object} 이야기인가요? 맞으면 같이 살펴봐요."
+      }
+    ]
+  }
+}

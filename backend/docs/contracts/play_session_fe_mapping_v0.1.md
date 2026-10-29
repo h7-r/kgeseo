@@ -14,9 +14,10 @@ Session Contract 원문이 없어, 아래 FE 필드 목록은 이번 작업에 �
 
 `play_sessions`에는 `id`, `anonymous_session_id`, `case_id`, `state_json`,
 `created_at`, `updated_at`, `completed_at`이 있다. 신규 `state_json`은
-`current_zone_id`, `completed_puzzle_ids`, `acquired_clue_ids`, `hint_levels`,
-`flags`를 가진다. `PlaySessionState.current_zone_id`는 과거 row 호환을 위해
-nullable이다.
+`current_zone_id`, `completed_puzzle_ids`, `completed_inspect_ids`, `acquired_clue_ids`,
+`hint_levels`, `attempt_counts`, `flags`, `object_states`를 가진다.
+`PlaySessionState.current_zone_id`는 과거 row 호환을 위해 nullable이고,
+`attempt_counts`·`completed_inspect_ids`·`object_states`는 누락 시 빈 값으로 읽는다.
 
 `POST /api/v1/play-sessions`는 `case_id`와 `anonymous_session_id`를 받아
 `created_at`과 중첩된 `state`를 반환한다. 현재 `case_id`는 1~64자 문자열이며
@@ -26,7 +27,9 @@ nullable이다.
 DB 시각은 UTC 기준 naive `DATETIME(6)`이고 API는 UTC offset을 명시한다.
 
 Interaction Service는 `state_json` 변경 시 `updated_at`을 갱신하지만,
-현재 `completed_at`을 설정하거나 Zone 위치를 갱신하지 않는다.
+현재 `completed_at`을 설정하지 않는다. **(Q6 변경)** Zone 위치는 navigate 성공 시
+갱신하며, Zone 1개 콘텐츠의 과거 세션은 input·inspect·navigate 처리 때 입구로 복원해
+저장할 수 있다(§10.1).
 
 ## 3. Frontend Session Contract
 
@@ -42,9 +45,12 @@ Interaction Service는 `state_json` 변경 시 `updated_at`을 갱신하지만,
 |---|---|---|
 | `play_session_id` | `PlaySession.id` | 기존 POST/GET에 있음 |
 | `case_id` | `PlaySession.case_id` | 기존 POST/GET에 있음 |
-| `current_zone_id` | `state_json.current_zone_id` | 신규 세션은 `entry_zone_id`, 과거 row는 `null`; Navigation 갱신 규칙은 WIP |
+| `current_zone_id` | `state_json.current_zone_id` | 신규 세션은 `entry_zone_id`, 과거 row는 `null`. **(Q6 변경)** navigate 성공 시 목적지로 갱신, input·inspect·navigate의 접근 기준 |
 | `status` | 없음 | FE 값 집합 확인 후 `completed_at` 파생 여부 결정 |
 | `acquired_clue_ids`, `completed_puzzle_ids`, `hint_levels`, `flags` | `state_json`, `PlaySessionState` | 기존 API에서는 `data.state` 안에 있음 |
+| Object `visible`·`enabled` 세션 변경값 (확장) | `state_json.object_states` | `{zone_id: {object_id: {visible?, enabled?}}}`. Bundle 정적 값 위에 덮어씀 |
+| 조사 완료 목록 (확장) | `state_json.completed_inspect_ids` | 재조사 판정용. FE 화면 표시 의미는 미정 |
+| 획득 단서 표시 정보 (Q4) | `GET .../clues` (Server `clues[]` + `acquired_clue_ids`) | 획득한 단서만 반환. 정의 없으면 `title: null`. `clue_api_v0.1.md` |
 | `started_at` | `created_at` 후보 | 의미가 일치하면 외부 별칭으로 매핑 |
 | `updated_at` | `PlaySession.updated_at` | 기존 GET에 있으며 POST에는 없음 |
 | `completed_at` | `PlaySession.completed_at` | 기존 GET에 있음; FE 전용 형태에서 생략 가능 여부 결정 |
@@ -125,12 +131,40 @@ GET은 과거 행의 위치를 `null`로 반환하며 DB를 갱신하지 않는�
 일괄 UPDATE, 현재 Content의 `entry_zone_id` 주입, `zones[0]` 추론은 하지 않는다.
 신규 세션은 검증된 `entry_zone_id`를 non-null 값으로 저장한다.
 
-현재 GET Router는 네 상태 키를 직접 조립한다. 향후 위치 키를 추가하면
-읽기/쓰기 Schema뿐 아니라 생성·조회 응답 구성과 Interaction 결과의 state
-직렬화도 함께 검토해야 한다. `PlaySessionState`의 기본값 추가는 과거 응답에
-`null` 키를 새로 내보낼 수 있으므로 기존 API 계약 회귀 테스트가 필요하다.
-Interaction Service가 `state_json`을 복사해 갱신하더라도, 새 필드의 외부
-노출과 직렬화 계약까지 자동으로 보장하지는 않는다.
+POST·GET Router는 상태 키를 직접 조립하지 않는다. 저장된 `state_json`을
+`PlaySessionState.model_validate(...)`로 검증한 모델을 응답 `data.state`에 넣는다
+(`app/api/v1/play_sessions.py`). Interaction 결과의 `state`도 같은 모델로 만든다
+(`app/services/interaction.py`). 따라서 다음이 성립한다(2026-10-23 코드·`TestClient` 확인).
+
+- 기본값이 있는 키(`current_zone_id`, `attempt_counts`, `completed_inspect_ids`,
+  `object_states`)가 저장값에 없으면 응답에는 기본값(`null`, `{}`, `[]`, `{}`)으로 나온다.
+  조회만으로 DB row는 바뀌지 않는다.
+- `PlaySessionState`에 정의되지 않은 저장 키는 응답에서 빠진다(Pydantic 기본 동작, 오류 아님).
+- 필수 키(`completed_puzzle_ids`, `acquired_clue_ids`, `hint_levels`, `flags`)가 없거나
+  값 형식이 Schema와 다르면(예: `object_states`의 boolean 아닌 값) 검증 오류가 Router에서
+  처리되지 않고 HTTP 500이 된다.
+- Interaction은 DB에 갱신된 원본 dict를 저장하고, 응답에는 검증된 모델을 쓴다. 그래서 과거
+  row에서는 응답에만 기본값 키가 보이고 저장값에는 해당 키가 없을 수 있다.
+
+`PlaySessionState`에 기본값 필드를 추가하면 과거 row의 응답에도 새 키가 생기므로,
+응답 전체를 비교하는 기존 API 회귀 테스트의 기대값을 함께 갱신해야 한다.
+
+### 10.1 `current_zone_id`가 없는 과거 세션 (Q6 변경)
+
+위 원칙(조회는 DB를 바꾸지 않음, 일괄 UPDATE 없음)은 유지한다. 대신 위치가 필요한
+상호작용(input·inspect·navigate)을 처리할 때 PlaySession 잠금 안에서 다음처럼 정한다.
+
+| Client Content | 처리 | GET 응답 |
+|---|---|---|
+| Zone 1개 | 위치가 하나뿐이므로 `entry_zone_id`로 복원. 이번 상호작용이 Event를 저장할 때 함께 저장(state change는 만들지 않음) | 저장 전 `null`, 저장 후 `entry_zone_id` |
+| Zone 여러 개 | 실제 위치를 알 수 없으므로 409 `Current zone is unknown.`, 상태 변경 없음 | 계속 `null` |
+
+저장된 Zone이 현재 콘텐츠에 없을 때도 409 `Current zone is unknown.`이다. combine_clues와
+단서 조회는 위치와 무관하므로 계속 동작하며 위치를 복원하지 않는다. 다중 Zone 과거 세션의
+복구(새 게임 또는 승인된 보정 스크립트)는 운영 결정 사항이다.
+
+Frontend 규칙: `null`이고 Bundle Zone이 1개면 `entry_zone_id`로 표시한다. 여러 개면 위치
+미확정 안내와 새 게임 시작을 유도한다. 409 `Current zone is unknown.`도 같게 처리한다.
 
 ## 11. Zone API 영향
 
@@ -140,21 +174,24 @@ Interaction Service가 `state_json`을 복사해 갱신하더라도, 새 필드�
 Navigation으로 이동할 수 있는지 판단하는 정책은 만들 수 없다.
 
 - `current_zone_id`: 현재 위치와 이어하기 시작점을 나타내는 저장 상태. Zone 조회만으로 갱신하지 않는다.
-- 정적 `visible`·`enabled`: Client Content의 초기 표시값이며 현재 Object Resolver는 이를 접근 통제로 사용하지 않는다.
+- 정적 `visible`·`enabled`: Client Content의 초기 표시값이며 Object Resolver는 이를 접근 통제로 사용하지 않는다.
 - `completed_puzzle_ids`, `acquired_clue_ids`: 저장된 진행 사실. Object/Navigation 공개 조건과 연결하려면 별도 규칙이 필요하다.
 - `flags`: 내부 임의 key/value 상태. 원본을 Zone 응답에 무조건 복사하지 않고 허용된 공개 상태로 해석해야 한다.
-- Session-derived `visible`·`enabled`: 위 상태와 별도 공개 조건 Contract를 결합해 계산해야 하며 현재 구현되지 않았다.
+- Session-derived `visible`·`enabled`: (확장) Effect로 기록된 변경값은 `object_states`에 저장되고, 유효 상태(초기값 + 변경값)로 `inspect` 요청 가능 여부를 판정한다. 조건식 기반 공개 Contract와 Zone 응답 반영은 구현되지 않았다.
 
-`status`와 위치에 따라 Zone 접근을 제한할지도 미정이다. Navigation 처리와
-위치 변경은 별도 Service 규칙 및 필요 시 같은 DB 트랜잭션으로 설계한다.
+**(Q6 변경)** Interaction의 위치 제한과 navigate 위치 변경은 구현됐다. 위치 변경은
+PlaySession 행 잠금과 Event 저장과 같은 DB 트랜잭션이다(`interaction_api_v0.3.2.md`
+§2.3–2.4). `status`에 따른 제한과 Zone 조회 API의 위치 제한은 여전히 미정이다.
 
 ## 12. Decision Required
 
 1. FE Session 원문의 `status` 정확한 값 집합과 각 값의 전이 조건, 완료 판정 주체.
 2. FE `started_at`이 세션 생성 시각과 같은 의미인지.
 3. 평탄한 FE 응답의 정확한 envelope/필수 필드와 기존 POST/GET을 보존할 버전·Adapter 경계.
-4. Navigation 입력·접근·갱신 규칙과 Zone API의 현재 위치 제한 여부.
+4. ~~Navigation 입력·접근·갱신 규칙~~(Q6 구현, 팀 검토 대기)과 Zone API의 현재 위치
+   제한 여부.
 5. Session-derived `visible`·`enabled` 및 flag 공개 조건의 원천과 표현 방식.
+   (Effect 기반 `object_states`는 구현됨. 조건식 기반 규칙과 `input`·navigate 적용 여부는 미정)
 
 ## 13. 구현 순서 제안
 

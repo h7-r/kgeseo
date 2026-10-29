@@ -1,0 +1,93 @@
+{
+  "_note": "P4-B2 GPT 실험 설정 판 4 — 평가 세트 p4b2-fictional/1.2 (공통 36건 · 사례 ID 는 판 3 과 같음 · nudge · hint 의 근거가 바뀌어 입력 해시가 다름). 근거 정책 same_level: nudge 는 1단계 · hint 는 2단계 승인 힌트가 주 근거, 대상 퍼즐의 보조 지식은 같은 등급만, 다른 단계 힌트 조각은 근거에서 뺀다. check_in · clarify 는 승인 템플릿 전용. 실행 승인 전. 판 3 설정 · smoke 결과는 보존한다.",
+  "exp_id": "p4b2_gpt_fictional_v4",
+  "cases": [
+    {
+      "case_id": "case_fixture_archive",
+      "cases_dir": "tests/fixtures/cases",
+      "npc_dir": "tests/fixtures/npc"
+    },
+    {
+      "case_id": "case_fixture_lighthouse",
+      "cases_dir": "tests/fixtures/cases",
+      "npc_dir": "tests/fixtures/npc"
+    }
+  ],
+  "aliases_file": "tests/fixtures/private/aliases.json",
+  "private_files": [
+    "tests/fixtures/private/guard_eval_attacks.json"
+  ],
+  "now": "2026-10-26T12:00:00+09:00",
+  "generator": {
+    "generator": "gpt_rag",
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "api_key_env": "OPENAI_API_KEY",
+    "prices": {
+      "usd_per_1m_input": 0.1,
+      "usd_per_1m_cached_input": 0.01,
+      "usd_per_1m_output": 0.5,
+      "source": "https://developers.openai.com/api/docs/pricing (Standard, <=272K input) · https://developers.openai.com/api/docs/models/gpt-6-luna · cache writes $0.125 (모델 페이지, 2026-10-26 재확인)",
+      "checked_at": "2026-10-26T00:00:00+09:00",
+      "usd_per_1m_cache_write": 0.125
+    },
+    "reasoning_effort": "none",
+    "temperature": 0.7,
+    "max_output_tokens": 256,
+    "structured_output": true,
+    "timeout_sec": 30,
+    "max_retries": 2,
+    "backoff_sec": 2.0,
+    "budget": {
+      "max_usd": 2.0,
+      "max_requests": 100
+    }
+  },
+  "arms": [
+    "select",
+    "free"
+  ],
+  "repeat_arm": "free",
+  "plan": {
+    "smoke": 4,
+    "arm_cases": 28,
+    "repeat_cases": 8,
+    "repeat_times": 2
+  },
+  "expected_cases": 36,
+  "eval_set": "p4b2-fictional/1.2",
+  "config_version": "4",
+  "ledger_name": "openai_gpt-6-luna",
+  "expected_items_inputs_sha256": "e2e5b32a4ec1fc9617d699ff14a6d8890b0ecc88588b5f140837abfa079eecdc",
+  "model_record": {
+    "distribution": "OpenAI API (Chat Completions)",
+    "model_id": "gpt-6-luna",
+    "snapshot": "gpt-6-luna",
+    "license": "OpenAI 서비스 약관 (API)",
+    "sdk": "openai==3.29.0 (설치 · pip check 통과 2026-10-26)",
+    "checked_at": "2026-10-26 (재확인)",
+    "sources": [
+      "https://developers.openai.com/api/docs/models/gpt-6-luna",
+      "https://developers.openai.com/api/docs/pricing",
+      "https://developers.openai.com/api/docs/guides/latest-model",
+      "https://pypi.org/project/openai/"
+    ]
+  },
+  "execution_approved": true,
+  "_changelog": [
+    "config_version 3 → 4 (2026-10-26, 실제 요청 없음): nudge · hint 근거 정책 tier_le → same_level (retrieval.allowed_chunks · pipeline.speak). 프롬프트(p4b/0.2) · 요청 인자 · 요청 계획(76) · 외부 전송 정책 · 사례 목록 그대로. 판 3 의 smoke 승인을 잇지 않는다(execution_approved=false · approved_phases=[]). 비교 지표(승인 힌트 일치 · 편집 거리 · 근거 수 · 단계 초과 의심 표시) 추가.",
+    "2026-10-26: 사용자 승인 — 판 4 smoke 단계(최대 4요청)만 실행 승인. arm · repeat 미승인. 요청 인자 · 근거 정책 · config_version 그대로.",
+    "2026-10-26: 사용자 승인 — 판 4 arm 단계(A 28 · B 28 = 계획 56 · 고유 입력 52)만 추가 승인. repeat 미승인. 요청 인자 · 근거 정책 · 평가 세트 · config_version 그대로."
+  ],
+  "approved_phases": [
+    "smoke",
+    "arm"
+  ],
+  "llm_kinds": [
+    "nudge",
+    "hint"
+  ],
+  "expected_llm_cases": 28,
+  "sampling": "stratified",
+  "evidence_policy": "same_level"
+}

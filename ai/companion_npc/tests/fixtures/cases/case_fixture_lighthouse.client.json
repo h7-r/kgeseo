@@ -1,0 +1,84 @@
+{
+  "case_id": "case_fixture_lighthouse",
+  "entry_zone_id": "ZONE_KEEPER_HOUSE",
+  "zones": [
+    {
+      "zone_id": "ZONE_KEEPER_HOUSE",
+      "zone_name": "Keeper House",
+      "zone_type": "room",
+      "description": "An old desk with a locked drawer and a logbook.",
+      "objects": [
+        {
+          "object_id": "OBJ_DESK_DRAWER",
+          "object_name": "Locked Drawer",
+          "object_type": "lock",
+          "asset_key": "drawer_v1",
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "input", "target_id": "PUZZLE_DRAWER" }
+        },
+        {
+          "object_id": "OBJ_LOGBOOK",
+          "object_name": "Logbook",
+          "object_type": "document",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "inspect", "target_id": "CLUE_LOG_DATES" }
+        },
+        {
+          "object_id": "OBJ_HIDDEN_PANEL",
+          "object_name": "Hidden Wall Panel",
+          "object_type": "container",
+          "asset_key": null,
+          "visible": false,
+          "enabled": false,
+          "interaction": { "type": "inspect", "target_id": "OBJ_HIDDEN_PANEL" }
+        },
+        {
+          "object_id": "OBJ_STAIR_DOOR",
+          "object_name": "Stair Door",
+          "object_type": "door",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "navigate", "target_id": "ZONE_LAMP_ROOM" }
+        }
+      ],
+      "navigation": [
+        { "door_object_id": "OBJ_STAIR_DOOR", "target_zone_id": "ZONE_LAMP_ROOM" }
+      ],
+      "metadata": {}
+    },
+    {
+      "zone_id": "ZONE_LAMP_ROOM",
+      "zone_name": "Lamp Room",
+      "zone_type": "room",
+      "description": "The top of the lighthouse. A dial sits under the lens.",
+      "objects": [
+        {
+          "object_id": "OBJ_LENS_DIAL",
+          "object_name": "Lens Dial",
+          "object_type": "lock",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "input", "target_id": "PUZZLE_LENS" }
+        },
+        {
+          "object_id": "OBJ_LAMP_STAIR",
+          "object_name": "Stairs Down",
+          "object_type": "door",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": null
+        }
+      ],
+      "navigation": [
+        { "door_object_id": "OBJ_LAMP_STAIR", "target_zone_id": "ZONE_KEEPER_HOUSE" }
+      ],
+      "metadata": {}
+    }
+  ]
+}

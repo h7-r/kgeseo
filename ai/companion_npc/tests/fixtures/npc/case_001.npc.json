@@ -1,0 +1,178 @@
+{
+  "contract": "npc_content",
+  "contract_version": "0.1",
+  "content_id": "npc_case_001_fixture",
+  "content_version": "0.1.0",
+  "case_id": "case_001",
+  "case_content": {
+    "client_content_sha256": "ecc52dfd05f288816944893c341fb3344099385d66b320c73f9868e107a29d5c",
+    "server_runtime_sha256": "b2ff93a7bf246ce7ce867f2ded29a94d378366a2f513fd066eecc80251e5c1ca"
+  },
+  "publication": {
+    "status": "published",
+    "approved_by": "test-fixture",
+    "approved_at": "2026-10-26T10:00:00+09:00",
+    "history": [
+      {
+        "status": "draft",
+        "by": "test-fixture",
+        "at": "2026-10-26T09:00:00+09:00"
+      },
+      {
+        "status": "approved",
+        "by": "test-fixture",
+        "at": "2026-10-26T10:00:00+09:00",
+        "note": "테스트 견본 승인 — 실제 승인 아님"
+      },
+      {
+        "status": "published",
+        "by": "test-fixture",
+        "at": "2026-10-26T11:00:00+09:00"
+      }
+    ]
+  },
+  "premise": {
+    "title": "비밀 복도의 소화전",
+    "public_synopsis": "합동수사본부 아래 숨은 복도. 잠긴 소화전 함이 길을 막고 있다."
+  },
+  "persona": {
+    "npc_id": "npc_partner",
+    "display_name": "동행 조사관",
+    "role": "현장에 함께 들어온 동료. 답을 알려 주지 않고 같이 생각한다.",
+    "speech_style": "짧고 차분한 존댓말",
+    "forbidden_topics": [
+      "정답",
+      "내부 ID"
+    ]
+  },
+  "hints": [
+    {
+      "hint_id": "H_FIRE_1",
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "npc_hint_level": 1,
+      "text": "자판기에서 나온 쪽지를 다시 꺼내 볼까요? 그림 아래 빈칸이 몇 개인지 세어 보세요.",
+      "approved_by": "test-fixture",
+      "approved_at": "2026-10-26T10:00:00+09:00",
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    },
+    {
+      "hint_id": "H_FIRE_2",
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "npc_hint_level": 2,
+      "text": "쪽지의 손잡이 그림은 소화전에 달린 부품이에요. 그 부품의 영어 이름을 빈칸 수에 맞춰 떠올려 보세요.",
+      "approved_by": "test-fixture",
+      "approved_at": "2026-10-26T10:00:00+09:00",
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    }
+  ],
+  "knowledge": [
+    {
+      "chunk_id": "K_PREMISE",
+      "kind": "premise",
+      "text": "합동수사본부 아래 숨은 복도. 잠긴 소화전 함이 길을 막고 있다.",
+      "spoiler_tier": 0,
+      "gate": {},
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    },
+    {
+      "chunk_id": "K_FIRE_H1",
+      "kind": "hint",
+      "text": "자판기에서 나온 쪽지를 다시 꺼내 볼까요? 그림 아래 빈칸이 몇 개인지 세어 보세요.",
+      "spoiler_tier": 1,
+      "gate": {
+        "requires_zone_ids": [
+          "ZONE_SECRET_CORRIDOR"
+        ]
+      },
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      },
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "hint_id": "H_FIRE_1"
+    },
+    {
+      "chunk_id": "K_FIRE_H2",
+      "kind": "hint",
+      "text": "쪽지의 손잡이 그림은 소화전에 달린 부품이에요. 그 부품의 영어 이름을 빈칸 수에 맞춰 떠올려 보세요.",
+      "spoiler_tier": 2,
+      "gate": {
+        "requires_zone_ids": [
+          "ZONE_SECRET_CORRIDOR"
+        ]
+      },
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      },
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "hint_id": "H_FIRE_2"
+    },
+    {
+      "chunk_id": "K_TWIST",
+      "kind": "lore",
+      "text": "소화전 안쪽 벽에는 오래전에 사라진 역무원의 이름표가 걸려 있었다.",
+      "spoiler_tier": 2,
+      "gate": {
+        "requires_completed_puzzle_ids": [
+          "PUZZLE_FIRE_CABINET_LOCK"
+        ]
+      },
+      "provenance": {
+        "provenance_mode": "mechanical",
+        "rationale": "테스트 견본 — 실제 승인 콘텐츠 아님",
+        "source_refs": [
+          "npc fixture"
+        ]
+      }
+    }
+  ],
+  "templates": {
+    "check_in": [
+      {
+        "template_id": "T_CHECK_1",
+        "text": "혹시 막힌 곳이 있으면 언제든 말해 주세요."
+      },
+      {
+        "template_id": "T_CHECK_2",
+        "text": "천천히 둘러봐도 괜찮아요. 도움이 필요하면 불러 주세요."
+      }
+    ],
+    "clarify_general": [
+      {
+        "template_id": "T_CLARIFY_1",
+        "text": "어느 쪽이 궁금한지 조금만 더 알려 줄래요?"
+      }
+    ],
+    "clarify_with_object": [
+      {
+        "template_id": "T_CLARIFY_OBJ_1",
+        "text": "{object} 이야기인가요? 맞으면 같이 살펴봐요."
+      }
+    ]
+  }
+}

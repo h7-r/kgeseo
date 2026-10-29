@@ -1,0 +1,241 @@
+{
+  "arms": {
+    "free": {
+      "actual_cost_unknown": 0,
+      "actual_cost_usd": 0.002154,
+      "cache_hits": 0,
+      "estimated_cost_usd": 0.007581,
+      "fallback_rate": 0.0,
+      "generation_ms": {
+        "median": 0.078,
+        "p90": 0.087
+      },
+      "generator_errors": {},
+      "guard_pass_rate": 1.0,
+      "n": 36,
+      "spoiler_flags": {
+        "answer_leak": 0,
+        "internal_id": 0,
+        "undisclosed_content": 0
+      },
+      "status_counts": {
+        "spoke": 36
+      },
+      "tokens_in": 15291,
+      "tokens_out": 1249,
+      "unsupported_flags": {
+        "ungrounded": 0,
+        "unsupported_sentence": 0
+      },
+      "validation_ms": {
+        "median": 0.182,
+        "p90": 0.275
+      }
+    },
+    "select": {
+      "actual_cost_unknown": 0,
+      "actual_cost_usd": 0.002105,
+      "cache_hits": 0,
+      "estimated_cost_usd": 0.007379,
+      "fallback_rate": 0.0,
+      "generation_ms": {
+        "median": 0.079,
+        "p90": 0.088
+      },
+      "generator_errors": {},
+      "guard_pass_rate": 1.0,
+      "n": 36,
+      "spoiler_flags": {
+        "answer_leak": 0,
+        "internal_id": 0,
+        "undisclosed_content": 0
+      },
+      "status_counts": {
+        "spoke": 36
+      },
+      "tokens_in": 15291,
+      "tokens_out": 1152,
+      "unsupported_flags": {
+        "ungrounded": 0,
+        "unsupported_sentence": 0
+      },
+      "validation_ms": {
+        "median": 0.188,
+        "p90": 0.197
+      }
+    }
+  },
+  "audit": {
+    "checked": 38,
+    "excluded": [
+      {
+        "item_id": "case_fixture_archive/player_alias_probe",
+        "reasons": [
+          "answer_or_alias"
+        ]
+      },
+      {
+        "item_id": "case_fixture_lighthouse/player_alias_probe",
+        "reasons": [
+          "answer_or_alias"
+        ]
+      }
+    ],
+    "included": 36,
+    "kinds": {
+      "clarify": 8,
+      "hint": 20,
+      "nudge": 8
+    }
+  },
+  "check_in_baseline": {
+    "all_template": true,
+    "n": 4,
+    "status_counts": {
+      "spoke": 4
+    }
+  },
+  "config_version": "1",
+  "consistency": {
+    "free": {
+      "cases": 8,
+      "distinct_raw_mean": 1,
+      "final_text_identical_rate": 1.0,
+      "guard_decision_agreement_rate": 1.0,
+      "runs_per_case": 3
+    },
+    "select": {
+      "cases": 0
+    }
+  },
+  "dry_run": true,
+  "eval_set": "p4b2-fictional/1.0",
+  "eval_set_manifest": {
+    "by_case": {
+      "case_fixture_archive": 19,
+      "case_fixture_lighthouse": 17
+    },
+    "item_ids_sha256": "7772457757aaabc1d06755a8e6d6f2e4dc28118f263db20b31428b57cd9c1320",
+    "items_inputs_sha256": "b22786abac0520b2076f4eea18c27867ef2fd3bf54836d6b15cb3c1240144ca4",
+    "n": 36
+  },
+  "experiment_version": "p4b2/0.1",
+  "input_mismatch_between_arms": [],
+  "ledger": {
+    "actual_unknown_requests": 0,
+    "actual_usd_known": 0.00544,
+    "charged_for_cap_usd": 0.00544,
+    "estimated_usd": 0.019134,
+    "max_requests": 100,
+    "max_usd": 2.0,
+    "requests": 92
+  },
+  "llm_rows": 92,
+  "note": "문장 본문 없음 · 구조 지표와 비용만. 품질(원문 · 최종)은 사람 평가 양식으로 따로 잰다. 오프라인 전송 — 실제 모델 결과가 아니다.",
+  "phase_counts": {
+    "arm": 72,
+    "check_in_baseline": 4,
+    "repeat": 16,
+    "smoke": 4
+  },
+  "planned_requests": 92,
+  "reproduction": {
+    "experiment_config_sha256": "67d3c986ad4ec0991faf3565658dcb988434905555803ba907bfa005decfeba7",
+    "generator_config": {
+      "api_key_env": "OPENAI_API_KEY",
+      "backoff_sec": 2.0,
+      "base_url": null,
+      "budget": {
+        "max_requests": 100,
+        "max_usd": 2.0
+      },
+      "disable_thinking": false,
+      "generator": "gpt_rag",
+      "max_output_tokens": 256,
+      "max_retries": 2,
+      "min_p": null,
+      "model": "gpt-6-luna",
+      "prices": {
+        "checked_at": "2026-10-26T00:00:00+09:00",
+        "source": "https://developers.openai.com/api/docs/pricing (Standard, <=272K input) · https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "usd_per_1m_cached_input": 0.01,
+        "usd_per_1m_input": 0.1,
+        "usd_per_1m_output": 0.5
+      },
+      "prompt_mode": "free",
+      "prompt_version": "p4b/0.2",
+      "provider": "openai",
+      "reasoning_effort": "none",
+      "structured_output": true,
+      "temperature": 0.7,
+      "timeout_sec": 30.0,
+      "top_k": null,
+      "top_p": null
+    },
+    "git_commit": "22a0d15e0d54581cfce7f2c12bd2514da99806b1",
+    "git_dirty": true,
+    "model_record": {
+      "checked_at": "2026-10-26",
+      "distribution": "OpenAI API (Chat Completions)",
+      "file": null,
+      "file_sha256": null,
+      "license": "OpenAI 서비스 약관 (API)",
+      "model_id": "gpt-6-luna",
+      "revision": null,
+      "runtime": null,
+      "runtime_asset": null,
+      "runtime_sha256": null,
+      "sdk": "openai==3.29.0",
+      "snapshot": "gpt-6-luna",
+      "sources": [
+        "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "https://developers.openai.com/api/docs/pricing",
+        "https://developers.openai.com/api/docs/guides/latest-model",
+        "https://pypi.org/project/openai/"
+      ],
+      "verified_locally": false
+    },
+    "packages": {
+      "openai": null,
+      "pydantic": "2.13.5"
+    },
+    "prompt_version": "p4b/0.2",
+    "python": "3.12.10",
+    "source_sha256": "97637831251b5c0c4c3291c06572ec1664fc33f1075a81d41092ef741986c257"
+  },
+  "sent_requests": 92,
+  "smoke": {
+    "actual_cost_unknown": 0,
+    "actual_cost_usd": 0.000191,
+    "cache_hits": 0,
+    "estimated_cost_usd": 0.000794,
+    "fallback_rate": 0.0,
+    "generation_ms": {
+      "median": 0.093,
+      "p90": 0.101
+    },
+    "generator_errors": {},
+    "guard_pass_rate": 1.0,
+    "n": 4,
+    "spoiler_flags": {
+      "answer_leak": 0,
+      "internal_id": 0,
+      "undisclosed_content": 0
+    },
+    "status_counts": {
+      "spoke": 4
+    },
+    "tokens_in": 1327,
+    "tokens_out": 117,
+    "unsupported_flags": {
+      "ungrounded": 0,
+      "unsupported_sentence": 0
+    },
+    "validation_ms": {
+      "median": 0.147,
+      "p90": 0.187
+    }
+  },
+  "stop_detail": null,
+  "stop_reason": null
+}

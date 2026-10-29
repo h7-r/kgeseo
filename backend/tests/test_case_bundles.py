@@ -44,7 +44,10 @@ def make_client_content() -> dict:
                         "asset_key": None,
                         "visible": False,
                         "enabled": False,
-                        "interaction": None,
+                        "interaction": {
+                            "type": "navigate",
+                            "target_id": "ZONE_002",
+                        },
                     },
                 ],
                 "navigation": [
@@ -162,7 +165,7 @@ def test_get_case_bundle_returns_public_content(
         "enabled": True,
         "interaction": {"type": "input"},
     }
-    assert first_zone["objects"][1]["interaction"] is None
+    assert first_zone["objects"][1]["interaction"] == {"type": "navigate"}
 
 
 def test_get_case_bundle_does_not_expose_server_only_content(
@@ -268,6 +271,32 @@ def test_get_case_bundle_returns_500_for_cross_file_mismatch(
     assert response.status_code == 500
     assert response.json() == {"detail": "Case content is unavailable."}
     assert "other" not in response.text
+
+
+@pytest.mark.parametrize(
+    "unsupported",
+    [
+        pytest.param(
+            {"companion": {"npc_id": "companion_01"}}, id="top_level_companion"
+        ),
+        pytest.param({"version_note": "draft"}, id="top_level_unknown"),
+    ],
+)
+def test_get_case_bundle_returns_500_for_unsupported_runtime_field(
+    client: TestClient,
+    case_directory: Path,
+    unsupported: dict,
+) -> None:
+    write_case_pair(
+        case_directory, server_runtime={**make_server_runtime(), **unsupported}
+    )
+
+    response = client.get("/api/v1/cases/case_001/bundle")
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Case content is unavailable."}
+    for key in unsupported:
+        assert key not in response.text
 
 
 def test_get_case_bundle_returns_500_for_missing_runtime_puzzle(
