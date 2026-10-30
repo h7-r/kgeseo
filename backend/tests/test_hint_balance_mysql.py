@@ -155,7 +155,8 @@ async def seed(
                     "hint_levels": {},
                     "attempt_counts": {},
                     "flags": {},
-                    "object_states": {},
+                    # PZ_B의 호스트(숨김 금고)를 드러낸 상태 — 두 퍼즐 모두 발견한 것으로 본다(v0.4.10 접근 조건).
+                    "object_states": {"ZONE_A": {"OBJ_SAFE": {"visible": True}}},
                 },
                 created_at=T0,
                 updated_at=T0,

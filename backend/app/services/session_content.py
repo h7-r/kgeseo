@@ -70,6 +70,10 @@ async def resolve_session_loaders(
 class SessionHintLoaders:
     runtime_loader: RuntimeLoader
     hint_source: Callable[[str, str, int], str | None]
+    client_content_loader: ClientContentLoader = load_case_client_content
+    # 세션 메타데이터(세션이 없으면 None). 버전 고정 값은 바뀌지 않으므로 잠금 없이 읽어도 된다.
+    case_id: str | None = None
+    content_fingerprint: str | None = None
 
 
 async def resolve_session_hint_loaders(
@@ -88,8 +92,20 @@ async def resolve_session_hint_loaders(
         except CONTENT_VERSION_ERRORS:
             await db.rollback()
             raise
+    case_id = play_session.case_id if play_session is not None else None
+    fingerprint = play_session.content_fingerprint if play_session is not None else None
     if bundle is None:
-        return SessionHintLoaders(load_case_runtime, server_hint_source())
+        return SessionHintLoaders(
+            load_case_runtime,
+            server_hint_source(),
+            load_case_client_content,
+            case_id,
+            fingerprint,
+        )
     return SessionHintLoaders(
-        bundle.runtime_loader(), bundle.hint_source(server_hint_text)
+        bundle.runtime_loader(),
+        bundle.hint_source(server_hint_text),
+        bundle.client_content_loader(),
+        case_id,
+        fingerprint,
     )

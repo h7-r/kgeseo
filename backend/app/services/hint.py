@@ -11,7 +11,8 @@
 
 힌트 잔액(PM v0.4.8 §4 · §5, v0.4.9 §1 · §3 · §7). 처리 순서는 고정이다.
 1. 세션 행 잠금(`FOR UPDATE`)
-2. 세션이 고정한 콘텐츠 버전의 로더인지 확인하고, 요청 단계의 승인 원문을 **먼저** 읽는다.
+2. 세션이 고정한 콘텐츠 버전의 로더인지 확인하고, 새 단계면 접근 조건(`access_policy`)을 본 뒤
+   요청 단계의 승인 원문을 **먼저** 읽는다.
    여기서 실패하면 차감하지 않고 오류를 낸다(「차감했는데 줄 게 없음」 방지).
 3. 새 단계면 잔액 확인 → `hint_level` +1 · `hint_balance` −1 · `help_used` +1 · 이벤트를 한 commit에 저장한다.
    잔액이 0이면 `HintBalanceEmptyError`(상태 · 이벤트 변화 없음).
@@ -155,14 +156,18 @@ async def unlock_hint(
 
         runtime = runtime_loader(play_session.case_id)
         puzzle = _find_puzzle(runtime, puzzle_id)
+        current_state = deepcopy(play_session.state_json)
+        current_level = _current_hint_level(current_state, puzzle_id)
+        unlocked = request.target_level > current_level
+        if unlocked:
+            # 접근 조건(미발견 퍼즐 등)을 원문 조회 · 단계 판정보다 먼저 본다. 거부 응답으로 그 퍼즐의 힌트 유무 ·
+            # 단계가 드러나지 않게 한다. 이미 연 단계(재열람)는 조건 없이 준다.
+            access_policy(current_state, puzzle, request.target_level)
         text = _require_hint_text(
             hint_source, play_session.case_id, puzzle_id, request.target_level
         )
-        current_state = deepcopy(play_session.state_json)
-        current_level = _current_hint_level(current_state, puzzle_id)
 
         result_type: HintUnlockResultType
-        unlocked = request.target_level > current_level
         if not unlocked:
             # 이미 연 단계는 다시 해금하지 않는다. 사용 횟수에 넣지 않도록 변화도 없다.
             result_type = "already_unlocked"
@@ -171,7 +176,6 @@ async def unlock_hint(
         else:
             if request.target_level != current_level + 1:
                 raise HintLevelSkippedError(puzzle_id)
-            access_policy(current_state, puzzle, request.target_level)
             if play_session.hint_balance <= 0:
                 raise HintBalanceEmptyError(
                     minigame_allowance(economy or hint_economy_config())

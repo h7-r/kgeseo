@@ -232,7 +232,8 @@ async def test_skipping_to_level_two_is_rejected_without_writes() -> None:
         await call_unlock(db, 2, policy=policy)
 
     assert play_session.state_json["hint_levels"] == {}
-    assert policy.calls == []
+    # 접근 조건은 단계 판정보다 먼저 본다(PM v0.4.10: 미발견 퍼즐의 단계 정보가 드러나지 않게).
+    assert policy.calls == [(PUZZLE_ID, 2)]
     assert db.added == []
     assert db.commit_count == 0
     assert db.rollback_count == 1

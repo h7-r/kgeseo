@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.interaction import HintLevelChangedStateChange
 from app.schemas.play_session import PlaySessionState
@@ -18,6 +18,32 @@ class HintUnlockRequest(BaseModel):
     client_event_id: str = Field(min_length=1, max_length=36)
     client_timestamp: datetime | None = None
     target_level: HintLevel
+
+
+class HintApiRequest(BaseModel):
+    """정식 Hint API 요청(PM v0.4.10 §1). 대상은 `puzzle_id`(힌트 버튼) · `hint_ref`(NPC 제안 수락) 중 정확히 하나."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_event_id: str = Field(min_length=1, max_length=36)
+    client_timestamp: datetime | None = None
+    target_level: HintLevel
+    puzzle_id: str | None = Field(default=None, min_length=1, max_length=64)
+    # 형식 검증은 `resolve_hint_ref`가 한다(형식 오류 422). 길이만 먼저 제한한다.
+    hint_ref: str | None = Field(default=None, min_length=1, max_length=96)
+
+    @model_validator(mode="after")
+    def _exactly_one_target(self) -> "HintApiRequest":
+        if (self.puzzle_id is None) == (self.hint_ref is None):
+            raise ValueError("exactly one of puzzle_id or hint_ref is required")
+        return self
+
+    def unlock_request(self) -> HintUnlockRequest:
+        return HintUnlockRequest(
+            client_event_id=self.client_event_id,
+            client_timestamp=self.client_timestamp,
+            target_level=self.target_level,
+        )
 
 
 class HintUnlockResult(BaseModel):

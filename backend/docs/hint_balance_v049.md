@@ -39,6 +39,9 @@ LLM 힌트 표현 · 미니게임 충전 · 별 · 계정 연결 · AI 호출 �
 
 ## HTTP (`POST /api/v1/play-sessions/{id}/puzzles/{puzzle_id}/hints`)
 
+> PM v0.4.10: 정식 경로 `POST …/hints`가 생겼고 이 경로는 호환 별칭이다(`docs/hint_api_v0410.md`).
+> 접근 정책은 「제한 없음」에서 「발견한 퍼즐만」으로 바뀌었다.
+
 요청: `{"client_event_id": "<1~36자>", "client_timestamp": "<ISO-8601>", "target_level": 1|2}`
 
 응답 200: `{interaction_id, result: {result_type, puzzle_id, hint_level, state, state_changes, hint_balance, help_used}, hint: {level, text}}`
@@ -53,7 +56,7 @@ LLM 힌트 표현 · 미니게임 충전 · 별 · 계정 연결 · AI 호출 �
 
 - `minigames_left`는 충전 API가 없어 지금은 설정값 그대로다. 특별 미니게임은 재미 미니게임을 다 써야 열리므로
   지금은 늘 `false`다. 충전 API가 생기면 `minigame_allowance`가 회차 기록을 반영한다.
-- 접근 정책(Zone · 완료 퍼즐 · 선행 단서)은 PM 미결정이라 라우터 기본은 제한 없음(`get_hint_access_policy`)이다.
+- (v0.4.10에서 대체) 접근 조건은 `app.services.hint_access`(발견한 퍼즐만, 선행 단서 기본 미적용 · `get_hint_access_rules`)다.
 
 ## hint_ref 발급 키 (`app.api.v1.npc.get_hint_ref_keys`)
 
@@ -66,7 +69,6 @@ LLM 힌트 표현 · 미니게임 충전 · 별 · 계정 연결 · AI 호출 �
 ## 아직 하지 않은 것
 
 - LLM 힌트 표현(`reply.source`, `RECOVERED_AFTER_FAILURE`, 멱등 저장소 연결, 호출 한도 예약)
-- `hint_ref`로 Hint API 요청 받기(지금은 `puzzle_id` 경로만)
 - 미니게임 발급 · 제출 · 충전 API와 `minigame_attempt_id` 멱등
 - 별 · 완주(`completed_at`) · 재도전 기록, 계정 연결, AI 호출 한도
 - 세션 조회 응답에 잔액 노출, FE 연결
