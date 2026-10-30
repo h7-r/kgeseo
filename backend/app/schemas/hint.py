@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.interaction import HintLevelChangedStateChange
 from app.schemas.play_session import PlaySessionState
@@ -14,7 +14,8 @@ HintUnlockResultType = Literal["hint_unlocked", "already_unlocked"]
 
 
 class HintUnlockRequest(BaseModel):
-    client_event_id: str
+    # interaction_events.client_event_id(CHAR(36))에 저장한다.
+    client_event_id: str = Field(min_length=1, max_length=36)
     client_timestamp: datetime | None = None
     target_level: HintLevel
 
@@ -28,6 +29,9 @@ class HintUnlockResult(BaseModel):
     hint_level: int
     state: PlaySessionState
     state_changes: list[HintLevelChangedStateChange]
+    # 처리 후 이 회차의 힌트 잔액 · 도움 사용 수(PM v0.4.8 §3). 재전송은 처음 응답 값을 그대로 준다.
+    hint_balance: int
+    help_used: int
 
 
 class HintText(BaseModel):

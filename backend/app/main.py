@@ -7,6 +7,7 @@ from app.api.v1.anonymous_sessions import (
 from app.api.v1.auth import router as auth_router
 from app.api.v1.cases import router as cases_router
 from app.api.v1.health import router as health_router
+from app.api.v1.hints import router as hints_router
 from app.api.v1.interactions import router as interactions_router
 from app.api.v1.npc import router as npc_router
 
@@ -72,6 +73,16 @@ app.include_router(
 # /api/v1/play-sessions/{play_session_id}/npc/turns
 app.include_router(
     npc_router,
+    prefix="/api/v1",
+)
+
+
+# 정식 Hint API 등록 (PM v0.4.8 · v0.4.9: 힌트 잔액 · 원자적 차감. LLM 표현 생성 없음)
+#
+# 최종 경로:
+# /api/v1/play-sessions/{play_session_id}/puzzles/{puzzle_id}/hints
+app.include_router(
+    hints_router,
     prefix="/api/v1",
 )
 

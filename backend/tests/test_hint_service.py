@@ -88,7 +88,9 @@ class RecordingPolicy:
             raise HintAccessDeniedError(puzzle.puzzle_id)
 
 
-def make_play_session(*, hint_levels: dict | None = None) -> PlaySession:
+def make_play_session(
+    *, hint_levels: dict | None = None, hint_balance: int = 3, help_used: int = 0
+) -> PlaySession:
     now = datetime(2026, 10, 27, 1, 2, 3)
     return PlaySession(
         id="play-session-id",
@@ -107,6 +109,8 @@ def make_play_session(*, hint_levels: dict | None = None) -> PlaySession:
         created_at=now,
         updated_at=now,
         completed_at=None,
+        hint_balance=hint_balance,
+        help_used=help_used,
     )
 
 
@@ -731,6 +735,8 @@ class RowLockSession(FakeAsyncSession):
             created_at=source.created_at,
             updated_at=source.updated_at,
             completed_at=source.completed_at,
+            hint_balance=source.hint_balance,
+            help_used=source.help_used,
         )
         # 읽은 뒤 다른 작업이 끼어들 틈을 준다.
         await asyncio.sleep(0)

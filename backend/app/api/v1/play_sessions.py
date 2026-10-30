@@ -3,6 +3,7 @@ from datetime import timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1.hints import get_hint_economy_config
 from app.db.session import get_db
 from app.schemas.case_bundle import CaseBundleResponse
 from app.schemas.clue import PlaySessionCluesData, PlaySessionCluesResponse
@@ -22,6 +23,7 @@ from app.services.case_content import (
 )
 from app.services.case_content_validation import CaseContentLinkValidationError
 from app.services.clue_catalog import get_acquired_clues
+from app.services.hint_balance import HintEconomyConfig
 from app.services.pinned_content import (
     ContentCaseMismatchError,
     PinnedContentStore,
@@ -75,6 +77,8 @@ async def create_play_session_endpoint(
     db: AsyncSession = Depends(get_db),
     # 게시 검증을 통과해 등록된 콘텐츠 묶음 저장소(기본은 비어 있다)
     content_store: PinnedContentStore = Depends(get_pinned_content_store),
+    # 회차 시작 힌트 잔액 N 등 설정값(PM v0.4.8 §4)
+    economy: HintEconomyConfig = Depends(get_hint_economy_config),
 ) -> PlaySessionCreateResponse:
     pinned_content = None
     if request.content_version is not None:
@@ -103,6 +107,7 @@ async def create_play_session_endpoint(
             anonymous_session_id=request.anonymous_session_id,
             case_id=request.case_id,
             pinned_content=pinned_content,
+            initial_hint_balance=economy.initial_balance,
         )
 
     except AnonymousSessionNotFoundError:

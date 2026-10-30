@@ -2,6 +2,10 @@
 
 **Status: Draft — 팀 검토 대기, PM 미결정 사항 포함. 확정 계약이 아니다.**
 
+> **갱신(PM v0.4.8 · v0.4.9):** 라우터를 등록했다(`POST /api/v1/play-sessions/{id}/puzzles/{puzzle_id}/hints`).
+> 힌트 잔액 · `help_used` · 409 `HINT_BALANCE_EMPTY` · 고정 버전 원문 대조가 더해졌다. 상세는
+> `docs/hint_balance_v049.md`. 아래 본문 중 「라우터 미등록」 서술은 그 문서가 대체한다.
+
 공통 서비스(`app/services/hint.py`)만 구현했다. 라우터에 등록하지 않았으므로 HTTP 경로는
 아직 없다. 기준: Puzzle Contract v0.3.1 §7·8, FE ↔ BE 인터랙션 계약 v0.3.2 §8.
 

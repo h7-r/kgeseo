@@ -231,11 +231,12 @@ def alembic_config(output=None) -> Config:
 def test_migration_extends_content_pin_revision_only() -> None:
     script = ScriptDirectory.from_config(alembic_config())
 
-    # 게시 상태 migration(f3b8d2c6a1e7)이 이 revision 위에 추가되었다. 단일 head 여부는
-    # test_play_session_content_pin이 확인한다(승인 이력 병합으로 head가 늘 수 있다).
-    assert "f3b8d2c6a1e7" in script.get_heads() or any(
-        "f3b8d2c6a1e7" in (script.get_revision(h).down_revision or ())
-        for h in script.get_heads()
+    # 게시 상태 migration(f3b8d2c6a1e7)이 이 revision 위에 추가되었다. 단일 head 여부 · 그 위 revision은
+    # test_play_session_content_pin이 확인한다. 여기서는 head의 조상에 있는지만 본다.
+    assert any(
+        rev.revision == "f3b8d2c6a1e7"
+        for head in script.get_heads()
+        for rev in script.iterate_revisions(head, "base")
     )
     assert script.get_revision("f3b8d2c6a1e7").down_revision == REVISION
     assert script.get_revision(REVISION).down_revision == PARENT

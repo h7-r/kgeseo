@@ -14,6 +14,7 @@ from app.services.case_content import (
     InvalidClientCaseIdError,
     load_case_client_content,
 )
+from app.services.hint_balance import hint_economy_config
 from app.services.pinned_content import ContentCaseMismatchError, PinnedContent
 
 ClientContentLoader = Callable[[str], CaseClientContent]
@@ -53,6 +54,7 @@ async def create_play_session(
     *,
     client_content_loader: ClientContentLoader | None = None,
     pinned_content: PinnedContent | None = None,
+    initial_hint_balance: int | None = None,
 ) -> PlaySession:
     """
     새로운 PlaySession을 생성하고 DB에 저장한다.
@@ -60,6 +62,9 @@ async def create_play_session(
     `pinned_content`(검증을 마친 버전 고정 묶음)를 주면 그 묶음의 Client 콘텐츠로 상태를 만들고,
     같은 행에 `content_version` · `content_fingerprint`를 함께 저장한다(같은 INSERT · 같은 commit).
     주지 않으면 지금처럼 버전 없는(레거시) 세션을 만든다.
+
+    `initial_hint_balance`는 회차 시작 힌트 잔액 N(PM v0.4.8 §4)이다. 주지 않으면 앱 설정
+    `HINT_INITIAL_BALANCE`(기본 3)를 쓴다. 처음부터 다시 하면 새 회차라 다시 N으로 시작한다.
 
     처리 순서:
     1. AnonymousSession 존재 확인
@@ -69,6 +74,15 @@ async def create_play_session(
     5. PlaySession 생성
     6. DB 저장
     """
+
+    if initial_hint_balance is None:
+        initial_hint_balance = hint_economy_config().initial_balance
+    if (
+        isinstance(initial_hint_balance, bool)
+        or not isinstance(initial_hint_balance, int)
+        or initial_hint_balance < 0
+    ):
+        raise ValueError("initial_hint_balance must be a non-negative integer")
 
     if pinned_content is not None:
         if client_content_loader is not None:
@@ -154,6 +168,9 @@ async def create_play_session(
         content_fingerprint=(
             pinned_content.pin.content_fingerprint if pinned_content else None
         ),
+        # 회차 시작 힌트 잔액 · 도움 사용 수
+        hint_balance=initial_hint_balance,
+        help_used=0,
     )
 
     # INSERT 대상으로 등록

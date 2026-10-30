@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,6 +8,7 @@ from app.db.session import get_db
 from app.schemas.npc_content import GeneralLinePack
 from app.schemas.npc_turn import NpcTurnRequest, NpcTurnResponse
 from app.services.approval_history import ApprovalSource
+from app.services.hint_balance import HintRefKeyConfigError, hint_ref_keys_from_settings
 from app.services.hint_ref import HintRefKeys
 from app.services.interaction import IdempotencyConflictError
 from app.services.npc import NpcContentUnsafeError
@@ -25,6 +27,8 @@ from app.services.session_content import (
     CONTENT_VERSION_ERRORS,
     get_pinned_content_store,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/play-sessions",
@@ -58,9 +62,17 @@ def get_npc_event_loader() -> EventLoader:
 
 
 def get_hint_ref_keys() -> HintRefKeys | None:
-    """hint_ref 발급 키. 운영 비밀 설정이 아직 없어 기본은 None(suggest_hint를 내지 않음, fail closed)."""
+    """hint_ref 발급 키. 환경 변수 `HINT_REF_CURRENT_KEY_ID` · `HINT_REF_KEYS`(비밀)에서 읽는다.
 
-    return None
+    둘 다 비어 있으면 None(suggest_hint를 내지 않음, fail closed). 형식이 틀리면 키를 쓰지 않고 None으로
+    두되 오류를 남긴다(비밀 값은 남기지 않는다). NPC 턴 자체는 막지 않는다.
+    """
+
+    try:
+        return hint_ref_keys_from_settings()
+    except HintRefKeyConfigError:
+        logger.error("hint_ref key configuration is invalid; suggest_hint disabled")
+        return None
 
 
 @router.post(

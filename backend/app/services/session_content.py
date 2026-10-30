@@ -9,12 +9,14 @@
 테스트는 FastAPI `dependency_overrides`로 저장소를 바꿔 끼운다.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.play_session import ContentPinColumnsError, PlaySession
 from app.services.case_content import load_case_client_content
+from app.services.hint import server_hint_source, server_hint_text
 from app.services.interaction import ClientContentLoader, RuntimeLoader
 from app.services.pinned_content import (
     PinnedContentError,
@@ -62,3 +64,32 @@ async def resolve_session_loaders(
     if bundle is None:
         return DEFAULT_LOADERS
     return SessionLoaders(bundle.runtime_loader(), bundle.client_content_loader())
+
+
+@dataclass(frozen=True)
+class SessionHintLoaders:
+    runtime_loader: RuntimeLoader
+    hint_source: Callable[[str, str, int], str | None]
+
+
+async def resolve_session_hint_loaders(
+    db: AsyncSession, play_session_id: str, store: PinnedContentStore
+) -> SessionHintLoaders:
+    """Hint API용. 고정 세션은 그 버전 묶음의 server.json 원문, 레거시 세션은 기본 server.json 원문.
+
+    고정 묶음의 로더 · 원문에는 버전 표시가 붙어 있어 `unlock_hint`가 세션과 다시 대조한다.
+    """
+
+    play_session = await db.get(PlaySession, play_session_id)
+    bundle = None
+    if play_session is not None:
+        try:
+            bundle = resolve_session_content(play_session, store)
+        except CONTENT_VERSION_ERRORS:
+            await db.rollback()
+            raise
+    if bundle is None:
+        return SessionHintLoaders(load_case_runtime, server_hint_source())
+    return SessionHintLoaders(
+        bundle.runtime_loader(), bundle.hint_source(server_hint_text)
+    )
