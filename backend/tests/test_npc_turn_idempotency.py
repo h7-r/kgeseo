@@ -14,12 +14,15 @@ from sqlalchemy.exc import OperationalError
 
 from alembic import command
 from app.models.npc_turn_idempotency import NpcTurnRequest, NpcTurnResponseBody
+from app.repositories.npc_turn_idempotency import TurnContentRef
 from app.schemas.npc_turn import NpcTurnResponse
 from app.services.npc_turn_idempotency import (
     InconsistentTurnStateError,
     NpcTurnIdempotencyStore,
+    PublicationStateUnavailableError,
     RequestHashKeys,
     RequestHashKeyUnavailableError,
+    fail_closed_publication_guard,
     matches_request_body_hash,
     request_body_hash,
     turn_key,
@@ -38,7 +41,12 @@ REQUEST = {"trigger": "player_message", "message": "가상 플레이어 문장",
 
 
 def store(**kwargs) -> NpcTurnIdempotencyStore:
-    return NpcTurnIdempotencyStore(None, hash_keys=KEYS, **kwargs)  # type: ignore[arg-type]
+    return NpcTurnIdempotencyStore(
+        None,  # type: ignore[arg-type]
+        hash_keys=KEYS,
+        publication_guard=fail_closed_publication_guard,
+        **kwargs,
+    )
 
 
 # --- 요청 본문 해시 ---
@@ -117,11 +125,31 @@ def test_turn_key_requires_uuids_and_normalizes() -> None:
 
 def test_store_rejects_invalid_configuration_and_non_final_response() -> None:
     with pytest.raises(TypeError):
-        NpcTurnIdempotencyStore(None, hash_keys={"k1": K1})  # type: ignore[arg-type]
+        NpcTurnIdempotencyStore(  # type: ignore[arg-type]
+            None, hash_keys={"k1": K1}, publication_guard=fail_closed_publication_guard
+        )
     with pytest.raises(ValueError):
         store(lease=timedelta(0))
     with pytest.raises(TypeError):
         asyncio.run(store().complete(None, {"reply": "x"}))  # type: ignore[arg-type]
+
+
+def test_publication_guard_is_required_and_defaults_to_fail_closed() -> None:
+    # guard를 빼고는 저장소를 만들 수 없다(누락이 승인으로 이어지지 않게).
+    with pytest.raises(TypeError):
+        NpcTurnIdempotencyStore(None, hash_keys=KEYS)  # type: ignore[call-arg]
+    with pytest.raises(TypeError):
+        NpcTurnIdempotencyStore(None, hash_keys=KEYS, publication_guard=None)  # type: ignore[arg-type]
+    with pytest.raises(PublicationStateUnavailableError):
+        asyncio.run(
+            fail_closed_publication_guard(None, TurnContentRef("c", 1, "sha256:x"))  # type: ignore[arg-type]
+        )
+
+
+def test_content_mode_must_be_case_or_generic() -> None:
+    response = NpcTurnResponse(npc_event_id=uuid4(), reply=None, suggest_hint=None)
+    with pytest.raises(ValueError):
+        asyncio.run(store().complete(None, response, content_mode="other"))  # type: ignore[arg-type]
 
 
 def deadlock(errno: int = 1213) -> OperationalError:

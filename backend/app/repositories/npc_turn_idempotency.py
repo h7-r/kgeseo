@@ -6,7 +6,7 @@ commit · rollback을 하지 않는다. 트랜잭션 경계는 서비스(`app.se
 from dataclasses import dataclass
 from datetime import datetime
 
-from sqlalchemy import delete, select, tuple_, update
+from sqlalchemy import delete, func, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.npc_turn_idempotency import (
@@ -118,6 +118,11 @@ class NpcTurnIdempotencyRepository:
         # owner_token은 남겨 두어 이전 작업자의 늦은 저장도 lease 만료로 거부된다.
         row.lease_expires_at = now
 
+    @staticmethod
+    def mark_withdrawn(row: NpcTurnRequest, *, now: datetime) -> None:
+        # 게시 상태 guard가 차단을 확인한 PROCESSING 요청. 본문 없이 철회 표식만 남긴다.
+        row.withdrawn_at = now
+
     async def mark_ready(
         self,
         row: NpcTurnRequest,
@@ -171,6 +176,7 @@ class NpcTurnIdempotencyRepository:
         """해당 버전의 저장 응답 본문을 지우고 tombstone에 철회 표식을 남긴다.
 
         READY는 본문을 지운다. PROCESSING은 표식만 남겨 이후 확정을 막는다. EXPIRED는 이미 본문이 없어 그대로 둔다.
+        긴급 차단 경로는 게시 상태 행을 배타 잠금으로 바꾼 같은 트랜잭션에서 이 메서드를 부른다(잠금 순서 계약).
         """
 
         result = await self.db.execute(
@@ -232,3 +238,13 @@ class NpcTurnIdempotencyRepository:
             )
         )
         return result.rowcount
+
+    async def count_request_hash_key(self, prefix: str) -> int:
+        """`hmac-sha256:<key id>:` 접두사를 쓰는 요청 행 수(키 폐기 가능 여부 확인용, 운영 조회)."""
+
+        result = await self.db.execute(
+            select(func.count())
+            .select_from(NpcTurnRequest)
+            .where(NpcTurnRequest.request_body_hash.startswith(prefix, autoescape=True))
+        )
+        return result.scalar_one()

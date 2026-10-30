@@ -25,11 +25,16 @@ from app.models.anonymous_session import AnonymousSession
 from app.models.interaction_event import InteractionEvent
 from app.models.npc_turn_idempotency import NpcTurnRequest, NpcTurnResponseBody
 from app.models.play_session import PlaySession
-from app.repositories.npc_turn_idempotency import TurnContentRef
+from app.repositories.npc_turn_idempotency import (
+    NpcTurnIdempotencyRepository,
+    TurnContentRef,
+)
 from app.schemas.npc_turn import NpcReplyOut, NpcTurnResponse
 from app.services.npc_turn_idempotency import (
+    ContentPublicationBlockedError,
     IdempotencyMismatchError,
     NpcTurnIdempotencyStore,
+    PublicationStateUnavailableError,
     RequestHashKeys,
     TurnClaim,
     TurnExpiredError,
@@ -39,6 +44,7 @@ from app.services.npc_turn_idempotency import (
     TurnStatusUndecidedError,
     TurnWithdrawn,
     TurnWithdrawnError,
+    fail_closed_publication_guard,
     turn_key,
 )
 
@@ -134,6 +140,15 @@ def mysql_run(scenario) -> None:
                 )
                 await connection.run_sync(upgrade_chain)
                 initialized = True
+                await connection.execute(text(PUBLICATION_DDL))
+                for content in (V1, V2):
+                    await connection.execute(
+                        text(
+                            "INSERT INTO test_publication_states "
+                            "VALUES (:c, :v, 'published')"
+                        ),
+                        {"c": content.case_id, "v": content.content_version},
+                    )
             sessions = async_sessionmaker(engine, expire_on_commit=False)
             await scenario(sessions)
         finally:
@@ -212,7 +227,75 @@ async def request_row(sessions, key) -> NpcTurnRequest:
 
 
 def make_store(sessions, clock, **kwargs) -> NpcTurnIdempotencyStore:
-    return NpcTurnIdempotencyStore(sessions, hash_keys=KEYS, clock=clock, **kwargs)
+    kwargs.setdefault("publication_guard", publication_guard)
+    kwargs.setdefault("hash_keys", KEYS)
+    return NpcTurnIdempotencyStore(sessions, clock=clock, **kwargs)
+
+
+# --- 테스트용 가상 게시 상태(운영 게시 상태 시스템이 아니다) ---
+# 작업 D의 게시 상태 저장소가 지켜야 할 잠금 계약만 재현한다:
+# guard는 게시 상태 행을 공유 잠금으로 읽고, 긴급 차단은 같은 행을 배타 잠금으로 바꾼 트랜잭션에서
+# 요청 행을 철회한다.
+
+PUBLICATION_DDL = (
+    "CREATE TABLE test_publication_states ("
+    " case_id VARCHAR(64) NOT NULL, content_version INT NOT NULL,"
+    " status VARCHAR(16) NOT NULL, PRIMARY KEY (case_id, content_version)"
+    ") ENGINE=InnoDB"
+)
+
+
+async def publication_guard(db, content: TurnContentRef) -> None:
+    status = (
+        await db.execute(
+            text(
+                "SELECT status FROM test_publication_states "
+                "WHERE case_id = :c AND content_version = :v FOR SHARE"
+            ),
+            {"c": content.case_id, "v": content.content_version},
+        )
+    ).scalar_one_or_none()
+    if status is None:
+        raise LookupError("publication state missing")
+    if status == "blocked":
+        raise ContentPublicationBlockedError()
+
+
+async def set_publication_status(sessions, content: TurnContentRef, status: str):
+    async with sessions() as db, db.begin():
+        await db.execute(
+            text(
+                "UPDATE test_publication_states SET status = :s "
+                "WHERE case_id = :c AND content_version = :v"
+            ),
+            {"s": status, "c": content.case_id, "v": content.content_version},
+        )
+
+
+async def emergency_block(sessions, content: TurnContentRef, *, hold=None):
+    """게시 상태 행을 배타 잠금 → blocked → 같은 트랜잭션에서 저장 응답 철회."""
+
+    async with sessions() as db, db.begin():
+        await db.execute(
+            text(
+                "SELECT status FROM test_publication_states "
+                "WHERE case_id = :c AND content_version = :v FOR UPDATE"
+            ),
+            {"c": content.case_id, "v": content.content_version},
+        )
+        await db.execute(
+            text(
+                "UPDATE test_publication_states SET status = 'blocked' "
+                "WHERE case_id = :c AND content_version = :v"
+            ),
+            {"c": content.case_id, "v": content.content_version},
+        )
+        counts = await NpcTurnIdempotencyRepository(db).withdraw_content_version(
+            content.case_id, content.content_version, now=T0
+        )
+        if hold is not None:
+            await hold()
+    return counts
 
 
 # --- 최초 처리 · 재현 ---
@@ -632,5 +715,233 @@ def test_mysql_no_player_text_or_model_context_is_stored():
             assert forbidden not in dumped
         body = (await store.claim(key, V1, request)).response.model_dump()
         assert set(body) == {"npc_event_id", "reply", "suggest_hint"}
+
+    mysql_run(scenario)
+
+
+# --- 리뷰 보완: READY 422 · 게시 상태 guard (F1) · 키 사용량 (F2) ---
+
+
+def test_mysql_ready_changed_request_is_422_directly():
+    async def scenario(sessions):
+        store = make_store(sessions, Clock())
+        key = turn_key(await new_play_session(sessions), str(uuid4()))
+        await store.complete(await store.claim(key, V1, REQUEST), response())
+
+        with pytest.raises(IdempotencyMismatchError):
+            await store.claim(key, V1, {**REQUEST, "message": "가상원문-바뀜"})
+        assert isinstance(await store.claim(key, V1, REQUEST), TurnReplay)
+
+    mysql_run(scenario)
+
+
+def test_mysql_new_claim_after_emergency_block_cannot_store_case_lines():
+    async def scenario(sessions):
+        store = make_store(sessions, Clock())
+        session_id = await new_play_session(sessions)
+        before = turn_key(session_id, str(uuid4()))
+        await store.complete(await store.claim(before, V1, REQUEST), response())
+
+        counts = await emergency_block(sessions, V1)
+        assert counts.bodies_deleted == 1
+
+        # 차단 직후 새 요청: claim → 계산 → 확정해도 원래 대사 · 이벤트가 저장되지 않는다.
+        after = turn_key(session_id, str(uuid4()))
+        claim = await store.claim(after, V1, REQUEST)
+        assert isinstance(claim, TurnClaim)
+        with pytest.raises(TurnWithdrawnError):
+            await store.complete(
+                claim,
+                response("(가상) 차단된 원래 대사"),
+                write_event=event_writer(session_id),
+            )
+        assert await count(sessions, NpcTurnResponseBody) == 0
+        assert await count(sessions, InteractionEvent) == 0
+        assert (await request_row(sessions, after)).withdrawn_at is not None
+        assert isinstance(await store.claim(after, V1, REQUEST), TurnWithdrawn)
+        assert isinstance(await store.claim(before, V1, REQUEST), TurnWithdrawn)
+
+        # 케이스 콘텐츠를 쓰지 않은 generic 응답은 저장 · 재현할 수 있다.
+        generic = turn_key(session_id, str(uuid4()))
+        stored = await store.complete(
+            await store.claim(generic, V1, REQUEST),
+            response("(가상) generic"),
+            content_mode="generic",
+        )
+        replay = await store.claim(generic, V1, REQUEST)
+        assert replay.response.model_dump() == stored.model_dump()
+
+    mysql_run(scenario)
+
+
+def test_mysql_block_waits_for_in_flight_completion_then_withdraws_it():
+    async def scenario(sessions):
+        store = make_store(sessions, Clock())
+        session_id = await new_play_session(sessions)
+        key = turn_key(session_id, str(uuid4()))
+        claim = await store.claim(key, V1, REQUEST)
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def slow_event(db):
+            await event_writer(session_id)(db)
+            entered.set()
+            await release.wait()
+
+        completing = asyncio.create_task(
+            store.complete(claim, response(), write_event=slow_event)
+        )
+        await entered.wait()
+        blocking = asyncio.create_task(emergency_block(sessions, V1))
+        await asyncio.sleep(0.5)
+        # 확정이 게시 상태 행 공유 잠금을 잡고 있어 차단이 기다린다.
+        assert not blocking.done()
+        release.set()
+        await completing
+        counts = await blocking
+        # 확정이 먼저 commit되었고, 차단이 같은 트랜잭션에서 그 본문을 지운다.
+        assert counts.bodies_deleted == 1
+        assert await count(sessions, NpcTurnResponseBody) == 0
+        assert isinstance(await store.claim(key, V1, REQUEST), TurnWithdrawn)
+
+    mysql_run(scenario)
+
+
+def test_mysql_completion_waits_for_in_flight_block_then_refuses():
+    async def scenario(sessions):
+        store = make_store(sessions, Clock())
+        session_id = await new_play_session(sessions)
+        key = turn_key(session_id, str(uuid4()))
+        claim = await store.claim(key, V1, REQUEST)
+        holding, release = asyncio.Event(), asyncio.Event()
+
+        async def hold():
+            holding.set()
+            await release.wait()
+
+        blocking = asyncio.create_task(emergency_block(sessions, V1, hold=hold))
+        await holding.wait()
+        completing = asyncio.create_task(
+            store.complete(claim, response(), write_event=event_writer(session_id))
+        )
+        await asyncio.sleep(0.5)
+        # 차단 트랜잭션이 게시 상태 행 배타 잠금을 잡고 있어 확정이 guard에서 기다린다.
+        assert not completing.done()
+        release.set()
+        await blocking
+        with pytest.raises(TurnWithdrawnError):
+            await completing
+        assert await count(sessions, NpcTurnResponseBody) == 0
+        assert await count(sessions, InteractionEvent) == 0
+        assert isinstance(await store.claim(key, V1, REQUEST), TurnWithdrawn)
+
+    mysql_run(scenario)
+
+
+def test_mysql_concurrent_completions_and_block_never_leave_case_lines():
+    async def scenario(sessions):
+        store = make_store(sessions, Clock())
+        session_id = await new_play_session(sessions)
+        claims = [
+            await store.claim(turn_key(session_id, str(uuid4())), V1, REQUEST)
+            for _ in range(6)
+        ]
+
+        async def finish(claim, delay):
+            async def write(db):
+                await event_writer(session_id)(db)
+                await asyncio.sleep(delay)
+
+            try:
+                await store.complete(claim, response(), write_event=write)
+                return "stored"
+            except TurnWithdrawnError:
+                return "withdrawn"
+
+        results = await asyncio.gather(
+            *(finish(c, 0.05 * i) for i, c in enumerate(claims)),
+            emergency_block(sessions, V1),
+        )
+        outcomes = results[:-1]
+        counts = results[-1]
+        # 교착 없이 끝나고, 차단 전에 확정된 것만 차단이 지운다. 차단 뒤 확정은 없다.
+        assert set(outcomes) <= {"stored", "withdrawn"}
+        assert counts.bodies_deleted == outcomes.count("stored")
+        assert await count(sessions, NpcTurnResponseBody) == 0
+        assert await count(sessions, InteractionEvent) == outcomes.count("stored")
+        for claim in claims:
+            assert isinstance(await store.claim(claim.key, V1, REQUEST), TurnWithdrawn)
+
+    mysql_run(scenario)
+
+
+def test_mysql_suspended_publication_keeps_in_flight_sessions():
+    async def scenario(sessions):
+        store = make_store(sessions, Clock())
+        key = turn_key(await new_play_session(sessions), str(uuid4()))
+        claim = await store.claim(key, V1, REQUEST)
+        # 일반 중단은 신규 세션만 막는다(세션 생성 쪽 책임). 진행 중 세션의 확정은 계속된다.
+        await set_publication_status(sessions, V1, "suspended")
+
+        await store.complete(claim, response())
+        assert isinstance(await store.claim(key, V1, REQUEST), TurnReplay)
+
+    mysql_run(scenario)
+
+
+def test_mysql_missing_or_failing_guard_never_confirms_case_lines():
+    async def scenario(sessions):
+        session_id = await new_play_session(sessions)
+        unknown = TurnContentRef("case_test", 3, "sha256:" + "3" * 64)
+        store = make_store(sessions, Clock())
+        key = turn_key(session_id, str(uuid4()))
+        claim = await store.claim(key, unknown, REQUEST)
+        with pytest.raises(LookupError):  # 게시 상태 행 없음 → guard 오류
+            await store.complete(
+                claim, response(), write_event=event_writer(session_id)
+            )
+
+        closed = make_store(
+            sessions, Clock(), publication_guard=fail_closed_publication_guard
+        )
+        other = await closed.claim(turn_key(session_id, str(uuid4())), V1, REQUEST)
+        with pytest.raises(PublicationStateUnavailableError):
+            await closed.complete(
+                other, response(), write_event=event_writer(session_id)
+            )
+
+        assert await count(sessions, NpcTurnResponseBody) == 0
+        assert await count(sessions, InteractionEvent) == 0
+        for pending in (key, other.key):
+            row = await request_row(sessions, pending)
+            assert (row.status, row.withdrawn_at) == ("PROCESSING", None)
+
+    mysql_run(scenario)
+
+
+def test_mysql_hash_key_usage_counts_tombstones_before_key_retirement():
+    async def scenario(sessions):
+        clock = Clock()
+        old_store = make_store(sessions, clock)
+        session_id = await new_play_session(sessions)
+        old_key = turn_key(session_id, str(uuid4()))
+        await old_store.complete(
+            await old_store.claim(old_key, V1, REQUEST), response()
+        )
+        clock.advance(hours=25)
+        await old_store.purge_expired()  # 본문은 지워지고 tombstone만 남는다
+
+        rotated = RequestHashKeys(
+            "k2", {"k1": KEYS.keys["k1"], "k2": b"k2-test-only-" + b"b" * 32}
+        )
+        new_store = make_store(sessions, clock, hash_keys=rotated)
+        await new_store.claim(turn_key(session_id, str(uuid4())), V1, REQUEST)
+
+        assert await new_store.hash_key_usage("k1") == 1
+        assert await new_store.hash_key_usage("k2") == 1
+        # 이전 키를 보관하는 동안은 오래된 tombstone도 410 · 422로 정상 판정된다.
+        with pytest.raises(TurnExpiredError):
+            await new_store.claim(old_key, V1, REQUEST)
+        with pytest.raises(IdempotencyMismatchError):
+            await new_store.claim(old_key, V1, {**REQUEST, "message": "다름"})
 
     mysql_run(scenario)
