@@ -241,9 +241,10 @@ def alembic_config(output: io.StringIO | None = None) -> Config:
 def test_new_revision_is_single_head_after_previous_head() -> None:
     script = ScriptDirectory.from_config(alembic_config())
 
-    # NPC 멱등 저장소 migration이 추가되어도 콘텐츠 고정 revision의 부모 관계를 보존한다.
-    # 게시 상태 migration(f3b8d2c6a1e7)이 그 위에 추가되어도 부모 관계는 그대로다.
-    assert script.get_heads() == ["f3b8d2c6a1e7"]
+    # 두 브랜치 병합 직후: 승인 이력(d2a6f8b1c903)과 멱등 · 게시 상태(e4c1f7a2b9d6 → f3b8d2c6a1e7)가
+    # 모두 콘텐츠 고정 revision에서 갈라진다. 다음 커밋의 merge revision이 하나로 합친다.
+    assert sorted(script.get_heads()) == ["d2a6f8b1c903", "f3b8d2c6a1e7"]
+    assert script.get_revision("d2a6f8b1c903").down_revision == NEW_REVISION
     assert script.get_revision("f3b8d2c6a1e7").down_revision == "e4c1f7a2b9d6"
     assert script.get_revision("e4c1f7a2b9d6").down_revision == NEW_REVISION
     assert script.get_revision(NEW_REVISION).down_revision == PREVIOUS_HEAD
