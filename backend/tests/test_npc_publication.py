@@ -2,7 +2,9 @@
 
 import asyncio
 import io
+from datetime import datetime
 from pathlib import Path
+from types import MappingProxyType
 from uuid import uuid4
 
 import pytest
@@ -11,10 +13,13 @@ from alembic.config import Config
 from alembic import command
 from app.models.npc_publication import NpcContentVersion, NpcPublicationEvent
 from app.schemas.npc_turn import NpcReplyOut, NpcTurnResponse, SuggestHintOut
+from app.services.approval_history import ReviewRecord
 from app.services.npc_publication import (
+    BlockedReapprovalRequiredError,
     NpcPublicationService,
-    PublicationGateRequiredError,
     PublicationPolicy,
+    _require_reapproval_after,
+    _VersionOrderView,
     build_npc_turn_idempotency_store,
     publication_state_guard,
 )
@@ -24,7 +29,8 @@ from app.services.npc_turn_idempotency import (
     no_generic_lines,
     validate_generic_response,
 )
-from app.services.publication_gate import PublicationResult
+from app.services.published_content_loader import BundleSnapshot
+from tests.test_publication_gate import CASE_ID, no_idmap_files
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 REVISION = "f3b8d2c6a1e7"
@@ -35,14 +41,23 @@ KEYS = RequestHashKeys("k1", {"k1": b"k1-test-only-" + b"a" * 32})
 CATALOG = {"GENERIC_01": "(가상) 일반 대사"}.get
 
 
-def gate(**overrides) -> PublicationResult:
-    values = {
-        "approved": True,
-        "registered": False,
-        "case_id": "case_test",
-        "content_version": 1,
-    }
-    return PublicationResult(**(values | overrides))
+FILES, BUNDLE_FP = no_idmap_files()
+BUNDLE = BundleSnapshot(CASE_ID, 1, MappingProxyType(dict(FILES)))
+BLOCKED_AT = datetime(2026, 10, 30, 1, 0, 0)
+
+
+def record(gate: str, at: str, decision: str = "approved", **extra) -> ReviewRecord:
+    if decision != "approved" or extra.get("supersedes"):
+        extra.setdefault("reason", "(가상) 사유")
+    return ReviewRecord(
+        review_id=str(uuid4()),
+        gate=gate,
+        target_hash=extra.pop("target_hash", BUNDLE_FP),
+        decision=decision,
+        reviewer="test-reviewer",
+        reviewed_at=at,
+        **extra,
+    )
 
 
 def reply(text: str, line_id: str | None, source: str = "approved_line"):
@@ -148,24 +163,27 @@ def test_without_approved_generic_pack_only_null_reply_is_generic() -> None:
 
 
 @pytest.mark.parametrize(
-    "bad_gate",
+    "not_server_bundle",
     [
-        gate(approved=False),
-        gate(case_id="other"),
-        gate(content_version=2),
-        {"approved": True},
+        {"client": b"{}", "server": b"{}", "npc": b"{}"},  # 호출자가 만든 파일 매핑
         None,
     ],
 )
-def test_publish_requires_matching_approved_pub_gate(bad_gate) -> None:
+def test_publish_accepts_only_server_read_bundles(not_server_bundle) -> None:
     service = NpcPublicationService(None)  # type: ignore[arg-type]
 
-    with pytest.raises(PublicationGateRequiredError):
-        asyncio.run(
-            service.publish(
-                "case_test", 1, FP, gate=bad_gate, reason="게시", actor="운영자"
+    for operation in (service.publish_new, service.resume):
+        with pytest.raises(TypeError):
+            asyncio.run(
+                operation(
+                    not_server_bundle,
+                    hint_source=None,
+                    ng_checker=None,
+                    local_ids=None,
+                    reason="게시",
+                    actor="운영자",
+                )
             )
-        )
 
 
 @pytest.mark.parametrize(
@@ -175,14 +193,68 @@ def test_publish_requires_matching_approved_pub_gate(bad_gate) -> None:
 def test_transitions_require_reason_and_actor(reason, actor) -> None:
     service = NpcPublicationService(None)  # type: ignore[arg-type]
 
+    for operation in (service.publish_new, service.resume):
+        with pytest.raises(ValueError):
+            asyncio.run(
+                operation(
+                    BUNDLE,
+                    hint_source=None,
+                    ng_checker=None,
+                    local_ids=None,
+                    reason=reason,
+                    actor=actor,
+                )
+            )
     with pytest.raises(ValueError):
-        asyncio.run(
-            service.publish("case_test", 1, FP, gate=gate(), reason=reason, actor=actor)
-        )
+        asyncio.run(service.block(CASE_ID, 1, reason=reason, actor=actor))
     with pytest.raises(ValueError):
-        asyncio.run(service.block("case_test", 1, reason=reason, actor=actor))
-    with pytest.raises(ValueError):
-        asyncio.run(service.suspend("case_test", 1, reason=reason, actor=actor))
+        asyncio.run(service.suspend(CASE_ID, 1, reason=reason, actor=actor))
+
+
+# --- blocked 재개: 차단 이후 재승인 ---
+
+
+def test_reapproval_after_block_needs_all_three_final_approvals_after_block() -> None:
+    before = [record(g, "2026-10-30T00:59:59.999Z") for g in ("G1", "G2", "G3")]
+    with pytest.raises(BlockedReapprovalRequiredError) as missing:
+        _require_reapproval_after(before, BUNDLE_FP, BLOCKED_AT)
+    assert missing.value.gate == "G1"
+
+    after = [
+        record(g, "2026-10-30T01:00:00.001Z", supersedes=prev.review_id)
+        for g, prev in zip(("G1", "G2"), before)
+    ]
+    with pytest.raises(BlockedReapprovalRequiredError) as partial:
+        _require_reapproval_after([*before, *after], BUNDLE_FP, BLOCKED_AT)
+    assert partial.value.gate == "G3"
+
+    g3 = record("G3", "2026-10-30T01:00:00.001Z", supersedes=before[2].review_id)
+    _require_reapproval_after([*before, *after, g3], BUNDLE_FP, BLOCKED_AT)
+
+
+def test_reapproval_at_block_instant_or_for_other_content_does_not_count() -> None:
+    same_instant = [record(g, "2026-10-30T01:00:00.000Z") for g in ("G1", "G2", "G3")]
+    with pytest.raises(BlockedReapprovalRequiredError):
+        _require_reapproval_after(same_instant, BUNDLE_FP, BLOCKED_AT)
+    other = [
+        record(g, "2026-10-30T02:00:00.000Z", target_hash="sha256:" + "f" * 64)
+        for g in ("G1", "G2", "G3")
+    ]
+    with pytest.raises(BlockedReapprovalRequiredError):
+        _require_reapproval_after(other, BUNDLE_FP, BLOCKED_AT)
+    rejected = [
+        record(g, "2026-10-30T02:00:00.000Z", decision="hold")
+        for g in ("G1", "G2", "G3")
+    ]
+    with pytest.raises(BlockedReapprovalRequiredError):
+        _require_reapproval_after(rejected, BUNDLE_FP, BLOCKED_AT)
+
+
+def test_version_order_view_uses_registered_versions_only() -> None:
+    view = _VersionOrderView((1, 2))
+
+    assert view.versions(CASE_ID) == (1, 2)
+    assert view.pinned is None
 
 
 def test_built_store_uses_the_publication_state_guard() -> None:

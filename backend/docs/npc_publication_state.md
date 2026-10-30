@@ -49,26 +49,55 @@
 
 | 전이 | 메서드 | 조건 |
 |---|---|---|
-| (없음) → published | `publish()` | 같은 case · version의 `PublicationResult.approved is True` |
-| suspended → published (재개) | `publish()` | 위와 같음 |
+| (없음) → published | `publish_new()` | DB 승인 이력으로 PUB-GATE 통과(아래 「PUB-GATE 연결」) |
+| suspended → published (재개) | `resume()` | 현재 승인 이력으로 PUB-GATE 재판정 + fingerprint가 등록 버전과 같음 |
+| blocked → published (재개) | `resume()` | 위에 더해 G1 · G2 · G3 최종 approved 기록이 모두 마지막 차단 시각 **이후** |
 | published → suspended | `suspend()` | — |
 | published · suspended → blocked | `block()` | 선택 `expected_status`로 동시 변경 감지 |
 | blocked → blocked | `block()` | 상태 · 이력은 그대로, 저장 응답 철회만 다시 함(운영 재시도용) |
-| blocked → 그 밖 | — | PM 미정이라 `PublicationTransitionError` |
+| blocked → suspended | — | `PublicationTransitionError` |
 
 - 모든 전이에 `reason`(1~500자)과 `actor`(1~100자)가 필수다. 이 서비스는 `actor`를 검증하지 않으므로, 호출하는 관리 CLI가 검증된 주체를 넘겨야 한다.
 - 동시 변경은 상태 행 `FOR UPDATE`로 직렬화된다. 잠근 뒤 본 상태로 전이를 판정하므로 나중 요청은 `PublicationTransitionError` · `PublicationStateConflictError`가 된다.
-- **PUB-GATE 연결 한계:** `PublicationResult`에는 fingerprint가 없다. 그래서 지금은 「같은 case · version의 승인 결과」만 확인한다. 게이트가 검사한 콘텐츠와 등록할 fingerprint를 묶는 것은 최종 연결 단계에서 해야 한다.
+- 재개는 `content_version`을 늘리지 않는다. 승인 기록과 차단 이력은 고치거나 지우지 않고, 상태 이력은 추가만 한다.
+- 차단 때 지운 저장 응답은 재개 뒤에도 되살아나지 않는다(그 턴의 재전송은 계속 `TurnWithdrawn`).
+
+## PUB-GATE 연결 (작업 D2)
+
+`publish_new()` · `resume()`은 서버가 읽은 게시 파일 묶음(`BundleSnapshot`, `published_content_loader`가 읽은 바이트)만 받는다.
+- 외부에서 만든 `PublicationResult`, 클라이언트가 보낸 승인 결과, `npc.json`의 `approvals[]`는 받지도 쓰지도 않는다. 예전 `publish(gate=PublicationResult)`는 지웠다.
+- **fingerprint:** 받은 바이트로 서버가 `compute_content_fingerprint()`를 다시 계산한다. 게이트도 같은 바이트로 HEADER(파일 머리 fingerprint = 재계산 값)를 검사한다. 그래서 「게이트가 검사한 콘텐츠」와 「등록하는 fingerprint」가 구조적으로 같다.
+- **승인 범위:** DB 승인 이력 중 정확히 `(case_content, case_id, content_version)` 대상의 기록만 읽는다. `gate_decisions()`는 그중 `target_hash == 재계산 fingerprint`인 기록만 본다.
+  - 다른 버전 · 다른 내용(fingerprint)의 승인은 재사용할 수 없다.
+  - `ReviewRecord` · `gate_decisions()` 판정 규칙은 바꾸지 않았다.
+- **재개 시 fingerprint:** 등록된(불변) 버전 fingerprint와 다르면 `ContentFingerprintMismatchError`이고, 게이트를 돌리기 전에 거부한다.
+- **VERSION_ORDER:** 게이트에 메모리 store 대신 DB 등록 버전 목록(같은 케이스, 자기 버전 제외)을 넘긴다(`_VersionOrderView`). 게이트가 검증한 묶음은 `PublicationOutcome.pinned`로 돌려준다. 서버 시작 등록은 별도 작업이다.
+- **blocked 재개:** 관문별 최종 기록은 `gate_decisions()`와 같은 방식(같은 fingerprint, `(reviewed_at, review_id)` 최신)으로 고른다. 그 기록의 `reviewed_at`이 마지막 `→ blocked` 이력 시각보다 뒤여야 한다. 같은 밀리초는 인정하지 않는다.
+
+**한 트랜잭션 · 잠금 순서**
+1. 승인 대상 잠금 행 `npc_approval_targets` `FOR UPDATE`. `locked_approval_history()`를 쓰며, 승인 이력 append와 같은 잠금이다. 잠금 읽기로 최신 커밋 이력을 읽는다.
+2. 같은 케이스의 `npc_content_versions` 범위 `FOR SHARE`. 케이스 단위로 VERSION_ORDER를 직렬화한다.
+3. 게시 상태 행 `FOR UPDATE`.
+4. 게이트 판정 → 버전 등록 · 상태 · 이력 → commit. commit 뒤에만 결과를 돌려준다.
+
+이 순서 때문에 다음이 보장된다.
+- 철회가 판정 전에 commit되면 → 게시 거부
+- 철회를 판정 ~ 확정 사이에 시도하면 → 승인 대상 잠금을 기다렸다가 게시 확정 뒤에 commit된다. PM에 따라 게시본을 자동 중단하지 않는다.
+- 잠금 대기 초과 · 교착 · 중간 실패 → 전부 rollback(부분 게시 없음)
+- 판정은 서비스가 연 세션에서만 하고, 호출자 세션은 건드리지 않는다.
 
 ## 트랜잭션 · 잠금 계약
 
 | 경로 | 잠금 순서(한 트랜잭션) |
 |---|---|
+| 게시 · 재개 `publish_new()` · `resume()` | ⓐ 승인 대상 행 `FOR UPDATE` → ⓑ 케이스 버전 범위 `FOR SHARE` → ① 게시 상태 행 `FOR UPDATE` → 버전 · 상태 · 이력 |
+| 승인 기록 추가(승인 영속화) | ⓐ 승인 대상 행 `FOR UPDATE`만 |
 | 긴급 차단 `block()` | ① 게시 상태 행 `FOR UPDATE` → ② 멱등 요청 행(`withdraw_content_version`) → ③ 응답 본문 삭제 → 이력 추가 |
-| 응답 확정 `complete()` + guard | ① 게시 상태 행 `FOR SHARE` → ② 멱등 요청 행 `FOR UPDATE` → ③ 응답 본문 · 이벤트 |
+| 응답 확정 `complete()` + guard | ① 게시 상태 행 `FOR SHARE` → (버전 행 `FOR SHARE`) → ② 멱등 요청 행 `FOR UPDATE` → ③ 응답 본문 · 이벤트 |
 | 상태 조회 `current()` | 새 트랜잭션, 게시 상태 행 `FOR SHARE` |
 
 - 순서가 같아서 차단과 확정이 교착하지 않는다. 확정 6개와 차단을 동시에 실행해 확인했다.
+- 게시 상태 행 뒤에 승인 대상 행을 잠그는 경로는 없다. 게시는 버전 행을 공유 잠금으로만 잡는다. 그래서 guard(상태 → 버전)와 게시(버전 → 상태) 사이에 교착이 생기지 않는다.
 - 조회는 새 트랜잭션의 잠금 읽기라 오래된 REPEATABLE READ snapshot을 재사용하지 않는다.
 - 상태 행과 버전 행은 따로 읽는다. 한 JOIN을 `FOR ... OF 상태 테이블`로 읽으면 MySQL이 버전 테이블을 snapshot으로 읽는다. 그러면 막 commit된 버전이 안 보여 상태가 「없음」이 되는 결함이 생긴다. 동시 최초 게시 테스트에서 실제로 재현됐고 고쳤다.
 - 차단 트랜잭션 중 어느 단계라도 실패하면 상태 · 이력 · 본문이 모두 그대로다(rollback).
@@ -95,18 +124,22 @@
 | 구분 | 내용 |
 |---|---|
 | 이번 단계에서 보장 | 상태 영속 · 원자적 전이 · 이력 · 재시작 복원. 차단 후 신규 요청의 케이스 대사 저장 차단. 계산 중 차단 시 최종 저장 차단. 확정 후 차단 시 본문 삭제. 일반 중단 중 진행 세션 응답 유지. 동시 실행에서 교착 · 부분 저장 없음. generic 표시 우회 차단. DB 오류 fail closed. |
-| 다음 단계(작업 D2 이후) | 관리 CLI(검증된 actor). 서버 시작 시 게시본 등록. 세션 생성에서 `accepts_new_sessions` 적용. NPC 라우터에서 차단 시 generic + `NPC_CONTENT_WITHDRAWN` 응답. 일반 팩 G3 + 정책 검사 연결. PUB-GATE(DB 승인 이력)와 fingerprint 결합. |
+| 작업 D2에서 추가로 보장 | 게시 · 재개가 DB 승인 이력 + 서버 재계산 fingerprint로만 확정됨. 다른 콘텐츠 · 버전 승인 재사용 차단. 판정과 확정이 한 트랜잭션 · 같은 승인 잠금. blocked 재개는 차단 이후 G1~G3 재승인 필수. 재개 시 버전 불변 · 이력 보존. |
+| 다음 단계 | 관리 CLI(검증된 actor). 서버 시작 시 게시본 등록(`PublicationOutcome.pinned` · `restorable_versions()`). 세션 생성에서 `accepts_new_sessions` 적용. NPC 라우터에서 차단 시 generic + `NPC_CONTENT_WITHDRAWN` 응답. 일반 팩 G3 + 정책 검사 연결. |
 
 ## Alembic과 통합
 
 - 새 revision `f3b8d2c6a1e7`의 부모는 `e4c1f7a2b9d6`(멱등 저장소)다. 기존 revision은 바꾸지 않았다.
-- 승인 영속화 `d2a6f8b1c903`(부모 `c9e1a4b7d2f0`)과 소셜 온보딩 `c9d8e7f6a5b4`(부모 `b8a7c6d5e4f3`)까지 모두 합치면 head가 3개(`c9d8e7f6a5b4`, `d2a6f8b1c903`, `f3b8d2c6a1e7`)가 된다. 빈 merge revision 1개로 합친다: `down_revision = ("c9d8e7f6a5b4", "d2a6f8b1c903", "f3b8d2c6a1e7")`.
-- 승인 영속화 브랜치와의 예상 파일 충돌(`git merge-tree`로 확인):
-  - `backend/alembic/env.py`: 두 브랜치가 같은 위치에 모델 import 추가
-  - `backend/tests/test_play_session_content_pin.py`: 두 브랜치가 같은 head 확인 코드를 바꿈
-- 통합 시 확인할 점:
-  - 승인 영속화의 `evaluate_publication_with_db_reviews()`가 만드는 `PublicationResult`를 이 브랜치의 `publish(gate=)`에 넘기는 방식
-  - fingerprint 결합 방식
+- **작업 D2 통합 브랜치(`feat/SJ-npc-publication-approval-integration`):**
+  - 승인 영속화 `e3915c5`를 merge commit으로 병합했다.
+  - 실제 head 2개(`d2a6f8b1c903`, `f3b8d2c6a1e7`)를 빈 merge revision `a5c7e9b2d4f6`으로 합쳤다. 현재 단일 head는 `a5c7e9b2d4f6`이다.
+  - 병합 충돌(`alembic/env.py`, `tests/test_play_session_content_pin.py`)은 두 쪽 내용을 모두 유지하는 방식으로 풀었다.
+- **소셜 온보딩(`c9d8e7f6a5b4`, 부모 `b8a7c6d5e4f3`)은 아직 병합하지 않았다.** 그 브랜치를 통합할 때:
+  1. merge commit으로 병합한다(rebase 아님).
+  2. head 2개(`a5c7e9b2d4f6`, `c9d8e7f6a5b4`)를 합치는 빈 merge revision 1개를 추가한다. 기존 revision은 바꾸지 않는다.
+  3. `alembic/env.py`의 모델 import와 head 확인 테스트를 맞춘다.
+  4. 격리 MySQL에서 `upgrade head` · `downgrade -1`을 확인한다.
+  - 테이블 이름이 겹치지 않아 스키마 충돌은 없다.
 
 ## 검증 방법
 
@@ -133,11 +166,31 @@
   - 상태 없음을 통과시킴 → 1개 실패
   - 차단에서 철회를 생략 → 4개 실패
 
+### 2026-10-30 작업 D2 검증 기록
+
+- 같은 격리 MySQL에서 D2 시나리오 10개와 D1 12개(새 게시 API로 갱신)가 통과했다.
+- D2 시나리오:
+  - 판정 전 철회 commit → 게시 거부
+  - 다른 fingerprint 승인 재사용 거부
+  - 다른 버전 대상 승인 · `npc.json` `approvals[]` 주장 거부
+  - 판정 ~ 확정 사이 철회 → 대기 후 게시 유지
+  - suspended 재개 재판정
+  - blocked 재개 재승인(없음 · 일부 · 전부)
+  - blocked 재개 중 신규 철회(양방향)
+  - 재개와 멱등 확정 동시 실행
+  - 잠금 대기 초과 · 중간 실패 시 부분 게시 없음
+  - 호출자 트랜잭션 비침범
+  - 다른 내용으로 재개 거부
+- 변이 확인:
+  - 판정과 확정을 다른 트랜잭션으로 나눔(승인 잠금 해제) → 경쟁 테스트 2개 실패
+  - blocked 재승인 확인 제거 → 2개 실패
+- 경쟁 테스트는 멈춘 작업을 `finally`에서 풀고 끝낸다. 회귀가 생겨도 멈추지 않고 실패한다.
+
 ## 남은 결정 사항
 
-1. blocked에서 벗어나는 전이(재게시 허용 여부, 새 버전만 허용인지)
-2. 재개(suspended → published)에도 PUB-GATE를 다시 요구할지(현재 요구함)
-3. PUB-GATE 결과와 fingerprint 결합 방식(`PublicationResult`에 fingerprint 없음)
+1. 재개할 때 같은 케이스에 더 높은 버전이 등록돼 있으면 VERSION_ORDER로 거부된다. 오래된 버전 재개를 허용할지
+2. blocked → suspended 전이 허용 여부(현재 불가)
+3. 관문별 재승인 시각을 「차단 이후」로 판정하는 정밀도(현재 밀리초, 같은 밀리초 불인정)
 4. 이력 · 버전 테이블 직접 SQL 수정 차단 방식(운영 계정 권한 또는 트리거)
 5. 차단으로 확정이 거부된 진행 중 턴에 generic 응답을 새로 저장할지
 6. 일반 대사 팩(dialogue_pack)의 게시 상태 관리 여부(현재는 케이스 콘텐츠 버전만)

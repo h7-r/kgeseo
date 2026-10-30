@@ -69,7 +69,7 @@ Repository의 `append()`는 대상 잠금 후 중복 ID와 supersedes의 존재�
 - 새 트랜잭션에서 append와 같은 대상 잠금 행(`npc_approval_targets`)을 잠그고, 잠금 읽기(`records(current=True)`)로 **최신 커밋 이력**을 읽는다. 철회 commit 뒤에 시작한 판정은 그 철회를 반영한다. 철회 트랜잭션이 아직 commit 전이면 판정이 잠금을 기다린 뒤 철회를 반영한다.
 - 이력 트랜잭션이 commit된 **뒤에** 판정·기존 게이트를 실행한다. 잠금 대기 초과(1205)·교착(1213)·연결 오류·취소·commit 실패는 그대로 전파된다. 승인 결과나 store 등록으로 바뀌지 않는다. 판정 전용 트랜잭션은 rollback된다.
 - 잠금 해제 뒤에 commit된 철회는 「게시 뒤 철회」와 같다. PM 정책(철회만으로 기존 게시본을 자동 중단하지 않음)에 따라 이 경계는 등록된 store를 되돌리지 않는다.
-- `locked_approval_history(sessions, target)`는 잠금을 잡은 채 `(session, records)`를 넘기는 블록이다. 블록이 정상 종료하면 commit, 예외·취소면 rollback한다. **향후 게시 확정은 이 블록 안에서 같은 세션으로 기록해야** 판정과 확정 사이에 철회가 끼어들지 않는다. 블록 동안 같은 대상의 append는 대기한다. 게시 확정 자체는 아직 구현하지 않았다.
+- `locked_approval_history(sessions, target)`는 잠금을 잡은 채 `(session, records)`를 넘기는 블록이다. 블록이 정상 종료하면 commit, 예외·취소면 rollback한다. **향후 게시 확정은 이 블록 안에서 같은 세션으로 기록해야** 판정과 확정 사이에 철회가 끼어들지 않는다. 블록 동안 같은 대상의 append는 대기한다. (작업 D2) 게시 확정 · 재개는 `app.services.npc_publication`의 `publish_new()` · `resume()`이 이 블록 안에서 수행한다. 자세한 내용은 `docs/npc_publication_state.md` 「PUB-GATE 연결」.
 - 같은 대상의 잠금을 다른 트랜잭션에서 잡은 채 이 함수를 부르면 잠금 대기 끝에 1205 오류가 난다. 대기 시간은 서버의 `innodb_lock_wait_timeout`(기본 50초)을 따른다.
 - `records()`의 기본(`current=False`)은 snapshot 조회이므로 게시 판정에 쓰지 않는다.
 

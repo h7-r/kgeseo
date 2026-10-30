@@ -1,4 +1,4 @@
-"""NPC 콘텐츠 게시 상태 전이 · 멱등 저장소 guard (PM v0.4.6, 작업 D1 · 관리 경로 미연결).
+"""NPC 콘텐츠 게시 상태 전이 · PUB-GATE 연결 · 멱등 저장소 guard (PM v0.4.6, 작업 D1 · D2 · 관리 경로 미연결).
 
 상태 의미(PM v0.4.6):
 - `published`: 게시 중. 신규 세션 · 진행 중 세션 모두 케이스 NPC 콘텐츠를 쓴다.
@@ -6,10 +6,20 @@
 - `blocked`: 긴급 중단. 진행 중 세션도 다음 NPC 요청부터 generic이다. 게임 진행 · Client Bundle · Hint API는 유지한다.
 
 허용 전이(이 밖은 `PublicationTransitionError`):
-- (없음) → published, suspended → published: PUB-GATE 승인 결과가 필요하다(`publish()`).
+- (없음) → published: `publish_new()`. PUB-GATE를 DB 승인 이력으로 판정한다.
+- suspended → published: `resume()`. 현재 승인 이력으로 PUB-GATE를 다시 판정하고 fingerprint가 등록 버전과 같아야 한다.
+- blocked → published: `resume()`. 위에 더해 G1 · G2 · G3의 최종 approved 기록이 모두 마지막 차단 시각 이후여야 한다.
 - published → suspended (`suspend()`)
 - published → blocked, suspended → blocked (`block()`). 이미 blocked면 상태 · 이력은 그대로 두고 철회만 다시 한다.
-- blocked에서 벗어나는 전이는 PM 미정이라 막는다.
+재개는 content_version을 늘리지 않고, 승인 기록 · 차단 이력을 고치거나 지우지 않는다(이력 추가만).
+
+[PUB-GATE 연결] 게시 · 재개는 서버가 읽은 게시 파일 묶음(`BundleSnapshot`)만 받는다. 외부에서 만든
+`PublicationResult`나 `npc.json`의 `approvals[]`는 받지 않는다. fingerprint는 그 바이트로 서버가 다시 계산하고,
+판정에는 DB 승인 이력 중 `(case_content, case_id, content_version)` 범위의 기록만 쓴다(`gate_decisions()`는
+target_hash가 그 fingerprint인 기록만 본다). 판정과 상태 확정은 한 트랜잭션이다:
+「승인 대상 잠금 행 `FOR UPDATE`(승인 이력 append와 같은 잠금) → 케이스 버전 범위 `FOR SHARE`(VERSION_ORDER
+직렬화) → 게시 상태 행 `FOR UPDATE` → 버전 등록 · 상태 · 이력」. 그래서 철회 commit 뒤에 시작한 게시는 그
+철회를 보고, 판정 도중의 철회는 게시 확정 뒤로 밀린다(게시 뒤 철회는 게시본을 자동 중단하지 않는다 — PM).
 
 트랜잭션 · 잠금 계약:
 - 상태 변경은 한 트랜잭션에서 「게시 상태 행 `FOR UPDATE` → (차단이면) 멱등 요청 행 철회 → 응답 본문 삭제 → 이력 추가」 순서다.
@@ -20,10 +30,10 @@
 관리용 CLI · 관리자 HTTP · NPC 라우터 연결은 이 모듈에 없다. `actor`는 호출자가 검증된 주체로 넘겨야 한다.
 """
 
-from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from collections.abc import Awaitable, Callable, Iterable, Mapping
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -35,6 +45,7 @@ from app.models.npc_publication import (
     PUBLICATION_SUSPENDED,
 )
 from app.repositories.npc_publication import (
+    ContentFingerprintConflictError,
     NpcPublicationRepository,
     PublicationEventRecord,
     PublicationSnapshot,
@@ -44,6 +55,10 @@ from app.repositories.npc_turn_idempotency import (
     TurnContentRef,
     WithdrawalCounts,
 )
+from app.schemas.gate_review import ApprovalTarget
+from app.services.approval_history import GATES, ReviewRecord
+from app.services.content_fingerprint import compute_content_fingerprint
+from app.services.hint import HintSource
 from app.services.npc_turn_idempotency import (
     ContentPublicationBlockedError,
     GenericLineCatalog,
@@ -53,7 +68,14 @@ from app.services.npc_turn_idempotency import (
     no_generic_lines,
     utc_now,
 )
-from app.services.publication_gate import PublicationResult
+from app.services.pinned_content import PinnedContent
+from app.services.publication_approval import locked_approval_history, snapshot_source
+from app.services.publication_gate import (
+    NgChecker,
+    PublicationResult,
+    evaluate_publication,
+)
+from app.services.published_content_loader import BundleSnapshot
 
 MAX_REASON_LENGTH = 500
 MAX_ACTOR_LENGTH = 100
@@ -79,8 +101,69 @@ class PublicationStateNotFoundError(NpcPublicationError):
     pass
 
 
-class PublicationGateRequiredError(NpcPublicationError):
-    """게시 · 재개에는 같은 case · version의 승인된 PUB-GATE 결과가 필요하다."""
+class PublicationGateFailedError(NpcPublicationError):
+    """DB 승인 이력으로 다시 판정한 PUB-GATE가 통과하지 않았다. `result`에 검사 코드 · 이유만 있다."""
+
+    def __init__(self, result: PublicationResult) -> None:
+        super().__init__("publication gate failed")
+        self.result = result
+
+
+class ContentFingerprintMismatchError(NpcPublicationError):
+    """재개하려는 파일 묶음의 fingerprint가 등록된(불변) 버전과 다르다."""
+
+
+class BlockedReapprovalRequiredError(NpcPublicationError):
+    """blocked 재개에는 G1 · G2 · G3 최종 approved 기록이 모두 마지막 차단 시각 이후여야 한다."""
+
+    def __init__(self, gate: str) -> None:
+        super().__init__(f"{gate} needs approval after the block")
+        self.gate = gate
+
+
+@dataclass(frozen=True)
+class PublicationOutcome:
+    snapshot: PublicationSnapshot
+    gate: PublicationResult
+    # 게이트가 검증한 고정 게시본(서버 시작 등록은 별도 작업)
+    pinned: PinnedContent | None
+
+
+@dataclass
+class _VersionOrderView:
+    """PUB-GATE의 VERSION_ORDER를 DB에 등록된 버전 기준으로 판정하게 하는 store 대역.
+
+    `versions()`는 같은 케이스의 다른 등록 버전, `add()`는 게이트가 검증한 묶음을 받아 둘 뿐이다.
+    """
+
+    existing: tuple[int, ...]
+    pinned: PinnedContent | None = field(default=None)
+
+    def versions(self, case_id: str) -> tuple[int, ...]:
+        return self.existing
+
+    def add(self, content: PinnedContent) -> None:
+        self.pinned = content
+
+
+def _require_reapproval_after(
+    records: Iterable[ReviewRecord], fingerprint: str, blocked_at: datetime
+) -> None:
+    """`gate_decisions()`와 같은 선택(같은 fingerprint · (reviewed_at, review_id) 최신)으로 고른 관문별 최종 기록이
+    approved이고 차단 시각보다 뒤인지 본다."""
+
+    items = list(records)
+    for gate in GATES:
+        current = sorted(
+            (r for r in items if r.gate == gate and r.target_hash == fingerprint),
+            key=lambda r: r.order_key,
+        )
+        if (
+            not current
+            or current[-1].decision != "approved"
+            or current[-1].order_key[0] <= blocked_at
+        ):
+            raise BlockedReapprovalRequiredError(gate)
 
 
 @dataclass(frozen=True)
@@ -119,16 +202,6 @@ def _require_text(value: str, name: str, limit: int) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > limit:
         raise ValueError(f"{name} must be 1-{limit} non-blank characters")
     return value
-
-
-def _require_gate(gate: PublicationResult, case_id: str, content_version: int) -> None:
-    if (
-        not isinstance(gate, PublicationResult)
-        or gate.approved is not True
-        or gate.case_id != case_id
-        or gate.content_version != content_version
-    ):
-        raise PublicationGateRequiredError()
 
 
 async def publication_state_guard(db: AsyncSession, content: TurnContentRef) -> None:
@@ -213,47 +286,136 @@ class NpcPublicationService:
 
     # --- 전이 ---
 
-    async def publish(
+    async def publish_new(
         self,
-        case_id: str,
-        content_version: int,
-        content_fingerprint: str,
+        bundle: BundleSnapshot,
         *,
-        gate: PublicationResult,
+        hint_source: HintSource,
+        ng_checker: NgChecker | None,
+        local_ids: Mapping[str, Iterable[str]] | None,
         reason: str,
         actor: str,
-    ) -> PublicationSnapshot:
-        """최초 게시(없음 → published) 또는 재개(suspended → published). PUB-GATE 승인 결과가 필요하다."""
+    ) -> PublicationOutcome:
+        """최초 게시(없음 → published). 서버가 읽은 파일 묶음과 DB 승인 이력으로 PUB-GATE를 판정한다."""
 
-        _require_gate(gate, case_id, content_version)
+        return await self._publish(
+            bundle,
+            mode="new",
+            hint_source=hint_source,
+            ng_checker=ng_checker,
+            local_ids=local_ids,
+            reason=reason,
+            actor=actor,
+        )
+
+    async def resume(
+        self,
+        bundle: BundleSnapshot,
+        *,
+        hint_source: HintSource,
+        ng_checker: NgChecker | None,
+        local_ids: Mapping[str, Iterable[str]] | None,
+        reason: str,
+        actor: str,
+    ) -> PublicationOutcome:
+        """재개(suspended · blocked → published). 같은 버전 · 같은 fingerprint를 현재 승인 이력으로 다시 판정한다."""
+
+        return await self._publish(
+            bundle,
+            mode="resume",
+            hint_source=hint_source,
+            ng_checker=ng_checker,
+            local_ids=local_ids,
+            reason=reason,
+            actor=actor,
+        )
+
+    async def _publish(
+        self,
+        bundle: BundleSnapshot,
+        *,
+        mode: Literal["new", "resume"],
+        hint_source: HintSource,
+        ng_checker: NgChecker | None,
+        local_ids: Mapping[str, Iterable[str]] | None,
+        reason: str,
+        actor: str,
+    ) -> PublicationOutcome:
+        if not isinstance(bundle, BundleSnapshot):
+            raise TypeError("bundle must be a server-read BundleSnapshot")
         reason = _require_text(reason, "reason", MAX_REASON_LENGTH)
         actor = _require_text(actor, "actor", MAX_ACTOR_LENGTH)
+        case_id, version = bundle.case_id, bundle.content_version
+        files = {
+            role: bundle.files.get(role)
+            for role in ("client", "server", "npc", "idmap")
+        }
+        # 서버가 읽은 바이트로 다시 계산한 값만 쓴다(파일 머리 · 외부 값을 믿지 않는다).
+        fingerprint = compute_content_fingerprint(**files)
+        target = ApprovalTarget(
+            target_type="case_content", target_id=case_id, content_version=version
+        )
 
-        async def once() -> PublicationSnapshot:
+        async def once() -> PublicationOutcome:
             now = self._clock()
-            async with self._sessions() as db, db.begin():
+            # 1. 승인 대상 잠금 행 + 최신 커밋 승인 이력(승인 append와 같은 잠금)
+            async with locked_approval_history(self._sessions, target) as (db, records):
                 repository = NpcPublicationRepository(db)
-                await repository.register_version(
-                    case_id, content_version, content_fingerprint, now=now
+                # 2. 케이스 버전 범위 공유 잠금(VERSION_ORDER 직렬화)
+                registered = await repository.lock_case_versions(case_id)
+                # 3. 게시 상태 행
+                state = await repository.lock_state(case_id, version, mode="update")
+                if mode == "new":
+                    if state is not None:
+                        raise PublicationTransitionError()
+                    if registered.get(version, fingerprint) != fingerprint:
+                        raise ContentFingerprintConflictError()
+                else:
+                    if state is None:
+                        raise PublicationStateNotFoundError()
+                    if state.status not in (PUBLICATION_SUSPENDED, PUBLICATION_BLOCKED):
+                        raise PublicationTransitionError()
+                    if state.content_fingerprint != fingerprint:
+                        raise ContentFingerprintMismatchError()
+                view = _VersionOrderView(
+                    tuple(sorted(v for v in registered if v != version))
                 )
-                snapshot = await repository.lock_state(
-                    case_id, content_version, mode="update"
+                result = evaluate_publication(
+                    **files,
+                    hint_source=hint_source,
+                    approval_source=snapshot_source(target, records),
+                    ng_checker=ng_checker,
+                    local_ids=local_ids,
+                    store=view,
                 )
-                if snapshot is None:
+                if (
+                    not result.approved
+                    or result.case_id != case_id
+                    or result.content_version != version
+                ):
+                    raise PublicationGateFailedError(result)
+                if mode == "resume" and state.status == PUBLICATION_BLOCKED:
+                    blocked_at = await repository.last_blocked_at(case_id, version)
+                    if blocked_at is None:
+                        raise PublicationTransitionError()
+                    _require_reapproval_after(records, fingerprint, blocked_at)
+                # 4. 버전 등록 · 상태 · 이력(같은 트랜잭션)
+                if mode == "new":
+                    await repository.register_version(
+                        case_id, version, fingerprint, now=now
+                    )
                     await repository.insert_state(
-                        case_id, content_version, status=PUBLICATION_PUBLISHED, now=now
+                        case_id, version, status=PUBLICATION_PUBLISHED, now=now
                     )
                     revision, from_status = 1, None
-                elif snapshot.status == PUBLICATION_SUSPENDED:
-                    revision = await repository.update_state(
-                        snapshot, status=PUBLICATION_PUBLISHED, now=now
-                    )
-                    from_status = snapshot.status
                 else:
-                    raise PublicationTransitionError()
+                    revision = await repository.update_state(
+                        state, status=PUBLICATION_PUBLISHED, now=now
+                    )
+                    from_status = state.status
                 await repository.append_event(
                     case_id=case_id,
-                    content_version=content_version,
+                    content_version=version,
                     from_status=from_status,
                     to_status=PUBLICATION_PUBLISHED,
                     reason=reason,
@@ -261,9 +423,9 @@ class NpcPublicationService:
                     at=now,
                     state_revision=revision,
                 )
-                return await repository.lock_state(
-                    case_id, content_version, mode="update"
-                )
+                final = await repository.lock_state(case_id, version, mode="update")
+            # 트랜잭션이 commit된 뒤에만 결과를 돌려준다.
+            return PublicationOutcome(final, result, view.pinned)
 
         return await self._retry(once)
 

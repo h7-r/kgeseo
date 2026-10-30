@@ -5,6 +5,8 @@
 
 import asyncio
 import os
+from datetime import datetime, timedelta
+from types import MappingProxyType
 from uuid import uuid4
 
 import pytest
@@ -16,13 +18,17 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.models.interaction_event import InteractionEvent
 from app.models.npc_publication import NpcPublicationEvent
 from app.models.npc_turn_idempotency import NpcTurnResponseBody
-from app.repositories.npc_publication import ContentFingerprintConflictError
+from app.repositories.approval_history import ApprovalHistoryRepository
 from app.repositories.npc_turn_idempotency import (
     NpcTurnIdempotencyRepository,
     TurnContentRef,
 )
+from app.schemas.gate_review import ApprovalTarget
 from app.schemas.npc_turn import NpcReplyOut, NpcTurnResponse, SuggestHintOut
+from app.services.approval_history import GATES, ReviewRecord
 from app.services.npc_publication import (
+    BlockedReapprovalRequiredError,
+    ContentFingerprintMismatchError,
     NpcPublicationService,
     PublicationStateConflictError,
     PublicationStateNotFoundError,
@@ -38,12 +44,11 @@ from app.services.npc_turn_idempotency import (
     TurnWithdrawnError,
     turn_key,
 )
-from app.services.publication_gate import PublicationResult
+from app.services.published_content_loader import BundleSnapshot
 from tests.test_npc_turn_idempotency_mysql import (
     KEYS,
     REQUEST,
-    V1,
-    V2,
+    T0,
     Clock,
     count,
     event_writer,
@@ -51,6 +56,14 @@ from tests.test_npc_turn_idempotency_mysql import (
     new_play_session,
     request_row,
     response,
+)
+from tests.test_publication_gate import (
+    CASE_ID,
+    LOCAL_IDS,
+    base_documents,
+    hint_source,
+    no_idmap_files,
+    seal,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -63,27 +76,81 @@ ACTOR = "test-operator"
 GENERIC = {"GENERIC_01": "(가상) 일반 대사"}.get
 
 
-def approved_gate(content: TurnContentRef) -> PublicationResult:
-    return PublicationResult(
-        approved=True,
-        registered=False,
-        case_id=content.case_id,
-        content_version=content.content_version,
+# 서버가 읽은 것으로 보는 가상 게시 파일 묶음(실제 게시 디렉터리가 아니다).
+CASE = CASE_ID
+FILES, FP = no_idmap_files()
+BUNDLE = BundleSnapshot(CASE, 1, MappingProxyType(dict(FILES)))
+V1 = TurnContentRef(CASE, 1, FP)
+V2 = TurnContentRef(CASE, 2, "sha256:" + "2" * 64)  # 게시 상태 없음
+TARGET = ApprovalTarget(target_type="case_content", target_id=CASE, content_version=1)
+GATE_INPUTS = {
+    "hint_source": hint_source,
+    "ng_checker": lambda text: False,
+    "local_ids": LOCAL_IDS,
+}
+
+
+def other_bundle() -> BundleSnapshot:
+    """같은 case · version이지만 내용이 다른 묶음."""
+
+    documents = base_documents(1)
+    del documents["idmap"]
+    documents["npc"]["general_nudges"][0]["text"] = "(가상) 다른 문장."
+    files, _ = seal(documents)
+    return BundleSnapshot(CASE, 1, MappingProxyType({**files, "idmap": None}))
+
+
+def stamp(at: datetime) -> str:
+    return at.isoformat(timespec="milliseconds") + "Z"
+
+
+class Reviews:
+    """관문별 직전 기록을 이어 붙여(supersedes) 서버 기록과 같은 형태의 승인 이력을 DB에 쓴다."""
+
+    def __init__(self, sessions, fingerprint: str = FP) -> None:
+        self.sessions = sessions
+        self.fingerprint = fingerprint
+        self.last: dict[str, ReviewRecord] = {}
+
+    async def add(self, at: datetime, decision: str = "approved", gates=GATES):
+        async with self.sessions() as db:
+            repository = ApprovalHistoryRepository(db)
+            for gate in gates:
+                previous = self.last.get(gate)
+                record = ReviewRecord(
+                    review_id=str(uuid4()),
+                    gate=gate,
+                    target_hash=self.fingerprint,
+                    decision=decision,
+                    reviewer="test-reviewer",
+                    reviewed_at=stamp(at),
+                    reason=None
+                    if decision == "approved" and previous is None
+                    else "(가상) 사유",
+                    supersedes=previous.review_id if previous else None,
+                )
+                await repository.append(TARGET, record)
+                self.last[gate] = record
+            await db.commit()
+
+
+async def publish(service: NpcPublicationService, sessions, *, reviews=None):
+    async with sessions() as db:
+        if not await ApprovalHistoryRepository(db).records(TARGET):
+            await (reviews or Reviews(sessions)).add(T0 - timedelta(hours=1))
+    outcome = await service.publish_new(
+        BUNDLE, reason="최초 게시", actor=ACTOR, **GATE_INPUTS
     )
+    return outcome.snapshot
 
 
-async def publish(service: NpcPublicationService, content: TurnContentRef = V1):
-    return await service.publish(
-        content.case_id,
-        content.content_version,
-        content.content_fingerprint,
-        gate=approved_gate(content),
-        reason="최초 게시",
-        actor=ACTOR,
-    )
+async def resume(service: NpcPublicationService, bundle: BundleSnapshot = BUNDLE):
+    outcome = await service.resume(bundle, reason="재개", actor=ACTOR, **GATE_INPUTS)
+    return outcome.snapshot
 
 
-async def block(service: NpcPublicationService, content: TurnContentRef = V1, **kw):
+async def block(service: NpcPublicationService, content: TurnContentRef = None, **kw):
+    content = content or V1
     return await service.block(
         content.case_id,
         content.content_version,
@@ -118,11 +185,11 @@ def test_mysql_transitions_record_events_and_survive_restart():
     async def scenario(sessions):
         service, _ = stores(sessions)
 
-        assert (await publish(service)).status == "published"
+        assert (await publish(service, sessions)).status == "published"
         assert (
-            await service.suspend("case_test", 1, reason="일반 중단", actor=ACTOR)
+            await service.suspend(CASE, 1, reason="일반 중단", actor=ACTOR)
         ).status == "suspended"
-        assert (await publish(service)).status == "published"  # 재개
+        assert (await resume(service)).status == "published"  # 재개
         result = await block(service)
         assert (result.snapshot.status, result.snapshot.revision, result.changed) == (
             "blocked",
@@ -136,7 +203,7 @@ def test_mysql_transitions_record_events_and_survive_restart():
             restarted = NpcPublicationService(
                 async_sessionmaker(engine, expire_on_commit=False)
             )
-            current = await restarted.current("case_test", 1)
+            current = await restarted.current(CASE, 1)
             assert (current.status, current.revision, current.content_fingerprint) == (
                 "blocked",
                 4,
@@ -144,9 +211,9 @@ def test_mysql_transitions_record_events_and_survive_restart():
             )
             restorable = await restarted.restorable_versions()
             assert [(s.case_id, s.content_version, s.status) for s in restorable] == [
-                ("case_test", 1, "blocked")
+                (CASE, 1, "blocked")
             ]
-            events = await restarted.events("case_test", 1)
+            events = await restarted.events(CASE, 1)
         finally:
             await engine.dispose()
         assert [(e.from_status, e.to_status, e.state_revision) for e in events] == [
@@ -159,7 +226,7 @@ def test_mysql_transitions_record_events_and_survive_restart():
         assert [e.reason for e in events] == [
             "최초 게시",
             "일반 중단",
-            "최초 게시",
+            "재개",
             "긴급 차단",
         ]
 
@@ -169,33 +236,25 @@ def test_mysql_transitions_record_events_and_survive_restart():
 def test_mysql_invalid_transitions_and_immutable_versions():
     async def scenario(sessions):
         service, _ = stores(sessions)
-        await publish(service)
+        await publish(service, sessions)
 
         with pytest.raises(PublicationTransitionError):
-            await publish(service)  # published → published
+            await publish(service, sessions)  # published → published
         await block(service)
-        for attempt in (
-            publish(service),
-            service.suspend("case_test", 1, reason="중단", actor=ACTOR),
-        ):
-            with pytest.raises(PublicationTransitionError):
-                await attempt  # blocked에서 벗어나는 전이는 PM 미정
+        # blocked 재개: 차단 이후 재승인 없이는 거부(PM v0.4.6)
+        with pytest.raises(BlockedReapprovalRequiredError):
+            await resume(service)
+        with pytest.raises(PublicationTransitionError):
+            await service.suspend(CASE, 1, reason="중단", actor=ACTOR)
         with pytest.raises(PublicationStateNotFoundError):
-            await service.suspend("case_test", 9, reason="중단", actor=ACTOR)
-        # 같은 버전을 다른 fingerprint로 다시 등록할 수 없다.
-        with pytest.raises(ContentFingerprintConflictError):
-            await service.publish(
-                "case_test",
-                1,
-                "sha256:" + "f" * 64,
-                gate=approved_gate(V1),
-                reason="다른 콘텐츠",
-                actor=ACTOR,
-            )
+            await service.suspend(CASE, 9, reason="중단", actor=ACTOR)
+        # 같은 버전을 다른 내용(fingerprint)으로 재개할 수 없다(버전은 불변).
+        with pytest.raises(ContentFingerprintMismatchError):
+            await resume(service, other_bundle())
         # 이미 blocked면 상태 · 이력은 그대로, 철회만 다시 한다.
         again = await block(service)
         assert (again.changed, again.snapshot.revision) == (False, 2)
-        assert len(await service.events("case_test", 1)) == 2
+        assert len(await service.events(CASE, 1)) == 2
 
         async with sessions() as db:
             row = (await db.execute(select(NpcPublicationEvent))).scalars().first()
@@ -218,7 +277,10 @@ def test_mysql_concurrent_state_changes_are_serialized():
                 return type(error).__name__
 
         # 새 버전 동시 최초 게시: 하나만 published, 나머지는 전이 오류(이력 1건)
-        first = await asyncio.gather(*(attempt(publish(service)) for _ in range(4)))
+        await Reviews(sessions).add(T0 - timedelta(hours=1))
+        first = await asyncio.gather(
+            *(attempt(publish(service, sessions)) for _ in range(4))
+        )
         assert first.count("published") == 1
         assert first.count("PublicationTransitionError") == 3
 
@@ -227,14 +289,14 @@ def test_mysql_concurrent_state_changes_are_serialized():
             return (await block(service, expected_status="published")).snapshot
 
         results = await asyncio.gather(
-            attempt(service.suspend("case_test", 1, reason="중단", actor=ACTOR)),
+            attempt(service.suspend(CASE, 1, reason="중단", actor=ACTOR)),
             attempt(blocked()),
         )
         assert sorted(results) in (
             ["PublicationStateConflictError", "suspended"],
             ["PublicationTransitionError", "blocked"],
         )
-        assert len(await service.events("case_test", 1)) == 2
+        assert len(await service.events(CASE, 1)) == 2
 
     mysql_run(scenario)
 
@@ -242,8 +304,8 @@ def test_mysql_concurrent_state_changes_are_serialized():
 def test_mysql_failed_block_rolls_back_state_events_and_bodies(monkeypatch):
     async def scenario(sessions):
         service, store = stores(sessions)
-        await publish(service)
-        key = turn_key(await new_play_session(sessions), str(uuid4()))
+        await publish(service, sessions)
+        key = turn_key(await new_play_session(sessions, V1), str(uuid4()))
         await store.complete(await store.claim(key, V1, REQUEST), response())
 
         async def broken(self, *args, **kwargs):
@@ -256,9 +318,9 @@ def test_mysql_failed_block_rolls_back_state_events_and_bodies(monkeypatch):
             await block(service)
         monkeypatch.undo()
 
-        current = await service.current("case_test", 1)
+        current = await service.current(CASE, 1)
         assert (current.status, current.revision) == ("published", 1)
-        assert len(await service.events("case_test", 1)) == 1
+        assert len(await service.events(CASE, 1)) == 1
         assert await count(sessions, NpcTurnResponseBody) == 1
 
     mysql_run(scenario)
@@ -267,21 +329,21 @@ def test_mysql_failed_block_rolls_back_state_events_and_bodies(monkeypatch):
 def test_mysql_state_reads_do_not_reuse_a_stale_snapshot():
     async def scenario(sessions):
         service, store = stores(sessions)
-        await publish(service)
-        key = turn_key(await new_play_session(sessions), str(uuid4()))
+        await publish(service, sessions)
+        key = turn_key(await new_play_session(sessions, V1), str(uuid4()))
         claim = await store.claim(key, V1, REQUEST)
 
         async with sessions() as stale:
             plain = text(
                 "SELECT status FROM npc_publication_states "
-                "WHERE case_id = 'case_test' AND content_version = 1"
+                "WHERE case_id = 'case_gate_test' AND content_version = 1"
             )
             assert (await stale.execute(plain)).scalar_one() == "published"
             await block(service)
             # 같은 트랜잭션의 일반 조회는 오래된 snapshot을 본다(REPEATABLE READ).
             assert (await stale.execute(plain)).scalar_one() == "published"
             # 서비스 조회와 확정 guard는 새 트랜잭션의 잠금 읽기라 차단을 본다.
-            assert (await service.current("case_test", 1)).status == "blocked"
+            assert (await service.current(CASE, 1)).status == "blocked"
             with pytest.raises(TurnWithdrawnError):
                 await store.complete(claim, response())
             await stale.rollback()
@@ -295,8 +357,8 @@ def test_mysql_state_reads_do_not_reuse_a_stale_snapshot():
 def test_mysql_new_request_after_block_cannot_store_case_lines():
     async def scenario(sessions):
         service, store = stores(sessions)
-        await publish(service)
-        session_id = await new_play_session(sessions)
+        await publish(service, sessions)
+        session_id = await new_play_session(sessions, V1)
         await block(service)
 
         key = turn_key(session_id, str(uuid4()))
@@ -318,8 +380,8 @@ def test_mysql_new_request_after_block_cannot_store_case_lines():
 def test_mysql_block_during_computation_stops_the_final_store():
     async def scenario(sessions):
         service, store = stores(sessions)
-        await publish(service)
-        session_id = await new_play_session(sessions)
+        await publish(service, sessions)
+        session_id = await new_play_session(sessions, V1)
         key = turn_key(session_id, str(uuid4()))
         claim = await store.claim(key, V1, REQUEST)  # 계산 시작
 
@@ -338,8 +400,8 @@ def test_mysql_block_during_computation_stops_the_final_store():
 def test_mysql_block_after_completion_deletes_the_stored_body():
     async def scenario(sessions):
         service, store = stores(sessions)
-        await publish(service)
-        key = turn_key(await new_play_session(sessions), str(uuid4()))
+        await publish(service, sessions)
+        key = turn_key(await new_play_session(sessions, V1), str(uuid4()))
         await store.complete(await store.claim(key, V1, REQUEST), response())
 
         result = await block(service)
@@ -354,13 +416,13 @@ def test_mysql_block_after_completion_deletes_the_stored_body():
 def test_mysql_suspension_keeps_existing_session_npc_responses():
     async def scenario(sessions):
         service, store = stores(sessions)
-        await publish(service)
-        session_id = await new_play_session(sessions)
+        await publish(service, sessions)
+        session_id = await new_play_session(sessions, V1)
         ready = turn_key(session_id, str(uuid4()))
         stored = await store.complete(await store.claim(ready, V1, REQUEST), response())
         in_flight = await store.claim(turn_key(session_id, str(uuid4())), V1, REQUEST)
 
-        await service.suspend("case_test", 1, reason="일반 중단", actor=ACTOR)
+        await service.suspend(CASE, 1, reason="일반 중단", actor=ACTOR)
 
         replay = await store.claim(ready, V1, REQUEST)
         assert replay.response.model_dump() == stored.model_dump()
@@ -375,8 +437,8 @@ def test_mysql_suspension_keeps_existing_session_npc_responses():
 def test_mysql_concurrent_completions_and_block_leave_no_partial_state():
     async def scenario(sessions):
         service, store = stores(sessions)
-        await publish(service)
-        session_id = await new_play_session(sessions)
+        await publish(service, sessions)
+        session_id = await new_play_session(sessions, V1)
         claims = [
             await store.claim(turn_key(session_id, str(uuid4())), V1, REQUEST)
             for _ in range(6)
@@ -401,7 +463,7 @@ def test_mysql_concurrent_completions_and_block_leave_no_partial_state():
         assert blocked.withdrawal.bodies_deleted == outcomes.count("stored")
         assert await count(sessions, NpcTurnResponseBody) == 0
         assert await count(sessions, InteractionEvent) == outcomes.count("stored")
-        assert (await service.current("case_test", 1)).status == "blocked"
+        assert (await service.current(CASE, 1)).status == "blocked"
 
     mysql_run(scenario)
 
@@ -409,15 +471,15 @@ def test_mysql_concurrent_completions_and_block_leave_no_partial_state():
 def test_mysql_missing_state_mismatch_or_lock_failure_never_stores():
     async def scenario(sessions):
         service, store = stores(sessions)
-        await publish(service)
-        session_id = await new_play_session(sessions)
+        await publish(service, sessions)
+        session_id = await new_play_session(sessions, V1)
 
         # V2는 게시 상태가 없다 → fail closed
         missing = await store.claim(turn_key(session_id, str(uuid4())), V2, REQUEST)
         with pytest.raises(PublicationStateUnavailableError):
             await store.complete(missing, response())
         # 등록된 fingerprint와 다른 콘텐츠 → fail closed
-        forged = TurnContentRef("case_test", 1, "sha256:" + "9" * 64)
+        forged = TurnContentRef(CASE, 1, "sha256:" + "9" * 64)
         mismatch = await store.claim(
             turn_key(session_id, str(uuid4())), forged, REQUEST
         )
@@ -438,7 +500,7 @@ def test_mysql_missing_state_mismatch_or_lock_failure_never_stores():
                 await holder.execute(
                     text(
                         "SELECT status FROM npc_publication_states "
-                        "WHERE case_id = 'case_test' AND content_version = 1 FOR UPDATE"
+                        "WHERE case_id = 'case_gate_test' AND content_version = 1 FOR UPDATE"
                     )
                 )
                 with pytest.raises(OperationalError) as timeout:
@@ -458,8 +520,8 @@ def test_mysql_missing_state_mismatch_or_lock_failure_never_stores():
 def test_mysql_blocked_case_content_cannot_pass_as_generic():
     async def scenario(sessions):
         service, store = stores(sessions)
-        await publish(service)
-        session_id = await new_play_session(sessions)
+        await publish(service, sessions)
+        session_id = await new_play_session(sessions, V1)
         await block(service)
 
         disguised = [

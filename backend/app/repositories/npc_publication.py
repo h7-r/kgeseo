@@ -214,6 +214,39 @@ class NpcPublicationRepository:
             for e in result.scalars().all()
         )
 
+    async def lock_case_versions(self, case_id: str) -> dict[int, str]:
+        """케이스의 등록 버전 → fingerprint. 범위 공유 잠금이라 커밋 전까지 같은 케이스의 새 버전 등록을 막는다.
+
+        게시 판정의 VERSION_ORDER(이전 게시본보다 커야 함)를 케이스 단위로 직렬화한다.
+        """
+
+        result = await self.db.execute(
+            select(
+                NpcContentVersion.content_version, NpcContentVersion.content_fingerprint
+            )
+            .where(NpcContentVersion.case_id == case_id)
+            .with_for_update(read=True)
+        )
+        return {version: fingerprint for version, fingerprint in result.all()}
+
+    async def last_blocked_at(
+        self, case_id: str, content_version: int
+    ) -> datetime | None:
+        """가장 최근에 blocked로 바뀐 시각(이력 기준, 잠금 읽기)."""
+
+        result = await self.db.execute(
+            select(NpcPublicationEvent.at)
+            .where(
+                NpcPublicationEvent.case_id == case_id,
+                NpcPublicationEvent.content_version == content_version,
+                NpcPublicationEvent.to_status == "blocked",
+            )
+            .order_by(NpcPublicationEvent.state_revision.desc())
+            .limit(1)
+            .with_for_update(read=True)
+        )
+        return result.scalar_one_or_none()
+
     async def all_states(self) -> tuple[PublicationSnapshot, ...]:
         """서버 시작 시 복원용. 새 트랜잭션에서 부르면 마지막 commit 값을 읽는다."""
 
