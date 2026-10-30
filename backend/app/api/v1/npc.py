@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.schemas.npc_content import GeneralLinePack
 from app.schemas.npc_turn import NpcTurnRequest, NpcTurnResponse
 from app.services.approval_history import ApprovalSource
+from app.services.hint_ref import HintRefKeys
 from app.services.interaction import IdempotencyConflictError
 from app.services.npc import NpcContentUnsafeError
 from app.services.npc_turn_service import (
@@ -56,6 +57,12 @@ def get_npc_event_loader() -> EventLoader:
     return load_session_events
 
 
+def get_hint_ref_keys() -> HintRefKeys | None:
+    """hint_ref 발급 키. 운영 비밀 설정이 아직 없어 기본은 None(suggest_hint를 내지 않음, fail closed)."""
+
+    return None
+
+
 @router.post(
     "/{play_session_id}/npc/turns",
     response_model=NpcTurnResponse,
@@ -70,6 +77,7 @@ async def create_npc_turn_endpoint(
     general_pack: tuple = Depends(get_general_line_pack),
     generation: NpcGenerationConfig = Depends(get_npc_generation),
     event_loader: EventLoader = Depends(get_npc_event_loader),
+    hint_ref_keys: HintRefKeys | None = Depends(get_hint_ref_keys),
 ) -> NpcTurnResponse:
     pack, pack_approval = general_pack
     try:
@@ -83,6 +91,7 @@ async def create_npc_turn_endpoint(
             general_pack_approval=pack_approval,
             generation=generation,
             event_loader=event_loader,
+            hint_ref_keys=hint_ref_keys,
         )
     except PlaySessionNotFoundError as error:
         raise HTTPException(

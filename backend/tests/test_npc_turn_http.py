@@ -1,6 +1,7 @@
 """NPC 턴 HTTP — POST /api/v1/play-sessions/{id}/npc/turns (PM v0.4.3)."""
 
 import json
+import uuid
 from collections.abc import Iterator
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -10,6 +11,7 @@ import pytest
 
 from app.api.v1.npc import (
     get_general_line_pack,
+    get_hint_ref_keys,
     get_npc_approval_source,
     get_npc_event_loader,
     get_npc_generation,
@@ -17,6 +19,7 @@ from app.api.v1.npc import (
 from app.main import app
 from app.models.interaction_event import InteractionEvent
 from app.models.play_session import PlaySession
+from app.services.hint_ref import HintRefKeys, resolve_hint_ref
 from app.services.npc_line_supply import general_pack_fingerprint
 from app.services.npc_turn_service import NpcGenerationConfig
 from app.services.pinned_content import PinnedContentStore
@@ -85,6 +88,8 @@ def overrides() -> Iterator[dict[str, Any]]:
         "general": (None, None),
         "generation": NpcGenerationConfig(),
         "events": [],
+        # 가상 테스트 키(운영 키가 아니다)
+        "hint_ref_keys": HintRefKeys("t1", {"t1": b"hint-ref-test-only-" + b"k" * 32}),
     }
 
     async def loader(db, play_session_id):
@@ -95,6 +100,7 @@ def overrides() -> Iterator[dict[str, Any]]:
     app.dependency_overrides[get_general_line_pack] = lambda: values["general"]
     app.dependency_overrides[get_npc_generation] = lambda: values["generation"]
     app.dependency_overrides[get_npc_event_loader] = lambda: loader
+    app.dependency_overrides[get_hint_ref_keys] = lambda: values["hint_ref_keys"]
     yield values
     for dependency in (
         get_pinned_content_store,
@@ -102,6 +108,7 @@ def overrides() -> Iterator[dict[str, Any]]:
         get_general_line_pack,
         get_npc_generation,
         get_npc_event_loader,
+        get_hint_ref_keys,
     ):
         app.dependency_overrides.pop(dependency, None)
 
@@ -247,7 +254,21 @@ def test_suggest_hint_is_guidance_only(client, db_session, overrides) -> None:
 
     data = response.json()
     assert data["reply"]["line_id"] == "NPC_GENERIC_PUZZLE_02"
-    assert data["suggest_hint"] == {"puzzle_id": "PZ_A"}
+    # PM v0.4.7: 내부 puzzle_id 대신 불투명 hint_ref. 서버는 세션 · 고정 콘텐츠로 되찾을 수 있다.
+    hint_ref = data["suggest_hint"]["hint_ref"]
+    assert set(data["suggest_hint"]) == {"hint_ref"}
+    assert "PZ_A" not in response.text
+    assert (
+        resolve_hint_ref(
+            overrides["hint_ref_keys"],
+            hint_ref,
+            play_session_id=SESSION_ID,
+            content_fingerprint=FP,
+            puzzle_ids=["PZ_A", "PZ_DONE"],
+        )
+        == "PZ_A"
+    )
+    assert stored(db_session).response_json["suggest_hint_puzzle_id"] == "PZ_A"
     assert row.state_json["hint_levels"] == {}
     assert [e.interaction_type for e in db_session.added] == ["npc_turn"]
     assert HINT_1 not in response.text and HINT_2 not in response.text
@@ -342,7 +363,8 @@ def test_auto_turn_without_rule_or_in_cooldown_is_silent(
     assert quiet.json()["reply"] is None
 
     db_session.added.clear()
-    previous = InteractionEvent(
+    recent = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=5)
+    offer = InteractionEvent(
         id="npc-1",
         play_session_id=SESSION_ID,
         client_event_id="c-npc",
@@ -354,12 +376,28 @@ def test_auto_turn_without_rule_or_in_cooldown_is_silent(
             "auto_intervened": True,
             "decision": {"target_puzzle_id": "PZ_A"},
         },
-        created_at=datetime.now(timezone.utc).replace(tzinfo=None)
-        - timedelta(seconds=5),
+        created_at=recent,
     )
-    overrides["events"] = [*answer_events(6), previous]
+    # PM v0.4.7: 응답만 하고 표시 보고가 없는 제안은 쿨다운을 소모하지 않는다.
+    overrides["events"] = [*answer_events(6), offer]
+    offered = client.post(URL, json=auto_body())
+    assert offered.json()["reply"]["line_id"] == "NUDGE_A_01"
 
-    cooling = client.post(URL, json=auto_body())
+    db_session.added.clear()
+    shown = InteractionEvent(
+        id="shown-1",
+        play_session_id=SESSION_ID,
+        client_event_id="c-shown",
+        interaction_type="npc_suggestion_shown",
+        target_id="npc-1",
+        payload_json={},
+        result_type="shown",
+        response_json={"puzzle_id": "PZ_A", "level": 1},
+        created_at=recent,
+    )
+    overrides["events"] = [*answer_events(6), offer, shown]
+
+    cooling = client.post(URL, json=auto_body(client_event_id=str(uuid.uuid4())))
 
     assert cooling.json()["reply"] is None
     assert stored(db_session).response_json["decision"]["reason"] == "cooldown"
@@ -416,3 +454,66 @@ def test_replay_drops_text_when_approval_is_withdrawn(
     again = client.post(URL, json=body())
 
     assert again.json()["reply"] is None
+
+
+# --- PM v0.4.7: 넛지 없는 연속 오답 → 2단계 힌트 안내 ---
+
+
+def test_auto_level_two_guidance_returns_hint_ref_and_records_internal_puzzle(
+    client, db_session, overrides
+) -> None:
+    approve_all(overrides)
+    overrides["approval"] = None  # 케이스 넛지 미승인 → 보여 줄 넛지 없음
+    overrides["events"] = answer_events(7)
+    db_session.get_result = session_row()
+
+    response = client.post(URL, json=auto_body())
+
+    data = response.json()
+    assert data["reply"]["line_id"] == "NPC_GENERIC_PUZZLE_02"
+    assert set(data["suggest_hint"]) == {"hint_ref"}
+    assert data["fallback_reason"] is None
+    assert "PZ_A" not in response.text
+    assert HINT_1 not in response.text and HINT_2 not in response.text
+    record = stored(db_session).response_json
+    assert record["auto_intervened"] is True
+    assert record["suggest_hint_puzzle_id"] == "PZ_A"
+    assert record["auto_intervene"] == {
+        "trigger": "repeated_incorrect",
+        "value": 7,
+        "puzzle_ref": "PZ_A",
+        "nudge_missing": False,
+        "level": 2,
+    }
+
+
+def test_auto_level_two_without_generic_pack_has_null_reply_and_reason(
+    client, db_session, overrides
+) -> None:
+    overrides["events"] = answer_events(6)  # 승인 정보 · 일반 팩 모두 없음
+    db_session.get_result = session_row()
+
+    response = client.post(URL, json=auto_body())
+
+    data = response.json()
+    assert data["reply"] is None
+    assert data["fallback_reason"] == "NPC_GENERIC_PACK_MISSING"
+    assert set(data["suggest_hint"]) == {"hint_ref"}
+    record = stored(db_session).response_json
+    assert record["fallback_reason"] == "NPC_GENERIC_PACK_MISSING"
+    assert record["auto_intervene"]["level"] == 2
+
+
+def test_without_hint_ref_keys_suggest_hint_is_withheld(
+    client, db_session, overrides
+) -> None:
+    overrides["hint_ref_keys"] = None
+    overrides["events"] = answer_events(6)
+    db_session.get_result = session_row()
+
+    response = client.post(URL, json=auto_body())
+
+    # 발급 키가 없으면 내부 ID로 대신하지 않는다(fail closed). 기록에는 내부 ID가 남는다.
+    assert response.json()["suggest_hint"] is None
+    assert "PZ_A" not in response.text
+    assert stored(db_session).response_json["suggest_hint_puzzle_id"] == "PZ_A"

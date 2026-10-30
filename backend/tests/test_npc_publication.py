@@ -134,7 +134,7 @@ def test_generic_response_without_case_content_is_accepted(response) -> None:
         NpcTurnResponse(
             npc_event_id=uuid4(),
             reply=None,
-            suggest_hint=SuggestHintOut(puzzle_id="PZ_A"),
+            suggest_hint=SuggestHintOut(hint_ref="hr1.k1." + "A" * 43),
         ),
     ],
 )

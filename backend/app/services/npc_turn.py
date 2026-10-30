@@ -6,6 +6,10 @@
 - 플레이어 메시지: `npc_dialogue.respond_to_player_message` (퍼즐 질문은 생성기를 부르지 않는다).
 - 자동 개입: `npc_decision.decide` → `npc_intervention.allowed_auto_actions(intervention_level)` 안에서만
   승인된 nudge 원문 · 힌트 안내. 자동 개입은 정식 힌트 원문 · 정답 · Hint API 호출 · hint_levels 변경을 하지 않는다.
+  PM v0.4.7: 연속 오답으로 개입했는데 지금 보여 줄 승인 nudge가 없으면 2단계(힌트 안내)로 올린다 —
+  승인 일반 팩의 기본 안내(NPC_GENERIC_PUZZLE_02) + `suggest_hint`. 승인 일반 팩이 없으면 발화 없이
+  `fallback_reason=NPC_GENERIC_PACK_MISSING`(미승인 기본 대사를 내보내지 않는다). 퍼즐에 nudge가 아예 작성되지
+  않았으면 `nudge_missing`을 기록한다.
 - 공급자는 고정 콘텐츠와 승인 이력에서 만든다(`turn_content_from_pinned`). 승인 정보가 없으면 모든 대사가
   미승인이라 내보낼 대사가 없다(기본 차단).
 - 일반 대화 생성은 기본 OFF 다. 켜는 값은 호출하는 쪽이 정하고, 정책 규칙이 없으면 켤 수 없다.
@@ -45,6 +49,18 @@ from app.services.pinned_content import HintTextResolver, PinnedContent
 from app.services.puzzle_question import PuzzleQuestionDiagnosis
 
 TurnTrigger = Literal["player_message", "auto"]
+GENERIC_PACK_MISSING = "NPC_GENERIC_PACK_MISSING"
+
+
+@dataclass(frozen=True)
+class AutoInterventionRecord:
+    """`npc_auto_intervene {trigger, value, puzzle_ref}` + nudge_missing · level."""
+
+    trigger: str
+    value: float | None
+    puzzle_ref: str | None
+    nudge_missing: bool
+    level: int
 
 
 @dataclass(frozen=True)
@@ -73,6 +89,10 @@ class NpcTurnResult:
     decision: NpcDecision | None = None
     diagnosis: PuzzleQuestionDiagnosis | None = None
     policy: PolicyCheckResult | None = None
+    # PM 확정 이유 코드(응답에 싣는다)
+    fallback_reason: str | None = None
+    # 자동 개입 기록(npc_auto_intervene). 자동 턴에서 개입을 판단했을 때만 있다.
+    auto: "AutoInterventionRecord | None" = None
 
     @property
     def generated(self) -> bool:
@@ -145,6 +165,14 @@ def run_player_message_turn(
     )
 
 
+def _nudge_missing(pack: NpcContentPack | None, puzzle_id: str | None) -> bool:
+    """퍼즐에 승인 대상 nudge가 아예 작성되지 않았는가(PUB 경고와 같은 기준)."""
+
+    if puzzle_id is None or pack is None:
+        return puzzle_id is not None
+    return not any(entry.puzzle_id == puzzle_id for entry in pack.puzzles)
+
+
 def run_auto_turn(
     decision: NpcDecision,
     *,
@@ -155,17 +183,26 @@ def run_auto_turn(
 
     if not decision.intervene:
         return NpcTurnResult("auto", None, decision.reason, None, decision)
-    actions = allowed_auto_actions(decision.intervention_level)
     target = decision.target_puzzle_id
+    missing = _nudge_missing(content.npc_pack, target)
 
-    if "nudge" in actions and content.npc_id is not None:
-        nudge = _revealed_approved_nudge(
-            content.npc_pack,
-            content.npc_id,
-            target,
-            state,
-            content.case_id,
-            content.line_source,
+    def record(level: int) -> AutoInterventionRecord:
+        return AutoInterventionRecord(
+            decision.reason, decision.trigger_value, target, missing, level
+        )
+
+    if "nudge" in allowed_auto_actions(decision.intervention_level):
+        nudge = (
+            _revealed_approved_nudge(
+                content.npc_pack,
+                content.npc_id,
+                target,
+                state,
+                content.case_id,
+                content.line_source,
+            )
+            if content.npc_id is not None
+            else None
         )
         if nudge is not None:
             _ensure_no_protected_text(
@@ -176,16 +213,40 @@ def run_auto_turn(
                 allowed_puzzle_id=None,
             )
             reply = NpcReply("approved_line", nudge.text, nudge.line_id)
-            return NpcTurnResult("auto", reply, None, None, decision)
+            return NpcTurnResult("auto", reply, None, None, decision, auto=record(1))
 
+    # PM v0.4.7: 연속 오답 · 보여 줄 승인 nudge 없음 → 2단계(힌트 안내)
+    level = (
+        2 if decision.reason == "repeated_incorrect" else decision.intervention_level
+    )
     if (
-        "hint_guidance" in actions
+        level == 2
+        and "hint_guidance" in allowed_auto_actions(level)
         and target is not None
         and _has_server_hint(content.case_id, target, content.hint_source)
-        and content.generic_line_approval(GENERIC_WITH_HINT_SUGGESTION)
     ):
+        suggest = SuggestHint(target)
+        if not content.generic_line_approval(GENERIC_WITH_HINT_SUGGESTION):
+            return NpcTurnResult(
+                "auto",
+                None,
+                "generic_line_unapproved",
+                suggest,
+                decision,
+                fallback_reason=GENERIC_PACK_MISSING,
+                auto=record(2),
+            )
         text = PM_GENERIC_PUZZLE_LINES[GENERIC_WITH_HINT_SUGGESTION]
+        _ensure_no_protected_text(
+            text,
+            content.case_id,
+            content.runtime,
+            content.hint_source,
+            allowed_puzzle_id=None,
+        )
         reply = NpcReply("approved_line", text, GENERIC_WITH_HINT_SUGGESTION)
-        return NpcTurnResult("auto", reply, None, SuggestHint(target), decision)
+        return NpcTurnResult("auto", reply, None, suggest, decision, auto=record(2))
 
-    return NpcTurnResult("auto", None, "no_approved_line", None, decision)
+    return NpcTurnResult(
+        "auto", None, "no_approved_line", None, decision, auto=record(level)
+    )

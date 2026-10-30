@@ -1,9 +1,14 @@
-"""NPC 턴 HTTP 계약 v0.1 (PM v0.4.3).
+"""NPC 턴 HTTP 계약 v0.2 (PM v0.4.3 · v0.4.7).
 
 POST /api/v1/play-sessions/{play_session_id}/npc/turns
 
 - 응답 `reply.source`는 `generated` · `approved_line`(line_id 필수) 두 값뿐이다. 발화가 없으면 `reply`는 null.
 - `suggest_hint`는 힌트 버튼을 보여 주라는 안내다. 힌트를 해금하지 않는다(해금은 Hint API).
+  PM v0.4.7: 내부 puzzle_id 대신 서버가 발급한 불투명 `hint_ref`만 싣는다(`app.services.hint_ref`).
+- `fallback_reason`: 발화가 없거나 대체된 이유 코드(PM 확정 값만). 예: 승인 일반 팩이 없으면
+  `NPC_GENERIC_PACK_MISSING`.
+- `npc_event_id`는 자동 개입 제안의 ID이기도 하다. FE는 표시 · 미표시 · 거절을 이 ID로 보고한다
+  (`app.services.npc_suggestion_events`).
 - 이벤트(response_json)에는 대사 · 플레이어 원문을 남기지 않는다. 출처 · line_id · 생성 여부 ·
   정책 검사 결과(code · rule_id) · 판단 결과만 남긴다.
 """
@@ -56,13 +61,28 @@ class NpcReplyOut(BaseModel):
 
 
 class SuggestHintOut(BaseModel):
-    puzzle_id: str
+    hint_ref: str
+
+
+FallbackReason = Literal["NPC_GENERIC_PACK_MISSING", "NPC_CONTENT_WITHDRAWN"]
 
 
 class NpcTurnResponse(BaseModel):
     npc_event_id: UUID
     reply: NpcReplyOut | None
     suggest_hint: SuggestHintOut | None
+    fallback_reason: FallbackReason | None = None
+
+
+class NpcAutoInterveneRecord(BaseModel):
+    """`npc_auto_intervene {trigger, value, puzzle_ref}` + nudge_missing · level (PM v0.4.7)."""
+
+    trigger: str
+    value: float | None
+    # 내부 puzzle_id(이벤트 로그 전용, 응답에는 싣지 않는다)
+    puzzle_ref: str | None
+    nudge_missing: bool
+    level: int
 
 
 class NpcTurnEventRecord(BaseModel):
@@ -74,10 +94,12 @@ class NpcTurnEventRecord(BaseModel):
     generated: bool
     no_reply_reason: str | None
     suggest_hint_puzzle_id: str | None
+    fallback_reason: FallbackReason | None = None
     policy: list[dict[str, str]] = Field(default_factory=list)
     decision: dict[str, Any] | None = None
     diagnosis: dict[str, Any] | None = None
-    # 자동 개입으로 실제 말을 했는가(쿨다운 · 상한 계산에 쓴다)
+    # 자동 개입 제안을 응답했는가. 횟수 · 쿨다운은 표시 보고(npc_suggestion_shown)로만 센다(PM v0.4.7).
     auto_intervened: bool = False
+    auto_intervene: NpcAutoInterveneRecord | None = None
     # NPC는 게임 상태를 바꾸지 않는다.
     state_changes: list[dict[str, object]] = Field(default_factory=list, max_length=0)

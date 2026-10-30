@@ -70,7 +70,9 @@ _IDMAP_EXTRA_HEADERS = frozenset({"approvals", "generated_at", "published_at"})
 # 이보다 짧은 정답은 일반 글자와 구별할 수 없어 누출 검사에서 뺀다(NPC 서비스와 같은 기준).
 MIN_ANSWER_LENGTH = 2
 
-CheckStatus = Literal["PASS", "FAIL", "NOT_APPLICABLE", "UNVERIFIED"]
+# WARN은 기록만 하고 게시를 막지 않는다(PM v0.4.7: 승인 넛지 없는 퍼즐).
+CheckStatus = Literal["PASS", "FAIL", "NOT_APPLICABLE", "UNVERIFIED", "WARN"]
+NON_BLOCKING_STATUSES = ("PASS", "NOT_APPLICABLE", "WARN")
 CheckCode = Literal[
     "PARSE",
     "FINGERPRINT",
@@ -78,6 +80,7 @@ CheckCode = Literal[
     "VERSION_ORDER",
     "CLIENT_SERVER",
     "NPC",
+    "NUDGE_COVERAGE",
     "IDMAP",
     "EXECUTABLE_REFS",
     "SCENES",
@@ -218,6 +221,15 @@ def evaluate_publication(
     add("NPC", "PASS")
     npc_model = NpcContentPack.model_validate(npc_body)
 
+    # 6-1. 넛지 작성 범위(PM v0.4.7): 넛지가 없는 퍼즐은 차단하지 않고 경고로 남긴다(퍼즐 ID만).
+    with_nudges = {entry.puzzle_id for entry in npc_model.puzzles}
+    without_nudges = [
+        puzzle.puzzle_id
+        for puzzle in server_model.puzzles
+        if puzzle.puzzle_id not in with_nudges
+    ]
+    add("NUDGE_COVERAGE", "WARN" if without_nudges else "PASS", *without_nudges)
+
     # 7. idmap(내부 참조 · Server/Client 교차) · 실행 불가 항목 참조 · 로컬 ID
     idmap_model: NajuIdmap | None = None
     if idmap is None:
@@ -286,7 +298,7 @@ def evaluate_publication(
     approval = _approval_check(approval_source, case_id, version, fingerprint)
     checks.append(approval)
 
-    approved = all(item.status in ("PASS", "NOT_APPLICABLE") for item in checks)
+    approved = all(item.status in NON_BLOCKING_STATUSES for item in checks)
     registered = False
     if approved and store is not None:
         store.add(

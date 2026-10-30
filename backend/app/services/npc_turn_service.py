@@ -7,6 +7,10 @@
   같은 `client_event_id` 재전송 여부를 가리려고 플레이어 메시지는 SHA-256 만 남긴다.
 - 재전송: 같은 요청이면 저장된 결과를 돌려준다. 승인 대사는 그때의 승인 콘텐츠에서 line_id 로 다시 읽고
   (승인이 빠졌으면 null), 생성 대사는 저장하지 않았으므로 null 이다.
+- PM v0.4.7: 자동 개입 설정은 서버 기본값에 케이스 `npc.json.auto_nudge`를 덮어쓴다. 횟수 · 쿨다운은 FE가 보고한
+  표시(`npc_suggestion_shown`) · 거절(`npc_suggestion_declined`) 기록으로만 센다(`npc_suggestion_events`).
+- `suggest_hint`에는 내부 puzzle_id 대신 `hint_ref`를 싣는다. 발급 키가 없으면 `suggest_hint`를 내지 않는다(fail closed).
+  이벤트에는 내부 puzzle_id를 남긴다.
 """
 
 import asyncio
@@ -25,6 +29,7 @@ from app.models.interaction_event import InteractionEvent
 from app.models.play_session import PlaySession
 from app.schemas.npc_content import GeneralLinePack
 from app.schemas.npc_turn import (
+    NpcAutoInterveneRecord,
     NpcReplyOut,
     NpcTurnEventRecord,
     NpcTurnRequest,
@@ -32,6 +37,7 @@ from app.schemas.npc_turn import (
     SuggestHintOut,
 )
 from app.services.approval_history import ApprovalSource
+from app.services.hint_ref import HintRefKeys, issue_hint_ref
 from app.services.interaction import (
     IdempotencyConflictError,
     _find_interaction_event,
@@ -42,10 +48,12 @@ from app.services.npc_decision import (
     AutoIntervention,
     RuleConfig,
     decide,
+    rule_config_for,
     signals_from_events,
 )
 from app.services.npc_dialogue import PM_GENERIC_PUZZLE_LINES
 from app.services.npc_general_dialogue import ModelGenerator
+from app.services.npc_suggestion_events import shown_and_declined
 from app.services.npc_turn import (
     NpcTurnContent,
     NpcTurnResult,
@@ -99,6 +107,7 @@ async def process_npc_turn(
     generation: NpcGenerationConfig = GENERATION_OFF,
     event_loader: EventLoader = load_session_events,
     rule_config: RuleConfig = RuleConfig(),
+    hint_ref_keys: HintRefKeys | None = None,
     now: datetime | None = None,
 ) -> NpcTurnResponse:
     client_event_id = str(request.client_event_id)
@@ -112,6 +121,20 @@ async def process_npc_turn(
             raise NpcContentUnavailableError()
         # rollback 은 ORM 객체를 만료시키므로 판정에 쓸 값은 먼저 읽어 둔다.
         state = dict(play_session.state_json)
+        fingerprint = bundle.pin.content_fingerprint
+
+        def hint_ref_for(puzzle_id: str | None) -> SuggestHintOut | None:
+            if puzzle_id is None or hint_ref_keys is None:
+                return None
+            return SuggestHintOut(
+                hint_ref=issue_hint_ref(
+                    hint_ref_keys,
+                    play_session_id=play_session_id,
+                    puzzle_id=puzzle_id,
+                    content_fingerprint=fingerprint,
+                )
+            )
+
         content = turn_content_from_pinned(
             bundle,
             approval_source,
@@ -121,7 +144,7 @@ async def process_npc_turn(
 
         existing = await _find_interaction_event(db, play_session_id, client_event_id)
         if existing is not None:
-            response = _replay(existing, payload_json, content)
+            response = _replay(existing, payload_json, content, hint_ref_for)
             await db.rollback()
             return response
 
@@ -137,14 +160,19 @@ async def process_npc_turn(
             current = now or datetime.now(timezone.utc).replace(tzinfo=None)
             events = await event_loader(db, play_session_id)
             target = _focus_puzzle(content, state, request.focus_object_id)
+            shown, declined = shown_and_declined(events)
             signals = signals_from_events(
                 events,
                 now=current,
                 target_puzzle_id=target,
-                past_interventions=_past_interventions(events),
+                past_interventions=[AutoIntervention(at, pid) for at, pid in shown],
+                past_declines=declined,
+            )
+            config = rule_config_for(
+                content.npc_pack.auto_nudge if content.npc_pack else None, rule_config
             )
             result = run_auto_turn(
-                decide(signals, rule_config), state=state, content=content
+                decide(signals, config), state=state, content=content
             )
 
         record = _record(request.trigger, result)
@@ -172,7 +200,7 @@ async def process_npc_turn(
             )
             if existing is None:
                 raise error
-            response = _replay(existing, payload_json, content)
+            response = _replay(existing, payload_json, content, hint_ref_for)
             await db.rollback()
             return response
     except asyncio.CancelledError:
@@ -182,7 +210,7 @@ async def process_npc_turn(
         await db.rollback()
         raise
 
-    return _response(npc_event_id, result)
+    return _response(npc_event_id, result, hint_ref_for)
 
 
 def _payload(request: NpcTurnRequest) -> dict[str, Any]:
@@ -229,20 +257,6 @@ def _focus_puzzle(
     return target
 
 
-def _past_interventions(events: Sequence[Any]) -> list[AutoIntervention]:
-    past = []
-    for event in events:
-        if event.interaction_type != NPC_TURN_EVENT_TYPE:
-            continue
-        record = event.response_json or {}
-        if record.get("auto_intervened"):
-            decision = record.get("decision") or {}
-            past.append(
-                AutoIntervention(event.created_at, decision.get("target_puzzle_id"))
-            )
-    return past
-
-
 def _record(trigger: str, result: NpcTurnResult) -> NpcTurnEventRecord:
     decision = result.decision
     diagnosis = result.diagnosis
@@ -255,6 +269,7 @@ def _record(trigger: str, result: NpcTurnResult) -> NpcTurnEventRecord:
         suggest_hint_puzzle_id=(
             result.suggest_hint.puzzle_id if result.suggest_hint else None
         ),
+        fallback_reason=result.fallback_reason,
         policy=[
             {"code": v.code, "rule_id": v.rule_id}
             for v in (result.policy.violations if result.policy else ())
@@ -280,11 +295,29 @@ def _record(trigger: str, result: NpcTurnResult) -> NpcTurnEventRecord:
             if diagnosis
             else None
         ),
-        auto_intervened=trigger == "auto" and result.reply is not None,
+        # 보여 줄 것(대사 또는 힌트 안내)이 있는 자동 개입만 제안이다. 횟수는 표시 보고로 센다.
+        auto_intervened=trigger == "auto"
+        and (result.reply is not None or result.suggest_hint is not None),
+        auto_intervene=(
+            NpcAutoInterveneRecord(
+                trigger=result.auto.trigger,
+                value=result.auto.value,
+                puzzle_ref=result.auto.puzzle_ref,
+                nudge_missing=result.auto.nudge_missing,
+                level=result.auto.level,
+            )
+            if result.auto is not None
+            else None
+        ),
     )
 
 
-def _response(npc_event_id: str, result: NpcTurnResult) -> NpcTurnResponse:
+HintRefFor = Callable[[str | None], SuggestHintOut | None]
+
+
+def _response(
+    npc_event_id: str, result: NpcTurnResult, hint_ref_for: HintRefFor
+) -> NpcTurnResponse:
     reply = result.reply
     return NpcTurnResponse(
         npc_event_id=UUID(npc_event_id),
@@ -293,16 +326,18 @@ def _response(npc_event_id: str, result: NpcTurnResult) -> NpcTurnResponse:
             if reply
             else None
         ),
-        suggest_hint=(
-            SuggestHintOut(puzzle_id=result.suggest_hint.puzzle_id)
-            if result.suggest_hint
-            else None
+        suggest_hint=hint_ref_for(
+            result.suggest_hint.puzzle_id if result.suggest_hint else None
         ),
+        fallback_reason=result.fallback_reason,
     )
 
 
 def _replay(
-    event: InteractionEvent, payload_json: dict[str, Any], content: NpcTurnContent
+    event: InteractionEvent,
+    payload_json: dict[str, Any],
+    content: NpcTurnContent,
+    hint_ref_for: HintRefFor,
 ) -> NpcTurnResponse:
     if not _is_same_request(
         event,
@@ -324,11 +359,14 @@ def _replay(
             if text
             else None
         ),
+        # 대사가 있던 응답은 대사가 아직 승인일 때만, 대사 없이 안내만 한 응답(일반 팩 없음)은 그대로 안내한다.
         suggest_hint=(
-            SuggestHintOut(puzzle_id=record.suggest_hint_puzzle_id)
-            if text and record.suggest_hint_puzzle_id
+            hint_ref_for(record.suggest_hint_puzzle_id)
+            if record.suggest_hint_puzzle_id
+            and (text is not None or record.reply_source is None)
             else None
         ),
+        fallback_reason=record.fallback_reason,
     )
 
 

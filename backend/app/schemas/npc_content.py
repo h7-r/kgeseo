@@ -124,6 +124,23 @@ class NpcFallbackLine(NpcContentModel):
         return self
 
 
+PositiveInt = Annotated[int, Field(strict=True, ge=1)]
+
+
+class NpcAutoNudgeConfig(NpcContentModel):
+    """케이스별 자동 개입 설정(PM v0.4.7). 적은 필드만 서버 기본값을 덮어쓴다(필드 이름은 PM 확인 필요).
+
+    값이 없는 필드는 서버 기본값을 그대로 쓴다. 세션당 상한의 서버 기본값은 「제한 없음」이다.
+    """
+
+    consecutive_incorrect_min: PositiveInt | None = None
+    idle_seconds: PositiveInt | None = None
+    max_per_puzzle: PositiveInt | None = None
+    max_per_session: PositiveInt | None = None
+    suggestion_cooldown_seconds: PositiveInt | None = None
+    decline_cooldown_seconds: PositiveInt | None = None
+
+
 class NpcContentPack(NpcContentModel):
     schema_version: Literal["npc-pack 0.1"]
     case_id: NonBlank
@@ -141,6 +158,8 @@ class NpcContentPack(NpcContentModel):
     ng: list[NpcPolicyRule] | None = None
     open: list[NpcPolicyRule] | None = None
     fallback_lines: list[NpcFallbackLine] = Field(default_factory=list)
+    # PM v0.4.7 — 없으면 서버 기본 자동 개입 설정
+    auto_nudge: NpcAutoNudgeConfig | None = None
 
     @model_validator(mode="after")
     def validate_unique_ids(self) -> "NpcContentPack":
