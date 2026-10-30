@@ -241,7 +241,9 @@ def alembic_config(output: io.StringIO | None = None) -> Config:
 def test_new_revision_is_single_head_after_previous_head() -> None:
     script = ScriptDirectory.from_config(alembic_config())
 
-    assert script.get_heads() == [NEW_REVISION]
+    # NPC 멱등 저장소 migration이 추가되어도 콘텐츠 고정 revision의 부모 관계를 보존한다.
+    assert script.get_heads() == ["e4c1f7a2b9d6"]
+    assert script.get_revision("e4c1f7a2b9d6").down_revision == NEW_REVISION
     assert script.get_revision(NEW_REVISION).down_revision == PREVIOUS_HEAD
 
 
