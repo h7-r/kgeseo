@@ -730,19 +730,20 @@ function sceneIntro(next){if(PRE_INTRO&&PRE_INTRO.rooms.includes(ci)){const s=PR
  if(!PZ.length||mode!=='play'||shootMode){next&&next();return}const s=SC.find(s=>s.rooms.includes(ci));if(!s||!scOpen(s.id)||INTRO_SEEN.has(s.id)||!s.intro){next&&next();return}INTRO_SEEN.add(s.id);
  const after=()=>{pzMsg=introCard(s)+pzMsg;info();if(next)next();else startLock()};if((s.intro.panels||[]).length)setTimeout(()=>playCine(s.intro.panels,s.title,after),700);else after()}
 /* 10/28 미르: 「마지막 방에서 대단한 걸 끝내고 → 결말 이야기 컷 → 게임 엔딩 → 현장 해금 장치」 — 결말 컷이 끝나면 화면 전체 엔딩, 이어서 현장 봉인(체험판 해금) */
-function playEnding(){if(ENDING_SHOWN)return;const s=SC.find(s=>s.ending);if(!s)return;ENDING_SHOWN=true;const e=s.ending,f=e.field||{};
+/* 10/30 미르: 「사건이 해결되었습니다. 지역을 실제 방문하여 열 추가 봉인을 제안합니다」 + 기대 보상. 현장 인증은 그 지역 대표 관광지 촬영(3~5초 안내 영상)이라 QR·GPS 문구와 현장 물음 입력은 뺐다 */
+function playEnding(){if(ENDING_SHOWN)return;const s=SC.find(s=>s.ending);if(!s)return;ENDING_SHOWN=true;const e=s.ending,f=e.field||{};const RW='이 이야기의 뒷이야기 · 그 지역에서만 얻는 코스튬 조각 · 제휴 지역이면 지역 혜택(지역화폐·할인)';
  playCine(e.panels||[],'이야기의 끝',()=>{endPlay&&endPlay();hold.className='recall';hold.innerHTML=`<div class="end-wrap"><div class="end-card">
-  <div class="end-k">사건 기록 · ${esc(TRIAL.title||'')}</div><h2 class="end-h">왜곡 복원 완료</h2>
+  <div class="end-k">왜곡 복원 완료 · ${esc(TRIAL.title||'')}</div><h2 class="end-h">사건이 해결되었습니다</h2>
   <div class="end-sec"><b>밝혀진 것</b><p>${esc(e.reveal||'')}</p></div>
   ${e.left_open?`<div class="end-sec mut"><b>아직 남은 물음</b><p>${esc(e.left_open)}</p></div>`:''}
-  ${f.place?`<div class="end-seal" id="endSeal"><b>🔒 마지막 봉인 — 현장에서만 풀린다</b><div class="end-place">${esc(f.place)}</div><p>${esc(f.seal||'')}</p>${f.question?`<p class="mut">현장에서 답할 물음 — ${esc(f.question)}</p>`:''}
-   <div class="row"><button id="sealTry">현장에 왔다고 치고 풀어 보기(체험)</button></div></div>`:''}
+  ${f.place?`<div class="end-seal" id="endSeal"><b>🔒 추가 봉인</b><p>지역을 실제 방문하여 열 추가 봉인을 제안합니다.</p><div class="end-place">${esc(f.place)}</div><p>${esc(f.seal||'')}</p><p class="mut">열면 받는 것 — ${RW}</p>
+   <div class="row"><button id="sealTry">현장 인증 미리 보기(체험)</button></div></div>`:''}
   <div class="end-done">🏁 게임 끝 — 수고하셨습니다</div>
   <div class="row" style="justify-content:center"><button id="endAgain">처음부터 다시</button><button id="endClose">닫기</button></div></div></div>`;hold.hidden=false;
-  const st=hold.querySelector('#sealTry');if(st)st.onclick=()=>{const b=hold.querySelector('#endSeal');b.innerHTML=`<b>📍 현장 봉인 — 체험판</b><div class="end-place">${esc(f.place)}</div>${f.question?`<p>${esc(f.question)}</p><input id="sealAns" placeholder="현장에서 보고 답을 적으세요">`:''}<div class="row"><button id="sealOk">봉인 풀기</button></div><p class="mut">실제 서비스에서는 이 자리에서 위치(GPS)·QR 인증이 되어야 열립니다. 체험판은 바로 열립니다.</p>`;
-   b.querySelector('#sealOk').onclick=()=>{b.innerHTML=`<b>🔓 봉인이 풀렸다</b><div class="end-place">${esc(f.place)}</div><p>완주 보상 — 현장 한정 특별 소품 · 지역 혜택(지역 화폐·할인권)</p><p class="mut">체험판 표시입니다. 보상 지급은 실제 서비스에서 현장 인증 뒤.</p>`}};
+  const st=hold.querySelector('#sealTry');if(st)st.onclick=()=>{const b=hold.querySelector('#endSeal');b.innerHTML=`<b>📍 현장 인증 — 체험판</b><div class="end-place">${esc(f.place)}</div><p>① 그 지역 대표 관광지에서 휴대폰 카메라를 켭니다<br>② 화면이 그 자리에서 내는 지시대로 3~5초 돌려 찍습니다<br>③ 장소가 확인되면 봉인이 풀립니다</p><div class="row"><button id="sealOk">봉인 풀기(체험)</button></div><p class="mut">체험판은 촬영 없이 바로 엽니다. 실제 서비스에서는 위의 현장 인증을 거쳐야 열립니다.</p>`;
+   b.querySelector('#sealOk').onclick=()=>{b.innerHTML=`<b>🔓 봉인이 풀렸다(체험)</b><div class="end-place">${esc(f.place)}</div><p>받는 것 — ${RW}</p><p class="mut">체험판 표시입니다. 보상은 실제 서비스에서 현장 인증 뒤에 지급됩니다.</p>`}};
   hold.querySelector('#endAgain').onclick=()=>location.reload();
-  hold.querySelector('#endClose').onclick=()=>{hold.hidden=true;hold.className='';pzMsg=`<div class="card pz-ok"><b>🏁 완주 — 왜곡 복원 완료</b><div>${esc(e.reveal||'')}</div>${f.place?`<div>🔒 마지막 봉인: ${esc(f.place)}</div>`:''}</div>`;info()}})}
+  hold.querySelector('#endClose').onclick=()=>{hold.hidden=true;hold.className='';pzMsg=`<div class="card pz-ok"><b>🏁 완주 — 왜곡 복원 완료</b><div>${esc(e.reveal||'')}</div>${f.place?`<div>🔒 추가 봉인: ${esc(f.place)} — 지역을 방문하면 열립니다</div>`:''}</div>`;info()}})}
 /* 10/28 미르: 마지막 방의 「대단한 일」 — 왜곡된 기록 바로잡기(진상 복원). 줄마다 답 + 그것을 증명하는 단서를 골라야 풀린다. 다 바로잡으면 결말로 */
 let FINALE_DONE=false;
 function openFinale(){const s=SC.find(s=>s.ending);const F=s&&s.ending&&s.ending.finale;if(!F||!(F.claims||[]).length||FINALE_DONE){playEnding();return}if(typeof endPlay==='function')endPlay();

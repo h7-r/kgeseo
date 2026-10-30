@@ -10,7 +10,7 @@
  *        → 🧭 「이 씬에서 무엇을 왜」
  * 10/27 미르(6): 「차단막을 넘어갈 때마다 스토리 이해를 돕는 시네마틱」 → 씬 사이 막을 걷으면 늘 이야기 컷. 공간 훑기는 그 씬의 다른 구역에 처음 들어설 때(본편 그대로).
  *               「시네마틱 음성」 → 컷마다 05b 가 만든 음성(voice_*.m4a)을 읽어 주고, 컷 넘김을 음성 길이에 맞춘다. 🔊/🔇 단추.
- *   씬 5 를 마치면 문 대신 결말 컷 → 새로 알게 된 것 · 아직 모르는 것 · 🔒 마지막 봉인(현장).
+ *   씬 5 를 마치면 문 대신 결말 컷 → 새로 알게 된 것 · 아직 모르는 것 · 🔒 추가 봉인(지역 방문 제안 · 기대 보상).
  */
 import { INVESTIGATION_POINTS, PATHS, UNITS_PER_METER, ZONES } from "../plan/sitePlan";
 import { settings, stage } from "../scene/immersion/state";
@@ -112,7 +112,7 @@ async function fade(to: 0 | 1) { fadeEl.style.opacity = String(to); await sleep(
 
 function endingCard(e: Ending) {
   const f = e.field;
-  const c = el("div", "cp-card", `<div><div style="font-size:12px;color:#6b5a40">이 판의 이야기를 모두 풀었다</div><b style="font-size:17px">새로 알게 된 것</b><div>${esc(e.reveal)}</div>${e.left_open ? `<div style="font-size:13px;color:#6b5a40;margin-top:6px">아직 모르는 것 — ${esc(e.left_open)}</div>` : ""}${f ? `<div class="cp-seal"><b>🔒 마지막 봉인 — 현장에서만 풀린다</b><div><b>${esc(f.place)}</b></div><div>${esc(f.seal)}</div>${f.question ? `<div style="font-size:13px;color:#6b5a40">현장에서 답할 물음: ${esc(f.question)}</div>` : ""}<div style="font-size:13px;color:#6b5a40">완주 보상: 현장 봉인을 풀면 특별 소품·지역 혜택(지역 화폐·할인권)</div></div>` : ""}<div style="text-align:right;margin-top:10px"><button class="cp-btn" style="color:#2b2116;border-color:#b9a173">닫기</button></div></div>`);
+  const c = el("div", "cp-card", `<div><div style="font-size:12px;color:#6b5a40">사건이 해결되었습니다</div><b style="font-size:17px">새로 알게 된 것</b><div>${esc(e.reveal)}</div>${e.left_open ? `<div style="font-size:13px;color:#6b5a40;margin-top:6px">아직 모르는 것 — ${esc(e.left_open)}</div>` : ""}${f ? `<div class="cp-seal"><b>🔒 추가 봉인</b><div>지역을 실제 방문하여 열 추가 봉인을 제안합니다.</div><div><b>${esc(f.place)}</b></div><div>${esc(f.seal)}</div><div style="font-size:13px;color:#6b5a40">열면 받는 것 — 이 이야기의 뒷이야기 · 그 지역에서만 얻는 코스튬 조각 · 제휴 지역이면 지역 혜택(지역화폐·할인)</div></div>` : ""}<div style="text-align:right;margin-top:10px"><button class="cp-btn" style="color:#2b2116;border-color:#b9a173">닫기</button></div></div>`);
   document.body.appendChild(c); (c.querySelector("button") as HTMLElement).onclick = () => c.remove();
 }
 

@@ -41,7 +41,7 @@ const PUZZLE_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」
 - 적게, 분명하게: 장면마다 퍼즐 1~2개, 게임 전체 4~6개(결말 연출 제외). 퍼즐마다 찾는 단서(inspect·navigate) 2~3개. 모든 단서는 어느 퍼즐의 required_clue_ids 에 들어간다 — 쓰이지 않는 단서·같은 말을 되풀이하는 단서 금지.
 - 추론은 한 걸음: 단서를 본 사람이 「아, 그래서 이거구나」 하고 바로 잇는 정도. 처음 하는 사람이 힌트 없이 1~3분에 푼다.
 - 조작법을 일러 주는 쪽지 금지: 「발자국 수를 앞자리에, 신 짝 수를 뒷자리에」「시계 방향으로 두 칸 돌린 곳」처럼 퍼즐 규칙을 적은 글은 이야기 속 사람이 쓸 까닭이 없다.
-- 장치의 답 = 화면에 보이는 것 그대로: 문살 무늬판이면 바닥에 비친 창살 빛에서 밝은 칸이 곧 누를 칸(그 빛 단서의 shows.cells 에 그 칸을 적는다), 패 끼우기면 기록에 적힌 차례, 매듭이면 실제로 색이 보이는 물건들의 차례, 비밀자물쇠면 단서 물건에 그려진 문양. 외워야 하는 대응표(오방색↔방위 등)를 쓰려면 그 대응표 자체가 방 안에 단서로 있어야 한다.
+- 장치의 답 = 화면에 보이는 것 그대로: 문살 무늬판이면 바닥에 비친 창살 빛에서 밝은 칸이 곧 누를 칸(그 빛 단서의 shows.cells 에 그 칸을 적는다), 패 끼우기면 기록에 적힌 차례, 매듭이면 실제로 색이 보이는 물건들의 차례. 외워야 하는 대응표(오방색↔방위 등)를 쓰려면 그 대응표 자체가 방 안에 단서로 있어야 한다.
 - 답은 단서로 「확인」한다 — 남는 것을 고르는 소거·짐작으로 정해지는 답 금지(10/27 미르: 그림자가 여인인지 알 단서가 없어 「여인」은 찍어야 맞혔다). 답이 사람·물건이면 그것임을 알아볼 특징이 단서 content 에 그 말 그대로 있고(예: 「쪽진 머리에 치마폭이 넓은 여인의 그림자」), 흔적(mark)이면 화면에도 그 모습으로 그린다(shows.figure). 기록에 없는 사람이 답이면 「기록에 없는 사람」이 아니라 그 사람을 직접 보여 준다.
 - 풀면 반드시 무슨 일이 일어난다: 다음 방 문이 열리거나(출구 장치), 다음 퍼즐에 쓰이는 단서를 얻는다(clue_acquired 가 뒤 퍼즐의 required_clue_ids 에 들어감). 풀어도 아무 것도 안 나오는 퍼즐 금지.
 이야기 컷·결말은 다음 단계(05b 장면 연출 에이전트)가 쓴다 — 너는 퍼즐만. 단, 마지막 장면의 마지막 퍼즐에는 출구 장치를 두지 않는다(풀면 곧바로 결말로 간다). 회상 장면 맞추기(hoesang)는 쓰지 않는다(10/27 미르: 「맞춰도 아무 일도 일어나지 않는데 왜 있나」) — 회상은 05b 이야기 컷이 공간을 넘어갈 때 보여 준다.
@@ -79,7 +79,7 @@ const PUZZLE_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」
   · geulja(글자 바퀴 자물쇠 — 바퀴 3~4개의 글자를 맞춤. 조선 실물 근거가 약하니 invented 에 「글자 바퀴 자물쇠는 게임 장치」라 적는다. spec {"rings":[["갑","을","병",…],[…]]}, answer = 글자 배열) → input
   · munsal(문살 무늬판 — 창호 문살 칸을 눌러 무늬를 맞춤. spec {"rows":3,"cols":3 또는 4}, answer = 누를 칸 배열 ["1-2","2-3",…](행-열, 1부터) — 3칸 이상, 전체의 절반 이하) → input. 빛·그림자·자국 단서를 칸으로 옮기는 퍼즐에 맞다(달빛 든 칸, 그림자 진 칸).
   · maedeup(오방색 매듭 — 청·적·황·백·흑 매듭 끈을 순서대로 당김. spec {"colors":["청","적","황","백","흑"],"count":3~5}, answer = 색 배열(당기는 순서)) → input. 색 ↔ 방위·사람·물건 대응표 단서에 맞다(동=청, 남=적, 가운데=황, 서=백, 북=흑).
-  · pae(패 끼우기 — 호패·나무패를 홈에 끼움. spec {"tags":["…",…] 4~5개(그 방에 실제로 보이는 사람·물건 이름 2~4자, 헛패 포함),"slots":2~3}, answer = 패 이름 배열(홈 순서, 겹치지 않음)) → input. 자리 배정(누구 신이 어느 댓돌에, 어느 물건이 어느 칸에)처럼 방에서 눈으로 확인되는 대응을 맞추는 퍼즐에만. 게임 전체에 1개까지.
+  · pae(패 끼우기 — 호패·나무패를 홈에 끼움. spec {"tags":["…",…] 4~6개(그 방에 실제로 보이는 사람·물건 이름 2~5자, 헛패 포함),"slots":2~3}, answer = 패 이름 배열(홈 수와 같은 개수, 홈 순서, 겹치지 않음)) → input. 자리 배정(누구 신이 어느 댓돌에, 어느 물건이 어느 칸에)처럼 방에서 눈으로 확인되는 대응을 맞추는 퍼즐에만. 게임 전체에 1개까지.
     - 사건의 차례를 외워 늘어놓는 퍼즐로 쓰지 않는다(10/27 미르: 대청 패 「달빛→속삭임→해빛→짚신」 — 흐름을 유추하는 과정이 재미없고 어렵고 몰입을 깬다). 빛·소리·말·기다림·소동·어둠 같은 일·현상 이름은 패가 될 수 없다.
   · buk(북 장단 — 북을 정해진 장단으로 침. spec {"strokes":["덩","쿵","딱"],"beats":4~8}, answer = 장단 배열(덩=가운데 세게, 쿵=가운데 약하게, 딱=테)) → input. 소리 단서(몇 번·어떤 소리)를 박으로 옮기는 퍼즐에 맞다. 게임 장치이므로 invented 에 적는다.
   · hoesang(회상 장면 맞추기)은 쓰지 않는다 — 10/27 미르: 「맞춰도 아무 일도 일어나지 않는다. 게이지 맞추는 게임 같은 미니게임이 훨씬 낫다」.
@@ -91,11 +91,10 @@ const PUZZLE_SYSTEM = `너는 지역 설화 기반 방탈출 게임 「왜곡」
   · 「일어난 차례 맞추기」는 퍼즐로 내지 않는다 — 이야기 순서는 05b 이야기 컷이 보여 준다. 장치 답은 공간에서 보고 셀 수 있는 것(빛이 든 칸·자국 개수·그림자 모양·방위·물건 자리)에서 나온다.
   · 장치는 그 단서에 맞는 것을 고른다(10/26 미르: 종류를 채우려고 억지로 붙인 장치는 추론이 안 된다). 한 게임에서 같은 장치는 두 번까지. 사용자 글에 [지난 시험에서 쓴 장치] 가 있으면 똑같이 맞는 장치끼리일 때만 덜 쓴 쪽을 고른다. observation 퍼즐은 2개 이하.
   · 형식: "solve":{…,"device":{"kind":"yundo","name":"대청 문 윤도 자물쇠","on":"exit_door 또는 이 퍼즐 호스트 need_id(반닫이·궤·함·서안처럼 잠글 수 있는 물건)","spec":{…}}}
-  · 비밀자물쇠 장석 이름은 문양(매화·박쥐·나비·거북·연꽃·학 등)이다 — 답 문장(「신랑 장석」「스스로 나선 장석」)을 장석에 쓰면 퀴즈가 된다. 단서가 어느 문양인지 가리키게 한다(예: 서신 끝의 박쥐 그림 + 명부의 「복을 비는」 → 박쥐 장석).
-  · 찍어서 맞히지 못하게: 글자 바퀴는 바퀴마다 글자 6~10개(그럴듯한 헛글자 포함), 윤도는 8방위 이상, 산가지는 2자리 이상, 비밀자물쇠는 장석 4개 이상.
+  · 찍어서 맞히지 못하게: 글자 바퀴는 바퀴마다 글자 6~10개(그럴듯한 헛글자 포함), 윤도는 8방위 이상, 산가지는 2자리 이상.
   · 퍼즐은 「다 줍고 고르기」가 아니다(10/23 미르: 방 안 물건을 다 누르고 쪽지를 다 읽으면 정답을 누를 수 있다 → 유치원생도 푼다).
     - 고르기(select)의 선택지는 문장·해석이 아니라 물건·문양·사람 패·방위처럼 장치에 새겨진 것이다. 단서를 다 읽어도 답이 글자 그대로 보이지 않는다.
-    - 답은 단서를 한 번 이상 「바꿔야」 나온다: 세기(자국 몇 개) · 방향 돌리기(해 뜨는 쪽에서 두 칸) · 순서 맞추기(빛이 든 차례) · 대응표(문양 ↔ 사람) · 빼기(명부에서 없는 사람). answer_from 에 그 바꾸기를 적는다.
+    - 답은 단서를 한 번 이상 「바꿔야」 나온다: 세기(자국 몇 개) · 방향 돌리기(해 뜨는 쪽에서 두 칸) · 대응표(문양 ↔ 사람) · 자리 옮기기(빛이 든 자리 → 문살 칸). 일어난 차례를 늘어놓거나 남는 것을 빼서 고르는 바꾸기는 쓰지 않는다(위 소거·차례 금지). answer_from 에 그 바꾸기를 적는다.
     - 윤도(방위) 퍼즐은 방 안에 방위 기준이 보여야 한다: device.spec.reference = {"label":"동","what":"해가 드는 뒷창"} 처럼 실제 공간의 무엇이 어느 방위인지. 단서는 그 기준에서 몇 칸·어느 쪽인지를 준다.
   · 답은 단서 하나에 그대로 적혀 있으면 안 된다 — 단서 2개 이상을 합치거나 바꿔야 나온다(예: 서신의 「해 뜨는 쪽」 + 명부의 「두 칸 돌려」 → 묘에서 두 칸 → 사). answer_from 에 그 계산을 적는다. 장치에 들어갈 수 없는 답(긴 문장)은 쓰지 않는다.
   · combine_clues 퍼즐은 장치 없이 수첩에서 푼다.
@@ -593,8 +592,8 @@ export function v2Kit({ readJsonOut, writeOut, extractJson, llm, spaceItem, spac
               for (const p of P) for (const c of p.clues || []) if (/셈법|앞자리|뒷자리|시계 ?방향|칸 돌린|칸을 돌|번째 칸을 누르/.test(`${c.content || ''}`)) out.push(`${c.clue_id}: 단서 글이 퍼즐 조작법을 일러 줌 — 이야기 속 사람이 쓸 글로`);
               return out; })(),
             ...P.filter(p => p.solve?.device?.kind === 'munsal').flatMap(p => { const sp = p.solve.device.spec || {}, R = +sp.rows || 0, C = +sp.cols || 0; const cells = (Array.isArray(p.solve.answer) ? p.solve.answer : String(p.solve.answer || '').split(/[,\s]+/)).filter(Boolean); const bad = cells.filter(x => { const m = /^(\d+)-(\d+)$/.exec(String(x)); return !m || +m[1] < 1 || +m[1] > R || +m[2] < 1 || +m[2] > C; }); return [...(R * C < 9 ? [`${p.puzzle_id}: 문살 무늬판이 작음(9칸 이상)`] : []), ...(bad.length ? [`${p.puzzle_id}: 문살 답 칸이 판 밖이거나 형식이 틀림(${bad.join(',')}) — "행-열"`] : []), ...(cells.length < 3 || cells.length > R * C / 2 ? [`${p.puzzle_id}: 문살 누를 칸은 3칸 이상·절반 이하`] : [])]; }),
-            ...P.filter(p => ['maedeup', 'pae', 'buk'].includes(p.solve?.device?.kind)).flatMap(p => { const d = p.solve.device, sp = d.spec || {}; const opts = d.kind === 'maedeup' ? (sp.colors || ['청', '적', '황', '백', '흑']) : d.kind === 'pae' ? (sp.tags || []) : (sp.strokes || ['덩', '쿵', '딱']); const ans = (Array.isArray(p.solve.answer) ? p.solve.answer : String(p.solve.answer || '').split(/[,·\s-]+/)).filter(Boolean).map(String); const need = d.kind === 'buk' ? 4 : 3;
-              return [...(ans.length < need ? [`${p.puzzle_id}: ${d.kind} 답이 짧음(${need}개 이상)`] : []), ...(ans.some(a => !opts.includes(a)) ? [`${p.puzzle_id}: ${d.kind} 답 「${ans.join('·')}」이 장치 목록(${opts.join('·')})에 없음`] : []), ...(d.kind === 'pae' && (opts.length < 4 || opts.some(t => String(t).length > 5) || new Set(ans).size !== ans.length) ? [`${p.puzzle_id}: 패는 4~6개·이름 짧게·답에서 겹치지 않게`] : [])]; }),
+            ...P.filter(p => ['maedeup', 'pae', 'buk'].includes(p.solve?.device?.kind)).flatMap(p => { const d = p.solve.device, sp = d.spec || {}; const opts = d.kind === 'maedeup' ? (sp.colors || ['청', '적', '황', '백', '흑']) : d.kind === 'pae' ? (sp.tags || []) : (sp.strokes || ['덩', '쿵', '딱']); const ans = (Array.isArray(p.solve.answer) ? p.solve.answer : String(p.solve.answer || '').split(/[,·\s-]+/)).filter(Boolean).map(String); const need = d.kind === 'buk' ? 4 : d.kind === 'pae' ? Math.max(2, +sp.slots || 0) : 3; // 패는 홈(slots 2~3)만큼 — 10/30 프롬프트 2~3칸과 검사 3개 이상이 어긋나 2칸 패가 늘 걸렸다
+              return [...(ans.length < need ? [`${p.puzzle_id}: ${d.kind} 답이 짧음(${need}개 이상)`] : []), ...(d.kind === 'pae' && +sp.slots && ans.length > +sp.slots ? [`${p.puzzle_id}: 패 답 ${ans.length}개 — 홈 ${+sp.slots}칸과 같은 개수로`] : []), ...(ans.some(a => !opts.includes(a)) ? [`${p.puzzle_id}: ${d.kind} 답 「${ans.join('·')}」이 장치 목록(${opts.join('·')})에 없음`] : []), ...(d.kind === 'pae' && (opts.length < 4 || opts.length > 6 || opts.some(t => String(t).length > 5) || new Set(ans).size !== ans.length) ? [`${p.puzzle_id}: 패는 4~6개·이름 5자 이하·답에서 겹치지 않게`] : [])]; }),
             ...P.filter(p => p.solve?.device?.kind === 'geulja' && (p.solve.device.spec?.rings || []).some(r => r.length < 6)).map(p => `${p.puzzle_id}: 글자 바퀴 글자가 적음(바퀴마다 6개 이상)`),
             ...P.filter(p => p.solve?.device?.kind === 'bimil' && (p.solve.device.spec?.knobs || []).some(k => String(k).replace(/\s*장석$/, '').length > 4)).map(p => `${p.puzzle_id}: 비밀자물쇠 장석 이름이 문양이 아니라 문장(답을 장석에 씀)`),
           ...P.filter(p => p.solve?.device?.kind === 'bimil' && (p.solve.device.spec?.knobs || []).length < 4).map(p => `${p.puzzle_id}: 비밀자물쇠 장석이 적음(4개 이상)`),
