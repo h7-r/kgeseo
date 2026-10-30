@@ -1,0 +1,737 @@
+{
+ "note": "퍼즐용 상태 변형판(10/22) — 원본 public3d/variants. 기본판과 좌표·크기가 같아 같은 자리에 바꿔 끼운다. 키 = 기본판 경로(public/ 기준). initial = 방을 처음 열 때 보일 상태(없으면 기본판).",
+ "by_file": {
+  "_sf_local/khs/unhyun_chest_848acdd9.glb": {
+   "id": "khs:unhyun_chest_848acdd9.glb",
+   "states": {
+    "opened": "/_sf_local/variants/khs__unhyun_chest_848acdd9/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/khs/unhyun_grain_chest_b45c1e72.glb": {
+   "id": "khs:unhyun_grain_chest_b45c1e72.glb",
+   "states": {
+    "opened": "/_sf_local/variants/khs__unhyun_grain_chest_b45c1e72/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-pagoda-knob-bowl-01.glb": {
+   "id": "public:lib/ast-prop-pagoda-knob-bowl-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-pagoda-knob-bowl-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-gilt-sutra-case-01.glb": {
+   "id": "public:lib/ast-prop-gilt-sutra-case-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-gilt-sutra-case-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-glazed-burial-urn-01.glb": {
+   "id": "public:lib/ast-prop-glazed-burial-urn-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-glazed-burial-urn-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-silver-teapot-01.glb": {
+   "id": "public:lib/ast-prop-silver-teapot-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-silver-teapot-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-edict-box-01.glb": {
+   "id": "public:lib/ast-prop-edict-box-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-edict-box-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-wooden-lidded-bowl-01.glb": {
+   "id": "public:lib/ast-prop-wooden-lidded-bowl-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-wooden-lidded-bowl-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-tea-cabinet-dagijang-01.glb": {
+   "id": "public:lib/ast-prop-tea-cabinet-dagijang-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-tea-cabinet-dagijang-01/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/lib/ast-prop-drawer-cabinet-takjajang-01.glb": {
+   "id": "public:lib/ast-prop-drawer-cabinet-takjajang-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-drawer-cabinet-takjajang-01/opened.glb"
+   },
+   "kind": "open_drawer"
+  },
+  "_sf_local/lib/ast-prop-corner-shelf-sacheung-01.glb": {
+   "id": "public:lib/ast-prop-corner-shelf-sacheung-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-corner-shelf-sacheung-01/opened.glb"
+   },
+   "kind": "open_drawer"
+  },
+  "_sf_local/lib/ast-prop-cabinet-sajeongjeon-c-01.glb": {
+   "id": "public:lib/ast-prop-cabinet-sajeongjeon-c-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-cabinet-sajeongjeon-c-01/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/khs/lionincenseburner_1c784316.glb": {
+   "id": "khs:lionincenseburner_1c784316.glb",
+   "states": {
+    "opened": "/_sf_local/variants/khs__lionincenseburner_1c784316/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/khs/unhyun_cupboard_b_4431ceaa.glb": {
+   "id": "khs:unhyun_cupboard_b_4431ceaa.glb",
+   "states": {
+    "opened": "/_sf_local/variants/khs__unhyun_cupboard_b_4431ceaa/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/khs/unhyun_wardrobe_f66d816f.glb": {
+   "id": "khs:unhyun_wardrobe_f66d816f.glb",
+   "states": {
+    "opened": "/_sf_local/variants/khs__unhyun_wardrobe_f66d816f/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/prop/water_jar.glb": {
+   "id": "public:prop/water_jar.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__prop__water_jar/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/khs/basket_f097383b.glb": {
+   "id": "khs:basket_f097383b.glb",
+   "states": {
+    "filled_grain": "/_sf_local/variants/khs__basket_f097383b/filled_grain.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_grain",
+   "base_state": "empty"
+  },
+  "_sf_local/khs/jar_41af1b45.glb": {
+   "id": "khs:jar_41af1b45.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/khs__jar_41af1b45/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-cauldron-iron-01.glb": {
+   "id": "public:lib/ast-prop-cauldron-iron-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-cauldron-iron-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-silla-glass-cup-01.glb": {
+   "id": "public:lib/ast-prop-silla-glass-cup-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-silla-glass-cup-01/filled_water.glb"
+   },
+   "kind": "fill",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-long-body-bottle-01.glb": {
+   "id": "public:lib/ast-prop-long-body-bottle-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-long-body-bottle-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-human-design-jar-01.glb": {
+   "id": "public:lib/ast-prop-human-design-jar-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-human-design-jar-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-figurine-longneck-jar-01.glb": {
+   "id": "public:lib/ast-prop-figurine-longneck-jar-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-figurine-longneck-jar-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-mado-iron-cauldron-01.glb": {
+   "id": "public:lib/ast-prop-mado-iron-cauldron-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-mado-iron-cauldron-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-brass-washbasin-01.glb": {
+   "id": "public:lib/ast-prop-brass-washbasin-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-brass-washbasin-01/filled_water.glb"
+   },
+   "kind": "fill",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-grain-measure-mal-01.glb": {
+   "id": "public:lib/ast-prop-grain-measure-mal-01.glb",
+   "states": {
+    "filled_grain": "/_sf_local/variants/public__lib__ast-prop-grain-measure-mal-01/filled_grain.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_grain",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-dumu-fire-jar-01.glb": {
+   "id": "public:lib/ast-prop-dumu-fire-jar-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-dumu-fire-jar-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-earthen-basin-jabaegi-01.glb": {
+   "id": "public:lib/ast-prop-earthen-basin-jabaegi-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-earthen-basin-jabaegi-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-iron-cauldron-gamasot-01.glb": {
+   "id": "public:lib/ast-prop-iron-cauldron-gamasot-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-iron-cauldron-gamasot-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-kettle-porcelain-01.glb": {
+   "id": "public:lib/ast-prop-kettle-porcelain-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-kettle-porcelain-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/khs/jar_9908305b.glb": {
+   "id": "khs:jar_9908305b.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/khs__jar_9908305b/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/khs/mortar_c1b42be1.glb": {
+   "id": "khs:mortar_c1b42be1.glb",
+   "states": {
+    "filled_grain": "/_sf_local/variants/khs__mortar_c1b42be1/filled_grain.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_grain",
+   "base_state": "empty"
+  },
+  "_sf_local/khs/straw_jar_bf766922.glb": {
+   "id": "khs:straw_jar_bf766922.glb",
+   "states": {
+    "filled_grain": "/_sf_local/variants/khs__straw_jar_bf766922/filled_grain.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_grain",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-jar-onggi-01.glb": {
+   "id": "public:lib/ast-prop-jar-onggi-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-jar-onggi-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/prop/jar.glb": {
+   "id": "public:prop/jar.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__prop__jar/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-flower-vase-hwajun-01.glb": {
+   "id": "public:lib/ast-prop-flower-vase-hwajun-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-flower-vase-hwajun-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-sajeongjeon-white-porcelain-01.glb": {
+   "id": "public:lib/ast-prop-sajeongjeon-white-porcelain-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-sajeongjeon-white-porcelain-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-white-porcelain-vessel-01.glb": {
+   "id": "public:lib/ast-prop-white-porcelain-vessel-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-white-porcelain-vessel-01/filled_water.glb"
+   },
+   "kind": "empty",
+   "initial": "filled_water",
+   "base_state": "empty"
+  },
+  "_sf_local/lib/ast-prop-chest-gwe-01.glb": {
+   "id": "public:lib/ast-prop-chest-gwe-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-chest-gwe-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/codeprops/scroll-rolled.glb": {
+   "id": "public:codeprops/scroll-rolled.glb",
+   "states": {
+    "unfolded": "/_sf_local/variants/public__codeprops__scroll-rolled/unfolded.glb"
+   },
+   "kind": "unfold"
+  },
+  "_sf_local/lib/ast-prop-box-ham-03.glb": {
+   "id": "public:lib/ast-prop-box-ham-03.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-box-ham-03/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/khs/mungap_5e8a0e41.glb": {
+   "id": "khs:mungap_5e8a0e41.glb",
+   "states": {
+    "opened": "/_sf_local/variants/khs__mungap_5e8a0e41/opened.glb"
+   },
+   "kind": "open_drawer"
+  },
+  "_sf_local/khs/rice_chest_0f57b1cc.glb": {
+   "id": "khs:rice_chest_0f57b1cc.glb",
+   "states": {
+    "opened": "/_sf_local/variants/khs__rice_chest_0f57b1cc/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-box-ham-01.glb": {
+   "id": "public:lib/ast-prop-box-ham-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-box-ham-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-bedding-quilt-01.glb": {
+   "id": "public:lib/ast-prop-bedding-quilt-01.glb",
+   "states": {
+    "folded": "/_sf_local/variants/public__lib__ast-prop-bedding-quilt-01/folded.glb"
+   },
+   "kind": "fold_back"
+  },
+  "_sf_local/lib/ast-prop-lacquer-box-red-01.glb": {
+   "id": "public:lib/ast-prop-lacquer-box-red-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-lacquer-box-red-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-curved-pedestal-jar-01.glb": {
+   "id": "public:lib/ast-prop-curved-pedestal-jar-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-curved-pedestal-jar-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-gangnyeongjeon-storage-c-01.glb": {
+   "id": "public:lib/ast-prop-gangnyeongjeon-storage-c-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-gangnyeongjeon-storage-c-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-box-lidded-01.glb": {
+   "id": "public:lib/ast-prop-box-lidded-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-box-lidded-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-octagonal-sarira-reliquary-01.glb": {
+   "id": "public:lib/ast-prop-octagonal-sarira-reliquary-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-octagonal-sarira-reliquary-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-bronze-incense-case-01.glb": {
+   "id": "public:lib/ast-prop-bronze-incense-case-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-bronze-incense-case-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-pagoda-sarira-reliquary-01.glb": {
+   "id": "public:lib/ast-prop-pagoda-sarira-reliquary-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-pagoda-sarira-reliquary-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-pedestal-jar-a-01.glb": {
+   "id": "public:lib/ast-prop-pedestal-jar-a-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-pedestal-jar-a-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-pedestal-jar-b-01.glb": {
+   "id": "public:lib/ast-prop-pedestal-jar-b-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-pedestal-jar-b-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-boshan-incense-burner-01.glb": {
+   "id": "public:lib/ast-prop-boshan-incense-burner-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-boshan-incense-burner-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-gameunsa-inner-reliquary-01.glb": {
+   "id": "public:lib/ast-prop-gameunsa-inner-reliquary-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-gameunsa-inner-reliquary-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-bird-knob-censer-01.glb": {
+   "id": "public:lib/ast-prop-bird-knob-censer-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-bird-knob-censer-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-green-glazed-urn-01.glb": {
+   "id": "public:lib/ast-prop-green-glazed-urn-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-green-glazed-urn-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-needlework-box-01.glb": {
+   "id": "public:lib/ast-prop-needlework-box-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-needlework-box-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-shell-storage-box-01.glb": {
+   "id": "public:lib/ast-prop-shell-storage-box-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-shell-storage-box-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-gyotaejeon-storage-box-01.glb": {
+   "id": "public:lib/ast-prop-gyotaejeon-storage-box-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-gyotaejeon-storage-box-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-gourd-01.glb": {
+   "id": "public:lib/ast-prop-gourd-01.glb",
+   "states": {
+    "broken": "/_sf_local/variants/public__lib__ast-prop-gourd-01/broken.glb"
+   },
+   "kind": "break"
+  },
+  "_sf_local/lib/ast-prop-three-tier-cupboard-01.glb": {
+   "id": "public:lib/ast-prop-three-tier-cupboard-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-three-tier-cupboard-01/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/lib/ast-prop-silk-boryo-mattress-01.glb": {
+   "id": "public:lib/ast-prop-silk-boryo-mattress-01.glb",
+   "states": {
+    "folded": "/_sf_local/variants/public__lib__ast-prop-silk-boryo-mattress-01/folded.glb"
+   },
+   "kind": "fold_back"
+  },
+  "_sf_local/lib/ast-prop-comb-cabinet-gangnyeongjeon-01.glb": {
+   "id": "public:lib/ast-prop-comb-cabinet-gangnyeongjeon-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-comb-cabinet-gangnyeongjeon-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-jar-small-02.glb": {
+   "id": "public:lib/ast-prop-jar-small-02.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-jar-small-02/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-jangdokdae-jars-01.glb": {
+   "id": "public:lib/ast-prop-jangdokdae-jars-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-jangdokdae-jars-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-dressing-stand-01.glb": {
+   "id": "public:lib/ast-prop-dressing-stand-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-dressing-stand-01/opened.glb"
+   },
+   "kind": "open_drawer"
+  },
+  "_sf_local/codeprops/white-cloth-folded.glb": {
+   "id": "public:codeprops/white-cloth-folded.glb",
+   "states": {
+    "unfolded": "/_sf_local/variants/public__codeprops__white-cloth-folded/unfolded.glb"
+   },
+   "kind": "unfold"
+  },
+  "_sf_local/lib/ast-prop-gyotaejeon-cabinet-d-01.glb": {
+   "id": "public:lib/ast-prop-gyotaejeon-cabinet-d-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-gyotaejeon-cabinet-d-01/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/lib/ast-prop-cheonchujeon-cabinet-d-01.glb": {
+   "id": "public:lib/ast-prop-cheonchujeon-cabinet-d-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-cheonchujeon-cabinet-d-01/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/lib/ast-prop-small-teapot-01.glb": {
+   "id": "public:lib/ast-prop-small-teapot-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-small-teapot-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-cabinet-cheonchujeon-a-01.glb": {
+   "id": "public:lib/ast-prop-cabinet-cheonchujeon-a-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-cabinet-cheonchujeon-a-01/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/lib/ast-prop-cabinet-gyotaejeon-a-01.glb": {
+   "id": "public:lib/ast-prop-cabinet-gyotaejeon-a-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-cabinet-gyotaejeon-a-01/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/lib/ast-prop-dotjari-mat-01.glb": {
+   "id": "public:lib/ast-prop-dotjari-mat-01.glb",
+   "states": {
+    "folded": "/_sf_local/variants/public__lib__ast-prop-dotjari-mat-01/folded.glb"
+   },
+   "kind": "fold_back"
+  },
+  "_sf_local/prop/mat.glb": {
+   "id": "public:prop/mat.glb",
+   "states": {
+    "folded": "/_sf_local/variants/public__prop__mat/folded.glb"
+   },
+   "kind": "fold_back"
+  },
+  "_sf_local/lib/ast-prop-straw-mat-meongseok-01.glb": {
+   "id": "public:lib/ast-prop-straw-mat-meongseok-01.glb",
+   "states": {
+    "folded": "/_sf_local/variants/public__lib__ast-prop-straw-mat-meongseok-01/folded.glb"
+   },
+   "kind": "fold_back"
+  },
+  "_sf_local/khs/wicker_basket_c8e8dc18.glb": {
+   "id": "khs:wicker_basket_c8e8dc18.glb",
+   "states": {
+    "opened": "/_sf_local/variants/khs__wicker_basket_c8e8dc18/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-jade-incense-burner-01.glb": {
+   "id": "public:lib/ast-prop-jade-incense-burner-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-jade-incense-burner-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-baesan-bamboo-mat-01.glb": {
+   "id": "public:lib/ast-prop-baesan-bamboo-mat-01.glb",
+   "states": {
+    "folded": "/_sf_local/variants/public__lib__ast-prop-baesan-bamboo-mat-01/folded.glb"
+   },
+   "kind": "fold_back"
+  },
+  "_sf_local/lib/ast-prop-wedding-bow-mat-01.glb": {
+   "id": "public:lib/ast-prop-wedding-bow-mat-01.glb",
+   "states": {
+    "folded": "/_sf_local/variants/public__lib__ast-prop-wedding-bow-mat-01/folded.glb"
+   },
+   "kind": "fold_back"
+  },
+  "_sf_local/khs/cabinet_f3c4b7b0.glb": {
+   "id": "khs:cabinet_f3c4b7b0.glb",
+   "states": {
+    "opened": "/_sf_local/variants/khs__cabinet_f3c4b7b0/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/khs/cabinet_faf4980a.glb": {
+   "id": "khs:cabinet_faf4980a.glb",
+   "states": {
+    "opened": "/_sf_local/variants/khs__cabinet_faf4980a/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/khs/pantry_chest_d6ad993b.glb": {
+   "id": "khs:pantry_chest_d6ad993b.glb",
+   "states": {
+    "opened": "/_sf_local/variants/khs__pantry_chest_d6ad993b/opened.glb"
+   },
+   "kind": "open_door"
+  },
+  "_sf_local/lib/ast-prop-tripod-cauldron-cheonmachong-01.glb": {
+   "id": "public:lib/ast-prop-tripod-cauldron-cheonmachong-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-tripod-cauldron-cheonmachong-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-spouted-jar-gwittae-01.glb": {
+   "id": "public:lib/ast-prop-spouted-jar-gwittae-01.glb",
+   "states": {
+    "filled_water": "/_sf_local/variants/public__lib__ast-prop-spouted-jar-gwittae-01/filled_water.glb"
+   },
+   "kind": "empty"
+  },
+  "_sf_local/lib/ast-prop-tiered-food-box-01.glb": {
+   "id": "public:lib/ast-prop-tiered-food-box-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-tiered-food-box-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-gameunsa-outer-reliquary-01.glb": {
+   "id": "public:lib/ast-prop-gameunsa-outer-reliquary-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-gameunsa-outer-reliquary-01/opened.glb"
+   },
+   "kind": "open_lid"
+  },
+  "_sf_local/lib/ast-prop-sakgo-drum-01.glb": {
+   "id": "public:lib/ast-prop-sakgo-drum-01.glb",
+   "states": {
+    "broken": "/_sf_local/variants/public__lib__ast-prop-sakgo-drum-01/broken.glb"
+   },
+   "kind": "break"
+  },
+  "_sf_local/lib/ast-prop-gangnyeongjeon-blanket-01.glb": {
+   "id": "public:lib/ast-prop-gangnyeongjeon-blanket-01.glb",
+   "states": {
+    "folded": "/_sf_local/variants/public__lib__ast-prop-gangnyeongjeon-blanket-01/folded.glb"
+   },
+   "kind": "fold_back"
+  },
+  "_sf_local/lib/ast-prop-manchunjeon-blanket-01.glb": {
+   "id": "public:lib/ast-prop-manchunjeon-blanket-01.glb",
+   "states": {
+    "folded": "/_sf_local/variants/public__lib__ast-prop-manchunjeon-blanket-01/folded.glb"
+   },
+   "kind": "fold_back"
+  },
+  "_sf_local/lib/ast-prop-blanket-cheonchujeon-01.glb": {
+   "id": "public:lib/ast-prop-blanket-cheonchujeon-01.glb",
+   "states": {
+    "folded": "/_sf_local/variants/public__lib__ast-prop-blanket-cheonchujeon-01/folded.glb"
+   },
+   "kind": "fold_back"
+  },
+  "_sf_local/lib/ast-prop-gyotaejeon-table-mirror-01.glb": {
+   "id": "public:lib/ast-prop-gyotaejeon-table-mirror-01.glb",
+   "states": {
+    "opened": "/_sf_local/variants/public__lib__ast-prop-gyotaejeon-table-mirror-01/opened.glb"
+   },
+   "kind": "open_drawer"
+  },
+  "_sf_local/prop/dolhwak.glb": {
+   "id": "public:prop/dolhwak.glb",
+   "states": {
+    "emptied": "/_sf_local/variants/public__prop__dolhwak/emptied.glb"
+   },
+   "kind": "empty"
+  },
+  "_sf_local/lib/ast-prop-mado-pottery-a-01.glb": {
+   "id": "public:lib/ast-prop-mado-pottery-a-01.glb",
+   "states": {
+    "broken": "/_sf_local/variants/public__lib__ast-prop-mado-pottery-a-01/broken.glb"
+   },
+   "kind": "break"
+  },
+  "_sf_local/lib/ast-prop-mado-pottery-b-01.glb": {
+   "id": "public:lib/ast-prop-mado-pottery-b-01.glb",
+   "states": {
+    "broken": "/_sf_local/variants/public__lib__ast-prop-mado-pottery-b-01/broken.glb"
+   },
+   "kind": "break"
+  },
+  "_sf_local/lib/ast-prop-mado-pottery-c-01.glb": {
+   "id": "public:lib/ast-prop-mado-pottery-c-01.glb",
+   "states": {
+    "broken": "/_sf_local/variants/public__lib__ast-prop-mado-pottery-c-01/broken.glb"
+   },
+   "kind": "break"
+  },
+  "_sf_local/lib/ast-prop-horse-painting-jar-01.glb": {
+   "id": "public:lib/ast-prop-horse-painting-jar-01.glb",
+   "states": {
+    "broken": "/_sf_local/variants/public__lib__ast-prop-horse-painting-jar-01/broken.glb"
+   },
+   "kind": "break"
+  }
+ }
+}

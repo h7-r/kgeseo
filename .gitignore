@@ -75,3 +75,14 @@ public/references/
 tools/regression/*/baseline/
 tools/regression/*/runs/
 tools/regression/.cache/
+
+# 로컬 검수 기록·실험 입력·라이브러리 검색 캐시 (외부 공개하지 않음)
+.local/
+
+# 공개 3D 경량본 묶음 중 작업용 임시 폴더(게임이 안 씀)
+public/_sf_local/tmp/
+
+# 장면 팩 열쇠(10/21) — 비밀. 절대 커밋하지 말 것(나중에 백엔드 비밀 저장소로)
+.pack-keys.json
+*.pack-keys.json
+.packs/

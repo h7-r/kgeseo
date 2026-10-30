@@ -14,7 +14,9 @@ export const TEXTURED_MODEL_NAMES = ["serpent", "abisa", "fisher", "fisher2", "f
 type TexturedModelName = (typeof TEXTURED_MODEL_NAMES)[number];
 
 const MODEL_URLS: Record<TexturedModelName, string> = {
-  serpent: new URL("../../assets/models/serpent-colored.glb", import.meta.url).href,
+  // 10/20 미르 「인물·구렁이 퀄리티 — 무겁더라도」: Meshy 원본(198만 면·8K)에서 8만 면 + 2048 텍스처로 다시 뽑았다(tools/npc-hq.mjs).
+  //   옛 serpent-colored(1.2만 면 정점색)는 남겨 둔다 — 텍스처판이 깨지면 이 줄만 되돌린다.
+  serpent: new URL("../../assets/models/serpent-hq.glb", import.meta.url).href,
   // 아비사 — Z1 의 NPC(§163 대화). 한 사람뿐이라 텍스처째 써서 Meshy 에서 본 그대로(노멀맵 포함) 나온다.
   abisa: new URL("../../assets/models/abisa.glb", import.meta.url).href,
   // 어부(아랑사) — 그물을 진 사람. 척도용 회색 사람 중 물가에 가장 가까운 자리에 선다.

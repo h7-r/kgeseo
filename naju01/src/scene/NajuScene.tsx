@@ -1,7 +1,7 @@
 // NAJU-01 A-01 도면을 그대로 세운 그레이박스. 상자와 치수로 공간을 세우고 1인칭으로 걸어 보며
 // 넓이·높이·경사·동선·시야(V1~V3)가 도면과 맞는지 먼저 확인한다 — 꾸미기는 그 뒤다.
 // 훅 순서가 곧 생성·효과·프레임 등록 순서다 — 손 배치(edits.json)가 생성 순서에 걸려 있으니 순서를 바꾸지 않는다.
-import { useMemo, useRef, type RefObject } from "react";
+import { useCallback, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { Outlines, PointerLockControls } from "@react-three/drei";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
@@ -18,6 +18,7 @@ import type { ToonConfig } from "../avatar/toonMaterial";
 import type { OutlineConfig } from "../avatar/toonOutline";
 import Editor from "../placement/Editor";
 import { GROUP_IDS } from "../placement/editFile";
+import { useEditModeActive } from "../placement/libraryPlaceApi";
 import { MESH_NAMES } from "../plan/meshNames";
 import { CORE, UNITS_PER_METER } from "../plan/sitePlan";
 import { SKY_STYLE } from "../world/sky";
@@ -38,11 +39,26 @@ import SceneNotes from "./components/SceneNotes";
 import SkyAndLighting from "./components/SkyAndLighting";
 import WaterLayer from "./components/WaterLayer";
 import { useBlockerCollapse } from "./useBlockerCollapse";
+// ── 10/13~14 미르 작업(옛 몰입연출·초점·AI허브전시·애니화풍·검수연결) — TS 이식 10/15 ──
+import ImmersionLayer from "./immersion/ImmersionLayer";
+import DistortionGates from "./immersion/DistortionGates";
+import { IS_FOCUS_ENABLED, focus, gateSpots } from "./immersion/focusFog";
+import { director } from "./immersion/director";
+import PublicAssetLayer, {
+  GrassSpotMarkers,
+  IS_PUBLIC_ASSETS_ENABLED,
+  usePublicAssetRegistry,
+} from "../loaders/publicAssets";
+import { IS_EMPTY_BASE } from "../loaders/publicAssetManifest";
+import { applyMarkerToggle, useMarkerToggle } from "./useMarkerToggle";
+import { AnimeStyleLayer, IS_ANIME_VARIANT } from "../world/animeStyle";
+import { IS_REVIEW_REQUESTED, ReviewBridge, useReviewCameraHold } from "../review/ReviewBridge";
 import { useBlockerShapes } from "./useBlockerShapes";
 import { toGroundShading, useNajuControls } from "./useNajuControls";
 import { useNajuDevHook, useViewpointKeys } from "./useNajuDevTools";
 import { usePathFallback, usePathShapes, useRoadsideSpots } from "./usePathLayers";
 import { usePlayerMovement } from "./usePlayerMovement";
+import { IS_MANGA_STYLE } from "../world/mangaStyle";
 import { useRendererSetup, useSceneFrame, type NajuSceneReport } from "./useSceneFrame";
 import { useSceneModes } from "./useSceneModes";
 import { usePrototypes, useStoryModels, useStoryProps } from "./useStoryProps";
@@ -106,11 +122,13 @@ export default function NajuScene({
     attackSerial: 0,
   });
   // ?present · ?mood 가 있으면 그 프리셋이 Leva 저장값을 덮는다
-  const controls = usePresentationOverrides(useNajuControls());
+  const showMarkers = useMarkerToggle(); // N 키 — 주석·표식 한 번에 끄기(10/13 미르)
+  const controls = applyMarkerToggle(usePresentationOverrides(useNajuControls()), showMarkers);
   const shading = toGroundShading(controls.groundShading);
   const outlineValues = pickOutlineValues(controls);
   // screenspace 를 켜야 thickness 가 월드 단위가 된다.
-  const outline = outlineValues.outline ? (
+  // ?만화 는 화면 전체에 선을 그리므로 껍데기 외곽선은 끈다(두 겹 방지)
+  const outline = outlineValues.outline && !IS_MANGA_STYLE ? (
     <Outlines thickness={controls.outlineWorldWidth} color={outlineValues.outlineColor} screenspace />
   ) : null;
   const shade = (color: string) => scaleColor(color, controls.brightness);
@@ -131,7 +149,7 @@ export default function NajuScene({
   const { ferryShape, ferrySpot } = useFerry(controls, terrain);
   const pathShapes = usePathShapes(controls, terrain, ground);
 
-  const { isEditing, isOverview, setIsOverview, isAvatarMounted, edits, setEdits } = useSceneModes({
+  const { isEditing, exitEditing, isOverview, setIsOverview, isAvatarMounted, edits, setEdits } = useSceneModes({
     active,
     isThirdPerson,
     playerState,
@@ -144,12 +162,14 @@ export default function NajuScene({
   const ramp = useConnectorRamp(controls, terrain, ground, distantLandscape);
   const { fences, roadside, hill } = useRoadsideSpots(controls, terrain, ground);
 
+  const { bakedNature, farLod } = controls;
   const instanceGroups = useMemo(
     () =>
       buildInstanceGroups({
         edits,
         prototypes,
-        bakedNature: controls.bakedNature,
+        bakedNature,
+        farLod, // 원근판(22 m 밖은 1/4 면수 원경판, 10/13)
         groundAt: terrain.groundAt,
         treeBeltSpots: blockerShapes?.pieces?.find((b) => b.code === "수목대")?.treeSpots ?? null,
         hill,
@@ -198,7 +218,8 @@ export default function NajuScene({
       storyModels.fisher,
       storyModels.fisher2,
       storyModels.fisher3,
-      controls.bakedNature,
+      bakedNature,
+      farLod,
       ground,
       terrain,
     ],
@@ -207,11 +228,25 @@ export default function NajuScene({
   const river = useRiver(controls, terrain);
 
   const { camera, gl, scene } = useRendererSetup(controls.fov);
+  // 검수 작업대가 시점을 잡고 있는 동안은 걷기·연출을 멈춘다
+  //   통합 편집 모드(E)도 같다 — 그 모드가 둘러보기 카메라를 몬다(걷기·안개를 멈춘다, 10/15)
+  const isReviewCameraHold = useReviewCameraHold();
+  const isEditHold = useEditModeActive();
+  const isReviewHold = isReviewCameraHold || isEditHold;
+  // 구역 초점은 편집 부감(E → Tab 전체보기) 동안 잠시 끈다 — 맵 전체를 밝게(10/13 미르)
+  //   검수 카메라가 잡고 있는 동안(둘러보기·촬영)도 끈다 — 안개 속에선 어떤 에셋이 있는지 못 본다(10/15 미르)
+  const isFocusNow = IS_FOCUS_ENABLED && !(isEditing && isOverview) && !isReviewHold;
+  focus.paused = IS_FOCUS_ENABLED && !isFocusNow;
+  // 왜곡의 문 — 통로 T1~T4 한가운데(위치음·표식)
+  const gates = useMemo(() => (IS_FOCUS_ENABLED ? gateSpots((x, z) => terrain.groundAt(x, z).y) : null), [terrain]);
+  // 공개 에셋 교체가 「땅.풀」을 바꿔치기했으면 원래 풀은 숨긴다(옛 풀교체됨)
+  const hideGrass = usePublicAssetRegistry().hiddenGroups.has("땅.풀");
   const teleport = usePlayerMovement({
     controls,
     active,
     isEditing,
     isOverview,
+    isReviewHold,
     isThirdPerson,
     terrain,
     instanceGroups,
@@ -222,10 +257,12 @@ export default function NajuScene({
   const rockAsset = useRockAsset(controls);
   useBakedTerrainTexture(scene, controls.bakedTerrainTexture);
 
-  const { clearedBlockers, collapseRef, collapseNoticeRef, collapse, setCollapse, endScene } = useBlockerCollapse(
-    terrain,
-    blockerShapes,
-    ground,
+  const { clearedBlockers, setClearedBlockers, collapseRef, collapseNoticeRef, collapse, setCollapse, endScene } =
+    useBlockerCollapse(terrain, blockerShapes, ground);
+  // 검수 씬 탭 — 그 씬 상태로 차단물을 연출 없이 맞춘다(앞 씬으로 돌아가면 되살아남)
+  const clearBlockersInstant = useCallback(
+    (codes: string[]) => setClearedBlockers(new Set(codes)),
+    [setClearedBlockers],
   );
   useNajuDevHook({
     camera,
@@ -240,6 +277,8 @@ export default function NajuScene({
     ramp,
     instanceGroups,
     edits,
+    director,
+    focus,
   });
 
   // 반드시 useTerrainMovement(usePlayerMovement) 뒤에 등록돼야 한다 — 그 훅이 매 프레임 reportRef.current 를 갈아끼운다.
@@ -257,6 +296,8 @@ export default function NajuScene({
     waterShift: story.distortion.waterShift,
     rippleHandle,
     bakedTerrainStatus: bakedTerrain.status,
+    terrain,
+    playerState,
   });
   useViewpointKeys(teleport, endScene, collapseNoticeRef);
 
@@ -278,7 +319,24 @@ export default function NajuScene({
         sunTarget={sunTarget}
         sunRef={sunRef}
         sunPosition={sunPosition}
+        focusFog={
+          isFocusNow ? { color: focus.fogColor, near: focus.radiusM * focus.fogStartRatio, far: focus.radiusM } : null
+        }
       />
+      {isFocusNow && controls.showInvestigationPoints && gates && <DistortionGates spots={gates} />}
+      {IS_FOCUS_ENABLED && (
+        <ImmersionLayer terrain={terrain} playerRef={playerState} gateSpots={gates} active={active && !isReviewHold} />
+      )}
+      {IS_REVIEW_REQUESTED && (
+        <ReviewBridge
+          reportRef={reportRef}
+          teleport={teleport}
+          playerState={playerState}
+          terrain={terrain}
+          clearedBlockers={clearedBlockers}
+          clearBlockersInstant={clearBlockersInstant}
+        />
+      )}
       <DistantLandscapeLayer distantLandscape={distantLandscape} shading={shading} brightness={controls.brightness} />
 
       {/* 땅 밑받침 — 두께 없는 땅 가장자리·틈으로 뒤가 비치지 않게 */}
@@ -300,7 +358,7 @@ export default function NajuScene({
         ground={ground}
         bakedTerrain={bakedTerrain}
         isBakedTerrainOn={isBakedTerrainOn}
-        grass={grass}
+        grass={hideGrass ? null : grass}
         cliffShapes={cliffShapes}
         rockAsset={rockAsset}
         shading={shading}
@@ -328,13 +386,15 @@ export default function NajuScene({
         shade={shade}
         outline={outline}
       />
-      <DevMarkers
-        controls={controls}
-        terrain={terrain}
-        people={people}
-        hasBakedAbisa={!!storyModels.abisa.geometry}
-        shading={shading}
-      />
+      {showMarkers && (
+        <DevMarkers
+          controls={controls}
+          terrain={terrain}
+          people={people}
+          hasBakedAbisa={!!storyModels.abisa.geometry}
+          shading={shading}
+        />
+      )}
       <SceneNotes controls={controls} story={story} />
 
       {/* 사람 자 — 절벽 위에서 아래 사람이 사람으로 보이는지(§3) */}
@@ -358,7 +418,14 @@ export default function NajuScene({
             />
           ))}
 
-      {instanceGroups.map((group) => (
+      {/* 공개 3D 에셋 교체(?aihub&src=sf) — 바꿔치기·덮기·놓기(B4 낙석 겉모습 포함), &애니판 변환판 */}
+      {IS_PUBLIC_ASSETS_ENABLED && (
+        <PublicAssetLayer clearedBlockers={clearedBlockers} groundAt={(x, z) => terrain.groundAt(x, z)} />
+      )}
+      {/* 「땅.풀」 숨은 무리 — 코드 풀과 같은 자리를 든 보이지 않는 무리, 교체본이 이 자리를 읽어 공개 3D 풀을 심는다(10/13) */}
+      {IS_PUBLIC_ASSETS_ENABLED && !IS_EMPTY_BASE && <GrassSpotMarkers spots={grass?.tuftSpots ?? null} />}
+      {/* &base=empty 빈 지형 — 원경(공간의 일부)만 남기고 사람이 놓은 생성 무리는 그리지 않는다(10/19) */}
+      {(IS_EMPTY_BASE ? instanceGroups.filter((group) => group.groupId.startsWith("원경.") || group.groupId === "땅.길" /* 길 조각은 지형(공간)의 일부 — 사람이 놓은 장식이 아니다(10/19) */) : instanceGroups).map((group) => (
         <InstanceGroupMesh
           key={group.groupId}
           group={group}
@@ -375,16 +442,20 @@ export default function NajuScene({
         enabled={isEditing}
         edits={edits}
         setEdits={setEdits}
-        heightAt={(x: number, z: number) => ground.surface.heightAt(x, z)}
+        instanceGroups={instanceGroups}
+        groundAt={terrain.groundAt}
         unlockPointer={() => controlsRef.current?.unlock?.()}
         overview={isOverview}
         setOverview={setIsOverview}
+        onExit={exitEditing}
       />
 
       {/* 게임 공간 전체를 캐릭터와 같은 cel 질감으로(같은 그라디언트라 계단이 맞는다). ?worldtoon=off 로 비교. */}
       {toonConfig?.enabled && toonConfig.world !== false && (
         <WorldToon enabled steps={toonConfig.steps} threshold={toonConfig.threshold} />
       )}
+      {/* &애니판 — 2톤 부드러운 명암·색 보정·먼 곳 바램(world/animeStyle). WorldToon 의 램프 조각을 덮는다 */}
+      {IS_ANIME_VARIANT && <AnimeStyleLayer />}
 
       <PlayerAvatar
         isMounted={isAvatarMounted}

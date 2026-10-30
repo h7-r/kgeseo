@@ -49,10 +49,14 @@ export const IS_DPR_AUTO = !DPR_PARAM && !IS_LOW_QUALITY;
 
 // 작업 화면(꾸미기 패널·계기판·구역 이름표)은 기본으로 띄우고, 발표 프리셋(?present)에서만 숨긴다
 const IS_PRESENTING = PRESENTATION_MODE !== null;
+/** ?review=1 — 검수 작업대(review/)가 삽입해 연 실행. 검수 시야를 가리는 패널·계기판·안내를 숨긴다 */
+export const IS_REVIEW_RUN = QUERY.get("review") === "1";
+/** 나주 본편은 1인칭 고정(10/15 미르) — 3인칭·캐릭터 꾸미기는 로비에서만. V 전환 없음 */
+export const IS_FIRST_PERSON_ONLY = true;
 /** 캐릭터 꾸미기 패널(왼쪽) */
-export const SHOW_CUSTOMIZE_PANEL = !IS_PRESENTING;
+export const SHOW_CUSTOMIZE_PANEL = !IS_PRESENTING && !IS_REVIEW_RUN && !IS_FIRST_PERSON_ONLY;
 /** 도면 계기판 — 처음엔 접어 두고(?dev 는 펼쳐서) H 로 연다 */
-export const HAS_DASHBOARD = !IS_PRESENTING;
+export const HAS_DASHBOARD = !IS_PRESENTING && !IS_REVIEW_RUN;
 /** 계기판과 그 안내의 왼쪽 위치. 꾸미기 패널(왼쪽 14px · 폭 320px)이 떠 있으면 그 오른쪽에 둔다 */
 export const DASHBOARD_LEFT_PX = SHOW_CUSTOMIZE_PANEL ? 348 : 12;
 /** 구역·통로·씬 요소 이름표 */

@@ -332,6 +332,21 @@ export const BLOCKERS: BlockerDef[] = [
     floor: 0,
     height: 3.5,
   },
+  // ★ B4 (10/14 미르 지시) — 씬3 동안 T4 서측 하강로 들머리를 낙석으로 막았다가, 씬3 이 끝나면 무너뜨려 연다.
+  //   B2(씬2 → T3) 와 같은 방식. 들머리 (36, 24.5) → (31, 23) 첫 구간의 길 띠(폭 2.5 m)를 덮는다.
+  //   발 11.5 = 비탈 아래로 묻어 틈이 안 보이게 · 머리 16.2 m(Z3 바닥 +14 에서 2.2 m).
+  //   겉모습은 공개 에셋 교체의 「놓기」돌 6개가 맡는다(manifest 놓기 「차단물: B4」, loaders/publicAssets).
+  {
+    code: "B4",
+    name: "서측 낙석",
+    role: "씬3 동안 T4 하강로 들머리를 막음",
+    x: [31.8, 35.8],
+    z: [20.6, 26.4],
+    foot: 11.5,
+    floor: 13.6,
+    height: 2.6,
+    clearing: { scene: 3, lookAt: [30, 24], message: "낙석이 무너져 서측 하강로가 열렸다" },
+  },
 ];
 
 interface Viewpoint {

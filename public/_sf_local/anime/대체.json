@@ -1,0 +1,10 @@
+{
+  "tree/linden_L.glb": { "일반": "kcisa/zelkova1.glb", "출처": "메타버스데이터랩 수원화성행궁-느티나무_1" },
+  "tree/linden_R.glb": { "일반": "kcisa/zelkova1.glb", "출처": "메타버스데이터랩 수원화성행궁-느티나무_1" },
+  "tree/linden_L_far.glb": { "일반": "kcisa/zelkova1.glb", "출처": "메타버스데이터랩 수원화성행궁-느티나무_1" },
+  "tree/linden_R_far.glb": { "일반": "kcisa/zelkova1.glb", "출처": "메타버스데이터랩 수원화성행궁-느티나무_1" },
+  "rock/stone21.glb": { "일반": "kcisa/rock_amseog1.glb", "덮기": "kcisa/rock_amseog1_덮기.glb", "출처": "메타버스데이터랩 수원화성행궁-암석_1" },
+  "rock/stone24.glb": { "일반": "kcisa/rock_amseog1.glb", "덮기": "kcisa/rock_amseog1_덮기.glb", "출처": "메타버스데이터랩 수원화성행궁-암석_1" },
+  "plant/shrub_cliff.glb": { "일반": "kcisa/bush_kcisa.glb", "출처": "메타버스데이터랩 수원화성행궁-관목" },
+  "plant/shrub_cliff_far.glb": { "일반": "kcisa/bush_kcisa.glb", "출처": "메타버스데이터랩 수원화성행궁-관목" }
+}

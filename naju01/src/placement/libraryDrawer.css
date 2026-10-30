@@ -1,0 +1,336 @@
+/* 5174 통합 편집 모드(E) 서랍(라이브러리 배치 + 기존 에셋 편집) — 검수 작업대(review/src/style.css)의 단추·입력 모양을 서랍 안으로만 좁혀 옮겼다.
+   목록 카드·칩·썸네일은 review/src/LibraryPanel.css 를 그대로 쓴다. */
+.naju-lib-drawer {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 70;
+  width: min(440px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  color: #202538;
+  border: 1px solid #e2e3e8;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px #0f142433;
+  font:
+    13px/1.6 Inter,
+    Pretendard,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Apple SD Gothic Neo",
+    "Noto Sans KR",
+    sans-serif;
+  --accent: #6252b5;
+  --ink: #202538;
+  --muted: #6e7280;
+  --line: #e2e3e8;
+  overflow: hidden;
+  transition: bottom 0.18s ease;
+}
+.naju-lib-drawer.collapsed {
+  bottom: auto;
+}
+.naju-lib-drawer * {
+  box-sizing: border-box;
+}
+.naju-lib-drawer button {
+  font: inherit;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-weight: 650;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  line-height: 1.4;
+}
+.naju-lib-drawer button:hover {
+  filter: brightness(0.95);
+}
+.naju-lib-drawer button:disabled {
+  background: #ecebf1;
+  border-color: #e7e5ee;
+  color: #98949f;
+  cursor: not-allowed;
+  filter: none;
+}
+.naju-lib-drawer button.secondary {
+  background: #fff;
+  border-color: #dcdde5;
+  color: var(--ink);
+}
+.naju-lib-drawer button.quiet {
+  background: transparent;
+  color: var(--muted);
+}
+.naju-lib-drawer input:not([type="checkbox"]),
+.naju-lib-drawer textarea,
+.naju-lib-drawer select {
+  font: inherit;
+  width: 100%;
+  border: 1px solid #dcdde4;
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: var(--ink);
+  background: #fff;
+  min-width: 0;
+}
+.naju-lib-drawer input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.naju-lib-drawer small {
+  font-size: 11px;
+  color: var(--muted);
+}
+.naju-lib-drawer p {
+  margin: 0;
+}
+.naju-lib-drawer .check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.naju-lib-drawer .empty {
+  text-align: center;
+  color: #9899a2;
+  padding: 20px 10px;
+  font-size: 12px;
+}
+.naju-lib-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #fafaf8;
+}
+.naju-lib-head > div {
+  flex: 1;
+  min-width: 0;
+}
+.naju-lib-head strong {
+  font-size: 14px;
+  display: block;
+}
+.naju-lib-head small {
+  display: block;
+  line-height: 1.3;
+}
+.naju-lib-head .quiet {
+  font-size: 18px;
+  padding: 2px 8px;
+}
+.naju-lib-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: thin;
+}
+.naju-lib-body .library-grid-wrap {
+  max-height: none;
+  overflow: visible;
+}
+.naju-lib-inline {
+  padding: 0 6px !important;
+  font-size: 11px !important;
+}
+.naju-lib-count {
+  display: block;
+}
+.naju-lib-message {
+  font-size: 12px;
+  border-radius: 8px;
+  padding: 7px 10px;
+  overflow-wrap: anywhere;
+}
+.naju-lib-message.info {
+  background: #f0f1f5;
+  color: #5e6270;
+}
+.naju-lib-message.error {
+  background: #fff0ee;
+  color: #9b433f;
+  border: 1px solid #eccdca;
+}
+.naju-lib-message.success {
+  background: #edf5ef;
+  color: #3f7355;
+  border: 1px solid #d0e5d5;
+}
+.naju-lib-undo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  padding: 8px 10px;
+  border: 1px dashed #d8d0eb;
+  border-radius: 9px;
+}
+.naju-lib-card {
+  border: 1px solid #d9d0f0;
+  background: #faf9fe;
+  border-radius: 11px;
+  padding: 11px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.naju-lib-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.naju-lib-card-head strong {
+  display: block;
+  font-size: 13px;
+}
+.naju-lib-pill {
+  font-size: 11px;
+  font-weight: 650;
+  border-radius: 20px;
+  padding: 3px 9px;
+  background: #eeebf8;
+  color: #574394;
+  white-space: nowrap;
+}
+.naju-lib-card .mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.naju-lib-card .num-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.naju-lib-card .num-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+}
+.naju-lib-card .num-field span {
+  font-weight: 650;
+}
+.naju-lib-card .num-field input {
+  padding: 5px 7px;
+  font-variant-numeric: tabular-nums;
+}
+.naju-lib-card .nudge label {
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.naju-lib-card .nudge select {
+  width: auto;
+  padding: 3px 6px;
+}
+.naju-lib-card .nudge-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-top: 6px;
+}
+.naju-lib-card .nudge-grid button {
+  padding: 5px 4px;
+  font-size: 11px;
+}
+.naju-lib-card .key-hint {
+  font-size: 11px;
+  color: #6d5fa8;
+  background: #f1eefb;
+  border-radius: 7px;
+  padding: 6px 8px;
+}
+.naju-lib-card .field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+.naju-lib-card .field span {
+  font-weight: 650;
+}
+.naju-lib-card .decision-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+/* 통합 편집 모드(10/15) — 조작 안내 · 고른 것 설명 · 삭제 단추 · 접힌 서랍의 알림 */
+.naju-lib-help {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: #fafafc;
+}
+.naju-lib-help summary {
+  cursor: pointer;
+  font-weight: 650;
+  color: var(--ink);
+}
+.naju-lib-help dl {
+  margin: 6px 0 2px;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 10px;
+  font-size: 12px;
+}
+.naju-lib-help dt {
+  font-weight: 650;
+  color: var(--muted);
+}
+.naju-lib-help dd {
+  margin: 0;
+}
+.naju-lib-target {
+  display: block;
+  margin: -2px 0 6px;
+  color: var(--muted);
+}
+.naju-lib-drawer button.naju-lib-danger {
+  color: #b3261e;
+  border-color: #f0c9c6;
+}
+.naju-lib-collapsed-message {
+  margin: 0 12px 10px;
+}
+
+/* 공간(씬) 고르기 — 고른 씬만 그리고 그 안에서만 움직인다 */
+.naju-lib-scenes {
+  display: grid;
+  gap: 6px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: #f4f2ec;
+}
+.naju-lib-scenes > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.naju-lib-scenes span {
+  font-size: 12px;
+  font-weight: 700;
+  margin-right: 4px;
+}
+.naju-lib-scenes button {
+  padding: 4px 9px;
+  font-size: 12px;
+}

@@ -1,0 +1,1712 @@
+{
+ "설명": "국가유산청(KHS_Asset, Sketchfab CC BY 4.0) 경량본 public/_sf_local/khs/*.glb 의 한글 이름 대장 — 검수 작업대 라이브러리(tools/review/library.mjs)가 읽는다.",
+ "근거": "flux-test/public3d/받은목록.jsonl(영문 제목·uid·라이선스) + 대조_KHS_검토_1014.tsv(verdict 사용·대체 행의 note = 실제 물건 이름). 대조에 없는 것은 영문 제목을 손으로 옮김(basis 표시). 이름은 초안 — 형태 확인 전.",
+ "만든날": "2026-10-15",
+ "files": {
+  "a_frame_carrier_bc43790f.glb": {
+   "nameKo": "지게",
+   "nameEn": "A frame Carrier",
+   "category": "transport",
+   "tags": [
+    "가지받침 지게",
+    "등짐",
+    "운반",
+    "나뭇짐"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_carrying_pole",
+    "cm_pack_frame",
+    "js_jige"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/bc43790f77f34e71ad9b2901ca81b593",
+   "credit": "\"A_frame_Carrier\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "agalmatolite_seal_0b0240b8.glb": {
+   "nameKo": "납석 인장",
+   "nameEn": "Agalmatolite Seal",
+   "category": "study",
+   "tags": [
+    "도장",
+    "인장"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/0b0240b8fb344f779415ef3b3a63777f",
+   "credit": "\"Agalmatolite Seal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "anvil_5faf0f2b.glb": {
+   "nameKo": "모루",
+   "nameEn": "Anvil",
+   "category": "farming",
+   "tags": [
+    "쇠 모루",
+    "대장간"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_anvil_iron",
+    "cm_anvil_stone"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/5faf0f2b2fcf40e1b85410747dbf8140",
+   "credit": "\"Anvil\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "arm_guard_1d664c10.glb": {
+   "nameKo": "은제 팔뚝가리개",
+   "nameEn": "Arm Guard",
+   "category": "clothing",
+   "tags": [
+    "신라",
+    "장신구"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_silla_silver_arm_guard"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/1d664c106a284de7a5cb6286ab21725e",
+   "credit": "\"Arm Guard\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "bamboo_basket_6c7e1244.glb": {
+   "nameKo": "소쿠리",
+   "nameEn": "Bamboo Basket",
+   "category": "household",
+   "tags": [
+    "대바구니",
+    "바구니",
+    "채반"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_basket_flat",
+    "cm_strainer_basket"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/6c7e1244d46c457fb6f3d6194663073b",
+   "credit": "\"Bamboo_Basket\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "bamboo_fabric_mudguard_with_jewel_beetle_b7757b34.glb": {
+   "nameKo": "비단벌레 장식 말다래",
+   "nameEn": "Bamboo Fabric Mudguard with Jewel Beetles",
+   "category": "transport",
+   "tags": [
+    "마구",
+    "말",
+    "신라"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/b7757b349c864e91aae5043f6c350a55",
+   "credit": "\"Bamboo Fabric Mudguard with Jewel Beetles\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "banghyang_398d57ec.glb": {
+   "nameKo": "방향(타악기)",
+   "nameEn": "Banghyang",
+   "category": "study",
+   "tags": [
+    "악기",
+    "고려",
+    "편종"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_court_fangxiang",
+    "js_banghyang"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/398d57ec90424c0fbd0711f3941938f9",
+   "credit": "\"Banghyang\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "basket_f097383b.glb": {
+   "nameKo": "광주리",
+   "nameEn": "Basket",
+   "category": "household",
+   "tags": [
+    "바구니",
+    "운반"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_basket_round"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/f097383b0dc949759f7a544b49a4729b",
+   "credit": "\"Basket\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "bipa_233ee93c.glb": {
+   "nameKo": "비파",
+   "nameEn": "Bipa",
+   "category": "study",
+   "tags": [
+    "악기",
+    "현악기"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_court_lute",
+    "tk_gog_round_lute"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/233ee93c5cd14182b67d825b20ce1973",
+   "credit": "\"Bipa\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "bottle_9e996347.glb": {
+   "nameKo": "병",
+   "nameEn": "Bottle",
+   "category": "kitchen",
+   "tags": [
+    "술병",
+    "도자기"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/9e9963470c8a4e81ba5f91fffb80ed3d",
+   "credit": "\"Bottle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "bronze_bit_4e6b72a2.glb": {
+   "nameKo": "청동 재갈",
+   "nameEn": "Bronze Bit",
+   "category": "transport",
+   "tags": [
+    "마구",
+    "말"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/4e6b72a258eb410a85c23db5a1842ef8",
+   "credit": "\"Bronze Bit\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "bronze_handbell_with_bodhisattva_guardia_07d36209.glb": {
+   "nameKo": "청동 금강령",
+   "nameEn": "Bronze Handbell with Bodhisattva & Guardian",
+   "category": "ritual",
+   "tags": [
+    "요령",
+    "방울",
+    "불교"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_bronze_vajra_bell"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/07d36209485341b6836cacb2b3c54076",
+   "credit": "\"Bronze Handbell with Bodhisattva & Guardian\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "broom_4f3606be.glb": {
+   "nameKo": "빗자루",
+   "nameEn": "Broom",
+   "category": "household",
+   "tags": [
+    "싸리비",
+    "비질"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_twig_broom"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/4f3606be8d504f0e8e22601fb4cc6bee",
+   "credit": "\"Broom\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "cabinet_f3c4b7b0.glb": {
+   "nameKo": "수납장",
+   "nameEn": "Cabinet",
+   "category": "household",
+   "tags": [
+    "장",
+    "가구"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/f3c4b7b0f29e48dfa8b361668b6938d7",
+   "credit": "\"Cabinet\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "cabinet_faf4980a.glb": {
+   "nameKo": "수납장",
+   "nameEn": "Cabinet",
+   "category": "household",
+   "tags": [
+    "장",
+    "가구"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/faf4980ad7734748a400d43c9b87db64",
+   "credit": "\"Cabinet\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "cauldron_1577767c.glb": {
+   "nameKo": "가마솥",
+   "nameEn": "Cauldron",
+   "category": "kitchen",
+   "tags": [
+    "솥",
+    "무쇠솥",
+    "부엌"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/1577767c5eae4848ab0c2f6888d1cd89",
+   "credit": "\"Cauldron\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "cauldron_8f0c77ca.glb": {
+   "nameKo": "가마솥",
+   "nameEn": "Cauldron",
+   "category": "kitchen",
+   "tags": [
+    "솥",
+    "무쇠솥",
+    "부엌"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/8f0c77caef7f4e1997f4829eea85ba6c",
+   "credit": "\"Cauldron\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "celadon_kettle_e3e6139a.glb": {
+   "nameKo": "청자 주자",
+   "nameEn": "Celadon Kettle",
+   "category": "kitchen",
+   "tags": [
+    "주전자",
+    "청자",
+    "고려"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_celadon_bamboo_ewer",
+    "gr_celadon_gourd_bottle",
+    "gr_celadon_gourd_ewer",
+    "gr_celadon_melon_ewer"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/e3e6139ac56b49f08e06274bd922690d",
+   "credit": "\"Celadon_Kettle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "celadon_porcelaina_4f5df4fe.glb": {
+   "nameKo": "청자 그릇",
+   "nameEn": "Celadon PorcelainA",
+   "category": "kitchen",
+   "tags": [
+    "청자",
+    "도자기",
+    "고려"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/4f5df4feebe24faea9450ee140947925",
+   "credit": "\"Celadon_PorcelainA\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "celadon_porcelainb_4ace759a.glb": {
+   "nameKo": "청자 그릇",
+   "nameEn": "Celadon PorcelainB",
+   "category": "kitchen",
+   "tags": [
+    "청자",
+    "도자기",
+    "고려"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/4ace759ac4a14e5cb63334a663772652",
+   "credit": "\"Celadon_PorcelainB\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "clothes_rack_1c8de013.glb": {
+   "nameKo": "횃대",
+   "nameEn": "Clothes Rack",
+   "category": "household",
+   "tags": [
+    "옷걸이",
+    "가구"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_clothes_rail"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/1c8de013d6aa4aadb165582f21482b4c",
+   "credit": "\"Clothes_Rack\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "duster_with_inlaid_mop_chrysanthemun_scr_7eb60368.glb": {
+   "nameKo": "나전 불자",
+   "nameEn": "Duster with Inlaid MOP Chrysanthemun Scroll",
+   "category": "ritual",
+   "tags": [
+    "불교",
+    "나전",
+    "고려"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_lacquer_fly_whisk"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/7eb60368fe4c480da9c24a74f614ea89",
+   "credit": "\"Duster with Inlaid MOP Chrysanthemun Scroll\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "ewer_in_the_shape_of_a_mythical_animal_4b1daa31.glb": {
+   "nameKo": "서수형 토기 주전자",
+   "nameEn": "Ewer in the Shape of a Mythical Animal",
+   "category": "ritual",
+   "tags": [
+    "신라",
+    "토기",
+    "주전자"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_celadon_turtle_ewer",
+    "tk_silla_creature_ewer"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/4b1daa311a924407b4911e935705c6a5",
+   "credit": "\"Ewer in the Shape of a Mythical Animal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "fire_shovel_5d6d209d.glb": {
+   "nameKo": "부삽",
+   "nameEn": "Fire Shovel",
+   "category": "household",
+   "tags": [
+    "불",
+    "아궁이",
+    "화로"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_ash_shovel"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/5d6d209d5dfe40f1b1be3ea53f7e3456",
+   "credit": "\"Fire_Shovel\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "firewood_5b9973cd.glb": {
+   "nameKo": "장작",
+   "nameEn": "Firewood",
+   "category": "farming",
+   "tags": [
+    "땔감",
+    "나뭇짐",
+    "장작더미"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_firewood_bundle",
+    "cm_kindling_bundle"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/5b9973cdcb7046d186e2d9cd0ff286c8",
+   "credit": "\"Firewood\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "fulling_block_17ae63f5.glb": {
+   "nameKo": "다듬잇돌",
+   "nameEn": "Fulling Block",
+   "category": "household",
+   "tags": [
+    "다듬이",
+    "빨래"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_beating_slab"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/17ae63f568134e47b5929811ae169c90",
+   "credit": "\"Fulling_Block\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "geomungo_db346b08.glb": {
+   "nameKo": "거문고",
+   "nameEn": "Geomungo",
+   "category": "study",
+   "tags": [
+    "악기",
+    "현악기"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_court_qin"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/db346b08a7d64795877f74929afb5530",
+   "credit": "\"Geomungo\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "geumgwanchong_tomb_pure_gold_crown_ornam_aa582289.glb": {
+   "nameKo": "금관총 금제 관꾸미개",
+   "nameEn": "Geumgwanchong Tomb Pure Gold Crown Ornaments",
+   "category": "clothing",
+   "tags": [
+    "신라",
+    "금관",
+    "장신구"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_baek_flame_crown_ornament"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/aa58228923cf49d3898e97c56a279d8e",
+   "credit": "\"Geumgwanchong Tomb Pure Gold Crown Ornaments\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gilt_bronze_bridle_1_1f333b0f.glb": {
+   "nameKo": "금동 굴레",
+   "nameEn": "Gilt-bronze Bridle 1",
+   "category": "transport",
+   "tags": [
+    "마구",
+    "말",
+    "재갈"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/1f333b0f8a964dc1a664d33474cff654",
+   "credit": "\"Gilt-bronze Bridle 1\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gilt_bronze_crown_65178604.glb": {
+   "nameKo": "금동관",
+   "nameEn": "Gilt-bronze Crown",
+   "category": "clothing",
+   "tags": [
+    "관",
+    "장신구"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/6517860483814b7abc277e6693dbb3d4",
+   "credit": "\"Gilt-bronze Crown\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gilt_bronze_quiver_with_jewel_beetles_ho_6236b722.glb": {
+   "nameKo": "비단벌레 장식 화살통",
+   "nameEn": "Gilt-bronze Quiver with Jewel Beetles, Houchong",
+   "category": "military",
+   "tags": [
+    "화살통",
+    "신라",
+    "활"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_silla_beetle_quiver"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/6236b722475641c2a19873d2a25bb3f5",
+   "credit": "\"Gilt-bronze Quiver with Jewel Beetles, Houchong\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gilt_bronze_shoes_of_the_sikrichong_tomb_b1f6f2ca.glb": {
+   "nameKo": "식리총 금동신발",
+   "nameEn": "Gilt-Bronze Shoes of the Sikrichong Tomb",
+   "category": "clothing",
+   "tags": [
+    "신발",
+    "백제"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_baek_gilt_shoe",
+    "tk_silla_gilt_shoe"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/b1f6f2cad60a4f14bb9c3ff019f4f248",
+   "credit": "\"Gilt-Bronze Shoes of the Sikrichong Tomb\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gold_and_silver_decorated_hand_knife_adf60729.glb": {
+   "nameKo": "금은장 장도",
+   "nameEn": "Gold and Silver Decorated Hand Knife",
+   "category": "clothing",
+   "tags": [
+    "칼",
+    "장도",
+    "신라"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_jangdo_sheathed"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/adf6072961814b3c9aeaaf6274c05c31",
+   "credit": "\"Gold and Silver Decorated Hand Knife\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gold_bell_1fe88e94.glb": {
+   "nameKo": "금방울",
+   "nameEn": "Gold Bell",
+   "category": "clothing",
+   "tags": [
+    "방울",
+    "신라",
+    "장신구"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_silla_gold_bell"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/1fe88e94496f4d94b0dfed2ab7e3a0e8",
+   "credit": "\"Gold Bell\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gold_belt_from_the_geumryeong_tomb_05fca417.glb": {
+   "nameKo": "금령총 금허리띠",
+   "nameEn": "Gold Belt from the Geumryeong Tomb",
+   "category": "clothing",
+   "tags": [
+    "허리띠",
+    "신라",
+    "장신구"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_silla_pendant_belt"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/05fca4174c9c45c88ccd5a66dc2105a6",
+   "credit": "\"Gold Belt from the Geumryeong Tomb\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gold_crown_from_gyo_dong_f788dc73.glb": {
+   "nameKo": "교동 금관",
+   "nameEn": "Gold Crown from Gyo-dong",
+   "category": "clothing",
+   "tags": [
+    "금관",
+    "가야",
+    "장신구"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/f788dc730c624c82aff4e035bdeb57cd",
+   "credit": "\"Gold Crown from Gyo-dong\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gold_decorated_sword_ef6631dc.glb": {
+   "nameKo": "금장식 큰칼",
+   "nameEn": "Gold-decorated sword",
+   "category": "military",
+   "tags": [
+    "칼",
+    "대도",
+    "무기"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/ef6631dc3c5a45a19d74f49d75492c54",
+   "credit": "\"Gold-decorated sword\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gold_necklace_58b4a16f.glb": {
+   "nameKo": "금목걸이",
+   "nameEn": "Gold Necklace",
+   "category": "clothing",
+   "tags": [
+    "목걸이",
+    "신라",
+    "장신구"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_silla_gold_necklace"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/58b4a16f49ba49e898fa836f0e55256f",
+   "credit": "\"Gold Necklace\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gutter_wood_b931d4f9.glb": {
+   "nameKo": "나무 홈통",
+   "nameEn": "Gutter Wood",
+   "category": "building",
+   "tags": [
+    "홈통",
+    "물길"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_gutter_wood"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/b931d4f978ae45a283736e71ede453e9",
+   "credit": "\"Gutter_Wood\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gyeongbokgung_cheonchujeon_book_be19cb79.glb": {
+   "nameKo": "서책",
+   "nameEn": "Gyeongbokgung Cheonchujeon Book",
+   "category": "study",
+   "tags": [
+    "책",
+    "선장본"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_paper_stack",
+    "gr_folded_sutra",
+    "js_sama_register",
+    "js_sewn_book"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/be19cb79e1894f69b6680bea71ebbdb8",
+   "credit": "\"Gyeongbokgung_Cheonchujeon_Book\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gyeongbokgung_cheonchujeon_brushholder_0abd2e46.glb": {
+   "nameKo": "붓꽂이",
+   "nameEn": "Gyeongbokgung Cheonchujeon BrushHolder",
+   "category": "study",
+   "tags": [
+    "붓",
+    "필통"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/0abd2e46cfa94e508c9459e1084b1387",
+   "credit": "\"Gyeongbokgung_Cheonchujeon_BrushHolder\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gyeongbokgung_cheonchujeon_paperweight_042844e6.glb": {
+   "nameKo": "문진",
+   "nameEn": "Gyeongbokgung Cheonchujeon Paperweight",
+   "category": "study",
+   "tags": [
+    "돌 문진"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_paperweight_stone"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/042844e6183248dfb3898dcb1ec68f44",
+   "credit": "\"Gyeongbokgung_Cheonchujeon_Paperweight\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gyeongbokgung_gangnyeongjeon_candlestick_8c33f757.glb": {
+   "nameKo": "촛대",
+   "nameEn": "Gyeongbokgung Gangnyeongjeon Candlestick",
+   "category": "household",
+   "tags": [
+    "초",
+    "등불"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/8c33f757ecba4b01b0d68bc8b5b98267",
+   "credit": "\"Gyeongbokgung_Gangnyeongjeon_Candlestick\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gyeongbokgung_geunjeongjeon_royalsealbox_969ac244.glb": {
+   "nameKo": "어보함",
+   "nameEn": "Gyeongbokgung Geunjeongjeon RoyalsealBox",
+   "category": "study",
+   "tags": [
+    "보록",
+    "상자",
+    "궁궐"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_royal_inner_seal_box",
+    "js_royal_outer_seal_box",
+    "js_royal_protective_case"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/969ac244686b43e885bbcca197a682e1",
+   "credit": "\"Gyeongbokgung_Geunjeongjeon_RoyalsealBox\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gyeongbokgung_gyotaejeon_sittingmat_a99d6938.glb": {
+   "nameKo": "보료 방석",
+   "nameEn": "Gyeongbokgung Gyotaejeon Sittingmat",
+   "category": "household",
+   "tags": [
+    "방석",
+    "깔개",
+    "자리"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/a99d69389ffc4b01b363adcb6f69c67a",
+   "credit": "\"Gyeongbokgung_Gyotaejeon_Sittingmat\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gyeongbokgung_manchunjeon_brushholder_7f4f5a8e.glb": {
+   "nameKo": "붓걸이",
+   "nameEn": "Gyeongbokgung Manchunjeon BrushHolder",
+   "category": "study",
+   "tags": [
+    "붓"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_brush_holder"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/7f4f5a8e6347428197c5c8e61ac7c7b1",
+   "credit": "\"Gyeongbokgung_Manchunjeon_BrushHolder\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "gyeongbokgung_manchunjeon_inkstone_82dd7560.glb": {
+   "nameKo": "벼루",
+   "nameEn": "Gyeongbokgung Manchunjeon InkStone",
+   "category": "study",
+   "tags": [
+    "문방"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_celadon_rect_inkstone"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/82dd756031d240a2b398d5749f5c6d4e",
+   "credit": "\"Gyeongbokgung_Manchunjeon_InkStone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "hand_mill_c3dbc11b.glb": {
+   "nameKo": "맷돌",
+   "nameEn": "Hand Mill",
+   "category": "farming",
+   "tags": [
+    "곡식",
+    "갈기"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_rotary_quern"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/c3dbc11b869043819c032777c3c9ddac",
+   "credit": "\"Hand_Mill\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "heavenly_horse_painting_on_saddle_flap_f8ddf1d1.glb": {
+   "nameKo": "천마도 말다래",
+   "nameEn": "Heavenly Horse Painting on Saddle Flap",
+   "category": "transport",
+   "tags": [
+    "마구",
+    "말",
+    "천마총"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/f8ddf1d1b5c34f408c07874b57941e37",
+   "credit": "\"Heavenly Horse Painting on Saddle Flap\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "horse_harness_ornament_0435af98.glb": {
+   "nameKo": "말띠꾸미개(운주)",
+   "nameEn": "Horse Harness Ornament",
+   "category": "transport",
+   "tags": [
+    "마구",
+    "말",
+    "신라"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_silla_harness_boss"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/0435af9800244d69b34e69d145f96a11",
+   "credit": "\"Horse Harness Ornament\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "horse_strap_pendant_032893b9.glb": {
+   "nameKo": "말띠드리개(행엽)",
+   "nameEn": "Horse Strap Pendant",
+   "category": "transport",
+   "tags": [
+    "마구",
+    "말",
+    "신라"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_silla_harness_breaststrap",
+    "tk_silla_leaf_harness_pendant"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/032893b9d4d44d2f872e65d1109217f4",
+   "credit": "\"Horse Strap Pendant\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "inkstone_98988ef1.glb": {
+   "nameKo": "토제 벼루",
+   "nameEn": "Inkstone",
+   "category": "study",
+   "tags": [
+    "벼루",
+    "문방"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_baek_inkstone"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/98988ef166984194b2a8a982c41aa7ff",
+   "credit": "\"Inkstone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "jar_41af1b45.glb": {
+   "nameKo": "항아리",
+   "nameEn": "Jar",
+   "category": "kitchen",
+   "tags": [
+    "독",
+    "단지",
+    "도자기"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/41af1b457d1047c993e3c96622896b88",
+   "credit": "\"Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "jar_9908305b.glb": {
+   "nameKo": "항아리",
+   "nameEn": "Jar",
+   "category": "kitchen",
+   "tags": [
+    "독",
+    "단지",
+    "도자기"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/9908305b49f74af2a32bad7240fe1021",
+   "credit": "\"Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "kitchen_board_6e929316.glb": {
+   "nameKo": "도마",
+   "nameEn": "Kitchen Board",
+   "category": "kitchen",
+   "tags": [
+    "부엌"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_chopping_block"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/6e929316e3164c8197c89b66208674de",
+   "credit": "\"Kitchen_Board\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "lamp_63038923.glb": {
+   "nameKo": "등잔",
+   "nameEn": "Lamp",
+   "category": "household",
+   "tags": [
+    "호롱",
+    "등불",
+    "불"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_lamp_clay_dish",
+    "cm_lamp_stone_dish",
+    "gr_celadon_lamp_dish",
+    "js_white_oil_lamp"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/630389233e0b4e1bba3ba92a662d592b",
+   "credit": "\"Lamp\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "lampstand_6d970c76.glb": {
+   "nameKo": "등잔대",
+   "nameEn": "Lampstand",
+   "category": "household",
+   "tags": [
+    "등잔",
+    "등불"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_lamp_wood_stand",
+    "js_adjustable_deunggyeong",
+    "js_wood_deungga"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/6d970c76887f478a83de7769e7382eda",
+   "credit": "\"Lampstand\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "large_boat_shaped_pottery_153e491f.glb": {
+   "nameKo": "배모양 토기(큰)",
+   "nameEn": "Large Boat-Shaped Pottery",
+   "category": "ritual",
+   "tags": [
+    "토기",
+    "배",
+    "신라"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/153e491f19b0412b9a0f6ca8c0e38b20",
+   "credit": "\"Large Boat-Shaped Pottery\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "large_scooped_wooden_bowl_b0d8a6a2.glb": {
+   "nameKo": "함지박",
+   "nameEn": "Large Scooped Wooden Bowl",
+   "category": "kitchen",
+   "tags": [
+    "함지",
+    "나무그릇"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_wood_kneading_trough"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/b0d8a6a2d3c9455b9640b75796d6e295",
+   "credit": "\"Large_Scooped_Wooden_Bowl\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "lead_stone_inkstone_db671d35.glb": {
+   "nameKo": "점판암 벼루",
+   "nameEn": "Lead Stone Inkstone",
+   "category": "study",
+   "tags": [
+    "벼루",
+    "문방"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_reused_slate_inkstone"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/db671d35db5b4b8db46d2d9203591177",
+   "credit": "\"Lead Stone Inkstone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "lionincenseburner_1c784316.glb": {
+   "nameKo": "청자 사자 향로",
+   "nameEn": "LionIncenseBurner",
+   "category": "ritual",
+   "tags": [
+    "향로",
+    "청자",
+    "고려"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_celadon_lion_censer",
+    "gr_celadon_pierced_censer"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/1c784316545d46949fb66220a23ab605",
+   "credit": "\"LionIncenseBurner\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "long_necked_jar_641e45ab.glb": {
+   "nameKo": "긴목항아리",
+   "nameEn": "Long-necked Jar",
+   "category": "kitchen",
+   "tags": [
+    "항아리",
+    "토기"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_gog_four_lug_jar"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/641e45abc4774d72b4e1124381a49e43",
+   "credit": "\"Long-necked Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "long_necked_jar_with_curved_pedestal_ae6ef6df.glb": {
+   "nameKo": "굽다리 긴목항아리",
+   "nameEn": "Long-necked Jar with Curved Pedestal",
+   "category": "kitchen",
+   "tags": [
+    "항아리",
+    "토기"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/ae6ef6df57cd4471aafa74f1ff06b4dd",
+   "credit": "\"Long-necked Jar with Curved Pedestal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "low_wooden_bench_38ca1b29.glb": {
+   "nameKo": "평상",
+   "nameEn": "Low Wooden Bench",
+   "category": "household",
+   "tags": [
+    "마루",
+    "걸상",
+    "들마루"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_bed_platform",
+    "cm_bench_plain",
+    "cm_platform_timber"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/38ca1b292f454d6285fe4b024fa06469",
+   "credit": "\"Low_Wooden_Bench\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "mado_jar_00ee5454.glb": {
+   "nameKo": "마도선 항아리",
+   "nameEn": "Mado Jar",
+   "category": "kitchen",
+   "tags": [
+    "항아리",
+    "고려",
+    "배 화물"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_jar_tall_plain",
+    "gr_cargo_lug_jar"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/00ee5454d9104b9d90869943fd2af171",
+   "credit": "\"Mado_Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "mado_stones_f4280acf.glb": {
+   "nameKo": "돌무더기",
+   "nameEn": "Mado Stones",
+   "category": "nature",
+   "tags": [
+    "돌",
+    "바위"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_rocks_cluster"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/f4280acfefdb49eaa51721d8ca188e3f",
+   "credit": "\"Mado_Stones\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "manure_container_2daa8ef4.glb": {
+   "nameKo": "장군",
+   "nameEn": "Manure Container",
+   "category": "farming",
+   "tags": [
+    "거름",
+    "오줌장군",
+    "거름통"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_barrel_jug"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/2daa8ef4f23a4c439399cbbe4318a88e",
+   "credit": "\"Manure_Container\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "mortar_c1b42be1.glb": {
+   "nameKo": "절구",
+   "nameEn": "Mortar",
+   "category": "farming",
+   "tags": [
+    "절구통",
+    "방아",
+    "곡식"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_mortar_stone",
+    "cm_mortar_wood",
+    "tk_gog_grinding_station"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/c1b42be1370e49458973015674f74364",
+   "credit": "\"Mortar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "mungap_5e8a0e41.glb": {
+   "nameKo": "문갑",
+   "nameEn": "Mungap",
+   "category": "household",
+   "tags": [
+    "가구",
+    "사랑방"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_desk_mungap",
+    "js_drawer_mungap",
+    "js_mungap",
+    "js_paired_mungap_unit"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/5e8a0e410f6f491b9e9f6819c0d91bbe",
+   "credit": "\"Mungap\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "oil_lamp_of_the_geumryeong_tomb_38e65d0c.glb": {
+   "nameKo": "금령총 등잔",
+   "nameEn": "Oil Lamp of the Geumryeong Tomb",
+   "category": "household",
+   "tags": [
+    "등잔",
+    "신라",
+    "토기"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_silla_multiple_cup_lamp"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/38e65d0ced734f2a92310700083e1a06",
+   "credit": "\"Oil Lamp of the Geumryeong Tomb\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "pantry_chest_d6ad993b.glb": {
+   "nameKo": "찬장",
+   "nameEn": "Pantry Chest",
+   "category": "household",
+   "tags": [
+    "부엌",
+    "가구"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/d6ad993be8c34b2eb59709c1b6efdfc9",
+   "credit": "\"Pantry_Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "pantry_shelf_1a8f4af2.glb": {
+   "nameKo": "찬탁",
+   "nameEn": "Pantry Shelf",
+   "category": "household",
+   "tags": [
+    "선반",
+    "부엌",
+    "가구"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_shelf_three",
+    "js_open_dish_shelf"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/1a8f4af2daf84d42bc2ccb65a9d90eec",
+   "credit": "\"Pantry_Shelf\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "pestle_e5b92f46.glb": {
+   "nameKo": "절굿공이",
+   "nameEn": "Pestle",
+   "category": "farming",
+   "tags": [
+    "절구",
+    "방아"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_pestle_stone",
+    "cm_pestle_wood"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/e5b92f468b59475390e570926ca44053",
+   "credit": "\"Pestle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "pharmacyscale_13528788.glb": {
+   "nameKo": "약저울",
+   "nameEn": "Pharmacyscale",
+   "category": "household",
+   "tags": [
+    "저울",
+    "약방"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_medicine_scale"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/1352878865444adfb44a4876e5313c7d",
+   "credit": "\"Pharmacyscale\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "phoenix_headed_glass_bottle_edef50ab.glb": {
+   "nameKo": "봉수형 유리병",
+   "nameEn": "Phoenix-headed Glass Bottle",
+   "category": "kitchen",
+   "tags": [
+    "유리병",
+    "신라"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_silla_glass_ewer"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/edef50abfa1d465a94fd6faa88958c7c",
+   "credit": "\"Phoenix-headed Glass Bottle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "pincers_45576856.glb": {
+   "nameKo": "집게",
+   "nameEn": "Pincers",
+   "category": "farming",
+   "tags": [
+    "대장간",
+    "쇠집게"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_metalworker_pincers"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/4557685605e144a5a5e46cadffe9d068",
+   "credit": "\"Pincers\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "pincers_f118c8b7.glb": {
+   "nameKo": "집게",
+   "nameEn": "Pincers",
+   "category": "farming",
+   "tags": [
+    "대장간",
+    "쇠집게"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_metalworker_pincers"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/f118c8b707fb48389a85d757f89c717c",
+   "credit": "\"Pincers\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "rice_chest_0f57b1cc.glb": {
+   "nameKo": "뒤주",
+   "nameEn": "Rice Chest",
+   "category": "household",
+   "tags": [
+    "쌀뒤주",
+    "쌀독",
+    "곡식"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_grain_outlet_chest",
+    "js_hybrid_grain_cupboard"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/0f57b1cc694243af95d39da7ff7011ac",
+   "credit": "\"Rice_Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "saddle_with_jewel_beetle_ornamentation_2c99a372.glb": {
+   "nameKo": "비단벌레 장식 안장",
+   "nameEn": "Saddle with Jewel Beetle Ornamentation",
+   "category": "transport",
+   "tags": [
+    "안장",
+    "마구",
+    "말"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_lacquer_saddle",
+    "tk_silla_saddle_frame"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/2c99a3722d3f4981b81af584fe5f82bf",
+   "credit": "\"Saddle with Jewel Beetle Ornamentation\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "scoop_e777b82d.glb": {
+   "nameKo": "국자",
+   "nameEn": "Scoop",
+   "category": "kitchen",
+   "tags": [
+    "바가지",
+    "부엌"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_ladle_wood"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/e777b82d85fc466dbe767d82f3b1206f",
+   "credit": "\"Scoop\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "sickle_63340bb8.glb": {
+   "nameKo": "낫",
+   "nameEn": "Sickle",
+   "category": "farming",
+   "tags": [
+    "농기구",
+    "풀베기"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_sickle_thick"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/63340bb822d3423097afb481e5fe6b28",
+   "credit": "\"Sickle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "sieve_4630710e.glb": {
+   "nameKo": "체",
+   "nameEn": "Sieve",
+   "category": "farming",
+   "tags": [
+    "어레미",
+    "곡식"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_sieve_coarse"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/4630710ed6784d0fb2591c78395443a0",
+   "credit": "\"Sieve\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "silver_bird_wing_shaped_diadem_ornament_7593c85e.glb": {
+   "nameKo": "은제 새날개 관꾸미개",
+   "nameEn": "Silver Bird Wing-Shaped Diadem Ornament",
+   "category": "clothing",
+   "tags": [
+    "관",
+    "장신구"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "tk_baek_silver_cap_ornament"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/7593c85e81224aefa0f9c35523f9d2b7",
+   "credit": "\"Silver Bird Wing-Shaped Diadem Ornament\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "small_bell_2c93e5a1.glb": {
+   "nameKo": "풍경(작은 종)",
+   "nameEn": "Small Bell(Wind Bell)",
+   "category": "ritual",
+   "tags": [
+    "종",
+    "풍탁"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_bell_plain"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/2c93e5a1a2be4795b7e273a9058396bf",
+   "credit": "\"Small Bell(Wind Bell)\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "small_boat_shaped_pottery_34027070.glb": {
+   "nameKo": "배모양 토기(작은)",
+   "nameEn": "Small Boat-Shaped Pottery",
+   "category": "ritual",
+   "tags": [
+    "토기",
+    "배",
+    "신라"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/34027070d129451380ac7f454482ae75",
+   "credit": "\"Small Boat-Shaped Pottery\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "small_plow_3056ff4a.glb": {
+   "nameKo": "따비",
+   "nameEn": "Small Plow",
+   "category": "farming",
+   "tags": [
+    "쟁기",
+    "농기구"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_taebi",
+    "tk_gog_u_digging_spade"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/3056ff4a0eff4df887b507d425e94af8",
+   "credit": "\"Small_Plow\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "spade_0f5d2931.glb": {
+   "nameKo": "가래",
+   "nameEn": "Spade",
+   "category": "farming",
+   "tags": [
+    "삽",
+    "농기구"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_ditch_spade"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/0f5d2931d82e4e5b88dedef64bcd5fd3",
+   "credit": "\"Spade\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "stone_seal_efc1a94d.glb": {
+   "nameKo": "돌 인장",
+   "nameEn": "Stone Seal",
+   "category": "study",
+   "tags": [
+    "도장",
+    "인장"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_bronze_office_seal",
+    "gr_celadon_seal"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/efc1a94d51454c30aeed94e0d965ff50",
+   "credit": "\"Stone Seal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "straw_jar_bf766922.glb": {
+   "nameKo": "채독",
+   "nameEn": "Straw Jar",
+   "category": "household",
+   "tags": [
+    "독",
+    "짚",
+    "곡식"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_grain_bin_woven"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/bf766922034b436cb15f5f7e517ea2ea",
+   "credit": "\"Straw_Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "toadinkstone_8b99ce68.glb": {
+   "nameKo": "청자 두꺼비 벼루",
+   "nameEn": "ToadInkStone",
+   "category": "study",
+   "tags": [
+    "벼루",
+    "청자"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_celadon_toad_inkstone"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/8b99ce68979241af801a05da9b5aff79",
+   "credit": "\"ToadInkStone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "unhyun_cabinet_b_305efa4f.glb": {
+   "nameKo": "사방탁자",
+   "nameEn": "Unhyun  Cabinet B",
+   "category": "household",
+   "tags": [
+    "가구",
+    "선반"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_sabangtakja"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/305efa4f6a954daea8bc457a62c38f8d",
+   "credit": "\"Unhyun_ Cabinet_B\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "unhyun_candlestick_01_a7259200.glb": {
+   "nameKo": "촛대",
+   "nameEn": "Unhyun  Candlestick 01",
+   "category": "household",
+   "tags": [
+    "초",
+    "등불"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/a725920044c748af81abab735f8e8cf1",
+   "credit": "\"Unhyun_ Candlestick_01\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "unhyun_chest_848acdd9.glb": {
+   "nameKo": "궤",
+   "nameEn": "Unhyun  Chest",
+   "category": "household",
+   "tags": [
+    "상자",
+    "함"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_box_lidded"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/848acdd9fc6748febfa93fd1d4043c88",
+   "credit": "\"Unhyun_ Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "unhyun_chopping_board_1672445e.glb": {
+   "nameKo": "도마",
+   "nameEn": "Unhyun  Chopping Board",
+   "category": "kitchen",
+   "tags": [
+    "부엌"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/1672445e46ed41b79fcc5f5abf8d3dc8",
+   "credit": "\"Unhyun_ Chopping Board\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "unhyun_cupboard_b_4431ceaa.glb": {
+   "nameKo": "찬장",
+   "nameEn": "Unhyun  Cupboard B",
+   "category": "household",
+   "tags": [
+    "부엌",
+    "가구"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/4431ceaa9d214c58bb6e6caf02c57fe9",
+   "credit": "\"Unhyun_ Cupboard_B\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "unhyun_dark_brown_bottle_55a721df.glb": {
+   "nameKo": "옹기병",
+   "nameEn": "Unhyun  Dark Brown Bottle",
+   "category": "kitchen",
+   "tags": [
+    "병",
+    "옹기"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "gr_cargo_stoneware_bottle"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/55a721df69ef409f9b007c854b35017c",
+   "credit": "\"Unhyun_ Dark Brown Bottle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "unhyun_floor_cushion_6b0209cc.glb": {
+   "nameKo": "방석",
+   "nameEn": "Unhyun  Floor Cushion",
+   "category": "household",
+   "tags": [
+    "깔개",
+    "자리"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/6b0209cc65db435e921d0c10db469d52",
+   "credit": "\"Unhyun_ Floor Cushion\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "unhyun_grain_chest_b45c1e72.glb": {
+   "nameKo": "곡물 궤",
+   "nameEn": "Unhyun  Grain Chest",
+   "category": "household",
+   "tags": [
+    "뒤주",
+    "곡식"
+   ],
+   "basis": "영문 제목 손번역",
+   "catalogMatch": [],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/b45c1e72638741f9be0b52b323c69986",
+   "credit": "\"Unhyun_ Grain Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "unhyun_pot_for_medicines_a4fe6dbb.glb": {
+   "nameKo": "약탕관",
+   "nameEn": "Unhyun  Pot For Medicines",
+   "category": "kitchen",
+   "tags": [
+    "약탕기",
+    "약"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_medicine_pot"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/a4fe6dbb055f4bf1bd52b8c614c0c5a5",
+   "credit": "\"Unhyun_ Pot For Medicines\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "unhyun_table_tigers_legs_ad7fa3c4.glb": {
+   "nameKo": "호족반",
+   "nameEn": "Unhyun  Table Tigers Legs",
+   "category": "kitchen",
+   "tags": [
+    "소반",
+    "밥상",
+    "상"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_hojokban",
+    "js_naju_ban"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/ad7fa3c4c32642c19e351d21490be9ab",
+   "credit": "\"Unhyun_ Table Tigers Legs\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "unhyun_wardrobe_f66d816f.glb": {
+   "nameKo": "의걸이장",
+   "nameEn": "Unhyun  Wardrobe",
+   "category": "household",
+   "tags": [
+    "장",
+    "옷장",
+    "가구"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "js_clothing_jang",
+    "js_uigeori"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/f66d816fc2664bfc90b96c63536013f3",
+   "credit": "\"Unhyun_ Wardrobe\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "whetstone_5c7ebf91.glb": {
+   "nameKo": "숫돌",
+   "nameEn": "Whetstone",
+   "category": "farming",
+   "tags": [
+    "칼갈이"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_whetstone",
+    "tk_baek_whetstone"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/5c7ebf919097415db9839a4a2ed43471",
+   "credit": "\"Whetstone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "wicker_basket_c8e8dc18.glb": {
+   "nameKo": "고리",
+   "nameEn": "Wicker Basket",
+   "category": "household",
+   "tags": [
+    "고리짝",
+    "바구니"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_basket_lidded",
+    "cm_basket_square",
+    "js_woven_clothes_case"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/c8e8dc18b73946daaa4d51f81783ceab",
+   "credit": "\"Wicker_Basket\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "winnow_e29fd48a.glb": {
+   "nameKo": "키",
+   "nameEn": "Winnow",
+   "category": "farming",
+   "tags": [
+    "키질",
+    "곡식"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_winnowing_tray"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/e29fd48add3d471ab0bf25e9ae1213d5",
+   "credit": "\"Winnow\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  },
+  "wooden_hammer_59965195.glb": {
+   "nameKo": "나무망치",
+   "nameEn": "Wooden Hammer",
+   "category": "farming",
+   "tags": [
+    "망치",
+    "목공"
+   ],
+   "basis": "대조_KHS_검토_1014.tsv(note)·손질",
+   "catalogMatch": [
+    "cm_mallet"
+   ],
+   "license": "CC-BY-4.0",
+   "sourceUrl": "https://sketchfab.com/3d-models/59965195988942abac42447f1f05edd1",
+   "credit": "\"Wooden Hammer\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+  }
+ }
+}
