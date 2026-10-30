@@ -241,9 +241,13 @@ def alembic_config(output: io.StringIO | None = None) -> Config:
 def test_new_revision_is_single_head_after_previous_head() -> None:
     script = ScriptDirectory.from_config(alembic_config())
 
-    # 두 브랜치 병합 직후: 승인 이력(d2a6f8b1c903)과 멱등 · 게시 상태(e4c1f7a2b9d6 → f3b8d2c6a1e7)가
-    # 모두 콘텐츠 고정 revision에서 갈라진다. 다음 커밋의 merge revision이 하나로 합친다.
-    assert sorted(script.get_heads()) == ["d2a6f8b1c903", "f3b8d2c6a1e7"]
+    # 승인 이력(d2a6f8b1c903)과 멱등 · 게시 상태(e4c1f7a2b9d6 → f3b8d2c6a1e7)는 콘텐츠 고정 revision에서
+    # 갈라지고, merge revision a5c7e9b2d4f6이 단일 head로 합친다. 각 부모 관계는 그대로다.
+    assert script.get_heads() == ["a5c7e9b2d4f6"]
+    assert sorted(script.get_revision("a5c7e9b2d4f6").down_revision) == [
+        "d2a6f8b1c903",
+        "f3b8d2c6a1e7",
+    ]
     assert script.get_revision("d2a6f8b1c903").down_revision == NEW_REVISION
     assert script.get_revision("f3b8d2c6a1e7").down_revision == "e4c1f7a2b9d6"
     assert script.get_revision("e4c1f7a2b9d6").down_revision == NEW_REVISION
