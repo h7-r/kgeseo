@@ -242,7 +242,9 @@ def test_new_revision_is_single_head_after_previous_head() -> None:
     script = ScriptDirectory.from_config(alembic_config())
 
     # NPC 멱등 저장소 migration이 추가되어도 콘텐츠 고정 revision의 부모 관계를 보존한다.
-    assert script.get_heads() == ["e4c1f7a2b9d6"]
+    # 게시 상태 migration(f3b8d2c6a1e7)이 그 위에 추가되어도 부모 관계는 그대로다.
+    assert script.get_heads() == ["f3b8d2c6a1e7"]
+    assert script.get_revision("f3b8d2c6a1e7").down_revision == "e4c1f7a2b9d6"
     assert script.get_revision("e4c1f7a2b9d6").down_revision == NEW_REVISION
     assert script.get_revision(NEW_REVISION).down_revision == PREVIOUS_HEAD
 

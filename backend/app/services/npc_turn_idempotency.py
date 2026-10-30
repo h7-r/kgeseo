@@ -87,6 +87,8 @@ EventWriter = Callable[[AsyncSession], Awaitable[None]]
 # 확정 트랜잭션의 세션과 요청이 고정한 콘텐츠 버전을 받는다. 게시 상태를 잠금 읽기로 확인하고,
 # 긴급 차단이면 ContentPublicationBlockedError를 낸다. commit · rollback하지 않는다.
 PublicationGuard = Callable[[AsyncSession, TurnContentRef], Awaitable[None]]
+# 승인된 일반 대사 팩의 line_id → 원문. 없는 line_id는 None.
+GenericLineCatalog = Callable[[str], str | None]
 T = TypeVar("T")
 
 
@@ -136,6 +138,38 @@ async def fail_closed_publication_guard(
     """게시 상태 저장소가 연결되기 전의 기본 guard. 케이스 콘텐츠 응답의 확정을 항상 거부한다."""
 
     raise PublicationStateUnavailableError()
+
+
+class GenericResponseRejectedError(NpcTurnIdempotencyError):
+    """generic으로 확정하려는 응답에 케이스 콘텐츠(승인 일반 대사가 아닌 대사 · 힌트 안내)가 있다."""
+
+
+def no_generic_lines(line_id: str) -> str | None:
+    """승인된 일반 팩이 없을 때의 기본값. generic 응답은 `reply: null`만 허용된다."""
+
+    return None
+
+
+def validate_generic_response(
+    response: NpcTurnResponse, generic_lines: GenericLineCatalog
+) -> None:
+    """generic 응답은 케이스 콘텐츠를 담을 수 없다(차단된 케이스 대사를 generic으로 표시한 우회 차단).
+
+    허용: `reply`가 없거나, 승인된 일반 팩의 line_id와 원문이 정확히 같은 승인 대사. `suggest_hint`는 케이스
+    퍼즐을 가리키므로 허용하지 않는다.
+    """
+
+    if response.suggest_hint is not None:
+        raise GenericResponseRejectedError()
+    reply = response.reply
+    if reply is None:
+        return
+    if (
+        reply.source != "approved_line"
+        or not reply.line_id
+        or generic_lines(reply.line_id) != reply.text
+    ):
+        raise GenericResponseRejectedError()
 
 
 class InconsistentTurnStateError(NpcTurnIdempotencyError):
@@ -258,6 +292,7 @@ class NpcTurnIdempotencyStore:
         *,
         hash_keys: RequestHashKeys,
         publication_guard: PublicationGuard,
+        generic_lines: GenericLineCatalog = no_generic_lines,
         lease: timedelta = DEFAULT_LEASE,
         response_ttl: timedelta = RESPONSE_TTL,
         clock: Callable[[], datetime] = utc_now,
@@ -267,11 +302,14 @@ class NpcTurnIdempotencyStore:
             raise TypeError("hash_keys must be RequestHashKeys")
         if not callable(publication_guard):
             raise TypeError("publication_guard is required")
+        if not callable(generic_lines):
+            raise TypeError("generic_lines must be callable")
         if lease <= timedelta(0) or response_ttl <= timedelta(0):
             raise ValueError("lease and response_ttl must be positive")
         self._sessions = sessions
         self._keys = hash_keys
         self._guard = publication_guard
+        self._generic_lines = generic_lines
         self._lease = lease
         self._ttl = response_ttl
         self._clock = clock
@@ -355,13 +393,16 @@ class NpcTurnIdempotencyStore:
         """`write_event`는 같은 트랜잭션에서 실행된다. 교착 재시도 시 새 세션으로 다시 불릴 수 있다.
 
         `content_mode="case"`(기본)는 게시 상태 guard를 거친다. 차단이면 본문 · 이벤트 없이 철회 표식만
-        commit하고 `TurnWithdrawnError`를 낸다. `"generic"`은 케이스 콘텐츠를 쓰지 않은 응답에만 쓴다.
+        commit하고 `TurnWithdrawnError`를 낸다. `"generic"`은 케이스 콘텐츠를 담지 않은 응답만 받는다
+        (`validate_generic_response`). 아니면 `GenericResponseRejectedError`이고 아무것도 확정하지 않는다.
         """
 
         if not isinstance(response, NpcTurnResponse):
             raise TypeError("only the final NpcTurnResponse is stored")
         if content_mode not in ("case", "generic"):
             raise ValueError("content_mode must be 'case' or 'generic'")
+        if content_mode == "generic":
+            validate_generic_response(response, self._generic_lines)
         body = response.model_dump(mode="json")
         ended = _to_utc_naive(session_ended_at) if session_ended_at else None
 

@@ -761,14 +761,24 @@ def test_mysql_new_claim_after_emergency_block_cannot_store_case_lines():
         assert isinstance(await store.claim(after, V1, REQUEST), TurnWithdrawn)
         assert isinstance(await store.claim(before, V1, REQUEST), TurnWithdrawn)
 
-        # 케이스 콘텐츠를 쓰지 않은 generic 응답은 저장 · 재현할 수 있다.
+        # 승인된 일반 팩 대사로만 만든 generic 응답은 저장 · 재현할 수 있다.
+        # (작업 D1: 케이스 대사를 generic으로 표시하면 거부한다 — test_npc_publication_mysql)
+        generic_store = make_store(
+            sessions, Clock(), generic_lines={"GENERIC_01": "(가상) generic"}.get
+        )
         generic = turn_key(session_id, str(uuid4()))
-        stored = await store.complete(
-            await store.claim(generic, V1, REQUEST),
-            response("(가상) generic"),
+        stored = await generic_store.complete(
+            await generic_store.claim(generic, V1, REQUEST),
+            NpcTurnResponse(
+                npc_event_id=uuid4(),
+                reply=NpcReplyOut(
+                    source="approved_line", text="(가상) generic", line_id="GENERIC_01"
+                ),
+                suggest_hint=None,
+            ),
             content_mode="generic",
         )
-        replay = await store.claim(generic, V1, REQUEST)
+        replay = await generic_store.claim(generic, V1, REQUEST)
         assert replay.response.model_dump() == stored.model_dump()
 
     mysql_run(scenario)
