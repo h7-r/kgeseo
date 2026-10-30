@@ -12,12 +12,12 @@ from uuid import uuid4
 import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import delete, text, update
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.engine import make_url
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.models.npc_approval_review import NpcApprovalReview
+from app.models.npc_approval_review import NpcApprovalReview, NpcApprovalTarget
 from app.repositories.approval_history import ApprovalHistoryRepository
 from app.schemas.gate_review import ApprovalTarget, GateReviewCreate
 from app.services.approval_history import (
@@ -32,6 +32,7 @@ from app.services.pinned_content import ContentPin, PinnedContentStore
 from app.services.publication_approval import (
     check_target_approval,
     evaluate_publication_with_db_reviews,
+    locked_approval_history,
 )
 from tests.test_publication_gate import CASE_ID, hint_source, no_idmap_files
 
@@ -173,8 +174,10 @@ def test_mysql_target_type_version_and_hash_isolation():
                 rows = await ApprovalHistoryRepository(db).records(target)
                 assert len(rows) == 3
                 assert {r.reviewer for r in rows} == {target.target_type}
-                assert await check_target_approval(db, target, FP) == ()
-                assert await check_target_approval(db, target, "sha256:" + "b" * 64)
+                assert await check_target_approval(sessions, target, FP) == ()
+                assert await check_target_approval(
+                    sessions, target, "sha256:" + "b" * 64
+                )
             assert (
                 await ApprovalHistoryRepository(db).records(
                     TARGET.model_copy(update={"content_version": 3})
@@ -253,7 +256,7 @@ def test_mysql_previous_hash_reference_preserves_existing_history_rules():
             await repository.append(other_version, record(supersedes=old.review_id))
             await db.commit()
             assert "G1:invalid history" in await check_target_approval(
-                db, other_version, FP
+                sessions, other_version, FP
             )
 
     mysql_run(scenario)
@@ -317,7 +320,7 @@ def test_mysql_pub_gate_uses_db_and_does_not_withdraw_published_bundle():
 
             async def evaluate():
                 return await evaluate_publication_with_db_reviews(
-                    db,
+                    sessions,
                     case_id=CASE_ID,
                     content_version=1,
                     **files,
@@ -346,5 +349,170 @@ def test_mysql_pub_gate_uses_db_and_does_not_withdraw_published_bundle():
             assert not result.approved
             assert result.check("APPROVALS").reasons == ("G3:rejected",)
             assert store.get(pin) is published
+
+    mysql_run(scenario)
+
+
+# --- 게시 판정의 트랜잭션 소유권 · 최신 철회 반영 ---
+
+OTHER = TARGET.model_copy(update={"target_id": "case_other"})
+
+
+async def seed_approved(sessions) -> ReviewRecord:
+    """G1~G3 승인을 commit하고 마지막(G3) 기록을 돌려준다."""
+
+    async with sessions() as db:
+        history = [record(gate=gate) for gate in ("G1", "G2", "G3")]
+        for item in history:
+            await ApprovalHistoryRepository(db).append(TARGET, item)
+        await db.commit()
+    return history[-1]
+
+
+def hold_after(previous: ReviewRecord) -> ReviewRecord:
+    return record(
+        gate="G3",
+        decision="hold",
+        reason="철회",
+        supersedes=previous.review_id,
+        reviewed_at="2026-10-29T00:00:00.124Z",
+    )
+
+
+def fast_lock_timeout_sessions():
+    """잠금 대기 1초로 연결하는 세션 팩토리(잠금 실패 재현용)."""
+
+    engine = create_async_engine(
+        make_url(os.environ["APPROVAL_MYSQL_URL"]),
+        hide_parameters=True,
+        connect_args={"init_command": "SET SESSION innodb_lock_wait_timeout = 1"},
+    )
+    return engine, async_sessionmaker(engine, expire_on_commit=False)
+
+
+def test_mysql_stale_snapshot_is_reproduced_and_publication_check_sees_withdrawal():
+    async def scenario(sessions):
+        last = await seed_approved(sessions)
+        async with sessions() as caller:
+            # 호출자 세션 A: snapshot을 만들고(승인 상태), 커밋하지 않은 변경도 둔다.
+            stale = ApprovalHistoryRepository(caller)
+            assert gate_decisions(await stale.records(TARGET), FP) == ()
+            await stale.append(OTHER, record())
+            # 세션 B가 철회(hold)를 commit한다.
+            async with sessions() as other:
+                await ApprovalHistoryRepository(other).append(TARGET, hold_after(last))
+                await other.commit()
+            # 결함: 같은 트랜잭션의 일반 조회는 오래된 snapshot을 본다(REPEATABLE READ).
+            assert gate_decisions(await stale.records(TARGET), FP) == ()
+            # 수정: 철회 commit 뒤에 시작한 게시 판정은 새 트랜잭션에서 최신 철회를 본다.
+            assert await check_target_approval(sessions, TARGET, FP) == ("G3:hold",)
+            # 호출자 트랜잭션과 미커밋 변경은 그대로다(판정이 commit · rollback하지 않았다).
+            assert caller.in_transaction()
+            assert len(await stale.records(OTHER)) == 1
+            async with sessions() as outside:
+                assert await ApprovalHistoryRepository(outside).records(OTHER) == ()
+            await caller.rollback()
+
+    mysql_run(scenario)
+
+
+def test_mysql_publication_check_waits_for_in_flight_withdrawal():
+    async def scenario(sessions):
+        last = await seed_approved(sessions)
+        async with sessions() as writer:
+            # 철회 기록이 대상 잠금을 잡은 채 아직 commit 전이다.
+            await ApprovalHistoryRepository(writer).append(TARGET, hold_after(last))
+            check = asyncio.create_task(check_target_approval(sessions, TARGET, FP))
+            await asyncio.sleep(0.5)
+            # 오래된 이력으로 먼저 승인하지 않고 잠금을 기다린다.
+            assert not check.done()
+            await writer.commit()
+        assert await check == ("G3:hold",)
+
+    mysql_run(scenario)
+
+
+def test_mysql_append_waits_while_locked_history_is_held():
+    async def scenario(sessions):
+        last = await seed_approved(sessions)
+
+        async def withdraw():
+            async with sessions() as db:
+                await ApprovalHistoryRepository(db).append(TARGET, hold_after(last))
+                await db.commit()
+
+        async with locked_approval_history(sessions, TARGET) as (_, records):
+            append = asyncio.create_task(withdraw())
+            await asyncio.sleep(0.5)
+            # 잠금을 잡은 동안(향후 게시 확정 구간) 철회가 끼어들지 못한다.
+            assert not append.done()
+            assert gate_decisions(records, FP) == ()
+        await append
+        assert await check_target_approval(sessions, TARGET, FP) == ("G3:hold",)
+
+    mysql_run(scenario)
+
+
+def test_mysql_lock_timeout_is_an_error_not_an_approval():
+    async def scenario(sessions):
+        await seed_approved(sessions)
+        engine, fast = fast_lock_timeout_sessions()
+        files, fingerprint = no_idmap_files()
+        store = PinnedContentStore()
+        try:
+            async with sessions() as holder:
+                await ApprovalHistoryRepository(holder).lock_target(TARGET)
+                with pytest.raises(OperationalError) as timeout:
+                    await check_target_approval(fast, TARGET, FP)
+                assert timeout.value.orig.args[0] == 1205
+                case_target = TARGET.model_copy(update={"target_id": CASE_ID})
+                await ApprovalHistoryRepository(holder).lock_target(case_target)
+                with pytest.raises(OperationalError):
+                    await evaluate_publication_with_db_reviews(
+                        fast,
+                        case_id=CASE_ID,
+                        content_version=1,
+                        **files,
+                        hint_source=hint_source,
+                        ng_checker=lambda _: False,
+                        store=store,
+                    )
+                assert store.versions(CASE_ID) == ()
+                await holder.rollback()
+            # 잠금이 풀리면 같은 판정이 정상 동작한다.
+            assert await check_target_approval(fast, TARGET, FP) == ()
+        finally:
+            await engine.dispose()
+
+    mysql_run(scenario)
+
+
+def test_mysql_failed_or_cancelled_check_rolls_back_its_own_transaction():
+    async def scenario(sessions):
+        fresh = TARGET.model_copy(update={"target_id": "case_fresh"})
+        with pytest.raises(RuntimeError):
+            async with locked_approval_history(sessions, fresh):
+                raise RuntimeError("판정 중 오류")
+        async with sessions() as db:
+            # 잠금 행 upsert도 rollback되어 남지 않는다.
+            rows = await db.execute(
+                select(NpcApprovalTarget).where(
+                    NpcApprovalTarget.target_id == "case_fresh"
+                )
+            )
+            assert rows.scalars().all() == []
+
+        last = await seed_approved(sessions)
+        async with sessions() as holder:
+            await ApprovalHistoryRepository(holder).lock_target(TARGET)
+            check = asyncio.create_task(check_target_approval(sessions, TARGET, FP))
+            await asyncio.sleep(0.3)
+            check.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await check
+            await ApprovalHistoryRepository(holder).append(TARGET, hold_after(last))
+            await holder.commit()
+        # 취소된 판정이 잠금 · 연결을 남기지 않았다.
+        assert await check_target_approval(sessions, TARGET, FP) == ("G3:hold",)
 
     mysql_run(scenario)

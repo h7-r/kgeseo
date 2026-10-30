@@ -83,6 +83,40 @@ def run(awaitable):
     return asyncio.run(awaitable)
 
 
+class FakeTransaction:
+    """`async with db.begin()` 대역. 종료 시 받은 예외 종류를 남긴다."""
+
+    def __init__(self) -> None:
+        self.exits: list[type[BaseException] | None] = []
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, kind, error, traceback):
+        self.exits.append(kind)
+        return False
+
+
+class FakeSessions:
+    """세션 팩토리 대역. 판정이 쓰는 세션은 호출자 세션과 다른 새 세션이다."""
+
+    def __init__(self, db) -> None:
+        self.db = db
+        self.opened = 0
+        self.transaction = FakeTransaction()
+        db.begin = MagicMock(return_value=self.transaction)
+
+    def __call__(self):
+        self.opened += 1
+        return self
+
+    async def __aenter__(self):
+        return self.db
+
+    async def __aexit__(self, *_exc):
+        return False
+
+
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -278,9 +312,10 @@ def test_snapshot_is_version_scoped_and_publication_requires_db_approval():
         for r in records
     ]
     db.execute.return_value.scalars.return_value.all.return_value = rows
+    sessions = FakeSessions(db)
     result = run(
         evaluate_publication_with_db_reviews(
-            db,
+            sessions,
             case_id=CASE_ID,
             content_version=1,
             **files,
@@ -290,12 +325,15 @@ def test_snapshot_is_version_scoped_and_publication_requires_db_approval():
         )
     )
     assert result.approved and result.registered
+    # 판정 전용 세션 · 트랜잭션을 열고 정상 종료(commit)했다. 세션 메서드로 직접 commit · rollback하지 않는다.
+    assert sessions.opened == 1 and sessions.transaction.exits == [None]
     db.commit.assert_not_called()
+    db.rollback.assert_not_called()
     # 콘텐츠 내부 approvals가 아니라 DB 이력을 신뢰한다. DB가 비면 실패한다.
     db.execute.return_value.scalars.return_value.all.return_value = []
     result = run(
         evaluate_publication_with_db_reviews(
-            db,
+            sessions,
             case_id=CASE_ID,
             content_version=1,
             **files,
@@ -310,9 +348,26 @@ def test_snapshot_is_version_scoped_and_publication_requires_db_approval():
 def test_publication_db_failure_rolls_back_and_does_not_approve():
     db = session()
     db.execute.side_effect = RuntimeError("offline")
+    sessions = FakeSessions(db)
+    store = PinnedContentStore()
     with pytest.raises(RuntimeError):
-        run(check_target_approval(db, TARGET, FP))
-    db.rollback.assert_awaited_once()
+        run(check_target_approval(sessions, TARGET, FP))
+    with pytest.raises(RuntimeError):
+        files, _ = no_idmap_files()
+        run(
+            evaluate_publication_with_db_reviews(
+                sessions,
+                case_id=CASE_ID,
+                content_version=1,
+                **files,
+                hint_source=hint_source,
+                ng_checker=lambda _: False,
+                store=store,
+            )
+        )
+    # 판정 전용 트랜잭션이 오류와 함께 끝났다(begin 블록이 rollback). 승인 결과 · 등록은 없다.
+    assert sessions.transaction.exits == [RuntimeError, RuntimeError]
+    assert store.versions(CASE_ID) == ()
 
 
 def test_no_admin_http_write_route_is_exposed(client):

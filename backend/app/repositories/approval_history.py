@@ -63,6 +63,7 @@ class ApprovalHistoryRepository:
             .order_by(NpcApprovalReview.reviewed_at, NpcApprovalReview.review_id)
         )
         # 쓰기는 대상 잠금 후 최신 커밋 이력을 읽는다(MySQL snapshot read와 구분).
+        # current=False는 트랜잭션의 snapshot을 읽으므로 게시 판정에 쓰지 않는다(publication_approval).
         if current:
             statement = statement.with_for_update()
         result = await self.db.execute(statement)
