@@ -1,6 +1,11 @@
 # Frontend / Backend Interaction Mapping v0.1
 
-**Status: Confirmed for Interaction v0.3.2 Phase 1**
+**Status: Confirmed for Interaction v0.3.2 Phase 1 + inspect·Object 상태 확장 (팀 검토 대기)**
+
+확장 부분(`inspect`, Object 상태 change, `object_states`)은 2026-10-23 구현 기준이다.
+(Q6) `navigate`와 현재 Zone 접근 제한도 같은 날 구현됐다. 바뀐 부분은 **(Q6 변경)**으로
+표시했다.
+합의 필요 사항은 `interaction_api_v0.3.2.md` §10에 모았다.
 
 ## 1. 기준 문서
 
@@ -18,7 +23,10 @@ Router는 DB를 직접 조회하거나 게임 결과와 상태 변화를 다시 
 - `client_timestamp`는 timezone offset이 있는 datetime이어야 한다.
 - `client_timestamp`는 UTC naive datetime으로 `interaction_events.client_timestamp`에 저장한다.
 - `client_timestamp`는 서버 권위 시각이나 v0.1 멱등 equality 비교에 사용하지 않는다.
-- `zone_id`는 input Object 검색에 사용하지만 DB에 저장하지 않고 멱등 equality 비교에도 사용하지 않는다.
+- `zone_id`는 input·inspect Object 검색(inspect는 유효 상태 판정 포함)에 사용하지만 DB에 저장하지 않고 멱등 equality 비교에도 사용하지 않는다.
+- **(Q6 변경)** input·inspect·navigate의 `zone_id`는 내부 모델의 필수 필드로 전달되며 서버의
+  현재 위치(`state.current_zone_id`)와 같아야 한다. 다르면 409 `Zone is not current.`다.
+  combine_clues의 `zone_id`는 검사하지 않는다.
 
 ## 3. Request Mapping
 
@@ -29,6 +37,7 @@ Router는 DB를 직접 조회하거나 게임 결과와 상태 변화를 다시 
 | `action: "input"` | `interaction_type: "submit_answer"` |
 | `target_type: "object"` | Object Resolver 입력 검증 |
 | `zone_id` + `target_id` | Client Content Object를 찾아 `interaction.target_id`를 puzzle target으로 사용 |
+| `zone_id` (**Q6 변경**) | 내부 `submit_answer.zone_id`(필수). 현재 위치 검사에 사용 |
 | `payload.answer` | `payload.answer` |
 | `client_event_id` | `client_event_id` |
 | `client_timestamp` | Event의 UTC naive `client_timestamp` |
@@ -49,14 +58,43 @@ Object의 `object_id`와 Backend target ID는 서로 다른 역할이며,
 
 `clue_ids`는 서로 다른 값 두 개여야 하며 조합 판정에서 순서는 의미가 없다.
 
+### `inspect` (확장)
+
+| External v0.3.2 | Backend Internal |
+|---|---|
+| `action: "inspect"` | `interaction_type: "inspect"` |
+| `target_type: "object"` | Request validation (다른 값은 422) |
+| `zone_id` + `target_id` | Client Content Object를 찾아 `interaction.target_id`를 `inspect_id`로 사용. `zone_id`·`object_id`는 유효 상태 판정에 전달 |
+| `payload: {}` | `payload: {}` |
+| `client_event_id` | `client_event_id` |
+| `client_timestamp` | Event의 UTC naive `client_timestamp` |
+
+Event에는 `interaction_type=inspect`, `target_id=<inspect_id>`, `payload_json={}`로 저장한다.
+
+### `navigate` (Q6, 팀 검토 대기)
+
+| External v0.3.2 | Backend Internal |
+|---|---|
+| `action: "navigate"` | `interaction_type: "navigate"` |
+| `target_type: "zone"` | Request validation (다른 값은 422) |
+| `zone_id` | 출발 Zone. 서버 현재 위치와 같아야 함 |
+| `target_id` | 목적지 Zone ID (Object 해석 없음) |
+| `payload: {}` | `payload: {}` (다른 필드는 422) |
+| `client_event_id` | `client_event_id` |
+| `client_timestamp` | Event의 UTC naive `client_timestamp` |
+
+Event에는 `interaction_type=navigate`, `target_id=<목적지 Zone ID>`, `payload_json={}`로
+저장한다. 문은 출발 Zone의 `navigation[]`에서 목적지로 찾고, 문의 서버 유효
+`visible`·`enabled`로 이동 가능 여부를 판정한다.
+
 ## 4. Action 지원 상태
 
-| External Action | Internal Type | Phase 1 상태 |
+| External Action | Internal Type | 상태 |
 |---|---|---|
 | `input` | `submit_answer` | 구현됨 |
 | `combine_clues` | `combine_clues` | 구현됨 |
-| `inspect` | 없음 | 계약상 허용, HTTP 501 |
-| `navigate` | 없음 | 계약상 허용, HTTP 501 |
+| `inspect` | `inspect` | 구현됨 (확장, 팀 검토 대기) |
+| `navigate` | `navigate` | 구현됨 (**Q6 변경**: 이전에는 501, 팀 검토 대기) |
 | `select` | 없음 | 계약상 허용, HTTP 501 |
 
 미구현 action은 Interaction Event를 생성하거나 PlaySession state를 변경하지 않는다.
@@ -71,9 +109,17 @@ Object의 `object_id`와 Backend target ID는 서로 다른 역할이며,
 | `combined` | `correct` |
 | `incorrect_combination` | `incorrect` |
 | `already_completed` | `already_completed` |
+| `inspected` (확장) | `ok` |
+| `already_inspected` (확장) | `ok` (`state_changes=[]`, `message=null`) |
+| `navigated` (**Q6**) | `ok` (`state_changes=[current_zone_changed]`, `attempt_count=null`) |
 
-성공 Response는 Interaction 전용 flat 구조를 사용한다. Phase 1의 `message`는 항상 `null`,
+성공 Response는 Interaction 전용 flat 구조를 사용한다. `message`는 기본값 `null`이고,
 `ui_actions`는 항상 빈 배열이다. 다른 Session API의 `success/data` envelope는 유지한다.
+
+**(Q7, 팀 검토 대기)** `inspected`(첫 조사 성공)만 Server Runtime `inspections[].message`를
+`message`에 싣는다(없으면 `null`). Frontend는 `message`가 문자열이면 조사 결과 문구로
+표시하고 `null`이면 표시하지 않는다. 재조사(`already_inspected`)와 모든 오류 응답에는
+문구가 없다. 같은 `client_event_id` 재전송은 최초 응답(문구 포함)을 그대로 받는다.
 
 ## 6. Attempt Count
 
@@ -87,17 +133,33 @@ Object의 `object_id`와 Backend target ID는 서로 다른 역할이며,
 
 ## 7. State Changes
 
-External 목록은 다음 다섯 종류로 닫혀 있다.
+External 목록은 다음 아홉 종류로 닫혀 있다. Object 상태 세 종류는 확장 구현으로,
+`current_zone_changed`는 Q6로 추가됐다.
 
 - `clue_acquired`
 - `puzzle_completed`
 - `zone_unlocked`
 - `hint_level_changed`
 - `flag_updated`
+- `object_revealed` (`zone_id`, `object_id`)
+- `object_hidden` (`zone_id`, `object_id`)
+- `object_unlocked` (`zone_id`, `object_id`)
+- `current_zone_changed` (`zone_id`) — **(Q6 변경)** navigate 성공 시 한 개
 
-현재 input/combine Runtime은 실제로 적용한 `puzzle_completed`, `clue_acquired`,
-`flag_updated`만 생성한다. 생성 순서는 puzzle, clue, flag 순이고 같은 종류 안에서는
-Runtime Effect 순서를 유지한다. 이미 적용된 값은 상태와 change 양쪽에 중복하지 않는다.
+현재 input/combine/inspect Runtime은 실제로 적용한 `puzzle_completed`, `clue_acquired`,
+`flag_updated`, Object 상태 change만 생성한다. 생성 순서는 puzzle, clue, flag, Object 순이고
+같은 종류 안에서는 Runtime Effect 순서를 유지한다. 이미 적용된 값은 상태와 change 양쪽에
+중복하지 않는다.
+
+Frontend Object 표시 규칙(확장): Case Bundle의 정적 `visible`·`enabled` 위에
+`GET /play-sessions/{id}`의 `state.object_states`를 덮어쓰고, 이후 Object 상태 change를
+`(zone_id, object_id)` 기준으로 반영한다. Frontend 표시 상태는 서버 판정에 쓰이지 않는다.
+
+Frontend 위치 규칙(Q6): 현재 위치는 `GET /play-sessions/{id}`의
+`state.current_zone_id`와 이후 `current_zone_changed`로 반영한다. 장면 전환은 navigate
+200 응답 뒤에 하는 것을 권장한다. `current_zone_id`가 `null`이면 Case Bundle의 Zone이
+1개일 때 `entry_zone_id`로 표시하고(서버 판정과 같음), 여러 개일 때는 위치를 확정할 수
+없으므로 새 게임 시작을 안내한다. 이때도 단서 조합과 단서 조회는 사용할 수 있다.
 
 Router는 DB 재조회나 전체 state diff로 change를 만들지 않는다.
 
@@ -105,6 +167,9 @@ Router는 DB 재조회나 전체 state diff로 change를 만들지 않는다.
 
 멱등 equality는 변환된 `interaction_type`, `target_id`, `payload_json`을 비교한다.
 `zone_id`와 `client_timestamp`는 비교에 포함하지 않는다.
+**(Q6 변경)** navigate는 `target_id`(목적지)를 비교하므로 같은 ID로 목적지를 바꾸면 409다.
+replay 판정은 현재 Zone 검사보다 먼저 하므로 이동 뒤 이전 Event를 재전송해도 최초 응답을
+받는다.
 
 - 동일 요청은 기존 `InteractionEvent.id`를 `interaction_id`로 사용한다.
 - 저장된 `response_json`을 재사용하며 Runtime 재판정, 상태 변경, Event 생성, commit을 하지 않는다.
@@ -119,18 +184,30 @@ Router는 DB 재조회나 전체 state diff로 change를 만들지 않는다.
 | 조건 | HTTP Status |
 |---|---:|
 | Request/Path validation 실패 | 422 |
-| PlaySession, Puzzle, Zone, Object 없음 | 404 |
+| PlaySession, Puzzle, Zone, Object 없음, inspect의 `inspect_id` 없음 | 404 |
 | 획득하지 않은 Clue, Object interaction 불일치, idempotency conflict | 409 |
-| `inspect`, `navigate`, `select` | 501 |
-| Client Content 또는 Puzzle Runtime 로드 실패 | 500 |
+| inspect 대상 Object 숨김(`Object is not visible.`)·비활성(`Object is not enabled.`) | 409 |
+| 퍼즐·조사 선행 단서 미획득(`Required clues are not acquired.`, `missing_clue_count` 포함) | 409 |
+| **(Q6)** 현재 위치 확정 불가(`Current zone is unknown.`), 현재 Zone 아님(`Zone is not current.`), 문 연결 없음(`Navigation is unavailable.`) | 409 |
+| **(Q6)** navigate 문 숨김(`Object is not visible.`)·비활성(`Object is not enabled.`) | 409 |
+| `select` (**Q6 변경**: navigate 제외) | 501 |
+| Client Content·Puzzle Runtime 로드 실패, Client/Server 교차 참조 오류 | 500 |
 
 오답과 잘못된 clue 조합은 HTTP 오류가 아니라 200의 `incorrect` 게임 결과다.
+inspect 재조사는 HTTP 오류가 아니라 200의 `ok`, `state_changes=[]`다.
 
 ## 10. 남은 WIP
 
-- `inspect`, `navigate`, `select` 실제 Runtime 동작
+- `select` 실제 Runtime 동작 (navigate는 Q6로 구현됨)
 - `zone_unlocked`, `hint_level_changed`를 생성하는 Runtime Effect
-- 콘텐츠 기반 `message` Source of Truth
+- Session 상태를 반영한 Zone 조회 API
+- 단서 표시 데이터: 획득 단서 조회 API로 구현됨(`clue_api_v0.1.md`, 팀 검토 대기).
+  `carrier_kind`는 Q8로 조회 응답에 포함됨(`null` 가능). 이미지와 FE 아이콘·`category`
+  매핑은 미정
+- `enabled` true → false(잠금) 효과
+- 실제 MySQL 영속성 검증
+- 콘텐츠 기반 `message` Source of Truth: `inspect`는 Q7로 구현됨(`inspections[].message`,
+  팀 검토 대기). `input`·`combine_clues`·`navigate`의 문구는 미정
 - Hint API
 - `remaining_sec` 및 server timer
 - Session 외부 Contract 정합성

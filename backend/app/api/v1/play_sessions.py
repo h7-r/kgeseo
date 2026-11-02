@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.schemas.clue import PlaySessionCluesData, PlaySessionCluesResponse
 from app.schemas.play_session import (
     PlaySessionCreateRequest,
     PlaySessionCreateResponse,
@@ -12,6 +13,7 @@ from app.schemas.play_session import (
     PlaySessionReadResponse,
     PlaySessionState,
 )
+from app.services.clue_catalog import get_acquired_clues
 from app.services.play_session import (
     AnonymousSessionExpiredError,
     AnonymousSessionNotFoundError,
@@ -22,6 +24,7 @@ from app.services.play_session import (
     create_play_session,
     get_play_session,
 )
+from app.services.puzzle_runtime import PuzzleRuntimeError
 
 # PlaySession 관련 API들을 묶는 Router
 #
@@ -149,4 +152,32 @@ async def get_play_session_endpoint(
             completed_at=completed_at_utc,
             state=state,
         ),
+    )
+
+
+@router.get(
+    "/{play_session_id}/clues",
+    response_model=PlaySessionCluesResponse,
+)
+async def get_play_session_clues_endpoint(
+    play_session_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> PlaySessionCluesResponse:
+    # 기존 PlaySession 조회와 같은 접근 정책: play_session_id만으로 조회한다(인증 없음).
+    try:
+        clues = await get_acquired_clues(db=db, play_session_id=play_session_id)
+    except PlaySessionNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Play session not found.",
+        )
+    except PuzzleRuntimeError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Case content is unavailable.",
+        )
+
+    return PlaySessionCluesResponse(
+        success=True,
+        data=PlaySessionCluesData(play_session_id=play_session_id, clues=clues),
     )

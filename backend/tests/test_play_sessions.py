@@ -1,3 +1,4 @@
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
@@ -114,10 +115,12 @@ def test_create_play_session(
     assert body["data"]["state"] == {
         "current_zone_id": "ZONE_002",
         "completed_puzzle_ids": [],
+        "completed_inspect_ids": [],
         "acquired_clue_ids": [],
         "hint_levels": {},
         "attempt_counts": {},
         "flags": {},
+        "object_states": {},
     }
 
     assert len(db_session.added) == 1
@@ -170,10 +173,12 @@ def test_get_play_session(
     assert body["data"]["state"] == {
         "current_zone_id": None,
         "completed_puzzle_ids": ["puzzle-001"],
+        "completed_inspect_ids": [],
         "acquired_clue_ids": ["clue-001"],
         "hint_levels": {"puzzle-001": 1},
         "attempt_counts": {},
         "flags": {"archive_unlocked": True},
+        "object_states": {},
     }
 
     created_at = datetime.fromisoformat(body["data"]["created_at"])
@@ -203,6 +208,77 @@ def test_get_play_session_returns_stored_current_zone(
     assert response.json()["data"]["state"]["current_zone_id"] == "ZONE_002"
     assert db_session.added == []
     assert db_session.commit_count == 0
+
+
+def test_get_play_session_returns_stored_object_states(
+    client: TestClient,
+    db_session: FakeAsyncSession,
+) -> None:
+    play_session = make_play_session()
+    object_states = {
+        "ZONE_001": {
+            "OBJ_LETTER_01": {"visible": True},
+            "OBJ_DOOR": {"enabled": True},
+        },
+        "ZONE_002": {"OBJ_DOOR": {"visible": False}},
+    }
+    play_session.state_json["object_states"] = deepcopy(object_states)
+    stored_state = deepcopy(play_session.state_json)
+    db_session.get_result = play_session
+
+    response = client.get("/api/v1/play-sessions/play-session-id")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["state"]["object_states"] == object_states
+    assert play_session.state_json == stored_state
+    assert db_session.added == []
+    assert db_session.commit_count == 0
+
+
+def test_get_play_sessions_keep_object_states_separate(
+    client: TestClient,
+    db_session: FakeAsyncSession,
+) -> None:
+    first = make_play_session()
+    first.state_json["object_states"] = {"ZONE_001": {"OBJ_DOOR": {"enabled": True}}}
+    second = make_play_session()
+    second.id = "other-play-session-id"
+
+    db_session.get_result = first
+    first_response = client.get("/api/v1/play-sessions/play-session-id")
+    db_session.get_result = second
+    second_response = client.get("/api/v1/play-sessions/other-play-session-id")
+
+    assert first_response.json()["data"]["state"]["object_states"] == {
+        "ZONE_001": {"OBJ_DOOR": {"enabled": True}},
+    }
+    assert second_response.json()["data"]["state"]["object_states"] == {}
+    assert "object_states" not in second.state_json
+
+
+def test_create_play_sessions_do_not_share_object_states(
+    client: TestClient,
+    db_session: FakeAsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install_client_content_loader(monkeypatch)
+    db_session.get_result = make_anonymous_session(
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
+    )
+    payload = {
+        "anonymous_session_id": "anonymous-session-id",
+        "case_id": "case-001",
+    }
+
+    assert client.post("/api/v1/play-sessions", json=payload).status_code == 201
+    assert client.post("/api/v1/play-sessions", json=payload).status_code == 201
+
+    first, second = db_session.added
+    assert first.state_json["object_states"] == {}
+    assert second.state_json["object_states"] == {}
+    assert first.state_json["object_states"] is not second.state_json["object_states"]
+    first.state_json["object_states"]["ZONE_001"] = {"OBJ_DOOR": {"enabled": True}}
+    assert second.state_json["object_states"] == {}
 
 
 def test_get_play_session_returns_404_for_unknown_play_session(

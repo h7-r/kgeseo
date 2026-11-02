@@ -48,6 +48,8 @@ class EmptyInteractionPayload(InteractionApiModel):
 
 class InspectInteractionRequest(InteractionRequestBase):
     action: Literal["inspect"]
+    target_type: Literal["object"]
+    target_id: str = Field(min_length=1)
     payload: EmptyInteractionPayload
 
 
