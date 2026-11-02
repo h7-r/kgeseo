@@ -4,8 +4,9 @@
 - 고정 세션: 저장소에서 그 `(case_id, content_version, content_fingerprint)` 묶음을 찾아 그 로더.
   없거나 fingerprint가 다르면 오류(최신 버전으로 바꾸지 않는다).
 
-저장소 `get_pinned_content_store()`는 **비어 있는 메모리 저장소**이고, 콘텐츠를 등록하는 HTTP 경로는 없다.
-공식 게시 검증 · 파일 로더가 생기기 전까지 고정 세션은 HTTP에서 늘 `CASE_VERSION_UNAVAILABLE`이다.
+저장소 `get_pinned_content_store()`는 프로세스 하나에 하나인 메모리 저장소다. 처음에는 비어 있고,
+게시 경로(`app.services.content_publication.ContentPublisher`)가 게시 게이트를 통과한 묶음만 넣는다.
+콘텐츠를 등록하는 HTTP 경로는 없다. 등록된 묶음이 없으면 고정 세션은 `CASE_VERSION_UNAVAILABLE`이다.
 테스트는 FastAPI `dependency_overrides`로 저장소를 바꿔 끼운다.
 """
 
@@ -28,13 +29,13 @@ CASE_VERSION_UNAVAILABLE = "CASE_VERSION_UNAVAILABLE"
 # 라우터가 409로 바꾸는 예외
 CONTENT_VERSION_ERRORS = (PinnedContentError, ContentPinColumnsError)
 
-_EMPTY_STORE = PinnedContentStore()
+_PUBLISHED_STORE = PinnedContentStore()
 
 
 def get_pinned_content_store() -> PinnedContentStore:
-    """FastAPI 의존성. 기본은 빈 저장소(등록 경로 없음)."""
+    """FastAPI 의존성. 게시 경로가 등록한 묶음만 담긴 저장소(기본은 비어 있다)."""
 
-    return _EMPTY_STORE
+    return _PUBLISHED_STORE
 
 
 @dataclass(frozen=True)

@@ -1,4 +1,4 @@
-"""버전 고정 콘텐츠 묶음 v0.1 (팀 검토 대기, 파일 · DB · HTTP · 서비스에 연결하지 않음).
+"""버전 고정 콘텐츠 묶음 v0.1 (팀 검토 대기).
 
 한 케이스의 한 게시 버전(client · server · npc · idmap)을 묶고, 세션이 고정한
 `(case_id, content_version, content_fingerprint)`와 정확히 같은 묶음만 돌려준다.
@@ -10,11 +10,13 @@
 - 넣을 때와 꺼낼 때 깊은 복사를 해서, 호출하는 쪽이 고쳐도 묶음은 바뀌지 않는다.
 - 기존 서비스의 주입식 인터페이스(`runtime_loader` · `client_content_loader` · `hint_source` ·
   `line_source`)에 맞춘 함수를 만들어 준다. 서비스 코드는 바꾸지 않는다.
+- 묶음은 게시 경로(`app.services.content_publication`)가 게시 게이트를 통과한 것만 넣는다.
 - NPC 대사의 승인 여부는 PM v0.4.3 승인 이력(`approval_source`)으로만 정한다. 승인 정보가 없으면
   늘 미승인이다(기본 차단). 콘텐츠 안의 `status` · `approvals`는 쓰지 않는다.
 """
 
 import json
+import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -228,6 +230,8 @@ class PinnedContentStore:
 
     def __init__(self) -> None:
         self._bundles: dict[tuple[str, int], PinnedContent] = {}
+        # 게시 판정(버전 순서 검사)부터 등록까지를 한 번에 하나씩 하게 하는 잠금(게시 경로가 쓴다)
+        self.publication_lock = threading.Lock()
 
     def add(self, bundle: PinnedContent) -> None:
         key = (bundle.pin.case_id, bundle.pin.content_version)

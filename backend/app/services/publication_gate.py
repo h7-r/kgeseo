@@ -52,7 +52,7 @@ from app.services.content_fingerprint import (
     header_mismatches,
     parse_i_json,
 )
-from app.services.hint import HintSource
+from app.services.hint import HintSource, server_hint_text
 from app.services.idmap_validation import validate_idmap
 from app.services.npc_content_validation import (
     _leaf_conditions,
@@ -122,7 +122,7 @@ def evaluate_publication(
     server: bytes,
     npc: bytes,
     idmap: bytes | None,
-    hint_source: HintSource,
+    hint_source: HintSource | None = None,
     approval_source: ApprovalSource | None = None,
     ng_checker: NgChecker | None = None,
     local_ids: Mapping[str, Iterable[str]] | None = None,
@@ -220,6 +220,10 @@ def evaluate_publication(
         server_model = PuzzleRuntimeDefinition.model_validate(
             _without(documents["server"], _SCHEMA_HEADER_FIELDS)
         )
+
+    # 정식 힌트 원문은 server.json에 있다(PM v0.4.2). 따로 넘기지 않으면 게시하려는 그 server.json에서 읽는다.
+    if hint_source is None:
+        hint_source = _bundle_hint_source(server_model)
 
     # 6. NPC 콘텐츠(스키마 · 힌트 단계 참조 · 교차 참조 · 정답/원문 보호). 승인 판정은 여기서 하지 않는다.
     npc_body = _without(documents["npc"], _NPC_EXTRA_HEADERS)
@@ -326,6 +330,13 @@ def evaluate_publication(
         )
         registered = True
     return PublicationResult(approved, registered, case_id, version, tuple(checks))
+
+
+def _bundle_hint_source(server: PuzzleRuntimeDefinition) -> HintSource:
+    def source(case_id: str, puzzle_id: str, level: int) -> str | None:
+        return server_hint_text(server, puzzle_id, level)
+
+    return source
 
 
 def _without(document: Mapping[str, Any], fields: Iterable[str]) -> dict[str, Any]:
