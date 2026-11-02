@@ -40,7 +40,11 @@ from app.schemas.case_content import CaseClientContent
 from app.schemas.naju_idmap import NajuIdmap
 from app.schemas.npc_content import NpcContentPack
 from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition
-from app.services.approval_history import ApprovalSource, gate_decisions
+from app.services.approval_history import (
+    ApprovalSource,
+    ApprovalSourceUnavailableError,
+    gate_decisions,
+)
 from app.services.case_content_validation import (
     CaseContentLinkValidationError,
     validate_case_content_links,
@@ -356,7 +360,12 @@ def _approval_check(
 ) -> GateCheck:
     if source is None:
         return GateCheck("APPROVALS", "FAIL", ("no trusted approval source",))
-    reasons = gate_decisions(source(case_id, version), fingerprint)
+    try:
+        records = source(case_id, version)
+    except ApprovalSourceUnavailableError:
+        # 승인 기록을 읽지 못하면 승인되지 않은 것이다(기본 차단).
+        return GateCheck("APPROVALS", "FAIL", ("approval source unavailable",))
+    reasons = gate_decisions(records, fingerprint)
     return GateCheck("APPROVALS", "FAIL" if reasons else "PASS", reasons)
 
 

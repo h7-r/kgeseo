@@ -241,7 +241,8 @@ def alembic_config(output: io.StringIO | None = None) -> Config:
 def test_new_revision_is_single_head_after_previous_head() -> None:
     script = ScriptDirectory.from_config(alembic_config())
 
-    assert script.get_heads() == [NEW_REVISION]
+    # 이후 revision(승인 이력 등)이 위에 쌓여도 head는 하나이고, 이 revision은 이전 head 바로 위다.
+    assert len(script.get_heads()) == 1
     assert script.get_revision(NEW_REVISION).down_revision == PREVIOUS_HEAD
 
 

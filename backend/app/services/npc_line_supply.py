@@ -14,7 +14,11 @@ import hashlib
 from collections.abc import Mapping
 
 from app.schemas.npc_content import GeneralLinePack, NpcContentPack
-from app.services.approval_history import ApprovalSource, gate_decisions
+from app.services.approval_history import (
+    ApprovalSource,
+    ApprovalSourceUnavailableError,
+    gate_decisions,
+)
 from app.services.content_fingerprint import FINGERPRINT_PREFIX, jcs_canonicalize
 from app.services.npc_dialogue import GenericLineApproval
 from app.services.npc_general_dialogue import ApprovedLine, ApprovedLineProvider
@@ -71,7 +75,10 @@ def general_pack_approved(
 ) -> bool:
     if approval_source is None:
         return False
-    records = approval_source(pack.pack_id, pack.pack_version)
+    try:
+        records = approval_source(pack.pack_id, pack.pack_version)
+    except ApprovalSourceUnavailableError:
+        return False
     return gate_decisions(records, general_pack_fingerprint(pack)) == ()
 
 

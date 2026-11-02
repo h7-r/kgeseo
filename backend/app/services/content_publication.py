@@ -10,7 +10,8 @@
 - 레거시 콘텐츠 디렉터리(`app/content/cases`)는 게시 입력으로 받지 않는다(개발용 콘텐츠를 게시본으로 섞지 않는다).
 
 [승인] 승인은 호출하는 쪽이 넘기는 `approval_source`(승인 이력 저장소)로만 정한다. 넘기지 않으면 게이트가
-APPROVALS FAIL로 막는다. 이 모듈은 승인 기록을 만들지 않는다. NG 판정기 · 나주 로컬 ID 목록도 같다
+APPROVALS FAIL로 막는다. 이 모듈은 승인 기록을 만들지 않는다. 영속 승인 이력(`content_reviews`)으로 게시할
+때는 `publish_with_stored_approvals`를 쓴다. NG 판정기 · 나주 로컬 ID 목록도 같다
 (없으면 UNVERIFIED로 막힌다).
 
 [버전 정책] 같은 `(case_id, content_version)`은 한 번만 등록한다(덮어쓰기 · 최신 자동 전환 없음).
@@ -30,8 +31,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.approval_history import ApprovalSource
-from app.services.content_fingerprint import compute_content_fingerprint
+from app.services.approval_store import load_approval_source
+from app.services.content_fingerprint import (
+    FingerprintError,
+    compute_content_fingerprint,
+    parse_i_json,
+)
 from app.services.hint import HintSource
 from app.services.pinned_content import PinnedContentStore
 from app.services.publication_gate import (
@@ -155,3 +163,52 @@ class ContentPublisher:
         if existing.pin.content_fingerprint == fingerprint:
             return "already_published"
         return "version_conflict"
+
+
+async def publish_with_stored_approvals(
+    db: AsyncSession,
+    store: PinnedContentStore,
+    bundle: PublicationBundle,
+    *,
+    ng_checker: NgChecker | None = None,
+    local_ids: Mapping[str, Iterable[str]] | None = None,
+    hint_source: HintSource | None = None,
+) -> PublishReport:
+    """영속 승인 이력으로 게시한다. 승인 기록은 server.json 머리의 (case_id, content_version)으로 읽는다.
+
+    기록을 읽을 때 잡은 공유 잠금은 게시 판정 · 등록이 끝난 뒤 트랜잭션을 끝내며 푼다(그 사이 철회 기록이
+    끼어들지 않는다). 머리를 읽을 수 없으면 승인 출처 없이 판정한다(게이트가 PARSE · HEADER에서 막는다).
+    """
+
+    key = _server_header_key(bundle.server)
+    try:
+        approval_source = (
+            await load_approval_source(db, *key) if key is not None else None
+        )
+        return ContentPublisher(
+            store,
+            approval_source=approval_source,
+            ng_checker=ng_checker,
+            local_ids=local_ids,
+            hint_source=hint_source,
+        ).publish(bundle)
+    finally:
+        await db.rollback()
+
+
+def _server_header_key(server: bytes) -> tuple[str, int] | None:
+    try:
+        document = parse_i_json(server)
+    except FingerprintError:
+        return None
+    if not isinstance(document, dict):
+        return None
+    case_id = document.get("case_id")
+    version = document.get("content_version")
+    if (
+        not isinstance(case_id, str)
+        or isinstance(version, bool)
+        or not isinstance(version, int)
+    ):
+        return None
+    return case_id, version

@@ -26,7 +26,11 @@ from app.schemas.case_content import CaseClientContent
 from app.schemas.npc import ApprovedNpcLine
 from app.schemas.npc_content import NpcContentPack
 from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition
-from app.services.approval_history import ApprovalSource, gate_decisions
+from app.services.approval_history import (
+    ApprovalSource,
+    ApprovalSourceUnavailableError,
+    gate_decisions,
+)
 
 
 class PinnedContentError(Exception):
@@ -182,7 +186,10 @@ class PinnedContent:
 
         if approval_source is None:
             return False
-        records = approval_source(self._pin.case_id, self._pin.content_version)
+        try:
+            records = approval_source(self._pin.case_id, self._pin.content_version)
+        except ApprovalSourceUnavailableError:
+            return False
         return gate_decisions(records, self._pin.content_fingerprint) == ()
 
     def line_source(
