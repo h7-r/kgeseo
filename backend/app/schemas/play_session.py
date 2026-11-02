@@ -15,6 +15,10 @@ class PlaySessionCreateRequest(BaseModel):
     # 문자열 ID 형태로 전달받는다.
     case_id: str = Field(min_length=1, max_length=64)
 
+    # (제안 · 팀 검토 대기) 게시된 콘텐츠 버전으로 세션을 고정할 때만 보낸다.
+    # 생략하면 지금처럼 버전 없는(레거시) 세션이다. 서버가 버전을 골라 주지 않는다.
+    content_version: int | None = Field(default=None, ge=1, strict=True)
+
 
 # Object 상태 변경값에서 기록할 수 있는 속성
 ObjectStateField = Literal["visible", "enabled"]

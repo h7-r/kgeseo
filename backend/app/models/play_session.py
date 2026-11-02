@@ -1,10 +1,39 @@
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import CHAR, VARCHAR, ForeignKey, Index
+from sqlalchemy import CHAR, INTEGER, VARCHAR, ForeignKey, Index, event
 from sqlalchemy.dialects.mysql import DATETIME, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
+
+# "sha256:" + 16진 64자 = 71자. 형식은 아직 확정 전이라 여유를 둔다(값은 불투명 문자열).
+CONTENT_FINGERPRINT_MAX_LENGTH = 128
+
+
+class ContentPinColumnsError(ValueError):
+    """content_version · content_fingerprint는 둘 다 NULL이거나 둘 다 유효한 값이어야 한다."""
+
+
+def check_content_pin_columns(content_version: Any, content_fingerprint: Any) -> None:
+    if content_version is None and content_fingerprint is None:
+        return
+    if content_version is None or content_fingerprint is None:
+        raise ContentPinColumnsError(
+            "content_version and content_fingerprint must be set together"
+        )
+    if (
+        isinstance(content_version, bool)
+        or not isinstance(content_version, int)
+        or content_version < 1
+    ):
+        raise ContentPinColumnsError("content_version must be a positive integer")
+    if (
+        not isinstance(content_fingerprint, str)
+        or not content_fingerprint.strip()
+        or len(content_fingerprint) > CONTENT_FINGERPRINT_MAX_LENGTH
+    ):
+        raise ContentPinColumnsError("content_fingerprint must be a non-blank string")
 
 
 class PlaySession(Base):
@@ -76,6 +105,19 @@ class PlaySession(Base):
         nullable=True,
     )
 
+    # 세션이 시작할 때 고정한 콘텐츠 버전(게임 진행 상태가 아니라 세션 메타데이터).
+    #
+    # 버전 체계 이전 세션 · 레거시 케이스는 둘 다 NULL이다. 둘은 함께 있거나 함께 없다
+    # (아래 check_content_pin_columns를 저장 전에 검사한다. DB CHECK 제약은 MySQL 버전 확인 전이라 두지 않았다).
+    content_version: Mapped[int | None] = mapped_column(
+        INTEGER,
+        nullable=True,
+    )
+    content_fingerprint: Mapped[str | None] = mapped_column(
+        VARCHAR(CONTENT_FINGERPRINT_MAX_LENGTH),
+        nullable=True,
+    )
+
     # 특정 익명 사용자의 플레이 기록을 찾을 때 사용하기 위한 Index
     __table_args__ = (
         Index(
@@ -83,3 +125,11 @@ class PlaySession(Base):
             "anonymous_session_id",
         ),
     )
+
+
+@event.listens_for(PlaySession, "before_insert")
+@event.listens_for(PlaySession, "before_update")
+def _check_content_pin_before_flush(
+    mapper: Any, connection: Any, target: PlaySession
+) -> None:
+    check_content_pin_columns(target.content_version, target.content_fingerprint)

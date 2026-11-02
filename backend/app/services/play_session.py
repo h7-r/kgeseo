@@ -14,6 +14,7 @@ from app.services.case_content import (
     InvalidClientCaseIdError,
     load_case_client_content,
 )
+from app.services.pinned_content import ContentCaseMismatchError, PinnedContent
 
 ClientContentLoader = Callable[[str], CaseClientContent]
 
@@ -51,9 +52,14 @@ async def create_play_session(
     case_id: str,
     *,
     client_content_loader: ClientContentLoader | None = None,
+    pinned_content: PinnedContent | None = None,
 ) -> PlaySession:
     """
     새로운 PlaySession을 생성하고 DB에 저장한다.
+
+    `pinned_content`(검증을 마친 버전 고정 묶음)를 주면 그 묶음의 Client 콘텐츠로 상태를 만들고,
+    같은 행에 `content_version` · `content_fingerprint`를 함께 저장한다(같은 INSERT · 같은 commit).
+    주지 않으면 지금처럼 버전 없는(레거시) 세션을 만든다.
 
     처리 순서:
     1. AnonymousSession 존재 확인
@@ -63,6 +69,12 @@ async def create_play_session(
     5. PlaySession 생성
     6. DB 저장
     """
+
+    if pinned_content is not None:
+        if client_content_loader is not None:
+            raise ValueError("pass either client_content_loader or pinned_content")
+        if pinned_content.pin.case_id != case_id:
+            raise ContentCaseMismatchError(pinned_content.pin.label())
 
     # Primary Key인 anonymous_session_id를 이용해
     # anonymous_sessions 테이블에서 해당 세션을 찾는다.
@@ -88,7 +100,10 @@ async def create_play_session(
     if now_db >= anonymous_session.expires_at:
         raise AnonymousSessionExpiredError()
 
-    loader = client_content_loader or load_case_client_content
+    if pinned_content is not None:
+        loader = pinned_content.client_content_loader()
+    else:
+        loader = client_content_loader or load_case_client_content
     try:
         client_content = loader(case_id)
     except InvalidClientCaseIdError as error:
@@ -134,6 +149,11 @@ async def create_play_session(
         updated_at=now_db,
         # 아직 게임을 완료하지 않았으므로 NULL
         completed_at=None,
+        # 버전 고정 세션이면 시작할 때 쓴 묶음의 버전 · fingerprint(레거시는 둘 다 NULL)
+        content_version=pinned_content.pin.content_version if pinned_content else None,
+        content_fingerprint=(
+            pinned_content.pin.content_fingerprint if pinned_content else None
+        ),
     )
 
     # INSERT 대상으로 등록

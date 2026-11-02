@@ -13,6 +13,7 @@ from app.services.case_content import (
 from app.services.case_content_validation import CaseContentLinkValidationError
 from app.services.external_interaction import (
     UnsupportedInteractionActionError,
+    is_supported_action,
     process_external_interaction,
 )
 from app.services.interaction import (
@@ -33,8 +34,16 @@ from app.services.object_resolver import (
     ObjectNotFoundError,
     ZoneNotFoundError,
 )
+from app.services.pinned_content import PinnedContentStore
 from app.services.play_session import PlaySessionNotFoundError
 from app.services.puzzle_runtime import PuzzleRuntimeError
+from app.services.session_content import (
+    CASE_VERSION_UNAVAILABLE,
+    CONTENT_VERSION_ERRORS,
+    DEFAULT_LOADERS,
+    get_pinned_content_store,
+    resolve_session_loaders,
+)
 
 router = APIRouter(
     prefix="/play-sessions",
@@ -51,12 +60,22 @@ async def create_interaction_endpoint(
     play_session_id: UUID,
     request: InteractionApiRequest,
     db: AsyncSession = Depends(get_db),
+    content_store: PinnedContentStore = Depends(get_pinned_content_store),
 ) -> InteractionApiResponse | JSONResponse:
     try:
+        # 레거시 세션은 기본 로더, 버전 고정 세션은 그 버전 묶음의 로더(최신으로 바꾸지 않는다).
+        # 처리하지 않는 action은 기존처럼 DB에 닿지 않고 501이 되도록 세션을 읽지 않는다.
+        loaders = (
+            await resolve_session_loaders(db, str(play_session_id), content_store)
+            if is_supported_action(request)
+            else DEFAULT_LOADERS
+        )
         result = await process_external_interaction(
             db=db,
             play_session_id=str(play_session_id),
             request=request,
+            runtime_loader=loaders.runtime_loader,
+            client_content_loader=loaders.client_content_loader,
         )
     except RequiredCluesMissingError as error:
         # 기존 {"detail": "<문자열>"} 구조를 유지하고 부족한 단서 개수만 덧붙인다.
@@ -71,6 +90,12 @@ async def create_interaction_endpoint(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Play session not found.",
+        ) from error
+    except CONTENT_VERSION_ERRORS as error:
+        # 세션이 고정한 콘텐츠 버전을 쓸 수 없다(없음 · fingerprint 불일치 · 칼럼 불완전 · 로더 불일치).
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=CASE_VERSION_UNAVAILABLE,
         ) from error
     except PuzzleNotFoundError as error:
         raise HTTPException(

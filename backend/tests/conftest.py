@@ -66,6 +66,37 @@ class FakeAsyncSession:
         self.operation_log.append("rollback")
 
 
+class _ExpiringProxy:
+    """읽어 온 뒤 rollback이 있었으면 속성 접근이 실패한다.
+
+    실제 SQLAlchemy는 rollback 때 객체를 만료시키고, AsyncSession에서 만료된 속성을 읽으면
+    암묵적 다시 읽기가 일어난다.
+    """
+
+    def __init__(self, target: Any, db: FakeAsyncSession) -> None:
+        object.__setattr__(self, "_target", target)
+        object.__setattr__(self, "_db", db)
+        object.__setattr__(self, "_loaded_at_rollback", db.rollback_count)
+
+    def __getattr__(self, name: str) -> Any:
+        if self._db.rollback_count > self._loaded_at_rollback:
+            raise AssertionError(f"rollback 뒤 만료된 속성 접근: {name}")
+        return getattr(self._target, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(self._target, name, value)
+
+
+class ExpiringSession(FakeAsyncSession):
+    async def get(self, model, entity_id, **options):
+        found = await super().get(model, entity_id, **options)
+        return None if found is None else _ExpiringProxy(found, self)
+
+    async def scalar(self, statement):
+        found = await super().scalar(statement)
+        return None if found is None else _ExpiringProxy(found, self)
+
+
 @pytest.fixture
 def db_session() -> FakeAsyncSession:
     return FakeAsyncSession()

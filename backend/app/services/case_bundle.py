@@ -9,6 +9,7 @@ from app.schemas.case_bundle import (
 from app.schemas.case_content import CaseClientContent
 from app.services.case_content import load_case_client_content
 from app.services.case_content_validation import validate_case_content_links
+from app.services.pinned_content import PinnedContent
 from app.services.puzzle_runtime import load_case_runtime
 
 
@@ -16,6 +17,14 @@ def get_case_bundle(case_id: str) -> CaseBundleData:
     client_content = load_case_client_content(case_id)
     server_runtime = load_case_runtime(case_id)
     validate_case_content_links(client_content, server_runtime)
+    return _build_public_bundle(client_content)
+
+
+def get_pinned_case_bundle(pinned_content: PinnedContent) -> CaseBundleData:
+    """세션이 고정한 버전의 공개 번들. Client 콘텐츠만 쓰고 Server Runtime은 교차 검증에만 쓴다."""
+
+    client_content = pinned_content.client()
+    validate_case_content_links(client_content, pinned_content.server())
     return _build_public_bundle(client_content)
 
 

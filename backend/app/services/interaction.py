@@ -36,6 +36,7 @@ from app.services.case_content import load_case_client_content
 from app.services.case_content_validation import validate_case_content_links
 from app.services.object_resolver import ZoneNotFoundError, find_zone
 from app.services.object_state import resolve_effective_object_state
+from app.services.pinned_content import ensure_loaders_match_session
 from app.services.play_session import PlaySessionNotFoundError
 from app.services.puzzle_runtime import load_case_runtime, normalize_answer
 
@@ -104,6 +105,12 @@ async def process_interaction(
         play_session = await _get_play_session_for_update(db, play_session_id)
         if play_session is None:
             raise PlaySessionNotFoundError()
+
+        # 버전 고정 세션은 그 버전 묶음의 로더로만 처리한다(기본 로더로 바꾸지 않는다).
+        # 재전송도 같은 규칙이다. 이 검사는 콘텐츠를 읽지 않으므로 재전송은 여전히 판정 없이 응답만 돌려준다.
+        ensure_loaders_match_session(
+            play_session, runtime_loader, client_content_loader
+        )
 
         existing_event = await _find_interaction_event(
             db, play_session_id, interaction.client_event_id
