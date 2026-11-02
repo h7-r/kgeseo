@@ -1,0 +1,1275 @@
+{
+  "note": "코드 소품 임시 GLB(10/19) — 실제 에셋으로 교체 전까지",
+  "assets": [
+    {
+      "display_name": "걸상",
+      "group_id": "씬2.걸상",
+      "category": "household",
+      "tags": [
+        "의자",
+        "나무",
+        "앉을 자리"
+      ],
+      "description": "나무 걸상",
+      "setting": [
+        "village"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.41,
+        0.44,
+        0.39
+      ],
+      "needs_replacement": true,
+      "shapes": 4,
+      "asset_id": "code-bench-stool",
+      "file": "bench-stool.glb",
+      "bytes": 9008,
+      "exported_at": "2026-10-19T23:35:59.185Z"
+    },
+    {
+      "display_name": "배 끌린 자국",
+      "group_id": "씬4.배자국",
+      "category": "other",
+      "tags": [
+        "자국",
+        "흔적",
+        "물가"
+      ],
+      "description": "뭍에 배를 끌어올린 자국",
+      "setting": [
+        "river",
+        "coast"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        1.32,
+        0.09,
+        4.76
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-boat-mark",
+      "file": "boat-mark.glb",
+      "bytes": 45336,
+      "exported_at": "2026-10-19T23:35:59.192Z"
+    },
+    {
+      "display_name": "부러진 나뭇가지",
+      "group_id": "씬3.부러진가지",
+      "category": "other",
+      "tags": [
+        "나뭇가지",
+        "흔적",
+        "나무"
+      ],
+      "description": "꺾여 떨어진 나뭇가지",
+      "setting": [
+        "village",
+        "river",
+        "mountain_temple"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        1.18,
+        0.26,
+        0.5
+      ],
+      "needs_replacement": true,
+      "shapes": 2,
+      "asset_id": "code-broken-branch",
+      "file": "broken-branch.glb",
+      "bytes": 25020,
+      "exported_at": "2026-10-19T23:35:59.198Z"
+    },
+    {
+      "display_name": "화톳불",
+      "group_id": "씬1.화톳불",
+      "category": "household",
+      "tags": [
+        "불",
+        "장작",
+        "모닥불"
+      ],
+      "description": "장작을 쌓아 피운 화톳불",
+      "setting": [
+        "river",
+        "village"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        1.73,
+        0.26,
+        1.64
+      ],
+      "needs_replacement": true,
+      "shapes": 2,
+      "asset_id": "code-campfire",
+      "file": "campfire.glb",
+      "bytes": 32812,
+      "exported_at": "2026-10-19T23:35:59.205Z"
+    },
+    {
+      "display_name": "차양 천막",
+      "group_id": "씬1.천막",
+      "category": "building",
+      "tags": [
+        "천막",
+        "차일",
+        "그늘"
+      ],
+      "description": "기둥에 천을 걸친 간이 차양",
+      "setting": [
+        "river",
+        "village",
+        "market"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        2.86,
+        2.93,
+        4.1
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-canvas-shelter",
+      "file": "canvas-shelter.glb",
+      "bytes": 323120,
+      "exported_at": "2026-10-19T23:35:59.235Z"
+    },
+    {
+      "display_name": "댕기",
+      "group_id": "씬3.댕기",
+      "category": "clothing",
+      "tags": [
+        "머리끈",
+        "처녀",
+        "흔적"
+      ],
+      "description": "땋은 머리 끝에 다는 천 댕기",
+      "setting": [
+        "village"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.28,
+        0.05,
+        0.82
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-daenggi-ribbon",
+      "file": "daenggi-ribbon.glb",
+      "bytes": 10360,
+      "exported_at": "2026-10-19T23:35:59.241Z"
+    },
+    {
+      "display_name": "흙덩이",
+      "group_id": "씬3.흙덩이",
+      "category": "other",
+      "tags": [
+        "흙",
+        "흔적",
+        "땅"
+      ],
+      "description": "파헤친 흙덩이",
+      "setting": [
+        "village",
+        "river",
+        "field"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        1.41,
+        0.55,
+        1.48
+      ],
+      "needs_replacement": true,
+      "shapes": 4,
+      "asset_id": "code-dirt-clod",
+      "file": "dirt-clod.glb",
+      "bytes": 14224,
+      "exported_at": "2026-10-19T23:35:59.250Z"
+    },
+    {
+      "display_name": "울타리 기둥",
+      "group_id": "울타리.기둥",
+      "category": "building",
+      "tags": [
+        "울타리",
+        "나무 기둥",
+        "말뚝"
+      ],
+      "description": "나무 울타리의 세운 기둥",
+      "setting": [
+        "village",
+        "river"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.12,
+        1.03,
+        0.11
+      ],
+      "needs_replacement": true,
+      "shapes": 4,
+      "asset_id": "code-fence-post",
+      "file": "fence-post.glb",
+      "bytes": 4068,
+      "exported_at": "2026-10-19T23:35:59.256Z"
+    },
+    {
+      "display_name": "울타리 가로대",
+      "group_id": "울타리.가로대",
+      "category": "building",
+      "tags": [
+        "울타리",
+        "가로대",
+        "나무"
+      ],
+      "description": "나무 울타리 기둥 사이에 거는 가로대",
+      "setting": [
+        "village",
+        "river"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.05,
+        0.08,
+        1.72
+      ],
+      "needs_replacement": true,
+      "shapes": 3,
+      "asset_id": "code-fence-rail",
+      "file": "fence-rail.glb",
+      "bytes": 5112,
+      "exported_at": "2026-10-19T23:35:59.260Z"
+    },
+    {
+      "display_name": "나무 울타리(한 칸)",
+      "group_id": "소품.울타리",
+      "category": "building",
+      "tags": [
+        "울타리",
+        "담",
+        "나무"
+      ],
+      "description": "기둥과 가로대로 된 나무 울타리 한 칸",
+      "setting": [
+        "village",
+        "river"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.11,
+        0.98,
+        1.73
+      ],
+      "needs_replacement": true,
+      "shapes": 2,
+      "asset_id": "code-fence-section",
+      "file": "fence-section.glb",
+      "bytes": 9884,
+      "exported_at": "2026-10-19T23:35:59.266Z"
+    },
+    {
+      "display_name": "나룻배(소품)",
+      "group_id": "소품.나룻배",
+      "category": "transport",
+      "tags": [
+        "배",
+        "나루",
+        "강"
+      ],
+      "description": "작은 나무 나룻배(편집기 소품판)",
+      "setting": [
+        "river"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        2,
+        1.32,
+        4.4
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-ferry-boat-small",
+      "file": "ferry-boat-small.glb",
+      "bytes": 269336,
+      "exported_at": "2026-10-19T23:35:59.280Z"
+    },
+    {
+      "display_name": "나룻배",
+      "group_id": "나룻배",
+      "category": "transport",
+      "tags": [
+        "배",
+        "나루",
+        "강"
+      ],
+      "description": "사람을 건네는 작은 나무 나룻배",
+      "setting": [
+        "river"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        2,
+        1.32,
+        4.4
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-ferry-boat",
+      "file": "ferry-boat.glb",
+      "bytes": 269328,
+      "exported_at": "2026-10-19T23:35:59.294Z"
+    },
+    {
+      "display_name": "나루터(잔교)",
+      "group_id": "소품.나루터",
+      "category": "building",
+      "tags": [
+        "나루",
+        "잔교",
+        "물가"
+      ],
+      "description": "물가에 내민 나무 잔교",
+      "setting": [
+        "river",
+        "coast"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        4.43,
+        1.72,
+        4.1
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-ferry-dock",
+      "file": "ferry-dock.glb",
+      "bytes": 36296,
+      "exported_at": "2026-10-19T23:35:59.299Z"
+    },
+    {
+      "display_name": "통발",
+      "group_id": "씬1.통발",
+      "category": "farming",
+      "tags": [
+        "어구",
+        "고기잡이",
+        "물고기",
+        "대나무"
+      ],
+      "description": "물고기를 가두어 잡는 대나무 통발",
+      "setting": [
+        "river",
+        "coast"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.86,
+        0.92,
+        0.95
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-fish-trap",
+      "file": "fish-trap.glb",
+      "bytes": 174668,
+      "exported_at": "2026-10-19T23:35:59.309Z"
+    },
+    {
+      "display_name": "발자국",
+      "group_id": "씬4.발자국",
+      "category": "other",
+      "tags": [
+        "자국",
+        "흔적"
+      ],
+      "description": "흙 위에 남은 발자국",
+      "setting": [
+        "river",
+        "village"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.44,
+        0.05,
+        3.2
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-footprints",
+      "file": "footprints.glb",
+      "bytes": 64780,
+      "exported_at": "2026-10-19T23:35:59.319Z"
+    },
+    {
+      "display_name": "금줄",
+      "group_id": "씬5.금줄",
+      "category": "ritual",
+      "tags": [
+        "새끼줄",
+        "부정 막이",
+        "제례"
+      ],
+      "description": "짚 새끼에 숯·한지를 끼운 금줄",
+      "setting": [
+        "village",
+        "shrine"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        4.69,
+        1.5,
+        0.25
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-geumjul",
+      "file": "geumjul.glb",
+      "bytes": 48760,
+      "exported_at": "2026-10-19T23:35:59.325Z"
+    },
+    {
+      "display_name": "장부·책 묶음",
+      "group_id": "기록소품.ledger-books",
+      "category": "study",
+      "tags": [
+        "장부",
+        "일지",
+        "책",
+        "기록",
+        "명부",
+        "마을 기록"
+      ],
+      "description": "실로 맨 옛 책 서너 권을 쌓아 둔 것. 표지는 누런 빛. 약 0.3×0.2 m",
+      "setting": [
+        "village",
+        "interior",
+        "bureau"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.29,
+        0.11,
+        0.22
+      ],
+      "generation_queue": true,
+      "asset_id": "code-ledger-books",
+      "file": "ledger-books.glb",
+      "bytes": 8296,
+      "exported_at": "2026-10-19T06:11:57.635Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "표지석(새긴 선돌)",
+      "group_id": "기록소품.marker-stone",
+      "category": "ritual",
+      "tags": [
+        "표지석",
+        "선돌",
+        "비석",
+        "이정표",
+        "새김돌",
+        "지명",
+        "돌판"
+      ],
+      "description": "자연석을 세우고 앞면을 다듬어 글을 새긴 표지석. 높이 약 1.1 m",
+      "setting": [
+        "village",
+        "river",
+        "mountain_temple"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.7,
+        1.1,
+        0.45
+      ],
+      "generation_queue": true,
+      "asset_id": "code-marker-stone",
+      "file": "marker-stone.glb",
+      "bytes": 15712,
+      "exported_at": "2026-10-19T06:11:57.650Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "배 매는 말뚝",
+      "group_id": "씬4.말뚝",
+      "category": "transport",
+      "tags": [
+        "말뚝",
+        "나루",
+        "물가"
+      ],
+      "description": "배를 매어 두는 나무 말뚝",
+      "setting": [
+        "river",
+        "coast"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.93,
+        0.95,
+        0.45
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-mooring-post",
+      "file": "mooring-post.glb",
+      "bytes": 47016,
+      "exported_at": "2026-10-19T23:35:59.332Z"
+    },
+    {
+      "display_name": "명패(나무 팻말)",
+      "group_id": "소품.명패",
+      "category": "building",
+      "tags": [
+        "팻말",
+        "표지",
+        "나무"
+      ],
+      "description": "나무 팻말",
+      "setting": [
+        "village"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        1.78,
+        2.2,
+        0.12
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-name-plaque",
+      "file": "name-plaque.glb",
+      "bytes": 8140,
+      "exported_at": "2026-10-19T23:35:59.338Z"
+    },
+    {
+      "display_name": "그물 말리는 틀",
+      "group_id": "씬1.그물틀",
+      "category": "farming",
+      "tags": [
+        "그물",
+        "어구",
+        "고기잡이",
+        "물가"
+      ],
+      "description": "물가에서 그물을 걸어 말리는 나무 틀",
+      "setting": [
+        "river",
+        "coast"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        1.83,
+        1.55,
+        0.13
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-net-rack",
+      "file": "net-rack.glb",
+      "bytes": 9876,
+      "exported_at": "2026-10-19T23:35:59.342Z"
+    },
+    {
+      "display_name": "방문 게시판(쪽지 붙은 판)",
+      "group_id": "기록소품.notice-board",
+      "category": "building",
+      "tags": [
+        "게시판",
+        "쪽지",
+        "소문",
+        "방",
+        "알림",
+        "마을 골목",
+        "담벼락"
+      ],
+      "description": "기둥 둘에 판자를 대고 종이 쪽지 여러 장을 붙인 마을 알림판. 높이 약 1.8 m",
+      "setting": [
+        "village",
+        "market"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        1.3,
+        1.8,
+        0.12
+      ],
+      "generation_queue": true,
+      "asset_id": "code-notice-board",
+      "file": "notice-board.glb",
+      "bytes": 46652,
+      "exported_at": "2026-10-19T06:11:57.645Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "어부 1(인물 모형)",
+      "group_id": "인물.어부",
+      "category": "other",
+      "tags": [
+        "인물",
+        "어부",
+        "NPC"
+      ],
+      "description": "물가의 어부 인물 모형",
+      "setting": [
+        "river",
+        "coast"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.73,
+        1.8,
+        0.48
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-npc-fisher-1",
+      "file": "npc-fisher-1.glb",
+      "bytes": 1093232,
+      "exported_at": "2026-10-19T23:35:59.437Z"
+    },
+    {
+      "display_name": "어부 2(인물 모형)",
+      "group_id": "인물.어부2",
+      "category": "other",
+      "tags": [
+        "인물",
+        "어부",
+        "NPC"
+      ],
+      "description": "물가의 어부 인물 모형",
+      "setting": [
+        "river",
+        "coast"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.8,
+        1.72,
+        0.44
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-npc-fisher-2",
+      "file": "npc-fisher-2.glb",
+      "bytes": 1077184,
+      "exported_at": "2026-10-19T23:35:59.545Z"
+    },
+    {
+      "display_name": "어부 3(인물 모형)",
+      "group_id": "인물.어부3",
+      "category": "other",
+      "tags": [
+        "인물",
+        "어부",
+        "NPC"
+      ],
+      "description": "물가의 어부 인물 모형",
+      "setting": [
+        "river",
+        "coast"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.7,
+        1.57,
+        0.49
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-npc-fisher-3",
+      "file": "npc-fisher-3.glb",
+      "bytes": 1141840,
+      "exported_at": "2026-10-19T23:35:59.625Z"
+    },
+    {
+      "display_name": "여인(인물 모형)",
+      "group_id": "씬1.아비사",
+      "category": "other",
+      "tags": [
+        "인물",
+        "여인",
+        "처녀",
+        "NPC"
+      ],
+      "description": "한복 입은 젊은 여인 인물 모형",
+      "setting": [
+        "village",
+        "river"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.79,
+        1.62,
+        0.39
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-npc-woman",
+      "file": "npc-woman.glb",
+      "bytes": 1292720,
+      "exported_at": "2026-10-19T23:35:59.725Z"
+    },
+    {
+      "display_name": "기록 선반",
+      "group_id": "기록소품.record-shelf",
+      "category": "household",
+      "tags": [
+        "선반",
+        "기록",
+        "두루마리",
+        "책",
+        "보관",
+        "모음"
+      ],
+      "description": "두루마리와 책을 얹은 낮은 나무 선반. 높이 약 1 m",
+      "setting": [
+        "interior",
+        "village",
+        "bureau"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.95,
+        1,
+        0.3
+      ],
+      "generation_queue": true,
+      "asset_id": "code-record-shelf",
+      "file": "record-shelf.glb",
+      "bytes": 35036,
+      "exported_at": "2026-10-19T06:11:57.679Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "제상(굿상)",
+      "group_id": "기록소품.ritual-table",
+      "category": "ritual",
+      "tags": [
+        "제상",
+        "굿상",
+        "의례",
+        "상",
+        "제물",
+        "씻김굿"
+      ],
+      "description": "다리 짧은 나무 제상 위에 제기 그릇 몇 개. 폭 약 1 m",
+      "setting": [
+        "river",
+        "shrine",
+        "village"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        1,
+        0.47,
+        0.5
+      ],
+      "generation_queue": true,
+      "asset_id": "code-ritual-table",
+      "file": "ritual-table.glb",
+      "bytes": 21380,
+      "exported_at": "2026-10-19T06:11:57.675Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "끊어진 끈",
+      "group_id": "기록소품.rope-broken",
+      "category": "household",
+      "tags": [
+        "끈",
+        "새끼줄",
+        "끊어진 끈",
+        "흔적",
+        "줄"
+      ],
+      "description": "바닥에 떨어진 끊어진 새끼줄 두 토막. 길이 약 0.6 m",
+      "setting": [
+        "village",
+        "river",
+        "mountain"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.61,
+        0.02,
+        0.22
+      ],
+      "generation_queue": true,
+      "asset_id": "code-rope-broken",
+      "file": "rope-broken.glb",
+      "bytes": 17208,
+      "exported_at": "2026-10-19T06:11:57.663Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "두루마리(펼침)",
+      "group_id": "기록소품.scroll-open",
+      "category": "study",
+      "tags": [
+        "두루마리",
+        "기록",
+        "문서",
+        "명부",
+        "장부",
+        "펼친 문서"
+      ],
+      "description": "바닥이나 상 위에 펼쳐 둔 두루마리. 세로로 쓴 먹 글줄. 폭 약 0.6 m",
+      "setting": [
+        "village",
+        "interior"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.68,
+        0.06,
+        0.32
+      ],
+      "generation_queue": true,
+      "asset_id": "code-scroll-open",
+      "file": "scroll-open.glb",
+      "bytes": 26572,
+      "exported_at": "2026-10-19T06:11:57.630Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "두루마리(말림)",
+      "group_id": "기록소품.scroll-rolled",
+      "category": "study",
+      "tags": [
+        "두루마리",
+        "기록",
+        "문서",
+        "명부",
+        "장부",
+        "종이"
+      ],
+      "description": "끈으로 묶어 말아 둔 종이 두루마리. 양끝에 나무 축. 길이 약 0.4 m",
+      "setting": [
+        "village",
+        "interior"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.43,
+        0.08,
+        0.08
+      ],
+      "generation_queue": true,
+      "asset_id": "code-scroll-rolled",
+      "file": "scroll-rolled.glb",
+      "bytes": 18028,
+      "exported_at": "2026-10-19T06:11:57.623Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "구렁이",
+      "group_id": "씬1.구렁이",
+      "category": "other",
+      "tags": [
+        "뱀",
+        "구렁이",
+        "동물"
+      ],
+      "description": "몸을 사린 큰 뱀(구렁이)",
+      "setting": [
+        "river",
+        "village"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        2.59,
+        1.39,
+        2.6
+      ],
+      "needs_replacement": true,
+      "shapes": 1,
+      "asset_id": "code-serpent",
+      "file": "serpent.glb",
+      "bytes": 407168,
+      "exported_at": "2026-10-19T23:35:59.749Z"
+    },
+    {
+      "display_name": "솟대",
+      "group_id": "씬2.솟대",
+      "category": "ritual",
+      "tags": [
+        "마을 수호",
+        "새",
+        "장대"
+      ],
+      "description": "장대 끝에 나무 새를 얹은 솟대",
+      "setting": [
+        "village"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.63,
+        3.2,
+        0.9
+      ],
+      "needs_replacement": true,
+      "shapes": 3,
+      "asset_id": "code-sotdae",
+      "file": "sotdae.glb",
+      "bytes": 24112,
+      "exported_at": "2026-10-19T23:35:59.758Z"
+    },
+    {
+      "display_name": "돌탑",
+      "group_id": "씬1.돌탑",
+      "category": "ritual",
+      "tags": [
+        "돌무더기",
+        "소원",
+        "돌"
+      ],
+      "description": "작은 돌을 쌓아 올린 돌탑",
+      "setting": [
+        "village",
+        "river",
+        "mountain_temple"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.31,
+        0.84,
+        0.33
+      ],
+      "needs_replacement": true,
+      "shapes": 2,
+      "asset_id": "code-stone-cairn",
+      "file": "stone-cairn.glb",
+      "bytes": 16388,
+      "exported_at": "2026-10-19T23:35:59.765Z"
+    },
+    {
+      "display_name": "돌무지",
+      "group_id": "씬5.돌무지",
+      "category": "ritual",
+      "tags": [
+        "돌",
+        "무더기",
+        "제단"
+      ],
+      "description": "돌을 둥글게 쌓은 돌무지",
+      "setting": [
+        "village",
+        "river",
+        "grave"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.34,
+        0.98,
+        0.37
+      ],
+      "needs_replacement": true,
+      "shapes": 3,
+      "asset_id": "code-stone-pile",
+      "file": "stone-pile.glb",
+      "bytes": 16392,
+      "exported_at": "2026-10-19T23:35:59.772Z"
+    },
+    {
+      "display_name": "새긴 돌판",
+      "group_id": "기록소품.stone-slab-carved",
+      "category": "ritual",
+      "tags": [
+        "돌판",
+        "새김판",
+        "기록",
+        "전승",
+        "증언",
+        "바위 새김"
+      ],
+      "description": "땅에 비스듬히 기대 둔 납작한 돌판. 겉에 글줄을 새김. 높이 약 0.6 m",
+      "setting": [
+        "village",
+        "river",
+        "shrine"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.6,
+        0.6,
+        0.3
+      ],
+      "generation_queue": true,
+      "asset_id": "code-stone-slab-carved",
+      "file": "stone-slab-carved.glb",
+      "bytes": 11696,
+      "exported_at": "2026-10-19T06:11:57.654Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "짚신",
+      "group_id": "씬3.짚신",
+      "category": "clothing",
+      "tags": [
+        "신발",
+        "짚",
+        "흔적"
+      ],
+      "description": "짚으로 삼은 신 한 켤레",
+      "setting": [
+        "village",
+        "river",
+        "mountain_temple"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.13,
+        0.06,
+        0.26
+      ],
+      "needs_replacement": true,
+      "shapes": 2,
+      "asset_id": "code-straw-shoes",
+      "file": "straw-shoes.glb",
+      "bytes": 28036,
+      "exported_at": "2026-10-19T23:35:59.779Z"
+    },
+    {
+      "display_name": "횃불",
+      "group_id": "소품.횃불",
+      "category": "household",
+      "tags": [
+        "불",
+        "관솔불",
+        "조명"
+      ],
+      "description": "세워 두는 횃불",
+      "setting": [
+        "village",
+        "river",
+        "fortress"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.17,
+        2.1,
+        0.17
+      ],
+      "needs_replacement": true,
+      "shapes": 2,
+      "asset_id": "code-torch-stand",
+      "file": "torch-stand.glb",
+      "bytes": 9640,
+      "exported_at": "2026-10-19T23:35:59.787Z"
+    },
+    {
+      "display_name": "흰 천(개어 둠)",
+      "group_id": "기록소품.white-cloth-folded",
+      "category": "ritual",
+      "tags": [
+        "흰 천",
+        "천",
+        "무명",
+        "의례",
+        "제구"
+      ],
+      "description": "개어 둔 흰 무명천 한 필. 약 0.4×0.3 m",
+      "setting": [
+        "shrine",
+        "village"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.4,
+        0.1,
+        0.3
+      ],
+      "generation_queue": true,
+      "asset_id": "code-white-cloth-folded",
+      "file": "white-cloth-folded.glb",
+      "bytes": 8060,
+      "exported_at": "2026-10-19T06:11:57.671Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "흰 천 건 줄(의례)",
+      "group_id": "기록소품.white-cloth-line",
+      "category": "ritual",
+      "tags": [
+        "흰 천",
+        "굿",
+        "씻김굿",
+        "의례",
+        "천",
+        "줄",
+        "제상 터"
+      ],
+      "description": "대나무 장대 둘 사이에 줄을 걸고 흰 천 자락을 늘어뜨린 굿판 장식. 높이 약 2 m",
+      "setting": [
+        "river",
+        "shrine",
+        "village"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        2.26,
+        2.1,
+        0.06
+      ],
+      "generation_queue": true,
+      "asset_id": "code-white-cloth-line",
+      "file": "white-cloth-line.glb",
+      "bytes": 26356,
+      "exported_at": "2026-10-19T06:11:57.668Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "나무 새김판",
+      "group_id": "기록소품.wood-tablet-carved",
+      "category": "ritual",
+      "tags": [
+        "새김판",
+        "목판",
+        "기록판",
+        "증언",
+        "전승",
+        "판자",
+        "글"
+      ],
+      "description": "글을 새긴 두꺼운 나무판. 벽이나 바위에 기대어 세운다. 높이 약 0.7 m",
+      "setting": [
+        "village",
+        "shrine"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.45,
+        0.7,
+        0.13
+      ],
+      "generation_queue": true,
+      "asset_id": "code-wood-tablet-carved",
+      "file": "wood-tablet-carved.glb",
+      "bytes": 13508,
+      "exported_at": "2026-10-19T06:11:57.639Z",
+      "needs_replacement": true
+    },
+    {
+      "display_name": "나무패 꿰미",
+      "group_id": "기록소품.wooden-tags-string",
+      "category": "ritual",
+      "tags": [
+        "나무패",
+        "꿰미",
+        "패",
+        "끈",
+        "목판 조각",
+        "노래 조각",
+        "순서"
+      ],
+      "description": "새끼줄에 글을 쓴 작은 나무패 여러 개를 꿴 것. 걸어 두거나 바닥에 놓는다. 길이 약 0.8 m",
+      "setting": [
+        "village",
+        "shrine"
+      ],
+      "era": "premodern_generic",
+      "provider": "팀 제작(코드 모형)",
+      "license": "팀 제작",
+      "bounds_m": [
+        0.8,
+        0.04,
+        0.18
+      ],
+      "generation_queue": true,
+      "asset_id": "code-wooden-tags-string",
+      "file": "wooden-tags-string.glb",
+      "bytes": 16944,
+      "exported_at": "2026-10-19T06:11:57.659Z",
+      "needs_replacement": true
+    }
+  ]
+}

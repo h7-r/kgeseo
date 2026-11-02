@@ -1,0 +1,731 @@
+{
+ "schema": "naju-idmap/0.1-draft",
+ "case_id": "naju-angam-01",
+ "status": "draft — PM 초안(10/27). 게시 전 BE 검증·FE/나주 담당 확인 필요. 나주 코드·로컬 ID 는 바꾸지 않는다",
+ "local_source": {
+  "game": "naju01",
+  "commit": "11e4b67",
+  "site_plan": "naju01/src/plan/sitePlan.ts",
+  "generated_trial": "e3e66d47 (05 퍼즐 · 04 장면 — 앙암바위 생성본 복사)"
+ },
+ "rules": {
+  "direction": "나주 로컬 ID → 런타임 ID. FE 어댑터가 BE 로 보낼 때·받을 때만 바꾼다. BE·NPC 는 런타임 ID 만 쓴다",
+  "unmapped_local_id": "FE 가 서버 전송 차단 + 진단 로그(local_id · kind · case_id · content_version · at). NPC 는 generic",
+  "object_local_key": "`<인스턴스 묶음 이름>#<userData.ids[i] 또는 i>` — director.ts 단서 근접 판정과 같은 키",
+  "object_id": "OBJ_S<씬>_<영문 이름>_<로컬 인스턴스 번호>. 지운 ID 는 다시 쓰지 않는다",
+  "fingerprint": "이 파일도 content_fingerprint 계산 대상(대응이 바뀌면 같은 버전이라도 동작이 달라짐)"
+ },
+ "zones": [
+  {
+   "local": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "name": "나루터 · 시작 테라스",
+   "x_m": [
+    8,
+    28
+   ],
+   "z_m": [
+    30,
+    44
+   ]
+  },
+  {
+   "local": "Z2",
+   "zone_id": "ZONE_GRAVEL_BEACH",
+   "name": "바위 아래 · 자갈밭",
+   "x_m": [
+    34,
+    56
+   ],
+   "z_m": [
+    30,
+    44
+   ]
+  },
+  {
+   "local": "Z3",
+   "zone_id": "ZONE_CLIFF_TOP",
+   "name": "바위 위 · 절벽 상단",
+   "x_m": [
+    34,
+    58
+   ],
+   "z_m": [
+    8,
+    26
+   ]
+  },
+  {
+   "local": "Z4",
+   "zone_id": "ZONE_JINBU_RIDGE",
+   "name": "진부촌 방향 증언 능선",
+   "x_m": [
+    62,
+    76
+   ],
+   "z_m": [
+    8,
+    32
+   ]
+  }
+ ],
+ "scenes": [
+  {
+   "local": 1,
+   "scene_id": "SCENE_TWO_NAMES",
+   "src_id": "scene-01",
+   "title": "강 건너의 두 이름",
+   "zones": [
+    "Z1",
+    "Z2"
+   ],
+   "zone_ids": [
+    "ZONE_FERRY_TERRACE",
+    "ZONE_GRAVEL_BEACH"
+   ],
+   "local_complete_signal": "endScene(1) → focus.clearedScenes",
+   "note": "생성 장면 순서 = 나주 씬 번호로 가정 — 확인 필요"
+  },
+  {
+   "local": 2,
+   "scene_id": "SCENE_FISH_AND_NIGHT",
+   "src_id": "scene-02",
+   "title": "물고기와 밤의 바위",
+   "zones": [
+    "Z4"
+   ],
+   "zone_ids": [
+    "ZONE_JINBU_RIDGE"
+   ],
+   "local_complete_signal": "endScene(2) → focus.clearedScenes",
+   "note": "생성 장면 순서 = 나주 씬 번호로 가정 — 확인 필요"
+  },
+  {
+   "local": 3,
+   "scene_id": "SCENE_JEALOUS_CLIFF",
+   "src_id": "scene-03",
+   "title": "시기의 낭떠러지",
+   "zones": [
+    "Z2",
+    "Z3"
+   ],
+   "zone_ids": [
+    "ZONE_GRAVEL_BEACH",
+    "ZONE_CLIFF_TOP"
+   ],
+   "local_complete_signal": "endScene(3) → focus.clearedScenes",
+   "note": "생성 장면 순서 = 나주 씬 번호로 가정 — 확인 필요"
+  },
+  {
+   "local": 4,
+   "scene_id": "SCENE_SERPENT_FALL",
+   "src_id": "scene-04",
+   "title": "구렁이와 굴림",
+   "zones": [
+    "Z1",
+    "Z2"
+   ],
+   "zone_ids": [
+    "ZONE_FERRY_TERRACE",
+    "ZONE_GRAVEL_BEACH"
+   ],
+   "local_complete_signal": "endScene(4) → focus.clearedScenes",
+   "note": "생성 장면 순서 = 나주 씬 번호로 가정 — 확인 필요"
+  },
+  {
+   "local": 5,
+   "scene_id": "SCENE_SSITGIM",
+   "src_id": "scene-05",
+   "title": "음력 8월의 씻김굿",
+   "zones": [
+    "Z2"
+   ],
+   "zone_ids": [
+    "ZONE_GRAVEL_BEACH"
+   ],
+   "local_complete_signal": "endScene(5) → focus.clearedScenes",
+   "note": "생성 장면 순서 = 나주 씬 번호로 가정 — 확인 필요"
+  }
+ ],
+ "navigation": [
+  {
+   "local": "T1",
+   "name": "바위틈",
+   "from": "Z1",
+   "to": "Z2",
+   "note": "씬1·4 안에서 오가는 길"
+  },
+  {
+   "local": "T2",
+   "name": "강변 우회 비탈",
+   "from": "Z2",
+   "to": "Z4"
+  },
+  {
+   "local": "T3",
+   "name": "북측 스위치백",
+   "from": "Z4",
+   "to": "Z3"
+  },
+  {
+   "local": "T4",
+   "name": "서측 하강로",
+   "from": "Z3",
+   "to": "Z1"
+  }
+ ],
+ "blockers": [
+  {
+   "local": "B1",
+   "name": "바위 능선",
+   "object_id": "OBJ_BLOCKER_RIDGE"
+  },
+  {
+   "local": "B2",
+   "name": "북측 바위",
+   "object_id": "OBJ_BLOCKER_NORTH_ROCK",
+   "local_clear": "씬 2 완료 때 무너짐(clearing.scene=2)"
+  },
+  {
+   "local": "B3",
+   "name": "동측 바위",
+   "object_id": "OBJ_BLOCKER_EAST_ROCK"
+  },
+  {
+   "local": "B4",
+   "name": "서측 낙석",
+   "object_id": "OBJ_BLOCKER_WEST_ROCKFALL"
+  },
+  {
+   "local": "수목대",
+   "name": "수목대",
+   "object_id": null,
+   "note": "지형 경계 — 상호작용 대상 아님"
+  }
+ ],
+ "objects": [
+  {
+   "local": "씬1.그물틀#0",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S1_NET_FRAME_0",
+   "scene": 1,
+   "at_m": [
+    26.5,
+    43
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬1.통발#0",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S1_FISH_TRAP_0",
+   "scene": 1,
+   "at_m": [
+    19.6,
+    41.9
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬1.통발#1",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S1_FISH_TRAP_1",
+   "scene": 1,
+   "at_m": [
+    20.5,
+    42.3
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬1.통발#2",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S1_FISH_TRAP_2",
+   "scene": 1,
+   "at_m": [
+    19,
+    42.5
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬1.천막#0",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S1_TENT_0",
+   "scene": 1,
+   "at_m": [
+    24,
+    42
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬1.돌탑#0",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S1_CAIRN_0",
+   "scene": 1,
+   "at_m": [
+    25.8,
+    41.9
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬1.화톳불#0",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S1_BONFIRE_0",
+   "scene": 1,
+   "at_m": [
+    24,
+    42.5
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬1.구렁이#0",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S1_SERPENT_0",
+   "scene": 1,
+   "at_m": [
+    22.5,
+    41.2
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬1.아비사#0",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S1_ABISA_FIGURE_0",
+   "scene": 1,
+   "at_m": [
+    22,
+    38.5
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬2.솟대#2",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S2_SOTDAE_2",
+   "scene": 2,
+   "at_m": [
+    10.8,
+    30
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬4.배자국#0",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S4_BOAT_MARK_0",
+   "scene": 4,
+   "at_m": [
+    18,
+    42.5
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬4.말뚝#0",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S4_MOORING_POST_0",
+   "scene": 4,
+   "at_m": [
+    17.9,
+    41.3
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  },
+  {
+   "local": "씬4.발자국#0",
+   "zone": "Z1",
+   "zone_id": "ZONE_FERRY_TERRACE",
+   "object_id": "OBJ_S4_FOOTPRINTS_0",
+   "scene": 4,
+   "at_m": [
+    19.6,
+    42.4
+   ],
+   "interaction": null,
+   "status": "placed_no_interaction"
+  }
+ ],
+ "object_groups_without_instances": [
+  {
+   "local_group": "씬2.평상",
+   "object_id_base": "OBJ_S2_PLATFORM_BED",
+   "note": "이번 판(src=sf) 배치 0 — 배치가 생기면 같은 규칙으로 추가"
+  },
+  {
+   "local_group": "씬2.걸상",
+   "object_id_base": "OBJ_S2_STOOL",
+   "note": "이번 판(src=sf) 배치 0 — 배치가 생기면 같은 규칙으로 추가"
+  },
+  {
+   "local_group": "씬2.지게",
+   "object_id_base": "OBJ_S2_JIGE",
+   "note": "이번 판(src=sf) 배치 0 — 배치가 생기면 같은 규칙으로 추가"
+  },
+  {
+   "local_group": "씬2.물동이",
+   "object_id_base": "OBJ_S2_WATER_JAR",
+   "note": "이번 판(src=sf) 배치 0 — 배치가 생기면 같은 규칙으로 추가"
+  },
+  {
+   "local_group": "씬3.짚신",
+   "object_id_base": "OBJ_S3_STRAW_SHOES",
+   "note": "이번 판(src=sf) 배치 0 — 배치가 생기면 같은 규칙으로 추가"
+  },
+  {
+   "local_group": "씬3.댕기",
+   "object_id_base": "OBJ_S3_DAENGGI",
+   "note": "이번 판(src=sf) 배치 0 — 배치가 생기면 같은 규칙으로 추가"
+  },
+  {
+   "local_group": "씬3.흙덩이",
+   "object_id_base": "OBJ_S3_CLOD",
+   "note": "이번 판(src=sf) 배치 0 — 배치가 생기면 같은 규칙으로 추가"
+  },
+  {
+   "local_group": "씬3.부러진가지",
+   "object_id_base": "OBJ_S3_BROKEN_BRANCH",
+   "note": "이번 판(src=sf) 배치 0 — 배치가 생기면 같은 규칙으로 추가"
+  },
+  {
+   "local_group": "씬5.돌무지",
+   "object_id_base": "OBJ_S5_STONE_PILE",
+   "note": "이번 판(src=sf) 배치 0 — 배치가 생기면 같은 규칙으로 추가"
+  },
+  {
+   "local_group": "씬5.금줄",
+   "object_id_base": "OBJ_S5_GEUMJUL",
+   "note": "이번 판(src=sf) 배치 0 — 배치가 생기면 같은 규칙으로 추가"
+  },
+  {
+   "local_group": "씬5.소반",
+   "object_id_base": "OBJ_S5_SOBAN",
+   "note": "이번 판(src=sf) 배치 0 — 배치가 생기면 같은 규칙으로 추가"
+  }
+ ],
+ "puzzles": [
+  {
+   "src_id": "PZ-01",
+   "puzzle_id": "PUZZLE_ANGAM_01",
+   "scene_id": "SCENE_TWO_NAMES",
+   "title": "절벽의 두 이름",
+   "local": null,
+   "status": "unplaced",
+   "note": "생성 퍼즐의 호스트(host_needs: 나룻배 표지·뱃사공 등)가 나주 맵에 아직 없다"
+  },
+  {
+   "src_id": "PZ-02",
+   "puzzle_id": "PUZZLE_ANGAM_02",
+   "scene_id": "SCENE_TWO_NAMES",
+   "title": "강 건너 마을 짝 맞추기",
+   "local": null,
+   "status": "unplaced",
+   "note": "생성 퍼즐의 호스트(host_needs: 나룻배 표지·뱃사공 등)가 나주 맵에 아직 없다"
+  },
+  {
+   "src_id": "PZ-03",
+   "puzzle_id": "PUZZLE_ANGAM_03",
+   "scene_id": "SCENE_FISH_AND_NIGHT",
+   "title": "건너온 울음소리",
+   "local": null,
+   "status": "unplaced",
+   "note": "생성 퍼즐의 호스트(host_needs: 나룻배 표지·뱃사공 등)가 나주 맵에 아직 없다"
+  },
+  {
+   "src_id": "PZ-04",
+   "puzzle_id": "PUZZLE_ANGAM_04",
+   "scene_id": "SCENE_FISH_AND_NIGHT",
+   "title": "물고기 먼저, 밤은 그다음",
+   "local": null,
+   "status": "unplaced",
+   "note": "생성 퍼즐의 호스트(host_needs: 나룻배 표지·뱃사공 등)가 나주 맵에 아직 없다"
+  },
+  {
+   "src_id": "PZ-05",
+   "puzzle_id": "PUZZLE_ANGAM_05",
+   "scene_id": "SCENE_JEALOUS_CLIFF",
+   "title": "질투의 소문",
+   "local": null,
+   "status": "unplaced",
+   "note": "생성 퍼즐의 호스트(host_needs: 나룻배 표지·뱃사공 등)가 나주 맵에 아직 없다"
+  },
+  {
+   "src_id": "PZ-06",
+   "puzzle_id": "PUZZLE_ANGAM_06",
+   "scene_id": "SCENE_JEALOUS_CLIFF",
+   "title": "낭떠러지와 남은 발길",
+   "local": null,
+   "status": "unplaced",
+   "note": "생성 퍼즐의 호스트(host_needs: 나룻배 표지·뱃사공 등)가 나주 맵에 아직 없다"
+  },
+  {
+   "src_id": "PZ-07",
+   "puzzle_id": "PUZZLE_ANGAM_07",
+   "scene_id": "SCENE_SERPENT_FALL",
+   "title": "바위를 타고 오른 것",
+   "local": null,
+   "status": "unplaced",
+   "note": "생성 퍼즐의 호스트(host_needs: 나룻배 표지·뱃사공 등)가 나주 맵에 아직 없다"
+  },
+  {
+   "src_id": "PZ-08",
+   "puzzle_id": "PUZZLE_ANGAM_08",
+   "scene_id": "SCENE_SERPENT_FALL",
+   "title": "엇갈린 이야기들",
+   "local": null,
+   "status": "unplaced",
+   "note": "생성 퍼즐의 호스트(host_needs: 나룻배 표지·뱃사공 등)가 나주 맵에 아직 없다"
+  },
+  {
+   "src_id": "PZ-09",
+   "puzzle_id": "PUZZLE_ANGAM_09",
+   "scene_id": "SCENE_SSITGIM",
+   "title": "음력 팔월 씻김",
+   "local": null,
+   "status": "unplaced",
+   "note": "생성 퍼즐의 호스트(host_needs: 나룻배 표지·뱃사공 등)가 나주 맵에 아직 없다"
+  },
+  {
+   "src_id": "PZ-10",
+   "puzzle_id": "PUZZLE_ANGAM_10",
+   "scene_id": "SCENE_SSITGIM",
+   "title": "전경 속 사건의 순서",
+   "local": null,
+   "status": "unplaced",
+   "note": "생성 퍼즐의 호스트(host_needs: 나룻배 표지·뱃사공 등)가 나주 맵에 아직 없다"
+  }
+ ],
+ "clues": [
+  {
+   "src_id": "CL-01-1",
+   "clue_id": "CLUE_ANGAM_01_1",
+   "puzzle_src_id": "PZ-01",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-01-2",
+   "clue_id": "CLUE_ANGAM_01_2",
+   "puzzle_src_id": "PZ-01",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-02-1",
+   "clue_id": "CLUE_ANGAM_02_1",
+   "puzzle_src_id": "PZ-02",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-02-2",
+   "clue_id": "CLUE_ANGAM_02_2",
+   "puzzle_src_id": "PZ-02",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-02-3",
+   "clue_id": "CLUE_ANGAM_02_3",
+   "puzzle_src_id": "PZ-02",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-02-4",
+   "clue_id": "CLUE_ANGAM_02_4",
+   "puzzle_src_id": "PZ-02",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-03-1",
+   "clue_id": "CLUE_ANGAM_03_1",
+   "puzzle_src_id": "PZ-03",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-03-2",
+   "clue_id": "CLUE_ANGAM_03_2",
+   "puzzle_src_id": "PZ-03",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-03-3",
+   "clue_id": "CLUE_ANGAM_03_3",
+   "puzzle_src_id": "PZ-03",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-04-1",
+   "clue_id": "CLUE_ANGAM_04_1",
+   "puzzle_src_id": "PZ-04",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-04-2",
+   "clue_id": "CLUE_ANGAM_04_2",
+   "puzzle_src_id": "PZ-04",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-04-R",
+   "clue_id": "CLUE_ANGAM_04_R",
+   "puzzle_src_id": "PZ-04",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-05-1",
+   "clue_id": "CLUE_ANGAM_05_1",
+   "puzzle_src_id": "PZ-05",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-05-2",
+   "clue_id": "CLUE_ANGAM_05_2",
+   "puzzle_src_id": "PZ-05",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-06-1",
+   "clue_id": "CLUE_ANGAM_06_1",
+   "puzzle_src_id": "PZ-06",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-06-2",
+   "clue_id": "CLUE_ANGAM_06_2",
+   "puzzle_src_id": "PZ-06",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-06-3",
+   "clue_id": "CLUE_ANGAM_06_3",
+   "puzzle_src_id": "PZ-06",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-07-1",
+   "clue_id": "CLUE_ANGAM_07_1",
+   "puzzle_src_id": "PZ-07",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-07-2",
+   "clue_id": "CLUE_ANGAM_07_2",
+   "puzzle_src_id": "PZ-07",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-07-3",
+   "clue_id": "CLUE_ANGAM_07_3",
+   "puzzle_src_id": "PZ-07",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-08-1",
+   "clue_id": "CLUE_ANGAM_08_1",
+   "puzzle_src_id": "PZ-08",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-08-2",
+   "clue_id": "CLUE_ANGAM_08_2",
+   "puzzle_src_id": "PZ-08",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-08-3",
+   "clue_id": "CLUE_ANGAM_08_3",
+   "puzzle_src_id": "PZ-08",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-09-1",
+   "clue_id": "CLUE_ANGAM_09_1",
+   "puzzle_src_id": "PZ-09",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-09-2",
+   "clue_id": "CLUE_ANGAM_09_2",
+   "puzzle_src_id": "PZ-09",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-09-3",
+   "clue_id": "CLUE_ANGAM_09_3",
+   "puzzle_src_id": "PZ-09",
+   "local": null,
+   "status": "unplaced"
+  },
+  {
+   "src_id": "CL-10-1",
+   "clue_id": "CLUE_ANGAM_10_1",
+   "puzzle_src_id": "PZ-10",
+   "local": null,
+   "status": "unplaced"
+  }
+ ],
+ "not_mapped": [
+  {
+   "local": "stage.seenClues",
+   "why": "2.5 m 근접 임시 판정 — 「봤다」이지 단서 획득(acquired_clue_ids)이 아니다. 전송하지 않음"
+  },
+  {
+   "local": "cinePreview 왜곡의 막·이동막",
+   "why": "미리보기 전용(본편 아님)"
+  },
+  {
+   "local": "NPC(아비사) Z1 (22, 38.5)",
+   "why": "NPC 는 대화 API — 상호작용 대상 object 로 넣을지 미정"
+  }
+ ]
+}

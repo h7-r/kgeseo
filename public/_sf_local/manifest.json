@@ -1,0 +1,1285 @@
+{
+  "설명": "로컬 미리보기 — 공개 3D(Sketchfab·KCISA·KHS, CC BY·CC0) 경량본 (10/13 · AI허브 제외판). 크레딧: flux-test/public3d/받은목록.jsonl",
+  "바꿔치기": [
+    {
+      "target": "바위덩어리",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 3,
+      "메모": "10/13 — 해안 판석·cabo는 납작한 판이라(키/폭 0.07~0.2) 바닥 맞춤 뒤 땅에 묻혀 「바위가 사라짐」 → 키/폭 0.6~0.75 돌로 교체"
+    },
+    {
+      "target": "바위덩어리",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 0.45,
+      "메모": "10/13 — 해안 판석·cabo는 납작한 판이라(키/폭 0.07~0.2) 바닥 맞춤 뒤 땅에 묻혀 「바위가 사라짐」 → 키/폭 0.6~0.75 돌로 교체"
+    },
+    {
+      "target": "발치너덜",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 3,
+      "메모": "10/13 — 해안 판석·cabo는 납작한 판이라(키/폭 0.07~0.2) 바닥 맞춤 뒤 땅에 묻혀 「바위가 사라짐」 → 키/폭 0.6~0.75 돌로 교체"
+    },
+    {
+      "target": "발치너덜",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 0.45,
+      "메모": "10/13 — 해안 판석·cabo는 납작한 판이라(키/폭 0.07~0.2) 바닥 맞춤 뒤 땅에 묻혀 「바위가 사라짐」 → 키/폭 0.6~0.75 돌로 교체"
+    },
+    {
+      "target": "틈바위",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 3,
+      "메모": "10/13 — 해안 판석·cabo는 납작한 판이라(키/폭 0.07~0.2) 바닥 맞춤 뒤 땅에 묻혀 「바위가 사라짐」 → 키/폭 0.6~0.75 돌로 교체"
+    },
+    {
+      "target": "틈바위",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 0.45,
+      "메모": "10/13 — 해안 판석·cabo는 납작한 판이라(키/폭 0.07~0.2) 바닥 맞춤 뒤 땅에 묻혀 「바위가 사라짐」 → 키/폭 0.6~0.75 돌로 교체"
+    },
+    {
+      "target": "비탈바위",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 3,
+      "메모": "10/13 — cabo는 옆으로 누운 판 → 돌로 교체"
+    },
+    {
+      "target": "비탈바위",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 0.45
+    },
+    {
+      "target": "길가돌",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 3,
+      "메모": "10/13 — cabo는 옆으로 누운 판 → 돌로 교체"
+    },
+    {
+      "target": "길가돌",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 0.45
+    },
+    {
+      "target": "소품.바위",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 3,
+      "메모": "10/13 — cabo는 옆으로 누운 판 → 돌로 교체"
+    },
+    {
+      "target": "소품.바위",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 0.45
+    },
+    {
+      "target": "자연.바위2",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 3,
+      "메모": "10/13 — cabo는 옆으로 누운 판 → 돌로 교체"
+    },
+    {
+      "target": "자연.바위2",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 0.45
+    },
+    {
+      "target": "자갈",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 3,
+      "메모": "10/13 — cabo는 옆으로 누운 판 → 돌로 교체"
+    },
+    {
+      "target": "자갈",
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "최소키": 0.45
+    },
+    {
+      "target": "자갈",
+      "files": [
+        "rock/gravel022.glb",
+        "rock/gravel030.glb",
+        "rock/gravel038.glb",
+        "rock/gravel045.glb",
+        "rock/gravel052.glb",
+        "rock/gravel060.glb",
+        "rock/gravel068.glb",
+        "rock/gravel075.glb",
+        "rock/gravel082.glb",
+        "rock/gravel090.glb"
+      ],
+      "최소키": 0
+    },
+    {
+      "target": "언덕수풀.나무",
+      "files": [
+        "tree/pine_big_1.glb",
+        "tree/pine_big_2.glb",
+        "tree/pine_big_3.glb",
+        "tree/pine_medium_1.glb",
+        "tree/pine_medium_2.glb",
+        "tree/pine_large_1_lod1.glb",
+        "tree/pine_large_2_lod1.glb",
+        "tree/pine_large_3_lod1.glb",
+        "tree/linden_L.glb",
+        "tree/linden_R.glb"
+      ],
+      "원경files": [
+        "tree/pine_big_1_far.glb",
+        "tree/pine_big_2_far.glb",
+        "tree/pine_big_3_far.glb",
+        "tree/pine_medium_1_far.glb",
+        "tree/pine_medium_2_far.glb",
+        "tree/pine_large_1_far.glb",
+        "tree/pine_large_2_far.glb",
+        "tree/pine_large_3_far.glb",
+        "tree/linden_L_far.glb",
+        "tree/linden_R_far.glb"
+      ],
+      "맞춤": "높이"
+    },
+    {
+      "target": "길가수풀.나무",
+      "files": [
+        "tree/pine_big_1.glb",
+        "tree/pine_big_2.glb",
+        "tree/pine_big_3.glb",
+        "tree/pine_medium_1.glb",
+        "tree/pine_medium_2.glb",
+        "tree/pine_large_1_lod1.glb",
+        "tree/pine_large_2_lod1.glb",
+        "tree/pine_large_3_lod1.glb"
+      ],
+      "원경files": [
+        "tree/pine_big_1_far.glb",
+        "tree/pine_big_2_far.glb",
+        "tree/pine_big_3_far.glb",
+        "tree/pine_medium_1_far.glb",
+        "tree/pine_medium_2_far.glb",
+        "tree/pine_large_1_far.glb",
+        "tree/pine_large_2_far.glb",
+        "tree/pine_large_3_far.glb"
+      ],
+      "맞춤": "높이"
+    },
+    {
+      "target": "수목대.나무",
+      "files": [
+        "tree/pine_big_1.glb",
+        "tree/pine_big_2.glb",
+        "tree/pine_big_3.glb",
+        "tree/pine_medium_1.glb",
+        "tree/pine_medium_2.glb",
+        "tree/pine_large_1_lod1.glb",
+        "tree/pine_large_2_lod1.glb",
+        "tree/pine_large_3_lod1.glb",
+        "tree/linden_L.glb",
+        "tree/linden_R.glb"
+      ],
+      "원경files": [
+        "tree/pine_big_1_far.glb",
+        "tree/pine_big_2_far.glb",
+        "tree/pine_big_3_far.glb",
+        "tree/pine_medium_1_far.glb",
+        "tree/pine_medium_2_far.glb",
+        "tree/pine_large_1_far.glb",
+        "tree/pine_large_2_far.glb",
+        "tree/pine_large_3_far.glb",
+        "tree/linden_L_far.glb",
+        "tree/linden_R_far.glb"
+      ],
+      "맞춤": "높이"
+    },
+    {
+      "target": "소품.나무",
+      "files": [
+        "tree/pine_big_1.glb",
+        "tree/pine_big_2.glb",
+        "tree/pine_big_3.glb",
+        "tree/pine_medium_1.glb",
+        "tree/pine_medium_2.glb",
+        "tree/pine_large_1_lod1.glb",
+        "tree/pine_large_2_lod1.glb",
+        "tree/pine_large_3_lod1.glb"
+      ],
+      "원경files": [
+        "tree/pine_big_1_far.glb",
+        "tree/pine_big_2_far.glb",
+        "tree/pine_big_3_far.glb",
+        "tree/pine_medium_1_far.glb",
+        "tree/pine_medium_2_far.glb",
+        "tree/pine_large_1_far.glb",
+        "tree/pine_large_2_far.glb",
+        "tree/pine_large_3_far.glb"
+      ],
+      "맞춤": "높이"
+    },
+    {
+      "target": "절벽머리",
+      "files": [
+        "tree/pine_big_1.glb",
+        "tree/pine_big_2.glb",
+        "tree/pine_big_3.glb",
+        "tree/pine_medium_1.glb",
+        "tree/pine_medium_2.glb",
+        "tree/pine_large_1_lod1.glb",
+        "tree/pine_large_2_lod1.glb",
+        "tree/pine_large_3_lod1.glb"
+      ],
+      "원경files": [
+        "tree/pine_big_1_far.glb",
+        "tree/pine_big_2_far.glb",
+        "tree/pine_big_3_far.glb",
+        "tree/pine_medium_1_far.glb",
+        "tree/pine_medium_2_far.glb",
+        "tree/pine_large_1_far.glb",
+        "tree/pine_large_2_far.glb",
+        "tree/pine_large_3_far.glb"
+      ],
+      "맞춤": "높이"
+    },
+    {
+      "target": "언덕수풀.덤불",
+      "files": [
+        "plant/shrub_cliff.glb"
+      ],
+      "맞춤": "높이",
+      "원경files": [
+        "plant/shrub_cliff_far.glb"
+      ]
+    },
+    {
+      "target": "길가수풀.덤불",
+      "files": [
+        "plant/shrub_cliff.glb"
+      ],
+      "맞춤": "높이",
+      "원경files": [
+        "plant/shrub_cliff_far.glb"
+      ]
+    },
+    {
+      "target": "길가수풀.잎더미",
+      "files": [
+        "plant/shrub_cliff.glb"
+      ],
+      "맞춤": "높이",
+      "원경files": [
+        "plant/shrub_cliff_far.glb"
+      ]
+    },
+    {
+      "target": "절벽틈덤불",
+      "files": [
+        "plant/shrub_cliff.glb"
+      ],
+      "맞춤": "높이",
+      "원경files": [
+        "plant/shrub_cliff_far.glb"
+      ]
+    },
+    {
+      "target": "비탈덤불",
+      "files": [
+        "plant/shrub_cliff.glb"
+      ],
+      "맞춤": "높이",
+      "원경files": [
+        "plant/shrub_cliff_far.glb"
+      ]
+    },
+    {
+      "target": "소품.덤불",
+      "files": [
+        "plant/shrub_cliff.glb"
+      ],
+      "맞춤": "높이",
+      "원경files": [
+        "plant/shrub_cliff_far.glb"
+      ]
+    },
+    {
+      "target": "소품.수풀",
+      "files": [
+        "plant/shrub_cliff.glb"
+      ],
+      "맞춤": "높이",
+      "원경files": [
+        "plant/shrub_cliff_far.glb"
+      ]
+    },
+    {
+      "target": "언덕수풀.잡초",
+      "files": [
+        "plant/grass_style1.glb",
+        "plant/grass_style2.glb",
+        "plant/grass_style3.glb",
+        "plant/grass_style4.glb",
+        "plant2/ug_lactuca1.glb",
+        "plant2/ug_lactuca2.glb",
+        "plant2/ug_lactuca3.glb",
+        "plant2/ug_lactuca4.glb",
+        "plant2/ug_lactuca5.glb",
+        "plant2/ug_plantain1.glb",
+        "plant2/ug_plantain2.glb",
+        "plant2/ug_plantain3.glb",
+        "plant2/ug_dandelion1.glb",
+        "plant2/ug_dandelion2.glb"
+      ],
+      "맞춤": "높이",
+      "메모": "10/13 — 길·길목 피해 외곽 위주(길피하기) · 키 상한 잡초 0.45 m / 꽃 0.5 m / 갈대 1.3 m · 크기 0.65~1.2배·방향·기울기 흔들기",
+      "원경files": [
+        "plant/grass_style1_far.glb",
+        "plant/grass_style2_far.glb",
+        "plant/grass_style3_far.glb",
+        "plant/grass_style4_far.glb",
+        "plant2/ug_lactuca1.glb",
+        "plant2/ug_lactuca2.glb",
+        "plant2/ug_lactuca3.glb",
+        "plant2/ug_lactuca4.glb",
+        "plant2/ug_lactuca5.glb",
+        "plant2/ug_plantain1.glb",
+        "plant2/ug_plantain2.glb",
+        "plant2/ug_plantain3.glb",
+        "plant2/ug_dandelion1.glb",
+        "plant2/ug_dandelion2.glb"
+      ],
+      "흔들기": {
+        "배율": [
+          0.65,
+          1.2
+        ],
+        "기울기": 6
+      },
+      "길피하기": {
+        "길곁": 0.3,
+        "한가운데": 0.55
+      },
+      "키상한m": 0.45,
+      "긴풀": {
+        "plant/reed_": 1.3,
+        "plant/reed_lp": 1.1,
+        "plant/grass_dry": 0.7
+      }
+    },
+    {
+      "target": "길가수풀.잡초",
+      "files": [
+        "plant/grass_style1.glb",
+        "plant/grass_style2.glb",
+        "plant/grass_style3.glb",
+        "plant/grass_style4.glb",
+        "plant2/ug_plantain1.glb",
+        "plant2/ug_plantain2.glb",
+        "plant2/ug_plantain3.glb",
+        "plant2/ug_plantain4.glb",
+        "plant2/ug_plantain5.glb",
+        "plant/reed_1.glb",
+        "plant/reed_2.glb",
+        "plant/reed_3.glb",
+        "plant/reed_lp.glb"
+      ],
+      "맞춤": "높이",
+      "메모": "10/13 — 길·길목 피해 외곽 위주(길피하기) · 키 상한 잡초 0.45 m / 꽃 0.5 m / 갈대 1.3 m · 크기 0.65~1.2배·방향·기울기 흔들기",
+      "원경files": [
+        "plant/grass_style1_far.glb",
+        "plant/grass_style2_far.glb",
+        "plant/grass_style3_far.glb",
+        "plant/grass_style4_far.glb",
+        "plant2/ug_plantain1.glb",
+        "plant2/ug_plantain2.glb",
+        "plant2/ug_plantain3.glb",
+        "plant2/ug_plantain4.glb",
+        "plant2/ug_plantain5.glb",
+        "plant/reed_1.glb",
+        "plant/reed_2.glb",
+        "plant/reed_3.glb",
+        "plant/reed_lp.glb"
+      ],
+      "흔들기": {
+        "배율": [
+          0.65,
+          1.2
+        ],
+        "기울기": 6
+      },
+      "길피하기": {
+        "길곁": 0.3,
+        "한가운데": 0.55
+      },
+      "키상한m": 0.45,
+      "긴풀": {
+        "plant/reed_": 1.3,
+        "plant/reed_lp": 1.1,
+        "plant/grass_dry": 0.7
+      }
+    },
+    {
+      "target": "소품.풀",
+      "files": [
+        "plant/grass_style1.glb",
+        "plant/grass_style2.glb",
+        "plant/grass_style3.glb",
+        "plant/grass_style4.glb",
+        "plant2/ug_plantain1.glb",
+        "plant2/ug_plantain2.glb",
+        "plant2/ug_plantain3.glb",
+        "plant2/ug_plantain4.glb",
+        "plant2/ug_plantain5.glb",
+        "plant2/ug_lactuca1.glb",
+        "plant2/ug_lactuca2.glb",
+        "plant2/ug_lactuca3.glb",
+        "plant/reed_1.glb",
+        "plant/reed_2.glb"
+      ],
+      "맞춤": "높이",
+      "메모": "10/13 — 길·길목 피해 외곽 위주(길피하기) · 키 상한 잡초 0.45 m / 꽃 0.5 m / 갈대 1.3 m · 크기 0.65~1.2배·방향·기울기 흔들기",
+      "원경files": [
+        "plant/grass_style1_far.glb",
+        "plant/grass_style2_far.glb",
+        "plant/grass_style3_far.glb",
+        "plant/grass_style4_far.glb",
+        "plant2/ug_plantain1.glb",
+        "plant2/ug_plantain2.glb",
+        "plant2/ug_plantain3.glb",
+        "plant2/ug_plantain4.glb",
+        "plant2/ug_plantain5.glb",
+        "plant2/ug_lactuca1.glb",
+        "plant2/ug_lactuca2.glb",
+        "plant2/ug_lactuca3.glb",
+        "plant/reed_1.glb",
+        "plant/reed_2.glb"
+      ],
+      "흔들기": {
+        "배율": [
+          0.65,
+          1.2
+        ],
+        "기울기": 6
+      },
+      "길피하기": {
+        "길곁": 0.3,
+        "한가운데": 0.55
+      },
+      "키상한m": 0.45,
+      "긴풀": {
+        "plant/reed_": 1.3,
+        "plant/reed_lp": 1.1,
+        "plant/grass_dry": 0.7
+      }
+    },
+    {
+      "target": "원경.집",
+      "files": [
+        "house/chogajip01_far.glb",
+        "house/chogajip02_far.glb"
+      ]
+    },
+    {
+      "target": "씬2.평상",
+      "files": [
+        "prop/pyeongsang.glb"
+      ]
+    },
+    {
+      "target": "소품.장승",
+      "files": [
+        "prop/jangseung.glb"
+      ],
+      "맞춤": "높이"
+    },
+    {
+      "target": "소품.돌확",
+      "files": [
+        "prop/dolhwak.glb"
+      ],
+      "메모": "10/13 Meshy 생성(public/vfx/돌확.glb 와 같은 파일) · 4.6천 면 · 텍스처 512"
+    },
+    {
+      "target": "소품.돌도랑",
+      "files": [
+        "prop/ditch_straight.glb"
+      ],
+      "메모": "10/13 Meshy 생성(public/vfx/돌도랑_직선.glb) · 5.9천 면 · 텍스처 512"
+    },
+    {
+      "target": "땅.풀",
+      "files": [
+        "plant/grass_style1.glb",
+        "plant/grass_style2.glb",
+        "plant/grass_style3.glb",
+        "plant/grass_style4.glb",
+        "plant2/ug_lactuca1.glb",
+        "plant2/ug_lactuca2.glb",
+        "plant2/ug_lactuca3.glb",
+        "plant2/ug_lactuca4.glb",
+        "plant2/ug_lactuca5.glb",
+        "plant2/ug_plantain1.glb",
+        "plant2/ug_plantain2.glb",
+        "plant2/ug_plantain3.glb",
+        "plant2/ug_plantain4.glb",
+        "plant2/ug_plantain5.glb",
+        "plant2/ug_dandelion1.glb",
+        "plant2/ug_dandelion2.glb",
+        "plant2/ug_dandelion3.glb",
+        "plant/reed_1.glb",
+        "plant/reed_2.glb",
+        "plant/reed_3.glb",
+        "plant/reed_lp.glb",
+        "plant/grass_dry.glb"
+      ],
+      "맞춤": "높이",
+      "메모": "10/13 — 길·길목 피해 외곽 위주(길피하기) · 키 상한 잡초 0.45 m / 꽃 0.5 m / 갈대 1.3 m · 크기 0.65~1.2배·방향·기울기 흔들기",
+      "원경files": [
+        "plant/grass_style1_far.glb",
+        "plant/grass_style2_far.glb",
+        "plant/grass_style3_far.glb",
+        "plant/grass_style4_far.glb",
+        "plant2/ug_lactuca1.glb",
+        "plant2/ug_lactuca2.glb",
+        "plant2/ug_lactuca3.glb",
+        "plant2/ug_lactuca4.glb",
+        "plant2/ug_lactuca5.glb",
+        "plant2/ug_plantain1.glb",
+        "plant2/ug_plantain2.glb",
+        "plant2/ug_plantain3.glb",
+        "plant2/ug_plantain4.glb",
+        "plant2/ug_plantain5.glb",
+        "plant2/ug_dandelion1.glb",
+        "plant2/ug_dandelion2.glb",
+        "plant2/ug_dandelion3.glb",
+        "plant/reed_1.glb",
+        "plant/reed_2.glb",
+        "plant/reed_3.glb",
+        "plant/reed_lp.glb",
+        "plant/grass_dry.glb"
+      ],
+      "흔들기": {
+        "배율": [
+          0.65,
+          1.2
+        ],
+        "기울기": 6
+      },
+      "길피하기": {
+        "길곁": 0.3,
+        "한가운데": 0.55
+      },
+      "키상한m": 0.45,
+      "긴풀": {
+        "plant/reed_": 1.3,
+        "plant/reed_lp": 1.1,
+        "plant/grass_dry": 0.7
+      }
+    },
+    {
+      "target": "언덕수풀.꽃",
+      "files": [
+        "plant/flower_lungwort.glb",
+        "plant2/margarita.glb",
+        "plant2/dandelion_1.glb",
+        "plant2/dandelion_2.glb",
+        "plant2/dandelion_3.glb",
+        "plant2/sf_1.glb",
+        "plant2/sf_2.glb",
+        "plant2/sf_3.glb",
+        "plant2/sf_4.glb",
+        "plant2/ug_dandelion1.glb",
+        "plant2/ug_dandelion2.glb",
+        "plant2/ug_dandelion3.glb"
+      ],
+      "맞춤": "높이",
+      "메모": "10/13 — 길·길목 피해 외곽 위주(길피하기) · 키 상한 잡초 0.45 m / 꽃 0.5 m / 갈대 1.3 m · 크기 0.65~1.2배·방향·기울기 흔들기",
+      "원경files": [
+        "plant/flower_lungwort_far.glb",
+        "plant2/margarita_far.glb",
+        "plant2/dandelion_1_far.glb",
+        "plant2/dandelion_2_far.glb",
+        "plant2/dandelion_3_far.glb",
+        "plant2/sf_1_far.glb",
+        "plant2/sf_2_far.glb",
+        "plant2/sf_3_far.glb",
+        "plant2/sf_4.glb",
+        "plant2/ug_dandelion1.glb",
+        "plant2/ug_dandelion2.glb",
+        "plant2/ug_dandelion3.glb"
+      ],
+      "흔들기": {
+        "배율": [
+          0.65,
+          1.2
+        ],
+        "기울기": 6
+      },
+      "길피하기": {
+        "길곁": 0.3,
+        "한가운데": 0.55
+      },
+      "키상한m": 0.5
+    },
+    {
+      "target": "소품.꽃",
+      "files": [
+        "plant/flower_lungwort.glb",
+        "plant2/margarita.glb",
+        "plant2/dandelion_1.glb",
+        "plant2/dandelion_2.glb",
+        "plant2/dandelion_3.glb",
+        "plant2/sf_1.glb",
+        "plant2/sf_2.glb",
+        "plant2/sf_3.glb",
+        "plant2/sf_4.glb",
+        "plant2/ug_dandelion1.glb",
+        "plant2/ug_dandelion2.glb",
+        "plant2/ug_dandelion3.glb"
+      ],
+      "맞춤": "높이",
+      "메모": "10/13 — 길·길목 피해 외곽 위주(길피하기) · 키 상한 잡초 0.45 m / 꽃 0.5 m / 갈대 1.3 m · 크기 0.65~1.2배·방향·기울기 흔들기",
+      "원경files": [
+        "plant/flower_lungwort_far.glb",
+        "plant2/margarita_far.glb",
+        "plant2/dandelion_1_far.glb",
+        "plant2/dandelion_2_far.glb",
+        "plant2/dandelion_3_far.glb",
+        "plant2/sf_1_far.glb",
+        "plant2/sf_2_far.glb",
+        "plant2/sf_3_far.glb",
+        "plant2/sf_4.glb",
+        "plant2/ug_dandelion1.glb",
+        "plant2/ug_dandelion2.glb",
+        "plant2/ug_dandelion3.glb"
+      ],
+      "흔들기": {
+        "배율": [
+          0.65,
+          1.2
+        ],
+        "기울기": 6
+      },
+      "길피하기": {
+        "길곁": 0.3,
+        "한가운데": 0.55
+      },
+      "키상한m": 0.5
+    },
+    {
+      "target": "씬2.지게",
+      "files": [
+        "khs/a_frame_carrier_bc43790f.glb"
+      ],
+      "맞춤": "높이",
+      "메모": "10/14 KHS A_frame_Carrier(CC BY) 툰판"
+    },
+    {
+      "target": "씬2.물동이",
+      "files": [
+        "prop/water_jar.glb"
+      ],
+      "맞춤": "높이",
+      "메모": "10/14 10/12에 받아 둔 공개 3D 물동이"
+    },
+    {
+      "target": "씬5.소반",
+      "files": [
+        "prop/soban.glb"
+      ],
+      "맞춤": "높이",
+      "메모": "10/14 10/12에 받아 둔 공개 3D 소반"
+    }
+  ],
+  "덮기": [
+    {
+      "대상": [
+        "절벽면",
+        "땅"
+      ],
+      "files": [
+        "rock/stone21.glb",
+        "rock/stone24.glb",
+        "rock/stone27.glb",
+        "rock/stone32.glb",
+        "rock/stone35.glb",
+        "rock/stone39.glb",
+        "rock/stone42.glb",
+        "rock/stone46.glb"
+      ],
+      "X": [
+        33.5,
+        56.5
+      ],
+      "Y": [
+        1.2,
+        14.8
+      ],
+      "Z시작": 34,
+      "Z범위": [
+        25.3,
+        30.8
+      ],
+      "간격": 3.6,
+      "세로간격": 4.2,
+      "크기": [
+        6,
+        12
+      ],
+      "묻힘": 0.68,
+      "가파름": 0.8,
+      "비틀기": 0.3,
+      "씨": 5,
+      "정렬": true,
+      "흔들림": 0.35,
+      "잘린면붙이기": false
+    }
+  ],
+  "색맞춤": {
+    "rock/stone21.glb": [
+      1.822,
+      1.917,
+      2.2
+    ],
+    "rock/stone24.glb": [
+      0.865,
+      0.901,
+      1.341
+    ],
+    "rock/stone27.glb": [
+      0.886,
+      0.74,
+      0.543
+    ],
+    "rock/stone32.glb": [
+      0.772,
+      1.182,
+      1.738
+    ],
+    "rock/stone35.glb": [
+      0.929,
+      1.373,
+      1.962
+    ],
+    "rock/stone39.glb": [
+      1.268,
+      1.085,
+      0.863
+    ],
+    "rock/stone42.glb": [
+      2.2,
+      2.2,
+      2.2
+    ],
+    "rock/stone46.glb": [
+      0.566,
+      0.504,
+      0.5
+    ]
+  },
+  "툰질감": true,
+  "잘린면": {},
+  "검수": {
+    "바위": [
+      "rock/cliff_coast.glb",
+      "rock/cliff_ards.glb",
+      "rock/boulder_cabo.glb",
+      "rock/boulder_round.glb",
+      "rock/stone21.glb",
+      "rock/stone24.glb",
+      "rock/stone27.glb",
+      "rock/stone32.glb",
+      "rock/gravel022.glb",
+      "rock/gravel030.glb",
+      "rock/gravel038.glb",
+      "rock/gravel045.glb"
+    ],
+    "나무": [
+      "tree/pine_big_1.glb",
+      "tree/pine_big_2.glb",
+      "tree/pine_big_3.glb",
+      "tree/pine_medium_1.glb",
+      "tree/pine_medium_2.glb",
+      "tree/pine_large_1_lod1.glb",
+      "tree/pine_large_2_lod1.glb",
+      "tree/pine_large_3_lod1.glb",
+      "tree/decid_L.glb",
+      "tree/decid_R.glb",
+      "tree/linden_L.glb",
+      "tree/linden_R.glb"
+    ],
+    "덤불·풀": [
+      "plant/shrub_cliff.glb",
+      "plant/bush_real.glb",
+      "plant/grass_dry.glb",
+      "plant/grass_paint.glb",
+      "plant/grass_clump.glb"
+    ],
+    "소품": [
+      "prop/jangseung.glb",
+      "prop/jar.glb",
+      "prop/mat.glb",
+      "prop/pyeongsang.glb",
+      "prop/soban.glb",
+      "prop/straw.glb",
+      "prop/tablet.glb",
+      "prop/torch.glb",
+      "prop/water_jar.glb"
+    ],
+    "집": [
+      "house/chogajip01_far.glb",
+      "house/chogajip02_far.glb"
+    ],
+    "생성1013": [
+      "prop/dolhwak.glb",
+      "prop/ditch_straight.glb",
+      "prop/vfx_crown.glb",
+      "prop/vfx_crown2.glb",
+      "prop/vfx_drip.glb"
+    ],
+    "풀1013": [
+      "plant/fern.glb",
+      "plant/reed_pack.glb",
+      "plant/reed_lp.glb",
+      "plant/bush_stylized2.glb",
+      "plant/grass_dry.glb",
+      "plant/grass_clump.glb"
+    ],
+    "풀꽃1013": [
+      "plant/grass_tall.glb",
+      "plant/grass_lp.glb",
+      "plant/grass_style1.glb",
+      "plant/grass_style2.glb",
+      "plant/grass_style3.glb",
+      "plant/grass_style4.glb",
+      "plant/flower_lungwort.glb",
+      "plant/flower_columbine.glb",
+      "plant/foliage_2.glb",
+      "plant/foliage_3.glb",
+      "plant/foliage_4.glb",
+      "plant/foliage_5.glb"
+    ],
+    "풀꽃2차": [
+      "plant2/daisy.glb",
+      "plant2/dandelion_1.glb",
+      "plant2/dandelion_2.glb",
+      "plant2/dandelion_3.glb",
+      "plant2/gc_1.glb",
+      "plant2/gc_2.glb",
+      "plant2/gc_3.glb",
+      "plant2/gc_4.glb",
+      "plant2/gc_5.glb",
+      "plant2/gc_6.glb",
+      "plant2/margarita.glb",
+      "plant2/sf_1.glb",
+      "plant2/sf_2.glb",
+      "plant2/sf_3.glb",
+      "plant2/sf_4.glb",
+      "plant2/tuft.glb",
+      "plant2/ug_dandelion1.glb",
+      "plant2/ug_dandelion2.glb",
+      "plant2/ug_dandelion3.glb",
+      "plant2/ug_dandelion4.glb",
+      "plant2/ug_dandelion5.glb",
+      "plant2/ug_lactuca1.glb",
+      "plant2/ug_lactuca2.glb",
+      "plant2/ug_lactuca3.glb",
+      "plant2/ug_lactuca4.glb",
+      "plant2/ug_lactuca5.glb",
+      "plant2/ug_plantain1.glb",
+      "plant2/ug_plantain2.glb",
+      "plant2/ug_plantain3.glb",
+      "plant2/ug_plantain4.glb",
+      "plant2/ug_plantain5.glb"
+    ],
+    "KHS1014_1": [
+      "khs/a_frame_carrier_bc43790f.glb",
+      "khs/agalmatolite_seal_0b0240b8.glb",
+      "khs/anvil_5faf0f2b.glb",
+      "khs/arm_guard_1d664c10.glb",
+      "khs/bamboo_basket_6c7e1244.glb",
+      "khs/bamboo_fabric_mudguard_with_jewel_beetle_b7757b34.glb",
+      "khs/banghyang_398d57ec.glb",
+      "khs/basket_f097383b.glb",
+      "khs/bipa_233ee93c.glb",
+      "khs/bottle_9e996347.glb",
+      "khs/bronze_bit_4e6b72a2.glb",
+      "khs/bronze_handbell_with_bodhisattva_guardia_07d36209.glb",
+      "khs/broom_4f3606be.glb",
+      "khs/cabinet_f3c4b7b0.glb",
+      "khs/cabinet_faf4980a.glb",
+      "khs/cauldron_1577767c.glb",
+      "khs/cauldron_8f0c77ca.glb",
+      "khs/celadon_kettle_e3e6139a.glb",
+      "khs/celadon_porcelaina_4f5df4fe.glb",
+      "khs/celadon_porcelainb_4ace759a.glb",
+      "khs/clothes_rack_1c8de013.glb",
+      "khs/duster_with_inlaid_mop_chrysanthemun_scr_7eb60368.glb",
+      "khs/ewer_in_the_shape_of_a_mythical_animal_4b1daa31.glb",
+      "khs/fire_shovel_5d6d209d.glb"
+    ],
+    "KHS1014_2": [
+      "khs/firewood_5b9973cd.glb",
+      "khs/fulling_block_17ae63f5.glb",
+      "khs/geomungo_db346b08.glb",
+      "khs/geumgwanchong_tomb_pure_gold_crown_ornam_aa582289.glb",
+      "khs/gilt_bronze_bridle_1_1f333b0f.glb",
+      "khs/gilt_bronze_crown_65178604.glb",
+      "khs/gilt_bronze_quiver_with_jewel_beetles_ho_6236b722.glb",
+      "khs/gilt_bronze_shoes_of_the_sikrichong_tomb_b1f6f2ca.glb",
+      "khs/gold_and_silver_decorated_hand_knife_adf60729.glb",
+      "khs/gold_bell_1fe88e94.glb",
+      "khs/gold_belt_from_the_geumryeong_tomb_05fca417.glb",
+      "khs/gold_crown_from_gyo_dong_f788dc73.glb",
+      "khs/gold_decorated_sword_ef6631dc.glb",
+      "khs/gold_necklace_58b4a16f.glb",
+      "khs/gutter_wood_b931d4f9.glb",
+      "khs/gyeongbokgung_cheonchujeon_book_be19cb79.glb",
+      "khs/gyeongbokgung_cheonchujeon_brushholder_0abd2e46.glb",
+      "khs/gyeongbokgung_cheonchujeon_paperweight_042844e6.glb",
+      "khs/gyeongbokgung_gangnyeongjeon_candlestick_8c33f757.glb",
+      "khs/gyeongbokgung_geunjeongjeon_royalsealbox_969ac244.glb",
+      "khs/gyeongbokgung_gyotaejeon_sittingmat_a99d6938.glb",
+      "khs/gyeongbokgung_manchunjeon_brushholder_7f4f5a8e.glb",
+      "khs/gyeongbokgung_manchunjeon_inkstone_82dd7560.glb",
+      "khs/hand_mill_c3dbc11b.glb"
+    ],
+    "KHS1014_3": [
+      "khs/heavenly_horse_painting_on_saddle_flap_f8ddf1d1.glb",
+      "khs/horse_harness_ornament_0435af98.glb",
+      "khs/horse_strap_pendant_032893b9.glb",
+      "khs/inkstone_98988ef1.glb",
+      "khs/jar_41af1b45.glb",
+      "khs/jar_9908305b.glb",
+      "khs/kitchen_board_6e929316.glb",
+      "khs/lamp_63038923.glb",
+      "khs/lampstand_6d970c76.glb",
+      "khs/large_boat_shaped_pottery_153e491f.glb",
+      "khs/large_scooped_wooden_bowl_b0d8a6a2.glb",
+      "khs/lead_stone_inkstone_db671d35.glb",
+      "khs/lionincenseburner_1c784316.glb",
+      "khs/long_necked_jar_641e45ab.glb",
+      "khs/long_necked_jar_with_curved_pedestal_ae6ef6df.glb",
+      "khs/low_wooden_bench_38ca1b29.glb",
+      "khs/mado_jar_00ee5454.glb",
+      "khs/mado_stones_f4280acf.glb",
+      "khs/manure_container_2daa8ef4.glb",
+      "khs/mortar_c1b42be1.glb",
+      "khs/mungap_5e8a0e41.glb",
+      "khs/oil_lamp_of_the_geumryeong_tomb_38e65d0c.glb",
+      "khs/pantry_chest_d6ad993b.glb",
+      "khs/pantry_shelf_1a8f4af2.glb"
+    ],
+    "KHS1014_4": [
+      "khs/pestle_e5b92f46.glb",
+      "khs/pharmacyscale_13528788.glb",
+      "khs/phoenix_headed_glass_bottle_edef50ab.glb",
+      "khs/pincers_45576856.glb",
+      "khs/pincers_f118c8b7.glb",
+      "khs/rice_chest_0f57b1cc.glb",
+      "khs/saddle_with_jewel_beetle_ornamentation_2c99a372.glb",
+      "khs/scoop_e777b82d.glb",
+      "khs/sickle_63340bb8.glb",
+      "khs/sieve_4630710e.glb",
+      "khs/silver_bird_wing_shaped_diadem_ornament_7593c85e.glb",
+      "khs/small_bell_2c93e5a1.glb",
+      "khs/small_boat_shaped_pottery_34027070.glb",
+      "khs/small_plow_3056ff4a.glb",
+      "khs/spade_0f5d2931.glb",
+      "khs/stone_seal_efc1a94d.glb",
+      "khs/straw_jar_bf766922.glb",
+      "khs/toadinkstone_8b99ce68.glb",
+      "khs/unhyun_cabinet_b_305efa4f.glb",
+      "khs/unhyun_candlestick_01_a7259200.glb",
+      "khs/unhyun_chest_848acdd9.glb",
+      "khs/unhyun_chopping_board_1672445e.glb",
+      "khs/unhyun_cupboard_b_4431ceaa.glb",
+      "khs/unhyun_dark_brown_bottle_55a721df.glb"
+    ],
+    "KHS1014_5": [
+      "khs/unhyun_floor_cushion_6b0209cc.glb",
+      "khs/unhyun_grain_chest_b45c1e72.glb",
+      "khs/unhyun_pot_for_medicines_a4fe6dbb.glb",
+      "khs/unhyun_table_tigers_legs_ad7fa3c4.glb",
+      "khs/unhyun_wardrobe_f66d816f.glb",
+      "khs/whetstone_5c7ebf91.glb",
+      "khs/wicker_basket_c8e8dc18.glb",
+      "khs/winnow_e29fd48a.glb",
+      "khs/wooden_hammer_59965195.glb"
+    ]
+  },
+  "반려": {
+    "plant/bush_stylized.glb": "10/13 미르 — 길가 수풀로 못 씀(넓적한 잎 카드)",
+    "plant/shrub_low.glb": "10/13 미르 — 같은 이유",
+    "plant/bush_real.glb": "10/13 — 하얗게 나옴(꼭짓점 색 툰판이라 텍스처 툰에서 색이 빠짐)",
+    "rock/boulder_round.glb": "10/13 — 공 모양",
+    "plant/grass_paint.glb": "10/13 미르 — 색이 혼자 튀는 미역줄기 같은 풀",
+    "rock/cliff_coast.glb": "10/13 — 납작한 판석, 바위 자리에 넣으면 땅에 묻힘",
+    "rock/cliff_ards.glb": "같은 이유",
+    "rock/boulder_cabo.glb": "옆으로 누운 판(14×1.35×3.6)",
+    "tree/decid_R.glb": "10/13 미르 — 언덕수풀.나무 #1000039 모양, 못 씀",
+    "tree/decid_L.glb": "10/13 미르 — decid_R과 같은 묶음, 똑같이 생긴 성긴 활엽수(#1000033·#1000039), 못 씀",
+    "plant/grass_clump.glb": "10/13 미르 — 나무에 비해 디테일이 너무 낮음(32면 세 잎)",
+    "plant/fern.glb": "10/13 — 잎이 주황·빨강으로 나옴(텍스처 채널 문제)",
+    "plant/reed_pack.glb": "10/13 — 다섯 포기가 한 줄로 붙어 있어 줄지어 심은 것처럼 보임 → reed_1~5 로 나눠 씀",
+    "plant/flower_columbine.glb": "10/13 — 화분째 들어 있음",
+    "plant/foliage_2.glb": "10/13 — 풀이 네모난 덩어리",
+    "plant/foliage_3.glb": "10/13 — 빨간 독버섯(동화풍)",
+    "plant/foliage_4.glb": "10/13 — 화분 선인장",
+    "plant/grass_tall.glb": "10/13 — 넓적한 잎 카드, 결이 거침",
+    "plant/grass_lp.glb": "10/13 — 각진 로우폴리 잎",
+    "plant2/daisy.glb": "10/13 — 만화풍 노란 꽃 하나, 무대와 안 어울림",
+    "plant2/tuft.glb": "10/13 — 하얗게 나옴(텍스처 빠짐)",
+    "plant2/gc_1.glb": "10/13 — 원색 초록 판 잎(카드풍)",
+    "plant2/gc_2.glb": "10/13 — 원색 초록 판 잎(카드풍)",
+    "plant2/gc_3.glb": "10/13 — 원색 초록 판 잎(카드풍)",
+    "plant2/gc_4.glb": "10/13 — 원색 초록 판 잎(카드풍)",
+    "plant2/gc_5.glb": "10/13 — 원색 초록 판 잎(카드풍)",
+    "plant2/gc_6.glb": "10/13 — 원색 초록 판 잎(카드풍)",
+    "plant2/silvergrass.glb": "10/13 보류 — 억새 실측 28.6만 → 9만 면까지밖에 안 줄어 흩뿌리기엔 무거움(강가 몇 포기용 후보)"
+  },
+  "놓기": [
+    {
+      "file": "rock/stone21.glb",
+      "키m": 3.6,
+      "묻힘m": 0.8,
+      "차단물": "B4",
+      "자리": [
+        [
+          32.9,
+          21.8,
+          20,
+          1
+        ],
+        [
+          34.9,
+          24.2,
+          140,
+          1.15
+        ],
+        [
+          32.6,
+          25.4,
+          260,
+          0.9
+        ]
+      ],
+      "메모": "10/14 B4 서측 낙석 겉돌 — 씬3 끝나면 가라앉음"
+    },
+    {
+      "file": "rock/stone24.glb",
+      "키m": 3.4,
+      "묻힘m": 0.8,
+      "차단물": "B4",
+      "자리": [
+        [
+          34.6,
+          21.4,
+          80,
+          0.95
+        ],
+        [
+          33.6,
+          23.6,
+          200,
+          1.2
+        ],
+        [
+          35.2,
+          26,
+          310,
+          0.85
+        ]
+      ],
+      "메모": "10/14 B4 서측 낙석 겉돌"
+    },
+    {
+      "file": "plant/shrub_cliff.glb",
+      "키m": 2.631,
+      "묻힘m": 0,
+      "자리": [
+        [
+          16.839,
+          36.342,
+          0,
+          1
+        ],
+        [
+          28.143,
+          39.836,
+          0
+        ]
+      ],
+      "메모": "10/20 편집기 배치 — 절벽 덤불 · Z1",
+      "출처": "editor:2026-10-20T06:24:28.827Z"
+    },
+    {
+      "file": "plant/shrub_cliff.glb",
+      "키m": 2.7119,
+      "묻힘m": 0,
+      "자리": [
+        [
+          14.244,
+          32.944,
+          45,
+          1
+        ]
+      ],
+      "메모": "10/20 편집기 배치 — 절벽 덤불 · Z1",
+      "출처": "editor:2026-10-20T06:24:46.384Z"
+    },
+    {
+      "file": "plant/shrub_cliff.glb",
+      "키m": 1.5154,
+      "묻힘m": -0.707,
+      "자리": [
+        [
+          15.521,
+          34.803,
+          30,
+          1
+        ]
+      ],
+      "메모": "10/20 편집기 배치 — 절벽 덤불 · Z1",
+      "출처": "editor:2026-10-20T06:25:18.069Z"
+    }
+  ]
+}

@@ -11,7 +11,7 @@ import { buildFerryBoatPrototype } from "../world/ferryLanding";
 import { buildPeople } from "../world/people";
 import { buildFarBank, buildRiverbank, buildRiverSurface, farBankBendAt } from "../world/river";
 import { buildClouds, buildSkyDome, SKY_STYLE } from "../world/sky";
-import { buildGrass } from "../world/vegetation";
+import { buildGrass, type GrassTuftSpot } from "../world/vegetation";
 import { createWaterRippleRef, type RippleHandle } from "../world/waterRipples";
 import { getZone, type GroundShapes, type Terrain } from "./useTerrainLayers";
 
@@ -98,12 +98,20 @@ export function useDistantLandscapeAndSky(controls: PresentedControls) {
   return { distantLandscape, skyGeometry, cloudGeometry, skyRef, cloudRef };
 }
 
+/**
+ * 풀 합본 지오 목록 + 포기 자리. 배열 그대로 GroundLayer 에 넘기고, `tuftSpots` 는 「땅.풀」 숨은 무리
+ * (loaders/publicAssets GrassSpotMarkers)가 읽는다 — 공개 3D 풀·갈대 교체가 이 자리에 심는다(10/13).
+ */
+export type GrassGeometries = THREE.BufferGeometry[] & { tuftSpots: GrassTuftSpot[] };
+
 /** 풀 — 밟고 지나가야 해서 충돌이 없고 키가 낮다. */
-export function useGrass(controls: PresentedControls, terrain: Terrain) {
+export function useGrass(controls: PresentedControls, terrain: Terrain): GrassGeometries | null {
   const grass = useMemo(() => {
     if (controls.grassDensity <= 0) return null;
     const clumpNoise = createNoise(707171);
     const meshes: THREE.BufferGeometry[] = [];
+    // 포기 자리 — 전부 담고, 솎기는 교체 쪽 「길피하기」가 한다(놀이 구역 안 약 50 % 남김 · 10/13 미르)
+    const tuftSpots: GrassTuftSpot[] = [];
     // Z3(사건 현장)도 맨 암반이면 죽은 땅으로 보인다 — 아주 성글게 깐다
     const density: Record<string, number> = { Z4: 1, Z1: 0.35, Z3: 0.22 };
     const seeds: Record<string, number> = { Z4: 31771, Z1: 55219, Z3: 90311 };
@@ -118,6 +126,7 @@ export function useGrass(controls: PresentedControls, terrain: Terrain) {
         seed: seeds[code] ?? 12345,
         clumpNoise,
         canPlace: (x, zz) => !terrain.groundAt(x, zz).path && !terrain.blockedAt(x, zz, zone.elevation, 0.5),
+        tuftSpots,
       });
       if (geometry) meshes.push(geometry);
     }
@@ -134,9 +143,10 @@ export function useGrass(controls: PresentedControls, terrain: Terrain) {
         const isInside = x > CORE.x[0] && x < CORE.x[1] && z > CORE.z[0] && z < CORE.z[1];
         return !isInside && z < RIVER.zStart - 1;
       },
+      tuftSpots,
     });
     if (band) meshes.push(band);
-    return meshes;
+    return Object.assign(meshes, { tuftSpots });
   }, [terrain, controls.grassDensity]);
   useEffect(() => () => grass?.forEach((g) => g.dispose()), [grass]);
   return grass;

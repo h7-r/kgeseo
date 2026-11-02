@@ -111,6 +111,14 @@ export function usePrototypes(controls: PresentedControls, bakedSerpent: Texture
       smallTables: buildSmallTablePrototypes(3, 8502),
       // 씬 5 돌무지는 씬 1 돌탑 표본 그대로 — 같은 손이 쌓은 것으로 보여야 한다.
       stonePiles: buildCairnPrototypes(3, 2203),
+      // ── 원경판 — 무대 코어에서 멀리 떨어진 나무·덤불·돌·집만 이것으로 그린다(약 1/4 면수, 10/13 원근 LOD) ──
+      //   손으로 깎은 표본(모형자연 끔)에는 원경판이 없다 → null 이면 buildInstanceGroups 가 그냥 담는다.
+      treesFar: controls.bakedNature ? buildBakedTreePrototypes(true) : null,
+      shrubsFar: controls.bakedNature ? buildBakedBushPrototypes(true) : null,
+      weedsFar: buildBakedWeedPrototypes(true),
+      flowersFar: buildBakedFlowerPrototypes(true),
+      pebblesFar: controls.bakedNature ? buildPebblePrototypes(true) : null,
+      distantHousesFar: controls.bakedNature ? buildBakedThatchedHousePrototypes(true) : null, // 2,500 → 600 삼각형(10/13)
     }),
     // 구운 구렁이 표본이 여기 있어야 모형이 도착했을 때 표본이 바뀐다.
     [controls.bakedNature, bakedSerpent.prototypes],

@@ -1,0 +1,571 @@
+{
+  "_용도": "🔴 평가 전용(10/19 미르 지적) — 나주 사람 모범답안에서 뽑은 값이라 에이전트 입력·프롬프트에 넣지 않는다. 넣으면 나주에만 맞춘 것이 되어 다른 설화에서 같은 문제가 다시 생긴다. 에이전트는 설화·공간 정보에서 스스로 판단해야 하고, 이 파일은 그 결과를 사후에 견주는 데만 쓴다.",
+  "_설명": "장소 유형 사전 v0 (10/19, 공간 연출 에이전트 A단계). 첫 판은 사람이 만든 나주 앙암바위 공간을 역분석해 만들었다 — 수치는 __game.naju.layoutCensus() 실측(밀도는 100 m² 당 개수), 원칙은 naju01/src/world/*.ts 의 사람 주석. evidence 가 있는 항목은 🟢 사람 모범답안 근거, 없는 항목(다른 장소 유형·원경 후보)은 🟡 제안. 에이전트는 이 사전으로 「무엇을 · 어떤 자리 유형에 · 얼마나」를 정하고, 좌표는 코드가 계산한다.",
+  "version": "0.1",
+  "source": {
+    "space": "space:naju01-angam",
+    "runtime": "http://localhost:5174/?aihub&src=sf&r=15",
+    "measuredAt": "2026-10-19"
+  },
+  "slotKinds": {
+    "zone": "걷는 무대(구역) 안 — 이야기 소품·인물·장소 시설",
+    "path": "길 위 — 잔돌만, 큰 것은 막지 않게",
+    "walkEdge": "걷는 곳 경계 바깥 3 m 띠 — 가장 빽빽한 수풀(실제 산길은 양옆이 가장 빽빽하다)",
+    "hill": "걷지 않는 언덕 — 수풀·나무를 노이즈로 뭉치게",
+    "waterEdge": "물가선 앞뒤 — 갈대·물가 돌·배·말뚝",
+    "water": "물 위 — 배·징검다리만",
+    "cliffFace": "벼랑면 — 바위틈 덤불·절벽머리 나무만, 흙 붙는 것 금지",
+    "distant": "코어 밖 20 m 이상 — 원경(충돌 없음, 멀수록 성글게·지평색)"
+  },
+  "principles": [
+    {
+      "id": "P01",
+      "rule": "걷는 무대(구역·길)는 비운다 — 막힘 없는 나무는 밀리지 않는 나무가 되고 시야가 무너진다",
+      "from": "vegetation.ts computeHillBushSpots"
+    },
+    {
+      "id": "P02",
+      "rule": "길 양옆 3 m 띠가 가장 빽빽하다(나무 8.0 · 덤불 6.9 /100m²) — 언덕 안쪽은 그 절반쯤(나무 2.3 · 덤불 4.8)",
+      "from": "vegetation.ts computeRoadsideBushSpots + 실측"
+    },
+    {
+      "id": "P03",
+      "rule": "크기가 갈려야 숲으로 읽힌다 — 나무 3~8 m(가끔 15 m), 키가 다 같으면 울타리처럼 보인다",
+      "from": "vegetation.ts"
+    },
+    {
+      "id": "P04",
+      "rule": "고르게 깔지 않는다 — 노이즈로 뭉치고 비게. 고르면 점을 찍어 놓은 것이 된다",
+      "from": "vegetation.ts"
+    },
+    {
+      "id": "P05",
+      "rule": "급경사엔 흙이 안 붙는다(나무 없음) · 덤불은 나무보다 급한 데까지 · 벼랑면엔 틈 덤불만",
+      "from": "vegetation.ts + 실측 벼랑면 덤불 51/100m²"
+    },
+    {
+      "id": "P06",
+      "rule": "물가는 비운다(큰 나무 없음) · 물가선은 돌을 걸쳐 흐트러뜨린다(절반은 물에 잠김)",
+      "from": "vegetation.ts · river.ts buildRiverbank"
+    },
+    {
+      "id": "P07",
+      "rule": "울타리는 장식이 아니라 길 가장자리를 읽게 하는 장치 — 낭떠러지 쪽에만, 가파른 이음매에서 끊는다, 손으로 박은 듯 흔든다",
+      "from": "fences.ts"
+    },
+    {
+      "id": "P08",
+      "rule": "길에는 잔돌(0.1~0.2 m)만 많이(16.7/100m²) — 큰 돌은 길 밖",
+      "from": "실측 길가돌·발치너덜"
+    },
+    {
+      "id": "P09",
+      "rule": "코어 끝에서 세상이 끊기면 세트장으로 보인다 — 원경을 반드시 잇는다. 멀수록 성글게 · 지평색으로 녹인다",
+      "from": "distantLandscape.ts"
+    },
+    {
+      "id": "P10",
+      "rule": "원경 덩이는 코어에서 20 m 이상 — 저해상도는 멀리 있을 때만 그럴싸하다",
+      "from": "distantLandscape.ts"
+    },
+    {
+      "id": "P11",
+      "rule": "마을은 집이 아니라 마당과 울이 만든다 — 집 + 싸리울(마을 쪽 한 면은 비움) + 마을로 가는 길",
+      "from": "villageFences.ts · distantLandscape.ts"
+    },
+    {
+      "id": "P12",
+      "rule": "숲은 산기슭·둔덕에 무리 지어, 평지는 논밭(논 절반은 물 댐 — 하늘이 비쳐야 논으로 읽힘), 뙈기 경계엔 드문드문 산울타리",
+      "from": "distantLandscape.ts"
+    },
+    {
+      "id": "P13",
+      "rule": "물가 마을(어촌)은 물을 향해 앉는다 · 강을 사이에 둔 두 마을은 방향이 갈려야 읽힌다",
+      "from": "distantLandscape.ts"
+    },
+    {
+      "id": "P14",
+      "rule": "하늘은 그라데이션 + 지평 쪽에 몰린 작은 구름 — 단색 하늘은 지평선이 안 보인다",
+      "from": "sky.ts"
+    },
+    {
+      "id": "P15",
+      "rule": "이름이 「나루터」인데 물가에 아무것도 없으면 그냥 자갈밭 — 말뚝과 널 몇 장이면 「여기서 배를 탄다」가 전해진다",
+      "from": "ferryLanding.ts"
+    }
+  ],
+  "placeTypes": [
+    {
+      "id": "ferry-landing",
+      "nameKo": "나루터(강변 물가 테라스)",
+      "kind": "outdoor",
+      "evidence": "Z1 서쪽 강변 테라스",
+      "readsAs": "여기서 배를 탄다 · 강변 사람의 생활",
+      "required": [
+        {
+          "element": "선착장(말뚝 두 줄 + 널 + 가로대)",
+          "slot": "waterEdge",
+          "count": "1",
+          "sizeM": [
+            3.5,
+            5
+          ],
+          "library": [
+            "codeprops/ferry-dock.glb"
+          ],
+          "evidence": "소품.나루터 4.1 m · ferryLanding.ts"
+        },
+        {
+          "element": "나룻배",
+          "slot": "waterEdge",
+          "count": "1~2",
+          "sizeM": [
+            4,
+            5
+          ],
+          "note": "선착장 옆 물가선에 반쯤 걸쳐, 밑동은 젖은 색",
+          "library": [
+            "codeprops/ferry-boat.glb",
+            "codeprops/ferry-boat-small.glb"
+          ],
+          "evidence": "나룻배 4.4 m"
+        },
+        {
+          "element": "말뚝(배 매는)",
+          "slot": "waterEdge",
+          "count": "1~2",
+          "sizeM": [
+            0.8,
+            1.1
+          ],
+          "library": [
+            "codeprops/mooring-post.glb"
+          ],
+          "evidence": "씬4.말뚝 0.95 m"
+        },
+        {
+          "element": "어구(그물 말리는 틀 · 통발 묶음)",
+          "slot": "zone",
+          "count": "틀 1 + 통발 2~3 모아서",
+          "sizeM": [
+            0.8,
+            1.6
+          ],
+          "library": [
+            "codeprops/net-rack.glb",
+            "codeprops/fish-trap.glb"
+          ],
+          "evidence": "그물틀 1.55 · 통발 ×3 0.9"
+        },
+        {
+          "element": "물가 갈대·물풀",
+          "slot": "waterEdge",
+          "density": "띠 모양으로 뭉치게",
+          "sizeM": [
+            0.8,
+            2.2
+          ],
+          "library": [
+            "plant/reed_*"
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "element": "천막·차양(뱃사람 쉼터)",
+          "slot": "zone",
+          "sizeM": [
+            3,
+            4.5
+          ],
+          "library": [
+            "codeprops/canvas-shelter.glb"
+          ],
+          "evidence": "씬1.천막 4.1 m"
+        },
+        {
+          "element": "화톳불 자리",
+          "slot": "zone",
+          "sizeM": [
+            0.2,
+            0.4
+          ],
+          "library": [
+            "codeprops/campfire.glb"
+          ]
+        },
+        {
+          "element": "솟대(마을 어귀 표지)",
+          "slot": "zone 가장자리",
+          "sizeM": [
+            3,
+            3.3
+          ],
+          "library": [
+            "codeprops/sotdae.glb"
+          ],
+          "evidence": "Z1 서쪽 끝 3.1 m"
+        },
+        {
+          "element": "뱃사공·어부",
+          "slot": "zone",
+          "count": "0~1",
+          "sizeM": [
+            1.55,
+            1.8
+          ],
+          "library": [
+            "codeprops/npc-fisher-*.glb"
+          ]
+        }
+      ],
+      "edge": {
+        "walkEdge": "길가 나무 3.4 · 덤불 4.3 /100m²(Z1 둘레)",
+        "waterEdge": "큰 나무 금지, 잎더미·갈대만"
+      },
+      "distant": [
+        "강 건너 둔덕 위 나무 줄",
+        "강 건너 어촌(물을 향해 앉은 초가 + 싸리울)",
+        "건너편 나루와 나룻배"
+      ],
+      "forbidden": [
+        "물가선 위 큰 나무",
+        "길을 막는 큰 바위"
+      ]
+    },
+    {
+      "id": "cliff-foot",
+      "nameKo": "절벽 아래 자갈밭(강가)",
+      "kind": "outdoor",
+      "evidence": "Z2",
+      "readsAs": "위에서 떨어진 바위가 쌓인 강가 · 위를 올려다보는 자리",
+      "required": [
+        {
+          "element": "자갈 깔기",
+          "slot": "zone",
+          "density": "매우 빽빽(291/100m²), 0.1~0.2 m",
+          "library": [
+            "rock/gravel*"
+          ]
+        },
+        {
+          "element": "큰 바위(낙석)",
+          "slot": "zone 북쪽 절벽 발치 쪽",
+          "count": "5~7 줄지어",
+          "sizeM": [
+            2.4,
+            5.6
+          ],
+          "library": [
+            "rock/stone21.glb",
+            "rock/stone24.glb",
+            "rock/stone27.glb"
+          ],
+          "evidence": "바위덩어리 9 · 중앙 4.2 m"
+        },
+        {
+          "element": "발치 너덜(잔돌 무더기)",
+          "slot": "walkEdge",
+          "density": "22/100m², 0.3 m",
+          "library": [
+            "rock/stone*"
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "element": "강가에 대 둔 나룻배",
+          "slot": "waterEdge",
+          "count": "1~2",
+          "library": [
+            "codeprops/ferry-boat-small.glb"
+          ],
+          "evidence": "소품.나룻배 Z2 ×2"
+        },
+        {
+          "element": "어부(일하는 사람)",
+          "slot": "zone",
+          "count": "1~3",
+          "library": [
+            "codeprops/npc-fisher-*.glb"
+          ],
+          "evidence": "인물.어부 ×3"
+        }
+      ],
+      "edge": {
+        "cliffFace": "틈 덤불 51/100m² · 절벽머리 나무 8(벼랑 위 가장자리)"
+      },
+      "forbidden": [
+        "언덕 수풀(흙이 없다)",
+        "평평하게 고른 바위 배치"
+      ]
+    },
+    {
+      "id": "cliff-top",
+      "nameKo": "절벽 위 바위 마루",
+      "kind": "outdoor",
+      "evidence": "Z3",
+      "readsAs": "낭떠러지 끝 · 아래 강과 마을이 내려다보임",
+      "required": [
+        {
+          "element": "바위 노두(드러난 큰 바위)",
+          "slot": "zone 가장자리·벼랑 쪽",
+          "count": "3~5",
+          "sizeM": [
+            3,
+            7.5
+          ],
+          "library": [
+            "rock/stone*"
+          ],
+          "evidence": "소품.바위 Z3 ×4 · 중앙 6.7 m"
+        },
+        {
+          "element": "잔돌·너덜",
+          "slot": "zone",
+          "density": "14/100m²",
+          "library": [
+            "rock/gravel*",
+            "rock/stone*"
+          ]
+        },
+        {
+          "element": "자갈",
+          "slot": "zone",
+          "density": "41/100m² (Z2 의 7분의 1)",
+          "library": [
+            "rock/gravel*"
+          ]
+        },
+        {
+          "element": "벼랑 끝 소나무(절벽머리)",
+          "slot": "cliffFace 위 끝",
+          "count": "6~8",
+          "sizeM": [
+            0.3,
+            2.7
+          ],
+          "library": [
+            "tree/pine_*"
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "element": "돌탑·화톳불 흔적",
+          "slot": "zone",
+          "sizeM": [
+            0.3,
+            1
+          ],
+          "library": [
+            "codeprops/stone-cairn.glb",
+            "codeprops/campfire.glb"
+          ]
+        }
+      ],
+      "edge": {
+        "walkEdge": "덤불·잎더미, 낭떠러지 쪽은 비움(시야)"
+      },
+      "forbidden": [
+        "낭떠러지 끝을 막는 것",
+        "큰 나무(흙이 얕다)",
+        "울타리(떨어지는 것이 이 공간의 규칙)"
+      ]
+    },
+    {
+      "id": "ridge-village-approach",
+      "nameKo": "능선 · 마을 쪽 어귀",
+      "kind": "outdoor",
+      "evidence": "Z4",
+      "readsAs": "마을로 이어지는 길목 · 사람들이 모여 이야기하는 자리",
+      "required": [
+        {
+          "element": "장승 한 쌍",
+          "slot": "zone 길 입구 양쪽",
+          "count": "2",
+          "sizeM": [
+            2.2,
+            2.6
+          ],
+          "evidence": "소품.장승 ×2 2.4 m",
+          "library": [
+            "prop/jangseung.glb"
+          ]
+        },
+        {
+          "element": "평상 · 걸상",
+          "slot": "zone",
+          "count": "평상 1 + 걸상 3~5",
+          "sizeM": [
+            0.4,
+            0.6
+          ],
+          "library": [
+            "prop/pyeongsang.glb",
+            "codeprops/bench-stool.glb"
+          ]
+        },
+        {
+          "element": "생활 도구(지게 · 물동이)",
+          "slot": "zone",
+          "count": "2~3",
+          "sizeM": [
+            0.5,
+            1.4
+          ],
+          "library": [
+            "khs/a_frame_carrier_bc43790f.glb",
+            "prop/water_jar.glb"
+          ]
+        },
+        {
+          "element": "울타리 토막",
+          "slot": "zone 북쪽 가장자리",
+          "count": "3~4 칸",
+          "sizeM": [
+            0.9,
+            1
+          ],
+          "library": [
+            "codeprops/fence-section.glb"
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "element": "횃불대",
+          "count": "2",
+          "sizeM": [
+            2,
+            2.2
+          ],
+          "library": [
+            "prop/torch.glb",
+            "codeprops/torch-stand.glb"
+          ]
+        },
+        {
+          "element": "솟대",
+          "count": "1~2",
+          "sizeM": [
+            3,
+            3.3
+          ],
+          "library": [
+            "codeprops/sotdae.glb"
+          ]
+        }
+      ],
+      "edge": {
+        "hill": "언덕 나무 2.3 · 덤불 4.8 · 잡초 4.9 · 꽃 2.8 /100m²"
+      },
+      "distant": [
+        "내륙(북동) 초가 마을 + 싸리울 + 마을로 가는 길",
+        "산기슭 숲"
+      ]
+    },
+    {
+      "id": "hill-path",
+      "nameKo": "언덕길 · 스위치백",
+      "kind": "outdoor",
+      "evidence": "PATHS(바위틈·강변 우회 비탈·북측 스위치백)",
+      "required": [
+        {
+          "element": "길 위 잔돌",
+          "slot": "path",
+          "density": "17/100m², 0.1~0.2 m",
+          "library": [
+            "rock/gravel*",
+            "rock/stone*"
+          ]
+        },
+        {
+          "element": "낭떠러지 쪽 나무 울타리(기둥 + 가로대)",
+          "slot": "path 바깥선",
+          "note": "양쪽 낙차를 재 더 깊은 쪽에만",
+          "evidence": "울타리 기둥 31 · 가로대 44",
+          "library": [
+            "codeprops/fence-post.glb",
+            "codeprops/fence-rail.glb"
+          ]
+        },
+        {
+          "element": "길 양옆 수풀 띠(나무·덤불, 급하면 잎더미)",
+          "slot": "walkEdge",
+          "density": "나무 4.8~8 · 덤불 6.9 /100m²",
+          "library": [
+            "tree/pine_*",
+            "tree/linden_*",
+            "plant/shrub_cliff.glb"
+          ]
+        }
+      ],
+      "forbidden": [
+        "길 위 큰 물건",
+        "길 어깨를 스치는 나무(시야 답답)"
+      ]
+    }
+  ],
+  "distantPresets": [
+    {
+      "id": "riverside-plain",
+      "nameKo": "강변 평야",
+      "evidence": "나주",
+      "layers": [
+        "하늘 그라데이션 + 지평 구름",
+        "산줄기 4겹(300~900 m, 멀수록 파랗고 밝게)",
+        "들판 도넛(논 절반 물 댐, 논둑·이랑)",
+        "산기슭 숲 무리",
+        "강 건너 둔덕 나무 줄",
+        "강 건너 어촌 + 내륙 마을(방향 갈림)"
+      ]
+    },
+    {
+      "id": "mountain-valley",
+      "nameKo": "산골",
+      "evidence": null,
+      "layers": [
+        "가까운 산줄기 비중 큼(하늘 적게)",
+        "계곡을 따른 다랑논",
+        "산기슭 외딴 집 몇 채"
+      ]
+    },
+    {
+      "id": "coast",
+      "nameKo": "바닷가",
+      "evidence": null,
+      "layers": [
+        "수평선 + 섬 실루엣",
+        "갯벌·바위 해안",
+        "포구 마을"
+      ]
+    },
+    {
+      "id": "walled-yard",
+      "nameKo": "담장 안(실내↔마당 전환)",
+      "evidence": null,
+      "layers": [
+        "담장 너머 나무 머리",
+        "이웃 지붕선",
+        "먼 산 한 겹 + 하늘"
+      ]
+    },
+    {
+      "id": "sky-only",
+      "nameKo": "하늘만(높은 곳·꿈·의례 공간)",
+      "evidence": null,
+      "layers": [
+        "하늘 그라데이션 + 구름",
+        "아주 먼 산 한 겹 또는 없음"
+      ]
+    }
+  ],
+  "scoring": {
+    "_설명": "D단계 모범답안 대조 점수의 체크 항목 — 장소 유형의 required 가 있는지, 크기가 sizeM 안인지, 밀도가 사람 실측의 0.5~2배인지, 원경 층이 다 있는지, forbidden 이 없는지.",
+    "densityTolerance": [
+      0.5,
+      2.0
+    ]
+  }
+}

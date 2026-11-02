@@ -12,6 +12,7 @@ export const TRAY_UP_BUTTON_ID = "edit-help-panel__tray-up-button";
 export const TRAY_DOWN_BUTTON_ID = "edit-help-panel__tray-down-button";
 export const PALETTE_TOGGLE_ID = "edit-help-panel__palette-toggle";
 export const BRUSH_DROP_BUTTON_ID = "edit-help-panel__brush-drop-button";
+export const LIBRARY_BUTTON_ID = "edit-help-panel__library-button";
 
 export const PANEL_CSS =
   "position:fixed;left:12px;bottom:12px;z-index:60;pointer-events:none;" +
@@ -41,6 +42,9 @@ interface PanelContent {
   isOpen: boolean;
   overview: boolean;
   thumbnails: Map<string, string> | null;
+  /** L 「라이브러리 배치」 중인가 · 쓸 수 있는가(공개 에셋 화면) */
+  libraryMode?: boolean;
+  libraryAvailable?: boolean;
 }
 
 function computeSaveButtonLook({ isSaving, canSave, hasUnsaved, editCount }: PanelContent) {
@@ -131,9 +135,43 @@ function formatPaletteHtml({ brush, isOpen, thumbnails }: PanelContent) {
   );
 }
 
+/** 「라이브러리 배치」 단추 — 공개 에셋 화면이 아니면 왜 안 되는지 적는다 */
+function formatLibraryButtonHtml(libraryMode: boolean, libraryAvailable: boolean) {
+  return (
+    `<button id="${LIBRARY_BUTTON_ID}" type="button" style="pointer-events:auto;cursor:pointer;font:inherit;` +
+    `color:${libraryMode ? "#12161F" : "#E8EAF0"};background:${libraryMode ? "#B9A8FF" : "rgba(185,168,255,.16)"};` +
+    'border:1px solid rgba(185,168,255,.6);border-radius:6px;padding:5px 10px;font-weight:700">' +
+    `${libraryMode ? "라이브러리 배치 끄기 (L)" : "라이브러리 배치 (L)"}</button>` +
+    (libraryAvailable ? "" : '<span style="opacity:.6"> 공개 에셋 화면(?aihub&amp;src=sf) · 개발 서버에서만</span>')
+  );
+}
+
+/** L 모드 안내 — 편집기 자체 조작은 쉬고 이 키들만 먹는다 */
+function formatLibraryHelpHtml() {
+  return (
+    '<b style="color:#B9A8FF">라이브러리 배치 (L)</b>' +
+    '<span style="opacity:.75"> · 짧은 클릭 자리 고르기 → 오른쪽 서랍에서 에셋 → 손잡이로 맞추고 Enter</span><br>' +
+    '<span style="opacity:.75">시점 — 왼쪽 끌기 둘러보기 · 오른쪽 끌기 옮기기 · 휠 커서 쪽으로 날기 · ' +
+    "WASD 앞뒤좌우 · Q/E 내리기·올리기 · ←→ 옆 · ↑↓ 높이 · Shift ×3</span><br>" +
+    '<span style="opacity:.75">초안 — G 이동 · R 회전 손잡이 · 화살표 10 cm(Shift 1 m) · [ ] 크기 · PageUp/Down 높이 · ' +
+    ", . 회전 5°(Shift 15°) · <b>Enter 확정 = manifest 「놓기」 바로 저장</b> · Esc 취소 · " +
+    "서랍 「되돌리기」 = 마지막 편집기 배치 빼기 · L/Esc 끄기</span>"
+  );
+}
+
 /** 안내판 전체 내용 */
 export function formatPanelHtml(content: PanelContent) {
-  const { notice, selected, isSaving, canSave, overview } = content;
+  const { notice, selected, isSaving, canSave, overview, libraryMode = false, libraryAvailable = false } = content;
+  if (libraryMode)
+    return (
+      formatLibraryHelpHtml() +
+      '<div style="margin-top:8px">' +
+      formatLibraryButtonHtml(true, libraryAvailable) +
+      "</div>" +
+      (notice
+        ? `<div style="margin-top:6px;color:${notice.startsWith("✘") ? "#FF8A80" : "#FFD166"}">${notice}</div>`
+        : "")
+    );
   const save = computeSaveButtonLook(content);
   const degrees = ((((((selected?.rotation ?? 0) * 180) / Math.PI) % 360) + 360) % 360) | 0;
   return (
@@ -146,6 +184,7 @@ export function formatPanelHtml(content: PanelContent) {
       ? '<span style="color:#9BD6FF">부감 — ' +
         "WASD·방향키 밀기 · <b>휠 돌리기</b>(, . 도 됨) · <b>핀치/⌘+휠 높낮이</b> · Tab 내려오기</span>"
       : '<span style="opacity:.75">Tab — 공중에서 내려다보기</span>') +
+    '<br><span style="opacity:.75">L — 라이브러리 배치(검수 작업대 에셋을 골라 manifest 「놓기」에 바로 저장)</span>' +
     (selected
       ? `<br><span style="color:#9BE3B4">${selected.groupId} #${selected.id}</span>` +
         `<span style="color:#C9CEDA">  (${selected.x.toFixed(1)}, ${selected.z.toFixed(1)})` +
@@ -156,7 +195,9 @@ export function formatPanelHtml(content: PanelContent) {
     'style="pointer-events:auto;cursor:pointer;font:inherit;color:#12161F;' +
     `background:${save.color};border:none;border-radius:6px;padding:5px 12px;font-weight:700">` +
     `${save.label}</button>` +
-    '<span style="opacity:.6">또는 Ctrl+S</span></div>' +
+    '<span style="opacity:.6">또는 Ctrl+S</span>' +
+    formatLibraryButtonHtml(false, Boolean(libraryAvailable)) +
+    "</div>" +
     (notice
       ? `<div style="margin-top:6px;color:${notice.startsWith("✘") ? "#FF8A80" : "#FFD166"}">${notice}</div>`
       : "") +

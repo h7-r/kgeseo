@@ -1,0 +1,30 @@
+{
+  "_설명": "공용 라이브러리 「공간」 항목 — 나주 앙암바위 야외 무대(10/19). 지형·강·절벽·길·원경은 코드로 생성되므로 공간 하나로 등록한다. 수치는 naju01/src/plan/sitePlan.ts 와 같아야 한다(tools/review/library.test.mjs 가 대조). 에이전트에게는 물리 정보만 준다 — 사람 기획 문서에서 온 이야기 칸(story·scenes·조사 지점·NPC)은 넣지 않는다(시험 공정성).",
+  "id": "space:naju01-angam",
+  "nameKo": "나주 앙암바위 (야외 강변 절벽)",
+  "nameEn": "Naju Angam rock riverside cliff (outdoor)",
+  "kind": "outdoor",
+  "region": "전남 나주 영산강 영산포 일대",
+  "era": "시대 공통(지형)",
+  "runtime": { "id": "NAJU-01", "url": "http://localhost:5174/?aihub&src=sf&r=15", "emptyBaseQuery": "base=empty" },
+  "sizeM": [80, 50],
+  "description": "영산강 북쪽 물가의 야외 무대. 남쪽은 강(물 띠 z 44.5~50, 건너편 둑까지 약 30 m), 가운데에 높이 약 14 m 의 바위 절벽이 동서로 뻗고, 절벽 아래 자갈밭과 위쪽 바위 마루, 서쪽 강변 테라스(나룻배를 댈 수 있는 물가), 동쪽 능선이 있다. 구역 사이는 바위틈·비탈·스위치백 길로 이어진다. 멀리 산·들판·강 건너 마을이 원경으로 보인다.",
+  "features": [
+    { "kind": "river", "name": "영산강", "detail": "무대 남쪽 물 띠 z 44.5~50 m, 건너편 둑까지 약 30 m" },
+    { "kind": "cliff", "name": "앙암바위 절벽", "detail": "x 34~56 m, 마루 z 26 m(EL +14) → 발치 z 30 m(EL 0), 실각 약 74°" },
+    { "kind": "path", "name": "바위틈", "detail": "폭 3.0 m" },
+    { "kind": "path", "name": "강변 우회 비탈", "detail": "폭 3.0 m" },
+    { "kind": "path", "name": "북측 스위치백", "detail": "폭 2.5 m" },
+    { "kind": "path", "name": "서측 하강로", "detail": "" },
+    { "kind": "distant", "name": "원경", "detail": "산 · 들판 · 숲 마을 · 강 건너 초가 마을과 울타리" }
+  ],
+  "zones": [
+    { "code": "Z1", "physicalName": "서쪽 강변 테라스(물가)", "x": [8, 28], "z": [30, 44], "elevation": 0, "sizeLabel": "20 × 14 m · EL ±0", "surface": "흙·모래 물가, 강과 맞닿음" },
+    { "code": "Z2", "physicalName": "절벽 아래 자갈밭", "x": [34, 56], "z": [30, 44], "elevation": 0, "sizeLabel": "22 × 14 m · EL ±0", "surface": "자갈·바위, 북쪽은 절벽 발치" },
+    { "code": "Z3", "physicalName": "절벽 위 바위 마루", "x": [34, 58], "z": [8, 26], "elevation": 14, "sizeLabel": "24 × 18 m · EL +14", "surface": "바위·흙, 남쪽 가장자리는 낭떠러지" },
+    { "code": "Z4", "physicalName": "동쪽 능선", "x": [62, 76], "z": [8, 32], "elevation": 8, "sizeLabel": "14 × 24 m · EL +8", "surface": "풀·흙 능선, 내려다보는 자리" }
+  ],
+  "humanPlanRef": { "note": "사람 기획 문서가 붙인 구역 이름·이야기·씬 연결은 비교용으로만 따로 둔다(에이전트 입력에서 제외)", "names": { "Z1": "나루터 · 시작 테라스", "Z2": "바위 아래 · 자갈밭", "Z3": "바위 위 · 절벽 상단", "Z4": "진부촌 방향 증언 능선" } },
+  "license": "팀 제작(코드 생성 지형)",
+  "thumbnail": null
+}

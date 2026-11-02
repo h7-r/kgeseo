@@ -1,0 +1,6 @@
+#!/bin/sh
+# 커밋 전 검사(10/21) — 유니티 에셋스토어(KHS) 에셋 단품이 커밋에 섞이면 막는다. 설계: claude/에셋보호_설계_v0_1021.md
+node tools/license-guard.mjs --staged || {
+  echo "커밋을 멈췄습니다. 위 파일을 커밋에서 빼세요:  git restore --staged <파일>"
+  exit 1
+}

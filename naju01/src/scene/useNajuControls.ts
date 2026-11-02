@@ -160,6 +160,9 @@ export function useNajuControls() {
     outlineWorldWidth: { value: 0.05, min: 0, max: 0.3, step: 0.005, label: "외곽선세계굵기" },
     // 켜지 말 것 — 숲이 검은 덩어리가 되고 한 겹 잎에 흰 얼룩이 끼며 삼각형이 +53 % 다.
     vegetationOutline: { value: false, label: "초목외곽선" },
+    // 원근판(10/13) — 22 m 밖 나무·덤불·돌·집을 약 1/4 면수의 원경판으로 그린다. 끄면 전부 원본으로(비교·점검용).
+    //   팀 기준값(112 키) 뒤에 덧붙인 열쇠다 — 저장값에 없으면 기본 true 로 선다.
+    farLod: { value: true, label: "원근판" },
   });
 }
 

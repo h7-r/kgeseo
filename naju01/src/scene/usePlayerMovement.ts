@@ -23,6 +23,8 @@ interface PlayerMovementOptions {
   ramp: ConnectorRamp | null;
   reportRef: RefObject<NajuSceneReport | null>;
   playerState: RefObject<AvatarLink>;
+  /** 검수 카메라가 시점을 잡고 있는 동안 걷기를 멈춘다(review/ReviewBridge.useReviewCameraHold) */
+  isReviewHold?: boolean;
 }
 
 /** 이동 — 시작은 V1. 편집 중에도 WASD 는 살아 있어야 「보면서 옮기기」가 된다. */
@@ -31,6 +33,7 @@ export function usePlayerMovement({
   active,
   isEditing,
   isOverview,
+  isReviewHold = false,
   isThirdPerson,
   terrain,
   instanceGroups,
@@ -58,7 +61,7 @@ export function usePlayerMovement({
     thirdPersonDistance: 2.8,
     cameraOccludedAt: isEditing ? null : cameraOccluders.occludes,
     // 부감 동안은 걷기를 통째로 멈춘다 — active 만 끄면 중력이 카메라를 땅으로 끌어내린다.
-    paused: isEditing && isOverview,
+    paused: (isEditing && isOverview) || isReviewHold,
     // 코어 밖은 연결로 위에서만 연다 — 경계를 넓히면 동쪽 어디서나 6.7 m 아래로 떨어진다.
     canLeaveCore: controls.allowLeavingCore && ramp ? (x: number, z: number) => ramp.isOn(x, z) : null,
   });

@@ -95,6 +95,16 @@ export function computeTreeBeltSpots({
   return spots;
 }
 
+/** 풀 포기 자리 하나(m) — loaders/publicAssets 의 GrassSpot 과 같은 모양(「땅.풀」 숨은 무리가 읽는다) */
+export interface GrassTuftSpot {
+  x: number;
+  y: number;
+  z: number;
+  /** 키(m) */
+  h: number;
+  rotation: number;
+}
+
 interface GrassOptions {
   x: Range;
   z: Range;
@@ -105,6 +115,8 @@ interface GrassOptions {
   clumpNoise?: Noise2D | null;
   groundBump?: HeightAt | null;
   canPlace?: ((x: number, z: number) => boolean) | null;
+  /** 선택 — 배열을 주면 포기마다 { x, y, z, h, rotation } (m) 를 담는다(「땅.풀」 공개 에셋 교체용, 10/13) */
+  tuftSpots?: GrassTuftSpot[] | null;
 }
 
 /**
@@ -121,6 +133,7 @@ export function buildGrass({
   clumpNoise,
   groundBump,
   canPlace,
+  tuftSpots,
 }: GrassOptions): THREE.BufferGeometry | null {
   const random = createRandom(seed);
   const pieces: THREE.BufferGeometry[] = [];
@@ -149,6 +162,7 @@ export function buildGrass({
     if (canPlace && !canPlace(px, pz)) continue;
 
     const y = elevation + (groundBump ? groundBump(px, pz) : 0);
+    tuftSpots?.push({ x: px, y, z: pz, h, rotation: tint * Math.PI * 2 });
     for (let k = 0; k < bladeCount; k++) {
       const source = new THREE.CylinderGeometry(
         0.004 * UNITS_PER_METER,
@@ -156,6 +170,9 @@ export function buildGrass({
         h * (0.7 + random() * 0.5) * UNITS_PER_METER,
         3,
         1,
+        // ★ 뚜껑 없이(openEnded) — 잎끝 반지름이 4 mm 라 위 뚜껑은 안 보이고, 밑 뚜껑은 땅에 묻힌다.
+        //   잎 한 장 12 → 6 삼각형. 풀 덮개가 맵 3위(13만 면)였다(10/13 면수표). 양면 재질이라 속이 안 비친다.
+        true,
       );
       const blade = source.toNonIndexed();
       source.dispose();

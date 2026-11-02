@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createCollapseSequence, type CollapseSequence } from "../story/blockerCollapse";
+import { director } from "./immersion/director";
 import type { BlockerShapes } from "./useBlockerShapes";
 import type { GroundShapes, Terrain } from "./useTerrainLayers";
 
@@ -27,6 +28,7 @@ export function useBlockerCollapse(terrain: Terrain, blockerShapes: BlockerShape
   const endScene = useCallback(
     (sceneNumber: number) => {
       if (collapseRef.current && !collapseRef.current.isDone) return "연출 중이다";
+      director.scenePassed(sceneNumber); // 씬안개 — 차단물이 없는 씬도 안개는 한 칸 걷힌다(10/14)
       const target = blockerShapes?.pieces?.find(
         (b) => b.clearing?.scene === sceneNumber && !clearedBlockers.has(b.code),
       );
@@ -42,10 +44,11 @@ export function useBlockerCollapse(terrain: Terrain, blockerShapes: BlockerShape
         },
       });
       setCollapse({ code: target.code, progress: 0 });
+      director.beat("풀이", { scene: sceneNumber }); // 몰입연출 — 징 · 흔들림 · 돌리줌 · 갬
       return `${target.code} ${target.name} 치우는 중`;
     },
     [blockerShapes, clearedBlockers, ground],
   );
 
-  return { clearedBlockers, collapseRef, collapseNoticeRef, collapse, setCollapse, endScene };
+  return { clearedBlockers, setClearedBlockers, collapseRef, collapseNoticeRef, collapse, setCollapse, endScene };
 }

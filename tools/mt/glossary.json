@@ -1,0 +1,110 @@
+{
+ "_note": "한옥·설화 그림 지시용 용어집(10/28) — 번역 때 이 짝을 참고하라고 모델에 함께 준다. [한글, 영어, 방향(생략=양쪽 · to_en=한→영만 · to_ko=영→한만)]",
+ "terms": [
+  [
+   "마루",
+   "maru"
+  ],
+  [
+   "대청",
+   "daecheong hall"
+  ],
+  [
+   "사랑방",
+   "sarangbang"
+  ],
+  [
+   "안방",
+   "anbang"
+  ],
+  [
+   "곳간",
+   "granary"
+  ],
+  [
+   "담",
+   "wall",
+   "to_en"
+  ],
+  [
+   "돌담",
+   "stone wall",
+   "to_en"
+  ],
+  [
+   "대문",
+   "gate"
+  ],
+  [
+   "마당",
+   "earthen yard"
+  ],
+  [
+   "기와",
+   "roof tiles"
+  ],
+  [
+   "초가지붕",
+   "thatched roof"
+  ],
+  [
+   "아궁이",
+   "hearth"
+  ],
+  [
+   "가마솥",
+   "iron cauldron"
+  ],
+  [
+   "창호지",
+   "paper",
+   "to_en"
+  ],
+  [
+   "문살",
+   "door lattice"
+  ],
+  [
+   "창살",
+   "window lattice"
+  ],
+  [
+   "댓돌",
+   "stone step"
+  ],
+  [
+   "디딤돌",
+   "stepping stone"
+  ],
+  [
+   "등잔",
+   "oil lamp"
+  ],
+  [
+   "장독대",
+   "jar terrace"
+  ],
+  [
+   "갓",
+   "gat"
+  ],
+  [
+   "두루마기",
+   "durumagi"
+  ],
+  [
+   "읍성",
+   "fortress wall",
+   "to_en"
+  ],
+  [
+   "동문",
+   "east gate",
+   "to_en"
+  ],
+  [
+   "신랑",
+   "bridegroom"
+  ]
+ ]
+}

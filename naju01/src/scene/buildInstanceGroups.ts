@@ -24,6 +24,7 @@ import { CLIFF_STYLE, EARTH_WALL_STYLE } from "../terrain/cliff";
 import type { HeightAt } from "../terrain/ground";
 import { PATH_STYLE } from "../terrain/slopePaths";
 import { computeVillageFenceSpots } from "../world/villageFences";
+import { attachFarShapes } from "./lodBatches";
 
 type Shapes = THREE.BufferGeometry[];
 
@@ -64,6 +65,16 @@ export interface NajuPrototypes {
   sacredRopes: Shapes;
   smallTables: Shapes;
   stonePiles: Shapes;
+  // ── 원경판 (10/13 원근 LOD) — 무대 코어에서 멀리 떨어진 것만 이것으로 그린다(약 1/4 면수). 모형자연을 끄면 null.
+  //   순서·개수가 원본과 같아야 한다 — 「원본 k 번 ↔ 원경판 k 번」으로 짝짓는다.
+  treesFar?: Shapes | null;
+  shrubsFar?: Shapes | null;
+  weedsFar?: Shapes | null;
+  flowersFar?: Shapes | null;
+  /** 바위 7 + 자갈돌 7 의 원경판(바위 700→150 · 자갈돌 90→24) */
+  pebblesFar?: Shapes | null;
+  /** 초가집 원경판(2,500 → 600 삼각형) */
+  distantHousesFar?: Shapes | null;
 }
 
 type TexturedModel = Pick<LoadedModel, "prototypes" | "material">;
@@ -72,6 +83,8 @@ interface InstanceGroupInputs {
   edits: Edits;
   prototypes: NajuPrototypes;
   bakedNature: boolean;
+  /** Leva 「원근판」 — false 면 원경판 짝을 안 싣는다(비교·점검용). 기본 true. */
+  farLod?: boolean;
   groundAt: (x: number, z: number) => { y: number };
   treeBeltSpots: Spot[] | null;
   hill: { treeSpots: Spot[]; shrubSpots: Spot[] } | null;
@@ -138,81 +151,109 @@ function stoneShade(light: THREE.ColorRepresentation, dark: THREE.ColorRepresent
  */
 export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[] {
   const { edits, prototypes: shapes, groundAt } = input;
+  const farLod = input.farLod !== false;
   const groups: InstanceGroup[] = [];
   const builtIds = new Set<string>();
-  const add = (
-    groupId: string,
-    spots: Spot[],
-    groupShapes: Shapes,
-    options: Omit<InstanceGroupOptions, "groupId" | "shapes" | "spots" | "edits"> = {},
-  ) => {
+  type AddOptions = Omit<InstanceGroupOptions, "groupId" | "shapes" | "spots" | "edits">;
+  const add = (groupId: string, spots: Spot[], groupShapes: Shapes, options: AddOptions = {}) => {
     const group = createInstanceGroup({ groupId, shapes: groupShapes, spots, edits, ...options });
     if (group) {
       groups.push(group);
       builtIds.add(groupId);
     }
   };
+  // ── 원근 담기 (10/13) ──────────────────────────────────────
+  // [왜]  면수표에서 나무 171그루 × 1.8천 = 30만, 덤불 190개 × 860 = 16만이 상위였다.
+  //       한 그루는 이미 가볍다 — **개수**가 무겁다.
+  // [어떻게]  모양마다 원경판(약 420 / 220 삼각형) 짝을 같이 싣고(lodBatches.attachFarShapes), 그리는 쪽
+  //       (InstanceGroupMesh)이 0.5초마다 **카메라 거리**로 나눠 담는다(가까우면 원본, 멀면 원경판).
+  //       ※ 처음엔 「코어 밖이면 원경판」으로 고정 분할했는데, 언덕수풀은 전부 코어 **안**
+  //         비탈에 뿌려져 있어 하나도 안 바뀌었다(10/13 실측 155만 → 153만). 그래서 카메라 거리로.
+  //       무리 이름·번호·모양 번호는 그대로라 `edits.json` 손 배치·편집기 집기가 안 깨진다.
+  //       원경판이 없거나(모형자연 끔) 개수가 안 맞거나 Leva 「원근판」이 꺼져 있으면 그냥 담는다.
+  const addLod = (
+    groupId: string,
+    spots: Spot[],
+    nearShapes: Shapes,
+    farShapes: Shapes | null | undefined,
+    options: AddOptions = {},
+  ) => {
+    if (!farLod || !farShapes || farShapes.length !== nearShapes.length)
+      return add(groupId, spots, nearShapes, options);
+    const group = createInstanceGroup({ groupId, shapes: nearShapes, spots, edits, ...options });
+    if (!group) return;
+    attachFarShapes(group, farShapes, nearShapes.length);
+    groups.push(group);
+    builtIds.add(groupId);
+  };
 
   if (input.treeBeltSpots?.length)
-    add(GROUP_IDS.treeBeltTrees, input.treeBeltSpots, shapes.trees, { doubleSided: true });
+    addLod(GROUP_IDS.treeBeltTrees, input.treeBeltSpots, shapes.trees, shapes.treesFar, { doubleSided: true });
 
   const { hill } = input;
   if (hill) {
     // 잎이 한 겹짜리 판이라 양면이 아니면 뒷면 쪽에 구멍이 뚫린 것처럼 보인다.
-    add(GROUP_IDS.hillTrees, hill.treeSpots, shapes.trees, { doubleSided: true });
+    addLod(GROUP_IDS.hillTrees, hill.treeSpots, shapes.trees, shapes.treesFar, { doubleSided: true });
     // 덤불 자리를 덤불 : 잡초 : 꽃 = 8 : 3 : 1 로 나눠 쓴다 — 꽃은 드물어야 눈에 띈다.
-    add(
+    addLod(
       GROUP_IDS.hillShrubs,
       scaled(
         hill.shrubSpots.filter((_, i) => i % 12 < 3),
         0.6,
       ),
       shapes.shrubs,
+      shapes.shrubsFar,
       { doubleSided: true },
     );
-    add(
+    addLod(
       GROUP_IDS.hillWeeds,
       scaled(
         hill.shrubSpots.filter((_, i) => i % 12 >= 3 && i % 12 < 5),
         0.45,
       ),
       shapes.weeds,
+      shapes.weedsFar,
       { doubleSided: true },
     );
-    add(
+    addLod(
       GROUP_IDS.hillFlowers,
       scaled(
         hill.shrubSpots.filter((_, i) => i % 12 === 5),
         0.4,
       ),
       shapes.flowers,
+      shapes.flowersFar,
       { doubleSided: true },
     );
   }
 
   const { roadside } = input;
   if (roadside) {
-    add(GROUP_IDS.roadsideTrees, roadside.trees, shapes.trees, { doubleSided: true });
-    add(
+    addLod(GROUP_IDS.roadsideTrees, roadside.trees, shapes.trees, shapes.treesFar, { doubleSided: true });
+    addLod(
       GROUP_IDS.roadsideShrubs,
       scaled(
         roadside.shrubs.filter((_, i) => i % 3 === 0),
         0.6,
       ),
       shapes.shrubs,
+      shapes.shrubsFar,
       { doubleSided: true },
     );
-    add(
+    addLod(
       GROUP_IDS.roadsideWeeds,
       scaled(
         roadside.shrubs.filter((_, i) => i % 3 === 1),
         0.45,
       ),
       shapes.weeds,
+      shapes.weedsFar,
       { doubleSided: true },
     );
     // 잎더미 무리에도 모형 덤불을 넣는다. 무리 id 는 손 배치 때문에 그대로 둔다.
-    add(GROUP_IDS.roadsideLeafPiles, scaled(roadside.leafPiles, 0.6), shapes.shrubs, { doubleSided: true });
+    addLod(GROUP_IDS.roadsideLeafPiles, scaled(roadside.leafPiles, 0.6), shapes.shrubs, shapes.shrubsFar, {
+      doubleSided: true,
+    });
   }
 
   // 모형자연을 끄면 표본이 절차적 돌 여섯 종이라 「앞 일곱 / 뒤 일곱」 가름이 없다.
@@ -226,10 +267,17 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
     shade = stoneShade(CLIFF_STYLE.bright, CLIFF_STYLE.dark),
   ) => {
     if (!spots?.length) return;
-    add(groupId, jitterStones(spots, seed, { flatten, color: shade }), shapes.pebbles, {
-      // 편집을 얹은 뒤의 키로 골라야 하므로 함수로 넘긴다
-      shapeForSize: hasTwoStoneKinds ? pickStoneShape : null,
-    });
+    // 22 m 밖은 원경판(바위 700→150 · 자갈돌 90→24). 두 갈래 표본일 때만 짝이 맞는다.
+    addLod(
+      groupId,
+      jitterStones(spots, seed, { flatten, color: shade }),
+      shapes.pebbles,
+      hasTwoStoneKinds ? shapes.pebblesFar : null,
+      {
+        // 편집을 얹은 뒤의 키로 골라야 하므로 함수로 넘긴다
+        shapeForSize: hasTwoStoneKinds ? pickStoneShape : null,
+      },
+    );
   };
 
   const { paths } = input;
@@ -250,7 +298,9 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
     );
     addStones(GROUP_IDS.crevasseRocks, paths.crevasseRockSpots, 224401, [0.85, 1.5]);
     if (paths.slopeShrubSpots?.length)
-      add(GROUP_IDS.slopeShrubs, scaled(paths.slopeShrubSpots, 0.6), shapes.shrubs, { doubleSided: true });
+      addLod(GROUP_IDS.slopeShrubs, scaled(paths.slopeShrubSpots, 0.6), shapes.shrubs, shapes.shrubsFar, {
+        doubleSided: true,
+      });
   }
   if (input.footScreeSpots) addStones(GROUP_IDS.footScree, input.footScreeSpots, 505017);
 
@@ -264,9 +314,9 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
   if (distantLandscape?.forestVillages) {
     const villages = distantLandscape.forestVillages;
     add(GROUP_IDS.distantTrees, villages.treeSpots, shapes.distantTrees);
-    add(GROUP_IDS.distantHouses, villages.houseSpots, shapes.distantHouses);
+    addLod(GROUP_IDS.distantHouses, villages.houseSpots, shapes.distantHouses, shapes.distantHousesFar);
     // 택촌은 따로 담아 왜곡 연출을 이 무리에만 건다.
-    add(GROUP_IDS.taekchonHouses, villages.taekchonSpots, shapes.distantHouses);
+    addLod(GROUP_IDS.taekchonHouses, villages.taekchonSpots, shapes.distantHouses, shapes.distantHousesFar);
     // 마당 울은 편집을 얹은 뒤의 집 자리로 세운다 — 생성기 자리를 쓰면 사람이 옮긴 집을 못 따라간다.
     const villageFences: [string, string, Spot[], number][] = [
       [GROUP_IDS.villageFence, GROUP_IDS.distantHouses, villages.houseSpots, 7731],
@@ -296,7 +346,12 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
     add(GROUP_IDS.scene1Cairns, scene1.cairn, shapes.cairns);
     add(GROUP_IDS.scene1Bonfires, scene1.bonfire, shapes.bonfires, { doubleSided: true });
     // 구운 모형이 오기 전에 깎은 표본으로 세우면 흰 구렁이가 한 번 번쩍 뜬다 — 늦게 나타나는 편이 낫다.
-    if (!input.bakedNature || input.serpent.prototypes) add(GROUP_IDS.scene1Serpent, scene1.serpent, shapes.serpents);
+    if (!input.bakedNature || input.serpent.prototypes) {
+      // 구렁이 고품질판(10/20)은 텍스처 모형이라 제 재질을 넘긴다 — 바닥 재질(정점색 전용)로 그리면 하얗게 나온다. 자리 색은 이미 흰색.
+      const serpentMaterial = input.serpent.material;
+      const hasTexture = !!input.bakedNature && !!input.serpent.prototypes && !!serpentMaterial && "map" in serpentMaterial && !!serpentMaterial.map;
+      add(GROUP_IDS.scene1Serpent, scene1.serpent, shapes.serpents, hasTexture ? { material: serpentMaterial } : {});
+    }
     // 하나뿐인 사람도 무리로 넣어야 편집기로 집어 자리·방향을 잡는다. 도착 전에는 담을 것이 없다.
     if (input.abisa.prototypes)
       add(
@@ -359,7 +414,7 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
 
   if (input.pebbleSpots?.length) {
     // 큰 것은 근경 바위 모양에 바위빛, 작은 것은 자갈돌 그대로. 손으로 놓은 것은 모양 0~6 이라 저절로 바위가 된다.
-    add(
+    addLod(
       GROUP_IDS.pebbles,
       input.pebbleSpots.map((a, i) => {
         const isBig = (a.size ?? 0) > BIG_PEBBLE_SIZE;
@@ -373,6 +428,7 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
         };
       }),
       shapes.pebbles,
+      shapes.pebblesFar,
     );
   }
 
@@ -380,7 +436,10 @@ export function buildInstanceGroups(input: InstanceGroupInputs): InstanceGroup[]
   if (cliff) {
     addStones(GROUP_IDS.boulders, cliff.boulderSpots, 480913, [0.62, 1.0]);
     if (cliff.crevasseShrubSpots?.length)
-      add(GROUP_IDS.cliffCrevasseShrubs, scaled(cliff.crevasseShrubSpots, 0.6), shapes.shrubs, { doubleSided: true });
+      addLod(GROUP_IDS.cliffCrevasseShrubs, scaled(cliff.crevasseShrubSpots, 0.6), shapes.shrubs, shapes.shrubsFar, {
+        doubleSided: true,
+      });
+    // 절벽머리는 옛 코드도 원근을 안 나눴다(절벽 위라 늘 가깝거나 안개 속이다) — 그대로 둔다.
     if (cliff.topTreeSpots?.length)
       add(GROUP_IDS.cliffTopShrubs, scaled(cliff.topTreeSpots, 0.6), shapes.shrubs, { doubleSided: true });
   }

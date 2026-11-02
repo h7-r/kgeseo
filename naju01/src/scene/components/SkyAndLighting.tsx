@@ -11,6 +11,8 @@ import { planPoint } from "../../plan/sitePlan";
 const U = UNITS_PER_METER;
 
 interface SkyAndLightingProps {
+  /** 구역 초점 안개(m 단위) — 있으면 배경·안개를 이걸로 덮고 하늘돔·구름을 숨긴다 */
+  focusFog?: { color: string; near: number; far: number } | null;
   controls: PresentedControls;
   skyGeometry: THREE.BufferGeometry | null;
   skyRef: RefObject<THREE.Mesh | null>;
@@ -31,6 +33,7 @@ export default function SkyAndLighting({
   sunTarget,
   sunRef,
   sunPosition,
+  focusFog = null,
 }: SkyAndLightingProps) {
   const shadowBias = { "shadow-bias": -0.0005, "shadow-normalBias": controls.shadowNormalBias };
   return (
@@ -42,14 +45,26 @@ export default function SkyAndLighting({
       />
       {/* 재질을 처음 그리는 순간 셰이더를 컴파일한다(수백 ms). GLB 가 늦게 붙으므로 주기적으로 데운다. */}
       <ShaderWarmup />
-      <color attach="background" args={[controls.skyColor]} />
+      {/* 구역 초점(?초점, 10/13) — 안개색 배경 + 짧은 안개, 하늘돔·구름은 숨긴다(immersion/focusFog) */}
+      <color attach="background" args={[focusFog ? focusFog.color : controls.skyColor]} />
       {/* 하늘돔 — 빛도 안개도 안 타고 가장 먼저 그려 깊이 버퍼를 안 쓴다 */}
       {skyGeometry && (
-        <mesh name={MESH_NAMES.skyDome} ref={skyRef} geometry={skyGeometry} renderOrder={-1} frustumCulled={false}>
+        <mesh
+          name={MESH_NAMES.skyDome}
+          ref={skyRef}
+          geometry={skyGeometry}
+          renderOrder={-1}
+          frustumCulled={false}
+          visible={!focusFog}
+        >
           <meshBasicMaterial vertexColors side={THREE.BackSide} fog={false} depthWrite={false} toneMapped={false} />
         </mesh>
       )}
-      {controls.fog && <fog attach="fog" args={[controls.skyColor, controls.fogNear * U, controls.fogFar * U]} />}
+      {focusFog ? (
+        <fog attach="fog" args={[focusFog.color, focusFog.near * U, focusFog.far * U]} />
+      ) : (
+        controls.fog && <fog attach="fog" args={[controls.skyColor, controls.fogNear * U, controls.fogFar * U]} />
+      )}
       <ambientLight intensity={controls.ambientIntensity * controls.brightness} />
       {/* 하늘빛 — 얕은 굴곡에서도 면 방향이 갈려 보이게 한다 */}
       <hemisphereLight
@@ -86,6 +101,7 @@ export default function SkyAndLighting({
           geometry={cloudGeometry}
           renderOrder={-1}
           frustumCulled={false}
+          visible={!focusFog}
         >
           <meshBasicMaterial vertexColors fog={false} depthWrite={false} toneMapped={false} />
         </mesh>
