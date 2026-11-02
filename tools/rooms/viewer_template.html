@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>실내 방 둘러보기</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600&display=swap">
+<style>
+/* 작업대: 왼쪽 뷰(플레이/검수) + 오른쪽 정보. 먹빛 회청 + 장판 황토 강조 */
+:root{--bg:#eef0f2;--fg:#1f2730;--mut:#5f6b78;--card:#ffffff;--line:#d5dbe1;--acc:#a8641c;--stage:#c9ced4;--hl:#e8b04a}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#151a20;--fg:#e4e9ee;--mut:#97a3b0;--card:#1d242c;--line:#2f3943;--acc:#e0a052;--stage:#2a323b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#151a20;--fg:#e4e9ee;--mut:#97a3b0;--card:#1d242c;--line:#2f3943;--acc:#e0a052;--stage:#2a323b;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.55 "IBM Plex Sans KR","Apple SD Gothic Neo",sans-serif;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:8px}
+h1{font-size:18px;margin:4px 0;text-wrap:balance}.k{color:var(--mut)}
+.bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding-block:6px}
+.bar button,.row button{border:1px solid var(--line);background:var(--card);color:var(--fg);padding:5px 12px;border-radius:999px;cursor:pointer;font:inherit}
+.bar button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;padding-bottom:16px}@media(max-width:860px){.wrap{grid-template-columns:1fr}}
+.stage{position:relative}
+#v{width:100%;height:68vh;min-height:360px;border-radius:12px;border:1px solid var(--line);background:var(--stage);display:block;touch-action:none}
+#tag{position:absolute;pointer-events:none;background:rgba(20,20,20,.75);color:#fff;font-size:12px;padding:2px 8px;border-radius:6px;transform:translate(-50%,-140%)}
+#hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:10px 20px;border-radius:8px;background:rgba(16,20,27,.82);border:1px solid #2c3648;color:#cfe3ff;font-size:14px;text-align:center;pointer-events:none;white-space:nowrap}
+#cross{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(255,255,255,.7);pointer-events:none}
+aside{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:13px;overflow:auto;max-height:68vh;min-width:0}
+aside h3{font-size:13px;margin:12px 0 4px}aside ul{margin:0;padding-left:16px}aside li[data-g]{cursor:pointer}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.row button{border-radius:8px;font-size:12px;padding:4px 10px}
+.card{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:8px;background:var(--bg)}
+.pz-clue{border-color:#c9a45a}.pz-lock{border-color:#b4452f}.pz-focus{border-color:#5a3fb0}.pz-ok{border-color:#4f8b6c}.pz-opt{display:block;margin:3px 0}.pz-list,.pz-nb{padding-left:16px}.pz-list li,.pz-nb li{margin:3px 0}button.mini{font-size:11px;padding:1px 6px}
+/* 10/27 미르: 「검수 페이지에서 시네마틱이 잘려 대본이 안 읽힌다」 — 게임처럼 화면 전체를 덮는다: 그림은 화면 가득(잘리지 않게 contain), 대본은 아래 띠에 */
+#hold.recall{position:fixed;inset:0;z-index:60;border-radius:0;background:#000;align-items:stretch;justify-content:stretch}
+.rc-wrap{position:relative;width:100%;height:100%;color:#f3ead6;overflow:hidden}
+.rc-img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;display:block;opacity:0;transition:opacity 1.2s}.rc-img.on{opacity:1}
+.rc-top{position:absolute;top:0;left:0;right:0;padding:14px 22px;font-size:13px;letter-spacing:.08em;color:#bfb29a;background:linear-gradient(#000c,#0000);text-align:left}
+.rc-band{position:absolute;left:0;right:0;bottom:0;padding:48px 6vw 22px;background:linear-gradient(#0000,#000d 38%,#000f);text-align:center}
+.rc-cap{min-height:3.4em;margin:0 auto 12px;max-width:1100px;font-size:clamp(16px,2.3vw,28px);line-height:1.6;letter-spacing:.02em;text-shadow:0 2px 6px #000;word-break:keep-all}
+.rc-bar{display:flex;gap:10px;justify-content:center;align-items:center}.rc-bar button{background:#ffffff1f;color:#f3ead6;border:1px solid #ffffff40;border-radius:999px;padding:6px 16px;font-size:14px}
+.rc-card{width:150px;background:#f4ead2;border:2px solid #b9a173;border-radius:8px;padding:6px;color:#2b2116;font-size:12px;line-height:1.4}.rc-card img,.rc-card .ph{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:4px;background:#3a3328;display:block;margin-bottom:4px}
+@keyframes rcpan{from{object-position:0% 45%}to{object-position:100% 45%}}
+@media (max-aspect-ratio:1/1){.rc-img{object-fit:cover;object-position:50% 45%}.rc-img.on{animation:rcpan 8s ease-in-out forwards}/* 세로 화면 — 가로 그림을 천천히 훑어 양끝 인물·물건도 보이게 */.rc-band{padding-bottom:28px}.rc-cap{font-size:clamp(17px,4.6vw,24px)}}
+#hold{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(10,12,16,.45);border-radius:12px;z-index:5}#hold[hidden]{display:none}#hold.low{align-items:flex-end;background:linear-gradient(to top,rgba(10,12,16,.45),rgba(10,12,16,0) 45%);padding-bottom:14px}#hold.low .hold-card{width:min(560px,92%)}
+.hold-card{width:min(420px,86%);background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:0 10px 30px rgba(0,0,0,.35)}.hold-card b{font-size:16px;display:block;margin:4px 0 8px}
+.hold-card.paper{background:#f1e6c9;color:#2b2116;border-color:#cdb98a;font-family:'Nanum Myeongjo','Batang',serif}.hold-body{white-space:pre-wrap;line-height:1.85;font-size:14px;margin:6px 0 10px}
+.pz-goal{border-color:#8a6a3a;background:#fbf4e4}.gauge{position:relative;height:30px;margin:12px 0 8px;border-radius:15px;background:linear-gradient(90deg,#6b4a2a,#c9a66b 50%,#6b4a2a);border:1px solid #8a6a3a;overflow:hidden}.gauge .gz{position:absolute;top:0;bottom:0;background:rgba(255,248,200,.85);box-shadow:0 0 10px rgba(255,240,170,.9)}.gauge .gn{position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;background:#2b2116;box-shadow:0 0 0 2px #fff8e8}.dev-card{width:min(560px,92%);background:#f4ead2;border-color:#b9a173;color:#2b2116}.dev-card .k{color:#6b5a40}.dev-card button.mini,.dev-card button{color:#2b2116;background:#fff8e8;border:1px solid #b9a173}.dev-card .dev-knob{color:#f3e6c4;background:#3b3a36}.dev-how{font-size:13px;color:#4a3a22;background:#fff8e8;border-radius:8px;padding:6px 10px;margin:6px 0}.dev-card .dev-row{background:#4a3220;border-radius:10px;padding:10px;color:#f3e6c4}.dev-card .dev-row .k{color:#e8d6a8}.dev-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin:8px 0}.dev-col{display:flex;flex-direction:column;align-items:center;gap:4px}.dev-ring{color:#2b2116;display:flex;flex-direction:column;align-items:center;width:52px;padding:4px 0;border:2px solid #b08d3c;border-radius:10px;background:#f3e6c4}.dev-ring b{font-size:22px}.dev-plate{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;padding:10px;background:#c9a66b;border-radius:10px}.dev-knob{min-width:72px;background:#3b3a36;color:#f3e6c4;border-radius:10px}.dev-msg{color:#a3423a;min-height:1.2em;font-size:13px}.shake{animation:shk .35s}@keyframes shk{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.review h1,.review h1+.k,.review aside#info{display:none}.review .wrap{grid-template-columns:1fr;padding-bottom:0}.review #v{height:calc(100vh - 100px);min-height:300px}.review body{padding-block:4px}
+.end-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(#1c1710,#000);overflow:auto;padding:24px}.end-card{width:min(720px,94%);background:#f1e6c9;color:#2b2116;border:2px solid #b9a173;border-radius:14px;padding:26px 30px;font-family:'Nanum Myeongjo','Batang',serif;box-shadow:0 20px 60px #000a}.end-k{font-size:12px;letter-spacing:.1em;color:#7a6440}.end-h{font-size:30px;margin:6px 0 14px;letter-spacing:.04em}.end-sec{margin:10px 0}.end-sec p{margin:4px 0;line-height:1.85}.end-card .mut{color:#6b5a3e}.end-seal{margin:16px 0;padding:14px 16px;border:1px dashed #8a6a3a;border-radius:10px;background:#fbf4e4}.end-place{font-size:18px;font-weight:700;margin:4px 0}.end-seal input{width:100%;padding:8px;border:1px solid #b9a173;border-radius:6px;margin:6px 0;background:#fffdf5;color:#2b2116}.end-done{text-align:center;font-size:18px;margin:16px 0 8px;letter-spacing:.06em}.end-card button{border:1px solid #8a6a3a;background:#fff8e6;color:#2b2116;border-radius:999px;padding:6px 16px;cursor:pointer;font:inherit}
+.fin-card{width:min(640px,94%);max-height:88vh;overflow:auto}.fin-card .card{background:#fffaf0;color:#2b2116;border-color:#d8c79c}.fin-card .card.pz-lock{border-color:#b4452f}.fin-card .card.pz-ok{border-color:#4f8b6c}.fin-d{font-size:12px;color:#6b5a3e}.fin-card select{width:100%;margin-top:4px;padding:5px;border-radius:6px;border:1px solid #c9b88c;background:#fffdf5;color:#2b2116}
+.pill{display:inline-block;font-size:11px;padding:0 6px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+
+/* 10/29 ?cinema — 발표 트레일러 녹화용: 3D 화면만 창 가득, 글자·버튼·카드 모두 숨김 */
+html.cinema body{margin:0;overflow:hidden;background:#000}
+html.cinema body>*:not(.wrap):not(#cineFade):not(#cineHint){display:none!important}
+html.cinema .wrap{display:block!important;margin:0!important;padding:0!important}
+html.cinema .wrap>*:not(.stage){display:none!important}
+html.cinema .stage{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;margin:0!important;border:0!important;border-radius:0!important}
+html.cinema .stage>*:not(canvas){display:none!important}
+html.cinema canvas#v{width:100vw!important;height:100vh!important;border-radius:0!important}
+#cineFade{position:fixed;inset:0;background:#000;pointer-events:none;opacity:1;transition:opacity .9s ease;z-index:99}
+#cineHint{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);color:#777;font:13px sans-serif;z-index:100}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head><body>
+<h1>실내 방 둘러보기 <span class="k" id="trialName" style="font-size:13px;font-weight:400"></span></h1>
+<div class="k">조작은 게임(나주맵)과 같습니다 — 화면을 한 번 누르고 <b>[T] 시작</b> · 마우스 = 시점 · WASD/방향키 = 이동 · Shift 달리기 · Space 점프 · C 앉기 · 조준점을 물건에 맞추고 <b>클릭 또는 E</b> = 조사(문은 바로 열고 이동) · ESC 나가기. 「검수」: 위에서 내려다보기.</div>
+<script>/* 검수 화면 안에 나란히 띄울 때(?compact) 설명 줄을 숨겨 3D 화면을 넓게(10/22) *//* 10/28 03 공간·에셋 검수(?review): 설명·퍼즐 칸을 빼고 3D 화면을 창 가득 */if(new URLSearchParams(location.search).has('review'))document.documentElement.classList.add('review');if(new URLSearchParams(location.search).has('cinema'))document.documentElement.classList.add('cinema');if(new URLSearchParams(location.search).has('compact')){const s=document.currentScript;s.previousElementSibling.style.display='none';s.previousElementSibling.previousElementSibling.style.display='none'}</script>
+<div class="bar" id="tabs"></div>
+<div class="bar"><button id="mPlay" class="on">플레이</button><button id="mRev">검수(위에서)</button><span class="sep"></span><button id="sReal">사실 질감</button><button id="sAni" hidden>원신 v1(필터)</button><button id="sToon" hidden>만화 v2(평면색+외곽선)</button><button id="sToon3" class="on">만화(기본)</button><span id="sky" hidden><span class="sep"></span><button data-sky="night" class="on">달밤</button><button data-sky="day">낮(해로 바뀜)</button></span></div>
+<div class="wrap"><div class="stage"><canvas id="v"></canvas><div id="cross"></div><div id="tag" hidden></div>
+<div id="hint">화면을 누르고 <b>[T]</b> 를 누르면 시작합니다<br><span style="opacity:.75">WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · 클릭/E 조사 · ESC 나가기</span></div></div>
+<aside id="info"></aside></div>
+<script type="module">
+import * as THREE from 'three';import {OrbitControls} from 'three/addons/controls/OrbitControls.js';import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';import {KTX2Loader} from 'three/addons/loaders/KTX2Loader.js';import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';import {mergeVertices} from 'three/addons/utils/BufferGeometryUtils.js';
+const ITEMS=/*ITEMS*/[];const TRIAL=/*TRIAL*/{};const PZ=/*PUZZLES*/[];const SC=/*SCENES*/[];
+const REVIEW=/[?&]review=/.test(location.search); /* 10/28: 03 공간·에셋 검수 화면 안에서 띄울 때 */
+const cv=document.getElementById('v');const R=new THREE.WebGLRenderer({canvas:cv,antialias:true});R.useLegacyLights=true;R.setPixelRatio(Math.min(devicePixelRatio,1.5));R.outputColorSpace=THREE.SRGBColorSpace;R.shadowMap.enabled=true;
+const S=new THREE.Scene();const C=new THREE.PerspectiveCamera(70,1,0.03,200);const O=new OrbitControls(C,cv);O.enabled=false;O.enableDamping=true;
+const hemi=new THREE.HemisphereLight(0xfff4e0,0x6b5a45,1.1);S.add(hemi);const sun=new THREE.DirectionalLight(0xffffff,1.6);sun.position.set(-4,9,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-8,right:8,top:8,bottom:-8});S.add(sun);
+const gnd=new THREE.Mesh(new THREE.PlaneGeometry(60,60),new THREE.MeshStandardMaterial({color:0x8f8674}));gnd.rotation.x=-Math.PI/2;gnd.position.y=-0.01;gnd.receiveShadow=true;S.add(gnd);
+let style='toon3';let tgt=null,cur=null,ci=0,mode='play',meta={},lightsG=new THREE.Group(),kc=null,found=new Set(),sel=null,yaw=0,pitch=-0.12,pos=new THREE.Vector3(),pend=null;S.add(lightsG);
+const L=new GLTFLoader();L.setMeshoptDecoder(MeshoptDecoder);{const k2=new KTX2Loader().setTranscoderPath('https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/libs/basis/');k2.detectSupport(R);L.setKTX2Loader(k2)}const tag=document.getElementById('tag');
+const b64ab=b=>{const s=atob(b),a=new Uint8Array(s.length);for(let i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a.buffer};
+const RAMP=`vec3 getGradientIrradiance( vec3 normal, vec3 lightDirection ) {
+  float dotNL = dot( normal, lightDirection );
+  vec2 coord = vec2( dotNL * 0.5 + 0.5, 0.0 );
+  float g = mix( 0.55, 1.0, smoothstep( 0.40, 0.58, coord.x ) );
+  return g * mix( vec3( 0.646, 0.694, 1.088 ), vec3( 1.0 ), smoothstep( 0.45, 0.95, g ) );
+}`;
+const GRADE=`{
+  vec3 wgC = gl_FragColor.rgb; float wgL = dot( wgC, vec3( 0.299, 0.587, 0.114 ) );
+  float wgMid = smoothstep( 0.06, 0.3, wgL );
+  wgC = mix( vec3( wgL ), wgC, mix( 1.0, 1.15, wgMid ) );
+  wgC = mix( wgC, ( wgC - 0.5 ) * 1.08 + 0.5, smoothstep( 0.15, 0.4, wgL ) );
+  float wgCool = smoothstep( 0.04, 0.14, wgL ) * ( 1.0 - smoothstep( 0.14, 0.5, wgL ) );
+  wgC *= mix( vec3( 1.0 ), vec3( 0.92, 0.96, 1.08 ), wgCool );
+  wgC *= mix( vec3( 1.0 ), vec3( 1.06, 1.02, 0.94 ), smoothstep( 0.6, 1.0, wgL ) );
+  gl_FragColor.rgb = clamp( wgC, 0.0, 1.0 );
+}`;
+
+const GRAD2=(()=>{const d=new Uint8Array([150,150,150,255,210,210,210,255,255,255,255,255]);const t=new THREE.DataTexture(d,3,1);t.minFilter=t.magFilter=THREE.NearestFilter;t.needsUpdate=true;return t})();
+const FLAT=new Map();
+function flatMap(tex){if(!tex||!tex.image)return null;if(FLAT.has(tex))return FLAT.get(tex);const im=tex.image,a=document.createElement('canvas');a.width=a.height=6;const ca=a.getContext('2d');ca.imageSmoothingEnabled=true;ca.drawImage(im,0,0,6,6);
+ const b=document.createElement('canvas');b.width=b.height=128;const cb=b.getContext('2d');cb.imageSmoothingEnabled=true;cb.drawImage(a,0,0,128,128);cb.globalAlpha=0.16;cb.drawImage(im,0,0,128,128);
+ const t=new THREE.CanvasTexture(b);t.colorSpace=THREE.SRGBColorSpace;t.flipY=tex.flipY;t.wrapS=tex.wrapS;t.wrapT=tex.wrapT;t.channel=tex.channel;t.repeat.copy(tex.repeat);t.offset.copy(tex.offset);FLAT.set(tex,t);
+ const p=ca.getImageData(0,0,6,6).data;let r=0,g=0,bb=0;for(let i=0;i<p.length;i+=4){r+=p[i];g+=p[i+1];bb+=p[i+2]}const n=p.length/4;t.userData.avg=new THREE.Color(r/n/255,g/n/255,bb/n/255);return t}
+const GRADE2=`
+  vec3 c2=gl_FragColor.rgb; float l2=dot(c2,vec3(0.299,0.587,0.114));
+  c2=mix(vec3(l2),c2,1.06);
+  c2*=mix(vec3(0.86,0.9,1.06),vec3(1.0),smoothstep(0.12,0.42,l2));
+  gl_FragColor.rgb=clamp(c2,0.0,1.0);`;
+function toonify2(root){const list=[];root.traverse(o=>{if(o.isMesh)list.push(o)});list.forEach(o=>{const m=o.material;const rl=roleOf(G(o)).role;const isProp=rl==='prop';const fm=isProp?null:flatMap(m.map);
+ const t=new THREE.MeshToonMaterial({vertexColors:!!(o.geometry&&o.geometry.attributes.color),color:m.color,map:fm||m.map,gradientMap:GRAD2,emissive:m.emissive,emissiveMap:m.emissiveMap,emissiveIntensity:m.emissiveIntensity,side:THREE.DoubleSide,transparent:m.transparent,alphaTest:m.alphaTest,opacity:m.opacity});
+ if(m.transparent)t.map=m.map;if((m.metalness||0)>0.5)t.color=m.color.clone().multiplyScalar(0.4);
+ t.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <colorspace_fragment>','#include <colorspace_fragment>\n'+GRADE2)};o.material=t;
+ if(m.transparent||(m.emissive&&m.emissive.r>0.5)||!(isProp||rl==='interactive'||rl==='fixture'||rl==='surface'))return;
+ let g=o.geometry.clone();for(const k of Object.keys(g.attributes))if(k!=='position')g.deleteAttribute(k);g=mergeVertices(g,1e-4);g.computeVertexNormals();
+ const base=(fm&&fm.userData.avg)?fm.userData.avg.clone().multiply(m.color):m.color.clone();const hc=base.multiplyScalar(0.28).lerp(new THREE.Color(0x1a1210),0.5);
+ const hm=new THREE.MeshBasicMaterial({color:hc,side:THREE.BackSide});hm.onBeforeCompile=sh=>{sh.vertexShader=sh.vertexShader.replace('#include <begin_vertex>','vec3 transformed=position+normalize(normal)*0.011/length((modelMatrix*vec4(1.,0.,0.,0.)).xyz);')};
+ const h=new THREE.Mesh(g,hm);h.userData.hull=true;h.raycast=()=>{};h.castShadow=false;h.receiveShadow=false;o.add(h)})}
+function toonLights(){lightsG.children.forEach(p=>{p.color.lerp(new THREE.Color(0xffffff),0.6)});hemi.intensity=Math.max(hemi.intensity,0.6)}
+
+// ── 만화 v3: 재질별로 새로 칠한 텍스처 + 화면 전체 선(깊이·법선 경계) + 방향만 있는 부드러운 빛 ──
+function matKey(o){let n=o;while(n){if(n.name&&n.name.includes('__'))return n.name.split('__')[1].replace(/_\d+$/,'');n=n.parent}return (o.material&&o.material.name)||''}
+const PAINT=new Map();
+function paintMap(tex,key,tint){const ck=(tex?tex.uuid:'none')+key;if(PAINT.has(ck))return PAINT.get(ck);
+ let avg=new THREE.Color(0.8,0.75,0.65);if(tex){const f=flatMap(tex);if(f&&f.userData.avg)avg=f.userData.avg.clone()}
+ avg.multiply(tint);const N=256,c=document.createElement('canvas');c.width=c.height=N;const x=c.getContext('2d');
+ const hex=(col,k=1)=>'#'+col.clone().multiplyScalar(k).getHexString();
+ const g=x.createLinearGradient(0,0,0,N);g.addColorStop(0,hex(avg,1.04));g.addColorStop(1,hex(avg,0.96));x.fillStyle=g;x.fillRect(0,0,N,N);
+ let rnd=7;const r=()=>(rnd=(rnd*16807)%2147483647)/2147483647;
+ const line=(pts,w,col,a)=>{x.globalAlpha=a;x.strokeStyle=col;x.lineWidth=w;x.lineCap='round';x.beginPath();pts.forEach((q,i)=>i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]));x.stroke();x.globalAlpha=1};
+ if(/^wood|^maru/.test(key)){for(let i=0;i<9;i++){const y0=r()*N,amp=2+r()*4,ph=r()*6;const pts=[];for(let t=-8;t<=N+8;t+=16)pts.push([t,y0+Math.sin(t/40+ph)*amp]);line(pts,1+r()*1.5,hex(avg,0.72),0.55)}
+   if(key==='maru'){line([[0,1],[N,1]],2.5,hex(avg,0.6),0.8)}}
+ else if(key==='floor'){line([[1,0],[1,N]],2,hex(avg,0.7),0.7);line([[0,1],[N,1]],2,hex(avg,0.7),0.7);x.globalAlpha=0.18;x.fillStyle=hex(avg,1.15);x.fillRect(20,20,N*0.45,N*0.12);x.globalAlpha=1}
+ else if(key==='earth'){for(let i=0;i<26;i++){x.fillStyle=hex(avg,r()<0.5?0.8:1.12);x.globalAlpha=0.6;x.beginPath();x.ellipse(r()*N,r()*N,2+r()*4,1.5+r()*3,r()*3,0,7);x.fill()}x.globalAlpha=1}
+ else if(key==='clay'){for(let i=0;i<4;i++){let px=r()*N,py=r()*N;const pts=[[px,py]];for(let k=0;k<4;k++){px+=(r()-0.5)*40;py+=10+r()*20;pts.push([px,py])}line(pts,1.2,hex(avg,0.62),0.7)}
+   for(let i=0;i<5;i++){x.globalAlpha=0.12;x.fillStyle=hex(avg,1.18);x.beginPath();x.ellipse(r()*N,r()*N,30+r()*30,8+r()*8,r()*3,0,7);x.fill()}x.globalAlpha=1}
+ else if(key==='stone'){for(let i=0;i<5;i++){x.globalAlpha=0.25;x.fillStyle=hex(avg,r()<0.5?0.85:1.12);x.beginPath();x.ellipse(r()*N,r()*N,20+r()*30,14+r()*20,r()*3,0,7);x.fill()}x.globalAlpha=1}
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.wrapS=t.wrapT=THREE.RepeatWrapping;if(tex){t.flipY=tex.flipY;t.channel=tex.channel;t.repeat.copy(tex.repeat);t.offset.copy(tex.offset)}else t.flipY=false;t.anisotropy=4;PAINT.set(ck,t);return t}
+const GRAD3=(()=>{const d=new Uint8Array([165,165,165,255,165,165,165,255,225,225,225,255,255,255,255,255]);const t=new THREE.DataTexture(d,4,1);t.minFilter=t.magFilter=THREE.NearestFilter;t.needsUpdate=true;return t})();
+const GRADE3=`
+  // 이 단계의 값은 선형(화면 밖 버퍼에 그림) — 눈에 보이는 밝기로 바꿔 보정한 뒤 되돌린다
+  vec3 c3=gl_FragColor.rgb; float mx3=max(c3.r,max(c3.g,c3.b)); c3/=max(1.0,mx3);
+  c3=pow(c3,vec3(1.0/2.2)); float l3=dot(c3,vec3(0.299,0.587,0.114));
+  float sat3=max(c3.r,max(c3.g,c3.b))-min(c3.r,min(c3.g,c3.b));
+  // 쨍한 빨강·자홍(옻칠·붉은 천)만 골라 누른다 — 나무 갈색(초록이 빨강의 절반 넘음)은 그대로
+  float red3=smoothstep(0.5,0.25,c3.g/max(c3.r,0.02))*smoothstep(0.2,0.45,sat3)*step(c3.b,c3.r);
+  float hot3=max(red3,smoothstep(0.6,0.85,sat3));
+  c3=mix(vec3(l3),c3,mix(1.05,0.5,hot3));
+  c3*=0.86*mix(1.0,0.88,hot3);
+  c3*=mix(vec3(0.86,0.9,1.06),vec3(1.0),smoothstep(0.2,0.55,l3));
+  c3*=mix(vec3(1.0),vec3(1.03,1.01,0.96),smoothstep(0.7,1.0,l3));
+  gl_FragColor.rgb=pow(clamp(c3,0.0,1.0),vec3(2.2));`;
+// ── 사진 질감 단순화(10/21 미르: 시험 화면 화풍 전체 통일) — 텍스처를 GPU 로 작게 뽑아 색을 몇 단계로 묶고 다시 키워 큰 색면으로.
+//    KTX2(압축)도 GPU 로 읽으므로 된다. 투명 잎 카드는 해상도를 높게 둬 잎 모양(알파)을 지킨다. 원본 파일은 바꾸지 않는다.
+const SIMP=new Map();let simpS=null,simpQ=null;
+function postz(d){const h=new THREE.Color();const hsl={};for(let i=0;i<d.length;i+=4){h.setRGB(d[i]/255,d[i+1]/255,d[i+2]/255);h.getHSL(hsl);const L=Math.round(Math.min(1,Math.max(0,hsl.l))*7)/7,S=Math.round(hsl.s*0.9*10)/10,H=Math.round(hsl.h*36)/36;h.setHSL(H,S,Math.min(0.97,Math.max(0.04,L)));d[i]=h.r*255;d[i+1]=h.g*255;d[i+2]=h.b*255}}
+function gpuRead(tex,S){if(!simpS){simpS=new THREE.Scene();simpQ=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:{t:{value:null}},vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',fragmentShader:'uniform sampler2D t;varying vec2 vUv;void main(){gl_FragColor=texture2D(t,vUv);}',depthTest:false,depthWrite:false}));simpS.add(simpQ)}
+ const rt=new THREE.WebGLRenderTarget(S,S);simpQ.material.uniforms.t.value=tex;const prev=R.getRenderTarget();R.setRenderTarget(rt);R.render(simpS,PP.cam);const buf=new Uint8Array(S*S*4);R.readRenderTargetPixels(rt,0,0,S,S,buf);R.setRenderTarget(prev);rt.dispose();
+ const sr=tex.colorSpace===THREE.SRGBColorSpace;const a=document.createElement('canvas');a.width=a.height=S;const ca=a.getContext('2d');const id=ca.createImageData(S,S);
+ for(let y=0;y<S;y++)for(let x=0;x<S;x++){const s=((S-1-y)*S+x)*4,d=(y*S+x)*4;for(let k=0;k<3;k++){const v=buf[s+k]/255;id.data[d+k]=255*(sr?Math.pow(v,1/2.2):v)}id.data[d+3]=buf[s+3]}ca.putImageData(id,0,0);return a}
+// 방 벽·마루와 같은 칠: 큰 덩어리 색(6×6) 위에 원래 결을 16 %만 — 빈 방 v3 의 flatMap 과 같은 비율
+function simplifyMap(tex,transp){if(!tex)return null;if(SIMP.has(tex))return SIMP.get(tex);let out=tex;try{
+ const N=256,sr=tex.colorSpace===THREE.SRGBColorSpace;const b=document.createElement('canvas');b.width=b.height=N;const cb=b.getContext('2d');cb.imageSmoothingEnabled=true;
+ if(transp){cb.drawImage(gpuRead(tex,256),0,0,N,N);const id2=cb.getImageData(0,0,N,N);postz(id2.data);cb.putImageData(id2,0,0)}
+ else{cb.drawImage(gpuRead(tex,6),0,0,N,N);cb.globalAlpha=0.16;cb.drawImage(gpuRead(tex,128),0,0,N,N);cb.globalAlpha=1}
+ const t=new THREE.CanvasTexture(b);t.colorSpace=sr?THREE.SRGBColorSpace:THREE.NoColorSpace;t.flipY=true;t.wrapS=tex.wrapS;t.wrapT=tex.wrapT;t.channel=tex.channel;t.repeat.copy(tex.repeat);t.offset.copy(tex.offset);t.rotation=tex.rotation;t.center.copy(tex.center);out=t
+ }catch(e){console.warn('simplifyMap',e)}SIMP.set(tex,out);return out}
+// ── 바람(10/21) — 나주맵 naju01/src/scene/immersion/windShader.ts 와 같은 흔들림·잎 떨림. 세상 좌표(미터)로 계산 ──
+const WIND={uWindTime:{value:0},uWindAmp:{value:0.8}};
+const WIND_GLSL=`
+vec4 wgP4=vec4(transformed,1.0);
+vec3 wgB=(modelMatrix*vec4(0.0,0.0,0.0,1.0)).xyz;
+#ifdef USE_INSTANCING
+  wgP4=instanceMatrix*wgP4;
+  wgB=(modelMatrix*vec4(instanceMatrix[3].xyz,1.0)).xyz;
+#endif
+vec4 wgW=modelMatrix*wgP4;
+{
+  float wgH=max(wgW.y-uWindBase,0.0);
+  float wgS=0.025*wgH+0.15*min(wgH,1.0);
+  float wgPh=uWindTime*1.7+wgB.x*0.7+wgB.z*0.55;
+  float wgG=sin(wgPh)+0.35*sin(wgPh*2.7+1.3);
+  wgW.x+=uWindAmp*wgS*wgG;
+  wgW.z+=uWindAmp*wgS*0.6*cos(wgPh*0.8);
+  float wgL=clamp(wgH/3.0,0.0,1.0);
+  float wgF=sin(uWindTime*7.3+dot(wgW.xyz,vec3(3.1,1.7,2.3)))+0.5*sin(uWindTime*11.7+wgW.y*4.0+wgB.x);
+  wgW.xyz+=vec3(1.0,0.35,0.8)*uWindAmp*0.02*wgL*wgF;
+}
+vec4 mvPosition=viewMatrix*wgW;
+gl_Position=projectionMatrix*mvPosition;
+`;
+function windy(m,baseY=0){if(!m||m.userData.wind)return m;m.userData.wind=true;const prev=m.onBeforeCompile,pk=m.customProgramCacheKey;const ub={value:baseY};
+ m.onBeforeCompile=function(sh,r){if(prev)prev.call(this,sh,r);if(!sh.vertexShader.includes('#include <project_vertex>'))return;sh.uniforms.uWindTime=WIND.uWindTime;sh.uniforms.uWindAmp=WIND.uWindAmp;sh.uniforms.uWindBase=ub;sh.vertexShader='uniform float uWindTime;\nuniform float uWindAmp;\nuniform float uWindBase;\n'+sh.vertexShader.replace('#include <project_vertex>',WIND_GLSL)};
+ m.customProgramCacheKey=function(){return (pk?pk.call(this):'')+'|wind'};m.needsUpdate=true;return m}
+// 불러온 방·마당에서 식물(이름으로) 재질에 바람을 건다 — 나무 그릇·나무 함처럼 「나무」 재료 이름은 빼고 식물 이름만
+const PLANT=/소나무|피나무|느티나무|덤불|수풀|풀포기|풀꽃|들국화|담 밑 꽃|갈대|화초|꽃나무/;
+function windPlants(root){root.traverse(o=>{if(!o.isMesh)return;const g=G(o);if(!PLANT.test(g))return;const base=(roleOf(g).cls==='yard'||/마당|담 /.test(g))?0:(meta.floor_y||0);const ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(m=>windy(m,base))})}
+// ── 흙바닥(10/22 미르: 부엌 바닥도 마당처럼) — 흙바닥 방이면 바닥 위에 흙 결 + 낮은 높낮이(1 cm 안팎) + 잔자갈 ──
+let earthG=null;
+function earthFloor(){earthG=null;if(!cur||!meta.spec||meta.spec.floor!=='earth'||!meta.walk)return;const W=meta.walk.x[1]+meta.walk.x[0],D=meta.spec.depth_m,FY=meta.floor_y||0;earthG=new THREE.Group();earthG.name='흙바닥__덮개';
+ const gg=new THREE.PlaneGeometry(W,D,Math.ceil(W*8),Math.ceil(D*8));gg.rotateX(-Math.PI/2);const P=gg.attributes.position;
+ for(let i=0;i<P.count;i++){const X=P.getX(i)+W/2,Z=P.getZ(i)+D/2;let h=0.006*Math.sin(X*2.3+Z*0.9)*Math.sin(Z*1.9-X*0.6)+0.003*Math.sin(X*7.1+Z*5.3);const e=Math.min(X,W-X,Z,D-Z);if(e<0.12)h*=Math.max(0.15,e/0.12);P.setY(i,0.025+h)}gg.computeVertexNormals();
+ const dt=dirtTex().clone();dt.needsUpdate=true;dt.repeat.set(W/2.2,D/2.2);const g=new THREE.Mesh(gg,tm({color:0x9c8c74,map:dt}));g.position.set(W/2,FY,D/2);earthG.add(g);
+ let rs=31;const R=()=>(rs=(rs*16807)%2147483647)/2147483647;const peb=[];for(let i=0;i<220;i++){let x=0.1+R()*(W-0.2),z=0.1+R()*(D-0.2);if(R()<0.6){const s=R();if(s<0.3)z=0.08+R()*0.4;else if(s<0.55)x=0.08+R()*0.4;else if(s<0.8)x=W-0.08-R()*0.4;else z=D-0.08-R()*0.5}const sz=0.02+R()*0.05;peb.push({x,z,y:FY+0.03+sz*0.1,ry:R()*6.3,rx:(R()-0.5)*0.4,sx:sz,sy:sz*(0.7+R()*0.4),sz:sz,k:i%3})}
+ ['pebble1','pebble2','pebble4'].forEach((n,k)=>{const m=inst(painted(n,['#6f6a62','#8f897e','#a8a294'],71+k),peb.filter(b=>b.k===k),tm({vertexColors:true}),true);if(m)earthG.add(m)});
+ cur.add(earthG)}
+// ── 횃대에 걸친 옷(10/22 미르: 입은 모양 그대로 떠 있음 → 흐물흐물 늘어지게) ──
+//    옷 3D 대신, 그 옷 색으로 「횃대에 반으로 걸쳐 앞·뒤로 축 처진 천」을 그린다. 이름은 그대로라 조사(E)도 그대로.
+function drapeHangs(){if(!cur||!meta.hangs||!meta.hangs.length||!meta.spec||!(meta.spec.rails||[]).length)return;const FY=meta.floor_y||0,W=meta.walk?meta.walk.x[1]+meta.walk.x[0]:5;
+ for(const hg of meta.hangs){const rl=meta.spec.rails[0];const ms=[];cur.traverse(o=>{if(o.isMesh&&G(o)===hg.name)ms.push(o)});if(!ms.length)continue;
+  let col=new THREE.Color(0.55,0.66,0.52);const m0=ms[0].material;try{if(m0.map){const c=gpuRead(m0.map,4).getContext('2d').getImageData(0,0,4,4).data;let r=0,g=0,b=0;for(let i=0;i<c.length;i+=4){r+=c[i];g+=c[i+1];b+=c[i+2]}const n=c.length/4;col.setRGB(r/n/255,g/n/255,b/n/255,THREE.SRGBColorSpace);if(m0.color)col.multiply(m0.color)}else if(m0.color)col.copy(m0.color)}catch(e){}
+  const ry=FY+rl.y,uc=rl.wall==='back'?hg.x:hg.z,w=Math.min(0.8,Math.max(0.45,(hg.dims?hg.dims[0]:0.9)*0.6)),Lf=0.82,Lb=0.62,nb=0.122,nf=0.178,nc=0.15,rr=0.028;
+  const path=[];const NB=14,NA=8,NF=18;for(let j=0;j<=NB;j++){const t=j/NB;path.push([nb,ry-Lb*(1-t),Lb*(1-t)])}for(let j=1;j<NA;j++){const a=Math.PI*(1-j/NA);path.push([nc+Math.cos(a)*rr*(nc-nb>0?1:1)*((nf-nb)/2/rr),ry+Math.sin(a)*rr,0])}for(let j=0;j<=NF;j++){const t=j/NF;path.push([nf,ry-Lf*t,Lf*t])}
+  const NW=18,pos=[],cols=[],idx=[];let sd=[...hg.name].reduce((a,c)=>a+c.charCodeAt(0),5);const R=()=>(sd=(sd*16807)%2147483647)/2147483647;const ph=[R()*6.3,R()*6.3,R()*6.3];
+  path.forEach(([n,y,dep],j)=>{const side=j<=NB?-1:(j>=NB+NA?1:0),k=dep/Math.max(Lf,Lb);for(let i=0;i<=NW;i++){const v=i/NW-0.5;let u=uc+v*w*(1+0.18*k);
+    const fold=(0.01+0.05*k)*(Math.sin(v*Math.PI*5+ph[0])+0.45*Math.sin(v*Math.PI*11+ph[1]+k*2));let nn=n+side*fold;let yy=y;if(k>0.92)yy+=0.025*Math.sin(v*Math.PI*7+ph[2])*(k-0.92)/0.08;
+    if(side!==0)nn=side<0?Math.max(0.05,nn):nn;const P=rl.wall==='back'?[u,yy,nn]:rl.wall==='left'?[nn,yy,u]:[W-nn,yy,u];pos.push(...P);let sh=0.78+0.22*(0.5+0.5*Math.sin(v*Math.PI*5+ph[0]));if(side>0&&k<0.5&&Math.abs(v-(-0.22+k*0.55))<0.04)sh*=1.45;cols.push(Math.min(1,col.r*sh),Math.min(1,col.g*sh),Math.min(1,col.b*sh))}});
+  const RW=NW+1;for(let j=0;j<path.length-1;j++)for(let i=0;i<NW;i++){const a=j*RW+i,b=a+1,c=a+RW,d=c+1;idx.push(a,c,b,b,c,d)}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));g.setIndex(idx);g.computeVertexNormals();
+  const mesh=new THREE.Mesh(g,tm({vertexColors:true,side:THREE.DoubleSide}));mesh.name=hg.name+'__걸침';mesh.castShadow=true;
+  ms.forEach(o=>{if(o.parent)o.parent.remove(o)});cur.add(mesh)}}
+function toonify3(root){const list=[];root.traverse(o=>{if(o.isMesh)list.push(o)});list.forEach(o=>{const m=o.material;const rl=roleOf(G(o)).role;const key=matKey(o);
+ const isProp=rl==='prop'||!(key in {wood:1,wood_dk:1,plaster:1,paper:1,floor:1,stone:1,maru:1,hanji:1,earth:1,clay:1,cloth_a:1,cloth_b:1,cloth_c:1});
+ let map=m.map; // 나주맵(WorldToon)처럼 원래 텍스처 그대로 — paintMap·simplifyMap 은 쓰지 않음(10/22)
+ const t=new THREE.MeshToonMaterial({vertexColors:!!(o.geometry&&o.geometry.attributes.color),color:m.color,map,gradientMap:GRAD3,emissive:m.emissive,emissiveMap:m.emissiveMap,emissiveIntensity:m.emissiveIntensity,side:THREE.DoubleSide,transparent:m.transparent,alphaTest:(m.transparent&&m.map)?Math.max(m.alphaTest||0,0.35):m.alphaTest,opacity:m.opacity,depthWrite:!m.transparent});
+ if((m.metalness||0)>0.5)t.color=m.color.clone().multiplyScalar(0.4);
+ {/* 10/27 미르: 「뒤주·찬장이 은빛이라 쇳덩이처럼 보인다」 — 국가유산청(KHS) 경량본 일부는 나무 결 텍스처 없이 꼭짓점 색만 남았는데 그 색이 회색(채도 낮음)이다. 목가구 이름인데 꼭짓점 색이 회색이면 나무색을 곱한다 */
+  const ca=o.geometry&&o.geometry.attributes.color;const nm=String(G(o)||'');if(ca&&!map&&/뒤주|찬장|찬탁|궤|반닫이|문갑|서안|장롱|^농|함$|소반|책장|탁자|장$|머릿장|약장|경상|함지|떡판|절구|구유|가구/.test(nm)){let r=0,g=0,b=0;const N=Math.min(ca.count,4000),st=Math.max(1,Math.floor(ca.count/N));let k=0;for(let i=0;i<ca.count;i+=st){r+=ca.getX(i);g+=ca.getY(i);b+=ca.getZ(i);k++}r/=k;g/=k;b/=k;const mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx>0.02&&(mx-mn)/mx<0.45){/* 선형 색 기준 — 회갈색(sRGB .40,.35,.32)이 0.37, 진짜 나무 갈색은 0.8 이상 */t.color=new THREE.Color('#c98f58');t.userData.woodTint=true}}}
+ t.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <colorspace_fragment>','#include <colorspace_fragment>\n'+GRADE3)};o.material=t;o.userData.own=true;if(m.transparent)o.userData.noLine=true})}
+// 화면 전체 선: 색 + 깊이 한 번, 법선 한 번 그린 뒤 경계를 찾아 선을 얹는다
+const PP={rc:null,rn:null,q:null,cam:new THREE.OrthographicCamera(-1,1,1,-1,0,1),nm:new THREE.MeshNormalMaterial({side:THREE.DoubleSide}),sz:new THREE.Vector2()};
+function ppEnsure(){R.getDrawingBufferSize(PP.sz);const w=PP.sz.x,h=PP.sz.y;if(PP.rc&&PP.rc.width===w&&PP.rc.height===h)return;if(PP.rc){PP.rc.dispose();PP.rn.dispose()}
+ PP.rc=new THREE.WebGLRenderTarget(w,h,{depthTexture:new THREE.DepthTexture(w,h),samples:0});PP.rc.texture.colorSpace=THREE.SRGBColorSpace;PP.rn=new THREE.WebGLRenderTarget(w,h);
+ if(!PP.q){PP.q=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:{tC:{value:null},tN:{value:null},tD:{value:null},px:{value:new THREE.Vector2()},cn:{value:0.03},cf:{value:200}},
+  vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
+  fragmentShader:`uniform sampler2D tC,tN,tD;uniform vec2 px;uniform float cn,cf;varying vec2 vUv;
+  float ld(vec2 u){float z=texture2D(tD,u).x*2.-1.;return 2.*cn*cf/(cf+cn-z*(cf-cn));}
+  void main(){vec3 col=texture2D(tC,vUv).rgb;float e=0.;float z0=texture2D(tD,vUv).x;
+   if(z0<0.99999){float d0=ld(vUv);vec2 p=px*1.5;float l=ld(vUv-vec2(p.x,0.)),r=ld(vUv+vec2(p.x,0.)),uu=ld(vUv+vec2(0.,p.y)),b=ld(vUv-vec2(0.,p.y));
+    float i0=1./d0;float lap=max(abs(1./l+1./r-2.*i0),abs(1./uu+1./b-2.*i0))*d0;
+    float eDisc=smoothstep(0.04,0.12,lap)*(1.-smoothstep(54.,90.,d0));float eCrease=smoothstep(0.003,0.012,lap)*(1.-smoothstep(9.,18.,d0));
+    e=clamp(max(eDisc,eCrease),0.,1.)*0.9;}
+   vec3 lc=col*vec3(0.28,0.24,0.24);gl_FragColor=vec4(mix(col,lc,e),1.);
+   #include <colorspace_fragment>
+  }`,depthTest:false,depthWrite:false}))}
+ PP.q.material.uniforms.px.value.set(1/w,1/h)}
+function renderToon3(){ppEnsure();const u=PP.q.material.uniforms;u.cn.value=C.near;u.cf.value=C.far;
+ R.setRenderTarget(PP.rc);R.render(S,C);
+ // 선은 깊이만으로(나주맵과 같음) — 법선 그리기 생략
+ R.setRenderTarget(null);u.tC.value=PP.rc.texture;u.tD.value=PP.rc.depthTexture;u.tN.value=PP.rn.texture;R.render(PP.q,PP.cam)}
+function toon3Lights(){hemi.color.set(0xfff0da);hemi.groundColor.set(0x8d86a0);hemi.intensity=0.46;lightsG.children.forEach(p=>{const day=p.userData.kind==='daylight';if(day){p.decay=0;p.distance=0;p.intensity*=0.17}else{p.intensity*=0.6;p.color.lerp(new THREE.Color(0xffffff),0.35)}})}
+function toonify(root){root.traverse(o=>{if(!o.isMesh)return;const m=o.material;const t=new THREE.MeshToonMaterial({vertexColors:!!(o.geometry&&o.geometry.attributes.color),color:m.color,map:m.map,emissive:m.emissive,emissiveMap:m.emissiveMap,emissiveIntensity:m.emissiveIntensity,side:THREE.DoubleSide,transparent:m.transparent,alphaTest:m.alphaTest});
+ t.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <gradientmap_pars_fragment>',RAMP).replace('#include <colorspace_fragment>','#include <colorspace_fragment>\n'+GRADE)};o.material=t})}
+
+// ── 흔적(10/21) — 3D 에셋이 아니라 바닥·창에 그린다. 이름이 곧 조사 대상(조준점·E) ──
+function tCanvas(draw,w=256,h=256){const c=document.createElement('canvas');c.width=w;c.height=h;draw(c.getContext('2d'),w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t}
+function gbm(o){const m=new THREE.MeshBasicMaterial(o);m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <colorspace_fragment>','#include <colorspace_fragment>\n'+GRADE3)};return m}
+function tPlane(tex,w,h,opts={}){const m=gbm({map:tex,transparent:true,depthWrite:false,opacity:opts.opacity??1,blending:opts.add?THREE.AdditiveBlending:THREE.NormalBlending,polygonOffset:true,polygonOffsetFactor:-4,side:THREE.DoubleSide});const g=new THREE.Mesh(new THREE.PlaneGeometry(w,h),m);g.userData.noLine=true;g.receiveShadow=false;g.castShadow=false;return g}
+const TT={};
+function footTex(wet){const k='f'+wet;if(TT[k])return TT[k];return TT[k]=tCanvas((x,w,h)=>{x.filter='blur(2.5px)';x.fillStyle=wet?'rgba(52,44,36,0.55)':'rgba(88,64,40,0.42)';x.beginPath();x.moveTo(w*0.5,h*0.06);x.bezierCurveTo(w*0.86,h*0.08,w*0.84,h*0.55,w*0.68,h*0.8);x.bezierCurveTo(w*0.6,h*0.97,w*0.4,h*0.97,w*0.32,h*0.8);x.bezierCurveTo(w*0.16,h*0.55,w*0.14,h*0.08,w*0.5,h*0.06);x.fill();x.filter='none';x.strokeStyle=wet?'rgba(30,26,22,0.18)':'rgba(60,44,28,0.16)';x.lineWidth=2;for(let i=1;i<9;i++){x.beginPath();x.moveTo(w*0.26,h*0.1*i);x.lineTo(w*0.74,h*0.1*i+3);x.stroke()}},96,192)}
+function lightTex(col){const k='l'+col;if(TT[k])return TT[k];return TT[k]=tCanvas((x,w,h)=>{const nx=4,ny=3,gx=w/nx,gy=h/ny;x.filter='blur(3px)';x.fillStyle=col;for(let i=0;i<nx;i++)for(let j=0;j<ny;j++)x.fillRect(i*gx+gx*0.12,j*gy+gy*0.14,gx*0.76,gy*0.72)})}
+function waterTex(){if(TT.w)return TT.w;return TT.w=tCanvas((x,w,h)=>{let r=7;const R=()=>(r=(r*16807)%2147483647)/2147483647;x.filter='blur(3px)';x.fillStyle='rgba(60,70,78,0.32)';x.beginPath();for(let a=0;a<=Math.PI*2+0.01;a+=0.25){const rr=0.32+R()*0.14;const px=w/2+Math.cos(a)*w*rr,py=h/2+Math.sin(a)*h*rr;a?x.lineTo(px,py):x.moveTo(px,py)}x.closePath();x.fill();x.filter='none';x.strokeStyle='rgba(235,240,245,0.35)';x.lineWidth=2;x.beginPath();x.ellipse(w*0.44,h*0.44,w*0.12,h*0.035,-0.3,0.2,2.6);x.stroke()})}
+function bloodTex(){if(TT.b)return TT.b;return TT.b=tCanvas((x,w,h)=>{x.fillStyle='rgba(96,20,18,0.85)';[[0.4,0.5,0.09],[0.58,0.42,0.05],[0.5,0.66,0.04],[0.66,0.6,0.03],[0.32,0.36,0.03]].forEach(([a,b,c])=>{x.beginPath();x.arc(a*w,b*h,c*w,0,7);x.fill()})})}
+/* 10/27 미르: 「창에 비친 그림자가 여자인지 알 단서가 없어 찍어야 했다」 — 단서가 figure 를 주면 그 실루엣(옆모습)으로: woman 쪽진 머리·넓은 치마 · man 갓·두루마기 · child 작은 키·댕기 · elder 굽은 등·지팡이 */
+function shadowTex(fig){const K='s_'+(fig||'');if(TT[K])return TT[K];return TT[K]=tCanvas((x,w,h)=>{x.filter='blur(4px)';x.fillStyle='rgba(20,22,30,0.78)';const E=(cx,cy,rx,ry)=>{x.beginPath();x.ellipse(w*cx,h*cy,w*rx,h*ry,0,0,7);x.fill()};const Poly=pts=>{x.beginPath();pts.forEach(([a,b],k)=>k?x.lineTo(w*a,h*b):x.moveTo(w*a,h*b));x.closePath();x.fill()};
+ if(fig==='woman'){/* 10/27 미르(3): 「몸 윤곽이랑 머리 명암이 달라 기괴하다」·정면은 병 모양으로 보였다 — 한 덩어리 같은 진하기의 옆모습(왼쪽을 봄): 이마·코·입술·턱·가는 목·가슴선이 사람임을 보이고, 정수리에서 등 뒤로 허리까지 흘러내린 긴 머리채가 여인임을 보인다 */x.filter='blur(1.2px)';x.fillStyle='rgb(20,22,30)';const Q=[[.52,.07],[.43,.1],[.38,.16],[.365,.23],[.355,.27],[.33,.31],[.315,.335],[.34,.35],[.345,.365],[.335,.38],[.345,.395],[.35,.415],[.355,.44],[.39,.465],[.415,.475],[.42,.53],[.41,.58],[.37,.66],[.35,.74],[.33,.85],[.31,1.02],[.74,1.02],[.71,.9],[.66,.82],[.68,.79],[.73,.8],[.76,.77],[.8,.79],[.79,.73],[.83,.72],[.79,.66],[.8,.58],[.76,.5],[.74,.4],[.7,.3],[.68,.2],[.62,.11]]/* 등선(.71~.74) 바깥으로 물결지며 흘러내린 머리채, 끝이 갈래져 등 위에서 끝남 */;x.beginPath();Q.forEach(([a,b],k)=>k?x.lineTo(w*a,h*b):x.moveTo(w*a,h*b));x.closePath();x.fill();x.filter='none';x.globalCompositeOperation='source-in';x.fillStyle='rgba(20,22,30,0.8)';x.fillRect(0,0,w,h);x.globalCompositeOperation='source-over'}
+ else if(fig==='man'){E(.5,.24,.07,.08);x.fillRect(w*.26,h*.17,w*.48,h*.025);/* 갓 양태 */Poly([[.43,.18],[.57,.18],[.55,.06],[.45,.06]]);/* 갓 모자 */Poly([[.4,.31],[.6,.31],[.66,.45],[.64,1.02],[.36,1.02],[.34,.45]])}
+ else if(fig==='child'){E(.5,.5,.07,.075);x.fillRect(w*.545,h*.52,w*.025,h*.2);/* 댕기 */Poly([[.41,.57],[.59,.57],[.63,.8],[.62,1.02],[.38,1.02],[.37,.8]])}
+ else if(fig==='elder'){E(.42,.3,.07,.075);Poly([[.38,.36],[.52,.34],[.64,.46],[.62,1.02],[.4,1.02],[.36,.6]]);x.fillRect(w*.27,h*.48,w*.022,h*.54);Poly([[.3,.5],[.42,.45],[.42,.5],[.3,.54]])}
+ else{E(.5,.28,.11,.12);x.beginPath();x.moveTo(w*0.3,h*1.02);x.quadraticCurveTo(w*0.32,h*0.42,w*0.5,h*0.4);x.quadraticCurveTo(w*0.68,h*0.42,w*0.72,h*1.02);x.fill();x.fillRect(w*0.2,h*0.5,w*0.12,h*0.04)}})}
+function soundTex(){if(TT.n)return TT.n;return TT.n=tCanvas((x,w,h)=>{x.strokeStyle='rgba(120,150,210,0.55)';x.lineCap='round';[0.18,0.3,0.42].forEach((r,i)=>{x.lineWidth=7-i*2;x.beginPath();x.arc(w/2,h/2,w*r,-0.9,0.9);x.stroke();x.beginPath();x.arc(w/2,h/2,w*r,Math.PI-0.9,Math.PI+0.9);x.stroke()})})}
+function spotTex(){if(TT.p)return TT.p;return TT.p=tCanvas((x,w,h)=>{const g=x.createRadialGradient(w/2,h/2,w*0.1,w/2,h/2,w*0.48);g.addColorStop(0,'rgba(255,240,200,0.35)');g.addColorStop(0.7,'rgba(255,230,180,0.18)');g.addColorStop(1,'rgba(255,230,180,0)');x.fillStyle=g;x.fillRect(0,0,w,h)})}
+function doorLightTex(col){const k='dl'+col;if(TT[k])return TT[k];return TT[k]=tCanvas((x,w,h)=>{x.filter='blur(3px)';const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,col);g.addColorStop(0.6,col);g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.beginPath();x.moveTo(w*0.12,0);x.lineTo(w*0.88,0);x.lineTo(w*0.98,h);x.lineTo(w*0.02,h);x.closePath();x.fill();x.globalCompositeOperation='destination-out';x.fillStyle='rgba(0,0,0,0.38)';for(let i=1;i<14;i++){const u=i/14;x.beginPath();x.moveTo(w*(0.12+0.76*u)-1.5,0);x.lineTo(w*(0.12+0.76*u)+1.5,0);x.lineTo(w*(0.02+0.96*u)+3,h);x.lineTo(w*(0.02+0.96*u)-3,h);x.fill()}x.fillStyle='rgba(0,0,0,0.5)';[0.14,0.5,0.86].forEach(v=>x.fillRect(0,h*v-5,w,10));x.globalCompositeOperation='source-over'},256,384)}
+const FLICK=[];
+function doorGlowTex(){if(TT.dg)return TT.dg;return TT.dg=tCanvas((x,w,h)=>{const g=x.createRadialGradient(w/2,h*0.45,w*0.05,w/2,h*0.45,w*0.75);g.addColorStop(0,'rgba(255,190,110,0.55)');g.addColorStop(1,'rgba(240,150,80,0.12)');x.fillStyle=g;x.fillRect(0,0,w,h)},128,256)}
+/* 10/27 미르: 「바닥에 동그란 불빛 — 상호작용도 안 되고 왜 있는지 모르겠다」 — 출구 문에 걸린 장치(패 자물쇠 등)의 자리가 라이브러리에 없어 바닥 자리 표식으로 그려졌다. 장치는 문에 그리므로 바닥 표식은 그리지 않는다 */
+const exitHostNode=(ri,n)=>PZ.some(p=>p.solve&&p.solve.device&&p.solve.device.on==='exit_door'&&p.hosts.some(h=>h.need_id===p.solve.at&&h.at.some(b=>b.room===ri&&b.node===n)));
+/* 10/27 미르(2): figure 를 적지 않은 예전 시험 — 그 그림자를 쓰는 퍼즐 답이 여인·사내 …이면 그 실루엣으로(답은 여인인데 사람 덩어리로 그려 남자로 보였다) */
+function shadowFigOf(node){const FIG={woman:/여인|여자|아낙|부인|색시|처녀|각시/,man:/사내|남자|선비|도령/,child:/아이|어린/,elder:/노인|할미|할아비/};for(const p of PZ){const h=p.hosts.find(h=>h.at.some(b=>b.room===ci&&b.node===node));if(!h)continue;const c=p.clues.find(c=>c.from===h.need_id);const t=`${c&&c.content||''} ${c&&c.text||''} ${JSON.stringify(p.solve&&p.solve.answer||'')}`;for(const k of Object.keys(FIG))if(FIG[k].test(t))return k}return null}
+function addTraces(){(meta.traces||[]).forEach((t,ti)=>{if(exitHostNode(ci,t.name))return;const G0=new THREE.Group();G0.name=t.name;const y=(t.y??meta.floor_y??0)+(meta.spec&&meta.spec.floor==='earth'&&t.kind!=='step'?0.045:0.006)+ti*0.0008;const nm=i=>`${t.name}__흔적_${i}`;
+ const flat=(tex,w,h,x,z,rot=0,o={})=>{const m=tPlane(tex,w,h,o);m.rotation.x=-Math.PI/2;m.rotation.z=rot;m.position.set(x,y,z);m.name=nm(G0.children.length);G0.add(m);return m};
+ if(t.kind==='foot'&&t.steps){const S0=t.steps;const ang=S0.length>1?Math.atan2(S0[S0.length-1][0]-S0[0][0],S0[S0.length-1][1]-S0[0][1]):0;S0.forEach((st,i)=>{const op=(t.faint?0.45:0.85)*(i===0||i===S0.length-1?0.75:1);flat(footTex(t.wet),0.11*st[3],0.25*st[3],st[0],st[1],ang+Math.PI+st[2],{opacity:op})})}
+ else if(t.kind==='light'&&t.src&&!(t.cells&&t.cells.length)){const [w,h]=t.size,r=t.rot||0,s=t.src;flat(doorLightTex('rgba(255,170,90,0.7)'),w,h,t.pos.x,t.pos.z,r,{add:true});flat(doorLightTex('rgba(255,222,160,0.38)'),w*0.94,h*0.9,t.pos.x+0.06,t.pos.z+0.03,r+0.08,{add:true});const g=tPlane(doorGlowTex(),s.w*0.94,s.h*0.94,{add:true,opacity:0.9});g.position.set(s.x+s.nx*0.035,(t.y??meta.floor_y??0)+s.h*0.5,s.z+s.nz*0.035);g.rotation.y=Math.atan2(s.nx,s.nz);g.name=nm(G0.children.length);g.userData.flick=Math.random()*6.3;FLICK.push(g);G0.add(g)}
+ else if(t.kind==='light'&&t.cells&&t.cells.length){/* 10/26 미르: 「세 번째 칸이라는 글만 있고 바닥 빛과 관계가 없다」 — 창살 칸 모양 그대로, 밝은 칸만 밝게(10/27: 행 1 = 창에 가까운 쪽 = 창을 보고 섰을 때 위, 열 1 = 창을 볼 때 왼쪽) */const cs=t.cells.map(x=>String(x).split('-').map(Number));const R=(t.grid&&t.grid[0])||Math.max(3,...cs.map(c=>c[0])),C=(t.grid&&t.grid[1])||Math.max(3,...cs.map(c=>c[1]));const n=t.n||[0,1],nx=n[0],nz=n[1];const rx=nz,rz=-nx;/* 창을 볼 때 오른쪽 */const Wd=Math.min(t.size[0],1.6),Hd=Math.min(1.2,Wd*R/C),cw=Wd/C,ch=Hd/R,r=Math.atan2(nx,nz);
+  for(let i=1;i<=R;i++)for(let j=1;j<=C;j++){const on=cs.some(c=>c[0]===i&&c[1]===j);const ox=((j-0.5)/C-0.5)*Wd,oz=((i-0.5)/R-0.5)*Hd;/* 10/27 미르: 「바닥 빛은 좌하→우상인데 자물쇠는 반대로 칠해야 풀린다」 — 빛을 보는 사람은 창을 바라본다. 그때 화면 위쪽 = 창 쪽이므로 행 1 을 창에 가까운 쪽으로(창을 보고 선 눈에 무늬판과 똑같이 보임) */const x=t.pos.x+rx*ox+nx*oz,z=t.pos.z+rz*ox+nz*oz;flat(lightTex(on?'rgba(255,214,140,0.95)':'rgba(255,214,140,0.10)'),cw*0.82,ch*0.82,x,z,r,{add:true})}}
+ else if(t.kind==='light'){const [w,h]=t.size;const r=t.axis==='z'?Math.PI/2:0;flat(lightTex('rgba(120,160,255,0.55)'),w,h,t.pos.x-0.08,t.pos.z-0.05,r,{add:true});flat(lightTex('rgba(255,205,120,0.55)'),w,h,t.pos.x+0.09,t.pos.z+0.06,r+0.12,{add:true})}
+ else if(t.kind==='water'){flat(waterTex(),t.size[0],t.size[1],t.pos.x,t.pos.z,t.rot||0)}
+ else if(t.kind==='step'){const m=flat(spotTex(),t.size[0],t.size[1],t.pos.x,t.pos.z);m.material.opacity=0.02}
+ else if(t.kind==='blood'){flat(bloodTex(),t.size[0],t.size[1],t.pos.x,t.pos.z,0.5)}
+ else if(t.kind==='spot'||t.kind==='sound'){const m=flat(t.kind==='spot'?spotTex():soundTex(),t.size[0],t.size[1],t.pos.x,t.pos.z);if(PZ.some(p=>p.hosts.some(h=>h.at.some(b=>b.room===ci&&b.node===t.name)))){m.material.opacity=0.35}else{m.userData.reviewOnly=true;m.visible=mode!=='play'}}
+ else if(t.kind==='shadow'){if(!t.figure)t.figure=shadowFigOf(t.name);const sh_=t.size[1]*0.9,sw_=t.figure==='woman'?Math.min(t.size[0]*0.9,sh_*0.95):t.figure?Math.min(t.size[0]*0.9,sh_*0.8):t.size[0]*0.9;/* 10/27: 실루엣은 창 안에 머리부터 발까지 다 들어가게(창보다 크면 머리가 창틀에 잘렸다) */const m=tPlane(shadowTex(t.figure),sw_,sh_,{opacity:t.figure?0.95:0.85});m.position.set(t.pos.x,t.y+t.size[1]/2,t.pos.z);m.rotation.y=Math.atan2(t.normal[0],t.normal[1]);m.name=nm(0);G0.add(m)}
+ if(G0.children.length)cur.add(G0)})}
+
+// ── 마당 풍광(10/21) — 대청 앞. 땅·댓돌·돌단은 여기서 그리고, 담·대문·장독·나무·꽃은 방 GLB 에 들어 있다 ──
+let yardG=null,yardLight=null,sky='night';const SKY={night:{top:'#16213d',mid:'#2c4472',low:'#5b6f96',mtn:['#1d2a45','#27385a','#34486e'],light:0x9fb6ff,li:0.9,fog:0x3a4d75,moon:true},day:{top:'#5d8fd0',mid:'#9cc3ea',low:'#e8eef2',mtn:['#52708a','#6f8ba3','#94aabd'],light:0xfff2dc,li:1.6,fog:0xc9d8e6,moon:false}};
+function skyTex(k){const c=SKY[k];return tCanvas((x,w,h)=>{const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,c.top);g.addColorStop(0.55,c.mid);g.addColorStop(1,c.low);x.fillStyle=g;x.fillRect(0,0,w,h);if(c.moon){x.fillStyle='rgba(255,250,225,0.95)';x.beginPath();x.arc(w*0.72,h*0.22,w*0.035,0,7);x.fill();x.fillStyle='rgba(255,250,225,0.12)';x.beginPath();x.arc(w*0.72,h*0.22,w*0.09,0,7);x.fill();for(let i=0;i<60;i++){x.fillStyle='rgba(255,255,255,'+(0.2+Math.random()*0.5)+')';x.fillRect(Math.random()*w,Math.random()*h*0.5,1.5,1.5)}}},512,512)}
+function ridgeTex(col,seed){return tCanvas((x,w,h)=>{let r=seed;const R=()=>(r=(r*16807)%2147483647)/2147483647;x.fillStyle=col;x.beginPath();x.moveTo(0,h);const ph=[R()*6.3,R()*6.3,R()*6.3],fq=[2,5,11];for(let i=0;i<=200;i++){const u=i/200;const y=h*(0.5-0.22*Math.sin(u*fq[0]*2*Math.PI+ph[0])-0.1*Math.sin(u*fq[1]*2*Math.PI+ph[1])-0.035*Math.sin(u*fq[2]*2*Math.PI+ph[2]));x.lineTo(u*w,Math.min(h*0.9,Math.max(h*0.06,y)))}x.lineTo(w,h);x.closePath();x.fill()},1024,256)}
+// ── 마당 v2(10/21) — 하늘 구(달이 제자리), 산 원통, 울퉁불퉁 흙마당·자갈·풀, 나주맵 덤불·잡초, 대문까지 돌길 ──
+const BK=/*BAKED*/{};const BG={};
+function bakedGeo(n){if(BG[n])return BG[n];const m=BK[n];if(!m)return null;const dec=(s,T)=>{const b=atob(s),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);return new T(u.buffer)};const g0=new THREE.BufferGeometry();g0.setIndex(new THREE.BufferAttribute(dec(m.indices,Uint16Array),1));g0.setAttribute('position',new THREE.BufferAttribute(dec(m.positions,Float32Array),3));const g=g0.toNonIndexed();g.computeVertexNormals();g.computeBoundingBox();return BG[n]=g}
+function painted(n,cols,seed){const g0=bakedGeo(n);if(!g0)return null;const g=g0.clone();const p=g.attributes.position,b0=g0.boundingBox,hh=Math.max(1e-3,b0.max.y-b0.min.y),col=new Float32Array(p.count*3);let r=seed;const R=()=>(r=(r*16807)%2147483647)/2147483647;const a=new THREE.Color(cols[0]),b=new THREE.Color(cols[1]),c=new THREE.Color(cols[2]),t0=new THREE.Color();for(let i=0;i<p.count;i+=3){const t=Math.min(1,Math.max(0,(p.getY(i)-b0.min.y)/hh));t0.copy(a).lerp(b,0.35+R()*0.5).lerp(c,t*0.45);for(let k=0;k<3;k++){col[(i+k)*3]=t0.r;col[(i+k)*3+1]=t0.g;col[(i+k)*3+2]=t0.b}}g.setAttribute('color',new THREE.BufferAttribute(col,3));return g}
+function tm(o={}){const m=new THREE.MeshToonMaterial({gradientMap:GRAD3,...o});m.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <colorspace_fragment>','#include <colorspace_fragment>\n'+GRADE3)};return m}
+function inst(geo,list,mat,noLine){if(!geo||!list.length)return null;const im=new THREE.InstancedMesh(geo,mat,list.length);const m4=new THREE.Matrix4(),q=new THREE.Quaternion(),e=new THREE.Euler(),v=new THREE.Vector3(),s=new THREE.Vector3();list.forEach((o,i)=>{e.set(o.rx||0,o.ry||0,o.rz||0);q.setFromEuler(e);m4.compose(v.set(o.x,o.y||0,o.z),q,s.set(o.sx,o.sy,o.sz));im.setMatrixAt(i,m4)});im.instanceMatrix.needsUpdate=true;im.userData.noLine=!!noLine;im.frustumCulled=false;return im}
+function skyTex2(k){const c=SKY[k];return tCanvas((x,w,h)=>{const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,c.top);g.addColorStop(0.3,c.mid);g.addColorStop(0.5,c.low);g.addColorStop(1,c.low);x.fillStyle=g;x.fillRect(0,0,w,h);if(c.moon){let r=3;const R=()=>(r=(r*16807)%2147483647)/2147483647;for(let i=0;i<320;i++){x.fillStyle='rgba(255,255,255,'+(0.25+R()*0.6)+')';const s=R()<0.1?2:1.2;x.fillRect(R()*w,R()*h*0.42,s,s)}}},1024,512)}
+function dirtTex(){if(TT.dirt)return TT.dirt;const t=tCanvas((x,w,h)=>{let r=5;const R=()=>(r=(r*16807)%2147483647)/2147483647;x.fillStyle='#d6cdbb';x.fillRect(0,0,w,h);for(let i=0;i<80;i++){x.fillStyle=`rgba(${110+R()*40|0},${96+R()*35|0},${78+R()*30|0},${0.07+R()*0.12})`;x.beginPath();x.ellipse(R()*w,R()*h,10+R()*60,8+R()*40,R()*3,0,7);x.fill()}for(let i=0;i<3200;i++){const g=R()<0.55?85+R()*60:195+R()*50;x.fillStyle=`rgba(${g|0},${g*0.94|0},${g*0.85|0},${0.3+R()*0.45})`;const s=0.8+R()*2.4;x.fillRect(R()*w,R()*h,s,s)}},512,512);t.wrapS=t.wrapT=THREE.RepeatWrapping;return TT.dirt=t}
+function buildYard(){if(yardG){S.remove(yardG);yardG=null}if(yardLight){S.remove(yardLight);yardLight=null}S.background=null;S.fog=null;document.getElementById('sky').hidden=!meta.yard;gnd.visible=!meta.yard;if(!meta.yard)return;const Y=meta.yard,c=SKY[sky],night=sky==='night';yardG=new THREE.Group();
+ const [x0,z0,x1,z1]=Y.ground;const cx=(x0+x1)/2,cz=(z0+Y.wallZ)/2,D0=Y.step.z-0.35;let rs=97;const R=()=>(rs=(rs*16807)%2147483647)/2147483647;
+ // 돌길: 디딤돌 → 대문(살짝 휜 곡선)
+ const A={x:Y.step.x,z:Y.step.z+0.45},B={x:Y.gateX,z:Y.wallZ-0.7},M={x:(A.x+B.x)/2-0.8,z:(A.z+B.z)/2};const bz=t=>({x:(1-t)*(1-t)*A.x+2*(1-t)*t*M.x+t*t*B.x,z:(1-t)*(1-t)*A.z+2*(1-t)*t*M.z+t*t*B.z});
+ const PTS=[];for(let i=0;i<=80;i++)PTS.push(bz(i/80));const pathD=(x,z)=>{let d=1e9;for(const p of PTS)d=Math.min(d,Math.hypot(x-p.x,z-p.z));return d};
+ const pad=(r,x,z,m)=>r&&Math.abs(x-r.x)<r.w/2+m&&Math.abs(z-r.z)<r.d/2+m;
+ const okAt=(x,z,m)=>x>x0+0.45&&x<x1-0.45&&z>D0+1.5&&z<Y.wallZ-0.45&&pathD(x,z)>0.85+m&&!pad(Y.platform,x,z,0.45+m)&&!pad(Y.bench,x,z,0.3+m);
+ // 흙마당: 잘게 나눠 높낮이(±3 cm 안팎), 길·집 앞은 평평하게, 흙 결 그림
+ const gw=x1-x0,gd=Y.wallZ-z0+0.4,gx=cx,gz=(z0+Y.wallZ+0.4)/2;const gg=new THREE.PlaneGeometry(gw,gd,Math.ceil(gw*5),Math.ceil(gd*5));gg.rotateX(-Math.PI/2);const P=gg.attributes.position;
+ for(let i=0;i<P.count;i++){const X=P.getX(i)+gx,Z=P.getZ(i)+gz;let h=0.022*Math.sin(X*1.7+Z*0.6)*Math.sin(Z*1.3-X*0.4)+0.01*Math.sin(X*5.1+Z*3.7)+0.006*Math.sin(X*11.3-Z*9.1);const dp=pathD(X,Z);if(dp<0.9)h*=Math.max(0,dp-0.3)/0.6;if(Z<D0+1.2)h*=Math.max(0,(Z-D0-0.4)/0.8);P.setY(i,h+0.012)}gg.computeVertexNormals();
+ const dt=dirtTex().clone();dt.needsUpdate=true;dt.repeat.set(gw/2.2,gd/2.2);const g=new THREE.Mesh(gg,tm({color:night?0x7a7264:0xa99a80,map:dt}));g.position.set(gx,0,gz);yardG.add(g);
+ const f=new THREE.Mesh(new THREE.PlaneGeometry(400,400),tm({color:night?0x34402f:0x7f9a5a}));f.rotation.x=-Math.PI/2;f.position.set(cx,-0.06,(z0+z1)/2);yardG.add(f);
+ const sm=tm({color:0x9a958a});const st=new THREE.Mesh(new THREE.BoxGeometry(Y.step.w,(meta.floor_y||0.45)*0.55,Y.step.d),sm);st.position.set(Y.step.x,(meta.floor_y||0.45)*0.275,Y.step.z);yardG.add(st);
+ const pf=new THREE.Mesh(new THREE.BoxGeometry(Y.platform.w,Y.platform.h,Y.platform.d),sm);pf.position.set(Y.platform.x,Y.platform.h/2,Y.platform.z);yardG.add(pf);
+ // 디딤돌길
+ const stones=[];let acc=0,prev=PTS[0];for(let i=1;i<PTS.length;i++){const p=PTS[i];acc+=Math.hypot(p.x-prev.x,p.z-prev.z);prev=p;if(acc>=0.6){acc=0;const ang=Math.atan2(PTS[Math.min(i+1,80)].x-p.x,PTS[Math.min(i+1,80)].z-p.z);const s=0.95+R()*0.25;stones.push({x:p.x+(R()-0.5)*0.12,y:0.018,z:p.z+(R()-0.5)*0.08,ry:ang+(R()-0.5)*0.6,sx:0.62*s,sy:0.14,sz:0.5*s})}}
+ const stoneCols=night?['#55534e','#6a675f','#7c786e']:['#7d786f','#999387','#b3ad9f'];
+ [['pebble4',0],['pebble1',1]].forEach(([n,k])=>{const m=inst(painted(n,stoneCols,11+k),stones.filter((_,i)=>i%2===k),tm({vertexColors:true}));if(m)yardG.add(m)});
+ // 나무 둘레·담 밑·장독대 뒤에 덤불(나주맵 수풀2·3), 마당 곳곳 잡초, 잔자갈
+ const leaf=night?['#2c3526','#435035','#566643']:['#46543A','#6B8052','#8AA05F'],weed=night?['#2a3221','#4a5432','#636c40']:['#3E4A31','#77864F','#A3AC66'];
+ const bushes=[];const near=(Y.trees||[]).filter(t=>t.in);let tries=0;
+ while(bushes.length<30&&tries++<3000){let x,z;const u=R();if(u<0.55){const side=R();if(side<0.5){x=x0+0.5+R()*(x1-x0-1);z=Y.wallZ-0.55-R()*0.9}else if(side<0.75){x=x0+0.55+R()*0.9;z=D0+1.6+R()*(Y.wallZ-D0-2)}else{x=x1-0.55-R()*0.9;z=D0+1.6+R()*(Y.wallZ-D0-2)}}else if(u<0.8&&near.length){const t=near[Math.floor(R()*near.length)];const a=R()*6.3,d=0.7+R()*1.0;x=t.x+Math.cos(a)*d;z=t.z+Math.sin(a)*d}else{const p=Y.platform;x=p.x+(R()-0.5)*(p.w+1.2);z=p.z+p.d/2+0.5+R()*0.6}
+  if(!okAt(x,z,0.15))continue;if(bushes.some(b=>Math.hypot(b.x-x,b.z-z)<0.75))continue;const h=0.32+R()*0.36,k=R()<0.5?1:0;bushes.push({x,z,y:-0.02,ry:R()*6.3,sx:h*(0.9+R()*0.25)*(k?0.55:1),sy:h,sz:h*(0.9+R()*0.25)*(k?0.55:1),k})}
+ [0,1].forEach(k=>{const m=inst(painted(k?'bush3':'bush2',leaf,21+k),bushes.filter(b=>b.k===k),windy(tm({vertexColors:true}),0));if(m)yardG.add(m)});
+ const tuftGeo=(()=>{const pos=[],col=[];let r=13;const Rr=()=>(r=(r*16807)%2147483647)/2147483647;const a=new THREE.Color(weed[0]),b=new THREE.Color(weed[1]),c2=new THREE.Color(weed[2]);for(let k=0;k<9;k++){const ang=Rr()*6.3,lean=0.25+Rr()*0.5,hh=0.6+Rr()*0.4,w=0.035+Rr()*0.025,ox=Math.cos(ang)*0.06*Rr(),oz=Math.sin(ang)*0.06*Rr();const tx=ox+Math.cos(ang)*lean*hh*0.6,tz=oz+Math.sin(ang)*lean*hh*0.6;const px=-Math.sin(ang)*w,pz=Math.cos(ang)*w;pos.push(ox-px,0,oz-pz, ox+px,0,oz+pz, tx,hh,tz);const cb=a.clone().lerp(b,Rr()*0.6),ct=b.clone().lerp(c2,0.3+Rr()*0.6);col.push(cb.r,cb.g,cb.b,cb.r,cb.g,cb.b,ct.r,ct.g,ct.b)}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));g.computeVertexNormals();return g})();
+ const tufts=[];tries=0;while(tufts.length<520&&tries++<9000){let x=x0+0.4+R()*(x1-x0-0.8),z=D0+1.2+R()*(Y.wallZ-D0-1.5);if(R()<0.5){const s=R();if(s<0.4)z=Y.wallZ-0.35-R()*0.9;else if(s<0.7)x=x0+0.35+R()*0.9;else x=x1-0.35-R()*0.9}
+  const dp=pathD(x,z);if(dp<0.4)continue;if(!(x>x0+0.3&&x<x1-0.3&&z>D0+1.1&&z<Y.wallZ-0.3))continue;if(pad(Y.platform,x,z,0.05)||pad(Y.bench,x,z,0))continue;const h=0.12+R()*0.22;const n=1+Math.floor(R()*3);for(let q=0;q<n;q++)tufts.push({x:x+(R()-0.5)*0.18,z:z+(R()-0.5)*0.18,y:0,ry:R()*6.3,sx:h,sy:h*(0.8+R()*0.5),sz:h})}
+ {const m=inst(tuftGeo,tufts,windy(tm({vertexColors:true,side:THREE.DoubleSide}),0),true);if(m)yardG.add(m)}
+ const peb=[];for(let i=0;i<700;i++){const x=x0+0.4+R()*(x1-x0-0.8),z=D0+0.9+R()*(Y.wallZ-D0-1.2);if(pad(Y.platform,x,z,0)||pathD(x,z)<0.3)continue;const s=0.03+R()*0.07;peb.push({x,z,y:s*0.12+0.008,ry:R()*6.3,rx:(R()-0.5)*0.4,sx:s,sy:s*(0.7+R()*0.4),sz:s,k:i%3})}
+ ['pebble1','pebble2','pebble4'].forEach((n,k)=>{const m=inst(painted(n,stoneCols,41+k),peb.filter(b=>b.k===k),tm({vertexColors:true}),true);if(m)yardG.add(m)});
+ // 산: 마당을 둘러싼 원통 3겹 — 나무·지붕(반투명 잎) 뒤에 그려지도록 먼저 그림
+ c.mtn.forEach((col,i)=>{const rad=74-i*14,ht=28-i*7;const tx=ridgeTex(col,17+i*31);tx.wrapS=THREE.RepeatWrapping;tx.repeat.x=2;const m=new THREE.Mesh(new THREE.CylinderGeometry(rad,rad,ht,96,1,true),gbm({map:tx,transparent:true,depthWrite:false,side:THREE.BackSide,fog:false}));m.userData.noLine=true;m.renderOrder=-10+i;m.position.set(cx,ht/2-1.5,cz);m.rotation.y=i*1.3;yardG.add(m)});
+ // 하늘: 화면에 붙은 그림이 아니라 세상에 고정된 구 — 달·별이 시선을 따라 움직이지 않음
+ const skyM=new THREE.Mesh(new THREE.SphereGeometry(150,32,16),gbm({map:skyTex2(sky),side:THREE.BackSide,depthWrite:false,fog:false}));skyM.position.set(cx,0,cz);skyM.renderOrder=-20;skyM.userData.noLine=true;yardG.add(skyM);
+ if(c.moon){const az=0.55,el=0.5,dir=new THREE.Vector3(Math.sin(az)*Math.cos(el),Math.sin(el),Math.cos(az)*Math.cos(el));const mp=new THREE.Vector3(cx,0,cz).addScaledVector(dir,120);[[12,0.13],[4,1]].forEach(([r,op],i)=>{const m=new THREE.Mesh(new THREE.CircleGeometry(r,48),gbm({color:0xfffae1,transparent:true,opacity:op,depthWrite:false,fog:false}));m.position.copy(mp).addScaledVector(dir,-i*0.5);m.lookAt(cx,1.5,cz);m.renderOrder=-16+i;m.userData.noLine=true;yardG.add(m)})}
+ S.background=new THREE.Color(c.low);S.fog=new THREE.Fog(c.fog,24,95);
+ yardLight=new THREE.DirectionalLight(c.light,c.li);yardLight.position.set(-6,10,(Y.wallZ||8)+6);yardLight.target.position.set(cx,0,(meta.walk?meta.walk.z[1]:3));S.add(yardLight);S.add(yardLight.target);
+ S.add(yardG)}
+function setSky(k){sky=k;document.querySelectorAll('#sky button').forEach(b=>b.classList.toggle('on',b.dataset.sky===k));buildYard()}
+// three GLTFLoader 는 노드 이름의 공백을 _ 로 바꾼다(PropertyBinding.sanitizeNodeName) → 「걸쇠 자물쇠」가 「걸쇠_자물쇠」가 되어 퍼즐 호스트·살림 정보와 이름이 안 맞던 일(10/22) — 불러온 뒤 원래 이름으로 되돌린다
+const SAN=s=>String(s).replace(/\s/g,'_').replace(/[\[\]\.:\/]/g,'');
+function fixNames(root){const keys=new Set([...Object.keys(meta.nodes||{}),...PZ.flatMap(p=>p.hosts.flatMap(h=>h.at.map(b=>b.node))),...(meta.goes||[]).map(g=>g.door)]);const map=new Map();for(const k of keys){const s2=SAN(k);if(s2!==k)map.set(s2,k)}if(!map.size)return;root.traverse(o=>{if(!o.name)return;if(o.name.includes('__')){const [a,...rest]=o.name.split('__');if(map.has(a))o.name=[map.get(a),...rest].join('__')}else if(map.has(o.name))o.name=map.get(o.name)})}
+function G(o){let n=o;while(n){if(n.name&&n.name.includes('__'))return n.name.split('__')[0];n=n.parent}return o.name}
+const roleOf=g=>((meta.nodes||{})[g]||{});
+const clickable=g=>{const r=roleOf(g);if(typeof pzIsBound==='function'&&pzIsBound(g))return true;if(typeof carrierAt==='function'&&carrierAt(g))return true;if(r.cls==='trace'&&(r.kind==='spot'||r.kind==='sound'))return false;return r.role==='interactive'||r.role==='prop'};
+function reviewOnly(){if(!cur)return;cur.traverse(o=>{if(o.userData.reviewOnly)o.visible=mode!=='play'})}
+function setCut(on){if(!cur)return;cur.traverse(o=>{if(o.isMesh){const n=roleOf(G(o));if(n.role==='ceiling'||n.role==='cutaway'||n.cutaway)o.visible=on}})}
+function applyLights(){lightsG.clear();const play=mode==='play';sun.castShadow=!play;R.shadowMap.enabled=!play;hemi.intensity=play?0.42:1.1;sun.intensity=play?0.0:1.6;if(!play)return;(meta.lights||[]).forEach(l=>{const p=new THREE.PointLight(l.color,l.intensity,l.distance,1.6);p.position.set(...l.pos);p.userData.kind=l.kind;lightsG.add(p)});if(style==='toon2')toonLights();if(style==='toon3')toon3Lights()}
+
+function lookApply(){const d=new THREE.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),Math.cos(yaw)*Math.cos(pitch));C.position.copy(pos);C.lookAt(pos.clone().add(d))}
+function placeAt(a){jy=0;vy=0;grounded=true;vel.x=vel.z=0;pos.set(a.x,(a.y??meta.floor_y??0)+eyeCur,a.z);yaw=(a.yaw_deg||0)*Math.PI/180;pitch=-0.12;lookApply()}
+function setMode(m){mode=m;setTimeout(reviewOnly,0);document.getElementById('mPlay').classList.toggle('on',m==='play');document.getElementById('mRev').classList.toggle('on',m==='rev');if(m!=='play')endPlay();uiPlay();
+ if(!cur)return;applyLights();if(m==='play'){O.enabled=false;C.fov=60;C.updateProjectionMatrix();setCut(true);placeAt(meta.entry||{x:1,z:1,yaw_deg:180})}else{O.enabled=true;setCut(false);C.fov=40;C.updateProjectionMatrix();const bb=new THREE.Box3().setFromObject(cur),c=bb.getCenter(new THREE.Vector3()),r=bb.getSize(new THREE.Vector3()).length();C.position.copy(c).add(new THREE.Vector3(-0.35,0.8,1).normalize().multiplyScalar(r*1.25));O.target.copy(c);O.update()}info()}
+// ── 조작: 나주맵(naju01 useTerrainMovement + engine/movement/constants)과 같은 키·값 ──
+// 1 유닛 = 0.3 m 로 미터 환산. 걷기 3.0 u/s = 0.9 m/s · 달리기 ×2.58 · 앉기 ×0.55 · 중력 -30 u/s² · 점프 10.5 u/s · 공중 제어 0.18
+// 눈높이 1.6 m · 앉은 눈높이 0.9 m · 시야각 60° (sitePlan BASELINE) · 시작은 [T] 로 포인터 잠금, ESC 로 해제
+const MPU=0.3,EYE=1.6,CEYE=0.9,WALK=3.0*MPU,RUNM=2.58,CRM=0.55,GRAV=-30*MPU,JUMPV=10.5*MPU,AIRC=0.18,SENS=0.002;
+let locked=false,fakeLock=false,grounded=true,crouch=false,vy=0,jy=0,eyeCur=EYE;const vel={x:0,z:0};
+const K={f:false,b:false,l:false,r:false,run:false};
+const HK=new Set(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','KeyC','Space']);
+const active=()=>mode==='play'&&(locked||fakeLock);
+function clearKeys(){for(const k in K)K[k]=false;vel.x=vel.z=0}
+function uiPlay(){const a=active();document.getElementById('cross').hidden=!a;{const hd=document.getElementById('hold');document.getElementById('hint').hidden=a||mode!=='play'||Boolean(hd&&!hd.hidden)}if(!a)tag.hidden=true}
+function startLock(){fakeLock=false;try{const r=cv.requestPointerLock();if(r&&r.catch)r.catch(()=>{fakeLock=true;uiPlay()})}catch(_){fakeLock=true}uiPlay()}
+function endPlay(){if(document.pointerLockElement===cv)document.exitPointerLock();fakeLock=false;clearKeys();uiPlay()}
+document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockElement===cv;if(!locked)clearKeys();uiPlay()});
+document.addEventListener('pointerlockerror',()=>{fakeLock=true;uiPlay()});
+const setK=(c,v)=>{if(c==='KeyW'||c==='ArrowUp')K.f=v;else if(c==='KeyS'||c==='ArrowDown')K.b=v;else if(c==='KeyA'||c==='ArrowLeft')K.l=v;else if(c==='KeyD'||c==='ArrowRight')K.r=v;else if(c==='ShiftLeft'||c==='ShiftRight')K.run=v};
+addEventListener('keydown',e=>{if(mode!=='play')return;
+ // Ctrl/⌘ 를 누른 채면 이동으로 안 친다 (게임과 같음)
+ if(e.ctrlKey||e.metaKey)return;
+ if(e.code==='KeyT'&&!active()&&cur){startLock();return}
+ if(e.code==='Escape'&&fakeLock){fakeLock=false;clearKeys();uiPlay();return}
+ if(!active())return;if(HK.has(e.code))e.preventDefault();
+ if(e.code==='Space'&&grounded){vy=JUMPV;grounded=false}
+ if(e.code==='KeyC'&&!e.repeat)crouch=!crouch;
+ if(e.code==='KeyE'&&!e.repeat)interact();
+ setK(e.code,true)});
+addEventListener('keyup',e=>setK(e.code,false));addEventListener('blur',clearKeys);
+addEventListener('pointerdown',()=>{try{window.focus()}catch(_){}});
+addEventListener('mousemove',e=>{if(!active())return;if(fakeLock&&e.target!==cv)return;yaw-=e.movementX*SENS;pitch=Math.max(-1.55,Math.min(1.55,pitch-e.movementY*SENS));lookApply()});
+cv.addEventListener('mousedown',e=>{if(e.button===0&&active())interact()});
+function free(x,z){const w=meta.walk;if(!w)return true;const m=0.18;if(x<w.x[0]+m||x>w.x[1]-m||z<w.z[0]+m||z>w.z[1]-m)return false;for(const s of meta.solids||[]){const r=s.rect;if(x>r[0]-m&&x<r[2]+m&&z>r[1]-m&&z<r[3]+m)return false}return true}
+const ray=new THREE.Raycaster(),mv=new THREE.Vector2();let hov=null;
+function glow(g,on){if(!cur||!g)return;cur.traverse(o=>{if(o.isMesh&&!o.userData.hull&&G(o)===g){if(!o.material||!o.material.emissive){if(o.material){if(o.userData.op0===undefined)o.userData.op0=o.material.opacity;o.material.opacity=on?Math.min(1,o.userData.op0+0.35):o.userData.op0}return}if(!o.userData.e0)o.userData.e0=o.material.emissive.clone();if(on&&!o.userData.own){const m0=o.material,m1=m0.clone();m1.onBeforeCompile=m0.onBeforeCompile;m1.customProgramCacheKey=m0.customProgramCacheKey;o.material=m1;o.userData.own=true}o.material.emissive.copy(on?new THREE.Color(0x2e2b26):o.userData.e0)}})}
+let BOX=[],lastPick=0;const _v=new THREE.Vector3();
+function buildBoxes(){BOX=[];if(!cur)return;cur.updateMatrixWorld(true);const by=new Map();cur.traverse(o=>{if(!o.isMesh||o.userData.hull)return;const g=G(o);if(!clickable(g))return;const b=by.get(g)||new THREE.Box3();b.expandByObject(o);by.set(g,b)});by.forEach((b,g)=>{const isT=roleOf(g).cls==='trace';if(isT){b.min.y-=0.02;b.max.y+=0.25}else b.expandByScalar(0.02);BOX.push({g,b})})}
+// 조준(10/22): 상자만 보면 바닥에 깔린 흔적 상자(위로 0.25 m)나 옆 물건 상자가 가로채 「눌러도 다른 것이 잡히던」 일 → 실제 메시에 먼저 쏜다
+function pickRay(){if(!cur)return null;ray.far=3.0;const hits=ray.intersectObject(cur,true);ray.far=Infinity;
+ /* 단서 물건은 호스트 위·안·밑에 붙어 있어 호스트 메시가 먼저 맞는다 → 처음 맞은 것에서 0.5 m 안에 단서 물건이 있으면 그것을 */
+ if(typeof carrierAt==='function'){const first=hits.find(h=>h.object.isMesh&&!h.object.userData.hull);const ch=hits.find(h=>carrierAt(G(h.object)));if(ch&&first&&ch.distance<=first.distance+0.5)return G(ch.object)}
+ let block=3.0,hitG=null,hitD=0;for(const h of hits){const o=h.object;if(!o.isMesh||o.userData.hull||!o.visible)continue;let vis=true;for(let n=o;n;n=n.parent)if(n.visible===false)vis=false;if(!vis)continue;const g=G(o);if(clickable(g)){hitG=g;hitD=h.distance;break}if(o.material&&o.material.transparent&&o.material.opacity<0.5)continue;block=h.distance;break}
+ if(hitG){/* 겹쳐 놓인 것: 퍼즐 호스트 > 그냥 살림(디딤돌 위 짚신 등), 실제 물건 > 흔적 표식 */const near=hits.filter(h=>h.distance<=hitD+0.2&&h.object.isMesh&&clickable(G(h.object))).map(h=>G(h.object));const rank=g=>(pzIsBound(g)?2:0)+(roleOf(g).cls!=='trace'?1:0);let bestG=hitG;for(const g of near)if(rank(g)>rank(bestG))bestG=g;hitG=bestG}
+ if(hitG)return hitG;
+ let g=null,best=block+0.3;for(const x of BOX){if(roleOf(x.g).cls!=='trace'&&!(typeof carrierAt==='function'&&carrierAt(x.g)))continue;const hit=ray.ray.intersectBox(x.b,_v);if(hit){const d=hit.distanceTo(ray.ray.origin);if(d<best-0.05||(d<best+0.2&&g&&pzIsBound(x.g)&&!pzIsBound(g))){best=Math.min(best,d);g=x.g}}}return g}
+function pickCenter(){if(!cur||!active()){if(hov&&hov!==sel)glow(hov,false);hov=null;return}const now=performance.now();if(now-lastPick<100)return;lastPick=now;mv.set(0,0);ray.setFromCamera(mv,C);let g=pickRay();
+ if(g!==hov){if(hov&&hov!==sel)glow(hov,false);hov=g;if(g)glow(g,true)}if(g){const gd=(meta.goes||[]).find(x=>x.door===g);tag.hidden=false;tag.textContent=gd?(PZ.length&&(exitScene(ci,gd)||!roomOpen(gd.tab))?`🔒 ${gd.to}(으)로 — ${exitScene(ci,gd)?'자물쇠':'잠김'}`:`[클릭/E] ${gd.to}(으)로`):`[클릭/E] ${g}`;tag.style.left='50%';tag.style.top='50%'}else tag.hidden=true}
+/* 10/28 미르: 「위치·크기 고치는 게 화면에서 실시간으로 보여야」 — 검수 화면이 보낸 옮김·돌림·크기를 그 물건 노드에 바로 적용(미리보기, 부딪힘 계산은 반영 뒤) */
+const ADJ0=new Map();
+function adjNodes(node){const out=[];if(!cur||!node)return out;cur.traverse(o=>{if(!o.name||!o.name.startsWith(node+'__'))return;let p=o.parent,inside=false;while(p&&p!==cur){if(p.name&&p.name.startsWith(node+'__'))inside=true;p=p.parent}if(!inside)out.push(o)});return out}
+function applyAdj(node,a,riders){const ns0=adjNodes(node);if(!ns0.length)return false;const ns=[...ns0,...(riders||[]).flatMap(adjNodes)];ns.forEach(o=>{if(!ADJ0.has(o))ADJ0.set(o,{p:o.position.clone(),q:o.quaternion.clone(),s:o.scale.clone()});const b=ADJ0.get(o);o.position.copy(b.p);o.quaternion.copy(b.q);o.scale.copy(b.s)});
+ cur.updateMatrixWorld(true);const box=new THREE.Box3();ns0.forEach(o=>box.expandByObject(o));const cx=(box.min.x+box.max.x)/2,cz=(box.min.z+box.max.z)/2,fy=box.min.y;
+ const k=+a.scale||1,ang=(+a.rot||0)*Math.PI/180,c=Math.cos(ang),sn=Math.sin(ang),qd=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),ang);
+ ns.forEach(o=>{const pv=o.parent.worldToLocal(new THREE.Vector3(cx,fy,cz));const dx=(o.position.x-pv.x)*k,dy=(o.position.y-pv.y)*k,dz=(o.position.z-pv.z)*k;o.position.set(pv.x+c*dx+sn*dz+(+a.dx||0),pv.y+dy,pv.z-sn*dx+c*dz+(+a.dz||0));o.quaternion.premultiply(qd);o.scale.multiplyScalar(k)});
+ cur.updateMatrixWorld(true);if(typeof buildBoxes==='function')buildBoxes();return true}
+addEventListener('message',e=>{const d=e.data||{};if(d.type!=='kgeseo-review-adjust'||typeof d.room!=='number')return;const go=()=>{applyAdj(d.node,d.adjust||{},d.riders);if(sel)glow(sel,false);sel=d.node;glow(d.node,true)};if(d.room!==ci){show(d.room);setTimeout(go,1800)}else go()});
+addEventListener('message',e=>{const d=e.data||{};if(d.type!=='kgeseo-review-focus'||typeof d.room!=='number')return;const go=()=>{if(sel)glow(sel,false);sel=d.node;if(d.node)glow(d.node,true)};if(d.room!==ci){show(d.room);setTimeout(go,1800)}else go()});
+function interact(){const g=hov;if(!g)return;if(sel&&sel!==g)glow(sel,false);sel=g;glow(g,true);found.add(g);const gd=(meta.goes||[]).find(x=>x.door===g);if(gd){if(!REVIEW){if(PZ.length&&exitTry(gd))return;if(!roomOpen(gd.tab)){pzMsg=lockMsg(gd.tab);info();return}}goRoom(gd.tab,gd.arrive);return}
+ /* 10/28 미르: 03 공간·에셋 검수 — 걸어 다니며 물건을 누르면 검수 화면(부모 창)에 그 물건을 넘긴다. 퍼즐 풀이·자물쇠는 건너뜀 */
+ if(REVIEW){const lg=(meta.log||[]).find(l=>l.name===g);try{parent.postMessage({type:'kgeseo-review-pick',room:ci,roomName:ITEMS[ci]?.name||'',node:g,item_id:lg?lg.id:null,cls:roleOf(g).cls||null},'*')}catch(_){}tag.hidden=false;tag.textContent=`✔ ${g} — 오른쪽 칸에서 판정`;return}const ob=snapOpen();pzHit(g);const oa=snapOpen();ITEMS.forEach((it,i)=>{if(!ob[i]&&oa[i])pzMsg+=`<div class="card pz-ok"><b>🔓 ${esc(it.name)}(으)로 가는 문의 자물쇠가 풀렸다</b></div>`});info()}
+function show(i,arr){ci=i;tag.hidden=true;pend=arr||null;document.querySelectorAll('#tabs button').forEach((b,j)=>b.classList.toggle('on',i===j));if(cur){S.remove(cur);cur=null}const it=ITEMS[i];meta=it.meta||{};found=new Set();sel=null;hov=null;
+ const go=ab=>L.parse(ab,'',g=>{cur=g.scene;fixNames(cur);cur.traverse(o=>{if(o.isMesh){if(!o.geometry.attributes.normal)o.geometry.computeVertexNormals();o.castShadow=o.receiveShadow=true;o.material.side=THREE.DoubleSide}});if(style==='anime')toonify(cur);if(style==='toon2')toonify2(cur);if(style==='toon3')toonify3(cur);windPlants(cur);earthFloor();addTraces();stateInit(cur);if(PZ.length)revRestore(); /* drapeHangs() 끔 — 10/22 미르: 걸친 천은 두루마기로 안 보임, 전용 에셋 전까지 기존대로 */ S.add(cur);buildBoxes();buildYard();setMode(mode);setTimeout(focusGlow,50);if(pend&&mode==='play'){placeAt(pend);pend=null}setTimeout(()=>sceneIntro(recallAuto),300)});
+ document.getElementById('info').innerHTML='<div class="k">불러오는 중…</div>';const keep={p:pos.clone(),y:yaw,pt:pitch};fetch(it.url).then(r=>{if(!r.ok)throw new Error(r.status);return r.arrayBuffer()}).then(go).catch(e=>{document.getElementById('info').innerHTML='<div class="k">불러오지 못함: '+e.message+'</div>'})}
+// ── 퍼즐 플레이(10/22) — 조사하면 단서가 조사수첩에, 풀이 자리에서 고르기·입력·이동·짝짓기. 시험용 화면이라 정답 판정이 브라우저에 있음(게임 런타임은 서버 판정) ──
+const NB=new Map(),DONE=new Set(),HL={};let pzMsg='';
+const pzBound=(ri,g)=>PZ.flatMap(p=>p.hosts.filter(h=>h.at.some(b=>b.room===ri&&b.node===g)).map(h=>({p,h})));
+const pzIsBound=g=>pzBound(ci,g).length>0;
+const clueText=id=>{for(const p of PZ){const c=p.clues.find(c=>c.id===id);if(c)return c.text}const q=PZ.find(p=>p.effects.some(e=>e.type==='clue_acquired'&&e.target_id===id));return q?`풀어서 알게 된 것 — ${q.learns}`:id};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
+function pzHave(p){return (p.solve.required_clue_ids||[]).filter(id=>!p.effects.some(e=>e.type==='clue_acquired'&&e.target_id===id)).every(id=>NB.has(id))}
+function pzDone(p){DONE.add(p.id);for(const e of p.effects)if(e.type==='clue_acquired')NB.set(e.target_id,clueText(e.target_id));pzMsg=`<div class="card pz-ok"><b>풀었다 — ${esc(p.title)}</b><div>${esc(p.learns)}</div></div>`+pzMsg}
+function pzSolveUI(p){if(typeof devOf==='function'&&devOf(p)){const d=devOf(p);return `<div class="card"><b>${esc(p.title)}</b><div class="k">${d.on==='exit_door'?'출구 문':'이 물건'}에 걸린 「${esc(d.name||DEV_KIND[d.kind])}」에서 푼다</div><div class="row"><button data-dev="${p.id}">장치 보기</button></div></div>`}const s=p.solve,need=(s.required_clue_ids||[]).filter(id=>!p.effects.some(e=>e.type==='clue_acquired'&&e.target_id===id));const have=need.filter(id=>NB.has(id)).length;
+ if(['inspect','navigate'].includes(s.interaction)){if(pzHave(p)){pzDone(p);return ''}return `<div class="card"><b>${esc(p.title)}</b><div class="k">아직 단서가 모자란다 (${have}/${need.length})</div></div>`}
+ if(s.interaction==='combine_clues')return `<div class="card"><b>${esc(s.prompt||p.title)}</b><div class="k">아래 조사수첩에서 단서 두 개를 골라 「짝짓기」</div></div>`;
+ if(s.interaction==='select'){const multi=Array.isArray(s.answer);return `<div class="card" data-pz="${p.id}"><b>${esc(s.prompt||p.title)}</b>${(s.options||[]).map((o,i)=>`<label class="pz-opt"><input type="${multi?'checkbox':'radio'}" name="pz_${p.id}" value="${i}"> ${esc(o)}</label>`).join('')}<div class="row"><button data-pz-select="${p.id}">이걸로</button></div></div>`}
+ if(s.interaction==='input')return `<div class="card" data-pz="${p.id}"><b>${esc(s.prompt||p.title)}</b><div class="row"><input data-pz-in="${p.id}" style="flex:1" placeholder="답"><button data-pz-input="${p.id}">넣기</button></div></div>`;
+ return ''}
+function pzHit(g){const out=[];for(const {p,h} of pzBound(ci,g)){for(const c of p.clues)if(!['combine_clues','select','input','solve'].includes(c.get_by)&&c.from===h.need_id&&!NB.has(c.id)){NB.set(c.id,c.text);out.push(`<div class="card pz-clue"><span class="pill">단서</span> ${esc(c.text)}</div>`)}
+ if(p.solve&&p.solve.at===h.need_id&&!DONE.has(p.id))out.push(pzSolveUI(p))}pzMsg=out.join('')}
+function pzBlock(){const open=PZ.filter(p=>!DONE.has(p.id));let h=goalCard()+pzMsg;
+ h+=`<h3>퍼즐 ${DONE.size} / ${PZ.length}</h3><ul class="pz-list">${PZ.map(p=>`<li>${DONE.has(p.id)?'🟢':'○'} ${esc(p.title)} <span class="k">${esc(p.scene_id)} · ${esc(p.solve.interaction)}</span>${DONE.has(p.id)?'':` <button class="mini" data-pz-hint="${p.id}">${(HL[p.id]||0)===0?'힌트':(HL[p.id]===1?'정답 보기':'정답')}</button>`}${(HL[p.id]||0)>=1?`<div class="k">힌트: ${esc(p.hint_1)}</div>`:''}${(HL[p.id]||0)>=2?`<div class="k">정답: ${esc(p.hint_2)}</div>`:''}</li>`).join('')}</ul>`;
+ h+=`<h3>조사수첩 ${NB.size}</h3>${NB.size?`<ul class="pz-nb">${[...NB].map(([id,t])=>`<li><label><input type="checkbox" data-nb="${id}"> ${nbLabel(id,t)}</label>${nbRead(id)}</li>`).join('')}</ul><div class="row"><button data-pz-combine>고른 두 단서 짝짓기</button></div>`:'<div class="k">아직 얻은 단서가 없다</div>'}`;return h}
+function pzWire(el){
+ el.querySelectorAll('[data-dev]').forEach(b=>b.onclick=()=>openDevice(PZ.find(x=>x.id===b.dataset.dev)));
+ el.querySelectorAll('[data-nb-read]').forEach(b=>b.onclick=()=>openHold(b.dataset.nbRead,'read'));
+ el.querySelectorAll('[data-pz-hint]').forEach(b=>b.onclick=()=>{const id=b.dataset.pzHint;HL[id]=Math.min(2,(HL[id]||0)+1);info()});
+ el.querySelectorAll('[data-pz-select]').forEach(b=>b.onclick=()=>{const p=PZ.find(x=>x.id===b.dataset.pzSelect),s=p.solve;const picked=[...el.querySelectorAll(`input[name="pz_${p.id}"]:checked`)].map(x=>s.options[+x.value]);
+  const ok=Array.isArray(s.answer)?(picked.length===s.answer.length&&s.answer.every(a=>picked.includes(a))):(picked.length===1&&(picked[0]===s.answer||String(picked[0]).trim().startsWith(String(s.answer).trim()+'.')||String(picked[0]).trim().startsWith(String(s.answer).trim()+' ')));
+  if(ok&&pzHave(p)){pzMsg='';pzDone(p)}else pzMsg=`<div class="card"><b>${esc(p.title)}</b><div class="k">${ok?'답은 맞지만 아직 근거 단서를 다 찾지 못했다':'맞지 않는다 — 단서를 다시 살펴보자'}</div></div>`+pzSolveUI(p);info()});
+ el.querySelectorAll('[data-pz-input]').forEach(b=>b.onclick=()=>{const p=PZ.find(x=>x.id===b.dataset.pzInput);const v=(el.querySelector(`[data-pz-in="${p.id}"]`).value||'').replace(/\s/g,'');const ok=v===String(p.solve.answer).replace(/\s/g,'');
+  if(ok&&pzHave(p)){pzMsg='';pzDone(p)}else pzMsg=`<div class="card"><b>${esc(p.title)}</b><div class="k">${ok?'답은 맞지만 아직 근거 단서를 다 찾지 못했다':'맞지 않는다'}</div></div>`+pzSolveUI(p);info()});
+ const cb=el.querySelector('[data-pz-combine]');if(cb)cb.onclick=()=>{const ids=[...el.querySelectorAll('[data-nb]:checked')].map(x=>x.dataset.nb);if(ids.length!==2){pzMsg='<div class="card"><div class="k">단서를 꼭 두 개 고르세요</div></div>';info();return}
+  const p=PZ.find(p=>!DONE.has(p.id)&&p.solve.interaction==='combine_clues'&&(p.solve.required_clue_ids||[]).length===2&&p.solve.required_clue_ids.every(id=>ids.includes(id)));
+  if(p){pzMsg='';pzDone(p)}else pzMsg='<div class="card"><div class="k">두 단서가 서로 이어지지 않는다</div></div>';info()}}
+
+// ── 장면 잠금(10/22) — 앞 장면 퍼즐을 다 풀어야 다음 장면 방으로 가는 문이 열린다(04 「나가는 조건」) ──
+const scOrder=[...SC].sort((a,b)=>(a.order||0)-(b.order||0));
+const scDone=id=>PZ.filter(p=>p.scene_id===id).every(p=>DONE.has(p.id));
+const scOpen=id=>{for(const s of scOrder){if(s.id===id)return true;if(!scPassed(s.id))return false}return true};
+const roomOpen=ri=>!SC.length||!PZ.length||SC.some(s=>s.rooms.includes(ri)&&scOpen(s.id))||!SC.some(s=>s.rooms.includes(ri));
+const lockMsg=ri=>{const cur=scOrder.find(s=>!scDone(s.id));const left=cur?PZ.filter(p=>p.scene_id===cur.id&&!DONE.has(p.id)):[];return `<div class="card pz-lock"><b>🔒 ${esc(ITEMS[ri]?.name)}(으)로 가는 문이 잠겨 있다</b><div class="k">${cur?esc(cur.title)+' — 남은 퍼즐: '+left.map(p=>esc(p.title)).join(', '):''}</div></div>`};
+let openBefore=null;const snapOpen=()=>ITEMS.map((_,i)=>roomOpen(i));
+const FOCUS=new URLSearchParams(location.search).get('focus');
+const focusP=()=>PZ.find(p=>p.id===FOCUS);
+function focusGlow(){const p=focusP();if(!p||!cur)return;for(const h of p.hosts)for(const b of h.at)if(b.room===ci)glow(b.node,true)}
+function focusCard(){const p=focusP();if(!p)return '';const steps=p.hosts.map((h,i)=>{const a=h.assets[0];return `<li>${h.need_id===p.solve.at?'<b>[풀이]</b> ':''}${esc(a?a.roomName+' · '+(a.node||a.name)+(a.pending?' (임시)':''):'(연결 안 됨)')} <span class="k">— ${esc(h.what)}</span></li>`}).join('');
+ return `<div class="card pz-focus"><span class="pill">검수 중</span> <b>${esc(p.id)} ${esc(p.title)}</b><div class="k">${esc(p.scene_id)} · ${esc(p.solve.interaction)} · 상호작용 ${p.hosts.length}곳</div><ol>${steps}</ol></div>`}
+
+// ── 발견 연출 v0(10/22 미르) — 만지면 물건이 반응하고 → 단서 물건이 눈에 보이고 → 집어서 읽고 → 조사수첩에.
+//    장면 마지막 퍼즐을 풀면 열쇠가 나오고 → 다음 방 문의 자물쇠에 대면 자물쇠가 풀린다.
+//    05 가 단서마다 reveal(들추기·열기·밀기·뒤집기·들여다보기) · carrier(서신·쪽지·열쇠·조각·자국) · content(읽히는 글) 를 쓴다.
+//    통짜 모델이라 뚜껑만 따로 열 수는 없다(물건 전체가 움직임) — 상태 변형 에셋은 퍼즐 에셋 공정 몫.
+const REV=new Map();      // clue id → {room,node,state:'shown'|'taken',act}
+const MOVED=new Map();    // `${room}|${node}` → {act, side:[x,z]} 이미 반응한 물건(방을 다시 불러와도 그대로)
+const KEYS=new Map();     // scene id → {state:'hidden'|'shown'|'taken'|'used', room, node}
+const UNLOCKED=new Set(); // 자물쇠가 풀린 장면
+const ANIM=[];
+const SOLVE_ONLY=['combine_clues','select','input','solve'];
+const sceneExit=id=>PZ.find(p=>p.scene_id===id&&p.exit&&p.exit.key&&p.exit.key.name)||PZ.find(p=>p.scene_id===id&&p.solve&&p.solve.device&&p.solve.device.on==='exit_door')||PZ.find(p=>p.scene_id===id&&p.solve&&p.solve.removed_device); /* 10/28: 장석 자물쇠를 뗀 문도 잠금(문에 자물쇠가 보이고, 단서가 모이면 누를 때 풀림) */
+const scPassed=id=>(typeof exitDevP==='function'&&exitDevP(id))?UNLOCKED.has(id):scDone(id)&&(!sceneExit(id)||UNLOCKED.has(id));
+const clueById=id=>{for(const p of PZ){const c=p.clues.find(c=>c.id===id);if(c)return c}return null};
+const hostOf=need=>{for(const p of PZ){const h=p.hosts.find(h=>h.need_id===need);if(h)return h}return null};
+function groupRoots(g){const out=new Set();if(!cur)return [];cur.traverse(o=>{if(!o.isMesh||o.userData.hull||G(o)!==g)return;let n=o;while(n.parent&&n.parent!==cur&&G(n.parent)===g)n=n.parent;out.add(n)});return [...out]}
+function groupBox(g){const b=new THREE.Box3();if(!cur)return b;cur.updateMatrixWorld(true);for(const r of groupRoots(g))b.expandByObject(r);return b}
+const ease=t=>t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+function tween(obj,to,dur,done){const fr={p:obj.position.clone(),q:obj.quaternion.clone()};ANIM.push({obj,fr,to,t0:performance.now(),dur,done})}
+function animStep(){const now=performance.now();for(let i=ANIM.length-1;i>=0;i--){const a=ANIM[i];const k=Math.min(1,(now-a.t0)/a.dur),e=ease(k);if(a.to.p)a.obj.position.lerpVectors(a.fr.p,a.to.p,e);if(a.to.q)a.obj.quaternion.slerpQuaternions(a.fr.q,a.to.q,e);if(k>=1){ANIM.splice(i,1);a.done&&a.done()}}
+ const ts=now/1000;if(cur)cur.traverse(o=>{if(o.userData.pulse&&o.material&&o.material.emissive)o.material.emissive.setRGB(.22+.16*Math.sin(ts*4),.17+.12*Math.sin(ts*4),.05)})}
+// 물건 반응 — 플레이어 반대쪽 모서리를 축으로(들추기·열기), 반대쪽으로(밀기), 제자리(뒤집기)
+function react(g,act,side,instant){if(!cur||act==='look')return;{const st=stateFor(g,act);if(st!==undefined){const prev=STATES.get(g).now;stateSet(g,st,instant);return {swap:g,prev}}}const roots=groupRoots(g);if(!roots.length)return;const b=groupBox(g),c=b.getCenter(new THREE.Vector3());
+ let dx=side?side[0]:c.x-pos.x,dz=side?side[1]:c.z-pos.z;const L=Math.hypot(dx,dz)||1;dx/=L;dz/=L;
+ /* 10/23 미르: 이불을 눌렀더니 공중에 떴다 — 들추기를 위 모서리 축으로 100° 세워서였다. 납작한 것(이불·멍석·방석·보자기)은 먼 쪽 바닥 모서리를 축으로 가까운 쪽만 45° 들어 올리고, 두툼한 것(가마니·자루)은 옆으로 민다 */
+ const flat=(b.max.y-b.min.y)<0.3*Math.max(b.max.x-b.min.x,b.max.z-b.min.z);if(act==='lift'&&!flat)act='slide';if(act==='lift')return foldSoft(roots,b,c,dx,dz,instant);
+ const piv=new THREE.Group();const far=new THREE.Vector3(c.x+dx*(b.max.x-b.min.x)/2,b.min.y,c.z+dz*(b.max.z-b.min.z)/2);
+ if(act==='flip'||act==='slide')piv.position.copy(c);else piv.position.copy(far);piv.userData.p0=piv.position.clone();cur.add(piv);cur.updateMatrixWorld(true);for(const r of roots)piv.attach(r);
+ const axis=new THREE.Vector3(dz,0,-dx);let to;
+  if(act==='open')to={q:new THREE.Quaternion().setFromAxisAngle(axis,0.55)};
+ else if(act==='slide'||act==='flip'){/* 10/26: 밀다가 기둥·벽을 뚫던 일 · 뒤집어도 그 자리에 그대로 있어 밑의 단서가 안 보이던 일(시각 검수) — 막히지 않은 쪽으로, 제 몸 폭보다 더 비켜 놓는다 */const sz=b.getSize(new THREE.Vector3()),mid=new THREE.Vector3(c.x,b.min.y+Math.min(0.25,sz.y*0.5),c.z);const own=new Set();roots.forEach(r=>r.traverse(o=>own.add(o)));const rc=new THREE.Raycaster();let best=null;
+  /* 10/26 미르: 「상호작용 뒤 다른 에셋과 겹치고 엉망」 — 옮긴 자리가 다른 물건(부딪힘 상자·조사 상자)·방 밖과 겹치지 않는 곳만 */
+  const obst=[...(meta.solids||[]).filter(o=>o.name!==g).map(o=>[o.rect[0],o.rect[1],o.rect[2],o.rect[3]]),...BOX.filter(x=>x.g!==g&&roleOf(x.g).cls!=='trace'&&!(typeof carrierAt==='function'&&carrierAt(x.g))).map(x=>[x.b.min.x,x.b.min.z,x.b.max.x,x.b.max.z])];const wk=meta.walk;
+  const freeAt=(ox,oz)=>{const a=[b.min.x+ox+0.02,b.min.z+oz+0.02,b.max.x+ox-0.02,b.max.z+oz-0.02];if(wk&&(a[0]<wk.x[0]-0.1||a[2]>wk.x[1]+0.1||a[1]<wk.z[0]-0.1||a[3]>wk.z[1]+0.1))return false;return !obst.some(o=>a[0]<o[2]&&a[2]>o[0]&&a[1]<o[3]&&a[3]>o[1])};
+  for(const v of [[dz,-dx],[-dz,dx],[dx,dz],[-dx,-dz]]){const d=new THREE.Vector3(v[0],0,v[1]).normalize();const half=Math.abs(d.x)*sz.x/2+Math.abs(d.z)*sz.z/2;const want=Math.max(0.45,half*2+0.12);rc.set(mid,d);rc.far=half+want+0.2;const h=rc.intersectObject(cur,true).find(x=>x.object.isMesh&&x.object.visible&&!own.has(x.object)&&!x.object.userData.hull);const room=h?h.distance-half-0.05:want+0.2;
+   const m0=[want,want*0.8,Math.max(0.35,half+0.08)].find(m=>m<=room&&freeAt(d.x*m,d.z*m));if(m0){best={d,m:m0,free:true};break}if(!best||room>best.m)best={d,m:Math.max(0,room)}}
+  const d=best?best.d:new THREE.Vector3(dz,0,-dx),m=best?Math.max(0.2,best.m):0.6;to={p:piv.position.clone().addScaledVector(d,m)};if(act==='flip'){to.q=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(-d.z,0,d.x),Math.PI);to.p.y+=0.0}}
+ if(!to)return piv;if(instant){if(to.p)piv.position.copy(to.p);if(to.q)piv.quaternion.copy(to.q)}else tween(piv,to,650,()=>buildBoxes());return piv}
+/* 10/23: 납작한 천·자리(변형판 없는 것)는 통째로 세우지 않고, 보는 사람 쪽 절반을 위로 접어 넘긴다(꼭짓점을 그 자리에서 접음 → 내려놓으면 원래대로) */
+function foldSoft(roots,b,c,dx,dz,instant){const meshes=[];roots.forEach(r=>r.traverse(o=>{if(o.isMesh)meshes.push(o)}));if(!meshes.length)return;cur.updateMatrixWorld(true);
+ /* 10/23b 미르: 「접히는 게 아니라 통째로 세워진다」 — 반을 통째로 넘기면 두 배 높이 덩어리가 됐다. 보는 쪽 자락 40% 만 뒤로 걷어 납작하게 얹는다(변형판 turnback 과 같은 모양) */
+ if(Math.abs(dx)>=Math.abs(dz)){dx=Math.sign(dx)||1;dz=0}else{dz=Math.sign(dz)||1;dx=0}
+ meshes.forEach(m=>{(Array.isArray(m.material)?m.material:[m.material]).forEach(x=>{if(x.side!==THREE.DoubleSide){x.side=THREE.DoubleSide;x.needsUpdate=true}})});/* 재질은 복제하지 않는다 — 복제하면 만화 셰이딩이 빠져 색이 바뀌었다 */
+ /* 경량본은 꼭짓점이 정수로 압축(KHR_mesh_quantization)돼 있어 그대로 고치면 깨진다 → 실수 배열로 풀어 쓴다 */
+ const fl=a=>{const f=new Float32Array(a.count*3);for(let i=0;i<a.count;i++){f[i*3]=a.getX(i);f[i*3+1]=a.getY(i);f[i*3+2]=a.getZ(i)}return f};
+ const D=meshes.map(m=>{m.geometry=m.geometry.clone();const g=m.geometry,P=g.attributes.position,N=g.attributes.normal;const op=fl(P),on=N?fl(N):null;g.setAttribute('position',new THREE.BufferAttribute(op.slice(),3));if(on)g.setAttribute('normal',new THREE.BufferAttribute(on.slice(),3));return {m,orig:op,norm:on,mw:m.matrixWorld.clone(),inv:m.matrixWorld.clone().invert()}});
+ const len=Math.abs(dx)*(b.max.x-b.min.x)+Math.abs(dz)*(b.max.z-b.min.z),s0=-len/2+0.4*len,top=b.max.y,v=new THREE.Vector3();
+ const apply=t=>{for(const e of D){const P=e.m.geometry.attributes.position,a=P.array;for(let i=0;i<a.length;i+=3){v.set(e.orig[i],e.orig[i+1],e.orig[i+2]).applyMatrix4(e.mw);const sv=(v.x-c.x)*dx+(v.z-c.z)*dz;
+   if(sv<s0){const ts=s0+(s0-sv)*0.95,ty=top+(top-v.y)*0.3+0.004,ns=sv+(ts-sv)*t,ny=v.y+(ty-v.y)*t+Math.sin(Math.PI*t)*(s0-sv)*0.6;v.x+=dx*(ns-sv);v.z+=dz*(ns-sv);v.y=ny}
+   v.applyMatrix4(e.inv);a[i]=v.x;a[i+1]=v.y;a[i+2]=v.z}P.needsUpdate=true;e.m.geometry.computeVertexNormals();e.m.geometry.computeBoundingBox();e.m.geometry.computeBoundingSphere()}};
+ const run=(t0,t1,done)=>{if(instant){apply(t1);done&&done();return}const st=performance.now();const step=()=>{const k=Math.min(1,(performance.now()-st)/650);apply(t0+(t1-t0)*k);if(k<1)requestAnimationFrame(step);else{done&&done();buildBoxes()}};step()};
+ run(0,1);
+ return {fold:true,spot:new THREE.Vector3(c.x+dx*(-len/2+0.2*len),b.min.y,c.z+dz*(-len/2+0.2*len)),restore:()=>run(1,0,()=>{for(const e of D){const g=e.m.geometry;g.attributes.position.array.set(e.orig);g.attributes.position.needsUpdate=true;if(e.norm){g.attributes.normal.array.set(e.norm);g.attributes.normal.needsUpdate=true}g.computeBoundingBox();g.computeBoundingSphere()}buildBoxes()})}}
+// 단서를 꺼낸 뒤 물건은 제자리로(10/22 미르)
+// 상태 변형판(10/22 다른 세션 설계 → 10/23 반영) — compose 가 넣은 「물건__상태_<state>」 노드를 떼어 두었다가 반응할 때 바꿔 끼운다
+let STATES=new Map();
+function stateInit(root){STATES=new Map();const vs=[];root.traverse(o=>{if(o.name&&o.name.includes('__상태_'))vs.push(o)});
+ for(const o of vs){const [g,st]=o.name.split('__상태_');const top=(o.parent&&o.parent!==root&&o.parent.name.startsWith(g+'__기댐'))?o.parent:o;const e=STATES.get(g)||{v:{},base:[],now:null};e.v[st]=top;STATES.set(g,e);top.parent.remove(top)}
+ root.traverse(o=>{if(o.name&&o.name.endsWith('__배치')){const g=o.name.slice(0,-4);const e=STATES.get(g);if(!e)return;e.base.push(o.parent!==root&&o.parent.name.startsWith(g+'__기댐')?o.parent:o);e.initial=o.userData.initial||null}});
+ for(const [g,e] of STATES)if(e.initial&&e.v[e.initial])stateSet(g,e.initial,true)}
+function stateSwap(g,st,quiet){const e=STATES.get(g);if(!e||!cur)return;if(e.now)cur.remove(e.v[e.now]);else e.base.forEach(o=>cur.remove(o));if(st&&e.v[st])cur.add(e.v[st]);else{st=null;e.base.forEach(o=>cur.add(o))}e.now=st;if(!quiet)buildBoxes()}
+/* 10/26 미르: 「서랍이 열리거나 이불이 접히는 식으로 움직이지 않는다」 — 변형판을 순간 바꿔 끼워서 움직임이 안 보였다.
+   바뀐 판의 꼭짓점마다 기본판에서 가장 가까운 점을 출발점으로 삼아 0.65초 동안 옮긴다(서랍은 앞판에서 밀려 나오고, 뚜껑은 몸통에서 떨어져 나간다). 되돌릴 때는 거꾸로 */
+function morphOf(vObj,refObjs){if(vObj.userData.morph)return vObj.userData.morph;const added=!vObj.parent;if(added)cur.add(vObj);cur.updateMatrixWorld(true);
+ const ms=o=>{const a=[];o.traverse(m=>{if(m.isMesh&&m.geometry&&m.geometry.attributes.position)a.push(m)});return a};const v=new THREE.Vector3();
+ const R=[];refObjs.forEach(r=>ms(r).forEach(m=>{const P=m.geometry.attributes.position;for(let i=0;i<P.count;i++){v.set(P.getX(i),P.getY(i),P.getZ(i)).applyMatrix4(m.matrixWorld);R.push(v.x,v.y,v.z)}}));
+ const cs=0.05,K=(x,y,z)=>((x+4096)*8192+(y+4096))*8192+(z+4096),grid=new Map();for(let i=0;i<R.length;i+=3){const k=K(Math.floor(R[i]/cs),Math.floor(R[i+1]/cs),Math.floor(R[i+2]/cs));let b=grid.get(k);if(!b)grid.set(k,b=[]);b.push(i)}
+ const near=(x,y,z)=>{const ix=Math.floor(x/cs),iy=Math.floor(y/cs),iz=Math.floor(z/cs);let bi=-1,bd=Infinity;for(let r=0;r<=12;r++){for(let a=-r;a<=r;a++)for(let b=-r;b<=r;b++)for(let c=-r;c<=r;c++){if(Math.max(Math.abs(a),Math.abs(b),Math.abs(c))!==r)continue;const L=grid.get(K(ix+a,iy+b,iz+c));if(!L)continue;for(const i of L){const d=(R[i]-x)**2+(R[i+1]-y)**2+(R[i+2]-z)**2;if(d<bd){bd=d;bi=i}}}if(bi>=0&&Math.sqrt(bd)<(r-0.5)*cs)break}return bi};
+ const D=ms(vObj).map(m=>{m.geometry=m.geometry.clone();const P=m.geometry.attributes.position,n=P.count;const fin=new Float32Array(n*3);for(let i=0;i<n;i++){fin[i*3]=P.getX(i);fin[i*3+1]=P.getY(i);fin[i*3+2]=P.getZ(i)}
+  m.geometry.setAttribute('position',new THREE.BufferAttribute(fin.slice(),3));const inv=m.matrixWorld.clone().invert(),start=new Float32Array(n*3);
+  for(let i=0;i<n;i++){v.set(fin[i*3],fin[i*3+1],fin[i*3+2]).applyMatrix4(m.matrixWorld);const j=R.length?near(v.x,v.y,v.z):-1;if(j>=0)v.set(R[j],R[j+1],R[j+2]);v.applyMatrix4(inv);start[i*3]=v.x;start[i*3+1]=v.y;start[i*3+2]=v.z}return {m,fin,start}});
+ if(added)cur.remove(vObj);return vObj.userData.morph=D}
+function morphSet(D,t){D.t=t;for(const {m,fin,start} of D){const a=m.geometry.attributes.position.array;for(let i=0;i<a.length;i++)a[i]=start[i]+(fin[i]-start[i])*t;m.geometry.attributes.position.needsUpdate=true;m.geometry.computeBoundingSphere()}}
+function morphRun(D,t0,t1,done){const st=performance.now();const step=()=>{const k=Math.min(1,(performance.now()-st)/650),e=ease(k);morphSet(D,t0+(t1-t0)*e);if(k<1)requestAnimationFrame(step);else{morphSet(D,t1);done&&done()}};step()}
+function stateSet(g,st,quiet){const e=STATES.get(g);if(!e||!cur)return;const to=st&&e.v[st]?st:null;if(quiet||to===e.now||(e.now&&to)){stateSwap(g,st,quiet);return}
+ if(to){/* 기본판 → 바뀐 판: 바뀐 판을 기본판 모양에서 출발시켜 펼친다 */const D=morphOf(e.v[to],e.base);morphSet(D,0);stateSwap(g,to,true);morphRun(D,0,1,()=>buildBoxes());return}
+ /* 바뀐 판 → 기본판: 거꾸로 접어 넣은 뒤 기본판으로 */const vo=e.v[e.now];const D=morphOf(vo,e.base);morphRun(D,1,0,()=>{stateSwap(g,null);morphSet(D,1)})}
+function stateFor(g,act){const e=STATES.get(g);if(!e)return undefined;if(e.initial&&String(e.initial).startsWith('filled'))return act==='empty'?null:undefined;/* 10/23: 찬 판으로 시작한 솥을 「열면」 물이 사라지던 일 — 비우기일 때만 빈 판으로 */if(e.v.opened&&['open','lift','slide','empty'].includes(act))return 'opened';if(e.v.folded&&['slide','open'].includes(act))return 'folded';/* 10/26: 들추기(lift)는 판을 바꿔 끼우지 않고 foldSoft 로 그 자리에서 접는다 — 바꿔 끼운 판이 덩어리로 보였다 */if(e.v.unfolded&&['open','lift'].includes(act))return 'unfolded';if(e.v.emptied&&act==='empty')return 'emptied';if(e.v.broken&&act==='break')return 'broken';return undefined}/* 10/23: 기본판이 찬 것(돌확)은 비우면 빈 판(emptied)으로 *//* 10/23: 걷힌(folded)·펼친(unfolded) 판 */
+// 반응을 그럴듯할 때만(10/23 미르: 바닥 불빛이 움직이고 쪽지가 나옴 · 문갑이 통째로 들려 위에 쪽지 → 부자연스럽다)
+//  흔적(빛·그림자·자국)은 절대 안 움직인다 · 열기는 열린 판이 있을 때만 · 들추기는 천·짚·자리 같은 부드러운 것만 · 밀기는 옮길 만한 것 · 뒤집기는 작은 것
+//  그럴듯한 움직임이 없으면 물건은 그대로 두고 「꺼내 든 모습」 카드로 바로 보여 준다(허공에 뜨는 쪽지 없음)
+const SOFT=/이불|요$|이부자리|멍석|가마니|덮개|보자기|보|천|방석|돗자리|거적|짚|발$|휘장|포대|자루/;
+const MOVABLE=/항아리|독|단지|동이|짚단|상$|소반|바구니|광주리|소쿠리|키$|체$|함$|궤$|목침|방석|등잔|화로|다듬잇돌|맷돌|절구|자루|가마니|채반|함지|병풍|발$|가리개|땔나무|장작|나뭇단|볏단|섬$|짚$|통$|궤짝/;/* 10/26: 땔나무·섬을 밀어도 안 움직이던 일(시각 검수) *//* 10/23: 병풍 밀기 */
+const SMALL=/바가지|소반|그릇|사발|대접|책|패$|판$|목침|접시|종지|함지|키$|체$|장부|기록판|판자|널$|널판|신$|짚신|가죽신|버선/;
+function planReveal(g,c){const r=roleOf(g),act0=(c.reveal&&c.reveal.action)||'look';
+ if(r.cls==='trace'||r.role==='fixture')return {act:'look',spawn:false};
+ const st=stateFor(g,act0);if(st!==undefined)return {act:act0,swap:true,spawn:true};/* 10/23: 판을 바꿔 끼워도 단서 물건은 눈에 보이게 놓는다(카드만 뜨면 「집어 든다」가 없다) */
+ if(act0==='lift'&&SOFT.test(g))return {act:'lift',spawn:true};
+ if(act0==='slide'&&MOVABLE.test(g))return {act:'slide',spawn:true};
+ if(act0==='flip'&&SMALL.test(g))return {act:'flip',spawn:true};
+ if(act0==='lift'&&MOVABLE.test(g))return {act:'slide',spawn:true};
+ return {act:'look',spawn:!!(c&&c.carrier&&c.carrier.kind&&c.carrier.kind!=='mark')}}/* 10/23: 물건이 그 몸짓을 못 해도(등잔 뒤집기 등) 단서 물건은 옆에 보이게 — 카드만 뜨면 「집어 든다」가 없다 */
+function unreact(key){const m=MOVED.get(key);if(!m||m.restored)return;m.restored=true;const [r]=key.split('|');const piv=m.piv;if(piv&&piv.fold){if(+r===ci)piv.restore();return}if(piv&&piv.swap){if(STATES.get(piv.swap)?.now==='broken')return;/* 10/23: 깬 것은 되돌리지 않는다 */if(+r===ci)stateSet(piv.swap,piv.prev);return}if(+r!==ci||!piv||!piv.parent||!cur)return;tween(piv,{p:piv.userData.p0.clone(),q:new THREE.Quaternion()},600,()=>{if(!cur)return;cur.updateMatrixWorld(true);for(const ch of [...piv.children])cur.attach(ch);piv.parent&&piv.parent.remove(piv);buildBoxes()})}
+// 단서 물건(절차 생성 — 서신·쪽지·열쇠·조각은 라이브러리 에셋 없이 코드로)
+function paperTex(lines){const cv2=document.createElement('canvas');cv2.width=256;cv2.height=160;const x=cv2.getContext('2d');x.fillStyle='#efe4c8';x.fillRect(0,0,256,160);x.strokeStyle='#3a2c1e';x.lineWidth=2;for(let i=0;i<lines;i++){x.beginPath();const X=220-i*26;x.moveTo(X,18);for(let y=18;y<142;y+=9)x.lineTo(X+(Math.random()-.5)*4,y);x.stroke()}const t=new THREE.CanvasTexture(cv2);t.colorSpace=THREE.SRGBColorSpace;return t}
+function makeCarrier(kind){const g=new THREE.Group();const M=(c,o={})=>new THREE.MeshStandardMaterial({color:c,roughness:.8,emissive:new THREE.Color(0x221a08),...o});
+ if(kind==='letter'){const m=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.012,0.09),M(0xffffff,{map:paperTex(3)}));m.userData.pulse=1;g.add(m);const cord=new THREE.Mesh(new THREE.BoxGeometry(0.006,0.014,0.092),M(0x8b2a1d));g.add(cord)}
+ else if(kind==='note'){const m=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.004,0.21),M(0xffffff,{map:paperTex(5)}));m.userData.pulse=1;g.add(m)}
+ else if(kind==='key'){const br=M(0xb08d3c,{metalness:.7,roughness:.35});const bow=new THREE.Mesh(new THREE.TorusGeometry(0.024,0.007,8,18),br);bow.rotation.x=Math.PI/2;bow.position.x=-0.06;const sh=new THREE.Mesh(new THREE.CylinderGeometry(0.005,0.005,0.1,8),br);sh.rotation.z=Math.PI/2;sh.position.x=0.01;const t1=new THREE.Mesh(new THREE.BoxGeometry(0.012,0.004,0.022),br);t1.position.set(0.05,0,0.012);const t2=t1.clone();t2.position.x=0.034;for(const m of [bow,sh,t1,t2]){m.userData.pulse=1;g.add(m)};g.position.y=0.008}
+ else{/* 10/26: 조각 대용 모형 — 작은 고리는 「노란 고리」로만 보였다(시각 검수). 접힌 천 뭉치 모양으로 */const a=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.028,0.1),M(0xb59a74,{map:paperTex(2)}));a.rotation.y=0.3;a.userData.pulse=1;const b2=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.022,0.07),M(0x9c7e58));b2.position.set(0.012,0.024,-0.008);b2.rotation.y=-0.2;b2.userData.pulse=1;g.add(a,b2)}
+ g.traverse(o=>{if(o.isMesh)o.castShadow=true});return g}
+const carrierName=c=>(c.carrier&&c.carrier.name)||({letter:'서신',note:'쪽지',key:'열쇠',piece:'조각'})[c.carrier&&c.carrier.kind]||'단서';
+/* 10/23: 바꿔 낀 판(열린 궤·걷힌 이불·뺀 서랍·비운 독)에서 단서 물건 자리 — 위에서 아래로 쏜 광선이 그 물건에 맞는 가장 낮은 곳(열린 속·드러난 요·빈 바닥) */
+function swapSpot(hostNode){const e=STATES.get(hostNode);const MD=e&&e.now&&e.v[e.now]&&e.v[e.now].userData.morph;if(MD&&MD.t!==1){/* 10/26(2): 판이 아직 움직이는 중이어도 다 열린 모양으로 자리를 잰다 */const t0=MD.t;morphSet(MD,1);try{return swapSpot0(hostNode)}finally{morphSet(MD,t0)}}return swapSpot0(hostNode)}
+function swapSpot0(hostNode){const e=STATES.get(hostNode);if(!e||!cur)return null;const objs=e.now?[e.v[e.now]]:e.base;if(!objs||!objs.length)return null;const b=new THREE.Box3();objs.forEach(o=>b.expandByObject(o));if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),sz=b.getSize(new THREE.Vector3());const q=new THREE.Quaternion();objs[0].getWorldQuaternion(q);const f=new THREE.Vector3(0,0,1).applyQuaternion(q);f.y=0;if(f.lengthSq()<1e-6)f.set(0,0,1);f.normalize();/* 10/23b: 걷힌 판(folded)은 앞 자락이 걷혀 드러난 바닥에 둔다 — 광선은 이불 위에만 맞아 단서가 이불 위에 얹혔다 */if(e.now==='folded'&&e.base&&e.base.length){const bb=new THREE.Box3();e.base.forEach(o=>bb.expandByObject(o));if(!bb.isEmpty()){const bc=bb.getCenter(new THREE.Vector3()),bs=bb.getSize(new THREE.Vector3());const dep=Math.abs(f.x)*bs.x+Math.abs(f.z)*bs.z;return new THREE.Vector3(bc.x+f.x*dep*0.32,bb.min.y,bc.z+f.z*dep*0.32)}}
+ const d=Math.max(sz.x,sz.z),rc=new THREE.Raycaster();let best=null;
+ for(const k of [0,0.18,0.32,0.42]){const p=c.clone().addScaledVector(f,d*k);rc.set(new THREE.Vector3(p.x,b.max.y+0.5,p.z),new THREE.Vector3(0,-1,0));const h=rc.intersectObjects(objs,true)[0];if(h&&h.point.y>b.min.y+sz.y*0.02&&(!best||h.point.y<best.y))best=h.point.clone()}return best}
+function drawerBox(g){const e=STATES.get(g);if(!e||e.now!=='opened')return null;const vo=e.v.opened,D=vo&&vo.userData.morph;if(!D)return null;const b=new THREE.Box3(),v=new THREE.Vector3(),w=new THREE.Vector3(),off=new THREE.Vector3();let nOff=0;for(const {m,fin,start} of D){for(let i=0;i<fin.length;i+=3){const dx=fin[i]-start[i],dy=fin[i+1]-start[i+1],dz=fin[i+2]-start[i+2];v.set(fin[i],fin[i+1],fin[i+2]).applyMatrix4(m.matrixWorld);w.set(start[i],start[i+1],start[i+2]).applyMatrix4(m.matrixWorld);if(v.distanceTo(w)>0.03){b.expandByPoint(v);off.add(v).sub(w);nOff++}}}if(b.isEmpty())return null;b.off=off.multiplyScalar(1/Math.max(1,nOff));/* 서랍만: 움직인 부분이 몸통과 겹치고 몸통 윗면보다 낮다(뚜껑은 위로 서거나 옆으로 내려놓임) */const bb=new THREE.Box3();e.base.forEach(o=>bb.expandByObject(o));if(bb.isEmpty()||!b.intersectsBox(bb.clone().expandByScalar(0.02))||b.max.y>bb.max.y-0.02)return null;return b}
+const CARRIER_CACHE=new Map();
+function carrierModel(ca){if(!CARRIER_CACHE.has(ca.url))CARRIER_CACHE.set(ca.url,L.loadAsync(ca.url).then(gl=>gl.scene).catch(e=>{console.warn('단서 물건 에셋 못 읽음',ca.url,e);return null}));
+ return CARRIER_CACHE.get(ca.url).then(src=>{if(!src)return null;const m=src.clone(true);const bx=new THREE.Box3().setFromObject(m),sz=bx.getSize(new THREE.Vector3());const k=(ca.size||0.25)/Math.max(sz.x,sz.y,sz.z,1e-4);m.scale.setScalar(k);const b2=new THREE.Box3().setFromObject(m),c2=b2.getCenter(new THREE.Vector3());m.position.set(-c2.x,-b2.min.y,-c2.z);const w=new THREE.Group();w.add(m);m.traverse(o=>{if(o.isMesh){o.castShadow=true;if(o.material&&o.material.emissive)o.material=o.material.clone(),o.material.emissive=new THREE.Color(0x221a08),o.userData.pulse=true}});return w})}
+function spawn(id,name,kind,hostNode,where){if(!cur)return;let b=groupBox(hostNode),c;if(b.isEmpty()){console.warn('단서 물건 자리 없음 — 방 가운데에 둠',hostNode);const w=meta.walk||{x:[0,0],z:[0,0]};c=new THREE.Vector3((w.x[0]+w.x[1])/2,meta.floor_y||0,(w.z[0]+w.z[1])/2);b=new THREE.Box3(c.clone(),c.clone())}else c=b.getCenter(new THREE.Vector3());const g=makeCarrier(kind);{/* 10/26: 단서 물건이 라이브러리 실물이면(짚신·버선·놋대접…) 그것으로 바꿔 끼운다 — 대용 모형(고리·종이)만으로는 무엇이 나왔는지 안 보였다 */const ca=String(id).startsWith('KEY-')?null:(clueById(id)?.carrier?.asset);if(ca&&ca.url)carrierModel(ca).then(m=>{if(!m||!g.parent)return;g.children.slice().forEach(o=>g.remove(o));m.scale.multiplyScalar(Math.min(1,(g.scale.x||1)/1.6)/(g.scale.x||1));g.add(m);buildBoxes()})}
+ const st=MOVED.get(`${ci}|${hostNode}`);const y=where==='on'||where==='inside'?b.max.y+0.01:Math.max(meta.floor_y||0,b.min.y)+(st&&st.act==='lift'?0.02:0.012);/* 밑·뒤: 그 물건이 놓인 면(부뚜막 위 솥뚜껑이면 부뚜막 위) — 방바닥으로 두면 부뚜막 속에 묻혔다(10/22) */
+ g.position.set(c.x+(where==='on'?0:0.02),y,c.z);if(st&&st.piv&&st.piv.swap){const sp=swapSpot(hostNode);if(sp)g.position.set(sp.x,sp.y+0.01,sp.z)}if(st&&st.piv&&st.piv.spot)g.position.set(st.piv.spot.x,Math.max(meta.floor_y||0,st.piv.spot.y)+0.012,st.piv.spot.z);g.rotation.y=0.4;g.name=`${name}__단서`;g.userData.carrier=id;cur.add(g);
+ /* 10/26 미르(2): 「안에서 누가 내미는 것처럼 나오지 말고, 원래 밑에 있던 서신이 이불을 들추면 보이게」 — 단서는 처음부터 제자리(이불 밑·병풍 뒤·서랍 속)에 놓여 있고, 물건이 움직이며 드러난다. 커지거나 밀려 나오지 않는다 */
+ /* 10/26 미르: 서신이 열린 서랍보다 길어 서랍을 뚫고 나왔다 — 열린 판에서 움직인 부분(서랍)을 재서 그 안에 들어가게 줄이고 서랍 한가운데 바닥에 둔다. 서랍과 함께 끌려 나온다 */
+ let S1=1.6;const dr=where!=='under'&&where!=='behind'?drawerBox(hostNode):null;if(dr){g.scale.setScalar(1);g.updateMatrixWorld(true);const cb=new THREE.Box3().setFromObject(g),cs=cb.getSize(new THREE.Vector3()),ds=dr.getSize(new THREE.Vector3());const big=Math.max(cs.x,cs.z),small=Math.min(cs.x,cs.z),dl=Math.max(ds.x,ds.z)*0.8,dw=Math.min(ds.x,ds.z)*0.8;S1=Math.min(1.6,dl/Math.max(big,1e-3),dw/Math.max(small,1e-3));const dc=dr.getCenter(new THREE.Vector3());g.position.set(dc.x,dr.min.y+0.02,dc.z);g.rotation.y=ds.x>=ds.z?0:Math.PI/2}
+ if(!dr&&where==='inside'){/* 10/26: 찬장 문 안·항아리 속 — 지붕 위나 문 앞 공중이 아니라 몸통 안(시각 검수: 쪽지가 찬장 앞 공중에 뜸) */const bs=b.getSize(new THREE.Vector3());const q=new THREE.Quaternion();const ro=groupRoots(hostNode)[0];if(ro)ro.getWorldQuaternion(q);const f=new THREE.Vector3(0,0,1).applyQuaternion(q);f.y=0;if(f.lengthSq()<1e-6)f.set(0,0,1);f.normalize();
+  if(/솥|항아리|독$|동이|단지|뒤주|궤|함$|반닫이/.test(hostNode)&&bs.y<0.9){/* 아가리·궤 안 — 열린 판이 있으면 그 속 바닥(너무 깊으면 테두리 25cm 아래까지), 없으면 아가리, 폭의 60% 안 */{const st2=MOVED.get(`${ci}|${hostNode}`);const sp=st2&&st2.piv&&st2.piv.swap?swapSpot(hostNode):null;if(sp)g.position.set(sp.x,Math.max(sp.y+0.01,b.max.y-0.25),sp.z);else g.position.set(c.x,b.max.y+0.004,c.z)}g.scale.setScalar(1);g.updateMatrixWorld(true);const cs=new THREE.Box3().setFromObject(g).getSize(new THREE.Vector3());S1=Math.min(S1,0.6*Math.min(bs.x,bs.z)/Math.max(cs.x,cs.z,1e-3))}else{/* 찬장·장: 문 안 가운데 선반 높이 */g.position.set(c.x,b.min.y+Math.min(0.6,bs.y*0.4),c.z);S1=Math.min(S1,1.0)}}
+ g.scale.setScalar(S1);
+ if(dr&&dr.off&&dr.off.lengthSq()>1e-6){const to=g.position.clone(),from=to.clone().sub(dr.off);g.position.copy(from);const t0=performance.now();const step=()=>{if(!g.parent)return;const k=Math.min(1,(performance.now()-t0)/650);g.position.lerpVectors(from,to,ease(k));if(k<1)requestAnimationFrame(step);else buildBoxes()};step()}
+ buildBoxes()}
+const carrierAt=g=>{for(const [id,r] of REV)if(r.state==='shown'&&r.room===ci&&carrierName(clueById(id))===g)return id;for(const [sid,k] of KEYS)if(k.state==='shown'&&k.room===ci&&sceneExit(sid).exit.key.name===g)return 'KEY-'+sid;return null};
+function unspawn(g){if(!cur)return;const rm=[];cur.traverse(o=>{if(o.name===`${g}__단서`)rm.push(o)});rm.forEach(o=>o.parent.remove(o));buildBoxes()}
+// 손에 든 모습(확대해 읽기)
+const hold=document.createElement('div');hold.id='hold';hold.hidden=true;document.querySelector('.stage').appendChild(hold);
+function openHold(id,mode2){const isKey=id.startsWith('KEY-');const c=isKey?null:clueById(id);const sx=isKey?sceneExit(id.slice(4)):null;
+ const kind=isKey?'key':c.carrier.kind,name=isKey?sx.exit.key.name:carrierName(c),body=isKey?(sx.exit.key.found||''):(c.content||c.text);
+ const paper=kind==='letter'||kind==='note';endPlay();
+ hold.innerHTML=`<div class="hold-card ${paper?'paper':''}"><div class="k">${mode2==='take'?(kind==='mark'?'가까이 들여다본다':'손에 들었다'):'다시 본다 · 조사수첩'}</div><b>${esc(name)}</b><div class="hold-body">${esc(body)}</div>${isKey?`<div class="k">${esc(sx.exit.lock||'')}</div>`:''}<div class="row"><button id="holdOk">${mode2==='take'?(kind==='mark'?'수첩에 적기':isKey?'챙기기':'수첩에 넣기'):'닫기'}</button></div></div>`;hold.classList.toggle('low',mode2==='take');hold.hidden=false;uiPlay();
+ hold.querySelector('#holdOk').onclick=()=>{hold.hidden=true;if(mode2==='take'){if(isKey){const k=KEYS.get(id.slice(4));k.state='taken';NB.set(id,`${name} — 다음 방 문의 자물쇠에 대 보자`);unspawn(name)}else{const rv=REV.get(id);rv.state='taken';NB.set(id,c.text);if(kind!=='mark')unspawn(name);/* 10/26 미르: 단서를 집으면 서랍이 곧바로 닫혀 「움직이지 않는다」로 보였다 — 열린 채로 둔다(조사한 물건이라는 표시도 된다). 다시 누르면 다시 읽기 */}pzMsg=`<div class="card pz-clue"><span class="pill">수첩</span> ${esc(name)}을(를) 챙겼다</div>`}info();startLock()}}
+function nbLabel(id,t){if(id.startsWith('KEY-'))return `🗝️ ${esc(t)}`;const c=clueById(id);if(c&&c.carrier&&c.carrier.kind)return `${({letter:'✉️',note:'📜',key:'🗝️',piece:'🧶',mark:'👁️'})[c.carrier.kind]||''} <b>${esc(carrierName(c))}</b> — ${esc(t)}`;return esc(t)}
+const nbRead=id=>{const c=clueById(id);return (id.startsWith('KEY-')||(c&&c.carrier&&c.carrier.kind))?` <button class="mini" data-nb-read="${id}">다시 보기</button>`:''};
+// 조사 — 단서 물건이 있으면 반응 → 보이게 → (집으면) 수첩
+const REREAD=new Map();
+pzHit=function(g){const out=[];const cr=carrierAt(g);if(cr){openHold(cr,'take');return}
+ let one=false,devOpen=false;for(const {p,h} of pzBound(ci,g)){for(const c of p.clues){if(SOLVE_ONLY.includes(c.get_by)||c.from!==h.need_id||NB.has(c.id))continue;
+   if(c.gate&&c.gate.kind==='gauge'&&!GATE_OK.has(c.id)&&!REV.has(c.id)){if(one)continue;one=true;devOpen=true;setTimeout(()=>openGauge(c,g),30);continue}
+   if(c.carrier&&c.carrier.kind){if(REV.has(c.id)||one)continue;one=true;/* 한 번 누를 때 하나씩 — 두 번째로 누르면 다음 것(가까이 들여다보기 등) */const pl=planReveal(g,c),act=pl.act;const key=`${ci}|${g}`;
+    if(!MOVED.has(key)&&act!=='look'){const b=groupBox(g),cc=b.getCenter(new THREE.Vector3());const side=[cc.x-pos.x,cc.z-pos.z];MOVED.set(key,{act,side,piv:react(g,act,side)})}
+    REV.set(c.id,{room:ci,node:g,state:'shown',act});
+    if(c.carrier.kind==='mark'||!pl.spawn){out.push(`<div class="card pz-clue">${esc(c.reveal&&c.reveal.reaction||'')}</div>`);setTimeout(()=>openHold(c.id,'take'),act==='look'?50:pl.swap?1300:700)}
+    else{setTimeout(()=>spawn(c.id,carrierName(c),c.carrier.kind,g,c.reveal&&c.reveal.where),(()=>{const hb=groupBox(g);return act==='lift'&&!hb.isEmpty()&&hb.max.y-hb.min.y<0.03?240:0})()/* 아주 얇은 자리(멍석 5mm)는 단서가 비쳐 보이니 자락이 들린 뒤에 */)/* 10/26(2): 단서는 물건이 움직이기 시작할 때 이미 제자리에 있다 — 움직임이 그것을 드러낸다 */;out.push(`<div class="card pz-clue"><span class="pill">발견</span> ${esc((c.reveal&&c.reveal.reaction)||`${carrierName(c)}이(가) 보인다`)}<div class="k">반짝이는 「${esc(carrierName(c))}」을(를) 눌러 집는다</div></div>`)}}
+   else{NB.set(c.id,c.text);out.push(`<div class="card pz-clue"><span class="pill">단서</span> ${esc(c.text)}</div>`)}}
+  if(p.solve&&p.solve.at===h.need_id&&!DONE.has(p.id)){if(devOf(p)&&devOf(p).on!=='exit_door'){devOpen=true;setTimeout(()=>openDevice(p),30)}else out.push(pzSolveUI(p))}}
+ /* 10/23 미르: 한 번 조사하고 내려놓은 물건을 다시 누르면 그 단서를 다시 읽는다(여럿이면 누를 때마다 다음 것) */
+ if(!one&&!out.length&&!devOpen){const got=[];for(const {p,h} of pzBound(ci,g))for(const c of p.clues)if(c.from===h.need_id&&NB.has(c.id)&&!SOLVE_ONLY.includes(c.get_by))got.push(c);
+  if(got.length){const k=`${ci}|${g}`,n=(REREAD.get(k)||0)%got.length;REREAD.set(k,n+1);const c=got[n];
+  /* 10/26 미르: 「이불이 접혔다가 다시 펴지지 않는다」 — 다 챙긴 물건을 다시 누르면 제자리로(펴기·닫기), 또 누르면 다시 연다. 단서는 그때마다 다시 읽는다 */
+  {const mk=MOVED.get(k);if(mk&&mk.act&&mk.act!=='look'&&mk.act!=='break'){if(!mk.restored)unreact(k);else{const bb=groupBox(g),cc=bb.getCenter(new THREE.Vector3());const side=[cc.x-pos.x,cc.z-pos.z];MOVED.set(k,{act:mk.act,side,piv:react(g,mk.act,side)})}}}if(c.carrier&&c.carrier.kind){setTimeout(()=>openHold(c.id,'read'),30);return}out.push(`<div class="card pz-clue"><span class="pill">다시 보기</span> ${esc(c.text)}</div>`)}}
+ pzMsg=out.join('')}
+// 장면 마지막 퍼즐을 풀면 열쇠가 그 자리에 나온다
+const pzDone0=pzDone;pzDone=function(p){pzDone0(p);const sx=p.exit&&p.exit.key&&p.exit.key.name&&!(p.solve&&p.solve.removed_device)?p:null;if(!sx||KEYS.has(p.scene_id))return;const at=(p.hosts.find(h=>h.need_id===p.solve.at)||p.hosts[0])?.at?.[0];if(!at)return;
+ KEYS.set(p.scene_id,{state:'shown',room:at.room,node:at.node});if(at.room===ci&&cur)setTimeout(()=>spawn('KEY-'+p.scene_id,p.exit.key.name,'key',at.node,'on'),400);
+ pzMsg=`<div class="card pz-ok"><b>🗝️ ${esc(p.exit.key.found||p.exit.key.name+'이(가) 나왔다')}</b><div class="k">「${esc(p.exit.key.name)}」을(를) 집어 들고 문의 자물쇠에 대 보자</div></div>`+pzMsg};
+// 다음 장면 방으로 가는 문의 자물쇠
+function exitScene(ri,gd){const i=scOrder.findIndex(s=>s.rooms.includes(ri));if(i<0)return null;const s=scOrder[i];const nx=scOrder[i+1];/* 다음 장면이 결말 연출(퍼즐 없음)이어도 그 문은 잠근다(10/22) */if(!nx||!nx.rooms.includes(gd.tab)||!sceneExit(s.id)||UNLOCKED.has(s.id))return null;return s}
+function lockMeshes(){if(!cur)return;for(const gd of (meta.goes||[])){const s=exitScene(ci,gd);if(!s)continue;/* 10/27: 장치 자물쇠(패·글자 바퀴 …)로 잠긴 문에도 자물쇠를 그린다 — 바닥 표식 대신 문에서 보이게 */const b=groupBox(gd.door);if(b.isEmpty())continue;const c=b.getCenter(new THREE.Vector3());const thinX=(b.max.x-b.min.x)<(b.max.z-b.min.z);
+  const w=meta.walk;const rc=w?[(w.x[0]+w.x[1])/2,(w.z[0]+w.z[1])/2]:[0,0];const off=thinX?Math.sign(rc[0]-c.x)*((b.max.x-b.min.x)/2+0.03):Math.sign(rc[1]-c.z)*((b.max.z-b.min.z)/2+0.03);
+  const L=new THREE.Group();L.name=`${gd.door}__자물쇠`;L.userData.lockOf=s.id;const iron=new THREE.MeshStandardMaterial({color:0x3b3a36,metalness:.6,roughness:.45,emissive:new THREE.Color(0x120d06)});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.11,0.075,0.04),iron);const sh=new THREE.Mesh(new THREE.TorusGeometry(0.032,0.008,8,16,Math.PI),iron);sh.position.y=0.037;sh.name='고리';const hasp=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.02,0.012),iron);hasp.position.y=0.06;
+  L.add(body,sh,hasp);if(thinX)L.rotation.y=Math.PI/2;L.position.set(thinX?c.x+off:c.x,(meta.floor_y||0)+1.0,thinX?c.z:c.z+off);cur.add(L)}}
+function unlockAnim(s){if(!cur)return;let L=null;cur.traverse(o=>{if(o.userData.lockOf===s.id)L=o});if(!L)return;const sh=L.children.find(o=>o.name==='고리');if(!sh){tween(L,{q:L.quaternion.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),1.2))},600,()=>{L.userData.lockOf=null});return}tween(sh,{p:sh.position.clone().add(new THREE.Vector3(0,0.03,0))},350,()=>{const q=L.quaternion.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1,0,0),1.3));tween(L,{p:L.position.clone().setY((meta.floor_y||0)+0.04),q},600,()=>{L.userData.lockOf=null})})}
+function exitTry(gd){const s=exitScene(ci,gd);if(!s)return false;{const dp=exitDevP(s.id);if(dp){openDevice(dp);return true}}
+ /* 10/28 미르: 장석 자물쇠를 뗀 문 — 이 장면 다른 퍼즐을 다 풀고 단서를 모았으면 문을 누를 때 풀린다(열쇠 찾기 없음) */
+ {const rm=PZ.filter(p=>p.scene_id===s.id&&!DONE.has(p.id)&&p.solve&&p.solve.removed_device);if(rm.length){const others=PZ.filter(p=>p.scene_id===s.id&&!DONE.has(p.id)&&!(p.solve&&p.solve.removed_device));
+  if(!others.length&&rm.every(pzHave)){rm.forEach(pzDone);UNLOCKED.add(s.id);unlockAnim(s);pzMsg=`<div class="card pz-ok"><b>🔓 모은 단서를 맞춰 보니 문이 풀렸다</b><div class="k">${rm.map(p=>esc(p.learns||p.title)).join(' · ')}</div><div class="k">이제 문을 열고 ${esc(ITEMS[gd.tab]?.name)}(으)로 갈 수 있다</div></div>`+pzMsg;info();return true}
+  const need=rm.flatMap(p=>(p.solve.required_clue_ids||[]).filter(id=>!p.effects.some(e=>e.type==='clue_acquired'&&e.target_id===id)));const have=need.filter(id=>NB.has(id)).length;
+  pzMsg=`<div class="card pz-lock"><b>🔒 문이 아직 열리지 않는다</b><div class="k">${others.length?'먼저 풀 것: '+others.map(p=>esc(p.title)).join(', '):`이 방 단서가 모자란다 (${have}/${need.length}) — 더 살펴보자`}</div></div>`;info();return true}}const left=PZ.filter(p=>p.scene_id===s.id&&!DONE.has(p.id));const sx=sceneExit(s.id),k=KEYS.get(s.id);
+ if(k&&k.state==='taken'){k.state='used';UNLOCKED.add(s.id);NB.delete('KEY-'+s.id);unlockAnim(s);pzMsg=`<div class="card pz-ok"><b>🔓 「${esc(sx.exit.key.name)}」을(를) 자물쇠에 꽂아 돌리자 자물쇠가 풀려 떨어졌다</b><div class="k">이제 문을 열고 ${esc(ITEMS[gd.tab]?.name)}(으)로 갈 수 있다</div></div>`;info();return true}
+ pzMsg=`<div class="card pz-lock"><b>🔒 ${esc(sx.exit.lock||'문에 자물쇠가 걸려 있다')}</b><div class="k">${left.length?'아직 풀지 못한 것: '+left.map(p=>esc(p.title)).join(', '):k&&k.state==='shown'?`「${esc(sx.exit.key.name)}」이(가) 어딘가 나와 있다 — 집어 오자`:'열쇠가 필요하다'}</div></div>`;info();return true}
+// 방을 다시 불러올 때 반응한 물건·나와 있는 단서·자물쇠를 그대로
+function revRestore(){for(const [key,m] of MOVED){const [r,node]=key.split('|');if(+r===ci&&!m.restored)m.piv=react(node,m.act,m.side,true)}
+ for(const [id,r] of REV)if(r.room===ci&&r.state==='shown'){const c=clueById(id);if(c.carrier.kind!=='mark')spawn(id,carrierName(c),c.carrier.kind,r.node,c.reveal&&c.reveal.where)}
+ for(const [sid,k] of KEYS)if(k.room===ci&&k.state==='shown')spawn('KEY-'+sid,sceneExit(sid).exit.key.name,'key',k.node,'on');lockMeshes();devMeshes()}
+
+// ── 풀이 장치 v0(10/22 미르) — 「단서를 다 읽었는데 문도 안 열리고 뭘 해야 할지 모르겠다」 → 문·궤에 시대에 맞는 장치가 보이고, 눌러 맞춘다 ──
+//    윤도 방위 자물쇠 · 산가지 셈판 · 비밀자물쇠(숨은 열쇠구멍 장석) · 글자 바퀴(게임 장치). 05 가 solve.device 를 쓴다.
+const DEV_KIND={yundo:'윤도 방위 자물쇠',sangaji:'산가지 셈판 자물쇠',bimil:'비밀자물쇠',geulja:'글자 바퀴 자물쇠',munsal:'문살 무늬판',maedeup:'오방색 매듭',pae:'패 끼우기',buk:'북 장단',hoesang:'회상 장면 맞추기',key:'자물쇠'};
+/* 10/23: 장치 4종 추가 — 문살(칸 누르기)·매듭(색 순서)·패(홈 순서)·북(장단). 매듭·패·북은 글자 바퀴처럼 칸마다 목록을 돌린다 */
+const ringOf=(d,i)=>d.kind==='geulja'?((d.spec?.rings||[])[i]||['?']):d.kind==='maedeup'?(d.spec?.colors||['청','적','황','백','흑']):d.kind==='pae'?(d.spec?.tags||['?']):d.kind==='buk'?(d.spec?.strokes||['덩','쿵','딱']):['?'];
+const OBANG={청:'#2f5d8a',적:'#a8322d',황:'#d4a62a',백:'#ece6d6',흑:'#26231f'};
+const devOf=p=>p&&p.solve&&p.solve.device&&DEV_KIND[p.solve.device.kind]&&p.solve.device.kind!=='key'?p.solve.device:null;
+const exitDevP=sid=>PZ.find(p=>p.scene_id===sid&&devOf(p)&&devOf(p).on==='exit_door');
+const hostDevP=(ri,g)=>PZ.find(p=>{const d=devOf(p);if(!d||d.on==='exit_door'||d.kind==='hoesang')return false;const h=p.hosts.find(h=>h.need_id===p.solve.at);return h&&h.at.some(b=>b.room===ri&&b.node===g)});
+const DV={};// 장치 상태(돌려 둔 칸)
+const devLabels=d=>(d.spec&&(d.spec.labels||d.spec.dirs))||['자','축','인','묘','진','사','오','미','신','유','술','해'];
+const ansArr=p=>{const k=p.solve.device.kind,a=p.solve.answer;if(k==='hoesang')return (Array.isArray(a)?a:String(a).split(/[,·\s]+/)).filter(Boolean).map(String);if(k==='sangaji')return [String(a).replace(/\D/g,'')];if(k==='munsal')return (Array.isArray(a)?a:String(a).split(/[,\s]+/)).filter(Boolean).map(String).sort();if(['maedeup','pae','buk'].includes(k))return (Array.isArray(a)?a:String(a).split(/[,·\s-]+/)).filter(Boolean).map(String);if(Array.isArray(a))return a.map(String);if(k==='bimil'||devCount(p)===1)return [String(a)];return String(a).split(/\s*[,·\s]\s*/).filter(Boolean)};/* 비밀자물쇠 「신랑 장석」을 띄어쓰기로 쪼개 오답이 되던 일(10/22) */
+function devCount(p){const d=devOf(p);if(d.kind==='sangaji')return Math.max(1,Math.min(4,d.spec?.digits||ansArr(p).length));if(d.kind==='geulja')return (d.spec?.rings||[]).length||ansArr(p).length;if(d.kind==='yundo')return Math.max(1,Math.min(3,d.spec?.count||ansArr(p).length));if(d.kind==='munsal')return Math.max(1,(+d.spec?.rows||3)*(+d.spec?.cols||3));if(d.kind==='maedeup')return Math.max(1,+d.spec?.count||ansArr(p).length);if(d.kind==='pae')return Math.max(1,+d.spec?.slots||ansArr(p).length);if(d.kind==='buk')return Math.max(1,+d.spec?.beats||ansArr(p).length);if(d.kind==='hoesang')return (d.spec?.panels||[]).length||1;return 1}
+function sangajiSvg(v,col){const W=46,H=70;let s=`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;const vert=col%2===0;/* 일·백 자리는 세로, 십·천 자리는 가로(산가지 놓는 법) */const n=v%5,top=v>=5;
+ if(v===0)s+=`<circle cx="23" cy="35" r="9" fill="none" stroke="#b9a173" stroke-dasharray="3 3"/>`;
+ if(vert){for(let i=0;i<(v>=5?v-5:v);i++)s+=`<rect x="${8+i*8}" y="${top?24:12}" width="4" height="44" rx="2" fill="#c9a66b"/>`;if(top)s+=`<rect x="6" y="10" width="34" height="4" rx="2" fill="#c9a66b"/>`}
+ else{for(let i=0;i<(v>=5?v-5:v);i++)s+=`<rect x="4" y="${12+i*10}" width="38" height="4" rx="2" fill="#c9a66b"/>`;if(top)s+=`<rect x="21" y="6" width="4" height="60" rx="2" fill="#c9a66b"/>`}
+ return s+'</svg>'}
+function yundoSvg(labels,idx){const N=labels.length,R=62;let s=`<svg width="150" height="150" viewBox="-75 -75 150 150"><circle r="70" fill="#3b2a18"/><circle r="66" fill="#d8c08a"/><circle r="40" fill="#e8d6a8" stroke="#8a6a3a"/>`;
+ labels.forEach((l,i)=>{const a=i/N*Math.PI*2-Math.PI/2;s+=`<text x="${(Math.cos(a)*R*0.86).toFixed(1)}" y="${(Math.sin(a)*R*0.86+5).toFixed(1)}" text-anchor="middle" font-size="${N>12?10:13}" fill="${i===idx?'#8b1e12':'#3b2a18'}" font-weight="${i===idx?700:400}">${esc(l)}</text>`});
+ const a=idx/N*Math.PI*2-Math.PI/2;s+=`<line x1="0" y1="0" x2="${(Math.cos(a)*34).toFixed(1)}" y2="${(Math.sin(a)*34).toFixed(1)}" stroke="#8b1e12" stroke-width="4" stroke-linecap="round"/><line x1="0" y1="0" x2="${(-Math.cos(a)*22).toFixed(1)}" y2="${(-Math.sin(a)*22).toFixed(1)}" stroke="#2b2b2b" stroke-width="4" stroke-linecap="round"/><circle r="5" fill="#2b2b2b"/></svg>`;return s}
+function openDevice(p){const d=devOf(p);if(!d)return;endPlay();const st=DV[p.id]||(DV[p.id]={v:d.kind==='hoesang'?recallShuffle(p):d.kind==='pae'?Array(devCount(p)).fill(-1):Array(devCount(p)).fill(0),msg:''});const k=d.kind;
+ const need=(p.solve.required_clue_ids||[]).filter(id=>!p.effects.some(e=>e.type==='clue_acquired'&&e.target_id===id));const have=need.filter(id=>NB.has(id)).length;
+ let body='';
+ if(k==='yundo'){const L=devLabels(d);body=st.v.map((v,i)=>`<div class="dev-col"><div class="k">${st.v.length>1?`${i+1}번째`:''}</div>${yundoSvg(L,v)}<div class="row"><button class="mini" data-dv="${i}" data-dd="-1">◀ 돌리기</button><button class="mini" data-dv="${i}" data-dd="1">돌리기 ▶</button></div></div>`).join('')}
+ else if(k==='sangaji')body=st.v.map((v,i)=>`<div class="dev-col"><button class="mini" data-dv="${i}" data-dd="1">산가지 더 놓기 ▲</button>${sangajiSvg(v,st.v.length-1-i)}<button class="mini" data-dv="${i}" data-dd="-1">▼ 빼기</button></div>`).join('');
+ else if(k==='munsal'){const C=+d.spec?.cols||3;body=`<div class="dev-grid" style="display:grid;grid-template-columns:repeat(${C},38px);gap:3px;padding:8px;background:#5a3a20;border-radius:6px">${st.v.map((v,i)=>`<button class="mini" data-dv="${i}" data-dd="1" style="width:38px;height:38px;padding:0;border-radius:2px;background:${v?'#f3e3b5':'#2b1d10'};border:1px solid #c9a66b">${v?'◻':''}</button>`).join('')}</div>`}
+ else if(k==='maedeup'){body=st.v.map((v,i)=>{const R=ringOf(d,i),c=R[(v%R.length+R.length)%R.length];return `<div class="dev-col"><div class="k">${i+1}번째</div><button class="mini" data-dv="${i}" data-dd="-1">▲</button><div style="width:30px;height:64px;margin:4px auto;border-radius:12px;background:${OBANG[c]||'#888'};border:2px solid #3b2a18" title="${esc(c)}"></div><b>${esc(c)}</b><button class="mini" data-dv="${i}" data-dd="1">▼</button></div>`}).join('')}
+ else if(k==='pae'){/* 10/27 미르: 「달빛 달빛 달빛 달빛 — 네 칸이 같은 패로 시작해 돌려 고르는 방식」 → 빈 홈에서 시작, 아래 패를 눌러 차례로 끼우고 홈을 누르면 뺀다 */const R=ringOf(d,0);
+  body=`<div style="width:100%"><div class="row" style="justify-content:center;gap:8px;margin-bottom:10px">${st.v.map((v,i)=>`<button class="mini" data-pslot="${i}" style="min-width:64px;height:58px;border-radius:4px;${v<0?'background:#3b2a18;color:#c9a66b;border:2px dashed #c9a66b':'background:#c9a66b;color:#2b2116;border:2px solid #6b4a2a'}"><div class="k" style="font-size:10px">${i+1}번 홈</div><b>${v<0?'비어 있음':esc(R[v])}</b></button>`).join('')}</div><div class="k" style="text-align:center">패를 눌러 빈 홈에 끼운다 · 끼운 패는 홈을 눌러 뺀다</div><div class="row" style="justify-content:center;flex-wrap:wrap;gap:6px;margin-top:6px">${R.map((t,j)=>`<button class="mini" data-ptag="${j}" ${st.v.includes(j)?'disabled style="opacity:.35"':''} style="background:#e9d3a2;border:1px solid #8a6a3a">${esc(t)}</button>`).join('')}</div></div>`}
+ else if(k==='buk'){body=st.v.map((v,i)=>{const R=ringOf(d,i),c=R[(v%R.length+R.length)%R.length];return `<div class="dev-col"><div class="k">${k==='buk'?`${i+1}박`:`${i+1}번 홈`}</div><button class="mini" data-dv="${i}" data-dd="-1">▲</button><div class="dev-ring" style="${k==='pae'?'background:#c9a66b;border-radius:3px;min-width:44px':'border-radius:50%;min-width:44px;background:#7a3b22;color:#f3e3b5'}"><b>${esc(c)}</b></div><button class="mini" data-dv="${i}" data-dd="1">▼</button></div>`}).join('')}
+ else if(k==='geulja'){const R=d.spec?.rings||[];body=st.v.map((v,i)=>{const ring=R[i]||['?'];const c=ring[(v%ring.length+ring.length)%ring.length];const pr=ring[((v-1)%ring.length+ring.length)%ring.length],nx=ring[((v+1)%ring.length+ring.length)%ring.length];return `<div class="dev-col"><button class="mini" data-dv="${i}" data-dd="-1">▲</button><div class="dev-ring"><span class="k">${esc(pr)}</span><b>${esc(c)}</b><span class="k">${esc(nx)}</span></div><button class="mini" data-dv="${i}" data-dd="1">▼</button></div>`}).join('')}
+ else if(k==='hoesang'){const P_=d.spec?.panels||[];body=st.v.map((pi,i)=>{const q=P_[pi]||{};return `<div class="dev-col"><div class="k">${i+1}번째</div><div class="rc-card">${q.img?`<img src="${esc(q.img)}" alt="">`:'<div class="ph"></div>'}${esc(q.caption||'')}</div><div class="row"><button class="mini" data-mv="${i}" data-md="-1" ${i?'':'disabled'}>◀</button><button class="mini" data-mv="${i}" data-md="1" ${i<st.v.length-1?'':'disabled'}>▶</button></div></div>`}).join('')}
+ else if(k==='bimil')body=`<div class="dev-plate">${(d.spec?.knobs||p.solve.options||[]).map((n,i)=>`<button class="dev-knob" data-knob="${i}">◉<br><small>${esc(n)}</small></button>`).join('')}</div><div class="k">열쇠구멍이 숨은 장석은 하나뿐이다 — 잘못 누르면 그대로다</div>`;
+ const HOW={yundo:'◀ ▶ 로 바늘을 돌려 답이 되는 방위를 가리킨 뒤 「맞춰 보기」.',sangaji:'자리마다 ▲ 로 산가지를 더 놓고 ▼ 로 뺀다(일·백 자리는 세로, 십·천 자리는 가로로 놓는다). 수를 다 놓으면 「맞춰 보기」.',geulja:'바퀴마다 ▲ ▼ 로 글자를 돌려 가운데 줄을 맞춘 뒤 「맞춰 보기」.',bimil:'장석 하나를 눌러 본다. 열쇠구멍이 숨은 것이면 열린다.',munsal:'문살 칸을 눌러 열고 닫는다. 단서가 가리키는 칸만 열어 둔 뒤 「맞춰 보기」.',maedeup:'자리마다 ▲ ▼ 로 매듭 색을 바꿔 당길 차례를 맞춘 뒤 「맞춰 보기」.',pae:'아래 패를 눌러 빈 홈에 차례로 끼운 뒤 「맞춰 보기」. 잘못 끼운 패는 홈을 눌러 뺀다.',hoesang:'흩어진 기억 조각을 ◀ ▶ 로 옮겨 그날 밤 일어난 차례대로 늘어놓은 뒤 「맞춰 보기」. 「회상 다시 보기」로 장면을 다시 볼 수 있다.',buk:'박마다 ▲ ▼ 로 덩(가운데 세게)·쿵(가운데 약하게)·딱(테)을 골라 장단을 맞춘 뒤 「맞춰 보기」.'};const ref=d.spec&&d.spec.reference;
+ hold.classList.remove('low');hold.innerHTML=`<div class="hold-card dev-card"><div class="k">${esc(DEV_KIND[k])}${k==='geulja'?' · 게임 장치':''}</div><b>${esc(d.name||DEV_KIND[k])}</b><div class="hold-body">${esc(p.solve.prompt||'')}</div><div class="dev-how">${HOW[k]}${k==='yundo'&&ref?`<br>방위 기준: ${esc(Array.isArray(ref)?ref.map(x=>`${x.label} = ${x.what}`).join(' · '):`${ref.label} = ${ref.what}`)}`:''}</div><div class="dev-row">${body}</div><div class="k">수첩 「다시 보기」로 모은 단서를 다시 읽을 수 있다</div><div class="dev-msg">${esc(st.msg)}</div><div class="row">${k==='bimil'?'':'<button id="devTry">맞춰 보기</button>'}${k==='hoesang'?'<button class="secondary" id="devReplay">회상 다시 보기</button>':''}<button class="secondary" id="devClose">닫기</button></div></div>`;hold.classList.remove('recall');hold.hidden=false;uiPlay();
+ hold.querySelectorAll('[data-mv]').forEach(b=>b.onclick=()=>{const i=+b.dataset.mv,j=i+(+b.dataset.md);if(j<0||j>=st.v.length)return;[st.v[i],st.v[j]]=[st.v[j],st.v[i]];st.msg='';openDevice(p)});{const rb=hold.querySelector('#devReplay');if(rb)rb.onclick=()=>playRecall(p,()=>openDevice(p))}
+ hold.querySelectorAll('[data-dv]').forEach(b=>b.onclick=()=>{const i=+b.dataset.dv,dd=+b.dataset.dd;const M=k==='sangaji'?10:k==='yundo'?devLabels(d).length:k==='munsal'?2:ringOf(d,i).length;st.v[i]=((st.v[i]+dd)%M+M)%M;st.msg='';openDevice(p)});
+ hold.querySelectorAll('[data-pslot]').forEach(b=>b.onclick=()=>{st.v[+b.dataset.pslot]=-1;st.msg='';openDevice(p)});hold.querySelectorAll('[data-ptag]').forEach(b=>b.onclick=()=>{const j=+b.dataset.ptag,e=st.v.indexOf(-1);if(e<0||st.v.includes(j))return;st.v[e]=j;st.msg='';openDevice(p)});
+ const close=()=>{hold.hidden=true;info();startLock()};hold.querySelector('#devClose').onclick=close;
+ const tryIt=val=>{const ans=ansArr(p).map(s=>s.trim());const ok=val.length===ans.length&&val.every((v,i)=>String(v).trim()===ans[i]);
+  if(ok){hold.hidden=true;pzMsg='';pzDone(p);devSolved(p);info();startLock()}
+  else{st.msg='덜컥, 열리지 않는다';openDevice(p);const c=hold.querySelector('.dev-card');c.classList.add('shake');setTimeout(()=>c.classList.remove('shake'),400)}};
+ const tb=hold.querySelector('#devTry');if(tb)tb.onclick=()=>{const C=+d.spec?.cols||3;const v=k==='sangaji'?st.v.map(String):k==='yundo'?st.v.map(i=>devLabels(d)[i]):k==='munsal'?st.v.map((x,i)=>x?`${Math.floor(i/C)+1}-${i%C+1}`:null).filter(Boolean).sort():k==='hoesang'?st.v.map(pi=>String((d.spec?.panels||[])[pi]?.id)):k==='pae'?st.v.map(v=>v<0?'':ringOf(d,0)[v]):st.v.map((v,i)=>{const r=ringOf(d,i);return r[(v%r.length+r.length)%r.length]});tryIt(k==='sangaji'?[v.join('')]:v)};
+ hold.querySelectorAll('[data-knob]').forEach(b=>b.onclick=()=>tryIt([(d.spec?.knobs||p.solve.options||[])[+b.dataset.knob]]))}
+function devSolved(p){const d=devOf(p);if(d.on==='exit_door'){UNLOCKED.add(p.scene_id);let s=scOrder.find(x=>x.id===p.scene_id);if(s)unlockAnim(s);const nx=scOrder[scOrder.findIndex(x=>x.id===p.scene_id)+1];pzMsg=`<div class="card pz-ok"><b>🔓 ${esc(d.name||DEV_KIND[d.kind])}이(가) 풀렸다</b><div>${esc(p.learns)}</div><div class="k">이제 문을 열고 ${esc(nx?nx.title:'다음 곳')}(으)로 갈 수 있다</div></div>`}
+ else pzMsg=`<div class="card pz-ok"><b>🔓 ${esc(d.name||DEV_KIND[d.kind])}이(가) 풀렸다</b><div>${esc(p.learns)}</div></div>`}
+
+// ── 손맛 미니게임 — 게이지(10/27 미르: 「회상 장면 맞추기는 맞춰도 아무 일 없다 — 게이지 맞추는 게임 같은 미니게임이 훨씬 낫다」) ──
+//   단서 하나를 드러내는 몸짓(궤 뚜껑 들기·심지 돋우기 등)의 세기를 맞춘다. 바늘이 오가는 막대에서 알맞은 칸에 멈추면 한 번 성공.
+//   rounds 번 성공하면 물건이 움직이며 단서가 드러난다(조사와 같은 연출). 세 번 넘게 놓치면 바늘이 느려지고 칸이 넓어진다.
+const GATE_OK=new Set();
+/* 10/27 미르: 「1회로 끝난다 — 3회 연속, 회차가 지날수록 바늘이 빨라지고 멈춰야 하는 범위는 좁아지게」 → 늘 3회. 놓치면 그 회차를 다시(처음으로 돌아가지 않음) */
+const GAUGE_ROUNDS=[{w:0.24,spd:0.75},{w:0.16,spd:1.15},{w:0.10,spd:1.65}];
+function openGauge(c,g){const G=c.gate||{};endPlay();const need=GAUGE_ROUNDS.length;let hits=0,miss=0,raf=0,t0=performance.now(),stopped=false,msg=G.verb||'';
+ const zone=()=>{const w=GAUGE_ROUNDS[Math.min(hits,need-1)].w;const mid=0.22+Math.random()*0.56;return [Math.max(0.04,mid-w/2),Math.min(0.96,mid+w/2)]};let Z=zone();
+ const speed=()=>GAUGE_ROUNDS[Math.min(hits,need-1)].spd;
+ const close=()=>{cancelAnimationFrame(raf);window.removeEventListener('keydown',key,true);hold.hidden=true;info();startLock()};
+ const draw=()=>{hold.classList.remove('low','recall');hold.innerHTML=`<div class="hold-card dev-card gauge-card"><div class="k">손맛 · 게이지 — ${Math.min(hits+1,need)}회차 / ${need}</div><b>${esc(G.name||'알맞게 힘 주기')}</b><div class="hold-body">${esc(msg)}</div><div class="gauge"><div class="gz" style="left:${Z[0]*100}%;width:${(Z[1]-Z[0])*100}%"></div><div class="gn"></div></div><div class="k">${'●'.repeat(hits)}${'○'.repeat(need-hits)} · 바늘이 밝은 칸에 들어왔을 때 「멈추기」(스페이스·E·클릭)</div><div class="row"><button id="gStop">멈추기</button><button class="secondary" id="gClose">그만두기</button></div></div>`;
+  hold.hidden=false;uiPlay();hold.querySelector('#gStop').onclick=stop;hold.querySelector('#gClose').onclick=close};
+ const needle=()=>{const t=(performance.now()-t0)/1000;const x=0.5-0.5*Math.cos(t*speed()*Math.PI);return x};
+ const loop=()=>{const n=hold.querySelector('.gn');if(n&&!stopped)n.style.left=(needle()*100)+'%';raf=requestAnimationFrame(loop)};
+ const stop=()=>{if(stopped)return;const x=needle();stopped=true;const ok=x>=Z[0]&&x<=Z[1];
+  if(ok){hits++;msg=hits>=need?(G.success||'됐다!'):`좋다 — 한 번 더 (${hits}/${need})`}else{miss++;msg=x<Z[0]?(G.too_low||'힘이 모자란다'):(G.too_high||'너무 셌다')}
+  draw();const n=hold.querySelector('.gn');if(n)n.style.left=(x*100)+'%';const card=hold.querySelector('.gauge-card');if(!ok){card.classList.add('shake');setTimeout(()=>card.classList.remove('shake'),400)}
+  if(hits>=need){cancelAnimationFrame(raf);window.removeEventListener('keydown',key,true);setTimeout(()=>{hold.hidden=true;GATE_OK.add(c.id);pzHit(g);info()},900);return}
+  setTimeout(()=>{Z=zone();stopped=false;t0=performance.now();draw()},800)};
+ const key=e=>{if(hold.hidden)return;if(e.code==='Space'||e.code==='KeyE'){e.preventDefault();e.stopPropagation();stop()}else if(e.code==='Escape'){e.preventDefault();close()}};
+ window.addEventListener('keydown',key,true);draw();loop()}
+// 회상 장면(10/27 미르: 「첫 방에서 대청으로 나왔지만 플레이어가 인지한 스토리 흐름이 없다 — 대청쯤에서 스토리 시네마틱+텍스트, 미니게임 형식의 퍼즐」)
+//   그 장면 방에 처음 들어서면 「그날 밤」 회상 컷이 차례로 흐르고(그림 + 짧은 글), 끝나면 흩어진 기억 조각을 차례대로 늘어놓는다
+const RECALL_SEEN=new Set();
+function recallShuffle(p){const n=(p.solve.device.spec?.panels||[]).length;const a=[...Array(n).keys()];for(let t=0;t<20;t++){for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}const ids=a.map(i=>String(p.solve.device.spec.panels[i].id));if(n<2||ids.join()!==ansArr(p).join())break}return a}
+function recallOrder(p){const P_=p.solve.device.spec?.panels||[];const ans=ansArr(p);return ans.map(id=>P_.find(q=>String(q.id)===id)).filter(Boolean)}
+function playCine(seq,title,then){if(!seq.length){then&&then();return}endPlay();let i=0,timer=null,typer=null;hold.classList.add('recall');hold.hidden=false;uiPlay();
+ const end=()=>{clearTimeout(timer);clearInterval(typer);hold.classList.remove('recall');hold.hidden=true;then?then():(info(),startLock())};
+ const step=()=>{if(i>=seq.length){end();return}const q=seq[i];hold.innerHTML=`<div class="rc-wrap">${q.img?`<img class="rc-img" src="${esc(q.img)}" alt="">`:'<div class="rc-img"></div>'}<div class="rc-top">${esc(title)} · ${i+1} / ${seq.length}</div><div class="rc-band"><div class="rc-cap"></div><div class="rc-bar"><button id="rcNext">${i<seq.length-1?'다음 ▶':'계속 ▶'}</button><button id="rcSkip">건너뛰기</button></div></div></div>`;
+  const im=hold.querySelector('.rc-img');const on=()=>im.classList.add('on');if(im.tagName==='IMG'){im.onload=on;im.onerror=on;if(im.complete)on()}else setTimeout(on,30);
+  const cap=hold.querySelector('.rc-cap'),txt=String(q.caption||'');let k=0;clearInterval(typer);typer=setInterval(()=>{k++;cap.textContent=txt.slice(0,k);if(k>=txt.length)clearInterval(typer)},45);
+  hold.querySelector('#rcNext').onclick=()=>{i++;step()};hold.querySelector('#rcSkip').onclick=end;clearTimeout(timer);timer=setTimeout(()=>{i++;step()},Math.max(4500,txt.length*45+2600))};
+ step()}
+function playRecall(p,then){RECALL_SEEN.add(p.id);playCine(recallOrder(p),p.solve.device.name||'그날 밤의 기억',then)}
+// 10/27 미르: 「시네마틱은 공간에서 다음 공간으로 넘어갈 때마다 이야기를 읽게 하고, 다음 공간에서 무엇을 왜 풀어야 하는지 당위를 준다 · 한 판은 서사가 완결되고 새 사실을 알며 끝나고, 현장에서만 풀리는 마지막 봉인 하나를 완주자에게 제안」
+const INTRO_SEEN=new Set();let ENDING_SHOWN=false;
+const shootMode=/[?&](shoot|review|cinema)=/.test(location.search);
+function introCard(s){if(!s)return '';const last=s.ending?PZ.filter(p=>p.scene_id===s.id):[];const fin=last.length?`<div style="margin-top:6px"><b>🏁 마지막 방</b> — ${last.map(p=>`「${esc(p.title)}」`).join(' · ')}을(를) ${s.ending&&s.ending.finale?'풀고, 모은 단서로 <b>왜곡된 기록을 바로잡으면</b>':'풀면'} 왜곡이 복원되고 이야기가 끝납니다.</div>`:'';return (s.intro&&s.intro.goal)||fin?`<div class="card pz-goal"><b>🧭 ${esc(s.title)}</b>${s.intro&&s.intro.goal?`<div>${esc(s.intro.goal)}</div>`:''}${fin}</div>`:''}
+/* 10/27 미르: 「방으로 넘어가 다음 방을 보여 준 뒤 시네마틱이 뜬다 — 이동하기 전에 시네마틱부터, 그다음 다음 방」 → 문을 열면 이야기 컷을 먼저(지금 방 위를 덮어서) 보여 주고, 끝나면 다음 방을 불러온다 */
+let PRE_INTRO=null;
+function goRoom(i,arr){const s=(PZ.length&&mode==='play'&&!shootMode)?SC.find(s=>s.rooms.includes(i)):null;
+ if(!s||!scOpen(s.id)||INTRO_SEEN.has(s.id)||!s.intro||!(s.intro.panels||[]).length){show(i,arr);return}
+ INTRO_SEEN.add(s.id);PRE_INTRO=s;playCine(s.intro.panels,s.title,()=>show(i,arr))}
+function sceneIntro(next){if(PRE_INTRO&&PRE_INTRO.rooms.includes(ci)){const s=PRE_INTRO;PRE_INTRO=null;pzMsg=introCard(s)+pzMsg;info();if(next)next();else startLock();return}
+ if(!PZ.length||mode!=='play'||shootMode){next&&next();return}const s=SC.find(s=>s.rooms.includes(ci));if(!s||!scOpen(s.id)||INTRO_SEEN.has(s.id)||!s.intro){next&&next();return}INTRO_SEEN.add(s.id);
+ const after=()=>{pzMsg=introCard(s)+pzMsg;info();if(next)next();else startLock()};if((s.intro.panels||[]).length)setTimeout(()=>playCine(s.intro.panels,s.title,after),700);else after()}
+/* 10/28 미르: 「마지막 방에서 대단한 걸 끝내고 → 결말 이야기 컷 → 게임 엔딩 → 현장 해금 장치」 — 결말 컷이 끝나면 화면 전체 엔딩, 이어서 현장 봉인(체험판 해금) */
+/* 10/30 미르: 「사건이 해결되었습니다. 지역을 실제 방문하여 열 추가 봉인을 제안합니다」 + 기대 보상. 현장 인증은 그 지역 대표 관광지 촬영(3~5초 안내 영상)이라 QR·GPS 문구와 현장 물음 입력은 뺐다 */
+function playEnding(){if(ENDING_SHOWN)return;const s=SC.find(s=>s.ending);if(!s)return;ENDING_SHOWN=true;const e=s.ending,f=e.field||{};const RW='이 이야기의 뒷이야기 · 그 지역에서만 얻는 코스튬 조각 · 제휴 지역이면 지역 혜택(지역화폐·할인)';
+ playCine(e.panels||[],'이야기의 끝',()=>{endPlay&&endPlay();hold.className='recall';hold.innerHTML=`<div class="end-wrap"><div class="end-card">
+  <div class="end-k">왜곡 복원 완료 · ${esc(TRIAL.title||'')}</div><h2 class="end-h">사건이 해결되었습니다</h2>
+  <div class="end-sec"><b>밝혀진 것</b><p>${esc(e.reveal||'')}</p></div>
+  ${e.left_open?`<div class="end-sec mut"><b>아직 남은 물음</b><p>${esc(e.left_open)}</p></div>`:''}
+  ${f.place?`<div class="end-seal" id="endSeal"><b>🔒 추가 봉인</b><p>지역을 실제 방문하여 열 추가 봉인을 제안합니다.</p><div class="end-place">${esc(f.place)}</div><p>${esc(f.seal||'')}</p><p class="mut">열면 받는 것 — ${RW}</p>
+   <div class="row"><button id="sealTry">현장 인증 미리 보기(체험)</button></div></div>`:''}
+  <div class="end-done">🏁 게임 끝 — 수고하셨습니다</div>
+  <div class="row" style="justify-content:center"><button id="endAgain">처음부터 다시</button><button id="endClose">닫기</button></div></div></div>`;hold.hidden=false;
+  const st=hold.querySelector('#sealTry');if(st)st.onclick=()=>{const b=hold.querySelector('#endSeal');b.innerHTML=`<b>📍 현장 인증 — 체험판</b><div class="end-place">${esc(f.place)}</div><p>① 그 지역 대표 관광지에서 휴대폰 카메라를 켭니다<br>② 화면이 그 자리에서 내는 지시대로 3~5초 돌려 찍습니다<br>③ 장소가 확인되면 봉인이 풀립니다</p><div class="row"><button id="sealOk">봉인 풀기(체험)</button></div><p class="mut">체험판은 촬영 없이 바로 엽니다. 실제 서비스에서는 위의 현장 인증을 거쳐야 열립니다.</p>`;
+   b.querySelector('#sealOk').onclick=()=>{b.innerHTML=`<b>🔓 봉인이 풀렸다(체험)</b><div class="end-place">${esc(f.place)}</div><p>받는 것 — ${RW}</p><p class="mut">체험판 표시입니다. 보상은 실제 서비스에서 현장 인증 뒤에 지급됩니다.</p>`}};
+  hold.querySelector('#endAgain').onclick=()=>location.reload();
+  hold.querySelector('#endClose').onclick=()=>{hold.hidden=true;hold.className='';pzMsg=`<div class="card pz-ok"><b>🏁 완주 — 왜곡 복원 완료</b><div>${esc(e.reveal||'')}</div>${f.place?`<div>🔒 추가 봉인: ${esc(f.place)} — 지역을 방문하면 열립니다</div>`:''}</div>`;info()}})}
+/* 10/28 미르: 마지막 방의 「대단한 일」 — 왜곡된 기록 바로잡기(진상 복원). 줄마다 답 + 그것을 증명하는 단서를 골라야 풀린다. 다 바로잡으면 결말로 */
+let FINALE_DONE=false;
+function openFinale(){const s=SC.find(s=>s.ending);const F=s&&s.ending&&s.ending.finale;if(!F||!(F.claims||[]).length||FINALE_DONE){playEnding();return}if(typeof endPlay==='function')endPlay();
+ const nb=[...NB.entries()];const ch={};
+ const draw=msg=>{hold.className='';hold.innerHTML=`<div class="hold-card dev-card fin-card"><div class="k">마지막 방 — 왜곡의 한가운데</div><b>🕯 ${esc(F.title||'왜곡된 기록 바로잡기')}</b><div class="k">${esc(F.intro||'모은 단서로 잘못 남은 기록을 바로잡는다.')}</div>
+  ${F.claims.map(c=>`<div class="card fin"><div class="fin-d">왜곡된 기록 — <s>${esc(c.distorted)}</s></div><div style="margin:4px 0"><b>${esc(c.question)}</b></div>${(c.options||[]).map(o=>`<label class="pz-opt"><input type="radio" name="fin_${c.id}" value="${esc(o)}" ${ch[c.id]?.a===o?'checked':''}> ${esc(o)}</label>`).join('')}
+   <div class="k" style="margin-top:4px">증명할 단서</div><select data-fin-clue="${c.id}"><option value="">— 조사수첩에서 고르기 —</option>${nb.map(([id,t])=>`<option value="${esc(id)}" ${ch[c.id]?.c===id?'selected':''}>${esc(String(t).slice(0,60))}</option>`).join('')}</select></div>`).join('')}
+  ${msg||''}<div class="row"><button id="finTry">바로잡기</button><button id="finClose">나중에</button></div></div>`;hold.hidden=false;
+  hold.querySelectorAll('input[type=radio]').forEach(r=>r.onchange=()=>{const id=r.name.slice(4);(ch[id]||={}).a=r.value});
+  hold.querySelectorAll('[data-fin-clue]').forEach(x=>x.onchange=()=>{(ch[x.dataset.finClue]||={}).c=x.value});
+  hold.querySelector('#finClose').onclick=()=>{hold.hidden=true;pzMsg=`<div class="card pz-goal"><b>🕯 마지막 일이 남았다</b><div>${esc(F.title||'왜곡된 기록 바로잡기')}</div><div class="row"><button id="finaleOpen">다시 열기</button></div></div>`+pzMsg;info();startLock()};
+  hold.querySelector('#finTry').onclick=()=>{const miss=F.claims.filter(c=>!ch[c.id]?.a||!ch[c.id]?.c).length;if(miss){draw(`<div class="card pz-lock">아직 고르지 않은 줄이 ${miss}개 있다 — 답과 증명할 단서를 모두 고르자.</div>`);return}
+   const wrong=F.claims.filter(c=>ch[c.id].a!==c.answer||!(c.proof||[]).includes(ch[c.id].c)).length;
+   if(wrong){draw(`<div class="card pz-lock">기록이 다시 일그러진다 — 아직 어긋난 줄이 ${wrong}개. 단서를 다시 읽어 보자.</div>`);return}
+   FINALE_DONE=true;hold.innerHTML=`<div class="hold-card dev-card fin-card"><b>✨ ${esc(F.success||'왜곡이 걷힌다.')}</b>${F.claims.map(c=>`<div class="card pz-ok">${esc(c.restored)}</div>`).join('')}<div class="row"><button id="finEnd">결말 보기</button></div></div>`;hold.querySelector('#finEnd').onclick=()=>{hold.hidden=true;playEnding()}}};
+ draw('')}
+document.addEventListener('click',e=>{if(e.target&&e.target.id==='finaleOpen')openFinale()});
+const pzDoneE=pzDone;pzDone=function(p){pzDoneE(p);if(PZ.length&&PZ.every(q=>DONE.has(q.id))&&!shootMode)setTimeout(openFinale,1200)};
+function recallAuto(){if(!PZ.length||mode!=='play'||/[?&]shoot=/.test(location.search))return;/* 09 시각 검수 사진에는 띄우지 않음 */const s=SC.find(s=>s.rooms.includes(ci));if(!s||!scOpen(s.id))return;const p=PZ.find(p=>p.scene_id===s.id&&devOf(p)&&devOf(p).kind==='hoesang'&&!DONE.has(p.id)&&!RECALL_SEEN.has(p.id));if(p)setTimeout(()=>playRecall(p,()=>openDevice(p)),900)}
+// 3D — 문·궤에 붙은 장치(멀리서도 보여서 「저걸 풀어야 한다」를 안다)
+function devMesh(kind){const g=new THREE.Group();const brass=new THREE.MeshStandardMaterial({color:0xb08d3c,metalness:.6,roughness:.4,emissive:new THREE.Color(0x1a1206)}),wood=new THREE.MeshStandardMaterial({color:0x5a3a20,roughness:.8}),iron=new THREE.MeshStandardMaterial({color:0x3b3a36,metalness:.6,roughness:.45});
+ if(kind==='yundo'){const base=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,0.025,28),wood);base.rotation.x=Math.PI/2;const face=new THREE.Mesh(new THREE.CylinderGeometry(0.095,0.095,0.028,28),brass);face.rotation.x=Math.PI/2;const nd=new THREE.Mesh(new THREE.BoxGeometry(0.012,0.07,0.01),iron);nd.position.z=0.018;g.add(base,face,nd)}
+ else if(kind==='sangaji'){const b=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.14,0.02),wood);g.add(b);for(let i=0;i<5;i++){const r=new THREE.Mesh(new THREE.BoxGeometry(0.008,0.1,0.008),brass);r.position.set(-0.1+i*0.05,0,0.014);g.add(r)}}
+ else if(kind==='geulja'){const ax=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.24,8),iron);ax.rotation.z=Math.PI/2;g.add(ax);for(let i=0;i<4;i++){const r=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,0.045,12),brass);r.rotation.z=Math.PI/2;r.position.x=-0.075+i*0.05;g.add(r)}}
+ else if(kind==='munsal'){const fr=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.24,0.02),wood);g.add(fr);for(let r=0;r<3;r++)for(let c=0;c<3;c++){const p=new THREE.Mesh(new THREE.BoxGeometry(0.065,0.065,0.006),new THREE.MeshStandardMaterial({color:0xf3e3b5,roughness:.9}));p.position.set(-0.075+c*0.075,-0.075+r*0.075,0.012);g.add(p)}}
+ else if(kind==='maedeup'){const bar=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.03,0.03),wood);bar.position.y=0.09;g.add(bar);[0x2f5d8a,0xa8322d,0xd4a62a,0xece6d6,0x26231f].forEach((col,i)=>{const cord=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.18,8),new THREE.MeshStandardMaterial({color:col,roughness:.8}));cord.position.set(-0.1+i*0.05,0,0.01);const kn=new THREE.Mesh(new THREE.SphereGeometry(0.018,10,8),cord.material);kn.position.set(-0.1+i*0.05,-0.08,0.01);g.add(cord,kn)})}
+ else if(kind==='pae'){const b=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.16,0.02),wood);g.add(b);for(let i=0;i<4;i++){const t=new THREE.Mesh(new THREE.BoxGeometry(0.045,0.1,0.008),new THREE.MeshStandardMaterial({color:0xc9a66b,roughness:.8}));t.position.set(-0.105+i*0.07,0,0.014);g.add(t)}}
+ else if(kind==='buk'){const body=new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,0.12,24),new THREE.MeshStandardMaterial({color:0x8a2e1f,roughness:.7}));body.rotation.x=Math.PI/2;const skin=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.124,24),new THREE.MeshStandardMaterial({color:0xe8d8b0,roughness:.9}));skin.rotation.x=Math.PI/2;skin.scale.set(1,1,1);g.add(skin,body);body.scale.set(1.02,0.95,1.02)}
+ else{const pl=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.16,0.012),brass);g.add(pl);for(let i=0;i<4;i++){const k=new THREE.Mesh(new THREE.SphereGeometry(0.018,10,8),iron);k.position.set(-0.09+i*0.06,0,0.012);g.add(k)}}
+ g.traverse(o=>{if(o.isMesh)o.castShadow=true});return g}
+function devMeshes(){if(!cur)return;
+ for(const gd of (meta.goes||[])){const s=exitScene(ci,gd);if(!s)continue;const p=exitDevP(s.id);if(!p)continue;const b=groupBox(gd.door);if(b.isEmpty())continue;const c=b.getCenter(new THREE.Vector3());const thinX=(b.max.x-b.min.x)<(b.max.z-b.min.z);const w=meta.walk;const rc=w?[(w.x[0]+w.x[1])/2,(w.z[0]+w.z[1])/2]:[0,0];const off=thinX?Math.sign(rc[0]-c.x)*((b.max.x-b.min.x)/2+0.025):Math.sign(rc[1]-c.z)*((b.max.z-b.min.z)/2+0.025);
+  const M=devMesh(devOf(p).kind);M.name=`${gd.door}__장치`;M.userData.lockOf=s.id;if(thinX)M.rotation.y=(rc[0]>c.x?1:-1)*Math.PI/2;else if(rc[1]<c.z)M.rotation.y=Math.PI;M.position.set(thinX?c.x+off:c.x,(meta.floor_y||0)+1.15,thinX?c.z:c.z+off);cur.add(M)}
+ for(const p of PZ){const d=devOf(p);if(!d||d.on==='exit_door'||DONE.has(p.id))continue;const h=p.hosts.find(h=>h.need_id===p.solve.at);const at=h&&h.at.find(b=>b.room===ci);if(!at)continue;const b=groupBox(at.node);if(b.isEmpty())continue;const c=b.getCenter(new THREE.Vector3());const M=devMesh(d.kind);M.scale.setScalar(0.8);M.name=`${at.node}__장치`;M.position.set(c.x,b.max.y+0.06,c.z);M.rotation.x=-0.5;cur.add(M)}}
+// 지금 할 일(목표) — 열린 장면의 출구와 남은 것
+function goalCard(){const s=scOrder.find(x=>PZ.some(p=>p.scene_id===x.id)&&!scPassed(x.id));if(!s)return '<div class="card pz-ok"><b>🎯 모든 문이 열렸다</b></div>';const ex=exitDevP(s.id)||sceneExit(s.id);const left=PZ.filter(p=>p.scene_id===s.id&&!DONE.has(p.id));
+ const rc=PZ.filter(p=>p.scene_id===s.id).flatMap(p=>p.clues.filter(c=>!SOLVE_ONLY.includes(c.get_by)));const got=rc.filter(c=>NB.has(c.id)).length;
+ const d=ex&&devOf(ex);return `<div class="card pz-goal"><b>🎯 지금 할 일 — ${esc(s.title)}</b>${s.intro&&s.intro.goal?`<div class="k">${esc(s.intro.goal)}</div>`:''}${d?`<div>${d.on==='exit_door'?'출구 문에':'이곳에'} <b>${esc(d.name||DEV_KIND[d.kind])}</b>이(가) 걸려 있다. ${esc(ex.solve.prompt||'')}</div>`:ex&&ex.exit?`<div>${esc(ex.exit.lock||'')}</div>`:''}${PZ.filter(p=>p.scene_id===s.id&&devOf(p)&&devOf(p).kind==='hoesang'&&!DONE.has(p.id)).map(p=>`<div class="row"><button data-dev="${p.id}">🎞 ${esc(p.title)}</button></div>`).join('')}<div class="k">이 장면 단서 ${got}/${rc.length} · 남은 퍼즐 ${left.map(p=>`${esc(p.title)}${devOf(p)?` (${esc(DEV_KIND[devOf(p).kind])})`:p.solve.interaction==='combine_clues'?' (수첩에서 짝짓기)':''}`).join(', ')||'없음'}</div></div>`}
+
+// 검수 보기(?focus): 그 퍼즐 장면 앞 장면들은 푼 것으로 시작 — 검수자가 잠긴 방에 갇히지 않고, 다음 장면 문은 그대로 잠김
+if(FOCUS){const fp=focusP();if(fp){const o=id=>scOrder.findIndex(x=>x.id===id);for(const p of PZ)if(o(p.scene_id)<o(fp.scene_id))pzDone(p);for(const s of scOrder)if(o(s.id)<o(fp.scene_id)){UNLOCKED.add(s.id);const k=KEYS.get(s.id);if(k)k.state='used';NB.delete('KEY-'+s.id)}pzMsg=''}}
+window.__pz={pick:n=>{hov=n;interact()},goes:()=>meta.goes,solve:id=>pzDone(PZ.find(q=>q.id===id)),msg:()=>pzMsg,cur:()=>ci,ending:()=>playEnding(),finale:()=>openFinale(),intro:i=>introCard(SC[i]),goRoom:(i,a)=>goRoom(i,a),gauge:(id,g)=>openGauge(clueById(id),g),INTRO_SEEN,walk:()=>meta&&meta.walk,names:()=>{const n=new Set();if(cur)cur.children.forEach(o=>{const g=G(o);if(g&&!/__/.test(g))n.add(g)});return [...n]},PZ,NB,DONE,REV,KEYS,UNLOCKED,MOVED,carrierAt,exitTry,box:g=>groupBox(g),states:()=>[...STATES].map(([g,e])=>g+':'+Object.keys(e.v).join('/')+':'+(e.now||'기본')),plan:(g,id)=>planReveal(g,clueById(id)),openDevice:id=>openDevice(PZ.find(p=>p.id===id)),DV,devOf,devLabels,aim:name=>{/* 시험용: 실제로 설 수 있는 자리(벽·가구 밖)에서 여러 점을 겨눠 하나라도 그 물건이 잡히면 통과 */const B0=groupBox(name);if(B0.isEmpty())return {err:'empty'};let g=null,stood=0;const S0=B0.getSize(new THREE.Vector3());const parts=(S0.x>2||S0.z>2)?groupRoots(name).map(r=>new THREE.Box3().expandByObject(r)):[B0];
+ for(const b of parts){const c=b.getCenter(new THREE.Vector3()),sz=b.getSize(new THREE.Vector3());for(const r of [0.8,1.1,1.5,2.0])for(let k=0;k<12;k++){const a=k/12*Math.PI*2,x=c.x+Math.cos(a)*(r+Math.max(sz.x,sz.z)/2),z=c.z+Math.sin(a)*(r+Math.max(sz.x,sz.z)/2);if(!free(x,z))continue;stood++;placeAt({x,z,yaw_deg:0});
+  for(const [ox,oy,oz] of [[0,0,0],[.25,0,0],[-.25,0,0],[0,.3,0],[0,0,.25],[0,0,-.25],[0,-.3,0]]){const v=c.clone().add(new THREE.Vector3(ox*sz.x,oy*sz.y,oz*sz.z)).sub(pos);yaw=Math.atan2(v.x,v.z);pitch=Math.atan2(v.y,Math.hypot(v.x,v.z));lookApply();C.updateMatrixWorld();ray.setFromCamera(new THREE.Vector2(0,0),C);g=pickRay();if(g===name)return {hit:g,stood}}}}
+ /* 그래도 못 잡으면(벽에 붙은 기둥처럼 큰 덩어리) 방 안 설 수 있는 모든 자리에서 사방을 둘러본다 */const w=meta.walk;if(w)for(let x=w.x[0]+0.3;x<w.x[1];x+=0.4)for(let z=w.z[0]+0.3;z<w.z[1];z+=0.4){if(!free(x,z))continue;stood++;placeAt({x,z,yaw_deg:0});for(let k=0;k<16;k++)for(const pt of [0,-0.35,0.3]){yaw=k/16*Math.PI*2;pitch=pt;lookApply();C.updateMatrixWorld();ray.setFromCamera(new THREE.Vector2(0,0),C);g=pickRay();if(g===name)return {hit:g,stood,grid:true}}}
+ return {hit:g,stood,clickable:clickable(name)}},rayDbg:(x,z,tx,ty,tz)=>{placeAt({x,z,yaw_deg:0});const v=new THREE.Vector3(tx,ty,tz).sub(pos);yaw=Math.atan2(v.x,v.z);pitch=Math.atan2(v.y,Math.hypot(v.x,v.z));lookApply();C.updateMatrixWorld();ray.setFromCamera(new THREE.Vector2(0,0),C);ray.far=4;const hs=ray.intersectObject(cur,true).slice(0,6).map(h=>G(h.object)+'@'+h.distance.toFixed(2)+(h.object.visible?'':'(hidden)')+(h.object.material?.transparent?'(t'+h.object.material.opacity+')':''));ray.far=Infinity;return {hs,pick:pickRay(),pos:[pos.x,pos.y,pos.z]}},moved:()=>[...MOVED].map(([k,m])=>k+':'+m.act+(m.restored?':제자리':'')),solve:id=>{pzDone(PZ.find(p=>p.id===id));info()},placeAt:a=>placeAt(a),look:(pt)=>{pitch=pt;lookApply()},goes:()=>meta.goes,roomOpen,hit:g=>{pzHit(g);info()},room:()=>ci,show:i=>show(i)}; // 검수·자동 시험용
+function info(){const it=ITEMS[ci],m=meta,el=document.getElementById('info');const groups=[];if(cur)cur.traverse(o=>{if(o.isMesh){const g=G(o);if(!groups.includes(g))groups.push(g)}});
+ const cands=groups.filter(clickable);let h=`<b>${it.name}</b> <span class="k">${it.mb} MB${m.note?' · '+m.note:''}</span>`;
+ if(mode==='play'){if(FOCUS)h+=focusCard();if(PZ.length)h+=pzBlock();h+=`<h3>찾은 조사 대상 ${[...found].filter(g=>cands.includes(g)).length} / ${cands.length}</h3>`;
+  if(sel){const r=roleOf(sel),gd=(m.goes||[]).find(x=>x.door===sel);h+=`<div class="card"><b>${sel}</b> <span class="pill">${r.cls==='trace'?'흔적':r.role==='interactive'?'상호작용 후보':'살림'}${r.type?' · '+r.type:''}</span><div class="k" style="margin-top:4px">${gd?`${gd.to}(으)로 이어진 문${gd.step?` · 턱 ${gd.step} m`:''}`:r.role==='interactive'?'퍼즐을 붙일 수 있는 자리(조사 → 단서 → 입력)':'조사하면 설명·단서를 보여 줄 물건'}</div>${gd?`<div class="row"><button data-go="${m.goes.indexOf(gd)}">문 열고 ${gd.to}(으)로</button></div>`:''}</div>`}
+  else h+=`<div class="k">조준점을 빛나는 물건에 맞추면 이름이 뜨고, 클릭 또는 E 로 조사합니다. 문은 바로 열고 넘어갑니다.</div>`;
+  if((m.goes||[]).length)h+=`<h3>이어진 방</h3><div class="row">${m.goes.map((g,i)=>`<button data-go="${i}">${g.door} → ${g.to}</button>`).join('')}</div>`;
+  h+=`<h3>조명(방이 닫혀 있어 안에서 비춤)</h3><ul>${(m.lights||[]).map(l=>`<li>${l.name}</li>`).join('')}</ul>`}
+ else{h+=`<div class="row"><button data-k>비워 둘 곳 보기/끄기</button></div><h3>부품 (누르면 강조)</h3><ul>${groups.map(g=>`<li data-g="${g}">${g} <span class="k">${(roleOf(g).cls==='trace'?'· 흔적':({interactive:'· 상호작용 후보',walkable:'· 걷는 바닥',ceiling:'· 천장',cutaway:'· 앞쪽',fixture:'· 붙박이',surface:'· 올려놓는 자리',prop:'· 살림'})[roleOf(g).role]||'')}</span></li>`).join('')}</ul>`;
+  if(m.log)h+=`<h3>배치 결과</h3><ul>${m.log.map(l=>`<li>${l.name} · ${l.result}</li>`).join('')}</ul>`;
+  if(m.set_checks)h+=`<h3>연결 개연성 검사</h3><ul>${m.set_checks.map(c=>`<li>${c.ok?'🟢':'🔴'} ${c.what} <span class="k">${c.detail}</span></li>`).join('')}</ul>`}
+ el.innerHTML=h;if(PZ.length)pzWire(el);el.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const g=m.goes[+b.dataset.go];if(mode==='play'&&PZ.length&&exitTry(g))return;if(mode==='play'&&PZ.length&&!roomOpen(g.tab)){pzMsg=lockMsg(g.tab);info();return}show(g.tab,g.arrive)});
+ el.querySelectorAll('[data-g]').forEach(li=>li.onclick=()=>{if(sel)glow(sel,false);sel=li.dataset.g;glow(sel,true)});const kb=el.querySelector('[data-k]');if(kb)kb.onclick=keepViz}
+function keepViz(){if(kc){S.remove(kc);kc=null;return}kc=new THREE.Group();const y=(meta.floor_y||0)+0.03,mat=new THREE.MeshBasicMaterial({color:0xd23c2c,transparent:true,opacity:0.35,depthWrite:false});(meta.keep_clear||[]).forEach(k=>{if(k.rect){const [a,b,c,d]=k.rect;const g=new THREE.Mesh(new THREE.PlaneGeometry(c-a,d-b),mat);g.rotation.x=-Math.PI/2;g.position.set((a+c)/2,y,(b+d)/2);kc.add(g)}else{const [a,b]=k.path,Ln=Math.hypot(b[0]-a[0],b[1]-a[1]);const g=new THREE.Mesh(new THREE.PlaneGeometry(Ln,k.width),mat);g.rotation.x=-Math.PI/2;g.rotation.z=-Math.atan2(b[1]-a[1],b[0]-a[0]);g.position.set((a[0]+b[0])/2,y,(a[1]+b[1])/2);kc.add(g)}});S.add(kc)}
+document.getElementById('mPlay').onclick=()=>setMode('play');
+function setStyle(s){style=s;document.getElementById('sReal').classList.toggle('on',s==='real');document.getElementById('sAni').classList.toggle('on',s==='anime');document.getElementById('sToon').classList.toggle('on',s==='toon2');document.getElementById('sToon3').classList.toggle('on',s==='toon3');const a={x:pos.x,z:pos.z,y:meta.floor_y,yaw_deg:yaw*180/Math.PI};show(ci,mode==='play'?a:null)}
+document.getElementById('sReal').onclick=()=>setStyle('real');document.getElementById('sAni').onclick=()=>setStyle('anime');document.getElementById('sToon').onclick=()=>setStyle('toon2');document.getElementById('sToon3').onclick=()=>setStyle('toon3');document.getElementById('mRev').onclick=()=>setMode('rev');
+document.querySelectorAll('#sky button').forEach(b=>b.onclick=()=>setSky(b.dataset.sky));
+const tabs=document.getElementById('tabs');ITEMS.forEach((it,i)=>{const b=document.createElement('button');b.textContent=it.name;b.onclick=()=>show(i);tabs.appendChild(b)});
+function rs(){const w=cv.clientWidth,h=cv.clientHeight;R.setSize(w,h,false);C.aspect=w/h;C.updateProjectionMatrix()}addEventListener('resize',rs);rs();document.getElementById('trialName').textContent=TRIAL.title?('— '+TRIAL.title+' · 에이전트 시험 생성본(원본 아님)'):'';if(TRIAL.stale){const h=document.querySelector('h1');const d=document.createElement('div');d.style.cssText='margin:6px 0;padding:8px 12px;border-radius:8px;background:#fde8e1;color:#7a2a12;font-size:13px';d.innerHTML='⚠️ 이 시험은 '+TRIAL.stale+' 규칙으로 만든 예전 판입니다 — 그 뒤 고친 퍼즐 규칙(장치 다양화·단서에서 읽히는 답·방언 풀어 쓰기)이 들어 있지 않습니다.'+(TRIAL.latest?' <a href="'+TRIAL.latest.url+'" style="color:#7a2a12;font-weight:600">최신 시험 열기: '+TRIAL.latest.title.replace(/</g,'&lt;')+'</a>':'');h.after(d)}/* 10/26 미르: 예전 시험을 보고 「아직도 고쳐지지 않았다」 — 예전 판임을 화면에 알린다 */show((()=>{const p=typeof focusP==='function'&&focusP();const a=p&&p.hosts.flatMap(h=>h.at)[0];return a?a.room:0})());
+
+/* 10/29 ?cinema=1 — 발표 트레일러 녹화용 자동 카메라.
+   &room=0  &shots=이부자리,창 앞 빛 자리   (물건 이름, 쉼표)   &next=1 마지막에 다음 방 문으로 넘어감
+   Enter = 시작(녹화를 먼저 켜고 누름) · R = 처음부터. 동선: 입구에서 천천히 둘러보기 → 물건마다 다가가 멈춤 → 조사(드러나는 연출) → 다음 물건.
+   길은 직선이고 벽 통과 검사는 하지 않는다 — 서는 자리만 벽·가구 밖으로 고른다. */
+const CINE=(()=>{const q=new URLSearchParams(location.search);if(!q.has('cinema'))return null;
+ const fade=document.createElement('div');fade.id='cineFade';document.body.appendChild(fade);
+ const hint=document.createElement('div');hint.id='cineHint';hint.textContent='Enter = 시작 · R = 처음부터';document.body.appendChild(hint);
+ const room=Number(q.get('room')||0),names=(q.get('shots')||'').split(',').map(x=>x.trim()).filter(Boolean),goNext=q.get('next')==='1';
+ const SPD=Number(q.get('speed')||1);
+ const E=k=>k<.5?4*k*k*k:1-Math.pow(-2*k+2,3)/2; const lerpA=(a,b,k)=>{let d=b-a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return a+d*k};
+ const C0=()=>{const w=meta.walk;return w?{x:(w.x[0]+w.x[1])/2,z:(w.z[0]+w.z[1])/2}:{x:0,z:0}};
+ function standFor(name){const b=groupBox(name);if(b.isEmpty())return null;const c=b.getCenter(new THREE.Vector3()),sz=b.getSize(new THREE.Vector3());const m=C0();let best=null;
+  for(const r of [1.7,1.4,2.1,1.1,2.6])for(let k=0;k<24;k++){const a=k/24*Math.PI*2,R0=r+Math.max(sz.x,sz.z)/2,x=c.x+Math.cos(a)*R0,z=c.z+Math.sin(a)*R0;if(!free(x,z))continue;
+   const yawv=Math.atan2(c.x-x,c.z-z),eye=(meta.floor_y||0)+EYE,pv=Math.atan2(c.y-eye,Math.hypot(c.x-x,c.z-z))*0.85;
+   const save={x:pos.x,y:pos.y,z:pos.z,yaw,pitch};pos.set(x,eye,z);yaw=yawv;pitch=pv;lookApply();C.updateMatrixWorld();ray.setFromCamera(new THREE.Vector2(0,0),C);const hit=pickRay();pos.set(save.x,save.y,save.z);yaw=save.yaw;pitch=save.pitch;
+   if(hit!==name)continue;const toMid=Math.hypot(m.x-x,m.z-z),score=-Math.abs(r-1.7)*2-toMid*0.3;if(!best||score>best.score)best={x,z,yaw:yawv,pitch:pv,score}}
+  return best}
+ let plan=[],t0=0,on=false,fired=new Set();
+ function build(){plan=[];const ent=meta.entry||{x:1,z:1,yaw_deg:180};let p={x:ent.x,z:ent.z,yaw:(ent.yaw_deg||0)*Math.PI/180,pitch:-0.08};
+  const m=C0();const look=Math.atan2(m.x-p.x,m.z-p.z);
+  plan.push({from:p,to:{...p,yaw:look-0.6,pitch:-0.1},dur:2.2/SPD});p={...p,yaw:look-0.6,pitch:-0.1};
+  plan.push({from:p,to:{...p,yaw:look+0.35,pitch:-0.14},dur:3.0/SPD});p={...p,yaw:look+0.35,pitch:-0.14};
+  for(const n of names){const s=standFor(n);if(!s){console.warn('[cinema] 설 자리를 못 찾음',n);continue}const to={x:s.x,z:s.z,yaw:s.yaw,pitch:s.pitch};const d=Math.hypot(to.x-p.x,to.z-p.z);
+   plan.push({from:p,to,dur:Math.max(2.2,d/0.75)/SPD});plan.push({from:to,to:{...to,pitch:to.pitch-0.03},dur:3.2/SPD,act:n});p=to}
+  if(goNext){const g=(meta.goes||[])[0];if(g){const b=groupBox(g.door);if(!b.isEmpty()){const c=b.getCenter(new THREE.Vector3());const yawv=Math.atan2(c.x-p.x,c.z-p.z);const st={x:p.x+(c.x-p.x)*0.55,z:p.z+(c.z-p.z)*0.55,yaw:yawv,pitch:-0.04};plan.push({from:p,to:{...p,yaw:yawv,pitch:-0.04},dur:1.4/SPD});plan.push({from:{...p,yaw:yawv,pitch:-0.04},to:st,dur:2.6/SPD,next:g});}}}
+  return plan}
+ function start(){hint.remove();if(cur&&ci!==room){show(room);setTimeout(start2,900)}else start2()}
+ function start2(){build();fired=new Set();t0=performance.now();on=true;fade.style.opacity='0'}
+ addEventListener('keydown',e=>{if(e.key==='Enter'&&!on)start();if((e.key==='r'||e.key==='R')){on=false;fade.style.transition='none';fade.style.opacity='1';setTimeout(()=>{fade.style.transition='';location.reload()},50)}});
+ setTimeout(()=>{if(cur&&ci!==room)show(room)},600);
+ return {get on(){return on},step(t){let el=(performance.now()-t0)/1000;for(let i=0;i<plan.length;i++){const s=plan[i];if(el>s.dur&&i<plan.length-1){el-=s.dur;if(s.act&&!fired.has(i)){fired.add(i);hov=s.act;try{interact();glow(s.act,false)}catch(e){console.error(e)}}continue}
+   const k=E(Math.min(1,el/s.dur));pos.x=s.from.x+(s.to.x-s.from.x)*k;pos.z=s.from.z+(s.to.z-s.from.z)*k;yaw=lerpA(s.from.yaw,s.to.yaw,k);pitch=s.from.pitch+(s.to.pitch-s.from.pitch)*k;
+   if(s.act&&el>s.dur*0.25&&!fired.has(i)){fired.add(i);hov=s.act;try{interact();glow(s.act,false)}catch(e){console.error(e)}}
+   if(i===plan.length-1&&el>=s.dur){on=false;if(s.next){fade.style.opacity='1';setTimeout(()=>{try{show(s.next.tab,s.next.arrive)}catch(e){}setTimeout(()=>{fade.style.opacity='0';const m=C0(),p0={x:pos.x,z:pos.z,yaw,pitch:-0.06},ly=Math.atan2(m.x-p0.x,m.z-p0.z);plan=[{from:{...p0,yaw:ly-0.5},to:{x:p0.x+(m.x-p0.x)*0.25,z:p0.z+(m.z-p0.z)*0.25,yaw:ly+0.3,pitch:-0.1},dur:5/SPD}];fired=new Set();t0=performance.now();on=true},1100)},950)}}
+   break}}}})();
+let t0=performance.now();(function loop(t){requestAnimationFrame(loop);{const ts=t/1000;WIND.uWindTime.value=ts;WIND.uWindAmp.value=0.55;for(const m of FLICK){if(!m.parent)continue;const f=m.userData.flick;m.material.opacity=0.82+0.08*Math.sin(ts*8.7+f)+0.05*Math.sin(ts*21.3+f*2.1)+0.03*Math.sin(ts*3.1+f)}}const dt=Math.min(0.05,(t-t0)/1000);t0=t;animStep();
+ if(mode==='play'&&cur){
+  if(CINE&&CINE.on)CINE.step(t);
+  if(active()&&!(CINE&&CINE.on)){const fx=Math.sin(yaw),fz=Math.cos(yaw),rx=-fz,rz=fx;let wx=0,wz=0;if(K.f){wx+=fx;wz+=fz}if(K.b){wx-=fx;wz-=fz}if(K.r){wx+=rx;wz+=rz}if(K.l){wx-=rx;wz-=rz}const wl=Math.hypot(wx,wz);if(wl>0){wx/=wl;wz/=wl}
+   const sp=WALK*(crouch?CRM:K.run?RUNM:1);if(grounded){vel.x=wx*sp;vel.z=wz*sp}else{vel.x+=(wx*sp-vel.x)*AIRC;vel.z+=(wz*sp-vel.z)*AIRC}
+   const nx=pos.x+vel.x*dt;if(free(nx,pos.z))pos.x=nx;else vel.x=0;const nz=pos.z+vel.z*dt;if(free(pos.x,nz))pos.z=nz;else vel.z=0}
+  if(!grounded){vy+=GRAV*dt;jy+=vy*dt;if(jy<=0){jy=0;vy=0;grounded=true}}
+  eyeCur+=((crouch?CEYE:EYE)-eyeCur)*Math.min(1,dt*10);pos.y=(meta.floor_y||0)+eyeCur+jy;lookApply();try{pickCenter()}catch(e){if(!window.__pickErr){window.__pickErr=1;console.error('조준 판정 오류',e)}}}
+ else O.update();if(style==='toon3')renderToon3();else R.render(S,C)})(t0);
+</script>
+</body></html>

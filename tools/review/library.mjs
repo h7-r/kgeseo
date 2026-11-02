@@ -34,6 +34,9 @@ const CODE_INDEX = `${CODE_DIR}/_index.json`;
 const PALETTE = 'naju01/src/placement/assetCatalog.ts';
 const CATALOG = 'docs/에셋라이브러리/생성준비_v1/catalog.json';
 const SPACE_DIR = 'docs/에셋라이브러리/공간';
+// 상호작용 분류(10/22, interactionClassify.mjs → 미르 전수 확인)와 퍼즐용 상태 변형판(열린 판·찬 판) 색인
+const INTERACTION = 'tools/review/library-interaction.json';
+const VARIANT_INDEX = `${PUBLIC_ROOT}/variants/_index.json`;
 
 /** 공용 분류(화면 칩). 모든 출처의 분류를 이 11개로 모은다. */
 export const CATEGORIES = Object.freeze([
@@ -341,11 +344,31 @@ function enrich(item) {
 const caches = new Map(); // root -> { stamp, value }
 async function stampFor(root) {
   const parts = [];
-  for (const relative of [MANIFEST, KHS_NAMES, PALETTE, CATALOG, SPACE_DIR, KHS_DIR, LIB_DIR, LIB_INDEX, CODE_DIR, CODE_INDEX, `${PUBLIC_ROOT}/rock`, `${PUBLIC_ROOT}/tree`, `${PUBLIC_ROOT}/plant`, `${PUBLIC_ROOT}/plant2`, `${PUBLIC_ROOT}/prop`, `${PUBLIC_ROOT}/house`]) {
+  for (const relative of [MANIFEST, KHS_NAMES, PALETTE, CATALOG, SPACE_DIR, KHS_DIR, LIB_DIR, LIB_INDEX, CODE_DIR, CODE_INDEX, INTERACTION, VARIANT_INDEX, `${PUBLIC_ROOT}/rock`, `${PUBLIC_ROOT}/tree`, `${PUBLIC_ROOT}/plant`, `${PUBLIC_ROOT}/plant2`, `${PUBLIC_ROOT}/prop`, `${PUBLIC_ROOT}/house`]) {
     const stat = await fs.lstat(path.join(root, relative)).catch(() => null);
     parts.push(`${relative}:${stat ? `${stat.size}:${stat.mtimeMs}` : '-'}`);
   }
   return parts.join('|');
+}
+
+/**
+ * 배치 가능한 물건에 상호작용 정보를 붙인다(10/22).
+ *   item.interaction = { role: host|clue_item|decor, actions[], primary, transform(모양이 바뀌는 몸짓 종류|null), hide[] }
+ *   item.states      = { opened|filled_water|filled_grain: url } — 같은 자리에 바꿔 끼우는 변형판. 없으면 null
+ *   item.initialState = 방을 처음 열 때 보일 상태(찬 판처럼 기본판이 「빈」 상태일 때)
+ * 퍼즐 에이전트는 open·empty 같은 반응을 고를 때 states 가 있는 물건을 우선한다. 없으면 통째로 움직이는 연출.
+ */
+async function attachInteraction(root, items) {
+  const read = async rel => JSON.parse(await fs.readFile(path.join(root, rel), 'utf8').catch(() => 'null'));
+  const cls = (await read(INTERACTION))?.items || {};
+  const byFile = (await read(VARIANT_INDEX))?.by_file || {};
+  for (const item of items) {
+    if (!item.placeable) continue;
+    const c = cls[item.id];
+    if (c) item.interaction = c;
+    const v = byFile[String(item.path || '').replace(/^public\//, '')] || byFile[String(item.url || '').replace(/^\//, '')];
+    if (v) { item.states = v.states; if (v.initial) item.initialState = v.initial; }
+  }
 }
 
 /** 라이브러리 색인. 원본 파일·폴더 mtime 이 같으면 같은 배열을 돌려준다(임베딩 색인도 이 배열 기준). */
@@ -363,6 +386,7 @@ export async function buildLibrary(root) {
     seen.add(key); seen.add(item.id);
     return true;
   });
+  await attachInteraction(root, items);
   const categories = CATEGORIES.map(c => ({ ...c, count: items.filter(i => i.category === c.id).length, placeableCount: items.filter(i => i.category === c.id && i.placeable).length }));
   const sources = Object.fromEntries(['public', 'khs', 'palette', 'catalog', 'space'].map(s => [s, items.filter(i => i.source === s).length]));
   const origins = { lib: items.filter(i => i.origin === 'lib').length, code: items.filter(i => i.origin === 'code').length };

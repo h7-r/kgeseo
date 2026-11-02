@@ -543,6 +543,20 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
       res.end(JSON.stringify(value));
     };
     try {
+      // 10/29 발표 트레일러: 나주 맵(5174)에서 캔버스를 녹화한 webm 을 .local/review/rec 에 받는다. 이 경로 하나만, 루프백·5174 출처만.
+      if (path.startsWith('/__review/rec/')) {
+        const okOrigin = ['http://localhost:5174', 'http://127.0.0.1:5174', `http://${req.headers.host}`].includes(req.headers.origin);
+        const addr = req.socket?.remoteAddress;
+        if (!okOrigin || (addr && !['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(addr))) return send(403, { error: 'rec_forbidden' });
+        res.setHeader('Access-Control-Allow-Origin', req.headers.origin); res.setHeader('Access-Control-Allow-Methods', 'POST'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        if (req.method === 'OPTIONS') { res.statusCode = 204; return res.end(); }
+        const name = decodeURIComponent(path.slice('/__review/rec/'.length));
+        if (req.method !== 'POST' || !/^[A-Za-z0-9_-]{1,48}$/.test(name)) return send(400, { error: 'rec_bad_request' });
+        const chunks = []; let size = 0; for await (const c of req) { size += c.length; if (size > 400e6) return send(413, { error: 'rec_too_large' }); chunks.push(c); }
+        const fsp = await import('node:fs/promises'); const dir = join(root, '.local/review/rec'); await fsp.mkdir(dir, { recursive: true });
+        await fsp.writeFile(join(dir, name + '.webm'), Buffer.concat(chunks));
+        return send(200, { saved: name + '.webm', bytes: size });
+      }
       guardRequest(req);
       if (path === '/__review/library' || path.startsWith('/__review/library/')) {
         const route = await libraryRoute();
@@ -552,23 +566,105 @@ export function createReviewHandler({ root = ROOT, dataDir = resolve(root, '.loc
       }
       const input = ['POST', 'PATCH'].includes(req.method) ? await body(req, path.endsWith('/scene-captures') ? 1_000_000 : MAX_BODY) : null;
       // ── 에이전트 시험(agentTrial.mjs, 10/19) — 긴 LLM 단계는 직렬 큐 밖에서 돈다. 검수 기록을 만드는 /space 만 큐 안에서 ──
+      // ── 에이전트 시험의 설화·기획 핵심 검수 카드(10/28 미르: 설화가 들어오면 요약 + 사람 확인 리스트 + 문서 원본) ──
+      // ── 한영 번역 모델 비교(10/28 미르: 맥북에서 돌려 보고 하나만 남기기) — POST 실행 · GET 진행 로그·결과 ──
+      if (path === '/__review/mt/bench') {
+        const { spawn } = await import('node:child_process'); const fsp = await import('node:fs/promises'); const { openSync, mkdirSync } = await import('node:fs');
+        const dir = join(root, '.local/mt'); mkdirSync(dir, { recursive: true });
+        if (req.method === 'POST') { if (input?.action === 'stop-server') { spawn('pkill', ['-f', 'tools/mt/mt_server.py']).unref(); return send(200, { stopped: true }); } const script = input?.action === 'cleanup' ? 'cleanup.sh' : 'bench_setup.sh'; const log = openSync(join(dir, 'bench.log'), 'a'); const ch = spawn('bash', [join(root, 'tools/mt', script), root], { detached: true, stdio: ['ignore', log, log] }); ch.unref(); return send(202, { started: true, pid: ch.pid }); }
+        const logText = await fsp.readFile(join(dir, 'bench.log'), 'utf8').catch(() => ''); const result = await fsp.readFile(join(dir, 'bench_result.json'), 'utf8').then(JSON.parse).catch(() => null);
+        return send(200, { log: logText.slice(-4000), result });
+      }
+      // ── 에이전트 시험의 정식 공정 흐름 상태 · 공간·에셋 승인(10/28 미르: 01 → 02 → 03 공간·에셋 → 04 퍼즐) ──
+      if (path.startsWith('/__review/trial-flow/')) {
+        try { const tf = await import(new URL(`./trialFlow.mjs?t=${Date.now()}`, import.meta.url).href); const [code, out] = await tf.handle(root, req.method, path, input); return send(code, out); }
+        catch (error) { if (error?.status) return send(error.status, { error: 'trial_flow', message: error.message }); throw error; }
+      }
+      if (path.startsWith('/__review/trial-brief/')) {
+        try { const tb = await import(new URL(`./trialBrief.mjs?t=${Date.now()}`, import.meta.url).href); const [code, out] = await tb.handle(root, req.method, path, input); return send(code, out); }
+        catch (error) { if (error?.status) return send(error.status, { error: 'trial_brief', message: error.message }); throw error; }
+      }
+      // ── 설화 전문 요약 정리본(10/28 미르: 설화와 기획 맨 위에) — 요청마다 storySummary.mjs 를 새로 읽는다 ──
+      if (path.startsWith('/__review/story-summary/')) {
+        try { const ss = await import(new URL(`./storySummary.mjs?t=${Date.now()}`, import.meta.url).href); const [code, out] = await ss.handle(root, req.method, path, input); return send(code, out); }
+        catch (error) { if (error?.status) return send(error.status, { error: 'story_summary', message: error.message }); throw error; }
+      }
+      // ── 이야기 컷 사람 검수(10/28 미르: 그림 검수·선택·미세 조정·반려는 사람이) — 요청마다 cineReview.mjs 를 새로 읽는다 ──
+      if (path === '/__review/cine' || path.startsWith('/__review/cine/')) {
+        try { const cr = await import(new URL(`./cineReview.mjs?t=${Date.now()}`, import.meta.url).href); const [code, out] = await cr.handle(root, req.method, path, input); return send(code, out); }
+        catch (error) { if (error?.status) return send(error.status, { error: 'cine_review', message: error.message }); throw error; }
+      }
       if (path === '/__review/trials' || path.startsWith('/__review/trials/')) {
         if (path === '/__review/trials/llm-status' && req.method === 'GET') return send(200, await (await import('../llm/local.mjs')).localStatus());
-        const m = path.match(/^\/__review\/trials(?:\/(preset)|\/([a-f0-9-]{36})(?:\/(steps)\/(s0[1-9]|s10)\/(estimate|run)|\/(missing|compare|space|places|view|llm|feedback|relayout|spot-edit))?)?$/);
+        // 실내 방 세트 뷰어·파일(10/21, indoorTrial.mjs 08 결과) — .local/review/trials/<id>/rooms/ 안의 이름만, 읽기만
+        const roomFile = path.match(/^\/__review\/trials\/([a-f0-9-]{36})\/(rooms|rooms_raw|rooms_agent|cine)\/([\w\u3131-\uD79D.-]+\.(html|glb|json|jpg|png))$/u); // 10/28: cine = 이야기 컷 후보 그림(사람 검수) // 10/27: 회상 컷 그림(jpg·png) · rooms_raw = 원안 비교판(10/22)
+        if (roomFile) {
+          if (req.method !== 'GET' && req.method !== 'HEAD') return send(405, { error: 'method_not_allowed', message: '읽기만 됩니다.' });
+          const file = join(root, '.local/review/trials', roomFile[1], roomFile[2], roomFile[3]);
+          const safe = await noSymlinkFile(root, `.local/review/trials/${roomFile[1]}/${roomFile[2]}/${roomFile[3]}`);
+          if (!safe.ok) return send(404, { error: 'not_found', message: '방 파일이 없습니다. 08 「방 만들기·배치」를 먼저 실행하세요.' });
+          let buf = await readFile(file);
+          // 10/26: 뷰어는 늘 지금 템플릿으로 — 08 을 돌린 때의 템플릿이 굳어 예전 시험에 고친 것이 안 보였다
+          if (roomFile[3] === 'index.html') {
+            try {
+              const rv = await import('../rooms/renderViewer.mjs');
+              const tpl = await readFile(join(root, 'tools/rooms/viewer_template.html'), 'utf8');
+              let data = null; try { data = JSON.parse(await readFile(join(root, '.local/review/trials', roomFile[1], roomFile[2], 'viewer_data.json'), 'utf8')); } catch {}
+              data ||= rv.extractViewerData(buf.toString('utf8'));
+              // 10/26: 예전 규칙으로 만든 시험이면 화면에 알리고 최신 시험으로 잇는다
+              try {
+                const rules = JSON.parse(await readFile(join(root, 'tools/review/rules_version.json'), 'utf8')); const cut = Date.parse(rules.puzzleRules);
+                const t = await agentTrial.readTrial(root, roomFile[1]); const at = Date.parse(t.steps?.s05?.finishedAt || t.createdAt || 0);
+                if (data && at < cut) {
+                  const all = []; for (const x of await agentTrial.listTrials(root)) { if (x.spaceKind !== 'indoor') continue; try { all.push(await agentTrial.readTrial(root, x.id)); } catch {} } const fresh = all.filter(x => Date.parse(x.steps?.s05?.finishedAt || 0) >= cut && x.steps?.s08?.status === 'done').sort((a, b) => Date.parse(b.steps.s08.finishedAt || 0) - Date.parse(a.steps.s08.finishedAt || 0))[0];
+                  data.TRIAL = { ...(data.TRIAL || {}), stale: rules.label || '예전', latest: fresh ? { title: fresh.title, url: `/__review/trials/${fresh.id}/rooms/index.html` } : null };
+                }
+              } catch {}
+              let gloss = null; try { gloss = JSON.parse(await readFile(join(root, 'tools/review/dialect_gloss.json'), 'utf8')); } catch {}
+              if (data) buf = Buffer.from(rv.renderViewer(tpl, data, gloss), 'utf8');
+            } catch (error) { console.warn('[review] 뷰어 다시 만들기 실패 — 저장된 index.html 을 줍니다', error.message); }
+          }
+          res.statusCode = 200;
+          res.setHeader('Content-Type', { html: 'text/html; charset=utf-8', glb: 'model/gltf-binary', json: 'application/json; charset=utf-8', jpg: 'image/jpeg', png: 'image/png' }[roomFile[4]]);
+          res.setHeader('Cache-Control', 'no-store');
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          return res.end(req.method === 'HEAD' ? undefined : buf);
+        }
+        const m = path.match(/^\/__review\/trials(?:\/(preset)|\/([a-f0-9-]{36})(?:\/(steps)\/(s0[1-9]|s1[01])\/(estimate|run|run-fresh)|\/(missing|compare|space|places|view|llm|feedback|relayout|spot-edit|puzzle-review))?)?$/);
         if (!m) return send(404, { error: 'not_found', message: '에이전트 시험 경로를 찾을 수 없습니다.' });
         const [, preset, trialId, , stepId, stepAction, sub] = m;
         if (preset && req.method === 'GET') return send(200, await agentTrial.presetSource(root));
         if (!trialId && req.method === 'GET') return send(200, { trials: await agentTrial.listTrials(root), steps: agentTrial.STEPS, defaultBudgetUsd: agentTrial.DEFAULT_BUDGET_USD });
-        if (!trialId && req.method === 'POST') return send(201, await agentTrial.createTrial(root, input));
-        if (trialId && !stepId && !sub && req.method === 'GET') return send(200, await agentTrial.trialDetail(root, trialId));
+        if (!trialId && req.method === 'POST') {
+          // 10/28 미르: 「설화를 입력하면 자동으로 다 채워져 나와 있어야」 — 만들자마자 01~04 를 이어 돌린다(요약·핵심 검수 카드는 단계 뒤에 자동). 05 부터는 사람 확인 뒤
+          const created = await agentTrial.createTrial(root, input);
+          if (input?.autoRun !== false && created?.id) { const { spawn } = await import('node:child_process'); const { openSync } = await import('node:fs'); const log = openSync(join(root, '.local/review/trials', created.id, 'run-chain.log'), 'a'); const ch = spawn(process.execPath, [join(root, 'tools/review/runChain.mjs'), root, created.id], { detached: true, stdio: ['ignore', log, log] }); ch.unref(); }
+          return send(201, created);
+        }
+        if (trialId && !stepId && !sub && req.method === 'GET') {
+          // 10/26: 검수 화면의 퍼즐 글도 원문 방언을 풀어 쓴 말로(dialect_gloss.json) — 원본 파일은 그대로
+          const detail = await agentTrial.trialDetail(root, trialId);
+          try { const gloss = JSON.parse(await readFile(join(root, 'tools/review/dialect_gloss.json'), 'utf8')); const rules = (gloss.rules || []).map(r => [new RegExp(r.from, 'g'), r.to]); const fix = v => typeof v === 'string' ? rules.reduce((t, [re, to]) => t.replace(re, to), v) : Array.isArray(v) ? v.map(fix) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fix(x)])) : v; if (detail.puzzle) detail.puzzle = fix(detail.puzzle); } catch {}
+          try { const rules = JSON.parse(await readFile(join(root, 'tools/review/rules_version.json'), 'utf8')); const cut = Date.parse(rules.puzzleRules); if (detail.spaceKind === 'indoor' && detail.steps?.s05?.status === 'done' && Date.parse(detail.steps.s05.finishedAt || 0) < cut) { let latest = null; for (const x of await agentTrial.listTrials(root)) { if (x.spaceKind !== 'indoor' || x.id === trialId) continue; try { const t = await agentTrial.readTrial(root, x.id); if (Date.parse(t.steps?.s05?.finishedAt || 0) >= cut && t.steps?.s08?.status === 'done' && (!latest || Date.parse(t.steps.s08.finishedAt) > Date.parse(latest.at))) latest = { id: t.id, title: t.title, at: t.steps.s08.finishedAt }; } catch {} } detail.stale = { label: rules.label || '예전', latest }; } } catch {}
+          return send(200, detail);
+        }
         if (stepAction === 'estimate' && req.method === 'POST') return send(200, await agentTrial.estimateStep(root, trialId, stepId));
         if (stepAction === 'run' && req.method === 'POST') return send(202, await agentTrial.startStep(root, trialId, stepId));
+        // 10/23: 새 프로세스에서 돌리기 — 도구 코드를 고친 뒤 서버를 다시 켜지 않아도 고친 코드로 돈다
+        if (stepAction === 'run-fresh' && req.method === 'POST') {
+          await agentTrial.cineGate(root, trialId, stepId); // 10/28: 이야기 컷 사람 검수 전이면 띄우지 않는다(409)
+          const { spawn } = await import('node:child_process'); const { openSync } = await import('node:fs');
+          const log = openSync(join(root, '.local/review/trials', trialId, `run-${stepId}.log`), 'a');
+          const ch = spawn(process.execPath, [join(root, 'tools/review/runStepFresh.mjs'), root, trialId, stepId], { detached: true, stdio: ['ignore', log, log] }); ch.unref();
+          return send(202, { spawned: true, pid: ch.pid, trialId, stepId });
+        }
         // 코드만 다시 앉히기(LLM 없음·비용 0) — 앉힘 규칙·지형 칸 지도를 고친 뒤 같은 계획으로 다시 깐다
         if (sub === 'spot-edit' && req.method === 'POST') return send(200, await agentTrial.editSpot(root, trialId, input)); // 배치 화면에서 사람이 자리 고침·빼기(10/20)
         if (sub === 'relayout' && req.method === 'POST') return send(200, await agentTrial.relayoutTrial(root, trialId));
         if (sub === 'missing' && req.method === 'POST') return send(200, await agentTrial.decideMissing(root, trialId, input));
         if (sub === 'compare' && req.method === 'GET') return send(200, await agentTrial.compareWithHuman(root, trialId));
         if (sub === 'feedback' && req.method === 'POST') return send(200, await agentTrial.setFeedback(root, trialId, input));
+        if (sub === 'puzzle-review' && req.method === 'POST') return send(200, await agentTrial.setPuzzleReview(root, trialId, input)); // 퍼즐 검수(10/22)
         if (sub === 'llm' && req.method === 'POST') return send(200, await agentTrial.setLlm(root, trialId, input));
         if (sub === 'view' && req.method === 'POST') return send(200, await agentTrial.setView(root, trialId, input));
         // 배치 화면(10/19) — 게임이 &trial=<id> 로 읽는 「놓기」 항목. layout.accepted 를 /space 와 같은 확인(importItem)으로 바꾼다. 게임 데이터(manifest)는 건드리지 않는다

@@ -87,7 +87,7 @@ function requestThumb(item, done) {
   };
 }
 
-function Thumb({ item, root }) {
+export function Thumb({ item, root }) {
   const box = useRef(null);
   const [src, setSrc] = useState(() => (item.url ? thumbCache.get(item.id) || null : null));
   useEffect(() => {
