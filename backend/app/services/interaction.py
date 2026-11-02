@@ -13,6 +13,7 @@ from app.models.interaction_event import InteractionEvent
 from app.models.play_session import PlaySession
 from app.schemas.case_content import CaseClientContent
 from app.schemas.interaction import (
+    CaseCompletedStateChange,
     ClueAcquiredStateChange,
     CombineCluesInteraction,
     CurrentZoneChangedStateChange,
@@ -28,10 +29,15 @@ from app.schemas.interaction import (
     ObjectRevealedStateChange,
     ObjectUnlockedStateChange,
     PuzzleCompletedStateChange,
+    SelectChoiceInteraction,
     SubmitAnswerInteraction,
 )
 from app.schemas.play_session import PlaySessionState
-from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition, RuntimeEffect
+from app.schemas.puzzle_runtime import (
+    CaseCompletionDefinition,
+    PuzzleRuntimeDefinition,
+    RuntimeEffect,
+)
 from app.services.case_content import load_case_client_content
 from app.services.case_content_validation import validate_case_content_links
 from app.services.object_resolver import ZoneNotFoundError, find_zone
@@ -90,6 +96,14 @@ class RequiredCluesMissingError(InteractionServiceError):
     def __init__(self, missing_clue_count: int) -> None:
         self.missing_clue_count = missing_clue_count
         super().__init__(missing_clue_count)
+
+
+class RequiredPuzzlesMissingError(InteractionServiceError):
+    """선행 퍼즐을 다 풀지 않았다. 외부에는 부족한 개수만 알리고 퍼즐 ID는 알리지 않는다."""
+
+    def __init__(self, missing_puzzle_count: int) -> None:
+        self.missing_puzzle_count = missing_puzzle_count
+        super().__init__(missing_puzzle_count)
 
 
 async def process_interaction(
@@ -172,6 +186,20 @@ async def process_interaction(
                 load_client_content,
             )
             attempt_count = None
+        elif isinstance(interaction, SelectChoiceInteraction):
+            (
+                result_type,
+                result_state,
+                state_changes,
+                attempt_count,
+            ) = _process_select_choice(
+                interaction,
+                _ensure_current_zone(
+                    current_state, interaction.zone_id, load_client_content
+                ),
+                runtime,
+                load_client_content,
+            )
         else:
             result_type, result_state, state_changes = _process_combine_clues(
                 interaction,
@@ -180,6 +208,17 @@ async def process_interaction(
                 load_client_content,
             )
             attempt_count = None
+
+        # 같은 세션 행 잠금 안에서 판정하므로 완료 기록은 한 번만 일어난다.
+        is_case_completed_now = (
+            play_session.completed_at is None
+            and _meets_case_completion(runtime.case_completion, result_state)
+        )
+        if is_case_completed_now:
+            state_changes = [
+                *state_changes,
+                CaseCompletedStateChange(type="case_completed"),
+            ]
 
         response = InteractionResult(
             result_type=result_type,
@@ -194,6 +233,9 @@ async def process_interaction(
 
         if result_state != current_state:
             play_session.state_json = result_state
+            play_session.updated_at = now_db
+        if is_case_completed_now:
+            play_session.completed_at = now_db
             play_session.updated_at = now_db
 
         interaction_event = InteractionEvent(
@@ -371,49 +413,99 @@ def _apply_object_state_effects(
     return state_changes
 
 
+GradeResult = tuple[
+    InteractionResultType,
+    dict[str, Any],
+    list[InteractionStateChange],
+    int | None,
+]
+
+
 def _process_submit_answer(
     interaction: SubmitAnswerInteraction,
     state: dict[str, Any],
     runtime: PuzzleRuntimeDefinition,
     load_client_content: Callable[[], CaseClientContent],
-) -> tuple[
-    InteractionResultType,
-    dict[str, Any],
-    list[InteractionStateChange],
-    int | None,
-]:
+) -> GradeResult:
+    # input은 Object visible/enabled를 보지 않는다(현행 계약 유지).
+    return _grade_puzzle(
+        interaction.target_id,
+        interaction.payload.answer,
+        state,
+        runtime,
+        load_client_content,
+    )
+
+
+def _process_select_choice(
+    interaction: SelectChoiceInteraction,
+    state: dict[str, Any],
+    runtime: PuzzleRuntimeDefinition,
+    load_client_content: Callable[[], CaseClientContent],
+) -> GradeResult:
+    def ensure_object_available() -> None:
+        current = resolve_effective_object_state(
+            load_client_content(),
+            state.get("object_states", {}),
+            interaction.zone_id,
+            interaction.object_id,
+        )
+        if not current.visible:
+            raise ObjectNotVisibleError(interaction.object_id)
+        if not current.enabled:
+            raise ObjectNotEnabledError(interaction.object_id)
+
+    return _grade_puzzle(
+        interaction.target_id,
+        interaction.payload.choice,
+        state,
+        runtime,
+        load_client_content,
+        ensure_object_available=ensure_object_available,
+    )
+
+
+def _grade_puzzle(
+    puzzle_id: str,
+    answer: str,
+    state: dict[str, Any],
+    runtime: PuzzleRuntimeDefinition,
+    load_client_content: Callable[[], CaseClientContent],
+    *,
+    ensure_object_available: Callable[[], None] | None = None,
+) -> GradeResult:
     puzzle = next(
-        (
-            puzzle
-            for puzzle in runtime.puzzles
-            if puzzle.puzzle_id == interaction.target_id
-        ),
+        (puzzle for puzzle in runtime.puzzles if puzzle.puzzle_id == puzzle_id),
         None,
     )
     if puzzle is None:
-        raise PuzzleNotFoundError(interaction.target_id)
+        raise PuzzleNotFoundError(puzzle_id)
 
-    if interaction.target_id in state["completed_puzzle_ids"]:
-        attempt_count = state.get("attempt_counts", {}).get(interaction.target_id)
+    # 완료한 퍼즐은 나중에 Object가 숨거나 선행 조건이 바뀌어도 그대로 완료다.
+    if puzzle_id in state["completed_puzzle_ids"]:
+        attempt_count = state.get("attempt_counts", {}).get(puzzle_id)
         return "already_completed", state, [], attempt_count
 
+    if ensure_object_available is not None:
+        ensure_object_available()
     # 정답 비교·시도 횟수 증가 전에 판정해 정답 여부가 드러나지 않게 한다.
+    _ensure_required_puzzles(puzzle.requires_puzzle_ids, state)
     _ensure_required_clues(puzzle.requires_clue_ids, state)
 
     graded_state = deepcopy(state)
     attempt_counts = graded_state.setdefault("attempt_counts", {})
-    attempt_count = attempt_counts.get(interaction.target_id, 0) + 1
-    attempt_counts[interaction.target_id] = attempt_count
+    attempt_count = attempt_counts.get(puzzle_id, 0) + 1
+    attempt_counts[puzzle_id] = attempt_count
 
-    normalized_answer = normalize_answer(interaction.payload.answer)
-    accepted_answers = {normalize_answer(answer) for answer in puzzle.accepted_answers}
+    normalized_answer = normalize_answer(answer)
+    accepted_answers = {normalize_answer(value) for value in puzzle.accepted_answers}
     if normalized_answer not in accepted_answers:
         return "incorrect", graded_state, [], attempt_count
 
     updated_state, state_changes = apply_runtime_effect(
         graded_state,
         puzzle.on_correct,
-        complete_puzzle_ids=[interaction.target_id],
+        complete_puzzle_ids=[puzzle_id],
         client_content=(
             load_client_content() if puzzle.on_correct.set_object_states else None
         ),
@@ -596,6 +688,28 @@ def _ensure_required_clues(required_clue_ids: list[str], state: dict[str, Any]) 
         raise RequiredCluesMissingError(len(missing))
 
 
+def _ensure_required_puzzles(
+    required_puzzle_ids: list[str], state: dict[str, Any]
+) -> None:
+    completed = set(state.get("completed_puzzle_ids", []))
+    missing = [
+        puzzle_id for puzzle_id in required_puzzle_ids if puzzle_id not in completed
+    ]
+    if missing:
+        raise RequiredPuzzlesMissingError(len(missing))
+
+
+def _meets_case_completion(
+    case_completion: CaseCompletionDefinition | None, state: dict[str, Any]
+) -> bool:
+    if case_completion is None:
+        return False
+    completed = set(state.get("completed_puzzle_ids", []))
+    return all(
+        puzzle_id in completed for puzzle_id in case_completion.requires_puzzle_ids
+    )
+
+
 def _request_values(
     interaction: InteractionRequest,
 ) -> tuple[str | None, dict[str, Any]]:
@@ -603,7 +717,10 @@ def _request_values(
         interaction.target_id
         if isinstance(
             interaction,
-            SubmitAnswerInteraction | InspectInteraction | NavigateInteraction,
+            SubmitAnswerInteraction
+            | InspectInteraction
+            | NavigateInteraction
+            | SelectChoiceInteraction,
         )
         else None
     )

@@ -59,14 +59,18 @@ class RuntimeEffect(ServerContentModel):
         return self
 
 
-def _validate_required_clue_ids(owner: str, clue_ids: list[str]) -> None:
+def _validate_required_ids(owner: str, field: str, ids: list[str]) -> None:
     seen: set[str] = set()
-    for clue_id in clue_ids:
-        if not clue_id.strip():
-            raise ValueError(f"{owner} requires_clue_ids must not contain blank IDs")
-        if clue_id in seen:
-            raise ValueError(f"{owner} requires_clue_ids has duplicate '{clue_id}'")
-        seen.add(clue_id)
+    for value in ids:
+        if not value.strip():
+            raise ValueError(f"{owner} {field} must not contain blank IDs")
+        if value in seen:
+            raise ValueError(f"{owner} {field} has duplicate '{value}'")
+        seen.add(value)
+
+
+def _validate_required_clue_ids(owner: str, clue_ids: list[str]) -> None:
+    _validate_required_ids(owner, "requires_clue_ids", clue_ids)
 
 
 class HintDefinition(ServerContentModel):
@@ -91,15 +95,19 @@ class PuzzleDefinition(ServerContentModel):
     accepted_answers: list[str] = Field(min_length=1)
     # 정답 판정 전에 PlaySession이 모두 획득해야 하는 단서. 비어 있으면 조건 없음.
     requires_clue_ids: list[str] = Field(default_factory=list)
+    # 정답 판정 전에 PlaySession이 모두 완료해야 하는 퍼즐. 비어 있으면 조건 없음.
+    requires_puzzle_ids: list[str] = Field(default_factory=list)
     on_correct: RuntimeEffect
     # 정식 힌트 원문. 비어 있으면 이 퍼즐에는 힌트가 없다(Hint API는 HintNotFoundError).
     hints: list[HintDefinition] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_requirements(self) -> "PuzzleDefinition":
-        _validate_required_clue_ids(
-            f"Puzzle '{self.puzzle_id}'", self.requires_clue_ids
-        )
+        owner = f"Puzzle '{self.puzzle_id}'"
+        _validate_required_clue_ids(owner, self.requires_clue_ids)
+        _validate_required_ids(owner, "requires_puzzle_ids", self.requires_puzzle_ids)
+        if self.puzzle_id in self.requires_puzzle_ids:
+            raise ValueError(f"{owner} must not require itself")
         levels = [hint.level for hint in self.hints]
         if len(levels) != len(set(levels)):
             raise ValueError(f"Puzzle '{self.puzzle_id}' has duplicate hint levels")
@@ -162,6 +170,19 @@ class ClueDefinition(ServerContentModel):
         return self
 
 
+class CaseCompletionDefinition(ServerContentModel):
+    """Case 완료 조건. 나열한 퍼즐을 모두 완료하면 서버가 PlaySession을 완료로 기록한다."""
+
+    requires_puzzle_ids: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_requirements(self) -> "CaseCompletionDefinition":
+        _validate_required_ids(
+            "case_completion", "requires_puzzle_ids", self.requires_puzzle_ids
+        )
+        return self
+
+
 class PuzzleRuntimeDefinition(ServerContentModel):
     schema_version: str
     case_id: str
@@ -169,6 +190,8 @@ class PuzzleRuntimeDefinition(ServerContentModel):
     clue_combinations: list[ClueCombinationDefinition]
     inspections: list[InspectionDefinition] = Field(default_factory=list)
     clues: list[ClueDefinition] = Field(default_factory=list)
+    # 없으면 Case 완료를 판정하지 않는다(completed_at을 기록하지 않음).
+    case_completion: CaseCompletionDefinition | None = None
 
     @model_validator(mode="after")
     def validate_unique_puzzle_ids(self) -> "PuzzleRuntimeDefinition":
@@ -177,6 +200,40 @@ class PuzzleRuntimeDefinition(ServerContentModel):
             if puzzle.puzzle_id in seen_ids:
                 raise ValueError(f"Duplicate puzzle_id: '{puzzle.puzzle_id}'")
             seen_ids.add(puzzle.puzzle_id)
+        return self
+
+    @model_validator(mode="after")
+    def validate_puzzle_references(self) -> "PuzzleRuntimeDefinition":
+        puzzle_ids = {puzzle.puzzle_id for puzzle in self.puzzles}
+        references = [
+            (f"Puzzle '{puzzle.puzzle_id}'", puzzle.requires_puzzle_ids)
+            for puzzle in self.puzzles
+        ]
+        if self.case_completion is not None:
+            references.append(
+                ("case_completion", self.case_completion.requires_puzzle_ids)
+            )
+        for owner, required_ids in references:
+            for puzzle_id in required_ids:
+                if puzzle_id not in puzzle_ids:
+                    raise ValueError(f"{owner} requires unknown puzzle '{puzzle_id}'")
+
+        # 선행 퍼즐이 순환하면 그 퍼즐들은 영영 풀 수 없다.
+        requires = {p.puzzle_id: p.requires_puzzle_ids for p in self.puzzles}
+        checked: set[str] = set()
+
+        def visit(puzzle_id: str, path: list[str]) -> None:
+            if puzzle_id in path:
+                cycle = " -> ".join([*path[path.index(puzzle_id) :], puzzle_id])
+                raise ValueError(f"requires_puzzle_ids has a cycle: {cycle}")
+            if puzzle_id in checked:
+                return
+            for required_id in requires[puzzle_id]:
+                visit(required_id, [*path, puzzle_id])
+            checked.add(puzzle_id)
+
+        for puzzle_id in requires:
+            visit(puzzle_id, [])
         return self
 
     @model_validator(mode="after")

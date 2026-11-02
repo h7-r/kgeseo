@@ -62,11 +62,28 @@ class NavigateInteraction(BaseModel):
     payload: NavigatePayload
 
 
+class SelectChoicePayload(BaseModel):
+    choice: str
+
+
+class SelectChoiceInteraction(BaseModel):
+    client_event_id: str
+    client_timestamp: datetime | None = None
+    interaction_type: Literal["select_choice"]
+    # Object가 가리키는 퍼즐 ID. 판정은 submit_answer와 같다(accepted_answers 비교).
+    target_id: str
+    # 고른 Object. 현재 위치 검사와 유효 visible/enabled 판정에 쓴다.
+    zone_id: str = Field(min_length=1)
+    object_id: str
+    payload: SelectChoicePayload
+
+
 InteractionRequest = (
     SubmitAnswerInteraction
     | CombineCluesInteraction
     | InspectInteraction
     | NavigateInteraction
+    | SelectChoiceInteraction
 )
 InteractionResultType = Literal[
     "correct",
@@ -130,6 +147,12 @@ class ObjectUnlockedStateChange(BaseModel):
     object_id: str
 
 
+class CaseCompletedStateChange(BaseModel):
+    """Case 완료 조건을 처음 만족한 상호작용에만 싣는다. 완료 시각은 PlaySession 조회로 읽는다."""
+
+    type: Literal["case_completed"]
+
+
 InteractionStateChange = Annotated[
     PuzzleCompletedStateChange
     | ClueAcquiredStateChange
@@ -139,7 +162,8 @@ InteractionStateChange = Annotated[
     | FlagUpdatedStateChange
     | ObjectRevealedStateChange
     | ObjectHiddenStateChange
-    | ObjectUnlockedStateChange,
+    | ObjectUnlockedStateChange
+    | CaseCompletedStateChange,
     Field(discriminator="type"),
 ]
 

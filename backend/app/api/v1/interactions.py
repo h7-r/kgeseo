@@ -26,6 +26,7 @@ from app.services.interaction import (
     ObjectNotVisibleError,
     PuzzleNotFoundError,
     RequiredCluesMissingError,
+    RequiredPuzzlesMissingError,
     ZoneNotCurrentError,
 )
 from app.services.object_resolver import (
@@ -84,6 +85,15 @@ async def create_interaction_endpoint(
             content={
                 "detail": "Required clues are not acquired.",
                 "missing_clue_count": error.missing_clue_count,
+            },
+        )
+    except RequiredPuzzlesMissingError as error:
+        # 단서 부족과 같은 형태. 부족한 퍼즐 ID는 알리지 않는다.
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "detail": "Required puzzles are not completed.",
+                "missing_puzzle_count": error.missing_puzzle_count,
             },
         )
     except PlaySessionNotFoundError as error:
