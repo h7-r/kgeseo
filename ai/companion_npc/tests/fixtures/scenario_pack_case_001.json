@@ -1,0 +1,126 @@
+{
+  "contract": "scenario_pack",
+  "contract_version": "0.1",
+  "pack_id": "pack_case_001_fixture",
+  "case_id": "case_001",
+  "case_version": null,
+  "locale": "ko-KR",
+  "source": {
+    "producer": "human",
+    "client_content_ref": "backend/app/content/cases/case_001.client.json",
+    "server_runtime_sha256": null,
+    "artifact_ids": []
+  },
+  "publication": {
+    "status": "published",
+    "approved_by": "test-fixture",
+    "approved_at": "2026-10-24T00:00:00+09:00"
+  },
+  "premise": {
+    "title": "비밀 복도의 소화전",
+    "public_synopsis": "합동수사본부 아래 숨은 복도. 잠긴 소화전 함이 길을 막고 있다."
+  },
+  "persona": {
+    "npc_id": "npc_companion_fixture",
+    "display_name": "동행 조사관",
+    "role": "현장에 함께 들어온 동료. 답을 알려 주지 않고 같이 생각한다.",
+    "speech_style": "짧고 차분한 존댓말",
+    "forbidden_topics": ["정답 직접 언급"]
+  },
+  "entry_zone_id": "ZONE_SECRET_CORRIDOR",
+  "zones": [
+    {
+      "zone_id": "ZONE_SECRET_CORRIDOR",
+      "zone_name": "Secret Corridor",
+      "zone_type": "corridor",
+      "description": "A hidden corridor containing a locked fire cabinet."
+    }
+  ],
+  "objects": [
+    {
+      "object_id": "OBJ_FIRE_CABINET_LOCK",
+      "zone_id": "ZONE_SECRET_CORRIDOR",
+      "object_name": "Fire Cabinet Letter Lock",
+      "object_type": "lock",
+      "interaction_type": "input",
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK"
+    }
+  ],
+  "puzzles": [
+    {
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "title": "소화전 글자 자물쇠",
+      "puzzle_type": "text_input",
+      "zone_id": "ZONE_SECRET_CORRIDOR",
+      "host_object_ids": ["OBJ_FIRE_CABINET_LOCK"],
+      "prerequisite_puzzle_ids": [],
+      "required_clue_ids": [],
+      "grants_clue_ids": [],
+      "required_discovery_ref": null
+    }
+  ],
+  "clues": [],
+  "hints": [
+    {
+      "hint_id": "HINT_FIRE_LOCK_1",
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "npc_hint_level": 1,
+      "text": "자판기에서 캔과 함께 나온 쪽지, 다시 한번 펼쳐 볼까요? 그림 아래 빈칸이 몇 개인지 세어 보세요.",
+      "approved_by": "test-fixture",
+      "approved_at": "2026-10-24T00:00:00+09:00",
+      "provenance": { "provenance_mode": "mechanical", "rationale": "테스트 견본 — 실제 승인 힌트 아님" }
+    },
+    {
+      "hint_id": "HINT_FIRE_LOCK_2",
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "npc_hint_level": 2,
+      "text": "쪽지의 핸들휠 그림은 소화전에 달린 어떤 부품이에요. 그 부품의 영어 이름을 빈칸 수에 맞춰 떠올려 보세요.",
+      "approved_by": "test-fixture",
+      "approved_at": "2026-10-24T00:00:00+09:00",
+      "provenance": { "provenance_mode": "mechanical", "rationale": "테스트 견본 — 실제 승인 힌트 아님" }
+    }
+  ],
+  "knowledge": [
+    {
+      "chunk_id": "K_PREMISE",
+      "kind": "premise",
+      "text": "합동수사본부 아래 숨은 복도. 잠긴 소화전 함이 길을 막고 있다.",
+      "spoiler_tier": 0,
+      "provenance": { "provenance_mode": "inherited", "inherited_from": ["premise"] }
+    },
+    {
+      "chunk_id": "K_OBJ_FIRE_LOCK",
+      "kind": "object",
+      "text": "소화전 함에는 알파벳 다섯 칸짜리 글자 자물쇠가 걸려 있다.",
+      "spoiler_tier": 0,
+      "gate": { "requires_zone_ids": ["ZONE_SECRET_CORRIDOR"] },
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "provenance": { "provenance_mode": "inherited", "inherited_from": ["OBJ_FIRE_CABINET_LOCK"] }
+    },
+    {
+      "chunk_id": "K_HINT_FIRE_LOCK_1",
+      "kind": "hint",
+      "text": "자판기에서 캔과 함께 나온 쪽지, 다시 한번 펼쳐 볼까요? 그림 아래 빈칸이 몇 개인지 세어 보세요.",
+      "spoiler_tier": 1,
+      "gate": { "requires_zone_ids": ["ZONE_SECRET_CORRIDOR"] },
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "hint_id": "HINT_FIRE_LOCK_1",
+      "provenance": { "provenance_mode": "inherited", "inherited_from": ["HINT_FIRE_LOCK_1"] }
+    },
+    {
+      "chunk_id": "K_HINT_FIRE_LOCK_2",
+      "kind": "hint",
+      "text": "쪽지의 핸들휠 그림은 소화전에 달린 어떤 부품이에요. 그 부품의 영어 이름을 빈칸 수에 맞춰 떠올려 보세요.",
+      "spoiler_tier": 2,
+      "gate": { "requires_zone_ids": ["ZONE_SECRET_CORRIDOR"] },
+      "puzzle_id": "PUZZLE_FIRE_CABINET_LOCK",
+      "hint_id": "HINT_FIRE_LOCK_2",
+      "provenance": { "provenance_mode": "inherited", "inherited_from": ["HINT_FIRE_LOCK_2"] }
+    }
+  ],
+  "safety_audit": {
+    "answer_leak_check": "passed",
+    "checked_at": "2026-10-24T00:00:00+09:00",
+    "checker_version": "spoiler.find_answer_leaks/0.1"
+  }
+}

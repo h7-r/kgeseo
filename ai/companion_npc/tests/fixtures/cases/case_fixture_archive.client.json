@@ -1,0 +1,142 @@
+{
+  "case_id": "case_fixture_archive",
+  "entry_zone_id": "ZONE_ARCHIVE_HALL",
+  "zones": [
+    {
+      "zone_id": "ZONE_ARCHIVE_HALL",
+      "zone_name": "Archive Hall",
+      "zone_type": "room",
+      "description": "A quiet hall lined with locked cabinets.",
+      "objects": [
+        {
+          "object_id": "OBJ_CABINET_LOCK",
+          "object_name": "Cabinet Lock",
+          "object_type": "lock",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "input", "target_id": "PUZZLE_CABINET" }
+        },
+        {
+          "object_id": "OBJ_NOTICE_BOARD",
+          "object_name": "Notice Board",
+          "object_type": "document",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "inspect", "target_id": "OBJ_NOTICE_BOARD" }
+        },
+        {
+          "object_id": "OBJ_STACKS_DOOR",
+          "object_name": "Stacks Door",
+          "object_type": "door",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "navigate", "target_id": "ZONE_STACKS" }
+        }
+      ],
+      "navigation": [
+        { "door_object_id": "OBJ_STACKS_DOOR", "target_zone_id": "ZONE_STACKS" }
+      ],
+      "metadata": {}
+    },
+    {
+      "zone_id": "ZONE_STACKS",
+      "zone_name": "Stacks",
+      "zone_type": "room",
+      "description": "Tall shelves, a ledger stand and a map table.",
+      "objects": [
+        {
+          "object_id": "OBJ_LEDGER_LOCK",
+          "object_name": "Ledger Clasp",
+          "object_type": "lock",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "input", "target_id": "PUZZLE_LEDGER" }
+        },
+        {
+          "object_id": "OBJ_MAP_TABLE",
+          "object_name": "Map Table",
+          "object_type": "lock",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "input", "target_id": "PUZZLE_MAP" }
+        },
+        {
+          "object_id": "OBJ_VAULT_DOOR",
+          "object_name": "Vault Door",
+          "object_type": "door",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "navigate", "target_id": "ZONE_VAULT" }
+        },
+        {
+          "object_id": "OBJ_STACKS_EXIT",
+          "object_name": "Hall Door",
+          "object_type": "door",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": null
+        }
+      ],
+      "navigation": [
+        { "door_object_id": "OBJ_VAULT_DOOR", "target_zone_id": "ZONE_VAULT" },
+        { "door_object_id": "OBJ_STACKS_EXIT", "target_zone_id": "ZONE_ARCHIVE_HALL" }
+      ],
+      "metadata": {}
+    },
+    {
+      "zone_id": "ZONE_VAULT",
+      "zone_name": "Vault",
+      "zone_type": "room",
+      "description": "A small vault with a keypad and a seal press.",
+      "objects": [
+        {
+          "object_id": "OBJ_VAULT_KEYPAD",
+          "object_name": "Vault Keypad",
+          "object_type": "lock",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "input", "target_id": "PUZZLE_KEYPAD" }
+        },
+        {
+          "object_id": "OBJ_SEAL_PRESS",
+          "object_name": "Seal Press",
+          "object_type": "lock",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": { "type": "input", "target_id": "PUZZLE_SEAL" }
+        },
+        {
+          "object_id": "OBJ_SECRET_DRAWER",
+          "object_name": "Secret Drawer",
+          "object_type": "container",
+          "asset_key": null,
+          "visible": false,
+          "enabled": false,
+          "interaction": null
+        },
+        {
+          "object_id": "OBJ_VAULT_EXIT",
+          "object_name": "Stacks Door",
+          "object_type": "door",
+          "asset_key": null,
+          "visible": true,
+          "enabled": true,
+          "interaction": null
+        }
+      ],
+      "navigation": [
+        { "door_object_id": "OBJ_VAULT_EXIT", "target_zone_id": "ZONE_STACKS" }
+      ],
+      "metadata": {}
+    }
+  ]
+}

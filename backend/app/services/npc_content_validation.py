@@ -184,7 +184,28 @@ def validate_npc_content_links(
             issues.append(
                 NpcContentIssue("PROTECTED_TEXT", f"{location}.text", str(error))
             )
+
+    # PM v0.4.3: 내보내거나 model_context에 들어가는 문장도 정답 · 힌트 원문과 겹치면 막는다.
+    # ng[]는 서버 검사 전용(공개되지 않음)이라 대상이 아니다.
+    for location, text in _public_texts(pack):
+        try:
+            _ensure_no_protected_text(
+                text, runtime.case_id, runtime, hint_source, allowed_puzzle_id=None
+            )
+        except NpcContentUnsafeError as error:
+            issues.append(NpcContentIssue("PROTECTED_TEXT", location, str(error)))
     return tuple(issues)
+
+
+def _public_texts(pack: NpcContentPack) -> Iterator[tuple[str, str]]:
+    for index, line in enumerate(pack.fallback_lines):
+        yield f"$.fallback_lines.{index}.text", line.text
+    if pack.npc_scenario is not None:
+        yield "$.npc_scenario.address", pack.npc_scenario.address
+        for index, topic in enumerate(pack.npc_scenario.avoid_topics):
+            yield f"$.npc_scenario.avoid_topics.{index}", topic
+    for index, rule in enumerate(pack.open or []):
+        yield f"$.open.{index}.text", rule.text
 
 
 def _effects(runtime: PuzzleRuntimeDefinition):

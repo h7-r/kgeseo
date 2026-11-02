@@ -1,0 +1,20 @@
+{
+  "_note": "P3-A 기준선 실험 설정. 모든 값은 실험 설정값이며 운영 확정값이 아니다. 합성 데이터 결과는 실제 플레이어 성능이 아니다.",
+  "exp_id": "p3a_baselines",
+  "representative": false,
+  "simulation_config": "experiments/p2c_default.json",
+  "shifted_simulation_config": "experiments/p2c_shifted.json",
+  "seeds": [20261025, 20261026, 20261027],
+  "sessions_per_case_archetype": 200,
+  "inner_folds": 5,
+  "split_seed": 7,
+  "weighting": ["session", "thin60", "thin90"],
+  "cooldowns_sec": [60, 30],
+  "primary_cooldown_sec": 60,
+  "max_interventions_per_session": null,
+  "budget_per_10min_exploring": 1.0,
+  "rule_grid": {
+    "consecutive_min": [2, 3, 4, 5, 6],
+    "idle_min_sec": [60, 90, 120, 180, 240]
+  }
+}

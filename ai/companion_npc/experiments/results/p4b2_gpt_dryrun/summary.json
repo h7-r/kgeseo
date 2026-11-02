@@ -1,0 +1,229 @@
+{
+  "arms": {
+    "free": {
+      "actual_cost_unknown": 0,
+      "actual_cost_usd": 0.002243,
+      "cache_hits": 0,
+      "estimated_cost_usd": 0.007605,
+      "fallback_rate": 0.0,
+      "generation_ms": {
+        "median": 0.076,
+        "p90": 0.085
+      },
+      "generator_errors": {},
+      "guard_pass_rate": 1.0,
+      "n": 36,
+      "spoiler_flags": {
+        "answer_leak": 0,
+        "internal_id": 0,
+        "undisclosed_content": 0
+      },
+      "status_counts": {
+        "spoke": 36
+      },
+      "tokens_in": 15532,
+      "tokens_out": 1379,
+      "unsupported_flags": {
+        "ungrounded": 0,
+        "unsupported_sentence": 0
+      },
+      "validation_ms": {
+        "median": 0.175,
+        "p90": 0.193
+      }
+    },
+    "select": {
+      "actual_cost_unknown": 0,
+      "actual_cost_usd": 0.002129,
+      "cache_hits": 0,
+      "estimated_cost_usd": 0.007403,
+      "fallback_rate": 0.0,
+      "generation_ms": {
+        "median": 0.077,
+        "p90": 0.091
+      },
+      "generator_errors": {},
+      "guard_pass_rate": 1.0,
+      "n": 36,
+      "spoiler_flags": {
+        "answer_leak": 0,
+        "internal_id": 0,
+        "undisclosed_content": 0
+      },
+      "status_counts": {
+        "spoke": 36
+      },
+      "tokens_in": 15532,
+      "tokens_out": 1152,
+      "unsupported_flags": {
+        "ungrounded": 0,
+        "unsupported_sentence": 0
+      },
+      "validation_ms": {
+        "median": 0.177,
+        "p90": 0.205
+      }
+    }
+  },
+  "audit": {
+    "checked": 38,
+    "excluded": [
+      {
+        "item_id": "case_001/player_alias_probe",
+        "reasons": [
+          "answer_or_alias"
+        ]
+      },
+      {
+        "item_id": "case_fixture_archive/player_alias_probe",
+        "reasons": [
+          "answer_or_alias"
+        ]
+      }
+    ],
+    "included": 36,
+    "kinds": {
+      "clarify": 8,
+      "hint": 20,
+      "nudge": 8
+    }
+  },
+  "check_in_baseline": {
+    "all_template": true,
+    "n": 4,
+    "status_counts": {
+      "spoke": 4
+    }
+  },
+  "consistency": {
+    "free": {
+      "cases": 8,
+      "distinct_raw_mean": 1,
+      "final_text_identical_rate": 1.0,
+      "guard_decision_agreement_rate": 1.0,
+      "runs_per_case": 3
+    },
+    "select": {
+      "cases": 0
+    }
+  },
+  "dry_run": true,
+  "experiment_version": "p4b2/0.1",
+  "input_mismatch_between_arms": [],
+  "ledger": {
+    "actual_unknown_requests": 0,
+    "actual_usd_known": 0.005552,
+    "charged_for_cap_usd": 0.005552,
+    "estimated_usd": 0.01917,
+    "max_requests": 100,
+    "max_usd": 2.0,
+    "requests": 92
+  },
+  "llm_rows": 92,
+  "note": "문장 본문 없음 · 구조 지표와 비용만. 품질(원문 · 최종)은 사람 평가 양식으로 따로 잰다. 오프라인 전송 — 실제 모델 결과가 아니다.",
+  "phase_counts": {
+    "arm": 72,
+    "check_in_baseline": 4,
+    "repeat": 16,
+    "smoke": 4
+  },
+  "planned_requests": 92,
+  "reproduction": {
+    "experiment_config_sha256": "8ec5903186114409af1f43baffd50b361e394f2eb9acdcfe8da537ee80a34503",
+    "generator_config": {
+      "api_key_env": "OPENAI_API_KEY",
+      "backoff_sec": 2.0,
+      "base_url": null,
+      "budget": {
+        "max_requests": 100,
+        "max_usd": 2.0
+      },
+      "disable_thinking": false,
+      "generator": "gpt_rag",
+      "max_output_tokens": 256,
+      "max_retries": 2,
+      "min_p": null,
+      "model": "gpt-6-luna",
+      "prices": {
+        "checked_at": "2026-10-26T00:00:00+09:00",
+        "source": "https://developers.openai.com/api/docs/pricing (Standard, <=272K input) · https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "usd_per_1m_cached_input": 0.01,
+        "usd_per_1m_input": 0.1,
+        "usd_per_1m_output": 0.5
+      },
+      "prompt_mode": "free",
+      "prompt_version": "p4b/0.2",
+      "provider": "openai",
+      "reasoning_effort": "none",
+      "structured_output": true,
+      "temperature": 0.7,
+      "timeout_sec": 30.0,
+      "top_k": null,
+      "top_p": null
+    },
+    "git_commit": "22a0d15e0d54581cfce7f2c12bd2514da99806b1",
+    "git_dirty": true,
+    "model_record": {
+      "checked_at": "2026-10-26",
+      "distribution": "OpenAI API (Chat Completions)",
+      "file": null,
+      "file_sha256": null,
+      "license": "OpenAI 서비스 약관 (API)",
+      "model_id": "gpt-6-luna",
+      "revision": null,
+      "runtime": null,
+      "runtime_asset": null,
+      "runtime_sha256": null,
+      "sdk": "openai==3.29.0",
+      "snapshot": "gpt-6-luna",
+      "sources": [
+        "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "https://developers.openai.com/api/docs/pricing",
+        "https://developers.openai.com/api/docs/guides/latest-model",
+        "https://pypi.org/project/openai/"
+      ],
+      "verified_locally": false
+    },
+    "packages": {
+      "openai": null,
+      "pydantic": "2.13.5"
+    },
+    "prompt_version": "p4b/0.2",
+    "python": "3.12.10",
+    "source_sha256": "f36ca4d2f9ca971372d434347ca7f12536806697ace45f11a468a7e404b7e921"
+  },
+  "sent_requests": 92,
+  "smoke": {
+    "actual_cost_unknown": 0,
+    "actual_cost_usd": 0.00021,
+    "cache_hits": 0,
+    "estimated_cost_usd": 0.000804,
+    "fallback_rate": 0.0,
+    "generation_ms": {
+      "median": 0.096,
+      "p90": 0.126
+    },
+    "generator_errors": {},
+    "guard_pass_rate": 1.0,
+    "n": 4,
+    "spoiler_flags": {
+      "answer_leak": 0,
+      "internal_id": 0,
+      "undisclosed_content": 0
+    },
+    "status_counts": {
+      "spoke": 4
+    },
+    "tokens_in": 1433,
+    "tokens_out": 134,
+    "unsupported_flags": {
+      "ungrounded": 0,
+      "unsupported_sentence": 0
+    },
+    "validation_ms": {
+      "median": 0.122,
+      "p90": 0.175
+    }
+  },
+  "stop_reason": null
+}

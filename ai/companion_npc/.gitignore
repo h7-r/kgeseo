@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────
+#  AI 동행 NPC 실험 환경 — 깃이 추적하지 않을 것들
+# ─────────────────────────────────────────────
+#  루트 .gitignore 를 고치지 않으려고 이 폴더 안에 따로 둔다.
+#  여기 적은 규칙은 ai/companion_npc/ 아래에만 적용된다.
+
+# 로컬 가상환경 (Python 3.12) — requirements*.txt 로 복원한다
+.venv/
+venv/
+
+# 도구 캐시
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# 데이터셋 · 실험 로그 · 모델 — 용량이 크거나 플레이 기록이 들어 있다
+#   테스트에 필요한 작은 견본은 tests/fixtures/ 에 둔다(이 규칙에 걸리지 않는다).
+/data/
+/runs/
+/models/
+/mlruns/
+/wandb/
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.lgb
+*.joblib
+*.pkl
+*.parquet
+*.faiss
+*.index
+
+# 인증 정보 — 견본은 .env.예시 (루트 규칙의 예외와 같은 이름)
+.env
+.env.*
+!.env.예시

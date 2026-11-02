@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# Development-only dependencies (backend/requirements-dev.txt 와 같은 버전)
+pytest==9.1.1
+ruff==0.16.7

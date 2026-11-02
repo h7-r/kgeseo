@@ -1,0 +1,17 @@
+{
+  "_note": "P3 RuleBaseline(ai/companion_npc) 과 BE npc_decision.rule_fires 가 같은 판정을 내는지 두 환경이 함께 읽는 견본. 가상 값이다. null 은 관측 없음(NPC 쪽 NaN).",
+  "consecutive_min": 6,
+  "idle_min_sec": 240.0,
+  "cases": [
+    {"id": "nothing", "help": false, "target": null, "consecutive": null, "idle": null, "fires": false},
+    {"id": "help_only", "help": true, "target": null, "consecutive": null, "idle": null, "fires": true},
+    {"id": "consecutive_at_min", "help": false, "target": "PZ_A", "consecutive": 6, "idle": 10.0, "fires": true},
+    {"id": "consecutive_below", "help": false, "target": "PZ_A", "consecutive": 5, "idle": 10.0, "fires": false},
+    {"id": "idle_at_min_with_target", "help": false, "target": "PZ_A", "consecutive": 0, "idle": 240.0, "fires": true},
+    {"id": "idle_below", "help": false, "target": "PZ_A", "consecutive": 0, "idle": 239.9, "fires": false},
+    {"id": "idle_without_target", "help": false, "target": null, "consecutive": null, "idle": 999.0, "fires": false},
+    {"id": "idle_unobserved", "help": false, "target": "PZ_A", "consecutive": 0, "idle": null, "fires": false},
+    {"id": "consecutive_unobserved", "help": false, "target": "PZ_A", "consecutive": null, "idle": 5.0, "fires": false},
+    {"id": "everything", "help": true, "target": "PZ_A", "consecutive": 9, "idle": 999.0, "fires": true}
+  ]
+}

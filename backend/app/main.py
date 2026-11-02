@@ -8,6 +8,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.cases import router as cases_router
 from app.api.v1.health import router as health_router
 from app.api.v1.interactions import router as interactions_router
+from app.api.v1.npc import router as npc_router
 
 # 플레이 세션 Router
 from app.api.v1.play_sessions import (
@@ -61,6 +62,16 @@ app.include_router(
 # /api/v1/play-sessions/{play_session_id}/interactions
 app.include_router(
     interactions_router,
+    prefix="/api/v1",
+)
+
+
+# NPC 턴 API 등록 (PM v0.4.3 · 일반 대화 생성 OFF · 승인 이력 없으면 대사 없음)
+#
+# 최종 경로:
+# /api/v1/play-sessions/{play_session_id}/npc/turns
+app.include_router(
+    npc_router,
     prefix="/api/v1",
 )
 

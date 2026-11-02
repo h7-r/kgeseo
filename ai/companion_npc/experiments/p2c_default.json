@@ -1,0 +1,72 @@
+{
+  "_note": "P2-C 초기 가정값. 실제 플레이어 관찰에 근거한 값이 아니다. 합성 데이터는 파이프라인 기능 검증용이며 실제 분포를 대표하지 않는다.",
+  "generator_version": "sim/0.1",
+  "seed": 20261025,
+  "sessions_per_case_archetype": 200,
+  "cases": [
+    { "case_id": "case_001", "cases_dir": "../../backend/app/content/cases" },
+    { "case_id": "case_fixture_lighthouse", "cases_dir": "tests/fixtures/cases" },
+    { "case_id": "case_fixture_archive", "cases_dir": "tests/fixtures/cases" }
+  ],
+  "base_time": "2026-11-01T00:00:00+00:00",
+  "start_spread_hours": 24,
+  "export_after_min": [10, 45],
+  "max_session_min": 60,
+  "epilogue_sec": 10,
+  "already_completed_prob": 0.05,
+  "combine_attempt_prob": 0.1,
+  "emit_exploration_events": true,
+  "away": { "prob_per_gap": 0.1, "duration": { "median_sec": 240, "sigma": 0.6 } },
+  "archetypes": {
+    "fast_solver": {
+      "think": { "median_sec": 25, "sigma": 0.5 },
+      "explore_prob": 0.1, "explore": { "median_sec": 60, "sigma": 0.5 },
+      "p_correct_initial": 0.7, "p_correct_step": 0.1, "p_correct_max": 0.95,
+      "insight_hazard": null, "p_after_insight": null,
+      "repeat_wrong_prob": 0.1,
+      "stuck_after_fails": 99, "stuck_prob": 0.0, "stuck": { "median_sec": 60, "sigma": 0.5 },
+      "dropout_per_failed_attempt": 0.0, "dropout_after_stuck": false,
+      "exploration_actions_per_min": 1
+    },
+    "trial_and_error": {
+      "think": { "median_sec": 20, "sigma": 0.6 },
+      "explore_prob": 0.15, "explore": { "median_sec": 60, "sigma": 0.6 },
+      "p_correct_initial": 0.15, "p_correct_step": 0.1, "p_correct_max": 0.8,
+      "insight_hazard": null, "p_after_insight": null,
+      "repeat_wrong_prob": 0.15,
+      "stuck_after_fails": 6, "stuck_prob": 0.3, "stuck": { "median_sec": 120, "sigma": 0.6 },
+      "dropout_per_failed_attempt": 0.02, "dropout_after_stuck": false,
+      "exploration_actions_per_min": 1
+    },
+    "repeat_wrong": {
+      "think": { "median_sec": 30, "sigma": 0.6 },
+      "explore_prob": 0.1, "explore": { "median_sec": 60, "sigma": 0.6 },
+      "p_correct_initial": 0.05, "p_correct_step": 0.0, "p_correct_max": 0.05,
+      "insight_hazard": 0.08, "p_after_insight": 0.6,
+      "repeat_wrong_prob": 0.7,
+      "stuck_after_fails": 3, "stuck_prob": 0.4, "stuck": { "median_sec": 150, "sigma": 0.6 },
+      "dropout_per_failed_attempt": 0.05, "dropout_after_stuck": false,
+      "exploration_actions_per_min": 0.5
+    },
+    "long_explorer": {
+      "think": { "median_sec": 20, "sigma": 0.5 },
+      "explore_prob": 0.9, "explore": { "median_sec": 180, "sigma": 0.7 },
+      "p_correct_initial": 0.5, "p_correct_step": 0.1, "p_correct_max": 0.9,
+      "insight_hazard": null, "p_after_insight": null,
+      "repeat_wrong_prob": 0.05,
+      "stuck_after_fails": 8, "stuck_prob": 0.1, "stuck": { "median_sec": 120, "sigma": 0.6 },
+      "dropout_per_failed_attempt": 0.01, "dropout_after_stuck": false,
+      "exploration_actions_per_min": 3
+    },
+    "dropout": {
+      "think": { "median_sec": 20, "sigma": 0.6 },
+      "explore_prob": 0.15, "explore": { "median_sec": 60, "sigma": 0.6 },
+      "p_correct_initial": 0.15, "p_correct_step": 0.1, "p_correct_max": 0.8,
+      "insight_hazard": null, "p_after_insight": null,
+      "repeat_wrong_prob": 0.15,
+      "stuck_after_fails": 2, "stuck_prob": 0.5, "stuck": { "median_sec": 90, "sigma": 0.6 },
+      "dropout_per_failed_attempt": 0.25, "dropout_after_stuck": true,
+      "exploration_actions_per_min": 1
+    }
+  }
+}

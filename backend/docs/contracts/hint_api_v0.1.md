@@ -109,7 +109,7 @@ commit 중 고유키 경합이면 rollback 후 승자 이벤트를 다시 읽어
 
 | 항목 | 지금 처리 | 결정 주체 |
 |---|---|---|
-| 힌트 원문의 콘텐츠 필드 위치 | `hint_source(case_id, puzzle_id, level)` 인자로 받는다. 기본 구현 없음 | PM (정책 12) |
+| ~~힌트 원문의 콘텐츠 필드 위치~~ | **정함(PM v0.4.2)**: server.json `puzzles[].hints[]` = `{"level": 1\|2, "text": "<원문>"}`. 단계 중복 · 1단계 없는 2단계 · 빈 원문은 검증 오류, 힌트가 없는 퍼즐은 빈 목록. 서비스는 여전히 `hint_source` 인자로 받고, 기본 구현은 `server_hint_source()` · `server_hint_text()`(`app/services/hint.py`). client.json · npc.json에는 원문을 두지 않는다(npc.json은 `{"level": n}` 참조만) | PM (정책 12) |
 | Zone 접근 제한 | `access_policy` 인자. 서비스는 판정하지 않는다 | PM |
 | 완료한 퍼즐의 힌트 해금 | `access_policy` | PM |
 | 선행 단서 미획득 시 해금 | `access_policy` (`PuzzleDefinition.requires_clue_ids` 전달됨) | PM |

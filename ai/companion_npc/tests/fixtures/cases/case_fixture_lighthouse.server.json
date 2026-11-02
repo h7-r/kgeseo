@@ -1,0 +1,35 @@
+{
+  "schema_version": "0.1",
+  "case_id": "case_fixture_lighthouse",
+  "puzzles": [
+    {
+      "puzzle_id": "PUZZLE_DRAWER",
+      "accepted_answers": ["0412"],
+      "on_correct": {
+        "grant_clue_ids": ["CLUE_LENS_NOTE"],
+        "complete_puzzle_ids": [],
+        "set_flags": { "drawer_open": true }
+      }
+    },
+    {
+      "puzzle_id": "PUZZLE_LENS",
+      "accepted_answers": ["NORTHEAST", "북동"],
+      "on_correct": {
+        "grant_clue_ids": [],
+        "complete_puzzle_ids": ["PUZZLE_FINALE"],
+        "set_flags": { "lamp_lit": true }
+      }
+    }
+  ],
+  "clue_combinations": [
+    {
+      "combination_id": "COMBO_LOG_NOTE",
+      "clue_ids": ["CLUE_LOG_DATES", "CLUE_LENS_NOTE"],
+      "on_success": {
+        "grant_clue_ids": ["CLUE_KEEPER_TRUTH"],
+        "complete_puzzle_ids": ["PUZZLE_RECONSTRUCT"],
+        "set_flags": { "truth_known": true }
+      }
+    }
+  ]
+}

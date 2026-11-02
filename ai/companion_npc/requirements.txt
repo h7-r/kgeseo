@@ -1,0 +1,8 @@
+# P0~P1 런타임 의존성 — 계약 모델(Pydantic)만.
+# 버전은 backend/requirements.txt 와 맞춘다(같은 계약을 같은 검증기로 읽기 위해).
+# PyTorch · Qwen · LightGBM · scikit-learn · OpenAI SDK 는 계약 확정 후 별도로 추가한다.
+pydantic==2.13.5
+pydantic_core==2.46.5
+annotated-types==0.8.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0

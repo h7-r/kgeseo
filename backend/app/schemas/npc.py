@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -54,6 +54,8 @@ class ApprovedNpcLine(BaseModel):
     approved: bool
     # 이 퍼즐에서만 쓰는 대사. None이면 퍼즐과 무관한 일반 nudge.
     puzzle_id: str | None = None
+    # 공개 조건(npc.json `reveal_when`). 없거나 판정할 수 없으면 내보내지 않는다.
+    reveal_when: dict[str, Any] | None = None
 
 
 class NpcEventRecord(BaseModel):

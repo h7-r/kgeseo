@@ -1,0 +1,642 @@
+{
+  "decision_mode_counts": {
+    "away": 12873,
+    "exploring": 15480,
+    "post_end": 105681,
+    "stuck": 8909,
+    "working": 18626
+  },
+  "decision_points": 161569,
+  "final_status_counts": {
+    "censored": 2010,
+    "eligible": 53878,
+    "excluded_other": 0,
+    "post_termination": 105681
+  },
+  "groups": [
+    {
+      "already_completed_events": 4,
+      "archetype": "dropout",
+      "case_id": "case_001",
+      "decision_mode_counts": {
+        "away": 230,
+        "exploring": 118,
+        "post_end": 9431,
+        "stuck": 548,
+        "working": 381
+      },
+      "decision_points": 10708,
+      "events_kept_mean": 2.155,
+      "final_status_counts": {
+        "censored": 9,
+        "eligible": 1268,
+        "excluded_other": 0,
+        "post_termination": 9431
+      },
+      "incorrect_rate": 0.7193,
+      "outcomes": {
+        "abandoned": 80,
+        "completed": 117,
+        "observation_cutoff": 3
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.8565,
+        "exploring": 0.678,
+        "post_end": 1.0,
+        "stuck": 0.9019,
+        "working": 0.6605
+      },
+      "proxy_label_status_counts": {
+        "censored": 793,
+        "labeled": 9915
+      },
+      "reachable_completed_rate": 0.585,
+      "repeat_wrong_rate": 0.0774,
+      "scenario_completed_rate": 0.585,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 13,
+      "archetype": "fast_solver",
+      "case_id": "case_001",
+      "decision_mode_counts": {
+        "away": 64,
+        "exploring": 9,
+        "post_end": 10723,
+        "stuck": 0,
+        "working": 309
+      },
+      "decision_points": 11105,
+      "events_kept_mean": 1.38,
+      "final_status_counts": {
+        "censored": 0,
+        "eligible": 382,
+        "excluded_other": 0,
+        "post_termination": 10723
+      },
+      "incorrect_rate": 0.2283,
+      "outcomes": {
+        "completed": 200
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.9062,
+        "exploring": 0.0,
+        "post_end": 1.0,
+        "stuck": null,
+        "working": 0.7249
+      },
+      "proxy_label_status_counts": {
+        "censored": 800,
+        "labeled": 10305
+      },
+      "reachable_completed_rate": 1.0,
+      "repeat_wrong_rate": 0.0159,
+      "scenario_completed_rate": 1.0,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 9,
+      "archetype": "long_explorer",
+      "case_id": "case_001",
+      "decision_mode_counts": {
+        "away": 117,
+        "exploring": 1034,
+        "post_end": 7593,
+        "stuck": 0,
+        "working": 316
+      },
+      "decision_points": 9060,
+      "events_kept_mean": 1.75,
+      "final_status_counts": {
+        "censored": 33,
+        "eligible": 1434,
+        "excluded_other": 0,
+        "post_termination": 7593
+      },
+      "incorrect_rate": 0.4371,
+      "outcomes": {
+        "abandoned": 2,
+        "completed": 188,
+        "observation_cutoff": 10
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.9464,
+        "exploring": 0.7409,
+        "post_end": 1.0,
+        "stuck": null,
+        "working": 0.7653
+      },
+      "proxy_label_status_counts": {
+        "censored": 784,
+        "labeled": 8276
+      },
+      "reachable_completed_rate": 0.94,
+      "repeat_wrong_rate": 0.0065,
+      "scenario_completed_rate": 0.94,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 0,
+      "archetype": "repeat_wrong",
+      "case_id": "case_001",
+      "decision_mode_counts": {
+        "away": 794,
+        "exploring": 239,
+        "post_end": 6766,
+        "stuck": 1468,
+        "working": 1380
+      },
+      "decision_points": 10647,
+      "events_kept_mean": 5.31,
+      "final_status_counts": {
+        "censored": 137,
+        "eligible": 3744,
+        "excluded_other": 0,
+        "post_termination": 6766
+      },
+      "incorrect_rate": 0.8889,
+      "outcomes": {
+        "abandoned": 52,
+        "completed": 118,
+        "observation_cutoff": 30
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.9621,
+        "exploring": 0.9119,
+        "post_end": 1.0,
+        "stuck": 0.9195,
+        "working": 0.8006
+      },
+      "proxy_label_status_counts": {
+        "censored": 806,
+        "labeled": 9841
+      },
+      "reachable_completed_rate": 0.59,
+      "repeat_wrong_rate": 0.5646,
+      "scenario_completed_rate": 0.59,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 6,
+      "archetype": "trial_and_error",
+      "case_id": "case_001",
+      "decision_mode_counts": {
+        "away": 332,
+        "exploring": 186,
+        "post_end": 9170,
+        "stuck": 11,
+        "working": 728
+      },
+      "decision_points": 10427,
+      "events_kept_mean": 3.27,
+      "final_status_counts": {
+        "censored": 10,
+        "eligible": 1247,
+        "excluded_other": 0,
+        "post_termination": 9170
+      },
+      "incorrect_rate": 0.6988,
+      "outcomes": {
+        "abandoned": 7,
+        "completed": 191,
+        "observation_cutoff": 2
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.878,
+        "exploring": 0.371,
+        "post_end": 1.0,
+        "stuck": 0.2857,
+        "working": 0.4463
+      },
+      "proxy_label_status_counts": {
+        "censored": 800,
+        "labeled": 9627
+      },
+      "reachable_completed_rate": 0.955,
+      "repeat_wrong_rate": 0.0897,
+      "scenario_completed_rate": 0.955,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 11,
+      "archetype": "dropout",
+      "case_id": "case_fixture_archive",
+      "decision_mode_counts": {
+        "away": 800,
+        "exploring": 386,
+        "post_end": 7727,
+        "stuck": 1214,
+        "working": 857
+      },
+      "decision_points": 10984,
+      "events_kept_mean": 4.76,
+      "final_status_counts": {
+        "censored": 75,
+        "eligible": 3182,
+        "excluded_other": 0,
+        "post_termination": 7727
+      },
+      "incorrect_rate": 0.7578,
+      "outcomes": {
+        "abandoned": 181,
+        "completed": 4,
+        "observation_cutoff": 15
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.9295,
+        "exploring": 0.784,
+        "post_end": 1.0,
+        "stuck": 0.8529,
+        "working": 0.6007
+      },
+      "proxy_label_status_counts": {
+        "censored": 801,
+        "labeled": 10183
+      },
+      "reachable_completed_rate": 0.02,
+      "repeat_wrong_rate": 0.0693,
+      "scenario_completed_rate": 0.0,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 45,
+      "archetype": "fast_solver",
+      "case_id": "case_fixture_archive",
+      "decision_mode_counts": {
+        "away": 1089,
+        "exploring": 331,
+        "post_end": 8039,
+        "stuck": 0,
+        "working": 1862
+      },
+      "decision_points": 11321,
+      "events_kept_mean": 7.41,
+      "final_status_counts": {
+        "censored": 16,
+        "eligible": 3266,
+        "excluded_other": 0,
+        "post_termination": 8039
+      },
+      "incorrect_rate": 0.2559,
+      "outcomes": {
+        "completed": 195,
+        "observation_cutoff": 5
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.7509,
+        "exploring": 0.1581,
+        "post_end": 1.0,
+        "stuck": null,
+        "working": 0.1624
+      },
+      "proxy_label_status_counts": {
+        "censored": 789,
+        "labeled": 10532
+      },
+      "reachable_completed_rate": 0.975,
+      "repeat_wrong_rate": 0.0197,
+      "scenario_completed_rate": 0.0,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 32,
+      "archetype": "long_explorer",
+      "case_id": "case_fixture_archive",
+      "decision_mode_counts": {
+        "away": 1107,
+        "exploring": 7102,
+        "post_end": 986,
+        "stuck": 0,
+        "working": 879
+      },
+      "decision_points": 10074,
+      "events_kept_mean": 6.04,
+      "final_status_counts": {
+        "censored": 570,
+        "eligible": 8518,
+        "excluded_other": 0,
+        "post_termination": 986
+      },
+      "incorrect_rate": 0.4506,
+      "outcomes": {
+        "abandoned": 3,
+        "completed": 51,
+        "observation_cutoff": 146
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.9626,
+        "exploring": 0.772,
+        "post_end": 1.0,
+        "stuck": null,
+        "working": 0.4401
+      },
+      "proxy_label_status_counts": {
+        "censored": 754,
+        "labeled": 9320
+      },
+      "reachable_completed_rate": 0.255,
+      "repeat_wrong_rate": 0.0171,
+      "scenario_completed_rate": 0.0,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 8,
+      "archetype": "repeat_wrong",
+      "case_id": "case_fixture_archive",
+      "decision_mode_counts": {
+        "away": 1755,
+        "exploring": 533,
+        "post_end": 3186,
+        "stuck": 2351,
+        "working": 2805
+      },
+      "decision_points": 10630,
+      "events_kept_mean": 10.33,
+      "final_status_counts": {
+        "censored": 478,
+        "eligible": 6966,
+        "excluded_other": 0,
+        "post_termination": 3186
+      },
+      "incorrect_rate": 0.8893,
+      "outcomes": {
+        "abandoned": 83,
+        "completed": 4,
+        "observation_cutoff": 113
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.9707,
+        "exploring": 0.9246,
+        "post_end": 1.0,
+        "stuck": 0.9202,
+        "working": 0.7977
+      },
+      "proxy_label_status_counts": {
+        "censored": 826,
+        "labeled": 9804
+      },
+      "reachable_completed_rate": 0.02,
+      "repeat_wrong_rate": 0.5464,
+      "scenario_completed_rate": 0.0,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 44,
+      "archetype": "trial_and_error",
+      "case_id": "case_fixture_archive",
+      "decision_mode_counts": {
+        "away": 2620,
+        "exploring": 1091,
+        "post_end": 4978,
+        "stuck": 46,
+        "working": 3279
+      },
+      "decision_points": 12014,
+      "events_kept_mean": 14.26,
+      "final_status_counts": {
+        "censored": 169,
+        "eligible": 6867,
+        "excluded_other": 0,
+        "post_termination": 4978
+      },
+      "incorrect_rate": 0.6883,
+      "outcomes": {
+        "abandoned": 31,
+        "completed": 124,
+        "observation_cutoff": 45
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.8623,
+        "exploring": 0.5056,
+        "post_end": 1.0,
+        "stuck": 0.5238,
+        "working": 0.3483
+      },
+      "proxy_label_status_counts": {
+        "censored": 775,
+        "labeled": 11239
+      },
+      "reachable_completed_rate": 0.62,
+      "repeat_wrong_rate": 0.0954,
+      "scenario_completed_rate": 0.0,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 6,
+      "archetype": "dropout",
+      "case_id": "case_fixture_lighthouse",
+      "decision_mode_counts": {
+        "away": 399,
+        "exploring": 246,
+        "post_end": 8789,
+        "stuck": 962,
+        "working": 607
+      },
+      "decision_points": 11003,
+      "events_kept_mean": 3.485,
+      "final_status_counts": {
+        "censored": 30,
+        "eligible": 2184,
+        "excluded_other": 0,
+        "post_termination": 8789
+      },
+      "incorrect_rate": 0.7317,
+      "outcomes": {
+        "abandoned": 125,
+        "completed": 69,
+        "observation_cutoff": 6
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.8912,
+        "exploring": 0.7078,
+        "post_end": 1.0,
+        "stuck": 0.8607,
+        "working": 0.6167
+      },
+      "proxy_label_status_counts": {
+        "censored": 795,
+        "labeled": 10208
+      },
+      "reachable_completed_rate": 0.345,
+      "repeat_wrong_rate": 0.0824,
+      "scenario_completed_rate": 0.0,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 25,
+      "archetype": "fast_solver",
+      "case_id": "case_fixture_lighthouse",
+      "decision_mode_counts": {
+        "away": 235,
+        "exploring": 76,
+        "post_end": 9792,
+        "stuck": 0,
+        "working": 694
+      },
+      "decision_points": 10797,
+      "events_kept_mean": 2.865,
+      "final_status_counts": {
+        "censored": 0,
+        "eligible": 1005,
+        "excluded_other": 0,
+        "post_termination": 9792
+      },
+      "incorrect_rate": 0.2583,
+      "outcomes": {
+        "completed": 200
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.6894,
+        "exploring": 0.0921,
+        "post_end": 1.0,
+        "stuck": null,
+        "working": 0.3444
+      },
+      "proxy_label_status_counts": {
+        "censored": 800,
+        "labeled": 9997
+      },
+      "reachable_completed_rate": 1.0,
+      "repeat_wrong_rate": 0.0338,
+      "scenario_completed_rate": 0.0,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 19,
+      "archetype": "long_explorer",
+      "case_id": "case_fixture_lighthouse",
+      "decision_mode_counts": {
+        "away": 371,
+        "exploring": 3137,
+        "post_end": 5563,
+        "stuck": 0,
+        "working": 546
+      },
+      "decision_points": 9617,
+      "events_kept_mean": 3.19,
+      "final_status_counts": {
+        "censored": 114,
+        "eligible": 3940,
+        "excluded_other": 0,
+        "post_termination": 5563
+      },
+      "incorrect_rate": 0.4075,
+      "outcomes": {
+        "abandoned": 4,
+        "completed": 169,
+        "observation_cutoff": 27
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.9804,
+        "exploring": 0.7543,
+        "post_end": 1.0,
+        "stuck": null,
+        "working": 0.5614
+      },
+      "proxy_label_status_counts": {
+        "censored": 787,
+        "labeled": 8830
+      },
+      "reachable_completed_rate": 0.845,
+      "repeat_wrong_rate": 0.0077,
+      "scenario_completed_rate": 0.0,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 10,
+      "archetype": "repeat_wrong",
+      "case_id": "case_fixture_lighthouse",
+      "decision_mode_counts": {
+        "away": 1871,
+        "exploring": 494,
+        "post_end": 4569,
+        "stuck": 2293,
+        "working": 2544
+      },
+      "decision_points": 11771,
+      "events_kept_mean": 9.14,
+      "final_status_counts": {
+        "censored": 342,
+        "eligible": 6860,
+        "excluded_other": 0,
+        "post_termination": 4569
+      },
+      "incorrect_rate": 0.895,
+      "outcomes": {
+        "abandoned": 64,
+        "completed": 59,
+        "observation_cutoff": 77
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.9688,
+        "exploring": 0.9231,
+        "post_end": 1.0,
+        "stuck": 0.9341,
+        "working": 0.8153
+      },
+      "proxy_label_status_counts": {
+        "censored": 812,
+        "labeled": 10959
+      },
+      "reachable_completed_rate": 0.3,
+      "repeat_wrong_rate": 0.5636,
+      "scenario_completed_rate": 0.0,
+      "sessions": 200
+    },
+    {
+      "already_completed_events": 19,
+      "archetype": "trial_and_error",
+      "case_id": "case_fixture_lighthouse",
+      "decision_mode_counts": {
+        "away": 1089,
+        "exploring": 498,
+        "post_end": 8369,
+        "stuck": 16,
+        "working": 1439
+      },
+      "decision_points": 11411,
+      "events_kept_mean": 6.525,
+      "final_status_counts": {
+        "censored": 27,
+        "eligible": 3015,
+        "excluded_other": 0,
+        "post_termination": 8369
+      },
+      "incorrect_rate": 0.7027,
+      "outcomes": {
+        "abandoned": 15,
+        "completed": 180,
+        "observation_cutoff": 5
+      },
+      "proxy1_rate_by_mode": {
+        "away": 0.8243,
+        "exploring": 0.538,
+        "post_end": 1.0,
+        "stuck": 0.375,
+        "working": 0.3853
+      },
+      "proxy_label_status_counts": {
+        "censored": 801,
+        "labeled": 10610
+      },
+      "reachable_completed_rate": 0.9,
+      "repeat_wrong_rate": 0.0894,
+      "scenario_completed_rate": 0.0,
+      "sessions": 200
+    }
+  ],
+  "note": "합성 데이터의 성질이다. 실제 플레이어 행동이나 모델 성능에 대한 주장이 아니다.",
+  "proxy1_rate_by_mode": {
+    "away": 0.9,
+    "exploring": 0.7272,
+    "post_end": 1.0,
+    "stuck": 0.9028,
+    "working": 0.5491
+  },
+  "proxy_label_status_counts": {
+    "censored": 11923,
+    "labeled": 149646
+  },
+  "representative": false,
+  "sessions": 3000
+}

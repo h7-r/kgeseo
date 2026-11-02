@@ -3,7 +3,8 @@
 힌트 단계(PlaySession `hint_levels`)를 바꾸는 곳은 이 서비스뿐이다. 다음은 PM 결정 전이라
 서비스가 정하지 않고 호출하는 쪽이 넘긴다.
 
-- 힌트 원문 위치: `hint_source` (콘텐츠 필드 위치 미정)
+- 힌트 원문: `hint_source`. 공식 원문은 server.json `puzzles[].hints[]`(PM v0.4.2)이고,
+  `server_hint_source()` · `server_hint_text()`가 그 원문을 읽는 HintSource를 만든다.
 - 새 단계 해금의 접근 조건(Zone · 완료한 퍼즐 · 선행 단서): `access_policy`
 
 힌트 원문은 이벤트에 저장하지 않는다. 응답할 때마다 `hint_source`에서 읽는다.
@@ -52,6 +53,29 @@ HintAccessPolicy = Callable[[dict[str, Any], PuzzleDefinition, int], None]
 
 # interaction_events.interaction_type. Interaction API의 action과 겹치지 않는다.
 HINT_INTERACTION_TYPE = "unlock_hint"
+
+
+def server_hint_text(
+    runtime: PuzzleRuntimeDefinition, puzzle_id: str, level: int
+) -> str | None:
+    """server.json의 정식 힌트 원문. 퍼즐 · 단계가 없으면 None.
+
+    `PinnedContent.hint_source(resolver)`에 그대로 넘길 수 있는 모양이다.
+    """
+
+    for puzzle in runtime.puzzles:
+        if puzzle.puzzle_id == puzzle_id:
+            return puzzle.hint_text(level)
+    return None
+
+
+def server_hint_source(runtime_loader: RuntimeLoader = load_case_runtime) -> HintSource:
+    """케이스의 server.json에서 원문을 읽는 HintSource."""
+
+    def source(case_id: str, puzzle_id: str, level: int) -> str | None:
+        return server_hint_text(runtime_loader(case_id), puzzle_id, level)
+
+    return source
 
 
 class HintServiceError(Exception):

@@ -1,0 +1,477 @@
+{
+  "arms": {
+    "free": {
+      "actual_cost_unknown": 0,
+      "actual_cost_usd": 0,
+      "cache_hits": 0,
+      "estimated_cost_usd": 0,
+      "fallback_rate": null,
+      "generation_ms": {
+        "median": null,
+        "p90": null
+      },
+      "generator_errors": {},
+      "guard_pass_rate": null,
+      "n": 0,
+      "spoiler_flags": {
+        "answer_leak": 0,
+        "internal_id": 0,
+        "undisclosed_content": 0
+      },
+      "status_counts": {},
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "unsupported_flags": {
+        "ungrounded": 0,
+        "unsupported_sentence": 0
+      },
+      "validation_ms": {
+        "median": null,
+        "p90": null
+      }
+    },
+    "select": {
+      "actual_cost_unknown": 0,
+      "actual_cost_usd": 0,
+      "cache_hits": 0,
+      "estimated_cost_usd": 0,
+      "fallback_rate": null,
+      "generation_ms": {
+        "median": null,
+        "p90": null
+      },
+      "generator_errors": {},
+      "guard_pass_rate": null,
+      "n": 0,
+      "spoiler_flags": {
+        "answer_leak": 0,
+        "internal_id": 0,
+        "undisclosed_content": 0
+      },
+      "status_counts": {},
+      "tokens_in": 0,
+      "tokens_out": 0,
+      "unsupported_flags": {
+        "ungrounded": 0,
+        "unsupported_sentence": 0
+      },
+      "validation_ms": {
+        "median": null,
+        "p90": null
+      }
+    }
+  },
+  "audit": {
+    "checked": 38,
+    "excluded": [
+      {
+        "item_id": "case_fixture_archive/player_alias_probe",
+        "reasons": [
+          "answer_or_alias"
+        ]
+      },
+      {
+        "item_id": "case_fixture_lighthouse/player_alias_probe",
+        "reasons": [
+          "answer_or_alias"
+        ]
+      }
+    ],
+    "included": 36,
+    "kinds": {
+      "clarify": 8,
+      "hint": 20,
+      "nudge": 8
+    }
+  },
+  "check_in_baseline": {
+    "all_template": true,
+    "n": 4,
+    "status_counts": {
+      "spoke": 4
+    }
+  },
+  "config_version": "4",
+  "consistency": {
+    "free": {
+      "cases": 0
+    },
+    "select": {
+      "cases": 0
+    }
+  },
+  "distribution": {
+    "check_in_baseline": {
+      "template|case_fixture_archive|check_in": 2,
+      "template|case_fixture_lighthouse|check_in": 2
+    },
+    "smoke": {
+      "free|case_fixture_archive|nudge": 1,
+      "free|case_fixture_lighthouse|hint": 1,
+      "select|case_fixture_archive|hint": 1,
+      "select|case_fixture_lighthouse|nudge": 1
+    },
+    "template_feature": {
+      "template|case_fixture_archive|clarify": 4,
+      "template|case_fixture_lighthouse|clarify": 4
+    }
+  },
+  "dry_run": false,
+  "eval_set": "p4b2-fictional/1.2",
+  "eval_set_manifest": {
+    "by_case": {
+      "case_fixture_archive": 19,
+      "case_fixture_lighthouse": 17
+    },
+    "item_ids_sha256": "7772457757aaabc1d06755a8e6d6f2e4dc28118f263db20b31428b57cd9c1320",
+    "items_inputs_sha256": "8489b5a20c5251595fdf9e924d6b03bf650ff1012a776f691d77d02109f1f4ba",
+    "n": 36
+  },
+  "eval_set_pre_manifest": {
+    "items_inputs_sha256": "e2e5b32a4ec1fc9617d699ff14a6d8890b0ecc88588b5f140837abfa079eecdc",
+    "n": 36
+  },
+  "evidence_policy": "same_level",
+  "evidence_policy_comparison": {
+    "same_level": {
+      "hint": {
+        "by_kind_tier": {
+          "object:0": 20,
+          "premise:0": 20,
+          "zone:0": 20
+        },
+        "cases": 20,
+        "cases_with_lower_tier_target": 0,
+        "cases_with_other_level_hint": 0,
+        "evidence_mean": 3.0,
+        "evidence_total": 60
+      },
+      "nudge": {
+        "by_kind_tier": {
+          "object:0": 8,
+          "premise:0": 8,
+          "zone:0": 8
+        },
+        "cases": 8,
+        "cases_with_lower_tier_target": 0,
+        "cases_with_other_level_hint": 0,
+        "evidence_mean": 3.0,
+        "evidence_total": 24
+      }
+    },
+    "tier_le": {
+      "hint": {
+        "by_kind_tier": {
+          "hint:1": 20,
+          "hint:2": 20,
+          "premise:0": 18,
+          "zone:0": 2
+        },
+        "cases": 20,
+        "cases_with_lower_tier_target": 20,
+        "cases_with_other_level_hint": 20,
+        "evidence_mean": 3.0,
+        "evidence_total": 60
+      },
+      "nudge": {
+        "by_kind_tier": {
+          "hint:1": 8,
+          "premise:0": 8,
+          "zone:0": 8
+        },
+        "cases": 8,
+        "cases_with_lower_tier_target": 0,
+        "cases_with_other_level_hint": 0,
+        "evidence_mean": 3.0,
+        "evidence_total": 24
+      }
+    }
+  },
+  "experiment_version": "p4b2/0.2",
+  "input_mismatch_between_arms": [],
+  "ledger": {
+    "actual_unknown_requests": 0,
+    "actual_usd_known": 0.000746,
+    "charged_for_cap_usd": 0.000746,
+    "estimated_usd": 0.002721,
+    "max_requests": 100,
+    "max_usd": 2.0,
+    "requests": 12
+  },
+  "llm_kinds": [
+    "nudge",
+    "hint"
+  ],
+  "llm_rows": 4,
+  "model_access": {
+    "model": "gpt-6-luna",
+    "owned_by": "system"
+  },
+  "note": "문장 본문 없음 · 구조 지표와 비용만. 품질(원문 · 최종)은 사람 평가 양식으로 따로 잰다. 실제 실행.",
+  "paraphrase": {
+    "free": {},
+    "select": {}
+  },
+  "paraphrase_smoke": {
+    "hint": {
+      "contains_verbatim_rate": 1.0,
+      "edit_distance_norm_mean": 0.231,
+      "evidence_count_mean": 0,
+      "exact_match_rate": 0.0,
+      "fallback_rate": 0.0,
+      "guard_block_rate": 0.0,
+      "level_suspect_items": [],
+      "multi_evidence_rate": 0.0,
+      "n": 2
+    },
+    "nudge": {
+      "contains_verbatim_rate": 1.0,
+      "edit_distance_norm_mean": 0.144,
+      "evidence_count_mean": 0,
+      "exact_match_rate": 0.5,
+      "fallback_rate": 0.0,
+      "guard_block_rate": 0.0,
+      "level_suspect_items": [],
+      "multi_evidence_rate": 0.0,
+      "n": 2
+    }
+  },
+  "phase_counts": {
+    "check_in_baseline": 4,
+    "smoke": 4,
+    "template_feature": 8
+  },
+  "phases_run": [
+    "smoke"
+  ],
+  "planned_requests": 76,
+  "reproduction": {
+    "experiment_config_sha256": "d5e1be9282bcf24adf81beedb0f77f15e7b33c9de18db24344cf5ff438a009c6",
+    "generator_config": {
+      "api_key_env": "OPENAI_API_KEY",
+      "backoff_sec": 2.0,
+      "base_url": null,
+      "budget": {
+        "max_requests": 100,
+        "max_usd": 2.0
+      },
+      "disable_thinking": false,
+      "generator": "gpt_rag",
+      "max_output_tokens": 256,
+      "max_retries": 2,
+      "min_p": null,
+      "model": "gpt-6-luna",
+      "prices": {
+        "checked_at": "2026-10-26T00:00:00+09:00",
+        "source": "https://developers.openai.com/api/docs/pricing (Standard, <=272K input) · https://developers.openai.com/api/docs/models/gpt-6-luna · cache writes $0.125 (모델 페이지, 2026-10-26 재확인)",
+        "usd_per_1m_cache_write": 0.125,
+        "usd_per_1m_cached_input": 0.01,
+        "usd_per_1m_input": 0.1,
+        "usd_per_1m_output": 0.5
+      },
+      "prompt_mode": "free",
+      "prompt_version": "p4b/0.2",
+      "provider": "openai",
+      "reasoning_effort": "none",
+      "structured_output": true,
+      "temperature": 0.7,
+      "timeout_sec": 30.0,
+      "top_k": null,
+      "top_p": null
+    },
+    "git_commit": "705256908ee6fd8cfda1a93761580ec72241e5fa",
+    "git_dirty": true,
+    "model_record": {
+      "checked_at": "2026-10-26 (재확인)",
+      "distribution": "OpenAI API (Chat Completions)",
+      "file": null,
+      "file_sha256": null,
+      "license": "OpenAI 서비스 약관 (API)",
+      "model_id": "gpt-6-luna",
+      "revision": null,
+      "runtime": null,
+      "runtime_asset": null,
+      "runtime_sha256": null,
+      "sdk": "openai==3.29.0 (설치 · pip check 통과 2026-10-26)",
+      "snapshot": "gpt-6-luna",
+      "sources": [
+        "https://developers.openai.com/api/docs/models/gpt-6-luna",
+        "https://developers.openai.com/api/docs/pricing",
+        "https://developers.openai.com/api/docs/guides/latest-model",
+        "https://pypi.org/project/openai/"
+      ],
+      "verified_locally": false
+    },
+    "packages": {
+      "openai": "3.29.0",
+      "pydantic": "2.13.5"
+    },
+    "prompt_version": "p4b/0.2",
+    "python": "3.12.10",
+    "source_sha256": "2ccc8a534cad00cff491c6ec4a1b728709308907c1202732ec538da1e0486ed6"
+  },
+  "request_params": {
+    "free": {
+      "max_completion_tokens": 256,
+      "model": "gpt-6-luna",
+      "reasoning_effort": "none",
+      "response_format": {
+        "name": "npc_free",
+        "strict": true,
+        "type": "json_schema"
+      },
+      "store": false,
+      "temperature": 0.7
+    },
+    "select": {
+      "max_completion_tokens": 256,
+      "model": "gpt-6-luna",
+      "reasoning_effort": "none",
+      "response_format": {
+        "name": "npc_select",
+        "strict": true,
+        "type": "json_schema"
+      },
+      "store": false,
+      "temperature": 0.7
+    }
+  },
+  "sent_requests": 12,
+  "session_max_requests": 4,
+  "smoke": {
+    "actual_cost_unknown": 0,
+    "actual_cost_usd": 0.000255,
+    "cache_hits": 0,
+    "estimated_cost_usd": 0.000923,
+    "fallback_rate": 0.0,
+    "generation_ms": {
+      "median": 2117.25,
+      "p90": 2572.375
+    },
+    "generator_errors": {},
+    "guard_pass_rate": 1.0,
+    "n": 4,
+    "spoiler_flags": {
+      "answer_leak": 0,
+      "internal_id": 0,
+      "undisclosed_content": 0
+    },
+    "status_counts": {
+      "spoke": 4
+    },
+    "tokens_in": 1845,
+    "tokens_out": 141,
+    "unsupported_flags": {
+      "ungrounded": 0,
+      "unsupported_sentence": 0
+    },
+    "validation_ms": {
+      "median": 0.35,
+      "p90": 0.447
+    }
+  },
+  "smoke_rows": [
+    {
+      "actual_cost_usd": 6.55e-05,
+      "arm": "select",
+      "estimated_cost_usd": 0.000226125,
+      "eval_item_id": "case_fixture_archive/hint_player_selected",
+      "fallback_reason": null,
+      "final_kind": "hint",
+      "guard_failures": [],
+      "guard_passed": true,
+      "status": "spoke",
+      "tokens_in": 510,
+      "tokens_out": 29,
+      "usage_detail": {
+        "cache_hit": false,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "finish_reason": "stop",
+        "reasoning_tokens": 0
+      }
+    },
+    {
+      "actual_cost_usd": 5.640000000000001e-05,
+      "arm": "free",
+      "estimated_cost_usd": 0.00023175,
+      "eval_item_id": "case_fixture_archive/nudge_auto_focus",
+      "fallback_reason": null,
+      "final_kind": "nudge",
+      "guard_failures": [],
+      "guard_passed": true,
+      "status": "spoke",
+      "tokens_in": 394,
+      "tokens_out": 34,
+      "usage_detail": {
+        "cache_hit": false,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "finish_reason": "stop",
+        "reasoning_tokens": 0
+      }
+    },
+    {
+      "actual_cost_usd": 6.64e-05,
+      "arm": "free",
+      "estimated_cost_usd": 0.000236625,
+      "eval_item_id": "case_fixture_lighthouse/hint_player_selected",
+      "fallback_reason": null,
+      "final_kind": "hint",
+      "guard_failures": [],
+      "guard_passed": true,
+      "status": "spoke",
+      "tokens_in": 419,
+      "tokens_out": 49,
+      "usage_detail": {
+        "cache_hit": false,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "finish_reason": "stop",
+        "reasoning_tokens": 0
+      }
+    },
+    {
+      "actual_cost_usd": 6.670000000000001e-05,
+      "arm": "select",
+      "estimated_cost_usd": 0.000228375,
+      "eval_item_id": "case_fixture_lighthouse/nudge_auto_focus",
+      "fallback_reason": null,
+      "final_kind": "nudge",
+      "guard_failures": [],
+      "guard_passed": true,
+      "status": "spoke",
+      "tokens_in": 522,
+      "tokens_out": 29,
+      "usage_detail": {
+        "cache_hit": false,
+        "cache_write_tokens": 0,
+        "cached_tokens": 0,
+        "finish_reason": "stop",
+        "reasoning_tokens": 0
+      }
+    }
+  ],
+  "stop_detail": null,
+  "stop_reason": null,
+  "template_feature": {
+    "all_template": true,
+    "guard_pass_rate": 1.0,
+    "kinds": {
+      "clarify": 8
+    },
+    "n": 8,
+    "status_counts": {
+      "spoke": 8
+    }
+  },
+  "usage_fields": {
+    "cache_write_tokens": 4,
+    "cached_tokens": 4,
+    "completion_tokens": 4,
+    "finish_reason": 4,
+    "prompt_tokens": 4,
+    "reasoning_tokens": 4,
+    "responses": 4
+  }
+}

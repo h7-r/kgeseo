@@ -1,0 +1,18 @@
+[project]
+name = "companion-npc"
+version = "0.1.0"
+description = "「왜곡」 AI 동행 NPC 실험 환경 (backend 와 분리)"
+requires-python = ">=3.12,<3.13"
+
+# 설치(pip install -e .) 없이 쓴다. pytest 는 아래 pythonpath 로 src 를 찾는다.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+# backend/ruff.toml 과 같은 규칙. 이 폴더에서 실행하면 이 설정만 적용된다.
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

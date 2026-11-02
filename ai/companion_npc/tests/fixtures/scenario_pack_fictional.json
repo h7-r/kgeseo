@@ -1,0 +1,93 @@
+{
+  "contract": "scenario_pack",
+  "contract_version": "0.1",
+  "pack_id": "pack_fixture_lighthouse",
+  "case_id": "case_fixture_lighthouse",
+  "locale": "ko-KR",
+  "source": {
+    "producer": "agent",
+    "client_content_ref": "tests/fixtures (가상 사건 — 생성 에이전트 출력 가정)",
+    "artifact_ids": ["artifact_fixture_compiled_puzzle_spec"]
+  },
+  "publication": {
+    "status": "published",
+    "approved_by": "test-fixture",
+    "approved_at": "2026-10-24T00:00:00+09:00"
+  },
+  "premise": {
+    "title": "꺼진 등대",
+    "public_synopsis": "불이 꺼진 등대지기의 집. 등대지기의 기록이 군데군데 지워져 있다."
+  },
+  "entry_zone_id": "ZONE_KEEPER_HOUSE",
+  "zones": [
+    { "zone_id": "ZONE_KEEPER_HOUSE", "zone_name": "등대지기의 집", "zone_type": "room", "description": "낡은 책상과 잠긴 서랍이 있다." },
+    { "zone_id": "ZONE_LAMP_ROOM", "zone_name": "등명실", "zone_type": "room", "description": "등대 꼭대기. 렌즈 받침에 다이얼이 있다." }
+  ],
+  "objects": [
+    { "object_id": "OBJ_DESK_DRAWER", "zone_id": "ZONE_KEEPER_HOUSE", "object_name": "잠긴 서랍", "object_type": "lock", "interaction_type": "input", "puzzle_id": "PUZZLE_DRAWER" },
+    { "object_id": "OBJ_LOGBOOK", "zone_id": "ZONE_KEEPER_HOUSE", "object_name": "근무 일지", "object_type": "document", "interaction_type": "inspect" },
+    { "object_id": "OBJ_LENS_DIAL", "zone_id": "ZONE_LAMP_ROOM", "object_name": "렌즈 다이얼", "object_type": "lock", "interaction_type": "select", "puzzle_id": "PUZZLE_LENS" }
+  ],
+  "puzzles": [
+    {
+      "puzzle_id": "PUZZLE_DRAWER", "title": "서랍 비밀번호", "puzzle_type": "code_input",
+      "zone_id": "ZONE_KEEPER_HOUSE", "host_object_ids": ["OBJ_DESK_DRAWER"],
+      "required_clue_ids": ["CLUE_LOG_DATES"], "grants_clue_ids": ["CLUE_LENS_NOTE"]
+    },
+    {
+      "puzzle_id": "PUZZLE_LENS", "title": "렌즈 방향 맞추기", "puzzle_type": "single_choice",
+      "zone_id": "ZONE_LAMP_ROOM", "host_object_ids": ["OBJ_LENS_DIAL"],
+      "prerequisite_puzzle_ids": ["PUZZLE_DRAWER"], "required_clue_ids": ["CLUE_LENS_NOTE"]
+    }
+  ],
+  "clues": [
+    { "clue_id": "CLUE_LOG_DATES", "title": "일지의 날짜들", "description": "세 날짜에만 붉은 표시가 있다.", "source_object_id": "OBJ_LOGBOOK" },
+    { "clue_id": "CLUE_LENS_NOTE", "title": "렌즈 메모", "description": "서랍 속 메모. 방위가 적혀 있다.", "source_object_id": "OBJ_DESK_DRAWER" }
+  ],
+  "hints": [
+    {
+      "hint_id": "HINT_DRAWER_1", "puzzle_id": "PUZZLE_DRAWER", "npc_hint_level": 1,
+      "text": "근무 일지에 유난히 눈에 띄는 표시가 있지 않았어요?",
+      "approved_by": "test-fixture", "approved_at": "2026-10-24T00:00:00+09:00",
+      "provenance": { "provenance_mode": "mechanical" }
+    },
+    {
+      "hint_id": "HINT_LENS_2", "puzzle_id": "PUZZLE_LENS", "npc_hint_level": 2,
+      "text": "서랍 메모에 적힌 방위와 등명실 창문이 향한 쪽을 나란히 놓아 보세요.",
+      "approved_by": "test-fixture", "approved_at": "2026-10-24T00:00:00+09:00",
+      "provenance": { "provenance_mode": "mechanical" }
+    }
+  ],
+  "knowledge": [
+    {
+      "chunk_id": "K_PREMISE", "kind": "premise", "spoiler_tier": 0,
+      "text": "불이 꺼진 등대지기의 집. 등대지기의 기록이 군데군데 지워져 있다.",
+      "provenance": { "provenance_mode": "inherited", "inherited_from": ["premise"] }
+    },
+    {
+      "chunk_id": "K_HINT_DRAWER_1", "kind": "hint", "spoiler_tier": 1,
+      "text": "근무 일지에 유난히 눈에 띄는 표시가 있지 않았어요?",
+      "puzzle_id": "PUZZLE_DRAWER", "hint_id": "HINT_DRAWER_1",
+      "gate": { "requires_zone_ids": ["ZONE_KEEPER_HOUSE"] },
+      "provenance": { "provenance_mode": "inherited", "inherited_from": ["HINT_DRAWER_1"] }
+    },
+    {
+      "chunk_id": "K_TRUTH_KEEPER", "kind": "lore", "spoiler_tier": 2,
+      "text": "등대지기는 마지막 밤, 일부러 등을 끄고 배 한 척을 피신시켰다.",
+      "gate": { "requires_completed_puzzle_ids": ["PUZZLE_LENS"] },
+      "provenance": { "provenance_mode": "direct", "source_refs": ["fixture-story#3"], "fact_grade": "GF" }
+    },
+    {
+      "chunk_id": "K_HINT_LENS_2", "kind": "hint", "spoiler_tier": 2,
+      "text": "서랍 메모에 적힌 방위와 등명실 창문이 향한 쪽을 나란히 놓아 보세요.",
+      "puzzle_id": "PUZZLE_LENS", "hint_id": "HINT_LENS_2",
+      "gate": { "requires_zone_ids": ["ZONE_LAMP_ROOM"], "requires_clue_ids": ["CLUE_LENS_NOTE"] },
+      "provenance": { "provenance_mode": "inherited", "inherited_from": ["HINT_LENS_2"] }
+    }
+  ],
+  "safety_audit": {
+    "answer_leak_check": "passed",
+    "checked_at": "2026-10-24T00:00:00+09:00",
+    "checker_version": "spoiler.find_answer_leaks/0.1"
+  }
+}

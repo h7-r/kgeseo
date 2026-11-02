@@ -1,0 +1,13 @@
+-r requirements-dev.txt
+
+# P3 판단층 학습·평가 (Python 3.12). 기본 환경(requirements.txt)은 최소로 유지하고 여기서만 더한다.
+# GPT · Qwen · PyTorch 는 넣지 않는다.
+scikit-learn==1.9.1
+lightgbm==4.7.0
+# 위 두 패키지가 끌어오는 것 — 설치 후 pip freeze 로 확인한 버전
+numpy==2.5.4
+scipy==1.18.1
+joblib==1.6.0
+threadpoolctl==3.7.0
+cloudpickle==3.1.2
+narwhals==2.27.1

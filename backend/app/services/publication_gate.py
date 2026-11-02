@@ -8,9 +8,10 @@
 - 승인은 호출하는 쪽이 넘기는 `approval_source(case_id, content_version)`의 기록만 본다. 이 함수는
   검증된 게시 절차(승인 기록 저장소)에서 와야 한다. 그 저장 매체가 아직 없으므로 `approval_source`가
   없으면 승인 검사는 FAIL이다(기본 거부).
-- G1 · G2 · G3 각각 `target_hash`가 **지금 다시 계산한** content_fingerprint와 같은 `approved` 기록이 있어야
-  하고, 같은 해시에 `rejected` 기록이 있으면 실패다. 다른 해시를 가리키는 기록(이전 내용 승인)은 무시한다
-  — 내용이 바뀌면 재승인이 필요하다(PM v0.4.1).
+- 기록 형식 · 판정은 PM v0.4.3 승인 이력(`app.services.approval_history`)을 따른다. `target_hash`가 **지금 다시
+  계산한** content_fingerprint와 같은 기록만 보고, 관문마다 (reviewed_at, review_id) 최신 기록이 최종 결정이다.
+  세 관문 모두 최종 approved일 때만 PASS다. 다른 해시를 가리키는 기록(이전 내용 승인)은 판정에 쓰지 않는다
+  — 내용이 바뀌면 재승인이 필요하다(PM v0.4.1). v0.4.2까지의 기록 형식은 변환하지 않고 FAIL로 둔다.
 
 [장면] 장면 완료(`clear_when`) 검증 엔진이 아직 없다. Server Runtime에 `scenes`가 있거나, 장면 완료가 필수인
 케이스(`SCENE_REQUIRED_CASES` 또는 idmap에 장면 대응이 있는 케이스)는 SCENES가 UNVERIFIED라 게시되지 않는다.
@@ -25,9 +26,8 @@ FAIL이나 UNVERIFIED가 하나라도 있으면 승인하지 않고 등록하지
 """
 
 import json
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import ValidationError
@@ -36,6 +36,7 @@ from app.schemas.case_content import CaseClientContent
 from app.schemas.naju_idmap import NajuIdmap
 from app.schemas.npc_content import NpcContentPack
 from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition
+from app.services.approval_history import ApprovalSource, gate_decisions
 from app.services.case_content_validation import (
     CaseContentLinkValidationError,
     validate_case_content_links,
@@ -57,7 +58,6 @@ from app.services.npc_content_validation import (
 from app.services.pinned_content import ContentPin, PinnedContent, PinnedContentStore
 from app.services.puzzle_runtime import normalize_answer
 
-GATES = ("G1", "G2", "G3")
 # 장면 완료 판정이 필수인 케이스(PM v0.4 §12: 나주 씬 완료는 BE clear_when으로 판정)
 SCENE_REQUIRED_CASES = frozenset({"naju-angam-01"})
 # idmap에서 실행 가능한 상태(PM v0.4.1). 그 밖(unplaced · placed_no_interaction · 상태 없음)은 실행 불가.
@@ -88,18 +88,6 @@ CheckCode = Literal[
 ]
 
 
-@dataclass(frozen=True)
-class ApprovalRecord:
-    """검증된 게시 절차가 넘기는 승인 기록 한 건."""
-
-    gate: Literal["G1", "G2", "G3"]
-    decision: Literal["approved", "rejected"]
-    target_hash: str
-    approver: str
-    decided_at: datetime
-
-
-ApprovalSource = Callable[[str, int], Sequence[ApprovalRecord]]
 # 문장이 NG(금지 왜곡) · U(해석 유보 단정)에 걸리면 True. 판정 기준이 아직 없어 주입식이다.
 NgChecker = Callable[[str], bool]
 
@@ -331,22 +319,8 @@ def _approval_check(
 ) -> GateCheck:
     if source is None:
         return GateCheck("APPROVALS", "FAIL", ("no trusted approval source",))
-    records = list(source(case_id, version))
-    reasons: list[str] = []
-    for gate in GATES:
-        current = [
-            r for r in records if r.gate == gate and r.target_hash == fingerprint
-        ]
-        decisions = {r.decision for r in current}
-        # 같은 fingerprint에 승인 · 반려가 함께 있으면 어느 쪽이 최종인지 추측하지 않고 거부한다.
-        if decisions == {"approved", "rejected"}:
-            reasons.append(f"{gate}:conflicting decisions")
-        elif "rejected" in decisions:
-            reasons.append(f"{gate}:rejected")
-        elif not any(r.decision == "approved" for r in current):
-            stale = any(r.gate == gate for r in records)
-            reasons.append(f"{gate}:{'stale target_hash' if stale else 'missing'}")
-    return GateCheck("APPROVALS", "FAIL" if reasons else "PASS", tuple(reasons))
+    reasons = gate_decisions(source(case_id, version), fingerprint)
+    return GateCheck("APPROVALS", "FAIL" if reasons else "PASS", reasons)
 
 
 def _non_executable_references(
