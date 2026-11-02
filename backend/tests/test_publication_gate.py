@@ -307,18 +307,22 @@ def test_scene_mapped_bundle_passes_everything_else_but_is_not_published() -> No
     assert store.versions(CASE_ID) == ()
 
 
-def test_declared_scenes_with_clear_when_are_unverified() -> None:
+def test_declared_scenes_with_unsupported_clear_when_are_unverified() -> None:
+    # 검증 가능한 clear_when 부분집합은 tests/test_scene_clear_when.py에서 다룬다.
     documents = base_documents()
     del documents["idmap"]
     documents["server"]["scenes"] = [
-        {"scene_id": "SCENE_ONE", "clear_when": {"puzzle_completed": "PUZZLE_A"}}
+        {"scene_id": "SCENE_ONE", "clear_when": {"scene_reached": "SCENE_TWO"}}
     ]
     files, fingerprint = seal(documents)
 
     result, store = run({**files, "idmap": None}, fingerprint)
 
     assert result.check("CLIENT_SERVER").status == "PASS"
-    assert result.check("SCENES").reasons == ("clear_when not verifiable",)
+    assert result.check("SCENES").status == "UNVERIFIED"
+    assert result.check("SCENES").reasons == (
+        "clear_when:SCENE_ONE:unsupported_condition:scene_reached",
+    )
     assert result.registered is False
     assert store.versions(CASE_ID) == ()
 
