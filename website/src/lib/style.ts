@@ -30,7 +30,9 @@ export function inset(top: number | string, left: number | string, bottom = top,
 /** 글자에 그라디언트를 입힌다(bg-clip-text). */
 export function gradientText(background: string): CSSProperties {
   return {
-    background,
+    // background 줄임 속성이면 값이 바뀌어 다시 칠할 때 background-clip 이 border-box 로 되돌아간다.
+    // React 는 바뀌지 않은 backgroundClip 을 다시 쓰지 않아 글자 대신 색 상자가 남는다. 긴 이름만 쓴다.
+    backgroundImage: background,
     WebkitBackgroundClip: "text",
     backgroundClip: "text",
     color: "transparent",

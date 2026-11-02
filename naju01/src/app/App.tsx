@@ -13,6 +13,8 @@ import { Leva } from "leva";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
 
 import { IS_LOW_QUALITY } from "@/engine/quality";
+import { DEFAULT_SETTINGS, RESOLUTION_DPR, useSettings } from "@/settings/settings";
+import SettingsPanel from "@/settings/SettingsPanel";
 
 import ChibiCustomizerPanel from "../avatar/ChibiCustomizerPanel";
 import SidekickCustomizerPanel from "../avatar/SidekickCustomizerPanel";
@@ -21,10 +23,53 @@ import { readSidekickAppearance } from "../avatar/sidekickOptions";
 import { DEFAULT_TOON } from "../avatar/toonMaterial";
 import { DEFAULT_OUTLINE } from "../avatar/toonOutline";
 import { BASELINE, UNITS_PER_METER, VIEWPOINTS } from "../plan/sitePlan";
+import ClamDig from "../puzzles/fishTrap/ClamDig";
+import FishTrapPuzzle from "../puzzles/fishTrap/FishTrapPuzzle";
+import HearthFire from "../puzzles/fishTrap/HearthFire";
+import SmokeGuide from "../puzzles/fishTrap/SmokeGuide";
+import BirdHints from "../puzzles/ridge/BirdHints";
+import BoxOpening from "../puzzles/ridge/BoxOpening";
+import GateAltar from "../puzzles/ridge/GateAltar";
+import GateRift from "../puzzles/ridge/GateRift";
+import PaperReadHud from "../puzzles/ridge/PaperReadHud";
+import RidgeBirds from "../puzzles/ridge/RidgeBirds";
+import RidgeCart from "../puzzles/ridge/RidgeCart";
+import StumpStairs from "../puzzles/ridge/StumpStairs";
+import TetheredCarriers from "../puzzles/ridge/TetheredCarriers";
+import WindCurtain from "../puzzles/ridge/WindCurtain";
+import PullGaugeHud from "../puzzles/fishTrap/PullGaugeHud";
+import Hotbar from "../puzzles/Hotbar";
+import InteractionHud from "../puzzles/InteractionHud";
+import InteractionLoop from "../puzzles/InteractionLoop";
+import HintBoxHud from "../puzzles/HintBoxHud";
+import { isHintBoxOpen, setHintBoxOpen } from "../puzzles/hintBoxView";
+import InventoryModal from "../puzzles/InventoryModal";
+import { inventory } from "../puzzles/inventory";
+import { PAPER_HINT, closePaper, getOldPaperCanvas, isPaperOpenNow, paperHintDescription } from "../puzzles/ridge/oldPaper";
+import AirStations from "../puzzles/cave/AirStations";
+import FishBurrows from "../puzzles/cave/FishBurrows";
+import LegendTraces from "../puzzles/cave/LegendTraces";
+import SeaLife from "../puzzles/cave/SeaLife";
+import BreathHud from "../puzzles/cave/BreathHud";
+import CaveWorld from "../puzzles/cave/CaveWorld";
+import Fishes from "../puzzles/cave/Fishes";
+import InnerChamber from "../puzzles/cave/InnerChamber";
+import RingDoor from "../puzzles/cave/RingDoor";
+import JarPuzzle from "../puzzles/jars/JarPuzzle";
+import BoatBottles from "../puzzles/makgeolli/BoatBottles";
+import FloatingStones from "../puzzles/ritual/FloatingStones";
+import RitualCircle from "../puzzles/ritual/RitualCircle";
+import PuzzlePanelHud from "../puzzles/PuzzlePanelHud";
+import StormRain from "../puzzles/ritual/StormRain";
+import WorldItems from "../puzzles/WorldItems";
 import NajuScene, { type NajuSceneReport, type NajuToonConfig } from "../scene/NajuScene";
+import { audio } from "../scene/immersion/audio";
 import { DEFAULT_TERRAIN } from "../terrain/terrain";
 import { ArrivalCover, FirstFrameSignal } from "../transition/ArrivalFade";
+import { applyMusicVolume } from "../transition/loadingVideo";
 import { useArrivalFade } from "../transition/useArrivalFade";
+import { addHint, useHintBox } from "@/game/hintBox";
+
 import Dashboard from "./Dashboard";
 import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
 import LoadingCover, { type LoadingProgress } from "./LoadingCover";
@@ -51,6 +96,7 @@ import {
   DASHBOARD_LEFT_PX,
   HAS_DASHBOARD,
   SHOW_DEV_TOOLS,
+  SHOW_SETTINGS_BUTTON,
   SIDEKICK_APPEARANCE_KEY,
   USE_HALF_FLOAT_BUFFER,
   USE_SIDEKICK_AVATAR,
@@ -71,10 +117,22 @@ const MemoNajuScene = memo(NajuScene);
 // 덮개가 흐려지는(.4s) 뒤에 DOM 에서 뗀다
 const COVER_REMOVE_MS = 450;
 
+const isTyping = (target: EventTarget | null) =>
+  /INPUT|TEXTAREA|SELECT/.test((target as HTMLElement | null)?.tagName ?? "");
+
 export default function App() {
   // 동적 해상도 — dpr 을 못 박으면 가장 나쁜 자리(Z1 마을)에 맞춰야 해서 한가한 곳의 성능을 버린다.
   // 배율이 바뀌면 프레임버퍼를 다시 잡으므로 0.25 눈금으로만 움직인다.
   const [dpr, setDpr] = useState(IS_DPR_AUTO ? 1.25 : MAX_DPR);
+
+  // 본편과 같은 설정(같은 저장 열쇠) — 본편에서 줄인 소리가 여기서도 그대로다
+  const settings = useSettings();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const hintCount = useHintBox().length;
+  // 「자동」이 아니면 고른 배율로 못 박고 동적 해상도를 끈다
+  const fixedDpr =
+    settings.resolution === "auto" ? null : Math.min(RESOLUTION_DPR[settings.resolution], window.devicePixelRatio || 1);
 
   const controlsRef = useRef<PointerLockControlsImpl>(null);
   const reportRef = useRef<NajuSceneReport | null>(null); // 씬 → 계기판(리렌더 없이)
@@ -139,9 +197,73 @@ export default function App() {
   }, [isSceneDrawn]);
 
   useEffect(() => {
+    applyMusicVolume();
+    // 효과음은 기본값일 때 원래 크기가 되게 배율로 건다(O 판의 소리 크기에 곱해진다)
+    audio.setSfxScale(Math.min(1.5, settings.sfxVolume / DEFAULT_SETTINGS.sfxVolume));
+  }, [settings.bgmVolume, settings.sfxVolume]);
+
+  // 잠금 장치는 씬과 함께 붙어 잠글 때마다 다시 맞춘다
+  useEffect(() => {
+    if (controlsRef.current) controlsRef.current.pointerSpeed = settings.sensitivity;
+  }, [settings.sensitivity, isSceneReady, isLocked]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.code === "KeyP" && !event.repeat && !isTyping(event.target)) {
+        // 창을 열면 마우스가 필요하다 — 잠금을 푼다
+        if (!isSettingsOpen) controlsRef.current?.unlock();
+        setIsSettingsOpen(!isSettingsOpen);
+        return;
+      }
+      if (isSettingsOpen) {
+        if (event.code === "Escape") setIsSettingsOpen(false);
+        return;
+      }
+      // 소지품 — 열면 마우스가 필요하고, 닫으면 바로 다시 걷는다. 손에 든 것이 있으면 [I] 는 그것을 소지품에 넣는다
+      if (event.code === "KeyI" && !event.repeat && !isTyping(event.target)) {
+        if (!isInventoryOpen && inventory.hand()) {
+          inventory.stow();
+          return;
+        }
+        if (isInventoryOpen) controlsRef.current?.lock();
+        else controlsRef.current?.unlock();
+        setIsInventoryOpen(!isInventoryOpen);
+        return;
+      }
+      if (isInventoryOpen) {
+        if (event.code === "Escape") setIsInventoryOpen(false);
+        return;
+      }
       if (event.code === "KeyT" && !isLocked) controlsRef.current?.lock();
-      if (HAS_DASHBOARD && event.code === "KeyH" && !event.repeat) setIsDashboardVisible((visible) => !visible);
+      // [H] — 본부실처럼: 쪽지를 읽는 중이면 힌트함에 적어 넣고 연다 · 모은 힌트가 있으면 힌트함을 여닫는다 · 없으면 계기판
+      if (event.code === "KeyH" && !event.repeat && !isTyping(event.target)) {
+        if (isPaperOpenNow()) {
+          addHint({ ...PAPER_HINT, description: paperHintDescription(), image: getOldPaperCanvas().toDataURL("image/png") });
+          closePaper();
+          controlsRef.current?.unlock();
+          setHintBoxOpen(true);
+          return;
+        }
+        if (isHintBoxOpen()) {
+          setHintBoxOpen(false);
+          controlsRef.current?.lock();
+          return;
+        }
+        if (hintCount > 0) {
+          controlsRef.current?.unlock();
+          setHintBoxOpen(true);
+          return;
+        }
+        if (HAS_DASHBOARD) setIsDashboardVisible((visible) => !visible);
+        return;
+      }
+      if (isHintBoxOpen()) {
+        if (event.code === "Escape") {
+          setHintBoxOpen(false);
+          controlsRef.current?.lock();
+        }
+        return;
+      }
       // 시점 전환은 카메라 회전을 만지지 않고 캐릭터 표시만 바꾼다.
       // 수식키가 눌린 V 는 편집기의 붙여넣기(⌘V/Ctrl+V)다.
       if (
@@ -157,7 +279,7 @@ export default function App() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isLocked]);
+  }, [isLocked, isSettingsOpen, isInventoryOpen, hintCount]);
 
   return (
     <div className={`game-stage${IS_STAGE_16X9 ? " game-stage--16x9" : ""}`} style={{ position: "relative" }}>
@@ -166,7 +288,9 @@ export default function App() {
       <Canvas
         shadows={IS_LOW_QUALITY ? false : "percentage"}
         // [1, 상한] 배열을 주면 three 가 기기 픽셀비로 골라 PerformanceMonitor 가 정한 값이 묻힌다
-        dpr={IS_LOW_QUALITY ? 1 : dpr}
+        dpr={IS_LOW_QUALITY ? 1 : (fixedDpr ?? dpr)}
+        // 밝기 100% 면 필터를 아예 안 건다(합성 비용 0)
+        style={settings.brightness !== 1 ? { filter: `brightness(${settings.brightness})` } : undefined}
         gl={{
           antialias: !IS_LOW_QUALITY && IS_POSTFX_DISABLED,
           toneMappingExposure: 1.15,
@@ -187,7 +311,7 @@ export default function App() {
           <>
             {/* factor 0(느림)~1(빠름). bounds 를 벌려 둬야 올림·내림이 번갈아 흔들리지 않고,
                 flipflops 세 번이면 그 자리에 머문다(발표 중 화면이 오르내리지 않게). */}
-            {IS_DPR_AUTO && (
+            {IS_DPR_AUTO && fixedDpr === null && (
               <PerformanceMonitor
                 bounds={() => [50, 58]}
                 flipflops={3}
@@ -208,6 +332,37 @@ export default function App() {
               toonConfig={toonConfig}
               outlineConfig={outlineConfig}
             />
+            {/* 퍼즐 — 씬1 통발(빛 물고기). 씬의 무리를 읽어 바꿔 끼우므로 씬 뒤에 둔다 */}
+            <ClamDig />
+            <FishTrapPuzzle />
+            <HearthFire />
+            <SmokeGuide />
+            {/* 3스테이지 증언 능선 — 바람 장막 · 수레와 궤 · 돌새 · 진부촌 문 시공간 틈(puzzles/ridge) */}
+            <WindCurtain />
+            <RidgeCart />
+            <TetheredCarriers />
+            <StumpStairs />
+            <RidgeBirds />
+            <BirdHints />
+            <GateAltar />
+            <GateRift />
+            <BoxOpening />
+            <JarPuzzle />
+            <BoatBottles />
+            <RitualCircle />
+            <FloatingStones />
+            <StormRain />
+            {/* 강 밑 물굴 — 뜬 돌 넷을 다 건지면 강물이 갈라진다(puzzles/cave) */}
+            <CaveWorld />
+            <AirStations />
+            <FishBurrows />
+            <LegendTraces />
+            <SeaLife />
+            <Fishes />
+            <RingDoor />
+            <InnerChamber />
+            <WorldItems />
+            <InteractionLoop />
             {/* 씬 뒤에 둔다 — 붙는 순서대로 효과가 돌아 씬의 재질이 다 선 다음에 데운다 */}
             <Preload all />
             {/* 붙자마자 걷으면 셰이더 컴파일·첫 업로드가 걸린 프레임을 그대로 보게 된다 */}
@@ -235,6 +390,20 @@ export default function App() {
 
       {IS_ARRIVING_FROM_HUB && <ArrivalCover isRevealed={isArrivalRevealed} />}
       {isDashboardVisible && <Dashboard reportRef={reportRef} />}
+      <InteractionHud />
+      <Hotbar />
+      <PullGaugeHud />
+      <BreathHud />
+      <PuzzlePanelHud />
+      <PaperReadHud />
+      <HintBoxHud />
+      <InventoryModal
+        open={isInventoryOpen}
+        onClose={() => {
+          setIsInventoryOpen(false);
+          controlsRef.current?.lock();
+        }}
+      />
       {IS_REVIEW_REQUESTED && <ReviewHud />}
       {SHOW_DEV_TOOLS && !isLocked && <ControlsHelp />}
       {/* 다 숨겼을 때 되돌리는 법을 잊지 않게 작은 자국만 남긴다 */}
@@ -255,6 +424,20 @@ export default function App() {
           setOutlineConfig={setOutlineConfig}
         />
       )}
+      {SHOW_SETTINGS_BUTTON && (
+        <button
+          type="button"
+          onClick={() => {
+            controlsRef.current?.unlock();
+            setIsSettingsOpen((open) => !open);
+          }}
+          style={settingsButtonStyle}
+          aria-label="설정 열기"
+        >
+          ⚙ 설정 [P]
+        </button>
+      )}
+      <SettingsPanel open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       {isCoverMounted && <LoadingCover progress={loadingProgress} isFading={isSceneDrawn} />}
       {SHOW_CUSTOMIZE_PANEL && !meshConfig && (
         <SidekickCustomizerPanel
@@ -272,8 +455,8 @@ export default function App() {
 function ControlsHelp() {
   return (
     <div style={helpStyle}>
-      <b>[T] 시작</b> · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · ESC 나가기 · <b>[E] 편집</b> ·{" "}
-      <b>[H] 계기판 숨기기</b>
+      <b>[T] 시작</b> · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · ESC 나가기 · <b>[E] 상호작용</b> · <b>[I] 소지품</b> ·{" "}
+      <b>[Q] 편집</b> · <b>[H] 계기판 숨기기</b>
       <br />
       <span style={mutedStyle}>
         3인칭에서 마우스로 캐릭터 앞·뒤를 자유롭게 회전 · [1][2][3] V1·V2·V3 시점으로 이동(개발용)
@@ -316,7 +499,7 @@ const hiddenHintStyle: CSSProperties = {
 
 const viewButtonStyle: CSSProperties = {
   position: "absolute",
-  right: 14,
+  right: 120,
   top: 14,
   zIndex: 20,
   border: "1px solid rgba(170,190,220,.35)",
@@ -327,3 +510,5 @@ const viewButtonStyle: CSSProperties = {
   font: "12px/1.2 ui-monospace, Menlo, monospace",
   cursor: "pointer",
 };
+
+const settingsButtonStyle: CSSProperties = { ...viewButtonStyle, right: 14 };

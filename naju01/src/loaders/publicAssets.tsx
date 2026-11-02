@@ -47,6 +47,7 @@ import {
   buildCover,
   buildPlace,
   buildSwap,
+  settleOriginal,
   compactOriginal,
   grassThinning,
   type BuildContext,
@@ -70,6 +71,50 @@ const SINK_SECONDS = 2.4;
 
 // ── 「놓기」 다시 읽기 (10/15) — 통합 편집 모드(E)가 manifest 「놓기」를 쓴 뒤(놓기·고치기·지우기) 새로고침 없이 보이게 ──
 const reloadHandlers = new Set<() => Promise<boolean>>();
+
+// ── 걷기 충돌이 읽는 「지금 세워진 교체본 전부」 (10/31) ──
+//   원근 나눔·구역 초점이 count 를 수시로 바꾸므로 메시를 훑지 말고 여기서 원래 자리 목록을 받는다.
+export interface PublicSolid {
+  name: string;
+  geometry: THREE.BufferGeometry;
+  material: THREE.Material;
+  /** 월드 행렬(유닛) */
+  matrices: THREE.Matrix4[];
+}
+let liveBuilt: Map<string, BuiltEntry> | null = null;
+let liveGroup: THREE.Group | null = null;
+let solidsVersion = 0;
+/** 교체본이 새로 서거나 치워질 때마다 오른다 — 충돌 격자가 이걸 보고 다시 굽는다 */
+export const publicSolidsVersion = () => solidsVersion;
+export function collectPublicSolids(): PublicSolid[] {
+  if (!liveBuilt || !liveGroup) return [];
+  const parent = liveGroup.matrixWorld;
+  const out: PublicSolid[] = [];
+  const toWorld = (m: THREE.Matrix4) => m.clone().premultiply(parent);
+  for (const entry of liveBuilt.values()) {
+    // 가라앉는 차단물 겉돌 · 지금 씬에 안 보이는 것은 빼다
+    if (entry.sinkStartedAt != null) continue;
+    if (entry.meshes.length && entry.meshes.every((m) => !m.visible)) continue;
+    const paired = new Set<THREE.InstancedMesh>();
+    for (const pair of entry.lodPairs ?? []) {
+      for (const m of [...pair.nearMeshes, ...pair.farMeshes]) paired.add(m);
+      const matrices = pair.nearMatrices.map(toWorld);
+      for (const m of pair.nearMeshes)
+        out.push({ name: m.name, geometry: m.geometry, material: m.material as THREE.Material, matrices });
+    }
+    for (const m of entry.meshes) {
+      if (paired.has(m)) continue;
+      const full = m.userData.fullSet as { matrices: Float32Array; n: number } | undefined;
+      const array = full ? full.matrices : (m.instanceMatrix.array as Float32Array);
+      const n = full ? full.n : m.count;
+      const matrices: THREE.Matrix4[] = [];
+      for (let k = 0; k < n; k++) matrices.push(new THREE.Matrix4().fromArray(array, k * 16).premultiply(m.matrixWorld));
+      out.push({ name: m.name, geometry: m.geometry, material: m.material as THREE.Material, matrices });
+    }
+  }
+  return out;
+}
+
 /**
  * manifest 를 다시 받아 「놓기」를 다시 세운다(바꿔치기·덮기는 그대로). 세워진 층이 없거나 첫 읽기 전이면 false
  * — 그때는 첫 읽기가 새 manifest 를 읽으니 따로 할 일이 없다.
@@ -229,8 +274,17 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     return () => el.removeEventListener("pointerdown", onPointerDown, true);
   }, [gl, scene, camera]);
 
+  useEffect(() => {
+    liveBuilt = built.current;
+    return () => {
+      liveBuilt = null;
+      liveGroup = null;
+    };
+  }, []);
+
   useFrame(({ scene, camera }) => {
     const group = groupRef.current;
+    liveGroup = group;
     if (!table || !group || ++tick.current % 20) return;
     group.updateMatrixWorld(true);
     const ctx: BuildContext = {
@@ -243,15 +297,18 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
 
     // ── ① 원본 무리 압축 — 등록부가 맡는 자리를 원본에서 뺀다(새로 담긴 무리만) ──
     scene.traverse((o) => {
-      if ((o as THREE.InstancedMesh).isInstancedMesh && !o.userData.publicAsset)
-        compactOriginal(o as THREE.InstancedMesh);
+      if (!(o as THREE.InstancedMesh).isInstancedMesh || o.userData.publicAsset) return;
+      compactOriginal(o as THREE.InstancedMesh);
+      // 남은 원본도 비탈에서 뜨지 않게(10/31)
+      const groundAt = groundAtRef.current;
+      if (groundAt) settleOriginal(o as THREE.InstancedMesh, groundAt);
     });
 
     // ── ② 바꿔치기 ──
     table.swaps.forEach((item, index) => {
       if (IS_EMPTY_BASE) return; // 빈 지형 — 교체본(사람 배치 무리의 겉모습)도 그리지 않는다
       const key = `바꿔:${index}:${item.target}`;
-      const result = buildSwap(item, ctx, built.current.get(key));
+      const result = buildSwap(item, ctx, built.current.get(key), groundAtRef.current);
       if (result === "same" || result === null) return;
       built.current.set(key, result);
       changed = true;
@@ -312,6 +369,7 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
         const now = performance.now() / 1000;
         if (v.sinkStartedAt == null) {
           v.sinkStartedAt = now;
+          solidsVersion++;
           v.originalY = v.meshes.map((m) => m.position.y);
         }
         const u = Math.min(1, (now - v.sinkStartedAt) / SINK_SECONDS);
@@ -410,6 +468,7 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     }
 
     if (changed) {
+      solidsVersion++;
       let total = 0;
       const lines = [...built.current.values()].map((v) => {
         total += v.triangles;

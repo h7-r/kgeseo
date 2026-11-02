@@ -6,7 +6,7 @@
 // 한 덩이에 색이 여럿이라 표본에 진짜 색을 굽고 자리에는 색을 안 준다(주면 통째로 물든다).
 // 단위는 도면 m. 표본은 높이 1.
 
-import type * as THREE from "three";
+import * as THREE from "three";
 
 import { createRandom } from "@/engine/random";
 
@@ -18,6 +18,7 @@ import {
   buildCylinder,
   mergePieces,
   placeOnGround,
+  prepareForMerge,
   type SceneNote,
   type SceneSpotOptions,
 } from "./pieceGeometry";
@@ -32,7 +33,10 @@ const SCENE2_STYLE = {
   onggiLight: "#8A5E42",
   straw: "#B9A472", // 새끼줄 · 이엉
   deadwood: "#6B5A42", // 나뭇짐
-  bird: "#3B3B3E", // 솟대 위의 오리
+  carvedWood: "#9A7A55", // 솟대 오리 — 칠하지 않고 깎기만 한 나무
+  carvedWoodDark: "#735A3E", // 깎은 결이 깊은 날개
+  bill: "#C8A35E",
+  eye: "#1E1A16",
 };
 
 /**
@@ -183,6 +187,85 @@ export function buildWaterJarPrototypes(count = 3, seed = 5204): THREE.BufferGeo
   return prototypes;
 }
 
+/** 매끈한 공을 늘이고 눌러 만든 조각 — 오리 몸·머리·부리처럼 둥근 덩어리 */
+function buildRound(radius: [number, number, number], at: [number, number, number], shape?: (v: THREE.Vector3) => void) {
+  const geometry = new THREE.SphereGeometry(1, 18, 12);
+  if (shape) {
+    const position = geometry.attributes.position as THREE.BufferAttribute;
+    const v = new THREE.Vector3();
+    for (let i = 0; i < position.count; i++) {
+      shape(v.fromBufferAttribute(position, i));
+      position.setXYZ(i, v.x, v.y, v.z);
+    }
+    geometry.computeVertexNormals();
+  }
+  geometry.scale(...radius);
+  geometry.translate(...at);
+  return prepareForMerge(geometry);
+}
+
+/**
+ * 솟대 오리 — 통나무를 깎아 만든 새. 가슴은 도톰하고 꽁지는 위로 들리며, 목이 앞으로 굽어 머리가 멀리를 본다.
+ * 칠하지 않은 나무 빛이다(검게 칠하면 멀리서 까마귀로 읽힌다). headTurn 은 고개를 살짝 돌린 정도(라디안).
+ */
+/** 솟대 장대 끝(표본 높이 1 기준) · 오리를 키운 배율 — 증언 능선 돌새(puzzles/ridge)도 같은 오리를 쓴다 */
+export const POLE_TOP = 0.9;
+export const DUCK_SCALE = 1.45;
+
+export function buildCarvedDuck(headTurn: number): THREE.BufferGeometry[] {
+  const pieces: THREE.BufferGeometry[] = [];
+  const bodyY = 0.948;
+  // 몸 — 뒤로 갈수록 가늘어지며 꽁지가 위로 휜다
+  const body = buildRound([0.05, 0.04, 0.09], [0, bodyY, -0.012], (v) => {
+    const rear = Math.max(0, -v.z);
+    v.y += rear * rear * 0.75;
+    v.x *= 1 - 0.45 * rear;
+    if (v.y < 0) v.y *= 0.8; // 배는 납작하게 — 장대에 얹힌다
+    if (v.z > 0) v.y += v.z * 0.15; // 가슴이 앞으로 솟는다
+  });
+  pieces.push(applyColor(body, SCENE2_STYLE.carvedWood));
+  // 날개 — 몸 옆에 덧댄 깃 덩어리. 끝이 꽁지 쪽으로 모인다
+  for (const side of [-1, 1]) {
+    const wing = buildRound([0.013, 0.026, 0.066], [side * 0.042, bodyY + 0.01, -0.03], (v) => {
+      v.y += Math.max(0, -v.z) * 0.35;
+    });
+    pieces.push(applyColor(wing, SCENE2_STYLE.carvedWoodDark));
+  }
+  // 목 — 가슴에서 앞위로 굽어 오른다
+  const turn = new THREE.Matrix4().makeRotationY(headTurn);
+  const neckPath = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, bodyY + 0.012, 0.045),
+    new THREE.Vector3(0, bodyY + 0.05, 0.062),
+    new THREE.Vector3(0, bodyY + 0.082, 0.074),
+  ]);
+  const neck = prepareForMerge(new THREE.TubeGeometry(neckPath, 8, 0.017, 10, false));
+  pieces.push(applyColor(neck, SCENE2_STYLE.carvedWood));
+  // 머리·부리·눈 — 목 끝을 축으로 고개만 돌린다
+  const headAt = new THREE.Vector3(0, bodyY + 0.094, 0.082);
+  const atHead = (geometry: THREE.BufferGeometry) =>
+    geometry
+      .translate(-headAt.x, -headAt.y, -headAt.z)
+      .applyMatrix4(turn)
+      .translate(headAt.x, headAt.y, headAt.z);
+  pieces.push(applyColor(atHead(buildRound([0.026, 0.027, 0.033], [0, headAt.y, headAt.z])), SCENE2_STYLE.carvedWood));
+  // 오리 부리 — 넓적하고 끝이 둥글다
+  const bill = buildRound([0.015, 0.0065, 0.03], [0, headAt.y - 0.008, headAt.z + 0.042], (v) => {
+    v.x *= 1 + 0.25 * Math.max(0, v.z);
+  });
+  pieces.push(applyColor(atHead(bill), SCENE2_STYLE.bill));
+  for (const side of [-1, 1]) {
+    const eye = buildRound([0.0045, 0.0045, 0.0045], [side * 0.021, headAt.y + 0.007, headAt.z + 0.012]);
+    pieces.push(applyColor(atHead(eye), SCENE2_STYLE.eye));
+  }
+  // 장대 끝이 배에 박힌 자리 — 새가 장대 위에 「얹힌」 것으로 읽힌다
+  const peg = buildCylinder(0.014, 0.018, 0.04, 8);
+  peg.translate(0, bodyY - 0.035, -0.005);
+  pieces.push(applyColor(peg, SCENE2_STYLE.wood));
+  // 장대 끝을 축으로 키운다 — 3 m 장대 아래에서 올려다봐도 오리로 읽히는 크기
+  for (const piece of pieces) piece.translate(0, -POLE_TOP, 0).scale(DUCK_SCALE, DUCK_SCALE, DUCK_SCALE).translate(0, POLE_TOP, 0);
+  return pieces;
+}
+
 /** 솟대 — 마을 어귀의 장대. 꼭대기 오리는 +Z 를 보고, 어디를 볼지는 자리의 rotation 이 정한다. */
 export function buildBirdPolePrototypes(count = 3, seed = 5205): THREE.BufferGeometry[] {
   const random = createRandom(seed);
@@ -201,25 +284,7 @@ export function buildBirdPolePrototypes(count = 3, seed = 5205): THREE.BufferGeo
       stone.translate(Math.cos(a) * 0.07, 0.025, Math.sin(a) * 0.07);
       pieces.push(applyColor(stone, SCENE2_STYLE.woodDark));
     }
-    const body = buildBall(0.075, 0);
-    body.scale(0.75, 0.62, 1.5);
-    body.translate(0, 0.94, -0.02);
-    pieces.push(applyColor(body, SCENE2_STYLE.bird));
-    const neck = buildCylinder(0.018, 0.022, 0.075, 5);
-    neck.translate(0, 0.975, 0.055);
-    pieces.push(applyColor(neck, SCENE2_STYLE.bird));
-    const head = buildBall(0.038, 0);
-    head.translate(0, 1.01, 0.062);
-    pieces.push(applyColor(head, SCENE2_STYLE.bird));
-    const beak = buildCylinder(0.009, 0.017, 0.07, 4);
-    beak.rotateX(Math.PI / 2);
-    beak.translate(0, 1.005, 0.115);
-    pieces.push(applyColor(beak, SCENE2_STYLE.straw));
-    // 꽁지가 없으면 앞뒤가 안 갈려 어디를 보는지 모른다
-    const tail = buildBox(0.05, 0.016, 0.085);
-    tail.rotateX(-0.3);
-    tail.translate(0, 0.955, -0.105);
-    pieces.push(applyColor(tail, SCENE2_STYLE.bird));
+    pieces.push(...buildCarvedDuck((random() - 0.5) * 0.5));
     prototypes.push(mergePieces(pieces));
   }
   return prototypes;

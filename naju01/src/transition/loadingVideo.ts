@@ -45,6 +45,9 @@ export function getBgmVolume(): number {
 }
 
 let currentMusic: { kind: LoadingVideoKind; audio: HTMLAudioElement } | null = null;
+/** 퍼즐이 귀를 기울일 때 곡을 줄이는 배율(0~1) */
+let musicDuck = 1;
+let duckFrame = 0;
 
 export function playMusic(kind: LoadingVideoKind, seconds = 0) {
   if (currentMusic?.kind === kind) return;
@@ -55,7 +58,7 @@ export function playMusic(kind: LoadingVideoKind, seconds = 0) {
   const audio = new Audio(seconds > 0 ? `${track.url}#t=${seconds.toFixed(2)}` : track.url);
   audio.preload = "auto";
   audio.loop = true;
-  audio.volume = getBgmVolume() * track.gain;
+  audio.volume = getBgmVolume() * track.gain * musicDuck;
   audio.play().catch(() => {
     // 새 페이지라 아직 입력이 없으면 브라우저가 막는다 — 첫 키·클릭에 다시 튼다
     const retry = () => {
@@ -67,6 +70,26 @@ export function playMusic(kind: LoadingVideoKind, seconds = 0) {
     window.addEventListener("pointerdown", retry);
   });
   currentMusic = { kind, audio };
+}
+
+/** 설정에서 「배경음악」을 바꾸면 틀고 있는 곡에도 바로 먹인다. 줄이며 끄는 중인 곡은 이미 손을 떠났다. */
+export function applyMusicVolume() {
+  if (!currentMusic) return;
+  currentMusic.audio.volume = getBgmVolume() * (MUSIC[currentMusic.kind]?.gain ?? 1) * musicDuck;
+}
+
+/** 곡을 배율까지 0.8초에 걸쳐 줄이거나 되살린다 */
+export function setMusicDuck(level: number) {
+  const from = musicDuck;
+  const startedAt = performance.now();
+  cancelAnimationFrame(duckFrame);
+  const step = () => {
+    const t = Math.min(1, (performance.now() - startedAt) / 800);
+    musicDuck = from + (level - from) * t;
+    applyMusicVolume();
+    if (t < 1) duckFrame = requestAnimationFrame(step);
+  };
+  step();
 }
 
 /** 서서히 줄이며 끈다(초). 막이 사라진 뒤에도 끝까지 줄어들도록 모듈에 둔다. */

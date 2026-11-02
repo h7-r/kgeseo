@@ -100,13 +100,13 @@ export interface KeyLike {
   target?: { closest?: (selector: string) => unknown } | null;
 }
 
-/** 정상 검수에서 막는 개발 단축키(편집 E · 순간이동 1~5 · 강제 씬 완료 Shift+숫자 · O · N). HUD 입력 중엔 모두 막는다 */
+/** 정상 검수에서 막는 개발 단축키(편집 Q · 상호작용 E · 순간이동 1~5 · 강제 씬 완료 Shift+숫자 · O · N). HUD 입력 중엔 모두 막는다 */
 export function shouldBlockKeyInReview(event: KeyLike, mode: string = "normal"): boolean {
   const target = event.target;
   // 기록 입력 중에는 T/V/WASD 등 게임 단축키로 전파하지 않는다.
   if (target?.closest?.("[data-review-hud]")) return true;
   if (mode !== "normal" || event.metaKey || event.ctrlKey || event.altKey) return false;
-  return /^Digit[1-5]$/.test(event.code ?? "") || ["KeyE", "KeyO", "KeyN"].includes(event.code ?? "");
+  return /^Digit[1-5]$/.test(event.code ?? "") || ["KeyE", "KeyQ", "KeyO", "KeyN"].includes(event.code ?? "");
 }
 
 /** 측정에 쓰는 보고 필드 — NajuSceneReport(useSceneFrame) 의 이름과 같다. 전부 선택이라 부분 보고도 받는다 */

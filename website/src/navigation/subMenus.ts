@@ -3,7 +3,7 @@ import { ANGAM_PIN_LENGTH, CASE_FILE_PIN_LENGTH } from "@/sections/home/homeLayo
 import { ROUTES } from "./routes";
 
 /** 하위 메뉴가 찾아갈 덩이 이름. 덩이 요소에 `{...sectionAnchor(id)}` 로 붙인다. */
-type SectionId =
+export type SectionId =
   | "intro"
   | "case-file"
   | "legend-regions"

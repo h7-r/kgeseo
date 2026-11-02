@@ -27,6 +27,8 @@ export const SHOW_CUSTOMIZE_PANEL = query.has("customize");
 export const IS_POSTFX_DISABLED = query.get("fx") === "off";
 /** ?fx=hi — 후처리 멀티샘플만 8배로. 화질 비교용(버퍼 형식은 바꾸지 않는다 — App 의 EffectComposer 주석). */
 export const IS_POSTFX_HIGH_QUALITY = query.get("fx") === "hi";
+/** ?만화=off — 나주맵과 같은 만화 v3 화풍(깊이 선·색 보정·나주 명암)을 끄고 옛 화면과 견준다. */
+export { IS_MANGA_STYLE } from "@/engine/manga/mangaFlag";
 /** ?zone=off — 구역 컬링을 끄고 전부 그린다. */
 export const IS_ZONE_CULLING_DISABLED = query.get("zone") === "off";
 

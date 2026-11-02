@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type RefObject } from "react";
 
-import { DESIGN_WIDTH, PIN_CLASS, STAGE_INNER_SELECTOR } from "@/lib/layout";
+import { DESIGN_WIDTH, PIN_CLASS, STAGE_INNER_SELECTOR, offsetTopWithinStage } from "@/lib/layout";
 import { clamp01 } from "@/lib/math";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 import { consumeProgrammaticScroll } from "@/lib/pageEvents";
@@ -73,18 +73,6 @@ export function useReadProgress<T extends HTMLElement = HTMLDivElement>(): RefOb
   }, []);
 
   return ref;
-}
-
-/**
- * 무대 안에서의 세로 자리(무대 px). shift 상자(data-shift) 안에 들어가면 offsetTop 이 그 상자 기준이라
- * 무대 칸까지 거슬러 올라가며 더한다. transform 을 무시하므로 핀으로 밀어 둔 상태에서도 같다.
- */
-function offsetTopWithinStage(el: HTMLElement, stage: Element): number {
-  let y = 0;
-  for (let node: HTMLElement | null = el; node && node !== stage; node = node.offsetParent as HTMLElement | null) {
-    y += node.offsetTop;
-  }
-  return y;
 }
 
 interface PinnedRevealOptions {

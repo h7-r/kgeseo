@@ -8,6 +8,8 @@
  *   ① 선   깊이만 읽어 윤곽선(앞뒤가 갈리는 곳) + 꺾인 모서리 선을 그린다.
  *          1/z 는 평평한 면 위에서 화면 방향으로 일직선이라(비스듬한 땅도) 그 2차 차이가 0 → 땅에 가짜 선이 안 생긴다.
  *          거리로 지운다: 모서리 선 creaseFar(유닛) · 윤곽선 edgeFar(유닛). 하늘(깊이 1)은 건너뛴다.
+ *          낮게 깔린 면은 지운다: 깊이가 끊긴 두 점을 세계 위치로 되돌려 높이 차가 수평 거리의 5~12% 밖이면 선을 안 긋는다.
+ *          (10/29) 먼 강물을 낮은 각도로 보면 물결 마루 뒤 골이 가려져 깊이가 끊기고, 그게 물결마다 가로줄로 그어졌다.
  *   ② 색   쨍한 빨강·자홍(옻칠·붉은 천)만 골라 채도를 누르고 · 전체 밝기 ×0.86 · 어두운 곳은 차갑게 · 밝은 곳은 따뜻하게.
  *          나무 갈색(초록이 빨강의 절반 이상)은 건드리지 않는다.
  *   로그 깊이(logarithmicDepthBuffer)는 postprocessing 의 readDepth 가 풀어 준다.
@@ -16,7 +18,7 @@
  * ※ 셰이더 문자열에는 ASCII 만 (windShader.ts 와 같은 이유).
  */
 import { BlendFunction, Effect, EffectAttribute } from "postprocessing";
-import { Uniform } from "three";
+import { PerspectiveCamera, Uniform, Vector2, Vector3, type Camera } from "three";
 import { wrapEffect } from "@react-three/postprocessing";
 
 const QUERY = typeof location !== "undefined" ? new URLSearchParams(location.search) : new URLSearchParams();
@@ -29,8 +31,20 @@ uniform float uWidth;
 uniform float uCreaseFar;
 uniform float uEdgeFar;
 uniform float uGrade;
+uniform float uInkBlack;
+uniform vec2 uTanHalf;
+uniform vec3 uUpView;
 
 float distAt(const in vec2 p) { return -getViewZ(readDepth(p)); }
+vec3 viewPosAt(const in vec2 p, const in float dist) { return vec3((p * 2.0 - 1.0) * uTanHalf * dist, -dist); }
+
+// 0 = flat sheet seen edge-on (water ripples, flat ground), 1 = real step (rock, boat, wall)
+float steepness(const in vec2 uv, const in float d0, const in vec2 nuv, const in float dn) {
+  vec3 delta = viewPosAt(nuv, dn) - viewPosAt(uv, d0);
+  float dy = dot(delta, uUpView);
+  float dh = length(delta - dy * uUpView);
+  return smoothstep(0.05, 0.12, abs(dy) / max(dh, 1e-4));
+}
 
 vec3 mangaGrade(vec3 c) {
   float mx = max(c.r, max(c.g, c.b));
@@ -59,11 +73,19 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
     float b = distAt(uv - vec2(0.0, px.y));
     float il = 1.0 / l, ir = 1.0 / r, iu = 1.0 / u, ib = 1.0 / b, i0 = 1.0 / d0;
     float lap = max(abs(il + ir - 2.0 * i0), abs(iu + ib - 2.0 * i0)) * d0;
+    // the neighbour that differs most decides whether this is a real step
+    float dn = l; vec2 nuv = uv - vec2(px.x, 0.0);
+    if (abs(r - d0) > abs(dn - d0)) { dn = r; nuv = uv + vec2(px.x, 0.0); }
+    if (abs(u - d0) > abs(dn - d0)) { dn = u; nuv = uv + vec2(0.0, px.y); }
+    if (abs(b - d0) > abs(dn - d0)) { dn = b; nuv = uv - vec2(0.0, px.y); }
+    lap *= steepness(uv, d0, nuv, dn);
     float eDisc = smoothstep(0.04, 0.12, lap) * (1.0 - smoothstep(uEdgeFar * 0.6, uEdgeFar, d0));
     float eCrease = smoothstep(0.003, 0.012, lap) * (1.0 - smoothstep(uCreaseFar * 0.5, uCreaseFar, d0));
     e = clamp(max(eDisc, eCrease), 0.0, 1.0) * uStrength;
   }
-  outputColor = vec4(mix(col, col * vec3(0.28, 0.24, 0.24), e), inputColor.a);
+  // 선 색 — 바탕을 어둡게 눌러 그린다. 물속(uInkBlack)에서는 둘레 빛을 타지 않는 먹선으로
+  vec3 ink = mix(col * vec3(0.28, 0.24, 0.24), vec3(0.012, 0.014, 0.016), uInkBlack);
+  outputColor = vec4(mix(col, ink, e), inputColor.a);
 }
 `;
 
@@ -80,6 +102,9 @@ export interface MangaEffectOptions {
   grade?: number;
 }
 
+/** 선 색 손잡이 — black 이 1 이면 선이 먹빛(물속 장면이 켠다) */
+export const mangaInk = { black: 0 };
+
 export class MangaEffectImpl extends Effect {
   constructor({ strength = 0.9, width = 1.5, creaseFar = 60, edgeFar = 300, grade = 1 }: MangaEffectOptions = {}) {
     super("MangaEffect", FRAG, {
@@ -91,8 +116,30 @@ export class MangaEffectImpl extends Effect {
         ["uCreaseFar", new Uniform(creaseFar)],
         ["uEdgeFar", new Uniform(edgeFar)],
         ["uGrade", new Uniform(grade)],
+        ["uInkBlack", new Uniform(0)],
+        ["uTanHalf", new Uniform(new Vector2(1, 1))],
+        ["uUpView", new Uniform(new Vector3(0, 1, 0))],
       ]),
     });
+  }
+
+  /** 선을 지울지 가리려고 화면 → 세계 높이를 되돌린다 — 그 계산에 쓸 카메라 */
+  private camera: Camera | null = null;
+
+  override set mainCamera(camera: Camera) {
+    this.camera = camera;
+  }
+
+  override update() {
+    const camera = this.camera;
+    (this.uniforms.get("uInkBlack")! as Uniform<number>).value = mangaInk.black;
+    if (!camera) return;
+    if (camera instanceof PerspectiveCamera) {
+      const tanY = Math.tan((camera.fov * Math.PI) / 360) / camera.zoom;
+      (this.uniforms.get("uTanHalf")!.value as Vector2).set(tanY * camera.aspect, tanY);
+    }
+    // 세계의 위쪽(0,1,0)을 카메라 좌표로
+    (this.uniforms.get("uUpView")!.value as Vector3).set(0, 1, 0).transformDirection(camera.matrixWorldInverse);
   }
 }
 

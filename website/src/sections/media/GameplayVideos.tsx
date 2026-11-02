@@ -1,11 +1,8 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
-import backgroundImage1 from "@/assets/images/imgBg.webp";
-import backgroundImage2 from "@/assets/images/imgBg1.webp";
 import playIcon from "@/assets/images/imgPlay2.svg";
-import videoCard1 from "@/assets/images/imgVideoCard1.webp";
-import videoCard2 from "@/assets/images/imgVideoCard2.webp";
-import videoCard3 from "@/assets/images/imgVideoCard3.webp";
+import { openVideoModal } from "@/app/siteState";
+import { GAMEPLAY_VIDEOS, type Video } from "@/data/videos";
 import { depthRevealClass, useReveal, useScrollZoom, useTilt } from "@/hooks/motion";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 import { FONT } from "@/lib/style";
@@ -16,50 +13,48 @@ export const GALLERY_HEIGHT = 517;
 export const FEATURED_HEIGHT = 715;
 
 interface Challenge {
-  image: string;
+  video: Video;
   title: string;
   category: string;
   description: string;
 }
 
-// 아래 쪽번호가 다섯 칸이라 챌린지도 다섯으로 맞춘다. 위 갤러리에는 앞의 셋만 보인다.
+// 나주 앙암바위를 처음부터 끝까지 푸는 차례대로 다섯 편. 위 갤러리에는 앞의 셋만 보인다.
+// 끝(편지에 적힌 것)은 보여 주지 않는다.
 const CHALLENGES: readonly Challenge[] = [
   {
-    image: videoCard1,
-    title: "탈출의 시작",
-    category: "GAMEPLAY",
-    description: "첫 현장에 들어선 순간. 숨겨진 단서를 찾아 첫 퍼즐을 풀어라.",
+    video: GAMEPLAY_VIDEOS.ferry,
+    title: "꺼진 화톳불",
+    category: "STAGE 01 · 나루터",
+    description: "통발 셋 가운데 불씨가 든 하나를 끌어올려 화톳불을 다시 지펴라. 피어오른 연기가 길을 가리킨다.",
   },
   {
-    image: videoCard2,
-    title: "암호 해독 챌린지",
-    category: "PUZZLE",
-    description: "옛 문자와 현대 암호가 뒤섞인 가장 어려운 퍼즐. 당신의 추리력을 시험하라.",
+    video: GAMEPLAY_VIDEOS.ritual,
+    title: "기우제",
+    category: "STAGE 02 · 바위 아래",
+    description: "돌탑을 마법진 홈에 맞추고 제물을 올리면 하늘이 열린다. 차오른 물 위의 돌 넷을 건져라.",
   },
   {
-    image: videoCard3,
-    title: "최후의 대결",
-    category: "CLIMAX",
-    description: "모든 단서가 하나로 모이는 클라이맥스. 진실을 밝혀낼 수 있는가?",
+    video: GAMEPLAY_VIDEOS.cave,
+    title: "강 밑 물굴",
+    category: "STAGE 02 · 물굴",
+    description: "갈라진 강 밑으로 내려간다. 숨이 다하기 전에 거품 자리를 찾아 고리문까지 가라.",
   },
   {
-    image: backgroundImage1,
-    title: "지워진 기록 복원",
-    category: "RESTORE",
-    description: "누군가 지운 실험 일지. 남은 자국만으로 사라진 문장을 되살려라.",
+    video: GAMEPLAY_VIDEOS.curtain,
+    title: "바람 장막",
+    category: "STAGE 03 · 증언 능선",
+    description: "능선에 바람 장막이 덮였다. 둥둥 뜨는 몸으로 날아간 것을 붙잡고, 기둥에 묶인 지게를 끌어 내려라.",
   },
   {
-    image: backgroundImage2,
-    title: "멈춘 시계 탈출",
-    category: "TIME ATTACK",
-    description: "시계가 다시 움직이기 전까지. 초침이 도는 순간 문은 닫힌다.",
+    video: GAMEPLAY_VIDEOS.birds,
+    title: "깨어난 돌새",
+    category: "STAGE 03 · 장승 문",
+    description: "장승 고리를 새김대로 맞추면 횃불이 치솟고, 돌새가 껍질을 깨고 날아오른다.",
   },
 ];
 
 const GALLERY_COUNT = 3;
-
-/** 혼자 넘어가는 간격(ms). 읽고 그림을 볼 시간이 필요해 넉넉히 잡는다. */
-const AUTO_ADVANCE_INTERVAL = 5200;
 
 interface GameplayVideosProps {
   top?: number;
@@ -70,15 +65,13 @@ interface GameplayVideosProps {
 /** 게임 영상 갤러리 · 고른 영상을 크게 보여 주는 카드 · 쪽번호. */
 export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 }: GameplayVideosProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
-  // 사람이 직접 고르면 자동 넘김을 멈춘다. 보고 있는 걸 뺏으면 안 된다.
+  // 사람이 직접 고르면 혼자 넘어가지 않는다. 보고 있는 걸 뺏으면 안 된다.
   const [hasInteracted, setHasInteracted] = useState(false);
 
-  useEffect(() => {
-    if (hasInteracted) return;
-    if (prefersReducedMotion()) return;
-    const timer = window.setInterval(() => setSelectedIndex((n) => (n + 1) % CHALLENGES.length), AUTO_ADVANCE_INTERVAL);
-    return () => clearInterval(timer);
-  }, [hasInteracted]);
+  // 혼자 넘길 때는 시계 대신 큰 카드 영상이 끝나는 때에 넘긴다 — 퍼즐이 풀리는 장면을 끝까지 보여 준다.
+  const advance = () => {
+    if (!hasInteracted) setSelectedIndex((n) => (n + 1) % CHALLENGES.length);
+  };
 
   const select = (n: number) => {
     setHasInteracted(true);
@@ -104,7 +97,13 @@ export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 
         </div>
       </section>
 
-      <FeaturedVideo top={featuredTop} challenge={CHALLENGES[selectedIndex]} />
+      <FeaturedVideo
+        top={featuredTop}
+        challenge={CHALLENGES[selectedIndex]}
+        shouldLoop={hasInteracted}
+        onEnded={advance}
+        onOpen={() => setHasInteracted(true)}
+      />
 
       {/* 다섯 칸이 챌린지 다섯과 짝이다. 눌러 고를 수도, 두면 혼자 넘어간다. */}
       <div style={{ ...pagerStyle, top: `${pagerTop}px` }}>
@@ -152,10 +151,18 @@ interface GalleryCardProps extends Challenge {
   onSelect: () => void;
 }
 
-/** 마우스를 따라 기울고 차례로 안쪽에서 걸어 나오는 작은 영상 카드. */
+/** 마우스를 따라 기울고 차례로 안쪽에서 걸어 나오는 작은 영상 카드. 올려 두면 소리 없이 미리 흐른다. */
 function GalleryCard({ order, isActive, onSelect, ...challenge }: GalleryCardProps) {
   const { ref: tiltRef, onMouseMove, onMouseLeave } = useTilt<HTMLDivElement>(5);
   const [revealRef, isVisible] = useReveal<HTMLDivElement>();
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const preview = (isHovered: boolean) => {
+    const video = videoRef.current;
+    if (!video || prefersReducedMotion()) return;
+    if (isHovered) video.play().catch(() => {});
+    else video.pause();
+  };
 
   return (
     <div
@@ -169,17 +176,36 @@ function GalleryCard({ order, isActive, onSelect, ...challenge }: GalleryCardPro
           onSelect();
         }
       }}
+      onMouseEnter={() => preview(true)}
+      onFocus={() => preview(true)}
+      onBlur={() => preview(false)}
       className={`gallery-card${isActive ? " is-active" : ""} u-tilt-scene ${depthRevealClass(isVisible)}`}
       style={{ ...galleryCardStyle, transitionDelay: `${order * 30}ms` }}
     >
       <div
         ref={tiltRef}
         onMouseMove={onMouseMove}
-        onMouseLeave={onMouseLeave}
+        onMouseLeave={() => {
+          onMouseLeave();
+          preview(false);
+        }}
         className="u-tilt"
         style={{ width: "100%", height: "100%" }}
       >
-        <VideoCard {...challenge} />
+        <VideoCard {...challenge}>
+          {/* 첫 장면·길이만 먼저 받고, 나머지는 올려 둘 때 받는다 */}
+          <video
+            ref={videoRef}
+            src={challenge.video.src}
+            poster={challenge.video.poster}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-hidden="true"
+            style={cardMediaStyle}
+          />
+        </VideoCard>
       </div>
     </div>
   );
@@ -188,17 +214,95 @@ function GalleryCard({ order, isActive, onSelect, ...challenge }: GalleryCardPro
 interface FeaturedVideoProps {
   top: number;
   challenge: Challenge;
+  /** 사람이 고른 뒤에는 그 영상을 되풀이한다. 아니면 끝날 때 다음으로 넘긴다 */
+  shouldLoop: boolean;
+  onEnded: () => void;
+  onOpen: () => void;
 }
 
-/** 위 갤러리에서 고른 영상을 크게. 스크롤에 맞춰 안쪽에서 다가왔다 앞으로 지나간다. */
-function FeaturedVideo({ top, challenge }: FeaturedVideoProps) {
+/**
+ * 위 갤러리에서 고른 영상을 크게. 스크롤에 맞춰 안쪽에서 다가왔다 앞으로 지나간다.
+ * 화면에 들어와 있는 동안 소리 없이 흐르고, 누르면 지금 장면에서 이어 큰 플레이어로 커진다.
+ */
+function FeaturedVideo({ top, challenge, shouldLoop, onEnded, onOpen }: FeaturedVideoProps) {
   const scrollZoomRef = useScrollZoom<HTMLDivElement>({ enterScale: 0.9, exitScale: 1.05, depth: 110 });
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const isVisibleRef = useRef(false);
+
+  // 고른 영상이 바뀌면 처음부터. 화면 밖이면 멈춘다.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || prefersReducedMotion()) return;
+    const sync = () => {
+      if (isVisibleRef.current) video.play().catch(() => {});
+      else video.pause();
+    };
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isVisibleRef.current = Boolean(entry?.isIntersecting);
+        sync();
+      },
+      { rootMargin: "200px 0px" },
+    );
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [challenge]);
+
+  const open = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    onOpen();
+    video.pause(); // 소리 있는 쪽은 모달이 튼다.
+    openVideoModal({
+      video: challenge.video,
+      origin: video,
+      originRadius: "12px",
+      startTime: video.currentTime || 0,
+      onReturn: (time) => {
+        const current = videoRef.current;
+        if (!current) return;
+        try {
+          current.currentTime = time;
+        } catch {
+          // 아직 못 읽었으면 처음부터.
+        }
+        if (isVisibleRef.current) current.play().catch(() => {});
+      },
+    });
+  };
 
   return (
     <div ref={scrollZoomRef} className="u-scroll-zoom" style={{ ...featuredStyle, top: `${top}px` }}>
       {/* key 를 바꿔야 바뀌는 순간 카메라 전환이 다시 돈다 */}
-      <div key={challenge.title} className="u-swap-in" style={{ width: "100%", height: "100%" }}>
-        <VideoCard {...challenge} large />
+      <div
+        key={challenge.title}
+        className="u-swap-in"
+        role="button"
+        tabIndex={0}
+        aria-label={`${challenge.video.title} 영상 크게 보기`}
+        onClick={open}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            open();
+          }
+        }}
+        style={{ width: "100%", height: "100%", cursor: "pointer" }}
+      >
+        <VideoCard {...challenge} large>
+          <video
+            ref={videoRef}
+            src={challenge.video.src}
+            poster={challenge.video.poster}
+            muted
+            loop={shouldLoop}
+            playsInline
+            preload="auto"
+            aria-hidden="true"
+            onEnded={onEnded}
+            style={cardMediaStyle}
+          />
+        </VideoCard>
       </div>
     </div>
   );
@@ -206,12 +310,14 @@ function FeaturedVideo({ top, challenge }: FeaturedVideoProps) {
 
 interface VideoCardProps extends Challenge {
   large?: boolean;
+  /** 카드 바탕에 깔리는 영상 */
+  children: ReactNode;
 }
 
-function VideoCard({ image, title, category, description, large = false }: VideoCardProps) {
+function VideoCard({ title, category, description, large = false, children }: VideoCardProps) {
   return (
     <div className="interactive-card" style={cardStyle}>
-      <img loading="lazy" decoding="async" src={image} alt="" style={cardImageStyle} />
+      {children}
       <div style={playButtonStyle}>
         <img
           loading="lazy"
@@ -305,7 +411,7 @@ const cardStyle: CSSProperties = {
   boxSizing: "border-box",
 };
 
-const cardImageStyle: CSSProperties = {
+const cardMediaStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
   width: "100%",

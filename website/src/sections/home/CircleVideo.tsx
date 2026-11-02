@@ -2,7 +2,8 @@ import { useEffect, useRef, type CSSProperties } from "react";
 
 import { prefersReducedMotion } from "@/lib/motionPreference";
 
-const MAX_PLAYBACK_RATE = 8;
+// 장면이 여럿 이어진 필름이라 너무 빨리 넘기면 정신없다. 3배까지만.
+const MAX_PLAYBACK_RATE = 3;
 // 스크롤 속도(px/ms) → 배속 환산. 클수록 민감하다.
 const SCROLL_GAIN = 1.4;
 
@@ -13,7 +14,7 @@ interface CircleVideoProps {
 }
 
 /**
- * 앙암바위 링 안의 사건 콘셉트 필름. 1배로 반복하다가 스크롤하면 그 속도만큼 빨리 흐른다.
+ * 앙암바위 링 안의 나주맵 필름. 1배로 반복하다가 스크롤하면 그 속도만큼 빨리 흐른다.
  * 동작 줄이기 사용자에겐 재생 없이 첫 장면만 보여 준다.
  */
 export default function CircleVideo({ src, poster, style }: CircleVideoProps) {

@@ -800,8 +800,8 @@ export default function LibraryDrawer(props: LibraryDrawerProps) {
         <button type="button" className="secondary" onClick={props.onToggleCollapsed}>
           {collapsed ? "펼치기" : "접기"}
         </button>
-        <button type="button" className="secondary" onClick={props.onExit} title="편집 모드 끝내기 — 걷기로 (E)">
-          끝내기 (E)
+        <button type="button" className="secondary" onClick={props.onExit} title="편집 모드 끝내기 — 걷기로 (Q)">
+          끝내기 (Q)
         </button>
       </div>
       <SceneRow sceneNo={props.sceneNo} onScene={props.onScene} />

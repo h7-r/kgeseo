@@ -27,7 +27,7 @@ const SOUND_FILES = {
   vendingOff: "/sfx/vending_off.mp3",
 } as const;
 
-type SoundName = keyof typeof SOUND_FILES;
+export type SoundName = keyof typeof SOUND_FILES;
 
 interface PlaySoundOptions {
   volume?: number;
@@ -110,8 +110,20 @@ function preloadSounds() {
   for (const name of Object.keys(SOUND_FILES) as SoundName[]) void loadSoundBuffer(name);
 }
 
+type SoundListener = (name: SoundName, volume: number) => void;
+const soundListeners = new Set<SoundListener>();
+
+/** 효과음이 날 때마다 듣는다(화면 흔들림 등). 소리가 아직 안 실렸거나 꺼져 있어도 「났다」는 알린다. 돌려준 함수로 끊는다. */
+export function onSoundPlayed(listener: SoundListener) {
+  soundListeners.add(listener);
+  return () => {
+    soundListeners.delete(listener);
+  };
+}
+
 /** 한 번 재생(겹침 허용). 버퍼가 아직 없으면 불러오기만 하고 이번은 건너뛴다. */
 export function playSound(name: SoundName, { volume = 1, rate = 1 }: PlaySoundOptions = {}) {
+  soundListeners.forEach((listener) => listener(name, volume));
   const ctx = getAudioContext();
   if (!ctx) return null;
   const buffer = buffers.get(name);

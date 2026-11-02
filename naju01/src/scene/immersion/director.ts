@@ -39,6 +39,17 @@ const U = UNITS_PER_METER;
 // ═══════════════════════════════════════════════════════════════
 //  콘솔 API — 옛 window.__연출
 // ═══════════════════════════════════════════════════════════════
+/**
+ * 구역 비 문 — 날씨가 「비」인 구역이라도 문이 닫혀 있으면 맑다(젖음 · 고임도 없음). 퍼즐이 여닫는다.
+ * 나주 2구역은 기우제로 빛기둥이 솟은 뒤에야 흐려지며 비가 온다(그 전엔 밝은 한낮 — 먼 데를 가리는 안개는 그대로)
+ */
+const zoneRainGates = new Map<string, () => boolean>();
+export function setZoneRainGate(code: string, gate: (() => boolean) | null) {
+  if (gate) zoneRainGates.set(code, gate);
+  else zoneRainGates.delete(code);
+}
+const isRainZoneOpen = (code: string) => zoneRainGates.get(code)?.() ?? true;
+
 export const director = {
   settings,
   cue: (item: CueItem, context?: CueContext) => playCue(item, context),
@@ -162,6 +173,11 @@ function adjustLights(scene: THREE.Scene, k: number, sunColor: THREE.Color) {
   }
 }
 
+// 10/28 — 카메라를 플레이어 손에서 빼앗지 않는다. 퍼즐 장치가 생겨 임시 단서발견은 끄고,
+// 구역 진입 컷(카메라가 혼자 돈다)도 끈다. 둘 다 되살리려면 true.
+const AUTO_CLUES = false;
+const ENTRY_CUTS = false;
+
 /** 단서발견(임시): 씬 무리(씬N.*)의 물체에 근접m 안으로 처음 다가가면 박자/사건을 건다 */
 function scanClues(scene: THREE.Scene, position: THREE.Vector3) {
   const spec = cueTable.단서 ?? {};
@@ -238,7 +254,7 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
   // ── 첫 진입 → 시점 컷 → 진입 박자 ──
   if (active && !paused && !stage.cut && !stage.visitedZones.has(code)) {
     stage.visitedZones.add(code);
-    if (!(settings.시점컷 && zq.진입컷 !== false && startCut(code, terrain, position))) playBeat("진입");
+    if (!(ENTRY_CUTS && settings.시점컷 && zq.진입컷 !== false && startCut(code, terrain, position))) playBeat("진입");
   }
 
   // ── 날씨 목표 ──
@@ -262,7 +278,7 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
   //   ② 맑은 구역 안에 서 있으면 옆 구역 비가 6 m 에 걸쳐 새어 들어오지 않게 0 — Z1 동쪽 끝(x 26~28 m)이 Z2 의 잦아드는 띠에 걸렸다
   const rainZoneCodes = new Set(
     Object.entries(cueTable.구역 ?? {})
-      .filter(([, v]) => v?.날씨 === "비")
+      .filter(([c, v]) => v?.날씨 === "비" && isRainZoneOpen(c))
       .map(([c]) => c),
   );
   const isInDryZone = ZONES.some(
@@ -273,7 +289,7 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
     : stage.eventRain && stage.eventRain.zone !== null && rainZoneCodes.has(stage.eventRain.zone)
       ? [[stage.eventRain.zone, stage.eventRain.strength]]
       : Object.entries(cueTable.구역 ?? {})
-          .filter(([, v]) => v?.날씨 === "비")
+          .filter(([c, v]) => v?.날씨 === "비" && isRainZoneOpen(c))
           .map(([c, v]) => [c, v?.비세기 ?? 0.7]);
   for (const [c, strength] of candidates) {
     const r = zoneRect(c);
@@ -306,7 +322,8 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
   rainUniforms.uWgTime.value = t;
   // ★ 날씨가 「비」인 구역은 **이미 한참 내린 뒤**로 둔다 — 들어서는 순간부터 젖어 있고 고여 있다(차오르는 연출 없음, 10/13 미르).
   //   차오르고 마르는 시간 흐름은 **사건 비**(구렁이 등)에만 쓴다.
-  const rainZones = Object.entries(cueTable.구역 ?? {}).filter(([, v]) => v?.날씨 === "비");
+  // 문이 닫힌 비 구역(기우제 전 2구역)은 마른 땅에서 시작해, 비가 오기 시작하면 아래 셈대로 차츰 젖고 고인다
+  const rainZones = Object.entries(cueTable.구역 ?? {}).filter(([c, v]) => v?.날씨 === "비" && isRainZoneOpen(c) && !zoneRainGates.has(c));
   if (!stage.eventRain && rainZones.length) {
     const [c, v] = rainZones.reduce((p, q) => (outsideDistance(zoneRect(q[0])!) < outsideDistance(zoneRect(p[0])!) ? q : p));
     const r = zoneRect(c)!;
@@ -392,15 +409,16 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
   }
 
   // ── 단서 ──
-  if (active && !paused && !stage.cut) scanClues(scene, position);
+  if (AUTO_CLUES && active && !paused && !stage.cut) scanClues(scene, position);
 
   // ── ⑤ 카메라 효과 계산 ──
   const fx = stage.effects;
   stage.trauma = Math.max(0, stage.trauma - dt * 0.8);
   const shake = stage.trauma * stage.trauma * settings.흔들림;
-  fx.yaw = shake * 0.045 * noise(t * 17, 1);
+  // 위아래로만 — 좌우로 돌거나 기울면(roll) 걸을 때 화면이 대각선으로 보인다(10/28)
+  fx.yaw = 0;
   fx.pitch = shake * 0.035 * noise(t * 19, 2);
-  fx.roll = shake * 0.05 * noise(t * 13, 3);
+  fx.roll = 0;
   let fov = 0;
   stage.zooms = stage.zooms.filter((z) => t - z.start < z.seconds);
   for (const z of stage.zooms) fov -= 12 * z.strength * peak((t - z.start) / z.seconds, 0.25, 0.5);

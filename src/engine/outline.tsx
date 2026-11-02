@@ -122,6 +122,8 @@ function getCreaseMaterial(color: string): THREE.LineBasicMaterial {
     evictOldest(creaseMaterialCache);
     // toneMapped=false — 어두운 방에서도 지정한 색 그대로 나온다
     material = new THREE.LineBasicMaterial({ color, toneMapped: false });
+    // 만화 화풍은 깊이 선이 주름선을 대신한다 — 그쪽이 알아보는 표식
+    material.userData.isCreaseLine = true;
     creaseMaterialCache.set(color, material);
   }
   return material;

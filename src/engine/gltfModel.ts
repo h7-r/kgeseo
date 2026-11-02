@@ -55,10 +55,12 @@ export function useToonGltfParts(path: string, color: THREE.ColorRepresentation)
     cloned.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       object.material = new THREE.MeshToonMaterial({ color, gradientMap: TOON_GRADIENT });
+      // 어느 모형의 재질인지 — 같은 색(구조물 색)을 쓰는 책상·기둥을 만화 팔레트가 가려 칠한다
+      object.material.userData.model = path;
       object.castShadow = true;
       object.receiveShadow = true;
     });
     return cloned;
-  }, [scene, color]);
+  }, [scene, color, path]);
   return useMemo(() => splitGltf(model), [model]);
 }

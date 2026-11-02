@@ -47,7 +47,7 @@ test('only the exact public replacement profile is permitted, including in diagn
 });
 
 test('normal mode blocks teleport, forced completion and editor without blocking walking', () => {
-  for (const code of ['Digit1', 'Digit4', 'KeyE', 'KeyO', 'KeyN']) assert.equal(shouldBlockKeyInReview({ code }, 'normal'), true);
+  for (const code of ['Digit1', 'Digit4', 'KeyE', 'KeyQ', 'KeyO', 'KeyN']) assert.equal(shouldBlockKeyInReview({ code }, 'normal'), true);
   for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyT', 'KeyV', 'Escape']) assert.equal(shouldBlockKeyInReview({ code }, 'normal'), false);
   assert.equal(shouldBlockKeyInReview({ code: 'Digit1', shiftKey: true }, 'normal'), true);
   assert.equal(shouldBlockKeyInReview({ code: 'Digit1' }, 'diagnostic'), false);

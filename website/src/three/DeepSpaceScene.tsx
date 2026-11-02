@@ -262,7 +262,7 @@ function ScrollCamera({ reducedMotion }: { reducedMotion: boolean }) {
  * frameloop 가 "never" 로 시작하면 가장 비싼 셰이더가 첫 스크롤 프레임에 컴파일돼 멈칫한다.
  * 붙자마자 한가할 때 미리 컴파일하고, 첫 그리기는 다음 한가한 틈으로 떼어 긴 작업을 쪼갠다.
  */
-function ShaderPrewarm() {
+function ShaderPrewarm({ onReadyChange }: { onReadyChange?: (ready: boolean) => void }) {
   const { gl, scene, camera, invalidate } = useThree();
 
   useEffect(() => {
@@ -278,6 +278,7 @@ function ShaderPrewarm() {
               if (disposed) return;
               gl.render(scene, camera);
               invalidate();
+              onReadyChange?.(true);
             },
             1500,
             300,
@@ -291,7 +292,7 @@ function ShaderPrewarm() {
       cancelCompile();
       cancelRender?.();
     };
-  }, [gl, scene, camera, invalidate]);
+  }, [gl, scene, camera, invalidate, onReadyChange]);
 
   return null;
 }
@@ -299,10 +300,11 @@ function ShaderPrewarm() {
 interface DeepSpaceSceneProps {
   visible?: boolean;
   reducedMotion?: boolean;
+  onReadyChange?: (ready: boolean) => void;
 }
 
 /** 페이지 뒤에 깔리는 깊은 공간. 스크롤하면 카메라가 통로 안으로 날아간다. */
-export default function DeepSpaceScene({ visible = true, reducedMotion = false }: DeepSpaceSceneProps) {
+export default function DeepSpaceScene({ visible = true, reducedMotion = false, onReadyChange }: DeepSpaceSceneProps) {
   return (
     <Canvas
       // 옅고 안개에 묻힌 장식이라 dpr 1·antialias 끔으로도 겉보기가 같고, 스크롤 중 끊기는 프레임이 크게 준다.
@@ -330,7 +332,7 @@ export default function DeepSpaceScene({ visible = true, reducedMotion = false }
       <NearDust />
       <VanishingPointShift />
       <ScrollCamera reducedMotion={reducedMotion} />
-      <ShaderPrewarm />
+      <ShaderPrewarm onReadyChange={onReadyChange} />
     </Canvas>
   );
 }

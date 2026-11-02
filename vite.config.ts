@@ -10,9 +10,13 @@ import { editFileServerPlugin } from "./naju01/vite/editFilePlugin";
  * 구독자 96개가 스토어가 바뀔 때마다·리렌더마다 돌아 슬라이더 한 칸에 전체 복사가 약 185번 — 끌면 5fps 로 떨어졌다.
  * paths 가 전부 s.data 에 있으면 병합 결과와 pick 결과가 같으므로, 그때만 복사 없이 바로 읽는다.
  * node_modules 를 직접 고치면 npm i 에 날아가서 플러그인으로 한다. 고칠 자리를 못 찾으면 빌드를 실패시킨다
- * (조용히 안 먹는 것이 제일 나쁘다). 고친 뒤에는 node_modules/.vite 를 지워야 사전 번들에 반영된다.
+ * (조용히 안 먹는 것이 제일 나쁘다). 빌드는 vite 플러그인이, 개발 서버의 사전 번들은 rolldown 플러그인이 고친다.
  */
-function levaSelectorPatch(): Plugin {
+const LEVA_FILE = "/leva/dist/leva.esm.js";
+
+/** 고친 leva 소스. 이 파일이 아니면 null, 고칠 자리를 못 찾으면 오류 문구 */
+function patchLevaSelector(code: string, id: string): { code: string } | { error: string } | null {
+  if (!id.includes(LEVA_FILE)) return null;
   const original =
     "const data = _objectSpread2(_objectSpread2({}, initialData), s.data);\n" +
     "    return getValuesForPaths(data, paths);";
@@ -23,14 +27,36 @@ function levaSelectorPatch(): Plugin {
     "      }\n" +
     "    }\n" +
     "    return getValuesForPaths(s.data, paths);";
+  if (!code.includes(original))
+    return { error: "[leva-selector-patch] 고칠 자리를 못 찾았다 — leva 판이 바뀌었는지 보라" };
+  return { code: code.replace(original, patched) };
+}
+
+function levaSelectorPatch(): Plugin {
   return {
     name: "leva-selector-patch",
     enforce: "pre",
     transform(code, id) {
-      if (!id.includes("/leva/dist/leva.esm.js")) return null;
-      if (!code.includes(original))
-        this.error("[leva-selector-patch] 고칠 자리를 못 찾았다 — leva 판이 바뀌었는지 보라");
-      return { code: code.replace(original, patched), map: null };
+      const result = patchLevaSelector(code, id);
+      if (!result) return null;
+      if ("error" in result) this.error(result.error);
+      return { code: result.code, map: null };
+    },
+  };
+}
+
+/**
+ * 개발 서버는 leva 를 의존성 사전 번들(rolldown)로 내준다 — 거기에는 위 vite 플러그인이 끼지 않아
+ * 개발 중에는 고친 판이 아니었다(본부실에서 상태가 바뀔 때마다 Leva 스토어 전체 복사로 끊겼다). 사전 번들에도 같은 고침을 건다.
+ */
+function levaSelectorPrebundlePatch() {
+  return {
+    name: "leva-selector-patch-prebundle",
+    transform(code: string, id: string) {
+      const result = patchLevaSelector(code, id);
+      if (!result) return null;
+      if ("error" in result) throw new Error(result.error);
+      return { code: result.code };
     },
   };
 }
@@ -44,6 +70,7 @@ export default defineConfig({
   // 본편·나주 의존성을 서버 켤 때 한 번에 묶는다 — 나주 첫 진입 때 다시 묶으며 새로고침하는 긴 멈춤을 없앤다
   optimizeDeps: {
     entries: ["index.html", "naju01/index.html"],
+    rolldownOptions: { plugins: [levaSelectorPrebundlePatch()] },
   },
   server: {
     // 5174(나주)로 옮겨 붙으면 출처가 달라져 Leva 저장값이 사라진 것처럼 보인다 — 물려 있으면 실패한다

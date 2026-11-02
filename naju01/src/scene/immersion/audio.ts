@@ -59,6 +59,8 @@ class ImmersionAudio {
   gates: PannerNode[] = [];
   gateSpots: GateSpot[] | null = null;
   private master!: GainNode;
+  /** 게임 설정의 「효과음」 배율. O 판의 소리 크기에 곱한다 */
+  private sfxScale = 1;
   private reverb!: ConvolverNode;
   private reverbAmount!: GainNode;
   private white!: AudioBuffer;
@@ -67,6 +69,14 @@ class ImmersionAudio {
   private water!: Layer;
   private ripple!: Layer;
   private rain!: Layer;
+  /** 폭풍 — 낮게 웅웅대는 빗소리 덩어리. 기우제 뒤에만 켠다 */
+  private storm!: Layer;
+  /** 폭풍 세기(0~1) — 빗소리 · 바람을 키우고 천둥을 저절로 울린다 */
+  private stormLevel = 0;
+  private nextThunder = 0;
+  /** 바탕음(바람·물·비·문)이 모이는 곳 — 퍼즐이 귀를 기울일 때 줄인다 */
+  private ambientBus!: GainNode;
+  private ambientLevel = 1;
 
   /** 화면을 한 번 누르면 켜진다(브라우저 자동재생 정책) */
   start() {
@@ -78,7 +88,7 @@ class ImmersionAudio {
     if (!AC) return;
     const c = (this.ctx = new AC());
     this.master = c.createGain();
-    this.master.gain.value = settings.볼륨;
+    this.master.gain.value = settings.볼륨 * this.sfxScale;
     const comp = c.createDynamicsCompressor();
     this.master.connect(comp).connect(c.destination);
     this.reverb = c.createConvolver();
@@ -88,6 +98,9 @@ class ImmersionAudio {
     this.reverb.connect(this.reverbAmount).connect(this.master);
     this.white = makeNoiseBuffer(c, 4, false);
     this.brown = makeNoiseBuffer(c, 6, true);
+    this.ambientBus = c.createGain();
+    this.ambientBus.gain.value = this.ambientLevel;
+    this.ambientBus.connect(this.master);
     const layer = (buffer: AudioBuffer, filters: FilterSpec[]): Layer => {
       const s = c.createBufferSource();
       s.buffer = buffer;
@@ -104,7 +117,7 @@ class ImmersionAudio {
       });
       const g = c.createGain();
       g.gain.value = 0;
-      tail.connect(g).connect(this.master);
+      tail.connect(g).connect(this.ambientBus);
       s.start();
       return { g, fs };
     };
@@ -112,6 +125,7 @@ class ImmersionAudio {
     this.water = layer(this.brown, [["lowpass", 520]]);
     this.ripple = layer(this.white, [["bandpass", 1500, 2]]);
     this.rain = layer(this.white, [["highpass", 700], ["lowpass", 4200]]); // 10/13 — 덜 시끄럽게(고음을 깎음)
+    this.storm = layer(this.brown, [["lowpass", 420]]);
     if (this.gateSpots) this.buildGates(this.gateSpots);
     this.mix();
   }
@@ -121,7 +135,8 @@ class ImmersionAudio {
     const m = this.targets;
     this.water.g.gain.setTargetAtTime(0.22 * m.물, t, 0.8);
     this.ripple.g.gain.setTargetAtTime(0.05 * m.물, t, 0.8);
-    this.rain.g.gain.setTargetAtTime(0.15 * m.비, t, 0.6);
+    this.rain.g.gain.setTargetAtTime(0.15 * m.비 * (1 + 2.2 * this.stormLevel), t, 0.6);
+    this.storm.g.gain.setTargetAtTime(0.32 * this.stormLevel, t, 0.8);
   }
   /** 왜곡의 문 위치음 — 낮은 두 음이 천천히 울렁인다(HRTF) */
   buildGates(spots: GateSpot[] | null) {
@@ -161,7 +176,7 @@ class ImmersionAudio {
       lg.gain.value = 0.05;
       lfo.connect(lg).connect(g.gain);
       lfo.start();
-      g.connect(p).connect(this.master);
+      g.connect(p).connect(this.ambientBus);
       this.gates.push(p);
     }
   }
@@ -192,8 +207,18 @@ class ImmersionAudio {
     const t = this.ctx.currentTime;
     // 돌풍 — 바람 크기와 필터를 같이 흔든다(셰이더 흔들림과 같은 잡음)
     const gust = 0.5 + 0.5 * noise(time * 0.35, 7);
-    this.wind.g.gain.setTargetAtTime(0.2 * this.targets.바람 * (0.45 + 0.8 * gust), t, 0.25);
+    this.wind.g.gain.setTargetAtTime(
+      0.2 * this.targets.바람 * (0.45 + 0.8 * gust) * (1 + 1.6 * this.stormLevel),
+      t,
+      0.25,
+    );
+    // 폭풍 동안 천둥이 저절로 친다
+    if (this.stormLevel > 0.3 && t > this.nextThunder) {
+      if (this.nextThunder > 0) this.play("우르릉");
+      this.nextThunder = t + 5 + Math.random() * 6;
+    }
     this.wind.fs[0].frequency.setTargetAtTime(280 + 420 * gust, t, 0.25);
+    if (this.ambientLevel < 0.5) return; // 귀를 기울이는 동안 새·벌레·개구리도 쉰다
     if (this.targets.새 > 0.01 && t > this.nextBird) {
       this.bird();
       this.nextBird = t + 0.6 + (Math.random() * 3.5) / this.targets.새;
@@ -355,20 +380,80 @@ class ImmersionAudio {
       this.noiseBurst(t, 0.22, 0.32, [["bandpass", 1800, 700, 0.9]], out);
       this.tone(320, "sine", t, 0.08, 0.005, 0.12, out, 140);
     } else if (name === "똑") {
+      if (this.ambientLevel < 0.5) return; // 빗방울 잡음이 퍼즐의 빗방울 음과 섞이지 않게
       const out = this.makeOutput(0.25, Math.random() * 1.6 - 0.8);
       const f = 900 + Math.random() * 900;
       this.tone(f, "sine", t, 0.05, 0.002, 0.09, out, f * 0.55);
+    } else if (name === "짹짹") {
+      // 작은 새 — 위로 미끄러지는 짧은 소리 두세 번, 좌우 아무 데서나
+      const out = this.makeOutput(0.22, Math.random() * 1.6 - 0.8);
+      const base = 2600 + Math.random() * 1400;
+      const count = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        const s0 = t + i * (0.09 + Math.random() * 0.05);
+        this.tone(base, "sine", s0, 0.05, 0.004, 0.07, out, base * (1.25 + Math.random() * 0.3));
+      }
+    } else if (name === "물발소리") {
+      // 발목까지 찬 물을 헤치는 소리 — 쏴 하고 밀리는 물 + 낮게 출렁
+      const out = this.makeOutput(0.18, Math.random() * 0.3 - 0.15);
+      this.noiseBurst(t, 0.32, 0.22, [["bandpass", 700, 1600, 0.8]], out);
+      this.tone(170 + Math.random() * 40, "sine", t + 0.03, 0.05, 0.02, 0.22, out, 110);
     } else if (name === "우르릉") {
       const out = this.makeOutput(0.5);
       this.noiseBurst(t, 3.2, 0.7, [["lowpass", 160], ["lowpass", 160]], out, true);
       this.noiseBurst(t + 0.5, 2.4, 0.45, [["lowpass", 110]], out, true);
     }
   }
+  /** 폭풍 세기(0~1) — 0 이면 평소 비 */
+  setStorm(level: number) {
+    this.stormLevel = level;
+    if (level <= 0.3) this.nextThunder = 0;
+    this.mix();
+  }
+  /** 바탕음 크기(0~1). 1.2초쯤에 걸쳐 바뀐다 */
+  setAmbientLevel(level: number) {
+    this.ambientLevel = level;
+    if (this.ctx) this.ambientBus.gain.setTargetAtTime(level, this.ctx.currentTime, 0.4);
+  }
+  /**
+   * 옹기 항아리를 친 소리 — 또렷한 기본음과 옥타브에 「퉁」 하는 짧은 잡음.
+   * 위치(유닛)를 주면 그 자리에서 난다. 빗방울(soft)은 작고 끝에 물 튀는 소리가 붙는다.
+   */
+  jar(frequency: number, at: THREE.Vector3, soft = false) {
+    if (!this.ctx) return;
+    const c = this.ctx;
+    const t = c.currentTime + 0.01;
+    const panner = c.createPanner();
+    panner.panningModel = "HRTF";
+    panner.distanceModel = "inverse";
+    panner.refDistance = 2 * U;
+    panner.rolloffFactor = 1.2;
+    if (panner.positionX) {
+      panner.positionX.value = at.x;
+      panner.positionY.value = at.y;
+      panner.positionZ.value = at.z;
+    } else panner.setPosition(at.x, at.y, at.z);
+    const out = c.createGain();
+    out.connect(panner).connect(this.master);
+    const send = c.createGain();
+    send.gain.value = 0.18; // 울림이 길면 다음 음과 섞여 음높이가 흐려진다
+    panner.connect(send).connect(this.reverb);
+    const level = soft ? 0.45 : 0.6;
+    // 음높이가 또렷하게 — 세모파 기본음 + 정확한 옥타브. 어긋난 배음·내려앉는 음은 뺀다(반음 차이가 안 들린다)
+    this.tone(frequency, "triangle", t, level, 0.004, 1.9, out);
+    this.tone(frequency * 2, "sine", t, level * 0.22, 0.004, 1.1, out);
+    this.noiseBurst(t, 0.04, level * 0.2, [["bandpass", frequency * 1.5, frequency, 1.2]], out);
+    if (soft) this.tone(2400, "sine", t, 0.04, 0.002, 0.06, out, 1300);
+  }
   setReverb(amount: number) {
     if (this.ctx) this.reverbAmount.gain.setTargetAtTime(amount, this.ctx.currentTime, 1.0);
   }
   applyVolume() {
-    if (this.ctx) this.master.gain.setTargetAtTime(settings.볼륨, this.ctx.currentTime, 0.05);
+    if (this.ctx) this.master.gain.setTargetAtTime(settings.볼륨 * this.sfxScale, this.ctx.currentTime, 0.05);
+  }
+  setSfxScale(scale: number) {
+    this.sfxScale = scale;
+    this.applyVolume();
   }
 }
 

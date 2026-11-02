@@ -17,8 +17,79 @@ export function makeToonGradientTexture(steps = 3, floor = 0): THREE.DataTexture
   return map;
 }
 
+// 공용 계단은 256 칸으로 잡는다(만화 화풍의 칠한 계단도 같은 칸 수) — 화풍을 바꿀 때 같은 크기 안에서 값만 갈아 끼워야 GPU 텍스처를 다시 안 잡는다.
+const RAMP_WIDTH = 256;
+
+/**
+ * 공용 계단의 모양.
+ *   classic    본편 원래 — 밝기 0 · 0.5 · 1, 경계 1/3 · 2/3
+ *   naju       나주맵 세계 툰 그대로 — 밝기 0.36 · 0.68 · 1, 경계 0.36 · 0.5
+ *   najuIndoor 실내용 나주 계단 — 빛을 등진 면(dotNL < 0)엔 0, 받는 쪽은 나주처럼 0.62 · 1 두 칸.
+ *              나주의 0.36 바닥은 해 하나뿐인 야외용이다 — 실내 스탠드·작업등 빛이 물건 뒷면으로 새어 하얗게 탄다.
+ *              그늘을 띄우는 일은 간접광 색과 밝은 조(engine/manga)가 맡는다
+ */
+export type ToonRampStyle = "classic" | "naju" | "najuIndoor";
+
+const RAMP_LEVELS: Record<ToonRampStyle, readonly [number, number, number]> = {
+  classic: [0, 0.5, 1],
+  naju: [0.36, 0.68, 1],
+  najuIndoor: [0, 0.62, 1],
+};
+const RAMP_EDGES: Record<ToonRampStyle, readonly [number, number]> = {
+  classic: [1 / 3, 2 / 3],
+  naju: [0.36, 0.5],
+  najuIndoor: [0.5, 0.6],
+};
+
+const smoothstep = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * 계단 위치 x(0~1, dotNL·0.5+0.5)의 밝기.
+ * brush 는 밝은 쪽에 붓으로 칠한 듯한 완만한 기울기(0 = 계단 그대로). 나주 경계에서 지워지는 기차의 찌그러짐·낡음 음영을 살린다.
+ */
+function rampValue(style: ToonRampStyle, brush: number, x: number) {
+  const levels = RAMP_LEVELS[style];
+  const [low, high] = RAMP_EDGES[style];
+  const step = x < low ? levels[0] : x < high ? levels[1] : levels[2];
+  return step * (1 - brush + brush * smoothstep(0.5, 1, x));
+}
+
+function fillRamp(data: Uint8Array, style: ToonRampStyle, brush: number) {
+  for (let i = 0; i < RAMP_WIDTH; i++) {
+    // Uint8Array 가 소수를 버린다 — 원래 세 칸 텍스처(127)와 같은 값이 나온다
+    data[i] = rampValue(style, brush, (i + 0.5) / RAMP_WIDTH) * 255;
+  }
+}
+
+function makeSharedRamp(): THREE.DataTexture {
+  const data = new Uint8Array(RAMP_WIDTH);
+  fillRamp(data, "classic", 0);
+  const map = new THREE.DataTexture(data, RAMP_WIDTH, 1, THREE.RedFormat);
+  map.magFilter = THREE.NearestFilter;
+  map.minFilter = THREE.NearestFilter;
+  map.needsUpdate = true;
+  return map;
+}
+
 /** 모든 toon 메시가 함께 쓰는 그라디언트. */
-export const TOON_GRADIENT = makeToonGradientTexture(3);
+export const TOON_GRADIENT = makeSharedRamp();
+
+let currentRamp = "classic|0";
+
+/**
+ * 공용 계단 모양을 바꾼다. 재질은 그대로 두고 텍스처 값만 다시 올린다(셰이더 재컴파일 없음).
+ * 빛마다 도는 계단이라 붓 기울기도 셰이더 셈 대신 여기 굽는다 — 셰이더에서 하면 스탠드가 많은 본부실이 빛 수만큼 느려졌다.
+ */
+export function setToonRamp(style: ToonRampStyle, brush = 0) {
+  const key = `${style}|${brush}`;
+  if (key === currentRamp) return;
+  currentRamp = key;
+  fillRamp(TOON_GRADIENT.image.data as Uint8Array, style, brush);
+  TOON_GRADIENT.needsUpdate = true;
+}
 
 /** 외곽선 기본 굵기(px). */
 export const OUTLINE_THICKNESS = 3;

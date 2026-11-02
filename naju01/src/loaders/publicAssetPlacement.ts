@@ -276,12 +276,125 @@ interface Candidate {
   distance: number;
 }
 
+// ── 땅에 앉히기 (10/31) ── 비탈에 선 나무·덤불·자갈이 내리막 쪽으로 떠 보이던 것.
+//   묶음 밑동(가장 낮은 3 % 꼭짓점)의 가운데와 둘레 넷에서 땅을 재어, 가장 낮은 땅보다 밑동이 높으면 그만큼 내린다.
+//   올리지는 않는다 — 일부러 묻어 둔 것을 들어 올리지 않게. 원본·edits.json 은 그대로이고 그리는 교체본만 내린다.
+export type GroundAt = (x: number, z: number) => { y: number } | null | undefined;
+
+/** 땅에 앉히는 무리(이름의 마지막 마디) — 바위처럼 일부러 겹쳐 쌓은 것은 뺀다 */
+const SETTLED_KINDS = new Set(["나무", "덤불", "잎더미", "수풀", "잡초", "꽃", "풀", "자갈", "길가돌", "발치너덜"]);
+export const shouldSettle = (groupId: string) => SETTLED_KINDS.has(groupId.split(".").pop() ?? "");
+
+interface BundleBase {
+  center: THREE.Vector3;
+  radius: number;
+}
+const bundleBases = new WeakMap<Bundle, BundleBase>();
+
+/** 밑동 — 줄기가 있으면 줄기(불투명)만 본다. 잎 카드가 땅에 끌리는 나무는 잎이 아니라 줄기가 기준이다 */
+function bundleBase(bundle: Bundle): BundleBase {
+  const cached = bundleBases.get(bundle);
+  if (cached) return cached;
+  const solid = bundle.filter(({ material }) => !(material.alphaTest > 0 || material.transparent));
+  const parts = solid.length ? solid : bundle;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const { geometry } of parts) {
+    const P = geometry.attributes.position;
+    for (let i = 0; i < P.count; i++) {
+      minY = Math.min(minY, P.getY(i));
+      maxY = Math.max(maxY, P.getY(i));
+    }
+  }
+  const limit = minY + (maxY - minY) * 0.03;
+  const center = new THREE.Vector3();
+  let count = 0;
+  for (const { geometry } of parts) {
+    const P = geometry.attributes.position;
+    for (let i = 0; i < P.count; i++)
+      if (P.getY(i) <= limit) {
+        center.x += P.getX(i);
+        center.z += P.getZ(i);
+        count++;
+      }
+  }
+  center.set(center.x / Math.max(1, count), minY, center.z / Math.max(1, count));
+  let radius = 0;
+  for (const { geometry } of parts) {
+    const P = geometry.attributes.position;
+    for (let i = 0; i < P.count; i++)
+      if (P.getY(i) <= limit) radius = Math.max(radius, Math.hypot(P.getX(i) - center.x, P.getZ(i) - center.z));
+  }
+  const base = { center, radius };
+  bundleBases.set(bundle, base);
+  return base;
+}
+
+/** matrices(부모 공간)를 제자리에서 내린다. 묻기는 밑동을 땅 밑으로 얼마나 넣을지(m) */
+export function settleOnGround(
+  bundle: Bundle,
+  matrices: THREE.Matrix4[],
+  parentWorld: THREE.Matrix4,
+  groundAt: GroundAt,
+  sink = 0.06,
+) {
+  const { center, radius } = bundleBase(bundle);
+  const world = new THREE.Matrix4();
+  const base = new THREE.Vector3();
+  const scale = new THREE.Vector3();
+  const parentInverse = parentWorld.clone().invert();
+  for (const M of matrices) {
+    world.multiplyMatrices(parentWorld, M);
+    base.copy(center).applyMatrix4(world);
+    scale.setFromMatrixScale(world);
+    // 둘레는 밑동 반경까지, 다만 줄기 굵기(0.6 m)를 넘지 않게 — 큰 덤불은 가장자리 땅까지 볼 필요가 없다
+    const ring = Math.min((radius * Math.max(scale.x, scale.z)) / U, 0.6);
+    const x = base.x / U;
+    const z = base.z / U;
+    let lowest = Infinity;
+    for (const [dx, dz] of [[0, 0], [ring, 0], [-ring, 0], [0, ring], [0, -ring]]) {
+      const g = groundAt(x + dx, z + dz);
+      if (g && Number.isFinite(g.y)) lowest = Math.min(lowest, g.y);
+    }
+    if (!Number.isFinite(lowest)) continue;
+    const drop = base.y / U - (lowest - sink);
+    if (drop <= 0.01 || drop > 6) continue;
+    world.premultiply(new THREE.Matrix4().makeTranslation(0, -drop * U, 0));
+    M.multiplyMatrices(parentInverse, world);
+  }
+}
+
+/** 교체되지 않고 남은 원본 무리(회색 모형 길가돌·발치너덜 등)도 앉힌다. 새로 담긴 배열마다 한 번 */
+const originalBundles = new WeakMap<THREE.BufferGeometry, Bundle>();
+export function settleOriginal(o: THREE.InstancedMesh, groundAt: GroundAt) {
+  const groupId = (o.userData.groupId as string | undefined) ?? o.name;
+  if (!shouldSettle(groupId)) return;
+  const key = (o.userData.ids as object | undefined) ?? o.instanceMatrix.array;
+  if (o.userData.settledFor === key) return;
+  o.userData.settledFor = key;
+  let bundle = originalBundles.get(o.geometry);
+  if (!bundle) {
+    bundle = [{ geometry: o.geometry, material: o.material as THREE.Material }];
+    originalBundles.set(o.geometry, bundle);
+  }
+  o.updateMatrixWorld(true);
+  const matrices = Array.from({ length: o.count }, (_, i) => {
+    const m = new THREE.Matrix4();
+    o.getMatrixAt(i, m);
+    return m;
+  });
+  settleOnGround(bundle, matrices, o.matrixWorld, groundAt);
+  matrices.forEach((m, i) => o.setMatrixAt(i, m));
+  o.instanceMatrix.needsUpdate = true;
+}
+
 // ── 바꿔치기 ──
 /** 같은 서명이면 "same", 세울 것이 없으면 null, 아니면 새로 세운 묶음 */
 export function buildSwap(
   item: SwapItem,
   ctx: BuildContext,
   previous: BuiltEntry | undefined,
+  groundAt?: GroundAt,
 ): BuiltEntry | "same" | null {
   if (!item.bundles.length) return null;
   const { scene, camera, parent, inverse } = ctx;
@@ -414,6 +527,9 @@ export function buildSwap(
             M.multiply(new THREE.Matrix4().makeScale(limit / realHeightM, limit / realHeightM, limit / realHeightM));
         }
       }
+      // 나무는 비탈 아래쪽 밑동까지 덮이게 조금 더 묻는다
+      if (groundAt && shouldSettle(item.target))
+        settleOnGround(bundle, matrices, parent.matrixWorld, groundAt, item.target.endsWith("나무") ? 0.15 : 0.06);
       return { bundle, matrices };
     };
     const near = make(item.bundles[f]);
@@ -640,6 +756,9 @@ export function buildPlace(
     matrices.push(M);
   }
   if (!matrices.length) return null;
+  // 비탈에서 밑동 가운데만 땅에 닿으면 내리막 쪽이 뜬다 — 차단물 겉돌과 높이를 손으로 준 자리(dy)는 그대로
+  if (!item.차단물 && !(item.자리 || []).some((spot) => (spot[4] ?? 0) !== 0))
+    settleOnGround(bundle, matrices, parent.matrixWorld, groundAt, item.묻힘m ?? 0);
   const meshes = buildInstancedMeshes(parent, bundle, matrices, item.무리 ? `놓기·${item.무리}` : "놓기"); // 에이전트 식물은 무리 이름에 「나무·덤불·풀…」 → 바람
   // ★ 편집 모드(E)가 이 놓기 한 자리를 집어 고치게 — manifest 위치 · 파일 · 자리 목록. placeSpots = 인스턴스 → 자리 번호
   //   (구역 초점 거르기가 인스턴스를 앞으로 몰아 담으면 placeSpots 도 같이 옮긴다 — publicAssets.tsx ⑥)

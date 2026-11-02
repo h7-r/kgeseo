@@ -19,6 +19,7 @@ import { useScrollZoomOut } from "@/hooks/motion";
 import { useProximity } from "@/hooks/proximity";
 import { useVideoPreview } from "@/hooks/useVideoPreview";
 import { useScrollToSection } from "@/layout/headerScroll";
+import { SCRIM_ATTR } from "@/lib/layout";
 import { fillImageStyle, FONT, glowImageStyle, gradientText, place } from "@/lib/style";
 import { START_GAME, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
@@ -101,7 +102,7 @@ export default function RegionSelect() {
 
   return (
     <>
-      <div className="u-shine-text" style={headlineStyle} {...sectionAnchor("legend-regions")}>
+      <div className="u-shine-text" style={headlineStyle} {...sectionAnchor("legend-regions")} {...SCRIM_ATTR}>
         전설 속으로, 탈출을 시작하라
       </div>
 
@@ -158,7 +159,10 @@ export default function RegionSelect() {
         </div>
       </div>
 
-      <div style={{ ...place(221, 4495, 657, 523), display: "flex", flexDirection: "column", gap: "48px" }}>
+      <div
+        style={{ ...place(221, 4495, 657, 523), display: "flex", flexDirection: "column", gap: "48px" }}
+        {...SCRIM_ATTR}
+      >
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={eyebrowStyle}>
             <span

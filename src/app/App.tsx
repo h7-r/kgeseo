@@ -10,8 +10,11 @@ import type { PointerLockControls as PointerLockControlsImpl } from "three-stdli
 import { useCrashWatch } from "@/debug/crashLog";
 import PerformanceMeter from "@/debug/PerformanceMeter";
 import { DEFAULT_FOV } from "@/engine/camera";
+import CameraFeel from "@/engine/cameraFeel/CameraFeel";
 import { useSavedControls } from "@/engine/leva/savedControls";
 import { EYE_HEIGHT } from "@/engine/movement/constants";
+import { MangaEffect } from "@/engine/manga/mangaEffect";
+import { useMangaStyle } from "@/engine/manga/useMangaStyle";
 import { IS_LOW_QUALITY } from "@/engine/quality";
 import { PLAYER_MESHY_APPEARANCE_KEY, PLAYER_SIDEKICK_APPEARANCE_KEY } from "@/engine/storage";
 import HintHud from "@/game/HintHud";
@@ -35,10 +38,12 @@ import TutorialDirectionHud from "@/tutorial/TutorialDirection";
 
 import CrashOverlays from "./overlays/CrashOverlays";
 import { ActionHint, Crosshair, FadeCurtain, LockDialPanel, TopBarButton } from "./overlays/Hud";
+import MangaScene from "./MangaScene";
 import { createPlayerState, usePunch } from "./playerState";
 import { useLockControlMode, useOverlayWindows } from "./pointerLock";
 import {
   IS_INPUT_ALWAYS_ON,
+  IS_MANGA_STYLE,
   IS_POSTFX_DISABLED,
   IS_POSTFX_HIGH_QUALITY,
   SHOW_CUSTOMIZE_PANEL,
@@ -157,6 +162,7 @@ export default function App() {
   const { showMeter } = useSavedControls("성능(공통)", {
     showMeter: { value: false, label: "계기판" },
   });
+  const manga = useMangaStyle(IS_MANGA_STYLE);
 
   const [near, setNear] = useState<NearTarget>(NEAR_TARGET.none);
   const { isGpuLost, isSceneEmptied, handleCanvasCreated } = useCrashWatch();
@@ -226,6 +232,9 @@ export default function App() {
           outlineConfig={avatar.outlineConfig}
         />
         <AimTracker enabled={active && !isTrain} />
+        {/* 만화 화풍 — 칠한 툰 재질·펜선 하나로(재질), 걸음 출렁임·충격 흔들림(그리는 순간에만 비튼다, 기차 안은 늘 1인칭) */}
+        {manga && <MangaScene manga={manga} />}
+        {manga && <CameraFeel firstPerson={isTrain || !isThirdPerson} />}
 
         {/* 블룸·비네트는 두 씬에 똑같이 걸려야 같은 게임으로 보인다. MSAA 2 · 8비트 — 기본값이면 렌더타깃이 460MB 를 넘어 내장 GPU 가 죽는다. */}
         {!IS_POSTFX_DISABLED && (
@@ -235,6 +244,8 @@ export default function App() {
             // 반정밀도(HalfFloat) 버퍼에서는 야외 씬이 통째로 까맣게 나온다(ANGLE Metal). 바이트로 못 박는다.
             frameBufferType={THREE.UnsignedByteType}
           >
+            {/* 만화 v3 — 깊이 선·색 보정. 블룸이 선까지 번지지 않게 먼저 둔다 */}
+            {manga && <MangaEffect {...manga.effect} />}
             <Bloom intensity={0.45} luminanceThreshold={0.85} mipmapBlur />
             <Vignette offset={0.36} darkness={0.28} />
           </EffectComposer>

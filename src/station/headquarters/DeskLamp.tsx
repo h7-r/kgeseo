@@ -4,6 +4,7 @@ import * as THREE from "three";
 
 import GltfPartMeshes from "@/engine/GltfPartMeshes";
 import { splitGltf, type GltfPart } from "@/engine/gltfModel";
+import { requestMangaSweep } from "@/engine/manga/sweepSignal";
 import { makeToonGradientTexture, type OutlineValues } from "@/engine/toon";
 
 import { DESK_LAMP_URL, FLOOR_LAMP_URL, DESK_LAMP_AXIS, DESK_LAMP_MOUTH } from "./lampModels";
@@ -83,12 +84,15 @@ export default function DeskLamp({
       const name = object.name;
       if (name === "bulb") {
         object.material = new THREE.MeshBasicMaterial({ color: on ? bulb : "#3A3A3A", toneMapped: false });
+        // 만화 팔레트가 켬/끔을 알아보는 표식(engine/manga/palette)
+        object.material.userData.lampPart = { part: "bulb", on };
       } else if (name === "shade_in") {
         object.material = new THREE.MeshBasicMaterial({
           color: on ? inner : "#4A4A4A",
           toneMapped: false,
           side: THREE.DoubleSide,
         });
+        object.material.userData.lampPart = { part: "inner", on };
       } else {
         // 앞면만 그린다. 양면이면 갓 안쪽에서 바깥벽 뒷면이 겹쳐 얼룩이 진다(안쪽은 shade_in 이 막는다).
         object.material = new THREE.MeshToonMaterial({
@@ -110,6 +114,9 @@ export default function DeskLamp({
     [model, poleStretch],
   );
 
+  // 켬/끔으로 재질을 갈아 끼우면 만화 팔레트가 바로 다시 칠하게 알린다
+  useEffect(() => requestMangaSweep(), [model]);
+
   // target 을 안 주면 씬 원점을 노려봐 스탠드가 전부 방 한가운데를 비춘다.
   useEffect(() => {
     if (lightRef.current && targetRef.current) {
@@ -124,24 +131,23 @@ export default function DeskLamp({
     <group position={[x, baseY, z]} rotation={[0, rot, 0]} scale={height}>
       <GltfPartMeshes parts={parts} outline={outline} outlineExclude={NO_OUTLINE} receiveShadow={false} />
 
-      {on && (
-        <spotLight
-          ref={lightRef}
-          position={[mx + ax * 0.05, my + ay * 0.05, mz + az * 0.05]}
-          angle={spread}
-          penumbra={0.7}
-          intensity={intensity}
-          distance={24}
-          decay={2}
-          color={bulb}
-          castShadow={shadow}
-          // 책상 위 물건이 작고 촘촘해 1024 로는 그림자가 계단처럼 깨진다.
-          shadow-mapSize={[2048, 2048]}
-          shadow-bias={-0.0004}
-          shadow-normalBias={0.12}
-          shadow-radius={3}
-        />
-      )}
+      {/* 꺼도 빛은 떼지 않고 세기만 0 — 빛 수가 바뀌면 방의 모든 재질 셰이더가 다시 컴파일돼 켜고 끌 때마다 멈췄다 */}
+      <spotLight
+        ref={lightRef}
+        position={[mx + ax * 0.05, my + ay * 0.05, mz + az * 0.05]}
+        angle={spread}
+        penumbra={0.7}
+        intensity={on ? intensity : 0}
+        distance={24}
+        decay={2}
+        color={bulb}
+        castShadow={shadow}
+        // 책상 위 물건이 작고 촘촘해 1024 로는 그림자가 계단처럼 깨진다.
+        shadow-mapSize={[2048, 2048]}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.12}
+        shadow-radius={3}
+      />
       <object3D
         ref={targetRef}
         position={[mx + ax * TARGET_DISTANCE, my + ay * TARGET_DISTANCE, mz + az * TARGET_DISTANCE]}

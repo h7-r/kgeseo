@@ -76,8 +76,8 @@ const FLY_CODES = new Set([
   "ShiftLeft",
   "ShiftRight",
 ]);
-/** 게임으로 그대로 보내는 키 — E(편집 끝내기 · useSceneModes) · H(계기판) */
-const PASS_CODES = new Set(["KeyE", "KeyH"]);
+/** 게임으로 그대로 보내는 키 — Q(편집 끝내기 · useSceneModes) · H(계기판) */
+const PASS_CODES = new Set(["KeyQ", "KeyH"]);
 const FLY_SPEED_MPS = 9;
 const UNDO_LIMIT = 30;
 /** 공개 에셋 풀 교체본(땅.풀) — 편집 파일에 없는 합본 풀 자리라 뚫고 그 밑 땅을 고른다 */

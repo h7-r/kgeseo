@@ -170,6 +170,14 @@ function indexByCell(colliders: readonly PropCollider[]) {
   return (x: number, z: number) => cells.get(`${Math.floor(x / GRID)},${Math.floor(z / GRID)}`);
 }
 
+/** 자리를 떠난 소품(퍼즐이 옮겨 다시 그리는 것) — 그 무리 이름 · 자리 둘레의 원기둥은 더 막지 않는다(미터) */
+const releasedSpots: { name: string; x: number; z: number; radius: number }[] = [];
+export function releasePropColliders(name: string, x: number, z: number, radius: number) {
+  releasedSpots.push({ name, x, z, radius });
+}
+const isReleased = (c: PropCollider) =>
+  releasedSpots.some((spot) => c.groupId.endsWith(spot.name) && Math.hypot(c.x - spot.x, c.z - spot.z) < spot.radius);
+
 export function buildPropColliders(groups: readonly ColliderSourceGroup[] | null | undefined) {
   const colliders = buildCylinders(groups, RADIUS_RATIO);
   const near = indexByCell(colliders);
@@ -181,6 +189,7 @@ export function buildPropColliders(groups: readonly ColliderSourceGroup[] | null
     for (const c of nearby) {
       // 발이 소품 꼭대기 근처(25 cm 아래)까지 올라왔으면 올라선 것으로 본다
       if (y > c.top - 0.25 || y < c.bottom - 1.0) continue;
+      if (releasedSpots.length && isReleased(c)) continue;
       const dx = px - c.x,
         dz = pz - c.z,
         d = c.radius + radius;

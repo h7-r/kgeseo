@@ -19,7 +19,12 @@ import { getPluggedWireCount, usePluggedWiresKey, useIsWiringCorrect } from "./w
 
 const MINI_BREAKER_COUNT = 6;
 const LOUVER_COUNT = 5;
-const LEVER_TILT = 0.5;
+// 레버 날 각도(위로 선 0 에서 잰다). 꺼짐 = 아래로 내려감, 켜짐 = 위로 올라가 그대로 선다.
+// 둘 다 보는 쪽으로 조금 젖혀 정면에서 날과 손잡이가 보이게 — 예전에는 앞뒤로만 젖혀져 정면에서 가운데 꼭지만 보였다.
+// 앞으로 나오는 길이 = 날길이·sin(LEVER_LEAN) — 닫힌 문 안쪽에 머문다.
+const LEVER_LEAN = 0.35;
+const LEVER_ON_ANGLE = LEVER_LEAN;
+const LEVER_OFF_ANGLE = Math.PI - LEVER_LEAN;
 const point = new THREE.Vector3();
 
 interface BreakerBoxProps {
@@ -101,7 +106,8 @@ export default function BreakerBox({
     if (doorRef.current) doorRef.current.rotation.y = doorAngle.current + computeRattleOffset(doorId) * 0.05 * -d;
     const lever = leverRef.current;
     if (lever) {
-      const t = isRaised ? -LEVER_TILT : LEVER_TILT;
+      // z 축으로 돌면 날(+y)이 (−sin, cos) 로 간다 — −d 를 곱해야 보는 쪽(+x·d)으로 젖혀진다
+      const t = -d * (isRaised ? LEVER_ON_ANGLE : LEVER_OFF_ANGLE);
       lever.rotation.z += (t - lever.rotation.z) * Math.min(1, dt * 12);
     }
   });
@@ -227,15 +233,21 @@ export default function BreakerBox({
           </mesh>
         ))}
         <AimHighlight id={`${doorId}:lever`} anchor={() => null} grow={0} strength={0.35}>
-          <group ref={leverRef} position={[d * 0.09, 0, 0]} rotation={[0, 0, LEVER_TILT]}>
+          <group
+            ref={leverRef}
+            position={[d * 0.09, 0, 0]}
+            // 처음부터 지금 상태 자리에서 — 불러온 판이 켜짐이면 내려왔다 올라가는 연출 없이 위에 서 있다
+            rotation={[0, 0, -d * (isRaised ? LEVER_ON_ANGLE : LEVER_OFF_ANGLE)]}
+          >
             <mesh position={[0, bladeLength * 0.5, 0]} castShadow>
               <boxGeometry args={[0.032, bladeLength, 0.07]} />
               <meshToonMaterial color={scaleColor("#b4bcc4", innerBrightness)} gradientMap={TOON_GRADIENT} />
               <Outlines thickness={2} color="#131416" />
             </mesh>
-            <mesh position={[d * 0.026, bladeLength * 0.98, 0]} castShadow>
+            {/* 손잡이는 붉은 절연 손잡이 — 검은 몸통 위에서 위·아래 자리가 한눈에 보인다 */}
+            <mesh position={[0, bladeLength * 0.98, 0]} castShadow>
               <cylinderGeometry args={[0.062, 0.07, 0.16, 14]} />
-              <meshToonMaterial color="#202226" gradientMap={TOON_GRADIENT} />
+              <meshToonMaterial color={scaleColor("#c0392b", innerBrightness)} gradientMap={TOON_GRADIENT} />
               <Outlines thickness={2} color="#0d0e10" />
             </mesh>
             <mesh rotation={[Math.PI / 2, 0, 0]}>

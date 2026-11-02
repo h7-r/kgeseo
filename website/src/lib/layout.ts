@@ -28,8 +28,23 @@ export const PIN_CLASS = "u-pin";
  */
 export const SHIFT_BOX_ATTR = { "data-shift": "" } as const;
 
+/** 홈 배경 장면이 이 덩이 뒤만 흐리고 어둡게 눌러 글이 차분한 바탕에 앉게 한다(three/river/FinishPass). */
+export const SCRIM_ATTR = { "data-scrim": "" } as const;
+
 /** 페이지 맨 아래 푸터에 붙이는 속성. 푸터는 높이만 더한다. */
 export const FOOTER_ATTR = { "data-footer": "" } as const;
+
+/**
+ * 무대 안에서의 세로 자리(무대 px). shift 상자(data-shift) 안에 들어가면 offsetTop 이 그 상자 기준이라
+ * 무대 칸까지 거슬러 올라가며 더한다. transform 을 무시하므로 핀으로 밀어 둔 상태에서도 같다.
+ */
+export function offsetTopWithinStage(el: HTMLElement, stage: Element): number {
+  let y = 0;
+  for (let node: HTMLElement | null = el; node && node !== stage; node = node.offsetParent as HTMLElement | null) {
+    y += node.offsetTop;
+  }
+  return y;
+}
 
 /** 창 폭 ÷ 1920. */
 export function useStageScale(): number {

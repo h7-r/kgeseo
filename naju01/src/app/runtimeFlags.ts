@@ -57,6 +57,8 @@ export const IS_FIRST_PERSON_ONLY = true;
 export const SHOW_CUSTOMIZE_PANEL = !IS_PRESENTING && !IS_REVIEW_RUN && !IS_FIRST_PERSON_ONLY;
 /** 도면 계기판 — 처음엔 접어 두고(?dev 는 펼쳐서) H 로 연다 */
 export const HAS_DASHBOARD = !IS_PRESENTING && !IS_REVIEW_RUN;
+/** 오른쪽 위 ⚙ 단추. 발표·검수 화면엔 안 띄우고 [P] 로만 연다 */
+export const SHOW_SETTINGS_BUTTON = !IS_PRESENTING && !IS_REVIEW_RUN;
 /** 계기판과 그 안내의 왼쪽 위치. 꾸미기 패널(왼쪽 14px · 폭 320px)이 떠 있으면 그 오른쪽에 둔다 */
 export const DASHBOARD_LEFT_PX = SHOW_CUSTOMIZE_PANEL ? 348 : 12;
 /** 구역·통로·씬 요소 이름표 */

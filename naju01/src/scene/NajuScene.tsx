@@ -1,7 +1,7 @@
 // NAJU-01 A-01 도면을 그대로 세운 그레이박스. 상자와 치수로 공간을 세우고 1인칭으로 걸어 보며
 // 넓이·높이·경사·동선·시야(V1~V3)가 도면과 맞는지 먼저 확인한다 — 꾸미기는 그 뒤다.
 // 훅 순서가 곧 생성·효과·프레임 등록 순서다 — 손 배치(edits.json)가 생성 순서에 걸려 있으니 순서를 바꾸지 않는다.
-import { useCallback, useMemo, useRef, type RefObject } from "react";
+import { Suspense, lazy, useCallback, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { Outlines, PointerLockControls } from "@react-three/drei";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
@@ -16,7 +16,8 @@ import type { MeshAppearanceConfig } from "../avatar/meshAppearance";
 import type { SidekickConfig } from "../avatar/sidekickOptions";
 import type { ToonConfig } from "../avatar/toonMaterial";
 import type { OutlineConfig } from "../avatar/toonOutline";
-import Editor from "../placement/Editor";
+// 편집기(배치 · 라이브러리 서랍)는 따로 묶어 뒤에 받는다 — 게임 첫 진입 번들에서 뺀다
+const Editor = lazy(() => import("../placement/Editor"));
 import { GROUP_IDS } from "../placement/editFile";
 import { useEditModeActive } from "../placement/libraryPlaceApi";
 import { MESH_NAMES } from "../plan/meshNames";
@@ -75,6 +76,7 @@ import {
   useRiver,
   useWaterRipple,
 } from "./useWorldLayers";
+import { isOnJarSite } from "../puzzles/jars/site";
 
 export type { NajuSceneReport } from "./useSceneFrame";
 
@@ -184,13 +186,18 @@ export default function NajuScene({
         scene2: story.scene2,
         scene3: story.scene3,
         scene4: story.scene4,
-        scene5: story.scene5,
+        // 돌무지는 기우제 퍼즐 돌탑(puzzles/ritual)이 대신 선다 — 순번이 밀리지 않게 빼지 않고 크기 0 으로 숨긴다
+        scene5: story.scene5 && {
+          ...story.scene5,
+          stonePile: story.scene5.stonePile.map((spot) => ({ ...spot, size: 0 })),
+        },
         serpent: storyModels.serpent,
         abisa: storyModels.abisa,
         fisher: storyModels.fisher,
         fisher2: storyModels.fisher2,
         fisher3: storyModels.fisher3,
-        pebbleSpots: ground?.pebbleSpots ?? [],
+        // 장독대 돌판을 뚫고 나오는 자갈은 크기 0 으로 숨긴다 — 빼면 순번이 밀려 손 편집(edits.json)이 엇갈린다
+        pebbleSpots: (ground?.pebbleSpots ?? []).map((spot) => (isOnJarSite(spot.x, spot.z) ? { ...spot, size: 0 } : spot)),
         cliff: cliffShapes,
         ferryBoat: ferrySpot && ferryShape ? { spot: ferrySpot, shape: ferryShape } : null,
       }),
@@ -438,7 +445,8 @@ export default function NajuScene({
 
       <PlanOverlays controls={controls} gridGeometry={gridGeometry} />
 
-      <Editor
+      <Suspense fallback={null}>
+        <Editor
         enabled={isEditing}
         edits={edits}
         setEdits={setEdits}
@@ -448,7 +456,8 @@ export default function NajuScene({
         overview={isOverview}
         setOverview={setIsOverview}
         onExit={exitEditing}
-      />
+        />
+      </Suspense>
 
       {/* 게임 공간 전체를 캐릭터와 같은 cel 질감으로(같은 그라디언트라 계단이 맞는다). ?worldtoon=off 로 비교. */}
       {toonConfig?.enabled && toonConfig.world !== false && (

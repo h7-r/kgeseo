@@ -1,5 +1,7 @@
 import * as THREE from "three";
 
+import { IS_MANGA_STYLE } from "@/engine/manga/mangaFlag";
+import { requestMangaSweep } from "@/engine/manga/sweepSignal";
 import { TEXTURE_SCALE } from "@/engine/quality";
 import { createRandom } from "@/engine/random";
 
@@ -7,7 +9,15 @@ import { createRandom } from "@/engine/random";
  * 캔버스로 그리는 간판·표지 글씨. 기기에 실제로 있는 한글 고딕부터 찾는다 —
  * 웹폰트가 앞이면 아직 안 실린 화면에서 엉뚱한 글꼴로 떨어져 글자 폭이 어긋난다.
  */
-export const SIGN_FONT = '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif';
+export const SYSTEM_SIGN_FONT = '"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",sans-serif';
+
+// 만화 화풍의 손글씨 간판 — 나눔손글씨 엉겅퀴(이미 쓰는 화이트보드 글꼴, public/fonts). 없는 글자는 뒤 글꼴로 떨어진다.
+const LETTERING_FAMILY = '"Eonggeongkwi"';
+/** 만화 화풍이면 손글씨 글꼴을 앞에 세운 글꼴 목록. 끄면 받은 목록 그대로 */
+export const letteringStack = (stack: string) => (IS_MANGA_STYLE ? `${LETTERING_FAMILY},${stack}` : stack);
+
+/** 간판·라벨 글꼴. 자물쇠 글자처럼 정확히 읽혀야 하는 곳은 SYSTEM_SIGN_FONT 를 쓴다 */
+export const SIGN_FONT = letteringStack(SYSTEM_SIGN_FONT);
 
 type CanvasDraw = (g: CanvasRenderingContext2D, width: number, height: number, canvas: HTMLCanvasElement) => void;
 
@@ -66,6 +76,25 @@ interface CachedCanvasTextureOptions {
 }
 
 const canvasTextureCache = new Map<string, THREE.CanvasTexture>();
+// 손글씨 글꼴이 늦게 오면 그 전에 그린 간판을 다시 그린다 — 그리기 함수를 기억해 둔다
+const redraws: (() => void)[] = [];
+let isLetteringReady = !IS_MANGA_STYLE;
+// 글꼴 면을 여기서 직접 올린다 — 이 모듈은 fonts.css 보다 먼저 읽혀, document.fonts.load 로 기다리면
+// 아직 등록되지 않은 면이라 바로 「다 됐다」로 끝나고 간판이 기본 글꼴로 남았다.
+if (IS_MANGA_STYLE && typeof FontFace !== "undefined" && typeof document !== "undefined" && document.fonts) {
+  new FontFace("Eonggeongkwi", 'url("/fonts/eonggeongkwi.woff2") format("woff2")')
+    .load()
+    .then((face) => {
+      document.fonts.add(face);
+      isLetteringReady = true;
+      redraws.splice(0).forEach((redraw) => redraw());
+      // 만화 재질이 구워 둔 편 판도 새 글자로 다시 굽게 알린다
+      requestMangaSweep();
+    })
+    .catch(() => {
+      // 못 받으면 뒤 글꼴로 그린 그대로 둔다
+    });
+}
 
 /**
  * 열쇠마다 한 번만 그려 두고 돌려 쓰는 캔버스 텍스처. 텍스처 해상도는 그대로다(저사양 배율 없음).
@@ -88,11 +117,40 @@ export function makeCachedCanvasTexture(
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  draw(getContext2d(canvas, willReadFrequently), width, height, canvas);
+  const g = getContext2d(canvas, willReadFrequently);
+  draw(g, width, height, canvas);
   const texture = makeTextureFromCanvas(canvas, anisotropy);
   if (repeat) texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   canvasTextureCache.set(key, texture);
+  if (!isLetteringReady)
+    redraws.push(() => {
+      g.clearRect(0, 0, width, height);
+      draw(g, width, height, canvas);
+      texture.needsUpdate = true;
+    });
   onCreate?.(texture, canvas);
+  return texture;
+}
+
+/**
+ * 글자가 들어간 한 장짜리 캔버스 텍스처. 만화 화풍의 손글씨 글꼴이 아직 안 왔으면 오고 나서 한 번 다시 그린다.
+ * draw 는 처음부터 다 그리는 함수여야 한다(다시 그릴 때 캔버스를 비우고 부른다).
+ */
+export function makeLetteredTexture(
+  width: number,
+  height: number,
+  draw: (g: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => void,
+  anisotropy: number | null = null,
+): THREE.CanvasTexture {
+  const { canvas, g } = createCanvas(width, height);
+  draw(g, canvas);
+  const texture = makeTextureFromCanvas(canvas, anisotropy);
+  if (!isLetteringReady)
+    redraws.push(() => {
+      g.clearRect(0, 0, width, height);
+      draw(g, canvas);
+      texture.needsUpdate = true;
+    });
   return texture;
 }
 

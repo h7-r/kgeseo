@@ -15,9 +15,9 @@ interface SceneModesOptions {
 const TEXT_ENTRY =
   "input:not([type=checkbox]):not([type=radio]):not([type=button]), textarea, select, [contenteditable='true']";
 
-/** 편집 모드(E — 라이브러리 배치·기존 에셋 편집을 겸하는 통합 편집 모드)·부감(Tab)·3인칭 캐릭터 붙이기·좌클릭 공격, 그리고 손 배치 편집 층. */
+/** 편집 모드(Q — 라이브러리 배치·기존 에셋 편집을 겸하는 통합 편집 모드)·부감(Tab)·3인칭 캐릭터 붙이기·좌클릭 공격, 그리고 손 배치 편집 층. */
 export function useSceneModes({ active, isThirdPerson, playerState }: SceneModesOptions) {
-  // Leva 는 항목이 많아 찾기 어려워 키(E)로 켠다. Leva 에는 setter 가 없어 같이 두면 상태가 둘이 된다.
+  // Leva 는 항목이 많아 찾기 어려워 키(Q)로 켠다. Leva 에는 setter 가 없어 같이 두면 상태가 둘이 된다.
   const [isEditing, setIsEditing] = useState(false);
   // 편집 중 공중에서 내려다보기(Tab). 편집을 끄면 같이 내려온다.
   const [isOverview, setIsOverview] = useState(false);
@@ -35,9 +35,9 @@ export function useSceneModes({ active, isThirdPerson, playerState }: SceneModes
     // 검수 실행(?review=1)에서는 편집 모드를 열지 않는다 — 검수 둘러보기 카메라와 편집 카메라가 겹친다
     if (IS_REVIEW_REQUESTED) return undefined;
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 서랍 검색칸 등 글 입력 중의 e 는 편집 끄기가 아니다
+      // 서랍 검색칸 등 글 입력 중의 q 는 편집 끄기가 아니다. E 는 본편처럼 상호작용 키라 편집은 Q 로 옮겼다(10/22)
       if ((e.target as Element | null)?.closest?.(TEXT_ENTRY)) return;
-      if (e.code === "KeyE" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey)
+      if (e.code === "KeyQ" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey)
         setIsEditing((v) => {
           if (v) setIsOverview(false);
           return !v;

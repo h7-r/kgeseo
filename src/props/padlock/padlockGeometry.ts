@@ -7,7 +7,7 @@ import type { Vector3Tuple } from "three";
 
 import { mergeAndDispose } from "@/engine/geometry";
 import { createRandom } from "@/engine/random";
-import { makeCachedCanvasTexture, SIGN_FONT } from "@/engine/textures/canvas";
+import { makeCachedCanvasTexture, SYSTEM_SIGN_FONT } from "@/engine/textures/canvas";
 
 // 몸통 — 좌우 두 덩이. 가운데는 다이얼이 통째로 채운다
 // 통으로 막으면 몸통 앞면이 다이얼을 가려 얇은 조각만 삐져나온다.
@@ -433,7 +433,7 @@ export function makeDialBandTexture(glyphs: string, background: string, glyphCol
       g.fillStyle = glyphColor;
       g.textAlign = "center";
       g.textBaseline = "middle";
-      g.font = `800 ${Math.round(BAND_SLOT_PX * 0.72)}px ${SIGN_FONT}`;
+      g.font = `800 ${Math.round(BAND_SLOT_PX * 0.72)}px ${SYSTEM_SIGN_FONT}`;
       for (let k = 0; k < count; k++) {
         g.fillText(glyphs[k], w / 2, h * (1 - (k + 0.5) / count));
       }

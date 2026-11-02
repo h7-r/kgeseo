@@ -147,10 +147,12 @@ interface RiverbankOptions {
   count: number;
   seed: number;
   canPlace?: (x: number, z: number) => boolean;
+  /** 비워 둘 자리(퍼즐 물길 등). 난수를 다 뽑은 뒤에 빼서 다른 돌의 모양·자리는 그대로다 */
+  isCleared?: (x: number, z: number) => boolean;
 }
 
 // 물가 선이 자로 그은 듯 곧으면 판을 잘라 붙인 것으로 보인다. 돌을 걸쳐 흐트러뜨린다.
-export function buildRiverbank({ x: X, zStart, width = 2.2, count, seed, canPlace }: RiverbankOptions) {
+export function buildRiverbank({ x: X, zStart, width = 2.2, count, seed, canPlace, isCleared }: RiverbankOptions) {
   const random = createRandom(seed);
   const shapes: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 4; i++) shapes.push(buildRockShape(random));
@@ -173,13 +175,12 @@ export function buildRiverbank({ x: X, zStart, width = 2.2, count, seed, canPlac
     const tint = random();
     if (canPlace && !canPlace(x, z)) continue;
 
-    const g = shapes[Math.floor(random() * shapes.length)].clone();
+    const shapeIndex = Math.floor(random() * shapes.length);
+    const depth = 0.7 + random() * 0.6;
+    if (isCleared?.(x, z)) continue;
+    const g = shapes[shapeIndex].clone();
     quaternion.setFromEuler(new THREE.Euler(rotation[0], rotation[1], rotation[2]));
-    scale.set(
-      size * UNITS_PER_METER,
-      size * flatness * UNITS_PER_METER,
-      size * (0.7 + random() * 0.6) * UNITS_PER_METER,
-    );
+    scale.set(size * UNITS_PER_METER, size * flatness * UNITS_PER_METER, size * depth * UNITS_PER_METER);
     // 물 쪽으로 갈수록 더 깊이 잠긴다
     const sunk = THREE.MathUtils.clamp((z - zStart) / width, -0.5, 1);
     position.set(x * UNITS_PER_METER, size * flatness * (0.25 - sunk * 0.5) * UNITS_PER_METER, z * UNITS_PER_METER);

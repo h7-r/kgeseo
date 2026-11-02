@@ -188,5 +188,69 @@ export function buildFerryBoatPrototype(): THREE.BufferGeometry {
     },
   });
   geometry.translate(0, -(FERRY_BOAT.size.y || 1) * SUBMERGE_RATIO, 0);
-  return geometry;
+  return dropStrayPieces(geometry);
+}
+
+/**
+ * 모형에서 몸통과 떨어져 몸통 끝 밖으로 삐져나간 조각을 뺀다 — 원본 모형(미르)의 고물 뒤에 따로 붙은 작은 판이 해변에 놓으면
+ * 허공에 뜬 돌처럼 보였다(11/1). 모형 파일은 그대로 두고 그릴 때만 거른다. 꼭짓점 색 등 다른 속성은 같이 따라간다
+ */
+function dropStrayPieces(geometry: THREE.BufferGeometry) {
+  const source = geometry.index ? geometry.toNonIndexed() : geometry;
+  const position = source.attributes.position;
+  const count = position.count;
+  const parent = Int32Array.from({ length: count }, (_, i) => i);
+  const find = (a: number) => {
+    while (parent[a] !== a) {
+      parent[a] = parent[parent[a]];
+      a = parent[a];
+    }
+    return a;
+  };
+  const join = (a: number, b: number) => {
+    parent[find(b)] = find(a);
+  };
+  // 같은 자리 꼭짓점 · 같은 삼각형 꼭짓점을 잇는다
+  const seen = new Map<string, number>();
+  for (let i = 0; i < count; i++) {
+    const key = `${position.getX(i).toFixed(4)},${position.getY(i).toFixed(4)},${position.getZ(i).toFixed(4)}`;
+    const other = seen.get(key);
+    if (other === undefined) seen.set(key, i);
+    else join(other, i);
+  }
+  for (let t = 0; t < count; t += 3) {
+    join(t, t + 1);
+    join(t, t + 2);
+  }
+  const sizes = new Map<number, number>();
+  for (let i = 0; i < count; i++) sizes.set(find(i), (sizes.get(find(i)) ?? 0) + 1);
+  const main = [...sizes.entries()].sort((a, b) => b[1] - a[1])[0][0];
+  // 몸통의 길이(z) 범위 — 그 밖으로 나간 떨어진 조각만 뺀다
+  let zMin = Infinity;
+  let zMax = -Infinity;
+  for (let i = 0; i < count; i++) {
+    if (find(i) !== main) continue;
+    zMin = Math.min(zMin, position.getZ(i));
+    zMax = Math.max(zMax, position.getZ(i));
+  }
+  const stray = new Set<number>();
+  for (let i = 0; i < count; i++) {
+    const root = find(i);
+    if (root !== main && (position.getZ(i) < zMin - 1e-4 || position.getZ(i) > zMax + 1e-4)) stray.add(root);
+  }
+  if (!stray.size) return geometry;
+  const keep: number[] = [];
+  for (let t = 0; t < count; t += 3) if (!stray.has(find(t))) keep.push(t, t + 1, t + 2);
+  const result = new THREE.BufferGeometry();
+  for (const [name, attribute] of Object.entries(source.attributes)) {
+    const size = attribute.itemSize;
+    const array = new (attribute.array.constructor as Float32ArrayConstructor)(keep.length * size);
+    keep.forEach((v, k) => {
+      for (let c = 0; c < size; c++) array[k * size + c] = attribute.array[v * size + c];
+    });
+    result.setAttribute(name, new THREE.BufferAttribute(array, size, attribute.normalized));
+  }
+  geometry.dispose();
+  if (source !== geometry) source.dispose();
+  return result;
 }

@@ -93,11 +93,11 @@ export function endCutscene() {
   cutscenePlaying = false;
   signal.notify();
 }
-/** App 껍데기가 구독해 연출 동안 조작을 멈춘다. */
-export const useIsCutscenePlaying = () => {
-  useSyncExternalStore(signal.subscribe, signal.version);
-  return cutscenePlaying;
-};
+/**
+ * App 껍데기가 구독해 연출 동안 조작을 멈춘다. 켬/끔 값 자체를 스냅샷으로 — 판 번호로 보면 밀림 한 칸마다
+ * App(과 그 아래 역 씬 전체)이 다시 그려져 컷신 내내 끊겼다.
+ */
+export const useIsCutscenePlaying = () => useSyncExternalStore(signal.subscribe, isCutscenePlaying);
 
 /**
  * 진행도를 직접 정한다(컷신용). dt 를 쌓으면 카메라 순간이동 뒤 구역이 새로 올라오며
@@ -121,10 +121,7 @@ function resetPush() {
 }
 
 /** 관 쪽만 구독한다 — 복도 전체는 이 값이 바뀌어도 다시 그리지 않는다. */
-export const usePipeOffset = () => {
-  useSyncExternalStore(signal.subscribe, signal.version);
-  return steppedOffset;
-};
+export const usePipeOffset = () => useSyncExternalStore(signal.subscribe, getPipeOffset);
 
 exposeDevHook("vendingPush", {
   pushOffset: getPushOffset,

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
+import type * as THREE from "three";
 
 import { isShadowUpdateUrgent, requestShadowUpdates } from "./shadowUpdates";
 
@@ -54,6 +55,48 @@ interface ShaderWarmupProps {
   growth?: number;
   /** 가장 뜸할 때의 간격(초) */
   maxInterval?: number;
+  /**
+   * 구역 컬링이 켜고 끄는 그룹(이름) 조합들. 조합마다 보이는 빛 수가 달라 셰이더도 따로라, 하나씩 켠 채로 예열한다.
+   * 없으면 지금 보이는 것만 — compile 은 보이는 것만 훑어 처음 들어가는 구역에서 수백 ms 멈췄다.
+   */
+  zoneStates?: readonly (readonly string[])[];
+}
+
+/**
+ * 씬의 재질 지문 — 메시 수와 재질의 id·version(needsUpdate 마다 오른다)을 섞는다. 같으면 새로 컴파일할 것이 없다.
+ * 훑는 값은 1 ms 남짓이고 compile 은 한 번에 수십 ms 라, 바뀐 것이 없을 때는 compile 을 건너뛴다.
+ */
+function materialSignature(scene: THREE.Scene) {
+  let hash = 0;
+  scene.traverse((object) => {
+    const material = (object as THREE.Mesh).material;
+    if (!material) return;
+    for (const m of Array.isArray(material) ? material : [material])
+      hash = (hash * 31 + ((m as { id?: number }).id ?? 0) * 7 + m.version) | 0;
+  });
+  return hash;
+}
+
+/** 이름 붙은 구역 그룹들의 보임을 한 조합으로 맞추고 compile 한 뒤 되돌린다(그리기 전이라 화면엔 안 보인다) */
+function compileZoneStates(
+  gl: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  zoneStates: readonly (readonly string[])[],
+) {
+  const names = [...new Set(zoneStates.flat())];
+  const groups = names.map((name) => scene.getObjectByName(name)).filter((g): g is THREE.Object3D => !!g);
+  const saved = groups.map((g) => g.visible);
+  try {
+    for (const state of zoneStates) {
+      for (const g of groups) g.visible = state.includes(g.name);
+      gl.compile(scene, camera);
+    }
+  } finally {
+    groups.forEach((g, i) => {
+      g.visible = saved[i];
+    });
+  }
 }
 
 /**
@@ -66,20 +109,32 @@ export function ShaderWarmup({
   repeat = 2,
   growth = 1.6,
   maxInterval = 20,
+  zoneStates,
 }: ShaderWarmupProps) {
   const { gl, scene, camera } = useThree();
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
     let lastProgramCount = -1;
+    let lastSignature: number | null = null;
     let wait = Math.max(1, repeat) * 1000;
     let next: ReturnType<typeof setTimeout> | null = null;
     const warm = () => {
       if (!alive) return;
       try {
+        // 바뀐 재질이 없으면 건너뛴다 — 주기 예열이 그 자체로 수십 ms 끊김이었다
+        const signature = materialSignature(scene);
+        if (signature === lastSignature) {
+          wait = Math.min(maxInterval * 1000, wait * growth);
+          if (next) clearTimeout(next);
+          next = setTimeout(warm, wait);
+          return;
+        }
+        lastSignature = signature;
         // compileAsync 는 쓰지 않는다. 그 안의 타이머 사슬이 그 사이 dispose 된 재질을 읽어 터지고,
         // Promise 밖의 타이머 콜백이라 catch 로도 못 막는다.
-        gl.compile(scene, camera);
+        if (zoneStates?.length) compileZoneStates(gl, scene, camera, zoneStates);
+        else gl.compile(scene, camera);
         // 새로 컴파일된 것이 있을 때만 그림자를 흔든다(깊이 셰이더도 데우려고). 늘 흔들면 그림자 절약이 무너진다.
         const programCount = gl.info?.programs?.length ?? -1;
         if (programCount !== lastProgramCount) {
@@ -104,6 +159,6 @@ export function ShaderWarmup({
       clearTimeout(second);
       if (next) clearTimeout(next);
     };
-  }, [gl, scene, camera, enabled, delay, repeat, growth, maxInterval]);
+  }, [gl, scene, camera, enabled, delay, repeat, growth, maxInterval, zoneStates]);
   return null;
 }

@@ -6,6 +6,7 @@ import HeartbeatLine from "@/components/HeartbeatLine";
 import RisingText from "@/components/RisingText";
 import RotatingText from "@/components/RotatingText";
 import { revealClass, useReveal } from "@/hooks/motion";
+import { SCRIM_ATTR } from "@/lib/layout";
 import { fillImageStyle, FONT, glowImageStyle, gradientText } from "@/lib/style";
 import { START_GAME, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
@@ -30,7 +31,7 @@ export default function Closing() {
   return (
     <section
       ref={sectionRef}
-      className={`${revealClass(isVisible)} u-stagger${isTextVisible ? " is-active" : ""}`}
+      className={`closing ${revealClass(isVisible)} u-stagger${isTextVisible ? " is-active" : ""}`}
       style={sectionStyle}
       {...sectionAnchor("start")}
     >
@@ -63,7 +64,7 @@ export default function Closing() {
         <HeartbeatLine shape="upper" width="800px" height="14px" duration={3.8} opacity={0.5} strokeWidth={2.6} />
       </div>
 
-      <div style={bodyStyle}>
+      <div style={bodyStyle} {...SCRIM_ATTR}>
         <div style={tagStyle}>
           <span
             style={{
@@ -165,8 +166,7 @@ const sectionStyle: CSSProperties = {
   top: "7493px",
   width: "1908px",
   height: "995px",
-  // 통짜 검정이면 뒤의 입체 공간이 다 가려진다. 글이 읽힐 만큼만 덮는다.
-  background: "rgba(1,4,10,0.82)",
+  // 바탕은 CSS(.closing)가 칠한다 — 홈 장면이 있을 때 걷어 내야 해서.
   overflow: "hidden",
   display: "flex",
   flexDirection: "column",

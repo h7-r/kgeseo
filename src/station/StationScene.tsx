@@ -81,6 +81,13 @@ import { usePlatformEndWallControls, useTrainControls } from "./controls/trainCo
 import { useCoinControls, useVendingControls } from "./controls/vendingControls";
 import { useWorkLampPuzzleControls } from "./controls/workLampControls";
 
+// 구역 컬링이 만드는 보임 조합(ZoneCulling) — 복도만 · 복도에서 방이 보일 때 · 방 안. 배경은 늘 켜져 있다
+const ZONE_STATES = [
+  ["backdrop", "corridor"],
+  ["backdrop", "corridor", "headquarters", "platform"],
+  ["backdrop", "headquarters", "platform"],
+] as const;
+
 interface StationSceneProps {
   active: boolean;
   onNear: (target: NearTarget) => void;
@@ -283,12 +290,13 @@ export default function StationScene({
           shadow-normalBias={0.09}
         />
 
-        <group ref={backdropRef}>
+        {/* 구역 그룹의 이름은 만화 팔레트가 구역을 찾는 표식이다(engine/manga) */}
+        <group ref={backdropRef} name="backdrop">
           <BackdropArea backdrop={train.backdrop} surface={surface} />
         </group>
 
         <OutlineViewportSync />
-        <ShaderWarmup enabled={performance.shaderWarmup} />
+        <ShaderWarmup enabled={performance.shaderWarmup} zoneStates={ZONE_STATES} />
         <ShadowMapUpdater
           enabled={performance.saveShadows}
           urgentInterval={performance.shadowInterval}
@@ -317,7 +325,7 @@ export default function StationScene({
           enabled={performance.zoneCulling && !IS_ZONE_CULLING_DISABLED && enabled}
         />
 
-        <group ref={corridorRef}>
+        <group ref={corridorRef} name="corridor">
           {corridor.visible && (
             <CorridorArea
               corridor={corridor}
@@ -341,11 +349,11 @@ export default function StationScene({
           )}
         </group>
 
-        <group ref={trainRef}>
+        <group ref={trainRef} name="platform">
           <TrainArea train={train} endWall={endWall} surface={surface} />
         </group>
 
-        <group ref={headquartersRef}>
+        <group ref={headquartersRef} name="headquarters">
           <HeadquartersArea
             lobby={lobby}
             ceilingLight={ceilingLight}

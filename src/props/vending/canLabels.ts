@@ -2,9 +2,10 @@
  * 캔 라벨과 커피 음료 색. 복도 바닥 잡동사니도 같은 목록·같은 그림을 쓴다 —
  * 자판기에서 뽑아 마신 캔이 바닥에 굴러다녀야 한 세계로 읽힌다.
  */
+import { letteringStack } from "@/engine/textures/canvas";
 
-// 한글이 들어가므로 CJK 폰트를 앞에 둔다(브라우저에 있으면 쓴다).
-export const VENDING_FONT_STACK = "'Noto Sans CJK KR', 'Malgun Gothic', system-ui, sans-serif";
+// 한글이 들어가므로 CJK 폰트를 앞에 둔다(브라우저에 있으면 쓴다). 만화 화풍이면 손글씨가 먼저
+export const VENDING_FONT_STACK = letteringStack("'Noto Sans CJK KR', 'Malgun Gothic', system-ui, sans-serif");
 
 export interface CanFlavor {
   background: string;

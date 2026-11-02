@@ -38,5 +38,19 @@ export const VIDEOS = {
   },
 } satisfies Record<string, Video>;
 
+/**
+ * 나주 「앙암바위」 실제 플레이 녹화 — 게임 영상 갤러리 다섯 편과 홈 링 안의 사건 필름.
+ * 게임 화면을 1/30초씩 넘기며 찍어 이어 붙였다. 걷는 구간만 빠르게, 퍼즐이 풀리는 순간은 1배로 둔다.
+ */
+export const GAMEPLAY_VIDEOS = {
+  ferry: { src: "/naju-play-ferry.mp4", poster: "/naju-play-ferry.webp", title: "나주 · 꺼진 화톳불" },
+  ritual: { src: "/naju-play-ritual.mp4", poster: "/naju-play-ritual.webp", title: "나주 · 기우제" },
+  cave: { src: "/naju-play-cave.mp4", poster: "/naju-play-cave.webp", title: "나주 · 강 밑 물굴" },
+  curtain: { src: "/naju-play-curtain.mp4", poster: "/naju-play-curtain.webp", title: "나주 · 바람 장막" },
+  birds: { src: "/naju-play-birds.mp4", poster: "/naju-play-birds.webp", title: "나주 · 깨어난 돌새" },
+} satisfies Record<string, Video>;
+
+export const NAJU_FILM = { src: "/naju-film.mp4", poster: "/naju-film-poster.webp" } as const;
+
 /** 게임 본편 public 에도 같은 파일이 있어야 넘어가는 순간 장면이 끊기지 않는다. */
 export const OPENING_FILM = { src: "/opening-cinematic.mp4", poster: "/opening-cinematic-poster.jpg" } as const;

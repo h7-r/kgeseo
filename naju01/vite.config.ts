@@ -38,6 +38,18 @@ export default defineConfig({
     emptyOutDir: true,
     // three·drei·postprocessing 은 원래 크다 — 경고만 조용히 한다
     chunkSizeWarningLimit: 4000,
+    // 바뀌지 않는 라이브러리는 따로 묶는다 — 게임 코드를 고쳐도 브라우저가 three·react 는 캐시에서 꺼내고, 처음 받을 때도 병렬로 받는다
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (/[\\/]node_modules[\\/](three|three-stdlib)[\\/]/.test(id)) return "vendor-three";
+          if (/[\\/]node_modules[\\/](postprocessing|@react-three)[\\/]/.test(id)) return "vendor-r3f";
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler|zustand|leva)[\\/]/.test(id)) return "vendor-react";
+          return "vendor";
+        },
+      },
+    },
   },
   // libraryPlacePlugin — 편집 모드 L 「라이브러리 배치」: 라이브러리 색인 + manifest 「놓기」 즉시 저장·되돌리기(개발 서버만)
   plugins: [react(), editFileServerPlugin({ writable: true }), editFileBundlePlugin(), libraryPlacePlugin(), codePropExportPlugin(), spaceMaskPlugin(), scenePackPlugin()],

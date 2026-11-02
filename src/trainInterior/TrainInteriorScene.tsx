@@ -202,9 +202,17 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
     ceiling: CAR_HEIGHT,
   });
 
-  const toon = (color: string) => <meshToonMaterial color={shade(color)} gradientMap={TOON_GRADIENT} />;
+  // userData.baseColor = 밝기를 곱하기 전 팀 색 — 만화 팔레트가 어느 물건인지 알아보는 표식(engine/manga/palette)
+  const toon = (color: string) => (
+    <meshToonMaterial color={shade(color)} gradientMap={TOON_GRADIENT} userData={{ baseColor: color }} />
+  );
   const wallMaterial = (color: string) => (
-    <meshToonMaterial map={wallRepeat} color={shade(color)} gradientMap={TOON_GRADIENT} />
+    <meshToonMaterial
+      map={wallRepeat}
+      color={shade(color)}
+      gradientMap={TOON_GRADIENT}
+      userData={{ baseColor: color }}
+    />
   );
   const glassMaterial = (
     <meshBasicMaterial
@@ -224,7 +232,8 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
       {enabled && <color attach="background" args={["#0e1116"]} />}
       {enabled && <fog attach="fog" args={[controls.fogColor, controls.fogNear, controls.fogFar]} />}
 
-      <group visible={enabled}>
+      {/* 이름은 만화 팔레트가 구역을 찾는 표식(engine/manga) */}
+      <group visible={enabled} name="trainInterior">
         <ambientLight intensity={controls.ambient * controls.brightness} color="#b9c4d4" />
         {/* 천장·바닥이 같은 톤이면 공간이 납작해 보인다 */}
         <hemisphereLight args={["#aab6c6", "#2f343b", 0.35 * controls.brightness]} />
@@ -248,7 +257,12 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
 
         <mesh position={[0, -0.1, 0]} receiveShadow>
           <boxGeometry args={[CAR_LENGTH, 0.2, CAR_WIDTH]} />
-          <meshToonMaterial map={floorRepeat} color={shade(controls.floorColor)} gradientMap={TOON_GRADIENT} />
+          <meshToonMaterial
+            map={floorRepeat}
+            color={shade(controls.floorColor)}
+            gradientMap={TOON_GRADIENT}
+            userData={{ baseColor: controls.floorColor }}
+          />
         </mesh>
 
         <mesh position={[0, CAR_HEIGHT + 0.1, 0]}>
@@ -353,13 +367,23 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
         </mesh>
         {seats.fabric && (
           <mesh geometry={seats.fabric} castShadow receiveShadow>
-            <meshToonMaterial map={seatFabricMap} color={shade(controls.seatFabricColor)} gradientMap={TOON_GRADIENT} />
+            <meshToonMaterial
+              map={seatFabricMap}
+              color={shade(controls.seatFabricColor)}
+              gradientMap={TOON_GRADIENT}
+              userData={{ baseColor: controls.seatFabricColor }}
+            />
             {outlineShell}
           </mesh>
         )}
         {seats.frame && (
           <mesh geometry={seats.frame} castShadow receiveShadow>
-            <meshToonMaterial map={crackMap} color={shade(controls.seatFrameColor)} gradientMap={TOON_GRADIENT} />
+            <meshToonMaterial
+              map={crackMap}
+              color={shade(controls.seatFrameColor)}
+              gradientMap={TOON_GRADIENT}
+              userData={{ baseColor: controls.seatFrameColor }}
+            />
             {outlineShell}
           </mesh>
         )}

@@ -5,7 +5,10 @@ import type { AvatarLink } from "@/engine/avatarLink";
 
 import type { PresentedControls } from "../app/presentation";
 import { buildCameraOccluders, buildPropColliders } from "../movement/propColliders";
-import { useTerrainMovement } from "../movement/useTerrainMovement";
+import { useSolidField } from "../movement/solidField";
+import { gateBlockedAt } from "../movement/stageGates";
+import { MOVEMENT_CONSTANTS, useTerrainMovement } from "../movement/useTerrainMovement";
+import { UNDERWATER_SPEED, cave, registerTeleporter, useIsUnderwater, withCave } from "../puzzles/cave/caveState";
 import type { InstanceGroup } from "../placement/instanceGroups";
 import { VIEWPOINTS } from "../plan/sitePlan";
 import type { ConnectorRamp } from "../terrain/connectorRamp";
@@ -46,12 +49,20 @@ export function usePlayerMovement({
   useEffect(() => {
     if (import.meta.env.DEV) exposeDevHook("propColliders", propColliders);
   }, [propColliders]);
-  return useTerrainMovement(active || isEditing, {
-    terrain,
+  // 강 밑 물굴(puzzles/cave) — 물이 갈라져 있는 동안 그 자리의 바닥·벽은 물굴 것. 물속에서는 살짝 무겁게 걷는다
+  const walkable = useMemo(() => withCave(terrain), [terrain]);
+  const isUnderwater = useIsUnderwater();
+  // 화면의 물건을 구운 충돌 격자 — 다 구워지면 위 소품 충돌 대신 쓰고, 낮은 물건 위로 올라선다
+  const solid = useSolidField((x, z) => terrain.groundAt(x, z).y);
+  const teleport = useTerrainMovement(active || isEditing, {
+    terrain: walkable,
     extraBlockedAt: isEditing ? null : propColliders.blockedAt,
+    solid: isEditing ? null : solid,
+    gateBlockedAt: isEditing ? null : gateBlockedAt,
     start: [VIEWPOINTS[0].x, VIEWPOINTS[0].z, VIEWPOINTS[0].heading],
     eyeHeight: controls.eyeHeight,
-    walkSpeed: controls.walkSpeed,
+    walkSpeed: isUnderwater ? (controls.walkSpeed ?? MOVEMENT_CONSTANTS.walk) * UNDERWATER_SPEED : controls.walkSpeed,
+    swim: isUnderwater,
     fallRecovery: controls.fallRecovery,
     reportRef,
     arrowKeysMove: !isEditing, // 편집 중 방향키는 요소를 민다
@@ -62,7 +73,11 @@ export function usePlayerMovement({
     cameraOccludedAt: isEditing ? null : cameraOccluders.occludes,
     // 부감 동안은 걷기를 통째로 멈춘다 — active 만 끄면 중력이 카메라를 땅으로 끌어내린다.
     paused: (isEditing && isOverview) || isReviewHold,
-    // 코어 밖은 연결로 위에서만 연다 — 경계를 넓히면 동쪽 어디서나 6.7 m 아래로 떨어진다.
-    canLeaveCore: controls.allowLeavingCore && ramp ? (x: number, z: number) => ramp.isOn(x, z) : null,
+    // 코어 밖은 연결로 위에서만 연다 — 경계를 넓히면 동쪽 어디서나 6.7 m 아래로 떨어진다. 물굴은 강 밑(z 50 너머)이라 같이 연다.
+    canLeaveCore: (x: number, z: number) =>
+      (cave.isOpen() && cave.contains(x, z)) || (!!controls.allowLeavingCore && !!ramp && ramp.isOn(x, z)),
   });
+  // 숨이 다했을 때 · 물살에 실려 나갈 때 물굴이 자리를 옮긴다
+  useEffect(() => registerTeleporter(teleport), [teleport]);
+  return teleport;
 }

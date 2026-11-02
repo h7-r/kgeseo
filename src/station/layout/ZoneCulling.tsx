@@ -43,6 +43,27 @@ function isFacingOpening(camera: THREE.Camera, p: THREE.Vector3, pass: PassageSt
 
 type GroupRef = RefObject<THREE.Object3D | null>;
 
+/** 꺼진 구역의 행렬 갱신 — 아무것도 안 한다 */
+function skipMatrixUpdate() {}
+
+/**
+ * 구역 하나를 켜고 끈다. 꺼진 구역은 행렬 갱신도 멈춘다 — three 는 보이지 않는 가지도 매 프레임 자식까지 행렬을
+ * 다시 곱해(updateMatrixWorld) 본부실에 있는 동안 복도의 물건 1,300여 개를 헛되이 훑었다. three 에 가지째 건너뛰는
+ * 깃발이 없어(matrixWorldAutoUpdate 는 자기만 멈추고 자식은 계속 돈다) 꺼진 동안만 그 구역의 갱신 함수를 비운다.
+ * 다시 켜지면 원래 함수로 돌리고 그 자리에서 한 번 새로 곱한다. getWorldPosition 같은 개별 갱신은 그대로 돈다.
+ */
+function setZone(ref: GroupRef, isShown: boolean) {
+  const zone = ref.current;
+  if (!zone || zone.visible === isShown) return;
+  zone.visible = isShown;
+  if (isShown) {
+    Reflect.deleteProperty(zone, "updateMatrixWorld");
+    zone.updateMatrixWorld(true);
+  } else {
+    zone.updateMatrixWorld = skipMatrixUpdate;
+  }
+}
+
 interface ZoneCullingProps {
   headquarters: GroupRef;
   corridor: GroupRef;
@@ -61,7 +82,7 @@ export default function ZoneCulling({ headquarters, corridor, train, backdrop, e
     const pass = passage.get();
 
     if (!enabled) {
-      for (const r of [headquarters, corridor, train, backdrop]) if (r.current) r.current.visible = true;
+      for (const r of [headquarters, corridor, train, backdrop]) setZone(r, true);
       return;
     }
 
@@ -74,11 +95,11 @@ export default function ZoneCulling({ headquarters, corridor, train, backdrop, e
     // 기차는 방 저편(+x)이라 방이 보일 때만 보인다.
     const showTrain = showHeadquarters;
 
-    if (headquarters.current) headquarters.current.visible = showHeadquarters;
-    if (corridor.current) corridor.current.visible = showCorridor;
-    if (train.current) train.current.visible = showTrain;
+    setZone(headquarters, showHeadquarters);
+    setZone(corridor, showCorridor);
+    setZone(train, showTrain);
     // 배경은 큰 판 몇 장이라 늘 켠다. 기차와 같이 끄면 컬링이 곧 암전이 된다.
-    if (backdrop.current) backdrop.current.visible = true;
+    setZone(backdrop, true);
   });
   return null;
 }
