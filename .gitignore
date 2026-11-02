@@ -86,3 +86,7 @@ public/_sf_local/tmp/
 .pack-keys.json
 *.pack-keys.json
 .packs/
+
+# AI허브 「한국적 일상 3D」 로컬 미리보기 데이터(약 360MB) — 이용 범위 답변 전이라 공개 저장소에 올리지 않는다(11/2 미르).
+# 배포 빌드에서도 뺀다(naju01/vite/dropLocalOnlyPlugin.ts)
+public/_aihub_local/
