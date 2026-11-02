@@ -176,6 +176,8 @@ def make_state(**overrides) -> dict:
         "completed_puzzle_ids": [],
         "completed_inspect_ids": [],
         "acquired_clue_ids": [],
+        "acquired_item_ids": [],
+        "consumed_item_ids": [],
         "hint_levels": {},
         "attempt_counts": {},
         "flags": {},

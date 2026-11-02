@@ -24,6 +24,8 @@ from app.schemas.interaction import (
     InteractionResult,
     InteractionResultType,
     InteractionStateChange,
+    ItemAcquiredStateChange,
+    ItemConsumedStateChange,
     NavigateInteraction,
     ObjectHiddenStateChange,
     ObjectRevealedStateChange,
@@ -104,6 +106,14 @@ class RequiredPuzzlesMissingError(InteractionServiceError):
     def __init__(self, missing_puzzle_count: int) -> None:
         self.missing_puzzle_count = missing_puzzle_count
         super().__init__(missing_puzzle_count)
+
+
+class RequiredItemsNotHeldError(InteractionServiceError):
+    """소비할 아이템을 보유하지 않았다(미획득 또는 이미 소비). 외부에는 부족한 개수만 알린다."""
+
+    def __init__(self, missing_item_count: int) -> None:
+        self.missing_item_count = missing_item_count
+        super().__init__(missing_item_count)
 
 
 async def process_interaction(
@@ -299,6 +309,7 @@ def apply_runtime_effect(
     effect: RuntimeEffect,
     *,
     complete_puzzle_ids: list[str] | None = None,
+    consume_item_ids: list[str] | None = None,
     client_content: CaseClientContent | None = None,
 ) -> tuple[dict[str, Any], list[InteractionStateChange]]:
     updated_state = deepcopy(state)
@@ -315,6 +326,15 @@ def apply_runtime_effect(
                 ),
             )
 
+    # 보유 여부는 호출 전에 확인한다(_ensure_items_held). 여기서는 소비 기록만 남긴다.
+    for item_id in consume_item_ids or []:
+        consumed = updated_state.setdefault("consumed_item_ids", [])
+        if item_id not in consumed:
+            consumed.append(item_id)
+            state_changes.append(
+                ItemConsumedStateChange(type="item_consumed", item_id=item_id),
+            )
+
     for clue_id in effect.grant_clue_ids:
         if clue_id not in updated_state["acquired_clue_ids"]:
             updated_state["acquired_clue_ids"].append(clue_id)
@@ -323,6 +343,15 @@ def apply_runtime_effect(
                     type="clue_acquired",
                     clue_id=clue_id,
                 ),
+            )
+
+    # 한 번 획득한 아이템은 소비한 뒤에도 다시 지급하지 않는다(재획득 없음).
+    for item_id in effect.grant_item_ids:
+        acquired = updated_state.setdefault("acquired_item_ids", [])
+        if item_id not in acquired:
+            acquired.append(item_id)
+            state_changes.append(
+                ItemAcquiredStateChange(type="item_acquired", item_id=item_id),
             )
 
     for flag_id, value in effect.set_flags.items():
@@ -491,6 +520,7 @@ def _grade_puzzle(
     # 정답 비교·시도 횟수 증가 전에 판정해 정답 여부가 드러나지 않게 한다.
     _ensure_required_puzzles(puzzle.requires_puzzle_ids, state)
     _ensure_required_clues(puzzle.requires_clue_ids, state)
+    _ensure_items_held(puzzle.consumes_item_ids, state)
 
     graded_state = deepcopy(state)
     attempt_counts = graded_state.setdefault("attempt_counts", {})
@@ -506,6 +536,7 @@ def _grade_puzzle(
         graded_state,
         puzzle.on_correct,
         complete_puzzle_ids=[puzzle_id],
+        consume_item_ids=puzzle.consumes_item_ids,
         client_content=(
             load_client_content() if puzzle.on_correct.set_object_states else None
         ),
@@ -686,6 +717,15 @@ def _ensure_required_clues(required_clue_ids: list[str], state: dict[str, Any]) 
     missing = [clue_id for clue_id in required_clue_ids if clue_id not in acquired]
     if missing:
         raise RequiredCluesMissingError(len(missing))
+
+
+def _ensure_items_held(item_ids: list[str], state: dict[str, Any]) -> None:
+    held = set(state.get("acquired_item_ids", [])) - set(
+        state.get("consumed_item_ids", [])
+    )
+    missing = [item_id for item_id in item_ids if item_id not in held]
+    if missing:
+        raise RequiredItemsNotHeldError(len(missing))
 
 
 def _ensure_required_puzzles(

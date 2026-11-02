@@ -26,6 +26,7 @@ from app.services.interaction import (
     ObjectNotVisibleError,
     PuzzleNotFoundError,
     RequiredCluesMissingError,
+    RequiredItemsNotHeldError,
     RequiredPuzzlesMissingError,
     ZoneNotCurrentError,
 )
@@ -94,6 +95,15 @@ async def create_interaction_endpoint(
             content={
                 "detail": "Required puzzles are not completed.",
                 "missing_puzzle_count": error.missing_puzzle_count,
+            },
+        )
+    except RequiredItemsNotHeldError as error:
+        # 단서 부족과 같은 형태. 부족한 아이템 ID는 알리지 않는다.
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "detail": "Required items are not held.",
+                "missing_item_count": error.missing_item_count,
             },
         )
     except PlaySessionNotFoundError as error:

@@ -153,9 +153,21 @@ class CaseCompletedStateChange(BaseModel):
     type: Literal["case_completed"]
 
 
+class ItemAcquiredStateChange(BaseModel):
+    type: Literal["item_acquired"]
+    item_id: str
+
+
+class ItemConsumedStateChange(BaseModel):
+    type: Literal["item_consumed"]
+    item_id: str
+
+
 InteractionStateChange = Annotated[
     PuzzleCompletedStateChange
     | ClueAcquiredStateChange
+    | ItemAcquiredStateChange
+    | ItemConsumedStateChange
     | ZoneUnlockedStateChange
     | CurrentZoneChangedStateChange
     | HintLevelChangedStateChange

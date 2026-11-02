@@ -42,8 +42,15 @@ class ObjectStateEffect(BaseModel):
 class RuntimeEffect(ServerContentModel):
     grant_clue_ids: list[str]
     complete_puzzle_ids: list[str] = Field(default_factory=list)
+    # 손에 넣는 아이템. 단서와 다른 ID 공간이며 acquired_clue_ids에 넣지 않는다.
+    grant_item_ids: list[str] = Field(default_factory=list)
     set_flags: dict[str, bool]
     set_object_states: list[ObjectStateEffect] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_grant_item_ids(self) -> "RuntimeEffect":
+        _validate_required_ids("Effect", "grant_item_ids", self.grant_item_ids)
+        return self
 
     @model_validator(mode="after")
     def validate_unique_object_targets(self) -> "RuntimeEffect":
@@ -97,6 +104,8 @@ class PuzzleDefinition(ServerContentModel):
     requires_clue_ids: list[str] = Field(default_factory=list)
     # 정답 판정 전에 PlaySession이 모두 완료해야 하는 퍼즐. 비어 있으면 조건 없음.
     requires_puzzle_ids: list[str] = Field(default_factory=list)
+    # 정답일 때 소비하는 아이템. 정답 판정 전에 모두 보유(획득 · 미소비)해야 한다. 비어 있으면 조건 없음.
+    consumes_item_ids: list[str] = Field(default_factory=list)
     on_correct: RuntimeEffect
     # 정식 힌트 원문. 비어 있으면 이 퍼즐에는 힌트가 없다(Hint API는 HintNotFoundError).
     hints: list[HintDefinition] = Field(default_factory=list)
@@ -108,6 +117,9 @@ class PuzzleDefinition(ServerContentModel):
         _validate_required_ids(owner, "requires_puzzle_ids", self.requires_puzzle_ids)
         if self.puzzle_id in self.requires_puzzle_ids:
             raise ValueError(f"{owner} must not require itself")
+        _validate_required_ids(owner, "consumes_item_ids", self.consumes_item_ids)
+        if set(self.consumes_item_ids) & set(self.on_correct.grant_item_ids):
+            raise ValueError(f"{owner} must not grant an item it consumes")
         levels = [hint.level for hint in self.hints]
         if len(levels) != len(set(levels)):
             raise ValueError(f"Puzzle '{self.puzzle_id}' has duplicate hint levels")
@@ -234,6 +246,22 @@ class PuzzleRuntimeDefinition(ServerContentModel):
 
         for puzzle_id in requires:
             visit(puzzle_id, [])
+        return self
+
+    @model_validator(mode="after")
+    def validate_item_references(self) -> "PuzzleRuntimeDefinition":
+        # 어떤 효과도 주지 않는 아이템을 소비하는 퍼즐은 영영 풀 수 없다.
+        effects = [puzzle.on_correct for puzzle in self.puzzles]
+        effects += [combination.on_success for combination in self.clue_combinations]
+        effects += [inspection.on_inspect for inspection in self.inspections]
+        granted = {item_id for effect in effects for item_id in effect.grant_item_ids}
+        for puzzle in self.puzzles:
+            for item_id in puzzle.consumes_item_ids:
+                if item_id not in granted:
+                    raise ValueError(
+                        f"Puzzle '{puzzle.puzzle_id}' consumes item '{item_id}' "
+                        "that no effect grants"
+                    )
         return self
 
     @model_validator(mode="after")
