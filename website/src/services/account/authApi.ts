@@ -6,6 +6,7 @@ import { normalizeEmail, type ConsentKind } from "./db";
 const AUTH_API = "/api/v1/auth";
 
 const SERVER_ERROR_MESSAGE = "서버와 통신하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+const INPUT_ERROR_MESSAGE = "입력값을 다시 확인해 주세요.";
 
 type AuthResponse =
   { ok: true; status: number; body: unknown } | { ok: false; status: number; body: unknown; reason: string };
@@ -38,7 +39,7 @@ function errorDetail(body: unknown): unknown {
   return typeof body === "object" && body !== null && "detail" in body ? body.detail : undefined;
 }
 
-function errorCode(body: unknown): string | undefined {
+export function errorCode(body: unknown): string | undefined {
   const detail = errorDetail(body);
   if (typeof detail !== "object" || detail === null || !("code" in detail)) return undefined;
   return typeof detail.code === "string" ? detail.code : undefined;
@@ -66,7 +67,7 @@ async function postAuth(path: string, payload: unknown): Promise<AuthResponse> {
 
   if (!response.ok) {
     const detail = errorDetail(body);
-    // 422 검증 오류의 detail 은 배열이라 화면에 그대로 띄울 수 없다. 문자열일 때만 쓴다.
+    // detail 은 문자열이거나 { code, message } 다. 영문 서버 문구가 그대로 뜨지 않게 호출한 쪽이 status·code 로 고른다.
     return {
       ok: false,
       status: response.status,
@@ -77,29 +78,58 @@ async function postAuth(path: string, payload: unknown): Promise<AuthResponse> {
   return { ok: true, status: response.status, body };
 }
 
-interface BackendUser {
-  user_id?: string;
-  email?: string;
-  nickname?: string;
-  region?: string | null;
-  created_at?: string;
-  provider?: string;
+const BACKEND_PROVIDERS = ["local", "google", "naver"] as const;
+type BackendProvider = (typeof BACKEND_PROVIDERS)[number];
+
+/** 로컬·구글·네이버 로그인과 소셜 가입 완료가 함께 돌려주는 { user } 의 모양. */
+export interface BackendUser {
+  user_id: string;
+  email: string;
+  nickname: string;
+  region: string | null;
+  created_at: string;
+  provider: BackendProvider;
 }
 
-/** 가입·로그인 응답의 { user } 를 세션 모양으로 바꾼다. */
-function toSessionUserFromBackend(body: unknown): SessionUser {
-  const user: BackendUser =
-    typeof body === "object" && body !== null && "user" in body && typeof body.user === "object" && body.user
-      ? body.user
-      : {};
-  const joinedAt = Date.parse(user.created_at || "");
+function isBackendUser(value: unknown): value is BackendUser {
+  if (typeof value !== "object" || value === null) return false;
+  const user = value as Record<string, unknown>;
+  return (
+    typeof user.user_id === "string" &&
+    user.user_id !== "" &&
+    typeof user.email === "string" &&
+    typeof user.nickname === "string" &&
+    (user.region === null || typeof user.region === "string") &&
+    typeof user.created_at === "string" &&
+    BACKEND_PROVIDERS.some((provider) => provider === user.provider)
+  );
+}
+
+// 끝에 Z 나 ±hh:mm 이 있으면 시간대가 적힌 값이다.
+const TIMEZONE_SUFFIX = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
+/**
+ * 서버 시각을 밀리초로. 서버는 UTC 를 시간대 표기 없이 보내는데, Date.parse 는 표기가 없으면 현지 시각으로 읽는다.
+ * 표기가 없을 때만 Z 를 붙인다 — 서버가 나중에 Z 를 붙여 보내도 그대로 맞다.
+ */
+export function parseBackendTimestamp(value: string): number | undefined {
+  // 마이크로초(6자리)는 브라우저마다 읽는 법이 달라 밀리초까지만 쓴다.
+  const trimmed = value.trim().replace(/(\.\d{3})\d+/, "$1");
+  const time = Date.parse(TIMEZONE_SUFFIX.test(trimmed) ? trimmed : `${trimmed}Z`);
+  return Number.isNaN(time) ? undefined : time;
+}
+
+/** 로그인·가입 응답의 { user } 를 세션 모양으로 바꾼다. 모양이 어긋나면 null — 빈 사용자로 로그인시키지 않는다. */
+export function toSessionUserFromBackend(body: unknown): SessionUser | null {
+  const user = typeof body === "object" && body !== null && "user" in body ? body.user : undefined;
+  if (!isBackendUser(user)) return null;
   return {
-    id: user.user_id ?? "",
-    email: user.email ?? "",
-    name: user.nickname ?? "",
+    id: user.user_id,
+    email: user.email,
+    name: user.nickname,
     region: user.region ?? "",
-    joinedAt: Number.isNaN(joinedAt) ? Date.now() : joinedAt,
-    provider: user.provider ?? "local",
+    joinedAt: parseBackendTimestamp(user.created_at) ?? Date.now(),
+    provider: user.provider,
   };
 }
 
@@ -134,9 +164,12 @@ export async function authenticate(email: string, password: string): Promise<Aut
   if (!result.ok) {
     // 없는 계정과 틀린 비밀번호를 같은 말로 답해 어떤 메일이 가입됐는지 캐낼 수 없게 한다.
     if (result.status === 401) return { ok: false, reason: "이메일 또는 비밀번호가 올바르지 않습니다." };
+    // 422 { code, message } 는 입력 형식 문제다. 통신 오류로 안내하지 않고, 서버 문구도 그대로 띄우지 않는다.
+    if (result.status === 422 && errorCode(result.body)) return { ok: false, reason: INPUT_ERROR_MESSAGE };
     return { ok: false, reason: result.reason };
   }
-  return { ok: true, user: toSessionUserFromBackend(result.body) };
+  const user = toSessionUserFromBackend(result.body);
+  return user ? { ok: true, user } : { ok: false, reason: SERVER_ERROR_MESSAGE };
 }
 
 export async function signUp({ email, password, nickname, region, consents = {} }: SignUpInput): Promise<SignUpResult> {
@@ -164,9 +197,10 @@ export async function signUp({ email, password, nickname, region, consents = {} 
     if (result.status === 409 && detail === "Nickname already registered.") {
       return { ok: false, field: "nickname", reason: "이미 사용 중인 닉네임입니다." };
     }
-    if (result.status === 422) return { ok: false, reason: "입력값을 다시 확인해 주세요." };
+    if (result.status === 422) return { ok: false, reason: INPUT_ERROR_MESSAGE };
     return { ok: false, reason: result.reason || "가입 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요." };
   }
 
-  return { ok: true, user: toSessionUserFromBackend(result.body) };
+  const user = toSessionUserFromBackend(result.body);
+  return user ? { ok: true, user } : { ok: false, reason: SERVER_ERROR_MESSAGE };
 }

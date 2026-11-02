@@ -4,11 +4,12 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { FONT } from "@/lib/style";
 import { ROUTES } from "@/navigation/routes";
 import { signInWithNaverCallback } from "@/services/account/naverAuth";
+import { holdOnboarding } from "@/services/account/socialAuthApi";
 import { signIn } from "@/services/session";
 
 const CHECKING_MESSAGE = "네이버 로그인을 확인하는 중…";
 
-/** 네이버 인가 화면에서 돌아오는 자리. 백엔드 확인이 끝나면 로그인하고 홈으로 간다. */
+/** 네이버 인가 화면에서 돌아오는 자리. 기존 회원은 로그인하고 홈으로, 처음 온 계정은 가입 화면으로 간다. */
 export default function SocialCallbackPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -17,10 +18,16 @@ export default function SocialCallbackPage() {
   useEffect(() => {
     let alive = true;
     signInWithNaverCallback(searchParams)
-      .then((user) => {
+      .then((result) => {
         if (!alive) return;
-        signIn(user);
-        navigate(ROUTES.home, { replace: true });
+        if (result.kind === "signedIn") {
+          signIn(result.user);
+          navigate(ROUTES.home, { replace: true });
+          return;
+        }
+        // replace: 뒤로 가기로 code·state 가 남은 콜백 주소에 돌아오지 않게. 증표는 메모리로만 넘긴다.
+        holdOnboarding(result.onboarding);
+        navigate(ROUTES.socialOnboarding, { replace: true });
       })
       .catch((error: unknown) => {
         if (!alive) return;

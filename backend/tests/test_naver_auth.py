@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from app.api.v1 import auth
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
+from app.models.social_onboarding_pending import SocialOnboardingPending
 from app.schemas.auth import GoogleUserResponse
 from app.services import naver_auth
 from app.services.naver_auth import (
@@ -93,19 +94,25 @@ def test_naver_login_returns_verified_profile(
 
     assert response.status_code == 200
     assert response.json() == {
-        "provider": "naver",
-        "subject": "naver-subject",
-        "email": "user@example.com",
-        "email_verified": None,
-        "name": "Naver User",
-        "picture": "https://example.com/profile.png",
+        "user": {
+            "user_id": user.id,
+            "email": "user@example.com",
+            "nickname": "Naver User",
+            "region": None,
+            "created_at": user.created_at.isoformat(),
+            "provider": "naver",
+        }
     }
+    assert response.headers["cache-control"] == "no-store"
+    assert db_session.get_calls == [(AppUser, user.id)]
+    assert "naver-subject" not in response.text
+    assert "picture" not in response.text
     assert "valid-code" not in response.text
     assert "app_user_id" not in response.text
     assert "password_hash" not in response.text
 
 
-def test_naver_login_creates_user_and_identity_for_new_email(
+def test_naver_login_creates_only_pending_for_new_email(
     client: TestClient,
     db_session,
     monkeypatch,
@@ -131,21 +138,24 @@ def test_naver_login_creates_user_and_identity_for_new_email(
 
     assert response.status_code == 200
     assert "app_user_id" not in response.json()
-    assert len(db_session.added) == 2
-    user = db_session.added[0]
-    identity = db_session.added[1]
-    assert isinstance(user, AppUser)
-    assert isinstance(identity, AuthIdentity)
-    assert user.email == "user@example.com"
-    assert user.nickname.startswith("user_")
-    assert len(user.nickname) == 9
-    assert user.terms_version is None
-    assert user.terms_accepted_at is None
-    assert user.privacy_accepted_at is None
-    assert user.age_confirmed_at is None
-    assert identity.provider == "naver"
-    assert identity.provider_subject == "naver-subject"
-    assert identity.password_hash is None
+    body = response.json()
+    assert set(body) == {
+        "result",
+        "onboarding_token",
+        "expires_in",
+        "suggested_nickname",
+        "terms_version",
+    }
+    assert body["result"] == "onboarding_required"
+    assert body["suggested_nickname"] == ""
+    assert "email" not in body and "subject" not in body
+    assert response.headers["cache-control"] == "no-store"
+    assert len(db_session.added) == 1
+    pending = db_session.added[0]
+    assert isinstance(pending, SocialOnboardingPending)
+    assert pending.provider == "naver"
+    assert pending.provider_subject == "naver-subject"
+    assert pending.token_hash != body["onboarding_token"]
     assert "password_hash" not in response.text
     assert "access-token" not in response.text
 
@@ -277,6 +287,7 @@ def test_naver_profile_normalizer_returns_sanitized_profile() -> None:
     [
         {"resultcode": "00", "response": {"email": "user@example.com"}},
         {"resultcode": "00", "response": {"id": "naver-subject"}},
+        {"resultcode": "00", "response": {"id": "naver-subject", "email": " 	 "}},
         {"resultcode": "00"},
     ],
 )
@@ -357,3 +368,41 @@ def test_naver_verifier_rejects_profile_endpoint_failure(monkeypatch) -> None:
 
     with pytest.raises(NaverProfileError):
         naver_auth.fetch_naver_profile("access-token")
+
+
+@pytest.mark.parametrize(
+    "profile",
+    [{"id": "naver-subject", "email": "   "}, {"id": "naver-subject"}],
+)
+def test_naver_login_rejects_unusable_email_without_side_effects(
+    client: TestClient,
+    db_session,
+    monkeypatch,
+    profile,
+) -> None:
+    monkeypatch.setattr(auth.settings, "naver_client_id", "naver-client-id")
+    monkeypatch.setattr(auth.settings, "naver_client_secret", "naver-client-secret")
+    monkeypatch.setattr(
+        auth.settings, "naver_redirect_uri", "https://example.com/callback"
+    )
+    monkeypatch.setattr(
+        naver_auth, "exchange_code_for_access_token", lambda *args: "access-token"
+    )
+    monkeypatch.setattr(
+        naver_auth,
+        "fetch_naver_profile",
+        lambda access_token: {"resultcode": "00", "response": profile},
+    )
+
+    response = client.post(
+        "/api/v1/auth/naver",
+        json={"code": "valid-code", "state": "네이버.state"},
+    )
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid Naver profile."}
+    assert response.headers["cache-control"] == "no-store"
+    assert db_session.added == []
+    assert db_session.scalar_calls == []
+    assert db_session.execute_calls == []
+    assert db_session.commit_count == 0
