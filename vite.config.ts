@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 
 import { defaultLookReceiverPlugin } from "./naju01/vite/defaultLookPlugin";
+import { dropLocalOnlyPlugin } from "./naju01/vite/dropLocalOnlyPlugin";
 import { editFileServerPlugin } from "./naju01/vite/editFilePlugin";
 
 /**
@@ -63,7 +64,7 @@ function levaSelectorPrebundlePatch() {
 
 export default defineConfig({
   // 텔레포트가 본편 안의 /naju01/ 로 넘어가므로 이 서버도 나주 손 배치를 내준다(저장은 나주 서버 5174 에서만)
-  plugins: [levaSelectorPatch(), react(), editFileServerPlugin({ writable: false }), defaultLookReceiverPlugin()],
+  plugins: [levaSelectorPatch(), react(), editFileServerPlugin({ writable: false }), defaultLookReceiverPlugin(), dropLocalOnlyPlugin()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },

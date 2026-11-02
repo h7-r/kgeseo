@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 
 import { editFileBundlePlugin, editFileServerPlugin } from "./vite/editFilePlugin";
 import { codePropExportPlugin } from "./vite/codePropExportPlugin";
+import { dropLocalOnlyPlugin } from "./vite/dropLocalOnlyPlugin";
 import { spaceMaskPlugin } from "./vite/spaceMaskPlugin";
 import { libraryPlacePlugin } from "./vite/libraryPlacePlugin";
 import { scenePackPlugin } from "./vite/scenePackPlugin";
@@ -52,7 +53,7 @@ export default defineConfig({
     },
   },
   // libraryPlacePlugin — 편집 모드 L 「라이브러리 배치」: 라이브러리 색인 + manifest 「놓기」 즉시 저장·되돌리기(개발 서버만)
-  plugins: [react(), editFileServerPlugin({ writable: true }), editFileBundlePlugin(), libraryPlacePlugin(), codePropExportPlugin(), spaceMaskPlugin(), scenePackPlugin()],
+  plugins: [react(), editFileServerPlugin({ writable: true }), editFileBundlePlugin(), libraryPlacePlugin(), codePropExportPlugin(), spaceMaskPlugin(), scenePackPlugin(), dropLocalOnlyPlugin()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("../src", import.meta.url)) },
   },
