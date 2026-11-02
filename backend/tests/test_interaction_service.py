@@ -58,6 +58,7 @@ def make_play_session(*, state: dict | None = None) -> PlaySession:
                 "acquired_clue_ids": [],
                 "acquired_item_ids": [],
                 "consumed_item_ids": [],
+                "completed_scene_ids": [],
                 "hint_levels": {"puzzle_01": 0},
                 "attempt_counts": {},
                 "flags": {"existing_flag": True},

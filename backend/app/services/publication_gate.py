@@ -18,7 +18,8 @@
 FAIL, 아직 지원하지 않는 조건은 UNVERIFIED다. idmap에 장면 대응이 있으면 장면 ID가 서로 맞아야 한다.
 장면 완료가 필수인 케이스(`SCENE_REQUIRED_CASES` 또는 idmap에 장면 대응이 있는 케이스)인데 `scenes`가 없거나
 비어 있으면 UNVERIFIED다. 장면이 없는 케이스만 NOT_APPLICABLE이다.
-PASS는 "정적으로 검증 가능"이라는 뜻이다. 플레이 중 장면 완료를 판정 · 기록하는 엔진은 아직 없다.
+PASS인 장면은 등록하는 Server 모델에 그대로 실린다. 런타임 모델(`PuzzleRuntimeDefinition.scenes`)은 같은 규칙
+(`app.schemas.scene_condition`)으로 장면을 받고, 플레이 중 완료 판정은 `app.services.scene_progress`가 한다.
 
 [실행 가능] idmap에서 `status="placed"`이고, 물건은 상호작용이 있고 · 퍼즐 · 단서는 로컬 호스트가 있으며,
 나주 로컬 ID 목록이 주어지면 그 목록에 실제로 있을 때만 실행 가능이다(PM v0.4.1).
@@ -190,7 +191,8 @@ def evaluate_publication(
             add("VERSION_ORDER", "PASS")
 
     # 5. Client · Server 스키마 · 교차 참조
-    # `scenes`는 Server Runtime 스키마 밖이다. 떼고 검증한 뒤 clear_when은 따로 검증한다(아래 7-1).
+    # `scenes`는 떼고 검증한 뒤 clear_when은 따로 검증한다(아래 7-1). 장면 오류를 CLIENT_SERVER가 아니라
+    # SCENES의 이유 코드(FAIL · UNVERIFIED 구분)로 보고하기 위해서다.
     # 빈 목록은 장면을 선언하지 않은 것으로 본다(장면 필수 케이스는 그대로 막힌다).
     declares_scenes = documents["server"].get("scenes", []) != []
     try:
@@ -213,6 +215,11 @@ def evaluate_publication(
         if declares_scenes
         else None
     )
+    if scenes is not None and scenes.status == "PASS":
+        # 런타임 모델도 같은 규칙으로 장면을 받는다. 등록 · 이후 검사는 장면을 포함한 모델로 한다.
+        server_model = PuzzleRuntimeDefinition.model_validate(
+            _without(documents["server"], _SCHEMA_HEADER_FIELDS)
+        )
 
     # 6. NPC 콘텐츠(스키마 · 힌트 단계 참조 · 교차 참조 · 정답/원문 보호). 승인 판정은 여기서 하지 않는다.
     npc_body = _without(documents["npc"], _NPC_EXTRA_HEADERS)
@@ -271,7 +278,7 @@ def evaluate_publication(
             ]
             add("LOCAL_IDS", "FAIL" if missing else "PASS", *missing)
 
-    # 7-1. 장면 완료(clear_when) — 지원하는 부분집합만 정적으로 검증한다(판정 엔진은 아직 없다)
+    # 7-1. 장면 완료(clear_when) — 지원하는 부분집합만 정적으로 검증한다
     scene_required = case_id in SCENE_REQUIRED_CASES or bool(
         idmap_model and idmap_model.scenes
     )

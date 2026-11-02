@@ -248,8 +248,11 @@ def test_scene_bundle_with_verifiable_clear_when_is_registered() -> None:
     assert result.approved is True
     assert result.registered is True
     assert store.versions(CASE_ID) == (1,)
-    # 게시 묶음은 기존처럼 Server Runtime 모델을 등록한다(장면은 Runtime 스키마 밖).
-    assert store.get_version(CASE_ID, 1).server().puzzles[0].puzzle_id == "PUZZLE_A"
+    # 등록한 Server Runtime 모델에 장면이 그대로 실려, 고정 세션의 런타임 로더도 장면을 판정한다.
+    pinned = store.get_version(CASE_ID, 1)
+    assert pinned.server().puzzles[0].puzzle_id == "PUZZLE_A"
+    runtime = pinned.runtime_loader()(CASE_ID)
+    assert [s.model_dump() for s in runtime.scenes] == [scene(PUZZLE_A)]
 
 
 def test_naju_case_with_verifiable_clear_when_is_registered_without_idmap() -> None:

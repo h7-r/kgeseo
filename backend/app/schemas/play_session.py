@@ -59,6 +59,9 @@ class PlaySessionState(BaseModel):
     # 과거 state_json에는 이 key가 없을 수 있다.
     consumed_item_ids: list[str] = Field(default_factory=list)
 
+    # 완료한 장면(scene_id) 목록. 늘기만 한다. 과거 state_json에는 이 key가 없을 수 있다.
+    completed_scene_ids: list[str] = Field(default_factory=list)
+
     # 퍼즐별 힌트 열람 단계
     #
     # 예:

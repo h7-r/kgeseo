@@ -1,6 +1,19 @@
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictStr,
+    model_validator,
+)
+
+from app.schemas.scene_condition import (
+    ClearWhenLeaf,
+    assess_scene_list,
+    parse_clear_when,
+)
 
 # 단서 수첩의 아이콘·표시 유형. 정답·선행 조건·상태 판정에는 쓰지 않는다.
 ClueCarrierKind = Literal["letter", "note", "key", "piece", "mark", "deduction"]
@@ -195,6 +208,18 @@ class CaseCompletionDefinition(ServerContentModel):
         return self
 
 
+class SceneDefinition(ServerContentModel):
+    """장면 하나와 완료 조건. 조건 문법 · 참조 검사는 PuzzleRuntimeDefinition이 한꺼번에 한다."""
+
+    scene_id: StrictStr
+    clear_when: dict[str, Any]
+
+    @property
+    def clear_when_leaves(self) -> tuple[ClearWhenLeaf, ...]:
+        # 모델 검증에서 이미 통과한 조건이라 여기서는 실패하지 않는다.
+        return parse_clear_when(self.clear_when)
+
+
 class PuzzleRuntimeDefinition(ServerContentModel):
     schema_version: str
     case_id: str
@@ -204,6 +229,22 @@ class PuzzleRuntimeDefinition(ServerContentModel):
     clues: list[ClueDefinition] = Field(default_factory=list)
     # 없으면 Case 완료를 판정하지 않는다(completed_at을 기록하지 않음).
     case_completion: CaseCompletionDefinition | None = None
+    # 장면 완료 조건. 없으면 장면 완료를 판정하지 않는다. 게시 게이트와 같은 규칙으로 검사해
+    # 게이트가 PASS로 판정하는 장면만 받는다(미지원 조건 · 잘못된 참조는 콘텐츠 오류).
+    scenes: list[SceneDefinition] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_scenes(self) -> "PuzzleRuntimeDefinition":
+        assessment = assess_scene_list(
+            [scene.model_dump() for scene in self.scenes],
+            (puzzle.puzzle_id for puzzle in self.puzzles),
+            settable_flags(self),
+        )
+        if assessment.status != "PASS":
+            raise ValueError(
+                f"scenes {assessment.status}: {', '.join(assessment.reasons)}"
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_unique_puzzle_ids(self) -> "PuzzleRuntimeDefinition":
@@ -318,3 +359,14 @@ class PuzzleRuntimeDefinition(ServerContentModel):
                         f"{owner} references clue '{clue_id}' not defined in clues"
                     )
         return self
+
+
+def settable_flags(server: PuzzleRuntimeDefinition) -> set[tuple[str, bool]]:
+    """어떤 효과의 set_flags가 설정하는 (flag, 값) 쌍. clear_when flag 참조는 이 안에 있어야 한다."""
+
+    effects = [puzzle.on_correct for puzzle in server.puzzles]
+    effects += [combination.on_success for combination in server.clue_combinations]
+    effects += [inspection.on_inspect for inspection in server.inspections]
+    return {
+        (name, value) for effect in effects for name, value in effect.set_flags.items()
+    }

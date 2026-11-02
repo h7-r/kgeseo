@@ -47,6 +47,7 @@ from app.services.object_state import resolve_effective_object_state
 from app.services.pinned_content import ensure_loaders_match_session
 from app.services.play_session import PlaySessionNotFoundError
 from app.services.puzzle_runtime import load_case_runtime, normalize_answer
+from app.services.scene_progress import clear_scenes
 
 RuntimeLoader = Callable[[str], PuzzleRuntimeDefinition]
 ClientContentLoader = Callable[[str], CaseClientContent]
@@ -219,7 +220,10 @@ async def process_interaction(
             )
             attempt_count = None
 
-        # 같은 세션 행 잠금 안에서 판정하므로 완료 기록은 한 번만 일어난다.
+        # 같은 세션 행 잠금 안에서 판정하므로 장면 · Case 완료 기록은 한 번만 일어난다.
+        # 장면은 이번 상호작용을 반영한 최신 상태로 판정하고, 같은 state_json에 함께 저장한다.
+        result_state, scene_changes = clear_scenes(runtime.scenes, result_state)
+        state_changes = [*state_changes, *scene_changes]
         is_case_completed_now = (
             play_session.completed_at is None
             and _meets_case_completion(runtime.case_completion, result_state)

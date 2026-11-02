@@ -163,6 +163,13 @@ class ItemConsumedStateChange(BaseModel):
     item_id: str
 
 
+class SceneClearedStateChange(BaseModel):
+    """장면 완료 조건(clear_when)을 처음 만족한 상호작용에만 싣는다. Case 완료와는 별개다."""
+
+    type: Literal["scene_cleared"]
+    scene_id: str
+
+
 InteractionStateChange = Annotated[
     PuzzleCompletedStateChange
     | ClueAcquiredStateChange
@@ -175,6 +182,7 @@ InteractionStateChange = Annotated[
     | ObjectRevealedStateChange
     | ObjectHiddenStateChange
     | ObjectUnlockedStateChange
+    | SceneClearedStateChange
     | CaseCompletedStateChange,
     Field(discriminator="type"),
 ]
