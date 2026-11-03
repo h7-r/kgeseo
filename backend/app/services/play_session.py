@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from uuid import uuid4
 
@@ -15,9 +15,16 @@ from app.services.case_content import (
     load_case_client_content,
 )
 from app.services.hint_balance import hint_economy_config
-from app.services.pinned_content import ContentCaseMismatchError, PinnedContent
+from app.services.pinned_content import (
+    ContentCaseMismatchError,
+    ContentPin,
+    PinnedContent,
+)
 
 ClientContentLoader = Callable[[str], CaseClientContent]
+# 고정 세션을 새로 만들 때 같은 DB 트랜잭션에서 게시 상태를 확인한다. 허용하지 않으면 PinnedContentError를 던진다.
+# 운영 구현은 `app.services.content_release.require_published_for_new_session`이다.
+PublicationGuard = Callable[[AsyncSession, ContentPin], Awaitable[None]]
 
 
 # Router가 "익명 세션을 찾지 못했다"는 상황을 구분할 수 있도록
@@ -54,6 +61,7 @@ async def create_play_session(
     *,
     client_content_loader: ClientContentLoader | None = None,
     pinned_content: PinnedContent | None = None,
+    publication_guard: PublicationGuard | None = None,
     initial_hint_balance: int | None = None,
 ) -> PlaySession:
     """
@@ -62,6 +70,9 @@ async def create_play_session(
     `pinned_content`(검증을 마친 버전 고정 묶음)를 주면 그 묶음의 Client 콘텐츠로 상태를 만들고,
     같은 행에 `content_version` · `content_fingerprint`를 함께 저장한다(같은 INSERT · 같은 commit).
     주지 않으면 지금처럼 버전 없는(레거시) 세션을 만든다.
+
+    고정 세션은 `publication_guard`가 필수다. INSERT와 같은 트랜잭션에서 게시 상태를 확인하고(공유 잠금을
+    commit까지 유지), 신규 세션을 받지 않는 상태면 아무것도 저장하지 않고 그 예외를 그대로 알린다.
 
     `initial_hint_balance`는 회차 시작 힌트 잔액 N(PM v0.4.8 §4)이다. 주지 않으면 앱 설정
     `HINT_INITIAL_BALANCE`(기본 3)를 쓴다. 처음부터 다시 하면 새 회차라 다시 N으로 시작한다.
@@ -89,6 +100,8 @@ async def create_play_session(
             raise ValueError("pass either client_content_loader or pinned_content")
         if pinned_content.pin.case_id != case_id:
             raise ContentCaseMismatchError(pinned_content.pin.label())
+        if publication_guard is None:
+            raise ValueError("pinned_content requires publication_guard")
 
     # Primary Key인 anonymous_session_id를 이용해
     # anonymous_sessions 테이블에서 해당 세션을 찾는다.
@@ -135,6 +148,13 @@ async def create_play_session(
     except Exception:
         await db.rollback()
         raise
+
+    if pinned_content is not None:
+        try:
+            await publication_guard(db, pinned_content.pin)
+        except BaseException:
+            await db.rollback()
+            raise
 
     # 새 게임을 시작할 때의 초기 진행 상태
     initial_state = {

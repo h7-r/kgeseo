@@ -28,7 +28,7 @@ from app.services.pinned_content import (
     resolve_session_content,
 )
 from app.services.play_session import create_play_session
-from tests.conftest import FakeAsyncSession
+from tests.conftest import FakeAsyncSession, published_guard
 
 # 가상 테스트 데이터. 실제 PM 콘텐츠가 아니다. 이 case_id의 파일은 콘텐츠 폴더에 없다.
 CASE_ID = "case_pin_flow_test"
@@ -161,7 +161,11 @@ async def test_pinned_creation_stores_pin_and_uses_pinned_client(version: int) -
     db = anonymous_db()
 
     session = await create_play_session(
-        db, "anon", CASE_ID, pinned_content=make_bundle(version)
+        db,
+        "anon",
+        CASE_ID,
+        pinned_content=make_bundle(version),
+        publication_guard=published_guard,
     )
 
     assert (session.content_version, session.content_fingerprint) == (
@@ -179,7 +183,13 @@ async def test_pinned_creation_rejects_other_case_before_any_db_work() -> None:
     db = anonymous_db()
 
     with pytest.raises(ContentCaseMismatchError):
-        await create_play_session(db, "anon", "case_001", pinned_content=make_bundle(1))
+        await create_play_session(
+            db,
+            "anon",
+            "case_001",
+            pinned_content=make_bundle(1),
+            publication_guard=published_guard,
+        )
 
     assert db.get_calls == []
     assert db.added == []
@@ -196,6 +206,7 @@ async def test_pinned_creation_rejects_extra_loader() -> None:
             "anon",
             CASE_ID,
             pinned_content=make_bundle(1),
+            publication_guard=published_guard,
             client_content_loader=lambda case_id: make_client(1),
         )
 
@@ -208,7 +219,13 @@ async def test_pinned_creation_commit_failure_rolls_back() -> None:
     db.commit_error = RuntimeError("commit failed")
 
     with pytest.raises(RuntimeError):
-        await create_play_session(db, "anon", CASE_ID, pinned_content=make_bundle(1))
+        await create_play_session(
+            db,
+            "anon",
+            CASE_ID,
+            pinned_content=make_bundle(1),
+            publication_guard=published_guard,
+        )
 
     assert db.commit_count == 1
     assert db.rollback_count == 1

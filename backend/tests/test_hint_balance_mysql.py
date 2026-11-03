@@ -17,6 +17,7 @@ from alembic.operations import Operations
 from sqlalchemy import event, func, select, text
 
 from app.api.v1.hints import get_hint_economy_config
+from app.api.v1.play_sessions import get_new_session_publication_guard
 from app.db.session import get_db
 from app.main import app
 from app.models.anonymous_session import AnonymousSession
@@ -35,6 +36,7 @@ from app.services.pinned_content import (
 )
 from app.services.puzzle_runtime import load_case_runtime
 from app.services.session_content import get_pinned_content_store
+from tests.conftest import published_guard
 from tests.test_npc_suggestion_events_mysql import STATE as AUTO_STATE
 from tests.test_npc_suggestion_events_mysql import STORE as AUTO_STORE
 from tests.test_npc_suggestion_events_mysql import auto_turn, wrong_answers
@@ -91,6 +93,10 @@ class Api:
         app.dependency_overrides[get_db] = override_get_db
         app.dependency_overrides[get_pinned_content_store] = lambda: self.store
         app.dependency_overrides[get_hint_economy_config] = lambda: self.economy
+        # 이 시나리오는 힌트 잔액만 본다. 게시 상태 확인은 test_content_release_mysql이 실제 테이블로 본다.
+        app.dependency_overrides[get_new_session_publication_guard] = lambda: (
+            published_guard
+        )
         self.client = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         )
@@ -98,7 +104,12 @@ class Api:
 
     async def __aexit__(self, *exc):
         await self.client.aclose()
-        for dependency in (get_db, get_pinned_content_store, get_hint_economy_config):
+        for dependency in (
+            get_db,
+            get_pinned_content_store,
+            get_hint_economy_config,
+            get_new_session_publication_guard,
+        ):
             app.dependency_overrides.pop(dependency, None)
 
     async def unlock(self, session_id, level, event_id=None, puzzle="PZ_A"):

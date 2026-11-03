@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     hint_ref_current_key_id: str = ""
     hint_ref_keys: SecretStr = SecretStr("")
 
+    # 게시 콘텐츠 원본 루트(<root>/<case_id>/v<version>/*.json). 비어 있으면 서버 시작 때 게시본을 복구하지 않는다.
+    # 앱은 이 파일을 쓰지 않는다. 게시한 버전의 파일은 바꾸거나 지우지 않아야 한다(바뀌면 fingerprint 불일치로 비활성).
+    published_content_root: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

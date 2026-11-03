@@ -63,7 +63,12 @@ from app.services.npc_content_validation import (
     _located_nudges,
     assess_npc_content,
 )
-from app.services.pinned_content import ContentPin, PinnedContent, PinnedContentStore
+from app.services.pinned_content import (
+    ContentPin,
+    PinnedContent,
+    PinnedContentError,
+    PinnedContentStore,
+)
 from app.services.puzzle_runtime import normalize_answer
 from app.services.scene_validation import assess_scenes
 
@@ -346,6 +351,77 @@ def evaluate_publication(
         )
         registered = True
     return PublicationResult(approved, registered, case_id, version, tuple(checks))
+
+
+class PublishedContentRebuildError(Exception):
+    """게시 기록과 같은 묶음을 다시 만들 수 없다. 이유 코드만 싣는다(내용 · fingerprint 값은 싣지 않는다)."""
+
+
+def rebuild_published_content(
+    *,
+    client: bytes,
+    server: bytes,
+    npc: bytes,
+    idmap: bytes | None,
+    expected: ContentPin,
+) -> PinnedContent:
+    """이미 게시된(DB에 불변 버전으로 등록된) 묶음을 원본 바이트에서 다시 만든다(서버 재시작 · 재조정용).
+
+    다시 계산한 fingerprint가 등록 값과 정확히 같아야 한다. 같은 바이트는 게시 때 게이트를 통과한 그 내용이다.
+    파싱 · 머리 · 스키마 · 장면 규칙은 `evaluate_publication`과 같게 다시 확인한다. 승인 · NG · 로컬 ID 검사는
+    다시 하지 않는다 — 게시 판정은 DB 게시 상태가 기록하며, 게시 뒤 철회는 게시본을 자동으로 내리지 않는다(PM).
+    """
+
+    files = {"client": client, "server": server, "npc": npc}
+    if idmap is not None:
+        files["idmap"] = idmap
+    try:
+        documents = {role: parse_i_json(content) for role, content in files.items()}
+    except FingerprintError as error:
+        raise PublishedContentRebuildError("parse") from error
+    if not all(isinstance(document, dict) for document in documents.values()):
+        raise PublishedContentRebuildError("parse")
+    fingerprint = compute_content_fingerprint(
+        client=client, server=server, npc=npc, idmap=idmap
+    )
+    if fingerprint != expected.content_fingerprint:
+        raise PublishedContentRebuildError("fingerprint")
+    if header_mismatches(
+        documents,
+        case_id=expected.case_id,
+        content_version=expected.content_version,
+        fingerprint=fingerprint,
+    ):
+        raise PublishedContentRebuildError("header")
+    try:
+        client_model = CaseClientContent.model_validate(
+            _without(documents["client"], _SCHEMA_HEADER_FIELDS)
+        )
+        server_model = PuzzleRuntimeDefinition.model_validate(
+            _without(documents["server"], _SCHEMA_HEADER_FIELDS | {"scenes"})
+        )
+        validate_case_content_links(client_model, server_model)
+        if documents["server"].get("scenes", []) != []:
+            scenes = assess_scenes(documents["server"]["scenes"], server_model)
+            if scenes.status != "PASS":
+                raise PublishedContentRebuildError("scenes")
+            server_model = PuzzleRuntimeDefinition.model_validate(
+                _without(documents["server"], _SCHEMA_HEADER_FIELDS)
+            )
+        npc_model = NpcContentPack.model_validate(
+            _without(documents["npc"], _NPC_EXTRA_HEADERS)
+        )
+        return PinnedContent(
+            expected,
+            client=client_model,
+            server=server_model,
+            npc=npc_model,
+            idmap=documents.get("idmap"),
+        )
+    except (ValidationError, CaseContentLinkValidationError) as error:
+        raise PublishedContentRebuildError("schema") from error
+    except PinnedContentError as error:
+        raise PublishedContentRebuildError("bundle") from error
 
 
 def _bundle_hint_source(server: PuzzleRuntimeDefinition) -> HintSource:

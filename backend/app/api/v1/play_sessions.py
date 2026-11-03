@@ -23,6 +23,7 @@ from app.services.case_content import (
 )
 from app.services.case_content_validation import CaseContentLinkValidationError
 from app.services.clue_catalog import get_acquired_clues
+from app.services.content_release import require_published_for_new_session
 from app.services.hint_balance import HintEconomyConfig
 from app.services.pinned_content import (
     ContentCaseMismatchError,
@@ -36,6 +37,7 @@ from app.services.play_session import (
     PlaySessionCaseNotFoundError,
     PlaySessionInvalidCaseIdError,
     PlaySessionNotFoundError,
+    PublicationGuard,
     create_play_session,
     get_play_session,
 )
@@ -62,6 +64,12 @@ router = APIRouter(
 )
 
 
+def get_new_session_publication_guard() -> PublicationGuard:
+    """고정 세션 생성 때 DB 게시 상태를 확인하는 guard(게시 중인 버전만 신규 세션 허용)."""
+
+    return require_published_for_new_session
+
+
 @router.post(
     "",
     # 새로운 PlaySession 리소스를 생성하므로
@@ -79,6 +87,8 @@ async def create_play_session_endpoint(
     content_store: PinnedContentStore = Depends(get_pinned_content_store),
     # 회차 시작 힌트 잔액 N 등 설정값(PM v0.4.8 §4)
     economy: HintEconomyConfig = Depends(get_hint_economy_config),
+    # 고정 세션은 DB 게시 상태가 published인 버전만 새로 만든다(PM v0.4.6)
+    publication_guard: PublicationGuard = Depends(get_new_session_publication_guard),
 ) -> PlaySessionCreateResponse:
     pinned_content = None
     if request.content_version is not None:
@@ -107,6 +117,7 @@ async def create_play_session_endpoint(
             anonymous_session_id=request.anonymous_session_id,
             case_id=request.case_id,
             pinned_content=pinned_content,
+            publication_guard=publication_guard,
             initial_hint_balance=economy.initial_balance,
         )
 
