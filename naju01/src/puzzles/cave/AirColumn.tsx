@@ -4,7 +4,8 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { createRandom } from "@/engine/random";
 
-import { M, makeGlowPoints, pointScaleFor } from "../fishTrap/shared";
+import { makeGlowPoints, pointScaleFor } from "../glowPoints";
+import { M } from "../units";
 import { registerAirColumn, SURFACE_Y } from "./caveState";
 
 interface Props {
@@ -23,14 +24,24 @@ interface Props {
   bubbleScale?: number;
 }
 
-export default function AirColumn({ x, z, floor, radius, on, count = 160, breathable = true, speed = 1, bubbleScale = 1 }: Props) {
+export default function AirColumn({
+  x,
+  z,
+  floor,
+  radius,
+  on,
+  count = 160,
+  breathable = true,
+  speed = 1,
+  bubbleScale = 1,
+}: Props) {
   const { gl, camera } = useThree();
   const onRef = useRef(on);
   useLayoutEffect(() => {
     onRef.current = on;
   }, [on]);
 
-  const built = useMemo(() => {
+  const bubbles = useMemo(() => {
     const random = createRandom(Math.round(x * 131 + z * 17));
     const glow = makeGlowPoints(count, { additive: false, softness: 1.2 });
     const seeds = new Float32Array(count * 3);
@@ -38,7 +49,7 @@ export default function AirColumn({ x, z, floor, radius, on, count = 160, breath
       seeds[i * 3] = random();
       seeds[i * 3 + 1] = random();
       seeds[i * 3 + 2] = random();
-      // 크고 작은 방울을 섞는다 — 잔 방울이 많고 큰 방울은 드물게. 가장 큰 것은 예전 가장 큰 것(0.14 m)보다 조금 더 크다
+      // 잔 방울이 많고 큰 방울은 드물게
       const pick = Math.pow(random(), 2.4);
       glow.size.setX(i, (count < 60 ? 0.016 + pick * 0.07 : 0.018 + pick * 0.152) * bubbleScale);
       glow.color.setXYZ(i, 0.86, 0.96, 0.98);
@@ -48,10 +59,10 @@ export default function AirColumn({ x, z, floor, radius, on, count = 160, breath
   }, [count, x, z, bubbleScale]);
   useEffect(
     () => () => {
-      built.glow.points.geometry.dispose();
-      built.glow.material.dispose();
+      bubbles.glow.points.geometry.dispose();
+      bubbles.glow.material.dispose();
     },
-    [built],
+    [bubbles],
   );
 
   useEffect(() => {
@@ -60,24 +71,24 @@ export default function AirColumn({ x, z, floor, radius, on, count = 160, breath
   }, [x, z, radius, breathable]);
 
   useFrame(() => {
-    const { glow, seeds } = built;
+    const { glow, seeds } = bubbles;
     glow.points.visible = onRef.current;
     if (!glow.points.visible) return;
     const time = performance.now() / 1000;
     glow.material.uniforms.uPointScale.value = pointScaleFor(gl, camera);
     const height = SURFACE_Y - floor;
     for (let i = 0; i < count; i++) {
-      const sx = seeds[i * 3];
-      const sy = seeds[i * 3 + 1];
-      const sz = seeds[i * 3 + 2];
-      const angle = sx * Math.PI * 2 + time * 0.6;
-      const r = radius * 0.75 * Math.sqrt(sz);
-      const y = floor + ((sy * height + time * speed * (1.1 + sz * 0.8)) % height);
+      const seedX = seeds[i * 3];
+      const seedY = seeds[i * 3 + 1];
+      const seedZ = seeds[i * 3 + 2];
+      const angle = seedX * Math.PI * 2 + time * 0.6;
+      const r = radius * 0.75 * Math.sqrt(seedZ);
+      const y = floor + ((seedY * height + time * speed * (1.1 + seedZ * 0.8)) % height);
       glow.position.setXYZ(i, (x + Math.cos(angle) * r) * M, y * M, (z + Math.sin(angle) * r) * M);
       glow.alpha.setX(i, (count < 60 ? 0.55 : 0.8) * (1 - Math.pow((y - floor) / height, 3)));
     }
     glow.commit();
   });
 
-  return <primitive object={built.glow.points} />;
+  return <primitive object={bubbles.glow.points} />;
 }

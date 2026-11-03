@@ -6,11 +6,12 @@
  */
 import { useSyncExternalStore } from "react";
 
+import { smoothstep } from "@/engine/math";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import type { Heading } from "../../plan/sitePlan";
 import { DEFAULT_TERRAIN, type Terrain } from "../../terrain/terrain";
-import { ritual } from "../ritual/ritualState";
+import { ritual, useRitualStage } from "../ritual/ritualState";
 
 /** 갈라진 물 사이 강바닥 길 — 물가(44.5)에서 강 밑(−6 m)까지 내려간다 */
 export const CORRIDOR = { x: 45, halfWidth: 2.2, zStart: 44.5, zEnd: 58, depth: 6 };
@@ -19,8 +20,7 @@ export const MERGE_Z = 56;
 /** 물굴 큰 방 · 고리문 구멍 · 석실 */
 export const HALL = { x: [36, 54] as const, z: [58, 74] as const };
 export const DOOR = { x: 45, z: 74, halfWidth: 1.45 };
-/** 고리문이 앉는 돌벽의 x 범위 — 물레·석판까지 품는다 */
-/** 고리문 뒷벽 — 오른쪽은 큰 방 끝까지(굴러간 바퀴가 벽 밖 맨 물에 드러나지 않게) */
+/** 고리문 뒷벽의 x 범위 — 왼쪽은 물레·석판까지, 오른쪽은 큰 방 끝까지(굴러간 바퀴가 벽 밖 맨 물에 드러나지 않게) */
 export const DOOR_WALL_X = [38, 54.5] as const;
 export const PASSAGE = { z: [74, 76] as const };
 /** 석실 — 들어서서 상자까지 거리감이 있게 길다 */
@@ -35,7 +35,7 @@ export const LEGEND_SPOTS = {
   /** 발자국 두 줄 — 나룻배에서 고리문 쪽으로(가운데 자리) */
   prints: { x: 41.4, z: 71.0 },
 };
-/** ③ 물고기 굴 — 큰 방 동쪽 벽 밑 바위 굴 넷의 가운데(FishBurrows) */
+/** 물고기 굴 — 큰 방 동쪽 벽 밑 바위 굴 넷의 가운데(FishBurrows) */
 export const FISH_BURROWS = { x: 52.6, z: 69.4 };
 export const FLOOR_Y = -CORRIDOR.depth;
 /** 고리문 앞 낮은 돌계단 둘 — 문에서 좀 떨어져 시작하고, 올라서면 문까지 평평한 단(landing) */
@@ -55,16 +55,13 @@ export const SURFACE_Y = 0.7;
 export const UNDERWATER_SPEED = 0.52;
 
 /** 숨(초) */
-export const BREATH_SECONDS = 60;
+export const BREATH_SECONDS = 70;
 /** 공기 기둥 안에서 숨이 차는 빠르기(초/초) */
 const BREATH_REFILL = 28;
 
 const bankY = DEFAULT_TERRAIN.groundAt(CORRIDOR.x, CORRIDOR.zStart - 0.2).y;
 
-const smooth = (t: number) => {
-  const k = Math.min(1, Math.max(0, t));
-  return k * k * (3 - 2 * k);
-};
+const smooth = (t: number) => smoothstep(Math.min(1, Math.max(0, t)));
 
 /** 강바닥 길이 다 내려가는 z — 물가에서 바로 내려가기 시작해 여기서 바닥(−6 m)에 닿는다 */
 const RAMP_END_Z = CORRIDOR.zStart + 8.5;
@@ -95,9 +92,18 @@ export const setDoorOpen = (open: boolean) => {
 
 type GroundSample = ReturnType<Terrain["groundAt"]>;
 
+/** 물이 갈라진 뒤 강가로 돌아오기 전까지 — 물굴 안 모든 것이 이때만 보이고 막힌다 */
+export const isCaveShown = () => ritual.isAtLeast("parted") && ritual.stage() !== "cleared";
+
+/** 컴포넌트용 — 기우제 단계가 바뀔 때 다시 그린다 */
+export function useCaveShown() {
+  useRitualStage();
+  return isCaveShown();
+}
+
 export const cave = {
   /** 물이 갈라져 있는 동안만 바닥·벽을 바꿔 끼운다 */
-  isOpen: () => ritual.isAtLeast("parted") && ritual.stage() !== "cleared",
+  isOpen: isCaveShown,
   isDoorOpen: () => isDoorOpen,
   /** 물굴 자리인가 — 코어 밖(z 50 너머)으로 나가도 되는 곳 */
   contains: (x: number, z: number) => z >= CORRIDOR.zStart && z <= INNER.z[1] + 0.5 && Math.abs(x - CORRIDOR.x) <= 11,
@@ -108,18 +114,19 @@ export const cave = {
   /** 막히는 곳 이름 — 물벽 · 동굴 벽 · 고리문 · 석실 벽 · 소품. 안 막히면 null */
   blockedAt(x: number, z: number, radius: number): string | null {
     if (z < CORRIDOR.zStart) return null;
-    for (const o of obstacles) {
-      const d = Math.hypot(o.x - x, o.z - z);
-      if (d >= o.radius + radius) continue;
+    for (const obstacle of obstacles) {
+      const distance = Math.hypot(obstacle.x - x, obstacle.z - z);
+      if (distance >= obstacle.radius + radius) continue;
       // 물속 점프로 발이 꼭대기를 넘으면 지나간다
-      if (playerFoot.y > o.top - 0.05) continue;
+      if (playerFoot.y > obstacle.top - 0.05) continue;
       // 이미 안에 들어와 있으면(위에서 내려앉은 경우) 바깥쪽으로는 빠져나갈 수 있다
-      if (d >= Math.hypot(o.x - playerFoot.x, o.z - playerFoot.z) - 1e-4) continue;
-      return o.name;
+      if (distance >= Math.hypot(obstacle.x - playerFoot.x, obstacle.z - playerFoot.z) - 1e-4) continue;
+      return obstacle.name;
     }
     if (z < CORRIDOR.zEnd) return Math.abs(x - CORRIDOR.x) + radius > CORRIDOR.halfWidth ? "물벽" : null;
     // 닫힌 바퀴는 벽보다 앞으로 나와 있다 — 바퀴 앞면에서 막는다
-    if (!isDoorOpen && z >= DOOR.z - WHEEL_DEPTH - radius && Math.abs(x - DOOR.x) < WHEEL_RADIUS + radius) return "고리문";
+    if (!isDoorOpen && z >= DOOR.z - WHEEL_DEPTH - radius && Math.abs(x - DOOR.x) < WHEEL_RADIUS + radius)
+      return "고리문";
     if (z < DOOR.z - radius) return x - radius < HALL.x[0] || x + radius > HALL.x[1] ? "동굴 벽" : null;
     const inDoorway = Math.abs(x - DOOR.x) + radius <= DOOR.halfWidth;
     if (z < PASSAGE.z[1]) return isDoorOpen && inDoorway ? null : "고리문";
@@ -215,7 +222,8 @@ export function registerAirColumn(column: AirColumn) {
     if (index >= 0) airColumns.splice(index, 1);
   };
 }
-export const isInAir = (x: number, z: number) => airColumns.some((c) => c.isOn() && Math.hypot(c.x - x, c.z - z) <= c.radius);
+export const isInAir = (x: number, z: number) =>
+  airColumns.some((c) => c.isOn() && Math.hypot(c.x - x, c.z - z) <= c.radius);
 
 /** 마지막으로 숨을 쉰 자리 — 숨이 다하면 여기로 돌아간다 */
 let lastAirSpot = { x: CORRIDOR.x, z: MERGE_Z - 2.5 };

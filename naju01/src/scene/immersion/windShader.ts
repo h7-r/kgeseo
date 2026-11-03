@@ -55,7 +55,7 @@ mvPosition = modelViewMatrix * mvPosition;
 gl_Position = projectionMatrix * mvPosition;
 `;
 
-// 풀·덤불 — 예전 그대로
+// 풀·덤불 — 통째로 흔들린다
 const PLANT_GLSL = /* glsl */ `
 {
   float wgS = 0.03 * wgH + 0.25 * min( wgH, 2.0 );

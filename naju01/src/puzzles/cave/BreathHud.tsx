@@ -1,8 +1,10 @@
 /**
- * 숨 게이지 — 물속에서만 왼쪽 아래에 뜬다. 15초 아래면 뛰고, 화면 가장자리가 뿌옇고 붉게 숨 막히듯 조여 온다(5초 아래면 흔들림은 물굴 쪽).
+ * 숨 게이지 — 물속에서만 왼쪽 아래에 뜬다. 15초 아래면 뛰고, 화면 가장자리가 뿌옇고 붉게 숨 막히듯 조여 온다(5초 아래의 흔들림은 CaveWorld).
  * 먹물을 뒤집어쓰면 화면 여기저기에 먹 얼룩이 튀었다가 번지며 걷힌다. 숨이 다하면 화면이 까매졌다 걷힌다
  */
 import { useMemo, type CSSProperties } from "react";
+
+import { createRandom } from "@/engine/random";
 
 import { BREATH_SECONDS, useBreath } from "./caveState";
 
@@ -31,7 +33,11 @@ export default function BreathHud() {
       {isUnderwater && isLow && (
         <div
           className="naju-suffocate"
-          style={{ ...suffocateStyle, opacity: 0.35 + 0.65 * (1 - breath / LOW_SECONDS), animationDuration: `${0.5 + (breath / LOW_SECONDS) * 0.7}s` }}
+          style={{
+            ...suffocateStyle,
+            opacity: 0.35 + 0.65 * (1 - breath / LOW_SECONDS),
+            animationDuration: `${0.5 + (breath / LOW_SECONDS) * 0.7}s`,
+          }}
         />
       )}
       {isUnderwater && inkHits > 0 && <InkSplat key={inkHits} seed={inkHits} />}
@@ -45,41 +51,56 @@ export default function BreathHud() {
 /** 먹 얼룩 — 화면 여기저기에 크고 작은 먹이 튀었다가 번지며 걷힌다(2.6초). 자리는 맞은 차례로 정한다 */
 function InkSplat({ seed }: { seed: number }) {
   const blots = useMemo(() => {
-    let state = seed * 9301 + 49297;
-    const rand = () => {
-      state = (state * 16807) % 2147483647;
-      return state / 2147483647;
-    };
+    const random = createRandom(seed * 9301 + 49297);
     return Array.from({ length: 9 }, () => {
-      const size = 90 + rand() * 260;
+      const size = 90 + random() * 260;
       // 먹 방울 — 둥근 몸통에 삐친 물방울 몇
       const lobes = Array.from({ length: 6 }, (_, k) => {
-        const a = (k / 6) * Math.PI * 2 + rand();
-        const r = 0.28 + rand() * 0.16;
-        return { cx: 50 + Math.cos(a) * r * 50, cy: 50 + Math.sin(a) * r * 50, r: 8 + rand() * 12 };
+        const a = (k / 6) * Math.PI * 2 + random();
+        const r = 0.28 + random() * 0.16;
+        return { cx: 50 + Math.cos(a) * r * 50, cy: 50 + Math.sin(a) * r * 50, r: 8 + random() * 12 };
       });
       const drops = Array.from({ length: 4 }, () => {
-        const a = rand() * Math.PI * 2;
-        const r = 0.62 + rand() * 0.3;
-        return { cx: 50 + Math.cos(a) * r * 50, cy: 50 + Math.sin(a) * r * 50, r: 2 + rand() * 4 };
+        const a = random() * Math.PI * 2;
+        const r = 0.62 + random() * 0.3;
+        return { cx: 50 + Math.cos(a) * r * 50, cy: 50 + Math.sin(a) * r * 50, r: 2 + random() * 4 };
       });
-      return { left: rand() * 92, top: rand() * 86, size, rotate: rand() * 360, delay: rand() * 0.25, lobes, drops };
+      return {
+        left: random() * 92,
+        top: random() * 86,
+        size,
+        rotate: random() * 360,
+        delay: random() * 0.25,
+        lobes,
+        drops,
+      };
     });
   }, [seed]);
   return (
     <div style={inkLayerStyle}>
-      {blots.map((b, i) => (
+      {blots.map((blot, i) => (
         <svg
           key={i}
           viewBox="0 0 100 100"
-          style={{ position: "absolute", left: `${b.left}%`, top: `${b.top}%`, width: b.size, height: b.size, marginLeft: -b.size / 2, marginTop: -b.size / 2, transform: `rotate(${b.rotate}deg)`, opacity: 0, animation: `najuInk 2.6s ${b.delay}s ease-out forwards` }}
+          style={{
+            position: "absolute",
+            left: `${blot.left}%`,
+            top: `${blot.top}%`,
+            width: blot.size,
+            height: blot.size,
+            marginLeft: -blot.size / 2,
+            marginTop: -blot.size / 2,
+            transform: `rotate(${blot.rotate}deg)`,
+            opacity: 0,
+            animation: `najuInk 2.6s ${blot.delay}s ease-out forwards`,
+          }}
         >
           <circle cx={50} cy={50} r={26} fill="#07080A" />
-          {b.lobes.map((l, k) => (
-            <circle key={k} cx={l.cx} cy={l.cy} r={l.r} fill="#07080A" />
+          {blot.lobes.map((lobe, k) => (
+            <circle key={k} cx={lobe.cx} cy={lobe.cy} r={lobe.r} fill="#07080A" />
           ))}
-          {b.drops.map((d, k) => (
-            <circle key={`d${k}`} cx={d.cx} cy={d.cy} r={d.r} fill="#07080A" />
+          {blot.drops.map((drop, k) => (
+            <circle key={`d${k}`} cx={drop.cx} cy={drop.cy} r={drop.r} fill="#07080A" />
           ))}
         </svg>
       ))}
@@ -121,7 +142,11 @@ const fillStyle: CSSProperties = {
   transition: "width .15s linear, background .3s",
 };
 
-const secondsStyle: CSSProperties = { minWidth: 22, textAlign: "right", font: "600 12px/1 ui-monospace, Menlo, monospace" };
+const secondsStyle: CSSProperties = {
+  minWidth: 22,
+  textAlign: "right",
+  font: "600 12px/1 ui-monospace, Menlo, monospace",
+};
 
 const suffocateStyle: CSSProperties = {
   position: "absolute",
@@ -129,11 +154,18 @@ const suffocateStyle: CSSProperties = {
   zIndex: 27,
   pointerEvents: "none",
   // 가운데가 뚫린 고리 없이 화면 전체가 고르게 — 살짝 붉고 흐릿하게, 가장자리로 갈수록 아주 조금만 짙게
-  background: "radial-gradient(ellipse 140% 140% at center, rgba(150,44,36,.16) 0%, rgba(128,32,26,.24) 70%, rgba(90,18,14,.34) 100%)",
+  background:
+    "radial-gradient(ellipse 140% 140% at center, rgba(150,44,36,.16) 0%, rgba(128,32,26,.24) 70%, rgba(90,18,14,.34) 100%)",
   backdropFilter: "blur(2.4px) saturate(.7)",
 };
 
-const inkLayerStyle: CSSProperties = { position: "absolute", inset: 0, zIndex: 28, pointerEvents: "none", overflow: "hidden" };
+const inkLayerStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 28,
+  pointerEvents: "none",
+  overflow: "hidden",
+};
 
 const blackoutStyle: CSSProperties = {
   position: "absolute",

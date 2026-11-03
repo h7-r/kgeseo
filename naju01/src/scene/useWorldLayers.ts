@@ -4,7 +4,7 @@ import * as THREE from "three";
 import type { PresentedControls } from "../app/presentation";
 import type { Spot } from "../placement/instanceGroups";
 import { CORE, NPC, RIVER, UNITS_PER_METER } from "../plan/sitePlan";
-import { isInFishTrapLane } from "../puzzles/fishTrap/shared";
+import { isInFishTrapLane } from "../puzzles/fishTrap/site";
 import { buildConnectorRamp } from "../terrain/connectorRamp";
 import { createNoise } from "../terrain/ground";
 import { buildFields, buildForestVillages, buildMountainRidges } from "../world/distantLandscape";
@@ -300,7 +300,7 @@ export function useRiver(controls: PresentedControls, terrain: Terrain) {
         seed: 40551,
         // Z1·Z2 가 물가까지 내려와 있다 — 통로 위에는 놓지 않는다
         canPlace: (x, zz) => !terrain.groundAt(x, zz).path,
-        // 통발을 굴려 넣는 물길 — 돌이 통발과 겹친다(10/22)
+        // 통발을 굴려 넣는 물길은 비운다 — 돌이 통발과 겹친다
         isCleared: isInFishTrapLane,
       }),
       // 택촌 뒤 16 m. 강폭이나 택촌이 옮겨 가도 따라온다.

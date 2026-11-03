@@ -1,14 +1,12 @@
 /**
- * 강 밑 바닥 꾸밈 — 모래 바닥(물결 자국·물빛 일렁임), 갈라진 물벽, 머리 위 수면, 조개껍데기, 빛줄기, 미르 모형(바위·자갈·풀) 깔기.
+ * 강 밑 바닥 꾸밈 — 모래 바닥(물결 자국·물빛 일렁임), 갈라진 물벽, 머리 위 수면, 조개껍데기, 빛줄기, 구운 모형(바위·자갈·풀) 깔기.
  * 모양과 재질만 만든다. 자리 판정은 caveState, 연출은 CaveWorld 가 한다. 길이는 미터.
  */
 import * as THREE from "three";
 
-import { TOON_GRADIENT } from "@/engine/toon";
+import { makeToonMaterial } from "../materials";
+import { M } from "../units";
 
-import { M } from "../fishTrap/shared";
-
-/** 셰이더 공통 — 로그 깊이 버퍼 · 안개 */
 const NOISE_GLSL = /* glsl */ `
   float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
   float noise(vec2 p) {
@@ -17,6 +15,7 @@ const NOISE_GLSL = /* glsl */ `
   }
 `;
 
+// 로그 깊이 버퍼 · 안개를 받는 공통 꼭짓점 셰이더
 const WORLD_VERTEX = /* glsl */ `
   varying vec3 vWorld;
   varying vec3 vNormal;
@@ -129,7 +128,11 @@ const CEILING_FRAGMENT = /* glsl */ `
   }
 `;
 
-const shaderMaterial = (fragmentShader: string, uniforms: Record<string, THREE.IUniform>, options: Partial<THREE.ShaderMaterialParameters> = {}) =>
+const makeWorldShaderMaterial = (
+  fragmentShader: string,
+  uniforms: Record<string, THREE.IUniform>,
+  options: Partial<THREE.ShaderMaterialParameters> = {},
+) =>
   new THREE.ShaderMaterial({
     vertexShader: WORLD_VERTEX,
     fragmentShader,
@@ -139,7 +142,7 @@ const shaderMaterial = (fragmentShader: string, uniforms: Record<string, THREE.I
   });
 
 export const makeSandMaterial = () =>
-  shaderMaterial(SAND_FRAGMENT, {
+  makeWorldShaderMaterial(SAND_FRAGMENT, {
     uTime: { value: 0 },
     uM: { value: M },
     uCaustic: { value: 0 },
@@ -149,7 +152,7 @@ export const makeSandMaterial = () =>
   });
 
 export const makeCurtainMaterial = (bottom: number, top: number) =>
-  shaderMaterial(
+  makeWorldShaderMaterial(
     CURTAIN_FRAGMENT,
     {
       uTime: { value: 0 },
@@ -164,7 +167,7 @@ export const makeCurtainMaterial = (bottom: number, top: number) =>
   );
 
 export const makeCeilingMaterial = () =>
-  shaderMaterial(
+  makeWorldShaderMaterial(
     CEILING_FRAGMENT,
     {
       uTime: { value: 0 },
@@ -178,7 +181,7 @@ export const makeCeilingMaterial = () =>
 
 /** 풀 모형을 물풀로 — 색을 청록으로 물들이고, 꼭대기일수록 크게 흔들린다 */
 export function makeSeaweedMaterial(time: THREE.IUniform<number>) {
-  const material = new THREE.MeshToonMaterial({ color: "#5F8F80", vertexColors: true, gradientMap: TOON_GRADIENT, side: THREE.DoubleSide });
+  const material = makeToonMaterial("#5F8F80", { vertexColors: true, side: THREE.DoubleSide });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = time;
     shader.vertexShader = shader.vertexShader
@@ -254,7 +257,12 @@ export function buildShellGeometry(rings = 12, rays = 22) {
       // 골마루는 밝게, 골짜기는 어둡게. 가는 성장선 · 뒤꼭지(부리) 쪽은 짙게
       const growth = Math.pow(0.5 + 0.5 * Math.sin(t * 34), 4);
       const umbo = 1 - THREE.MathUtils.smoothstep(t, 0.05, 0.3);
-      const shade = 0.9 + 0.14 * rib * THREE.MathUtils.smoothstep(t, 0.15, 0.5) - growth * 0.1 - umbo * 0.22 + 0.06 * THREE.MathUtils.smoothstep(t, 0.75, 1);
+      const shade =
+        0.9 +
+        0.14 * rib * THREE.MathUtils.smoothstep(t, 0.15, 0.5) -
+        growth * 0.1 -
+        umbo * 0.22 +
+        0.06 * THREE.MathUtils.smoothstep(t, 0.75, 1);
       colors.push(shade, shade * 0.98, shade * 0.94);
     }
   }
@@ -279,8 +287,8 @@ export function makeShaftTexture() {
   const canvas = document.createElement("canvas");
   canvas.width = 64;
   canvas.height = 128;
-  const context = canvas.getContext("2d")!;
-  const image = context.createImageData(64, 128);
+  const g = canvas.getContext("2d")!;
+  const image = g.createImageData(64, 128);
   for (let y = 0; y < 128; y++) {
     for (let x = 0; x < 64; x++) {
       const u = Math.abs(x / 63 - 0.5) * 2;
@@ -291,7 +299,7 @@ export function makeShaftTexture() {
       image.data[k + 3] = Math.round(a * 255);
     }
   }
-  context.putImageData(image, 0, 0);
+  g.putImageData(image, 0, 0);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
@@ -332,16 +340,20 @@ export function buildInstances(prototypes: THREE.BufferGeometry[], placements: P
   const quaternion = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
   return prototypes.map((geometry, variant) => {
-    const mine = placements.filter((p) => p.variant % prototypes.length === variant);
+    const mine = placements.filter((placement) => placement.variant % prototypes.length === variant);
     const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, mine.length));
     mesh.count = mine.length;
     geometry.computeBoundingBox();
     const height = geometry.boundingBox!.max.y;
-    mine.forEach((p, i) => {
-      const squash = p.squash ?? 1;
-      const sink = (p.sink ?? 0) * height * p.size * squash;
-      quaternion.setFromAxisAngle(up, p.yaw);
-      matrix.compose(new THREE.Vector3(p.x, p.y - sink, p.z), quaternion, new THREE.Vector3(p.size, p.size * squash, p.size));
+    mine.forEach((placement, i) => {
+      const squash = placement.squash ?? 1;
+      const sink = (placement.sink ?? 0) * height * placement.size * squash;
+      quaternion.setFromAxisAngle(up, placement.yaw);
+      matrix.compose(
+        new THREE.Vector3(placement.x, placement.y - sink, placement.z),
+        quaternion,
+        new THREE.Vector3(placement.size, placement.size * squash, placement.size),
+      );
       mesh.setMatrixAt(i, matrix);
     });
     mesh.instanceMatrix.needsUpdate = true;

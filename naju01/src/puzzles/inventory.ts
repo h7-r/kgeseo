@@ -2,7 +2,7 @@
  * 소지품 — 퍼즐에서 얻은 물건을 넣고 뺀다. [I] 로 연다.
  * 물건은 셋 중 한 곳에 있다: 소지품 칸, 손(꺼내 든 것), 땅 위(놓인 것 · 손에서 내려놓은 것).
  * 손에 든 것은 [E] 로 내려놓는다 — 겨눈 곳이 받아 주면(제상 등) 거기, 아니면 발 앞 땅에. 땅 위 것은 [E] 로 줍는다.
- * 계약서 v0.3.1 에는 아이템이 없다 — 데모용 앞단 상태다.
+ * 서버 계약에는 아직 아이템이 없어 앞단에서만 들고 있는 상태다.
  */
 import { useSyncExternalStore } from "react";
 import * as THREE from "three";
@@ -10,9 +10,20 @@ import * as THREE from "three";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 
-import { M, groundY } from "./fishTrap/shared";
+import { M, groundY } from "./units";
 
-export type ItemKind = "lightFish" | "rice" | "makgeolli" | "floatStone" | "gearStone" | "pearl" | "bigPearl" | "scale" | "letterBox" | "bronzeKey" | "strawShoe";
+export type ItemKind =
+  | "lightFish"
+  | "rice"
+  | "makgeolli"
+  | "floatStone"
+  | "gearStone"
+  | "pearl"
+  | "bigPearl"
+  | "scale"
+  | "letterBox"
+  | "bronzeKey"
+  | "strawShoe";
 
 export interface ItemDef {
   name: string;
@@ -26,22 +37,42 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
   },
   rice: { name: "쌀", description: "장독대 큰 항아리에 들어 있던 쌀 한 자루. 제물로 올릴 수 있다." },
   floatStone: { name: "뜬 돌", description: "물이 차오르자 떠오른 돌. 구멍이 숭숭해 가볍다." },
-  makgeolli: { name: "막걸리", description: "안쪽 배에 남아 있던 흰 술병. 입구가 꼭 막혀 막걸리가 그대로 들어 있다. 제물로 올릴 수 있다." },
-  gearStone: { name: "톱니돌", description: "테두리에 톱니가 난 납작한 돌. 강 밑 큰 방에서 찾았다. 고리문 옆 홈에 꼭 맞을 크기다." },
-  pearl: { name: "진주", description: "강 밑에서 물고기 떼를 돌 고리 안으로 몰아넣자 모래에서 떠오른 진주. 은은히 빛난다. 어디에 쓰는지는 아직 모른다." },
-  bigPearl: { name: "큰 진주", description: "큰 조개 속에서 빛을 받아 드러난 주먹만 한 진주. 손안에서도 은은히 빛난다. 어디에 쓰는지는 아직 모른다." },
-  scale: { name: "푸른 비늘", description: "강 밑 석실 제단에 놓여 있던 비늘 한 장. 손바닥만 하고 얼음처럼 차다. 어디에 쓰는지는 아직 모른다." },
+  makgeolli: {
+    name: "막걸리",
+    description: "안쪽 배에 남아 있던 흰 술병. 입구가 꼭 막혀 막걸리가 그대로 들어 있다. 제물로 올릴 수 있다.",
+  },
+  gearStone: {
+    name: "톱니돌",
+    description: "테두리에 톱니가 난 납작한 돌. 강 밑 큰 방에서 찾았다. 고리문 옆 홈에 꼭 맞을 크기다.",
+  },
+  pearl: {
+    name: "진주",
+    description:
+      "강 밑에서 물고기 떼를 돌 고리 안으로 몰아넣자 모래에서 떠오른 진주. 은은히 빛난다. 어디에 쓰는지는 아직 모른다.",
+  },
+  bigPearl: {
+    name: "큰 진주",
+    description:
+      "큰 조개 속에서 빛을 받아 드러난 주먹만 한 진주. 손안에서도 은은히 빛난다. 어디에 쓰는지는 아직 모른다.",
+  },
+  scale: {
+    name: "푸른 비늘",
+    description: "강 밑 석실 제단에 놓여 있던 비늘 한 장. 손바닥만 하고 얼음처럼 차다. 어디에 쓰는지는 아직 모른다.",
+  },
   strawShoe: {
     name: "짚신 한 짝",
-    description: "검은 줄 통발에 걸려 올라온 큰 짚신 한 짝. 물에 불어 무겁다. 신코 안쪽에 물고기 하나가 새겨져 있다 — 어부가 제 신에 새기던 표시. 주인은 끝내 신으러 오지 않았다.",
+    description:
+      "검은 줄 통발에 걸려 올라온 큰 짚신 한 짝. 물에 불어 무겁다. 신코 안쪽에 물고기 하나가 새겨져 있다 — 어부가 제 신에 새기던 표시. 주인은 끝내 신으러 오지 않았다.",
   },
   letterBox: {
     name: "아랑사의 함",
-    description: "물살에 떠밀려 나올 때 손에 쥐여 있던 옻칠한 나무 함. 젖지 않았다. 청동 자물통이 채워져 있어 열쇠가 있어야 열린다. 흔들면 접힌 종이가 바스락거린다.",
+    description:
+      "물살에 떠밀려 나올 때 손에 쥐여 있던 옻칠한 나무 함. 젖지 않았다. 청동 자물통이 채워져 있어 열쇠가 있어야 열린다. 흔들면 안에서 무언가 달그락거린다.",
   },
   bronzeKey: {
     name: "청동 열쇠",
-    description: "증언 능선의 돌새가 물고 있던 청동 열쇠. 대가 길고 끝이 꺾였다 — 아랑사의 함에 채워진 자물통 구멍에 꼭 맞을 것 같다.",
+    description:
+      "증언 능선의 돌새가 물고 있던 청동 열쇠. 대가 길고 끝이 꺾였다 — 아랑사의 함에 채워진 자물통 구멍에 꼭 맞을 것 같다.",
   },
 };
 
@@ -138,6 +169,12 @@ export const inventory = {
     if (!hand) return;
     world = [...world, { ...hand, position: spotInFront() }];
     hand = null;
+    signal.notify();
+  },
+
+  /** 땅에 놓인 것을 다른 모양으로 바꿔 그릴 때 — 소지품을 거치지 않고 없앤다 */
+  removeFromWorld(uid: number) {
+    world = world.filter((item) => item.uid !== uid);
     signal.notify();
   },
 

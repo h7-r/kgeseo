@@ -1,5 +1,6 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
+import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
 import { ITEMS, SLOT_COUNT, inventory, useHandItem, useHeldItems } from "./inventory";
 import { ITEM_ICONS } from "./itemIcons";
 
@@ -22,12 +23,15 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const selected = items[selectedIndex] ?? null;
 
-  const takeOut = (index: number) => {
-    const item = items[index];
-    if (!item) return;
-    inventory.takeOut(item.uid);
-    onClose();
-  };
+  const takeOut = useCallback(
+    (index: number) => {
+      const item = items[index];
+      if (!item) return;
+      inventory.takeOut(item.uid);
+      onClose();
+    },
+    [items, onClose],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -48,7 +52,7 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
     };
     window.addEventListener("keydown", handleKeyDown, { capture: true });
     return () => window.removeEventListener("keydown", handleKeyDown, { capture: true });
-  });
+  }, [takeOut, selectedIndex]);
 
   return (
     <div style={backdropStyle} onClick={onClose}>
@@ -70,7 +74,11 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
                   type="button"
                   onClick={() => setSelectedIndex(index)}
                   onDoubleClick={() => takeOut(index)}
-                  style={{ ...slotStyle, ...(item ? null : emptySlotStyle), ...(isSelected ? selectedSlotStyle : null) }}
+                  style={{
+                    ...slotStyle,
+                    ...(item ? null : emptySlotStyle),
+                    ...(isSelected ? selectedSlotStyle : null),
+                  }}
                   title={item ? ITEMS[item.kind].name : undefined}
                 >
                   <span style={slotKeyStyle}>{index + 1}</span>
@@ -111,10 +119,6 @@ function Key({ children }: { children: string }) {
   return <span style={keyCapStyle}>{children}</span>;
 }
 
-const FONT = '"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif';
-const CREAM = "#F2EEE4";
-const AMBER = "#F2C89A";
-
 const backdropStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
@@ -145,7 +149,7 @@ const headerStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = { font: `700 17px/1 ${FONT}`, letterSpacing: "0.04em" };
 
-const countStyle: CSSProperties = { font: "600 12px/1 ui-monospace, Menlo, monospace", color: "rgba(242,238,228,.45)" };
+const countStyle: CSSProperties = { font: `600 12px/1 ${KEY_FONT}`, color: "rgba(242,238,228,.45)" };
 
 const bodyStyle: CSSProperties = { display: "flex", gap: 22, padding: 22, flexWrap: "wrap" };
 
@@ -182,7 +186,7 @@ const slotKeyStyle: CSSProperties = {
   position: "absolute",
   top: 6,
   left: 8,
-  font: "700 10px/1 ui-monospace, Menlo, monospace",
+  font: `700 10px/1 ${KEY_FONT}`,
   color: "rgba(242,238,228,.35)",
 };
 
@@ -211,7 +215,12 @@ const showcaseIconStyle: CSSProperties = { display: "grid", placeItems: "center"
 
 const nameStyle: CSSProperties = { font: `700 16px/1.3 ${FONT}`, color: CREAM };
 
-const descriptionStyle: CSSProperties = { margin: "6px 0 16px", color: "rgba(242,238,228,.72)", font: `500 13px/1.6 ${FONT}`, flex: 1 };
+const descriptionStyle: CSSProperties = {
+  margin: "6px 0 16px",
+  color: "rgba(242,238,228,.72)",
+  font: `500 13px/1.6 ${FONT}`,
+  flex: 1,
+};
 
 const emptyTextStyle: CSSProperties = { margin: "auto", color: "rgba(242,238,228,.45)" };
 
@@ -223,7 +232,7 @@ const actionStyle: CSSProperties = {
   borderRadius: 999,
   border: "none",
   background: AMBER,
-  color: "#2A2018",
+  color: KEY_INK,
   font: `700 13px/1 ${FONT}`,
   cursor: "pointer",
   boxShadow: "0 6px 18px rgba(242,200,154,.25)",
@@ -233,7 +242,7 @@ const actionKeyStyle: CSSProperties = {
   padding: "2px 6px",
   borderRadius: 5,
   background: "rgba(42,32,24,.14)",
-  font: "700 10px/1 ui-monospace, Menlo, monospace",
+  font: `700 10px/1 ${KEY_FONT}`,
 };
 
 const footerStyle: CSSProperties = {
@@ -256,5 +265,5 @@ const keyCapStyle: CSSProperties = {
   borderRadius: 5,
   boxShadow: "inset 0 0 0 1px rgba(242,238,228,.25), inset 0 -2px 0 rgba(242,238,228,.08)",
   color: CREAM,
-  font: "700 10px/1 ui-monospace, Menlo, monospace",
+  font: `700 10px/1 ${KEY_FONT}`,
 };

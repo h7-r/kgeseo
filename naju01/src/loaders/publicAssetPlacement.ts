@@ -276,9 +276,9 @@ interface Candidate {
   distance: number;
 }
 
-// ── 땅에 앉히기 (10/31) ── 비탈에 선 나무·덤불·자갈이 내리막 쪽으로 떠 보이던 것.
+// ── 땅에 앉히기 ── 비탈에 선 나무·덤불·자갈은 밑동 가운데만 땅에 닿아 내리막 쪽이 뜬다.
 //   묶음 밑동(가장 낮은 3 % 꼭짓점)의 가운데와 둘레 넷에서 땅을 재어, 가장 낮은 땅보다 밑동이 높으면 그만큼 내린다.
-//   올리지는 않는다 — 일부러 묻어 둔 것을 들어 올리지 않게. 원본·edits.json 은 그대로이고 그리는 교체본만 내린다.
+//   올리지는 않는다 — 일부러 묻어 둔 것을 들어 올리지 않게. 원본·손 배치는 그대로이고 그리는 교체본만 내린다.
 export type GroundAt = (x: number, z: number) => { y: number } | null | undefined;
 
 /** 땅에 앉히는 무리(이름의 마지막 마디) — 바위처럼 일부러 겹쳐 쌓은 것은 뺀다 */
@@ -300,30 +300,31 @@ function bundleBase(bundle: Bundle): BundleBase {
   let minY = Infinity;
   let maxY = -Infinity;
   for (const { geometry } of parts) {
-    const P = geometry.attributes.position;
-    for (let i = 0; i < P.count; i++) {
-      minY = Math.min(minY, P.getY(i));
-      maxY = Math.max(maxY, P.getY(i));
+    const position = geometry.attributes.position;
+    for (let i = 0; i < position.count; i++) {
+      minY = Math.min(minY, position.getY(i));
+      maxY = Math.max(maxY, position.getY(i));
     }
   }
   const limit = minY + (maxY - minY) * 0.03;
   const center = new THREE.Vector3();
   let count = 0;
   for (const { geometry } of parts) {
-    const P = geometry.attributes.position;
-    for (let i = 0; i < P.count; i++)
-      if (P.getY(i) <= limit) {
-        center.x += P.getX(i);
-        center.z += P.getZ(i);
+    const position = geometry.attributes.position;
+    for (let i = 0; i < position.count; i++)
+      if (position.getY(i) <= limit) {
+        center.x += position.getX(i);
+        center.z += position.getZ(i);
         count++;
       }
   }
   center.set(center.x / Math.max(1, count), minY, center.z / Math.max(1, count));
   let radius = 0;
   for (const { geometry } of parts) {
-    const P = geometry.attributes.position;
-    for (let i = 0; i < P.count; i++)
-      if (P.getY(i) <= limit) radius = Math.max(radius, Math.hypot(P.getX(i) - center.x, P.getZ(i) - center.z));
+    const position = geometry.attributes.position;
+    for (let i = 0; i < position.count; i++)
+      if (position.getY(i) <= limit)
+        radius = Math.max(radius, Math.hypot(position.getX(i) - center.x, position.getZ(i) - center.z));
   }
   const base = { center, radius };
   bundleBases.set(bundle, base);
@@ -343,8 +344,8 @@ export function settleOnGround(
   const base = new THREE.Vector3();
   const scale = new THREE.Vector3();
   const parentInverse = parentWorld.clone().invert();
-  for (const M of matrices) {
-    world.multiplyMatrices(parentWorld, M);
+  for (const matrix of matrices) {
+    world.multiplyMatrices(parentWorld, matrix);
     base.copy(center).applyMatrix4(world);
     scale.setFromMatrixScale(world);
     // 둘레는 밑동 반경까지, 다만 줄기 굵기(0.6 m)를 넘지 않게 — 큰 덤불은 가장자리 땅까지 볼 필요가 없다
@@ -352,40 +353,46 @@ export function settleOnGround(
     const x = base.x / U;
     const z = base.z / U;
     let lowest = Infinity;
-    for (const [dx, dz] of [[0, 0], [ring, 0], [-ring, 0], [0, ring], [0, -ring]]) {
-      const g = groundAt(x + dx, z + dz);
-      if (g && Number.isFinite(g.y)) lowest = Math.min(lowest, g.y);
+    for (const [dx, dz] of [
+      [0, 0],
+      [ring, 0],
+      [-ring, 0],
+      [0, ring],
+      [0, -ring],
+    ]) {
+      const ground = groundAt(x + dx, z + dz);
+      if (ground && Number.isFinite(ground.y)) lowest = Math.min(lowest, ground.y);
     }
     if (!Number.isFinite(lowest)) continue;
     const drop = base.y / U - (lowest - sink);
     if (drop <= 0.01 || drop > 6) continue;
     world.premultiply(new THREE.Matrix4().makeTranslation(0, -drop * U, 0));
-    M.multiplyMatrices(parentInverse, world);
+    matrix.multiplyMatrices(parentInverse, world);
   }
 }
 
 /** 교체되지 않고 남은 원본 무리(회색 모형 길가돌·발치너덜 등)도 앉힌다. 새로 담긴 배열마다 한 번 */
 const originalBundles = new WeakMap<THREE.BufferGeometry, Bundle>();
-export function settleOriginal(o: THREE.InstancedMesh, groundAt: GroundAt) {
-  const groupId = (o.userData.groupId as string | undefined) ?? o.name;
+export function settleOriginal(mesh: THREE.InstancedMesh, groundAt: GroundAt) {
+  const groupId = (mesh.userData.groupId as string | undefined) ?? mesh.name;
   if (!shouldSettle(groupId)) return;
-  const key = (o.userData.ids as object | undefined) ?? o.instanceMatrix.array;
-  if (o.userData.settledFor === key) return;
-  o.userData.settledFor = key;
-  let bundle = originalBundles.get(o.geometry);
+  const key = (mesh.userData.ids as object | undefined) ?? mesh.instanceMatrix.array;
+  if (mesh.userData.settledFor === key) return;
+  mesh.userData.settledFor = key;
+  let bundle = originalBundles.get(mesh.geometry);
   if (!bundle) {
-    bundle = [{ geometry: o.geometry, material: o.material as THREE.Material }];
-    originalBundles.set(o.geometry, bundle);
+    bundle = [{ geometry: mesh.geometry, material: mesh.material as THREE.Material }];
+    originalBundles.set(mesh.geometry, bundle);
   }
-  o.updateMatrixWorld(true);
-  const matrices = Array.from({ length: o.count }, (_, i) => {
-    const m = new THREE.Matrix4();
-    o.getMatrixAt(i, m);
-    return m;
+  mesh.updateMatrixWorld(true);
+  const matrices = Array.from({ length: mesh.count }, (_, i) => {
+    const matrix = new THREE.Matrix4();
+    mesh.getMatrixAt(i, matrix);
+    return matrix;
   });
-  settleOnGround(bundle, matrices, o.matrixWorld, groundAt);
-  matrices.forEach((m, i) => o.setMatrixAt(i, m));
-  o.instanceMatrix.needsUpdate = true;
+  settleOnGround(bundle, matrices, mesh.matrixWorld, groundAt);
+  matrices.forEach((matrix, i) => mesh.setMatrixAt(i, matrix));
+  mesh.instanceMatrix.needsUpdate = true;
 }
 
 // ── 바꿔치기 ──
@@ -785,14 +792,27 @@ export function buildPlace(
     for (const { geometry } of far) geometry.translate(-fcenter.x, -fbox.min.y, -fcenter.z);
     const ratio = (size.y || 1) / (fsize.y || 1); // 원경판 키를 근경판 키에 맞춘다
     const farMatrices = matrices.map((M) => M.clone().multiply(new THREE.Matrix4().makeScale(ratio, ratio, ratio)));
-    const farMeshes = buildInstancedMeshes(parent, far, farMatrices, item.무리 ? `놓기·${item.무리}·원경` : "놓기·원경");
+    const farMeshes = buildInstancedMeshes(
+      parent,
+      far,
+      farMatrices,
+      item.무리 ? `놓기·${item.무리}·원경` : "놓기·원경",
+    );
     for (const m of farMeshes) {
       m.userData.placeSpots = Int32Array.from(spotIds);
       m.userData.placeEdit = placeEdit;
       if (item.항목?.length) m.userData.trialItems = item.항목;
     }
     for (const m of [...meshes, ...farMeshes]) m.userData.lodPaired = true;
-    lodPairs.push({ nearMeshes: meshes.slice(), farMeshes, nearMatrices: matrices, farMatrices, positions: matrices.map((M) => new THREE.Vector3().setFromMatrixPosition(M).applyMatrix4(parent.matrixWorld)), idTable: Int32Array.from(spotIds), placeSpots: true });
+    lodPairs.push({
+      nearMeshes: meshes.slice(),
+      farMeshes,
+      nearMatrices: matrices,
+      farMatrices,
+      positions: matrices.map((M) => new THREE.Vector3().setFromMatrixPosition(M).applyMatrix4(parent.matrixWorld)),
+      idTable: Int32Array.from(spotIds),
+      placeSpots: true,
+    });
     meshes.push(...farMeshes);
     farTriangles = triangleCount(far) * matrices.length;
   }

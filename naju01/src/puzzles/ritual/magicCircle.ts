@@ -7,7 +7,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { M, groundY } from "../fishTrap/shared";
+import { M, groundY } from "../units";
 
 /** 마법진 가운데 = 소반(씬5 소반 자리, 미터) */
 export const CIRCLE_CENTER = { x: 45.0, z: 37.0 };
@@ -87,7 +87,12 @@ export const INNER_HANJA = "雨 風 雲 雷 水 龍 天 地 ";
 
 /** 바깥 · 안쪽 한자 띠(미터) — 겹원 사이에 들어간다 */
 export const HANJA_BANDS = [
-  { text: OUTER_HANJA, inner: CIRCLE_RADIUS + 0.19, outer: CIRCLE_RADIUS + 0.47, reveal: [0.12, 0.32] as [number, number] },
+  {
+    text: OUTER_HANJA,
+    inner: CIRCLE_RADIUS + 0.19,
+    outer: CIRCLE_RADIUS + 0.47,
+    reveal: [0.12, 0.32] as [number, number],
+  },
   { text: INNER_HANJA, inner: 0.88, outer: 1.03, reveal: [0.58, 0.7] as [number, number] },
 ];
 
@@ -97,13 +102,13 @@ export function makeHanjaTexture(text: string) {
   const canvas = document.createElement("canvas");
   canvas.width = cell * text.length;
   canvas.height = cell;
-  const context = canvas.getContext("2d")!;
-  context.fillStyle = "#ffffff";
-  context.textAlign = "center";
-  context.textBaseline = "middle";
+  const g = canvas.getContext("2d")!;
+  g.fillStyle = "#ffffff";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
   // 명조 계열 — 붓글씨 같은 획이 마법진에 어울린다. 없으면 시스템 명조 · 세리프로
-  context.font = `600 ${cell * 0.78}px "AppleMyungjo","Nanum Myeongjo","Noto Serif KR","Noto Serif CJK KR","Songti SC",serif`;
-  [...text].forEach((char, i) => context.fillText(char, cell * (i + 0.5), cell * 0.54));
+  g.font = `600 ${cell * 0.78}px "AppleMyungjo","Nanum Myeongjo","Noto Serif KR","Noto Serif CJK KR","Songti SC",serif`;
+  [...text].forEach((char, i) => g.fillText(char, cell * (i + 0.5), cell * 0.54));
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
@@ -151,44 +156,44 @@ export function buildHanjaBand(inner: number, outer: number, characters: number,
 /** 마법진 본선 — 돌탑이 다 맞은 뒤 바깥에서 안으로 차례대로 그려진다 */
 export function buildCircleLines() {
   const { x: cx, z: cz } = CIRCLE_CENTER;
-  const R = CIRCLE_RADIUS;
+  const radius = CIRCLE_RADIUS;
   const node = (k: number): Point => [NODES[k % 6].x, NODES[k % 6].z];
   const angleOf = (k: number) => FIRST_ANGLE + (k * Math.PI) / 3;
-  const ring = (radius: number, reveal: [number, number], x = cx, z = cz, steps = 96) =>
-    ribbon(arc(x, z, radius, 0, Math.PI * 2, steps), reveal);
+  const ring = (r: number, reveal: [number, number], x = cx, z = cz, steps = 96) =>
+    ribbon(arc(x, z, r, 0, Math.PI * 2, steps), reveal);
   const parts: THREE.BufferGeometry[] = [];
 
-  // ① 돌탑에서 돌탑으로 — 바깥 원이 여섯 갈래로 동시에 이어지고, 홈마다 곁원이 둘린다
-  for (let k = 0; k < 6; k++) parts.push(ribbon(arc(cx, cz, R, angleOf(k), angleOf(k + 1), 24), [0, 0.18]));
+  // 돌탑에서 돌탑으로 — 바깥 원이 여섯 갈래로 동시에 이어지고, 홈마다 곁원이 둘린다
+  for (let k = 0; k < 6; k++) parts.push(ribbon(arc(cx, cz, radius, angleOf(k), angleOf(k + 1), 24), [0, 0.18]));
   for (let k = 0; k < 6; k++) parts.push(ring(0.55, [0.02, 0.16], NODES[k].x, NODES[k].z, 40));
-  // ② 바깥 겹원 둘 — 사이에 한자 띠(buildHanjaBand)가 들어간다
-  parts.push(ring(R + 0.16, [0.06, 0.24], cx, cz, 160));
-  parts.push(ring(R + 0.5, [0.1, 0.3], cx, cz, 180));
-  // ③ 홈 사이 곁원 — 바깥 원 위, 홈과 홈 가운데에 작은 겹원
+  // 바깥 겹원 둘 — 사이에 한자 띠(buildHanjaBand)가 들어간다
+  parts.push(ring(radius + 0.16, [0.06, 0.24], cx, cz, 160));
+  parts.push(ring(radius + 0.5, [0.1, 0.3], cx, cz, 180));
+  // 홈 사이 곁원 — 바깥 원 위, 홈과 홈 가운데에 작은 겹원
   for (let k = 0; k < 6; k++) {
     const angle = angleOf(k) + Math.PI / 6;
-    const x = cx + Math.sin(angle) * R;
-    const z = cz + Math.cos(angle) * R;
+    const x = cx + Math.sin(angle) * radius;
+    const z = cz + Math.cos(angle) * radius;
     parts.push(ring(0.26, [0.18, 0.3], x, z, 32), ring(0.14, [0.22, 0.32], x, z, 24));
   }
-  // ④ 육망성 — 삼각형 둘
+  // 육망성 — 삼각형 둘
   for (let k = 0; k < 6; k++) parts.push(ribbon(segment(node(k), node(k + 2)), [0.3, 0.48]));
-  // ⑤ 안쪽 육각 — 육망성 두 삼각형이 엇갈리는 점을 잇는다(반지름 R/√3, 홈 사이 각)
-  const innerR = R / Math.sqrt(3);
+  // 안쪽 육각 — 육망성 두 삼각형이 엇갈리는 점을 잇는다(반지름 R/√3, 홈 사이 각)
+  const innerRadius = radius / Math.sqrt(3);
   const inner = (k: number): Point => {
     const angle = angleOf(k) + Math.PI / 6;
-    return [cx + Math.sin(angle) * innerR, cz + Math.cos(angle) * innerR];
+    return [cx + Math.sin(angle) * innerRadius, cz + Math.cos(angle) * innerRadius];
   };
   for (let k = 0; k < 6; k++) parts.push(ribbon(segment(inner(k), inner(k + 1), 12), [0.46, 0.56]));
   for (let k = 0; k < 6; k++) parts.push(ring(0.1, [0.54, 0.6], inner(k)[0], inner(k)[1], 20));
-  // ⑥ 안쪽 겹원 — 사이에 한자 띠
+  // 안쪽 겹원 — 사이에 한자 띠
   parts.push(ring(1.05, [0.52, 0.64]), ring(0.86, [0.56, 0.66]));
-  // ⑦ 소반 둘레 — 겹원
+  // 소반 둘레 겹원
   parts.push(ring(0.55, [0.66, 0.76], cx, cz, 60), ring(0.42, [0.7, 0.78], cx, cz, 50));
-  // ⑧ 마지막 — 돌탑마다 소반으로 살이 뻗는다
+  // 마지막 — 돌탑마다 소반으로 살이 뻗는다
   for (let k = 0; k < 6; k++) {
     const angle = angleOf(k);
-    const from: Point = [cx + Math.sin(angle) * (R - 0.55), cz + Math.cos(angle) * (R - 0.55)];
+    const from: Point = [cx + Math.sin(angle) * (radius - 0.55), cz + Math.cos(angle) * (radius - 0.55)];
     parts.push(ribbon(segment(from, [cx + Math.sin(angle) * 0.55, cz + Math.cos(angle) * 0.55]), [0.76, 0.92]));
   }
   const merged = mergeGeometries(parts, false)!;
@@ -196,7 +201,6 @@ export function buildCircleLines() {
   return merged;
 }
 
-/** 홈 하나 — 돌탑이 설 둥근 테와 바깥 눈금(notches 개) */
 /**
  * 돌탑 자리 표시 — 동그라미 대신 네 귀퉁이에 꺾쇠를 새겨 자리를 잡고, 그 바깥(원 바깥쪽)에 「바를 정(正)」 획으로 돌 수를 센다.
  * 다섯이 차면 正 한 자, 남은 수는 다음 자의 획. 돌탑을 세워도 가려지지 않게 바깥으로 뺐다.
@@ -220,7 +224,13 @@ export function buildNodeMark(k: number) {
     [1, 1],
     [-1, 1],
   ]) {
-    parts.push(ribbon([at(ca * half, cb * half - cb * arm), at(ca * half, cb * half), at(ca * half - ca * arm, cb * half)], [0, 1], 0.035));
+    parts.push(
+      ribbon(
+        [at(ca * half, cb * half - cb * arm), at(ca * half, cb * half), at(ca * half - ca * arm, cb * half)],
+        [0, 1],
+        0.035,
+      ),
+    );
   }
   // 正 획 — 한 자의 다섯 획: 윗가로 · 가운데 세로 · 가운데 짧은 가로 · 왼 세로 · 아랫가로. 글자 크기 0.22, 자리 바깥 0.62 에
   const size = 0.22;
@@ -232,14 +242,20 @@ export function buildNodeMark(k: number) {
     [-0.55, -0.5, 0.55, -0.5],
   ];
   const chars = Math.ceil(notches / 5);
-  for (let c = 0; c < chars; c++) {
-    const count = Math.min(5, notches - c * 5);
-    const center = (c - (chars - 1) / 2) * size * 1.4;
+  for (let charIndex = 0; charIndex < chars; charIndex++) {
+    const count = Math.min(5, notches - charIndex * 5);
+    const center = (charIndex - (chars - 1) / 2) * size * 1.4;
     for (let n = 0; n < count; n++) {
       const [a0, b0, a1, b1] = strokes[n];
       // 글자 위쪽이 원 가운데를 향하게 — 바깥에서 다가오며 보면 바로 읽힌다(오른쪽 = −옆)
       const base = half + 0.26 + size / 2;
-      parts.push(ribbon(segment(at(-(center + a0 * size), base - b0 * size), at(-(center + a1 * size), base - b1 * size), 3), [0, 1], 0.035));
+      parts.push(
+        ribbon(
+          segment(at(-(center + a0 * size), base - b0 * size), at(-(center + a1 * size), base - b1 * size), 3),
+          [0, 1],
+          0.035,
+        ),
+      );
     }
   }
   const merged = mergeGeometries(parts, false)!;
@@ -247,7 +263,7 @@ export function buildNodeMark(k: number) {
   return merged;
 }
 
-/** 연한 빛 — 흰빛에 아주 옅은 물빛. 짙은 파랑은 쓰지 않는다 */
+/** 연한 빛 — 흰빛에 아주 옅은 물빛 */
 export const GLOW_COLOR = new THREE.Color("#EEF6F2");
 /** 새겨진 홈 — 처음부터 보이는 것은 돌탑 자리(홈)뿐이다 */
 export const CARVED_COLOR = new THREE.Color("#3C4044");

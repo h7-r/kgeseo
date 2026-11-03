@@ -71,7 +71,7 @@ export function gateBlockedAt(x: number, z: number): boolean {
 }
 
 exposeDevHook("najuGates", {
-  list: () => GATES.map((g) => ({ name: g.name, open: g.isOpen() })),
+  list: () => GATES.map((gate) => ({ name: gate.name, open: gate.isOpen() })),
   openAll: () => {
     isForcedOpen = true;
   },

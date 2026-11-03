@@ -188,7 +188,11 @@ export function buildWaterJarPrototypes(count = 3, seed = 5204): THREE.BufferGeo
 }
 
 /** 매끈한 공을 늘이고 눌러 만든 조각 — 오리 몸·머리·부리처럼 둥근 덩어리 */
-function buildRound(radius: [number, number, number], at: [number, number, number], shape?: (v: THREE.Vector3) => void) {
+function buildRound(
+  radius: [number, number, number],
+  at: [number, number, number],
+  shape?: (v: THREE.Vector3) => void,
+) {
   const geometry = new THREE.SphereGeometry(1, 18, 12);
   if (shape) {
     const position = geometry.attributes.position as THREE.BufferAttribute;
@@ -204,14 +208,14 @@ function buildRound(radius: [number, number, number], at: [number, number, numbe
   return prepareForMerge(geometry);
 }
 
-/**
- * 솟대 오리 — 통나무를 깎아 만든 새. 가슴은 도톰하고 꽁지는 위로 들리며, 목이 앞으로 굽어 머리가 멀리를 본다.
- * 칠하지 않은 나무 빛이다(검게 칠하면 멀리서 까마귀로 읽힌다). headTurn 은 고개를 살짝 돌린 정도(라디안).
- */
 /** 솟대 장대 끝(표본 높이 1 기준) · 오리를 키운 배율 — 증언 능선 돌새(puzzles/ridge)도 같은 오리를 쓴다 */
 export const POLE_TOP = 0.9;
 export const DUCK_SCALE = 1.45;
 
+/**
+ * 솟대 오리 — 통나무를 깎아 만든 새. 가슴은 도톰하고 꽁지는 위로 들리며, 목이 앞으로 굽어 머리가 멀리를 본다.
+ * 칠하지 않은 나무 빛이다(검게 칠하면 멀리서 까마귀로 읽힌다). headTurn 은 고개를 살짝 돌린 정도(라디안).
+ */
 export function buildCarvedDuck(headTurn: number): THREE.BufferGeometry[] {
   const pieces: THREE.BufferGeometry[] = [];
   const bodyY = 0.948;
@@ -243,10 +247,7 @@ export function buildCarvedDuck(headTurn: number): THREE.BufferGeometry[] {
   // 머리·부리·눈 — 목 끝을 축으로 고개만 돌린다
   const headAt = new THREE.Vector3(0, bodyY + 0.094, 0.082);
   const atHead = (geometry: THREE.BufferGeometry) =>
-    geometry
-      .translate(-headAt.x, -headAt.y, -headAt.z)
-      .applyMatrix4(turn)
-      .translate(headAt.x, headAt.y, headAt.z);
+    geometry.translate(-headAt.x, -headAt.y, -headAt.z).applyMatrix4(turn).translate(headAt.x, headAt.y, headAt.z);
   pieces.push(applyColor(atHead(buildRound([0.026, 0.027, 0.033], [0, headAt.y, headAt.z])), SCENE2_STYLE.carvedWood));
   // 오리 부리 — 넓적하고 끝이 둥글다
   const bill = buildRound([0.015, 0.0065, 0.03], [0, headAt.y - 0.008, headAt.z + 0.042], (v) => {
@@ -262,7 +263,8 @@ export function buildCarvedDuck(headTurn: number): THREE.BufferGeometry[] {
   peg.translate(0, bodyY - 0.035, -0.005);
   pieces.push(applyColor(peg, SCENE2_STYLE.wood));
   // 장대 끝을 축으로 키운다 — 3 m 장대 아래에서 올려다봐도 오리로 읽히는 크기
-  for (const piece of pieces) piece.translate(0, -POLE_TOP, 0).scale(DUCK_SCALE, DUCK_SCALE, DUCK_SCALE).translate(0, POLE_TOP, 0);
+  for (const piece of pieces)
+    piece.translate(0, -POLE_TOP, 0).scale(DUCK_SCALE, DUCK_SCALE, DUCK_SCALE).translate(0, POLE_TOP, 0);
   return pieces;
 }
 

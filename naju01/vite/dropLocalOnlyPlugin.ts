@@ -1,6 +1,6 @@
 /**
  * 배포본에서 빼는 폴더 — AI허브 「한국적 일상 3D」(public/_aihub_local, 이용 범위 답변 전 로컬 미리보기 전용, 약 360MB)는
- * 개발 기계에만 있고 배포 빌드엔 넣지 않는다(11/2 미르). vite 는 public/ 을 통째로 복사하므로 빌드가 끝난 뒤 산출물에서 지운다.
+ * 개발 기계에만 있고 배포 빌드엔 넣지 않는다. vite 는 public/ 을 통째로 복사하므로 빌드가 끝난 뒤 산출물에서 지운다.
  */
 import { existsSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";

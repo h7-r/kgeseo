@@ -1,5 +1,5 @@
 /**
- * 종이 읽기 — 궤 속 낡은 종이를 손에 들고 읽는 화면(Canvas 밖 DOM). 어두운 바탕 위에 종이가 크게 뜨고,
+ * 종이 읽기 — 궤 속 낡은 종이를 손에 들고 읽는 화면(Canvas 밖 DOM). 왼쪽 가장자리에 작게 떠서 가운데 장면을 가리지 않고,
  * [E] · [Esc] 로 내려놓는다. 열려 있는 동안 [E] 는 여기서 받아 다른 것에 안 닿는다
  */
 import { useEffect, useMemo, type CSSProperties } from "react";
@@ -32,7 +32,8 @@ export default function PaperReadHud() {
     <div style={backdropStyle}>
       <img src={src} alt="궤 속 낡은 종이" style={paperStyle} draggable={false} />
       <div style={hintStyle}>
-        <span style={keyStyle}>H</span> 힌트함에 넣기 <span style={{ opacity: 0.5 }}>·</span> <span style={keyStyle}>E</span> 내려놓기
+        <span style={keyStyle}>H</span> 힌트함에 넣기 <span style={{ opacity: 0.5 }}>·</span>{" "}
+        <span style={keyStyle}>E</span> 내려놓기
       </div>
     </div>
   );
@@ -44,15 +45,20 @@ const backdropStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
   zIndex: 30,
-  display: "grid",
-  placeItems: "center",
-  background: "radial-gradient(ellipse at center, rgba(20,16,12,.72) 0%, rgba(6,5,4,.92) 100%)",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-start",
+  justifyContent: "center",
+  gap: 14,
+  padding: "0 0 0 3vw",
+  // 왼쪽 띠만 어둡다 — 오른쪽 장면은 그대로 보인다
+  background: "linear-gradient(90deg, rgba(6,5,4,.78) 0%, rgba(6,5,4,.55) 26%, rgba(6,5,4,0) 44%)",
   pointerEvents: "none",
 };
 
 const paperStyle: CSSProperties = {
-  width: "min(44vw, 640px)",
-  maxHeight: "60vh",
+  width: "min(26vw, 380px)",
+  maxHeight: "48vh",
   objectFit: "contain",
   transform: "rotate(-1.2deg)",
   boxShadow: "0 30px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(242,238,228,.08)",
@@ -60,8 +66,7 @@ const paperStyle: CSSProperties = {
 };
 
 const hintStyle: CSSProperties = {
-  position: "absolute",
-  bottom: 36,
+  marginLeft: 6,
   color: "rgba(242,238,228,.78)",
   font: `600 13px/1 ${FONT}`,
   display: "flex",

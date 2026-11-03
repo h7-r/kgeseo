@@ -81,6 +81,8 @@ export const ridgeCarry: {
   putDown: { x: number; z: number } | null;
 } = { load: "none", putDown: null };
 
+export type RidgeQuestKey = "chestOnAltar" | "postsSolved" | "stairs" | "birdsFacing" | "scaleSet";
+
 /** 장막 안 퍼즐 진행 — 앞으로만 간다. calm 은 바람이 잦아든 정도(0~1, 장막 그림이 매 프레임 따라 적는다) */
 const questSignal = createChangeSignal();
 let questVersion = 0;
@@ -92,7 +94,7 @@ export const ridgeQuest = {
   scaleSet: false,
   calm: 0,
   subscribe: questSignal.subscribe,
-  set(key: "chestOnAltar" | "postsSolved" | "stairs" | "birdsFacing" | "scaleSet") {
+  set(key: RidgeQuestKey) {
     if (ridgeQuest[key]) return;
     ridgeQuest[key] = true;
     questVersion++;
@@ -107,7 +109,7 @@ export const ridgeDev: { solve: (() => void) | null } = { solve: null };
 exposeDevHook("najuRidge", {
   stage: ridge.stage,
   quest: () => ({ ...ridgeQuest }),
-  setQuest: (key: Parameters<typeof ridgeQuest.set>[0]) => ridgeQuest.set(key),
+  setQuest: (key: RidgeQuestKey) => ridgeQuest.set(key),
   seal: () => ridge.advance("sealing"),
   solve: () => ridgeDev.solve?.(),
   reset: ridge.reset,

@@ -9,7 +9,7 @@ import { createChangeSignal } from "@/lib/changeSignal";
 export interface PanelRow {
   label: string;
   value: string;
-  /** 맞춘 줄은 청록으로 */
+  /** 맞춘 줄은 호박색으로 */
   ok?: boolean;
 }
 
@@ -28,7 +28,8 @@ let current: PuzzlePanel | null = null;
 
 function refresh() {
   let best: PuzzlePanel | null = null;
-  for (const panel of panels.values()) if (!best || (panel.distance ?? Infinity) <= (best.distance ?? Infinity)) best = panel;
+  for (const panel of panels.values())
+    if (!best || (panel.distance ?? Infinity) <= (best.distance ?? Infinity)) best = panel;
   current = best;
   signal.notify();
 }
@@ -55,7 +56,10 @@ function isSamePanel(a: PuzzlePanel, b: PuzzlePanel) {
   if (Math.round((a.distance ?? 0) * 2) !== Math.round((b.distance ?? 0) * 2)) return false;
   const ra = a.rows ?? [];
   const rb = b.rows ?? [];
-  return ra.length === rb.length && ra.every((row, i) => row.label === rb[i].label && row.value === rb[i].value && row.ok === rb[i].ok);
+  return (
+    ra.length === rb.length &&
+    ra.every((row, i) => row.label === rb[i].label && row.value === rb[i].value && row.ok === rb[i].ok)
+  );
 }
 
 export const usePuzzlePanel = () => useSyncExternalStore(signal.subscribe, () => current);

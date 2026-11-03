@@ -1,8 +1,9 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 
-import { GAUGE_HITS, GAUGE_ZONE, gaugeCursor, stopGauge, useGauge } from "./pullGauge";
+import { GAUGE_HITS, gaugeCursor, stopGauge, useGauge } from "./pullGauge";
 
-// 반원 게이지 — 낚시 릴처럼 위로 휜 반투명 띠. 크림빛 막대가 띠를 따라 오가고 가운데 호박빛 칸에서 [E](소지품 · 안내판과 같은 빛깔)
+// 반원 게이지 — 낚시 릴처럼 위로 휜 반투명 띠. 크림빛 막대가 띠를 따라 오가고 호박빛 칸에서 [E](소지품 · 안내판과 같은 빛깔)
+// 칸은 판마다 좁아지고 옮겨 간다(pullGauge)
 const WIDTH = 380;
 const HEIGHT = 150;
 const CENTER_X = WIDTH / 2;
@@ -20,18 +21,19 @@ const pointAt = (t: number, radius = RADIUS) => ({
 });
 
 function arcPath(from: number, to: number) {
-  const a = pointAt(from);
-  const b = pointAt(to);
+  const start = pointAt(from);
+  const end = pointAt(to);
   const large = (to - from) * ARC_DEGREES > 180 ? 1 : 0;
-  return `M ${a.x} ${a.y} A ${RADIUS} ${RADIUS} 0 ${large} 1 ${b.x} ${b.y}`;
+  return `M ${start.x} ${start.y} A ${RADIUS} ${RADIUS} 0 ${large} 1 ${end.x} ${end.y}`;
 }
 
 const BAND_PATH = arcPath(0, 1);
-const ZONE_PATH = arcPath(0.5 - GAUGE_ZONE / 2, 0.5 + GAUGE_ZONE / 2);
+/** 판마다 한 줄 — 칸이 바뀌는 것을 알려 준다 */
+const ROUND_NOTES = ["막대가 호박빛 칸에 들어오면", "칸이 좁아졌다 — 더 정확히", "칸이 옆으로 옮겨 갔다 — 더 빨리"];
 
 function markerTransform(t: number) {
-  const p = pointAt(t);
-  return `translate(${p.x} ${p.y}) rotate(${START_DEGREES + t * ARC_DEGREES + 90})`;
+  const point = pointAt(t);
+  return `translate(${point.x} ${point.y}) rotate(${START_DEGREES + t * ARC_DEGREES + 90})`;
 }
 
 /** 줄 당기기 게이지 — 화면 가운데 아래. 막대 자리는 매 프레임 직접 옮긴다(다시 그리지 않게) */
@@ -57,6 +59,7 @@ export default function PullGaugeHud() {
 
   if (!gauge.active) return null;
   const isHit = gauge.flash === "hit";
+  const zonePath = arcPath(gauge.center - gauge.zone / 2, gauge.center + gauge.zone / 2);
   return (
     <div style={wrapStyle}>
       <svg
@@ -78,15 +81,24 @@ export default function PullGaugeHud() {
         <path d={BAND_PATH} stroke="rgba(242,238,228,.45)" strokeWidth={BAND + 4} fill="none" strokeLinecap="butt" />
         <path d={BAND_PATH} stroke="rgba(16,20,26,.66)" strokeWidth={BAND} fill="none" strokeLinecap="butt" />
         {/* 목표 칸 */}
-        <path d={ZONE_PATH} stroke="url(#naju-gauge-zone)" strokeWidth={BAND - 6} fill="none" />
+        <path d={zonePath} stroke="url(#naju-gauge-zone)" strokeWidth={BAND - 6} fill="none" />
         {/* 크림빛 막대 */}
         <g ref={markerRef} transform={markerTransform(0)}>
-          <rect x={-6} y={-BAND / 2 - 6} width={12} height={BAND + 12} rx={6} fill="#F2EEE4" stroke="#2A2018" strokeWidth={1.5} />
+          <rect
+            x={-6}
+            y={-BAND / 2 - 6}
+            width={12}
+            height={BAND + 12}
+            rx={6}
+            fill="#F2EEE4"
+            stroke="#2A2018"
+            strokeWidth={1.5}
+          />
         </g>
       </svg>
       <div style={labelStyle}>
         <span style={keyStyle}>E</span>
-        {gauge.label} — 막대가 가운데 칸에 들어오면
+        {gauge.label} — {ROUND_NOTES[Math.min(gauge.hits, ROUND_NOTES.length - 1)]}
       </div>
       <div style={dotsStyle}>
         {Array.from({ length: GAUGE_HITS }, (_, i) => (

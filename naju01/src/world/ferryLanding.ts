@@ -192,8 +192,8 @@ export function buildFerryBoatPrototype(): THREE.BufferGeometry {
 }
 
 /**
- * 모형에서 몸통과 떨어져 몸통 끝 밖으로 삐져나간 조각을 뺀다 — 원본 모형(미르)의 고물 뒤에 따로 붙은 작은 판이 해변에 놓으면
- * 허공에 뜬 돌처럼 보였다(11/1). 모형 파일은 그대로 두고 그릴 때만 거른다. 꼭짓점 색 등 다른 속성은 같이 따라간다
+ * 모형에서 몸통과 떨어져 몸통 끝 밖으로 삐져나간 조각을 뺀다 — 고물 뒤에 따로 붙은 작은 판이 해변에 놓으면
+ * 허공에 뜬 돌처럼 보인다. 모형 파일은 그대로 두고 그릴 때만 거른다. 꼭짓점 색 등 다른 속성은 같이 따라간다
  */
 function dropStrayPieces(geometry: THREE.BufferGeometry) {
   const source = geometry.index ? geometry.toNonIndexed() : geometry;
@@ -245,8 +245,9 @@ function dropStrayPieces(geometry: THREE.BufferGeometry) {
   for (const [name, attribute] of Object.entries(source.attributes)) {
     const size = attribute.itemSize;
     const array = new (attribute.array.constructor as Float32ArrayConstructor)(keep.length * size);
-    keep.forEach((v, k) => {
-      for (let c = 0; c < size; c++) array[k * size + c] = attribute.array[v * size + c];
+    keep.forEach((vertex, k) => {
+      for (let component = 0; component < size; component++)
+        array[k * size + component] = attribute.array[vertex * size + component];
     });
     result.setAttribute(name, new THREE.BufferAttribute(array, size, attribute.normalized));
   }

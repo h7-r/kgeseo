@@ -35,7 +35,7 @@ export function useSceneModes({ active, isThirdPerson, playerState }: SceneModes
     // 검수 실행(?review=1)에서는 편집 모드를 열지 않는다 — 검수 둘러보기 카메라와 편집 카메라가 겹친다
     if (IS_REVIEW_REQUESTED) return undefined;
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 서랍 검색칸 등 글 입력 중의 q 는 편집 끄기가 아니다. E 는 본편처럼 상호작용 키라 편집은 Q 로 옮겼다(10/22)
+      // 서랍 검색칸 등 글 입력 중의 q 는 편집 끄기가 아니다. E 는 본편처럼 상호작용 키라 편집은 Q 다
       if ((e.target as Element | null)?.closest?.(TEXT_ENTRY)) return;
       if (e.code === "KeyQ" && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey)
         setIsEditing((v) => {

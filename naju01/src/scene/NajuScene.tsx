@@ -16,12 +16,11 @@ import type { MeshAppearanceConfig } from "../avatar/meshAppearance";
 import type { SidekickConfig } from "../avatar/sidekickOptions";
 import type { ToonConfig } from "../avatar/toonMaterial";
 import type { OutlineConfig } from "../avatar/toonOutline";
-// 편집기(배치 · 라이브러리 서랍)는 따로 묶어 뒤에 받는다 — 게임 첫 진입 번들에서 뺀다
-const Editor = lazy(() => import("../placement/Editor"));
 import { GROUP_IDS } from "../placement/editFile";
 import { useEditModeActive } from "../placement/libraryPlaceApi";
 import { MESH_NAMES } from "../plan/meshNames";
 import { CORE, UNITS_PER_METER } from "../plan/sitePlan";
+import { isOnJarSite } from "../puzzles/jars/site";
 import { SKY_STYLE } from "../world/sky";
 import WorldToon from "../world/WorldToon";
 import { buildInstanceGroups } from "./buildInstanceGroups";
@@ -76,9 +75,11 @@ import {
   useRiver,
   useWaterRipple,
 } from "./useWorldLayers";
-import { isOnJarSite } from "../puzzles/jars/site";
 
 export type { NajuSceneReport } from "./useSceneFrame";
+
+// 편집기(배치 · 라이브러리 서랍)는 따로 묶어 뒤에 받는다 — 게임 첫 진입 번들에서 뺀다
+const Editor = lazy(() => import("../placement/Editor"));
 
 const U = UNITS_PER_METER;
 
@@ -130,9 +131,10 @@ export default function NajuScene({
   const outlineValues = pickOutlineValues(controls);
   // screenspace 를 켜야 thickness 가 월드 단위가 된다.
   // ?만화 는 화면 전체에 선을 그리므로 껍데기 외곽선은 끈다(두 겹 방지)
-  const outline = outlineValues.outline && !IS_MANGA_STYLE ? (
-    <Outlines thickness={controls.outlineWorldWidth} color={outlineValues.outlineColor} screenspace />
-  ) : null;
+  const outline =
+    outlineValues.outline && !IS_MANGA_STYLE ? (
+      <Outlines thickness={controls.outlineWorldWidth} color={outlineValues.outlineColor} screenspace />
+    ) : null;
   const shade = (color: string) => scaleColor(color, controls.brightness);
 
   const { rippleHandle, rippleMaterialRef } = useWaterRipple();
@@ -197,7 +199,9 @@ export default function NajuScene({
         fisher2: storyModels.fisher2,
         fisher3: storyModels.fisher3,
         // 장독대 돌판을 뚫고 나오는 자갈은 크기 0 으로 숨긴다 — 빼면 순번이 밀려 손 편집(edits.json)이 엇갈린다
-        pebbleSpots: (ground?.pebbleSpots ?? []).map((spot) => (isOnJarSite(spot.x, spot.z) ? { ...spot, size: 0 } : spot)),
+        pebbleSpots: (ground?.pebbleSpots ?? []).map((spot) =>
+          isOnJarSite(spot.x, spot.z) ? { ...spot, size: 0 } : spot,
+        ),
         cliff: cliffShapes,
         ferryBoat: ferrySpot && ferryShape ? { spot: ferrySpot, shape: ferryShape } : null,
       }),
@@ -432,7 +436,14 @@ export default function NajuScene({
       {/* 「땅.풀」 숨은 무리 — 코드 풀과 같은 자리를 든 보이지 않는 무리, 교체본이 이 자리를 읽어 공개 3D 풀을 심는다(10/13) */}
       {IS_PUBLIC_ASSETS_ENABLED && !IS_EMPTY_BASE && <GrassSpotMarkers spots={grass?.tuftSpots ?? null} />}
       {/* &base=empty 빈 지형 — 원경(공간의 일부)만 남기고 사람이 놓은 생성 무리는 그리지 않는다(10/19) */}
-      {(IS_EMPTY_BASE ? instanceGroups.filter((group) => group.groupId.startsWith("원경.") || group.groupId === "땅.길" /* 길 조각은 지형(공간)의 일부 — 사람이 놓은 장식이 아니다(10/19) */) : instanceGroups).map((group) => (
+      {(IS_EMPTY_BASE
+        ? instanceGroups.filter(
+            (group) =>
+              group.groupId.startsWith("원경.") ||
+              group.groupId === "땅.길" /* 길 조각은 지형(공간)의 일부 — 사람이 놓은 장식이 아니다(10/19) */,
+          )
+        : instanceGroups
+      ).map((group) => (
         <InstanceGroupMesh
           key={group.groupId}
           group={group}
@@ -447,15 +458,15 @@ export default function NajuScene({
 
       <Suspense fallback={null}>
         <Editor
-        enabled={isEditing}
-        edits={edits}
-        setEdits={setEdits}
-        instanceGroups={instanceGroups}
-        groundAt={terrain.groundAt}
-        unlockPointer={() => controlsRef.current?.unlock?.()}
-        overview={isOverview}
-        setOverview={setIsOverview}
-        onExit={exitEditing}
+          enabled={isEditing}
+          edits={edits}
+          setEdits={setEdits}
+          instanceGroups={instanceGroups}
+          groundAt={terrain.groundAt}
+          unlockPointer={() => controlsRef.current?.unlock?.()}
+          overview={isOverview}
+          setOverview={setIsOverview}
+          onExit={exitEditing}
         />
       </Suspense>
 

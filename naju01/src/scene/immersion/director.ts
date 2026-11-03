@@ -173,7 +173,7 @@ function adjustLights(scene: THREE.Scene, k: number, sunColor: THREE.Color) {
   }
 }
 
-// 10/28 — 카메라를 플레이어 손에서 빼앗지 않는다. 퍼즐 장치가 생겨 임시 단서발견은 끄고,
+// 카메라를 플레이어 손에서 빼앗지 않는다 — 퍼즐 장치가 단서를 맡으니 임시 단서발견은 끄고,
 // 구역 진입 컷(카메라가 혼자 돈다)도 끈다. 둘 다 되살리려면 true.
 const AUTO_CLUES = false;
 const ENTRY_CUTS = false;
@@ -300,7 +300,8 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
       rainRect = r;
     }
   }
-  if (rainRect && rainTarget > 0.05) rainUniforms.uWetRect.value.set(rainRect[0], rainRect[1], rainRect[2], rainRect[3]);
+  if (rainRect && rainTarget > 0.05)
+    rainUniforms.uWetRect.value.set(rainRect[0], rainRect[1], rainRect[2], rainRect[3]);
   // 씬이 지날수록 물안개도 옅게(사건 물안개는 그대로)
   const mistTarget = stage.eventMist ? stage.eventMist.strength : (zq.물안개 ?? 0) * (focus.mistFactor ?? 1);
   const windTarget = (zq.바람 ?? 0.5) * (stage.eventWind ? stage.eventWind.factor : 1);
@@ -323,16 +324,22 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
   // ★ 날씨가 「비」인 구역은 **이미 한참 내린 뒤**로 둔다 — 들어서는 순간부터 젖어 있고 고여 있다(차오르는 연출 없음, 10/13 미르).
   //   차오르고 마르는 시간 흐름은 **사건 비**(구렁이 등)에만 쓴다.
   // 문이 닫힌 비 구역(기우제 전 2구역)은 마른 땅에서 시작해, 비가 오기 시작하면 아래 셈대로 차츰 젖고 고인다
-  const rainZones = Object.entries(cueTable.구역 ?? {}).filter(([c, v]) => v?.날씨 === "비" && isRainZoneOpen(c) && !zoneRainGates.has(c));
+  const rainZones = Object.entries(cueTable.구역 ?? {}).filter(
+    ([c, v]) => v?.날씨 === "비" && isRainZoneOpen(c) && !zoneRainGates.has(c),
+  );
   if (!stage.eventRain && rainZones.length) {
-    const [c, v] = rainZones.reduce((p, q) => (outsideDistance(zoneRect(q[0])!) < outsideDistance(zoneRect(p[0])!) ? q : p));
+    const [c, v] = rainZones.reduce((p, q) =>
+      outsideDistance(zoneRect(q[0])!) < outsideDistance(zoneRect(p[0])!) ? q : p,
+    );
     const r = zoneRect(c)!;
     rainUniforms.uWetRect.value.set(r[0], r[1], r[2], r[3]);
     rainUniforms.uWet.value = settings.날씨 ? 1 : 0;
     rainUniforms.uPuddle.value = settings.날씨 ? (v?.고임 ?? 0.9) : 0;
   } else {
     rainUniforms.uWet.value =
-      rainAudible > 0.05 ? Math.min(1, rainUniforms.uWet.value + (dt / 8) * (0.4 + rainAudible)) : Math.max(0, rainUniforms.uWet.value - dt / 40);
+      rainAudible > 0.05
+        ? Math.min(1, rainUniforms.uWet.value + (dt / 8) * (0.4 + rainAudible))
+        : Math.max(0, rainUniforms.uWet.value - dt / 40);
     rainUniforms.uPuddle.value =
       rainAudible > 0.05
         ? Math.min(1, rainUniforms.uPuddle.value + (dt / 25) * (0.4 + rainAudible))
@@ -368,7 +375,12 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
 
   // ── ① 시간대 ──
   if (!stage.current)
-    stage.current = { fog: new THREE.Color(tod.안개), sky: new THREE.Color(tod.하늘색), light: tod.빛, sunColor: new THREE.Color(tod.해색) };
+    stage.current = {
+      fog: new THREE.Color(tod.안개),
+      sky: new THREE.Color(tod.하늘색),
+      light: tod.빛,
+      sunColor: new THREE.Color(tod.해색),
+    };
   const cur = stage.current;
   const b = 1 - Math.exp(-dt / 0.9);
   cur.fog.lerp(_c1.set(tod.안개), b);
@@ -397,7 +409,9 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
       if (flashK > 0.01) scene.fog.color.lerp(LIGHTNING_COLOR, 0.6 * flashK);
       // 웅덩이에 비치는 색 — 낮은 하늘(안개)빛, 밤은 짙은 남색
       const brightness = cur.fog.r * 0.3 + cur.fog.g * 0.59 + cur.fog.b * 0.11;
-      rainUniforms.uPuddleCol.value.copy(scene.fog.color).lerp(brightness > 0.35 ? WHITE : NIGHT_PUDDLE_COLOR, brightness > 0.35 ? 0.25 : 0.6);
+      rainUniforms.uPuddleCol.value
+        .copy(scene.fog.color)
+        .lerp(brightness > 0.35 ? WHITE : NIGHT_PUDDLE_COLOR, brightness > 0.35 ? 0.25 : 0.6);
       // 구역이 바뀔 때 — 밤은 어둠이 조이고(focusFog), 낮은 하얗게 번진다
       const pulse = focusPulse();
       if (pulse > 0) {
@@ -415,7 +429,7 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
   const fx = stage.effects;
   stage.trauma = Math.max(0, stage.trauma - dt * 0.8);
   const shake = stage.trauma * stage.trauma * settings.흔들림;
-  // 위아래로만 — 좌우로 돌거나 기울면(roll) 걸을 때 화면이 대각선으로 보인다(10/28)
+  // 위아래로만 — 좌우로 돌거나 기울면(roll) 걸을 때 화면이 대각선으로 보인다
   fx.yaw = 0;
   fx.pitch = shake * 0.035 * noise(t * 19, 2);
   fx.roll = 0;
@@ -461,7 +475,11 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
     else {
       const e = smoothstep(u);
       const angle = c.angle0 - 1.1 * e;
-      fx.cutPosition = _w.set((c.cx + Math.cos(angle) * c.radius) * U, (c.floor + c.height - 2.5 * e) * U, (c.cz + Math.sin(angle) * c.radius) * U);
+      fx.cutPosition = _w.set(
+        (c.cx + Math.cos(angle) * c.radius) * U,
+        (c.floor + c.height - 2.5 * e) * U,
+        (c.cz + Math.sin(angle) * c.radius) * U,
+      );
       fx.cutLookAt = new THREE.Vector3(c.cx * U, (c.floor + 1.2) * U, c.cz * U);
     }
   }

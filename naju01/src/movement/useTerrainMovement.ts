@@ -22,7 +22,10 @@ import type { PlayerMotionState } from "@/engine/movement/useMovement";
 
 import { BASELINE, METERS_PER_UNIT, UNITS_PER_METER, type Heading, type ZoneCode } from "../plan/sitePlan";
 import { CORE_BOUNDS, DEFAULT_TERRAIN, type Terrain } from "../terrain/terrain";
+import { applyCameraFocus, isCameraFocused } from "../scene/cameraFocus";
 import { AIR_BOOST, FLOAT, LIGHT_JUMP, gravityField, isLight } from "./gravityField";
+import { playerPose } from "./playerPose";
+import { playerPush } from "./playerPush";
 import { PROP_STEP, type SolidField } from "./solidField";
 
 // 오를 수 있는 턱(m). 이보다 높으면 벽 — 절벽 아래에서 위로 걸어 올라가지 못하게 하는 값이기도 하다.
@@ -175,7 +178,7 @@ export function useTerrainMovement(
       // Ctrl/⌘ 를 누른 채면 이동으로 안 친다 — Ctrl+S(저장)가 S(뒤로 걷기)와 맞물려 저장할 때마다 뒷걸음질쳤다.
       if (e.ctrlKey || e.metaKey) return;
       if (HANDLED_KEYS.has(e.code)) e.preventDefault();
-      if (e.code === "Space" && isGrounded.current) {
+      if (e.code === "Space" && isGrounded.current && !isCameraFocused()) {
         verticalVelocity.current = JUMP_VELOCITY * (swimRef.current ? SWIM.jump : 1);
         jumpKick.current = true;
         isGrounded.current = false;
@@ -294,12 +297,15 @@ export function useTerrainMovement(
     const underfoot = terrain.groundAt(x, z);
     const isCrouching = keys.current.crouch;
     const eye = (isCrouching ? BASELINE.crouchEyeHeight : eyeHeight) * UNITS_PER_METER;
-    const isSolidReady = !!solid?.isReady();
+    // 다 구워진 충돌 격자 — 그 전에는 옛 소품 원기둥(extraBlockedAt)으로 막는다
+    const solidField = solid?.isReady() ? solid : null;
     const footNow = lastFootY.current ?? underfoot.y;
     // 순간이동 등으로 이미 물건에 박혀 있으면 덜 박히는 쪽으로는 움직이게 둔다(안 그러면 사방이 막혀 갇힌다)
-    const stuckDepth = isSolidReady ? solid!.depthAt(x, z, footNow, PLAYER_RADIUS * METERS_PER_UNIT) : 0;
+    const stuckDepth = solidField ? solidField.depthAt(x, z, footNow, PLAYER_RADIUS * METERS_PER_UNIT) : 0;
 
-    if (active) {
+    // 화면 고정 중에는 걷지 않는다 — 중력 · 접지는 그대로
+    const canSteer = active && !isCameraFocused();
+    if (canSteer) {
       const k = keys.current;
       const forward = new THREE.Vector3();
       camera.getWorldDirection(forward);
@@ -318,6 +324,11 @@ export function useTerrainMovement(
         (gravityField.speedScaleAt?.(p.x * METERS_PER_UNIT, p.z * METERS_PER_UNIT) ?? 1);
       const speed = baseSpeed * (isCrouching ? CROUCH_SPEED_MULTIPLIER : k.run ? RUN_SPEED_MULTIPLIER : 1);
       const goal = wish.multiplyScalar(speed);
+      // 바깥에서 미는 힘(물고기 떼 · 물살) — 가려는 빠르기에 얹는다. 이번 프레임만
+      goal.x += playerPush.x * UNITS_PER_METER;
+      goal.z += playerPush.z * UNITS_PER_METER;
+      playerPush.x = 0;
+      playerPush.z = 0;
 
       if (swim) {
         // 물을 헤치듯 — 바로 서지도, 바로 붙지도 않는다(땅에서도 공중에서도)
@@ -361,9 +372,13 @@ export function useTerrainMovement(
         if (terrain.blockedAt(mx, mz, underfoot.y, PLAYER_RADIUS * METERS_PER_UNIT + 0.2)) return false;
         if (gateBlockedAt?.(mx, mz)) return false;
         // 물건은 지금 발 높이로 본다 — 점프해 발이 올라가 있으면 낮은 바위 위로 넘어간다
-        if (isSolidReady) {
+        if (solidField) {
           const radius = PLAYER_RADIUS * METERS_PER_UNIT;
-          if (stuckDepth > 0 ? solid!.depthAt(mx, mz, footNow, radius) > stuckDepth + 1e-3 : solid!.blockedAt(mx, mz, footNow, radius))
+          if (
+            stuckDepth > 0
+              ? solidField.depthAt(mx, mz, footNow, radius) > stuckDepth + 1e-3
+              : solidField.blockedAt(mx, mz, footNow, radius)
+          )
             return false;
         } else if (extraBlockedAt && extraBlockedAt(mx, mz, underfoot.y, PLAYER_RADIUS * METERS_PER_UNIT)) return false;
         const g = terrain.groundAt(mx, mz);
@@ -409,7 +424,7 @@ export function useTerrainMovement(
         if (g.y > ground.y && !g.isFall && !g.isWater) ground.y = g.y;
       }
       // 발밑 물건 꼭대기 — 턱(PROP_STEP) 안이면 밟고 선다. 다섯 점 중 가장 높은 데라 발이 바위에 파묻히지 않는다
-      if (isSolidReady)
+      if (solidField)
         for (const [ox, oz] of [
           [0, 0],
           [d, 0],
@@ -417,7 +432,7 @@ export function useTerrainMovement(
           [0, d],
           [0, -d],
         ]) {
-          const top = solid!.supportAt(finalX + ox, finalZ + oz, footNow + PROP_STEP);
+          const top = solidField.supportAt(finalX + ox, finalZ + oz, footNow + PROP_STEP);
           if (top > ground.y) {
             ground.y = top;
             ground.isWater = false;
@@ -439,11 +454,12 @@ export function useTerrainMovement(
       peakY.current = ny;
     } else {
       const fieldScale = gravityField.scaleAt?.(finalX, finalZ) ?? 1;
-      const light = !swim && isLight(fieldScale);
+      const isFloating = !swim && isLight(fieldScale);
       // 가벼운 곳 — 꼭대기 근처에서는 더 머물고, 떨어지는 빠르기에는 끝이 있다(둥둥)
-      const apex = light && Math.abs(verticalVelocity.current) < FLOAT.apexSpeed * UNITS_PER_METER ? FLOAT.apexGravity : 1;
+      const apex =
+        isFloating && Math.abs(verticalVelocity.current) < FLOAT.apexSpeed * UNITS_PER_METER ? FLOAT.apexGravity : 1;
       verticalVelocity.current += GRAVITY * (swim ? SWIM.gravity : 1) * fieldScale * apex * dt;
-      if (light) verticalVelocity.current = Math.max(verticalVelocity.current, -FLOAT.sinkLimit * UNITS_PER_METER);
+      if (isFloating) verticalVelocity.current = Math.max(verticalVelocity.current, -FLOAT.sinkLimit * UNITS_PER_METER);
       // 물속에서는 가라앉는 빠르기에 끝이 있다 — 둥실 떴다가 천천히 내려앉는다
       if (swim) verticalVelocity.current = Math.max(verticalVelocity.current, -SWIM.sinkLimit * UNITS_PER_METER);
       ny = p.y + verticalVelocity.current * dt;
@@ -468,6 +484,10 @@ export function useTerrainMovement(
     if (isGrounded.current) ny = floorY;
     p.y = ny;
     lastFootY.current = ny * METERS_PER_UNIT - eye * METERS_PER_UNIT;
+    playerPose.x = finalX;
+    playerPose.z = finalZ;
+    playerPose.footY = lastFootY.current;
+    playerPose.eyeHeight = eye * METERS_PER_UNIT;
 
     // 멀쩡한 자리(구역·통로 위, 물 아님)를 계속 기억한다
     if (isGrounded.current && (ground.zone || ground.path) && !ground.isWater)
@@ -501,7 +521,12 @@ export function useTerrainMovement(
     // 물속 — 눈높이가 물결에 천천히 오르내린다. 움직이면 조금 더 크게(다음 프레임 첫머리에서 걷어 낸다)
     if (!isThirdPerson) {
       const moving = Math.min(1, Math.hypot(velocity.current.x, velocity.current.z) * METERS_PER_UNIT);
-      const bob = swim ? Math.sin(performance.now() * 0.001 * SWIM.bobRate * Math.PI * 2 * 0.5) * SWIM.bob * (1 + 0.6 * moving) * UNITS_PER_METER : 0;
+      const bob = swim
+        ? Math.sin(performance.now() * 0.001 * SWIM.bobRate * Math.PI * 2 * 0.5) *
+          SWIM.bob *
+          (1 + 0.6 * moving) *
+          UNITS_PER_METER
+        : 0;
       camera.position.y += bob;
       swimBob.current = bob;
     }
@@ -543,6 +568,7 @@ export function useTerrainMovement(
           : boomLength.current + (target - boomLength.current) * Math.min(1, dt * BOOM_RELEASE_RATE);
       camera.position.copy(p).addScaledVector(forward, -boomLength.current);
     }
+    applyCameraFocus(camera, dt);
   });
 
   return teleport;

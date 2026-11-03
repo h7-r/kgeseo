@@ -7,17 +7,18 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
-import { TOON_GRADIENT } from "@/engine/toon";
 
 import { audio } from "../../scene/immersion/audio";
-import { getUnderwater } from "../cave/caveState";
-import { M, groundY } from "../fishTrap/shared";
+import { focusCamera } from "../../scene/cameraFocus";
+import { CORRIDOR, getUnderwater } from "../cave/caveState";
 import { makeGlowTexture } from "../glowTexture";
 import { registerInteractable, showNotice } from "../interaction";
 import { inventory } from "../inventory";
 import { buildFloatStoneGeometry } from "../itemLooks";
+import { makeToonMaterial } from "../materials";
 import { prewarmShaders } from "../prewarm";
 import { setPuzzlePanel } from "../puzzlePanel";
+import { M, groundY } from "../units";
 import { getWaterLevel, ritual, useRitualStage } from "./ritualState";
 
 /** 뜬 돌 자리(미터) — 어귀(서쪽)에 하나, 나머지 셋은 마법진 앞쪽(강 쪽·동쪽) 자갈밭에. 마법진 · 장독대 · 배를 비킨다 */
@@ -37,21 +38,23 @@ export default function FloatingStones() {
   const [taken, setTaken] = useState<boolean[]>(() => SPOTS.map(() => false));
   const { stones, glows, lights, stoneGeometry, stoneMaterial, glowMaterial } = useMemo(() => {
     const stoneGeometry = buildFloatStoneGeometry();
-    const stoneMaterial = new THREE.MeshToonMaterial({
-      color: "#E8E2D3",
-      emissive: new THREE.Color("#5A574E"), // 폭우 속 어스름에도 묻히지 않게 살짝 스스로 밝힌다
-      gradientMap: TOON_GRADIENT,
+    // 폭우 속 어스름에도 묻히지 않게 살짝 스스로 밝힌다
+    const stoneMaterial = makeToonMaterial("#E8E2D3", { emissive: new THREE.Color("#5A574E") });
+    const glowMaterial = new THREE.SpriteMaterial({
+      map: makeGlowTexture(),
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+      toneMapped: false,
     });
-    const glowMaterial = new THREE.SpriteMaterial({ map: makeGlowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false });
     const glows = SPOTS.map(() => {
       const sprite = new THREE.Sprite(glowMaterial);
       sprite.visible = false;
       return sprite;
     });
-    const lights = SPOTS.map(() => {
-      // 늘 켜 둔 채 세기만 0 — 조명을 켜고 끄면 빛 받는 재질 전부가 셰이더를 다시 굽느라 화면이 멈춘다
-      return new THREE.PointLight("#FFFFFF", 0, 3 * M, 1.6);
-    });
+    // 늘 켜 둔 채 세기만 0 — 조명을 켜고 끄면 빛 받는 재질 전부가 셰이더를 다시 굽느라 화면이 멈춘다
+    const lights = SPOTS.map(() => new THREE.PointLight("#FFFFFF", 0, 3 * M, 1.6));
     const stones = SPOTS.map(() => {
       // 돌마다 재질을 따로 — 겨눈 돌만 밝아지게
       const mesh = new THREE.Mesh(stoneGeometry, stoneMaterial.clone());
@@ -82,14 +85,14 @@ export default function FloatingStones() {
   }, [gl, scene, camera, stones, glows]);
 
   // [E] 로 겨누는 자리(유닛) — 물 높이를 따라 매 프레임 고친다
-  const centers = useRef(SPOTS.map(({ x, z }) => new THREE.Vector3(x * M, 0, z * M)));
+  const centersRef = useRef(SPOTS.map(({ x, z }) => new THREE.Vector3(x * M, 0, z * M)));
 
   useEffect(() => {
     const picks: (() => void)[] = [];
     const disposers = SPOTS.map((_, index) =>
       registerInteractable({
         id: `float-stone-${index}`,
-        position: centers.current[index],
+        position: centersRef.current[index],
         label: "뜬 돌 줍기",
         highlight: () => stones[index],
         radius: 0.35 * M,
@@ -104,44 +107,48 @@ export default function FloatingStones() {
           audio.play("첨벙");
           const left = taken.filter((value) => !value).length - 1;
           // 갈라짐(ritual.part)은 매 프레임 쪽에서 — 물이 다 차기 전에 건져도 빠뜨리지 않게
-          showNotice(left > 0 ? `물에 뜬 돌을 건졌다. (${SPOTS.length - left}/${SPOTS.length})` : "떠 있던 돌을 다 건졌다. 강 쪽 물이 술렁인다.", 4);
+          showNotice(
+            left > 0
+              ? `물에 뜬 돌을 건졌다. (${SPOTS.length - left}/${SPOTS.length})`
+              : "떠 있던 돌을 다 건졌다. 강 쪽 물이 술렁인다.",
+            4,
+          );
         }),
       }),
     );
-    // 개발용 — 헤드리스는 마우스를 못 잠가 [E] 를 못 누른다. __game.najuFloatDev.take(0)
     if (import.meta.env.DEV) exposeDevHook("najuFloatDev", { take: (index: number) => picks[index]?.() });
     return () => disposers.forEach((dispose) => dispose());
   }, [taken, stones]);
 
-  // 물이 찬 뒤 물을 헤치는 발소리 — 발이 물에 잠긴 채 걸을 때
-  const wading = useRef({ x: 0, z: 0, step: 0 });
+  // 물이 찬 뒤 물을 헤치는 발소리 — 발이 물에 잠긴 채 걸을 때. 지난 프레임 자리로 빠르기를 잰다
+  const wadingRef = useRef({ x: 0, z: 0, step: 0 });
 
   useFrame(({ clock, camera }, rawDt) => {
     const level = getWaterLevel();
     const dt = Math.min(rawDt, 0.1);
-    const w = wading.current;
-    const px = camera.position.x / M;
-    const pz = camera.position.z / M;
-    const speed = Math.hypot(px - w.x, pz - w.z) / Math.max(dt, 1e-3);
-    w.x = px;
-    w.z = pz;
-    const ground = groundY(px, pz);
-    const feetWet = level - ground > 0.04 && camera.position.y / M - 1.25 < level + 0.1 && !getUnderwater();
-    if (feetWet && speed > 0.6 && speed < 12) {
-      w.step += dt;
-      if (w.step > (speed > 3 ? 0.32 : 0.46)) {
-        w.step = 0;
+    const wading = wadingRef.current;
+    const playerX = camera.position.x / M;
+    const playerZ = camera.position.z / M;
+    const speed = Math.hypot(playerX - wading.x, playerZ - wading.z) / Math.max(dt, 1e-3);
+    wading.x = playerX;
+    wading.z = playerZ;
+    const ground = groundY(playerX, playerZ);
+    const areFeetWet = level - ground > 0.04 && camera.position.y / M - 1.25 < level + 0.1 && !getUnderwater();
+    if (areFeetWet && speed > 0.6 && speed < 12) {
+      wading.step += dt;
+      if (wading.step > (speed > 3 ? 0.32 : 0.46)) {
+        wading.step = 0;
         audio.play("물발소리");
       }
-    } else w.step = 0.3;
+    } else wading.step = 0.3;
     const time = clock.elapsedTime;
     const pulse = 0.75 + 0.25 * Math.sin(time * 2.4);
     let nearest = Infinity;
     SPOTS.forEach(({ x, z }, index) => {
-      const shown = level > SHOW_LEVEL && !taken[index];
-      stones[index].visible = shown;
-      glows[index].visible = shown;
-      if (!shown) {
+      const isShown = level > SHOW_LEVEL && !taken[index];
+      stones[index].visible = isShown;
+      glows[index].visible = isShown;
+      if (!isShown) {
         lights[index].intensity = 0;
         return;
       }
@@ -154,13 +161,27 @@ export default function FloatingStones() {
       // 물결 따라 까딱이고 천천히 돈다
       const bob = Math.sin(time * 1.6 + index * 1.7) * 0.03;
       stones[index].position.set(x * M, (level + 0.02 + bob) * M, z * M);
-      stones[index].rotation.set(Math.sin(time * 1.1 + index) * 0.12, time * 0.2 + index, Math.cos(time * 1.3 + index) * 0.1);
-      centers.current[index].set(x * M, (level + 0.05) * M, z * M);
+      stones[index].rotation.set(
+        Math.sin(time * 1.1 + index) * 0.12,
+        time * 0.2 + index,
+        Math.cos(time * 1.3 + index) * 0.1,
+      );
+      centersRef.current[index].set(x * M, (level + 0.05) * M, z * M);
     });
     // 넷을 다 건졌으면 강물이 갈라진다. 단계는 한 칸씩만 가므로 물이 다 찬(flooded) 뒤에 올린다 —
     // 차오르는 중에 다 건져도 여기서 매 프레임 보다가 올린다
     const count = taken.filter(Boolean).length;
-    if (count === SPOTS.length && ritual.stage() === "flooded") ritual.part();
+    if (count === SPOTS.length && ritual.stage() === "flooded") {
+      ritual.part();
+      focusCamera({
+        id: "river-parting",
+        target: new THREE.Vector3(CORRIDOR.x * M, (level + 0.4) * M, (CORRIDOR.zStart + 4.5) * M),
+        hold: 2.6,
+        turnIn: 0.8,
+        turnOut: 0.6,
+        zoom: 0.85,
+      });
+    }
     // 안내판 — 물이 찬 동안. 건진 수가 보이고, 넷을 다 건지면 강물이 갈라진다는 걸 알려 준다
     if (stage === "flooded" && level > SHOW_LEVEL)
       setPuzzlePanel("float-stones", {

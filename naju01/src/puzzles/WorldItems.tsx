@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
 import { audio } from "../scene/immersion/audio";
-import { M } from "./fishTrap/shared";
+import { M } from "./units";
 import { registerInteractable, setHandHandler, setQuickHandler, showNotice } from "./interaction";
 import {
   ITEMS,
@@ -105,7 +105,11 @@ function HandItem({ item, look }: { item: HeldItem; look: ItemLook }) {
   // 가까이 있어 다른 물건에 묻히지 않게 맨 나중에 그린다
   return (
     <group ref={meshRef} scale={M * HAND_SCALE}>
-      {model ? <primitive object={model} /> : <mesh geometry={look.geometry} material={look.material} renderOrder={10} />}
+      {model ? (
+        <primitive object={model} />
+      ) : (
+        <mesh geometry={look.geometry} material={look.material} renderOrder={10} />
+      )}
     </group>
   );
 }

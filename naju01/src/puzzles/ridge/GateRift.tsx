@@ -1,18 +1,22 @@
 /**
- * 진부촌 문 — 장막이 풀리고 새들이 떠나면 (이미 타오르는) 횃불 사이, 두 장승 사이 「두 공간 사이」가 일그러져
+ * 진부촌 문 — 장막이 풀리고 새들이 떠나면 타오르는 횃불 사이, 두 장승 사이 「두 공간 사이」가 일그러져
  * 시공간 틈이 열린다. 틈 너머는 그날 밤의 강 — 초롱 하나가 물을 건너 앙암바위 위로 오른다(아랑사의 자취).
  * 결말(누가 어떻게)은 보여 주지 않는다. 「그 밤 아랑사는 바위 위로 갔다」는 다음 장소(바위 위)로 가는 물음만 남긴다.
+ * 틈에 들어서면 화면이 뒤틀리며 빨려 들다(riftEntry · RiftEntryHud) 캄캄해진 뒤 바위 위에서 깨어난다.
  * 틈 안 그림은 셰이더로 그린다(달·강·건너편 둑·바위·초롱). 좌표는 미터.
  */
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
+import { cancelCameraFocus, focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
-import { M, groundY } from "../fishTrap/shared";
-import { showNotice } from "../interaction";
+import { director } from "../../scene/immersion/director";
 import { teleportPlayer } from "../cave/caveState";
+import { showNotice } from "../interaction";
+import { M, groundY } from "../units";
 import { GATE } from "./ridgeShape";
+import { RIFT_ENTRY, riftEntrySince, startRiftEntry, tickRiftEntry } from "./riftEntry";
 import { ridge, useRidgeStage } from "./ridgeState";
 
 /** 틈에 들어서면 건너가는 곳 — Z3(바위 위 · 절벽 상단) 들머리. 길(Z4 → Z3)을 안 걸어도 된다 */
@@ -27,6 +31,7 @@ const RIFT_CLOSE_SECONDS = 2.2;
 const RIFT_WIDTH = 2.0;
 const RIFT_HEIGHT = 2.6;
 
+// 셰이더 문자열에는 ASCII 만 쓴다
 const VERTEX = /* glsl */ `
   varying vec2 vUv;
   #include <common>
@@ -115,7 +120,20 @@ const FRAGMENT = /* glsl */ `
   }
 `;
 
-function createRift() {
+/** 틈 너머를 보는 자리(유닛) — 틈 한가운데 서면 틈 자체는 발밑이라, 지금 보는 쪽으로 틈을 지나 더 멀리 눈높이에 둔다 */
+function pointBeyondRift(camera: THREE.Camera, riftCenter: THREE.Vector3) {
+  const beyond = new THREE.Vector3().subVectors(riftCenter, camera.position);
+  beyond.y = 0;
+  if (beyond.length() < 0.3 * M) camera.getWorldDirection(beyond).setY(0);
+  beyond
+    .normalize()
+    .multiplyScalar(4 * M)
+    .add(camera.position);
+  beyond.y = camera.position.y;
+  return beyond;
+}
+
+function buildRift() {
   const material = new THREE.ShaderMaterial({
     vertexShader: VERTEX,
     fragmentShader: FRAGMENT,
@@ -126,12 +144,10 @@ function createRift() {
     toneMapped: false,
   });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(RIFT_WIDTH * M, RIFT_HEIGHT * M), material);
-  const [a, b] = GATE.posts;
-  const dx = b.x - a.x;
-  const dz = b.z - a.z;
+  const [left, right] = GATE.posts;
   const ground = groundY(GATE.center.x, GATE.center.z);
   mesh.position.set(GATE.center.x * M, (ground + 0.15 + RIFT_HEIGHT / 2) * M, GATE.center.z * M);
-  mesh.rotation.y = Math.atan2(-dz, dx);
+  mesh.rotation.y = Math.atan2(-(right.z - left.z), right.x - left.x);
   mesh.visible = false;
   mesh.renderOrder = 6;
   const light = new THREE.PointLight("#FFA55A", 0, 9 * M, 2);
@@ -141,8 +157,10 @@ function createRift() {
 
 export default function GateRift() {
   const scene = useThree((state) => state.scene);
-  const rift = useMemo(() => createRift(), []);
+  const rift = useMemo(() => buildRift(), []);
   const stage = useRidgeStage();
+  /** 틈을 지나 바위 위로 건너갔나 — 캄캄해진 순간 한 번 */
+  const hasCrossed = useRef(false);
 
   useEffect(() => {
     scene.add(rift.mesh, rift.light);
@@ -158,37 +176,60 @@ export default function GateRift() {
         audio.play("전환");
         showNotice("횃불이 붙자 두 장승 사이의 바람이 일그러진다 — 갈라진 틈 너머로 그날 밤의 강이 비친다.", 5);
       }, RIFT_OPEN_AT * 1000),
-      setTimeout(() => showNotice("초롱 하나가 물을 건너온다. 불빛은 앙암바위 쪽으로 가더니 바위 위로 올라간다.", 5), (RIFT_OPEN_AT + 5) * 1000),
-      setTimeout(() => showNotice("강 건너 어부, 아랑사의 초롱이다. 그 밤 아랑사는 바위 위로 갔다.", 5), (RIFT_OPEN_AT + 10) * 1000),
+      setTimeout(
+        () => showNotice("초롱 하나가 물을 건너온다. 불빛은 앙암바위 쪽으로 가더니 바위 위로 올라간다.", 5),
+        (RIFT_OPEN_AT + 5) * 1000,
+      ),
+      setTimeout(
+        () => showNotice("강 건너 어부, 아랑사의 초롱이다. 그 밤 아랑사는 바위 위로 갔다.", 5),
+        (RIFT_OPEN_AT + 10) * 1000,
+      ),
     ];
     return () => timers.forEach(clearTimeout);
   }, [stage]);
 
-  useFrame((state) => {
+  useFrame((frame, dt) => {
+    tickRiftEntry(dt);
     const now = ridge.stage();
     // 틈에 들어서면 — 바위 위(Z3)로 건너간다
     if (now === "rift" && rift.material.uniforms.uOpen.value > 0.6) {
-      const dx = state.camera.position.x / M - GATE.center.x;
-      const dz = state.camera.position.z / M - GATE.center.z;
-      if (Math.hypot(dx, dz) < ENTER_RADIUS) {
-        audio.play("전환");
-        teleportPlayer(NEXT_STAGE.x, NEXT_STAGE.z, NEXT_STAGE.heading);
-        ridge.advance("done");
-        showNotice("틈을 지나자 발밑이 바뀐다 — 바위 위, 절벽 꼭대기다. 그 밤 아랑사가 오른 곳.", 5);
+      const dx = frame.camera.position.x / M - GATE.center.x;
+      const dz = frame.camera.position.z / M - GATE.center.z;
+      if (Math.hypot(dx, dz) < ENTER_RADIUS && startRiftEntry()) {
+        // 빨려 든다 — 시선이 틈 가운데로 천천히 당겨지고 걷기가 멈춘다. 건너가는 것은 캄캄해진 뒤
+        audio.play("우르릉");
+        director.cue({ 카메라: "흔들림", 세기: 0.35 });
+        focusCamera({
+          id: "rift-entry",
+          target: pointBeyondRift(frame.camera, rift.mesh.position),
+          hold: 1,
+          turnIn: RIFT_ENTRY.warpIn,
+          zoom: 0.55,
+          replace: true,
+        });
       }
     }
-    const lit = now === "rift" || now === "done";
+    if (!hasCrossed.current && riftEntrySince() >= RIFT_ENTRY.warpIn) {
+      hasCrossed.current = true;
+      cancelCameraFocus();
+      audio.play("전환");
+      teleportPlayer(NEXT_STAGE.x, NEXT_STAGE.z, NEXT_STAGE.heading);
+      ridge.advance("done");
+      showNotice("틈을 지나자 발밑이 바뀐다 — 바위 위, 절벽 꼭대기다. 그 밤 아랑사가 오른 곳.", 5);
+    }
+    const isLit = now === "rift" || now === "done";
     const since = now === "rift" ? ridge.elapsed() : 999;
-    const time = state.clock.elapsedTime;
+    const time = frame.clock.elapsedTime;
 
-    // 문 가운데 불빛 — 횃불 불꽃은 돌단에 궤를 올릴 때부터 GateAltar 가 그린다
-    rift.light.intensity = lit ? THREE.MathUtils.clamp(since / 1.5, 0, 1) * 18 : 0;
+    // 문 가운데 불빛 — 횃불 불꽃은 GateAltar 가 그린다
+    rift.light.intensity = isLit ? THREE.MathUtils.clamp(since / 1.5, 0, 1) * 18 : 0;
 
     // 틈 — 열리고, 머물고, 닫힌다
     let open = 0;
     if (now === "rift") {
       open = THREE.MathUtils.smootherstep(since, RIFT_OPEN_AT, RIFT_OPEN_AT + RIFT_OPEN_SECONDS);
-      if (since > RIFT_HOLD_UNTIL) open *= 1 - THREE.MathUtils.smootherstep(since, RIFT_HOLD_UNTIL, RIFT_HOLD_UNTIL + RIFT_CLOSE_SECONDS);
+      if (since > RIFT_HOLD_UNTIL)
+        open *= 1 - THREE.MathUtils.smootherstep(since, RIFT_HOLD_UNTIL, RIFT_HOLD_UNTIL + RIFT_CLOSE_SECONDS);
       if (since > RIFT_HOLD_UNTIL + RIFT_CLOSE_SECONDS) {
         ridge.advance("done");
         showNotice("틈이 닫혔다. 길을 따라 바위 위로 오르자 — 그 밤 그곳에서 무슨 일이 있었을까.", 5);

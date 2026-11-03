@@ -1,36 +1,81 @@
 /**
- * 아랑사의 함 열기 — 증언 능선 평상에 함을 올려놓고(E), 돌새가 준 청동 열쇠를 자물통 끝 구멍에 꽂아 돌리면(E)
- *   열쇠가 들어가 「철컥」 돌고 → 자물통이 빠져 평상에 떨어지고 → 뚜껑이 열려 접힌 편지가 보인다.
- * 소지품의 「받는 곳」 규칙을 그대로 쓴다 — 빈손으로 겨눠도 소지품에서 알아서 꺼내 쓴다.
- * 편지 내용은 대화·서사 담당 몫이라 여기서는 「아랑사가 아비사에게 쓴 편지」라는 것까지만 보여 준다.
- * 좌표는 미터, 그리는 것은 유닛(M 배).
+ * 아랑사의 함 열기 — 어디서든 함을 꺼내 내려놓거나(E, 평상에 올려도 된다) 돌새가 준 청동 열쇠를 자물통 구멍에 꽂아 돌리면(E)
+ * 열쇠가 들어가 「철컥」 돌고 → 자물통이 빠져 떨어지고 → 뚜껑이 덜컥 열린다.
+ * 함 속에는 작은 구렁이상(미르의 구렁이 모형을 줄였다)과 주마등. 열리면 함에서 빛기둥이 위로 쏟아지고 그 빛 속에 그날 밤의 영상이
+ * 흐른다(shadowPlay) — 글은 없다. 구렁이상은 넷째 이야기의 조각으로 남긴다.
+ * 소지품의 「받는 곳」 규칙을 그대로 쓴다 — 빈손으로 겨눠도 소지품에서 알아서 꺼내 쓴다. 좌표는 미터, 그리는 것은 유닛(M 배).
  */
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
-import { TOON_GRADIENT } from "@/engine/toon";
+import { exposeDevHook } from "@/debug/devHooks";
 
 import { solidQueries } from "../../movement/solidField";
+import { focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
-import { M, groundY } from "../fishTrap/shared";
+import { director } from "../../scene/immersion/director";
+import { makeGlowTexture } from "../glowTexture";
 import { registerInteractable, showNotice } from "../interaction";
-import { inventory, useHeldItems } from "../inventory";
-import { LID, LOCK_AT, LOCK_LENGTH, buildBoxBase, buildBoxLid, buildBronzeKey, buildLetter, buildPadlock } from "./lockedBox";
+import { inventory, useHeldItems, useWorldItems } from "../inventory";
+import { createCompressedGltfLoader } from "../../loaders/compressedGlb";
+import { M, groundY } from "../units";
+import {
+  LID,
+  LOCK_AT,
+  LOCK_LENGTH,
+  buildBoxBase,
+  buildBoxLid,
+  BOX,
+  buildBronzeKey,
+  buildLanternFrame,
+  buildPadlock,
+} from "./lockedBox";
+import { PLATFORM } from "./ridgeShape";
+import { SHADOW_PLAY_CUES, SHADOW_PLAY_FADE, SHADOW_PLAY_SECONDS, createShadowPlay } from "./shadowPlay";
+import { makeVertexColorMaterial } from "./vertexPaint";
 
-/** 평상 가운데(edits.json 「씬2.평상」 고침 자리) */
-const PLATFORM = { x: 74.03, z: 16.65 };
 /** 함을 실물보다 조금 크게 — 1인칭에서 자물통이 보이게 */
 const BOX_SCALE = 1.5;
 const INSERT_SECONDS = 0.8;
 const TURN_SECONDS = 0.5;
 const DROP_SECONDS = 0.6;
-const OPEN_SECONDS = 1.1;
+const OPEN_SECONDS = 1.3;
+/** 함을 내려놓는 시간 · 뚜껑이 다 열리는 각 */
+const PLACE_SECONDS = 0.45;
+const LID_OPEN = 1.9;
+/** 주마등이 함 위로 떠오르는 높이(함 기준 m) · 도는 빠르기 */
+const LANTERN = { lift: 0.13, spin: 1.4 };
+/** 영상 판 — 함에서 뒤로 물러난 거리 · 판 가운데 높이(함 위, 미터) */
+const SCREEN = { behind: 0.9, height: 1.55 };
+/** 빛기둥 — 높이(미터) · 밑 · 위 반지름 */
+const BEAM = { height: 2.6, bottom: 0.12, top: 1.2 };
+/** 구렁이상 — 가장 긴 변(미터) */
+const SERPENT_URL = `${import.meta.env.BASE_URL}_sf_local/codeprops/serpent.glb`;
+const SERPENT_SIZE = 0.17;
+const LANTERN_ON = new THREE.Color("#FFD79A");
+const LANTERN_OFF = new THREE.Color("#3C3026");
 
-type Phase = "none" | "placed" | "unlocking" | "open";
+type Phase = "none" | "placed" | "unlocking" | "play" | "done";
 
-function createRig() {
-  const material = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: TOON_GRADIENT });
+/** 끝에서 살짝 넘어갔다 돌아온다 — 무거운 뚜껑이 경첩에 걸리는 느낌 */
+const easeOutBack = (t: number) => {
+  const c = Math.min(1, Math.max(0, t)) - 1;
+  return 1 + 2.2 * c * c * c + 1.2 * c * c;
+};
+/** 떨어져 두 번 튀는 높이 몫(1 → 0) — 시각은 초 */
+function fallHeight(since: number) {
+  const fall = 0.32;
+  if (since < fall) return 1 - (since / fall) ** 2;
+  const bounce = (start: number, length: number, height: number) => {
+    const t = (since - start) / length;
+    return t >= 0 && t <= 1 ? 4 * t * (1 - t) * height : 0;
+  };
+  return bounce(fall, 0.2, 0.18) + bounce(fall + 0.2, 0.12, 0.05);
+}
+
+function buildBox() {
+  const material = makeVertexColorMaterial();
   const root = new THREE.Group();
   root.visible = false;
   root.add(new THREE.Mesh(buildBoxBase(), material));
@@ -41,39 +86,178 @@ function createRig() {
   const lock = new THREE.Mesh(buildPadlock(), material);
   lock.position.copy(LOCK_AT);
   root.add(lock);
-  const letter = new THREE.Mesh(buildLetter(), material);
-  root.add(letter);
+  // 함 속 — 작은 구렁이상(모형은 뒤에 읽어 끼운다) · 작은 주마등
+  const serpent = new THREE.Group();
+  serpent.position.set(0.06, BOX.height + 0.002, 0.01);
+  serpent.rotation.y = 0.6;
+  root.add(serpent);
+  const lantern = new THREE.Group();
+  lantern.position.set(-0.08, BOX.height + 0.002, 0);
+  lantern.scale.setScalar(0.9);
+  lantern.add(new THREE.Mesh(buildLanternFrame(), material));
+  const paper = new THREE.MeshBasicMaterial({ color: LANTERN_OFF.clone(), toneMapped: false });
+  lantern.add(new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.033, 0.088, 14).translate(0, 0.05, 0), paper));
+  root.add(lantern);
+  // 빛기둥 — 열리면 함에서 위로 쏟아진다. 안쪽이 밝고 위로 갈수록 풀린다
+  const beamMaterial = new THREE.ShaderMaterial({
+    uniforms: { uStrength: { value: 0 }, uTime: { value: 0 } },
+    vertexShader: /* glsl */ `
+      varying float vHeight;
+      varying float vFacing;
+      void main() {
+        vHeight = uv.y;
+        vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+        vFacing = abs(dot(normalize(normalMatrix * normal), normalize(-viewPosition.xyz)));
+        gl_Position = projectionMatrix * viewPosition;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uStrength;
+      uniform float uTime;
+      varying float vHeight;
+      varying float vFacing;
+      void main() {
+        float fade = pow(1.0 - vHeight, 1.4) * smoothstep(0.0, 0.05, vHeight);
+        float ray = 0.75 + 0.25 * sin(vHeight * 40.0 - uTime * 6.0);
+        gl_FragColor = vec4(1.0, 0.86, 0.6, uStrength * fade * pow(vFacing, 1.6) * ray * 0.55);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(BEAM.top, BEAM.bottom, BEAM.height, 28, 1, true).translate(0, BEAM.height / 2 + 0.05, 0),
+    beamMaterial,
+  );
+  beam.visible = false;
+  root.add(beam);
+  const glow = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: makeGlowTexture(),
+      color: "#FFC27A",
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+      toneMapped: false,
+    }),
+  );
+  glow.scale.setScalar(0.42);
+  root.add(glow);
   // 꽂을 열쇠 — 끝이 −x(자물통 쪽)를 보게 돌려 둔다
   const key = new THREE.Mesh(buildBronzeKey().translate(0, -0.006, 0), material);
   key.rotation.y = Math.PI;
   key.visible = false;
   root.add(key);
   root.scale.setScalar(BOX_SCALE * M);
-  return { root, lidPivot, lock, key, letter, lockTarget: new THREE.Vector3(), platformTarget: new THREE.Vector3() };
+  return {
+    root,
+    lidPivot,
+    lock,
+    key,
+    lantern,
+    paper,
+    glow,
+    serpent,
+    beam,
+    beamMaterial,
+    play: createShadowPlay(),
+    restAt: new THREE.Vector3(),
+    placeFrom: new THREE.Vector3(),
+    lockTarget: new THREE.Vector3(),
+    platformTarget: new THREE.Vector3(),
+  };
 }
 
 export default function BoxOpening() {
   const scene = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera);
-  const rig = useMemo(() => createRig(), []);
+  const box = useMemo(() => buildBox(), []);
   const phase = useRef<Phase>("none");
   const startedAt = useRef(0);
-  const told = useRef({ hint: false, unlocked: false, opened: false });
+  /** 내려놓은 뒤 흐른 시간(초 · 음수면 다 놓였다) · 그림자 재생 시간 */
+  const placeTime = useRef(-1);
+  const playTime = useRef(-1);
+  const cuesFired = useRef(new Set<number>());
+  const told = useRef({ hint: false, unlocked: false });
   const held = useHeldItems();
+  const worldItems = useWorldItems();
 
   useEffect(() => {
-    scene.add(rig.root);
+    scene.add(box.root, box.play.mesh);
     return () => {
-      scene.remove(rig.root);
+      scene.remove(box.root, box.play.mesh);
     };
-  }, [scene, rig]);
+  }, [scene, box]);
+
+  // 구렁이상 — 미르의 구렁이 모형을 손바닥만 하게 줄여 함 바닥에 앉힌다
+  useEffect(() => {
+    let isAlive = true;
+    createCompressedGltfLoader().load(
+      SERPENT_URL,
+      (gltf) => {
+        if (!isAlive) return;
+        const model = gltf.scene;
+        model.updateMatrixWorld(true);
+        const bounds = new THREE.Box3().setFromObject(model);
+        const extent = bounds.getSize(new THREE.Vector3());
+        const center = bounds.getCenter(new THREE.Vector3());
+        model.position.set(-center.x, -bounds.min.y, -center.z);
+        model.traverse((node) => {
+          const mesh = node as THREE.Mesh;
+          if (mesh.isMesh) mesh.castShadow = true;
+        });
+        const holder = new THREE.Group();
+        holder.add(model);
+        holder.scale.setScalar(SERPENT_SIZE / (Math.max(extent.x, extent.y, extent.z) || 1));
+        box.serpent.add(holder);
+      },
+      undefined,
+      (error) => console.warn("[BoxOpening] 구렁이 모형을 못 읽었다:", error),
+    );
+    return () => {
+      isAlive = false;
+    };
+  }, [box]);
+
+  /** 열쇠를 꽂기 시작한다 */
+  const startUnlock = useRef(() => {
+    phase.current = "unlocking";
+    startedAt.current = performance.now() / 1000;
+    box.key.visible = true;
+    audio.play("똑");
+  });
+
+  /** 함을 이 자리(유닛)에 — 손에서 내려와 놓이고, 자물통이 플레이어 쪽을 본다 */
+  const placeBox = useRef((position: THREE.Vector3) => {
+    box.restAt.copy(position);
+    box.placeFrom.copy(camera.position).lerp(position, 0.45);
+    box.root.position.copy(box.placeFrom);
+    box.root.rotation.y = Math.atan2(camera.position.x - position.x, camera.position.z - position.z);
+    box.root.visible = true;
+    phase.current = "placed";
+    placeTime.current = 0;
+    box.play.prepare();
+    showNotice("함을 내려놓았다. 청동 자물통 끝에 열쇠 구멍이 있다 — 자물통을 겨눠 [E].", 4);
+  });
+
+  // 땅에 내려놓은 함 — 줍는 물건 대신 열 수 있는 함으로 바꿔 놓는다(평상까지 돌아가지 않아도 열린다)
+  useEffect(() => {
+    if (phase.current !== "none") return;
+    const dropped = worldItems.find((item) => item.kind === "letterBox");
+    if (!dropped) return;
+    inventory.removeFromWorld(dropped.uid);
+    placeBox.current(dropped.position);
+  }, [worldItems]);
 
   // 열쇠와 함이 둘 다 손에 들어오면 한 번 일러 준다
   useEffect(() => {
     const kinds = new Set(held.map((item) => item.kind));
     if (!told.current.hint && kinds.has("bronzeKey") && kinds.has("letterBox") && phase.current === "none") {
       told.current.hint = true;
-      showNotice("청동 열쇠와 아랑사의 함 — 평상에 함을 올려놓고 자물통을 열어 보자.", 5);
+      showNotice("청동 열쇠와 아랑사의 함 — 함을 꺼내([I]) 내려놓고, 자물통을 겨눠 열어 보자.", 5);
     }
   }, [held]);
 
@@ -81,7 +265,7 @@ export default function BoxOpening() {
     const hasBox = () => inventory.has("letterBox") || inventory.hand()?.kind === "letterBox";
     const removePlatform = registerInteractable({
       id: "ridge-platform",
-      position: rig.platformTarget,
+      position: box.platformTarget,
       label: "평상에 함 올려놓기",
       radius: 0.9 * M,
       reach: 2.6 * M,
@@ -92,83 +276,157 @@ export default function BoxOpening() {
         const ground = groundY(PLATFORM.x, PLATFORM.z);
         const deck = solidQueries.current?.supportAt(PLATFORM.x, PLATFORM.z, ground + 1.2) ?? -Infinity;
         const top = deck > ground ? deck : ground + 0.35;
-        rig.root.position.set(PLATFORM.x * M, top * M, PLATFORM.z * M);
-        rig.root.rotation.y = Math.atan2(camera.position.x - rig.root.position.x, camera.position.z - rig.root.position.z);
-        rig.root.visible = true;
-        phase.current = "placed";
-        audio.play("똑");
-        showNotice("평상 위에 함을 올려놓았다. 자물통 오른쪽 끝에 열쇠 구멍이 있다.", 4);
+        placeBox.current(new THREE.Vector3(PLATFORM.x * M, top * M, PLATFORM.z * M));
       },
       use: () => showNotice("평상 — 무언가 올려놓기 좋은 높이다.", 2.5),
     });
     const removeLock = registerInteractable({
       id: "ridge-box-lock",
-      position: rig.lockTarget,
+      position: box.lockTarget,
       label: "자물통",
       radius: 0.4 * M,
       reach: 2.4 * M,
       enabled: () => phase.current === "placed",
       handLabel: (kind) => (kind === "bronzeKey" ? "열쇠로 자물통 열기" : null),
-      receive: () => {
-        phase.current = "unlocking";
-        startedAt.current = performance.now() / 1000;
-        rig.key.visible = true;
-        audio.play("똑");
-      },
+      receive: () => startUnlock.current(),
       use: () => showNotice("청동 자물통이 단단히 채워져 있다. 맞는 열쇠가 있어야 한다.", 3),
     });
     return () => {
       removePlatform();
       removeLock();
     };
-  }, [rig, camera]);
+  }, [box, camera]);
 
-  useFrame(() => {
+  useFrame((frame, rawDt) => {
+    const dt = Math.min(rawDt, 0.05);
     // 겨눌 자리 — 평상 가운데 · 자물통
     const ground = groundY(PLATFORM.x, PLATFORM.z);
-    rig.platformTarget.set(PLATFORM.x * M, (ground + 0.5) * M, PLATFORM.z * M);
-    rig.root.updateMatrixWorld(true);
-    rig.lockTarget.copy(LOCK_AT).applyMatrix4(rig.root.matrixWorld);
-    if (phase.current !== "unlocking") return;
+    box.platformTarget.set(PLATFORM.x * M, (ground + 0.5) * M, PLATFORM.z * M);
+    box.root.updateMatrixWorld(true);
+    box.lockTarget.copy(LOCK_AT).applyMatrix4(box.root.matrixWorld);
 
-    const t = performance.now() / 1000 - startedAt.current;
-    const lockEnd = LOCK_AT.x + LOCK_LENGTH / 2;
-    // ① 열쇠가 구멍으로 들어간다
-    const insert = THREE.MathUtils.smootherstep(t, 0, INSERT_SECONDS);
-    rig.key.position.set(lockEnd + 0.16 - insert * 0.1, LOCK_AT.y, LOCK_AT.z);
-    // ② 돌린다 — 철컥
-    const turnStart = INSERT_SECONDS;
-    const turn = THREE.MathUtils.smootherstep(t, turnStart, turnStart + TURN_SECONDS);
-    rig.key.rotation.set(turn * (Math.PI / 2), Math.PI, 0);
-    if (turn >= 1 && !told.current.unlocked) {
-      told.current.unlocked = true;
-      audio.play("단서");
-      showNotice("철컥 — 자물통이 풀렸다.", 2.5);
-    }
-    // ③ 자물통이 빠져 평상에 떨어진다(열쇠도 함께)
-    const dropStart = turnStart + TURN_SECONDS + 0.2;
-    const drop = THREE.MathUtils.clamp((t - dropStart) / DROP_SECONDS, 0, 1);
-    if (drop > 0) {
-      const slide = Math.min(1, drop * 2) * 0.05;
-      const fall = Math.max(0, drop - 0.4) / 0.6;
-      rig.lock.position.set(LOCK_AT.x + slide, LOCK_AT.y - fall * fall * LOCK_AT.y, LOCK_AT.z + 0.02 + fall * 0.04);
-      rig.lock.rotation.z = fall * 0.6;
-      rig.key.position.set(lockEnd + 0.06 + slide, LOCK_AT.y - fall * fall * LOCK_AT.y, LOCK_AT.z + 0.02 + fall * 0.04);
-    }
-    // ④ 뚜껑이 열린다
-    const openStart = dropStart + DROP_SECONDS + 0.2;
-    const open = THREE.MathUtils.smootherstep(t, openStart, openStart + OPEN_SECONDS);
-    rig.lidPivot.rotation.x = -open * 1.9;
-    rig.letter.position.y = open * 0.012;
-    if (open >= 1) {
-      phase.current = "open";
-      if (!told.current.opened) {
-        told.current.opened = true;
-        audio.play("징");
-        showNotice("뚜껑을 열자 접힌 편지 한 장이 보인다 — 아랑사가 아비사에게 쓴 것이다.", 6);
+    // 내려놓기 — 손에서 내려와 쿵 놓이고 살짝 흔들린다
+    if (placeTime.current >= 0) {
+      placeTime.current += dt;
+      const t = Math.min(1, placeTime.current / PLACE_SECONDS);
+      box.root.position.lerpVectors(box.placeFrom, box.restAt, t * t);
+      const settle = Math.max(0, placeTime.current - PLACE_SECONDS);
+      box.root.rotation.z = settle < 0.3 ? Math.sin(settle * 26) * 0.03 * (1 - settle / 0.3) : 0;
+      if (t >= 1 && settle === 0) audio.play("똑");
+      if (settle >= 0.3) {
+        placeTime.current = -1;
+        box.root.rotation.z = 0;
       }
     }
+    if (phase.current === "play") updatePlay(dt, frame.clock.elapsedTime);
+    if (phase.current !== "unlocking") return;
+
+    const elapsed = performance.now() / 1000 - startedAt.current;
+    const lockEnd = LOCK_AT.x + LOCK_LENGTH / 2;
+    // 열쇠가 구멍으로 들어간다 — 구멍을 찾느라 끝에서 한 번 멈칫한다
+    const reach = THREE.MathUtils.smootherstep(elapsed, 0, INSERT_SECONDS * 0.55) * 0.6;
+    const seat = THREE.MathUtils.smootherstep(elapsed, INSERT_SECONDS * 0.65, INSERT_SECONDS) * 0.4;
+    box.key.position.set(lockEnd + 0.16 - (reach + seat) * 0.1, LOCK_AT.y, LOCK_AT.z);
+    // 돌린다 — 뻑뻑하다가 철컥 넘어간다
+    const turnStart = INSERT_SECONDS;
+    const turnT = THREE.MathUtils.clamp((elapsed - turnStart) / TURN_SECONDS, 0, 1);
+    const turn = turnT ** 3;
+    box.key.rotation.set(turn * (Math.PI / 2), Math.PI, 0);
+    if (turnT >= 1 && !told.current.unlocked) {
+      told.current.unlocked = true;
+      audio.play("단서");
+      director.cue({ 카메라: "흔들림", 세기: 0.08 });
+      showNotice("철컥 — 자물통이 풀렸다.", 2.5);
+    }
+    // 자물통이 고리에서 빠져 떨어져 튄다(열쇠도 함께)
+    const dropStart = turnStart + TURN_SECONDS + 0.25;
+    const dropSince = elapsed - dropStart;
+    if (dropSince > 0) {
+      const slide = Math.min(1, dropSince / 0.12) * 0.05;
+      const height = LOCK_AT.y * fallHeight(Math.max(0, dropSince - 0.1)) + 0.014;
+      const roll = Math.min(1, dropSince / 0.6);
+      box.lock.position.set(LOCK_AT.x + slide + roll * 0.02, height, LOCK_AT.z + 0.02 + roll * 0.05);
+      box.lock.rotation.z = roll * 0.7;
+      box.key.position.set(lockEnd + 0.06 + slide + roll * 0.02, height, LOCK_AT.z + 0.02 + roll * 0.05);
+    }
+    // 뚜껑 — 덜컥 조금 들렸다가 한 박자 쉬고, 무겁게 젖혀진다
+    const openStart = dropStart + DROP_SECONDS + 0.2;
+    const openT = (elapsed - openStart) / OPEN_SECONDS;
+    const crack = THREE.MathUtils.smoothstep(openT, 0, 0.14) * 0.16;
+    const swing = openT > 0.28 ? easeOutBack((openT - 0.28) / 0.72) * (LID_OPEN - 0.16) : 0;
+    box.lidPivot.rotation.x = -(crack + swing);
+    if (openT >= 1) startPlay();
   });
+
+  /** 뚜껑이 다 열렸다 — 빛기둥이 솟고 그 위 빛 속에 영상이 선다. 시선이 그쪽으로 간다 */
+  const startPlay = () => {
+    phase.current = "play";
+    playTime.current = 0;
+    cuesFired.current.clear();
+    const away = new THREE.Vector3(box.root.position.x - camera.position.x, 0, box.root.position.z - camera.position.z);
+    if (away.lengthSq() < 1) camera.getWorldDirection(away).setY(0);
+    away.normalize();
+    const { mesh } = box.play;
+    mesh.position.copy(box.root.position).addScaledVector(away, SCREEN.behind * M);
+    mesh.position.y += SCREEN.height * M;
+    mesh.rotation.y = Math.atan2(-away.x, -away.z);
+    mesh.visible = true;
+    box.beam.visible = true;
+    audio.play("징");
+    focusCamera({
+      id: "box-shadow-play",
+      target: mesh.position,
+      hold: SHADOW_PLAY_SECONDS - 1.3,
+      turnIn: 0.8,
+      turnOut: 0.7,
+      zoom: 0.82,
+      replace: true,
+    });
+  };
+
+  /** 재생 한 프레임 — 빛기둥이 솟고 주마등이 떠올라 돌며, 영상이 끝나면 빛이 함으로 가라앉는다 */
+  const updatePlay = (dt: number, time: number) => {
+    playTime.current += Math.min(dt, 1 / 30);
+    const t = playTime.current;
+    box.play.draw(t);
+    // 끝에는 빛이 천천히 약해지고 영상도 함께 옅어진다
+    const dim = 1 - THREE.MathUtils.smootherstep(t, SHADOW_PLAY_SECONDS - SHADOW_PLAY_FADE, SHADOW_PLAY_SECONDS);
+    const rise = THREE.MathUtils.smootherstep(t, 0, 0.9) * dim;
+    const light = rise * (0.9 + 0.1 * Math.sin(time * 9));
+    box.lantern.position.y = BOX.height + 0.002 + rise * LANTERN.lift;
+    box.lantern.rotation.y = time * LANTERN.spin;
+    box.paper.color.copy(LANTERN_OFF).lerp(LANTERN_ON, light);
+    box.glow.position.set(box.lantern.position.x, box.lantern.position.y + 0.05, box.lantern.position.z);
+    (box.glow.material as THREE.SpriteMaterial).opacity = light * 0.9;
+    box.beamMaterial.uniforms.uStrength.value = light;
+    box.beamMaterial.uniforms.uTime.value = time;
+    // 영상이 비치는 동안 판도 빛 따라 서서히
+    box.play.material.opacity = THREE.MathUtils.smootherstep(t, 0.2, 1.0) * dim;
+    for (const cue of SHADOW_PLAY_CUES) {
+      if (t < cue.at || cuesFired.current.has(cue.at)) continue;
+      cuesFired.current.add(cue.at);
+      audio.play(cue.sound);
+      if (cue.shake) director.cue({ 카메라: "흔들림", 세기: cue.shake });
+    }
+    if (t < SHADOW_PLAY_SECONDS) return;
+    phase.current = "done";
+    box.play.mesh.visible = false;
+    box.beam.visible = false;
+    (box.glow.material as THREE.SpriteMaterial).opacity = 0;
+    box.paper.color.copy(LANTERN_OFF);
+    showNotice("빛이 함으로 가라앉았다. 바닥에 작은 구렁이상 하나가 남아 있다 — 아랑사의 함에 왜 이것이.", 6);
+  };
+
+  useEffect(() => {
+    if (import.meta.env.DEV)
+      exposeDevHook("najuBoxDev", {
+        phase: () => phase.current,
+        lock: () => box.lockTarget.clone(),
+        /** 함을 발 앞에 놓는다 — 검사용 */
+        place: (position: THREE.Vector3) => placeBox.current(position),
+        unlock: () => startUnlock.current(),
+      });
+  }, [box]);
 
   return null;
 }

@@ -31,15 +31,15 @@ export function curtainPoint(t: number, out: { x: number; z: number; nx: number;
   const ix = HALF_X - CURTAIN.r;
   const iz = HALF_Z - CURTAIN.r;
   // 변 넷과 모서리 넷을 차례로: 북 변 → 북동 → 동 변 → 남동 → 남 변 → 남서 → 서 변 → 북서
-  const pieces: [number, (s: number) => [number, number, number, number]][] = [
-    [STRAIGHT_X, (s) => [-ix + s, -iz - CURTAIN.r, 0, -1]],
-    [ARC, (s) => corner(ix, -iz, -Math.PI / 2 + s / CURTAIN.r)],
-    [STRAIGHT_Z, (s) => [ix + CURTAIN.r, -iz + s, 1, 0]],
-    [ARC, (s) => corner(ix, iz, s / CURTAIN.r)],
-    [STRAIGHT_X, (s) => [ix - s, iz + CURTAIN.r, 0, 1]],
-    [ARC, (s) => corner(-ix, iz, Math.PI / 2 + s / CURTAIN.r)],
-    [STRAIGHT_Z, (s) => [-ix - CURTAIN.r, iz - s, -1, 0]],
-    [ARC, (s) => corner(-ix, -iz, Math.PI + s / CURTAIN.r)],
+  const pieces: [number, (along: number) => [number, number, number, number]][] = [
+    [STRAIGHT_X, (along) => [-ix + along, -iz - CURTAIN.r, 0, -1]],
+    [ARC, (along) => corner(ix, -iz, -Math.PI / 2 + along / CURTAIN.r)],
+    [STRAIGHT_Z, (along) => [ix + CURTAIN.r, -iz + along, 1, 0]],
+    [ARC, (along) => corner(ix, iz, along / CURTAIN.r)],
+    [STRAIGHT_X, (along) => [ix - along, iz + CURTAIN.r, 0, 1]],
+    [ARC, (along) => corner(-ix, iz, Math.PI / 2 + along / CURTAIN.r)],
+    [STRAIGHT_Z, (along) => [-ix - CURTAIN.r, iz - along, -1, 0]],
+    [ARC, (along) => corner(-ix, -iz, Math.PI + along / CURTAIN.r)],
   ];
   for (const [length, at] of pieces) {
     if (d <= length) {
@@ -62,12 +62,12 @@ function corner(cx: number, cz: number, angle: number): [number, number, number,
 
 /** 둘레에서 (x, z) 에 가장 가까운 자리(0~1) — 새가 장막을 뚫고 나가는 곳 */
 export function nearestCurtainT(x: number, z: number) {
-  const p = { x: 0, z: 0, nx: 0, nz: 0 };
+  const point = { x: 0, z: 0, nx: 0, nz: 0 };
   let best = 0;
   let bestDistance = Infinity;
   for (let k = 0; k < 240; k++) {
-    curtainPoint(k / 240, p);
-    const d = (p.x - x) ** 2 + (p.z - z) ** 2;
+    curtainPoint(k / 240, point);
+    const d = (point.x - x) ** 2 + (point.z - z) ** 2;
     if (d < bestDistance) {
       bestDistance = d;
       best = k / 240;
@@ -76,7 +76,7 @@ export function nearestCurtainT(x: number, z: number) {
   return best;
 }
 
-/** 진부촌 문 — 장승 둘 사이(edits.json 「소품.장승」 더함 자리와 같다). 시공간 틈이 여기 열린다 */
+/** 진부촌 문 — 장승 둘 사이. 시공간 틈이 여기 열린다 */
 export const GATE = {
   center: { x: 75.35, z: 12.05 },
   /** 두 장승을 잇는 방향(문 폭) */
@@ -84,7 +84,7 @@ export const GATE = {
     { x: 75.21, z: 10.71 },
     { x: 75.49, z: 13.38 },
   ],
-  /** 횃불 둘(「소품.횃불」 고침 자리) — 불꽃 높이는 땅 위 m */
+  /** 횃불 둘 — 불꽃 높이는 땅 위 m */
   torches: [
     { x: 75.47, z: 13.99 },
     { x: 74.78, z: 10.3 },
@@ -95,10 +95,13 @@ export const GATE = {
 /** 궤를 올리는 돌단 — 두 장승 사이, 틈(문 가운데 줄)보다 반 걸음 안쪽 · 윗면 높이(땅 위 m) */
 export const ALTAR = { x: GATE.center.x - 0.6, z: GATE.center.z, top: 0.3 };
 
-/** 돌새 두 마리 — 씬2 솟대 0·1 번(edits.json 「씬2.솟대」 고침 자리). 실제 자리는 그려진 솟대에서 다시 읽는다 */
+/** 돌새 두 마리 — 씬2 솟대 0·1 번. 실제 자리는 그려진 솟대에서 다시 읽는다 */
 export const STATUE_IDS = [0, 1] as const;
 /** 오른쪽(문을 등지고 볼 때) 돌새 — 부리에 열쇠를 물고 있다 */
 export const KEY_STATUE = 1;
+
+/** 평상 가운데 — 걸상 이야기의 글판과 아랑사의 함이 놓인다 */
+export const PLATFORM = { x: 74.03, z: 16.65 };
 
 /** 수레·궤 처음 자리 — 바퀴 자국이 문에서 수레까지 이어진다 */
 export const CART_START = { x: 70.6, z: 14.2, yaw: 2.6 };

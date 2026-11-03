@@ -1,11 +1,12 @@
 /**
- * 줄이 당겨질 때 물이 튄다 — 왕관처럼 솟는 물(미르의 물튀김 왕관 모형) + 흩어지는 물방울 + 불규칙하게 번지는 물결.
- * 날씨 연출의 물튀김은 비가 올 때만 그려져서 여기서 따로 둔다. 같은 왕관 모형을 쓴다.
+ * 줄이 당겨질 때 물이 튄다 — 왕관처럼 솟는 물(날씨 연출과 같은 물튀김 왕관 모형) + 흩어지는 물방울 + 불규칙하게 번지는 물결.
+ * 날씨 연출의 물튀김은 비가 올 때만 그려져서 여기서 따로 둔다.
  */
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-import { M, makeGlowPoints } from "./shared";
+import { makeGlowPoints } from "../glowPoints";
+import { M } from "../units";
 
 const CROWNS = 4;
 const DROPS = 90;
@@ -54,7 +55,6 @@ const RIPPLE_FRAGMENT = /* glsl */ `
       float width = 0.02 + f * 0.03;
       band += smoothstep(width, 0.0, abs(r + wobble * f - f)) * (1.0 - float(k) * 0.3);
     }
-    // 물결 사이사이 잔결 — 고리가 매끈하면 그림 같다
     // 끊기고 번진 고리 — 매끈한 원이면 도형이다
     band *= smoothstep(0.25, 0.75, noise(vec2(angle * 4.0, front * 3.0) + uSeed));
     band *= 0.6 + 0.4 * noise(p * 11.0 + uSeed);
@@ -66,7 +66,9 @@ const RIPPLE_FRAGMENT = /* glsl */ `
 `;
 
 interface Burst {
+  /** 튄 때(초). 아직이면 음수 */
   start: number;
+  /** 수면 자리(유닛) */
   at: THREE.Vector3;
   size: number;
 }
@@ -74,7 +76,7 @@ interface Burst {
 export function createWaterSplash() {
   const group = new THREE.Group();
 
-  // ── 왕관 — 처음엔 임시 모양, 미르 모형이 오면 바꾼다 ──
+  // 왕관 — 모형이 읽히기 전에는 임시 원뿔
   const crownGeometry = new THREE.CylinderGeometry(1, 0.55, 1, 14, 1, true);
   crownGeometry.translate(0, 0.5, 0);
   const crown = new THREE.InstancedMesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>(
@@ -99,27 +101,25 @@ export function createWaterSplash() {
         if (!geometry && (object as THREE.Mesh).isMesh) geometry = (object as THREE.Mesh).geometry.clone();
       });
       if (!geometry) return;
-      const g = geometry as THREE.BufferGeometry;
-      g.computeBoundingBox();
-      const box = g.boundingBox!;
+      const crownShape = geometry as THREE.BufferGeometry;
+      crownShape.computeBoundingBox();
+      const box = crownShape.boundingBox!;
       const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) || 1;
-      g.translate(-(box.max.x + box.min.x) / 2, -box.min.y, -(box.max.z + box.min.z) / 2);
-      g.scale(2 / width, 2 / width, 2 / width);
-      if (g.getAttribute("color")) g.deleteAttribute("color");
-      crown.geometry = g;
+      crownShape.translate(-(box.max.x + box.min.x) / 2, -box.min.y, -(box.max.z + box.min.z) / 2);
+      crownShape.scale(2 / width, 2 / width, 2 / width);
+      if (crownShape.getAttribute("color")) crownShape.deleteAttribute("color");
+      crown.geometry = crownShape;
     },
     undefined,
     () => {},
   );
 
-  // ── 물방울 ──
   const drops = makeGlowPoints(DROPS, { additive: false, softness: 1.4 });
   const dropPosition = Array.from({ length: DROPS }, () => new THREE.Vector3());
   const dropVelocity = Array.from({ length: DROPS }, () => new THREE.Vector3());
   const dropAlive = new Uint8Array(DROPS);
   let nextDrop = 0;
 
-  // ── 물결 ──
   const ripples = Array.from({ length: RIPPLES }, () => {
     const material = new THREE.ShaderMaterial({
       vertexShader: RIPPLE_VERTEX,
@@ -141,11 +141,11 @@ export function createWaterSplash() {
   const bursts: Burst[] = Array.from({ length: CROWNS }, () => ({ start: -99, at: new THREE.Vector3(), size: 1 }));
   let nextBurst = 0;
 
-  group.add(crown, drops.points, ...ripples.map((r) => r.mesh));
+  group.add(crown, drops.points, ...ripples.map((ripple) => ripple.mesh));
 
-  const tmpMatrix = new THREE.Matrix4();
-  const tmpQuat = new THREE.Quaternion();
-  const tmpScale = new THREE.Vector3();
+  const matrix = new THREE.Matrix4();
+  const quaternion = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
   let now = 0;
 
   return {
@@ -184,8 +184,8 @@ export function createWaterSplash() {
         if (u < 0 || u > 1) continue;
         const width = (0.1 + 0.14 * u) * burst.size;
         const height = 0.24 * burst.size * Math.sin(Math.PI * Math.min(1, u * 1.2));
-        tmpMatrix.compose(burst.at, tmpQuat, tmpScale.set(width * M, Math.max(height, 0.001) * M, width * M));
-        crown.setMatrixAt(j++, tmpMatrix);
+        matrix.compose(burst.at, quaternion, scale.set(width * M, Math.max(height, 0.001) * M, width * M));
+        crown.setMatrixAt(j++, matrix);
       }
       crown.count = j;
       crown.instanceMatrix.needsUpdate = true;
@@ -203,8 +203,8 @@ export function createWaterSplash() {
           drops.alpha.setX(k, 0);
           continue;
         }
-        const p = dropPosition[k];
-        drops.position.setXYZ(k, p.x, p.y, p.z);
+        const point = dropPosition[k];
+        drops.position.setXYZ(k, point.x, point.y, point.z);
         drops.size.setX(k, 0.05 * M);
         drops.alpha.setX(k, 0.85);
         drops.color.setXYZ(k, WATER.r, WATER.g, WATER.b);

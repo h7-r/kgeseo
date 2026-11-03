@@ -4,15 +4,14 @@
  *   아랑사 — 처녀. 길게 땋아 댕기를 늘인 머리, 깃·끝동 단 저고리에 긴 옷고름, 주름이 퍼지는 긴 치마. 두 손으로 든 청사초롱이 등처럼 빛난다
  * 미터, 발밑(받침 윗면)이 원점, 앞이 −z. 빛나는 조각(초롱 몸통 · 노 날)은 따로 그리고, glow(0~1)에 따라 밝아진다.
  */
-import { useEffect, useMemo, useRef, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { M } from "../fishTrap/shared";
+import { M } from "../units";
 
 type Kind = "아비사" | "아랑사";
-
 
 const lathe = (points: [number, number][], segments = 20) =>
   new THREE.LatheGeometry(
@@ -25,25 +24,28 @@ function limb(from: THREE.Vector3, to: THREE.Vector3, r0: number, r1 = r0, segme
   const length = from.distanceTo(to);
   const geometry = new THREE.CylinderGeometry(r1, r0, length, segments);
   geometry.translate(0, length / 2, 0);
-  geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize()));
+  geometry.applyQuaternion(
+    new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize()),
+  );
   geometry.translate(from.x, from.y, from.z);
   return geometry;
 }
 
-const sphere = (r: number, x: number, y: number, z: number, sx = 1, sy = 1, sz = 1) => new THREE.SphereGeometry(r, 16, 12).scale(sx, sy, sz).translate(x, y, z);
+const sphere = (r: number, x: number, y: number, z: number, sx = 1, sy = 1, sz = 1) =>
+  new THREE.SphereGeometry(r, 16, 12).scale(sx, sy, sz).translate(x, y, z);
 
 /** 주름 — 둘레를 따라 물결지게(치마·저고리 자락) */
 function pleat(geometry: THREE.BufferGeometry, count: number, depth: number, from: number) {
-  const p = geometry.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i);
-    const z = p.getZ(i);
-    const y = p.getY(i);
+  const position = geometry.attributes.position;
+  for (let i = 0; i < position.count; i++) {
+    const x = position.getX(i);
+    const z = position.getZ(i);
+    const y = position.getY(i);
     const r = Math.hypot(x, z);
     if (r < 1e-4) continue;
     const a = Math.atan2(z, x);
     const k = 1 + depth * Math.sin(a * count) * THREE.MathUtils.smoothstep(from - y, -0.2, 0.6);
-    p.setXYZ(i, x * k, y, z * k);
+    position.setXYZ(i, x * k, y, z * k);
   }
   geometry.computeVertexNormals();
   return geometry;
@@ -67,9 +69,17 @@ function buildOarBlade() {
   shape.quadraticCurveTo(0.085, 0.05, 0.07, 0.3);
   shape.lineTo(0.025, 0.46);
   shape.closePath();
-  const blade = new THREE.ExtrudeGeometry(shape, { depth: 0.022, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 1 });
+  const blade = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.022,
+    bevelEnabled: true,
+    bevelThickness: 0.006,
+    bevelSize: 0.006,
+    bevelSegments: 1,
+  });
   blade.translate(0, 0, -0.011);
-  blade.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), OAR_TOP.clone().sub(OAR_BOTTOM).normalize()));
+  blade.applyQuaternion(
+    new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), OAR_TOP.clone().sub(OAR_BOTTOM).normalize()),
+  );
   blade.translate(OAR_BOTTOM.x, OAR_BOTTOM.y, OAR_BOTTOM.z);
   return blade;
 }
@@ -104,7 +114,12 @@ function buildAbisa(): { parts: THREE.BufferGeometry[]; glow: GlowPart } {
   parts.push(new THREE.BoxGeometry(0.045, 0.36, 0.02).rotateZ(0.42).translate(0.05, 1.2, -0.185));
   parts.push(new THREE.BoxGeometry(0.035, 0.18, 0.02).rotateZ(-0.42).translate(-0.04, 1.32, -0.17));
   // 허리띠 · 매듭과 늘어진 끈
-  parts.push(new THREE.TorusGeometry(0.205, 0.024, 6, 28).rotateX(Math.PI / 2).scale(1.22, 1, 0.84).translate(0, 0.86, 0));
+  parts.push(
+    new THREE.TorusGeometry(0.205, 0.024, 6, 28)
+      .rotateX(Math.PI / 2)
+      .scale(1.22, 1, 0.84)
+      .translate(0, 0.86, 0),
+  );
   parts.push(sphere(0.03, 0.11, 0.86, -0.17));
   parts.push(new THREE.BoxGeometry(0.025, 0.2, 0.012).rotateZ(0.12).translate(0.12, 0.74, -0.175));
   parts.push(new THREE.BoxGeometry(0.025, 0.16, 0.012).rotateZ(-0.1).translate(0.09, 0.76, -0.177));
@@ -139,8 +154,18 @@ function buildAbisa(): { parts: THREE.BufferGeometry[]; glow: GlowPart } {
   const shoulderL = new THREE.Vector3(-0.23, 1.32, 0);
   const elbowR = new THREE.Vector3(0.3, 1.1, -0.14);
   const elbowL = new THREE.Vector3(-0.28, 1.0, -0.08);
-  parts.push(limb(shoulderR, elbowR, 0.065, 0.06), sphere(0.06, elbowR.x, elbowR.y, elbowR.z), limb(elbowR, gripHigh, 0.045, 0.04), sphere(0.045, gripHigh.x, gripHigh.y, gripHigh.z, 1.1, 1, 1));
-  parts.push(limb(shoulderL, elbowL, 0.065, 0.06), sphere(0.06, elbowL.x, elbowL.y, elbowL.z), limb(elbowL, gripLow, 0.045, 0.04), sphere(0.045, gripLow.x, gripLow.y, gripLow.z, 1.1, 1, 1));
+  parts.push(
+    limb(shoulderR, elbowR, 0.065, 0.06),
+    sphere(0.06, elbowR.x, elbowR.y, elbowR.z),
+    limb(elbowR, gripHigh, 0.045, 0.04),
+    sphere(0.045, gripHigh.x, gripHigh.y, gripHigh.z, 1.1, 1, 1),
+  );
+  parts.push(
+    limb(shoulderL, elbowL, 0.065, 0.06),
+    sphere(0.06, elbowL.x, elbowL.y, elbowL.z),
+    limb(elbowL, gripLow, 0.045, 0.04),
+    sphere(0.045, gripLow.x, gripLow.y, gripLow.z, 1.1, 1, 1),
+  );
   // 노 — 긴 자루와 손잡이(날은 빛나는 조각으로 따로)
   parts.push(limb(along(0.2), OAR_TOP, 0.022, 0.018, 8));
   parts.push(limb(OAR_TOP, OAR_TOP.clone().add(new THREE.Vector3(0.06, 0.01, -0.03)), 0.016, 0.016, 6));
@@ -166,16 +191,24 @@ function buildArangsa(): { parts: THREE.BufferGeometry[]; glow: GlowPart } {
   skirt.scale(1, 1, 0.92);
   parts.push(skirt);
   // 치마말기 — 가슴에 두른 띠
-  parts.push(new THREE.TorusGeometry(0.16, 0.018, 6, 28).rotateX(Math.PI / 2).scale(1.05, 1, 0.9).translate(0, 1.12, 0));
+  parts.push(
+    new THREE.TorusGeometry(0.16, 0.018, 6, 28)
+      .rotateX(Math.PI / 2)
+      .scale(1.05, 1, 0.9)
+      .translate(0, 1.12, 0),
+  );
   // 짧은 저고리 — 소매가 둥글다
-  const coat = lathe([
-    [0.16, 1.12],
-    [0.17, 1.2],
-    [0.18, 1.3],
-    [0.13, 1.39],
-    [0.06, 1.42],
-    [0, 1.42],
-  ], 28);
+  const coat = lathe(
+    [
+      [0.16, 1.12],
+      [0.17, 1.2],
+      [0.18, 1.3],
+      [0.13, 1.39],
+      [0.06, 1.42],
+      [0, 1.42],
+    ],
+    28,
+  );
   coat.scale(1.15, 1, 0.85);
   parts.push(coat);
   // 깃 · 동정 — 왼쪽으로 여민다
@@ -205,17 +238,31 @@ function buildArangsa(): { parts: THREE.BufferGeometry[]; glow: GlowPart } {
     const shoulder = new THREE.Vector3(side * 0.18, 1.33, 0);
     const elbow = new THREE.Vector3(side * 0.21, 1.1, -0.12);
     const hand = hands.clone().add(new THREE.Vector3(side * 0.035, 0, 0));
-    parts.push(limb(shoulder, elbow, 0.065, 0.08), sphere(0.075, elbow.x, elbow.y, elbow.z), limb(elbow, hand, 0.07, 0.05));
+    parts.push(
+      limb(shoulder, elbow, 0.065, 0.08),
+      sphere(0.075, elbow.x, elbow.y, elbow.z),
+      limb(elbow, hand, 0.07, 0.05),
+    );
     const cuff = elbow.clone().lerp(hand, 0.82);
     parts.push(limb(cuff, cuff.clone().lerp(hand, 0.4), 0.056, 0.056, 12));
     parts.push(sphere(0.038, hand.x, hand.y, hand.z));
   }
   // 청사초롱 — 자루 · 고리 · 지붕 · 밑받침(몸통은 빛나는 조각으로 따로)
-  parts.push(limb(hands.clone().add(new THREE.Vector3(0, 0.05, 0)), hands.clone().add(new THREE.Vector3(0, -0.13, -0.02)), 0.011, 0.011, 6));
+  parts.push(
+    limb(
+      hands.clone().add(new THREE.Vector3(0, 0.05, 0)),
+      hands.clone().add(new THREE.Vector3(0, -0.13, -0.02)),
+      0.011,
+      0.011,
+      6,
+    ),
+  );
   const lantern = new THREE.Vector3(hands.x, hands.y - 0.29, hands.z - 0.03);
   parts.push(new THREE.CylinderGeometry(0.035, 0.1, 0.06, 12).translate(lantern.x, lantern.y + 0.135, lantern.z));
   parts.push(new THREE.CylinderGeometry(0.1, 0.06, 0.045, 12).translate(lantern.x, lantern.y - 0.125, lantern.z));
-  parts.push(new THREE.ConeGeometry(0.018, 0.08, 6).rotateX(Math.PI).translate(lantern.x, lantern.y - 0.185, lantern.z));
+  parts.push(
+    new THREE.ConeGeometry(0.018, 0.08, 6).rotateX(Math.PI).translate(lantern.x, lantern.y - 0.185, lantern.z),
+  );
   // 몸통 — 위 푸른 천, 아래 붉은 천 자리를 가로 띠로 나눈 둥근 등
   const body = new THREE.CylinderGeometry(0.088, 0.088, 0.21, 16);
   body.translate(lantern.x, lantern.y, lantern.z);
@@ -232,10 +279,10 @@ function weatherColors(geometry: THREE.BufferGeometry) {
     const x = position.getX(i);
     const y = position.getY(i);
     const z = position.getZ(i);
-    const n = Math.sin(x * 23.1 + y * 7.3) * Math.sin(z * 19.7 - y * 11.2) * 0.5 + 0.5;
+    const noise = Math.sin(x * 23.1 + y * 7.3) * Math.sin(z * 19.7 - y * 11.2) * 0.5 + 0.5;
     const grime = 0.72 + 0.28 * THREE.MathUtils.smoothstep(y, 0, 0.9);
-    color.setScalar(grime * (0.92 + 0.12 * n));
-    const mossy = (1 - THREE.MathUtils.smoothstep(y, 0.02, 0.32)) * (0.4 + 0.6 * n);
+    color.setScalar(grime * (0.92 + 0.12 * noise));
+    const mossy = (1 - THREE.MathUtils.smoothstep(y, 0.02, 0.32)) * (0.4 + 0.6 * noise);
     color.lerp(moss, mossy * 0.55);
     colors.set([color.r, color.g, color.b], i * 3);
   }
@@ -252,26 +299,35 @@ export default function StoneFigure({
   kind: Kind;
   material: THREE.Material;
   glowTexture: THREE.Texture;
-  glow: MutableRefObject<number>;
+  glow: RefObject<number>;
 }) {
-  const built = useMemo(() => {
+  const figure = useMemo(() => {
     const { parts, glow: part } = kind === "아비사" ? buildAbisa() : buildArangsa();
     // 조각마다 제 법선을 지닌 채 합친다 — 다시 계산하면 이음매가 각져 보인다
     const merged = mergeGeometries(parts, false)!;
-    parts.forEach((g) => g.dispose());
+    parts.forEach((piece) => piece.dispose());
     weatherColors(merged);
     const glowMaterial = new THREE.MeshBasicMaterial({ color: "#3A3934", toneMapped: false });
-    const haloMaterial = new THREE.SpriteMaterial({ map: glowTexture, color: "#FFEFD2", transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false });
+    const haloMaterial = new THREE.SpriteMaterial({
+      map: glowTexture,
+      color: "#FFEFD2",
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+      toneMapped: false,
+    });
     return { merged, part, glowMaterial, haloMaterial };
   }, [kind, glowTexture]);
   useEffect(
     () => () => {
-      built.merged.dispose();
-      built.part.geometry.dispose();
-      built.glowMaterial.dispose();
-      built.haloMaterial.dispose();
+      figure.merged.dispose();
+      figure.part.geometry.dispose();
+      figure.glowMaterial.dispose();
+      figure.haloMaterial.dispose();
     },
-    [built],
+    [figure],
   );
   const light = useRef<THREE.PointLight>(null);
   const halo = useRef<THREE.Sprite>(null);
@@ -281,19 +337,27 @@ export default function StoneFigure({
     const level = glow.current;
     // 초롱은 심지 불처럼 살짝 일렁이고, 노 날은 물빛처럼 천천히 숨 쉰다
     const t = clock.elapsedTime;
-    const breathe = kind === "아랑사" ? 0.92 + 0.05 * Math.sin(t * 7.3) + 0.03 * Math.sin(t * 13.1) : 0.85 + 0.15 * Math.sin(t * 1.4);
-    built.glowMaterial.color.copy(off).lerp(on, level * breathe);
-    built.haloMaterial.opacity = level * (kind === "아랑사" ? 0.75 : 0.55) * breathe;
+    const breathe =
+      kind === "아랑사" ? 0.92 + 0.05 * Math.sin(t * 7.3) + 0.03 * Math.sin(t * 13.1) : 0.85 + 0.15 * Math.sin(t * 1.4);
+    figure.glowMaterial.color.copy(off).lerp(on, level * breathe);
+    figure.haloMaterial.opacity = level * (kind === "아랑사" ? 0.75 : 0.55) * breathe;
     if (halo.current) halo.current.scale.setScalar(kind === "아랑사" ? 1.1 : 0.9);
     if (light.current) light.current.intensity = level * (kind === "아랑사" ? 0.9 : 0.6) * breathe;
   });
-  const at = built.part.at;
+  const at = figure.part.at;
   return (
     <>
-      <mesh geometry={built.merged} material={material} castShadow receiveShadow />
-      <mesh geometry={built.part.geometry} material={built.glowMaterial} />
-      <sprite ref={halo} material={built.haloMaterial} position={[at.x, at.y, at.z]} />
-      <pointLight ref={light} color="#FFE6C0" intensity={0} distance={3.2 * M} decay={1.6} position={[at.x, at.y, at.z - 0.08]} />
+      <mesh geometry={figure.merged} material={material} castShadow receiveShadow />
+      <mesh geometry={figure.part.geometry} material={figure.glowMaterial} />
+      <sprite ref={halo} material={figure.haloMaterial} position={[at.x, at.y, at.z]} />
+      <pointLight
+        ref={light}
+        color="#FFE6C0"
+        intensity={0}
+        distance={3.2 * M}
+        decay={1.6}
+        position={[at.x, at.y, at.z - 0.08]}
+      />
     </>
   );
 }

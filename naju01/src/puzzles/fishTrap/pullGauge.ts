@@ -1,24 +1,40 @@
 /**
- * 줄 당기기 게이지 — 동그라미가 게이지 위를 오가고, 가운데 칸에 왔을 때 [E] 를 누르면 한 번 당겨진다.
- * 세 번 맞추면 통발이 올라온다. 놓쳐도 벌은 없다(어렵지 않게 — 칸을 넓게, 속도는 느긋하게).
+ * 줄 당기기 게이지 — 막대가 게이지 위를 오가고, 호박빛 칸에 왔을 때 [E] 를 누르면 한 번 당겨진다.
+ * 세 번 맞추면 통발이 올라온다. 판마다 어려워진다 — 둘째는 칸이 좁아지고, 셋째는 칸이 옆으로 옮겨 가며 막대도 빨라진다.
+ * 놓쳐도 벌은 없다.
  */
 import { useSyncExternalStore } from "react";
 
+import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import { setKeyInterceptor } from "../interaction";
 
 export const GAUGE_HITS = 3;
-/** 가운데 칸 너비(게이지 전체의 몫) */
-export const GAUGE_ZONE = 0.3;
-/** 동그라미가 한쪽 끝에서 다른 끝까지 가는 초 */
-const SWEEP_SECONDS = 1.15;
+
+interface GaugeRound {
+  /** 칸 너비(게이지 전체의 몫) · 칸 가운데(0~1) · 막대가 한쪽 끝에서 다른 끝까지 가는 초 */
+  zone: number;
+  center: number;
+  sweep: number;
+}
+/** 판마다 — 셋째 칸 자리는 시작할 때 뽑는다(가운데가 아닌 곳) */
+const ROUNDS: GaugeRound[] = [
+  { zone: 0.3, center: 0.5, sweep: 1.15 },
+  { zone: 0.18, center: 0.5, sweep: 0.95 },
+  { zone: 0.16, center: 0.5, sweep: 0.78 },
+];
+const THIRD_CENTERS = [0.22, 0.3, 0.7, 0.78];
 
 export interface GaugeState {
   active: boolean;
   label: string;
   hits: number;
   startedAt: number;
+  /** 지금 판의 칸 */
+  zone: number;
+  center: number;
+  sweep: number;
   /** 마지막으로 누른 결과 — 화면이 잠깐 번쩍인다 */
   flash: "hit" | "miss" | null;
   flashKey: number;
@@ -30,7 +46,17 @@ interface GaugeHandlers {
 }
 
 const signal = createChangeSignal();
-let state: GaugeState = { active: false, label: "", hits: 0, startedAt: 0, flash: null, flashKey: 0 };
+let state: GaugeState = {
+  active: false,
+  label: "",
+  hits: 0,
+  startedAt: 0,
+  zone: ROUNDS[0].zone,
+  center: ROUNDS[0].center,
+  sweep: ROUNDS[0].sweep,
+  flash: null,
+  flashKey: 0,
+};
 let handlers: GaugeHandlers | null = null;
 
 const update = (patch: Partial<GaugeState>) => {
@@ -38,20 +64,27 @@ const update = (patch: Partial<GaugeState>) => {
   signal.notify();
 };
 
-/** 동그라미 자리 0~1 — 왼쪽 끝에서 출발해 오간다 */
-export function gaugeCursor(now: number) {
-  const t = (now - state.startedAt) / 1000 / SWEEP_SECONDS;
-  const f = t % 2;
-  return f < 1 ? f : 2 - f;
+/** hits 번째 판의 칸 — 막대는 왼쪽 끝에서 새로 출발한다 */
+function roundFor(hits: number): Pick<GaugeState, "zone" | "center" | "sweep" | "startedAt"> {
+  const round = ROUNDS[Math.min(hits, ROUNDS.length - 1)];
+  const center = hits >= 2 ? THIRD_CENTERS[Math.floor(Math.random() * THIRD_CENTERS.length)] : round.center;
+  return { zone: round.zone, center, sweep: round.sweep, startedAt: performance.now() };
 }
 
-const isInZone = (cursor: number) => Math.abs(cursor - 0.5) <= GAUGE_ZONE / 2;
+/** 막대 자리 0~1 — 왼쪽 끝에서 출발해 오간다 */
+export function gaugeCursor(now: number) {
+  const sweeps = (now - state.startedAt) / 1000 / state.sweep;
+  const phase = sweeps % 2;
+  return phase < 1 ? phase : 2 - phase;
+}
+
+const isInZone = (cursor: number) => Math.abs(cursor - state.center) <= state.zone / 2;
 
 function handleKey() {
   if (!state.active) return false;
   if (isInZone(gaugeCursor(performance.now()))) {
     const hits = state.hits + 1;
-    update({ hits, flash: "hit", flashKey: state.flashKey + 1 });
+    update({ hits, flash: "hit", flashKey: state.flashKey + 1, ...roundFor(hits) });
     handlers?.onHit(hits);
     if (hits >= GAUGE_HITS) {
       const done = handlers?.onDone;
@@ -65,7 +98,7 @@ function handleKey() {
 export function startGauge(label: string, next: GaugeHandlers) {
   handlers = next;
   setKeyInterceptor(handleKey);
-  update({ active: true, label, hits: 0, startedAt: performance.now(), flash: null });
+  update({ active: true, label, hits: 0, flash: null, ...roundFor(0) });
 }
 
 export function stopGauge() {
@@ -77,3 +110,8 @@ export function stopGauge() {
 export const isGaugeActive = () => state.active;
 
 export const useGauge = () => useSyncExternalStore(signal.subscribe, () => state);
+
+exposeDevHook("najuGauge", {
+  state: () => state,
+  isOnZone: () => state.active && isInZone(gaugeCursor(performance.now())),
+});

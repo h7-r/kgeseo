@@ -3,7 +3,16 @@
  * 씬이 하나뿐이라 라우터가 없고 계기판이 그레이박스 전용이다.
  * 순서: 에셋 받기(로딩 덮개) → 씬 한 번 세우기 → 몇 장 그린 뒤 덮개 걷기. 걷힌 뒤에는 다시 세울 것이 없다.
  */
-import { memo, useEffect, useRef, useState, type CSSProperties, type Dispatch, type SetStateAction } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { PerformanceMonitor, Preload } from "@react-three/drei";
@@ -13,6 +22,7 @@ import { Leva } from "leva";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
 
 import { IS_LOW_QUALITY } from "@/engine/quality";
+import { useHintBox } from "@/game/hintBox";
 import { DEFAULT_SETTINGS, RESOLUTION_DPR, useSettings } from "@/settings/settings";
 import SettingsPanel from "@/settings/SettingsPanel";
 
@@ -23,62 +33,26 @@ import { readSidekickAppearance } from "../avatar/sidekickOptions";
 import { DEFAULT_TOON } from "../avatar/toonMaterial";
 import { DEFAULT_OUTLINE } from "../avatar/toonOutline";
 import { BASELINE, UNITS_PER_METER, VIEWPOINTS } from "../plan/sitePlan";
-import ClamDig from "../puzzles/fishTrap/ClamDig";
-import FishTrapPuzzle from "../puzzles/fishTrap/FishTrapPuzzle";
-import HearthFire from "../puzzles/fishTrap/HearthFire";
-import SmokeGuide from "../puzzles/fishTrap/SmokeGuide";
-import BirdHints from "../puzzles/ridge/BirdHints";
-import BoxOpening from "../puzzles/ridge/BoxOpening";
-import GateAltar from "../puzzles/ridge/GateAltar";
-import GateRift from "../puzzles/ridge/GateRift";
-import PaperReadHud from "../puzzles/ridge/PaperReadHud";
-import RidgeBirds from "../puzzles/ridge/RidgeBirds";
-import RidgeCart from "../puzzles/ridge/RidgeCart";
-import StumpStairs from "../puzzles/ridge/StumpStairs";
-import TetheredCarriers from "../puzzles/ridge/TetheredCarriers";
-import WindCurtain from "../puzzles/ridge/WindCurtain";
-import PullGaugeHud from "../puzzles/fishTrap/PullGaugeHud";
-import Hotbar from "../puzzles/Hotbar";
-import InteractionHud from "../puzzles/InteractionHud";
-import InteractionLoop from "../puzzles/InteractionLoop";
-import HintBoxHud from "../puzzles/HintBoxHud";
-import { isHintBoxOpen, setHintBoxOpen } from "../puzzles/hintBoxView";
 import InventoryModal from "../puzzles/InventoryModal";
-import { inventory } from "../puzzles/inventory";
-import { PAPER_HINT, closePaper, getOldPaperCanvas, isPaperOpenNow, paperHintDescription } from "../puzzles/ridge/oldPaper";
-import AirStations from "../puzzles/cave/AirStations";
-import FishBurrows from "../puzzles/cave/FishBurrows";
-import LegendTraces from "../puzzles/cave/LegendTraces";
-import SeaLife from "../puzzles/cave/SeaLife";
-import BreathHud from "../puzzles/cave/BreathHud";
-import CaveWorld from "../puzzles/cave/CaveWorld";
-import Fishes from "../puzzles/cave/Fishes";
-import InnerChamber from "../puzzles/cave/InnerChamber";
-import RingDoor from "../puzzles/cave/RingDoor";
-import JarPuzzle from "../puzzles/jars/JarPuzzle";
-import BoatBottles from "../puzzles/makgeolli/BoatBottles";
-import FloatingStones from "../puzzles/ritual/FloatingStones";
-import RitualCircle from "../puzzles/ritual/RitualCircle";
-import PuzzlePanelHud from "../puzzles/PuzzlePanelHud";
-import StormRain from "../puzzles/ritual/StormRain";
-import WorldItems from "../puzzles/WorldItems";
+import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
 import NajuScene, { type NajuSceneReport, type NajuToonConfig } from "../scene/NajuScene";
 import { audio } from "../scene/immersion/audio";
 import { DEFAULT_TERRAIN } from "../terrain/terrain";
 import { ArrivalCover, FirstFrameSignal } from "../transition/ArrivalFade";
 import { applyMusicVolume } from "../transition/loadingVideo";
 import { useArrivalFade } from "../transition/useArrivalFade";
-import { addHint, useHintBox } from "@/game/hintBox";
-
-import Dashboard from "./Dashboard";
-import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
-import LoadingCover, { type LoadingProgress } from "./LoadingCover";
-import { prefetchNajuAssets } from "./prefetch";
 import { IS_MANGA_STYLE, MangaEffect } from "../world/mangaStyle";
+import Dashboard from "./Dashboard";
+import LoadingCover, { type LoadingProgress } from "./LoadingCover";
+import { PuzzleHud, PuzzleWorld } from "./PuzzleLayer";
+import { prefetchNajuAssets } from "./prefetch";
 import {
+  DASHBOARD_LEFT_PX,
+  HAS_DASHBOARD,
   IS_ARRIVING_FROM_HUB,
   IS_BLOOM_DISABLED,
   IS_DPR_AUTO,
+  IS_FIRST_PERSON_ONLY,
   IS_OUTLINE_DISABLED,
   IS_POSTFX_DISABLED,
   IS_STAGE_16X9,
@@ -92,15 +66,13 @@ import {
   MIN_DPR,
   MSAA_SAMPLES,
   SHOW_CUSTOMIZE_PANEL,
-  IS_FIRST_PERSON_ONLY,
-  DASHBOARD_LEFT_PX,
-  HAS_DASHBOARD,
   SHOW_DEV_TOOLS,
   SHOW_SETTINGS_BUTTON,
   SIDEKICK_APPEARANCE_KEY,
   USE_HALF_FLOAT_BUFFER,
   USE_SIDEKICK_AVATAR,
 } from "./runtimeFlags";
+import { useGameHotkeys } from "./useGameHotkeys";
 
 type ViewMode = "1인칭" | "3인칭";
 
@@ -116,9 +88,6 @@ const toggleViewMode = (mode: ViewMode): ViewMode => (mode === "1인칭" ? "3인
 const MemoNajuScene = memo(NajuScene);
 // 덮개가 흐려지는(.4s) 뒤에 DOM 에서 뗀다
 const COVER_REMOVE_MS = 450;
-
-const isTyping = (target: EventTarget | null) =>
-  /INPUT|TEXTAREA|SELECT/.test((target as HTMLElement | null)?.tagName ?? "");
 
 export default function App() {
   // 동적 해상도 — dpr 을 못 박으면 가장 나쁜 자리(Z1 마을)에 맞춰야 해서 한가한 곳의 성능을 버린다.
@@ -207,79 +176,19 @@ export default function App() {
     if (controlsRef.current) controlsRef.current.pointerSpeed = settings.sensitivity;
   }, [settings.sensitivity, isSceneReady, isLocked]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code === "KeyP" && !event.repeat && !isTyping(event.target)) {
-        // 창을 열면 마우스가 필요하다 — 잠금을 푼다
-        if (!isSettingsOpen) controlsRef.current?.unlock();
-        setIsSettingsOpen(!isSettingsOpen);
-        return;
-      }
-      if (isSettingsOpen) {
-        if (event.code === "Escape") setIsSettingsOpen(false);
-        return;
-      }
-      // 소지품 — 열면 마우스가 필요하고, 닫으면 바로 다시 걷는다. 손에 든 것이 있으면 [I] 는 그것을 소지품에 넣는다
-      if (event.code === "KeyI" && !event.repeat && !isTyping(event.target)) {
-        if (!isInventoryOpen && inventory.hand()) {
-          inventory.stow();
-          return;
-        }
-        if (isInventoryOpen) controlsRef.current?.lock();
-        else controlsRef.current?.unlock();
-        setIsInventoryOpen(!isInventoryOpen);
-        return;
-      }
-      if (isInventoryOpen) {
-        if (event.code === "Escape") setIsInventoryOpen(false);
-        return;
-      }
-      if (event.code === "KeyT" && !isLocked) controlsRef.current?.lock();
-      // [H] — 본부실처럼: 쪽지를 읽는 중이면 힌트함에 적어 넣고 연다 · 모은 힌트가 있으면 힌트함을 여닫는다 · 없으면 계기판
-      if (event.code === "KeyH" && !event.repeat && !isTyping(event.target)) {
-        if (isPaperOpenNow()) {
-          addHint({ ...PAPER_HINT, description: paperHintDescription(), image: getOldPaperCanvas().toDataURL("image/png") });
-          closePaper();
-          controlsRef.current?.unlock();
-          setHintBoxOpen(true);
-          return;
-        }
-        if (isHintBoxOpen()) {
-          setHintBoxOpen(false);
-          controlsRef.current?.lock();
-          return;
-        }
-        if (hintCount > 0) {
-          controlsRef.current?.unlock();
-          setHintBoxOpen(true);
-          return;
-        }
-        if (HAS_DASHBOARD) setIsDashboardVisible((visible) => !visible);
-        return;
-      }
-      if (isHintBoxOpen()) {
-        if (event.code === "Escape") {
-          setHintBoxOpen(false);
-          controlsRef.current?.lock();
-        }
-        return;
-      }
-      // 시점 전환은 카메라 회전을 만지지 않고 캐릭터 표시만 바꾼다.
-      // 수식키가 눌린 V 는 편집기의 붙여넣기(⌘V/Ctrl+V)다.
-      if (
-        !IS_FIRST_PERSON_ONLY &&
-        event.code === "KeyV" &&
-        !event.repeat &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !event.altKey
-      ) {
-        setViewMode(toggleViewMode);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isLocked, isSettingsOpen, isInventoryOpen, hintCount]);
+  const toggleDashboard = useCallback(() => setIsDashboardVisible((visible) => !visible), []);
+  const switchViewMode = useCallback(() => setViewMode(toggleViewMode), []);
+  useGameHotkeys({
+    controlsRef,
+    isLocked,
+    isSettingsOpen,
+    setIsSettingsOpen,
+    isInventoryOpen,
+    setIsInventoryOpen,
+    hintCount,
+    toggleDashboard,
+    toggleViewMode: switchViewMode,
+  });
 
   return (
     <div className={`game-stage${IS_STAGE_16X9 ? " game-stage--16x9" : ""}`} style={{ position: "relative" }}>
@@ -332,37 +241,7 @@ export default function App() {
               toonConfig={toonConfig}
               outlineConfig={outlineConfig}
             />
-            {/* 퍼즐 — 씬1 통발(빛 물고기). 씬의 무리를 읽어 바꿔 끼우므로 씬 뒤에 둔다 */}
-            <ClamDig />
-            <FishTrapPuzzle />
-            <HearthFire />
-            <SmokeGuide />
-            {/* 3스테이지 증언 능선 — 바람 장막 · 수레와 궤 · 돌새 · 진부촌 문 시공간 틈(puzzles/ridge) */}
-            <WindCurtain />
-            <RidgeCart />
-            <TetheredCarriers />
-            <StumpStairs />
-            <RidgeBirds />
-            <BirdHints />
-            <GateAltar />
-            <GateRift />
-            <BoxOpening />
-            <JarPuzzle />
-            <BoatBottles />
-            <RitualCircle />
-            <FloatingStones />
-            <StormRain />
-            {/* 강 밑 물굴 — 뜬 돌 넷을 다 건지면 강물이 갈라진다(puzzles/cave) */}
-            <CaveWorld />
-            <AirStations />
-            <FishBurrows />
-            <LegendTraces />
-            <SeaLife />
-            <Fishes />
-            <RingDoor />
-            <InnerChamber />
-            <WorldItems />
-            <InteractionLoop />
+            <PuzzleWorld />
             {/* 씬 뒤에 둔다 — 붙는 순서대로 효과가 돌아 씬의 재질이 다 선 다음에 데운다 */}
             <Preload all />
             {/* 붙자마자 걷으면 셰이더 컴파일·첫 업로드가 걸린 프레임을 그대로 보게 된다 */}
@@ -390,13 +269,7 @@ export default function App() {
 
       {IS_ARRIVING_FROM_HUB && <ArrivalCover isRevealed={isArrivalRevealed} />}
       {isDashboardVisible && <Dashboard reportRef={reportRef} />}
-      <InteractionHud />
-      <Hotbar />
-      <PullGaugeHud />
-      <BreathHud />
-      <PuzzlePanelHud />
-      <PaperReadHud />
-      <HintBoxHud />
+      <PuzzleHud />
       <InventoryModal
         open={isInventoryOpen}
         onClose={() => {
@@ -455,8 +328,8 @@ export default function App() {
 function ControlsHelp() {
   return (
     <div style={helpStyle}>
-      <b>[T] 시작</b> · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · ESC 나가기 · <b>[E] 상호작용</b> · <b>[I] 소지품</b> ·{" "}
-      <b>[Q] 편집</b> · <b>[H] 계기판 숨기기</b>
+      <b>[T] 시작</b> · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · ESC 나가기 · <b>[E] 상호작용</b> ·{" "}
+      <b>[I] 소지품</b> · <b>[Q] 편집</b> · <b>[H] 계기판 숨기기</b>
       <br />
       <span style={mutedStyle}>
         3인칭에서 마우스로 캐릭터 앞·뒤를 자유롭게 회전 · [1][2][3] V1·V2·V3 시점으로 이동(개발용)

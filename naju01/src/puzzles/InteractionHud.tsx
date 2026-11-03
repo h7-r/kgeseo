@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 
+import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
 import { aimedTarget, useAimedLabel, useNotice } from "./interaction";
 import { ITEMS, useHandItem, useHeldItems } from "./inventory";
 
@@ -48,8 +49,6 @@ const crosshairStyle: CSSProperties = {
   pointerEvents: "none",
 };
 
-const FONT = '"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif';
-
 const promptStyle: CSSProperties = {
   position: "absolute",
   left: "50%",
@@ -62,7 +61,7 @@ const promptStyle: CSSProperties = {
   padding: "6px 12px 6px 6px",
   borderRadius: 999,
   background: "rgba(14,18,26,.72)",
-  color: "#F2EEE4",
+  color: CREAM,
   font: `600 14px/1 ${FONT}`,
   pointerEvents: "none",
   whiteSpace: "nowrap",
@@ -74,9 +73,9 @@ const keyStyle: CSSProperties = {
   width: 22,
   height: 22,
   borderRadius: 6,
-  background: "#F2C89A",
-  color: "#2A2018",
-  font: "700 12px/1 ui-monospace, Menlo, monospace",
+  background: AMBER,
+  color: KEY_INK,
+  font: `700 12px/1 ${KEY_FONT}`,
 };
 
 const noticeStyle: CSSProperties = {
@@ -89,7 +88,7 @@ const noticeStyle: CSSProperties = {
   padding: "10px 18px",
   borderRadius: 10,
   background: "rgba(14,18,26,.78)",
-  color: "#F2EEE4",
+  color: CREAM,
   font: `500 15px/1.5 ${FONT}`,
   textAlign: "center",
   pointerEvents: "none",

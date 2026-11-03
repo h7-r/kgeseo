@@ -32,7 +32,13 @@ import { exposeDevHook } from "@/debug/devHooks";
 import { isEditModeActive } from "../placement/libraryPlaceApi";
 import { UNITS_PER_METER } from "../plan/sitePlan";
 import { drawRadius, focus } from "../scene/immersion/focusFog";
-import { loadPublicAssetTable, loadPublicPlaces, readPlaceBundles, type PlaceItem, type PublicAssetTable } from "./publicAssetLoader";
+import {
+  loadPublicAssetTable,
+  loadPublicPlaces,
+  readPlaceBundles,
+  type PlaceItem,
+  type PublicAssetTable,
+} from "./publicAssetLoader";
 import {
   hiddenCovers,
   IS_EMPTY_BASE,
@@ -72,7 +78,7 @@ const SINK_SECONDS = 2.4;
 // ── 「놓기」 다시 읽기 (10/15) — 통합 편집 모드(E)가 manifest 「놓기」를 쓴 뒤(놓기·고치기·지우기) 새로고침 없이 보이게 ──
 const reloadHandlers = new Set<() => Promise<boolean>>();
 
-// ── 걷기 충돌이 읽는 「지금 세워진 교체본 전부」 (10/31) ──
+// ── 걷기 충돌이 읽는 「지금 세워진 교체본 전부」 ──
 //   원근 나눔·구역 초점이 count 를 수시로 바꾸므로 메시를 훑지 말고 여기서 원래 자리 목록을 받는다.
 export interface PublicSolid {
   name: string;
@@ -89,30 +95,31 @@ export const publicSolidsVersion = () => solidsVersion;
 export function collectPublicSolids(): PublicSolid[] {
   if (!liveBuilt || !liveGroup) return [];
   const parent = liveGroup.matrixWorld;
-  const out: PublicSolid[] = [];
-  const toWorld = (m: THREE.Matrix4) => m.clone().premultiply(parent);
+  const solids: PublicSolid[] = [];
+  const toWorld = (matrix: THREE.Matrix4) => matrix.clone().premultiply(parent);
   for (const entry of liveBuilt.values()) {
-    // 가라앉는 차단물 겉돌 · 지금 씬에 안 보이는 것은 빼다
+    // 가라앉는 차단물 겉돌 · 지금 씬에 안 보이는 것은 뺀다
     if (entry.sinkStartedAt != null) continue;
-    if (entry.meshes.length && entry.meshes.every((m) => !m.visible)) continue;
+    if (entry.meshes.length && entry.meshes.every((mesh) => !mesh.visible)) continue;
     const paired = new Set<THREE.InstancedMesh>();
     for (const pair of entry.lodPairs ?? []) {
-      for (const m of [...pair.nearMeshes, ...pair.farMeshes]) paired.add(m);
+      for (const mesh of [...pair.nearMeshes, ...pair.farMeshes]) paired.add(mesh);
       const matrices = pair.nearMatrices.map(toWorld);
-      for (const m of pair.nearMeshes)
-        out.push({ name: m.name, geometry: m.geometry, material: m.material as THREE.Material, matrices });
+      for (const mesh of pair.nearMeshes)
+        solids.push({ name: mesh.name, geometry: mesh.geometry, material: mesh.material as THREE.Material, matrices });
     }
-    for (const m of entry.meshes) {
-      if (paired.has(m)) continue;
-      const full = m.userData.fullSet as { matrices: Float32Array; n: number } | undefined;
-      const array = full ? full.matrices : (m.instanceMatrix.array as Float32Array);
-      const n = full ? full.n : m.count;
+    for (const mesh of entry.meshes) {
+      if (paired.has(mesh)) continue;
+      const full = mesh.userData.fullSet as { matrices: Float32Array; n: number } | undefined;
+      const array = full ? full.matrices : (mesh.instanceMatrix.array as Float32Array);
+      const count = full ? full.n : mesh.count;
       const matrices: THREE.Matrix4[] = [];
-      for (let k = 0; k < n; k++) matrices.push(new THREE.Matrix4().fromArray(array, k * 16).premultiply(m.matrixWorld));
-      out.push({ name: m.name, geometry: m.geometry, material: m.material as THREE.Material, matrices });
+      for (let k = 0; k < count; k++)
+        matrices.push(new THREE.Matrix4().fromArray(array, k * 16).premultiply(mesh.matrixWorld));
+      solids.push({ name: mesh.name, geometry: mesh.geometry, material: mesh.material as THREE.Material, matrices });
     }
   }
-  return out;
+  return solids;
 }
 
 /**
@@ -299,7 +306,7 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     scene.traverse((o) => {
       if (!(o as THREE.InstancedMesh).isInstancedMesh || o.userData.publicAsset) return;
       compactOriginal(o as THREE.InstancedMesh);
-      // 남은 원본도 비탈에서 뜨지 않게(10/31)
+      // 남은 원본도 비탈에서 뜨지 않게
       const groundAt = groundAtRef.current;
       if (groundAt) settleOriginal(o as THREE.InstancedMesh, groundAt);
     });
@@ -336,16 +343,24 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
         item.loading = true;
         void readPlaceBundles(item).then((r) => {
           item.loading = false;
-          if (r) { item.bundles = r.bundles; item.farBundle = r.farBundle; }
+          if (r) {
+            item.bundles = r.bundles;
+            item.farBundle = r.farBundle;
+          }
         });
       } else if (!wanted && item.bundles.length && Math.max(...item.씬) < nowScene) {
         const v = built.current.get(key);
         if (v) {
-          for (const m of v.meshes) { m.removeFromParent(); m.geometry.dispose(); m.dispose(); }
+          for (const m of v.meshes) {
+            m.removeFromParent();
+            m.geometry.dispose();
+            m.dispose();
+          }
           built.current.delete(key);
           changed = true;
         }
-        item.bundles = []; item.farBundle = null; // 지나간 씬 — 다시 돌아오면 캐시에서 다시 세운다
+        item.bundles = [];
+        item.farBundle = null; // 지나간 씬 — 다시 돌아오면 캐시에서 다시 세운다
       }
     });
     (placesOverride.current ?? table.places).forEach((item, index) => {
@@ -360,7 +375,8 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
 
     // ── ③-2 씬별 보이기(10/20) — 에이전트 시험 놓기에 「씬」이 적혀 있으면 지금 씬에서만 보인다.
     //   사건 뒤에 생긴 흔적(의례·굴린 자국 등)이 씬 1부터 보여 이야기 흐름이 깨지던 것(미르 10/20).
-    for (const v of built.current.values()) if (v.scenes) for (const m of v.meshes) m.visible = nowScene === -1 || v.scenes.includes(nowScene); // -1 = 모든 씬 겹쳐 보기 · 다음 씬 것은 미리 받아 두되 숨김
+    for (const v of built.current.values())
+      if (v.scenes) for (const m of v.meshes) m.visible = nowScene === -1 || v.scenes.includes(nowScene); // -1 = 모든 씬 겹쳐 보기 · 다음 씬 것은 미리 받아 두되 숨김
     // ── ④ 차단물 겉돌 가라앉히기 (10/14) — endScene 으로 차단물이 치워지면 2.4 초에 걸쳐 땅속으로 ──
     const cleared = clearedRef.current;
     if (cleared.size)
@@ -388,7 +404,8 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
     const boundary2 = ((radius ? LOD_BOUNDARY_FOCUSED_M : LOD_BOUNDARY_M) * U) ** 2;
     const eye = camera.position;
     for (const v of built.current.values())
-      for (const { nearMeshes, farMeshes, nearMatrices, farMatrices, positions, idTable, placeSpots } of v.lodPairs || []) {
+      for (const { nearMeshes, farMeshes, nearMatrices, farMatrices, positions, idTable, placeSpots } of v.lodPairs ||
+        []) {
         let a = 0;
         let b = 0;
         const nearIds = new Int32Array(positions.length);

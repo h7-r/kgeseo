@@ -5,6 +5,7 @@
  */
 import { useEffect, type CSSProperties } from "react";
 
+import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
 import { ITEMS, inventory, useHandItem, useHeldItems } from "./inventory";
 import { ITEM_ICONS } from "./itemIcons";
 
@@ -62,7 +63,9 @@ export default function Hotbar() {
               <span style={{ ...keyStyle, ...(isHand ? handKeyStyle : null) }}>{index + 1}</span>
               <span style={iconStyle}>{ITEM_ICONS[item.kind]}</span>
             </div>
-            <span style={{ ...nameStyle, ...(isHand ? handNameStyle : null) }}>{isHand ? `${ITEMS[item.kind].name} · 손에 듦` : ITEMS[item.kind].name}</span>
+            <span style={{ ...nameStyle, ...(isHand ? handNameStyle : null) }}>
+              {isHand ? `${ITEMS[item.kind].name} · 손에 듦` : ITEMS[item.kind].name}
+            </span>
           </div>
         );
       })}
@@ -74,10 +77,6 @@ export default function Hotbar() {
     </div>
   );
 }
-
-const FONT = '"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif';
-const CREAM = "#F2EEE4";
-const AMBER = "#F2C89A";
 
 const columnStyle: CSSProperties = {
   position: "absolute",
@@ -137,10 +136,10 @@ const keyStyle: CSSProperties = {
   background: "#1A2028",
   boxShadow: "0 0 0 1px rgba(242,238,228,.22)",
   color: "#C9C2B2",
-  font: "700 10px/1 ui-monospace, Menlo, monospace",
+  font: `700 10px/1 ${KEY_FONT}`,
 };
 
-const handKeyStyle: CSSProperties = { background: AMBER, color: "#2A2018", boxShadow: "none" };
+const handKeyStyle: CSSProperties = { background: AMBER, color: KEY_INK, boxShadow: "none" };
 
 const nameStyle: CSSProperties = {
   color: "rgba(242,238,228,.72)",
@@ -168,5 +167,5 @@ const moreKeyStyle: CSSProperties = {
   padding: "2px 5px",
   borderRadius: 4,
   boxShadow: "0 0 0 1px rgba(242,238,228,.3)",
-  font: "700 10px/1 ui-monospace, Menlo, monospace",
+  font: `700 10px/1 ${KEY_FONT}`,
 };

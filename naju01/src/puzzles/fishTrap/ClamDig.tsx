@@ -1,307 +1,85 @@
 /**
  * 배 옆 모래에서 조개 캐기 — 통발 미끼.
- *   모래 속에서 빛이 샌다 → 배 옆 호미를 들고 → 그 자리를 판다(호미는 구덩이 옆에 내려놓는다) → 빛나는 조개를 줍는다
+ * 젖은 모래에 숨구멍 일곱이 나 있고 속에 든 것이 숨 쉴 때마다 물을 찔끔 뿜는다. 배 옆 호미를 들면 자루에 아랑사가 새긴
+ * 셈법이 보인다 — 「세 번 숨 쉬는 자리를 파라. 한 번은 게, 두 번은 갯지렁이」. 뿜는 수를 세어 조개 구멍 셋을 파면 한 움큼이 모인다.
+ * 게 구멍을 파면 게가 튀어나와 손등을 꼬집고(호미질이 멈칫한다), 갯지렁이 구멍은 헛수고다.
  * 맨손으로는 못 판다. 통발은 조개를 든 뒤에야 물에 넣을 수 있다(FishTrapPuzzle).
  */
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
-import { TOON_GRADIENT } from "@/engine/toon";
+import { exposeDevHook } from "@/debug/devHooks";
 
-import { createCompressedGltfLoader } from "../../loaders/compressedGlb";
 import { audio } from "../../scene/immersion/audio";
+import { director } from "../../scene/immersion/director";
+import { makeGlowPoints, pointScaleFor } from "../glowPoints";
 import { registerInteractable, showNotice } from "../interaction";
+import { setPuzzlePanel } from "../puzzlePanel";
+import { M, groundY } from "../units";
+import {
+  CLAM_HOLES,
+  HOLES,
+  JET_POINTS,
+  PUFF_HEIGHT,
+  buildCrab,
+  buildHoleMark,
+  puffAt,
+  type BreathHole,
+} from "./breathHoles";
+import { CLAM_SCALE, buildClamHandful, buildDugGround, buildHoe, buildSideHoles } from "./clamModels";
 import { clamDig, useClamStage } from "./clamState";
-import { M, groundY, makeGlowPoints, pointScaleFor } from "./shared";
+import { DIG_KEYS, STRIKES, Y_AXIS, createMove, digKeyAt, digPose, ease, holdHoe, startMove } from "./hoeMotion";
 
-/** 뭍에 올린 나룻배 몸통 바로 옆 맨모래 — 미터. 동쪽은 씬4 「배 자국」 판이 깔려 있어 피한다 */
-const DIG_SPOT = { x: 17.0, z: 42.55 };
+/** 숨구멍 무리의 가운데 — 나룻배 서쪽 맨모래(미터). 배 · 길 · 배 자국 판 위를 비켜 어디서든 보인다 */
+const DIG_SPOT = { x: 14.4, z: 42.0 };
 const HOE_SPOT = { x: 16.55, z: 41.95, rotation: 0.9 };
-const DIG_SECONDS = 3.6;
-const HOE_SCALE = 1.3;
-/** 조개도 실물(4~5 cm)보다 키운다 — 구덩이 속에서 껍데기 모양이 보이게 */
-const CLAM_SCALE = 1.7;
-/** 호미질 세 번 — 진행도 중 날이 모래에 박히는 때 */
-const STRIKES = [0.24, 0.52, 0.8];
+const DIG_SECONDS = 3.0;
 /** 호미질마다 구덩이가 넓어지는 크기(다 파면 1) */
 const HOLE_GROWTH = [0.45, 0.75, 0.95];
-/**
- * 호미질 자세 — [진행도, 날 끝 높이(m), 몸 쪽으로 물러난 거리(m), 숙인 각(+면 날이 아래)].
- * 들어 올리고 → 치켜들고 → 찍고 → 몸 쪽으로 긁는다. 두 번.
- */
-const DIG_KEYS: [number, number, number, number][] = [
-  [0.08, 0.3, 0.18, -0.35],
-  [0.18, 0.38, 0.22, -0.55],
-  [0.24, -0.03, 0, 0.95],
-  [0.33, -0.02, 0.12, 0.6],
-  [0.42, 0.3, 0.2, -0.35],
-  [0.48, 0.38, 0.22, -0.55],
-  [0.52, -0.04, 0.02, 0.95],
-  [0.61, -0.02, 0.16, 0.6],
-  [0.7, 0.3, 0.2, -0.35],
-  [0.76, 0.38, 0.22, -0.55],
-  [0.8, -0.05, 0.04, 0.95],
-  [0.9, -0.02, 0.2, 0.6],
-  [1, 0.02, 0.22, 0.35],
-];
-/** 호미 날 끝 — 모형 자기 좌표(미터). 날은 +z, 자루는 −z */
-const HOE_TIP = new THREE.Vector3(0, 0.03, 0.15);
 /** 다 판 호미를 내려놓는 데 걸리는 시간 */
 const SETTLE_SECONDS = 0.35;
+/** 판 뒤 호미가 손으로 돌아오는 시간 */
+const HOE_BACK_SECONDS = 0.4;
 /** 구덩이에서 조개를 집어 올려 손으로 가져오기 */
 const PICK_SECONDS = 0.6;
 /** 손에서 통발 입구로 넣기 */
 const BAIT_SECONDS = 1.1;
+/** 게에 꼬집혀 호미질이 멈칫하는 시간 · 게가 달아나는 시간(초) · 달아나는 거리(미터) */
+const PINCH_SECONDS = 1.4;
+const CRAB_RUN_SECONDS = 1.3;
+const CRAB_RUN = 1.3;
+const PANEL_RANGE = 6;
 const CLAM_LIGHT = new THREE.Color("#D6E6FF");
-/** 반짝이는 자리 — 둥글게 늘어서지 않게 흩어 둔 고정 좌표(미터) */
+const SAND = new THREE.Color("#8E8574");
+const JET = new THREE.Color("#C9DCE8");
+/** 반짝이는 자리 — 캐낸 조개 껍데기 위 */
 const GLINTS: [number, number][] = [
   [0.05, -0.02],
   [-0.04, 0.03],
   [0.01, 0.05],
-  [0.12, 0.07],
-  [-0.1, -0.06],
-  [0.03, -0.13],
-  [-0.15, 0.1],
 ];
-const SAND = new THREE.Color("#8E8574");
+const SAND_BURST_COUNT = 40;
+const SAND_LIFE = 0.8;
+/** 아랑사가 호미 자루에 새긴 셈법 */
+const HOE_CARVING = "「세 번 숨 쉬는 자리를 파라. 한 번은 게, 두 번은 갯지렁이」";
 
-const toon = (color: THREE.ColorRepresentation) => new THREE.MeshToonMaterial({ color, gradientMap: TOON_GRADIENT });
-
-/** 호미 — 국가유산청 실물 모형(31.5 cm, CC BY 4.0). 모래 위에 눕혀 두고, 들면 손에 쥔 자세로 세운다 */
-const HOE_MODEL = `${import.meta.env.BASE_URL}_sf_local/lib/ast-prop-weeding-hoe-homi-01.glb`;
-
-function buildHoe() {
-  const group = new THREE.Group();
-  const pivot = new THREE.Group(); // 눕힌 자세 — 날이 모래에 닿는다
-  group.add(pivot);
-  // 라이브러리 경량본은 meshopt·KTX2 압축 — 기본 로더로는 조용히 실패한다
-  createCompressedGltfLoader().load(
-    HOE_MODEL,
-    (gltf) => {
-      const model = gltf.scene;
-      model.rotation.x = -Math.PI / 2;
-      model.traverse((o) => {
-        o.castShadow = true;
-        o.receiveShadow = true;
-      });
-      // 밑면이 바닥, 가운데가 원점이 되게 — 부모에 붙이기 전에 재야 모형 자기 좌표가 나온다
-      model.updateMatrixWorld(true);
-      const box = new THREE.Box3().setFromObject(model);
-      const center = box.getCenter(new THREE.Vector3());
-      model.position.set(-center.x, -box.min.y, -center.z);
-      pivot.add(model);
-    },
-    undefined,
-    (error) => console.warn("[ClamDig] 호미 모형을 못 읽었다:", error),
-  );
-  // 실물보다 조금 크게 — 1인칭 화면에서 호미로 읽히게
-  group.scale.setScalar(M * HOE_SCALE);
-  return group;
-}
-
-/**
- * 바지락 껍데기 한 장 — 경첩(+y 끝)에서 부채꼴로 퍼지는 볼록한 껍데기. 미터.
- * 경첩에서 바깥으로 t(0~1), 좌우로 φ 인 격자로 만들어 나이테·방사 무늬를 꼭짓점 색으로 칠한다.
- */
-function buildShellHalf(base: THREE.Color, dark: THREE.Color) {
-  const RINGS = 28;
-  const RAYS = 48;
-  const SPREAD = 1.95; // 좌우로 벌어지는 각
-  const positions: number[] = [];
-  const colors: number[] = [];
-  const color = new THREE.Color();
-  for (let i = 0; i <= RINGS; i++) {
-    const t = i / RINGS;
-    for (let j = 0; j <= RAYS; j++) {
-      const phi = (j / RAYS - 0.5) * 2 * SPREAD;
-      // 테두리 — 아래로 둥글고 경첩 쪽은 좁다
-      const edge = 0.046 * (0.62 + 0.38 * Math.cos(phi * 0.62));
-      const r = t * edge;
-      const x = Math.sin(phi) * r * 1.12;
-      const y = 0.02 - Math.cos(phi) * r;
-      // 볼록 — 경첩 근처가 가장 높고 가장자리로 얇아진다. 나이테마다 살짝 턱
-      const dome = 0.013 * Math.pow(1 - t * t, 0.55) + 0.0005 * Math.sin(t * 46);
-      positions.push(x, y, dome);
-      const ring = Math.pow(0.5 + 0.5 * Math.sin(t * 46), 3);
-      const ray = Math.max(0, Math.sin(phi * 9 + t * 5)) * smooth(0.25, 0.7, t);
-      color.copy(base).lerp(dark, Math.min(1, ring * 0.35 + ray * 0.45 + (1 - t) * 0.15));
-      colors.push(color.r, color.g, color.b);
-    }
-  }
-  const index: number[] = [];
-  for (let i = 0; i < RINGS; i++) {
-    for (let j = 0; j < RAYS; j++) {
-      const a = i * (RAYS + 1) + j;
-      const b = a + RAYS + 1;
-      index.push(a, b, a + 1, b, b + 1, a + 1);
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  geometry.setIndex(index);
-  geometry.computeVertexNormals();
-  geometry.rotateX(-Math.PI / 2); // 눕힌다 — 볼록한 쪽이 위, 경첩이 -z
-  const material = new THREE.MeshToonMaterial({
-    vertexColors: true,
-    gradientMap: TOON_GRADIENT,
-    side: THREE.DoubleSide,
-    // 껍데기 자체가 아주 은은하게 — 빛 덩어리는 두지 않는다
-    emissive: new THREE.Color("#8FA6CC"),
-    emissiveIntensity: 0.08,
-  });
-  return new THREE.Mesh(geometry, material);
-}
-
-const smooth = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
+const spotPoint = (x: number, z: number, lift = 0) => new THREE.Vector3(x * M, (groundY(x, z) + lift) * M, z * M);
+const scratch = {
+  offset: new THREE.Vector3(),
+  hand: new THREE.Vector3(),
+  lift: new THREE.Vector3(),
+  mouth: new THREE.Vector3(),
+  outward: new THREE.Vector3(),
+  quaternion: new THREE.Quaternion(),
 };
 
-/** 한 움큼 — 크기가 다른 조개 다섯. [x, y, z(미터, 배율 전), 크기, yaw, 기울기] — 가운데 큰 것에 기대 포개진다 */
-const HANDFUL: [number, number, number, number, number, number][] = [
-  [0, 0, 0, 1.15, 0, 0],
-  [0.062, 0.004, 0.026, 0.78, 1.9, 0.18],
-  [-0.058, 0.003, 0.02, 0.95, -1.2, -0.14],
-  [0.024, 0.008, -0.056, 0.66, 2.8, 0.25],
-  [-0.03, 0.012, -0.044, 0.86, -2.4, -0.22],
-];
-
-/** 조개 한 움큼 — 껍데기 두 장씩, 살짝 벌어진 조개 다섯. 껍데기 지오·재질은 함께 쓴다 */
-function buildClam() {
-  const group = new THREE.Group();
-  const top = buildShellHalf(new THREE.Color("#D9CDB6"), new THREE.Color("#6B5440"));
-  top.position.y = 0.003;
-  top.rotation.x = -0.1; // 경첩을 축으로 살짝 벌어짐
-  const bottom = buildShellHalf(new THREE.Color("#C9BCA4"), new THREE.Color("#5E4A38"));
-  bottom.scale.y = -1;
-  for (const [x, y, z, size, yaw, tilt] of HANDFUL) {
-    const one = new THREE.Group();
-    one.add(top.clone(), bottom.clone());
-    one.position.set(x, y, z);
-    one.rotation.set(tilt, yaw, tilt * 0.6);
-    one.scale.setScalar(size);
-    group.add(one);
-  }
-  group.scale.setScalar(M * CLAM_SCALE);
-  group.traverse((o) => (o.castShadow = true));
-  return group;
-}
-
-/** 판 구덩이 — 가장자리가 들쭉날쭉하고 가운데로 갈수록 어둡다. 파낸 모래는 옆에 소복이 */
-function buildGround() {
-  const holeGeometry = new THREE.CircleGeometry(1, 32);
-  const position = holeGeometry.attributes.position;
-  const colors = new Float32Array(position.count * 3);
-  const dark = new THREE.Color("#3A342C");
-  const rim = new THREE.Color("#7A7262");
-  const color = new THREE.Color();
-  for (let i = 0; i < position.count; i++) {
-    const x = position.getX(i);
-    const y = position.getY(i);
-    const r = Math.hypot(x, y);
-    const a = Math.atan2(y, x);
-    const wobble = 1 + 0.16 * Math.sin(3 * a + 1.3) + 0.08 * Math.sin(7 * a + 0.4);
-    position.setXY(i, x * wobble * 0.3, y * wobble * 0.26);
-    color.copy(dark).lerp(rim, Math.pow(r, 2.2));
-    colors.set([color.r, color.g, color.b], i * 3);
-  }
-  holeGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  holeGeometry.rotateX(-Math.PI / 2);
-  const hole = new THREE.Mesh(
-    holeGeometry,
-    // 빛을 받아야 주변 모래와 같은 밝기로 앉는다(Basic 은 혼자 밝게 뜬다)
-    new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: TOON_GRADIENT }),
-  );
-  hole.scale.setScalar(M);
-
-  const pileGeometry = new THREE.SphereGeometry(1, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-  const p = pileGeometry.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const a = Math.atan2(p.getZ(i), p.getX(i));
-    const bump = 1 + 0.18 * Math.sin(4 * a + 0.7) + 0.1 * Math.sin(9 * a);
-    p.setXYZ(i, p.getX(i) * bump, p.getY(i) * (0.85 + 0.3 * Math.sin(5 * a)), p.getZ(i) * bump);
-  }
-  pileGeometry.computeVertexNormals();
-  const pile = new THREE.Mesh(pileGeometry, toon("#9A907D"));
-  pile.scale.set(0.3 * M, 0.1 * M, 0.24 * M);
-  pile.receiveShadow = true;
-  return { hole, pile };
-}
-
-/**
- * 먼저 파 놓은 구덩이 셋 — 어디를 파는지 보여 준다(크기 제각각). 하나는 비었고, 하나엔 입 벌린 빈 조개껍데기,
- * 하나엔 조개 대신 고둥 몇 개와 부러진 게 집게. [x, z, 크기, 돌림, 든 것] — 배와 호미 자리는 비킨다
- */
-const SIDE_HOLES: [number, number, number, number, "empty" | "shells" | "odds"][] = [
-  [16.0, 41.5, 1.1, 0.4, "empty"],
-  [16.95, 41.2, 0.8, 1.7, "shells"],
-  [15.65, 41.95, 0.62, 2.6, "odds"],
-];
-/** 파다 만 자국 — 실제로 팔 자리. 호미로 한두 번 긁다 만 얕은 자국과 작은 모래 둔덕 */
-const SCRAPE_SIZE = 0.38;
-
-function buildSideHoles(ground: ReturnType<typeof buildGround>) {
-  const group = new THREE.Group();
-  const shellTop = buildShellHalf(new THREE.Color("#D9CDB6"), new THREE.Color("#6B5440"));
-  const shellBottom = buildShellHalf(new THREE.Color("#C9BCA4"), new THREE.Color("#5E4A38"));
-  const snail = toon("#7A6A52");
-  const claw = toon("#8A5E44");
-  for (const [x, z, size, yaw, contents] of SIDE_HOLES) {
-    const y = groundY(x, z);
-    const hole = new THREE.Mesh(ground.hole.geometry, ground.hole.material);
-    hole.position.set(x * M, (y + 0.006) * M, z * M);
-    hole.rotation.y = yaw;
-    hole.scale.setScalar(M * size);
-    const pile = new THREE.Mesh(ground.pile.geometry, ground.pile.material);
-    pile.position.set((x + Math.cos(yaw) * 0.42 * size) * M, y * M, (z - Math.sin(yaw) * 0.42 * size) * M);
-    pile.scale.set(0.3 * M * size, 0.1 * M * size, 0.24 * M * size);
-    pile.rotation.y = yaw;
-    group.add(hole, pile);
-    if (contents === "shells") {
-      // 입 벌린 빈 조개껍데기 — 누가 먼저 캐 먹고 버린 것
-      [[0.04, 0.02, 0.4], [-0.06, -0.03, 2.1], [0.0, 0.07, 4.0]].forEach(([dx, dz, turn]) => {
-        const pair = new THREE.Group();
-        pair.add(shellBottom.clone());
-        const top = shellTop.clone();
-        top.rotation.x = -2.3; // 경첩에서 활짝 젖혀졌다
-        pair.add(top);
-        pair.position.set((x + dx) * M, (y + 0.015) * M, (z + dz) * M);
-        pair.rotation.y = turn;
-        pair.scale.setScalar(M * CLAM_SCALE * 0.85);
-        group.add(pair);
-      });
-    } else if (contents === "odds") {
-      // 조개 대신 — 고둥 셋과 부러진 게 집게 하나
-      [[0.03, 0.02], [-0.04, 0.01], [0.0, -0.04]].forEach(([dx, dz], k) => {
-        const cone = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.045, 7), snail);
-        cone.position.set((x + dx) * M, (y + 0.014) * M, (z + dz) * M);
-        cone.rotation.set(Math.PI / 2 - 0.3, k * 2.1, 0.4);
-        cone.scale.setScalar(M);
-        group.add(cone);
-      });
-      const pincer = new THREE.Group();
-      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.05, 6).rotateZ(Math.PI / 2), claw);
-      const tipA = new THREE.Mesh(new THREE.ConeGeometry(0.01, 0.04, 5).rotateZ(-Math.PI / 2).translate(0.045, 0.006, 0), claw);
-      const tipB = new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.032, 5).rotateZ(-Math.PI / 2 - 0.4).translate(0.04, -0.008, 0), claw);
-      pincer.add(arm, tipA, tipB);
-      pincer.position.set((x - 0.05) * M, (y + 0.012) * M, (z + 0.05) * M);
-      pincer.rotation.y = 0.8;
-      pincer.scale.setScalar(M);
-      group.add(pincer);
-    }
-  }
-  return group;
-}
-
 function createSandBurst() {
-  const count = 40;
   return {
-    points: makeGlowPoints(count, { additive: false, softness: 1.2 }),
-    position: Array.from({ length: count }, () => new THREE.Vector3()),
-    velocity: Array.from({ length: count }, () => new THREE.Vector3()),
-    age: new Float32Array(count).fill(9),
+    points: makeGlowPoints(SAND_BURST_COUNT, { additive: false, softness: 1.2 }),
+    position: Array.from({ length: SAND_BURST_COUNT }, () => new THREE.Vector3()),
+    velocity: Array.from({ length: SAND_BURST_COUNT }, () => new THREE.Vector3()),
+    age: new Float32Array(SAND_BURST_COUNT).fill(9),
     next: 0,
   };
 }
@@ -310,7 +88,7 @@ type SandBurst = ReturnType<typeof createSandBurst>;
 function throwSand(burst: SandBurst, at: THREE.Vector3) {
   for (let n = 0; n < 14; n++) {
     const k = burst.next;
-    burst.next = (burst.next + 1) % burst.age.length;
+    burst.next = (burst.next + 1) % SAND_BURST_COUNT;
     const angle = Math.random() * Math.PI * 2;
     burst.position[k].copy(at);
     burst.velocity[k]
@@ -324,230 +102,292 @@ function throwSand(burst: SandBurst, at: THREE.Vector3) {
   }
 }
 
-const spotPoint = (x: number, z: number, lift = 0) => new THREE.Vector3(x * M, (groundY(x, z) + lift) * M, z * M);
-const heldOffset = new THREE.Vector3();
-const swingQuat = new THREE.Quaternion();
-const xAxis = new THREE.Vector3(1, 0, 0);
-const yAxis = new THREE.Vector3(0, 1, 0);
-const heldTilt = new THREE.Quaternion();
-const tmpEuler = new THREE.Euler(0, 0, 0, "YXZ");
-const tmpVec = new THREE.Vector3();
-const tmpVec2 = new THREE.Vector3();
-const tmpQuat = new THREE.Quaternion();
-
-const ease = (t: number) => THREE.MathUtils.smoothstep(t, 0, 1);
-
-/** 손에 든 호미 — 화면 오른쪽 아래, 자루가 손 쪽 */
-function holdHoe(camera: THREE.Camera, position: THREE.Vector3, quaternion: THREE.Quaternion) {
-  heldOffset.set(0.3, -0.3, -0.62).multiplyScalar(M).applyQuaternion(camera.quaternion);
-  position.copy(camera.position).add(heldOffset);
-  quaternion
-    .copy(camera.quaternion)
-    .multiply(swingQuat.setFromAxisAngle(yAxis, Math.PI))
-    .multiply(heldTilt.setFromAxisAngle(xAxis, 0.5));
-}
-
-/**
- * 땅을 찍는 호미 자세 — 날 끝이 구덩이 자리에 오도록 몸통을 거꾸로 맞춘다.
- * toPlayer: 구덩이에서 플레이어 쪽 수평 방향
- */
-function digPose(
-  spot: THREE.Vector3,
-  toPlayer: THREE.Vector3,
-  [, height, back, pitch]: [number, number, number, number],
-  position: THREE.Vector3,
-  quaternion: THREE.Quaternion,
-) {
-  const yaw = Math.atan2(-toPlayer.x, -toPlayer.z); // 날이 플레이어 반대쪽(구덩이)을 본다
-  quaternion.setFromEuler(tmpEuler.set(pitch, yaw, 0));
-  const tip = tmpVec.copy(spot).addScaledVector(toPlayer, back * M);
-  tip.y += height * M;
-  position.copy(tip).sub(tmpVec2.copy(HOE_TIP).applyQuaternion(quaternion).multiplyScalar(M * HOE_SCALE));
-}
-
-/** 진행도 p 의 호미질 자세 — 맨 앞은 손에서 넘어오고, 그 뒤는 열쇠 자세 사이를 부드럽게 */
-function digKeyAt(p: number): [number, number, number, number] {
-  for (let k = 1; k < DIG_KEYS.length; k++) {
-    const [p1] = DIG_KEYS[k];
-    if (p > p1) continue;
-    const a = DIG_KEYS[k - 1];
-    const b = DIG_KEYS[k];
-    const t = ease((p - a[0]) / (b[0] - a[0]));
-    return [p, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t];
+/** 튄 모래 한 프레임 — 떨어지되 구덩이 바닥 아래로는 안 내려간다 */
+function updateSand(burst: SandBurst, floorY: number, dt: number) {
+  for (let k = 0; k < SAND_BURST_COUNT; k++) {
+    burst.age[k] += dt;
+    if (burst.age[k] > SAND_LIFE) {
+      burst.points.alpha.setX(k, 0);
+      continue;
+    }
+    burst.velocity[k].y -= 9.8 * M * dt;
+    burst.position[k].addScaledVector(burst.velocity[k], dt);
+    const point = burst.position[k];
+    burst.points.position.setXYZ(k, point.x, Math.max(point.y, floorY), point.z);
+    burst.points.size.setX(k, 0.04 * M);
+    burst.points.alpha.setX(k, 1 - burst.age[k] / SAND_LIFE);
+    burst.points.color.setXYZ(k, SAND.r, SAND.g, SAND.b);
   }
-  return DIG_KEYS[DIG_KEYS.length - 1];
+  burst.points.commit();
 }
 
-/** 움직임 하나 — 진행도와 시작 자세 */
-function createMove() {
-  return { t: -1, fromPosition: new THREE.Vector3(), fromQuaternion: new THREE.Quaternion() };
+/** 숨구멍 하나 — 자리와 자국, 판 구덩이(판 뒤에 보인다) */
+interface Hole extends BreathHole {
+  spot: THREE.Vector3;
+  mark: THREE.Group;
+  dug: { hole: THREE.Mesh; pile: THREE.Mesh };
+  isDug: boolean;
 }
-type Move = ReturnType<typeof createMove>;
 
-function startMove(move: Move, object: THREE.Object3D) {
-  move.t = 0;
-  move.fromPosition.copy(object.position);
-  move.fromQuaternion.copy(object.quaternion);
+function createHoles(ground: ReturnType<typeof buildDugGround>): Hole[] {
+  return HOLES.map((hole, k) => {
+    const x = DIG_SPOT.x + hole.dx;
+    const z = DIG_SPOT.z + hole.dz;
+    const spot = spotPoint(x, z);
+    const mark = buildHoleMark(k);
+    mark.position.copy(spot).add(new THREE.Vector3(0, 0.004 * M, 0));
+    mark.rotation.y = k * 1.7;
+    mark.scale.setScalar(M);
+    const dugHole = new THREE.Mesh(ground.hole.geometry, ground.hole.material);
+    dugHole.position.copy(spot).add(new THREE.Vector3(0, 0.006 * M, 0));
+    dugHole.rotation.y = k * 0.9;
+    dugHole.visible = false;
+    const pile = new THREE.Mesh(ground.pile.geometry, ground.pile.material);
+    const pileX = x + Math.cos(k * 0.9) * 0.4;
+    const pileZ = z - Math.sin(k * 0.9) * 0.4;
+    pile.position.set(pileX * M, (groundY(pileX, pileZ) - 0.02) * M, pileZ * M);
+    pile.rotation.y = k * 0.9;
+    pile.visible = false;
+    return { ...hole, spot, mark, dug: { hole: dugHole, pile }, isDug: false };
+  });
 }
 
 export default function ClamDig() {
   const scene = useThree((state) => state.scene);
   const gl = useThree((state) => state.gl);
   const stage = useClamStage();
+  /** 파기 진행 0~1. 안 파는 중이면 −1 · 파는 구멍 */
   const digRef = useRef(-1);
+  const diggingRef = useRef(-1);
+  /** 캔 조개 구멍 수 · 꼬집힌 수 · 꼬집혀 멈칫하는 동안(끝나는 때) */
+  const clamsRef = useRef(0);
+  const pinchesRef = useRef(0);
+  const pinchedUntil = useRef(-1);
   const settle = useMemo(() => createMove(), []);
+  const hoeBack = useMemo(() => createMove(), []);
   const pick = useMemo(() => createMove(), []);
   const bait = useMemo(() => createMove(), []);
   /** 미끼 든 통발이 물에 잠기면 조개는 더 그리지 않는다 */
-  const sunkRef = useRef(false);
-  /** 다 판 뒤 호미가 누운 자세 — 파기를 마친 쪽에 따라 정한다 */
+  const isSunkRef = useRef(false);
+  /** 다 판 호미가 누운 자세 — 마지막 구멍 곁, 파기를 마친 쪽에 따라 정한다 */
   const dropped = useMemo(
     () => ({ position: spotPoint(DIG_SPOT.x, DIG_SPOT.z - 0.4, 0.005), quaternion: new THREE.Quaternion() }),
     [],
   );
   /** 구덩이에서 플레이어 쪽 — 파기 시작할 때 정한다 */
   const toPlayer = useMemo(() => new THREE.Vector3(0, 0, -1), []);
+  /** 게 — 달아나기 시작한 때 · 시작 자리 · 가는 쪽 */
+  const crabRun = useMemo(() => ({ startedAt: -1, from: new THREE.Vector3(), direction: new THREE.Vector3() }), []);
 
   const hoe = useMemo(() => buildHoe(), []);
-  const clam = useMemo(() => buildClam(), []);
-  const ground = useMemo(() => buildGround(), []);
+  const clam = useMemo(() => buildClamHandful(), []);
+  const ground = useMemo(() => buildDugGround(), []);
   const sideHoles = useMemo(() => buildSideHoles(ground), [ground]);
-  // 파다 만 자국 — 구덩이 모양을 작게, 둔덕도 작게
-  const scrape = useMemo(() => {
-    const hole = new THREE.Mesh(ground.hole.geometry, ground.hole.material);
-    const pile = new THREE.Mesh(ground.pile.geometry, ground.pile.material);
-    return { hole, pile };
-  }, [ground]);
-  const glow = useMemo(() => makeGlowPoints(GLINTS.length, { additive: true }), []);
+  const holes = useMemo(() => createHoles(ground), [ground]);
+  const crab = useMemo(() => {
+    const model = buildCrab();
+    model.scale.setScalar(M);
+    model.visible = false;
+    return model;
+  }, []);
+  const jets = useMemo(() => makeGlowPoints(HOLES.length * JET_POINTS, { additive: false, softness: 1.3 }), []);
+  const glints = useMemo(() => makeGlowPoints(GLINTS.length, { additive: true }), []);
   const sand = useMemo(() => createSandBurst(), []);
-  const spot = useMemo(() => spotPoint(DIG_SPOT.x, DIG_SPOT.z), []);
   const hoeRest = useMemo(() => spotPoint(HOE_SPOT.x, HOE_SPOT.z, 0.02), []);
-  const clamTarget = useMemo(() => spot.clone().add(new THREE.Vector3(0, 0.03 * M, 0)), [spot]);
+  /** 캐낸 조개가 놓이는 자리 — 마지막으로 캔 구멍. 처음엔 가운데 구멍 */
+  const clamRest = useMemo(() => holes[0].spot.clone().add(new THREE.Vector3(0, 0.03 * M, 0)), [holes]);
 
   useEffect(() => {
     const group = new THREE.Group();
-    ground.hole.position.copy(spot).add(new THREE.Vector3(0, 0.006 * M, 0));
-    // 파낸 모래 더미 — 구덩이 옆. 바닥이 기울어 있어 제자리 땅 높이에 앉혀야 뜨지 않는다(살짝 묻는다)
-    const pileX = DIG_SPOT.x + 0.45;
-    const pileZ = DIG_SPOT.z - 0.2;
-    ground.pile.position.set(pileX * M, (groundY(pileX, pileZ) - 0.02) * M, pileZ * M);
-    scrape.hole.position.copy(spot).add(new THREE.Vector3(0.03 * M, 0.004 * M, 0.02 * M));
-    scrape.hole.rotation.y = 0.9;
-    scrape.hole.scale.set(M * SCRAPE_SIZE, M * SCRAPE_SIZE, M * SCRAPE_SIZE * 0.7);
-    scrape.pile.position.copy(spot).add(new THREE.Vector3(0.2 * M, 0, -0.12 * M));
-    scrape.pile.scale.set(0.12 * M, 0.04 * M, 0.09 * M);
-    group.add(hoe, clam, ground.hole, ground.pile, glow.points, sand.points.points, sideHoles, scrape.hole, scrape.pile);
+    group.add(hoe, clam, crab, glints.points, jets.points, sand.points.points, sideHoles);
+    for (const hole of holes) group.add(hole.mark, hole.dug.hole, hole.dug.pile);
     scene.add(group);
     return () => {
       scene.remove(group);
     };
-  }, [scene, hoe, clam, ground, glow, sand, spot, sideHoles, scrape]);
+  }, [scene, hoe, clam, crab, glints, jets, sand, sideHoles, holes]);
 
-  // ── 상호작용 ──
-  useEffect(() => {
-    const hoeTarget = registerInteractable({
-      id: "clam-hoe",
-      position: hoeRest,
-      label: "호미 들기",
-      radius: 0.5 * M,
-      reach: 3 * M,
-      enabled: () => clamDig.stage() === "buried",
-      use: () => {
-        clamDig.set("hoe");
-        audio.play("똑");
-        showNotice("호미를 들었다. 갯가에서 조개를 캘 때 쓰던 것이다.");
-      },
-    });
-    const spotTarget = registerInteractable({
-      id: "clam-spot",
-      position: spot,
-      label: stage === "hoe" ? "호미로 파기" : "모래 살펴보기",
-      radius: 0.55 * M,
-      reach: 2.2 * M, // 가까이 와야 판다 — 멀리서 호미만 날아가 보이지 않게
-      enabled: () => (clamDig.stage() === "buried" || clamDig.stage() === "hoe") && digRef.current < 0,
-      use: () => {
-        if (clamDig.stage() !== "hoe") {
-          showNotice("모래 속에서 무언가 희미하게 빛난다. 맨손으로는 팔 수 없다.");
-          return;
-        }
-        digRef.current = 0;
-      },
-    });
-    const clamTargetHandle = registerInteractable({
-      id: "clam-pick",
-      position: clamTarget,
-      label: "조개 한 움큼 줍기",
-      radius: 0.45 * M,
-      reach: 2.4 * M,
-      enabled: () => clamDig.stage() === "dug" && settle.t < 0,
-      use: () => {
-        startMove(pick, clam);
-        clamDig.set("held");
-        audio.play("단서");
-        showNotice("조개를 한 움큼 주웠다. 미끼로 쓸 수 있겠다.");
-      },
-    });
-    return () => {
-      hoeTarget();
-      spotTarget();
-      clamTargetHandle();
-    };
-  }, [stage, spot, hoeRest, clamTarget, clam, settle, pick]);
-
-  useFrame((state, rawDt) => {
-    const dt = Math.min(rawDt, 0.05);
-    const time = state.clock.elapsedTime;
-    const camera = state.camera;
-    const current = clamDig.stage();
-
-    // 파기 — 호미 날이 구덩이 자리를 두 번 찍고 몸 쪽으로 긁는다
-    if (digRef.current >= 0) {
-      if (digRef.current === 0) {
-        toPlayer.set(camera.position.x - spot.x, 0, camera.position.z - spot.z).normalize();
-      }
-      const before = digRef.current;
-      digRef.current = Math.min(1, digRef.current + dt / DIG_SECONDS);
-      const p = digRef.current;
-      for (const strike of STRIKES) {
-        if (before < strike && p >= strike) {
-          throwSand(sand, spot.clone().add(new THREE.Vector3(0, 0.03 * M, 0)));
-          audio.play("똑");
-        }
-      }
-      if (p < DIG_KEYS[0][0]) {
-        // 손에서 첫 자세로
-        holdHoe(camera, tmpVec2, tmpQuat);
-        const from = tmpVec2.clone();
-        const fromQuat = tmpQuat.clone();
-        digPose(spot, toPlayer, DIG_KEYS[0], hoe.position, hoe.quaternion);
-        const t = ease(p / DIG_KEYS[0][0]);
-        hoe.position.lerpVectors(from, hoe.position, t);
-        hoe.quaternion.slerpQuaternions(fromQuat, hoe.quaternion, t);
-      } else {
-        digPose(spot, toPlayer, digKeyAt(p), hoe.position, hoe.quaternion);
-      }
-      if (p >= 1) {
-        digRef.current = -1;
+  /** 구덩이 한 곳을 판 결과 — 조개 · 게 · 갯지렁이 */
+  const finishHole = (hole: Hole, camera: THREE.Camera) => {
+    hole.isDug = true;
+    hole.mark.visible = false;
+    if (hole.puffs === 3) {
+      clamsRef.current += 1;
+      clamRest.copy(hole.spot).add(new THREE.Vector3(0, 0.03 * M, 0));
+      audio.play("단서");
+      if (clamsRef.current >= CLAM_HOLES) {
         // 구덩이 옆, 플레이어 쪽에 자루를 두고 눕힌다
-        const side = tmpVec.set(-toPlayer.z, 0, toPlayer.x);
+        const side = scratch.lift.set(-toPlayer.z, 0, toPlayer.x);
         dropped.position
-          .copy(spot)
+          .copy(hole.spot)
           .addScaledVector(toPlayer, 0.34 * M)
           .addScaledVector(side, 0.16 * M);
         dropped.position.y = groundY(dropped.position.x / M, dropped.position.z / M) * M + 0.005 * M;
-        dropped.quaternion.setFromAxisAngle(yAxis, Math.atan2(-toPlayer.x, -toPlayer.z) + 0.35);
+        dropped.quaternion.setFromAxisAngle(Y_AXIS, Math.atan2(-toPlayer.x, -toPlayer.z) + 0.35);
         startMove(settle, hoe);
         clamDig.set("dug");
-        showNotice("모래를 걷어 내자 크고 작은 조개가 한 움큼 드러났다.");
+        showNotice("세 번 숨 쉬던 자리마다 조개가 나왔다 — 한 움큼은 되겠다. 아랑사의 셈법이 맞았다.", 5);
+      } else showNotice(`모래를 걷어 내자 조개가 드러났다. (${clamsRef.current}/${CLAM_HOLES})`, 3.5);
+      return;
+    }
+    if (hole.puffs === 1) {
+      // 게 — 튀어나와 손등을 꼬집고 달아난다
+      pinchesRef.current += 1;
+      pinchedUntil.current = performance.now() / 1000 + PINCH_SECONDS;
+      crabRun.startedAt = performance.now() / 1000;
+      crabRun.from.copy(hole.spot);
+      crabRun.direction.set(camera.position.x - hole.spot.x, 0, camera.position.z - hole.spot.z).normalize();
+      // 사람 반대쪽으로, 조금 비스듬히
+      crabRun.direction.applyAxisAngle(Y_AXIS, Math.PI + (Math.random() - 0.5) * 1.2);
+      crab.visible = true;
+      audio.play("우르릉");
+      director.cue({ 카메라: "흔들림", 세기: 0.25 });
+      showNotice("게다! 집게에 손등을 꼬집혔다 — 한 번 숨 쉬는 구멍은 게다.", 4);
+      return;
+    }
+    audio.play("똑");
+    showNotice("갯지렁이만 꿈틀거리며 모래 속으로 빠져나간다. 두 번 숨 쉬는 구멍엔 조개가 없다.", 4);
+  };
+
+  useEffect(() => {
+    const disposers = [
+      registerInteractable({
+        id: "clam-hoe",
+        position: hoeRest,
+        label: "호미 들기",
+        radius: 0.5 * M,
+        reach: 3 * M,
+        enabled: () => clamDig.stage() === "buried",
+        use: () => {
+          clamDig.set("hoe");
+          audio.play("똑");
+          showNotice(`호미를 들었다. 자루에 작은 글이 새겨져 있다 — ${HOE_CARVING}. 아랑사의 호미다.`, 7);
+        },
+      }),
+      ...holes.map((hole, k) =>
+        registerInteractable({
+          id: `clam-hole-${k}`,
+          position: hole.spot,
+          label: stage === "hoe" ? "숨구멍 파기" : "숨구멍 살펴보기",
+          highlight: () => hole.mark,
+          radius: 0.22 * M,
+          reach: 2.2 * M, // 가까이 와야 판다 — 멀리서 호미만 날아가 보이지 않게
+          enabled: () =>
+            (clamDig.stage() === "buried" || clamDig.stage() === "hoe") && !hole.isDug && digRef.current < 0,
+          use: () => {
+            if (clamDig.stage() !== "hoe") {
+              showNotice("젖은 모래의 구멍에서 이따금 물이 찔끔 올라온다. 맨손으로는 팔 수 없다.");
+              return;
+            }
+            if (performance.now() / 1000 < pinchedUntil.current) {
+              showNotice("꼬집힌 손이 아직 얼얼하다.", 2);
+              return;
+            }
+            digRef.current = 0;
+            diggingRef.current = k;
+          },
+        }),
+      ),
+      registerInteractable({
+        id: "clam-pick",
+        position: clamRest,
+        label: "조개 한 움큼 줍기",
+        radius: 0.45 * M,
+        reach: 2.4 * M,
+        enabled: () => clamDig.stage() === "dug" && settle.t < 0,
+        use: () => {
+          startMove(pick, clam);
+          clamDig.set("held");
+          audio.play("단서");
+          showNotice("조개를 한 움큼 주웠다. 미끼로 쓸 수 있겠다.");
+        },
+      }),
+    ];
+    return () => disposers.forEach((dispose) => dispose());
+  }, [stage, holes, hoeRest, clamRest, clam, settle, pick]);
+
+  useEffect(() => {
+    if (import.meta.env.DEV)
+      exposeDevHook("najuClamDev", {
+        holes: () => holes.map((hole) => ({ puffs: hole.puffs, dug: hole.isDug })),
+        clams: () => clamsRef.current,
+        pinches: () => pinchesRef.current,
+        /** 구멍 k 를 판다(호미를 든 뒤) — 검사용 */
+        dig: (k: number) => {
+          if (clamDig.stage() !== "hoe" || digRef.current >= 0) return false;
+          digRef.current = 0;
+          diggingRef.current = k;
+          return true;
+        },
+        /** 조개 구멍을 다 판 것으로 — 검사용 */
+        digAll: () => {
+          clamsRef.current = CLAM_HOLES;
+          for (const hole of holes) if (hole.puffs === 3) hole.isDug = true;
+          clamDig.set("dug");
+        },
+      });
+    return () => setPuzzlePanel("clam-dig", null);
+  }, [holes]);
+
+  /** 파기 한 프레임 — 호미 날이 구멍 자리를 세 번 찍고 몸 쪽으로 긁는다. 다 파면 무엇이 나왔는지 본다 */
+  const advanceDig = (camera: THREE.Camera, dt: number) => {
+    const hole = holes[diggingRef.current];
+    const spot = hole.spot;
+    if (digRef.current === 0) {
+      toPlayer.set(camera.position.x - spot.x, 0, camera.position.z - spot.z).normalize();
+    }
+    const before = digRef.current;
+    digRef.current = Math.min(1, digRef.current + dt / DIG_SECONDS);
+    const progress = digRef.current;
+    for (const strike of STRIKES) {
+      if (before < strike && progress >= strike) {
+        throwSand(sand, spot.clone().add(new THREE.Vector3(0, 0.03 * M, 0)));
+        audio.play("똑");
       }
     }
-    const isDigging = digRef.current >= 0;
+    if (progress < DIG_KEYS[0][0]) {
+      // 손에서 첫 자세로
+      holdHoe(camera, scratch.hand, scratch.quaternion);
+      const from = scratch.hand.clone();
+      const fromQuaternion = scratch.quaternion.clone();
+      digPose(spot, toPlayer, DIG_KEYS[0], hoe.position, hoe.quaternion);
+      const t = ease(progress / DIG_KEYS[0][0]);
+      hoe.position.lerpVectors(from, hoe.position, t);
+      hoe.quaternion.slerpQuaternions(fromQuaternion, hoe.quaternion, t);
+    } else {
+      digPose(spot, toPlayer, digKeyAt(progress), hoe.position, hoe.quaternion);
+    }
+    // 구덩이 — 호미질마다 넓어진다
+    const struck = STRIKES.filter((strike) => progress >= strike).length;
+    const size = struck > 0 ? HOLE_GROWTH[struck - 1] : 0;
+    hole.dug.hole.visible = size > 0;
+    hole.dug.pile.visible = size > 0;
+    hole.dug.hole.scale.setScalar(M * size);
+    hole.dug.pile.scale.set(0.3 * M * size, 0.1 * M * size, 0.24 * M * size);
+    if (progress < 1) return;
+    digRef.current = -1;
+    diggingRef.current = -1;
+    hole.dug.hole.scale.setScalar(M);
+    hole.dug.pile.scale.set(0.3 * M, 0.1 * M, 0.24 * M);
+    startMove(hoeBack, hoe);
+    finishHole(hole, camera);
+  };
 
-    // 호미 — 바닥 / 손 / (파는 중은 위에서) / 구덩이 옆에 내려놓음
-    if (isDigging) {
-      // 위에서 자세를 잡았다
-    } else if (current === "hoe") {
+  /** 호미 자리 — 바닥 / 손 / 구덩이 옆에 내려놓는 중 / 내려놓음(파는 중은 advanceDig 가 잡는다) */
+  const placeHoe = (camera: THREE.Camera, current: string, dt: number, time: number) => {
+    if (current === "hoe") {
       holdHoe(camera, hoe.position, hoe.quaternion);
+      // 판 자리에서 손으로 부드럽게 돌아온다
+      if (hoeBack.t >= 0) {
+        hoeBack.t = Math.min(1, hoeBack.t + dt / HOE_BACK_SECONDS);
+        const t = ease(hoeBack.t);
+        hoe.position.lerpVectors(hoeBack.fromPosition, hoe.position, t);
+        hoe.quaternion.slerpQuaternions(hoeBack.fromQuaternion, hoe.quaternion, t);
+        if (hoeBack.t >= 1) hoeBack.t = -1;
+      }
+      // 꼬집혔다 — 손이 움찔거린다
+      const pinched = Math.max(0, pinchedUntil.current - time);
+      if (pinched > 0) hoe.position.y += Math.sin(time * 40) * 0.015 * Math.min(1, pinched) * M;
     } else if (current === "buried") {
       hoe.position.copy(hoeRest);
       hoe.rotation.set(0, HOE_SPOT.rotation, 0);
@@ -561,127 +401,181 @@ export default function ClamDig() {
       hoe.position.copy(dropped.position);
       hoe.quaternion.copy(dropped.quaternion);
     }
+  };
 
-    // 땅 — 첫 호미질에 구덩이가 생기고 두 번째에 넓어진다
-    const digP = digRef.current;
-    const isDug = current !== "buried" && current !== "hoe";
-    const struck = STRIKES.filter((strike) => digP >= strike).length;
-    const holeSize = isDug ? 1 : struck > 0 ? HOLE_GROWTH[struck - 1] : 0;
-    ground.hole.visible = holeSize > 0;
-    // 파다 만 자국은 제대로 파기 시작하면 구덩이에 묻힌다
-    scrape.hole.visible = holeSize === 0;
-    scrape.pile.visible = holeSize === 0;
-    ground.pile.visible = holeSize > 0;
-    ground.hole.scale.setScalar(M * holeSize);
-    ground.pile.scale.set(0.3 * M * holeSize, 0.1 * M * holeSize, 0.24 * M * holeSize);
-
-    // 조개 — 구덩이 속 → 집어 올려 손으로 → 통발 입구로 → 통발 안
-    if (current === "baited" && !sunkRef.current) {
+  /** 조개 자리 — 구덩이 속 → 집어 올려 손으로 → 통발 입구로 → 통발 안 */
+  const placeClam = (camera: THREE.Camera, current: string, dt: number) => {
+    if (current === "baited" && !isSunkRef.current) {
       const trap = clamDig.baitTrap();
       if (trap) {
         clam.position.copy(trap.center);
         // 통발이 물에 잠기면 그만 그린다(다시 건져도 미끼는 물고기가 먹었다)
-        if (trap.center.y < -0.02 * M) sunkRef.current = true;
+        if (trap.center.y < -0.02 * M) isSunkRef.current = true;
       }
     }
-    clam.visible = isDug && !sunkRef.current;
-    // 손에 든 한 움큼은 눈 바로 앞이라 줄여 든다 — 화면을 가리지 않게
-    clam.scale.setScalar(M * CLAM_SCALE * (current === "held" ? 0.6 : 1));
+    // 캔 만큼 — 셋을 다 캐면 한 움큼. 손에 든 한 움큼은 눈 바로 앞이라 줄여 든다
+    const found = current === "hoe" || current === "buried" ? clamsRef.current / CLAM_HOLES : 1;
+    clam.scale.setScalar(M * CLAM_SCALE * (current === "held" ? 0.6 : 0.55 + 0.45 * found));
     if (current === "held") {
-      heldOffset.set(0.2, -0.24, -0.62).multiplyScalar(M).applyQuaternion(camera.quaternion);
-      const handPosition = tmpVec2.copy(camera.position).add(heldOffset);
+      scratch.offset.set(0.2, -0.24, -0.62).multiplyScalar(M).applyQuaternion(camera.quaternion);
+      const hand = scratch.hand.copy(camera.position).add(scratch.offset);
       if (pick.t >= 0) {
         pick.t = Math.min(1, pick.t + dt / PICK_SECONDS);
         // 먼저 구덩이에서 똑바로 집어 올리고, 그다음 손으로 가져온다
-        const lift = tmpVec.copy(pick.fromPosition);
-        lift.y += 0.16 * M;
+        const lifted = scratch.lift.copy(pick.fromPosition);
+        lifted.y += 0.16 * M;
         if (pick.t < 0.4) {
-          clam.position.lerpVectors(pick.fromPosition, lift, ease(pick.t / 0.4));
+          clam.position.lerpVectors(pick.fromPosition, lifted, ease(pick.t / 0.4));
           clam.quaternion.copy(pick.fromQuaternion);
         } else {
           const t = ease((pick.t - 0.4) / 0.6);
-          clam.position.lerpVectors(lift, handPosition, t);
+          clam.position.lerpVectors(lifted, hand, t);
           clam.quaternion.slerpQuaternions(pick.fromQuaternion, camera.quaternion, t);
         }
         if (pick.t >= 1) pick.t = -1;
       } else {
-        clam.position.copy(handPosition);
+        clam.position.copy(hand);
         clam.quaternion.copy(camera.quaternion);
       }
     } else if (current === "baiting") {
       const trap = clamDig.baitTrap();
       if (bait.t < 0) startMove(bait, clam);
-      if (trap) {
-        bait.t = Math.min(1, bait.t + dt / BAIT_SECONDS);
-        // 입구 = 막힌 끝의 반대쪽. 입구 앞에서 한 번 멈칫했다가 안으로 밀어 넣는다
-        const mouth = tmpVec.copy(trap.center).multiplyScalar(2).sub(trap.closedEnd);
-        const outward = tmpVec2.copy(mouth).sub(trap.center).normalize();
-        const front = mouth.clone().addScaledVector(outward, 0.18 * M);
-        front.y += 0.06 * M;
-        tmpQuat.setFromAxisAngle(yAxis, Math.atan2(outward.x, outward.z));
-        if (bait.t < 0.55) {
-          const t = ease(bait.t / 0.55);
-          clam.position.lerpVectors(bait.fromPosition, front, t);
-          clam.position.y += Math.sin(t * Math.PI) * 0.12 * M;
-          clam.quaternion.slerpQuaternions(bait.fromQuaternion, tmpQuat, t);
-        } else {
-          const t = ease((bait.t - 0.55) / 0.45);
-          clam.position.lerpVectors(front, trap.center, t);
-          clam.quaternion.copy(tmpQuat);
-        }
-        if (bait.t >= 1) {
-          bait.t = -1;
-          audio.play("똑");
-          clamDig.set("baited"); // 통발이 이걸 보고 굴러간다
-        }
+      if (!trap) return;
+      bait.t = Math.min(1, bait.t + dt / BAIT_SECONDS);
+      // 입구 = 막힌 끝의 반대쪽. 입구 앞에서 한 번 멈칫했다가 안으로 밀어 넣는다
+      const mouth = scratch.mouth.copy(trap.center).multiplyScalar(2).sub(trap.closedEnd);
+      const outward = scratch.outward.copy(mouth).sub(trap.center).normalize();
+      const front = mouth.clone().addScaledVector(outward, 0.18 * M);
+      front.y += 0.06 * M;
+      scratch.quaternion.setFromAxisAngle(Y_AXIS, Math.atan2(outward.x, outward.z));
+      if (bait.t < 0.55) {
+        const t = ease(bait.t / 0.55);
+        clam.position.lerpVectors(bait.fromPosition, front, t);
+        clam.position.y += Math.sin(t * Math.PI) * 0.12 * M;
+        clam.quaternion.slerpQuaternions(bait.fromQuaternion, scratch.quaternion, t);
+      } else {
+        const t = ease((bait.t - 0.55) / 0.45);
+        clam.position.lerpVectors(front, trap.center, t);
+        clam.quaternion.copy(scratch.quaternion);
+      }
+      if (bait.t >= 1) {
+        bait.t = -1;
+        audio.play("똑");
+        clamDig.set("baited"); // 통발이 이걸 보고 굴러간다
       }
     } else if (current !== "baited") {
-      clam.position.copy(clamTarget);
+      clam.position.copy(clamRest);
       clam.rotation.set(0.22, 0.6, 0.12); // 모래에 반쯤 기울어 박힌 채
     }
+  };
 
-    // 반짝임 — 빛 덩어리 대신 모래 틈·껍데기 위에서 작게 반짝였다 사라진다
-    const glowAt = current === "held" || current === "baiting" ? clam.position : current === "buried" || current === "hoe" ? spot : clamTarget;
-    const isBuried = current === "buried" || current === "hoe";
-    const strength = current === "baited" ? 0 : 1;
+  /** 숨구멍 물줄기 — 뿜는 구멍 위로 가는 줄기가 올랐다 진다 */
+  const updateJets = (time: number) => {
+    holes.forEach((hole, k) => {
+      const strength = hole.isDug ? 0 : puffAt(hole, time);
+      for (let i = 0; i < JET_POINTS; i++) {
+        const index = k * JET_POINTS + i;
+        const rise = (i + 1) / JET_POINTS;
+        const wobble = Math.sin(time * 9 + i * 1.7 + k) * 0.012 * rise;
+        jets.position.setXYZ(
+          index,
+          hole.spot.x + wobble * M,
+          hole.spot.y + (0.01 + rise * PUFF_HEIGHT * strength) * M,
+          hole.spot.z + Math.cos(time * 7 + i) * 0.012 * rise * M,
+        );
+        jets.size.setX(index, (0.04 + rise * 0.03) * M * (0.4 + strength));
+        jets.alpha.setX(index, strength * (1 - rise * 0.5) * 0.9);
+        jets.color.setXYZ(index, JET.r, JET.g, JET.b);
+      }
+    });
+    jets.commit();
+  };
+
+  /** 게 — 구멍에서 튀어나와 종종걸음으로 달아나 모래 속으로 사라진다 */
+  const runCrab = (time: number) => {
+    if (crabRun.startedAt < 0) return;
+    const t = (time - crabRun.startedAt) / CRAB_RUN_SECONDS;
+    if (t >= 1) {
+      crabRun.startedAt = -1;
+      crab.visible = false;
+      return;
+    }
+    const along = THREE.MathUtils.smoothstep(t, 0, 0.9) * CRAB_RUN;
+    crab.position.copy(crabRun.from).addScaledVector(crabRun.direction, along * M);
+    crab.position.y =
+      groundY(crab.position.x / M, crab.position.z / M) * M + Math.max(0, Math.sin(t * Math.PI * 6)) * 0.01 * M;
+    crab.rotation.set(0, Math.atan2(crabRun.direction.x, crabRun.direction.z) + Math.sin(time * 30) * 0.12, 0);
+    // 끝에 모래로 파고든다
+    crab.scale.setScalar(M * (t < 0.85 ? 1 : 1 - (t - 0.85) / 0.15));
+  };
+
+  /** 안내판 — 호미를 들기 전후, 가까이에서 */
+  const showPanel = (camera: THREE.Camera, current: string) => {
+    const distance = Math.hypot(camera.position.x / M - DIG_SPOT.x, camera.position.z / M - DIG_SPOT.z);
+    if (distance > PANEL_RANGE || (current !== "buried" && current !== "hoe")) {
+      setPuzzlePanel("clam-dig", null);
+      return;
+    }
+    setPuzzlePanel("clam-dig", {
+      distance,
+      title: "숨구멍 — 조개 캐기",
+      rule:
+        current === "hoe"
+          ? `젖은 모래의 숨구멍이 이따금 물을 뿜는다. 호미 자루의 셈법 — ${HOE_CARVING}. 뿜는 수를 세고, 조개 구멍을 겨눠 [E] 로 판다.`
+          : "젖은 모래에 숨구멍이 여럿. 속에 든 것이 숨 쉴 때마다 물을 뿜는다. 맨손으로는 못 판다 — 배 옆에 호미가 있다.",
+      rows: [
+        { label: "캔 조개", value: `${clamsRef.current} / ${CLAM_HOLES}`, ok: clamsRef.current >= CLAM_HOLES },
+        { label: "꼬집힘", value: `${pinchesRef.current}`, ok: pinchesRef.current === 0 },
+      ],
+    });
+  };
+
+  useFrame((state, rawDt) => {
+    const dt = Math.min(rawDt, 0.05);
+    const time = state.clock.elapsedTime;
+    const camera = state.camera;
+    const current = clamDig.stage();
+
+    if (digRef.current >= 0) advanceDig(camera, dt);
+    if (digRef.current < 0) placeHoe(camera, current, dt, time);
+
+    // 판 구덩이 — 판 뒤에는 그대로 남는다(검사 훅으로 건너뛰면 조개 구멍 셋이 한꺼번에 파인다)
+    for (const hole of holes) {
+      if (hole.isDug && hole.dug.hole.scale.x === 0) {
+        hole.dug.hole.scale.setScalar(M);
+        hole.dug.pile.scale.set(0.3 * M, 0.1 * M, 0.24 * M);
+      }
+      if (hole.isDug) {
+        hole.dug.hole.visible = true;
+        hole.dug.pile.visible = true;
+        hole.mark.visible = false;
+      }
+    }
+
+    placeClam(camera, current, dt);
+    clam.visible = (clamsRef.current > 0 || (current !== "buried" && current !== "hoe")) && !isSunkRef.current;
+
+    // 반짝임 — 캐낸 껍데기 가장자리에서 작게 반짝였다 사라진다
+    const glowAt = current === "held" || current === "baiting" ? clam.position : clamRest;
+    const strength = current === "baited" || !clam.visible ? 0 : 1;
     for (let k = 0; k < GLINTS.length; k++) {
       const [dx, dz] = GLINTS[k];
-      // 파낸 뒤엔 껍데기 가장자리 세 점만
-      const isShown = isBuried || k < 3;
-      const spread = (isBuried ? 1 : 0.35) * M;
-      glow.position.setXYZ(
-        k,
-        glowAt.x + dx * spread,
-        glowAt.y + (isBuried ? 0.01 : 0.03) * M,
-        glowAt.z + dz * spread,
-      );
+      glints.position.setXYZ(k, glowAt.x + dx * 0.35 * M, glowAt.y + 0.03 * M, glowAt.z + dz * 0.35 * M);
       const twinkle = Math.pow(Math.max(0, Math.sin(time * (1.3 + k * 0.37) + k * 2.1)), 10);
-      glow.size.setX(k, (isBuried ? 0.05 : 0.035) * M);
-      glow.alpha.setX(k, isShown ? strength * twinkle * 0.8 : 0);
-      glow.color.setXYZ(k, CLAM_LIGHT.r, CLAM_LIGHT.g, CLAM_LIGHT.b);
+      glints.size.setX(k, 0.035 * M);
+      glints.alpha.setX(k, strength * twinkle * 0.8);
+      glints.color.setXYZ(k, CLAM_LIGHT.r, CLAM_LIGHT.g, CLAM_LIGHT.b);
     }
-    glow.commit();
+    glints.commit();
+    updateJets(time);
+    runCrab(time);
+    updateSand(sand, holes[0].spot.y, dt);
+    showPanel(camera, current);
 
-    // 튄 모래
-    for (let k = 0; k < sand.age.length; k++) {
-      sand.age[k] += dt;
-      if (sand.age[k] > 0.8) {
-        sand.points.alpha.setX(k, 0);
-        continue;
-      }
-      sand.velocity[k].y -= 9.8 * M * dt;
-      sand.position[k].addScaledVector(sand.velocity[k], dt);
-      const p = sand.position[k];
-      sand.points.position.setXYZ(k, p.x, Math.max(p.y, spot.y), p.z);
-      sand.points.size.setX(k, 0.04 * M);
-      sand.points.alpha.setX(k, 1 - sand.age[k] / 0.8);
-      sand.points.color.setXYZ(k, SAND.r, SAND.g, SAND.b);
-    }
-    sand.points.commit();
-
-    const scale = pointScaleFor(gl, camera);
-    glow.material.uniforms.uPointScale.value = scale;
-    sand.points.material.uniforms.uPointScale.value = scale;
+    const pointScale = pointScaleFor(gl, camera);
+    glints.material.uniforms.uPointScale.value = pointScale;
+    jets.material.uniforms.uPointScale.value = pointScale;
+    sand.points.material.uniforms.uPointScale.value = pointScale;
   });
 
   return null;

@@ -56,8 +56,17 @@ export default function HintBoxHud() {
             {hints.length ? (
               <div style={gridStyle}>
                 {hints.map((hint) => (
-                  <button key={hint.id} style={selectedId === hint.id ? selectedSlotStyle : slotStyle} onClick={() => setSelectedId(hint.id)} title={hint.name}>
-                    {hint.image ? <img src={hint.image} alt="" style={slotImageStyle} /> : <span style={slotLetterStyle}>{hint.name?.[0] ?? "?"}</span>}
+                  <button
+                    key={hint.id}
+                    style={selectedId === hint.id ? selectedSlotStyle : slotStyle}
+                    onClick={() => setSelectedId(hint.id)}
+                    title={hint.name}
+                  >
+                    {hint.image ? (
+                      <img src={hint.image} alt="" style={slotImageStyle} />
+                    ) : (
+                      <span style={slotLetterStyle}>{hint.name?.[0] ?? "?"}</span>
+                    )}
                     <span style={slotNameStyle}>{hint.name}</span>
                   </button>
                 ))}
@@ -81,7 +90,9 @@ export default function HintBoxHud() {
                 <p style={descriptionStyle}>{selected.description ?? "아직 적힌 것이 없다."}</p>
               </>
             ) : (
-              <div style={hintStyle}>{hints.length ? "왼쪽에서 하나를 고르면 여기에 펼쳐진다." : "막히는 자리마다 쪽지가 하나씩 있다."}</div>
+              <div style={hintStyle}>
+                {hints.length ? "왼쪽에서 하나를 고르면 여기에 펼쳐진다." : "막히는 자리마다 쪽지가 하나씩 있다."}
+              </div>
             )}
           </div>
         </div>
@@ -93,7 +104,12 @@ export default function HintBoxHud() {
 }
 
 const leftColumnStyle: CSSProperties = { flex: "1 1 48%", overflowY: "auto", paddingRight: 4 };
-const rightColumnStyle: CSSProperties = { flex: "1 1 52%", borderLeft: "1px solid #2c343e", paddingLeft: 20, overflowY: "auto" };
+const rightColumnStyle: CSSProperties = {
+  flex: "1 1 52%",
+  borderLeft: "1px solid #2c343e",
+  paddingLeft: 20,
+  overflowY: "auto",
+};
 const slotImageStyle: CSSProperties = { width: 56, height: 56, objectFit: "contain", borderRadius: 4 };
 const slotLetterStyle: CSSProperties = {
   display: "grid",
@@ -106,5 +122,12 @@ const slotLetterStyle: CSSProperties = {
   color: "#8ea3bd",
 };
 const emptyRowStyle: CSSProperties = { color: "#5b6b80", fontSize: 13, padding: "6px 2px", lineHeight: 1.6 };
-const detailImageStyle: CSSProperties = { width: "100%", maxWidth: 360, display: "block", margin: "0 auto 12px", borderRadius: 8, background: "#12161c" };
+const detailImageStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: 360,
+  display: "block",
+  margin: "0 auto 12px",
+  borderRadius: 8,
+  background: "#12161c",
+};
 const descriptionStyle: CSSProperties = { margin: 0, color: "#b7c0cb", fontSize: 14, whiteSpace: "pre-line" };

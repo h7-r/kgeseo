@@ -10,13 +10,13 @@ import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
-import { TOON_GRADIENT } from "@/engine/toon";
 
 import { audio } from "../../scene/immersion/audio";
 import { setMusicDuck } from "../../transition/loadingVideo";
-import { M, groundY } from "../fishTrap/shared";
 import { registerInteractable, showNotice } from "../interaction";
 import { inventory } from "../inventory";
+import { makeToonMaterial } from "../materials";
+import { M, groundY } from "../units";
 import { jarPuzzle, useJarStage } from "./jarState";
 import { JAR_SITE, JAR_SLAB } from "./site";
 
@@ -33,9 +33,6 @@ const PITCH: Record<Note, number> = {
 };
 /** 정답 — 빗방울이 자리 순서로 이 가락을 치게 늘어놓는다 */
 const ANSWER: Note[] = ["도", "미", "솔", "높은 도", "높은 미", "높은 솔"];
-
-const SITE = JAR_SITE;
-const SLAB_HEIGHT = JAR_SLAB.height;
 
 /**
  * 처음 놓인 순서(왼쪽부터). 크기와 음높이는 상관없다. 쌀은 가장 큰 항아리에.
@@ -96,27 +93,42 @@ const LID_PROFILE: [number, number][] = [
 ];
 
 const COLORS = { onggi: "#5A3B2A", lid: "#4A3022", slab: "#7D7A72", drop: "#DCE8F0" };
+/** 물방울 하나(미터) — 빗방울 · 튀는 잔물방울이 함께 쓴다 */
+const DROP_GEOMETRY = new THREE.SphereGeometry(0.008, 8, 6);
+/** 뚜껑에 맞아 튀는 잔물방울 수 · 중력(m/s²) */
+const SPLASH_COUNT = 9;
+const GRAVITY = 9.8;
 
-interface JarRig {
+interface Jar {
   group: THREE.Group;
   lid: THREE.Group;
-  /** 소리·빗방울이 닿는 뚜껑 위(유닛) — 항아리를 옮기면 매 프레임 따라 고친다 */
+  /** 소리 · 빗방울이 닿는 뚜껑 위(유닛) — 항아리를 옮기면 매 프레임 따라 고친다 */
   top: THREE.Vector3;
   /** [E] 로 겨누는 가운데(유닛) */
   center: THREE.Vector3;
   drop: THREE.Mesh;
-  /** 뚜껑에 맞고 튀는 잔물방울 — 자리·속도는 항아리 자기 좌표(미터) */
+  /** 뚜껑에 맞고 튀는 잔물방울 — 자리 · 속도는 항아리 자기 좌표(미터) */
   splash: { mesh: THREE.Mesh; velocity: THREE.Vector3 }[];
   /** 빗방울이 떨어진 뒤 흐른 시간. 음수면 쉼 */
   dropAge: number;
+  /** 덜컥임 0~1 */
   wobble: number;
 }
 
-const slabTop = () => groundY(SITE.x, SITE.z) + SLAB_HEIGHT;
+type JarMaterials = Record<keyof typeof COLORS, THREE.Material>;
+
+const slabTop = () => groundY(JAR_SITE.x, JAR_SITE.z) + JAR_SLAB.height;
 
 /** 자리 k 의 바닥 가운데(유닛) */
 const slotPoint = (k: number, target = new THREE.Vector3()) =>
-  target.set((SITE.x + SLOT_OFFSETS[k]) * M, slabTop() * M, SITE.z * M);
+  target.set((JAR_SITE.x + SLOT_OFFSETS[k]) * M, slabTop() * M, JAR_SITE.z * M);
+
+const scratch = {
+  look: new THREE.Vector3(),
+  forward: new THREE.Vector3(),
+  target: new THREE.Vector3(),
+  side: new THREE.Vector3(),
+};
 
 function lathe(profile: [number, number][], scale: number) {
   return new THREE.LatheGeometry(
@@ -125,16 +137,10 @@ function lathe(profile: [number, number][], scale: number) {
   );
 }
 
-/** 물방울 하나(미터) — 빗방울 · 튀는 잔물방울이 함께 쓴다 */
-const DROP_GEOMETRY = new THREE.SphereGeometry(0.008, 8, 6);
-/** 뚜껑에 맞아 튀는 잔물방울 수 · 중력(m/s²) */
-const SPLASH_COUNT = 9;
-const GRAVITY = 9.8;
-
 /** 빗방울이 뚜껑에 닿는 순간 — 잔물방울이 둘레로 튀어 오른다. 크기도 제각각 */
-function startSplash(rig: JarRig, height: number) {
-  rig.splash.forEach(({ mesh, velocity }, k) => {
-    const angle = (k / rig.splash.length) * Math.PI * 2 + Math.random() * 0.6;
+function startSplash(jar: Jar, height: number) {
+  jar.splash.forEach(({ mesh, velocity }, k) => {
+    const angle = (k / jar.splash.length) * Math.PI * 2 + Math.random() * 0.6;
     const out = 0.35 + Math.random() * 0.55;
     velocity.set(Math.cos(angle) * out, 0.7 + Math.random() * 0.9, Math.sin(angle) * out);
     mesh.position.set(Math.cos(angle) * 0.012, height * 1.09, Math.sin(angle) * 0.012);
@@ -144,23 +150,23 @@ function startSplash(rig: JarRig, height: number) {
 }
 
 /** 잔물방울 — 포물선으로 날다가 뚜껑 둘레 아래로 떨어지면 사라진다. 나는 쪽으로 살짝 늘어진다 */
-function updateSplash(rig: JarRig, height: number, dt: number) {
-  for (const { mesh, velocity } of rig.splash) {
+function updateSplash(jar: Jar, height: number, dt: number) {
+  for (const { mesh, velocity } of jar.splash) {
     if (!mesh.visible) continue;
     velocity.y -= GRAVITY * dt;
     mesh.position.addScaledVector(velocity, dt);
     const speed = velocity.length();
     const base = mesh.scale.x;
     mesh.scale.y = base * (1 + Math.min(1.6, speed * 0.6));
-    mesh.lookAt(tmpLook.copy(mesh.position).add(velocity));
+    mesh.lookAt(scratch.look.copy(mesh.position).add(velocity));
     mesh.rotateX(Math.PI / 2);
     if (mesh.position.y < height * 0.85) mesh.visible = false;
   }
 }
-const tmpLook = new THREE.Vector3();
 
-function buildRigs(materials: Record<keyof typeof COLORS, THREE.Material>) {
-  return JARS.map(({ height }, index) => {
+/** 항아리 여섯 — 몸통 · 뚜껑 · 빗방울 · 잔물방울을 한 무리로 */
+function buildJars(materials: JarMaterials) {
+  return JARS.map(({ height }, index): Jar => {
     const group = new THREE.Group();
     slotPoint(index, group.position);
     group.scale.setScalar(M);
@@ -180,101 +186,96 @@ function buildRigs(materials: Record<keyof typeof COLORS, THREE.Material>) {
       group.add(mesh);
       return { mesh, velocity: new THREE.Vector3() };
     });
-    return {
-      group,
-      lid,
-      top: new THREE.Vector3(),
-      center: new THREE.Vector3(),
-      drop,
-      splash,
-      dropAge: -1,
-      wobble: 0,
-    } satisfies JarRig;
+    return { group, lid, top: new THREE.Vector3(), center: new THREE.Vector3(), drop, splash, dropAge: -1, wobble: 0 };
   });
 }
-
-const tmpForward = new THREE.Vector3();
-const tmpTarget = new THREE.Vector3();
-const tmpSide = new THREE.Vector3();
 
 export default function JarPuzzle() {
   const stage = useJarStage();
   const materials = useMemo(
-    () => ({
-      onggi: new THREE.MeshToonMaterial({ color: COLORS.onggi, gradientMap: TOON_GRADIENT, side: THREE.DoubleSide }),
-      lid: new THREE.MeshToonMaterial({ color: COLORS.lid, gradientMap: TOON_GRADIENT, side: THREE.DoubleSide }),
-      slab: new THREE.MeshToonMaterial({ color: COLORS.slab, gradientMap: TOON_GRADIENT }),
-      drop: new THREE.MeshBasicMaterial({ color: COLORS.drop, transparent: true, opacity: 0.85, side: THREE.DoubleSide }),
+    (): JarMaterials => ({
+      onggi: makeToonMaterial(COLORS.onggi, { side: THREE.DoubleSide }),
+      lid: makeToonMaterial(COLORS.lid, { side: THREE.DoubleSide }),
+      slab: makeToonMaterial(COLORS.slab),
+      drop: new THREE.MeshBasicMaterial({
+        color: COLORS.drop,
+        transparent: true,
+        opacity: 0.85,
+        side: THREE.DoubleSide,
+      }),
     }),
     [],
   );
-  const rigs = useMemo(() => buildRigs(materials), [materials]);
+  const jars = useMemo(() => buildJars(materials), [materials]);
   const slab = useMemo(() => {
-    const geometry = new THREE.BoxGeometry(JAR_SLAB.width, SLAB_HEIGHT, JAR_SLAB.depth);
-    geometry.translate(0, SLAB_HEIGHT / 2, 0);
+    const geometry = new THREE.BoxGeometry(JAR_SLAB.width, JAR_SLAB.height, JAR_SLAB.depth);
+    geometry.translate(0, JAR_SLAB.height / 2, 0);
     return geometry;
   }, []);
   // [E] 로 겨누는 자리 표시점 — 항아리를 든 동안만 쓴다
-  const slotTargets = useMemo(() => SLOT_OFFSETS.map((_, k) => slotPoint(k).add(new THREE.Vector3(0, 0.45 * M, 0))), []);
+  const slotTargets = useMemo(
+    () => SLOT_OFFSETS.map((_, k) => slotPoint(k).add(new THREE.Vector3(0, 0.45 * M, 0))),
+    [],
+  );
 
   // 진행 — 렌더와 무관한 값이라 ref 로 둔다
   /** 자리 k 에 놓인 항아리 번호. 든 항아리도 내려놓기 전까지는 제 자리를 차지한다(빈자리) */
-  const order = useRef(JARS.map((_, index) => index));
-  const held = useRef<number | null>(null);
-  const isSolved = useRef(false);
-  const rainAt = useRef(-Infinity);
-  const nextRainAt = useRef(0);
-  const isListening = useRef(false);
-  const lidOpenedAt = useRef(-1);
-  const isRiceGiven = useRef(false);
-  const clock = useRef(0);
+  const orderRef = useRef(JARS.map((_, index) => index));
+  const heldRef = useRef<number | null>(null);
+  const isSolvedRef = useRef(false);
+  const rainAtRef = useRef(-Infinity);
+  const nextRainAtRef = useRef(0);
+  const isListeningRef = useRef(false);
+  const lidOpenedAtRef = useRef(-1);
+  const isRiceGivenRef = useRef(false);
+  const clockRef = useRef(0);
 
   useEffect(
     () => () => {
-      for (const rig of rigs) rig.group.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+      for (const jar of jars) jar.group.traverse((node) => (node as THREE.Mesh).geometry?.dispose());
       for (const material of Object.values(materials)) material.dispose();
       slab.dispose();
       // 자리를 떠난 채로 내려도 소리는 되돌린다
-      if (isListening.current) {
+      if (isListeningRef.current) {
         audio.setAmbientLevel(1);
         setMusicDuck(1);
       }
     },
-    [rigs, materials, slab],
+    [jars, materials, slab],
   );
 
   useEffect(() => {
     const lift = (jar: number) => {
-      if (held.current !== null || isSolved.current) return;
-      held.current = jar;
-      audio.jar(PITCH[JARS[jar].note], rigs[jar].top, true);
+      if (heldRef.current !== null || isSolvedRef.current) return;
+      heldRef.current = jar;
+      audio.jar(PITCH[JARS[jar].note], jars[jar].top, true);
       showNotice("항아리를 들었다. 놓을 자리를 보고 [E]", 2.6);
     };
     /** 자리 k 에 끼운다 — 그 자리부터 오른쪽(또는 왼쪽) 항아리가 한 칸씩 밀린다 */
     const place = (slot: number) => {
-      const jar = held.current;
+      const jar = heldRef.current;
       if (jar === null) return;
-      held.current = null;
-      const next = order.current.filter((entry) => entry !== jar);
+      heldRef.current = null;
+      const next = orderRef.current.filter((entry) => entry !== jar);
       next.splice(slot, 0, jar);
-      order.current = next;
+      orderRef.current = next;
       audio.jar(PITCH[JARS[jar].note], slotTargets[slot], true);
-      nextRainAt.current = clock.current + RAIN_AFTER_PLACE;
+      nextRainAtRef.current = clockRef.current + RAIN_AFTER_PLACE;
       if (next.every((entry, k) => JARS[entry].note === ANSWER[k])) {
-        isSolved.current = true;
+        isSolvedRef.current = true;
         // 바뀐 순서로 빗방울이 정답 가락을 다 친 뒤에 뚜껑이 열린다
-        lidOpenedAt.current = nextRainAt.current + (ANSWER.length - 1) * NOTE_GAP + DROP_SECONDS + 0.7;
+        lidOpenedAtRef.current = nextRainAtRef.current + (ANSWER.length - 1) * NOTE_GAP + DROP_SECONDS + 0.7;
       }
     };
     const disposers = [
-      ...rigs.map((rig, index) =>
+      ...jars.map((jar, index) =>
         registerInteractable({
           id: `jar-${index}`,
-          position: rig.center,
+          position: jar.center,
           label: "항아리 들기",
           radius: Math.max(0.25, 0.45 * JARS[index].height) * M,
           reach: 2.6 * M,
-          enabled: () => held.current === null && !isSolved.current,
+          enabled: () => heldRef.current === null && !isSolvedRef.current,
           use: () => lift(index),
         }),
       ),
@@ -285,113 +286,114 @@ export default function JarPuzzle() {
           label: "여기에 내려놓기",
           radius: 0.32 * M,
           reach: 3 * M,
-          enabled: () => held.current !== null,
+          enabled: () => heldRef.current !== null,
           use: () => place(slot),
         }),
       ),
     ];
-    // 개발용 — 헤드리스는 마우스를 못 잠가 [E] 를 못 누른다. __game.najuJarsDev.lift(2) · .place(0)
     if (import.meta.env.DEV)
       exposeDevHook("najuJarsDev", {
         lift,
         place,
-        order: () => order.current.map((jar) => JARS[jar].note),
+        order: () => orderRef.current.map((jar) => JARS[jar].note),
       });
     return () => disposers.forEach((dispose) => dispose());
-  }, [rigs, slotTargets]);
+  }, [jars, slotTargets]);
 
   useFrame(({ camera }, delta) => {
     const dt = Math.min(delta, 0.1);
-    const time = (clock.current += dt);
+    const time = (clockRef.current += dt);
 
-    // ── 귀 기울이기 ──
-    const dx = camera.position.x / M - SITE.x;
-    const dz = camera.position.z / M - SITE.z;
+    // 귀 기울이기 — 가까이 들면 바탕음이 잦아들고 빗방울이 들린다
+    const dx = camera.position.x / M - JAR_SITE.x;
+    const dz = camera.position.z / M - JAR_SITE.z;
     const distanceSq = dx * dx + dz * dz;
-    const listening = stage === "locked" && distanceSq < LISTEN_RADIUS * LISTEN_RADIUS;
-    if (listening !== isListening.current) {
-      isListening.current = listening;
-      audio.setAmbientLevel(listening ? 0.06 : 1);
-      setMusicDuck(listening ? 0.15 : 1);
-      if (listening) {
-        nextRainAt.current = time + 2; // 들어서자마자 한 번 들려준다
+    const isListening = stage === "locked" && distanceSq < LISTEN_RADIUS * LISTEN_RADIUS;
+    if (isListening !== isListeningRef.current) {
+      isListeningRef.current = isListening;
+      audio.setAmbientLevel(isListening ? 0.06 : 1);
+      setMusicDuck(isListening ? 0.15 : 1);
+      if (isListening) {
+        nextRainAtRef.current = time + 2; // 들어서자마자 한 번 들려준다
         showNotice("바깥 소리가 잦아든다. 절벽 바위 틈에서 떨어지는 물방울이 항아리를 치는 소리만 또렷하다.", 4.5);
       }
     }
-    if (held.current !== null && distanceSq > CARRY_RADIUS * CARRY_RADIUS) {
-      held.current = null; // 제 자리(빈자리)로 돌아간다
+    if (heldRef.current !== null && distanceSq > CARRY_RADIUS * CARRY_RADIUS) {
+      heldRef.current = null; // 제 자리(빈자리)로 돌아간다
       showNotice("항아리를 제자리에 내려놓았다.");
     }
 
-    // ── 빗방울 — 자리 1→2→3→4 순서로 하나씩. 든 항아리 자리는 비어 소리가 안 난다 ──
-    if (listening && time >= nextRainAt.current) {
-      rainAt.current = time;
-      nextRainAt.current = time + RAIN_PERIOD;
+    // 빗방울 — 자리 순서로 하나씩. 든 항아리 자리는 비어 소리가 안 난다
+    if (isListening && time >= nextRainAtRef.current) {
+      rainAtRef.current = time;
+      nextRainAtRef.current = time + RAIN_PERIOD;
     }
-    order.current.forEach((jar, slot) => {
-      const dropAt = rainAt.current + slot * NOTE_GAP;
-      if (jar !== held.current && time >= dropAt && time - dt < dropAt) rigs[jar].dropAge = 0;
+    orderRef.current.forEach((jar, slot) => {
+      const dropAt = rainAtRef.current + slot * NOTE_GAP;
+      if (jar !== heldRef.current && time >= dropAt && time - dt < dropAt) jars[jar].dropAge = 0;
     });
 
-    // ── 항아리 자리 — 든 것은 눈 앞으로, 나머지는 제 자리로 미끄러진다 ──
+    // 항아리 자리 — 든 것은 눈 앞으로, 나머지는 제 자리로 미끄러진다
     const follow = 1 - Math.exp(-dt * 12);
-    rigs.forEach((rig, index) => {
+    jars.forEach((jar, index) => {
       const height = JARS[index].height;
-      if (index === held.current) {
+      if (index === heldRef.current) {
         // 화면 아래 오른쪽에 들려 있게 — 가운데를 가리면 놓을 자리가 안 보인다
-        camera.getWorldDirection(tmpForward).setY(0).normalize();
-        tmpTarget
+        camera.getWorldDirection(scratch.forward).setY(0).normalize();
+        scratch.target
           .copy(camera.position)
-          .addScaledVector(tmpForward, HOLD_DISTANCE * M)
-          .addScaledVector(tmpSide.set(-tmpForward.z, 0, tmpForward.x), HOLD_SIDE * M)
+          .addScaledVector(scratch.forward, HOLD_DISTANCE * M)
+          .addScaledVector(scratch.side.set(-scratch.forward.z, 0, scratch.forward.x), HOLD_SIDE * M)
           .setY(camera.position.y - (HOLD_DROP + height) * M);
       } else {
-        slotPoint(order.current.indexOf(index), tmpTarget);
+        slotPoint(orderRef.current.indexOf(index), scratch.target);
       }
-      rig.group.position.lerp(tmpTarget, follow);
-      rig.top.set(0, height * 1.09 * M, 0).add(rig.group.position);
-      rig.center.set(0, height * 0.55 * M, 0).add(rig.group.position);
+      jar.group.position.lerp(scratch.target, follow);
+      jar.top.set(0, height * 1.09 * M, 0).add(jar.group.position);
+      jar.center.set(0, height * 0.55 * M, 0).add(jar.group.position);
 
-      // 빗방울 — 떨어져 뚜껑에 닿으면 울리고 물결이 번진다
-      if (rig.dropAge >= 0) {
-        const before = rig.dropAge;
-        rig.dropAge += dt;
-        const fall = Math.min(1, rig.dropAge / DROP_SECONDS);
-        rig.drop.visible = fall < 1;
-        rig.drop.position.y = height * 1.09 + DROP_HEIGHT * (1 - fall * fall);
-        if (before < DROP_SECONDS && rig.dropAge >= DROP_SECONDS) {
-          audio.jar(PITCH[JARS[index].note], rig.top, true);
-          rig.wobble = Math.max(rig.wobble, 0.25);
-          startSplash(rig, height);
+      // 빗방울 — 떨어져 뚜껑에 닿으면 울리고 잔물방울이 튄다
+      if (jar.dropAge >= 0) {
+        const before = jar.dropAge;
+        jar.dropAge += dt;
+        const fall = Math.min(1, jar.dropAge / DROP_SECONDS);
+        jar.drop.visible = fall < 1;
+        jar.drop.position.y = height * 1.09 + DROP_HEIGHT * (1 - fall * fall);
+        if (before < DROP_SECONDS && jar.dropAge >= DROP_SECONDS) {
+          audio.jar(PITCH[JARS[index].note], jar.top, true);
+          jar.wobble = Math.max(jar.wobble, 0.25);
+          startSplash(jar, height);
         }
-        // 동그라미 물결 대신 — 맞은 자리에서 잔물방울이 튀어 올랐다 떨어진다
-        if (rig.dropAge - DROP_SECONDS >= 0.6) rig.dropAge = -1;
+        if (jar.dropAge - DROP_SECONDS >= 0.6) jar.dropAge = -1;
       }
-      updateSplash(rig, height, dt);
+      updateSplash(jar, height, dt);
       // 빗방울에 덜컥임 — 금방 잦아든다
-      rig.wobble = Math.max(0, rig.wobble - dt * 2.2);
-      const shake = Math.sin(time * 38) * rig.wobble;
-      rig.group.rotation.z = shake * 0.025;
-      if (index === RICE_JAR && lidOpenedAt.current >= 0 && time >= lidOpenedAt.current) return;
-      rig.lid.rotation.z = shake * 0.06;
-      rig.lid.position.y = height + Math.max(0, shake) * 0.012;
+      jar.wobble = Math.max(0, jar.wobble - dt * 2.2);
+      const shake = Math.sin(time * 38) * jar.wobble;
+      jar.group.rotation.z = shake * 0.025;
+      if (index === RICE_JAR && lidOpenedAtRef.current >= 0 && time >= lidOpenedAtRef.current) return;
+      jar.lid.rotation.z = shake * 0.06;
+      jar.lid.position.y = height + Math.max(0, shake) * 0.012;
     });
 
-    // ── 뚜껑 열림 ──
-    if (lidOpenedAt.current >= 0 && time >= lidOpenedAt.current) {
-      const rig = rigs[RICE_JAR];
+    // 뚜껑 열림 — 앞으로 미끄러져 돌판에 떨어지고 항아리 배에 기대 선다(허공에 뜨지 않는다)
+    if (lidOpenedAtRef.current >= 0 && time >= lidOpenedAtRef.current) {
+      const jar = jars[RICE_JAR];
       const height = JARS[RICE_JAR].height;
-      const t = THREE.MathUtils.clamp((time - lidOpenedAt.current) / LID_SECONDS, 0, 1);
+      const t = THREE.MathUtils.clamp((time - lidOpenedAtRef.current) / LID_SECONDS, 0, 1);
       const ease = THREE.MathUtils.smootherstep(t, 0, 1);
-      // 뚜껑은 앞으로 미끄러져 돌판에 떨어지고 항아리 배에 기대 선다 — 허공에 뜨지 않는다
-      rig.lid.position.set(ease * 0.1 * height, THREE.MathUtils.lerp(height, LID_REST.y * height, ease) + Math.sin(ease * Math.PI) * 0.18 * height, ease * LID_REST.z * height);
-      rig.lid.rotation.x = ease * LID_REST.tilt;
-      rig.lid.rotation.z = Math.sin(ease * Math.PI) * -0.25;
-      if (t >= 1 && !isRiceGiven.current) {
-        isRiceGiven.current = true;
+      jar.lid.position.set(
+        ease * 0.1 * height,
+        THREE.MathUtils.lerp(height, LID_REST.y * height, ease) + Math.sin(ease * Math.PI) * 0.18 * height,
+        ease * LID_REST.z * height,
+      );
+      jar.lid.rotation.x = ease * LID_REST.tilt;
+      jar.lid.rotation.z = Math.sin(ease * Math.PI) * -0.25;
+      if (t >= 1 && !isRiceGivenRef.current) {
+        isRiceGivenRef.current = true;
         jarPuzzle.open();
         audio.play("단서");
-        inventory.spawn("rice", rig.top.clone().setY(rig.top.y - 0.06 * M));
+        inventory.spawn("rice", jar.top.clone().setY(jar.top.y - 0.06 * M));
         showNotice("뚜껑이 열렸다. 항아리 안에 쌀이 가득하다.");
       }
     }
@@ -402,11 +404,11 @@ export default function JarPuzzle() {
       <mesh
         geometry={slab}
         material={materials.slab}
-        position={[SITE.x * M, groundY(SITE.x, SITE.z) * M, SITE.z * M]}
+        position={[JAR_SITE.x * M, groundY(JAR_SITE.x, JAR_SITE.z) * M, JAR_SITE.z * M]}
         scale={M}
       />
-      {rigs.map((rig, index) => (
-        <primitive key={index} object={rig.group} />
+      {jars.map((jar, index) => (
+        <primitive key={index} object={jar.group} />
       ))}
     </group>
   );

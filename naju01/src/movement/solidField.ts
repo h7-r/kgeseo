@@ -1,5 +1,5 @@
 // 걷기 충돌 격자 — 화면에 실제로 선 물건(교체된 바위·나무 줄기·소품·사람)을 25 cm 칸에 구워 둔다.
-// 예전 소품 충돌(propColliders)은 원본 표본 상자로 원기둥을 세워, 더 큰 교체 바위나 놓기·덮기 바위는 몰랐다.
+// 표본 상자로 세운 소품 원기둥(propColliders)은 더 큰 교체 바위나 놓기·덮기 바위를 모른다 — 그래서 선 메시 그대로 굽는다.
 // 칸마다 「물건이 차지한 높이 띠」를 몇 개 둔다. 물건 하나의 한 칸은 맨 아래~맨 위를 꽉 찬 띠로 본다(바위 속은 비어 있지 않다).
 // 칸마다 그 칸이 땅 위로 솟은 높이로 셋으로 나눈다. 턱만 보면 둥근 큰 바위도 가장자리부터 계단처럼 걸어 올라가 버려서다.
 //   낮은 칸(≤ PROP_STEP) — 그냥 걸어 넘는다 · 점프로 닿는 칸(≤ CLIMB_MAX) — 걸어서는 막히고 점프하면 올라선다
@@ -24,7 +24,7 @@ export const CLIMB_MAX = 0.66;
 /** 점프로 오르는 것·벽 위에서 한 칸 건너 허용하는 턱(m) — 둥근 바위 등을 따라 걷되 옆면을 계단처럼 오르지 않게 */
 const SURFACE_STEP = 0.12;
 
-const enum Kind {
+const enum SpanKind {
   Low = 0,
   Climbable = 1,
   Wall = 2,
@@ -65,41 +65,40 @@ class SpanGrid {
   readonly kinds = new Uint8Array(NX * NZ * MAX_SPANS);
   readonly counts = new Uint8Array(NX * NZ);
 
-  insert(cell: number, bottom: number, top: number, kind: Kind) {
+  insert(cell: number, bottom: number, top: number, kind: SpanKind) {
     const base = cell * MAX_SPANS * 2;
-    let n = this.counts[cell];
+    const count = this.counts[cell];
     // 겹치거나 5 cm 안으로 붙은 띠는 하나로 — 종류는 더 막는 쪽을 따른다
-    for (let k = 0; k < n; k++) {
-      const b = this.spans[base + k * 2];
-      const t = this.spans[base + k * 2 + 1];
-      if (bottom <= t + 0.05 && top >= b - 0.05) {
-        this.spans[base + k * 2] = Math.min(b, bottom);
-        this.spans[base + k * 2 + 1] = Math.max(t, top);
+    for (let k = 0; k < count; k++) {
+      const knownBottom = this.spans[base + k * 2];
+      const knownTop = this.spans[base + k * 2 + 1];
+      if (bottom <= knownTop + 0.05 && top >= knownBottom - 0.05) {
+        this.spans[base + k * 2] = Math.min(knownBottom, bottom);
+        this.spans[base + k * 2 + 1] = Math.max(knownTop, top);
         this.kinds[cell * MAX_SPANS + k] = Math.max(this.kinds[cell * MAX_SPANS + k], kind);
         return;
       }
     }
-    if (n < MAX_SPANS) {
-      this.spans[base + n * 2] = bottom;
-      this.spans[base + n * 2 + 1] = top;
-      this.kinds[cell * MAX_SPANS + n] = kind;
-      this.counts[cell] = n + 1;
+    if (count < MAX_SPANS) {
+      this.spans[base + count * 2] = bottom;
+      this.spans[base + count * 2 + 1] = top;
+      this.kinds[cell * MAX_SPANS + count] = kind;
+      this.counts[cell] = count + 1;
       return;
     }
     // 꽉 찼으면 가장 가까운 띠에 붙인다
-    let best = 0;
+    let nearest = 0;
     let gap = Infinity;
-    for (let k = 0; k < n; k++) {
-      const d = Math.max(this.spans[base + k * 2] - top, bottom - this.spans[base + k * 2 + 1]);
-      if (d < gap) {
-        gap = d;
-        best = k;
+    for (let k = 0; k < count; k++) {
+      const distance = Math.max(this.spans[base + k * 2] - top, bottom - this.spans[base + k * 2 + 1]);
+      if (distance < gap) {
+        gap = distance;
+        nearest = k;
       }
     }
-    n = best;
-    this.spans[base + n * 2] = Math.min(this.spans[base + n * 2], bottom);
-    this.spans[base + n * 2 + 1] = Math.max(this.spans[base + n * 2 + 1], top);
-    this.kinds[cell * MAX_SPANS + n] = Math.max(this.kinds[cell * MAX_SPANS + n], kind);
+    this.spans[base + nearest * 2] = Math.min(this.spans[base + nearest * 2], bottom);
+    this.spans[base + nearest * 2 + 1] = Math.max(this.spans[base + nearest * 2 + 1], top);
+    this.kinds[cell * MAX_SPANS + nearest] = Math.max(this.kinds[cell * MAX_SPANS + nearest], kind);
   }
 }
 
@@ -139,15 +138,15 @@ class InstanceRaster {
     this.point(b[0], b[2], b[1]);
     this.point(c[0], c[2], c[1]);
     // 모서리 — 세로 벽은 위에서 보면 넓이가 없어 모서리로만 칸을 잡는다
-    for (const [p, q] of [
+    for (const [from, to] of [
       [a, b],
       [b, c],
       [c, a],
     ]) {
-      const steps = Math.floor(Math.hypot(q[0] - p[0], q[2] - p[2]) / (CELL * 0.7));
-      for (let s = 1; s < steps; s++) {
-        const t = s / steps;
-        this.point(p[0] + (q[0] - p[0]) * t, p[2] + (q[2] - p[2]) * t, p[1] + (q[1] - p[1]) * t);
+      const steps = Math.floor(Math.hypot(to[0] - from[0], to[2] - from[2]) / (CELL * 0.7));
+      for (let step = 1; step < steps; step++) {
+        const t = step / steps;
+        this.point(from[0] + (to[0] - from[0]) * t, from[2] + (to[2] - from[2]) * t, from[1] + (to[1] - from[1]) * t);
       }
     }
     // 넓은 면은 칸 가운데마다 높이를 잰다
@@ -179,7 +178,7 @@ class InstanceRaster {
       const x = X0 + ((cell % NX) + 0.5) * CELL;
       const z = Z0 + (Math.floor(cell / NX) + 0.5) * CELL;
       const rise = this.high[cell] - groundAt(x, z);
-      const kind = rise <= PROP_STEP ? Kind.Low : rise <= CLIMB_MAX ? Kind.Climbable : Kind.Wall;
+      const kind = rise <= PROP_STEP ? SpanKind.Low : rise <= CLIMB_MAX ? SpanKind.Climbable : SpanKind.Wall;
       grid.insert(cell, this.low[cell], this.high[cell], kind);
     }
   }
@@ -188,24 +187,24 @@ class InstanceRaster {
 /** 지금 화면에 선 단단한 것들 — 원본 무리(교체 안 된 자리)와 교체본 */
 function collectSources(scene: THREE.Scene): Source[] {
   const sources: Source[] = [];
-  const isShown = (o: THREE.Object3D) => {
-    for (let p: THREE.Object3D | null = o; p; p = p.parent) if (!p.visible) return false;
+  const isShown = (object: THREE.Object3D) => {
+    for (let node: THREE.Object3D | null = object; node; node = node.parent) if (!node.visible) return false;
     return true;
   };
-  scene.traverse((o) => {
-    const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh || o.userData.publicAsset || !isShown(o)) return;
-    if (!isSolidName(o.name) || !isSolidMaterial(mesh.material)) return;
-    o.updateWorldMatrix(true, false);
-    const instanced = o as THREE.InstancedMesh;
+  scene.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh || object.userData.publicAsset || !isShown(object)) return;
+    if (!isSolidName(object.name) || !isSolidMaterial(mesh.material)) return;
+    object.updateWorldMatrix(true, false);
+    const instanced = object as THREE.InstancedMesh;
     const matrices: THREE.Matrix4[] = [];
     if (instanced.isInstancedMesh)
       for (let i = 0; i < instanced.count; i++) {
-        const m = new THREE.Matrix4();
-        instanced.getMatrixAt(i, m);
-        matrices.push(m.premultiply(o.matrixWorld));
+        const matrix = new THREE.Matrix4();
+        instanced.getMatrixAt(i, matrix);
+        matrices.push(matrix.premultiply(object.matrixWorld));
       }
-    else matrices.push(o.matrixWorld.clone());
+    else matrices.push(object.matrixWorld.clone());
     if (matrices.length) sources.push({ geometry: mesh.geometry, matrices });
   });
   for (const solid of collectPublicSolids())
@@ -216,13 +215,14 @@ function collectSources(scene: THREE.Scene): Source[] {
 
 /** 다시 구울지 가르는 서명 — 보이는 무리와 그 개수, 교체본 판 번호 */
 function signatureOf(scene: THREE.Scene) {
-  let s = `v${publicSolidsVersion()}`;
-  scene.traverse((o) => {
-    if (!(o as THREE.Mesh).isMesh || !isSolidName(o.name)) return;
-    if (o.userData.publicAsset && o.userData.lodPaired) return; // 원근 나눔이 수시로 count 를 바꾼다
-    s += `|${o.id}:${o.visible ? 1 : 0}:${o.userData.publicAsset ? "" : ((o as THREE.InstancedMesh).count ?? 1)}`;
+  let signature = `v${publicSolidsVersion()}`;
+  scene.traverse((object) => {
+    if (!(object as THREE.Mesh).isMesh || !isSolidName(object.name)) return;
+    if (object.userData.publicAsset && object.userData.lodPaired) return; // 원근 나눔이 수시로 count 를 바꾼다
+    const count = object.userData.publicAsset ? "" : ((object as THREE.InstancedMesh).count ?? 1);
+    signature += `|${object.id}:${object.visible ? 1 : 0}:${count}`;
   });
-  return s;
+  return signature;
 }
 
 /** 굽기 — 한 물건씩 내놓는 일감. 다 구우면 새 격자를 돌려준다 */
@@ -230,7 +230,7 @@ function* bake(sources: Source[], groundAt: GroundAt): Generator<void, SpanGrid>
   const grid = new SpanGrid();
   const raster = new InstanceRaster();
   const box = new THREE.Box3();
-  const v = new THREE.Vector3();
+  const vertex = new THREE.Vector3();
   const a: number[] = [0, 0, 0];
   const b: number[] = [0, 0, 0];
   const c: number[] = [0, 0, 0];
@@ -251,16 +251,16 @@ function* bake(sources: Source[], groundAt: GroundAt): Generator<void, SpanGrid>
       if (box.max.y * METERS_PER_UNIT - groundAt(cx, cz) < MIN_HEIGHT) continue;
       if (world.length < position.count * 3) world = new Float32Array(position.count * 3);
       for (let i = 0; i < position.count; i++) {
-        v.fromBufferAttribute(position, i).applyMatrix4(matrix).multiplyScalar(METERS_PER_UNIT);
-        world[i * 3] = v.x;
-        world[i * 3 + 1] = v.y;
-        world[i * 3 + 2] = v.z;
+        vertex.fromBufferAttribute(position, i).applyMatrix4(matrix).multiplyScalar(METERS_PER_UNIT);
+        world[i * 3] = vertex.x;
+        world[i * 3 + 1] = vertex.y;
+        world[i * 3 + 2] = vertex.z;
       }
       raster.begin();
-      for (let t = 0; t < triangles; t++) {
-        const i0 = index ? index.getX(t * 3) : t * 3;
-        const i1 = index ? index.getX(t * 3 + 1) : t * 3 + 1;
-        const i2 = index ? index.getX(t * 3 + 2) : t * 3 + 2;
+      for (let triangle = 0; triangle < triangles; triangle++) {
+        const i0 = index ? index.getX(triangle * 3) : triangle * 3;
+        const i1 = index ? index.getX(triangle * 3 + 1) : triangle * 3 + 1;
+        const i2 = index ? index.getX(triangle * 3 + 2) : triangle * 3 + 2;
         a[0] = world[i0 * 3];
         a[1] = world[i0 * 3 + 1];
         a[2] = world[i0 * 3 + 2];
@@ -315,21 +315,21 @@ export function addDynamicSolid(solid: DynamicSolid) {
 }
 /** 상자와 원(반지름 radius)이 겹치나 */
 function touchesBox(box: DynamicSolid, x: number, z: number, radius: number) {
-  const c = Math.cos(box.yaw);
-  const s = Math.sin(box.yaw);
+  const cos = Math.cos(box.yaw);
+  const sin = Math.sin(box.yaw);
   const dx = x - box.x;
   const dz = z - box.z;
   // three 의 rotation.y 를 거꾸로 돌린다
-  const lx = dx * c - dz * s;
-  const lz = dx * s + dz * c;
-  const nx = Math.max(-box.halfX, Math.min(lx, box.halfX));
-  const nz = Math.max(-box.halfZ, Math.min(lz, box.halfZ));
-  return (lx - nx) ** 2 + (lz - nz) ** 2 <= radius * radius;
+  const localX = dx * cos - dz * sin;
+  const localZ = dx * sin + dz * cos;
+  const nearestX = Math.max(-box.halfX, Math.min(localX, box.halfX));
+  const nearestZ = Math.max(-box.halfZ, Math.min(localZ, box.halfZ));
+  return (localX - nearestX) ** 2 + (localZ - nearestZ) ** 2 <= radius * radius;
 }
 
-function createQueries(holder: { grid: SpanGrid | null }): SolidField {
+function createSolidField(holder: { grid: SpanGrid | null }): SolidField {
   /** 몸 원과 겹치는 칸의 띠 중 막는 것들의 (꼭대기 − 발) 가장 큰 값 */
-  const depth = (x: number, z: number, footY: number, radius: number, firstOnly: boolean) => {
+  const blockingDepth = (x: number, z: number, footY: number, radius: number, firstOnly: boolean) => {
     let deepest = 0;
     for (const box of dynamicSolids) {
       if (!box.enabled || !touchesBox(box, x, z, radius)) continue;
@@ -348,15 +348,15 @@ function createQueries(holder: { grid: SpanGrid | null }): SolidField {
       for (let i = i0; i <= i1; i++) {
         if (i < 0 || j < 0 || i >= NX || j >= NZ) continue;
         // 칸 사각형과 몸 원이 겹치나
-        const nx = Math.max(X0 + i * CELL, Math.min(x, X0 + (i + 1) * CELL));
-        const nz = Math.max(Z0 + j * CELL, Math.min(z, Z0 + (j + 1) * CELL));
-        if ((nx - x) ** 2 + (nz - z) ** 2 > radius * radius) continue;
+        const nearestX = Math.max(X0 + i * CELL, Math.min(x, X0 + (i + 1) * CELL));
+        const nearestZ = Math.max(Z0 + j * CELL, Math.min(z, Z0 + (j + 1) * CELL));
+        if ((nearestX - x) ** 2 + (nearestZ - z) ** 2 > radius * radius) continue;
         const cell = j * NX + i;
         const base = cell * MAX_SPANS * 2;
         for (let k = 0; k < grid.counts[cell]; k++) {
           const bottom = grid.spans[base + k * 2];
           const top = grid.spans[base + k * 2 + 1];
-          const step = grid.kinds[cell * MAX_SPANS + k] === Kind.Low ? PROP_STEP : SURFACE_STEP;
+          const step = grid.kinds[cell * MAX_SPANS + k] === SpanKind.Low ? PROP_STEP : SURFACE_STEP;
           if (top > footY + step && bottom < footY + BODY_HEIGHT) {
             if (firstOnly) return 1;
             deepest = Math.max(deepest, top - footY);
@@ -367,18 +367,19 @@ function createQueries(holder: { grid: SpanGrid | null }): SolidField {
   };
   return {
     isReady: () => !!holder.grid,
-    blockedAt: (x, z, footY, radius) => depth(x, z, footY, radius, true) > 0,
-    depthAt: (x, z, footY, radius) => depth(x, z, footY, radius, false),
+    blockedAt: (x, z, footY, radius) => blockingDepth(x, z, footY, radius, true) > 0,
+    depthAt: (x, z, footY, radius) => blockingDepth(x, z, footY, radius, false),
     supportAt(x, z, maxY) {
       let best = -Infinity;
       for (const box of dynamicSolids)
-        if (box.enabled && box.walkable !== false && box.top <= maxY && box.top > best && touchesBox(box, x, z, 0)) best = box.top;
+        if (box.enabled && box.walkable !== false && box.top <= maxY && box.top > best && touchesBox(box, x, z, 0))
+          best = box.top;
       const grid = holder.grid;
       const cell = cellOf(x, z);
       if (!grid || cell < 0) return best;
       const base = cell * MAX_SPANS * 2;
       for (let k = 0; k < grid.counts[cell]; k++) {
-        if (grid.kinds[cell * MAX_SPANS + k] === Kind.Wall) continue; // 벽 위에는 서지 않는다
+        if (grid.kinds[cell * MAX_SPANS + k] === SpanKind.Wall) continue; // 벽 위에는 서지 않는다
         const top = grid.spans[base + k * 2 + 1];
         if (top <= maxY && top > best) best = top;
       }
@@ -394,7 +395,7 @@ export const solidQueries: { current: SolidField | null } = { current: null };
 export function useSolidField(groundAt: GroundAt): SolidField {
   const scene = useThree((state) => state.scene);
   const [holder] = useState<{ grid: SpanGrid | null }>(() => ({ grid: null }));
-  const queries = useMemo(() => createQueries(holder), [holder]);
+  const queries = useMemo(() => createSolidField(holder), [holder]);
   useEffect(() => {
     solidQueries.current = queries;
     return () => {
@@ -431,27 +432,27 @@ export function useSolidField(groundAt: GroundAt): SolidField {
   }, [queries, holder]);
 
   useFrame(({ clock }) => {
-    const s = baking.current;
-    if (s.job) {
+    const state = baking.current;
+    if (state.job) {
       const started = performance.now();
       while (performance.now() - started < FRAME_BUDGET_MS) {
-        const step = s.job.next();
+        const step = state.job.next();
         if (step.done) {
           holder.grid = step.value;
-          s.signature = s.pendingSignature;
-          s.job = null;
+          state.signature = state.pendingSignature;
+          state.job = null;
           break;
         }
       }
       return;
     }
     // 1.5 초마다 바뀐 게 있나 본다
-    if (clock.elapsedTime - s.checkedAt < 1.5) return;
-    s.checkedAt = clock.elapsedTime;
+    if (clock.elapsedTime - state.checkedAt < 1.5) return;
+    state.checkedAt = clock.elapsedTime;
     const signature = signatureOf(scene);
-    if (signature === s.signature) return;
-    s.pendingSignature = signature;
-    s.job = bake(collectSources(scene), groundAt);
+    if (signature === state.signature) return;
+    state.pendingSignature = signature;
+    state.job = bake(collectSources(scene), groundAt);
   });
 
   return queries;

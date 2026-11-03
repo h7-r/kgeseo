@@ -2,9 +2,9 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { TOON_GRADIENT } from "@/engine/toon";
+import { makeToonMaterial } from "./materials";
 
-import { EMBER, buildFishGeometry } from "./fishTrap/shared";
+import { EMBER, buildFishGeometry } from "./fishTrap/lightFish";
 import { buildBronzeKey, buildClosedBox } from "./ridge/lockedBox";
 import type { ItemKind } from "./inventory";
 
@@ -38,7 +38,8 @@ const BOTTLE_PROFILE: [number, number][] = [
   [0, 0.27],
 ];
 
-function lathe(profile: [number, number][]) {
+/** 옆선을 돌려 만든 그릇 모양 */
+function buildLathe(profile: [number, number][]) {
   return new THREE.LatheGeometry(
     profile.map(([r, y]) => new THREE.Vector2(r, y)),
     14,
@@ -55,66 +56,61 @@ export function buildItemLooks(): Record<ItemKind, ItemLook> {
       lift: 0.04,
     },
     rice: {
-      geometry: lathe(RICE_SACK_PROFILE),
-      material: new THREE.MeshToonMaterial({ color: "#E3DBC6", gradientMap: TOON_GRADIENT, side: THREE.DoubleSide }),
+      geometry: buildLathe(RICE_SACK_PROFILE),
+      material: makeToonMaterial("#E3DBC6", { side: THREE.DoubleSide }),
       lift: 0,
     },
     floatStone: {
       geometry: buildFloatStoneGeometry(),
-      material: new THREE.MeshToonMaterial({ color: "#E2DCCD", gradientMap: TOON_GRADIENT }),
+      material: makeToonMaterial("#E2DCCD"),
       lift: 0.06,
     },
     makgeolli: {
-      geometry: lathe(BOTTLE_PROFILE),
-      material: new THREE.MeshToonMaterial({ color: "#EDE8DA", gradientMap: TOON_GRADIENT, side: THREE.DoubleSide }),
+      geometry: buildLathe(BOTTLE_PROFILE),
+      material: makeToonMaterial("#EDE8DA", { side: THREE.DoubleSide }),
       lift: 0,
     },
     gearStone: {
       geometry: buildGearStoneGeometry(),
-      material: new THREE.MeshToonMaterial({
-        color: "#55605F",
-        emissive: new THREE.Color("#0F2A30"), // 물속 어둠에서도 찾아지게 살짝 빛난다
-        gradientMap: TOON_GRADIENT,
-      }),
+      // 물속 어둠에서도 찾아지게 살짝 빛난다
+      material: makeToonMaterial("#55605F", { emissive: new THREE.Color("#0F2A30") }),
       lift: 0,
     },
     pearl: {
       geometry: new THREE.SphereGeometry(0.045, 20, 14).translate(0, 0.045, 0),
-      material: new THREE.MeshToonMaterial({ color: "#EEF2F4", emissive: new THREE.Color("#3C4A58"), gradientMap: TOON_GRADIENT }),
+      material: makeToonMaterial("#EEF2F4", { emissive: new THREE.Color("#3C4A58") }),
       lift: 0,
     },
     bigPearl: {
       geometry: new THREE.SphereGeometry(0.1, 24, 16).translate(0, 0.1, 0),
-      material: new THREE.MeshToonMaterial({ color: "#FFFFFF", emissive: new THREE.Color("#8A8F94"), gradientMap: TOON_GRADIENT }),
+      material: makeToonMaterial("#FFFFFF", { emissive: new THREE.Color("#8A8F94") }),
       lift: 0,
     },
     scale: {
       geometry: buildScaleGeometry(),
-      material: new THREE.MeshToonMaterial({
-        color: "#FFFFFF",
+      // 어두운 석실에서도 보이게 스스로 조금 빛난다
+      material: makeToonMaterial("#FFFFFF", {
         vertexColors: true,
-        emissive: new THREE.Color("#1E4A66"), // 어두운 석실에서도 보이게 스스로 조금 빛난다
-        gradientMap: TOON_GRADIENT,
+        emissive: new THREE.Color("#1E4A66"),
         side: THREE.DoubleSide,
       }),
       lift: 0.02,
     },
-    // 옻칠한 나무 함 + 청동 감잡이 + 가로 자물통(ridge/lockedBox) — 아랑사·아비사 무렵 어촌의 함
-    // 짚신 한 짝 — 납작한 바닥에 엮은 끈(검은 줄 통발의 숨은 단서)
     strawShoe: {
       geometry: buildStrawShoeGeometry(),
-      material: new THREE.MeshToonMaterial({ color: "#A88E58", gradientMap: TOON_GRADIENT }),
+      material: makeToonMaterial("#A88E58"),
       lift: 0,
     },
+    // 옻칠한 나무 함 — 색은 꼭짓점에 칠해 둔 대로(ridge/lockedBox)
     letterBox: {
       geometry: buildClosedBox(),
-      material: new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: TOON_GRADIENT }),
+      material: makeToonMaterial("#FFFFFF", { vertexColors: true }),
       lift: 0,
     },
-    // 증언 능선 돌새가 물고 있던 열쇠 — 땅에서 찾기 쉽게 청동이 살짝 빛난다
+    // 땅에서 찾기 쉽게 청동이 살짝 빛난다
     bronzeKey: {
       geometry: buildBronzeKey(),
-      material: new THREE.MeshToonMaterial({ vertexColors: true, emissive: new THREE.Color("#3A2A10"), gradientMap: TOON_GRADIENT }),
+      material: makeToonMaterial("#FFFFFF", { vertexColors: true, emissive: new THREE.Color("#3A2A10") }),
       lift: 0,
     },
   };
@@ -134,7 +130,7 @@ export function buildScaleGeometry() {
   const deep = new THREE.Color("#1F4E7A");
   const mid = new THREE.Color("#3E8DB3");
   const pale = new THREE.Color("#BFE6EE");
-  const tmp = new THREE.Color();
+  const tint = new THREE.Color();
   // 앞면 — 아래 뾰족한 밑동(t=0)에서 둥근 끝(t=1)으로, 옆으로는 −1~1
   const outline = (t: number) => Math.sin(Math.PI * Math.min(1, t * 1.15)) ** 0.7 * (0.55 + 0.45 * t);
   for (let i = 0; i <= rings; i++) {
@@ -150,10 +146,13 @@ export function buildScaleGeometry() {
       const z = ridge + groove * (1 - Math.abs(u)) + 0.008 * (1 - u * u);
       positions.push(x, y, z);
       const edge = Math.abs(u) ** 1.4;
-      tmp.copy(deep).lerp(mid, Math.min(1, edge * 1.3 + t * 0.2)).lerp(pale, Math.max(0, edge - 0.55) * 1.8 + (t > 0.9 ? (t - 0.9) * 4 : 0));
+      tint
+        .copy(deep)
+        .lerp(mid, Math.min(1, edge * 1.3 + t * 0.2))
+        .lerp(pale, Math.max(0, edge - 0.55) * 1.8 + (t > 0.9 ? (t - 0.9) * 4 : 0));
       // 결 따라 밝고 어두운 줄
-      tmp.multiplyScalar(0.92 + 0.16 * (0.5 + 0.5 * Math.sin((Math.abs(u) * 9 - t * 6) * Math.PI)));
-      colors.push(tmp.r, tmp.g, tmp.b);
+      tint.multiplyScalar(0.92 + 0.16 * (0.5 + 0.5 * Math.sin((Math.abs(u) * 9 - t * 6) * Math.PI)));
+      colors.push(tint.r, tint.g, tint.b);
     }
   }
   const index: number[] = [];
@@ -172,7 +171,7 @@ export function buildScaleGeometry() {
   const back = front.clone();
   back.scale(1, 1, -0.3);
   back.translate(0, 0, -0.002);
-  const backIndex = (back.index!.array as ArrayLike<number>);
+  const backIndex = back.index!.array as ArrayLike<number>;
   const flipped: number[] = [];
   for (let k = 0; k < backIndex.length; k += 3) flipped.push(backIndex[k], backIndex[k + 2], backIndex[k + 1]);
   back.setIndex(flipped);
@@ -186,14 +185,14 @@ export function buildScaleGeometry() {
 
 /** 톱니돌 — 테두리에 톱니 여덟이 난 납작한 돌판. 미터, 바닥이 원점(눕혀 둔다). 고리문 홈에는 세워 끼운다 */
 export function buildGearStoneGeometry() {
-  const TEETH = 8;
+  const teeth = 8;
   const outer = 0.11;
   const inner = 0.085;
   const shape = new THREE.Shape();
-  for (let i = 0; i < TEETH * 2; i++) {
+  for (let i = 0; i < teeth * 2; i++) {
     const r = i % 2 === 0 ? outer : inner;
-    const a0 = (i / (TEETH * 2)) * Math.PI * 2;
-    const a1 = ((i + 0.55) / (TEETH * 2)) * Math.PI * 2;
+    const a0 = (i / (teeth * 2)) * Math.PI * 2;
+    const a1 = ((i + 0.55) / (teeth * 2)) * Math.PI * 2;
     const x0 = Math.cos(a0) * r;
     const y0 = Math.sin(a0) * r;
     const x1 = Math.cos(a1) * r;
@@ -203,11 +202,17 @@ export function buildGearStoneGeometry() {
     shape.lineTo(x1, y1);
   }
   shape.closePath();
-  const holeR = 0.028;
+  const holeRadius = 0.028;
   const hole = new THREE.Path();
-  hole.absarc(0, 0, holeR, 0, Math.PI * 2, true);
+  hole.absarc(0, 0, holeRadius, 0, Math.PI * 2, true);
   shape.holes.push(hole);
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.045, bevelEnabled: true, bevelSize: 0.006, bevelThickness: 0.005, bevelSegments: 1 });
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.045,
+    bevelEnabled: true,
+    bevelSize: 0.006,
+    bevelThickness: 0.005,
+    bevelSegments: 1,
+  });
   geometry.rotateX(-Math.PI / 2); // 눕힌다 — 두께가 위로
   geometry.computeBoundingBox();
   geometry.translate(0, -geometry.boundingBox!.min.y, 0);
@@ -219,8 +224,14 @@ export function buildStrawShoeGeometry() {
   const parts: THREE.BufferGeometry[] = [];
   parts.push(new THREE.SphereGeometry(1, 16, 8).scale(0.055, 0.016, 0.13).translate(0, 0.016, 0));
   parts.push(new THREE.TorusGeometry(0.035, 0.008, 5, 12, Math.PI).rotateX(-Math.PI / 2).translate(0, 0.03, 0.08));
-  for (const side of [-1, 1]) parts.push(new THREE.TorusGeometry(0.02, 0.006, 4, 8).rotateY(Math.PI / 2).translate(side * 0.05, 0.03, 0.01));
-  parts.push(new THREE.TorusGeometry(0.03, 0.007, 4, 10, Math.PI).rotateX(-Math.PI / 2).rotateY(Math.PI).translate(0, 0.035, -0.1));
+  for (const side of [-1, 1])
+    parts.push(new THREE.TorusGeometry(0.02, 0.006, 4, 8).rotateY(Math.PI / 2).translate(side * 0.05, 0.03, 0.01));
+  parts.push(
+    new THREE.TorusGeometry(0.03, 0.007, 4, 10, Math.PI)
+      .rotateX(-Math.PI / 2)
+      .rotateY(Math.PI)
+      .translate(0, 0.035, -0.1),
+  );
   const flat = parts.map((g) => {
     const out = g.index ? g.toNonIndexed() : g;
     if (out.hasAttribute("uv")) out.deleteAttribute("uv");

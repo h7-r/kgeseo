@@ -8,9 +8,9 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { createRandom } from "@/engine/random";
 
-import { M } from "../fishTrap/shared";
-import { prewarmShaders } from "../prewarm";
 import { getUnderwater } from "../cave/caveState";
+import { prewarmShaders } from "../prewarm";
+import { M } from "../units";
 import { getStormRain } from "./ritualState";
 
 const STREAKS = 6000;
@@ -112,9 +112,9 @@ export default function StormRain() {
   );
 
   useFrame(({ camera, clock }) => {
-    const shown = material.uniforms.uLevel.value as number;
+    const current = material.uniforms.uLevel.value as number;
     // 몇 초에 걸쳐 쏟아지고 잦아든다. 물속(강 밑 물굴)에서는 안 보인다
-    const next = shown + ((getUnderwater() ? 0 : getStormRain()) - shown) * 0.04;
+    const next = current + ((getUnderwater() ? 0 : getStormRain()) - current) * 0.04;
     material.uniforms.uLevel.value = next;
     lines.visible = next > 0.01;
     if (!lines.visible) return;

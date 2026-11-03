@@ -84,7 +84,8 @@ class ImmersionAudio {
       if (this.ctx.state === "suspended") void this.ctx.resume();
       return;
     }
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const AC =
+      window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
     const c = (this.ctx = new AC());
     this.master = c.createGain();
@@ -124,7 +125,10 @@ class ImmersionAudio {
     this.wind = layer(this.brown, [["bandpass", 420, 0.5]]);
     this.water = layer(this.brown, [["lowpass", 520]]);
     this.ripple = layer(this.white, [["bandpass", 1500, 2]]);
-    this.rain = layer(this.white, [["highpass", 700], ["lowpass", 4200]]); // 10/13 — 덜 시끄럽게(고음을 깎음)
+    this.rain = layer(this.white, [
+      ["highpass", 700],
+      ["lowpass", 4200],
+    ]); // 10/13 — 덜 시끄럽게(고음을 깎음)
     this.storm = layer(this.brown, [["lowpass", 420]]);
     if (this.gateSpots) this.buildGates(this.gateSpots);
     this.mix();
@@ -270,7 +274,14 @@ class ImmersionAudio {
     o.start(start);
     o.stop(start + rise + length + 0.05);
   }
-  private noiseBurst(start: number, length: number, level: number, filters: BurstFilterSpec[], out: AudioNode, brown = false) {
+  private noiseBurst(
+    start: number,
+    length: number,
+    level: number,
+    filters: BurstFilterSpec[],
+    out: AudioNode,
+    brown = false,
+  ) {
     const c = this.ctx!;
     const s = c.createBufferSource();
     const g = c.createGain();
@@ -400,7 +411,17 @@ class ImmersionAudio {
       this.tone(170 + Math.random() * 40, "sine", t + 0.03, 0.05, 0.02, 0.22, out, 110);
     } else if (name === "우르릉") {
       const out = this.makeOutput(0.5);
-      this.noiseBurst(t, 3.2, 0.7, [["lowpass", 160], ["lowpass", 160]], out, true);
+      this.noiseBurst(
+        t,
+        3.2,
+        0.7,
+        [
+          ["lowpass", 160],
+          ["lowpass", 160],
+        ],
+        out,
+        true,
+      );
       this.noiseBurst(t + 0.5, 2.4, 0.45, [["lowpass", 110]], out, true);
     }
   }
