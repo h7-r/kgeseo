@@ -39,18 +39,25 @@ export const VIDEOS = {
 } satisfies Record<string, Video>;
 
 /**
- * 나주 「앙암바위」 실제 플레이 녹화 — 게임 영상 갤러리 다섯 편과 홈 링 안의 사건 필름.
- * 게임 화면을 1/30초씩 넘기며 찍어 이어 붙였다. 걷는 구간만 빠르게, 퍼즐이 풀리는 순간은 1배로 둔다.
+ * 나주 「앙암바위」 게임 화면 촬영 — 게임 영상 갤러리 다섯 편.
+ * 게임 화면을 가상 시계로 찍고 밤빛으로 편집했다. 카메라와 빛은 촬영 때만 바꾼 것이라 실제 플레이 화면과 다르다.
  */
 export const GAMEPLAY_VIDEOS = {
-  ferry: { src: "/naju-play-ferry.mp4", poster: "/naju-play-ferry.webp", title: "나주 · 꺼진 화톳불" },
-  ritual: { src: "/naju-play-ritual.mp4", poster: "/naju-play-ritual.webp", title: "나주 · 기우제" },
-  cave: { src: "/naju-play-cave.mp4", poster: "/naju-play-cave.webp", title: "나주 · 강 밑 물굴" },
-  curtain: { src: "/naju-play-curtain.mp4", poster: "/naju-play-curtain.webp", title: "나주 · 바람 장막" },
-  birds: { src: "/naju-play-birds.mp4", poster: "/naju-play-birds.webp", title: "나주 · 깨어난 돌새" },
+  ferry: { src: "/naju-play-ferry-v2.mp4", poster: "/naju-play-ferry-v2.webp", title: "나주 · 꺼진 화톳불" },
+  ritual: { src: "/naju-play-ritual-v2.mp4", poster: "/naju-play-ritual-v2.webp", title: "나주 · 기우제" },
+  cave: { src: "/naju-play-cave-v2.mp4", poster: "/naju-play-cave-v2.webp", title: "나주 · 강 밑 물굴" },
+  curtain: { src: "/naju-play-curtain-v2.mp4", poster: "/naju-play-curtain-v2.webp", title: "나주 · 바람 장막" },
+  birds: { src: "/naju-play-birds-v2.mp4", poster: "/naju-play-birds-v2.webp", title: "나주 · 깨어난 돌새" },
 } satisfies Record<string, Video>;
 
-export const NAJU_FILM = { src: "/naju-film.mp4", poster: "/naju-film-poster.webp" } as const;
+/** 홈 배경 필름. 스크롤로 앞뒤로 넘기므로 키프레임을 촘촘히 구웠다(ffmpeg -g 2 -bf 0). */
+export const RIVER_FILM = { src: "/river-film-v2.mp4" };
+
+/**
+ * 홈 링 안의 필름 — 본부실 사건 보드에서 나주의 밤으로 빨려 든다.
+ * 게임 화면을 찍되 촬영할 때만 밤빛으로 바꾸고, 왜곡·색은 편집에서 입혔다(게임 자체의 낮 화면과 다르다).
+ */
+export const NAJU_FILM = { src: "/naju-film-v4.mp4", poster: "/naju-film-v4-poster.webp" } as const;
 
 /** 게임 본편 public 에도 같은 파일이 있어야 넘어가는 순간 장면이 끊기지 않는다. */
 export const OPENING_FILM = { src: "/opening-cinematic.mp4", poster: "/opening-cinematic-poster.jpg" } as const;

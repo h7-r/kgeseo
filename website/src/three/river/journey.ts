@@ -85,8 +85,6 @@ export const MAX_SCRIMS = 6;
 export const journeyInput = {
   progress: 0,
   section: 0,
-  /** 봉인이 맞물릴 원의 화면 자리 — 가운데(0~1, 왼쪽 위 기준)와 반지름(창 높이 비율). */
-  sealAnchor: { x: 0.31, y: 0.47, radius: 0.24 },
   /** 화면에 걸린 글 덩이 자리 [왼, 위, 오른, 아래](0~1, 왼쪽 위 기준). 마무리 패스가 이 자리만 장면을 누른다. */
   scrims: Array.from({ length: MAX_SCRIMS }, (): [number, number, number, number] => [0, 0, 0, 0]),
   scrimCount: 0,

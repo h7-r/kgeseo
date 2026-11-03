@@ -6,7 +6,7 @@ import { usePrefersReducedMotion } from "@/lib/motionPreference";
 // three.js 는 수백 KB 라 첫 화면을 늦추지 않도록 장면 코드를 따로 떼어 받는다.
 const SCENES = {
   deepSpace: lazy(() => import("./DeepSpaceScene")),
-  river: lazy(() => import("./river/RiverScene")),
+  river: lazy(() => import("./river/RiverFilm")),
 };
 
 type SceneName = keyof typeof SCENES;

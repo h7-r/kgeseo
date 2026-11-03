@@ -15,7 +15,6 @@ interface Measured {
   knots: Knot[];
   /** 구역이 바뀌는 스크롤 자리(JOURNEY_SECTIONS 순서의 사이사이). */
   boundaries: number[];
-  sealAnchor: HTMLElement | null;
   /** 장면을 눌러 둘 글 덩이(data-scrim). */
   scrims: HTMLElement[];
 }
@@ -56,7 +55,6 @@ function measure(): Measured | null {
   return {
     knots,
     boundaries,
-    sealAnchor: stage.querySelector<HTMLElement>("[data-seal-anchor]"),
     scrims: [...stage.querySelectorAll<HTMLElement>("[data-scrim]")],
   };
 }
@@ -93,13 +91,6 @@ export function followHomeScroll(onChange: () => void): () => void {
       JOURNEY_SECTIONS.length - 1,
       measured.boundaries.filter((boundary) => y >= boundary).length,
     );
-    // 봉인 자리(앙암 사진 원)는 핀에 붙잡혀 움직이므로 스크롤마다 화면 자리를 다시 읽는다. 읽기만 해 레이아웃을 흔들지 않는다.
-    const anchor = measured.sealAnchor?.getBoundingClientRect();
-    if (anchor) {
-      journeyInput.sealAnchor.x = (anchor.left + anchor.width / 2) / window.innerWidth;
-      journeyInput.sealAnchor.y = (anchor.top + anchor.height / 2) / window.innerHeight;
-      journeyInput.sealAnchor.radius = anchor.width / 2 / window.innerHeight;
-    }
     // 글 덩이는 핀·스크롤로 움직인다. 화면에 걸친 것만 담는다.
     let count = 0;
     for (const element of measured.scrims) {

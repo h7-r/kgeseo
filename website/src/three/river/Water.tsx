@@ -49,7 +49,12 @@ const WATER_FRAGMENT = /* glsl */ `
     // 물에 비친 상은 세로로 길게 부서진다 — 가로보다 세로로 크게 흔든다.
     vec2 uv = vReflectUv.xy / vReflectUv.w + vec2(n.x * 0.025, n.z * 0.11);
     // 발밑의 반사는 화면 아래 끝에 덩어리(특히 달)로 맺혀 눈을 끈다. 가까울수록 어둡게 가라앉힌다.
-    vec3 reflection = min(texture2D(tDiffuse, uv).rgb, vec3(mix(0.3, 1.6, smoothstep(8.0, 70.0, dist))));
+    // 반사 판은 화면보다 작다. 세로로 몇 번 더 집어 네모 조각 대신 물에 풀린 결로 보이게 한다.
+    vec2 smear = vec2(0.0012, 0.0045 + 0.012 * smoothstep(60.0, 8.0, dist));
+    vec3 blurred = texture2D(tDiffuse, uv).rgb * 0.4
+      + (texture2D(tDiffuse, uv + smear).rgb + texture2D(tDiffuse, uv - smear).rgb) * 0.2
+      + (texture2D(tDiffuse, uv + smear * 2.2).rgb + texture2D(tDiffuse, uv - smear * 2.2).rgb) * 0.1;
+    vec3 reflection = min(blurred, vec3(mix(0.3, 1.6, smoothstep(8.0, 70.0, dist))));
 
     float facing = clamp(dot(n, -view), 0.0, 1.0);
     float fresnel = 0.05 + 0.95 * pow(1.0 - facing, 4.0);

@@ -15,10 +15,10 @@ export default function MediaHero({ top = 129 }: MediaHeroProps) {
 
   return (
     <section style={{ ...rootStyle, top: `${top}px` }} {...sectionAnchor("media-hero")}>
-      {/* 캐릭터 생성 화면 녹화. 글이 읽히게 위아래·가운데를 어둡게 깐다. */}
+      {/* 나주맵에서 조사관이 걷고 달리는 3인칭 촬영본. 글이 읽히게 위아래·가운데를 어둡게 깐다. */}
       <video
-        src="/character-film.mp4"
-        poster="/character-film-poster.jpg"
+        src="/character-film-v2.mp4"
+        poster="/character-film-v2-poster.jpg"
         autoPlay
         muted
         loop

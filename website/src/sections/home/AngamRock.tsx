@@ -30,7 +30,7 @@ const MISSION_SPECS: readonly MissionSpec[] = [
   { label: "플레이 인원", amount: "1", unit: "명", width: 197 },
 ];
 
-/** SECRET OF ANGAM — 왼쪽은 링에 담긴 나주맵 실제 장면 필름, 오른쪽은 미션 설명. 가운데 온 뒤 잠깐 멈춘다. 뒤로는 홈 배경 장면이 앙암바위 앞에 닿아 있다. */
+/** SECRET OF ANGAM — 왼쪽은 링에 담긴 나주 사건 필름, 오른쪽은 미션 설명. 가운데 온 뒤 잠깐 멈춘다. 뒤로는 홈 배경 장면이 앙암바위 앞에 닿아 있다. */
 export default function AngamRock() {
   const navigate = useSiteNavigate();
   // 멈춰 있는 동안 오른쪽 글 덩이(.u-pin-reveal)들이 차례로 드러난다.
@@ -50,9 +50,8 @@ export default function AngamRock() {
         }}
         {...sectionAnchor("angam")}
       >
-        {/* 링 테두리는 사진과 따로 그린다. 묶여 있으면 사진과 링이 다른 때에 나타날 수 없다.
-            data-seal-anchor — 배경 장면의 봉인 조각이 이 원 둘레에 맞물린다(three/river/homeScroll). */}
-        <div data-seal-anchor="" style={{ ...ringSlotStyle, position: "relative", zIndex: 1 }}>
+        {/* 링 테두리는 사진과 따로 그린다. 묶여 있으면 사진과 링이 다른 때에 나타날 수 없다. */}
+        <div style={{ ...ringSlotStyle, position: "relative", zIndex: 1 }}>
           <div style={photoFrameStyle}>
             {/* 포스터는 영상의 첫 장면이다. 다른 사진을 두면 영상으로 바뀔 때 화면이 튄다. */}
             <CircleVideo src={NAJU_FILM.src} poster={NAJU_FILM.poster} style={circleVideoStyle} />

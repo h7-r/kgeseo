@@ -14,14 +14,13 @@ import { followHomeScroll } from "./homeScroll";
 import { journeyInput, sampleJourney } from "./journey";
 import { Ridges, Sky } from "./Landscape";
 import { NAJU_PROPS_URL, useNajuProps } from "./najuProps";
-import SealFragments from "./SealFragments";
 import Sites from "./Sites";
 import { storyAt, type StoryState } from "./story";
 import Water from "./Water";
 import { createSharedUniforms, PALETTE, type SharedUniforms } from "./world";
 
 // 「왜곡」 — 강가의 평범한 지금 건물들이 왜곡에 휩쓸려 옛 나루의 모습과 뒤섞이고, 세계가 게임 모습으로 굳고,
-// 앙암 앞에서 봉인 조각이 맞물려 흔들림이 멎는다. 홈을 내려가는 동안 카메라가 강을 따라 미끄러진다(story.ts).
+// 앙암 앞에 닿으면 흔들림이 멎는다. 홈을 내려가는 동안 카메라가 강을 따라 미끄러진다(story.ts).
 
 // 장면 코드를 받는 즉시 절벽 그림·게임 모형도 받기 시작한다. 셰이더를 굽는 동안 같이 내려온다.
 useLoader.preload(THREE.TextureLoader, CLIFF_TEXTURE_URL);
@@ -37,8 +36,9 @@ interface Quality {
 const QUALITY_TIERS: readonly Quality[] = [
   { dpr: 0.75, samples: 0, reflectionScale: 0.25 },
   { dpr: 0.9, samples: 0, reflectionScale: 0.28 },
-  // 늘 그리는 배경이라 dpr 1 위로는 올리지 않는다 — 고밀도 화면에서 MSAA 를 얹은 단계는 60 장을 못 지켰다.
-  { dpr: 1, samples: 0, reflectionScale: 0.3 },
+  { dpr: 1, samples: 0, reflectionScale: 0.34 },
+  // MSAA 없이 픽셀만 조금 올린다 — 고밀도 화면에서 MSAA 를 얹은 단계는 60 장을 못 지켰다. 못 버티면 위 단계로 내려간다.
+  { dpr: 1.25, samples: 0, reflectionScale: 0.42 },
 ];
 const START_TIER = QUALITY_TIERS.length - 1;
 
@@ -186,10 +186,8 @@ interface WorldProps {
 
 function World({ quality, visible, reducedMotion, followHome, onPrewarmed, beat }: WorldProps) {
   const uniforms = useMemo(() => createSharedUniforms(), []);
-  const story = useMemo<StoryState>(() => ({ distort: 0, game: 0, seal: 0, fragments: 0 }), []);
+  const story = useMemo<StoryState>(() => ({ distort: 0, game: 0 }), []);
   const progress = useMemo(() => ({ value: 0 }), []);
-  const lockPulse = useMemo(() => ({ value: 0 }), []);
-  const lockCenter = useMemo(() => new THREE.Vector2(0.5, 0.5), []);
   const skyRef = useRef<THREE.Mesh>(null);
   const pixelRatio = useThree((state) => state.viewport.dpr);
 
@@ -207,7 +205,6 @@ function World({ quality, visible, reducedMotion, followHome, onPrewarmed, beat 
         <RiverSites uniforms={uniforms} progress={progress} pixelRatio={pixelRatio} />
       </Suspense>
       <MistBanks uniforms={uniforms} count={12} />
-      <SealFragments uniforms={uniforms} story={story} lockPulse={lockPulse} lockCenter={lockCenter} />
 
       <CameraRig
         reducedMotion={Boolean(reducedMotion)}
@@ -220,8 +217,6 @@ function World({ quality, visible, reducedMotion, followHome, onPrewarmed, beat 
       {followHome && visible && <FollowHomeScroll />}
       <FinishPass
         uniforms={uniforms}
-        lockPulse={lockPulse}
-        lockCenter={lockCenter}
         samples={quality.samples}
         animated={!reducedMotion}
       />

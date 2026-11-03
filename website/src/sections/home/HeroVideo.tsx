@@ -21,9 +21,9 @@ import HeroVideoFrame from "./HeroVideoFrame";
  */
 
 // 영상 파일은 이름에 판을 붙인다 — 같은 이름으로 바꾸면 브라우저가 옛 영상을 계속 쓴다.
-const HERO_VIDEO_URL = "/hero-trailer-v6.mp4";
+const HERO_VIDEO_URL = "/hero-trailer-v12.mp4";
 // 끝 화면 바탕 반복 영상. 예고편이 흐르기 시작한 뒤에야 받는다 — 첫 화면 로딩을 나눠 쓰지 않게.
-const AMBIENT_VIDEO_URL = "/hero-ambient-v1.mp4";
+const AMBIENT_VIDEO_URL = "/hero-ambient-v2.mp4";
 // 이만큼 지나도 영상이 흐르지 않으면(자동 재생 막힘·느린 망) 예고편을 건너뛰고 끝 화면을 띄운다.
 const START_TIMEOUT_MS = 8000;
 // 끝 화면 바탕이 암전에서 떠오르는 시간(로고가 먼저 뜨고 바탕이 뒤따른다)과, 로고와 함께 화면이 한 번 깨지는 시간.
@@ -159,14 +159,15 @@ function createVideoTexture(video: HTMLVideoElement): THREE.VideoTexture {
 // 모드별로 하나씩만 만들어 다시 쓴다 — 홈으로 돌아올 때마다 WebGL 문맥·셰이더·영상을 새로 만들면 쪽 이동 직후가 길게 막힌다.
 const resourceCache: Partial<Record<Mode, HeroResources>> = {};
 
-function createResources(): HeroResources | null {
+function createResources(mode: Mode): HeroResources | null {
   let renderer: THREE.WebGLRenderer;
   try {
-    renderer = new THREE.WebGLRenderer({ alpha: false, antialias: false, powerPreference: "low-power" });
+    renderer = new THREE.WebGLRenderer({ alpha: false, antialias: false, powerPreference: "high-performance" });
   } catch {
     return null; // WebGL 불가 — 포스터 바탕이 그대로 보인다.
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // 예고편은 1080p 영상이라 2배로 그려도 선명해지지 않고, 그 부담에 영상 칸만 버려져 끊겨 보였다.
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, mode === "trailer" ? 1 : 2));
   renderer.setClearColor(0x43587f, 1);
   renderer.debug.checkShaderErrors = !import.meta.env.PROD;
   const scene = new THREE.Scene();
@@ -226,7 +227,7 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
   let isVisible = true;
 
   const mode: Mode = isScrub ? "scrub" : "trailer";
-  const resources = resourceCache[mode] ?? createResources();
+  const resources = resourceCache[mode] ?? createResources(mode);
   if (!resources) {
     onEnd(false); // WebGL 불가 — 정지 화면 위에 바로 끝 화면
     return undefined;
@@ -342,12 +343,20 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
   video.addEventListener("seeked", handleSeeked);
   if (hasFrame) prepare();
 
+  // 예고편은 왜곡까지 영상에 구워져 있어 셰이더가 할 일이 없다. 영상을 그대로 화면에 올려 브라우저가 직접 재생하게 한다 —
+  // 칸마다 텍스처로 올리면 그 부담에 영상 칸이 버려져 끊겨 보였다. 캔버스는 끝 화면부터 맡는다.
+  const showTrailerDirectly = () => {
+    video.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;";
+    container.appendChild(video);
+  };
+
   // 예고편 끝: 한 번만 알리고 바탕을 끝 화면 영상으로 돌린다
   let endedAt = -1;
   const finish = () => {
     if (endedAt >= 0 || isDead) return;
     endedAt = performance.now();
     needsRedraw = true;
+    if (!isScrub) video.remove();
     const ambient = resources.ambient;
     if (ambient) {
       uniforms.uAmbient.value = ambient.texture;
@@ -374,6 +383,7 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
   } else {
     uniforms.uEnd.value = 0;
     uniforms.uAmbient.value = texture;
+    showTrailerDirectly();
     video.addEventListener("ended", finish);
     video.addEventListener("error", finish);
     video.play().catch(finish);
@@ -426,6 +436,7 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
     }
 
     if (!isVisible || document.hidden || isLeaving) return;
+    if (!isScrub && endedAt < 0) return;
     const isMoving =
       Math.abs(target - current) > 0 || shake > 0.002 || uniforms.uGlitch.value > 0.002 || uniforms.uEnd.value > 0;
     const hasNewFrame = texture.version !== lastTextureVersion;
@@ -449,6 +460,7 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
     } catch {
       // 아직 옮길 수 없으면 처음 자리 그대로다.
     }
+    showTrailerDirectly();
     video.play().catch(finish);
   };
 
@@ -477,6 +489,7 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
     }
     // 자원은 버리지 않는다 — 다음에 홈으로 오면 그대로 다시 붙인다.
     canvas.remove();
+    if (!isScrub) video.remove();
   };
 
   return { replay, dispose };

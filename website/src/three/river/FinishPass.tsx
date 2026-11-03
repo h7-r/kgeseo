@@ -29,8 +29,6 @@ const FRAGMENT = /* glsl */ `
   uniform vec2 uTexel;
   uniform vec2 uViewport;
   uniform float uPulse;
-  uniform float uLock;
-  uniform vec2 uLockCenter;
   uniform vec4 uScrims[${MAX_SCRIMS}];
   uniform int uScrimCount;
   uniform vec3 uInk;
@@ -68,17 +66,11 @@ const FRAGMENT = /* glsl */ `
     float burst = step(0.88, hash(vec2(tick, 3.0)));
     uv.x += step(1.0 - d * 0.04 * burst - g * 0.5, bandNoise) * (bandNoise - 0.5) * (0.03 * d + 0.11 * g);
 
-    // 봉인이 맞물리는 순간 — 봉인 자리에서 퍼지는 고리 충격파.
-    vec2 fromLock = (vUv - uLockCenter) * vec2(aspect, 1.0);
-    float ringRadius = (1.0 - uLock) * 1.3;
-    float shock = exp(-pow((length(fromLock) - ringRadius) / 0.035, 2.0)) * uLock;
-    uv -= normalize(fromLock + 1e-4) * shock * 0.02;
-
     // 구역 바뀜 — 빨려드는 렌즈와 물결.
     uv -= centered * g * 0.08 * (0.3 + dot(centered, centered) * 3.0);
     uv += g * 0.005 * vec2(sin(vUv.y * 70.0 + uTime * 45.0), sin(vUv.x * 50.0 - uTime * 31.0));
 
-    vec2 spread = normalize(centered + 1e-4) * (d * 0.0015 + g * 0.014 + shock * 0.01);
+    vec2 spread = normalize(centered + 1e-4) * (d * 0.0015 + g * 0.014);
     vec3 col = vec3(texture2D(tScene, uv + spread).r, texture2D(tScene, uv).g, texture2D(tScene, uv - spread).b);
 
     // 게임 모습의 먹선.
@@ -93,7 +85,6 @@ const FRAGMENT = /* glsl */ `
     // 빛 번짐 — 흐린 밉맵 두 층에서 밝은 몫만 더한다(달·창·가로등·솔기).
     vec3 haze = textureLod(tScene, uv, 3.0).rgb * 0.5 + textureLod(tScene, uv, 5.0).rgb * 0.45;
     col += max(haze - 0.32, 0.0) * 0.8;
-    col += vec3(0.62, 0.7, 0.92) * shock * 0.3;
 
     // 글 자리 — 흐린 밉맵을 채도 빼고 어둡게. 가장자리는 넓게 풀어 판이 아니라 그늘로 보이게 한다.
     float calm = 0.0;
@@ -131,10 +122,6 @@ const PULSE_DURATION = 0.55;
 
 interface FinishPassProps {
   uniforms: SharedUniforms;
-  /** 봉인이 맞물린 순간의 번쩍임(SealFragments 가 1 로 올리고 서서히 꺼진다). */
-  lockPulse: { value: number };
-  /** 봉인 고리의 화면 자리(0~1). */
-  lockCenter: THREE.Vector2;
   /** MSAA 표본 수. 0 이면 끈다. */
   samples: number;
   /** false 면 구역 바뀜 일그러짐을 걸지 않는다(동작 줄이기). */
@@ -142,7 +129,7 @@ interface FinishPassProps {
 }
 
 /** 장면 렌더를 넘겨받아 마무리 패스로 화면에 그린다. useFrame 우선순위 1 — R3F 기본 렌더를 대신한다. */
-export default function FinishPass({ uniforms, lockPulse, lockCenter, samples, animated }: FinishPassProps) {
+export default function FinishPass({ uniforms, samples, animated }: FinishPassProps) {
   const { gl, scene, camera, size, viewport } = useThree();
 
   const target = useMemo(() => {
@@ -171,8 +158,6 @@ export default function FinishPass({ uniforms, lockPulse, lockCenter, samples, a
         uTexel: { value: new THREE.Vector2() },
         uViewport: { value: new THREE.Vector2(1, 1) },
         uPulse: { value: 0 },
-        uLock: lockPulse,
-        uLockCenter: { value: lockCenter },
         uScrims: { value: Array.from({ length: MAX_SCRIMS }, () => new THREE.Vector4()) },
         uScrimCount: { value: 0 },
         uInk: { value: new THREE.Color("#04070e") },
@@ -188,7 +173,7 @@ export default function FinishPass({ uniforms, lockPulse, lockCenter, samples, a
     const quadScene = new THREE.Scene();
     quadScene.add(quad);
     return { material, quadScene, quadCamera: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1) };
-  }, [uniforms, lockPulse, lockCenter, camera]);
+  }, [uniforms, camera]);
   useEffect(() => () => pass.material.dispose(), [pass]);
 
   // 사각형은 장면 밖에 있어 ShaderPrewarm 의 컴파일에 안 걸린다. 처음 쓰이는 순간 멈칫하지 않게 미리 굽는다.
