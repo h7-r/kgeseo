@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 
+from app.api.v1 import error_responses
 from app.schemas.case_bundle import CaseBundleResponse
 from app.services.case_bundle import get_case_bundle
 from app.services.case_content import (
@@ -24,6 +25,7 @@ router = APIRouter(
     "/{case_id}/bundle",
     response_model=CaseBundleResponse,
     status_code=status.HTTP_200_OK,
+    responses=error_responses.CASE_BUNDLE,
 )
 async def get_case_bundle_endpoint(case_id: str) -> CaseBundleResponse:
     try:

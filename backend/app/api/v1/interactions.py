@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1 import error_responses
 from app.db.session import get_db
 from app.schemas.interaction import InteractionProcessResult
 from app.schemas.interaction_api import InteractionApiRequest, InteractionApiResponse
@@ -57,6 +58,7 @@ router = APIRouter(
     "/{play_session_id}/interactions",
     response_model=InteractionApiResponse,
     status_code=status.HTTP_200_OK,
+    responses=error_responses.INTERACTION,
 )
 async def create_interaction_endpoint(
     play_session_id: UUID,

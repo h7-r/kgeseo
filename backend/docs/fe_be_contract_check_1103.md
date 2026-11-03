@@ -43,7 +43,7 @@ FE 호출 코드는 세 곳뿐이다: `src/server/api.ts`(게임), `website/src/
 
 | # | 항목 | 내용 |
 |---|---|---|
-| B1 | OpenAPI 오류 응답 | 모든 경로가 OpenAPI에 성공 · 422만 적혀 있다. 실제 오류는 라우터 코드에만 있다(아래 §5 표). FE가 OpenAPI만 보고 붙으면 404 · 409 · 410 · 503 처리를 놓친다. `responses=`로 기재하거나 이 표를 FE 연동 문서로 공유한다 |
+| B1 | OpenAPI 오류 응답 (**11/3 처리: `api_error_contract.md`**) | 모든 경로가 OpenAPI에 성공 · 422만 적혀 있다. 실제 오류는 라우터 코드에만 있다(아래 §5 표). FE가 OpenAPI만 보고 붙으면 404 · 409 · 410 · 503 처리를 놓친다. `responses=`로 기재하거나 이 표를 FE 연동 문서로 공유한다 |
 | B2 | `detail` 형식 혼재 | 소셜 가입 실패는 `{code, message}`인데 `SocialAuthConflictError`(409)는 문자열 `"Social account login could not be completed."`, 이메일 가입 409는 문자열 비교(`"Email already registered."`)로 FE가 분기한다. 지금 FE와는 맞지만 문구를 바꾸면 FE가 깨진다. `code`로 통일할지는 P7 |
 
 ## 4. PM 결정 필요

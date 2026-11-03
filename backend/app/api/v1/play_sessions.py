@@ -3,6 +3,7 @@ from datetime import timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1 import error_responses
 from app.api.v1.hints import get_hint_economy_config
 from app.db.session import get_db
 from app.schemas.case_bundle import CaseBundleResponse
@@ -77,6 +78,7 @@ def get_new_session_publication_guard() -> PublicationGuard:
     status_code=status.HTTP_201_CREATED,
     # FastAPI가 최종 응답 구조를 검증한다.
     response_model=PlaySessionCreateResponse,
+    responses=error_responses.PLAY_SESSION_CREATE,
 )
 async def create_play_session_endpoint(
     # 클라이언트가 보내는 JSON Request Body
@@ -185,6 +187,7 @@ async def create_play_session_endpoint(
 @router.get(
     "/{play_session_id}",
     response_model=PlaySessionReadResponse,
+    responses=error_responses.PLAY_SESSION_READ,
 )
 async def get_play_session_endpoint(
     play_session_id: str,
@@ -226,6 +229,7 @@ async def get_play_session_endpoint(
 @router.get(
     "/{play_session_id}/clues",
     response_model=PlaySessionCluesResponse,
+    responses=error_responses.PLAY_SESSION_CLUES,
 )
 async def get_play_session_clues_endpoint(
     play_session_id: str,
@@ -266,6 +270,7 @@ async def get_play_session_clues_endpoint(
 @router.get(
     "/{play_session_id}/bundle",
     response_model=CaseBundleResponse,
+    responses=error_responses.PLAY_SESSION_BUNDLE,
 )
 async def get_play_session_bundle_endpoint(
     play_session_id: str,

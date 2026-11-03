@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1 import error_responses
 from app.api.v1.npc import get_hint_ref_keys
 from app.db.session import get_db
 from app.schemas.hint import HintApiRequest, HintUnlockProcessResult, HintUnlockRequest
@@ -202,6 +203,7 @@ async def _process_hint_request(
     "/{play_session_id}/hints",
     response_model=HintUnlockProcessResult,
     status_code=status.HTTP_200_OK,
+    responses=error_responses.HINT,
 )
 async def request_hint_endpoint(
     play_session_id: UUID,
@@ -228,6 +230,7 @@ async def request_hint_endpoint(
     response_model=HintUnlockProcessResult,
     status_code=status.HTTP_200_OK,
     deprecated=True,
+    responses=error_responses.HINT_ALIAS,
 )
 async def unlock_hint_alias_endpoint(
     play_session_id: UUID,

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1 import error_responses
 from app.db.session import get_db
 from app.schemas.health import HealthResponse, ReadinessResponse
 from app.services.health import ReadinessCheckError, check_database_readiness
@@ -16,7 +17,9 @@ async def get_health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
-@router.get("/ready", response_model=ReadinessResponse)
+@router.get(
+    "/ready", response_model=ReadinessResponse, responses=error_responses.HEALTH_READY
+)
 async def get_readiness(
     db: AsyncSession = Depends(get_db),
 ) -> ReadinessResponse:

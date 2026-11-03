@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1 import error_responses
 from app.core.config import settings
 from app.db.session import get_db
 from app.schemas.npc_content import GeneralLinePack
@@ -97,6 +98,7 @@ def get_hint_ref_keys() -> HintRefKeys | None:
     "/{play_session_id}/npc/turns",
     response_model=NpcTurnResponse,
     status_code=status.HTTP_200_OK,
+    responses=error_responses.NPC_TURN,
 )
 async def create_npc_turn_endpoint(
     play_session_id: UUID,
