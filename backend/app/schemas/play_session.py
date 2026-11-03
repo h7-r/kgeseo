@@ -51,6 +51,17 @@ class PlaySessionState(BaseModel):
     # 현재까지 획득한 단서 ID 목록
     acquired_clue_ids: list[str]
 
+    # 지금까지 획득한 아이템 ID 목록. 소비해도 지우지 않는다(늘기만 한다).
+    # 단서와 다른 목록이다. 과거 state_json에는 이 key가 없을 수 있다.
+    acquired_item_ids: list[str] = Field(default_factory=list)
+
+    # 소비한 아이템 ID 목록. 보유 = acquired_item_ids - consumed_item_ids.
+    # 과거 state_json에는 이 key가 없을 수 있다.
+    consumed_item_ids: list[str] = Field(default_factory=list)
+
+    # 완료한 장면(scene_id) 목록. 늘기만 한다. 과거 state_json에는 이 key가 없을 수 있다.
+    completed_scene_ids: list[str] = Field(default_factory=list)
+
     # 퍼즐별 힌트 열람 단계
     #
     # 예:

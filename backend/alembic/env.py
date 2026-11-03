@@ -11,6 +11,7 @@ from app.db.base import Base
 from app.models.anonymous_session import AnonymousSession
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
+from app.models.content_review import ContentReview
 from app.models.interaction_event import InteractionEvent
 from app.models.npc_approval_review import NpcApprovalReview, NpcApprovalTarget
 from app.models.npc_publication import (

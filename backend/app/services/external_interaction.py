@@ -8,6 +8,8 @@ from app.schemas.interaction import (
     InteractionProcessResult,
     NavigateInteraction,
     NavigatePayload,
+    SelectChoiceInteraction,
+    SelectChoicePayload,
     SubmitAnswerInteraction,
     SubmitAnswerPayload,
 )
@@ -17,6 +19,7 @@ from app.schemas.interaction_api import (
     InspectInteractionRequest,
     InteractionApiRequest,
     NavigateInteractionRequest,
+    SelectInteractionRequest,
 )
 from app.services.case_content import load_case_client_content
 from app.services.interaction import (
@@ -42,6 +45,9 @@ class UnsupportedInteractionActionError(Exception):
 def is_supported_action(request: InteractionApiRequest) -> bool:
     """어댑터가 처리하는 action인가. 아니면 DB에 닿기 전에 501이다."""
 
+    if isinstance(request, SelectInteractionRequest):
+        # Object를 고르는 select만 처리한다. 그 밖의 대상은 아직 계약이 없다.
+        return _is_object_select(request)
     return isinstance(
         request,
         InputInteractionRequest
@@ -49,6 +55,10 @@ def is_supported_action(request: InteractionApiRequest) -> bool:
         | NavigateInteractionRequest
         | CombineCluesInteractionRequest,
     )
+
+
+def _is_object_select(request: SelectInteractionRequest) -> bool:
+    return request.target_type == "object" and bool(request.target_id)
 
 
 async def process_external_interaction(
@@ -103,6 +113,19 @@ async def process_external_interaction(
             interaction_type="combine_clues",
             payload=CombineCluesPayload(clue_ids=request.payload.clue_ids),
         )
+    elif isinstance(request, SelectInteractionRequest) and _is_object_select(request):
+        resolved = await _resolve_object_request(
+            db, play_session_id, request, client_content_loader
+        )
+        interaction = SelectChoiceInteraction(
+            client_event_id=client_event_id,
+            client_timestamp=request.client_timestamp,
+            interaction_type="select_choice",
+            target_id=resolved.target_id,
+            zone_id=resolved.zone_id,
+            object_id=resolved.object_id,
+            payload=SelectChoicePayload(choice=request.payload.choice),
+        )
     else:
         raise UnsupportedInteractionActionError(request.action)
 
@@ -118,7 +141,9 @@ async def process_external_interaction(
 async def _resolve_object_request(
     db: AsyncSession,
     play_session_id: str,
-    request: InputInteractionRequest | InspectInteractionRequest,
+    request: InputInteractionRequest
+    | InspectInteractionRequest
+    | SelectInteractionRequest,
     client_content_loader: ClientContentLoader,
 ) -> ResolvedObjectInteraction:
     try:

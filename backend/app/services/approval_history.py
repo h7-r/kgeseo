@@ -17,8 +17,11 @@
 - 세 관문 모두 최종 결정이 approved 일 때만 PASS. revise · escalate · rejected · hold 는 FAIL.
 
 [저장 — `ApprovalLog`] append-only 메모리 저장소. 수정 · 삭제 메서드가 없고, 같은 review_id 를 두 번 받지 않으며,
-`supersedes` 는 이미 있는 기록만 가리킬 수 있다. 영속 저장(DB)은 아직 없다 — 테이블 · Alembic 마이그레이션이
-필요하다(이번 단계에서 만들지 않는다).
+`supersedes` 는 이미 있는 기록만 가리킬 수 있다. 같은 규칙의 영속 저장소는 `app.services.approval_store`
+(테이블 `content_reviews`)다.
+
+[조회 실패] 승인 출처가 기록을 읽지 못하면(DB 오류 등) `ApprovalSourceUnavailableError` 를 던진다.
+부르는 쪽은 이것을 미승인으로 다룬다(기본 차단).
 
 [신뢰 경계] 콘텐츠 JSON 안의 `approvals`(`NpcApprovalRecord`)는 쓰지 않는다. 승인은 검증된 게시 절차가 넘기는
 이 기록만 본다.
@@ -156,6 +159,10 @@ class UnknownSupersedesError(ValueError):
 
 
 ApprovalSource = Callable[[str, int], Sequence[ReviewRecord]]
+
+
+class ApprovalSourceUnavailableError(Exception):
+    """승인 기록을 읽지 못했다. 미승인으로 다룬다(오류에는 내용을 싣지 않는다)."""
 
 
 class ApprovalLog:
