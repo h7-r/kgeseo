@@ -13,8 +13,12 @@
   이벤트에는 내부 puzzle_id를 남긴다.
 - 케이스 대사 승인 · 게시 상태(`case_access`, 운영은 `npc_case_access.read_case_npc_access`): 계산 전에 잠금 없이
   읽고, 이벤트 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 근거가 바뀌었으면(철회 · 차단이 사이에 commit) 확정 전에
-  다시 계산한다. 긴급 차단(blocked)이면 새 턴 · 재전송 모두 대사 · 힌트 제안 없이 `NPC_CONTENT_WITHDRAWN`이다
-  (PM v0.4.6). 멱등 처리는 기존 `interaction_events`(`client_event_id`) 하나다.
+  다시 계산한다. 멱등 처리는 기존 `interaction_events`(`client_event_id`) 하나다.
+- 긴급 차단(blocked, PM v0.4.6 · v0.4.12): 새 턴 · 재전송 모두 케이스 콘텐츠(대사 · 힌트 제안)를 쓰지 않고 LLM도
+  부르지 않는다. 공급된 일반 팩이 승인돼 있으면 「잠시 멈춤」(`GENERIC_PAUSE_*`) 승인 대사 하나를
+  `client_event_id`로 결정적으로 골라(`npc_line_supply.select_pause_line`) `approved_line`으로 답하고, 없으면
+  `reply: null`이다. `fallback_reason`은 늘 `NPC_CONTENT_WITHDRAWN`이다. 재전송도 저장된 대사가 아니라 지금 승인된
+  팩에서 같은 규칙으로 다시 고른다(같은 팩이면 같은 대사, 승인이 빠졌으면 null).
 """
 
 import asyncio
@@ -56,8 +60,9 @@ from app.services.npc_decision import (
     rule_config_for,
     signals_from_events,
 )
-from app.services.npc_dialogue import PM_GENERIC_PUZZLE_LINES
-from app.services.npc_general_dialogue import ModelGenerator
+from app.services.npc_dialogue import PM_GENERIC_PUZZLE_LINES, NpcReply
+from app.services.npc_general_dialogue import ApprovedLine, ModelGenerator
+from app.services.npc_line_supply import select_pause_line
 from app.services.npc_suggestion_events import shown_and_declined
 from app.services.npc_turn import (
     NpcTurnContent,
@@ -182,7 +187,7 @@ async def _process_npc_turn_once(
 
         async def compute(access: CaseNpcAccess) -> NpcTurnResult:
             if access.withdrawn:
-                return _withdrawn_result(request.trigger)
+                return _withdrawn_result(request.trigger, pause_line())
             content = content_for(access)
             if request.trigger == "player_message":
                 return run_player_message_turn(
@@ -208,13 +213,24 @@ async def _process_npc_turn_once(
             )
             return run_auto_turn(decide(signals, config), state=state, content=content)
 
+        def pause_line() -> ApprovedLine | None:
+            # 케이스 승인 출처와 섞지 않는다: 일반 팩과 그 팩 승인 출처만 쓴다.
+            return select_pause_line(
+                general_pack, general_pack_approval, client_event_id
+            )
+
         # 1. 계산 전 판정(잠금 없음)
         access = await read_access(lock=False)
 
         existing = await _find_interaction_event(db, play_session_id, client_event_id)
         if existing is not None:
             response = _replay(
-                existing, payload_json, content_for(access), hint_ref_for, access
+                existing,
+                payload_json,
+                content_for(access),
+                hint_ref_for,
+                access,
+                pause_line,
             )
             await db.rollback()
             return response
@@ -255,7 +271,12 @@ async def _process_npc_turn_once(
             if existing is None:
                 raise error
             response = _replay(
-                existing, payload_json, content_for(access), hint_ref_for, access
+                existing,
+                payload_json,
+                content_for(access),
+                hint_ref_for,
+                access,
+                pause_line,
             )
             await db.rollback()
             return response
@@ -389,10 +410,18 @@ def _response(
     )
 
 
-def _withdrawn_result(trigger: str) -> NpcTurnResult:
-    # 긴급 차단: 케이스 콘텐츠(대사 · 힌트 제안)를 쓰지 않는다. 일반 팩 대사 제공 여부는 미결정이라 내지 않는다.
+def _withdrawn_result(trigger: str, pause: ApprovedLine | None) -> NpcTurnResult:
+    # 긴급 차단: 케이스 콘텐츠(대사 · 힌트 제안)를 쓰지 않는다. 승인 일반 「잠시 멈춤」 대사만, 없으면 발화 없음.
+    if pause is None:
+        return NpcTurnResult(
+            trigger, None, "content_withdrawn", None, fallback_reason=CONTENT_WITHDRAWN
+        )
     return NpcTurnResult(
-        trigger, None, "content_withdrawn", None, fallback_reason=CONTENT_WITHDRAWN
+        trigger,
+        NpcReply("approved_line", pause.text, pause.line_id),
+        None,
+        None,
+        fallback_reason=CONTENT_WITHDRAWN,
     )
 
 
@@ -402,6 +431,7 @@ def _replay(
     content: NpcTurnContent,
     hint_ref_for: HintRefFor,
     access: CaseNpcAccess,
+    pause_line: Callable[[], ApprovedLine | None],
 ) -> NpcTurnResponse:
     if not _is_same_request(
         event,
@@ -411,10 +441,17 @@ def _replay(
     ):
         raise IdempotencyConflictError()
     if access.withdrawn:
-        # 긴급 차단 뒤 재전송: 저장했던 케이스 응답을 돌려주지 않는다.
+        # 긴급 차단 뒤 재전송: 저장했던 응답(케이스 대사 · 예전 대체 대사)을 돌려주지 않고 지금 승인된 팩에서 다시 고른다.
+        pause = pause_line()
         return NpcTurnResponse(
             npc_event_id=UUID(event.id),
-            reply=None,
+            reply=(
+                NpcReplyOut(
+                    source="approved_line", text=pause.text, line_id=pause.line_id
+                )
+                if pause is not None
+                else None
+            ),
             suggest_hint=None,
             fallback_reason=CONTENT_WITHDRAWN,
         )

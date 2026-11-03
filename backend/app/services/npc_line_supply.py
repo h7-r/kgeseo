@@ -110,3 +110,46 @@ def generic_line_approval(
         )
 
     return approved
+
+
+# --- 긴급 중단 대체 대사 (PM v0.4.12) ---
+
+# 일반 팩의 「잠시 멈춤」 범주 line_id 접두어(PM v0.4.12, 이름은 🟡 운영하며 조정)
+PAUSE_LINE_PREFIX = "GENERIC_PAUSE_"
+_PAUSE_SELECTION_DOMAIN = b"kgeseo/npc-generic-pause/v1"
+
+
+def select_pause_line(
+    pack: GeneralLinePack | None,
+    approval_source: ApprovalSource | None,
+    request_key: str,
+) -> ApprovedLine | None:
+    """케이스 긴급 중단 때 쓸 승인 일반 대사 하나. 없으면 None(응답 `reply: null`).
+
+    - 공급된 일반 팩이 그 팩 내용(fingerprint)에 대해 G1~G3 승인일 때만 쓴다(`general_pack_approved`).
+      케이스 콘텐츠 승인 · 케이스 대사는 쓰지 않는다.
+    - 후보는 `line_id`가 `GENERIC_PAUSE_`로 시작하는 대사뿐이고, `line_id` 코드 포인트 순으로 정렬한다.
+    - 고르기: SHA-256(도메인 · 팩 fingerprint · 요청 키)의 앞 8바이트(빅 엔디언 정수) mod 후보 수.
+      같은 팩 내용 · 같은 요청 키면 프로세스 · 서버가 달라도 같은 대사다(Python `hash()`는 쓰지 않는다).
+    - 원문은 팩의 승인 원문 그대로다(만들거나 고치지 않는다).
+    """
+
+    if pack is None or not general_pack_approved(pack, approval_source):
+        return None
+    candidates = sorted(
+        (line for line in pack.lines if line.line_id.startswith(PAUSE_LINE_PREFIX)),
+        key=lambda line: line.line_id,
+    )
+    if not candidates:
+        return None
+    digest = hashlib.sha256(
+        b"\0".join(
+            (
+                _PAUSE_SELECTION_DOMAIN,
+                general_pack_fingerprint(pack).encode("ascii"),
+                request_key.encode("utf-8"),
+            )
+        )
+    ).digest()
+    chosen = candidates[int.from_bytes(digest[:8], "big") % len(candidates)]
+    return ApprovedLine(chosen.line_id, chosen.text, True)
