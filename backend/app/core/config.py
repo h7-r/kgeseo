@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     # 앱은 이 파일을 쓰지 않는다. 게시한 버전의 파일은 바꾸거나 지우지 않아야 한다(바뀌면 fingerprint 불일치로 비활성).
     published_content_root: str = ""
 
+    # 공식 일반 대사 팩(`<pack_id>/v<pack_version>`, 예: general_default/v1). 비어 있으면 일반 팩을 공급하지 않는다.
+    # 공급해도 `npc_approval_reviews`의 dialogue_pack G1~G3 승인이 그 팩 fingerprint에 있을 때만 대사를 쓴다.
+    npc_general_pack: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

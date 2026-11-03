@@ -11,6 +11,7 @@ import pytest
 
 from app.api.v1.npc import (
     get_general_line_pack,
+    get_general_pack_access_reader,
     get_hint_ref_keys,
     get_npc_case_access_reader,
     get_npc_event_loader,
@@ -21,6 +22,7 @@ from app.models.interaction_event import InteractionEvent
 from app.models.play_session import PlaySession
 from app.services.hint_ref import HintRefKeys, resolve_hint_ref
 from app.services.npc_case_access import CaseNpcAccess, read_case_npc_access
+from app.services.npc_general_pack import GeneralPackAccess
 from app.services.npc_line_supply import general_pack_fingerprint
 from app.services.npc_turn_service import NpcGenerationConfig
 from app.services.pinned_content import PinnedContentStore
@@ -105,6 +107,12 @@ def overrides() -> Iterator[dict[str, Any]]:
 
     app.dependency_overrides[get_npc_case_access_reader] = lambda: case_access
     app.dependency_overrides[get_general_line_pack] = lambda: values["general"]
+
+    # 일반 팩 DB 승인 판정 대역: 고정 승인 출처를 넘기지 않으면 미승인. 실제 DB 판정은 test_npc_general_pack(_mysql).
+    async def pack_access(db, pack, *, lock):
+        return GeneralPackAccess(None, basis=("test",))
+
+    app.dependency_overrides[get_general_pack_access_reader] = lambda: pack_access
     app.dependency_overrides[get_npc_generation] = lambda: values["generation"]
     app.dependency_overrides[get_npc_event_loader] = lambda: loader
     app.dependency_overrides[get_hint_ref_keys] = lambda: values["hint_ref_keys"]
@@ -113,6 +121,7 @@ def overrides() -> Iterator[dict[str, Any]]:
         get_pinned_content_store,
         get_npc_case_access_reader,
         get_general_line_pack,
+        get_general_pack_access_reader,
         get_npc_generation,
         get_npc_event_loader,
         get_hint_ref_keys,

@@ -18,7 +18,10 @@
   부르지 않는다. 공급된 일반 팩이 승인돼 있으면 「잠시 멈춤」(`GENERIC_PAUSE_*`) 승인 대사 하나를
   `client_event_id`로 결정적으로 골라(`npc_line_supply.select_pause_line`) `approved_line`으로 답하고, 없으면
   `reply: null`이다. `fallback_reason`은 늘 `NPC_CONTENT_WITHDRAWN`이다. 재전송도 저장된 대사가 아니라 지금 승인된
-  팩에서 같은 규칙으로 다시 고른다(같은 팩이면 같은 대사, 승인이 빠졌으면 null).
+  팩에서 같은 규칙으로 다시 고른다(같은 팩이면 같은 대사, 승인이 빠졌으면 null). 긴급 중단 응답은
+  `content_mode="generic"`이다(대사가 없어도). 다른 응답의 `content_mode`는 null이다.
+- 일반 팩 승인(`general_pack_access`, 운영은 `npc_general_pack.read_general_pack_access`): 케이스 판정과 같은 방식으로
+  계산 전(잠금 없음) · 확정 트랜잭션(공유 잠금, 케이스 판정 다음)에서 읽고, 근거가 바뀌었으면 다시 계산한다.
 """
 
 import asyncio
@@ -62,6 +65,7 @@ from app.services.npc_decision import (
 )
 from app.services.npc_dialogue import PM_GENERIC_PUZZLE_LINES, NpcReply
 from app.services.npc_general_dialogue import ApprovedLine, ModelGenerator
+from app.services.npc_general_pack import GeneralPackAccess, GeneralPackReader
 from app.services.npc_line_supply import select_pause_line
 from app.services.npc_suggestion_events import shown_and_declined
 from app.services.npc_turn import (
@@ -139,6 +143,7 @@ async def _process_npc_turn_once(
     case_access: CaseAccessReader | None = None,
     general_pack: GeneralLinePack | None = None,
     general_pack_approval: ApprovalSource | None = None,
+    general_pack_access: GeneralPackReader | None = None,
     generation: NpcGenerationConfig = GENERATION_OFF,
     event_loader: EventLoader = load_session_events,
     rule_config: RuleConfig = RuleConfig(),
@@ -147,6 +152,8 @@ async def _process_npc_turn_once(
 ) -> NpcTurnResponse:
     if case_access is not None and approval_source is not None:
         raise ValueError("pass either approval_source or case_access")
+    if general_pack_access is not None and general_pack_approval is not None:
+        raise ValueError("pass either general_pack_approval or general_pack_access")
     client_event_id = str(request.client_event_id)
     payload_json = _payload(request)
     try:
@@ -177,18 +184,28 @@ async def _process_npc_turn_once(
                 return CaseNpcAccess(approval_source)
             return await case_access(db, bundle.pin, lock=lock)
 
-        def content_for(access: CaseNpcAccess) -> NpcTurnContent:
+        async def read_pack(lock: bool) -> GeneralPackAccess:
+            # 일반 팩 승인은 케이스 판정 다음에 읽는다(잠금 순서 고정).
+            if general_pack_access is None or general_pack is None:
+                return GeneralPackAccess(general_pack_approval)
+            return await general_pack_access(db, general_pack, lock=lock)
+
+        def content_for(
+            access: CaseNpcAccess, pack: GeneralPackAccess
+        ) -> NpcTurnContent:
             return turn_content_from_pinned(
                 bundle,
                 access.approval_source,
                 general_pack=general_pack,
-                general_pack_approval=general_pack_approval,
+                general_pack_approval=pack.approval_source,
             )
 
-        async def compute(access: CaseNpcAccess) -> NpcTurnResult:
+        async def compute(
+            access: CaseNpcAccess, pack: GeneralPackAccess
+        ) -> NpcTurnResult:
             if access.withdrawn:
-                return _withdrawn_result(request.trigger, pause_line())
-            content = content_for(access)
+                return _withdrawn_result(request.trigger, pause_line(pack))
+            content = content_for(access, pack)
             if request.trigger == "player_message":
                 return run_player_message_turn(
                     request.message or "",
@@ -213,37 +230,39 @@ async def _process_npc_turn_once(
             )
             return run_auto_turn(decide(signals, config), state=state, content=content)
 
-        def pause_line() -> ApprovedLine | None:
+        def pause_line(pack: GeneralPackAccess) -> ApprovedLine | None:
             # 케이스 승인 출처와 섞지 않는다: 일반 팩과 그 팩 승인 출처만 쓴다.
             return select_pause_line(
-                general_pack, general_pack_approval, client_event_id
+                general_pack, pack.approval_source, client_event_id
             )
 
         # 1. 계산 전 판정(잠금 없음)
         access = await read_access(lock=False)
+        pack_access = await read_pack(lock=False)
 
         existing = await _find_interaction_event(db, play_session_id, client_event_id)
         if existing is not None:
             response = _replay(
                 existing,
                 payload_json,
-                content_for(access),
+                content_for(access, pack_access),
                 hint_ref_for,
                 access,
-                pause_line,
+                lambda: pause_line(pack_access),
             )
             await db.rollback()
             return response
 
         # 2. 계산(잠금 없음)
-        result = await compute(access)
+        result = await compute(access, pack_access)
 
-        # 3. 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 그 사이 철회 · 차단이 commit됐으면 다시 계산한다.
-        if case_access is not None:
-            final = await read_access(lock=True)
-            if final.basis != access.basis:
-                access = final
-                result = await compute(access)
+        # 3. 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 그 사이 철회 · 차단(케이스) 또는 팩 승인 변경이 commit됐으면
+        #    다시 계산한다. 대역(승인 출처를 직접 넘긴 경우)은 근거가 늘 같다.
+        final = await read_access(lock=True)
+        final_pack = await read_pack(lock=True)
+        if (final.basis, final_pack.basis) != (access.basis, pack_access.basis):
+            access, pack_access = final, final_pack
+            result = await compute(access, pack_access)
 
         record = _record(request.trigger, result)
         npc_event_id = str(uuid4())
@@ -273,10 +292,10 @@ async def _process_npc_turn_once(
             response = _replay(
                 existing,
                 payload_json,
-                content_for(access),
+                content_for(access, pack_access),
                 hint_ref_for,
                 access,
-                pause_line,
+                lambda: pause_line(pack_access),
             )
             await db.rollback()
             return response
@@ -407,7 +426,13 @@ def _response(
             result.suggest_hint.puzzle_id if result.suggest_hint else None
         ),
         fallback_reason=result.fallback_reason,
+        content_mode=_content_mode(result.fallback_reason),
     )
+
+
+def _content_mode(fallback_reason: str | None) -> str | None:
+    # PM v0.4.12: 긴급 중단 응답은 일반 동행 모드("generic")다(대사가 없어도). 다른 응답은 값을 정하지 않았다(null).
+    return "generic" if fallback_reason == CONTENT_WITHDRAWN else None
 
 
 def _withdrawn_result(trigger: str, pause: ApprovedLine | None) -> NpcTurnResult:
@@ -454,6 +479,7 @@ def _replay(
             ),
             suggest_hint=None,
             fallback_reason=CONTENT_WITHDRAWN,
+            content_mode=_content_mode(CONTENT_WITHDRAWN),
         )
     record = NpcTurnEventRecord.model_validate(event.response_json)
     text = (
@@ -476,6 +502,7 @@ def _replay(
             else None
         ),
         fallback_reason=record.fallback_reason,
+        content_mode=_content_mode(record.fallback_reason),
     )
 
 

@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.schemas.npc_content import GeneralLinePack
 from app.schemas.npc_turn import NpcTurnRequest, NpcTurnResponse
@@ -13,6 +14,11 @@ from app.services.hint_ref import HintRefKeys
 from app.services.interaction import IdempotencyConflictError
 from app.services.npc import NpcContentUnsafeError
 from app.services.npc_case_access import CaseAccessReader, read_case_npc_access
+from app.services.npc_general_pack import (
+    GeneralPackReader,
+    configured_general_pack,
+    read_general_pack_access,
+)
 from app.services.npc_turn_service import (
     GENERATION_OFF,
     EventLoader,
@@ -48,9 +54,19 @@ def get_npc_case_access_reader() -> CaseAccessReader:
 
 
 def get_general_line_pack() -> tuple[GeneralLinePack | None, ApprovalSource | None]:
-    """일반 팩과 그 승인 이력. 게시 절차가 아직 없어 기본은 (None, None)."""
+    """일반 팩과 (대역용) 고정 승인 출처. 운영은 설정 `NPC_GENERAL_PACK`의 공식 팩 파일과 None이다.
 
-    return None, None
+    설정이 비었거나 파일을 읽지 못하면 (None, None)(기본). 운영 승인은 고정 출처가 아니라
+    `get_general_pack_access_reader`가 DB에서 매 턴 읽는다.
+    """
+
+    return configured_general_pack(settings.npc_general_pack), None
+
+
+def get_general_pack_access_reader() -> GeneralPackReader:
+    """일반 팩 승인(`npc_approval_reviews`의 dialogue_pack) 판정. 기록이 없거나 DB를 읽지 못하면 미승인이다."""
+
+    return read_general_pack_access
 
 
 def get_npc_generation() -> NpcGenerationConfig:
@@ -89,6 +105,7 @@ async def create_npc_turn_endpoint(
     content_store: PinnedContentStore = Depends(get_pinned_content_store),
     case_access: CaseAccessReader = Depends(get_npc_case_access_reader),
     general_pack: tuple = Depends(get_general_line_pack),
+    general_pack_reader: GeneralPackReader = Depends(get_general_pack_access_reader),
     generation: NpcGenerationConfig = Depends(get_npc_generation),
     event_loader: EventLoader = Depends(get_npc_event_loader),
     hint_ref_keys: HintRefKeys | None = Depends(get_hint_ref_keys),
@@ -102,7 +119,11 @@ async def create_npc_turn_endpoint(
             store=content_store,
             case_access=case_access,
             general_pack=pack,
+            # 대역이 고정 승인 출처를 넘기면 그것을, 아니면 DB 판정을 쓴다.
             general_pack_approval=pack_approval,
+            general_pack_access=None
+            if pack_approval is not None
+            else general_pack_reader,
             generation=generation,
             event_loader=event_loader,
             hint_ref_keys=hint_ref_keys,

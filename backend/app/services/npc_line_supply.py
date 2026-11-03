@@ -89,7 +89,12 @@ def general_pack_line_provider(
         if pack is None:
             return []
         approved = general_pack_approved(pack, approval_source)
-        return [ApprovedLine(line.line_id, line.text, approved) for line in pack.lines]
+        # 「잠시 멈춤」 대사는 긴급 중단 전용이다(`select_pause_line`). 일반 대체 대사 · 재전송 원문으로 쓰지 않는다.
+        return [
+            ApprovedLine(line.line_id, line.text, approved)
+            for line in pack.lines
+            if not line.line_id.startswith(PAUSE_LINE_PREFIX)
+        ]
 
     return provide
 

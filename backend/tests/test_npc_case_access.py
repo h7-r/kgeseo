@@ -171,6 +171,7 @@ def test_replay_after_block_does_not_return_stored_case_line(
         "reply": None,
         "suggest_hint": None,
         "fallback_reason": WITHDRAWN,
+        "content_mode": "generic",
     }
     assert db_session.added == []  # 재전송은 이벤트를 다시 쓰지 않는다
     assert changed.status_code == 409  # 다른 요청이면 기존처럼 충돌

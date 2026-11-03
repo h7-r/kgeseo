@@ -714,7 +714,13 @@ def test_mysql_no_player_text_or_model_context_is_stored():
         ):
             assert forbidden not in dumped
         body = (await store.claim(key, V1, request)).response.model_dump()
-        assert set(body) == {"npc_event_id", "reply", "suggest_hint", "fallback_reason"}
+        assert set(body) == {
+            "npc_event_id",
+            "reply",
+            "suggest_hint",
+            "fallback_reason",
+            "content_mode",
+        }
 
     mysql_run(scenario)
 

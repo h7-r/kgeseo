@@ -213,12 +213,13 @@ def test_tables_hold_no_player_text_or_model_context_columns() -> None:
         "response_json",
         "created_at",
     }
-    # PM v0.4.7: fallback_reason(이유 코드)만 추가됐다. 원문 · 내부 ID 필드는 없다.
+    # PM v0.4.7: fallback_reason(이유 코드), v0.4.12: content_mode만 추가됐다. 원문 · 내부 ID 필드는 없다.
     assert set(NpcTurnResponse.model_fields) == {
         "npc_event_id",
         "reply",
         "suggest_hint",
         "fallback_reason",
+        "content_mode",
     }
 
 

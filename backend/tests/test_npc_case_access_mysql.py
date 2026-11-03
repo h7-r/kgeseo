@@ -235,6 +235,7 @@ def test_mysql_suspension_keeps_lines_and_block_withdraws_them():
             "reply": None,
             "suggest_hint": None,
             "fallback_reason": WITHDRAWN,
+            "content_mode": "generic",
         }
         assert await event_count(sessions, session_id) == 3
 

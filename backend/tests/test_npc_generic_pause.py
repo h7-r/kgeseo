@@ -193,6 +193,7 @@ def test_blocked_case_answers_with_an_approved_pause_line(
         },
         "suggest_hint": None,
         "fallback_reason": WITHDRAWN,
+        "content_mode": "generic",
     }
     record = stored(db_session).response_json
     assert (record["reply_source"], record["line_id"], record["fallback_reason"]) == (
@@ -354,6 +355,12 @@ def test_block_committed_during_turn_switches_to_pause_line(
     assert stored(db_session).response_json["line_id"].startswith(PAUSE_LINE_PREFIX)
 
 
-def test_response_schema_is_unchanged() -> None:
+def test_response_schema_adds_only_content_mode() -> None:
     schema = app.openapi()["components"]["schemas"]["NpcTurnResponse"]["properties"]
-    assert set(schema) == {"npc_event_id", "reply", "suggest_hint", "fallback_reason"}
+    assert set(schema) == {
+        "npc_event_id",
+        "reply",
+        "suggest_hint",
+        "fallback_reason",
+        "content_mode",
+    }
