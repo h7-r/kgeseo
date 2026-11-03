@@ -1,0 +1,117 @@
+{
+  "schema": "naju-puzzles/dev-0.1",
+  "status": "dev skeleton — 게시 · 등록 금지. 후보 ID와 빈칸만 적는다(정답 · 판정 규칙 · 힌트 원문 없음)",
+  "fe_commit": "5f88aa6",
+  "sources": {
+    "fe_ids": "naju_fe_ids.dev.json",
+    "idmap": "naju-angam-01.idmap.dev.json",
+    "candidate_puzzle_id": "나주_BE_FE_통합결정표_1103_최신화.md §3 (Codex 초안 값, 후보)"
+  },
+  "server_fields_required_per_puzzle": [
+    "puzzles[].accepted_answers (최소 1개 — PuzzleDefinition 필수)",
+    "puzzles[].on_correct (grant_clue_ids · set_flags 필수, 그 밖 효과 선택)",
+    "client zones[].objects[].interaction {type: input|select, target_id} — 서버 판정을 정답 검증으로 할 때",
+    "또는 inspections[] + on_inspect.complete_puzzle_ids — FE가 판정하고 서버는 완료만 기록할 때(이 경우에도 accepted_answers는 필수)"
+  ],
+  "puzzles": [
+    {
+      "no": 1,
+      "candidate_puzzle_id": "PUZZLE_S1_FISH_TRAP",
+      "zone_id": "ZONE_FERRY_TERRACE",
+      "scene_id": null,
+      "fe_interactables": ["fish-trap-{n}", "fish-trap-stake-{n}", "clam-hoe", "clam-spot", "clam-pick"],
+      "runtime_objects": ["OBJ_S1_FISH_TRAP_0", "OBJ_S1_FISH_TRAP_1", "OBJ_S1_FISH_TRAP_2"],
+      "server_recordable": ["퍼즐 완료", "flag", "문 Object 잠금 해제"],
+      "fe_local": ["통발 굴리기 · 물고기 · 줄 떨림 연출", "당김 게이지", "화톳불 연출"],
+      "missing": ["서버 완료 시점(pulled · lit · told 중)", "판정 방식(정답 검증 / 완료 기록)", "말뚝 3개 런타임 Object ID(배치 무리 없음)", "조개 캐기 3개 런타임 Object ID", "scene_id"]
+    },
+    {
+      "no": 2,
+      "candidate_puzzle_id": "PUZZLE_S1_RAIN_RITUAL",
+      "zone_id": "ZONE_GRAVEL_BEACH",
+      "scene_id": null,
+      "fe_interactables": ["ritual-cairn-{n}", "ritual-table", "float-stone-{n}"],
+      "runtime_objects": [],
+      "server_recordable": ["퍼즐 완료", "선행 조건", "flag"],
+      "fe_local": ["돌탑 좌표 · 드래그", "법진 그리기", "비 · 물 차오름 연출"],
+      "missing": ["서버 완료 시점 · 저장 상태(parted · cleared)", "제물(lightFish · rice · makgeolli)을 서버 Item으로 다룰지", "돌탑 6 · 제상 1 · 뜬 돌 4의 런타임 Object ID(배치 무리 없음, 초안 OBJ_S1_CAIRN_0은 다른 배치)", "scene_id"]
+    },
+    {
+      "no": 3,
+      "candidate_puzzle_id": "PUZZLE_S3_AIR_JAR",
+      "zone_id": null,
+      "scene_id": null,
+      "fe_interactables": ["cave-jar"],
+      "runtime_objects": [],
+      "server_recordable": ["조사 효과(Object 상태 · 단서 · Item 획득)"],
+      "fe_local": ["공기 기둥 · 숨 게이지"],
+      "missing": ["독립 퍼즐인지 여부", "gearStone 서버 기록 여부", "동굴 Zone(현재 Z1~Z4 밖)", "런타임 Object ID", "scene_id"]
+    },
+    {
+      "no": 4,
+      "candidate_puzzle_id": "PUZZLE_S3_PEARL_LIGHT_CHAIN",
+      "zone_id": null,
+      "scene_id": null,
+      "fe_interactables": ["cave-source-pearl", "cave-clam-{n}", "cave-big-clam"],
+      "runtime_objects": [],
+      "server_recordable": ["퍼즐 완료", "획득 효과"],
+      "fe_local": ["조개 회전 · 빛줄기 연산"],
+      "missing": ["bigPearl 획득 기록 여부", "퍼즐 분할 여부", "동굴 Zone", "런타임 Object ID", "scene_id"]
+    },
+    {
+      "no": 5,
+      "candidate_puzzle_id": "PUZZLE_S3_RING_DOOR",
+      "zone_id": null,
+      "scene_id": null,
+      "fe_interactables": ["cave-float-{n}", "cave-valve", "cave-valve-rim-{n}", "cave-gear-{n}", "cave-tablet", "cave-door"],
+      "runtime_objects": [],
+      "server_recordable": ["퍼즐 완료", "소비 조건(consumes_item_ids)", "문 Object 잠금 해제"],
+      "fe_local": ["고리 각도 · 물레 회전"],
+      "missing": ["판정 방식(정답 검증 / 완료 기록)", "floatStone · gearStone 소비 여부", "동굴 Zone", "런타임 Object ID", "scene_id"]
+    },
+    {
+      "no": 6,
+      "candidate_puzzle_id": "PUZZLE_S3_INNER_STAND",
+      "zone_id": null,
+      "scene_id": null,
+      "fe_interactables": ["cave-pedestal-{n}", "cave-altar", "cave-socket", "cave-scale", "cave-exit"],
+      "runtime_objects": [],
+      "server_recordable": ["퍼즐 완료", "획득 효과"],
+      "fe_local": ["받침 배치 연출 · bigPearl 비춤"],
+      "missing": ["9종에 넣을지(결정표상 미확인 → FE 근거는 이번에 확인)", "scale 획득 기록 여부", "동굴 Zone", "런타임 Object ID", "scene_id"]
+    },
+    {
+      "no": 7,
+      "candidate_puzzle_id": "PUZZLE_S4_POST_RINGS",
+      "zone_id": "ZONE_JINBU_RIDGE",
+      "scene_id": null,
+      "fe_interactables": ["ridge-post-ring-{n}"],
+      "runtime_objects": [],
+      "server_recordable": ["퍼즐 완료(input · select)"],
+      "fe_local": ["고리 회전"],
+      "missing": ["완료만 저장할지 · 상징 정답을 서버 콘텐츠에 둘지", "고리 4개 런타임 Object ID(배치 무리 없음)", "scene_id"]
+    },
+    {
+      "no": 8,
+      "candidate_puzzle_id": "PUZZLE_S4_RIDGE_STAIRS",
+      "zone_id": "ZONE_JINBU_RIDGE",
+      "scene_id": null,
+      "fe_interactables": ["ridge-platform-story"],
+      "runtime_objects": ["OBJ_S2_STOOL_0", "OBJ_S2_STOOL_1", "OBJ_S2_STOOL_2", "OBJ_S2_STOOL_3", "OBJ_S2_STOOL_4"],
+      "server_recordable": ["퍼즐 완료"],
+      "fe_local": ["발 위치 판정 + [C] 키(걸상별 상호작용 ID 없음)"],
+      "missing": ["걸상별 FE 상호작용 ID(서버로 보낼 대상)", "판정 방식", "scene_id"]
+    },
+    {
+      "no": 9,
+      "candidate_puzzle_id": "PUZZLE_S4_STONE_BIRD_ALIGNMENT",
+      "zone_id": "ZONE_JINBU_RIDGE",
+      "scene_id": null,
+      "fe_interactables": ["ridge-statue-{n}", "ridge-jar-reflection", "ridge-fossil"],
+      "runtime_objects": ["OBJ_S2_SOTDAE_0", "OBJ_S2_SOTDAE_1"],
+      "server_recordable": ["퍼즐 완료", "소비 조건"],
+      "fe_local": ["돌새 회전 · 깨어남 연출"],
+      "missing": ["완료 기준(scaleSet / awakening)", "scale 처리 방식", "물항아리 · 화석 런타임 Object ID", "scene_id"]
+    }
+  ]
+}

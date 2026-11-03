@@ -162,6 +162,8 @@ FE는 서버 힌트를 쓰지 않는다(F4). 잔액 첫 표시는 P3.
 - 걸상 다섯: 다섯 개는 코드에서 확인된다(`SYMBOLS` 5 · `CARVED` 5). 다만 걸상마다 상호작용 ID가 없어 서버 Object로 옮기려면 FE 쪽 ID가 먼저 필요하다.
 - 9종 밖 FE 퍼즐도 있다: 항아리 자리(`jar-{i}`, `jar-slot-{s}`, `jarPuzzle locked→open`), 막걸리 배 병(`boat-bottle-broken-{i}`), 물고기 굴(`cave-burrow-*`), 전설 흔적(`legend-*`), 능선 수레 · 함(`ridge-cart*`, `ridge-chest*`, `ridge-jige-*`, `ridge-box-lock`). 9종 목록에 넣을지 P5에서 정한다.
 
+후속(1103): 최신 FE `5f88aa6` 기준 FE ID 목록 · idmap 개발판 · 9종 대응표와 빈칸은 `backend/content_drafts/naju/README.md`(게시 · 등록 금지 골격).
+
 나주를 서버에 붙이려면(P5): 최신 FE 커밋 기준 idmap 재작성 → 퍼즐마다 서버 완료 시점 · 상태 delta 결정 → `client/server/npc/idmap` 게시본과 fingerprint → 게시 게이트 통과 → FE 어댑터. 지금 어떤 후보 ID도 API에 쓰면 안 된다.
 
 ## 7. 확인 방법

@@ -1,0 +1,136 @@
+{
+  "schema": "naju-fe-ids/dev-0.1",
+  "status": "dev skeleton — 게시 · 등록 금지. FE 사실만 담는다(정답 · 판정 규칙 값 없음)",
+  "fe_ref": "origin/feat/랑-화풍-나주톤",
+  "fe_commit": "5f88aa6",
+  "fe_root": "naju01/src/puzzles",
+  "note": "id는 FE registerInteractable({ id })의 실제 값. `{n}` 자리는 0부터 count-1까지. count_source는 그 개수를 정하는 FE 상수. scripts/verify_naju_fe_ids.py가 FE 커밋과 대조한다.",
+  "puzzles": [
+    {
+      "no": 1,
+      "title": "통발 줄 당기기",
+      "zone": "Z1",
+      "fe_state": "fishTrap/fishTrapState.ts fishTrapPuzzle.stage: idle → full → pulled → lit → told",
+      "fe_answer_location": "fishTrap/FishTrapPuzzle.tsx CATCHING_TRAP · TRAP_TO_STAKE"
+    },
+    {
+      "no": 2,
+      "title": "돌탑 기우제",
+      "zone": "Z2",
+      "fe_state": "ritual/ritualState.ts ritual.stage: cairns → drawing → offering → rising → flooded → parted → cave → cleared",
+      "fe_answer_location": "ritual/magicCircle.ts NODE_NOTCHES · ritual/RitualCircle.tsx CAIRNS · OFFERINGS"
+    },
+    {
+      "no": 3,
+      "title": "독 물방울 항아리",
+      "zone": null,
+      "fe_state": "stage 없음 — 기울임 1회 뒤 gearStone 생성",
+      "fe_answer_location": null
+    },
+    {
+      "no": 4,
+      "title": "진주 빛 잇기",
+      "zone": null,
+      "fe_state": "빛이 큰 조개에 닿으면 bigPearl 획득(stage 없음)",
+      "fe_answer_location": "cave/lightLayout.ts LIGHT_ANSWER · LIGHT_BIG_FACING"
+    },
+    {
+      "no": 5,
+      "title": "고리문 물레",
+      "zone": null,
+      "fe_state": "caveState.ts setDoorOpen(true)",
+      "fe_answer_location": "cave/RingDoor.tsx RINGS(start · perNotch) · GAP_DEGREES"
+    },
+    {
+      "no": 6,
+      "title": "석실 받침",
+      "zone": null,
+      "fe_state": "받침 순서를 맞추면 bigPearl을 비추고 scale 획득",
+      "fe_answer_location": "cave/InnerChamber.tsx ORDER"
+    },
+    {
+      "no": 7,
+      "title": "장승 고리",
+      "zone": "Z4",
+      "fe_state": "ridge/ridgeState.ts ridgeQuest.set(\"postsSolved\")",
+      "fe_answer_location": "ridge/GateAltar.tsx POSTS[].answer"
+    },
+    {
+      "no": 8,
+      "title": "걸상 다섯",
+      "zone": "Z4",
+      "fe_state": "ridge/ridgeState.ts ridgeQuest.set(\"stairs\")",
+      "fe_answer_location": "ridge/StumpStairs.tsx ANSWER · CARVED"
+    },
+    {
+      "no": 9,
+      "title": "돌새 마주 보기",
+      "zone": "Z4",
+      "fe_state": "ridgeQuest birdsFacing → scaleSet → ridge.stage awakening",
+      "fe_answer_location": "ridge/RidgeBirds.tsx (마주 보는 각도) · ridge/ridgeShape.ts STATUE_IDS"
+    }
+  ],
+  "interactables": [
+    {"id": "fish-trap-{n}", "count": 3, "count_source": "TRAP_TO_STAKE", "file": "fishTrap/FishTrapPuzzle.tsx", "puzzle": 1, "placement": "씬1.통발"},
+    {"id": "fish-trap-stake-{n}", "count": 3, "count_source": "STAKES", "file": "fishTrap/FishTrapPuzzle.tsx", "puzzle": 1, "placement": null},
+    {"id": "clam-hoe", "count": 1, "count_source": null, "file": "fishTrap/ClamDig.tsx", "puzzle": 1, "placement": null},
+    {"id": "clam-spot", "count": 1, "count_source": null, "file": "fishTrap/ClamDig.tsx", "puzzle": 1, "placement": null},
+    {"id": "clam-pick", "count": 1, "count_source": null, "file": "fishTrap/ClamDig.tsx", "puzzle": 1, "placement": null},
+    {"id": "ritual-cairn-{n}", "count": 6, "count_source": "CAIRNS", "file": "ritual/RitualCircle.tsx", "puzzle": 2, "placement": null},
+    {"id": "ritual-table", "count": 1, "count_source": null, "file": "ritual/RitualCircle.tsx", "puzzle": 2, "placement": null},
+    {"id": "float-stone-{n}", "count": 4, "count_source": "SPOTS", "file": "ritual/FloatingStones.tsx", "puzzle": 2, "placement": null},
+    {"id": "cave-jar", "count": 1, "count_source": null, "file": "cave/AirStations.tsx", "puzzle": 3, "placement": null},
+    {"id": "cave-source-pearl", "count": 1, "count_source": null, "file": "cave/AirStations.tsx", "puzzle": 4, "placement": null},
+    {"id": "cave-clam-{n}", "count": 4, "count_source": "CLAMS", "file": "cave/AirStations.tsx", "puzzle": 4, "placement": null},
+    {"id": "cave-big-clam", "count": 1, "count_source": null, "file": "cave/AirStations.tsx", "puzzle": 4, "placement": null},
+    {"id": "cave-float-{n}", "count": 4, "count_source": "FLOAT_SLOTS", "file": "cave/RingDoor.tsx", "puzzle": 5, "placement": null},
+    {"id": "cave-valve", "count": 1, "count_source": null, "file": "cave/RingDoor.tsx", "puzzle": 5, "placement": null},
+    {"id": "cave-valve-rim-{n}", "count": 12, "count_source": "length: 12", "file": "cave/RingDoor.tsx", "puzzle": 5, "placement": null},
+    {"id": "cave-gear-{n}", "count": 3, "count_source": "GEAR_Y", "file": "cave/RingDoor.tsx", "puzzle": 5, "placement": null},
+    {"id": "cave-tablet", "count": 1, "count_source": null, "file": "cave/RingDoor.tsx", "puzzle": 5, "placement": null},
+    {"id": "cave-door", "count": 1, "count_source": null, "file": "cave/RingDoor.tsx", "puzzle": 5, "placement": null},
+    {"id": "cave-pedestal-{n}", "count": 4, "count_source": "PEDESTAL_X", "file": "cave/InnerChamber.tsx", "puzzle": 6, "placement": null},
+    {"id": "cave-altar", "count": 1, "count_source": null, "file": "cave/InnerChamber.tsx", "puzzle": 6, "placement": null},
+    {"id": "cave-socket", "count": 1, "count_source": null, "file": "cave/InnerChamber.tsx", "puzzle": 6, "placement": null},
+    {"id": "cave-scale", "count": 1, "count_source": null, "file": "cave/InnerChamber.tsx", "puzzle": 6, "placement": null},
+    {"id": "cave-exit", "count": 1, "count_source": null, "file": "cave/InnerChamber.tsx", "puzzle": 6, "placement": null},
+    {"id": "ridge-post-ring-{n}", "count": 4, "count_source": "RING_HEIGHTS", "file": "ridge/GateAltar.tsx", "puzzle": 7, "placement": null},
+    {"id": "ridge-platform-story", "count": 1, "count_source": null, "file": "ridge/StumpStairs.tsx", "puzzle": 8, "placement": null},
+    {"id": "ridge-statue-{n}", "count": 2, "count_source": "STATUE_IDS", "file": "ridge/RidgeBirds.tsx", "puzzle": 9, "placement": "씬2.솟대"},
+    {"id": "ridge-jar-reflection", "count": 1, "count_source": null, "file": "ridge/BirdHints.tsx", "puzzle": 9, "placement": null},
+    {"id": "ridge-fossil", "count": 1, "count_source": null, "file": "ridge/BirdHints.tsx", "puzzle": 9, "placement": null},
+
+    {"id": "world-item-{n}", "count": null, "count_source": "item.uid(실행 중 생성)", "file": "WorldItems.tsx", "puzzle": null, "placement": null},
+    {"id": "cave-burrow-pot", "count": 1, "count_source": null, "file": "cave/FishBurrows.tsx", "puzzle": null, "placement": null},
+    {"id": "cave-burrow-{n}", "count": null, "count_source": null, "file": "cave/FishBurrows.tsx", "puzzle": null, "placement": null},
+    {"id": "legend-{n}", "count": 6, "count_source": "wreck · oar · ribbon · lantern · stele · prints", "file": "cave/LegendTraces.tsx", "puzzle": null, "placement": null},
+    {"id": "jar-{n}", "count": null, "count_source": null, "file": "jars/JarPuzzle.tsx", "puzzle": null, "placement": null},
+    {"id": "jar-slot-{n}", "count": null, "count_source": null, "file": "jars/JarPuzzle.tsx", "puzzle": null, "placement": null},
+    {"id": "boat-bottle-broken-{n}", "count": null, "count_source": null, "file": "makgeolli/BoatBottles.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-platform", "count": 1, "count_source": null, "file": "ridge/BoxOpening.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-box-lock", "count": 1, "count_source": null, "file": "ridge/BoxOpening.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-chest-lid", "count": 1, "count_source": null, "file": "ridge/GateAltar.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-cart", "count": 1, "count_source": null, "file": "ridge/RidgeCart.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-wheel", "count": 1, "count_source": null, "file": "ridge/RidgeCart.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-cart-fit", "count": 1, "count_source": null, "file": "ridge/RidgeCart.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-chest", "count": 1, "count_source": null, "file": "ridge/RidgeCart.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-chest-jige", "count": 1, "count_source": null, "file": "ridge/RidgeCart.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-cart-unload", "count": 1, "count_source": null, "file": "ridge/RidgeCart.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-altar", "count": 1, "count_source": null, "file": "ridge/RidgeCart.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-knot", "count": 1, "count_source": null, "file": "ridge/TetheredCarriers.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-jige-{n}", "count": null, "count_source": null, "file": "ridge/TetheredCarriers.tsx", "puzzle": null, "placement": null},
+    {"id": "ridge-jige-grab-{n}", "count": null, "count_source": null, "file": "ridge/TetheredCarriers.tsx", "puzzle": null, "placement": null}
+  ],
+  "placements": [
+    {"key": "씬1.통발#0", "at_m": [19.6, 44.909], "zone": "Z1", "fe_id": "fish-trap-0"},
+    {"key": "씬1.통발#1", "at_m": [20.516, 44.653], "zone": "Z1", "fe_id": "fish-trap-1"},
+    {"key": "씬1.통발#2", "at_m": [20.033, 44.592], "zone": "Z1", "fe_id": "fish-trap-2"},
+    {"key": "씬2.솟대#0", "at_m": [74.507, 20.891], "zone": "Z4", "fe_id": "ridge-statue-0"},
+    {"key": "씬2.솟대#1", "at_m": [74.384, 22.211], "zone": "Z4", "fe_id": "ridge-statue-1"},
+    {"key": "씬2.걸상#0", "at_m": [71.938, 16.367], "zone": "Z4", "fe_id": null},
+    {"key": "씬2.걸상#1", "at_m": [71.818, 18.066], "zone": "Z4", "fe_id": null},
+    {"key": "씬2.걸상#2", "at_m": [71.756, 17.148], "zone": "Z4", "fe_id": null},
+    {"key": "씬2.걸상#3", "at_m": [72.014, 15.428], "zone": "Z4", "fe_id": null},
+    {"key": "씬2.걸상#4", "at_m": [71.675, 19.934], "zone": "Z4", "fe_id": null}
+  ]
+}
