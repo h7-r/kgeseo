@@ -2,8 +2,15 @@
 import os, re, subprocess, sys
 
 W = os.path.dirname(os.path.abspath(__file__))
-V, A, O = f"{W}/cuts", f"{W}/vo", f"{W}/out"
+V, O = f"{W}/cuts", f"{W}/out"
 os.makedirs(O, exist_ok=True)
+TEMPO = float(os.environ.get("TEMPO", "1.1"))   # 내레이션 속도 (1.1 = 10% 빠르게, 목소리 톤 유지)
+A = f"{W}/vo_x{TEMPO}"
+os.makedirs(A, exist_ok=True)
+for fn in sorted(os.listdir(f"{W}/vo")):
+    if fn.endswith(".mp3") and not os.path.exists(f"{A}/{fn}"):
+        subprocess.check_call(["ffmpeg","-v","error","-y","-i",f"{W}/vo/{fn}","-af",
+            f"rubberband=tempo={TEMPO}:pitchq=quality:formant=preserved","-b:a","192k",f"{A}/{fn}"])
 
 # 자막 덩어리 — " / " 위치에서 끊어 차례로 넘긴다
 TXT = {
@@ -132,6 +139,6 @@ open(f"{O}/subs.ass", "w").write(ass)
 open(f"{O}/list.txt", "w").write("".join(f"file '{p}'\n" for p in parts))
 subprocess.check_call(["ffmpeg","-v","error","-y","-f","concat","-safe","0","-i",f"{O}/list.txt","-c","copy",f"{O}/clean.mp4"])
 subprocess.check_call(["ffmpeg","-v","error","-y","-i",f"{O}/clean.mp4","-vf",f"ass={O}/subs.ass",
-    "-af","loudnorm=I=-16:TP=-1.5:LRA=11","-c:v","libx264","-preset","medium","-crf","19","-pix_fmt","yuv420p",
+    "-af","loudnorm=I=-16:TP=-1.5:LRA=11","-c:v","libx264","-preset","slow","-crf","22","-pix_fmt","yuv420p",
     "-c:a","aac","-b:a","192k","-ar","48000","-movflags","+faststart",f"{O}/waegok_video1.mp4"])
 print("total", dur(f"{O}/waegok_video1.mp4"))
