@@ -11,7 +11,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy.exc import OperationalError
 
 from alembic import command
-from app.api.v1.npc import get_npc_approval_source
+from app.api.v1.npc import get_npc_case_access_reader
 from app.schemas.gate_review import ApprovalTarget, GateReviewCreate
 from app.services import content_publication
 from app.services.approval_history import (
@@ -368,8 +368,10 @@ def test_only_gate_review_appends_approval_records() -> None:
     assert writers == [APP_DIR / "services" / "gate_review.py"]
 
 
-def test_runtime_defaults_never_approve() -> None:
-    assert get_npc_approval_source() is None
+def test_npc_runtime_reads_approvals_only_from_the_database() -> None:
+    from app.services.npc_case_access import read_case_npc_access
+
+    assert get_npc_case_access_reader() is read_case_npc_access
 
 
 # ── 레거시 migration 보존 ──

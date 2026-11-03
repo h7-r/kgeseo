@@ -11,6 +11,10 @@
   표시(`npc_suggestion_shown`) · 거절(`npc_suggestion_declined`) 기록으로만 센다(`npc_suggestion_events`).
 - `suggest_hint`에는 내부 puzzle_id 대신 `hint_ref`를 싣는다. 발급 키가 없으면 `suggest_hint`를 내지 않는다(fail closed).
   이벤트에는 내부 puzzle_id를 남긴다.
+- 케이스 대사 승인 · 게시 상태(`case_access`, 운영은 `npc_case_access.read_case_npc_access`): 계산 전에 잠금 없이
+  읽고, 이벤트 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 근거가 바뀌었으면(철회 · 차단이 사이에 commit) 확정 전에
+  다시 계산한다. 긴급 차단(blocked)이면 새 턴 · 재전송 모두 대사 · 힌트 제안 없이 `NPC_CONTENT_WITHDRAWN`이다
+  (PM v0.4.6). 멱등 처리는 기존 `interaction_events`(`client_event_id`) 하나다.
 """
 
 import asyncio
@@ -22,7 +26,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.interaction_event import InteractionEvent
@@ -44,6 +48,7 @@ from app.services.interaction import (
     _is_same_request,
     _to_db_datetime,
 )
+from app.services.npc_case_access import CaseAccessReader, CaseNpcAccess
 from app.services.npc_decision import (
     AutoIntervention,
     RuleConfig,
@@ -67,6 +72,9 @@ from app.services.play_session import PlaySessionNotFoundError
 from app.services.puzzle_question import PUZZLE_INTERACTION_TYPES
 
 NPC_TURN_EVENT_TYPE = "npc_turn"
+MYSQL_DEADLOCK = 1213
+DEADLOCK_RETRIES = 3
+CONTENT_WITHDRAWN = "NPC_CONTENT_WITHDRAWN"
 
 EventLoader = Callable[[AsyncSession, str], Awaitable[Sequence[Any]]]
 
@@ -96,12 +104,34 @@ async def load_session_events(db: AsyncSession, play_session_id: str) -> list[An
 
 
 async def process_npc_turn(
+    db: AsyncSession, play_session_id: str, request: NpcTurnRequest, **options: Any
+) -> NpcTurnResponse:
+    """NPC 턴 한 번. MySQL 교착(1213)이면 같은 턴을 짧게 다시 시도한다.
+
+    NPC 턴은 세션 행을 잠그지 않으므로, 같은 `client_event_id` 동시 요청의 INSERT가 교착할 수 있다. 교착 쪽
+    트랜잭션은 전부 rollback되므로 다시 시도하면 확정된 이벤트를 재전송으로 돌려주거나 새로 확정한다.
+    """
+
+    attempt = 0
+    while True:
+        try:
+            return await _process_npc_turn_once(db, play_session_id, request, **options)
+        except DBAPIError as error:
+            args = getattr(error.orig, "args", ())
+            errno = args[0] if args and isinstance(args[0], int) else None
+            if errno != MYSQL_DEADLOCK or attempt >= DEADLOCK_RETRIES:
+                raise
+            attempt += 1
+
+
+async def _process_npc_turn_once(
     db: AsyncSession,
     play_session_id: str,
     request: NpcTurnRequest,
     *,
     store: PinnedContentStore,
-    approval_source: ApprovalSource | None,
+    approval_source: ApprovalSource | None = None,
+    case_access: CaseAccessReader | None = None,
     general_pack: GeneralLinePack | None = None,
     general_pack_approval: ApprovalSource | None = None,
     generation: NpcGenerationConfig = GENERATION_OFF,
@@ -110,6 +140,8 @@ async def process_npc_turn(
     hint_ref_keys: HintRefKeys | None = None,
     now: datetime | None = None,
 ) -> NpcTurnResponse:
+    if case_access is not None and approval_source is not None:
+        raise ValueError("pass either approval_source or case_access")
     client_event_id = str(request.client_event_id)
     payload_json = _payload(request)
     try:
@@ -135,28 +167,31 @@ async def process_npc_turn(
                 )
             )
 
-        content = turn_content_from_pinned(
-            bundle,
-            approval_source,
-            general_pack=general_pack,
-            general_pack_approval=general_pack_approval,
-        )
+        async def read_access(lock: bool) -> CaseNpcAccess:
+            if case_access is None:
+                return CaseNpcAccess(approval_source)
+            return await case_access(db, bundle.pin, lock=lock)
 
-        existing = await _find_interaction_event(db, play_session_id, client_event_id)
-        if existing is not None:
-            response = _replay(existing, payload_json, content, hint_ref_for)
-            await db.rollback()
-            return response
-
-        if request.trigger == "player_message":
-            result = run_player_message_turn(
-                request.message or "",
-                state=state,
-                content=content,
-                general_generator=generation.generator,
-                generation_enabled=generation.enabled,
+        def content_for(access: CaseNpcAccess) -> NpcTurnContent:
+            return turn_content_from_pinned(
+                bundle,
+                access.approval_source,
+                general_pack=general_pack,
+                general_pack_approval=general_pack_approval,
             )
-        else:
+
+        async def compute(access: CaseNpcAccess) -> NpcTurnResult:
+            if access.withdrawn:
+                return _withdrawn_result(request.trigger)
+            content = content_for(access)
+            if request.trigger == "player_message":
+                return run_player_message_turn(
+                    request.message or "",
+                    state=state,
+                    content=content,
+                    general_generator=generation.generator,
+                    generation_enabled=generation.enabled,
+                )
             current = now or datetime.now(timezone.utc).replace(tzinfo=None)
             events = await event_loader(db, play_session_id)
             target = _focus_puzzle(content, state, request.focus_object_id)
@@ -171,9 +206,28 @@ async def process_npc_turn(
             config = rule_config_for(
                 content.npc_pack.auto_nudge if content.npc_pack else None, rule_config
             )
-            result = run_auto_turn(
-                decide(signals, config), state=state, content=content
+            return run_auto_turn(decide(signals, config), state=state, content=content)
+
+        # 1. 계산 전 판정(잠금 없음)
+        access = await read_access(lock=False)
+
+        existing = await _find_interaction_event(db, play_session_id, client_event_id)
+        if existing is not None:
+            response = _replay(
+                existing, payload_json, content_for(access), hint_ref_for, access
             )
+            await db.rollback()
+            return response
+
+        # 2. 계산(잠금 없음)
+        result = await compute(access)
+
+        # 3. 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 그 사이 철회 · 차단이 commit됐으면 다시 계산한다.
+        if case_access is not None:
+            final = await read_access(lock=True)
+            if final.basis != access.basis:
+                access = final
+                result = await compute(access)
 
         record = _record(request.trigger, result)
         npc_event_id = str(uuid4())
@@ -200,7 +254,9 @@ async def process_npc_turn(
             )
             if existing is None:
                 raise error
-            response = _replay(existing, payload_json, content, hint_ref_for)
+            response = _replay(
+                existing, payload_json, content_for(access), hint_ref_for, access
+            )
             await db.rollback()
             return response
     except asyncio.CancelledError:
@@ -333,11 +389,19 @@ def _response(
     )
 
 
+def _withdrawn_result(trigger: str) -> NpcTurnResult:
+    # 긴급 차단: 케이스 콘텐츠(대사 · 힌트 제안)를 쓰지 않는다. 일반 팩 대사 제공 여부는 미결정이라 내지 않는다.
+    return NpcTurnResult(
+        trigger, None, "content_withdrawn", None, fallback_reason=CONTENT_WITHDRAWN
+    )
+
+
 def _replay(
     event: InteractionEvent,
     payload_json: dict[str, Any],
     content: NpcTurnContent,
     hint_ref_for: HintRefFor,
+    access: CaseNpcAccess,
 ) -> NpcTurnResponse:
     if not _is_same_request(
         event,
@@ -346,6 +410,14 @@ def _replay(
         payload_json=payload_json,
     ):
         raise IdempotencyConflictError()
+    if access.withdrawn:
+        # 긴급 차단 뒤 재전송: 저장했던 케이스 응답을 돌려주지 않는다.
+        return NpcTurnResponse(
+            npc_event_id=UUID(event.id),
+            reply=None,
+            suggest_hint=None,
+            fallback_reason=CONTENT_WITHDRAWN,
+        )
     record = NpcTurnEventRecord.model_validate(event.response_json)
     text = (
         _approved_text(content, record.line_id)

@@ -12,7 +12,7 @@ import pytest
 from app.api.v1.npc import (
     get_general_line_pack,
     get_hint_ref_keys,
-    get_npc_approval_source,
+    get_npc_case_access_reader,
     get_npc_event_loader,
     get_npc_generation,
 )
@@ -20,6 +20,7 @@ from app.main import app
 from app.models.interaction_event import InteractionEvent
 from app.models.play_session import PlaySession
 from app.services.hint_ref import HintRefKeys, resolve_hint_ref
+from app.services.npc_case_access import CaseNpcAccess, read_case_npc_access
 from app.services.npc_line_supply import general_pack_fingerprint
 from app.services.npc_turn_service import NpcGenerationConfig
 from app.services.pinned_content import PinnedContentStore
@@ -96,7 +97,13 @@ def overrides() -> Iterator[dict[str, Any]]:
         return values["events"]
 
     app.dependency_overrides[get_pinned_content_store] = lambda: values["store"]
-    app.dependency_overrides[get_npc_approval_source] = lambda: values["approval"]
+
+    # 승인 이력 · 게시 상태 판정 대역: 게시 중(published)으로 보고 주입한 승인 출처를 쓴다.
+    # 실제 DB 판정은 test_npc_case_access(_mysql)가 확인한다.
+    async def case_access(db, pin, *, lock):
+        return CaseNpcAccess(values["approval"], basis=("test",))
+
+    app.dependency_overrides[get_npc_case_access_reader] = lambda: case_access
     app.dependency_overrides[get_general_line_pack] = lambda: values["general"]
     app.dependency_overrides[get_npc_generation] = lambda: values["generation"]
     app.dependency_overrides[get_npc_event_loader] = lambda: loader
@@ -104,7 +111,7 @@ def overrides() -> Iterator[dict[str, Any]]:
     yield values
     for dependency in (
         get_pinned_content_store,
-        get_npc_approval_source,
+        get_npc_case_access_reader,
         get_general_line_pack,
         get_npc_generation,
         get_npc_event_loader,
@@ -208,7 +215,8 @@ def test_default_dependencies_never_serve_unapproved_lines(
 def test_production_dependency_defaults_are_off() -> None:
     from app.api.v1 import npc as npc_api
 
-    assert npc_api.get_npc_approval_source() is None
+    # 케이스 대사 승인은 DB 판정(승인 이력 · 게시 상태)으로만 정한다. 기록이 없으면 미승인이다.
+    assert npc_api.get_npc_case_access_reader() is read_case_npc_access
     assert npc_api.get_general_line_pack() == (None, None)
     generation = npc_api.get_npc_generation()
     assert (generation.enabled, generation.generator) == (False, None)

@@ -12,6 +12,7 @@ from app.services.hint_balance import HintRefKeyConfigError, hint_ref_keys_from_
 from app.services.hint_ref import HintRefKeys
 from app.services.interaction import IdempotencyConflictError
 from app.services.npc import NpcContentUnsafeError
+from app.services.npc_case_access import CaseAccessReader, read_case_npc_access
 from app.services.npc_turn_service import (
     GENERATION_OFF,
     EventLoader,
@@ -39,10 +40,11 @@ router = APIRouter(
 # --- 의존성 (운영 기본값: 승인 정보 없음 · 일반 팩 없음 · 생성 OFF) ---
 
 
-def get_npc_approval_source() -> ApprovalSource | None:
-    """케이스 콘텐츠 G1~G3 승인 이력. 영속 저장소가 아직 없어 기본은 None(모든 대사 미승인)."""
+def get_npc_case_access_reader() -> CaseAccessReader:
+    """케이스 대사 승인(`npc_approval_reviews`의 case_content) · 게시 상태 판정. 기록이 없거나 DB를 읽지 못하면
+    케이스 대사는 모두 미승인이고, 긴급 차단이면 NPC_CONTENT_WITHDRAWN이다."""
 
-    return None
+    return read_case_npc_access
 
 
 def get_general_line_pack() -> tuple[GeneralLinePack | None, ApprovalSource | None]:
@@ -85,7 +87,7 @@ async def create_npc_turn_endpoint(
     request: NpcTurnRequest,
     db: AsyncSession = Depends(get_db),
     content_store: PinnedContentStore = Depends(get_pinned_content_store),
-    approval_source: ApprovalSource | None = Depends(get_npc_approval_source),
+    case_access: CaseAccessReader = Depends(get_npc_case_access_reader),
     general_pack: tuple = Depends(get_general_line_pack),
     generation: NpcGenerationConfig = Depends(get_npc_generation),
     event_loader: EventLoader = Depends(get_npc_event_loader),
@@ -98,7 +100,7 @@ async def create_npc_turn_endpoint(
             str(play_session_id),
             request,
             store=content_store,
-            approval_source=approval_source,
+            case_access=case_access,
             general_pack=pack,
             general_pack_approval=pack_approval,
             generation=generation,
