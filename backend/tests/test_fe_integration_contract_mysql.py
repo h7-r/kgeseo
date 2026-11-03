@@ -23,6 +23,7 @@ from app.db.session import get_db
 from app.main import app
 from app.models.anonymous_session import AnonymousSession
 from app.models.play_session import PlaySession
+from app.services import case_content, puzzle_runtime
 from app.services.hint_balance import HintEconomyConfig
 from app.services.npc_publication import NpcPublicationService
 from app.services.puzzle_runtime import load_case_runtime
@@ -484,6 +485,90 @@ def test_mysql_hint_errors_are_the_documented_ones():
         assert (missing.status_code, missing.json()) == (
             404,
             {"detail": "Play session not found."},
+        )
+
+    mysql_run(scenario)
+
+
+# ── Hint: 레거시 세션의 케이스 콘텐츠 파일이 없을 때 ──
+
+
+def write_legacy_case(directory) -> None:
+    """테스트용 가상 콘텐츠(`case_test`)를 파일 기반 레거시 케이스로 둔다(나주 콘텐츠가 아니다)."""
+
+    bundle = pinned()
+    for kind, model in (("server", bundle.server()), ("client", bundle.client())):
+        (directory / f"{CASE}.{kind}.json").write_text(
+            model.model_dump_json(by_alias=True), encoding="utf-8"
+        )
+
+
+def test_mysql_hint_on_a_legacy_session_whose_case_files_are_gone(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(puzzle_runtime, "CASES_DIRECTORY", tmp_path)
+    monkeypatch.setattr(case_content, "CASES_DIRECTORY", tmp_path)
+    server_file = tmp_path / f"{CASE}.server.json"
+    client_file = tmp_path / f"{CASE}.client.json"
+    case_not_found = (404, {"detail": "Case not found."})
+
+    async def scenario(sessions):
+        # 콘텐츠 파일이 처음부터 없는 레거시 세션(버전 칼럼 NULL)
+        orphan_id = await seed(sessions, pinned_fp=None)
+        orphan_event = str(uuid4())
+        async with Contract(sessions) as api:
+            orphan = await api.hint(orphan_id, 1, orphan_event)
+            orphan_resend = await api.hint(orphan_id, 1, orphan_event)
+        assert (orphan.status_code, orphan.json()) == case_not_found
+        assert orphan_resend.json() == orphan.json()
+        assert str(tmp_path) not in orphan.text
+        assert await snapshot(sessions, orphan_id) == (3, 0, {}, [])  # 차감 · 기록 없음
+
+        # 파일이 있을 때 연 단계 → 파일이 사라진 뒤 재전송 · 새 단계 → 복구 뒤 재전송
+        write_legacy_case(tmp_path)
+        legacy_id = await seed(sessions, pinned_fp=None)
+        pinned_id = await seed(sessions)
+        first_event = str(uuid4())
+        async with Contract(sessions) as api:
+            first = await api.hint(legacy_id, 1, first_event)
+
+            server_file.unlink()
+            gone_resend = await api.hint(legacy_id, 1, first_event)
+            gone_next = await api.hint(legacy_id, 2)
+            # 고정 세션은 게시 묶음을 쓰므로 파일과 무관하다
+            pinned_hint = await api.hint(pinned_id, 1)
+
+            write_legacy_case(tmp_path)
+            client_file.unlink()
+            client_gone = await api.hint(legacy_id, 2)
+
+            write_legacy_case(tmp_path)
+            server_file.write_text("{", encoding="utf-8")
+            broken = await api.hint(legacy_id, 2)
+
+            write_legacy_case(tmp_path)
+            restored_resend = await api.hint(legacy_id, 1, first_event)
+            restored_next = await api.hint(legacy_id, 2)
+
+        assert first.status_code == 200, first.text
+        assert first.json()["hint"] == {"level": 1, "text": HINT_1}
+        for response in (gone_resend, gone_next, client_gone):
+            assert (response.status_code, response.json()) == case_not_found
+        assert (broken.status_code, broken.json()) == (
+            500,
+            {"detail": "Case content is unavailable."},
+        )
+        assert pinned_hint.status_code == 200, pinned_hint.text
+        assert (
+            restored_resend.json() == first.json()
+        )  # 같은 이벤트 ID → 처음 응답 그대로
+        assert restored_next.status_code == 200, restored_next.text
+        assert restored_next.json()["hint"] == {"level": 2, "text": HINT_2}
+        assert await snapshot(sessions, legacy_id) == (
+            1,
+            2,
+            {"PZ_A": 2},
+            ["hint_unlocked", "hint_unlocked"],
         )
 
     mysql_run(scenario)

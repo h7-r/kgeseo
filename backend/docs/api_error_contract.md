@@ -3,7 +3,7 @@
 응답 본문 · 상태 코드는 바꾸지 않았다. 지금 라우터가 내는 그대로를 OpenAPI `responses`에 적었다.
 
 - 명세: `app/api/v1/error_responses.py`(라우터마다 `responses=`), 본문 모델 `app/schemas/api_error.py`
-- 확인: `tests/test_api_error_contract.py`(명세 ↔ 소스 문장 · code 대조), `tests/test_fe_integration_contract_mysql.py`(격리 MySQL, 실제 라우터)
+- 확인: `tests/test_api_error_contract.py`(명세 ↔ 소스 문장 · code 대조), `tests/test_fe_integration_contract_mysql.py`(격리 MySQL, 실제 라우터), `tests/test_hint_case_content_missing.py`(Hint 케이스 파일 누락 HTTP 응답, DB 없음)
 - 앞선 점검: `fe_be_contract_check_1103.md`(B1을 이 문서로 처리)
 
 ## 1. 본문 형식
@@ -30,7 +30,7 @@
 | `GET /play-sessions/{id}/clues` | 404 / 409 / 500 |
 | `GET /cases/{case_id}/bundle` | 404 `Case not found.` / 422 `Invalid case ID.` / 500 |
 | `POST …/interactions` | 404 5종 · 409 13종(아래 §3) · 422 · 500 2종 · 501 |
-| `POST …/hints` | 404 3종 / 409 `HINT_BALANCE_EMPTY` · `HINT_REF_MISMATCH` · 문장 5종 / 422 검증 · `HINT_REF_INVALID` / 500 / 503 `HINT_REF_UNAVAILABLE` |
+| `POST …/hints` | 404 4종(세션 · 퍼즐 · 힌트 단계 · 레거시 세션의 `Case not found.`) / 409 `HINT_BALANCE_EMPTY` · `HINT_REF_MISMATCH` · 문장 5종 / 422 검증 · `HINT_REF_INVALID` / 500 `Hint state is invalid.` · `Case content is unavailable.` / 503 `HINT_REF_UNAVAILABLE` |
 | `POST …/puzzles/{puzzle_id}/hints`(별칭) | 위에서 `hint_ref` 관련(409 `HINT_REF_MISMATCH` · 422 `HINT_REF_INVALID` · 503)만 빠진다 |
 | `POST …/npc/turns` | 404 / 409 `CASE_VERSION_UNAVAILABLE`(레거시 세션 포함) · 이벤트 ID 충돌 / 422 / 500 `NPC content is unavailable.` |
 | `POST /auth/social-onboarding/complete` | 401 `invalid_onboarding_token` / 409 `onboarding_token_used` · `terms_version_mismatch` · `nickname_unavailable` · `account_link_required` · 문장 1종 / 422 `consent_required` · `invalid_nickname` · `invalid_input` |
@@ -48,7 +48,7 @@
 | `POST /play-sessions` 404 | 익명 세션 없음 · 케이스 없음 | FE는 404면 익명 세션을 새로 만든다 — 케이스 없음에도 한 번 더 시도한다 |
 | `POST …/interactions` 404 | 세션 · 퍼즐 · 조사 · 구역 · Object | 문장 비교 |
 | `POST …/interactions` 409 | `CASE_VERSION_UNAVAILABLE`, 단서 미획득, 상호작용 없음, action 불일치, 현재 구역 모름, 현재 구역 아님, 이동 불가, 안 보임, 비활성, 이벤트 ID 충돌, 선행 단서 · 퍼즐 · 아이템 부족(개수 키로 구분 가능) | 문장 비교 |
-| `POST …/hints` 404 · 409 | 404 세션 · 퍼즐 · 힌트 단계 / 409 `CASE_VERSION_UNAVAILABLE` · 이전 단계 미해금 · 아직 못 씀 · 이벤트 ID 충돌 | 잔액 · `hint_ref`만 `code`가 있다 |
+| `POST …/hints` 404 · 409 · 500 | 404 세션 · 퍼즐 · 힌트 단계 · 케이스 파일 없음 / 500 힌트 상태 오류 · 케이스 파일 형식 오류 / 409 `CASE_VERSION_UNAVAILABLE` · 이전 단계 미해금 · 아직 못 씀 · 이벤트 ID 충돌 | 잔액 · `hint_ref`만 `code`가 있다 |
 | `POST …/npc/turns` 409 | 버전 사용 불가 · 이벤트 ID 충돌 | 문장 비교 |
 | `POST /auth/register` 409 · 422 | 이메일 · 닉네임 중복(문장), 동의 누락 · 입력 오류(문장)와 `code` 혼재 | 사이트 FE가 이미 문장 비교로 분기한다 |
 | 소셜 로그인 · 가입 409 | 계정 생성 경합만 문장(나머지는 `code`) | FE는 일반 문구로 처리 |
@@ -56,9 +56,25 @@
 
 `code`로 통일할지는 PM 결정이다(P7). 바꾸면 기존 클라이언트가 읽는 형식이 바뀌므로 이번에는 손대지 않았다.
 
-이번에 확인한 BE 결함 1건(고치지 않음): **Hint API는 `PuzzleRuntimeError`(케이스 런타임 파일 없음 등)를 잡지 않는다.**
-레거시 세션의 케이스 파일이 없어지면 처리되지 않은 예외 → 본문 없는 500이 된다(Interaction은 `Puzzle runtime is unavailable.` 500으로 잡는다).
-현재 레거시 케이스는 저장소 파일(`case_001`)뿐이라 실제로는 생기지 않는다. 고칠지 · 어떤 본문으로 할지 결정 필요.
+### 3.1 Hint API 케이스 파일 누락(1103 수정)
+
+수정 전: Hint API는 `CaseRuntimeNotFoundError` 등 케이스 파일 오류를 잡지 않아, 레거시 세션(`content_version` 없음)의
+케이스 파일이 없거나 깨지면 처리되지 않은 예외 → 본문 없는 500(`text/plain` `Internal Server Error`)이었다.
+라우터가 `unlock_hint` 전에 런타임을 읽으므로(`resolve_hint_target`) 세션 잠금 · 차감 · 이벤트 기록 전에 실패한다.
+
+수정 후(새 의미를 만들지 않고 세션 번들 `GET /play-sessions/{id}/bundle`의 기존 매핑을 그대로 쓴다):
+
+| 경우 | 응답 |
+|---|---|
+| 런타임(`server.json`) 또는 Client 콘텐츠 파일 없음 | 404 `Case not found.` |
+| 파일은 있지만 JSON · 검증 오류 | 500 `Case content is unavailable.` |
+
+- 일반 내부 오류(`InvalidHintStateError` 500 `Hint state is invalid.`, 그 밖의 처리되지 않은 예외)와 구분된다.
+- 응답에 파일 경로 · 케이스 ID · 예외 이름을 싣지 않는다.
+- 차감 · 이벤트 기록 없음. 같은 `client_event_id` 재전송도 같은 응답이고, 파일이 복구되면 처음 응답을 그대로 돌려준다.
+- 고정 세션은 게시 묶음(메모리)을 쓰므로 해당 없다.
+- 같은 세션 단위 API 사이에 남은 차이: Interaction은 런타임 오류를 모두 500 `Puzzle runtime is unavailable.`로 답한다
+  (파일 없음도 500). 맞출지는 P7(오류 형식 통일) 결정에 포함한다.
 
 ## 4. FE 호출과 BE 계약 (읽기 전용 비교, 최신 FE `dcba86d`)
 
@@ -127,3 +143,4 @@ FE 현황: `submitFireCabinetLock`은 호출마다 새 UUID를 만든다(재전�
 | 긴급 중단 | 신규 고정 세션 409, 레거시 세션 생성은 그대로 201(현재 동작), 기존 세션 힌트 2단계 200 · 잔액 1 · 재전송 추가 차감 없음 · 다른 요청 409, 조회 응답에 잔액 없음 |
 | NPC 긴급 중단 | 정상 `content_mode: null`, 중단 + 승인 팩 없음 → `reply: null` · `generic`, 재전송 동일, 다른 요청 409, 테스트용 가상 승인 뒤 승인 원문 |
 | Hint 오류 | `HINT_BALANCE_EMPTY`(차감 · 기록 없음), 키 없음 503, 형식 422, 불일치 · 레거시 세션 409 `HINT_REF_MISMATCH`, 단계 건너뜀 409, 세션 없음 404 |
+| Hint 케이스 파일 누락(§3.1) | 파일 없는 레거시 세션 404 `Case not found.`(재전송 동일, 차감 · 기록 없음), 연 단계가 있는 세션에서 파일 삭제 → 재전송 · 새 단계 · Client 파일 없음 404, 깨진 파일 500, 고정 세션 힌트 200 그대로, 복구 뒤 재전송은 처음 응답 · 다음 단계 정상 차감 |

@@ -7,6 +7,8 @@
 - 세션이 고정한 콘텐츠 버전의 원문만 쓴다. 버전을 쓸 수 없으면 차감 없이 409 `CASE_VERSION_UNAVAILABLE`.
 - 새 단계는 발견한 퍼즐에만 연다(`app.services.hint_access`). 발견하지 않은 퍼즐은 없는 퍼즐과 같은 404.
 - 이미 연 단계(재열람)는 잔액 0이어도 무료. 같은 `client_event_id` 재전송은 처음 결과 그대로.
+- 레거시 세션(버전 없음)의 케이스 파일이 없으면 차감 없이 404 `Case not found.`, 파일이 깨졌으면
+  500 `Case content is unavailable.`(세션 번들 `GET /play-sessions/{id}/bundle`과 같은 매핑).
 - 게시 상태(긴급 차단)는 보지 않는다. 차단 중에도 승인 원문을 준다(v0.4.9 §3).
 - LLM 표현 생성 · 미니게임 충전은 아직 없다. NPC 턴(`/npc/turns`)에는 차감 경로가 없다.
 """
@@ -21,6 +23,10 @@ from app.api.v1 import error_responses
 from app.api.v1.npc import get_hint_ref_keys
 from app.db.session import get_db
 from app.schemas.hint import HintApiRequest, HintUnlockProcessResult, HintUnlockRequest
+from app.services.case_content import (
+    CaseClientContentError,
+    CaseClientContentNotFoundError,
+)
 from app.services.hint import (
     HintAccessDeniedError,
     HintLevelSkippedError,
@@ -50,6 +56,7 @@ from app.services.hint_ref import (
 from app.services.interaction import IdempotencyConflictError, PuzzleNotFoundError
 from app.services.pinned_content import PinnedContentStore
 from app.services.play_session import PlaySessionNotFoundError
+from app.services.puzzle_runtime import CaseRuntimeNotFoundError, PuzzleRuntimeError
 from app.services.session_content import (
     CASE_VERSION_UNAVAILABLE,
     CONTENT_VERSION_ERRORS,
@@ -63,6 +70,8 @@ router = APIRouter(
 )
 
 PUZZLE_NOT_FOUND = "Puzzle not found."
+CASE_NOT_FOUND = "Case not found."
+CASE_CONTENT_UNAVAILABLE = "Case content is unavailable."
 
 
 def get_hint_access_rules() -> HintAccessRules:
@@ -191,6 +200,18 @@ async def _process_hint_request(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Client event ID conflicts with a previous interaction.",
+        ) from error
+    except (CaseClientContentNotFoundError, CaseRuntimeNotFoundError) as error:
+        # 레거시 세션이 가리키는 케이스 파일이 없다(고정 세션은 게시 묶음을 쓰므로 해당 없음). 차감하지 않았다.
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=CASE_NOT_FOUND,
+        ) from error
+    except (CaseClientContentError, PuzzleRuntimeError) as error:
+        # 케이스 파일을 읽었지만 형식 · 검증 오류다. 파일 경로 · 예외 내용은 싣지 않는다.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=CASE_CONTENT_UNAVAILABLE,
         ) from error
     except InvalidHintStateError as error:
         raise HTTPException(

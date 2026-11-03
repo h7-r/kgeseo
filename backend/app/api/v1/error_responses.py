@@ -148,10 +148,13 @@ INTERACTION = {
 
 _HINT_404 = error(
     ErrorMessage,
-    "세션 · 퍼즐 · 힌트 단계가 없다(문장 구분). 발견하지 않은 퍼즐도 `Puzzle not found.`다.",
+    "세션 · 퍼즐 · 힌트 단계가 없다(문장 구분). 발견하지 않은 퍼즐도 `Puzzle not found.`다. "
+    f"레거시 세션(`content_version` 없음)의 케이스 파일이 없으면 `{CASE_NOT_FOUND}`"
+    "(세션 번들과 같은 매핑, 차감 없음 · 같은 `client_event_id` 재전송도 같은 응답).",
     PLAY_SESSION_NOT_FOUND,
     "Puzzle not found.",
     "Hint not found.",
+    CASE_NOT_FOUND,
 )
 _HINT_409_DETAILS = (
     CASE_VERSION_UNAVAILABLE,
@@ -166,7 +169,10 @@ _HINT_409_SUMMARY = (
     "같은 `client_event_id`의 같은 요청은 처음 응답을 그대로 200으로 돌려준다."
 )
 _HINT_500 = error(
-    ErrorMessage, "저장된 힌트 상태가 잘못됐다.", "Hint state is invalid."
+    ErrorMessage,
+    "저장된 힌트 상태가 잘못됐거나, 레거시 세션의 케이스 파일을 읽었지만 형식 · 검증 오류다(문장 구분).",
+    "Hint state is invalid.",
+    CASE_CONTENT_UNAVAILABLE,
 )
 
 HINT = {
