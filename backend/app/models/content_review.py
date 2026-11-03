@@ -8,7 +8,11 @@ from app.db.base import Base
 
 
 class ContentReview(Base):
-    """G1~G3 승인 이력 한 건(PM v0.4.3 `ReviewRecord`). 추가만 하고 고치거나 지우지 않는다.
+    """[레거시 · 판정에 쓰지 않음] G1~G3 승인 이력 한 건(PM v0.4.3 `ReviewRecord`).
+
+    통합 뒤 승인 판정 근거는 `npc_approval_reviews`(`app.models.npc_approval_review`)뿐이다. 이 테이블은
+    migration `e2a7c4f9b1d3`을 보존하려고 모델만 남겨 두었고, 앱에는 읽거나 쓰는 경로가 없다.
+    정리(drop) 여부는 별도 결정이다.
 
     (subject_id, subject_version)은 `approval_source(id, version)`의 key다. 케이스 콘텐츠는
     (case_id, content_version), NPC 일반 대사 팩은 (pack_id, pack_version)이다.

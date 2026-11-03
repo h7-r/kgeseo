@@ -10,9 +10,12 @@
 - 레거시 콘텐츠 디렉터리(`app/content/cases`)는 게시 입력으로 받지 않는다(개발용 콘텐츠를 게시본으로 섞지 않는다).
 
 [승인] 승인은 호출하는 쪽이 넘기는 `approval_source`(승인 이력 저장소)로만 정한다. 넘기지 않으면 게이트가
-APPROVALS FAIL로 막는다. 이 모듈은 승인 기록을 만들지 않는다. 영속 승인 이력(`content_reviews`)으로 게시할
-때는 `publish_with_stored_approvals`를 쓴다. NG 판정기 · 나주 로컬 ID 목록도 같다
-(없으면 UNVERIFIED로 막힌다).
+APPROVALS FAIL로 막는다. 이 모듈은 승인 기록을 만들지 않는다. 영속 승인 이력으로 게시할 때는
+`publish_with_stored_approvals`를 쓴다. 판정 근거는 `npc_approval_reviews`의
+`(case_content, case_id, content_version)` 기록뿐이다(`app.services.publication_approval`).
+승인 기록은 `app.services.gate_review.create_gate_review`(검증된 관리자)로만 만든다.
+레거시 테이블 `content_reviews`는 남아 있지만 어떤 판정도 읽지 않는다.
+NG 판정기 · 나주 로컬 ID 목록도 같다(없으면 UNVERIFIED로 막힌다).
 
 [버전 정책] 같은 `(case_id, content_version)`은 한 번만 등록한다(덮어쓰기 · 최신 자동 전환 없음).
 - `published`: 게이트를 모두 통과해 새로 등록했다.
@@ -31,10 +34,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.services.approval_history import ApprovalSource
-from app.services.approval_store import load_approval_source
+from app.schemas.gate_review import ApprovalTarget
+from app.services.approval_history import (
+    ApprovalSource,
+    ApprovalSourceUnavailableError,
+    ReviewRecord,
+)
 from app.services.content_fingerprint import (
     FingerprintError,
     compute_content_fingerprint,
@@ -42,6 +51,7 @@ from app.services.content_fingerprint import (
 )
 from app.services.hint import HintSource
 from app.services.pinned_content import PinnedContentStore
+from app.services.publication_approval import locked_approval_history, snapshot_source
 from app.services.publication_gate import (
     GateCheck,
     NgChecker,
@@ -166,7 +176,7 @@ class ContentPublisher:
 
 
 async def publish_with_stored_approvals(
-    db: AsyncSession,
+    sessions: async_sessionmaker[AsyncSession],
     store: PinnedContentStore,
     bundle: PublicationBundle,
     *,
@@ -174,17 +184,15 @@ async def publish_with_stored_approvals(
     local_ids: Mapping[str, Iterable[str]] | None = None,
     hint_source: HintSource | None = None,
 ) -> PublishReport:
-    """영속 승인 이력으로 게시한다. 승인 기록은 server.json 머리의 (case_id, content_version)으로 읽는다.
+    """DB 승인 이력(`npc_approval_reviews`)으로 게시한다. 대상은 server.json 머리의 (case_id, content_version)이다.
 
-    기록을 읽을 때 잡은 공유 잠금은 게시 판정 · 등록이 끝난 뒤 트랜잭션을 끝내며 푼다(그 사이 철회 기록이
-    끼어들지 않는다). 머리를 읽을 수 없으면 승인 출처 없이 판정한다(게이트가 PARSE · HEADER에서 막는다).
+    `locked_approval_history`가 새 트랜잭션에서 승인 대상 잠금 행을 `FOR UPDATE`로 잡고 최신 커밋 이력을 읽는다.
+    게이트 판정과 저장소 등록을 그 블록 안에서 끝내므로, 승인 append(같은 잠금)는 등록이 끝날 때까지 기다린다.
+    잠금 획득 · 이력 조회가 DB 오류로 실패하면 승인 출처를 쓸 수 없는 것으로 판정한다(APPROVALS FAIL, 등록 없음).
+    머리를 읽을 수 없거나 승인 대상 형식이 아니면 승인 출처 없이 판정한다(게이트가 막는다).
     """
 
-    key = _server_header_key(bundle.server)
-    try:
-        approval_source = (
-            await load_approval_source(db, *key) if key is not None else None
-        )
+    def publish(approval_source: ApprovalSource | None) -> PublishReport:
         return ContentPublisher(
             store,
             approval_source=approval_source,
@@ -192,8 +200,35 @@ async def publish_with_stored_approvals(
             local_ids=local_ids,
             hint_source=hint_source,
         ).publish(bundle)
-    finally:
-        await db.rollback()
+
+    target = _approval_target(bundle.server)
+    if target is None:
+        return publish(None)
+    report: PublishReport | None = None
+    try:
+        async with locked_approval_history(sessions, target) as (_, records):
+            report = publish(snapshot_source(target, records))
+    except SQLAlchemyError:
+        if report is None:
+            return publish(_unavailable_source)
+        # 판정 · 등록은 커밋된 이력으로 끝났다. 실패한 것은 잠금 행 트랜잭션의 commit뿐이다.
+    return report
+
+
+def _unavailable_source(case_id: str, version: int) -> tuple[ReviewRecord, ...]:
+    raise ApprovalSourceUnavailableError()
+
+
+def _approval_target(server: bytes) -> ApprovalTarget | None:
+    key = _server_header_key(server)
+    if key is None:
+        return None
+    try:
+        return ApprovalTarget(
+            target_type="case_content", target_id=key[0], content_version=key[1]
+        )
+    except ValidationError:
+        return None
 
 
 def _server_header_key(server: bytes) -> tuple[str, int] | None:

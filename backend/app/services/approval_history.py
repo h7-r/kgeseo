@@ -17,8 +17,10 @@
 - 세 관문 모두 최종 결정이 approved 일 때만 PASS. revise · escalate · rejected · hold 는 FAIL.
 
 [저장 — `ApprovalLog`] append-only 메모리 저장소. 수정 · 삭제 메서드가 없고, 같은 review_id 를 두 번 받지 않으며,
-`supersedes` 는 이미 있는 기록만 가리킬 수 있다. 같은 규칙의 영속 저장소는 `app.services.approval_store`
-(테이블 `content_reviews`)다.
+`supersedes` 는 이미 있는 기록만 가리킬 수 있다. 같은 규칙의 영속 저장소는
+`app.repositories.approval_history`(테이블 `npc_approval_reviews`)이고, 기록은
+`app.services.gate_review.create_gate_review`(검증된 관리자)로만 만든다. 레거시 테이블 `content_reviews`는
+어떤 판정도 읽지 않는다.
 
 [조회 실패] 승인 출처가 기록을 읽지 못하면(DB 오류 등) `ApprovalSourceUnavailableError` 를 던진다.
 부르는 쪽은 이것을 미승인으로 다룬다(기본 차단).
