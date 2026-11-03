@@ -149,10 +149,13 @@ inp = ["-i", f"{O}/clean.mp4",
 fc = (f"[1:a]aresample=48000,volume=6.0,atrim=0:{s5+0.5:.3f},afade=t=out:st={s5-0.3:.3f}:d=0.8,apad=whole_dur={T:.3f}[room];"
       f"[2:a]aresample=48000,volume=0.32,atrim=0:{T-s5:.3f},afade=t=in:d=1.2,afade=t=out:st={s18-s5+0.3:.3f}:d=2.5,adelay={int(s5*1000)}|{int(s5*1000)},apad=whole_dur={T:.3f}[amb];")
 mix = ["[0:a]", "[room]", "[amb]"]
+NOSFX = os.environ.get("NOSFX", "1") == "1"   # 사용자 요청: 공장 효과음 전부 뺌 (내레이션만)
+if NOSFX:
+    inp = ["-i", f"{O}/clean.mp4"]; fc = ""; mix = ["[0:a]"]; cues = []
 for k, (name, t, vol) in enumerate(cues):
     inp += ["-i", f"{X}/{name}.mp3"]; ms = int(t * 1000)
     fc += f"[{k+3}:a]aresample=48000,volume={vol},adelay={ms}|{ms},apad=whole_dur={T:.3f}[c{k}];"; mix.append(f"[c{k}]")
-fc += f"{''.join(mix)}amix=inputs={len(mix)}:normalize=0:duration=first,loudnorm=I=-16:TP=-1.5:LRA=11[aout]"
+fc += (f"{''.join(mix)}amix=inputs={len(mix)}:normalize=0:duration=first," if len(mix) > 1 else "[0:a]") + "loudnorm=I=-16:TP=-1.5:LRA=11[aout]"
 subprocess.check_call(["ffmpeg","-v","error","-y",*inp,"-filter_complex",fc+f";[0:v]ass={O}/subs.ass[vout]",
     "-map","[vout]","-map","[aout]","-c:v","libx264","-preset","slow","-crf","22","-pix_fmt","yuv420p",
     "-c:a","aac","-b:a","192k","-ar","48000","-movflags","+faststart",f"{O}/waegok_video2_factory.mp4"])
