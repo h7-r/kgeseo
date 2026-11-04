@@ -80,7 +80,7 @@ export default function App() {
   );
 }
 
-/** 주소로 바로 들어온 사람을 게임 또는 로그인으로 보낸다. 로그인 뒤에는 게임이 아니라 사이트로 돌아온다. */
+/** 로그인한 사람을 게임으로 보낸다. 플레이 단추로 로그인·가입을 마친 사람도 여기로 온다. 주소로 바로 들어온 비로그인은 로그인으로. */
 function PlayRedirect() {
   const navigate = useNavigate();
 

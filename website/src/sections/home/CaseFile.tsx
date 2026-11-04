@@ -1,12 +1,9 @@
 import type { CSSProperties } from "react";
 
-import { usePinnedReveal } from "@/hooks/motion";
 import { SCRIM_ATTR } from "@/lib/layout";
 import { FONT } from "@/lib/style";
 import { sectionAnchor } from "@/navigation/subMenus";
 import { COLOR } from "@/styles/tokens";
-
-import { CASE_FILE_PIN_LENGTH } from "./homeLayout";
 
 const FACTS = [
   ["장소", "전라남도 나주 · 앙암바위"],
@@ -14,29 +11,10 @@ const FACTS = [
   ["상태", "왜곡 감지"],
 ] as const;
 
-/**
- * 사건 파일. 앙암바위 절경이 가운데에 멈춘 채 스크롤한 만큼 열린다.
- * 멈춘 뒤 앞 42% 는 카메라가 뒤로 빠지며 밝아지고, 나머지 동안 글이 차례로 드러난다.
- * 그림의 확대·기울기·밝기는 CSS(.case-file)가 --enter·--progress 로 계산한다.
- */
+/** 사건 파일. 앙암바위 절경과 글이 스크롤하면 멈춤 없이 바로 보인다. */
 export default function CaseFile() {
-  const panelRef = usePinnedReveal<HTMLElement>({
-    pinLength: CASE_FILE_PIN_LENGTH,
-    pinGroup: "case-file",
-    writeProgress: true,
-    span: 0.5,
-    revealEnd: 0.9,
-    textStart: 0.42,
-  });
-
   return (
-    <section
-      ref={panelRef}
-      className="u-pin case-file"
-      data-pin-group="case-file"
-      style={sectionStyle}
-      {...sectionAnchor("case-file")}
-    >
+    <section className="case-file" style={sectionStyle} {...sectionAnchor("case-file")}>
       {/* decoding="async" — 그림 풀기를 주 스레드 밖에서 해 스크롤이 안 끊긴다. */}
       <div className="case-file__window">
         <img
@@ -53,21 +31,21 @@ export default function CaseFile() {
       <div className="case-file__shade" aria-hidden="true" />
 
       <div style={textBlockStyle} {...SCRIM_ATTR}>
-        <div className="u-pin-reveal" style={eyebrowStyle}>
+        <div style={eyebrowStyle}>
           <span style={dotStyle} aria-hidden="true" />
           CASE FILE · NAJU-01 · 영산포
         </div>
-        <h2 className="u-pin-reveal" style={titleStyle}>
+        <h2 style={titleStyle}>
           영산강 절벽 위,
           <br />
           약속은 돌아오지 않았다.
         </h2>
-        <p className="u-pin-reveal" style={bodyStyle}>
+        <p style={bodyStyle}>
           영산포와 앙암바위 일대에서 사람들의 기억과 기록이 서로 어긋나기 시작했다.
           <br />
           합동수사본부는 현장 조사관을 이곳에 투입한다.
         </p>
-        <div className="u-pin-reveal" style={factRowStyle}>
+        <div style={factRowStyle}>
           {FACTS.map(([label, value]) => (
             <div key={label} style={factCellStyle}>
               <span style={factLabelStyle}>{label}</span>

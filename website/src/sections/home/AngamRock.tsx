@@ -11,7 +11,7 @@ import { sectionAnchor } from "@/navigation/subMenus";
 import { COLOR, GRADIENT, surfaceFillStyle } from "@/styles/tokens";
 
 import CircleVideo from "./CircleVideo";
-import { ANGAM_PIN_LENGTH } from "./homeLayout";
+import { ANGAM_PIN_DROP, ANGAM_PIN_LENGTH } from "./homeLayout";
 
 interface MissionSpec {
   label: string;
@@ -26,7 +26,7 @@ interface MissionSpec {
 
 const MISSION_SPECS: readonly MissionSpec[] = [
   { label: "난이도", value: "★★★☆☆", width: 197, isStarColor: true },
-  { label: "제한 시간", amount: "30", unit: "분", width: 196 },
+  { label: "플레이 시간", amount: "15~25", unit: "분", width: 196 },
   { label: "플레이 인원", amount: "1", unit: "명", width: 197 },
 ];
 
@@ -34,10 +34,17 @@ const MISSION_SPECS: readonly MissionSpec[] = [
 export default function AngamRock() {
   const navigate = useSiteNavigate();
   // 멈춰 있는 동안 오른쪽 글 덩이(.u-pin-reveal)들이 차례로 드러난다.
-  const revealRef = usePinnedReveal({ pinLength: ANGAM_PIN_LENGTH });
+  const revealRef = usePinnedReveal({ pinLength: ANGAM_PIN_LENGTH, pinDrop: ANGAM_PIN_DROP, span: 0.4, revealEnd: 0.6 });
 
   return (
     <>
+      {/* 글자에 건 translate 를 핀 애니메이션이 덮어쓰지 않게 핀은 바깥 칸에 건다. */}
+      <div className="u-pin" data-pin-group="angam-rock" style={{ ...place(0, 6358, 1838), textAlign: "center" }}>
+        <div className="u-shine-text" style={headlineStyle} {...SCRIM_ATTR}>
+          전설 속으로, 탈출을 시작하라
+        </div>
+      </div>
+
       <div
         className="u-pin"
         data-pin-group="angam-rock"
@@ -112,7 +119,7 @@ export default function AngamRock() {
         {...SCRIM_ATTR}
         className="u-pin"
         data-pin-group="angam-rock"
-        style={{ ...place(1040, 6490, 720), display: "flex", flexDirection: "column", gap: "40px" }}
+        style={{ ...place(1040, 6490, 720), display: "flex", flexDirection: "column", gap: "32px" }}
       >
         {/* 배지에 바로 .u-pin-reveal 을 주면 위아래 여백이 붙어 배지가 뚱뚱해진다. 빈 상자로 감싼다. */}
         <div className="u-pin-reveal" style={{ alignSelf: "flex-start" }}>
@@ -161,8 +168,8 @@ export default function AngamRock() {
           className="u-pin-reveal"
           style={{ fontFamily: FONT.body, fontWeight: 400, fontSize: "26px", lineHeight: 1.7, color: COLOR.textMuted }}
         >
-          영산강 절벽 앙암바위에 얽힌 옛이야기가 지워지고 있습니다. 제한 시간 안에 흩어진 단서를 모아 사라진 전설을
-          되살리고, 현장을 무사히 빠져나오세요.
+          영산강 절벽 앙암바위에 얽힌 옛이야기가 지워지고 있습니다. 나루터에서 능선까지 흩어진 단서를 모아 사라진
+          전설을 되살리세요.
         </div>
 
         <div className="u-pin-reveal" style={{ display: "flex", gap: "24px", alignItems: "center" }}>
@@ -363,4 +370,14 @@ const previewButtonStyle: CSSProperties = {
   color: COLOR.textMuted,
   letterSpacing: "0.5px",
   whiteSpace: "nowrap",
+};
+
+const headlineStyle: CSSProperties = {
+  fontFamily: FONT.display,
+  fontWeight: 400,
+  fontSize: "96px",
+  lineHeight: "124px",
+  letterSpacing: "4px",
+  whiteSpace: "nowrap",
+  ...gradientText("linear-gradient(90deg, #2e509b 0%, #2e4889 50%, #37569e 100%)"),
 };

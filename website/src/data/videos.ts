@@ -50,6 +50,14 @@ export const GAMEPLAY_VIDEOS = {
   birds: { src: "/naju-play-birds-v2.mp4", poster: "/naju-play-birds-v2.webp", title: "나주 · 깨어난 돌새" },
 } satisfies Record<string, Video>;
 
+/** 게임 소개 탭마다 도는 영상. 조작법은 실제 튜토리얼 화면이고 나머지는 촬영·편집본이다. */
+export const VIDEOS_FOR_ABOUT = {
+  overview: { src: "/naju-film-v4.mp4", poster: "/naju-film-v4-poster.webp", title: "게임 소개 · 본부실에서 나주로" },
+  controls: { src: "/about-controls.mp4", poster: "/about-controls.webp", title: "조작법 · 복도 튜토리얼" },
+  story: { src: "/about-story.mp4", poster: "/about-story.webp", title: "스토리 & 세계관 · 나주 앙암바위" },
+  updates: GAMEPLAY_VIDEOS.birds,
+} satisfies Record<string, Video>;
+
 /** 홈 배경 필름. 스크롤로 앞뒤로 넘기므로 키프레임을 촘촘히 구웠다(ffmpeg -g 2 -bf 0). */
 export const RIVER_FILM = { src: "/river-film-v2.mp4" };
 

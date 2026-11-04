@@ -1,4 +1,4 @@
-import { ANGAM_PIN_LENGTH, CASE_FILE_PIN_LENGTH } from "@/sections/home/homeLayout";
+import { ANGAM_PIN_LENGTH } from "@/sections/home/homeLayout";
 
 import { ROUTES } from "./routes";
 
@@ -12,7 +12,6 @@ export type SectionId =
   | "start"
   | "media-hero"
   | "immersive"
-  | "characters"
   | "videos"
   | "plans"
   | "payment"
@@ -29,13 +28,13 @@ interface SectionItem {
   label: string;
   /** 덩이를 찾는 선택자. null 이면 페이지 맨 위. */
   selector: string | null;
-  /** 덩이가 화면에 멈춰 있는(핀) 스크롤 거리(설계 px). 그동안은 맞춤을 하지 않는다. */
+  /** 덩이가 화면에 멈춰 있는(핀) 스크롤 거리(설계 px). */
   pinLength?: number;
 }
 
 interface SubMenu {
   items: readonly SectionItem[];
-  /** false 면 하위 메뉴 줄은 띄우지 않고 스크롤 맞춤만 쓴다. */
+  /** false 면 하위 메뉴 줄은 띄우지 않는다. */
   showBar?: boolean;
 }
 
@@ -48,10 +47,10 @@ const SUB_MENUS: Readonly<Record<string, SubMenu>> = {
     items: [
       { id: "top", label: "처음", selector: null },
       { id: "intro", label: "소개", selector: bySection("intro") },
-      { id: "case-file", label: "사건 파일", selector: bySection("case-file"), pinLength: CASE_FILE_PIN_LENGTH },
+      { id: "case-file", label: "사건 파일", selector: bySection("case-file") },
+      { id: "angam", label: "앙암바위", selector: bySection("angam"), pinLength: ANGAM_PIN_LENGTH },
       { id: "legend-regions", label: "전설 지역", selector: bySection("legend-regions") },
       { id: "scenarios", label: "시나리오", selector: bySection("scenarios") },
-      { id: "angam", label: "앙암바위", selector: bySection("angam"), pinLength: ANGAM_PIN_LENGTH },
       { id: "start", label: "시작하기", selector: bySection("start") },
     ],
   },
@@ -59,7 +58,6 @@ const SUB_MENUS: Readonly<Record<string, SubMenu>> = {
     items: [
       { id: "media-hero", label: "게임 영상", selector: bySection("media-hero") },
       { id: "immersive", label: "몰입 경험", selector: bySection("immersive") },
-      { id: "characters", label: "캐릭터", selector: bySection("characters") },
       { id: "videos", label: "영상 모음", selector: bySection("videos") },
     ],
   },

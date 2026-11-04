@@ -1,9 +1,11 @@
-import type { CSSProperties } from "react";
+import { useRef, type CSSProperties, type MouseEvent } from "react";
 
-import monitorIcon from "@/assets/images/imgMonitor.svg";
+import { openVideoModal } from "@/app/siteState";
 import { activePageStyle, inactivePageStyle } from "@/components/pagerStyles";
 import TabBar from "@/components/TabBar";
 import { ABOUT_CONTENT, ABOUT_TABS, type AboutTabId } from "@/data/about";
+import type { Video } from "@/data/videos";
+import { prefersReducedMotion } from "@/lib/motionPreference";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
 
@@ -14,8 +16,8 @@ interface AboutTabsProps {
 }
 
 /**
- * 게임 소개 탭 다섯 개. 다른 화면은 전부 어두운데 이 구간만 흰 바탕이다(디자인 그대로).
- * 탭마다 제목·정보 줄·사진 설명·설명 문단이 바뀐다.
+ * 게임 소개 탭 네 개. 다른 화면은 전부 어두운데 이 구간만 흰 바탕이다(디자인 그대로).
+ * 탭마다 제목·정보 줄·영상·설명 문단이 바뀐다.
  */
 export default function AboutTabs({ tab, top, onTabChange }: AboutTabsProps) {
   const content = ABOUT_CONTENT[tab];
@@ -35,14 +37,14 @@ export default function AboutTabs({ tab, top, onTabChange }: AboutTabsProps) {
 
       <div style={dividerStyle} />
 
-      {/* 다섯 탭을 같은 칸에 겹쳐 두고 고른 것만 보인다. 칸이 가장 긴 탭에 맞춰져 아래 쪽번호 줄이 움직이지 않는다. */}
+      {/* 네 탭을 같은 칸에 겹쳐 두고 고른 것만 보인다. 칸이 가장 긴 탭에 맞춰져 아래 쪽번호 줄이 움직이지 않는다. */}
       <div style={panelStackStyle}>
         {ABOUT_TABS.map(({ id }) => (
           <AboutPanel key={id} tabId={id} isActive={id === tab} />
         ))}
       </div>
 
-      {/* 쪽 번호 1~5 는 탭 다섯 개와 짝이다. */}
+      {/* 쪽 번호 1~4 는 탭 네 개와 짝이다. */}
       <div style={pagerStyle}>
         <button
           type="button"
@@ -114,20 +116,58 @@ function AboutPanel({ tabId, isActive }: AboutPanelProps) {
         </div>
       </div>
 
-      <div style={imageBoxStyle}>
-        <div style={imageInnerStyle}>
-          <img
-            loading="lazy"
-            decoding="async"
-            src={monitorIcon}
-            alt=""
-            style={{ width: "28px", height: "28px", display: "block" }}
-          />
-          <span style={imageTitleStyle}>{content.imageTitle}</span>
-          <span style={imageCaptionStyle}>{content.imageCaption}</span>
-        </div>
-      </div>
+      <AboutVideo video={content.video} caption={content.videoCaption} isActive={isActive} />
     </div>
+  );
+}
+
+interface AboutVideoProps {
+  video: Video;
+  caption: string;
+  isActive: boolean;
+}
+
+/** 고른 탭의 영상만 받아 돌린다. 숨은 탭까지 받으면 네 편을 한꺼번에 내려받는다. */
+function AboutVideo({ video, caption, isActive }: AboutVideoProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const openLarge = (event: MouseEvent<HTMLButtonElement>) => {
+    const element = videoRef.current;
+    openVideoModal({
+      video,
+      origin: event.currentTarget,
+      originRadius: "16px",
+      startTime: element?.currentTime ?? 0,
+      onReturn: (time) => {
+        if (videoRef.current) videoRef.current.currentTime = time;
+      },
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      className="interactive-card"
+      style={videoBoxStyle}
+      aria-label={`${video.title} 영상 크게 보기`}
+      onClick={openLarge}
+    >
+      {isActive && (
+        <video
+          ref={videoRef}
+          src={video.src}
+          poster={video.poster}
+          autoPlay={!prefersReducedMotion()}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          aria-hidden="true"
+          style={videoStyle}
+        />
+      )}
+      <span style={videoCaptionStyle}>{caption}</span>
+    </button>
   );
 }
 
@@ -221,52 +261,34 @@ const paragraphsStyle: CSSProperties = {
   width: "100%",
 };
 
-const imageBoxStyle: CSSProperties = {
-  width: "520px",
+const videoBoxStyle: CSSProperties = {
+  position: "relative",
+  width: "640px",
   height: "360px",
+  padding: 0,
   borderRadius: "16px",
-  background: COLOR.lightSurface,
+  background: COLOR.navyDeep,
   border: `1px solid ${COLOR.lightBorder}`,
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  justifyContent: "center",
   overflow: "hidden",
+  cursor: "pointer",
   boxSizing: "border-box",
   flexShrink: 0,
 };
 
-const imageInnerStyle: CSSProperties = {
-  flex: "1 0 0",
-  width: "100%",
-  borderRadius: "12px",
-  background: COLOR.lightSurface,
-  border: `1px solid ${COLOR.lightBorder}`,
-  display: "flex",
-  flexDirection: "column",
-  gap: "12px",
-  alignItems: "center",
-  justifyContent: "center",
-  boxSizing: "border-box",
-};
+const videoStyle: CSSProperties = { width: "100%", height: "100%", objectFit: "cover", display: "block" };
 
-const imageTitleStyle: CSSProperties = {
+const videoCaptionStyle: CSSProperties = {
+  position: "absolute",
+  left: 0,
+  right: 0,
+  bottom: 0,
+  padding: "32px 20px 14px",
+  background: "linear-gradient(transparent, rgba(5,8,18,0.82))",
   fontFamily: FONT.mono,
-  fontWeight: 600,
-  fontSize: "18px",
-  color: COLOR.navyDeep,
-  textTransform: "uppercase",
-  whiteSpace: "nowrap",
-};
-
-const imageCaptionStyle: CSSProperties = {
-  fontFamily: FONT.mono,
-  fontWeight: 400,
-  fontSize: "18px",
+  fontSize: "16px",
   lineHeight: "20px",
-  color: COLOR.lightTextMuted,
-  textAlign: "center",
-  width: "100%",
+  color: COLOR.white,
+  textAlign: "left",
 };
 
 // 좌표로 박으면 내용이 짧은 탭에서 쪽번호 위가 휑해 흐름 안에서 내용 바로 뒤에 붙인다.

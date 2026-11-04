@@ -46,7 +46,7 @@ const PAGE_TITLES: Readonly<Partial<Record<string, string>>> = {
   [ROUTES.support]: "고객센터",
   [ROUTES.pricing]: "구독",
   [ROUTES.myPage]: "마이페이지",
-  [ROUTES.media]: "게임 영상 · 캐릭터",
+  [ROUTES.media]: "게임 영상",
   [ROUTES.search]: "검색",
   [ROUTES.play]: "게임 시작",
   [ROUTES.forbidden]: "로그인이 필요합니다",
@@ -96,23 +96,10 @@ export const AUTH_PAGE_PATHS: readonly string[] = [
   ROUTES.resetPassword,
 ];
 
-// 게임 시작 주소로 돌아오면 로그인하자마자 게임이 열리므로 함께 뺀다.
-const NON_RETURN_PATHS: readonly string[] = [...AUTH_PAGE_PATHS, ROUTES.play];
-
-/** 로그인 뒤 돌아올 곳. 인증 화면끼리 오가며 빙빙 돌지 않게 인증 화면이면 홈으로. */
-function currentReturnPath(): string {
-  const { pathname, search } = window.location;
-  return NON_RETURN_PATHS.includes(pathname) ? ROUTES.home : pathname + search;
-}
-
 /** 열린 리다이렉트를 막는다. 이 사이트 안의 절대 경로만 받는다. */
 export function safeNextPath(value: string | null): string | null {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) return null;
   return value;
-}
-
-function loginPathReturningHere(): `${RoutePath}?${string}` {
-  return withQuery(ROUTES.login, { [QUERY.next]: currentReturnPath() });
 }
 
 /** 게임으로 간다. 게임 주소가 없으면 게임 소개로 보낸다. */
@@ -131,7 +118,8 @@ export function useSiteNavigate() {
         return;
       }
       if (getSessionUser()) launchGame(navigate);
-      else navigate(loginPathReturningHere());
+      // 게임을 하려던 사람이다 — 로그인·가입을 마치면 지금 페이지가 아니라 게임으로 바로 잇는다.
+      else navigate(withQuery(ROUTES.login, { [QUERY.next]: ROUTES.play }));
     },
     [navigate],
   );

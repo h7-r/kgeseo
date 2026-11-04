@@ -102,10 +102,6 @@ export default function RegionSelect() {
 
   return (
     <>
-      <div className="u-shine-text" style={headlineStyle} {...sectionAnchor("legend-regions")} {...SCRIM_ATTR}>
-        전설 속으로, 탈출을 시작하라
-      </div>
-
       <div style={{ ...place(932, 4371, 731, 700), pointerEvents: "none" }}>
         <div style={{ position: "absolute", top: "-34.29%", bottom: "-34.29%", left: "-32.83%", right: "-32.83%" }}>
           <img loading="lazy" decoding="async" src={glowRight} alt="" style={glowImageStyle} />
@@ -160,7 +156,8 @@ export default function RegionSelect() {
       </div>
 
       <div
-        style={{ ...place(221, 4495, 657, 523), display: "flex", flexDirection: "column", gap: "48px" }}
+        style={{ ...place(221, 4440, 657, 523), display: "flex", flexDirection: "column", gap: "48px" }}
+        {...sectionAnchor("legend-regions")}
         {...SCRIM_ATTR}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -311,29 +308,15 @@ const circleFillStyle: CSSProperties = {
   width: "100%",
   height: "100%",
   objectFit: "cover",
-  borderRadius: "240px",
+  borderRadius: "208px",
   maxWidth: "none",
-};
-
-const headlineStyle: CSSProperties = {
-  position: "absolute",
-  left: "919px",
-  top: "4156px",
-  transform: "translate(-50%, -50%)",
-  fontFamily: FONT.display,
-  fontWeight: 400,
-  fontSize: "112px",
-  letterSpacing: "4px",
-  textAlign: "center",
-  whiteSpace: "nowrap",
-  ...gradientText("linear-gradient(90deg, #2e509b 0%, #2e4889 50%, #37569e 100%)"),
 };
 
 const photoCircleStyle: CSSProperties = {
   position: "relative",
-  width: "480px",
-  height: "500px",
-  borderRadius: "240px",
+  width: "400px",
+  height: "416px",
+  borderRadius: "208px",
   // 파란 테두리는 도는 고리(.u-rotating-border)가 맡고, 여기는 아주 어두운 남색 한 줄만.
   border: "1px solid rgba(22,38,77,0.6)",
   boxShadow: "0px 0px 40px 0px rgba(14,26,58,0.45)",
@@ -341,7 +324,7 @@ const photoCircleStyle: CSSProperties = {
 };
 
 const captionStyle: CSSProperties = {
-  paddingTop: "32px",
+  paddingTop: "24px",
   display: "flex",
   flexDirection: "column",
   gap: "12px",

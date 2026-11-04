@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 import type { SectionId } from "@/navigation/subMenus";
-import { ANGAM_PIN_LENGTH, CASE_FILE_PIN_LENGTH } from "@/sections/home/homeLayout";
+import { ANGAM_PIN_LENGTH } from "@/sections/home/homeLayout";
 
 // 강을 내려가는 길 한 줄. 진행도 0~1 이 이 길 위의 자리고, 홈의 어느 구역에 있는지가 진행도를 정한다.
 
@@ -16,11 +16,12 @@ interface JourneySection {
 /** 홈 구역 순서. 바뀌는 순간마다 화면이 짧게 일그러진다(FinishPass). */
 export const JOURNEY_SECTIONS: readonly JourneySection[] = [
   { id: "intro", at: 0.03 },
-  { id: "case-file", at: [0.13, 0.28], pinLength: CASE_FILE_PIN_LENGTH },
-  { id: "legend-regions", at: 0.44 },
-  { id: "scenarios", at: 0.58 },
+  { id: "case-file", at: 0.2 },
+  // 필름의 앙암바위 장면(0.72~0.84)에 맞춘다.
   { id: "angam", at: [0.72, 0.84], pinLength: ANGAM_PIN_LENGTH },
-  { id: "start", at: 0.95 },
+  { id: "legend-regions", at: 0.88 },
+  { id: "scenarios", at: 0.92 },
+  { id: "start", at: 0.97 },
 ];
 
 interface Stop {

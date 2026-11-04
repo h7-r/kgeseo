@@ -111,7 +111,7 @@ export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 
           type="button"
           className="carousel-arrow carousel-arrow--prev"
           onClick={() => select(selectedIndex - 1)}
-          aria-label="이전 챌린지"
+          aria-label="이전 영상"
         >
           ‹
         </button>
@@ -136,7 +136,7 @@ export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 
           type="button"
           className="carousel-arrow carousel-arrow--next"
           onClick={() => select(selectedIndex + 1)}
-          aria-label="다음 챌린지"
+          aria-label="다음 영상"
         >
           ›
         </button>

@@ -194,14 +194,10 @@
   }
 }
 
-/* --enter(가운데로 올라오는 동안 0→1)와 --progress(멈춘 뒤 0→1)는 JS 가 넣는다.
-   --camera 는 멈춘 뒤 앞 42% 동안 0→1, 끝에서 느려지게 1-(1-t)² 로 휜다.
-   scale·rotateX·rotate 가 한 숫자에 묶여 줌이 아니라 카메라가 물러나는 느낌이 난다. */
+/* 멈춤 없이 바로 보이는 자리라 그림은 다 물러난 끝 모습(--enter·--camera = 1)으로 둔다. */
 .case-file {
-  --enter: 0;
-  --progress: 0;
-  --camera-linear: clamp(0, calc(var(--progress) / 0.42), 1);
-  --camera: calc(1 - (1 - var(--camera-linear)) * (1 - var(--camera-linear)));
+  --enter: 1;
+  --camera: 1;
   background: #3b3f42 !important; /* 그림이 오기 전엔 그림 평균색 */
 }
 .case-file__window {
@@ -211,7 +207,6 @@
   perspective: 1400px;
   perspective-origin: 60% 40%;
 }
-/* 기울어 있는 동안은 늘 1.3배 이상이라 네 모서리가 화면 밖에 있다 */
 .case-file__image {
   position: absolute;
   inset: 0;

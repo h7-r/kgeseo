@@ -30,8 +30,8 @@ interface IndexEntry {
   lowerBody: string;
 }
 
-// 글이 아닌 칸. kind 는 약관 조각의 종류 표시, icon 은 그림 주소, action 은 마이페이지 동작 이름이라 검색 본문에 넣지 않는다.
-const NON_TEXT_KEYS = new Set(["kind", "icon", "action"]);
+// 글이 아닌 칸. kind 는 약관 조각의 종류 표시, icon 은 그림 주소, action 은 마이페이지 동작 이름, video 는 영상 주소 묶음이라 검색 본문에 넣지 않는다.
+const NON_TEXT_KEYS = new Set(["kind", "icon", "action", "video"]);
 
 /** 글 묶음을 한 줄 문자열로 편다. */
 function flatten(value: unknown): string {
@@ -72,15 +72,14 @@ function buildIndex(): IndexEntry[] {
     ...(IS_ACCOUNT_MANAGEMENT_READY
       ? [entry("비밀번호 찾기", "인증", ROUTES.forgotPassword, "비밀번호 찾기 재설정 인증코드 6자리")]
       : []),
-    entry("영상 · 캐릭터", "컬렉션", ROUTES.media, [
-      "게임 영상 챌린지 탈출의 시작 암호 해독 챌린지 최후의 대결 지워진 기록 복원 멈춘 시계 탈출",
-      "캐릭터 소개 한서진 프로파일러 강민혁 보안 전문가 윤하은 암호 해독가",
+    entry("게임 영상", "컬렉션", ROUTES.media, [
+      "게임 영상 꺼진 화톳불 기우제 강 밑 물굴 바람 장막 깨어난 돌새",
       "몰입감 넘치는 게임 경험 실시간 3D 탐험 정교한 퍼즐 스토리 몰입 멀티플레이 출시 예정",
     ]),
   ];
 
   for (const tab of ABOUT_TABS) {
-    entries.push(entry(`게임 소개 · ${tab.label}`, "소개", ROUTES.about, ABOUT_CONTENT[tab.id]));
+    entries.push(entry(`게임 소개 · ${tab.label}`, "소개", withQuery(ROUTES.about, { [QUERY.tab]: tab.id }), ABOUT_CONTENT[tab.id]));
   }
 
   for (const tab of TERMS_TABS) {

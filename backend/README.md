@@ -44,6 +44,21 @@ GET /api/v1/cases/{case_id}/bundle
 Interaction Endpoint는 현재 `input`, `combine_clues`를 처리한다.
 `inspect`, `navigate`, `select`는 Request Contract에는 포함되지만 Runtime 미구현으로 HTTP 501을 반환한다.
 
+## 웹사이트 로그인까지 띄우기
+
+웹사이트(5175)의 로그인·가입은 이 서버(8000)로 간다. MySQL 8 과 Python 3.13 이 있어야 한다.
+
+```bash
+cd backend
+python3.13 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env                       # DB 비밀번호 · 구글/네이버 키를 채운다
+.venv/bin/alembic upgrade heads            # 갈래가 둘일 수 있어 head 가 아니라 heads
+.venv/bin/python -m scripts.seed_test_account  # 개발용 test123@naver.com / test123
+.venv/bin/uvicorn app.main:app --port 8000
+```
+
+구글·네이버 로그인은 키가 비어 있으면 503 으로 답한다. 웹사이트 쪽 `VITE_GOOGLE_CLIENT_ID` · `VITE_NAVER_CLIENT_ID` 도 같은 값으로 넣는다.
+
 ## 기술 스택
 
 - Python 3.13

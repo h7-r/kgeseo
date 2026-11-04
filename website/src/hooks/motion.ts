@@ -84,10 +84,8 @@ interface PinnedRevealOptions {
   revealEnd?: number;
   /** 같이 멈출 요소들의 data-pin-group 값. 구간마다 다르게 준다. */
   pinGroup?: string;
-  /** true 면 판에 --enter(가운데로 오는 동안 0→1)·--progress(멈춘 뒤 0→1)를 써 준다. */
-  writeProgress?: boolean;
-  /** 멈춘 뒤 이 진행도까지는 글을 숨겨 둔다. 그동안 그림이 먼저 움직인다. */
-  textStart?: number;
+  /** 멈춘 동안 판이 화면 가운데보다 내려와 있는 거리(무대 px). */
+  pinDrop?: number;
 }
 
 /**
@@ -100,8 +98,7 @@ export function usePinnedReveal<T extends HTMLElement = HTMLDivElement>({
   span = 0.52,
   revealEnd = 0.8,
   pinGroup = "angam-rock",
-  writeProgress = false,
-  textStart = 0,
+  pinDrop = 0,
 }: PinnedRevealOptions = {}): RefObject<T | null> {
   const ref = useRef<T>(null);
 
@@ -129,7 +126,7 @@ export function usePinnedReveal<T extends HTMLElement = HTMLDivElement>({
       const scale = stageRect.width / (stage.offsetWidth || DESIGN_WIDTH);
       const stageTop = stageRect.top + window.scrollY;
       const panelCenter = offsetTopWithinStage(panel, stage) + panel.offsetHeight / 2;
-      const pinStart = Math.round(stageTop + panelCenter * scale - viewportHeight / 2);
+      const pinStart = Math.round(stageTop + (panelCenter - pinDrop) * scale - viewportHeight / 2);
       const pinDistance = Math.round(pinLength * scale);
 
       const pinKey = `${pinStart}|${pinDistance}`;
@@ -149,21 +146,9 @@ export function usePinnedReveal<T extends HTMLElement = HTMLDivElement>({
         for (const el of pinned) el.style.transform = push;
       }
 
-      if (writeProgress) {
-        // 한 화면 전부터 0 → 멈추는 순간 1
-        const enter = clamp01(1 - (pinStart - window.scrollY) / viewportHeight);
-        const progress = pinDistance > 0 ? scrolled / pinDistance : 1;
-        const key = `${enter.toFixed(3)}|${progress.toFixed(3)}`;
-        if (lastValues.get(panel) !== key) {
-          lastValues.set(panel, key);
-          panel.style.setProperty("--enter", enter.toFixed(3));
-          panel.style.setProperty("--progress", reduced ? "1" : progress.toFixed(3));
-        }
-      }
       if (reduced) return;
 
-      const overall =
-        pinDistance > 0 ? (scrolled / pinDistance - textStart) / Math.max(0.01, revealEnd - textStart) : 1;
+      const overall = pinDistance > 0 ? scrolled / pinDistance / revealEnd : 1;
       chunks.forEach((el, index) => {
         let ratio = (overall - index * gap) / span;
         ratio = clamp01(ratio);
@@ -189,7 +174,7 @@ export function usePinnedReveal<T extends HTMLElement = HTMLDivElement>({
       window.removeEventListener("resize", schedule);
       resizeObserver.disconnect();
     };
-  }, [pinLength, span, revealEnd, pinGroup, writeProgress, textStart]);
+  }, [pinLength, span, revealEnd, pinGroup, pinDrop]);
 
   return ref;
 }

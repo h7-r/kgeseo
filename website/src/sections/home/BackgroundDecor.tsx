@@ -7,7 +7,7 @@ import ellipseLarge from "@/assets/images/imgEllipse8.svg";
 import { PIN_CLASS } from "@/lib/layout";
 import { glowImageStyle, place } from "@/lib/style";
 
-import { CASE_FILE_PIN_LENGTH, SECTION_OFFSET } from "./homeLayout";
+import { ANGAM_PIN_LENGTH, SECTION_OFFSET } from "./homeLayout";
 
 // 장식은 보이기만 하는 그림인데 커서 단추 위를 덮는다. 클릭을 먹지 않게 pointerEvents 를 끈다.
 // 글로우 그림은 칸보다 커서 사방으로 넘친다. 퍼센트를 px 로 바꾸면 화면 크기에 따라 어긋난다.
@@ -44,11 +44,11 @@ export default function BackgroundDecor() {
     <>
       {/* 고리는 딸린 구간과 같은 만큼 내린다. 앙암바위 뒤 고리는 앙암바위와 같이 멈춘다. */}
       <LayeredRings
-        style={place(606, 3949 + CASE_FILE_PIN_LENGTH + SECTION_OFFSET.regionSelect, 960, 960)}
+        style={place(606, 3949 + ANGAM_PIN_LENGTH + SECTION_OFFSET.regionSelect, 960, 960)}
         placement="regions"
       />
       <LayeredRings
-        style={place(472, 6244 + CASE_FILE_PIN_LENGTH + SECTION_OFFSET.angam, 960, 960)}
+        style={place(472, 6244 + SECTION_OFFSET.angam, 960, 960)}
         placement="angam"
         pinGroup="angam-rock"
       />

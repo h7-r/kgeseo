@@ -33,6 +33,11 @@ interface FaqItem {
 
 export const NOTICES: readonly Notice[] = [
   {
+    category: "업데이트",
+    title: "v0.3 업데이트 — 나주 세 스테이지 · 본부실에서 기차로 이어지는 출동",
+    date: "2026.11.04",
+  },
+  {
     category: "점검",
     title: "정기 점검 안내 (9/5 04:00~06:00)",
     date: "2026.09.04",
