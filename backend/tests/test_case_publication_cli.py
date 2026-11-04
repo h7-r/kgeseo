@@ -16,7 +16,6 @@ from scripts import check_published_restore as restore_cli
 from scripts import publish_case_content as publish_cli
 from scripts import record_gate_review as review_cli
 from tests.test_content_publication import documents
-from tests.test_content_release import write_bundle
 from tests.test_publication_gate import (
     CASE_ID,
     LOCAL_IDS,
@@ -41,10 +40,27 @@ def lines() -> tuple[list[str], callable]:
     return collected, collected.append
 
 
+def write_documents(root: Path, docs) -> str:
+    files, fingerprint = seal(docs)
+    directory = root / CASE_ID / f"v{docs['npc']['content_version']}"
+    directory.mkdir(parents=True, exist_ok=True)
+    for role, content in files.items():
+        (directory / f"{role}.json").write_bytes(content)
+    return fingerprint
+
+
+def write_bundle(root: Path, version: int, answer=None, *, rules=True) -> str:
+    docs = documents(version) if answer is None else documents(version, answer)
+    if rules:
+        docs["npc"].update(ng=[], open=[])
+    return write_documents(root, docs)
+
+
 def write_idmap_bundle(root: Path, version: int = 1) -> str:
     # 게시 경로용 가상 묶음(정답 · 정식 힌트 포함)에 게이트 테스트의 idmap 을 더한다
     docs = documents(version)
     docs["idmap"] = base_documents(version)["idmap"]
+    docs["npc"].update(ng=[], open=[])
     files, fingerprint = seal(docs)
     directory = root / CASE_ID / f"v{version}"
     directory.mkdir(parents=True, exist_ok=True)
@@ -177,32 +193,32 @@ def test_publish_dry_run_shows_every_check_and_blocks_without_db(tmp_path) -> No
     assert "mode=dry-run" in out
     for check in ("PARSE", "FINGERPRINT", "HEADER", "VERSION_ORDER", "CLIENT_SERVER"):
         assert f"  {check} " in out
-    # 승인은 DB 없이 확인할 수 없고, NG 검사기는 없다 — 둘 다 게시를 막는다
+    # NG는 빈 규칙으로 PASS여도 DB 없는 기본 dry-run은 승인 미확인으로 막힌다
     assert "APPROVALS        FAIL" in out and "no trusted approval source" in out
-    assert "NG               UNVERIFIED" in out
+    assert "NG               PASS" in out
     assert (
-        "verdict=BLOCKED" in out and "APPROVALS:FAIL" in out and "NG:UNVERIFIED" in out
+        "verdict=BLOCKED" in out
+        and "APPROVALS:FAIL" in out
+        and "NG:UNVERIFIED" not in out
     )
 
 
-def test_publish_db_view_passes_only_with_all_gates_and_a_checker(
+def test_publish_db_view_passes_with_all_gates_and_pack_rules(
     tmp_path, monkeypatch
 ) -> None:
     fingerprint = write_bundle(tmp_path, 1)
     forbid_publish(monkeypatch)
     fake_view(monkeypatch, approved(fingerprint))
-    code, out = run_publish(
-        publish_args(tmp_path, "--db"), sessions=object(), ng_checker=lambda text: False
-    )
+    code, out = run_publish(publish_args(tmp_path, "--db"), sessions=object())
     assert code == publish_cli.EXIT_OK
     assert "verdict=PUBLISHABLE" in out and "mode=read-only" in out
     assert "G1: approved reviewer=" in out
 
 
-def test_publish_without_ng_checker_stays_blocked_even_when_approved(
+def test_publish_without_rules_stays_blocked_even_when_approved(
     tmp_path, monkeypatch
 ) -> None:
-    fingerprint = write_bundle(tmp_path, 1)
+    fingerprint = write_bundle(tmp_path, 1, rules=False)
     fake_view(monkeypatch, approved(fingerprint))
     code, out = run_publish(publish_args(tmp_path, "--db"), sessions=object())
     assert code == publish_cli.EXIT_BLOCKED
@@ -233,9 +249,7 @@ def test_publish_reports_unapproved_gates(
 ) -> None:
     fingerprint = write_bundle(tmp_path, 1)
     fake_view(monkeypatch, records(fingerprint))
-    code, out = run_publish(
-        publish_args(tmp_path, "--db"), sessions=object(), ng_checker=lambda text: False
-    )
+    code, out = run_publish(publish_args(tmp_path, "--db"), sessions=object())
     assert code == publish_cli.EXIT_BLOCKED
     assert reason in out and line in out
 
@@ -243,9 +257,7 @@ def test_publish_reports_unapproved_gates(
 def test_publish_local_ids_decide_the_idmap_check(tmp_path, monkeypatch) -> None:
     fingerprint = write_idmap_bundle(tmp_path)
     fake_view(monkeypatch, approved(fingerprint))
-    code, out = run_publish(
-        publish_args(tmp_path, "--db"), sessions=object(), ng_checker=lambda text: False
-    )
+    code, out = run_publish(publish_args(tmp_path, "--db"), sessions=object())
     assert code == publish_cli.EXIT_BLOCKED and "LOCAL_IDS:UNVERIFIED" in out
 
     local = tmp_path / "local_ids.json"
@@ -255,7 +267,6 @@ def test_publish_local_ids_decide_the_idmap_check(tmp_path, monkeypatch) -> None
     code, out = run_publish(
         publish_args(tmp_path, "--db", local_ids=str(local)),
         sessions=object(),
-        ng_checker=lambda text: False,
     )
     assert "LOCAL_IDS        PASS" in out and "LOCAL_IDS:" not in out
     # 이 가상 idmap 은 장면 대응이 있어 장면 완료 조건이 필요하다 — 게이트가 그대로 막는다(CLI 가 통과시키지 않는다)
@@ -326,7 +337,6 @@ def test_publish_commit_never_publishes_a_blocked_bundle(tmp_path, monkeypatch) 
         sessions=object(),
         db_name="db",
         root=str(tmp_path),
-        ng_checker=lambda t: False,
     )
     assert code == publish_cli.EXIT_BLOCKED and "G3:missing" in out
 
@@ -334,11 +344,20 @@ def test_publish_commit_never_publishes_a_blocked_bundle(tmp_path, monkeypatch) 
 def test_publish_commit_calls_the_existing_release_and_explains_restore(
     tmp_path, monkeypatch
 ) -> None:
-    fingerprint = write_bundle(tmp_path, 1)
+    docs = documents()
+    docs["npc"].update(
+        ng=[{"text": "blocked sentinel"}],
+        open=[{"text": "topic", "patterns": ["uncertain sentinel"]}],
+    )
+    fingerprint = write_documents(tmp_path, docs)
     fake_view(monkeypatch, approved(fingerprint))
     calls = []
 
     async def publish(service, store, root, case_id, version, **kwargs):
+        checker = kwargs["ng_checker"]
+        assert checker is not None and not checker("ordinary text")
+        assert checker("blocked sentinel")
+        assert checker("uncertain sentinel")
         calls.append((Path(root), case_id, version, kwargs["actor"], kwargs["reason"]))
         snapshot = PublicationSnapshot(
             case_id, version, fingerprint, "published", 1, None
@@ -358,7 +377,6 @@ def test_publish_commit_calls_the_existing_release_and_explains_restore(
         sessions=object(),
         db_name="db",
         root=str(tmp_path),
-        ng_checker=lambda t: False,
     )
     assert code == publish_cli.EXIT_OK, out
     assert calls == [(tmp_path, CASE_ID, 1, "세진", "(가상) 게시")]

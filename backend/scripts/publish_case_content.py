@@ -14,7 +14,8 @@
 - `--commit`은 `--db` 판정이 통과하고, `--confirm-db`가 앱 설정 DB 이름과 같고, 게시 루트가 앱 설정
   `PUBLISHED_CONTENT_ROOT`와 같을 때만 기존 `content_release.publish_and_register`로 게시한다(DB 게시 + 이 프로세스
   저장소 등록). 앱 서버는 별도 프로세스라 재시작해야 복구된다 — `scripts.check_published_restore`로 확인한다.
-- NG 검사기는 아직 없다(PM 기준 미정). 이 명령은 검사기를 넘기지 않으므로 지금은 `NG: UNVERIFIED`로 늘 게시가 막힌다.
+- 읽은 npc.json으로 NG·U 검사기를 만든다. ng/open 누락 또는 비교 불가능한 규칙은 `NG: UNVERIFIED`로 막힌다.
+  둘 다 명시적인 빈 배열이면 유효하며, NG·U 패턴 일치는 FAIL이다(기존 런타임의 보수적 정책).
 - 출력에는 검사 코드 · 상태 · 이유 코드 · fingerprint만 싣는다(정답 · 힌트 원문 · 접속 비밀번호를 싣지 않는다).
 
 종료 코드: 0 게시 가능(또는 게시함), 1 입력 오류, 2 게이트 차단, 3 DB 상태 충돌(이미 다른 묶음 · 전이 불가).
@@ -36,7 +37,9 @@ from app.repositories.npc_publication import (
     NpcPublicationRepository,
 )
 from app.schemas.gate_review import ApprovalTarget
+from app.schemas.npc_content import NpcContentPack
 from app.services.approval_history import GATES, ReviewRecord
+from app.services.case_ng_check import build_case_ng_checker
 from app.services.content_fingerprint import (
     FingerprintError,
     compute_content_fingerprint,
@@ -54,6 +57,7 @@ from app.services.npc_publication import (
 from app.services.pinned_content import PinnedContentStore
 from app.services.publication_approval import snapshot_source
 from app.services.publication_gate import (
+    _NPC_EXTRA_HEADERS,
     NON_BLOCKING_STATUSES,
     GateCheck,
     NgChecker,
@@ -84,7 +88,7 @@ CHECK_HINTS: dict[str, str] = {
     "SCENES": "장면 clear_when 오류(나주는 장면 필수)",
     "LEAK_CLIENT": "client.json 에 정답 · 정식 힌트 원문이 있다",
     "LOCAL_IDS": "FE 로컬 ID 대조 — UNVERIFIED 면 --local-ids 가 없다",
-    "NG": "금지 왜곡 · 해석 유보 검사 — UNVERIFIED 면 NG 검사기가 없다(PM 기준 미정)",
+    "NG": "금지 왜곡 · 해석 유보 검사 — UNVERIFIED 면 ng/open 미제공 또는 비교 불가능한 규칙",
     "GEN_PACK": "일반 팩 재검사 — UNVERIFIED 면 판정 근거(케이스 고유명 등)가 없다",
     "APPROVALS": "G1~G3 승인 — dry-run 은 DB 를 읽지 않아 늘 미확인(--db 로 확인)",
 }
@@ -140,6 +144,28 @@ def read_case_bundle(
             f"file header does not match the recomputed bundle: {listed}"
         )
     return CaseBundle(snapshot, fingerprint)
+
+
+def bundle_ng_checker(bundle: CaseBundle) -> NgChecker | None:
+    """Use the same NPC schema/header handling as the gate, from the read snapshot.
+
+    Invalid NPC schemas remain the gate's responsibility (NPC FAIL); do not
+    expose validation input or turn an invalid pack into empty policy lists.
+    """
+    document = parse_i_json(bundle.snapshot.files["npc"])
+    if not isinstance(document, dict):
+        return None
+    try:
+        pack = NpcContentPack.model_validate(
+            {
+                key: value
+                for key, value in document.items()
+                if key not in _NPC_EXTRA_HEADERS
+            }
+        )
+    except ValidationError:
+        return None
+    return build_case_ng_checker(pack)
 
 
 def load_local_ids(path: str | None) -> Mapping[str, tuple[str, ...]] | None:
@@ -286,10 +312,8 @@ async def run(
     db_name: str,
     configured_root: str,
     out: Callable[[str], None] = print,
-    *,
-    ng_checker: NgChecker | None = None,
 ) -> int:
-    """`ng_checker`는 테스트만 넘긴다(명령줄로는 넘길 수 없다 — PM 기준 전에는 늘 None)."""
+    """Build the checker from this bundle for preview and final gate evaluation."""
 
     if args.commit:
         # DB 를 열기 전에 실행 조건부터 본다
@@ -305,6 +329,7 @@ async def run(
                 "--content-root must equal PUBLISHED_CONTENT_ROOT (the app restores only from that root)"
             )
     bundle = read_case_bundle(args.content_root, args.case_id, args.content_version)
+    ng_checker = bundle_ng_checker(bundle)
     local_ids = load_local_ids(args.local_ids)
     out(
         f"case_id={args.case_id} content_version={args.content_version} "
@@ -354,6 +379,7 @@ async def run(
             args.content_version,
             reason=reason,
             actor=actor,
+            snapshot=bundle.snapshot,
             ng_checker=ng_checker,
             local_ids=local_ids,
         )
