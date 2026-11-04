@@ -3,6 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas.interaction import (
     CombineCluesInteraction,
     CombineCluesPayload,
+    CompletePuzzleInteraction,
+    CompletePuzzlePayload,
     InspectInteraction,
     InspectPayload,
     InteractionProcessResult,
@@ -15,6 +17,7 @@ from app.schemas.interaction import (
 )
 from app.schemas.interaction_api import (
     CombineCluesInteractionRequest,
+    CompleteInteractionRequest,
     InputInteractionRequest,
     InspectInteractionRequest,
     InteractionApiRequest,
@@ -53,7 +56,8 @@ def is_supported_action(request: InteractionApiRequest) -> bool:
         InputInteractionRequest
         | InspectInteractionRequest
         | NavigateInteractionRequest
-        | CombineCluesInteractionRequest,
+        | CombineCluesInteractionRequest
+        | CompleteInteractionRequest,
     )
 
 
@@ -71,7 +75,16 @@ async def process_external_interaction(
 ) -> InteractionProcessResult:
     client_event_id = str(request.client_event_id)
 
-    if isinstance(request, InputInteractionRequest):
+    if isinstance(request, CompleteInteractionRequest):
+        interaction = CompletePuzzleInteraction(
+            client_event_id=client_event_id,
+            client_timestamp=request.client_timestamp,
+            interaction_type="complete",
+            target_id=request.target_id,
+            zone_id=request.zone_id,
+            payload=CompletePuzzlePayload(),
+        )
+    elif isinstance(request, InputInteractionRequest):
         resolved = await _resolve_object_request(
             db, play_session_id, request, client_content_loader
         )

@@ -31,7 +31,7 @@ def validate_case_content_links(
                 continue
             # input · select 모두 Object가 가리키는 퍼즐로 판정한다.
             if (
-                interaction.type in ("input", "select")
+                interaction.type in ("input", "select", "complete")
                 and interaction.target_id not in puzzle_ids
             ):
                 raise CaseContentLinkValidationError(

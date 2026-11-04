@@ -556,7 +556,7 @@ def _non_executable_references(
                 reasons.append(f"interaction_object:{obj.object_id}")
             target = obj.interaction.target_id
             if (
-                obj.interaction.type == "input"
+                obj.interaction.type in ("input", "complete")
                 and puzzle_status.get(target) != EXECUTABLE_STATUS
             ):
                 reasons.append(f"interaction_puzzle:{target}")
