@@ -134,16 +134,6 @@ export function setHandHandler(handler: ((target: Interactable | null) => boolea
 /** 지금 겨눈 대상 — 손에 든 물건을 받을 곳인지 HUD 가 본다 */
 export const aimedTarget = () => aimed;
 
-/**
- * 빈손으로 받는 곳을 겨누면 E 는 「소지품에서 바로 끼우기」다 — 창을 열어 꺼내 들 필요가 없다.
- * 소지품이 등록한다(겨눈 대상이 소지품 속 물건을 받으면 처리하고 true)
- */
-let quickHandler: ((target: Interactable | null) => boolean) | null = null;
-
-export function setQuickHandler(handler: ((target: Interactable | null) => boolean) | null) {
-  quickHandler = handler;
-}
-
 /** 미니게임처럼 E 를 따로 받는 동안 먼저 가로챈다. true 를 돌려주면 그 E 는 여기서 끝난다 */
 let keyInterceptor: ((event: KeyboardEvent) => boolean) | null = null;
 
@@ -163,10 +153,6 @@ if (typeof window !== "undefined") {
       }
       if (!document.pointerLockElement) return;
       if (handHandler?.(aimed)) {
-        event.stopImmediatePropagation();
-        return;
-      }
-      if (quickHandler?.(aimed)) {
         event.stopImmediatePropagation();
         return;
       }

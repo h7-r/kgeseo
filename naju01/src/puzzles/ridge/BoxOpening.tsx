@@ -20,17 +20,7 @@ import { registerInteractable, showNotice } from "../interaction";
 import { inventory, useHeldItems, useWorldItems } from "../inventory";
 import { createCompressedGltfLoader } from "../../loaders/compressedGlb";
 import { M, groundY } from "../units";
-import {
-  LID,
-  LOCK_AT,
-  LOCK_LENGTH,
-  buildBoxBase,
-  buildBoxLid,
-  BOX,
-  buildBronzeKey,
-  buildLanternFrame,
-  buildPadlock,
-} from "./lockedBox";
+import { LID, LOCK_AT, LOCK_LENGTH, buildBoxBase, buildBoxLid, BOX, buildBronzeKey, buildPadlock } from "./lockedBox";
 import { PLATFORM } from "./ridgeShape";
 import { SHADOW_PLAY_CUES, SHADOW_PLAY_FADE, SHADOW_PLAY_SECONDS, createShadowPlay } from "./shadowPlay";
 import { makeVertexColorMaterial } from "./vertexPaint";
@@ -44,17 +34,15 @@ const OPEN_SECONDS = 1.3;
 /** 함을 내려놓는 시간 · 뚜껑이 다 열리는 각 */
 const PLACE_SECONDS = 0.45;
 const LID_OPEN = 1.9;
-/** 주마등이 함 위로 떠오르는 높이(함 기준 m) · 도는 빠르기 */
-const LANTERN = { lift: 0.13, spin: 1.4 };
 /** 영상 판 — 함에서 뒤로 물러난 거리 · 판 가운데 높이(함 위, 미터) */
 const SCREEN = { behind: 0.9, height: 1.55 };
 /** 빛기둥 — 높이(미터) · 밑 · 위 반지름 */
 const BEAM = { height: 2.6, bottom: 0.12, top: 1.2 };
-/** 구렁이상 — 가장 긴 변(미터) */
+/** 구렁이상 — 가장 긴 변(미터). 함 속(0.276 × 0.176, 높이 0.14)에 긴 쪽을 함 길이에 맞춰 눕혀야 뚜껑을 닫아도 들어간다 */
 const SERPENT_URL = `${import.meta.env.BASE_URL}_sf_local/codeprops/serpent.glb`;
-const SERPENT_SIZE = 0.17;
-const LANTERN_ON = new THREE.Color("#FFD79A");
-const LANTERN_OFF = new THREE.Color("#3C3026");
+const SERPENT_SIZE = 0.14;
+/** 속에서 새어 나오는 빛 — 바닥에서 띄우는 높이(함 기준 m) · 크기 */
+const INNER_GLOW = { lift: 0.05, size: 0.5 };
 
 type Phase = "none" | "placed" | "unlocking" | "play" | "done";
 
@@ -86,19 +74,11 @@ function buildBox() {
   const lock = new THREE.Mesh(buildPadlock(), material);
   lock.position.copy(LOCK_AT);
   root.add(lock);
-  // 함 속 — 작은 구렁이상(모형은 뒤에 읽어 끼운다) · 작은 주마등
+  // 함 속 — 바닥에 앉은 작은 구렁이상 하나뿐(모형은 뒤에 읽어 끼운다)
   const serpent = new THREE.Group();
-  serpent.position.set(0.06, BOX.height + 0.002, 0.01);
-  serpent.rotation.y = 0.6;
+  serpent.position.set(0, BOX.floor + 0.001, 0);
   root.add(serpent);
-  const lantern = new THREE.Group();
-  lantern.position.set(-0.08, BOX.height + 0.002, 0);
-  lantern.scale.setScalar(0.9);
-  lantern.add(new THREE.Mesh(buildLanternFrame(), material));
-  const paper = new THREE.MeshBasicMaterial({ color: LANTERN_OFF.clone(), toneMapped: false });
-  lantern.add(new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.033, 0.088, 14).translate(0, 0.05, 0), paper));
-  root.add(lantern);
-  // 빛기둥 — 열리면 함에서 위로 쏟아진다. 안쪽이 밝고 위로 갈수록 풀린다
+  // 빛기둥 — 열리면 함 속에서 위로 쏟아진다. 안쪽이 밝고 위로 갈수록 풀린다
   const beamMaterial = new THREE.ShaderMaterial({
     uniforms: { uStrength: { value: 0 }, uTime: { value: 0 } },
     vertexShader: /* glsl */ `
@@ -144,7 +124,8 @@ function buildBox() {
       toneMapped: false,
     }),
   );
-  glow.scale.setScalar(0.42);
+  glow.scale.setScalar(INNER_GLOW.size);
+  glow.position.set(0, BOX.floor + INNER_GLOW.lift, 0);
   root.add(glow);
   // 꽂을 열쇠 — 끝이 −x(자물통 쪽)를 보게 돌려 둔다
   const key = new THREE.Mesh(buildBronzeKey().translate(0, -0.006, 0), material);
@@ -157,8 +138,6 @@ function buildBox() {
     lidPivot,
     lock,
     key,
-    lantern,
-    paper,
     glow,
     serpent,
     beam,
@@ -384,7 +363,7 @@ export default function BoxOpening() {
     });
   };
 
-  /** 재생 한 프레임 — 빛기둥이 솟고 주마등이 떠올라 돌며, 영상이 끝나면 빛이 함으로 가라앉는다 */
+  /** 재생 한 프레임 — 함 속이 밝아지며 빛기둥이 솟고, 영상이 끝나면 빛이 함으로 가라앉는다 */
   const updatePlay = (dt: number, time: number) => {
     playTime.current += Math.min(dt, 1 / 30);
     const t = playTime.current;
@@ -393,11 +372,7 @@ export default function BoxOpening() {
     const dim = 1 - THREE.MathUtils.smootherstep(t, SHADOW_PLAY_SECONDS - SHADOW_PLAY_FADE, SHADOW_PLAY_SECONDS);
     const rise = THREE.MathUtils.smootherstep(t, 0, 0.9) * dim;
     const light = rise * (0.9 + 0.1 * Math.sin(time * 9));
-    box.lantern.position.y = BOX.height + 0.002 + rise * LANTERN.lift;
-    box.lantern.rotation.y = time * LANTERN.spin;
-    box.paper.color.copy(LANTERN_OFF).lerp(LANTERN_ON, light);
-    box.glow.position.set(box.lantern.position.x, box.lantern.position.y + 0.05, box.lantern.position.z);
-    (box.glow.material as THREE.SpriteMaterial).opacity = light * 0.9;
+    (box.glow.material as THREE.SpriteMaterial).opacity = light;
     box.beamMaterial.uniforms.uStrength.value = light;
     box.beamMaterial.uniforms.uTime.value = time;
     // 영상이 비치는 동안 판도 빛 따라 서서히
@@ -413,7 +388,6 @@ export default function BoxOpening() {
     box.play.mesh.visible = false;
     box.beam.visible = false;
     (box.glow.material as THREE.SpriteMaterial).opacity = 0;
-    box.paper.color.copy(LANTERN_OFF);
     showNotice("빛이 함으로 가라앉았다. 바닥에 작은 구렁이상 하나가 남아 있다 — 아랑사의 함에 왜 이것이.", 6);
   };
 

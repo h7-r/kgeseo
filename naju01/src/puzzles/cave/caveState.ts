@@ -253,10 +253,17 @@ export const setBreath = (seconds: number) => {
   publish();
 };
 
-/** 물속 생물에게 다쳐 숨이 깎인다 — 복어 가시 15 · 먹물 7. 숨이 바닥나면 다음 숨 셈에서 까매진다 */
+/** 생물에게 다쳐도 이만큼(초)은 남긴다 — 생물이 직접 익사시키지 않는다 */
+const HURT_FLOOR_SECONDS = 5;
+
+/**
+ * 물속 생물에게 다쳐 숨이 깎인다 — 복어 가시 15 · 먹물 7. 깎인 숨은 깎인 채로 간다.
+ * 0 까지 깎으면 다음 숨 셈이 「익사」로 보고 숨을 70초로 도로 채워, 숨이 적을 때 복어에 찔리는 쪽이 오히려 이득이었다.
+ * 이미 바닥 아래면 더 깎지도 채우지도 않는다.
+ */
 export function hurtBreath(seconds: number, cause: "spike" | "ink") {
   if (!isUnderwater) return;
-  breath = Math.max(0.01, breath - seconds);
+  breath = Math.max(Math.min(breath, HURT_FLOOR_SECONDS), breath - seconds);
   if (cause === "ink") {
     inkHitAt = performance.now() / 1000;
     inkHits += 1;

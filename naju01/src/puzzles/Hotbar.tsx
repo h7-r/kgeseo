@@ -1,7 +1,7 @@
 /**
  * 빠른 칸 — 화면 왼쪽 위, 세로 넷. 아래쪽은 대사 자리라 비워 둔다.
- * 숫자키 [1]~[8] 로 바로 손에 들고, 같은 키를 다시 누르면 도로 넣는다. 마우스 휠로도 든 것을 바꾼다(끝까지 가면 빈손).
- * 넷이 넘으면 맨 아래에 「+n · [I]」 — 나머지는 소지품 창에서. Canvas 밖 DOM 층
+ * 숫자키 [1]~[8] 로 바로 손에 들고, 같은 키를 다시 누르면 도로 넣는다. 휠로는 바꾸지 않는다 — 트랙패드를 스치기만
+ * 해도 물건이 손에 들려 나왔다. 넷이 넘으면 맨 아래에 「+n · [I]」 — 나머지는 소지품 창에서. Canvas 밖 DOM 층
  */
 import { useEffect, type CSSProperties } from "react";
 
@@ -32,23 +32,8 @@ export default function Hotbar() {
       if (current?.uid === item.uid) inventory.stow();
       else inventory.takeOut(item.uid);
     };
-    const onWheel = (event: WheelEvent) => {
-      if (!document.pointerLockElement) return;
-      const current = inventory.hand();
-      const list = current ? [...inventory.held(), current] : inventory.held();
-      if (!list.length) return;
-      const sorted = [...list].sort((a, b) => a.uid - b.uid);
-      const at = current ? sorted.findIndex((item) => item.uid === current.uid) : -1;
-      const next = at + (event.deltaY > 0 ? 1 : -1);
-      if (next < 0 || next >= sorted.length) inventory.stow();
-      else inventory.takeOut(sorted[next].uid);
-    };
     window.addEventListener("keydown", onKey);
-    window.addEventListener("wheel", onWheel, { passive: true });
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("wheel", onWheel);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   if (!row.length) return null;

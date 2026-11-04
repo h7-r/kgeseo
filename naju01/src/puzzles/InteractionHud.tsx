@@ -2,20 +2,18 @@ import type { CSSProperties } from "react";
 
 import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
 import { aimedTarget, useAimedLabel, useNotice } from "./interaction";
-import { ITEMS, useHandItem, useHeldItems } from "./inventory";
+import { ITEMS, useHandItem } from "./inventory";
 
 /**
- * 겨눈 물건의 [E] 안내와 짧은 알림. 손에 든 것이 있으면 [E] 는 「내려놓기」,
- * 빈손이라도 겨눈 곳이 소지품 속 물건을 받으면 「바로 끼우기」다. Canvas 밖 DOM 층
+ * 겨눈 물건의 [E] 안내와 짧은 알림. 손에 든 것이 있으면 [E] 는 받는 곳의 안내(「제상에 올리기」) 아니면 「내려놓기」.
+ * 빈손이면 겨눈 물건의 안내만 — 소지품 속 물건은 빈손 [E] 로 나오지 않는다. Canvas 밖 DOM 층
  */
 export default function InteractionHud() {
   const aimedLabel = useAimedLabel();
   const hand = useHandItem();
-  const held = useHeldItems();
   const notice = useNotice();
   const target = aimedTarget();
-  const quick = !hand && target?.handLabel ? held.map((item) => target.handLabel?.(item.kind)).find(Boolean) : null;
-  const label = hand ? (target?.handLabel?.(hand.kind) ?? `${ITEMS[hand.kind].name} 내려놓기`) : (quick ?? aimedLabel);
+  const label = hand ? (target?.handLabel?.(hand.kind) ?? `${ITEMS[hand.kind].name} 내려놓기`) : aimedLabel;
   return (
     <>
       {/* 가운데 점 — 본편과 같은 조준점 */}

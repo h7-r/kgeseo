@@ -8,7 +8,7 @@ import { useFrame } from "@react-three/fiber";
 
 import { audio } from "../scene/immersion/audio";
 import { M } from "./units";
-import { registerInteractable, setHandHandler, setQuickHandler, showNotice } from "./interaction";
+import { registerInteractable, setHandHandler, showNotice } from "./interaction";
 import {
   ITEMS,
   inventory,
@@ -35,7 +35,8 @@ export default function WorldItems() {
   );
   const hand = useHandItem();
 
-  // 손에 든 것이 있으면 [E] 는 내려놓기 — 겨눈 곳이 받으면 거기, 아니면 발 앞 땅에
+  // 손에 든 것이 있으면 [E] 는 내려놓기 — 겨눈 곳이 받으면 거기, 아니면 발 앞 땅에.
+  // 빈손 [E] 는 소지품을 건드리지 않는다 — 처음 푸는 사람은 E 를 마구 누르고, 그때마다 물건이 빠져나가면 안 된다.
   useEffect(() => {
     setHandHandler((target) => {
       const item = inventory.hand();
@@ -52,19 +53,6 @@ export default function WorldItems() {
       return true;
     });
     return () => setHandHandler(null);
-  }, []);
-
-  // 빈손으로 받는 곳(홈 · 제상)을 겨누면 [E] 로 소지품에서 바로 끼운다 — 창을 열 필요가 없다
-  useEffect(() => {
-    setQuickHandler((target) => {
-      if (inventory.hand() || !target?.handLabel || !target.receive) return false;
-      const item = inventory.held().find((entry) => target.handLabel?.(entry.kind));
-      if (!item) return false;
-      inventory.consume(item.kind);
-      target.receive(item.kind);
-      return true;
-    });
-    return () => setQuickHandler(null);
   }, []);
 
   return (

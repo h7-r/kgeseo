@@ -14,8 +14,8 @@ const BRONZE = "#A87B3A";
 const BRONZE_DARK = "#6E5024";
 const HOLE = "#120C08";
 
-/** 함 몸통 크기 */
-export const BOX = { width: 0.3, height: 0.15, depth: 0.2 };
+/** 함 몸통 크기 · 판 두께 · 속 바닥 높이 — 속이 비어 있어 뚜껑을 열면 바닥에 둔 것이 보인다 */
+export const BOX = { width: 0.3, height: 0.15, depth: 0.2, wall: 0.012, floor: 0.012 };
 /** 뚜껑 두께 · 경첩(뒤 윗모서리) 자리 */
 export const LID = { thickness: 0.045, hingeY: BOX.height, hingeZ: -BOX.depth / 2 };
 /** 자물통 가운데(함 기준) — 앞바탕 고리에 꿰인다 */
@@ -23,12 +23,14 @@ export const LOCK_AT = new THREE.Vector3(0, BOX.height - 0.035, BOX.depth / 2 + 
 /** 자물통 길이 — 열쇠 구멍은 +x 끝 */
 export const LOCK_LENGTH = 0.085;
 
-/** 몸통 — 판자 결이 보이게 띠 둘, 모서리 감잡이 넷, 앞바탕과 고리 */
+/** 몸통 — 바닥 판과 벽 넷으로 속을 비운다. 판자 결이 보이게 띠 둘, 모서리 감잡이 넷, 앞바탕과 고리 */
 export function buildBoxBase() {
-  const { width, height, depth } = BOX;
-  const parts = [paintedBox(width, height, depth, 0, height / 2, 0, WOOD)];
-  // 속 — 뚜껑을 열면 보이는 어두운 안쪽(판 두께만 남기고 비어 보이게)
-  parts.push(paintedBox(width - 0.024, 0.002, depth - 0.024, 0, height + 0.001, 0, "#160D07"));
+  const { width, height, depth, wall, floor } = BOX;
+  const parts = [paintedBox(width, floor, depth, 0, floor / 2, 0, WOOD)];
+  for (const sz of [-1, 1]) parts.push(paintedBox(width, height, wall, 0, height / 2, sz * (depth - wall) * 0.5, WOOD));
+  for (const sx of [-1, 1]) parts.push(paintedBox(wall, height, depth, sx * (width - wall) * 0.5, height / 2, 0, WOOD));
+  // 속 바닥 — 옻칠이 닳은 어두운 안쪽
+  parts.push(paintedBox(width - wall * 2, 0.001, depth - wall * 2, 0, floor + 0.0005, 0, "#160D07"));
   // 판자 이음 띠
   for (const y of [0.05, 0.1]) parts.push(paintedBox(width + 0.002, 0.004, depth + 0.002, 0, y, 0, WOOD_LIGHT));
   // 모서리 감잡이(ㄱ자 청동판)
@@ -108,20 +110,6 @@ export function buildPadlock() {
   hole.rotateZ(Math.PI / 2);
   hole.translate(LOCK_LENGTH / 2 + 0.001, 0, 0);
   parts.push(paintGeometry(hole, HOLE));
-  return mergeParts(parts);
-}
-
-/** 주마등의 뼈대 — 위아래 대나무 테와 살 여섯. 밑이 원점. 불빛 몸통은 따로 그린다 */
-export function buildLanternFrame() {
-  const parts: THREE.BufferGeometry[] = [];
-  for (const y of [0.004, 0.096])
-    parts.push(
-      paintGeometry(new THREE.TorusGeometry(0.036, 0.004, 5, 18).rotateX(Math.PI / 2).translate(0, y, 0), BRONZE_DARK),
-    );
-  for (let k = 0; k < 6; k++) {
-    const a = (k / 6) * Math.PI * 2;
-    parts.push(paintedBox(0.004, 0.092, 0.004, Math.cos(a) * 0.036, 0.05, Math.sin(a) * 0.036, BRONZE_DARK));
-  }
   return mergeParts(parts);
 }
 
