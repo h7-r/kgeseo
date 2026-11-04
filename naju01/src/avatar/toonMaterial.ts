@@ -110,6 +110,9 @@ const FRAGMENT_DECLARATIONS = `
 uniform vec3 _skinTint;
 uniform vec3 _clothTint;
 uniform vec3 _bottomTint;
+uniform vec3 _clothBase;
+uniform vec3 _bottomBase;
+uniform float _seamFix;
 varying float v_tint;
 varying float v_cloth;
 varying float v_bottom;
@@ -130,9 +133,22 @@ const FRAGMENT_FINISH = `
 `;
 // 살빛과 옷 색을 정점 표식으로 따로 곱한다(몸과 옷이 한 메시). 흰자·이도 피부 표식 안이라
 // 살빛에 물드는데, 흰자는 밝고 무채색이라 그만큼(sclera) 살빛을 걷어 낸다.
+// Meshy 아틀라스는 옷 섬 둘레에 살색 여백이 붙어 있어 보간·밉맵에서 섬 경계가 번진다 — 검은 반바지엔 밝은 실금,
+// 흰 셔츠 소매·밑단엔 검은 실밥처럼 보인다. 구역 평균색(정점 UV 에서 잰다)에서 벗어난 텍셀을 평균색으로 되돌리되,
+// 다른 옷 구역의 색이면 그대로 둔다 — 정점 표식의 밑단 경계는 텍스처의 밑단과 조금 어긋나, 셔츠 구역에 그려진
+// 반바지 텍셀을 흰색으로 칠하면 밑단이 찢어진 듯 보였다. 피부 구역은 눈·눈썹이 정당하게 어두워 손대지 않는다.
 const FRAGMENT_TINT = `#include <map_fragment>
   // 2 = top, 3 = bottom
-  if (v_cloth > 0.5) diffuseColor.rgb *= (v_bottom > 0.5 * v_cloth) ? _bottomTint : _clothTint;
+  if (v_cloth > 0.5) {
+    bool isBottom = v_bottom > 0.5 * v_cloth;
+    vec3 own = isBottom ? _bottomBase : _clothBase;
+    vec3 other = isBottom ? _clothBase : _bottomBase;
+    // 거리는 제곱근 공간에서 — 선형값은 어두운 쪽이 눌려 검은 천 위의 갈색 실금(0.05 근처)이 평균과 구별되지 않는다
+    vec3 seen = sqrt(diffuseColor.rgb);
+    float stray = smoothstep(0.06, 0.18, distance(seen, sqrt(own)))
+      * smoothstep(0.08, 0.2, distance(seen, sqrt(other))) * _seamFix;
+    diffuseColor.rgb = mix(diffuseColor.rgb, own, stray) * (isBottom ? _bottomTint : _clothTint);
+  }
   else if (v_tint > 0.5) {
     float lum = max(max(diffuseColor.r, diffuseColor.g), diffuseColor.b);
     float sat = lum - min(min(diffuseColor.r, diffuseColor.g), diffuseColor.b);
@@ -150,6 +166,11 @@ interface ToonUniforms {
   _clothTint: THREE.IUniform<THREE.Color>;
   /** 하의 색 — 표식 3(naju01/tools 의 하의 표식 굽기가 넣는다) */
   _bottomTint: THREE.IUniform<THREE.Color>;
+  /** 상의·하의 구역의 텍스처 평균색 — 섬 경계 번짐을 되돌릴 기준 */
+  _clothBase: THREE.IUniform<THREE.Color>;
+  _bottomBase: THREE.IUniform<THREE.Color>;
+  /** 번짐 보정 세기 0~1. 평균색을 못 재면 0 */
+  _seamFix: THREE.IUniform<number>;
 }
 
 interface ToonUniformEntry {
@@ -184,6 +205,9 @@ function applyToonShaderPatch(
     _skinTint: { value: new THREE.Color(1, 1, 1) },
     _clothTint: { value: new THREE.Color(1, 1, 1) },
     _bottomTint: { value: new THREE.Color(1, 1, 1) },
+    _clothBase: { value: new THREE.Color(1, 1, 1) },
+    _bottomBase: { value: new THREE.Color(0, 0, 0) },
+    _seamFix: { value: 0 },
   };
   material.userData[TOON_UNIFORMS_KEY] = uniforms;
   material.onBeforeCompile = (shader) => {
@@ -205,6 +229,70 @@ function applyToonShaderPatch(
   material.customProgramCacheKey = () =>
     `toon:${kind}:${config.steps}:${config.threshold}:${config.softness ?? 0}:sclera`;
   return uniforms;
+}
+
+// ── 옷 구역 평균색 ──
+// 상의(표식 2)·하의(표식 3) 정점의 UV 자리에서 텍스처를 읽어 평균을 낸다. 텍스처는 한 번만 캔버스로 내려 둔다.
+const texelCache = new WeakMap<THREE.Texture, ImageData | null>();
+
+function readTexels(map: THREE.Texture): ImageData | null {
+  if (texelCache.has(map)) return texelCache.get(map) ?? null;
+  let texels: ImageData | null = null;
+  const image = map.image as CanvasImageSource & { width?: number; height?: number };
+  const width = image?.width ?? 0;
+  const height = image?.height ?? 0;
+  if (width && height && typeof document !== "undefined") {
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.drawImage(image, 0, 0);
+        texels = context.getImageData(0, 0, width, height);
+      }
+    } catch {
+      texels = null; // 다른 출처 이미지 등 — 보정만 끈다
+    }
+  }
+  texelCache.set(map, texels);
+  return texels;
+}
+
+interface ZoneBases {
+  cloth: THREE.Color | null;
+  bottom: THREE.Color | null;
+}
+
+/** 표식 2·3 정점이 가리키는 텍셀의 평균색. 정점이 없는 구역은 null */
+function computeZoneBases(geometry: THREE.BufferGeometry, map: THREE.Texture | null): ZoneBases {
+  const none: ZoneBases = { cloth: null, bottom: null };
+  const tint = geometry.getAttribute("_tint");
+  const uv = geometry.getAttribute("uv");
+  if (!map || !tint || !uv) return none;
+  const texels = readTexels(map);
+  if (!texels) return none;
+  const { width, height, data } = texels;
+  const sums = { cloth: [0, 0, 0, 0], bottom: [0, 0, 0, 0] };
+  for (let i = 0; i < tint.count; i += 1) {
+    const mark = tint.getX(i);
+    const zone = mark > 2.5 ? sums.bottom : mark > 1.75 ? sums.cloth : null;
+    if (!zone) continue;
+    const u = uv.getX(i) - Math.floor(uv.getX(i));
+    const v = uv.getY(i) - Math.floor(uv.getY(i));
+    // flipY 가 꺼진(GLTF) 텍스처는 v = 0 이 이미지 첫 줄이다
+    const row = Math.min(height - 1, Math.floor((map.flipY ? 1 - v : v) * height));
+    const column = Math.min(width - 1, Math.floor(u * width));
+    const at = (row * width + column) * 4;
+    zone[0] += data[at];
+    zone[1] += data[at + 1];
+    zone[2] += data[at + 2];
+    zone[3] += 1;
+  }
+  // 캔버스 값은 sRGB — 셰이더의 map 은 선형이라 같은 공간으로 옮긴다
+  const toColor = ([r, g, b, n]: number[]) =>
+    n ? new THREE.Color(r / n / 255, g / n / 255, b / n / 255).convertSRGBToLinear() : null;
+  return { cloth: toColor(sums.cloth), bottom: toColor(sums.bottom) };
 }
 
 // ── 살결/옷 가르기 ──
@@ -354,6 +442,12 @@ export function applyToon(
     const created = sources.map((source) => {
       const { material, uniforms } = createToonMaterial(source, buildConfig, kind);
       material.userData[TOON_SOURCE_KEY] = source;
+      if (kind !== "hair") {
+        const bases = computeZoneBases(object.geometry, material.map);
+        if (bases.cloth) uniforms._clothBase.value.copy(bases.cloth);
+        if (bases.bottom) uniforms._bottomBase.value.copy(bases.bottom);
+        uniforms._seamFix.value = bases.cloth || bases.bottom ? 1 : 0;
+      }
       entries.push({ uniforms, kind });
       return material;
     });

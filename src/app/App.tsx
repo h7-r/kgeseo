@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react"
 import { useLocation } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { PointerLockControls, Preload } from "@react-three/drei";
-import { Bloom, EffectComposer, Vignette } from "@react-three/postprocessing";
+import { Bloom, EffectComposer, SMAA, Vignette } from "@react-three/postprocessing";
 import { Leva } from "leva";
 import * as THREE from "three";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
@@ -248,6 +248,8 @@ export default function App() {
             {manga && <MangaEffect {...manga.effect} />}
             <Bloom intensity={0.45} luminanceThreshold={0.85} mipmapBlur />
             <Vignette offset={0.36} darkness={0.28} />
+            {/* 깊이로 그은 펜선과 실루엣은 MSAA 2 로는 계단이 남는다 — 마지막에 SMAA 로 편다 */}
+            <SMAA />
           </EffectComposer>
         )}
 
