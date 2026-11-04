@@ -81,6 +81,9 @@ export function updateAim(camera: THREE.Camera, isActive: boolean) {
 
 export const useAimedLabel = () => useSyncExternalStore(signal.subscribe, () => aimed?.label ?? null);
 
+/** 지금 등록된 대상 id(정렬) — 개발 도구가 FE 로컬 ID 보고에 쓴다. 등록부를 바꾸지 않는다 */
+export const listInteractableIds = () => [...targets.keys()].sort();
+
 /** 지금 겨눈 대상의 id — 매 프레임 읽는 강조(빛남)가 쓴다 */
 export const aimedId = () => aimed?.id ?? null;
 
