@@ -339,6 +339,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
               holdOnboarding(onboarding, returnTo);
               navigate(ROUTES.socialOnboarding);
             }}
+            returnTo={returnTo}
           />
         </>
       )}
