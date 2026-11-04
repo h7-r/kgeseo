@@ -6,7 +6,7 @@ import { FLOOR_Y } from "./caveState";
 import { DIAL, DIAL_FACE, DIAL_GRIPS, FLOAT_SLOTS, GEAR_POST, GEAR_Y, TABLET } from "./ringDoorShape";
 
 /** 살이 테 밖으로 나오는 길이(미터) · 살이 앞면에 얹히는 깊이 */
-const SPOKE_OUT = 0.3;
+export const SPOKE_OUT = 0.3;
 const SPOKE_FRONT = DIAL.depth / 2 + 0.02;
 
 interface DoorAssets {

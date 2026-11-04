@@ -19,10 +19,13 @@ export interface Interactable {
   reach: number;
   use: () => void;
   enabled?: () => boolean;
-  /** 손에 든 물건을 받는 곳이면(제상 등) 그 물건에 맞는 안내(「제상에 올리기」), 못 받으면 null — 그때 물건은 발 앞 땅에 놓인다 */
+  /**
+   * 물건을 받는 곳이면(제상 등) 그 물건에 맞는 안내(「제상에 올리기」), 못 받으면 null.
+   * 손에 든 물건이면 못 받을 때 발 앞 땅에 놓이고, 빈손이면 소지품에서 받는 물건을 찾아 바로 쓴다
+   */
   handLabel?: (kind: string) => string | null;
-  /** handLabel 이 받는다고 한 물건을 넘겨받는다 */
-  receive?: (kind: string) => void;
+  /** handLabel 이 받는다고 한 물건을 넘겨받는다. false 를 돌려주면 받지 않은 것 — 물건은 있던 자리(손 · 소지품)에 남는다 */
+  receive?: (kind: string) => void | boolean;
   /** true 면 손에 든 물건을 넘기지 않고 든 채로 쓴다(receive 만 부른다) — 들고 비추는 진주처럼 */
   keepHand?: boolean;
   /** 겨누면 살짝 커지고 밝아질 물체(본편 AimHighlight 와 같은 셈) — 테두리 동그라미 대신 이걸 쓴다 */
@@ -124,7 +127,7 @@ export function updateAimGlow(delta: number) {
   }
 }
 
-/** 손에 든 물건이 있으면 E 는 「내려놓기」다 — 소지품이 등록한다(겨눈 대상을 받아 처리하면 true) */
+/** 물건을 쓰는 E — 손에 든 것을 내려놓거나, 겨눈 곳이 받는 물건을 소지품에서 바로 쓴다. 소지품이 등록한다(처리하면 true) */
 let handHandler: ((target: Interactable | null) => boolean) | null = null;
 
 export function setHandHandler(handler: ((target: Interactable | null) => boolean) | null) {

@@ -1,9 +1,11 @@
 /**
  * 소지품 — 퍼즐에서 얻은 물건을 넣고 뺀다. [I] 로 연다.
  * 물건은 셋 중 한 곳에 있다: 소지품 칸, 손(꺼내 든 것), 땅 위(놓인 것 · 손에서 내려놓은 것).
- * 손에 드는 길은 숫자키와 소지품 창뿐이다 — 빈손 [E] 가 소지품에서 물건을 꺼내 쓰는 일은 없다(물속에서 E 를 더듬다
- * 돌·진주를 잃는 일이 잦았다). 손에 든 것은 [E] 로 내려놓는다 — 겨눈 곳이 받아 주면(제상 등) 거기, 아니면 발 앞 땅에.
- * 땅 위 것은 [E] 로 줍는다. 서버 계약에는 아직 아이템이 없어 앞단에서만 들고 있는 상태다.
+ * 손에 드는 길은 숫자키와 소지품 창뿐이다 — 빈손 [E] 가 소지품에서 물건을 꺼내 들거나 떨어뜨리는 일은 없다(물속에서
+ * E 를 더듬다 돌·진주를 잃는 일이 잦았다). 다만 겨눈 곳이 소지품 속 물건을 꼭 받는 자리면(뜬 돌 홈 · 자물통 등) 빈손
+ * [E] 로 그 물건이 소지품에서 바로 쓰인다 — 맞는 자리, 맞는 물건일 때만이다(findUsable).
+ * 손에 든 것은 [E] 로 내려놓는다 — 겨눈 곳이 받아 주면(제상 등) 거기, 아니면 발 앞 땅에. 땅 위 것은 [E] 로 줍는다.
+ * 서버 계약에는 아직 아이템이 없어 앞단에서만 들고 있는 상태다.
  */
 import { useSyncExternalStore } from "react";
 import * as THREE from "three";
@@ -123,6 +125,15 @@ export const inventory = {
   subscribe: signal.subscribe,
   has: (kind: ItemKind) => held.some((item) => item.kind === kind),
   isFull: () => held.length >= SLOT_COUNT,
+
+  /** 겨눈 곳(accepts = 대상의 handLabel)이 받는 소지품 속 물건 — 칸 순서로 먼저 맞는 하나. 없으면 null */
+  findUsable(accepts: (kind: ItemKind) => string | null) {
+    for (const item of held) {
+      const label = accepts(item.kind);
+      if (label) return { item, label };
+    }
+    return null;
+  },
 
   /** 땅 위에 물건을 놓는다(퍼즐이 내놓는 물건) */
   spawn(kind: ItemKind, position: THREE.Vector3) {

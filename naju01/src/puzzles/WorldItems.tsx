@@ -36,20 +36,25 @@ export default function WorldItems() {
   const hand = useHandItem();
 
   // 손에 든 것이 있으면 [E] 는 내려놓기 — 겨눈 곳이 받으면 거기, 아니면 발 앞 땅에.
-  // 빈손 [E] 는 소지품을 건드리지 않는다 — 처음 푸는 사람은 E 를 마구 누르고, 그때마다 물건이 빠져나가면 안 된다.
+  // 빈손 [E] 는 겨눈 곳이 꼭 받는 물건이 소지품에 있을 때만 그것을 꺼내 쓴다(뜬 돌 홈에 뜬 돌, 자물통에 열쇠).
+  // 그 밖의 빈손 [E] 는 소지품을 건드리지 않는다 — 처음 푸는 사람은 E 를 마구 누르고, 그때마다 물건이 빠져나가면 안 된다.
   useEffect(() => {
     setHandHandler((target) => {
-      const item = inventory.hand();
-      if (!item) return false;
-      const name = ITEMS[item.kind].name;
-      if (target?.handLabel?.(item.kind)) {
-        if (!target.keepHand) inventory.releaseHand();
-        target.receive?.(item.kind);
-      } else {
-        inventory.dropHand();
-        audio.play("똑");
-        showNotice(`${withObjectParticle(name)} 내려놓았다.`, 2);
+      const held = inventory.hand();
+      if (held) {
+        if (target?.handLabel?.(held.kind)) {
+          if (target.receive?.(held.kind) !== false && !target.keepHand) inventory.releaseHand();
+        } else {
+          inventory.dropHand();
+          audio.play("똑");
+          showNotice(`${withObjectParticle(ITEMS[held.kind].name)} 내려놓았다.`, 2);
+        }
+        return true;
       }
+      if (!target?.handLabel) return false;
+      const usable = inventory.findUsable(target.handLabel);
+      if (!usable) return false;
+      if (target.receive?.(usable.item.kind) !== false && !target.keepHand) inventory.consume(usable.item.kind);
       return true;
     });
     return () => setHandHandler(null);

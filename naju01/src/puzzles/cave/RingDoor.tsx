@@ -1,8 +1,11 @@
 /**
  * 물레 고리문 — 큰 방 뒷벽 앞에 선 큰 돌바퀴. 얼굴에 고리 셋이 겹쳐 있고 고리마다 틈이 하나씩 있다. 틈 셋이 위 눈금에 모이면
  * 바퀴가 옆으로 굴러가고 뒤의 아치 통로가 드러난다.
- *   돌 물레(다이얼) — 넓적한 돌판에 뜬 돌 모양 홈 넷이 파여 있다. 뜬 돌 넷을 다 끼워야 돌아간다. [E] 를 꾹 누르면 한 눈금씩
- *   톱니돌 홈 셋 — 톱니돌을 끼운 고리만 물레를 따라 한 눈금씩 돈다. 빈손으로 [E] 하면 도로 뺀다
+ *   돌 물레(다이얼) — 넓적한 돌판에 뜬 돌 모양 홈 넷이 파여 있다. 뜬 돌을 가진 채 물레 어디든 겨눠 [E] 하면 빈 홈에
+ *   차례로 들어가고(홈을 정확히 겨눌 필요 없다), 한 번 들어간 돌은 빠지지 않는다. 넷을 다 끼워야 돌아간다 — 물레 어디든
+ *   겨눠 [E] 를 꾹 누르면 한 눈금씩
+ *   톱니돌 홈 셋 — 위 홈부터 차례로만 끼운다: 위 톱니돌을 끼우고 물레를 한 번 돌려야 다음 홈이 열린다(한 번 열린 홈은
+ *   돌을 빼도 닫히지 않는다). 톱니돌을 끼운 고리만 물레를 따라 한 눈금씩 돈다. 빈손으로 [E] 하면 도로 뺀다
  *   숫자판은 하나 — 고리마다 틈에 화살이 있어 바깥 숫자를 가리킨다. 그 수만큼 물레를 돌리면 틈이 위(0)에 선다
  * 치수와 모양은 ringDoorShape, 비석 · 새김 그림은 ringDoorArt. 규칙·상태는 가까이 가면 안내판에 뜬다.
  */
@@ -33,7 +36,7 @@ import {
   useCaveShown,
 } from "./caveState";
 import { buildHintStele, buildStele, makeDialFaceTexture, makeWheelFaceTexture } from "./ringDoorArt";
-import { DialWheel, GearPost, Steles } from "./ringDoorParts";
+import { DialWheel, GearPost, SPOKE_OUT, Steles } from "./ringDoorParts";
 import {
   DARK,
   DIAL,
@@ -64,6 +67,9 @@ import {
 } from "./ringDoorShape";
 
 const FLOAT_SLOT_NAMES = ["위", "오른쪽", "아래", "왼쪽"];
+/** 물레를 겨누는 너비 — 돌판에 살 손잡이까지. 뜬 돌 끼우기도 돌리기도 이 안이면 된다 */
+const DIAL_AIM_RADIUS = DIAL.radius + SPOKE_OUT;
+const countFilled = (slots: boolean[]) => slots.filter(Boolean).length;
 
 function createDoorAssets() {
   const wheelFaceTexture = makeWheelFaceTexture();
@@ -169,6 +175,8 @@ export default function RingDoor() {
     floatsRef.current = floats;
     gearsRef.current = gears;
   }, [floats, gears]);
+  /** 끼울 수 있게 열린 톱니돌 홈 수 — 위 홈은 늘 열려 있고, 끼운 홈 아래는 물레를 한 번 돌리면 열린다 */
+  const openGearSlots = useRef(1);
   const angles = useRef(RINGS.map((ring) => ring.start));
   const dialAngle = useRef(0);
   const shownDial = useRef(0);
@@ -189,46 +197,44 @@ export default function RingDoor() {
   /** 화면 고정이 매 프레임 읽는 바퀴 자리(유닛) */
   const wheelSpot = useMemo(() => new THREE.Vector3(), []);
 
-  // 겨누는 자리(유닛) — 다이얼 홈 넷은 돌판과 같이 돌지만 판정은 처음 자리로 넉넉히 잡는다
+  // 겨누는 자리(유닛) — 물레는 가운데 한 점에 넓은 반지름으로, 홈 넷을 따로 겨누지 않는다
   const spots = useMemo(() => {
     const dialFront = (DIAL.z - DIAL.depth / 2) * M;
     return {
-      floats: Array.from({ length: FLOAT_SLOTS }, (_, k) => {
-        const a = (k * Math.PI) / 2;
-        return new THREE.Vector3(
-          (DIAL.x + Math.sin(a) * DIAL.socketRadius) * M,
-          (DIAL.y + Math.cos(a) * DIAL.socketRadius) * M,
-          dialFront,
-        );
-      }),
       dial: new THREE.Vector3(DIAL.x * M, DIAL.y * M, dialFront),
-      // 물레 둘레 — 어디를 겨눠도 잡고 돌릴 수 있게 둘레를 따라 여럿
-      rim: Array.from({ length: 12 }, (_, i) => {
-        const a = (i / 12) * Math.PI * 2;
-        return new THREE.Vector3(
-          (DIAL.x + Math.cos(a) * (DIAL.radius - 0.05)) * M,
-          (DIAL.y + Math.sin(a) * (DIAL.radius - 0.05)) * M,
-          dialFront,
-        );
-      }),
       gears: GEAR_Y.map((y) => new THREE.Vector3(GEAR_POST.x * M, y * M, (GEAR_POST.z - 0.15) * M)),
       tablet: new THREE.Vector3(TABLET.x * M, TABLET.y * M, TABLET.z * M),
       door: new THREE.Vector3(WHEEL_CENTER.x * M, WHEEL_CENTER.y * M, WHEEL_CENTER.z * M),
     };
   }, []);
 
-  const insertFloat = (k: number) => {
-    if (floatsRef.current[k]) return;
-    setFloats((previous) => previous.map((filled, i) => (i === k ? true : filled)));
+  /** 뜬 돌을 빈 홈에 차례로(위 → 오른쪽 → 아래 → 왼쪽) 끼운다. 한 번 끼운 돌은 빠지지 않는다 */
+  const insertFloat = () => {
+    const k = floatsRef.current.indexOf(false);
+    if (k < 0) return false;
+    floatsRef.current = floatsRef.current.map((filled, i) => (i === k ? true : filled));
+    setFloats(floatsRef.current);
     audio.play("똑");
-    const count = floatsRef.current.filter(Boolean).length + 1;
-    if (count === FLOAT_SLOTS) showNotice("뜬 돌 넷이 홈에 꼭 맞게 들어갔다. 물레가 묵직하게 걸린다.", 4);
+    const count = countFilled(floatsRef.current);
+    showNotice(
+      count === FLOAT_SLOTS
+        ? "뜬 돌 넷이 홈에 꼭 맞게 들어갔다. 물레가 묵직하게 걸린다."
+        : `뜬 돌이 ${FLOAT_SLOT_NAMES[k]} 홈에 들어갔다. (${count}/${FLOAT_SLOTS})`,
+      count === FLOAT_SLOTS ? 4 : 2.5,
+    );
+    return true;
   };
+  /** 톱니돌은 위 홈부터 — 열리지 않은 홈이면 거절한다(물건은 손 · 소지품에 남는다) */
   const insertGear = (k: number) => {
-    if (gearsRef.current[k]) return;
+    if (gearsRef.current[k]) return false;
+    if (k >= openGearSlots.current) {
+      showNotice("홈이 꽉 막혀 있다 — 위 홈부터 차례로. 위 톱니돌을 끼우고 물레를 한 번 돌리면 다음 홈이 열린다.", 4);
+      return false;
+    }
     setGears((previous) => previous.map((filled, i) => (i === k ? true : filled)));
     audio.play("단서");
     showNotice(`${RINGS[k].name}가 물레에 물렸다. 이제 물레를 돌리면 같이 돈다.`, 3.5);
+    return true;
   };
   const removeGear = (k: number) => {
     if (!gearsRef.current[k]) return;
@@ -240,11 +246,13 @@ export default function RingDoor() {
     audio.play("똑");
     showNotice(`${RINGS[k].name}에서 톱니돌을 뺐다. 그 고리는 지금 자리에 멈춘다.`, 3);
   };
-  /** 다이얼을 눈금만큼 돌린다 — 물린 고리가 제 비율로 따라 돈다 */
+  /** 다이얼을 눈금만큼 돌린다 — 물린 고리가 제 비율로 따라 돌고, 물린 홈 아래 홈이 열린다 */
   const turn = (notches: number) => {
     dialAngle.current += NOTCH_DEGREES * notches;
     RINGS.forEach((ring, k) => {
-      if (gearsRef.current[k]) angles.current[k] += ring.perNotch * notches;
+      if (!gearsRef.current[k]) return;
+      angles.current[k] += ring.perNotch * notches;
+      openGearSlots.current = Math.min(RINGS.length, Math.max(openGearSlots.current, k + 2));
     });
     setShownAngles([...angles.current]);
     audio.play("똑");
@@ -252,49 +260,21 @@ export default function RingDoor() {
 
   useEffect(() => {
     if (!isShown) return undefined;
+    const filled = countFilled(floats);
     const disposers = [
-      ...spots.floats.map((spot, k) =>
-        registerInteractable({
-          id: `cave-float-${k}`,
-          position: spot,
-          label: `물레 ${FLOAT_SLOT_NAMES[k]} 홈 — 뜬 돌 모양으로 파여 있다`,
-          radius: 0.2 * M,
-          reach: 2.8 * M,
-          // 한 번 끼운 뜬 돌은 꽉 물려 빠지지 않는다 — 끼운 홈은 겨눠지지 않고, 그 자리 [E] 는 물레 돌리기로 넘어간다
-          enabled: () => !isOpen && !floats[k],
-          use: () =>
-            showNotice(
-              "뜬 돌이 꼭 맞을 홈이다. 뜬 돌을 가지고 있으면 [E] 로 바로 끼울 수 있다. 한 번 끼우면 빠지지 않는다.",
-              3.5,
-            ),
-          handLabel: (kind) => (kind === "floatStone" && !floats[k] ? "뜬 돌 끼우기" : null),
-          receive: () => insertFloat(k),
-        }),
-      ),
-      // 물레 돌리기는 [E] 를 누르고 있는 동안 가로채기가 맡는다 — use 는 비워 둔다
+      // 물레 하나가 뜬 돌 끼우기와 돌리기를 다 받는다 — 돌리기는 [E] 를 누르고 있는 동안 가로채기가 맡으니 use 는 안내만
       registerInteractable({
         id: "cave-valve",
         position: spots.dial,
-        label: "물레 돌리기 (E 꾹)",
+        label: filled < FLOAT_SLOTS ? `물레 — 뜬 돌 홈 ${filled}/${FLOAT_SLOTS}` : "물레 돌리기 (E 꾹)",
         highlight: () => dialGroup.current,
-        // 뜬 돌을 다 끼우면 홈이 겨눠지지 않으니 물레 앞면 어디를 겨눠도 돌린다. 그 전엔 가운데만(홈과 겹치지 않게)
-        radius: (floats.filter(Boolean).length >= FLOAT_SLOTS ? DIAL.radius : 0.24) * M,
+        radius: DIAL_AIM_RADIUS * M,
         reach: 2.8 * M,
         enabled: () => !isOpen,
         use: () => {},
+        handLabel: (kind) => (kind === "floatStone" && filled < FLOAT_SLOTS ? "뜬 돌 끼우기" : null),
+        receive: insertFloat,
       }),
-      ...spots.rim.map((spot, i) =>
-        registerInteractable({
-          id: `cave-valve-rim-${i}`,
-          position: spot,
-          label: "물레 돌리기 (E 꾹)",
-          highlight: () => dialGroup.current,
-          radius: 0.22 * M,
-          reach: 2.8 * M,
-          enabled: () => !isOpen,
-          use: () => {},
-        }),
-      ),
       ...spots.gears.map((spot, k) =>
         registerInteractable({
           id: `cave-gear-${k}`,
@@ -348,13 +328,15 @@ export default function RingDoor() {
     ]);
   }, [isShown]);
 
-  // 다이얼은 [E] 를 꾹 누르는 동안 돈다 — keydown 을 가로채고 keyup 에서 놓는다
+  // 다이얼은 [E] 를 꾹 누르는 동안 돈다 — keydown 을 가로채고 keyup 에서 놓는다.
+  // 손에 든 것이 있거나 소지품에 뜬 돌이 있어 끼울 차례면 가로채지 않는다 — 그 E 는 물건 쓰기(WorldItems)가 받는다
   useEffect(() => {
     if (!isShown) return undefined;
     setKeyInterceptor(() => {
-      if (!aimedId()?.startsWith("cave-valve") || inventory.hand()) return false;
-      const filled = floatsRef.current.filter(Boolean).length;
+      if (aimedId() !== "cave-valve" || inventory.hand()) return false;
+      const filled = countFilled(floatsRef.current);
       if (filled < FLOAT_SLOTS) {
+        if (inventory.has("floatStone")) return false;
         showNotice(`물레가 헛돈다 — 뜬 돌 넷을 가운데 홈에 다 끼워야 걸린다. (지금 ${filled}/${FLOAT_SLOTS})`, 3.5);
         wobble.current = 1;
         return true;
@@ -382,16 +364,19 @@ export default function RingDoor() {
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     exposeDevHook("najuDoorDev", {
-      insertFloat: (k: number) => {
-        if (inventory.consume("floatStone")) insertFloat(k);
+      insertFloat: () => {
+        if (inventory.consume("floatStone")) insertFloat();
       },
       fillValve: () => {
-        for (let k = 0; k < FLOAT_SLOTS; k++) if (inventory.consume("floatStone")) insertFloat(k);
+        for (let k = 0; k < FLOAT_SLOTS; k++) if (inventory.consume("floatStone")) insertFloat();
       },
+      // 위 홈부터 차례 규칙은 여기서도 지킨다 — 거절되면 톱니돌은 소지품에 남는다
       insertGear: (k: number) => {
-        if (inventory.consume("gearStone")) insertGear(k);
+        if (inventory.has("gearStone") && insertGear(k)) inventory.consume("gearStone");
       },
       removeGear,
+      openGearSlots: () => openGearSlots.current,
+      dial: () => dialAngle.current,
       turn: (notches: number) => turn(notches),
       angles: () => angles.current.map(wrapDegrees),
       left: () => RINGS.map((ring, k) => notchesLeft(angles.current[k], ring.perNotch)),
@@ -483,11 +468,11 @@ export default function RingDoor() {
     const distance = Math.hypot(camera.position.x / M - WHEEL_CENTER.x, camera.position.z / M - WHEEL_CENTER.z);
     if (distance > PANEL_RANGE || isOpen) setPuzzlePanel("cave-door", null);
     else {
-      const filled = floatsRef.current.filter(Boolean).length;
+      const filled = countFilled(floatsRef.current);
       setPuzzlePanel("cave-door", {
         distance,
         title: "물레 고리문",
-        rule: "여는 법은 큰 비석에 수수께끼로 새겨져 있다. 검게 지워진 말은 왼쪽 작은 비석의 초성과 뜻풀이로 채운다.\n물레는 둘레를 겨눠 [E] 를 꾹, 톱니돌은 빈손 [E] 로 도로 뺀다.",
+        rule: "여는 법은 큰 비석에 수수께끼로 새겨져 있다. 검게 지워진 말은 왼쪽 작은 비석의 초성과 뜻풀이로 채운다.\n뜬 돌은 물레를 겨눠 [E] 로 끼운다(한 번 끼우면 안 빠진다). 물레는 겨눠 [E] 를 꾹.\n톱니돌은 위 홈부터 — 하나 끼우고 물레를 돌려야 다음 홈이 열린다. 빈손 [E] 로 도로 뺀다.",
         diagram: <RingDiagram angles={shownAngles} engaged={gearsRef.current} />,
         rows: [
           { label: "물레", value: `뜬 돌 ${filled}/${FLOAT_SLOTS}`, ok: filled === FLOAT_SLOTS },
