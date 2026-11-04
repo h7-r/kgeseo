@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1 import error_responses
 from app.db.session import get_db
 from app.schemas.interaction import InteractionProcessResult
 from app.schemas.interaction_api import InteractionApiRequest, InteractionApiResponse
@@ -26,6 +27,8 @@ from app.services.interaction import (
     ObjectNotVisibleError,
     PuzzleNotFoundError,
     RequiredCluesMissingError,
+    RequiredItemsNotHeldError,
+    RequiredPuzzlesMissingError,
     ZoneNotCurrentError,
 )
 from app.services.object_resolver import (
@@ -55,6 +58,7 @@ router = APIRouter(
     "/{play_session_id}/interactions",
     response_model=InteractionApiResponse,
     status_code=status.HTTP_200_OK,
+    responses=error_responses.INTERACTION,
 )
 async def create_interaction_endpoint(
     play_session_id: UUID,
@@ -84,6 +88,24 @@ async def create_interaction_endpoint(
             content={
                 "detail": "Required clues are not acquired.",
                 "missing_clue_count": error.missing_clue_count,
+            },
+        )
+    except RequiredPuzzlesMissingError as error:
+        # 단서 부족과 같은 형태. 부족한 퍼즐 ID는 알리지 않는다.
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "detail": "Required puzzles are not completed.",
+                "missing_puzzle_count": error.missing_puzzle_count,
+            },
+        )
+    except RequiredItemsNotHeldError as error:
+        # 단서 부족과 같은 형태. 부족한 아이템 ID는 알리지 않는다.
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content={
+                "detail": "Required items are not held.",
+                "missing_item_count": error.missing_item_count,
             },
         )
     except PlaySessionNotFoundError as error:

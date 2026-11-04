@@ -97,6 +97,8 @@ def make_play_session(hint_levels: dict | None = None) -> PlaySession:
         created_at=now,
         updated_at=now,
         completed_at=None,
+        hint_balance=3,
+        help_used=0,
     )
 
 

@@ -1,0 +1,32 @@
+{
+  "schema_version": "npc-general-pack 0.1",
+  "pack_id": "general_default",
+  "pack_version": 1,
+  "lines": [
+    {
+      "line_id": "GENERIC_PAUSE_01",
+      "text": "여기 왜곡이 짙어서 제 목소리가 잘 닿지 않네요. 잠시만 기다려 주세요.",
+      "use": "pause"
+    },
+    {
+      "line_id": "GENERIC_PAUSE_02",
+      "text": "저는 조용히 따라갈게요. 둘러보고 싶은 곳이 있으면 천천히 가 보세요.",
+      "use": "pause"
+    },
+    {
+      "line_id": "GENERIC_PAUSE_03",
+      "text": "지금은 이 사건 이야기를 하기가 조심스러워요. 둘러보는 건 계속하셔도 돼요.",
+      "use": "pause"
+    },
+    {
+      "line_id": "GENERIC_PAUSE_04",
+      "text": "제 기억이 잠깐 엉켰어요. 막히면 힌트 버튼을 눌러 주세요.",
+      "use": "pause"
+    },
+    {
+      "line_id": "GENERIC_PAUSE_05",
+      "text": "잠시 숨을 고를게요. 그동안 조사수첩을 다시 훑어보는 것도 좋아요.",
+      "use": "pause"
+    }
+  ]
+}

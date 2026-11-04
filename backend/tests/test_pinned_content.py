@@ -342,6 +342,8 @@ def make_play_session(hint_levels: dict | None = None) -> PlaySession:
         created_at=now,
         updated_at=now,
         completed_at=None,
+        hint_balance=3,
+        help_used=0,
     )
 
 
@@ -392,7 +394,10 @@ async def test_interaction_uses_bound_runtime_and_client_loaders() -> None:
 async def test_hint_service_uses_bound_runtime_and_hint_source() -> None:
     bundle = make_bundle()
     db = FakeAsyncSession()
+    # 고정 묶음 로더 · 원문은 같은 버전으로 고정된 세션에서만 쓸 수 있다.
     db.get_result = make_play_session()
+    db.get_result.content_version = 1
+    db.get_result.content_fingerprint = FP_V1
 
     unlocked = await unlock_hint(
         db,
@@ -407,6 +412,8 @@ async def test_hint_service_uses_bound_runtime_and_hint_source() -> None:
 
     read_db = FakeAsyncSession()
     read_db.get_result = make_play_session({"PUZZLE_A": 2})
+    read_db.get_result.content_version = 1
+    read_db.get_result.content_fingerprint = FP_V1
     state = await get_puzzle_hint_state(
         read_db,
         "play-session-id",

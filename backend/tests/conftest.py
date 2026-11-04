@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api.v1.play_sessions import get_new_session_publication_guard
 from app.db.session import get_db
 from app.main import app
 
@@ -108,9 +109,19 @@ def client(db_session: FakeAsyncSession) -> Iterator[TestClient]:
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    # 가짜 DB 세션에는 게시 상태 테이블이 없다. 고정 세션 생성의 게시 상태 확인만 기록용 guard로 바꾼다.
+    # 운영 guard 연결 · 게시 상태별 차단은 test_content_release(_mysql)가 확인한다.
+    app.dependency_overrides[get_new_session_publication_guard] = lambda: (
+        published_guard
+    )
 
     try:
         with TestClient(app) as test_client:
             yield test_client
     finally:
         app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(get_new_session_publication_guard, None)
+
+
+async def published_guard(db: Any, pin: Any) -> None:
+    """테스트용 게시 상태 guard: 저장소에 등록된 버전을 게시 중으로 본다(DB 게시 상태 테이블 없이)."""

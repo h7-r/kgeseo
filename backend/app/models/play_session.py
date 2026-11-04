@@ -118,6 +118,24 @@ class PlaySession(Base):
         nullable=True,
     )
 
+    # 힌트 잔액(PM v0.4.8 §4). 회차 시작 때 설정값 N을 넣고, 새 힌트 단계를 열 때 1씩 줄인다.
+    # 바꾸는 곳은 Hint 서비스(`app.services.hint`)뿐이고, 세션 행 잠금 안에서 0 미만이 되지 않게 확인한다.
+    # 기본값 0은 지급 경로를 거치지 않은 행이 무료 힌트를 받지 않게 하는 안전값이다(fail closed).
+    hint_balance: Mapped[int] = mapped_column(
+        INTEGER,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+
+    # 이 회차에서 새로 연 힌트 단계 수의 합(별 계산용, PM v0.4.9 §4). 재열람은 세지 않는다.
+    help_used: Mapped[int] = mapped_column(
+        INTEGER,
+        nullable=False,
+        default=0,
+        server_default="0",
+    )
+
     # 특정 익명 사용자의 플레이 기록을 찾을 때 사용하기 위한 Index
     __table_args__ = (
         Index(

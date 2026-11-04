@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1 import error_responses
 from app.core.config import settings
 from app.db.session import get_db
 from app.schemas.auth import (
@@ -52,7 +53,9 @@ router = APIRouter(
 
 
 @router.post(
-    "/google", response_model=SocialUserResponse | SocialOnboardingRequiredResponse
+    "/google",
+    response_model=SocialUserResponse | SocialOnboardingRequiredResponse,
+    responses=error_responses.GOOGLE_LOGIN,
 )
 async def login_with_google(
     request: GoogleLoginRequest,
@@ -89,7 +92,9 @@ async def login_with_google(
 
 
 @router.post(
-    "/naver", response_model=SocialUserResponse | SocialOnboardingRequiredResponse
+    "/naver",
+    response_model=SocialUserResponse | SocialOnboardingRequiredResponse,
+    responses=error_responses.NAVER_LOGIN,
 )
 async def login_with_naver(
     request: NaverLoginRequest,
@@ -150,6 +155,7 @@ async def login_with_naver(
     "/register",
     response_model=LocalAuthResponse,
     status_code=status.HTTP_201_CREATED,
+    responses=error_responses.REGISTER,
 )
 async def register_local_account(
     request: LocalRegisterRequest,
@@ -201,7 +207,9 @@ async def register_local_account(
     return LocalAuthResponse(user=local_auth.user_to_payload(user))
 
 
-@router.post("/login", response_model=LocalAuthResponse)
+@router.post(
+    "/login", response_model=LocalAuthResponse, responses=error_responses.LOGIN
+)
 async def login_local_account(
     request: LocalLoginRequest,
     response: Response,
@@ -230,7 +238,11 @@ async def check_email_exists(
     return LocalExistsResponse(exists=await local_auth.email_exists(db, request.email))
 
 
-@router.post("/nickname-exists", response_model=LocalExistsResponse)
+@router.post(
+    "/nickname-exists",
+    response_model=LocalExistsResponse,
+    responses=error_responses.NICKNAME_EXISTS,
+)
 async def check_nickname_exists(
     request: NicknameExistsRequest,
     response: Response,
@@ -269,7 +281,10 @@ def account_link_required_exception() -> HTTPException:
 
 
 @router.post(
-    "/social-onboarding/complete", response_model=SocialUserResponse, status_code=201
+    "/social-onboarding/complete",
+    response_model=SocialUserResponse,
+    status_code=201,
+    responses=error_responses.SOCIAL_ONBOARDING,
 )
 async def complete_social_account(
     request: SocialOnboardingCompleteRequest,

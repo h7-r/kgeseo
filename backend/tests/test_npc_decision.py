@@ -6,12 +6,15 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
+from app.schemas.npc_content import NpcAutoNudgeConfig
 from app.services.npc_decision import (
     AutoIntervention,
     DecisionSignals,
     RuleConfig,
     decide,
+    rule_config_for,
     rule_fires,
     signals_from_events,
 )
@@ -69,8 +72,9 @@ def test_no_rule_means_no_intervention() -> None:
 @pytest.mark.parametrize(
     ("kw", "reason"),
     [
-        ({"since_last_intervention_sec": 59.0}, "cooldown"),
-        ({"interventions_in_session": 3}, "policy_blocked"),
+        # PM v0.4.7: 표시된 제안 사이 180초, 거절 뒤 600초, 퍼즐당 2회
+        ({"since_last_intervention_sec": 179.0}, "cooldown"),
+        ({"since_last_decline_sec": 599.0}, "declined_cooldown"),
         ({"interventions_for_target": 2}, "policy_blocked"),
     ],
 )
@@ -78,6 +82,73 @@ def test_cooldown_and_caps_block(kw: dict, reason: str) -> None:
     decision = decide(signals(**kw))
 
     assert (decision.intervene, decision.reason) == (False, reason)
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"since_last_intervention_sec": 180.0},
+        {"since_last_decline_sec": 600.0},
+        {"interventions_for_target": 1},
+        # 세션당 제한 없음(PM v0.4.7)
+        {"interventions_in_session": 50},
+    ],
+)
+def test_pm_v047_boundaries_allow_intervention(kw: dict) -> None:
+    decision = decide(signals(**kw))
+
+    assert (decision.intervene, decision.reason) == (True, "repeated_incorrect")
+    assert decision.trigger_value == 6
+
+
+def test_pm_v047_server_defaults() -> None:
+    config = RuleConfig()
+
+    assert (
+        config.consecutive_min,
+        config.idle_min_sec,
+        config.max_per_puzzle,
+        config.max_per_session,
+        config.cooldown_sec,
+        config.decline_cooldown_sec,
+    ) == (6, 240.0, 2, None, 180.0, 600.0)
+
+
+def test_case_auto_nudge_overrides_only_given_fields() -> None:
+    overrides = NpcAutoNudgeConfig(
+        consecutive_incorrect_min=3, max_per_session=4, decline_cooldown_seconds=60
+    )
+    config = rule_config_for(overrides)
+
+    assert (config.consecutive_min, config.max_per_session) == (3, 4)
+    assert config.decline_cooldown_sec == 60
+    # 적지 않은 값은 서버 기본값 그대로
+    assert (config.idle_min_sec, config.cooldown_sec, config.max_per_puzzle) == (
+        240.0,
+        180.0,
+        2,
+    )
+    assert rule_config_for(None) == RuleConfig()
+    assert decide(signals(target_consecutive_incorrect=3), config).intervene
+    assert not decide(signals(target_consecutive_incorrect=3)).intervene
+    assert (
+        decide(signals(interventions_in_session=4), config).reason == "policy_blocked"
+    )
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"consecutive_incorrect_min": 0},
+        {"idle_seconds": -1},
+        {"max_per_puzzle": True},
+        {"suggestion_cooldown_seconds": "180"},
+        {"unknown_field": 1},
+    ],
+)
+def test_auto_nudge_config_rejects_invalid_values(bad: dict) -> None:
+    with pytest.raises(ValidationError):
+        NpcAutoNudgeConfig.model_validate(bad)
 
 
 def test_decision_inputs_have_no_hint_level() -> None:
@@ -149,3 +220,15 @@ def test_past_interventions_feed_cooldown_and_caps() -> None:
     assert result.since_last_intervention_sec == 30.0
     assert result.interventions_in_session == 2
     assert result.interventions_for_target == 1
+
+
+def test_past_declines_feed_decline_cooldown() -> None:
+    result = signals_from_events(
+        [],
+        now=NOW,
+        target_puzzle_id="PZ_A",
+        past_declines=[NOW - timedelta(seconds=900), NOW - timedelta(seconds=120)],
+    )
+
+    assert result.since_last_decline_sec == 120.0
+    assert result.interventions_in_session == 0

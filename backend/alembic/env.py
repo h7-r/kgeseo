@@ -11,7 +11,15 @@ from app.db.base import Base
 from app.models.anonymous_session import AnonymousSession
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
+from app.models.content_review import ContentReview
 from app.models.interaction_event import InteractionEvent
+from app.models.npc_approval_review import NpcApprovalReview, NpcApprovalTarget
+from app.models.npc_publication import (
+    NpcContentVersion,
+    NpcPublicationEvent,
+    NpcPublicationState,
+)
+from app.models.npc_turn_idempotency import NpcTurnRequest, NpcTurnResponseBody
 
 # PlaySession 모델도 Alembic의 Base.metadata에 등록되도록 import한다.
 from app.models.play_session import PlaySession

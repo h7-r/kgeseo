@@ -16,6 +16,7 @@ from app.services.npc_line_supply import (
     generic_line_approval,
     policy_rules_from_pack,
 )
+from tests.pack_policy_stub import passing_test_policy
 from tests.test_pinned_content import CASE_ID, make_bundle, make_npc
 
 # 가상 테스트 데이터. 실제 PM 콘텐츠 · 실제 승인 기록이 아니다.
@@ -281,12 +282,18 @@ def test_general_pack_needs_approval_history() -> None:
     pack = general_pack()
     log = approved_log(("general_default", 1), general_pack_fingerprint(pack))
 
-    assert general_pack_approved(pack, None) is False
-    assert general_pack_approved(pack, log.source()) is True
+    assert general_pack_approved(pack, None, passing_test_policy) is False
+    assert general_pack_approved(pack, log.source(), passing_test_policy) is True
     assert all(
-        line.approved for line in general_pack_line_provider(pack, log.source())()
+        line.approved
+        for line in general_pack_line_provider(
+            pack, log.source(), passing_test_policy
+        )()
     )
-    assert not any(line.approved for line in general_pack_line_provider(pack, None)())
+    assert not any(
+        line.approved
+        for line in general_pack_line_provider(pack, None, passing_test_policy)()
+    )
 
 
 def test_generic_line_approval_requires_approved_pack_with_same_text() -> None:
@@ -299,10 +306,17 @@ def test_generic_line_approval_requires_approved_pack_with_same_text() -> None:
         ("general_default", 1), general_pack_fingerprint(altered)
     )
 
-    approve = generic_line_approval(pack, log.source(), PM_GENERIC_PUZZLE_LINES)
-    unapproved = generic_line_approval(pack, None, PM_GENERIC_PUZZLE_LINES)
+    approve = generic_line_approval(
+        pack, log.source(), PM_GENERIC_PUZZLE_LINES, passing_test_policy
+    )
+    unapproved = generic_line_approval(
+        pack, None, PM_GENERIC_PUZZLE_LINES, passing_test_policy
+    )
     wrong_text = generic_line_approval(
-        altered, altered_log.source(), PM_GENERIC_PUZZLE_LINES
+        altered,
+        altered_log.source(),
+        PM_GENERIC_PUZZLE_LINES,
+        passing_test_policy,
     )
 
     assert approve("NPC_GENERIC_PUZZLE_02") is True

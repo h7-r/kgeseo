@@ -29,7 +29,11 @@ def validate_case_content_links(
             interaction = obj.interaction
             if interaction is None:
                 continue
-            if interaction.type == "input" and interaction.target_id not in puzzle_ids:
+            # input · select 모두 Object가 가리키는 퍼즐로 판정한다.
+            if (
+                interaction.type in ("input", "select")
+                and interaction.target_id not in puzzle_ids
+            ):
                 raise CaseContentLinkValidationError(
                     f"Client Object '{obj.object_id}' references missing puzzle "
                     f"'{interaction.target_id}'."

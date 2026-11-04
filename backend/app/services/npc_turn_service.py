@@ -7,24 +7,47 @@
   같은 `client_event_id` 재전송 여부를 가리려고 플레이어 메시지는 SHA-256 만 남긴다.
 - 재전송: 같은 요청이면 저장된 결과를 돌려준다. 승인 대사는 그때의 승인 콘텐츠에서 line_id 로 다시 읽고
   (승인이 빠졌으면 null), 생성 대사는 저장하지 않았으므로 null 이다.
+- PM v0.4.7: 자동 개입 설정은 서버 기본값에 케이스 `npc.json.auto_nudge`를 덮어쓴다. 횟수 · 쿨다운은 FE가 보고한
+  표시(`npc_suggestion_shown`) · 거절(`npc_suggestion_declined`) 기록으로만 센다(`npc_suggestion_events`).
+- `suggest_hint`에는 내부 puzzle_id 대신 `hint_ref`를 싣는다. 발급 키가 없으면 `suggest_hint`를 내지 않는다(fail closed).
+  이벤트에는 내부 puzzle_id를 남긴다.
+- 케이스 대사 승인 · 게시 상태(`case_access`, 운영은 `npc_case_access.read_case_npc_access`): 계산 전에 잠금 없이
+  읽고, 이벤트 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 근거가 바뀌었으면(철회 · 차단이 사이에 commit) 확정 전에
+  다시 계산한다. 멱등 처리는 기존 `interaction_events`(`client_event_id`) 하나다.
+- 긴급 차단(blocked, PM v0.4.6 · v0.4.12): 새 턴 · 재전송 모두 케이스 콘텐츠(대사 · 힌트 제안)를 쓰지 않고 LLM도
+  부르지 않는다. 공급된 일반 팩이 승인돼 있으면 「잠시 멈춤」(`GENERIC_PAUSE_*`) 승인 대사 하나를
+  `client_event_id`로 결정적으로 골라(`npc_line_supply.select_pause_line`) `approved_line`으로 답하고, 없으면
+  `reply: null`이다. `fallback_reason`은 늘 `NPC_CONTENT_WITHDRAWN`이다. 재전송도 저장된 대사가 아니라 지금 승인된
+  팩에서 같은 규칙으로 다시 고른다(같은 팩이면 같은 대사, 승인이 빠졌으면 null).
+- `content_mode`(PM v0.4.13 §4 · v0.3 §6): 정상 응답은 `"case"`. `fallback_reason`이 긴급 중단
+  (`NPC_CONTENT_WITHDRAWN`) · NPC 콘텐츠 없음(`NPC_CONTENT_MISSING`) · 버전 불일치(`NPC_CONTENT_VERSION_MISMATCH`) ·
+  검증 실패(`NPC_CONTENT_INVALID`)이면 `"generic"`이다(`reply: null`이어도). 사유는 `fallback_reason`으로 구분한다.
+  - 고정 묶음에 npc.json이 없으면 `NPC_CONTENT_MISSING`이다(응답 계산은 그대로, 사유가 우선). 게시 · 적재 경로는
+    npc.json을 필수로 받으므로 운영 묶음에서는 생기지 않는다.
+  - 버전 불일치 · 검증 실패한 npc.json은 묶음 생성(`PinnedContent`) · 게시 게이트에서 버전 전체가 거부되어
+    턴 시점에는 `CASE_VERSION_UNAVAILABLE`(409, 기존 계약)이다. 이 두 사유를 내는 턴 경로는 아직 없다.
+- 일반 팩 승인(`general_pack_access`, 운영은 `npc_general_pack.read_general_pack_access`): 케이스 판정과 같은 방식으로
+  계산 전(잠금 없음) · 확정 트랜잭션(공유 잠금, 케이스 판정 다음)에서 읽고, 근거가 바뀌었으면 다시 계산한다.
+  일반 팩은 G3 승인과 정책 검사(`general_pack_policy`, 운영 기본값은 기준 미정 · fail closed)를 모두 통과해야 쓴다.
 """
 
 import asyncio
 import hashlib
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.interaction_event import InteractionEvent
 from app.models.play_session import PlaySession
 from app.schemas.npc_content import GeneralLinePack
 from app.schemas.npc_turn import (
+    NpcAutoInterveneRecord,
     NpcReplyOut,
     NpcTurnEventRecord,
     NpcTurnRequest,
@@ -32,20 +55,30 @@ from app.schemas.npc_turn import (
     SuggestHintOut,
 )
 from app.services.approval_history import ApprovalSource
+from app.services.dialogue_pack_policy import (
+    DEFAULT_DIALOGUE_PACK_POLICY,
+    DialoguePackPolicy,
+)
+from app.services.hint_ref import HintRefKeys, issue_hint_ref
 from app.services.interaction import (
     IdempotencyConflictError,
     _find_interaction_event,
     _is_same_request,
     _to_db_datetime,
 )
+from app.services.npc_case_access import CaseAccessReader, CaseNpcAccess
 from app.services.npc_decision import (
     AutoIntervention,
     RuleConfig,
     decide,
+    rule_config_for,
     signals_from_events,
 )
-from app.services.npc_dialogue import PM_GENERIC_PUZZLE_LINES
-from app.services.npc_general_dialogue import ModelGenerator
+from app.services.npc_dialogue import PM_GENERIC_PUZZLE_LINES, NpcReply
+from app.services.npc_general_dialogue import ApprovedLine, ModelGenerator
+from app.services.npc_general_pack import GeneralPackAccess, GeneralPackReader
+from app.services.npc_line_supply import select_pause_line
+from app.services.npc_suggestion_events import shown_and_declined
 from app.services.npc_turn import (
     NpcTurnContent,
     NpcTurnResult,
@@ -59,6 +92,19 @@ from app.services.play_session import PlaySessionNotFoundError
 from app.services.puzzle_question import PUZZLE_INTERACTION_TYPES
 
 NPC_TURN_EVENT_TYPE = "npc_turn"
+MYSQL_DEADLOCK = 1213
+DEADLOCK_RETRIES = 3
+CONTENT_WITHDRAWN = "NPC_CONTENT_WITHDRAWN"
+CONTENT_MISSING = "NPC_CONTENT_MISSING"
+# PM v0.4.13 §4: 이 사유의 응답은 일반 동행 모드("generic")다. 그 밖의 응답은 "case".
+GENERIC_FALLBACK_REASONS = frozenset(
+    {
+        CONTENT_WITHDRAWN,
+        CONTENT_MISSING,
+        "NPC_CONTENT_VERSION_MISMATCH",
+        "NPC_CONTENT_INVALID",
+    }
+)
 
 EventLoader = Callable[[AsyncSession, str], Awaitable[Sequence[Any]]]
 
@@ -88,19 +134,48 @@ async def load_session_events(db: AsyncSession, play_session_id: str) -> list[An
 
 
 async def process_npc_turn(
+    db: AsyncSession, play_session_id: str, request: NpcTurnRequest, **options: Any
+) -> NpcTurnResponse:
+    """NPC 턴 한 번. MySQL 교착(1213)이면 같은 턴을 짧게 다시 시도한다.
+
+    NPC 턴은 세션 행을 잠그지 않으므로, 같은 `client_event_id` 동시 요청의 INSERT가 교착할 수 있다. 교착 쪽
+    트랜잭션은 전부 rollback되므로 다시 시도하면 확정된 이벤트를 재전송으로 돌려주거나 새로 확정한다.
+    """
+
+    attempt = 0
+    while True:
+        try:
+            return await _process_npc_turn_once(db, play_session_id, request, **options)
+        except DBAPIError as error:
+            args = getattr(error.orig, "args", ())
+            errno = args[0] if args and isinstance(args[0], int) else None
+            if errno != MYSQL_DEADLOCK or attempt >= DEADLOCK_RETRIES:
+                raise
+            attempt += 1
+
+
+async def _process_npc_turn_once(
     db: AsyncSession,
     play_session_id: str,
     request: NpcTurnRequest,
     *,
     store: PinnedContentStore,
-    approval_source: ApprovalSource | None,
+    approval_source: ApprovalSource | None = None,
+    case_access: CaseAccessReader | None = None,
     general_pack: GeneralLinePack | None = None,
     general_pack_approval: ApprovalSource | None = None,
+    general_pack_access: GeneralPackReader | None = None,
+    general_pack_policy: DialoguePackPolicy = DEFAULT_DIALOGUE_PACK_POLICY,
     generation: NpcGenerationConfig = GENERATION_OFF,
     event_loader: EventLoader = load_session_events,
     rule_config: RuleConfig = RuleConfig(),
+    hint_ref_keys: HintRefKeys | None = None,
     now: datetime | None = None,
 ) -> NpcTurnResponse:
+    if case_access is not None and approval_source is not None:
+        raise ValueError("pass either approval_source or case_access")
+    if general_pack_access is not None and general_pack_approval is not None:
+        raise ValueError("pass either general_pack_approval or general_pack_access")
     client_event_id = str(request.client_event_id)
     payload_json = _payload(request)
     try:
@@ -112,40 +187,116 @@ async def process_npc_turn(
             raise NpcContentUnavailableError()
         # rollback 은 ORM 객체를 만료시키므로 판정에 쓸 값은 먼저 읽어 둔다.
         state = dict(play_session.state_json)
-        content = turn_content_from_pinned(
-            bundle,
-            approval_source,
-            general_pack=general_pack,
-            general_pack_approval=general_pack_approval,
-        )
+        fingerprint = bundle.pin.content_fingerprint
+        npc_missing = bundle.npc() is None
 
-        existing = await _find_interaction_event(db, play_session_id, client_event_id)
-        if existing is not None:
-            response = _replay(existing, payload_json, content)
-            await db.rollback()
-            return response
-
-        if request.trigger == "player_message":
-            result = run_player_message_turn(
-                request.message or "",
-                state=state,
-                content=content,
-                general_generator=generation.generator,
-                generation_enabled=generation.enabled,
+        def hint_ref_for(puzzle_id: str | None) -> SuggestHintOut | None:
+            if puzzle_id is None or hint_ref_keys is None:
+                return None
+            return SuggestHintOut(
+                hint_ref=issue_hint_ref(
+                    hint_ref_keys,
+                    play_session_id=play_session_id,
+                    puzzle_id=puzzle_id,
+                    content_fingerprint=fingerprint,
+                )
             )
-        else:
+
+        async def read_access(lock: bool) -> CaseNpcAccess:
+            if case_access is None:
+                return CaseNpcAccess(approval_source)
+            return await case_access(db, bundle.pin, lock=lock)
+
+        async def read_pack(lock: bool) -> GeneralPackAccess:
+            # 일반 팩 승인은 케이스 판정 다음에 읽는다(잠금 순서 고정).
+            if general_pack_access is None or general_pack is None:
+                return GeneralPackAccess(general_pack_approval)
+            return await general_pack_access(db, general_pack, lock=lock)
+
+        def content_for(
+            access: CaseNpcAccess, pack: GeneralPackAccess
+        ) -> NpcTurnContent:
+            return turn_content_from_pinned(
+                bundle,
+                access.approval_source,
+                general_pack=general_pack,
+                general_pack_approval=pack.approval_source,
+                general_pack_policy=general_pack_policy,
+            )
+
+        async def compute(
+            access: CaseNpcAccess, pack: GeneralPackAccess
+        ) -> NpcTurnResult:
+            if access.withdrawn:
+                return _withdrawn_result(request.trigger, pause_line(pack))
+            result = await compute_case(access, pack)
+            if npc_missing:
+                # NPC 콘텐츠 없음: 응답 계산은 그대로 두고 사유를 남긴다(content_mode="generic").
+                return replace(result, fallback_reason=CONTENT_MISSING)
+            return result
+
+        async def compute_case(
+            access: CaseNpcAccess, pack: GeneralPackAccess
+        ) -> NpcTurnResult:
+            content = content_for(access, pack)
+            if request.trigger == "player_message":
+                return run_player_message_turn(
+                    request.message or "",
+                    state=state,
+                    content=content,
+                    general_generator=generation.generator,
+                    generation_enabled=generation.enabled,
+                )
             current = now or datetime.now(timezone.utc).replace(tzinfo=None)
             events = await event_loader(db, play_session_id)
             target = _focus_puzzle(content, state, request.focus_object_id)
+            shown, declined = shown_and_declined(events)
             signals = signals_from_events(
                 events,
                 now=current,
                 target_puzzle_id=target,
-                past_interventions=_past_interventions(events),
+                past_interventions=[AutoIntervention(at, pid) for at, pid in shown],
+                past_declines=declined,
             )
-            result = run_auto_turn(
-                decide(signals, rule_config), state=state, content=content
+            config = rule_config_for(
+                content.npc_pack.auto_nudge if content.npc_pack else None, rule_config
             )
+            return run_auto_turn(decide(signals, config), state=state, content=content)
+
+        def pause_line(pack: GeneralPackAccess) -> ApprovedLine | None:
+            # 케이스 승인 출처와 섞지 않는다: 일반 팩과 그 팩 승인 출처만 쓴다.
+            return select_pause_line(
+                general_pack, pack.approval_source, client_event_id, general_pack_policy
+            )
+
+        # 1. 계산 전 판정(잠금 없음)
+        access = await read_access(lock=False)
+        pack_access = await read_pack(lock=False)
+
+        existing = await _find_interaction_event(db, play_session_id, client_event_id)
+        if existing is not None:
+            response = _replay(
+                existing,
+                payload_json,
+                content_for(access, pack_access),
+                hint_ref_for,
+                access,
+                lambda: pause_line(pack_access),
+                npc_missing=npc_missing,
+            )
+            await db.rollback()
+            return response
+
+        # 2. 계산(잠금 없음)
+        result = await compute(access, pack_access)
+
+        # 3. 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 그 사이 철회 · 차단(케이스) 또는 팩 승인 변경이 commit됐으면
+        #    다시 계산한다. 대역(승인 출처를 직접 넘긴 경우)은 근거가 늘 같다.
+        final = await read_access(lock=True)
+        final_pack = await read_pack(lock=True)
+        if (final.basis, final_pack.basis) != (access.basis, pack_access.basis):
+            access, pack_access = final, final_pack
+            result = await compute(access, pack_access)
 
         record = _record(request.trigger, result)
         npc_event_id = str(uuid4())
@@ -172,7 +323,15 @@ async def process_npc_turn(
             )
             if existing is None:
                 raise error
-            response = _replay(existing, payload_json, content)
+            response = _replay(
+                existing,
+                payload_json,
+                content_for(access, pack_access),
+                hint_ref_for,
+                access,
+                lambda: pause_line(pack_access),
+                npc_missing=npc_missing,
+            )
             await db.rollback()
             return response
     except asyncio.CancelledError:
@@ -182,7 +341,7 @@ async def process_npc_turn(
         await db.rollback()
         raise
 
-    return _response(npc_event_id, result)
+    return _response(npc_event_id, result, hint_ref_for)
 
 
 def _payload(request: NpcTurnRequest) -> dict[str, Any]:
@@ -229,20 +388,6 @@ def _focus_puzzle(
     return target
 
 
-def _past_interventions(events: Sequence[Any]) -> list[AutoIntervention]:
-    past = []
-    for event in events:
-        if event.interaction_type != NPC_TURN_EVENT_TYPE:
-            continue
-        record = event.response_json or {}
-        if record.get("auto_intervened"):
-            decision = record.get("decision") or {}
-            past.append(
-                AutoIntervention(event.created_at, decision.get("target_puzzle_id"))
-            )
-    return past
-
-
 def _record(trigger: str, result: NpcTurnResult) -> NpcTurnEventRecord:
     decision = result.decision
     diagnosis = result.diagnosis
@@ -255,6 +400,7 @@ def _record(trigger: str, result: NpcTurnResult) -> NpcTurnEventRecord:
         suggest_hint_puzzle_id=(
             result.suggest_hint.puzzle_id if result.suggest_hint else None
         ),
+        fallback_reason=result.fallback_reason,
         policy=[
             {"code": v.code, "rule_id": v.rule_id}
             for v in (result.policy.violations if result.policy else ())
@@ -280,11 +426,29 @@ def _record(trigger: str, result: NpcTurnResult) -> NpcTurnEventRecord:
             if diagnosis
             else None
         ),
-        auto_intervened=trigger == "auto" and result.reply is not None,
+        # 보여 줄 것(대사 또는 힌트 안내)이 있는 자동 개입만 제안이다. 횟수는 표시 보고로 센다.
+        auto_intervened=trigger == "auto"
+        and (result.reply is not None or result.suggest_hint is not None),
+        auto_intervene=(
+            NpcAutoInterveneRecord(
+                trigger=result.auto.trigger,
+                value=result.auto.value,
+                puzzle_ref=result.auto.puzzle_ref,
+                nudge_missing=result.auto.nudge_missing,
+                level=result.auto.level,
+            )
+            if result.auto is not None
+            else None
+        ),
     )
 
 
-def _response(npc_event_id: str, result: NpcTurnResult) -> NpcTurnResponse:
+HintRefFor = Callable[[str | None], SuggestHintOut | None]
+
+
+def _response(
+    npc_event_id: str, result: NpcTurnResult, hint_ref_for: HintRefFor
+) -> NpcTurnResponse:
     reply = result.reply
     return NpcTurnResponse(
         npc_event_id=UUID(npc_event_id),
@@ -293,16 +457,43 @@ def _response(npc_event_id: str, result: NpcTurnResult) -> NpcTurnResponse:
             if reply
             else None
         ),
-        suggest_hint=(
-            SuggestHintOut(puzzle_id=result.suggest_hint.puzzle_id)
-            if result.suggest_hint
-            else None
+        suggest_hint=hint_ref_for(
+            result.suggest_hint.puzzle_id if result.suggest_hint else None
         ),
+        fallback_reason=result.fallback_reason,
+        content_mode=_content_mode(result.fallback_reason),
+    )
+
+
+def _content_mode(fallback_reason: str | None) -> str:
+    # PM v0.4.13 §4: 긴급 중단 · 콘텐츠 없음 · 버전 불일치 · 검증 실패는 "generic"(대사가 없어도), 그 밖은 "case".
+    return "generic" if fallback_reason in GENERIC_FALLBACK_REASONS else "case"
+
+
+def _withdrawn_result(trigger: str, pause: ApprovedLine | None) -> NpcTurnResult:
+    # 긴급 차단: 케이스 콘텐츠(대사 · 힌트 제안)를 쓰지 않는다. 승인 일반 「잠시 멈춤」 대사만, 없으면 발화 없음.
+    if pause is None:
+        return NpcTurnResult(
+            trigger, None, "content_withdrawn", None, fallback_reason=CONTENT_WITHDRAWN
+        )
+    return NpcTurnResult(
+        trigger,
+        NpcReply("approved_line", pause.text, pause.line_id),
+        None,
+        None,
+        fallback_reason=CONTENT_WITHDRAWN,
     )
 
 
 def _replay(
-    event: InteractionEvent, payload_json: dict[str, Any], content: NpcTurnContent
+    event: InteractionEvent,
+    payload_json: dict[str, Any],
+    content: NpcTurnContent,
+    hint_ref_for: HintRefFor,
+    access: CaseNpcAccess,
+    pause_line: Callable[[], ApprovedLine | None],
+    *,
+    npc_missing: bool = False,
 ) -> NpcTurnResponse:
     if not _is_same_request(
         event,
@@ -311,7 +502,25 @@ def _replay(
         payload_json=payload_json,
     ):
         raise IdempotencyConflictError()
+    if access.withdrawn:
+        # 긴급 차단 뒤 재전송: 저장했던 응답(케이스 대사 · 예전 대체 대사)을 돌려주지 않고 지금 승인된 팩에서 다시 고른다.
+        pause = pause_line()
+        return NpcTurnResponse(
+            npc_event_id=UUID(event.id),
+            reply=(
+                NpcReplyOut(
+                    source="approved_line", text=pause.text, line_id=pause.line_id
+                )
+                if pause is not None
+                else None
+            ),
+            suggest_hint=None,
+            fallback_reason=CONTENT_WITHDRAWN,
+            content_mode=_content_mode(CONTENT_WITHDRAWN),
+        )
     record = NpcTurnEventRecord.model_validate(event.response_json)
+    # 지금 고정 묶음에 npc.json이 없으면 저장 사유와 상관없이 「콘텐츠 없음」으로 답한다(새 턴과 같은 규칙).
+    fallback_reason = CONTENT_MISSING if npc_missing else record.fallback_reason
     text = (
         _approved_text(content, record.line_id)
         if record.reply_source == "approved_line" and record.line_id
@@ -324,11 +533,15 @@ def _replay(
             if text
             else None
         ),
+        # 대사가 있던 응답은 대사가 아직 승인일 때만, 대사 없이 안내만 한 응답(일반 팩 없음)은 그대로 안내한다.
         suggest_hint=(
-            SuggestHintOut(puzzle_id=record.suggest_hint_puzzle_id)
-            if text and record.suggest_hint_puzzle_id
+            hint_ref_for(record.suggest_hint_puzzle_id)
+            if record.suggest_hint_puzzle_id
+            and (text is not None or record.reply_source is None)
             else None
         ),
+        fallback_reason=fallback_reason,
+        content_mode=_content_mode(fallback_reason),
     )
 
 

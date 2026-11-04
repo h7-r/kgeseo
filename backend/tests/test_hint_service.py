@@ -88,7 +88,9 @@ class RecordingPolicy:
             raise HintAccessDeniedError(puzzle.puzzle_id)
 
 
-def make_play_session(*, hint_levels: dict | None = None) -> PlaySession:
+def make_play_session(
+    *, hint_levels: dict | None = None, hint_balance: int = 3, help_used: int = 0
+) -> PlaySession:
     now = datetime(2026, 10, 27, 1, 2, 3)
     return PlaySession(
         id="play-session-id",
@@ -107,6 +109,8 @@ def make_play_session(*, hint_levels: dict | None = None) -> PlaySession:
         created_at=now,
         updated_at=now,
         completed_at=None,
+        hint_balance=hint_balance,
+        help_used=help_used,
     )
 
 
@@ -228,7 +232,8 @@ async def test_skipping_to_level_two_is_rejected_without_writes() -> None:
         await call_unlock(db, 2, policy=policy)
 
     assert play_session.state_json["hint_levels"] == {}
-    assert policy.calls == []
+    # 접근 조건은 단계 판정보다 먼저 본다(PM v0.4.10: 미발견 퍼즐의 단계 정보가 드러나지 않게).
+    assert policy.calls == [(PUZZLE_ID, 2)]
     assert db.added == []
     assert db.commit_count == 0
     assert db.rollback_count == 1
@@ -731,6 +736,8 @@ class RowLockSession(FakeAsyncSession):
             created_at=source.created_at,
             updated_at=source.updated_at,
             completed_at=source.completed_at,
+            hint_balance=source.hint_balance,
+            help_used=source.help_used,
         )
         # 읽은 뒤 다른 작업이 끼어들 틈을 준다.
         await asyncio.sleep(0)

@@ -4,17 +4,20 @@
 - 고정 세션: 저장소에서 그 `(case_id, content_version, content_fingerprint)` 묶음을 찾아 그 로더.
   없거나 fingerprint가 다르면 오류(최신 버전으로 바꾸지 않는다).
 
-저장소 `get_pinned_content_store()`는 **비어 있는 메모리 저장소**이고, 콘텐츠를 등록하는 HTTP 경로는 없다.
-공식 게시 검증 · 파일 로더가 생기기 전까지 고정 세션은 HTTP에서 늘 `CASE_VERSION_UNAVAILABLE`이다.
+저장소 `get_pinned_content_store()`는 프로세스 하나에 하나인 메모리 저장소다. 처음에는 비어 있고,
+게시 경로(`app.services.content_publication.ContentPublisher`)가 게시 게이트를 통과한 묶음만 넣는다.
+콘텐츠를 등록하는 HTTP 경로는 없다. 등록된 묶음이 없으면 고정 세션은 `CASE_VERSION_UNAVAILABLE`이다.
 테스트는 FastAPI `dependency_overrides`로 저장소를 바꿔 끼운다.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.play_session import ContentPinColumnsError, PlaySession
 from app.services.case_content import load_case_client_content
+from app.services.hint import server_hint_source, server_hint_text
 from app.services.interaction import ClientContentLoader, RuntimeLoader
 from app.services.pinned_content import (
     PinnedContentError,
@@ -28,13 +31,13 @@ CASE_VERSION_UNAVAILABLE = "CASE_VERSION_UNAVAILABLE"
 # 라우터가 409로 바꾸는 예외
 CONTENT_VERSION_ERRORS = (PinnedContentError, ContentPinColumnsError)
 
-_EMPTY_STORE = PinnedContentStore()
+_PUBLISHED_STORE = PinnedContentStore()
 
 
 def get_pinned_content_store() -> PinnedContentStore:
-    """FastAPI 의존성. 기본은 빈 저장소(등록 경로 없음)."""
+    """FastAPI 의존성. 게시 경로가 등록한 묶음만 담긴 저장소(기본은 비어 있다)."""
 
-    return _EMPTY_STORE
+    return _PUBLISHED_STORE
 
 
 @dataclass(frozen=True)
@@ -62,3 +65,48 @@ async def resolve_session_loaders(
     if bundle is None:
         return DEFAULT_LOADERS
     return SessionLoaders(bundle.runtime_loader(), bundle.client_content_loader())
+
+
+@dataclass(frozen=True)
+class SessionHintLoaders:
+    runtime_loader: RuntimeLoader
+    hint_source: Callable[[str, str, int], str | None]
+    client_content_loader: ClientContentLoader = load_case_client_content
+    # 세션 메타데이터(세션이 없으면 None). 버전 고정 값은 바뀌지 않으므로 잠금 없이 읽어도 된다.
+    case_id: str | None = None
+    content_fingerprint: str | None = None
+
+
+async def resolve_session_hint_loaders(
+    db: AsyncSession, play_session_id: str, store: PinnedContentStore
+) -> SessionHintLoaders:
+    """Hint API용. 고정 세션은 그 버전 묶음의 server.json 원문, 레거시 세션은 기본 server.json 원문.
+
+    고정 묶음의 로더 · 원문에는 버전 표시가 붙어 있어 `unlock_hint`가 세션과 다시 대조한다.
+    """
+
+    play_session = await db.get(PlaySession, play_session_id)
+    bundle = None
+    if play_session is not None:
+        try:
+            bundle = resolve_session_content(play_session, store)
+        except CONTENT_VERSION_ERRORS:
+            await db.rollback()
+            raise
+    case_id = play_session.case_id if play_session is not None else None
+    fingerprint = play_session.content_fingerprint if play_session is not None else None
+    if bundle is None:
+        return SessionHintLoaders(
+            load_case_runtime,
+            server_hint_source(),
+            load_case_client_content,
+            case_id,
+            fingerprint,
+        )
+    return SessionHintLoaders(
+        bundle.runtime_loader(),
+        bundle.hint_source(server_hint_text),
+        bundle.client_content_loader(),
+        case_id,
+        fingerprint,
+    )

@@ -1,6 +1,19 @@
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictStr,
+    model_validator,
+)
+
+from app.schemas.scene_condition import (
+    ClearWhenLeaf,
+    assess_scene_list,
+    parse_clear_when,
+)
 
 # 단서 수첩의 아이콘·표시 유형. 정답·선행 조건·상태 판정에는 쓰지 않는다.
 ClueCarrierKind = Literal["letter", "note", "key", "piece", "mark", "deduction"]
@@ -42,8 +55,15 @@ class ObjectStateEffect(BaseModel):
 class RuntimeEffect(ServerContentModel):
     grant_clue_ids: list[str]
     complete_puzzle_ids: list[str] = Field(default_factory=list)
+    # 손에 넣는 아이템. 단서와 다른 ID 공간이며 acquired_clue_ids에 넣지 않는다.
+    grant_item_ids: list[str] = Field(default_factory=list)
     set_flags: dict[str, bool]
     set_object_states: list[ObjectStateEffect] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_grant_item_ids(self) -> "RuntimeEffect":
+        _validate_required_ids("Effect", "grant_item_ids", self.grant_item_ids)
+        return self
 
     @model_validator(mode="after")
     def validate_unique_object_targets(self) -> "RuntimeEffect":
@@ -59,14 +79,18 @@ class RuntimeEffect(ServerContentModel):
         return self
 
 
-def _validate_required_clue_ids(owner: str, clue_ids: list[str]) -> None:
+def _validate_required_ids(owner: str, field: str, ids: list[str]) -> None:
     seen: set[str] = set()
-    for clue_id in clue_ids:
-        if not clue_id.strip():
-            raise ValueError(f"{owner} requires_clue_ids must not contain blank IDs")
-        if clue_id in seen:
-            raise ValueError(f"{owner} requires_clue_ids has duplicate '{clue_id}'")
-        seen.add(clue_id)
+    for value in ids:
+        if not value.strip():
+            raise ValueError(f"{owner} {field} must not contain blank IDs")
+        if value in seen:
+            raise ValueError(f"{owner} {field} has duplicate '{value}'")
+        seen.add(value)
+
+
+def _validate_required_clue_ids(owner: str, clue_ids: list[str]) -> None:
+    _validate_required_ids(owner, "requires_clue_ids", clue_ids)
 
 
 class HintDefinition(ServerContentModel):
@@ -91,15 +115,24 @@ class PuzzleDefinition(ServerContentModel):
     accepted_answers: list[str] = Field(min_length=1)
     # 정답 판정 전에 PlaySession이 모두 획득해야 하는 단서. 비어 있으면 조건 없음.
     requires_clue_ids: list[str] = Field(default_factory=list)
+    # 정답 판정 전에 PlaySession이 모두 완료해야 하는 퍼즐. 비어 있으면 조건 없음.
+    requires_puzzle_ids: list[str] = Field(default_factory=list)
+    # 정답일 때 소비하는 아이템. 정답 판정 전에 모두 보유(획득 · 미소비)해야 한다. 비어 있으면 조건 없음.
+    consumes_item_ids: list[str] = Field(default_factory=list)
     on_correct: RuntimeEffect
     # 정식 힌트 원문. 비어 있으면 이 퍼즐에는 힌트가 없다(Hint API는 HintNotFoundError).
     hints: list[HintDefinition] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_requirements(self) -> "PuzzleDefinition":
-        _validate_required_clue_ids(
-            f"Puzzle '{self.puzzle_id}'", self.requires_clue_ids
-        )
+        owner = f"Puzzle '{self.puzzle_id}'"
+        _validate_required_clue_ids(owner, self.requires_clue_ids)
+        _validate_required_ids(owner, "requires_puzzle_ids", self.requires_puzzle_ids)
+        if self.puzzle_id in self.requires_puzzle_ids:
+            raise ValueError(f"{owner} must not require itself")
+        _validate_required_ids(owner, "consumes_item_ids", self.consumes_item_ids)
+        if set(self.consumes_item_ids) & set(self.on_correct.grant_item_ids):
+            raise ValueError(f"{owner} must not grant an item it consumes")
         levels = [hint.level for hint in self.hints]
         if len(levels) != len(set(levels)):
             raise ValueError(f"Puzzle '{self.puzzle_id}' has duplicate hint levels")
@@ -162,6 +195,31 @@ class ClueDefinition(ServerContentModel):
         return self
 
 
+class CaseCompletionDefinition(ServerContentModel):
+    """Case 완료 조건. 나열한 퍼즐을 모두 완료하면 서버가 PlaySession을 완료로 기록한다."""
+
+    requires_puzzle_ids: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_requirements(self) -> "CaseCompletionDefinition":
+        _validate_required_ids(
+            "case_completion", "requires_puzzle_ids", self.requires_puzzle_ids
+        )
+        return self
+
+
+class SceneDefinition(ServerContentModel):
+    """장면 하나와 완료 조건. 조건 문법 · 참조 검사는 PuzzleRuntimeDefinition이 한꺼번에 한다."""
+
+    scene_id: StrictStr
+    clear_when: dict[str, Any]
+
+    @property
+    def clear_when_leaves(self) -> tuple[ClearWhenLeaf, ...]:
+        # 모델 검증에서 이미 통과한 조건이라 여기서는 실패하지 않는다.
+        return parse_clear_when(self.clear_when)
+
+
 class PuzzleRuntimeDefinition(ServerContentModel):
     schema_version: str
     case_id: str
@@ -169,6 +227,24 @@ class PuzzleRuntimeDefinition(ServerContentModel):
     clue_combinations: list[ClueCombinationDefinition]
     inspections: list[InspectionDefinition] = Field(default_factory=list)
     clues: list[ClueDefinition] = Field(default_factory=list)
+    # 없으면 Case 완료를 판정하지 않는다(completed_at을 기록하지 않음).
+    case_completion: CaseCompletionDefinition | None = None
+    # 장면 완료 조건. 없으면 장면 완료를 판정하지 않는다. 게시 게이트와 같은 규칙으로 검사해
+    # 게이트가 PASS로 판정하는 장면만 받는다(미지원 조건 · 잘못된 참조는 콘텐츠 오류).
+    scenes: list[SceneDefinition] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_scenes(self) -> "PuzzleRuntimeDefinition":
+        assessment = assess_scene_list(
+            [scene.model_dump() for scene in self.scenes],
+            (puzzle.puzzle_id for puzzle in self.puzzles),
+            settable_flags(self),
+        )
+        if assessment.status != "PASS":
+            raise ValueError(
+                f"scenes {assessment.status}: {', '.join(assessment.reasons)}"
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_unique_puzzle_ids(self) -> "PuzzleRuntimeDefinition":
@@ -177,6 +253,56 @@ class PuzzleRuntimeDefinition(ServerContentModel):
             if puzzle.puzzle_id in seen_ids:
                 raise ValueError(f"Duplicate puzzle_id: '{puzzle.puzzle_id}'")
             seen_ids.add(puzzle.puzzle_id)
+        return self
+
+    @model_validator(mode="after")
+    def validate_puzzle_references(self) -> "PuzzleRuntimeDefinition":
+        puzzle_ids = {puzzle.puzzle_id for puzzle in self.puzzles}
+        references = [
+            (f"Puzzle '{puzzle.puzzle_id}'", puzzle.requires_puzzle_ids)
+            for puzzle in self.puzzles
+        ]
+        if self.case_completion is not None:
+            references.append(
+                ("case_completion", self.case_completion.requires_puzzle_ids)
+            )
+        for owner, required_ids in references:
+            for puzzle_id in required_ids:
+                if puzzle_id not in puzzle_ids:
+                    raise ValueError(f"{owner} requires unknown puzzle '{puzzle_id}'")
+
+        # 선행 퍼즐이 순환하면 그 퍼즐들은 영영 풀 수 없다.
+        requires = {p.puzzle_id: p.requires_puzzle_ids for p in self.puzzles}
+        checked: set[str] = set()
+
+        def visit(puzzle_id: str, path: list[str]) -> None:
+            if puzzle_id in path:
+                cycle = " -> ".join([*path[path.index(puzzle_id) :], puzzle_id])
+                raise ValueError(f"requires_puzzle_ids has a cycle: {cycle}")
+            if puzzle_id in checked:
+                return
+            for required_id in requires[puzzle_id]:
+                visit(required_id, [*path, puzzle_id])
+            checked.add(puzzle_id)
+
+        for puzzle_id in requires:
+            visit(puzzle_id, [])
+        return self
+
+    @model_validator(mode="after")
+    def validate_item_references(self) -> "PuzzleRuntimeDefinition":
+        # 어떤 효과도 주지 않는 아이템을 소비하는 퍼즐은 영영 풀 수 없다.
+        effects = [puzzle.on_correct for puzzle in self.puzzles]
+        effects += [combination.on_success for combination in self.clue_combinations]
+        effects += [inspection.on_inspect for inspection in self.inspections]
+        granted = {item_id for effect in effects for item_id in effect.grant_item_ids}
+        for puzzle in self.puzzles:
+            for item_id in puzzle.consumes_item_ids:
+                if item_id not in granted:
+                    raise ValueError(
+                        f"Puzzle '{puzzle.puzzle_id}' consumes item '{item_id}' "
+                        "that no effect grants"
+                    )
         return self
 
     @model_validator(mode="after")
@@ -233,3 +359,14 @@ class PuzzleRuntimeDefinition(ServerContentModel):
                         f"{owner} references clue '{clue_id}' not defined in clues"
                     )
         return self
+
+
+def settable_flags(server: PuzzleRuntimeDefinition) -> set[tuple[str, bool]]:
+    """어떤 효과의 set_flags가 설정하는 (flag, 값) 쌍. clear_when flag 참조는 이 안에 있어야 한다."""
+
+    effects = [puzzle.on_correct for puzzle in server.puzzles]
+    effects += [combination.on_success for combination in server.clue_combinations]
+    effects += [inspection.on_inspect for inspection in server.inspections]
+    return {
+        (name, value) for effect in effects for name, value in effect.set_flags.items()
+    }

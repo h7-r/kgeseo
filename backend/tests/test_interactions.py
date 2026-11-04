@@ -559,7 +559,8 @@ def test_interaction_returns_404_for_missing_play_session(
 @pytest.mark.parametrize(
     ("action", "target_type", "target_id", "payload"),
     [
-        ("select", "object", "OBJ_CHOICES", {"choice": "optA"}),
+        # Object 대상 select는 처리한다(test_select_interactions). 그 밖의 select는 501이다.
+        ("select", "zone", "ZONE_004", {"choice": "optA"}),
     ],
 )
 def test_unsupported_actions_return_501(

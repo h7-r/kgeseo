@@ -13,9 +13,13 @@
   세 관문 모두 최종 approved일 때만 PASS다. 다른 해시를 가리키는 기록(이전 내용 승인)은 판정에 쓰지 않는다
   — 내용이 바뀌면 재승인이 필요하다(PM v0.4.1). v0.4.2까지의 기록 형식은 변환하지 않고 FAIL로 둔다.
 
-[장면] 장면 완료(`clear_when`) 검증 엔진이 아직 없다. Server Runtime에 `scenes`가 있거나, 장면 완료가 필수인
-케이스(`SCENE_REQUIRED_CASES` 또는 idmap에 장면 대응이 있는 케이스)는 SCENES가 UNVERIFIED라 게시되지 않는다.
-장면이 없는 케이스만 NOT_APPLICABLE이다.
+[장면] Server Runtime의 `scenes[].clear_when`을 `app.services.scene_validation`으로 정적 검증한다.
+지원하는 부분집합(퍼즐 완료 · bool flag · 그 둘의 `all`)이고 참조가 모두 정의돼 있으면 PASS, 형식 · 참조 오류는
+FAIL, 아직 지원하지 않는 조건은 UNVERIFIED다. idmap에 장면 대응이 있으면 장면 ID가 서로 맞아야 한다.
+장면 완료가 필수인 케이스(`SCENE_REQUIRED_CASES` 또는 idmap에 장면 대응이 있는 케이스)인데 `scenes`가 없거나
+비어 있으면 UNVERIFIED다. 장면이 없는 케이스만 NOT_APPLICABLE이다.
+PASS인 장면은 등록하는 Server 모델에 그대로 실린다. 런타임 모델(`PuzzleRuntimeDefinition.scenes`)은 같은 규칙
+(`app.schemas.scene_condition`)으로 장면을 받고, 플레이 중 완료 판정은 `app.services.scene_progress`가 한다.
 
 [실행 가능] idmap에서 `status="placed"`이고, 물건은 상호작용이 있고 · 퍼즐 · 단서는 로컬 호스트가 있으며,
 나주 로컬 ID 목록이 주어지면 그 목록에 실제로 있을 때만 실행 가능이다(PM v0.4.1).
@@ -34,9 +38,13 @@ from pydantic import ValidationError
 
 from app.schemas.case_content import CaseClientContent
 from app.schemas.naju_idmap import NajuIdmap
-from app.schemas.npc_content import NpcContentPack
+from app.schemas.npc_content import GeneralLinePack, NpcContentPack
 from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition
-from app.services.approval_history import ApprovalSource, gate_decisions
+from app.services.approval_history import (
+    ApprovalSource,
+    ApprovalSourceUnavailableError,
+    gate_decisions,
+)
 from app.services.case_content_validation import (
     CaseContentLinkValidationError,
     validate_case_content_links,
@@ -48,15 +56,22 @@ from app.services.content_fingerprint import (
     header_mismatches,
     parse_i_json,
 )
-from app.services.hint import HintSource
+from app.services.dialogue_pack_policy import PublishedCase, case_conflicts
+from app.services.hint import HintSource, server_hint_text
 from app.services.idmap_validation import validate_idmap
 from app.services.npc_content_validation import (
     _leaf_conditions,
     _located_nudges,
     assess_npc_content,
 )
-from app.services.pinned_content import ContentPin, PinnedContent, PinnedContentStore
+from app.services.pinned_content import (
+    ContentPin,
+    PinnedContent,
+    PinnedContentError,
+    PinnedContentStore,
+)
 from app.services.puzzle_runtime import normalize_answer
+from app.services.scene_validation import assess_scenes
 
 # 장면 완료 판정이 필수인 케이스(PM v0.4 §12: 나주 씬 완료는 BE clear_when으로 판정)
 SCENE_REQUIRED_CASES = frozenset({"naju-angam-01"})
@@ -70,7 +85,9 @@ _IDMAP_EXTRA_HEADERS = frozenset({"approvals", "generated_at", "published_at"})
 # 이보다 짧은 정답은 일반 글자와 구별할 수 없어 누출 검사에서 뺀다(NPC 서비스와 같은 기준).
 MIN_ANSWER_LENGTH = 2
 
-CheckStatus = Literal["PASS", "FAIL", "NOT_APPLICABLE", "UNVERIFIED"]
+# WARN은 기록만 하고 게시를 막지 않는다(PM v0.4.7: 승인 넛지 없는 퍼즐).
+CheckStatus = Literal["PASS", "FAIL", "NOT_APPLICABLE", "UNVERIFIED", "WARN"]
+NON_BLOCKING_STATUSES = ("PASS", "NOT_APPLICABLE", "WARN")
 CheckCode = Literal[
     "PARSE",
     "FINGERPRINT",
@@ -78,11 +95,13 @@ CheckCode = Literal[
     "VERSION_ORDER",
     "CLIENT_SERVER",
     "NPC",
+    "NUDGE_COVERAGE",
     "IDMAP",
     "EXECUTABLE_REFS",
     "SCENES",
     "LEAK_CLIENT",
     "NG",
+    "GEN_PACK",
     "LOCAL_IDS",
     "APPROVALS",
 ]
@@ -90,6 +109,13 @@ CheckCode = Literal[
 
 # 문장이 NG(금지 왜곡) · U(해석 유보 단정)에 걸리면 True. 판정 기준이 아직 없어 주입식이다.
 NgChecker = Callable[[str], bool]
+
+
+class _ConfiguredGeneralPack:
+    """게이트의 일반 팩 재검사 대상 = 설정 `NPC_GENERAL_PACK`의 공식 팩(팀 결정 11/4)."""
+
+
+CONFIGURED_GENERAL_PACK = _ConfiguredGeneralPack()
 
 
 @dataclass(frozen=True)
@@ -117,11 +143,15 @@ def evaluate_publication(
     server: bytes,
     npc: bytes,
     idmap: bytes | None,
-    hint_source: HintSource,
+    hint_source: HintSource | None = None,
     approval_source: ApprovalSource | None = None,
     ng_checker: NgChecker | None = None,
     local_ids: Mapping[str, Iterable[str]] | None = None,
     store: PinnedContentStore | None = None,
+    general_pack: GeneralLinePack | None | _ConfiguredGeneralPack = (
+        CONFIGURED_GENERAL_PACK
+    ),
+    case_proper_names: Iterable[str] | None = None,
 ) -> PublicationResult:
     checks: list[GateCheck] = []
 
@@ -186,8 +216,10 @@ def evaluate_publication(
             add("VERSION_ORDER", "PASS")
 
     # 5. Client · Server 스키마 · 교차 참조
-    # `scenes`는 현재 Server Runtime 스키마에 없다. 있으면 떼고 검증하되 SCENES를 UNVERIFIED로 둔다(아래 7-1).
-    declares_scenes = "scenes" in documents["server"]
+    # `scenes`는 떼고 검증한 뒤 clear_when은 따로 검증한다(아래 7-1). 장면 오류를 CLIENT_SERVER가 아니라
+    # SCENES의 이유 코드(FAIL · UNVERIFIED 구분)로 보고하기 위해서다.
+    # 빈 목록은 장면을 선언하지 않은 것으로 본다(장면 필수 케이스는 그대로 막힌다).
+    declares_scenes = documents["server"].get("scenes", []) != []
     try:
         client_model = CaseClientContent.model_validate(
             _without(documents["client"], _SCHEMA_HEADER_FIELDS)
@@ -203,6 +235,20 @@ def evaluate_publication(
         add("CLIENT_SERVER", "FAIL", "links")
         return finish(case_id, version)
     add("CLIENT_SERVER", "PASS")
+    scenes = (
+        assess_scenes(documents["server"]["scenes"], server_model)
+        if declares_scenes
+        else None
+    )
+    if scenes is not None and scenes.status == "PASS":
+        # 런타임 모델도 같은 규칙으로 장면을 받는다. 등록 · 이후 검사는 장면을 포함한 모델로 한다.
+        server_model = PuzzleRuntimeDefinition.model_validate(
+            _without(documents["server"], _SCHEMA_HEADER_FIELDS)
+        )
+
+    # 정식 힌트 원문은 server.json에 있다(PM v0.4.2). 따로 넘기지 않으면 게시하려는 그 server.json에서 읽는다.
+    if hint_source is None:
+        hint_source = _bundle_hint_source(server_model)
 
     # 6. NPC 콘텐츠(스키마 · 힌트 단계 참조 · 교차 참조 · 정답/원문 보호). 승인 판정은 여기서 하지 않는다.
     npc_body = _without(documents["npc"], _NPC_EXTRA_HEADERS)
@@ -217,6 +263,15 @@ def evaluate_publication(
         return finish(case_id, version)
     add("NPC", "PASS")
     npc_model = NpcContentPack.model_validate(npc_body)
+
+    # 6-1. 넛지 작성 범위(PM v0.4.7): 넛지가 없는 퍼즐은 차단하지 않고 경고로 남긴다(퍼즐 ID만).
+    with_nudges = {entry.puzzle_id for entry in npc_model.puzzles}
+    without_nudges = [
+        puzzle.puzzle_id
+        for puzzle in server_model.puzzles
+        if puzzle.puzzle_id not in with_nudges
+    ]
+    add("NUDGE_COVERAGE", "WARN" if without_nudges else "PASS", *without_nudges)
 
     # 7. idmap(내부 참조 · Server/Client 교차) · 실행 불가 항목 참조 · 로컬 ID
     idmap_model: NajuIdmap | None = None
@@ -243,7 +298,12 @@ def evaluate_publication(
             set(local_ids.get("objects", ())) if local_ids is not None else None
         )
         refs = _non_executable_references(
-            idmap_model, client_model, server_model, npc_model, game_objects
+            idmap_model,
+            client_model,
+            server_model,
+            npc_model,
+            game_objects,
+            scenes.puzzle_references if scenes is not None else (),
         )
         add("EXECUTABLE_REFS", "FAIL" if refs else "PASS", *refs)
         if local_ids is None:
@@ -256,12 +316,16 @@ def evaluate_publication(
             ]
             add("LOCAL_IDS", "FAIL" if missing else "PASS", *missing)
 
-    # 7-1. 장면 완료(clear_when) — 판정 엔진이 없어 있으면 검증할 수 없다
+    # 7-1. 장면 완료(clear_when) — 지원하는 부분집합만 정적으로 검증한다
     scene_required = case_id in SCENE_REQUIRED_CASES or bool(
         idmap_model and idmap_model.scenes
     )
-    if declares_scenes:
-        add("SCENES", "UNVERIFIED", "clear_when not verifiable")
+    if scenes is not None:
+        mismatches = _idmap_scene_mismatches(idmap_model, scenes.scene_ids)
+        if mismatches:
+            add("SCENES", "FAIL", *scenes.reasons, *mismatches)
+        else:
+            add("SCENES", scenes.status, *scenes.reasons)
     elif scene_required:
         add("SCENES", "UNVERIFIED", "scene completion required but no clear_when")
     else:
@@ -282,11 +346,29 @@ def evaluate_publication(
         ]
         add("NG", "FAIL" if flagged else "PASS", *flagged)
 
+    # 9-1. 일반 팩 재검사(PM v0.4.14 §A: 새 케이스 게시 때 GEN-LEAK · GEN-CASE). 겹치거나 판정할 수 없으면 막는다.
+    add(
+        "GEN_PACK",
+        *_general_pack_recheck(
+            general_pack,
+            PublishedCase(
+                case_id=case_id,
+                content_version=version,
+                runtime=server_model,
+                npc=npc_model,
+                hint_source=hint_source,
+                proper_names=(
+                    tuple(case_proper_names) if case_proper_names is not None else None
+                ),
+            ),
+        ),
+    )
+
     # 10. 승인(신뢰할 수 있는 승인 기록만)
     approval = _approval_check(approval_source, case_id, version, fingerprint)
     checks.append(approval)
 
-    approved = all(item.status in ("PASS", "NOT_APPLICABLE") for item in checks)
+    approved = all(item.status in NON_BLOCKING_STATUSES for item in checks)
     registered = False
     if approved and store is not None:
         store.add(
@@ -300,6 +382,84 @@ def evaluate_publication(
         )
         registered = True
     return PublicationResult(approved, registered, case_id, version, tuple(checks))
+
+
+class PublishedContentRebuildError(Exception):
+    """게시 기록과 같은 묶음을 다시 만들 수 없다. 이유 코드만 싣는다(내용 · fingerprint 값은 싣지 않는다)."""
+
+
+def rebuild_published_content(
+    *,
+    client: bytes,
+    server: bytes,
+    npc: bytes,
+    idmap: bytes | None,
+    expected: ContentPin,
+) -> PinnedContent:
+    """이미 게시된(DB에 불변 버전으로 등록된) 묶음을 원본 바이트에서 다시 만든다(서버 재시작 · 재조정용).
+
+    다시 계산한 fingerprint가 등록 값과 정확히 같아야 한다. 같은 바이트는 게시 때 게이트를 통과한 그 내용이다.
+    파싱 · 머리 · 스키마 · 장면 규칙은 `evaluate_publication`과 같게 다시 확인한다. 승인 · NG · 로컬 ID 검사는
+    다시 하지 않는다 — 게시 판정은 DB 게시 상태가 기록하며, 게시 뒤 철회는 게시본을 자동으로 내리지 않는다(PM).
+    """
+
+    files = {"client": client, "server": server, "npc": npc}
+    if idmap is not None:
+        files["idmap"] = idmap
+    try:
+        documents = {role: parse_i_json(content) for role, content in files.items()}
+    except FingerprintError as error:
+        raise PublishedContentRebuildError("parse") from error
+    if not all(isinstance(document, dict) for document in documents.values()):
+        raise PublishedContentRebuildError("parse")
+    fingerprint = compute_content_fingerprint(
+        client=client, server=server, npc=npc, idmap=idmap
+    )
+    if fingerprint != expected.content_fingerprint:
+        raise PublishedContentRebuildError("fingerprint")
+    if header_mismatches(
+        documents,
+        case_id=expected.case_id,
+        content_version=expected.content_version,
+        fingerprint=fingerprint,
+    ):
+        raise PublishedContentRebuildError("header")
+    try:
+        client_model = CaseClientContent.model_validate(
+            _without(documents["client"], _SCHEMA_HEADER_FIELDS)
+        )
+        server_model = PuzzleRuntimeDefinition.model_validate(
+            _without(documents["server"], _SCHEMA_HEADER_FIELDS | {"scenes"})
+        )
+        validate_case_content_links(client_model, server_model)
+        if documents["server"].get("scenes", []) != []:
+            scenes = assess_scenes(documents["server"]["scenes"], server_model)
+            if scenes.status != "PASS":
+                raise PublishedContentRebuildError("scenes")
+            server_model = PuzzleRuntimeDefinition.model_validate(
+                _without(documents["server"], _SCHEMA_HEADER_FIELDS)
+            )
+        npc_model = NpcContentPack.model_validate(
+            _without(documents["npc"], _NPC_EXTRA_HEADERS)
+        )
+        return PinnedContent(
+            expected,
+            client=client_model,
+            server=server_model,
+            npc=npc_model,
+            idmap=documents.get("idmap"),
+        )
+    except (ValidationError, CaseContentLinkValidationError) as error:
+        raise PublishedContentRebuildError("schema") from error
+    except PinnedContentError as error:
+        raise PublishedContentRebuildError("bundle") from error
+
+
+def _bundle_hint_source(server: PuzzleRuntimeDefinition) -> HintSource:
+    def source(case_id: str, puzzle_id: str, level: int) -> str | None:
+        return server_hint_text(server, puzzle_id, level)
+
+    return source
 
 
 def _without(document: Mapping[str, Any], fields: Iterable[str]) -> dict[str, Any]:
@@ -319,8 +479,35 @@ def _approval_check(
 ) -> GateCheck:
     if source is None:
         return GateCheck("APPROVALS", "FAIL", ("no trusted approval source",))
-    reasons = gate_decisions(source(case_id, version), fingerprint)
+    try:
+        records = source(case_id, version)
+    except ApprovalSourceUnavailableError:
+        # 승인 기록을 읽지 못하면 승인되지 않은 것이다(기본 차단).
+        return GateCheck("APPROVALS", "FAIL", ("approval source unavailable",))
+    reasons = gate_decisions(records, fingerprint)
     return GateCheck("APPROVALS", "FAIL" if reasons else "PASS", reasons)
+
+
+def _idmap_scene_mismatches(
+    idmap: NajuIdmap | None, scene_ids: tuple[str, ...]
+) -> list[str]:
+    """idmap에 장면 대응이 있으면 Server Runtime 장면과 하나씩 맞아야 한다."""
+
+    if idmap is None or not idmap.scenes:
+        return []
+    mapped = [scene.scene_id for scene in idmap.scenes]
+    return [
+        *(
+            f"idmap_scene_without_clear_when:{scene_id}"
+            for scene_id in mapped
+            if scene_id not in scene_ids
+        ),
+        *(
+            f"scene_not_in_idmap:{scene_id}"
+            for scene_id in scene_ids
+            if scene_id not in mapped
+        ),
+    ]
 
 
 def _non_executable_references(
@@ -329,8 +516,9 @@ def _non_executable_references(
     server: PuzzleRuntimeDefinition,
     npc: NpcContentPack,
     game_objects: set[str] | None,
+    scene_puzzle_references: Iterable[tuple[str, str]] = (),
 ) -> list[str]:
-    """실행 불가 항목을 Interaction 대상 · reveal_when이 참조하는지(PUB-REF)."""
+    """실행 불가 항목을 Interaction 대상 · reveal_when · clear_when이 참조하는지(PUB-REF)."""
 
     placed_objects = {
         (o.zone_id, o.object_id)
@@ -376,7 +564,10 @@ def _non_executable_references(
                 kind == "clue_acquired" and clue_status.get(value) != EXECUTABLE_STATUS
             ):
                 reasons.append(f"reveal_when_clue:{nudge.line_id}:{value}")
-    # clear_when: Server Runtime에 장면 정의가 없어 참조할 대상 자체가 없다.
+    # clear_when은 정의된 퍼즐만 참조한다(scene_validation). 그 퍼즐이 실행 가능해야 장면을 끝낼 수 있다.
+    for scene_id, puzzle_id in scene_puzzle_references:
+        if puzzle_status.get(puzzle_id) != EXECUTABLE_STATUS:
+            reasons.append(f"clear_when_puzzle:{scene_id}:{puzzle_id}")
     return reasons
 
 
@@ -413,3 +604,36 @@ def _client_leaks(
             if hint and hint.strip() and normalize_answer(hint) in text:
                 reasons.append(f"hint:{puzzle.puzzle_id}:{level}")
     return reasons
+
+
+def _general_pack_recheck(
+    general_pack: GeneralLinePack | None | _ConfiguredGeneralPack, case: PublishedCase
+) -> tuple[CheckStatus, ...] | tuple[str, ...]:
+    """(상태, *이유). 설정이 비면 NOT_APPLICABLE — 나중에 팩을 켜면 NPC 턴의 정책 검사가 게시 케이스 전체와 다시 대조한다.
+
+    팩을 읽지 못하면 FAIL, 고유명 목록이 계약되지 않았으면 GEN-CASE UNVERIFIED(둘 다 게시를 막는다).
+    이유에는 검사 코드 · line_id · 규칙 ID만 담는다(정답 · 문장 원문 없음).
+    """
+
+    if isinstance(general_pack, _ConfiguredGeneralPack):
+        from app.core.config import settings
+        from app.services.npc_general_pack import (
+            GeneralPackLoadError,
+            load_general_pack,
+        )
+
+        if not settings.npc_general_pack:
+            return ("NOT_APPLICABLE", "no general pack configured")
+        try:
+            general_pack = load_general_pack(settings.npc_general_pack)
+        except GeneralPackLoadError as error:
+            return ("FAIL", f"general_pack:{error}")
+    if general_pack is None:
+        return ("NOT_APPLICABLE", "no general pack configured")
+    findings = case_conflicts(general_pack, case)
+    reasons = tuple(f"{f.code}:{f.line_id or '-'}:{f.detail}" for f in findings)
+    if any(f.status == "FAIL" for f in findings):
+        return ("FAIL", *reasons)
+    if findings:
+        return ("UNVERIFIED", *reasons)
+    return ("PASS",)

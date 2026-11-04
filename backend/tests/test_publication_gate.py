@@ -283,6 +283,8 @@ def test_valid_non_scene_bundle_with_trusted_approvals_is_registered() -> None:
         "EXECUTABLE_REFS",
         "LOCAL_IDS",
         "SCENES",
+        # 일반 팩 설정이 없으면 재검사 대상이 없다(PM v0.4.14, 설정된 팩만)
+        "GEN_PACK",
     }
     assert set(statuses(result).values()) == {"PASS", "NOT_APPLICABLE"}
     bundle = store.get(ContentPin(CASE_ID, 1, fingerprint))
@@ -300,25 +302,30 @@ def test_scene_mapped_bundle_passes_everything_else_but_is_not_published() -> No
         "scene completion required but no clear_when",
     )
     assert {code for code, status in statuses(result).items() if status != "PASS"} == {
-        "SCENES"
+        "SCENES",
+        "GEN_PACK",  # NOT_APPLICABLE: 일반 팩 설정 없음
     }
     assert result.approved is False
     assert result.registered is False
     assert store.versions(CASE_ID) == ()
 
 
-def test_declared_scenes_with_clear_when_are_unverified() -> None:
+def test_declared_scenes_with_unsupported_clear_when_are_unverified() -> None:
+    # 검증 가능한 clear_when 부분집합은 tests/test_scene_clear_when.py에서 다룬다.
     documents = base_documents()
     del documents["idmap"]
     documents["server"]["scenes"] = [
-        {"scene_id": "SCENE_ONE", "clear_when": {"puzzle_completed": "PUZZLE_A"}}
+        {"scene_id": "SCENE_ONE", "clear_when": {"scene_reached": "SCENE_TWO"}}
     ]
     files, fingerprint = seal(documents)
 
     result, store = run({**files, "idmap": None}, fingerprint)
 
     assert result.check("CLIENT_SERVER").status == "PASS"
-    assert result.check("SCENES").reasons == ("clear_when not verifiable",)
+    assert result.check("SCENES").status == "UNVERIFIED"
+    assert result.check("SCENES").reasons == (
+        "clear_when:SCENE_ONE:unsupported_condition:scene_reached",
+    )
     assert result.registered is False
     assert store.versions(CASE_ID) == ()
 

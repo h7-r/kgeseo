@@ -44,9 +44,22 @@ def validate_nickname(value: str) -> str:
     candidates = {key, translated, key.rstrip("0123456789")}
     if candidates & RESERVED:
         raise InvalidNicknameError
-    # Exceptions cover whole normalized names, never arbitrary containing names.
-    if key not in FORBIDDEN_EXACT_EXCEPTIONS and any(
-        term in candidate for candidate in candidates for term in FORBIDDEN
-    ):
+    if forbidden_terms_in(nickname):
         raise InvalidNicknameError
     return nickname
+
+
+def forbidden_terms_in(value: str) -> tuple[str, ...]:
+    """FORBIDDEN terms contained in the value (NFKC, casefold, "_" removed, leet, substring).
+
+    Same rule as the nickname check; the general pack policy (GEN-WORD) reuses it as is.
+    """
+
+    key = normalize_nickname(value).casefold().replace("_", "")
+    # Exceptions cover whole normalized names, never arbitrary containing names.
+    if key in FORBIDDEN_EXACT_EXCEPTIONS:
+        return ()
+    candidates = {key, key.translate(LEET), key.rstrip("0123456789")}
+    return tuple(
+        sorted(term for term in FORBIDDEN if any(term in c for c in candidates))
+    )

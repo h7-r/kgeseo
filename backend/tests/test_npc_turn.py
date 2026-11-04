@@ -22,6 +22,7 @@ from app.services.npc_turn import (
     turn_content_from_pinned,
 )
 from app.services.pinned_content import ContentPin, PinnedContent
+from tests.pack_policy_stub import passing_test_policy
 from tests.test_puzzle_question import make_client, make_runtime, make_state
 
 # 가상 테스트 데이터. 실제 PM 콘텐츠 · 실제 승인 기록이 아니다.
@@ -128,6 +129,7 @@ def content(*, case_approved: bool = True, general_approved: bool = True, **npc_
         bundle(**npc_extra),
         approved(("case_test", 1), FP).source() if case_approved else None,
         general_pack=pack,
+        general_pack_policy=passing_test_policy,
         general_pack_approval=(
             approved(("general_default", 1), general_pack_fingerprint(pack)).source()
             if general_approved
@@ -160,15 +162,68 @@ def test_auto_intervention_serves_approved_revealed_nudge() -> None:
     assert result.suggest_hint is None
 
 
-def test_auto_intervention_without_case_approval_says_nothing() -> None:
+def test_repeated_incorrect_without_approved_nudge_escalates_to_hint_guidance() -> None:
+    # PM v0.4.7: 6회 이상 오답 · 보여 줄 승인 넛지 없음 → 2단계(승인 일반 안내 + 힌트 안내)
+    state = make_state()
+    before = deepcopy(state)
     result = run_auto_turn(
-        NpcDecision(True, 1, "repeated_incorrect", "PZ_A"),
+        NpcDecision(True, 1, "repeated_incorrect", "PZ_A", trigger_value=6),
+        state=state,
+        content=content(case_approved=False),
+    )
+
+    assert result.reply == NpcReply(
+        "approved_line",
+        PM_GENERIC_PUZZLE_LINES["NPC_GENERIC_PUZZLE_02"],
+        "NPC_GENERIC_PUZZLE_02",
+    )
+    assert result.suggest_hint == SuggestHint("PZ_A")
+    assert result.fallback_reason is None
+    assert (result.auto.level, result.auto.trigger, result.auto.value) == (
+        2,
+        "repeated_incorrect",
+        6,
+    )
+    assert result.auto.nudge_missing is False  # 넛지는 작성돼 있지만 승인 · 공개 전
+    assert state == before  # hint_levels 등 상태를 바꾸지 않는다
+    assert HINT_1 not in result.reply.text and HINT_2 not in result.reply.text
+
+
+def test_hint_guidance_without_approved_generic_pack_has_no_reply() -> None:
+    result = run_auto_turn(
+        NpcDecision(True, 1, "repeated_incorrect", "PZ_A", trigger_value=7),
+        state=make_state(),
+        content=content(case_approved=False, general_approved=False),
+    )
+
+    assert result.reply is None
+    assert result.fallback_reason == "NPC_GENERIC_PACK_MISSING"
+    assert result.suggest_hint == SuggestHint("PZ_A")
+    assert result.auto.level == 2
+
+
+def test_idle_without_approved_nudge_does_not_escalate() -> None:
+    result = run_auto_turn(
+        NpcDecision(True, 1, "idle_too_long", "PZ_A", trigger_value=300.0),
         state=make_state(),
         content=content(case_approved=False),
     )
 
-    assert result.reply is None
+    assert (result.reply, result.suggest_hint) == (None, None)
     assert result.no_reply_reason == "no_approved_line"
+    assert (result.auto.level, result.auto.trigger) == (1, "idle_too_long")
+
+
+def test_puzzle_without_authored_nudges_records_nudge_missing() -> None:
+    result = run_auto_turn(
+        NpcDecision(True, 1, "repeated_incorrect", "PZ_A", trigger_value=6),
+        state=make_state(),
+        content=content(puzzles=[]),
+    )
+
+    assert result.auto.nudge_missing is True
+    assert result.auto.puzzle_ref == "PZ_A"
+    assert result.suggest_hint == SuggestHint("PZ_A")
 
 
 def test_no_intervention_decision_says_nothing() -> None:

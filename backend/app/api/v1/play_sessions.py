@@ -3,6 +3,8 @@ from datetime import timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.v1 import error_responses
+from app.api.v1.hints import get_hint_economy_config
 from app.db.session import get_db
 from app.schemas.case_bundle import CaseBundleResponse
 from app.schemas.clue import PlaySessionCluesData, PlaySessionCluesResponse
@@ -22,6 +24,8 @@ from app.services.case_content import (
 )
 from app.services.case_content_validation import CaseContentLinkValidationError
 from app.services.clue_catalog import get_acquired_clues
+from app.services.content_release import require_published_for_new_session
+from app.services.hint_balance import HintEconomyConfig
 from app.services.pinned_content import (
     ContentCaseMismatchError,
     PinnedContentStore,
@@ -34,6 +38,7 @@ from app.services.play_session import (
     PlaySessionCaseNotFoundError,
     PlaySessionInvalidCaseIdError,
     PlaySessionNotFoundError,
+    PublicationGuard,
     create_play_session,
     get_play_session,
 )
@@ -60,6 +65,12 @@ router = APIRouter(
 )
 
 
+def get_new_session_publication_guard() -> PublicationGuard:
+    """고정 세션 생성 때 DB 게시 상태를 확인하는 guard(게시 중인 버전만 신규 세션 허용)."""
+
+    return require_published_for_new_session
+
+
 @router.post(
     "",
     # 새로운 PlaySession 리소스를 생성하므로
@@ -67,6 +78,7 @@ router = APIRouter(
     status_code=status.HTTP_201_CREATED,
     # FastAPI가 최종 응답 구조를 검증한다.
     response_model=PlaySessionCreateResponse,
+    responses=error_responses.PLAY_SESSION_CREATE,
 )
 async def create_play_session_endpoint(
     # 클라이언트가 보내는 JSON Request Body
@@ -75,6 +87,10 @@ async def create_play_session_endpoint(
     db: AsyncSession = Depends(get_db),
     # 게시 검증을 통과해 등록된 콘텐츠 묶음 저장소(기본은 비어 있다)
     content_store: PinnedContentStore = Depends(get_pinned_content_store),
+    # 회차 시작 힌트 잔액 N 등 설정값(PM v0.4.8 §4)
+    economy: HintEconomyConfig = Depends(get_hint_economy_config),
+    # 고정 세션은 DB 게시 상태가 published인 버전만 새로 만든다(PM v0.4.6)
+    publication_guard: PublicationGuard = Depends(get_new_session_publication_guard),
 ) -> PlaySessionCreateResponse:
     pinned_content = None
     if request.content_version is not None:
@@ -103,6 +119,8 @@ async def create_play_session_endpoint(
             anonymous_session_id=request.anonymous_session_id,
             case_id=request.case_id,
             pinned_content=pinned_content,
+            publication_guard=publication_guard,
+            initial_hint_balance=economy.initial_balance,
         )
 
     except AnonymousSessionNotFoundError:
@@ -169,6 +187,7 @@ async def create_play_session_endpoint(
 @router.get(
     "/{play_session_id}",
     response_model=PlaySessionReadResponse,
+    responses=error_responses.PLAY_SESSION_READ,
 )
 async def get_play_session_endpoint(
     play_session_id: str,
@@ -210,6 +229,7 @@ async def get_play_session_endpoint(
 @router.get(
     "/{play_session_id}/clues",
     response_model=PlaySessionCluesResponse,
+    responses=error_responses.PLAY_SESSION_CLUES,
 )
 async def get_play_session_clues_endpoint(
     play_session_id: str,
@@ -250,6 +270,7 @@ async def get_play_session_clues_endpoint(
 @router.get(
     "/{play_session_id}/bundle",
     response_model=CaseBundleResponse,
+    responses=error_responses.PLAY_SESSION_BUNDLE,
 )
 async def get_play_session_bundle_endpoint(
     play_session_id: str,

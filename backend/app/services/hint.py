@@ -8,6 +8,16 @@
 - 새 단계 해금의 접근 조건(Zone · 완료한 퍼즐 · 선행 단서): `access_policy`
 
 힌트 원문은 이벤트에 저장하지 않는다. 응답할 때마다 `hint_source`에서 읽는다.
+
+힌트 잔액(PM v0.4.8 §4 · §5, v0.4.9 §1 · §3 · §7). 처리 순서는 고정이다.
+1. 세션 행 잠금(`FOR UPDATE`)
+2. 세션이 고정한 콘텐츠 버전의 로더인지 확인하고, 새 단계면 접근 조건(`access_policy`)을 본 뒤
+   요청 단계의 승인 원문을 **먼저** 읽는다.
+   여기서 실패하면 차감하지 않고 오류를 낸다(「차감했는데 줄 게 없음」 방지).
+3. 새 단계면 잔액 확인 → `hint_level` +1 · `hint_balance` −1 · `help_used` +1 · 이벤트를 한 commit에 저장한다.
+   잔액이 0이면 `HintBalanceEmptyError`(상태 · 이벤트 변화 없음).
+이미 연 단계(재열람)는 잔액 0이어도 무료다. 같은 `client_event_id` 재전송은 처음 결과를 그대로 준다.
+게시 상태(긴급 차단)는 보지 않는다. 차단 중에도 Hint API는 승인 원문을 준다(v0.4.6 §3 · v0.4.9 §3).
 """
 
 import asyncio
@@ -34,6 +44,12 @@ from app.schemas.hint import (
 from app.schemas.interaction import HintLevelChangedStateChange
 from app.schemas.play_session import PlaySessionState
 from app.schemas.puzzle_runtime import PuzzleDefinition, PuzzleRuntimeDefinition
+from app.services.hint_balance import (
+    HintBalanceEmptyError,
+    HintEconomyConfig,
+    hint_economy_config,
+    minigame_allowance,
+)
 from app.services.interaction import (
     IdempotencyConflictError,
     PuzzleNotFoundError,
@@ -42,6 +58,7 @@ from app.services.interaction import (
     _is_same_request,
     _to_db_datetime,
 )
+from app.services.pinned_content import ensure_loaders_match_session
 from app.services.play_session import PlaySessionNotFoundError
 from app.services.puzzle_runtime import load_case_runtime
 
@@ -107,12 +124,15 @@ async def unlock_hint(
     hint_source: HintSource,
     access_policy: HintAccessPolicy,
     runtime_loader: RuntimeLoader = load_case_runtime,
+    economy: HintEconomyConfig | None = None,
 ) -> HintUnlockProcessResult:
     payload_json = {"target_level": request.target_level}
     try:
         play_session = await _get_play_session_for_update(db, play_session_id)
         if play_session is None:
             raise PlaySessionNotFoundError()
+        # 고정 세션은 그 버전의 로더 · 원문만 쓴다(최신 버전으로 바꾸지 않는다). 레거시 세션은 고정 로더를 거부한다.
+        ensure_loaders_match_session(play_session, runtime_loader, hint_source)
 
         existing_event = await _find_interaction_event(
             db, play_session_id, request.client_event_id
@@ -136,14 +156,19 @@ async def unlock_hint(
 
         runtime = runtime_loader(play_session.case_id)
         puzzle = _find_puzzle(runtime, puzzle_id)
+        current_state = deepcopy(play_session.state_json)
+        current_level = _current_hint_level(current_state, puzzle_id)
+        unlocked = request.target_level > current_level
+        if unlocked:
+            # 접근 조건(미발견 퍼즐 등)을 원문 조회 · 단계 판정보다 먼저 본다. 거부 응답으로 그 퍼즐의 힌트 유무 ·
+            # 단계가 드러나지 않게 한다. 이미 연 단계(재열람)는 조건 없이 준다.
+            access_policy(current_state, puzzle, request.target_level)
         text = _require_hint_text(
             hint_source, play_session.case_id, puzzle_id, request.target_level
         )
-        current_state = deepcopy(play_session.state_json)
-        current_level = _current_hint_level(current_state, puzzle_id)
 
         result_type: HintUnlockResultType
-        if request.target_level <= current_level:
+        if not unlocked:
             # 이미 연 단계는 다시 해금하지 않는다. 사용 횟수에 넣지 않도록 변화도 없다.
             result_type = "already_unlocked"
             result_state = current_state
@@ -151,7 +176,10 @@ async def unlock_hint(
         else:
             if request.target_level != current_level + 1:
                 raise HintLevelSkippedError(puzzle_id)
-            access_policy(current_state, puzzle, request.target_level)
+            if play_session.hint_balance <= 0:
+                raise HintBalanceEmptyError(
+                    minigame_allowance(economy or hint_economy_config())
+                )
             result_type = "hint_unlocked"
             result_state = deepcopy(current_state)
             result_state.setdefault("hint_levels", {})[puzzle_id] = request.target_level
@@ -169,12 +197,17 @@ async def unlock_hint(
             hint_level=_current_hint_level(result_state, puzzle_id),
             state=PlaySessionState.model_validate(result_state),
             state_changes=state_changes,
+            hint_balance=play_session.hint_balance - (1 if unlocked else 0),
+            help_used=play_session.help_used + (1 if unlocked else 0),
         )
         now_db = datetime.now(timezone.utc).replace(tzinfo=None)
         interaction_id = str(uuid4())
 
-        if result_state != current_state:
+        if unlocked:
+            # 단계 · 잔액 · 도움 수 · 이벤트를 한 commit에 저장한다(세션 행 잠금 안).
             play_session.state_json = result_state
+            play_session.hint_balance = result.hint_balance
+            play_session.help_used = result.help_used
             play_session.updated_at = now_db
 
         db.add(
@@ -230,6 +263,7 @@ async def get_puzzle_hint_state(
     play_session = await db.get(PlaySession, play_session_id)
     if play_session is None:
         raise PlaySessionNotFoundError()
+    ensure_loaders_match_session(play_session, runtime_loader, hint_source)
 
     _find_puzzle(runtime_loader(play_session.case_id), puzzle_id)
     current_level = _current_hint_level(play_session.state_json, puzzle_id)
