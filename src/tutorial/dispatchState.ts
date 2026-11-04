@@ -3,7 +3,7 @@ import { useSyncExternalStore } from "react";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 
-import { tutorialStore } from "./tutorialState";
+import { TUTORIAL_COLOR, tutorialStore } from "./tutorialState";
 
 // 튜토리얼 다음 흐름: 본부실에 들어서면 잠시 뒤 나주 출동 호출 → 바닥 화살표로 기차 문까지 → 기차에 오르면 끝.
 //   idle      튜토리얼 전이거나 본부실에 아직 안 들어왔다
@@ -15,8 +15,8 @@ import { tutorialStore } from "./tutorialState";
 /** 본부실에 들어선 뒤 긴급 호출까지(초) */
 const ALERT_DELAY_SECONDS = 5;
 
-/** 경보의 주황 — 튜토리얼(하늘색)과 구분한다. 카드와 바닥 화살표가 같이 쓴다. */
-export const DISPATCH_COLOR = "#ffb25c";
+/** 호출 카드·바닥 화살표 색 — 튜토리얼 안내와 한 색으로 맞췄다 */
+export const DISPATCH_COLOR = TUTORIAL_COLOR;
 
 type DispatchPhase = "idle" | "countdown" | "alert" | "guide" | "boarded";
 

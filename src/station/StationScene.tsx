@@ -16,6 +16,7 @@ import { useCoins } from "@/props/coinState";
 import { useDrink } from "@/props/drinkState";
 import { useNozzle } from "@/props/nozzleState";
 import { useVendingMachine } from "@/props/vendingMachineState";
+import { getPushProgress } from "@/props/vendingPushState";
 import { ColliderDebugView } from "@/station/layout/Colliders";
 import { isBlockedWithin } from "@/station/layout/collision";
 import {
@@ -80,6 +81,8 @@ import {
 import { usePlatformEndWallControls, useTrainControls } from "./controls/trainControls";
 import { useCoinControls, useVendingControls } from "./controls/vendingControls";
 import { useWorkLampPuzzleControls } from "./controls/workLampControls";
+
+const isOpeningCoveredByVending = () => getPushProgress() < 0.02;
 
 // 구역 컬링이 만드는 보임 조합(ZoneCulling) — 복도만 · 복도에서 방이 보일 때 · 방 안. 배경은 늘 켜져 있다
 const ZONE_STATES = [
@@ -322,6 +325,8 @@ export default function StationScene({
           corridor={corridorRef}
           train={trainRef}
           backdrop={backdropRef}
+          // 음료 자판기가 구멍을 막고 서 있다 — 밸브를 돌려 밀리기 전엔 복도에서 방이 보일 수 없다
+          isOpeningCovered={isOpeningCoveredByVending}
           enabled={performance.zoneCulling && !IS_ZONE_CULLING_DISABLED && enabled}
         />
 

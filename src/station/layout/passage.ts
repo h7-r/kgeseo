@@ -7,6 +7,7 @@ export interface PassageState {
   /** 방↔복도 구멍의 중심 z */
   doorZ: number;
   doorWidth: number;
+  doorHeight: number;
   /** 복도 바깥벽 x */
   corridorMinX: number;
   corridorMinZ: number;
@@ -21,6 +22,7 @@ let current: PassageState = {
   open: 1,
   doorZ: 4,
   doorWidth: 3.6,
+  doorHeight: 5.7,
   corridorMinX: -31,
   corridorMinZ: -60,
   corridorMaxZ: 25.5,

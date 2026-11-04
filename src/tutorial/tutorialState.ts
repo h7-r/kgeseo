@@ -19,8 +19,8 @@ export const BREAKER_BOX_LOCK_ID = "workLamp:breakerBox";
 // 동그라미는 작업등 퍼즐 구간(z −30 안쪽)에만 둔다.
 const CORRIDOR_X = -25.5;
 export const FLOOR_MARKER_RADIUS = 1.6;
-/** 바닥 동그라미·방향 화살표가 같이 쓰는 하늘색 */
-export const TUTORIAL_COLOR = "#8ee8ff";
+/** 튜토리얼 안내 색 — 바닥 동그라미·방향 화살표·안내판 테두리, 그리고 출동 호출 카드·화살표까지 한 색. 푸른 기 뺀 민트. */
+export const TUTORIAL_COLOR = "#a9e6cf";
 
 type TutorialStepId =
   | "start"
@@ -132,8 +132,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       "바닥에 떨어진 작업등을 집어 보세요. 들고 있으면 발밑이 밝아집니다.",
     keys: [
       [["가운데 점"], "겨냥"],
-      [["E"], "집기"],
-      [["F"], "들고 있는 것 내려놓기"],
+      [["E"], "집기 · 내려놓기"],
     ],
     isDone: () => getWorkLampLocation() !== "floor",
   },
@@ -144,10 +143,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     text:
       "작업등을 든 채 벽의 분기함을 겨냥해 E 를 누르면 그 자리에 꽂힙니다. 다시 E 로 뽑을 수 있어요.\n" +
       "불빛이 닿은 곳을 잘 살펴보세요.",
-    keys: [
-      [["E"], "꽂기 · 뽑기"],
-      [["F"], "내려놓기"],
-    ],
+    keys: [[["E"], "꽂기 · 뽑기 · 내려놓기"]],
     isDone: () => hasSeenAllMarks(),
   },
   {
@@ -170,10 +166,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     text:
       "차단기함 안의 선은 E 로 집어 꽂을 자리에 E 로 꽂습니다. 레버도 E 로 올립니다.\n" +
       "무엇을 어디에 이을지는 직접 찾아내세요.",
-    keys: [
-      [["E"], "집기 · 꽂기 · 레버"],
-      [["F"], "들고 있는 선 내려놓기"],
-    ],
+    keys: [[["E"], "집기 · 꽂기 · 레버"]],
     isDone: () => isCorridorPowered(),
   },
   {

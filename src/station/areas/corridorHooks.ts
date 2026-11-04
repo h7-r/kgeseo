@@ -90,7 +90,7 @@ export type CorridorShading = ReturnType<typeof useCorridorBrightness>;
  * 방 바닥면은 HEADQUARTERS_MIN_X 안쪽만 덮어서, 복도 바닥을 따로 등록하지 않으면 동전을 복도에 못 내려놓는다.
  */
 export function useCorridorSync(corridor: CorridorValues) {
-  const { visible, openness, showBlocker, freeRoam, doorZ, doorWidth, outerX, startZ, endZ } = corridor;
+  const { visible, openness, showBlocker, freeRoam, doorZ, doorWidth, doorHeight, outerX, startZ, endZ } = corridor;
   useEffect(() => {
     passage.set({
       // 막이가 없으면 구멍을 막는 게 없으므로 늘 열림. 막이가 있을 때만 열림 슬라이더(나중엔 퍼즐)가 정한다.
@@ -98,11 +98,12 @@ export function useCorridorSync(corridor: CorridorValues) {
       freeRoam,
       doorZ,
       doorWidth,
+      doorHeight,
       corridorMinX: outerX,
       corridorMinZ: startZ,
       corridorMaxZ: endZ,
     });
-  }, [visible, openness, showBlocker, freeRoam, doorZ, doorWidth, outerX, startZ, endZ]);
+  }, [visible, openness, showBlocker, freeRoam, doorZ, doorWidth, doorHeight, outerX, startZ, endZ]);
 
   useEffect(() => {
     // 복도 바닥판이 y=0.01 에 깔려 있다

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import type * as THREE from "three";
+import * as THREE from "three";
 
 import { isShadowUpdateUrgent, requestShadowUpdates } from "./shadowUpdates";
 
@@ -57,31 +57,82 @@ interface ShaderWarmupProps {
   maxInterval?: number;
   /**
    * 구역 컬링이 켜고 끄는 그룹(이름) 조합들. 조합마다 보이는 빛 수가 달라 셰이더도 따로라, 하나씩 켠 채로 예열한다.
-   * 없으면 지금 보이는 것만 — compile 은 보이는 것만 훑어 처음 들어가는 구역에서 수백 ms 멈췄다.
+   * 없으면 지금 보이는 빛 구성으로만 구워, 처음 들어가는 구역에서 그 구역의 빛 수로 또 굽느라 수백 ms 멈췄다.
    */
   zoneStates?: readonly (readonly string[])[];
 }
 
-/**
- * 씬의 재질 지문 — 메시 수와 재질의 id·version(needsUpdate 마다 오른다)을 섞는다. 같으면 새로 컴파일할 것이 없다.
- * 훑는 값은 1 ms 남짓이고 compile 은 한 번에 수십 ms 라, 바뀐 것이 없을 때는 compile 을 건너뛴다.
- */
-function materialSignature(scene: THREE.Scene) {
-  let hash = 0;
-  scene.traverse((object) => {
-    const material = (object as THREE.Mesh).material;
-    if (!material) return;
-    for (const m of Array.isArray(material) ? material : [material])
-      hash = (hash * 31 + ((m as { id?: number }).id ?? 0) * 7 + m.version) | 0;
-  });
-  return hash;
+// 후처리(EffectComposer)가 켜진 화면은 장면을 선형 색 공간의 렌더 타깃에 그린다. 셰이더 변종은 출력 색 공간·톤 매핑에
+// 따라 다르므로 아무 타깃도 안 건 채 구우면 sRGB 변종만 구워지고 진짜 그릴 때 전부 다시 굽는다(본부실 첫 진입 42개).
+const warmTargets = new WeakMap<THREE.WebGLRenderer, THREE.WebGLRenderTarget>();
+function getWarmTarget(gl: THREE.WebGLRenderer) {
+  let target = warmTargets.get(gl);
+  if (!target) {
+    target = new THREE.WebGLRenderTarget(1, 1, {
+      type: THREE.UnsignedByteType,
+      colorSpace: THREE.LinearSRGBColorSpace,
+    });
+    warmTargets.set(gl, target);
+  }
+  return target;
 }
 
-/** 이름 붙은 구역 그룹들의 보임을 한 조합으로 맞추고 compile 한 뒤 되돌린다(그리기 전이라 화면엔 안 보인다) */
-function compileZoneStates(
-  gl: THREE.WebGLRenderer,
+// 양면 반투명 재질은 three 가 앞·뒤 두 번 그리며 그때마다 version 을 올린다 — 그 재질은 version 을 보지 않는다.
+const isRedrawnTwice = (m: THREE.Material) => m.transparent && m.side === THREE.DoubleSide && !m.forceSinglePass;
+const materialVersion = (m: THREE.Material) => (isRedrawnTwice(m) ? 0 : m.version);
+const materialsOf = (object: THREE.Object3D): THREE.Material[] => {
+  const material = (object as THREE.Mesh).material;
+  return Array.isArray(material) ? material : material ? [material] : [];
+};
+
+// 이보다 많이 바뀌었으면(첫 로드·구역 통째 교체) 물체마다 굽는 대신 씬을 한 번에 굽는다
+const WHOLE_SCENE_THRESHOLD = 48;
+
+/**
+ * 구운 재질과 그때의 version 을 기억해 처음 보는 재질·needsUpdate 가 난 재질만 다시 굽는다.
+ * 씬 전체를 다시 훑는 compile 은 재질 1,300개에 60~120ms 라, 매번 통째로 구우면 예열이 곧 끊김이었다.
+ */
+class ShaderOven {
+  private readonly baked = new WeakMap<THREE.Material, number>();
+
+  constructor(
+    private readonly gl: THREE.WebGLRenderer,
+    private readonly scene: THREE.Scene,
+    private readonly camera: THREE.Camera,
+  ) {}
+
+  /** 아직 안 구웠거나 version 이 오른 재질을 가진 물체들 */
+  findStale(): THREE.Object3D[] {
+    const stale: THREE.Object3D[] = [];
+    this.scene.traverse((object) => {
+      if (materialsOf(object).some((m) => this.baked.get(m) !== materialVersion(m))) stale.push(object);
+    });
+    return stale;
+  }
+
+  /** 실제 그릴 때와 같은 타깃을 건 채, 지금 보이는 빛 구성으로 굽는다 */
+  bake(objects: THREE.Object3D[]) {
+    const { gl, scene, camera } = this;
+    const previous = gl.getRenderTarget();
+    gl.setRenderTarget(getWarmTarget(gl));
+    try {
+      if (objects.length > WHOLE_SCENE_THRESHOLD) gl.compile(scene, camera);
+      else for (const object of objects) gl.compile(object, camera, scene);
+    } finally {
+      gl.setRenderTarget(previous);
+    }
+  }
+
+  remember(objects: THREE.Object3D[]) {
+    for (const object of objects) for (const m of materialsOf(object)) this.baked.set(m, materialVersion(m));
+  }
+}
+
+/** 이름 붙은 구역 그룹들의 보임을 조합마다 맞춰 가며 굽고 되돌린다(그리기 전이라 화면엔 안 보인다) */
+function bakeZoneStates(
+  oven: ShaderOven,
   scene: THREE.Scene,
-  camera: THREE.Camera,
+  objects: THREE.Object3D[],
   zoneStates: readonly (readonly string[])[],
 ) {
   const names = [...new Set(zoneStates.flat())];
@@ -90,7 +141,7 @@ function compileZoneStates(
   try {
     for (const state of zoneStates) {
       for (const g of groups) g.visible = state.includes(g.name);
-      gl.compile(scene, camera);
+      oven.bake(objects);
     }
   } finally {
     groups.forEach((g, i) => {
@@ -101,7 +152,7 @@ function compileZoneStates(
 
 /**
  * 재질을 처음 그리는 프레임의 셰이더 컴파일(수백 ms)을 게임 전에 미리 끝낸다.
- * 늦게 붙는 GLB·구역·상태 부품 때문에 되풀이하되, 조용해지면 점점 뜸해진다.
+ * 늦게 붙는 GLB·구역·상태 부품 때문에 되풀이하되, 바뀐 것이 없으면 건너뛰고 점점 뜸해진다.
  */
 export function ShaderWarmup({
   enabled = true,
@@ -114,42 +165,36 @@ export function ShaderWarmup({
   const { gl, scene, camera } = useThree();
   useEffect(() => {
     if (!enabled) return;
+    const oven = new ShaderOven(gl, scene, camera);
     let alive = true;
-    let lastProgramCount = -1;
-    let lastSignature: number | null = null;
     let wait = Math.max(1, repeat) * 1000;
     let next: ReturnType<typeof setTimeout> | null = null;
-    const warm = () => {
-      if (!alive) return;
-      try {
-        // 바뀐 재질이 없으면 건너뛴다 — 주기 예열이 그 자체로 수십 ms 끊김이었다
-        const signature = materialSignature(scene);
-        if (signature === lastSignature) {
-          wait = Math.min(maxInterval * 1000, wait * growth);
-          if (next) clearTimeout(next);
-          next = setTimeout(warm, wait);
-          return;
-        }
-        lastSignature = signature;
-        // compileAsync 는 쓰지 않는다. 그 안의 타이머 사슬이 그 사이 dispose 된 재질을 읽어 터지고,
-        // Promise 밖의 타이머 콜백이라 catch 로도 못 막는다.
-        if (zoneStates?.length) compileZoneStates(gl, scene, camera, zoneStates);
-        else gl.compile(scene, camera);
-        // 새로 컴파일된 것이 있을 때만 그림자를 흔든다(깊이 셰이더도 데우려고). 늘 흔들면 그림자 절약이 무너진다.
-        const programCount = gl.info?.programs?.length ?? -1;
-        if (programCount !== lastProgramCount) {
-          lastProgramCount = programCount;
-          wait = Math.max(1, repeat) * 1000;
-          requestShadowUpdates(0.4);
-        } else {
-          wait = Math.min(maxInterval * 1000, wait * growth);
-        }
-      } catch {
-        // 예열은 실패해도 게임은 그대로 돈다.
-      }
+    const schedule = () => {
       // 예약은 언제나 하나만 — 두 줄로 돌면 간격이 절반이 된다.
       if (next) clearTimeout(next);
       next = setTimeout(warm, wait);
+    };
+    const warm = () => {
+      if (!alive) return;
+      try {
+        const stale = oven.findStale();
+        if (stale.length === 0) {
+          wait = Math.min(maxInterval * 1000, wait * growth);
+          schedule();
+          return;
+        }
+        // compileAsync 는 쓰지 않는다. 그 안의 타이머 사슬이 그 사이 dispose 된 재질을 읽어 터지고,
+        // Promise 밖의 타이머 콜백이라 catch 로도 못 막는다.
+        if (zoneStates?.length) bakeZoneStates(oven, scene, stale, zoneStates);
+        else oven.bake(stale);
+        oven.remember(stale);
+        // 새로 구운 것이 있으면 그림자도 한 번 흔든다(깊이 셰이더까지 데우려고). 늘 흔들면 그림자 절약이 무너진다.
+        requestShadowUpdates(0.4);
+        wait = Math.max(1, repeat) * 1000;
+      } catch {
+        // 예열은 실패해도 게임은 그대로 돈다.
+      }
+      schedule();
     };
     const first = setTimeout(warm, 400);
     const second = setTimeout(warm, Math.max(0.5, delay) * 1000);

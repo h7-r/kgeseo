@@ -36,7 +36,8 @@ const computeStrainedProgress = (t: number) => {
 export const getPushOffset = () => computeStrainedProgress(progress) * distance;
 /** 관이 쓰는 밀림(칸으로 끊어져 있다) */
 const getPipeOffset = () => steppedOffset;
-const getPushProgress = () => progress;
+/** 0 = 제자리(구멍을 가리고 있다) · 1 = 다 밀렸다 */
+export const getPushProgress = () => progress;
 
 function updateSteppedOffset() {
   const next = Math.round(getPushOffset() / STEP_SIZE) * STEP_SIZE;

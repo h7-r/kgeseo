@@ -103,7 +103,7 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
           임무 · 나주 앙암바위 왜곡 저지
         </div>
         <div style={objectiveTextStyle}>
-          바닥의 주황 화살표를 따라 기차 오른쪽 문으로 오르세요
+          바닥의 화살표를 따라 기차 오른쪽 문으로 오르세요
           {doorDistance != null && (
             <span style={distanceStyle}>
               {doorDistance <= 1 ? " · 기차 문 바로 앞" : ` · 기차 문까지 ${doorDistance}m`}

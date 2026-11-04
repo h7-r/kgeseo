@@ -5,7 +5,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 
 import { useDispatchState } from "./dispatchState";
-import { TUTORIAL_STEPS, toggleTutorialHidden, useTutorial } from "./tutorialState";
+import { TUTORIAL_COLOR, TUTORIAL_STEPS, toggleTutorialHidden, useTutorial } from "./tutorialState";
 
 const PUZZLE_COUNT = TUTORIAL_STEPS.filter((step) => step.puzzle).length;
 const CONTROL_STEP_COUNT = TUTORIAL_STEPS.findIndex((step) => step.puzzle);
@@ -136,8 +136,8 @@ const panelStyle: CSSProperties = {
   padding: "14px 18px 10px",
   borderRadius: 12,
   background: "rgba(12, 18, 26, 0.82)",
-  border: "1px solid rgba(142, 232, 255, 0.35)",
-  boxShadow: "0 0 24px rgba(142, 232, 255, 0.12), 0 8px 24px rgba(0,0,0,.4)",
+  border: `1px solid ${TUTORIAL_COLOR}59`,
+  boxShadow: `0 0 24px ${TUTORIAL_COLOR}1f, 0 8px 24px rgba(0,0,0,.4)`,
   color: "#e8eef3",
   fontSize: 14,
   lineHeight: 1.55,
@@ -157,8 +157,8 @@ const headerStyle: CSSProperties = {
 const stepBadgeStyle: CSSProperties = {
   fontSize: 11,
   letterSpacing: "0.08em",
-  color: "#8ee8ff",
-  border: "1px solid rgba(142,232,255,.45)",
+  color: TUTORIAL_COLOR,
+  border: `1px solid ${TUTORIAL_COLOR}73`,
   borderRadius: 99,
   padding: "1px 8px",
 };
@@ -175,8 +175,16 @@ const puzzleBadgeStyle: CSSProperties = {
 
 const titleStyle: CSSProperties = { fontSize: 17, fontWeight: 700 };
 const textStyle: CSSProperties = { color: "#c9d4dd" };
-const keyListStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 7, marginTop: 10 };
-const keyRowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" };
+// 키 칩은 한 줄에 가로로, 가운데 모아 띄운다 — 세로로 쌓으면 안내판이 퍼즐을 가린다
+const keyListStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  justifyContent: "center",
+  columnGap: 28,
+  rowGap: 7,
+  marginTop: 10,
+};
+const keyRowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 10 };
 const keyCapGroupStyle: CSSProperties = { display: "inline-flex", gap: 5 };
 const descriptionStyle: CSSProperties = { color: "#e8eef3" };
 const footerStyle: CSSProperties = { marginTop: 8, fontSize: 11, color: "#7d8b97", textAlign: "right" };
@@ -203,7 +211,7 @@ const collapsedStyle: CSSProperties = {
   padding: "4px 12px",
   borderRadius: 99,
   background: "rgba(12, 18, 26, 0.7)",
-  color: "#8ee8ff",
+  color: TUTORIAL_COLOR,
   fontSize: 12,
   pointerEvents: "none",
   zIndex: 20,
