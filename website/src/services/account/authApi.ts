@@ -1,6 +1,7 @@
 import type { SessionUser } from "@/services/session";
 
-import { normalizeEmail, TEST_ACCOUNT_ENABLED, TEST_ACCOUNT_LOGIN, type ConsentKind } from "./db";
+import { normalizeEmail, type ConsentKind } from "./db";
+import { TEST_ACCOUNT } from "./testAccount";
 
 /** 백엔드 인증 API(/api/v1/auth). 개발 서버는 vite proxy 로 127.0.0.1:8000 에 넘긴다. */
 const AUTH_API = "/api/v1/auth";
@@ -161,15 +162,18 @@ export function isNicknameTaken(nickname: string | undefined): Promise<boolean> 
 // 서버에 닿지 못한 응답. 0 은 fetch 실패, 502~504 는 프록시·호스팅이 서버를 못 찾은 경우다.
 const SERVER_UNREACHABLE_STATUS: readonly number[] = [0, 502, 503, 504];
 
-/** 시연용 테스트 계정은 백엔드가 없는 자리(배포본·발표)에서도 들어갈 수 있다. 다른 계정은 서버 없이 통과시키지 않는다. */
+/**
+ * 시연용 테스트 계정은 개발 서버에서 백엔드를 안 띄워도 들어갈 수 있다(VITE_TEST_ACCOUNT=on 일 때만).
+ * 배포본에는 테스트 계정이 없어 이 길이 없다. 다른 계정은 서버 없이 통과시키지 않는다.
+ */
 function testAccountWithoutServer(email: string, password: string): SessionUser | null {
-  const isTestAccount = normalizeEmail(email) === TEST_ACCOUNT_LOGIN.email && password === TEST_ACCOUNT_LOGIN.password;
-  if (!TEST_ACCOUNT_ENABLED || !isTestAccount) return null;
+  if (!TEST_ACCOUNT) return null;
+  if (normalizeEmail(email) !== TEST_ACCOUNT.email || password !== TEST_ACCOUNT.password) return null;
   return {
-    id: "00000000-0000-4000-8000-000000000001",
-    email: TEST_ACCOUNT_LOGIN.email,
-    name: "TEST",
-    region: "전남",
+    id: TEST_ACCOUNT.id,
+    email: TEST_ACCOUNT.email,
+    name: TEST_ACCOUNT.name,
+    region: TEST_ACCOUNT.region,
     joinedAt: Date.now(),
     provider: "local",
   };

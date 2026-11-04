@@ -22,7 +22,7 @@
     "regress:game": "bash tools/regression/shared/check.sh game",
     "regress:naju": "bash tools/regression/shared/check.sh naju",
     "web:dev": "vite website",
-    "web:build": "tsc -p website && vite build website",
+    "web:build": "tsc -p website && vite build website && node tools/test-account-guard.mjs website/dist",
     "web:typecheck": "tsc -p website",
     "web:preview": "vite preview website --port 5175",
     "llm:check": "node tools/llm/check.mjs",
