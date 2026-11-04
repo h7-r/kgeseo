@@ -29,7 +29,7 @@ export const STORY_PLANE = { width: 2.8, height: 1.4 };
 /** 불티가 횃불에서 평상까지 날아가는 시간 · 널이 왼쪽 끝에서 오른쪽 끝까지 타는 시간(초) */
 const EMBER_SECONDS = 1.8;
 const BURN_SECONDS = 9;
-const FLAME_POINTS = 150;
+const FLAME_POINTS = 220;
 const TRAIL_POINTS = 14;
 const CANVAS = { width: 2048, height: 1024, margin: 90 };
 
@@ -117,7 +117,7 @@ export function createStoryBurn() {
     plane: null as THREE.Mesh | null,
     flames: makeGlowPoints(FLAME_POINTS + TRAIL_POINTS, { additive: true, softness: 1.6 }),
     flameSeeds: Float32Array.from({ length: (FLAME_POINTS + TRAIL_POINTS) * 3 }, () => Math.random()),
-    fireLight: new THREE.PointLight("#FF9A45", 0, 6 * M, 1.5),
+    fireLight: new THREE.PointLight("#FF9A45", 0, 9 * M, 1.5),
     /** 불티가 떠난 때(초, −1 이면 아직) · 다 탔나 */
     emberAt: -1,
     isDone: false,
@@ -194,17 +194,18 @@ export function updateStoryBurn(
       const life = 0.5 + flameSeeds[seed] * 0.5;
       const u = (time / life + flameSeeds[seed + 1]) % 1;
       const point = at(
-        THREE.MathUtils.clamp(front + (flameSeeds[seed + 2] - 0.5) * 0.1, 0, 1),
+        THREE.MathUtils.clamp(front + (flameSeeds[seed + 2] - 0.5) * 0.12 * (1 - u * 0.5), 0, 1),
         flameSeeds[seed],
-        0.02 + u * 0.9,
+        // 불길이 널 위로 허리 높이까지 치솟는다 — 위로 갈수록 가늘고 붉어진다
+        0.02 + u * 1.4,
       );
       flames.position.setXYZ(k, point.x, point.y, point.z);
-      flames.size.setX(k, (0.5 - u * 0.32) * M * (burn < 1 ? 1 : 0));
-      flames.alpha.setX(k, (1 - u) * 0.95 * (burn < 1 ? 1 : 0));
-      flames.color.setXYZ(k, 1.8, 0.55 + (1 - u) * 0.9, 0.12);
+      flames.size.setX(k, (0.6 - u * 0.42) * M * (burn < 1 ? 1 : 0));
+      flames.alpha.setX(k, (1 - u) * (1 - u) * 0.8 * (burn < 1 ? 1 : 0));
+      flames.color.setXYZ(k, 1.8, 0.2 + (1 - u) * 0.75, 0.08);
     }
-    fireLight.position.copy(at(THREE.MathUtils.clamp(front, 0, 1), 0.5, 0.4));
-    fireLight.intensity = burn < 1 ? 5 + Math.sin(time * 13) * 0.8 : 0;
+    fireLight.position.copy(at(THREE.MathUtils.clamp(front, 0, 1), 0.5, 0.7));
+    fireLight.intensity = burn < 1 ? 8 + Math.sin(time * 13) * 1.2 : 0;
     if (burn >= 1) {
       story.isDone = true;
       flames.points.visible = false;

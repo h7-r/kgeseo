@@ -19,10 +19,11 @@ interface GaugeRound {
   sweep: number;
 }
 /** 판마다 — 셋째 칸 자리는 시작할 때 뽑는다(가운데가 아닌 곳) */
+// 한쪽 끝까지 1.8초 — 더 빠르면 리듬이 아니라 반사 신경 싸움이 된다(11/4 「너무 빠르다」)
 const ROUNDS: GaugeRound[] = [
-  { zone: 0.3, center: 0.5, sweep: 1.15 },
-  { zone: 0.18, center: 0.5, sweep: 0.95 },
-  { zone: 0.16, center: 0.5, sweep: 0.78 },
+  { zone: 0.3, center: 0.5, sweep: 1.8 },
+  { zone: 0.18, center: 0.5, sweep: 1.5 },
+  { zone: 0.16, center: 0.5, sweep: 1.25 },
 ];
 const THIRD_CENTERS = [0.22, 0.3, 0.7, 0.78];
 

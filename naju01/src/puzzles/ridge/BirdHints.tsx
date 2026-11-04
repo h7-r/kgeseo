@@ -3,7 +3,7 @@
  *   물동이: 들여다보면 고인 물 위에 두 새가 서로 마주 보는 그림자가 어른거린다(지금 돌새는 서로 등지고 있다).
  *     새들이 떠난 뒤에는 물 위 그림자가 바뀐다 — 똬리를 튼 구렁이(아랑사)의 그림자.
  *   화석 자리: 두 기둥 사이 땅에 박힌 돌판에 비늘 모양으로 팬 자국 — 무언가 오래 박혀 있다 빠진 자리다.
- *     두 새가 마주 보면 자국이 희미하게 빛나고, 강 밑 석실에서 가져온 푸른 비늘을 맞춰 넣으면 꼭 들어맞는다
+ *     두 새가 마주 보면 자국이 희미하게 빛나고, 강 밑 석실에서 가져온 푸른 눈물(비늘꼴)을 맞춰 넣으면 꼭 들어맞는다
  *     → 새가 깨어난다(ridge 「awakening」, RidgeBirds 가 잇는다).
  * 좌표는 미터, 그리는 것은 유닛(M 배).
  */
@@ -122,12 +122,12 @@ export default function BirdHints() {
       use: () =>
         showNotice(
           ridgeQuest.birdsFacing
-            ? "비늘 모양으로 팬 자국이 희미하게 빛난다. 오래 박혀 있던 무언가가 빠진 자리 — 꼭 맞을 것을 가지고 있다면."
-            : "돌판에 비늘 모양으로 움푹 팬 자국이 있다. 화석처럼 결까지 남았다. 아직은 아무 기척이 없다.",
+            ? "눈물 모양으로 팬 자국이 희미하게 빛난다. 오래 박혀 있던 무언가가 빠진 자리 — 꼭 맞을 것을 가지고 있다면."
+            : "돌판에 눈물 모양으로 움푹 팬 자국이 있다. 화석처럼 결까지 남았다. 아직은 아무 기척이 없다.",
           4.5,
         ),
       handLabel: (kind) =>
-        kind === "scale" && ridgeQuest.birdsFacing && !ridgeQuest.scaleSet ? "푸른 비늘 맞춰 넣기" : null,
+        kind === "scale" && ridgeQuest.birdsFacing && !ridgeQuest.scaleSet ? "푸른 눈물 맞춰 넣기" : null,
       receive: () => {
         props.scale.visible = true;
         props.scaleSetAt = performance.now() / 1000;
@@ -135,7 +135,7 @@ export default function BirdHints() {
         audio.play("단서");
         audio.play("징");
         showNotice(
-          "푸른 비늘이 자국에 딱 들어맞는다 — 결까지 그대로 이어진다. 원래 이 자리에 있던 것이다. 기둥이 떨리기 시작한다…",
+          "푸른 눈물이 자국에 딱 들어맞는다 — 결까지 그대로 이어진다. 원래 이 자리에 있던 것이다. 주위가 숨을 죽인 듯 고요하다…",
           5,
         );
         ridge.advance("awakening");

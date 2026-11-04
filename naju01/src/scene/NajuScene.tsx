@@ -310,7 +310,7 @@ export default function NajuScene({
     terrain,
     playerState,
   });
-  useViewpointKeys(teleport, endScene, collapseNoticeRef);
+  useViewpointKeys(endScene, collapseNoticeRef);
 
   const pathFallback = usePathFallback(measuredPaths);
   const { sunTarget, sunRef, sunPosition } = useSunLight(controls, camera);

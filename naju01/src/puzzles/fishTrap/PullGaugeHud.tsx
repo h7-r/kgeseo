@@ -2,8 +2,11 @@ import { useEffect, useRef, type CSSProperties } from "react";
 
 import { GAUGE_HITS, gaugeCursor, stopGauge, useGauge } from "./pullGauge";
 
-// 반원 게이지 — 낚시 릴처럼 위로 휜 반투명 띠. 크림빛 막대가 띠를 따라 오가고 호박빛 칸에서 [E](소지품 · 안내판과 같은 빛깔)
-// 칸은 판마다 좁아지고 옮겨 간다(pullGauge)
+// 반원 게이지 — 낚시 릴처럼 위로 휜 반투명 띠. 잿빛 막대가 잿빛 띠를 따라 오가고 흰 칸에서 [E]
+// 칸은 판마다 좁아지고 옮겨 가지만 빛깔은 세 판 다 같은 흰색(판마다 달라 보이면 규칙이 바뀐 줄 안다)
+/** 띠·막대의 잿빛 — 계기판·로딩 글의 회색과 같다 */
+const GREY = "#9AA3B4";
+const WHITE = "#FFFFFF";
 const WIDTH = 380;
 const HEIGHT = 150;
 const CENTER_X = WIDTH / 2;
@@ -29,7 +32,7 @@ function arcPath(from: number, to: number) {
 
 const BAND_PATH = arcPath(0, 1);
 /** 판마다 한 줄 — 칸이 바뀌는 것을 알려 준다 */
-const ROUND_NOTES = ["막대가 호박빛 칸에 들어오면", "칸이 좁아졌다 — 더 정확히", "칸이 옆으로 옮겨 갔다 — 더 빨리"];
+const ROUND_NOTES = ["막대가 흰 칸에 들어오면", "칸이 좁아졌다 — 더 정확히", "칸이 옆으로 옮겨 갔다 — 더 빨리"];
 
 function markerTransform(t: number) {
   const point = pointAt(t);
@@ -58,7 +61,6 @@ export default function PullGaugeHud() {
   }, [gauge.active]);
 
   if (!gauge.active) return null;
-  const isHit = gauge.flash === "hit";
   const zonePath = arcPath(gauge.center - gauge.zone / 2, gauge.center + gauge.zone / 2);
   return (
     <div style={wrapStyle}>
@@ -72,17 +74,17 @@ export default function PullGaugeHud() {
       >
         <defs>
           <linearGradient id="naju-gauge-zone" x1="0" x2="1">
-            <stop offset="0" stopColor="#F2C89A" stopOpacity="0.45" />
-            <stop offset="0.5" stopColor={isHit ? "#FFF1DA" : "#F2C89A"} stopOpacity={isHit ? 1 : 0.9} />
-            <stop offset="1" stopColor="#F2C89A" stopOpacity="0.45" />
+            <stop offset="0" stopColor={WHITE} stopOpacity="0.5" />
+            <stop offset="0.5" stopColor={WHITE} stopOpacity="0.95" />
+            <stop offset="1" stopColor={WHITE} stopOpacity="0.5" />
           </linearGradient>
         </defs>
-        {/* 띠 — 반투명 판에 얇은 테두리 */}
-        <path d={BAND_PATH} stroke="rgba(242,238,228,.45)" strokeWidth={BAND + 4} fill="none" strokeLinecap="butt" />
+        {/* 띠 — 잿빛 테두리에 반투명 판 */}
+        <path d={BAND_PATH} stroke={GREY} strokeOpacity={0.7} strokeWidth={BAND + 4} fill="none" strokeLinecap="butt" />
         <path d={BAND_PATH} stroke="rgba(16,20,26,.66)" strokeWidth={BAND} fill="none" strokeLinecap="butt" />
         {/* 목표 칸 */}
         <path d={zonePath} stroke="url(#naju-gauge-zone)" strokeWidth={BAND - 6} fill="none" />
-        {/* 크림빛 막대 */}
+        {/* 잿빛 막대 */}
         <g ref={markerRef} transform={markerTransform(0)}>
           <rect
             x={-6}
@@ -90,7 +92,7 @@ export default function PullGaugeHud() {
             width={12}
             height={BAND + 12}
             rx={6}
-            fill="#F2EEE4"
+            fill={GREY}
             stroke="#2A2018"
             strokeWidth={1.5}
           />
@@ -151,6 +153,6 @@ const keyStyle: CSSProperties = {
 
 const dotsStyle: CSSProperties = { display: "flex", gap: 8 };
 const dotBase: CSSProperties = { width: 12, height: 12, borderRadius: "50%" };
-// 맞춘 횟수 — 호박빛 구슬
-const dotOnStyle: CSSProperties = { ...dotBase, background: "#F2C89A", boxShadow: "0 0 8px rgba(242,200,154,.6)" };
-const dotOffStyle: CSSProperties = { ...dotBase, background: "rgba(242,238,228,.25)" };
+// 맞춘 횟수 — 흰 구슬, 남은 칸은 잿빛
+const dotOnStyle: CSSProperties = { ...dotBase, background: WHITE, boxShadow: "0 0 8px rgba(255,255,255,.55)" };
+const dotOffStyle: CSSProperties = { ...dotBase, background: GREY, opacity: 0.45 };

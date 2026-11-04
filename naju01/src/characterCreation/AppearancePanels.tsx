@@ -5,7 +5,7 @@ import type { AvatarGender } from "../avatar/sidekickOptions";
 import {
   BODY_FIELD_GROUPS,
   BODY_FIELDS,
-  getBodyFieldDefault,
+  getBodyFieldStart,
   getGenderOptions,
   getSlotOptions,
   type BodyField,
@@ -126,7 +126,7 @@ export function BodyPanel({ gender, body, isWide, onChange, onDragStart, onDragE
                 onChange={(value, isHistoryStep) => onChange(field, value, isHistoryStep)}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
-                onReset={() => onChange(field, getBodyFieldDefault(field, gender), true)}
+                onReset={() => onChange(field, getBodyFieldStart(field, gender), true)}
               />
             ))}
           </div>

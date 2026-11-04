@@ -26,8 +26,6 @@ const ENTER_RADIUS = 1.1;
 
 const RIFT_OPEN_AT = 2.2;
 const RIFT_OPEN_SECONDS = 2.0;
-const RIFT_HOLD_UNTIL = 40;
-const RIFT_CLOSE_SECONDS = 2.2;
 const RIFT_WIDTH = 2.0;
 const RIFT_HEIGHT = 2.6;
 
@@ -224,17 +222,9 @@ export default function GateRift() {
     // 문 가운데 불빛 — 횃불 불꽃은 GateAltar 가 그린다
     rift.light.intensity = isLit ? THREE.MathUtils.clamp(since / 1.5, 0, 1) * 18 : 0;
 
-    // 틈 — 열리고, 머물고, 닫힌다
-    let open = 0;
-    if (now === "rift") {
-      open = THREE.MathUtils.smootherstep(since, RIFT_OPEN_AT, RIFT_OPEN_AT + RIFT_OPEN_SECONDS);
-      if (since > RIFT_HOLD_UNTIL)
-        open *= 1 - THREE.MathUtils.smootherstep(since, RIFT_HOLD_UNTIL, RIFT_HOLD_UNTIL + RIFT_CLOSE_SECONDS);
-      if (since > RIFT_HOLD_UNTIL + RIFT_CLOSE_SECONDS) {
-        ridge.advance("done");
-        showNotice("틈이 닫혔다. 길을 따라 바위 위로 오르자 — 그 밤 그곳에서 무슨 일이 있었을까.", 5);
-      }
-    }
+    // 틈 — 열리면 들어설 때까지 그대로 머문다(11/4: 시간이 지나도 닫히지 않는다)
+    const open =
+      now === "rift" ? THREE.MathUtils.smootherstep(since, RIFT_OPEN_AT, RIFT_OPEN_AT + RIFT_OPEN_SECONDS) : 0;
     rift.material.uniforms.uOpen.value = open;
     rift.material.uniforms.uTime.value = time;
     rift.mesh.visible = open > 0.002;

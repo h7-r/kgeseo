@@ -1,7 +1,7 @@
 /**
  * 증언 능선의 돌새 — 씬2 솟대 두 마리가 돌로 굳어 서로 등을 돌리고 있다(엇갈린 증언). 오른쪽 새는 부리에 열쇠를 물었다.
  *   돌새는 받침이 팔각이라 E 한 번에 45° 씩 돈다. 손이 닿아야 돌린다(걸상 허공 계단을 딛고 올라선다).
- *   둘이 마주 보면 딸깍 맞물려 더는 안 돈다 → 두 기둥 사이 화석 자리에 푸른 비늘을 맞춰 넣으면(BirdHints) 깨어난다:
+ *   둘이 마주 보면 딸깍 맞물려 더는 안 돈다 → 두 기둥 사이 화석 자리에 푸른 눈물을 맞춰 넣으면(BirdHints) 깨어난다:
  *   기둥이 점점 떨리고 → 돌 껍질이 알껍데기처럼 깨져 흩날리며 장막이 풀린다 → 장막 밖에 모여 있던 새 떼
  *   → 두 새가 하늘을 한 바퀴 반 돌며 열쇠를 플레이어 앞에 떨어뜨린다 → 풀린 장막 위로 새 떼와 함께 멀리 날아간다.
  * 씬2 솟대 0·1 번은 그 자리에서 숨기고 여기서 다시 그린다(회전·깨짐을 보여야 해서). 편집으로 옮기면 따라간다.
@@ -43,8 +43,14 @@ import { makeVertexColorMaterial } from "./vertexPaint";
 const STEP_ANGLE = Math.PI / 4;
 /** 돌새에 손이 닿는 거리(눈에서 새까지, m) — 땅에서는 모자라고 허공 계단 꼭대기에서야 닿는다 */
 const TOUCH_REACH = 1.3;
-/** 비늘을 맞춘 뒤 기둥이 떨리다 껍질이 깨지기까지(초) */
-const SHAKE_SECONDS = 3.2;
+/**
+ * 비늘을 맞춘 뒤의 순서(초) — 잠깐은 마음대로 움직인다 → 땅이 낮게 울린다 → 크게 흔들린다 → 화면이 돌새로 가고
+ * 기둥이 떨리다 껍질이 깨진다. 돌새로 화면을 돌리는 때 = free + small + big
+ */
+const QUAKE = { free: 2, small: 1.8, big: 2.4, statue: 3.2 };
+const FOCUS_AT = QUAKE.free + QUAKE.small + QUAKE.big;
+/** 비늘을 맞춘 뒤 껍질이 깨지기까지(초) */
+const SHAKE_SECONDS = FOCUS_AT + QUAKE.statue;
 /** 깨어난 오리 크기(몸길이 m 쯤) · 새 떼 수 */
 const DUCK_SIZE = 0.72;
 const FLOCK = 18;
@@ -173,6 +179,7 @@ function createBirds() {
     brokeAt: 0,
     told: { statues: false, rotate: false },
     lastRumbleAt: 0,
+    quakePhase: "" as "" | "small" | "big" | "statue",
     isFlockShown: false,
     flockShownAt: 0,
     departAt: Infinity,
@@ -384,19 +391,7 @@ export default function RidgeBirds() {
 
   // 깨어남·떠남 소리와 안내(떨림 · 깨짐 안내는 프레임에서, 비늘을 맞춘 안내는 BirdHints)
   useEffect(() => {
-    if (stage === "awakening") {
-      audio.play("우르릉");
-      // 기둥이 떨리다 껍질이 깨지고 진짜 새가 되는 것을 본다
-      focusCamera({
-        id: "birds-awakening",
-        target: () => statueMidpoint(birds.statues, scratch.focusSpot),
-        hold: SHAKE_SECONDS + 0.5,
-        turnIn: 0.6,
-        turnOut: 0.6,
-        zoom: 0.8,
-        replace: true,
-      });
-    }
+    // 깨어남의 소리·화면 고정은 프레임에서(quakeGround) — 비늘을 맞추고 2초는 마음대로 움직인다
     if (stage === "circling") {
       showNotice("장막 밖에서 새 떼가 맴돌며 두 새를 기다린다.", 4);
       // 열쇠를 문 새가 날아올라 하늘을 돌기 시작하는 것을 따라본다
@@ -497,7 +492,8 @@ export default function RidgeBirds() {
 
   /** 돌새 — 천천히 돈다. 비늘을 맞추면 기둥째 점점 세게 떤다. 둘이 마주 보면 딸깍 */
   const turnStatues = (now: string, since: number, time: number, dt: number) => {
-    const shaking = now === "awakening" && !birds.isBroken ? THREE.MathUtils.smoothstep(since, 0, SHAKE_SECONDS) : 0;
+    const shaking =
+      now === "awakening" && !birds.isBroken ? THREE.MathUtils.smoothstep(since, QUAKE.free, SHAKE_SECONDS) : 0;
     for (const statue of birds.statues) {
       statue.yaw += wrapAngle(statue.targetYaw - statue.yaw) * (1 - Math.exp(-dt * 6));
       statue.pivot.rotation.y = statue.yaw;
@@ -533,10 +529,43 @@ export default function RidgeBirds() {
     }
     // 떨리는 동안 껍질 금 사이로 흰빛이 새어 나온다 — 깨지기 직전 가장 밝게, 깜박이며
     birds.shellMaterial.emissiveIntensity = shaking * shaking * (0.35 + 0.25 * Math.sin(time * 23));
-    if (now === "awakening" && !birds.isBroken && since > SHAKE_SECONDS * 0.5 && time - birds.lastRumbleAt > 0.7) {
-      birds.lastRumbleAt = time;
-      director.cue({ 카메라: "흔들림", 세기: 0.12 + shaking * 0.25 });
+  };
+
+  /** 지진 — 작게 울리다 크게 흔들리고, 그 다음에야 화면이 돌새로 간다. 떨림은 director 트라우마로(위아래만) */
+  const quakeGround = (now: string, since: number, time: number) => {
+    if (now !== "awakening" || birds.isBroken || since < QUAKE.free) return;
+    const phase = since < QUAKE.free + QUAKE.small ? "small" : since < FOCUS_AT ? "big" : "statue";
+    if (birds.quakePhase !== phase) {
+      birds.quakePhase = phase;
+      audio.play("우르릉");
+      if (phase === "small") showNotice("발밑에서 땅이 낮게 울린다…", 2.5);
+      if (phase === "big") {
+        director.cue({ 카메라: "흔들림", 세기: 0.45 });
+        showNotice("흔들림이 커진다 — 두 기둥 쪽이다!", 2.5);
+      }
+      if (phase === "statue")
+        // 기둥이 떨리다 껍질이 깨지고 진짜 새가 되는 것을 본다
+        focusCamera({
+          id: "birds-awakening",
+          target: () => statueMidpoint(birds.statues, scratch.focusSpot),
+          hold: QUAKE.statue + 0.5,
+          turnIn: 0.6,
+          turnOut: 0.6,
+          zoom: 0.8,
+          replace: true,
+        });
     }
+    const gap = phase === "small" ? 0.35 : 0.3;
+    if (time - birds.lastRumbleAt < gap) return;
+    birds.lastRumbleAt = time;
+    // 트라우마는 제곱으로 먹히고 초당 0.8 씩 빠진다 — 작은 지진도 보이려면 0.3 쯤은 되어야 한다
+    const strength =
+      phase === "small"
+        ? 0.3 + 0.05 * Math.sin(time * 5)
+        : phase === "big"
+          ? 0.42 + 0.1 * Math.sin(time * 7)
+          : 0.25 + 0.3 * THREE.MathUtils.smoothstep(since, FOCUS_AT, SHAKE_SECONDS);
+    director.cue({ 카메라: "흔들림", 세기: strength });
   };
 
   /** 깨어남 — 떨림 끝에 돌 껍질이 알껍데기처럼 깨지며 장막이 풀린다. 둥지 위에 진짜 새 */
@@ -661,6 +690,7 @@ export default function RidgeBirds() {
     const since = ridge.elapsed();
 
     turnStatues(now, since, time, dt);
+    quakeGround(now, since, time);
     awaken(now, since, time);
     updateShards(birds.shell, dt);
     updateChunks(birds.shell, scene, dt);

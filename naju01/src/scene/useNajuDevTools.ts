@@ -9,7 +9,7 @@ import type { PresentedControls } from "../app/presentation";
 import { applyRealSize, findFirstMesh, parseGlb } from "../loaders/glbImport";
 import type { TerrainTeleport } from "../movement/useTerrainMovement";
 import { computeEditAnchors, type Edits, type InstanceGroup } from "../placement/instanceGroups";
-import { METERS_PER_UNIT, VIEWPOINTS } from "../plan/sitePlan";
+import { METERS_PER_UNIT } from "../plan/sitePlan";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import type { CollapseSequence } from "../story/blockerCollapse";
 import { layoutCensus, spaceMask } from "./layoutCensus";
@@ -103,16 +103,37 @@ export function useNajuDevHook({
           const result = await new GLTFExporter().parseAsync(root, { binary: true });
           const bytes = new Uint8Array(result as ArrayBuffer);
           let binary = "";
-          for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-          const meta = { display_name: def.nameKo, group_id: `기록소품.${def.slug}`, category: def.category, tags: def.tags, description: def.description, setting: def.setting, era: "premodern_generic", provider: "팀 제작(코드 모형)", license: "팀 제작", bounds_m: boundsM, generation_queue: true };
-          const r = await fetch("/__naju-codeprop", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: def.slug, glbBase64: btoa(binary), meta }) });
+          for (let i = 0; i < bytes.length; i += 0x8000)
+            binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+          const meta = {
+            display_name: def.nameKo,
+            group_id: `기록소품.${def.slug}`,
+            category: def.category,
+            tags: def.tags,
+            description: def.description,
+            setting: def.setting,
+            era: "premodern_generic",
+            provider: "팀 제작(코드 모형)",
+            license: "팀 제작",
+            bounds_m: boundsM,
+            generation_queue: true,
+          };
+          const r = await fetch("/__naju-codeprop", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ slug: def.slug, glbBase64: btoa(binary), meta }),
+          });
           out.push(`${def.slug} ${r.status}`);
         }
         return out;
       },
       // 공간 지형 칸 지도 → docs/에셋라이브러리/공간/<slug>.mask.json (공간 구성 단계 배치 코드가 읽는다)
       saveSpaceMask: async (slug = "naju01_angam") => {
-        const r = await fetch("/__naju-spacemask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug, mask: spaceMask(terrain) }) });
+        const r = await fetch("/__naju-spacemask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slug, mask: spaceMask(terrain) }),
+        });
         return r.json();
       },
     });
@@ -134,31 +155,24 @@ export function useNajuDevHook({
   ]);
 }
 
-/** 개발용 — 숫자키 V1~V3 텔레포트(§4 시야 검증), Shift+숫자 = 그 씬이 끝났다. IME 때문에 e.code 를 쓴다. */
-export function useViewpointKeys(
-  teleport: RefObject<TerrainTeleport | null>,
-  endScene: (sceneNumber: number) => string,
-  collapseNoticeRef: RefObject<string>,
-) {
+/** 개발용 — Shift+숫자 = 그 씬이 끝났다. 숫자만 누르는 텔레포트는 뺐다(플레이 중 잘못 눌러 스테이지가 건너뛰었다). IME 때문에 e.code 를 쓴다. */
+export function useViewpointKeys(endScene: (sceneNumber: number) => string, collapseNoticeRef: RefObject<string>) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const i = DIGIT_INDEX[e.code];
-      if (i === undefined) return;
-      if (e.shiftKey) {
-        collapseNoticeRef.current = endScene(i + 1);
-        return;
-      }
-      if (i > 2 || !teleport.current) return;
-      const v = VIEWPOINTS[i];
-      teleport.current(v.x, v.z, v.heading);
+      if (i === undefined || !e.shiftKey) return;
+      collapseNoticeRef.current = endScene(i + 1);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [teleport, endScene, collapseNoticeRef]);
+  }, [endScene, collapseNoticeRef]);
 }
 
 /** 무리의 첫 모양·첫 자리 크기 그대로 한 개를 GLB 로. 위치·회전은 버리고 크기만 살린다(미터). */
-async function exportCodeProp(groups: InstanceGroup[], groupId: string): Promise<{ base64: string; boundsM: number[]; shapes: number }> {
+async function exportCodeProp(
+  groups: InstanceGroup[],
+  groupId: string,
+): Promise<{ base64: string; boundsM: number[]; shapes: number }> {
   const group = groups.find((g) => g.groupId === groupId);
   if (!group || !group.batches.length) throw new Error(`무리를 찾지 못했다: ${groupId}`);
   const root = new THREE.Group();
@@ -177,12 +191,22 @@ async function exportCodeProp(groups: InstanceGroup[], groupId: string): Promise
   const base = new THREE.Color(batch.colors[0] ?? 1, batch.colors[1] ?? 1, batch.colors[2] ?? 1);
   const col = geometry.attributes.color as THREE.BufferAttribute | undefined;
   if (col && (base.r < 0.999 || base.g < 0.999 || base.b < 0.999)) {
-    for (let i = 0; i < col.count; i++) col.setXYZ(i, Math.min(1, col.getX(i) * base.r), Math.min(1, col.getY(i) * base.g), Math.min(1, col.getZ(i) * base.b));
+    for (let i = 0; i < col.count; i++)
+      col.setXYZ(
+        i,
+        Math.min(1, col.getX(i) * base.r),
+        Math.min(1, col.getY(i) * base.g),
+        Math.min(1, col.getZ(i) * base.b),
+      );
     col.needsUpdate = true;
   }
   const material =
     (group.material?.clone() as THREE.Material | undefined) ??
-    new THREE.MeshStandardMaterial({ vertexColors: Boolean(geometry.attributes.color), roughness: 1, side: group.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
+    new THREE.MeshStandardMaterial({
+      vertexColors: Boolean(geometry.attributes.color),
+      roughness: 1,
+      side: group.doubleSided ? THREE.DoubleSide : THREE.FrontSide,
+    });
   root.add(new THREE.Mesh(geometry, material));
   geometry.computeBoundingBox();
   const size = geometry.boundingBox!.getSize(new THREE.Vector3());
@@ -190,5 +214,9 @@ async function exportCodeProp(groups: InstanceGroup[], groupId: string): Promise
   const bytes = new Uint8Array(result as ArrayBuffer);
   let binary = "";
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return { base64: btoa(binary), boundsM: [size.x, size.y, size.z].map((v) => Math.round(v * 100) / 100), shapes: group.batches.length };
+  return {
+    base64: btoa(binary),
+    boundsM: [size.x, size.y, size.z].map((v) => Math.round(v * 100) / 100),
+    shapes: group.batches.length,
+  };
 }

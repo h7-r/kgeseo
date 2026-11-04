@@ -1,7 +1,7 @@
 /**
  * 물고기 굴 — 큰 방 동쪽 벽 밑 바위에 굴 넷. 굴마다 물고기가 숨어 있다.
  *   가운데 돌 항아리를 [E] 로 두드리면 물고기들이 정해진 차례로 고개를 내밀었다 들어간다.
- *   본 차례 그대로 굴을 [E] 로 두드려 따라 한다. 셋 · 넷 · 다섯 마리, 판마다 빨라진다. 차례는 들어올 때마다 새로 뽑는다.
+ *   본 차례 그대로 굴을 [E] 로 두드려 따라 한다. 넷 · 다섯 · 여섯 마리, 판마다 빨라진다. 차례는 들어올 때마다 새로 뽑는다.
  *   한 판을 맞추면 그 판의 물고기들은 굴을 나와 큰 방을 헤엄쳐 다니고, 다음 판엔 굴 안의 다른 물고기가 나온다.
  *   세 판을 다 맞추면 항아리 뚜껑이 밀려나고 톱니돌이 굴러 나오며 공기가 솟는다.
  *   틀리면 물고기들이 놀라 숨는다 — 항아리를 다시 두드려 차례를 다시 본다.
@@ -37,14 +37,14 @@ const MOUTH_Y = 0.17;
 const GAP = { half: 0.16, height: 0.36 };
 /** 고개를 내미는 길이 · 판마다 차례 사이(초) — 갈수록 빨라진다. 고개 내미는 시간은 그 0.8 배 */
 const PEEK_OUT = 0.5;
-const NOTE_SECONDS = [0.72, 0.54, 0.4];
+const NOTE_SECONDS = [0.6, 0.44, 0.32];
 const peekSeconds = (round: number) => NOTE_SECONDS[Math.min(round, NOTE_SECONDS.length - 1)] * 0.8;
 /** 판 r 에서 굴 k 에 숨은 물고기 종 — 판이 바뀌면 다른 물고기가 나온다 */
 const speciesAt = (round: number, k: number) => (k + round) % SPECIES.length;
 /** 굴을 나온 물고기가 헤엄쳐 다니는 네모(미터) — 큰 방 동쪽 반 */
 const ROAM = { x: [46, 53] as const, z: [60, 72] as const, y: [0.6, 2.6] as const };
-/** 판마다 따라 할 수 — 셋 · 넷 · 다섯 */
-const ROUND_LENGTHS = [3, 4, 5];
+/** 판마다 따라 할 수 — 넷 · 다섯 · 여섯(11/4 「더 어렵게」) */
+const ROUND_LENGTHS = [4, 5, 6];
 /** 틀렸을 때 붉게 번쩍이는 시간(초) */
 const WRONG_FLASH_SECONDS = 0.6;
 

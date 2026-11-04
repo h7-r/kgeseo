@@ -10,7 +10,6 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
-import { focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { registerInteractable, showNotice } from "../interaction";
@@ -71,14 +70,6 @@ const WRONG_PRESS_BREATH = 8;
 const LOCKOUT_SECONDS = 3;
 /** 가라앉은 받침은 이만큼 더 내려가 있다(미터) */
 const SUNK_DEPTH = 0.12;
-/** 맞힐 때마다 바라보는 자리(유닛) — 아비사 · 아랑사 석상(들머리 순서) · 벽화 장면 */
-const STATUE_SPOTS = STATUE_X.map((x) => new THREE.Vector3(x * M, (INNER_FLOOR + 1.5) * M, STATUE_Z * M));
-const muralSceneSpot = (scene: number) =>
-  new THREE.Vector3(
-    (45 - MURAL.width / 2 + (scene + 0.5) * (MURAL.width / 4)) * M,
-    (MURAL.bottom + MURAL.height / 2) * M,
-    MURAL.z * M,
-  );
 import { lampLevel, placePearlBeam, pullIntoExit, scaleHeight, updateCurrent } from "./chamberMotion";
 import { ChamberVents, EntryStatues, ExitRocks, OrbLamps, PearlSocket, Pedestals, StoneBox } from "./chamberParts";
 
@@ -164,7 +155,7 @@ export default function InnerChamber() {
     }
     setIsScaleTaken(true);
     audio.play("단서");
-    showNotice("푸른 비늘을 챙겼다. 얼음처럼 차고, 손안에서 희미하게 빛난다 — 아랑사의 비늘이다.", 5);
+    showNotice("푸른 눈물을 챙겼다. 얼음처럼 차고, 손안에서 희미하게 빛난다 — 아랑사가 남긴 것이다.", 5);
   };
 
   const press = (k: number) => {
@@ -185,29 +176,11 @@ export default function InnerChamber() {
       // 켜지는 것을 보여 준다 — 첫 받침에 벽화의 둘째 장면이 번지는 것과 초롱, 셋째 받침에 노 날. 짧게, 그 뒤로는 따로 없다
       const count = progressRef.current;
       if (count === ORDER.length) solve();
-      else if (count === 1) {
+      // 화면은 돌리지 않는다(11/4) — 석상 불·벽화는 안내문과 빛으로만 알린다
+      else if (count === 1)
         showNotice("받침이 맞물리자 벽화에 다음 장면이 번지고, 아랑사 석상이 든 초롱에 불이 든다.", 3.5);
-        focusCamera({
-          id: "chamber-mural",
-          target: muralSceneSpot(1),
-          hold: 1.4,
-          turnIn: 0.6,
-          turnOut: 0.4,
-          zoom: 0.75,
-          replace: true,
-          then: { id: "chamber-arangsa", target: STATUE_SPOTS[1], hold: 0.6, turnIn: 0.5, turnOut: 0.5 },
-        });
-      } else if (count === 3) {
-        showNotice("아비사 석상의 노 끝, 바닥에 닿은 날에서 빛이 번진다.", 3.5);
-        focusCamera({
-          id: "chamber-abisa",
-          target: STATUE_SPOTS[0],
-          hold: 0.6,
-          turnIn: 0.45,
-          turnOut: 0.5,
-          replace: true,
-        });
-      } else showNotice("아치 위 벽화에 다음 장면이 번져 나온다.", 3);
+      else if (count === 3) showNotice("아비사 석상의 노 끝, 바닥에 닿은 날에서 빛이 번진다.", 3.5);
+      else showNotice("아치 위 벽화에 다음 장면이 번져 나온다.", 3);
       return;
     }
     // 이미 켜진 것을 다시 눌러도 틀린 것으로 — 순서가 핵심이다
@@ -311,7 +284,7 @@ export default function InnerChamber() {
       registerInteractable({
         id: "cave-scale",
         position: CHAMBER_SPOTS.scale,
-        label: "푸른 비늘 챙기기",
+        label: "푸른 눈물 챙기기",
         radius: 0.35 * M,
         reach: 3 * M,
         enabled: () => isShone && !isScaleTaken,

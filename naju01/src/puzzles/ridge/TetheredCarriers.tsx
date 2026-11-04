@@ -56,7 +56,19 @@ const RETURN_AFTER = 9;
 
 const UP = new THREE.Vector3(0, 1, 0);
 
-type CarrierState = "ground" | "rising" | "floating" | "hauling" | "landed" | "carried" | "placed" | "flown";
+/** falling 은 풀린 채 · fallingTied 는 밧줄에 매인 채 떨어지는 중. 매인 채 떨어져 줄이 땅에 늘어진 것이 dropped */
+type CarrierState =
+  | "ground"
+  | "rising"
+  | "floating"
+  | "hauling"
+  | "landed"
+  | "carried"
+  | "placed"
+  | "flown"
+  | "falling"
+  | "fallingTied"
+  | "dropped";
 
 interface Carrier {
   group: THREE.Group;
@@ -71,6 +83,8 @@ interface Carrier {
   solid: DynamicSolid;
   /** 날아간 때(초, −1 이면 다음 장면에서 적는다) · 날기 시작한 자리 */
   flownAt: number;
+  /** 떨어지는 속도(m/s, 아래가 양수) */
+  fallSpeed: number;
   flownFrom: THREE.Vector3;
   /** 땅에 있을 때 자리·방향 */
   rest: THREE.Vector3;
@@ -84,9 +98,22 @@ interface Carrier {
 }
 
 const isAirborne = (state: CarrierState) =>
-  state === "rising" || state === "floating" || state === "hauling" || state === "flown";
+  state === "rising" ||
+  state === "floating" ||
+  state === "hauling" ||
+  state === "flown" ||
+  state === "falling" ||
+  state === "fallingTied";
+/** 장막이 풀려 바람이 안 받쳐 주면 — 떠 있던 지게가 떨어진다. 매인 것은 밧줄째 떨어져 줄이 땅에 늘어진다 */
+const FALL_GRAVITY = 9.8;
+const isFalling = (state: CarrierState) => state === "falling" || state === "fallingTied";
 const isTied = (state: CarrierState) =>
-  state === "ground" || state === "rising" || state === "floating" || state === "hauling";
+  state === "ground" ||
+  state === "rising" ||
+  state === "floating" ||
+  state === "hauling" ||
+  state === "fallingTied" ||
+  state === "dropped";
 
 function createCarrier(spot: { x: number; z: number }): Carrier {
   const rope = new THREE.Mesh(new THREE.BufferGeometry(), ropeMaterial);
@@ -100,6 +127,7 @@ function createCarrier(spot: { x: number; z: number }): Carrier {
     tugs: 0,
     risenAt: 0,
     flownAt: 0,
+    fallSpeed: 0,
     flownFrom: new THREE.Vector3(),
     solid: { x: 0, z: 0, yaw: 0, halfX: 0.35, halfZ: 0.35, bottom: 0, top: 0, enabled: false, walkable: false },
     rest: new THREE.Vector3(spot.x * M, groundY(spot.x, spot.z) * M, spot.z * M),
@@ -255,15 +283,26 @@ export default function TetheredCarriers() {
       reach: 2.2 * M,
       // 한 번에 하나 — 끌어 내린 지게가 있으면(땅에 있거나 지고 있으면) 다른 줄은 안 당겨진다
       enabled: () =>
-        carriers.some((carrier) => carrier.state === "floating" || carrier.state === "hauling") &&
+        carriers.some(
+          (carrier) => carrier.state === "floating" || carrier.state === "hauling" || carrier.state === "dropped",
+        ) &&
         !carriers.some(
           (carrier) => carrier.state === "landed" || carrier.state === "carried" || carrier.state === "placed",
         ) &&
         ridgeCarry.load === "none",
       use: () => {
         const carrier =
-          carriers.find((entry) => entry.state === "hauling") ?? carriers.find((entry) => entry.state === "floating");
+          carriers.find((entry) => entry.state === "hauling") ??
+          carriers.find((entry) => entry.state === "floating") ??
+          carriers.find((entry) => entry.state === "dropped");
         if (!carrier) return;
+        // 땅에 떨어진 채 매인 지게는 줄만 푼다 — 당길 것이 없다
+        if (carrier.state === "dropped") {
+          carrier.state = "landed";
+          audio.play("똑");
+          showNotice("땅에 늘어진 밧줄을 풀었다 — 지게를 지면 무거운 것도 나를 수 있다.", 4);
+          return;
+        }
         carrier.state = "hauling";
         carrier.tugs++;
         carrier.ropeTarget = ROPE * (1 - carrier.tugs / TUGS);
@@ -347,6 +386,36 @@ export default function TetheredCarriers() {
 
   /** 지게 한 짝의 자리 — 상태마다 */
   const placeCarrier = (carrier: Carrier, k: number, time: number, dt: number, lifting: boolean) => {
+    // 장막이 풀렸다 — 바람이 사라지니 떠 있던 것은 그 자리에서 툭 떨어진다. 매인 것은 밧줄을 단 채로
+    if (
+      ridge.releaseFrom() !== null &&
+      ridge.curtainClosed() < 0.5 &&
+      (carrier.state === "rising" ||
+        carrier.state === "floating" ||
+        carrier.state === "hauling" ||
+        carrier.state === "flown")
+    ) {
+      carrier.state = carrier.state === "flown" ? "falling" : "fallingTied";
+      carrier.fallSpeed = 0;
+      carrier.restYaw = carrier.group.rotation.y;
+    }
+    if (isFalling(carrier.state)) {
+      carrier.fallSpeed += FALL_GRAVITY * dt;
+      carrier.group.position.y -= carrier.fallSpeed * dt * M;
+      // 떨어지며 몸이 바로 선다
+      carrier.group.rotation.x *= 1 - Math.min(1, dt * 4);
+      carrier.group.rotation.z *= 1 - Math.min(1, dt * 4);
+      const floor = groundY(carrier.group.position.x / M, carrier.group.position.z / M) * M;
+      if (carrier.group.position.y <= floor) {
+        carrier.group.position.y = floor;
+        carrier.rest.copy(carrier.group.position);
+        carrier.state = carrier.state === "fallingTied" ? "dropped" : "placed";
+        audio.play("똑");
+        director.cue({ 카메라: "흔들림", 세기: 0.18 });
+        if (k === 0) showNotice("바람이 걷히자 떠 있던 지게가 땅에 툭 떨어진다.", 3);
+      }
+      return;
+    }
     if (carrier.state === "ground" && lifting) {
       carrier.state = "rising";
       carrier.risenAt = time;
@@ -382,7 +451,7 @@ export default function TetheredCarriers() {
       // 줄을 다 당기면 매듭 곁에 내려선다
       if (carrier.state === "hauling" && carrier.ropeLength < 0.35)
         carrier.group.position.y = Math.max(carrier.group.position.y, knot.y - POLE.knot * M);
-    } else if (carrier.state === "landed" || carrier.state === "placed") {
+    } else if (carrier.state === "landed" || carrier.state === "placed" || carrier.state === "dropped") {
       if (carrier.state === "landed") {
         const side = new THREE.Vector3(Math.cos(phi), 0, Math.sin(phi)).multiplyScalar(0.9 * M);
         carrier.rest.set(
@@ -463,7 +532,7 @@ export default function TetheredCarriers() {
     });
   };
 
-  /** 밧줄 — 땅에 늘어진 줄 · 팽팽한 줄 · 풀린 뒤에는 없다. 다리에 감은 매듭에서 기둥에 감은 바퀴까지 잇는다 */
+  /** 밧줄 — 땅에 늘어진 줄 · 팽팽한 줄 · 매인 채 떨어진 줄 · 풀린 뒤에는 없다. 다리에 감은 매듭에서 기둥에 감은 바퀴까지 잇는다 */
   const drawRope = (carrier: Carrier, time: number) => {
     carrier.group.updateMatrixWorld(true);
     carrier.end.copy(carrier.legTie).applyMatrix4(carrier.group.matrixWorld);
@@ -472,11 +541,13 @@ export default function TetheredCarriers() {
     for (const child of carrier.group.children) if (child.userData.ropeWraps) child.visible = tied;
     if (!carrier.rope.visible) return;
     const slack =
-      carrier.state === "ground"
+      carrier.state === "ground" || carrier.state === "dropped"
         ? 0.45
         : carrier.state === "rising"
           ? 0.45 * (1 - THREE.MathUtils.clamp((time - carrier.risenAt) / RISE_SECONDS, 0, 1)) + 0.08
-          : 0.08;
+          : carrier.state === "fallingTied"
+            ? 0.25
+            : 0.08;
     // 기둥 쪽 끝 — 기둥 가운데가 아니라 감긴 바퀴 겉, 지게 쪽 면에서 나온다
     const start = knot.clone();
     if (poleRef.current) {

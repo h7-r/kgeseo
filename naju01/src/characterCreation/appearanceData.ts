@@ -46,8 +46,13 @@ export interface BodyField {
   defaultValue: number;
   group: BodyFieldGroup;
   description?: string;
-  /** 성별마다 다른 시작값(다른 항목만 적는다) */
+  /** 성별마다 다른 기본값(눈금의 가운데 — 다른 항목만 적는다) */
   genderDefaults?: Partial<Record<AvatarGender, number>>;
+  /**
+   * 처음 열릴 때와 초기화 때 놓이는 칸(0~4). 눈금은 기본값 기준 그대로라 칸 이름(170cm·작은 손…)은 안 바뀐다.
+   * 안 적으면 기본값 칸에 놓인다.
+   */
+  startTicks?: Partial<Record<AvatarGender, number>>;
 }
 
 export type BodyParameters = Record<BodyFieldKey, number>;
@@ -98,14 +103,23 @@ export interface CompletedCharacter {
 /** 부모의 완료 처리 결과 */
 export type CompleteResult = { ok: true } | { ok: false; reason: "failed" | "name_taken"; message?: string };
 
-/** 그 성별의 시작값 */
+/** 그 성별의 기본값 — 눈금의 가운데 */
 export function getBodyFieldDefault(field: BodyField, gender: AvatarGender): number {
   return field.genderDefaults?.[gender] ?? field.defaultValue;
 }
 
-// 생성 화면의 시작값이자 「초기화」가 돌아갈 자리. 렌더러 기본값(어깨 1.2·팔 0.88)을 그대로 쓰되 처음 모습이 나아
-// 보이도록 몇 가지는 따로 잡는다(머리는 가장 작게, 팔·다리는 조금 가늘게, 살짝 마른 체형). 1.00 으로 고쳐 적으면
-// 초기화할 때마다 캐릭터가 달라진다.
+/** 그 성별의 시작값 — 처음 열릴 때·초기화 때 놓이는 값. 시작 칸을 안 적은 항목은 기본값이다. */
+export function getBodyFieldStart(field: BodyField, gender: AvatarGender): number {
+  const tick = field.startTicks?.[gender];
+  if (tick === undefined) return getBodyFieldDefault(field, gender);
+  const ticks = computeTickValues(field, gender);
+  return ticks[Math.max(0, Math.min(ticks.length - 1, tick))].value;
+}
+
+// 눈금의 가운데(defaultValue)와 시작 칸(startTicks)을 따로 둔다. 렌더러 기본값(어깨 1.2·팔 0.88)을 그대로 쓰되
+// 처음 모습이 나아 보이도록 몇 가지는 따로 잡는다(머리는 가장 작게, 팔·다리는 조금 가늘게, 살짝 마른 체형).
+// 1.00 으로 고쳐 적으면 초기화할 때마다 캐릭터가 달라진다.
+// 시작 칸은 2026-11-04 화면을 보고 맞춘 것 — 남성은 작은 손·260mm·넓은 어깨, 여성은 아주 작은 손·245mm·보통 어깨·조금 좁은 골반.
 export const BODY_FIELDS: readonly BodyField[] = [
   {
     key: "heightScale",
@@ -126,6 +140,7 @@ export const BODY_FIELDS: readonly BodyField[] = [
     step: 0.01,
     defaultValue: RENDERER_DEFAULTS.handScale,
     group: "essentials",
+    startTicks: { masculine: 1, feminine: 0 },
   },
   {
     key: "footScale",
@@ -136,6 +151,7 @@ export const BODY_FIELDS: readonly BodyField[] = [
     defaultValue: RENDERER_DEFAULTS.footScale,
     group: "essentials",
     description: "신발도 함께 커지고 작아진다",
+    startTicks: { masculine: 2, feminine: 1 },
   },
   // 최소 1.00(렌더러 범위 0.75 보다 좁다). 0.75 로 좁히면 걸을 때 손가락이 반바지 안으로 들어가고
   // 벌린 대기 자세에서도 팔이 몸에 닿는다.
@@ -148,6 +164,7 @@ export const BODY_FIELDS: readonly BodyField[] = [
     defaultValue: RENDERER_DEFAULTS.shoulderWidth,
     group: "proportions",
     description: "더 좁히면 팔이 몸을 뚫어 막아 두었다",
+    startTicks: { masculine: 4, feminine: 2 },
   },
   {
     key: "hipWidth",
@@ -157,6 +174,7 @@ export const BODY_FIELDS: readonly BodyField[] = [
     step: 0.01,
     defaultValue: RENDERER_DEFAULTS.hipWidth,
     group: "proportions",
+    startTicks: { feminine: 1 },
   },
   // 뼈를 통째로 줄이는 방식이라 길이를 줄이면 굵기도 같이 준다 — 너무 줄이면 소매가 헐렁해 보여 하한을 두었다.
   {
@@ -292,7 +310,7 @@ export function computeNearestTickIndex(ticks: readonly Tick[], value: number): 
 // ── 초안 ──
 export function getDefaultBodyParameters(gender: AvatarGender = "masculine"): BodyParameters {
   return Object.fromEntries(
-    BODY_FIELDS.map((field) => [field.key, getBodyFieldDefault(field, gender)]),
+    BODY_FIELDS.map((field) => [field.key, getBodyFieldStart(field, gender)]),
   ) as BodyParameters;
 }
 
@@ -401,10 +419,18 @@ export function adaptAppearanceToGender(
     if (found && replacement) changes.push(`${found.label} → ${replacement.label}`);
     return replacement?.id ?? null;
   };
+  // 몸 치수 중 이전 성별의 시작값 그대로인 항목은 새 성별의 시작값으로 옮긴다 — 손댄 값은 남긴다
+  const bodyParameters = { ...appearance.bodyParameters };
+  for (const field of BODY_FIELDS) {
+    if (bodyParameters[field.key] === getBodyFieldStart(field, appearance.gender)) {
+      bodyParameters[field.key] = getBodyFieldStart(field, gender);
+    }
+  }
   return {
     appearance: {
       ...appearance,
       gender,
+      bodyParameters,
       hairId: pick("hair", appearance.hairId),
       equipmentIds: {
         top: pick("top", appearance.equipmentIds.top),
