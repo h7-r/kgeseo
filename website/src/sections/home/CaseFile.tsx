@@ -63,7 +63,7 @@ const sectionStyle: CSSProperties = {
   left: 0,
   top: "2711px",
   width: "1920px",
-  height: "1047px",
+  height: "860px",
   overflow: "hidden",
   // 그림 평균색. 그림이 오기 전에도 검은 구멍 대신 안개 낀 회색으로 보인다.
   background: "#5d6163",
@@ -75,7 +75,7 @@ const sectionStyle: CSSProperties = {
 const textBlockStyle: CSSProperties = {
   position: "absolute",
   left: "188px",
-  bottom: "140px",
+  bottom: "90px",
   width: "980px",
   display: "flex",
   flexDirection: "column",

@@ -28,7 +28,7 @@ export const PIN_CLASS = "u-pin";
  */
 export const SHIFT_BOX_ATTR = { "data-shift": "" } as const;
 
-/** 홈 배경 장면이 이 덩이 뒤만 흐리고 어둡게 눌러 글이 차분한 바탕에 앉게 한다(three/river/FinishPass). */
+/** 홈 배경 장면이 이 덩이 뒤만 흐리고 어둡게 눌러 글이 차분한 바탕에 앉게 한다(three/river/RiverFilm). */
 export const SCRIM_ATTR = { "data-scrim": "" } as const;
 
 /** 페이지 맨 아래 푸터에 붙이는 속성. 푸터는 높이만 더한다. */

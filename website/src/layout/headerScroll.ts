@@ -6,7 +6,7 @@ import { prefersReducedMotion } from "@/lib/motionPreference";
 import { measureSectionPositions, measureSectionPositionsCached } from "@/navigation/sectionGeometry";
 import { getSubMenu } from "@/navigation/subMenus";
 
-// 머리띠가 스크롤에 맞춰 하는 일: 숨기·드러내기, 구간으로 굴러가기, 지금 구간 찾기.
+// 머리띠가 스크롤에 맞춰 하는 일: 숨기·드러내기, 구간으로 굴러가기, 지금 구간 찾기, 멈춘 뒤 구간 맞추기.
 
 /** 스스로 굴리는 동안 머리띠를 이 시각(ms)까지 붙잡아 둔다. */
 const headerHold = { until: 0 };
@@ -42,7 +42,11 @@ export function useScrollToSection(): (id: string) => void {
  * scrollTo smooth 는 멀리 갈 때 아래 그림·영상이 읽혀 문서가 바뀌면 중간에 끊긴다.
  * 사람이 휠·터치·키를 쓰면 바로 놓아준다.
  */
-export function scrollToSection(measureTarget: () => number | undefined, retries = 2) {
+export function scrollToSection(
+  measureTarget: () => number | undefined,
+  retries = 2,
+  durationFor: (distance: number) => number = (distance) => Math.min(450, Math.max(220, 180 + distance * 0.08)),
+) {
   const target = measureTarget();
   if (target == null) return;
   cancelAnimationFrame(sectionScroll.frame);
@@ -50,25 +54,23 @@ export function scrollToSection(measureTarget: () => number | undefined, retries
   const start = window.scrollY;
   const distance = target - start;
   const startTime = performance.now();
-  const duration = prefersReducedMotion() ? 0 : Math.min(450, Math.max(220, 180 + Math.abs(distance) * 0.08));
+  const duration = prefersReducedMotion() ? 0 : durationFor(Math.abs(distance));
   headerHold.until = Infinity;
-  // 켜 두면 브라우저가 프레임마다 놓는 자리를 가까운 구간으로 다시 끌어당긴다.
-  document.documentElement.style.scrollSnapType = "none";
 
   const handleUserInput = () => finish(false);
 
   function finish(completed: boolean) {
     cancelAnimationFrame(sectionScroll.frame);
-    document.documentElement.style.scrollSnapType = "";
     window.removeEventListener("wheel", handleUserInput);
     window.removeEventListener("touchstart", handleUserInput);
     window.removeEventListener("keydown", handleUserInput);
+    window.removeEventListener("pointerdown", handleUserInput);
     sectionScroll.cancel = null;
     // 매 프레임 재면 배치를 다시 계산해 버벅이므로 도착한 뒤 한 번만 다시 잰다.
     if (completed && retries > 0) {
       const corrected = measureTarget();
       if (corrected != null && Math.abs(window.scrollY - corrected) > 4) {
-        scrollToSection(measureTarget, retries - 1);
+        scrollToSection(measureTarget, retries - 1, durationFor);
         return;
       }
     }
@@ -79,6 +81,7 @@ export function scrollToSection(measureTarget: () => number | undefined, retries
   window.addEventListener("wheel", handleUserInput, { passive: true });
   window.addEventListener("touchstart", handleUserInput, { passive: true });
   window.addEventListener("keydown", handleUserInput);
+  window.addEventListener("pointerdown", handleUserInput);
 
   const step = (now: number) => {
     const k = duration ? Math.min(1, (now - startTime) / duration) : 1;
@@ -162,4 +165,117 @@ export function useCurrentSection(path: string, scale: number, enabled: boolean,
   }, [path, scale, enabled, headerHeight]);
 
   return currentId;
+}
+
+/** 스크롤이 멈춘 뒤 이만큼 조용하면 멈춘 것으로 본다(ms). scrollend 가 없는 브라우저를 위한 값이다. */
+const SETTLE_IDLE_MS = 160;
+/** 굴리던 방향의 다음 구간이 화면 높이의 이 비율 안이면 그 구간까지 마저 간다. */
+const SETTLE_AHEAD = 0.75;
+/** 굴리다 지나친 구간은 화면 높이의 이 비율 안일 때만 되돌아간다. */
+const SETTLE_BEHIND = 0.15;
+
+interface ScrollRange {
+  start: number;
+  end: number;
+}
+
+/** 구간이 화면에 맞게 보이는 스크롤 범위들. 범위 안은 핀 구간이거나 화면보다 긴 구간이라 자유롭게 둔다. */
+function measureRestRanges(path: string, scale: number, headerHeight: number): ScrollRange[] {
+  const viewportHeight = window.innerHeight;
+  const ranges: ScrollRange[] = [];
+  const pinTrack = document.querySelector("[data-pin-track]");
+  if (pinTrack) {
+    ranges.push({ start: 0, end: pinTrack.getBoundingClientRect().bottom + window.scrollY - viewportHeight });
+  }
+  for (const section of measureSectionPositionsCached(path, scale, headerHeight)) {
+    if (section.isPageTop) continue;
+    const overflow = Math.max(0, section.height - (viewportHeight - headerHeight));
+    ranges.push({ start: section.snapTop, end: section.snapTop + overflow + (section.pinEnd - section.top) });
+  }
+  const bottom = document.documentElement.scrollHeight - viewportHeight;
+  ranges.push({ start: bottom, end: bottom });
+  return ranges.sort((a, b) => a.start - b.start);
+}
+
+function findRestTarget(
+  y: number,
+  startY: number,
+  direction: number,
+  ranges: readonly ScrollRange[],
+): number | undefined {
+  if (ranges.some(({ start, end }) => y >= start - 2 && y <= end + 2)) return undefined;
+  const below = ranges.find(({ start }) => start > y)?.start;
+  const above = ranges.findLast(({ end }) => end < y)?.end;
+  const ahead = direction > 0 ? below : above;
+  const behind = direction > 0 ? above : below;
+  const viewportHeight = window.innerHeight;
+  if (ahead != null && Math.abs(ahead - y) <= viewportHeight * SETTLE_AHEAD) return ahead;
+  // 이번에 지나쳐 온 구간으로만 되돌아간다. 맞춰 서 있던 구간을 떠난 것까지 되돌리면 휠이 제자리로 끌려온다.
+  const hasPassed = behind != null && (behind - startY) * direction > 2;
+  if (hasPassed && Math.abs(behind - y) <= viewportHeight * SETTLE_BEHIND) return behind;
+  return undefined;
+}
+
+/**
+ * 스크롤이 완전히 멈춘 뒤에만 가까운 구간을 화면에 맞춘다.
+ * 굴리는 동안에는 끼어들지 않아 트랙패드 관성과 부딪히지 않고, 사람이 다시 만지면 바로 놓아준다.
+ */
+export function useSectionSettle(path: string, scale: number, headerHeight: number) {
+  useEffect(() => {
+    if (!getSubMenu(path) || prefersReducedMotion()) return;
+    let lastY = window.scrollY;
+    let startY: number | null = null;
+    let direction = 0;
+    let timer = 0;
+    let isPointerDown = false;
+
+    // 휠 칸 사이에도 scrollend 가 오므로 곧바로 맞추지 않고 조용해지기를 기다린다.
+    const waitForIdle = () => {
+      clearTimeout(timer);
+      timer = window.setTimeout(settle, SETTLE_IDLE_MS);
+    };
+    const settle = () => {
+      const y = window.scrollY;
+      const from = startY ?? y;
+      startY = null;
+      if (isPointerDown || sectionScroll.cancel) return;
+      const target = findRestTarget(y, from, direction, measureRestRanges(path, scale, headerHeight));
+      if (target == null) return;
+      scrollToSection(
+        () => target,
+        0,
+        (distance) => Math.min(650, 260 + distance * 0.5),
+      );
+    };
+    const handleScroll = () => {
+      const y = window.scrollY;
+      if (y !== lastY) {
+        startY ??= lastY;
+        direction = Math.sign(y - lastY);
+      }
+      lastY = y;
+      waitForIdle();
+    };
+    const handlePointerDown = () => {
+      isPointerDown = true;
+    };
+    const handlePointerUp = () => {
+      isPointerDown = false;
+      waitForIdle();
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("wheel", waitForIdle, { passive: true });
+    window.addEventListener("scrollend", waitForIdle);
+    window.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    window.addEventListener("pointerup", handlePointerUp, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("wheel", waitForIdle);
+      window.removeEventListener("scrollend", waitForIdle);
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [path, scale, headerHeight]);
 }

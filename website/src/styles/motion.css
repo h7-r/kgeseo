@@ -223,26 +223,11 @@
   opacity: 1;
 }
 
-/* 층을 z 축으로 떨어뜨려 두면 기울일 때 층마다 움직임이 달라 두께가 생긴다 */
-.u-depth {
-  transform-style: preserve-3d;
-}
-.u-depth__back {
-  transform: translateZ(-26px) scale(1.06);
-}
-.u-depth__front {
-  transform: translateZ(34px);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .rising-text__line {
     transform: none;
     opacity: 1;
     transition: none;
-  }
-  .u-depth__back,
-  .u-depth__front {
-    transform: none;
   }
 }
 

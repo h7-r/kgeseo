@@ -8,7 +8,7 @@ import { PAGE_CHANGE_EVENT } from "@/lib/pageEvents";
 import { NOISE } from "./glsl";
 import { followHomeScroll } from "./homeScroll";
 import { journeyInput } from "./journey";
-import { storyAt, type StoryState } from "./story";
+import { distortAt } from "./story";
 
 // 홈 배경 — 실제 나주맵을 고화질로 찍어 둔 필름을 스크롤로 넘긴다. 진행도 0~1 이 곧 필름의 시각이다.
 // 필름은 멈춰 있어도 살아 있어야 해서, 왜곡(아지랑이)과 필름 전체를 덮는 반투명 막은 이 패스가 실시간으로 얹는다.
@@ -146,7 +146,6 @@ interface FilmPlaneProps {
 function FilmPlane({ video, reducedMotion, followHome, onFirstFrame, beat }: FilmPlaneProps) {
   const { size, invalidate } = useThree();
   const progressRef = useRef(-1);
-  const story = useMemo<StoryState>(() => ({ distort: 0, game: 0 }), []);
   const lastSectionRef = useRef(-1);
   const pulseStartRef = useRef(-10);
 
@@ -188,7 +187,10 @@ function FilmPlane({ video, reducedMotion, followHome, onFirstFrame, beat }: Fil
     material.uniforms.uViewport.value.set(size.width, size.height);
     material.uniforms.uTopInset.value = document.querySelector("header")?.getBoundingClientRect().bottom ?? 0;
     // 창이 필름보다 넓으면 위아래를, 좁으면 좌우를 자른다.
-    material.uniforms.uCover.value.set(Math.min(1, viewportAspect / filmAspect), Math.min(1, filmAspect / viewportAspect));
+    material.uniforms.uCover.value.set(
+      Math.min(1, viewportAspect / filmAspect),
+      Math.min(1, filmAspect / viewportAspect),
+    );
   }, [material, size, video]);
 
   // 새 칸이 풀리면 VideoTexture 가 알아서 올린다. 여기서는 동작 줄이기의 한 장 그리기와 첫 칸 알림만 맡는다.
@@ -233,8 +235,7 @@ function FilmPlane({ video, reducedMotion, followHome, onFirstFrame, beat }: Fil
 
     const uniforms = material.uniforms;
     if (!reducedMotion) uniforms.uTime.value += step;
-    storyAt(progressRef.current, story);
-    uniforms.uDistort.value = reducedMotion ? 0 : story.distort;
+    uniforms.uDistort.value = reducedMotion ? 0 : distortAt(progressRef.current);
 
     const now = clock.getElapsedTime();
     if (journeyInput.section !== lastSectionRef.current) {
@@ -267,7 +268,12 @@ interface RiverFilmProps {
 /** 그려야 하는데 이만큼(ms) 프레임이 없으면 멈춘 것으로 본다. */
 const STALL_LIMIT = 2500;
 
-export default function RiverFilm({ visible = true, reducedMotion = false, followHome = true, onReadyChange }: RiverFilmProps) {
+export default function RiverFilm({
+  visible = true,
+  reducedMotion = false,
+  followHome = true,
+  onReadyChange,
+}: RiverFilmProps) {
   const beat = useRef(0);
   const notifyRef = useRef(onReadyChange);
   const readyRef = useRef(false);

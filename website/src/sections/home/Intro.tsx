@@ -91,7 +91,7 @@ export default function Intro() {
   );
 }
 
-const columnStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: "30px", alignItems: "flex-start" };
+const columnStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: "18px", alignItems: "flex-start" };
 
 const badgeStyle: CSSProperties = { ...badgePillStyle, alignSelf: "flex-start", gap: "12px", padding: "10px 20px" };
 
@@ -106,8 +106,8 @@ const badgeTextStyle: CSSProperties = {
 // 줄 높이(152)가 글자(180)보다 작아 그라디언트가 잘린다. 칸만 위아래로 넓혔다가 되돌린다.
 const bigTitleStyle: CSSProperties = {
   fontFamily: FONT.display,
-  fontSize: "180px",
-  lineHeight: "152px",
+  fontSize: "170px",
+  lineHeight: "144px",
   padding: "0.15em 0",
   margin: "-0.15em 0",
 };
@@ -128,7 +128,7 @@ const descriptionStyle: CSSProperties = {
   width: "615px",
 };
 
-const descriptionLineStyle: CSSProperties = { margin: 0, lineHeight: "40px" };
+const descriptionLineStyle: CSSProperties = { margin: 0, lineHeight: "36px" };
 
 const buttonBaseStyle: CSSProperties = {
   display: "flex",

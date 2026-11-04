@@ -79,7 +79,14 @@ function buildIndex(): IndexEntry[] {
   ];
 
   for (const tab of ABOUT_TABS) {
-    entries.push(entry(`게임 소개 · ${tab.label}`, "소개", withQuery(ROUTES.about, { [QUERY.tab]: tab.id }), ABOUT_CONTENT[tab.id]));
+    entries.push(
+      entry(
+        `게임 소개 · ${tab.label}`,
+        "소개",
+        withQuery(ROUTES.about, { [QUERY.tab]: tab.id }),
+        ABOUT_CONTENT[tab.id],
+      ),
+    );
   }
 
   for (const tab of TERMS_TABS) {

@@ -165,7 +165,7 @@ const sectionStyle: CSSProperties = {
   left: "6px",
   top: "7493px",
   width: "1908px",
-  height: "995px",
+  height: "850px",
   // 바탕은 CSS(.closing)가 칠한다 — 홈 장면이 있을 때 걷어 내야 해서.
   overflow: "hidden",
   display: "flex",

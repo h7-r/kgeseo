@@ -22,11 +22,6 @@ export function placeCentered(x: number, centerY: number, width: number): CSSPro
   };
 }
 
-/** 디자인의 inset 값. 음수면 칸 밖으로 번진다(글로우 그림이 이렇게 놓인다). */
-export function inset(top: number | string, left: number | string, bottom = top, right = left): CSSProperties {
-  return { position: "absolute", top, right, bottom, left };
-}
-
 /** 글자에 그라디언트를 입힌다(bg-clip-text). */
 export function gradientText(background: string): CSSProperties {
   return {

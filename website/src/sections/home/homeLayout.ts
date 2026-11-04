@@ -19,12 +19,12 @@ export const ANGAM_PIN_LENGTH = 300;
 /** 멈춘 동안 앙암바위 덩이가 화면 가운데보다 내려와 있는 거리. 위의 큰 제목까지 머리띠 아래로 함께 보인다. */
 export const ANGAM_PIN_DROP = 140;
 
-/** 디자인 자리에서 각 구간을 옮기는 양(누적). 구간 사이 눈에 보이는 틈을 모두 320 으로 맞춘 값이다. */
+/** 디자인 자리에서 각 구간을 옮기는 양(누적). 사건 파일 아래 구간 사이 틈을 모두 200 으로 맞춘 값이다. */
 export const SECTION_OFFSET = {
   caseFile: 228,
-  angam: -2052,
-  regionSelect: 1152,
-  scenarioCards: 867,
-  closing: -154,
-  marquee: -113,
+  angam: -2359,
+  regionSelect: 717,
+  scenarioCards: 307,
+  closing: -834,
+  marquee: -938,
 } as const;

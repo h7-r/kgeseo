@@ -47,11 +47,7 @@ export default function BackgroundDecor() {
         style={place(606, 3949 + ANGAM_PIN_LENGTH + SECTION_OFFSET.regionSelect, 960, 960)}
         placement="regions"
       />
-      <LayeredRings
-        style={place(472, 6244 + SECTION_OFFSET.angam, 960, 960)}
-        placement="angam"
-        pinGroup="angam-rock"
-      />
+      <LayeredRings style={place(472, 6244 + SECTION_OFFSET.angam, 960, 960)} placement="angam" pinGroup="angam-rock" />
 
       <RotatedGlow
         box={place(-269, 1416, 784.758, 592.635)}

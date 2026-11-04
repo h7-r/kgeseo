@@ -13,7 +13,8 @@ import {
   scrollToSection,
   useCurrentSection,
   useHeaderScrollState,
-  } from "./headerScroll";
+  useSectionSettle,
+} from "./headerScroll";
 import SubNav from "./SubNav";
 
 /*
@@ -51,6 +52,7 @@ export default function HeaderLayer() {
   const isHidden = wantsHidden && !menu;
   const headerHeight = Math.round((HEADER_HEIGHT + (subMenu ? SUB_NAV_HEIGHT : 0)) * scale);
 
+  useSectionSettle(path, scale, headerHeight);
   const currentSection = useCurrentSection(path, scale, Boolean(subMenu), headerHeight);
 
   // 다른 페이지로 가면 굴리던 것을 멈춘다. 안 그러면 새 페이지를 이전 페이지의 구간 자리로 끌고 간다.

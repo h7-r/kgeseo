@@ -194,18 +194,13 @@
   }
 }
 
-/* 멈춤 없이 바로 보이는 자리라 그림은 다 물러난 끝 모습(--enter·--camera = 1)으로 둔다. */
 .case-file {
-  --enter: 1;
-  --camera: 1;
   background: #3b3f42 !important; /* 그림이 오기 전엔 그림 평균색 */
 }
 .case-file__window {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  perspective: 1400px;
-  perspective-origin: 60% 40%;
 }
 .case-file__image {
   position: absolute;
@@ -213,28 +208,17 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform-origin: 66% 42%;
-  transform: translate3d(0, calc((1 - var(--enter)) * 70px), 0) rotateX(calc((1 - var(--camera)) * 7deg))
-    rotate(calc((1 - var(--camera)) * -2.5deg)) scale(calc(1.9 - var(--enter) * 0.08 - var(--camera) * 0.82));
-  filter: brightness(calc(0.4 + var(--enter) * 0.12 + var(--camera) * 0.38)) saturate(0.9);
-  will-change: transform, filter;
+  filter: brightness(0.9) saturate(0.9);
 }
 .case-file__shade {
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  opacity: calc(0.35 + var(--camera) * 0.65);
   background:
     linear-gradient(90deg, rgba(1, 4, 10, 0.78) 0%, rgba(1, 4, 10, 0.35) 45%, rgba(1, 4, 10, 0) 70%),
     linear-gradient(0deg, rgba(1, 4, 10, 0.85) 0%, rgba(1, 4, 10, 0) 45%),
     linear-gradient(180deg, rgba(1, 4, 10, 0.6) 0%, rgba(1, 4, 10, 0) 18%);
-}
-@media (prefers-reduced-motion: reduce) {
-  .case-file__image {
-    transform: none;
-    filter: brightness(0.85);
-  }
 }
 
 /* 홈 강 장면(SiteBackdrop)이 그려지는 동안은 사진 대신 장면이 비친다. 글 뒤 그늘도 장면이 글 자리만 눌러 대신한다.

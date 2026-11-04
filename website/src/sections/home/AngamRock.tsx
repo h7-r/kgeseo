@@ -34,7 +34,12 @@ const MISSION_SPECS: readonly MissionSpec[] = [
 export default function AngamRock() {
   const navigate = useSiteNavigate();
   // 멈춰 있는 동안 오른쪽 글 덩이(.u-pin-reveal)들이 차례로 드러난다.
-  const revealRef = usePinnedReveal({ pinLength: ANGAM_PIN_LENGTH, pinDrop: ANGAM_PIN_DROP, span: 0.4, revealEnd: 0.6 });
+  const revealRef = usePinnedReveal({
+    pinLength: ANGAM_PIN_LENGTH,
+    pinDrop: ANGAM_PIN_DROP,
+    span: 0.4,
+    revealEnd: 0.6,
+  });
 
   return (
     <>
@@ -168,8 +173,8 @@ export default function AngamRock() {
           className="u-pin-reveal"
           style={{ fontFamily: FONT.body, fontWeight: 400, fontSize: "26px", lineHeight: 1.7, color: COLOR.textMuted }}
         >
-          영산강 절벽 앙암바위에 얽힌 옛이야기가 지워지고 있습니다. 나루터에서 능선까지 흩어진 단서를 모아 사라진
-          전설을 되살리세요.
+          영산강 절벽 앙암바위에 얽힌 옛이야기가 지워지고 있습니다. 나루터에서 능선까지 흩어진 단서를 모아 사라진 전설을
+          되살리세요.
         </div>
 
         <div className="u-pin-reveal" style={{ display: "flex", gap: "24px", alignItems: "center" }}>
