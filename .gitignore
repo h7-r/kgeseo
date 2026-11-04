@@ -90,3 +90,5 @@ public/_sf_local/tmp/
 # AI허브 「한국적 일상 3D」 로컬 미리보기 데이터(약 360MB) — 이용 범위 답변 전이라 공개 저장소에 올리지 않는다(11/2 미르).
 # 배포 빌드에서도 뺀다(naju01/vite/dropLocalOnlyPlugin.ts)
 public/_aihub_local/
+# 닉네임 판정 검사 — 묶은 판정 코드·외부 말뭉치(라이선스상 저장소에 넣지 않음)·결과(tools/nickname-policy/README.md)
+tools/nickname-policy/.cache/

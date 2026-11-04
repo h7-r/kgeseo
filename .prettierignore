@@ -3,6 +3,7 @@
 !/website/
 !/src/
 !/tools/
+!/shared/
 !/vite.config.ts
 !/tsconfig*.json
 !/naju01/
