@@ -26,6 +26,7 @@ from app.services.interaction import (
     ObjectNotEnabledError,
     ObjectNotVisibleError,
     PuzzleNotFoundError,
+    PuzzleSolveModeMismatchError,
     RequiredCluesMissingError,
     RequiredItemsNotHeldError,
     RequiredPuzzlesMissingError,
@@ -123,6 +124,11 @@ async def create_interaction_endpoint(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Puzzle not found.",
+        ) from error
+    except PuzzleSolveModeMismatchError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Interaction action does not match the puzzle solve mode.",
         ) from error
     except InspectionNotFoundError as error:
         raise HTTPException(
