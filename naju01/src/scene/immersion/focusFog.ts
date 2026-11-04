@@ -17,14 +17,14 @@
  * [옛 이름 → 새 이름]
  *   초점켬 → IS_FOCUS_ENABLED · 초점 → focus · 그리기반경 → drawRadius · 초점틱 → focusTick
  *   지금구역 → currentZone · 초점펄스 → focusPulse · 씬지남 → scenePassed · 문자리들 → gateSpots
- *   씬안개목표 → sceneFogTarget · 이름띄우기 → showZoneName · 상태 → focusState
+ *   씬안개목표 → sceneFogTarget · 상태 → focusState
  *   focus 필드: 반경m → radiusM · 안개시작비 → fogStartRatio · 여유m → marginM · 안개색 → fogColor
  *     전환초 → transitionSeconds · 문색 → gateColor · 잠시끔 → paused · 열림 → opening · 열린반경m → openRadiusM
  *     걷힌씬 → clearedScenes · 걷힘초 → clearSeconds · 물안개배 → mistFactor
  */
 import * as THREE from "three";
 
-import { PATHS, UNITS_PER_METER, ZONES } from "../../plan/sitePlan";
+import { PATHS, UNITS_PER_METER } from "../../plan/sitePlan";
 import { cueTable, type ImmersionTerrain } from "./state";
 
 const U = UNITS_PER_METER;
@@ -80,31 +80,10 @@ export const drawRadius = () =>
     ? (focus.radiusM + focus.marginM + (focus.openRadiusM - focus.radiusM) * Math.max(focus.opening, focus.lift)) * U
     : null;
 
-const focusState: { zone: string | null; pulse: number; label: HTMLDivElement | null; labelTimer: number } = {
+const focusState: { zone: string | null; pulse: number } = {
   zone: null,
   pulse: 0,
-  label: null,
-  labelTimer: 0,
 };
-const ZONE_NAMES: Record<string, string> = Object.fromEntries(ZONES.map((z) => [z.code, z.name]));
-
-function showZoneName(text: string) {
-  if (typeof document === "undefined") return;
-  let el = focusState.label;
-  if (!el) {
-    el = document.createElement("div");
-    el.style.cssText =
-      "position:fixed;left:50%;top:18%;transform:translateX(-50%);color:#e8e2ff;font:600 22px/1.4 'Noto Sans KR',sans-serif;letter-spacing:.08em;text-shadow:0 0 12px #6b4cff;pointer-events:none;transition:opacity .6s;opacity:0;z-index:20";
-    document.body.appendChild(el);
-    focusState.label = el;
-  }
-  el.textContent = text;
-  el.style.opacity = "1";
-  clearTimeout(focusState.labelTimer);
-  focusState.labelTimer = window.setTimeout(() => {
-    if (el) el.style.opacity = "0";
-  }, 1800);
-}
 
 interface FocusTickArgs {
   scene: THREE.Scene;
@@ -144,7 +123,6 @@ export function focusTick({ scene, camera, terrain, position, dt }: FocusTickArg
   if (code && code !== focusState.zone) {
     if (focusState.zone) focusState.pulse = 1;
     focusState.zone = code;
-    showZoneName(ZONE_NAMES[code] ?? code);
   }
   focusState.pulse = Math.max(0, focusState.pulse - dt / focus.transitionSeconds);
   // 펄스 곡선: 빨리 조이고 천천히 풀린다
