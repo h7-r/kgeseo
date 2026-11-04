@@ -1,7 +1,7 @@
 """명시적으로 격리 확인된 빈 테스트 DB에서만 DB 승인 이력 게시(`publish_with_stored_approvals`)를 검증한다.
 
 실행 조건 · 안전 장치는 `test_approval_persistence_mysql.py`와 같다(`APPROVAL_MYSQL_*`).
-승인 이력 migration(d2a6f8b1c903)과 레거시 content_reviews migration(e2a7c4f9b1d3)만 적용하고 끝나면 되돌린다.
+승인 이력 migration(d2a6f8b1c903 · 실행자 열 b3f7c2e9a4d1)과 레거시 content_reviews migration(e2a7c4f9b1d3)만 적용하고 끝나면 되돌린다.
 승인 기록 · 콘텐츠는 가상 데이터다(실제 승인자 · 실제 PM 콘텐츠가 아니다).
 """
 
@@ -36,6 +36,7 @@ pytestmark = pytest.mark.skipif(
 VERSIONS_DIR = Path(__file__).parents[1] / "alembic/versions"
 MIGRATIONS = (
     "d2a6f8b1c903_add_npc_approval_reviews.py",
+    "b3f7c2e9a4d1_add_npc_approval_review_actor.py",
     "e2a7c4f9b1d3_create_content_reviews.py",
 )
 ADMIN = VerifiedAdmin(reviewer="가상 운영자")

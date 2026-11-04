@@ -21,7 +21,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.repositories.approval_history import ApprovalHistoryRepository
 from app.schemas.gate_review import ApprovalTarget
-from app.services.approval_history import ApprovalSource, ReviewRecord, gate_decisions
+from app.services.approval_history import (
+    REQUIRED_GATES,
+    ApprovalSource,
+    ReviewRecord,
+    gate_decisions,
+)
 from app.services.hint import HintSource
 from app.services.pinned_content import PinnedContentStore
 from app.services.publication_gate import (
@@ -63,10 +68,14 @@ async def check_target_approval(
     target: ApprovalTarget,
     fingerprint: str,
 ) -> tuple[str, ...]:
+    """대상 종류별 필수 관문(PM v0.4.13) 판정. 일반 팩의 정책 검사는 포함하지 않는다(`general_pack_approved`)."""
+
     async with locked_approval_history(sessions, target) as (_, records):
         pass
     # 이력 트랜잭션이 commit된 뒤에만 판정한다.
-    return gate_decisions(records, fingerprint)
+    return gate_decisions(
+        records, fingerprint, required=REQUIRED_GATES[target.target_type]
+    )
 
 
 async def evaluate_publication_with_db_reviews(

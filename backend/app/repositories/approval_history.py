@@ -35,6 +35,7 @@ def to_record(row: NpcApprovalReview) -> ReviewRecord:
         reviewed_at=row.reviewed_at.isoformat(timespec="milliseconds") + "Z",
         reason=row.reason,
         supersedes=row.supersedes,
+        actor=row.actor,
     )
 
 

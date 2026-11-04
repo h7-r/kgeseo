@@ -79,6 +79,7 @@ def response(text: str = "(가상) 저장된 대사") -> NpcTurnResponse:
         npc_event_id=uuid4(),
         reply=NpcReplyOut(source="approved_line", text=text, line_id="LINE_01"),
         suggest_hint=None,
+        content_mode="case",
     )
 
 
@@ -781,6 +782,7 @@ def test_mysql_new_claim_after_emergency_block_cannot_store_case_lines():
                     source="approved_line", text="(가상) generic", line_id="GENERIC_01"
                 ),
                 suggest_hint=None,
+                content_mode="generic",
             ),
             content_mode="generic",
         )

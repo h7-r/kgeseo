@@ -9,12 +9,14 @@
     reviewed_at  ISO 8601 UTC 밀리초 문자열("2026-10-29T03:04:05.123Z")
     reason       미승인(approved 가 아닌 결정) · 재승인에서 필수
     supersedes   직전 유효 기록의 review_id. 재승인에서 필수
+    actor        기록을 실행한 사람(PM v0.4.13 §3, 100자 이하). 이 필드 이전 기록은 없음(None). 판정에 쓰지 않음
 
 [판정 — `gate_decisions`]
 - 지금 다시 계산한 fingerprint 와 `target_hash` 가 같은 기록만 본다(다른 해시는 이전 내용의 기록).
 - 관문마다 (reviewed_at, review_id) 순으로 정렬해 마지막 기록이 최종 결정이다.
 - 이력이 계약을 어기면(사유 누락 · supersedes 불일치 · review_id 중복) 그 관문은 FAIL(`invalid history`).
-- 세 관문 모두 최종 결정이 approved 일 때만 PASS. revise · escalate · rejected · hold 는 FAIL.
+- 필수 관문(`REQUIRED_GATES`, 대상 종류별)의 최종 결정이 모두 approved 일 때만 PASS.
+  revise · escalate · rejected · hold 는 FAIL. case_content 는 G1~G3, dialogue_pack 은 G3(+ 별도 정책 검사).
 
 [저장 — `ApprovalLog`] append-only 메모리 저장소. 수정 · 삭제 메서드가 없고, 같은 review_id 를 두 번 받지 않으며,
 `supersedes` 는 이미 있는 기록만 가리킬 수 있다. 같은 규칙의 영속 저장소는
@@ -42,6 +44,14 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 
 Gate = Literal["G1", "G2", "G3"]
 GATES: tuple[Gate, ...] = ("G1", "G2", "G3")
+
+# 대상 종류별 필수 관문(PM v0.4.5 §4 · v0.4.6 §4 · v0.4.13 §1). 판정 규칙(v0.4.2 §4)은 관문마다 같다.
+# dialogue_pack 은 사실(G1) · 아트(G2) 대상이 아니다. 정책 검사는 관문이 아니라 별도 단계다
+# (`app.services.dialogue_pack_policy`).
+REQUIRED_GATES: dict[str, tuple[Gate, ...]] = {
+    "case_content": GATES,
+    "dialogue_pack": ("G3",),
+}
 ReviewDecision = Literal["approved", "revise", "escalate", "rejected", "hold"]
 
 TARGET_HASH_PATTERN = r"^sha256:[0-9a-f]{64}$"
@@ -62,6 +72,9 @@ class ReviewRecord(BaseModel):
     reviewed_at: str = Field(pattern=REVIEWED_AT_PATTERN)
     reason: str | None = None
     supersedes: str | None = None
+    # 기록을 실행한 사람(PM v0.4.13 §3). reviewer(판정한 사람)와 다를 수 있다. 이 열 이전 기록은 None(미기록).
+    # 판정(`gate_decisions`)에는 쓰지 않는다.
+    actor: str | None = Field(default=None, max_length=MAX_REVIEWER_LENGTH)
 
     @model_validator(mode="after")
     def validate_record(self) -> "ReviewRecord":
@@ -71,6 +84,10 @@ class ReviewRecord(BaseModel):
             raise ValueError("supersedes must be a lowercase UUID v4")
         if not self.reviewer.strip():
             raise ValueError("reviewer must not be blank")
+        if self.actor is not None and (
+            not self.actor.strip() or self.actor != self.actor.strip()
+        ):
+            raise ValueError("actor must be omitted or not blank")
         _parse_reviewed_at(self.reviewed_at)
         if self.reason is not None and not self.reason.strip():
             raise ValueError("reason must be omitted or not blank")
@@ -101,8 +118,16 @@ def _parse_reviewed_at(value: str) -> datetime:
 # --- 판정 ---
 
 
-def gate_decisions(records: Iterable[object], fingerprint: str) -> tuple[str, ...]:
-    """FAIL 이유 목록(관문 · 이유 코드만). 비어 있으면 PASS."""
+def gate_decisions(
+    records: Iterable[object],
+    fingerprint: str,
+    *,
+    required: Sequence[Gate] = REQUIRED_GATES["case_content"],
+) -> tuple[str, ...]:
+    """FAIL 이유 목록(관문 · 이유 코드만). 비어 있으면 PASS.
+
+    `required`의 관문만 판정한다(기본은 케이스 콘텐츠의 G1~G3). 필수가 아닌 관문의 기록은 판정에 쓰지 않는다.
+    """
 
     items = list(records)
     if any(not isinstance(item, ReviewRecord) for item in items):
@@ -112,8 +137,10 @@ def gate_decisions(records: Iterable[object], fingerprint: str) -> tuple[str, ..
     if len(known_ids) != len(set(known_ids)):
         return ("duplicate review_id",)
 
+    if not required or any(gate not in GATES for gate in required):
+        return ("invalid required gates",)
     reasons: list[str] = []
-    for gate in GATES:
+    for gate in required:
         current = sorted(
             (r for r in reviews if r.gate == gate and r.target_hash == fingerprint),
             key=lambda r: r.order_key,

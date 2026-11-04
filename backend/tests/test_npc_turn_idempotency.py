@@ -147,7 +147,9 @@ def test_publication_guard_is_required_and_defaults_to_fail_closed() -> None:
 
 
 def test_content_mode_must_be_case_or_generic() -> None:
-    response = NpcTurnResponse(npc_event_id=uuid4(), reply=None, suggest_hint=None)
+    response = NpcTurnResponse(
+        npc_event_id=uuid4(), reply=None, suggest_hint=None, content_mode="case"
+    )
     with pytest.raises(ValueError):
         asyncio.run(store().complete(None, response, content_mode="other"))  # type: ignore[arg-type]
 

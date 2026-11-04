@@ -27,8 +27,9 @@
 
 1. 설정 `NPC_GENERAL_PACK=general_default/v1`이 있을 때만 파일을 읽는다. 기본은 비어 있음 → 일반 팩 없음.
    파일이 없거나 형식 · ID가 틀리면 공급하지 않는다(오류 로그: 설정 값 · 이유 코드).
-2. NPC 턴마다 `npc_approval_reviews`의 `(dialogue_pack, general_default, 1)` 기록을 읽어 그 fingerprint의 G1~G3가
-   모두 `approved`일 때만 대사를 쓴다(`gate_decisions`). 케이스 승인(`case_content`)은 쓰지 않는다.
+2. NPC 턴마다 `npc_approval_reviews`의 `(dialogue_pack, general_default, 1)` 기록을 읽어 그 fingerprint의 **G3**가
+   `approved`이고 **정책 검사**를 통과할 때만 대사를 쓴다(PM v0.4.13, `npc_contract_v0413.md` §1). 정책 검사 기준이
+   미정이라 운영 기본값은 늘 UNVERIFIED → G3가 있어도 대사를 쓰지 않는다. 케이스 승인(`case_content`)은 쓰지 않는다.
 3. DB 오류 · 계약을 어긴 행 → 승인 없음(`reply: null`, fail closed).
 4. 계산 전(잠금 없음)과 이벤트 확정 트랜잭션(공유 잠금, 케이스 판정 다음)에서 두 번 읽고, 그 사이 철회가 commit됐으면
    다시 계산한다. 확정 중인 턴이 있으면 철회 기록은 그 턴이 끝날 때까지 기다린다.
@@ -45,6 +46,10 @@
 - 따라서 지금 운영에서 긴급 중단 응답은 `reply: null` + `content_mode: "generic"`이다.
 
 ## 4. PM 승인 절차 (선행 조건)
+
+> 11/4 갱신: PM v0.4.13으로 일반 팩은 G3 + 정책 검사만 필요하고, 인증 전 내부 CLI 등록이 허용됐다.
+> CLI(`scripts/record_gate_review.py`)와 `actor` 열(Alembic `b3f7c2e9a4d1`)은 `npc_contract_v0413.md` §2를 본다.
+> 아래는 11/3 당시 설계 기록이다.
 
 관리자 인증이 아직 없다. `create_gate_review`는 `VerifiedAdmin`만 받고, 이 값은 검증된 인증 의존성만 만들 수 있다
 (클라이언트 입력 · 명령줄 인자로 만들지 않는다). 그래서 이번에는 승인 기록을 만들지 않았고, 승인 입력 명령도 구현하지 않았다.
@@ -69,7 +74,7 @@
 
 | 필드 | 값 |
 |---|---|
-| `content_mode` | 긴급 중단 응답(`fallback_reason="NPC_CONTENT_WITHDRAWN"`)이면 `"generic"`, 그 밖에는 `null` |
+| `content_mode` | 정상 `"case"`, 긴급 중단 · NPC 콘텐츠 없음 등이면 `"generic"`(PM v0.4.13, `npc_contract_v0413.md` §4). 11/3 당시에는 정상이 `null`이었다 |
 
 긴급 중단 중 응답:
 ```json
@@ -77,7 +82,7 @@
  "suggest_hint": null, "fallback_reason": "NPC_CONTENT_WITHDRAWN", "content_mode": "generic"}
 ```
 승인 팩이 없으면 `"reply": null`이고 `content_mode`는 그대로 `"generic"`이다(말풍선 없음).
-정상 응답은 `content_mode: null`이다. 정상 응답에 쓸 값(예: `"case"`)은 PM이 정하지 않아 내보내지 않는다.
+정상 응답은 `content_mode: "case"`다(PM v0.4.13 §4, 11/4 반영).
 현재 저장소 FE · 원격 브랜치에서 이 응답을 읽는 코드는 찾지 못했다(11/3 검색).
 
 ## 6. 긴급 중단과 Hint API (PM v0.4.6 §3 · v0.4.9 §3)
@@ -91,5 +96,6 @@
 - 관리자 인증 · 승인 입력 명령(§4), 대상 DB migration, G1~G3 실제 승인
 - 운영 설정 `NPC_GENERAL_PACK` 적용 여부 결정
 - 일반 팩 게시 · 중단 상태 계약(현재는 설정 · 승인 철회로만 제어)
-- 정상 응답의 `content_mode` 값(현재 null) PM 결정, FE 반영
+- 정상 응답의 `content_mode`는 `"case"`로 반영(11/4). FE 반영 필요
+- 일반 팩 정책 검사 기준(PM 확인 필요). 정해지기 전에는 G3가 있어도 일반 팩을 쓰지 않는다
 - 다중 워커: 공식 팩은 프로세스마다 파일에서 읽는다(같은 파일이면 같은 결과). 승인은 매 요청 DB에서 읽는다.

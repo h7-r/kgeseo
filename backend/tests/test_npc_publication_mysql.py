@@ -530,6 +530,7 @@ def test_mysql_blocked_case_content_cannot_pass_as_generic():
                 npc_event_id=uuid4(),
                 reply=None,
                 suggest_hint=SuggestHintOut(hint_ref="hr1.k1." + "A" * 43),
+                content_mode="generic",
             ),
         ]
         for fake in disguised:
@@ -548,8 +549,14 @@ def test_mysql_blocked_case_content_cannot_pass_as_generic():
                     line_id="GENERIC_01",
                 ),
                 suggest_hint=None,
+                content_mode="generic",
             ),
-            NpcTurnResponse(npc_event_id=uuid4(), reply=None, suggest_hint=None),
+            NpcTurnResponse(
+                npc_event_id=uuid4(),
+                reply=None,
+                suggest_hint=None,
+                content_mode="generic",
+            ),
         ):
             key = turn_key(session_id, str(uuid4()))
             await store.complete(

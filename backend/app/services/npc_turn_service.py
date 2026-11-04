@@ -18,16 +18,23 @@
   부르지 않는다. 공급된 일반 팩이 승인돼 있으면 「잠시 멈춤」(`GENERIC_PAUSE_*`) 승인 대사 하나를
   `client_event_id`로 결정적으로 골라(`npc_line_supply.select_pause_line`) `approved_line`으로 답하고, 없으면
   `reply: null`이다. `fallback_reason`은 늘 `NPC_CONTENT_WITHDRAWN`이다. 재전송도 저장된 대사가 아니라 지금 승인된
-  팩에서 같은 규칙으로 다시 고른다(같은 팩이면 같은 대사, 승인이 빠졌으면 null). 긴급 중단 응답은
-  `content_mode="generic"`이다(대사가 없어도). 다른 응답의 `content_mode`는 null이다.
+  팩에서 같은 규칙으로 다시 고른다(같은 팩이면 같은 대사, 승인이 빠졌으면 null).
+- `content_mode`(PM v0.4.13 §4 · v0.3 §6): 정상 응답은 `"case"`. `fallback_reason`이 긴급 중단
+  (`NPC_CONTENT_WITHDRAWN`) · NPC 콘텐츠 없음(`NPC_CONTENT_MISSING`) · 버전 불일치(`NPC_CONTENT_VERSION_MISMATCH`) ·
+  검증 실패(`NPC_CONTENT_INVALID`)이면 `"generic"`이다(`reply: null`이어도). 사유는 `fallback_reason`으로 구분한다.
+  - 고정 묶음에 npc.json이 없으면 `NPC_CONTENT_MISSING`이다(응답 계산은 그대로, 사유가 우선). 게시 · 적재 경로는
+    npc.json을 필수로 받으므로 운영 묶음에서는 생기지 않는다.
+  - 버전 불일치 · 검증 실패한 npc.json은 묶음 생성(`PinnedContent`) · 게시 게이트에서 버전 전체가 거부되어
+    턴 시점에는 `CASE_VERSION_UNAVAILABLE`(409, 기존 계약)이다. 이 두 사유를 내는 턴 경로는 아직 없다.
 - 일반 팩 승인(`general_pack_access`, 운영은 `npc_general_pack.read_general_pack_access`): 케이스 판정과 같은 방식으로
   계산 전(잠금 없음) · 확정 트랜잭션(공유 잠금, 케이스 판정 다음)에서 읽고, 근거가 바뀌었으면 다시 계산한다.
+  일반 팩은 G3 승인과 정책 검사(`general_pack_policy`, 운영 기본값은 기준 미정 · fail closed)를 모두 통과해야 쓴다.
 """
 
 import asyncio
 import hashlib
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -48,6 +55,10 @@ from app.schemas.npc_turn import (
     SuggestHintOut,
 )
 from app.services.approval_history import ApprovalSource
+from app.services.dialogue_pack_policy import (
+    DEFAULT_DIALOGUE_PACK_POLICY,
+    DialoguePackPolicy,
+)
 from app.services.hint_ref import HintRefKeys, issue_hint_ref
 from app.services.interaction import (
     IdempotencyConflictError,
@@ -84,6 +95,16 @@ NPC_TURN_EVENT_TYPE = "npc_turn"
 MYSQL_DEADLOCK = 1213
 DEADLOCK_RETRIES = 3
 CONTENT_WITHDRAWN = "NPC_CONTENT_WITHDRAWN"
+CONTENT_MISSING = "NPC_CONTENT_MISSING"
+# PM v0.4.13 §4: 이 사유의 응답은 일반 동행 모드("generic")다. 그 밖의 응답은 "case".
+GENERIC_FALLBACK_REASONS = frozenset(
+    {
+        CONTENT_WITHDRAWN,
+        CONTENT_MISSING,
+        "NPC_CONTENT_VERSION_MISMATCH",
+        "NPC_CONTENT_INVALID",
+    }
+)
 
 EventLoader = Callable[[AsyncSession, str], Awaitable[Sequence[Any]]]
 
@@ -144,6 +165,7 @@ async def _process_npc_turn_once(
     general_pack: GeneralLinePack | None = None,
     general_pack_approval: ApprovalSource | None = None,
     general_pack_access: GeneralPackReader | None = None,
+    general_pack_policy: DialoguePackPolicy = DEFAULT_DIALOGUE_PACK_POLICY,
     generation: NpcGenerationConfig = GENERATION_OFF,
     event_loader: EventLoader = load_session_events,
     rule_config: RuleConfig = RuleConfig(),
@@ -166,6 +188,7 @@ async def _process_npc_turn_once(
         # rollback 은 ORM 객체를 만료시키므로 판정에 쓸 값은 먼저 읽어 둔다.
         state = dict(play_session.state_json)
         fingerprint = bundle.pin.content_fingerprint
+        npc_missing = bundle.npc() is None
 
         def hint_ref_for(puzzle_id: str | None) -> SuggestHintOut | None:
             if puzzle_id is None or hint_ref_keys is None:
@@ -198,6 +221,7 @@ async def _process_npc_turn_once(
                 access.approval_source,
                 general_pack=general_pack,
                 general_pack_approval=pack.approval_source,
+                general_pack_policy=general_pack_policy,
             )
 
         async def compute(
@@ -205,6 +229,15 @@ async def _process_npc_turn_once(
         ) -> NpcTurnResult:
             if access.withdrawn:
                 return _withdrawn_result(request.trigger, pause_line(pack))
+            result = await compute_case(access, pack)
+            if npc_missing:
+                # NPC 콘텐츠 없음: 응답 계산은 그대로 두고 사유를 남긴다(content_mode="generic").
+                return replace(result, fallback_reason=CONTENT_MISSING)
+            return result
+
+        async def compute_case(
+            access: CaseNpcAccess, pack: GeneralPackAccess
+        ) -> NpcTurnResult:
             content = content_for(access, pack)
             if request.trigger == "player_message":
                 return run_player_message_turn(
@@ -233,7 +266,7 @@ async def _process_npc_turn_once(
         def pause_line(pack: GeneralPackAccess) -> ApprovedLine | None:
             # 케이스 승인 출처와 섞지 않는다: 일반 팩과 그 팩 승인 출처만 쓴다.
             return select_pause_line(
-                general_pack, pack.approval_source, client_event_id
+                general_pack, pack.approval_source, client_event_id, general_pack_policy
             )
 
         # 1. 계산 전 판정(잠금 없음)
@@ -249,6 +282,7 @@ async def _process_npc_turn_once(
                 hint_ref_for,
                 access,
                 lambda: pause_line(pack_access),
+                npc_missing=npc_missing,
             )
             await db.rollback()
             return response
@@ -296,6 +330,7 @@ async def _process_npc_turn_once(
                 hint_ref_for,
                 access,
                 lambda: pause_line(pack_access),
+                npc_missing=npc_missing,
             )
             await db.rollback()
             return response
@@ -430,9 +465,9 @@ def _response(
     )
 
 
-def _content_mode(fallback_reason: str | None) -> str | None:
-    # PM v0.4.12: 긴급 중단 응답은 일반 동행 모드("generic")다(대사가 없어도). 다른 응답은 값을 정하지 않았다(null).
-    return "generic" if fallback_reason == CONTENT_WITHDRAWN else None
+def _content_mode(fallback_reason: str | None) -> str:
+    # PM v0.4.13 §4: 긴급 중단 · 콘텐츠 없음 · 버전 불일치 · 검증 실패는 "generic"(대사가 없어도), 그 밖은 "case".
+    return "generic" if fallback_reason in GENERIC_FALLBACK_REASONS else "case"
 
 
 def _withdrawn_result(trigger: str, pause: ApprovedLine | None) -> NpcTurnResult:
@@ -457,6 +492,8 @@ def _replay(
     hint_ref_for: HintRefFor,
     access: CaseNpcAccess,
     pause_line: Callable[[], ApprovedLine | None],
+    *,
+    npc_missing: bool = False,
 ) -> NpcTurnResponse:
     if not _is_same_request(
         event,
@@ -482,6 +519,8 @@ def _replay(
             content_mode=_content_mode(CONTENT_WITHDRAWN),
         )
     record = NpcTurnEventRecord.model_validate(event.response_json)
+    # 지금 고정 묶음에 npc.json이 없으면 저장 사유와 상관없이 「콘텐츠 없음」으로 답한다(새 턴과 같은 규칙).
+    fallback_reason = CONTENT_MISSING if npc_missing else record.fallback_reason
     text = (
         _approved_text(content, record.line_id)
         if record.reply_source == "approved_line" and record.line_id
@@ -501,8 +540,8 @@ def _replay(
             and (text is not None or record.reply_source is None)
             else None
         ),
-        fallback_reason=record.fallback_reason,
-        content_mode=_content_mode(record.fallback_reason),
+        fallback_reason=fallback_reason,
+        content_mode=_content_mode(fallback_reason),
     )
 
 

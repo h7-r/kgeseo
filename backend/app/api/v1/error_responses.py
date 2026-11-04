@@ -221,8 +221,9 @@ NPC_TURN = {
         "고정 콘텐츠 버전을 쓸 수 없거나(`content_version` 없이 만든 레거시 세션 포함), "
         "같은 `client_event_id`에 다른 요청이다(문장 구분). "
         "같은 요청의 재전송은 200(현재 승인 · 게시 상태로 다시 판정한 응답). "
-        "긴급 중단은 오류가 아니다 — 200 `fallback_reason: NPC_CONTENT_WITHDRAWN`, "
-        '`content_mode: "generic"`, 승인 일반 대사 또는 `reply: null`.',
+        "긴급 중단 · NPC 콘텐츠 없음은 오류가 아니다 — 200 `fallback_reason: NPC_CONTENT_WITHDRAWN` · "
+        '`NPC_CONTENT_MISSING`, `content_mode: "generic"`, 승인 일반 대사 또는 `reply: null`. '
+        '정상 응답은 `content_mode: "case"`.',
         CASE_VERSION_UNAVAILABLE,
         EVENT_ID_CONFLICT,
     ),

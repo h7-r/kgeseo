@@ -22,6 +22,7 @@ from app.services.npc_turn import (
     turn_content_from_pinned,
 )
 from app.services.pinned_content import ContentPin, PinnedContent
+from tests.pack_policy_stub import passing_test_policy
 from tests.test_puzzle_question import make_client, make_runtime, make_state
 
 # 가상 테스트 데이터. 실제 PM 콘텐츠 · 실제 승인 기록이 아니다.
@@ -128,6 +129,7 @@ def content(*, case_approved: bool = True, general_approved: bool = True, **npc_
         bundle(**npc_extra),
         approved(("case_test", 1), FP).source() if case_approved else None,
         general_pack=pack,
+        general_pack_policy=passing_test_policy,
         general_pack_approval=(
             approved(("general_default", 1), general_pack_fingerprint(pack)).source()
             if general_approved

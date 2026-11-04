@@ -23,6 +23,10 @@ from app.schemas.case_content import CaseClientContent
 from app.schemas.npc_content import GeneralLinePack, NpcContentPack
 from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition
 from app.services.approval_history import ApprovalSource
+from app.services.dialogue_pack_policy import (
+    DEFAULT_DIALOGUE_PACK_POLICY,
+    DialoguePackPolicy,
+)
 from app.services.hint import HintSource, server_hint_text
 from app.services.npc import NpcLineSource, _ensure_no_protected_text
 from app.services.npc_decision import NpcDecision
@@ -105,6 +109,7 @@ def turn_content_from_pinned(
     *,
     general_pack: GeneralLinePack | None = None,
     general_pack_approval: ApprovalSource | None = None,
+    general_pack_policy: DialoguePackPolicy = DEFAULT_DIALOGUE_PACK_POLICY,
     hint_resolver: HintTextResolver = server_hint_text,
     puzzle_titles: Mapping[str, str] | None = None,
 ) -> NpcTurnContent:
@@ -119,10 +124,13 @@ def turn_content_from_pinned(
         hint_source=bundle.hint_source(hint_resolver),
         fallback_lines=fallback_line_provider(bundle, approval_source),
         general_pack_lines=general_pack_line_provider(
-            general_pack, general_pack_approval
+            general_pack, general_pack_approval, general_pack_policy
         ),
         generic_line_approval=generic_line_approval(
-            general_pack, general_pack_approval, PM_GENERIC_PUZZLE_LINES
+            general_pack,
+            general_pack_approval,
+            PM_GENERIC_PUZZLE_LINES,
+            general_pack_policy,
         ),
         policy_rules=policy_rules_from_pack(pack),
         puzzle_titles=puzzle_titles,

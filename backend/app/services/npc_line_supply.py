@@ -1,6 +1,7 @@
 """승인 대사 · 정책 규칙 공급 v0.1 (PM v0.4.3, 순수 함수 · 라우터 미연결).
 
-고정 콘텐츠(`PinnedContent`)와 G1~G3 승인 이력(`approval_history`)에서 NPC 서비스가 쓰는 공급자를 만든다.
+고정 콘텐츠(`PinnedContent`)와 승인 이력(`approval_history`)에서 NPC 서비스가 쓰는 공급자를 만든다.
+케이스 대사는 G1~G3, 일반 팩은 G3 + 정책 검사(`dialogue_pack_policy`, 기준 미정 · fail closed)다(PM v0.4.13).
 
 - 승인은 늘 승인 이력으로만 정한다. 승인 정보(`approval_source`)가 없으면 모든 대사가 미승인이다(기본 차단).
   콘텐츠 안의 `status` · `approvals`, 개발용 자동 승인 같은 우회 경로는 없다.
@@ -15,11 +16,17 @@ from collections.abc import Mapping
 
 from app.schemas.npc_content import GeneralLinePack, NpcContentPack
 from app.services.approval_history import (
+    REQUIRED_GATES,
     ApprovalSource,
     ApprovalSourceUnavailableError,
     gate_decisions,
 )
 from app.services.content_fingerprint import FINGERPRINT_PREFIX, jcs_canonicalize
+from app.services.dialogue_pack_policy import (
+    DEFAULT_DIALOGUE_PACK_POLICY,
+    DialoguePackPolicy,
+    run_dialogue_pack_policy,
+)
 from app.services.npc_dialogue import GenericLineApproval
 from app.services.npc_general_dialogue import ApprovedLine, ApprovedLineProvider
 from app.services.npc_generation_policy import NgRule, OpenTopicRule, PolicyRules
@@ -70,25 +77,48 @@ def general_pack_fingerprint(pack: GeneralLinePack) -> str:
     return FINGERPRINT_PREFIX + hashlib.sha256(canonical).hexdigest()
 
 
-def general_pack_approved(
+def general_pack_gate_reasons(
     pack: GeneralLinePack, approval_source: ApprovalSource | None
-) -> bool:
+) -> tuple[str, ...]:
+    """일반 팩 승인 관문(PM v0.4.13: G3만) 판정. 비어 있으면 G3 승인. 정책 검사는 포함하지 않는다."""
+
     if approval_source is None:
-        return False
+        return ("unavailable",)
     try:
         records = approval_source(pack.pack_id, pack.pack_version)
     except ApprovalSourceUnavailableError:
+        return ("unavailable",)
+    return gate_decisions(
+        records,
+        general_pack_fingerprint(pack),
+        required=REQUIRED_GATES["dialogue_pack"],
+    )
+
+
+def general_pack_approved(
+    pack: GeneralLinePack,
+    approval_source: ApprovalSource | None,
+    policy: DialoguePackPolicy = DEFAULT_DIALOGUE_PACK_POLICY,
+) -> bool:
+    """일반 팩을 쓸 수 있는가: G3 승인 **그리고** 정책 검사 통과(PM v0.4.6 §4 · v0.4.13 §1).
+
+    정책 검사 기준이 미정인 동안 기본 검사는 늘 UNVERIFIED라 False다(`dialogue_pack_policy`).
+    """
+
+    if general_pack_gate_reasons(pack, approval_source):
         return False
-    return gate_decisions(records, general_pack_fingerprint(pack)) == ()
+    return run_dialogue_pack_policy(policy, pack).passed
 
 
 def general_pack_line_provider(
-    pack: GeneralLinePack | None, approval_source: ApprovalSource | None
+    pack: GeneralLinePack | None,
+    approval_source: ApprovalSource | None,
+    policy: DialoguePackPolicy = DEFAULT_DIALOGUE_PACK_POLICY,
 ) -> ApprovedLineProvider:
     def provide() -> list[ApprovedLine]:
         if pack is None:
             return []
-        approved = general_pack_approved(pack, approval_source)
+        approved = general_pack_approved(pack, approval_source, policy)
         # 「잠시 멈춤」 대사는 긴급 중단 전용이다(`select_pause_line`). 일반 대체 대사 · 재전송 원문으로 쓰지 않는다.
         return [
             ApprovedLine(line.line_id, line.text, approved)
@@ -103,11 +133,12 @@ def generic_line_approval(
     pack: GeneralLinePack | None,
     approval_source: ApprovalSource | None,
     expected_texts: Mapping[str, str],
+    policy: DialoguePackPolicy = DEFAULT_DIALOGUE_PACK_POLICY,
 ) -> GenericLineApproval:
-    """PM 기본 안내 문구 승인 확인. 승인된 일반 팩에 같은 line_id · 같은 원문이 있을 때만 True."""
+    """PM 기본 안내 문구 승인 확인. 쓸 수 있는 일반 팩에 같은 line_id · 같은 원문이 있을 때만 True."""
 
     def approved(line_id: str) -> bool:
-        if pack is None or not general_pack_approved(pack, approval_source):
+        if pack is None or not general_pack_approved(pack, approval_source, policy):
             return False
         expected = expected_texts.get(line_id)
         return any(
@@ -128,18 +159,19 @@ def select_pause_line(
     pack: GeneralLinePack | None,
     approval_source: ApprovalSource | None,
     request_key: str,
+    policy: DialoguePackPolicy = DEFAULT_DIALOGUE_PACK_POLICY,
 ) -> ApprovedLine | None:
     """케이스 긴급 중단 때 쓸 승인 일반 대사 하나. 없으면 None(응답 `reply: null`).
 
-    - 공급된 일반 팩이 그 팩 내용(fingerprint)에 대해 G1~G3 승인일 때만 쓴다(`general_pack_approved`).
-      케이스 콘텐츠 승인 · 케이스 대사는 쓰지 않는다.
+    - 공급된 일반 팩이 그 팩 내용(fingerprint)에 대해 G3 승인이고 정책 검사를 통과했을 때만 쓴다
+      (`general_pack_approved`). 케이스 콘텐츠 승인 · 케이스 대사는 쓰지 않는다.
     - 후보는 `line_id`가 `GENERIC_PAUSE_`로 시작하는 대사뿐이고, `line_id` 코드 포인트 순으로 정렬한다.
     - 고르기: SHA-256(도메인 · 팩 fingerprint · 요청 키)의 앞 8바이트(빅 엔디언 정수) mod 후보 수.
       같은 팩 내용 · 같은 요청 키면 프로세스 · 서버가 달라도 같은 대사다(Python `hash()`는 쓰지 않는다).
     - 원문은 팩의 승인 원문 그대로다(만들거나 고치지 않는다).
     """
 
-    if pack is None or not general_pack_approved(pack, approval_source):
+    if pack is None or not general_pack_approved(pack, approval_source, policy):
         return None
     candidates = sorted(
         (line for line in pack.lines if line.line_id.startswith(PAUSE_LINE_PREFIX)),

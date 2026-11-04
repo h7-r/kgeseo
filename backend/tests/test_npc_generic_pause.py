@@ -16,6 +16,7 @@ from app.services.npc_line_supply import (
     select_pause_line,
 )
 from app.services.npc_turn_service import NpcGenerationConfig
+from tests.pack_policy_stub import passing_test_policy
 from tests.test_npc_case_access import (  # noqa: F401  (pytest fixture)
     APPROVED_REPLY,
     BLOCKED,
@@ -82,12 +83,18 @@ def test_selection_is_deterministic_and_uses_only_pause_lines() -> None:
     pack = pause_pack()
     approval = pack_approval(pack)
 
-    picks = {select_pause_line(pack, approval, f"event-{n}").line_id for n in range(60)}
+    picks = {
+        select_pause_line(pack, approval, f"event-{n}", passing_test_policy).line_id
+        for n in range(60)
+    }
 
     assert picks <= set(PAUSE_LINES) and len(picks) > 1  # 여러 후보가 고르게 쓰인다
     for n in range(5):
-        first = select_pause_line(pack, approval, f"event-{n}")
-        assert select_pause_line(pack, approval, f"event-{n}") == first
+        first = select_pause_line(pack, approval, f"event-{n}", passing_test_policy)
+        assert (
+            select_pause_line(pack, approval, f"event-{n}", passing_test_policy)
+            == first
+        )
         assert first.text == PAUSE_LINES[first.line_id]  # 승인 원문 그대로
         assert first.approved is True
 
@@ -96,7 +103,7 @@ def test_selection_is_stable_across_processes() -> None:
     # SHA-256 고정 규칙(Python hash() 미사용). 값이 바뀌면 같은 요청의 대사가 바뀌므로 고정해 둔다.
     pack = pause_pack()
     picks = [
-        select_pause_line(pack, pack_approval(pack), key).line_id
+        select_pause_line(pack, pack_approval(pack), key, passing_test_policy).line_id
         for key in (
             "66666666-6666-4666-8666-666666666666",
             "00000000-0000-4000-8000-000000000000",
@@ -151,7 +158,7 @@ def test_no_pause_line_without_an_approved_pack_with_pause_lines(case: str) -> N
         pack = pause_pack(lines={})
         approval = pack_approval(pack)
 
-    assert select_pause_line(pack, approval, "event-1") is None
+    assert select_pause_line(pack, approval, "event-1", passing_test_policy) is None
 
 
 def test_case_approvals_never_approve_the_general_pack() -> None:
@@ -159,11 +166,16 @@ def test_case_approvals_never_approve_the_general_pack() -> None:
     pack = pause_pack()
     case_source = approved(("case_test", 1), general_pack_fingerprint(pack)).source()
 
-    assert select_pause_line(pack, case_source, "event-1") is None
+    assert select_pause_line(pack, case_source, "event-1", passing_test_policy) is None
 
 
 def test_empty_approval_log_is_not_an_approval() -> None:
-    assert select_pause_line(pause_pack(), ApprovalLog().source(), "e") is None
+    assert (
+        select_pause_line(
+            pause_pack(), ApprovalLog().source(), "e", passing_test_policy
+        )
+        is None
+    )
 
 
 # ── HTTP: 긴급 중단 응답 ──
@@ -183,7 +195,9 @@ def test_blocked_case_answers_with_an_approved_pause_line(
     response = client.post(URL, json=body())
 
     assert response.status_code == 200
-    expected = select_pause_line(pack, pack_approval(pack), body()["client_event_id"])
+    expected = select_pause_line(
+        pack, pack_approval(pack), body()["client_event_id"], passing_test_policy
+    )
     assert response.json() == {
         "npc_event_id": response.json()["npc_event_id"],
         "reply": {
@@ -271,7 +285,9 @@ def test_resend_of_a_case_reply_after_block_returns_the_pause_line(
     db_session.scalar_result = event
     again = post(client)
 
-    expected = select_pause_line(pack, pack_approval(pack), body()["client_event_id"])
+    expected = select_pause_line(
+        pack, pack_approval(pack), body()["client_event_id"], passing_test_policy
+    )
     assert again["reply"]["line_id"] == expected.line_id
     assert NUDGE_A not in json.dumps(again, ensure_ascii=False)
     assert again["fallback_reason"] == WITHDRAWN

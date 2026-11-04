@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import pytest
 
-from app.api.v1.npc import get_general_pack_access_reader
+from app.api.v1.npc import get_general_pack_access_reader, get_general_pack_policy
 from app.api.v1.play_sessions import get_new_session_publication_guard
 from app.core.config import settings
 from app.main import app
@@ -20,6 +20,7 @@ from app.services.gate_review import VerifiedAdmin, create_gate_review
 from app.services.npc_general_pack import load_general_pack, read_general_pack_access
 from app.services.npc_line_supply import select_pause_line
 from app.services.npc_publication import NpcPublicationService
+from tests.pack_policy_stub import passing_test_policy
 from tests.test_content_release_mysql import mysql_run
 from tests.test_hint_balance_mysql import (
     CASE,
@@ -50,6 +51,17 @@ pytestmark = pytest.mark.skipif(
 
 # 테스트용 가상 검토자(격리 DB 전용). 실제 PM · 실제 관리자 인증이 아니다.
 TEST_ADMIN = VerifiedAdmin(reviewer="가상 검토자(테스트)")
+
+
+@pytest.fixture(autouse=True)
+def pack_policy_passes():
+    # 이 모듈은 승인 · 철회 · 잠금 판정을 시험한다. 정책 검사는 테스트 전용 통과를 명시적으로 넘긴다
+    # (운영 기본값 fail closed는 test_mysql_g3_only_pack_*_policy_undefined가 확인).
+    app.dependency_overrides[get_general_pack_policy] = lambda: passing_test_policy
+    yield
+    app.dependency_overrides.pop(get_general_pack_policy, None)
+
+
 PACK = load_general_pack(OFFICIAL)
 
 
@@ -90,7 +102,9 @@ async def approve_pack(sessions, gates=("G1", "G2", "G3"), **kwargs):
 
 
 def expected(request: dict) -> dict:
-    line = select_pause_line(PACK, pack_approval(PACK), request["client_event_id"])
+    line = select_pause_line(
+        PACK, pack_approval(PACK), request["client_event_id"], passing_test_policy
+    )
     return {"source": "approved_line", "text": line.text, "line_id": line.line_id}
 
 

@@ -10,10 +10,11 @@ import os
 
 import pytest
 
-from app.api.v1.npc import get_general_line_pack
+from app.api.v1.npc import get_general_line_pack, get_general_pack_policy
 from app.main import app
 from app.services.npc_line_supply import PAUSE_LINE_PREFIX, select_pause_line
 from app.services.npc_publication import NpcPublicationService
+from tests.pack_policy_stub import passing_test_policy
 from tests.test_content_release_mysql import mysql_run
 from tests.test_npc_case_access_mysql import (
     APPROVED_REPLY,
@@ -38,7 +39,9 @@ PACK = pause_pack()
 
 
 def expected(request: dict):
-    return select_pause_line(PACK, pack_approval(PACK), request["client_event_id"])
+    return select_pause_line(
+        PACK, pack_approval(PACK), request["client_event_id"], passing_test_policy
+    )
 
 
 class PausePack:
@@ -47,9 +50,12 @@ class PausePack:
             PACK,
             pack_approval(PACK),
         )
+        # 선택 · 차단 경합을 시험한다. 정책 검사는 테스트 전용 통과(운영 기본값은 fail closed).
+        app.dependency_overrides[get_general_pack_policy] = lambda: passing_test_policy
 
     def __exit__(self, *exc):
         app.dependency_overrides.pop(get_general_line_pack, None)
+        app.dependency_overrides.pop(get_general_pack_policy, None)
 
 
 def test_mysql_block_during_turn_answers_with_pause_line():

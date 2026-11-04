@@ -91,11 +91,14 @@ def test_unknown_status_is_rejected() -> None:
 @pytest.mark.parametrize(
     "response",
     [
-        NpcTurnResponse(npc_event_id=uuid4(), reply=None, suggest_hint=None),
+        NpcTurnResponse(
+            npc_event_id=uuid4(), reply=None, suggest_hint=None, content_mode="generic"
+        ),
         NpcTurnResponse(
             npc_event_id=uuid4(),
             reply=reply("(가상) 일반 대사", "GENERIC_01"),
             suggest_hint=None,
+            content_mode="generic",
         ),
     ],
 )
@@ -111,30 +114,35 @@ def test_generic_response_without_case_content_is_accepted(response) -> None:
             npc_event_id=uuid4(),
             reply=reply("(가상) 차단된 케이스 대사", "NUDGE_A_01"),
             suggest_hint=None,
+            content_mode="generic",
         ),
         # 일반 팩 line_id에 다른 문장
         NpcTurnResponse(
             npc_event_id=uuid4(),
             reply=reply("(가상) 차단된 케이스 대사", "GENERIC_01"),
             suggest_hint=None,
+            content_mode="generic",
         ),
         # 생성 문장
         NpcTurnResponse(
             npc_event_id=uuid4(),
             reply=reply("(가상) 일반 대사", "GENERIC_01", source="generated"),
             suggest_hint=None,
+            content_mode="generic",
         ),
         # line_id 없음
         NpcTurnResponse(
             npc_event_id=uuid4(),
             reply=reply("(가상) 일반 대사", None),
             suggest_hint=None,
+            content_mode="generic",
         ),
         # 힌트 안내는 케이스 퍼즐을 가리킨다
         NpcTurnResponse(
             npc_event_id=uuid4(),
             reply=None,
             suggest_hint=SuggestHintOut(hint_ref="hr1.k1." + "A" * 43),
+            content_mode="generic",
         ),
     ],
 )
@@ -145,7 +153,9 @@ def test_case_content_disguised_as_generic_is_rejected(response) -> None:
 
 def test_without_approved_generic_pack_only_null_reply_is_generic() -> None:
     validate_generic_response(
-        NpcTurnResponse(npc_event_id=uuid4(), reply=None, suggest_hint=None),
+        NpcTurnResponse(
+            npc_event_id=uuid4(), reply=None, suggest_hint=None, content_mode="generic"
+        ),
         no_generic_lines,
     )
     with pytest.raises(GenericResponseRejectedError):
@@ -154,6 +164,7 @@ def test_without_approved_generic_pack_only_null_reply_is_generic() -> None:
                 npc_event_id=uuid4(),
                 reply=reply("(가상) 일반 대사", "GENERIC_01"),
                 suggest_hint=None,
+                content_mode="generic",
             ),
             no_generic_lines,
         )

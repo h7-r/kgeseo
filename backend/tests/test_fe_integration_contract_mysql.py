@@ -17,7 +17,7 @@ import httpx
 import pytest
 
 from app.api.v1.hints import get_hint_economy_config
-from app.api.v1.npc import get_hint_ref_keys
+from app.api.v1.npc import get_general_pack_policy, get_hint_ref_keys
 from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
@@ -31,6 +31,7 @@ from app.services.session_content import (
     CASE_VERSION_UNAVAILABLE,
     get_pinned_content_store,
 )
+from tests.pack_policy_stub import passing_test_policy
 from tests.test_api_error_contract import assert_documented
 from tests.test_content_release_mysql import mysql_run
 from tests.test_hint_api_mysql import KEYS
@@ -407,15 +408,25 @@ def test_mysql_npc_during_block_answers_with_approved_pause_line_or_null():
                 session_id, npc_request(silent_request["client_event_id"], "다른 말")
             )
 
-            # 테스트용 가상 승인(격리 DB) 뒤에는 승인 원문 하나
+            # 테스트용 가상 승인(격리 DB) 뒤에도 정책 검사 기준이 미정이면(운영 기본값) 여전히 reply null
             await approve_pack(sessions)
-            spoken_request = npc_request()
-            spoken = await api.npc(session_id, spoken_request)
-            spoken_replay = await api.npc(session_id, spoken_request)
+            pending_request = npc_request()
+            pending = await api.npc(session_id, pending_request)
+
+            # 정책 검사 통과(테스트 전용 대역)까지 있어야 승인 원문 하나
+            app.dependency_overrides[get_general_pack_policy] = lambda: (
+                passing_test_policy
+            )
+            try:
+                spoken_request = npc_request()
+                spoken = await api.npc(session_id, spoken_request)
+                spoken_replay = await api.npc(session_id, spoken_request)
+            finally:
+                app.dependency_overrides.pop(get_general_pack_policy, None)
 
         assert normal.status_code == 200
         assert normal.json()["fallback_reason"] != WITHDRAWN
-        assert normal.json()["content_mode"] is None
+        assert normal.json()["content_mode"] == "case"
 
         assert silent.status_code == 200
         assert silent.json()["reply"] is None
@@ -428,6 +439,13 @@ def test_mysql_npc_during_block_answers_with_approved_pause_line_or_null():
         assert (conflict.status_code, conflict.json()) == (
             409,
             {"detail": EVENT_CONFLICT},
+        )
+
+        assert pending.status_code == 200
+        assert pending.json()["reply"] is None
+        assert (pending.json()["fallback_reason"], pending.json()["content_mode"]) == (
+            WITHDRAWN,
+            "generic",
         )
 
         assert spoken.json()["reply"] == expected(spoken_request)

@@ -7,7 +7,9 @@ POST /api/v1/play-sessions/{play_session_id}/npc/turns
   PM v0.4.7: 내부 puzzle_id 대신 서버가 발급한 불투명 `hint_ref`만 싣는다(`app.services.hint_ref`).
 - `fallback_reason`: 발화가 없거나 대체된 이유 코드(PM 확정 값만). 예: 승인 일반 팩이 없으면
   `NPC_GENERIC_PACK_MISSING`.
-- `content_mode`(PM v0.4.12): 긴급 중단 응답(`fallback_reason=NPC_CONTENT_WITHDRAWN`)이면 `"generic"`, 아니면 null.
+- `content_mode`(PM v0.4.13 §4): 정상 응답은 `"case"`. 긴급 중단(`NPC_CONTENT_WITHDRAWN`) · NPC 콘텐츠 없음
+  (`NPC_CONTENT_MISSING`) · 버전 불일치(`NPC_CONTENT_VERSION_MISMATCH`) · 검증 실패(`NPC_CONTENT_INVALID`)이면
+  `"generic"`(`reply: null`이어도). 늘 값이 있다(null 없음).
 - `npc_event_id`는 자동 개입 제안의 ID이기도 하다. FE는 표시 · 미표시 · 거절을 이 ID로 보고한다
   (`app.services.npc_suggestion_events`).
 - 이벤트(response_json)에는 대사 · 플레이어 원문을 남기지 않는다. 출처 · line_id · 생성 여부 ·
@@ -65,9 +67,16 @@ class SuggestHintOut(BaseModel):
     hint_ref: str
 
 
-FallbackReason = Literal["NPC_GENERIC_PACK_MISSING", "NPC_CONTENT_WITHDRAWN"]
-# PM v0.4.12: 긴급 중단(NPC_CONTENT_WITHDRAWN) 응답은 "generic"(일반 동행 모드). 다른 응답의 값은 아직 정하지 않아 null.
-ContentMode = Literal["generic"]
+FallbackReason = Literal[
+    "NPC_GENERIC_PACK_MISSING",
+    "NPC_CONTENT_WITHDRAWN",
+    "NPC_CONTENT_MISSING",
+    "NPC_CONTENT_VERSION_MISMATCH",
+    "NPC_CONTENT_INVALID",
+]
+# PM v0.4.13 §4 (v0.3 §6): 정상 응답은 "case". 긴급 중단 · 콘텐츠 없음 · 버전 불일치 · 검증 실패는 "generic"
+# (`reply: null`이어도). null로 두지 않는다.
+ContentMode = Literal["case", "generic"]
 
 
 class NpcTurnResponse(BaseModel):
@@ -75,7 +84,8 @@ class NpcTurnResponse(BaseModel):
     reply: NpcReplyOut | None
     suggest_hint: SuggestHintOut | None
     fallback_reason: FallbackReason | None = None
-    content_mode: ContentMode | None = None
+    # 늘 명시한다(`npc_turn_service._content_mode`). 기본값을 두지 않는다 — 빠뜨리면 "case"로 잘못 표시되지 않게.
+    content_mode: ContentMode
 
 
 class NpcAutoInterveneRecord(BaseModel):

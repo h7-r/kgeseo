@@ -12,6 +12,7 @@ import pytest
 from app.api.v1.npc import (
     get_general_line_pack,
     get_general_pack_access_reader,
+    get_general_pack_policy,
     get_hint_ref_keys,
     get_npc_case_access_reader,
     get_npc_event_loader,
@@ -27,6 +28,7 @@ from app.services.npc_line_supply import general_pack_fingerprint
 from app.services.npc_turn_service import NpcGenerationConfig
 from app.services.pinned_content import PinnedContentStore
 from app.services.session_content import get_pinned_content_store
+from tests.pack_policy_stub import passing_test_policy
 from tests.test_npc_turn import (
     FALLBACK,
     FP,
@@ -90,6 +92,8 @@ def overrides() -> Iterator[dict[str, Any]]:
         "approval": None,
         "general": (None, None),
         "generation": NpcGenerationConfig(),
+        # 일반 팩 정책 검사 대역(테스트 전용 통과). 운영 기본값(fail closed)은 이 값을 바꿔 시험한다.
+        "pack_policy": passing_test_policy,
         "events": [],
         # 가상 테스트 키(운영 키가 아니다)
         "hint_ref_keys": HintRefKeys("t1", {"t1": b"hint-ref-test-only-" + b"k" * 32}),
@@ -113,6 +117,7 @@ def overrides() -> Iterator[dict[str, Any]]:
         return GeneralPackAccess(None, basis=("test",))
 
     app.dependency_overrides[get_general_pack_access_reader] = lambda: pack_access
+    app.dependency_overrides[get_general_pack_policy] = lambda: values["pack_policy"]
     app.dependency_overrides[get_npc_generation] = lambda: values["generation"]
     app.dependency_overrides[get_npc_event_loader] = lambda: loader
     app.dependency_overrides[get_hint_ref_keys] = lambda: values["hint_ref_keys"]
@@ -122,6 +127,7 @@ def overrides() -> Iterator[dict[str, Any]]:
         get_npc_case_access_reader,
         get_general_line_pack,
         get_general_pack_access_reader,
+        get_general_pack_policy,
         get_npc_generation,
         get_npc_event_loader,
         get_hint_ref_keys,

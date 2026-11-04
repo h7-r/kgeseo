@@ -12,12 +12,14 @@
 
 ## 저장 범위
 
-`npc_approval_reviews`는 `review_id` PK, `target_type`, `target_id`, `content_version`, `gate`, `target_hash`, `decision`, `reviewer`, `reviewed_at`, `reason`, `supersedes`를 저장한다.
+`npc_approval_reviews`는 `review_id` PK, `target_type`, `target_id`, `content_version`, `gate`, `target_hash`, `decision`, `reviewer`, `reviewed_at`, `reason`, `supersedes`, `actor`를 저장한다.
+
+- `actor`(PM v0.4.13, Alembic `b3f7c2e9a4d1`): 기록을 실행한 사람. `reviewer`는 판정한 사람이다. 이전 기록은 NULL이며 채우지 않는다(트리거가 수정을 막는다).
 
 - `target_type`: `case_content` / `dialogue_pack`. 같은 ID라도 타입별로 조회가 분리된다.
 - 이력 조회·쓰기 직렬화 범위: `(target_type, target_id, content_version)`.
 - 판정은 그 범위 안에서 기존 함수가 `(gate, target_hash)`별 최신 `(reviewed_at, review_id)` 기록을 선택한다. PM의 대상·gate 개념에 버전·fingerprint 범위를 함께 적용한다.
-- 두 대상 모두 G1~G3가 기본이다. dialogue_pack의 G3 전용 정책은 도입하지 않았다.
+- 필수 관문은 대상 종류별이다(PM v0.4.13, `REQUIRED_GATES`): case_content G1~G3, dialogue_pack G3(+ 별도 정책 검사, 기준 미정 · fail closed). `npc_contract_v0413.md` 참조.
 - 세션 FK나 대사 본문은 저장하지 않는다. 콘텐츠의 `approvals[]`는 승인 원본으로 사용하지 않는다.
 - ID·해시는 binary collation으로 비교한다. 새 target_id 입력은 앞뒤 공백을 거부한다.
 
@@ -44,7 +46,9 @@ Repository의 `append()`는 대상 잠금 후 중복 ID와 supersedes의 존재�
 
 `GateReviewCreate`는 target과 gate/hash/decision/reason/supersedes만 입력받는다. `review_id`, `reviewed_at`, `reviewer` 및 알 수 없는 필드는 거부한다.
 
-내부 `create_gate_review()`는 `VerifiedAdmin` 신원을 요구한다. 이 객체는 인증 기능 자체가 아니며 요청 JSON의 역할 이름이나 reviewer 문자열로 만들면 안 된다. 향후 검증된 관리자 인증 의존성에서만 생성해야 한다. 현재는 어떤 HTTP 라우트도 이 서비스를 호출하지 않는다.
+인증 전 내부 CLI(`scripts/record_gate_review.py`)는 `record_delegated_gate_review()`로 기록한다: 실행자(`InternalCliOperator.actor`)와 판정자(`reviewer`)를 따로 받고 `reason`이 필수다(PM v0.4.6 §7 · v0.4.13 §3).
+
+내부 `create_gate_review()`는 `VerifiedAdmin` 신원을 요구한다(이 경로는 actor = reviewer = 검증된 신원). 이 객체는 인증 기능 자체가 아니며 요청 JSON의 역할 이름이나 reviewer 문자열로 만들면 안 된다. 향후 검증된 관리자 인증 의존성에서만 생성해야 한다. 현재는 어떤 HTTP 라우트도 이 서비스를 호출하지 않는다.
 
 팀 확정이 필요한 내용:
 

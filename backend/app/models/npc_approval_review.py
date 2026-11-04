@@ -47,6 +47,8 @@ class NpcApprovalReview(Base):
         ForeignKey("npc_approval_reviews.review_id", ondelete="RESTRICT"),
         nullable=True,
     )
+    # 기록 실행자(PM v0.4.13 §3, revision b3f7c2e9a4d1). 그 이전 기록은 NULL이고 고치지 않는다.
+    actor: Mapped[str | None] = mapped_column(VARCHAR(100), nullable=True)
 
     __table_args__ = (
         Index(

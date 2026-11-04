@@ -245,8 +245,10 @@ def test_new_revision_is_single_head_after_previous_head() -> None:
     # 갈라지고, merge revision a5c7e9b2d4f6이 합친다. 그 위에 힌트 잔액(b6d4e2f8a1c3)이 있다.
     # content_reviews(e2a7c4f9b1d3)도 콘텐츠 고정 revision에서 갈라지고, merge revision 7c3e5a9d1f42가
     # 두 계열을 합친다. 소셜 온보딩(c9d8e7f6a5b4)은 이전 head에서 갈라지고, merge revision 4b8e1d6a9c27이
-    # 7c3e5a9d1f42와 합친 단일 head다. 각 부모 관계는 그대로다.
-    assert script.get_heads() == ["4b8e1d6a9c27"]
+    # 7c3e5a9d1f42와 합친다. 그 위에 승인 기록 실행자 열(b3f7c2e9a4d1, PM v0.4.13)이 단일 head다.
+    # 각 부모 관계는 그대로다.
+    assert script.get_heads() == ["b3f7c2e9a4d1"]
+    assert script.get_revision("b3f7c2e9a4d1").down_revision == "4b8e1d6a9c27"
     assert sorted(script.get_revision("4b8e1d6a9c27").down_revision) == [
         "7c3e5a9d1f42",
         "c9d8e7f6a5b4",

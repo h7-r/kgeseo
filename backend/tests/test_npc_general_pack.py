@@ -31,6 +31,7 @@ from app.services.npc_line_supply import (
     generic_line_approval,
     select_pause_line,
 )
+from tests.pack_policy_stub import passing_test_policy
 from tests.test_npc_case_access import (  # noqa: F401  (pytest fixture)
     BLOCKED,
     Reader,
@@ -102,18 +103,29 @@ def test_official_pack_is_separate_from_test_packs(official) -> None:
 def test_pause_lines_are_never_general_fallback_lines(official) -> None:
     approval = pack_approval(official)
     # 승인돼도 일반 대체 대사 · 재전송 원문 공급에는 나오지 않는다(긴급 중단 전용).
-    assert list(general_pack_line_provider(official, approval)()) == []
+    assert (
+        list(general_pack_line_provider(official, approval, passing_test_policy)())
+        == []
+    )
     approved_generic = generic_line_approval(
-        official, approval, PM_GENERIC_PUZZLE_LINES
+        official,
+        approval,
+        PM_GENERIC_PUZZLE_LINES,
+        passing_test_policy,
     )
     assert not any(approved_generic(line_id) for line_id in PM_GENERIC_PUZZLE_LINES)
-    assert select_pause_line(official, approval, "e").line_id in PM_PAUSE_LINES
+    assert (
+        select_pause_line(official, approval, "e", passing_test_policy).line_id
+        in PM_PAUSE_LINES
+    )
 
 
 def test_official_selection_is_fixed(official) -> None:
     # SHA-256(도메인 \0 fingerprint \0 키) 앞 8바이트 mod 5. 같은 팩 · 같은 요청 ID면 언제나 같은 대사.
     picks = [
-        select_pause_line(official, pack_approval(official), key).line_id
+        select_pause_line(
+            official, pack_approval(official), key, passing_test_policy
+        ).line_id
         for key in (
             "66666666-6666-4666-8666-666666666666",
             "00000000-0000-4000-8000-000000000000",
@@ -206,7 +218,10 @@ class BrokenDb:
 def test_db_error_means_no_pack_approval(official, lock: bool) -> None:
     access = asyncio.run(read_general_pack_access(BrokenDb(), official, lock=lock))
     assert access == NO_PACK_APPROVAL
-    assert select_pause_line(official, access.approval_source, "e") is None
+    assert (
+        select_pause_line(official, access.approval_source, "e", passing_test_policy)
+        is None
+    )
 
 
 # ── HTTP: 공식 팩 · DB 판정 경로 ──
@@ -247,7 +262,10 @@ def test_blocked_turn_uses_the_official_pause_line_when_db_approved(
     response = client.post(URL, json=body()).json()
 
     line = select_pause_line(
-        db_pack["pack"], pack_approval(db_pack["pack"]), body()["client_event_id"]
+        db_pack["pack"],
+        pack_approval(db_pack["pack"]),
+        body()["client_event_id"],
+        passing_test_policy,
     )
     assert response["reply"] == {
         "source": "approved_line",
@@ -323,7 +341,7 @@ def test_published_case_response_is_unchanged_with_official_pack(
     response = client.post(URL, json=body()).json()
 
     assert response["reply"]["line_id"] == "NUDGE_A_01"
-    assert (response["fallback_reason"], response["content_mode"]) == (None, None)
+    assert (response["fallback_reason"], response["content_mode"]) == (None, "case")
 
 
 def test_resend_of_a_pause_reply_after_unblock_never_reuses_the_pause_line(

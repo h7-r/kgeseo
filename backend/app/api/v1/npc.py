@@ -10,6 +10,10 @@ from app.db.session import get_db
 from app.schemas.npc_content import GeneralLinePack
 from app.schemas.npc_turn import NpcTurnRequest, NpcTurnResponse
 from app.services.approval_history import ApprovalSource
+from app.services.dialogue_pack_policy import (
+    DEFAULT_DIALOGUE_PACK_POLICY,
+    DialoguePackPolicy,
+)
 from app.services.hint_balance import HintRefKeyConfigError, hint_ref_keys_from_settings
 from app.services.hint_ref import HintRefKeys
 from app.services.interaction import IdempotencyConflictError
@@ -70,6 +74,15 @@ def get_general_pack_access_reader() -> GeneralPackReader:
     return read_general_pack_access
 
 
+def get_general_pack_policy() -> DialoguePackPolicy:
+    """일반 팩 정책 검사(PM v0.4.6 §4 · v0.4.13 §1). 기준이 정해지기 전 운영 기본값은 늘 UNVERIFIED다.
+
+    그래서 G3 승인이 있어도 일반 팩 대사는 나가지 않는다(fail closed, `dialogue_pack_policy`).
+    """
+
+    return DEFAULT_DIALOGUE_PACK_POLICY
+
+
 def get_npc_generation() -> NpcGenerationConfig:
     """일반 대화 생성 스위치. 운영에서는 OFF 다(사람 검수 전 활성화 금지)."""
 
@@ -108,6 +121,7 @@ async def create_npc_turn_endpoint(
     case_access: CaseAccessReader = Depends(get_npc_case_access_reader),
     general_pack: tuple = Depends(get_general_line_pack),
     general_pack_reader: GeneralPackReader = Depends(get_general_pack_access_reader),
+    general_pack_policy: DialoguePackPolicy = Depends(get_general_pack_policy),
     generation: NpcGenerationConfig = Depends(get_npc_generation),
     event_loader: EventLoader = Depends(get_npc_event_loader),
     hint_ref_keys: HintRefKeys | None = Depends(get_hint_ref_keys),
@@ -126,6 +140,7 @@ async def create_npc_turn_endpoint(
             general_pack_access=None
             if pack_approval is not None
             else general_pack_reader,
+            general_pack_policy=general_pack_policy,
             generation=generation,
             event_loader=event_loader,
             hint_ref_keys=hint_ref_keys,

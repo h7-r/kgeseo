@@ -38,7 +38,9 @@
 
 전체 문장 · code 목록은 OpenAPI 각 응답의 `description`에 있다(소스와 다르면 테스트가 실패한다).
 
-긴급 중단은 NPC 오류가 아니다: 200 · `fallback_reason: NPC_CONTENT_WITHDRAWN` · `content_mode: "generic"` · 승인 일반 대사 또는 `reply: null`.
+긴급 중단 · NPC 콘텐츠 없음은 NPC 오류가 아니다: 200 · `fallback_reason: NPC_CONTENT_WITHDRAWN` · `NPC_CONTENT_MISSING` ·
+`content_mode: "generic"` · 승인 일반 대사 또는 `reply: null`. 정상 응답은 `content_mode: "case"`(PM v0.4.13).
+케이스 버전 사용 불가(npc.json 버전 불일치 · 검증 실패로 버전 전체가 거부된 경우 포함)는 그대로 409다.
 
 ## 3. 문장 비교로만 구분되는 상태 (보고 · 바꾸지 않음)
 
@@ -114,7 +116,7 @@ FE 현황: `submitFireCabinetLock`은 호출마다 새 UUID를 만든다(재전�
 ### 4.4 NPC `content_mode` · `reply: null`
 
 미사용(FE 호출 없음). 레거시 세션은 NPC 409라 지금 FE 세션으로는 NPC를 쓸 수 없다.
-긴급 중단 응답은 §2. 정상 응답의 `content_mode`는 `null`(PM 결정 P2).
+긴급 중단 응답은 §2. 정상 응답의 `content_mode`는 `"case"`(PM v0.4.13 §4, 11/4). 값은 늘 `"case" | "generic"`(null 없음).
 
 ### 4.5 Hint 잔액
 
@@ -141,6 +143,6 @@ FE 현황: `submitFireCabinetLock`은 호출마다 새 UUID를 만든다(재전�
 | 레거시 오류 | 익명 세션 404 · 만료 410 · 케이스 404 · 세션 404 |
 | 고정 세션 필수 조건 | 버전 없음 → 레거시 경로 404, 문자열 버전 422, 미등록 · 미게시 409(같은 본문), 게시 후 201 · 세션 번들 200 · 케이스 번들 404 |
 | 긴급 중단 | 신규 고정 세션 409, 레거시 세션 생성은 그대로 201(현재 동작), 기존 세션 힌트 2단계 200 · 잔액 1 · 재전송 추가 차감 없음 · 다른 요청 409, 조회 응답에 잔액 없음 |
-| NPC 긴급 중단 | 정상 `content_mode: null`, 중단 + 승인 팩 없음 → `reply: null` · `generic`, 재전송 동일, 다른 요청 409, 테스트용 가상 승인 뒤 승인 원문 |
+| NPC 긴급 중단 | 정상 `content_mode: "case"`, 중단 + 승인 팩 없음 → `reply: null` · `generic`, 재전송 동일, 다른 요청 409, 테스트용 가상 승인 뒤에도 정책 검사 미정이면 `reply: null`, 정책 통과(테스트 대역) 뒤 승인 원문 |
 | Hint 오류 | `HINT_BALANCE_EMPTY`(차감 · 기록 없음), 키 없음 503, 형식 422, 불일치 · 레거시 세션 409 `HINT_REF_MISMATCH`, 단계 건너뜀 409, 세션 없음 404 |
 | Hint 케이스 파일 누락(§3.1) | 파일 없는 레거시 세션 404 `Case not found.`(재전송 동일, 차감 · 기록 없음), 연 단계가 있는 세션에서 파일 삭제 → 재전송 · 새 단계 · Client 파일 없음 404, 깨진 파일 500, 고정 세션 힌트 200 그대로, 복구 뒤 재전송은 처음 응답 · 다음 단계 정상 차감 |

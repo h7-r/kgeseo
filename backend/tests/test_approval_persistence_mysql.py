@@ -73,16 +73,24 @@ def request(target=TARGET, **kwargs):
     )
 
 
+# 승인 이력 테이블(d2a6f8b1c903)과 실행자 열(b3f7c2e9a4d1, PM v0.4.13)을 차례로 적용한다.
+APPROVAL_MIGRATIONS = (
+    "d2a6f8b1c903_add_npc_approval_reviews.py",
+    "b3f7c2e9a4d1_add_npc_approval_review_actor.py",
+)
+
+
 def migrate(connection, action):
-    path = (
-        Path(__file__).parents[1]
-        / "alembic/versions/d2a6f8b1c903_add_npc_approval_reviews.py"
-    )
-    spec = importlib.util.spec_from_file_location("approval_migration_mysql", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    names = APPROVAL_MIGRATIONS if action == "upgrade" else APPROVAL_MIGRATIONS[::-1]
     with Operations.context(MigrationContext.configure(connection)):
-        getattr(module, action)()
+        for name in names:
+            path = Path(__file__).parents[1] / "alembic/versions" / name
+            spec = importlib.util.spec_from_file_location(
+                f"approval_migration_mysql_{name[:12]}", path
+            )
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            getattr(module, action)()
 
 
 def mysql_run(scenario):
