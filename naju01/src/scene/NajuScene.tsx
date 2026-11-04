@@ -12,6 +12,8 @@ import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { TOON_GRADIENT } from "@/engine/toon";
 
 import { usePresentationOverrides } from "../app/presentation";
+import CompanionNpc from "../companion/CompanionNpc";
+import { IS_COMPANION_ENABLED } from "../companion/companionRuntime";
 import type { MeshAppearanceConfig } from "../avatar/meshAppearance";
 import type { SidekickConfig } from "../avatar/sidekickOptions";
 import type { ToonConfig } from "../avatar/toonMaterial";
@@ -484,6 +486,10 @@ export default function NajuScene({
         toonConfig={toonConfig}
         outlineConfig={outlineConfig}
       />
+      {/* 동행 NPC — 이동 훅 뒤에 붙어 같은 프레임의 플레이어 위치를 따라간다(?npc=off 로 끔) */}
+      {IS_COMPANION_ENABLED && !IS_REVIEW_REQUESTED && (
+        <CompanionNpc playerRef={playerState} terrain={terrain} instanceGroups={instanceGroups} />
+      )}
 
       <PointerLockControls
         ref={controlsRef}

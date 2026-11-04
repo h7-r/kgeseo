@@ -21,6 +21,7 @@
     "photo:grip": "node tools/grip-photo.mjs",
     "regress:game": "bash tools/regression/shared/check.sh game",
     "regress:naju": "bash tools/regression/shared/check.sh naju",
+    "naju:test": "node --test naju01/tests/*.test.ts",
     "web:dev": "vite website",
     "web:build": "tsc -p website && vite build website && node tools/test-account-guard.mjs website/dist",
     "web:typecheck": "tsc -p website",

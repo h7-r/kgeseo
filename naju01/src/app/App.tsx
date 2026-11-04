@@ -27,6 +27,8 @@ import { DEFAULT_SETTINGS, RESOLUTION_DPR, useSettings } from "@/settings/settin
 import SettingsPanel from "@/settings/SettingsPanel";
 
 import ChibiCustomizerPanel from "../avatar/ChibiCustomizerPanel";
+import CompanionHud from "../companion/CompanionHud";
+import { IS_COMPANION_ENABLED } from "../companion/companionRuntime";
 import SidekickCustomizerPanel from "../avatar/SidekickCustomizerPanel";
 import { readMeshAppearance, type MeshAppearanceConfig } from "../avatar/meshAppearance";
 import { readSidekickAppearance } from "../avatar/sidekickOptions";
@@ -261,6 +263,9 @@ export default function App() {
 
       {IS_ARRIVING_FROM_HUB && <ArrivalCover isRevealed={isArrivalRevealed} />}
       <PuzzleHud />
+      {IS_COMPANION_ENABLED && !IS_REVIEW_REQUESTED && (
+        <CompanionHud controlsRef={controlsRef} isLocked={isLocked} showStatus={SHOW_DEV_TOOLS} />
+      )}
       <InventoryModal
         open={isInventoryOpen}
         onClose={() => {

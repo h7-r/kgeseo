@@ -1,7 +1,11 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "paths": { "@/*": ["../src/*"] }
+    "paths": {
+      "@/*": ["../src/*"],
+      "@npc/*": ["../prototypes/npc-follow/src/npc/*"],
+      "three": ["../node_modules/@types/three"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "tools/**/*.ts", "tools/**/*.tsx", "../src/types/*.d.ts"]
 }
