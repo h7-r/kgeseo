@@ -53,9 +53,12 @@ cd backend
 python3.13 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                       # DB 비밀번호 · 구글/네이버 키를 채운다
 .venv/bin/alembic upgrade heads            # 갈래가 둘일 수 있어 head 가 아니라 heads
-.venv/bin/python -m scripts.seed_test_account  # 개발용 test123@naver.com / test123
+.venv/bin/python -m scripts.seed_test_account --execute --confirm-db waegok_dev  # 개발용 test123@naver.com / test123
 .venv/bin/uvicorn app.main:app --port 8000
 ```
+
+테스트 계정 시드는 이 PC 의 MySQL(127.0.0.1 · localhost · ::1)이고 DB 이름이 개발·테스트용(`test_*` · `*_test` · `*_dev` · `*_local`)일 때만 쓴다.
+`waegok` 처럼 운영과 겹칠 수 있는 이름은 거부하므로 시드할 DB 는 `waegok_dev` 같은 이름으로 만든다. 조건은 `scripts/seed_test_account.py` 맨 위에 있다.
 
 구글·네이버 로그인은 키가 비어 있으면 503 으로 답한다. 웹사이트 쪽 `VITE_GOOGLE_CLIENT_ID` · `VITE_NAVER_CLIENT_ID` 도 같은 값으로 넣는다.
 
