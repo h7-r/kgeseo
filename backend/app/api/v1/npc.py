@@ -82,7 +82,7 @@ async def get_general_pack_policy(
     """일반 팩 정책 검사(PM v0.4.14 §A). 요청마다 게시 케이스(DB 게시 상태 + 저장소 게시본)를 읽어 고정한다.
 
     게시 케이스를 확인할 수 없으면 GEN-LEAK · GEN-CASE가 UNVERIFIED라 일반 팩을 쓰지 않는다(fail closed).
-    고유명 필드가 계약되기 전에는 게시 케이스가 하나라도 있으면 GEN-CASE가 UNVERIFIED다(`dialogue_pack_policy`).
+    게시본의 proper_nouns 또는 ng 검수 데이터가 없으면 UNVERIFIED다(`dialogue_pack_policy`).
     """
 
     return published_cases_policy(await read_published_cases(db, content_store))

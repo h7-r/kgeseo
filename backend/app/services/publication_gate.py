@@ -56,7 +56,11 @@ from app.services.content_fingerprint import (
     header_mismatches,
     parse_i_json,
 )
-from app.services.dialogue_pack_policy import PublishedCase, case_conflicts
+from app.services.dialogue_pack_policy import (
+    PublishedCase,
+    case_conflicts,
+    collect_proper_names,
+)
 from app.services.hint import HintSource, server_hint_text
 from app.services.idmap_validation import validate_idmap
 from app.services.npc_content_validation import (
@@ -95,6 +99,7 @@ CheckCode = Literal[
     "VERSION_ORDER",
     "CLIENT_SERVER",
     "NPC",
+    "POLICY_DATA",
     "NUDGE_COVERAGE",
     "IDMAP",
     "EXECUTABLE_REFS",
@@ -151,7 +156,6 @@ def evaluate_publication(
     general_pack: GeneralLinePack | None | _ConfiguredGeneralPack = (
         CONFIGURED_GENERAL_PACK
     ),
-    case_proper_names: Iterable[str] | None = None,
 ) -> PublicationResult:
     checks: list[GateCheck] = []
 
@@ -263,6 +267,15 @@ def evaluate_publication(
         return finish(case_id, version)
     add("NPC", "PASS")
     npc_model = NpcContentPack.model_validate(npc_body)
+    # 검수 누락은 팩 설정 여부와 무관하게 게시/재게시를 막는다.
+    missing = [
+        name for name in ("proper_nouns", "ng") if getattr(npc_model, name) is None
+    ]
+    add(
+        "POLICY_DATA",
+        "FAIL" if missing else "PASS",
+        *(f"npc:{name}:required" for name in missing),
+    )
 
     # 6-1. 넛지 작성 범위(PM v0.4.7): 넛지가 없는 퍼즐은 차단하지 않고 경고로 남긴다(퍼즐 ID만).
     with_nudges = {entry.puzzle_id for entry in npc_model.puzzles}
@@ -357,9 +370,7 @@ def evaluate_publication(
                 runtime=server_model,
                 npc=npc_model,
                 hint_source=hint_source,
-                proper_names=(
-                    tuple(case_proper_names) if case_proper_names is not None else None
-                ),
+                proper_names=collect_proper_names(client_model, npc_model),
             ),
         ),
     )
@@ -611,7 +622,7 @@ def _general_pack_recheck(
 ) -> tuple[CheckStatus, ...] | tuple[str, ...]:
     """(상태, *이유). 설정이 비면 NOT_APPLICABLE — 나중에 팩을 켜면 NPC 턴의 정책 검사가 게시 케이스 전체와 다시 대조한다.
 
-    팩을 읽지 못하면 FAIL, 고유명 목록이 계약되지 않았으면 GEN-CASE UNVERIFIED(둘 다 게시를 막는다).
+    팩을 읽지 못하면 FAIL, 고유명 검수 데이터가 없으면 GEN-CASE UNVERIFIED(둘 다 게시를 막는다).
     이유에는 검사 코드 · line_id · 규칙 ID만 담는다(정답 · 문장 원문 없음).
     """
 
