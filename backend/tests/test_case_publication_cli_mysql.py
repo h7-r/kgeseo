@@ -13,12 +13,11 @@ from app.services.npc_publication import NpcPublicationService
 from scripts import check_published_restore as restore_cli
 from scripts import publish_case_content as publish_cli
 from scripts import record_gate_review as review_cli
-from tests.test_content_release import write_bundle
+from tests.test_case_publication_cli import write_bundle
 from tests.test_content_release_mysql import mysql_run, pytestmark  # noqa: F401
 from tests.test_publication_gate import CASE_ID
 
 REVIEWERS = {"G1": "박지하", "G2": "이해랑", "G3": "황미르"}
-NO_NG = lambda text: False  # noqa: E731 — 테스트 전용 검사기(PM NG 기준 전)
 
 
 def db_name() -> str:
@@ -77,7 +76,6 @@ def test_mysql_case_cli_records_gates_publishes_and_restores(tmp_path):
             name,
             "",
             out.append,
-            ng_checker=NO_NG,
         )
         assert code == publish_cli.EXIT_BLOCKED
         assert await service.restorable_versions() == ()
@@ -95,7 +93,7 @@ def test_mysql_case_cli_records_gates_publishes_and_restores(tmp_path):
             )
         assert "gates_after=PASS" in "\n".join(out)
 
-        # 4. 판정만(--db): 통과하지만 게시하지 않는다. NG 검사기가 없으면 여전히 막힌다
+        # 4. 판정만(--db): 팩의 명시적인 빈 규칙으로 통과하지만 게시하지 않는다
         out.clear()
         code = await publish_cli.run(
             publish_args(tmp_path, "--db"),
@@ -103,7 +101,6 @@ def test_mysql_case_cli_records_gates_publishes_and_restores(tmp_path):
             name,
             "",
             out.append,
-            ng_checker=NO_NG,
         )
         assert code == publish_cli.EXIT_OK and "verdict=PUBLISHABLE" in out
         assert await service.restorable_versions() == ()
@@ -111,9 +108,10 @@ def test_mysql_case_cli_records_gates_publishes_and_restores(tmp_path):
         code = await publish_cli.run(
             publish_args(tmp_path, "--db"), sessions, name, "", out.append
         )
-        assert code == publish_cli.EXIT_BLOCKED and any(
-            "NG:UNVERIFIED" in line for line in out
+        assert code == publish_cli.EXIT_OK and any(
+            "NG               PASS" in line for line in out
         )
+        assert await service.restorable_versions() == ()
 
         # 5. 게시
         commit = publish_args(
@@ -125,9 +123,7 @@ def test_mysql_case_cli_records_gates_publishes_and_restores(tmp_path):
             reason="(가상) 게시",
         )
         out.clear()
-        code = await publish_cli.run(
-            commit, sessions, name, str(tmp_path), out.append, ng_checker=NO_NG
-        )
+        code = await publish_cli.run(commit, sessions, name, str(tmp_path), out.append)
         assert code == publish_cli.EXIT_OK, out
         assert any(
             "published outcome=published publication=published registration=registered"
@@ -142,9 +138,7 @@ def test_mysql_case_cli_records_gates_publishes_and_restores(tmp_path):
 
         # 6. 같은 묶음 다시 게시 — 새 게시 없이 등록만 맞춘다
         out.clear()
-        code = await publish_cli.run(
-            commit, sessions, name, str(tmp_path), out.append, ng_checker=NO_NG
-        )
+        code = await publish_cli.run(commit, sessions, name, str(tmp_path), out.append)
         assert code == publish_cli.EXIT_OK and any(
             "outcome=already_published" in line for line in out
         )
@@ -207,7 +201,6 @@ def test_mysql_case_cli_refuses_a_mismatched_database_and_stale_approvals(tmp_pa
             name,
             "",
             out.append,
-            ng_checker=NO_NG,
         )
         assert code == publish_cli.EXIT_BLOCKED
         assert "  G1: stale (다른 fingerprint 에만 기록 있음)" in out

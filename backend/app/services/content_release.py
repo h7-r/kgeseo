@@ -247,6 +247,7 @@ async def publish_and_register(
     ng_checker: NgChecker | None,
     local_ids: Mapping[str, Iterable[str]] | None,
     hint_source: HintSource | None = None,
+    snapshot: BundleSnapshot | None = None,
 ) -> ReleaseResult:
     """게시 루트의 원본으로 최초 게시하고(DB), commit 뒤 저장소에 등록한다(메모리).
 
@@ -255,9 +256,14 @@ async def publish_and_register(
     - 이미 게시 기록이 있는 같은 fingerprint의 버전이면 다시 게시하지 않고 등록만 맞춘다(`already_published`).
     - 등록 실패는 예외가 아니라 `registration.status`로 알린다(DB는 이미 게시 상태 → `sync_published_content`).
     `actor`는 호출하는 관리 절차가 검증한 주체여야 한다(이 함수는 검증하지 않는다).
+    `snapshot`을 넘기면 다시 읽지 않는다. 호출자가 그 스냅샷에서 만든 NG 규칙과 검사 대상이 같아야 한다.
+    스냅샷의 케이스·버전은 요청과 같아야 하며, 최종 게이트·승인·fingerprint 검증은 그대로 수행한다.
     """
 
-    snapshot = read_bundle_snapshot(root, case_id, content_version)
+    if snapshot is None:
+        snapshot = read_bundle_snapshot(root, case_id, content_version)
+    elif snapshot.case_id != case_id or snapshot.content_version != content_version:
+        raise InvalidBundleLocationError("snapshot target mismatch")
     try:
         outcome: PublicationOutcome = await service.publish_new(
             snapshot,
