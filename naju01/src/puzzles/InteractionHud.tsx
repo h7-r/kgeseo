@@ -15,7 +15,7 @@ export default function InteractionHud() {
   const notice = useNotice();
   const target = aimedTarget();
   const label = hand
-    ? (target?.handLabel?.(hand.kind) ?? `${ITEMS[hand.kind].name} 내려놓기`)
+    ? (target?.handLabel?.(hand.kind) ?? (target?.isPickup ? aimedLabel : `${ITEMS[hand.kind].name} 내려놓기`))
     : (target?.handLabel && inventory.findUsable(target.handLabel)?.label) || aimedLabel;
   return (
     <>

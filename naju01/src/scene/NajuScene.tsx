@@ -35,7 +35,6 @@ import PathLayer from "./components/PathLayer";
 import PlanOverlays from "./components/PlanOverlays";
 import { planPoint } from "../plan/sitePlan";
 import PlayerAvatar from "./components/PlayerAvatar";
-import SceneNotes from "./components/SceneNotes";
 import SkyAndLighting from "./components/SkyAndLighting";
 import WaterLayer from "./components/WaterLayer";
 import { useBlockerCollapse } from "./useBlockerCollapse";
@@ -406,7 +405,6 @@ export default function NajuScene({
           shading={shading}
         />
       )}
-      <SceneNotes controls={controls} story={story} />
 
       {/* 사람 자 — 절벽 위에서 아래 사람이 사람으로 보이는지(§3) */}
       {controls.showHumanScale && people.scaleFigures && (

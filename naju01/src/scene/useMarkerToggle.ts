@@ -7,7 +7,7 @@
 //   쓰는 법(NajuScene):
 //     const showMarkers = useMarkerToggle();
 //     const controls = applyMarkerToggle(usePresentationOverrides(useNajuControls()), showMarkers);
-//   → controls.showLabels · showGrid · showSections · showInvestigationPoints · showHumanScale 가 모두 AND 된다.
+//   → controls.showGrid · showSections · showInvestigationPoints · showHumanScale 가 모두 AND 된다.
 //     DevMarkers(시점 V1~V3 핀은 ?dev 만 보고 Leva 손잡이가 없다)는 `showMarkers && <DevMarkers …/>` 로 감싼다.
 //     DistortionGates 는 showInvestigationPoints 를 타므로 저절로 따라간다.
 
@@ -39,8 +39,6 @@ export function useMarkerToggle(): boolean {
 
 /** N 키가 한꺼번에 끄는 Leva 손잡이들 */
 export interface MarkerFlags {
-  /** 이름표(구역·씬 요소·차단물·시점·아비사) */
-  showLabels: boolean;
   showGrid: boolean;
   showSections: boolean;
   /** 조사점 고리·핀 · 왜곡의 문 반원 · 아비사 자리표 */
@@ -49,13 +47,7 @@ export interface MarkerFlags {
   showHumanScale: boolean;
 }
 
-const MARKER_FLAGS: (keyof MarkerFlags)[] = [
-  "showLabels",
-  "showGrid",
-  "showSections",
-  "showInvestigationPoints",
-  "showHumanScale",
-];
+const MARKER_FLAGS: (keyof MarkerFlags)[] = ["showGrid", "showSections", "showInvestigationPoints", "showHumanScale"];
 
 /**
  * 표식이 꺼져 있으면 위 손잡이들을 모두 false 로 덮은 복사본을 돌려준다(켜져 있으면 그대로).

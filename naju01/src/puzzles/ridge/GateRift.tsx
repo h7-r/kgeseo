@@ -14,6 +14,7 @@ import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { teleportPlayer } from "../cave/caveState";
 import { showNotice } from "../interaction";
+import { inventory } from "../inventory";
 import { M, groundY } from "../units";
 import { GATE } from "./ridgeShape";
 import { RIFT_ENTRY, riftEntrySince, startRiftEntry, tickRiftEntry } from "./riftEntry";
@@ -212,6 +213,8 @@ export default function GateRift() {
       cancelCameraFocus();
       audio.play("전환");
       teleportPlayer(NEXT_STAGE.x, NEXT_STAGE.z, NEXT_STAGE.heading);
+      // 틈은 한 방향이다 — 두고 온 물건도 함께 넘어온다
+      inventory.bringAlong(NEXT_STAGE.x, NEXT_STAGE.z);
       ridge.advance("done");
       showNotice("틈을 지나자 발밑이 바뀐다 — 바위 위, 절벽 꼭대기다. 그 밤 아랑사가 오른 곳.", 5);
     }

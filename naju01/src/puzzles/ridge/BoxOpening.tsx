@@ -17,7 +17,7 @@ import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { makeGlowTexture } from "../glowTexture";
 import { registerInteractable, showNotice } from "../interaction";
-import { inventory, useHeldItems, useWorldItems } from "../inventory";
+import { inventory, registerLeftBehind, useHeldItems, useWorldItems } from "../inventory";
 import { createCompressedGltfLoader } from "../../loaders/compressedGlb";
 import { M, groundY } from "../units";
 import { LID, LOCK_AT, LOCK_LENGTH, buildBoxBase, buildBoxLid, BOX, buildBronzeKey, buildPadlock } from "./lockedBox";
@@ -219,8 +219,18 @@ export default function BoxOpening() {
     phase.current = "placed";
     placeTime.current = 0;
     box.play.prepare();
-    showNotice("함을 내려놓았다. 청동 자물통 끝에 열쇠 구멍이 있다 — 자물통을 겨눠 [E].", 4);
+    showNotice("함을 내려놓았다. 청동 자물통 끝에 열쇠 구멍이 있다. 열쇠가 없으면 [E] 로 다시 챙긴다.", 4);
   });
+
+  /** 내려놓은 함을 도로 챙긴다 — 다시 평상이나 다른 자리에 놓을 수 있다. 칸이 없으면 false */
+  const takeBackBox = useRef(() => {
+    if (phase.current !== "placed" || !inventory.add("letterBox")) return false;
+    phase.current = "none";
+    placeTime.current = -1;
+    box.root.visible = false;
+    return true;
+  });
+  useEffect(() => registerLeftBehind(() => void takeBackBox.current()), []);
 
   // 땅에 내려놓은 함 — 줍는 물건 대신 열 수 있는 함으로 바꿔 놓는다(평상까지 돌아가지 않아도 열린다)
   useEffect(() => {
@@ -262,13 +272,21 @@ export default function BoxOpening() {
     const removeLock = registerInteractable({
       id: "ridge-box-lock",
       position: box.lockTarget,
-      label: "자물통",
+      label: "아랑사의 함 줍기",
+      isPickup: true,
       radius: 0.4 * M,
       reach: 2.4 * M,
       enabled: () => phase.current === "placed",
       handLabel: (kind) => (kind === "bronzeKey" ? "열쇠로 자물통 열기" : null),
       receive: () => startUnlock.current(),
-      use: () => showNotice("청동 자물통이 단단히 채워져 있다. 맞는 열쇠가 있어야 한다.", 3),
+      use: () => {
+        if (!takeBackBox.current()) {
+          showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 줍자.");
+          return;
+        }
+        audio.play("단서");
+        showNotice("함을 다시 챙겼다. 청동 자물통이 단단히 채워져 있어 맞는 열쇠가 있어야 열린다.", 3.5);
+      },
     });
     return () => {
       removePlatform();

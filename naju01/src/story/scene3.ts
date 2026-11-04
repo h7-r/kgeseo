@@ -18,7 +18,6 @@ import {
   buildCylinder,
   mergePieces,
   placeOnGround,
-  type SceneNote,
   type SceneSpotOptions,
 } from "./pieceGeometry";
 
@@ -185,13 +184,6 @@ export function buildBrokenBranchPrototypes(count = 3, seed = 6304): THREE.Buffe
 }
 
 type Scene3PropKey = "strawShoe" | "hairRibbon" | "dirtClod" | "brokenBranch";
-
-export const SCENE3_NOTES: Record<Scene3PropKey, SceneNote> = {
-  strawShoe: { text: "짚신 한 짝 · 나머지 짝은 14 m 아래에 있다 (F-07)", color: "#F2C89A" },
-  hairRibbon: { text: "댕기 · 그 자리에 둘이 있었다 (F-06)", color: "#F2C89A" },
-  dirtClod: { text: "무너진 마루 · 여기가 추락 시작점이다", color: "#B9E0C8" },
-  brokenBranch: { text: "부러진 생가지 · 떨어지며 훑고 내려온 자국", color: "#CFE3B8" },
-};
 
 // 마루 띠(z 25.2~26.4)는 통째로 바위벽이라 거기 놓으면 파묻혀 안 보인다.
 // 사람이 설 수 있는 벼랑 끝은 z ≈ 24.0~24.5 다(씬1 화톳불·돌탑도 같은 띠).

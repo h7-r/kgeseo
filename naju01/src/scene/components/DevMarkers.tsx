@@ -3,12 +3,11 @@ import * as THREE from "three";
 import type { PresentedControls } from "../../app/presentation";
 import { SHOW_DEV_TOOLS } from "../../app/runtimeFlags";
 import { MESH_NAMES } from "../../plan/meshNames";
-import { INVESTIGATION_POINTS, NPC, SCENE_TITLES, UNITS_PER_METER, VIEWPOINTS } from "../../plan/sitePlan";
+import { INVESTIGATION_POINTS, UNITS_PER_METER, VIEWPOINTS } from "../../plan/sitePlan";
 import type { GroundShading } from "../useNajuControls";
 import type { Terrain } from "../useTerrainLayers";
 import type { PeopleShapes } from "../useWorldLayers";
 import GroundMaterial from "./GroundMaterial";
-import DevLabel from "./DevLabel";
 import { planPoint } from "../../plan/sitePlan";
 
 const U = UNITS_PER_METER;
@@ -35,11 +34,6 @@ export default function DevMarkers({ controls, terrain, people, hasBakedAbisa, s
                 <cylinderGeometry args={[0.05 * U, 0.05 * U, controls.eyeHeight * U, 6]} />
                 <meshBasicMaterial color={v.color} toneMapped={false} />
               </mesh>
-              {controls.showLabels && (
-                <DevLabel position={[0, controls.eyeHeight * U + 1.2 * U, 0]} color={v.color}>
-                  {v.code} · {v.zone} · {v.heading} · 키 {v.code[1]} · 볼 것: {v.shows}
-                </DevLabel>
-              )}
             </group>
           );
         })}
@@ -65,12 +59,6 @@ export default function DevMarkers({ controls, terrain, people, hasBakedAbisa, s
                   <cylinderGeometry args={[0.035 * U, 0.035 * U, 1 * U, 6]} />
                   <meshBasicMaterial color={s.color} toneMapped={false} />
                 </mesh>
-                {/* 구슬마다 붙이면 글자밭이 된다 — 씬당 하나만 */}
-                {controls.showLabels && i === 0 && (
-                  <DevLabel position={[0, 1.3 * U, 0]} color={s.color} size={10.5}>
-                    S{s.scene} {SCENE_TITLES[s.scene]}
-                  </DevLabel>
-                )}
               </group>
             );
           }),
@@ -82,11 +70,6 @@ export default function DevMarkers({ controls, terrain, people, hasBakedAbisa, s
             <mesh name={MESH_NAMES.peopleNpc} geometry={people.npc ?? undefined} castShadow receiveShadow>
               <GroundMaterial shading={shading} brightness={controls.brightness} />
             </mesh>
-          )}
-          {controls.showLabels && (
-            <DevLabel position={planPoint(NPC.x, NPC.z, terrain.groundAt(NPC.x, NPC.z).y + 2.1)} color="#FFC4BC">
-              {NPC.name} ({NPC.zone}) · §163 대화
-            </DevLabel>
           )}
         </group>
       )}

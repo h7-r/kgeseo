@@ -23,7 +23,6 @@ const EXTRA_DEFAULTS: PresentationExtras = { sunColor: "#ffffff", waterReceivesS
 
 // 도면 대조용 겹침을 끈다. drei <Html> 라벨은 하나마다 매 프레임 DOM 을 옮긴다.
 const DEFAULT_PRESET: Preset = {
-  showLabels: false,
   showGrid: false,
   showInvestigationPoints: false,
   showSections: false,

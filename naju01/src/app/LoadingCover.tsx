@@ -36,7 +36,7 @@ export default function LoadingCover({ progress, isFading }: LoadingCoverProps) 
 const coverStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
-  // Leva(1000)·계기판(20) 위
+  // Leva(1000) 위
   zIndex: 3000,
   display: "grid",
   placeItems: "center",

@@ -9,8 +9,6 @@ import type { PathFallback, PathShapes } from "../usePathLayers";
 import type { GroundShading } from "../useNajuControls";
 import type { Terrain } from "../useTerrainLayers";
 import GroundMaterial from "./GroundMaterial";
-import DevLabel from "./DevLabel";
-import { planPoint } from "../../plan/sitePlan";
 import SlopeSegment from "./SlopeSegment";
 
 interface PathLayerProps {
@@ -88,22 +86,6 @@ export default function PathLayer({
           ))}
         </>
       )}
-
-      {controls.showLabels &&
-        measuredPaths.map((t) => {
-          const middle = t.points[Math.floor(t.points.length / 2)];
-          const y = t.startElevation + t.rise * 0.5;
-          const isOff = Math.abs(t.planarLength - t.plannedLength) > 0.6;
-          return (
-            <DevLabel
-              key={t.code}
-              position={planPoint(middle[0], middle[1], y + 2)}
-              color={isOff ? "#FFC9C2" : "#F6E7B8"}
-            >
-              {t.code} {t.name} · {t.route} · w{t.width} · {t.planarLength.toFixed(1)} m · {t.slope.toFixed(1)}°
-            </DevLabel>
-          );
-        })}
 
       {/* 연결로 — 그림과 걷는 높이가 같은 함수를 본다 */}
       {ramp?.geometry && (

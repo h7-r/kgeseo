@@ -16,7 +16,7 @@ import { registerInteractable, showNotice } from "../interaction";
 import { inventory, useHandItem, useHeldItems } from "../inventory";
 import { setPuzzlePanel } from "../puzzlePanel";
 import { ritual } from "../ritual/ritualState";
-import { M } from "../units";
+import { M, groundY } from "../units";
 import {
   INNER,
   INNER_FLOOR,
@@ -219,7 +219,11 @@ export default function InnerChamber() {
     if (inventory.add("letterBox")) {
       const box = inventory.held().find((entry) => entry.kind === "letterBox");
       if (box) inventory.takeOut(box.uid);
+    } else {
+      inventory.spawn("letterBox", new THREE.Vector3(SHORE.x * M, groundY(SHORE.x, SHORE.z) * M, SHORE.z * M));
     }
+    // 물굴은 다시 못 들어온다 — 바닥에 두고 온 물건도 물살에 함께 떠밀려 나온다
+    inventory.bringAlong(SHORE.x, SHORE.z);
     showNotice(
       "물살이 몸을 밀어 올렸다. 강가로 돌아왔다 — 손에 청동 자물통이 채워진 나무 함이 쥐여 있다. 안에서 무언가 달그락거린다.",
       6,

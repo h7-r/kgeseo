@@ -18,7 +18,6 @@ import {
   buildRing,
   mergePieces,
   placeOnGround,
-  type SceneNote,
   type SceneSpotOptions,
 } from "./pieceGeometry";
 
@@ -163,12 +162,6 @@ export function buildFootprintPrototypes(count = 3, seed = 7403): THREE.BufferGe
 }
 
 type Scene4PropKey = "boatMark" | "stake" | "footprint";
-
-export const SCENE4_NOTES: Record<Scene4PropKey, SceneNote> = {
-  boatMark: { text: "배를 끌어올린 자국 · 배는 없다", color: "#B9E0C8" },
-  stake: { text: "말뚝과 끊어진 밧줄 · 풀린 게 아니라 끊겼다", color: "#F2C89A" },
-  footprint: { text: "물가로 간 발자국 · 돌아 나온 자국이 없다", color: "#CFE3B8" },
-};
 
 // 두 자리는 일부러 같은 값이다(size·shapeIndex·서로 간 거리). 흔들고 싶은 손이 가도 그러면 장치가 죽는다.
 // 회전만 다르다 — 두 물가 선 방향이 달라 회전까지 같으면 한쪽 자국이 물가를 비스듬히 가로질러 도리어 안 닮아 보인다.

@@ -11,7 +11,6 @@ import type { BlockerShapes } from "../useBlockerShapes";
 import type { GroundShading } from "../useNajuControls";
 import type { Terrain } from "../useTerrainLayers";
 import GroundMaterial from "./GroundMaterial";
-import DevLabel from "./DevLabel";
 import { planPoint } from "../../plan/sitePlan";
 
 const U = UNITS_PER_METER;
@@ -71,11 +70,6 @@ export default function BlockerLayer({
                 <mesh name={MESH_NAMES.blockerRock} geometry={b.rock} receiveShadow castShadow>
                   <GroundMaterial shading={shading} brightness={controls.brightness} doubleSided />
                 </mesh>
-                {controls.showLabels && (
-                  <DevLabel position={planPoint(b.center[0], b.center[1], b.top + 1.2)} color="#CBD3E0" size={11}>
-                    {b.code} {b.name} · {b.role}
-                  </DevLabel>
-                )}
               </group>
             );
           })

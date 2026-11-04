@@ -1,6 +1,6 @@
 /**
  * 나주 전역 단축키 — 창을 여닫는 키는 마우스 잠금도 같이 다룬다(창이 열리면 마우스가 필요하고, 닫히면 바로 걷는다).
- *   [P] 설정 · [I] 소지품(손에 든 것이 있으면 그것을 넣는다) · [T] 시작 · [H] 힌트함(없으면 계기판) · [V] 시점 · [Esc] 닫기
+ *   [P] 설정 · [I] 소지품(손에 든 것이 있으면 그것을 넣는다) · [T] 시작 · [H] 힌트함 · [V] 시점 · [Esc] 닫기
  */
 import { useEffect, type RefObject } from "react";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
@@ -16,7 +16,7 @@ import {
   isPaperOpenNow,
   paperHintDescription,
 } from "../puzzles/ridge/oldPaper";
-import { HAS_DASHBOARD, IS_FIRST_PERSON_ONLY } from "./runtimeFlags";
+import { IS_FIRST_PERSON_ONLY } from "./runtimeFlags";
 
 interface GameHotkeys {
   controlsRef: RefObject<PointerLockControlsImpl | null>;
@@ -25,9 +25,8 @@ interface GameHotkeys {
   setIsSettingsOpen: (open: boolean) => void;
   isInventoryOpen: boolean;
   setIsInventoryOpen: (open: boolean) => void;
-  /** 모은 힌트 수 — 하나라도 있으면 [H] 는 힌트함, 없으면 계기판 */
+  /** 모은 힌트 수 — 하나라도 있어야 [H] 로 힌트함이 열린다 */
   hintCount: number;
-  toggleDashboard: () => void;
   toggleViewMode: () => void;
 }
 
@@ -44,7 +43,6 @@ export function useGameHotkeys({
   isInventoryOpen,
   setIsInventoryOpen,
   hintCount,
-  toggleDashboard,
   toggleViewMode,
 }: GameHotkeys) {
   useEffect(() => {
@@ -73,7 +71,6 @@ export function useGameHotkeys({
         setHintBoxOpen(true);
         return;
       }
-      if (HAS_DASHBOARD) toggleDashboard();
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -126,7 +123,6 @@ export function useGameHotkeys({
     isInventoryOpen,
     setIsInventoryOpen,
     hintCount,
-    toggleDashboard,
     toggleViewMode,
   ]);
 }

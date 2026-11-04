@@ -18,7 +18,6 @@ import {
   buildCylinder,
   mergePieces,
   placeOnGround,
-  type SceneNote,
   type SceneSpotOptions,
 } from "./pieceGeometry";
 
@@ -146,12 +145,6 @@ export function buildSmallTablePrototypes(count = 3, seed = 8502): THREE.BufferG
 }
 
 type Scene5PropKey = "stonePile" | "sacredRope" | "smallTable";
-
-export const SCENE5_NOTES: Record<Scene5PropKey, SceneNote> = {
-  stonePile: { text: "돌무지 여럿 · 씬1 의 돌탑 하나를 여럿이 이었다", color: "#B9E0C8" },
-  sacredRope: { text: "금줄 · 여기는 그냥 자갈밭이 아니다 (P04 · 색이 돌아온다)", color: "#F2C89A" },
-  smallTable: { text: "소반 · 누가 와서 기렸다", color: "#CFE3B8" },
-};
 
 // (45, 37) 은 평탄하고 둘레 2~3 m 가 비었지만 1.9 m 앞에 큰 자갈이 있어 z 36~39 · x 43~48 띠에 몰아 놓는다.
 // 금줄을 등지고(북·절벽 쪽) 소반, 사람이 오는 쪽(남·물가)에 돌무지 — 오면서 하나씩 얹은 모양이다.

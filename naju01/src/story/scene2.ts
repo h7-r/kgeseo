@@ -19,7 +19,6 @@ import {
   mergePieces,
   placeOnGround,
   prepareForMerge,
-  type SceneNote,
   type SceneSpotOptions,
 } from "./pieceGeometry";
 
@@ -293,14 +292,6 @@ export function buildBirdPolePrototypes(count = 3, seed = 5205): THREE.BufferGeo
 }
 
 type Scene2PropKey = "platformBed" | "stool" | "aFrameCarrier" | "waterJar" | "birdPole";
-
-export const SCENE2_NOTES: Record<Scene2PropKey, SceneNote> = {
-  platformBed: { text: "평상 · 젊은이들이 모여 말이 오간 자리 (F-10)", color: "#CFE3B8" },
-  stool: { text: "통나무 걸상 · 여럿이 둘러앉았다는 표시", color: "#CFE3B8" },
-  aFrameCarrier: { text: "지게·나뭇짐 · 능선에 올라온 이유 (F-10)", color: "#CFE3B8" },
-  waterJar: { text: "물동이 · 아비사가 여기 있었다 (F-01)", color: "#F2C89A" },
-  birdPole: { text: "솟대 · 나란히 선 둘이 서로 다른 쪽을 본다 = 엇갈리는 증언", color: "#B9E0C8" },
-};
 
 // 자리는 팀이 편집기로 다시 짠 Z4 를 구운 값(소수 둘째 자리, 편집본과 차이 최대 0.5 cm).
 // 능선 한 무리(x 71.7~74.5, 진부촌 문 바로 앞)와 Z1 나루터 낱개 — 강가와 능선의 말이 다른 게 이 씬의 뼈대다.

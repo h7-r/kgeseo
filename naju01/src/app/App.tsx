@@ -1,6 +1,6 @@
 /**
  * NAJU-01 그레이박스 껍데기. 본편 껍데기와 같은 구성(Leva · Canvas · T 키로 시작)이고,
- * 씬이 하나뿐이라 라우터가 없고 계기판이 그레이박스 전용이다.
+ * 씬이 하나뿐이라 라우터가 없다.
  * 순서: 에셋 받기(로딩 덮개) → 씬 한 번 세우기 → 몇 장 그린 뒤 덮개 걷기. 걷힌 뒤에는 다시 세울 것이 없다.
  */
 import {
@@ -42,13 +42,10 @@ import { ArrivalCover, FirstFrameSignal } from "../transition/ArrivalFade";
 import { applyMusicVolume } from "../transition/loadingVideo";
 import { useArrivalFade } from "../transition/useArrivalFade";
 import { IS_MANGA_STYLE, MangaEffect } from "../world/mangaStyle";
-import Dashboard from "./Dashboard";
 import LoadingCover, { type LoadingProgress } from "./LoadingCover";
 import { PuzzleHud, PuzzleWorld } from "./PuzzleLayer";
 import { prefetchNajuAssets } from "./prefetch";
 import {
-  DASHBOARD_LEFT_PX,
-  HAS_DASHBOARD,
   IS_ARRIVING_FROM_HUB,
   IS_BLOOM_DISABLED,
   IS_DPR_AUTO,
@@ -83,7 +80,7 @@ const START_HEIGHT =
 
 const toggleViewMode = (mode: ViewMode): ViewMode => (mode === "1인칭" ? "3인칭" : "1인칭");
 
-// 계기판 눈금·dpr·시점 단추만 바뀌어도 App 이 다시 그린다. 씬은 수천 줄짜리라 다시 도는 것만으로 무겁고,
+// dpr·시점 단추만 바뀌어도 App 이 다시 그린다. 씬은 수천 줄짜리라 다시 도는 것만으로 무겁고,
 // 넘기는 prop 은 ref·state 라 안 바뀌면 같은 참조다.
 const MemoNajuScene = memo(NajuScene);
 // 덮개가 흐려지는(.4s) 뒤에 DOM 에서 뗀다
@@ -104,7 +101,7 @@ export default function App() {
     settings.resolution === "auto" ? null : Math.min(RESOLUTION_DPR[settings.resolution], window.devicePixelRatio || 1);
 
   const controlsRef = useRef<PointerLockControlsImpl>(null);
-  const reportRef = useRef<NajuSceneReport | null>(null); // 씬 → 계기판(리렌더 없이)
+  const reportRef = useRef<NajuSceneReport | null>(null); // 씬 → 검수 도구(리렌더 없이)
   const [isLocked, setIsLocked] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("1인칭");
   const [sidekickConfig, setSidekickConfig] = useState(() =>
@@ -122,9 +119,6 @@ export default function App() {
   // 패널은 meshConfig 가 있을 때만 뜬다 — null 을 뺀 설정 함수로 넘긴다
   const setPanelMeshConfig: Dispatch<SetStateAction<MeshAppearanceConfig>> = (action) =>
     setMeshConfig((previous) => (typeof action === "function" ? previous && action(previous) : action));
-  // 계기판·조작 안내는 화면을 꽤 가려서 그림을 볼 때는 H 로 치운다
-  // 평소엔 접어 두고 H 로 연다. 개발 확인용 주소(?dev)에서는 처음부터 연다
-  const [isDashboardVisible, setIsDashboardVisible] = useState(SHOW_DEV_TOOLS);
   // 첫 프레임이 그려지면 검은 덮개가 걷힌다
   const [isArrivalRevealed, revealArrival] = useArrivalFade(IS_ARRIVING_FROM_HUB);
 
@@ -176,7 +170,6 @@ export default function App() {
     if (controlsRef.current) controlsRef.current.pointerSpeed = settings.sensitivity;
   }, [settings.sensitivity, isSceneReady, isLocked]);
 
-  const toggleDashboard = useCallback(() => setIsDashboardVisible((visible) => !visible), []);
   const switchViewMode = useCallback(() => setViewMode(toggleViewMode), []);
   useGameHotkeys({
     controlsRef,
@@ -186,7 +179,6 @@ export default function App() {
     isInventoryOpen,
     setIsInventoryOpen,
     hintCount,
-    toggleDashboard,
     toggleViewMode: switchViewMode,
   });
 
@@ -268,7 +260,6 @@ export default function App() {
       </Canvas>
 
       {IS_ARRIVING_FROM_HUB && <ArrivalCover isRevealed={isArrivalRevealed} />}
-      {isDashboardVisible && <Dashboard reportRef={reportRef} />}
       <PuzzleHud />
       <InventoryModal
         open={isInventoryOpen}
@@ -279,8 +270,6 @@ export default function App() {
       />
       {IS_REVIEW_REQUESTED && <ReviewHud />}
       {SHOW_DEV_TOOLS && !isLocked && <ControlsHelp />}
-      {/* 다 숨겼을 때 되돌리는 법을 잊지 않게 작은 자국만 남긴다 */}
-      {HAS_DASHBOARD && !isDashboardVisible && <div style={hiddenHintStyle}>[H] 누르면 계기판이 열립니다</div>}
       {!IS_FIRST_PERSON_ONLY && (
         <button type="button" onClick={() => setViewMode(toggleViewMode)} style={viewButtonStyle}>
           [V] {viewMode}
@@ -329,7 +318,7 @@ function ControlsHelp() {
   return (
     <div style={helpStyle}>
       <b>[T] 시작</b> · WASD 이동 · Shift 달리기 · Space 점프 · C 앉기 · ESC 나가기 · <b>[E] 상호작용</b> ·{" "}
-      <b>[I] 소지품</b> · <b>[Q] 편집</b> · <b>[H] 계기판 숨기기</b>
+      <b>[I] 소지품</b>
       <br />
       <span style={mutedStyle}>
         3인칭에서 마우스로 캐릭터 앞·뒤를 자유롭게 회전 · [1][2][3] V1·V2·V3 시점으로 이동(개발용)
@@ -353,20 +342,6 @@ const helpStyle: CSSProperties = {
   color: "#E6EBF4",
   font: '12.5px/1.6 "Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif',
   textAlign: "center",
-  pointerEvents: "none",
-};
-
-const hiddenHintStyle: CSSProperties = {
-  position: "absolute",
-  left: DASHBOARD_LEFT_PX,
-  top: 14,
-  zIndex: 20,
-  padding: "6px 10px",
-  border: "1px solid rgba(170,190,220,.35)",
-  borderRadius: 7,
-  background: "rgba(14,18,26,.72)",
-  color: "#E8EFFA",
-  font: "12px/1.2 ui-monospace, Menlo, monospace",
   pointerEvents: "none",
 };
 

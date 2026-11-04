@@ -8,7 +8,6 @@ import { CORE, RIVER, UNITS_PER_METER } from "../../plan/sitePlan";
 import type { GroundShading } from "../useNajuControls";
 import type { RiverShapes } from "../useWorldLayers";
 import GroundMaterial from "./GroundMaterial";
-import DevLabel from "./DevLabel";
 import { planPoint } from "../../plan/sitePlan";
 
 const U = UNITS_PER_METER;
@@ -53,11 +52,6 @@ export default function WaterLayer({ controls, river, shading, shade, rippleMate
           <boxGeometry args={[coreWidth * U, 0.35 * U, (RIVER.zEnd - RIVER.zStart) * U]} />
           <meshToonMaterial color={shade(controls.riverColor)} gradientMap={TOON_GRADIENT} />
         </mesh>
-      )}
-      {controls.showLabels && (
-        <DevLabel position={planPoint(70, 47, 1)} color="#BFE0F2">
-          {RIVER.name} · 방향 앵커(§4)
-        </DevLabel>
       )}
     </>
   );

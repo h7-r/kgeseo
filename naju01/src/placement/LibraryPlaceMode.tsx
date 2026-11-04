@@ -76,7 +76,7 @@ const FLY_CODES = new Set([
   "ShiftLeft",
   "ShiftRight",
 ]);
-/** 게임으로 그대로 보내는 키 — Q(편집 끝내기 · useSceneModes) · H(계기판) */
+/** 게임으로 그대로 보내는 키 — Q · H */
 const PASS_CODES = new Set(["KeyQ", "KeyH"]);
 const FLY_SPEED_MPS = 9;
 const UNDO_LIMIT = 30;
@@ -99,7 +99,11 @@ const draftChanged = (value: PlacementDraft, start: PlacementDraft) =>
   Math.abs(value.position.z - start.position.z) >= 5e-4 ||
   Math.abs(value.rotationY - start.rotationY) >= 0.05 ||
   Math.abs(value.scale - start.scale) >= 1e-4;
-const reviewViews = reviewViewsJson as unknown as { id: string; position: [number, number, number]; target: [number, number, number] }[];
+const reviewViews = reviewViewsJson as unknown as {
+  id: string;
+  position: [number, number, number];
+  target: [number, number, number];
+}[];
 /** [E] 편집 모드에서 고른 씬·공간("S1"·"Z2" …, "" = 전체) — 편집 모드를 껐다 켜도 이어진다. 걷기(게임)로 돌아가면 고립은 풀린다 */
 let editScene: IsolationKey = "";
 const TEXT_ENTRY = "input:not([type=checkbox]):not([type=radio]):not([type=button]), textarea, select";
@@ -662,7 +666,8 @@ export default function LibraryPlaceMode({
       const target = targetRef.current;
       const start = startRef.current;
       const value = layer.read();
-      const pending = layer.loading || !target || target.kind === "library" || !start || !value || draftChanged(value, start);
+      const pending =
+        layer.loading || !target || target.kind === "library" || !start || !value || draftChanged(value, start);
       cancelDraft();
       if (pending) {
         setMessage({
@@ -759,7 +764,9 @@ export default function LibraryPlaceMode({
         .then(async (result) => {
           pushUndo({ kind: "place", index: result.index, expect: result.entry, entry: result.previous, label });
           clearPoint();
-          await afterPlaceWrite(`붙여넣음 → manifest 「놓기」 #${result.index} ${label} (자리 ${result.entry.자리.length}개)`);
+          await afterPlaceWrite(
+            `붙여넣음 → manifest 「놓기」 #${result.index} ${label} (자리 ${result.entry.자리.length}개)`,
+          );
         })
         .catch((error: Error) => setMessage({ kind: "error", text: `붙이지 못했습니다 — ${error.message}` }))
         .finally(() => setSaving(false));
@@ -783,7 +790,10 @@ export default function LibraryPlaceMode({
     void writeEdits(next, `붙여넣음 — ${groupId} #${id}`).then(() => {
       editInstance(groupId, id);
       clearPoint();
-      setMessage({ kind: "success", text: `붙여넣음 — ${groupId} #${id} · 손잡이로 옮기고 Enter(저장) · Ctrl+Z 되돌리기` });
+      setMessage({
+        kind: "success",
+        text: `붙여넣음 — ${groupId} #${id} · 손잡이로 옮기고 Enter(저장) · Ctrl+Z 되돌리기`,
+      });
     });
   }, [afterPlaceWrite, cancelDraft, centerGround, clearPoint, editInstance, pushUndo, writeEdits]);
 
@@ -940,7 +950,16 @@ export default function LibraryPlaceMode({
           KeyV: actions.paste,
         };
         // event.code 가 비는 경우(일부 입력기·원격 조작)와 한글 자판 글자(ㅊ·ㅍ·ㅋ·ㄴ)도 같은 키로 본다(10/20)
-        const byKey: Record<string, string> = { c: "KeyC", v: "KeyV", z: "KeyZ", s: "KeyS", ㅊ: "KeyC", ㅍ: "KeyV", ㅋ: "KeyZ", ㄴ: "KeyS" };
+        const byKey: Record<string, string> = {
+          c: "KeyC",
+          v: "KeyV",
+          z: "KeyZ",
+          s: "KeyS",
+          ㅊ: "KeyC",
+          ㅍ: "KeyV",
+          ㅋ: "KeyZ",
+          ㄴ: "KeyS",
+        };
         const code = event.code || byKey[(event.key || "").toLowerCase()] || "";
         const run = event.shiftKey ? undefined : handled[code];
         if (run) {

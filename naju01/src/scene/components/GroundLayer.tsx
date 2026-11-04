@@ -9,7 +9,6 @@ import type { BakedTerrain } from "../../terrain/useBakedTerrain";
 import type { GroundShading } from "../useNajuControls";
 import type { CliffShapes, GroundShapes, Terrain } from "../useTerrainLayers";
 import GroundMaterial from "./GroundMaterial";
-import DevLabel from "./DevLabel";
 import { planPoint } from "../../plan/sitePlan";
 import SlopeSegment from "./SlopeSegment";
 
@@ -43,19 +42,9 @@ export default function GroundLayer({
   shade,
   outline,
 }: GroundLayerProps) {
-  const { zones, cliff } = terrain;
+  const { cliff } = terrain;
   return (
     <>
-      {controls.showLabels &&
-        zones.map((z) => (
-          <DevLabel
-            key={`zone-${z.code}`}
-            position={planPoint((z.x[0] + z.x[1]) / 2, (z.z[0] + z.z[1]) / 2, z.elevation + 2.2)}
-          >
-            {z.code} {z.name} · {z.dimensionsLabel} · {z.scenes}
-          </DevLabel>
-        ))}
-
       {/* 블렌더가 구운 땅 — GLB 는 도면 미터라 scale 이 전부다. castShadow 는 116 → 40 fps 라 주지 않는다. */}
       {isBakedTerrainOn && (
         <mesh name={MESH_NAMES.ground} geometry={bakedTerrain.geometry ?? undefined} scale={U} receiveShadow>
@@ -126,11 +115,6 @@ export default function GroundLayer({
           color={shade(controls.cliffColor)}
           outline={outline}
         />
-      )}
-      {controls.showLabels && (
-        <DevLabel position={planPoint(45, 28, 7)} color="#E8DCC0">
-          {cliff.name} H = {cliff.height} m · 실각 {cliff.slopeAngle.toFixed(0)}°
-        </DevLabel>
       )}
     </>
   );

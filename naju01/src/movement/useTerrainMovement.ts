@@ -39,7 +39,7 @@ const HEADING_YAW: Record<Heading, number> = { "+X": -Math.PI / 2, "-X": Math.PI
 /** 개발용 순간이동(시점 확인). 좌표는 도면 미터 */
 export type TerrainTeleport = (x: number, z: number, heading?: Heading) => void;
 
-/** 계기판이 보는 이동 상태. 부감 중(paused)에는 일부만 갱신한다. */
+/** 검수 도구가 보는 이동 상태. 부감 중(paused)에는 일부만 갱신한다. */
 export interface MovementReport {
   x: number;
   z: number;
@@ -253,7 +253,7 @@ export function useTerrainMovement(
     if (swimBob.current !== 0 && !isThirdPerson) camera.position.y -= swimBob.current;
     swimBob.current = 0;
     if (paused) {
-      // 카메라는 남이 몬다. 계기판이 죽지 않게 자리 보고만 한다.
+      // 카메라는 남이 몬다. 보고가 끊기지 않게 자리만 알린다.
       if (reportRef) {
         const x0 = p.x * METERS_PER_UNIT;
         const z0 = p.z * METERS_PER_UNIT;
@@ -487,6 +487,7 @@ export function useTerrainMovement(
     playerPose.x = finalX;
     playerPose.z = finalZ;
     playerPose.footY = lastFootY.current;
+    playerPose.isGrounded = isGrounded.current;
     playerPose.eyeHeight = eye * METERS_PER_UNIT;
 
     // 멀쩡한 자리(구역·통로 위, 물 아님)를 계속 기억한다
@@ -574,7 +575,7 @@ export function useTerrainMovement(
   return teleport;
 }
 
-/** 본편 engine 이 정한 원래 이동 값(m). 계기판이 Leva 로 돌린 값과 나란히 보여 준다. */
+/** 본편 engine 이 정한 원래 이동 값(m). */
 export const MOVEMENT_CONSTANTS = {
   walk: WALK_SPEED * METERS_PER_UNIT, // m/s
   run: WALK_SPEED * RUN_SPEED_MULTIPLIER * METERS_PER_UNIT,

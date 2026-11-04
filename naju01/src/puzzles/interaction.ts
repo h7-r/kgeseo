@@ -28,6 +28,8 @@ export interface Interactable {
   receive?: (kind: string) => void | boolean;
   /** true 면 손에 든 물건을 넘기지 않고 든 채로 쓴다(receive 만 부른다) — 들고 비추는 진주처럼 */
   keepHand?: boolean;
+  /** 다시 주울 수 있는 물건 — 겨냥에서 다른 대상보다 먼저 잡히고, 손에 다른 것을 들고 있어도 E 로 줍는다 */
+  isPickup?: boolean;
   /** 겨누면 살짝 커지고 밝아질 물체(본편 AimHighlight 와 같은 셈) — 테두리 동그라미 대신 이걸 쓴다 */
   highlight?: () => THREE.Object3D | null;
 }
@@ -50,6 +52,8 @@ function setAimed(next: Interactable | null) {
   signal.notify();
 }
 
+/** 일반 대상의 점수는 2 를 넘지 않으니 이만큼 빼면 주울 물건이 늘 앞선다 — 물레처럼 넓은 대상에 가려지지 않게 */
+const PICKUP_PRIORITY = 2;
 const toTarget = new THREE.Vector3();
 const forward = new THREE.Vector3();
 
@@ -66,7 +70,7 @@ export function updateAim(camera: THREE.Camera, isActive: boolean) {
     if (along <= 0 || toTarget.length() > target.reach) continue;
     const side = Math.sqrt(Math.max(0, toTarget.lengthSq() - along * along));
     if (side > target.radius) continue;
-    const score = side / target.radius + along / target.reach;
+    const score = side / target.radius + along / target.reach - (target.isPickup ? PICKUP_PRIORITY : 0);
     if (score < bestScore) {
       bestScore = score;
       best = target;

@@ -44,6 +44,8 @@ export default function WorldItems() {
       if (held) {
         if (target?.handLabel?.(held.kind)) {
           if (target.receive?.(held.kind) !== false && !target.keepHand) inventory.releaseHand();
+        } else if (target?.isPickup) {
+          return false; // 든 채로 줍는다 — 그 E 는 겨눈 물건의 use 가 받는다
         } else {
           inventory.dropHand();
           audio.play("똑");
@@ -118,13 +120,14 @@ function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
         id: `world-item-${item.uid}`,
         position: item.position,
         label: `${name} 줍기`,
+        isPickup: true,
         // 겨누면 본부실처럼 살짝 커지고 밝아진다
         highlight: () => meshRef.current,
         radius: 0.45 * M,
-        reach: 2.4 * M,
+        reach: 3 * M,
         use: () => {
           if (!inventory.pickUp(item.uid)) {
-            showNotice("소지품이 가득 찼다. [I] 로 열어 하나 꺼내 두자.");
+            showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 줍자.");
             return;
           }
           audio.play("단서");

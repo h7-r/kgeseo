@@ -4,6 +4,6 @@
  */
 import { exposeDevHook } from "@/debug/devHooks";
 
-export const playerPose = { x: 0, footY: 0, z: 0, eyeHeight: 1.6 };
+export const playerPose = { x: 0, footY: 0, z: 0, eyeHeight: 1.6, isGrounded: true };
 
 exposeDevHook("najuPlayerPose", playerPose);

@@ -27,6 +27,7 @@ export function useNajuControls() {
     pathColor: { value: "#C9A227", label: "통로색" },
     cliffColor: { value: "#6B6152", label: "절벽색" },
     blockerColor: { value: "#57606C", label: "차단물색" },
+    // 이름표는 지웠다. 이 값은 저장값·팀 기준값의 열쇠 순서를 지키려고 남긴다
     showLabels: { value: true, label: "라벨" },
     showGrid: { value: true, label: "격자" },
     showSections: { value: false, label: "단면선" },

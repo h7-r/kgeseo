@@ -14,7 +14,7 @@ import { FISH_TRAP, SERPENT, TENT } from "../models/baked";
 import { buildBakedModelGeometry, findThinParts, findTongue, measureHead } from "../models/bakedGeometry";
 import type { Spot } from "../placement/instanceGroups";
 import { applyVertexColors } from "../terrain/ground";
-import { placeOnGround, type SceneNote, type SceneSpotOptions } from "./pieceGeometry";
+import { placeOnGround, type SceneSpotOptions } from "./pieceGeometry";
 
 const SCENE1_STYLE = {
   pole: "#7A6647", // 그물틀·통발을 엮은 나무
@@ -349,16 +349,6 @@ export function buildSerpentPrototypes(): THREE.BufferGeometry[] {
 }
 
 type Scene1PropKey = "netFrame" | "fishTrap" | "bonfire" | "cairn" | "serpent" | "tent";
-
-// 이 그레이박스는 팀이 띄워 놓고 걸어 보는 물건이라, 소스를 안 여는 사람에게도 「왜 여기 있나」를 보여 준다
-export const SCENE1_NOTES: Record<Scene1PropKey, SceneNote> = {
-  netFrame: { text: "그물틀 · 어부가 사는 물가라는 표시 (F-05)", color: "#CFE3B8" },
-  fishTrap: { text: "통발 · 첫 씬의 「만질 수 있다」 학습용", color: "#CFE3B8" },
-  bonfire: { text: "화톳불 자리 · 두 사람이 만나 온 흔적 (F-06)", color: "#F2C89A" },
-  cairn: { text: "돌탑 · 그 흔적을 「사람이 남겼다」로 못박는 것", color: "#F2C89A" },
-  serpent: { text: "구렁이 · 사건의 시작 (F-09) · 아직 유형만 확정", color: "#B9E0C8" },
-  tent: { text: "천막 · 물때를 기다리며 머무는 자리 (F-05)", color: "#CFE3B8" },
-};
 
 // 자리는 팀이 편집기(E)로 옮긴 결과를 구운 것이다. 편집이 살아 있으면 edits.json 이 덮는다.
 export function computeScene1Spots({ heightAt }: SceneSpotOptions): Record<Scene1PropKey, Spot[]> {

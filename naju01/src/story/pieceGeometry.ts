@@ -11,12 +11,6 @@ export interface SceneSpotOptions {
   heightAt?: HeightAt | null;
 }
 
-/** 화면 위 풀이 한 줄. Leva 라벨을 끄면 같이 사라진다. */
-export interface SceneNote {
-  text: string;
-  color: string;
-}
-
 // y 는 안 적는다 — 지면에서 다시 잰다
 export function placeOnGround(heightAt: HeightAt | null | undefined, spots: Omit<Spot, "y">[]): Spot[] {
   return spots.map((spot) => ({ ...spot, y: heightAt ? heightAt(spot.x, spot.z) : 0 }));
