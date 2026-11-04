@@ -52,7 +52,8 @@ src/
   화면 밖이거나 동작 줄이기를 켠 사용자에겐 렌더하지 않는다.
 - **인증 서버 전 단계.** 세션은 sessionStorage, 계정은 IndexedDB(PBKDF2 해시)에 둔다.
   화면 흐름을 위한 것이며 보안 장치가 아니다. 서버가 붙으면 `services/` 만 바꾼다.
-  출시 전 `VITE_TEST_ACCOUNT=off` 로 테스트 계정을 끈다.
+  시연용 테스트 계정은 개발 서버에서 `VITE_TEST_ACCOUNT=on` 을 적었을 때만 켜진다. 배포 빌드에는
+  들어가지 않으며, `web:build` 끝에 `tools/test-account-guard.mjs` 가 결과물에 자격 증명이 없는지 검사한다.
 
 ## 본편과의 계약
 

@@ -3,6 +3,8 @@
  * 비밀번호 변경·재설정·탈퇴·기록·설정은 아직 서버 API 가 없어 여기에 둔다 — 진짜 인증이 아니다.
  */
 
+import { TEST_ACCOUNT } from "./testAccount";
+
 const DB_NAME = "waegok-accounts";
 /** 한글 이름을 쓰던 이전 판의 DB. 로컬 시연용 계정뿐이라 옮기지 않고 지운다. */
 const LEGACY_DB_NAME = "왜곡계정";
@@ -98,48 +100,45 @@ function createSchema(db: IDBDatabase) {
 }
 
 /**
- * 시연용 테스트 계정(TEST / test123@naver.com / test123).
- * 가입 규칙에 안 맞아 가입 화면으로는 만들 수 없고 여기서 직접 심는다. 비밀번호는 해시만 둔다.
- * 실서비스에선 VITE_TEST_ACCOUNT=off 로 반드시 끈다.
+ * 시연용 테스트 계정을 심거나(켜졌을 때) 치운다(꺼졌을 때). 비밀번호는 해시만 둔다.
+ * 꺼졌을 때는 이메일을 몰라도 지울 수 있게 isTest 표시로 찾는다 — 배포본에는 테스트 계정 값이 없다.
  */
-export const TEST_ACCOUNT_ENABLED = (import.meta.env.VITE_TEST_ACCOUNT ?? "on") !== "off";
-
-/** 로그인 화면이 시연용으로 미리 채워 두는 값. */
-export const TEST_ACCOUNT_LOGIN = { email: "test123@naver.com", password: "test123" } as const;
-
-const TEST_ACCOUNT: AccountRecord = {
-  // 팀원 기기마다 같도록 아이디도 고정한다.
-  id: "00000000-0000-4000-8000-000000000001",
-  email: TEST_ACCOUNT_LOGIN.email,
-  socialProvider: null,
-  // pbkdf2("test123", 소금, 210000, sha256)
-  passwordHash:
-    "pbkdf2_sha256$210000$d08f5a8867fe0f56939831965d2d0fb2$dfbbd540b205077d2a3679355039196f4cf0d30f79def7ede1c099926258c4f7",
-  name: "TEST",
-  nicknameKey: "test",
-  region: "전남",
-  joinedAt: Date.UTC(2026, 8, 1),
-  isTest: true,
-};
-
 function seedTestAccount(db: IDBDatabase): Promise<void> {
   return new Promise((resolve) => {
     const transaction = db.transaction([STORE.accounts, STORE.accountData], "readwrite");
     const accounts = transaction.objectStore(STORE.accounts);
-    const lookup = accounts.get(TEST_ACCOUNT.email) as IDBRequest<AccountRecord | undefined>;
-    lookup.onsuccess = () => {
-      if (!TEST_ACCOUNT_ENABLED) {
-        // 꺼 두면 전에 심은 것도 치운다. 출시 후 남아 있으면 누구나 로그인할 수 있다.
-        if (lookup.result?.isTest) {
-          accounts.delete(TEST_ACCOUNT.email);
-          transaction.objectStore(STORE.accountData).delete(TEST_ACCOUNT.email);
+    if (!TEST_ACCOUNT) {
+      // 전에 심은 것도 치운다. 남아 있으면 그 기기에선 누구나 그 계정으로 계정 관리 화면을 쓸 수 있다.
+      const cursor = accounts.openCursor();
+      cursor.onsuccess = () => {
+        const current = cursor.result;
+        if (!current) return;
+        const account = current.value as AccountRecord;
+        if (account.isTest) {
+          current.delete();
+          transaction.objectStore(STORE.accountData).delete(account.email);
         }
-        return;
-      }
-      if (lookup.result) return;
-      accounts.put(TEST_ACCOUNT);
-      transaction.objectStore(STORE.accountData).put(emptyAccountData(TEST_ACCOUNT.email));
-    };
+        current.continue();
+      };
+    } else {
+      const testAccount: AccountRecord = {
+        id: TEST_ACCOUNT.id,
+        email: TEST_ACCOUNT.email,
+        socialProvider: null,
+        passwordHash: TEST_ACCOUNT.passwordHash,
+        name: TEST_ACCOUNT.name,
+        nicknameKey: TEST_ACCOUNT.name.toLowerCase(),
+        region: TEST_ACCOUNT.region,
+        joinedAt: Date.UTC(2026, 8, 1),
+        isTest: true,
+      };
+      const lookup = accounts.get(testAccount.email) as IDBRequest<AccountRecord | undefined>;
+      lookup.onsuccess = () => {
+        if (lookup.result) return;
+        accounts.put(testAccount);
+        transaction.objectStore(STORE.accountData).put(emptyAccountData(testAccount.email));
+      };
+    }
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => resolve();
     transaction.onabort = () => resolve();
