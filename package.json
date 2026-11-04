@@ -25,6 +25,7 @@
     "web:build": "tsc -p website && vite build website && node tools/test-account-guard.mjs website/dist",
     "web:typecheck": "tsc -p website",
     "web:preview": "vite preview website --port 5175",
+    "web:test": "node --test tools/website/*.test.mjs",
     "llm:check": "node tools/llm/check.mjs",
     "story:trial": "node tools/llm/story-trial.mjs",
     "story:brief": "node tools/llm/story-brief.mjs"
