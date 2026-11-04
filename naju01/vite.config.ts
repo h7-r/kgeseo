@@ -9,6 +9,8 @@ import { spaceMaskPlugin } from "./vite/spaceMaskPlugin";
 import { libraryPlacePlugin } from "./vite/libraryPlacePlugin";
 import { scenePackPlugin } from "./vite/scenePackPlugin";
 
+const BACKEND_PROXY = { "/api": { target: "http://127.0.0.1:8000", changeOrigin: true } };
+
 // NAJU-01 그레이박스 전용 개발 서버. 본편과 같은 node_modules 를 쓴다.
 //   실행: npx vite naju01 → http://localhost:5174
 //   빌드: npx vite build naju01 → naju01/dist-naju01/ · 보기: npx vite preview naju01
@@ -33,7 +35,10 @@ export default defineConfig({
         "./src/avatar/SidekickGameAvatar.tsx",
       ],
     },
+    // 동행 NPC 의 NPC 턴 · Hint API — 본편 · 웹사이트와 같이 같은 출처로 백엔드(FastAPI)에 넘긴다
+    proxy: BACKEND_PROXY,
   },
+  preview: { proxy: BACKEND_PROXY },
   build: {
     outDir: "dist-naju01",
     emptyOutDir: true,
@@ -64,6 +69,12 @@ export default defineConfig({
     dropLocalOnlyPlugin(),
   ],
   resolve: {
-    alias: { "@": fileURLToPath(new URL("../src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("../src", import.meta.url)),
+      // 동행 NPC 추종 로직은 프로토타입(prototypes/npc-follow)의 것을 복사하지 않고 그대로 쓴다 — 테스트도 거기 있다
+      "@npc": fileURLToPath(new URL("../prototypes/npc-follow/src/npc", import.meta.url)),
+    },
+    // 프로토타입 폴더에 따로 깔린 three(버전이 다름)를 잡지 않게 한 벌로 묶는다 — 두 벌이면 Vector3 가 서로 다른 클래스다
+    dedupe: ["three"],
   },
 });

@@ -29,6 +29,26 @@ Leva 저장값 위에 얹히므로 어느 브라우저에서든 같은 화면이
 | `?present=minimal` | 위 + 바닥결·물잔결까지 끔(비상용 — 땅이 단색이 됨) |
 | `&mood=evening` · `&mood=night` | 로비처럼 어두운 바탕 + 낮은 해 하나(하늘돔 끔·안개 당김). 따로 써도 됨 |
 
+## 동행 NPC (`src/companion`)
+
+플레이어 오른쪽 뒤를 떠서 따라다니는 빛망울이다. 겨누면 **[E] 동행에게 말 걸기**, 잠근 채 **Enter** 로 한 줄 입력.
+힌트 제안이 오면 같은 [E] 를 **길게** 눌러 연다(1단계 0.5초, 정답 단계 0.9초 — 짧게 누르면 말 걸기).
+
+- 추종 · 장애물 우회 · 지형 판정은 `prototypes/npc-follow` 의 코드를 그대로 불러다 쓴다(`@npc` 별칭, 테스트도 거기).
+- 대화는 백엔드 `POST /api/v1/play-sessions/{id}/npc/turns`, 힌트는 `POST …/hints`. 개발 서버가 `/api` 를 `127.0.0.1:8000` 으로 넘긴다.
+- NPC 는 **content_version 을 고정한 세션**에서만 돈다. 나주 콘텐츠가 게시되기 전에는 케이스 · 버전이 비어 있어
+  세션을 만들지 않고 말 걸기를 끈다(추종은 그대로). 게시되면 아래 값을 채운다.
+
+| 주소 · 환경변수 | 하는 일 |
+|---|---|
+| `?npc-case=<id>&npc-version=<n>` · `VITE_NAJU_NPC_CASE_ID` · `VITE_NAJU_NPC_CONTENT_VERSION` | 대화에 쓸 케이스 · 게시 버전 |
+| `?npc=off` | 동행 NPC 를 띄우지 않는다 |
+| `?npc-mock=<시나리오>` | **개발 서버 전용** 모의 응답(`src/companion/devMock.ts`, 문장은 모두 「[모의]」 자리 표시). 배포 빌드에는 들어가지 않는다 |
+| `?dev` | 왼쪽 아래에 동행 세션 상태 표식 |
+
+모의 시나리오: `mix`(기본) · `reply` · `null` · `suggest` · `generic` · `pause` · `version` · `error500` · `flaky` · `balance` · `session404`.
+검사: `npm run naju:test`(API · 세션 · 대화 규칙) · `cd prototypes/npc-follow && npm test`(추종).
+
 ## 본편과 같은 것 / 다른 것
 
 | | |
