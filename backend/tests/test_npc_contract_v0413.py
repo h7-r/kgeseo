@@ -20,7 +20,6 @@ from app.services.approval_history import (
 )
 from app.services.dialogue_pack_policy import (
     DEFAULT_DIALOGUE_PACK_POLICY,
-    POLICY_UNDEFINED,
     PackPolicyResult,
     run_dialogue_pack_policy,
 )
@@ -144,13 +143,17 @@ def test_invalid_required_gates_fail_closed(required) -> None:
 # ── 2. 일반 팩: G3 판정과 정책 검사는 따로, 둘 다 통과해야 사용 ──
 
 
-def test_g3_only_pack_approval_is_recorded_but_unusable_while_policy_undefined(
+def test_g3_only_pack_approval_is_recorded_but_unusable_while_policy_unverified(
     official,
 ) -> None:
     source = log_with(review("G3")).source()
     assert general_pack_gate_reasons(official, source) == ()  # G3 승인 자체는 성립
-    assert run_dialogue_pack_policy(DEFAULT_DIALOGUE_PACK_POLICY, official) == (
-        POLICY_UNDEFINED
+    # 게시 케이스를 넘기지 않은 기본 검사: GEN-LEAK · GEN-CASE를 판정할 수 없다(PM v0.4.14, fail closed)
+    policy = run_dialogue_pack_policy(DEFAULT_DIALOGUE_PACK_POLICY, official)
+    assert policy.status == "UNVERIFIED"
+    assert (policy.check("GEN-LEAK"), policy.check("GEN-CASE")) == (
+        "UNVERIFIED",
+        "UNVERIFIED",
     )
     assert general_pack_approved(official, source) is False
     assert select_pause_line(official, source, "event-1") is None
@@ -264,10 +267,25 @@ def test_http_blocked_turn_uses_g3_only_pack_when_policy_passes(
     assert again == first
 
 
-def test_router_default_pack_policy_is_fail_closed() -> None:
+def test_router_pack_policy_is_fail_closed_when_published_cases_unreadable(
+    official,
+) -> None:
     from app.api.v1 import npc as npc_api
+    from app.services.pinned_content import PinnedContentStore
 
-    assert npc_api.get_general_pack_policy() is DEFAULT_DIALOGUE_PACK_POLICY
+    class BrokenDb:
+        async def execute(self, *args, **kwargs):
+            raise RuntimeError("db down")
+
+        async def rollback(self):
+            return None
+
+    policy = asyncio.run(
+        npc_api.get_general_pack_policy(BrokenDb(), PinnedContentStore())
+    )
+    result = run_dialogue_pack_policy(policy, official)
+    assert result.status == "UNVERIFIED"
+    assert result.check("GEN-LEAK") == "UNVERIFIED"
 
 
 # ── 3. content_mode ──

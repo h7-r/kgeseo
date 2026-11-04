@@ -22,15 +22,25 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.npc_publication import PUBLICATION_STATUSES
+from app.repositories.npc_publication import NpcPublicationRepository
 from app.schemas.gate_review import ApprovalTarget
 from app.schemas.npc_content import GeneralLinePack
 from app.services.approval_history import ApprovalSource
+from app.services.dialogue_pack_policy import PublishedCase
+from app.services.hint import server_hint_text
 from app.services.npc_case_access import _records
+from app.services.pinned_content import (
+    ContentPin,
+    PinnedContentError,
+    PinnedContentStore,
+)
 from app.services.publication_approval import snapshot_source
 
 logger = logging.getLogger(__name__)
@@ -115,3 +125,82 @@ async def read_general_pack_access(
         snapshot_source(target, records),
         basis=tuple(record.review_id for record in records),
     )
+
+
+async def read_published_cases(
+    db: AsyncSession, store: PinnedContentStore
+) -> tuple[PublishedCase, ...] | None:
+    """일반 팩 정책 검사(GEN-LEAK · GEN-CASE)의 대조 대상인 게시 케이스(PM v0.4.14 §A).
+
+    범위: 게시 DB(`npc_publication_states`)에서 published · suspended · blocked인 버전(진행 중 세션에 제공되는 버전,
+    팀 결정 11/4). 레거시 `case_001`은 게시 체계 밖이라 넣지 않는다. 내용은 메모리 저장소의 검증된 게시본에서 읽는다.
+    DB를 읽지 못하거나, 한 버전이라도 저장소에 없거나 fingerprint가 다르면 None(전체를 확인할 수 없음 → UNVERIFIED).
+    잠금 없이 마지막 commit 값을 읽는다. 게시 확정 직후 저장소 등록 전에는 None이다(그동안 일반 팩은 쓰지 않는다).
+    """
+
+    try:
+        states = await NpcPublicationRepository(db).all_states()
+    except Exception:
+        logger.warning("published cases unavailable for general pack policy")
+        await db.rollback()
+        return None
+    cases = []
+    for state in states:
+        if state.status not in PUBLICATION_STATUSES:
+            logger.warning(
+                "unknown publication status: case_id=%s content_version=%s",
+                state.case_id,
+                state.content_version,
+            )
+            return None
+        try:
+            bundle = store.get(
+                ContentPin(
+                    state.case_id, state.content_version, state.content_fingerprint
+                )
+            )
+        except PinnedContentError:
+            logger.warning(
+                "published case not in store: case_id=%s content_version=%s",
+                state.case_id,
+                state.content_version,
+            )
+            return None
+        cases.append(
+            PublishedCase(
+                case_id=state.case_id,
+                content_version=state.content_version,
+                runtime=bundle.server(),
+                npc=bundle.npc(),
+                hint_source=bundle.hint_source(server_hint_text),
+            )
+        )
+    return tuple(cases)
+
+
+async def published_cases_from_files(
+    sessions: Any, root: str
+) -> tuple[PublishedCase, ...] | None:
+    """관리 명령용: 게시 루트 원본으로 임시 저장소를 채운 뒤 `read_published_cases`와 같은 규칙으로 읽는다(읽기 전용).
+
+    게시 루트가 비었거나 원본을 읽지 못한 버전이 있으면 None이다(게시 케이스가 0개면 빈 목록).
+    """
+
+    from pathlib import Path as _Path
+
+    from app.services.content_release import sync_published_content
+    from app.services.npc_publication import NpcPublicationService
+
+    store = PinnedContentStore()
+    if root:
+        try:
+            await sync_published_content(
+                NpcPublicationService(sessions), store, _Path(root)
+            )
+        except Exception:
+            logger.warning("published content sync failed for general pack policy")
+            return None
+    async with sessions() as db:
+        cases = await read_published_cases(db, store)
+        await db.rollback()
+    return cases

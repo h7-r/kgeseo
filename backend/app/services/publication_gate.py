@@ -38,7 +38,7 @@ from pydantic import ValidationError
 
 from app.schemas.case_content import CaseClientContent
 from app.schemas.naju_idmap import NajuIdmap
-from app.schemas.npc_content import NpcContentPack
+from app.schemas.npc_content import GeneralLinePack, NpcContentPack
 from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition
 from app.services.approval_history import (
     ApprovalSource,
@@ -56,6 +56,7 @@ from app.services.content_fingerprint import (
     header_mismatches,
     parse_i_json,
 )
+from app.services.dialogue_pack_policy import PublishedCase, case_conflicts
 from app.services.hint import HintSource, server_hint_text
 from app.services.idmap_validation import validate_idmap
 from app.services.npc_content_validation import (
@@ -100,6 +101,7 @@ CheckCode = Literal[
     "SCENES",
     "LEAK_CLIENT",
     "NG",
+    "GEN_PACK",
     "LOCAL_IDS",
     "APPROVALS",
 ]
@@ -107,6 +109,13 @@ CheckCode = Literal[
 
 # 문장이 NG(금지 왜곡) · U(해석 유보 단정)에 걸리면 True. 판정 기준이 아직 없어 주입식이다.
 NgChecker = Callable[[str], bool]
+
+
+class _ConfiguredGeneralPack:
+    """게이트의 일반 팩 재검사 대상 = 설정 `NPC_GENERAL_PACK`의 공식 팩(팀 결정 11/4)."""
+
+
+CONFIGURED_GENERAL_PACK = _ConfiguredGeneralPack()
 
 
 @dataclass(frozen=True)
@@ -139,6 +148,10 @@ def evaluate_publication(
     ng_checker: NgChecker | None = None,
     local_ids: Mapping[str, Iterable[str]] | None = None,
     store: PinnedContentStore | None = None,
+    general_pack: GeneralLinePack | None | _ConfiguredGeneralPack = (
+        CONFIGURED_GENERAL_PACK
+    ),
+    case_proper_names: Iterable[str] | None = None,
 ) -> PublicationResult:
     checks: list[GateCheck] = []
 
@@ -332,6 +345,24 @@ def evaluate_publication(
             if ng_checker(nudge.text)
         ]
         add("NG", "FAIL" if flagged else "PASS", *flagged)
+
+    # 9-1. 일반 팩 재검사(PM v0.4.14 §A: 새 케이스 게시 때 GEN-LEAK · GEN-CASE). 겹치거나 판정할 수 없으면 막는다.
+    add(
+        "GEN_PACK",
+        *_general_pack_recheck(
+            general_pack,
+            PublishedCase(
+                case_id=case_id,
+                content_version=version,
+                runtime=server_model,
+                npc=npc_model,
+                hint_source=hint_source,
+                proper_names=(
+                    tuple(case_proper_names) if case_proper_names is not None else None
+                ),
+            ),
+        ),
+    )
 
     # 10. 승인(신뢰할 수 있는 승인 기록만)
     approval = _approval_check(approval_source, case_id, version, fingerprint)
@@ -573,3 +604,36 @@ def _client_leaks(
             if hint and hint.strip() and normalize_answer(hint) in text:
                 reasons.append(f"hint:{puzzle.puzzle_id}:{level}")
     return reasons
+
+
+def _general_pack_recheck(
+    general_pack: GeneralLinePack | None | _ConfiguredGeneralPack, case: PublishedCase
+) -> tuple[CheckStatus, ...] | tuple[str, ...]:
+    """(상태, *이유). 설정이 비면 NOT_APPLICABLE — 나중에 팩을 켜면 NPC 턴의 정책 검사가 게시 케이스 전체와 다시 대조한다.
+
+    팩을 읽지 못하면 FAIL, 고유명 목록이 계약되지 않았으면 GEN-CASE UNVERIFIED(둘 다 게시를 막는다).
+    이유에는 검사 코드 · line_id · 규칙 ID만 담는다(정답 · 문장 원문 없음).
+    """
+
+    if isinstance(general_pack, _ConfiguredGeneralPack):
+        from app.core.config import settings
+        from app.services.npc_general_pack import (
+            GeneralPackLoadError,
+            load_general_pack,
+        )
+
+        if not settings.npc_general_pack:
+            return ("NOT_APPLICABLE", "no general pack configured")
+        try:
+            general_pack = load_general_pack(settings.npc_general_pack)
+        except GeneralPackLoadError as error:
+            return ("FAIL", f"general_pack:{error}")
+    if general_pack is None:
+        return ("NOT_APPLICABLE", "no general pack configured")
+    findings = case_conflicts(general_pack, case)
+    reasons = tuple(f"{f.code}:{f.line_id or '-'}:{f.detail}" for f in findings)
+    if any(f.status == "FAIL" for f in findings):
+        return ("FAIL", *reasons)
+    if findings:
+        return ("UNVERIFIED", *reasons)
+    return ("PASS",)

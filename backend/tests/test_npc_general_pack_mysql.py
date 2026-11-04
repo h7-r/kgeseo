@@ -56,7 +56,7 @@ TEST_ADMIN = VerifiedAdmin(reviewer="가상 검토자(테스트)")
 @pytest.fixture(autouse=True)
 def pack_policy_passes():
     # 이 모듈은 승인 · 철회 · 잠금 판정을 시험한다. 정책 검사는 테스트 전용 통과를 명시적으로 넘긴다
-    # (운영 기본값 fail closed는 test_mysql_g3_only_pack_*_policy_undefined가 확인).
+    # (운영 기본값 fail closed는 test_npc_pack_policy_v0414_mysql가 확인).
     app.dependency_overrides[get_general_pack_policy] = lambda: passing_test_policy
     yield
     app.dependency_overrides.pop(get_general_pack_policy, None)

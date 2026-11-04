@@ -244,7 +244,9 @@ def test_scene_bundle_with_verifiable_clear_when_is_registered() -> None:
     result, store = run(files, fingerprint)
 
     assert result.check("SCENES").status == "PASS"
-    assert set(statuses(result).values()) == {"PASS"}
+    # GEN_PACK은 일반 팩 설정이 없어 NOT_APPLICABLE이다(PM v0.4.14)
+    assert set(statuses(result).values()) == {"PASS", "NOT_APPLICABLE"}
+    assert result.check("GEN_PACK").status == "NOT_APPLICABLE"
     assert result.approved is True
     assert result.registered is True
     assert store.versions(CASE_ID) == (1,)

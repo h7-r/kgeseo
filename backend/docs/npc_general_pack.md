@@ -29,7 +29,8 @@
    파일이 없거나 형식 · ID가 틀리면 공급하지 않는다(오류 로그: 설정 값 · 이유 코드).
 2. NPC 턴마다 `npc_approval_reviews`의 `(dialogue_pack, general_default, 1)` 기록을 읽어 그 fingerprint의 **G3**가
    `approved`이고 **정책 검사**를 통과할 때만 대사를 쓴다(PM v0.4.13, `npc_contract_v0413.md` §1). 정책 검사 기준이
-   미정이라 운영 기본값은 늘 UNVERIFIED → G3가 있어도 대사를 쓰지 않는다. 케이스 승인(`case_content`)은 쓰지 않는다.
+   PM v0.4.14로 정책 검사(GEN-*)가 구현됐다(`npc_pack_policy_v0414.md`). 고유명 계약 전에는 게시 케이스가 있으면 UNVERIFIED →
+   G3가 있어도 대사를 쓰지 않는다. 케이스 승인(`case_content`)은 쓰지 않는다.
 3. DB 오류 · 계약을 어긴 행 → 승인 없음(`reply: null`, fail closed).
 4. 계산 전(잠금 없음)과 이벤트 확정 트랜잭션(공유 잠금, 케이스 판정 다음)에서 두 번 읽고, 그 사이 철회가 commit됐으면
    다시 계산한다. 확정 중인 턴이 있으면 철회 기록은 그 턴이 끝날 때까지 기다린다.

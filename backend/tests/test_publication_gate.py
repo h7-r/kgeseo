@@ -283,6 +283,8 @@ def test_valid_non_scene_bundle_with_trusted_approvals_is_registered() -> None:
         "EXECUTABLE_REFS",
         "LOCAL_IDS",
         "SCENES",
+        # 일반 팩 설정이 없으면 재검사 대상이 없다(PM v0.4.14, 설정된 팩만)
+        "GEN_PACK",
     }
     assert set(statuses(result).values()) == {"PASS", "NOT_APPLICABLE"}
     bundle = store.get(ContentPin(CASE_ID, 1, fingerprint))
@@ -300,7 +302,8 @@ def test_scene_mapped_bundle_passes_everything_else_but_is_not_published() -> No
         "scene completion required but no clear_when",
     )
     assert {code for code, status in statuses(result).items() if status != "PASS"} == {
-        "SCENES"
+        "SCENES",
+        "GEN_PACK",  # NOT_APPLICABLE: 일반 팩 설정 없음
     }
     assert result.approved is False
     assert result.registered is False

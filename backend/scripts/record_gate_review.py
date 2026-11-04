@@ -34,7 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.schemas.gate_review import ApprovalTarget, GateReviewCreate
 from app.services.approval_history import REQUIRED_GATES, ReviewRecord
 from app.services.dialogue_pack_policy import (
-    DEFAULT_DIALOGUE_PACK_POLICY,
+    published_cases_policy,
     run_dialogue_pack_policy,
 )
 from app.services.gate_review import (
@@ -42,11 +42,16 @@ from app.services.gate_review import (
     record_delegated_gate_review,
 )
 from app.services.npc_case_access import _records
-from app.services.npc_general_pack import GeneralPackLoadError, load_general_pack
+from app.services.npc_general_pack import (
+    GeneralPackLoadError,
+    load_general_pack,
+    read_published_cases,
+)
 from app.services.npc_line_supply import (
     general_pack_fingerprint,
     general_pack_gate_reasons,
 )
+from app.services.pinned_content import PinnedContentStore
 from app.services.publication_approval import snapshot_source
 
 # 관문별 기록 가능한 사람(PM v0.4.13 §2, 12월 MVP). reviewer에는 실제로 판정한 사람을 적는다.
@@ -171,13 +176,17 @@ async def has_actor_column(db: AsyncSession) -> bool:
     return bool(row[0])
 
 
-async def current_status(db: AsyncSession, plan: Plan) -> tuple[str, str]:
-    """(G3 판정, 정책 검사 상태). 읽기 전용."""
+async def current_status(
+    db: AsyncSession, plan: Plan, store: PinnedContentStore | None = None
+) -> tuple[str, str]:
+    """(G3 판정, 정책 검사 상태). 읽기 전용. 정책 검사는 게시 DB와 `store`의 게시본으로 대조한다
+    (저장소가 비었는데 게시 버전이 있으면 UNVERIFIED). 승인 기록과 정책 검사는 서로 바꾸지 않는다."""
 
     records = await _records(db, plan.target, lock=False)
     pack = load_general_pack(f"{plan.target.target_id}/v{plan.target.content_version}")
     reasons = general_pack_gate_reasons(pack, snapshot_source(plan.target, records))
-    policy = run_dialogue_pack_policy(DEFAULT_DIALOGUE_PACK_POLICY, pack)
+    published = await read_published_cases(db, store or PinnedContentStore())
+    policy = run_dialogue_pack_policy(published_cases_policy(published), pack)
     gate = "PASS" if not reasons else "FAIL " + ",".join(reasons)
     return gate, f"{policy.status}({policy.reason})"
 

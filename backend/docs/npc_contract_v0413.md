@@ -17,6 +17,8 @@
 
 ### 정책 검사 (기준 미정 · fail closed)
 
+> 11/4 갱신: PM v0.4.14로 실제 검사(GEN-LEAK · CASE · WORD · SYS · TIME · LEN)로 바뀌었다 — `npc_pack_policy_v0414.md`. 아래는 v0.4.13 당시 기록이다.
+
 - 정책 검사의 구체 기준은 확인되지 않았다(v0.4.5 §4 원문 미확인, v0.4.6 §4 · v0.4.13 §1은 이름만 정함).
 - 그래서 운영 기본 검사(`undefined_dialogue_pack_policy`)는 늘 `UNVERIFIED(policy_undefined)`다.
   **G3 승인이 있어도 일반 팩은 쓰이지 않는다**(긴급 중단 응답은 `reply: null`).

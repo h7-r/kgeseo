@@ -285,7 +285,8 @@ def test_mysql_cli_records_actor_and_reviewer_and_policy_keeps_pack_unused():
         )
         assert (record.gate, record.target_hash) == ("G3", OFFICIAL_FINGERPRINT)
         assert any("g3_after=PASS" in line for line in lines)
-        assert any("policy=UNVERIFIED(policy_undefined)" in line for line in lines)
+        # 게시 케이스(case_test)가 있는데 CLI 저장소에 게시본이 없다 → 정책 검사 UNVERIFIED(PM v0.4.14)
+        assert any("policy=UNVERIFIED(policy_unverified)" in line for line in lines)
 
         async with sessions() as db:
             row = (

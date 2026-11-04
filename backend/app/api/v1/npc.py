@@ -11,8 +11,8 @@ from app.schemas.npc_content import GeneralLinePack
 from app.schemas.npc_turn import NpcTurnRequest, NpcTurnResponse
 from app.services.approval_history import ApprovalSource
 from app.services.dialogue_pack_policy import (
-    DEFAULT_DIALOGUE_PACK_POLICY,
     DialoguePackPolicy,
+    published_cases_policy,
 )
 from app.services.hint_balance import HintRefKeyConfigError, hint_ref_keys_from_settings
 from app.services.hint_ref import HintRefKeys
@@ -23,6 +23,7 @@ from app.services.npc_general_pack import (
     GeneralPackReader,
     configured_general_pack,
     read_general_pack_access,
+    read_published_cases,
 )
 from app.services.npc_turn_service import (
     GENERATION_OFF,
@@ -74,13 +75,17 @@ def get_general_pack_access_reader() -> GeneralPackReader:
     return read_general_pack_access
 
 
-def get_general_pack_policy() -> DialoguePackPolicy:
-    """일반 팩 정책 검사(PM v0.4.6 §4 · v0.4.13 §1). 기준이 정해지기 전 운영 기본값은 늘 UNVERIFIED다.
+async def get_general_pack_policy(
+    db: AsyncSession = Depends(get_db),
+    content_store: PinnedContentStore = Depends(get_pinned_content_store),
+) -> DialoguePackPolicy:
+    """일반 팩 정책 검사(PM v0.4.14 §A). 요청마다 게시 케이스(DB 게시 상태 + 저장소 게시본)를 읽어 고정한다.
 
-    그래서 G3 승인이 있어도 일반 팩 대사는 나가지 않는다(fail closed, `dialogue_pack_policy`).
+    게시 케이스를 확인할 수 없으면 GEN-LEAK · GEN-CASE가 UNVERIFIED라 일반 팩을 쓰지 않는다(fail closed).
+    고유명 필드가 계약되기 전에는 게시 케이스가 하나라도 있으면 GEN-CASE가 UNVERIFIED다(`dialogue_pack_policy`).
     """
 
-    return DEFAULT_DIALOGUE_PACK_POLICY
+    return published_cases_policy(await read_published_cases(db, content_store))
 
 
 def get_npc_generation() -> NpcGenerationConfig:
