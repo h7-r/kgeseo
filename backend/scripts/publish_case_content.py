@@ -82,6 +82,7 @@ CHECK_HINTS: dict[str, str] = {
     "VERSION_ORDER": "이전 게시본보다 큰 버전이어야 한다",
     "CLIENT_SERVER": "Client · Server 스키마 · ID 교차 참조 오류",
     "NPC": "npc.json 스키마 · 힌트 단계 참조 · 정답/원문 보호 위반",
+    "POLICY_DATA": "npc.json의 ng/proper_nouns 검수 목록 필수 — 검수 후 항목이 없을 때만 명시적 []",
     "NUDGE_COVERAGE": "(경고) 넛지가 없는 퍼즐",
     "IDMAP": "idmap 내부 · 교차 참조 오류",
     "EXECUTABLE_REFS": "실행 불가 항목을 참조한다",

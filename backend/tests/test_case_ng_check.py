@@ -49,7 +49,9 @@ def evaluate(documents):
 def test_gate_rule_readiness(ng, opened, expected):
     docs = base_documents()
     for key, value in (("ng", ng), ("open", opened)):
-        if value is not None:
+        if value is None:
+            docs["npc"].pop(key, None)
+        else:
             docs["npc"][key] = value
     assert evaluate(docs).check("NG").status == expected
 

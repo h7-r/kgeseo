@@ -51,6 +51,10 @@ NG_CASES = [
 
 def policy_documents(policy):
     docs = documents()
+    # v0.4.15 base fixtures already contain ng=[]; missing-policy cases must
+    # explicitly remove inherited defaults instead of silently becoming valid.
+    docs["npc"].pop("ng", None)
+    docs["npc"].pop("open", None)
     docs["npc"].update(policy)
     docs["npc"]["general_nudges"][0]["text"] = "등대의, 방향을 봐."
     return docs
