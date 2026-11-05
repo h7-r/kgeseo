@@ -21,7 +21,23 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/bc43790f77f34e71ad9b2901ca81b593",
-   "credit": "\"A_frame_Carrier\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"A_frame_Carrier\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "village",
+    "field"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 나뭇짐·볏짐을 지는 운반 도구. 농가 마당·헛간",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "나무꾼 설화",
+    "짐 속에 숨긴 물건"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "agalmatolite_seal_0b0240b8.glb": {
    "nameKo": "납석 인장",
@@ -35,7 +51,27 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/0b0240b8fb344f779415ef3b3a63777f",
-   "credit": "\"Agalmatolite Seal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Agalmatolite Seal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave",
+    "bureau"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 납석으로 만든 도장",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "신분·관직의 증표"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "anvil_5faf0f2b.glb": {
    "nameKo": "모루",
@@ -52,7 +88,23 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/5faf0f2b2fcf40e1b85410747dbf8140",
-   "credit": "\"Anvil\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Anvil\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 대장간에서 쇠를 올려 두드리는 받침",
+   "requires_context": [
+    "대장간 장면"
+   ],
+   "not_for": [],
+   "lore_hints": [
+    "대장장이 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "arm_guard_1d664c10.glb": {
    "nameKo": "은제 팔뚝가리개",
@@ -68,7 +120,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/1d664c106a284de7a5cb6286ab21725e",
-   "credit": "\"Arm Guard\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Arm Guard\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 은제 팔뚝가리개(장신구)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "왕족 무덤 부장품"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "bamboo_basket_6c7e1244.glb": {
    "nameKo": "소쿠리",
@@ -86,7 +157,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/6c7e1244d46c457fb6f3d6194663073b",
-   "credit": "\"Bamboo_Basket\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Bamboo_Basket\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 대오리로 엮은 바구니. 부엌·마당",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "나물·곡식을 담아 두는 그릇"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "bamboo_fabric_mudguard_with_jewel_beetle_b7757b34.glb": {
    "nameKo": "비단벌레 장식 말다래",
@@ -101,7 +187,27 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/b7757b349c864e91aae5043f6c350a55",
-   "credit": "\"Bamboo Fabric Mudguard with Jewel Beetles\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Bamboo Fabric Mudguard with Jewel Beetles\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 비단벌레 날개 장식 말다래(말 장식)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림",
+    "실내 소품"
+   ],
+   "lore_hints": [
+    "왕족 말갖춤"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "banghyang_398d57ec.glb": {
    "nameKo": "방향(타악기)",
@@ -119,7 +225,27 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/398d57ec90424c0fbd0711f3941938f9",
-   "credit": "\"Banghyang\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Banghyang\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "palace",
+    "shrine"
+   ],
+   "description": "조선 궁중·제례 음악의 쇠 타악기(방향)",
+   "requires_context": [
+    "궁중·제례 장면"
+   ],
+   "not_for": [
+    "서민 민가",
+    "중인·지방 양반 집 살림"
+   ],
+   "lore_hints": [
+    "제례 음악"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "basket_f097383b.glb": {
    "nameKo": "광주리",
@@ -135,7 +261,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/f097383b0dc949759f7a544b49a4729b",
-   "credit": "\"Basket\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Basket\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "village",
+    "field"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 짚·싸리로 엮은 광주리. 농가 운반·저장",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "새참·곡식을 나르는 광주리"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "bipa_233ee93c.glb": {
    "nameKo": "비파",
@@ -152,7 +293,24 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/233ee93c5cd14182b67d825b20ce1973",
-   "credit": "\"Bipa\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Bipa\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "premodern_generic",
+   "era_sensitivity": "low",
+   "setting": [
+    "interior",
+    "palace"
+   ],
+   "description": "전통 현악기 비파. 궁중·양반 음악",
+   "requires_context": [],
+   "not_for": [
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "악사·기생 설화"
+   ],
+   "authenticity": "inferred",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "bottle_9e996347.glb": {
    "nameKo": "병",
@@ -166,7 +324,22 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/9e9963470c8a4e81ba5f91fffb80ed3d",
-   "credit": "\"Bottle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Bottle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "interior"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 술·물을 담는 병",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "술병에 얽힌 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "bronze_bit_4e6b72a2.glb": {
    "nameKo": "청동 재갈",
@@ -180,7 +353,26 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/4e6b72a258eb410a85c23db5a1842ef8",
-   "credit": "\"Bronze Bit\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Bronze Bit\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 청동 재갈(말갖춤)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "왕족 말갖춤"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "bronze_handbell_with_bodhisattva_guardia_07d36209.glb": {
    "nameKo": "청동 금강령",
@@ -197,7 +389,27 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/07d36209485341b6836cacb2b3c54076",
-   "credit": "\"Bronze Handbell with Bodhisattva & Guardian\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Bronze Handbell with Bodhisattva & Guardian\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "mountain_temple",
+    "shrine"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 청동 금강령(불교 의식구)",
+   "requires_context": [
+    "절·불교 의식 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "스님·절 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "broom_4f3606be.glb": {
    "nameKo": "빗자루",
@@ -213,7 +425,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/4f3606be8d504f0e8e22601fb4cc6bee",
-   "credit": "\"Broom\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Broom\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "village",
+    "interior"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 먼지를 쓸어 내는 비",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "빗자루 도깨비 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "cabinet_f3c4b7b0.glb": {
    "nameKo": "수납장",
@@ -227,7 +454,21 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/f3c4b7b0f29e48dfa8b361668b6938d7",
-   "credit": "\"Cabinet\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Cabinet\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 반닫이(옷·문서를 넣는 앞닫이 궤). 안방",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "궤 속에 숨긴 문서·패물"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "cabinet_faf4980a.glb": {
    "nameKo": "수납장",
@@ -241,7 +482,21 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/faf4980ad7734748a400d43c9b87db64",
-   "credit": "\"Cabinet\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Cabinet\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 반닫이(옷·문서를 넣는 앞닫이 궤). 안방",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "궤 속에 숨긴 문서·패물"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "cauldron_1577767c.glb": {
    "nameKo": "가마솥",
@@ -256,7 +511,23 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/1577767c5eae4848ab0c2f6888d1cd89",
-   "credit": "\"Cauldron\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Cauldron\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 무쇠 가마솥. 부뚜막",
+   "requires_context": [
+    "부엌·취사 공간"
+   ],
+   "not_for": [],
+   "lore_hints": [
+    "솥에 얽힌 살림 이야기"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "cauldron_8f0c77ca.glb": {
    "nameKo": "가마솥",
@@ -271,7 +542,23 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/8f0c77caef7f4e1997f4829eea85ba6c",
-   "credit": "\"Cauldron\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Cauldron\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 무쇠 가마솥. 부뚜막",
+   "requires_context": [
+    "부엌·취사 공간"
+   ],
+   "not_for": [],
+   "lore_hints": [
+    "솥에 얽힌 살림 이야기"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "celadon_kettle_e3e6139a.glb": {
    "nameKo": "청자 주자",
@@ -291,7 +578,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/e3e6139ac56b49f08e06274bd922690d",
-   "credit": "\"Celadon_Kettle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Celadon_Kettle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "goryeo",
+   "era_sensitivity": "high",
+   "setting": [
+    "coast",
+    "interior"
+   ],
+   "description": "고려 청자, 태안 바다 수중유물 재현 — 상감 모란 연꽃무늬 표주박형 주전자",
+   "requires_context": [
+    "고려 장면 또는 바닷가 난파선"
+   ],
+   "not_for": [
+    "조선 서민 민가"
+   ],
+   "lore_hints": [
+    "바다에 가라앉은 보물선"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "celadon_porcelaina_4f5df4fe.glb": {
    "nameKo": "청자 그릇",
@@ -306,7 +612,26 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/4f5df4feebe24faea9450ee140947925",
-   "credit": "\"Celadon_PorcelainA\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Celadon_PorcelainA\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "goryeo",
+   "era_sensitivity": "high",
+   "setting": [
+    "coast",
+    "interior"
+   ],
+   "description": "고려 청자, 태안 바다 수중유물 재현 — 음각 연꽃 매병(보물)",
+   "requires_context": [
+    "고려 장면 또는 바닷가 난파선"
+   ],
+   "not_for": [
+    "조선 서민 민가"
+   ],
+   "lore_hints": [
+    "바다에 가라앉은 보물선"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "celadon_porcelainb_4ace759a.glb": {
    "nameKo": "청자 그릇",
@@ -321,7 +646,26 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/4ace759ac4a14e5cb63334a663772652",
-   "credit": "\"Celadon_PorcelainB\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Celadon_PorcelainB\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "goryeo",
+   "era_sensitivity": "high",
+   "setting": [
+    "coast",
+    "interior"
+   ],
+   "description": "고려 청자, 태안 바다 수중유물 재현 — 상감 국화 모란 매병(보물)",
+   "requires_context": [
+    "고려 장면 또는 바닷가 난파선"
+   ],
+   "not_for": [
+    "조선 서민 민가"
+   ],
+   "lore_hints": [
+    "바다에 가라앉은 보물선"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "clothes_rack_1c8de013.glb": {
    "nameKo": "횃대",
@@ -337,7 +681,21 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/1c8de013d6aa4aadb165582f21482b4c",
-   "credit": "\"Clothes_Rack\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Clothes_Rack\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 벽에 매달아 옷을 거는 횃대. 안방",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "걸어 둔 옷이 단서"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "duster_with_inlaid_mop_chrysanthemun_scr_7eb60368.glb": {
    "nameKo": "나전 불자",
@@ -354,7 +712,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/7eb60368fe4c480da9c24a74f614ea89",
-   "credit": "\"Duster with Inlaid MOP Chrysanthemun Scroll\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Duster with Inlaid MOP Chrysanthemun Scroll\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "goryeo",
+   "era_sensitivity": "high",
+   "setting": [
+    "mountain_temple",
+    "shrine"
+   ],
+   "description": "고려 나전 국화 넝쿨무늬 불자(불교 의식구)",
+   "requires_context": [
+    "절·불교 의식 장면"
+   ],
+   "not_for": [
+    "조선 서민 민가"
+   ],
+   "lore_hints": [
+    "스님·절 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "ewer_in_the_shape_of_a_mythical_animal_4b1daa31.glb": {
    "nameKo": "서수형 토기 주전자",
@@ -372,7 +749,27 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/4b1daa311a924407b4911e935705c6a5",
-   "credit": "\"Ewer in the Shape of a Mythical Animal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Ewer in the Shape of a Mythical Animal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave",
+    "shrine"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 거북 몸·용 머리 서수형 토기(제의용)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "무덤을 지키는 신수"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "fire_shovel_5d6d209d.glb": {
    "nameKo": "부삽",
@@ -389,7 +786,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/5d6d209d5dfe40f1b1be3ea53f7e3456",
-   "credit": "\"Fire_Shovel\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Fire_Shovel\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "interior"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 아궁이·화로의 재와 불씨를 옮기는 부삽",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "불씨를 지키는 며느리 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "firewood_5b9973cd.glb": {
    "nameKo": "장작",
@@ -407,7 +819,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/5b9973cdcb7046d186e2d9cd0ff286c8",
-   "credit": "\"Firewood\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Firewood\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "premodern_generic",
+   "era_sensitivity": "none",
+   "setting": [
+    "kitchen",
+    "village"
+   ],
+   "description": "장작(땔감). 시대 무관",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "나무꾼 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "fulling_block_17ae63f5.glb": {
    "nameKo": "다듬잇돌",
@@ -423,7 +850,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/17ae63f568134e47b5929811ae169c90",
-   "credit": "\"Fulling_Block\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Fulling_Block\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "interior",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 빨래를 두드리는 다듬잇돌",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "다듬이 소리 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "geomungo_db346b08.glb": {
    "nameKo": "거문고",
@@ -439,7 +881,25 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/db346b08a7d64795877f74929afb5530",
-   "credit": "\"Geomungo\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Geomungo\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 양반 사랑방의 현악기 거문고",
+   "requires_context": [
+    "양반가·선비 장면"
+   ],
+   "not_for": [
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "선비·거문고 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "geumgwanchong_tomb_pure_gold_crown_ornam_aa582289.glb": {
    "nameKo": "금관총 금제 관꾸미개",
@@ -456,7 +916,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/aa58228923cf49d3898e97c56a279d8e",
-   "credit": "\"Geumgwanchong Tomb Pure Gold Crown Ornaments\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Geumgwanchong Tomb Pure Gold Crown Ornaments\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 금관총 순금 관꾸미개",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "왕족 무덤 부장품"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gilt_bronze_bridle_1_1f333b0f.glb": {
    "nameKo": "금동 굴레",
@@ -471,7 +950,26 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/1f333b0f8a964dc1a664d33474cff654",
-   "credit": "\"Gilt-bronze Bridle 1\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gilt-bronze Bridle 1\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 금동 굴레(말갖춤)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "왕족 말갖춤"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gilt_bronze_crown_65178604.glb": {
    "nameKo": "금동관",
@@ -485,7 +983,26 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/6517860483814b7abc277e6693dbb3d4",
-   "credit": "\"Gilt-bronze Crown\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gilt-bronze Crown\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 금동관",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "왕관·왕권"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gilt_bronze_quiver_with_jewel_beetles_ho_6236b722.glb": {
    "nameKo": "비단벌레 장식 화살통",
@@ -502,7 +1019,27 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/6236b722475641c2a19873d2a25bb3f5",
-   "credit": "\"Gilt-bronze Quiver with Jewel Beetles, Houchong\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gilt-bronze Quiver with Jewel Beetles, Houchong\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave",
+    "fortress"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 비단벌레 장식 금동 화살통(호우총)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "장수·무덤 부장품"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gilt_bronze_shoes_of_the_sikrichong_tomb_b1f6f2ca.glb": {
    "nameKo": "식리총 금동신발",
@@ -519,7 +1056,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/b1f6f2cad60a4f14bb9c3ff019f4f248",
-   "credit": "\"Gilt-Bronze Shoes of the Sikrichong Tomb\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gilt-Bronze Shoes of the Sikrichong Tomb\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 식리총 금동신발(장례용)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "무덤 부장품"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gold_and_silver_decorated_hand_knife_adf60729.glb": {
    "nameKo": "금은장 장도",
@@ -536,7 +1092,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/adf6072961814b3c9aeaaf6274c05c31",
-   "credit": "\"Gold and Silver Decorated Hand Knife\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gold and Silver Decorated Hand Knife\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 금은 장식 손칼(장도)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "신분의 증표"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gold_bell_1fe88e94.glb": {
    "nameKo": "금방울",
@@ -553,7 +1128,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/1fe88e94496f4d94b0dfed2ab7e3a0e8",
-   "credit": "\"Gold Bell\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gold Bell\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 금방울 장신구",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "무덤 부장품"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gold_belt_from_the_geumryeong_tomb_05fca417.glb": {
    "nameKo": "금령총 금허리띠",
@@ -570,7 +1164,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/05fca4174c9c45c88ccd5a66dc2105a6",
-   "credit": "\"Gold Belt from the Geumryeong Tomb\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gold Belt from the Geumryeong Tomb\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 금령총 금허리띠",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "왕족 무덤 부장품"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gold_crown_from_gyo_dong_f788dc73.glb": {
    "nameKo": "교동 금관",
@@ -585,7 +1198,26 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/f788dc730c624c82aff4e035bdeb57cd",
-   "credit": "\"Gold Crown from Gyo-dong\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gold Crown from Gyo-dong\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 교동 금관(5세기)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "왕관·왕권"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gold_decorated_sword_ef6631dc.glb": {
    "nameKo": "금장식 큰칼",
@@ -600,7 +1232,27 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/ef6631dc3c5a45a19d74f49d75492c54",
-   "credit": "\"Gold-decorated sword\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gold-decorated sword\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave",
+    "fortress"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 금장식 큰칼",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "장수·왕권"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gold_necklace_58b4a16f.glb": {
    "nameKo": "금목걸이",
@@ -617,7 +1269,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/58b4a16f49ba49e898fa836f0e55256f",
-   "credit": "\"Gold Necklace\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gold Necklace\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 금목걸이",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "무덤 부장품"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gutter_wood_b931d4f9.glb": {
    "nameKo": "나무 홈통",
@@ -633,7 +1304,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/b931d4f978ae45a283736e71ede453e9",
-   "credit": "\"Gutter_Wood\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gutter_Wood\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "village",
+    "river"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 물을 대거나 받는 나무 홈통",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "물길·샘 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gyeongbokgung_cheonchujeon_book_be19cb79.glb": {
    "nameKo": "서책",
@@ -652,7 +1338,27 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/be19cb79e1894f69b6680bea71ebbdb8",
-   "credit": "\"Gyeongbokgung_Cheonchujeon_Book\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gyeongbokgung_Cheonchujeon_Book\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "palace",
+    "bureau"
+   ],
+   "description": "조선 궁궐(경복궁) 재현품 — 천추전의 책",
+   "requires_context": [
+    "궁궐·관아 장면"
+   ],
+   "not_for": [
+    "서민 민가",
+    "중인·지방 양반 집 살림"
+   ],
+   "lore_hints": [
+    "궁궐 문서"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gyeongbokgung_cheonchujeon_brushholder_0abd2e46.glb": {
    "nameKo": "붓꽂이",
@@ -666,7 +1372,26 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/0abd2e46cfa94e508c9459e1084b1387",
-   "credit": "\"Gyeongbokgung_Cheonchujeon_BrushHolder\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gyeongbokgung_Cheonchujeon_BrushHolder\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "palace"
+   ],
+   "description": "조선 궁궐(경복궁) 재현품 — 천추전 붓꽂이",
+   "requires_context": [
+    "궁궐·관아 장면"
+   ],
+   "not_for": [
+    "서민 민가",
+    "중인·지방 양반 집 살림"
+   ],
+   "lore_hints": [
+    "궁궐 문방"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gyeongbokgung_cheonchujeon_paperweight_042844e6.glb": {
    "nameKo": "문진",
@@ -681,7 +1406,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/042844e6183248dfb3898dcb1ec68f44",
-   "credit": "\"Gyeongbokgung_Cheonchujeon_Paperweight\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gyeongbokgung_Cheonchujeon_Paperweight\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "palace"
+   ],
+   "description": "조선 궁궐(경복궁) 재현품 — 천추전 문진",
+   "requires_context": [
+    "궁궐·관아 장면"
+   ],
+   "not_for": [
+    "서민 민가",
+    "중인·지방 양반 집 살림"
+   ],
+   "lore_hints": [
+    "궁궐 문방"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gyeongbokgung_gangnyeongjeon_candlestick_8c33f757.glb": {
    "nameKo": "촛대",
@@ -695,7 +1439,26 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/8c33f757ecba4b01b0d68bc8b5b98267",
-   "credit": "\"Gyeongbokgung_Gangnyeongjeon_Candlestick\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gyeongbokgung_Gangnyeongjeon_Candlestick\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "palace"
+   ],
+   "description": "조선 궁궐(경복궁) 재현품 — 강녕전 촛대",
+   "requires_context": [
+    "궁궐·관아 장면"
+   ],
+   "not_for": [
+    "서민 민가",
+    "중인·지방 양반 집 살림"
+   ],
+   "lore_hints": [
+    "궁궐 침전"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gyeongbokgung_geunjeongjeon_royalsealbox_969ac244.glb": {
    "nameKo": "어보함",
@@ -714,7 +1477,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/969ac244686b43e885bbcca197a682e1",
-   "credit": "\"Gyeongbokgung_Geunjeongjeon_RoyalsealBox\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gyeongbokgung_Geunjeongjeon_RoyalsealBox\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "palace"
+   ],
+   "description": "조선 궁궐(경복궁) 재현품 — 근정전 어보함(왕의 도장 함)",
+   "requires_context": [
+    "궁궐·관아 장면"
+   ],
+   "not_for": [
+    "서민 민가",
+    "중인·지방 양반 집 살림"
+   ],
+   "lore_hints": [
+    "왕의 도장"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gyeongbokgung_gyotaejeon_sittingmat_a99d6938.glb": {
    "nameKo": "보료 방석",
@@ -729,7 +1511,26 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/a99d69389ffc4b01b363adcb6f69c67a",
-   "credit": "\"Gyeongbokgung_Gyotaejeon_Sittingmat\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gyeongbokgung_Gyotaejeon_Sittingmat\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "palace"
+   ],
+   "description": "조선 궁궐(경복궁) 재현품 — 교태전 방석",
+   "requires_context": [
+    "궁궐·관아 장면"
+   ],
+   "not_for": [
+    "서민 민가",
+    "중인·지방 양반 집 살림"
+   ],
+   "lore_hints": [
+    "궁궐 침전"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gyeongbokgung_manchunjeon_brushholder_7f4f5a8e.glb": {
    "nameKo": "붓걸이",
@@ -744,7 +1545,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/7f4f5a8e6347428197c5c8e61ac7c7b1",
-   "credit": "\"Gyeongbokgung_Manchunjeon_BrushHolder\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gyeongbokgung_Manchunjeon_BrushHolder\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "palace"
+   ],
+   "description": "조선 궁궐(경복궁) 재현품 — 만춘전 붓걸이",
+   "requires_context": [
+    "궁궐·관아 장면"
+   ],
+   "not_for": [
+    "서민 민가",
+    "중인·지방 양반 집 살림"
+   ],
+   "lore_hints": [
+    "궁궐 문방"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "gyeongbokgung_manchunjeon_inkstone_82dd7560.glb": {
    "nameKo": "벼루",
@@ -759,7 +1579,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/82dd756031d240a2b398d5749f5c6d4e",
-   "credit": "\"Gyeongbokgung_Manchunjeon_InkStone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Gyeongbokgung_Manchunjeon_InkStone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "palace"
+   ],
+   "description": "조선 궁궐(경복궁) 재현품 — 만춘전 벼루",
+   "requires_context": [
+    "궁궐·관아 장면"
+   ],
+   "not_for": [
+    "서민 민가",
+    "중인·지방 양반 집 살림"
+   ],
+   "lore_hints": [
+    "궁궐 문방"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "hand_mill_c3dbc11b.glb": {
    "nameKo": "맷돌",
@@ -775,7 +1614,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/c3dbc11b869043819c032777c3c9ddac",
-   "credit": "\"Hand_Mill\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Hand_Mill\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 곡식을 가는 현무암 맷돌",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "맷돌 설화(바닷물이 짠 이유)"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "heavenly_horse_painting_on_saddle_flap_f8ddf1d1.glb": {
    "nameKo": "천마도 말다래",
@@ -790,7 +1644,27 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/f8ddf1d1b5c34f408c07874b57941e37",
-   "credit": "\"Heavenly Horse Painting on Saddle Flap\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Heavenly Horse Painting on Saddle Flap\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 천마총 천마도 말다래",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림",
+    "실내 소품"
+   ],
+   "lore_hints": [
+    "하늘을 나는 말"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "horse_harness_ornament_0435af98.glb": {
    "nameKo": "말띠꾸미개(운주)",
@@ -807,7 +1681,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/0435af9800244d69b34e69d145f96a11",
-   "credit": "\"Horse Harness Ornament\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Horse Harness Ornament\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 말띠꾸미개(운주, 말장식)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "왕족 말갖춤"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "horse_strap_pendant_032893b9.glb": {
    "nameKo": "말띠드리개(행엽)",
@@ -825,7 +1718,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/032893b9d4d44d2f872e65d1109217f4",
-   "credit": "\"Horse Strap Pendant\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Horse Strap Pendant\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 말띠드리개(행엽, 말장식)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "왕족 말갖춤"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "inkstone_98988ef1.glb": {
    "nameKo": "토제 벼루",
@@ -841,7 +1753,27 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/98988ef166984194b2a8a982c41aa7ff",
-   "credit": "\"Inkstone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Inkstone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "palace",
+    "bureau"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 안압지 출토 토제 벼루",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "신라 관청 문서"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "jar_41af1b45.glb": {
    "nameKo": "항아리",
@@ -856,7 +1788,22 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/41af1b457d1047c993e3c96622896b88",
-   "credit": "\"Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 장·곡식을 담는 독(옹기)",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "독 속에 숨긴 것"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "jar_9908305b.glb": {
    "nameKo": "항아리",
@@ -871,7 +1818,22 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/9908305b49f74af2a32bad7240fe1021",
-   "credit": "\"Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 장·곡식을 담는 독(옹기)",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "독 속에 숨긴 것"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "kitchen_board_6e929316.glb": {
    "nameKo": "도마",
@@ -886,7 +1848,21 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/6e929316e3164c8197c89b66208674de",
-   "credit": "\"Kitchen_Board\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Kitchen_Board\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 나무 도마",
+   "requires_context": [
+    "부엌·취사 공간"
+   ],
+   "not_for": [],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "lamp_63038923.glb": {
    "nameKo": "등잔",
@@ -906,7 +1882,21 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/630389233e0b4e1bba3ba92a662d592b",
-   "credit": "\"Lamp\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Lamp\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 기름을 붓고 불을 켜는 등잔",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "밤에 켜 둔 등잔불"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "lampstand_6d970c76.glb": {
    "nameKo": "등잔대",
@@ -924,7 +1914,21 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/6d970c76887f478a83de7769e7382eda",
-   "credit": "\"Lampstand\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Lampstand\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 등잔을 올려 두는 등잔대",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "밤에 켜 둔 등잔불"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "large_boat_shaped_pottery_153e491f.glb": {
    "nameKo": "배모양 토기(큰)",
@@ -939,7 +1943,27 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/153e491f19b0412b9a0f6ca8c0e38b20",
-   "credit": "\"Large Boat-Shaped Pottery\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Large Boat-Shaped Pottery\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave",
+    "shrine"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 배 모양 토기(큰, 제의용)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "저승으로 가는 배"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "large_scooped_wooden_bowl_b0d8a6a2.glb": {
    "nameKo": "함지박",
@@ -955,7 +1979,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/b0d8a6a2d3c9455b9640b75796d6e295",
-   "credit": "\"Large_Scooped_Wooden_Bowl\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Large_Scooped_Wooden_Bowl\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "field"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 통나무를 파낸 함지박",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "새참을 나르는 함지"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "lead_stone_inkstone_db671d35.glb": {
    "nameKo": "점판암 벼루",
@@ -971,7 +2010,27 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/db671d35db5b4b8db46d2d9203591177",
-   "credit": "\"Lead Stone Inkstone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Lead Stone Inkstone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "bureau",
+    "palace"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 점판암 벼루",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "신라 관청 문서"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "lionincenseburner_1c784316.glb": {
    "nameKo": "청자 사자 향로",
@@ -989,7 +2048,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/1c784316545d46949fb66220a23ab605",
-   "credit": "\"LionIncenseBurner\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"LionIncenseBurner\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "goryeo",
+   "era_sensitivity": "high",
+   "setting": [
+    "coast",
+    "mountain_temple"
+   ],
+   "description": "고려 청자, 태안 바다 수중유물 재현 — 사자 뚜껑 향로(보물)",
+   "requires_context": [
+    "고려 장면 또는 바닷가 난파선"
+   ],
+   "not_for": [
+    "조선 서민 민가"
+   ],
+   "lore_hints": [
+    "바다에 가라앉은 보물선"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "long_necked_jar_641e45ab.glb": {
    "nameKo": "긴목항아리",
@@ -1005,7 +2083,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/641e45abc4774d72b4e1124381a49e43",
-   "credit": "\"Long-necked Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Long-necked Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 긴목항아리(토기)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "무덤 부장품"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "long_necked_jar_with_curved_pedestal_ae6ef6df.glb": {
    "nameKo": "굽다리 긴목항아리",
@@ -1019,7 +2116,26 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/ae6ef6df57cd4471aafa74f1ff06b4dd",
-   "credit": "\"Long-necked Jar with Curved Pedestal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Long-necked Jar with Curved Pedestal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 굽다리 긴목항아리(토기)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "무덤 부장품"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "low_wooden_bench_38ca1b29.glb": {
    "nameKo": "평상",
@@ -1038,7 +2154,25 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/38ca1b292f454d6285fe4b024fa06469",
-   "credit": "\"Low_Wooden_Bench\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Low_Wooden_Bench\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 마당에 두고 앉거나 눕는 평상(마당 가구)",
+   "requires_context": [
+    "마당·바깥 장면"
+   ],
+   "not_for": [
+    "실내 살림"
+   ],
+   "lore_hints": [
+    "여름밤 평상 이야기"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "mado_jar_00ee5454.glb": {
    "nameKo": "마도선 항아리",
@@ -1056,7 +2190,24 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/00ee5454d9104b9d90869943fd2af171",
-   "credit": "\"Mado_Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Mado_Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "goryeo",
+   "era_sensitivity": "low",
+   "setting": [
+    "coast",
+    "river"
+   ],
+   "description": "고려 태안 마도1호선 출토 항아리(화물)",
+   "requires_context": [
+    "바닷가·난파선·나루 장면"
+   ],
+   "not_for": [],
+   "lore_hints": [
+    "침몰한 조운선 화물"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "mado_stones_f4280acf.glb": {
    "nameKo": "돌무더기",
@@ -1072,7 +2223,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/f4280acfefdb49eaa51721d8ca188e3f",
-   "credit": "\"Mado_Stones\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Mado_Stones\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "timeless",
+   "era_sensitivity": "none",
+   "setting": [
+    "coast",
+    "river"
+   ],
+   "description": "태안 마도1호선 돌무더기(돌). 시대 무관",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "배의 바닥짐 돌"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "manure_container_2daa8ef4.glb": {
    "nameKo": "장군",
@@ -1089,7 +2255,24 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/2daa8ef4f23a4c439399cbbe4318a88e",
-   "credit": "\"Manure_Container\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Manure_Container\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "field",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 거름·오줌을 담아 나르는 장군",
+   "requires_context": [
+    "논밭이 있는 장면"
+   ],
+   "not_for": [
+    "실내 살림"
+   ],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "mortar_c1b42be1.glb": {
    "nameKo": "절구",
@@ -1108,7 +2291,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/c1b42be1370e49458973015674f74364",
-   "credit": "\"Mortar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Mortar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 곡식을 찧는 절구",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "절구 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "mungap_5e8a0e41.glb": {
    "nameKo": "문갑",
@@ -1127,7 +2325,25 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/5e8a0e410f6f491b9e9f6819c0d91bbe",
-   "credit": "\"Mungap\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Mungap\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 양반 사랑방의 문갑(문서·문방 수납)",
+   "requires_context": [
+    "양반가 사랑방"
+   ],
+   "not_for": [
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "문갑 속 편지"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "oil_lamp_of_the_geumryeong_tomb_38e65d0c.glb": {
    "nameKo": "금령총 등잔",
@@ -1144,7 +2360,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/38e65d0ced734f2a92310700083e1a06",
-   "credit": "\"Oil Lamp of the Geumryeong Tomb\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Oil Lamp of the Geumryeong Tomb\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 금령총 출토 토기 등잔",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "무덤 부장품"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "pantry_chest_d6ad993b.glb": {
    "nameKo": "찬장",
@@ -1158,7 +2393,22 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/d6ad993be8c34b2eb59709c1b6efdfc9",
-   "credit": "\"Pantry_Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Pantry_Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "interior"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 그릇·음식을 넣는 찬장",
+   "requires_context": [
+    "부엌·취사 공간"
+   ],
+   "not_for": [],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "pantry_shelf_1a8f4af2.glb": {
    "nameKo": "찬탁",
@@ -1176,7 +2426,21 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/1a8f4af2daf84d42bc2ccb65a9d90eec",
-   "credit": "\"Pantry_Shelf\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Pantry_Shelf\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 그릇을 올려 두는 찬탁(선반)",
+   "requires_context": [
+    "부엌·취사 공간"
+   ],
+   "not_for": [],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "pestle_e5b92f46.glb": {
    "nameKo": "절굿공이",
@@ -1193,7 +2457,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/e5b92f468b59475390e570926ca44053",
-   "credit": "\"Pestle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Pestle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 절굿공이",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "절구 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "pharmacyscale_13528788.glb": {
    "nameKo": "약저울",
@@ -1209,7 +2488,24 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/1352878865444adfb44a4876e5313c7d",
-   "credit": "\"Pharmacyscale\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Pharmacyscale\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "interior",
+    "market"
+   ],
+   "description": "조선 한약방의 약저울",
+   "requires_context": [
+    "약방·의원 장면"
+   ],
+   "not_for": [],
+   "lore_hints": [
+    "의원·약초 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "phoenix_headed_glass_bottle_edef50ab.glb": {
    "nameKo": "봉수형 유리병",
@@ -1225,7 +2521,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/edef50abfa1d465a94fd6faa88958c7c",
-   "credit": "\"Phoenix-headed Glass Bottle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Phoenix-headed Glass Bottle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 황남대총 봉수형 유리병(서역 교역품)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "서역에서 온 보물"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "pincers_45576856.glb": {
    "nameKo": "집게",
@@ -1241,7 +2556,23 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/4557685605e144a5a5e46cadffe9d068",
-   "credit": "\"Pincers\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Pincers\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 달군 쇠를 집는 대장간 집게",
+   "requires_context": [
+    "대장간 장면"
+   ],
+   "not_for": [],
+   "lore_hints": [
+    "대장장이 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "pincers_f118c8b7.glb": {
    "nameKo": "집게",
@@ -1257,7 +2588,23 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/f118c8b707fb48389a85d757f89c717c",
-   "credit": "\"Pincers\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Pincers\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 달군 쇠를 집는 대장간 집게",
+   "requires_context": [
+    "대장간 장면"
+   ],
+   "not_for": [],
+   "lore_hints": [
+    "대장장이 설화"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "rice_chest_0f57b1cc.glb": {
    "nameKo": "뒤주",
@@ -1275,7 +2622,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/0f57b1cc694243af95d39da7ff7011ac",
-   "credit": "\"Rice_Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Rice_Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "interior",
+    "kitchen"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 곡식을 넣어 두는 뒤주(자물쇠 달림)",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "뒤주 속 쌀·비밀"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "saddle_with_jewel_beetle_ornamentation_2c99a372.glb": {
    "nameKo": "비단벌레 장식 안장",
@@ -1293,7 +2655,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/2c99a3722d3f4981b81af584fe5f82bf",
-   "credit": "\"Saddle with Jewel Beetle Ornamentation\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Saddle with Jewel Beetle Ornamentation\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 비단벌레 장식 안장(말갖춤)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "왕족 말갖춤"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "scoop_e777b82d.glb": {
    "nameKo": "국자",
@@ -1309,7 +2690,21 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/e777b82d85fc466dbe767d82f3b1206f",
-   "credit": "\"Scoop\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Scoop\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 놋쇠 국자",
+   "requires_context": [
+    "부엌·취사 공간"
+   ],
+   "not_for": [],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "sickle_63340bb8.glb": {
    "nameKo": "낫",
@@ -1325,7 +2720,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/63340bb822d3423097afb481e5fe6b28",
-   "credit": "\"Sickle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Sickle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "field",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 풀·곡식을 베는 낫",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "낫에 얽힌 사건 단서"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "sieve_4630710e.glb": {
    "nameKo": "체",
@@ -1341,7 +2751,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/4630710ed6784d0fb2591c78395443a0",
-   "credit": "\"Sieve\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Sieve\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "field"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 가루를 치거나 거르는 체",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "체로 거른 단서"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "silver_bird_wing_shaped_diadem_ornament_7593c85e.glb": {
    "nameKo": "은제 새날개 관꾸미개",
@@ -1357,7 +2782,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/7593c85e81224aefa0f9c35523f9d2b7",
-   "credit": "\"Silver Bird Wing-Shaped Diadem Ornament\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Silver Bird Wing-Shaped Diadem Ornament\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 은제 새날개 관꾸미개",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "왕족 무덤 부장품"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "small_bell_2c93e5a1.glb": {
    "nameKo": "풍경(작은 종)",
@@ -1373,7 +2817,27 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/2c93e5a1a2be4795b7e273a9058396bf",
-   "credit": "\"Small Bell(Wind Bell)\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Small Bell(Wind Bell)\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "mountain_temple",
+    "shrine"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 청동 풍경(작은 종)",
+   "requires_context": [
+    "절·사당 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "바람에 울리는 풍경 소리"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "small_boat_shaped_pottery_34027070.glb": {
    "nameKo": "배모양 토기(작은)",
@@ -1388,7 +2852,27 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/34027070d129451380ac7f454482ae75",
-   "credit": "\"Small Boat-Shaped Pottery\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Small Boat-Shaped Pottery\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "grave",
+    "shrine"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 금령총 배 모양 토기(작은, 제의용)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "저승으로 가는 배"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "small_plow_3056ff4a.glb": {
    "nameKo": "따비",
@@ -1405,7 +2889,23 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/3056ff4a0eff4df887b507d425e94af8",
-   "credit": "\"Small_Plow\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Small_Plow\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "field"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 땅을 일구는 따비(원시 농기구)",
+   "requires_context": [
+    "논밭이 있는 장면"
+   ],
+   "not_for": [
+    "실내 살림"
+   ],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "spade_0f5d2931.glb": {
    "nameKo": "가래",
@@ -1421,7 +2921,24 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/0f5d2931d82e4e5b88dedef64bcd5fd3",
-   "credit": "\"Spade\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Spade\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "field",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 흙을 파 던지는 가래",
+   "requires_context": [
+    "논밭이 있는 장면"
+   ],
+   "not_for": [
+    "실내 살림"
+   ],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "stone_seal_efc1a94d.glb": {
    "nameKo": "돌 인장",
@@ -1438,7 +2955,27 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/efc1a94d51454c30aeed94e0d965ff50",
-   "credit": "\"Stone Seal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Stone Seal\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "ancient",
+   "era_sensitivity": "high",
+   "setting": [
+    "bureau",
+    "grave"
+   ],
+   "description": "신라 고분·유적 출토 유물 재현 — 돌 인장(공문서용)",
+   "requires_context": [
+    "신라·삼국 시대 장면"
+   ],
+   "not_for": [
+    "조선 장면",
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "신분·관직의 증표"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "straw_jar_bf766922.glb": {
    "nameKo": "채독",
@@ -1455,7 +2992,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/bf766922034b436cb15f5f7e517ea2ea",
-   "credit": "\"Straw_Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Straw_Jar\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen",
+    "interior"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 짚으로 독처럼 엮은 채독(곡식 저장)",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "산골 살림"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "toadinkstone_8b99ce68.glb": {
    "nameKo": "청자 두꺼비 벼루",
@@ -1471,7 +3023,26 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/8b99ce68979241af801a05da9b5aff79",
-   "credit": "\"ToadInkStone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"ToadInkStone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "goryeo",
+   "era_sensitivity": "high",
+   "setting": [
+    "coast",
+    "interior"
+   ],
+   "description": "고려 청자, 태안 바다 수중유물 재현 — 두꺼비 모양 벼루(보물)",
+   "requires_context": [
+    "고려 장면 또는 바닷가 난파선"
+   ],
+   "not_for": [
+    "조선 서민 민가"
+   ],
+   "lore_hints": [
+    "바다에 가라앉은 보물선"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "unhyun_cabinet_b_305efa4f.glb": {
    "nameKo": "사방탁자",
@@ -1487,7 +3058,25 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/305efa4f6a954daea8bc457a62c38f8d",
-   "credit": "\"Unhyun_ Cabinet_B\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Unhyun_ Cabinet_B\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 후기 왕실 종친 사저 운현궁 소장 — 사방탁자(책·기물 진열 선반)",
+   "requires_context": [
+    "양반·왕실 종친 가옥"
+   ],
+   "not_for": [
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "사랑방 진열장"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "unhyun_candlestick_01_a7259200.glb": {
    "nameKo": "촛대",
@@ -1501,7 +3090,25 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/a725920044c748af81abab735f8e8cf1",
-   "credit": "\"Unhyun_ Candlestick_01\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Unhyun_ Candlestick_01\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 후기 왕실 종친 사저 운현궁 소장 — 촛대",
+   "requires_context": [
+    "양반·왕실 종친 가옥"
+   ],
+   "not_for": [
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "밤의 촛불"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "unhyun_chest_848acdd9.glb": {
    "nameKo": "궤",
@@ -1517,7 +3124,25 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/848acdd9fc6748febfa93fd1d4043c88",
-   "credit": "\"Unhyun_ Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Unhyun_ Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 후기 왕실 종친 사저 운현궁 소장 — 궤(물건을 넣는 상자)",
+   "requires_context": [
+    "양반·왕실 종친 가옥"
+   ],
+   "not_for": [
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "궤 속 패물·문서"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "unhyun_chopping_board_1672445e.glb": {
    "nameKo": "도마",
@@ -1530,7 +3155,24 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/1672445e46ed41b79fcc5f5abf8d3dc8",
-   "credit": "\"Unhyun_ Chopping Board\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Unhyun_ Chopping Board\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "kitchen"
+   ],
+   "description": "조선 후기 왕실 종친 사저 운현궁 소장 — 대형 도마(여러 사람이 함께 씀, 일반 사가에는 없음)",
+   "requires_context": [
+    "왕실·큰 양반가 부엌"
+   ],
+   "not_for": [
+    "서민 민가",
+    "중인·지방 양반 집 살림"
+   ],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "unhyun_cupboard_b_4431ceaa.glb": {
    "nameKo": "찬장",
@@ -1544,7 +3186,24 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/4431ceaa9d214c58bb6e6caf02c57fe9",
-   "credit": "\"Unhyun_ Cupboard_B\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Unhyun_ Cupboard_B\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "kitchen",
+    "interior"
+   ],
+   "description": "조선 후기 왕실 종친 사저 운현궁 소장 — 2층 찬장",
+   "requires_context": [
+    "양반·왕실 종친 가옥"
+   ],
+   "not_for": [
+    "서민 민가 살림"
+   ],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "unhyun_dark_brown_bottle_55a721df.glb": {
    "nameKo": "옹기병",
@@ -1560,7 +3219,19 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/55a721df69ef409f9b007c854b35017c",
-   "credit": "\"Unhyun_ Dark Brown Bottle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Unhyun_ Dark Brown Bottle\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "kitchen"
+   ],
+   "description": "조선 후기 왕실 종친 사저 운현궁 소장 — 옹기 술병",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "unhyun_floor_cushion_6b0209cc.glb": {
    "nameKo": "방석",
@@ -1574,7 +3245,23 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/6b0209cc65db435e921d0c10db469d52",
-   "credit": "\"Unhyun_ Floor Cushion\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Unhyun_ Floor Cushion\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 후기 왕실 종친 사저 운현궁 소장 — 붉은·푸른 비단 방석",
+   "requires_context": [
+    "양반·왕실 종친 가옥"
+   ],
+   "not_for": [
+    "서민 민가 살림"
+   ],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "unhyun_grain_chest_b45c1e72.glb": {
    "nameKo": "곡물 궤",
@@ -1588,7 +3275,26 @@
    "catalogMatch": [],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/b45c1e72638741f9be0b52b323c69986",
-   "credit": "\"Unhyun_ Grain Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Unhyun_ Grain Chest\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "interior",
+    "kitchen"
+   ],
+   "description": "조선 후기 왕실 종친 사저 운현궁 소장 — 뒤주(곡물 궤)",
+   "requires_context": [
+    "양반·왕실 종친 가옥"
+   ],
+   "not_for": [
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "뒤주 속 쌀·비밀"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "unhyun_pot_for_medicines_a4fe6dbb.glb": {
    "nameKo": "약탕관",
@@ -1604,7 +3310,24 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/a4fe6dbb055f4bf1bd52b8c614c0c5a5",
-   "credit": "\"Unhyun_ Pot For Medicines\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Unhyun_ Pot For Medicines\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "kitchen",
+    "interior"
+   ],
+   "description": "조선 후기 왕실 종친 사저 운현궁 소장 — 약탕관(약 달이는 그릇)",
+   "requires_context": [
+    "양반·왕실 종친 가옥"
+   ],
+   "not_for": [],
+   "lore_hints": [
+    "병을 고치는 약"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "unhyun_table_tigers_legs_ad7fa3c4.glb": {
    "nameKo": "호족반",
@@ -1622,7 +3345,24 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/ad7fa3c4c32642c19e351d21490be9ab",
-   "credit": "\"Unhyun_ Table Tigers Legs\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Unhyun_ Table Tigers Legs\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "interior",
+    "kitchen"
+   ],
+   "description": "조선 후기 왕실 종친 사저 운현궁 소장 — 나주 호족반(12모 소반, 나주 특산)",
+   "requires_context": [
+    "양반가 또는 나주 장면"
+   ],
+   "not_for": [],
+   "lore_hints": [
+    "나주 소반 장인"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "unhyun_wardrobe_f66d816f.glb": {
    "nameKo": "의걸이장",
@@ -1640,7 +3380,25 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/f66d816fc2664bfc90b96c63536013f3",
-   "credit": "\"Unhyun_ Wardrobe\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Unhyun_ Wardrobe\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "high",
+   "setting": [
+    "interior"
+   ],
+   "description": "조선 후기 왕실 종친 사저 운현궁 소장 — 의걸이장(옷장)",
+   "requires_context": [
+    "양반·왕실 종친 가옥"
+   ],
+   "not_for": [
+    "서민 민가 살림"
+   ],
+   "lore_hints": [
+    "옷장 속 옷·단서"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "whetstone_5c7ebf91.glb": {
    "nameKo": "숫돌",
@@ -1656,7 +3414,19 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/5c7ebf919097415db9839a4a2ed43471",
-   "credit": "\"Whetstone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Whetstone\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 칼·낫을 가는 숫돌",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "wicker_basket_c8e8dc18.glb": {
    "nameKo": "고리",
@@ -1674,7 +3444,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/c8e8dc18b73946daaa4d51f81783ceab",
-   "credit": "\"Wicker_Basket\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Wicker_Basket\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "interior",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 고리버들로 엮은 고리(옷·물건 상자)",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "고리짝 속 혼수"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "winnow_e29fd48a.glb": {
    "nameKo": "키",
@@ -1690,7 +3475,22 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/e29fd48add3d471ab0bf25e9ae1213d5",
-   "credit": "\"Winnow\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Winnow\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "joseon",
+   "era_sensitivity": "low",
+   "setting": [
+    "field",
+    "village"
+   ],
+   "description": "조선 민가 생활재(국가유산청 재현) — 곡식의 티끌을 까부는 키",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [
+    "키 쓰고 소금 얻기 풍습"
+   ],
+   "authenticity": "attested",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   },
   "wooden_hammer_59965195.glb": {
    "nameKo": "나무망치",
@@ -1706,7 +3506,21 @@
    ],
    "license": "CC-BY-4.0",
    "sourceUrl": "https://sketchfab.com/3d-models/59965195988942abac42447f1f05edd1",
-   "credit": "\"Wooden Hammer\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified"
+   "credit": "\"Wooden Hammer\" by KOREA HERITAGE SERVICE [KHS], CC-BY-4.0, modified",
+   "era": "premodern_generic",
+   "era_sensitivity": "low",
+   "setting": [
+    "village",
+    "interior"
+   ],
+   "description": "나무망치(신라 유적 출토). 생김새는 시대 무관",
+   "requires_context": [],
+   "not_for": [],
+   "lore_hints": [],
+   "authenticity": "inferred",
+   "metaBasis": "국가유산청 Sketchfab 태그(시대)·설명 + 이름 — Claude 초안(11/5), 미르 확인 전",
+   "metaReview": "draft"
   }
- }
+ },
+ "시대보강": "11/5: 105개 모두 era·era_sensitivity·setting·authenticity·description·requires_context·not_for·lore_hints 추가(공용 라이브러리 asset.json과 같은 값 체계). 근거는 국가유산청 태그·설명. metaReview=draft — 미르 확인 뒤 confirmed로 바꾼다."
 }

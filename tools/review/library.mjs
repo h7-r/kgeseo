@@ -195,9 +195,17 @@ async function khsItems(root) {
     items.push({
       id: `khs:${name}`, nameKo: clip(entry.nameKo, 120) || name.replace(/_[0-9a-f]{8}\.glb$/u, '').replace(/_/gu, ' '), nameEn: clip(entry.nameEn, 200) || name,
       ...category(cat), source: 'khs', url: urlFor(relative), placeable: true, sha256: await sha256(root, relative, stat),
-      tags: [...new Set([...(Array.isArray(entry.tags) ? entry.tags.map(t => clip(t, 60)) : []), '국가유산청'])], spaces: [], material: null, thumbnail: null,
+      tags: [...new Set([...(Array.isArray(entry.tags) ? entry.tags.map(t => clip(t, 60)) : []), '국가유산청', ...(LIB_ERA[entry.era] ? [LIB_ERA[entry.era]] : [])])],
+      spaces: strings(entry.setting, 40, 8).map(s => LIB_SETTING[s] || s), material: null, thumbnail: null,
       path: relative, bytes: stat.size, license: clip(entry.license, 40) || null, credit: clip(entry.credit, 300) || null,
-      note: entry.basis ? `한글명 근거: ${entry.basis}` : '한글명 대장에 없음(파일명 그대로)',
+      // 11/5 시대 보강 — 대장에 era 가 있으면 공용 라이브러리(lib)와 같은 값 체계로 쓴다(없으면 enrich() 가 이름으로 추정)
+      ...(LIB_ERA[entry.era] ? {
+        era: LIB_ERA[entry.era], eraSensitivity: clip(entry.era_sensitivity, 10) || null, authenticity: clip(entry.authenticity, 20) || null,
+        description: clip(entry.description, 400) || null, loreHints: strings(entry.lore_hints, 120, 6),
+        requiresContext: strings(entry.requires_context, 80, 6), notFor: strings(entry.not_for, 80, 6),
+        metaQuality: entry.metaReview === 'confirmed' ? 'confirmed' : 'draft',
+      } : {}),
+      note: entry.basis ? `한글명 근거: ${entry.basis}${entry.metaBasis ? ` · 시대 근거: ${entry.metaBasis}` : ''}` : '한글명 대장에 없음(파일명 그대로)',
     });
   }
   numberDuplicates(items);
@@ -338,7 +346,7 @@ function enrich(item) {
   const era = item.category === 'nature' ? '시대 공통' : (ERA_RULES.find(([re]) => re.test(text))?.[1] || '전근대 공통(추정)');
   const spaces = item.spaces?.length ? item.spaces : CATEGORY_SPACES[item.category] || [];
   const description = `${item.nameKo} — ${item.categoryKo}. ${item.source === 'khs' ? '국가유산청 소장품 3D 경량본' : '나주 맵 공개 3D 교체본'}${item.tags?.length ? ` · ${item.tags.slice(0, 6).join(', ')}` : ''}`;
-  return { ...item, era: item.era || era, spaces, description: item.description || description, tags: [...new Set([...(item.tags || []), era])], metaQuality: 'auto' };
+  return { ...item, era: item.era || era, spaces, description: item.description || description, tags: [...new Set([...(item.tags || []), item.era || era])], metaQuality: item.metaQuality || 'auto' };
 }
 
 const caches = new Map(); // root -> { stamp, value }
