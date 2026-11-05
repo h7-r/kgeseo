@@ -237,14 +237,27 @@ export type SendOutcome =
   /** 200 이지만 약속한 모양이 아니다 */
   | { kind: "invalid-response"; body: unknown };
 
+export interface StateChangeContext {
+  /** 요청을 보낸 Play Session */
+  playSessionId: string;
+  interactionId: string;
+}
+
 export interface ProgressSyncOptions {
   /** 동행 NPC 세션(companionSession.getStatus). 세션을 만들지 않고 읽기만 한다 */
   getSession: () => CompanionSessionStatus;
   ids: ProgressIdMap;
   /** 대응이 없는 로컬 ID — 보내지 않고 알리기만 한다 */
   onUnmapped?: (report: UnmappedReport) => void;
-  /** 서버가 적용한 상태 변화. 화면 · NPC 반영은 부르는 쪽이 한다. 같은 (Play Session, interaction_id) 는 한 번만 부른다 */
-  onStateChanges?: (changes: InteractionStateChange[], prepared: PreparedInteraction) => void;
+  /**
+   * 서버가 적용한 상태 변화. 화면 · NPC 반영은 부르는 쪽이 한다. 같은 (Play Session, interaction_id) 는 한 번만 부른다.
+   * context.playSessionId 는 요청을 보낸 세션이다(응답을 기다리는 사이 세션이 바뀌었을 수 있다).
+   */
+  onStateChanges?: (
+    changes: InteractionStateChange[],
+    prepared: PreparedInteraction,
+    context: StateChangeContext,
+  ) => void;
   /** 넘긴 (Play Session, interaction_id) 를 이만큼만 기억한다. 넘으면 가장 오래된 것부터 잊는다(기본 256) */
   deliveryHistoryLimit?: number;
   /** 시험용. 기본은 companionApi 의 값 */
@@ -284,7 +297,7 @@ export function createProgressSync(options: ProgressSyncOptions) {
     const key = `${playSessionId}\n${response.interaction_id}`;
     if (delivered.has(key)) return { status: "duplicate" };
     try {
-      handler(response.state_changes, prepared);
+      handler(response.state_changes, prepared, { playSessionId, interactionId: response.interaction_id });
     } catch (error) {
       return { status: "handler-failed", error };
     }
