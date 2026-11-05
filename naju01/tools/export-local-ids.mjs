@@ -11,12 +11,13 @@
 //     --channel 설치된 브라우저로 띄운다(예: msedge · chrome) — Playwright 브라우저를 받지 않은 PC
 // 번호 충돌 · 빈 종류가 있으면 파일을 쓰지 않고 2 로 끝난다(목록을 믿을 수 없다 — fail closed).
 // 편집 파일은 읽기만 한다 — 저장 요청은 막는다.
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { logPageErrors, openHeadless, startGame, waitForBakedGround } from "./headlessPage.mjs";
+import { captureCanvas, logPageErrors, openHeadless, startGame, waitForBakedGround } from "./headlessPage.mjs";
 
 const KINDS = ["zones", "navigation", "blockers", "objects", "scenes"];
 // 구운 지형이 늦게 도착하면 자리가 한 번 더 바뀐다 — 값이 이만큼 그대로일 때까지 기다린다(check-edit-anchors 와 같다)
@@ -26,10 +27,10 @@ const SRC = fileURLToPath(new URL("../src/", import.meta.url));
 const REPO = fileURLToPath(new URL("../../", import.meta.url));
 
 export function parseArgs(argv) {
-  const options = { url: "http://localhost:5174/", out: null, report: null, channel: null };
+  const options = { url: "http://localhost:5174/", out: null, report: null, channel: null, screenshot: null };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === "--out" || arg === "--report" || arg === "--channel") {
+    if (arg === "--out" || arg === "--report" || arg === "--channel" || arg === "--screenshot") {
       const value = argv[++i];
       if (!value || value.startsWith("--")) throw new Error(`${arg} 에 값이 필요하다`);
       options[arg.slice(2)] = value;
@@ -48,7 +49,7 @@ export function validateList(list) {
   if (extra.length) problems.push(`list:unknown_kinds:${extra.join(",")}`);
   for (const kind of KINDS) {
     const values = list[kind];
-    if (!Array.isArray(values) || values.some((value) => typeof value !== "string" || value === "")) {
+    if (!Array.isArray(values) || values.some((value) => typeof value !== "string" || value.trim() === "")) {
       problems.push(`${kind}:not_string_list`);
       continue;
     }
@@ -112,7 +113,7 @@ export function compareInteractables(staticIds, runtimeIds) {
 
 function feCommit() {
   try {
-    const head = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: REPO, encoding: "utf8" }).trim();
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: REPO, encoding: "utf8" }).trim();
     const dirty = execFileSync("git", ["status", "--porcelain", "--", "naju01"], { cwd: REPO, encoding: "utf8" }).trim();
     return dirty ? `${head}+dirty` : head;
   } catch {
@@ -120,15 +121,46 @@ function feCommit() {
   }
 }
 
-async function readFromGame(url, channel) {
+function inputHashes() {
+  const paths = [
+    "naju01/assets/edits.json", "naju01/assets/edit-anchors.json",
+    "naju01/src/plan/sitePlan.ts", "naju01/src/placement/localIds.ts",
+    "naju01/src/scene/useNajuDevTools.ts", "naju01/tools/export-local-ids.mjs",
+    "naju01/tools/headlessPage.mjs",
+  ];
+  return Object.fromEntries(paths.map((path) => [path, createHash("sha256").update(readFileSync(join(REPO, path))).digest("hex")]));
+}
+
+async function readFromGame(url, channel, screenshot) {
   const { browser, page } = await openHeadless({ width: 960, height: 600 }, [], channel ? { channel } : {});
   logPageErrors(page);
-  await page.route("**/__naju-edit*", (route) =>
-    route.request().method() === "GET" ? route.continue() : route.abort(),
-  );
+  page.setDefaultNavigationTimeout(180000); // Vite cold dependency optimization can exceed 30 s.
+  const origin = new URL(url).origin;
+  const blockedRequests = [];
+  await page.route("**/*", (route) => {
+    const request = route.request();
+    const target = new URL(request.url());
+    if (request.method() !== "GET" || target.origin !== origin || /^\/api(?:\/|$)/.test(target.pathname)) {
+      blockedRequests.push({ method: request.method(), path: target.pathname });
+      return route.abort();
+    }
+    return route.continue();
+  });
   try {
     await startGame(page, url);
     await waitForBakedGround(page, 30);
+    const runtime = await page.evaluate(() => {
+      const ground = window.__game?.naju?.scene?.getObjectByName("ground");
+      return {
+        effective_url: location.href,
+        viewport: { width: innerWidth, height: innerHeight },
+        device_pixel_ratio: devicePixelRatio,
+        renderer_pixel_ratio: window.__game?.naju?.gl?.getPixelRatio(),
+        canvas: { width: window.__game?.naju?.gl?.domElement.width, height: window.__game?.naju?.gl?.domElement.height },
+        baked_ground_triangles: (ground?.geometry?.index?.count ?? 0) / 3,
+      };
+    });
+    if (runtime.baked_ground_triangles !== 128000) throw new Error("baked ground not ready; refusing export");
     const read = () =>
       page.evaluate(() => {
         const naju = window.__game?.naju;
@@ -145,13 +177,26 @@ async function readFromGame(url, channel) {
       if (text !== lastText) {
         lastText = text;
         stableSince = Date.now();
-      } else if (current && Date.now() - stableSince >= STABLE_MS) return current;
+      } else if (current && Date.now() - stableSince >= STABLE_MS) {
+        if (screenshot && !(await captureCanvas(page, screenshot))) throw new Error("scene capture failed");
+        return { ...current, runtime, blockedRequests };
+      }
       await page.waitForTimeout(1000);
     }
     return current ? { ...current, unstable: true } : null;
   } finally {
     await browser.close();
   }
+}
+
+export function executionConditions(requestedUrl, runtime) {
+  const effectiveUrl = runtime?.effective_url ?? requestedUrl;
+  return {
+    requested_url: requestedUrl,
+    requested_query: Object.fromEntries(new URL(requestedUrl).searchParams),
+    effective_url: effectiveUrl,
+    query: Object.fromEntries(new URL(effectiveUrl).searchParams),
+  };
 }
 
 async function main() {
@@ -162,7 +207,7 @@ async function main() {
     console.error(`✖ ${error.message}`);
     process.exit(1);
   }
-  const current = await readFromGame(options.url, options.channel);
+  const current = await readFromGame(options.url, options.channel, options.screenshot);
   if (!current) {
     console.error("✖ __game.naju.localIds 가 없다 — 나주 개발 서버 주소가 맞는지 보라");
     process.exit(2);
@@ -188,6 +233,12 @@ async function main() {
       schema: "naju-local-ids-report/0.1",
       fe_commit: feCommit(),
       url: options.url,
+      ...executionConditions(options.url, current.runtime),
+      channel: options.channel ?? "playwright-chromium",
+      runtime: current.runtime,
+      blocked_requests: current.blockedRequests,
+      input_sha256: inputHashes(),
+      backend_content_version: null,
       source: {
         zones: "src/plan/sitePlan.ts ZONES[].code",
         navigation: "src/plan/sitePlan.ts PATHS[].code",
@@ -198,8 +249,9 @@ async function main() {
       counts,
       object_counts: objectCounts,
       coverage: [
-        "objects 는 이 주소 · 기본 설정(?쿼리 없음)으로 그린 무리만이다. 주소 스위치(?aihub · &base=empty 등)나 손 편집이 바뀌면 다시 뽑는다.",
-        "registerInteractable id 는 idmap objects[].local 형식(배치 키)이 아니라 local-ids 에 넣지 않는다 — 아래는 참고다.",
+        "objects 는 보고된 URL·쿼리·입력 해시·초기 실행 상태에서 그린 무리만이다. 다른 옵션·편집·콘텐츠 버전에는 재사용하지 않고 다시 추출한다.",
+        "registerInteractable id 는 idmap objects[].local 형식(배치 키)이 아니라 local-ids 에 넣지 않는다 — 아래는 초기 화면의 참고 자료다.",
+        "정적 검색은 정규식 기반이며 초기 미등록·조건부·진행 단계별 ID 전체의 존재를 보장하지 않는다. backend 콘텐츠 버전과의 연결도 이 추출만으로 입증되지 않는다.",
       ],
       interactables: {
         runtime_registered: current.interactables,

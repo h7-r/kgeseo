@@ -48,7 +48,7 @@ export const objectKey = (groupId: string, id: number) => `${groupId}#${id}`;
 function unique(kind: LocalIdKind, values: Iterable<string>, problems: string[]): string[] {
   const seen = new Set<string>();
   for (const value of values) {
-    if (typeof value !== "string" || value === "") {
+    if (typeof value !== "string" || value.trim() === "") {
       problems.push(`${kind}:empty`);
       continue;
     }
@@ -64,13 +64,17 @@ export function collectLocalIds(sources: LocalIdSources): LocalIdResult {
   const objects: string[] = [];
   const groupIds = new Set<string>();
   for (const group of sources.groups) {
+    if (typeof group.groupId !== "string" || group.groupId.trim() === "") {
+      problems.push("objects:empty_group");
+      continue;
+    }
     if (groupIds.has(group.groupId)) problems.push(`objects:duplicate_group:${group.groupId}`);
     groupIds.add(group.groupId);
     let count = 0;
     for (const batch of group.batches) {
       for (let i = 0; i < batch.ids.length; i++) {
         const id = batch.ids[i];
-        if (!Number.isInteger(id) || id < 0) {
+        if (!Number.isSafeInteger(id) || id < 0) {
           problems.push(`objects:invalid_id:${group.groupId}#${String(id)}`);
           continue;
         }

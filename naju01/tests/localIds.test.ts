@@ -76,3 +76,16 @@ test("빈 종류 · 잘못된 번호 · 빈 code 는 문제다(목록을 믿을 
   assert.ok(problems.includes("objects:invalid_id:씬1.통발#1.5"));
   assert.ok(problems.includes("objects:none"));
 });
+
+test("빈 무리 · 공백 code · 안전한 정수 범위 밖 번호는 추출 실패다", () => {
+  const result = collectLocalIds(base({
+    zones: [{ code: " " }],
+    groups: [
+      { groupId: " ", batches: [{ ids: [0] }] },
+      { groupId: "씬1.통발", batches: [{ ids: [Number.MAX_SAFE_INTEGER + 1, NaN, Infinity] }] },
+    ],
+  }));
+  assert.ok(result.problems.includes("zones:empty"));
+  assert.ok(result.problems.includes("objects:empty_group"));
+  assert.equal(result.problems.filter((p) => p.startsWith("objects:invalid_id:")).length, 3);
+});

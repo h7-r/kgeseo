@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 
 import {
   compareInteractables,
+  executionConditions,
   parseArgs,
   staticInteractableIds,
   validateList,
@@ -17,6 +18,7 @@ test("인자: --out 필수, 값 없는 옵션 · 모르는 옵션 거부", () =>
     out: "a.json",
     report: null,
     channel: null,
+    screenshot: null,
   });
   assert.equal(parseArgs(["http://x/", "--out", "a", "--channel", "msedge"]).channel, "msedge");
   assert.throws(() => parseArgs([]), /--out/);
@@ -61,4 +63,16 @@ test("실행 중 id 와 맞춰 보기: 템플릿은 펼친 값과 맞고, 안 �
     ["cave-jar", null],
   );
   assert.deepEqual(result.runtimeOnly, ["mystery"]);
+});
+
+test("화면 캡처는 명시적 옵션이며 공백 ID는 거부한다", () => {
+  assert.equal(parseArgs(["--out", "a", "--screenshot", "scene.png"]).screenshot, "scene.png");
+  assert.ok(validateList({ ...ok, zones: ["   "] }).includes("zones:not_string_list"));
+});
+
+test("자동 기본 옵션 적용 후 실제 주소를 요청 주소와 구분해 기록한다", () => {
+  const result = executionConditions("http://localhost:5187/", { effective_url: "http://localhost:5187/?aihub&src=sf&r=15" });
+  assert.deepEqual(result.requested_query, {});
+  assert.deepEqual(result.query, { aihub: "", src: "sf", r: "15" });
+  assert.equal(result.effective_url, "http://localhost:5187/?aihub&src=sf&r=15");
 });

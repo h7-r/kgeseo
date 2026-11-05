@@ -46,7 +46,7 @@ def parse_local_ids(raw) -> dict[str, tuple[str, ...]]:
     for kind in LOCAL_ID_KINDS:
         values = raw[kind]
         if not isinstance(values, list) or not all(
-            isinstance(v, str) and v for v in values
+            isinstance(v, str) and v.strip() for v in values
         ):
             raise CliInputError(f"local ids.{kind} must be a list of non-empty strings")
         if len(set(values)) != len(values):
@@ -86,6 +86,7 @@ def run(args: argparse.Namespace, out: Callable[[str], None] = print) -> int:
             missing[issue.location.removeprefix("$.")].append(str(issue.reference))
     used = idmap_locals(raw_idmap)
     out(f"idmap={args.idmap} local_ids={args.local_ids}")
+    out("scope=LOCAL_IDS (게시 승인 판정 아님)")
     for kind in LOCAL_ID_KINDS:
         found = len(used[kind]) - len(missing[kind])
         out(
