@@ -1,4 +1,5 @@
 import { REGIONS } from "@/data/regions";
+import { NICKNAME_MAX_LENGTH, checkNickname } from "@/lib/nicknamePolicy";
 
 /**
  * 입력 검사 규칙. 맞으면 "", 틀리면 보여 줄 말을 돌려준다. 화면 표시는 useForm 이 맡는다.
@@ -33,13 +34,13 @@ export function normalizeInput(value: unknown): string {
     .replace(INVISIBLE_CHARS, "");
 }
 
-// ERD(app_user) 와 맞춘 값: email varchar(255), nickname varchar(12).
+// 백엔드 registration_input_policy 와 같은 값: 이메일 254자, 비밀번호 128자. 닉네임은 공용 규칙 파일에서.
 const MAX = {
   email: 254,
-  password: 64,
-  newPassword: 64,
-  passwordConfirm: 64,
-  nickname: 12,
+  password: 128,
+  newPassword: 128,
+  passwordConfirm: 128,
+  nickname: NICKNAME_MAX_LENGTH,
   region: 10,
   code: 6,
 } as const;
@@ -47,8 +48,9 @@ const MAX = {
 /** 칸마다 받을 수 있는 최대 길이. input 의 maxLength 로도 쓴다. */
 export const MAX_LENGTH: Readonly<Partial<Record<FieldName, number>>> = MAX;
 
+// 백엔드 EMAIL_PATTERN 과 같은 식. 화면이 서버보다 좁으면 서버가 받는 주소를 화면이 막는다.
 const EMAIL_PATTERN =
-  /^(?!\.)(?!.*\.\.)[A-Za-z0-9._%+-]{1,64}(?<!\.)@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}$/;
+  /^(?!\.)(?!.*\.\.)[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}(?<!\.)@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$/;
 
 /** 한글이 섞였나. 영문만 받는 칸에 쓴다. */
 export function hasHangul(value: string | null | undefined): boolean {
@@ -122,33 +124,6 @@ export function suggestEmailTypo(raw: unknown): string {
   return closest ? `혹시 ${value.split("@")[0]}@${closest} 인가요?` : "";
 }
 
-// 서버(nickname_policy)와 같은 목록. 서버가 마지막에 한 번 더 막는다.
-const RESERVED_NICKNAMES = ["관리자", "운영자", "운영팀", "admin", "administrator", "root", "system", "왜곡", "gm"];
-const BANNED_WORDS = ["시발", "씨발", "병신", "개새끼", "좆", "보지", "자지", "fuck", "shit", "bitch"];
-// 숫자로 글자를 흉내 낸 우회(adm1n, 5hit)를 잡는다.
-const LEET: Record<string, string> = { 0: "o", 1: "i", 3: "e", 4: "a", 5: "s", 7: "t" };
-
-// 닉네임 칸이 반쪽 폭이라 문구는 16자 안팎으로 짧게 둔다.
-function checkNickname(raw: unknown): string {
-  const original = String(raw ?? "");
-  // 다듬기 전에 본다. 끝에 붙은 탭 같은 제어 문자가 trim 으로 몰래 사라지지 않게.
-  if (/\p{C}/u.test(original)) return "사용할 수 없는 닉네임입니다.";
-  const value = original.normalize("NFKC").trim();
-  if (!value) return "닉네임을 입력해 주세요.";
-  if (value.length < 2) return "2자 이상 입력해 주세요.";
-  if (value.length > MAX.nickname) return "12자까지 쓸 수 있습니다.";
-  if (/\s/.test(value)) return "띄어쓰기는 쓸 수 없습니다.";
-  if (/[ㄱ-ㅎㅏ-ㅣ]/.test(value)) return "자음·모음만 따로 쓸 수 없습니다.";
-  if (!/^[가-힣A-Za-z0-9_]+$/.test(value)) return "특수문자는 _만 쓸 수 있습니다.";
-  const key = value.toLowerCase().replaceAll("_", "");
-  // 통째로 같을 때만 막는다. 짧은 금칙어가 들어 있다고 멀쩡한 낱말까지 막지 않게.
-  const candidates = [key, key.replace(/[013457]/g, (c) => LEET[c]), key.replace(/[0-9]+$/, "")];
-  if (candidates.some((c) => RESERVED_NICKNAMES.includes(c) || BANNED_WORDS.includes(c))) {
-    return "사용할 수 없는 닉네임입니다.";
-  }
-  return "";
-}
-
 const COMMON_PASSWORDS = [
   "password",
   "qwerty",
@@ -177,8 +152,10 @@ function checkPassword(raw: unknown, context: PasswordContext = {}): string {
   if (!value) return "비밀번호를 입력해 주세요.";
   if (hasHangul(value)) return "비밀번호에는 한글을 쓸 수 없습니다.";
   if (/\s/.test(value)) return "띄어쓰기는 쓸 수 없습니다.";
+  // 서버는 영문·숫자·키보드 특수문자(ASCII)만 받는다. é·이모지 같은 글자는 여기서 먼저 막는다.
+  if (!/^[!-~]+$/.test(value)) return "영문·숫자·특수문자만 쓸 수 있습니다.";
   if (value.length < 8) return "8자 이상이어야 합니다.";
-  if (value.length > MAX.password) return "64자까지 쓸 수 있습니다.";
+  if (value.length > MAX.password) return `${MAX.password}자까지 쓸 수 있습니다.`;
   if (!/[A-Z]/.test(value)) return "영문 대문자를 한 자 이상 넣어 주세요.";
   if (!/[a-z]/.test(value)) return "영문 소문자를 한 자 이상 넣어 주세요.";
   if (!/\d/.test(value)) return "숫자를 한 자 이상 넣어 주세요.";
@@ -205,7 +182,7 @@ export const RULES = {
   password: (value?: string, context?: PasswordContext) => checkPassword(value, context),
   // 로그인은 비었는지만 본다. 가입 규칙을 걸면 규칙이 바뀌기 전 계정(테스트 계정 포함)이 못 들어온다.
   loginPassword: (value?: string) =>
-    !value ? "비밀번호를 입력해 주세요." : value.length > MAX.password ? "64자까지 쓸 수 있습니다." : "",
+    !value ? "비밀번호를 입력해 주세요." : value.length > MAX.password ? `${MAX.password}자까지 쓸 수 있습니다.` : "",
   code: (value?: string) =>
     !value?.trim() ? "인증코드를 입력해 주세요." : !/^\d{6}$/.test(value.trim()) ? "인증코드는 숫자 6자리입니다." : "",
   title: (value?: string) => (!value?.trim() ? "제목을 입력해 주세요." : ""),
@@ -236,7 +213,7 @@ export const FIELD_HINTS: Readonly<Partial<Record<FieldName, string>>> = {
   newPassword: "8자 이상 · 영문 대문자와 소문자 · 숫자를 각각 한 자 이상 섞어 주세요.",
   passwordConfirm: "위에 적은 비밀번호를 그대로 한 번 더 적어 주세요.",
   nickname: "2~12자 · 한글 · 영문 · 숫자 · 밑줄(_). 게임과 사이트에서 쓰는 이름입니다.",
-  region: "목록에서 지역을 고르세요. 나중에 바꿀 수 있습니다.",
+  region: "목록에서 지역을 고르세요.",
   code: "메일로 받은 숫자 6자리를 적어 주세요.",
 };
 

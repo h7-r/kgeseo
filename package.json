@@ -13,6 +13,7 @@
     "format:check": "prettier --check .",
     "check:lobby": "node tools/lobby-check.mjs",
     "check:declarations": "node tools/declaration-order.mjs",
+    "check:nickname": "node tools/nickname-policy/check.mjs",
     "photo:grip": "node tools/grip-photo.mjs",
     "regress:game": "bash tools/regression/shared/check.sh game",
     "regress:naju": "bash tools/regression/shared/check.sh naju",
