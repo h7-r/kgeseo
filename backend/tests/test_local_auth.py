@@ -3,6 +3,7 @@ from datetime import datetime
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from app.models.account_data import LoginThrottle
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
 from app.services import local_auth
@@ -79,7 +80,8 @@ def test_register_local_account_success(client, db_session):
     assert "password" not in response.text
     assert "password_hash" not in response.text
 
-    assert len(db_session.added) == 2
+    # 계정 · 인증 수단 · 로그인 세션
+    assert len(db_session.added) == 3
     user = db_session.added[0]
     identity = db_session.added[1]
     assert user.email == "sejin@example.com"
@@ -93,7 +95,8 @@ def test_register_local_account_success(client, db_session):
     assert identity.provider_subject == "sejin@example.com"
     assert identity.password_hash.startswith("pbkdf2_sha256$210000$")
     assert identity.password_hash != "RightPassword123!"
-    assert db_session.commit_count == 1
+    # 계정 저장 한 번 · 로그인 세션 저장 한 번
+    assert db_session.commit_count == 2
     assert db_session.refresh_count == 1
 
 
@@ -446,7 +449,8 @@ def test_login_without_local_password_verifies_dummy_hash(
     assert response.status_code == 401
     assert response.json() == {"detail": "Invalid email or password."}
     assert response.headers["cache-control"] == "no-store"
-    assert db_session.get_calls == []
+    # 시도 제한 말고 다른 조회는 하지 않는다.
+    assert {model for model, _ in db_session.get_calls} == {LoginThrottle}
 
 
 def test_login_wrong_password_verifies_stored_hash_once(

@@ -10,7 +10,14 @@ from app.core.deployment import validate_deployment
 
 class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
-    cors_origins: list[str] = Field(default_factory=list)
+    # 쿠키를 함께 보내고 쓰기 요청을 할 수 있는 사이트 주소. .env 에는 JSON 배열로 적는다.
+    cors_origins: list[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:5173",
+            "http://localhost:5174",
+            "http://localhost:5175",
+        ]
+    )
 
     @model_validator(mode="after")
     def production_settings(self):
@@ -25,6 +32,9 @@ class Settings(BaseSettings):
     naver_client_id: str = ""
     naver_client_secret: str = ""
     naver_redirect_uri: str = ""
+
+    # 로그인 쿠키. 실제 서비스(https)에서는 반드시 true 로 둔다.
+    session_cookie_secure: bool = False
 
     # 힌트 잔액(PM v0.4.8 · v0.4.9 §9). 숫자는 PM 확정 뒤 환경 변수로 바꾼다.
     # 회차(play_session) 시작 때 주는 잔액 N

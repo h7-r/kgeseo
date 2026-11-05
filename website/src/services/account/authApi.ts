@@ -1,11 +1,11 @@
 import type { SessionUser } from "@/services/session";
 
 import { normalizeEmail, type ConsentKind } from "./db";
-import { AUTH_API_ORIGIN } from "./apiOrigin";
 import { TEST_ACCOUNT } from "./testAccount";
+import { apiUrl } from "@/config/env";
 
 /** 백엔드 인증 API(/api/v1/auth). 개발 서버는 vite proxy 로 127.0.0.1:8000 에 넘긴다. */
-const AUTH_API = `${AUTH_API_ORIGIN}/api/v1/auth`;
+const AUTH_API = apiUrl("/api/v1/auth");
 
 const SERVER_ERROR_MESSAGE = "서버와 통신하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 const INPUT_ERROR_MESSAGE = "입력값을 다시 확인해 주세요.";
@@ -53,6 +53,7 @@ async function postAuth(path: string, payload: unknown): Promise<AuthResponse> {
   try {
     response = await fetch(`${AUTH_API}${path}`, {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
@@ -160,6 +161,13 @@ export function isNicknameTaken(nickname: string | undefined): Promise<boolean> 
   });
 }
 
+/** { code, message } 오류의 한글 안내. */
+function errorMessage(body: unknown): string | undefined {
+  const detail = errorDetail(body);
+  if (typeof detail !== "object" || detail === null || !("message" in detail)) return undefined;
+  return typeof detail.message === "string" ? detail.message : undefined;
+}
+
 // 서버에 닿지 못한 응답. 0 은 fetch 실패, 502~504 는 프록시·호스팅이 서버를 못 찾은 경우다.
 const SERVER_UNREACHABLE_STATUS: readonly number[] = [0, 502, 503, 504];
 
@@ -223,8 +231,17 @@ export async function signUp({ email, password, nickname, region, consents = {} 
     if (result.status === 409 && detail === "Nickname already registered.") {
       return { ok: false, field: "nickname", reason: "이미 사용 중인 닉네임입니다." };
     }
-    if (result.status === 422) return { ok: false, reason: INPUT_ERROR_MESSAGE };
-    return { ok: false, reason: result.reason || "가입 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요." };
+    if (detail === "Required consent is missing.") {
+      return { ok: false, reason: "필수 약관 동의가 빠져 회원가입을 완료하지 못했습니다." };
+    }
+    if (SERVER_UNREACHABLE_STATUS.includes(result.status)) {
+      return {
+        ok: false,
+        reason: "가입 서버에 연결하지 못해 회원가입을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      };
+    }
+    if (result.status === 422) return { ok: false, reason: errorMessage(result.body) ?? INPUT_ERROR_MESSAGE };
+    return { ok: false, reason: `서버 오류로 회원가입을 완료하지 못했습니다. (오류 ${result.status})` };
   }
 
   const user = toSessionUserFromBackend(result.body);

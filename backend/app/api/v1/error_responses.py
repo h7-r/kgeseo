@@ -313,6 +313,11 @@ LOGIN = {
     422: error(
         CodedError, _SENSITIVE_422, "invalid_email", "invalid_password", "invalid_input"
     ),
+    429: error(
+        CodedError,
+        "같은 이메일 또는 IP 의 로그인 실패가 많아 잠시 막혔다." + _NO_STORE,
+        "login_locked",
+    ),
 }
 
 NICKNAME_EXISTS = {
@@ -354,4 +359,49 @@ SOCIAL_ONBOARDING = {
 
 HEALTH_READY = {
     503: error(ErrorMessage, "DB에 접속하지 못했다.", "Database is not ready."),
+}
+
+
+# --- 로그인 사용자 · 관리자 ---
+
+_LOGIN_REQUIRED = {
+    401: error(ErrorMessage, "로그인 세션이 없거나 끝났다.", "Login required.")
+}
+FOREIGN_ORIGIN = {
+    403: error(ErrorMessage, "다른 사이트에서 온 쓰기 요청이다.", "Origin not allowed.")
+}
+_TOO_LARGE = {
+    413: error(ErrorMessage, "저장 값이 크기 한도를 넘었다.", "Save data too large.")
+}
+_ADMIN_ONLY = {403: error(ErrorMessage, "관리자가 아니다.", "Admin only.")}
+
+ME_READ = _LOGIN_REQUIRED
+ME_LOGOUT = FOREIGN_ORIGIN
+GAME_SAVE_WRITE = {
+    **_LOGIN_REQUIRED,
+    **FOREIGN_ORIGIN,
+    409: error(
+        CodedError,
+        "다른 창이 먼저 저장했다. `revision` 이 최신 값이다.",
+        "save_conflict",
+    ),
+    **_TOO_LARGE,
+    422: error(
+        ValidationErrorResponse | ErrorMessage,
+        _VALIDATION + " 저장 값이 너무 깊어도 같은 상태다.",
+        "Save data too deep.",
+    ),
+}
+GAME_SAVE_DELETE = {**_LOGIN_REQUIRED, **FOREIGN_ORIGIN}
+CHARACTER_WRITE = {
+    **_LOGIN_REQUIRED,
+    **FOREIGN_ORIGIN,
+    **_TOO_LARGE,
+    422: GAME_SAVE_WRITE[422],
+}
+ADMIN_LIST = {**_LOGIN_REQUIRED, **_ADMIN_ONLY}
+ADMIN_DETAIL = {
+    **_LOGIN_REQUIRED,
+    **_ADMIN_ONLY,
+    404: error(ErrorMessage, "없는 사용자다.", "User not found."),
 }

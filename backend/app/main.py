@@ -5,6 +5,7 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
+from app.api.v1.admin import router as admin_router
 
 # 익명 세션 Router
 from app.api.v1.anonymous_sessions import (
@@ -15,6 +16,7 @@ from app.api.v1.cases import router as cases_router
 from app.api.v1.health import router as health_router
 from app.api.v1.hints import router as hints_router
 from app.api.v1.interactions import router as interactions_router
+from app.api.v1.me import router as me_router
 from app.api.v1.npc import router as npc_router
 
 # 플레이 세션 Router
@@ -48,10 +50,19 @@ if settings.cors_origins:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_credentials=False,  # Current API does not issue login cookies.
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Content-Type", "Accept"],
     )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    return response
 
 
 FIELD_ERRORS = {
@@ -99,6 +110,17 @@ app.include_router(
 # Google 계정 로그인 API 등록
 app.include_router(
     auth_router,
+    prefix="/api/v1",
+)
+
+
+# 로그인한 사용자 자신의 데이터 · 관리자 조회 API 등록
+app.include_router(
+    me_router,
+    prefix="/api/v1",
+)
+app.include_router(
+    admin_router,
     prefix="/api/v1",
 )
 

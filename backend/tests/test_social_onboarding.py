@@ -5,6 +5,7 @@ from sqlalchemy import UniqueConstraint
 from sqlalchemy.exc import IntegrityError
 
 from app.core.terms import CURRENT_TERMS_VERSION
+from app.models.account_data import UserSession
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
 from app.models.social_onboarding_pending import SocialOnboardingPending
@@ -69,7 +70,7 @@ def test_complete_creates_member_and_consumes_atomically(client, db_session, pro
     db_session.scalar_result = [pending, None, None, None]
     response = client.post(COMPLETE_PATH, json=payload(nickname=" ＡＢ１２ "))
     assert response.status_code == 201
-    user, identity = db_session.added
+    user, identity, _session = db_session.added
     assert response.json() == {
         "user": {
             "user_id": user.id,
@@ -92,7 +93,7 @@ def test_complete_creates_member_and_consumes_atomically(client, db_session, pro
     assert identity.app_user_id == user.id
     assert identity.provider_subject == "verified-subject"
     assert identity.password_hash is None
-    assert db_session.commit_count == 1
+    assert db_session.commit_count == 2
     for secret in [
         TOKEN,
         pending.token_hash,
@@ -231,7 +232,8 @@ def test_existing_identity_consumes_other_proof_without_new_user(client, db_sess
     }
     assert db_session.get_calls == [(AppUser, "existing")]
     assert pending.consumed_at is not None
-    assert db_session.added == []
+    # 새 계정 없이 로그인 세션만 생긴다.
+    assert [type(row) for row in db_session.added] == [UserSession]
 
 
 @pytest.mark.parametrize("collision", ["identity", "email", "nickname", "unknown"])

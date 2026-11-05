@@ -8,7 +8,7 @@ from app.core.config import Settings
 
 
 def production(**overrides):
-    values = dict(_env_file=None, app_env="production", db_host="db.invalid", db_user="app", db_password="synthetic-only", db_name="app", google_client_id="google-test", naver_client_id="naver-test", naver_client_secret="synthetic-only", naver_redirect_uri="https://web.example.invalid/로그인/콜백", cors_origins=["https://web.example.invalid"])
+    values = dict(_env_file=None, app_env="production", db_host="db.invalid", db_user="app", db_password="synthetic-only", db_name="app", google_client_id="google-test", naver_client_id="naver-test", naver_client_secret="synthetic-only", naver_redirect_uri="https://web.example.invalid/로그인/콜백", cors_origins=["https://web.example.invalid"], session_cookie_secure=True)
     return Settings(**{**values, **overrides})
 
 
@@ -18,7 +18,7 @@ def test_production_configuration_accepts_only_explicit_settings():
 
 @pytest.mark.parametrize("changes", [
     {"naver_client_secret": ""}, {"google_client_id": ""}, {"db_password": ""},
-    {"db_user": "root"}, {"cors_origins": ["*"]}, {"cors_origins": []},
+    {"db_user": "root"}, {"session_cookie_secure": False}, {"cors_origins": ["*"]}, {"cors_origins": []},
     {"cors_origins": ["http://web.example.invalid"]},
     {"naver_redirect_uri": "https://evil.invalid/로그인/콜백"},
     {"naver_redirect_uri": "https://web.example.invalid/other"},

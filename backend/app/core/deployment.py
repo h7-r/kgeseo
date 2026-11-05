@@ -21,6 +21,8 @@ def validate_deployment(settings):
     required = ("db_password", "google_client_id", "naver_client_id", "naver_client_secret", "naver_redirect_uri")
     if any(not getattr(settings, key).strip() or getattr(settings, key).startswith("YOUR_") for key in required):
         raise ValueError("production requires DB and Google/Naver settings (values redacted)")
+    if not settings.session_cookie_secure:
+        raise ValueError("production requires SESSION_COOKIE_SECURE=true")
     if settings.db_user.lower() == "root":
         raise ValueError("production requires a non-root DB account")
     if not settings.cors_origins or any(not https_origin(origin) or origin.endswith("/") for origin in settings.cors_origins):

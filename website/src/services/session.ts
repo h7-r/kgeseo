@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiUrl } from "@/config/env";
 
 /**
  * 로그인 세션. 서버가 토큰을 내주기 전까지 확인된 사용자를 sessionStorage 에만 둔다.
@@ -87,7 +88,32 @@ export function signOut() {
   } catch {
     // 무시
   }
+  // 서버 세션도 끝낸다. 실패해도 이 탭은 로그아웃 상태로 둔다.
+  void fetch(apiUrl("/api/v1/me/logout"), { method: "POST", keepalive: true, credentials: "include" }).catch(() => {});
   window.dispatchEvent(new Event(CHANGE_EVENT));
+}
+
+/**
+ * 탭을 닫았다 다시 와도 서버 세션이 살아 있으면 로그인을 이어 준다.
+ * 서버가 세션이 끝났다고 답하면 이 탭도 로그아웃한다. 서버에 못 닿으면 그대로 둔다(시연용 테스트 계정).
+ */
+export async function restoreServerSession(): Promise<void> {
+  try {
+    const response = await fetch(apiUrl("/api/v1/me"), { credentials: "include" });
+    if (response.status === 401) {
+      const local = readSession();
+      if (local && !local.isTest) {
+        sessionStorage.removeItem(STORAGE_KEY);
+        window.dispatchEvent(new Event(CHANGE_EVENT));
+      }
+      return;
+    }
+    if (!response.ok) return;
+    const me = (await response.json()) as { user_id: string; email: string; nickname: string; region: string | null };
+    signIn({ ...readSession(), id: me.user_id, email: me.email, name: me.nickname, region: me.region ?? "" });
+  } catch {
+    // 서버에 못 닿으면 지금 상태를 유지한다.
+  }
 }
 
 /** 로그인 상태를 구독한다. 만료와 다른 탭의 로그아웃도 따라간다. */
