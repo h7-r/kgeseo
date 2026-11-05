@@ -50,6 +50,10 @@ def valid_client_data() -> dict:
                         "object_type": "door",
                         "visible": True,
                         "enabled": True,
+                        "interaction": {
+                            "type": "navigate",
+                            "target_id": "ZONE_002",
+                        },
                     },
                 ],
                 "navigation": [

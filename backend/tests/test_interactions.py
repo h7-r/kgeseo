@@ -135,7 +135,12 @@ def client_content_directory(
                                 },
                             },
                         ],
-                        "navigation": [],
+                        "navigation": [
+                            {
+                                "door_object_id": "OBJ_NAVIGATE",
+                                "target_zone_id": "ZONE_004",
+                            },
+                        ],
                     },
                     {
                         "zone_id": "ZONE_004",
@@ -322,6 +327,7 @@ def test_legacy_completed_state_returns_null_attempt_count(
 ) -> None:
     play_session = make_play_session(
         state={
+            "current_zone_id": "ZONE_003",
             "completed_puzzle_ids": ["puzzle_01"],
             "acquired_clue_ids": [],
             "hint_levels": {},
@@ -503,6 +509,26 @@ def test_object_resolution_errors_are_mapped(
     assert db_session.added == []
 
 
+def test_unsupported_server_field_returns_safe_500(
+    client: TestClient,
+    db_session: FakeAsyncSession,
+    client_content_directory: Path,
+) -> None:
+    runtime_path = client_content_directory / "case_001.server.json"
+    runtime_data = json.loads(runtime_path.read_text(encoding="utf-8"))
+    runtime_data["puzzles"][0]["requires"] = {"clue_ids": ["clue_07"]}
+    runtime_path.write_text(json.dumps(runtime_data), encoding="utf-8")
+    db_session.get_result = make_play_session()
+
+    response = client.post(INTERACTIONS_URL, json=input_body())
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Puzzle runtime is unavailable."}
+    assert "requires" not in response.text
+    assert db_session.added == []
+    assert db_session.commit_count == 0
+
+
 def test_missing_client_content_returns_safe_500(
     client: TestClient,
     db_session: FakeAsyncSession,
@@ -533,12 +559,10 @@ def test_interaction_returns_404_for_missing_play_session(
 @pytest.mark.parametrize(
     ("action", "target_type", "target_id", "payload"),
     [
-        ("inspect", "object", "OBJ_NOTE", {}),
-        ("navigate", "zone", "ZONE_004", {}),
         ("select", "object", "OBJ_CHOICES", {"choice": "optA"}),
     ],
 )
-def test_phase_one_unsupported_actions_return_501(
+def test_unsupported_actions_return_501(
     client: TestClient,
     db_session: FakeAsyncSession,
     action: str,

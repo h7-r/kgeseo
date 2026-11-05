@@ -18,6 +18,8 @@ from app.schemas.puzzle_runtime import (
 )
 from app.services.interaction import process_interaction
 
+CONCURRENCY_ZONE_ID = "ZONE_CONCURRENCY"
+
 
 async def _prepare_rows(
     anonymous_session_id: str,
@@ -39,6 +41,8 @@ async def _prepare_rows(
                 anonymous_session_id=anonymous_session_id,
                 case_id=case_id,
                 state_json={
+                    # 요청 Zone과 같으면 Client Content 없이 위치 검사를 통과한다.
+                    "current_zone_id": CONCURRENCY_ZONE_ID,
                     "completed_puzzle_ids": [],
                     "acquired_clue_ids": [],
                     "hint_levels": {},
@@ -148,6 +152,7 @@ async def _verify() -> None:
                         client_event_id=second_client_event_id,
                         interaction_type="submit_answer",
                         target_id="concurrency_puzzle_02",
+                        zone_id=CONCURRENCY_ZONE_ID,
                         payload=SubmitAnswerPayload(answer="answer"),
                     ),
                     runtime_loader=lambda _: runtime,

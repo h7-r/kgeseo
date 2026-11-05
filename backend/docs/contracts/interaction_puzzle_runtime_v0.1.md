@@ -51,14 +51,16 @@ Puzzle Runtime Definition은 Backend가 퍼즐 정답과 상태 변경 효과를
 
 ### 2.3 v0.1 Interaction Type
 
-**Confirmed Decision**
+**Confirmed Decision** (`submit_answer`, `combine_clues`)
 
-v0.1은 다음 두 Interaction type만 지원한다.
+v0.1은 다음 두 Interaction type을 지원한다. `inspect`는 이후 확장 구현으로
+추가됐다(팀 검토 대기, §7.6).
 
 | `interaction_type` | 목적 |
 |---|---|
 | `submit_answer` | 퍼즐 정답 제출 |
 | `combine_clues` | 조사수첩에서 단서 두 개 조합 |
+| `inspect` | Object 조사. `target_id`는 Server `inspect_id`, 판정용 `zone_id`·`object_id` 포함 |
 
 클라이언트는 다음 상태 변경을 직접 명령하지 않는다.
 
@@ -189,6 +191,8 @@ v0.1 결과 후보는 다음과 같다.
 - `combined`
 - `incorrect_combination`
 - `already_completed`
+- `inspected` (확장, 외부 `ok`)
+- `already_inspected` (확장, 외부 `ok`, `state_changes=[]`)
 
 이미 완료된 Puzzle에 새로운 `client_event_id`로 답을 다시 제출하면
 Backend 내부 Service는 `already_completed`를 반환한다.
@@ -230,14 +234,22 @@ state 포함을 강제하지 않는다.
 |---|---:|---|
 | `PlaySessionNotFoundError` | 404 | `Play session not found.` |
 | `PuzzleNotFoundError` | 404 | `Puzzle not found.` |
+| `InspectionNotFoundError` (확장) | 404 | `Inspection not found.` |
 | `ZoneNotFoundError` | 404 | `Zone not found.` |
 | `ObjectNotFoundError` | 404 | `Object not found.` |
 | `ClueNotAcquiredError` | 409 | `Clue is not acquired.` |
 | `ObjectInteractionNotFoundError` | 409 | `Object interaction is unavailable.` |
 | `InteractionTypeMismatchError` | 409 | `Interaction action does not match the object.` |
+| `ObjectNotVisibleError` (확장) | 409 | `Object is not visible.` |
+| `ObjectNotEnabledError` (확장) | 409 | `Object is not enabled.` |
+| `RequiredCluesMissingError` (Q5) | 409 | `Required clues are not acquired.` + 최상위 `missing_clue_count` |
 | `IdempotencyConflictError` | 409 | `Client event ID conflicts with a previous interaction.` |
-| `UnsupportedInteractionActionError` | 501 | `Interaction action '<action>' is not implemented.` |
+| `CurrentZoneUnknownError` (Q6) | 409 | `Current zone is unknown.` |
+| `ZoneNotCurrentError` (Q6) | 409 | `Zone is not current.` |
+| `NavigationUnavailableError` (Q6) | 409 | `Navigation is unavailable.` |
+| `UnsupportedInteractionActionError` | 501 | `Interaction action '<action>' is not implemented.` (`select`. **Q6 변경**: navigate 제외) |
 | `CaseClientContentError` | 500 | `Case content is unavailable.` |
+| `CaseContentLinkValidationError` (확장) | 500 | `Case content is unavailable.` |
 | `PuzzleRuntimeError` | 500 | `Puzzle runtime is unavailable.` |
 
 Runtime 파일 없음, JSON decode 실패, Runtime Schema validation 실패는
@@ -413,8 +425,13 @@ v0.1 Effect가 지원하는 필드는 다음 세 개다.
 - `complete_puzzle_ids`
 - `set_flags`
 
+확장 구현으로 네 번째 필드가 추가됐다(팀 검토 대기).
+
+- `set_object_states` (선택, 기본값 `[]`): §7.6
+
 퍼즐 성공 시 `completed_puzzle_ids`에 `puzzle_id`를 추가하는 것은 Backend 공통 규칙이다.
 Runtime JSON에는 `complete_puzzle: true` 같은 중복 필드를 두지 않는다.
+`on_correct`, `on_success`, `on_inspect`는 모두 같은 Effect 구조를 사용한다.
 
 ### 7.4 Clue Combination
 
@@ -434,23 +451,204 @@ clue_07 + clue_03
 
 - Runtime Definition은 필요한 요청 시점에 해당 Case의 `.server.json` 파일을 읽는다.
 - Python 표준 JSON parser로 읽은 후 Pydantic Runtime Schema로 검증한다.
+  정의되지 않은 필드는 검증 오류다(§7.7).
 - v0.1에서는 별도 cache를 사용하지 않는다.
 - cache는 실제 필요가 확인된 후 별도 작업으로 검토한다.
 - Loader는 DB에 접근하거나 원본 JSON을 변경하지 않는다.
 - 원본 server-only JSON을 Frontend에 반환하는 API를 제공하지 않는다.
+- (확장) Object 상태가 필요한 처리(`set_object_states`가 있는 Effect 적용, `inspect`)에서만
+  Client Content도 읽고 `validate_case_content_links`로 교차 검증한 뒤 진행한다.
+  검증 실패는 아무것도 적용하지 않고 HTTP 500으로 변환한다.
 
-## 8. State Mutation Rules
+### 7.6 Object 상태 Effect와 Inspection (확장 구현, 팀 검토 대기)
 
-현재 PlaySession의 `state_json` 구조는 다음과 같다.
+`set_object_states` 항목 형식:
+
+```json
+{ "zone_id": "ZONE_SARANG", "object_id": "OBJ_DOOR", "enabled": true }
+```
+
+- `zone_id`, `object_id`는 필수이며 빈 문자열을 허용하지 않는다.
+- `visible`, `enabled`는 선택이지만 최소 하나는 있어야 하며 JSON boolean만 허용한다
+  (`"true"`, `1`, `null` 거부). 정의되지 않은 필드는 거부한다.
+- `enabled: false`는 지원하지 않는다. 대응하는 state change 계약이 없어 Schema에서 거부한다.
+- 한 Effect 안에서 같은 `(zone_id, object_id)`를 두 번 쓰면 값이 같든 다르든 거부한다.
+  다른 Zone의 같은 `object_id`는 별개 대상이다.
+
+Server Runtime에 선택 필드 `inspections`(기본값 `[]`)가 추가됐다.
 
 ```json
 {
-  "completed_puzzle_ids": [],
-  "acquired_clue_ids": [],
-  "hint_levels": {},
-  "flags": {}
+  "inspections": [
+    {
+      "inspect_id": "INSPECT_BEDDING",
+      "on_inspect": {
+        "grant_clue_ids": [],
+        "set_flags": {},
+        "set_object_states": [
+          { "zone_id": "ZONE_SARANG", "object_id": "OBJ_LETTER", "visible": true }
+        ]
+      }
+    }
+  ]
 }
 ```
+
+- `inspect_id`는 빈 문자열 불가, Runtime 안에서 유일하다(중복은 Schema validation error).
+- Client Object의 `interaction: {"type": "inspect", "target_id": "<inspect_id>"}`로 연결한다.
+  조사 효과는 Client Content에 두지 않는다.
+- 위 JSON의 ID는 **Example**이다.
+
+**조사 문구 `message` (Q7, 2026-10-26, 팀 검토 대기)**
+
+```json
+{
+  "inspect_id": "INSPECT_SCREEN",
+  "on_inspect": { "grant_clue_ids": [], "set_flags": {} },
+  "message": "병풍 뒤에는 먼지뿐입니다."
+}
+```
+
+- 선택 필드다. 생략하거나 `null`이면 문구가 없다(기존 콘텐츠와 호환).
+- 문자열만 허용한다. 빈 문자열·공백만 있는 값은 Schema 오류다(`clues[].summary`·`body`와
+  같은 규칙). 다른 정의되지 않은 필드는 계속 거부한다.
+- 응답 동작: 첫 조사 성공 응답의 `message`에만 싣는다. 이미 조사한 대상의 재조사는
+  `message=null`, 모든 오류(Zone·숨김·비활성·선행 단서)는 문구를 싣지 않는다.
+  같은 Event 재전송은 저장된 최초 응답을 그대로 돌려준다
+  (`interaction_api_v0.3.2.md` §2.1).
+- 표시용 문구다. 정답 판정·단서 조건·단서 참조 검증 대상이 아니다.
+  Client Content가 아니라 Server Runtime에 두므로 조사 전에는 Frontend에 내려가지 않는다.
+- 위 JSON의 ID와 문구는 **Example**이다.
+
+### 7.7 Schema 엄격 검증 (2026-10-23)
+
+Server Runtime 모델 6개는 모두 정의되지 않은 필드를 거부한다(`extra="forbid"`).
+이전에는 `ObjectStateEffect`를 뺀 5개가 정의되지 않은 필드를 **오류 없이 버렸다**.
+
+| 모델 | JSON 위치 |
+|---|---|
+| `PuzzleRuntimeDefinition` | 최상위 |
+| `PuzzleDefinition` | `puzzles[]` |
+| `ClueCombinationDefinition` | `clue_combinations[]` |
+| `InspectionDefinition` | `inspections[]` |
+| `RuntimeEffect` | `on_correct`, `on_success`, `on_inspect` |
+| `ObjectStateEffect` | `set_object_states[]` (원래부터 거부) |
+
+- 필드 목록, 필수 여부, 기본값은 바뀌지 않았다. 기존 `case_001`과 테스트 콘텐츠는 그대로 로드된다.
+- 다음은 여전히 **미지원**이며 로드 오류(`extra_forbidden`)가 난다:
+  정의되지 않은 효과(예: `set_clue_states`), 임의 메타데이터 필드,
+  선행 조건 별칭(`requires`, `required_clues` 등).
+  최상위 `clues[]`는 이후 Q4(§7.8), `puzzles[]`·`inspections[]`의 `requires_clue_ids`는
+  Q5(§7.9)에서 지원됐다.
+  `on_correct` 대신 `success_effects`를 쓰면 `on_correct` 누락(`missing`)과
+  `success_effects`(`extra_forbidden`)가 함께 보고된다.
+- 런타임에서 로드에 실패하면 응답 문구는 그대로다. Interaction은 HTTP 500
+  `Puzzle runtime is unavailable.`, Case Bundle은 HTTP 500 `Case content is unavailable.`이며
+  필드 이름이나 파일 경로를 응답에 넣지 않는다.
+- `python -m scripts.validate_case <case_id>`는 스키마 실패 시 기존
+  `[FAIL] <단계>: <예외 이름>` 줄 아래에 오류마다 한 줄씩
+  `<파일> → <경로> → <오류 종류> → <메시지>`를 출력하고 종료 코드 1로 끝난다.
+  JSON 문법 오류는 `<파일> → line L, column C → json_invalid → <메시지>`다.
+  입력값(정답 등)은 출력하지 않는다. 예:
+
+  ```text
+  [FAIL] Server Runtime Schema: CaseRuntimeValidationError
+  case_x.server.json → puzzles.0.required_clues → extra_forbidden → Extra inputs are not permitted
+  Case 'case_x': INVALID
+  ```
+
+- **이번 변경에 포함하지 않은 것:** 값 타입의 느슨한 변환. 예를 들어 `set_flags`의 `"yes"`·`1`은
+  `true`로, Client Content의 `"visible": "false"`는 `false`로 바뀌어 로드된다.
+  `puzzle_id`, `combination_id`의 빈 문자열도 아직 막지 않는다.
+
+### 7.8 단서 정의 `clues[]` (Q4, 2026-10-23, 팀 검토 대기)
+
+Server Runtime 최상위 선택 필드 `clues`(기본값 `[]`)에 단서 표시 정보를 둔다.
+필드는 `clue_id`(필수), `title`(필수), `summary`(선택), `body`(선택),
+`carrier_kind`(선택, **Q8**)이며 정의되지 않은 필드(`asset_key` 등)는 거부한다.
+
+- `carrier_kind`(Q8, 2026-10-26, 팀 검토 대기): `letter`·`note`·`key`·`piece`·`mark`·`deduction`
+  중 하나, 또는 생략·`null`(유형 없음). 다른 값·대소문자 차이·문자열이 아닌 값은 Schema 오류다.
+  단서 수첩 표시용 메타데이터일 뿐이며 정답 판정·선행 조건·Effect·상태에 쓰지 않는다.
+
+- `clue_id` 빈 값·공백만 있는 값, `title` 공백만 있는 값, 값을 쓴 `summary`·`body`의
+  공백만 있는 값은 거부한다. `clue_id` 중복도 거부한다.
+- `clues` 키가 있으면(빈 목록 포함) 모든 `grant_clue_ids`와 단서 조합 `clue_ids`가
+  정의돼 있어야 한다. 키가 없으면 기존처럼 ID만 쓰며 이 검증을 하지 않는다.
+- 단서 정의는 Server 전용이다. 획득한 단서만 `GET /api/v1/play-sessions/{id}/clues`로
+  공개한다. 상세 계약은 `clue_api_v0.1.md`.
+
+### 7.9 선행 단서 조건 `requires_clue_ids` (Q5, 2026-10-23, 팀 검토 대기)
+
+`puzzles[]`와 `inspections[]`에 선택 필드 `requires_clue_ids`(기본값 `[]`)를 둔다.
+나열한 단서를 PlaySession이 **모두** 획득해야 정답 판정·조사 효과가 실행된다.
+필드가 없거나 빈 배열이면 조건이 없다(기존 콘텐츠와 호환).
+
+- 원소는 문자열이며 빈 값·공백만 있는 값, 같은 항목 안의 중복은 Schema 오류다.
+- `clues`를 명시한 콘텐츠는 `requires_clue_ids`의 모든 ID가 `clues`에 정의돼 있어야 한다.
+  `clues`가 없으면 존재 검증을 하지 않는다(ID만 쓰는 기존 방식).
+- 별칭(`requires`, `required_clues`, `requires: {clue_ids}` 등)은 허용하지 않는다.
+
+PM 생성 JSON 형식 예 (구조만 PM 생성 케이스와 같고 ID·정답은 실제 콘텐츠가 아닌 **Example**):
+
+```json
+{
+  "puzzles": [
+    {
+      "puzzle_id": "PZ-LOCK",
+      "accepted_answers": ["ANSWER_EXAMPLE"],
+      "requires_clue_ids": ["CL-A-1", "CL-A-2", "CL-A-3"],
+      "on_correct": {
+        "grant_clue_ids": [],
+        "set_flags": {},
+        "set_object_states": [
+          { "zone_id": "ZONE_A", "object_id": "OBJ_A_DOOR", "enabled": true }
+        ]
+      }
+    }
+  ],
+  "inspections": [
+    {
+      "inspect_id": "INSP_SEAL",
+      "requires_clue_ids": ["CL-B-1", "CL-B-2"],
+      "on_inspect": { "grant_clue_ids": [], "complete_puzzle_ids": ["PZ-SEAL"], "set_flags": {} }
+    }
+  ]
+}
+```
+
+런타임 판정 위치(행 잠금 안, 같은 `client_event_id` replay가 가장 먼저):
+
+- `input`: 퍼즐 없음 404 → 완료 퍼즐 `already_completed` → **선행 조건** → 시도 횟수 +1
+  → 정답 비교 → 효과. 정답 비교 전에 판정하므로 정답·오답 모두 같은 409이고,
+  응답으로 정답 여부가 드러나지 않는다.
+- `inspect`: 조사 정의 없음 404 → 완료 조사 `ok`·`[]` → 숨김·비활성 409 → **선행 조건**
+  → 효과(Q7: 이때만 `message`를 싣는다). 완료 확인을 숨김 판정보다 먼저 하는 기존 순서
+  (`interaction_api_v0.3.2.md` §2.1)는 유지한다.
+
+조건이 부족하면 `RequiredCluesMissingError` → HTTP 409. 상태·시도 횟수·Interaction Event·
+commit 모두 없다. 이벤트가 남지 않으므로 같은 `client_event_id`로 단서를 얻은 뒤 다시
+보내면 새로 처리된다. 응답에는 부족한 **개수**만 넣고 단서 ID는 넣지 않는다.
+
+## 8. State Mutation Rules
+
+현재 신규 PlaySession의 `state_json` 구조는 다음과 같다.
+
+```json
+{
+  "current_zone_id": "ZONE_001",
+  "completed_puzzle_ids": [],
+  "completed_inspect_ids": [],
+  "acquired_clue_ids": [],
+  "hint_levels": {},
+  "attempt_counts": {},
+  "flags": {},
+  "object_states": {}
+}
+```
+
+`current_zone_id`, `attempt_counts`, `completed_inspect_ids`, `object_states`는 과거 row에
+없을 수 있으며 읽을 때 각각 `null`, `{}`, `[]`, `{}`로 해석한다.
 
 Interaction 성공 시 Backend는 다음 규칙으로 상태를 변경한다.
 
@@ -473,13 +671,32 @@ Interaction 성공 시 Backend는 다음 규칙으로 상태를 변경한다.
 
 - `submit_answer`와 `combine_clues`에서는 변경하지 않는다.
 
+### `object_states` (확장)
+
+- 구조: `{zone_id: {object_id: {"visible"?: bool, "enabled"?: bool}}}`. Zone과 Object를
+  중첩 key로 나눈다. ID에 문자 제약이 없어 `"ZONE/OBJ"` 같은 합친 key는 충돌할 수 있다.
+- 유효 상태 = Client Content Object 초기값 위에 기록된 속성만 덮어쓴 값
+  (`app/services/object_state.py`의 `resolve_effective_object_state`).
+- `set_object_states`의 각 속성은 유효 상태와 다를 때만 기록하고 change를 만든다.
+- 기록할 때만 키를 만든다. 변화가 없으면 과거 row에 키를 추가하지 않는다.
+- 저장값 형식이 잘못되면(알 수 없는 속성, boolean 아님) 읽기 검증 오류다.
+
+### `completed_inspect_ids` (확장)
+
+- `inspect` 효과를 처음 적용할 때 `inspect_id`를 추가한다.
+- 목록에 있는 `inspect_id`는 다시 적용하지 않는다(`already_inspected`). 효과 중복 방지만으로는
+  부족하다. 예: 서신을 조사해 숨긴 뒤 이부자리를 재조사하면 "다시 표시"가 실제 변화로
+  계산돼 서신이 되살아난다.
+
 클라이언트는 위 상태 변화의 최종 값을 직접 지정하지 않는다.
 
 ### Interaction State Changes
 
 Service는 실제 상태가 변경된 항목만 `puzzle_completed`, `clue_acquired`,
-`flag_updated`로 기록한다. 순서는 puzzle, clue, flag 순이며 같은 종류 안에서는
-Runtime Effect의 순서를 유지한다. 이미 반영된 값에는 중복 change를 만들지 않는다.
+`flag_updated`, (확장) `object_revealed`, `object_hidden`, `object_unlocked`로 기록한다.
+순서는 puzzle, clue, flag, Object 순이며 같은 종류 안에서는 Runtime Effect의 순서를
+유지한다. 한 Object 안에서는 visible change가 enabled change보다 먼저다.
+이미 반영된 값에는 중복 change를 만들지 않는다.
 
 신규 Event의 `response_json`에는 이 목록을 저장한다. 기존 Event에 목록이 없으면
 빈 배열로 읽고 과거 변경 내역을 추론하지 않는다.
@@ -557,6 +774,8 @@ def normalize_answer(value: str) -> str:
 - `.server.json` Runtime Definition을 Frontend에 그대로 제공하지 않는다.
 - Interaction 요청의 정답 여부와 상태 변화는 Backend가 판정한다.
 - 클라이언트가 `grant_clue_ids`, `completed_puzzle_ids`, `set_flags`를 직접 명령하지 못하게 한다.
+- (확장) `set_object_states`, `inspections`, `on_inspect`도 Server-only다. 별도 Object 상태
+  변경 API는 없고, Object 상태는 Interaction 판정 결과로만 바뀐다.
 
 정답 비교에는 정규화된 값을 사용하지만,
 `interaction_events.payload_json`에는 사용자가 보낸 원본 값을 저장하는 방향이다.
@@ -617,6 +836,15 @@ v0.1 Runtime Definition은 다음 정보를 다루지 않는다.
 1. Interaction Event 보존 기간
 2. `interaction_events`를 Analytics 용도로 어느 수준까지 활용할지
 3. 향후 Puzzle Runtime Definition을 DB로 이전할 시점
+4. (확장) `set_object_states`·`inspections` 구조와 `enabled: false` 미지원 정책의 확정
+5. (확장) 세션에 저장된 `object_states`가 콘텐츠 수정으로 사라진 Object를 가리킬 때의
+   처리. 현재는 Object 상태 계산 시 404(`Zone/Object not found.`)로 실패한다.
+6. (확장) Object 상태 처리 시 Client Content를 행 잠금 전·후 두 번 읽는 비용의 허용 여부
+7. 값 타입 엄격 검증(`set_flags` boolean, Client `visible`·`enabled`, ID 빈 문자열)의 적용 여부
+8. 생성 에이전트 결과물의 메타데이터(설명, 근거, 힌트 등)를 Server JSON에 둘 허용 영역을 만들지.
+   지금은 정의되지 않은 필드로 거부된다.
+9. 선행 조건: `requires_clue_ids`(단서만)로 구현됨(§7.9). 퍼즐 완료·flag 조건과
+   `excludes`를 추가할지, NPC 대사 조건과 모델을 함께 쓸지는 미정
 
 ## 14. 다음 구현 단계
 
@@ -635,5 +863,9 @@ v0.1 Runtime Definition은 다음 정보를 다루지 않는다.
 현재 Interaction Service v0.1에는 정답·단서 조합 판정, state 변경,
 멱등성 확인, Interaction Event 기록, Transaction 처리가 구현되어 있다.
 외부 HTTP 계약은 `interaction_api_v0.3.2.md`, 변환 규칙은
-`fe_backend_interaction_mapping_v0.1.md`를 따른다. Phase 1은 `input`과
-`combine_clues`를 지원하며, `inspect`, `navigate`, `select`의 Runtime 동작은 WIP다.
+`fe_backend_interaction_mapping_v0.1.md`를 따른다. `input`, `combine_clues`, (확장)
+`inspect`, (Q6) `navigate`를 지원하며 `select`의 Runtime 동작은 WIP다.
+
+확장 구현(Object 상태·inspect) 검증 상태(2026-10-23): pytest 358개 통과, Ruff check 통과,
+실제 `TestClient` HTTP 테스트 통과. DB는 테스트용 가짜 세션만 사용했고 실제 MySQL
+영속성 검증은 하지 않았다.

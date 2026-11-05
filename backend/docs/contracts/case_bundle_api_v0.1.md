@@ -53,7 +53,10 @@ Case Bundle은 정적 Client Content를 Frontend에 제공한다. Session API와
 
 `entry_zone_id`는 항상 Client Content의 명시적 값을 반환하며 Zone 배열 순서에서
 추론하지 않는다. `visible`과 `enabled`는 정적 초기 콘텐츠 값이고 PlaySession의
-동적 접근 권한이나 서버 권위 상태가 아니다.
+동적 접근 권한이나 서버 권위 상태가 아니다. 세션별 현재 값은 PlaySession GET의
+`state.object_states`와 Interaction의 Object 상태 change로 받아 이 값 위에 덮어쓴다.
+inspect 대상 Object의 `interaction.type`은 `inspect`로 공개되며, 내부 `inspect_id`와
+조사 효과는 반환하지 않는다.
 
 ## 3. ID 규칙
 

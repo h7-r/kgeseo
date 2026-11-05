@@ -24,15 +24,19 @@ PlaySession 생성 시 요청의 `case_id`를 Client Content와 연결하고, �
 5. PlaySession ORM 객체를 Session에 추가한다.
 6. 한 번의 commit 후 refresh하고 결과를 반환한다.
 
-현재 초기 상태는 다음과 같다.
+현재 초기 상태는 다음과 같다. (2026-10-23 갱신: `attempt_counts`, 확장 구현의
+`completed_inspect_ids`·`object_states` 포함)
 
 ```json
 {
   "current_zone_id": "ZONE_001",
   "completed_puzzle_ids": [],
+  "completed_inspect_ids": [],
   "acquired_clue_ids": [],
   "hint_levels": {},
-  "flags": {}
+  "attempt_counts": {},
+  "flags": {},
+  "object_states": {}
 }
 ```
 
@@ -224,9 +228,13 @@ POST 응답은 non-null 위치를 반환한다. 기존 row의 GET 응답은 호�
 `current_zone_id` 추가는 위치 저장의 시작일 뿐 Zone 접근 정책을 만들지는 않는다.
 
 - External Interaction의 `request.zone_id == current_zone_id`를 강제하지 않는다.
+  **(Q6 변경)** 이후 input·inspect·navigate에서 강제하도록 바뀌었다
+  (`interaction_api_v0.3.2.md` §2.3).
 - Object Resolver의 현재 target 해석 규칙을 변경하지 않는다.
-- Navigation 요청이나 위치 갱신 API를 추가하지 않는다.
-- Session-derived `visible`/`enabled`를 계산하지 않는다.
+- Navigation 요청이나 위치 갱신 API를 추가하지 않는다. **(Q6 변경)** 이후 Interaction
+  API의 `navigate`가 위치를 갱신한다(별도 위치 API는 없음).
+- Session-derived `visible`/`enabled`를 계산하지 않는다. (이후 확장 구현에서 Effect 기반
+  `object_states`와 inspect 판정이 별도로 추가됐다. `interaction_api_v0.3.2.md` 참고)
 - Zone 조회가 현재 위치 외 Zone을 허용할지는 별도 Contract로 결정한다.
 
 Interaction Service는 전체 `state_json`을 복사해 변경하므로 신규 위치 key를
@@ -302,5 +310,6 @@ Truth를 명확히 하며 과거 row를 파괴적으로 보정하지 않는다.
    readiness 또는 별도 배포 단계 중 어디에 둘지.
 2. 향후 Case Registry가 도입되면 known Case의 Content 파일 누락을 500으로
    재분류할지.
-3. Navigation이 구현될 때 `current_zone_id` 변경과 Zone 접근 검증을 어떤
-   Transaction 경계로 처리할지.
+3. ~~Navigation이 구현될 때 `current_zone_id` 변경과 Zone 접근 검증을 어떤
+   Transaction 경계로 처리할지.~~ → Q6: Interaction의 PlaySession 행 잠금과
+   Event 저장과 같은 Transaction에서 처리.
