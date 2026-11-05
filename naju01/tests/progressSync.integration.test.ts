@@ -138,12 +138,18 @@ describe("progressSync ↔ 실제 Interaction API", { skip: BASE ? false : "PROG
   });
 
   let completeOnce: PreparedInteraction;
+  let completeInteractionId = "";
+  let changesAfterComplete = 0;
   test("6. complete(client_skill): 완료 · 단서 · flag 가 서버에 기록된다", async () => {
     sent(await sync.submit({ action: "navigate", fromZone: "it-b", toZone: "it-a" }));
     const prepared = sync.prepare({ action: "complete", zone: "it-a", object: "it-skill" });
     assert.ok(prepared.ok);
     completeOnce = prepared.prepared;
-    const response = sent(await sync.send(completeOnce));
+    const outcome = await sync.send(completeOnce);
+    const response = sent(outcome);
+    assert.equal(outcome.kind === "sent" && outcome.delivery.status, "delivered");
+    completeInteractionId = response.interaction_id;
+    changesAfterComplete = changes.length;
     assert.equal(response.result_type, "correct");
     const types = response.state_changes.map((c) => c.type).sort();
     assert.deepEqual(types, ["clue_acquired", "flag_updated", "puzzle_completed"]);
@@ -158,6 +164,11 @@ describe("progressSync ↔ 실제 Interaction API", { skip: BASE ? false : "PROG
     const replay = await sync.send(completeOnce);
     const response = sent(replay);
     assert.equal(response.result_type, "correct");
+    // 서버는 처음 interaction_id · state_changes 를 그대로 되돌리고, FE 는 상태 변화를 다시 넘기지 않는다
+    assert.equal(response.interaction_id, completeInteractionId);
+    assert.ok(response.state_changes.length > 0);
+    assert.equal(replay.kind === "sent" && replay.delivery.status, "duplicate");
+    assert.equal(changes.length, changesAfterComplete);
     const after = await state();
     assert.deepEqual(after.completed_puzzle_ids, before.completed_puzzle_ids);
     assert.deepEqual(after.acquired_clue_ids, before.acquired_clue_ids);

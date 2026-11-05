@@ -207,8 +207,23 @@ const CONFLICTS: Record<string, ConflictReason> = {
   "Client event ID conflicts with a previous interaction.": "idempotency-conflict",
 };
 
+/**
+ * 이번 응답의 상태 변화를 onStateChanges 로 넘겼는가.
+ * 서버는 같은 (Play Session, client_event_id) 를 다시 받으면 처음 결과를 같은 interaction_id 로 되돌려 준다
+ * (backend/app/services/interaction.py `_replay_existing_event`). 그래서 (Play Session, interaction_id) 를 한 번만 넘긴다.
+ */
+export type StateChangeDelivery =
+  /** 처음 받은 상태 변화를 넘겼다 */
+  | { status: "delivered" }
+  /** 넘길 것이 없다(아는 상태 변화가 없거나 onStateChanges 가 없다). 기록하지 않는다 */
+  | { status: "none" }
+  /** 이 Play Session 에서 이미 넘긴 interaction_id — 다시 넘기지 않았다 */
+  | { status: "duplicate" }
+  /** onStateChanges 가 던졌다. 넘긴 것으로 기록하지 않는다 — 같은 prepared 를 다시 보내면 다시 넘긴다 */
+  | { status: "handler-failed"; error: unknown };
+
 export type SendOutcome =
-  | { kind: "sent"; response: InteractionResponse; unknownStateChanges: unknown[] }
+  | { kind: "sent"; response: InteractionResponse; unknownStateChanges: unknown[]; delivery: StateChangeDelivery }
   /** 세션이 준비되지 않아 보내지 않았다(꺼짐 · 시작 중 · 쓸 수 없음). 같은 prepared 로 나중에 다시 보낼 수 있다 */
   | { kind: "not-sent"; reason: "session-not-ready" }
   /** 409 — 다시 보내도 같다. 진행 순서 · 구역 · 콘텐츠 버전이 서버와 어긋났다는 뜻 */
@@ -228,13 +243,17 @@ export interface ProgressSyncOptions {
   ids: ProgressIdMap;
   /** 대응이 없는 로컬 ID — 보내지 않고 알리기만 한다 */
   onUnmapped?: (report: UnmappedReport) => void;
-  /** 서버가 적용한 상태 변화. 화면 · NPC 반영은 부르는 쪽이 한다 */
+  /** 서버가 적용한 상태 변화. 화면 · NPC 반영은 부르는 쪽이 한다. 같은 (Play Session, interaction_id) 는 한 번만 부른다 */
   onStateChanges?: (changes: InteractionStateChange[], prepared: PreparedInteraction) => void;
+  /** 넘긴 (Play Session, interaction_id) 를 이만큼만 기억한다. 넘으면 가장 오래된 것부터 잊는다(기본 256) */
+  deliveryHistoryLimit?: number;
   /** 시험용. 기본은 companionApi 의 값 */
   sendOptions?: { timeoutMs?: number; maxRetries?: number; retryDelayMs?: number };
   newEventId?: () => string;
   now?: () => string;
 }
+
+const DEFAULT_DELIVERY_HISTORY_LIMIT = 256;
 
 const interactionsPath = (playSessionId: string) =>
   `/api/v1/play-sessions/${encodeURIComponent(playSessionId)}/interactions`;
@@ -242,6 +261,36 @@ const interactionsPath = (playSessionId: string) =>
 export function createProgressSync(options: ProgressSyncOptions) {
   const makeEventId = options.newEventId ?? newEventId;
   const now = options.now ?? clientTimestamp;
+  const historyLimit = Math.max(1, Math.floor(options.deliveryHistoryLimit ?? DEFAULT_DELIVERY_HISTORY_LIMIT));
+  /** 이미 넘긴 `<playSessionId>\n<interaction_id>`. Set 은 넣은 차례를 지켜 가장 오래된 것을 먼저 지운다 */
+  const delivered = new Set<string>();
+
+  function remember(key: string) {
+    delivered.add(key);
+    while (delivered.size > historyLimit) {
+      const oldest = delivered.values().next().value as string;
+      delivered.delete(oldest);
+    }
+  }
+
+  /** 검증된 응답만 들어온다. 콜백이 끝까지 돌았을 때만 기록한다 */
+  function deliver(
+    playSessionId: string,
+    response: InteractionResponse,
+    prepared: PreparedInteraction,
+  ): StateChangeDelivery {
+    const handler = options.onStateChanges;
+    if (!handler || response.state_changes.length === 0) return { status: "none" };
+    const key = `${playSessionId}\n${response.interaction_id}`;
+    if (delivered.has(key)) return { status: "duplicate" };
+    try {
+      handler(response.state_changes, prepared);
+    } catch (error) {
+      return { status: "handler-failed", error };
+    }
+    remember(key);
+    return { status: "delivered" };
+  }
 
   function reportUnmapped(kind: ProgressIdKind, localId: string, action: InteractionAction) {
     const session = options.getSession();
@@ -303,13 +352,18 @@ export function createProgressSync(options: ProgressSyncOptions) {
     if (!isInteractionResponse(body)) return { kind: "invalid-response", body };
     const { known, unknown } = splitStateChanges(body.state_changes);
     const response: InteractionResponse = { ...body, state_changes: known };
-    if (known.length > 0) options.onStateChanges?.(known, prepared);
-    return { kind: "sent", response, unknownStateChanges: unknown };
+    // 보낼 때의 세션으로 기록한다 — 응답을 기다리는 사이 세션이 바뀌어도 다른 세션 기록과 섞이지 않는다
+    const delivery = deliver(session.playSessionId, response, prepared);
+    return { kind: "sent", response, unknownStateChanges: unknown, delivery };
   }
 
   return {
     prepare,
     send,
+    /** 넘긴 기록을 모두 잊는다(시험 · 강제 초기화용). 세션이 바뀌는 것만으로는 부를 필요가 없다 */
+    clearDeliveryHistory() {
+      delivered.clear();
+    },
     /** prepare + send. 대응이 없으면 보내지 않는다 */
     async submit(intent: ProgressIntent): Promise<SendOutcome | Extract<PrepareResult, { ok: false }>> {
       const result = prepare(intent);

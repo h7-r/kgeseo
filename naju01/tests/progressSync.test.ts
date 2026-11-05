@@ -346,3 +346,161 @@ test("state_changes 가 비면 onStateChanges 를 부르지 않는다", async ()
   assert.equal(count, 0);
   assert.equal(isKnownStateChange({ type: "hint_level_changed", puzzle_id: "P", hint_level: 1.5 }), false);
 });
+
+// ── 상태 변화 중복 방지 — (Play Session, interaction_id) 를 한 번만 넘긴다 ──
+
+const COMPLETED: InteractionStateChange[] = [{ type: "puzzle_completed", puzzle_id: "PZ_TEST" }];
+const changed = (interactionId: string) => okResponse({ interaction_id: interactionId, result_type: "correct", state_changes: COMPLETED });
+const LEVER = { action: "complete", zone: "TA", object: "test-lever" } as const;
+
+function counting(patch: Partial<ProgressSyncOptions> = {}) {
+  const seen: InteractionStateChange[][] = [];
+  const s = sync({ onStateChanges: (list) => seen.push(list), ...patch });
+  return { s, seen };
+}
+
+function prepared(s: ReturnType<typeof sync>) {
+  const result = s.prepare(LEVER);
+  assert.ok(result.ok);
+  return result.prepared;
+}
+
+const deliveryOf = (outcome: unknown) => (outcome as { delivery?: { status: string } }).delivery?.status;
+
+test("중복 1: 같은 prepared 를 두 번 보내면 상태 변화는 한 번만 넘기고, 응답은 두 번 다 돌려준다", async () => {
+  serve(() => ({ status: 200, body: changed("int-1") }));
+  const { s, seen } = counting();
+  const p = prepared(s);
+  const first = await s.send(p);
+  const second = await s.send(p);
+  assert.equal(deliveryOf(first), "delivered");
+  assert.equal(deliveryOf(second), "duplicate");
+  assert.equal(seen.length, 1);
+  assert.ok(second.kind === "sent");
+  assert.deepEqual(second.response.state_changes, COMPLETED);
+  assert.equal(new Set(calls.map((call) => call.raw)).size, 1);
+});
+
+test("중복 2: 다른 prepared 라도 서버가 같은 interaction_id 를 돌려주면 다시 넘기지 않는다", async () => {
+  serve(() => ({ status: 200, body: changed("int-same") }));
+  const { s, seen } = counting();
+  assert.equal(deliveryOf(await s.submit(LEVER)), "delivered");
+  assert.equal(deliveryOf(await s.submit(LEVER)), "duplicate");
+  assert.equal(seen.length, 1);
+});
+
+test("중복 3: 서로 다른 Interaction 은 각각 넘긴다", async () => {
+  let n = 0;
+  serve(() => ({ status: 200, body: changed(`int-${++n}`) }));
+  const { s, seen } = counting();
+  assert.equal(deliveryOf(await s.submit(LEVER)), "delivered");
+  assert.equal(deliveryOf(await s.submit({ action: "input", zone: "TB", object: "test-dial", answer: "a" })), "delivered");
+  assert.equal(seen.length, 2);
+});
+
+test("중복 4: 네트워크 재시도는 같은 이벤트 ID · 본문이고, 상태 변화는 한 번만 넘긴다", async () => {
+  serveSequence(["network", { status: 504 }, { status: 200, body: changed("int-retry") }]);
+  const { s, seen } = counting();
+  const p = prepared(s);
+  assert.equal(deliveryOf(await s.send(p)), "delivered");
+  serve(() => ({ status: 200, body: changed("int-retry") }));
+  assert.equal(deliveryOf(await s.send(p)), "duplicate");
+  assert.equal(calls.length, 4);
+  assert.equal(new Set(calls.map((call) => call.body?.client_event_id)).size, 1);
+  assert.equal(new Set(calls.map((call) => call.raw)).size, 1);
+  assert.equal(seen.length, 1);
+});
+
+test("중복 5: 다른 Play Session 의 같은 interaction_id 는 섞이지 않는다", async () => {
+  const OTHER = "22222222-2222-4222-8222-222222222222";
+  let current: CompanionSessionStatus = READY;
+  serve(() => ({ status: 200, body: changed("int-shared") }));
+  const { s, seen } = counting({ getSession: () => current });
+  assert.equal(deliveryOf(await s.submit(LEVER)), "delivered");
+  current = { ...READY, playSessionId: OTHER };
+  assert.equal(deliveryOf(await s.submit(LEVER)), "delivered");
+  assert.equal(seen.length, 2);
+  assert.deepEqual(
+    calls.map((call) => call.path),
+    [INTERACTIONS, `/api/v1/play-sessions/${OTHER}/interactions`],
+  );
+});
+
+test("중복 6: 세션이 바뀐 뒤 새 이벤트는 넘기고, 이전 세션 기록은 새 세션을 막지 않는다", async () => {
+  const NEW = "33333333-3333-4333-8333-333333333334";
+  let current: CompanionSessionStatus = READY;
+  let n = 0;
+  serve(() => ({ status: 200, body: changed(`int-${++n}`) }));
+  const { s, seen } = counting({ getSession: () => current });
+  const old = prepared(s);
+  assert.equal(deliveryOf(await s.send(old)), "delivered"); // int-1 @ 옛 세션
+  current = { ...READY, playSessionId: NEW };
+  assert.equal(deliveryOf(await s.submit(LEVER)), "delivered"); // int-2 @ 새 세션
+  // 옛 세션으로 돌아가 같은 interaction_id 를 다시 받으면 여전히 중복이다
+  current = READY;
+  serve(() => ({ status: 200, body: changed("int-1") }));
+  assert.equal(deliveryOf(await s.send(old)), "duplicate");
+  assert.equal(seen.length, 2);
+});
+
+test("중복 7: 오류 · 모양이 어긋난 응답은 넘긴 것으로 기록하지 않아 정상 재시도가 넘긴다", async () => {
+  const { s, seen } = counting();
+  const p = prepared(s);
+  serve(() => ({ status: 503 }));
+  assert.equal((await s.send(p)).kind, "unreachable");
+  serve(() => ({ status: 409, body: { detail: "Zone is not current." } }));
+  assert.equal((await s.send(p)).kind, "conflict");
+  serve(() => ({ status: 200, body: { interaction_id: "int-ok", state_changes: COMPLETED } }));
+  assert.equal((await s.send(p)).kind, "invalid-response");
+  assert.equal(seen.length, 0);
+  serve(() => ({ status: 200, body: changed("int-ok") }));
+  assert.equal(deliveryOf(await s.send(p)), "delivered");
+  assert.equal(seen.length, 1);
+});
+
+test("중복 8: onStateChanges 가 던지면 sent 로 돌려주되 기록하지 않아, 다시 보내면 다시 넘긴다", async () => {
+  serve(() => ({ status: 200, body: changed("int-throw") }));
+  let attempts = 0;
+  const applied: InteractionStateChange[][] = [];
+  const s = sync({
+    onStateChanges: (list) => {
+      attempts += 1;
+      if (attempts === 1) throw new Error("화면 반영 실패");
+      applied.push(list);
+    },
+  });
+  const p = prepared(s);
+  const first = await s.send(p);
+  assert.equal(first.kind, "sent");
+  assert.equal(deliveryOf(first), "handler-failed");
+  assert.ok(first.kind === "sent" && first.delivery.status === "handler-failed" && first.delivery.error instanceof Error);
+  assert.equal(deliveryOf(await s.send(p)), "delivered");
+  assert.equal(deliveryOf(await s.send(p)), "duplicate");
+  assert.equal(attempts, 2);
+  assert.deepEqual(applied, [COMPLETED]);
+});
+
+test("중복 9: 기록은 한도까지만 남고(오래된 것부터 잊음), clearDeliveryHistory 로 비울 수 있다", async () => {
+  let id = "";
+  serve(() => ({ status: 200, body: changed(id) }));
+  const { s, seen } = counting({ deliveryHistoryLimit: 2 });
+  for (const next of ["int-a", "int-b", "int-c"]) {
+    id = next;
+    assert.equal(deliveryOf(await s.submit(LEVER)), "delivered");
+  }
+  id = "int-c";
+  assert.equal(deliveryOf(await s.submit(LEVER)), "duplicate");
+  id = "int-a"; // 한도 2 를 넘어 잊혔다
+  assert.equal(deliveryOf(await s.submit(LEVER)), "delivered");
+  s.clearDeliveryHistory();
+  id = "int-a";
+  assert.equal(deliveryOf(await s.submit(LEVER)), "delivered");
+  assert.equal(seen.length, 5);
+});
+
+test("중복: 상태 변화가 없거나 콜백이 없으면 none — 기록하지 않는다", async () => {
+  serve(() => ({ status: 200, body: okResponse() }));
+  assert.equal(deliveryOf(await counting().s.submit(LEVER)), "none");
+  serve(() => ({ status: 200, body: changed("int-nocb") }));
+  assert.equal(deliveryOf(await sync().submit(LEVER)), "none");
+});
