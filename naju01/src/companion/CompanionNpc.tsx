@@ -7,7 +7,7 @@
  * 텔레포트(낙하 복귀 · 물굴 이동)로 멀어지면 플레이어 곁으로 다시 데려오는 것뿐이다.
  * NajuScene 안(useTerrainMovement 뒤)에 붙어야 같은 프레임의 플레이어 위치를 읽는다.
  */
-import { useEffect, useMemo, useRef, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
@@ -19,6 +19,7 @@ import { advanceFollow, createFollowState, type FollowState, type FollowTargetPo
 import { HOVER_CONFIG, hoverOffset } from "@npc/hover";
 import { createNajuNpcWorld } from "@npc/naju/najuNpcAdapter";
 
+import { createCompressedGltfLoader } from "../loaders/compressedGlb";
 import { buildPropColliders } from "../movement/propColliders";
 import type { InstanceGroup } from "../placement/instanceGroups";
 import { UNITS_PER_METER } from "../plan/sitePlan";
@@ -39,6 +40,55 @@ const cameraForward = new THREE.Vector3();
  */
 const BODY_RADIUS = 0.13;
 const HALO_RADIUS = 0.24;
+
+/**
+ * 동행 외형 모델 — 떠다니는 정령(정지 메시 하나, 애니메이션 없음). 원본은 원점이 몸 가운데 · 정면 +Z · 위 +Y 다.
+ * 읽기 전과 읽지 못했을 때는 위 빛망울을 그대로 보인다(추종 · 겨냥 · 대화는 모양과 상관없다).
+ */
+const COMPANION_MODEL_URL = "/models/companion-npc.glb";
+const COMPANION_MODEL = {
+  /** 보이는 키(m). 빛망울처럼 눈높이 곁에서 화면을 가리지 않는 크기 — 폭은 약 0.32 m 로 충돌 반지름(0.35 m) 안이다 */
+  height: 0.4,
+  /** 이 속도(m/s)보다 빠르면 가는 쪽을, 아니면 플레이어 쪽을 본다 */
+  faceMoveSpeed: 0.15,
+  /** 몸을 돌리는 빠르기(1/s) — 클수록 바로 돌아선다 */
+  turnRate: 6,
+} as const;
+
+/** 읽은 모델을 키 · 가운데를 맞춘 묶음으로 만든다. 묶음의 원점 = 몸 가운데(빛망울 자리와 같다) */
+function prepareCompanionModel(source: THREE.Object3D): THREE.Group {
+  const box = new THREE.Box3().setFromObject(source);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const scale = size.y > 0 ? (COMPANION_MODEL.height * U) / size.y : 1;
+  source.position.sub(center);
+  source.traverse((object) => {
+    if ((object as THREE.Mesh).isMesh) object.castShadow = true;
+  });
+  const model = new THREE.Group();
+  model.name = "companion-npc-model";
+  model.scale.setScalar(scale);
+  model.add(source);
+  return model;
+}
+
+function disposeCompanionModel(model: THREE.Object3D) {
+  model.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    mesh.geometry.dispose();
+    for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      for (const value of Object.values(material)) if (value instanceof THREE.Texture) value.dispose();
+      material.dispose();
+    }
+  });
+}
+
+/** 각도 a 에서 b 로 가장 가까운 쪽으로 t 만큼 */
+function turnToward(a: number, b: number, t: number) {
+  const diff = Math.atan2(Math.sin(b - a), Math.cos(b - a));
+  return a + diff * t;
+}
 
 const COMPANION_CONFIG = {
   /** 길이 막혀 이만큼 처지면 플레이어 곁으로 다시 데려온다 (m) — 동행이 맵 한쪽에 남지 않게 */
@@ -79,8 +129,30 @@ interface CompanionNpcProps {
 }
 
 export default function CompanionNpc({ playerRef, terrain, instanceGroups }: CompanionNpcProps) {
-  const bodyRef = useRef<THREE.Mesh>(null);
+  const bodyRef = useRef<THREE.Group>(null);
   const worldPosition = useRef(new THREE.Vector3());
+  const [model, setModel] = useState<THREE.Group | null>(null);
+  const facing = useRef<number | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    let loaded: THREE.Group | null = null;
+    createCompressedGltfLoader()
+      .loadAsync(COMPANION_MODEL_URL)
+      .then((gltf) => {
+        loaded = prepareCompanionModel(gltf.scene);
+        if (alive) setModel(loaded);
+        else disposeCompanionModel(loaded);
+      })
+      .catch((error: unknown) => {
+        // 빛망울로 계속한다 — 외형이 없어도 추종 · 대화는 그대로다
+        console.warn("[companion] 동행 모델을 읽지 못해 빛망울로 보인다:", error);
+      });
+    return () => {
+      alive = false;
+      if (loaded) disposeCompanionModel(loaded);
+    };
+  }, []);
   const dialog = useCompanionDialog();
   const label = companionPromptLabel(dialog);
 
@@ -217,6 +289,17 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
       body.visible = true;
       body.position.copy(worldPosition.current);
       body.position.y += hoverOffset(clock.elapsedTime) * U;
+      // 움직이면 가는 쪽, 멈추면 플레이어 쪽을 본다(모델 정면 +Z = (sin yaw, cos yaw), 추종 좌표와 같은 축)
+      const speed = Math.hypot(state.velocity.x, state.velocity.z);
+      const goal =
+        speed > COMPANION_MODEL.faceMoveSpeed
+          ? Math.atan2(state.velocity.x, state.velocity.z)
+          : Math.atan2(target.position.x - state.position.x, target.position.z - state.position.z);
+      facing.current =
+        facing.current === null || jumped
+          ? goal
+          : turnToward(facing.current, goal, 1 - Math.exp(-delta * COMPANION_MODEL.turnRate));
+      body.rotation.y = facing.current;
     }
 
     // 구역에 처음 들어선 순간 — 끼어들어도 되는지 서버에 한 번 묻는다(주기 호출 아님)
@@ -267,15 +350,22 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
     });
   }, [world, behavior]);
 
-  // 겨냥 빛남(interaction.updateAimGlow)은 몸(빛망울)에 걸린다. 둘레의 흐린 빛무리는 그림자 · 겨냥에 끼지 않는다
+  // 겨냥 빛남(interaction.updateAimGlow)은 몸 묶음 전체(모델 또는 빛망울)에 걸린다.
+  // 빛망울 둘레의 흐린 빛무리는 그림자 · 겨냥에 끼지 않는다
   return (
-    <mesh ref={bodyRef} name="companion-npc" castShadow>
-      <sphereGeometry args={[BODY_RADIUS * U, 24, 16]} />
-      <meshToonMaterial color="#DDF4FB" emissive="#4FA9C9" emissiveIntensity={0.7} />
-      <mesh raycast={() => null}>
-        <sphereGeometry args={[HALO_RADIUS * U, 24, 16]} />
-        <meshBasicMaterial color="#9FDCF0" transparent opacity={0.18} depthWrite={false} />
-      </mesh>
-    </mesh>
+    <group ref={bodyRef} name="companion-npc">
+      {model ? (
+        <primitive object={model} />
+      ) : (
+        <mesh castShadow>
+          <sphereGeometry args={[BODY_RADIUS * U, 24, 16]} />
+          <meshToonMaterial color="#DDF4FB" emissive="#4FA9C9" emissiveIntensity={0.7} />
+          <mesh raycast={() => null}>
+            <sphereGeometry args={[HALO_RADIUS * U, 24, 16]} />
+            <meshBasicMaterial color="#9FDCF0" transparent opacity={0.18} depthWrite={false} />
+          </mesh>
+        </mesh>
+      )}
+    </group>
   );
 }
