@@ -8,30 +8,49 @@ C, O = f"{W}/cuts", f"{W}/out"
 os.makedirs(O, exist_ok=True)
 FPS, WID, HEI = 30, 1024, 576
 TOTAL = 25.0
-CUT = [0, 4.0, 7.0, 8.8, 11.6, 13.4, 16.9, 19.1, 19.8, TOTAL]   # 25초판 v2: 2컷은 팔 꺾이기 전에서 끊고, 8컷은 분수 줄기 전 0.7초만
+CUT = [0, 4.0, 7.0, 8.8, 11.6, 13.4, 16.9, 19.1, 21.5, TOTAL]   # 25초판 v3: 새 8컷(한 줄 물기둥 → 안개) 2.4초
 # 컷별: (원본 시작초, 재생 속도) — 원본 4초 클립에서 쓸 구간. 속도 2 = 두 배 빠르게
 SRC = {1: (0.0, 1.0), 2: (0.0, 0.82), 3: (0.0, 1.0), 4: (0.2, 1.0), 5: (0.3, 1.0),
-       6: (0.5, 1.0), 7: (0.4, 1.0), 8: (0.1, 1.0), 9: (0.0, 0.77)}
+       6: (0.5, 1.0), 7: (0.4, 1.0), 8: (0.0, 1.4), 9: (0.0, 1.0)}
 DARK_AT = {2, 4, 5, 7}          # 컷 시작에 한 장 어둡게(0.06초) — 코드: edge·hands·fall·flee
 WHITE_AT = {8}                  # 물보라 첫 0.12초 하얀 섬광 — 코드: impact
 CUES = [(6.3, "rumble"), (7.0, "gong"), (19.1, "splash")]   # SHADOW_PLAY_CUES
 
 def run(*a): subprocess.check_call(["ffmpeg", "-nostdin", "-v", "error", "-y", *a])
 
-parts = []
+# 정적인 컷은 코드처럼 천천히 밀고 들어간다(배율 시작→끝)
+PUSH = {1: (1.0, 1.04), 2: (1.0, 1.06), 3: (1.0, 1.0), 4: (1.0, 1.0), 5: (1.0, 1.0),
+        6: (1.0, 1.08), 7: (1.0, 1.03), 8: (1.0, 1.04), 9: (1.0, 1.06)}
+# 다음 컷으로 넘어가는 방식 — 0.04 는 사실상 바로 끊기, 그보다 길면 부드럽게 겹침
+XF = {1: 0.04, 2: 0.04, 3: 0.04, 4: 0.04, 5: 0.45, 6: 0.04, 7: 0.04, 8: 0.6}
+
+segs = []
 for k in range(1, 10):
-    L = CUT[k] - CUT[k - 1]
+    L = CUT[k] - CUT[k - 1] + XF.get(k, 0)        # 겹치는 만큼 뒤를 늘려 컷 시작 시각은 그대로 둔다
     s0, sp = SRC[k]
+    n = int(round(L * FPS))
+    z0, z1 = PUSH[k]
     vf = (f"trim=start={s0},setpts=(PTS-STARTPTS)/{sp},fps={FPS},scale={WID}:{HEI}:flags=lanczos,"
-          f"tpad=stop_mode=clone:stop_duration=2,trim=duration={L:.3f},setpts=PTS-STARTPTS")
+          f"tpad=stop_mode=clone:stop_duration=3,trim=duration={L:.3f},setpts=PTS-STARTPTS")
+    if z1 != z0:
+        vf += (f",scale={WID*2}:{HEI*2}:flags=lanczos,zoompan=z='{z0}+({z1}-{z0})*on/{n}':d=1:"
+               f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={WID}x{HEI}:fps={FPS}")
     if k in DARK_AT: vf += ",fade=t=in:st=0:d=0.06:color=black"
     if k in WHITE_AT: vf += ",fade=t=in:st=0:d=0.12:color=white"
     out = f"{O}/c{k}.mp4"
-    run("-i", f"{C}/{k}.mp4", "-vf", vf, "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "14", "-r", str(FPS), out)
-    parts.append(out)
+    run("-i", f"{C}/{k}.mp4", "-vf", vf + ",format=yuv420p", "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "14",
+        "-r", str(FPS), "-t", f"{L:.3f}", out)
+    segs.append(out)
 
-open(f"{O}/list.txt", "w").write("".join(f"file '{p}'\n" for p in parts))
-run("-f", "concat", "-safe", "0", "-i", f"{O}/list.txt", "-c", "copy", f"{O}/raw.mp4")
+inp = []
+for p_ in segs: inp += ["-i", p_]
+fc = ""; prev = "[0:v]"
+for k in range(1, 9):
+    lab = f"[x{k}]"
+    fc += f"{prev}[{k}:v]xfade=transition=fade:duration={XF[k]}:offset={CUT[k]:.3f}{lab};"
+    prev = lab
+run(*inp, "-filter_complex", fc.rstrip(";"), "-map", prev, "-c:v", "libx264", "-preset", "medium", "-crf", "14",
+    "-r", str(FPS), "-t", str(TOTAL), f"{O}/raw.mp4")
 
 # 필름 처리 — 코드와 같은 순서: 색(그늘 푸르게·빛 호박빛) → 입자 → 비네트 → 처음 0.6초 밝아짐 → 위아래 띠 8%
 bar = int(HEI * 0.08)
