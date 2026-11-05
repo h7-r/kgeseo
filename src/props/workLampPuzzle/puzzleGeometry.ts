@@ -3,10 +3,14 @@ import * as THREE from "three";
 import { mergeAndDispose } from "@/engine/geometry";
 import { createRandom } from "@/engine/random";
 
-import type { WireShape } from "./workLampState";
+import { WINDOW_COUNT, type WireShape } from "./workLampState";
 
 /** 차단기함 문짝 두께 — 자물쇠를 문짝 앞면에 세울 때도 쓴다 */
 export const BREAKER_DOOR_THICKNESS = 0.1;
+
+/** 시험반 스위치 간격과 판 폭 — 시험반과 거기로 가는 전선이 같이 쓴다 */
+export const SWITCH_SPACING = 0.24;
+export const SWITCH_PANEL_WIDTH = SWITCH_SPACING * WINDOW_COUNT + 0.34;
 
 /** 분리수거함 하나(실척 약 90 cm). 벽에 등을 대고 선다. */
 export const BIN_SIZE = { depth: 1.25, width: 1.5, bodyHeight: 2.72 };
@@ -180,3 +184,8 @@ export function computeStartupBrightness(t: number) {
   for (let i = STARTUP_CURVE.length - 1; i >= 0; i--) if (t >= STARTUP_CURVE[i][0]) return STARTUP_CURVE[i][1];
   return 0;
 }
+
+/** 분기함 콘센트 — x 는 뒤판에서 콘센트 가운데까지, heightRatio 는 함 가운데에서의 높이(함 높이에 대한 몫), faceX 는 콘센트 앞면 */
+export const JUNCTION_SOCKET = { x: 0.115, heightRatio: -0.06, faceX: 0.14 };
+/** 콘센트 앞면이 오는 램프 모형 자리 — 손잡이 막대(0.29~0.59)의 끝부분이 구멍 속으로 들어간다 */
+export const LAMP_PLUG_DEPTH = 0.52;

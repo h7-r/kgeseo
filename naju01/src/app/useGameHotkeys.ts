@@ -16,7 +16,7 @@ import {
   isPaperOpenNow,
   paperHintDescription,
 } from "../puzzles/ridge/oldPaper";
-import { IS_FIRST_PERSON_ONLY } from "./runtimeFlags";
+import { ALLOW_VIEW_TOGGLE } from "./runtimeFlags";
 
 interface GameHotkeys {
   controlsRef: RefObject<PointerLockControlsImpl | null>;
@@ -111,7 +111,7 @@ export function useGameHotkeys({
       }
       // 시점 전환은 카메라 회전을 만지지 않고 캐릭터 표시만 바꾼다. 수식키가 눌린 V 는 편집기의 붙여넣기(⌘V/Ctrl+V)다.
       const isPlainV = event.code === "KeyV" && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey;
-      if (!IS_FIRST_PERSON_ONLY && isPlainV) toggleViewMode();
+      if (ALLOW_VIEW_TOGGLE && isPlainV) toggleViewMode();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);

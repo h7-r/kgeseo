@@ -16,9 +16,10 @@ import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import { solidQueries } from "../movement/solidField";
-import { playerPose } from "../movement/playerPose";
+import { playerPose, walkTerrain } from "../movement/playerPose";
 import { DEFAULT_TERRAIN } from "../terrain/terrain";
 import { withCave } from "./cave/caveState";
+import { showNotice } from "./interaction";
 import { M, groundY } from "./units";
 
 export type ItemKind =
@@ -34,7 +35,7 @@ export type ItemKind =
   | "bronzeKey"
   | "strawShoe";
 
-export interface ItemDef {
+interface ItemDef {
   name: string;
   description: string;
 }
@@ -114,7 +115,8 @@ export function trackViewer(camera: THREE.Camera) {
   camera.getWorldDirection(viewerForward);
 }
 
-const walkableGround = withCave(DEFAULT_TERRAIN);
+const fallbackGround = withCave(DEFAULT_TERRAIN);
+const walkableGround = () => walkTerrain.current ?? fallbackGround;
 /** 발 앞 자리가 선 바닥과 이만큼(미터) 넘게 차이 나면 손이 안 닿을 수 있어 발밑에 놓는다 */
 const DROP_STEP = 0.6;
 /** 물건 몸통 반지름(미터) — 벽·바위에 박히는지 볼 때 */
@@ -122,12 +124,18 @@ const DROP_RADIUS = 0.1;
 
 /** (x, z) 에서 발 높이 footY 로 디딜 수 있는 바닥 — 물굴 바닥 · 평상 같은 물건 위까지 본다 */
 function standableY(x: number, z: number, footY: number) {
-  const ground = walkableGround.groundAt(x, z).y;
+  const ground = walkableGround().groundAt(x, z).y;
   return Math.max(ground, solidQueries.current?.supportAt(x, z, footY + DROP_STEP) ?? -Infinity);
 }
 
-/** 바라보는 쪽 발 앞 1m. 물 · 벼랑 · 벽이거나 높이가 크게 다르면 플레이어가 선 발밑 */
-function findDropSpot() {
+/** 물에 빠진 채 버리면 물건이 놓일 강가 z — 물속에 두면 다시 못 찾는다 */
+const SHORE_Z = 44;
+
+/**
+ * 바라보는 쪽 발 앞 1m. 물 · 벼랑 · 벽이거나 높이가 크게 다르면 플레이어가 선 발밑.
+ * 뜬 돌만은 앞이 물이어도 그 자리에 놓는다 — 수면에 떠오른다(WorldItems).
+ */
+function findDropSpot(kind: ItemKind) {
   const { x: footX, z: footZ, footY, isGrounded } = playerPose;
   // 서 있으면 발 높이가 곧 바닥이다 — 나루터 데크 · 바위처럼 지형보다 높은 곳도 그대로 맞는다
   const standY = isGrounded ? footY : standableY(footX, footZ, footY);
@@ -136,13 +144,17 @@ function findDropSpot() {
   flat.normalize();
   const x = footX + flat.x;
   const z = footZ + flat.z;
-  const sample = walkableGround.groundAt(x, z);
+  const sample = walkableGround().groundAt(x, z);
+  if (kind === "floatStone" && sample.isWater) return new THREE.Vector3(x * M, standY * M, z * M);
+  if (walkableGround().groundAt(footX, footZ).isWater) {
+    return new THREE.Vector3(footX * M, walkableGround().groundAt(footX, SHORE_Z).y * M, SHORE_Z * M);
+  }
   const y = standableY(x, z, standY);
   const isSafe =
     !sample.isWater &&
     !sample.isFall &&
     Math.abs(y - standY) <= DROP_STEP &&
-    !walkableGround.blockedAt(x, z, y, DROP_RADIUS) &&
+    !walkableGround().blockedAt(x, z, y, DROP_RADIUS) &&
     !solidQueries.current?.blockedAt(x, z, y, DROP_RADIUS);
   return isSafe ? new THREE.Vector3(x * M, y * M, z * M) : new THREE.Vector3(footX * M, standY * M, footZ * M);
 }
@@ -164,13 +176,35 @@ export function registerLeftBehind(collect: () => void) {
   };
 }
 
+/** 저장용 모양 — 자리는 평범한 수로 옮긴다 */
+export interface SavedInventory {
+  held: HeldItem[];
+  hand: HeldItem | null;
+  world: (HeldItem & { position: [number, number, number]; isDropped?: boolean })[];
+  nextUid: number;
+}
+
 export const inventory = {
+  /** 저장할 값 */
+  snapshot: (): SavedInventory => ({
+    held,
+    hand,
+    world: world.map((item) => ({ ...item, position: [item.position.x, item.position.y, item.position.z] })),
+    nextUid,
+  }),
+  /** 저장본을 넣는다 */
+  restore(saved: SavedInventory) {
+    held = saved.held;
+    hand = saved.hand;
+    world = saved.world.map((item) => ({ ...item, position: new THREE.Vector3(...item.position) }));
+    nextUid = saved.nextUid;
+    signal.notify();
+  },
   held: () => held,
   world: () => world,
   hand: () => hand,
   subscribe: signal.subscribe,
   has: (kind: ItemKind) => held.some((item) => item.kind === kind),
-  isFull: () => held.length >= SLOT_COUNT,
 
   /** 겨눈 곳(accepts = 대상의 handLabel)이 받는 소지품 속 물건 — 칸 순서로 먼저 맞는 하나. 없으면 null */
   findUsable(accepts: (kind: ItemKind) => string | null) {
@@ -182,8 +216,8 @@ export const inventory = {
   },
 
   /** 땅 위에 물건을 놓는다(퍼즐이 내놓는 물건) */
-  spawn(kind: ItemKind, position: THREE.Vector3) {
-    world = [...world, { uid: nextUid++, kind, position: position.clone() }];
+  spawn(kind: ItemKind, position: THREE.Vector3, { followsPlayer = false }: { followsPlayer?: boolean } = {}) {
+    world = [...world, { uid: nextUid++, kind, position: position.clone(), isDropped: followsPlayer }];
     signal.notify();
   },
 
@@ -230,6 +264,10 @@ export const inventory = {
   /** 손에 든 것을 소지품으로 도로 넣는다(숫자키를 한 번 더 누를 때) */
   stow() {
     if (!hand) return;
+    if (held.length >= SLOT_COUNT) {
+      showNotice("소지품이 가득 찼다. [E] 로 내려놓자.");
+      return;
+    }
     held = [...held, hand];
     hand = null;
     signal.notify();
@@ -238,7 +276,7 @@ export const inventory = {
   /** 손에 든 것을 발 앞 땅에 내려놓는다 */
   dropHand() {
     if (!hand) return;
-    world = [...world, { ...hand, position: findDropSpot(), isDropped: true }];
+    world = [...world, { ...hand, position: findDropSpot(hand.kind), isDropped: true }];
     hand = null;
     signal.notify();
   },

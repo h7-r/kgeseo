@@ -12,7 +12,7 @@
  *   시작 구역 = 그 씬 구역 중 「가장 적은 씬이 쓰는 구역」(그 씬다운 곳) — 같으면 표 순서 앞쪽.
  *   cueTable.json 에는 씬 → 구역 칸이 없다(씬안개 단계만 있다).
  */
-import { BLOCKERS, CORE, METERS_PER_UNIT, ZONES, type Range, type ZoneCode } from "../plan/sitePlan";
+import { BLOCKERS, CORE, ZONES, type Range, type ZoneCode } from "../plan/sitePlan";
 import { focus } from "../scene/immersion/focusFog";
 
 /** 경계 여유(m) — 구역 가장자리 바깥 길·비탈까지 보이게 */
@@ -113,9 +113,6 @@ export function zoneForPoint(
   }
   return best;
 }
-
-/** 장면 단위 → 미터 */
-export const toMeters = (units: number) => units * METERS_PER_UNIT;
 
 // ── 씬·공간 고립(sceneIsolation) 범위 (10/15 2차) ───────────────────────────
 // 1차는 묶음 경계(여유 8 m)를 그대로 써서 씬1(Z1·Z2) = x 0~64 · z 22~52 m 로 맵(80×50 m)의 대부분이 남았다

@@ -2,6 +2,7 @@ import type { SessionUser } from "@/services/session";
 
 import { errorCode, toSessionUserFromBackend } from "./authApi";
 import type { ConsentKind } from "./db";
+import { apiUrl } from "@/config/env";
 
 export type SocialProvider = "google" | "naver";
 
@@ -38,8 +39,9 @@ export type SocialAuthResult =
 async function postJson(path: string, payload: unknown): Promise<{ status: number; ok: boolean; body: unknown }> {
   let response: Response;
   try {
-    response = await fetch(`/api/v1/auth${path}`, {
+    response = await fetch(apiUrl(`/api/v1/auth${path}`), {
       method: "POST",
+      credentials: "include",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });

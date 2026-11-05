@@ -35,7 +35,7 @@ export interface ConnectorRamp {
   heightAt: HeightAt;
   /** 길(갓길 포함) 안인가 */
   isOn: (x: number, z: number) => boolean;
-  /** 계기판·문서에 그대로 쓴다 */
+  /** 개발 훅 rampMeasurements 가 그대로 내준다 */
   measurements: RampMeasurements;
 }
 

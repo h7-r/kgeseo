@@ -4,7 +4,11 @@
  */
 import { useEffect, useRef, type CSSProperties } from "react";
 
-import { acknowledgeDispatch, DISPATCH_COLOR, tickDispatch, useDispatchState } from "./dispatchState";
+import { PANEL_SHADOW, UI, UI_FONT, keyCapStyle } from "@/game/gameUi";
+
+import "@/game/gameUi.css";
+
+import { acknowledgeDispatch, tickDispatch, useDispatchState } from "./dispatchState";
 
 /** 무전 수신음을 WebAudio 로 짧게 만든다(파일 없음). 브라우저가 막으면 조용히 넘어간다. */
 function playRadioChirp() {
@@ -72,7 +76,7 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
   if (phase === "alert")
     return (
       <div style={overlayStyle} onClick={acknowledgeDispatch} role="alertdialog" aria-labelledby="dispatch-title">
-        <div style={dispatchCardStyle}>
+        <div className="game-panel" style={dispatchCardStyle}>
           <div style={headerStyle}>
             <span style={sirenDotStyle} />
             긴급 호출 · 수사본부 상황실
@@ -119,94 +123,72 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
 const overlayStyle: CSSProperties = {
   position: "fixed",
   inset: 0,
+  zIndex: 45,
   display: "grid",
   placeItems: "center",
-  padding: 16,
-  background: "radial-gradient(ellipse at center, rgba(40,10,0,.35), rgba(0,0,0,.6))",
-  zIndex: 40,
-  animation: "dispatch-fade-in .45s ease-out",
+  padding: 24,
+  background: "rgba(1,4,10,.62)",
 };
 
 const dispatchCardStyle: CSSProperties = {
-  width: "min(520px, 100%)",
-  padding: "20px 24px 16px",
-  borderRadius: 12,
-  background: "rgba(14, 12, 12, 0.92)",
-  border: `1px solid ${DISPATCH_COLOR}66`,
-  boxShadow: `0 0 0 1px rgba(0,0,0,.4), 0 0 40px ${DISPATCH_COLOR}22, 0 18px 40px rgba(0,0,0,.5)`,
-  color: "#f1ece6",
-  lineHeight: 1.6,
+  width: "min(620px, 100%)",
+  boxSizing: "border-box",
+  padding: "30px 34px 24px",
+  borderRadius: 16,
+  background: UI.surface,
+  border: `1px solid ${UI.borderStrong}`,
+  boxShadow: PANEL_SHADOW,
+  color: UI.text,
+  font: `400 15px/1.75 ${UI_FONT.body}`,
+  cursor: "pointer",
 };
 
 const headerStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 8,
-  fontSize: 12,
-  letterSpacing: "0.12em",
-  color: DISPATCH_COLOR,
-  marginBottom: 10,
+  gap: 9,
+  color: UI.danger,
+  font: `600 13px/1 ${UI_FONT.body}`,
 };
 
 const sirenDotStyle: CSSProperties = {
   width: 8,
   height: 8,
-  borderRadius: 99,
-  background: "#ff4d3d",
-  boxShadow: "0 0 10px #ff4d3d",
+  borderRadius: 4,
+  background: UI.danger,
   animation: "dispatch-blink 1s steps(2, start) infinite",
 };
 
-const titleStyle: CSSProperties = {
-  margin: "0 0 12px",
-  fontSize: 24,
-  fontWeight: 800,
-  letterSpacing: "-0.01em",
-};
-const bodyStyle: CSSProperties = { fontSize: 15, color: "#d8d0c8" };
-const paragraphStyle: CSSProperties = { margin: "0 0 6px" };
-const commandLineStyle: CSSProperties = {
-  ...paragraphStyle,
-  color: "#fff",
-  fontWeight: 700,
-  marginTop: 10,
-};
+const titleStyle: CSSProperties = { margin: "14px 0 14px", font: `700 30px/1.25 ${UI_FONT.title}`, color: UI.text };
+const bodyStyle: CSSProperties = { color: UI.textMuted };
+const paragraphStyle: CSSProperties = { margin: "0 0 4px" };
+const commandLineStyle: CSSProperties = { margin: "12px 0 0", color: UI.text, fontWeight: 600 };
 
 const footerStyle: CSSProperties = {
   display: "flex",
+  alignItems: "center",
   justifyContent: "space-between",
-  alignItems: "center",
-  marginTop: 14,
-  fontSize: 12,
-  color: "#a0968c",
-};
-
-const keyCapStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minWidth: 24,
-  height: 24,
-  marginRight: 6,
-  borderRadius: 5,
-  background: "linear-gradient(#f4f6f8, #cfd6dd)",
-  color: "#1b2229",
-  fontWeight: 700,
-  fontSize: 12,
-  boxShadow: "0 2px 0 #7f8a95",
+  marginTop: 22,
+  paddingTop: 16,
+  borderTop: `1px solid ${UI.border}`,
+  color: UI.textMuted,
+  fontSize: 13,
 };
 
 const objectiveStyle: CSSProperties = {
   position: "fixed",
-  top: "max(18px, env(safe-area-inset-top, 0px))",
+  top: "max(16px, env(safe-area-inset-top, 0px))",
   left: "50%",
   transform: "translateX(-50%)",
-  width: "min(460px, calc(100vw - 32px))",
-  padding: "10px 16px",
-  borderRadius: 10,
-  background: "rgba(14, 12, 12, 0.8)",
-  borderLeft: `3px solid ${DISPATCH_COLOR}`,
-  color: "#f1ece6",
+  width: "min(520px, calc(100vw - 32px))",
+  boxSizing: "border-box",
+  padding: "14px 20px",
+  borderRadius: 16,
+  background: UI.glass,
+  border: `1px solid ${UI.border}`,
+  boxShadow: PANEL_SHADOW,
+  color: UI.text,
+  font: `400 14px/1.55 ${UI_FONT.body}`,
   pointerEvents: "none",
   zIndex: 20,
 };
@@ -214,22 +196,12 @@ const objectiveStyle: CSSProperties = {
 const objectiveHeaderStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 7,
-  fontSize: 11,
-  letterSpacing: "0.1em",
-  color: DISPATCH_COLOR,
+  gap: 8,
+  marginBottom: 4,
+  color: UI.accent,
+  font: `600 13px/1.2 ${UI_FONT.body}`,
 };
-const objectiveDotStyle: CSSProperties = { width: 6, height: 6, borderRadius: 99, background: DISPATCH_COLOR };
-const objectiveTextStyle: CSSProperties = { fontSize: 14, marginTop: 3 };
-const distanceStyle: CSSProperties = { color: "#a0968c" };
 
-// 키프레임은 인라인 스타일로 못 적어 한 번만 문서에 붙인다
-if (typeof document !== "undefined" && !document.getElementById("dispatch-keyframes")) {
-  const style = document.createElement("style");
-  style.id = "dispatch-keyframes";
-  style.textContent = `
-@keyframes dispatch-fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes dispatch-blink { to { opacity: .25; } }
-@media (prefers-reduced-motion: reduce) { [role="alertdialog"] { animation: none !important; } }`;
-  document.head.appendChild(style);
-}
+const objectiveDotStyle: CSSProperties = { width: 7, height: 7, borderRadius: 4, background: UI.accent };
+const objectiveTextStyle: CSSProperties = { color: UI.text };
+const distanceStyle: CSSProperties = { color: UI.textMuted, fontVariantNumeric: "tabular-nums" };

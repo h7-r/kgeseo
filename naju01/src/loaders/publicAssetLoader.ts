@@ -22,7 +22,7 @@ import {
   IS_PUBLIC_ASSETS_ENABLED,
   isAnimeFile,
   loadAnimeLookup,
-  PUBLIC_ASSET_FOLDER,
+  publicAssetUrl,
   publicAssetRegistry,
   publicAssetStatus,
   reportAssetFailure,
@@ -87,7 +87,7 @@ export async function readPlaceBundles(item: PlaceItem): Promise<{ bundles: Bund
 export async function loadPublicPlaces(): Promise<PlaceItem[] | null> {
   const read = placeReader;
   if (!IS_PUBLIC_ASSETS_ENABLED || !read) return null;
-  const r = await fetch(`${PUBLIC_ASSET_FOLDER}manifest.json`, { cache: "no-store" });
+  const r = await fetch(publicAssetUrl("manifest.json"), { cache: "no-store" });
   if (!r.ok) throw new Error(`공개 에셋 목록 읽기 실패 (${r.status})`);
   const m = (await r.json()) as PublicAssetManifest;
   await appendTrialPlaces(m);
@@ -111,7 +111,7 @@ export async function loadPublicAssetTable(isAlive: () => boolean): Promise<Publ
   if (!IS_PUBLIC_ASSETS_ENABLED) return null;
   let m: PublicAssetManifest;
   try {
-    const r = await fetch(`${PUBLIC_ASSET_FOLDER}manifest.json`);
+    const r = await fetch(publicAssetUrl("manifest.json"));
     if (!r.ok) throw new Error(`공개 에셋 목록 읽기 실패 (${r.status})`);
     m = (await r.json()) as PublicAssetManifest;
   } catch (error) {
@@ -145,7 +145,7 @@ export async function loadPublicAssetTable(isAlive: () => boolean): Promise<Publ
       cache.set(
         key,
         packedBytes(path)
-          .then((bytes) => (bytes ? loader.parseAsync(bytes, "") : loader.loadAsync(PUBLIC_ASSET_FOLDER + path)))
+          .then((bytes) => (bytes ? loader.parseAsync(bytes, "") : loader.loadAsync(publicAssetUrl(path))))
           .then(flattenGltf)
           .then((bundle) => {
             if (!bundle.length) throw new Error("표시할 메시가 없습니다.");
@@ -191,20 +191,31 @@ export async function loadPublicAssetTable(isAlive: () => boolean): Promise<Publ
   const readEntryBundles = async (entry: { files?: string[]; file?: string }, forCover = false): Promise<Bundle[]> =>
     (await Promise.all(entryFiles(entry).map((f) => readBundle(f, forCover)))).filter((b): b is Bundle => !!b);
 
-  const swaps: SwapItem[] = [];
-  for (const entry of m.바꿔치기 || []) {
-    const bundles = await readEntryBundles(entry);
-    const farBundles = entry.원경files ? await Promise.all(entry.원경files.map((f) => readBundle(f))) : null;
-    swaps.push({ ...entry, bundles, farBundles });
-  }
-  const covers: CoverItem[] = [];
-  for (const entry of m.덮기 || []) covers.push({ ...entry, bundles: await readEntryBundles(entry, true) });
+  // 항목끼리는 서로 기다리지 않는다 — 항목마다 await 하면 120개 파일이 여덟아홉 번의 파도로 줄을 서서
+  //   받기는 즉시인데도 진입이 20초를 넘겼다(11/4 실측). 순서는 manifest 그대로 둔다.
+  const swaps: SwapItem[] = await Promise.all(
+    (m.바꿔치기 || []).map(async (entry) => {
+      const [bundles, farBundles] = await Promise.all([
+        readEntryBundles(entry),
+        entry.원경files ? Promise.all(entry.원경files.map((f) => readBundle(f))) : null,
+      ]);
+      return { ...entry, bundles, farBundles };
+    }),
+  );
+  const covers: CoverItem[] = await Promise.all(
+    (m.덮기 || []).map(async (entry) => ({ ...entry, bundles: await readEntryBundles(entry, true) })),
+  );
   // 「놓기」(10/14) — 원본 무리 없이 새 자리에 소품을 놓는다(장식 전용). [{ file, 키m, 자리:[[X m, Z m, 돌림°, 키배]] }]
-  const places: PlaceItem[] = [];
-  for (const entry of m.놓기 || []) {
-    if (entry.에이전트 && entry.씬?.length) { places.push({ ...entry, manifestIndex: -1, bundles: [], farBundle: null, lazy: true }); continue; }
-    places.push({ ...entry, manifestIndex: placeIndex.get(entry) ?? -1, bundles: await readEntryBundles(entry), farBundle: entry.원경file ? await readBundle(entry.원경file) : null });
-  }
+  const places: PlaceItem[] = await Promise.all(
+    (m.놓기 || []).map(async (entry): Promise<PlaceItem> => {
+      if (entry.에이전트 && entry.씬?.length) return { ...entry, manifestIndex: -1, bundles: [], farBundle: null, lazy: true };
+      const [bundles, farBundle] = await Promise.all([
+        readEntryBundles(entry),
+        entry.원경file ? readBundle(entry.원경file) : null,
+      ]);
+      return { ...entry, manifestIndex: placeIndex.get(entry) ?? -1, bundles, farBundle };
+    }),
+  );
 
   // 게임 쪽에 「어느 무리를 / 몇 m 이상을」 교체본이 그린다고 알린다 → 원본은 그 자리를 아예 안 그린다(면수·집기에서 빠짐)
   const hidden = new Set<string>();

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
-import type { ThreeElements } from "@react-three/fiber";
+import { useFrame, type ThreeElements } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Vector3Tuple } from "three";
 
@@ -12,6 +12,8 @@ import { AimHighlight } from "@/lobby/AimHighlight";
 import { getHeldCoin } from "@/props/coinState";
 import { getHeldDrink, pickUpCan, pickUpPaper } from "@/props/drinkState";
 import { pickUpHintPaper } from "@/props/hintPaperState";
+import { isVendingFrenzy } from "@/props/panelWiringState";
+import { makeHintPaperTexture } from "@/station/hands/hintPaperTexture";
 import {
   clearCan,
   pressButton,
@@ -61,7 +63,11 @@ const HINT_CAN = 0;
 const TRIM = 0.28;
 
 /** 배출구에 놓이는 힌트 쪽지 — 크기가 안 바뀌어 한 장만 만든다. */
+const GLASS_OPACITY = 0.16;
 const HINT_NOTE_GEOMETRY = new THREE.PlaneGeometry(0.16, 0.2);
+/** 쪽지가 앞으로 들린 각(라디안)과 그때 가장 낮은 모서리가 바닥 위에 오는 높이 */
+const HINT_NOTE_TILT = 0.2;
+const HINT_NOTE_LIFT = 0.07;
 
 type GroupProps = Omit<ThreeElements["group"], "position" | "rotation" | "children">;
 
@@ -137,6 +143,17 @@ export default function CanVendingMachine({
   ...rest
 }: CanVendingMachineProps) {
   const lit = (color: string) => scaleColor(color, brightness);
+  // 전류가 닿으면 유리창과 간판이 함께 번쩍인다
+  const glassMaterial = useRef<THREE.MeshBasicMaterial>(null);
+  const signMaterial = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame(() => {
+    if (vendingId !== "drink") return;
+    const now = performance.now() / 1000;
+    const isFlashing = isVendingFrenzy(now);
+    const flash = isFlashing ? (Math.random() > 0.5 ? 1 : Math.random() * 0.25) : 0;
+    if (glassMaterial.current) glassMaterial.current.opacity = GLASS_OPACITY + flash * 0.55;
+    signMaterial.current?.color.setScalar(isFlashing ? 0.35 + flash * 1.9 : 1);
+  });
   const inner = innerOutline ?? outline;
   const halfDepth = depth / 2;
   const canSpotRef = useRef<THREE.Group>(null);
@@ -255,16 +272,17 @@ export default function CanVendingMachine({
 
       <mesh position={[0, height - TRIM - 0.28, frontZ]}>
         <planeGeometry args={[width - TRIM * 2, 0.52]} />
-        <meshBasicMaterial map={signTexture} toneMapped={false} />
+        <meshBasicMaterial ref={signMaterial} map={signTexture} toneMapped={false} />
       </mesh>
 
       {/* ① 유리창 + 캔 */}
       <mesh position={[0, windowBottom + windowHeight / 2, frontZ - 0.03]}>
         <planeGeometry args={[windowWidth, windowHeight]} />
         <meshBasicMaterial
+          ref={glassMaterial}
           color={lit(glassColor)}
           transparent
-          opacity={0.16}
+          opacity={GLASS_OPACITY}
           side={THREE.DoubleSide}
           depthWrite={false}
         />
@@ -376,16 +394,16 @@ export default function CanVendingMachine({
         </>
       )}
 
-      {/* 밸브 힌트 종이 — 덮개 밖으로 반쯤 삐져나와 걸려 있어 덮개를 안 열어도 보이고 잡힌다 */}
+      {/* 밸브 힌트 종이 — 안쪽 끝이 배출구 바닥에 닿고 앞쪽이 들려 덮개 밖으로 걸쳐 있다. 바닥을 파고들지 않는다 */}
       {vendingId && machine.hintPaperWaiting && (
-        <group position={[canRadius + 0.14, trayFloor + 0.02, halfDepth + 0.12]}>
+        <group position={[canRadius + 0.14, trayFloor + HINT_NOTE_LIFT, halfDepth + 0.12]}>
           <group ref={hintPaperSpotRef} />
           <Interactable
             id={`hintPaper:${vendingId}`}
             radius={0.9}
             reach={6}
             position={() => getWorldPositionOf(hintPaperSpotRef)}
-            label="힌트 종이"
+            label="[E] 힌트 메모"
             disabled={() => !!getHeldDrink() || !!getHeldCoin()}
             run={() => {
               pickUpPaper();
@@ -395,8 +413,8 @@ export default function CanVendingMachine({
           />
           {/* 배출구 속이 어두워 테가 없으면 흰 종이가 떠 있는 네모로 보인다 — 외곽선용 지오를 같이 넘긴다 */}
           <AimHighlight id={`hintPaper:${vendingId}`} anchor={() => [0, 0, 0]} grow={0.1}>
-            <mesh geometry={HINT_NOTE_GEOMETRY} scale={2.2} rotation={[-Math.PI / 2 + 0.35, 0, 0.3]} castShadow>
-              <meshBasicMaterial color="#f3efe2" side={THREE.DoubleSide} toneMapped={false} />
+            <mesh geometry={HINT_NOTE_GEOMETRY} scale={2.2} rotation={[-Math.PI / 2 - HINT_NOTE_TILT, 0, 0.3]} castShadow>
+              <meshBasicMaterial map={makeHintPaperTexture()} side={THREE.DoubleSide} toneMapped={false} />
               <ToonOutline geometry={HINT_NOTE_GEOMETRY} outline={inner} />
             </mesh>
           </AimHighlight>

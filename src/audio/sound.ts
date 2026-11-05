@@ -72,6 +72,12 @@ function getAudioContext() {
   return context;
 }
 
+/** 코드로 합성한 소리도 효과음 크기를 따르게 — 컨텍스트와 마스터 출력을 내준다 */
+export function getSfxGraph() {
+  const ctx = getAudioContext();
+  return ctx ? { ctx, output: sfxOutput(ctx) } : null;
+}
+
 function loadSoundBuffer(name: SoundName): Promise<AudioBuffer | null> {
   const cached = buffers.get(name);
   if (cached) return Promise.resolve(cached);

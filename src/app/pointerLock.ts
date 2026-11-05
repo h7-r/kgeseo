@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, type RefObject } from "react";
 import type { PointerLockControls } from "three-stdlib";
 
 import { overlayLayer, useOpenLayer, type OverlayLayerName } from "@/game/overlayLayer";
-import { endLockControl, turnLockDigit, useLockControl } from "@/props/combinationLockState";
+import { endLockControl, leaveLockControl, turnLockDigit, useLockControl } from "@/props/combinationLockState";
 
 /** 마우스 잠금(1인칭 시점) 조작기. 창·자물쇠가 잠금을 풀고 되돌릴 때 쓴다. */
 export type PointerLockRef = RefObject<PointerLockControls | null>;
@@ -36,32 +36,27 @@ export function useOverlayWindows(controlsRef: PointerLockRef) {
 }
 
 /**
- * [E] 로 자물쇠를 만지는 동안의 마우스 처리. 잠겨 있으면 고개가 같이 돌아 자물쇠가 화면 밖으로 나가므로 잠금을 푼다.
+ * [E] 로 자물쇠를 만지는 동안의 마우스 처리. 마우스 잠금은 풀지 않는다 — 풀면 커서가 튀어나오고,
+ * 브라우저가 다시 잠그는 것을 거절할 수 있다. 고개가 돌지 않게 하는 일은 App 이 시점 속도를 0 으로 해서 맡는다.
  * 다이얼은 휠로도 돌린다 — 실물 자물쇠를 엄지로 굴리는 몸짓이다.
  */
-export function useLockControlMode(controlsRef: PointerLockRef) {
+export function useLockControlMode() {
   const lockControl = useLockControl();
-  const wasPointerLocked = useRef(false);
 
   useEffect(() => {
     if (!lockControl) return;
     if (lockControl.phase === "active") {
-      wasPointerLocked.current = !!document.pointerLockElement;
-      controlsRef.current?.unlock();
-      return;
+      // 잠금 중 ESC 는 브라우저가 먼저 가져가 키 입력이 오지 않는다. 잠금이 풀리면 자물쇠에서도 나간다.
+      const handleLockChange = () => {
+        if (!document.pointerLockElement) leaveLockControl();
+      };
+      document.addEventListener("pointerlockchange", handleLockChange);
+      return () => document.removeEventListener("pointerlockchange", handleLockChange);
     }
     // 카메라가 돌아오면 자물쇠 쪽이 endLockControl() 을 부른다. 이건 뒤늦은 안전망이다.
     const timer = setTimeout(() => endLockControl(), LOCK_LEAVE_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [lockControl, controlsRef]);
-
-  // 완전히 끝난 뒤에 다시 잠근다. 카메라가 되돌아오는 중에 잠그면 화면이 떤다.
-  const isControlling = !!lockControl;
-  useEffect(() => {
-    if (isControlling || !wasPointerLocked.current) return;
-    wasPointerLocked.current = false;
-    controlsRef.current?.lock();
-  }, [isControlling, controlsRef]);
+  }, [lockControl]);
 
   useEffect(() => {
     if (!lockControl || lockControl.phase !== "active") return;

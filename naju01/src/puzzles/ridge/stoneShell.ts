@@ -109,7 +109,7 @@ export function createStoneShell(
     shardAge: 0,
   };
 }
-export type StoneShell = ReturnType<typeof createStoneShell>;
+type StoneShell = ReturnType<typeof createStoneShell>;
 
 /**
  * 돌새 하나가 깨진다 — 모형 그대로의 조각들이 제자리에서 바깥으로 터져 나가고, 껍질 겉면(몸 · 펼친 날개 둘레)에서

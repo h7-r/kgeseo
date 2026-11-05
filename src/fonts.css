@@ -8,3 +8,11 @@
   /* 받기 전에는 기본 글꼴로 먼저 보인다 — 없으면 최대 3초간 글자가 사라진다 */
   font-display: swap;
 }
+
+/* 게임 UI 제목 — 웹사이트 표제와 같은 글꼴 */
+@font-face {
+  font-family: "Paperlogy";
+  src: url("https://fastly.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8ExtraBold.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}

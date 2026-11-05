@@ -3,6 +3,7 @@ import { Outlines } from "@react-three/drei";
 import * as THREE from "three";
 
 import { UNIT_PLANE } from "@/engine/geometry";
+import { toRadians } from "@/engine/math";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 
@@ -87,7 +88,7 @@ export default function PinBoard({
           texture: makePinCardTexture(card.kind, card.seed),
           x: card.x,
           y: card.y,
-          rotation: (card.degrees * Math.PI) / 180,
+          rotation: toRadians(card.degrees),
           w,
           h,
           // 핀은 카드 위쪽 가운데 — 실이 여기서 출발한다

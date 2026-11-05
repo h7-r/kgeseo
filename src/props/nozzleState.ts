@@ -73,6 +73,10 @@ interface HoseAnchors {
   nozzleDistance: number;
   /** 기준점에서 눈까지 — 멀어지는 걸음만 막으려고 본다 */
   playerDistance: number;
+  /** 지금 호스 중심선(함 → 관창). 전류가 이 길을 거꾸로 타고 소화전으로 간다 */
+  line: THREE.Vector3[];
+  /** 소화전 핸들 — 전류가 닿아 화면이 머무는 자리 */
+  valve: THREE.Object3D | null;
 }
 
 const anchors: HoseAnchors = {
@@ -86,6 +90,8 @@ const anchors: HoseAnchors = {
   drawnLength: 0,
   nozzleDistance: 0,
   playerDistance: 0,
+  line: [],
+  valve: null,
 };
 
 /** 함 쪽 호스 끝을 알려 준다. 돌려받은 함수를 부르면 등록이 풀린다. */

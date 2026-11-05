@@ -14,8 +14,6 @@ export interface CollapseState {
 export function useBlockerCollapse(terrain: Terrain, blockerShapes: BlockerShapes, ground: GroundShapes) {
   const [clearedBlockers, setClearedBlockers] = useState<Set<string>>(() => new Set());
   const collapseRef = useRef<CollapseSequence | null>(null);
-  // reportRef.current 는 걷기 훅이 매 프레임 새 객체로 갈아끼운다 — 알림은 ref 에 들고 매 프레임 다시 싣는다.
-  const collapseNoticeRef = useRef("");
   const [collapse, setCollapse] = useState<CollapseState | null>(null);
 
   // 지형이 다시 만들어져도 치운 상태는 유지한다 — 판정 쪽 집합은 지형과 함께 새로 생긴다.
@@ -36,12 +34,8 @@ export function useBlockerCollapse(terrain: Terrain, blockerShapes: BlockerShape
       collapseRef.current = createCollapseSequence({
         blocker: target,
         lookAt: target.clearing.lookAt,
-        message: target.clearing.message,
         heightAt: (x, z) => ground?.surface?.heightAt(x, z) ?? 0,
         onClear: () => setClearedBlockers((s) => new Set(s).add(target.code)),
-        onNotify: (text) => {
-          collapseNoticeRef.current = text;
-        },
       });
       setCollapse({ code: target.code, progress: 0 });
       director.beat("풀이", { scene: sceneNumber }); // 몰입연출 — 징 · 흔들림 · 돌리줌 · 갬
@@ -50,5 +44,5 @@ export function useBlockerCollapse(terrain: Terrain, blockerShapes: BlockerShape
     [blockerShapes, clearedBlockers, ground],
   );
 
-  return { clearedBlockers, setClearedBlockers, collapseRef, collapseNoticeRef, collapse, setCollapse, endScene };
+  return { clearedBlockers, setClearedBlockers, collapseRef, collapse, setCollapse, endScene };
 }

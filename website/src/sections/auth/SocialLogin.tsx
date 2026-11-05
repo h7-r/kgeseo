@@ -1,12 +1,12 @@
 import { useState, type CSSProperties } from "react";
 
-import googleIcon from "@/assets/images/imgComponent12.svg";
 import { FONT } from "@/lib/style";
-import { signInWithGoogle } from "@/services/account/googleAuth";
 import { startNaverLogin } from "@/services/account/naverAuth";
 import type { OnboardingRequired } from "@/services/account/socialAuthApi";
 import type { SessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
+
+import GoogleButton from "./GoogleButton";
 
 interface SocialLoginProps {
   /** 구글은 이 화면에서 끝나므로 로그인한 사용자를 넘긴다. 네이버는 콜백 화면이 맡는다. */
@@ -20,21 +20,6 @@ export default function SocialLogin({ onSignedIn, onOnboardingRequired }: Social
   const [message, setMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
 
-  const handleGoogle = async () => {
-    if (isBusy) return;
-    setMessage("");
-    setIsBusy(true);
-    try {
-      const result = await signInWithGoogle();
-      if (result.kind === "signedIn") onSignedIn(result.user);
-      else onOnboardingRequired(result.onboarding);
-    } catch (error) {
-      setMessage((error instanceof Error && error.message) || "Google 로그인에 실패했습니다.");
-    } finally {
-      setIsBusy(false);
-    }
-  };
-
   const handleNaver = () => {
     if (isBusy) return;
     setMessage(startNaverLogin());
@@ -43,23 +28,17 @@ export default function SocialLogin({ onSignedIn, onOnboardingRequired }: Social
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "center", width: "100%" }}>
       <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center" }}>
-        <button
-          type="button"
-          className="button"
-          style={{ ...socialButtonStyle, background: COLOR.white, ...(isBusy ? busyStyle : {}) }}
-          onClick={handleGoogle}
-          title="Google 계정으로 계속하기 (팝업 창)"
-          aria-label="Google 계정으로 계속하기 (팝업 창)"
-          aria-busy={isBusy}
-        >
-          <img
-            loading="lazy"
-            decoding="async"
-            src={googleIcon}
-            alt="Google"
-            style={{ width: "18px", height: "18px", display: "block" }}
-          />
-        </button>
+        <GoogleButton
+          onBusyChange={(busy) => {
+            setIsBusy(busy);
+            if (busy) setMessage("");
+          }}
+          onResult={(result) => {
+            if (result.kind === "signedIn") onSignedIn(result.user);
+            else onOnboardingRequired(result.onboarding);
+          }}
+          onError={setMessage}
+        />
         <button
           type="button"
           className="button"
@@ -91,7 +70,6 @@ const socialButtonStyle: CSSProperties = {
   cursor: "pointer",
   boxSizing: "border-box",
 };
-const busyStyle: CSSProperties = { opacity: 0.65, cursor: "progress" };
 // 네이버 표식은 초록 바탕에 흰 굵은 N 이 공식 모양이다.
 const naverMarkStyle: CSSProperties = {
   fontFamily: "'Inter', system-ui, sans-serif",

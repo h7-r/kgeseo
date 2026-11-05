@@ -16,6 +16,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { exposeDevHook } from "@/debug/devHooks";
 import { toRadians } from "@/engine/math";
 
+import { recall, track, useRememberedState } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { focusCamera } from "../../scene/cameraFocus";
 import { director } from "../../scene/immersion/director";
@@ -163,11 +164,16 @@ function RingDiagram({ angles, engaged }: { angles: number[]; engaged: boolean[]
 export default function RingDoor() {
   const isShown = useCaveShown();
   const { camera } = useThree();
-  const [floats, setFloats] = useState<boolean[]>(() => Array(FLOAT_SLOTS).fill(false));
-  const [gears, setGears] = useState<boolean[]>([false, false, false]);
-  const [isOpen, setIsOpen] = useState(false);
+  const [floats, setFloats] = useRememberedState<boolean[]>("door.floats", () => Array(FLOAT_SLOTS).fill(false));
+  const [gears, setGears] = useRememberedState<boolean[]>("door.gears", [false, false, false]);
+  const [isOpen, setIsOpen] = useRememberedState("door.isOpen", false);
   /** 안내판에 적는 각 — 눈금이 넘어갈 때만 바뀐다 */
-  const [shownAngles, setShownAngles] = useState(() => RINGS.map((ring) => ring.start));
+  const [shownAngles, setShownAngles] = useState(() =>
+    recall(
+      "door.angles",
+      RINGS.map((ring) => ring.start),
+    ),
+  );
   // 가로채기·회전은 매 프레임 최신 끼움 상태를 봐야 해서 ref 에 비춰 둔다
   const floatsRef = useRef(floats);
   const gearsRef = useRef(gears);
@@ -176,15 +182,28 @@ export default function RingDoor() {
     gearsRef.current = gears;
   }, [floats, gears]);
   /** 끼울 수 있게 열린 톱니돌 홈 수 — 위 홈은 늘 열려 있고, 끼운 홈 아래는 물레를 한 번 돌리면 열린다 */
-  const openGearSlots = useRef(1);
-  const angles = useRef(RINGS.map((ring) => ring.start));
+  const openGearSlots = useRef(recall("door.openGearSlots", 1));
+  const angles = useRef(shownAngles);
   const dialAngle = useRef(0);
   const shownDial = useRef(0);
   const isHolding = useRef(false);
   const holdTime = useRef(0);
   const aligned = useRef([false, false, false]);
-  const openedAt = useRef(-1);
+  // 이미 열린 문은 다 굴러간 뒤로 시작한다(시각은 페이지 시작부터 세므로 0 이면 충분히 지났다).
+  const openedAt = useRef(isOpen ? 0 : -1);
   const wobble = useRef(0);
+
+  useEffect(() => {
+    if (isOpen) setDoorOpen(true);
+    const untrackAngles = track("door.angles", () => angles.current);
+    const untrackSlots = track("door.openGearSlots", () => openGearSlots.current);
+    return () => {
+      untrackAngles();
+      untrackSlots();
+    };
+    // 시작할 때 한 번만 맞춘다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const assets = useMemo(() => createDoorAssets(), []);
   useEffect(() => () => disposeDoorAssets(assets), [assets]);
@@ -391,7 +410,7 @@ export default function RingDoor() {
     if (!isShown) return;
     const time = performance.now() / 1000;
     if (isHolding.current && openedAt.current < 0) {
-      if (!document.pointerLockElement) isHolding.current = false;
+      if (!document.pointerLockElement || aimedId() !== "cave-valve") isHolding.current = false;
       else {
         holdTime.current += dt;
         while (holdTime.current >= NOTCH_SECONDS) {

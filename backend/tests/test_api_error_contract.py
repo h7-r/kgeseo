@@ -32,13 +32,23 @@ ERROR_MODELS: dict[str, type[BaseModel]] = {
 EXPECTED_ERRORS = {
     ("GET", "/api/v1/health"): set(),
     ("GET", "/api/v1/health/ready"): {503},
-    ("POST", "/api/v1/auth/google"): {401, 409, 422, 503},
-    ("POST", "/api/v1/auth/naver"): {401, 409, 422, 502, 503},
-    ("POST", "/api/v1/auth/register"): {409, 422},
-    ("POST", "/api/v1/auth/login"): {401, 422},
-    ("POST", "/api/v1/auth/email-exists"): {422},
-    ("POST", "/api/v1/auth/nickname-exists"): {422},
-    ("POST", "/api/v1/auth/social-onboarding/complete"): {401, 409, 422},
+    ("POST", "/api/v1/auth/google"): {401, 403, 409, 422, 503},
+    ("POST", "/api/v1/auth/naver"): {401, 403, 409, 422, 502, 503},
+    ("POST", "/api/v1/auth/register"): {403, 409, 422},
+    ("POST", "/api/v1/auth/login"): {401, 403, 422, 429},
+    ("GET", "/api/v1/me"): {401},
+    ("POST", "/api/v1/me/logout"): {403},
+    ("GET", "/api/v1/me/game-save"): {401},
+    ("PUT", "/api/v1/me/game-save"): {401, 403, 409, 413, 422},
+    ("DELETE", "/api/v1/me/game-save"): {401, 403},
+    ("GET", "/api/v1/me/character"): {401},
+    ("PUT", "/api/v1/me/character"): {401, 403, 413, 422},
+    ("GET", "/api/v1/me/items"): {401},
+    ("GET", "/api/v1/admin/users"): {401, 403, 422},
+    ("GET", "/api/v1/admin/users/{user_id}"): {401, 403, 404, 422},
+    ("POST", "/api/v1/auth/email-exists"): {403, 422},
+    ("POST", "/api/v1/auth/nickname-exists"): {403, 422},
+    ("POST", "/api/v1/auth/social-onboarding/complete"): {401, 403, 409, 422},
     ("POST", "/api/v1/anonymous-sessions"): set(),
     ("POST", "/api/v1/play-sessions"): {404, 409, 410, 422, 500},
     ("GET", "/api/v1/play-sessions/{play_session_id}"): {404, 422},
@@ -69,6 +79,10 @@ EXPECTED_ERRORS = {
 }
 
 
+NO_CONTENT = {
+    ("POST", "/api/v1/me/logout"),
+    ("DELETE", "/api/v1/me/game-save"),
+}
 CREATED = {
     ("POST", "/api/v1/auth/register"),
     ("POST", "/api/v1/auth/social-onboarding/complete"),
@@ -154,10 +168,8 @@ def test_success_responses_keep_their_schemas():
             continue
         success = [code for code in operation["responses"] if int(code) < 400]
         assert len(success) == 1, (method, path)
-        assert int(success[0]) == (201 if (method, path) in CREATED else 200), (
-            method,
-            path,
-        )
+        expected = 201 if (method, path) in CREATED else 204 if (method, path) in NO_CONTENT else 200
+        assert int(success[0]) == expected, (method, path)
 
 
 def _source_literals(text: str) -> set[str]:
@@ -261,6 +273,7 @@ def test_social_onboarding_validation_error_never_echoes_inputs():
         "POST",
         path,
         json={"onboarding_token": "secret-proof", "nickname": 1, "unknown": True},
+        headers={"Origin": "http://localhost:5175"},
     )
 
     assert response.status_code == 422

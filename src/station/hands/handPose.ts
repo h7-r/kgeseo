@@ -4,6 +4,7 @@ import type { Vector3Tuple } from "three";
 
 import type { AvatarLink } from "@/engine/avatarLink";
 import { useSavedControls } from "@/engine/leva/savedControls";
+import { toRadians } from "@/engine/math";
 import { getAimedPosition } from "@/lobby/interactions";
 import { itemSizes } from "@/lobby/placement";
 
@@ -125,7 +126,7 @@ export function computeChestAnchor(
     quaternion.setFromEuler(chestEuler.set(0, facing, 0));
     // yaw 를 먼저 건 뒤 오른쪽에 곱하므로 (1,0,0) 은 몸 기준 오른쪽이다.
     if (hug.tilt) {
-      quaternion.multiply(tiltQuaternion.setFromAxisAngle(bodyRight, (hug.tilt * Math.PI) / 180));
+      quaternion.multiply(tiltQuaternion.setFromAxisAngle(bodyRight, toRadians(hug.tilt)));
     }
   }
   return true;

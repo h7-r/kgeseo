@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
 import { mergeAndDispose, UNIT_BOX } from "@/engine/geometry";
+import { toRadians } from "@/engine/math";
 import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
@@ -55,8 +56,8 @@ export default function DispenserFlap({
 }: DispenserFlapProps) {
   const halfDepth = depth / 2;
   // 경첩 자리는 닫힌 각도가 바뀌어도 덮개 가운데가 같은 자리에 오도록 역산한다.
-  const closedRad = (closedAngle * Math.PI) / 180;
-  const openRad = (openAngle * Math.PI) / 180;
+  const closedRad = toRadians(closedAngle);
+  const openRad = toRadians(openAngle);
   const arm = height * 0.4;
   const hingeY = 0.16 + arm * Math.cos(closedRad);
   const hingeZ = halfDepth - 0.16 + arm * Math.sin(closedRad);

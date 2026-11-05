@@ -6,26 +6,26 @@ import { useEffect, useState, type CSSProperties } from "react";
 
 import { restoreHintPaper, VALVE_HINT } from "@/props/hintPaperState";
 
+import { NoteIcon } from "./gameIcons";
+import GamePanel from "./GamePanel";
+import { UI, UI_FONT, keyCapStyle } from "./gameUi";
 import { removeHint, useHintBox } from "./hintBox";
 import { isTypingTarget } from "./overlayLayer";
 import {
-  backdropStyle,
-  bodyStyle,
   categoryStyle,
+  descriptionStyle,
+  detailColumnStyle,
+  detailImageStyle,
   detailNameStyle,
-  dividerStyle,
-  footerStyle,
+  emptyStyle,
   gridStyle,
-  headerMetaStyle,
-  headerStyle,
-  hintStyle,
-  panelStyle,
+  listColumnStyle,
   sectionCountStyle,
   sectionTitleStyle,
-  selectedSlotStyle,
+  slotImageStyle,
+  slotLetterStyle,
   slotNameStyle,
   slotStyle,
-  titleStyle,
 } from "./panelStyles";
 
 interface HintPanelProps {
@@ -69,138 +69,76 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
   const selected = selectedId ? hints.find((hint) => hint.id === selectedId) : null;
 
   return (
-    <div style={backdropStyle} onClick={onClose}>
-      <div style={panelStyle} onClick={(event) => event.stopPropagation()}>
-        <div style={headerStyle}>
-          <span style={titleStyle}>힌트함</span>
-          <span style={headerMetaStyle}>모은 것 {hints.length}</span>
+    <GamePanel title="힌트함" meta={`모은 것 ${hints.length}`} closeKey="H" onClose={onClose}>
+      <div className="game-panel-scroll" style={listColumnStyle}>
+        <div style={sectionTitleStyle}>
+          모은 힌트 <span style={sectionCountStyle}>{hints.length}</span>
         </div>
-
-        <div style={bodyStyle}>
-          <div style={leftColumnStyle}>
-            <div style={sectionTitleStyle}>
-              모은 힌트 <span style={sectionCountStyle}>{hints.length}</span>
-            </div>
-            {hints.length ? (
-              <div style={gridStyle}>
-                {hints.map((hint) => (
-                  <button
-                    key={hint.id}
-                    style={selectedId === hint.id ? selectedSlotStyle : slotStyle}
-                    onClick={() => setSelectedId(hint.id)}
-                    title={hint.name}
-                  >
-                    {hint.image ? (
-                      <img src={hint.image} alt="" style={slotImageStyle} />
-                    ) : (
-                      <span style={slotLetterStyle}>{hint.name?.[0] ?? "?"}</span>
-                    )}
-                    <span style={slotNameStyle}>{hint.name}</span>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div style={emptyRowStyle}>
-                아직 모은 힌트가 없다.
-                <br />
-                쪽지를 집어 든 채 [H] 를 누르면 여기 적힌다.
-              </div>
-            )}
-          </div>
-
-          <div style={rightColumnStyle}>
-            {selected ? (
-              <>
-                <div style={categoryStyle}>힌트</div>
-                <h3 style={detailNameStyle}>{selected.name}</h3>
-                <div style={dividerStyle} />
-                {selected.image && <img src={selected.image} alt="" style={detailImageStyle} />}
-                <p style={descriptionStyle}>{selected.description ?? "아직 적힌 것이 없다."}</p>
-                {selected.isPhysical === false ? (
-                  <div style={discardStyle}>힌트함에 늘 남아 있는 쪽지</div>
+        {hints.length ? (
+          <div style={gridStyle}>
+            {hints.map((hint) => (
+              <button
+                type="button"
+                key={hint.id}
+                className="game-slot"
+                aria-pressed={selectedId === hint.id}
+                style={slotStyle}
+                onClick={() => setSelectedId(hint.id)}
+                title={hint.name}
+              >
+                {hint.image ? (
+                  <img src={hint.image} alt="" style={slotImageStyle} />
                 ) : (
-                  <div style={discardStyle}>
-                    <kbd style={keyStyle}>E</kbd> 버리기 — 쪽지가 바닥에 떨어진다
-                  </div>
+                  <span style={slotLetterStyle}>{hint.name?.[0] ?? "?"}</span>
                 )}
-              </>
+                <span style={slotNameStyle}>{hint.name}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div style={emptyStyle}>
+            <span style={{ color: UI.accent }}>
+              <NoteIcon size={30} />
+            </span>
+            <span>
+              아직 모은 힌트가 없다.
+              <br />
+              쪽지를 집어 든 채 <kbd style={inlineKeyStyle}>H</kbd> 를 누르면 여기 적힌다.
+            </span>
+          </div>
+        )}
+      </div>
+
+      <aside className="game-panel-scroll" style={detailColumnStyle}>
+        {selected ? (
+          <>
+            <div style={categoryStyle}>힌트</div>
+            <h3 style={detailNameStyle}>{selected.name}</h3>
+            {selected.image && <img src={selected.image} alt="" style={detailImageStyle} />}
+            <p style={descriptionStyle}>{selected.description ?? "아직 적힌 것이 없다."}</p>
+            {selected.isPhysical === false ? (
+              <div style={discardStyle}>힌트함에 늘 남아 있는 쪽지</div>
             ) : (
-              <div style={hintStyle}>
-                {hints.length ? "왼쪽에서 하나를 고르면 여기에 펼쳐진다." : "막히는 자리마다 쪽지가 하나씩 있다."}
+              <div style={discardStyle}>
+                <kbd style={inlineKeyStyle}>E</kbd> 버리기 — 쪽지가 바닥에 떨어진다
               </div>
             )}
+          </>
+        ) : (
+          <div style={emptyStyle}>
+            {hints.length ? "왼쪽에서 하나를 고르면 여기에 펼쳐진다." : "막히는 자리마다 쪽지가 하나씩 있다."}
           </div>
-        </div>
-
-        <div style={footerStyle}>[H] · [ESC] 로 닫기</div>
-      </div>
-    </div>
+        )}
+      </aside>
+    </GamePanel>
   );
 }
 
-const leftColumnStyle: CSSProperties = { flex: "1 1 48%", overflowY: "auto", paddingRight: 4 };
-const rightColumnStyle: CSSProperties = {
-  flex: "1 1 52%",
-  borderLeft: "1px solid #2c343e",
-  paddingLeft: 20,
-  overflowY: "auto",
-};
-
-// 쪽지는 정사각 그림이라 소지품 칸(40px)보다 크게 — 글자가 읽혀야 한다
-const slotImageStyle: CSSProperties = {
-  width: 56,
-  height: 56,
-  objectFit: "contain",
-  borderRadius: 4,
-  imageRendering: "auto",
-};
-const slotLetterStyle: CSSProperties = {
-  display: "grid",
-  placeItems: "center",
-  width: 56,
-  height: 56,
-  borderRadius: 6,
-  background: "#232a35",
-  font: "600 18px sans-serif",
-  color: "#8ea3bd",
-};
-const emptyRowStyle: CSSProperties = {
-  color: "#5b6b80",
-  fontSize: 13,
-  padding: "6px 2px",
-  lineHeight: 1.6,
-};
-
-const detailImageStyle: CSSProperties = {
-  width: "100%",
-  maxWidth: 260,
-  display: "block",
-  margin: "0 auto 12px",
-  borderRadius: 8,
-  background: "#12161c",
-};
-// pre-line — 설명의 \n 줄바꿈을 살린다
-const descriptionStyle: CSSProperties = {
-  margin: 0,
-  color: "#b7c0cb",
-  fontSize: 14,
-  whiteSpace: "pre-line",
-};
+const inlineKeyStyle: CSSProperties = { ...keyCapStyle, minWidth: 22, height: 22, padding: "0 6px", margin: "0 2px" };
 const discardStyle: CSSProperties = {
-  marginTop: 14,
-  paddingTop: 12,
-  borderTop: "1px solid #2c343e",
-  color: "#7d8a9c",
-  fontSize: 13,
-};
-const keyStyle: CSSProperties = {
-  display: "inline-block",
-  minWidth: 18,
-  padding: "1px 5px",
-  marginRight: 6,
-  borderRadius: 4,
-  border: "1px solid #3c4658",
-  background: "#12161c",
-  color: "#cfe3ff",
-  font: "600 11px ui-monospace,Menlo,monospace",
+  marginTop: 18,
+  paddingTop: 14,
+  borderTop: `1px solid ${UI.border}`,
+  color: UI.textMuted,
+  font: `400 14px/1.6 ${UI_FONT.body}`,
 };

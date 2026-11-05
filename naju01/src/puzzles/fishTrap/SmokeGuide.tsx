@@ -25,6 +25,8 @@ const ARROW_LENGTH = 1.7;
 const ARROW_TILT = THREE.MathUtils.degToRad(40);
 const GATHER_SECONDS = 1.4;
 /** 플레이어가 이만큼 안에 오면 앞서 간다 · 이보다 멀면 기다린다(미터) */
+/** 화살표가 이 x 를 넘으면 플레이어보다 앞서 바위틈을 지난 것이다 */
+const GUIDE_GATE_X = 31;
 const LEAD_NEAR = 6;
 const WAIT_FAR = 8.5;
 /** 앞서 가는 빠르기(m/s) — 플레이어가 달리면 그보다 조금 더 빨리 가서 늘 앞에 있다 · 너무 바짝 붙으면 더 내뺀다(미터) */
@@ -131,7 +133,8 @@ export default function SmokeGuide() {
   const gl = useThree((state) => state.gl);
   const guide = useMemo(() => createGuide(), []);
   const path = useMemo(() => createGuidePath(), []);
-  const phaseRef = useRef<Phase>("idle");
+  // 이어 하기: 화살표가 이미 앞서갔으면 다시 모이지 않는다.
+  const phaseRef = useRef<Phase>(fishTrapPuzzle.guideAhead() ? "done" : "idle");
   /** 지금 단계에 들어선 뒤 흐른 시간(초) */
   const clockRef = useRef(0);
   /** 길 위에서 나아간 거리(미터) */
@@ -173,7 +176,8 @@ export default function SmokeGuide() {
       phaseRef.current = "lead";
       showNotice("연기가 화살표로 모였다. 따라가 보자.", 4);
     } else if (phaseRef.current === "lead") {
-      if (playerDistance < LEAD_NEAR) {
+      // 플레이어가 먼저 앞으로 가 있으면 가까이 오기를 기다리지 않고 쫓아가 앞지른다
+      if (playerDistance < LEAD_NEAR || camera.position.x / M > spot.x) {
         // 플레이어 빠르기를 재서 — 달리면 그만큼 더 빨리, 바짝 붙으면 더 내뺀다
         const playerSpeed =
           Math.hypot(camera.position.x - lastPlayerRef.current.x, camera.position.z - lastPlayerRef.current.z) /
@@ -182,7 +186,9 @@ export default function SmokeGuide() {
         const chase = playerDistance < TOO_CLOSE ? 1.6 : 1;
         travelledRef.current += Math.max(SPEED, playerSpeed * LEAD_RATIO) * chase * dt;
       } else isWaiting = playerDistance > WAIT_FAR;
+      if (spot.x >= GUIDE_GATE_X) fishTrapPuzzle.markGuideAhead();
       if (travelledRef.current >= path.total) {
+        fishTrapPuzzle.markGuideAhead();
         phaseRef.current = "fade";
         clockRef.current = 0;
         showNotice("연기가 바위 아래에서 흩어진다.", 4);

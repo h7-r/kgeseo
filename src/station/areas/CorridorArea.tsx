@@ -2,6 +2,9 @@ import type { OutlineValues } from "@/engine/toon";
 import CorridorClutter from "@/props/corridorClutter/CorridorClutter";
 import CorridorCorrosion from "@/props/corridorClutter/CorridorCorrosion";
 import type { VendingMachineState } from "@/props/vendingMachineState";
+import CircuitCurrent from "@/props/electricPanel/CircuitCurrent";
+import ElectricSoundDriver from "@/props/shared/ElectricSoundDriver";
+import FlowFocusCamera from "@/props/shared/FlowFocusCamera";
 import WorkLampPuzzle from "@/props/workLampPuzzle/WorkLampPuzzle";
 import BrokenDoorFrame from "@/station/corridor/BrokenDoorFrame";
 import CorridorEndDoor from "@/station/corridor/CorridorEndDoor";
@@ -56,10 +59,10 @@ interface CorridorAreaProps {
   coin: CoinValues;
   coinOutline: OutlineValues;
   highlight: HighlightValues;
-  eyeHeight: number;
   isCollisionEnabled: boolean;
   drinkMachine: VendingMachineState;
   coffeeMachine: VendingMachineState;
+  eyeHeight: number;
   hydrantDoorId: string;
   isHydrantLocked: boolean;
 }
@@ -77,10 +80,10 @@ export default function CorridorArea({
   coin,
   coinOutline,
   highlight,
-  eyeHeight,
   isCollisionEnabled,
   drinkMachine,
   coffeeMachine,
+  eyeHeight,
   hydrantDoorId,
   isHydrantLocked,
 }: CorridorAreaProps) {
@@ -186,6 +189,9 @@ export default function CorridorArea({
         />
       )}
 
+      <FlowFocusCamera />
+      <ElectricSoundDriver />
+      <CircuitCurrent />
       <CorridorCabinets
         corridor={corridor}
         shading={shading}
@@ -294,9 +300,9 @@ export default function CorridorArea({
 
       {corridor.vendingVisible && (
         <VendingArea
+          eyeHeight={eyeHeight}
           corridor={corridor}
           vending={vending}
-          eyeHeight={eyeHeight}
           brightnessAt={brightnessAt}
           isCollisionEnabled={isCollisionEnabled}
           drinkMachine={drinkMachine}

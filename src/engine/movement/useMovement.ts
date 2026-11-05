@@ -6,7 +6,7 @@ import { startLoop, stopLoop } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
 import { cameraOwner, DEFAULT_FOV, FRAME_PRIORITY, MAX_FRAME_DELTA } from "@/engine/camera";
 import { smoothstep } from "@/engine/math";
-import { playerView } from "@/engine/playerView";
+import { playerView, takeViewHandover } from "@/engine/playerView";
 
 import {
   computeBoomDistance,
@@ -107,6 +107,8 @@ const insetMax = (min: number, max: number, margin: number) =>
  * 한 프레임에 2 유닛을 건너뛴다. 1인칭은 camera.position 이 곧 사람 자리라 얹은 오프셋을 다음 프레임에 걷어낸다.
  */
 const VIEW_SWITCH_SECONDS = 0.25;
+/** 연출이 끝난 뒤 3인칭 자리로 옮겨 가는 시간(초) */
+const HANDOVER_BLEND_SECONDS = 0.25;
 
 /**
  * 1·3인칭 이동(걷기·달리기·앉기·점프)과 3인칭 붐. 역과 기차 안이 같은 조작감을 쓰도록 씬마다 다른 것
@@ -474,6 +476,21 @@ export function useMovement(
       velocity.current.set(0, 0, 0);
       verticalVelocity.current = 0;
       if (isThirdPerson) camera.position.copy(p);
+    }
+    // 연출이 끝난 화면을 이어받는다. 3인칭 붐이 지금 시선 기준으로 자리를 다시 잡을 때 튀지 않게 이어 붙인다.
+    const handover = takeViewHandover();
+    if (handover) {
+      if (handover.moveTo) {
+        [p.x, p.z] = handover.moveTo;
+        p.y = eyeHeight;
+        velocity.current.set(0, 0, 0);
+        verticalVelocity.current = 0;
+        bodyYaw.current = camera.rotation.y + Math.PI;
+      }
+      if (isThirdPerson) {
+        switchFrom.current.copy(camera.position);
+        switchRemaining.current = HANDOVER_BLEND_SECONDS;
+      }
     }
 
     playerView.eye.copy(p);

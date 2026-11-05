@@ -8,7 +8,7 @@ import { createRandom } from "@/engine/random";
 import { makeTextureFromCanvas } from "@/engine/textures/canvas";
 
 export type MuralScene = "달" | "배" | "구렁이" | "바위";
-export const MURAL_ORDER: MuralScene[] = ["달", "배", "구렁이", "바위"];
+const MURAL_ORDER: MuralScene[] = ["달", "배", "구렁이", "바위"];
 
 /** 물감 — 오래돼 탁해진 석채 */
 const PAINT = {
@@ -472,32 +472,6 @@ function drawFrame(g: Ctx, x: number, y: number, width: number, height: number) 
   g.restore();
 }
 
-/** 긴 띠 — 네 장면을 왼쪽부터 이야기 순서로. 가로:세로 = ratio */
-export function makeMuralStripTexture(ratio: number, seed = 911) {
-  const height = 256;
-  const width = Math.round(height * ratio);
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const g = canvas.getContext("2d", { willReadFrequently: true })!;
-  g.fillStyle = PAINT.plaster;
-  g.fillRect(0, 0, width, height);
-  const pad = 18;
-  const cell = (width - pad * 2) / MURAL_ORDER.length;
-  MURAL_ORDER.forEach((scene, i) => {
-    g.save();
-    g.translate(pad + i * cell + 10, pad + 10);
-    g.beginPath();
-    g.rect(0, 0, cell - 20, height - pad * 2 - 20);
-    g.clip();
-    drawScene(g, scene, cell - 20, height - pad * 2 - 20);
-    g.restore();
-    drawFrame(g, pad + i * cell, pad, cell, height - pad * 2);
-  });
-  drawWeathering(g, width, height, seed);
-  return makeTextureFromCanvas(canvas, 4);
-}
-
 /** 한 장면 — 돌 상자 한 면에 붙인다. 가로:세로 = ratio */
 export function makeMuralPanelTexture(scene: MuralScene, ratio: number, seed = 1) {
   const height = 256;
@@ -523,7 +497,7 @@ export function makeMuralPanelTexture(scene: MuralScene, ratio: number, seed = 1
 /**
  * 돌에 새긴 띠 — 아치 위 벽에 직접 새기고 물감이 거의 다 씻겨 나간 부조. 액자 테 없이 장면 사이는 파인 골,
  * 그림은 밝기 차를 홈과 도드라짐(양각)으로 바꿔 돌결 위에 얹고, 바랜 물감은 조금만 남긴다. 가장자리는 부서져 맨 돌로 녹아든다.
- * 칸 배치는 makeMuralStripTexture 와 같다(여백 18 · 네 칸) — 진주 빛 셰이더가 같은 셈을 쓴다
+ * 칸 배치는 여백 18 · 네 칸이다 — 진주 빛 셰이더가 같은 셈을 쓴다
  */
 export function makeMuralReliefTexture(ratio: number, seed = 911) {
   const height = 256;

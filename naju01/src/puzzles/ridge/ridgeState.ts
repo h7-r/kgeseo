@@ -59,6 +59,13 @@ export const ridge = {
   touchCurtain(t: number) {
     lastTouch = { t, at: now() };
   },
+  /** 저장본을 넣는다. 시각은 지금부터 다시 세어 진행 중이던 연출이 그 단계 처음부터 돈다 */
+  restore(saved: { stage: RidgeStage; releaseFrom: number | null }) {
+    stage = saved.stage;
+    stageAt = now();
+    releaseFrom = saved.releaseFrom;
+    signal.notify();
+  },
   /** 장막 안에 가둬야 하나 */
   isConfining: () => curtainClosed > 0.5,
   reset() {
@@ -79,9 +86,11 @@ export const useRidgeStage = () => useSyncExternalStore(signal.subscribe, ridge.
 export const ridgeCarry: {
   load: "none" | "jige" | "jigeChest";
   putDown: { x: number; z: number } | null;
-} = { load: "none", putDown: null };
+  /** 수레를 잡고 있나 — 잡은 채 E 는 수레 놓기라 지게가 같이 내려지면 안 된다 */
+  isCartGrabbed: boolean;
+} = { load: "none", putDown: null, isCartGrabbed: false };
 
-export type RidgeQuestKey = "chestOnAltar" | "postsSolved" | "stairs" | "birdsFacing" | "scaleSet";
+type RidgeQuestKey = "chestOnAltar" | "postsSolved" | "stairs" | "birdsFacing" | "scaleSet";
 
 /** 장막 안 퍼즐 진행 — 앞으로만 간다. calm 은 바람이 잦아든 정도(0~1, 장막 그림이 매 프레임 따라 적는다) */
 const questSignal = createChangeSignal();
@@ -94,6 +103,16 @@ export const ridgeQuest = {
   scaleSet: false,
   calm: 0,
   subscribe: questSignal.subscribe,
+  /** 저장본을 넣는다 */
+  restore(saved: Record<RidgeQuestKey, boolean>) {
+    ridgeQuest.chestOnAltar = saved.chestOnAltar;
+    ridgeQuest.postsSolved = saved.postsSolved;
+    ridgeQuest.stairs = saved.stairs;
+    ridgeQuest.birdsFacing = saved.birdsFacing;
+    ridgeQuest.scaleSet = saved.scaleSet;
+    questVersion++;
+    questSignal.notify();
+  },
   set(key: RidgeQuestKey) {
     if (ridgeQuest[key]) return;
     ridgeQuest[key] = true;

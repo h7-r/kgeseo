@@ -2,8 +2,11 @@ import type { CSSProperties, ReactNode } from "react";
 
 import { useLock, useLockControl } from "@/props/combinationLockState";
 import { getHeldDrink, useDrink } from "@/props/drinkState";
-import { HEADQUARTERS_PALETTE } from "@/station/layout/dimensions";
+import { PANEL_SHADOW, UI, UI_FONT } from "@/game/gameUi";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
+import { useIsHologramAimed } from "@/trainInterior/hologramAim";
+
+import "@/game/gameUi.css";
 
 // 게임 화면 위에 얹는 작은 표시들. 모두 App 한 곳에서만 쓴다.
 
@@ -47,19 +50,23 @@ export function FadeCurtain({ opacity }: FadeCurtainProps) {
 
 const topBarButtonStyle: CSSProperties = {
   position: "fixed",
-  top: 14,
+  top: 16,
   zIndex: 60,
-  padding: "8px 12px",
-  border: "1px solid rgba(255,255,255,.24)",
-  borderRadius: 8,
-  background: "rgba(13,17,24,.82)",
-  color: "#f4f6fb",
-  font: "600 12px/1 system-ui, sans-serif",
+  display: "flex",
+  alignItems: "center",
+  gap: 7,
+  height: 42,
+  padding: "0 16px",
+  border: `1px solid ${UI.border}`,
+  borderRadius: 21,
+  background: UI.glass,
+  color: UI.text,
+  font: `500 13px/1 ${UI_FONT.body}`,
   cursor: "pointer",
 };
 
 interface TopBarButtonProps {
-  /** 화면 오른쪽에서 떨어진 거리(px). Leva 패널(오른쪽 약 280px)에 가리지 않게 둔다. */
+  /** 화면 오른쪽에서 떨어진 거리(px). 튜토리얼 안내판과 겹치지 않게 오른쪽 끝에 붙인다. */
   right: number;
   onClick: () => void;
   ariaLabel?: string;
@@ -69,7 +76,13 @@ interface TopBarButtonProps {
 /** 오른쪽 위 작은 단추(⚙ 설정 · [V] 시점) */
 export function TopBarButton({ right, onClick, ariaLabel, children }: TopBarButtonProps) {
   return (
-    <button type="button" onClick={onClick} aria-label={ariaLabel} style={{ ...topBarButtonStyle, right }}>
+    <button
+      type="button"
+      className="game-top-button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      style={{ ...topBarButtonStyle, right }}
+    >
       {children}
     </button>
   );
@@ -80,11 +93,14 @@ const actionHintStyle: CSSProperties = {
   left: "50%",
   bottom: 40,
   transform: "translateX(-50%)",
-  color: "#2C3444",
-  font: "600 15px sans-serif",
-  background: HEADQUARTERS_PALETTE.gold,
-  padding: "8px 16px",
-  borderRadius: 20,
+  color: UI.text,
+  font: `500 14px/1 ${UI_FONT.body}`,
+  background: UI.glass,
+  border: `1px solid ${UI.borderStrong}`,
+  boxShadow: PANEL_SHADOW,
+  padding: "13px 20px",
+  borderRadius: 22,
+  whiteSpace: "pre",
   pointerEvents: "none",
 };
 
@@ -99,12 +115,15 @@ interface ActionHintProps {
 export function ActionHint({ near }: ActionHintProps) {
   // 판 번호만 구독한다. 집고 버리는 순간에만 바뀌어 자주 다시 그려지지 않는다.
   useDrink();
+  const isHologramAimed = useIsHologramAimed();
   const hint =
     getHeldDrink()?.kind === "paper"
       ? "[H] 힌트함에 넣기   ·   [E] 내려놓기"
-      : near === NEAR_TARGET.trainExit
-        ? "[E] 기차에서 내리기"
-        : "";
+      : isHologramAimed
+        ? "[E] 또는 클릭 — 전설 속으로"
+        : near === NEAR_TARGET.trainExit
+          ? "[E] 기차에서 내리기"
+          : "";
   if (!hint) return null;
   return <div style={actionHintStyle}>{hint}</div>;
 }
@@ -128,25 +147,26 @@ const lockRowStyle: CSSProperties = {
   minWidth: 30,
   padding: "5px 0",
   borderRadius: 5,
-  border: "1px solid rgba(220,228,240,.25)",
-  background: "rgba(16,20,28,.72)",
-  color: "#dfe6f0",
-  font: "700 19px/1.1 ui-monospace, Menlo, monospace",
+  border: `1px solid ${UI.border}`,
+  background: UI.glass,
+  color: UI.text,
+  font: `600 19px/1.1 ${UI_FONT.mono}`,
 };
 
 const selectedLockRowStyle: CSSProperties = {
   ...lockRowStyle,
-  border: "1px solid #ffd34d",
-  background: "rgba(70,56,18,.9)",
-  color: "#ffe9a8",
+  border: `1px solid ${UI.accent}`,
+  background: UI.surfaceHover,
+  color: UI.text,
 };
 
 const lockGuideStyle: CSSProperties = {
-  padding: "6px 12px",
-  borderRadius: 6,
-  background: "rgba(16,20,28,.72)",
-  color: "#cfd8e6",
-  font: "13px/1.4 system-ui, -apple-system, sans-serif",
+  padding: "9px 16px",
+  borderRadius: 18,
+  background: UI.glass,
+  border: `1px solid ${UI.border}`,
+  color: UI.textMuted,
+  font: `400 13px/1.4 ${UI_FONT.body}`,
 };
 
 /**

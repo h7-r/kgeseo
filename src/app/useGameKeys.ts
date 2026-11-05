@@ -16,17 +16,19 @@ import {
 } from "@/props/combinationLockState";
 import { discardDrink, getHeldDrink, interactWithHeldDrink } from "@/props/drinkState";
 import { rattleHinge } from "@/props/hingeState";
+import { OPENING_MOTION } from "@/props/padlock/openingMotion";
 import { dropHintPaper, getFootSpot, storeHintPaper, VALVE_HINT } from "@/props/hintPaperState";
 import { getHintPaperImageUrl } from "@/station/hands/hintPaperTexture";
 import { chairDragState } from "@/station/headquarters/chairDragState";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
+import { isHologramAimed } from "@/trainInterior/hologramAim";
 
 import type { PointerLockRef } from "./pointerLock";
 import { IS_INPUT_ALWAYS_ON } from "./runtimeFlags";
 import { tryPlaceHeldItem } from "./useSceneTransition";
 
-// 풀린 자물쇠가 열리는 모습을 보여 준 뒤 카메라를 되돌린다.
-const UNLOCK_SHOW_MS = 1500;
+// 풀린 자물쇠가 빠져 바닥까지 떨어지는 것을 다 보여 준 뒤 카메라를 되돌린다. 몸짓 길이에 묶어 둬야 어긋나지 않는다.
+const UNLOCK_SHOW_MS = OPENING_MOTION.duration * 1000 + 300;
 
 interface GameKeysOptions {
   controlsRef: PointerLockRef;
@@ -173,13 +175,28 @@ export function useGameKeys({
         controlsRef.current?.lock();
         return;
       }
+      // 안내판은 문 가까이에도 떠 있어 내리기보다 먼저 묻는다. 잠금이 풀린 채 마우스로 겨눠도 열린다.
+      if (code === "KeyE" && isTrain && isHologramAimed()) {
+        if (!event.repeat) openWindow(OVERLAY_LAYERS.destination);
+        return;
+      }
       if (code !== "KeyE" || !(isPointerLocked || IS_INPUT_ALWAYS_ON)) return;
       // 무엇을 만지든 팔이 한 번 나간다. 여기 한 곳에 걸어야 아래 갈래를 하나도 빠뜨리지 않는다.
       if (!event.repeat) startReach();
       handleUse(near, boardTrain, leaveTrain);
     };
+    // 안내판 클릭. 잠금 중엔 이벤트가 캔버스를 감싼 틀로 오고, 풀려 있으면 화면 창 클릭을 걸러야 한다.
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || !isTrain || openLayer || !isHologramAimed()) return;
+      if (!document.pointerLockElement && !(event.target instanceof HTMLCanvasElement)) return;
+      openWindow(OVERLAY_LAYERS.destination);
+    };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
   }, [
     controlsRef,
     near,

@@ -46,7 +46,8 @@ interface UseFormResult {
   values: FormValues;
   fieldProps: (name: FieldName) => FieldProps;
   /** 모든 칸을 검사한다. 비동기 검사까지 끝까지 기다리고, 통과했으면 true */
-  validateAll: () => Promise<boolean>;
+  /** 모든 칸을 검사해 걸린 칸과 이유만 돌려준다. 비어 있으면 통과다. */
+  validateAll: () => Promise<FieldErrors>;
   /** 비밀번호처럼 남겨 두면 안 되는 칸을 비운다. */
   clearFields: (names: readonly FieldName[]) => void;
   /** 한 칸만 밖에서 바꾼다(「혹시 gmail.com 인가요?」를 눌러 고칠 때). */
@@ -162,7 +163,7 @@ export function useForm({
       }
       setRemoteErrors((prev) => ({ ...prev, [name]: results[name] }));
     }
-    return Object.values(results).every((message) => !message);
+    return Object.fromEntries(Object.entries(results).filter(([, message]) => message)) as FieldErrors;
   };
 
   const clearFields = (names: readonly FieldName[]) =>
@@ -239,8 +240,8 @@ export function useSubmitLock() {
   return { isSubmitting, run };
 }
 
-// 봇으로 보이면 어디서 걸렸는지 알려 주지 않는다.
-export const BOT_SUSPECTED_MESSAGE = "잠시 후 다시 시도해 주세요.";
+// 봇으로 보이면 어느 칸에서 걸렸는지는 알려 주지 않는다.
+export const BOT_SUSPECTED_MESSAGE = "자동 입력으로 보여 막았습니다. 새로고침한 뒤 직접 입력해 주세요.";
 // 봇은 화면이 뜨자마자 모든 칸을 채워 제출한다.
 const MIN_FILL_TIME_MS = 1500;
 
@@ -252,15 +253,55 @@ export function useBotGuard() {
   return { honeypot, setHoneypot, isLikelyBot };
 }
 
-const CONSENT_REQUIRED_MESSAGE = "필수 항목에 모두 동의해 주세요.";
+const CONSENT_LABELS: Readonly<Record<ConsentKind, string>> = {
+  terms: "이용약관",
+  privacyCollection: "개인정보 수집·이용",
+  over14: "만 14세 이상 확인",
+};
+
+/** 안 켠 항목을 이름으로 알려 준다. 다 켰으면 "" */
+function consentProblem(consents: Consents): string {
+  const missing = (Object.keys(CONSENT_LABELS) as ConsentKind[]).filter((kind) => !consents[kind]);
+  return missing.length ? `${missing.map((kind) => CONSENT_LABELS[kind]).join(", ")}에 체크해 주세요.` : "";
+}
+
+const FIELD_LABELS: Readonly<Partial<Record<FieldName, string>>> = {
+  nickname: "닉네임",
+  region: "지역",
+  email: "이메일",
+  password: "비밀번호",
+  passwordConfirm: "비밀번호 확인",
+};
+
+/** 제출 안내. 지켜보는 입력이 바뀌면 저절로 사라진다 — 이미 고친 칸이 아직 틀렸다고 남지 않게. */
+export function useInputAlert(watched: readonly unknown[]) {
+  const [alert, setAlert] = useState({ message: "", watched });
+  const isCurrent = alert.watched.length === watched.length && alert.watched.every((v, i) => v === watched[i]);
+  const setMessage = (message: string) => setAlert({ message, watched });
+  return [isCurrent ? alert.message : "", setMessage] as const;
+}
+
+/** 안내가 뜰 때 화면 밖이면 보이는 곳까지 옮긴다. 안내 칸의 ref 로 쓴다. */
+export function revealAlert(element: HTMLElement | null) {
+  element?.scrollIntoView({ block: "nearest" });
+}
+
+/** 제출이 막힌 이유를 칸 이름과 함께 한 번에 보여 줄 글. 막힌 게 없으면 "" */
+export function describeBlockedSubmit(action: string, errors: FieldErrors, consentError = ""): string {
+  const reasons = Object.entries(errors).map(
+    ([name, message]) => `· ${FIELD_LABELS[name as FieldName] ?? name}: ${message}`,
+  );
+  if (consentError) reasons.push(`· 약관 동의: ${consentError}`);
+  return reasons.length ? [`${action}을 완료하지 못했습니다. 아래 내용을 확인해 주세요.`, ...reasons].join("\n") : "";
+}
 
 /**
- * 「전체」(terms)는 아래 두 항목이 다 켜졌는지로 정한다.
+ * 「전체」는 저장하지 않고 세 항목이 다 켜졌는지로 정한다. 이용약관도 본인이 직접 켠 항목이어야 동의로 남는다.
  * 처리방침은 공개 문서라 동의 대상은 「수집·이용」이고, 만 14세 미만은 법정대리인 동의가 필요해 나이를 따로 받는다.
  */
 export type Consents = Record<ConsentKind, boolean>;
 
-export type ConsentChoice = "all" | Exclude<ConsentKind, "terms">;
+export type ConsentChoice = "all" | ConsentKind;
 
 /** 가입 동의 체크 상태와 「필수 항목」 오류. */
 export function useConsents() {
@@ -268,17 +309,16 @@ export function useConsents() {
   const [consents, setConsents] = useState<Consents>({ terms: false, privacyCollection: false, over14: false });
   const [error, setError] = useState("");
   const [hasSubmitted, setHasSubmitted] = useState(false);
-  const allAgreed = consents.privacyCollection && consents.over14;
+  const allAgreed = consents.terms && consents.privacyCollection && consents.over14;
 
   const update = (which: ConsentChoice, checked: boolean) => {
     const next: Consents =
       which === "all"
         ? { terms: checked, privacyCollection: checked, over14: checked }
         : { ...consents, [which]: checked };
-    next.terms = next.privacyCollection && next.over14;
     setConsents(next);
     // 한 번 혼난 뒤에는 다 켜는 순간 바로 풀어 준다.
-    if (hasSubmitted) setError(next.terms ? "" : CONSENT_REQUIRED_MESSAGE);
+    if (hasSubmitted) setError(consentProblem(next));
   };
 
   /** 제출 단추를 누른 순간 부른다. */
@@ -286,9 +326,9 @@ export function useConsents() {
 
   /** 필수 동의를 검사해 오류를 띄우고 통과 여부를 돌려준다. */
   const check = () => {
-    setError(allAgreed ? "" : CONSENT_REQUIRED_MESSAGE);
+    setError(consentProblem(consents));
     return allAgreed;
   };
 
-  return { consents, allAgreed, error, update, markSubmitted, check };
+  return { consents, allAgreed, error, problem: consentProblem(consents), update, markSubmitted, check };
 }

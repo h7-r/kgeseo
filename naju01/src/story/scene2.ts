@@ -215,7 +215,7 @@ export const DUCK_SCALE = 1.45;
  * 솟대 오리 — 통나무를 깎아 만든 새. 가슴은 도톰하고 꽁지는 위로 들리며, 목이 앞으로 굽어 머리가 멀리를 본다.
  * 칠하지 않은 나무 빛이다(검게 칠하면 멀리서 까마귀로 읽힌다). headTurn 은 고개를 살짝 돌린 정도(라디안).
  */
-export function buildCarvedDuck(headTurn: number): THREE.BufferGeometry[] {
+function buildCarvedDuck(headTurn: number): THREE.BufferGeometry[] {
   const pieces: THREE.BufferGeometry[] = [];
   const bodyY = 0.948;
   // 몸 — 뒤로 갈수록 가늘어지며 꽁지가 위로 휜다

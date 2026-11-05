@@ -20,7 +20,7 @@ import { METERS_PER_UNIT } from "../plan/sitePlan";
 /** 저절로 올라서는 턱(m). 이보다 높으면 점프해야 오른다 */
 export const PROP_STEP = 0.3;
 /** 점프로 올라설 수 있는 물건 키(m) — 점프 최고점 0.55 m(본부실과 같은 JUMP_VELOCITY·GRAVITY) + 걸치는 턱 0.12 m */
-export const CLIMB_MAX = 0.66;
+const CLIMB_MAX = 0.66;
 /** 점프로 오르는 것·벽 위에서 한 칸 건너 허용하는 턱(m) — 둥근 바위 등을 따라 걷되 옆면을 계단처럼 오르지 않게 */
 const SURFACE_STEP = 0.12;
 

@@ -40,6 +40,11 @@ export const ritual = {
   part: () => advance("parted"),
   enterCave: () => advance("cave"),
   clear: () => advance("cleared"),
+  /** 저장본을 넣는다 */
+  restore(saved: RitualStage) {
+    stage = saved;
+    signal.notify();
+  },
 };
 
 export const useRitualStage = () => useSyncExternalStore(signal.subscribe, ritual.stage);

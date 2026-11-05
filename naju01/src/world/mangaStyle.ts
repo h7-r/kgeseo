@@ -105,7 +105,7 @@ export interface MangaEffectOptions {
 /** 선 색 손잡이 — black 이 1 이면 선이 먹빛(물속 장면이 켠다) */
 export const mangaInk = { black: 0 };
 
-export class MangaEffectImpl extends Effect {
+class MangaEffectImpl extends Effect {
   constructor({ strength = 0.9, width = 1.5, creaseFar = 60, edgeFar = 300, grade = 1 }: MangaEffectOptions = {}) {
     super("MangaEffect", FRAG, {
       blendFunction: BlendFunction.NORMAL,

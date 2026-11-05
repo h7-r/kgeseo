@@ -46,10 +46,10 @@ import LoadingCover, { type LoadingProgress } from "./LoadingCover";
 import { PuzzleHud, PuzzleWorld } from "./PuzzleLayer";
 import { prefetchNajuAssets } from "./prefetch";
 import {
+  ALLOW_VIEW_TOGGLE,
   IS_ARRIVING_FROM_HUB,
   IS_BLOOM_DISABLED,
   IS_DPR_AUTO,
-  IS_FIRST_PERSON_ONLY,
   IS_OUTLINE_DISABLED,
   IS_POSTFX_DISABLED,
   IS_STAGE_16X9,
@@ -227,7 +227,7 @@ export default function App() {
               controlsRef={controlsRef}
               onLockChange={setIsLocked}
               reportRef={reportRef}
-              isThirdPerson={viewMode === "3인칭"}
+              isThirdPerson={ALLOW_VIEW_TOGGLE && viewMode === "3인칭"}
               sidekickConfig={sidekickConfig}
               meshConfig={meshConfig}
               toonConfig={toonConfig}
@@ -270,7 +270,7 @@ export default function App() {
       />
       {IS_REVIEW_REQUESTED && <ReviewHud />}
       {SHOW_DEV_TOOLS && !isLocked && <ControlsHelp />}
-      {!IS_FIRST_PERSON_ONLY && (
+      {ALLOW_VIEW_TOGGLE && (
         <button type="button" onClick={() => setViewMode(toggleViewMode)} style={viewButtonStyle}>
           [V] {viewMode}
         </button>
@@ -321,8 +321,12 @@ function ControlsHelp() {
       <b>[I] 소지품</b>
       <br />
       <span style={mutedStyle}>
-        3인칭에서 마우스로 캐릭터 앞·뒤를 자유롭게 회전 · [1][2][3] V1·V2·V3 시점으로 이동(개발용)
-        <br />
+        {ALLOW_VIEW_TOGGLE && (
+          <>
+            3인칭에서 마우스로 캐릭터 앞·뒤를 자유롭게 회전
+            <br />
+          </>
+        )}
         낙하하면 마지막 안전 지점으로 복귀
       </span>
     </div>

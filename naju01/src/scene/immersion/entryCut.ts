@@ -18,8 +18,6 @@ import { setLetterbox, toggleSettingsPanel } from "./overlayDom";
 import { smoothstep, stage, type ImmersionTerrain } from "./state";
 
 const U = UNITS_PER_METER;
-/** 이 연출이 만드는 메시 이름 머리 — 광선·젖음·식물 찾기에서 건너뛴다(옛 「연출.」) */
-export const IMMERSION_NAME_PREFIX = "immersion.";
 const CUT_SECONDS = 5.0; // 3.4 → 5.0 (10/14 — 안개를 걷고 공간을 읽을 시간)
 const RAY_SKIP = /^immersion\.|^sky\./;
 

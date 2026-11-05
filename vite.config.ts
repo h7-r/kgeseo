@@ -5,6 +5,7 @@ import { defineConfig, type Plugin } from "vite";
 import { defaultLookReceiverPlugin } from "./naju01/vite/defaultLookPlugin";
 import { dropLocalOnlyPlugin } from "./naju01/vite/dropLocalOnlyPlugin";
 import { editFileServerPlugin } from "./naju01/vite/editFilePlugin";
+import { sharedAssetBuildPlugin } from "./tools/shared-asset-build.mjs";
 
 /**
  * leva 의 useValuesForPath 는 자기 폴더 값 몇 개를 읽으려고 스토어 전체(본부실 1,190개)를 매번 복사한다.
@@ -64,7 +65,7 @@ function levaSelectorPrebundlePatch() {
 
 export default defineConfig({
   // 텔레포트가 본편 안의 /naju01/ 로 넘어가므로 이 서버도 나주 손 배치를 내준다(저장은 나주 서버 5174 에서만)
-  plugins: [levaSelectorPatch(), react(), editFileServerPlugin({ writable: false }), defaultLookReceiverPlugin(), dropLocalOnlyPlugin()],
+  plugins: [sharedAssetBuildPlugin(), levaSelectorPatch(), react(), editFileServerPlugin({ writable: false }), defaultLookReceiverPlugin(), dropLocalOnlyPlugin()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },

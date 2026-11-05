@@ -17,6 +17,7 @@ import { MangaEffect } from "@/engine/manga/mangaEffect";
 import { useMangaStyle } from "@/engine/manga/useMangaStyle";
 import { IS_LOW_QUALITY } from "@/engine/quality";
 import { PLAYER_MESHY_APPEARANCE_KEY, PLAYER_SIDEKICK_APPEARANCE_KEY } from "@/engine/storage";
+import { SettingsIcon } from "@/game/gameIcons";
 import HintHud from "@/game/HintHud";
 import HintPanel from "@/game/HintPanel";
 import { useDevInventorySeed } from "@/game/inventory";
@@ -24,17 +25,19 @@ import InventoryPanel from "@/game/InventoryPanel";
 import { OVERLAY_LAYERS } from "@/game/overlayLayer";
 import AimTracker from "@/lobby/AimTracker";
 import { LobbyChibiPanel, LobbySidekickPanel } from "@/naju";
-import { useIsCutscenePlaying } from "@/props/vendingPushState";
+import MainGameSaveBridge from "@/save/MainGameSaveBridge";
+import { savedStationPose } from "@/save/mainGameSave";
+import { onEnteredHeadquarters, useIsCutscenePlaying } from "@/props/vendingPushState";
 import SettingsPanel from "@/settings/SettingsPanel";
 import { RESOLUTION_DPR, useSettings, type Settings } from "@/settings/settings";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 import NajuEntryTransition from "@/station/NajuEntryTransition";
 import { NAJU_ENTER_EVENT } from "@/station/najuEnter";
 import StationScene from "@/station/StationScene";
+import DestinationWindow from "@/trainInterior/DestinationWindow";
 import TrainInteriorScene from "@/trainInterior/TrainInteriorScene";
 import DispatchCard from "@/tutorial/DispatchCard";
 import TutorialPanel from "@/tutorial/TutorialPanel";
-import TutorialDirectionHud from "@/tutorial/TutorialDirection";
 
 import CrashOverlays from "./overlays/CrashOverlays";
 import { ActionHint, Crosshair, FadeCurtain, LockDialPanel, TopBarButton } from "./overlays/Hud";
@@ -143,6 +146,11 @@ export default function App() {
     if (isTrain) setIsTrainMounted(true);
   }, [isTrain]);
 
+  // 이어 하기면 나갔던 자리에서 시작한다. Canvas 는 처음 한 번만 읽는다.
+  const [initialCamera] = useState(() => {
+    const pose = savedStationPose();
+    return pose ? { ...CAMERA, position: pose.position } : CAMERA;
+  });
   const [isPointerLocked, setIsPointerLocked] = useState(false);
   // 나주 진입 연출 중엔 렌더를 멈춘다. 암전에 가려 안 보이고, 메인 스레드가 연출에 집중해 매끄럽다.
   const [isEnteringNaju, setIsEnteringNaju] = useState(false);
@@ -154,6 +162,8 @@ export default function App() {
 
   const [isThirdPerson, setIsThirdPerson] = useState(true);
   const toggleThirdPerson = useCallback(() => setIsThirdPerson((value) => !value), []);
+  // 본부실에 처음 들어서는 순간만 3인칭으로 맞춘다. 그 뒤로는 사용자가 고른 시점을 건드리지 않는다
+  useEffect(() => onEnteredHeadquarters(() => setIsThirdPerson(true)), []);
   const avatar = useLobbyAvatar();
   const isMobile = useIsMobile();
   const playerRef = useRef(createPlayerState());
@@ -169,7 +179,7 @@ export default function App() {
   const { fade, boardTrain, leaveTrain } = useSceneTransition(isTrain, near);
   const { openLayer, openWindow, closeWindow } = useOverlayWindows(controlsRef);
   const settings = useSettings();
-  const lockControl = useLockControlMode(controlsRef);
+  const lockControl = useLockControlMode();
   useDevInventorySeed();
 
   useGameKeys({
@@ -212,7 +222,7 @@ export default function App() {
         style={settings.brightness !== 1 ? { filter: `brightness(${settings.brightness})` } : undefined}
         gl={GL_OPTIONS}
         onCreated={handleCanvasCreated}
-        camera={CAMERA}
+        camera={initialCamera}
       >
         {/* 계기판·셰이더 미리 컴파일은 씬이 바뀌어도 살아 있어야 해 껍데기 쪽에 둔다 */}
         <Preload all />
@@ -232,6 +242,7 @@ export default function App() {
           outlineConfig={avatar.outlineConfig}
         />
         <AimTracker enabled={active && !isTrain} />
+        <MainGameSaveBridge isTrain={isTrain} playerRef={playerRef} />
         {/* 만화 화풍 — 칠한 툰 재질·펜선 하나로(재질), 걸음 출렁임·충격 흔들림(그리는 순간에만 비튼다, 기차 안은 늘 1인칭) */}
         {manga && <MangaScene manga={manga} />}
         {manga && <CameraFeel firstPerson={isTrain || !isThirdPerson} />}
@@ -256,7 +267,8 @@ export default function App() {
         {/* 껍데기에 있어야 씬이 바뀌어도 잠금이 안 풀린다. 없는 selector — 클릭으로는 안 잠기고 T 로만 잠근다. */}
         <PointerLockControls
           ref={controlsRef}
-          pointerSpeed={settings.sensitivity}
+          // 자물쇠·컷신 동안은 잠금을 유지한 채 고개만 멈춘다. 커서가 튀어나오지 않는다.
+          pointerSpeed={lockControl || isCutscenePlaying ? 0 : settings.sensitivity}
           selector="#__never__"
           onLock={() => setIsPointerLocked(true)}
           onUnlock={() => setIsPointerLocked(false)}
@@ -265,13 +277,13 @@ export default function App() {
 
       <FadeCurtain opacity={fade} />
       <NajuEntryTransition />
-      {active && <Crosshair />}
-      <TopBarButton right={384} onClick={toggleSettings} ariaLabel="설정 열기">
-        ⚙ 설정 [P]
+      {(isPointerLocked || IS_INPUT_ALWAYS_ON) && !openLayer && <Crosshair />}
+      <TopBarButton right={112} onClick={toggleSettings} ariaLabel="설정 열기">
+        <SettingsIcon /> 설정 [P]
       </TopBarButton>
       <SettingsPanel open={openLayer === OVERLAY_LAYERS.settings} onClose={closeWindow} />
       {!isTrain && (
-        <TopBarButton right={300} onClick={toggleThirdPerson}>
+        <TopBarButton right={16} onClick={toggleThirdPerson}>
           [V] {isThirdPerson ? "1인칭" : "3인칭"}
         </TopBarButton>
       )}
@@ -281,10 +293,10 @@ export default function App() {
       {/* 화면층이 지금 열린 창을 하나로 정하므로 두 창이 겹칠 수 없다 */}
       <InventoryPanel open={openLayer === OVERLAY_LAYERS.inventory} onClose={closeWindow} />
       <HintPanel open={openLayer === OVERLAY_LAYERS.hint} onClose={closeWindow} />
+      <DestinationWindow open={openLayer === OVERLAY_LAYERS.destination} onClose={closeWindow} />
       {/* 창이 떠도 숨기지 않는다 — 반짝임을 봐야 한다 */}
       <HintHud isPanelOpen={openLayer !== null} />
       <TutorialPanel covered={openLayer !== null || isTrain} />
-      {!openLayer && !isTrain && <TutorialDirectionHud />}
       <DispatchCard covered={openLayer !== null} isInTrain={isTrain} />
       {SHOW_DEV_TOOLS && <DevTools />}
       <CrashOverlays isGpuLost={isGpuLost} isSceneEmptied={isSceneEmptied} />

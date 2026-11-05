@@ -40,7 +40,7 @@ export default function FloorHintPaper({ outline }: FloorHintPaperProps) {
   useHintPaper();
   const texture = useMemo(() => makeHintPaperTexture(), []);
   // 바닥에 눕은 종이는 테가 없으면 바닥 무늬에 묻힌다 — 선을 두르려고 지오를 따로 둔다.
-  const geometry = useMemo(() => new THREE.PlaneGeometry(0.3, 0.3), []);
+  const geometry = useMemo(() => new THREE.PlaneGeometry(0.24, 0.3), []);
   useEffect(() => () => geometry.dispose(), [geometry]);
   const spotRef = useRef<THREE.Group>(null);
   if (getHintPaperLocation() !== "floor") return null;

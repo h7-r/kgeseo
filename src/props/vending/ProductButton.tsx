@@ -9,6 +9,7 @@ import { Interactable } from "@/lobby/AimTracker";
 import { aimStore } from "@/lobby/interactions";
 import { getHeldCoin } from "@/props/coinState";
 import { computeButtonLight, computePressDepth, type VendingId } from "@/props/vendingMachineState";
+import { isVendingFrenzy } from "@/props/panelWiringState";
 import { getWorldPositionOf } from "@/props/shared/aimTarget";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 
@@ -41,11 +42,12 @@ function buildButtonCapGeometry(width: number, height: number, depth: number, fl
   const quad = (a: Corner, b: Corner, c: Corner, d: Corner) => [...a, ...b, ...c, ...a, ...c, ...d];
   const positions = [
     ...quad(front[0], front[1], front[2], front[3]), // 0  앞
-    ...quad(back[3], back[2], back[1], back[0]), // 6  뒤
+    ...quad(back[2], back[3], front[3], front[2]), // 6  위 경사
     ...quad(back[0], back[1], front[1], front[0]), // 12 아래 경사
+    // 재질이 같은 세 면을 이어 둔다 — 떨어져 있으면 그룹이 나뉘어 그만큼 더 그린다
     ...quad(back[1], back[2], front[2], front[1]), // 18 오른 경사
-    ...quad(back[2], back[3], front[3], front[2]), // 24 위 경사
-    ...quad(back[3], back[0], front[0], front[3]), // 30 왼 경사
+    ...quad(back[3], back[0], front[0], front[3]), // 24 왼 경사
+    ...quad(back[3], back[2], back[1], back[0]), // 30 뒤 — 안 보이지만 닫아 둔다
   ];
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
@@ -55,11 +57,9 @@ function buildButtonCapGeometry(width: number, height: number, depth: number, fl
   geometry.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
   geometry.computeVertexNormals();
   geometry.addGroup(0, 6, 0);
-  geometry.addGroup(24, 6, 1);
+  geometry.addGroup(6, 6, 1);
   geometry.addGroup(12, 6, 2);
-  geometry.addGroup(18, 6, 3);
-  geometry.addGroup(30, 6, 3);
-  geometry.addGroup(6, 6, 3); // 뒤 — 안 보이지만 재질이 있어야 한다
+  geometry.addGroup(18, 18, 3);
   return geometry;
 }
 
@@ -91,6 +91,14 @@ interface ProductButtonProps {
  * 이름표 달린 작은 상품 버튼. 음료 자판기(색 버튼)와 커피 자판기(이름표 버튼)가 같이 쓴다.
  * 홈(패널에 파인 어두운 자리) 위에 그보다 작은 캡을 얹어 둘레에 테가 남게 한다 — 그 테가 '떠 있음'을 만든다.
  */
+/** 전류가 닿은 음료 자판기 — 버튼마다 제멋대로 깜빡인다. null 이면 평소대로 */
+function frenzyLight(vendingId: string | undefined, index: number, nowMs: number) {
+  if (vendingId !== "drink" || !isVendingFrenzy(nowMs / 1000)) return null;
+  const tick = Math.floor(nowMs / 85);
+  const noise = Math.sin((tick + index * 13.7) * 12.9898) * 43758.5453;
+  return noise - Math.floor(noise) > 0.45 ? 1 : 0;
+}
+
 export default function ProductButton({
   x,
   y,
@@ -143,13 +151,15 @@ export default function ProductButton({
     if (!mesh) return;
     const now = performance.now();
     const pressed = vendingId ? computePressDepth(vendingId, index, now) : 0;
-    const light = vendingId ? computeButtonLight(vendingId, index, now) : alwaysLit ? 1 : 0;
+    const frenzy = frenzyLight(vendingId, index, now);
+    const light = frenzy ?? (vendingId ? computeButtonLight(vendingId, index, now) : alwaysLit ? 1 : 0);
     const isAimed = aimId && aimStore.get() === aimId ? 1 : 0;
 
     mesh.position.z = 0.02 + capDepth / 2 - pressed * (capDepth * 0.6);
 
     // 겨냥 중에는 아주 살짝만 밝혀 글자 없이 '누를 수 있다' 를 알린다.
-    const k = 1 + light * 1.35 + isAimed * 0.22;
+    // 날뛰는 동안은 켜지면 눈부시고 꺼지면 어두워야 깜빡임으로 읽힌다
+    const k = frenzy === null ? 1 + light * 1.35 + isAimed * 0.22 : frenzy ? 3.4 : 0.32;
     const mix = Math.min(1, light * 0.8);
     const materials = mesh.material;
     if (!Array.isArray(materials) || materials.length < 4) return;

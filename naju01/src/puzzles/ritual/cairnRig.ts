@@ -20,6 +20,8 @@ const CAIRNS: { stones: number; x: number; z: number }[] = [
 const STONE_COLORS = ["#8A8375", "#6E6A60", "#9A9284"];
 /** 끄는 돌탑이 눈 앞 이만큼(미터)에서 따라온다 */
 const DRAG_DISTANCE = 1.4;
+/** 돌탑은 자갈밭 안에서만 끌린다 — 강이나 벼랑에 놓으면 다시 못 잡아 기우제가 막힌다 */
+const CAIRN_AREA = { x: [35, 54.5], z: [31, 43.4] } as const;
 /** 제물 셋이 오르면 돌탑이 이만큼(미터) 떠올라 허공에 머문다 · 떠오르는 시간(초) */
 const HOVER = 0.45;
 const HOVER_SECONDS = 3.2;
@@ -126,8 +128,8 @@ export function updateCairns(
     if (index === dragging) {
       // 땅을 끌며 눈 앞으로 따라온다
       const forward = camera.getWorldDirection(new THREE.Vector3()).setY(0).normalize();
-      const targetX = camera.position.x / M + forward.x * DRAG_DISTANCE;
-      const targetZ = camera.position.z / M + forward.z * DRAG_DISTANCE;
+      const targetX = THREE.MathUtils.clamp(camera.position.x / M + forward.x * DRAG_DISTANCE, ...CAIRN_AREA.x);
+      const targetZ = THREE.MathUtils.clamp(camera.position.z / M + forward.z * DRAG_DISTANCE, ...CAIRN_AREA.z);
       cairn.position.x += (targetX - cairn.position.x) * follow;
       cairn.position.z += (targetZ - cairn.position.z) * follow;
       cairn.wobble = Math.max(cairn.wobble, 0.25);

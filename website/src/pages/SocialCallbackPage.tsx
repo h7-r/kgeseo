@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { FONT } from "@/lib/style";
 import { ROUTES } from "@/navigation/routes";
-import { signInWithNaverCallback } from "@/services/account/naverAuth";
+import { signInWithNaverCallback, takeNaverReturnPath } from "@/services/account/naverAuth";
 import { holdOnboarding } from "@/services/account/socialAuthApi";
 import { signIn } from "@/services/session";
 
@@ -20,6 +20,7 @@ export default function SocialCallbackPage() {
     signInWithNaverCallback(searchParams)
       .then((result) => {
         if (!alive) return;
+        const returnPath = takeNaverReturnPath();
         if (result.kind === "signedIn") {
           signIn(result.user);
           navigate(ROUTES.home, { replace: true });
@@ -27,7 +28,8 @@ export default function SocialCallbackPage() {
         }
         // replace: 뒤로 가기로 code·state 가 남은 콜백 주소에 돌아오지 않게. 증표는 메모리로만 넘긴다.
         holdOnboarding(result.onboarding);
-        navigate(ROUTES.socialOnboarding, { replace: true });
+        // 홈에서 시작했으면 홈 패널이 그 자리에서 이어받는다.
+        navigate(returnPath === ROUTES.home ? ROUTES.home : ROUTES.socialOnboarding, { replace: true });
       })
       .catch((error: unknown) => {
         if (!alive) return;

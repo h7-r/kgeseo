@@ -13,6 +13,10 @@ const headerHold = { until: 0 };
 
 const sectionScroll: { frame: number; cancel: (() => void) | null } = { frame: 0, cancel: null };
 
+/** 스스로 도착한 자리를 멈춤 맞춤이 다시 옮기지 않게 이 시각(ms)까지 쉰다. */
+const settleRest = { until: 0 };
+const SETTLE_REST_MS = 400;
+
 /** 스스로 굴리는 중이거나 막 끝났으면 머리띠를 숨기지 않는다. */
 function isHeaderHeld(now: number): boolean {
   return now < headerHold.until;
@@ -75,6 +79,7 @@ export function scrollToSection(
       }
     }
     headerHold.until = performance.now() + 250;
+    if (completed) settleRest.until = performance.now() + SETTLE_REST_MS;
   }
 
   sectionScroll.cancel = () => finish(false);
@@ -169,8 +174,8 @@ export function useCurrentSection(path: string, scale: number, enabled: boolean,
 
 /** 스크롤이 멈춘 뒤 이만큼 조용하면 멈춘 것으로 본다(ms). scrollend 가 없는 브라우저를 위한 값이다. */
 const SETTLE_IDLE_MS = 160;
-/** 굴리던 방향의 다음 구간이 화면 높이의 이 비율 안이면 그 구간까지 마저 간다. */
-const SETTLE_AHEAD = 0.75;
+/** 굴리던 방향의 다음 구간이 화면 높이의 이 비율 안이면 그 구간까지 마저 간다. 크면 조금만 굴려도 넘어간다. */
+const SETTLE_AHEAD = 0.3;
 /** 굴리다 지나친 구간은 화면 높이의 이 비율 안일 때만 되돌아간다. */
 const SETTLE_BEHIND = 0.15;
 
@@ -238,7 +243,7 @@ export function useSectionSettle(path: string, scale: number, headerHeight: numb
       const y = window.scrollY;
       const from = startY ?? y;
       startY = null;
-      if (isPointerDown || sectionScroll.cancel) return;
+      if (isPointerDown || sectionScroll.cancel || performance.now() < settleRest.until) return;
       const target = findRestTarget(y, from, direction, measureRestRanges(path, scale, headerHeight));
       if (target == null) return;
       scrollToSection(

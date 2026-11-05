@@ -1,5 +1,7 @@
 import * as THREE from "three";
 
+import { smoothstepRange } from "./math";
+
 /**
  * 셀셰이딩 계단 텍스처. 빛의 세기를 steps 칸으로 딱딱 끊는다.
  * floor 는 가장 어두운 칸의 밝기(0~255) — 굴곡진 물건은 0 이면 그늘이 새까만 얼룩이 된다.
@@ -41,11 +43,6 @@ const RAMP_EDGES: Record<ToonRampStyle, readonly [number, number]> = {
   najuIndoor: [0.5, 0.6],
 };
 
-const smoothstep = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
-
 /**
  * 계단 위치 x(0~1, dotNL·0.5+0.5)의 밝기.
  * brush 는 밝은 쪽에 붓으로 칠한 듯한 완만한 기울기(0 = 계단 그대로). 나주 경계에서 지워지는 기차의 찌그러짐·낡음 음영을 살린다.
@@ -54,7 +51,7 @@ function rampValue(style: ToonRampStyle, brush: number, x: number) {
   const levels = RAMP_LEVELS[style];
   const [low, high] = RAMP_EDGES[style];
   const step = x < low ? levels[0] : x < high ? levels[1] : levels[2];
-  return step * (1 - brush + brush * smoothstep(0.5, 1, x));
+  return step * (1 - brush + brush * smoothstepRange(0.5, 1, x));
 }
 
 function fillRamp(data: Uint8Array, style: ToonRampStyle, brush: number) {

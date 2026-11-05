@@ -5,12 +5,13 @@
  * 물 위에 뜬 돌 넷(FloatingStones)을 다 건지면 강물이 갈라지고, 물굴에서 돌아오면 물이 빠진다.
  * 카메라는 건드리지 않는다 — 번개 · 비 · 바람만 연출 큐로 건다.
  */
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { recall, remember, track } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { director, setZoneRainGate } from "../../scene/immersion/director";
 import { CORRIDOR, getPartOpenness } from "../cave/caveState";
@@ -39,6 +40,8 @@ import { getWaterLevel, ritual, setStormRain, setWaterLevel, useRitualStage } fr
 import { createBoatRock, createRopeFlutter } from "./scenePatches";
 
 const OFFERINGS: ItemKind[] = ["lightFish", "rice", "makgeolli"];
+/** 이어 하기 시계의 시작값(초). 지나간 연출이 모두 끝난 뒤로 잡는다 */
+const RESUME_CLOCK = 1000;
 
 /** 소반 상판 높이(미터) — 씬5 소반(키 0.38) */
 const TABLE_TOP = 0.38;
@@ -166,13 +169,45 @@ export default function RitualCircle() {
 
   // 진행 — 렌더와 무관한 값이라 ref 로 둔다
   const draggingRef = useRef<number | null>(null);
-  const offeredRef = useRef(new Set<ItemKind>());
-  const clockRef = useRef(0);
-  const drawAtRef = useRef(-1);
-  const riseAtRef = useRef(-1);
+  const offeredRef = useRef(
+    new Set<ItemKind>(ritual.isAtLeast("rising") ? OFFERINGS : recall<ItemKind[]>("ritual.offered", [])),
+  );
+  // 이어 하기: 지나간 연출은 다 끝난 때로 시작한다. 음수 시각은 「아직」이라 시계를 앞당겨 둔다.
+  const [resume] = useState(() => {
+    const stage = ritual.stage();
+    const isFlooded = ritual.isAtLeast("flooded") && stage !== "cleared";
+    return {
+      clock: stage === "cairns" ? 0 : RESUME_CLOCK,
+      // 그리거나 솟는 중이었다면 그 연출은 처음부터 다시 돈다.
+      drawAt: ritual.isAtLeast("offering") ? 0 : stage === "drawing" ? RESUME_CLOCK : -1,
+      riseAt: isFlooded ? 0 : stage === "rising" ? RESUME_CLOCK : -1,
+      clearedAt: stage === "cleared" ? 0 : -1,
+      strikes: isFlooded ? STRIKE_TIMES.length + 1 : 0,
+    };
+  });
+  const clockRef = useRef(resume.clock);
+  const drawAtRef = useRef(resume.drawAt);
+  const riseAtRef = useRef(resume.riseAt);
   const drainAtRef = useRef(-1);
-  const clearedAtRef = useRef(-1);
-  const strikesRef = useRef(0);
+  const clearedAtRef = useRef(resume.clearedAt);
+  const strikesRef = useRef(resume.strikes);
+
+  // 돌탑 자리와 올린 제물을 저장본에서 되돌린다.
+  useEffect(() => {
+    const isSolved = ritual.stage() !== "cairns";
+    const nodes = recall<(number | null)[]>("ritual.cairnNodes", []);
+    cairns.forEach((cairn, index) => {
+      const node = isSolved ? NODES.findIndex((entry) => entry.notches === cairn.stones) : (nodes[index] ?? null);
+      if (node === null || node < 0) return;
+      cairn.node = node;
+      cairn.position.set(NODES[node].x, 0, NODES[node].z);
+      cairn.isLit = NODES[node].notches === cairn.stones;
+    });
+    offeredRef.current.forEach((kind) => {
+      offeringMeshes[OFFERINGS.indexOf(kind)].visible = true;
+    });
+    return track("ritual.cairnNodes", () => cairns.map((cairn) => cairn.node));
+  }, [cairns, offeringMeshes]);
 
   useEffect(() => {
     /** 돌탑 하나가 홈에 맞았다 — 다 맞으면 마법진을 그린다 */
@@ -222,6 +257,7 @@ export default function RitualCircle() {
     };
     const offer = (kind: string) => {
       offeredRef.current.add(kind as ItemKind);
+      remember("ritual.offered", [...offeredRef.current]);
       offeringMeshes[OFFERINGS.indexOf(kind as ItemKind)].visible = true;
       audio.play("단서");
       if (offeredRef.current.size < OFFERINGS.length) {

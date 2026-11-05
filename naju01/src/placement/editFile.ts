@@ -165,14 +165,3 @@ export async function saveEdits(edits: Edits): Promise<true> {
   if (body.trim() !== "ok") throw new Error("개발 서버에 저장 기능이 없다 — `npx vite naju01` 을 다시 띄워라");
   return true;
 }
-
-/** 저장 기능이 붙어 있는지 — 편집 모드에 들어갈 때 미리 알려 주려고 */
-export async function canSaveEdits(): Promise<boolean> {
-  try {
-    const response = await fetch(`${EDIT_ENDPOINT}?t=${Date.now()}`);
-    JSON.parse(await response.text());
-    return true;
-  } catch {
-    return false;
-  }
-}

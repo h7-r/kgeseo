@@ -2,7 +2,7 @@
 import type { Ref } from "react";
 import type * as THREE from "three";
 
-export interface ClamParts {
+interface ClamParts {
   shell: THREE.BufferGeometry;
   materials: { shell: THREE.Material; nacre: THREE.Material };
 }

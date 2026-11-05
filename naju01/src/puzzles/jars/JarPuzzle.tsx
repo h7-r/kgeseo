@@ -11,6 +11,7 @@ import { useFrame } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { recall, track } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { setMusicDuck } from "../../transition/loadingVideo";
 import { registerInteractable, showNotice } from "../interaction";
@@ -190,6 +191,9 @@ function buildJars(materials: JarMaterials) {
   });
 }
 
+/** 이미 열린 항아리의 시계 시작값(초) — 뚜껑 연출이 끝난 뒤로 잡는다 */
+const RESTORED_JAR_CLOCK = 1000;
+
 export default function JarPuzzle() {
   const stage = useJarStage();
   const materials = useMemo(
@@ -220,15 +224,23 @@ export default function JarPuzzle() {
 
   // 진행 — 렌더와 무관한 값이라 ref 로 둔다
   /** 자리 k 에 놓인 항아리 번호. 든 항아리도 내려놓기 전까지는 제 자리를 차지한다(빈자리) */
-  const orderRef = useRef(JARS.map((_, index) => index));
+  const orderRef = useRef(
+    recall(
+      "jars.order",
+      JARS.map((_, index) => index),
+    ),
+  );
+  // 이어 하기: 이미 열렸으면 쌀을 또 내놓지 않고 뚜껑을 연 채로 시작한다.
+  const wasOpen = jarPuzzle.stage() === "open";
   const heldRef = useRef<number | null>(null);
-  const isSolvedRef = useRef(false);
+  const isSolvedRef = useRef(wasOpen);
   const rainAtRef = useRef(-Infinity);
   const nextRainAtRef = useRef(0);
   const isListeningRef = useRef(false);
-  const lidOpenedAtRef = useRef(-1);
-  const isRiceGivenRef = useRef(false);
-  const clockRef = useRef(0);
+  const lidOpenedAtRef = useRef(wasOpen ? 0 : -1);
+  const isRiceGivenRef = useRef(wasOpen);
+  const clockRef = useRef(wasOpen ? RESTORED_JAR_CLOCK : 0);
+  useEffect(() => track("jars.order", () => orderRef.current), []);
 
   useEffect(
     () => () => {

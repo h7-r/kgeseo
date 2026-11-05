@@ -1,11 +1,13 @@
 /**
  * 나주 상호작용 — 바라보는 물건을 고르고 [E] 로 쓴다. 퍼즐마다 대상을 등록만 하면 된다.
- * 본편처럼 E 는 상호작용 전용이다(편집 모드는 Q).
+ * E 는 상호작용 전용이다.
  */
 import { useSyncExternalStore } from "react";
 import * as THREE from "three";
 
 import { createChangeSignal } from "@/lib/changeSignal";
+
+import { isCameraFocused } from "../scene/cameraFocus";
 
 export interface Interactable {
   id: string;
@@ -131,6 +133,9 @@ export function updateAimGlow(delta: number) {
   }
 }
 
+/** 손에 물건을 든 채로도 겨눈 대상을 그대로 쓰나 — 물건을 받는 자리가 아니면 손과 상관없이 쓴다. 겨눈 것이 없으면 내려놓는다 */
+export const usesWithHand = (target: Interactable | null) => !!target && (!!target.isPickup || !target.handLabel);
+
 /** 물건을 쓰는 E — 손에 든 것을 내려놓거나, 겨눈 곳이 받는 물건을 소지품에서 바로 쓴다. 소지품이 등록한다(처리하면 true) */
 let handHandler: ((target: Interactable | null) => boolean) | null = null;
 
@@ -158,7 +163,7 @@ if (typeof window !== "undefined") {
         event.stopImmediatePropagation();
         return;
       }
-      if (!document.pointerLockElement) return;
+      if (!document.pointerLockElement || isCameraFocused()) return;
       if (handHandler?.(aimed)) {
         event.stopImmediatePropagation();
         return;

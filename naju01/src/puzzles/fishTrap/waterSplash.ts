@@ -3,6 +3,7 @@
  * 날씨 연출의 물튀김은 비가 올 때만 그려져서 여기서 따로 둔다.
  */
 import * as THREE from "three";
+import { assetUrl } from "@/config/env";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 import { makeGlowPoints } from "../glowPoints";
@@ -94,7 +95,7 @@ export function createWaterSplash() {
   crown.frustumCulled = false;
   crown.count = 0;
   new GLTFLoader().load(
-    `${import.meta.env.BASE_URL}vfx/물튀김_왕관.glb`,
+    assetUrl("/vfx/물튀김_왕관.glb"),
     (gltf) => {
       let geometry: THREE.BufferGeometry | null = null;
       gltf.scene.traverse((object) => {
@@ -220,5 +221,3 @@ export function createWaterSplash() {
     },
   };
 }
-
-export type WaterSplash = ReturnType<typeof createWaterSplash>;

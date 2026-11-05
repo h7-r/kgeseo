@@ -24,22 +24,22 @@ export const LIGHT_CLAMS = [
 export const LIGHT_BIG = { x: 48.2, z: 68.5 };
 
 /** 빛이 지나는 마디 차례 — 어미 → 조개 넷 → 큰 조개 */
-export const LIGHT_NODES = [LIGHT_SOURCE, ...LIGHT_CLAMS, LIGHT_BIG].map(({ x, z }) => ({ x, z }));
+const LIGHT_NODES = [LIGHT_SOURCE, ...LIGHT_CLAMS, LIGHT_BIG].map(({ x, z }) => ({ x, z }));
 
 /** 방향 → 단위 벡터 */
-export const facingDir = (facing: number) => {
+const facingDir = (facing: number) => {
   const angle = (facing / FACINGS) * Math.PI * 2;
   return { x: Math.cos(angle), z: Math.sin(angle) };
 };
 
 /** from 에서 to 를 똑바로 보는 방향 칸. 자리표는 45° 격자에 맞춰 두었다 */
-export function facingToward(from: { x: number; z: number }, to: { x: number; z: number }) {
+function facingToward(from: { x: number; z: number }, to: { x: number; z: number }) {
   const angle = Math.atan2(to.z - from.z, to.x - from.x);
   return ((Math.round((angle / (Math.PI * 2)) * FACINGS) % FACINGS) + FACINGS) % FACINGS;
 }
 
 /** 각 마디(조개1~4·큰 조개)가 앞 마디를 보는 방향 — 조개 넷의 답 + 큰 조개의 고정 방향 */
-export const LIGHT_REQUIRED = LIGHT_NODES.slice(1).map((node, i) => facingToward(node, LIGHT_NODES[i]));
+const LIGHT_REQUIRED = LIGHT_NODES.slice(1).map((node, i) => facingToward(node, LIGHT_NODES[i]));
 export const LIGHT_ANSWER = LIGHT_REQUIRED.slice(0, LIGHT_CLAMS.length);
 export const LIGHT_BIG_FACING = LIGHT_REQUIRED[LIGHT_REQUIRED.length - 1];
 
@@ -71,7 +71,7 @@ export const PEARL_Y = 0.17;
 export const pearlAt = (node: { x: number; z: number }) =>
   new THREE.Vector3(node.x, floorY(node.x, node.z) + PEARL_Y, node.z);
 
-export interface BeamSegment {
+interface BeamSegment {
   from: THREE.Vector3;
   to: THREE.Vector3;
 }

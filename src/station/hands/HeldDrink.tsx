@@ -18,6 +18,9 @@ interface HeldCanModelProps {
   outline?: OutlineValues | null;
 }
 
+/** 윗 테에 직접 긋는 선 색 — 외곽선과 같은 먹빛 */
+const INK = "#15171b";
+
 /** 손에 든 음료 캔 — 라벨색 몸통 + 알루미늄 뚜껑 + 따개 탭. */
 function HeldCanModel({ color, isOpened, tabRef, outline }: HeldCanModelProps) {
   // 눈앞에 크게 드는 물건이라 면을 28 칸으로 둔다.
@@ -39,7 +42,15 @@ function HeldCanModel({ color, isOpened, tabRef, outline }: HeldCanModelProps) {
       </mesh>
       <mesh geometry={lidGeometry} position={[0, 0.152, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <meshToonMaterial color="#c9ccd0" gradientMap={TOON_GRADIENT} />
-        <ToonOutline geometry={lidGeometry} outline={outline} />
+      </mesh>
+      {/* 윗 테와 뚜껑 안쪽 홈 — 위에서 볼 때 실루엣 선이 안 닿는 자리라 선을 직접 긋는다 */}
+      <mesh position={[0, 0.152, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.09, 0.0014, 6, 48]} />
+        <meshBasicMaterial color={INK} toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 0.1535, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.07, 0.0008, 6, 48]} />
+        <meshBasicMaterial color={INK} toneMapped={false} />
       </mesh>
       {isOpened && (
         <mesh position={[0.032, 0.156, 0]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -51,6 +62,7 @@ function HeldCanModel({ color, isOpened, tabRef, outline }: HeldCanModelProps) {
         <mesh>
           <boxGeometry args={[0.07, 0.008, 0.03]} />
           <meshBasicMaterial color="#b9bcc2" toneMapped={false} />
+          <ToonOutline outline={outline} />
         </mesh>
       </group>
     </group>
@@ -87,6 +99,10 @@ function HeldCupModel({ color, coffeeColor, remaining = 1, outline }: HeldCupMod
         <meshToonMaterial color={color} gradientMap={TOON_GRADIENT} side={THREE.DoubleSide} />
         <ToonOutline geometry={geometry} outline={outline} />
       </mesh>
+      <mesh position={[0, 0.12, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.12, 0.0014, 6, 48]} />
+        <meshBasicMaterial color={INK} toneMapped={false} />
+      </mesh>
       {fill > 0.02 && (
         <mesh position={[0, surfaceY, 0]} rotation={[-Math.PI / 2, 0, 0]}>
           <circleGeometry args={[surfaceRadius, 18]} />
@@ -101,7 +117,7 @@ interface HeldPaperModelProps {
   outline?: OutlineValues | null;
 }
 
-/** 손에 든 밸브 힌트 쪽지 — 텍스처를 입힌 얇은 판. */
+/** 손에 든 힌트 메모 — 텍스처를 입힌 얇은 판. */
 function HeldPaperModel({ outline }: HeldPaperModelProps) {
   const texture = useMemo(() => makeHintPaperTexture(), []);
   const geometry = useMemo(() => new THREE.PlaneGeometry(0.24, 0.3), []);

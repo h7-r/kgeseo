@@ -18,7 +18,7 @@ interface ConsentGroupProps {
   onShowTerms?: (tab: TermsTabId) => void;
 }
 
-/** 맨 윗줄 「전체」를 켜면 아래 필수 항목이 한꺼번에 켜지고, 아래를 다 켜면 전체도 저절로 켜진다. */
+/** 맨 윗줄 「전체」를 켜면 아래 필수 항목 셋이 한꺼번에 켜지고, 셋을 다 켜면 전체도 저절로 켜진다. */
 export default function ConsentGroup({
   variant,
   consents,
@@ -36,17 +36,27 @@ export default function ConsentGroup({
         checked={allAgreed}
         hasGlow={hasGlow}
         onChange={(v) => onChange("all", v)}
-        ariaLabel="이용약관 전체 동의"
+        ariaLabel="전체 동의"
       >
         <span style={requiredTagStyle}>[전체]</span>
-        <TermsLink tab="terms" onOpen={onShowTerms}>
-          이용약관
-        </TermsLink>
-        <span style={muted}>에 동의합니다.</span>
+        <span style={muted}>아래 항목에 모두 동의합니다.</span>
       </ConsentRow>
 
       {/* 「전체」에 딸린 항목이라는 게 보이게 체크 네모(16)+사이(10) 만큼 들인다. */}
       <div style={{ display: "flex", flexDirection: "column", gap: "9px", paddingLeft: "26px" }}>
+        <ConsentRow
+          checked={consents.terms}
+          hasGlow={hasGlow}
+          onChange={(v) => onChange("terms", v)}
+          ariaLabel="이용약관 동의"
+        >
+          <span style={requiredTagStyle}>[필수]</span>
+          <TermsLink tab="terms" onOpen={onShowTerms}>
+            이용약관
+          </TermsLink>
+          <span style={muted}>에 동의합니다.</span>
+        </ConsentRow>
+
         <ConsentRow
           checked={consents.privacyCollection}
           hasGlow={hasGlow}
@@ -72,7 +82,7 @@ export default function ConsentGroup({
       </div>
 
       {error && (
-        <span className="form-error" style={{ left: "26px", top: "100%" }}>
+        <span className="form-error" style={{ position: "static", marginLeft: "26px", whiteSpace: "normal" }}>
           {error}
         </span>
       )}

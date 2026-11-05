@@ -1,5 +1,6 @@
 import { exposeDevHook } from "@/debug/devHooks";
 import { readMigratedStorage, removeStorage, writeStorage } from "@/engine/storage";
+import { apiUrl } from "@/config/env";
 
 // 서버 창구(USR-110 · 전역-002 · 전역-003). 진행 상태 쪽은 아직 localStorage 로 흉내만 낸다 —
 // 서버가 준비되면 mockServer 를 fetch 구현으로 바꾸기만 하면 화면 코드는 그대로다.
@@ -50,8 +51,9 @@ function readDetail(body: unknown): string | undefined {
 async function backendRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(path, {
+    response = await fetch(apiUrl(path), {
       ...init,
+      credentials: "include",
       headers: { Accept: "application/json", ...init.headers },
     });
   } catch (cause) {

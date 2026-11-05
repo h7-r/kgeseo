@@ -9,8 +9,9 @@
  * 갈래가 없는 무채색은 색상을 지키며 밝힌다(푸른 기운만 걷는다) — 깊이로 어둡게 곱한 색도 그 비율이 그대로 남는다.
  */
 import * as THREE from "three";
+import { smoothstepRange } from "@/engine/math";
 
-export type PaletteClass =
+type PaletteClass =
   | "wall"
   | "wallBase"
   | "floor"
@@ -97,10 +98,10 @@ const PALETTE: Record<PaletteClass, string> = {
 const ACCENT_SATURATION = 0.9;
 
 // 모형 파일 → 갈래(같은 구조물 색을 쓰는 책상과 기둥을 가른다)
-const CLASS_BY_MODEL: Record<string, PaletteClass> = {
-  "/models/desk.glb": "desk",
-  "/models/chair.glb": "chair",
-};
+const CLASS_BY_MODEL: [string, PaletteClass][] = [
+  ["/models/desk.glb", "desk"],
+  ["/models/chair.glb", "chair"],
+];
 
 // 원래 색(sRGB) → 갈래. 팀 기준값(teamBaseline)과 코드 기본값에서 옮겼다
 const CLASS_BY_ORIGINAL: Record<string, PaletteClass> = {
@@ -173,10 +174,6 @@ const CLASS_BY_ORIGINAL: Record<string, PaletteClass> = {
 
 const fromHex = (hex: string) => new THREE.Color(hex); // three 가 sRGB 16진수를 선형으로 읽는다
 const luminance = (c: THREE.Color) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
-const smoothstep = (a: number, b: number, x: number) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
-};
 
 /**
  * 갈래 없는 무채색 — 색 기운(폐역의 남색, 남색을 걷으면 남는 초록)을 다 걷어 중성 회색으로 한 칸 밝힌다.
@@ -186,12 +183,12 @@ function liftNeutral(srgb: THREE.Color): THREE.Color {
   const lightness = 0.299 * srgb.r + 0.587 * srgb.g + 0.114 * srgb.b;
   const out = new THREE.Color(lightness, lightness * 0.995, lightness * 0.985);
   // 밝기를 곡선으로 띄운다(0.3 → 0.42 · 0.55 → 0.7 · 0.8 → 0.9) — 곱하면 중간 회색이 흰색까지 튄다
-  const lifted = lightness + 0.6 * lightness * (1 - lightness) * smoothstep(0.05, 0.2, lightness);
+  const lifted = lightness + 0.6 * lightness * (1 - lightness) * smoothstepRange(0.05, 0.2, lightness);
   if (lightness > 1e-4) out.multiplyScalar(lifted / lightness);
   return out.convertSRGBToLinear();
 }
 
-export interface Repaint {
+interface Repaint {
   /** 새 재질 색(선형) — 텍스처 평균은 아직 나누지 않은 바탕색 */
   color: THREE.Color;
   /** 넓은 면 — 꼭짓점 색을 남긴다(아니면 걷는다) */
@@ -213,7 +210,7 @@ export function paletteColor(material: THREE.MeshToonMaterial, seen: THREE.Color
   // 장면이 밝기를 곱해 넣은 색이면 곱하기 전 팀 색(userData.baseColor)으로 찾고, 그 밝기 비율을 새 색에도 곱한다
   const base = typeof material.userData.baseColor === "string" ? new THREE.Color(material.userData.baseColor) : null;
   const key = (base ?? material.color).getHexString();
-  const cls = CLASS_BY_MODEL[model] ?? CLASS_BY_ORIGINAL[key] ?? null;
+  const cls = CLASS_BY_MODEL.find(([path]) => model.endsWith(path))?.[1] ?? CLASS_BY_ORIGINAL[key] ?? null;
   if (cls) {
     const color = fromHex(PALETTE[cls]);
     if (base) color.multiplyScalar(luminance(material.color) / Math.max(1e-4, luminance(base)));
@@ -247,7 +244,7 @@ const LAMP_PART_COLORS = {
   inner: { on: "#fff3dc", off: "#b4b4b1" },
 } as const;
 
-export interface LampPart {
+interface LampPart {
   part: keyof typeof LAMP_PART_COLORS;
   on: boolean;
 }

@@ -99,7 +99,7 @@ const normalizeDeg = (deg: number) => ((deg % 360) + 360) % 360;
 const clampScale = (scale: number) => Math.min(PLACEMENT_SCALE_RANGE[1], Math.max(PLACEMENT_SCALE_RANGE[0], scale));
 
 /** 라이브러리 url → 같은 출처 주소. 상대 경로는 게임 BASE_URL 기준(공개 에셋 `_sf_local/` 과 같은 뿌리) */
-export function resolveAssetUrl(url: string): string {
+function resolveAssetUrl(url: string): string {
   const path = url.startsWith("/") ? url : `${import.meta.env.BASE_URL}${url}`;
   const resolved = new URL(path, location.href);
   if (resolved.origin !== location.origin) throw new Error("같은 출처의 에셋만 불러올 수 있습니다.");

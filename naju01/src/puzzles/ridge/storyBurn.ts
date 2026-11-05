@@ -25,7 +25,7 @@ export const STORY_LINES = [
 /** 맺음말 — 그림 차례가 아니라 그날 밤의 말투로 남긴 당부. 이야기보다 작게 */
 export const STORY_CLOSING = "이 모든 것이 하나로 모이거든, 그대 바라던 결말에 한 걸음 더 다가가리라";
 /** 글판 크기(m) */
-export const STORY_PLANE = { width: 2.8, height: 1.4 };
+const STORY_PLANE = { width: 2.8, height: 1.4 };
 /** 불티가 횃불에서 평상까지 날아가는 시간 · 널이 왼쪽 끝에서 오른쪽 끝까지 타는 시간(초) */
 const EMBER_SECONDS = 1.8;
 const BURN_SECONDS = 9;
@@ -123,7 +123,7 @@ export function createStoryBurn() {
     isDone: false,
   };
 }
-export type StoryBurn = ReturnType<typeof createStoryBurn>;
+type StoryBurn = ReturnType<typeof createStoryBurn>;
 
 /** 평상 윗면에 글판을 눕힌다 — 걸상 쪽(서쪽)에 서서 읽게 글 위쪽이 동쪽(+x) */
 export function placeStoryPlane(story: StoryBurn, at: THREE.Vector3) {

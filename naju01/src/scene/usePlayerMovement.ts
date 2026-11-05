@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type RefObject } from "react";
+import { useEffect, useMemo, useState, type RefObject } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import type { AvatarLink } from "@/engine/avatarLink";
@@ -11,6 +11,8 @@ import { MOVEMENT_CONSTANTS, useTerrainMovement } from "../movement/useTerrainMo
 import { UNDERWATER_SPEED, cave, registerTeleporter, useIsUnderwater, withCave } from "../puzzles/cave/caveState";
 import type { InstanceGroup } from "../placement/instanceGroups";
 import { VIEWPOINTS } from "../plan/sitePlan";
+import { IS_REVIEW_REQUESTED } from "../review/ReviewBridge";
+import { savedNajuStart } from "../save/najuSaveData";
 import type { ConnectorRamp } from "../terrain/connectorRamp";
 import type { NajuSceneReport } from "./useSceneFrame";
 import type { Terrain } from "./useTerrainLayers";
@@ -54,17 +56,22 @@ export function usePlayerMovement({
   const isUnderwater = useIsUnderwater();
   // 화면의 물건을 구운 충돌 격자 — 다 구워지면 위 소품 충돌 대신 쓰고, 낮은 물건 위로 올라선다
   const solid = useSolidField((x, z) => terrain.groundAt(x, z).y);
+  const [savedStart] = useState(savedNajuStart);
   const teleport = useTerrainMovement(active || isEditing, {
     terrain: walkable,
     extraBlockedAt: isEditing ? null : propColliders.blockedAt,
     solid: isEditing ? null : solid,
     gateBlockedAt: isEditing ? null : gateBlockedAt,
-    start: [VIEWPOINTS[0].x, VIEWPOINTS[0].z, VIEWPOINTS[0].heading],
+    // 이어 하기면 나갔던 자리에서 시작한다. 시선은 NajuSaveBridge 가 맞춘다.
+    start: savedStart
+      ? [savedStart[0], savedStart[1], undefined]
+      : [VIEWPOINTS[0].x, VIEWPOINTS[0].z, VIEWPOINTS[0].heading],
     eyeHeight: controls.eyeHeight,
     walkSpeed: isUnderwater ? (controls.walkSpeed ?? MOVEMENT_CONSTANTS.walk) * UNDERWATER_SPEED : controls.walkSpeed,
     swim: isUnderwater,
     fallRecovery: controls.fallRecovery,
-    reportRef,
+    // 보고를 읽는 곳은 검수 실행의 ReviewBridge 뿐이다
+    reportRef: IS_REVIEW_REQUESTED ? reportRef : null,
     arrowKeysMove: !isEditing, // 편집 중 방향키는 요소를 민다
     isThirdPerson,
     playerRef: playerState,

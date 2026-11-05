@@ -12,6 +12,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { recall, track } from "../../save/puzzleMemory";
 import { addDynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
@@ -78,7 +79,18 @@ export default function GateAltar() {
   const gl = useThree((state) => state.gl);
   const camera = useThree((state) => state.camera);
   useRidgeQuest();
-  const gate = useMemo(() => createGate(), []);
+  const gate = useMemo(() => {
+    const created = createGate();
+    // 시각은 페이지 시작부터 세므로 0 이면 흔들림이 끝난 뒤다.
+    if (ridgeQuest.postsSolved) created.ringsSolvedAt = 0;
+    // 궤를 이미 올렸으면 뚜껑이 열리는 안내를 다시 띄우지 않는다.
+    created.toldLid = ridgeQuest.chestOnAltar;
+    return created;
+  }, []);
+  useEffect(
+    () => track("ridge.ringSymbols", () => (gate.rings.length ? gate.rings.map((ring) => ring.symbol) : undefined)),
+    [gate],
+  );
 
   useEffect(() => {
     const { altar, fire } = gate;
@@ -120,6 +132,15 @@ export default function GateAltar() {
     if (!postRings) return;
     gate.rings = postRings.rings;
     gate.names = postRings.names;
+    // 이어 하기: 맞춰 둔 그림을 되돌린다. 다 맞았는데 진행 전에 나갔다면 여기서 이어 간다.
+    const savedSymbols = recall<number[]>("ridge.ringSymbols", []);
+    gate.rings.forEach((ring, k) => {
+      if (savedSymbols[k] === undefined) return;
+      ring.symbol = savedSymbols[k];
+      ring.target = angleFor(ring.front, ring.symbol);
+      ring.angle = ring.target;
+    });
+    if (savedSymbols.length && !ridgeQuest.postsSolved && isSolved(gate.rings)) solveRings(gate);
     // 방금 만든 고리 · 이름판 — 첫 프레임에 굽느라 멈추지 않게
     prewarmShaders(gl, scene, camera, [...postRings.rings.map((ring) => ring.mesh), ...postRings.names]);
   };
@@ -202,7 +223,7 @@ export default function GateAltar() {
       label: "궤 속 낡은 종이 읽기",
       radius: 0.35 * M,
       reach: 2.4 * M,
-      enabled: () => ridgeQuest.chestOnAltar,
+      enabled: () => ridgeQuest.chestOnAltar && !ridge.isAtLeast("rift"),
       use: () => openPaper(),
     });
     return () => {

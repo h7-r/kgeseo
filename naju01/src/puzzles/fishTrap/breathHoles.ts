@@ -14,7 +14,7 @@ import { makeToonMaterial } from "../materials";
 const HOLE_RADIUS = 0.03;
 const CRUMB = new THREE.IcosahedronGeometry(0.011, 0);
 
-export type Puffs = 1 | 2 | 3;
+type Puffs = 1 | 2 | 3;
 
 export interface BreathHole {
   /** 파는 자리(DIG_SPOT)에서의 어긋남(미터) */
@@ -39,9 +39,9 @@ export const HOLES: BreathHole[] = [
 export const CLAM_HOLES = HOLES.filter((hole) => hole.puffs === 3).length;
 
 /** 한 바퀴(초) · 잇단 뿜기 사이 · 한 줄기가 올랐다 지는 시간 */
-export const PUFF_CYCLE = 4.8;
-export const PUFF_GAP = 0.4;
-export const PUFF_SECONDS = 0.44;
+const PUFF_CYCLE = 4.8;
+const PUFF_GAP = 0.4;
+const PUFF_SECONDS = 0.44;
 /** 물줄기 높이(미터) · 줄기 한 가닥의 점 수 */
 export const PUFF_HEIGHT = 0.24;
 export const JET_POINTS = 6;

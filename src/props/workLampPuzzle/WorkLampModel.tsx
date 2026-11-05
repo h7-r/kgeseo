@@ -23,7 +23,7 @@ const CAGE_BARS = 6;
 
 function buildCageGeometry() {
   const pieces: GeometryPiece[] = [
-    // 분기함 고리에 걸리는 걸이
+    // 손잡이 끝 고리 — 콘센트 구멍 속으로 함께 들어간다
     { geometry: new THREE.TorusGeometry(0.085, 0.017, 8, 20), position: [0, 0.62, 0], rotation: [Math.PI / 2, 0, 0] },
     // 갓 — 램프의 실루엣을 만든다
     { geometry: new THREE.CylinderGeometry(0.1, 0.22, 0.26, 20, 1, true), position: [0, 0.2, 0] },

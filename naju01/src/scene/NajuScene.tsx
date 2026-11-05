@@ -12,11 +12,14 @@ import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { TOON_GRADIENT } from "@/engine/toon";
 
 import { usePresentationOverrides } from "../app/presentation";
+import { IS_NPC_TEST } from "../app/runtimeFlags";
 import type { MeshAppearanceConfig } from "../avatar/meshAppearance";
 import type { SidekickConfig } from "../avatar/sidekickOptions";
 import type { ToonConfig } from "../avatar/toonMaterial";
 import type { OutlineConfig } from "../avatar/toonOutline";
 import { GROUP_IDS } from "../placement/editFile";
+import NajuNpcBody from "../npc/NajuNpcBody";
+import { useNajuNpcFollow } from "../npc/useNajuNpcFollow";
 import { useEditModeActive } from "../placement/libraryPlaceApi";
 import { MESH_NAMES } from "../plan/meshNames";
 import { CORE, UNITS_PER_METER } from "../plan/sitePlan";
@@ -35,6 +38,7 @@ import PathLayer from "./components/PathLayer";
 import PlanOverlays from "./components/PlanOverlays";
 import { planPoint } from "../plan/sitePlan";
 import PlayerAvatar from "./components/PlayerAvatar";
+import NajuSaveBridge from "../save/NajuSaveBridge";
 import SkyAndLighting from "./components/SkyAndLighting";
 import WaterLayer from "./components/WaterLayer";
 import { useBlockerCollapse } from "./useBlockerCollapse";
@@ -54,7 +58,7 @@ import { AnimeStyleLayer, IS_ANIME_VARIANT } from "../world/animeStyle";
 import { IS_REVIEW_REQUESTED, ReviewBridge, useReviewCameraHold } from "../review/ReviewBridge";
 import { useBlockerShapes } from "./useBlockerShapes";
 import { toGroundShading, useNajuControls } from "./useNajuControls";
-import { useNajuDevHook, useViewpointKeys } from "./useNajuDevTools";
+import { useNajuDevHook, useSceneEndKeys } from "./useNajuDevTools";
 import { usePathFallback, usePathShapes, useRoadsideSpots } from "./usePathLayers";
 import { usePlayerMovement } from "./usePlayerMovement";
 import { IS_MANGA_STYLE } from "../world/mangaStyle";
@@ -239,11 +243,11 @@ export default function NajuScene({
 
   const { camera, gl, scene } = useRendererSetup(controls.fov);
   // 검수 작업대가 시점을 잡고 있는 동안은 걷기·연출을 멈춘다
-  //   통합 편집 모드(E)도 같다 — 그 모드가 둘러보기 카메라를 몬다(걷기·안개를 멈춘다, 10/15)
+  //   통합 편집 모드도 같다 — 그 모드가 둘러보기 카메라를 몬다(걷기·안개를 멈춘다, 10/15)
   const isReviewCameraHold = useReviewCameraHold();
   const isEditHold = useEditModeActive();
   const isReviewHold = isReviewCameraHold || isEditHold;
-  // 구역 초점은 편집 부감(E → Tab 전체보기) 동안 잠시 끈다 — 맵 전체를 밝게(10/13 미르)
+  // 구역 초점은 편집 부감(Tab 전체보기) 동안 잠시 끈다 — 맵 전체를 밝게(10/13 미르)
   //   검수 카메라가 잡고 있는 동안(둘러보기·촬영)도 끈다 — 안개 속에선 어떤 에셋이 있는지 못 본다(10/15 미르)
   const isFocusNow = IS_FOCUS_ENABLED && !(isEditing && isOverview) && !isReviewHold;
   focus.paused = IS_FOCUS_ENABLED && !isFocusNow;
@@ -264,11 +268,24 @@ export default function NajuScene({
     reportRef,
     playerState,
   });
+  // NPC 동행(?npc) — 반드시 usePlayerMovement 바로 뒤. 그래야 같은 프레임의 플레이어 자리를 읽는다(npc/INTEGRATION.md)
+  const npcFollow = useNajuNpcFollow({
+    enabled: IS_NPC_TEST,
+    active: (active || isEditing) && !((isEditing && isOverview) || isReviewHold),
+    playerState,
+    terrain,
+    instanceGroups,
+    ramp,
+    allowLeavingCore: controls.allowLeavingCore,
+  });
   const rockAsset = useRockAsset(controls);
   useBakedTerrainTexture(scene, controls.bakedTerrainTexture);
 
-  const { clearedBlockers, setClearedBlockers, collapseRef, collapseNoticeRef, collapse, setCollapse, endScene } =
-    useBlockerCollapse(terrain, blockerShapes, ground);
+  const { clearedBlockers, setClearedBlockers, collapseRef, collapse, setCollapse, endScene } = useBlockerCollapse(
+    terrain,
+    blockerShapes,
+    ground,
+  );
   // 검수 씬 탭 — 그 씬 상태로 차단물을 연출 없이 맞춘다(앞 씬으로 돌아가면 되살아남)
   const clearBlockersInstant = useCallback(
     (codes: string[]) => setClearedBlockers(new Set(codes)),
@@ -298,7 +315,6 @@ export default function NajuScene({
     gl,
     reportRef,
     collapseRef,
-    collapseNoticeRef,
     setCollapse,
     skyRef,
     cloudRef,
@@ -309,7 +325,7 @@ export default function NajuScene({
     terrain,
     playerState,
   });
-  useViewpointKeys(endScene, collapseNoticeRef);
+  useSceneEndKeys(endScene);
 
   const pathFallback = usePathFallback(measuredPaths);
   const { sunTarget, sunRef, sunPosition } = useSunLight(controls, camera);
@@ -454,19 +470,21 @@ export default function NajuScene({
 
       <PlanOverlays controls={controls} gridGeometry={gridGeometry} />
 
-      <Suspense fallback={null}>
-        <Editor
-          enabled={isEditing}
-          edits={edits}
-          setEdits={setEdits}
-          instanceGroups={instanceGroups}
-          groundAt={terrain.groundAt}
-          unlockPointer={() => controlsRef.current?.unlock?.()}
-          overview={isOverview}
-          setOverview={setIsOverview}
-          onExit={exitEditing}
-        />
-      </Suspense>
+      {isEditing && (
+        <Suspense fallback={null}>
+          <Editor
+            enabled={isEditing}
+            edits={edits}
+            setEdits={setEdits}
+            instanceGroups={instanceGroups}
+            groundAt={terrain.groundAt}
+            unlockPointer={() => controlsRef.current?.unlock?.()}
+            overview={isOverview}
+            setOverview={setIsOverview}
+            onExit={exitEditing}
+          />
+        </Suspense>
+      )}
 
       {/* 게임 공간 전체를 캐릭터와 같은 cel 질감으로(같은 그라디언트라 계단이 맞는다). ?worldtoon=off 로 비교. */}
       {toonConfig?.enabled && toonConfig.world !== false && (
@@ -474,6 +492,10 @@ export default function NajuScene({
       )}
       {/* &애니판 — 2톤 부드러운 명암·색 보정·먼 곳 바램(world/animeStyle). WorldToon 의 램프 조각을 덮는다 */}
       {IS_ANIME_VARIANT && <AnimeStyleLayer />}
+      <NajuSaveBridge />
+
+      {/* NPC 동행 개발 테스트(?npc) — 자리는 useNajuNpcFollow 가 매 프레임 직접 고친다. 여기서는 그리기만 */}
+      {IS_NPC_TEST && <NajuNpcBody meshRef={npcFollow.meshRef} />}
 
       <PlayerAvatar
         isMounted={isAvatarMounted}

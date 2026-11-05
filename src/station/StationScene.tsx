@@ -344,11 +344,11 @@ export default function StationScene({
               coin={coin}
               coinOutline={coinOutline}
               highlight={highlight}
-              eyeHeight={view.eyeHeight}
               isCollisionEnabled={collision.enabled}
               drinkMachine={drinkMachine}
               coffeeMachine={coffeeMachine}
               hydrantDoorId={hydrantDoorId}
+              eyeHeight={view.eyeHeight}
               isHydrantLocked={isHydrantLocked}
             />
           )}

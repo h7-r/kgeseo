@@ -78,7 +78,7 @@ interface OriginalSnapshot {
 // ── 길 침범 검사 (10/14 미르: 「T4 하강로가 덮기 바위 속에 묻혀 카메라가 바위를 뚫고 지나간다」) ──
 //   덮기 판 하나를 반지름 rm(m) 공으로 보고, 어느 통로든 길바닥+사람 키(2.2 m) 띠와 겹치면 세우지 않는다.
 //   길 고도는 통로의 시작고도→끝고도를 길이 비율로 잇는다(길은 고른 비탈이다).
-export function pathIntrusion(xm: number, ym: number, zm: number, rm: number): string | null {
+function pathIntrusion(xm: number, ym: number, zm: number, rm: number): string | null {
   for (const T of PATHS) {
     const P = T.points;
     let walked = 0;
@@ -120,7 +120,7 @@ interface PathPiece {
 }
 
 /** 편집으로 깐 「땅.길」 조각(팔레트 소품)의 상자들 */
-export function collectPathPieces(scene: THREE.Scene): PathPiece[] {
+function collectPathPieces(scene: THREE.Scene): PathPiece[] {
   const pieces: PathPiece[] = [];
   scene.traverse((o) => {
     if (!(o as THREE.InstancedMesh).isInstancedMesh || o.name !== "땅.길" || o.userData.publicAsset) return;
@@ -155,7 +155,7 @@ const countZone = (xm: number, zm: number, kept: boolean) => {
   if (kept) grassThinning.inZones[0]++;
 };
 
-export function canPlant(
+function canPlant(
   xm: number,
   zm: number,
   id: number,
@@ -202,7 +202,7 @@ const arrayId = (a: object) => {
 const snapshotOf = (o: THREE.InstancedMesh): OriginalSnapshot | undefined =>
   o.userData.publicAssetOriginal as OriginalSnapshot | undefined;
 /** 압축 전 원본 배열(스냅샷이 있으면 그것) */
-export const originalMatrices = (o: THREE.InstancedMesh): Float32Array =>
+const originalMatrices = (o: THREE.InstancedMesh): Float32Array =>
   snapshotOf(o)?.matrices ?? (o.instanceMatrix.array as Float32Array);
 const originalIds = (o: THREE.InstancedMesh): Int32Array | null =>
   snapshotOf(o)?.ids ?? (o.userData.ids as Int32Array | undefined) ?? null;
@@ -283,7 +283,7 @@ export type GroundAt = (x: number, z: number) => { y: number } | null | undefine
 
 /** 땅에 앉히는 무리(이름의 마지막 마디) — 바위처럼 일부러 겹쳐 쌓은 것은 뺀다 */
 const SETTLED_KINDS = new Set(["나무", "덤불", "잎더미", "수풀", "잡초", "꽃", "풀", "자갈", "길가돌", "발치너덜"]);
-export const shouldSettle = (groupId: string) => SETTLED_KINDS.has(groupId.split(".").pop() ?? "");
+const shouldSettle = (groupId: string) => SETTLED_KINDS.has(groupId.split(".").pop() ?? "");
 
 interface BundleBase {
   center: THREE.Vector3;
@@ -332,7 +332,7 @@ function bundleBase(bundle: Bundle): BundleBase {
 }
 
 /** matrices(부모 공간)를 제자리에서 내린다. 묻기는 밑동을 땅 밑으로 얼마나 넣을지(m) */
-export function settleOnGround(
+function settleOnGround(
   bundle: Bundle,
   matrices: THREE.Matrix4[],
   parentWorld: THREE.Matrix4,

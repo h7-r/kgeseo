@@ -29,7 +29,7 @@ export const NODES = NODE_NOTCHES.map((notches, k) => {
 });
 
 /** 홈 원 반지름(미터) — 돌탑 밑동보다 조금 크게 */
-export const NODE_RING_RADIUS = 0.36;
+const NODE_RING_RADIUS = 0.36;
 
 const LINE_WIDTH = 0.025;
 /** 땅에서 띄우는 높이(미터) — 소반 앞을 지나는 흙길(땅.길)이 땅보다 0.1 m 높아 그 위로 올린다 */
@@ -82,8 +82,8 @@ function segment(a: Point, b: Point, steps = 24): Point[] {
 }
 
 /** 한자 띠 글귀 — 기우제 축문에서 따온 말. 둘레를 한 바퀴 돈다 */
-export const OUTER_HANJA = "祈雨祭天 龍王降臨 雲起風行 雷動電閃 甘雨普降 江河滿溢 萬物復生 天地感應 ";
-export const INNER_HANJA = "雨 風 雲 雷 水 龍 天 地 ";
+const OUTER_HANJA = "祈雨祭天 龍王降臨 雲起風行 雷動電閃 甘雨普降 江河滿溢 萬物復生 天地感應 ";
+const INNER_HANJA = "雨 風 雲 雷 水 龍 天 地 ";
 
 /** 바깥 · 안쪽 한자 띠(미터) — 겹원 사이에 들어간다 */
 export const HANJA_BANDS = [

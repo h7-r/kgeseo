@@ -20,7 +20,7 @@ export const BREAKER_BOX_LOCK_ID = "workLamp:breakerBox";
 const CORRIDOR_X = -25.5;
 export const FLOOR_MARKER_RADIUS = 1.6;
 /** 튜토리얼 안내 색 — 바닥 동그라미·방향 화살표·안내판 테두리, 그리고 출동 호출 카드·화살표까지 한 색. 푸른 기 뺀 민트. */
-export const TUTORIAL_COLOR = "#a9e6cf";
+export const TUTORIAL_COLOR = "#86a6f0";
 
 type TutorialStepId =
   | "start"
@@ -201,6 +201,10 @@ function setState(patch: Partial<TutorialState>) {
 }
 
 export const tutorialStore = { get: () => state, subscribe: signal.subscribe };
+/** 저장본에서 단계만 넣는다. 끝난 입력 기록은 되살리지 않아도 다음 단계부터 이어진다. */
+export function restoreTutorial({ step, isFinished }: { step: number; isFinished: boolean }) {
+  setState({ step, isFinished });
+}
 export const useTutorial = () => useSyncExternalStore(signal.subscribe, () => state);
 
 // 단계가 바뀌면 비운다.

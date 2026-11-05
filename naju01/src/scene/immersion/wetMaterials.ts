@@ -109,7 +109,7 @@ const isLitMaterial = (m: THREE.Material | null | undefined): m is LitMaterial =
     (m as THREE.MeshLambertMaterial).isMeshLambertMaterial ||
     (m as THREE.MeshPhongMaterial).isMeshPhongMaterial) === true;
 
-export function applyWet(m: THREE.Material | null | undefined, kind: WetKind) {
+function applyWet(m: THREE.Material | null | undefined, kind: WetKind) {
   if (!isLitMaterial(m) || m.userData.wgWet) return;
   m.userData.wgWet = kind;
   const prev = m.onBeforeCompile;

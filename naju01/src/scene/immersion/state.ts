@@ -10,7 +10,7 @@
  *              (안개가 닫히는 거리에서 지평선 하늘색과 같아져 빠진 물체가 안 보인다).
  *   ② 소리     Web Audio 로 **합성**한다(받은 음원 0 — 라이선스 걱정 없음). → audio.ts
  *   ③ 바람     나무·풀 셰이더 흔들림(꼭짓점에서만 — 추가 드로우콜 0). → windShader.ts
- *   ④ 날씨     비(반경 안 빗줄기 1 드로우콜) · 물안개(스프라이트 몇 장). → ImmersionLayer.tsx · wetMaterials.ts
+ *   ④ 날씨     비(반경 안 빗줄기 1 드로우콜). → ImmersionLayer.tsx · wetMaterials.ts
  *   ⑤ 카메라   진입 시점 컷 · 흔들림(트라우마) · 줌인 · 돌리줌 · 시선 끌기. → entryCut.ts · director.ts
  *              카메라를 **그리기 직전에만** 비틀고 그린 뒤 되돌린다 → 조작·판정은 그대로.
  *   ⑥ 설정     O 키 — 소리 크기 · 흔들림 % · 시점 컷 · 바람 · 날씨 (접근성, XAG 117). → overlayDom.ts
@@ -148,6 +148,9 @@ export interface Stage {
   current: CurrentTime | null; // { 안개, 하늘, 빛, 해색 } — 목표로 천천히 다가간다
   lights: LightEntry["light"][];
   lightsFoundAt: number;
+  skyMesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial> | null;
+  cloudMesh: THREE.Object3D | null;
+  skyFoundAt: number;
   // 날씨
   rain: number;
   eventRain: { strength: number; end: number; zone: string | null } | null;
@@ -194,6 +197,9 @@ export const stage: Stage = {
   current: null,
   lights: [],
   lightsFoundAt: -99,
+  skyMesh: null,
+  cloudMesh: null,
+  skyFoundAt: -99,
   rain: 0,
   eventRain: null,
   eventWind: null,
@@ -208,7 +214,17 @@ export const stage: Stage = {
   gaze: null,
   cut: null,
   opening: 0,
-  effects: { yaw: 0, pitch: 0, roll: 0, fov: 0, forward: 0, gazeTarget: null, gazeWeight: 0, cutPosition: null, cutLookAt: null },
+  effects: {
+    yaw: 0,
+    pitch: 0,
+    roll: 0,
+    fov: 0,
+    forward: 0,
+    gazeTarget: null,
+    gazeWeight: 0,
+    cutPosition: null,
+    cutLookAt: null,
+  },
   saved: { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), fov: 60, changed: false },
   seenClues: new Set(),
   clueGroups: [],

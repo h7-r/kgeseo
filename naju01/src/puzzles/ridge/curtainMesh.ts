@@ -3,6 +3,7 @@
  * 좌표는 미터, 그리는 것은 유닛(M 배)
  */
 import * as THREE from "three";
+import { assetUrl } from "@/config/env";
 
 import { createCompressedGltfLoader } from "../../loaders/compressedGlb";
 import { makeGlowPoints } from "../glowPoints";
@@ -180,7 +181,7 @@ function loadFloatingProps(props: THREE.Group, seeds: Drifter[]) {
     holder.visible = false;
     props.add(holder);
     loader.load(
-      `${import.meta.env.BASE_URL}_sf_local/${entry.url}`,
+      assetUrl(`/_sf_local/${entry.url}`),
       (gltf) => {
         const model = gltf.scene;
         model.updateMatrixWorld(true);
@@ -297,4 +298,3 @@ export function buildCurtain() {
     propSeeds,
   };
 }
-export type Curtain = ReturnType<typeof buildCurtain>;

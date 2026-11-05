@@ -8,13 +8,8 @@ import { CORRIDOR } from "../cave/caveState";
 import { makeGlowTexture } from "../glowTexture";
 import { makeToonMaterial } from "../materials";
 import { M, groundY } from "../units";
+import { FLOOD_RECTS } from "./floodRects";
 import { CIRCLE_CENTER, GLOW_COLOR } from "./magicCircle";
-
-/** 물이 차오르는 곳(미터) — 자갈밭(Z2)과, 강(바다 쪽)도 같이 불어난다. 강은 끝선이 안개 속으로 묻히게 멀리까지 */
-export const FLOOD_RECTS = {
-  gravel: { x: [33, 57], z: [29.5, 44.6] },
-  river: { x: [-400, 480], z: [44.5, 160] },
-};
 
 const additive = (extra: Partial<THREE.MeshBasicMaterialParameters>) =>
   new THREE.MeshBasicMaterial({
@@ -122,7 +117,6 @@ export function buildRitualEffects() {
     },
   };
 }
-export type RitualEffects = ReturnType<typeof buildRitualEffects>;
 
 /** 강 쪽 물판 — 갈라진 만큼(gap, 미터) 가운데를 비운다 */
 export function partRiverSheets([left, right]: THREE.Mesh[], gap: number) {

@@ -104,7 +104,7 @@ export interface CompletedCharacter {
 export type CompleteResult = { ok: true } | { ok: false; reason: "failed" | "name_taken"; message?: string };
 
 /** 그 성별의 기본값 — 눈금의 가운데 */
-export function getBodyFieldDefault(field: BodyField, gender: AvatarGender): number {
+function getBodyFieldDefault(field: BodyField, gender: AvatarGender): number {
   return field.genderDefaults?.[gender] ?? field.defaultValue;
 }
 

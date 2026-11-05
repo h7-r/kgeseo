@@ -1,29 +1,37 @@
 import { useEffect, useMemo, useRef, type RefObject } from "react";
-import { useFrame, useThree } from "@react-three/fiber";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Vector3Tuple } from "three";
 
 import { playSound } from "@/audio/sound";
-import { claimCamera, releaseCamera } from "@/engine/camera";
-import { smoothstep } from "@/engine/math";
+import { playerView } from "@/engine/playerView";
 import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import { makeCachedCanvasTexture } from "@/engine/textures/canvas";
-import { getValveOpening } from "@/props/panelWiringState";
+import { canVendingMove, getValveOpening } from "@/props/panelWiringState";
 import {
   advancePush,
-  endCutscene,
   hasSeenCutscene,
   isValveFaked,
   markCutsceneSeen,
   getPushOffset,
+  getPushProgress,
+  hasEnteredHeadquarters,
+  markEnteredHeadquarters,
   getPushStage,
   setPush,
-  startCutscene,
 } from "@/props/vendingPushState";
+import { HEADQUARTERS_MIN_X } from "@/station/layout/dimensions";
+import { passage } from "@/station/layout/passage";
 
-const CAMERA_OWNER = "vendingPushCutscene";
+type Phase = "idle" | "push";
 
-type Phase = "idle" | "goIn" | "push" | "return";
+/** 컷신이 끝난 뒤 문을 여닫는 데 걸리는 시간(컷신 시간에 대한 몫) — 다가가는 걸음에 맞춘다 */
+const DOOR_REPEAT_SPEED = 0.55;
+/** 방 안으로 이만큼(유닛) 들어와야 「들어갔다」로 본다 */
+const ENTERED_DEPTH = 1;
+/** 문에서 이 거리 안이면 열고, 이보다 멀어지면 닫는다 — 경계에서 떨지 않게 둘을 벌린다 */
+const DOOR_OPEN_RANGE = 5;
+const DOOR_CLOSE_RANGE = 6;
 
 // 네모난 점은 픽셀로 보인다. 가운데가 밝고 가장자리로 스러지는 동그라미여야 먼지로 읽힌다.
 const makeDustTexture = () =>
@@ -48,6 +56,8 @@ function createDustPool(count: number) {
     /** 0 이면 죽은 것(안 그린다) */
     remaining: new Float32Array(count),
     lifetime: new Float32Array(count),
+    /** 살아 있는 알갱이 수 — 0 이면 프레임 계산을 건너뛴다 */
+    alive: 0,
   };
 }
 
@@ -59,14 +69,8 @@ interface VendingPushCutsceneProps {
   distance?: number;
   /** 미는 데 걸리는 시간 */
   duration?: number;
-  /** 화면이 넘어가고 돌아오는 시간 */
-  transitionTime?: number;
   /** 자판기를 담은 그룹(position.z 를 만진다) */
   targetRef?: RefObject<THREE.Object3D | null>;
-  /** 카메라가 설 자리 */
-  viewPoint?: () => Vector3Tuple;
-  /** 바라볼 곳 */
-  lookAt?: () => Vector3Tuple;
   /** 먼지가 이는 자리(자판기 밑) */
   dustOrigin?: () => Vector3Tuple;
   dustCount?: number;
@@ -75,52 +79,47 @@ interface VendingPushCutsceneProps {
   dustStrength?: number;
   /** 자판기 밑 어디까지 넓게 일어날지 */
   dustSpread?: number;
-  shake?: number;
 }
 
-const targetPoint = new THREE.Vector3();
-const lookPoint = new THREE.Vector3();
-const lookMatrix = new THREE.Matrix4();
-const lookRotation = new THREE.Quaternion();
-const currentRotation = new THREE.Quaternion();
-
 /**
- * 밸브가 돌면 화면이 자판기로 넘어가 밀리는 걸 보여 준다 — 밸브 자리에서는 자판기가 등 뒤라 열린 걸 못 본다.
- * ① 넘어감 → ② 밀림(먼지·떨림) → ③ 들어갈 때의 자리·시선으로 정확히 돌아옴.
- * 조금이라도 다른 자리로 돌아오면 순간이동당한 느낌이라 들어갈 때 자리를 적어 둔다.
- * 연출 동안 조작을 멈추는 판단은 App 이 `isCutscenePlaying`/`useIsCutscenePlaying`(@/props/vendingPushState) 으로 한다.
+ * 전류가 자판기에 닿아 불빛이 한참 날뛰면 자판기가 밀려나 뒤의 문을 드러낸다(먼지 · 떨림).
+ * 그동안 화면은 FlowFocusCamera 가 전류를 따라와 자판기를 보고 있다. 조작을 멈추는 것도 그쪽이 한다.
  */
 export default function VendingPushCutscene({
   enabled = true,
   preview = false,
   distance = 3.4,
   duration = 2.2,
-  transitionTime = 0.9,
   targetRef,
-  viewPoint,
-  lookAt,
   dustOrigin,
   dustCount = 90,
   dustColor = "#cfc7b6",
   dustSize = 0.22,
   dustStrength = 1,
   dustSpread = 2.2,
-  shake = 0.04,
 }: VendingPushCutsceneProps) {
-  const camera = useThree((state) => state.camera);
   const phase = useRef<Phase>("idle");
   // 벽시계 시각. dt 를 쌓으면 카메라가 옮겨 갈 때 구역이 새로 올라오며 끊긴 만큼 연출이 늘어난다.
   const phaseStart = useRef(0);
-  const lastShoveAt = useRef(0);
-  const saved = useRef<{ position: THREE.Vector3; quaternion: THREE.Quaternion } | null>(null);
-  // '밸브가 막 돌았다' 는 판정은 vendingPushState 모듈이 기억한다. 여기 ref 로 두면 씬이 다시 뜰 때 컷신이 또 돈다.
+  const shouldDoorStayOpen = () => {
+    if (!playerView.ready) return true;
+    const { x, z } = playerView.eye;
+    if (!hasEnteredHeadquarters() && x > HEADQUARTERS_MIN_X + ENTERED_DEPTH) markEnteredHeadquarters();
+    // 처음 들어가기 전에는 열어 둔다 — 문을 연 사람이 돌아올 때까지 닫으면 안 된다
+    if (!hasEnteredHeadquarters()) return true;
+    // 복도는 폭이 좁아 가운데로 걸어도 문까지 멀다 — 복도 쪽에서는 따라 걸은 거리만 본다
+    const alongCorridor = Math.abs(z - passage.get().doorZ);
+    const distanceToDoor = x < HEADQUARTERS_MIN_X ? alongCorridor : Math.hypot(x - HEADQUARTERS_MIN_X, alongCorridor);
+    return distanceToDoor < (getPushProgress() > 0.5 ? DOOR_CLOSE_RANGE : DOOR_OPEN_RANGE);
+  };
+  // 마지막으로 힘이 실린 단계 — 단계가 바뀔 때 먼지를 터뜨린다
   const lastStage = useRef(-1);
 
   const pool = useMemo(() => createDustPool(dustCount), [dustCount]);
   const geometry = useMemo(() => {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(dustCount * 3), 3));
-    g.setAttribute("size", new THREE.BufferAttribute(new Float32Array(dustCount), 1));
+    g.setDrawRange(0, 0);
     return g;
   }, [dustCount]);
   const material = useMemo(
@@ -146,9 +145,6 @@ export default function VendingPushCutscene({
     },
     [geometry, material],
   );
-  // 컷신 도중 사라지면(씬 전환·Leva 끄기) 잡은 카메라를 아무도 안 놓아 화면이 굳는다.
-  useEffect(() => () => releaseCamera(CAMERA_OWNER), []);
-
   const pointsRef = useRef<THREE.Points>(null);
 
   useFrame((_, dt) => {
@@ -168,76 +164,61 @@ export default function VendingPushCutscene({
         pool.velocity[k + 2] = (Math.random() - 0.5) * 1.1;
         pool.lifetime[i] = 0.9 + Math.random() * 1.1;
         pool.remaining[i] = pool.lifetime[i];
+        pool.alive++;
         emitted++;
       }
     };
 
     // 미리보기는 컷신 없이 밀린다 — 고칠 때마다 컷신이 돌면 성가시다.
-    const open = enabled ? (preview || isValveFaked() || getValveOpening() ? 1 : 0) : 0;
+    const isReady = getValveOpening() && canVendingMove();
+    const isWanted = preview || isValveFaked() || (isReady && shouldDoorStayOpen());
+    const open = enabled && isWanted ? 1 : 0;
 
     // 먼지는 연출이 끝난 뒤에도 남은 것이 계속 뜬다
-    for (let i = 0; i < dustCount; i++) {
-      if (pool.remaining[i] <= 0) continue;
-      const k = i * 3;
-      pool.remaining[i] -= d;
-      if (pool.remaining[i] <= 0) continue;
-      // 확 퍼졌다가 이내 느려지며, 가라앉지 않고 살짝 뜬다
-      pool.velocity[k] *= 1 - d * 1.6;
-      pool.velocity[k + 2] *= 1 - d * 1.6;
-      pool.velocity[k + 1] += d * 0.12;
-      pool.position[k] += pool.velocity[k] * d;
-      pool.position[k + 1] += pool.velocity[k + 1] * d;
-      pool.position[k + 2] += pool.velocity[k + 2] * d;
+    if (pool.alive > 0) {
+      const positions = geometry.attributes.position;
+      let drawn = 0;
+      for (let i = 0; i < dustCount; i++) {
+        if (pool.remaining[i] <= 0) continue;
+        const k = i * 3;
+        pool.remaining[i] -= d;
+        if (pool.remaining[i] <= 0) {
+          pool.alive--;
+          continue;
+        }
+        // 확 퍼졌다가 이내 느려지며, 가라앉지 않고 살짝 뜬다
+        pool.velocity[k] *= 1 - d * 1.6;
+        pool.velocity[k + 2] *= 1 - d * 1.6;
+        pool.velocity[k + 1] += d * 0.12;
+        pool.position[k] += pool.velocity[k] * d;
+        pool.position[k + 1] += pool.velocity[k + 1] * d;
+        pool.position[k + 2] += pool.velocity[k + 2] * d;
+        positions.setXYZ(drawn, pool.position[k], pool.position[k + 1], pool.position[k + 2]);
+        drawn++;
+      }
+      geometry.setDrawRange(0, drawn);
+      positions.needsUpdate = true;
+      if (pointsRef.current) pointsRef.current.visible = drawn > 0;
     }
-    const positions = geometry.attributes.position;
-    let drawn = 0;
-    for (let i = 0; i < dustCount; i++) {
-      if (pool.remaining[i] <= 0) continue;
-      const k = i * 3;
-      positions.setXYZ(drawn, pool.position[k], pool.position[k + 1], pool.position[k + 2]);
-      drawn++;
-    }
-    geometry.setDrawRange(0, drawn);
-    positions.needsUpdate = true;
-    if (pointsRef.current) pointsRef.current.visible = drawn > 0;
 
-    // 밸브가 돌아간 그 순간(올라가는 모서리) 한 번만
-    if (!preview && open && !hasSeenCutscene() && phase.current === "idle" && startCutscene()) {
-      // 카메라를 넘겨받지 않으면 3인칭 붐이 매 프레임 되돌려 컷신이 목표에 못 닿고 진동한다.
-      claimCamera(CAMERA_OWNER);
-      saved.current = { position: camera.position.clone(), quaternion: camera.quaternion.clone() };
-      phase.current = "goIn";
+    // 처음 열릴 때 한 번만 민다. 전류가 닿고 불빛이 다 날뛴 뒤다(isReady).
+    if (!preview && open && !hasSeenCutscene() && phase.current === "idle") {
+      phase.current = "push";
       phaseStart.current = performance.now();
       lastStage.current = -1;
+      playSound("vendingOff", { volume: 0.9 }); // 밀려나기 시작 — 전원 끄는 소리
     }
-    // 열렸으면 '봤다' 로 못 박는다 — 씬이 다시 떠도 두 번 돌지 않는다. 미리보기로 연 것도 건너뛴 셈이다.
-    markCutsceneSeen(!!open);
+    // 열렸으면 '봤다' 로 못 박는다 — 닫혔다 다시 열려도, 씬이 다시 떠도 컷신은 또 돌지 않는다. 미리보기로 연 것도 건너뛴 셈이다.
+    if (open) markCutsceneSeen();
 
     const target = targetRef?.current;
     if (phase.current === "idle") {
-      // 컷신이 아닐 때(미리보기·되돌리기)도 자판기는 제자리로 간다
-      advancePush(open, d, duration, distance);
+      // 컷신이 아닐 때(미리보기 · 들어간 뒤 닫힘 · 다가가면 열림)도 자판기는 제자리로 간다
+      const before = getPushProgress();
+      advancePush(open, d, duration * DOOR_REPEAT_SPEED, distance);
+      if (before === (open ? 0 : 1) && getPushProgress() !== before) playSound("vendingOff", { volume: 0.45 });
       const z = getPushOffset();
       if (target && Math.abs(target.position.z - z) > 1e-5) target.position.z = z;
-      return;
-    }
-
-    if (phase.current === "goIn") {
-      const t = Math.min(1, elapsed() / Math.max(0.05, transitionTime));
-      const s = smoothstep(t);
-      const p = viewPoint?.();
-      const q = lookAt?.();
-      if (p && q && saved.current) {
-        camera.position.lerpVectors(saved.current.position, targetPoint.set(p[0], p[1], p[2]), s);
-        lookMatrix.lookAt(camera.position, lookPoint.set(q[0], q[1], q[2]), camera.up);
-        lookRotation.setFromRotationMatrix(lookMatrix);
-        camera.quaternion.slerpQuaternions(saved.current.quaternion, lookRotation, s);
-      }
-      if (t >= 1) {
-        phase.current = "push";
-        phaseStart.current = performance.now();
-        playSound("vendingOff", { volume: 0.9 }); // 밀려나기 시작 — 전원 끄는 소리
-      }
       return;
     }
 
@@ -254,50 +235,17 @@ export default function VendingPushCutscene({
         if (stage !== lastStage.current) {
           lastStage.current = stage;
           emit(Math.round(dustStrength * 14), origin);
-          lastShoveAt.current = performance.now();
           // 그림자 한 번이 화면 한 장보다 비싸다. 미는 내내 켜면 렉처럼 보여 힘이 실리는 순간에만 따라오게 한다.
           requestShadowUpdates(0.1);
         }
       }
-      // 무거운 것이 바닥을 긁는 떨림 — 꾹 밀린 직후 0.18초만. 내내 떨면 카메라가 고장 난 것 같다.
-      const p = viewPoint?.();
-      const q = lookAt?.();
-      if (p && q) {
-        const sinceShove = (performance.now() - lastShoveAt.current) / 1000;
-        const kick = Math.max(0, 1 - sinceShove / 0.18);
-        const offset = shake * kick * Math.sin(sinceShove * 90);
-        camera.position.set(p[0] + offset * 0.6, p[1] + offset, p[2] + offset * 0.3);
-        lookMatrix.lookAt(camera.position, lookPoint.set(q[0], q[1], q[2]), camera.up);
-        camera.quaternion.setFromRotationMatrix(lookMatrix);
-      }
       if (progress >= 1) {
-        phase.current = "return";
-        phaseStart.current = performance.now();
+        phase.current = "idle";
         requestShadowUpdates(0.3); // 다 밀린 자리에서 그림자를 한 번 맞춘다
       }
-      return;
-    }
-
-    // 단계 "return" — 카메라를 컷신 전 자리로 되돌린다
-    const t = Math.min(1, elapsed() / Math.max(0.05, transitionTime));
-    const s = smoothstep(t);
-    if (saved.current) {
-      const p = viewPoint?.();
-      if (p) camera.position.lerpVectors(targetPoint.set(p[0], p[1], p[2]), saved.current.position, s);
-      camera.quaternion.slerpQuaternions(currentRotation.copy(camera.quaternion), saved.current.quaternion, s);
-    }
-    if (t >= 1) {
-      if (saved.current) {
-        camera.position.copy(saved.current.position);
-        camera.quaternion.copy(saved.current.quaternion);
-      }
-      saved.current = null;
-      phase.current = "idle";
-      releaseCamera(CAMERA_OWNER);
-      endCutscene(); // 다 돌아온 뒤에야 조작을 돌려준다
     }
   });
 
   // 방·복도 그룹 밖에 둔다 — 구역 최적화에 잘리면 컷신 카메라가 복도를 벗어나는 순간 먼지만 사라진다.
-  return <points ref={pointsRef} geometry={geometry} material={material} frustumCulled={false} />;
+  return <points ref={pointsRef} geometry={geometry} material={material} frustumCulled={false} visible={false} />;
 }

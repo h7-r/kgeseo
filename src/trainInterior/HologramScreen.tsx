@@ -1,28 +1,26 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
-import { exposeDevHook } from "@/debug/devHooks";
 import { useSavedControls } from "@/engine/leva/savedControls";
 import { toRadians } from "@/engine/math";
 import { playerView } from "@/engine/playerView";
-import { NAJU_ENTER_EVENT, type NajuEnterDetail } from "@/station/najuEnter";
 
+import { setHologramAimed } from "./hologramAim";
 import {
-  DESTINATIONS,
   drawHologramPanel,
-  isPointInRect,
+  HOLOGRAM_ACCENT_COLOR,
   HOLOGRAM_CANVAS_HEIGHT,
   HOLOGRAM_CANVAS_WIDTH,
-  RESET_BUTTON_RECT,
-  getDestinationRowRect,
-  SELECT_BUTTON_RECT,
 } from "./hologramPanel";
+import OutlineMorph from "./OutlineMorph";
 
 /** 저장값 위에 더하는 높이(화면에서 ≈4 px). 저장된 Y 가 기본값을 이겨 기본값을 고쳐서는 안 올라간다. */
 const LIFT = 0.03;
-/** 이 안이면 [E] 로 떠날 수 있다 */
+/** 이 안에서 겨누면 목적지 창이 열린다 */
 const NEAR_DISTANCE = 13;
+const SCREEN_CENTER = new THREE.Vector2(0, 0);
+const aimRaycaster = new THREE.Raycaster();
 
 interface HologramScreenProps {
   /**
@@ -32,7 +30,7 @@ interface HologramScreenProps {
   enabled?: boolean;
 }
 
-/** 텔레포트 장치가 쏘는 목적지 선택 홀로그램. 카드를 클릭해 고르고 [E] 로 떠난다. */
+/** 텔레포트 장치가 쏘는 안내판 홀로그램. 겨누고 클릭이나 [E] 를 누르면 목적지 창이 열린다(useGameKeys). */
 export default function HologramScreen({ enabled = true }: HologramScreenProps) {
   const controls = useSavedControls("홀로그램 스크린", {
     visible: { value: true, label: "보이기" },
@@ -40,17 +38,15 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
     // 0.1 유닛이 화면에서 약 19 px 이라 잔조정이 되게 눈금을 잘게 둔다.
     y: { value: 5.0, min: 0, max: 12, step: 0.02, label: "Y" },
     z: { value: 4.0, min: -5, max: 6, step: 0.1, label: "Z" },
-    // 4~7 유닛 거리에서 판 전체가 시야(fov 60)에 들어오는 가로
-    width: { value: 4.6, min: 1, max: 16, step: 0.1, label: "폭" },
+    // 안내판이라 크지 않아도 된다. 고르는 일은 화면 창에서 한다.
+    width: { value: 6.4, min: 1, max: 16, step: 0.1, label: "폭" },
     rotationX: { value: 0, min: -90, max: 90, step: 1, label: "회전X" },
     rotationY: { value: 180, min: -180, max: 180, step: 1, label: "회전Y" },
-    color: { value: "#25bdff", label: "색" },
     brightness: { value: 1.15, min: 0.2, max: 3, step: 0.05, label: "밝기" },
     /** 홀로그램 미세 떨림 */
     flicker: { value: 0.06, min: 0, max: 0.4, step: 0.01, label: "깜빡임" },
     // 장치에서 스크린으로 쏘아 올라오는 빛
     showBeam: { value: true, label: "빔보이기" },
-    beamColor: { value: "#24a6de", label: "빔색" },
     /** 스크린 아래로 뻗는 길이 */
     beamLength: { value: 0.3, min: 0, max: 14, step: 0.1, label: "빔길이" },
     beamIntensity: { value: 0.25, min: 0, max: 2, step: 0.05, label: "빔세기" },
@@ -58,26 +54,9 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
     beamSpread: { value: 2.1, min: 0.2, max: 8, step: 0.1, label: "빔퍼짐" },
   });
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [isNear, setIsNear] = useState(false);
+  const [isAimed, setIsAimed] = useState(false);
   const { camera } = useThree();
-  const nearRef = useRef(false);
-  const selectedRef = useRef<string | null>(null);
-  const enabledRef = useRef(enabled);
-  useLayoutEffect(() => {
-    selectedRef.current = selectedId;
-    enabledRef.current = enabled;
-  });
-
-  // 바로 넘어가지 않고 진입 연출(암전 + 안내)을 먼저 돌린다. 연출이 끝나면 그쪽이 같은 출처 /naju01/ 로 옮긴다.
-  const goToNaju = useCallback(() => {
-    if (typeof window === "undefined") return;
-    exposeDevHook("destinationSelect", "naju");
-    // 아바타 종류(사이드킥)만 이어서 넘긴다 — naju 기본은 Meshy 캐릭터.
-    const avatar = new URLSearchParams(location.search).get("avatar");
-    const query = avatar === "sidekick" ? "?avatar=sidekick" : "";
-    window.dispatchEvent(new CustomEvent<NajuEnterDetail>(NAJU_ENTER_EVENT, { detail: { query } }));
-  }, []);
+  const pointer = useThree((state) => state.pointer);
 
   const canvas = useMemo(() => {
     const element = document.createElement("canvas");
@@ -93,23 +72,13 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
   }, [canvas]);
   useEffect(() => () => panelTexture.dispose(), [panelTexture]);
   useEffect(() => {
+    // 역에 있는 동안은 그릴 필요가 없다. 이 컴포넌트는 씬이 숨어도 살아 있다.
+    if (!enabled) return;
     const g = canvas.getContext("2d");
     if (!g) return;
-    drawHologramPanel(g, { selectedId, isNear });
+    drawHologramPanel(g, isAimed);
     panelTexture.needsUpdate = true;
-  }, [canvas, panelTexture, selectedId, isNear]);
-
-  // 장소 이동은 되돌릴 수 없어 두 박자로 한다 — 카드를 클릭해 고르고, 근처에서 [E].
-  // 근처이기만 하면 넘어가게 하면 다른 일로 누른 [E] 에도 나주로 넘어간다.
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "KeyE" || event.repeat) return;
-      if (!enabledRef.current) return;
-      if (nearRef.current && selectedRef.current) goToNaju();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [goToNaju]);
+  }, [canvas, panelTexture, enabled, isAimed]);
 
   // 아래가 밝고 위가 투명한 세로 그라데이션
   const beamMap = useMemo(() => {
@@ -133,55 +102,38 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
 
   const panelRef = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null);
   const scanRef = useRef<THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(null);
+
   useFrame(({ clock }) => {
     if (!enabled) {
-      // 꺼진 씬에서 근처로 남아 있으면 [E] 가 그대로 먹는다.
-      if (nearRef.current) {
-        nearRef.current = false;
-        setIsNear(false);
-      }
+      // 꺼진 씬에서 겨눈 채로 남아 있으면 역에서 [E] 가 창을 연다.
+      setHologramAimed(false);
+      setIsAimed(false);
       return;
     }
     const t = clock.elapsedTime;
+    const panel = panelRef.current;
     // 사람이 선 자리에서 잰다. 카메라로 재면 3인칭에서 캐릭터 뒤 9.33 유닛만큼 어긋난다.
     const person = playerView.ready ? playerView.eye : camera.position;
-    const distance = Math.hypot(person.x - controls.x, person.y - controls.y, person.z - controls.z);
-    const near = distance < NEAR_DISTANCE;
-    if (nearRef.current !== near) {
-      nearRef.current = near;
-      setIsNear(near);
+    const isNear = Math.hypot(person.x - controls.x, person.y - controls.y, person.z - controls.z) < NEAR_DISTANCE;
+    let hit = false;
+    if (panel && isNear) {
+      // 잠겨 있으면 화면 가운데 점, 풀려 있으면 마우스 자리로 겨눈다.
+      aimRaycaster.setFromCamera(document.pointerLockElement ? SCREEN_CENTER : pointer, camera);
+      hit = aimRaycaster.intersectObject(panel, false).length > 0;
     }
+    setHologramAimed(hit);
+    setIsAimed(hit);
+
     const shimmer = 1 - controls.flicker * (0.5 + 0.5 * Math.sin(t * 37.0)) * (0.5 + 0.5 * Math.sin(t * 5.3));
-    if (panelRef.current) panelRef.current.material.opacity = Math.min(1, controls.brightness * shimmer);
+    if (panel) panel.material.opacity = Math.min(1, controls.brightness * shimmer);
     // 스캔 바가 위로 흐른다
     if (scanRef.current) {
       const h = controls.width * (HOLOGRAM_CANVAS_HEIGHT / HOLOGRAM_CANVAS_WIDTH);
       scanRef.current.position.y = ((t * 0.5) % 1) * h - h / 2;
-      scanRef.current.material.opacity = 0.12 * controls.brightness;
+      // 글자 위를 지나가므로 있는 듯 없는 듯해야 한다.
+      scanRef.current.material.opacity = 0.025 * controls.brightness;
     }
   });
-
-  const handlePointerDown = useCallback(
-    (event: ThreeEvent<PointerEvent>) => {
-      if (!event.uv) return;
-      event.stopPropagation();
-      const cx = event.uv.x * HOLOGRAM_CANVAS_WIDTH;
-      const cy = (1 - event.uv.y) * HOLOGRAM_CANVAS_HEIGHT;
-      for (let i = 0; i < DESTINATIONS.length; i++) {
-        if (isPointInRect(getDestinationRowRect(i), cx, cy)) {
-          const destination = DESTINATIONS[i];
-          if (destination.isOpen) setSelectedId((previous) => (previous === destination.id ? null : destination.id));
-          return;
-        }
-      }
-      if (isPointInRect(SELECT_BUTTON_RECT, cx, cy)) {
-        if (selectedId) goToNaju();
-        return;
-      }
-      if (isPointInRect(RESET_BUTTON_RECT, cx, cy)) setSelectedId(null);
-    },
-    [selectedId, goToNaju],
-  );
 
   if (!controls.visible) return null;
   const height = controls.width * (HOLOGRAM_CANVAS_HEIGHT / HOLOGRAM_CANVAS_WIDTH);
@@ -197,7 +149,7 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
           <planeGeometry args={[controls.width * 0.5, controls.beamLength]} />
           <meshBasicMaterial
             map={beamMap}
-            color={controls.beamColor}
+            color={HOLOGRAM_ACCENT_COLOR}
             transparent
             opacity={controls.beamIntensity}
             blending={THREE.AdditiveBlending}
@@ -209,33 +161,29 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
         </mesh>
       )}
 
-      {/* 손잡이는 pointerdown 하나만. click 까지 걸면 한 번 누를 때 토글이 두 번 돈다.
-          click 은 누른 뒤 시점이 움직여 커서가 판 밖으로 나가면 아예 안 온다.
-          visible=false 는 클릭을 안 막아 꺼진 씬에서는 레이캐스트 자체를 막는다. */}
-      <mesh
-        ref={panelRef}
-        onPointerDown={enabled ? handlePointerDown : undefined}
-        raycast={enabled ? undefined : () => null}
-      >
+      {/* 어두운 유리판이라 일반 혼합이다. 더하기 혼합은 어두운 색을 못 내 회색 벽 위에서 글자가 묻힌다.
+          깊이를 써야 만화 후처리가 판 뒤 기둥의 펜선을 글자 위에 긋지 않는다. */}
+      <mesh ref={panelRef} raycast={enabled ? undefined : () => null}>
         <planeGeometry args={[controls.width, height]} />
         <meshBasicMaterial
           map={panelTexture}
-          color={controls.color}
           transparent
           opacity={controls.brightness}
-          blending={THREE.AdditiveBlending}
-          depthWrite={false}
+          // 판 바깥 여백이 깊이를 쓰면 뒤 창유리가 네모나게 잘린다.
+          alphaTest={0.02}
           side={THREE.DoubleSide}
           toneMapped={false}
         />
       </mesh>
 
+      <OutlineMorph enabled={enabled} position={[controls.width * 0.235, 0, 0.02]} size={height * 0.42} />
+
       <mesh ref={scanRef} position={[0, 0, 0.01]}>
         <planeGeometry args={[controls.width, 0.12]} />
         <meshBasicMaterial
-          color={controls.color}
+          color={HOLOGRAM_ACCENT_COLOR}
           transparent
-          opacity={0.12}
+          opacity={0.025}
           blending={THREE.AdditiveBlending}
           depthWrite={false}
           depthTest={false}

@@ -2,12 +2,13 @@
  * 물에 뜬 돌 넷 — 기우제로 물이 차오르면 떠올라 물결 따라 까딱인다. [E] 로 주워 소지품에 넣는다. 넷을 다 건지면 강물이 갈라진다(puzzles/cave).
  * 물빛이 어두워 돌은 밝게 칠하고 둘레에 흰 물거품 고리를 둘러 멀리서도 읽히게 한다.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { useRememberedState } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { focusCamera } from "../../scene/cameraFocus";
 import { CORRIDOR, getUnderwater } from "../cave/caveState";
@@ -35,7 +36,10 @@ const STONE_SCALE = 1.55;
 
 export default function FloatingStones() {
   const stage = useRitualStage();
-  const [taken, setTaken] = useState<boolean[]>(() => SPOTS.map(() => false));
+  // 강이 갈라졌으면 넷 다 건진 뒤다.
+  const [taken, setTaken] = useRememberedState<boolean[]>("ritual.floatingTaken", () =>
+    SPOTS.map(() => ritual.isAtLeast("parted")),
+  );
   const { stones, glows, lights, stoneGeometry, stoneMaterial, glowMaterial } = useMemo(() => {
     const stoneGeometry = buildFloatStoneGeometry();
     // 폭우 속 어스름에도 묻히지 않게 살짝 스스로 밝힌다

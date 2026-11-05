@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
+import { recall, track } from "../../save/puzzleMemory";
 import { releasePropColliders } from "../../movement/propColliders";
 import { addDynamicSolid, type DynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
@@ -97,6 +98,21 @@ interface Carrier {
   interact: THREE.Vector3;
 }
 
+interface SavedCarrier {
+  state: CarrierState;
+  tugs: number;
+  ropeLength: number;
+  ropeTarget: number;
+  rest: number[];
+  restYaw: number;
+}
+
+function settledCarrierState(state: CarrierState): CarrierState {
+  if (state === "falling") return "placed";
+  if (state === "fallingTied") return "dropped";
+  return state;
+}
+
 const isAirborne = (state: CarrierState) =>
   state === "rising" ||
   state === "floating" ||
@@ -146,7 +162,38 @@ export default function TetheredCarriers() {
   const stage = useRidgeStage();
   const stageRef = useRef(stage);
   const knot = useMemo(() => new THREE.Vector3(POLE.x * M, (groundY(POLE.x, POLE.z) + POLE.knot) * M, POLE.z * M), []);
-  const carriers = useMemo<Carrier[]>(() => CARRIERS.map(createCarrier), []);
+  const carriers = useMemo<Carrier[]>(() => {
+    const created = CARRIERS.map(createCarrier);
+    const saved = recall<SavedCarrier[]>("ridge.carriers", []);
+    created.forEach((carrier, k) => {
+      const entry = saved[k];
+      if (!entry) return;
+      carrier.state = entry.state;
+      carrier.tugs = entry.tugs;
+      carrier.ropeLength = entry.ropeLength;
+      carrier.ropeTarget = entry.ropeTarget;
+      carrier.rest.fromArray(entry.rest);
+      carrier.restYaw = entry.restYaw;
+      carrier.flownAt = -1;
+      carrier.flownFrom.fromArray(entry.rest);
+    });
+    return created;
+  }, []);
+  useEffect(
+    () =>
+      track("ridge.carriers", (): SavedCarrier[] =>
+        carriers.map((carrier) => ({
+          // 떨어지던 것은 내려앉은 자리로 친다.
+          state: settledCarrierState(carrier.state),
+          tugs: carrier.tugs,
+          ropeLength: carrier.ropeLength,
+          ropeTarget: carrier.ropeTarget,
+          rest: carrier.rest.toArray(),
+          restYaw: carrier.restYaw,
+        })),
+      ),
+    [carriers],
+  );
   /** 화면에서 빌려 온 지게 메시 — 전부 숨긴다 */
   const borrowedRef = useRef<THREE.Mesh[]>([]);
   const lastSearchRef = useRef(-99);
@@ -326,7 +373,10 @@ export default function TetheredCarriers() {
         label: "지게 지기",
         radius: 0.6 * M,
         reach: 2.2 * M,
-        enabled: () => (carrier.state === "landed" || carrier.state === "placed") && ridgeCarry.load === "none",
+        enabled: () =>
+          !ridge.isAtLeast("done") &&
+          (carrier.state === "landed" || carrier.state === "placed") &&
+          ridgeCarry.load === "none",
         use: () => {
           carrier.state = "carried";
           ridgeCarry.load = "jige";
@@ -362,7 +412,7 @@ export default function TetheredCarriers() {
     // 빈 지게 내려놓기 — 겨눈 것이 없을 때의 [E]. 줄이 없으니 바람이 채 간다
     const onKey = (event: KeyboardEvent) => {
       if (event.code !== "KeyE" || event.repeat || !document.pointerLockElement) return;
-      if (ridgeCarry.load !== "jige" || aimedId()) return;
+      if (ridgeCarry.load !== "jige" || aimedId() || ridgeCarry.isCartGrabbed) return;
       const carrier = carriers.find((entry) => entry.state === "carried");
       if (!carrier) return;
       carrier.state = "flown";
@@ -560,6 +610,11 @@ export default function TetheredCarriers() {
   };
 
   useFrame((frame, rawDt) => {
+    // 틈을 지나면 빈 지게는 두고 온다 — 안 비우면 다음 맵에서도 느리고 E 에 지게가 날아간다
+    if (ridge.isAtLeast("done") && ridgeCarry.load !== "none") {
+      ridgeCarry.load = "none";
+      for (const carrier of carriers) if (carrier.state === "carried") carrier.state = "landed";
+    }
     const dt = Math.min(rawDt, 0.05);
     const time = frame.clock.elapsedTime;
     borrowLooks(time);

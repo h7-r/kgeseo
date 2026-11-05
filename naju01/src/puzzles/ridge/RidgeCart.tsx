@@ -12,6 +12,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { recall, track } from "../../save/puzzleMemory";
 import { addDynamicSolid, solidQueries, type DynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
 import { registerInteractable, showNotice } from "../interaction";
@@ -138,7 +139,7 @@ function createCart() {
     wheelPosition: new THREE.Vector3(),
     bedPosition: new THREE.Vector3(),
     chestPosition: new THREE.Vector3(),
-    altarPosition: new THREE.Vector3(),
+    altarPosition: new THREE.Vector3(ALTAR.x * M, (groundY(ALTAR.x, ALTAR.z) + ALTAR.top + 0.15) * M, ALTAR.z * M),
   };
 }
 type Cart = ReturnType<typeof createCart>;
@@ -369,7 +370,30 @@ export default function RidgeCart() {
   const scene = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
-  const cart = useMemo(() => createCart(), []);
+  const cart = useMemo(() => {
+    const created = createCart();
+    const saved = recall<Partial<typeof created.state> | null>("ridge.cart", null);
+    if (saved) Object.assign(created.state, saved);
+    return created;
+  }, []);
+  useEffect(
+    () =>
+      track("ridge.cart", () => {
+        const { x, z, yaw, chest, chestX, chestZ, chestYaw, wheel } = cart.state;
+        return {
+          x,
+          z,
+          yaw,
+          chestX,
+          chestZ,
+          chestYaw,
+          // 움직이는 중이던 것은 도착한 자리로 친다.
+          chest: chest === "loading" ? "cart" : chest === "toAltar" ? "altar" : chest,
+          wheel: wheel === "flying" ? "floating" : wheel,
+        };
+      }),
+    [cart],
+  );
   const stage = useRidgeStage();
   const isActive = stage === "sealed";
   const activeRef = useRef(isActive);
@@ -570,6 +594,9 @@ export default function RidgeCart() {
     const dt = Math.min(rawDt, 0.05);
     const time = frame.clock.elapsedTime;
     const { state } = cart;
+    ridgeCarry.isCartGrabbed = state.isGrabbed;
+    // 바퀴를 들고 끝까지 풀면 끼울 자리가 꺼져 영영 손에 남는다 — 끝나면 수레로 돌려놓는다
+    if (!activeRef.current && state.wheel === "held") state.wheel = "fitted";
     const px = camera.position.x / M;
     const pz = camera.position.z / M;
 
@@ -603,7 +630,6 @@ export default function RidgeCart() {
     cart.body.rotation.set(0, state.yaw, isWheelOn ? 0 : LEAN, "YXZ");
     cart.chestPosition.set(state.chestX * M, (chestY + CHEST.height / 2) * M, state.chestZ * M);
     cart.bedPosition.set(state.x * M, (cartGround + CART.bedTop + 0.1) * M, state.z * M);
-    cart.altarPosition.set(ALTAR.x * M, (groundY(ALTAR.x, ALTAR.z) + ALTAR.top + 0.15) * M, ALTAR.z * M);
 
     // 밟고 서는 상자 — 미는 동안은 끈다(제 몸에 걸리지 않게)
     Object.assign(cart.cartSolid, {

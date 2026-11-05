@@ -257,15 +257,6 @@ export function computeEditAnchors(groups: InstanceGroup[], edits: Edits): EditA
   return anchors;
 }
 
-/** 저장 안 한 변경 수 */
-export function countEdits(edits: Edits | null | undefined): number {
-  let n = 0;
-  for (const ids of Object.values(edits?.removed ?? {})) n += ids.length;
-  for (const group of Object.values(edits?.modified ?? {})) n += Object.keys(group).length;
-  for (const spots of Object.values(edits?.added ?? {})) n += spots.length;
-  return n;
-}
-
 /** 흩뿌림 생성기가 내는 자리 — 키 하나뿐이다 */
 export interface ScatterSpot {
   x: number;

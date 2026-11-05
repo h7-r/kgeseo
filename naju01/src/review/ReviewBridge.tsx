@@ -11,7 +11,7 @@
  *   useReviewCameraHold()  씬이 걷기 훅의 paused 에 OR 로 섞는다(진단 시점 고정 중 걷기 정지).
  *
  * [옛 이름 → 새 이름]
- *   NJ검수프레임 → ReviewBridge(= ReviewFrame) · NJ검수판 → ReviewHud · NJ검수경계 → ReviewErrorBoundary
+ *   NJ검수프레임 → ReviewBridge · NJ검수판 → ReviewHud · NJ검수경계 → ReviewErrorBoundary
  *   검수요청있음 → IS_REVIEW_REQUESTED · 검수실행가능 → IS_REVIEW_RUNNABLE · useReviewCameraHold 그대로
  *   실행 → run · 공개프로필 → IS_PUBLIC_PROFILE · 삽입실행 → IS_EMBEDDED · 상태 → state · 알림 → notify
  *   대기 → queue · 전송 → flush · 묶음보내기 → sendBatch · 기록 → record · 모두전송 → flushAll · 예약 → schedule
@@ -1362,8 +1362,6 @@ export function ReviewBridge(props: ReviewBridgeProps) {
   });
   return null;
 }
-/** 옛 NJ검수프레임 이름의 별칭 — 검사 하네스·이식 중 문서가 가리킨다 */
-export const ReviewFrame = ReviewBridge;
 
 // ── Canvas 밖 ────────────────────────────────────────────────────────────
 const OBSERVATION_LABELS = ["공간 배치", "동선·충돌", "에셋 형태·화풍", "시야·가독성", "성능·로딩", "문제 발견"];

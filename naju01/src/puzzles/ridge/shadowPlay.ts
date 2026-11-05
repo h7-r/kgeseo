@@ -37,7 +37,7 @@ const H = 576;
 const BAR = 0.08;
 const DRAWS_PER_SECOND = 30;
 /** 판 크기(미터) */
-export const PLANE = { width: 3.2, height: 1.8 };
+const PLANE = { width: 3.2, height: 1.8 };
 
 /** 컷 시작 시각 */
 const CUT = { walk: 0, edge: 1.7, slip: 3.7, hands: 4.25, fall: 4.95, tear: 5.75, flee: 7.0, impact: 7.75, after: 8.7 };

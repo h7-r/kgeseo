@@ -27,6 +27,19 @@ interface PlayerView {
   firstPersonHands: boolean;
 }
 
+/** 연출이 끝난 화면을 이어받는 요청. moveTo 가 있으면 몸도 그 자리로 옮긴다. */
+let viewHandover: { moveTo: readonly [number, number] | null } | null = null;
+
+export function handOverView(moveTo: readonly [number, number] | null) {
+  viewHandover = { moveTo };
+}
+
+export function takeViewHandover() {
+  const request = viewHandover;
+  viewHandover = null;
+  return request;
+}
+
 /**
  * 지금 플레이어가 서 있는 자리와 몸·손 상태. 3인칭 카메라는 캐릭터 뒤에 떨어져 있어,
  * 손이 닿는지는 카메라가 아니라 이 자리로 잰다. 쓰는 쪽이 여럿이라 매 프레임 그 자리에서 고쳐 쓴다.

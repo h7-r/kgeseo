@@ -52,10 +52,10 @@ export function createTorchFire() {
     sparkSeeds: Float32Array.from({ length: SPARKS * torches * 4 }, () => Math.random()),
   };
 }
-export type TorchFire = ReturnType<typeof createTorchFire>;
+type TorchFire = ReturnType<typeof createTorchFire>;
 
 /** 불의 세기 — lit 0~1 붙은 정도, big 0~1 크게 타오르는 정도, flare 치솟는 순간의 한 번 */
-export interface FireLevels {
+interface FireLevels {
   lit: number;
   big: number;
   flare: number;

@@ -5,8 +5,9 @@ import * as THREE from "three";
 import GltfPartMeshes from "@/engine/GltfPartMeshes";
 import { splitGltf } from "@/engine/gltfModel";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
+import { sharedAssetUrl } from "@/config/env";
 
-const COAT_RACK_URL = "/models/coat_rack.glb";
+const COAT_RACK_URL = sharedAssetUrl("/models/coat_rack.glb");
 useGLTF.preload(COAT_RACK_URL);
 
 interface CoatRackProps {

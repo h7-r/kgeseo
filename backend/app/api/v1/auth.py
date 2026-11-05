@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1 import error_responses
@@ -45,10 +45,19 @@ from app.services.social_onboarding import (
     SocialAuthConflictError,
     complete_onboarding,
 )
+from app.services.user_session import (
+    clear_login_failures,
+    is_login_locked,
+    record_login_failure,
+    require_same_origin,
+    start_session,
+)
 
 router = APIRouter(
     prefix="/auth",
     tags=["Auth"],
+    dependencies=[Depends(require_same_origin)],
+    responses=error_responses.FOREIGN_ORIGIN,
 )
 
 
@@ -68,7 +77,9 @@ async def login_with_google(
             request.credential,
             settings.google_client_id,
         )
-        return await authenticate_social_user(db, profile)
+        result = await authenticate_social_user(db, profile)
+        await _start_social_session(db, response, result)
+        return result
     except GoogleAuthConfigurationError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -110,7 +121,9 @@ async def login_with_naver(
             settings.naver_client_secret,
             settings.naver_redirect_uri,
         )
-        return await authenticate_social_user(db, profile)
+        result = await authenticate_social_user(db, profile)
+        await _start_social_session(db, response, result)
+        return result
     except NaverAuthConfigurationError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -159,8 +172,10 @@ async def login_with_naver(
 )
 async def register_local_account(
     request: LocalRegisterRequest,
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> LocalAuthResponse:
+    response.headers["Cache-Control"] = "no-store"
     try:
         user = await local_auth.register_user(db, request)
     except InvalidEmailError as error:
@@ -204,6 +219,7 @@ async def register_local_account(
             detail="Invalid local account input.",
         ) from error
 
+    await start_session(db, response, user.id)
     return LocalAuthResponse(user=local_auth.user_to_payload(user))
 
 
@@ -212,19 +228,32 @@ async def register_local_account(
 )
 async def login_local_account(
     request: LocalLoginRequest,
+    http_request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> LocalAuthResponse:
     response.headers["Cache-Control"] = "no-store"
+    if await is_login_locked(db, http_request, request.email):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "login_locked",
+                "message": "로그인 실패가 많아 잠시 막혔습니다. 15분 뒤 다시 시도해 주세요.",
+            },
+            headers={"Cache-Control": "no-store"},
+        )
     try:
         user = await local_auth.login_user(db, request.email, request.password)
     except local_auth.InvalidLocalCredentialsError as error:
+        await record_login_failure(db, http_request, request.email)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password.",
             headers={"Cache-Control": "no-store"},
         ) from error
 
+    await clear_login_failures(db, http_request, request.email)
+    await start_session(db, response, user.id)
     return LocalAuthResponse(user=local_auth.user_to_payload(user))
 
 
@@ -256,6 +285,16 @@ async def check_nickname_exists(
     return LocalExistsResponse(
         exists=await local_auth.nickname_exists(db, nickname),
     )
+
+
+async def _start_social_session(
+    db: AsyncSession,
+    response: Response,
+    result: SocialUserResponse | SocialOnboardingRequiredResponse,
+) -> None:
+    # 가입을 마치기 전의 소셜 계정에는 세션을 주지 않는다.
+    if isinstance(result, SocialUserResponse):
+        await start_session(db, response, result.user.user_id)
 
 
 def invalid_nickname_exception() -> HTTPException:
@@ -293,7 +332,9 @@ async def complete_social_account(
 ) -> SocialUserResponse:
     response.headers["Cache-Control"] = "no-store"
     try:
-        return await complete_onboarding(db, request)
+        result = await complete_onboarding(db, request)
+        await _start_social_session(db, response, result)
+        return result
     except AccountLinkRequiredError as error:
         raise account_link_required_exception() from error
     except InvalidNicknameError as error:

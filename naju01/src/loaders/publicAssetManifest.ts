@@ -24,10 +24,12 @@
  *   「색맞춤」 { file: [r,g,b] } · 「툰질감」 bool · 「잘린면」 { file: [x,y,z] }
  *
  * [옛 이름 → 새 이름]
- *   출처 → SOURCE_PARAM · 폴더 → PUBLIC_ASSET_FOLDER · 애니판 → IS_ANIME_VARIANT · 애니경로 → animePath
+ *   출처 → SOURCE_PARAM · 폴더 → publicAssetUrl · 애니판 → IS_ANIME_VARIANT · 애니경로 → animePath
  *   window.__AI허브교체 + "AI허브교체" 이벤트 → publicAssetRegistry (+ subscribe) · window.__공개에셋상태 → publicAssetStatus
  *   덮기뺌 → hiddenCovers · 검수실행 → IS_REVIEW_RUN / IS_REVIEW_NORMAL_MODE (검수정책.js 는 TS 에 없어 주소만 본다)
  */
+import { assetUrl } from "@/config/env";
+
 
 const QUERY = typeof location !== "undefined" ? new URLSearchParams(location.search) : new URLSearchParams();
 
@@ -43,7 +45,7 @@ export const IS_EMPTY_BASE = QUERY.get("base") === "empty";
  * &trial=<시험 id> — 에이전트 시험 배치 화면(10/19). 검수 작업대(5180)의 /__review/trials/<id>/places 가 준
  * 「놓기」 항목을 manifest 놓기 뒤에 붙여 그린다(파일에는 쓰지 않는다). 빈 지형에서도 이 항목은 그린다(에이전트 표시).
  */
-export const TRIAL_ID = /^[a-f0-9-]{36}$/.test(QUERY.get("trial") || "") ? QUERY.get("trial") : null;
+const TRIAL_ID = /^[a-f0-9-]{36}$/.test(QUERY.get("trial") || "") ? QUERY.get("trial") : null;
 
 /** 시험 배치 항목을 받아 m.놓기 뒤에 붙인다 — 실패하면 조용히 넘기고 콘솔에 남긴다 */
 export async function appendTrialPlaces(m: PublicAssetManifest): Promise<void> {
@@ -60,8 +62,8 @@ export async function appendTrialPlaces(m: PublicAssetManifest): Promise<void> {
 }
 /** `&애니판` — 변환판(원신 방향). 에셋(anime_bake/anime)과 셰이더(animeStyle.ts)가 같이 켜진다 */
 export const IS_ANIME_VARIANT = QUERY.has("애니판");
-/** 공개 에셋 폴더(뿌리 public/_sf_local/) */
-export const PUBLIC_ASSET_FOLDER = `${import.meta.env.BASE_URL}_sf_local/`;
+/** 공개 에셋 주소(뿌리 public/_sf_local/). 세션의 버전 경로를 따르도록 부를 때 만든다 */
+export const publicAssetUrl = (path: string) => assetUrl(`/_sf_local/${path}`);
 
 // 검수 실행(?review=1) — 옛 검수정책.js 의 「정상 검수에선 Alt+클릭 빼기·로컬 저장을 안 한다」만 옮긴다
 export const IS_REVIEW_RUN = QUERY.get("review") === "1";
@@ -161,7 +163,7 @@ export interface AnimeSubstitute {
   덮기?: string;
   출처?: string;
 }
-export const animeLookup: { list: Map<string, AnimeFolder> | null; substitutes: Record<string, AnimeSubstitute> } = {
+const animeLookup: { list: Map<string, AnimeFolder> | null; substitutes: Record<string, AnimeSubstitute> } = {
   list: null,
   substitutes: {},
 };
@@ -171,7 +173,7 @@ export async function loadAnimeLookup() {
   const list = new Map<string, AnimeFolder>();
   for (const folder of ANIME_FOLDERS) {
     try {
-      const files = (await (await fetch(`${PUBLIC_ASSET_FOLDER}${folder}/목록.json`)).json()) as string[];
+      const files = (await (await fetch(publicAssetUrl(`${folder}/목록.json`))).json()) as string[];
       for (const f of files) if (!list.has(f)) list.set(f, folder);
     } catch {
       /* 폴더 없음 */
@@ -179,7 +181,7 @@ export async function loadAnimeLookup() {
   }
   let substitutes: Record<string, AnimeSubstitute>;
   try {
-    substitutes = (await (await fetch(`${PUBLIC_ASSET_FOLDER}anime/대체.json`)).json()) as Record<
+    substitutes = (await (await fetch(publicAssetUrl("anime/대체.json"))).json()) as Record<
       string,
       AnimeSubstitute
     >;

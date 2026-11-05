@@ -7,10 +7,11 @@
  * 씬2 솟대 0·1 번은 그 자리에서 숨기고 여기서 다시 그린다(회전·깨짐을 보여야 해서). 편집으로 옮기면 따라간다.
  * 좌표는 미터, 그리는 것은 유닛(M 배).
  */
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
+import { recall, remember, track } from "../../save/puzzleMemory";
 import { playerPose } from "../../movement/playerPose";
 import { addDynamicSolid, solidQueries, type DynamicSolid } from "../../movement/solidField";
 import { focusCamera } from "../../scene/cameraFocus";
@@ -277,6 +278,8 @@ function placeStatues(birds: Birds, scene: THREE.Scene, time: number) {
   // 처음엔 서로 등을 돌리고 있다
   birds.statues.forEach((statue, k) => {
     statue.targetYaw = snapToStep(yawTowards(statue, birds.statues[1 - k]) + Math.PI);
+    const savedYaw = recall<number[]>("ridge.statueYaw", [])[k];
+    if (savedYaw !== undefined) statue.targetYaw = savedYaw;
     statue.yaw = statue.targetYaw;
   });
 }
@@ -350,8 +353,9 @@ function updateThrow(birds: Birds, time: number) {
   birds.flyingKey.rotation.set(time * 9, time * 5, 0);
   if (u >= 1) {
     birds.isThrown = true;
+    remember("ridge.isKeyThrown", true);
     birds.flyingKey.visible = false;
-    inventory.spawn("bronzeKey", throwing.to);
+    inventory.spawn("bronzeKey", throwing.to, { followsPlayer: true });
     audio.play("단서");
     showNotice(
       "새가 열쇠를 발 앞에 떨어뜨렸다. 대가 긴 청동 열쇠 — 아랑사의 함 자물통에 맞을 것 같다. [E] 로 줍자.",
@@ -364,7 +368,21 @@ export default function RidgeBirds() {
   const scene = useThree((state) => state.scene);
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
-  const birds = useMemo(() => createBirds(), []);
+  const centerGround = useMemo(() => groundY(RIDGE_CENTER.x, RIDGE_CENTER.z), []);
+  // 저장본이 깨어난 다음 단계면 처음부터 깨진 뒤로 친다. 깨어나는 중이었다면 그 연출은 다시 본다.
+  const [isRestoredBroken] = useState(() => ridge.isAtLeast("circling"));
+  const birds = useMemo(() => {
+    const created = createBirds();
+    created.isThrown = recall("ridge.isKeyThrown", false);
+    return created;
+  }, []);
+  useEffect(
+    () =>
+      track("ridge.statueYaw", () =>
+        birds.statues.length ? birds.statues.map((statue) => statue.targetYaw) : undefined,
+      ),
+    [birds],
+  );
   const stage = useRidgeStage();
   const stageRef = useRef(stage);
 
@@ -576,6 +594,24 @@ export default function RidgeBirds() {
       birds.flockShownAt = time;
       for (const bird of birds.flock) bird.group.visible = true;
     }
+    // 이어 하기: 깨어난 뒤라면 깨지는 연출 없이 그 뒤 모습으로 시작한다.
+    if (!birds.isBroken && isRestoredBroken && birds.statues.length) {
+      birds.isBroken = true;
+      birds.brokeAt = time;
+      const areBirdsAround = now === "circling" || now === "leaving";
+      birds.statues.forEach((statue, k) => {
+        statue.stone.visible = false;
+        if (statue.key) statue.key.visible = false;
+        statue.pivot.updateMatrixWorld(true);
+        const hero = birds.heroes[k];
+        statue.pivot.getWorldPosition(hero.group.position);
+        hero.group.rotation.set(0, statue.yaw, 0);
+        hero.previous.copy(hero.group.position);
+        hero.group.visible = areBirdsAround;
+      });
+      if (!areBirdsAround) for (const bird of birds.flock) bird.group.visible = false;
+      return;
+    }
     if (!ridge.isAtLeast("awakening") || birds.isBroken || (now === "awakening" && since <= SHAKE_SECONDS)) return;
     birds.isBroken = true;
     birds.brokeAt = time;
@@ -698,7 +734,6 @@ export default function RidgeBirds() {
     if (birds.isBroken && (now === "awakening" || now === "circling" || now === "leaving") && Math.random() < dt * 3)
       audio.play("짹짹");
 
-    const centerGround = groundY(RIDGE_CENTER.x, RIDGE_CENTER.z);
     if (birds.isBroken) flyHeroes(now, since, time, dt, centerGround);
     flyFlock(time, dt, centerGround);
     // 새들이 떠나고 나면 진부촌 문이 일그러진다(GateRift)

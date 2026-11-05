@@ -10,7 +10,6 @@ import { useFrame, useThree } from "@react-three/fiber";
 import {
   AIR_CONTROL,
   CROUCH_SPEED_MULTIPLIER,
-  EYE_HEIGHT,
   GRAVITY,
   HANDLED_KEYS,
   JUMP_VELOCITY,
@@ -24,7 +23,7 @@ import { BASELINE, METERS_PER_UNIT, UNITS_PER_METER, type Heading, type ZoneCode
 import { CORE_BOUNDS, DEFAULT_TERRAIN, type Terrain } from "../terrain/terrain";
 import { applyCameraFocus, isCameraFocused } from "../scene/cameraFocus";
 import { AIR_BOOST, FLOAT, LIGHT_JUMP, gravityField, isLight } from "./gravityField";
-import { playerPose } from "./playerPose";
+import { playerPose, walkTerrain } from "./playerPose";
 import { playerPush } from "./playerPush";
 import { PROP_STEP, type SolidField } from "./solidField";
 
@@ -93,7 +92,7 @@ interface TerrainMovementOptions {
   /** 화면의 물건을 구운 충돌 격자(solidField). 다 구워지면 extraBlockedAt 대신 쓰고, 낮은 물건 위에 올라선다 */
   solid?: SolidField | null;
   /** 아직 열리지 않은 길(stageGates) — 그 자리로는 못 간다 */
-  gateBlockedAt?: ((x: number, z: number) => boolean) | null;
+  gateBlockedAt?: ((x: number, z: number, fromX: number, fromZ: number) => boolean) | null;
   /** 물속 — 헤엄치듯: 점프는 높고 길게 떠올라 천천히 가라앉고, 움직임은 미끄러지듯 붙었다 풀리며, 눈높이가 물결에 오르내린다 */
   swim?: boolean;
 }
@@ -132,6 +131,7 @@ export function useTerrainMovement(
   const arrowKeysRef = useRef(arrowKeysMove);
   useLayoutEffect(() => {
     latest.current = { terrain, eyeHeight };
+    walkTerrain.current = terrain;
     isThirdPersonRef.current = isThirdPerson;
     arrowKeysRef.current = arrowKeysMove;
     swimRef.current = swim;
@@ -370,7 +370,7 @@ export function useTerrainMovement(
         const mx = nx * METERS_PER_UNIT;
         const mz = nz * METERS_PER_UNIT;
         if (terrain.blockedAt(mx, mz, underfoot.y, PLAYER_RADIUS * METERS_PER_UNIT + 0.2)) return false;
-        if (gateBlockedAt?.(mx, mz)) return false;
+        if (gateBlockedAt?.(mx, mz, p.x * METERS_PER_UNIT, p.z * METERS_PER_UNIT)) return false;
         // 물건은 지금 발 높이로 본다 — 점프해 발이 올라가 있으면 낮은 바위 위로 넘어간다
         if (solidField) {
           const radius = PLAYER_RADIUS * METERS_PER_UNIT;
@@ -473,7 +473,7 @@ export function useTerrainMovement(
         isJumping.current = false;
         peakY.current = ny;
 
-        const shouldRecover = fallRecovery && (drop > FALL_RECOVERY_DROP || ground.isWater);
+        const shouldRecover = fallRecovery && ((drop > FALL_RECOVERY_DROP && !ground.noFallRecovery) || ground.isWater);
         // 복귀는 이동이 아니라 보행 거리에 더하지 않는다
         if (shouldRecover && safeSpot.current) teleport.current?.(safeSpot.current.x, safeSpot.current.z);
       } else {
@@ -575,14 +575,7 @@ export function useTerrainMovement(
   return teleport;
 }
 
-/** 본편 engine 이 정한 원래 이동 값(m). */
+/** 본편 engine 이 정한 원래 이동 값. */
 export const MOVEMENT_CONSTANTS = {
   walk: WALK_SPEED * METERS_PER_UNIT, // m/s
-  run: WALK_SPEED * RUN_SPEED_MULTIPLIER * METERS_PER_UNIT,
-  crouchWalk: WALK_SPEED * CROUCH_SPEED_MULTIPLIER * METERS_PER_UNIT,
-  jump: JUMP_VELOCITY * METERS_PER_UNIT,
-  gravity: GRAVITY * METERS_PER_UNIT,
-  radius: PLAYER_RADIUS * METERS_PER_UNIT,
-  // 이 그레이박스는 §9 의 1.6 m 눈높이로 걷는다. 본편과 시선 차이를 잊으면 V1~V3 시야 판정을 옮길 때 어긋난다(§7 0단계).
-  mainEyeHeight: EYE_HEIGHT * METERS_PER_UNIT,
 };

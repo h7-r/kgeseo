@@ -5,8 +5,9 @@ import GltfPartMeshes from "@/engine/GltfPartMeshes";
 import { useToonGltfParts } from "@/engine/gltfModel";
 import type { OutlineValues } from "@/engine/toon";
 import { HEADQUARTERS_PALETTE } from "@/station/layout/dimensions";
+import { sharedAssetUrl } from "@/config/env";
 
-const DESK_URL = "/models/desk.glb";
+const DESK_URL = sharedAssetUrl("/models/desk.glb");
 useGLTF.preload(DESK_URL);
 
 /** 배율 1 에서 모델 중심 → 바닥 거리 */

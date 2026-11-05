@@ -54,7 +54,7 @@ const numberParam = (name: string, fallback: number) => {
   return Number.isFinite(v) && QUERY?.has(name) ? v : fallback;
 };
 const shadeStrength = numberParam("그늘", 0.68); // 그늘 계단 밝기(낮을수록 진한 그늘). 푸른 보랏빛을 곱한다
-export const animeValues = {
+const animeValues = {
   shadeColor: [shadeStrength * 0.95, shadeStrength * 1.02, Math.min(1.3, shadeStrength * 1.6)] as [number, number, number],
   saturation: numberParam("채도", 1.15), // 1 = 그대로 (10/14: 1.3 → 1.15, 공개 3D 잎이 형광으로 뜸)
   contrast: numberParam("대비", 1.08), // 1 = 그대로
@@ -160,7 +160,7 @@ function roundNormals(geometry: THREE.BufferGeometry, strength: number): boolean
   return true;
 }
 /** 씬의 초록 덩어리(툰 재질 · 캐릭터 제외) 법선을 둥글린다. 바꾼 메시 이름을 돌려준다. */
-export function roundLeafNormals(scene: THREE.Object3D, strength = animeValues.leafRounding): string[] {
+function roundLeafNormals(scene: THREE.Object3D, strength = animeValues.leafRounding): string[] {
   const changed: string[] = [];
   scene.traverse((o) => {
     const mesh = o as THREE.Mesh;

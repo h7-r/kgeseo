@@ -2,6 +2,7 @@
  * 조개 캐기 소품 — 호미(실물 모형) · 조개 한 움큼 · 판 구덩이와 모래 더미 · 먼저 파 놓은 구덩이 셋.
  * 미터로 만들고 M 배로 키운다.
  */
+import { assetUrl } from "@/config/env";
 import * as THREE from "three";
 
 import { TOON_GRADIENT } from "@/engine/toon";
@@ -11,7 +12,7 @@ import { makeToonMaterial } from "../materials";
 import { M, groundY } from "../units";
 
 /** 호미 — 국가유산청 실물 모형(31.5 cm, CC BY 4.0). 실물보다 조금 크게 — 1인칭 화면에서 호미로 읽히게 */
-const HOE_MODEL = `${import.meta.env.BASE_URL}_sf_local/lib/ast-prop-weeding-hoe-homi-01.glb`;
+const HOE_MODEL = "/_sf_local/lib/ast-prop-weeding-hoe-homi-01.glb";
 export const HOE_SCALE = 1.3;
 /** 조개도 실물(4~5 cm)보다 키운다 — 구덩이 속에서 껍데기 모양이 보이게 */
 export const CLAM_SCALE = 1.7;
@@ -45,7 +46,7 @@ export function buildHoe() {
   group.add(pivot);
   // 라이브러리 경량본은 meshopt·KTX2 압축 — 기본 로더로는 조용히 실패한다
   createCompressedGltfLoader().load(
-    HOE_MODEL,
+    assetUrl(HOE_MODEL),
     (gltf) => {
       const model = gltf.scene;
       model.rotation.x = -Math.PI / 2;
@@ -189,7 +190,7 @@ export function buildDugGround() {
   pile.receiveShadow = true;
   return { hole, pile };
 }
-export type DugGround = ReturnType<typeof buildDugGround>;
+type DugGround = ReturnType<typeof buildDugGround>;
 
 /** 먼저 파 놓은 구덩이 셋 — 구덩이 · 더미 모양을 같이 쓰고 든 것만 다르다 */
 export function buildSideHoles(ground: DugGround) {

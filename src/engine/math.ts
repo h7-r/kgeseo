@@ -4,6 +4,10 @@
 /** 시작·끝 속도가 0 인 보간 비율. t 는 0~1 로 들어온다고 본다. */
 export const smoothstep = (t: number) => t * t * (3 - 2 * t);
 
+/** x 가 a~b 를 지나는 동안의 smoothstep. 범위 밖은 잘라 0 또는 1 이 된다. */
+export const smoothstepRange = (a: number, b: number, x: number) =>
+  smoothstep(Math.min(1, Math.max(0, (x - a) / (b - a))));
+
 /** 처음 빠르고 끝에서 부드럽게 멈추는 보간 비율. */
 export const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 

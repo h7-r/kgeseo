@@ -4,12 +4,13 @@
  * 빛줄기가 상자로 흘러들어 비늘이 떠오르고, 비늘을 챙긴 뒤 뒷벽 물길에 몸을 맡기면 강가로 올라간다.
  * 치수는 chamberLayout, 그림 · 재질은 chamberArt, 연출 조각은 chamberMotion, 돌 소품은 chamberParts.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { useRememberedState } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { registerInteractable, showNotice } from "../interaction";
@@ -28,6 +29,9 @@ import {
   stirSand,
   teleportPlayer,
   useCaveShown,
+  cave,
+  clearBreathAfterLeaving,
+  holdBreathWhileLeaving,
 } from "./caveState";
 import { createChamberAssets, disposeChamberAssets } from "./chamberArt";
 import {
@@ -79,15 +83,17 @@ export default function InnerChamber() {
   const isShown = useCaveShown();
   const { camera } = useThree();
   /** 맞춘 수 — ORDER 의 앞에서부터 */
-  const [progress, setProgress] = useState(0);
-  const [isSolved, setIsSolved] = useState(false);
-  const [isScaleTaken, setIsScaleTaken] = useState(false);
+  const [progress, setProgress] = useRememberedState("chamber.progress", 0);
+  const [isSolved, setIsSolved] = useRememberedState("chamber.isSolved", false);
+  const [isScaleTaken, setIsScaleTaken] = useRememberedState("chamber.isScaleTaken", false);
   /** 큰 진주로 홈을 밝혔나 — 그때부터 비늘이 떠오른다 */
-  const [isShone, setIsShone] = useState(false);
-  const shoneAt = useRef(-1);
-  const progressRef = useRef(0);
-  const hasScale = useHeldItems().some((item) => item.kind === "scale");
+  const [isShone, setIsShone] = useRememberedState("chamber.isShone", false);
+  // 이어 하기: 이미 끝난 연출은 페이지 시작 때 끝난 것으로 친다(0 이면 충분히 지났다).
+  const shoneAt = useRef(isShone ? 0 : -1);
+  const progressRef = useRef(progress);
   const hand = useHandItem();
+  // 손에 꺼내 들어도 가진 것이다
+  const hasScale = useHeldItems().some((item) => item.kind === "scale") || hand?.kind === "scale";
   const isHoldingPearl = hand?.kind === "bigPearl";
   const pearlLight = useRef<THREE.PointLight>(null);
   const pearlBeam = useRef<THREE.Mesh>(null);
@@ -107,7 +113,7 @@ export default function InnerChamber() {
   const socketLight = useRef<THREE.PointLight>(null);
   const veil = useRef<THREE.Mesh>(null);
   const pressedAt = useRef<number[]>(PEDESTAL_X.map(() => -1));
-  const solvedAt = useRef(-1);
+  const solvedAt = useRef(isSolved ? 0 : -1);
   const flashAt = useRef(-1);
   /** 틀려서 받침이 가라앉아 있는 동안 — 이때까지 못 누른다 */
   const lockedUntil = useRef(-1);
@@ -205,6 +211,7 @@ export default function InnerChamber() {
   const leave = () => {
     if (leavingAt.current >= 0) return;
     leavingAt.current = now();
+    holdBreathWhileLeaving();
     leaveFrom.current = { x: camera.position.x / M, z: camera.position.z / M };
     audio.play("우르릉");
     director.cue({ 카메라: "흔들림", 세기: 0.7 });
@@ -213,6 +220,7 @@ export default function InnerChamber() {
   const finishLeave = () => {
     ritual.clear();
     setUnderwater(false);
+    clearBreathAfterLeaving();
     teleportPlayer(SHORE.x, SHORE.z, "-Z");
     audio.play("전환");
     // 물살에 떠밀려 나오며 손에 쥐여 있던 것 — 아랑사가 아비사에게 쓴 편지가 든 나무 함(청동 자물통으로 잠겼다)
@@ -224,6 +232,9 @@ export default function InnerChamber() {
     }
     // 물굴은 다시 못 들어온다 — 바닥에 두고 온 물건도 물살에 함께 떠밀려 나온다
     inventory.bringAlong(SHORE.x, SHORE.z);
+    // 안 주운 채 남은 물굴 물건은 함께 사라진다 — 두면 물이 닫힌 뒤 강물 위로 떠오른다
+    for (const item of inventory.world())
+      if (cave.contains(item.position.x / M, item.position.z / M)) inventory.removeFromWorld(item.uid);
     showNotice(
       "물살이 몸을 밀어 올렸다. 강가로 돌아왔다 — 손에 청동 자물통이 채워진 나무 함이 쥐여 있다. 안에서 무언가 달그락거린다.",
       6,

@@ -1,4 +1,4 @@
-// [E] 통합 편집 모드 — 라이브러리 배치 + 이미 놓인 에셋 고치기를 한 화면에서 (10/15 미르: 「E 를 누르면 바로 L 화면, 그 안에서 기존 에셋 편집까지」).
+// 통합 편집 모드 — 라이브러리 배치 + 이미 놓인 에셋 고치기를 한 화면에서.
 //   카메라·자리 고르기·손잡이·키는 검수 작업대 둘러보기와 같다(FreeCamera + PlacementLayer).
 //   Editor 가 편집 모드 동안만 마운트한다 — 내리면 손잡이·서랍·리스너가 모두 치워지고 걷기로 돌아간다.
 //
@@ -12,10 +12,10 @@
 //   · Alt+클릭 → 물체 위라도 그 겉면을 자리로 고른다
 // 카메라: 왼쪽 끌기 고개 · 오른쪽 끌기 화면 평면 이동 · 휠 커서 쪽으로 날기 · WASD 앞뒤좌우 · Space/C 올리기·내리기
 //   (초안이 없을 때) ←→ 옆으로 · ↑↓ 높이 · Shift ×3 · Tab 부감(내려다보기) 켜고 끄기
-//   ※ Q/E 높이는 쓰지 않는다 — E 는 편집 모드 켜기·끄기다(검수 작업대와 달리 ↑↓·Space/C 로 높이).
+//   ※ 검수 작업대와 달리 Q/E 가 아니라 ↑↓·Space/C 로 높이를 바꾼다.
 // 고른 것/초안: 이동 손잡이 · 화살표 10 cm(Shift 1 m) · [ ] 크기 ×1.1/×0.9 · PageUp/Down 높이 5 cm(Shift 50 cm) · , . 5°(Shift 15°)
 //   Enter 확정 · Esc 취소 · Delete/X 삭제(이미 놓인 에셋) · Ctrl+C/V(⌘C/V) 고른 자리 복사·붙여넣기(생성 무리·놓기)
-// Ctrl+Z 이번 편집 되돌리기(최근 30개, 각자 저장 경로로) · Ctrl+S edits.json 다시 저장 · L 서랍 접기/펴기 · E 편집 끝내기
+// Ctrl+Z 이번 편집 되돌리기(최근 30개, 각자 저장 경로로) · Ctrl+S edits.json 다시 저장 · L 서랍 접기/펴기
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import * as THREE from "three";
@@ -104,7 +104,7 @@ const reviewViews = reviewViewsJson as unknown as {
   position: [number, number, number];
   target: [number, number, number];
 }[];
-/** [E] 편집 모드에서 고른 씬·공간("S1"·"Z2" …, "" = 전체) — 편집 모드를 껐다 켜도 이어진다. 걷기(게임)로 돌아가면 고립은 풀린다 */
+/** 편집 모드에서 고른 씬·공간("S1"·"Z2" …, "" = 전체) — 편집 모드를 껐다 켜도 이어진다. 걷기(게임)로 돌아가면 고립은 풀린다 */
 let editScene: IsolationKey = "";
 const TEXT_ENTRY = "input:not([type=checkbox]):not([type=radio]):not([type=button]), textarea, select";
 
@@ -135,7 +135,7 @@ interface LibraryPlaceModeProps {
   groundAt: GroundAt;
   overview: boolean;
   setOverview?: Dispatch<SetStateAction<boolean>>;
-  /** 편집 모드 끄기(E 와 같다) */
+  /** 편집 모드 끄기 */
   onExit: () => void;
   /** 손 배치 편집(assets/edits.json) — 생성 무리 고치기 */
   edits: Edits;

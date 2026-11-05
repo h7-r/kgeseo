@@ -4,7 +4,6 @@
  */
 import * as THREE from "three";
 
-import { smoothstep } from "@/engine/math";
 import { createRandom } from "@/engine/random";
 
 import {
@@ -19,14 +18,13 @@ import {
   SURFACE_Y,
   corridorY,
   hallFloorY,
+  smooth,
 } from "./caveState";
 import { nearLightPuzzle } from "./lightLayout";
 import type { Placement } from "./seabed";
 
 /** 큰 방 바깥 깊은 바닥 — 이만큼 더 내려가며 모래 언덕이 인다 */
 export const DEEP_DROP = 3.4;
-
-const smooth = (t: number) => smoothstep(Math.min(1, Math.max(0, t)));
 
 /** 큰 방 네모에서 바깥으로 얼마나 떨어졌나(미터) */
 function outsideHall(x: number, z: number) {
@@ -54,7 +52,7 @@ export function seabedY(x: number, z: number) {
   return THREE.MathUtils.lerp(inside, deep, smooth(distance / 1.5));
 }
 
-export interface LightShaft {
+interface LightShaft {
   x: number;
   z: number;
   tilt: number;

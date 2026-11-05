@@ -13,6 +13,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { useRememberedState } from "../../save/puzzleMemory";
 import { buildBakedRockPrototypes } from "../../models/nature";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
@@ -140,13 +141,13 @@ export default function FishBurrows() {
   const isShown = useCaveShown();
   const { camera } = useThree();
   /** 맞춘 판 수 */
-  const [roundsDone, setRoundsDone] = useState(0);
+  const [roundsDone, setRoundsDone] = useRememberedState("burrows.roundsDone", 0);
   /** 지금 판에서 따라 한 수 · 차례를 본 뒤 따라 할 수 있나 */
   const [inputCount, setInputCount] = useState(0);
   const [isAwaiting, setIsAwaiting] = useState(false);
   const rounds = useMemo(() => makeRounds(), []);
   const isSolved = roundsDone >= rounds.length;
-  const roundsRef = useRef(0);
+  const roundsRef = useRef(roundsDone);
   const inputRef = useRef(0);
   const awaitingRef = useRef(false);
   /** 차례 보여 주기 — 시작 시각(없으면 −1) · 다음 판 자동 시작 시각 */
@@ -157,7 +158,7 @@ export default function FishBurrows() {
   /** 마지막으로 틀린 때 · 그때 두드린 굴 */
   const wrongAt = useRef(-99);
   const wrongBurrow = useRef(-1);
-  const solvedAt = useRef(-1);
+  const solvedAt = useRef(isSolved ? 0 : -1);
   /** 판마다 그 판에 나온 물고기가 더해진다 */
   const swimmers = useRef<Swimmer[]>([]);
   const swimmerMeshes = useRef<(THREE.Mesh | null)[]>([]);

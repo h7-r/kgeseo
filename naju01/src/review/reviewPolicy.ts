@@ -332,7 +332,7 @@ const PROPOSAL_STATUS = new Set(["proposed", "withdrawn", "applied"]);
 /** 좌표 한도(m) — 맵(80 × 50 m) 바깥 먼 곳·무한대 값을 막는다 */
 const COORD_LIMIT_M = 1000;
 export const PLACEMENT_SCALE_RANGE: readonly [number, number] = [0.05, 20];
-export const MAX_PROPOSALS = 300;
+const MAX_PROPOSALS = 300;
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" &&
@@ -366,7 +366,7 @@ export function isPlacementAssetUrl(value: unknown): value is string {
   return /^(?:\/|[^/\s?#:])[^\s?#:]*\.glb$/i.test(value);
 }
 
-export function isPlacementAsset(value: unknown): value is PlacementAsset {
+function isPlacementAsset(value: unknown): value is PlacementAsset {
   if (!isPlainObject(value) || Object.keys(value).some((key) => !ASSET_KEYS.has(key))) return false;
   if (!isText(value.id, 200) || !isText(value.nameKo, 120) || !isPlacementAssetUrl(value.url)) return false;
   if (value.source !== undefined && !ASSET_SOURCES.has(value.source as string)) return false;

@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
+import { materialsOf } from "@/engine/geometry";
+
 import { compensate, lampPartColor, paletteColor, textureAverage, vertexColorAverage } from "./palette";
 import { paintToonMaterial, zoneKeyUniforms } from "./paintedToon";
 import { onMangaSweepRequest } from "./sweepSignal";
@@ -25,12 +27,6 @@ function isShellOutline(material: THREE.Material) {
 }
 
 const isCreaseLine = (material: THREE.Material) => material.userData.isCreaseLine === true;
-
-const materialsOf = (object: THREE.Object3D): THREE.Material[] => {
-  const material = (object as THREE.Mesh).material;
-  if (!material) return [];
-  return Array.isArray(material) ? material : [material];
-};
 
 /** 팔레트로 칠한 재질 — 원래 색(팀 값)과 우리가 넣은 색. 넣은 색이 아니면 그 사이 React 가 바꾼 것이다 */
 interface Repainted {

@@ -226,7 +226,21 @@ export interface TickArgs {
   active: boolean;
 }
 
-type ColorMaterialMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+const isInScene = (object: THREE.Object3D, scene: THREE.Scene) => {
+  let top = object;
+  while (top.parent) top = top.parent;
+  return top === scene;
+};
+
+/** 하늘·구름 메시를 잡아 둔다. getObjectByName 은 장면 전체를 훑으므로 빠졌을 때만, 2초 간격으로 찾는다 */
+function refreshSkyMeshes(scene: THREE.Scene) {
+  if (stage.skyMesh && !isInScene(stage.skyMesh, scene)) stage.skyMesh = null;
+  if (stage.cloudMesh && !isInScene(stage.cloudMesh, scene)) stage.cloudMesh = null;
+  if ((stage.skyMesh && stage.cloudMesh) || stage.time - stage.skyFoundAt <= 2) return;
+  stage.skyFoundAt = stage.time;
+  stage.skyMesh ??= (scene.getObjectByName(MESH_NAMES.skyDome) as typeof stage.skyMesh | undefined) ?? null;
+  stage.cloudMesh ??= scene.getObjectByName(MESH_NAMES.skyClouds) ?? null;
+}
 
 export function tick({ scene, camera, terrain, position, dt, active }: TickArgs) {
   dt = Math.min(dt, 0.1);
@@ -387,8 +401,8 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
   cur.sky.lerp(_c1.set(tod.하늘색), b);
   cur.sunColor.lerp(_c1.set(tod.해색), b);
   cur.light += (tod.빛 - cur.light) * b;
-  const sky = scene.getObjectByName(MESH_NAMES.skyDome) as ColorMaterialMesh | undefined;
-  const clouds = scene.getObjectByName(MESH_NAMES.skyClouds);
+  refreshSkyMeshes(scene);
+  const { skyMesh: sky, cloudMesh: clouds } = stage;
   if (paused) {
     adjustLights(scene, 1, WHITE);
     if (sky) {

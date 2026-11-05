@@ -28,7 +28,7 @@ export const PUFFERS: Spot[] = [
   [47.9, 67.6],
   [37.9, 62.9],
 ];
-export const STARS: Spot[] = [
+const STARS: Spot[] = [
   [44.0, 59.3],
   [46.6, 61.1],
   [37.8, 64.1],
@@ -63,7 +63,7 @@ export const STONEFISH: Spot[] = [
   [37.7, 59.4],
 ];
 export const INK_COUNT = 380;
-export const PUFFER_SPIKES = 74;
+const PUFFER_SPIKES = 74;
 
 /** 움직이는 생물 하나 */
 export interface Mover {
@@ -265,7 +265,7 @@ function createSchool(
 }
 
 /** 먹물 알갱이와 공격 차례 — 한 번에 한 마리만 덤빈다 */
-export function createInk() {
+function createInk() {
   return {
     points: makeGlowPoints(INK_COUNT, { additive: false, softness: 1.1 }),
     pos: Array.from({ length: INK_COUNT }, () => new THREE.Vector3()),
@@ -371,7 +371,7 @@ export function createSeaLifeAssets() {
     stars,
   };
 }
-export type SeaLifeAssets = ReturnType<typeof createSeaLifeAssets>;
+type SeaLifeAssets = ReturnType<typeof createSeaLifeAssets>;
 
 export function disposeSeaLifeAssets(assets: SeaLifeAssets) {
   Object.values(assets.geometries).forEach((geometry) => geometry.dispose());

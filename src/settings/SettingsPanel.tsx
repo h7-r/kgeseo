@@ -4,6 +4,11 @@
  */
 import { useEffect, type CSSProperties } from "react";
 
+import { CloseIcon } from "@/game/gameIcons";
+import { DOCK_EDGE, DOCK_TOP, PANEL_SHADOW, UI, UI_FONT } from "@/game/gameUi";
+
+import "@/game/gameUi.css";
+
 import {
   DEFAULT_SETTINGS,
   RESOLUTION_LABELS,
@@ -82,7 +87,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div
-        style={dialogStyle}
+        style={{ ...dialogStyle, "--panel-from": "14px" } as CSSProperties}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -93,7 +98,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
             설정
           </h2>
           <button type="button" onClick={onClose} style={closeButtonStyle} aria-label="설정 닫기">
-            ✕
+            <CloseIcon />
           </button>
         </div>
 
@@ -179,29 +184,27 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   );
 }
 
-const GOLD = "#ffd36b";
+const GOLD = UI.accent;
 
-const overlayStyle: CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  display: "grid",
-  placeItems: "center",
-  padding: 16,
-  background: "rgba(4, 8, 14, 0.55)",
-  zIndex: 45,
-};
+// 바깥을 누르면 닫히게 화면 전체를 받되, 어둡게 덮지 않는다.
+const overlayStyle: CSSProperties = { position: "fixed", inset: 0, zIndex: 45 };
 
 const dialogStyle: CSSProperties = {
-  width: "min(480px, 100%)",
-  maxHeight: "calc(100vh - 32px)",
+  position: "absolute",
+  right: DOCK_EDGE,
+  top: DOCK_TOP,
+  width: `min(420px, calc(100% - ${DOCK_EDGE * 2}px))`,
+  maxHeight: `calc(100% - ${DOCK_TOP + DOCK_EDGE}px)`,
   overflowY: "auto",
-  padding: "18px 22px 16px",
-  borderRadius: 12,
-  background: "#161b22",
-  border: "1px solid #2c343e",
-  boxShadow: "0 18px 48px rgba(0,0,0,.5)",
-  color: "#e6ebf1",
-  fontSize: 14,
+  padding: "20px 22px 16px",
+  animation: "game-panel-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both",
+  boxSizing: "border-box",
+  borderRadius: 16,
+  background: UI.surface,
+  border: `1px solid ${UI.border}`,
+  boxShadow: PANEL_SHADOW,
+  color: UI.text,
+  font: `400 15px/1.6 ${UI_FONT.body}`,
 };
 
 const headerStyle: CSSProperties = {
@@ -209,58 +212,59 @@ const headerStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
 };
-const titleStyle: CSSProperties = { margin: 0, fontSize: 20, fontWeight: 700 };
+const titleStyle: CSSProperties = { margin: 0, font: `700 24px/1.2 ${UI_FONT.title}` };
 const closeButtonStyle: CSSProperties = {
-  width: 32,
-  height: 32,
-  borderRadius: 8,
-  border: "1px solid #2c343e",
+  display: "grid",
+  placeItems: "center",
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  border: `1px solid ${UI.border}`,
   background: "transparent",
-  color: "#b7c0cb",
+  color: UI.textMuted,
   cursor: "pointer",
-  fontSize: 14,
 };
 
 const groupTitleStyle: CSSProperties = {
   marginTop: 16,
   marginBottom: 4,
-  font: "12px ui-monospace,Menlo,monospace",
-  letterSpacing: 1,
-  color: GOLD,
+  font: `600 14px/1.2 ${UI_FONT.body}`,
+  color: UI.text,
 };
 
 const rowStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "minmax(90px, 1fr) 2fr 52px",
+  gridTemplateColumns: "minmax(84px, 1fr) 2.4fr 48px",
   alignItems: "center",
   gap: 12,
   padding: "8px 0",
-  borderBottom: "1px solid #222a33",
+  borderBottom: `1px solid ${UI.border}`,
 };
 const labelStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 2 };
-const descriptionStyle: CSSProperties = { fontSize: 11, color: "#7d8b97" };
+const descriptionStyle: CSSProperties = { fontSize: 13, color: UI.textMuted };
 const sliderStyle: CSSProperties = { width: "100%", accentColor: GOLD, cursor: "pointer" };
 const valueStyle: CSSProperties = {
   textAlign: "right",
   fontVariantNumeric: "tabular-nums",
-  color: "#b7c0cb",
+  font: `500 13px/1 ${UI_FONT.mono}`,
+  color: UI.textMuted,
 };
 const choicesStyle: CSSProperties = { gridColumn: "2 / 4", display: "flex", flexWrap: "wrap", gap: 6 };
 const choiceStyle: CSSProperties = {
-  padding: "5px 10px",
+  padding: "6px 9px",
   borderRadius: 99,
-  border: "1px solid #2c343e",
+  border: `1px solid ${UI.border}`,
   background: "transparent",
-  color: "#b7c0cb",
+  color: UI.textMuted,
   cursor: "pointer",
   fontSize: 13,
 };
 const choiceActiveStyle: CSSProperties = {
-  padding: "5px 10px",
+  padding: "6px 9px",
   borderRadius: 99,
-  border: `1px solid ${GOLD}`,
-  background: "rgba(255, 211, 107, 0.12)",
-  color: GOLD,
+  border: `1px solid ${UI.accent}`,
+  background: UI.surfaceHover,
+  color: UI.text,
   cursor: "pointer",
   fontSize: 13,
   fontWeight: 600,
@@ -275,11 +279,11 @@ const footerStyle: CSSProperties = {
   marginTop: 16,
 };
 const resetButtonStyle: CSSProperties = {
-  padding: "7px 12px",
-  borderRadius: 8,
-  border: "1px solid #2c343e",
-  background: "#1d2430",
-  color: "#e6ebf1",
+  padding: "9px 16px",
+  borderRadius: 99,
+  border: `1px solid ${UI.borderStrong}`,
+  background: UI.surfaceRaised,
+  color: UI.text,
   cursor: "pointer",
 };
-const noteStyle: CSSProperties = { fontSize: 12, color: "#5b6b80" };
+const noteStyle: CSSProperties = { fontSize: 13, color: UI.textMuted };

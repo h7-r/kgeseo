@@ -1,13 +1,23 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
+import { Outlines } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 
 import { scaleColor } from "@/engine/color";
 import { TOON_GRADIENT } from "@/engine/toon";
 
-import { createCurrentMaterial, FLOW_SECONDS } from "./currentFlow";
+import { buildLightningGeometry, createLightningMaterial } from "@/props/shared/lightning";
+
+import { computeSurge, FLOW_SECONDS, getPaintingStruckAt, setFlowPath } from "./currentFlow";
 import { computeRoundedPolyline } from "./puzzleGeometry";
-import { getFlowStartedAt, isBinComplete, type TrashBin } from "./workLampState";
+import { getBinFlowStartedAt, isBinComplete, type TrashBin } from "./workLampState";
+
+const PIPE_RADIUS = 0.032;
+const PIPE_COLOR = "#4a4f56";
+const COLLAR_COLOR = "#666d75";
+/** 그림에 닿은 뒤 번개가 이만큼(초) 더 세게 흐르다 잔불꽃으로 줄어든다 */
+const TRAIL_AFTER_STRIKE_SECONDS = 3;
+const SPARK_COLOR = new THREE.Color("#fffaf0").multiplyScalar(4);
 
 interface PowerCableProps {
   points: THREE.Vector3Tuple[];
@@ -16,71 +26,99 @@ interface PowerCableProps {
   brightness?: number;
 }
 
-/** 벽·천장을 타는 고무 피복 전선. 통 몫이 다 차면 그 위로 전류가 액자 쪽으로 흐른다. */
+interface CableCurrentProps {
+  bin: TrashBin;
+  path: THREE.Curve<THREE.Vector3>;
+  length: number;
+}
+
+/** 통 몫이 다 차면 전선을 따라 액자 쪽으로 가는 번개와 그 앞머리 불똥. */
+function CableCurrent({ bin, path, length }: CableCurrentProps) {
+  const geometry = useMemo(() => buildLightningGeometry(path, length), [path, length]);
+  const material = useMemo(() => createLightningMaterial({ throughWalls: true }), []);
+  useEffect(() => {
+    setFlowPath(bin, path);
+  }, [bin, path]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  useEffect(() => () => material.dispose(), [material]);
+  const lightningRef = useRef<THREE.Mesh>(null);
+  const headRef = useRef<THREE.Mesh>(null);
+  useFrame(() => {
+    const start = getBinFlowStartedAt(bin);
+    const now = performance.now() / 1000;
+    const isFlowing = start > 0 && isBinComplete(bin);
+    const progress = isFlowing ? Math.min(1, (now - start) / FLOW_SECONDS) : 0;
+    const { uniforms } = material;
+    uniforms.uProg.value = progress;
+    uniforms.uTime.value = now;
+    uniforms.uLen.value = length;
+    uniforms.uSurge.value = computeSurge(now);
+    uniforms.uTrail.value = now < getPaintingStruckAt() + TRAIL_AFTER_STRIKE_SECONDS ? 1 : 0;
+    // 진행 0 이면 셰이더가 전부 버린다. 끄는 동안의 셰이더는 예열이 안 보이는 메시까지 구워 둔다.
+    if (lightningRef.current) lightningRef.current.visible = progress > 0;
+    const head = headRef.current;
+    if (head) {
+      const isTravelling = progress > 0 && progress < 1;
+      head.visible = isTravelling;
+      if (isTravelling) {
+        // 가는 동안만 파닥인다
+        head.position.copy(path.getPointAt(progress));
+        head.scale.setScalar(0.7 + Math.random() * 0.8);
+      }
+    }
+  });
+  return (
+    <>
+      <mesh
+        ref={lightningRef}
+        geometry={geometry}
+        material={material}
+        frustumCulled={false}
+        renderOrder={5}
+        visible={false}
+      />
+      <mesh ref={headRef} visible={false}>
+        <sphereGeometry args={[0.05, 10, 8]} />
+        <meshBasicMaterial color={SPARK_COLOR} toneMapped={false} />
+      </mesh>
+    </>
+  );
+}
+
+/** 벽·천장을 타는 회색 전선관(분기함 전선관과 같은 모양). 통이 정해진 선에만 전류가 흐른다. */
 export default function PowerCable({ points, bin, brightness = 1 }: PowerCableProps) {
   const pointsKey = points
     .flat()
     .map((v) => v.toFixed(2))
     .join(",");
-  const { tube, glowTube, length, path, clips } = useMemo(() => {
+  const { tube, length, path, ends } = useMemo(() => {
     const path = computeRoundedPolyline(points, 0.3);
     const length = path.getLength();
-    const segments = Math.max(40, Math.round(length * 12));
-    // 벽에 박힌 전선 집게 — 1.1 유닛마다
-    const clips: THREE.Vector3[] = [];
-    for (let s = 0.6; s < length - 0.4; s += 1.1) clips.push(path.getPointAt(s / length));
+    const segments = Math.max(40, Math.round(length * 6));
+    // 관 양 끝의 이음쇠
+    const ends = [path.getPointAt(0), path.getPointAt(1)];
     return {
-      tube: new THREE.TubeGeometry(path, segments, 0.034, 8, false),
-      glowTube: new THREE.TubeGeometry(path, segments, 0.058, 8, false),
+      tube: new THREE.TubeGeometry(path, segments, PIPE_RADIUS, 8, false),
       length,
       path,
-      clips,
+      ends,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 점 배열은 판마다 새로 만들어져 값(pointsKey)으로 비교한다
   }, [pointsKey]);
-  const glowMaterial = useMemo(() => createCurrentMaterial(), []);
-  useEffect(
-    () => () => {
-      tube.dispose();
-      glowTube.dispose();
-    },
-    [tube, glowTube],
-  );
-  useEffect(() => () => glowMaterial.dispose(), [glowMaterial]);
-  const headRef = useRef<THREE.Mesh>(null);
-  useFrame(() => {
-    const start = bin ? getFlowStartedAt(bin) : -99;
-    const now = performance.now() / 1000;
-    const isFlowing = !!bin && start > 0 && isBinComplete(bin);
-    const progress = isFlowing ? Math.min(1, (now - start) / FLOW_SECONDS) : 0;
-    glowMaterial.uniforms.uProg.value = progress;
-    glowMaterial.uniforms.uTime.value = now;
-    glowMaterial.uniforms.uLen.value = length;
-    // visible 은 끄지 않는다 — 처음 보이는 순간 셰이더 컴파일로 화면이 몇 초 멈췄다. 진행 0 이면 셰이더가 다 버린다.
-    const head = headRef.current;
-    if (head) {
-      const isTravelling = progress > 0 && progress < 1;
-      if (isTravelling) head.position.copy(path.getPointAt(progress));
-      // 가는 동안만 파닥이는 앞머리 불똥(안 쓸 때는 크기 0)
-      head.scale.setScalar(isTravelling ? 0.7 + Math.random() * 0.8 : 0.0001);
-    }
-  });
+  useEffect(() => () => tube.dispose(), [tube]);
   return (
     <group>
       <mesh geometry={tube} castShadow>
-        <meshToonMaterial color={scaleColor("#23262a", brightness)} gradientMap={TOON_GRADIENT} />
+        <meshToonMaterial color={scaleColor(PIPE_COLOR, brightness)} gradientMap={TOON_GRADIENT} />
+        <Outlines thickness={2} color="#131416" />
       </mesh>
-      {clips.map((p, i) => (
+      {ends.map((p, i) => (
         <mesh key={i} position={p}>
-          <boxGeometry args={[0.1, 0.1, 0.1]} />
-          <meshToonMaterial color={scaleColor("#8b9097", brightness)} gradientMap={TOON_GRADIENT} />
+          <sphereGeometry args={[0.046, 10, 8]} />
+          <meshToonMaterial color={scaleColor(COLLAR_COLOR, brightness)} gradientMap={TOON_GRADIENT} />
         </mesh>
       ))}
-      <mesh geometry={glowTube} material={glowMaterial} />
-      <mesh ref={headRef} scale={0.0001}>
-        <sphereGeometry args={[0.09, 10, 8]} />
-        <meshBasicMaterial color={new THREE.Color("#dff8ff").multiplyScalar(4)} toneMapped={false} />
-      </mesh>
+      {bin && <CableCurrent bin={bin} path={path} length={length} />}
     </group>
   );
 }

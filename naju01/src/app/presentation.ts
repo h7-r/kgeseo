@@ -21,7 +21,7 @@ type Preset = Partial<PresentedControls>;
 
 const EXTRA_DEFAULTS: PresentationExtras = { sunColor: "#ffffff", waterReceivesShadow: true };
 
-// 도면 대조용 겹침을 끈다. drei <Html> 라벨은 하나마다 매 프레임 DOM 을 옮긴다.
+// 도면 대조용 겹침을 끈다.
 const DEFAULT_PRESET: Preset = {
   showGrid: false,
   showInvestigationPoints: false,

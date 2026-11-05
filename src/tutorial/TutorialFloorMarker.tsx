@@ -12,13 +12,28 @@ import { FLOOR_MARKER_RADIUS, TUTORIAL_COLOR, TUTORIAL_STEPS, tickTutorial, useT
 
 const MARKER_COLOR = new THREE.Color(TUTORIAL_COLOR);
 
-type BasicMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
-
-interface TutorialFloorMarkerProps {
-  enabled?: boolean;
+/** 빛기둥이 위로 갈수록 스러지게 하는 세로 그라데이션. 한 장을 함께 쓴다 */
+let beamFade: THREE.CanvasTexture | null = null;
+function getBeamFade() {
+  if (beamFade) return beamFade;
+  const canvas = document.createElement("canvas");
+  canvas.width = 2;
+  canvas.height = 64;
+  const context = canvas.getContext("2d");
+  if (context) {
+    const gradient = context.createLinearGradient(0, 0, 0, 64);
+    gradient.addColorStop(0, "#000");
+    gradient.addColorStop(1, "#fff");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 2, 64);
+  }
+  beamFade = new THREE.CanvasTexture(canvas);
+  return beamFade;
 }
 
-export default function TutorialFloorMarker({ enabled = true }: TutorialFloorMarkerProps) {
+type BasicMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>;
+
+export default function TutorialFloorMarker() {
   const { step } = useTutorial();
   const current = TUTORIAL_STEPS[step];
   const groupRef = useRef<THREE.Group>(null);
@@ -27,7 +42,6 @@ export default function TutorialFloorMarker({ enabled = true }: TutorialFloorMar
   const beamRef = useRef<BasicMesh>(null);
 
   useFrame(({ camera, clock }) => {
-    if (!enabled) return;
     const eye = playerView.ready ? playerView.eye : camera.position;
     tickTutorial({ eye, yaw: camera.rotation.y });
 
@@ -35,29 +49,30 @@ export default function TutorialFloorMarker({ enabled = true }: TutorialFloorMar
     if (!group) return;
     // 1.6초 주기로 숨쉬듯
     const breath = 0.5 + 0.5 * Math.sin(clock.elapsedTime * ((Math.PI * 2) / 1.6));
-    group.scale.setScalar(1 + breath * 0.06);
+    group.scale.setScalar(1 + breath * 0.03);
     if (ringRef.current) ringRef.current.material.opacity = 0.65 + breath * 0.35;
     if (discRef.current) discRef.current.material.opacity = 0.1 + breath * 0.1;
-    if (beamRef.current) beamRef.current.material.opacity = 0.08 + breath * 0.07;
+    if (beamRef.current) beamRef.current.material.opacity = 0.16 + breath * 0.1;
   });
 
-  if (!enabled || !current?.spot) return null;
+  if (!current?.spot) return null;
   const [x, z] = current.spot;
   return (
     <group ref={groupRef} position={[x, 0.03, z]} key={current.id}>
       <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} renderOrder={5}>
-        <ringGeometry args={[FLOOR_MARKER_RADIUS * 0.86, FLOOR_MARKER_RADIUS, 64]} />
+        <ringGeometry args={[FLOOR_MARKER_RADIUS * 0.94, FLOOR_MARKER_RADIUS, 96]} />
         <meshBasicMaterial color={MARKER_COLOR} transparent depthWrite={false} toneMapped={false} />
       </mesh>
       <mesh ref={discRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]} renderOrder={5}>
-        <circleGeometry args={[FLOOR_MARKER_RADIUS * 0.86, 64]} />
+        <circleGeometry args={[FLOOR_MARKER_RADIUS * 0.94, 96]} />
         <meshBasicMaterial color={MARKER_COLOR} transparent depthWrite={false} toneMapped={false} />
       </mesh>
       {/* 빛기둥 — 위로 갈수록 옅어지게 뚜껑 없는 원통 */}
       <mesh ref={beamRef} position={[0, 2.2, 0]} renderOrder={5}>
-        <cylinderGeometry args={[FLOOR_MARKER_RADIUS * 0.95, FLOOR_MARKER_RADIUS, 4.4, 48, 1, true]} />
+        <cylinderGeometry args={[FLOOR_MARKER_RADIUS, FLOOR_MARKER_RADIUS, 4.4, 48, 1, true]} />
         <meshBasicMaterial
           color={MARKER_COLOR}
+          alphaMap={getBeamFade()}
           transparent
           depthWrite={false}
           toneMapped={false}

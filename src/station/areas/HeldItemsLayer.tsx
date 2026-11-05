@@ -1,6 +1,7 @@
 import { Suspense, type RefObject } from "react";
 
 import type { AvatarLink, WorldPoint } from "@/engine/avatarLink";
+import { toRadians } from "@/engine/math";
 import type { OutlineValues } from "@/engine/toon";
 import { HeldItem } from "@/lobby/HeldItem";
 import type { LobbyState } from "@/lobby/interactions";
@@ -123,7 +124,7 @@ export default function HeldItemsLayer({
       {/* 소화전함에서 집어 온 관창. 함 속·배전반 쪽과 같은 모양을 써야 옮겨진 물건으로 읽힌다. */}
       {nozzleLocation === "hand" && (
         <HeldItem itemId="nozzle" kind="nozzle" forward={nozzle.forward} down={nozzle.down} side={nozzle.side}>
-          <group rotation={[(nozzle.tilt * Math.PI) / 180, (nozzle.twist * Math.PI) / 180, 0]} scale={nozzle.size}>
+          <group rotation={[toRadians(nozzle.tilt), toRadians(nozzle.twist), 0]} scale={nozzle.size}>
             <NozzleModel
               metalColor={hydrantInterior.metalColor}
               brightness={nozzle.brightness}

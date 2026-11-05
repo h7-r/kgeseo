@@ -3,14 +3,15 @@ import { useGLTF } from "@react-three/drei";
 import GltfPartMeshes from "@/engine/GltfPartMeshes";
 import { useToonGltfParts } from "@/engine/gltfModel";
 import type { OutlineValues } from "@/engine/toon";
+import { sharedAssetUrl } from "@/config/env";
 
 // 책상 위 컴퓨터 한 벌 — 모니터·키보드·마우스.
 // 모니터만 있는 모델(좌표계는 pc.glb 와 같다).
-useGLTF.preload("/models/pc_monitor.glb");
+useGLTF.preload(sharedAssetUrl("/models/pc_monitor.glb"));
 // 가로폭 1.0 · 밑면 y 0 · 중앙 정렬 · 낮은 앞턱이 +Z 로 정규화한 모델.
-useGLTF.preload("/models/keyboard.glb");
+useGLTF.preload(sharedAssetUrl("/models/keyboard.glb"));
 // 길이 1.0 · 밑면 y 0 · 중앙 정렬 · 휠·케이블 쪽이 +Z 로 정규화한 모델.
-useGLTF.preload("/models/mouse.glb");
+useGLTF.preload(sharedAssetUrl("/models/mouse.glb"));
 
 /** 책상 위에 맞춘 기본 배율 */
 const PC_SCALE = 1.6;
@@ -42,7 +43,7 @@ export default function PcSet({
   outline,
 }: PcSetProps) {
   const [x, z] = pos;
-  const parts = useToonGltfParts("/models/pc_monitor.glb", color);
+  const parts = useToonGltfParts(sharedAssetUrl("/models/pc_monitor.glb"), color);
   return (
     // 크기는 안쪽 그룹만 바꾼다. 바깥은 Y축 회전뿐이라 회전축 높이와 상관없다.
     <group position={[x, 0, z]} rotation={[0, rot, 0]}>
@@ -80,7 +81,7 @@ export function Keyboard({
   outline,
 }: KeyboardProps) {
   const [x, z] = pos;
-  const parts = useToonGltfParts("/models/keyboard.glb", color);
+  const parts = useToonGltfParts(sharedAssetUrl("/models/keyboard.glb"), color);
   return (
     <group position={[x, y, z]} rotation={[0, rot, 0]} scale={[size, size * thickness, size * depth]}>
       <GltfPartMeshes parts={parts} outline={outline} />
@@ -102,7 +103,7 @@ interface MouseProps {
 /** 들 수 있는 마우스. */
 export function Mouse({ pos = [0, 0], y = 0, rot = 0, size = 0.37, color = "#2c2f34", outline }: MouseProps) {
   const [x, z] = pos;
-  const parts = useToonGltfParts("/models/mouse.glb", color);
+  const parts = useToonGltfParts(sharedAssetUrl("/models/mouse.glb"), color);
   return (
     <group position={[x, y, z]} rotation={[0, rot, 0]} scale={size}>
       <GltfPartMeshes parts={parts} outline={outline} />

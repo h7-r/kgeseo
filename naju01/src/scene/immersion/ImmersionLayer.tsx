@@ -4,15 +4,16 @@
  *
  * [옛 이름 → 새 이름]
  *   N몰입연출 → ImmersionLayer (props: 지형→terrain · 플레이어참조→playerRef · 문자리→gateSpots · 활성→active)
- *   N비 → RainLayer · N물튀김 → SplashLayer · N낙숫물 → DripLayer · N물안개 → MistLayer
+ *   N비 → RainLayer · N물튀김 → SplashLayer · N낙숫물 → DripLayer
  *   튀김요청 → splashRequests · 임시왕관 → makeTempCrown · 튀김수 → SPLASH_COUNT · 낙숫물최대 → DRIP_MAX
- *   메시 이름: 연출.비→immersion.rain · 연출.물튀김→immersion.splash · 연출.낙숫물→immersion.drips · 연출.물안개→immersion.mist
+ *   메시 이름: 연출.비→immersion.rain · 연출.물튀김→immersion.splash · 연출.낙숫물→immersion.drips
  *   userData: 원경→isDistant · 원본행렬→originalMatrices · 생성→isGenerated
  *   GLB 로더: 옛 모델로더(KTX2+meshopt)가 TS 쪽에 없어 three 기본 GLTFLoader 를 쓴다(vfx 두 파일은 압축 없는 GLB).
  */
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import { createRandom } from "@/engine/random";
+import { assetUrl } from "@/config/env";
 import { useFrame, useThree } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
@@ -194,7 +195,7 @@ function SplashLayer({ terrain }: { terrain: ImmersionTerrain }) {
   useEffect(
     () =>
       // 생성 왕관이 있으면 그 모양으로 바꾼다(없으면 조용히 임시 모양 유지)
-      loadFirstGeometry(`${import.meta.env.BASE_URL}vfx/물튀김_왕관.glb`, (g) => {
+      loadFirstGeometry(assetUrl("/vfx/물튀김_왕관.glb"), (g) => {
         if (!ref.current) return;
         g.computeBoundingBox();
         const b = g.boundingBox!;
@@ -311,7 +312,7 @@ function DripLayer({ terrain }: { terrain: ImmersionTerrain }) {
   const baseGeometry = useMemo(() => new THREE.CylinderGeometry(0.012, 0.02, 1, 5, 1, true).translate(0, 0.5, 0), []);
   useEffect(
     () =>
-      loadFirstGeometry(`${import.meta.env.BASE_URL}vfx/낙숫물.glb`, (g) => {
+      loadFirstGeometry(assetUrl("/vfx/낙숫물.glb"), (g) => {
         if (!ref.current) return;
         g.computeBoundingBox();
         const b = g.boundingBox!;
@@ -411,70 +412,6 @@ function DripLayer({ terrain }: { terrain: ImmersionTerrain }) {
   );
 }
 
-// ── 물안개 — 플레이어 둘레를 도는 스프라이트 18 장 ──
-interface MistSheet {
-  angle: number;
-  distance: number;
-  size: number;
-  speed: number;
-  phase: number;
-}
-function MistLayer({ terrain, playerRef }: { terrain: ImmersionTerrain; playerRef: RefObject<AvatarLink | null> }) {
-  const groupRef = useRef<THREE.Group>(null);
-  const { map, sheets } = useMemo(() => {
-    const cv = document.createElement("canvas");
-    cv.width = cv.height = 128;
-    const x = cv.getContext("2d")!;
-    const gr = x.createRadialGradient(64, 64, 4, 64, 64, 62);
-    gr.addColorStop(0, "rgba(255,255,255,0.9)");
-    gr.addColorStop(0.5, "rgba(255,255,255,0.35)");
-    gr.addColorStop(1, "rgba(255,255,255,0)");
-    x.fillStyle = gr;
-    x.fillRect(0, 0, 128, 128);
-    const map = new THREE.CanvasTexture(cv);
-    const rand = createRandom(0x3157); // 렌더 중 Math.random 금지(react-hooks/purity) — 씨앗 고정
-    const sheets: MistSheet[] = Array.from({ length: 18 }, (_, i) => ({
-      angle: (i / 18) * Math.PI * 2 + rand(),
-      distance: 2 + rand() * 10,
-      size: 5 + rand() * 5,
-      speed: 0.15 + rand() * 0.25,
-      phase: rand() * 6,
-    }));
-    return { map, sheets };
-  }, []);
-  useFrame(() => {
-    const g = groupRef.current;
-    const p = playerRef.current?.position;
-    if (!g || !p) return;
-    const amount = settings.날씨 ? stage.mist : 0;
-    g.visible = amount > 0.02;
-    if (!g.visible) return;
-    const px = p.x / U;
-    const pz = p.z / U;
-    g.children.forEach((child, i) => {
-      const s = child as THREE.Sprite;
-      const d = sheets[i];
-      d.angle += d.speed * 0.002;
-      const x = px + Math.cos(d.angle) * d.distance;
-      const z = pz + Math.sin(d.angle) * d.distance;
-      const y = (terrain.groundAt(x, z).y ?? p.y / U) + 0.5 + 0.25 * Math.sin(stage.time * 0.3 + d.phase);
-      s.position.set(x * U, y * U, z * U);
-      s.scale.setScalar(d.size * U);
-      s.material.opacity = amount * 0.32 * (0.7 + 0.3 * Math.sin(stage.time * 0.2 + d.phase));
-      if (stage.current) s.material.color.copy(stage.current.fog).lerp(WHITE, 0.5);
-    });
-  });
-  return (
-    <group ref={groupRef} name="immersion.mist">
-      {sheets.map((_, i) => (
-        <sprite key={i} renderOrder={4}>
-          <spriteMaterial map={map} transparent depthWrite={false} opacity={0} />
-        </sprite>
-      ))}
-    </group>
-  );
-}
-
 // ═══════════════════════════════════════════════════════════════
 //  컴포넌트
 // ═══════════════════════════════════════════════════════════════
@@ -530,7 +467,6 @@ export default function ImmersionLayer({ terrain, playerRef, gateSpots, active =
       <RainLayer />
       <SplashLayer terrain={terrain} />
       <DripLayer terrain={terrain} />
-      <MistLayer terrain={terrain} playerRef={playerRef} />
     </>
   );
 }

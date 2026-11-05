@@ -6,6 +6,7 @@ import { useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
+import { toRadians } from "@/engine/math";
 import { playerView } from "@/engine/playerView";
 
 import { updateAim, useInteractable, type InteractableSpec } from "./interactions";
@@ -14,7 +15,7 @@ import { updateAim, useInteractable, type InteractableSpec } from "./interaction
 const AIM_INTERVAL = 0.05;
 // 시선이 2° 넘게 돈 프레임은 주기를 기다리지 않고 바로 잰다. 걸어서 바뀌는 겨냥은 주기로 충분하고,
 // 빠른 마우스 놀림만 50ms 지연(+강조 감쇠)이 굼뜨게 느껴진다. 매 프레임 재면 등록 대상 전부를 60번 훑는다.
-const TURN_THRESHOLD = Math.cos((2 * Math.PI) / 180);
+const TURN_THRESHOLD = Math.cos(toRadians(2));
 
 const forward = new THREE.Vector3();
 

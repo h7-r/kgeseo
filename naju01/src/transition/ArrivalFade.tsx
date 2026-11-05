@@ -47,7 +47,7 @@ export function ArrivalCover({ isRevealed }: ArrivalCoverProps) {
 const coverStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
-  // 계기판·시점 단추(20)보다 위. Leva 패널은 덮지 않아도 된다.
+  // 시점 단추(20)보다 위. Leva 패널은 덮지 않아도 된다.
   zIndex: 40,
   background: "#000",
   transition: `opacity ${ARRIVAL_FADE_MS}ms ease-out`,

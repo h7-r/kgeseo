@@ -8,7 +8,6 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
-import { smoothstep } from "@/engine/math";
 import { createRandom } from "@/engine/random";
 
 import {
@@ -46,9 +45,11 @@ import {
   setCavePlayerFoot,
   setPartOpenness,
   setUnderwater,
+  smooth,
   takeSandStir,
   teleportPlayer,
   tickBreath,
+  BREATH_SECONDS,
 } from "./caveState";
 import {
   buildGround,
@@ -86,8 +87,6 @@ const DOOR_LIGHT = 2.0;
 const BREATH_WARNING = 5;
 
 const STONE = { wall: "#4A534F", floor: "#4F5A56", rock: "#5E6B69", farRock: "#2E4A52" };
-
-const smooth = (t: number) => smoothstep(Math.min(1, Math.max(0, t)));
 
 /** 모래 먼지 · 거품 같은 빛점 묶음의 알갱이 상태 */
 function createParticleState(count: number) {
@@ -283,6 +282,8 @@ export default function CaveWorld() {
   useEffect(() => () => disposeCaveAssets(assets), [assets]);
 
   const partedAt = useRef(-1);
+  // 이어 하기: 이미 갈라진 강은 다시 갈라지는 연출 없이 시작한다.
+  const isPartRestored = useRef(ritual.stage() === "cave");
   const underwaterMix = useRef(0);
   const murk = useRef(0);
   const wasUnderwater = useRef(false);
@@ -391,10 +392,14 @@ export default function CaveWorld() {
     // 갈라짐
     if (partedAt.current < 0) {
       partedAt.current = time;
-      audio.play("우르릉");
-      showNotice("강물이 양쪽으로 갈라진다. 강바닥에 길이 드러났다.", 5);
+      if (!isPartRestored.current) {
+        audio.play("우르릉");
+        showNotice("강물이 양쪽으로 갈라진다. 강바닥에 길이 드러났다.", 5);
+      }
     }
-    const openness = THREE.MathUtils.smoothstep((time - partedAt.current) / PART_SECONDS, 0, 1);
+    const openness = isPartRestored.current
+      ? 1
+      : THREE.MathUtils.smoothstep((time - partedAt.current) / PART_SECONDS, 0, 1);
     setPartOpenness(openness);
     // 갈라지는 동안 땅이 운다 — 지진처럼 흔들리고 우르릉이 겹친다
     if (openness < 1) {
@@ -430,7 +435,7 @@ export default function CaveWorld() {
         director.cue({ 카메라: "흔들림", 세기: 0.8 });
         if (ritual.stage() === "parted") {
           ritual.enterCave();
-          showNotice("물이 머리 위에서 닫혔다. 숨은 60초 — 거품이 솟는 곳에 서면 다시 찬다.", 5.5);
+          showNotice(`물이 머리 위에서 닫혔다. 숨은 ${BREATH_SECONDS}초 — 거품이 솟는 곳에 서면 다시 찬다.`, 5.5);
         }
       }
     }

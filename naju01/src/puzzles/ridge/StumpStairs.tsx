@@ -12,6 +12,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { recall, track } from "../../save/puzzleMemory";
 import { playerPose } from "../../movement/playerPose";
 import { releasePropColliders } from "../../movement/propColliders";
 import { addDynamicSolid, type DynamicSolid } from "../../movement/solidField";
@@ -165,6 +166,13 @@ export default function StumpStairs() {
   const camera = useThree((state) => state.camera);
   const gl = useThree((state) => state.gl);
   const stairs = useMemo(() => createStairs(), []);
+  useEffect(
+    () =>
+      track("ridge.stumps", () =>
+        stairs.stumps.length ? { progress: stairs.progress, lit: stairs.stumps.map((stump) => stump.lit) } : undefined,
+      ),
+    [stairs],
+  );
   const removersRef = useRef<(() => void)[]>([]);
 
   useEffect(
@@ -211,6 +219,14 @@ export default function StumpStairs() {
       stairs.stumps.map((stump) => stump.group),
     );
     stairs.sources = found.map((entry) => entry.mesh);
+    // 이어 하기: 밟아 둔 걸상을 되돌린다. 걸상이 생긴 뒤라야 넣을 수 있다.
+    const saved = recall<{ progress: number; lit: number[] } | null>("ridge.stumps", null);
+    if (saved) {
+      stairs.progress = saved.progress;
+      stairs.stumps.forEach((stump, k) => {
+        stump.lit = saved.lit[k] ?? 0;
+      });
+    }
   };
 
   /** 평상 널 위 글 — 평상 가까이에서 1 초에 한 번, 평상 윗면 높이를 위에서 쏴 잰다 */

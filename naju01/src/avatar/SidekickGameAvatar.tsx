@@ -17,9 +17,10 @@ import { computeFistCenters } from "./fistCenter";
 import { LOCOMOTION_CLIPS } from "./motionCorrection";
 import { attachSkeleton, findFirstSkinnedMesh, computeRetargetOptions, setMorph, measureStrideSpeed } from "./rig";
 import { AUTO_MOTION, DEFAULT_SIDEKICK_CONFIG, type SidekickConfig } from "./sidekickOptions";
+import { sharedAssetUrl } from "@/config/env";
 
-const CHARACTER_URL = "/models/sidekick-customizer.glb";
-const MOTION_LIBRARY_URL = "/models/vendor/quaternius-universal-animation-library.glb";
+const CHARACTER_URL = sharedAssetUrl("/models/sidekick-customizer.glb");
+const MOTION_LIBRARY_URL = sharedAssetUrl("/models/vendor/quaternius-universal-animation-library.glb");
 const UNDERWEAR_COLOR = "#f7f7f3";
 // build_sidekick_wardrobe.py 의 SHOULDER_SHIFT 와 같아야 한다. shoulderWidth morph 는 본 이동이 옮기지 않는
 // 몸통만 담고 있어, 본 이동과 morph 를 늘 같은 비율로 걸어야 어깨가 안 찢어진다.

@@ -28,7 +28,7 @@ interface GroundLayerProps {
   outline: ReactNode;
 }
 
-/** 구역 라벨·바닥·풀·절벽. */
+/** 바닥·풀·절벽. */
 export default function GroundLayer({
   controls,
   terrain,

@@ -11,7 +11,7 @@ export const cameraFeel = {
 };
 
 /** 충격을 더한다. 0.2 = 툭, 0.5 = 쿵(자판기가 밀려나는 정도) */
-export function addTrauma(amount: number) {
+function addTrauma(amount: number) {
   cameraFeel.trauma = Math.min(1, cameraFeel.trauma + amount);
 }
 

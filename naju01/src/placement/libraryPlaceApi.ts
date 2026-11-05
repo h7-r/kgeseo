@@ -1,4 +1,4 @@
-// 5174 통합 편집 모드(E) — 개발 서버 주소(naju01/vite/libraryPlacePlugin.ts)와 주고받는 것 (10/15)
+// 5174 통합 편집 모드 — 개발 서버 주소(naju01/vite/libraryPlacePlugin.ts)와 주고받는 것 (10/15)
 //   라이브러리 색인은 검수 작업대(5180)와 같은 /__review/library. 확정·되돌리기는 /__naju-place(즉시 manifest 「놓기」).
 //   이미 놓인 놓기 고치기·지우기·되살리기는 /__naju-place/update · remove · restore.
 import { useSyncExternalStore } from "react";
@@ -146,7 +146,7 @@ const subscribe = (listener: () => void) => {
     listeners.delete(listener);
   };
 };
-/** 통합 편집 모드(E) 중이면 true — 카메라를 그 모드가 몬다 */
+/** 통합 편집 모드 중이면 true — 카메라를 그 모드가 몬다 */
 export function useEditModeActive(): boolean {
   return useSyncExternalStore(
     subscribe,

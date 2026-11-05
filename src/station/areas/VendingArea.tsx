@@ -5,6 +5,7 @@ import { toRadians } from "@/engine/math";
 import type { OutlineValues } from "@/engine/toon";
 import CanVendingMachine from "@/props/vending/CanVendingMachine";
 import CoffeeVendingMachine from "@/props/vending/CoffeeVendingMachine";
+import { vendingFocus } from "@/props/electricPanel/circuitPaths";
 import VendingPushCutscene from "@/props/vending/VendingPushCutscene";
 import type { CoffeeTemperature, VendingMachineState } from "@/props/vendingMachineState";
 import { getPushOffset } from "@/props/vendingPushState";
@@ -28,10 +29,10 @@ const getMachineOutline = (v: DrinkVendingValues | CoffeeVendingValues, color: s
 });
 
 interface VendingAreaProps {
+  eyeHeight: number;
   corridor: CorridorValues;
   vending: VendingControlValues;
   /** 컷신 카메라 높이의 기준(「시점(눈높이)」) */
-  eyeHeight: number;
   brightnessAt: (z: number) => number;
   isCollisionEnabled: boolean;
   drinkMachine: VendingMachineState;
@@ -43,9 +44,9 @@ interface VendingAreaProps {
  * 밝기는 벽·함과 같은 깊이 규칙이다 — 안 그러면 복도 끝에서 자판기만 혼자 환하다.
  */
 export default function VendingArea({
+  eyeHeight,
   corridor,
   vending: { secretDoor, drink, coffee },
-  eyeHeight,
   brightnessAt,
   isCollisionEnabled,
   drinkMachine,
@@ -63,6 +64,14 @@ export default function VendingArea({
   const pushDistance = secretDoor.autoFit ? pushDirection * Math.max(drink.width, clearance) : secretDoor.distance;
 
   const coffeeChoice = COFFEE_CHOICE[corridor.coffeeChoice] ?? null;
+  // 문이 열릴 때 화면이 서는 자리 — 밀린 뒤 자리까지 한 화면에 담으려고 두 자리의 가운데를 정면에서 본다
+  vendingFocus.position = [
+    drink.x - secretDoor.viewDistance,
+    eyeHeight + secretDoor.viewHeight,
+    drinkZ + pushDistance / 2 - secretDoor.viewOffset,
+  ];
+  vendingFocus.target = [drink.x, drink.y + drink.height * secretDoor.viewAim, drinkZ + pushDistance / 2];
+  vendingFocus.pushSeconds = secretDoor.duration;
 
   return (
     <>
@@ -72,21 +81,12 @@ export default function VendingArea({
         preview={secretDoor.preview}
         distance={pushDistance}
         duration={secretDoor.duration}
-        transitionTime={secretDoor.transitionTime}
-        // 밀린 뒤 자리까지 한 화면에 담으려고 두 자리의 가운데를 본다
-        viewPoint={() => [
-          drink.x - secretDoor.viewDistance,
-          eyeHeight + secretDoor.viewHeight,
-          drinkZ + pushDistance / 2 - secretDoor.viewOffset,
-        ]}
-        lookAt={() => [drink.x, drink.y + drink.height * secretDoor.viewAim, drinkZ + pushDistance / 2]}
         dustOrigin={() => [drink.x - corridor.vendingDepth / 2, drink.y + 0.12, drinkZ + getPushOffset() * 0.5]}
         dustCount={secretDoor.dustCount}
         dustColor={secretDoor.dustColor}
         dustSize={secretDoor.dustSize}
         dustStrength={secretDoor.dustStrength}
         dustSpread={drink.width * 0.8}
-        shake={secretDoor.shake}
       />
       <VendingMachineCollider
         name="vending:drink"

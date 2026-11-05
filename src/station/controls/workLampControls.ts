@@ -28,6 +28,7 @@ export function useWorkLampPuzzleControls() {
     markCOrder: { value: 1, min: 1, max: 3, step: 1, label: "C_칸" },
     markCGlyph: { value: "K", label: "C_글자" },
     markAZ: { value: -52.5, min: -60, max: -20, step: 0.2, label: "A_자국z" },
+    // B 자국은 이제 함 자리로 정한다. 저장값 열쇠 순서를 지키려고 이 값과 B_자국띄움은 남긴다
     markBZ: { value: -44.6, min: -60, max: -20, step: 0.2, label: "B_자국z" },
     markCZ: { value: -38.2, min: -60, max: -20, step: 0.2, label: "C_자국z" },
     markY: { value: 3.4, min: 0.5, max: 7, step: 0.05, label: "자국y" },

@@ -116,7 +116,7 @@ def client(db_session: FakeAsyncSession) -> Iterator[TestClient]:
     )
 
     try:
-        with TestClient(app) as test_client:
+        with TestClient(app, headers={"Origin": "http://localhost:5175"}) as test_client:
             yield test_client
     finally:
         app.dependency_overrides.pop(get_db, None)

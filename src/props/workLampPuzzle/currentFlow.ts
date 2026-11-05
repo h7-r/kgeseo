@@ -1,50 +1,26 @@
 import * as THREE from "three";
 
+import { getBinFlowStartedAt, isPaintingPowered, type TrashBin } from "./workLampState";
+
 /** 통에서 액자까지 전류가 가는 시간(초) */
-export const FLOW_SECONDS = 2.4;
+export const FLOW_SECONDS = 3.2;
+/** 전류가 그림에 닿은 뒤 창에 불이 들기까지(초) */
+export const LIGHT_DELAY_SECONDS = 0.75;
 
-const VERTEX_SHADER = /* glsl */ `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const FRAGMENT_SHADER = /* glsl */ `
-  uniform float uProg;   // 앞머리 자리 0~1
-  uniform float uTime;
-  uniform float uLen;    // 선 길이(유닛) — 빛 덩이 간격을 길이와 무관하게 맞춘다
-  uniform vec3 uColor;
-  varying vec2 vUv;
-  void main() {
-    float u = vUv.x;
-    if (u > uProg) discard;
-    float d = u * uLen;
-    float pulse = pow(fract(d / 0.9 - uTime * 2.2), 10.0);
-    float ripple = 0.5 + 0.5 * sin(d * 7.0 - uTime * 11.0);
-    float head = smoothstep(uProg - 0.6 / uLen, uProg, u);
-    float a = 0.18 + 0.2 * ripple + pulse * 1.6 + head * 2.4;
-    gl_FragColor = vec4(uColor * a, clamp(a, 0.0, 1.0));
-  }
-`;
-
-/**
- * 전선 위에 씌우는 빛의 관 — 앞머리까지만 보이고 그 안에서 빛 덩이가 흘러간다.
- * 빛 덩이를 메시로 굴리면 매 프레임 자리를 다 옮겨야 한다. 관 하나에 시간만 넘기면 GPU 가 흘린다.
- */
-export function createCurrentMaterial() {
-  return new THREE.ShaderMaterial({
-    vertexShader: VERTEX_SHADER,
-    fragmentShader: FRAGMENT_SHADER,
-    uniforms: {
-      uProg: { value: 0 },
-      uTime: { value: 0 },
-      uLen: { value: 10 },
-      uColor: { value: new THREE.Color("#8fe6ff") },
-    },
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
+/** 두 통의 전류가 다 그림에 닿는 시각(초). 아직 두 통이 안 찼으면 Infinity */
+export function getPaintingStruckAt() {
+  if (!isPaintingPowered()) return Infinity;
+  return Math.max(getBinFlowStartedAt("general"), getBinFlowStartedAt("plastic")) + FLOW_SECONDS;
 }
+
+/** 그림에 전류가 닿는 순간의 세기(0~1) — 확 올라 잠시 버티다 가라앉는다 */
+export function computeSurge(now: number) {
+  const since = now - getPaintingStruckAt();
+  if (since < 0) return 0;
+  return Math.min(1, since / 0.2) * (1 - THREE.MathUtils.smoothstep(since, 1.5, 3));
+}
+
+/** 전선 길 — 전선이 알려 주면 화면 포커싱이 같은 길을 따라간다 */
+const flowPaths = new Map<TrashBin, THREE.Curve<THREE.Vector3>>();
+export const setFlowPath = (bin: TrashBin, path: THREE.Curve<THREE.Vector3>) => flowPaths.set(bin, path);
+export const getFlowPath = (bin: TrashBin) => flowPaths.get(bin) ?? null;

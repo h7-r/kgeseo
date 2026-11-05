@@ -1,3 +1,5 @@
+import * as THREE from "three";
+
 // 복도 밝기·색 규칙 — 깊이에 따른 감광, 형광등 깜빡임, 먹선 색.
 
 /** 복도 먹선 색. 툰 외곽선·표지판 테두리·명판 글자가 같은 검정이어야 한 그림으로 읽힌다. */
@@ -40,9 +42,9 @@ export function computeCorridorDepthBrightness(z: number, rule: CorridorDepthRul
   const { darkBoundary, darkFactor, brightBoundary } = rule;
   if (darkBoundary !== undefined && Number.isFinite(darkBoundary) && darkFactor !== undefined && darkFactor < 1) {
     // 4 유닛에 걸쳐 스르르 넘어가야 경계선이 안 보인다
-    let w = Math.min(1, Math.max(0, (darkBoundary - z) / 4));
+    let w = THREE.MathUtils.clamp((darkBoundary - z) / 4, 0, 1);
     if (brightBoundary !== undefined && Number.isFinite(brightBoundary))
-      w *= Math.min(1, Math.max(0, (z - brightBoundary) / 4));
+      w *= THREE.MathUtils.clamp((z - brightBoundary) / 4, 0, 1);
     b *= 1 - w * (1 - darkFactor);
   }
   return b;

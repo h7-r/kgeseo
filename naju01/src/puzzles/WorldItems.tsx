@@ -8,7 +8,7 @@ import { useFrame } from "@react-three/fiber";
 
 import { audio } from "../scene/immersion/audio";
 import { M } from "./units";
-import { registerInteractable, setHandHandler, showNotice } from "./interaction";
+import { registerInteractable, setHandHandler, showNotice, usesWithHand } from "./interaction";
 import {
   ITEMS,
   inventory,
@@ -20,6 +20,9 @@ import {
 } from "./inventory";
 import { buildItemLooks, type ItemLook } from "./itemLooks";
 import { useItemModel } from "./itemModel";
+import { cave } from "./cave/caveState";
+import { floodSurfaceAt } from "./ritual/floodSurface";
+import { ridgeCarry } from "./ridge/ridgeState";
 
 export default function WorldItems() {
   const items = useWorldItems();
@@ -41,11 +44,13 @@ export default function WorldItems() {
   useEffect(() => {
     setHandHandler((target) => {
       const held = inventory.hand();
+      // 수레를 잡은 채 허공의 E 는 수레 놓기다 — 들고 있는 물건이 먼저 떨어지면 안 된다
+      if (ridgeCarry.isCartGrabbed && !target) return false;
       if (held) {
         if (target?.handLabel?.(held.kind)) {
           if (target.receive?.(held.kind) !== false && !target.keepHand) inventory.releaseHand();
-        } else if (target?.isPickup) {
-          return false; // 든 채로 줍는다 — 그 E 는 겨눈 물건의 use 가 받는다
+        } else if (usesWithHand(target)) {
+          return false; // 든 채로 줍거나 쓴다 — 그 E 는 겨눈 대상의 use 가 받는다
         } else {
           inventory.dropHand();
           audio.play("똑");
@@ -109,16 +114,21 @@ function HandItem({ item, look }: { item: HeldItem; look: ItemLook }) {
   );
 }
 
+/** 물에 뜬 뜬 돌이 까딱이는 높이(미터) */
+const BOB_HEIGHT = 0.03;
+
 function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
   const meshRef = useRef<THREE.Group>(null);
   const model = useItemModel(look.model);
   const name = ITEMS[item.kind].name;
+  // 물에 뜨면 겨누는 자리도 함께 오른다. item.position 은 바닥 자리라 그대로 둔다
+  const aimPoint = useMemo(() => item.position.clone(), [item]);
 
   useEffect(
     () =>
       registerInteractable({
         id: `world-item-${item.uid}`,
-        position: item.position,
+        position: aimPoint,
         label: `${name} 줍기`,
         isPickup: true,
         // 겨누면 본부실처럼 살짝 커지고 밝아진다
@@ -134,16 +144,27 @@ function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
           showNotice(`${withObjectParticle(name)} 챙겼다. [I] 소지품`);
         },
       }),
-    [item, name],
+    [item, name, aimPoint],
   );
 
-  // 빛 물고기는 땅에서 파닥인다
   useFrame(({ clock }) => {
     const mesh = meshRef.current;
-    if (!mesh || item.kind !== "lightFish") return;
-    const t = clock.elapsedTime * 7 + item.uid;
-    mesh.rotation.y = Math.sin(t) * 0.35;
-    mesh.position.y = item.position.y + (look.lift + Math.max(0, Math.sin(t * 0.5)) * 0.05) * M;
+    if (!mesh) return;
+    const x = item.position.x / M;
+    const z = item.position.z / M;
+    // 물 위면 수면에 뜬다 — 뜬 돌은 물결 따라 까딱이고, 다른 물건도 물밑에 묻혀 사라지지 않는다
+    const surface = floodSurfaceAt(x, z);
+    const floorHere = cave.isOpen() && cave.contains(x, z) ? (cave.groundAt(x, z)?.y ?? 0) : item.position.y / M;
+    const isFloating = surface > floorHere;
+    const t = clock.elapsedTime;
+    const bob = isFloating && item.kind === "floatStone" ? Math.sin(t * 1.6 + item.uid) * BOB_HEIGHT : 0;
+    const restY = isFloating ? surface + bob : floorHere;
+    aimPoint.y = restY * M;
+    // 빛 물고기는 땅에서 파닥인다
+    const flap = item.kind === "lightFish" ? t * 7 + item.uid : null;
+    mesh.rotation.y = flap === null ? (isFloating ? t * 0.25 + item.uid : 0) : Math.sin(flap) * 0.35;
+    const hop = flap === null ? 0 : Math.max(0, Math.sin(flap * 0.5)) * 0.05;
+    mesh.position.y = (restY + look.lift + hop) * M;
   });
 
   return (

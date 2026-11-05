@@ -1,6 +1,7 @@
 // Meshy 캐릭터 외형 — 선택지·기본값·저장값 보정.
 // 파츠 번호는 GLB 노드 extras 의 variant 와 같다. -1 = 없음(속옷·민머리·맨발).
 import { AUTO_MOTION, isHexColor, isKnownMotion, type AvatarGender, type Option, type Slider } from "./sidekickOptions";
+import { sharedAssetUrl } from "@/config/env";
 
 // 하의 표식(3)을 구운 판. 파일 이름이 그대로라 판을 올려야 브라우저가 새 GLB 를 받는다.
 export const MESH_MODEL_VERSION = 21;
@@ -83,12 +84,16 @@ function getGenderFileSuffix(gender: AvatarGender): string {
 
 // 신발은 몸 GLB 와 따로 굽는다(tools/meshy_fit_shoe.py). 착장마다 발 모양이 조금씩 달라 착장·성별 조합마다 한 파일이다.
 export function getMeshShoesUrl(config: OutfitSelection): string {
-  return `/models/shoes-${formatOutfitCombo(config)}-${getGenderFileSuffix(config.gender)}.glb?v=${MESH_MODEL_VERSION}`;
+  return sharedAssetUrl(
+    `/models/shoes-${formatOutfitCombo(config)}-${getGenderFileSuffix(config.gender)}.glb?v=${MESH_MODEL_VERSION}`,
+  );
 }
 
 // 옷은 파츠를 얹지 않고 그 옷을 입은 전신 모델을 통째로 바꿔 끼운다 — 옷이 뜨거나 속살이 비치지 않는다.
 export function getMeshBodyUrl(config: OutfitSelection): string {
-  return `/models/meshy-${formatOutfitCombo(config)}-${getGenderFileSuffix(config.gender)}.glb?v=${MESH_MODEL_VERSION}`;
+  return sharedAssetUrl(
+    `/models/meshy-${formatOutfitCombo(config)}-${getGenderFileSuffix(config.gender)}.glb?v=${MESH_MODEL_VERSION}`,
+  );
 }
 
 type MeshSliderKey =

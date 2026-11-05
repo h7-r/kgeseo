@@ -2,7 +2,6 @@ import { useEffect, useEffectEvent, useMemo, useRef } from "react";
 import type * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
-import { exposeDevHook } from "@/debug/devHooks";
 import { playerView } from "@/engine/playerView";
 import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import type { OutlineValues } from "@/engine/toon";
@@ -15,7 +14,13 @@ import type { WorkLampPuzzleValues } from "@/station/controls/workLampControls";
 
 import BreakerBox from "./BreakerBox";
 import ChalkMark from "./ChalkMark";
-import { BIN_SIZE, BREAKER_DOOR_THICKNESS, computeStartupBrightness } from "./puzzleGeometry";
+import {
+  JUNCTION_SOCKET,
+  LAMP_PLUG_DEPTH,
+  BIN_SIZE,
+  BREAKER_DOOR_THICKNESS,
+  computeStartupBrightness,
+} from "./puzzleGeometry";
 import HandwrittenHint from "./HandwrittenHint";
 import JunctionBox from "./JunctionBox";
 import { DOOR_LATCH, FRAME_LATCH } from "./latches";
@@ -52,6 +57,9 @@ const isJunctionSlot = (location: WorkLampLocation): location is JunctionSlot =>
 /** 함이 향하는 쪽(+x / −x) */
 const getWallDirection = (wall: Wall) => (wall === "outer" ? 1 : -1);
 
+/** 바깥벽 함에서 자국까지 — 안쪽벽 A·C 의 함↔자국 거리와 같다 */
+const OUTER_MARK_SIDE = 0.8;
+
 interface JunctionSpot {
   slot: JunctionSlot;
   z: number;
@@ -63,8 +71,6 @@ interface JunctionSpot {
   markZ: number;
   markOffset: number;
 }
-
-let renderCount = 0;
 
 interface CorridorBounds {
   outerX: number;
@@ -107,18 +113,11 @@ export default function WorkLampPuzzle({
   // 문이 열리면 자물쇠·걸쇠를 통째로 감춘다(아래)
   const isBreakerOpen = useIsHingeOpen(BREAKER_BOX_LOCK_ID);
 
-  // 「상자는 바뀌는데 화면이 안 따라온다」를 가릴 때 이 두 값을 나란히 본다
-  useEffect(() => {
-    renderCount += 1;
-    exposeDevHook("puzzleRender", renderCount);
-    exposeDevHook("puzzleKnownSpots", location);
-  });
-
   const { outerX, innerX, startZ = -60, height: corridorHeight = null } = corridor;
   const wallX = (wall: Wall) => (wall === "outer" ? outerX : innerX);
 
   // 벽은 코드로 고정한다 — 바깥벽에는 측면문이 줄지어 있다.
-  // 자국 자리는 함과 따로 받는다: B 는 막힌 옆문 옆에 서고 자국은 그 문짝 위에 그린다(문짝이 앞이라 띄움도 따로).
+  // 자국 자리는 함과 따로 받는다. 맞은편 벽의 B 는 화면에서 같은 쪽에 오도록 함 기준으로 반대 z 에 그린다.
   const boxes = useMemo(
     (): JunctionSpot[] => [
       {
@@ -138,8 +137,8 @@ export default function WorkLampPuzzle({
         label: "A-2",
         order: values.markBOrder,
         glyph: values.markBGlyph,
-        markZ: values.markBZ,
-        markOffset: values.markBOffset,
+        markZ: values.junctionBZ - OUTER_MARK_SIDE,
+        markOffset: values.markOffset,
       },
       {
         slot: "C",
@@ -163,10 +162,8 @@ export default function WorkLampPuzzle({
       values.markBGlyph,
       values.markCGlyph,
       values.markAZ,
-      values.markBZ,
       values.markCZ,
       values.markOffset,
-      values.markBOffset,
     ],
   );
 
@@ -207,13 +204,13 @@ export default function WorkLampPuzzle({
     if (!box) return null;
     const d = getWallDirection(box.wall);
     return {
-      // 고리를 함 앞으로 내밀어 달았으므로 램프도 그 자리에 매단다
+      // 옆으로 눕혀 꽂는다 — 손잡이 막대(모형 +y)가 벽 쪽을 보고 콘센트 구멍에 들어간다
       position: [
-        (box.wall === "outer" ? outerX : innerX) + d * (values.boxDepth + 0.05),
-        values.boxY + values.boxHeight * 0.34 - 0.62 * values.lampScale,
+        (box.wall === "outer" ? outerX : innerX) + d * (JUNCTION_SOCKET.faceX + LAMP_PLUG_DEPTH * values.lampScale),
+        values.boxY + values.boxHeight * JUNCTION_SOCKET.heightRatio,
         box.z,
       ],
-      rotation: [0, 0, 0],
+      rotation: [0, 0, (d * Math.PI) / 2],
     };
   }, [
     location,
@@ -223,7 +220,6 @@ export default function WorkLampPuzzle({
     values.floorY,
     values.floorZ,
     values.floorTilt,
-    values.boxDepth,
     values.boxY,
     values.boxHeight,
     values.lampScale,

@@ -15,6 +15,7 @@ import {
  * 키(.env)가 없으면 성공한 척하지 않고 무엇이 없는지 알려 준다.
  */
 const OAUTH_STATE_KEY = "waegok.oauthState";
+const OAUTH_RETURN_KEY = "waegok.oauthReturn";
 
 // 네이버 개발자센터·백엔드 NAVER_REDIRECT_URI 에 등록한 주소와 글자까지 같아야 한다.
 const redirectUri = () => `${window.location.origin}${ROUTES.socialCallback}`;
@@ -52,10 +53,27 @@ function clearOAuthState() {
 // Vite 는 import.meta.env.VITE_* 를 글자 그대로 써야 빌드 때 값을 넣어 준다.
 const NAVER_CLIENT_ID: string | undefined = import.meta.env.VITE_NAVER_CLIENT_ID;
 
+/** 시작한 화면으로 돌아가야 하면 그 주소. 한 번 읽으면 지운다. */
+export function takeNaverReturnPath(): string | null {
+  try {
+    const path = sessionStorage.getItem(OAUTH_RETURN_KEY);
+    sessionStorage.removeItem(OAUTH_RETURN_KEY);
+    return path;
+  } catch {
+    return null;
+  }
+}
+
 /** 키가 있으면 네이버 인가 화면으로 보내고 "" 를, 없으면 못 가는 까닭을 돌려준다. */
-export function startNaverLogin(): string {
+export function startNaverLogin(returnPath?: string): string {
   // 키가 없다는 사실만 알린다. 환경변수 이름은 화면에 내지 않는다.
   if (!NAVER_CLIENT_ID) return socialNotReadyMessage("naver");
+  try {
+    if (returnPath) sessionStorage.setItem(OAUTH_RETURN_KEY, returnPath);
+    else sessionStorage.removeItem(OAUTH_RETURN_KEY);
+  } catch {
+    // 저장이 막히면 가입 화면으로 돌아온다.
+  }
   const query = new URLSearchParams({
     client_id: NAVER_CLIENT_ID,
     redirect_uri: redirectUri(),

@@ -6,14 +6,14 @@ import { useSyncExternalStore, type ReactNode } from "react";
 
 import { createChangeSignal } from "@/lib/changeSignal";
 
-export interface PanelRow {
+interface PanelRow {
   label: string;
   value: string;
   /** 맞춘 줄은 호박색으로 */
   ok?: boolean;
 }
 
-export interface PuzzlePanel {
+interface PuzzlePanel {
   title: string;
   rule: string;
   rows?: PanelRow[];

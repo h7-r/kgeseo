@@ -14,6 +14,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createRandom } from "@/engine/random";
 
+import { recall, remember } from "../../save/puzzleMemory";
 import { playerPush } from "../../movement/playerPush";
 import { buildBakedRockPrototypes } from "../../models/nature";
 import { audio } from "../../scene/immersion/audio";
@@ -77,7 +78,7 @@ export default function Fishes() {
   const { camera } = useThree();
   const ringHold = useRef(0);
   const ringCount = useRef(0);
-  const ringDoneRef = useRef(false);
+  const ringDoneRef = useRef(recall("fishes.ringDone", false));
   /** 사람이 가만히 있은 시간 · 지난 자리 */
   const stillFor = useRef(0);
   const lastSpot = useRef(new THREE.Vector3());
@@ -404,6 +405,7 @@ export default function Fishes() {
       ringHold.current = inRing >= RING.need ? ringHold.current + dt : 0;
       if (ringHold.current >= RING.holdSeconds) {
         ringDoneRef.current = true;
+        remember("fishes.ringDone", true);
         audio.play("징");
         showNotice("물고기 떼가 돌 고리 안에 모였다 — 모래가 들썩이며 진주가 떠올랐다.", 5);
         inventory.spawn("pearl", new THREE.Vector3(RING.x * M, (floorY(RING.x, RING.z) + 0.02) * M, RING.z * M));

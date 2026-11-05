@@ -175,17 +175,9 @@ interface DispatchPathProps {
   headquartersBounds: HeadquartersBounds;
   /** 복도 → 방 구멍의 방 쪽 자리 [x, z] */
   opening: Point2;
-  /** 기차 씬이면 그 순간 탑승으로 친다 */
-  isInTrain?: boolean;
 }
 
-export default function DispatchPath({
-  findDoor,
-  isBlocked,
-  headquartersBounds,
-  opening,
-  isInTrain = false,
-}: DispatchPathProps) {
+export default function DispatchPath({ findDoor, isBlocked, headquartersBounds, opening }: DispatchPathProps) {
   const { phase } = useDispatchState();
   const isVisible = phase === "alert" || phase === "guide";
   const geometry = useMemo(() => buildChevronGeometry(), []);
@@ -227,7 +219,7 @@ export default function DispatchPath({
       for (let k = 1; k < lastPoints.length - 1; k += 1)
         remaining += Math.hypot(lastPoints[k + 1][0] - lastPoints[k][0], lastPoints[k + 1][1] - lastPoints[k][1]);
     }
-    tickDispatch({ isInHeadquarters, isInTrain, doorDistance: remaining });
+    tickDispatch({ isInHeadquarters, isInTrain: false, doorDistance: remaining });
 
     const arrows = arrowsRef.current;
     if (!arrows) return;

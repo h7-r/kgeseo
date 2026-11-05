@@ -6,6 +6,7 @@
 import { useSyncExternalStore } from "react";
 
 import { playSound } from "@/audio/sound";
+import { playCupSip } from "@/audio/synthSounds";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 
@@ -30,7 +31,7 @@ interface DrinkState {
   action: DrinkAction | null;
 }
 
-export interface HeldDrink {
+interface HeldDrink {
   kind: HeldDrinkKind | null;
   color: string | null;
   liquidColor: string | null;
@@ -128,7 +129,8 @@ export function interactWithHeldDrink(): DrinkUseResult | null {
   if (state.remaining > 0.001) {
     state.remaining = Math.max(0, state.remaining - SIP_AMOUNT);
     startDrinkAction("sip");
-    if (state.kind === "can" || state.kind === "cup") playSound("canDrink", { volume: 0.9 });
+    if (state.kind === "can") playSound("canDrink", { volume: 0.9 });
+    else if (state.kind === "cup") playCupSip();
     signal.notify();
     return "sip";
   }
@@ -166,6 +168,7 @@ exposeDevHook("drink", {
   state,
   pickUpCup,
   pickUpCan,
+  pickUpPaper,
   interactWithHeldDrink,
   discardDrink,
   resetDrink,

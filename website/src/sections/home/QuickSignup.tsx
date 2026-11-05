@@ -1,6 +1,5 @@
-import { useState, type CSSProperties } from "react";
+import { useCallback, useState, type CSSProperties } from "react";
 
-import googleIcon from "@/assets/images/imgComponent1.svg";
 import ConsentGroup from "@/components/form/ConsentGroup";
 import InputLine, { type FieldBinding } from "@/components/form/InputLine";
 import { hairlineStyle, inputBoxStyle } from "@/components/form/formStyles";
@@ -9,11 +8,14 @@ import TextField, { LabelRow, PasswordStrength } from "@/components/form/TextFie
 import RegionPicker from "@/components/RegionPicker";
 import {
   BOT_SUSPECTED_MESSAGE,
+  describeBlockedSubmit,
+  revealAlert,
   SIGNUP_DUPLICATE_CHECKS,
   submitOnEnter,
   useBotGuard,
   useConsents,
   useForm,
+  useInputAlert,
   useSubmitLock,
 } from "@/hooks/useForm";
 import { SCRIM_ATTR } from "@/lib/layout";
@@ -21,13 +23,14 @@ import { FONT } from "@/lib/style";
 import { suggestEmailTypo, type FieldName } from "@/lib/validation";
 import { ROUTES, useSiteNavigate } from "@/navigation/routes";
 import { signUp } from "@/services/account/authApi";
-import { signInWithGoogle } from "@/services/account/googleAuth";
 import { startNaverLogin } from "@/services/account/naverAuth";
-import { holdOnboarding } from "@/services/account/socialAuthApi";
+import { readOnboarding, type OnboardingRequired } from "@/services/account/socialAuthApi";
 import { signIn, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import { signupPanelStyle, primaryButtonStyle, primaryLabelStyle } from "./quickSignupStyles";
+import GoogleButton from "../auth/GoogleButton";
+import SocialOnboardingForm from "../auth/SocialOnboardingForm";
 import WelcomePanel from "./WelcomePanel";
 
 const FIELDS: readonly FieldName[] = ["nickname", "region", "email", "password", "passwordConfirm"];
@@ -42,40 +45,27 @@ export default function QuickSignup() {
   const consent = useConsents();
   const bot = useBotGuard();
   const [socialMessage, setSocialMessage] = useState("");
-  const [isGoogleBusy, setIsGoogleBusy] = useState(false);
   const { isSubmitting, run: runSubmit } = useSubmitLock();
-  const [alertMessage, setAlertMessage] = useState("");
+  const [alertMessage, setAlertMessage] = useInputAlert([values, consent.consents]);
   const [isDone, setIsDone] = useState(false);
-
-  // 구글은 팝업에서 끝난다 — 로그인되면 세션이 바뀌어 이 자리가 환영 판으로 바뀐다
-  const handleGoogle = async () => {
-    if (isGoogleBusy) return;
-    setSocialMessage("");
-    setIsGoogleBusy(true);
-    try {
-      const result = await signInWithGoogle();
-      if (result.kind === "signedIn") {
-        signIn(result.user);
-        return;
-      }
-      // 처음 온 계정은 로그인시키지 않고 가입 화면으로. 증표는 메모리로만 넘긴다.
-      holdOnboarding(result.onboarding);
-      navigate(ROUTES.socialOnboarding);
-    } catch (error) {
-      setSocialMessage((error instanceof Error && error.message) || "Google 로그인에 실패했습니다.");
-    } finally {
-      setIsGoogleBusy(false);
-    }
-  };
+  // 처음 온 소셜 계정은 페이지를 옮기지 않고 이 자리에서 가입을 마친다.
+  const [onboarding, setOnboarding] = useState<OnboardingRequired | null>(readOnboarding);
+  const handleOnboardingEnded = useCallback((message: string) => {
+    setOnboarding(null);
+    setSocialMessage(message);
+  }, []);
 
   const handleSubmit = () =>
     runSubmit(async () => {
       consent.markSubmitted();
       setAlertMessage("");
       try {
-        const fieldsPassed = await form.validateAll();
+        const fieldErrors = await form.validateAll();
         const consentPassed = consent.check();
-        if (!fieldsPassed || !consentPassed) return;
+        if (Object.keys(fieldErrors).length > 0 || !consentPassed) {
+          setAlertMessage(describeBlockedSubmit("회원가입", fieldErrors, consent.problem));
+          return;
+        }
         if (bot.isLikelyBot()) {
           setAlertMessage(BOT_SUSPECTED_MESSAGE);
           return;
@@ -109,6 +99,13 @@ export default function QuickSignup() {
 
   // 가입을 막 끝낸 사람도 signIn 으로 로그인되므로 바로 환영 판으로 바뀐다.
   if (user) return <WelcomePanel user={user} />;
+  if (onboarding) {
+    return (
+      <div style={signupPanelStyle} {...SCRIM_ATTR}>
+        <SocialOnboardingForm onboarding={onboarding} variant="home" onDone={signIn} onEnded={handleOnboardingEnded} />
+      </div>
+    );
+  }
 
   // 제목부터 로그인 줄까지 한 덩이로 쌓는다. 높이를 정하지 않아야 보이는 글의 가운데가 호의 가운데에 온다.
   return (
@@ -126,7 +123,7 @@ export default function QuickSignup() {
           <TextField
             variant="home"
             label="닉네임"
-            placeholder="조사관 이름"
+            placeholder="이름"
             grow
             autoComplete="nickname"
             {...bind("nickname")}
@@ -201,7 +198,19 @@ export default function QuickSignup() {
         <Honeypot value={bot.honeypot} onChange={bot.setHoneypot} />
 
         {alertMessage && (
-          <div role="alert" style={{ fontFamily: FONT.mono, fontSize: "15px", lineHeight: 1.5, color: COLOR.danger }}>
+          <div
+            ref={revealAlert}
+            role="alert"
+            style={{
+              whiteSpace: "pre-line",
+              // 위에 고정된 머리글에 가리지 않게
+              scrollMarginTop: "120px",
+              fontFamily: FONT.mono,
+              fontSize: "15px",
+              lineHeight: 1.5,
+              color: COLOR.danger,
+            }}
+          >
             {alertMessage}
           </div>
         )}
@@ -235,28 +244,26 @@ export default function QuickSignup() {
         </div>
 
         <div style={{ display: "flex", gap: "12px", alignItems: "center", justifyContent: "center" }}>
-          <button
-            type="button"
-            className="button"
-            style={{ ...socialButtonStyle, background: COLOR.white, ...(isGoogleBusy ? busyStyle : {}) }}
-            onClick={handleGoogle}
-            title="Google 계정으로 가입 (팝업 창)"
-            aria-label="Google 계정으로 가입 (팝업 창)"
-            aria-busy={isGoogleBusy}
-          >
-            <img
-              loading="lazy"
-              decoding="async"
-              src={googleIcon}
-              alt="Google"
-              style={{ width: "17px", height: "17px", display: "block" }}
-            />
-          </button>
+          <GoogleButton
+            onBusyChange={(busy) => {
+              if (busy) setSocialMessage("");
+            }}
+            onResult={(result) => {
+              // 구글은 창에서 끝난다 — 로그인되면 세션이 바뀌어 이 자리가 환영 판으로 바뀐다
+              if (result.kind === "signedIn") {
+                signIn(result.user);
+                return;
+              }
+              // 처음 온 계정은 로그인시키지 않고 이 자리를 가입 마무리로 바꾼다. 증표는 메모리로만 둔다.
+              setOnboarding(result.onboarding);
+            }}
+            onError={setSocialMessage}
+          />
           <button
             type="button"
             className="button"
             style={{ ...socialButtonStyle, background: "#03c75a", borderColor: "#03c75a" }}
-            onClick={() => setSocialMessage(startNaverLogin())}
+            onClick={() => setSocialMessage(startNaverLogin(ROUTES.home))}
             title="네이버로 가입 (네이버 화면으로 이동)"
             aria-label="네이버로 가입 (네이버 화면으로 이동)"
           >
@@ -313,7 +320,6 @@ const subtitleStyle: CSSProperties = {
 };
 
 // 구글 팝업이 떠 있는 동안 — 로그인 화면의 간편 로그인 단추와 같은 모양
-const busyStyle: CSSProperties = { opacity: 0.65, cursor: "progress" };
 const socialButtonStyle: CSSProperties = {
   width: "44px",
   height: "44px",

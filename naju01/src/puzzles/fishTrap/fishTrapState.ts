@@ -20,6 +20,8 @@ const ORDER: FishTrapStage[] = ["idle", "full", "pulled", "lit", "told"];
 
 const signal = createChangeSignal();
 let stage: FishTrapStage = "idle";
+/** 연기 화살표가 바위틈을 지나 앞서갔나 — 이때 다음 스테이지가 열린다 */
+let isGuideAhead = false;
 
 /** 앞으로만 간다 — 같은 단계를 두 번 알리지 않는다 */
 function advance(next: FishTrapStage) {
@@ -35,8 +37,21 @@ export const fishTrapPuzzle = {
   pull: () => advance("pulled"),
   light: () => advance("lit"),
   tell: () => advance("told"),
+  guideAhead: () => isGuideAhead,
+  markGuideAhead() {
+    if (isGuideAhead || stage !== "told") return;
+    isGuideAhead = true;
+    signal.notify();
+  },
   reset() {
     stage = "idle";
+    isGuideAhead = false;
+    signal.notify();
+  },
+  /** 저장본을 넣는다. 지나간 단계의 연출은 다시 돌리지 않는다 */
+  restore(saved: { stage: FishTrapStage; isGuideAhead: boolean }) {
+    stage = saved.stage;
+    isGuideAhead = saved.isGuideAhead;
     signal.notify();
   },
 };

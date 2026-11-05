@@ -1,82 +1,104 @@
 import type { CSSProperties } from "react";
 
-// 소지품 창과 힌트함이 함께 쓰는 치수·색. 생김새가 다르면 다른 게임 화면으로 읽힌다.
+import { UI, UI_FONT } from "./gameUi";
 
-export const GOLD = "#e0a94e";
-const MONO_SMALL = "12px ui-monospace,Menlo,monospace";
+// 소지품 창과 힌트함이 함께 쓰는 안쪽 모양.
 
-export const backdropStyle: CSSProperties = {
-  position: "absolute",
-  inset: 0,
-  zIndex: 50,
-  background: "rgba(10,13,18,.72)",
-  display: "grid",
-  placeItems: "center",
-};
-
-export const panelStyle: CSSProperties = {
-  width: 720,
-  maxWidth: "90%",
-  maxHeight: "82%",
-  display: "flex",
-  flexDirection: "column",
-  padding: "22px 24px",
+export const listColumnStyle: CSSProperties = { flex: "0 1 auto", minHeight: 96, overflowY: "auto" };
+export const detailColumnStyle: CSSProperties = {
+  flex: "1 1 auto",
+  minHeight: 110,
+  overflowY: "auto",
+  padding: "16px 18px",
   borderRadius: 12,
-  background: "#191d25",
-  border: "1px solid #2c3648",
-  color: "#cfe3ff",
-  font: "15px/1.7 sans-serif",
+  background: UI.surfaceRaised,
+  border: `1px solid ${UI.border}`,
 };
 
-export const headerStyle: CSSProperties = {
+export const sectionStyle: CSSProperties = { marginBottom: 16 };
+export const sectionTitleStyle: CSSProperties = {
   display: "flex",
   alignItems: "baseline",
-  justifyContent: "space-between",
-  marginBottom: 16,
+  gap: 8,
+  marginBottom: 10,
+  font: `600 15px/1.2 ${UI_FONT.body}`,
+  color: UI.text,
 };
-export const titleStyle: CSSProperties = { font: "600 22px/1.3 sans-serif" };
-export const headerMetaStyle: CSSProperties = { font: MONO_SMALL, color: "#5b6b80" };
-export const bodyStyle: CSSProperties = { display: "flex", gap: 20, minHeight: 0, flex: 1 };
-export const sectionTitleStyle: CSSProperties = {
-  font: MONO_SMALL,
-  letterSpacing: 1,
-  color: GOLD,
-  marginBottom: 8,
+export const sectionCountStyle: CSSProperties = {
+  font: `500 13px/1 ${UI_FONT.mono}`,
+  color: UI.accent,
+  fontVariantNumeric: "tabular-nums",
 };
-export const sectionCountStyle: CSSProperties = { color: "#5b6b80", marginLeft: 4 };
 export const gridStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))",
-  gap: 8,
+  gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))",
+  gap: 10,
 };
 
 export const slotStyle: CSSProperties = {
   display: "grid",
   justifyItems: "center",
-  gap: 4,
+  gap: 7,
   padding: "10px 6px",
-  borderRadius: 8,
-  background: "#12161c",
-  border: "1px solid #2c343e",
-  color: "#cfe3ff",
-  font: "12px sans-serif",
+  borderRadius: 10,
+  background: UI.surfaceRaised,
+  border: `1px solid ${UI.border}`,
+  color: UI.text,
+  font: `500 13px/1.3 ${UI_FONT.body}`,
   cursor: "pointer",
 };
-export const selectedSlotStyle: CSSProperties = { ...slotStyle, borderColor: GOLD, background: "#1d2430" };
 export const slotNameStyle: CSSProperties = {
   maxWidth: "100%",
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
 };
-
-export const categoryStyle: CSSProperties = { font: MONO_SMALL, letterSpacing: 1, color: GOLD };
-export const detailNameStyle: CSSProperties = { margin: "6px 0 0", font: "600 19px/1.3 sans-serif" };
-export const dividerStyle: CSSProperties = { height: 1, background: "#2c343e", margin: "14px 0" };
-export const hintStyle: CSSProperties = { color: "#5b6b80", fontSize: 13, paddingTop: 6 };
-export const footerStyle: CSSProperties = {
-  marginTop: 16,
-  textAlign: "right",
-  color: "#5b6b80",
-  font: MONO_SMALL,
+export const slotImageStyle: CSSProperties = { width: 48, height: 48, objectFit: "contain", borderRadius: 6 };
+export const slotLetterStyle: CSSProperties = {
+  display: "grid",
+  placeItems: "center",
+  width: 48,
+  height: 48,
+  borderRadius: 8,
+  background: UI.surfaceHover,
+  font: `700 22px/1 ${UI_FONT.title}`,
+  color: UI.accent,
 };
+
+export const categoryStyle: CSSProperties = { font: `500 13px/1 ${UI_FONT.body}`, color: UI.accent };
+export const detailNameStyle: CSSProperties = {
+  margin: "8px 0 10px",
+  font: `700 20px/1.3 ${UI_FONT.title}`,
+  color: UI.text,
+};
+export const detailImageStyle: CSSProperties = {
+  display: "block",
+  width: "100%",
+  maxWidth: 240,
+  margin: "0 auto 12px",
+  borderRadius: 8,
+  background: UI.surface,
+};
+// pre-line — 설명의 \n 줄바꿈을 살린다
+export const descriptionStyle: CSSProperties = {
+  margin: 0,
+  color: UI.text,
+  font: `400 16px/1.7 ${UI_FONT.body}`,
+  whiteSpace: "pre-line",
+  // 낱말 중간에서 줄이 꺾이지 않게 한다
+  wordBreak: "keep-all",
+};
+
+/** 아직 고른 것·가진 것이 없을 때. 아이콘과 한두 줄로 자리를 채운다. */
+export const emptyStyle: CSSProperties = {
+  minHeight: 96,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 12,
+  textAlign: "center",
+  color: UI.textMuted,
+  font: `400 15px/1.7 ${UI_FONT.body}`,
+};
+export const emptyRowStyle: CSSProperties = { color: UI.textMuted, font: `400 15px/1.6 ${UI_FONT.body}` };

@@ -45,7 +45,7 @@ export interface Fish {
 }
 
 /** 시간 uniform — 꼬리 흔들림 셰이더가 본다 */
-export type FishTime = { value: number };
+type FishTime = { value: number };
 
 const FORWARD = new THREE.Vector3(0, 0, 1);
 const scratch = {
@@ -73,7 +73,7 @@ function makeFishMaterial(time: FishTime) {
   return material;
 }
 
-export function spawnFish(laneZ: number, startAtHead: boolean): Fish {
+function spawnFish(laneZ: number, startAtHead: boolean): Fish {
   return {
     position: new THREE.Vector3(
       startAtHead ? STREAM_X[0] - Math.random() * 2 : STREAM_X[0] + Math.random() * (STREAM_X[1] - STREAM_X[0]),
@@ -124,7 +124,7 @@ export function buildStreaks() {
   }));
   return { mesh, items };
 }
-export type Streaks = ReturnType<typeof buildStreaks>;
+type Streaks = ReturnType<typeof buildStreaks>;
 
 /**
  * 물고기 떼 한 프레임 — 물살을 따라 흐르다 불씨 드는 통발(catching, 물속 · 아직 덜 찬)에 끌려 빨려 든다.

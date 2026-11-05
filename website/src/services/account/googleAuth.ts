@@ -8,26 +8,18 @@ import {
 } from "./socialAuthApi";
 
 /**
- * 구글 로그인. Google Identity Services 창에서 credential(ID 토큰)을 받아
+ * 구글 로그인. Google Identity Services 단추의 창에서 credential(ID 토큰)을 받아
  * 백엔드(/auth/google)가 검증한다. 콘솔에는 redirect URI 가 아니라 JavaScript origin 을 등록한다.
  */
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const GOOGLE_SCRIPT_SRC = "https://accounts.google.com/gsi/client";
 
-interface PromptMoment {
-  isNotDisplayed?: () => boolean;
-  isSkippedMoment?: () => boolean;
-  isDismissedMoment?: () => boolean;
-}
-
 interface GoogleIdentity {
-  initialize: (config: {
-    client_id: string;
-    callback: (response: { credential?: string }) => void;
-    auto_select: boolean;
-    cancel_on_tap_outside: boolean;
-  }) => void;
-  prompt: (listener: (moment: PromptMoment) => void) => void;
+  initialize: (config: { client_id: string; callback: (response: { credential?: string }) => void }) => void;
+  renderButton: (
+    parent: HTMLElement,
+    options: { type: "icon"; shape: "circle"; size: "large"; theme: "outline"; locale: string },
+  ) => void;
 }
 
 declare global {
@@ -37,7 +29,6 @@ declare global {
 }
 
 let scriptPromise: Promise<void> | null = null;
-let credentialPromise: Promise<string> | null = null;
 
 function requireClientId(): string {
   // 키가 없다는 사실만 알린다. 환경변수 이름은 화면에 내지 않는다.
@@ -74,59 +65,53 @@ function loadScript(): Promise<void> {
   return scriptPromise;
 }
 
-// 창이 떠 있는 동안 또 누르면 같은 기다림을 돌려준다.
-function requestCredential(clientId: string): Promise<string> {
-  if (credentialPromise) return credentialPromise;
+export interface GoogleButtonHandlers {
+  /** 구글 창에서 계정을 고른 뒤 서버 확인을 기다리는 동안 */
+  onBusyChange: (isBusy: boolean) => void;
+  /** 기존 회원이면 로그인할 사용자, 처음이면 가입 안내 */
+  onResult: (result: SocialAuthResult) => void;
+  /** 화면에 띄울 문구 */
+  onError: (message: string) => void;
+}
 
-  credentialPromise = new Promise((resolve, reject) => {
-    const identity = window.google?.accounts?.id;
-    if (!identity) {
-      credentialPromise = null;
-      reject(new Error("Google 스크립트를 불러오지 못했습니다."));
-      return;
-    }
-    const finish = (error: Error | null, credential?: string) => {
-      credentialPromise = null;
-      if (error) reject(error);
-      else resolve(credential ?? "");
-    };
+/** 구글은 초기화를 한 번만 받으므로 지금 화면의 단추로 답을 넘긴다. */
+let activeHandlers: GoogleButtonHandlers | null = null;
+let isInitialized = false;
 
-    identity.initialize({
-      client_id: clientId,
-      callback: (response) => {
-        if (!response?.credential) {
-          finish(new Error(socialInvalidResponseMessage("google")));
-          return;
-        }
-        finish(null, response.credential);
-      },
-      auto_select: false,
-      cancel_on_tap_outside: true,
-    });
-
-    identity.prompt((moment) => {
-      if (moment.isNotDisplayed?.() || moment.isSkippedMoment?.()) {
-        finish(new Error("Google 로그인 창을 열 수 없습니다. 팝업 차단 또는 브라우저 설정을 확인해 주세요."));
-      } else if (moment.isDismissedMoment?.()) {
-        finish(new Error("Google 로그인이 취소되었습니다."));
-      }
-    });
-  });
-  return credentialPromise;
+async function finishGoogleLogin(credential: string | undefined, handlers: GoogleButtonHandlers) {
+  handlers.onBusyChange(true);
+  try {
+    if (!credential) throw new Error(socialInvalidResponseMessage("google"));
+    handlers.onResult(await postSocialAuth("google", { credential }));
+  } catch (error) {
+    const message = error instanceof BackendAuthError ? socialAuthErrorMessage("google", error) : "";
+    handlers.onError(message || (error instanceof Error && error.message) || "Google 로그인에 실패했습니다.");
+  } finally {
+    handlers.onBusyChange(false);
+  }
 }
 
 /**
- * 구글 창을 띄워 백엔드에 확인받는다. 기존 회원이면 로그인할 사용자, 처음이면 가입 안내를 돌려준다.
- * 실패하면 화면에 띄울 문구로 던진다.
+ * 구글 공식 단추를 그린다. 브라우저에 구글 계정이 로그인돼 있지 않아도 창에서 로그인할 수 있다.
+ * 키가 없거나 스크립트를 못 받으면 까닭을 던진다. 돌려준 함수로 이 화면의 답 받기를 끝낸다.
  */
-export async function signInWithGoogle(): Promise<SocialAuthResult> {
-  try {
-    const clientId = requireClientId();
-    await loadScript();
-    const credential = await requestCredential(clientId);
-    return await postSocialAuth("google", { credential });
-  } catch (error) {
-    if (error instanceof BackendAuthError) throw new Error(socialAuthErrorMessage("google", error), { cause: error });
-    throw error;
+export async function mountGoogleButton(parent: HTMLElement, handlers: GoogleButtonHandlers): Promise<() => void> {
+  const clientId = requireClientId();
+  await loadScript();
+  const identity = window.google?.accounts?.id;
+  if (!identity) throw new Error("Google 스크립트를 불러오지 못했습니다.");
+  if (!isInitialized) {
+    identity.initialize({
+      client_id: clientId,
+      callback: ({ credential }) => {
+        if (activeHandlers) void finishGoogleLogin(credential, activeHandlers);
+      },
+    });
+    isInitialized = true;
   }
+  activeHandlers = handlers;
+  identity.renderButton(parent, { type: "icon", shape: "circle", size: "large", theme: "outline", locale: "ko" });
+  return () => {
+    if (activeHandlers === handlers) activeHandlers = null;
+  };
 }

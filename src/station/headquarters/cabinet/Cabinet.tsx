@@ -18,8 +18,9 @@ import {
   buildCabinetLineGeometry,
   type CabinetOpening,
 } from "./cabinetGeometry";
+import { sharedAssetUrl } from "@/config/env";
 
-const CABINET_URL = "/models/cabinet.glb";
+const CABINET_URL = sharedAssetUrl("/models/cabinet.glb");
 useGLTF.preload(CABINET_URL);
 
 const ORIGIN = (): THREE.Vector3Tuple => [0, 0, 0];

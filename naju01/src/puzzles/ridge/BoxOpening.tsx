@@ -5,18 +5,21 @@
  * 흐른다(shadowPlay) — 글은 없다. 구렁이상은 넷째 이야기의 조각으로 남긴다.
  * 소지품의 「받는 곳」 규칙을 그대로 쓴다 — 빈손으로 겨눠도 소지품에서 알아서 꺼내 쓴다. 좌표는 미터, 그리는 것은 유닛(M 배).
  */
+import { assetUrl } from "@/config/env";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { recall, track } from "../../save/puzzleMemory";
 import { solidQueries } from "../../movement/solidField";
 import { focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { makeGlowTexture } from "../glowTexture";
 import { registerInteractable, showNotice } from "../interaction";
+import { ridge } from "./ridgeState";
 import { inventory, registerLeftBehind, useHeldItems, useWorldItems } from "../inventory";
 import { createCompressedGltfLoader } from "../../loaders/compressedGlb";
 import { M, groundY } from "../units";
@@ -39,7 +42,7 @@ const SCREEN = { behind: 0.9, height: 1.55 };
 /** 빛기둥 — 높이(미터) · 밑 · 위 반지름 */
 const BEAM = { height: 2.6, bottom: 0.12, top: 1.2 };
 /** 구렁이상 — 가장 긴 변(미터). 함 속(0.276 × 0.176, 높이 0.14)에 긴 쪽을 함 길이에 맞춰 눕혀야 뚜껑을 닫아도 들어간다 */
-const SERPENT_URL = `${import.meta.env.BASE_URL}_sf_local/codeprops/serpent.glb`;
+const SERPENT_URL = "/_sf_local/codeprops/serpent.glb";
 const SERPENT_SIZE = 0.14;
 /** 속에서 새어 나오는 빛 — 바닥에서 띄우는 높이(함 기준 m) · 크기 */
 const INNER_GLOW = { lift: 0.05, size: 0.5 };
@@ -146,8 +149,14 @@ function buildBox() {
     restAt: new THREE.Vector3(),
     placeFrom: new THREE.Vector3(),
     lockTarget: new THREE.Vector3(),
-    platformTarget: new THREE.Vector3(),
+    platformTarget: new THREE.Vector3(PLATFORM.x * M, (groundY(PLATFORM.x, PLATFORM.z) + 0.5) * M, PLATFORM.z * M),
   };
+}
+
+interface SavedBox {
+  phase: Phase;
+  restAt: number[];
+  yaw: number;
 }
 
 export default function BoxOpening() {
@@ -158,6 +167,8 @@ export default function BoxOpening() {
   const startedAt = useRef(0);
   /** 내려놓은 뒤 흐른 시간(초 · 음수면 다 놓였다) · 그림자 재생 시간 */
   const placeTime = useRef(-1);
+  /** 함이 옮겨져 자물통 자리를 다시 재야 한다 — 첫 프레임에도 잰다 */
+  const isLockStale = useRef(true);
   const playTime = useRef(-1);
   const cuesFired = useRef(new Set<number>());
   const told = useRef({ hint: false, unlocked: false });
@@ -175,7 +186,7 @@ export default function BoxOpening() {
   useEffect(() => {
     let isAlive = true;
     createCompressedGltfLoader().load(
-      SERPENT_URL,
+      assetUrl(SERPENT_URL),
       (gltf) => {
         if (!isAlive) return;
         const model = gltf.scene;
@@ -222,6 +233,32 @@ export default function BoxOpening() {
     showNotice("함을 내려놓았다. 청동 자물통 끝에 열쇠 구멍이 있다. 열쇠가 없으면 [E] 로 다시 챙긴다.", 4);
   });
 
+  // 이어 하기: 내려놓은 함을 그 자리에 되돌린다. 열던 중인 함은 여는 장면부터 다시 본다(열쇠는 이미 썼다).
+  useEffect(() => {
+    const saved = recall<SavedBox | null>("ridge.box", null);
+    if (saved && saved.phase !== "none") {
+      box.restAt.fromArray(saved.restAt);
+      box.root.position.copy(box.restAt);
+      box.root.rotation.y = saved.yaw;
+      box.root.visible = true;
+      box.play.prepare();
+      phase.current = "placed";
+      placeTime.current = -1;
+      isLockStale.current = true;
+      if (saved.phase === "done") {
+        // 다 본 함은 뚜껑이 열린 채 놓여 있다. 영상과 조작 묶임을 되풀이하지 않는다.
+        phase.current = "done";
+        box.lidPivot.rotation.x = -LID_OPEN;
+        box.lock.visible = false;
+      } else if (saved.phase !== "placed") startUnlock.current();
+    }
+    return track("ridge.box", (): SavedBox => ({
+      phase: phase.current,
+      restAt: box.restAt.toArray(),
+      yaw: box.root.rotation.y,
+    }));
+  }, [box]);
+
   /** 내려놓은 함을 도로 챙긴다 — 다시 평상이나 다른 자리에 놓을 수 있다. 칸이 없으면 false */
   const takeBackBox = useRef(() => {
     if (phase.current !== "placed" || !inventory.add("letterBox")) return false;
@@ -258,7 +295,8 @@ export default function BoxOpening() {
       label: "평상에 함 올려놓기",
       radius: 0.9 * M,
       reach: 2.6 * M,
-      enabled: () => phase.current === "none" && hasBox(),
+      // 열쇠를 얻기 전엔 평상 글을 읽는 자리다 — 함을 가졌다고 그 겨냥을 가로채면 안 된다
+      enabled: () => phase.current === "none" && hasBox() && ridge.isAtLeast("circling"),
       handLabel: (kind) => (kind === "letterBox" && phase.current === "none" ? "평상에 함 올려놓기" : null),
       receive: () => {
         // 함 앞(자물통)이 플레이어 쪽을 보게
@@ -296,11 +334,12 @@ export default function BoxOpening() {
 
   useFrame((frame, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
-    // 겨눌 자리 — 평상 가운데 · 자물통
-    const ground = groundY(PLATFORM.x, PLATFORM.z);
-    box.platformTarget.set(PLATFORM.x * M, (ground + 0.5) * M, PLATFORM.z * M);
-    box.root.updateMatrixWorld(true);
-    box.lockTarget.copy(LOCK_AT).applyMatrix4(box.root.matrixWorld);
+    // 겨눌 자물통 자리 — 함이 움직이는 동안과 옮겨진 직후에만 잰다
+    if (placeTime.current >= 0 || isLockStale.current) {
+      isLockStale.current = false;
+      box.root.updateMatrixWorld(true);
+      box.lockTarget.copy(LOCK_AT).applyMatrix4(box.root.matrixWorld);
+    }
 
     // 내려놓기 — 손에서 내려와 쿵 놓이고 살짝 흔들린다
     if (placeTime.current >= 0) {
@@ -313,6 +352,7 @@ export default function BoxOpening() {
       if (settle >= 0.3) {
         placeTime.current = -1;
         box.root.rotation.z = 0;
+        isLockStale.current = true;
       }
     }
     if (phase.current === "play") updatePlay(dt, frame.clock.elapsedTime);

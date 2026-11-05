@@ -13,7 +13,7 @@ import { getCoinInsertion, finishCoinInsert, getHeldCoin, useCoins, type CoinKin
 import type { CoinValues } from "../controls/vendingControls";
 
 /** Leva 「동전」 중 동전 모양에 쓰는 값 */
-export type CoinLook = Pick<
+type CoinLook = Pick<
   CoinValues,
   "canColor" | "canPatternColor" | "cupColor" | "cupPatternColor" | "coinSize" | "coinThickness"
 >;

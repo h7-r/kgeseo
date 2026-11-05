@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import type { CSSProperties } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import ConsentGroup from "@/components/form/ConsentGroup";
@@ -10,11 +10,14 @@ import RegionPicker from "@/components/RegionPicker";
 import type { TermsTabId } from "@/data/terms";
 import {
   BOT_SUSPECTED_MESSAGE,
+  describeBlockedSubmit,
+  revealAlert,
   SIGNUP_DUPLICATE_CHECKS,
   submitOnEnter,
   useBotGuard,
   useConsents,
   useForm,
+  useInputAlert,
   useSubmitLock,
 } from "@/hooks/useForm";
 import { FONT } from "@/lib/style";
@@ -79,16 +82,24 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
   const bot = useBotGuard();
   // 서버 응답이나 PBKDF2 해시를 기다리는 동안 두 번 눌리지 않게 잠근다.
   const { isSubmitting, run: runSubmit } = useSubmitLock();
-  const [alertMessage, setAlertMessage] = useState("");
+  // 로그인은 실패하면 비밀번호를 비우므로 입력이 바뀌어도 안내를 남긴다.
+  const [alertMessage, setAlertMessage] = useInputAlert(mode === "signup" ? [values, consent.consents] : []);
 
   const handleSubmit = () =>
     runSubmit(async () => {
       consent.markSubmitted();
       setAlertMessage("");
       try {
-        const fieldsPassed = await form.validateAll();
+        const fieldErrors = await form.validateAll();
         const consentPassed = mode !== "signup" || consent.check();
-        if (!fieldsPassed || !consentPassed) return;
+        if (Object.keys(fieldErrors).length > 0 || !consentPassed) {
+          if (mode === "signup") {
+            setAlertMessage(describeBlockedSubmit("회원가입", fieldErrors, consent.problem));
+          } else if (mode === "login") {
+            setAlertMessage(describeBlockedSubmit("로그인", fieldErrors));
+          }
+          return;
+        }
 
         const email = (values.email ?? "").trim();
         if (mode === "signup") {
@@ -179,7 +190,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
             <TextField
               variant="card"
               label="닉네임"
-              placeholder="조사관 이름"
+              placeholder="이름"
               grow
               autoComplete="nickname"
               {...bind("nickname")}
@@ -305,7 +316,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
 
       <div style={{ paddingTop: "24px", width: "100%", display: "flex", flexDirection: "column", gap: "14px" }}>
         {alertMessage && (
-          <div style={alertStyle} role="alert">
+          <div ref={revealAlert} style={alertStyle} role="alert">
             {alertMessage}
           </div>
         )}
@@ -441,6 +452,9 @@ const testCodeBoxStyle: CSSProperties = {
 
 // 칸 하나가 아니라 폼 전체에 걸린 문제(「이메일 또는 비밀번호가 올바르지 않습니다」)를 보여 준다.
 const alertStyle: CSSProperties = {
+  whiteSpace: "pre-line",
+  // 위에 고정된 머리글에 가리지 않게
+  scrollMarginTop: "120px",
   fontFamily: "inherit",
   fontSize: "16px",
   lineHeight: 1.5,

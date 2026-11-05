@@ -1,6 +1,6 @@
 import type { WorkLampPuzzleValues } from "@/station/controls/workLampControls";
 
-import { BIN_SIZE, PAINTING_HEIGHT_PX, PAINTING_WIDTH_PX } from "./puzzleGeometry";
+import { BIN_SIZE, PAINTING_HEIGHT_PX, PAINTING_WIDTH_PX, SWITCH_PANEL_WIDTH } from "./puzzleGeometry";
 import PowerCable from "./PowerCable";
 
 interface PuzzleCablesProps {
@@ -28,7 +28,7 @@ interface PuzzleCablesProps {
 export default function PuzzleCables({ values, outerX, innerX, corridorHeight, brightnessAt }: PuzzleCablesProps) {
   const paintingHeight = values.paintingWidth * (PAINTING_HEIGHT_PX / PAINTING_WIDTH_PX);
   const frameEnd = values.paintingZ - (values.paintingWidth / 2 + 0.24);
-  const panelEnd = values.paintingZ + values.switchPanelSide + (0.24 * 5 + 0.3) / 2;
+  const panelEnd = values.paintingZ + values.switchPanelSide + SWITCH_PANEL_WIDTH / 2;
   const panelCableX = innerX - 0.06;
   const ceiling = (corridorHeight ?? 8) - 0.28;
   const outerWireX = outerX + 0.06;

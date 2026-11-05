@@ -10,6 +10,7 @@ export const OVERLAY_LAYERS = {
   hint: "hint",
   pause: "pause",
   settings: "settings",
+  destination: "destination",
 } as const;
 
 export type OverlayLayerName = (typeof OVERLAY_LAYERS)[keyof typeof OVERLAY_LAYERS];

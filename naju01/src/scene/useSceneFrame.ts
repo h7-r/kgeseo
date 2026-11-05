@@ -6,6 +6,7 @@ import type { PresentedControls } from "../app/presentation";
 import type { MovementReport } from "../movement/useTerrainMovement";
 import type { CollapseSequence } from "../story/blockerCollapse";
 import { computeWaterDistortion } from "../story/distortion";
+import { IS_REVIEW_REQUESTED } from "../review/ReviewBridge";
 import { setGrainStrength } from "../terrain/groundGrain";
 import type { BakedTerrain } from "../terrain/useBakedTerrain";
 import type { RippleHandle } from "../world/waterRipples";
@@ -15,14 +16,12 @@ import type { AvatarLink } from "@/engine/avatarLink";
 import type { Terrain } from "./useTerrainLayers";
 import { focusTick } from "./immersion/focusFog";
 
-/** 걷기 훅이 매 프레임 갈아 끼우는 보고에 씬이 렌더 통계를 덧붙인다(계기판이 읽는다). */
+/** 걷기 훅이 매 프레임 갈아 끼우는 보고에 씬이 렌더 통계를 덧붙인다(검수 실행의 ReviewBridge 가 읽는다). */
 export interface NajuSceneReport extends MovementReport {
-  collapseStage?: string | null;
   triangles?: number;
   drawCalls?: number;
   terrainSource?: string;
   fps?: number;
-  frameMs?: number;
   worstFrameMs?: number;
 }
 
@@ -35,7 +34,7 @@ export function useRendererSetup(fov: number) {
     camera.updateProjectionMatrix();
   }, [camera, fov]);
 
-  // useFrame 은 렌더 전에 돈다. 자동 리셋이면 그 직후 값이 지워져 계기판에 0 만 찍힌다 — 직접 리셋한다.
+  // useFrame 은 렌더 전에 돈다. 자동 리셋이면 그 직후 값이 지워져 검수 보고와 측정 도구에 0 만 찍힌다 — 직접 리셋한다.
   useEffect(() => {
     gl.info.autoReset = false;
     return () => {
@@ -52,7 +51,6 @@ interface SceneFrameOptions {
   gl: THREE.WebGLRenderer;
   reportRef: RefObject<NajuSceneReport | null>;
   collapseRef: RefObject<CollapseSequence | null>;
-  collapseNoticeRef: RefObject<string>;
   setCollapse: Dispatch<SetStateAction<CollapseState | null>>;
   skyRef: RefObject<THREE.Mesh | null>;
   cloudRef: RefObject<THREE.Mesh | null>;
@@ -66,7 +64,7 @@ interface SceneFrameOptions {
 }
 
 /**
- * 씬의 주 프레임 — 무너짐 연출, 하늘 따라가기, 물결, 계기판 보고.
+ * 씬의 주 프레임 — 무너짐 연출, 하늘 따라가기, 물결, 검수 보고.
  * 반드시 useTerrainMovement 뒤에 불러야 한다 — 그 훅이 매 프레임 reportRef.current 를 갈아끼운다.
  */
 export function useSceneFrame({
@@ -75,7 +73,6 @@ export function useSceneFrame({
   gl,
   reportRef,
   collapseRef,
-  collapseNoticeRef,
   setCollapse,
   skyRef,
   cloudRef,
@@ -93,7 +90,7 @@ export function useSceneFrame({
 
   useFrame((state, dt) => {
     // 헤드리스(SwiftShader)는 한 프레임이 1 초를 넘는다. 5 초 넘는 것(탭이 잠들었다 깬 것)만 버린다.
-    if (dt > 0.0005 && dt < 5) {
+    if (IS_REVIEW_REQUESTED && dt > 0.0005 && dt < 5) {
       frameTimes.current[frameSlot.current] = dt;
       frameSlot.current = (frameSlot.current + 1) % frameTimes.current.length;
       frameCount.current = Math.min(frameCount.current + 1, frameTimes.current.length);
@@ -123,9 +120,8 @@ export function useSceneFrame({
     }
     const report = reportRef.current;
     if (report) {
-      report.collapseStage = collapseNoticeRef.current;
       report.triangles = gl.info.render.triangles;
-      // 지금 보는 땅이 어느 쪽인지 계기판에 박아 둔다 — 「차이가 미미하다」와 「안 바뀌었다」를 가린다.
+      // 지금 보는 땅이 어느 쪽인지 보고에 박아 둔다 — 「차이가 미미하다」와 「안 바뀌었다」를 가린다.
       report.terrainSource = !controls.useBlenderTerrain
         ? "옛(코드)"
         : bakedTerrainStatus === "ready"
@@ -144,7 +140,6 @@ export function useSceneFrame({
           if (v > max) max = v;
         }
         report.fps = n / sum;
-        report.frameMs = (sum / n) * 1000;
         report.worstFrameMs = max * 1000;
       }
     }

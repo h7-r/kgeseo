@@ -36,7 +36,7 @@ export const BOX = {
   hole: 0.17,
 };
 export const BOX_TOP = BOX.plinth + BOX.height + BOX.slab;
-export type BoxSide = "front" | "left" | "right" | "back";
+type BoxSide = "front" | "left" | "right" | "back";
 /** 네 면의 그림 — 앞(문 쪽) · 왼 · 오른 · 뒤 */
 export const BOX_PANELS: { scene: MuralScene; side: BoxSide }[] = [
   { scene: "바위", side: "front" },
@@ -92,7 +92,7 @@ export const BLINK_WIDTH = 0.075;
 /** 물살에 실려 나와 닿는 강가 자리(미터) */
 export const SHORE = { x: CORRIDOR.x, z: 43.2 };
 export const PANEL_RANGE = 6;
-export const CURRENT_COUNT = 120;
+const CURRENT_COUNT = 120;
 /** 아치 위 벽화 — 석실 쪽 벽. 띠 하나에 네 장면(가로 8:1) */
 export const MURAL = {
   width: 8.4,

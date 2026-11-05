@@ -53,6 +53,14 @@ class AppUser(Base):
         nullable=True,
     )
 
+    # "user" · "admin". 관리자는 scripts/set_user_role.py 로만 지정한다.
+    role: Mapped[str] = mapped_column(
+        VARCHAR(16),
+        nullable=False,
+        default="user",
+        server_default="user",
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DATETIME(fsp=6),
         nullable=False,

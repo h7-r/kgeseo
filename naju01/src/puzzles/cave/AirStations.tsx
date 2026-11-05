@@ -6,12 +6,13 @@
  *   큰 조개가 열리면 큰 진주를 [E] 로 챙길 수 있다. 모래 곳곳의 작은 검은 점은 조개 숨구멍(장식)
  * 물고기 굴은 FishBurrows, 자리와 빛길 셈은 lightLayout. 규칙은 가까이 가면 안내판에 뜬다. 자리는 미터.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { useRememberedState } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { makeGlowTexture } from "../glowTexture";
 import { registerInteractable, showNotice } from "../interaction";
@@ -138,10 +139,16 @@ export default function AirStations() {
   const isShown = useCaveShown();
   const { camera } = useThree();
 
-  const [isJarTilted, setIsJarTilted] = useState(false);
-  const [isPearlTaken, setIsPearlTaken] = useState(false);
-  const [facings, setFacings] = useState(() => LIGHT_CLAMS.map((clam) => clam.start));
-  const [isLightSolved, setIsLightSolved] = useState(false);
+  const [isJarTilted, setIsJarTilted] = useRememberedState("air.isJarTilted", false);
+  const [isPearlTaken, setIsPearlTaken] = useRememberedState("air.isPearlTaken", false);
+  const [facings, setFacings] = useRememberedState("air.facings", () => LIGHT_CLAMS.map((clam) => clam.start));
+  const [isLightSolved, setIsLightSolved] = useRememberedState("air.isLightSolved", false);
+  // 이어 하기: 빛을 푼 뒤라면 복어 쪽 먹물도 켜져 있어야 한다.
+  useEffect(() => {
+    if (isLightSolved) armInk();
+    // 시작할 때 한 번만 맞춘다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const facingsRef = useRef(facings);
   useLayoutEffect(() => {
     facingsRef.current = facings;

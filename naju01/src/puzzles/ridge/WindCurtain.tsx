@@ -6,22 +6,26 @@
  * 깨어난 새가 장막을 뚫고 나가는 순간, 뚫린 자리부터 양쪽으로 찢어지고 지붕은 가운데부터 열리며 위로 풀려 흩어진다.
  * 장막이 쳐져 있는 동안 밖으로는 못 나간다(movement/stageGates 가 ridge.isConfining 을 본다).
  */
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { gravityField } from "../../movement/gravityField";
+import { playerPose } from "../../movement/playerPose";
 import { addDynamicSolid, type DynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { focus } from "../../scene/immersion/focusFog";
 import { fishTrapPuzzle } from "../fishTrap/fishTrapState";
 import { pointScaleFor } from "../glowPoints";
+import { teleportPlayer } from "../cave/caveState";
 import { showNotice } from "../interaction";
+import { inventory } from "../inventory";
+import { ritual } from "../ritual/ritualState";
 import { prewarmShaders } from "../prewarm";
 import { M, groundY } from "../units";
 import { DEBRIS, SINK, buildCurtain, setPropWarmer, type Drifter } from "./curtainMesh";
-import { CURTAIN, curtainPoint, isInsideCurtain } from "./ridgeShape";
+import { CURTAIN, PLATFORM, curtainPoint, isInsideCurtain } from "./ridgeShape";
 import { ridge, ridgeCarry, ridgeQuest, useRidgeStage } from "./ridgeState";
 
 /** 들어선 뒤 바람만 부는 시간 → 지붕이 닫히고 → 벽이 내려온다(초) */
@@ -32,6 +36,8 @@ const DROP_SECONDS = 3.2;
 const SEALED_AT = DROP_START + DROP_SECONDS + 0.4;
 /** 장막이 찢어져 풀리는 시간(초) */
 const RELEASE_SECONDS = 7;
+/** 복원한 장막의 풀림이 시작된 지 오래됐다고 치는 초 */
+const RESTORED_RELEASE_AGE = 1000;
 /** 장막 안 중력 배율 — 점프 힘 1.1 배와 함께 0.55 m → 약 3 m, 떠 있는 시간 약 3.6 초 */
 const LOW_GRAVITY = 0.215;
 /** 바람이 잦아들면(장승 고리를 맞추면) 중력이 이만큼 더 붙는다 — 그래도 맨땅보다는 높이 뛴다 · 등짐을 지면 무거워 덜 뛴다 */
@@ -100,13 +106,17 @@ export default function WindCurtain() {
   const camera = useThree((state) => state.camera);
   const curtain = useMemo(() => buildCurtain(), []);
   const stage = useRidgeStage();
-  const releaseRef = useRef<{ startedAt: number; fromT: number } | null>(null);
+  // 이어 하기: 이미 찢어진 장막은 풀린 채로 시작한다. 아니면 다시 닫히는 동안 플레이어를 안으로 끌어당긴다.
+  const [restoredFrom] = useState(ridge.releaseFrom);
+  const releaseRef = useRef<{ startedAt: number; fromT: number } | null>(
+    restoredFrom === null ? null : { startedAt: -RESTORED_RELEASE_AGE, fromT: restoredFrom },
+  );
   const windCueAtRef = useRef(-99);
   const windClockRef = useRef(0);
   /** 몸을 막는 떠다니는 돌 · 소품 — 매 장면 자리를 옮긴다 */
   const solidsRef = useRef<{ floaters: (DynamicSolid | null)[]; props: DynamicSolid[] }>({ floaters: [], props: [] });
   const lastCalmRef = useRef(0);
-  const toldTearRef = useRef(false);
+  const toldTearRef = useRef(restoredFrom !== null);
 
   useEffect(() => {
     const objects = [
@@ -376,11 +386,26 @@ export default function WindCurtain() {
     if (now === "idle") {
       const x = camera.position.x / M;
       const z = camera.position.z / M;
-      if (isInsideCurtain(x, z, 2) && camera.position.y / M > 7 && fishTrapPuzzle.stage() === "told")
+      if (
+        isInsideCurtain(x, z, 2) &&
+        camera.position.y / M > 7 &&
+        fishTrapPuzzle.stage() === "told" &&
+        ritual.isAtLeast("cleared")
+      ) {
+        // 갇히기 전에 두고 온 물건을 챙긴다 — 푸른 눈물이 없으면 장막이 풀리지 않는다
+        inventory.bringAlong(x, z);
         ridge.advance("sealing");
+      }
       return;
     }
     if (now === "sealing" && since > SEALED_AT) ridge.advance("sealed");
+    // 장막이 닫힐 때 밖에 있으면 어느 쪽으로도 못 움직인다 — 안으로 데려온다
+    if (ridge.isConfining() && !isInsideCurtain(playerPose.x, playerPose.z, 0.6)) {
+      teleportPlayer(PLATFORM.x - 2, PLATFORM.z + 2);
+      // 밖에 내려놓은 물건도 함께 — 장막 밖은 다시 못 나간다
+      inventory.bringAlong(PLATFORM.x - 2, PLATFORM.z + 2);
+      showNotice("바람이 몸을 능선 안으로 밀어 넣었다.", 3.5);
+    }
 
     // 바람·안개 — 장막이 있는 동안 안개를 걷어 바깥의 새 떼까지 보이게 한다.
     // 잦아듦은 장승 고리를 맞추면 몇 초에 걸쳐. 떠다니는 것은 바람 시계로 움직여 느려져도 튀지 않는다

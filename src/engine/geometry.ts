@@ -12,6 +12,13 @@ export const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
  */
 export const UNIT_PLANE = new THREE.PlaneGeometry(1, 1);
 
+/** 물체에 입힌 재질들. 메시가 아니면 빈 배열이다. */
+export const materialsOf = (object: THREE.Object3D): THREE.Material[] => {
+  const material = (object as THREE.Mesh).material;
+  if (!material) return [];
+  return Array.isArray(material) ? material : [material];
+};
+
 export interface BoxPiece {
   size: Vec3Tuple;
   position: Vec3Tuple;

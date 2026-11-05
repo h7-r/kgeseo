@@ -1,7 +1,7 @@
 // 게임 공간 전체를 캐릭터와 같은 cel 질감으로 — 런타임에서만 바꾼다.
 // PBR 질감은 GLB 가 물고 오는 MeshStandardMaterial(지형·모형·바위)이라 컴포넌트를 고쳐서는 못 잡는다.
 // 씬을 훑어 표준/물리/램버트/퐁 재질을 MeshToonMaterial 로 갈아 끼우고, 이미 툰인 재질은 같은 그라디언트 맵으로 계단만 맞춘다.
-// 건드리지 않는 것: 플레이어 캐릭터(avatar/toonMaterial 이 맡는다)와 외곽선 껍데기, Basic(하늘·구름·라벨), Shader,
+// 건드리지 않는 것: 플레이어 캐릭터(avatar/toonMaterial 이 맡는다)와 외곽선 껍데기, Basic(하늘·구름), Shader,
 // 결·잔결 셰이더 훅이 붙은 재질.
 
 import { useEffect } from "react";

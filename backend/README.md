@@ -57,7 +57,7 @@ cp .env.example .env                       # DB 비밀번호 · 구글/네이버
 .venv/bin/uvicorn app.main:app --port 8000
 ```
 
-구글·네이버 로그인은 키가 비어 있으면 503 으로 답한다. 웹사이트 쪽 `VITE_GOOGLE_CLIENT_ID` · `VITE_NAVER_CLIENT_ID` 도 같은 값으로 넣는다.
+구글·네이버 로그인은 키가 비어 있으면 503 으로 답한다. 웹사이트 쪽 `VITE_GOOGLE_CLIENT_ID` · `VITE_NAVER_CLIENT_ID` 도 같은 값으로 넣는다. 설정 순서와 콘솔 등록은 [`docs/소셜로그인-설정.md`](../docs/소셜로그인-설정.md) 를 본다.
 
 ## 기술 스택
 

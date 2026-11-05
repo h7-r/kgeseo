@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import type * as THREE from "three";
 import type { Vector3Tuple } from "three";
@@ -7,6 +7,7 @@ import { ToonOutline } from "@/engine/outline";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
 import { AimHighlight } from "@/lobby/AimHighlight";
+import { hoseAnchors } from "@/props/nozzleState";
 import { canTurnValve, turnValve, usePanelWiring, getValveOpening } from "@/props/panelWiringState";
 import ToonMaterial from "@/props/shared/ToonMaterial";
 import { type AimHighlightSettings, getWorldPositionOf } from "@/props/shared/aimTarget";
@@ -26,7 +27,7 @@ interface HoseValveProps {
 
 /**
  * 개폐 밸브 — 함 아래쪽 왼편, 출구가 위를 본다. 내려온 호스 끝이 닿는 자리에 있어야 "여기 물린다"로 읽힌다.
- * 배전반 선 셋을 잇고 차단기를 올리고 관창을 꽂은 뒤에야 돈다 — 물 갈 길을 다 만들고 여는 것이 순서다.
+ * 배전반 선 셋을 잇고 차단기를 올리고 관창을 꽂으면 전류가 호스를 타고 온다. 그 전류가 닿아야 돈다.
  */
 export default function HoseValve({
   valveId,
@@ -42,6 +43,12 @@ export default function HoseValve({
   const handleRef = useRef<THREE.Group>(null);
   const turned = useRef(0);
   usePanelWiring(); // 열림 상태가 바뀌면 끔 조건이 따라오게
+  useEffect(() => {
+    hoseAnchors.valve = handleRef.current;
+    return () => {
+      hoseAnchors.valve = null;
+    };
+  }, []);
   useFrame((_, dt) => {
     const handle = handleRef.current;
     if (!handle) return;

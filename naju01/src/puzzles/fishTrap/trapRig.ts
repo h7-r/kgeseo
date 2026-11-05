@@ -33,7 +33,7 @@ const PULL_SECONDS = 1.8;
 const SHOW_ASHORE_SECONDS = 2.2;
 
 /** baiting = 뭍에서 조개가 입구로 들어가는 동안 기다린다 */
-export type TrapPlace = "shore" | "baiting" | "rolling" | "water" | "pulling" | "landed" | "returning";
+type TrapPlace = "shore" | "baiting" | "rolling" | "water" | "pulling" | "landed" | "returning";
 
 export interface Trap {
   index: number;
@@ -236,7 +236,7 @@ export function buildStrawShoe() {
 }
 
 /** 통발의 자리마다 할 일 — 컴포넌트가 진행 상태를 보고 답한다 */
-export interface TrapMotionHooks {
+interface TrapMotionHooks {
   /** 조개가 입구로 다 들어갔나(ClamDig 가 baited 로 바꾸면) — 그때 굴러간다 */
   isBaitIn: () => boolean;
   /** 쏟는 중이라 자세를 밖에서 잡는 통발인가 */

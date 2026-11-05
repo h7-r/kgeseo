@@ -4,8 +4,13 @@
  */
 import { useEffect, useState, type CSSProperties } from "react";
 
+import { CheckIcon } from "@/game/gameIcons";
+import { PANEL_SHADOW, UI, UI_FONT, keyCapStyle } from "@/game/gameUi";
+
+import "@/game/gameUi.css";
+
 import { useDispatchState } from "./dispatchState";
-import { TUTORIAL_COLOR, TUTORIAL_STEPS, toggleTutorialHidden, useTutorial } from "./tutorialState";
+import { TUTORIAL_STEPS, toggleTutorialHidden, useTutorial } from "./tutorialState";
 
 const PUZZLE_COUNT = TUTORIAL_STEPS.filter((step) => step.puzzle).length;
 const CONTROL_STEP_COUNT = TUTORIAL_STEPS.findIndex((step) => step.puzzle);
@@ -68,20 +73,40 @@ export default function TutorialPanel({ covered = false }: TutorialPanelProps) {
   // 출동 호출 카드가 같은 위쪽 가운데에 뜨므로 자리를 내준다
   const isDispatching = dispatchPhase === "alert" || dispatchPhase === "guide" || dispatchPhase === "boarded";
   if (!current || covered || isDispatching || (isFinished && isFinishedHidden)) return null;
-  if (isHidden) return <div style={collapsedStyle}>[F1] 안내 보기</div>;
+  if (isHidden)
+    return (
+      <div style={collapsedStyle}>
+        <kbd style={keyCapStyle}>F1</kbd> 안내 보기
+      </div>
+    );
 
   const heading = current.puzzle
     ? `퍼즐 ${current.puzzle} / ${PUZZLE_COUNT}`
     : step < CONTROL_STEP_COUNT
       ? `조작 익히기 ${step + 1} / ${CONTROL_STEP_COUNT}`
       : null;
+  // 지금 묶음이 어디까지 왔는지 — 글자보다 먼저 눈에 들어온다
+  const progress = current.puzzle
+    ? current.puzzle / PUZZLE_COUNT
+    : step < CONTROL_STEP_COUNT
+      ? (step + 1) / CONTROL_STEP_COUNT
+      : 1;
 
   return (
     <div style={panelStyle} role="status" aria-live="polite">
-      {flash && <div style={flashStyle}>✓ {flash.title}</div>}
+      {heading && (
+        <div style={progressTrackStyle} aria-hidden>
+          <div style={{ ...progressFillStyle, transform: `scaleX(${progress})` }} />
+        </div>
+      )}
+      {flash && (
+        <div style={flashStyle}>
+          <CheckIcon /> {flash.title}
+        </div>
+      )}
       <div style={headerStyle}>
-        {heading && <span style={current.puzzle ? puzzleBadgeStyle : stepBadgeStyle}>{heading}</span>}
         <span style={titleStyle}>{current.title}</span>
+        {heading && <span style={stepStyle}>{heading}</span>}
       </div>
       <div style={textStyle}>
         {current.text.split("\n").map((line, i) => (
@@ -94,7 +119,7 @@ export default function TutorialPanel({ covered = false }: TutorialPanelProps) {
             <div key={i} style={keyRowStyle}>
               <span style={keyCapGroupStyle}>
                 {keys.map((key) => (
-                  <kbd key={key} style={key.length > 2 ? wideKeyCapStyle : keyCapStyle}>
+                  <kbd key={key} style={keyCapStyle}>
                     {key}
                   </kbd>
                 ))}
@@ -104,115 +129,120 @@ export default function TutorialPanel({ covered = false }: TutorialPanelProps) {
           ))}
         </div>
       )}
-      <div style={footerStyle}>[F1] 안내 숨기기</div>
+      <div style={footerStyle}>
+        <kbd style={smallKeyCapStyle}>F1</kbd> 안내 숨기기
+      </div>
     </div>
   );
 }
 
-const keyCapStyle: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  minWidth: 28,
-  height: 28,
-  padding: "0 7px",
-  borderRadius: 6,
-  background: "linear-gradient(#f4f6f8, #cfd6dd)",
-  color: "#1b2229",
-  fontSize: 13,
-  fontWeight: 700,
-  fontFamily: "inherit",
-  boxShadow: "0 2px 0 #7f8a95, 0 3px 6px rgba(0,0,0,.35)",
-};
-
-const wideKeyCapStyle: CSSProperties = { ...keyCapStyle, padding: "0 10px" };
+const smallKeyCapStyle: CSSProperties = { ...keyCapStyle, minWidth: 22, height: 20, fontSize: 10, padding: "0 5px" };
 
 const panelStyle: CSSProperties = {
   position: "fixed",
-  top: "max(18px, env(safe-area-inset-top, 0px))",
+  top: "max(16px, env(safe-area-inset-top, 0px))",
   left: "50%",
   transform: "translateX(-50%)",
-  width: "min(560px, calc(100vw - 32px))",
-  padding: "14px 18px 10px",
-  borderRadius: 12,
-  background: "rgba(12, 18, 26, 0.82)",
-  border: `1px solid ${TUTORIAL_COLOR}59`,
-  boxShadow: `0 0 24px ${TUTORIAL_COLOR}1f, 0 8px 24px rgba(0,0,0,.4)`,
-  color: "#e8eef3",
-  fontSize: 14,
-  lineHeight: 1.55,
+  width: "min(600px, calc(100vw - 32px))",
+  boxSizing: "border-box",
+  padding: "18px 22px 12px",
+  overflow: "visible",
+  borderRadius: 16,
+  background: UI.glass,
+  border: `1px solid ${UI.border}`,
+  boxShadow: PANEL_SHADOW,
+  color: UI.text,
+  font: `400 15px/1.6 ${UI_FONT.body}`,
   pointerEvents: "none",
   zIndex: 20,
-  backdropFilter: "blur(4px)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
 };
 
-const headerStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  marginBottom: 6,
-  flexWrap: "wrap",
+const progressTrackStyle: CSSProperties = {
+  position: "absolute",
+  left: 16,
+  right: 16,
+  top: -1,
+  height: 2,
+  overflow: "hidden",
+  background: UI.border,
+};
+const progressFillStyle: CSSProperties = {
+  height: "100%",
+  background: UI.accent,
+  transformOrigin: "left",
+  transition: "transform 420ms cubic-bezier(0.16, 1, 0.3, 1)",
 };
 
-const stepBadgeStyle: CSSProperties = {
-  fontSize: 11,
-  letterSpacing: "0.08em",
-  color: TUTORIAL_COLOR,
-  border: `1px solid ${TUTORIAL_COLOR}73`,
-  borderRadius: 99,
-  padding: "1px 8px",
+const headerStyle: CSSProperties = { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 };
+const stepStyle: CSSProperties = {
+  marginLeft: "auto",
+  whiteSpace: "nowrap",
+  color: UI.accent,
+  font: `500 12px/1 ${UI_FONT.mono}`,
+  fontVariantNumeric: "tabular-nums",
 };
-
-const puzzleBadgeStyle: CSSProperties = {
-  fontSize: 11,
-  letterSpacing: "0.08em",
-  color: "#1b1405",
-  background: "#ffd36b",
-  borderRadius: 99,
-  padding: "1px 8px",
-  fontWeight: 700,
-};
-
-const titleStyle: CSSProperties = { fontSize: 17, fontWeight: 700 };
-const textStyle: CSSProperties = { color: "#c9d4dd" };
-// 키 칩은 한 줄에 가로로, 가운데 모아 띄운다 — 세로로 쌓으면 안내판이 퍼즐을 가린다
+const titleStyle: CSSProperties = { font: `700 20px/1.3 ${UI_FONT.title}`, color: UI.text };
+const textStyle: CSSProperties = { color: UI.textMuted };
+// 키 칩은 한 줄에 가로로 — 세로로 쌓으면 안내판이 퍼즐을 가린다
 const keyListStyle: CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
-  justifyContent: "center",
-  columnGap: 28,
-  rowGap: 7,
-  marginTop: 10,
+  columnGap: 26,
+  rowGap: 8,
+  marginTop: 12,
+  paddingTop: 12,
+  borderTop: `1px solid ${UI.border}`,
 };
 const keyRowStyle: CSSProperties = { display: "flex", alignItems: "center", gap: 10 };
-const keyCapGroupStyle: CSSProperties = { display: "inline-flex", gap: 5 };
-const descriptionStyle: CSSProperties = { color: "#e8eef3" };
-const footerStyle: CSSProperties = { marginTop: 8, fontSize: 11, color: "#7d8b97", textAlign: "right" };
+const keyCapGroupStyle: CSSProperties = { display: "inline-flex", gap: 4 };
+const descriptionStyle: CSSProperties = { color: UI.text, fontSize: 14 };
+const footerStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  gap: 6,
+  marginTop: 10,
+  color: UI.textSubtle,
+  font: `400 12px/1 ${UI_FONT.body}`,
+};
 
 const flashStyle: CSSProperties = {
   position: "absolute",
-  bottom: -32,
+  bottom: -40,
   left: "50%",
   transform: "translateX(-50%)",
-  padding: "3px 12px",
-  borderRadius: 99,
-  background: "rgba(90, 210, 140, 0.92)",
-  color: "#06210f",
-  fontSize: 13,
-  fontWeight: 700,
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  height: 30,
+  padding: "0 14px",
+  borderRadius: 15,
+  background: UI.glass,
+  border: `1px solid ${UI.success}`,
+  color: UI.success,
+  font: `600 13px/1 ${UI_FONT.body}`,
   whiteSpace: "nowrap",
+  animation: "game-notice-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both",
 };
 
 const collapsedStyle: CSSProperties = {
   position: "fixed",
-  top: "max(18px, env(safe-area-inset-top, 0px))",
+  top: "max(16px, env(safe-area-inset-top, 0px))",
   left: "50%",
   transform: "translateX(-50%)",
-  padding: "4px 12px",
-  borderRadius: 99,
-  background: "rgba(12, 18, 26, 0.7)",
-  color: TUTORIAL_COLOR,
-  fontSize: 12,
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  height: 42,
+  padding: "0 16px 0 8px",
+  boxSizing: "border-box",
+  borderRadius: 21,
+  background: UI.glass,
+  border: `1px solid ${UI.border}`,
+  color: UI.text,
+  font: `500 13px/1 ${UI_FONT.body}`,
   pointerEvents: "none",
   zIndex: 20,
 };

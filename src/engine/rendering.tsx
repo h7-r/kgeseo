@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
+import { materialsOf } from "./geometry";
 import { isShadowUpdateUrgent, requestShadowUpdates } from "./shadowUpdates";
 
 interface ShadowMapUpdaterProps {
@@ -47,20 +48,21 @@ export function ShadowMapUpdater({ slowInterval = 240, urgentInterval = 2, enabl
 
 interface ShaderWarmupProps {
   enabled?: boolean;
-  /** 두 번째 예열까지 기다릴 초 — GLB 가 늦게 붙는다 */
-  delay?: number;
-  /** 새 셰이더가 보일 때의 예열 간격(초) */
-  repeat?: number;
-  /** 조용할 때 간격을 늘리는 배율 */
-  growth?: number;
-  /** 가장 뜸할 때의 간격(초) */
-  maxInterval?: number;
   /**
    * 구역 컬링이 켜고 끄는 그룹(이름) 조합들. 조합마다 보이는 빛 수가 달라 셰이더도 따로라, 하나씩 켠 채로 예열한다.
    * 없으면 지금 보이는 빛 구성으로만 구워, 처음 들어가는 구역에서 그 구역의 빛 수로 또 굽느라 수백 ms 멈췄다.
    */
   zoneStates?: readonly (readonly string[])[];
 }
+
+/** 두 번째 예열까지 기다리는 시간 — GLB 가 늦게 붙는다 */
+const SECOND_WARM_MS = 3000;
+/** 새 셰이더가 보일 때의 예열 간격 */
+const ACTIVE_INTERVAL_MS = 2000;
+/** 조용할 때 간격을 늘리는 배율 */
+const IDLE_GROWTH = 1.6;
+/** 가장 뜸할 때의 간격 */
+const MAX_INTERVAL_MS = 20000;
 
 // 후처리(EffectComposer)가 켜진 화면은 장면을 선형 색 공간의 렌더 타깃에 그린다. 셰이더 변종은 출력 색 공간·톤 매핑에
 // 따라 다르므로 아무 타깃도 안 건 채 구우면 sRGB 변종만 구워지고 진짜 그릴 때 전부 다시 굽는다(본부실 첫 진입 42개).
@@ -80,10 +82,6 @@ function getWarmTarget(gl: THREE.WebGLRenderer) {
 // 양면 반투명 재질은 three 가 앞·뒤 두 번 그리며 그때마다 version 을 올린다 — 그 재질은 version 을 보지 않는다.
 const isRedrawnTwice = (m: THREE.Material) => m.transparent && m.side === THREE.DoubleSide && !m.forceSinglePass;
 const materialVersion = (m: THREE.Material) => (isRedrawnTwice(m) ? 0 : m.version);
-const materialsOf = (object: THREE.Object3D): THREE.Material[] => {
-  const material = (object as THREE.Mesh).material;
-  return Array.isArray(material) ? material : material ? [material] : [];
-};
 
 // 이보다 많이 바뀌었으면(첫 로드·구역 통째 교체) 물체마다 굽는 대신 씬을 한 번에 굽는다
 const WHOLE_SCENE_THRESHOLD = 48;
@@ -154,20 +152,13 @@ function bakeZoneStates(
  * 재질을 처음 그리는 프레임의 셰이더 컴파일(수백 ms)을 게임 전에 미리 끝낸다.
  * 늦게 붙는 GLB·구역·상태 부품 때문에 되풀이하되, 바뀐 것이 없으면 건너뛰고 점점 뜸해진다.
  */
-export function ShaderWarmup({
-  enabled = true,
-  delay = 3,
-  repeat = 2,
-  growth = 1.6,
-  maxInterval = 20,
-  zoneStates,
-}: ShaderWarmupProps) {
+export function ShaderWarmup({ enabled = true, zoneStates }: ShaderWarmupProps) {
   const { gl, scene, camera } = useThree();
   useEffect(() => {
     if (!enabled) return;
     const oven = new ShaderOven(gl, scene, camera);
     let alive = true;
-    let wait = Math.max(1, repeat) * 1000;
+    let wait = ACTIVE_INTERVAL_MS;
     let next: ReturnType<typeof setTimeout> | null = null;
     const schedule = () => {
       // 예약은 언제나 하나만 — 두 줄로 돌면 간격이 절반이 된다.
@@ -179,7 +170,7 @@ export function ShaderWarmup({
       try {
         const stale = oven.findStale();
         if (stale.length === 0) {
-          wait = Math.min(maxInterval * 1000, wait * growth);
+          wait = Math.min(MAX_INTERVAL_MS, wait * IDLE_GROWTH);
           schedule();
           return;
         }
@@ -190,20 +181,20 @@ export function ShaderWarmup({
         oven.remember(stale);
         // 새로 구운 것이 있으면 그림자도 한 번 흔든다(깊이 셰이더까지 데우려고). 늘 흔들면 그림자 절약이 무너진다.
         requestShadowUpdates(0.4);
-        wait = Math.max(1, repeat) * 1000;
+        wait = ACTIVE_INTERVAL_MS;
       } catch {
         // 예열은 실패해도 게임은 그대로 돈다.
       }
       schedule();
     };
     const first = setTimeout(warm, 400);
-    const second = setTimeout(warm, Math.max(0.5, delay) * 1000);
+    const second = setTimeout(warm, SECOND_WARM_MS);
     return () => {
       alive = false;
       clearTimeout(first);
       clearTimeout(second);
       if (next) clearTimeout(next);
     };
-  }, [gl, scene, camera, enabled, delay, repeat, growth, maxInterval, zoneStates]);
+  }, [gl, scene, camera, enabled, zoneStates]);
   return null;
 }

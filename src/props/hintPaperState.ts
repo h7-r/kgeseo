@@ -18,8 +18,8 @@ type HintPaperLocation = "vending" | "hand" | "floor" | "stored";
 /** 힌트함에 들어갈 때 쓰는 내용. UI 가 그대로 읽는다. */
 export const VALVE_HINT = {
   id: "valveHint",
-  name: "밸브 쪽지",
-  description: "자판기 배출구에서 캔과 함께 나온 쪽지. 핸들휠 그림 아래 다섯 칸이 비어 있다.",
+  name: "힌트 메모",
+  description: "자판기 배출구에서 캔과 함께 나온 낡은 메모.\n돌리는 손잡이 그림 아래 다섯 칸이 비어 있다.",
 } as const;
 
 interface HintPaperState {

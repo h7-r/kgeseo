@@ -3,6 +3,7 @@
  * 둘은 버려져 나뒹굴고(깨지고 비었다), 하나만 입구가 꼭 막혀 멀쩡하다. 멀쩡한 것만 [E] 로 챙긴다.
  * 흰 백자라 배 그늘에서도 눈에 띈다.
  */
+import { assetUrl } from "@/config/env";
 import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 
@@ -14,7 +15,7 @@ import { M } from "../units";
 import { makgeolliBottle } from "./makgeolliState";
 
 /** 술병(자기) — 라이브러리 경량본(CC BY 4.0). 막걸리 통은 라이브러리에 없어 가장 가까운 술병을 쓴다 */
-const BOTTLE_MODEL = `${import.meta.env.BASE_URL}_sf_local/lib/ast-prop-liquor-bottle-porcelain-01.glb`;
+const BOTTLE_MODEL = "/_sf_local/lib/ast-prop-liquor-bottle-porcelain-01.glb";
 /** 키(미터) — 실물 25 cm 보다 조금 크게, 배 안을 내려다볼 때 읽히게 */
 const BOTTLE_HEIGHT = 0.32;
 
@@ -81,13 +82,13 @@ const bottleCenter = (spot: Spot) => new THREE.Vector3(spot.x * M, (spot.y + BOT
 
 export default function BoatBottles() {
   const [template, setTemplate] = useState<THREE.Object3D | null>(null);
-  const [isTaken, setIsTaken] = useState(false);
+  const [isTaken, setIsTaken] = useState(makgeolliBottle.isTaken);
 
   useEffect(() => {
     let isAlive = true;
     // 라이브러리 경량본은 meshopt·KTX2 압축 — 기본 로더로는 조용히 실패한다
     createCompressedGltfLoader().load(
-      BOTTLE_MODEL,
+      assetUrl(BOTTLE_MODEL),
       (gltf) => isAlive && setTemplate(fitModel(gltf.scene)),
       undefined,
       (error) => console.warn("[BoatBottles] 술병 모형을 못 읽었다:", error),

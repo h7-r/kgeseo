@@ -272,7 +272,7 @@ function playDrawerSteps(cabinetId: string, row: number, maxAmount: number, dire
 }
 
 // ── 램프 ──
-export const isLampOn = (id: string, fallback: boolean) => state.lamps[id] ?? fallback;
+const isLampOn = (id: string, fallback: boolean) => state.lamps[id] ?? fallback;
 export function toggleLamp(id: string, fallback: boolean) {
   updateLobbyState({ lamps: { ...state.lamps, [id]: !isLampOn(id, fallback) } });
 }

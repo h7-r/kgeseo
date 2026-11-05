@@ -10,6 +10,7 @@
  *     아직 없으므로 배포본에서 팩을 쓰는 장면은 「팩 열쇠를 받지 못했습니다」로 실패한다(단품 파일로 되돌아가지 않음).
  */
 import { openPack, type OpenedPack } from "./securePack";
+import { apiUrl } from "@/config/env";
 
 interface PackTicket { url: string; key: string }
 
@@ -20,14 +21,14 @@ async function fetchTicket(id: string): Promise<PackTicket> {
     return { url: `/__packs/file/${encodeURIComponent(id)}`, key: ((await r.json()) as { key: string }).key };
   }
   // P2 — 백엔드가 세션 확인 뒤 내려줄 자리(주소·응답 모양은 백엔드 담당자와 정함)
-  const r = await fetch(`/api/v1/packs/${encodeURIComponent(id)}`, { credentials: "include", cache: "no-store" });
+  const r = await fetch(apiUrl(`/api/v1/packs/${encodeURIComponent(id)}`), { credentials: "include", cache: "no-store" });
   if (!r.ok) throw new Error(`팩 열쇠를 받지 못했습니다 (${id}, ${r.status})`);
   return (await r.json()) as PackTicket;
 }
 
 const packs: OpenedPack[] = [];
 /** 팩에서 꺼내 읽은 파일 수(확인용 — 콘솔 `[scenePack]` 에도 찍힘) */
-export const scenePackStats = { fromPack: 0, fromUrl: 0, opened: [] as string[] };
+const scenePackStats = { fromPack: 0, fromUrl: 0, opened: [] as string[] };
 // 개발 서버에서는 콘솔에서 바로 볼 수 있게(window.__scenePack)
 if (import.meta.env.DEV && typeof window !== "undefined") (window as unknown as { __scenePack: typeof scenePackStats }).__scenePack = scenePackStats;
 /** 읽기가 잠잠해지면(1.5초) 누적 수를 한 줄로 알린다 — 「다 받음」 시점엔 아직 읽는 중이라 수가 작게 찍힌다 */

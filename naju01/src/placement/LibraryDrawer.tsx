@@ -1,4 +1,4 @@
-// 5174 통합 편집 모드(E) 서랍 — 검수 작업대의 LibraryPanel(review/src/LibraryPanel.jsx)과
+// 5174 통합 편집 모드 서랍 — 검수 작업대의 LibraryPanel(review/src/LibraryPanel.jsx)과
 // PlacementAdjustPanel(review/src/PlacementPanels.jsx)을 TSX 로 옮겼다(분류 칩·썸네일·한글 검색·숫자 조정·미세 이동 같음).
 // 10/15 통합: 라이브러리 배치 초안과 이미 놓인 에셋 편집이 같은 조정 카드를 쓰고, 조작 안내판(옛 EditHelpPanel)도 여기로 모았다.
 //   팔레트(코드 모형) 항목은 게임 편집기에서만 놓을 수 있어 여기서는 「배치」 단추가 살아 있다(edits.json 「더함」).

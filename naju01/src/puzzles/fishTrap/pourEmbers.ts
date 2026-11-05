@@ -83,7 +83,7 @@ export function createPourState() {
     landed: new Uint8Array(FULL_COUNT),
   };
 }
-export type PourState = ReturnType<typeof createPourState>;
+type PourState = ReturnType<typeof createPourState>;
 
 /** 쏟기를 시작한다 — 지금 자세에서 들어 올린다 */
 export function startPour(state: PourState, trap: Trap) {
@@ -102,7 +102,7 @@ export function createSparks() {
     next: 0,
   };
 }
-export type Sparks = ReturnType<typeof createSparks>;
+type Sparks = ReturnType<typeof createSparks>;
 
 function emitSparks(sparks: Sparks, at: THREE.Vector3, count: number) {
   for (let n = 0; n < count; n++) {

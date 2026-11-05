@@ -10,7 +10,7 @@
  *   ※ 툰 외곽선(drei <Outlines>)은 ShaderMaterial 이라 clipping=false 면 잘림면을 무시해 경계 밖에 검은 껍데기만 남는다
  *     → 고립 중에는 maintainIsolation(scene) 이 1초쯤마다 장면을 훑어 잘림 조각이 든 ShaderMaterial 의 clipping 을 켠다
  *       (한 번 켜면 그대로 둔다 — 잘림면이 없으면 셰이더에서 아무 일도 안 한다).
- * 쓰는 곳: 5174 [E] 통합 편집 모드(서랍 「공간」 줄) · 5180 검수 작업대 씬 탭(ReviewBridge).
+ * 쓰는 곳: 5174 통합 편집 모드(서랍 「공간」 줄) · 5180 검수 작업대 씬 탭(ReviewBridge).
  *
  * 지금 나주 맵은 야외라 씬끼리 구역이 겹친다(S1·S4 = Z1·Z2). 실내 씬이 들어오면 씬 → 방 경계 표만 바꾸면 된다.
  */

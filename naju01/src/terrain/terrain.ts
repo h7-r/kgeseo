@@ -1,6 +1,6 @@
 // "이 자리의 바닥 높이는 몇 m 인가". NAJU-01 은 EL 0 · +8 · +14 세 층이 이어져 있어 발밑을 좌표로 물어야 한다.
 // 상수가 아니라 만드는 함수인 이유: 절벽 높이(§9 미정값)가 곧 Z3 고도라, 돌리면 T3·T4 경사와 그 위 차단물까지 따라 움직인다.
-// 그림·이동·충돌·계기판이 같은 한 벌을 본다. 입출력은 전부 미터 — 도면과 같은 숫자로 디버깅하려고.
+// 그림·이동·충돌이 같은 한 벌을 본다. 입출력은 전부 미터 — 도면과 같은 숫자로 디버깅하려고.
 
 import {
   BLOCKERS,
@@ -23,15 +23,13 @@ import {
 import { createNoise, type HeightAt } from "./ground";
 import type { HeightTable } from "./heightTable";
 
-const DEGREES = 180 / Math.PI;
-
 /** 지형 밖에서 끼워 주는 무대 밖 연결로(terrain/connectorRamp) */
 interface RampSurface {
   isOn: (x: number, z: number) => boolean;
   heightAt: (x: number, z: number) => number;
 }
 
-/** 지면 판정. 연결로 위면 path 가 "연결로" — 계기판에 그대로 보이는 글자다. */
+/** 지면 판정. 연결로 위면 path 가 "연결로" — 검수 보고에 그대로 보이는 글자다. */
 interface GroundSample {
   y: number;
   zone: ZoneCode | null;
@@ -41,6 +39,8 @@ interface GroundSample {
   /** 벼랑면 — 서지 못하고 미끄러져 내려간다 */
   isFall: boolean;
   isWater: boolean;
+  /** 벽으로 둘러싸여 떨어져도 갇히지 않는 바닥 — 낙차 복귀를 걸지 않는다 */
+  noFallRecovery?: boolean;
 }
 
 interface PathSegment {
@@ -57,9 +57,6 @@ interface PathMeasurement {
   // 도면의 route("Z1 → Z2" 문자열)와 겹치지 않게 조각 목록은 segments 로 둔다.
   segments: PathSegment[];
   planarLength: number;
-  /** 경사까지 따진 실제로 걷는 거리 */
-  trueLength: number;
-  slope: number;
   rise: number;
 }
 
@@ -84,10 +81,6 @@ interface Blocker extends Omit<BlockerDef, "floor"> {
   floor: number;
 }
 
-interface TerrainCliff extends Cliff {
-  slopeAngle: number;
-}
-
 export interface TerrainOptions {
   /** Z3 의 고도이자 절벽 낙차. 이것 하나가 아래를 전부 끌고 간다 */
   cliffHeight?: number;
@@ -98,7 +91,7 @@ export interface TerrainOptions {
   useIndex?: boolean;
 }
 
-/** 도면에 적힌 길이·경사를 좌표에서 다시 잰다. 어긋나면 계기판이 빨갛게 띄운다(§8). */
+/** 통로의 조각과 수평 길이·고도차를 좌표에서 잰다. */
 function measurePath(path: PathDef): PathMeasurement {
   const segments: PathSegment[] = [];
   let total = 0;
@@ -114,8 +107,6 @@ function measurePath(path: PathDef): PathMeasurement {
   return {
     segments,
     planarLength,
-    trueLength: Math.hypot(planarLength, rise),
-    slope: Math.atan2(Math.abs(rise), planarLength) * DEGREES,
     rise,
   };
 }
@@ -239,17 +230,10 @@ export function createTerrain({
   }));
 
   // ④ 절벽 — 배터 띠(Z 26~30) 폭은 그대로라 높이를 올리면 면이 더 선다.
-  const batterWidth = CLIFF.zBottom - CLIFF.zTop;
-  const cliff: TerrainCliff = {
+  const cliff: Cliff = {
     ...CLIFF,
     height: cliffHeight,
-    slopeAngle: Math.atan2(cliffHeight, batterWidth) * DEGREES,
   };
-
-  // 고리 1바퀴 — 도면의 75.1 m 와 맞는지(수평 합)
-  const measuredLoop = measuredPaths.reduce((s, t) => s + t.planarLength, 0);
-  // 경사면까지 따진 실제로 다리가 가는 거리
-  const measuredWalk = measuredPaths.reduce((s, t) => s + t.trueLength, 0);
 
   // 통로 세밀 선분 공간 색인. 조회마다 세밀 선분(약 700개)을 다 투영하면 첫 화면이 가장 무거워진다.
   // 등록 범위를 경계 상자에 한계만큼 넓혀 잡아 기여할 선분은 하나도 안 빠지고, 칸 안 목록을 원래 차례
@@ -552,7 +536,7 @@ export function createTerrain({
     return null;
   }
 
-  // 계기판이 쓸 이름표
+  // 검수 보고의 지금 자리 이름
   const zoneNames: Record<string, string> = Object.fromEntries(zones.map((z) => [z.code, z.name]));
   const pathNames: Record<string, string> = Object.fromEntries(paths.map((t) => [t.code, t.name]));
 
@@ -575,8 +559,6 @@ export function createTerrain({
     setOuterGround,
     setHeightTable,
     cliff,
-    measuredLoop,
-    measuredWalk,
     groundAt,
     blockedAt,
     placeName,

@@ -22,7 +22,7 @@ export const HALL = { x: [36, 54] as const, z: [58, 74] as const };
 export const DOOR = { x: 45, z: 74, halfWidth: 1.45 };
 /** 고리문 뒷벽의 x 범위 — 왼쪽은 물레·석판까지, 오른쪽은 큰 방 끝까지(굴러간 바퀴가 벽 밖 맨 물에 드러나지 않게) */
 export const DOOR_WALL_X = [38, 54.5] as const;
-export const PASSAGE = { z: [74, 76] as const };
+const PASSAGE = { z: [74, 76] as const };
 /** 석실 — 들어서서 상자까지 거리감이 있게 길다 */
 export const INNER = { x: [40, 50] as const, z: [76, 88] as const };
 /** 설화 흔적 — 큰 방 바닥에 남은 아랑사·아비사 이야기의 자취(LegendTraces). 퍼즐 자리와 길목을 피했다 */
@@ -61,7 +61,7 @@ const BREATH_REFILL = 28;
 
 const bankY = DEFAULT_TERRAIN.groundAt(CORRIDOR.x, CORRIDOR.zStart - 0.2).y;
 
-const smooth = (t: number) => smoothstep(Math.min(1, Math.max(0, t)));
+export const smooth = (t: number) => smoothstep(Math.min(1, Math.max(0, t)));
 
 /** 강바닥 길이 다 내려가는 z — 물가에서 바로 내려가기 시작해 여기서 바닥(−6 m)에 닿는다 */
 const RAMP_END_Z = CORRIDOR.zStart + 8.5;
@@ -104,12 +104,11 @@ export function useCaveShown() {
 export const cave = {
   /** 물이 갈라져 있는 동안만 바닥·벽을 바꿔 끼운다 */
   isOpen: isCaveShown,
-  isDoorOpen: () => isDoorOpen,
   /** 물굴 자리인가 — 코어 밖(z 50 너머)으로 나가도 되는 곳 */
   contains: (x: number, z: number) => z >= CORRIDOR.zStart && z <= INNER.z[1] + 0.5 && Math.abs(x - CORRIDOR.x) <= 11,
   groundAt(x: number, z: number): GroundSample | null {
     if (!cave.contains(x, z)) return null;
-    return { y: floorY(x, z), zone: null, path: null, isFall: false, isWater: false };
+    return { y: floorY(x, z), zone: null, path: null, isFall: false, isWater: false, noFallRecovery: true };
   },
   /** 막히는 곳 이름 — 물벽 · 동굴 벽 · 고리문 · 석실 벽 · 소품. 안 막히면 null */
   blockedAt(x: number, z: number, radius: number): string | null {
@@ -222,17 +221,17 @@ export function registerAirColumn(column: AirColumn) {
     if (index >= 0) airColumns.splice(index, 1);
   };
 }
-export const isInAir = (x: number, z: number) =>
-  airColumns.some((c) => c.isOn() && Math.hypot(c.x - x, c.z - z) <= c.radius);
+const isInAir = (x: number, z: number) => airColumns.some((c) => c.isOn() && Math.hypot(c.x - x, c.z - z) <= c.radius);
 
 /** 마지막으로 숨을 쉰 자리 — 숨이 다하면 여기로 돌아간다 */
 let lastAirSpot = { x: CORRIDOR.x, z: MERGE_Z - 2.5 };
-export const rememberAirSpot = (x: number, z: number) => {
+const rememberAirSpot = (x: number, z: number) => {
   lastAirSpot = { x, z };
 };
 
 /** 숨 — 매 프레임. 물속이 아니거나 공기 기둥 안이면 찬다. 다하면 true 를 돌려주고 숨을 채운다 */
 export function tickBreath(dt: number, x: number, z: number) {
+  if (isBreathHeld) return false;
   const inAir = !isUnderwater || isInAir(x, z);
   if (inAir) {
     if (isInAir(x, z)) rememberAirSpot(x, z);
@@ -303,6 +302,19 @@ export const registerTeleporter = (ref: { current: Teleport | null }) => {
   teleporter = ref;
 };
 export const teleportPlayer = (x: number, z: number, heading?: Heading) => teleporter?.current?.(x, z, heading);
+
+/** 물길에 끌려 나가는 동안은 숨이 줄지 않는다 — 끌려가다 익사 처리되면 안 된다 */
+let isBreathHeld = false;
+export const holdBreathWhileLeaving = () => {
+  isBreathHeld = true;
+};
+/** 물 밖으로 나왔다 — 숨과 까매짐을 걷는다. 이 뒤로는 숨을 세지 않아 안 걷으면 화면이 까만 채 남는다 */
+export function clearBreathAfterLeaving() {
+  isBreathHeld = false;
+  breath = BREATH_SECONDS;
+  blackout = 0;
+  publish();
+}
 
 /** 개발용 초기화 */
 export function resetCaveState() {

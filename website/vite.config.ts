@@ -66,6 +66,8 @@ export default defineConfig({
   server: {
     port: 5175,
     strictPort: true,
+    // 구글 로그인은 http://localhost 에서 이 값이어야 주소를 확인한다(구글 공식 안내).
+    headers: { "Referrer-Policy": "no-referrer-when-downgrade" },
     proxy: {
       "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
     },

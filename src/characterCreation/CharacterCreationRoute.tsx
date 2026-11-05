@@ -6,8 +6,8 @@
  * 처음 마운트되며 새 외형을 읽는다(마운트 때 한 번만 읽는다).
  * 이름 확인·저장은 원래 서버 몫이다. 서버가 생기면 checkName · handleComplete 속만 바꾸면 된다.
  */
-import { Suspense, useCallback, useRef, useState, type CSSProperties } from "react";
-import { useNavigate } from "react-router-dom";
+import { Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
 
 import { PLAYER_MESHY_APPEARANCE_KEY } from "@/engine/storage";
 import {
@@ -23,10 +23,15 @@ import {
   type NameCheckResult,
 } from "@/naju";
 
+import { flushGameSave, getSavedStage, loadCharacter, saveCharacter, setGameStage } from "@/save/gameSave";
+
 export const CHARACTER_CREATION_PATH = "/character-creation";
 
 const DRAFT_STORAGE_KEY = "kgeseo.character.draft.v1";
 const CHARACTER_STORAGE_KEY = "kgeseo.character.v1";
+const ACCOUNT_NAME_KEY = "kgeseo.character.accountName.v1";
+// 웹사이트 launchGame 이 가입 닉네임을 이 질의로 넘긴다.
+const ACCOUNT_NAME_PARAM = "nickname";
 
 // 「뒤로」 가 돌아갈 웹사이트 주소. 개발 서버에서는 안 적어도 웹사이트 개발 서버(5175)로 간다.
 const SITE_URL: string = import.meta.env.VITE_SITE_URL || (import.meta.env.DEV ? "http://localhost:5175" : "");
@@ -74,9 +79,24 @@ function toLobbyMeshConfig(appearance: CompletedCharacter["appearance"]) {
   });
 }
 
+/**
+ * 가입 닉네임을 이름 칸에 미리 적는다. 같은 계정이 이름을 바꿔 둔 초안은 그대로 둔다.
+ * StrictMode 가 두 번 불러도 같은 답이 나오게 초안과 계정 이름을 함께 적어 둔다.
+ */
+function applyAccountName(stored: unknown) {
+  const accountName = new URLSearchParams(window.location.search).get(ACCOUNT_NAME_PARAM)?.trim();
+  if (!accountName) return stored;
+  const savedName = isDraft(stored) && typeof stored.displayName === "string" ? stored.displayName : "";
+  if (readJson(ACCOUNT_NAME_KEY) === accountName && savedName) return stored;
+  const draft = { ...(isDraft(stored) ? stored : {}), displayName: accountName };
+  writeJson(DRAFT_STORAGE_KEY, draft);
+  writeJson(ACCOUNT_NAME_KEY, accountName);
+  return draft;
+}
+
 /** 지난 초안이 있으면 그 모습에서 이어 만든다. 긴 머리 모델은 귀 문제가 있어 처음 값으로는 단발로 돌려 연다. */
 function readInitialDraft() {
-  const stored = readJson(DRAFT_STORAGE_KEY);
+  const stored = applyAccountName(readJson(DRAFT_STORAGE_KEY));
   if (!isDraft(stored)) return stored;
   const appearance = stored.appearance;
   if (!appearance) return stored;
@@ -96,6 +116,19 @@ export default function CharacterCreationRoute() {
   const navigate = useNavigate();
   const [initialValue] = useState(readInitialDraft);
   const hasLeft = useRef(false);
+  // 저장이 있으면 캐릭터 생성을 건너뛰고 나갔던 단계로 간다.
+  const [savedStage] = useState(getSavedStage);
+  const resumesGame = savedStage !== null && savedStage !== "character";
+
+  // 다른 기기에서 들어와도 같은 모습으로 시작하게 서버의 캐릭터를 받아 둔다.
+  useEffect(() => {
+    if (!resumesGame) return;
+    void loadCharacter().then((saved) => {
+      if (saved?.lobby) writeJson(PLAYER_MESHY_APPEARANCE_KEY, saved.lobby);
+      if (saved?.completed) writeJson(CHARACTER_STORAGE_KEY, saved.completed);
+      if (savedStage === "naju") window.location.replace("/naju01/");
+    });
+  }, [resumesGame, savedStage]);
 
   // 지금은 형식만 본다(서버가 생기면 여기서 중복을 묻는다)
   const checkName = useCallback(async (name: string): Promise<NameCheckResult> => {
@@ -110,10 +143,12 @@ export default function CharacterCreationRoute() {
 
   const handleComplete = useCallback(
     async (payload: CompletedCharacter): Promise<CompleteResult> => {
-      const isSaved =
-        writeJson(PLAYER_MESHY_APPEARANCE_KEY, toLobbyMeshConfig(payload.appearance)) &&
-        writeJson(CHARACTER_STORAGE_KEY, payload);
+      const lobby = toLobbyMeshConfig(payload.appearance);
+      const isSaved = writeJson(PLAYER_MESHY_APPEARANCE_KEY, lobby) && writeJson(CHARACTER_STORAGE_KEY, payload);
       if (!isSaved) return { ok: false, reason: "failed", message: "이 브라우저에 저장할 수 없습니다." };
+      saveCharacter(payload.displayName, { lobby, completed: payload });
+      setGameStage("tutorial");
+      void flushGameSave();
       // 화면은 완료 상태로 멈춰 있다 — 로딩 영상으로 먼저 덮고(0.35초) / 로 보낸다.
       // 영상 막은 main 에 있어 주소가 바뀌어도 살아 있고, 역 씬이 다 뜨면 스스로 걷힌다. 두 번 눌려도 한 번만 간다.
       if (!hasLeft.current) {
@@ -131,6 +166,11 @@ export default function CharacterCreationRoute() {
     if (SITE_URL) window.location.assign(SITE_URL);
     else window.history.back();
   }, []);
+
+  if (resumesGame) {
+    if (savedStage === "naju") return <div style={rootStyle} />;
+    return <Navigate to={savedStage === "train" ? "/train" : "/"} replace />;
+  }
 
   return (
     <div style={rootStyle}>

@@ -3,7 +3,7 @@
  * 불씨가 재에 닿으면 불이 오르고 → 연기가 피어올라 화톳불 위에서 플레이어 쪽을 보고 약속의 말을 쓴다
  * → 글이 흩어지며 아비사 쪽으로 흘러간다(「told」). 그다음은 연기 화살표(SmokeGuide)가 길을 이끈다.
  */
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
@@ -35,6 +35,8 @@ const FORM_SECONDS = 2.2;
 /** 글이 흩어지기 시작할 때 */
 const RELEASE_AT = 8;
 const RELEASE_SECONDS = 3.2;
+/** 글 입자가 모두 흩어져 사라지는 때 — 입자마다 늦는 최대 1.6초 + 흩어지는 3초 */
+const WORDS_GONE_AT = RELEASE_AT + 1.6 + 3;
 /** 글이 흩어지기 시작하고 화살표가 모이기 시작할 때까지 */
 const GUIDE_HANDOFF = 1.2;
 /** 화톳불 위 글 가운데 높이(미터) — 글 아래끝(약 3.3)이 천막 꼭대기(2.9)보다 높게 */
@@ -178,16 +180,23 @@ const scratch = {
   control: new THREE.Vector3(),
   position: new THREE.Vector3(),
   basis: new THREE.Matrix4(),
-  release: new THREE.Vector3(),
   fireTop: new THREE.Vector3(),
 };
+
+/** 이어 하기에서 불이 붙은 지 오래됐다고 치는 초 */
+const RESUMED_AGE = 1000;
 
 export default function HearthFire() {
   const scene = useThree((state) => state.scene);
   const gl = useThree((state) => state.gl);
   const lightRef = useRef<THREE.PointLight>(null);
   const litAtRef = useRef(-1);
-  const isToldRef = useRef(false);
+  // 이어 하기: 약속의 말까지 끝난 뒤라면 불은 처음부터 타오르고 시선을 끌지 않는다. lit 은 말을 이어야 해서 처음부터 돈다.
+  const [isResumedTold] = useState(() => fishTrapPuzzle.stage() === "told");
+  const isToldRef = useRef(isResumedTold);
+  /** 버퍼를 비워 둔 상태 — 다시 올릴 내용이 없으면 commit 하지 않는다 */
+  const isDarkRef = useRef(false);
+  const areWordsGoneRef = useRef(false);
   /** 글이 선 자리 — 가운데와 오른쪽 방향(유닛). 글이 모이는 순간 정한다 */
   const textFrameRef = useRef<{ center: THREE.Vector3; right: THREE.Vector3 } | null>(null);
   const feedTargetsRef = useRef<[number, number][]>([]);
@@ -201,6 +210,10 @@ export default function HearthFire() {
   const wordSeeds = useMemo(() => createSeeds(FEED_SMOKE), []);
 
   const base = useMemo(() => new THREE.Vector3(HEARTH.x * M, groundY(HEARTH.x, HEARTH.z) * M, HEARTH.z * M), []);
+  const release = useMemo(() => {
+    const [x, z] = GUIDE_PATH[0];
+    return new THREE.Vector3(x * M, (groundY(x, z) + GUIDE_HEIGHT) * M, z * M);
+  }, []);
 
   useEffect(() => {
     const group = new THREE.Group();
@@ -216,26 +229,33 @@ export default function HearthFire() {
     const stage = fishTrapPuzzle.stage();
     if (stage !== "lit" && stage !== "told") {
       litAtRef.current = -1;
-      flames.alpha.array.fill(0);
-      smoke.alpha.array.fill(0);
-      words.alpha.array.fill(0);
-      flames.commit();
-      smoke.commit();
-      words.commit();
+      areWordsGoneRef.current = false;
+      if (!isDarkRef.current) {
+        isDarkRef.current = true;
+        flames.alpha.array.fill(0);
+        smoke.alpha.array.fill(0);
+        words.alpha.array.fill(0);
+        flames.commit();
+        smoke.commit();
+        words.commit();
+      }
       smokeText.mesh.visible = false;
       if (lightRef.current) lightRef.current.intensity = 0;
       return;
     }
     if (litAtRef.current < 0) {
       litAtRef.current = time;
+      isDarkRef.current = false;
       // 불이 붙는 순간만 짧게 확대했다 바로 돌아온다 — 흔들림·돌리줌·시선 끌기 없이
-      director.cue({ 소리: "징" });
-      director.cue({ 카메라: "줌인", 세기: 0.55, 초: 0.9 });
+      if (!isResumedTold) {
+        director.cue({ 소리: "징" });
+        director.cue({ 카메라: "줌인", 세기: 0.55, 초: 0.9 });
+      }
       const promise = makePromiseMask(PROMISE_LINES, FEED_SMOKE);
       smokeText.material.uniforms.uMask.value = promise.mask;
       feedTargetsRef.current = promise.feedTargets;
     }
-    const age = time - litAtRef.current;
+    const age = time - litAtRef.current + (isResumedTold ? RESUMED_AGE : 0);
     const fire = THREE.MathUtils.smoothstep(age, 0, IGNITE_SECONDS);
 
     // 불꽃 — 아래는 희게 달고 위로 갈수록 주황·빨강으로 식는다
@@ -278,7 +298,7 @@ export default function HearthFire() {
     smoke.commit();
 
     // 연기 글씨 — 모이는 순간 플레이어 쪽을 본다. 그 뒤로는 그 자리에 선다
-    if (age >= FORM_AT && !textFrameRef.current) {
+    if (age >= FORM_AT && !textFrameRef.current && !isResumedTold) {
       const center = base.clone().add(new THREE.Vector3(TEXT_OUT_X * M, TEXT_HEIGHT * M, TEXT_OUT_Z * M));
       const toCamera = new THREE.Vector3().subVectors(state.camera.position, center).setY(0).normalize();
       const right = new THREE.Vector3().crossVectors(UP, toCamera).normalize();
@@ -298,51 +318,56 @@ export default function HearthFire() {
 
     // 불에서 오른 연기 줄기가 글자 획으로 흘러 들어가 스며든다 · 흩어질 때는 획에서 풀려 화살표가 모일 자리로(SmokeGuide)
     const targets = feedTargetsRef.current;
-    const [gatherX, gatherZ] = GUIDE_PATH[0];
-    const { target, control, position, release, fireTop } = scratch;
-    release.set(gatherX * M, (groundY(gatherX, gatherZ) + GUIDE_HEIGHT) * M, gatherZ * M);
-    fireTop.copy(base).addScaledVector(UP, 0.7 * M);
-    for (let k = 0; k < FEED_SMOKE; k++) {
-      const point = targets[k];
-      if (!frame || !point) {
-        words.alpha.setX(k, 0);
-        continue;
+    if (age <= WORDS_GONE_AT) {
+      const { target, control, position, fireTop } = scratch;
+      fireTop.copy(base).addScaledVector(UP, 0.7 * M);
+      for (let k = 0; k < FEED_SMOKE; k++) {
+        const point = targets[k];
+        if (!frame || !point) {
+          words.alpha.setX(k, 0);
+          continue;
+        }
+        const seed = k * 4;
+        target
+          .copy(frame.center)
+          .addScaledVector(frame.right, (point[0] - 0.5) * TEXT_WIDTH * M)
+          .addScaledVector(UP, ((0.5 - point[1]) * TEXT_WIDTH * CANVAS_HEIGHT * M) / CANVAS_WIDTH);
+        const feed = THREE.MathUtils.clamp((age - FORM_AT - wordSeeds[seed] * FORM_SECONDS * 0.8) / 1.5, 0, 1);
+        const leave = THREE.MathUtils.clamp((age - RELEASE_AT - wordSeeds[seed + 1] * 1.6) / 3, 0, 1);
+        let alpha = 0;
+        let size = 0;
+        if (leave > 0) {
+          position.lerpVectors(target, release, 1 - Math.pow(1 - leave, 2));
+          position.x += (wordSeeds[seed + 2] - 0.5) * 0.8 * M;
+          position.y += (Math.sin(leave * Math.PI) * 0.6 + Math.sin(time * 0.9 + k) * 0.1) * M;
+          position.z += (wordSeeds[seed + 3] - 0.5) * 0.8 * M;
+          alpha = Math.sin(leave * Math.PI) * 0.3;
+          size = (0.25 + leave * 0.5) * M;
+        } else if (feed > 0 && feed < 1) {
+          const eased = 1 - Math.pow(1 - feed, 2);
+          control.copy(fireTop).lerp(target, 0.5);
+          control.y = target.y + 0.3 * M;
+          control.x += Math.sin(k * 1.7) * 0.4 * M;
+          position
+            .copy(fireTop)
+            .multiplyScalar((1 - eased) * (1 - eased))
+            .addScaledVector(control, 2 * eased * (1 - eased))
+            .addScaledVector(target, eased * eased);
+          alpha = 0.4 * (1 - THREE.MathUtils.smoothstep(feed, 0.7, 1));
+          size = (0.4 - eased * 0.25) * M;
+        }
+        words.position.setXYZ(k, position.x, position.y, position.z);
+        words.size.setX(k, size);
+        words.alpha.setX(k, alpha);
+        words.color.setXYZ(k, 0.4, 0.4, 0.42);
       }
-      const seed = k * 4;
-      target
-        .copy(frame.center)
-        .addScaledVector(frame.right, (point[0] - 0.5) * TEXT_WIDTH * M)
-        .addScaledVector(UP, ((0.5 - point[1]) * TEXT_WIDTH * CANVAS_HEIGHT * M) / CANVAS_WIDTH);
-      const feed = THREE.MathUtils.clamp((age - FORM_AT - wordSeeds[seed] * FORM_SECONDS * 0.8) / 1.5, 0, 1);
-      const leave = THREE.MathUtils.clamp((age - RELEASE_AT - wordSeeds[seed + 1] * 1.6) / 3, 0, 1);
-      let alpha = 0;
-      let size = 0;
-      if (leave > 0) {
-        position.lerpVectors(target, release, 1 - Math.pow(1 - leave, 2));
-        position.x += (wordSeeds[seed + 2] - 0.5) * 0.8 * M;
-        position.y += (Math.sin(leave * Math.PI) * 0.6 + Math.sin(time * 0.9 + k) * 0.1) * M;
-        position.z += (wordSeeds[seed + 3] - 0.5) * 0.8 * M;
-        alpha = Math.sin(leave * Math.PI) * 0.3;
-        size = (0.25 + leave * 0.5) * M;
-      } else if (feed > 0 && feed < 1) {
-        const eased = 1 - Math.pow(1 - feed, 2);
-        control.copy(fireTop).lerp(target, 0.5);
-        control.y = target.y + 0.3 * M;
-        control.x += Math.sin(k * 1.7) * 0.4 * M;
-        position
-          .copy(fireTop)
-          .multiplyScalar((1 - eased) * (1 - eased))
-          .addScaledVector(control, 2 * eased * (1 - eased))
-          .addScaledVector(target, eased * eased);
-        alpha = 0.4 * (1 - THREE.MathUtils.smoothstep(feed, 0.7, 1));
-        size = (0.4 - eased * 0.25) * M;
-      }
-      words.position.setXYZ(k, position.x, position.y, position.z);
-      words.size.setX(k, size);
-      words.alpha.setX(k, alpha);
-      words.color.setXYZ(k, 0.4, 0.4, 0.42);
+      words.commit();
+    } else if (!areWordsGoneRef.current) {
+      // 다 흩어졌다 — 한 번 지우고 나면 입자를 셈하지도 올리지도 않는다
+      areWordsGoneRef.current = true;
+      words.alpha.array.fill(0);
+      words.commit();
     }
-    words.commit();
 
     // 흩어진 연기가 모일 무렵 화살표에 넘긴다 — 이다음은 SmokeGuide 가 길을 이끈다
     if (!isToldRef.current && age > RELEASE_AT + GUIDE_HANDOFF) {

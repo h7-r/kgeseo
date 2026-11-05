@@ -5,9 +5,10 @@ import * as THREE from "three";
 import GltfPartMeshes from "@/engine/GltfPartMeshes";
 import { splitGltf } from "@/engine/gltfModel";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
+import { sharedAssetUrl } from "@/config/env";
 
 // 부위 5개로 나뉜 모델. 바닥이 y=0, 가로·세로 중앙이 원점.
-useGLTF.preload("/models/laptop.glb");
+useGLTF.preload(sharedAssetUrl("/models/laptop.glb"));
 
 /** GLB 안의 메시 이름 그대로 */
 const LAPTOP_PARTS = ["screen", "bezel", "keys", "trackpad", "body"] as const;
@@ -49,7 +50,7 @@ export default function Laptop({
   outline,
 }: LaptopProps) {
   const [x, z] = pos;
-  const { scene } = useGLTF("/models/laptop.glb");
+  const { scene } = useGLTF(sharedAssetUrl("/models/laptop.glb"));
 
   const model = useMemo(() => {
     // 캐시된 GLB 를 그대로 고치면 노트북이 다 같이 바뀐다.

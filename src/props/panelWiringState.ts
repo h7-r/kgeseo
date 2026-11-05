@@ -11,6 +11,7 @@ import { playSound } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 
+import { vendingFocus } from "./electricPanel/circuitPaths";
 import { isHingeOpen } from "./hingeState";
 import { getNozzleLocation } from "./nozzleState";
 
@@ -110,17 +111,57 @@ export function isCircuitLive(color: WireColor) {
 
 export const areAllCircuitsLive = () => isCircuitLive(0) && isCircuitLive(1) && isCircuitLive(2);
 
-// 소화전 개폐 밸브 — 회로가 다 살고 관창까지 꽂혀야 돌아간다.
+// 전류가 가는 길 — 배전반 → 호스 → 소화전, 핸들을 돌리면 소화전 → 전선관 → 음료 자판기.
+/** 호스로 소화전까지 · 전선관으로 자판기까지 걸리는 시간(초) */
+export const HOSE_FLOW_SECONDS = 3;
+export const CONDUIT_FLOW_SECONDS = 3.2;
+/** 자판기에 전류가 닿은 뒤 불빛이 날뛰다가 밀리기 시작할 때까지(초) */
+export const VENDING_FRENZY_SECONDS = 2;
+
+const HOSE_SETTLE_SECONDS = 0.25;
+let hoseFlowStartedAt = -1;
+let connectedSince: number | null = null;
+let valveTurnedAt = -1;
+export const getHoseFlowStartedAt = () => hoseFlowStartedAt;
+export const getValveTurnedAt = () => valveTurnedAt;
+
+/** 회로가 다 살고 관창까지 꽂히면 전류가 호스를 타기 시작한다 — 프레임마다 본다. 관창을 뽑으면 끊긴다 */
+export function updateHoseFlow(now: number) {
+  if (valveOpening) return;
+  const isConnected = areAllCircuitsLive() && getNozzleLocation() === "plugged";
+  connectedSince = isConnected ? (connectedSince ?? now) : null;
+  // 꽂힌 호스가 자리를 잡은 뒤에 출발한다 — 전류가 그 호스 모양을 그대로 탄다
+  const shouldFlow = connectedSince !== null && now - connectedSince >= HOSE_SETTLE_SECONDS;
+  if (shouldFlow === hoseFlowStartedAt >= 0 || (isConnected && !shouldFlow)) return;
+  hoseFlowStartedAt = shouldFlow ? now : -1;
+  signal.notify();
+}
+
+/** 전류가 소화전까지 다 왔나 */
+const isHoseCharged = (now = performance.now() / 1000) =>
+  hoseFlowStartedAt >= 0 && now >= hoseFlowStartedAt + HOSE_FLOW_SECONDS;
+
+// 소화전 개폐 밸브 — 호스로 온 전류가 소화전에 닿아야 돌아간다.
 let valveOpening: 0 | 1 = 0;
 export const getValveOpening = () => valveOpening;
-export const canTurnValve = () => !valveOpening && areAllCircuitsLive() && getNozzleLocation() === "plugged";
+export const canTurnValve = () => !valveOpening && isHoseCharged();
 export function turnValve() {
   if (!canTurnValve()) return false;
   valveOpening = 1;
+  valveTurnedAt = performance.now() / 1000;
   playSound("lockOpen", { volume: 0.9 });
   signal.notify();
   return true;
 }
+
+/** 전선관 전류가 자판기에 닿는 시각(초). 핸들을 안 돌렸으면 Infinity */
+const getVendingStruckAt = () => (valveTurnedAt >= 0 ? valveTurnedAt + CONDUIT_FLOW_SECONDS : Infinity);
+/** 문이 다 열리는 시각(초) */
+export const getVendingDoorOpenedAt = () => getVendingStruckAt() + VENDING_FRENZY_SECONDS + vendingFocus.pushSeconds;
+/** 자판기 불빛이 날뛰고 있나 — 전류가 닿은 때부터 문이 다 열릴 때까지. 그 뒤 문을 여닫아도 다시 날뛰지 않는다 */
+export const isVendingFrenzy = (now: number) => now >= getVendingStruckAt() && now < getVendingDoorOpenedAt();
+/** 불빛이 한참 날뛴 뒤 자판기가 밀리기 시작한다 */
+export const canVendingMove = (now = performance.now() / 1000) => now >= getVendingStruckAt() + VENDING_FRENZY_SECONDS;
 
 /** 개발·테스트용 초기화 */
 function resetWiring() {
@@ -128,6 +169,9 @@ function resetWiring() {
   state.plugged = [null, null, null];
   state.solvedAt = 0;
   valveOpening = 0;
+  hoseFlowStartedAt = -1;
+  connectedSince = null;
+  valveTurnedAt = -1;
   signal.notify();
 }
 
@@ -140,4 +184,5 @@ exposeDevHook("panelWiring", {
   unplugWire,
   turnValve,
   resetWiring,
+  switchIds: () => switchIds,
 });

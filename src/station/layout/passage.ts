@@ -1,7 +1,7 @@
 import { exposeDevHook } from "@/debug/devHooks";
 
 /** 왼쪽 벽(x = HEADQUARTERS_MIN_X)의 구멍과 그 뒤 비밀 복도 경계. */
-export interface PassageState {
+interface PassageState {
   /** 0 = 닫힘, 1 = 완전히 열림 */
   open: number;
   /** 방↔복도 구멍의 중심 z */

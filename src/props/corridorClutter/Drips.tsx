@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -14,6 +14,67 @@ const VENDING_SILENT = 3;
 const VENDING_FADE_END = 9;
 // 앞 62% 는 떨어지는 시간, 나머지는 파문
 const FALL_PORTION = 0.62;
+/** 파문이 번지는 판의 반지름 */
+const RIPPLE_RADIUS = 0.95;
+/** 부딪힌 물이 튀어 오르는 높이와 시간(파문 진행 비율) */
+const REBOUND_HEIGHT = 0.3;
+const REBOUND_PORTION = 0.16;
+
+const RIPPLE_VERTEX = /* glsl */ `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+// 고리를 그리지 않고 수면의 기울기로 빛을 계산한다. 빛을 향한 비탈만 반짝이고 반대쪽은 어두워져
+// 물결이 한 바퀴 온전한 선으로 보이지 않는다. 앞머리가 가장 뚜렷하고 뒤따르는 물결은 낮고 넓어진다.
+const RIPPLE_FRAGMENT = /* glsl */ `
+  uniform float uAge;
+  uniform float uSeed;
+  uniform vec3 uColor;
+  varying vec2 vUv;
+  float height(float r, float angle) {
+    float wobble = sin(angle * 3.0 + uSeed) * 0.008 + sin(angle * 5.0 - uSeed * 2.0) * 0.005;
+    float front = 0.06 + pow(uAge, 0.6) * 0.88;
+    float behind = front - r - wobble;
+    if (behind < 0.0) return 0.0;
+    // 앞머리에서 뒤로 갈수록 작아지고, 물방울 자리부터 잔잔해진다
+    return sin(behind * 34.0) * exp(-behind * 7.5) * smoothstep(0.0, 0.03, behind);
+  }
+  void main() {
+    vec2 p = vUv * 2.0 - 1.0;
+    float r = max(length(p), 0.001);
+    float angle = atan(p.y, p.x);
+    float slope = height(r + 0.006, angle) - height(r - 0.006, angle);
+    vec2 normal = -(p / r) * slope * 8.0;
+    // 천장 등 쪽에서 비스듬히 오는 빛
+    float shade = dot(normal, normalize(vec2(0.55, 0.83)));
+    float life = pow(1.0 - uAge, 1.4) * smoothstep(1.0, 0.8, r);
+    float highlight = pow(max(shade, 0.0), 1.5);
+    float shadow = max(-shade, 0.0);
+    float alpha = clamp((highlight * 0.8 + shadow * 0.34) * life, 0.0, 0.62);
+    vec3 color = mix(uColor * 0.2, uColor * 1.7, step(0.0, shade));
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
+
+const rippleGeometry = new THREE.PlaneGeometry(2, 2);
+
+function createRippleMaterial(seed: number, brightness: number) {
+  return new THREE.ShaderMaterial({
+    vertexShader: RIPPLE_VERTEX,
+    fragmentShader: RIPPLE_FRAGMENT,
+    uniforms: {
+      uAge: { value: 0 },
+      uSeed: { value: seed },
+      uColor: { value: new THREE.Color(0.62 * brightness, 0.72 * brightness, 0.8 * brightness) },
+    },
+    transparent: true,
+    depthWrite: false,
+    toneMapped: false,
+  });
+}
 
 function computeDripVolume(ear: THREE.Vector3, spot: PuddleSpot, quietZs: readonly number[]) {
   if (ear.x >= spot.x + 4) return 0; // 본부실(복도 바깥)에서는 안 들린다
@@ -46,6 +107,16 @@ export default function Drips({ spots, ceilingY, floorY, brightness, quietZs = [
   const rippleRefs = useRef<(THREE.Mesh | null)[]>([]);
   // 방울마다 지난 프레임 진행도 — 닿는 순간을 한 번만 잡는다
   const lastPhase = useRef<number[]>([]);
+  const rippleMaterials = useMemo(
+    () => spots.map((spot, i) => createRippleMaterial(i * 1.7, Math.max(0.35, brightness(spot.z)))),
+    [spots, brightness],
+  );
+  useEffect(
+    () => () => {
+      for (const material of rippleMaterials) material.dispose();
+    },
+    [rippleMaterials],
+  );
 
   useFrame(({ clock, camera }) => {
     const t = clock.elapsedTime;
@@ -63,23 +134,28 @@ export default function Drips({ spots, ceilingY, floorY, brightness, quietZs = [
         if (volume > 0.01) playSound("drip", { volume });
       }
       lastPhase.current[i] = u;
-      const fall = Math.min(1, u / FALL_PORTION);
+      const p = (u - FALL_PORTION) / (1 - FALL_PORTION);
       if (u < FALL_PORTION) {
         drop.visible = true;
         // 아래로 갈수록 빨라져야 물처럼 보인다. 빨라질수록 길게 늘어난다.
-        const h = fall * fall;
+        const h = (u / FALL_PORTION) ** 2;
         drop.position.y = ceilingY + (floorY - ceilingY) * h;
         drop.scale.set(1, 1 + h * 2.2, 1);
+      } else if (p < REBOUND_PORTION) {
+        // 수면에 부딪힌 물이 작은 방울로 튀어 올랐다 떨어진다
+        drop.visible = true;
+        drop.position.y = floorY + Math.sin((p / REBOUND_PORTION) * Math.PI) * REBOUND_HEIGHT;
+        drop.scale.setScalar(0.55);
       } else {
         drop.visible = false;
       }
-      const p = (u - FALL_PORTION) / 0.38;
       if (u >= FALL_PORTION) {
         ripple.visible = true;
-        const k = 0.25 + p * 1.4;
-        ripple.scale.set(k * spot.sx, 1, k * spot.sz);
+        // 물결은 웅덩이 모양과 상관없이 둥글게 번진다. 웅덩이 밖 마른 바닥으로는 넘어가지 않는다.
+        const radius = RIPPLE_RADIUS * Math.min(spot.sx, spot.sz);
+        ripple.scale.set(radius, radius, 1);
         const material = ripple.material;
-        if (material instanceof THREE.MeshBasicMaterial) material.opacity = 0.45 * (1 - p) * (1 - p);
+        if (material instanceof THREE.ShaderMaterial) material.uniforms.uAge.value = p;
       } else ripple.visible = false;
     }
   });
@@ -106,17 +182,10 @@ export default function Drips({ spots, ceilingY, floorY, brightness, quietZs = [
               }}
               position={[spot.x, floorY + 0.014, spot.z]}
               rotation={[-Math.PI / 2, 0, 0]}
+              geometry={rippleGeometry}
+              material={rippleMaterials[i]}
               visible={false}
-            >
-              <ringGeometry args={[0.34, 0.5, 20]} />
-              <meshBasicMaterial
-                color={new THREE.Color(0.5 * v, 0.6 * v, 0.68 * v)}
-                transparent
-                opacity={0}
-                depthWrite={false}
-                toneMapped={false}
-              />
-            </mesh>
+            />
           </group>
         );
       })}

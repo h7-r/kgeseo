@@ -4,6 +4,7 @@ import { Outlines } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 
 import { scaleColor } from "@/engine/color";
+import { toRadians } from "@/engine/math";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
@@ -13,7 +14,6 @@ import { computeRattleOffset, toggleHinge, useIsHingeOpen } from "@/props/hingeS
 
 import BreakerWiring from "./BreakerWiring";
 import { BREAKER_DOOR_THICKNESS, buildOpenBoxGeometry } from "./puzzleGeometry";
-import HandwrittenHint from "./HandwrittenHint";
 import { makeCircuitStripTexture } from "./labelTextures";
 import { getPluggedWireCount, usePluggedWiresKey, useIsWiringCorrect } from "./workLampState";
 
@@ -100,7 +100,7 @@ export default function BreakerBox({
   const doorAngle = useRef(0);
   useFrame((_, dt) => {
     // 함이 d 쪽을 보므로 d·각 — 반대 부호면 문이 벽 속으로 젖혀져 잘려 보인다
-    const goal = isOpen ? (d * 104 * Math.PI) / 180 : 0;
+    const goal = isOpen ? toRadians(d * 104) : 0;
     doorAngle.current += (goal - doorAngle.current) * Math.min(1, dt * 9);
     // 잠긴 채 당기면 덜컹 — 자물쇠도 같은 id 라 같이 흔들린다
     if (doorRef.current) doorRef.current.rotation.y = doorAngle.current + computeRattleOffset(doorId) * 0.05 * -d;
@@ -319,19 +319,6 @@ export default function BreakerBox({
             <meshToonMaterial color={scaleColor(doorColor, brightness * 0.8)} gradientMap={TOON_GRADIENT} />
           </mesh>
         ))}
-        <mesh position={[-d * (BREAKER_DOOR_THICKNESS / 2 + 0.014), -height * 0.04, width / 2]}>
-          <boxGeometry args={[0.01, height * 0.3, width * 0.52]} />
-          <meshToonMaterial color={scaleColor("#cdc6ad", Math.max(0.6, brightness))} gradientMap={TOON_GRADIENT} />
-          <Outlines thickness={2} color="#2a2720" />
-        </mesh>
-        <HandwrittenHint
-          text="모양"
-          color="#2a2622"
-          size={width * 0.46}
-          position={[-d * (BREAKER_DOOR_THICKNESS / 2 + 0.021), -height * 0.04, width / 2]}
-          rotation={[0, d > 0 ? -Math.PI / 2 : Math.PI / 2, 0]}
-          brightness={Math.max(0.55, brightness)}
-        />
 
         {[0.28, 0.72].map((t) => (
           <mesh key={t} position={[d * (BREAKER_DOOR_THICKNESS / 2 + 0.01), (t - 0.5) * height * 0.86, 0.07]}>

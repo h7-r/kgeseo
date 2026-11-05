@@ -122,7 +122,7 @@ const inkVector = (hex: string) => {
   return new Vector3(c.r, c.g, c.b);
 };
 
-export class MangaEffectImpl extends Effect {
+class MangaEffectImpl extends Effect {
   constructor({
     strength = 0.9,
     width = 1.5,

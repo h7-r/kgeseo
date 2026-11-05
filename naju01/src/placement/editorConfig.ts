@@ -1,10 +1,6 @@
-// 편집기 여러 조각이 같이 쓰는 설정값과 선택 꼴.
+// 통합 편집 모드의 설정값.
 
 import { MESH_NAMES } from "../plan/meshNames";
-import { CORE } from "../plan/sitePlan";
-
-export const ROTATION_STEP = Math.PI / 12; // 15°
-export const NUDGE_STEP = 0.25; // m — Shift 를 누르면 4 배
 
 // 광선이 「땅」으로 받아 주는 메시. 무대 밖에 놓으려면 원경 들판도 맞혀야 한다.
 export const GROUND_MESHES: string[] = [
@@ -17,8 +13,6 @@ export const GROUND_MESHES: string[] = [
   MESH_NAMES.distantFields,
   MESH_NAMES.distantFarFields,
 ];
-// 여기 맞았으면 그 점의 높이를 그대로 쓴다 — 코어 밖은 지표가 값을 안 갖고 있어 원경 나무가 땅에 박힌다
-export const OUTER_GROUND_MESHES = new Set<string>([MESH_NAMES.distantFields, MESH_NAMES.distantFarFields]);
 
 // 못 고르는 것을 눌렀을 때 이유를 말해 준다. 조용하면 편집기가 고장 난 줄 안다.
 export const UNPICKABLE_REASONS: Record<string, string> = {
@@ -30,8 +24,6 @@ export const UNPICKABLE_REASONS: Record<string, string> = {
   [MESH_NAMES.cliffFace]: "절벽면 — 도면이 정한 벼랑이다",
   [MESH_NAMES.grass]: "풀 — 한 장으로 합쳐 그린다(11만 삼각형이라 하나씩 나누면 느려진다)",
 };
-// 하늘·물·원경은 눌러도 알릴 것이 없다
-export const SILENT_MESH_PATTERN = /^(river|sky|distant)/;
 
 // 부감 — 걸으면서 배치하면 전체가 안 보여 한쪽으로 쏠린 걸 뒤늦게 안다
 export const OVERVIEW_CAMERA = {
@@ -40,32 +32,3 @@ export const OVERVIEW_CAMERA = {
   pitch: -1.05, // ≈ -60°. 수직이면 방향 감각이 사라진다
   panSpeed: 14, // m/s, Shift 3 배
 };
-
-// 무대 밖 원경(코어에서 사방 250 m)까지만 연다 — 끝없이 두면 1 km 밖으로 밀려 돌아올 길을 잃는다
-export const EDIT_BOUNDS = {
-  x: [CORE.x[0] - 250, CORE.x[1] + 250],
-  z: [CORE.z[0] - 250, CORE.z[1] + 250],
-};
-
-// 긴 프레임 하나에 시점이 몇 바퀴씩 돌지 않게 dt 를 50 ms 로 물린다
-export const clampDelta = (dt: number) => Math.min(dt, 0.05);
-
-export type Vec3Tuple = [number, number, number];
-
-export interface Selection {
-  groupId: string;
-  id: number;
-  x: number;
-  y: number;
-  z: number;
-  size: number;
-  rotation: number;
-  tilt: number;
-  tilt2: number;
-  widthRatio: number;
-  depthRatio: number;
-  shapeIndex?: number;
-  color?: number;
-  /** 유닛 단위 국소 상자(모양 기준, 인스턴스 크기를 곱한 것) */
-  box?: { size: Vec3Tuple; center: Vec3Tuple };
-}

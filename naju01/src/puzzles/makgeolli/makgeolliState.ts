@@ -3,6 +3,10 @@ let taken = false;
 
 export const makgeolliBottle = {
   isTaken: () => taken,
+  /** 저장본을 넣는다 */
+  restore: (saved: boolean) => {
+    taken = saved;
+  },
   take: () => {
     taken = true;
   },

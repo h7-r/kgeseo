@@ -1,0 +1,81 @@
+/* 게임 창의 상태와 움직임. 인라인 스타일로 안 되는 것만 둔다. */
+.game-panel {
+  animation: game-panel-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.game-panel ::selection {
+  background: #2e4889;
+  color: #f1f1fc;
+}
+.game-panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #3a5794 transparent;
+}
+.game-slot {
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.game-slot:hover {
+  background-color: #101d38;
+  border-color: #3a5794;
+  transform: translateY(-2px);
+}
+.game-slot:active {
+  transform: translateY(0);
+}
+.game-slot[aria-pressed="true"],
+.game-slot[aria-pressed="true"]:hover {
+  background-color: #14244a;
+  border-color: #86a6f0;
+}
+.game-icon-button {
+  transition:
+    background-color 140ms ease,
+    color 140ms ease,
+    border-color 140ms ease;
+}
+.game-icon-button:hover {
+  background-color: #101d38;
+  border-color: #3a5794;
+  color: #f1f1fc;
+}
+.game-panel button:focus-visible,
+.game-top-button:focus-visible {
+  outline: 2px solid #86a6f0;
+  outline-offset: 2px;
+}
+.game-top-button {
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+.game-top-button:hover {
+  background-color: #101d38;
+  border-color: #3a5794;
+}
+@keyframes game-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--panel-from, -14px));
+  }
+}
+@keyframes dispatch-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+@keyframes game-notice-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .game-panel {
+    animation: none;
+  }
+  .game-slot:hover {
+    transform: none;
+  }
+}

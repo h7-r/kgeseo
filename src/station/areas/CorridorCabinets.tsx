@@ -1,3 +1,4 @@
+import { toRadians } from "@/engine/math";
 import type { OutlineValues } from "@/engine/toon";
 import ElectricPanelInterior, { type ElectricPanelInteriorProps } from "@/props/electricPanel/ElectricPanelInterior";
 import HydrantCabinetInterior, {
@@ -97,6 +98,9 @@ export default function CorridorCabinets({
           grime={corridor.cabinetGrime}
           conduit={corridor.panelConduit}
           canOpen
+          // 소화전을 먼저 풀어야 열린다 — 배전반에 꽂을 관창이 소화전에 있다
+          locked={isHydrantLocked}
+          lockedLabel="잠김 — 소화전부터"
           openAngle={corridor.panelDoorOpenAngle}
           ceilingHeight={corridor.height}
           conduitColor={corridor.pipeColor}
@@ -176,7 +180,7 @@ export default function CorridorCabinets({
       {(padlock.visible || doorLatch.visible || frameLatch.visible) && (
         <CombinationPadlock
           position={[padlock.x, padlock.y + WALL_CABINET_LIFT, padlock.z]}
-          rotation={[0, (padlock.rotationDeg * Math.PI) / 180, 0]}
+          rotation={[0, toRadians(padlock.rotationDeg), 0]}
           lockX={padlock.lockX}
           lockY={padlock.lockY}
           lockZ={padlock.lockZ}

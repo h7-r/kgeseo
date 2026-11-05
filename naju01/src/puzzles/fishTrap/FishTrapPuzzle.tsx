@@ -10,6 +10,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { recall, remember, track } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
 import { registerInteractable, showNotice } from "../interaction";
@@ -59,13 +60,24 @@ import {
 } from "./trapRig";
 import { createWaterSplash } from "./waterSplash";
 
-/** 배치 무리를 다시 찾아보는 간격(초) — 편집으로 무리가 다시 서면 통발도 다시 읽는다 */
+/** 배치 무리를 다시 찾아보는 간격(초) — 배치 무리가 늦게 서거나 다시 서면 통발도 다시 읽는다 */
 const SCAN_SECONDS = 1;
 /** 게이지로 당기는 중 말뚝에서 이만큼(미터) 멀어지면 그만둔다 */
 const GAUGE_LEAVE_RADIUS = 4;
 
 const isBusyPlace = (trap: Trap) =>
   trap.place === "baiting" || trap.place === "rolling" || trap.place === "pulling" || trap.place === "returning";
+
+/** 불씨 통발의 자리와 불씨 수를 저장된 단계에서 되돌린다 */
+function restoreCatchingTrap(traps: Trap[]) {
+  const trap = traps[CATCHING_TRAP];
+  if (!trap) return;
+  const stage = fishTrapPuzzle.stage();
+  const isBaited = clamDig.stage() === "baited";
+  if (stage === "pulled" || stage === "lit" || stage === "told") trap.place = "landed";
+  else if (stage === "full" || isBaited) trap.place = "water";
+  trap.caught = stage === "full" || stage === "pulled" ? FULL_COUNT : recall("fishTrap.caught", 0);
+}
 
 export default function FishTrapPuzzle() {
   const scene = useThree((state) => state.scene);
@@ -85,7 +97,7 @@ export default function FishTrapPuzzle() {
   /** 게이지로 당기는 중인 말뚝 — 멀어지면 그만둔다 */
   const pullingStakeRef = useRef(-1);
   const nextTugRef = useRef(0);
-  const isShoeDroppedRef = useRef(false);
+  const isShoeDroppedRef = useRef(recall("fishTrap.isShoeDropped", false));
 
   const pourState = useMemo(() => createPourState(), []);
   const sparks = useMemo(() => createSparks(), []);
@@ -93,6 +105,10 @@ export default function FishTrapPuzzle() {
   // 틀린 줄 통발에 든 것 — 통발을 따라다닌다
   const seaweed = useMemo(() => buildSeaweedTangle(), []);
   const shoe = useMemo(() => buildStrawShoe(), []);
+  useEffect(() => {
+    if (isShoeDroppedRef.current) shoe.visible = false;
+    return track("fishTrap.caught", () => trapsRef.current[CATCHING_TRAP]?.caught);
+  }, [shoe]);
   const stakes = useMemo(() => STAKES.map((_, index) => buildStake(index)), []);
   const stakeTops = useMemo(() => STAKES.map((_, index) => stakeTop(index)), []);
   const ropeMaterials = useMemo(() => STAKES.map((stake) => makeToonMaterial(stake.color)), []);
@@ -135,6 +151,8 @@ export default function FishTrapPuzzle() {
       adoptTrap(source, index, previous[index], ropeMaterials),
     );
     for (const trap of traps) root.add(trap.object, trap.rope);
+    // 처음 읽을 때만 — 저장본의 단계에 맞는 자리에 통발을 둔다. 지나간 이동 연출은 다시 돌지 않는다.
+    if (!previous.length) restoreCatchingTrap(traps);
     source.visible = false;
     sourceRef.current = source;
     copyTrapColors(source, traps);
@@ -266,6 +284,7 @@ export default function FishTrapPuzzle() {
     } else if (rope === SHOE_ROPE && !isShoeDroppedRef.current) {
       // 짚신을 털어 통발 앞 뭍에 떨군다 — 주워 두면 단서(안 주워도 풀린다)
       isShoeDroppedRef.current = true;
+      remember("fishTrap.isShoeDropped", true);
       shoe.visible = false;
       const drop = trap.landPosition.clone().add(new THREE.Vector3(-0.5 * M, 0, -0.45 * M));
       drop.y = groundY(drop.x / M, drop.z / M) * M;

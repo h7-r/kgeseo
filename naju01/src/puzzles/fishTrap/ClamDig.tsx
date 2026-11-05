@@ -11,6 +11,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { recall, track } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
@@ -168,7 +169,7 @@ export default function ClamDig() {
   const pick = useMemo(() => createMove(), []);
   const bait = useMemo(() => createMove(), []);
   /** 미끼 든 통발이 물에 잠기면 조개는 더 그리지 않는다 */
-  const isSunkRef = useRef(false);
+  const isSunkRef = useRef(stage === "baited");
   /** 다 판 호미가 누운 자세 — 마지막 구멍 곁, 파기를 마친 쪽에 따라 정한다 */
   const dropped = useMemo(
     () => ({ position: spotPoint(DIG_SPOT.x, DIG_SPOT.z - 0.4, 0.005), quaternion: new THREE.Quaternion() }),
@@ -183,7 +184,15 @@ export default function ClamDig() {
   const clam = useMemo(() => buildClamHandful(), []);
   const ground = useMemo(() => buildDugGround(), []);
   const sideHoles = useMemo(() => buildSideHoles(ground), [ground]);
-  const holes = useMemo(() => createHoles(ground), [ground]);
+  const holes = useMemo(() => {
+    const created = createHoles(ground);
+    const dug = recall<boolean[]>("clam.isDug", []);
+    created.forEach((hole, k) => {
+      hole.isDug = dug[k] ?? false;
+    });
+    return created;
+  }, [ground]);
+  useEffect(() => track("clam.isDug", () => holes.map((hole) => hole.isDug)), [holes]);
   const crab = useMemo(() => {
     const model = buildCrab();
     model.scale.setScalar(M);

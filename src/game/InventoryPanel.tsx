@@ -3,27 +3,29 @@
  * 열쇠와 기록을 줄을 나눠 보여 줘야 막혔을 때 「쓸 것」과 「읽을 것」이 구분된다.
  * 칸 수 제한 없음(S7-034), 써도 사라지지 않아(GRD-01) 버리기 버튼이 없다.
  */
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
 
+import { SatchelIcon } from "./gameIcons";
+import GamePanel from "./GamePanel";
+import { UI } from "./gameUi";
 import { useInventory, type InventoryItem } from "./inventory";
 import {
-  backdropStyle,
-  bodyStyle,
   categoryStyle,
+  descriptionStyle,
+  detailColumnStyle,
+  detailImageStyle,
   detailNameStyle,
-  dividerStyle,
-  footerStyle,
+  emptyRowStyle,
+  emptyStyle,
   gridStyle,
-  headerMetaStyle,
-  headerStyle,
-  hintStyle,
-  panelStyle,
+  listColumnStyle,
   sectionCountStyle,
+  sectionStyle,
   sectionTitleStyle,
-  selectedSlotStyle,
+  slotImageStyle,
+  slotLetterStyle,
   slotNameStyle,
   slotStyle,
-  titleStyle,
 } from "./panelStyles";
 
 interface InventoryPanelProps {
@@ -51,8 +53,11 @@ export default function InventoryPanel({ open, onClose }: InventoryPanelProps) {
 
   const renderSlot = (item: InventoryItem) => (
     <button
+      type="button"
       key={item.id}
-      style={selectedId === item.id ? selectedSlotStyle : slotStyle}
+      className="game-slot"
+      aria-pressed={selectedId === item.id}
+      style={slotStyle}
       onClick={() => setSelectedId(item.id)}
       title={item.name}
     >
@@ -67,77 +72,38 @@ export default function InventoryPanel({ open, onClose }: InventoryPanelProps) {
   );
 
   const renderSection = (title: string, list: InventoryItem[], emptyText: string) => (
-    <div style={sectionStyle}>
+    <section style={sectionStyle}>
       <div style={sectionTitleStyle}>
         {title} <span style={sectionCountStyle}>{list.length}</span>
       </div>
       {list.length ? <div style={gridStyle}>{list.map(renderSlot)}</div> : <div style={emptyRowStyle}>{emptyText}</div>}
-    </div>
+    </section>
   );
 
   return (
-    <div style={backdropStyle} onClick={onClose}>
-      <div style={panelStyle} onClick={(event) => event.stopPropagation()}>
-        <div style={headerStyle}>
-          <span style={titleStyle}>소지품</span>
-          <span style={headerMetaStyle}>지닌 것 {items.length}</span>
-        </div>
-
-        <div style={bodyStyle}>
-          <div style={leftColumnStyle}>
-            {renderSection("열쇠", keys, "아직 없다")}
-            {renderSection("기록", records, "아직 없다")}
-          </div>
-
-          <div style={rightColumnStyle}>
-            {selected ? (
-              <>
-                <div style={categoryStyle}>{selected.category ?? "기록"}</div>
-                <h3 style={detailNameStyle}>{selected.name}</h3>
-                <div style={dividerStyle} />
-                {selected.image && <img src={selected.image} alt="" style={detailImageStyle} />}
-                <p style={descriptionStyle}>{selected.description ?? "아직 적힌 것이 없다."}</p>
-              </>
-            ) : (
-              <div style={hintStyle}>
-                {items.length ? "왼쪽에서 하나를 고르면 여기에 자세히 나온다." : "아직 아무것도 지니지 않았다."}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div style={footerStyle}>[I] · [ESC] 로 닫기</div>
+    <GamePanel title="소지품" meta={`지닌 것 ${items.length}`} closeKey="I" onClose={onClose}>
+      <div className="game-panel-scroll" style={listColumnStyle}>
+        {renderSection("열쇠", keys, "아직 없다")}
+        {renderSection("기록", records, "아직 없다")}
       </div>
-    </div>
+
+      <aside className="game-panel-scroll" style={detailColumnStyle}>
+        {selected ? (
+          <>
+            <div style={categoryStyle}>{selected.category ?? "기록"}</div>
+            <h3 style={detailNameStyle}>{selected.name}</h3>
+            {selected.image && <img src={selected.image} alt="" style={detailImageStyle} />}
+            <p style={descriptionStyle}>{selected.description ?? "아직 적힌 것이 없다."}</p>
+          </>
+        ) : (
+          <div style={emptyStyle}>
+            <span style={{ color: UI.accent }}>
+              <SatchelIcon size={30} />
+            </span>
+            {items.length ? "왼쪽에서 하나를 고르면 여기에 자세히 나온다." : "아직 아무것도 지니지 않았다."}
+          </div>
+        )}
+      </aside>
+    </GamePanel>
   );
 }
-
-const leftColumnStyle: CSSProperties = { flex: "1 1 58%", overflowY: "auto", paddingRight: 4 };
-const rightColumnStyle: CSSProperties = {
-  flex: "1 1 42%",
-  borderLeft: "1px solid #2c343e",
-  paddingLeft: 20,
-  overflowY: "auto",
-};
-const sectionStyle: CSSProperties = { marginBottom: 18 };
-
-const slotImageStyle: CSSProperties = { width: 40, height: 40, objectFit: "contain" };
-const slotLetterStyle: CSSProperties = {
-  display: "grid",
-  placeItems: "center",
-  width: 40,
-  height: 40,
-  borderRadius: 6,
-  background: "#232a35",
-  font: "600 18px sans-serif",
-  color: "#8ea3bd",
-};
-const emptyRowStyle: CSSProperties = { color: "#5b6b80", fontSize: 13, padding: "6px 2px" };
-
-const detailImageStyle: CSSProperties = {
-  width: "100%",
-  borderRadius: 8,
-  background: "#12161c",
-  marginBottom: 12,
-};
-const descriptionStyle: CSSProperties = { margin: 0, color: "#b7c0cb", fontSize: 14 };

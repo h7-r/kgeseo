@@ -171,7 +171,7 @@ export interface PathDef {
 
 /**
  * 통로 4(§2 제원표). 고도는 호 길이에 비례해 올린다.
- * T3 의 도면 경사 15.5° 는 연장을 빗변으로 본 asin 값이라 atan 기준이면 14.9° 다. 좌표는 그대로 두고 계기판이 실제 값을 띄운다.
+ * T3 의 도면 경사 15.5° 는 연장을 빗변으로 본 asin 값이라 atan 기준이면 14.9° 다. 좌표는 그대로 둔다.
  */
 export const PATHS: PathDef[] = [
   {
@@ -364,7 +364,7 @@ interface Viewpoint {
 }
 
 /**
- * 시점 3(§4 C-01). 개발용 1·2·3 키로 이 자리·방향에 선다.
+ * 시점 3(§4 C-01). V1 은 새 게임의 시작 자리다.
  * V2 는 도면상 (45, 27.2) 인데 절벽 배터 띠 안이라 설 수 없어, Z3 남쪽 가장자리로 당겼다.
  */
 export const VIEWPOINTS: Viewpoint[] = [
@@ -495,7 +495,7 @@ interface TunableRange {
  * Leva 손잡이의 범위(§9 「가정」·「검증용」 값). Leva 로 돌린 값은 내 브라우저에만 남으니
  * 확정하려면 여기 기본값을 고쳐야 팀에 전달된다. 절벽 높이는 곧 Z3 고도라 T3·T4 경사가 같이 움직인다.
  */
-export const TUNABLE_RANGES = {
+const TUNABLE_RANGES = {
   cliffHeight: { value: CLIFF.height, min: 6, max: 22, step: 0.5, unit: "m", basis: "§3 · §9" },
   blockerHeight: { value: 1, min: 0.4, max: 2.5, step: 0.05, unit: "배", basis: "§4 — 도면에 없음" },
   eyeHeight: { value: BASELINE.eyeHeight, min: 1.2, max: 2.2, step: 0.05, unit: "m", basis: "§9 · 본편 1.95" },

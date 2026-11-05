@@ -5,9 +5,10 @@ import GltfPartMeshes from "@/engine/GltfPartMeshes";
 import { useToonGltfParts } from "@/engine/gltfModel";
 import type { OutlineValues } from "@/engine/toon";
 import { computeSquareBox, useColliderBox } from "@/station/layout/collision";
+import { sharedAssetUrl } from "@/config/env";
 
 // 모델 폭 1.27 · 높이 1.90 · 깊이 1.30, 밑면이 이미 y=0.
-useGLTF.preload("/models/chair.glb");
+useGLTF.preload(sharedAssetUrl("/models/chair.glb"));
 
 /** 등받이(1.90 × 1.6 ≈ 3.05)가 책상 윗면(≈2.0)보다 조금 높게 오는 배율. 의자 끌기도 같은 값을 쓴다. */
 export const CHAIR_SCALE = 1.6;
@@ -48,7 +49,7 @@ export default function Chair({
   const box = useMemo(() => computeSquareBox(x, z, radius, height), [x, z, radius, height]);
   useColliderBox(name, box, collidable);
 
-  const parts = useToonGltfParts("/models/chair.glb", color);
+  const parts = useToonGltfParts(sharedAssetUrl("/models/chair.glb"), color);
   return (
     <group position={[x, y, z]} rotation={[0, rot, 0]} scale={CHAIR_SCALE * scale * sizeMul}>
       <GltfPartMeshes parts={parts} outline={outline} />

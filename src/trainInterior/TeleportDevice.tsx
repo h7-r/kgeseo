@@ -7,9 +7,10 @@ import { useSavedControls } from "@/engine/leva/savedControls";
 import { toRadians } from "@/engine/math";
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
+import { sharedAssetUrl } from "@/config/env";
 
 // Meshy 에서 뽑은 사실적 모델. 텍스처는 살리고 툰 + 외곽선만 입혀 화풍에 맞춘다. 모델 로컬 크기 ≈ 1.9×1.84×0.97.
-const MODEL_URL = "/models/teleport.glb";
+const MODEL_URL = sharedAssetUrl("/models/teleport.glb");
 useGLTF.preload(MODEL_URL);
 
 let glowTexture: THREE.CanvasTexture | null = null;
@@ -50,7 +51,64 @@ function findMaterialTexture(material: THREE.Material | THREE.Material[]): THREE
   return "map" in material && material.map instanceof THREE.Texture ? material.map : null;
 }
 
-/** GLB 를 원본 색 텍스처를 살린 툰 재질 조각으로 편다. tint 는 텍스처 위에 곱해진다. */
+const recoloredMaps = new Map<THREE.Texture, THREE.Texture>();
+
+/** 어두운 쪽부터 밝은 쪽까지의 남색 계단(sRGB). 목적지 창과 같은 색이다. */
+const NAVY_RAMP = [
+  [8, 18, 44],
+  [30, 48, 100],
+  [52, 76, 140],
+  [165, 185, 232],
+] as const;
+
+function navyAt(luma: number) {
+  const position = Math.min(luma, 0.999) * (NAVY_RAMP.length - 1);
+  const index = Math.floor(position);
+  const [from, to] = [NAVY_RAMP[index], NAVY_RAMP[index + 1]];
+  return from.map((value, channel) => value + (to[channel] - value) * (position - index));
+}
+
+/**
+ * Meshy 텍스처에 구워진 초록·청록 코어와 전선을 남색으로 옮긴다. 회색 금속과 녹은 채도·색상으로 걸러 그대로 둔다.
+ * 재질 셰이더를 고치지 않고 굽는 까닭: 만화 후처리가 재질을 따로 다뤄 셰이더 수정이 언제 덮일지 모른다.
+ */
+function recolorToNavy(map: THREE.Texture | null): THREE.Texture | null {
+  const image = map?.image as CanvasImageSource | undefined;
+  if (!map || !image) return map;
+  const cached = recoloredMaps.get(map);
+  if (cached) return cached;
+  const canvas = document.createElement("canvas");
+  canvas.width = (image as HTMLImageElement).width;
+  canvas.height = (image as HTMLImageElement).height;
+  const g = canvas.getContext("2d");
+  if (!g) return map;
+  g.drawImage(image, 0, 0);
+  const pixels = g.getImageData(0, 0, canvas.width, canvas.height);
+  const { data } = pixels;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i],
+      green = data[i + 1],
+      b = data[i + 2];
+    const max = Math.max(r, green, b),
+      min = Math.min(r, green, b);
+    const saturation = max > 8 ? (max - min) / max : 0;
+    // 붉은 기가 가장 센 녹·갈색은 빼고 차가운 색만 옮긴다.
+    if (r >= Math.max(green, b) || saturation < 0.08) continue;
+    const amount = Math.min(1, (saturation - 0.08) / 0.17);
+    const navy = navyAt((0.2126 * r + 0.7152 * green + 0.0722 * b) / 255);
+    data[i] = r + (navy[0] - r) * amount;
+    data[i + 1] = green + (navy[1] - green) * amount;
+    data[i + 2] = b + (navy[2] - b) * amount;
+  }
+  g.putImageData(pixels, 0, 0);
+  const recolored = map.clone();
+  recolored.image = canvas;
+  recolored.needsUpdate = true;
+  recoloredMaps.set(map, recolored);
+  return recolored;
+}
+
+/** GLB 를 텍스처를 살린 툰 재질 조각으로 편다. tint 는 텍스처 위에 곱해진다. */
 function useTexturedToonParts(url: string, tint: string): ToonPart[] {
   const { scene } = useGLTF(url);
   return useMemo(() => {
@@ -63,7 +121,7 @@ function useTexturedToonParts(url: string, tint: string): ToonPart[] {
       if (!(object instanceof THREE.Mesh)) return;
       object.matrixWorld.decompose(position, quaternion, scale);
       const material = new THREE.MeshToonMaterial({
-        map: findMaterialTexture(object.material),
+        map: recolorToNavy(findMaterialTexture(object.material)),
         color: tint,
         gradientMap: TOON_GRADIENT,
       });
@@ -123,10 +181,10 @@ export default function TeleportDevice({ outline }: TeleportDeviceProps) {
     rotationZ: { value: 0, min: -180, max: 180, step: 1, label: "회전Z" },
     tint: { value: "#ffffff", label: "색조" },
     showGlow: { value: true, label: "발광보이기" },
-    /** 바깥으로 번지는 파란 헤일로 */
-    portalColor: { value: "#5ba4e8", label: "포털색" },
-    /** 가운데 밝은 초록 코어 */
-    coreColor: { value: "#407651", label: "코어색" },
+    /** 바깥으로 번지는 남색 헤일로 */
+    portalColor: { value: "#2e4889", label: "포털색" },
+    /** 가운데 코어 */
+    coreColor: { value: "#4f6cb0", label: "코어색" },
     coreSize: { value: 1.35, min: 0.1, max: 6, step: 0.05, label: "코어크기" },
     haloSize: { value: 2.1, min: 0.2, max: 12, step: 0.1, label: "헤일로크기" },
     coreIntensity: { value: 0.6, min: 0, max: 3, step: 0.05, label: "코어세기" },

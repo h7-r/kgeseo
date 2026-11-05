@@ -16,7 +16,7 @@ import { createChangeSignal } from "@/lib/changeSignal";
 export type ClamStage = "buried" | "hoe" | "dug" | "held" | "baiting" | "baited";
 
 /** 미끼가 들어갈 통발 — 매 프레임 갱신되는 통발 가운데와 막힌 끝(입구는 그 반대쪽) */
-export interface BaitTrap {
+interface BaitTrap {
   center: THREE.Vector3;
   closedEnd: THREE.Vector3;
 }

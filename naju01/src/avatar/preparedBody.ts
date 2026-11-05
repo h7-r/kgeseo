@@ -10,6 +10,7 @@ import type { MeshAppearanceConfig } from "./meshAppearance";
 import { type CorrectionValues, DEFAULT_CORRECTION, TRIPO_CORRECTION } from "./motionCorrection";
 import { findFirstSkinnedMesh } from "./rig";
 import { AUTO_MOTION } from "./sidekickOptions";
+import { sharedAssetUrl } from "@/config/env";
 
 export type Gender = "masculine" | "feminine";
 export type Side = "l" | "r";
@@ -26,12 +27,15 @@ export const STATIONARY_CLIPS = new Set(["Idle_Loop"]);
 
 // meshy 는 착장마다 파일이 달라 getMeshBodyUrl 이 고른다. 여기는 chibi 몸체만.
 export const CHIBI_BODY_URLS: Record<Gender, string> = {
-  masculine: "/models/chibi-male.glb",
-  feminine: "/models/chibi-female.glb",
+  masculine: sharedAssetUrl("/models/chibi-male.glb"),
+  feminine: sharedAssetUrl("/models/chibi-female.glb"),
 };
-export const MOTION_LIBRARY_URL = "/models/vendor/quaternius-universal-animation-library.glb";
+export const MOTION_LIBRARY_URL = sharedAssetUrl("/models/vendor/quaternius-universal-animation-library.glb");
 // Tripo 가 몸체마다 새로 리깅해 파일마다 리그가 다를 수 있다 — 클립은 제 리그로 리타게팅한다.
-export const TRIPO_MOTION_URLS: string[] = ["/models/tripo-motions.glb?v=8", "/models/tripo-motions-fold.glb?v=1"];
+export const TRIPO_MOTION_URLS: string[] = [
+  sharedAssetUrl("/models/tripo-motions.glb?v=8"),
+  sharedAssetUrl("/models/tripo-motions-fold.glb?v=1"),
+];
 
 export const DEFAULT_CHIBI_CONFIG: ChibiAvatarConfig = {
   motion: AUTO_MOTION,

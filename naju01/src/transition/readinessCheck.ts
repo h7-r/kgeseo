@@ -7,6 +7,7 @@
  *   2 데우기   씬 전체(화면 밖까지)의 텍스처·셰이더·지오메트리를 GPU 에 올린다
  *   3 안정     1.5초 동안 큰 프레임 끊김도, 새 셰이더 프로그램도 없다
  *   4 최소 시간 — 막 쪽에서 센다
+ * 안정이 깨지면 1 부터 다시 보되, 데우기는 새로 받은 것(파일·셰이더)이 있을 때만 다시 한다.
  * 그래도 안 끝나면 최대 시간 뒤에 걷는다. 막이 영영 안 걷히는 것이 제일 나쁘다.
  */
 import * as THREE from "three";
@@ -152,8 +153,11 @@ function findLoadingBlocker(isLoading: () => boolean): string | null {
   return null;
 }
 
+/** 셰이더 미리 컴파일에 주는 최대 시간(ms) — 남은 시간이 더 짧으면 그만큼만 */
+const COMPILE_LIMIT_MS = 15000;
+
 /** 관문 2 — 씬 전체를 GPU 에 올리고 컴파일한다 */
-async function warmUp() {
+async function warmUp(compileLimitMs: number) {
   const target = new THREE.WebGLRenderTarget(4, 4);
   for (const { gl, scene, camera } of getLiveCanvases()) {
     const textures = new Set<THREE.Texture>();
@@ -177,10 +181,17 @@ async function warmUp() {
       }
     });
 
-    // 숨은 것까지 전부. 병렬 컴파일 확장이 있으면 끝날 때까지 기다린다
+    // 숨은 것까지 전부. 병렬 컴파일 확장이 있으면 끝날 때까지 기다리되, 한도를 넘기면 그냥 간다 —
+    //   compileAsync 가 안 끝나는 기계(11/4 팀원 맥, 첫 진입)에서 최대 시간까지 통째로 묶였다.
     try {
-      if (gl.compileAsync) await gl.compileAsync(scene, camera);
-      else gl.compile(scene, camera);
+      if (gl.compileAsync) {
+        const compiled = await Promise.race([
+          gl.compileAsync(scene, camera).then(() => true),
+          sleep(compileLimitMs).then(() => false),
+        ]);
+        if (!compiled)
+          console.warn(`[로딩검사] 셰이더 미리 컴파일이 ${Math.round(compileLimitMs / 1000)}초 안에 안 끝나 넘어간다`);
+      } else gl.compile(scene, camera);
     } catch (error) {
       console.warn("[로딩검사] 셰이더 미리 컴파일 실패 — 계속 간다", error);
     }
@@ -260,6 +271,7 @@ export async function waitUntilReady(
   };
 
   let attempt = 0;
+  let needsWarmUp = true;
   while (!isCancelled()) {
     if (remainingSeconds() <= 0) break;
     attempt += 1;
@@ -280,9 +292,13 @@ export async function waitUntilReady(
     }
     if (isCancelled() || remainingSeconds() <= 0) break;
 
-    report("그래픽 데우는 중");
-    await warmUp();
-    if (isCancelled()) break;
+    // 데우기는 새로 받은 것이 있을 때만 다시 한다 — 프레임 끊김 한 번에 전체를 다시 데우면 매번 2~3초씩 더 간다
+    if (needsWarmUp) {
+      report("그래픽 데우는 중");
+      await warmUp(Math.max(1000, Math.min(COMPILE_LIMIT_MS, remainingSeconds() * 1000)));
+      needsWarmUp = false;
+      if (isCancelled()) break;
+    }
 
     // 관문 3 — 1.5초와 프레임 10장을 둘 다 채운다(아주 느린 기계는 6초까지 모은다)
     report("화면 안정 확인 중");
@@ -310,11 +326,13 @@ export async function waitUntilReady(
       }
       if (getProgramCount() !== initialPrograms) {
         breakReason = "새 셰이더가 생김(처음 그려지는 물건)";
+        needsWarmUp = true;
         break;
       }
       const reason = findLoadingBlocker(isLoading);
       if (reason) {
         breakReason = reason;
+        needsWarmUp = true;
         break;
       }
     }

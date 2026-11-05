@@ -8,7 +8,7 @@ import * as THREE from "three";
 import type { Vector3Tuple } from "three";
 
 import { FRAME_PRIORITY, MAX_FRAME_DELTA } from "@/engine/camera";
-import { smoothstep } from "@/engine/math";
+import { smoothstep, toRadians } from "@/engine/math";
 import { playerView } from "@/engine/playerView";
 import { requestShadowUpdates } from "@/engine/shadowUpdates";
 
@@ -33,8 +33,7 @@ const VIEW_SWITCH_TIME = 0.3;
 const GRAB_DELAY = 0.16;
 const GRAB_TRAVEL = 0.14;
 
-const degreesToEuler = ([x, y, z]: Vector3Tuple) =>
-  euler.set((x * Math.PI) / 180, (y * Math.PI) / 180, (z * Math.PI) / 180);
+const degreesToEuler = ([x, y, z]: Vector3Tuple) => euler.set(toRadians(x), toRadians(y), toRadians(z));
 
 const hasValue = ([x, y, z]: Vector3Tuple) => !!(x || y || z);
 

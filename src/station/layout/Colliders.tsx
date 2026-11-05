@@ -9,14 +9,15 @@ import { dynamicColliders, STATIC_COLLIDERS, type ColliderBox } from "./collisio
 
 // 충돌 박스를 등록·표시하는 컴포넌트. 박스 목록과 막힘 판정은 collision.ts 에 있다.
 
+/** 이보다 낮은 물건은 막지 않는다(발끝에 걸리는 느낌이 난다). */
+const MIN_HEIGHT = 0.8;
+
 interface AutoColliderProps {
   /** 물건마다 달라야 한다(같으면 서로 덮어쓴다). */
   name: string;
   enabled?: boolean;
   /** 실제 크기의 몇 배로 막을지. 낮출수록 헐렁하다. */
   margin?: number;
-  /** 이보다 낮은 물건은 막지 않는다(발끝에 걸리는 느낌이 난다). */
-  minHeight?: number;
   /** 이 값이 바뀌면 크기를 다시 잰다(Leva 값들을 넣는다). */
   remeasureKey?: string;
   children?: ReactNode;
@@ -26,14 +27,7 @@ interface AutoColliderProps {
  * 그려진 물체를 Box3 로 재서 충돌 박스로 등록한다. 손으로 크기를 적으면 Leva 로 옮길 때마다 어긋난다.
  * 위치를 건드리지 않는 빈 group 이라 화면은 그대로다.
  */
-export function AutoCollider({
-  name,
-  enabled = true,
-  margin = 0.9,
-  minHeight = 0.8,
-  remeasureKey,
-  children,
-}: AutoColliderProps) {
+export function AutoCollider({ name, enabled = true, margin = 0.9, remeasureKey, children }: AutoColliderProps) {
   const ref = useRef<THREE.Group>(null);
   useEffect(() => {
     if (!enabled) return;
@@ -52,7 +46,7 @@ export function AutoCollider({
       const width = b.max.x - b.min.x;
       const depth = b.max.z - b.min.z;
       if (width < 0.05 || depth < 0.05) return false; // 아직 모델이 안 붙었다
-      if (height < minHeight) return true; // 납작한 물건 — 안 막고 끝낸다
+      if (height < MIN_HEIGHT) return true; // 납작한 물건 — 안 막고 끝낸다
       const cx = (b.min.x + b.max.x) / 2;
       const cz = (b.min.z + b.max.z) / 2;
       dynamicColliders.set(name, {
@@ -77,7 +71,7 @@ export function AutoCollider({
       clearTimeout(timer);
       dynamicColliders.delete(name);
     };
-  }, [name, enabled, margin, minHeight, remeasureKey]);
+  }, [name, enabled, margin, remeasureKey]);
 
   return <group ref={ref}>{children}</group>;
 }

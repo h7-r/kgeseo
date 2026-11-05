@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef } from "react";
 
+import { flushGameSave, setGameStage } from "@/save/gameSave";
 import { continueLoadingVideoAt, showLoadingVideo } from "@/naju";
 import { NAJU_ENTER_EVENT } from "@/station/najuEnter";
 
@@ -20,6 +21,9 @@ export default function NajuEntryTransition() {
     const handleEnter = (event: WindowEventMap[typeof NAJU_ENTER_EVENT]) => {
       if (isStarted.current) return;
       isStarted.current = true;
+      // 페이지를 떠나기 전에 나주 단계로 적어 둔다. 여기서 꺼져도 다음엔 나주에서 시작한다.
+      setGameStage("naju");
+      void flushGameSave();
       const query = event.detail?.query || "";
       // 문자열로 이으면 쿼리 유무에 따라 ??from=hub 가 되기 쉬워 URL 로 얹는다.
       const destination = new URL("/naju01/index.html" + query, window.location.origin);

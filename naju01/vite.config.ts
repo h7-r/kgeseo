@@ -8,6 +8,7 @@ import { dropLocalOnlyPlugin } from "./vite/dropLocalOnlyPlugin";
 import { spaceMaskPlugin } from "./vite/spaceMaskPlugin";
 import { libraryPlacePlugin } from "./vite/libraryPlacePlugin";
 import { scenePackPlugin } from "./vite/scenePackPlugin";
+import { sharedAssetBuildPlugin } from "../tools/shared-asset-build.mjs";
 
 // NAJU-01 그레이박스 전용 개발 서버. 본편과 같은 node_modules 를 쓴다.
 //   실행: npx vite naju01 → http://localhost:5174
@@ -21,6 +22,8 @@ export default defineConfig({
     port: 5174,
     // 물려 있으면 옮겨 붙지 않고 실패한다 — 포트가 바뀌면 출처가 달라져 Leva 저장값이 사라진 것처럼 보인다
     strictPort: true,
+    // 저장·로그인 API. 같은 주소로 보내 로그인 쿠키가 그대로 간다.
+    proxy: { "/api": { target: "http://127.0.0.1:8000", changeOrigin: true } },
     // 본편 engine(저장소 src/)을 읽는다
     fs: { allow: [fileURLToPath(new URL("..", import.meta.url))] },
     // 개발 서버는 요청이 와야 변환한다. 모듈이 많고 구운 모형 모듈이 커서 미리 데우지 않으면 첫 진입이 몇 초 멈춘다.
@@ -54,6 +57,7 @@ export default defineConfig({
   },
   // libraryPlacePlugin — 편집 모드 L 「라이브러리 배치」: 라이브러리 색인 + manifest 「놓기」 즉시 저장·되돌리기(개발 서버만)
   plugins: [
+    sharedAssetBuildPlugin(),
     react(),
     editFileServerPlugin({ writable: true }),
     editFileBundlePlugin(),

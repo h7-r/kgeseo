@@ -55,7 +55,7 @@ export function useSceneModes({ active, isThirdPerson, playerState }: SceneModes
     };
   }, []);
 
-  // 편집 모드의 「편집 끝내기」 단추 — E 와 같다
+  // 편집 모드의 「편집 끝내기」 단추
   const exitEditing = useCallback(() => {
     setIsEditing(false);
     setIsOverview(false);

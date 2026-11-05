@@ -30,7 +30,6 @@ const angleDelta = (a: number, b: number) => {
 
 interface CollapseTarget {
   code: string;
-  name?: string;
   center: [number, number];
 }
 
@@ -38,14 +37,11 @@ interface CollapseOptions {
   blocker: CollapseTarget;
   /** 카메라가 돌아볼 자리(열리는 길목). 없으면 차단물 중심 */
   lookAt?: [number, number] | null;
-  /** 다 무너진 뒤 알릴 한 줄. 도면에서는 차단물의 치움 안에 있어 부르는 쪽이 꺼내 넘긴다 */
-  message?: string | null;
   /** 볼곳 높이를 알아야 시선이 하늘로 뜨지 않는다 */
   heightAt?: ((x: number, z: number) => number) | null;
   durations?: CollapseDurations;
   /** 판정을 연다. 무너지기가 끝나는 순간 한 번만 부른다 */
   onClear?: () => void;
-  onNotify?: (text: string) => void;
 }
 
 export interface CollapseSequence {
@@ -61,11 +57,9 @@ export interface CollapseSequence {
 export function createCollapseSequence({
   blocker,
   lookAt,
-  message,
   heightAt,
   durations = DEFAULT_DURATION,
   onClear,
-  onNotify,
 }: CollapseOptions): CollapseSequence {
   const [vx, vz] = lookAt ?? blocker.center;
   const lookY = (heightAt?.(vx, vz) ?? 0) + 1.2;
@@ -119,7 +113,6 @@ export function createCollapseSequence({
           if (!hasCleared) {
             hasCleared = true;
             onClear?.();
-            onNotify?.(message ?? `${blocker.name ?? blocker.code} 가 사라져 길이 열렸다`);
           }
           t = 0;
           stage = "linger";

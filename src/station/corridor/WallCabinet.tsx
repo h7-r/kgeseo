@@ -4,6 +4,7 @@ import * as THREE from "three";
 
 import { scaleColor } from "@/engine/color";
 import { buildMergedBoxes, mergeAndDispose, type BoxPiece } from "@/engine/geometry";
+import { toRadians } from "@/engine/math";
 import { ToonOutline } from "@/engine/outline";
 import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
@@ -16,14 +17,16 @@ import {
   toggleHinge,
   useIsHingeOpen,
 } from "@/props/hingeState";
+import { setConduitPaths } from "@/props/electricPanel/circuitPaths";
 import { usePipeOffset } from "@/props/vendingPushState";
+import { computeRoundedPolyline } from "@/props/workLampPuzzle/puzzleGeometry";
 
 import { CORRIDOR_INK_COLOR } from "./corridorLighting";
 import { makeHydrantLabelTexture, LABEL_ASPECT, makePanelLabelTexture } from "./signTextures";
 import { getWallCabinetDoorId, type WallCabinetKind } from "./wallCabinetId";
 
 // 잠긴 문이 덜컹일 때 젖혀지는 각. 걸쇠가 잡고 있으니 2도뿐이다.
-const RATTLE_ANGLE = (2 * Math.PI) / 180;
+const RATTLE_ANGLE = toRadians(2);
 
 const aimPoint = new THREE.Vector3();
 
@@ -95,6 +98,8 @@ interface WallCabinetProps {
   canOpen?: boolean;
   /** 자물쇠가 걸려 있으면 열리는 대신 덜컹거리기만 한다 */
   locked?: boolean;
+  /** 잠겼을 때 겨누면 뜨는 말 */
+  lockedLabel?: string;
   /** 활짝 열린 각도(도). 경첩이 함 앞면에 있어 120 까지도 벽에 안 닿는다. */
   openAngle?: number;
   /** 문을 열면 보이는 속(canOpen 일 때만 그린다) */
@@ -138,6 +143,7 @@ export default function WallCabinet({
   brightness = 1,
   canOpen = false,
   locked = false,
+  lockedLabel = "",
   openAngle = 102,
   renderInterior,
   outline,
@@ -296,6 +302,40 @@ export default function WallCabinet({
   // 각도를 state 로 두면 여닫는 동안 매 프레임 복도 전체가 다시 그려진다.
   const doorRef = useRef<THREE.Group>(null);
   const doorPanelRef = useRef<THREE.Group>(null);
+  // 소화전 밑 전선관 두 줄의 길 — 핸들을 돌리면 전류가 이 길로 자판기까지 간다
+  const isFlowConduit = conduit && conduitShape === "downSide";
+  useEffect(() => {
+    if (!isFlowConduit) return undefined;
+    const lineX = x + d * (conduitForward ?? depth * 0.35);
+    const paths = [0, 1].map((i) => {
+      const lineZ = z + conduitOffset + (i - 0.5) * conduitSpacing;
+      const lineY = conduitBendHeight - i * conduitLevelGap;
+      return computeRoundedPolyline(
+        [
+          [lineX, baseHeight, lineZ],
+          [lineX, lineY, lineZ],
+          [lineX, lineY, conduitEndZ],
+        ],
+        conduitBendRadius,
+      );
+    });
+    setConduitPaths(paths);
+    return () => setConduitPaths([]);
+  }, [
+    isFlowConduit,
+    x,
+    z,
+    d,
+    depth,
+    baseHeight,
+    conduitForward,
+    conduitOffset,
+    conduitSpacing,
+    conduitBendHeight,
+    conduitLevelGap,
+    conduitBendRadius,
+    conduitEndZ,
+  ]);
   const doorId = getWallCabinetDoorId(kind, x, z);
   const openness = useRef(isHingeOpen(doorId) ? 1 : 0);
   const isDoorOpen = useIsHingeOpen(doorId);
@@ -308,7 +348,7 @@ export default function WallCabinet({
       ? 1
       : openness.current + (target - openness.current) * (1 - Math.exp(-dt * 9));
     // 부호가 방향(d)을 따라간다. 덜컹은 더한다 — 경첩 쪽은 그대로인 채 손잡이 쪽만 들썩인다.
-    const angle = d * ((openAngle * Math.PI) / 180) * openness.current + computeRattleOffset(doorId) * RATTLE_ANGLE;
+    const angle = d * toRadians(openAngle) * openness.current + computeRattleOffset(doorId) * RATTLE_ANGLE;
     if (Math.abs(angle - door.rotation.y) > 1e-4) requestShadowUpdates(0.2);
     door.rotation.y = angle;
   });
@@ -378,7 +418,7 @@ export default function WallCabinet({
                 panel.getWorldPosition(aimPoint);
                 return [aimPoint.x, aimPoint.y, aimPoint.z];
               }}
-              label=""
+              label={locked ? lockedLabel : ""}
               // 아무 반응이 없으면 조작이 고장 난 줄 안다. 잠겼으면 덜컹거린다.
               run={() => (locked ? rattleHinge(doorId) : toggleHinge(doorId))}
             />

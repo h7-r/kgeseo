@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import * as THREE from "three";
 import { Outlines } from "@react-three/drei";
 
+import { savedTrainPose } from "@/save/mainGameSave";
 import { scaleColor } from "@/engine/color";
 import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { PLAYER_RADIUS } from "@/engine/movement/constants";
@@ -194,7 +195,7 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
     bounds,
     isBlocked,
     nearby,
-    start: START,
+    start: savedTrainPose()?.position ?? START,
     facing: START_FACING,
     eyeHeight: CAR_EYE,
     crouchEyeHeight: CAR_CROUCH_EYE,

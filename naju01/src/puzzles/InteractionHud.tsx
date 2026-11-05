@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
 import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
-import { aimedTarget, useAimedLabel, useNotice } from "./interaction";
+import { aimedTarget, useAimedLabel, useNotice, usesWithHand } from "./interaction";
 import { ITEMS, inventory, useHandItem, useHeldItems } from "./inventory";
 
 /**
@@ -15,7 +15,7 @@ export default function InteractionHud() {
   const notice = useNotice();
   const target = aimedTarget();
   const label = hand
-    ? (target?.handLabel?.(hand.kind) ?? (target?.isPickup ? aimedLabel : `${ITEMS[hand.kind].name} 내려놓기`))
+    ? (target?.handLabel?.(hand.kind) ?? (usesWithHand(target) ? aimedLabel : `${ITEMS[hand.kind].name} 내려놓기`))
     : (target?.handLabel && inventory.findUsable(target.handLabel)?.label) || aimedLabel;
   return (
     <>

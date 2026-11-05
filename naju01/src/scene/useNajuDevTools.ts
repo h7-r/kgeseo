@@ -156,16 +156,16 @@ export function useNajuDevHook({
 }
 
 /** 개발용 — Shift+숫자 = 그 씬이 끝났다. 숫자만 누르는 텔레포트는 뺐다(플레이 중 잘못 눌러 스테이지가 건너뛰었다). IME 때문에 e.code 를 쓴다. */
-export function useViewpointKeys(endScene: (sceneNumber: number) => string, collapseNoticeRef: RefObject<string>) {
+export function useSceneEndKeys(endScene: (sceneNumber: number) => string) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const i = DIGIT_INDEX[e.code];
       if (i === undefined || !e.shiftKey) return;
-      collapseNoticeRef.current = endScene(i + 1);
+      endScene(i + 1);
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [endScene, collapseNoticeRef]);
+  }, [endScene]);
 }
 
 /** 무리의 첫 모양·첫 자리 크기 그대로 한 개를 GLB 로. 위치·회전은 버리고 크기만 살린다(미터). */

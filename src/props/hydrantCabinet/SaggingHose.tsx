@@ -193,6 +193,7 @@ export default function SaggingHose({
       for (let i = 1; i < segments; i++)
         points[i].lerp(average.addVectors(points[i - 1], points[i + 1]).multiplyScalar(0.5), 0.5);
     applyTubeShape(geometry, points, radius);
+    hoseAnchors.line = points;
 
     let drawn = 0;
     for (let i = 1; i <= segments; i++) drawn += points[i].distanceTo(points[i - 1]);

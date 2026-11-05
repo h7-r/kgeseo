@@ -8,6 +8,15 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 from app.core.config import settings
 from app.db.base import Base
+from app.models.account_data import (
+    AdminAuditLog,
+    GamePlaySave,
+    ItemCatalog,
+    LoginThrottle,
+    UserCharacter,
+    UserItem,
+    UserSession,
+)
 from app.models.anonymous_session import AnonymousSession
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity

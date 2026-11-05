@@ -27,7 +27,7 @@ const ROUNDS: GaugeRound[] = [
 ];
 const THIRD_CENTERS = [0.22, 0.3, 0.7, 0.78];
 
-export interface GaugeState {
+interface GaugeState {
   active: boolean;
   label: string;
   hits: number;

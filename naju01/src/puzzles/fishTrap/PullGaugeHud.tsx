@@ -4,7 +4,7 @@ import { GAUGE_HITS, gaugeCursor, stopGauge, useGauge } from "./pullGauge";
 
 // 반원 게이지 — 낚시 릴처럼 위로 휜 반투명 띠. 잿빛 막대가 잿빛 띠를 따라 오가고 흰 칸에서 [E]
 // 칸은 판마다 좁아지고 옮겨 가지만 빛깔은 세 판 다 같은 흰색(판마다 달라 보이면 규칙이 바뀐 줄 안다)
-/** 띠·막대의 잿빛 — 계기판·로딩 글의 회색과 같다 */
+/** 띠·막대의 잿빛 — 로딩 글의 회색과 같다 */
 const GREY = "#9AA3B4";
 const WHITE = "#FFFFFF";
 const WIDTH = 380;

@@ -7,7 +7,7 @@ import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { CORRIDOR_INK_COLOR } from "@/station/corridor/corridorLighting";
 
-import { buildOpenBoxGeometry } from "./puzzleGeometry";
+import { JUNCTION_SOCKET, buildOpenBoxGeometry } from "./puzzleGeometry";
 import { makeJunctionLabelTexture } from "./labelTextures";
 
 interface JunctionBoxProps {
@@ -40,7 +40,7 @@ const SOCKET_HOLES: [number, number][] = [
 ];
 
 /**
- * 벽의 분기함 — 꽂는 자리로 읽혀야 한다. 금속 테·원형 산업용 콘센트·앞으로 내민 걸이 고리·천장 전선관.
+ * 벽의 분기함 — 꽂는 자리로 읽혀야 한다. 금속 테·원형 산업용 콘센트·천장 전선관.
  * 구간 어둠을 그대로 곱하면 콘센트가 새까매서 못 찾는다 — 꽂는 자리에만 밝기 하한을 둔다.
  */
 export default function JunctionBox({
@@ -66,7 +66,7 @@ export default function JunctionBox({
   const wallThickness = 0.04;
   // 속 부품은 뒤판(x=0)에서부터 잰다
   const plateX = wallThickness + 0.035;
-  const socketX = wallThickness + 0.075;
+  const socketX = JUNCTION_SOCKET.x;
 
   // 뚜껑은 두께 0.08 + 모서리 선 — 얇은 판에 외곽선을 두르면 각도마다 테두리가 떠 보인다
   const lidGeometry = useMemo(() => new THREE.BoxGeometry(0.08, height, width), [height, width]);
@@ -113,7 +113,7 @@ export default function JunctionBox({
       )}
 
       {/* 원형 산업용 콘센트 — 네모 슬롯은 몇 m 밖에서 얼룩으로 뭉개지고 둥근 것이 읽힌다 */}
-      <group position={[d * socketX, -height * 0.06, 0]} rotation={[0, 0, Math.PI / 2]}>
+      <group position={[d * socketX, height * JUNCTION_SOCKET.heightRatio, 0]} rotation={[0, 0, Math.PI / 2]}>
         <mesh castShadow>
           <cylinderGeometry args={[0.094, 0.094, 0.028, 20]} />
           <meshToonMaterial color={scaleColor("#23262b", innerBrightness)} gradientMap={TOON_GRADIENT} />
@@ -136,20 +136,6 @@ export default function JunctionBox({
         <sphereGeometry args={[0.026, 10, 8]} />
         <meshBasicMaterial color={plugged ? "#7dffa8" : "#39413c"} toneMapped={false} />
       </mesh>
-
-      {/* 걸이 고리 — 함 앞으로 내민다. 속에 두면 램프가 함 벽에 끼어 반쯤 파묻힌다.
-          자리(깊이+0.05, 높이·0.34)는 WorkLampPuzzle 의 램프 자리 계산과 짝이다. */}
-      <group position={[d * (depth + 0.05), height * 0.34, 0]}>
-        <mesh position={[-d * 0.035, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.022, 0.026, 0.09, 10]} />
-          <meshToonMaterial color={scaleColor("#7f878f", innerBrightness)} gradientMap={TOON_GRADIENT} />
-        </mesh>
-        <mesh rotation={[0, 0, Math.PI / 2]} castShadow>
-          <torusGeometry args={[0.058, 0.015, 8, 20]} />
-          <meshToonMaterial color={scaleColor("#aab2ba", innerBrightness)} gradientMap={TOON_GRADIENT} />
-          <Outlines thickness={2} color="#131416" />
-        </mesh>
-      </group>
 
       {/* 옆으로 젖혀 열린 뚜껑 — 닫힌 함은 꽂는 자리로 안 읽힌다. 명판은 글자가 안 잘리게 가운데 0.56 배. */}
       <group position={[d * (depth + 0.01), 0, -width / 2]} rotation={[0, d * -1.9, 0]}>

@@ -23,7 +23,7 @@ import {
   slotNameStyle,
   slotStyle,
   titleStyle,
-} from "@/game/panelStyles";
+} from "./hintBoxStyles";
 import { setHintBoxOpen, useHintBoxOpen } from "./hintBoxView";
 
 export default function HintBoxHud() {

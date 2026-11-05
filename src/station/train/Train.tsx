@@ -12,8 +12,9 @@ import GltfPartMeshes from "@/engine/GltfPartMeshes";
 import { applyDents } from "@/station/vertexNoise";
 
 import { makeTrainStepTexture, makeTrainDoorTexture, type TrainDoorTextureOptions } from "./trainTextures";
+import { sharedAssetUrl } from "@/config/env";
 
-const TRAIN_MODEL = "/models/train.glb";
+const TRAIN_MODEL = sharedAssetUrl("/models/train.glb");
 
 // GLB 부품: body(차체) · door(활짝 열린 문 두 짝 — 안 쓴다) · dark(뚫린 문 뒤 어둠상자).
 // 높이 1.0 으로 정규화돼 있어 size 가 곧 기차 높이(유닛)다.
@@ -32,7 +33,7 @@ const DOOR_OPENING = {
   z: -0.327,
 };
 
-export interface TrainDoorOptions extends TrainDoorTextureOptions {
+interface TrainDoorOptions extends TrainDoorTextureOptions {
   /** 입체 눌림 개수 */
   dents?: number;
   dentDepth?: number;
@@ -210,7 +211,7 @@ function TrainStep({ color, outline, size = {} }: TrainStepProps) {
 }
 
 /** 「기차 발판」 — 문 밑 디딤판 설정 */
-export interface TrainStepSettings extends TrainStepSize {
+interface TrainStepSettings extends TrainStepSize {
   visible?: boolean;
   /** 발판을 붙일 칸(0부터). 음수면 모든 문에 붙인다 */
   car?: number;

@@ -157,18 +157,20 @@ export function makeChalkMarkTexture(position = 1, glyph = "V", color = "#dfe6ea
   );
 }
 
+const HANDWRITING_COLOR = "#e9e2cf";
+
 /**
  * 누가 매직으로 휘갈긴 한 단어(나눔손글씨 엉겅퀴). 할 일을 다 적으면 퍼즐이 설명서가 된다.
  * 캔버스는 글꼴이 다 받아진 뒤에 그려야 손글씨가 된다 — 대체 글꼴로 먼저 그리고 받아지면 다시 그린다.
  */
-export function makeHandwritingTexture(text: string, color = "#e9e2cf") {
+export function makeHandwritingTexture(text: string) {
   const draw = (g: CanvasRenderingContext2D, W: number, H: number) => {
     g.clearRect(0, 0, W, H);
     const rnd = createRandom(text.length * 131 + text.charCodeAt(0));
     g.save();
     g.translate(W / 2, H / 2);
     g.rotate(-0.06);
-    g.fillStyle = color;
+    g.fillStyle = HANDWRITING_COLOR;
     g.textAlign = "center";
     g.textBaseline = "middle";
     g.font = `170px "Eonggeongkwi", ${SIGN_FONT}`;
@@ -178,7 +180,7 @@ export function makeHandwritingTexture(text: string, color = "#e9e2cf") {
       g.fillText(text, (rnd() - 0.5) * 4, (rnd() - 0.5) * 4);
     }
     g.globalAlpha = 0.7;
-    g.strokeStyle = color;
+    g.strokeStyle = HANDWRITING_COLOR;
     g.lineWidth = 6;
     g.lineCap = "round";
     g.beginPath();
@@ -187,7 +189,7 @@ export function makeHandwritingTexture(text: string, color = "#e9e2cf") {
     g.stroke();
     g.restore();
   };
-  return makeCachedCanvasTexture(`workLampHandwriting|${text}|${color}`, draw, {
+  return makeCachedCanvasTexture(`workLampHandwriting|${text}`, draw, {
     width: 512,
     height: 256,
     willReadFrequently: false,
@@ -235,5 +237,64 @@ export function makeNameplateTexture(title: string, subtitle: string, background
       g.fillText(subtitle, W / 2, H * 0.76);
     },
     { width: 512, height: 128, willReadFrequently: false, anisotropy: 4 },
+  );
+}
+
+/** 줄 나누기 — 한글은 글자 단위로 끊어도 읽히지만 낱말이 잘리지 않게 띄어쓰기에서 먼저 끊는다 */
+function wrapLines(g: CanvasRenderingContext2D, text: string, maxWidth: number) {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(" ")) {
+    const next = line ? `${line} ${word}` : word;
+    if (g.measureText(next).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+interface PlaqueText {
+  title: string;
+  subtitle: string;
+  body: string;
+  hint: string;
+}
+
+/** 그림 아래 긴 황동 명판 — 제목 · 부제 · 설명 · 맨 아래 힌트 문장 */
+export function makeLongPlaqueTexture({ title, subtitle, body, hint }: PlaqueText) {
+  return makeCachedCanvasTexture(
+    `workLampPlaque|${title}|${body}|${hint}`,
+    (g, W, H) => {
+      const metal = g.createLinearGradient(0, 0, W, H);
+      metal.addColorStop(0, "#b89b52");
+      metal.addColorStop(0.5, "#cdb16a");
+      metal.addColorStop(1, "#a88c48");
+      g.fillStyle = metal;
+      g.fillRect(0, 0, W, H);
+      g.strokeStyle = "#2a2418";
+      g.lineWidth = 8;
+      g.strokeRect(5, 5, W - 10, H - 10);
+      g.strokeStyle = "rgba(42,36,24,0.5)";
+      g.lineWidth = 2;
+      g.strokeRect(20, 20, W - 40, H - 40);
+      g.fillStyle = "#1e1a12";
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.font = `bold 82px ${SIGN_FONT}`;
+      g.fillText(title, W / 2, 78);
+      g.font = `32px ${SIGN_FONT}`;
+      g.fillText(subtitle, W / 2, 138);
+      g.fillRect(W * 0.3, 168, W * 0.4, 2);
+      g.font = `38px ${SIGN_FONT}`;
+      const lines = wrapLines(g, body, W - 130);
+      lines.forEach((line, i) => g.fillText(line, W / 2, 212 + i * 52));
+      const hintY = 212 + lines.length * 52 + 24;
+      g.fillRect(W * 0.12, hintY - 36, W * 0.76, 1.5);
+      g.font = `bold 40px ${SIGN_FONT}`;
+      g.fillText(hint, W / 2, hintY + 6);
+    },
+    { width: 1280, height: 512, willReadFrequently: false, anisotropy: 4 },
   );
 }

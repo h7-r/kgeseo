@@ -209,7 +209,7 @@ export function raiseBreaker() {
   return false;
 }
 
-export const isEndDoorReleased = () => state.endDoorReleased;
+const isEndDoorReleased = () => state.endDoorReleased;
 /** 끝문 전기 잠금 해제 — 완전 전원이 들어와야 버튼이 산다. */
 export function releaseEndDoor() {
   if (!state.fullPower || state.endDoorReleased) return false;
@@ -346,7 +346,7 @@ export function throwTrash(bin: string) {
 export const isBinComplete = (bin: TrashBin) =>
   TRASH_ITEMS.filter((t) => t.bin === bin).every((t) => state.trash[t.id] === bin);
 /** 전류가 흐르기 시작한 시각(초) — 앞머리가 선을 타고 가는 연출에 쓴다 */
-export const getFlowStartedAt = (bin: TrashBin) => state.flowStartedAt[bin];
+export const getBinFlowStartedAt = (bin: TrashBin) => state.flowStartedAt[bin];
 /** 두 통 다 흐른다 — 그림 액자에 전기가 들어왔다 */
 export const isPaintingPowered = () => isBinComplete("general") && isBinComplete("plastic");
 

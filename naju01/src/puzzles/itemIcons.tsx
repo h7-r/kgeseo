@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import type { ItemKind } from "./inventory";
 
-export const ICON_SIZE = 40;
+const ICON_SIZE = 40;
 
 const wrapIcon = (children: ReactNode) => (
   <svg width={ICON_SIZE} height={ICON_SIZE} viewBox="0 0 40 40" aria-hidden>

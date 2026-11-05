@@ -4,6 +4,8 @@ import playIcon from "@/assets/images/imgPlay2.svg";
 import { openVideoModal } from "@/app/siteState";
 import { GAMEPLAY_VIDEOS, type Video } from "@/data/videos";
 import { depthRevealClass, useReveal, useScrollZoom, useTilt } from "@/hooks/motion";
+import { scrollToSection } from "@/layout/headerScroll";
+import { HEADER_HEIGHT, useStageScale } from "@/lib/layout";
 import { prefersReducedMotion } from "@/lib/motionPreference";
 import { FONT } from "@/lib/style";
 import { sectionAnchor } from "@/navigation/subMenus";
@@ -67,6 +69,8 @@ export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 
   const [selectedIndex, setSelectedIndex] = useState(0);
   // 사람이 직접 고르면 혼자 넘어가지 않는다. 보고 있는 걸 뺏으면 안 된다.
   const [hasInteracted, setHasInteracted] = useState(false);
+  const scale = useStageScale();
+  const featuredAnchorRef = useRef<HTMLDivElement>(null);
 
   // 혼자 넘길 때는 시계 대신 큰 카드 영상이 끝나는 때에 넘긴다 — 퍼즐이 풀리는 장면을 끝까지 보여 준다.
   const advance = () => {
@@ -76,6 +80,21 @@ export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 
   const select = (n: number) => {
     setHasInteracted(true);
     setSelectedIndex(((n % CHALLENGES.length) + CHALLENGES.length) % CHALLENGES.length);
+  };
+
+  // 위 카드를 고르면 아래 큰 영상이 머리띠 아래 가운데에 오게 내려간다.
+  const selectAndReveal = (n: number) => {
+    select(n);
+    const anchor = featuredAnchorRef.current;
+    if (!anchor) return;
+    const headerHeight = HEADER_HEIGHT * scale;
+    const spare = window.innerHeight - headerHeight - FEATURED_HEIGHT * scale;
+    const target = anchor.getBoundingClientRect().top + window.scrollY - headerHeight - Math.max(0, spare / 2);
+    scrollToSection(
+      () => target,
+      0,
+      (distance) => Math.min(800, 350 + distance * 0.4),
+    );
   };
 
   return (
@@ -91,12 +110,18 @@ export default function GameplayVideos({ top = 0, featuredTop = 0, pagerTop = 0 
               {...challenge}
               order={i}
               isActive={selectedIndex === i}
-              onSelect={() => select(i)}
+              onSelect={() => selectAndReveal(i)}
             />
           ))}
         </div>
       </section>
 
+      {/* 큰 카드는 스크롤에 따라 커지므로 자리는 움직이지 않는 이 표식으로 잰다. */}
+      <div
+        ref={featuredAnchorRef}
+        aria-hidden="true"
+        style={{ position: "absolute", top: `${featuredTop}px`, height: 0 }}
+      />
       <FeaturedVideo
         top={featuredTop}
         challenge={CHALLENGES[selectedIndex]}

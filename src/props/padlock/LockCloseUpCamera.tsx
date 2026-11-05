@@ -6,7 +6,6 @@ import { claimCamera, releaseCamera } from "@/engine/camera";
 import { playerView } from "@/engine/playerView";
 import { endLockControl, getLockControl } from "@/props/combinationLockState";
 
-const lockPoint = new THREE.Vector3();
 const approach = new THREE.Vector3();
 const eyeTarget = new THREE.Vector3();
 const lookMatrix = new THREE.Matrix4();
@@ -17,6 +16,8 @@ interface SavedView {
   quaternion: THREE.Quaternion;
   /** 다가갈 방향의 기준 — 카메라가 아니라 사람이 선 자리 */
   player: THREE.Vector3;
+  /** 처음 볼 때의 자물쇠 자리. 풀린 자물쇠가 떨어져도 화면은 따라가지 않고 여기를 본다. */
+  lockPoint: THREE.Vector3;
 }
 
 interface LockCloseUpCameraProps {
@@ -61,9 +62,10 @@ export default function LockCloseUpCamera({ lockId, targetRef, distance }: LockC
           quaternion: camera.quaternion.clone(),
           // 3인칭 카메라는 캐릭터 뒤 9.33 유닛이라 그 사이에 벽이 있을 수 있다 — 사람 자리로 방향을 잡는다.
           player: (playerView.ready ? playerView.eye : camera.position).clone(),
+          lockPoint: target.getWorldPosition(new THREE.Vector3()),
         };
       }
-      target.getWorldPosition(lockPoint);
+      const { lockPoint } = saved.current;
       approach.copy(saved.current.player).sub(lockPoint);
       approach.y *= 0.3; // 위에서 내려다보면 다이얼이 안 읽힌다
       if (approach.lengthSq() < 1e-8) approach.set(0, 0, 1);

@@ -5,8 +5,9 @@
  */
 import type { CSSProperties } from "react";
 
+import { NoteIcon } from "./gameIcons";
+import { UI, UI_FONT, keyCapStyle } from "./gameUi";
 import { getHintFlashTime, useHintBox } from "./hintBox";
-import { GOLD } from "./panelStyles";
 
 interface HintHudProps {
   /** 힌트함 창이 열려 있다 — 숨기지 않고 더 진하게 띄운다 */
@@ -29,19 +30,17 @@ export default function HintHud({ isPanelOpen = false }: HintHudProps) {
         key={flashKey}
         style={{
           ...frameStyle,
-          opacity: isPanelOpen ? 0.95 : isEmpty ? 0.34 : 0.62,
+          opacity: isPanelOpen ? 1 : isEmpty ? 0.72 : 0.92,
           animation: flashKey ? "hint-flash 900ms ease-out 1" : undefined,
         }}
       >
-        <span style={keyStyle}>H</span>
+        <kbd style={keyCapStyle}>H</kbd>
         <span style={isEmpty ? emptyThumbStyle : thumbStyle}>
           {latest?.image ? (
             <img src={latest.image} alt="" style={imageStyle} />
           ) : (
             // 아직 없을 때도 「여기에 쪽지가 모인다」를 알리는 자리는 남긴다
-            <span style={placeholderStyle} aria-hidden>
-              ?
-            </span>
+            <NoteIcon size={16} />
           )}
         </span>
         <span style={labelStyle}>
@@ -53,64 +52,56 @@ export default function HintHud({ isPanelOpen = false }: HintHudProps) {
   );
 }
 
-// 테두리와 글자까지 같이 물들어야 한 덩이가 켜졌다로 읽힌다.
+// 테두리까지 같이 물들어야 한 덩이가 켜졌다로 읽힌다.
 const FLASH_KEYFRAMES = `
 @keyframes hint-flash {
-  0%   { opacity: .62; transform: translateX(0);    box-shadow: 0 0 0 0 rgba(224,169,78,0); }
-  12%  { opacity: 1;   transform: translateX(2px);  box-shadow: 0 0 0 2px rgba(224,169,78,.55); }
-  38%  { opacity: .7;  transform: translateX(0);    box-shadow: 0 0 0 1px rgba(224,169,78,.2); }
-  56%  { opacity: 1;   transform: translateX(1px);  box-shadow: 0 0 0 2px rgba(224,169,78,.45); }
-  100% { opacity: .62; transform: translateX(0);    box-shadow: 0 0 0 0 rgba(224,169,78,0); }
+  0%   { transform: translateX(0);   border-color: #1a305f; }
+  12%  { transform: translateX(2px); border-color: #86a6f0; }
+  38%  { transform: translateX(0);   border-color: #3a5794; }
+  56%  { transform: translateX(1px); border-color: #86a6f0; }
+  100% { transform: translateX(0);   border-color: #1a305f; }
 }`;
 
 const frameStyle: CSSProperties = {
   position: "absolute",
-  left: 14,
-  top: 14,
+  left: 16,
+  top: 16,
   zIndex: 60, // 힌트함 창(50) 보다 위 — 창이 떠도 반짝임이 보여야 한다
   display: "flex",
   alignItems: "center",
-  gap: 8,
-  padding: "6px 10px 6px 7px",
-  borderRadius: 9,
-  background: "rgba(16,20,28,.62)",
-  border: "1px solid #2c3648",
+  gap: 9,
+  height: 42,
+  padding: "0 14px 0 8px",
+  boxSizing: "border-box",
+  borderRadius: 21,
+  background: UI.glass,
+  border: `1px solid ${UI.border}`,
   pointerEvents: "none", // 1인칭으로 보는 중에 마우스가 걸리면 안 된다
   userSelect: "none",
   transition: "opacity 160ms ease",
 };
 
-const keyStyle: CSSProperties = {
-  display: "grid",
-  placeItems: "center",
-  minWidth: 18,
-  height: 18,
-  borderRadius: 4,
-  border: "1px solid #3c4658",
-  background: "#12161c",
-  color: "#cfe3ff",
-  font: "600 11px ui-monospace,Menlo,monospace",
-};
-
 const thumbStyle: CSSProperties = {
   display: "grid",
   placeItems: "center",
-  width: 22,
-  height: 22,
-  borderRadius: 4,
-  background: "#12161c",
-  border: `1px solid ${GOLD}`,
+  width: 26,
+  height: 26,
+  borderRadius: 6,
+  background: UI.surfaceHover,
+  color: UI.accent,
   overflow: "hidden",
 };
-const emptyThumbStyle: CSSProperties = { ...thumbStyle, border: "1px dashed #3c4658" };
+const emptyThumbStyle: CSSProperties = { ...thumbStyle, background: "transparent", color: UI.textSubtle };
 const imageStyle: CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
-const placeholderStyle: CSSProperties = { color: "#5b6b80", font: "600 12px sans-serif" };
 const labelStyle: CSSProperties = {
   display: "flex",
   alignItems: "baseline",
-  gap: 5,
-  color: "#cfe3ff",
-  font: "12px/1 sans-serif",
-  letterSpacing: 0.3,
+  gap: 6,
+  color: UI.text,
+  font: `500 13px/1 ${UI_FONT.body}`,
 };
-const countStyle: CSSProperties = { color: GOLD, font: "600 12px ui-monospace,Menlo,monospace" };
+const countStyle: CSSProperties = {
+  color: UI.accent,
+  font: `600 13px/1 ${UI_FONT.mono}`,
+  fontVariantNumeric: "tabular-nums",
+};
