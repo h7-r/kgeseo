@@ -1,5 +1,6 @@
 import type { SessionUser } from "@/services/session";
 
+import { AUTH_API_ORIGIN } from "./apiOrigin";
 import { errorCode, toSessionUserFromBackend } from "./authApi";
 import type { ConsentKind } from "./db";
 
@@ -38,7 +39,7 @@ export type SocialAuthResult =
 async function postJson(path: string, payload: unknown): Promise<{ status: number; ok: boolean; body: unknown }> {
   let response: Response;
   try {
-    response = await fetch(`/api/v1/auth${path}`, {
+    response = await fetch(`${AUTH_API_ORIGIN}/api/v1/auth${path}`, {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify(payload),

@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.middleware.cors import CORSMiddleware
 
 # 익명 세션 Router
 from app.api.v1.anonymous_sessions import (
@@ -43,6 +44,16 @@ app = FastAPI(
 )
 
 
+if settings.cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_credentials=False,  # Current API does not issue login cookies.
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["Content-Type", "Accept"],
+    )
+
+
 FIELD_ERRORS = {
     "email": ("invalid_email", "올바른 이메일 형식이 아닙니다."),
     "password": ("invalid_password", "비밀번호 형식을 확인해 주세요."),
@@ -50,6 +61,8 @@ FIELD_ERRORS = {
 }
 # Routes whose validation errors never echo inputs, with fields checked in order.
 SENSITIVE_INPUT_FIELDS = {
+    "/api/v1/auth/google": (),
+    "/api/v1/auth/naver": (),
     "/api/v1/auth/register": ("email", "password", "nickname"),
     "/api/v1/auth/login": ("email", "password"),
     "/api/v1/auth/social-onboarding/complete": ("nickname",),

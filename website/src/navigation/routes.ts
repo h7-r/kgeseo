@@ -1,3 +1,4 @@
+import { gameEntry } from "../../../shared/deploymentUrls.ts";
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -83,7 +84,7 @@ export type NavTarget = RoutePath | `${RoutePath}?${string}` | typeof START_GAME
 const GAME_URL = import.meta.env.VITE_GAME_URL || (import.meta.env.DEV ? "http://localhost:5173" : "");
 
 // 본편과의 계약: 캐릭터 생성 화면에서 시작하고, 전환 영상을 이어 틀 초를 질의로 넘긴다.
-const GAME_ENTRY_PATH = "/character-creation";
+const GAME_ENTRY_PATH = import.meta.env.VITE_GAME_ENTRY_PATH || "/character-creation";
 export const GAME_TRANSITION_PARAM = "transition";
 
 /** 로그인·가입·비밀번호 찾기 화면들. */
@@ -104,7 +105,7 @@ export function safeNextPath(value: string | null): string | null {
 
 /** 게임으로 간다. 게임 주소가 없으면 게임 소개로 보낸다. */
 export function launchGame(navigate: (path: RoutePath) => void) {
-  if (GAME_URL) openGameTransition(GAME_URL.replace(/\/$/, "") + GAME_ENTRY_PATH);
+  if (GAME_URL) openGameTransition(gameEntry(GAME_URL, GAME_ENTRY_PATH, import.meta.env.PROD));
   else navigate(ROUTES.about);
 }
 

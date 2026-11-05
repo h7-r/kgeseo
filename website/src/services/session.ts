@@ -43,7 +43,7 @@ function readSession(): StoredSession | null {
     if (!raw) return null;
     const session: unknown = JSON.parse(raw);
     // 모양이 어긋난 값은 만료된 세션처럼 지운다.
-    if (!isStoredSession(session) || !session.signedInAt || Date.now() - session.signedInAt > SESSION_TTL_MS) {
+    if (!isStoredSession(session) || (import.meta.env.PROD && session.isTest) || !session.signedInAt || Date.now() - session.signedInAt > SESSION_TTL_MS) {
       sessionStorage.removeItem(STORAGE_KEY);
       return null;
     }
@@ -60,6 +60,7 @@ export function getSessionUser(): SessionUser | null {
 }
 
 export function signIn(user: SessionUser) {
+  if (import.meta.env.PROD && user.isTest) return;
   // 비밀번호 해시 같은 값이 실수로 섞이지 않게 필요한 필드만 골라 담는다.
   const session: StoredSession = {
     id: user.id,

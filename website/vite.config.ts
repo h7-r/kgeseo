@@ -1,6 +1,8 @@
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
+
+import { apiOrigin, gameEntry } from "../shared/deploymentUrls";
 
 // 개발 서버에서만: 잡히지 않은 오류를 탭 제목과 window.__errors 에 남긴다.
 function devErrorCollector(): Plugin {
@@ -55,7 +57,12 @@ function minifyGlsl(): Plugin {
   };
 }
 
-export default defineConfig({
+export default defineConfig(({ command, mode }) => {
+  const env = loadEnv(mode, fileURLToPath(new URL(".", import.meta.url)), "VITE_");
+  const production = command === "build";
+  apiOrigin(env.VITE_API_ORIGIN, production);
+  if (env.VITE_GAME_URL) gameEntry(env.VITE_GAME_URL, env.VITE_GAME_ENTRY_PATH || "/character-creation", production);
+  return {
   root: fileURLToPath(new URL(".", import.meta.url)),
   plugins: [react(), devErrorCollector(), stripHtmlComments(), minifyGlsl()],
   resolve: {
@@ -70,4 +77,5 @@ export default defineConfig({
       "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
     },
   },
+  };
 });

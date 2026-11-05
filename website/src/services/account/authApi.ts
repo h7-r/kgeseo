@@ -1,10 +1,11 @@
 import type { SessionUser } from "@/services/session";
 
 import { normalizeEmail, type ConsentKind } from "./db";
+import { AUTH_API_ORIGIN } from "./apiOrigin";
 import { TEST_ACCOUNT } from "./testAccount";
 
 /** 백엔드 인증 API(/api/v1/auth). 개발 서버는 vite proxy 로 127.0.0.1:8000 에 넘긴다. */
-const AUTH_API = "/api/v1/auth";
+const AUTH_API = `${AUTH_API_ORIGIN}/api/v1/auth`;
 
 const SERVER_ERROR_MESSAGE = "서버와 통신하지 못했습니다. 잠시 후 다시 시도해 주세요.";
 const INPUT_ERROR_MESSAGE = "입력값을 다시 확인해 주세요.";
