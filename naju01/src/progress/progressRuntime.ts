@@ -51,6 +51,8 @@ export interface ProgressRuntimeOptions {
 
 export type SubmitResult = SendOutcome | Extract<PrepareResult, { ok: false }>;
 
+export type ProgressAvailability = "ready" | "not-configured" | "session-not-ready";
+
 /** 서버가 처리했다고 답했는가(sent 만). not-sent · unreachable · conflict · 미매핑 등은 false */
 export const isServerApplied = (result: SubmitResult): result is Extract<SendOutcome, { kind: "sent" }> =>
   "kind" in result && result.kind === "sent";
@@ -116,6 +118,11 @@ export function createProgressRuntime(options: ProgressRuntimeOptions) {
       table = next ? createProgressIdMap(next) : null;
     },
     hasIdTable: () => table !== null,
+    /** 지금 보낼 수 있는가 — 대응표 없음(확정 전) · 세션 준비 안 됨을 보내 보기 전에 가린다(미매핑 진단을 남기지 않는다) */
+    availability(): ProgressAvailability {
+      if (table === null) return "not-configured";
+      return session.getStatus().phase === "ready" ? "ready" : "session-not-ready";
+    },
     /** 퍼즐 · 구역 코드가 부르는 곳. 결과를 그대로 돌려준다(성공은 isServerApplied 로 가린다) */
     submit: (intent: ProgressIntent): Promise<SubmitResult> => sync.submit(intent),
     /** 같은 이벤트로 다시 보내야 할 때(부르는 쪽이 정한다) — prepare 한 것을 send 로 */

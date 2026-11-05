@@ -21,6 +21,9 @@ import {
   type PreparedInteraction,
   type SendOutcome,
 } from "../src/progress/progressSync.ts";
+import { NAJU_LOCAL } from "../src/progress/najuLocalIds.ts";
+import { createProgressRuntime, isServerApplied } from "../src/progress/progressRuntime.ts";
+import { createPuzzleSubmission } from "../src/progress/puzzleSubmission.ts";
 
 const BASE = process.env.PROGRESS_SYNC_IT_BASE ?? "";
 const CASE = { caseId: "progress_sync_it", contentVersion: 1 };
@@ -242,5 +245,78 @@ describe("progressSync ↔ 실제 Interaction API", { skip: BASE ? false : "PROG
     const outcome = await sync.submit({ action: "complete", zone: "it-b", object: "it-unknown" });
     assert.deepEqual(outcome, { ok: false, reason: "unmapped", kind: "object", localId: "it-unknown" });
     assert.equal(wire.length, before);
+  });
+});
+
+// ── P03 · P07 시범 연결 경로(puzzleSubmission + najuLocalIds) — 새 Play Session ──
+// 로컬 이름은 najuLocalIds 의 제안 값, 런타임 ID 는 가상 케이스. 정답 「가상답」은 가상 케이스의 값이다(나주 정답 아님).
+describe("puzzleSubmission ↔ 실제 Interaction API", { skip: BASE ? false : "PROGRESS_SYNC_IT_BASE 없음" }, () => {
+  const session = createCompanionSession({ config: CASE, storage: memoryStore() });
+  const runtime = createProgressRuntime({
+    session,
+    ids: {
+      zones: { [NAJU_LOCAL.zones.caveHall]: "ZONE_IT_A", [NAJU_LOCAL.zones.Z2]: "ZONE_IT_B" },
+      objects: { [NAJU_LOCAL.objects.P07]: "OBJ_IT_SKILL", [NAJU_LOCAL.objects.P03]: "OBJ_IT_LOCK" },
+    },
+  });
+  const p07 = createPuzzleSubmission(runtime);
+  const p03 = createPuzzleSubmission(runtime);
+  const P07_INTENT = { action: "complete", zone: NAJU_LOCAL.zones.caveHall, object: NAJU_LOCAL.objects.P07 } as const;
+  const p03Intent = (answer: string) =>
+    ({ action: "input", zone: NAJU_LOCAL.zones.Z2, object: NAJU_LOCAL.objects.P03, answer }) as const;
+  /** 이만큼 다음 요청을 연결 실패로 만든다(서버에는 닿지 않는다) */
+  let dropNext = 0;
+  const bodies: string[] = [];
+
+  before(async () => {
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" && input.startsWith("/") ? BASE + input : input;
+      if (String(input).endsWith("/interactions") && typeof init?.body === "string") bodies.push(init.body);
+      if (dropNext > 0) {
+        dropNext -= 1;
+        throw new TypeError("fetch failed");
+      }
+      return realFetch(url, init);
+    }) as typeof fetch;
+    const status = await session.start();
+    assert.equal(status.phase, "ready", JSON.stringify(status));
+  });
+  after(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  test("S1. P07형 complete: correct → 다시 신고하면 already-completed", async () => {
+    assert.equal(runtime.availability(), "ready");
+    assert.deepEqual(await p07.submit(P07_INTENT), { kind: "correct" });
+    assert.equal(p07.state(), "done");
+    assert.deepEqual(await p07.submit(P07_INTENT), { kind: "already-completed" });
+  });
+
+  test("S2. P03형 input: 오답 incorrect, 연결 끊김은 같은 이벤트로 retry → correct, 다시 내면 already-completed", async () => {
+    const moved = await runtime.submit({ action: "navigate", fromZone: NAJU_LOCAL.zones.caveHall, toZone: NAJU_LOCAL.zones.Z2 });
+    assert.ok(isServerApplied(moved));
+    assert.deepEqual(await p03.submit(p03Intent("틀린답")), { kind: "incorrect", attemptCount: 1 });
+
+    dropNext = 3; // 처음 1 + 기본 재시도 2 모두 실패
+    const before = bodies.length;
+    assert.deepEqual(await p03.submit(p03Intent("가상답")), { kind: "retryable", reason: "unreachable" });
+    assert.equal(p03.canRetry(), true);
+    assert.deepEqual(await p03.retry(), { kind: "correct" });
+    const sent = bodies.slice(before);
+    assert.equal(sent.length, 4);
+    assert.equal(new Set(sent).size, 1); // 네 번 모두 같은 이벤트 · 같은 본문
+
+    assert.deepEqual(await p03.submit(p03Intent("가상답")), { kind: "already-completed" });
+    const state = (await loadPlaySession((session.getStatus() as { playSessionId: string }).playSessionId)).state;
+    assert.deepEqual((state as { completed_puzzle_ids?: string[] }).completed_puzzle_ids?.sort(), [
+      "PZ_IT_INPUT",
+      "PZ_IT_SKILL",
+    ]);
+  });
+
+  test("S3. 다른 Zone 물건이면 failed(zone-not-current) — 쥐지 않는다", async () => {
+    const verdict = await p07.submit(P07_INTENT); // 지금 서버 Zone 은 ZONE_IT_B
+    assert.deepEqual(verdict, { kind: "failed", reason: "zone-not-current" });
+    assert.equal(p07.canRetry(), false);
   });
 });

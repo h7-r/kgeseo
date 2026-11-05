@@ -3,7 +3,12 @@
  * 장독대 위 항아리 여섯은 크기가 다르고 저마다 다른 음이 난다(크기와 음높이는 상관없다).
  * 가까이 가면 바탕음이 잦아들고 8초마다 절벽 바위 틈의 낙숫물(기우제 전엔 비가 오지 않는다)이 자리 왼쪽부터 순서대로 항아리를 친다.
  * [E] 로 항아리를 들고, 놓을 자리에 [E] 를 누르면 거기 끼워지고 나머지가 밀려난다.
- * 빗방울이 「도 미 솔 도 미 솔」(두 옥타브 오름)을 치도록 늘어놓으면(적어도 세 번 옮겨야 한다) 가장 큰 항아리의 뚜껑이 열리고 쌀을 챙길 수 있다.
+ * 빗방울이 정답 가락을 치도록 늘어놓으면 가장 큰 항아리의 뚜껑이 열리고 쌀을 챙길 수 있다.
+ *
+ * 판정(P03, 서버 판정 input): 항아리를 놓을 때마다 자리 순서를 서버로 보낸다(najuProgress). 서버가 correct ·
+ * already_completed 라고 답할 때만 뚜껑이 열린다 — 정답은 서버(server.json)에만 있다.
+ * 서버로 보낼 수 없으면(대응표 확정 전 · 세션 없음) 개발 빌드에서만 jarLocalJudge.dev 로 판정하고,
+ * 배포 빌드에서는 열지 않고 「연결 필요」를 띄운다. 연결이 끊기면 같은 이벤트를 [E] 로 다시 보낸다.
  */
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -11,12 +16,16 @@ import { useFrame } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { NAJU_LOCAL } from "../../progress/najuLocalIds";
+import { najuProgress } from "../../progress/najuProgress";
+import { createPuzzleSubmission, verdictNotice, type PuzzleVerdict } from "../../progress/puzzleSubmission";
 import { audio } from "../../scene/immersion/audio";
 import { setMusicDuck } from "../../transition/loadingVideo";
 import { registerInteractable, showNotice } from "../interaction";
 import { inventory } from "../inventory";
 import { makeToonMaterial } from "../materials";
 import { M, groundY } from "../units";
+import { jarOrderAnswer } from "./jarAnswer";
 import { jarPuzzle, useJarStage } from "./jarState";
 import { JAR_SITE, JAR_SLAB } from "./site";
 
@@ -31,12 +40,9 @@ const PITCH: Record<Note, number> = {
   "높은 미": 659.25,
   "높은 솔": 783.99,
 };
-/** 정답 — 빗방울이 자리 순서로 이 가락을 치게 늘어놓는다 */
-const ANSWER: Note[] = ["도", "미", "솔", "높은 도", "높은 미", "높은 솔"];
-
 /**
  * 처음 놓인 순서(왼쪽부터). 크기와 음높이는 상관없다. 쌀은 가장 큰 항아리에.
- * 정답 순서로 치면 3 0 5 1 4 2 — 오르는 줄이 길어야 셋(0 1 2)이라, 한 번에 하나씩 끼워서는 적어도 세 번 옮겨야 한다.
+ * 정답은 이 파일에 두지 않는다(서버 판정). 개발용 로컬 판정은 jarLocalJudge.dev.ts.
  */
 const JARS: { height: number; note: Note }[] = [
   { height: 0.55, note: "높은 도" },
@@ -229,6 +235,10 @@ export default function JarPuzzle() {
   const lidOpenedAtRef = useRef(-1);
   const isRiceGivenRef = useRef(false);
   const clockRef = useRef(0);
+  /** 서버 판정을 기다리는 동안은 항아리를 들 수 없다(보낸 순서와 놓인 순서가 어긋나지 않게) */
+  const isJudgingRef = useRef(false);
+  /** P03 제출 — 연결이 끊긴 이벤트는 여기 쥐고 [E] 로 같은 이벤트를 다시 보낸다 */
+  const submission = useMemo(() => createPuzzleSubmission(najuProgress), []);
 
   useEffect(
     () => () => {
@@ -245,8 +255,60 @@ export default function JarPuzzle() {
   );
 
   useEffect(() => {
+    /** 뚜껑을 여는 쪽은 여기 하나 — 서버 correct · already_completed · 개발용 로컬 판정. 두 번 불려도 한 번만 연다 */
+    const solve = () => {
+      if (isSolvedRef.current) return;
+      isSolvedRef.current = true;
+      // 바뀐 순서로 빗방울이 정답 가락을 다 친 뒤에 뚜껑이 열린다
+      lidOpenedAtRef.current =
+        Math.max(nextRainAtRef.current, clockRef.current) + (JARS.length - 1) * NOTE_GAP + DROP_SECONDS + 0.7;
+    };
+    const settle = async (verdict: PuzzleVerdict, order: readonly number[]) => {
+      if (verdict.kind === "correct" || verdict.kind === "already-completed") {
+        solve();
+        return;
+      }
+      // 서버를 쓸 수 없을 때만, 개발 빌드에서만 — 배포 빌드에는 이 분기와 정답 파일이 들어가지 않는다
+      if (import.meta.env.DEV) {
+        if (verdict.kind === "unavailable") {
+          const { isLocalJarOrderCorrect } = await import("./jarLocalJudge.dev");
+          if (isLocalJarOrderCorrect(order.map((jar) => JARS[jar].note))) solve();
+          return;
+        }
+      }
+      // incorrect 는 조용히(빗방울 가락으로 듣는다). 그 밖에는 안내만 — 완료로 보지 않는다
+      const notice = verdictNotice(verdict);
+      if (notice) showNotice(notice, 4.5);
+    };
+    const judge = async (order: readonly number[]) => {
+      isJudgingRef.current = true;
+      try {
+        const verdict = await submission.submit({
+          action: "input",
+          zone: NAJU_LOCAL.zones.Z2,
+          object: NAJU_LOCAL.objects.P03,
+          answer: jarOrderAnswer(order),
+        });
+        await settle(verdict, order);
+      } finally {
+        isJudgingRef.current = false;
+      }
+    };
+    /** 연결이 끊겨 쥔 같은 이벤트를 다시 보낸다(새 이벤트를 만들지 않는다) */
+    const retry = async () => {
+      if (isJudgingRef.current) return;
+      const order = [...orderRef.current];
+      isJudgingRef.current = true;
+      try {
+        const verdict = await submission.retry();
+        if (verdict) await settle(verdict, order);
+      } finally {
+        isJudgingRef.current = false;
+      }
+    };
+    const canHandle = () => !isSolvedRef.current && !isJudgingRef.current && !submission.canRetry();
     const lift = (jar: number) => {
-      if (heldRef.current !== null || isSolvedRef.current) return;
+      if (heldRef.current !== null || !canHandle()) return;
       heldRef.current = jar;
       audio.jar(PITCH[JARS[jar].note], jars[jar].top, true);
       showNotice("항아리를 들었다. 놓을 자리를 보고 [E]", 2.6);
@@ -261,12 +323,9 @@ export default function JarPuzzle() {
       orderRef.current = next;
       audio.jar(PITCH[JARS[jar].note], slotTargets[slot], true);
       nextRainAtRef.current = clockRef.current + RAIN_AFTER_PLACE;
-      if (next.every((entry, k) => JARS[entry].note === ANSWER[k])) {
-        isSolvedRef.current = true;
-        // 바뀐 순서로 빗방울이 정답 가락을 다 친 뒤에 뚜껑이 열린다
-        lidOpenedAtRef.current = nextRainAtRef.current + (ANSWER.length - 1) * NOTE_GAP + DROP_SECONDS + 0.7;
-      }
+      void judge(next);
     };
+    const slabCenter = slotTargets[0].clone().lerp(slotTargets[slotTargets.length - 1], 0.5);
     const disposers = [
       ...jars.map((jar, index) =>
         registerInteractable({
@@ -275,10 +334,20 @@ export default function JarPuzzle() {
           label: "항아리 들기",
           radius: Math.max(0.25, 0.45 * JARS[index].height) * M,
           reach: 2.6 * M,
-          enabled: () => heldRef.current === null && !isSolvedRef.current,
+          enabled: () => heldRef.current === null && canHandle(),
           use: () => lift(index),
         }),
       ),
+      // 연결이 끊겨 판정을 못 받았을 때만 — 항아리는 잠그고 이것만 [E] 로 쓴다
+      registerInteractable({
+        id: "jar-sync-retry",
+        position: slabCenter,
+        label: "판정 다시 받기",
+        radius: 0.9 * M,
+        reach: 3 * M,
+        enabled: () => submission.canRetry() && !isJudgingRef.current,
+        use: () => void retry(),
+      }),
       ...slotTargets.map((position, slot) =>
         registerInteractable({
           id: `jar-slot-${slot}`,
@@ -298,7 +367,7 @@ export default function JarPuzzle() {
         order: () => orderRef.current.map((jar) => JARS[jar].note),
       });
     return () => disposers.forEach((dispose) => dispose());
-  }, [jars, slotTargets]);
+  }, [jars, slotTargets, submission]);
 
   useFrame(({ camera }, delta) => {
     const dt = Math.min(delta, 0.1);
