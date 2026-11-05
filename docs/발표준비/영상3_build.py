@@ -14,7 +14,7 @@ SRC = {1: (0.2, 1.0), 2: (0.0, 1.0), 3: (0.0, 1.0), 4: (0.2, 1.0), 5: (0.3, 1.0)
        6: (0.5, 1.0), 7: (0.4, 1.0), 8: (0.1, 1.0), 9: (0.0, 1.0)}
 DARK_AT = {2, 4, 5, 7}          # 컷 시작에 한 장 어둡게(0.06초) — 코드: edge·hands·fall·flee
 WHITE_AT = {8}                  # 물보라 첫 0.12초 하얀 섬광 — 코드: impact
-CUES = [(5.4, "rumble"), (7.5, "gong"), (21.0, "splash")]   # SHADOW_PLAY_CUES
+CUES = [(5.4, "rumble"), (7.5, "gong"), (19.1, "splash")]   # SHADOW_PLAY_CUES
 
 def run(*a): subprocess.check_call(["ffmpeg", "-nostdin", "-v", "error", "-y", *a])
 
