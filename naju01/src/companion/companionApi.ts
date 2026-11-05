@@ -7,6 +7,10 @@
  * 이 파일은 React · 별칭(@/) 을 쓰지 않는다 — node --test 로 바로 돈다(naju01/tests).
  */
 
+import { apiOrigin } from "../../../shared/deploymentUrls.ts";
+
+const API_ORIGIN = apiOrigin(import.meta.env?.VITE_API_ORIGIN, import.meta.env?.PROD ?? false);
+
 /** 서버 오류 — 화면에는 code 로 고른 한국어 문구만 띄우고, 영문 detail 은 콘솔에만 남긴다. */
 export class CompanionApiError extends Error {
   readonly status: number | null;
@@ -157,7 +161,7 @@ async function requestOnce(path: string, init: RequestInit, timeoutMs: number): 
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
-    response = await fetch(path, {
+    response = await fetch(`${API_ORIGIN}${path}`, {
       ...init,
       headers: { Accept: "application/json", ...(init.body ? { "Content-Type": "application/json" } : {}) },
       signal: controller.signal,
