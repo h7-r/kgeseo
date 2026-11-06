@@ -21,8 +21,32 @@ const TOON = { ...DEFAULT_TOON, enabled: !IS_LOBBY_TOON_DISABLED };
 const OUTLINE = { ...DEFAULT_OUTLINE, enabled: !IS_LOBBY_OUTLINE_DISABLED };
 /** 따라가는 시간 상수(초) — 서버 패치 100ms 와 맞춘다 🟡 */
 const FOLLOW_SECONDS = 0.1;
-/** 머리 위 이름표 높이 — 발바닥에서 눈높이보다 약 25cm 위(유닛) */
-const LABEL_HEIGHT = EYE_HEIGHT + 0.25 * UNITS_PER_METER;
+/** 머리뼈(head, 목과 머리 이음매)에서 이름표까지 — 머리 꼭대기 바로 위(약 40cm, 유닛) 🟡 화면 보고 맞춤 */
+const LABEL_ABOVE_HEAD_BONE = 0.4 * UNITS_PER_METER;
+/** 머리뼈를 아직 못 찾았을 때(모델 내려받는 중) 발바닥에서의 높이 */
+const LABEL_FALLBACK_HEIGHT = EYE_HEIGHT;
+/** 원격 아바타를 담는 그룹 이름 — 내 머리뼈를 찾을 때 원격 아바타는 빼려고 */
+const REMOTE_ROOT_NAME = "lobby-remote-players";
+
+const headBoneOf = (root: THREE.Object3D | null): THREE.Object3D | null => {
+  let found: THREE.Object3D | null = null;
+  root?.traverse((object) => {
+    if (!found && (object as THREE.Bone).isBone && object.name.toLowerCase() === "head") found = object;
+  });
+  return found;
+};
+const scratch = new THREE.Vector3();
+
+/** 이름표 자리: 머리뼈가 있으면 그 위, 없으면 발바닥 기준. 키·머리 크기·애니메이션을 그대로 따른다 */
+function placeLabel(label: THREE.Object3D | null, head: THREE.Object3D | null, x: number, footY: number, z: number) {
+  if (!label) return;
+  if (head) {
+    head.getWorldPosition(scratch);
+    label.position.set(scratch.x, scratch.y + LABEL_ABOVE_HEAD_BONE, scratch.z);
+  } else {
+    label.position.set(x, footY + LABEL_FALLBACK_HEIGHT, z);
+  }
+}
 
 function createLink(view: RemotePlayerView): AvatarLink {
   return {
@@ -93,6 +117,8 @@ function RemoteAvatar({
   const first = connection.players().get(sid);
   const linkRef = useRef<AvatarLink>(createLink(first as RemotePlayerView));
   const labelRef = useRef<THREE.Group>(null);
+  const avatarRef = useRef<THREE.Group>(null);
+  const headRef = useRef<THREE.Object3D | null>(null);
   const [look, setLook] = useState(first?.look ?? "");
   const [nickname, setNickname] = useState(first?.nickname ?? "");
   const [bubble, setBubble] = useState<string | null>(null);
@@ -115,9 +141,14 @@ function RemoteAvatar({
     link.moving = view.gait !== "idle" && link.speed > 0.05;
     link.running = view.gait === "run";
     link.crouching = view.gait === "crouch";
-    labelRef.current?.position.set(link.position.x, link.footY + LABEL_HEIGHT, link.position.z);
+    // 외형이 바뀌면 모델이 새로 붙으니 머리뼈를 다시 찾는다
+    if (!headRef.current?.parent) headRef.current = headBoneOf(avatarRef.current);
+    placeLabel(labelRef.current, headRef.current, link.position.x, link.footY, link.position.z);
     // 외형·이름이 바뀌었을 때만 다시 그린다(매 프레임 setState 하지 않는다)
-    if (view.look !== look) setLook(view.look);
+    if (view.look !== look) {
+      headRef.current = null;
+      setLook(view.look);
+    }
     if (view.nickname !== nickname) setNickname(view.nickname);
     const said = bubbles.get(sid);
     const text = said && said.until > Date.now() ? said.text : null;
@@ -126,17 +157,19 @@ function RemoteAvatar({
 
   return (
     <>
-      <Suspense fallback={null}>
-        <LobbyChibi
-          visible
-          playerRef={linkRef}
-          config={config}
-          body={LOBBY_AVATAR_BODY}
-          toon={TOON}
-          outline={OUTLINE}
-          framePriority={FRAME_PRIORITY.avatar - 1}
-        />
-      </Suspense>
+      <group ref={avatarRef}>
+        <Suspense fallback={null}>
+          <LobbyChibi
+            visible
+            playerRef={linkRef}
+            config={config}
+            body={LOBBY_AVATAR_BODY}
+            toon={TOON}
+            outline={OUTLINE}
+            framePriority={FRAME_PRIORITY.avatar - 1}
+          />
+        </Suspense>
+      </group>
       <group ref={labelRef}>
         <NameTag name={nickname} bubble={bubble} />
       </group>
@@ -147,6 +180,7 @@ function RemoteAvatar({
 /**
  * 내 머리 위: 조사관명(3인칭일 때만 — 1인칭에선 눈 바로 위라 화면 위 끝에 걸린다)과 내 말풍선.
  * 이름은 방 상태의 내 항목(서버가 입장권에서 넣은 값)을 쓴다 — 남이 보는 이름과 같다.
+ * 높이는 원격과 같은 규칙(내 아바타의 머리뼈 위).
  */
 export function LocalLabel({
   getSid,
@@ -162,11 +196,31 @@ export function LocalLabel({
   bubbles: ReadonlyMap<string, { text: string; until: number }>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  const headRef = useRef<THREE.Object3D | null>(null);
+  const lastSearchRef = useRef(0);
   const [text, setText] = useState<string | null>(null);
   const [name, setName] = useState("");
-  useFrame(() => {
+  useFrame(({ scene }) => {
     const eye = getEye();
-    groupRef.current?.position.set(eye.x, eye.y - EYE_HEIGHT + LABEL_HEIGHT, eye.z);
+    // 내 아바타는 App 이 그려 참조가 없다 — 내 자리(가로 1.5 유닛 안)에 가장 가까운, 원격 그룹 밖 머리뼈를 1초마다 고른다
+    const now = performance.now();
+    if (now - lastSearchRef.current > 1000) {
+      lastSearchRef.current = now;
+      let best: THREE.Object3D | null = null;
+      let bestDistance = 1.5;
+      scene.traverse((object) => {
+        if (!(object as THREE.Bone).isBone || object.name.toLowerCase() !== "head") return;
+        for (let parent = object.parent; parent; parent = parent.parent) if (parent.name === REMOTE_ROOT_NAME) return;
+        object.getWorldPosition(scratch);
+        const distance = Math.hypot(scratch.x - eye.x, scratch.z - eye.z);
+        if (distance < bestDistance) {
+          best = object;
+          bestDistance = distance;
+        }
+      });
+      headRef.current = best;
+    }
+    placeLabel(groupRef.current, headRef.current, eye.x, eye.y - EYE_HEIGHT, eye.z);
     const sid = getSid();
     const said = sid ? bubbles.get(sid) : undefined;
     const next = said && said.until > Date.now() ? said.text : null;
@@ -194,10 +248,10 @@ export default function RemotePlayers({
     if (next.length !== sids.length || next.some((sid, index) => sid !== sids[index])) setSids(next);
   });
   return (
-    <>
+    <group name={REMOTE_ROOT_NAME}>
       {sids.map((sid) => (
         <RemoteAvatar key={sid} sid={sid} connection={connection} bubbles={bubbles} />
       ))}
-    </>
+    </group>
   );
 }
