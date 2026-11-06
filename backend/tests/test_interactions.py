@@ -643,6 +643,7 @@ def test_openapi_exposes_v032_flat_contract(client: TestClient) -> None:
         "#/components/schemas/InputInteractionRequest",
         "#/components/schemas/SelectInteractionRequest",
         "#/components/schemas/CombineCluesInteractionRequest",
+        "#/components/schemas/CompleteInteractionRequest",
     }
     assert response_schema == {"$ref": "#/components/schemas/InteractionApiResponse"}
     response_properties = openapi["components"]["schemas"]["InteractionApiResponse"][

@@ -1,3 +1,4 @@
+import { gameEntry } from "../../../shared/deploymentUrls.ts";
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -83,7 +84,7 @@ export type NavTarget = RoutePath | `${RoutePath}?${string}` | typeof START_GAME
 const GAME_URL = import.meta.env.VITE_GAME_URL || (import.meta.env.DEV ? "http://localhost:5173" : "");
 
 // 본편과의 계약: 캐릭터 생성 화면에서 시작하고, 전환 영상을 이어 틀 초와 가입 닉네임을 질의로 넘긴다.
-const GAME_ENTRY_PATH = "/character-creation";
+const GAME_ENTRY_PATH = import.meta.env.VITE_GAME_ENTRY_PATH || "/character-creation";
 export const GAME_TRANSITION_PARAM = "transition";
 const GAME_NICKNAME_PARAM = "nickname";
 
@@ -109,7 +110,8 @@ export function launchGame(navigate: (path: RoutePath) => void) {
     navigate(ROUTES.about);
     return;
   }
-  const url = new URL(GAME_URL.replace(/\/$/, "") + GAME_ENTRY_PATH);
+  // gameEntry: 게임 출처 · 내부 경로만 받는다(운영은 HTTPS)
+  const url = new URL(gameEntry(GAME_URL, GAME_ENTRY_PATH, import.meta.env.PROD));
   const nickname = getSessionUser()?.name;
   if (nickname) url.searchParams.set(GAME_NICKNAME_PARAM, nickname);
   openGameTransition(url.href);

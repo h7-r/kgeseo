@@ -5,13 +5,25 @@
  *     빛나는 진주를 똑바로 향하면 그 사이에 빛줄기가 이어지고 그 조개의 진주도 빛난다. 큰 조개까지 닿으면 큰 조개가 열린다
  *   큰 조개가 열리면 큰 진주를 [E] 로 챙길 수 있다. 모래 곳곳의 작은 검은 점은 조개 숨구멍(장식)
  * 물고기 굴은 FishBurrows, 자리와 빛길 셈은 lightLayout. 규칙은 가까이 가면 안내판에 뜬다. 자리는 미터.
+ *
+ * 진주 빛 잇기(P07, 화면 판정 client_skill): 풀린 순간 한 번만 서버에 complete 를 보낸다(najuProgress).
+ * 화면 판정이라 큰 조개 · 톱니돌 연출은 서버 응답을 기다리지 않는다. 보낼 수 없으면(대응표 확정 전 · 세션 없음) 보내지 않는다.
+ * 연결이 끊기면 같은 이벤트를 쥐고, 큰 조개 [E] 로 다시 보낸다(자동 재전송 없음).
  */
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { NAJU_LOCAL } from "../../progress/najuLocalIds";
+import { najuProgress } from "../../progress/najuProgress";
+import {
+  createPuzzleSubmission,
+  verdictNotice,
+  type PuzzleVerdict,
+  type SubmissionState,
+} from "../../progress/puzzleSubmission";
 import { useRememberedState } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { makeGlowTexture } from "../glowTexture";
@@ -155,6 +167,11 @@ export default function AirStations() {
   }, [facings]);
   const light = useMemo(() => traceLight(facings), [facings]);
   const reachedSince = useRef(0);
+  /** P07 완료 신고 — 매 프레임 solveLight 가 불려도 한 번만 보낸다 */
+  const isLightReportedRef = useRef(false);
+  const [lightSync, setLightSync] = useState<SubmissionState>("idle");
+  const lightSubmission = useMemo(() => createPuzzleSubmission(najuProgress, { onChange: setLightSync }), []);
+  const canRetryLight = lightSync === "retryable";
 
   const assets = useMemo(() => createStationAssets(), []);
   useEffect(() => () => disposeStationAssets(assets), [assets]);
@@ -209,8 +226,28 @@ export default function AirStations() {
     audio.play("똑");
   };
 
+  /** 화면 판정 결과는 그대로 두고 서버 기록만 맞춘다 — 실패는 안내만, 완료를 되돌리지 않는다 */
+  const noteLightVerdict = (verdict: PuzzleVerdict | null) => {
+    if (!verdict || verdict.kind === "unavailable") return;
+    const notice = verdictNotice(verdict);
+    if (notice) showNotice(notice, 4.5);
+  };
+  const reportLight = async () => {
+    if (isLightReportedRef.current) return;
+    isLightReportedRef.current = true;
+    noteLightVerdict(
+      await lightSubmission.submit({
+        action: "complete",
+        zone: NAJU_LOCAL.zones.caveHall,
+        object: NAJU_LOCAL.objects.P07,
+      }),
+    );
+  };
+  const retryLight = async () => noteLightVerdict(await lightSubmission.retry());
+
   const solveLight = () => {
     if (isLightSolved) return;
+    void reportLight();
     setIsLightSolved(true);
     audio.play("징");
     showNotice("빛이 큰 진주에 닿자 큰 조개가 입을 활짝 열며 거품을 토한다 — 안에 톱니돌이 있다.", 5.5);
@@ -238,7 +275,7 @@ export default function AirStations() {
   };
 
   // 상호작용 · 개발 훅은 늘 최신 풀이 함수를 부른다
-  const actions = { tiltJar, turnClam, solveLight, takePearl };
+  const actions = { tiltJar, turnClam, solveLight, takePearl, retryLight };
   const actionsRef = useRef(actions);
   useLayoutEffect(() => {
     actionsRef.current = actions;
@@ -283,19 +320,31 @@ export default function AirStations() {
       registerInteractable({
         id: "cave-big-clam",
         position: spots.bigClam,
-        label: isLightSolved ? (isPearlTaken ? "큰 조개 — 공기가 솟는다" : "큰 진주 챙기기") : "큰 조개 살펴보기",
+        // 진행 기록이 연결 끊김으로 남았으면 큰 조개 [E] 가 그것부터 다시 보낸다
+        label: canRetryLight
+          ? "진행 다시 보내기"
+          : isLightSolved
+            ? isPearlTaken
+              ? "큰 조개 — 공기가 솟는다"
+              : "큰 진주 챙기기"
+            : "큰 조개 살펴보기",
         radius: 0.75 * M,
         reach: 3 * M,
-        enabled: () => !isLightSolved || !isPearlTaken,
+        enabled: () => !isLightSolved || !isPearlTaken || canRetryLight,
         use: () =>
-          isLightSolved
-            ? actionsRef.current.takePearl()
-            : showNotice("큰 조개가 입을 꼭 다물고 있다. 틈새로 진주 빛이 비친다 — 빛이 곧장 닿으면 열릴 것 같다.", 5),
+          canRetryLight
+            ? void actionsRef.current.retryLight()
+            : isLightSolved
+              ? actionsRef.current.takePearl()
+              : showNotice(
+                  "큰 조개가 입을 꼭 다물고 있다. 틈새로 진주 빛이 비친다 — 빛이 곧장 닿으면 열릴 것 같다.",
+                  5,
+                ),
         highlight: () => bigClamGroup.current,
       }),
     ];
     return () => disposers.forEach((dispose) => dispose());
-  }, [isShown, isJarTilted, isLightSolved, isPearlTaken, spots]);
+  }, [isShown, isJarTilted, isLightSolved, isPearlTaken, spots, canRetryLight]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;

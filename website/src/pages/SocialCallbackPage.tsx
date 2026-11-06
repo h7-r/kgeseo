@@ -3,13 +3,16 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { FONT } from "@/lib/style";
 import { ROUTES } from "@/navigation/routes";
-import { signInWithNaverCallback, takeNaverReturnPath } from "@/services/account/naverAuth";
+import { signInWithNaverCallback } from "@/services/account/naverAuth";
 import { holdOnboarding } from "@/services/account/socialAuthApi";
 import { signIn } from "@/services/session";
 
 const CHECKING_MESSAGE = "네이버 로그인을 확인하는 중…";
 
-/** 네이버 인가 화면에서 돌아오는 자리. 기존 회원은 로그인하고 홈으로, 처음 온 계정은 가입 화면으로 간다. */
+/**
+ * 네이버 인가 화면에서 돌아오는 자리. 기존 회원은 로그인하고 떠나기 전에 남긴 곳(없으면 홈)으로,
+ * 처음 온 계정은 가입 화면으로 간다. 가입을 마치면 같은 곳으로 간다.
+ */
 export default function SocialCallbackPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -18,18 +21,17 @@ export default function SocialCallbackPage() {
   useEffect(() => {
     let alive = true;
     signInWithNaverCallback(searchParams)
-      .then((result) => {
+      .then(({ result, returnTo }) => {
         if (!alive) return;
-        const returnPath = takeNaverReturnPath();
         if (result.kind === "signedIn") {
           signIn(result.user);
-          navigate(ROUTES.home, { replace: true });
+          navigate(returnTo ?? ROUTES.home, { replace: true });
           return;
         }
         // replace: 뒤로 가기로 code·state 가 남은 콜백 주소에 돌아오지 않게. 증표는 메모리로만 넘긴다.
-        holdOnboarding(result.onboarding);
+        holdOnboarding(result.onboarding, returnTo);
         // 홈에서 시작했으면 홈 패널이 그 자리에서 이어받는다.
-        navigate(returnPath === ROUTES.home ? ROUTES.home : ROUTES.socialOnboarding, { replace: true });
+        navigate(returnTo === ROUTES.home ? ROUTES.home : ROUTES.socialOnboarding, { replace: true });
       })
       .catch((error: unknown) => {
         if (!alive) return;

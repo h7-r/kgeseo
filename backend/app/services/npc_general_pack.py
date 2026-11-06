@@ -33,7 +33,7 @@ from app.repositories.npc_publication import NpcPublicationRepository
 from app.schemas.gate_review import ApprovalTarget
 from app.schemas.npc_content import GeneralLinePack
 from app.services.approval_history import ApprovalSource
-from app.services.dialogue_pack_policy import PublishedCase
+from app.services.dialogue_pack_policy import PublishedCase, collect_proper_names
 from app.services.hint import server_hint_text
 from app.services.npc_case_access import _records
 from app.services.pinned_content import (
@@ -173,6 +173,7 @@ async def read_published_cases(
                 runtime=bundle.server(),
                 npc=bundle.npc(),
                 hint_source=bundle.hint_source(server_hint_text),
+                proper_names=collect_proper_names(bundle.client(), bundle.npc()),
             )
         )
     return tuple(cases)

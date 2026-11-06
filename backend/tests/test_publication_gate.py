@@ -85,6 +85,8 @@ def base_documents(
         "schema_version": "npc-pack 0.1",
         "case_id": CASE_ID,
         "npc_id": "NPC_COMPANION",
+        "proper_nouns": [],
+        "ng": [],
         "status": "published",
         "approvals": [],
         "generated_at": "2026-10-27T00:00:00Z",

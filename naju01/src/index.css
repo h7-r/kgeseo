@@ -52,3 +52,28 @@ body:has(.game-stage--16x9) {
   width: 100% !important;
   height: 100% !important;
 }
+
+/* 동행 NPC 자막(companion/CompanionHud) — 대사는 아래에서 살짝 떠오르고, 기다림 점은 숨쉬듯 */
+.companion-line {
+  animation: companion-rise 240ms ease-out both;
+}
+.companion-dots {
+  animation: companion-breathe 1.2s ease-in-out infinite;
+}
+@keyframes companion-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes companion-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .companion-line,
+  .companion-dots {
+    animation: none;
+  }
+}

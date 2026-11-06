@@ -1,10 +1,21 @@
 # .env에 있는 MySQL 설정을 Python에서 읽는 파일
-from pydantic import Field, SecretStr
+from typing import Literal
+
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
 
+from app.core.deployment import validate_deployment
+
 
 class Settings(BaseSettings):
+    app_env: Literal["development", "test", "production"] = "development"
+    # cors_origins 는 아래(로그인 쿠키 설정 곁) 하나만 둔다 — production 에서는 validate_deployment 가 HTTPS 정확 origin 을 요구한다
+
+    @model_validator(mode="after")
+    def production_settings(self):
+        return validate_deployment(self)
+
     db_host: str
     db_port: int = 3306
     db_user: str
@@ -50,6 +61,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        hide_input_in_errors=True,
     )
 
     @property

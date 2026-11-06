@@ -1,4 +1,4 @@
-"""일반 대사 팩(dialogue_pack) 정책 검사 v0.2 (PM v0.4.14 §A, 팀 검토 대기).
+"""일반 대사 팩(dialogue_pack) 정책 검사 v0.3 (PM v0.4.15, v0.4.14 §A 확장).
 
 PM 계약: 일반 대사 팩의 사용 조건은 「G3 승인 + 정책 검사 통과」다(v0.4.13 §1). 두 조건은 따로 판정 · 표시한다.
 일반 팩 문장은 정해진 원문이라 정적으로 검사한다(v0.4.14 §A). 실행 중에는 기존 NPC 출력 검사가 그대로 돈다.
@@ -6,7 +6,7 @@ PM 계약: 일반 대사 팩의 사용 조건은 「G3 승인 + 정책 검사 �
 | 코드 | 검사 | 대상 | 근거 데이터 |
 |---|---|---|---|
 | GEN-LEAK | 게시 케이스의 정답 · NG · 미공개 단서 · 힌트와 겹침 없음 | 전 문장 | `check_generated_line`(기존 출력 검사) |
-| GEN-CASE | 게시 케이스 고유명 없음 | 전 문장 | **계약된 고유명 필드 없음 → UNVERIFIED** |
+| GEN-CASE | 게시 케이스 고유명 없음 | 전 문장 | Client object_name + NPC proper_nouns/aliases |
 | GEN-WORD | 기존 금칙어 없음 | 전 문장 | `nickname_policy.forbidden_terms_in` |
 | GEN-SYS | 시스템 용어 없음 | `GENERIC_PAUSE_*` | PM 예시 6개(`SYSTEM_TERMS`) |
 | GEN-TIME | 복귀 시간 약속 없음 | `GENERIC_PAUSE_*` | PM 예시 3개(`TIME_PROMISES`) |
@@ -18,9 +18,8 @@ PM 계약: 일반 대사 팩의 사용 조건은 「G3 승인 + 정책 검사 �
 미공개 문장과 8자 이상 연속 일치 또는 공개되지 않은 핵심어 2개 이상 겹침, NG 패턴 포함이면 위반이다(짧은 정답도 뺀다
 — 기존 규칙). NG 데이터가 없으면(`ng` 없음) 그 케이스는 UNVERIFIED다.
 
-[GEN-CASE] 「설화 인물 · 장소 · 퍼즐 · 단서 이름」을 담는 계약 필드가 없다. 기존 이름 성격 필드(zone_name · object_name ·
-clue title)를 고유명으로 간주하지 않는다(팀 결정 11/4). 고유명 목록(`PublishedCase.proper_names`)이 없으면 그 케이스는
-UNVERIFIED다. 목록이 주어지면 기존 정규화로 포함 여부를 본다.
+[GEN-CASE] PM v0.4.15: Client object_name과 NPC proper_nouns(person/place, aliases 포함)를 검사한다.
+검수 목록이 누락되면 UNVERIFIED이며 빈 배열은 유효하다. 내부 ID는 이름으로 취급하지 않는다.
 
 [GEN-WORD] 닉네임 금칙어 검사와 같은 규칙(NFKC · casefold · "_" 제거 · leet · 부분 포함)을 그대로 쓴다(팀 결정 11/4).
 혐오어 목록은 기존에 없다.
@@ -40,6 +39,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+from app.schemas.case_content import CaseClientContent
 from app.schemas.npc_content import GeneralLinePack, NpcContentPack
 from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition
 from app.services.hint import HintSource
@@ -116,6 +116,31 @@ class PublishedCase:
     @property
     def label(self) -> str:
         return f"{self.case_id}@v{self.content_version}"
+
+
+def collect_proper_names(
+    client: CaseClientContent, npc: NpcContentPack | None
+) -> tuple[str, ...] | None:
+    """검증된 Client의 표시 이름과 NPC 인물/장소 및 별칭만 수집한다.
+
+    현재 Client는 퍼즐/단서를 별도 이름 필드 없이 interaction 대상 object로
+    표시한다. object_name만 읽고 object_id/target_id/zone_name은 읽지 않는다.
+    수동 검수 목록이 없으면 자동 수집 결과만으로 PASS시키지 않는다.
+    """
+    if npc is None or npc.proper_nouns is None:
+        return None
+    return tuple(
+        dict.fromkeys(
+            [
+                *(
+                    name
+                    for noun in npc.proper_nouns
+                    for name in (noun.text, *noun.aliases)
+                ),
+                *(obj.object_name for zone in client.zones for obj in zone.objects),
+            ]
+        )
+    )
 
 
 DialoguePackPolicy = Callable[[GeneralLinePack], PackPolicyResult]

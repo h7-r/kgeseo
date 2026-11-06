@@ -16,6 +16,7 @@ from app.schemas.interaction import (
     CaseCompletedStateChange,
     ClueAcquiredStateChange,
     CombineCluesInteraction,
+    CompletePuzzleInteraction,
     CurrentZoneChangedStateChange,
     FlagUpdatedStateChange,
     InspectInteraction,
@@ -42,7 +43,11 @@ from app.schemas.puzzle_runtime import (
 )
 from app.services.case_content import load_case_client_content
 from app.services.case_content_validation import validate_case_content_links
-from app.services.object_resolver import ZoneNotFoundError, find_zone
+from app.services.object_resolver import (
+    ZoneNotFoundError,
+    find_zone,
+    resolve_object_interaction,
+)
 from app.services.object_state import resolve_effective_object_state
 from app.services.pinned_content import ensure_loaders_match_session
 from app.services.play_session import PlaySessionNotFoundError
@@ -58,6 +63,10 @@ class InteractionServiceError(Exception):
 
 
 class PuzzleNotFoundError(InteractionServiceError):
+    pass
+
+
+class PuzzleSolveModeMismatchError(InteractionServiceError):
     pass
 
 
@@ -164,7 +173,16 @@ async def process_interaction(
             return loaded_client_content[0]
 
         message = None
-        if isinstance(interaction, SubmitAnswerInteraction):
+        if isinstance(interaction, CompletePuzzleInteraction):
+            result_type, result_state, state_changes, attempt_count = _process_complete(
+                interaction,
+                _ensure_current_zone(
+                    current_state, interaction.zone_id, load_client_content
+                ),
+                runtime,
+                load_client_content,
+            )
+        elif isinstance(interaction, SubmitAnswerInteraction):
             (
                 result_type,
                 result_state,
@@ -498,14 +516,48 @@ def _process_select_choice(
     )
 
 
+def _process_complete(
+    interaction: CompletePuzzleInteraction,
+    state: dict[str, Any],
+    runtime: PuzzleRuntimeDefinition,
+    load_client_content: Callable[[], CaseClientContent],
+) -> GradeResult:
+    resolved = resolve_object_interaction(
+        load_client_content(), interaction.zone_id, interaction.target_id, "complete"
+    )
+
+    def ensure_object_available() -> None:
+        current = resolve_effective_object_state(
+            load_client_content(),
+            state.get("object_states", {}),
+            interaction.zone_id,
+            interaction.target_id,
+        )
+        if not current.visible:
+            raise ObjectNotVisibleError(interaction.target_id)
+        if not current.enabled:
+            raise ObjectNotEnabledError(interaction.target_id)
+
+    return _grade_puzzle(
+        resolved.target_id,
+        None,
+        state,
+        runtime,
+        load_client_content,
+        ensure_object_available=ensure_object_available,
+        client_skill=True,
+    )
+
+
 def _grade_puzzle(
     puzzle_id: str,
-    answer: str,
+    answer: str | None,
     state: dict[str, Any],
     runtime: PuzzleRuntimeDefinition,
     load_client_content: Callable[[], CaseClientContent],
     *,
     ensure_object_available: Callable[[], None] | None = None,
+    client_skill: bool = False,
 ) -> GradeResult:
     puzzle = next(
         (puzzle for puzzle in runtime.puzzles if puzzle.puzzle_id == puzzle_id),
@@ -513,6 +565,11 @@ def _grade_puzzle(
     )
     if puzzle is None:
         raise PuzzleNotFoundError(puzzle_id)
+
+    if client_skill != (
+        puzzle.solve is not None and puzzle.solve.mode == "client_skill"
+    ):
+        raise PuzzleSolveModeMismatchError(puzzle_id)
 
     # 완료한 퍼즐은 나중에 Object가 숨거나 선행 조건이 바뀌어도 그대로 완료다.
     if puzzle_id in state["completed_puzzle_ids"]:
@@ -531,10 +588,13 @@ def _grade_puzzle(
     attempt_count = attempt_counts.get(puzzle_id, 0) + 1
     attempt_counts[puzzle_id] = attempt_count
 
-    normalized_answer = normalize_answer(answer)
-    accepted_answers = {normalize_answer(value) for value in puzzle.accepted_answers}
-    if normalized_answer not in accepted_answers:
-        return "incorrect", graded_state, [], attempt_count
+    if not client_skill:
+        normalized_answer = normalize_answer(answer)
+        accepted_answers = {
+            normalize_answer(value) for value in puzzle.accepted_answers
+        }
+        if normalized_answer not in accepted_answers:
+            return "incorrect", graded_state, [], attempt_count
 
     updated_state, state_changes = apply_runtime_effect(
         graded_state,
@@ -757,6 +817,14 @@ def _meets_case_completion(
 def _request_values(
     interaction: InteractionRequest,
 ) -> tuple[str | None, dict[str, Any]]:
+    if isinstance(interaction, CompletePuzzleInteraction):
+        # Compare the complete external envelope, including address and timestamp.
+        # Do not resolve content before replay; retries return the saved response.
+        return interaction.target_id, {
+            "zone_id": interaction.zone_id,
+            "client_timestamp": interaction.client_timestamp.isoformat(),
+            "payload": interaction.payload.model_dump(mode="json"),
+        }
     target_id = (
         interaction.target_id
         if isinstance(

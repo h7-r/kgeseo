@@ -120,6 +120,7 @@ INTERACTION = {
         "Clue is not acquired.",
         "Object interaction is unavailable.",
         "Interaction action does not match the object.",
+        "Interaction action does not match the puzzle solve mode.",
         "Current zone is unknown.",
         "Zone is not current.",
         "Navigation is unavailable.",
