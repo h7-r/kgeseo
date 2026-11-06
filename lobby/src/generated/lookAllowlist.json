@@ -7,11 +7,13 @@
   "items": {
     "hair": {
       "masculine": [
+        "hair.buzz",
         "hair.m.crop",
         "hair.m.long",
         "hair.none"
       ],
       "feminine": [
+        "hair.buzz",
         "hair.f.bob",
         "hair.f.long",
         "hair.none"

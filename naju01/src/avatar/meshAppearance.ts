@@ -12,6 +12,8 @@ export type MeshPartKey = "hair" | "top" | "bottom" | "shoes";
 
 /** 긴 머리 파츠 번호(남녀 같다). 귀 접기 모프·머리 흔들림이 이 머리에만 붙는다. */
 export const LONG_HAIR_VARIANT = 1;
+/** 반삭 — 머리 메시 없이 몸의 두피를 머리색으로 칠한다(buzzScalp.ts). 긴 머리(1)와 섞이지 않게 새 번호를 쓴다. */
+export const BUZZ_HAIR_VARIANT = 2;
 
 export const MESH_PART_OPTIONS: Record<MeshPartKey, Record<AvatarGender, readonly Option<number>[]>> = {
   hair: {
@@ -19,11 +21,13 @@ export const MESH_PART_OPTIONS: Record<MeshPartKey, Record<AvatarGender, readonl
       [-1, "민머리"],
       [0, "짧은 머리"],
       [1, "긴 머리"],
+      [BUZZ_HAIR_VARIANT, "반삭"],
     ],
     feminine: [
       [-1, "민머리"],
       [0, "단발"],
       [1, "긴 머리"],
+      [BUZZ_HAIR_VARIANT, "반삭"],
     ],
   },
   top: {

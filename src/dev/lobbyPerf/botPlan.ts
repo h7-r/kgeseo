@@ -58,8 +58,8 @@ export function botPose(index: number, t: number): BotPose {
 }
 
 const HAIR_BY_GENDER: Record<Gender, readonly string[]> = {
-  masculine: ["hair.m.crop", "hair.m.long"],
-  feminine: ["hair.f.bob", "hair.f.long"],
+  masculine: ["hair.m.crop", "hair.buzz"],
+  feminine: ["hair.f.bob", "hair.buzz"],
 };
 
 const pickColor = (slot: keyof typeof DEFAULT_CATALOG.palettes, index: number) => {

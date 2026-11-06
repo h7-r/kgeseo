@@ -4,6 +4,7 @@
 // 얼굴은 몸과 같은 메시라 이름으로 못 가른다. head 본의 스킨 웨이트로 정점마다 '얼굴 정도'를 구해 넘긴다.
 import * as THREE from "three";
 
+import { addEmptyScalpWeights, addScalpWeights } from "./buzzScalp";
 import { isOutlineShell } from "./toonOutline";
 
 export interface ToonConfig {
@@ -86,6 +87,9 @@ uniform float _swayTwist;
 uniform vec4 _swayShape;
 attribute float _face;
 attribute float _tint;
+attribute float _scalp;
+varying float v_scalp;
+varying vec3 v_restPos;
 varying float v_tint;
 varying float v_cloth;
 varying float v_bottom;
@@ -100,6 +104,8 @@ varying vec3 v_viewNormal;
 const VERTEX_NORMAL = `
   v_face = _face;
   v_tint = _tint;
+  v_scalp = _scalp;
+  v_restPos = position;
   // keep the 1.0~2.0 ramp (see the Korean note above) instead of a per-vertex step;
   // "is bottom" still steps, so a skin->bottom triangle never passes through 2 = top
   v_cloth = clamp(_tint - 1.0, 0.0, 1.0);
@@ -142,8 +148,26 @@ uniform float _rimStrength;
 uniform float _hairBand;
 uniform vec3 _hairBase;
 uniform float _hairNorm;
+uniform float _buzz;
+uniform vec3 _buzzColor;
+varying float v_scalp;
+varying vec3 v_restPos;
 varying float v_face;
 varying vec3 v_viewNormal;
+float buzzHash(vec3 p) {
+  p = fract(p * 0.3183099 + 0.1);
+  p *= 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float buzzNoise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(buzzHash(i), buzzHash(i + vec3(1, 0, 0)), f.x), mix(buzzHash(i + vec3(0, 1, 0)), buzzHash(i + vec3(1, 1, 0)), f.x), f.y),
+    mix(mix(buzzHash(i + vec3(0, 0, 1)), buzzHash(i + vec3(1, 0, 1)), f.x), mix(buzzHash(i + vec3(0, 1, 1)), buzzHash(i + vec3(1, 1, 1)), f.x), f.y),
+    f.z);
+}
 `;
 // 머리색 — 머리 텍스처는 짙은 갈색이라 고른 색을 그냥 곱하면(예전 방식) 거의 검정이 되고 결이 사라졌다.
 // 텍스처의 밝기를 그 머리의 평균 밝기(_hairBase, 살빛 조각을 뺀 정점 UV 자리 평균)로 나눠 「평균보다 밝다·어둡다」만
@@ -228,6 +252,16 @@ const FRAGMENT_TINT = `#include <map_fragment>
     float sat = lum - min(min(diffuseColor.r, diffuseColor.g), diffuseColor.b);
     float sclera = smoothstep(0.60, 0.84, lum) * (1.0 - smoothstep(0.05, 0.13, sat));
     diffuseColor.rgb *= mix(_skinTint, vec3(1.0), sclera);
+    if (_buzz > 0.5 && v_scalp > 0.001) {
+      // stubble grain in rest-pose space (sticks to the scalp); vertical cells a little longer = short strands
+      vec3 cell = v_restPos * vec3(950.0, 520.0, 950.0);
+      float grain = buzzNoise(cell) * 0.6 + buzzNoise(cell * 2.3 + 17.0) * 0.4;
+      // fade the grain out where one pixel spans several cells (far away) so it does not shimmer
+      grain = mix(0.5, grain, 1.0 - smoothstep(0.5, 1.5, length(fwidth(cell))));
+      float cover = v_scalp * mix(0.86, 1.0, smoothstep(0.2, 0.55, grain));
+      vec3 strands = _buzzColor * mix(0.8, 1.18, grain);
+      diffuseColor.rgb = mix(diffuseColor.rgb, strands, cover);
+    }
   }`;
 
 interface ToonUniforms {
@@ -254,6 +288,10 @@ interface ToonUniforms {
   _swayTwist: THREE.IUniform<number>;
   /** (두피 높이, 머리끝 높이, 척추 축 z, 세기) — 머리 메시마다 한 번 정한다 */
   _swayShape: THREE.IUniform<THREE.Vector4>;
+  /** 반삭(buzzScalp.ts) — 1 이면 두피(_scalp)를 머리색으로 칠한다 */
+  _buzz: THREE.IUniform<number>;
+  /** 반삭 머리색(선형) — 머리색을 그 아바타 기본 머리 텍스처 평균에 곱한 값(머리 메시와 같은 밝기) */
+  _buzzColor: THREE.IUniform<THREE.Color>;
 }
 
 interface ToonUniformEntry {
@@ -298,6 +336,8 @@ function applyToonShaderPatch(
     _swayOffset: { value: new THREE.Vector3() },
     _swayTwist: { value: 0 },
     _swayShape: { value: new THREE.Vector4(0, 0, 0, 0) },
+    _buzz: { value: 0 },
+    _buzzColor: { value: new THREE.Color(0, 0, 0) },
   };
   material.userData[TOON_UNIFORMS_KEY] = uniforms;
   material.onBeforeCompile = (shader) => {
@@ -419,6 +459,15 @@ function computeHairBase(geometry: THREE.BufferGeometry, map: THREE.Texture | nu
   return count ? new THREE.Color(sum[0] / count, sum[1] / count, sum[2] / count) : null;
 }
 
+/** 머리 파츠 번호 — GLB 노드 extras(variant)는 재질이 여럿이면 부모 그룹에 붙어 온다 */
+function hairVariantOf(object: THREE.Object3D): number | null {
+  for (let node: THREE.Object3D | null = object; node; node = node.parent) {
+    if (node.userData.slot !== undefined)
+      return typeof node.userData.variant === "number" ? node.userData.variant : null;
+  }
+  return null;
+}
+
 // ── 살결/옷 가르기 ──
 // 몸과 옷은 한 메시라 정점 표식 `_tint` 로 가른다: 0 = 그대로, 1 = 피부, 2 = 상의, 3 = 하의.
 // 표식은 모델을 구울 때 넣어야 한다 — 아틀라스 여백이 살빛이라 런타임에 텍스처로 추정하면
@@ -506,8 +555,10 @@ interface ToonTint {
   skin?: string;
   cloth?: string;
   bottom?: string;
-  /** 머리색 — 재질 색으로 곱해 두고, 여기서는 평균 밝기 기준으로 칠할지만 정한다(흰색 = 원본 그대로) */
+  /** 머리색 — 머리 메시는 재질 색으로 곱해 두고 여기서는 평균 밝기 기준으로 칠할지만 정한다. 반삭 색도 이 색에서 낸다 */
   hair?: string;
+  /** 반삭을 골랐나 — 몸의 두피를 머리색으로 칠한다(buzzScalp.ts) */
+  buzz?: boolean;
 }
 
 export interface ToonHandle {
@@ -561,9 +612,17 @@ export function applyToon(
   }
   const buildConfig: ToonBuildConfig = { ...config, headCentre };
   let hasTintMarks = false;
+  let referenceHairBase: THREE.Color | null = null;
   meshes.forEach((object) => {
     const kind = classify(object) ?? "cloth";
     if (!(object instanceof THREE.SkinnedMesh && addFaceWeights(object))) addEmptyFaceWeights(object.geometry);
+    if (kind === "body" && object instanceof THREE.SkinnedMesh) addScalpWeights(object);
+    else addEmptyScalpWeights(object.geometry);
+    // 반삭 색의 밝기 기준 — 그 아바타의 기본 머리(파츠 번호 0) 텍스처 평균
+    if (kind === "hair" && hairVariantOf(object) === 0 && !referenceHairBase) {
+      const map = (Array.isArray(object.material) ? object.material[0] : object.material) as THREE.MeshStandardMaterial;
+      referenceHairBase = computeHairBase(object.geometry, map?.map ?? null);
+    }
     if (kind === "hair") addEmptyTint(object.geometry);
     else if (hasTintAttribute(object)) hasTintMarks = true;
     const current: THREE.Material[] = Array.isArray(object.material) ? object.material : [object.material];
@@ -614,7 +673,11 @@ export function applyToon(
       uniforms._hairBand.value = kind === "hair" ? next.hairShine : 0;
     });
   };
-  const tint = ({ skin, cloth, bottom, hair }: ToonTint) => {
+  const buzzColor = new THREE.Color();
+  const tint = ({ skin, cloth, bottom, hair, buzz }: ToonTint) => {
+    // 반삭 색 = 머리색 × 기본 머리 텍스처 평균 — 머리 메시(텍스처 × 머리색)와 같은 밝기로 보인다
+    buzzColor.set(hair ?? "#ffffff");
+    if (referenceHairBase) buzzColor.multiply(referenceHairBase);
     entries.forEach(({ uniforms, kind, hairBaseKnown }) => {
       if (skin) uniforms._skinTint.value.set(skin);
       if (kind === "hair") {
@@ -623,6 +686,8 @@ export function applyToon(
       }
       if (cloth) uniforms._clothTint.value.set(cloth);
       uniforms._bottomTint.value.set(bottom ?? cloth ?? "#ffffff");
+      uniforms._buzz.value = buzz ? 1 : 0;
+      uniforms._buzzColor.value.copy(buzzColor);
     });
   };
   const swaying = entries.filter(({ uniforms, kind }) => kind === "hair" && uniforms._swayShape.value.w > 0);

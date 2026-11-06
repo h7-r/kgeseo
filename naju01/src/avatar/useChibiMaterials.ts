@@ -2,7 +2,7 @@
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import { DEFAULT_MESH_CONFIG, LONG_HAIR_VARIANT, type MeshAppearanceConfig } from "./meshAppearance";
+import { BUZZ_HAIR_VARIANT, DEFAULT_MESH_CONFIG, LONG_HAIR_VARIANT, type MeshAppearanceConfig } from "./meshAppearance";
 import { type ChibiAvatarConfig, type ChibiBody, DEFAULT_CHIBI_CONFIG, type PreparedBody } from "./preparedBody";
 import { setMorph } from "./rig";
 import { applyToon, type ToonConfig, type ToonHandle, type ToonPartKind } from "./toonMaterial";
@@ -204,8 +204,10 @@ export function useAppearancePaint({
       cloth: appearance.clothColor,
       // 하의는 정점 표식 3 으로 따로 칠한다
       bottom: appearance.bottomColor ?? appearance.clothColor,
-      // 머리는 재질 색을 그대로 두고, 텍스처 평균 밝기 기준으로 칠할지만 정한다(toonMaterial.ts FRAGMENT_HAIR)
+      // 머리는 재질 색을 그대로 두고, 텍스처 평균 밝기 기준으로 칠할지만 정한다(toonMaterial.ts FRAGMENT_HAIR).
+      // 반삭은 머리 메시가 없고 몸의 두피를 머리색으로 칠한다(buzzScalp.ts)
       hair: appearance.hairColor,
+      buzz: appearance.hair === BUZZ_HAIR_VARIANT,
     });
     // 툰 재질이 붙은 뒤에 칠해야 하므로 툰 켬/끔도 의존성에 둔다. 핸들 상자는 늘 같은 ref 다.
   }, [prepared, appearance, body, config.skinColor, toonEnabled, toonHandle, outlineHandle]);
