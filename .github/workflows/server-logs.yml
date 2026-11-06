@@ -1,0 +1,40 @@
+# 운영 API 서버 로그 보기 — AWS 계정 없이 팀원 누구나.
+# Actions 탭 → server-logs → Run workflow (main) → 줄 수 입력
+name: server-logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      lines:
+        description: 'API 로그 줄 수'
+        default: '200'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2
+  ROLE_ARN: arn:aws:iam::986033946239:role/waegok-github-deploy
+  INSTANCE_ID: i-006fa7d504dafaa75
+
+jobs:
+  logs:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: 로그
+        env:
+          LINES: ${{ inputs.lines }}
+        run: |
+          [[ "$LINES" =~ ^[0-9]{1,4}$ ]] || LINES=200
+          CID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" --document-name waegok-Logs \
+                --parameters "Lines=$LINES" --query Command.CommandId --output text)
+          sleep 6
+          aws ssm get-command-invocation --command-id "$CID" --instance-id "$INSTANCE_ID" \
+            --query StandardOutputContent --output text
