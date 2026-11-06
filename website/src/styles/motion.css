@@ -745,3 +745,26 @@ html.is-scrolling .header-logo:not(.is-sweeping),
     animation: none;
   }
 }
+
+/* 구간 단추로 건너뛰면(layout/revealAll) 스크롤에 묶인 등장 효과를 끝난 모습으로 한 번에 보여 준다.
+   JS 가 style 로 넣는 --reveal-progress 를 이기려고 !important 를 쓴다. */
+html.is-section-jumped .u-reveal,
+html.is-section-jumped .u-depth-reveal,
+html.is-section-jumped .rising-text__line,
+html.is-section-jumped .u-stagger .u-stagger__item,
+html.is-section-jumped .u-stagger .rising-text__line {
+  opacity: 1 !important;
+  transform: none !important;
+  filter: none !important;
+  transition: none !important;
+}
+html.is-section-jumped .u-pin-reveal {
+  --reveal-progress: 1 !important;
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}
+html.is-section-jumped .u-scroll-zoom,
+html.is-section-jumped .u-scroll-zoom-out {
+  animation: none !important;
+  transform: none !important;
+}

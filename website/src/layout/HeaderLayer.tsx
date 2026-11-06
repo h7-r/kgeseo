@@ -15,6 +15,7 @@ import {
   useHeaderScrollState,
   useSectionSettle,
 } from "./headerScroll";
+import { revealAllSections } from "./revealAll";
 import SubNav from "./SubNav";
 
 /*
@@ -71,9 +72,10 @@ export default function HeaderLayer() {
     (id: string) => {
       if (!getSubMenu(path)) return;
       // 스크롤로 잡힐 때와 같은 자리(머리띠 아래 한가운데)로 간다.
-      scrollToSection(
-        () => measureSectionPositions(path, scale, headerHeight).find((section) => section.id === id)?.snapTop,
-      );
+      const measureTarget = () =>
+        measureSectionPositions(path, scale, headerHeight).find((section) => section.id === id)?.snapTop;
+      revealAllSections(measureTarget());
+      scrollToSection(measureTarget);
     },
     [path, scale, headerHeight],
   );

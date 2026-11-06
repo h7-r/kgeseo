@@ -28,7 +28,7 @@ import { readOnboarding, type OnboardingRequired } from "@/services/account/soci
 import { signIn, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
-import { signupPanelStyle, primaryButtonStyle, primaryLabelStyle } from "./quickSignupStyles";
+import { signupFormPanelStyle, signupPanelStyle, primaryButtonStyle, primaryLabelStyle } from "./quickSignupStyles";
 import GoogleButton from "../auth/GoogleButton";
 import SocialOnboardingForm from "../auth/SocialOnboardingForm";
 import WelcomePanel from "./WelcomePanel";
@@ -107,18 +107,15 @@ export default function QuickSignup() {
     );
   }
 
-  // 제목부터 로그인 줄까지 한 덩이로 쌓는다. 높이를 정하지 않아야 보이는 글의 가운데가 호의 가운데에 온다.
+  // 제목부터 로그인 줄까지 한 덩이로 쌓는다. 아랫선은 왼쪽 숫자 지표에 맞추고 위로 자란다.
   return (
-    <div style={signupPanelStyle} {...SCRIM_ATTR}>
+    <div style={signupFormPanelStyle} {...SCRIM_ATTR}>
       <div style={{ paddingTop: "5px" }}>
         <div style={titleStyle}>탈출을 시작하세요.</div>
       </div>
 
-      <div style={{ padding: "1px 0 2px" }}>
-        <div style={subtitleStyle}>계정을 만들고 나주 앙암바위부터 탈출을 시작하세요.</div>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "16px" }}>
+      {/* 부제를 뺀 자리도 비워 둔다 — 제목과 입력 칸 사이 간격은 부제가 있을 때와 같다(부제 30 + 16). */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "46px" }}>
         <div style={{ display: "flex", gap: "12px", height: "73px", alignItems: "flex-start" }}>
           <TextField
             variant="home"
@@ -308,14 +305,6 @@ const titleStyle: CSSProperties = {
   fontSize: "36px",
   color: "#f2f1fc",
   letterSpacing: "1.05px",
-  whiteSpace: "nowrap",
-};
-
-const subtitleStyle: CSSProperties = {
-  fontFamily: FONT.body,
-  fontWeight: 400,
-  fontSize: "18px",
-  color: COLOR.textMuted,
   whiteSpace: "nowrap",
 };
 

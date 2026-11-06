@@ -6,6 +6,8 @@ import { prefersReducedMotion } from "@/lib/motionPreference";
 import { measureSectionPositions, measureSectionPositionsCached } from "@/navigation/sectionGeometry";
 import { getSubMenu } from "@/navigation/subMenus";
 
+import { revealAllSections } from "./revealAll";
+
 // 머리띠가 스크롤에 맞춰 하는 일: 숨기·드러내기, 구간으로 굴러가기, 지금 구간 찾기, 멈춘 뒤 구간 맞추기.
 
 /** 스스로 굴리는 동안 머리띠를 이 시각(ms)까지 붙잡아 둔다. */
@@ -33,9 +35,11 @@ export function useScrollToSection(): (id: string) => void {
   return useCallback(
     (id: string) => {
       const headerHeight = Math.round(HEADER_HEIGHT * scale);
-      scrollToSection(
-        () => measureSectionPositions(pathname, scale, headerHeight).find((section) => section.id === id)?.snapTop,
-      );
+      const measureTarget = () =>
+        measureSectionPositions(pathname, scale, headerHeight).find((section) => section.id === id)?.snapTop;
+      // 구간 안 단추로 건너뛰어도 메뉴 단추와 똑같이 그 구간을 다 보여 준다.
+      revealAllSections(measureTarget());
+      scrollToSection(measureTarget);
     },
     [pathname, scale],
   );
