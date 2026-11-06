@@ -6,10 +6,11 @@
 // - 방문(visit)마다 번호, 연결 시도(attempt)마다 번호를 둔다. 늦게 온 응답은 번호가 지금과 다르면 버리고,
 //   이미 방에 들어갔으면 바로 나간다(4절 「늦은 응답 처리」).
 // - 입장부터 응답까지 3초(🟡)를 넘기면 일시적 실패로 본다.
-// - 일시적 실패(네트워크·429·503·시간 초과·TICKET_USED·TICKET_STALE·TICKET_EXPIRED·연결 끊김):
-//   「혼자 둘러보는 중」, 첫 실패 기준 +30초·+60초에 최대 두 번 다시 시도. Retry-After 가 안 끝난 시도는 건너뛴다.
-//   시도마다 새 티켓을 받는다.
-// - 인증 거절(401·403·ORIGIN_NOT_ALLOWED·TICKET_INVALID·AUTH_MISSING)·방 상한(LOBBY_FULL): 이번 방문의 재시도를 끝낸다.
+// - 일시적 실패(네트워크·429·503·시간 초과·TICKET_USED·TICKET_STALE·TICKET_EXPIRED·비정상 끊김):
+//   「혼자 둘러보는 중」, 첫 실패 기준 +30초·+60초에 다시 시도. Retry-After 가 안 끝난 시도는 건너뛴다.
+//   시도마다 새 티켓을 받는다. 「최대 두 번」은 방문당 상한이다(🟡) — 붙었다 끊겼다를 되풀이해도 늘지 않는다.
+// - 인증 거절(401·403·ORIGIN_NOT_ALLOWED·TICKET_INVALID·AUTH_MISSING)·방 상한(LOBBY_FULL)·
+//   운영 중단(서버 정상 종료 4001 — systemctl stop 등): 이번 방문의 재시도를 끝낸다.
 // - 티켓은 메모리에만 두고 매칭 HTTP 의 Authorization 헤더로만 보낸다. SDK 의 client.auth.token 은
 //   티켓을 WebSocket 주소(_authToken)에 복사하므로 쓰지 않는다(로비 서버도 그런 연결을 거절한다).
 // - SDK 의 자동 재접속은 끈다 — 같은 방 20초 복귀는 이번 베타 범위 밖이다(서버도 reconnect 경로를 닫았다).
@@ -66,7 +67,8 @@ export type LobbyFailure =
   | "RATE_LIMITED" // 429
   | "UNAVAILABLE" // 503 · 접속 실패 · 로비 주소 없음
   | "TIMEOUT"
-  | "DISCONNECTED"
+  | "DISCONNECTED" // 비정상 끊김(1006 등) — 다시 시도
+  | "LOBBY_STOPPED" // 로비 운영 중단(서버 정상 종료 4001) — 이번 방문 재시도 끝(4절 표)
   | "LOBBY_FULL"
   | "REJECTED" // 로비 인증 거절(되풀이해도 안 되는 것)
   | "RETRYABLE_REJECT"; // TICKET_USED 등 — 새 티켓으로 다시 시도
@@ -90,10 +92,14 @@ export interface LobbyRoomLike {
   reconnection: { enabled: boolean };
   send(type: string, message: unknown): void;
   leave(consented?: boolean): Promise<number>;
+  /** 돌려준 함수로 이 구독만 끊는다 */
   onMessage(type: string, callback: (payload: never) => void): unknown;
-  onLeave(callback: (code: number) => void): unknown;
-  removeAllListeners?(): void;
+  /** SDK 의 신호 — `remove` 로 이 구독만 끊는다(SDK 자신의 정리 구독은 남겨야 한다) */
+  onLeave: ((callback: (code: number) => void) => unknown) & { remove?: (callback: (code: number) => void) => void };
 }
+
+/** 서버 정상 종료(@colyseus/shared-types CloseCode.SERVER_SHUTDOWN) — 운영 중단으로 본다 */
+export const SERVER_SHUTDOWN_CODE = 4001;
 
 export interface LobbyConnectionOptions {
   /** 로비 서버 주소(VITE_LOBBY_URL). 비어 있으면 늘 혼자 진행 */
@@ -177,10 +183,15 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
     retryTimer = null;
   };
 
-  /** 방을 정리한다. 퇴장 응답은 기다리지 않는다(4절 「퇴장 응답을 기다리지 않고 출동」) */
+  /** 내가 붙인 구독만 끊는 함수(지금 방). SDK 가 스스로 붙인 정리 구독(onLeave → destroy)은 건드리지 않는다 */
+  let unsubscribeRoom: (() => void) | null = null;
+
+  /**
+   * 방을 정리한다. 퇴장 응답은 기다리지 않는다(4절 「퇴장 응답을 기다리지 않고 출동」).
+   * removeAllListeners 는 쓰지 않는다 — SDK 의 onLeave → destroy()(상태 해석기 정리)까지 지운다.
+   */
   const dropRoom = (target: LobbyRoomLike | null) => {
     if (!target) return;
-    target.removeAllListeners?.();
     void target.leave(true).catch(() => undefined);
   };
 
@@ -224,17 +235,24 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
     }
     joined.reconnection.enabled = false;
     room = joined;
+    // 이번 장애는 끝났다. 재시도 횟수(retriesUsed)는 방문 단위 상한이라 되돌리지 않는다 —
+    // 붙었다 끊겼다를 되풀이해도 한 방문에서 두 번까지만 다시 시도한다(🟡 설계 4절 「최대 두 번」을 방문당으로 해석)
     firstFailureAt = null;
-    retriesUsed = 0;
-    joined.onMessage("greet", ((payload: GreetEvent) => {
+    const unbindGreet = joined.onMessage("greet", ((payload: GreetEvent) => {
       if (room === joined) greetListeners.forEach((listener) => listener(payload));
     }) as (payload: never) => void);
-    joined.onLeave(() => {
-      // 우리가 정리한 방이면(room 이 이미 바뀜) 아무것도 안 한다. 아니면 비정상 끊김
+    const handleLeave = (code: number) => {
+      // 우리가 정리한 방이면(room 이 이미 바뀜) 아무것도 안 한다
       if (room !== joined || visit !== myVisit) return;
       room = null;
-      fail(myVisit, new AttemptFailure("DISCONNECTED"));
-    });
+      unsubscribeRoom = null;
+      fail(myVisit, new AttemptFailure(code === SERVER_SHUTDOWN_CODE ? "LOBBY_STOPPED" : "DISCONNECTED"));
+    };
+    joined.onLeave(handleLeave);
+    unsubscribeRoom = () => {
+      if (typeof unbindGreet === "function") unbindGreet();
+      joined.onLeave.remove?.(handleLeave);
+    };
     setStatus({ kind: "connected", visit: myVisit, sessionId: joined.sessionId });
   }
 
@@ -319,6 +337,8 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
       clearRetry();
       const leaving = room;
       room = null;
+      unsubscribeRoom?.();
+      unsubscribeRoom = null;
       dropRoom(leaving);
       setStatus({ kind: "idle" });
     },
