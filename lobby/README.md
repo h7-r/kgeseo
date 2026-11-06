@@ -34,6 +34,31 @@ cd backend && WAEGOK_RUN_PROFILE=test .venv/bin/uvicorn app.main:app --port 8000
 - `npm run dev`에서 `--profile=test`를 빼면 production으로 보고 개발 키·시험 값에 걸려 시작하지 않는다.
 - 다른 기기에서 열 때만 `LOBBY_HOST=0.0.0.0`을 준다(기본 127.0.0.1).
 
+### 브라우저 두 개로 확인 (2단계 시험 화면)
+
+`lobby-net-test.html`은 기존 게임 화면에 끼우지 않는 개발 전용 페이지다(배포 빌드에 안 들어감). 본부실을 위에서 내려다본 평면에 상자 캐릭터로 입장·이동·인사·퇴장과 「혼자 둘러보는 중」을 본다. 연결은 `src/net/colyseus.ts`(3단계에서 본부실에 끼울 모듈)를 그대로 쓴다.
+
+로컬 DB가 코드보다 뒤처져 있으면 로그인이 안 된다. 기존 DB를 건드리지 않으려면 **별도 시험 DB**를 한 번 만들어 쓴다.
+
+```bash
+# 1) 별도 시험 DB(한 번만). 같은 MySQL 에 빈 DB 를 만들고 마이그레이션·개발 시험 계정을 넣는다
+mysql -u <DB 사용자> -p -e "CREATE DATABASE kgeseo_lobby_check CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci"
+cd backend
+DB_NAME=kgeseo_lobby_check .venv/bin/alembic upgrade heads
+DB_NAME=kgeseo_lobby_check .venv/bin/python -m scripts.seed_test_account
+#    두 번째 계정은 같은 DB 에서 웹사이트 가입이나 /api/v1/auth/register 로 만든다
+#    지울 때: DROP DATABASE kgeseo_lobby_check  (기존 kgeseo DB 와 무관)
+
+# 2) 세 서버
+DB_NAME=kgeseo_lobby_check WAEGOK_RUN_PROFILE=test .venv/bin/uvicorn app.main:app --port 8000   # backend/
+npm run dev                                                                                      # lobby/
+npx vite                                                                                         # 저장소 루트(5173)
+```
+
+3. 두 계정의 `user_id`(`/api/v1/me`)를 `backend/data/lobby_beta_users.txt`에 한 줄씩 넣는다(Git 무시, 재시작 필요 없음).
+4. 쿠키가 따로인 브라우저 두 개(일반 창 + 시크릿 창 등)에서 `http://localhost:5173/lobby-net-test.html`을 열고, 아래 「개발용 로그인」으로 서로 다른 계정에 로그인한 뒤 **본부실 들어가기**.
+5. WASD 이동(Shift 달리기), 1~6 인사. 로비를 끄면(`npm run dev` 중지) 「혼자 둘러보는 중」으로 바뀌고 +30초·+60초에 다시 시도한다. `?gender=masculine`으로 외형 성별을 바꿀 수 있다.
+
 ## 운영 (production 프로필)
 
 ```bash
