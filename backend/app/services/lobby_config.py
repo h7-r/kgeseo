@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import os
 from collections.abc import Mapping
@@ -21,7 +22,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
-from dotenv import dotenv_values
+from dotenv.parser import parse_stream
 
 logger = logging.getLogger(__name__)
 
@@ -65,16 +66,36 @@ def read_profile(environ: Mapping[str, str]) -> str | None:
     return value if value in PROFILES else None
 
 
+class LobbyConfigError(Exception):
+    """로비 전용 파일을 해석하지 못했다(항목 · 줄 번호만, 값은 담지 않는다)."""
+
+
+def _parse_local_file(text: str) -> dict[str, str]:
+    """python-dotenv 의 해석기로 읽되, 형식이 틀린 줄을 경고만 하고 넘기지 않는다."""
+
+    values: dict[str, str] = {}
+    for binding in parse_stream(io.StringIO(text)):
+        if binding.error:
+            raise LobbyConfigError(
+                f"backend/.env.lobby: {binding.original.line}번째 줄 형식이 틀렸다"
+            )
+        if binding.key is not None and binding.value is not None:
+            values[binding.key] = binding.value
+    return values
+
+
 def collect_settings(
     profile: str, environ: Mapping[str, str], local_file: Path = LOCAL_LOBBY_ENV_FILE
 ) -> dict[str, str]:
     settings = {
         key: value for key, value in environ.items() if key.startswith("LOBBY_")
     }
-    if profile != "test" or not local_file.is_file():
+    # 파일이 없는 것만 「없음」. 있는데 못 읽거나(권한 · 디렉터리) 형식이 틀리면 예외 → 발급만 끈다
+    if profile != "test" or not local_file.exists():
         return settings
-    for key, value in dotenv_values(local_file).items():
-        if key == PROFILE_ENV_KEY or not key.startswith("LOBBY_") or value is None:
+    text = local_file.read_text(encoding="utf-8")
+    for key, value in _parse_local_file(text).items():
+        if key == PROFILE_ENV_KEY or not key.startswith("LOBBY_"):
             continue
         settings.setdefault(key, value)
     return settings
@@ -160,6 +181,8 @@ def load_state(
         profile = read_profile(env)
         settings = collect_settings(profile, env, local_file) if profile else {}
         return build_state(profile, settings)
+    except LobbyConfigError as error:
+        return LobbyIssuerState(None, (str(error),))
     except Exception as error:  # noqa: BLE001 — 로더 실패는 발급만 끈다
         return LobbyIssuerState(
             None, (f"로비 설정을 읽지 못했다({type(error).__name__})",)

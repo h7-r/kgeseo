@@ -115,17 +115,47 @@ def test_profile_key_in_local_file_cannot_switch_profile(tmp_path):
     assert state.config.ttl_sec == 60
 
 
-def test_loader_failure_never_raises(monkeypatch, tmp_path):
-    local = tmp_path / ".env.lobby"
-    local.write_text("LOBBY_TICKET_SECRET=x\n", encoding="utf-8")
+GOOD_TEST_ENV = {
+    "WAEGOK_RUN_PROFILE": "test",
+    "LOBBY_TICKET_SECRET": "dev-from-env",
+    "LOBBY_BETA_LIST_PATH": "data/list.txt",
+}
 
-    def broken(_path):
+
+def test_unreadable_local_file_disables_even_with_good_env(monkeypatch, tmp_path):
+    local = tmp_path / ".env.lobby"
+    local.write_text("LOBBY_TICKET_TTL_SEC=3\n", encoding="utf-8")
+
+    def broken(self, *args, **kwargs):
         raise PermissionError("no")
 
-    monkeypatch.setattr(lobby_config, "dotenv_values", broken)
-    state = load_state({"WAEGOK_RUN_PROFILE": "test"}, local)
+    monkeypatch.setattr(Path, "read_text", broken)
+    state = load_state(GOOD_TEST_ENV, local)
     assert not state.enabled
     assert state.reasons and "PermissionError" in state.reasons[0]
+
+
+def test_local_file_that_is_a_directory_disables(tmp_path):
+    local = tmp_path / ".env.lobby"
+    local.mkdir()
+    state = load_state(GOOD_TEST_ENV, local)
+    assert not state.enabled
+    assert "IsADirectoryError" in state.reasons[0]
+
+
+def test_malformed_local_file_line_disables_and_names_only_the_line(tmp_path):
+    local = tmp_path / ".env.lobby"
+    local.write_text(
+        "LOBBY_TICKET_TTL_SEC=3\nthis is not a setting secret-value\n", encoding="utf-8"
+    )
+    state = load_state(GOOD_TEST_ENV, local)
+    assert not state.enabled
+    assert state.reasons == ("backend/.env.lobby: 2번째 줄 형식이 틀렸다",)
+
+
+def test_missing_local_file_is_fine_in_test_profile(tmp_path):
+    state = load_state(GOOD_TEST_ENV, tmp_path / "absent.env")
+    assert state.enabled
 
 
 def test_main_settings_does_not_know_lobby_keys():
