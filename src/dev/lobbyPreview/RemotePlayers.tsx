@@ -13,7 +13,8 @@ import * as THREE from "three";
 import { IS_LOBBY_OUTLINE_DISABLED, IS_LOBBY_TOON_DISABLED, LOBBY_AVATAR_BODY } from "@/app/runtimeFlags";
 import type { AvatarLink } from "@/engine/avatarLink";
 import { FRAME_PRIORITY } from "@/engine/camera";
-import { EYE_HEIGHT, UNITS_PER_METER } from "@/engine/movement/constants";
+import { EYE_HEIGHT, PLAYER_RADIUS, UNITS_PER_METER } from "@/engine/movement/constants";
+import { playerView } from "@/engine/playerView";
 import { DEFAULT_OUTLINE, DEFAULT_TOON, LobbyChibi } from "@/naju";
 import type { LobbyConnection, RemotePlayerView } from "@/net/colyseus";
 import { lobbyLookToRendererConfig } from "@/net/lobbyLook";
@@ -153,11 +154,20 @@ function RemoteAvatar({
     link.moving = view.gait !== "idle" && link.speed > 0.05;
     link.running = view.gait === "run";
     link.crouching = view.gait === "crouch";
+    // 이미 겹쳐 있으면(상대가 늦게 도착한 자리로 들어옴) 상자를 「내가 지금 선 거리」까지만 줄인다.
+    // 걷기 판정은 제자리가 막혀 있으면 「갇힘」으로 보고 아무 쪽으로나(가구 속까지) 보내 주므로, 나를 가두지 않되
+    // 더 다가가는 걸음은 막는다. 멀어지면 다시 원래 크기로.
+    const reach = playerView.ready
+      ? Math.max(Math.abs(playerView.eye.x - link.position.x), Math.abs(playerView.eye.z - link.position.z)) -
+        PLAYER_RADIUS -
+        0.02
+      : BODY_HALF_WIDTH;
+    const half = Math.max(0, Math.min(BODY_HALF_WIDTH, reach));
     const body = bodyRef.current;
-    body.minX = link.position.x - BODY_HALF_WIDTH;
-    body.maxX = link.position.x + BODY_HALF_WIDTH;
-    body.minZ = link.position.z - BODY_HALF_WIDTH;
-    body.maxZ = link.position.z + BODY_HALF_WIDTH;
+    body.minX = link.position.x - half;
+    body.maxX = link.position.x + half;
+    body.minZ = link.position.z - half;
+    body.maxZ = link.position.z + half;
     body.minY = link.footY;
     body.maxY = link.footY + BODY_HEIGHT;
     // 외형이 바뀌면 모델이 새로 붙으니 머리뼈를 다시 찾는다
