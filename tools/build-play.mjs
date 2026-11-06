@@ -14,9 +14,17 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "vite";
 
+import { holdOf } from "./asset-hold.mjs";
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DIST = join(ROOT, "dist");
 const NAJU_OUT = join(ROOT, ".naju-play-build");
+
+/** dist 기준 경로 목록 */
+const listFiles = (dir, prefix = "") =>
+  readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? listFiles(join(dir, entry.name), `${prefix}${entry.name}/`) : [`${prefix}${entry.name}`],
+  );
 
 const run = (command) => execSync(command, { cwd: ROOT, stdio: "inherit" });
 
@@ -47,6 +55,13 @@ if (clash.length) throw new Error(`[build-play] 본편 산출물과 겹친다: $
 mkdirSync(join(DIST, "naju01"), { recursive: true });
 for (const { from, to } of moves) renameSync(from, to);
 rmSync(NAJU_OUT, { recursive: true, force: true });
+
+// 4. 배포본에도 남기면 안 되는 보류 파일(tools/asset-hold.mjs offDist)을 지운다
+for (const rel of listFiles(DIST)) {
+  if (!holdOf(rel)?.offDist) continue;
+  rmSync(join(DIST, rel));
+  console.log(`[build-play] 보류 — 배포본에서 뺌: ${rel}`);
+}
 
 run("node tools/license-guard.mjs dist");
 console.log("[build-play] dist/ 에 본편 + 나주(/naju01/) 를 묶었다");
