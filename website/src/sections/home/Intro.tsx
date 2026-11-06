@@ -4,7 +4,7 @@ import { SCRIM_ATTR } from "@/lib/layout";
 import { FONT, gradientText, placeCentered } from "@/lib/style";
 import { ROUTES, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
-import { COLOR, GRADIENT, SHADOW, badgePillStyle } from "@/styles/tokens";
+import { COLOR, GRADIENT, SHADOW } from "@/styles/tokens";
 
 import { INTRO_CENTER_Y, INTRO_LEFT, INTRO_WIDTH } from "./homeLayout";
 
@@ -23,16 +23,11 @@ export default function Intro() {
   const navigate = useSiteNavigate();
 
   return (
-    // 배지도 덩이 안에 둔다. 따로 띄우면 덩이 높이가 바뀔 때 배지만 남아 제목과 겹친다.
     <div
       style={{ ...placeCentered(INTRO_LEFT, INTRO_CENTER_Y, INTRO_WIDTH), ...columnStyle }}
       {...SCRIM_ATTR}
       {...sectionAnchor("intro")}
     >
-      <div style={badgeStyle}>
-        <span style={badgeTextStyle}>2026 · REGIONAL ESCAPE ADVENTURE</span>
-      </div>
-
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "18px" }}>
         <div style={{ ...bigTitleStyle, width: "595px", color: COLOR.textBright }}>ESCAPE</div>
         <div className="u-shine-text" style={legendTitleStyle}>
@@ -42,7 +37,11 @@ export default function Intro() {
 
       <div style={descriptionStyle}>
         <p style={descriptionLineStyle}>
-          지역의 역사와 설화로 만든 몰입형 방탈출 게임. 사건을 풀고 실제로 그 지역을 찾아가면 숨겨진 보상이 열립니다.
+          지역의 역사와 설화로 만든 몰입형 방탈출 게임.
+          <br />
+          사건을 풀고 실제로 그 지역을 찾아가면 숨겨진
+          <br />
+          보상이 열립니다.
         </p>
         <p style={descriptionLineStyle}>
           잊혀 가는 지역의 이야기를 게임으로 되살리고, 당신의 발걸음으로 그 지역을 다시 빛나게 하세요.
@@ -68,7 +67,8 @@ export default function Intro() {
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: "24px", alignItems: "flex-start", width: "100%" }}>
+      {/* 빠진 배지(45)와 간격(18)만큼 띄워, 위 덩이만 올라가고 숫자 지표는 제자리에 남는다. */}
+      <div style={{ display: "flex", gap: "24px", alignItems: "flex-start", width: "100%", marginTop: "63px" }}>
         {STATS.map(({ value, label, cellStyle }) => (
           <div
             key={label}
@@ -92,16 +92,6 @@ export default function Intro() {
 }
 
 const columnStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: "18px", alignItems: "flex-start" };
-
-const badgeStyle: CSSProperties = { ...badgePillStyle, alignSelf: "flex-start", gap: "12px", padding: "10px 20px" };
-
-const badgeTextStyle: CSSProperties = {
-  fontFamily: FONT.mono,
-  fontSize: "18px",
-  color: COLOR.accent,
-  textTransform: "uppercase",
-  whiteSpace: "nowrap",
-};
 
 // 줄 높이(152)가 글자(180)보다 작아 그라디언트가 잘린다. 칸만 위아래로 넓혔다가 되돌린다.
 const bigTitleStyle: CSSProperties = {

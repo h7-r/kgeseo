@@ -216,9 +216,40 @@
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(1, 4, 10, 0.78) 0%, rgba(1, 4, 10, 0.35) 45%, rgba(1, 4, 10, 0) 70%),
+    /* 왼쪽 제목·오른쪽 단계 카드 양쪽 다 읽히게 가장자리를 누르고 가운데만 그림을 살린다 */
+    linear-gradient(
+      90deg,
+      rgba(1, 4, 10, 0.78) 0%,
+      rgba(1, 4, 10, 0.3) 45%,
+      rgba(1, 4, 10, 0.25) 60%,
+      rgba(1, 4, 10, 0.6) 100%
+    ),
     linear-gradient(0deg, rgba(1, 4, 10, 0.85) 0%, rgba(1, 4, 10, 0) 45%),
     linear-gradient(180deg, rgba(1, 4, 10, 0.6) 0%, rgba(1, 4, 10, 0) 18%);
+}
+
+/* 플레이 방법 단계 — 올리면 카드가 살짝 다가오고 번호가 밝아진다 */
+.play-step__card,
+.play-step__number {
+  transition:
+    transform 0.35s var(--ease-smooth),
+    border-color 0.2s ease,
+    box-shadow 0.35s ease;
+}
+.play-step:hover .play-step__card {
+  transform: translateX(-6px);
+  border-color: rgba(159, 178, 234, 0.6) !important;
+  box-shadow: 0 0 40px rgba(79, 108, 176, 0.3);
+}
+.play-step:hover .play-step__number {
+  border-color: #cdd8f6 !important;
+  box-shadow: 0 0 32px rgba(159, 178, 234, 0.6) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .play-step__card,
+  .play-step__number {
+    transition: none;
+  }
 }
 
 /* 홈 강 장면(SiteBackdrop)이 그려지는 동안은 사진 대신 장면이 비친다. 글 뒤 그늘도 장면이 글 자리만 눌러 대신한다.

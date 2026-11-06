@@ -3,12 +3,19 @@ import type { CSSProperties } from "react";
 import { FONT, placeCentered } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
 
-import { INTRO_CENTER_Y, SIGNUP_FORM_LEFT, SIGNUP_FORM_WIDTH } from "./homeLayout";
+import { INTRO_BOTTOM_Y, INTRO_CENTER_Y, SIGNUP_FORM_LEFT, SIGNUP_FORM_WIDTH } from "./homeLayout";
 
 // 가입 폼과 환영 판이 같은 자리·같은 단추를 쓴다.
 
 // 왼쪽 소개 덩이·가르는 호와 같은 중심선에 맞춘다. 높이는 내용이 정한다.
 export const signupPanelStyle: CSSProperties = placeCentered(SIGNUP_FORM_LEFT, INTRO_CENTER_Y, SIGNUP_FORM_WIDTH);
+
+/** 가입 폼은 맨 아래 로그인 줄을 왼쪽 숫자 지표의 바닥선에 맞춘다. 높이가 늘면 위로 자란다. */
+export const signupFormPanelStyle: CSSProperties = {
+  ...signupPanelStyle,
+  top: `${INTRO_BOTTOM_Y}px`,
+  transform: "translateY(-100%)",
+};
 
 export const primaryButtonStyle: CSSProperties = {
   position: "relative",

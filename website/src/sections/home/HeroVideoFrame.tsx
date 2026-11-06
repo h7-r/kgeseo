@@ -18,7 +18,7 @@ export default function HeroVideoFrame({ boxRef, isEnded = false }: HeroVideoFra
 }
 
 // 영상 첫 장면을 바탕에 깔아 둔다. 캔버스가 같은 장면 위로 0.8초 동안 떠올라 바뀌는 순간이 안 보인다.
-// 영상과 같은 판 이름을 쓴다(index.html 의 미리 받기도 같은 주소).
+// 영상과 같은 판 이름을 쓴다(index.html 의 미리 받기도 같은 주소). 영상의 검은 띠를 잘라 낸 그림이다.
 const POSTER_URL = "/hero-trailer-v12-poster.webp";
 // 끝 화면 반복 영상의 첫 장면. 끝 화면에 들어설 때에야 받는다.
 const AMBIENT_STILL_URL = "/hero-ambient-v2-poster.webp";
@@ -29,6 +29,8 @@ const boxStyle: CSSProperties = {
   zIndex: 0,
   pointerEvents: "none",
   overflow: "hidden",
+  // 예고편 영상이 칸 크기(cqw·cqh)로 덮을 크기를 정한다
+  containerType: "size",
   background: `#43587f url(${POSTER_URL}) center / cover no-repeat`,
 };
 

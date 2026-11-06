@@ -45,9 +45,9 @@ interface SubMenu {
 const SUB_MENUS: Readonly<Record<string, SubMenu>> = {
   [ROUTES.home]: {
     items: [
-      { id: "top", label: "처음", selector: null },
+      { id: "top", label: "홈", selector: null },
       { id: "intro", label: "소개", selector: bySection("intro") },
-      { id: "case-file", label: "사건 파일", selector: bySection("case-file") },
+      { id: "case-file", label: "플레이 방법", selector: bySection("case-file") },
       { id: "angam", label: "앙암바위", selector: bySection("angam"), pinLength: ANGAM_PIN_LENGTH },
       { id: "legend-regions", label: "전설 지역", selector: bySection("legend-regions") },
       { id: "scenarios", label: "시나리오", selector: bySection("scenarios") },
