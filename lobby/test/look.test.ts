@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { LOOK_MAX_BYTES, lookToStateString, validateLook } from "../src/look.js";
+import { LOOK_MAX_BYTES, lookToStateString, replaceRetiredItem, validateLook } from "../src/look.js";
 import { validLook } from "./helpers.js";
 
 describe("외형 검사", () => {
@@ -46,5 +46,15 @@ describe("허용 목록이 naju01 원본과 같다", () => {
     const fresh = `${JSON.stringify(await extractAllowlist(), null, 2)}\n`;
     const committed = readFileSync(new URL("../src/generated/lookAllowlist.json", import.meta.url), "utf8");
     assert.equal(committed, fresh, "npm run extract-look 으로 다시 뽑는다");
+  });
+
+  it("없앤 긴 머리는 그 성별 기본 머리로 바꿔 받는다(허용 목록에서 빠진 뒤부터)", () => {
+    // 지금 로비 브랜치 허용 목록에는 긴 머리가 아직 있다 — 합친 뒤의 목록을 흉내 낸다
+    assert.equal(replaceRetiredItem("hair.f.long", ["hair.f.bob", "hair.buzz", "hair.none"]), "hair.f.bob");
+    assert.equal(replaceRetiredItem("hair.m.long", ["hair.m.crop", "hair.buzz", "hair.none"]), "hair.m.crop");
+    // 바꿀 머리가 그 성별 목록에 없으면(다른 성별 ID) 바꾸지 않는다 → 외형을 비운다
+    assert.equal(replaceRetiredItem("hair.m.long", ["hair.f.bob"]), null);
+    // 모르는 ID 는 그대로 거절
+    assert.equal(replaceRetiredItem("top.hoodie", ["top.tee.white"]), null);
   });
 });

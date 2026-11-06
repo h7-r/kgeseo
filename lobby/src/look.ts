@@ -44,6 +44,21 @@ function hasExactKeys(value: Record<string, unknown>, keys: ReadonlySet<string>)
   return own.length === keys.size && own.every((key) => keys.has(key));
 }
 
+/**
+ * 없앤 아이템 → 대신 받을 아이템(그 성별 허용 목록에 있을 때만). 2026-11-06 미르: 긴 머리를 없애고, 옛 화면이 보내면
+ * 외형 전체를 버리지 말고 그 성별 기본 머리로 받는다(옷·색·체형은 그대로 보이게). 허용 목록에 아직 있으면 쓰지 않는다.
+ */
+const RETIRED_ITEMS: Readonly<Record<string, string>> = {
+  "hair.m.long": "hair.m.crop",
+  "hair.f.long": "hair.f.bob",
+};
+
+/** 허용 목록에 없는 옛 아이템 ID 를 바꿀 ID, 바꿀 것이 없으면 null */
+export function replaceRetiredItem(id: string, allowed: readonly string[]): string | null {
+  const next = RETIRED_ITEMS[id];
+  return next !== undefined && allowed.includes(next) ? next : null;
+}
+
 const COLOR_KEYS = new Set(ALLOWLIST.colorKeys);
 const BODY_KEYS = new Set(ALLOWLIST.bodyFields.map((field) => field.key));
 
@@ -66,8 +81,14 @@ export function validateLook(raw: unknown): Look | null {
   for (const slot of SLOTS) {
     const id = raw[slot];
     // 「안 입음」도 카탈로그 ID(hair.none 등)로 온다 — null 은 받지 않는다
-    if (typeof id !== "string" || !ALLOWLIST.items[slot][gender].includes(id)) return null;
-    slots[slot] = id;
+    if (typeof id !== "string") return null;
+    const allowed = ALLOWLIST.items[slot][gender];
+    if (allowed.includes(id)) slots[slot] = id;
+    else {
+      const replaced = replaceRetiredItem(id, allowed);
+      if (replaced === null) return null;
+      slots[slot] = replaced;
+    }
   }
 
   const colors = raw.colors;
