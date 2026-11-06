@@ -1,12 +1,16 @@
 // 로비 실제 화면 미리보기 — Canvas 밖(DOM). 「혼자 둘러보는 중」, 인사창, 개발용 조작.
-// 인사창: 포인터 잠금 중 G → 숫자 1~6(위 줄·키패드) / 커서가 보일 때 💬 단추 → 클릭. Esc·G 로 닫는다(설계 5절).
+// 인사창: 포인터 잠금 중 G → 숫자 1~6 / 커서가 보일 때 💬 단추 → 클릭. Esc·G 로 닫는다(설계 5절).
+// 오른쪽 키패드 1~6 은 인사창 없이 바로 인사한다(미르 11/6 — 게임이 키패드를 안 쓴다). 위 줄 숫자는 인사창이 열렸을 때만.
+// 1인칭에서는 내 말풍선이 눈 위라 안 보이므로 화면 아래에 띄운다. 쿨다운(3초) 중이면 짧게 알린다.
 // 컷신 중에는 인사창을 열지 않고, 열려 있으면 닫는다(설계 5절). 자물쇠·다른 화면창과 겹치지 않게 하는 것은 3단계에서 한다.
 // 모양은 동작 확인용이다 — 최종 톤은 3단계에서 해랑 님 화면에 맞춘다.
 import { useEffect, useState, type CSSProperties } from "react";
 
+import { playerView } from "@/engine/playerView";
 import { useIsCutscenePlaying } from "@/props/vendingPushState";
 
-import { connection, devLogin, greet, GREETINGS, usePreviewState } from "./previewState";
+import { bubbles, connection, devLogin, greet, GREETINGS, usePreviewState } from "./previewState";
+import SpeechBubble from "./SpeechBubble";
 
 const REASON_TEXT: Record<string, string> = {
   LOGIN_REQUIRED: "로그인 안 됨",
@@ -56,12 +60,26 @@ export default function LobbyPreviewHud() {
     setWasCutscene(cutscene);
     if (cutscene) setPickerOpen(false);
   }
-  // 같은 방 사람 수는 상태 변화가 아니라 방 상태에서 읽는다 — 0.5초마다 다시 센다
+  // 같은 방 사람 수·1인칭 내 말풍선은 상태 변화가 아니라 방 상태에서 읽는다 — 0.2초마다 다시 본다
   const [roomSize, setRoomSize] = useState(0);
+  const [firstPersonBubble, setFirstPersonBubble] = useState<string | null>(null);
   useEffect(() => {
-    const timer = setInterval(() => setRoomSize(connection.players().size), 500);
+    const timer = setInterval(() => {
+      setRoomSize(connection.players().size);
+      const current = connection.status();
+      const said = current.kind === "connected" ? bubbles.get(current.sessionId) : undefined;
+      const text = said && said.until > Date.now() && !playerView.isThirdPerson ? said.text : null;
+      setFirstPersonBubble(text);
+    }, 200);
     return () => clearInterval(timer);
   }, []);
+  // 쿨다운 중에 누르면 「잠시 뒤」를 잠깐 보여 준다
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 1500);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   // 포인터 잠금 여부(커서가 보일 때만 💬 단추)
   useEffect(() => {
@@ -82,10 +100,12 @@ export default function LobbyPreviewHud() {
         setPickerOpen(false);
         return;
       }
-      // 위 줄 숫자와 오른쪽 키패드 숫자 둘 다
-      const digit = /^(?:Digit|Numpad)([1-6])$/.exec(event.code);
-      if (digit && pickerOpen && canGreet) {
-        greet(Number(digit[1]));
+      // 오른쪽 키패드 1~6 은 바로, 위 줄 숫자는 인사창이 열렸을 때만
+      const numpad = /^Numpad([1-6])$/.exec(event.code);
+      const digit = /^Digit([1-6])$/.exec(event.code);
+      const id = numpad ? Number(numpad[1]) : digit && pickerOpen ? Number(digit[1]) : null;
+      if (id !== null && canGreet) {
+        if (!greet(id)) setNotice("인사는 3초에 한 번 할 수 있어요");
         setPickerOpen(false);
       }
     };
@@ -99,13 +119,30 @@ export default function LobbyPreviewHud() {
       : status.kind === "connecting"
         ? "로비에 붙는 중…"
         : status.kind === "connected"
-          ? `로비 연결됨 · 같은 방 ${roomSize}명 · G: 인사`
+          ? `로비 연결됨 · 같은 방 ${roomSize}명 · G: 인사 · 키패드 1~6: 바로 인사`
           : `혼자 둘러보는 중(${REASON_TEXT[status.reason] ?? status.reason})${
               status.nextRetryAt ? " · 재시도 예약됨" : " · 이번 방문 재시도 없음"
             }`;
 
   return (
     <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 30 }}>
+      {(firstPersonBubble || notice) && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: 96,
+            transform: "translateX(-50%)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          {firstPersonBubble && <SpeechBubble text={firstPersonBubble} />}
+          {notice && <div style={{ ...panel, padding: "4px 10px", fontSize: 12 }}>{notice}</div>}
+        </div>
+      )}
       {status.kind === "solo" && (
         <div style={{ ...panel, position: "absolute", top: 60, right: 16, padding: "4px 10px", fontSize: 12 }}>
           혼자 둘러보는 중
@@ -193,14 +230,14 @@ export default function LobbyPreviewHud() {
               type="button"
               style={{ ...button, textAlign: "left" }}
               onClick={() => {
-                greet(index + 1);
+                if (!greet(index + 1)) setNotice("인사는 3초에 한 번 할 수 있어요");
                 setPickerOpen(false);
               }}
             >
               {index + 1}. {text}
             </button>
           ))}
-          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>숫자 1~6(키패드도) · Esc·G 닫기</div>
+          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>숫자 1~6 · 키패드는 바로 · Esc·G 닫기</div>
         </div>
       )}
     </div>

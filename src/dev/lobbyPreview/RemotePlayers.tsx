@@ -2,11 +2,12 @@
 // - 내 연결 ID 는 뺀다(내 이름표·말풍선은 LocalLabel). 첫 정상 위치(placed) 전에는 그리지 않는다.
 // - 머리 위 이름은 입장권의 이름 — 캐릭터를 만든 계정은 조사관명, 없으면 계정 닉네임(FastAPI 가 정한다).
 // - 위치·방향은 약 100ms 로 따라간다(🟡). 위치가 바뀔 때마다 모델을 다시 만들지 않는다 — 상자 하나에 값만 쓴다.
-// - 충돌·퍼즐 상호작용에 넣지 않는다(물리·상호작용 목록에 등록하지 않음).
+// - 퍼즐 상호작용에는 넣지 않는다. 걷기 충돌에는 넣는다 — 내 캐릭터가 다른 사람을 뚫고 지나가지 않게(미르 지시 11/6,
+//   설계 5절 「원격 캐릭터는 물리 충돌에서 뺀다」와 다르다 🟡). 본편 충돌 목록(dynamicColliders)에 몸통 상자를 올린다.
 // - 동작은 「자동」(lobbyLookToRendererConfig), framePriority 는 내 아바타보다 먼저(1인칭 잘림면이 전역 하나).
 import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
-import { Suspense, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 
 import { IS_LOBBY_OUTLINE_DISABLED, IS_LOBBY_TOON_DISABLED, LOBBY_AVATAR_BODY } from "@/app/runtimeFlags";
@@ -16,6 +17,9 @@ import { EYE_HEIGHT, UNITS_PER_METER } from "@/engine/movement/constants";
 import { DEFAULT_OUTLINE, DEFAULT_TOON, LobbyChibi } from "@/naju";
 import type { LobbyConnection, RemotePlayerView } from "@/net/colyseus";
 import { lobbyLookToRendererConfig } from "@/net/lobbyLook";
+import { dynamicColliders, type ColliderBox } from "@/station/layout/collision";
+
+import SpeechBubble from "./SpeechBubble";
 
 const TOON = { ...DEFAULT_TOON, enabled: !IS_LOBBY_TOON_DISABLED };
 const OUTLINE = { ...DEFAULT_OUTLINE, enabled: !IS_LOBBY_OUTLINE_DISABLED };
@@ -25,6 +29,12 @@ const FOLLOW_SECONDS = 0.1;
 const LABEL_ABOVE_HEAD_BONE = 0.4 * UNITS_PER_METER;
 /** 머리뼈를 아직 못 찾았을 때(모델 내려받는 중) 발바닥에서의 높이 */
 const LABEL_FALLBACK_HEIGHT = EYE_HEIGHT;
+/**
+ * 다른 사람 몸통 상자 반폭(유닛). 걷기 판정이 내 반지름(PLAYER_RADIUS 0.6)을 더하므로 중심 사이가 약 1.2 유닛(36cm)
+ * 아래로는 다가가지 못한다 🟡 화면 보고 맞춤. 높이는 3인칭 카메라 붐만 본다(걷기는 x·z 만).
+ */
+const BODY_HALF_WIDTH = 0.6;
+const BODY_HEIGHT = 4.5;
 /** 원격 아바타를 담는 그룹 이름 — 내 머리뼈를 찾을 때 원격 아바타는 빼려고 */
 const REMOTE_ROOT_NAME = "lobby-remote-players";
 
@@ -66,26 +76,12 @@ function createLink(view: RemotePlayerView): AvatarLink {
 
 const wrapAngle = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
 
-/** 머리 위 표시: 말풍선(있을 때) 위, 조사관명 아래. 설계 5절 「말풍선은 닉네임표 위에 띄운다」 */
+/** 머리 위 표시: 말풍선(있을 때, 꼬리 달린 흰 풍선) 위, 조사관명(어두운 표) 아래. 설계 5절 「말풍선은 닉네임표 위에 띄운다」 */
 function NameTag({ name, bubble }: { name: string; bubble: string | null }) {
   return (
     <Html center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-        {bubble && (
-          <div
-            style={{
-              background: "#fff6d5",
-              color: "#222",
-              padding: "4px 10px",
-              borderRadius: 12,
-              font: "600 13px system-ui, sans-serif",
-              whiteSpace: "nowrap",
-              boxShadow: "0 2px 6px rgba(0,0,0,0.35)",
-            }}
-          >
-            {bubble}
-          </div>
-        )}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+        {bubble && <SpeechBubble text={bubble} />}
         {name && (
           <div
             style={{
@@ -119,6 +115,22 @@ function RemoteAvatar({
   const labelRef = useRef<THREE.Group>(null);
   const avatarRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Object3D | null>(null);
+  // 걷기 충돌 상자 — 매 프레임 같은 상자의 값만 바꾼다(새로 만들지 않는다)
+  const colliderId = `lobby-remote:${sid}`;
+  const bodyRef = useRef<ColliderBox>({
+    minX: (first?.x ?? 0) - BODY_HALF_WIDTH,
+    maxX: (first?.x ?? 0) + BODY_HALF_WIDTH,
+    minZ: (first?.z ?? 0) - BODY_HALF_WIDTH,
+    maxZ: (first?.z ?? 0) + BODY_HALF_WIDTH,
+    minY: first?.y ?? 0,
+    maxY: (first?.y ?? 0) + BODY_HEIGHT,
+  });
+  useEffect(() => {
+    dynamicColliders.set(colliderId, bodyRef.current);
+    return () => {
+      dynamicColliders.delete(colliderId);
+    };
+  }, [colliderId]);
   const [look, setLook] = useState(first?.look ?? "");
   const [nickname, setNickname] = useState(first?.nickname ?? "");
   const [bubble, setBubble] = useState<string | null>(null);
@@ -141,6 +153,13 @@ function RemoteAvatar({
     link.moving = view.gait !== "idle" && link.speed > 0.05;
     link.running = view.gait === "run";
     link.crouching = view.gait === "crouch";
+    const body = bodyRef.current;
+    body.minX = link.position.x - BODY_HALF_WIDTH;
+    body.maxX = link.position.x + BODY_HALF_WIDTH;
+    body.minZ = link.position.z - BODY_HALF_WIDTH;
+    body.maxZ = link.position.z + BODY_HALF_WIDTH;
+    body.minY = link.footY;
+    body.maxY = link.footY + BODY_HEIGHT;
     // 외형이 바뀌면 모델이 새로 붙으니 머리뼈를 다시 찾는다
     if (!headRef.current?.parent) headRef.current = headBoneOf(avatarRef.current);
     placeLabel(labelRef.current, headRef.current, link.position.x, link.footY, link.position.z);
