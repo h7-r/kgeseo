@@ -4,6 +4,7 @@
  *   근거 두 가지: ① 나주 manifest(_sf_local/manifest.json) ② 코드 안 주소 문자열(src · naju01/src · shared · index.html)
  *   구분: 케이스(assetUrl — _sf_local · vfx → /c/<케이스>/<판>/…) · 공용(sharedAssetUrl — models → /shared/<빌드 번호>/…)
  *         · 배포본(그 밖, 사이트에 남음). shared/env.ts 의 나눔과 같다
+ *   CDN: 업로드 가능 / 보류(tools/asset-hold.mjs). 보류 중 「배포본 제외」는 dist 에도 남기지 않는다
  *   출처: GLB 표지(asset.extras)의 라이선스·저자·출처, 표지가 없으면 아래 ORIGIN_RULES 로 출처구분을 단다.
  *
  *   실행: npm run assets:list [-- --out 폴더] [-- --case-path /c/naju-angam-01/v1]
@@ -13,6 +14,8 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { dirname, join, posix, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { holdOf } from "./asset-hold.mjs";
+import { kindOf } from "./asset-kinds.mjs";
 import { sharedAssetBuild } from "./shared-asset-build.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -50,13 +53,6 @@ for (const path of walk(PUBLIC)) {
   if (LOCAL_ONLY.some((dir) => rel.startsWith(`${dir}/`))) continue;
   publicFiles.set(rel, statSync(path).size);
 }
-// shared/env.ts — assetUrl 로 읽는 폴더는 케이스, sharedAssetUrl 로 읽는 폴더는 공용
-const CASE_DIRS = ["_sf_local", "vfx"];
-const SHARED_DIRS = ["models"];
-const kindOf = (rel) => {
-  const top = rel.split("/")[0];
-  return CASE_DIRS.includes(top) ? "케이스" : SHARED_DIRS.includes(top) ? "공용" : "배포본";
-};
 
 /**
  * 표지 없는 모형의 출처구분(11/6 미르 님 나눔). 앞에서부터 처음 맞는 것. 근거는 커밋·README·코드 주석.
@@ -310,8 +306,10 @@ const rows = [...refs.entries()]
   .map(([rel, reasons]) => {
     const extras = meta.get(rel) ?? {};
     const [origin, source, note] = originOf(rel, extras);
+    const hold = holdOf(rel);
+    const kind = kindOf(rel);
     return {
-      구분: kindOf(rel),
+      구분: kind,
       경로: `public/${rel}`,
       CDN경로: cdnPath(rel),
       바이트: publicFiles.get(rel),
@@ -319,6 +317,8 @@ const rows = [...refs.entries()]
       저자: extras.author ?? "",
       출처: extras.source ?? "",
       제목: extras.title ?? "",
+      CDN: kind === "배포본" ? "-" : hold ? (hold.offDist ? "보류(배포본 제외)" : "보류") : "업로드 가능",
+      보류사유: hold?.reason ?? "",
       출처구분: origin,
       원본: source,
       출처메모: note,
@@ -374,6 +374,11 @@ for (const [kind, total] of Object.entries(totals))
   console.log(
     `${kind}: 읽는 파일 ${total.참조}개 ${mb(total.참조바이트)} · 안 읽는 파일 ${total.안씀}개 ${mb(total.안씀바이트)}`,
   );
+const held = rows.filter((row) => row.CDN.startsWith("보류"));
+console.log(
+  `CDN 보류 ${held.length}개 ${mb(held.reduce((sum, row) => sum + row.바이트, 0))}` +
+    ` (배포본에서도 뺌 ${held.filter((row) => row.CDN.includes("배포본 제외")).length}개)`,
+);
 const byOrigin = {};
 for (const row of unknownLicense) byOrigin[row.출처구분] = (byOrigin[row.출처구분] ?? 0) + 1;
 console.log(
