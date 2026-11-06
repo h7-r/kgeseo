@@ -2,8 +2,8 @@
 // - 내 연결 ID 는 뺀다(내 이름표·말풍선은 LocalLabel). 첫 정상 위치(placed) 전에는 그리지 않는다.
 // - 머리 위 이름은 입장권의 이름 — 캐릭터를 만든 계정은 조사관명, 없으면 계정 닉네임(FastAPI 가 정한다).
 // - 위치·방향은 약 100ms 로 따라간다(🟡). 위치가 바뀔 때마다 모델을 다시 만들지 않는다 — 상자 하나에 값만 쓴다.
-// - 퍼즐 상호작용에는 넣지 않는다. 걷기 충돌에는 넣는다 — 내 캐릭터가 다른 사람을 뚫고 지나가지 않게(미르 지시 11/6,
-//   설계 5절 「원격 캐릭터는 물리 충돌에서 뺀다」와 다르다 🟡). 본편 충돌 목록(dynamicColliders)에 몸통 상자를 올린다.
+// - 퍼즐 상호작용에는 넣지 않는다. 내 **걷기** 충돌에만 넣는다 — 내 캐릭터가 다른 사람을 뚫고 지나가지 않게(미르 지시 11/6,
+//   설계 v0.20 5절). 몸통 상자는 personColliders(걷기 전용)에 올린다 — 본편 공용 충돌 목록에는 안 올린다(카메라·물건 놓기 그대로).
 // - 동작은 「자동」(lobbyLookToRendererConfig), framePriority 는 내 아바타보다 먼저(1인칭 잘림면이 전역 하나).
 import { Html } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
@@ -21,13 +21,12 @@ import { lobbyLookToRendererConfig } from "@/net/lobbyLook";
 import { overlayLayer, isTypingTarget } from "@/game/overlayLayer";
 import { getLockControl } from "@/props/combinationLockState";
 import { useIsCutscenePlaying } from "@/props/vendingPushState";
-import { dynamicColliders, type ColliderBox } from "@/station/layout/collision";
 import { HEADQUARTERS_MIN_X } from "@/station/layout/dimensions";
 import { passage } from "@/station/layout/passage";
 import { trainDoors } from "@/station/layout/trainDoors";
 
 import { remoteLinks } from "./avatarLinks";
-import { localPlayer } from "./localPlayer";
+import { type PersonBox, personBoxes } from "./personColliders";
 import SpeechBubble from "./SpeechBubble";
 
 const TOON = { ...DEFAULT_TOON, enabled: !IS_LOBBY_TOON_DISABLED };
@@ -40,19 +39,16 @@ const LABEL_ABOVE_HEAD_BONE = 0.4 * UNITS_PER_METER;
 const LABEL_FALLBACK_HEIGHT = EYE_HEIGHT;
 /**
  * 다른 사람 몸통 상자 반폭(유닛). 걷기 판정이 내 반지름(PLAYER_RADIUS 0.6)을 더하므로 중심 사이가 약 1.2 유닛(36cm)
- * 아래로는 다가가지 못한다 🟡 화면 보고 맞춤. 높이는 걷기가 안 보고(x·z 만), 붐·물건 놓기가 본다.
- * 🟡 본편 충돌 목록에 올리므로 물건 놓기·든 물건·의자 끌기도 다른 사람에게 막힌다 — 3단계에서 걷기 전용 판정으로 나눈다.
+ * 아래로는 다가가지 못한다 🟡 화면 보고 맞춤. 걷기 판정에만 쓰므로 높이는 없다.
  */
 const BODY_HALF_WIDTH = 0.6;
 /** 이보다 얇아지면(상대가 내 몸 안까지 들어옴) 상자를 내린다 */
 const MIN_BODY_HALF_WIDTH = 0.05;
-/** 몸통 높이 — 눈높이(4.15)보다 낮게 두어 3인칭 카메라 붐(눈에서 뒤로 뻗음)을 접지 않게 한다 */
-const BODY_HEIGHT = 3.5;
 /**
  * 출구 막힘 예외(미르 11/6 「권장안대로」, Codex 09 로 좁힘): 출구(서쪽 벽 구멍·기차 문) 근처에서, 내가 가려는 쪽을
  * 사람이 막고 있고, 이동 키를 누른 채 0.5초 동안 거의 못 움직인 상태가 3초 이어지면 막고 있던 사람들만 통과한다.
  * 키를 떼거나·다시 나아가거나·화면창·자물쇠·컷신·출구를 벗어나면 처음부터. 몸이 완전히 빠지면(2 유닛) 다시 막는다.
- * 사람 상자를 내리는 방식이라 그동안은 그 사람에게 물건 놓기·카메라도 걸리지 않는다(걷기 전용 판정은 3단계).
+ * 사람 상자는 걷기 전용이라 통과도 걷기에서만 빠진다. 「가려는 쪽」은 몸 방향이 아니라 실제 이동 입력(카메라 앞·옆 × WASD).
  */
 const PUSH_THROUGH_SECONDS = 3;
 const EXIT_RADIUS = 5;
@@ -60,6 +56,8 @@ const STUCK_WINDOW_SECONDS = 0.5;
 const STUCK_DISTANCE = 0.3;
 const BLOCKING_ARC = (70 * Math.PI) / 180;
 const PASS_RELEASE_DISTANCE = 2;
+/** 지금 이동 입력이 가리키는 쪽(수평 단위 벡터). active 가 false 면 키를 안 눌렀거나 W+S 처럼 상쇄됐다 */
+const wish = { x: 0, z: 0, active: false };
 /** 이번 프레임 나와 닿아 있고 내가 가려는 쪽에 있는 사람 */
 const blockers = new Set<string>();
 /** 통과 중인 사람 */
@@ -81,6 +79,7 @@ const headBoneOf = (root: THREE.Object3D | null): THREE.Object3D | null => {
   return found;
 };
 const scratch = new THREE.Vector3();
+const forwardScratch = new THREE.Vector3();
 
 /** 이름표 자리: 머리뼈가 있으면 그 위, 없으면 발바닥 기준. 키·머리 크기·애니메이션을 그대로 따른다 */
 function placeLabel(label: THREE.Object3D | null, head: THREE.Object3D | null, x: number, footY: number, z: number) {
@@ -152,14 +151,11 @@ function RemoteAvatar({
   const avatarRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Object3D | null>(null);
   // 걷기 충돌 상자 — 매 프레임 같은 상자의 값만 바꾼다(새로 만들지 않는다)
-  const colliderId = `lobby-remote:${sid}`;
-  const bodyRef = useRef<ColliderBox>({
+  const bodyRef = useRef<PersonBox>({
     minX: (first?.x ?? 0) - BODY_HALF_WIDTH,
     maxX: (first?.x ?? 0) + BODY_HALF_WIDTH,
     minZ: (first?.z ?? 0) - BODY_HALF_WIDTH,
     maxZ: (first?.z ?? 0) + BODY_HALF_WIDTH,
-    minY: first?.y ?? 0,
-    maxY: (first?.y ?? 0) + BODY_HEIGHT,
   });
   // 인사·맞기·주먹 동작을 걸 수 있게 연결 ID 로 등록한다
   useEffect(() => {
@@ -174,9 +170,9 @@ function RemoteAvatar({
   // 상자는 그 사람의 자리를 받은 프레임에 올리고(useFrame), 사라질 때 내린다 — 이미 나간 사람은 올리지 않는다
   useEffect(
     () => () => {
-      dynamicColliders.delete(colliderId);
+      personBoxes.delete(sid);
     },
-    [colliderId],
+    [sid],
   );
   const [look, setLook] = useState(first?.look ?? "");
   const [nickname, setNickname] = useState(first?.nickname ?? "");
@@ -217,24 +213,20 @@ function RemoteAvatar({
       const dz = link.position.z - playerView.eye.z;
       const distance = Math.hypot(dx, dz);
       const touching = Math.max(Math.abs(dx), Math.abs(dz)) <= BODY_HALF_WIDTH + PLAYER_RADIUS + 0.1;
-      const facing = localPlayer()?.facing ?? playerView.bodyYaw;
-      const ahead =
-        distance < 0.3 || (Math.sin(facing) * dx + Math.cos(facing) * dz) / distance >= Math.cos(BLOCKING_ARC);
+      const ahead = wish.active && (distance < 0.3 || (wish.x * dx + wish.z * dz) / distance >= Math.cos(BLOCKING_ARC));
       if (touching && ahead) blockers.add(sid);
       else blockers.delete(sid);
       if (passThrough.has(sid) && distance > PASS_RELEASE_DISTANCE) passThrough.delete(sid);
       passing = passThrough.has(sid);
     }
     if (passing || half < MIN_BODY_HALF_WIDTH) {
-      if (dynamicColliders.get(colliderId) === body) dynamicColliders.delete(colliderId);
+      if (personBoxes.get(sid) === body) personBoxes.delete(sid);
     } else {
       body.minX = link.position.x - half;
       body.maxX = link.position.x + half;
       body.minZ = link.position.z - half;
       body.maxZ = link.position.z + half;
-      body.minY = link.footY;
-      body.maxY = link.footY + BODY_HEIGHT;
-      if (dynamicColliders.get(colliderId) !== body) dynamicColliders.set(colliderId, body);
+      if (personBoxes.get(sid) !== body) personBoxes.set(sid, body);
     }
     // 외형이 바뀌면 모델이 새로 붙으니 머리뼈를 다시 찾는다
     if (!headRef.current?.parent) headRef.current = headBoneOf(avatarRef.current);
@@ -376,6 +368,23 @@ export default function RemotePlayers({
   const trailRef = useRef<{ t: number; x: number; z: number }[]>([]);
   const stuckRef = useRef(0);
   useFrame((state, delta) => {
+    // 이동 입력 방향 — 본편 이동과 같이 카메라 앞(수평)·옆에 키를 더한다(1인칭에서 옆·뒤로 가는 것도 맞게, W+S 는 상쇄)
+    const keys = keysRef.current;
+    const ahead =
+      (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) - (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0);
+    const side =
+      (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0);
+    state.camera.getWorldDirection(forwardScratch);
+    forwardScratch.y = 0;
+    if (forwardScratch.lengthSq() > 1e-6) forwardScratch.normalize();
+    // 오른쪽 = 앞 × 위(0,1,0) = (−앞.z, 0, 앞.x)
+    const wx = forwardScratch.x * ahead - forwardScratch.z * side;
+    const wz = forwardScratch.z * ahead + forwardScratch.x * side;
+    const length = Math.hypot(wx, wz);
+    wish.active = length > 0.1;
+    wish.x = wish.active ? wx / length : 0;
+    wish.z = wish.active ? wz / length : 0;
+
     // 출구 막힘 예외 — 0.5초 동안 거의 못 움직인 채 막는 사람에게 밀고 있던 시간을 센다
     if (playerView.ready) {
       const now = state.clock.elapsedTime;
@@ -386,7 +395,7 @@ export default function RemotePlayers({
       const moved = Math.hypot(playerView.eye.x - oldest.x, playerView.eye.z - oldest.z);
       const busy = cutsceneRef.current || overlayLayer.get() !== null || getLockControl() !== null;
       const stuck =
-        keysRef.current.size > 0 &&
+        wish.active &&
         !busy &&
         blockers.size > 0 &&
         nearExit(playerView.eye.x, playerView.eye.z) &&

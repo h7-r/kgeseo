@@ -76,11 +76,16 @@ export default function LobbyPreviewRig() {
     // 아닐 때만 보낸다(멈춰 있던 동안 낸 주먹이 나중에 나가지 않게)
     const me = localPlayer();
     const attack = me?.attackSerial ?? null;
+    const isPunchBlocked = () =>
+      cutsceneRef.current ||
+      window.location.pathname === TRAIN_PATH ||
+      najuRef.current ||
+      overlayLayer.get() !== null ||
+      getLockControl() !== null;
     if (attack !== null && lastAttackRef.current !== null && attack !== lastAttackRef.current) {
-      const busy =
-        cutsceneRef.current || inTrain || najuRef.current || overlayLayer.get() !== null || getLockControl() !== null;
-      if (connection.status().kind === "connected" && !busy)
-        notePunch(me?.attackMotion === "Punch_Cross" ? "cross" : "jab");
+      if (connection.status().kind === "connected" && !isPunchBlocked()) {
+        notePunch(me?.attackMotion === "Punch_Cross" ? "cross" : "jab", isPunchBlocked);
+      }
     }
     lastAttackRef.current = attack;
     if (inTrain || najuRef.current) {

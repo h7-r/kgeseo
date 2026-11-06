@@ -30,25 +30,23 @@ describe("때리기 요청 검사", () => {
   for (const [name, raw] of broken) {
     it(`${name} → 버린다`, () => assert.equal(new PunchGate().accept(raw, 0), null));
   }
-  it(`${PUNCH_BURST}번까지 한꺼번에, 그 뒤로는 ${PUNCH_COOLDOWN_MS}ms 마다 하나`, () => {
+  it(`한꺼번에는 ${PUNCH_BURST}번, 그 뒤로는 ${PUNCH_COOLDOWN_MS}ms 마다 하나`, () => {
     const gate = new PunchGate();
     assert.ok(gate.accept({ motion: "jab" }, 0));
-    assert.ok(gate.accept({ motion: "cross" }, 1));
-    assert.equal(gate.accept({ motion: "jab" }, 2), null);
+    assert.equal(gate.accept({ motion: "cross" }, 1), null);
     assert.ok(gate.accept({ motion: "jab" }, PUNCH_COOLDOWN_MS + 1));
   });
   it("잘못된 요청도 통을 쓴다", () => {
     const gate = new PunchGate();
     assert.equal(gate.accept({ motion: "kick" }, 0), null);
-    assert.equal(gate.accept("x", 1), null);
-    assert.equal(gate.accept({ motion: "jab" }, 2), null);
+    assert.equal(gate.accept({ motion: "jab" }, 1), null);
     assert.ok(gate.accept({ motion: "jab" }, PUNCH_COOLDOWN_MS));
   });
   it("꾸준히 누르면(0.25초마다) 계속 막히지 않고 초당 약 3번은 나간다", () => {
     const gate = new PunchGate();
     let accepted = 0;
     for (let t = 0; t < 3000; t += 250) if (gate.accept({ motion: "jab" }, t)) accepted += 1;
-    assert.ok(accepted >= 9 && accepted <= 12, `3초에 ${accepted}번`);
+    assert.ok(accepted >= 8 && accepted <= 11, `3초에 ${accepted}번`);
   });
 });
 

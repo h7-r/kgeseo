@@ -39,7 +39,7 @@ import {
 } from "./preparedBody";
 import { DEFAULT_TOON, type ToonConfig } from "./toonMaterial";
 import { DEFAULT_OUTLINE, type OutlineConfig } from "./toonOutline";
-import { chooseMotion, type MotionTimers, useMotionPlayer } from "./useMotionPlayer";
+import { chooseMotion, type MotionTimers, noteHiddenActions, useMotionPlayer } from "./useMotionPlayer";
 import { useAppearancePaint, useDeferredDisposal, useToonAndOutline } from "./useChibiMaterials";
 
 export type { ChibiAvatarConfig, ChibiBody } from "./preparedBody";
@@ -262,7 +262,10 @@ function ChibiGameAvatar({
     state.leftPalm = exportHands ? (prepared.palms.hand_l ?? null) : null;
     state.rightGripSocket = exportHands ? (prepared.gripSockets.hand_r ?? null) : null;
     state.leftGripSocket = exportHands ? (prepared.gripSockets.hand_l ?? null) : null;
-    if (!shouldDraw) return;
+    if (!shouldDraw) {
+      noteHiddenActions(state, timers.current);
+      return;
+    }
     const avatarScale = scale * (config.heightScale ?? 1);
 
     const now = clock.elapsedTime;

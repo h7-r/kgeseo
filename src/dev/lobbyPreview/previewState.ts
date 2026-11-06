@@ -111,10 +111,11 @@ connection.onPunch(({ sid, motion, hit }) => {
 });
 
 /** 내가 주먹을 냈다(본편 usePunch 가 attackSerial 을 올림) — 닿는 순간에 앞쪽 가장 가까운 사람을 골라 한 번 보낸다 */
-export function notePunch(motion: "jab" | "cross") {
+export function notePunch(motion: "jab" | "cross", isBlocked: () => boolean) {
   later(PUNCH_IMPACT_MS, () => {
     const mine = mySid();
-    if (!mine) return;
+    // 닿기 전(0.2초)에 컷신·화면창·자물쇠·기차·나주가 시작됐으면 보내지 않는다(Codex 10)
+    if (!mine || isBlocked()) return;
     const facing = localPlayer()?.facing ?? playerView.bodyYaw;
     const eye = playerView.eye;
     let target: string | null = null;

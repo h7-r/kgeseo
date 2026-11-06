@@ -130,6 +130,20 @@ export function chooseMotion(
   return next || "Idle_Loop";
 }
 
+/**
+ * 몸을 그리지 않는 프레임(1인칭 등)에도 인사 취소만은 적는다 — 숨어 있는 동안 움직였던 인사가 3인칭으로 돌아왔을 때
+ * 다시 살아나지 않게(Codex 10). 판정은 chooseMotion 의 emoteBlocked 와 같은 기준(움직임·공중·앉기·맞기).
+ */
+export function noteHiddenActions(state: AvatarLink, timers: MotionTimers) {
+  const emote = state.emote;
+  if (!emote || emote.serial === timers.canceledEmote) return;
+  const wall = performance.now() / 1000;
+  if (!activeStep(emote, wall)) return;
+  if (state.moving || !state.grounded || state.jumping || state.crouching || activeStep(state.hit, wall)) {
+    timers.canceledEmote = emote.serial;
+  }
+}
+
 /** 몸(prepared)마다 믹서 하나. 몸이 바뀌면 하던 동작과 시각을 새 몸에 넘겨 이어 튼다. */
 export function useMotionPlayer(prepared: PreparedBody) {
   const mixer = useMemo(() => new THREE.AnimationMixer(prepared.targetSkin), [prepared.targetSkin]);

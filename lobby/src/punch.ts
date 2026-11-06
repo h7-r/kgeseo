@@ -6,9 +6,9 @@
 export const PUNCH_MOTIONS = ["jab", "cross"] as const;
 export type PunchMotion = (typeof PUNCH_MOTIONS)[number];
 
-/** 🟡 연결당 빈도 — 300ms 마다 한 번 차는 통(최대 2번 모아 둠), 요청마다(잘못된 것도) 한 번씩 쓴다. 초당 약 3번이 상한 */
+/** 🟡 연결당 빈도 — 300ms 마다 한 번 차는 통(모아 두지 않음), 요청마다(잘못된 것도) 한 번씩 쓴다. 평균 0.3초에 한 번 */
 export const PUNCH_COOLDOWN_MS = 300;
-export const PUNCH_BURST = 2;
+export const PUNCH_BURST = 1;
 /** 🟡 두 사람 사이 수평 거리 상한(유닛) — 화면 판정 2.2 + 위치 지연 여유 */
 export const PUNCH_RANGE = 2.8;
 /** 🟡 때린 사람이 보는 방향에서 벗어나도 되는 각도 */
@@ -33,16 +33,17 @@ export class PunchGate {
    * 버린 요청이 통을 다시 비우지는 않으므로 꾸준히 누르는 사람은 초당 약 3번은 나간다(시각을 매번 새로 세면 계속 막힌다).
    */
   accept(raw: unknown, nowMs: number): PunchRequest | null {
-    if (this.#filledAt === null) this.#filledAt = nowMs;
-    if (this.#tokens < PUNCH_BURST) {
+    if (this.#filledAt === null || this.#tokens >= PUNCH_BURST) {
+      // 이미 꽉 차 있었으면(쉬고 있었으면) 지금부터 센다 — 오래 쉬었다고 더 모이지 않게
+      this.#filledAt = nowMs;
+    } else {
+      // 모자라면 지난 시간만큼 채우고, 남은 몫(다음 칸까지 흐른 시간)은 그대로 이어 센다
       const refill = Math.floor((nowMs - this.#filledAt) / PUNCH_COOLDOWN_MS);
       if (refill > 0) {
         this.#tokens = Math.min(PUNCH_BURST, this.#tokens + refill);
         this.#filledAt += refill * PUNCH_COOLDOWN_MS;
       }
     }
-    // 꽉 차 있었으면 지금부터 센다(오래 쉬었다고 더 모이지 않게)
-    if (this.#tokens >= PUNCH_BURST) this.#filledAt = nowMs;
     if (this.#tokens <= 0) return null;
     this.#tokens -= 1;
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;

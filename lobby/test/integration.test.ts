@@ -141,11 +141,11 @@ describe("입장·이동·인사·퇴장", () => {
       received.length = 1;
     }
 
-    // 한꺼번에 연타하면 통(2번)만큼만 방송한다
+    // 한꺼번에 연타하면 한 번만 방송한다
     await sleep(700);
     for (let i = 0; i < 5; i += 1) a.room.send("punch", { motion: "jab" });
-    await sleep(300);
-    assert.ok(received.length >= 2 && received.length <= 3, `연타 방송 ${received.length - 1}번`);
+    await sleep(250);
+    assert.equal(received.length, 2, `연타 방송 ${received.length - 1}번`);
 
     await leaveAll([a.room, b.room, c.room]);
   });
