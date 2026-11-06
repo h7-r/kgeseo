@@ -13,6 +13,8 @@
 // - 입장권은 FastAPI 가 준다 — 머리 위 이름은 각 계정의 조사관명(캐릭터 이름).
 // - 가구를 뚫지 않는다: scripts/hq-obstacles.json(dump-hq-obstacles.mjs 가 게임에서 뽑은 충돌 박스 + 박스 없는 물체)을
 //   사람 반지름만큼 부풀린 격자에서 길을 찾고, 직선으로 펴도 막힌 데를 지나지 않을 때만 편다.
+// - 사람끼리도 뚫지 않는다: 다른 가상 인원·실제 사람 자리에서 1.3 유닛 안으로 파고드는 걸음은 하지 않고,
+//   1초 넘게 막히면 그 사람들을 피해 길을 다시 찾는다. 목표도 사람이 서 있는 곳 근처는 고르지 않는다.
 // - 서버 규칙 안에서 움직인다: 걷기 속도(3 유닛/초), 이동 메시지 초당 8번(상한 10), 인사 쿨다운 3초.
 import { randomInt } from "node:crypto";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -277,17 +279,29 @@ const reachable = (() => {
   return freeCells.filter((k) => seen[k] === best.id);
 })();
 
-function lineIsFree(ax, az, bx, bz) {
+// ---------- 사람끼리 뚫지 않기 ----------
+/**
+ * 다른 사람과 중심 사이 최소 거리(유닛). 화면에서 다른 사람 몸통 상자(반폭 0.6)에 내 반지름(0.6)을 더한 만큼이
+ * 사람이 다가갈 수 있는 거리라, 가상 인원도 그보다 조금 넉넉히 둔다.
+ */
+const PERSON_GAP = 1.3;
+const nearestDistance = (x, z, others) =>
+  others.reduce((best, [ox, oz]) => Math.min(best, Math.hypot(x - ox, z - oz)), Infinity);
+const nearPerson = (x, z, others, gap = PERSON_GAP) => nearestDistance(x, z, others) < gap;
+
+function lineIsFree(ax, az, bx, bz, avoid = []) {
   const steps = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.1);
   for (let s = 1; s <= steps; s += 1) {
     const t = s / steps;
-    if (!isFree(ax + (bx - ax) * t, az + (bz - az) * t)) return false;
+    const x = ax + (bx - ax) * t;
+    const z = az + (bz - az) * t;
+    if (!isFree(x, z) || nearPerson(x, z, avoid, PERSON_GAP + 0.2)) return false;
   }
   return true;
 }
 
-/** A*(8방향, 모서리 가로지르기 없음) → 보이는 데까지 직선으로 편다 */
-function findPath(fromX, fromZ, toK) {
+/** A*(8방향, 모서리 가로지르기 없음) → 보이는 데까지 직선으로 편다. avoid: 이번에 피해 갈 사람 자리 */
+function findPath(fromX, fromZ, toK, avoid = []) {
   const [si, sj] = toCell(fromX, fromZ);
   const start = si * NZ + sj;
   const goal = toK;
@@ -322,6 +336,7 @@ function findPath(fromX, fromZ, toK) {
         const nk = ni * NZ + nj;
         if (!open[nk] || closed[nk]) continue;
         if (di && dj && (!open[i * NZ + nj] || !open[ni * NZ + j])) continue;
+        if (avoid.length && nearPerson(cellX(ni), cellZ(nj), avoid, PERSON_GAP + 0.2)) continue;
         const cost = g[k] + (di && dj ? 1.414 : 1);
         if (cost < g[nk]) {
           g[nk] = cost;
@@ -341,7 +356,7 @@ function findPath(fromX, fromZ, toK) {
   while (n < points.length) {
     let far = n;
     for (let m = points.length - 1; m > n; m -= 1) {
-      if (lineIsFree(cx, cz, points[m][0], points[m][1])) {
+      if (lineIsFree(cx, cz, points[m][0], points[m][1], avoid)) {
         far = m;
         break;
       }
@@ -359,13 +374,33 @@ const TICK_MS = 125;
 const GREET_COUNT = 6;
 const bots = [];
 
-function chooseTarget(self) {
+/** 이 가상 인원 말고 방에 있는 모두의 자리 — 다른 가상 인원은 이 스크립트의 최신 값, 사람은 방 상태 */
+function othersOf(self) {
+  const list = [];
+  const botSids = new Set();
+  for (const other of bots) {
+    if (other === self || !other.room) continue;
+    list.push([other.x, other.z]);
+    botSids.add(other.room.sessionId);
+  }
+  // 사람 자리는 방 상태에서 — 아직 안 들어온 가상 인원은 먼저 들어온 다른 가상 인원의 방 상태를 본다
+  const room = self.room ?? bots.find((other) => other.room)?.room;
+  const mine = self.room?.sessionId;
+  room?.state?.players?.forEach((player, sid) => {
+    if (sid !== mine && !botSids.has(sid)) list.push([player.x, player.z]);
+  });
+  return list;
+}
+
+function chooseTarget(self, others) {
   for (let tries = 0; tries < 50; tries += 1) {
     const k = pick(reachable);
     const x = cellX(Math.floor(k / NZ));
     const z = cellZ(k % NZ);
     const far = Math.hypot(x - self.x, z - self.z) > 3;
-    const alone = bots.every((other) => other === self || Math.hypot(x - other.goalX, z - other.goalZ) > 2.5);
+    const alone =
+      bots.every((other) => other === self || Math.hypot(x - other.goalX, z - other.goalZ) > 2.5) &&
+      !nearPerson(x, z, others, 2.5);
     if (far && alone) return { k, x, z };
   }
   return null;
@@ -398,14 +433,13 @@ async function enter(bot) {
     throw new EnterError(`입장권 실패(${status})`, { retryMs: status === 503 ? 30000 : 10000 });
   }
   const { ticket } = await ticketResponse.json();
+  const others = othersOf(bot);
   const start = (() => {
     for (;;) {
       const k = pick(reachable);
       const x = cellX(Math.floor(k / NZ));
       const z = cellZ(k % NZ);
-      if (bots.every((other) => other === bot || other.x === undefined || Math.hypot(x - other.x, z - other.z) > 2)) {
-        return { x, z };
-      }
+      if (!nearPerson(x, z, others, 2)) return { x, z };
     }
   })();
   Object.assign(bot, { x: start.x, z: start.z, ry: between(-Math.PI, Math.PI), goalX: start.x, goalZ: start.z });
@@ -457,9 +491,10 @@ function step(bot, dt) {
   const room = bot.room;
   if (!room) return;
   const now = Date.now();
+  const others = othersOf(bot);
   if (!bot.path.length && now >= bot.idleUntil) {
-    const target = chooseTarget(bot);
-    const path = target && findPath(bot.x, bot.z, target.k);
+    const target = chooseTarget(bot, others);
+    const path = target && findPath(bot.x, bot.z, target.k, others);
     if (path?.length) {
       bot.path = path;
       bot.goalX = target.x;
@@ -472,26 +507,42 @@ function step(bot, dt) {
   let gait = "idle";
   if (bot.path.length) {
     let budget = bot.speed * dt;
+    let blocked = false;
     while (budget > 0 && bot.path.length) {
       const [tx, tz] = bot.path[0];
       const dx = tx - bot.x;
       const dz = tz - bot.z;
       const distance = Math.hypot(dx, dz);
-      if (distance <= budget) {
-        bot.x = tx;
-        bot.z = tz;
-        budget -= distance;
-        bot.path.shift();
-      } else {
-        bot.x += (dx / distance) * budget;
-        bot.z += (dz / distance) * budget;
-        budget = 0;
+      const move = Math.min(distance, budget);
+      const nx = distance > 1e-6 ? bot.x + (dx / distance) * move : tx;
+      const nz = distance > 1e-6 ? bot.z + (dz / distance) * move : tz;
+      // 사람 사이로 파고드는 걸음은 하지 않는다(이미 가까우면 멀어지는 걸음만)
+      if (nearPerson(nx, nz, others) && nearestDistance(nx, nz, others) < nearestDistance(bot.x, bot.z, others)) {
+        blocked = true;
+        break;
       }
+      bot.x = nx;
+      bot.z = nz;
+      budget -= move;
+      if (move >= distance) bot.path.shift();
       // 몸 방향 규약: 앞 = (sin f, cos f)
       if (distance > 1e-3) bot.ry = Math.atan2(dx, dz);
     }
-    gait = bot.path.length ? "walk" : "idle";
-    if (!bot.path.length) bot.idleUntil = now + between(1500, 7000);
+    if (blocked) {
+      bot.blockedSince ??= now;
+      if (now - bot.blockedSince > 1000) {
+        // 막은 사람들을 피해 같은 목표로 다시 — 길이 없으면 잠깐 서 있다가 다른 곳으로
+        const goal = toCell(bot.goalX, bot.goalZ);
+        const path = findPath(bot.x, bot.z, goal[0] * NZ + goal[1], others);
+        bot.path = path?.length ? path : [];
+        if (!bot.path.length) bot.idleUntil = now + between(1000, 3000);
+        bot.blockedSince = undefined;
+      }
+    } else {
+      bot.blockedSince = undefined;
+    }
+    gait = bot.path.length && !blocked ? "walk" : "idle";
+    if (!bot.path.length) bot.idleUntil = Math.max(bot.idleUntil, now + between(1500, 7000));
     room.send("move", { x: bot.x, y: 0, z: bot.z, ry: bot.ry, gait });
   } else if (bot.lastGait !== "idle") {
     room.send("move", { x: bot.x, y: 0, z: bot.z, ry: bot.ry, gait: "idle" });
