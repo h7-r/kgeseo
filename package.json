@@ -8,6 +8,8 @@
     "review": "vite --config review/vite.config.js",
     "review:test": "node --test tools/review/*.test.mjs",
     "build": "node tools/license-guard.mjs public && tsc -p tsconfig.json --noEmit && vite build && node tools/license-guard.mjs dist",
+    "build:play": "node tools/build-play.mjs",
+    "assets:list": "node tools/asset-list.mjs",
     "check:license": "node tools/license-guard.mjs public",
     "prepare": "git config core.hooksPath .githooks || true",
     "typecheck": "tsc -p tsconfig.json --noEmit",
