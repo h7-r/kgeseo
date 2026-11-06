@@ -2,8 +2,9 @@
 /**
  * 배포본이 실제로 읽는 public/ 파일 목록 — CDN 업로드·라이선스 확인용.
  *   근거 두 가지: ① 나주 manifest(_sf_local/manifest.json) ② 코드 안 주소 문자열(src · naju01/src · shared · index.html)
- *   구분: 케이스(_sf_local → /c/<케이스>/<판>/…) · 공용(models → /shared/<빌드 번호>/…) · 배포본(그 밖, 사이트에 남음)
- *   GLB 표지(asset.extras)의 라이선스·저자·출처를 같이 적는다.
+ *   구분: 케이스(assetUrl — _sf_local · vfx → /c/<케이스>/<판>/…) · 공용(sharedAssetUrl — models → /shared/<빌드 번호>/…)
+ *         · 배포본(그 밖, 사이트에 남음). shared/env.ts 의 나눔과 같다
+ *   출처: GLB 표지(asset.extras)의 라이선스·저자·출처, 표지가 없으면 아래 ORIGIN_RULES 로 출처구분을 단다.
  *
  *   실행: npm run assets:list [-- --out 폴더] [-- --case-path /c/naju-angam-01/v1]
  *   결과: <폴더>/asset-list.csv (엑셀용 BOM) · asset-list.json. 기본 폴더 .local/asset-list
@@ -49,10 +50,47 @@ for (const path of walk(PUBLIC)) {
   if (LOCAL_ONLY.some((dir) => rel.startsWith(`${dir}/`))) continue;
   publicFiles.set(rel, statSync(path).size);
 }
-const kindOf = (rel) => (rel.startsWith("_sf_local/") ? "케이스" : rel.startsWith("models/") ? "공용" : "배포본");
+// shared/env.ts — assetUrl 로 읽는 폴더는 케이스, sharedAssetUrl 로 읽는 폴더는 공용
+const CASE_DIRS = ["_sf_local", "vfx"];
+const SHARED_DIRS = ["models"];
+const kindOf = (rel) => {
+  const top = rel.split("/")[0];
+  return CASE_DIRS.includes(top) ? "케이스" : SHARED_DIRS.includes(top) ? "공용" : "배포본";
+};
+
+/**
+ * 표지 없는 모형의 출처구분(11/6 미르 님 나눔). 앞에서부터 처음 맞는 것. 근거는 커밋·README·코드 주석.
+ * 원본 변환(애니판)은 manifest 를 풀 때 원본 경로와 함께 따로 단다.
+ */
+const ORIGIN_RULES = [
+  [/^_sf_local\/codeprops\//, "팀 제작", "코드로 만든 모형(THREE.GLTFExporter)"],
+  [
+    /^models\/(cabinet|chair|coat_rack|desk|fedora|keyboard|lamp|lamp_floor|laptop|mouse|mug|pc_monitor)\.glb$/,
+    "팀 제작",
+    "본부실 사무 소품 · 9/7 첫 커밋",
+  ],
+  [/^models\/(train|teleport)\.glb$/, "팀 제작", "기차 · 텔레포트"],
+  [/^models\/meshy-/, "외부 도구", "Meshy 생성 캐릭터(옷 조합별)"],
+  [/^vfx\/낙숫물\.glb$/, "외부 도구", "Meshy 생성 메시(ImmersionLayer 주석)"],
+  [/^models\/tripo-/, "외부 도구", "Tripo 걷기·서기·달리기 동작"],
+  [/^models\/vendor\/quaternius-/, "외부 도구", "Quaternius Universal Animation Library · CC0(같은 폴더 LICENSE)"],
+  [/^models\/chibi-/, "확인 필요", "9/17 미르 님 계정 · 몸체는 Meshy V4 검토본, 뼈대는 Synty Sidekick 89본 구조"],
+  [
+    /^models\/sidekick-/,
+    "확인 필요",
+    "9/16 미르 님 계정 · Synty Sidekick Modular Characters Free Starter Pack 변환(README: 배포 전 Synty 라이선스 확인)",
+  ],
+  [
+    /^models\/shoes-/,
+    "확인 필요",
+    "9/22 미르 님 계정 · 받은 운동화 모형을 Meshy 발에 맞춤(meshy_fit_shoe.py) — 운동화 원본 출처 기록 없음",
+  ],
+  [/^vfx\//, "확인 필요", "10/15 이식 · 출처 기록 없음(코드 주석은 Meshy/Tripo 왕관 자리)"],
+];
 
 /** 경로 → 근거 목록 */
 const refs = new Map();
+const originals = new Map(); // 변환본 경로 → 원본 경로(+ 대체본 출처)
 const missing = new Map(); // 코드·manifest 가 가리키는데 public 에 없는 것 → 근거
 function addRef(rel, reason) {
   if (!publicFiles.has(rel)) {
@@ -100,7 +138,20 @@ for (const [group, entries, forCover] of groups) {
       if (!sub?.일반 && animeBake.has(file)) variants.push(`anime_bake/${file}`);
       if (forCover && !sub?.덮기 && animeBake.has(file)) variants.push(`anime_bake/덮기/${file}`);
       if (!sub?.일반 && !animeBake.has(file) && anime.has(file)) variants.push(`anime/${file}`);
-      for (const variant of variants) addRef(SF + variant, `애니판 ${group}`);
+      for (const variant of variants) {
+        addRef(SF + variant, `애니판 ${group}`);
+        // 대체본은 다른 출처 모형을 변환한 것 — 원본은 그 출처, 바꿔 끼운 자리는 메모로
+        const isSubstitute = variant === `anime/${sub?.일반}` || variant === `anime/${sub?.덮기}`;
+        originals.set(
+          SF + variant,
+          isSubstitute
+            ? {
+                source: sub.출처 ?? "대체본(출처 기록 없음)",
+                note: `대체본 · public/${SF}${file} 자리에 씀 — 원본 출처 라이선스 확인`,
+              }
+            : { source: `public/${SF}${file}`, note: "애니판(&애니판 주소에서만 읽음)" },
+        );
+      }
     }
   }
 }
@@ -194,10 +245,17 @@ for (const [path, text] of sourceTexts) {
         addRef(raw.slice(1).split(/[?#]/)[0], `${file}:${index + 1}`);
       for (const rel of rels) {
         addRef(rel, `${file}:${index + 1}`);
-        // CDN 으로 가는 파일은 주소 함수를 거쳐야 한다 — 파일 안에 그 함수가 안 보이면 적어 둔다
+        // CDN 으로 가는 파일은 주소 함수를 거쳐야 한다 — 파일 안에 그 함수가 안 보이거나, 줄의 함수와 구분이 어긋나면 적어 둔다
         const kind = kindOf(rel);
         const fn = kind === "케이스" ? /\b(assetUrl|publicAssetUrl)\(/ : kind === "공용" ? /\bsharedAssetUrl\(/ : null;
-        if (fn && !fn.test(text))
+        const lineKind = /\bsharedAssetUrl\(/.test(line)
+          ? "공용"
+          : /\b(assetUrl|publicAssetUrl)\(/.test(line)
+            ? "케이스"
+            : null;
+        if (lineKind && lineKind !== kind)
+          codeWarnings.push(`${file}:${index + 1} ${rel} — 줄은 ${lineKind} 주소 함수인데 목록은 ${kind}`);
+        else if (fn && !fn.test(text))
           codeWarnings.push(`${file}:${index + 1} ${rel} — ${kind} 파일인데 주소 함수가 안 보인다`);
       }
     }
@@ -239,9 +297,19 @@ const cdnPath = (rel) => {
   const kind = kindOf(rel);
   return kind === "케이스" ? `${CASE_PATH}/${rel}` : kind === "공용" ? `${SHARED_PATH}/${rel}` : `(배포본) /${rel}`;
 };
+/** [출처구분, 원본, 메모] — 모형 파일만 */
+function originOf(rel, extras) {
+  if (!/\.(glb|gltf)$/i.test(rel)) return ["", "", ""];
+  if (extras.license) return ["공개 라이선스", "", "GLB 표지"];
+  if (originals.has(rel)) return ["원본 변환", originals.get(rel).source, originals.get(rel).note];
+  const rule = ORIGIN_RULES.find(([pattern]) => pattern.test(rel));
+  return rule ? [rule[1], "", rule[2]] : ["확인 필요", "", "표지·기록 없음"];
+}
+
 const rows = [...refs.entries()]
   .map(([rel, reasons]) => {
     const extras = meta.get(rel) ?? {};
+    const [origin, source, note] = originOf(rel, extras);
     return {
       구분: kindOf(rel),
       경로: `public/${rel}`,
@@ -251,6 +319,9 @@ const rows = [...refs.entries()]
       저자: extras.author ?? "",
       출처: extras.source ?? "",
       제목: extras.title ?? "",
+      출처구분: origin,
+      원본: source,
+      출처메모: note,
       근거: [...reasons].sort().join(" | "),
     };
   })
@@ -303,7 +374,13 @@ for (const [kind, total] of Object.entries(totals))
   console.log(
     `${kind}: 읽는 파일 ${total.참조}개 ${mb(total.참조바이트)} · 안 읽는 파일 ${total.안씀}개 ${mb(total.안씀바이트)}`,
   );
-console.log(`라이선스 표지 없는 모형 ${unknownLicense.length}개`);
+const byOrigin = {};
+for (const row of unknownLicense) byOrigin[row.출처구분] = (byOrigin[row.출처구분] ?? 0) + 1;
+console.log(
+  `라이선스 표지 없는 모형 ${unknownLicense.length}개 — ${Object.entries(byOrigin)
+    .map(([origin, count]) => `${origin} ${count}`)
+    .join(" · ")}`,
+);
 if (manifest.팩?.length)
   console.log(`manifest 팩 ${manifest.팩.join(", ")} — 팩 파일은 public 밖(.packs)이라 목록에 없다`);
 if (missing.size) {
