@@ -17,6 +17,7 @@ interface Call {
   path: string;
   body: unknown;
   raw: string | null;
+  credentials: RequestCredentials | undefined;
 }
 type Reply = { status: number; body?: unknown } | "network";
 type Handler = (call: Call) => Reply;
@@ -27,7 +28,13 @@ const realFetch = globalThis.fetch;
 function serve(handler: Handler) {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const raw = typeof init?.body === "string" ? init.body : null;
-    const call: Call = { method: init?.method ?? "GET", path: String(input), body: raw ? JSON.parse(raw) : null, raw };
+    const call: Call = {
+      method: init?.method ?? "GET",
+      path: String(input),
+      body: raw ? JSON.parse(raw) : null,
+      raw,
+      credentials: init?.credentials,
+    };
     calls.push(call);
     const reply = handler(call);
     if (reply === "network") throw new TypeError("fetch failed");
@@ -165,19 +172,57 @@ test("content_version 을 고정한 세션을 만들고 기록한다", async () 
   assert.equal(JSON.parse(storage.data[SESSION_STORAGE_KEY]).playSessionId, PLAY_ID);
 });
 
-test("저장된 세션은 GET 으로 이어 쓰고, 404 면 새로 만든다", async () => {
-  const record = JSON.stringify({ anonymousSessionId: "anon-1", playSessionId: "old", ...CONFIG });
+test("시작할 때마다 게스트 쿠키(익명 세션)부터 받고, 모든 요청에 쿠키를 싣는다(#47 · 계약 §10-7)", async () => {
+  serve(backend());
+  const paths: (string | null)[] = [];
+  await createCompanionSession({ config: CONFIG, storage: memoryStore(), onAssetBasePath: (p) => paths.push(p) }).start();
+  assert.deepEqual(
+    calls.map((c) => `${c.method} ${c.path}`),
+    ["POST /api/v1/anonymous-sessions", "POST /api/v1/play-sessions"],
+  );
+  assert.ok(calls.every((c) => c.credentials === "include"));
+  // 응답에 asset_base_path 가 없으면 null 로 알린다(버전 없는 세션)
+  assert.deepEqual(paths, [null]);
+});
+
+test("세션 응답의 asset_base_path 를 생성 · 조회 모두 알린다", async () => {
+  const withPath = (id: string) => ({
+    data: { play_session_id: id, case_id: CONFIG.caseId, state: { hint_levels: {} }, asset_base_path: "/c/naju-angam-01/v3" },
+  });
+  const base = backend();
+  serve((call) =>
+    call.path === "/api/v1/play-sessions" ? { status: 201, body: withPath(PLAY_ID) } : base(call),
+  );
+  const paths: (string | null)[] = [];
+  const storage = memoryStore();
+  await createCompanionSession({ config: CONFIG, storage, onAssetBasePath: (p) => paths.push(p) }).start();
+  serve((call) => (call.method === "GET" ? { status: 200, body: withPath(PLAY_ID) } : base(call)));
+  await createCompanionSession({ config: CONFIG, storage, onAssetBasePath: (p) => paths.push(p) }).start();
+  assert.deepEqual(paths, ["/c/naju-angam-01/v3", "/c/naju-angam-01/v3"]);
+});
+
+test("저장된 세션은 쿠키를 받은 뒤 GET 으로 이어 쓰고, 404 면 새로 만든다", async () => {
+  const record = JSON.stringify({ anonymousSessionId: "anon-old", playSessionId: "old", ...CONFIG });
+  const base = backend();
   serve((call) =>
     call.method === "GET"
       ? { status: 200, body: { data: { play_session_id: "old", case_id: CONFIG.caseId, state: { hint_levels: { P: 1 } } } } }
-      : { status: 500 },
+      : call.path === "/api/v1/anonymous-sessions"
+        ? base(call)
+        : { status: 500 },
   );
-  const restored = await createCompanionSession({ config: CONFIG, storage: memoryStore({ [SESSION_STORAGE_KEY]: record }) }).start();
+  const storage = memoryStore({ [SESSION_STORAGE_KEY]: record });
+  const restored = await createCompanionSession({ config: CONFIG, storage }).start();
   assert.equal(restored.phase === "ready" && restored.playSessionId, "old");
   assert.deepEqual(restored.phase === "ready" && restored.hintLevels, { P: 1 });
+  assert.deepEqual(
+    calls.map((c) => `${c.method} ${c.path}`),
+    ["POST /api/v1/anonymous-sessions", "GET /api/v1/play-sessions/old"],
+  );
+  // 기록의 익명 세션은 방금 받은 값으로 바뀐다(플레이 세션은 그대로)
+  assert.equal(JSON.parse(storage.data[SESSION_STORAGE_KEY]).anonymousSessionId, "anon-1");
 
   calls = [];
-  const base = backend();
   serve((call) => (call.method === "GET" ? { status: 404, body: { detail: "Play session not found." } } : base(call)));
   const fresh = await createCompanionSession({ config: CONFIG, storage: memoryStore({ [SESSION_STORAGE_KEY]: record }) }).start();
   assert.equal(fresh.phase === "ready" && fresh.playSessionId, PLAY_ID);

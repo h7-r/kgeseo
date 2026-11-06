@@ -10,6 +10,7 @@
  */
 import { useSyncExternalStore } from "react";
 
+import { ASSET_BASE, setAssetVersionPath } from "../../../shared/env.ts";
 import { createCompanionDialog } from "./companionDialog.ts";
 import { createCompanionSession, type CompanionSessionConfig, type KeyValueStore } from "./companionSession.ts";
 
@@ -60,10 +61,22 @@ const log = (level: "warn" | "error", message: string, detail?: unknown) => {
   console[level](`[동행 NPC] ${message}`, detail ?? "");
 };
 
+/**
+ * 세션에 고정된 판의 에셋 경로를 케이스 에셋 주소에 쓴다(asset_base_path, #47).
+ * null 은 버전 없는 옛 세션 · 잘못된 case_id 다 — 빌드 기본 경로(VITE_DEFAULT_CASE_PATH)로 돌아가므로 CDN 빌드에서는 경고를 남긴다.
+ * 본편 세션은 부르지 않는다 — 본편은 케이스 에셋을 안 읽고, 탭 저장소를 나주와 같이 써서 다른 케이스 경로가 넘어온다.
+ */
+function applyAssetBasePath(path: string | null) {
+  if (path === null && ASSET_BASE)
+    log("warn", "세션에 에셋 경로(asset_base_path)가 없어 빌드 기본 경로로 읽는다 — 게시 판과 다를 수 있다");
+  setAssetVersionPath(path);
+}
+
 export const companionSession = createCompanionSession({
   config: IS_COMPANION_ENABLED ? readConfig() : null,
   storage: typeof window === "undefined" ? null : browserStorage(),
   log: (message, detail) => log("warn", message, detail),
+  onAssetBasePath: applyAssetBasePath,
 });
 
 export const companionDialog = createCompanionDialog({ session: companionSession, log });

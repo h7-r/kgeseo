@@ -165,27 +165,40 @@ function assertBundle(bundle: CaseBundleResponse, caseId: string) {
   }
 }
 
-/** 남아 있는 익명 세션이 있으면 그걸로, 서버가 모른다고 하면(404·410) 새로 만들어 플레이를 연다. */
-async function createFreshPlaySession(caseId: string, record: GuestPlayRecord | null) {
-  let anonymousSessionId = record?.anonymousSessionId ?? null;
+/**
+ * 게스트 쿠키를 먼저 받는다(계약 v0.4.16 §10-7). 플레이 API 는 쿠키로 주인을 가리므로 조회·생성보다 앞선다.
+ * 쿠키가 살아 있으면 서버가 같은 익명 세션을 돌려주고, 로그인 중이면 호환용 익명 세션을 새로 준다(권한 아님).
+ * 다른 케이스의 플레이 ID 는 이어 쓰지 않는다.
+ */
+async function issueAnonymousSession(caseId: string, record: GuestPlayRecord | null) {
+  const anonymous = await createAnonymousSession();
+  const playSessionId = record?.caseId === caseId ? record.playSessionId : null;
+  const next = { anonymousSessionId: anonymous.data.anonymous_session_id, playSessionId, caseId };
+  writeGuestPlay(next);
+  return next;
+}
 
-  if (anonymousSessionId) {
-    update({ phase: "creating", error: null });
-    try {
-      return { anonymousSessionId, play: await createPlaySession(anonymousSessionId, caseId) };
-    } catch (error) {
-      const code = errorStatus(error);
-      if (code !== 404 && code !== 410) throw error;
-      clearAnonymousId(caseId);
-    }
+/**
+ * 방금 받은 익명 세션으로 플레이를 연다. 익명 세션이 그새 없어졌거나 만료됐을 때(404·410 Anonymous …)만 한 번 다시 받는다.
+ * 「Case not found.」 같은 다른 404 는 다시 받아도 같아서 그대로 실패로 낸다.
+ */
+async function createFreshPlaySession(caseId: string, anonymousSessionId: string) {
+  update({ phase: "creating", error: null });
+  try {
+    return { anonymousSessionId, play: await createPlaySession(anonymousSessionId, caseId) };
+  } catch (error) {
+    const code = errorStatus(error);
+    const isAnonymousGone =
+      (code === 404 || code === 410) && error instanceof BackendError && error.detail.startsWith("Anonymous");
+    if (!isAnonymousGone) throw error;
+    clearAnonymousId(caseId);
   }
 
-  update({ phase: "creating", error: null });
-  const anonymous = await createAnonymousSession();
-  anonymousSessionId = anonymous.data.anonymous_session_id;
-  writeGuestPlay({ anonymousSessionId, playSessionId: null, caseId });
-
-  return { anonymousSessionId, play: await createPlaySession(anonymousSessionId, caseId) };
+  const renewed = await issueAnonymousSession(caseId, null);
+  return {
+    anonymousSessionId: renewed.anonymousSessionId,
+    play: await createPlaySession(renewed.anonymousSessionId, caseId),
+  };
 }
 
 export function startPlaySession(caseId: string = PLAY_CONTRACT.caseId): Promise<string> {
@@ -200,12 +213,12 @@ export function startPlaySession(caseId: string = PLAY_CONTRACT.caseId): Promise
   let failedPhase: PlayPhase = "prepareFailed";
   startingCaseId = caseId;
   starting = (async () => {
-    let record = readGuestPlay();
-    if (record?.playSessionId && record.caseId === caseId) {
+    const issued = await issueAnonymousSession(caseId, readGuestPlay());
+    if (issued.playSessionId) {
       failedPhase = "restoreFailed";
       update({ phase: "restoring", error: null });
       try {
-        const play = await loadPlaySession(record.playSessionId);
+        const play = await loadPlaySession(issued.playSessionId);
         if (play.data.case_id === caseId && play.data.completed_at === null) {
           const bundle = await loadCaseBundle(caseId);
           assertBundle(bundle, caseId);
@@ -219,19 +232,18 @@ export function startPlaySession(caseId: string = PLAY_CONTRACT.caseId): Promise
           });
           return play.data.play_session_id;
         }
-        record = clearPlayId(record, caseId);
+        clearPlayId(issued, caseId);
       } catch (error) {
+        // 남의 세션 · 없는 세션 · 소유자 없는 옛 세션은 모두 404 다(#47) — 새로 연다
         if (errorStatus(error) !== 404) throw error;
-        record = clearPlayId(record, caseId);
+        clearPlayId(issued, caseId);
       }
-    } else if (record?.playSessionId) {
-      record = clearPlayId(record, caseId);
     }
 
     failedPhase = "prepareFailed";
     const bundle = await loadCaseBundle(caseId);
     assertBundle(bundle, caseId);
-    const { anonymousSessionId, play } = await createFreshPlaySession(caseId, record);
+    const { anonymousSessionId, play } = await createFreshPlaySession(caseId, issued.anonymousSessionId);
     writeGuestPlay({ anonymousSessionId, playSessionId: play.data.play_session_id, caseId });
     update({
       phase: "ready",
