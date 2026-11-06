@@ -274,6 +274,8 @@ function ChibiGameAvatar({
     // 크로스페이드(0.16초) 중에는 두 클립이 섞여 발이 옮겨 간다 — 그동안은 캐시를 안 쓴다.
     if (currentMotion.current !== previousMotion) fadeEnd.current = now + 0.2;
     const action = currentMotion.current ? actions.current.get(currentMotion.current) : undefined;
+    // 인사·맞기 단계가 정한 재생 속도(짧은 클립 늘이기)
+    if (action && timers.current.actionSpeed) action.setEffectiveTimeScale(timers.current.actionSpeed);
     // 발이 안 미끄러지게 걷기·달리기 재생 속도를 실제 이동 속도에 맞춘다.
     if (action && fixedTime === null && LOCOMOTION_CLIPS.has(next)) {
       const own = prepared.strideFor(next) * avatarScale;
@@ -336,6 +338,8 @@ function ChibiGameAvatar({
       soleHeightCache.current = Number.isFinite(soleY) ? soleY : null;
     }
     if (soleHeightCache.current !== null) group.position.y = state.footY - soleHeightCache.current * avatarScale;
+    // 제자리 점프 같은 인사 동작은 몸이 뜨지 않는다 — 단계가 정한 만큼 들어 올린다(발바닥 맞춤 뒤에)
+    group.position.y += timers.current.actionLift ?? 0;
 
     if (import.meta.env.DEV) {
       chibiDebugByGender[gender] = { motion: next, current: currentMotion.current };

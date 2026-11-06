@@ -19,6 +19,10 @@ export interface MotionTimers {
   canceledEmote?: number;
   /** 이번 프레임 동작의 회차 표시 — 같은 클립이라도 이 값이 바뀌면 처음부터(연달아 맞기 등) */
   restartKey?: string | null;
+  /** 인사·맞기 단계가 정한 재생 속도(없으면 null) */
+  actionSpeed?: number | null;
+  /** 인사·맞기 단계가 정한 몸 들어 올림(세계 유닛) */
+  actionLift?: number;
 }
 
 /** 지금 틀 단계(시작 시각부터 단계 길이를 차례로 더해 고른다). 끝났거나 아직이면 null */
@@ -28,7 +32,7 @@ function activeStep(action: AvatarAction | undefined, wallSeconds: number) {
   if (elapsed < 0) elapsed = 0;
   for (let index = 0; index < action.steps.length; index += 1) {
     const step = action.steps[index];
-    if (elapsed < step.seconds) return { motion: step.motion, index };
+    if (elapsed < step.seconds) return { motion: step.motion, index, step, progress: elapsed / step.seconds };
     elapsed -= step.seconds;
   }
   return null;
@@ -67,6 +71,8 @@ export function chooseMotion(
     timers.attackEnd = now + THREE.MathUtils.clamp((attackClip?.duration ?? 0.62) / 1.2, 0.45, 0.82);
   }
   timers.restartKey = null;
+  timers.actionSpeed = null;
+  timers.actionLift = 0;
   let next = config.motion;
   if (!next || next === AUTO_MOTION) {
     if (!state.grounded && timers.airborneSince === null) timers.airborneSince = now;
@@ -87,15 +93,21 @@ export function chooseMotion(
       (timers.wasAirborne && state.grounded) ||
       now < timers.landingEnd;
     if (emoteStep && emoteBlocked && state.emote) timers.canceledEmote = state.emote.serial;
+    const applyStep = (active: NonNullable<typeof hitStep>) => {
+      timers.actionSpeed = active.step.speed ?? null;
+      timers.actionLift = (active.step.lift ?? 0) * Math.sin(Math.PI * active.progress);
+    };
     if (hitStep && state.hit) {
       next = hitStep.motion;
       timers.restartKey = `hit:${state.hit.serial}:${hitStep.index}`;
+      applyStep(hitStep);
     } else if (attacking) {
       next = state.attackMotion as string;
       timers.restartKey = `attack:${timers.lastAttack}`;
     } else if (emoteStep && !emoteBlocked && state.emote) {
       next = emoteStep.motion;
       timers.restartKey = `emote:${state.emote.serial}:${emoteStep.index}`;
+      applyStep(emoteStep);
     }
     if (hitStep || attacking || (emoteStep && !emoteBlocked)) {
       // 점프·착지 판정은 계속 갱신한다(동작이 끝난 뒤 공중에 있으면 바로 점프 동작으로)

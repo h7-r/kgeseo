@@ -36,7 +36,16 @@ export interface ArmPole {
 export interface AvatarAction {
   serial: number;
   at: number;
-  steps: readonly { motion: string; seconds: number }[];
+  steps: readonly AvatarActionStep[];
+}
+
+export interface AvatarActionStep {
+  motion: string;
+  seconds: number;
+  /** 재생 속도(1 = 원래). 너무 짧은 클립을 늘일 때 */
+  speed?: number;
+  /** 이 단계 동안 몸을 들어 올리는 높이(세계 유닛, 반원 꼴로 0 → 최고 → 0). 제자리 점프 클립은 몸이 뜨지 않는다 */
+  lift?: number;
 }
 
 export interface AvatarLink extends PlayerMotionState {
