@@ -3,8 +3,9 @@
 import { AUTO_MOTION, isHexColor, isKnownMotion, type AvatarGender, type Option, type Slider } from "./sidekickOptions";
 import { sharedAssetUrl } from "@/config/env";
 
-// 하의 표식(3)을 구운 판. 파일 이름이 그대로라 판을 올려야 브라우저가 새 GLB 를 받는다.
-export const MESH_MODEL_VERSION = 21;
+// 몸 GLB 를 다시 구울 때마다 올린다. 파일 이름이 그대로라 판을 올려야 브라우저가 새 GLB 를 받는다.
+//   22 = 상·하의 경계 표식을 텍스처 밑단에 맞춤(bake-bottom-markers.mjs hem)
+export const MESH_MODEL_VERSION = 22;
 
 export type MeshPartKey = "hair" | "top" | "bottom" | "shoes";
 

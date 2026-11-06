@@ -137,17 +137,42 @@ const FRAGMENT_FINISH = `
 // 흰 셔츠 소매·밑단엔 검은 실밥처럼 보인다. 구역 평균색(정점 UV 에서 잰다)에서 벗어난 텍셀을 평균색으로 되돌리되,
 // 다른 옷 구역의 색이면 그대로 둔다 — 정점 표식의 밑단 경계는 텍스처의 밑단과 조금 어긋나, 셔츠 구역에 그려진
 // 반바지 텍셀을 흰색으로 칠하면 밑단이 찢어진 듯 보였다. 피부 구역은 눈·눈썹이 정당하게 어두워 손대지 않는다.
+// 상의·하의 정점이 섞인 삼각형(밑단을 가로지르는 줄)만은 정점 표식 대신 텍셀 색으로 상·하의를 가른다 — 표식은
+// 삼각형 모서리를 따라 톱니로 갈리지만 텍스처의 밑단은 매끈하다. 텍셀 색을 상의 평균색→하의 평균색 직선에 내려
+// 어느 쪽인지 보고(평균보다 더 검은 반바지 텍셀도 하의다), 직선에서 먼 색(살빛 여백 등)만 예전처럼 표식으로 정해
+// 평균색으로 되돌린다. 반반인 중간색(접힌 그늘·밑단 자체의 번짐)은 가까운 정점 표식 쪽으로 조금 기운다.
+// 표식은 naju01/tools/bake-bottom-markers.mjs hem 이 텍스처 밑단 둘레로 옮겨 둔다(이 갈래는 그 띠 안에서만 돈다).
+// 두 평균색이 가까우면(√선형 거리 0.12 미만) 색으로 못 가르므로 이 갈래를 끈다.
 const FRAGMENT_TINT = `#include <map_fragment>
   // 2 = top, 3 = bottom
   if (v_cloth > 0.5) {
     bool isBottom = v_bottom > 0.5 * v_cloth;
-    vec3 own = isBottom ? _bottomBase : _clothBase;
-    vec3 other = isBottom ? _clothBase : _bottomBase;
     // 거리는 제곱근 공간에서 — 선형값은 어두운 쪽이 눌려 검은 천 위의 갈색 실금(0.05 근처)이 평균과 구별되지 않는다
     vec3 seen = sqrt(diffuseColor.rgb);
-    float stray = smoothstep(0.06, 0.18, distance(seen, sqrt(own)))
-      * smoothstep(0.08, 0.2, distance(seen, sqrt(other))) * _seamFix;
-    diffuseColor.rgb = mix(diffuseColor.rgb, own, stray) * (isBottom ? _bottomTint : _clothTint);
+    vec3 sTop = sqrt(_clothBase);
+    vec3 seg = sqrt(_bottomBase) - sTop;
+    float segLen2 = dot(seg, seg);
+    // only triangles that carry both a top (2) and a bottom (3) mark
+    float hem = step(0.001, v_bottom) * step(0.001, v_cloth - v_bottom) * step(0.0144, segLen2) * _seamFix;
+    if (hem > 0.5) {
+      // distance to the line, not the segment: texels darker than the bottom average (or whiter than the top
+      // average) are still that cloth, not strays
+      float along = dot(seen - sTop, seg) / segLen2;
+      float stray = smoothstep(0.03, 0.08, distance(seen, sTop + seg * along));
+      // ambiguous mid tones (a shadowed fold, the painted hem's own anti-aliasing) lean to the vertex marks
+      float lean = 0.25 * (v_bottom / max(v_cloth, 0.001) - 0.5);
+      float pick = smoothstep(0.4, 0.6, clamp(along, 0.0, 1.0) + lean);
+      float bottomWeight = mix(pick, isBottom ? 1.0 : 0.0, stray);
+      vec3 topColor = mix(diffuseColor.rgb, _clothBase, stray) * _clothTint;
+      vec3 bottomColor = mix(diffuseColor.rgb, _bottomBase, stray) * _bottomTint;
+      diffuseColor.rgb = mix(topColor, bottomColor, bottomWeight);
+    } else {
+      vec3 own = isBottom ? _bottomBase : _clothBase;
+      vec3 other = isBottom ? _clothBase : _bottomBase;
+      float stray = smoothstep(0.06, 0.18, distance(seen, sqrt(own)))
+        * smoothstep(0.08, 0.2, distance(seen, sqrt(other))) * _seamFix;
+      diffuseColor.rgb = mix(diffuseColor.rgb, own, stray) * (isBottom ? _bottomTint : _clothTint);
+    }
   }
   else if (v_tint > 0.5) {
     float lum = max(max(diffuseColor.r, diffuseColor.g), diffuseColor.b);
