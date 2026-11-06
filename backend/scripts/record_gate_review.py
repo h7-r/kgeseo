@@ -1,4 +1,4 @@
-"""승인 기록 내부 관리 명령(CLI) v0.1 (PM v0.4.6 §7 · v0.4.13 §2~3, 인증 운영 전 전용).
+"""승인 기록 내부 관리 명령(CLI) v0.2 (PM v0.4.6 §7 · v0.4.13 §2~3, 인증 운영 전 전용).
 
     .\\.venv\\Scripts\\python.exe -m scripts.record_gate_review \\
         --target-type dialogue_pack --target-id general_default --target-version 1 \\
@@ -8,12 +8,17 @@
         [--db]                                             # + 대상 DB의 revision · 현재 판정(읽기 전용)
         [--commit --confirm-db <DB 이름>]                  # 실제 기록(append-only INSERT 1건)
 
+    케이스 콘텐츠는 게시 루트의 묶음으로 fingerprint를 다시 계산한다:
+        --target-type case_content --target-id naju-angam-01 --target-version 1 \\
+        --content-root <게시 루트> --gate G1 --decision approved --actor 세진 --reviewer 박지하 ...
+
 - `actor`(실행한 사람)와 `reviewer`(판정한 사람)를 따로 받아 그대로 기록한다. 실행자를 판정자로 기록하지 않는다.
 - `reviewer`는 관문별 기록 가능한 사람(PM v0.4.13 §2)만 받는다. `reason`(근거)은 필수다.
 - 대상 내용의 fingerprint를 파일에서 다시 계산하고, `--target-hash`와 다르면 기록하지 않는다.
-- 대상 종류별 필수 관문(`REQUIRED_GATES`)이 아닌 관문은 받지 않는다(dialogue_pack은 G3만).
-- 지금은 `dialogue_pack`(공식 일반 팩 파일)만 지원한다. `case_content`는 게시 묶음 fingerprint 재계산 경로를
-  연결한 뒤에 연다(거부).
+- 대상 종류별 필수 관문(`REQUIRED_GATES`)이 아닌 관문은 받지 않는다(dialogue_pack은 G3만, case_content는 G1~G3).
+- `case_content`: `--content-root`의 `<case_id>/v<n>/{client,server,npc,idmap}.json`을 게시 명령
+  (`scripts.publish_case_content.read_case_bundle`)과 같은 함수로 읽는다. 파일 머리(case_id · content_version ·
+  content_fingerprint)가 다시 계산한 값과 다르면 게시할 수 없는 묶음이므로 기록하지 않는다.
 - `--commit`은 `--confirm-db`가 앱 설정의 DB 이름과 같고, 대상 DB가 `actor` 열 revision(b3f7c2e9a4d1) 이후일 때만
   쓴다. 기록은 `record_delegated_gate_review`(같은 잠금 · 같은 append-only 저장소)로만 한다.
 - 철회는 같은 관문에 `hold` · `rejected`를 `--supersedes <직전 review_id>`로 기록한다(기존 이력 규칙).
@@ -32,7 +37,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.schemas.gate_review import ApprovalTarget, GateReviewCreate
-from app.services.approval_history import REQUIRED_GATES, ReviewRecord
+from app.services.approval_history import REQUIRED_GATES, ReviewRecord, gate_decisions
 from app.services.dialogue_pack_policy import (
     published_cases_policy,
     run_dialogue_pack_policy,
@@ -53,6 +58,8 @@ from app.services.npc_line_supply import (
 )
 from app.services.pinned_content import PinnedContentStore
 from app.services.publication_approval import snapshot_source
+from scripts.publish_case_content import CliInputError as BundleInputError
+from scripts.publish_case_content import read_case_bundle
 
 # 관문별 기록 가능한 사람(PM v0.4.13 §2, 12월 MVP). reviewer에는 실제로 판정한 사람을 적는다.
 GATE_REVIEWERS: dict[str, tuple[str, ...]] = {
@@ -61,7 +68,7 @@ GATE_REVIEWERS: dict[str, tuple[str, ...]] = {
     "G3": ("황미르",),
 }
 ACTOR_REVISION = "b3f7c2e9a4d1"
-SUPPORTED_TARGET_TYPES = ("dialogue_pack",)
+SUPPORTED_TARGET_TYPES = ("dialogue_pack", "case_content")
 
 
 class CliInputError(ValueError):
@@ -95,10 +102,37 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--target-hash", required=True, help="판정 대상 fingerprint(재계산 값과 대조)"
     )
     parser.add_argument("--supersedes", default=None)
+    parser.add_argument(
+        "--content-root",
+        default=None,
+        help="case_content: 게시 루트(<root>/<case>/v<n>/)",
+    )
     parser.add_argument("--db", action="store_true", help="대상 DB 읽기 전용 확인")
     parser.add_argument("--commit", action="store_true", help="실제로 기록한다")
     parser.add_argument("--confirm-db", default=None, help="--commit 대상 DB 이름 확인")
     return parser.parse_args(argv)
+
+
+def target_fingerprint(target: ApprovalTarget, content_root: str | None) -> str:
+    """판정 대상 내용을 파일에서 다시 읽어 fingerprint를 계산한다(넘겨받은 값을 믿지 않는다)."""
+
+    if target.target_type == "case_content":
+        if not content_root:
+            raise CliInputError("--content-root is required for case_content")
+        try:
+            bundle = read_case_bundle(
+                content_root, target.target_id, target.content_version
+            )
+        except BundleInputError as error:
+            raise CliInputError(str(error)) from error
+        return bundle.fingerprint
+    if content_root is not None:
+        raise CliInputError("--content-root is only for case_content")
+    try:
+        pack = load_general_pack(f"{target.target_id}/v{target.content_version}")
+    except GeneralPackLoadError as error:
+        raise CliInputError(f"pack not loadable: {error}") from error
+    return general_pack_fingerprint(pack)
 
 
 def build_plan(args: argparse.Namespace) -> Plan:
@@ -123,11 +157,7 @@ def build_plan(args: argparse.Namespace) -> Plan:
         )
     except ValidationError as error:
         raise CliInputError("invalid target") from error
-    try:
-        pack = load_general_pack(f"{target.target_id}/v{target.content_version}")
-    except GeneralPackLoadError as error:
-        raise CliInputError(f"pack not loadable: {error}") from error
-    fingerprint = general_pack_fingerprint(pack)
+    fingerprint = target_fingerprint(target, args.content_root)
     if args.target_hash != fingerprint:
         raise CliInputError(
             f"target_hash mismatch: given={args.target_hash} recomputed={fingerprint}"
@@ -183,6 +213,12 @@ async def current_status(
     (저장소가 비었는데 게시 버전이 있으면 UNVERIFIED). 승인 기록과 정책 검사는 서로 바꾸지 않는다."""
 
     records = await _records(db, plan.target, lock=False)
+    if plan.target.target_type == "case_content":
+        # 케이스 콘텐츠: 필수 관문 G1~G3 판정만(정책 검사는 게시 게이트가 따로 한다 — scripts.publish_case_content)
+        reasons = gate_decisions(
+            records, plan.fingerprint, required=REQUIRED_GATES["case_content"]
+        )
+        return ("PASS" if not reasons else "FAIL " + ",".join(reasons)), "-"
     pack = load_general_pack(f"{plan.target.target_id}/v{plan.target.content_version}")
     reasons = general_pack_gate_reasons(pack, snapshot_source(plan.target, records))
     published = await read_published_cases(db, store or PinnedContentStore())
@@ -220,9 +256,10 @@ async def run(
         # 실행자 열이 없는 schema에서는 현재 코드가 승인 기록을 읽지 못한다(판정 생략).
         before = await current_status(db, plan) if actor_ready else ("unavailable", "-")
         await db.rollback()
+    label = "gates" if plan.target.target_type == "case_content" else "g3"
     out(
         f"db={db_name} alembic={','.join(revision) or '-'} actor_column={actor_ready} "
-        f"g3_before={before[0]} policy={before[1]}"
+        f"{label}_before={before[0]} policy={before[1]}"
     )
     if args.commit and not actor_ready:
         raise CliInputError(f"target database needs revision {ACTOR_REVISION}")
@@ -241,7 +278,7 @@ async def run(
         await db.rollback()
     out(
         f"recorded review_id={record.review_id} reviewed_at={record.reviewed_at} "
-        f"g3_after={after[0]} policy={after[1]}"
+        f"{label}_after={after[0]} policy={after[1]}"
     )
     return record
 

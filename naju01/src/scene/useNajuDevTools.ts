@@ -9,7 +9,9 @@ import type { PresentedControls } from "../app/presentation";
 import { applyRealSize, findFirstMesh, parseGlb } from "../loaders/glbImport";
 import type { TerrainTeleport } from "../movement/useTerrainMovement";
 import { computeEditAnchors, type Edits, type InstanceGroup } from "../placement/instanceGroups";
-import { METERS_PER_UNIT } from "../plan/sitePlan";
+import { collectLocalIds } from "../placement/localIds";
+import { BLOCKERS, METERS_PER_UNIT, PATHS, SCENE_TITLES, ZONES } from "../plan/sitePlan";
+import { listInteractableIds } from "../puzzles/interaction";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import type { CollapseSequence } from "../story/blockerCollapse";
 import { layoutCensus, spaceMask } from "./layoutCensus";
@@ -91,6 +93,17 @@ export function useNajuDevHook({
       // 손 편집 번호가 가리키는 생성 자리(tools/check-edit-anchors 가 읽는다)
       editAnchors: () => computeEditAnchors(instanceGroups, edits),
       generatedCounts: () => Object.fromEntries(instanceGroups.map((g) => [g.groupId, g.generatedSpots.length])),
+      // 게시 게이트 LOCAL_IDS 용 로컬 ID 목록(placement/localIds) — tools/export-local-ids 가 읽는다
+      localIds: () =>
+        collectLocalIds({
+          zones: ZONES,
+          paths: PATHS,
+          blockers: BLOCKERS,
+          sceneNumbers: Object.keys(SCENE_TITLES),
+          groups: instanceGroups,
+        }),
+      // 지금 등록된 상호작용 id(참고 — idmap 형식이 받지 않는다)
+      interactableIds: listInteractableIds,
       // 코드로 그린 무리 하나 → GLB(미터, 바닥 y=0·가운데 정렬). 라이브러리 임시 입고용(10/19) — base64 로 돌려준다
       exportCodeProp: (groupId: string) => exportCodeProp(instanceGroups, groupId),
       // 사람 공간 역분석(공간 연출 에이전트 A단계, 10/19) — 무리별 자리 분류·밀도·크기

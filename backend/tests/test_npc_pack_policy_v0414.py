@@ -149,7 +149,7 @@ def test_official_pack_passes_static_checks_and_waiting_is_not_a_time_promise(
 def test_official_pack_with_published_case_is_blocked_only_by_undefined_names(
     official,
 ) -> None:
-    # 실제 운영 규칙: 고유명 필드가 계약되지 않아 게시 케이스가 있으면 GEN-CASE UNVERIFIED
+    # 검수 고유명 데이터가 없는 게시 케이스는 GEN-CASE UNVERIFIED
     result = check_dialogue_pack(official, (virtual_case(),))
     assert result.status == "UNVERIFIED"
     assert checks(result)["GEN-CASE"] == "UNVERIFIED"
@@ -318,10 +318,13 @@ def test_usable_only_with_g3_and_policy_pass(official) -> None:
 # ── 새 케이스 게시: 설정된 일반 팩 재검사(GEN_PACK) ──
 
 
-def gate_files(*, ng=(), answer=None):
+def gate_files(*, ng=(), answer=None, names=()):
     documents = base_documents()
     documents["npc"]["ng"] = [{"text": t, "patterns": [t]} for t in ng]
     documents["npc"]["open"] = []
+    documents["npc"]["proper_nouns"] = [
+        {"text": name, "kind": "person", "aliases": []} for name in names
+    ]
     if answer is not None:
         documents["server"]["puzzles"][0]["accepted_answers"] = [answer]
     del documents["idmap"]
@@ -332,9 +335,7 @@ def gate_files(*, ng=(), answer=None):
 def test_new_case_conflicting_with_configured_pack_is_rejected() -> None:
     conflicting = pack(("GENERIC_PAUSE_09", "가상정답일 수도 있어요."))
     files, fingerprint = gate_files()
-    result, store = run(
-        files, fingerprint, general_pack=conflicting, case_proper_names=()
-    )
+    result, store = run(files, fingerprint, general_pack=conflicting)
     gen = result.check("GEN_PACK")
     assert gen.status == "FAIL"
     assert gen.reasons == (
@@ -345,25 +346,26 @@ def test_new_case_conflicting_with_configured_pack_is_rejected() -> None:
 
 
 def test_new_case_proper_name_conflict_is_rejected() -> None:
-    files, fingerprint = gate_files()
+    files, fingerprint = gate_files(names=("쪽지 귀신",))
     result, _ = run(
         files,
         fingerprint,
         general_pack=pack(("GENERIC_PAUSE_09", "쪽지 귀신을 조심해요.")),
-        case_proper_names=("쪽지 귀신",),
     )
     assert result.check("GEN_PACK").status == "FAIL"
-    assert result.check("GEN_PACK").reasons == (
-        "GEN-CASE:GENERIC_PAUSE_09:proper_name:case_gate_test@v1:0",
+    assert (
+        "GEN-CASE:GENERIC_PAUSE_09:proper_name:case_gate_test@v1:0"
+        in result.check("GEN_PACK").reasons
+    )
+    assert all(
+        reason.startswith("GEN-CASE:") for reason in result.check("GEN_PACK").reasons
     )
     assert result.registered is False
 
 
 def test_new_case_without_conflict_keeps_the_publication_flow(official) -> None:
     files, fingerprint = gate_files()
-    result, store = run(
-        files, fingerprint, general_pack=official, case_proper_names=("쪽지 귀신",)
-    )
+    result, store = run(files, fingerprint, general_pack=official)
     assert result.check("GEN_PACK").status == "PASS"
     assert result.registered is True
     assert store.versions("case_gate_test") == (1,)
@@ -372,9 +374,12 @@ def test_new_case_without_conflict_keeps_the_publication_flow(official) -> None:
 def test_new_case_with_configured_pack_is_blocked_while_names_are_undefined(
     official,
 ) -> None:
-    # 운영 경로(고유명 목록을 넘기지 않음): GEN-CASE UNVERIFIED라 게시하지 않는다(필요 계약: 고유명 필드)
-    files, fingerprint = gate_files()
-    result, _ = run(files, fingerprint, general_pack=official)
+    # 운영 경로: proper_nouns 검수 데이터가 누락되면 GEN-CASE UNVERIFIED
+    documents = base_documents()
+    documents["npc"].pop("proper_nouns")
+    del documents["idmap"]
+    files, fingerprint = seal(documents)
+    result, _ = run({**files, "idmap": None}, fingerprint, general_pack=official)
     assert result.check("GEN_PACK").status == "UNVERIFIED"
     assert result.check("GEN_PACK").reasons == (
         "GEN-CASE:-:proper_names_undefined:case_gate_test@v1",
@@ -391,7 +396,6 @@ def test_new_case_without_ng_data_is_unverified_against_the_pack(official) -> No
         {**files, "idmap": None},
         fingerprint,
         general_pack=official,
-        case_proper_names=(),
     )
     assert result.check("GEN_PACK").status == "UNVERIFIED"
     assert result.registered is False
@@ -411,10 +415,10 @@ def test_configured_setting_decides_the_gate_pack(monkeypatch, tmp_path) -> None
     assert result.check("GEN_PACK").reasons == ("general_pack:file_missing",)
     assert result.registered is False
 
-    # 공식 팩 설정: 고유명 계약 전이라 UNVERIFIED
+    # 공식 팩 설정: 검수 목록이 있는 새 콘텐츠는 대조 가능
     monkeypatch.setattr(settings, "npc_general_pack", OFFICIAL)
     result, _ = run(files, fingerprint, store=PinnedContentStore())
-    assert result.check("GEN_PACK").status == "UNVERIFIED"
+    assert result.check("GEN_PACK").status == "PASS"
 
 
 def test_gate_reasons_never_contain_answers_or_line_text() -> None:
@@ -424,7 +428,6 @@ def test_gate_reasons_never_contain_answers_or_line_text() -> None:
         files,
         fingerprint,
         general_pack=pack(("GENERIC_PAUSE_09", line)),
-        case_proper_names=(),
     )
     reasons = " ".join(result.check("GEN_PACK").reasons)
     assert "가상정답일" not in reasons and "금지 문장" not in reasons

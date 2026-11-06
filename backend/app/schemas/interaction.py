@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.play_session import PlaySessionState
 
@@ -78,12 +78,27 @@ class SelectChoiceInteraction(BaseModel):
     payload: SelectChoicePayload
 
 
+class CompletePuzzlePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class CompletePuzzleInteraction(BaseModel):
+    client_event_id: str
+    client_timestamp: datetime
+    interaction_type: Literal["complete"]
+    # External Object ID: resolve only after replay check, under session lock.
+    target_id: str = Field(min_length=1)
+    zone_id: str = Field(min_length=1)
+    payload: CompletePuzzlePayload
+
+
 InteractionRequest = (
     SubmitAnswerInteraction
     | CombineCluesInteraction
     | InspectInteraction
     | NavigateInteraction
     | SelectChoiceInteraction
+    | CompletePuzzleInteraction
 )
 InteractionResultType = Literal[
     "correct",

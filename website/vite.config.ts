@@ -1,6 +1,8 @@
 import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
+
+import { apiOrigin, gameEntry } from "../shared/deploymentUrls";
 
 // 개발 서버에서만: 잡히지 않은 오류를 탭 제목과 window.__errors 에 남긴다.
 function devErrorCollector(): Plugin {
@@ -55,21 +57,27 @@ function minifyGlsl(): Plugin {
   };
 }
 
-export default defineConfig({
-  root: fileURLToPath(new URL(".", import.meta.url)),
-  plugins: [react(), devErrorCollector(), stripHtmlComments(), minifyGlsl()],
-  resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
-  },
-  // 본편 5173 · naju01 5174 · website 5175. 포트가 물려 있으면 옆 포트로 옮기지 않고 실패한다.
-  // /api 는 같은 출처로 보내 백엔드(FastAPI)에 넘긴다. CORS 설정 없이 쿠키·요청이 오간다.
-  server: {
-    port: 5175,
-    strictPort: true,
-    // 구글 로그인은 http://localhost 에서 이 값이어야 주소를 확인한다(구글 공식 안내).
-    headers: { "Referrer-Policy": "no-referrer-when-downgrade" },
-    proxy: {
-      "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
+export default defineConfig(({ command, mode }) => {
+  const env = loadEnv(mode, fileURLToPath(new URL(".", import.meta.url)), "VITE_");
+  const production = command === "build";
+  apiOrigin(env.VITE_API_ORIGIN, production);
+  if (env.VITE_GAME_URL) gameEntry(env.VITE_GAME_URL, env.VITE_GAME_ENTRY_PATH || "/character-creation", production);
+  return {
+    root: fileURLToPath(new URL(".", import.meta.url)),
+    plugins: [react(), devErrorCollector(), stripHtmlComments(), minifyGlsl()],
+    resolve: {
+      alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
     },
-  },
+    // 본편 5173 · naju01 5174 · website 5175. 포트가 물려 있으면 옆 포트로 옮기지 않고 실패한다.
+    // /api 는 같은 출처로 보내 백엔드(FastAPI)에 넘긴다. CORS 설정 없이 쿠키·요청이 오간다.
+    server: {
+      port: 5175,
+      strictPort: true,
+      // 구글 로그인은 http://localhost 에서 이 값이어야 주소를 확인한다(구글 공식 안내).
+      headers: { "Referrer-Policy": "no-referrer-when-downgrade" },
+      proxy: {
+        "/api": { target: "http://127.0.0.1:8000", changeOrigin: true },
+      },
+    },
+  };
 });

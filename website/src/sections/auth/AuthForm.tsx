@@ -25,7 +25,7 @@ import { suggestEmailTypo, type FieldName } from "@/lib/validation";
 import { QUERY, ROUTES, safeNextPath, withQuery, type RoutePath } from "@/navigation/routes";
 import type { AuthMode } from "@/pages/AuthPage";
 import { authenticate, signUp } from "@/services/account/authApi";
-import { TEST_ACCOUNT_ENABLED, TEST_ACCOUNT_LOGIN } from "@/services/account/db";
+import { TEST_ACCOUNT } from "@/services/account/testAccount";
 import {
   IS_ACCOUNT_MANAGEMENT_READY,
   STORAGE_UNAVAILABLE_REASON,
@@ -65,15 +65,15 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
   // 재설정 2·3단계는 1단계에서 적은 이메일을 이어받는다.
   const carriedEmail = mode === "verifyCode" || mode === "resetPassword" ? readResetState()?.email : "";
 
-  // 시연용 테스트 계정은 미리 채워만 둔다. 로그인은 사람이 누른다. VITE_TEST_ACCOUNT=off 면 같이 꺼진다.
+  // 시연용 테스트 계정은 미리 채워만 둔다. 로그인은 사람이 누른다. 개발 서버에서 VITE_TEST_ACCOUNT=on 일 때만이다.
   const form = useForm({
     fields: AUTH_FIELDS[mode],
     isLogin: mode === "login",
     asyncChecks: mode === "signup" ? SIGNUP_DUPLICATE_CHECKS : {},
     initialValues: carriedEmail
       ? { email: carriedEmail }
-      : mode === "login" && TEST_ACCOUNT_ENABLED
-        ? TEST_ACCOUNT_LOGIN
+      : mode === "login" && TEST_ACCOUNT
+        ? { email: TEST_ACCOUNT.email, password: TEST_ACCOUNT.password }
         : null,
   });
   const { values } = form;
@@ -350,6 +350,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
               holdOnboarding(onboarding, returnTo);
               navigate(ROUTES.socialOnboarding);
             }}
+            returnTo={returnTo}
           />
         </>
       )}

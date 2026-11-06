@@ -53,8 +53,11 @@ const IS_PRESENTING = PRESENTATION_MODE !== null;
 export const IS_REVIEW_RUN = QUERY.get("review") === "1";
 /** 나주 본편은 1인칭 고정(10/15 미르) — 3인칭·캐릭터 꾸미기는 로비에서만. V 전환 없음 */
 const IS_FIRST_PERSON_ONLY = true;
-/** ?npc — NPC 동행 개발 테스트. 검수 실행(?review=1)에서는 켜지지 않는다 */
-export const IS_NPC_TEST = QUERY.has("npc") && !IS_REVIEW_RUN;
+/**
+ * ?npc — NPC 동행 개발 테스트(샌드박스 구체, npc/). 검수 실행(?review=1)에서는 켜지지 않는다.
+ * ?npc=off 는 동행 NPC(companion/)를 끄는 스위치라 여기서도 끈다 — 두 NPC 가 함께 뜨지 않게 companionRuntime 과 짝을 맞춘다.
+ */
+export const IS_NPC_TEST = QUERY.has("npc") && QUERY.get("npc") !== "off" && !IS_REVIEW_RUN;
 /** 개발용 V 1·3인칭 전환 — NPC 테스트에서만 허용한다. 본편은 IS_FIRST_PERSON_ONLY 로 1인칭 고정 */
 export const ALLOW_VIEW_TOGGLE = IS_NPC_TEST;
 /** 캐릭터 꾸미기 패널(왼쪽) */

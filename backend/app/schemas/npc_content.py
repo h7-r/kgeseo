@@ -12,7 +12,8 @@ NPC 콘텐츠 데이터 계약 v0.3의 부분집합이다. nudge와 힌트 단�
 - `content_version` · `content_fingerprint` · `approvals`는 형식만 받는다. 공식 fingerprint 정의와
   G3 승인 해시 검증은 정해지지 않았으므로 여기서 판정하지 않는다.
 
-[PM v0.4.3 추가 필드] 모두 선택이며, 없으면 「없음(미제공)」이다. 빈 목록과 구별한다.
+[PM v0.4.3 추가 필드] 레거시 읽기에서는 없으면 「없음(미제공)」이다. 빈 목록과 구별한다.
+PM v0.4.15: 게시 시 ng 및 proper_nouns는 필수다([] 유효). 모델의 None은 기존 게시본을 읽기 위한 호환 표현이다.
 - `npc_scenario`: `address`(호칭) · `avoid_topics`(회피 주제) — 생성 대화 model_context에 들어가는 공개 설정.
 - `ng[]`: `text` · `patterns` — 금지 왜곡. 서버 정책 검사 전용, model_context에 넣지 않는다.
 - `open[]`: `text` · `patterns` — 해석 유보(U) 주제. 단정을 막는다. `text`만 공개 주제 이름으로 쓴다.
@@ -141,6 +142,20 @@ class NpcAutoNudgeConfig(NpcContentModel):
     decline_cooldown_seconds: PositiveInt | None = None
 
 
+class NpcProperNoun(NpcContentModel):
+    """PM v0.4.15 인물 · 장소 검수 목록(생성 컨텍스트에는 제공하지 않는다)."""
+
+    text: NonBlank
+    kind: Literal["person", "place"]
+    aliases: list[NonBlank]
+
+    @model_validator(mode="after")
+    def validate_text(self) -> "NpcProperNoun":
+        for value in (self.text, *self.aliases):
+            _require_text(value, "proper_nouns text/alias")
+        return self
+
+
 class NpcContentPack(NpcContentModel):
     schema_version: Literal["npc-pack 0.1"]
     case_id: NonBlank
@@ -155,6 +170,8 @@ class NpcContentPack(NpcContentModel):
     puzzles: list[NpcPuzzleNudges] = Field(default_factory=list)
     # PM v0.4.3 — None은 「제공하지 않음」(정책 검사 불가), []는 「규칙 없음」
     npc_scenario: NpcScenario | None = None
+    # 레거시 읽기 호환용 None. 게시에서는 ng/proper_nouns 모두 필수다.
+    proper_nouns: list[NpcProperNoun] | None = None
     ng: list[NpcPolicyRule] | None = None
     open: list[NpcPolicyRule] | None = None
     fallback_lines: list[NpcFallbackLine] = Field(default_factory=list)
