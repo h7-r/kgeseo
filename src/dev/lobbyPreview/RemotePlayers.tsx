@@ -32,10 +32,14 @@ const LABEL_ABOVE_HEAD_BONE = 0.4 * UNITS_PER_METER;
 const LABEL_FALLBACK_HEIGHT = EYE_HEIGHT;
 /**
  * 다른 사람 몸통 상자 반폭(유닛). 걷기 판정이 내 반지름(PLAYER_RADIUS 0.6)을 더하므로 중심 사이가 약 1.2 유닛(36cm)
- * 아래로는 다가가지 못한다 🟡 화면 보고 맞춤. 높이는 3인칭 카메라 붐만 본다(걷기는 x·z 만).
+ * 아래로는 다가가지 못한다 🟡 화면 보고 맞춤. 높이는 걷기가 안 보고(x·z 만), 붐·물건 놓기가 본다.
+ * 🟡 본편 충돌 목록에 올리므로 물건 놓기·든 물건·의자 끌기도 다른 사람에게 막힌다 — 3단계에서 걷기 전용 판정으로 나눈다.
  */
 const BODY_HALF_WIDTH = 0.6;
-const BODY_HEIGHT = 4.5;
+/** 이보다 얇아지면(상대가 내 몸 안까지 들어옴) 상자를 내린다 */
+const MIN_BODY_HALF_WIDTH = 0.05;
+/** 몸통 높이 — 눈높이(4.15)보다 낮게 두어 3인칭 카메라 붐(눈에서 뒤로 뻗음)을 접지 않게 한다 */
+const BODY_HEIGHT = 3.5;
 /** 원격 아바타를 담는 그룹 이름 — 내 머리뼈를 찾을 때 원격 아바타는 빼려고 */
 const REMOTE_ROOT_NAME = "lobby-remote-players";
 
@@ -156,23 +160,27 @@ function RemoteAvatar({
     link.moving = view.gait !== "idle" && link.speed > 0.05;
     link.running = view.gait === "run";
     link.crouching = view.gait === "crouch";
-    // 이미 겹쳐 있으면(상대가 늦게 도착한 자리로 들어옴) 상자를 「내가 지금 선 거리」까지만 줄인다.
-    // 걷기 판정은 제자리가 막혀 있으면 「갇힘」으로 보고 아무 쪽으로나(가구 속까지) 보내 주므로, 나를 가두지 않되
-    // 더 다가가는 걸음은 막는다. 멀어지면 다시 원래 크기로.
+    // 상자 가장자리를 「내가 지금 선 자리」보다 안쪽으로 두지 않는다 — 내 자리는 늘 상자 밖(걷기 판정이 제자리가 막히면
+    // 「갇힘」으로 보고 가구까지 무시하므로), 한 걸음이라도 더 다가가면 막힌다. 여유를 크게 두면(예전 0.02) 그만큼씩
+    // 프레임마다 파고들었다(Codex 08). 상대가 내 몸 안까지 들어오면(반폭이 거의 0) 상자를 내려 갇히지 않게 한다.
     const reach = playerView.ready
       ? Math.max(Math.abs(playerView.eye.x - link.position.x), Math.abs(playerView.eye.z - link.position.z)) -
         PLAYER_RADIUS -
-        0.02
+        1e-4
       : BODY_HALF_WIDTH;
-    const half = Math.max(0, Math.min(BODY_HALF_WIDTH, reach));
+    const half = Math.min(BODY_HALF_WIDTH, reach);
     const body = bodyRef.current;
-    body.minX = link.position.x - half;
-    body.maxX = link.position.x + half;
-    body.minZ = link.position.z - half;
-    body.maxZ = link.position.z + half;
-    body.minY = link.footY;
-    body.maxY = link.footY + BODY_HEIGHT;
-    if (dynamicColliders.get(colliderId) !== body) dynamicColliders.set(colliderId, body);
+    if (half < MIN_BODY_HALF_WIDTH) {
+      if (dynamicColliders.get(colliderId) === body) dynamicColliders.delete(colliderId);
+    } else {
+      body.minX = link.position.x - half;
+      body.maxX = link.position.x + half;
+      body.minZ = link.position.z - half;
+      body.maxZ = link.position.z + half;
+      body.minY = link.footY;
+      body.maxY = link.footY + BODY_HEIGHT;
+      if (dynamicColliders.get(colliderId) !== body) dynamicColliders.set(colliderId, body);
+    }
     // 외형이 바뀌면 모델이 새로 붙으니 머리뼈를 다시 찾는다
     if (!headRef.current?.parent) headRef.current = headBoneOf(avatarRef.current);
     placeLabel(labelRef.current, headRef.current, link.position.x, link.footY, link.position.z);
@@ -267,11 +275,12 @@ export function LocalLabel({
       headRef.current = best;
     }
     placeLabel(groupRef.current, headRef.current, eye.x, eye.y - EYE_HEIGHT, eye.z);
-    // 1인칭에서는 이름표와 내 말풍선이 눈 바로 위라 화면 밖이다(🟡 1인칭 내 말풍선 표시는 3단계에서)
+    // 1인칭에서는 이름표와 내 말풍선 모두 그리지 않는다(눈 바로 위라 화면 밖) — 1인칭 내 말풍선은 HUD 가 화면 아래에
+    const thirdPerson = isThirdPerson();
     const said = bubbles.get(sid);
-    const next = said && said.until > Date.now() ? said.text : null;
+    const next = thirdPerson && said && said.until > Date.now() ? said.text : null;
     if (next !== text) setText(next);
-    const nextName = isThirdPerson() ? getName(sid) : "";
+    const nextName = thirdPerson ? getName(sid) : "";
     if (nextName !== name) setName(nextName);
   });
   return <group ref={groupRef}>{(text || name) && <NameTag name={name} bubble={text} />}</group>;
