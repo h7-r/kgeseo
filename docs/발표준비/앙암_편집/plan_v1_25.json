@@ -1,0 +1,104 @@
+{
+ "cuts": [
+  {
+   "len": 2,
+   "src": 1.0,
+   "speed": 1.5,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "dark": false
+  },
+  {
+   "len": 2.5,
+   "src": 2.0,
+   "speed": 1.3,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "dark": true
+  },
+  {
+   "len": 3,
+   "src": 3.0,
+   "speed": 1.6,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "dark": true
+  },
+  {
+   "len": 3,
+   "src": 2.0,
+   "speed": 1.6,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "dark": true
+  },
+  {
+   "len": 3,
+   "src": 2.5,
+   "speed": 1.5,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "dark": true
+  },
+  {
+   "len": 3,
+   "src": 3.0,
+   "speed": 1.8,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "dark": true
+  },
+  {
+   "len": 3.5,
+   "src": 3.0,
+   "speed": 2.0,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "dark": true
+  },
+  {
+   "len": 3,
+   "src": 1.5,
+   "speed": 2.0,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "dark": true
+  },
+  {
+   "len": 2,
+   "src": 1.0,
+   "speed": 1.3,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "dark": true
+  }
+ ],
+ "ambience": null
+}

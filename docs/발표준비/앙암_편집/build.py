@@ -51,7 +51,7 @@ run(*inp, "-filter_complex", fc.rstrip(";"), "-map", prev, "-c:v", "libx264", "-
 bar = int(HEI * 0.08)
 look = ("colorbalance=rs=-0.06:gs=-0.02:bs=0.10:rm=0.07:gm=0.02:bm=-0.05:rh=0.04:bh=-0.04,"
         "eq=contrast=1.06:saturation=1.05,noise=alls=5:allf=t,vignette=angle=PI/4.2,"
-        f"fade=t=in:st=0:d=1.0,fade=t=out:st={TOTAL-1.2:.3f}:d=1.2,"
+        f"fade=t=in:st=0:d=0.4,fade=t=out:st={TOTAL-0.6:.3f}:d=0.6,"
         f"drawbox=x=0:y=0:w=iw:h={bar}:color=0x030202:t=fill,"
         f"drawbox=x=0:y=ih-{bar}:w=iw:h={bar}:color=0x030202:t=fill,format=yuv420p")
 silent = f"{O}/{V}_무음.mp4"
