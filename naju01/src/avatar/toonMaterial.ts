@@ -119,8 +119,36 @@ varying float v_bottom;
 uniform float _rimPower;
 uniform float _rimStrength;
 uniform float _hairBand;
+uniform vec3 _hairBase;
+uniform float _hairNorm;
 varying float v_face;
 varying vec3 v_viewNormal;
+`;
+// 머리색 — 머리 텍스처는 짙은 갈색이라 고른 색을 그냥 곱하면(예전 방식) 거의 검정이 되고 결이 사라졌다.
+// 텍스처의 밝기를 그 머리의 평균 밝기(_hairBase, 살빛 조각을 뺀 정점 UV 자리 평균)로 나눠 「평균보다 밝다·어둡다」만
+// 남기고, 그 비율을 고른 색에 곱한다 — 평균 자리가 고른 색 그대로 나온다. 남자 긴 머리처럼 거의 검은 텍스처는 비율이
+// JPEG 잡티까지 키우므로 비율을 0.6 제곱으로 누르고, 하이라이트가 하얗게 타지 않게 위를 눌러 담는다(1.7배에 수렴).
+// 결의 세기는 85% 만 쓴다. 흰색(#ffffff = 「원본」)이면 예전처럼 곱한다.
+// 머리 메시에 딸려 온 살빛 조각(원본 캐릭터의 귀 등)은 밝고 채도가 있어 가려내 피부색으로 칠한다.
+const FRAGMENT_HAIR = `
+#ifdef USE_MAP
+  {
+    vec3 texel = sampledDiffuseColor.rgb;
+    vec3 seenHair = sqrt(texel);
+    float brightest = max(max(seenHair.r, seenHair.g), seenHair.b);
+    float spread = (brightest - min(min(seenHair.r, seenHair.g), seenHair.b)) / max(brightest, 0.001);
+    float skinPiece = smoothstep(0.5, 0.62, brightest) * smoothstep(0.1, 0.18, spread);
+    vec3 hairColor = diffuseColor.rgb;
+    if (_hairNorm > 0.5) {
+      const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+      float ratio = dot(texel, LUMA) / max(dot(_hairBase, LUMA), 0.0001);
+      float shade = pow(ratio, 0.6);
+      shade = shade / (1.0 + max(shade - 1.0, 0.0) * 0.6);
+      hairColor = diffuse * mix(1.0, max(shade, 0.2), 0.85);
+    }
+    diffuseColor.rgb = mix(hairColor, texel * _skinTint, skinPiece);
+  }
+#endif
 `;
 const FRAGMENT_FINISH = `
   vec3 viewDir = normalize(vViewPosition);
@@ -196,11 +224,17 @@ interface ToonUniforms {
   _bottomBase: THREE.IUniform<THREE.Color>;
   /** 번짐 보정 세기 0~1. 평균색을 못 재면 0 */
   _seamFix: THREE.IUniform<number>;
+  /** 머리 텍스처 평균색(살빛 조각 뺌, 선형) — 머리색을 평균 밝기에 맞춰 칠할 기준 */
+  _hairBase: THREE.IUniform<THREE.Color>;
+  /** 1 = 머리색을 평균 밝기 기준으로 칠한다, 0 = 예전처럼 텍스처에 곱한다(흰색 = 원본, 평균을 못 잼) */
+  _hairNorm: THREE.IUniform<number>;
 }
 
 interface ToonUniformEntry {
   uniforms: ToonUniforms;
   kind: ToonPartKind;
+  /** 머리 텍스처 평균색을 쟀나 — 못 쟀으면 머리색을 예전처럼 곱한다 */
+  hairBaseKnown: boolean;
 }
 
 interface ToonBuildConfig extends ToonConfig {
@@ -233,6 +267,8 @@ function applyToonShaderPatch(
     _clothBase: { value: new THREE.Color(1, 1, 1) },
     _bottomBase: { value: new THREE.Color(0, 0, 0) },
     _seamFix: { value: 0 },
+    _hairBase: { value: new THREE.Color(1, 1, 1) },
+    _hairNorm: { value: 0 },
   };
   material.userData[TOON_UNIFORMS_KEY] = uniforms;
   material.onBeforeCompile = (shader) => {
@@ -246,7 +282,7 @@ function applyToonShaderPatch(
       );
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>\n${FRAGMENT_DECLARATIONS}`)
-      .replace("#include <map_fragment>", FRAGMENT_TINT)
+      .replace("#include <map_fragment>", kind === "hair" ? `${FRAGMENT_TINT}\n${FRAGMENT_HAIR}` : FRAGMENT_TINT)
       .replace("#include <dithering_fragment>", `#include <dithering_fragment>\n${FRAGMENT_FINISH}`);
   };
   // three 는 onBeforeCompile 소스로 프로그램을 캐시한다. 갈래가 다르면 키도 달라야
@@ -318,6 +354,38 @@ function computeZoneBases(geometry: THREE.BufferGeometry, map: THREE.Texture | n
   const toColor = ([r, g, b, n]: number[]) =>
     n ? new THREE.Color(r / n / 255, g / n / 255, b / n / 255).convertSRGBToLinear() : null;
   return { cloth: toColor(sums.cloth), bottom: toColor(sums.bottom) };
+}
+
+/**
+ * 머리 텍스처의 평균색(선형) — 정점 UV 자리 텍셀의 평균. 살빛 조각(밝고 채도 있는 텍셀, FRAGMENT_HAIR 와 같은 기준)은 뺀다.
+ * 못 재면 null(머리색을 예전처럼 곱한다).
+ */
+function computeHairBase(geometry: THREE.BufferGeometry, map: THREE.Texture | null): THREE.Color | null {
+  const uv = geometry.getAttribute("uv");
+  if (!map || !uv) return null;
+  const texels = readTexels(map);
+  if (!texels) return null;
+  const { width, height, data } = texels;
+  const sum = [0, 0, 0];
+  let count = 0;
+  const linear = new THREE.Color();
+  for (let i = 0; i < uv.count; i += 1) {
+    const u = uv.getX(i) - Math.floor(uv.getX(i));
+    const v = uv.getY(i) - Math.floor(uv.getY(i));
+    const row = Math.min(height - 1, Math.floor((map.flipY ? 1 - v : v) * height));
+    const column = Math.min(width - 1, Math.floor(u * width));
+    const at = (row * width + column) * 4;
+    linear.setRGB(data[at] / 255, data[at + 1] / 255, data[at + 2] / 255).convertSRGBToLinear();
+    const seen = [Math.sqrt(linear.r), Math.sqrt(linear.g), Math.sqrt(linear.b)];
+    const brightest = Math.max(...seen);
+    const spread = (brightest - Math.min(...seen)) / Math.max(brightest, 0.001);
+    if (brightest > 0.56 && spread > 0.14) continue;
+    sum[0] += linear.r;
+    sum[1] += linear.g;
+    sum[2] += linear.b;
+    count += 1;
+  }
+  return count ? new THREE.Color(sum[0] / count, sum[1] / count, sum[2] / count) : null;
 }
 
 // ── 살결/옷 가르기 ──
@@ -407,6 +475,8 @@ interface ToonTint {
   skin?: string;
   cloth?: string;
   bottom?: string;
+  /** 머리색 — 재질 색으로 곱해 두고, 여기서는 평균 밝기 기준으로 칠할지만 정한다(흰색 = 원본 그대로) */
+  hair?: string;
 }
 
 export interface ToonHandle {
@@ -467,13 +537,18 @@ export function applyToon(
     const created = sources.map((source) => {
       const { material, uniforms } = createToonMaterial(source, buildConfig, kind);
       material.userData[TOON_SOURCE_KEY] = source;
+      let hairBaseKnown = false;
       if (kind !== "hair") {
         const bases = computeZoneBases(object.geometry, material.map);
         if (bases.cloth) uniforms._clothBase.value.copy(bases.cloth);
         if (bases.bottom) uniforms._bottomBase.value.copy(bases.bottom);
         uniforms._seamFix.value = bases.cloth || bases.bottom ? 1 : 0;
+      } else {
+        const base = computeHairBase(object.geometry, material.map);
+        if (base) uniforms._hairBase.value.copy(base);
+        hairBaseKnown = !!base;
       }
-      entries.push({ uniforms, kind });
+      entries.push({ uniforms, kind, hairBaseKnown });
       return material;
     });
     const install = Array.isArray(object.material) ? created : created[0];
@@ -503,10 +578,13 @@ export function applyToon(
       uniforms._hairBand.value = kind === "hair" ? next.hairShine : 0;
     });
   };
-  const tint = ({ skin, cloth, bottom }: ToonTint) => {
-    entries.forEach(({ uniforms, kind }) => {
-      if (kind === "hair") return;
+  const tint = ({ skin, cloth, bottom, hair }: ToonTint) => {
+    entries.forEach(({ uniforms, kind, hairBaseKnown }) => {
       if (skin) uniforms._skinTint.value.set(skin);
+      if (kind === "hair") {
+        uniforms._hairNorm.value = hairBaseKnown && hair && hair.toLowerCase() !== "#ffffff" ? 1 : 0;
+        return;
+      }
       if (cloth) uniforms._clothTint.value.set(cloth);
       uniforms._bottomTint.value.set(bottom ?? cloth ?? "#ffffff");
     });

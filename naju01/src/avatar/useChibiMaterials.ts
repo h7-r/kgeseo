@@ -2,7 +2,7 @@
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import { DEFAULT_MESH_CONFIG, type MeshAppearanceConfig } from "./meshAppearance";
+import { DEFAULT_MESH_CONFIG, LONG_HAIR_VARIANT, type MeshAppearanceConfig } from "./meshAppearance";
 import { type ChibiAvatarConfig, type ChibiBody, DEFAULT_CHIBI_CONFIG, type PreparedBody } from "./preparedBody";
 import { setMorph } from "./rig";
 import { applyToon, type ToonConfig, type ToonHandle, type ToonPartKind } from "./toonMaterial";
@@ -185,6 +185,8 @@ export function useAppearancePaint({
       footScale: wearsShoes ? FOOT_MORPH_IN_SHOES : (appearance.footScale - 1) / 0.3,
       // 평소 손 모양(옷장). 물건을 들 때 감는 건 useFrame 이 이 위에 얹는다 — 지우면 옷장 미리보기 손이 안 바뀐다.
       fistHands: appearance.fistHands,
+      // 긴 머리는 귀를 덮는다 — 귀를 두개골 쪽으로 접어 머리칼 밖으로 삐져나오지 않게 한다(naju01/tools/fit-long-hair.mjs)
+      earTuck: appearance.hair === LONG_HAIR_VARIANT ? 1 : 0,
     };
     // 몸과 옷은 한 메시라 재질 색으로는 못 가른다. 정점 표식이 있는 툰 재질일 때만 피부·의상을 따로 칠한다.
     const hasTintMarks = Boolean(toonHandle.current?.hasTintMarks);
@@ -202,6 +204,8 @@ export function useAppearancePaint({
       cloth: appearance.clothColor,
       // 하의는 정점 표식 3 으로 따로 칠한다
       bottom: appearance.bottomColor ?? appearance.clothColor,
+      // 머리는 재질 색을 그대로 두고, 텍스처 평균 밝기 기준으로 칠할지만 정한다(toonMaterial.ts FRAGMENT_HAIR)
+      hair: appearance.hairColor,
     });
     // 툰 재질이 붙은 뒤에 칠해야 하므로 툰 켬/끔도 의존성에 둔다. 핸들 상자는 늘 같은 ref 다.
   }, [prepared, appearance, body, config.skinColor, toonEnabled, toonHandle, outlineHandle]);

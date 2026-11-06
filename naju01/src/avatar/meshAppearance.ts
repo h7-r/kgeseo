@@ -5,9 +5,13 @@ import { sharedAssetUrl } from "@/config/env";
 
 // 몸 GLB 를 다시 구울 때마다 올린다. 파일 이름이 그대로라 판을 올려야 브라우저가 새 GLB 를 받는다.
 //   22 = 상·하의 경계 표식을 텍스처 밑단에 맞춤(bake-bottom-markers.mjs hem)
-export const MESH_MODEL_VERSION = 22;
+//   23 = 긴 머리 숱 줄이기·몸에서 띄우기·몸통 따라가기, 몸 모프 earTuck(fit-long-hair.mjs)
+export const MESH_MODEL_VERSION = 23;
 
 export type MeshPartKey = "hair" | "top" | "bottom" | "shoes";
+
+/** 긴 머리 파츠 번호(남녀 같다). 귀 접기 모프·머리 흔들림이 이 머리에만 붙는다. */
+export const LONG_HAIR_VARIANT = 1;
 
 export const MESH_PART_OPTIONS: Record<MeshPartKey, Record<AvatarGender, readonly Option<number>[]>> = {
   hair: {
