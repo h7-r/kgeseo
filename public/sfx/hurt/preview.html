@@ -1,0 +1,126 @@
+<title>왜곡 피격 보이스 시안</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: 한 장짜리 청음표 — 강도 순 5행 × 여/남 2열, 각 칸에 A/B 테이크 */
+:root {
+  --bg: #f3f4f2; --panel: #ffffff; --fg: #1c211f; --muted: #5d6662;
+  --line: #d7dcd8; --accent: #b3261e; --accent-soft: #f6dedb;
+  --sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141816; --panel: #1c211f; --fg: #e6ebe8; --muted: #9aa49f;
+  --line: #2e3532; --accent: #ef6b5f; --accent-soft: #3a2220; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141816; --panel: #1c211f; --fg: #e6ebe8; --muted: #9aa49f;
+  --line: #2e3532; --accent: #ef6b5f; --accent-soft: #3a2220; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.6; }
+.wrap { max-width: 980px; margin: 0 auto; padding-block: 32px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px; }
+h1 { font-size: 1.7rem; margin: 0; text-wrap: balance; }
+h2 { font-size: 1.05rem; margin: 0 0 8px; }
+p { margin: 0; max-width: 65ch; color: var(--muted); }
+.meta { font-family: var(--mono); font-size: .78rem; color: var(--muted); letter-spacing: .02em; }
+.grid { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+.row { display: grid; grid-template-columns: 220px 1fr 1fr; border-top: 1px solid var(--line); }
+.row:first-child { border-top: 0; }
+.row.head { background: var(--bg); font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.cell { padding: 14px 16px; min-width: 0; display: grid; gap: 8px; align-content: start; }
+.cell + .cell { border-left: 1px solid var(--line); }
+.label { display: grid; gap: 2px; }
+.word { font-size: 1.35rem; font-weight: 600; }
+.lvl { display: flex; gap: 3px; }
+.lvl i { width: 14px; height: 5px; border-radius: 2px; background: var(--line); }
+.lvl i.on { background: var(--accent); }
+.use { font-size: .82rem; color: var(--muted); }
+.takes { display: flex; gap: 8px; flex-wrap: wrap; }
+button.take { font: 600 .85rem var(--sans); color: var(--fg); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 14px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+button.take:hover { border-color: var(--accent); }
+button.take:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.take.playing { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.file { font-family: var(--mono); font-size: .7rem; color: var(--muted); overflow-wrap: anywhere; }
+.refs { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.ref { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; }
+.ref b { font-size: .95rem; }
+.ref span { font-size: .85rem; color: var(--muted); }
+ul { margin: 0; padding-left: 1.2em; color: var(--muted); max-width: 70ch; }
+@media (max-width: 680px) {
+  .row { grid-template-columns: 1fr 1fr; }
+  .row .label { grid-column: 1 / -1; border-bottom: 1px solid var(--line); }
+  .row .cell + .cell { border-left: 0; }
+  .row .cell:last-child { border-left: 1px solid var(--line); }
+  .row.head .label { display: none; }
+}
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:8px">
+    <div class="meta">ElevenLabs eleven_v4 · 여: Yeonhee · 남: Jun Ho · 무음 트림 + −16 LUFS 정규화</div>
+    <h1>피격 보이스 시안 — 여 5 · 남 5</h1>
+    <p>체력이 깎일 때 나는 소리 후보입니다. 강도 순으로 5단계, 단계마다 테이크 두 개(A/B)씩. 버튼을 누르면 재생됩니다.</p>
+  </header>
+
+  <section class="grid" id="board">
+    <div class="row head"><div class="cell label">단계</div><div class="cell">여자</div><div class="cell">남자</div></div>
+  </section>
+
+  <section style="display:grid;gap:10px">
+    <h2>다른 게임 참고</h2>
+    <div class="refs">
+      <div class="ref"><b>더 라스트 오브 어스 · 바이오하자드</b><span>피격 강도별로 짧은 숨/신음을 나눠 씀. 가벼운 맞음은 0.3초 안팎 「읍·윽」, 큰 타격만 소리를 지름 → 1·3·5단계 구분의 근거.</span></div>
+      <div class="ref"><b>오버워치 · 발로란트</b><span>캐릭터마다 피격음 3~6종을 무작위로 돌려 반복감을 줄임. 같은 소리가 연속으로 안 나오게 처리.</span></div>
+      <div class="ref"><b>다크 소울 · 엘든 링</b><span>타격음(SFX)이 앞, 목소리가 바로 뒤. 목소리는 짧고 낮게 → 맞는 느낌은 효과음이, 감정은 목소리가 담당.</span></div>
+      <div class="ref"><b>공포 방탈출류 (아웃라스트 등)</b><span>체력이 낮으면 거친 숨소리가 계속 깔림. 5단계 「으아악」은 사망·체력 바닥 직전 한 번만.</span></div>
+    </div>
+  </section>
+
+  <section style="display:grid;gap:8px">
+    <h2>게임에 넣을 때 제안</h2>
+    <ul>
+      <li>보통 피격은 1·2·4단계를 무작위로, 직전에 낸 소리는 제외.</li>
+      <li>큰 피해(체력의 30% 이상)는 3단계, 체력 0 / 마지막 한 칸은 5단계.</li>
+      <li>재생 속도 0.95~1.05로 살짝 흔들면 같은 파일도 덜 반복적으로 들림.</li>
+      <li>연타로 맞을 때는 0.35초 쿨다운을 두어 소리가 겹치지 않게.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const STEPS = [
+  { key: "1_eu",   word: "윽!",     lvl: 1, use: "가벼운 피격 · 기본" },
+  { key: "2_ak",   word: "악!",     lvl: 2, use: "날카로운 통증 · 찔림/베임" },
+  { key: "3_keuk", word: "크윽…",   lvl: 3, use: "묵직한 타격 · 이를 악묾" },
+  { key: "4_ayat", word: "아얏!",   lvl: 2, use: "놀람 + 통증 · 함정/감전" },
+  { key: "5_euak", word: "으아악!", lvl: 5, use: "치명타 · 체력 바닥/사망" },
+];
+const board = document.getElementById("board");
+let current = null, currentBtn = null;
+function play(src, btn) {
+  if (current) { current.pause(); currentBtn?.classList.remove("playing"); }
+  const a = new Audio(src); current = a; currentBtn = btn; btn.classList.add("playing");
+  a.onended = () => btn.classList.remove("playing");
+  a.play().catch(() => btn.classList.remove("playing"));
+}
+for (const s of STEPS) {
+  const row = document.createElement("div"); row.className = "row";
+  const lvl = Array.from({ length: 5 }, (_, i) => `<i class="${i < s.lvl ? "on" : ""}"></i>`).join("");
+  row.innerHTML = `<div class="cell label"><span class="word">${s.word}</span><span class="lvl" aria-label="강도 ${s.lvl}/5">${lvl}</span><span class="use">${s.use}</span></div>`;
+  for (const sex of ["female", "male"]) {
+    const cell = document.createElement("div"); cell.className = "cell";
+    const takes = document.createElement("div"); takes.className = "takes";
+    for (const t of ["a", "b"]) {
+      const file = `hurt_${sex}_${s.key}_${t}.mp3`;
+      const b = document.createElement("button"); b.className = "take"; b.type = "button";
+      b.textContent = `▶ ${t.toUpperCase()}`; b.setAttribute("aria-label", `${sex === "female" ? "여자" : "남자"} ${s.word} 테이크 ${t.toUpperCase()} 재생`);
+      b.onclick = () => play(file, b); takes.appendChild(b);
+    }
+    cell.appendChild(takes);
+    const f = document.createElement("div"); f.className = "file"; f.textContent = `hurt_${sex}_${s.key}_{a,b}.mp3`;
+    cell.appendChild(f); row.appendChild(cell);
+  }
+  board.appendChild(row);
+}
+</script>
