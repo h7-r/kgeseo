@@ -4,13 +4,19 @@ import { useSyncExternalStore } from "react";
 
 import { apiUrl, LOBBY_URL } from "@/config/env";
 import { exposeDevHook } from "@/debug/devHooks";
+import { playerView } from "@/engine/playerView";
 import { PLAYER_MESHY_APPEARANCE_KEY } from "@/engine/storage";
 import { readMeshAppearance } from "@/naju";
 import { createLobbyConnection, type LobbyPose, type LobbyStatus } from "@/net/colyseus";
 import { meshConfigToLobbyLook } from "@/net/lobbyLook";
 
-/** 설계 1절 인사 문구(1~6) */
-export const GREETINGS = ["안녕하세요", "반가워요", "나주 다녀올게요", "화이팅!", "고마워요", "잘 가요"] as const;
+import { playAction, playPunch, remoteLinks } from "./avatarLinks";
+import { EMOTES, HIT_REACTION, PUNCH_CLIPS } from "./emotes";
+import { localPlayer } from "./localPlayer";
+import { playThud } from "./thud";
+
+/** 인사 문구(1~6) — 동작과 짝은 emotes.ts */
+export const GREETINGS = EMOTES.map((emote) => emote.text);
 export const BUBBLE_MS = 3000;
 export const GREET_COOLDOWN_MS = 3000;
 
@@ -34,9 +40,90 @@ export const connection = createLobbyConnection({
 
 /** 말풍선: 연결 ID → 문구·끝나는 때 */
 export const bubbles = new Map<string, { text: string; until: number }>();
+
+const mySid = () => {
+  const status = connection.status();
+  return status.kind === "connected" ? status.sessionId : null;
+};
+/** 그 사람의 아바타 상자 — 나는 App 의 실제 상자, 남은 RemotePlayers 가 등록한 상자 */
+const linkOf = (sid: string) => (sid === mySid() ? localPlayer() : (remoteLinks.get(sid) ?? null));
+
+// 인사: 말풍선과 동작을 같이(서버가 돌려준 것만 — 쿨다운에 걸린 인사는 안 보인다)
 connection.onGreet(({ sid, id }) => {
-  bubbles.set(sid, { text: GREETINGS[id - 1] ?? "?", until: Date.now() + BUBBLE_MS });
+  const emote = EMOTES[id - 1];
+  bubbles.set(sid, { text: emote?.text ?? "?", until: Date.now() + BUBBLE_MS });
+  if (emote) playAction(linkOf(sid), "emote", emote.steps);
 });
+
+// --- 때리기 ---
+/** 주먹을 내고 닿기까지(잽·크로스 클립에서 팔이 다 뻗는 때) 🟡 */
+export const PUNCH_IMPACT_MS = 200;
+/** 내 화면에서 상대를 고르는 거리·각도 — 서버는 2.8 유닛·±75° 로 다시 잰다 */
+const PUNCH_REACH = 2.2;
+const PUNCH_ARC = (60 * Math.PI) / 180;
+/** 이 거리(유닛) 밖은 소리를 줄인다 */
+const THUD_FULL_DISTANCE = 3;
+const THUD_FADE_DISTANCE = 14;
+
+// 미뤄 둔 일(주먹이 닿는 순간 보내기·맞는 동작) — 방을 나가면 모두 버린다
+const timers = new Set<ReturnType<typeof setTimeout>>();
+const later = (ms: number, run: () => void) => {
+  const handle = setTimeout(() => {
+    timers.delete(handle);
+    run();
+  }, ms);
+  timers.add(handle);
+};
+connection.subscribe((status) => {
+  if (status.kind === "connected") return;
+  timers.forEach(clearTimeout);
+  timers.clear();
+});
+
+const thudVolume = (attacker: string, target: string) => {
+  const mine = mySid();
+  if (attacker === mine || target === mine) return 1;
+  const body = connection.players().get(target);
+  if (!body) return 0;
+  const distance = Math.hypot(body.x - playerView.eye.x, body.z - playerView.eye.z);
+  return Math.max(0.15, Math.min(1, 1 - (distance - THUD_FULL_DISTANCE) / (THUD_FADE_DISTANCE - THUD_FULL_DISTANCE)));
+};
+
+connection.onPunch(({ sid, motion, hit }) => {
+  const mine = mySid();
+  // 내 주먹은 이미 돌고 있다 — 다시 틀지 않는다
+  if (sid !== mine) playPunch(remoteLinks.get(sid), PUNCH_CLIPS[motion] ?? PUNCH_CLIPS.jab);
+  if (!hit) return;
+  // 남의 주먹은 지금 막 시작됐다 — 닿는 순간에 맞춘다. 내 주먹은 이미 닿았다
+  later(sid === mine ? 0 : PUNCH_IMPACT_MS, () => {
+    playAction(linkOf(hit), "hit", HIT_REACTION);
+    playThud(thudVolume(sid, hit));
+  });
+});
+
+/** 내가 주먹을 냈다(본편 usePunch 가 attackSerial 을 올림) — 닿는 순간에 앞쪽 가장 가까운 사람을 골라 한 번 보낸다 */
+export function notePunch(motion: "jab" | "cross") {
+  later(PUNCH_IMPACT_MS, () => {
+    const mine = mySid();
+    if (!mine) return;
+    const facing = localPlayer()?.facing ?? playerView.bodyYaw;
+    const eye = playerView.eye;
+    let target: string | null = null;
+    let nearest = PUNCH_REACH;
+    for (const [sid, body] of connection.players()) {
+      if (sid === mine || !body.placed) continue;
+      const dx = body.x - eye.x;
+      const dz = body.z - eye.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance > nearest) continue;
+      // 몸 방향 규약: 앞 = (sin f, cos f)
+      if (distance > 0.3 && (Math.sin(facing) * dx + Math.cos(facing) * dz) / distance < Math.cos(PUNCH_ARC)) continue;
+      target = sid;
+      nearest = distance;
+    }
+    connection.sendPunch(motion, target);
+  });
+}
 
 // --- 화면이 구독하는 작은 상태(로그인 · 연결 상태) ---
 interface PreviewState {

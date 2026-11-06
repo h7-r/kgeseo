@@ -85,6 +85,13 @@ export interface GreetEvent {
   id: number;
 }
 
+/** 때리기 방송 — 보낸 사람(sid)·주먹(jab·cross)·서버가 맞았다고 본 사람(hit, 없으면 헛손질) */
+export interface PunchEvent {
+  sid: string;
+  motion: "jab" | "cross";
+  hit?: string;
+}
+
 /** createLobbyConnection 이 쓰는 방의 최소 모양(시험에서 가짜로 바꿔 끼운다) */
 export interface LobbyRoomLike {
   readonly sessionId: string;
@@ -172,6 +179,7 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
   let lastMoveSentAt = -Infinity;
   const statusListeners = new Set<(status: LobbyStatus) => void>();
   const greetListeners = new Set<(event: GreetEvent) => void>();
+  const punchListeners = new Set<(event: PunchEvent) => void>();
 
   const setStatus = (next: LobbyStatus) => {
     status = next;
@@ -241,6 +249,9 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
     const unbindGreet = joined.onMessage("greet", ((payload: GreetEvent) => {
       if (room === joined) greetListeners.forEach((listener) => listener(payload));
     }) as (payload: never) => void);
+    const unbindPunch = joined.onMessage("punch", ((payload: PunchEvent) => {
+      if (room === joined) punchListeners.forEach((listener) => listener(payload));
+    }) as (payload: never) => void);
     const handleLeave = (code: number) => {
       // 우리가 정리한 방이면(room 이 이미 바뀜) 아무것도 안 한다
       if (room !== joined || visit !== myVisit) return;
@@ -251,6 +262,7 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
     joined.onLeave(handleLeave);
     unsubscribeRoom = () => {
       if (typeof unbindGreet === "function") unbindGreet();
+      if (typeof unbindPunch === "function") unbindPunch();
       joined.onLeave.remove?.(handleLeave);
     };
     setStatus({ kind: "connected", visit: myVisit, sessionId: joined.sessionId });
@@ -357,6 +369,12 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
       room.send("greet", { id });
       return true;
     },
+    /** 때리기 — 주먹이 닿는 순간에 한 번. 서버가 간격·거리·방향을 다시 검사해 맞음을 정한다 */
+    sendPunch(motion: "jab" | "cross", target: string | null) {
+      if (!room) return false;
+      room.send("punch", target ? { motion, target } : { motion });
+      return true;
+    },
     /** 같은 방 사람들(나 포함). 연결 전이면 비어 있다 */
     players(): ReadonlyMap<string, RemotePlayerView> {
       const state = room?.state as { players?: ReadonlyMap<string, RemotePlayerView> } | undefined;
@@ -375,11 +393,18 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
         greetListeners.delete(listener);
       };
     },
+    onPunch(listener: (event: PunchEvent) => void) {
+      punchListeners.add(listener);
+      return () => {
+        punchListeners.delete(listener);
+      };
+    },
     /** 화면이 사라질 때. 퇴장하고 구독을 모두 끊는다 */
     dispose() {
       connection.exit();
       statusListeners.clear();
       greetListeners.clear();
+      punchListeners.clear();
     },
   };
   return connection;

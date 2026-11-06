@@ -22,7 +22,11 @@ import {
   HEADQUARTERS_MIN_Z,
 } from "@/station/layout/dimensions";
 
-import { bubbles, connection, localPose, refreshAccount } from "./previewState";
+import { overlayLayer } from "@/game/overlayLayer";
+import { getLockControl } from "@/props/combinationLockState";
+
+import { localPlayer } from "./localPlayer";
+import { bubbles, connection, localPose, notePunch, refreshAccount } from "./previewState";
 import RemotePlayers, { LocalLabel } from "./RemotePlayers";
 
 /** 경계 왔다 갔다 방지(🟡) — 안으로 이만큼 들어와야 입장, 밖으로 이만큼 나가야 퇴장 */
@@ -39,6 +43,8 @@ export default function LobbyPreviewRig() {
   const cutsceneRef = useRef(cutscene);
   const najuRef = useRef(false);
   const lastRef = useRef<{ x: number; z: number } | null>(null);
+  /** 본편 펀치 회차 — 바뀌면 내가 주먹을 낸 것 */
+  const lastAttackRef = useRef<number | null>(null);
 
   useEffect(() => {
     cutsceneRef.current = cutscene;
@@ -65,6 +71,18 @@ export default function LobbyPreviewRig() {
     const eye = playerView.eye;
     const connected = connection.status().kind !== "idle";
     const inTrain = window.location.pathname === TRAIN_PATH;
+
+    // 내 주먹 — 본편 usePunch 가 attackSerial 을 올린다. 회차는 늘 따라가고, 방에 있을 때만·컷신·화면창·자물쇠·기차·나주가
+    // 아닐 때만 보낸다(멈춰 있던 동안 낸 주먹이 나중에 나가지 않게)
+    const me = localPlayer();
+    const attack = me?.attackSerial ?? null;
+    if (attack !== null && lastAttackRef.current !== null && attack !== lastAttackRef.current) {
+      const busy =
+        cutsceneRef.current || inTrain || najuRef.current || overlayLayer.get() !== null || getLockControl() !== null;
+      if (connection.status().kind === "connected" && !busy)
+        notePunch(me?.attackMotion === "Punch_Cross" ? "cross" : "jab");
+    }
+    lastAttackRef.current = attack;
     if (inTrain || najuRef.current) {
       if (connected) connection.exit();
       return;

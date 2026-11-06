@@ -18,8 +18,16 @@ import { playerView } from "@/engine/playerView";
 import { DEFAULT_OUTLINE, DEFAULT_TOON, LobbyChibi } from "@/naju";
 import type { LobbyConnection, RemotePlayerView } from "@/net/colyseus";
 import { lobbyLookToRendererConfig } from "@/net/lobbyLook";
+import { overlayLayer, isTypingTarget } from "@/game/overlayLayer";
+import { getLockControl } from "@/props/combinationLockState";
+import { useIsCutscenePlaying } from "@/props/vendingPushState";
 import { dynamicColliders, type ColliderBox } from "@/station/layout/collision";
+import { HEADQUARTERS_MIN_X } from "@/station/layout/dimensions";
+import { passage } from "@/station/layout/passage";
+import { trainDoors } from "@/station/layout/trainDoors";
 
+import { remoteLinks } from "./avatarLinks";
+import { localPlayer } from "./localPlayer";
 import SpeechBubble from "./SpeechBubble";
 
 const TOON = { ...DEFAULT_TOON, enabled: !IS_LOBBY_TOON_DISABLED };
@@ -40,6 +48,28 @@ const BODY_HALF_WIDTH = 0.6;
 const MIN_BODY_HALF_WIDTH = 0.05;
 /** 몸통 높이 — 눈높이(4.15)보다 낮게 두어 3인칭 카메라 붐(눈에서 뒤로 뻗음)을 접지 않게 한다 */
 const BODY_HEIGHT = 3.5;
+/**
+ * 출구 막힘 예외(미르 11/6 「권장안대로」, Codex 09 로 좁힘): 출구(서쪽 벽 구멍·기차 문) 근처에서, 내가 가려는 쪽을
+ * 사람이 막고 있고, 이동 키를 누른 채 0.5초 동안 거의 못 움직인 상태가 3초 이어지면 막고 있던 사람들만 통과한다.
+ * 키를 떼거나·다시 나아가거나·화면창·자물쇠·컷신·출구를 벗어나면 처음부터. 몸이 완전히 빠지면(2 유닛) 다시 막는다.
+ * 사람 상자를 내리는 방식이라 그동안은 그 사람에게 물건 놓기·카메라도 걸리지 않는다(걷기 전용 판정은 3단계).
+ */
+const PUSH_THROUGH_SECONDS = 3;
+const EXIT_RADIUS = 5;
+const STUCK_WINDOW_SECONDS = 0.5;
+const STUCK_DISTANCE = 0.3;
+const BLOCKING_ARC = (70 * Math.PI) / 180;
+const PASS_RELEASE_DISTANCE = 2;
+/** 이번 프레임 나와 닿아 있고 내가 가려는 쪽에 있는 사람 */
+const blockers = new Set<string>();
+/** 통과 중인 사람 */
+const passThrough = new Set<string>();
+const MOVE_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+
+const nearExit = (x: number, z: number) =>
+  Math.hypot(x - HEADQUARTERS_MIN_X, z - passage.get().doorZ) < EXIT_RADIUS ||
+  (trainDoors.nearest(x, z)?.distance ?? Infinity) < EXIT_RADIUS;
+
 /** 원격 아바타를 담는 그룹 이름 — 내 머리뼈를 찾을 때 원격 아바타는 빼려고 */
 const REMOTE_ROOT_NAME = "lobby-remote-players";
 
@@ -131,6 +161,16 @@ function RemoteAvatar({
     minY: first?.y ?? 0,
     maxY: (first?.y ?? 0) + BODY_HEIGHT,
   });
+  // 인사·맞기·주먹 동작을 걸 수 있게 연결 ID 로 등록한다
+  useEffect(() => {
+    const link = linkRef.current;
+    remoteLinks.set(sid, link);
+    return () => {
+      if (remoteLinks.get(sid) === link) remoteLinks.delete(sid);
+      blockers.delete(sid);
+      passThrough.delete(sid);
+    };
+  }, [sid]);
   // 상자는 그 사람의 자리를 받은 프레임에 올리고(useFrame), 사라질 때 내린다 — 이미 나간 사람은 올리지 않는다
   useEffect(
     () => () => {
@@ -170,7 +210,22 @@ function RemoteAvatar({
       : BODY_HALF_WIDTH;
     const half = Math.min(BODY_HALF_WIDTH, reach);
     const body = bodyRef.current;
-    if (half < MIN_BODY_HALF_WIDTH) {
+    // 출구 막힘 예외 — 닿아 있고 내가 가려는 쪽이면 「막는 사람」, 통과 중이면 몸이 완전히 빠질 때까지 상자 없음
+    let passing = false;
+    if (playerView.ready) {
+      const dx = link.position.x - playerView.eye.x;
+      const dz = link.position.z - playerView.eye.z;
+      const distance = Math.hypot(dx, dz);
+      const touching = Math.max(Math.abs(dx), Math.abs(dz)) <= BODY_HALF_WIDTH + PLAYER_RADIUS + 0.1;
+      const facing = localPlayer()?.facing ?? playerView.bodyYaw;
+      const ahead =
+        distance < 0.3 || (Math.sin(facing) * dx + Math.cos(facing) * dz) / distance >= Math.cos(BLOCKING_ARC);
+      if (touching && ahead) blockers.add(sid);
+      else blockers.delete(sid);
+      if (passThrough.has(sid) && distance > PASS_RELEASE_DISTANCE) passThrough.delete(sid);
+      passing = passThrough.has(sid);
+    }
+    if (passing || half < MIN_BODY_HALF_WIDTH) {
       if (dynamicColliders.get(colliderId) === body) dynamicColliders.delete(colliderId);
     } else {
       body.minX = link.position.x - half;
@@ -294,7 +349,55 @@ export default function RemotePlayers({
   bubbles: ReadonlyMap<string, { text: string; until: number }>;
 }) {
   const [sids, setSids] = useState<string[]>([]);
-  useFrame(() => {
+  const cutscene = useIsCutscenePlaying();
+  const cutsceneRef = useRef(cutscene);
+  useEffect(() => {
+    cutsceneRef.current = cutscene;
+  }, [cutscene]);
+  // 누르고 있는 이동 키(입력칸에 쓰는 중이면 무시, 창을 떠나면 모두 뗀 것으로)
+  const keysRef = useRef(new Set<string>());
+  useEffect(() => {
+    const keys = keysRef.current;
+    const down = (event: KeyboardEvent) => {
+      if (MOVE_KEYS.has(event.code) && !isTypingTarget(event.target)) keys.add(event.code);
+    };
+    const up = (event: KeyboardEvent) => keys.delete(event.code);
+    const clear = () => keys.clear();
+    addEventListener("keydown", down);
+    addEventListener("keyup", up);
+    addEventListener("blur", clear);
+    return () => {
+      removeEventListener("keydown", down);
+      removeEventListener("keyup", up);
+      removeEventListener("blur", clear);
+      keys.clear();
+    };
+  }, []);
+  const trailRef = useRef<{ t: number; x: number; z: number }[]>([]);
+  const stuckRef = useRef(0);
+  useFrame((state, delta) => {
+    // 출구 막힘 예외 — 0.5초 동안 거의 못 움직인 채 막는 사람에게 밀고 있던 시간을 센다
+    if (playerView.ready) {
+      const now = state.clock.elapsedTime;
+      const trail = trailRef.current;
+      trail.push({ t: now, x: playerView.eye.x, z: playerView.eye.z });
+      while (trail.length > 2 && now - trail[1].t >= STUCK_WINDOW_SECONDS) trail.shift();
+      const oldest = trail[0];
+      const moved = Math.hypot(playerView.eye.x - oldest.x, playerView.eye.z - oldest.z);
+      const busy = cutsceneRef.current || overlayLayer.get() !== null || getLockControl() !== null;
+      const stuck =
+        keysRef.current.size > 0 &&
+        !busy &&
+        blockers.size > 0 &&
+        nearExit(playerView.eye.x, playerView.eye.z) &&
+        now - oldest.t >= STUCK_WINDOW_SECONDS * 0.8 &&
+        moved < STUCK_DISTANCE;
+      stuckRef.current = stuck ? stuckRef.current + delta : 0;
+      if (stuckRef.current >= PUSH_THROUGH_SECONDS) {
+        blockers.forEach((sid) => passThrough.add(sid));
+        stuckRef.current = 0;
+      }
+    }
     const status = connection.status();
     const mine = status.kind === "connected" ? status.sessionId : null;
     const next: string[] = [];
