@@ -202,7 +202,16 @@ export function LocalLabel({
   const [name, setName] = useState("");
   useFrame(({ scene }) => {
     const eye = getEye();
-    // 내 아바타는 App 이 그려 참조가 없다 — 내 자리(가로 1.5 유닛 안)에 가장 가까운, 원격 그룹 밖 머리뼈를 1초마다 고른다
+    const sid = getSid();
+    // 방에 없으면 띄울 것도 없다 — 장면을 뒤지지 않는다
+    if (!sid) {
+      headRef.current = null;
+      if (text !== null) setText(null);
+      if (name !== "") setName("");
+      return;
+    }
+    // 내 아바타는 App 이 그려 참조가 없다(3단계에서 직접 받는다) — 내 자리(가로 1.5 유닛 안)에 가장 가까운,
+    // 원격 그룹 밖의 보이는 머리뼈를 1초마다 고른다
     const now = performance.now();
     if (now - lastSearchRef.current > 1000) {
       lastSearchRef.current = now;
@@ -210,7 +219,9 @@ export function LocalLabel({
       let bestDistance = 1.5;
       scene.traverse((object) => {
         if (!(object as THREE.Bone).isBone || object.name.toLowerCase() !== "head") return;
-        for (let parent = object.parent; parent; parent = parent.parent) if (parent.name === REMOTE_ROOT_NAME) return;
+        for (let parent: THREE.Object3D | null = object; parent; parent = parent.parent) {
+          if (parent.name === REMOTE_ROOT_NAME || !parent.visible) return;
+        }
         object.getWorldPosition(scratch);
         const distance = Math.hypot(scratch.x - eye.x, scratch.z - eye.z);
         if (distance < bestDistance) {
@@ -221,11 +232,11 @@ export function LocalLabel({
       headRef.current = best;
     }
     placeLabel(groupRef.current, headRef.current, eye.x, eye.y - EYE_HEIGHT, eye.z);
-    const sid = getSid();
-    const said = sid ? bubbles.get(sid) : undefined;
+    // 1인칭에서는 이름표와 내 말풍선이 눈 바로 위라 화면 밖이다(🟡 1인칭 내 말풍선 표시는 3단계에서)
+    const said = bubbles.get(sid);
     const next = said && said.until > Date.now() ? said.text : null;
     if (next !== text) setText(next);
-    const nextName = sid && isThirdPerson() ? getName(sid) : "";
+    const nextName = isThirdPerson() ? getName(sid) : "";
     if (nextName !== name) setName(nextName);
   });
   return <group ref={groupRef}>{(text || name) && <NameTag name={name} bubble={text} />}</group>;
