@@ -52,26 +52,14 @@
       {
         "code": "NO_PROGRESS",
         "count": 3,
+        "step_count": 15,
         "limit": 3
       },
       {
         "code": "STEP_ARRIVED",
-        "count": 18,
-        "limit_per_step": 2,
-        "per_step": {
-          "S1_FIRE": 2,
-          "S1_SMOKE": 2,
-          "S2_BOTTLE": 2,
-          "S2_OFFER": 2,
-          "S2_STONES": 1,
-          "S2_ENTER": 2,
-          "C_JAR": 1,
-          "C_SOCKET": 1,
-          "S3_GO": 2,
-          "S3_SCALE": 1,
-          "S3_KEY": 1,
-          "S3_RIFT": 1
-        }
+        "count": 0,
+        "step_count": 3,
+        "limit": null
       },
       {
         "code": "STEP_DONE",
@@ -85,7 +73,25 @@
         "case_shared": 3,
         "case_zoned": 12
       }
-    ]
+    ],
+    "steps": {
+      "count": 18,
+      "limit_per_step": 2,
+      "per_step": {
+        "S1_FIRE": 2,
+        "S1_SMOKE": 2,
+        "S2_BOTTLE": 2,
+        "S2_OFFER": 2,
+        "S2_STONES": 1,
+        "S2_ENTER": 2,
+        "C_JAR": 1,
+        "C_SOCKET": 1,
+        "S3_GO": 2,
+        "S3_SCALE": 1,
+        "S3_KEY": 1,
+        "S3_RIFT": 1
+      }
+    }
   },
   "lines": [
     {
@@ -591,7 +597,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "올라온 통발을 겨누면 [E] 가 떠요. 누르면 불씨를 곁의 화톳불에 쏟아요.",
       "length": 42
     },
@@ -604,7 +610,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "올라온 통발을 겨누면 [E] 가 뜰 거야. 누르면 불씨를 옆에 있는 화톳불에 쏟아.",
       "length": 46
     },
@@ -617,7 +623,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "화살표를 앞질러 가면 길이 안 열려요. 화살표가 먼저 바위틈을 지나가게 뒤에서 따라가요.",
       "length": 49
     },
@@ -630,7 +636,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "화살표를 앞질러 가면 길이 안 열린당께. 화살표가 먼저 바위틈을 지나가게 뒤에서 따라가.",
       "length": 49
     },
@@ -643,7 +649,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "연기는 천막 왼쪽을 돌아 바위틈으로 흘러가요. 놓쳤으면 화톳불로 돌아가 다시 찾아봐요.",
       "length": 48
     },
@@ -656,7 +662,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "연기는 천막 왼쪽을 돌아서 바위틈으로 흘러가. 놓쳤으면 화톳불로 돌아가서 다시 찾아봐.",
       "length": 48
     },
@@ -851,7 +857,7 @@
       "focus_local_id": "boat-bottle-intact",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "배 안에 술병이 몇 개 있어요. 깨지지 않은 게 하나쯤은 있을 거예요.",
       "length": 39
     },
@@ -864,7 +870,7 @@
       "focus_local_id": "boat-bottle-intact",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "배 안에 술병이 몇 개 있어. 안 깨진 게 하나쯤은 있을 거랑께.",
       "length": 36
     },
@@ -1007,7 +1013,7 @@
       "focus_local_id": "ritual-table",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "제물은 셋이에요. 지금까지 우리가 모은 것들을 떠올려 봐요.",
       "length": 33
     },
@@ -1020,7 +1026,7 @@
       "focus_local_id": "ritual-table",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "제물은 셋이랑께. 지금까지 모은 것들을 떠올려 봐.",
       "length": 28
     },
@@ -1033,7 +1039,7 @@
       "focus_local_id": "ritual-table",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "나루터에서 챙긴 것, 장독대에서 나온 것, 배에서 찾은 것. 이 셋이에요.",
       "length": 41
     },
@@ -1046,7 +1052,7 @@
       "focus_local_id": "ritual-table",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "나루터에서 챙긴 것, 장독대에서 나온 것, 배에서 찾은 것. 이 셋이제.",
       "length": 40
     },
@@ -1059,7 +1065,7 @@
       "focus_local_id": "float-stone-0",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "아직 못 찾은 돌이 있으면 물가를 따라 한 바퀴 돌아봐요. 흰빛이 보여요.",
       "length": 41
     },
@@ -1072,7 +1078,7 @@
       "focus_local_id": "float-stone-0",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "아직 못 찾은 돌이 있으면 물가를 따라 한 바퀴 돌아봐. 흰빛이 보여.",
       "length": 39
     },
@@ -1085,7 +1091,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "갈라진 물 사이로 걸어 들어가면 돼요. 근디 안은 물속이라 숨을 아껴야 해요.",
       "length": 43
     },
@@ -1098,7 +1104,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "갈라진 물 사이로 걸어 들어가면 돼. 안은 물속이라 숨을 아껴야 한당께.",
       "length": 40
     },
@@ -1111,7 +1117,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "들어가기 전에 건진 돌 넷을 다 챙겼는지 봐요. 안에서 써야 해요.",
       "length": 37
     },
@@ -1124,7 +1130,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "들어가기 전에 건진 돌 넷을 다 챙겼는지 봐. 안에서 써야 하거든.",
       "length": 37
     },
@@ -1137,7 +1143,7 @@
       "focus_local_id": "cave-jar",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "독 속에 공기가 갇혀 있어요. 겨눠서 [E] 로 기울여 봐요.",
       "length": 34
     },
@@ -1150,7 +1156,7 @@
       "focus_local_id": "cave-jar",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "독 속에 공기가 갇혀 있어. 겨눠서 [E] 로 기울여 봐.",
       "length": 32
     },
@@ -1371,7 +1377,7 @@
       "focus_local_id": "cave-socket",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "조개밭에서 챙긴 큰 진주를 손에 들고(숫자키) 홈을 겨눠 [E] 로 끼워 봐요.",
       "length": 44
     },
@@ -1384,7 +1390,7 @@
       "focus_local_id": "cave-socket",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "조개밭에서 챙긴 큰 진주를 손에 들고(숫자키) 홈을 겨눠서 [E] 로 끼워 봐.",
       "length": 44
     },
@@ -1423,7 +1429,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "바위 아래 동쪽으로 비탈이 있어요. 그 위가 능선이에요.",
       "length": 31
     },
@@ -1436,7 +1442,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "바위 아래 동쪽으로 비탈이 있어. 그 위가 능선이제.",
       "length": 29
     },
@@ -1683,7 +1689,7 @@
       "focus_local_id": "ridge-fossil",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "석실에서 가져온 푸른 눈물을 손에 들고(숫자키) 자국을 겨눠 [E] 로 맞춰 넣어요.",
       "length": 47
     },
@@ -1696,7 +1702,7 @@
       "focus_local_id": "ridge-fossil",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "석실에서 가져온 푸른 눈물을 손에 들고(숫자키) 자국을 겨눠서 [E] 로 맞춰 넣어 봐.",
       "length": 49
     },
@@ -1709,7 +1715,7 @@
       "focus_local_id": "ridge-box-lock",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "함을 [I] 에서 꺼내 내려놓고, 자물통을 겨눠 [E] 로 열어요.",
       "length": 37
     },
@@ -1722,7 +1728,7 @@
       "focus_local_id": "ridge-box-lock",
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "함을 [I] 에서 꺼내서 내려놓고, 자물통을 겨눠 [E] 로 열어 봐.",
       "length": 39
     },
@@ -1735,7 +1741,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "준비되면 틈으로 걸어 들어가요. 그 밤 아랑사가 오른 곳으로 이어질 거예요.",
       "length": 42
     },
@@ -1748,7 +1754,7 @@
       "focus_local_id": null,
       "zone": null,
       "fe_situation": "help",
-      "situation_code": "STEP_ARRIVED",
+      "situation_code": "NO_PROGRESS",
       "text": "준비되면 틈으로 걸어 들어가. 그 밤 아랑사가 오른 곳으로 이어질 거야.",
       "length": 40
     },
