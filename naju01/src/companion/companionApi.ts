@@ -96,6 +96,8 @@ export interface PlaySessionData {
   play_session_id: string;
   case_id: string;
   state: PlaySessionState;
+  /** 세션에 고정된 케이스 판의 에셋 경로(예: /c/naju-angam-01/v1). 버전 없는 세션은 null(#47) */
+  asset_base_path?: string | null;
 }
 
 // ── 응답 모양 검사 — 약속한 모양이 아니면 성공으로 보지 않는다(빈 대사를 띄우지 않게) ──
@@ -155,7 +157,10 @@ const RETRYABLE_STATUS = new Set([502, 503, 504]);
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-/** 한 번 보낸다. 실패하면 CompanionApiError */
+/**
+ * 한 번 보낸다. 실패하면 CompanionApiError.
+ * 플레이 API 는 게스트 · 로그인 쿠키로 주인을 가린다(#47) — api 주소가 따로인 운영에서도 쿠키가 가게 credentials 를 싣는다.
+ */
 async function requestOnce(path: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -163,6 +168,7 @@ async function requestOnce(path: string, init: RequestInit, timeoutMs: number): 
   try {
     response = await fetch(`${API_ORIGIN}${path}`, {
       ...init,
+      credentials: "include",
       headers: { Accept: "application/json", ...(init.body ? { "Content-Type": "application/json" } : {}) },
       signal: controller.signal,
     });

@@ -103,7 +103,7 @@ const deliveryOf = (result: unknown) => (result as { delivery?: { status: string
 
 // ── 세션 연결 ──
 
-test("런타임 1: 저장된 동행 세션을 그대로 쓴다 — 익명 · 플레이 세션을 새로 만들지 않는다", async () => {
+test("런타임 1: 저장된 동행 세션을 그대로 쓴다 — 게스트 쿠키만 먼저 받고 플레이 세션은 새로 만들지 않는다", async () => {
   const data: Record<string, string> = {
     [SESSION_STORAGE_KEY]: JSON.stringify({
       anonymousSessionId: "44444444-4444-4444-8444-444444444444",
@@ -120,7 +120,9 @@ test("런타임 1: 저장된 동행 세션을 그대로 쓴다 — 익명 · 플
   serve((call) =>
     call.method === "GET"
       ? { status: 200, body: { data: { play_session_id: PLAY_A, case_id: "test-case", state: { hint_levels: {} } } } }
-      : { status: 200, body: response("int-1", DONE) },
+      : call.path === "/api/v1/anonymous-sessions"
+        ? { status: 201, body: { data: { anonymous_session_id: "44444444-4444-4444-8444-444444444444" } } }
+        : { status: 200, body: response("int-1", DONE) },
   );
   const companion = createCompanionSession({ config: { caseId: "test-case", contentVersion: 1 }, storage });
   await companion.start();
@@ -128,7 +130,7 @@ test("런타임 1: 저장된 동행 세션을 그대로 쓴다 — 익명 · 플
   assert.ok(isServerApplied(result));
   assert.deepEqual(
     calls.map((call) => `${call.method} ${call.path}`),
-    [`GET /api/v1/play-sessions/${PLAY_A}`, `POST ${path(PLAY_A)}`],
+    ["POST /api/v1/anonymous-sessions", `GET /api/v1/play-sessions/${PLAY_A}`, `POST ${path(PLAY_A)}`],
   );
 });
 

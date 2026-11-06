@@ -2,6 +2,7 @@
 // 격리 서버 주소가 있을 때만 돈다(없으면 건너뜀 — 평소 naju:test 에 영향 없음):
 //   PROGRESS_SYNC_IT_BASE=http://127.0.0.1:18017 node --test naju01/tests/progressSync.integration.test.ts
 // 서버에는 가상 케이스 progress_sync_it v1 이 게시돼 있어야 한다(backend/scripts/it_progress_sync_case.py).
+// 요청은 브라우저처럼 Origin · 쿠키를 싣는다(아래 browserFetch) — 서버 CORS_ORIGINS 에 PROGRESS_SYNC_IT_ORIGIN(기본 http://localhost:5174)이 있어야 한다.
 // 준비(격리 MySQL · 버리는 DB 에서만, 운영 DB 금지):
 //   1) DB_* · APP_ENV=test · PUBLISHED_CONTENT_ROOT=<빈 폴더> 로 `alembic upgrade head`
 //   2) `python -m scripts.it_progress_sync_case <루트>` → fingerprint
@@ -41,6 +42,25 @@ interface Wire {
 }
 const wire: Wire[] = [];
 const realFetch = globalThis.fetch;
+
+// #47 뒤 플레이 API 는 쿠키로 주인을 가리고 쓰기 요청의 Origin 을 본다 — 브라우저처럼 흉내 낸다.
+// 쿠키는 credentials: "include" 인 요청에만 싣는다 — FE 가 빠뜨리면 401 로 드러난다.
+// Origin 은 서버 CORS_ORIGINS 안의 값이어야 한다(로컬 기본 http://localhost:5174).
+const ORIGIN = process.env.PROGRESS_SYNC_IT_ORIGIN ?? "http://localhost:5174";
+const cookieJar = new Map<string, string>();
+async function browserFetch(url: RequestInfo | URL, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  headers.set("Origin", ORIGIN);
+  if (init.credentials === "include" && cookieJar.size)
+    headers.set("Cookie", [...cookieJar].map(([name, value]) => `${name}=${value}`).join("; "));
+  const response = await realFetch(url, { ...init, headers });
+  for (const line of response.headers.getSetCookie()) {
+    const [pair] = line.split(";");
+    const at = pair.indexOf("=");
+    if (at > 0) cookieJar.set(pair.slice(0, at).trim(), pair.slice(at + 1).trim());
+  }
+  return response;
+}
 
 function memoryStore(): KeyValueStore {
   const data: Record<string, string> = {};
@@ -90,7 +110,7 @@ describe("progressSync ↔ 실제 Interaction API", { skip: BASE ? false : "PROG
   before(async () => {
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" && input.startsWith("/") ? BASE + input : input;
-      const response = await realFetch(url, init);
+      const response = await browserFetch(url, init);
       wire.push({ method: init?.method ?? "GET", path: String(input), status: response.status });
       return response;
     }) as typeof fetch;
@@ -276,7 +296,7 @@ describe("puzzleSubmission ↔ 실제 Interaction API", { skip: BASE ? false : "
         dropNext -= 1;
         throw new TypeError("fetch failed");
       }
-      return realFetch(url, init);
+      return browserFetch(url, init);
     }) as typeof fetch;
     const status = await session.start();
     assert.equal(status.phase, "ready", JSON.stringify(status));

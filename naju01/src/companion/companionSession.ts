@@ -4,6 +4,7 @@
  * - 케이스 · 버전이 정해지지 않았으면(나주 콘텐츠 미게시) 세션을 만들지 않는다 → NPC 말 걸기 비활성, 추종은 그대로.
  * - 409 CASE_VERSION_UNAVAILABLE 은 재생성으로 풀리지 않는다 → 비활성(게임 계속).
  * - 404(세션 없음)만 새로 만든다. 410(익명 세션 만료)은 익명 세션부터 다시.
+ * - 시작할 때마다 익명 세션(게스트 쿠키)부터 받는다 — 플레이 API 는 쿠키로 주인을 가린다(#47, 계약 v0.4.16 §10-7).
  * React · 별칭을 쓰지 않는다(node --test).
  */
 import {
@@ -12,6 +13,7 @@ import {
   createPinnedPlaySession,
   errorCode,
   loadPlaySession,
+  type PlaySessionData,
 } from "./companionApi.ts";
 
 export interface CompanionSessionConfig {
@@ -91,6 +93,8 @@ export function createCompanionSession(options: {
   config: CompanionSessionConfig | null;
   storage?: KeyValueStore | null;
   log?: (message: string, detail?: unknown) => void;
+  /** 세션 생성 · 조회 응답의 asset_base_path(없으면 null) — 런타임이 setAssetVersionPath 로 넘긴다 */
+  onAssetBasePath?: (path: string | null) => void;
 }) {
   const storage = options.storage ?? null;
   const log = options.log ?? (() => {});
@@ -106,17 +110,20 @@ export function createCompanionSession(options: {
     return next;
   };
 
-  const ready = (record: StoredRecord, hintLevels: Record<string, number>) =>
-    set({
+  const ready = (record: StoredRecord, data: PlaySessionData) => {
+    // 에셋 경로를 상태보다 먼저 알린다 — ready 를 듣고 읽는 에셋이 이 판의 경로를 쓰게
+    options.onAssetBasePath?.(data.asset_base_path ?? null);
+    return set({
       phase: "ready",
       playSessionId: record.playSessionId as string,
       caseId: record.caseId,
       contentVersion: record.contentVersion,
-      hintLevels: { ...hintLevels },
+      hintLevels: { ...(data.state.hint_levels ?? {}) },
     });
+  };
 
-  async function createFresh(config: CompanionSessionConfig, previous: StoredRecord | null) {
-    let anonymousSessionId = previous?.anonymousSessionId ?? null;
+  async function createFresh(config: CompanionSessionConfig, issuedAnonymousId: string) {
+    let anonymousSessionId: string | null = issuedAnonymousId;
     for (let attempt = 0; attempt < 2; attempt++) {
       if (!anonymousSessionId) anonymousSessionId = await createAnonymousSession();
       try {
@@ -128,7 +135,7 @@ export function createCompanionSession(options: {
           contentVersion: config.contentVersion,
         };
         writeRecord(storage, record);
-        return ready(record, data.state.hint_levels ?? {});
+        return ready(record, data);
       } catch (error) {
         // 익명 세션이 없거나 만료됐으면 한 번만 새로 받아 다시 만든다
         const status = error instanceof CompanionApiError ? error.status : null;
@@ -149,17 +156,24 @@ export function createCompanionSession(options: {
     const reusable =
       stored && stored.caseId === config.caseId && stored.contentVersion === config.contentVersion ? stored : null;
     try {
+      // 게스트 쿠키를 먼저 받는다(계약 v0.4.16 §10-7) — 조회 · 생성 모두 쿠키로 주인을 가린다.
+      // 쿠키가 살아 있으면 같은 익명 세션이, 로그인 중이면 호환용 익명 세션이 온다(권한 아님)
+      const anonymousSessionId = await createAnonymousSession();
       if (reusable?.playSessionId) {
         try {
           const data = await loadPlaySession(reusable.playSessionId);
-          if (data.case_id === config.caseId) return ready(reusable, data.state.hint_levels ?? {});
+          if (data.case_id === config.caseId) {
+            const record = { ...reusable, anonymousSessionId };
+            writeRecord(storage, record);
+            return ready(record, data);
+          }
         } catch (error) {
-          // 세션이 없어졌을 때만 새로 만든다. 그 밖(409 · 500 · 연결)은 아래에서 상태로 바꾼다
+          // 세션이 없어졌을 때만 새로 만든다(남의 · 옛 소유자 없는 세션도 404). 그 밖(409 · 500 · 연결)은 아래에서 상태로 바꾼다
           if (!(error instanceof CompanionApiError && error.status === 404)) throw error;
           log("저장된 동행 세션이 없어 새로 만든다");
         }
       }
-      return await createFresh(config, reusable);
+      return await createFresh(config, anonymousSessionId);
     } catch (error) {
       const reason = unavailableReason(error);
       log(`동행 NPC 세션을 쓸 수 없다(${reason})`, error);

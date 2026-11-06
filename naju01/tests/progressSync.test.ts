@@ -282,7 +282,7 @@ test("세션이 준비되지 않았으면 보내지 않는다(세션을 만들�
   assert.equal(calls.length, 0);
 });
 
-test("동행 NPC 세션을 그대로 쓴다 — 익명 · 플레이 세션을 새로 만들지 않는다", async () => {
+test("동행 NPC 세션을 그대로 쓴다 — 게스트 쿠키만 먼저 받고 플레이 세션은 새로 만들지 않는다", async () => {
   const data: Record<string, string> = {
     [SESSION_STORAGE_KEY]: JSON.stringify({
       anonymousSessionId: "44444444-4444-4444-8444-444444444444",
@@ -299,7 +299,9 @@ test("동행 NPC 세션을 그대로 쓴다 — 익명 · 플레이 세션을 �
   serve((call) =>
     call.method === "GET"
       ? { status: 200, body: { data: { play_session_id: PLAY_ID, case_id: "test-case", state: { hint_levels: {} } } } }
-      : { status: 200, body: okResponse() },
+      : call.path === "/api/v1/anonymous-sessions"
+        ? { status: 201, body: { data: { anonymous_session_id: "44444444-4444-4444-8444-444444444444" } } }
+        : { status: 200, body: okResponse() },
   );
   const session = createCompanionSession({ config: { caseId: "test-case", contentVersion: 7 }, storage });
   await session.start();
@@ -308,7 +310,7 @@ test("동행 NPC 세션을 그대로 쓴다 — 익명 · 플레이 세션을 �
   await s.submit({ action: "complete", zone: "TB", object: "test-lever" });
   assert.deepEqual(
     calls.map((call) => `${call.method} ${call.path}`),
-    [`GET /api/v1/play-sessions/${PLAY_ID}`, `POST ${INTERACTIONS}`, `POST ${INTERACTIONS}`],
+    ["POST /api/v1/anonymous-sessions", `GET /api/v1/play-sessions/${PLAY_ID}`, `POST ${INTERACTIONS}`, `POST ${INTERACTIONS}`],
   );
 });
 
