@@ -404,3 +404,26 @@ ADMIN_DETAIL = {
     **_ADMIN_ONLY,
     404: error(ErrorMessage, "없는 사용자다.", "User not found."),
 }
+
+
+# --- 로비 입장권(로비 설계 v0.19 2절) ---
+
+LOBBY_TICKET = {
+    **_LOGIN_REQUIRED,
+    403: error(
+        ErrorMessage,
+        "다른 사이트에서 온 요청이거나, 모집 명단에 없는 계정이다(문장 구분). 화면은 혼자 진행하고 이번 방문에 다시 요청하지 않는다.",
+        "Origin not allowed.",
+        "Not on the lobby beta list.",
+    ),
+    429: error(
+        ErrorMessage,
+        "최근 60초 발급 한도(계정당 10회 · IP당 60회)를 넘었다. `Retry-After` 헤더가 다음 발급까지 남은 초다.",
+        "Too many lobby ticket requests.",
+    ),
+    503: error(
+        ErrorMessage,
+        "로비 입장권 발급이 꺼져 있다(로비 설정 · 시작 검사 실패) 또는 모집 명단을 쓸 수 없다. 본편 API 는 정상이다.",
+        "Lobby is unavailable.",
+    ),
+}
