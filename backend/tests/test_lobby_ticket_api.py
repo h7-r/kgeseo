@@ -133,11 +133,24 @@ def test_ticket_carries_investigator_name_when_character_exists(lobby):
     assert lobby.db.get_calls == [(UserCharacter, "user-1")]
 
 
+def test_investigator_name_keeps_single_spaces_between_words(lobby):
+    lobby.db.get_result = SimpleNamespace(display_name="김  철수")
+    assert _nickname(_post(lobby.client)) == "김 철수"
+
+
 @pytest.mark.parametrize(
     "display_name",
     [
         "   ",  # 공백뿐
-        "😀" * 21,  # 21자지만 UTF-16 42단위 — 로비(40)가 거절할 길이
+        "한",  # 너무 짧다
+        "가" * 13,  # 너무 길다(생성 화면 12자)
+        "😀😀😀",  # 허용 문자 밖
+        "조사\u200b관",  # 보이지 않는 문자
+        "조사관\n",  # 제어 문자
+        "운영자",  # 닉네임과 같은 예약어
+        "관리 자",  # 띄어 써도 예약어
+        "Admin1",  # 대소문자·숫자 꼬리
+        "씨발놈",  # 금칙어
     ],
 )
 def test_ticket_falls_back_to_account_nickname(lobby, display_name):
