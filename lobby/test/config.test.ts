@@ -1,0 +1,106 @@
+// 실행 프로필과 운영 시작 검사(설계 3.3절)
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
+import { buildConfig, collectSettings, parseProfile, type Profile } from "../src/config.js";
+
+const PROD_SECRET = "p".repeat(40);
+const goodProduction = {
+  LOBBY_TICKET_SECRET: PROD_SECRET,
+  LOBBY_ALLOWED_ORIGINS: "https://play.example.com",
+  LOBBY_MAX_ROOMS: "5",
+};
+
+const errorsOf = (profile: Profile, settings: Record<string, string>) => {
+  const result = buildConfig(profile, settings);
+  return "errors" in result ? result.errors : [];
+};
+
+describe("실행 프로필", () => {
+  it("인자가 없으면 production", () => assert.deepEqual(parseProfile([]), { profile: "production" }));
+  it("test 를 명시할 수 있다", () => assert.deepEqual(parseProfile(["--profile=test"]), { profile: "test" }));
+  it("알 수 없는 값은 실패", () => assert.ok("error" in parseProfile(["--profile=staging"])));
+  it("값 없는 --profile 은 실패", () => assert.ok("error" in parseProfile(["--profile"])));
+  it("두 번 적으면 실패", () => assert.ok("error" in parseProfile(["--profile=test", "--profile=production"])));
+});
+
+describe("설정 읽는 경로", () => {
+  const file = "LOBBY_MAX_ROOMS=1\nLOBBY_TICKET_SECRET=from-file\nWAEGOK_RUN_PROFILE=test\nLOBBY_PROFILE=test\n";
+  it("production 은 로비 전용 파일을 읽지 않는다", () => {
+    let read = false;
+    const settings = collectSettings("production", {
+      env: { LOBBY_TICKET_SECRET: "env" },
+      readLocalFile: () => {
+        read = true;
+        return file;
+      },
+    });
+    assert.equal(read, false);
+    assert.deepEqual(settings, { LOBBY_TICKET_SECRET: "env" });
+  });
+  it("test 는 환경을 먼저, 없는 항목만 파일에서. 프로필 키는 무시", () => {
+    const settings = collectSettings("test", { env: { LOBBY_TICKET_SECRET: "env" }, readLocalFile: () => file });
+    assert.deepEqual(settings, { LOBBY_TICKET_SECRET: "env", LOBBY_MAX_ROOMS: "1" });
+  });
+});
+
+describe("운영 시작 검사 — production", () => {
+  it("정상 설정은 통과", () => {
+    const result = buildConfig("production", goodProduction);
+    assert.ok("config" in result);
+    assert.equal(result.config.maxRooms, 5);
+    assert.deepEqual(result.config.allowedOrigins, ["https://play.example.com"]);
+  });
+  const cases: [string, Record<string, string>, string][] = [
+    ["LOBBY_TEST_HOOKS=1", { ...goodProduction, LOBBY_TEST_HOOKS: "1" }, "LOBBY_TEST_HOOKS"],
+    ["방 상한이 5가 아님", { ...goodProduction, LOBBY_MAX_ROOMS: "1" }, "LOBBY_MAX_ROOMS"],
+    ["방 상한 없음", { ...goodProduction, LOBBY_MAX_ROOMS: undefined as unknown as string }, "LOBBY_MAX_ROOMS"],
+    ["방 상한 숫자 오타", { ...goodProduction, LOBBY_MAX_ROOMS: "5a" }, "LOBBY_MAX_ROOMS"],
+    ["출처 비어 있음", { ...goodProduction, LOBBY_ALLOWED_ORIGINS: "" }, "LOBBY_ALLOWED_ORIGINS"],
+    ["출처 와일드카드", { ...goodProduction, LOBBY_ALLOWED_ORIGINS: "*" }, "LOBBY_ALLOWED_ORIGINS"],
+    ["출처에 경로", { ...goodProduction, LOBBY_ALLOWED_ORIGINS: "https://a.example.com/play" }, "LOBBY_ALLOWED_ORIGINS"],
+    ["키 없음", { ...goodProduction, LOBBY_TICKET_SECRET: "" }, "LOBBY_TICKET_SECRET"],
+    ["키 32바이트 미만", { ...goodProduction, LOBBY_TICKET_SECRET: "short" }, "LOBBY_TICKET_SECRET"],
+    ["개발 키", { ...goodProduction, LOBBY_TICKET_SECRET: `dev-${"x".repeat(40)}` }, "LOBBY_TICKET_SECRET"],
+    ["LOBBY_ENV=test", { ...goodProduction, LOBBY_ENV: "test" }, "LOBBY_ENV"],
+    ["포트 숫자 오타", { ...goodProduction, LOBBY_PORT: "abc" }, "LOBBY_PORT"],
+  ];
+  for (const [name, settings, field] of cases) {
+    it(`${name} → 시작 안 함`, () => {
+      const clean = Object.fromEntries(Object.entries(settings).filter(([, v]) => v !== undefined));
+      const errors = errorsOf("production", clean);
+      assert.ok(
+        errors.some((e) => e.startsWith(field)),
+        `${field} 오류가 있어야 한다: ${errors.join(" | ")}`,
+      );
+    });
+  }
+  it("실패 사유에 비밀값이 들어가지 않는다", () => {
+    const secret = "short-secret-value";
+    const errors = errorsOf("production", { ...goodProduction, LOBBY_TICKET_SECRET: secret });
+    assert.ok(errors.length > 0);
+    assert.ok(errors.every((e) => !e.includes(secret)));
+  });
+});
+
+describe("test 프로필", () => {
+  it("개발 키·작은 방 상한·시험 장치를 쓸 수 있다", () => {
+    const result = buildConfig("test", {
+      LOBBY_TICKET_SECRET: "dev-local",
+      LOBBY_ALLOWED_ORIGINS: "http://localhost:5173",
+      LOBBY_MAX_ROOMS: "1",
+      LOBBY_TEST_HOOKS: "1",
+    });
+    assert.ok("config" in result);
+    assert.equal(result.config.testHooks, true);
+    assert.equal(result.config.maxRooms, 1);
+  });
+  it("LOBBY_ENV=production 은 불일치", () => {
+    const errors = errorsOf("test", {
+      LOBBY_TICKET_SECRET: "dev-local",
+      LOBBY_ALLOWED_ORIGINS: "http://localhost:5173",
+      LOBBY_ENV: "production",
+    });
+    assert.ok(errors.some((e) => e.startsWith("LOBBY_ENV")));
+  });
+});
