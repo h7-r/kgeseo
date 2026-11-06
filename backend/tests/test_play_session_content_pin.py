@@ -225,7 +225,10 @@ def test_read_api_response_contract_is_unchanged(
         "updated_at",
         "completed_at",
         "state",
+        "asset_base_path",
     }
+    # 고정 버전 3 의 에셋 경로(11/6 PM) — 응답에 fingerprint 는 여전히 싣지 않는다.
+    assert data["asset_base_path"] == f"/c/{data['case_id']}/v3"
     assert FINGERPRINT not in response.text
 
 
@@ -247,8 +250,10 @@ def test_new_revision_is_single_head_after_previous_head() -> None:
     # 두 계열을 합친다. 소셜 온보딩(c9d8e7f6a5b4)은 이전 head에서 갈라지고, merge revision 4b8e1d6a9c27이
     # 7c3e5a9d1f42와 합친다. 그 위에 승인 기록 실행자 열(b3f7c2e9a4d1, PM v0.4.13)이 단일 head다.
     # 각 부모 관계는 그대로다.
-    # 그 위의 계정 데이터(c1d2e3f4a5b6)가 지금 단일 head다.
-    assert script.get_heads() == ["c1d2e3f4a5b6"]
+    # 그 위의 계정 데이터(c1d2e3f4a5b6), 그 위의 게스트 세션 · Play Session 소유자(d8f2a6c4e1b9, 11/6 PM)가
+    # 지금 단일 head다.
+    assert script.get_heads() == ["d8f2a6c4e1b9"]
+    assert script.get_revision("d8f2a6c4e1b9").down_revision == "c1d2e3f4a5b6"
     assert script.get_revision("c1d2e3f4a5b6").down_revision == "b3f7c2e9a4d1"
     assert script.get_revision("b3f7c2e9a4d1").down_revision == "4b8e1d6a9c27"
     assert sorted(script.get_revision("4b8e1d6a9c27").down_revision) == [

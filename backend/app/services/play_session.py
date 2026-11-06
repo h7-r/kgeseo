@@ -1,10 +1,13 @@
+import re
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.anonymous_session import AnonymousSession
+from app.models.guest_session import GuestSession
 from app.models.play_session import PlaySession
 from app.schemas.case_content import CaseClientContent
 from app.services.case_content import (
@@ -15,6 +18,7 @@ from app.services.case_content import (
     load_case_client_content,
 )
 from app.services.hint_balance import hint_economy_config
+from app.services.local_auth import utc_now
 from app.services.pinned_content import (
     ContentCaseMismatchError,
     ContentPin,
@@ -42,6 +46,10 @@ class PlaySessionNotFoundError(Exception):
     pass
 
 
+class GuestSessionInactiveError(Exception):
+    pass
+
+
 class PlaySessionInvalidCaseIdError(Exception):
     pass
 
@@ -63,6 +71,9 @@ async def create_play_session(
     pinned_content: PinnedContent | None = None,
     publication_guard: PublicationGuard | None = None,
     initial_hint_balance: int | None = None,
+    owner_user_id: str | None = None,
+    owner_anonymous_session_id: str | None = None,
+    owner_guest_session_id: str | None = None,
 ) -> PlaySession:
     """
     새로운 PlaySession을 생성하고 DB에 저장한다.
@@ -76,6 +87,9 @@ async def create_play_session(
 
     `initial_hint_balance`는 회차 시작 힌트 잔액 N(PM v0.4.8 §4)이다. 주지 않으면 앱 설정
     `HINT_INITIAL_BALANCE`(기본 3)를 쓴다. 처음부터 다시 하면 새 회차라 다시 N으로 시작한다.
+
+    `owner_user_id` · `owner_anonymous_session_id`(11/6 PM)는 소유자다 — 라우터가 쿠키 주체로 정해 넘긴다.
+    둘 다 None 이면 소유자 없는 행이라 아무도 조회할 수 없다(직접 호출하는 내부 · 테스트 경로).
 
     처리 순서:
     1. AnonymousSession 존재 확인
@@ -156,6 +170,22 @@ async def create_play_session(
             await db.rollback()
             raise
 
+    if owner_guest_session_id is not None:
+        # 승계는 같은 게스트 행을 배타 잠금한다. 먼저 커밋한 생성은 승계 대상에
+        # 포함되고, 승계가 먼저 끝났으면 폐기된 게스트로 새 회차를 만들 수 없다.
+        guest_expiry = await db.scalar(
+            select(GuestSession.expires_at)
+            .where(
+                GuestSession.id == owner_guest_session_id,
+                GuestSession.anonymous_session_id == owner_anonymous_session_id,
+                GuestSession.revoked_at.is_(None),
+            )
+            .with_for_update(read=True)
+        )
+        if guest_expiry is None or guest_expiry <= utc_now():
+            await db.rollback()
+            raise GuestSessionInactiveError()
+
     # 새 게임을 시작할 때의 초기 진행 상태
     initial_state = {
         "current_zone_id": client_content.entry_zone_id,
@@ -194,6 +224,8 @@ async def create_play_session(
         # 회차 시작 힌트 잔액 · 도움 사용 수
         hint_balance=initial_hint_balance,
         help_used=0,
+        owner_user_id=owner_user_id,
+        owner_anonymous_session_id=owner_anonymous_session_id,
     )
 
     # INSERT 대상으로 등록
@@ -228,3 +260,24 @@ async def get_play_session(
         raise PlaySessionNotFoundError()
 
     return play_session
+
+
+ASSET_CASE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def asset_base_path(play_session: PlaySession) -> str | None:
+    """케이스 에셋 버전 경로 "/c/<case_id>/v<n>"(11/6 PM). 세션에 저장된 값만 쓴다(최신 게시로 바꾸지 않는다).
+
+    버전 없는(레거시) 세션 · 경로에 넣을 수 없는 case_id 는 None.
+    """
+    version = play_session.content_version
+    case_id = play_session.case_id
+    if (
+        isinstance(version, bool)
+        or not isinstance(version, int)
+        or version < 1
+        or not isinstance(case_id, str)
+        or ASSET_CASE_ID_PATTERN.fullmatch(case_id) is None
+    ):
+        return None
+    return f"/c/{case_id}/v{version}"

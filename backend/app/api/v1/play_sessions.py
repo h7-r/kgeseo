@@ -31,14 +31,24 @@ from app.services.pinned_content import (
     PinnedContentStore,
     resolve_session_content,
 )
+from app.services.play_principal import (
+    PLAY_LOGIN_REQUIRED,
+    PlayPrincipal,
+    current_play_principal,
+    owner_for_new_play_session,
+    require_play_origin,
+    require_play_session_owner,
+)
 from app.services.play_session import (
     AnonymousSessionExpiredError,
     AnonymousSessionNotFoundError,
+    GuestSessionInactiveError,
     PlaySessionCaseContentUnavailableError,
     PlaySessionCaseNotFoundError,
     PlaySessionInvalidCaseIdError,
     PlaySessionNotFoundError,
     PublicationGuard,
+    asset_base_path,
     create_play_session,
     get_play_session,
 )
@@ -79,6 +89,7 @@ def get_new_session_publication_guard() -> PublicationGuard:
     # FastAPI가 최종 응답 구조를 검증한다.
     response_model=PlaySessionCreateResponse,
     responses=error_responses.PLAY_SESSION_CREATE,
+    dependencies=[Depends(require_play_origin)],
 )
 async def create_play_session_endpoint(
     # 클라이언트가 보내는 JSON Request Body
@@ -91,7 +102,11 @@ async def create_play_session_endpoint(
     economy: HintEconomyConfig = Depends(get_hint_economy_config),
     # 고정 세션은 DB 게시 상태가 published인 버전만 새로 만든다(PM v0.4.6)
     publication_guard: PublicationGuard = Depends(get_new_session_publication_guard),
+    # 쿠키로 정한 주체(로그인 사용자 우선, 없으면 게스트). 없으면 401(11/6 PM)
+    principal: PlayPrincipal = Depends(current_play_principal),
 ) -> PlaySessionCreateResponse:
+    # 소유자는 쿠키 주체로 정한다. 본문의 anonymous_session_id 는 권한이 아니다(게스트는 자기 것만).
+    owner = owner_for_new_play_session(principal, request.anonymous_session_id)
     pinned_content = None
     if request.content_version is not None:
         # (제안) 버전을 지정하면 저장소에 등록된 정확히 그 버전으로만 세션을 고정한다.
@@ -121,7 +136,17 @@ async def create_play_session_endpoint(
             pinned_content=pinned_content,
             publication_guard=publication_guard,
             initial_hint_balance=economy.initial_balance,
+            owner_user_id=owner.user_id,
+            owner_anonymous_session_id=owner.anonymous_session_id,
+            owner_guest_session_id=principal.guest_session_id,
         )
+
+    except GuestSessionInactiveError as error:
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED,
+            detail=PLAY_LOGIN_REQUIRED,
+            headers={"Cache-Control": "no-store"},
+        ) from error
 
     except AnonymousSessionNotFoundError:
         # 전달받은 anonymous_session_id 자체가 존재하지 않는 경우
@@ -180,6 +205,7 @@ async def create_play_session_endpoint(
             case_id=play_session.case_id,
             created_at=created_at_utc,
             state=state,
+            asset_base_path=asset_base_path(play_session),
         ),
     )
 
@@ -188,6 +214,7 @@ async def create_play_session_endpoint(
     "/{play_session_id}",
     response_model=PlaySessionReadResponse,
     responses=error_responses.PLAY_SESSION_READ,
+    dependencies=[Depends(require_play_session_owner)],
 )
 async def get_play_session_endpoint(
     play_session_id: str,
@@ -222,6 +249,7 @@ async def get_play_session_endpoint(
             updated_at=updated_at_utc,
             completed_at=completed_at_utc,
             state=state,
+            asset_base_path=asset_base_path(play_session),
         ),
     )
 
@@ -230,13 +258,14 @@ async def get_play_session_endpoint(
     "/{play_session_id}/clues",
     response_model=PlaySessionCluesResponse,
     responses=error_responses.PLAY_SESSION_CLUES,
+    dependencies=[Depends(require_play_session_owner)],
 )
 async def get_play_session_clues_endpoint(
     play_session_id: str,
     db: AsyncSession = Depends(get_db),
     content_store: PinnedContentStore = Depends(get_pinned_content_store),
 ) -> PlaySessionCluesResponse:
-    # 기존 PlaySession 조회와 같은 접근 정책: play_session_id만으로 조회한다(인증 없음).
+    # 소유권은 라우트 의존성(require_play_session_owner)이 먼저 확인한다(11/6 PM).
     try:
         # 단서 표시 정보도 세션이 고정한 버전의 Server Runtime에서 읽는다.
         loaders = await resolve_session_loaders(db, play_session_id, content_store)
@@ -271,6 +300,7 @@ async def get_play_session_clues_endpoint(
     "/{play_session_id}/bundle",
     response_model=CaseBundleResponse,
     responses=error_responses.PLAY_SESSION_BUNDLE,
+    dependencies=[Depends(require_play_session_owner)],
 )
 async def get_play_session_bundle_endpoint(
     play_session_id: str,

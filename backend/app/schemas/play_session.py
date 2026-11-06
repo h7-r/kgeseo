@@ -108,6 +108,11 @@ class PlaySessionData(BaseModel):
     # 현재 게임 진행 상태
     state: PlaySessionState
 
+    # 이 세션의 케이스 에셋 버전 경로(11/6 PM). 예: "/c/naju-angam-01/v1".
+    # 세션에 저장된 case_id · 고정 content_version 으로 만들어 새 게시가 있어도 바뀌지 않는다.
+    # 버전 없는(레거시) 세션은 null — FE 는 기본 경로로 돌아간다(setAssetVersionPath(null)).
+    asset_base_path: str | None = None
+
 
 # POST /api/v1/play-sessions 최종 응답 구조
 class PlaySessionCreateResponse(BaseModel):
@@ -126,6 +131,11 @@ class PlaySessionReadData(BaseModel):
     updated_at: datetime
     completed_at: datetime | None
     state: PlaySessionState
+
+    # 이 세션의 케이스 에셋 버전 경로(11/6 PM). 예: "/c/naju-angam-01/v1".
+    # 세션에 저장된 case_id · 고정 content_version 으로 만들어 새 게시가 있어도 바뀌지 않는다.
+    # 버전 없는(레거시) 세션은 null — FE 는 기본 경로로 돌아간다(setAssetVersionPath(null)).
+    asset_base_path: str | None = None
 
 
 # GET /api/v1/play-sessions/{play_session_id} 최종 응답 구조

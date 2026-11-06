@@ -39,6 +39,7 @@ from app.services.object_resolver import (
     ZoneNotFoundError,
 )
 from app.services.pinned_content import PinnedContentStore
+from app.services.play_principal import require_play_origin, require_play_session_owner
 from app.services.play_session import PlaySessionNotFoundError
 from app.services.puzzle_runtime import PuzzleRuntimeError
 from app.services.session_content import (
@@ -60,6 +61,7 @@ router = APIRouter(
     response_model=InteractionApiResponse,
     status_code=status.HTTP_200_OK,
     responses=error_responses.INTERACTION,
+    dependencies=[Depends(require_play_origin), Depends(require_play_session_owner)],
 )
 async def create_interaction_endpoint(
     play_session_id: UUID,

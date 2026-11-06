@@ -405,3 +405,22 @@ ADMIN_DETAIL = {
     **_ADMIN_ONLY,
     404: error(ErrorMessage, "없는 사용자다.", "User not found."),
 }
+
+
+# --- 플레이 API 쿠키 · Origin(11/6 PM: Play Session 소유권 · 게스트 세션) ---
+# 남의 Play Session · 소유자 없는(레거시) 세션은 없는 세션과 같은 404(위 각 404 그대로)라 따로 적지 않는다.
+
+_PLAY_COOKIE_REQUIRED = {
+    401: error(
+        ErrorMessage,
+        "유효한 로그인 쿠키도 게스트 쿠키도 없다(없음 · 만료 · 폐기).",
+        "Play session cookie required.",
+    )
+}
+
+for _responses in (PLAY_SESSION_CREATE, INTERACTION, HINT, HINT_ALIAS, NPC_TURN):
+    _responses.update({**_PLAY_COOKIE_REQUIRED, **FOREIGN_ORIGIN})
+for _responses in (PLAY_SESSION_READ, PLAY_SESSION_CLUES, PLAY_SESSION_BUNDLE):
+    _responses.update(_PLAY_COOKIE_REQUIRED)
+
+ANONYMOUS_SESSION_CREATE = {**FOREIGN_ORIGIN}
