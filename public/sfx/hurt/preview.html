@@ -63,6 +63,17 @@ table { border-collapse: collapse; width: 100%; font-size: .85rem; font-variant-
 th, td { padding: 8px 12px; text-align: left; border-top: 1px solid var(--line); white-space: nowrap; }
 th { border-top: 0; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); background: var(--bg); }
 td.num { font-family: var(--mono); text-align: right; }
+.dlrow { display: flex; flex-wrap: wrap; gap: 10px; }
+button.dlbtn { font: 600 .9rem var(--sans); color: var(--fg); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px 16px; cursor: pointer; }
+button.dlbtn.primary { background: var(--accent); border-color: var(--accent); color: var(--panel); }
+button.dlbtn:hover { border-color: var(--accent); }
+button.dlbtn:disabled, button.mini:disabled { opacity: .45; cursor: not-allowed; }
+button.dlbtn:focus-visible, button.mini:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.mini { font: 600 .8rem var(--sans); color: var(--muted); background: transparent; border: 1px solid var(--line);
+  border-radius: 999px; padding: 2px 10px; cursor: pointer; justify-self: start; grid-column: 2; margin-top: -4px; }
+button.mini:hover { color: var(--accent); border-color: var(--accent); }
+.dlmsg:empty { display: none; }
 .refs { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 .ref { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 4px; }
 .ref span { font-size: .85rem; color: var(--muted); }
@@ -101,6 +112,17 @@ td.num { font-family: var(--mono); text-align: right; }
       <li>20개 전부 평균·최대 음량과 파형을 다시 측정했습니다(아래 표).</li>
       <li>이 페이지의 소리는 파일 링크 대신 페이지 안에 직접 넣어서, 미리듣기 화면의 차단 정책과 상관없이 재생되게 했습니다.</li>
     </ol>
+  </section>
+
+  <section id="dl">
+    <h2>다운로드</h2>
+    <p class="muted">mp3 원본 그대로 zip으로 묶어 받습니다(이 화면은 mp3 단독 저장을 허용하지 않아 zip으로 감쌌습니다). 누르면 저장 확인 창이 뜹니다. 청음표의 ⬇ 버튼은 그 테이크 하나만 받습니다.</p>
+    <div class="dlrow">
+      <button type="button" class="dlbtn primary" data-set="all" id="dl-all">⬇ 전체 20개 (.zip)</button>
+      <button type="button" class="dlbtn" data-set="female" id="dl-female">⬇ 여자 10개</button>
+      <button type="button" class="dlbtn" data-set="male" id="dl-male">⬇ 남자 10개</button>
+    </div>
+    <p class="dlmsg muted" id="dlmsg" role="status"></p>
   </section>
 
   <section>
@@ -152,6 +174,72 @@ const STEPS = [
   { key: "5_euak", word: "으아악!", lvl: 5, use: "치명타 · 체력 바닥/사망" },
 ];
 const OK = -22;
+
+// --- 다운로드: 무압축(STORE) zip을 페이지에서 만들어 downloads.save 로 넘긴다 ---
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function fromDataUri(uri) { const bin = atob(uri.slice(uri.indexOf(",") + 1)); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+function makeZip(entries) {
+  const enc = new TextEncoder(), parts = [], central = []; let offset = 0;
+  for (const { name, data } of entries) {
+    const nb = enc.encode(name), crc = crc32(data);
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true);
+    h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, nb.length, true);
+    parts.push(new Uint8Array(h.buffer), nb, data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+    c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, nb.length, true);
+    c.setUint32(42, offset, true);
+    central.push(new Uint8Array(c.buffer), nb);
+    offset += 30 + nb.length + data.length;
+  }
+  const csize = central.reduce((s, p) => s + p.length, 0);
+  const e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, entries.length, true); e.setUint16(10, entries.length, true);
+  e.setUint32(12, csize, true); e.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: "application/zip" });
+}
+const README = `왜곡 — 피격 보이스 시안
+ElevenLabs eleven_v4 / 여: Yeonhee / 남: Jun Ho
+mp3 · 44.1kHz · mono · 128kbps · 앞뒤 무음 제거 · -16 LUFS 정규화
+
+파일 이름: hurt_{female|male}_{단계}_{a|b}.mp3
+  1_eu   윽!     가벼운 피격
+  2_ak   악!     날카로운 통증
+  3_keuk 크윽…   묵직한 타격
+  4_ayat 아얏!   놀람+통증 (함정)
+  5_euak 으아악! 치명타 / 체력 바닥
+`;
+let downloads = null;
+const dlMsg = document.getElementById("dlmsg");
+function setDlEnabled(on) { document.querySelectorAll("button.dlbtn, button.mini").forEach(b => { b.disabled = !on; }); }
+async function saveZip(names, filename, btn) {
+  if (!downloads) return;
+  const entries = names.map(n => ({ name: `${n}.mp3`, data: fromDataUri(DATA[n].audio) }));
+  if (names.length > 1) entries.push({ name: "README.txt", data: new TextEncoder().encode(README) });
+  btn.disabled = true; dlMsg.textContent = `${filename} 저장 확인 창을 띄웠습니다.`;
+  try {
+    await downloads.save({ filename, data: makeZip(entries) });
+    dlMsg.textContent = `${filename} 저장을 시작했습니다.`;
+  } catch (e) {
+    const code = e && e.code;
+    dlMsg.textContent = code === "declined" ? "저장을 취소했습니다."
+      : code === "rate_limited" ? "이미 열린 저장 창이 있습니다. 그 창을 닫고 다시 눌러 주세요."
+      : "이 화면에서는 저장할 수 없습니다. 저장소의 public/sfx/hurt 폴더에서 받아 주세요.";
+  } finally { btn.disabled = false; }
+}
+setDlEnabled(false);
+dlMsg.textContent = "다운로드 기능을 불러오는 중…";
+const SETS = { all: n => true, female: n => n.includes("_female_"), male: n => n.includes("_male_") };
+document.querySelectorAll("button.dlbtn").forEach(b => b.onclick = () => {
+  const set = b.dataset.set; saveZip(Object.keys(DATA).filter(SETS[set]), `wae-gok_hurt_voice_${set}.zip`, b);
+});
+(window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null)).then(d => {
+  downloads = d;
+  if (d) { setDlEnabled(true); dlMsg.textContent = ""; }
+  else dlMsg.textContent = "이 화면에서는 다운로드를 쓸 수 없습니다. claude.ai에서 열거나, 저장소의 public/sfx/hurt 폴더에서 받아 주세요.";
+});
 let current = null, currentBtn = null;
 function play(src, btn) {
   if (current) { current.pause(); currentBtn && currentBtn.classList.remove("playing"); }
@@ -195,7 +283,12 @@ for (const s of STEPS) {
       const img = document.createElement("img"); img.className = "wave"; img.src = d.wave; img.alt = `${ko} ${s.word} ${t.toUpperCase()} 파형`;
       tk.appendChild(img);
       const nums = document.createElement("div"); nums.className = "nums"; nums.textContent = `${d.dur.toFixed(2)}초 · 평균 ${d.mean.toFixed(1)} dB`;
-      tk.appendChild(nums); cell.appendChild(tk);
+      tk.appendChild(nums);
+      const mini = document.createElement("button"); mini.type = "button"; mini.className = "mini";
+      mini.disabled = !downloads; mini.textContent = "⬇ 받기"; mini.dataset.file = `hurt_${sex}_${s.key}_${t}`;
+      mini.setAttribute("aria-label", `${ko} ${s.word} 테이크 ${t.toUpperCase()} 다운로드`);
+      mini.onclick = () => saveZip([mini.dataset.file], `${mini.dataset.file}.zip`, mini);
+      tk.appendChild(mini); cell.appendChild(tk);
     }
     row.appendChild(cell);
   }
