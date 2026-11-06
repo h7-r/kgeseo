@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import type { AvatarLink } from "@/engine/avatarLink";
+import type { AvatarAction, AvatarLink } from "@/engine/avatarLink";
 
 import type { ChibiAvatarConfig, PreparedBody } from "./preparedBody";
 import { AUTO_MOTION } from "./sidekickOptions";
@@ -15,6 +15,23 @@ export interface MotionTimers {
   landingEnd: number;
   lastAttack: number;
   attackEnd: number;
+  /** 끊긴 인사 동작(serial) — 멈춘 뒤에 다시 살아나지 않게 */
+  canceledEmote?: number;
+  /** 이번 프레임 동작의 회차 표시 — 같은 클립이라도 이 값이 바뀌면 처음부터(연달아 맞기 등) */
+  restartKey?: string | null;
+}
+
+/** 지금 틀 단계(시작 시각부터 단계 길이를 차례로 더해 고른다). 끝났거나 아직이면 null */
+function activeStep(action: AvatarAction | undefined, wallSeconds: number) {
+  if (!action) return null;
+  let elapsed = wallSeconds - action.at;
+  if (elapsed < 0) elapsed = 0;
+  for (let index = 0; index < action.steps.length; index += 1) {
+    const step = action.steps[index];
+    if (elapsed < step.seconds) return { motion: step.motion, index };
+    elapsed -= step.seconds;
+  }
+  return null;
 }
 
 /**
@@ -49,14 +66,41 @@ export function chooseMotion(
     const attackClip = state.attackMotion ? prepared.clipFor(state.attackMotion) : null;
     timers.attackEnd = now + THREE.MathUtils.clamp((attackClip?.duration ?? 0.62) / 1.2, 0.45, 0.82);
   }
+  timers.restartKey = null;
   let next = config.motion;
   if (!next || next === AUTO_MOTION) {
     if (!state.grounded && timers.airborneSince === null) timers.airborneSince = now;
     if (state.grounded) timers.airborneSince = null;
     const confirmedAir =
       state.jumping || (!state.grounded && timers.airborneSince !== null && now - timers.airborneSince > 0.12);
-    if (now < timers.attackEnd && state.attackMotion) next = state.attackMotion;
-    else if (confirmedAir) {
+    // 인사·맞기는 벽시계로 잰다(몸을 안 그리던 동안 지난 것은 건너뛴다). 펀치 > 인사, 맞기 > 모두
+    const wall = performance.now() / 1000;
+    const hitStep = activeStep(state.hit, wall);
+    const emoteStep = state.emote && state.emote.serial !== timers.canceledEmote ? activeStep(state.emote, wall) : null;
+    const attacking = now < timers.attackEnd && !!state.attackMotion;
+    // 인사는 서서만 — 움직이거나 공중·착지·앉기·맞기면 끊고, 끊긴 것은 다시 살리지 않는다
+    const emoteBlocked =
+      !!hitStep ||
+      state.moving ||
+      confirmedAir ||
+      state.crouching ||
+      (timers.wasAirborne && state.grounded) ||
+      now < timers.landingEnd;
+    if (emoteStep && emoteBlocked && state.emote) timers.canceledEmote = state.emote.serial;
+    if (hitStep && state.hit) {
+      next = hitStep.motion;
+      timers.restartKey = `hit:${state.hit.serial}:${hitStep.index}`;
+    } else if (attacking) {
+      next = state.attackMotion as string;
+      timers.restartKey = `attack:${timers.lastAttack}`;
+    } else if (emoteStep && !emoteBlocked && state.emote) {
+      next = emoteStep.motion;
+      timers.restartKey = `emote:${state.emote.serial}:${emoteStep.index}`;
+    }
+    if (hitStep || attacking || (emoteStep && !emoteBlocked)) {
+      // 점프·착지 판정은 계속 갱신한다(동작이 끝난 뒤 공중에 있으면 바로 점프 동작으로)
+      timers.wasAirborne = confirmedAir;
+    } else if (confirmedAir) {
       if (!timers.wasAirborne) timers.jumpStartEnd = now + 0.22;
       next = now < timers.jumpStartEnd ? "Jump_Start" : "Jump_Loop";
     } else if (timers.wasAirborne && state.grounded) {
@@ -71,7 +115,7 @@ export function chooseMotion(
     } else next = "Idle_Loop";
     timers.wasAirborne = confirmedAir;
   }
-  return next;
+  return next || "Idle_Loop";
 }
 
 /** 몸(prepared)마다 믹서 하나. 몸이 바뀌면 하던 동작과 시각을 새 몸에 넘겨 이어 튼다. */
@@ -97,8 +141,16 @@ export function useMotionPlayer(prepared: PreparedBody) {
     [mixer, prepared.targetSkin],
   );
 
-  const play = (name: string) => {
-    if (name === currentMotion.current) return;
+  const currentKey = useRef<string | null>(null);
+  /** restartKey: 같은 클립이라도 이 값이 바뀌면 처음부터(연달아 맞기). 주지 않으면 예전처럼 이름만 본다 */
+  const play = (name: string, restartKey: string | null = null) => {
+    if (name === currentMotion.current && (restartKey === null || restartKey === currentKey.current)) return;
+    currentKey.current = restartKey;
+    if (name === currentMotion.current) {
+      // 같은 클립을 처음부터 — 섞을 앞 동작이 자기 자신이라 바로 되감는다
+      actions.current.get(name)?.reset().play();
+      return;
+    }
     let action = actions.current.get(name);
     if (!action) {
       const clip = prepared.clipFor(name);

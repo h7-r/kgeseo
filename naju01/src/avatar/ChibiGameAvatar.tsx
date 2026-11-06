@@ -270,7 +270,7 @@ function ChibiGameAvatar({
     // 대기는 남녀 같은 클립(Tripo Idle_Loop — 허리에 손). 팔짱 클립(Idle_Fold_Loop)은 어깨가 넓은 Tripo 리그로
     // 만든 자세라 손이 반대팔을 뚫거나 떠서 쓰지 않는다. 남성은 대기 덧값으로 다리를 벌린다.
     const previousMotion = currentMotion.current;
-    play(next);
+    play(next, timers.current.restartKey ?? null);
     // 크로스페이드(0.16초) 중에는 두 클립이 섞여 발이 옮겨 간다 — 그동안은 캐시를 안 쓴다.
     if (currentMotion.current !== previousMotion) fadeEnd.current = now + 0.2;
     const action = currentMotion.current ? actions.current.get(currentMotion.current) : undefined;
