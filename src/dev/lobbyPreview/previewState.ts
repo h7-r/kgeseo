@@ -23,7 +23,9 @@ export const connection = createLobbyConnection({
   apiUrl,
   // 외형은 내 화면의 아바타와 같은 저장값(useLobbyAvatar 가 읽는 브라우저 저장소)에서 입장 때마다 만든다.
   // 서버 캐릭터를 따로 조회하지 않으니 조회가 끝나기 전에 입장해도 어긋나지 않는다.
-  // 방에 들어간 뒤 꾸미기 패널로 바꾼 외형은 다음 입장부터 반영된다(방 상태의 look 은 입장 때 한 번 정해진다).
+  // 꾸미기 패널은 「외형 저장」을 눌러야 저장소에 적힌다 — 저장하지 않은 변경은 내 화면에만 보이고 남에게는 안 간다.
+  // 저장한 변경도 다음 입장부터 반영된다(방 상태의 look 은 입장 때 한 번 정해진다). 3단계는 useLobbyAvatar 상태를 읽는다.
+  // look 에 없는 값(주먹 쥔 손)과 생성 화면 범위 밖 체형(기본 모습의 팔 길이 0.7 → 0.78 등)은 남에게 다르게 보인다.
   getJoinOptions: () => ({
     look: meshConfigToLobbyLook(readMeshAppearance(PLAYER_MESHY_APPEARANCE_KEY)),
     pose: { ...localPose },

@@ -1,7 +1,10 @@
 // 로비 실제 화면 미리보기 — Canvas 밖(DOM). 「혼자 둘러보는 중」, 인사창, 개발용 조작.
 // 인사창: 포인터 잠금 중 G → 숫자 1~6 / 커서가 보일 때 💬 단추 → 클릭. Esc·G 로 닫는다(설계 5절).
+// 컷신 중에는 인사창을 열지 않고, 열려 있으면 닫는다(설계 5절). 자물쇠·다른 화면창과 겹치지 않게 하는 것은 3단계에서 한다.
 // 모양은 동작 확인용이다 — 최종 톤은 3단계에서 해랑 님 화면에 맞춘다.
 import { useEffect, useState, type CSSProperties } from "react";
+
+import { useIsCutscenePlaying } from "@/props/vendingPushState";
 
 import { connection, devLogin, greet, GREETINGS, usePreviewState } from "./previewState";
 
@@ -43,7 +46,16 @@ export default function LobbyPreviewHud() {
   const [locked, setLocked] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const cutscene = useIsCutscenePlaying();
   const connected = status.kind === "connected";
+  // 인사를 할 수 있는 때: 붙어 있고 컷신이 아닐 때
+  const canGreet = connected && !cutscene;
+  // 컷신이 시작되면 열린 인사창을 닫는다(렌더 중 이전 값과 비교 — effect 안 setState 를 피한다)
+  const [wasCutscene, setWasCutscene] = useState(cutscene);
+  if (cutscene !== wasCutscene) {
+    setWasCutscene(cutscene);
+    if (cutscene) setPickerOpen(false);
+  }
   // 같은 방 사람 수는 상태 변화가 아니라 방 상태에서 읽는다 — 0.5초마다 다시 센다
   const [roomSize, setRoomSize] = useState(0);
   useEffect(() => {
@@ -62,7 +74,7 @@ export default function LobbyPreviewHud() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.target as HTMLElement | null)?.tagName === "INPUT") return;
-      if (event.code === "KeyG" && connected) {
+      if (event.code === "KeyG" && canGreet) {
         setPickerOpen((open) => !open);
         return;
       }
@@ -71,14 +83,14 @@ export default function LobbyPreviewHud() {
         return;
       }
       const digit = /^Digit([1-6])$/.exec(event.code);
-      if (digit && pickerOpen) {
+      if (digit && pickerOpen && canGreet) {
         greet(Number(digit[1]));
         setPickerOpen(false);
       }
     };
     addEventListener("keydown", onKey);
     return () => removeEventListener("keydown", onKey);
-  }, [connected, pickerOpen]);
+  }, [canGreet, pickerOpen]);
 
   const statusLine =
     status.kind === "idle"
@@ -144,7 +156,7 @@ export default function LobbyPreviewHud() {
         )}
       </div>
 
-      {connected && !locked && (
+      {canGreet && !locked && (
         <button
           type="button"
           aria-label="인사하기"
@@ -159,7 +171,7 @@ export default function LobbyPreviewHud() {
         </button>
       )}
 
-      {pickerOpen && connected && (
+      {pickerOpen && canGreet && (
         <div
           style={{
             ...panel,
