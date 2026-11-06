@@ -118,6 +118,39 @@ describe("입장·이동·인사·퇴장", () => {
     await leaveAll([b.room]);
   });
 
+  it("때리기: 서버가 아는 자리로 맞음을 정하고, 보낸 사람은 연결에서 정한다", async () => {
+    // a 는 +x 를 본다(ry = π/2), b 는 a 앞 1.5 유닛, c 는 멀리
+    const a = await join({ pose: { x: -5, y: 0, z: 0, ry: Math.PI / 2, gait: "idle" } });
+    const b = await join({ pose: { x: -3.5, y: 0, z: 0, ry: 0, gait: "idle" } });
+    const c = await join({ pose: { x: 8, y: 0, z: 0, ry: 0, gait: "idle" } });
+    await waitFor(() => playersOf(b.room).size === 3);
+    const received: Record<string, unknown>[] = [];
+    b.room.onMessage("punch", (message: Record<string, unknown>) => received.push(message));
+
+    // 맞음 — 남의 이름(sid)을 넣어도 서버는 보낸 연결로 정한다
+    a.room.send("punch", { motion: "jab", target: b.room.sessionId, sid: c.room.sessionId });
+    await waitFor(() => received.length === 1);
+    assert.deepEqual(received[0], { sid: a.room.sessionId, motion: "jab", hit: b.room.sessionId });
+
+    // 멀리 있는 사람·자기 자신·없는 사람은 맞지 않는다(주먹만 보인다)
+    for (const target of [c.room.sessionId, a.room.sessionId, "nobody"]) {
+      await sleep(350);
+      a.room.send("punch", { motion: "cross", target });
+      await waitFor(() => received.length >= 1 && received.at(-1)?.motion === "cross" && received.length > 1);
+      assert.deepEqual(received.at(-1), { sid: a.room.sessionId, motion: "cross" });
+      received.length = 1;
+    }
+
+    // 쿨다운 안의 연타는 방송하지 않는다
+    await sleep(350);
+    a.room.send("punch", { motion: "jab" });
+    a.room.send("punch", { motion: "jab" });
+    await sleep(300);
+    assert.equal(received.length, 2);
+
+    await leaveAll([a.room, b.room, c.room]);
+  });
+
   it("틀린 외형은 비워서 받는다(받는 쪽이 기본 착장)", async () => {
     const a = await join({ look: { ...validLook(), hair: "hair.m.crop" } });
     await waitFor(() => playersOf(a.room).has(a.room.sessionId));
