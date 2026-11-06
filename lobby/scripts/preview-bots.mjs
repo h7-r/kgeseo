@@ -4,7 +4,10 @@
 //   cd lobby
 //   node scripts/preview-bots.mjs --setup     # 처음 한 번: 시험 계정 만들기 · 조사관명 · 로비 명단에 추가
 //   node scripts/preview-bots.mjs             # 9명 입장(Ctrl+C 로 모두 퇴장). --count=4 처럼 수를 바꾼다
+//   node scripts/preview-bots.mjs --cleanup   # 로비 명단에서 가상 인원 줄을 뺀다(계정은 시험 DB 에 남는다)
 //
+// - **로컬 주소(localhost·127.0.0.1·::1)가 아니면 멈춘다** — 운영 API·로비에 가입·입장 요청을 보내지 않게.
+//   명단 파일도 이 저장소의 backend/data 아래만 쓴다. 명단에는 시험 계정 표시(loadtest:)로, 따로 묶어 넣는다.
 // - **개발 백엔드(별도 시험 DB, WAEGOK_RUN_PROFILE=test)에서만** 쓴다. 계정은 lobby-bot-N@example.test,
 //   비밀번호는 --setup 이 무작위로 만들어 lobby/.env.preview-bots(Git 무시)에 적고, 출력하지 않는다.
 // - 입장권은 FastAPI 가 준다 — 머리 위 이름은 각 계정의 조사관명(캐릭터 이름).
@@ -12,8 +15,8 @@
 //   사람 반지름만큼 부풀린 격자에서 길을 찾고, 직선으로 펴도 막힌 데를 지나지 않을 때만 편다.
 // - 서버 규칙 안에서 움직인다: 걷기 속도(3 유닛/초), 이동 메시지 초당 8번(상한 10), 인사 쿨다운 3초.
 import { randomInt } from "node:crypto";
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { Client } from "@colyseus/sdk";
@@ -24,7 +27,25 @@ const API = process.env.API_URL ?? "http://localhost:8000";
 const LOBBY = process.env.LOBBY_URL ?? "http://localhost:2567";
 const ORIGIN = process.env.GAME_ORIGIN ?? "http://localhost:5173";
 const BETA_LIST = resolve(repo, process.env.LOBBY_BETA_LIST ?? "backend/data/lobby_beta_users.txt");
-const args = new Map(process.argv.slice(2).map((arg) => [arg.replace(/=.*$/, ""), arg.includes("=") ? arg.replace(/^[^=]*=/, "") : "1"]));
+// 개발 전용 차단 — 주소를 바꿔도 로컬 서버가 아니면 아무 요청도 보내지 않는다
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+for (const [label, url] of [
+  ["API_URL", API],
+  ["LOBBY_URL", LOBBY],
+  ["GAME_ORIGIN", ORIGIN],
+]) {
+  if (!LOCAL_HOSTS.has(new URL(url).hostname)) {
+    console.error(`${label}=${url} — 가상 인원은 로컬 개발 서버에서만 돈다. 멈춘다.`);
+    process.exit(2);
+  }
+}
+if (!BETA_LIST.startsWith(resolve(repo, "backend/data") + sep)) {
+  console.error(`명단 파일 ${BETA_LIST} — 이 저장소의 backend/data 아래만 쓴다. 멈춘다.`);
+  process.exit(2);
+}
+const args = new Map(
+  process.argv.slice(2).map((arg) => [arg.replace(/=.*$/, ""), arg.includes("=") ? arg.replace(/^[^=]*=/, "") : "1"]),
+);
 const COUNT = Math.max(1, Math.min(9, Number(args.get("--count") ?? 9)));
 
 // 조사관명(캐릭터 이름) — 머리 위에 뜬다
@@ -53,9 +74,13 @@ function createPassword() {
     if (!body.endsWith(next + next)) body += next;
   }
   const password = `Pb${body}7k`;
-  writeFileSync(SECRET_FILE, `# 가상 인원(preview-bots) 계정 비밀번호 — 개발 시험 DB 전용, Git 무시\nLOBBY_BOT_PASSWORD=${password}\n`, {
-    mode: 0o600,
-  });
+  writeFileSync(
+    SECRET_FILE,
+    `# 가상 인원(preview-bots) 계정 비밀번호 — 개발 시험 DB 전용, Git 무시\nLOBBY_BOT_PASSWORD=${password}\n`,
+    {
+      mode: 0o600,
+    },
+  );
   return password;
 }
 let PASSWORD = readPassword();
@@ -91,12 +116,35 @@ async function login(bot) {
   if (!response.ok) throw new Error(`로그인 실패(${response.status})`);
 }
 
+// 명단 파일: 가상 인원 줄은 아래 두 주석 사이에 시험 계정 표시(loadtest:)로만 둔다
+const BLOCK_START = "# preview-bots 시작 — 가상 인원(개발 전용). 정리: node scripts/preview-bots.mjs --cleanup";
+const BLOCK_END = "# preview-bots 끝";
+function rewriteList(botIds) {
+  const lines = existsSync(BETA_LIST) ? readFileSync(BETA_LIST, "utf8").split(/\r?\n/) : [];
+  const kept = [];
+  let inBlock = false;
+  for (const line of lines) {
+    const text = line.trim();
+    if (text === BLOCK_START) inBlock = true;
+    else if (text === BLOCK_END) inBlock = false;
+    // 블록 안 줄과, 예전 방식으로 블록 밖에 넣은 가상 인원 ID 는 뺀다
+    else if (!inBlock && !botIds.has(text.replace(/^loadtest:/, ""))) kept.push(line);
+  }
+  while (kept.length && kept.at(-1).trim() === "") kept.pop();
+  const ids = [...botIds];
+  const block = ids.length ? ["", BLOCK_START, ...ids.map((id) => `loadtest:${id}`), BLOCK_END] : [];
+  // 운영자 방식: 같은 폴더 임시 파일에 쓰고 한 번에 바꿔 끼운다(로비가 반쯤 쓴 파일을 읽지 않게)
+  const temp = `${BETA_LIST}.tmp`;
+  writeFileSync(temp, `${[...kept, ...block].join("\n")}\n`);
+  renameSync(temp, BETA_LIST);
+}
+
 async function setup() {
   if (!PASSWORD) {
     PASSWORD = createPassword();
     log(null, `계정 비밀번호를 새로 만들어 ${SECRET_FILE} 에 적었다(Git 무시)`);
   }
-  const listed = existsSync(BETA_LIST) ? readFileSync(BETA_LIST, "utf8").split(/\r?\n/).map((line) => line.trim()) : [];
+  const botIds = new Set();
   for (const bot of BOTS) {
     const register = await api(bot, "POST", "/api/v1/auth/register", {
       email: bot.email,
@@ -119,13 +167,17 @@ async function setup() {
     const me = await api(bot, "GET", "/api/v1/me");
     const { user_id: id } = await me.json();
     if (typeof id !== "string" || !id) throw new Error(`${bot.email} 계정 ID 를 읽지 못했다`);
-    if (!listed.includes(id)) {
-      appendFileSync(BETA_LIST, `${listed.length && listed.at(-1) !== "" ? "\n" : ""}${id}\n`);
-      listed.push(id, "");
-    }
-    log(bot, `${register.status === 409 ? "있던 계정" : "새 계정"} · 조사관명 저장 · 로비 명단 확인`);
+    botIds.add(id);
+    log(bot, `${register.status === 409 ? "있던 계정" : "새 계정"} · 조사관명 저장`);
   }
-  log(null, `명단 파일: ${BETA_LIST}`);
+  rewriteList(botIds);
+  log(null, `로비 명단에 시험 계정 ${botIds.size}개(loadtest:)를 묶어 넣었다: ${BETA_LIST}`);
+}
+
+function cleanup() {
+  // 블록만 지운다 — 계정 ID 를 몰라도 되게(백엔드가 꺼져 있어도)
+  rewriteList(new Set());
+  log(null, `로비 명단에서 가상 인원 줄을 뺐다: ${BETA_LIST} (계정은 시험 DB 에 남아 있다)`);
 }
 
 // ---------- 외형(로비 허용 목록 안에서 고른다) ----------
@@ -145,7 +197,8 @@ function randomLook() {
   for (const { key, min, max } of ALLOW.bodyFields) {
     // 가운데 근처에서만 — 극단 체형은 피한다
     const mid = (min + max) / 2;
-    body[key] = Math.round(Math.min(max, Math.max(min, mid + (Math.random() - 0.5) * 0.35 * (max - min))) * 1000) / 1000;
+    body[key] =
+      Math.round(Math.min(max, Math.max(min, mid + (Math.random() - 0.5) * 0.35 * (max - min))) * 1000) / 1000;
   }
   return {
     catalog: ALLOW.catalogVersion,
@@ -202,7 +255,12 @@ const reachable = (() => {
       size += 1;
       const i = Math.floor(k / NZ);
       const j = k % NZ;
-      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      for (const [di, dj] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
         const ni = i + di;
         const nj = j + dj;
         if (ni < 0 || nj < 0 || ni >= NX || nj >= NZ) continue;
@@ -313,10 +371,32 @@ function chooseTarget(self) {
   return null;
 }
 
+/** 입장 실패 — 다시 할지(몇 ms 뒤), 이 사람은 그만둘지 */
+class EnterError extends Error {
+  constructor(message, { retryMs = 10000, fatal = false } = {}) {
+    super(message);
+    this.retryMs = retryMs;
+    this.fatal = fatal;
+  }
+}
+const MAX_FAILURES = 6;
+
 async function enter(bot) {
-  await login(bot);
+  try {
+    await login(bot);
+  } catch (error) {
+    throw new EnterError(error.message, { fatal: true });
+  }
   const ticketResponse = await api(bot, "POST", "/api/v1/lobby/ticket");
-  if (!ticketResponse.ok) throw new Error(`입장권 실패(${ticketResponse.status})`);
+  if (!ticketResponse.ok) {
+    const status = ticketResponse.status;
+    if (status === 403) throw new EnterError("로비 명단에 없음(403) — --setup 먼저", { fatal: true });
+    if (status === 429) {
+      const seconds = Number(ticketResponse.headers.get("retry-after")) || 60;
+      throw new EnterError(`발급 한도(429)`, { retryMs: (seconds + 1) * 1000 });
+    }
+    throw new EnterError(`입장권 실패(${status})`, { retryMs: status === 503 ? 30000 : 10000 });
+  }
   const { ticket } = await ticketResponse.json();
   const start = (() => {
     for (;;) {
@@ -330,10 +410,18 @@ async function enter(bot) {
   })();
   Object.assign(bot, { x: start.x, z: start.z, ry: between(-Math.PI, Math.PI), goalX: start.x, goalZ: start.z });
   const client = new Client(LOBBY, { headers: { Origin: ORIGIN, Authorization: `Bearer ${ticket}` } });
-  const room = await client.joinOrCreate("lobby", {
-    look: randomLook(),
-    pose: { x: bot.x, y: 0, z: bot.z, ry: bot.ry, gait: "idle" },
-  });
+  let room;
+  try {
+    room = await client.joinOrCreate("lobby", {
+      look: randomLook(),
+      pose: { x: bot.x, y: 0, z: bot.z, ry: bot.ry, gait: "idle" },
+    });
+  } catch (error) {
+    // 인증 거절(출처·형식)은 다시 해도 같다. 방 상한은 길게 기다린다
+    const text = String(error?.message ?? error);
+    if (/ORIGIN|INVALID|AUTH_MISSING/.test(text)) throw new EnterError(`로비 인증 거절: ${text}`, { fatal: true });
+    throw new EnterError(`매칭 실패: ${text}`, { retryMs: /LOBBY_FULL/.test(text) ? 30000 : 10000 });
+  }
   room.reconnection.enabled = false;
   bot.room = room;
   bot.path = [];
@@ -346,6 +434,7 @@ async function enter(bot) {
     log(bot, `방에서 나감(${code}) — 5초 뒤 다시 들어간다`);
     setTimeout(() => void enterWithRetry(bot), 5000);
   });
+  bot.failures = 0;
   log(bot, `입장(${room.roomId}) · 자리 ${bot.x.toFixed(1)}, ${bot.z.toFixed(1)}`);
 }
 
@@ -353,8 +442,14 @@ async function enterWithRetry(bot) {
   try {
     await enter(bot);
   } catch (error) {
-    log(bot, `입장 실패: ${error.message} — 10초 뒤 다시`);
-    if (!stopping) setTimeout(() => void enterWithRetry(bot), 10000);
+    bot.failures = (bot.failures ?? 0) + 1;
+    const retryMs = error instanceof EnterError ? error.retryMs : 10000;
+    if (error?.fatal || bot.failures >= MAX_FAILURES) {
+      log(bot, `입장 실패: ${error.message} — 이 사람은 멈춘다`);
+      return;
+    }
+    log(bot, `입장 실패: ${error.message} — ${Math.round(retryMs / 1000)}초 뒤 다시(${bot.failures}/${MAX_FAILURES})`);
+    if (!stopping) setTimeout(() => void enterWithRetry(bot), retryMs);
   }
 }
 
@@ -411,7 +506,8 @@ function step(bot, dt) {
 let stopping = false;
 async function run() {
   if (!PASSWORD) throw new Error("가상 인원 비밀번호가 없다 — node scripts/preview-bots.mjs --setup 먼저");
-  if (!existsSync(resolve(here, "hq-obstacles.json"))) throw new Error("scripts/hq-obstacles.json 이 없다 — dump-hq-obstacles.mjs 먼저");
+  if (!existsSync(resolve(here, "hq-obstacles.json")))
+    throw new Error("scripts/hq-obstacles.json 이 없다 — dump-hq-obstacles.mjs 먼저");
   log(null, `빈칸 ${reachable.length}개 · 장애물 ${MAP.obstacles.length}개(${MAP.generatedAt}) · ${COUNT}명 입장`);
   for (const bot of BOTS.slice(0, COUNT)) {
     bots.push(bot);
@@ -438,4 +534,5 @@ async function run() {
 }
 
 if (args.has("--setup")) await setup();
+else if (args.has("--cleanup")) cleanup();
 else await run();
