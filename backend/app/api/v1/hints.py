@@ -55,6 +55,7 @@ from app.services.hint_ref import (
 )
 from app.services.interaction import IdempotencyConflictError, PuzzleNotFoundError
 from app.services.pinned_content import PinnedContentStore
+from app.services.play_principal import require_play_origin, require_play_session_owner
 from app.services.play_session import PlaySessionNotFoundError
 from app.services.puzzle_runtime import CaseRuntimeNotFoundError, PuzzleRuntimeError
 from app.services.session_content import (
@@ -225,6 +226,7 @@ async def _process_hint_request(
     response_model=HintUnlockProcessResult,
     status_code=status.HTTP_200_OK,
     responses=error_responses.HINT,
+    dependencies=[Depends(require_play_origin), Depends(require_play_session_owner)],
 )
 async def request_hint_endpoint(
     play_session_id: UUID,
@@ -252,6 +254,7 @@ async def request_hint_endpoint(
     status_code=status.HTTP_200_OK,
     deprecated=True,
     responses=error_responses.HINT_ALIAS,
+    dependencies=[Depends(require_play_origin), Depends(require_play_session_owner)],
 )
 async def unlock_hint_alias_endpoint(
     play_session_id: UUID,

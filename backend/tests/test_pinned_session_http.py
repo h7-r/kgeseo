@@ -87,7 +87,10 @@ def test_legacy_creation_without_version_is_unchanged(
         "case_id",
         "created_at",
         "state",
+        "asset_base_path",
     }
+    # 버전 없는(레거시) 세션은 에셋 버전 경로가 없다(11/6 PM).
+    assert response.json()["data"]["asset_base_path"] is None
 
 
 @pytest.mark.parametrize("version", [1, 2])
@@ -110,7 +113,11 @@ def test_creation_with_version_pins_exactly_that_bundle(
         "case_id",
         "created_at",
         "state",
+        "asset_base_path",
     }
+    # 고정 버전의 에셋 경로(11/6 PM). 세션에 저장된 case_id · 버전으로 만든다.
+    data = response.json()["data"]
+    assert data["asset_base_path"] == f"/c/{data['case_id']}/v{version}"
     assert FP[version] not in response.text
     assert db_session.commit_count == 1
 

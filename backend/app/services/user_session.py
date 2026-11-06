@@ -84,6 +84,18 @@ async def _find_session_user(db: AsyncSession, token: str) -> AppUser | None:
     return await db.scalar(statement)
 
 
+# 게스트 세션(app.services.guest_session)이 같은 토큰 규칙을 쓰도록 공개한다.
+hash_session_token = _hash
+
+
+async def session_user_from_request(
+    db: AsyncSession, request: Request
+) -> AppUser | None:
+    """로그인 쿠키가 유효하면 그 사용자. 없거나 만료 · 폐기면 None(오류를 내지 않는다)."""
+    token = request.cookies.get(SESSION_COOKIE)
+    return await _find_session_user(db, token) if token else None
+
+
 def require_same_origin(request: Request) -> None:
     """쓰기 요청이 다른 사이트에서 오지 못하게 막는다(CSRF). 쿠키 SameSite 위의 한 겹이다."""
     if request.method in ("GET", "HEAD", "OPTIONS"):

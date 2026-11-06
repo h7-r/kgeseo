@@ -136,11 +136,30 @@ class PlaySession(Base):
         server_default="0",
     )
 
+    # 소유자(11/6 PM). 둘 중 정확히 하나만 값이 있다 — 로그인 사용자이거나, 게스트(그 게스트의 익명 세션).
+    # 둘 다 NULL 인 행은 소유권 도입 전 레거시 행이라 누구도 접근할 수 없다(404).
+    # anonymous_session_id(위)는 호환을 위해 남기지만 권한 증명이 아니다.
+    owner_user_id: Mapped[str | None] = mapped_column(
+        CHAR(36),
+        ForeignKey("app_users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    owner_anonymous_session_id: Mapped[str | None] = mapped_column(
+        CHAR(36),
+        ForeignKey("anonymous_sessions.id"),
+        nullable=True,
+    )
+
     # 특정 익명 사용자의 플레이 기록을 찾을 때 사용하기 위한 Index
     __table_args__ = (
         Index(
             "ix_play_sessions_anonymous_session_id",
             "anonymous_session_id",
+        ),
+        Index("ix_play_sessions_owner_user_id", "owner_user_id"),
+        Index(
+            "ix_play_sessions_owner_anonymous_session_id",
+            "owner_anonymous_session_id",
         ),
     )
 

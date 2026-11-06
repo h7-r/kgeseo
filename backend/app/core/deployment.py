@@ -16,6 +16,8 @@ def https_origin(value: str) -> bool:
 
 
 def validate_deployment(settings):
+    if "*" in settings.cors_origins:
+        raise ValueError("CORS_ORIGINS cannot use a wildcard with credentials")
     if settings.app_env != "production":
         return settings
     required = ("db_password", "google_client_id", "naver_client_id", "naver_client_secret", "naver_redirect_uri")
