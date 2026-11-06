@@ -95,9 +95,26 @@ export function greet(id: number) {
   return true;
 }
 
+/** 개발 훅용 — 방 상태 look 의 머리 ID(틀리면 "") */
+const hairOf = (look: string) => {
+  try {
+    const hair = (JSON.parse(look) as { hair?: unknown }).hair;
+    return typeof hair === "string" ? hair : "";
+  } catch {
+    return "";
+  }
+};
+
 exposeDevHook("lobbyPreview", {
   status: () => connection.status(),
-  players: () => [...connection.players().entries()].map(([sid, p]) => ({ sid, nickname: p.nickname, x: p.x, z: p.z })),
+  players: () =>
+    [...connection.players().entries()].map(([sid, p]) => ({
+      sid,
+      nickname: p.nickname,
+      x: p.x,
+      z: p.z,
+      hair: hairOf(p.look),
+    })),
   /** 지금 보내는 내 자세(컷신 중에는 멈춘 값) */
   pose: () => ({ ...localPose }),
 });
