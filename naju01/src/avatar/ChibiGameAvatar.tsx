@@ -15,6 +15,7 @@ import { QUATERNIUS_PREFIX } from "./chibiClipLibrary";
 import { attachClipPlanes, CLIPPING, updateClipPlane } from "./firstPersonClipping";
 import { applyFootContact, createFootContactState, lowestSoleY } from "./footContactIk";
 import { applyGesture, createGestureState } from "./gestures";
+import { createHairSway, resetHairSway, stepHairSway } from "./hairSway";
 import { DEFAULT_MESH_CONFIG, type MeshAppearanceConfig, getMeshBodyUrl, getMeshShoesUrl } from "./meshAppearance";
 import {
   type CorrectionOverrides,
@@ -268,6 +269,9 @@ function ChibiGameAvatar({
   const bodySoleUntil = useRef(0);
   // 주먹 쥠의 지난 프레임 값(applyGrip 참고).
   const gripAmount = useRef(0);
+  // 긴 머리 찰랑임 — 아바타마다 용수철 하나(hairSway.ts). 머리 뼈 세계 위치를 담을 자리.
+  const hairSway = useMemo(() => createHairSway(), []);
+  const swayHead = useMemo(() => new THREE.Vector3(), []);
 
   // playerRef.current 는 일부러 양방향으로 쓰는 상자다(avatarLink.ts). 프레임마다 바뀌는 런타임 상태라
   // state 로 올리면 매 프레임 리렌더가 난다.
@@ -285,6 +289,11 @@ function ChibiGameAvatar({
     const bodyOnly = firstPersonBody || (CLIPPING.showBody && !visible && !!state.firstPersonHands);
     // 몸만 켜지는 순간 한 번 더 붙인다 — 첫 프레임 뒤에 생긴 외곽선 껍데기가 안 잘린 채 목 단면을 비췄다.
     if (bodyOnly && !wasBodyOnly.current) attachClipPlanes(group);
+    // 「몸만」이면 머리카락을 숨긴다. 긴 머리 아래쪽은 목·몸통 뼈를 따라가서(fit-long-hair.mjs) 머리째 접어도 안 접힌다.
+    if (isMeshy && (bodyOnly || wasBodyOnly.current))
+      prepared.parts.forEach(({ object, slot, variant }) => {
+        if (slot === "hair") object.visible = !bodyOnly && variant === appearance.hair;
+      });
     wasBodyOnly.current = bodyOnly;
     const shouldDraw = visible || bodyOnly;
     group.visible = shouldDraw;
@@ -355,6 +364,17 @@ function ChibiGameAvatar({
 
     // 손짓 → 팔 IK(물건 들기가 이긴다) → 손목 맞춤 → 접지 차례(검토 16회차)
     applyGesture(gesture, prepared, group, timers.current.gesture ?? null, delta);
+    // 긴 머리 찰랑임 — 머리 뼈가 움직인 만큼 용수철을 굴려 머리 재질에 넣는다. 시각을 고정한 화면(QA·생성)·1인칭은 멈춘다.
+    const toonNow = toonHandle.current;
+    if (toonNow?.hasSwayingHair && prepared.headBone && fixedTime === null && !bodyOnly) {
+      swayHead.setFromMatrixPosition(prepared.headBone.matrixWorld);
+      stepHairSway(hairSway, swayHead, state.facing, avatarScale, delta);
+      toonNow.sway(hairSway.offset, hairSway.twist);
+    } else if (hairSway.started) {
+      resetHairSway(hairSway);
+      toonNow?.sway(hairSway.offset, 0);
+    }
+
     const armRequests = solveArms(prepared, state, group);
     alignWrists(prepared.arms, state, armRequests);
 

@@ -81,6 +81,9 @@ export function makeToonGradientTexture(steps: number, threshold: number, softne
 
 // 셰이더 문자열 안에는 한글을 넣지 않는다 — 일부 드라이버는 주석의 한글도 거부한다.
 const VERTEX_DECLARATIONS = `
+uniform vec3 _swayOffset;
+uniform float _swayTwist;
+uniform vec4 _swayShape;
 attribute float _face;
 attribute float _tint;
 varying float v_tint;
@@ -104,6 +107,24 @@ const VERTEX_NORMAL = `
   if (_face > 0.001 && _faceFlatten > 0.001) {
     vec3 sphere = normalize(position - _headCentre);
     objectNormal = normalize(mix(objectNormal, sphere, _face * _faceFlatten));
+  }
+`;
+// 긴 머리 찰랑임(hairSway.ts) — 스키닝이 끝난 자리에 머리끝 밀림을 더한다. 두피 높이(_swayShape.x) 아래로
+// 머리끝(_swayShape.y)까지 갈수록 제곱으로 커진다(두피·정수리는 그대로). 머리칼을 몸 쪽(척추 축을 향해 수평으로)으로는
+// 밀지 않는다 — 등에 얹힌 머리는 앞으로, 가슴에 내린 머리는 뒤로 안 들어가고 옆·밖으로만 출렁인다.
+// _swayShape = (두피 높이, 머리끝 높이, 척추 축 z, 세기). 세기 0(단발·짧은 머리)이면 아무것도 안 한다.
+const VERTEX_HAIR_SWAY = `#include <skinning_vertex>
+  {
+    float swayAlong = clamp((_swayShape.x - position.y) / max(_swayShape.x - _swayShape.y, 0.001), 0.0, 1.0);
+    float swayWeight = swayAlong * swayAlong * _swayShape.w;
+    if (swayWeight > 0.0) {
+      vec2 radial = vec2(position.x, position.z - _swayShape.z);
+      float radialLength = length(radial);
+      vec2 outward = radialLength > 0.0001 ? radial / radialLength : vec2(0.0);
+      vec3 sway = _swayOffset + _swayTwist * vec3(radial.y, 0.0, -radial.x);
+      sway.xz -= outward * min(dot(sway.xz, outward), 0.0);
+      transformed += sway * swayWeight;
+    }
   }
 `;
 const FRAGMENT_DECLARATIONS = `
@@ -228,6 +249,11 @@ interface ToonUniforms {
   _hairBase: THREE.IUniform<THREE.Color>;
   /** 1 = 머리색을 평균 밝기 기준으로 칠한다, 0 = 예전처럼 텍스처에 곱한다(흰색 = 원본, 평균을 못 잼) */
   _hairNorm: THREE.IUniform<number>;
+  /** 머리끝 밀림(아바타 로컬 m)·비틀림(rad) — hairSway.ts 가 프레임마다 넣는다 */
+  _swayOffset: THREE.IUniform<THREE.Vector3>;
+  _swayTwist: THREE.IUniform<number>;
+  /** (두피 높이, 머리끝 높이, 척추 축 z, 세기) — 머리 메시마다 한 번 정한다 */
+  _swayShape: THREE.IUniform<THREE.Vector4>;
 }
 
 interface ToonUniformEntry {
@@ -269,6 +295,9 @@ function applyToonShaderPatch(
     _seamFix: { value: 0 },
     _hairBase: { value: new THREE.Color(1, 1, 1) },
     _hairNorm: { value: 0 },
+    _swayOffset: { value: new THREE.Vector3() },
+    _swayTwist: { value: 0 },
+    _swayShape: { value: new THREE.Vector4(0, 0, 0, 0) },
   };
   material.userData[TOON_UNIFORMS_KEY] = uniforms;
   material.onBeforeCompile = (shader) => {
@@ -280,6 +309,8 @@ function applyToonShaderPatch(
         "#include <defaultnormal_vertex>",
         `#include <defaultnormal_vertex>\n  v_viewNormal = transformedNormal;`,
       );
+    if (kind === "hair")
+      shader.vertexShader = shader.vertexShader.replace("#include <skinning_vertex>", VERTEX_HAIR_SWAY);
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>\n${FRAGMENT_DECLARATIONS}`)
       .replace("#include <map_fragment>", kind === "hair" ? `${FRAGMENT_TINT}\n${FRAGMENT_HAIR}` : FRAGMENT_TINT)
@@ -489,6 +520,10 @@ export interface ToonHandle {
   tint: (colors: ToonTint) => void;
   /** 정점 표식이 있는 메시가 하나라도 있나. 없으면 아바타가 메시 단위 색칠로 돌아간다. */
   hasTintMarks: boolean;
+  /** 긴 머리 찰랑임 — 머리끝 밀림(아바타 로컬 m)·비틀림(rad). 단발처럼 짧은 머리 재질은 건너뛴다 */
+  sway: (offset: THREE.Vector3, twist: number) => void;
+  /** 흔들릴 만큼 긴 머리 재질이 하나라도 있나 — 없으면 아바타가 용수철을 굴리지 않는다 */
+  hasSwayingHair: boolean;
 }
 
 interface InstalledMaterials {
@@ -547,6 +582,7 @@ export function applyToon(
         const base = computeHairBase(object.geometry, material.map);
         if (base) uniforms._hairBase.value.copy(base);
         hairBaseKnown = !!base;
+        if (object instanceof THREE.SkinnedMesh) uniforms._swayShape.value.copy(hairSwayShape(object));
       }
       entries.push({ uniforms, kind, hairBaseKnown });
       return material;
@@ -589,5 +625,41 @@ export function applyToon(
       uniforms._bottomTint.value.set(bottom ?? cloth ?? "#ffffff");
     });
   };
-  return { restore, uniforms: entries.map((entry) => entry.uniforms), update, tint, hasTintMarks };
+  const swaying = entries.filter(({ uniforms, kind }) => kind === "hair" && uniforms._swayShape.value.w > 0);
+  const sway = (offset: THREE.Vector3, twist: number) => {
+    swaying.forEach(({ uniforms }) => {
+      uniforms._swayOffset.value.copy(offset);
+      uniforms._swayTwist.value = twist;
+    });
+  };
+  return {
+    restore,
+    uniforms: entries.map((entry) => entry.uniforms),
+    update,
+    tint,
+    hasTintMarks,
+    sway,
+    hasSwayingHair: swaying.length > 0,
+  };
+}
+
+const _headBind = new THREE.Matrix4();
+
+/**
+ * 머리 메시의 찰랑임 모양 — (두피 높이, 머리끝 높이, 척추 축 z, 세기), 메시 로컬(쉴 때 자세) 좌표.
+ * 두피 높이 = head 뼈 + 2 cm(턱 높이 — 이 위는 안 흔든다), 머리끝 = 메시의 가장 낮은 점.
+ * 머리끝이 두피 높이보다 15 cm 넘게 내려가면 다 흔들고 6 cm 안이면(단발·짧은 머리) 안 흔든다. 짧을수록 덜 흔든다.
+ */
+function hairSwayShape(mesh: THREE.SkinnedMesh): THREE.Vector4 {
+  const shape = new THREE.Vector4(0, 0, 0, 0);
+  const index = mesh.skeleton?.bones.findIndex((bone) => bone.name === "head") ?? -1;
+  if (index < 0) return shape;
+  // inverseBindMatrices 의 역행렬 = 쉴 때 자세의 뼈 자리(메시 공간)
+  const head = new THREE.Vector3().setFromMatrixPosition(_headBind.copy(mesh.skeleton.boneInverses[index]).invert());
+  if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+  const tip = mesh.geometry.boundingBox?.min.y ?? head.y;
+  const top = head.y + 0.02;
+  const length = top - tip;
+  const amount = THREE.MathUtils.smoothstep(length, 0.06, 0.15) * Math.min(1, length / 0.25);
+  return shape.set(top, tip, head.z, amount);
 }
