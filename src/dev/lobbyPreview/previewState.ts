@@ -89,7 +89,16 @@ const thudVolume = (attacker: string, target: string) => {
   return Math.max(0.15, Math.min(1, 1 - (distance - THUD_FULL_DISTANCE) / (THUD_FADE_DISTANCE - THUD_FULL_DISTANCE)));
 };
 
+/** 개발 훅용 — 최근 받은 인사·주먹(화면 확인) */
+const recentEvents: string[] = [];
+const noteEvent = (text: string) => {
+  recentEvents.push(`${new Date().toISOString().slice(11, 23)} ${text}`);
+  if (recentEvents.length > 20) recentEvents.shift();
+};
+connection.onGreet(({ sid, id }) => noteEvent(`greet ${sid}#${id}`));
+
 connection.onPunch(({ sid, motion, hit }) => {
+  noteEvent(`punch ${sid} ${motion}${hit ? ` hit ${hit}` : ""}`);
   const mine = mySid();
   // 내 주먹은 이미 돌고 있다 — 다시 틀지 않는다
   if (sid !== mine) playPunch(remoteLinks.get(sid), PUNCH_CLIPS[motion] ?? PUNCH_CLIPS.jab);
@@ -204,4 +213,8 @@ exposeDevHook("lobbyPreview", {
     })),
   /** 지금 보내는 내 자세(컷신 중에는 멈춘 값) */
   pose: () => ({ ...localPose }),
+  /** 최근 받은 인사·주먹 */
+  events: () => [...recentEvents],
+  /** 내 아바타 상자를 잡았나(App 대역) */
+  hasLocalPlayer: () => localPlayer() !== null,
 });
