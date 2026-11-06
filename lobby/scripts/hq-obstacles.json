@@ -1,0 +1,357 @@
+{
+ "note": "lobby/scripts/dump-hq-obstacles.mjs 가 만든다. 손으로 고치지 않는다.",
+ "generatedAt": "2026-11-06T05:16:34.438Z",
+ "hq": {
+  "minX": -20,
+  "maxX": 16,
+  "minZ": -14,
+  "maxZ": 12
+ },
+ "wallMolding": 0.36,
+ "obstacles": [
+  {
+   "id": "static0",
+   "source": "collider",
+   "minX": 7.2,
+   "maxX": 8.8,
+   "minZ": -0.8,
+   "maxZ": 0.8
+  },
+  {
+   "id": "static1",
+   "source": "collider",
+   "minX": -19.94,
+   "maxX": -19.15,
+   "minZ": -13.94,
+   "maxZ": -13.14
+  },
+  {
+   "id": "static2",
+   "source": "collider",
+   "minX": 15.15,
+   "maxX": 15.95,
+   "minZ": -13.94,
+   "maxZ": -13.14
+  },
+  {
+   "id": "static3",
+   "source": "collider",
+   "minX": -19.94,
+   "maxX": -19.15,
+   "minZ": 11.15,
+   "maxZ": 11.95
+  },
+  {
+   "id": "static4",
+   "source": "collider",
+   "minX": 15.15,
+   "maxX": 15.95,
+   "minZ": 11.15,
+   "maxZ": 11.95
+  },
+  {
+   "id": "chair0",
+   "source": "collider",
+   "minX": -8.11,
+   "maxX": -6.29,
+   "minZ": -3.41,
+   "maxZ": -1.59
+  },
+  {
+   "id": "chair1",
+   "source": "collider",
+   "minX": -15.21,
+   "maxX": -13.39,
+   "minZ": -2.81,
+   "maxZ": -0.99
+  },
+  {
+   "id": "chair2",
+   "source": "collider",
+   "minX": -10.41,
+   "maxX": -8.59,
+   "minZ": -10.61,
+   "maxZ": -8.79
+  },
+  {
+   "id": "chair3",
+   "source": "collider",
+   "minX": 0.79,
+   "maxX": 2.61,
+   "minZ": -6.01,
+   "maxZ": -4.19
+  },
+  {
+   "id": "chair4",
+   "source": "collider",
+   "minX": 3.39,
+   "maxX": 5.21,
+   "minZ": -6.91,
+   "maxZ": -5.09
+  },
+  {
+   "id": "floorlamp",
+   "source": "collider",
+   "minX": 3.84,
+   "maxX": 4.83,
+   "minZ": -0.93,
+   "maxZ": 0.06
+  },
+  {
+   "id": "cab0",
+   "source": "collider",
+   "minX": -12.3,
+   "maxX": -10.89,
+   "minZ": 8.64,
+   "maxZ": 11.18
+  },
+  {
+   "id": "cab1",
+   "source": "collider",
+   "minX": -10.7,
+   "maxX": -9.3,
+   "minZ": 8.55,
+   "maxZ": 11.17
+  },
+  {
+   "id": "cab2",
+   "source": "collider",
+   "minX": -9.1,
+   "maxX": -7.7,
+   "minZ": 8.55,
+   "maxZ": 11.17
+  },
+  {
+   "id": "rack0",
+   "source": "collider",
+   "minX": -18.97,
+   "maxX": -18,
+   "minZ": -12.81,
+   "maxZ": -11.83
+  },
+  {
+   "id": "rack1",
+   "source": "collider",
+   "minX": -0.93,
+   "maxX": -0.05,
+   "minZ": -12.9,
+   "maxZ": -12.08
+  },
+  {
+   "id": "desk0",
+   "source": "collider",
+   "minX": -15.1,
+   "maxX": -6.87,
+   "minZ": -8.53,
+   "maxZ": -6.07
+  },
+  {
+   "id": "desk1",
+   "source": "collider",
+   "minX": -13.24,
+   "maxX": -10.77,
+   "minZ": -5.69,
+   "maxZ": 0.67
+  },
+  {
+   "id": "desk2",
+   "source": "collider",
+   "minX": -10.64,
+   "maxX": -8.17,
+   "minZ": -5.69,
+   "maxZ": 0.67
+  },
+  {
+   "id": "desk3",
+   "source": "collider",
+   "minX": -0.09,
+   "maxX": 5.52,
+   "minZ": -3.83,
+   "maxZ": -1.37
+  },
+  {
+   "id": "desk4",
+   "source": "collider",
+   "minX": 5.87,
+   "maxX": 8.33,
+   "minZ": -7.09,
+   "maxZ": -1.48
+  },
+  {
+   "id": "pinboard",
+   "source": "collider",
+   "minX": -0.21,
+   "maxX": 3.41,
+   "minZ": 2.17,
+   "maxZ": 4.23
+  },
+  {
+   "id": "whiteboard",
+   "source": "collider",
+   "minX": -6.17,
+   "maxX": -1.03,
+   "minZ": 3,
+   "maxZ": 5.2
+  },
+  {
+   "id": "mesh0",
+   "source": "mesh",
+   "minX": 3.93,
+   "maxX": 4.89,
+   "minZ": -0.99,
+   "maxZ": -0.03
+  },
+  {
+   "id": "mesh1",
+   "source": "mesh",
+   "minX": -12.38,
+   "maxX": -10.81,
+   "minZ": 9.08,
+   "maxZ": 11.32
+  },
+  {
+   "id": "mesh2",
+   "source": "mesh",
+   "minX": -12.34,
+   "maxX": -10.86,
+   "minZ": 8.54,
+   "maxZ": 8.62
+  },
+  {
+   "id": "mesh3",
+   "source": "mesh",
+   "minX": -10.78,
+   "maxX": -9.22,
+   "minZ": 9.08,
+   "maxZ": 11.32
+  },
+  {
+   "id": "mesh4",
+   "source": "mesh",
+   "minX": -9.18,
+   "maxX": -7.62,
+   "minZ": 9.08,
+   "maxZ": 11.32
+  },
+  {
+   "id": "mesh5",
+   "source": "mesh",
+   "minX": -9.14,
+   "maxX": -7.66,
+   "minZ": 8.45,
+   "maxZ": 8.53
+  },
+  {
+   "id": "mesh6",
+   "source": "mesh",
+   "minX": -19.03,
+   "maxX": -17.94,
+   "minZ": -12.86,
+   "maxZ": -11.78
+  },
+  {
+   "id": "mesh7",
+   "source": "mesh",
+   "minX": -0.98,
+   "maxX": -0.06,
+   "minZ": -12.95,
+   "maxZ": -12.03
+  },
+  {
+   "id": "mesh8",
+   "source": "mesh",
+   "minX": -18.7,
+   "maxX": -17.3,
+   "minZ": -13.99,
+   "maxZ": -13.43
+  },
+  {
+   "id": "mesh9",
+   "source": "mesh",
+   "minX": -18.7,
+   "maxX": -17.3,
+   "minZ": 11.43,
+   "maxZ": 11.99
+  },
+  {
+   "id": "mesh10",
+   "source": "mesh",
+   "minX": -10.7,
+   "maxX": -9.3,
+   "minZ": -13.99,
+   "maxZ": -13.43
+  },
+  {
+   "id": "mesh11",
+   "source": "mesh",
+   "minX": -10.7,
+   "maxX": -9.3,
+   "minZ": 11.43,
+   "maxZ": 11.99
+  },
+  {
+   "id": "mesh12",
+   "source": "mesh",
+   "minX": -2.7,
+   "maxX": -1.3,
+   "minZ": -13.99,
+   "maxZ": -13.43
+  },
+  {
+   "id": "mesh13",
+   "source": "mesh",
+   "minX": -2.7,
+   "maxX": -1.3,
+   "minZ": 11.43,
+   "maxZ": 11.99
+  },
+  {
+   "id": "mesh14",
+   "source": "mesh",
+   "minX": -13.37,
+   "maxX": -10.63,
+   "minZ": -6.04,
+   "maxZ": 1.02
+  },
+  {
+   "id": "mesh15",
+   "source": "mesh",
+   "minX": -10.77,
+   "maxX": -8.03,
+   "minZ": -6.04,
+   "maxZ": 1.02
+  },
+  {
+   "id": "mesh16",
+   "source": "mesh",
+   "minX": -0.4,
+   "maxX": 5.83,
+   "minZ": -3.97,
+   "maxZ": -1.23
+  },
+  {
+   "id": "mesh17",
+   "source": "mesh",
+   "minX": 5.73,
+   "maxX": 8.47,
+   "minZ": -7.41,
+   "maxZ": -1.17
+  },
+  {
+   "id": "mesh18",
+   "source": "mesh",
+   "minX": -2.02,
+   "maxX": -0.58,
+   "minZ": -4.31,
+   "maxZ": -2.69
+  },
+  {
+   "id": "mesh19",
+   "source": "mesh",
+   "minX": -1.83,
+   "maxX": -0.97,
+   "minZ": -4.27,
+   "maxZ": -3.03
+  }
+ ]
+}
