@@ -3,7 +3,6 @@
 import argparse
 import asyncio
 import logging
-from collections import Counter
 from dataclasses import dataclass
 from importlib import import_module
 from os import scandir
@@ -32,25 +31,30 @@ ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
 @dataclass(frozen=True)
 class Check:
     status: Literal["PASS", "FAIL", "SKIP"]
-    detail: str
+    detail: str = ""
+
+
+class DeploymentArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        # argparse's default error echoes arguments, which can contain secrets.
+        self.exit(
+            2,
+            "Options: FAIL (use --schema-only or --full; see --help)\nOverall: FAIL\n",
+        )
 
 
 def check_alembic(connection: Connection, scripts: ScriptDirectory) -> Check:
     code_heads = scripts.get_heads()
     db_heads = MigrationContext.configure(connection).get_current_heads()
-    known = {revision.revision for revision in scripts.walk_revisions()}
-    # Unknown revision values are DB data. Do not echo them into deployment logs.
-    db_revisions = ", ".join(
-        sorted(head if head in known else "<unknown>" for head in db_heads)
-    )
-    detail = f"code={', '.join(code_heads) or '<none>'}; DB={db_revisions or '<none>'}"
-    if len(code_heads) != 1:
-        return Check(
-            "FAIL", f"expected one code head, found {len(code_heads)}; {detail}"
-        )
+    if not code_heads:
+        return Check("FAIL", "no code head")
+    if len(code_heads) > 1:
+        return Check("FAIL", "multiple code heads")
+    if not db_heads:
+        return Check("FAIL", "no DB revision")
     if db_heads != tuple(code_heads):
-        return Check("FAIL", f"DB revision does not match code head; {detail}")
-    return Check("PASS", detail)
+        return Check("FAIL", "DB revision does not match code head")
+    return Check("PASS")
 
 
 def check_required_tables(connection: Connection) -> Check:
@@ -60,44 +64,35 @@ def check_required_tables(connection: Connection) -> Check:
 
     inspector = inspect(connection)
     existing = set(inspector.get_table_names())
-    missing_tables = []
-    missing_columns = []
+    missing_tables = False
+    missing_columns = False
     for table in Base.metadata.sorted_tables:
         if table.name not in existing:
-            missing_tables.append(table.name)
+            missing_tables = True
             continue
         columns = {column["name"] for column in inspector.get_columns(table.name)}
-        missing_columns.extend(
-            f"{table.name}.{column.name}"
-            for column in table.columns
-            if column.name not in columns
-        )
+        if any(column.name not in columns for column in table.columns):
+            missing_columns = True
 
     issues = []
     if missing_tables:
-        issues.append(f"missing tables: {', '.join(sorted(missing_tables))}")
+        issues.append("missing tables")
     if missing_columns:
-        issues.append(f"missing columns: {', '.join(sorted(missing_columns))}")
+        issues.append("missing columns")
     if issues:
         return Check("FAIL", "; ".join(issues))
-    return Check(
-        "PASS", f"{len(Base.metadata.tables)} model tables and their columns present"
-    )
+    return Check("PASS")
 
 
 async def check_published_content(
     connection: AsyncConnection, root_setting: str
 ) -> Check:
+    if not root_setting.strip():
+        return Check("SKIP", "WARNING: PUBLISHED_CONTENT_ROOT is unset")
+
     count = await connection.scalar(
         select(func.count()).select_from(NpcPublicationState)
     )
-    if not root_setting.strip():
-        if count:
-            return Check(
-                "FAIL",
-                "PUBLISHED_CONTENT_ROOT is unset with publication records present",
-            )
-        return Check("SKIP", "no publication records; PUBLISHED_CONTENT_ROOT is unset")
 
     root = Path(root_setting)
     try:
@@ -112,15 +107,14 @@ async def check_published_content(
     # connection keeps the count and restore reads in the same transaction.
     service = NpcPublicationService(async_sessionmaker(connection))
     entries = await sync_published_content(service, PinnedContentStore(), root)
-    failures = Counter(entry.status for entry in entries if not entry.available)
-    issues = [f"{status}={total}" for status, total in sorted(failures.items())]
+    issues = sorted({entry.status for entry in entries if not entry.available})
     if len(entries) != count:
         issues.append(
             "publication records lack matching version metadata or changed during the check"
         )
     if issues:
         return Check("FAIL", "; ".join(issues))
-    return Check("PASS", f"{len(entries)} version(s) rebuilt in a temporary store")
+    return Check("PASS")
 
 
 async def run_checks(schema_only: bool) -> tuple[Check, Check, Check]:
@@ -162,17 +156,29 @@ async def run_checks(schema_only: bool) -> tuple[Check, Check, Check]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--schema-only", action="store_true", help="check Alembic and model schema only"
+    parser = DeploymentArgumentParser(description=__doc__, allow_abbrev=False)
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--schema-only",
+        dest="mode",
+        action="store_const",
+        const="schema-only",
+        help="check Alembic and model schema only",
     )
-    args = parser.parse_args(argv)
+    mode.add_argument(
+        "--full",
+        dest="mode",
+        action="store_const",
+        const="full",
+        help="check schema and published content (default)",
+    )
+    schema_only = parser.parse_args(argv).mode == "schema-only"
     previous_logging_level = logging.root.manager.disable
     # The shared startup code logs restoration errors. Print only this CLI's
     # controlled diagnostics, even if a driver or validation error has secrets.
     logging.disable(logging.CRITICAL)
     try:
-        results = asyncio.run(run_checks(args.schema_only))
+        results = asyncio.run(run_checks(schema_only))
     except Exception:
         print(
             "Deployment Check: FAIL (could not load configuration or complete checks)"
@@ -185,8 +191,9 @@ def main(argv: list[str] | None = None) -> int:
     for label, result in zip(
         ("Alembic", "Required Tables", "Published Content"), results, strict=True
     ):
-        print(f"{label}: {result.status} ({result.detail})")
-    if not args.schema_only:
+        detail = f" ({result.detail})" if result.detail else ""
+        print(f"{label}: {result.status}{detail}")
+    if not schema_only:
         print("Running App Restore: SKIP (process memory was not inspected)")
     failed = any(result.status == "FAIL" for result in results)
     print(f"Overall: {'FAIL' if failed else 'PASS'}")

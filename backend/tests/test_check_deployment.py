@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 import subprocess
 import sys
@@ -12,6 +13,7 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import OperationalError
 
+from app.core.config import settings
 from app.db import session
 from scripts import check_deployment as check
 from tests.test_content_release import FakePublicationService, state, write_bundle
@@ -20,10 +22,10 @@ from tests.test_content_release import FakePublicationService, state, write_bund
 @pytest.mark.parametrize(
     ("revision", "status", "detail"),
     [
-        ("head", "PASS", "DB="),
-        ("base", "FAIL", "does not match"),
-        ("secret-db-value", "FAIL", "DB=<unknown>"),
-        (None, "FAIL", "DB=<none>"),
+        ("head", "PASS", ""),
+        ("base", "FAIL", "DB revision does not match code head"),
+        ("secret-db-value", "FAIL", "DB revision does not match code head"),
+        (None, "FAIL", "no DB revision"),
     ],
 )
 def test_alembic_revision(revision, status, detail):
@@ -44,7 +46,7 @@ def test_alembic_revision(revision, status, detail):
             )
         result = check.check_alembic(connection, scripts)
         assert result.status == status
-        assert detail in result.detail
+        assert detail == result.detail
         assert "secret-db-value" not in result.detail
         if revision is None:
             assert not inspect(connection).has_table("alembic_version")
@@ -68,7 +70,7 @@ def test_alembic_rejects_multiple_code_heads_even_when_db_matches(tmp_path):
         result = check.check_alembic(connection, scripts)
 
     assert result.status == "FAIL"
-    assert "found 2" in result.detail
+    assert result.detail == "multiple code heads"
 
 
 def test_schema_reports_missing_tables_and_columns():
@@ -77,22 +79,19 @@ def test_schema_reports_missing_tables_and_columns():
         result = check.check_required_tables(connection)
 
     assert result.status == "FAIL"
-    assert "missing tables:" in result.detail
-    assert "play_sessions" in result.detail
-    assert "missing columns:" in result.detail
-    assert "app_users.email" in result.detail
+    assert result.detail == "missing tables; missing columns"
 
 
 @pytest.mark.parametrize(
     ("root_mode", "bundle_mode", "status", "detail"),
     [
-        ("unset", "empty", "SKIP", "no publication records"),
+        ("unset", "empty", "SKIP", "WARNING: PUBLISHED_CONTENT_ROOT is unset"),
         ("valid", "empty", "SKIP", "no publication records"),
         ("invalid", "empty", "FAIL", "not a readable directory"),
-        ("unset", "missing", "FAIL", "is unset with publication records"),
-        ("valid", "missing", "FAIL", "files_missing=1"),
-        ("valid", "changed", "FAIL", "rebuild_failed=1"),
-        ("valid", "valid", "PASS", "1 version(s) rebuilt"),
+        ("unset", "missing", "SKIP", "WARNING: PUBLISHED_CONTENT_ROOT is unset"),
+        ("valid", "missing", "FAIL", "files_missing"),
+        ("valid", "changed", "FAIL", "rebuild_failed"),
+        ("valid", "valid", "PASS", ""),
         ("valid", "orphan", "FAIL", "lack matching version metadata"),
     ],
 )
@@ -119,14 +118,21 @@ def test_content_check(tmp_path, monkeypatch, root_mode, bundle_mode, status, de
     result = asyncio.run(check.check_published_content(connection, root))
 
     assert result.status == status
-    assert detail in result.detail
+    if detail:
+        assert detail in result.detail
+    else:
+        assert result.detail == ""
     assert str(tmp_path) not in result.detail
+    if root_mode == "unset":
+        connection.scalar.assert_not_awaited()
 
 
 def test_cli_db_connection_failure_redacts_driver_error(monkeypatch, capsys):
+    connection_url = "mysql+aiomysql://user:sensitive-db-password@private-db.example/db"
+
     class FailingConnection:
         async def __aenter__(self):
-            raise OperationalError(None, None, ValueError("sensitive-db-password"))
+            raise OperationalError(None, None, ValueError(connection_url))
 
         async def __aexit__(self, *exc):
             pass
@@ -143,6 +149,8 @@ def test_cli_db_connection_failure_redacts_driver_error(monkeypatch, capsys):
     assert "Published Content: SKIP" in output.out
     assert "Overall: FAIL" in output.out
     assert "sensitive-db-password" not in output.out
+    assert "private-db.example" not in output.out
+    assert "mysql+aiomysql" not in output.out
     assert output.err == ""
     dispose.assert_awaited_once()
 
@@ -150,9 +158,13 @@ def test_cli_db_connection_failure_redacts_driver_error(monkeypatch, capsys):
 def test_cli_bad_configuration_has_no_traceback_or_input_values():
     environment = {
         **os.environ,
+        "DB_HOST": "secret-db-host",
         "DB_PORT": "secret-invalid-port",
         "DB_PASSWORD": "secret-password",
+        "NAVER_CLIENT_ID": "secret-oauth-id",
         "NAVER_CLIENT_SECRET": "secret-oauth",
+        "HINT_REF_KEYS": "secret-hint-key",
+        "PUBLISHED_CONTENT_ROOT": "secret-root-path",
     }
     result = subprocess.run(
         [sys.executable, "-m", "scripts.check_deployment"],
@@ -169,17 +181,70 @@ def test_cli_bad_configuration_has_no_traceback_or_input_values():
     assert result.stderr == ""
 
 
-@pytest.mark.parametrize("args", [[], ["--schema-only"]])
+@pytest.mark.parametrize("args", [[], ["--schema-only"], ["--full"]])
 def test_cli_success_with_skipped_content(monkeypatch, capsys, args):
-    passed = check.Check("PASS", "checked")
+    connection = SimpleNamespace(
+        run_sync=AsyncMock(return_value=check.Check("PASS", "checked")),
+        scalar=AsyncMock(),
+    )
+
+    class Connection:
+        async def __aenter__(self):
+            return connection
+
+        async def __aexit__(self, *exc):
+            pass
+
+    monkeypatch.setattr(settings, "published_content_root", " ")
     monkeypatch.setattr(
-        check,
-        "run_checks",
-        AsyncMock(return_value=(passed, passed, check.Check("SKIP", "empty"))),
+        session, "engine", SimpleNamespace(connect=Connection, dispose=AsyncMock())
     )
 
     assert check.main(args) == 0
     output = capsys.readouterr().out
-    check.run_checks.assert_awaited_once_with(bool(args))
-    assert ("Running App Restore: SKIP" in output) is (not args)
+    assert connection.run_sync.await_count == 2
+    connection.scalar.assert_not_awaited()
+    if args == ["--schema-only"]:
+        assert "Published Content: SKIP (schema-only mode)" in output
+        assert "WARNING" not in output
+        assert "Running App Restore" not in output
+    else:
+        assert (
+            "Published Content: SKIP (WARNING: PUBLISHED_CONTENT_ROOT is unset)"
+            in output
+        )
+        assert "Running App Restore: SKIP" in output
     assert "Overall: PASS" in output
+
+
+@pytest.mark.parametrize(
+    "args", [["--secret-unknown-token"], ["--fu"], ["--full", "--schema-only"]]
+)
+def test_cli_rejects_invalid_options_without_echoing_them(capsys, args):
+    with pytest.raises(SystemExit) as exc:
+        check.main(args)
+
+    assert exc.value.code == 2
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert output.err.splitlines() == [
+        "Options: FAIL (use --schema-only or --full; see --help)",
+        "Overall: FAIL",
+    ]
+
+
+def test_cli_redacts_unexpected_exceptions_and_library_logs(
+    monkeypatch, capsys, caplog
+):
+    async def fail(schema_only):
+        logging.getLogger("deployment.test").error("cookie=secret-session-token")
+        raise RuntimeError("invalid configuration file: secret-config-path")
+
+    monkeypatch.setattr(check, "run_checks", fail)
+
+    assert check.main(["--full"]) == 1
+    output = capsys.readouterr()
+    assert "Overall: FAIL" in output.out
+    assert "secret-" not in output.out
+    assert output.err == ""
+    assert not caplog.records
