@@ -57,6 +57,9 @@ export function createFootContactState(): FootContactState {
   };
 }
 
+// 밑창 메시 로컬 → 모델 좌표 행렬(메시마다 한 번 만든다)
+const soleToModel = new THREE.Matrix4();
+
 /** 보이는 밑창 정점(인덱스 목록, step 칸마다) 중 가장 낮은 높이(모델 좌표). 스키닝 결과를 읽는다. */
 export function lowestSoleY(
   soles: Sole[],
@@ -69,10 +72,15 @@ export function lowestSoleY(
   soles.forEach((sole) => {
     const { object } = sole;
     if (!object.visible) return;
+    // localToWorld 는 부를 때마다 부모까지 행렬을 다시 계산한다. 정점마다 부르면 걷는 아바타 9명에서
+    // 프레임의 대부분이 그 계산이었다(2026-11-06 프로파일, docs/로비/0단계-화면성능-측정.md 8절).
+    // 이 루프 안에서는 행렬이 바뀌지 않으므로 메시마다 한 번만 갱신하고 곱해도 결과가 같다.
+    object.updateWorldMatrix(true, false);
+    soleToModel.multiplyMatrices(inverseModel, object.matrixWorld);
     const list = pick(sole);
     for (let i = 0; i < list.length; i += step) {
       object.getVertexPosition(list[i], point);
-      object.localToWorld(point).applyMatrix4(inverseModel);
+      point.applyMatrix4(soleToModel);
       y = Math.min(y, point.y);
     }
   });
