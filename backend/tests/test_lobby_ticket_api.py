@@ -9,6 +9,7 @@ import pytest
 
 from app.core.config import settings
 from app.main import app
+from app.models.account_data import UserCharacter
 from app.services.lobby_config import (
     LobbyIssuerState,
     build_state,
@@ -44,7 +45,7 @@ def clock() -> FakeClock:
 
 
 @pytest.fixture
-def lobby(client, beta_list, clock):
+def lobby(client, db_session, beta_list, clock):
     """로그인 사용자 · 로비 설정 · 발급 제한을 시험용으로 바꿔 끼운다."""
 
     state = {"value": _state(beta_list)}
@@ -54,7 +55,13 @@ def lobby(client, beta_list, clock):
     app.dependency_overrides[current_user] = lambda: user["value"]
     app.dependency_overrides[get_issue_rate_limiter] = lambda: limiter
     try:
-        yield SimpleNamespace(client=client, state=state, user=user, path=beta_list)
+        yield SimpleNamespace(
+            client=client,
+            state=state,
+            user=user,
+            path=beta_list,
+            db=db_session,  # 저장된 캐릭터(조사관명) — get_result 가 없으면 캐릭터를 안 만든 계정
+        )
     finally:
         for dependency in (
             get_lobby_issuer_state,
@@ -110,6 +117,32 @@ def test_issues_a_ticket_for_a_listed_account(lobby):
         audience="waegok-lobby",
     )
     assert second["jti"] != claims["jti"]
+
+
+def _nickname(response) -> str:
+    return jwt.decode(
+        response.json()["ticket"], SECRET, algorithms=["HS256"], audience="waegok-lobby"
+    )["nickname"]
+
+
+def test_ticket_carries_investigator_name_when_character_exists(lobby):
+    lobby.db.get_result = SimpleNamespace(display_name=" 한서진 ")
+    response = _post(lobby.client)
+    assert response.status_code == 200
+    assert _nickname(response) == "한서진"
+    assert lobby.db.get_calls == [(UserCharacter, "user-1")]
+
+
+@pytest.mark.parametrize(
+    "display_name",
+    [
+        "   ",  # 공백뿐
+        "😀" * 21,  # 21자지만 UTF-16 42단위 — 로비(40)가 거절할 길이
+    ],
+)
+def test_ticket_falls_back_to_account_nickname(lobby, display_name):
+    lobby.db.get_result = SimpleNamespace(display_name=display_name)
+    assert _nickname(_post(lobby.client)) == "조사관"
 
 
 def test_guest_without_session_gets_401(client, beta_list):
