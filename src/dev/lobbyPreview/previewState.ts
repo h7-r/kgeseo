@@ -16,7 +16,14 @@ const query = new URLSearchParams(window.location.search);
 /** 캐릭터를 저장하지 않은 계정의 기본 외형 성별 — 두 창을 구별해 보려고 ?lobbyGender=masculine */
 const fallbackGender: LobbyLook["gender"] = query.get("lobbyGender") === "masculine" ? "masculine" : "feminine";
 
-let myLook: LobbyLook = defaultLobbyLook(fallbackGender);
+/** 캐릭터를 저장하지 않은 계정의 기본 외형 — 머리를 바꿔 보려면 ?lobbyHair=hair.f.long 처럼 카탈로그 ID */
+const previewLook = (): LobbyLook => {
+  const look = defaultLobbyLook(fallbackGender);
+  const hair = query.get("lobbyHair");
+  return hair ? { ...look, hair } : look;
+};
+
+let myLook: LobbyLook = previewLook();
 /** 보내는 자세 — 리그가 매 프레임 채운다 */
 export const localPose: LobbyPose = { x: 0, y: 0, z: 0, ry: 0, gait: "idle" };
 
@@ -67,7 +74,7 @@ export async function refreshAccount() {
     setState({ me: `로그인: ${body.nickname}`, loggedIn: true });
     const character = await fetch(apiUrl("/api/v1/me/character"), { credentials: "include" });
     const saved = character.ok ? ((await character.json()) as { appearance?: unknown } | null) : null;
-    myLook = characterToLobbyLook(saved?.appearance) ?? defaultLobbyLook(fallbackGender);
+    myLook = characterToLobbyLook(saved?.appearance) ?? previewLook();
   } catch {
     setState({ me: "API 접속 실패", loggedIn: false });
   }
