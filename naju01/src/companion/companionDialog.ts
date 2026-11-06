@@ -20,6 +20,7 @@ import {
   type FallbackReason,
   type HintBody,
   type HintResponse,
+  type NpcSituation,
   type NpcTurnBody,
   type NpcTurnResponse,
 } from "./companionApi.ts";
@@ -314,20 +315,33 @@ export function createCompanionDialog(options: {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    /** E 로 말 걸기 · 채팅 전송 — player_message */
+    /** 채팅 전송 — player_message. E 로 말 걸기는 뺐고(계약 §10-2) 자유 입력은 베타에서 숨긴다(§10-1, CompanionHud) */
     talk(message: string = TALK_OPENER) {
       const text = message.trim().slice(0, MAX_MESSAGE_LENGTH);
       if (!text) return Promise.resolve(false);
       return sendTurn({ trigger: "player_message", message: text });
     },
-    /** 끼어들어도 되는 순간(구역 진입 등)에 한 번. 주기 호출하지 않는다 */
-    autoTurn() {
-      if (now() - lastAutoAt < timing.autoMinIntervalMs) return Promise.resolve(false);
+    /**
+     * 끼어들어도 되는 순간(구역 진입 등)에 한 번. 주기 호출하지 않는다.
+     * situation 이 있으면(계약 v0.4.16 §1) 횟수 · 쿨다운은 BE 가 센다 — 여기 간격으로 막지 않는다. 부르는 곳은 dialogue/companionBridge 하나다.
+     */
+    autoTurn(situation?: NpcSituation) {
+      if (!situation && now() - lastAutoAt < timing.autoMinIntervalMs) return Promise.resolve(false);
       if (!readySession() || state.waiting) return Promise.resolve(false);
-      lastAutoAt = now();
-      return sendTurn({ trigger: "auto" });
+      if (!situation) lastAutoAt = now();
+      return sendTurn(situation ? { trigger: "auto", situation } : { trigger: "auto" });
     },
     acceptOffer,
+    /**
+     * [F] 보기 「힌트를 주세요」(계약 §10-2: 말 거는 키는 F 하나) — 서버 퍼즐 ID 로 다음 단계를 연다.
+     * 1 → 2, 이미 2 면 다시 보기(already_unlocked · 차감 없음). 결과 · 오류 문구는 acceptOffer 와 같은 길로 line 에 뜬다.
+     */
+    requestPuzzleHint(puzzleId: string) {
+      if (!readySession() || state.waiting) return Promise.resolve(false);
+      const level = Math.min(2, (state.hintLevels[puzzleId] ?? 0) + 1) as 1 | 2;
+      patch({ offer: { via: "puzzle", puzzleId, level } });
+      return acceptOffer();
+    },
     /** 지금 자막을 접는다 */
     dismissLine() {
       show(null);

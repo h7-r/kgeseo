@@ -1,25 +1,30 @@
 /**
- * 동행 NPC 자막 · 채팅 입력(Canvas 밖 DOM).
+ * 동행 NPC 채팅 입력 · 세션 상태 표식(Canvas 밖 DOM).
  *
- * - 자막은 화면 아래 띠 하나 — 고정 상자 없이 글자 뒤만 어둡게 깐다. 평소에는 비어 있다(포인터 잠금 유지).
- * - reply 가 null 이면 기다림 표시(「동행 ···」)만 사라지고 아무것도 남기지 않는다.
- * - Enter(잠금 중)로 한 줄 입력을 연다. 입력 중에는 capture 단계 차단기 하나로 게임 키(T · V · H · I · P · 숫자)가
- *   새지 않게 막고, 닫을 때 원래 잠겨 있었으면 다시 잠근다.
+ * - 동행의 말(서버 대사 · 힌트 · 알림)은 여기서 그리지 않는다 — 대화창은 한 벌(dialogue/DialogueLayer)이고,
+ *   dialogue/companionBridge 가 companionDialog 의 line 을 그쪽으로 넘긴다(계약 v0.4.16 §10). 자막 · 기다림 · 길게 누르기 막대는 뺐다.
+ * - 세션 시작(startCompanion)은 여기서 하지 않는다 — 앱이 뜰 때 한 번(app/App.tsx). 이 화면이 없어도 진행 동기화 · 힌트가 돈다.
+ * - Enter(잠금 중)로 한 줄 입력을 연다 — 11/13 베타는 끈다(IS_FREE_INPUT_ENABLED). 입력 중에는 capture 단계 차단기 하나로
+ *   게임 키(T · V · H · I · P · 숫자)가 새지 않게 막고, 닫을 때 원래 잠겨 있었으면 다시 잠근다.
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
 
 import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT } from "../puzzles/hudTheme";
 import { MAX_MESSAGE_LENGTH } from "./companionDialog.ts";
-import { cancelCompanionHold, useCompanionHold } from "./companionPrompt";
 import {
   COMPANION_NAME,
   MOCK_SCENARIO,
   companionDialog,
-  startCompanion,
   useCompanionDialog,
   useCompanionSession,
 } from "./companionRuntime";
+
+/**
+ * 자유 입력(player_message)을 여는가. 계약 v0.4.16 §10-1: 11/13 나주 베타는 보기 클릭 · Y/N 만 — 끈다.
+ * 코드는 지우지 않는다. true 로 바꾸면 Enter 입력이 전처럼 열리고, 대답은 대화창으로 간다.
+ */
+export const IS_FREE_INPUT_ENABLED = false;
 
 interface CompanionHudProps {
   controlsRef: RefObject<PointerLockControlsImpl | null>;
@@ -31,23 +36,13 @@ interface CompanionHudProps {
 export default function CompanionHud({ controlsRef, isLocked, showStatus = false }: CompanionHudProps) {
   const dialog = useCompanionDialog();
   const session = useCompanionSession();
-  const hold = useCompanionHold();
   const [isTyping, setIsTyping] = useState(false);
   // 입력칸 effect 는 열릴 때 한 번만 돌아야 한다(잠금 기억 · 포커스) — 닫기 함수가 매번 바뀌면 다시 돌아 둘 다 잃는다
   const closeTyping = useCallback(() => setIsTyping(false), []);
 
+  // Enter — 잠금 중 · 말을 걸 수 있을 때만 입력을 연다(창이 열려 있으면 잠금이 풀려 있어 여기 오지 않는다). 베타는 꺼 둔다(§10-1)
   useEffect(() => {
-    void startCompanion();
-  }, []);
-
-  // 잠금이 풀리면(창 열림 · Esc) 길게 누르던 것을 버린다
-  useEffect(() => {
-    if (!isLocked) cancelCompanionHold();
-  }, [isLocked]);
-
-  // Enter — 잠금 중 · 말을 걸 수 있을 때만 입력을 연다(창이 열려 있으면 잠금이 풀려 있어 여기 오지 않는다)
-  useEffect(() => {
-    if (!isLocked || !dialog.isEnabled || isTyping) return undefined;
+    if (!IS_FREE_INPUT_ENABLED || !isLocked || !dialog.isEnabled || isTyping) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Enter" || event.repeat || event.isComposing) return;
       event.preventDefault();
@@ -57,39 +52,17 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isLocked, dialog.isEnabled, isTyping]);
 
-  const { line, waiting } = dialog;
-  const name = waiting === "hint" || line?.kind === "hint" ? hintLabel(line) : COMPANION_NAME;
-
+  // 자막 · 기다림 표시는 그리지 않는다 — 말은 대화창(DialogueLayer) 한 벌에 뜬다
   return (
     <>
-      <div style={bandStyle} data-testid="companion-subtitle">
-        {isTyping ? (
+      {isTyping && (
+        <div style={bandStyle} data-testid="companion-input-band">
           <ChatInput controlsRef={controlsRef} onClose={closeTyping} />
-        ) : waiting ? (
-          <div style={nameStyle} data-state="waiting">
-            {name} <span className="companion-dots">···</span>
-          </div>
-        ) : line ? (
-          <div key={line.text} className="companion-line" data-state={line.kind}>
-            {line.kind !== "notice" && <div style={line.kind === "hint" ? hintNameStyle : nameStyle}>{name}</div>}
-            <span
-              style={line.kind === "hint" ? hintTextStyle : line.kind === "notice" ? noticeTextStyle : textStyle}
-              data-testid="companion-line-text"
-            >
-              {line.text}
-            </span>
-          </div>
-        ) : null}
-      </div>
-      {hold && <HoldBar durationMs={hold.durationMs} />}
+        </div>
+      )}
       {showStatus && <StatusBadge session={session} contentMode={dialog.contentMode} reason={dialog.fallbackReason} />}
     </>
   );
-}
-
-function hintLabel(line: ReturnType<typeof companionDialog.getState>["line"]) {
-  if (line?.kind !== "hint") return "힌트";
-  return line.isReview ? `힌트 ${line.level}/2 · 다시 보기` : `힌트 ${line.level}/2`;
 }
 
 /** 한 줄 입력. 차단기가 Enter · Esc · IME 를 직접 다룬다 — capture 에서 전파를 끊으면 input 의 onKeyDown 은 오지 않는다 */
@@ -171,19 +144,6 @@ function ChatInput({
   );
 }
 
-function HoldBar({ durationMs }: { durationMs: number }) {
-  const [isFull, setIsFull] = useState(false);
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setIsFull(true));
-    return () => cancelAnimationFrame(frame);
-  }, []);
-  return (
-    <div style={holdTrackStyle}>
-      <div style={{ ...holdFillStyle, width: isFull ? "100%" : "0%", transition: `width ${durationMs}ms linear` }} />
-    </div>
-  );
-}
-
 const PHASE_TEXT = {
   off: "꺼짐(케이스 · 버전 미설정)",
   starting: "세션 준비 중",
@@ -217,7 +177,7 @@ function StatusBadge({
   );
 }
 
-// ── 모양(hudTheme 기준) — 자막 띠는 화면 아래 36~105px, 알림(bottom 110) 아래 ──
+// ── 모양(hudTheme 기준) — 입력 띠는 화면 아래 36~105px, 알림(bottom 110) 아래 ──
 
 const bandStyle: CSSProperties = {
   position: "absolute",
@@ -232,25 +192,12 @@ const bandStyle: CSSProperties = {
   color: CREAM,
 };
 
-const stripe: CSSProperties = {
-  padding: "3px 10px",
-  borderRadius: 6,
-  background: "rgba(14,18,26,.62)",
-  boxDecorationBreak: "clone",
-  WebkitBoxDecorationBreak: "clone",
-  textShadow: "0 1px 2px rgba(0,0,0,.55)",
-};
-
 const nameStyle: CSSProperties = {
   font: `700 12px/1 ${FONT}`,
   color: AMBER,
   marginBottom: 6,
   letterSpacing: "0.04em",
 };
-const hintNameStyle: CSSProperties = { ...nameStyle };
-const textStyle: CSSProperties = { ...stripe };
-const hintTextStyle: CSSProperties = { ...stripe, borderLeft: `2px solid ${AMBER}` };
-const noticeTextStyle: CSSProperties = { ...stripe, color: "rgba(242,238,228,.75)", fontSize: 15 };
 const counterStyle: CSSProperties = { marginLeft: 10, font: `11px/1 ${KEY_FONT}` };
 
 const inputStyle: CSSProperties = {
@@ -267,21 +214,6 @@ const inputStyle: CSSProperties = {
   caretColor: AMBER,
   font: `17px ${FONT}`,
 };
-
-const holdTrackStyle: CSSProperties = {
-  position: "absolute",
-  left: "50%",
-  top: "calc(50% + 64px)",
-  transform: "translateX(-50%)",
-  width: 120,
-  height: 4,
-  borderRadius: 2,
-  background: "rgba(14,18,26,.6)",
-  overflow: "hidden",
-  zIndex: 25,
-  pointerEvents: "none",
-};
-const holdFillStyle: CSSProperties = { height: "100%", background: AMBER };
 
 const statusStyle: CSSProperties = {
   position: "absolute",
