@@ -15,6 +15,7 @@ import { dirname, join, posix, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { holdOf } from "./asset-hold.mjs";
+import { kindOf } from "./asset-kinds.mjs";
 import { sharedAssetBuild } from "./shared-asset-build.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -52,13 +53,6 @@ for (const path of walk(PUBLIC)) {
   if (LOCAL_ONLY.some((dir) => rel.startsWith(`${dir}/`))) continue;
   publicFiles.set(rel, statSync(path).size);
 }
-// shared/env.ts — assetUrl 로 읽는 폴더는 케이스, sharedAssetUrl 로 읽는 폴더는 공용
-const CASE_DIRS = ["_sf_local", "vfx"];
-const SHARED_DIRS = ["models"];
-const kindOf = (rel) => {
-  const top = rel.split("/")[0];
-  return CASE_DIRS.includes(top) ? "케이스" : SHARED_DIRS.includes(top) ? "공용" : "배포본";
-};
 
 /**
  * 표지 없는 모형의 출처구분(11/6 미르 님 나눔). 앞에서부터 처음 맞는 것. 근거는 커밋·README·코드 주석.
