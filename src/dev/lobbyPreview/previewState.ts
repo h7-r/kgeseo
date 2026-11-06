@@ -98,4 +98,6 @@ export function greet(id: number) {
 exposeDevHook("lobbyPreview", {
   status: () => connection.status(),
   players: () => [...connection.players().entries()].map(([sid, p]) => ({ sid, nickname: p.nickname, x: p.x, z: p.z })),
+  /** 지금 보내는 내 자세(컷신 중에는 멈춘 값) */
+  pose: () => ({ ...localPose }),
 });
