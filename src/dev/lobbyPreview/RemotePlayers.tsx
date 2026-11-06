@@ -59,12 +59,13 @@ function placeLabel(label: THREE.Object3D | null, head: THREE.Object3D | null, x
   }
 }
 
-function createLink(view: RemotePlayerView): AvatarLink {
+/** 그릴 차례가 왔을 때 그 사람이 이미 나갔을 수 있다(방을 나가면 목록이 먼저 비고, 그리기는 한 박자 늦다) — 없으면 원점 */
+function createLink(view: RemotePlayerView | undefined): AvatarLink {
   return {
-    position: new THREE.Vector3(view.x, view.y + EYE_HEIGHT, view.z),
+    position: new THREE.Vector3(view?.x ?? 0, (view?.y ?? 0) + EYE_HEIGHT, view?.z ?? 0),
     groundY: 0,
-    footY: view.y,
-    facing: view.ry,
+    footY: view?.y ?? 0,
+    facing: view?.ry ?? 0,
     moving: false,
     running: false,
     speed: 0,
@@ -112,7 +113,7 @@ function RemoteAvatar({
   bubbles: ReadonlyMap<string, { text: string; until: number }>;
 }) {
   const first = connection.players().get(sid);
-  const linkRef = useRef<AvatarLink>(createLink(first as RemotePlayerView));
+  const linkRef = useRef<AvatarLink>(createLink(first));
   const labelRef = useRef<THREE.Group>(null);
   const avatarRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Object3D | null>(null);
@@ -126,12 +127,13 @@ function RemoteAvatar({
     minY: first?.y ?? 0,
     maxY: (first?.y ?? 0) + BODY_HEIGHT,
   });
-  useEffect(() => {
-    dynamicColliders.set(colliderId, bodyRef.current);
-    return () => {
+  // 상자는 그 사람의 자리를 받은 프레임에 올리고(useFrame), 사라질 때 내린다 — 이미 나간 사람은 올리지 않는다
+  useEffect(
+    () => () => {
       dynamicColliders.delete(colliderId);
-    };
-  }, [colliderId]);
+    },
+    [colliderId],
+  );
   const [look, setLook] = useState(first?.look ?? "");
   const [nickname, setNickname] = useState(first?.nickname ?? "");
   const [bubble, setBubble] = useState<string | null>(null);
@@ -170,6 +172,7 @@ function RemoteAvatar({
     body.maxZ = link.position.z + half;
     body.minY = link.footY;
     body.maxY = link.footY + BODY_HEIGHT;
+    if (dynamicColliders.get(colliderId) !== body) dynamicColliders.set(colliderId, body);
     // 외형이 바뀌면 모델이 새로 붙으니 머리뼈를 다시 찾는다
     if (!headRef.current?.parent) headRef.current = headBoneOf(avatarRef.current);
     placeLabel(labelRef.current, headRef.current, link.position.x, link.footY, link.position.z);
@@ -183,6 +186,9 @@ function RemoteAvatar({
     const text = said && said.until > Date.now() ? said.text : null;
     if (text !== bubble) setBubble(text);
   }, FRAME_PRIORITY.avatar - 5);
+
+  // 이미 나간 사람은 그리지 않는다(목록이 다음 프레임에 이 부품을 내린다)
+  if (!connection.players().has(sid)) return null;
 
   return (
     <>
