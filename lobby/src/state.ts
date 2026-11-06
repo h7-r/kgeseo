@@ -5,7 +5,7 @@ import { schema, t } from "@colyseus/schema";
 export const Player = schema(
   {
     nickname: t.string(),
-    /** 검사한 외형 JSON. 틀린 외형이면 "" — 받는 쪽이 그 성별 기본 착장으로 그린다 */
+    /** 검사한 외형 JSON. 틀린 외형이면 "" — 받는 쪽이 기본 외형 데이터로 그린다(성별 정보도 없다) */
     look: t.string(),
     /** 첫 정상 위치를 받기 전에는 false — 받는 쪽은 그리지 않는다 */
     placed: t.boolean(),

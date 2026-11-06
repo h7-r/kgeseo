@@ -47,6 +47,12 @@ describe("입장권 검증", () => {
   it("exp 가 iat 보다 이르다", async () => {
     assert.equal(await reasonOf(await makeTicket({ iat: now, exp: now - 1 })), "TICKET_EXPIRED");
   });
+  it("발급 시각이 미래(5초 넘게)", async () => {
+    assert.equal(await reasonOf(await makeTicket({ iat: now + 30, exp: now + 90 })), "TICKET_INVALID");
+  });
+  it("유효 시간이 120초를 넘는 티켓", async () => {
+    assert.equal(await reasonOf(await makeTicket({ iat: now, exp: now + 3600 })), "TICKET_INVALID");
+  });
   it("문자열이 아니거나 비었다", async () => {
     assert.equal(await reasonOf(undefined), "TICKET_INVALID");
     assert.equal(await reasonOf(""), "TICKET_INVALID");

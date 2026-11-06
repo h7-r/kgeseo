@@ -36,48 +36,69 @@ export function parseProfile(argv: readonly string[]): ProfileResult {
   return { error: "--profile: production 또는 test 만 쓸 수 있다" };
 }
 
-/** `KEY=value` 줄들. 빈 줄·# 줄은 건너뛰고, 값의 앞뒤 따옴표 한 쌍은 벗긴다. */
-export function parseEnvFile(text: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const rawLine of text.split(/\r?\n/)) {
+const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/**
+ * `KEY=value` 줄들. 빈 줄·# 줄은 건너뛰고, 값의 앞뒤 따옴표 한 쌍은 벗긴다.
+ * 형식이 틀린 줄은 버리지 않고 오류로 돌려준다(몇 번째 줄인지만 — 값은 안 적는다).
+ */
+export function parseEnvFile(text: string): { values: Record<string, string>; errors: string[] } {
+  const values: Record<string, string> = {};
+  const errors: string[] = [];
+  text.split(/\r?\n/).forEach((rawLine, index) => {
     const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
+    if (!line || line.startsWith("#")) return;
     const eq = line.indexOf("=");
-    if (eq <= 0) continue;
-    const key = line.slice(0, eq).trim();
+    const key = eq > 0 ? line.slice(0, eq).trim() : "";
+    if (!ENV_KEY.test(key)) {
+      errors.push(`lobby/.env.lobby: ${index + 1}번째 줄 형식이 틀렸다`);
+      return;
+    }
     let value = line.slice(eq + 1).trim();
     if (value.length >= 2 && (value[0] === '"' || value[0] === "'") && value.at(-1) === value[0]) {
       value = value.slice(1, -1);
     }
-    result[key] = value;
-  }
-  return result;
+    values[key] = value;
+  });
+  return { values, errors };
 }
 
 export interface SettingsSource {
   env: Readonly<Record<string, string | undefined>>;
-  /** test 프로필에서만 읽는 로비 전용 파일. 없으면 undefined */
+  /** test 프로필에서만 읽는 로비 전용 파일. 없으면 undefined, 있는데 못 읽으면 던진다 */
   readLocalFile?: () => string | undefined;
 }
 
 /**
  * production: 프로세스 환경만(운영은 systemd EnvironmentFile 이 넣는다).
  * test: 프로세스 환경을 먼저 보고, 없는 항목만 로비 전용 파일(lobby/.env.lobby)에서 채운다.
+ * 파일이 없는 것은 괜찮지만, 있는데 못 읽거나 형식이 틀리면 오류다(조용히 넘어가지 않는다).
  */
-export function collectSettings(profile: Profile, source: SettingsSource): Record<string, string> {
+export function collectSettings(
+  profile: Profile,
+  source: SettingsSource,
+): { settings: Record<string, string>; errors: string[] } {
   const settings: Record<string, string> = {};
+  const errors: string[] = [];
   for (const [key, value] of Object.entries(source.env)) {
     if (key.startsWith("LOBBY_") && value !== undefined && !IGNORED_FILE_KEYS.has(key)) settings[key] = value;
   }
   if (profile === "test") {
-    const text = source.readLocalFile?.();
+    let text: string | undefined;
+    try {
+      text = source.readLocalFile?.();
+    } catch (error) {
+      errors.push(`lobby/.env.lobby: 읽지 못했다(${(error as NodeJS.ErrnoException).code ?? "오류"})`);
+    }
     if (text !== undefined) {
-      for (const [key, value] of Object.entries(parseEnvFile(text))) {
+      const parsed = parseEnvFile(text);
+      errors.push(...parsed.errors);
+      for (const [key, value] of Object.entries(parsed.values)) {
         if (key.startsWith("LOBBY_") && !IGNORED_FILE_KEYS.has(key) && !(key in settings)) settings[key] = value;
       }
     }
   }
-  return settings;
+  return { settings, errors };
 }
 
 export type ConfigResult = { config: LobbyConfig } | { errors: string[] };
@@ -171,15 +192,19 @@ export function buildConfig(profile: Profile, settings: Readonly<Record<string, 
 export function loadConfig(argv: readonly string[], env: SettingsSource["env"], localFilePath: string): ConfigResult {
   const profileResult = parseProfile(argv);
   if ("error" in profileResult) return { errors: [profileResult.error] };
-  const settings = collectSettings(profileResult.profile, {
+  const { settings, errors } = collectSettings(profileResult.profile, {
     env,
     readLocalFile: () => {
       try {
         return readFileSync(localFilePath, "utf8");
-      } catch {
-        return undefined;
+      } catch (error) {
+        // 없는 것만 「파일 없음」. 권한·디렉터리 등은 오류로 올린다
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+        throw error;
       }
     },
   });
-  return buildConfig(profileResult.profile, settings);
+  const built = buildConfig(profileResult.profile, settings);
+  if (errors.length === 0) return built;
+  return { errors: [...errors, ...("errors" in built ? built.errors : [])] };
 }

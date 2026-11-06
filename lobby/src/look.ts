@@ -1,6 +1,7 @@
 // 외형(look) 검사 — 설계 v0.19 5절 「외형」 + 2026-11-06 미르 결정(색·체형도 보이게).
 // 허용 목록은 naju01 원본에서 뽑은 JSON 이다(scripts/extract-look-allowlist.mjs, 원본과 같은지는 시험이 본다).
-// 하나라도 틀리면 그 사람의 look 을 통째로 비운다("") — 받는 쪽은 비어 있으면 그 성별 기본 착장으로 그린다.
+// 하나라도 틀리면 그 사람의 look 을 통째로 비운다(""). 성별도 함께 버려지므로 받는 쪽은 화면의 기본 외형
+// (카탈로그 기본 착장 데이터 → toRendererConfig)으로 그린다. 빈 값을 그대로 렌더러에 넘기면 -1(안 입음)이 된다.
 import allowlistJson from "./generated/lookAllowlist.json" with { type: "json" };
 
 export const LOOK_MAX_BYTES = 2048;
@@ -33,7 +34,10 @@ export interface Look {
 }
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value) && Object.getPrototypeOf(value) === Object.prototype;
+  typeof value === "object" &&
+  value !== null &&
+  !Array.isArray(value) &&
+  Object.getPrototypeOf(value) === Object.prototype;
 
 function hasExactKeys(value: Record<string, unknown>, keys: ReadonlySet<string>): boolean {
   const own = Object.keys(value);

@@ -34,8 +34,9 @@ after(async () => {
 let seq = 0;
 async function join() {
   seq += 1;
-  const client = new Client(base, { headers: { Origin: ALLOWED_ORIGIN } });
-  client.auth.token = await makeTicket({ sub: `full${seq}`, nickname: `정원${seq}` });
+  const token = await makeTicket({ sub: `full${seq}`, nickname: `정원${seq}` });
+  // 티켓은 Authorization 헤더로만(주소에 넣지 않는다)
+  const client = new Client(base, { headers: { Origin: ALLOWED_ORIGIN, Authorization: `Bearer ${token}` } });
   return client.joinOrCreate("lobby", { look: validLook() });
 }
 

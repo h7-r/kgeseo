@@ -6,7 +6,7 @@ import { createAuthenticator } from "./authenticate.js";
 import type { LobbyConfig } from "./config.js";
 import { createLobbyRoom, ROOM_NAME } from "./LobbyRoom.js";
 import type { Logger } from "./log.js";
-import { configureMatchmaking, createUpgradeOriginCheck } from "./matchmaking.js";
+import { configureMatchmaking, createUpgradeCheck } from "./matchmaking.js";
 import { RoomCap } from "./roomCap.js";
 import { createTestHooks, type TestHooks } from "./testHooks.js";
 import { createTicketVerifier } from "./ticket.js";
@@ -48,14 +48,15 @@ export function createLobbyServer(config: LobbyConfig, options: CreateLobbyServe
     now,
     onAuthCall: hooks ? (context, event) => hooks.trace.record(context, `auth_${event}`) : undefined,
   });
-  // 시험 장치가 켜졌을 때만 거절 사유를 요청 번호와 함께 남긴다
-  const tracedAuthenticate: typeof authenticate = hooks
-    ? (token, opts, context) =>
-        authenticate(token, opts, context).catch((error: unknown) => {
-          if (context) hooks.trace.record(context, `rejected_${error instanceof ServerError ? error.message : "error"}`);
-          throw error;
-        })
-    : authenticate;
+  // 매칭 인증 거절은 운영에서도 유형만 남긴다(설계 1절 기록 규칙 — 티켓·계정 ID 는 넣지 않는다).
+  // 시험 장치가 켜졌으면 요청 번호와 함께 시험 기록에도 남긴다.
+  const tracedAuthenticate: typeof authenticate = (token, opts, context) =>
+    authenticate(token, opts, context).catch((error: unknown) => {
+      const reason = error instanceof ServerError ? error.message : "error";
+      log("auth_rejected", { reason });
+      if (hooks && context) hooks.trace.record(context, `rejected_${reason}`);
+      throw error;
+    });
 
   const LobbyRoom = createLobbyRoom({
     authenticate: tracedAuthenticate,
@@ -71,7 +72,9 @@ export function createLobbyServer(config: LobbyConfig, options: CreateLobbyServe
       : undefined,
   });
 
-  const transport = new WebSocketTransport({ beforeUpgrade: createUpgradeOriginCheck(config.allowedOrigins) });
+  const transport = new WebSocketTransport({
+    beforeUpgrade: createUpgradeCheck(config.allowedOrigins, (reason) => log("ws_rejected", { reason })),
+  });
   const server = new Server({
     transport,
     greet: false,

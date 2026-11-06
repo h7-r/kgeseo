@@ -11,6 +11,18 @@ export const MAX_SPEED = WALK_SPEED * RUN_SPEED_MULTIPLIER;
 /** 수신 간격이 흔들려도 정상 이동을 버리지 않게 두는 여유(🟡 시작값) */
 const SPEED_SLACK = 1.5;
 const DISTANCE_SLACK = 0.5;
+/**
+ * 이동 거리 예산 — 초당 MAX_SPEED × 여유만큼 차고, 0.5초 치까지 모아 둔다(🟡).
+ * 메시지마다 여유를 새로 주면 같은 순간 여러 개를 보내 멀리 갈 수 있다(03회차 Codex 재현: 12개로 17.6유닛).
+ * 예산은 시간으로만 차므로 몇 개를 몰아 보내도 그 시간에 갈 수 있는 거리를 넘지 못한다.
+ */
+export const DISTANCE_RATE = MAX_SPEED * SPEED_SLACK;
+export const DISTANCE_BUDGET_CAP = DISTANCE_RATE * 0.5 + DISTANCE_SLACK;
+/**
+ * 멀리 떨어진 자리가 이만큼 계속 오면 그 자리로 옮긴다(🟡). 본부실 안에서 연출이 사람을 옮기면
+ * 다른 사람 화면에서 영영 멈춰 있지 않게 하는 복구 길이다. 대가로 3초에 한 번까지는 순간이동처럼 보일 수 있다.
+ */
+export const RESYNC_AFTER_MS = 3000;
 /** 떨어지는 속도 상한 쪽 여유(중력 30, 천장 12 → 약 27 유닛/초) */
 const MAX_VERTICAL_SPEED = 30;
 
@@ -49,6 +61,9 @@ export class MoveGate {
   #tokens = MOVE_BURST;
   #refilledAt: number | null = null;
   #last: { x: number; y: number; z: number; at: number } | null = null;
+  #budget = DISTANCE_BUDGET_CAP;
+  #budgetAt: number | null = null;
+  #rejectedSince: number | null = null;
 
   /** 받으면 정규화한 자세, 버리면 null */
   accept(raw: unknown, nowMs: number): Pose | null {
@@ -64,14 +79,29 @@ export class MoveGate {
     const pose = parsePose(raw);
     if (!pose) return null;
     const last = this.#last;
-    if (last) {
-      // 마지막으로 받은 자리에서 그동안 갈 수 있는 거리. 순간이동이 있어도 시간이 지나면 다시 받는다.
-      const dt = Math.max(0.1, (nowMs - last.at) / 1000);
-      const horizontal = Math.hypot(pose.x - last.x, pose.z - last.z);
-      if (horizontal > MAX_SPEED * SPEED_SLACK * dt + DISTANCE_SLACK) return null;
-      if (Math.abs(pose.y - last.y) > MAX_VERTICAL_SPEED * dt + DISTANCE_SLACK) return null;
+    // 첫 자리는 이동이 아니다 — 예산을 채운 채 시작해야 바로 이어 오는 걸음을 버리지 않는다
+    if (!last) return this.#take(pose, nowMs, DISTANCE_BUDGET_CAP);
+
+    if (this.#budgetAt !== null) {
+      const elapsed = Math.max(0, nowMs - this.#budgetAt) / 1000;
+      this.#budget = Math.min(DISTANCE_BUDGET_CAP, this.#budget + elapsed * DISTANCE_RATE);
     }
+    this.#budgetAt = nowMs;
+    const horizontal = Math.hypot(pose.x - last.x, pose.z - last.z);
+    const sinceLast = Math.max(0, nowMs - last.at) / 1000;
+    const verticalOk = Math.abs(pose.y - last.y) <= MAX_VERTICAL_SPEED * sinceLast + DISTANCE_SLACK;
+    if (horizontal <= this.#budget && verticalOk) return this.#take(pose, nowMs, this.#budget - horizontal);
+
+    this.#rejectedSince ??= nowMs;
+    if (nowMs - this.#rejectedSince >= RESYNC_AFTER_MS) return this.#take(pose, nowMs, 0);
+    return null;
+  }
+
+  #take(pose: Pose, nowMs: number, budget: number): Pose {
     this.#last = { x: pose.x, y: pose.y, z: pose.z, at: nowMs };
+    this.#budget = budget;
+    this.#budgetAt = nowMs;
+    this.#rejectedSince = null;
     return pose;
   }
 }

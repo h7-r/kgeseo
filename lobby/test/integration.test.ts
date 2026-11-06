@@ -8,13 +8,14 @@ import { Client, type Room } from "@colyseus/sdk";
 import WebSocket from "ws";
 
 import { buildConfig } from "../src/config.js";
-import { silentLogger } from "../src/log.js";
+import type { LogFields } from "../src/log.js";
 import { createLobbyServer, type LobbyServer } from "../src/server.js";
 import { ALLOWED_ORIGIN, makeTicket, TEST_SECRET, validLook } from "./helpers.js";
 
 const START = Math.floor(Date.now() / 1000) - 10;
 let lobby: LobbyServer;
 let base: string;
+const logs: { event: string; fields: LogFields }[] = [];
 
 before(async () => {
   const result = buildConfig("test", {
@@ -24,7 +25,10 @@ before(async () => {
     LOBBY_TEST_HOOKS: "1",
   });
   assert.ok("config" in result);
-  lobby = createLobbyServer(result.config, { log: silentLogger, processStartSec: START });
+  lobby = createLobbyServer(result.config, {
+    log: (event, fields = {}) => logs.push({ event, fields }),
+    processStartSec: START,
+  });
   await lobby.listen("127.0.0.1", 0);
   const http = (lobby.server as unknown as { transport: { server: { address(): AddressInfo } } }).transport.server;
   base = `http://127.0.0.1:${http.address().port}`;
@@ -40,10 +44,11 @@ async function ticket(overrides: Parameters<typeof makeTicket>[0] = {}) {
   return makeTicket({ sub: `u${userSeq}`, nickname: `조사관${userSeq}`, ...overrides });
 }
 
+/** 티켓은 매칭 HTTP 의 Authorization 헤더로만 보낸다. client.auth.token 은 WebSocket 주소에 티켓을 복사한다 */
 function client(origin = ALLOWED_ORIGIN, token?: string) {
-  const c = new Client(base, { headers: { Origin: origin } });
-  if (token) c.auth.token = token;
-  return c;
+  const headers: Record<string, string> = { Origin: origin };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return new Client(base, { headers });
 }
 
 async function join(options: Record<string, unknown> = {}) {
@@ -130,7 +135,9 @@ describe("입장권 1회 사용", () => {
   });
   it("WebSocket 을 연결하지 않아도 같은 티켓의 동시 요청 중 한 좌석만 예약된다", async () => {
     const token = await ticket();
-    const responses = await Promise.all(Array.from({ length: 5 }, () => matchmake("joinOrCreate", token, ALLOWED_ORIGIN)));
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () => matchmake("joinOrCreate", token, ALLOWED_ORIGIN)),
+    );
     const bodies = await Promise.all(responses.map((r) => r.json() as Promise<Record<string, unknown>>));
     assert.equal(responses.filter((r) => r.ok).length, 1);
     assert.equal(bodies.filter((b) => b.error === "TICKET_USED").length, 4);
@@ -164,7 +171,11 @@ describe("출처·경로·CORS(3.1절)", () => {
     const preflight = (origin: string) =>
       fetch(`${base}/matchmake/joinOrCreate/lobby`, {
         method: "OPTIONS",
-        headers: { origin, "access-control-request-method": "POST", "access-control-request-headers": "authorization,content-type" },
+        headers: {
+          origin,
+          "access-control-request-method": "POST",
+          "access-control-request-headers": "authorization,content-type",
+        },
       });
     const ok = await preflight(ALLOWED_ORIGIN);
     assert.equal(ok.headers.get("access-control-allow-origin"), ALLOWED_ORIGIN);
@@ -186,6 +197,35 @@ describe("출처·경로·CORS(3.1절)", () => {
     });
     assert.equal(status, 403);
     await waitFor(() => lobby.roomCap.used === 0, 9000);
+  });
+});
+
+describe("티켓은 URL 에 넣지 않는다(설계 3절)", () => {
+  it("헤더로 보낸 입장은 WebSocket 주소에 _authToken 이 없다", async () => {
+    const before = logs.length;
+    const { room } = await join();
+    assert.ok(!logs.slice(before).some((l) => l.event === "ws_rejected"));
+    await leaveAll([room]);
+  });
+  it("SDK 의 client.auth.token 을 쓰면(주소에 티켓) 연결을 400 으로 거절한다", async () => {
+    const misuse = new Client(base, { headers: { Origin: ALLOWED_ORIGIN } });
+    misuse.auth.token = await ticket();
+    assert.notEqual(await errorMessage(misuse.joinOrCreate("lobby", { look: validLook() })), "ok");
+    assert.ok(logs.some((l) => l.event === "ws_rejected" && l.fields.reason === "TOKEN_IN_URL"));
+    await waitFor(() => lobby.roomCap.used === 0, 9000);
+  });
+});
+
+describe("운영 로그", () => {
+  it("매칭 인증 거절은 유형만 남기고 티켓·계정 ID 는 남기지 않는다", async () => {
+    const token = await ticket({ sub: "secret-account-id" });
+    const first = await client(ALLOWED_ORIGIN, token).joinOrCreate("lobby", { look: validLook() });
+    await errorMessage(client(ALLOWED_ORIGIN, token).joinOrCreate("lobby", {}));
+    const rejected = logs.filter((l) => l.event === "auth_rejected");
+    assert.ok(rejected.some((l) => l.fields.reason === "TICKET_USED"));
+    const text = JSON.stringify(logs);
+    assert.ok(!text.includes(token) && !text.includes("secret-account-id"));
+    await leaveAll([first]);
   });
 });
 

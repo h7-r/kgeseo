@@ -4,7 +4,9 @@ export type LogFields = Record<string, string | number | boolean | null>;
 export type Logger = (event: string, fields?: LogFields) => void;
 
 export const jsonLineLogger: Logger = (event, fields = {}) => {
-  process.stdout.write(`${JSON.stringify({ at: new Date().toISOString(), service: "waegok-lobby", event, ...fields })}\n`);
+  process.stdout.write(
+    `${JSON.stringify({ at: new Date().toISOString(), service: "waegok-lobby", event, ...fields })}\n`,
+  );
 };
 
 export const silentLogger: Logger = () => {};

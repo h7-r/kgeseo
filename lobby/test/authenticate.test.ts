@@ -37,7 +37,10 @@ describe("출처 확인(첫 줄)", () => {
   it("허용하지 않은 출처·출처 없음은 유효 티켓이어도 거절하고 usedJti 가 늘지 않는다", async () => {
     const { authenticate, usedJti, verifyCalls } = setup();
     const token = await makeTicket();
-    assert.equal(await reasonOf(authenticate(token, {}, authContext("https://evil.example.com"))), "ORIGIN_NOT_ALLOWED");
+    assert.equal(
+      await reasonOf(authenticate(token, {}, authContext("https://evil.example.com"))),
+      "ORIGIN_NOT_ALLOWED",
+    );
     assert.equal(await reasonOf(authenticate(token, {}, authContext(null))), "ORIGIN_NOT_ALLOWED");
     assert.equal(await reasonOf(authenticate(token, {}, undefined)), "ORIGIN_NOT_ALLOWED");
     assert.equal(usedJti.size, 0);

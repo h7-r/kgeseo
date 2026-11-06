@@ -21,10 +21,20 @@ function run(args: string[], env: Record<string, string>) {
 describe("운영 시작 검사(로비)", () => {
   const prod = { LOBBY_TICKET_SECRET: SECRET, LOBBY_ALLOWED_ORIGINS: "https://play.example.com", LOBBY_MAX_ROOMS: "5" };
   const cases: [string, string[], Record<string, string>, string][] = [
-    ["프로필 인자 없음 + 시험 장치 → production 으로 보고 거절", [], { ...prod, LOBBY_TEST_HOOKS: "1" }, "LOBBY_TEST_HOOKS"],
+    [
+      "프로필 인자 없음 + 시험 장치 → production 으로 보고 거절",
+      [],
+      { ...prod, LOBBY_TEST_HOOKS: "1" },
+      "LOBBY_TEST_HOOKS",
+    ],
     ["production + 방 상한 1", ["--profile=production"], { ...prod, LOBBY_MAX_ROOMS: "1" }, "LOBBY_MAX_ROOMS"],
     ["production + LOBBY_ENV=test", ["--profile=production"], { ...prod, LOBBY_ENV: "test" }, "LOBBY_ENV"],
-    ["production + 출처 와일드카드", ["--profile=production"], { ...prod, LOBBY_ALLOWED_ORIGINS: "*" }, "LOBBY_ALLOWED_ORIGINS"],
+    [
+      "production + 출처 와일드카드",
+      ["--profile=production"],
+      { ...prod, LOBBY_ALLOWED_ORIGINS: "*" },
+      "LOBBY_ALLOWED_ORIGINS",
+    ],
     ["production + 설정 없음", ["--profile=production"], {}, "LOBBY_TICKET_SECRET"],
     ["알 수 없는 프로필", ["--profile=staging"], prod, "--profile"],
   ];

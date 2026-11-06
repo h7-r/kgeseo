@@ -4,9 +4,25 @@ import { describe, it } from "node:test";
 
 import * as dimensions from "../../src/station/layout/dimensions.ts";
 import * as movementConstants from "../../src/engine/movement/constants.ts";
-import { GREET_COOLDOWN_MS, GreetGate, HQ_BOUNDS, MAX_SPEED, MoveGate, parsePose } from "../src/movement.js";
+import {
+  DISTANCE_BUDGET_CAP,
+  GREET_COOLDOWN_MS,
+  GreetGate,
+  HQ_BOUNDS,
+  MAX_SPEED,
+  MoveGate,
+  parsePose,
+  RESYNC_AFTER_MS,
+} from "../src/movement.js";
 
-const pose = (x: number, z: number, extra: Record<string, unknown> = {}) => ({ x, y: 0, z, ry: 0, gait: "walk", ...extra });
+const pose = (x: number, z: number, extra: Record<string, unknown> = {}) => ({
+  x,
+  y: 0,
+  z,
+  ry: 0,
+  gait: "walk",
+  ...extra,
+});
 
 describe("본편 숫자와 같다", () => {
   it("본부실 벽", () => {
@@ -41,23 +57,54 @@ describe("이동 모양·범위", () => {
 });
 
 describe("이동 속도·빈도", () => {
-  it("그동안 갈 수 없는 거리는 버리고, 시간이 지나면 다시 받는다", () => {
+  it("같은 순간 여러 개를 몰아 보내도 예산(0.5초 치)을 넘어 가지 못한다", () => {
+    // 03회차 Codex 재현: 메시지마다 여유를 새로 주던 때는 12개로 17.6유닛을 갔다
+    const gate = new MoveGate();
+    assert.ok(gate.accept(pose(-10, 0), 0));
+    let farthest = -10;
+    for (let i = 1; i <= 12; i += 1) {
+      const accepted = gate.accept(pose(-10 + i * 1.5, 0), 1000);
+      if (accepted) farthest = accepted.x;
+    }
+    assert.ok(farthest - -10 <= DISTANCE_BUDGET_CAP + 1e-9, `${farthest - -10} > ${DISTANCE_BUDGET_CAP}`);
+  });
+  it("정상 걸음(초당 10회, 최고 속도)은 다 받는다", () => {
+    const gate = new MoveGate();
+    let x = -15;
+    let accepted = 0;
+    for (let i = 0; i < 40; i += 1) {
+      if (gate.accept(pose(x, 0), i * 100)) accepted += 1;
+      x += MAX_SPEED * 0.1;
+    }
+    assert.equal(accepted, 40);
+  });
+  it("늦게 몰려온 메시지(300ms 공백 뒤 3개가 10ms 안에)도 받는다", () => {
     const gate = new MoveGate();
     assert.ok(gate.accept(pose(0, 0), 0));
-    assert.equal(gate.accept(pose(12, 0), 100), null);
-    assert.ok(gate.accept(pose(0.5, 0), 200));
-    // 순간이동이 있어도 충분히 지나면 받는다(영원히 굳지 않는다)
-    assert.ok(gate.accept(pose(12, 0), 2000));
+    const step = MAX_SPEED * 0.1;
+    assert.ok(gate.accept(pose(step, 0), 300));
+    assert.ok(gate.accept(pose(step * 2, 0), 305));
+    assert.ok(gate.accept(pose(step * 3, 0), 310));
+  });
+  it("순간이동은 버리지만, 같은 자리가 3초 넘게 계속 오면 그 자리로 옮긴다", () => {
+    const gate = new MoveGate();
+    assert.ok(gate.accept(pose(-15, 0), 0));
+    let moved = false;
+    for (let t = 100; t <= RESYNC_AFTER_MS + 200; t += 100) {
+      const accepted = gate.accept(pose(10, 5), t);
+      if (accepted) {
+        moved = true;
+        assert.ok(t - 100 >= RESYNC_AFTER_MS, `너무 일찍 옮겼다: ${t}ms`);
+        break;
+      }
+    }
+    assert.ok(moved);
   });
   it("초당 10회를 크게 넘기면 버린다", () => {
     const gate = new MoveGate();
     let accepted = 0;
     for (let i = 0; i < 40; i += 1) if (gate.accept(pose(0, 0), i * 10)) accepted += 1;
     assert.ok(accepted <= 16, `0.4초에 받은 수 ${accepted}`);
-    const steady = new MoveGate();
-    let steadyAccepted = 0;
-    for (let i = 0; i < 50; i += 1) if (steady.accept(pose(0, 0), i * 100)) steadyAccepted += 1;
-    assert.equal(steadyAccepted, 50);
   });
 });
 

@@ -36,11 +36,30 @@ describe("설정 읽는 경로", () => {
       },
     });
     assert.equal(read, false);
-    assert.deepEqual(settings, { LOBBY_TICKET_SECRET: "env" });
+    assert.deepEqual(settings, { settings: { LOBBY_TICKET_SECRET: "env" }, errors: [] });
   });
   it("test 는 환경을 먼저, 없는 항목만 파일에서. 프로필 키는 무시", () => {
     const settings = collectSettings("test", { env: { LOBBY_TICKET_SECRET: "env" }, readLocalFile: () => file });
-    assert.deepEqual(settings, { LOBBY_TICKET_SECRET: "env", LOBBY_MAX_ROOMS: "1" });
+    assert.deepEqual(settings, { settings: { LOBBY_TICKET_SECRET: "env", LOBBY_MAX_ROOMS: "1" }, errors: [] });
+  });
+  it("파일이 없는 것은 괜찮다", () => {
+    assert.deepEqual(collectSettings("test", { env: {}, readLocalFile: () => undefined }).errors, []);
+  });
+  it("있는데 못 읽으면 오류(조용히 넘어가지 않는다)", () => {
+    const { errors } = collectSettings("test", {
+      env: {},
+      readLocalFile: () => {
+        throw Object.assign(new Error("denied"), { code: "EACCES" });
+      },
+    });
+    assert.deepEqual(errors, ["lobby/.env.lobby: 읽지 못했다(EACCES)"]);
+  });
+  it("형식이 틀린 줄은 줄 번호만 적고 오류(값은 안 적는다)", () => {
+    const { errors } = collectSettings("test", {
+      env: {},
+      readLocalFile: () => "LOBBY_MAX_ROOMS=1\nsecret-value-without-key\n",
+    });
+    assert.deepEqual(errors, ["lobby/.env.lobby: 2번째 줄 형식이 틀렸다"]);
   });
 });
 
@@ -58,7 +77,11 @@ describe("운영 시작 검사 — production", () => {
     ["방 상한 숫자 오타", { ...goodProduction, LOBBY_MAX_ROOMS: "5a" }, "LOBBY_MAX_ROOMS"],
     ["출처 비어 있음", { ...goodProduction, LOBBY_ALLOWED_ORIGINS: "" }, "LOBBY_ALLOWED_ORIGINS"],
     ["출처 와일드카드", { ...goodProduction, LOBBY_ALLOWED_ORIGINS: "*" }, "LOBBY_ALLOWED_ORIGINS"],
-    ["출처에 경로", { ...goodProduction, LOBBY_ALLOWED_ORIGINS: "https://a.example.com/play" }, "LOBBY_ALLOWED_ORIGINS"],
+    [
+      "출처에 경로",
+      { ...goodProduction, LOBBY_ALLOWED_ORIGINS: "https://a.example.com/play" },
+      "LOBBY_ALLOWED_ORIGINS",
+    ],
     ["키 없음", { ...goodProduction, LOBBY_TICKET_SECRET: "" }, "LOBBY_TICKET_SECRET"],
     ["키 32바이트 미만", { ...goodProduction, LOBBY_TICKET_SECRET: "short" }, "LOBBY_TICKET_SECRET"],
     ["개발 키", { ...goodProduction, LOBBY_TICKET_SECRET: `dev-${"x".repeat(40)}` }, "LOBBY_TICKET_SECRET"],

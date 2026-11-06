@@ -37,12 +37,22 @@ export function configureMatchmaking(allowedOrigins: readonly string[]): void {
 }
 
 /**
- * WebSocket 연결 요청의 Origin 확인. @colyseus/ws-transport 0.18.4 의 `beforeUpgrade` 훅
+ * WebSocket 연결 요청 검사. @colyseus/ws-transport 0.18.4 의 `beforeUpgrade` 훅
  * (build/WebSocketTransport.mjs listenForUpgrade)이 핸드셰이크 전에 부른다 — Response 를 돌려주면 그 응답으로 끊는다.
+ *   · Origin 이 허용 목록에 없으면 403
+ *   · 주소에 `_authToken` 이 있으면 400 — SDK 는 `client.auth.token` 을 쓰면 티켓을 WebSocket 주소에 복사한다
+ *     (@colyseus/sdk 0.18.9 build/Client.mjs buildEndpoint). 티켓은 URL 에 넣지 않는다(설계 3절) — 실수를 바로 드러낸다.
  */
-export function createUpgradeOriginCheck(allowedOrigins: readonly string[]) {
-  return (_request: Request, context: { headers: Headers }): Response | undefined => {
-    if (isAllowedOrigin(context.headers.get("origin"), allowedOrigins)) return undefined;
-    return new Response(null, { status: 403 });
+export function createUpgradeCheck(allowedOrigins: readonly string[], onReject?: (reason: string) => void) {
+  return (request: Request, context: { headers: Headers }): Response | undefined => {
+    if (!isAllowedOrigin(context.headers.get("origin"), allowedOrigins)) {
+      onReject?.("ORIGIN_NOT_ALLOWED");
+      return new Response(null, { status: 403 });
+    }
+    if (new URL(request.url).searchParams.has("_authToken")) {
+      onReject?.("TOKEN_IN_URL");
+      return new Response(null, { status: 400 });
+    }
+    return undefined;
   };
 }

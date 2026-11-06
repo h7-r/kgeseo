@@ -6,6 +6,10 @@ import { REJECT, type RejectReason } from "./errors.js";
 
 export const TICKET_AUDIENCE = "waegok-lobby";
 export const NICKNAME_MAX_LENGTH = 40;
+/** 발급 시각이 이보다 미래면 받지 않는다(FastAPI 와 로비는 같은 EC2 시계를 쓴다, 3.2절) 🟡 */
+export const MAX_CLOCK_SKEW_SEC = 5;
+/** 운영 TTL 은 60초(3절). 키가 새도 오래 쓰는 티켓을 만들 수 없게 로비도 상한을 둔다 🟡 */
+export const MAX_TICKET_LIFETIME_SEC = 120;
 
 export interface VerifiedTicket {
   /** 계정 ID — 방 상태에 넣지 않는다 */
@@ -30,7 +34,11 @@ export interface TicketVerifierOptions {
 const isNonEmptyString = (value: unknown, max = 200): value is string =>
   typeof value === "string" && value.length > 0 && value.length <= max;
 
-export function createTicketVerifier({ secret, processStartSec, now = () => Date.now() / 1000 }: TicketVerifierOptions) {
+export function createTicketVerifier({
+  secret,
+  processStartSec,
+  now = () => Date.now() / 1000,
+}: TicketVerifierOptions) {
   return async function verifyTicket(token: unknown): Promise<TicketCheck> {
     if (!isNonEmptyString(token, 4096)) return { ok: false, reason: REJECT.TICKET_INVALID };
     let payload;
@@ -52,7 +60,8 @@ export function createTicketVerifier({ secret, processStartSec, now = () => Date
     if (typeof iat !== "number" || typeof exp !== "number" || !Number.isInteger(iat) || !Number.isInteger(exp)) {
       return { ok: false, reason: REJECT.TICKET_INVALID };
     }
-    if (exp <= iat) return { ok: false, reason: REJECT.TICKET_INVALID };
+    if (exp <= iat || exp - iat > MAX_TICKET_LIFETIME_SEC) return { ok: false, reason: REJECT.TICKET_INVALID };
+    if (iat > now() + MAX_CLOCK_SKEW_SEC) return { ok: false, reason: REJECT.TICKET_INVALID };
     // 재시작 이전에 발급된 티켓은 이전 프로세스의 usedJti 기록을 모른다. 같은 초도 일시적 실패로 본다.
     if (iat <= processStartSec) return { ok: false, reason: REJECT.TICKET_STALE };
     if (now() >= exp) return { ok: false, reason: REJECT.TICKET_EXPIRED };
