@@ -1,5 +1,5 @@
 // 로비 실제 화면 미리보기 — Canvas 밖(DOM). 「혼자 둘러보는 중」, 인사창, 개발용 조작.
-// 인사창: 포인터 잠금 중 G → 숫자 1~6 / 커서가 보일 때 💬 단추 → 클릭. Esc·G 로 닫는다(설계 5절).
+// 인사창: 포인터 잠금 중 G → 숫자 1~6(위 줄·키패드) / 커서가 보일 때 💬 단추 → 클릭. Esc·G 로 닫는다(설계 5절).
 // 컷신 중에는 인사창을 열지 않고, 열려 있으면 닫는다(설계 5절). 자물쇠·다른 화면창과 겹치지 않게 하는 것은 3단계에서 한다.
 // 모양은 동작 확인용이다 — 최종 톤은 3단계에서 해랑 님 화면에 맞춘다.
 import { useEffect, useState, type CSSProperties } from "react";
@@ -82,7 +82,8 @@ export default function LobbyPreviewHud() {
         setPickerOpen(false);
         return;
       }
-      const digit = /^Digit([1-6])$/.exec(event.code);
+      // 위 줄 숫자와 오른쪽 키패드 숫자 둘 다
+      const digit = /^(?:Digit|Numpad)([1-6])$/.exec(event.code);
       if (digit && pickerOpen && canGreet) {
         greet(Number(digit[1]));
         setPickerOpen(false);
@@ -199,7 +200,7 @@ export default function LobbyPreviewHud() {
               {index + 1}. {text}
             </button>
           ))}
-          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>숫자 1~6 · Esc·G 닫기</div>
+          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>숫자 1~6(키패드도) · Esc·G 닫기</div>
         </div>
       )}
     </div>

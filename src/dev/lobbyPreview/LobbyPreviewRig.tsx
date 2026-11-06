@@ -23,7 +23,7 @@ import {
 } from "@/station/layout/dimensions";
 
 import { bubbles, connection, localPose, refreshAccount } from "./previewState";
-import RemotePlayers, { LocalBubble } from "./RemotePlayers";
+import RemotePlayers, { LocalLabel } from "./RemotePlayers";
 
 /** 경계 왔다 갔다 방지(🟡) — 안으로 이만큼 들어와야 입장, 밖으로 이만큼 나가야 퇴장 */
 const HYSTERESIS = 0.5;
@@ -93,12 +93,14 @@ export default function LobbyPreviewRig() {
   return (
     <>
       <RemotePlayers connection={connection} bubbles={bubbles} />
-      <LocalBubble
+      <LocalLabel
         getSid={() => {
           const status = connection.status();
           return status.kind === "connected" ? status.sessionId : null;
         }}
         getEye={() => playerView.eye}
+        getName={(sid) => connection.players().get(sid)?.nickname ?? ""}
+        isThirdPerson={() => playerView.isThirdPerson}
         bubbles={bubbles}
       />
     </>

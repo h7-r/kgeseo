@@ -1,5 +1,6 @@
 // 같은 방 다른 사람을 실제 캐릭터로 그린다(설계 5절 「원격 표시」). 3단계에서 본부실 정식 연결 때 다시 쓸 부품.
-// - 내 연결 ID 는 뺀다. 첫 정상 위치(placed) 전에는 그리지 않는다.
+// - 내 연결 ID 는 뺀다(내 이름표·말풍선은 LocalLabel). 첫 정상 위치(placed) 전에는 그리지 않는다.
+// - 머리 위 이름은 입장권의 이름 — 캐릭터를 만든 계정은 조사관명, 없으면 계정 닉네임(FastAPI 가 정한다).
 // - 위치·방향은 약 100ms 로 따라간다(🟡). 위치가 바뀔 때마다 모델을 다시 만들지 않는다 — 상자 하나에 값만 쓴다.
 // - 충돌·퍼즐 상호작용에 넣지 않는다(물리·상호작용 목록에 등록하지 않음).
 // - 동작은 「자동」(lobbyLookToRendererConfig), framePriority 는 내 아바타보다 먼저(1인칭 잘림면이 전역 하나).
@@ -40,6 +41,45 @@ function createLink(view: RemotePlayerView): AvatarLink {
 }
 
 const wrapAngle = (angle: number) => Math.atan2(Math.sin(angle), Math.cos(angle));
+
+/** 머리 위 표시: 말풍선(있을 때) 위, 조사관명 아래. 설계 5절 「말풍선은 닉네임표 위에 띄운다」 */
+function NameTag({ name, bubble }: { name: string; bubble: string | null }) {
+  return (
+    <Html center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+        {bubble && (
+          <div
+            style={{
+              background: "#fff6d5",
+              color: "#222",
+              padding: "4px 10px",
+              borderRadius: 12,
+              font: "600 13px system-ui, sans-serif",
+              whiteSpace: "nowrap",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.35)",
+            }}
+          >
+            {bubble}
+          </div>
+        )}
+        {name && (
+          <div
+            style={{
+              background: "rgba(16,18,22,0.72)",
+              color: "#e8e8e8",
+              padding: "2px 8px",
+              borderRadius: 8,
+              font: "12px system-ui, sans-serif",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {name}
+          </div>
+        )}
+      </div>
+    </Html>
+  );
+}
 
 function RemoteAvatar({
   sid,
@@ -98,54 +138,32 @@ function RemoteAvatar({
         />
       </Suspense>
       <group ref={labelRef}>
-        <Html center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            {bubble && (
-              <div
-                style={{
-                  background: "#fff6d5",
-                  color: "#222",
-                  padding: "4px 10px",
-                  borderRadius: 12,
-                  font: "600 13px system-ui, sans-serif",
-                  whiteSpace: "nowrap",
-                  boxShadow: "0 2px 6px rgba(0,0,0,0.35)",
-                }}
-              >
-                {bubble}
-              </div>
-            )}
-            <div
-              style={{
-                background: "rgba(16,18,22,0.72)",
-                color: "#e8e8e8",
-                padding: "2px 8px",
-                borderRadius: 8,
-                font: "12px system-ui, sans-serif",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {nickname}
-            </div>
-          </div>
-        </Html>
+        <NameTag name={nickname} bubble={bubble} />
       </group>
     </>
   );
 }
 
-/** 내 말풍선 — 내 캐릭터 머리 위(playerView 의 눈 자리) */
-export function LocalBubble({
+/**
+ * 내 머리 위: 조사관명(3인칭일 때만 — 1인칭에선 눈 바로 위라 화면 위 끝에 걸린다)과 내 말풍선.
+ * 이름은 방 상태의 내 항목(서버가 입장권에서 넣은 값)을 쓴다 — 남이 보는 이름과 같다.
+ */
+export function LocalLabel({
   getSid,
   getEye,
+  getName,
+  isThirdPerson,
   bubbles,
 }: {
   getSid: () => string | null;
   getEye: () => THREE.Vector3;
+  getName: (sid: string) => string;
+  isThirdPerson: () => boolean;
   bubbles: ReadonlyMap<string, { text: string; until: number }>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const [text, setText] = useState<string | null>(null);
+  const [name, setName] = useState("");
   useFrame(() => {
     const eye = getEye();
     groupRef.current?.position.set(eye.x, eye.y - EYE_HEIGHT + LABEL_HEIGHT, eye.z);
@@ -153,27 +171,10 @@ export function LocalBubble({
     const said = sid ? bubbles.get(sid) : undefined;
     const next = said && said.until > Date.now() ? said.text : null;
     if (next !== text) setText(next);
+    const nextName = sid && isThirdPerson() ? getName(sid) : "";
+    if (nextName !== name) setName(nextName);
   });
-  return (
-    <group ref={groupRef}>
-      {text && (
-        <Html center zIndexRange={[20, 0]} style={{ pointerEvents: "none" }}>
-          <div
-            style={{
-              background: "#fff6d5",
-              color: "#222",
-              padding: "4px 10px",
-              borderRadius: 12,
-              font: "600 13px system-ui, sans-serif",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {text}
-          </div>
-        </Html>
-      )}
-    </group>
-  );
+  return <group ref={groupRef}>{(text || name) && <NameTag name={name} bubble={text} />}</group>;
 }
 
 export default function RemotePlayers({
