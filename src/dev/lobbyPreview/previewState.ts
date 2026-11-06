@@ -4,26 +4,16 @@ import { useSyncExternalStore } from "react";
 
 import { apiUrl, LOBBY_URL } from "@/config/env";
 import { exposeDevHook } from "@/debug/devHooks";
-import { createLobbyConnection, type LobbyLook, type LobbyPose, type LobbyStatus } from "@/net/colyseus";
-import { characterToLobbyLook, defaultLobbyLook } from "@/net/lobbyLook";
+import { PLAYER_MESHY_APPEARANCE_KEY } from "@/engine/storage";
+import { readMeshAppearance } from "@/naju";
+import { createLobbyConnection, type LobbyPose, type LobbyStatus } from "@/net/colyseus";
+import { meshConfigToLobbyLook } from "@/net/lobbyLook";
 
 /** 설계 1절 인사 문구(1~6) */
 export const GREETINGS = ["안녕하세요", "반가워요", "나주 다녀올게요", "화이팅!", "고마워요", "잘 가요"] as const;
 export const BUBBLE_MS = 3000;
 export const GREET_COOLDOWN_MS = 3000;
 
-const query = new URLSearchParams(window.location.search);
-/** 캐릭터를 저장하지 않은 계정의 기본 외형 성별 — 두 창을 구별해 보려고 ?lobbyGender=masculine */
-const fallbackGender: LobbyLook["gender"] = query.get("lobbyGender") === "masculine" ? "masculine" : "feminine";
-
-/** 캐릭터를 저장하지 않은 계정의 기본 외형 — 머리를 바꿔 보려면 ?lobbyHair=hair.f.long 처럼 카탈로그 ID */
-const previewLook = (): LobbyLook => {
-  const look = defaultLobbyLook(fallbackGender);
-  const hair = query.get("lobbyHair");
-  return hair ? { ...look, hair } : look;
-};
-
-let myLook: LobbyLook = previewLook();
 /** 보내는 자세 — 리그가 매 프레임 채운다 */
 export const localPose: LobbyPose = { x: 0, y: 0, z: 0, ry: 0, gait: "idle" };
 
@@ -31,7 +21,13 @@ export const connection = createLobbyConnection({
   // 개발 미리보기 전용 — 빌드 값(VITE_LOBBY_URL)이 비어 있으면 로컬 로비(npm run dev)로 붙는다
   lobbyUrl: LOBBY_URL || "http://localhost:2567",
   apiUrl,
-  getJoinOptions: () => ({ look: myLook, pose: { ...localPose } }),
+  // 외형은 내 화면의 아바타와 같은 저장값(useLobbyAvatar 가 읽는 브라우저 저장소)에서 입장 때마다 만든다.
+  // 서버 캐릭터를 따로 조회하지 않으니 조회가 끝나기 전에 입장해도 어긋나지 않는다.
+  // 방에 들어간 뒤 꾸미기 패널로 바꾼 외형은 다음 입장부터 반영된다(방 상태의 look 은 입장 때 한 번 정해진다).
+  getJoinOptions: () => ({
+    look: meshConfigToLobbyLook(readMeshAppearance(PLAYER_MESHY_APPEARANCE_KEY)),
+    pose: { ...localPose },
+  }),
 });
 
 /** 말풍선: 연결 ID → 문구·끝나는 때 */
@@ -62,7 +58,7 @@ export const usePreviewState = () =>
     () => state,
   );
 
-/** 로그인 상태와 저장된 캐릭터 외형을 읽는다(없으면 기본 착장) */
+/** 로그인 상태를 읽는다(입장권은 로그인 쿠키로 받는다) */
 export async function refreshAccount() {
   try {
     const me = await fetch(apiUrl("/api/v1/me"), { credentials: "include" });
@@ -72,9 +68,6 @@ export async function refreshAccount() {
     }
     const body = (await me.json()) as { nickname: string };
     setState({ me: `로그인: ${body.nickname}`, loggedIn: true });
-    const character = await fetch(apiUrl("/api/v1/me/character"), { credentials: "include" });
-    const saved = character.ok ? ((await character.json()) as { appearance?: unknown } | null) : null;
-    myLook = characterToLobbyLook(saved?.appearance) ?? previewLook();
   } catch {
     setState({ me: "API 접속 실패", loggedIn: false });
   }

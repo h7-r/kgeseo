@@ -1,7 +1,12 @@
-// 로비 외형(look) 바꾸기 — 보내는 쪽(캐릭터 저장값 → 로비 look)과 받는 쪽(로비 look → 렌더러 설정).
+// 로비 외형(look) 바꾸기 — 보내는 쪽(내 화면의 아바타 설정 → 로비 look)과 받는 쪽(로비 look → 렌더러 설정).
+// 보내는 값은 내 화면에 그려지는 아바타 설정(ChibiConfig)에서 만든다 — 그래야 남이 보는 나와 내가 보는 내가 같다.
 // 서버(lobby/src/look.ts)는 같은 모양을 검사하고, 틀리면 "" 로 비워 보낸다(성별도 함께 버려진다).
 // 받는 쪽은 빈 값을 렌더러에 그대로 넘기지 않는다 — 그러면 슬롯이 -1(안 입음)이 된다. 카탈로그 기본 착장으로 그린다.
 import { DEFAULT_CATALOG, DEFAULT_MESH_CONFIG, toRendererConfig, type ChibiConfig } from "@/naju";
+
+// 체형 범위는 캐릭터 생성 화면의 눈금(로비 서버 허용 목록도 여기서 뽑는다). src/naju 입구에 아직 없어 직접 가져온다 —
+// 입구 파일은 해랑 님 담당이라 3단계에서 함께 옮긴다.
+import { BODY_FIELDS } from "../../naju01/src/characterCreation/appearanceData";
 
 import type { LobbyLook } from "./colyseus";
 
@@ -56,27 +61,59 @@ export function defaultLobbyLook(gender: Gender): LobbyLook {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+/** 렌더러 파츠 번호 → 카탈로그 ID(-1 은 「안 입음」 ID). 그 성별에 없는 번호면 기본 착장 */
+function itemIdOf(slot: Slot, gender: Gender, variant: number): string {
+  const found = DEFAULT_CATALOG.items.find(
+    (item) => item.slot === slot && item.genders.includes(gender) && item.variant === variant,
+  );
+  return found?.id ?? defaultItem(slot, gender);
+}
+
 /**
- * 서버에 저장된 캐릭터(GET /api/v1/me/character 의 appearance — 캐릭터 생성 완료 데이터)를 로비 look 으로.
- * 모양이 다르면 null — 부르는 쪽이 기본 착장을 쓴다. 값 검사는 로비 서버가 다시 한다.
+ * 내 화면의 아바타 설정(useLobbyAvatar 가 그리는 ChibiConfig) → 로비 look.
+ * 체형은 생성 화면 범위로 잘라 보낸다 — 저장값이 없는 사람의 기본 모습(DEFAULT_MESH_CONFIG)은 팔 길이 0.7 처럼
+ * 생성 화면 범위(0.78~) 밖 값이 있어, 자르지 않으면 서버가 외형 전체를 버리고 남에게는 기본 착장으로 보인다.
+ * look 에 없는 값(주먹 쥔 손·동작 이름)은 받는 쪽 기본값으로 그려진다.
  */
-export function characterToLobbyLook(appearance: unknown): LobbyLook | null {
-  if (!isRecord(appearance)) return null;
-  const gender = appearance.gender === "masculine" || appearance.gender === "feminine" ? appearance.gender : null;
-  const equipment = isRecord(appearance.equipmentIds) ? appearance.equipmentIds : null;
-  const colors = isRecord(appearance.supportedColorValues) ? appearance.supportedColorValues : null;
-  const body = isRecord(appearance.bodyParameters) ? appearance.bodyParameters : null;
-  if (!gender || !equipment || !colors || !body || typeof appearance.catalogVersion !== "string") return null;
-  const id = (value: unknown, slot: Slot) => (typeof value === "string" && value ? value : `${slot}.none`);
+export function meshConfigToLobbyLook(config: ChibiConfig): LobbyLook {
+  const gender: Gender = config.gender === "masculine" ? "masculine" : "feminine";
+  const values: Record<string, number> = {
+    heightScale: config.heightScale,
+    headScale: config.headScale,
+    handScale: config.handScale,
+    footScale: config.footScale,
+    shoulderWidth: config.shoulderWidth,
+    hipWidth: config.hipWidth,
+    armLength: config.armLength,
+    legLength: config.legLength,
+    armThickness: config.armThickness,
+    legThickness: config.legThickness,
+    // toRendererConfig 의 반대: heavy = max(0, build), skinny = max(0, -build)
+    build: config.heavy - config.skinny,
+    buff: config.buff,
+  };
+  const body: Record<string, number> = {};
+  for (const field of BODY_FIELDS) {
+    const value = values[field.key];
+    body[field.key] = clamp(Number.isFinite(value) ? value : DEFAULT_BODY[field.key], field.min, field.max);
+  }
   return {
-    catalog: appearance.catalogVersion,
+    catalog: DEFAULT_CATALOG.version,
     gender,
-    hair: id(appearance.hairId, "hair"),
-    top: id(equipment.top, "top"),
-    bottom: id(equipment.bottom, "bottom"),
-    shoes: id(equipment.shoes, "shoes"),
-    colors: { ...DEFAULT_COLORS, ...(colors as Partial<LobbyLook["colors"]>) },
-    body: { ...DEFAULT_BODY, ...(body as Record<string, number>) },
+    hair: itemIdOf("hair", gender, config.hair),
+    top: itemIdOf("top", gender, config.top),
+    bottom: itemIdOf("bottom", gender, config.bottom),
+    shoes: itemIdOf("shoes", gender, config.shoes),
+    colors: {
+      skin: config.skinColor,
+      hair: config.hairColor,
+      cloth: config.clothColor,
+      bottom: config.bottomColor,
+      shoes: config.shoesColor,
+    },
+    body,
   };
 }
 

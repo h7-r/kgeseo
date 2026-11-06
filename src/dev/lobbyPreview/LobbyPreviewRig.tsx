@@ -1,6 +1,10 @@
 // 로비 실제 화면 미리보기 — Canvas 안. 본부실 출입에 맞춰 연결·퇴장하고, 내 자세를 보내고, 다른 사람을 그린다.
 // 설계 4절 연결 조건: 본부실 벽 안 · 컷신·장면 전환 중 아님 · 기차·나주 아님. 카메라 시점만 바뀌면 그대로.
-// 정식 연결(3단계)은 App.tsx·StationScene.tsx 에 끼운다 — 여기서는 playerView 로 읽는 임시 방식이다.
+// 컷신: 새 입장을 하지 않고, 이미 붙어 있으면 방은 그대로 두고 위치 송신만 멈춘다(남에게는 제자리에 선 모습).
+//   몇 초짜리 컷신마다 나갔다 들어오면 남의 화면에서 사라졌다 나타나고 티켓도 새로 받는다 — 3단계에서 설계 문장과 함께 정한다.
+// 장면 전환: 기차(주소)·나주(이벤트)만 읽는다. 페이드 중인지는 App 안 상태라 미리보기에서 읽지 못한다.
+// 자세는 playerView 로 읽는 임시 방식이다 — 앉기는 보내지 않고, 발 높이는 「눈 − 고정 눈높이」라 앉기·키 변경에서 틀릴 수 있다.
+// 정식 연결(3단계)은 App.tsx·StationScene.tsx 에 끼우고 AvatarLink 의 발 높이·앉기 상태를 읽는다.
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 
@@ -73,7 +77,7 @@ export default function LobbyPreviewRig() {
     localPose.y = Math.max(0, eye.y - EYE_HEIGHT);
     localPose.ry = playerView.bodyYaw;
     localPose.gait = speed < 0.4 ? "idle" : speed < WALK_SPEED * (1 + RUN_SPEED_MULTIPLIER) * 0.5 ? "walk" : "run";
-    if (connection.status().kind === "connected") connection.sendMove({ ...localPose });
+    if (connection.status().kind === "connected" && !cutsceneRef.current) connection.sendMove({ ...localPose });
   });
 
   return (
