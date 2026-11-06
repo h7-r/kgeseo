@@ -10,6 +10,8 @@
  */
 import { useSyncExternalStore } from "react";
 
+import { setAssetVersionPath } from "@/config/env";
+
 import { createCompanionDialog } from "./companionDialog.ts";
 import { createCompanionSession, type CompanionSessionConfig, type KeyValueStore } from "./companionSession.ts";
 
@@ -64,6 +66,8 @@ export const companionSession = createCompanionSession({
   config: IS_COMPANION_ENABLED ? readConfig() : null,
   storage: typeof window === "undefined" ? null : browserStorage(),
   log: (message, detail) => log("warn", message, detail),
+  // 세션의 판 경로를 에셋 주소에 건다. 이 값이 들어온 뒤에 받은 케이스 에셋은 그 판에서 온다
+  onAssetBasePath: setAssetVersionPath,
 });
 
 export const companionDialog = createCompanionDialog({ session: companionSession, log });

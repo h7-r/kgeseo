@@ -12,6 +12,7 @@ import {
   createPinnedPlaySession,
   errorCode,
   loadPlaySession,
+  type PlaySessionData,
 } from "./companionApi.ts";
 
 export interface CompanionSessionConfig {
@@ -91,9 +92,21 @@ export function createCompanionSession(options: {
   config: CompanionSessionConfig | null;
   storage?: KeyValueStore | null;
   log?: (message: string, detail?: unknown) => void;
+  /**
+   * 세션을 만들거나 되살렸을 때 그 세션의 에셋 버전 경로를 넘긴다 — 진행 중인 플레이어는 새 판이 게시돼도 자기 판 파일을 읽는다.
+   * 이 모듈은 node --test 로 돌아 import.meta.env 를 쓰는 shared/env 를 직접 부르지 않는다. 앱에서는 setAssetVersionPath 를 넘긴다.
+   */
+  onAssetBasePath?: (path: string) => void;
 }) {
   const storage = options.storage ?? null;
   const log = options.log ?? (() => {});
+
+  /** 서버가 경로를 주지 않으면 지금 경로를 그대로 둔다 — 비우면 다른 곳에서 맞춰 둔 경로까지 지워진다 */
+  function applyAssetBasePath(data: PlaySessionData) {
+    const path = data.asset_base_path;
+    if (typeof path === "string" && path.trim()) options.onAssetBasePath?.(path);
+    else log("세션 응답에 asset_base_path 가 없어 에셋은 기본 경로로 읽는다", { playSessionId: data.play_session_id });
+  }
   let status: CompanionSessionStatus = options.config
     ? { phase: "starting" }
     : { phase: "off", reason: "not-configured" };
@@ -128,6 +141,7 @@ export function createCompanionSession(options: {
           contentVersion: config.contentVersion,
         };
         writeRecord(storage, record);
+        applyAssetBasePath(data);
         return ready(record, data.state.hint_levels ?? {});
       } catch (error) {
         // 익명 세션이 없거나 만료됐으면 한 번만 새로 받아 다시 만든다
@@ -152,7 +166,10 @@ export function createCompanionSession(options: {
       if (reusable?.playSessionId) {
         try {
           const data = await loadPlaySession(reusable.playSessionId);
-          if (data.case_id === config.caseId) return ready(reusable, data.state.hint_levels ?? {});
+          if (data.case_id === config.caseId) {
+            applyAssetBasePath(data);
+            return ready(reusable, data.state.hint_levels ?? {});
+          }
         } catch (error) {
           // 세션이 없어졌을 때만 새로 만든다. 그 밖(409 · 500 · 연결)은 아래에서 상태로 바꾼다
           if (!(error instanceof CompanionApiError && error.status === 404)) throw error;

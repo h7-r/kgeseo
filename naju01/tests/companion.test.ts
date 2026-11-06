@@ -17,6 +17,7 @@ interface Call {
   path: string;
   body: unknown;
   raw: string | null;
+  credentials: RequestCredentials | undefined;
 }
 type Reply = { status: number; body?: unknown } | "network";
 type Handler = (call: Call) => Reply;
@@ -27,7 +28,13 @@ const realFetch = globalThis.fetch;
 function serve(handler: Handler) {
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const raw = typeof init?.body === "string" ? init.body : null;
-    const call: Call = { method: init?.method ?? "GET", path: String(input), body: raw ? JSON.parse(raw) : null, raw };
+    const call: Call = {
+      method: init?.method ?? "GET",
+      path: String(input),
+      body: raw ? JSON.parse(raw) : null,
+      raw,
+      credentials: init?.credentials,
+    };
     calls.push(call);
     const reply = handler(call);
     if (reply === "network") throw new TypeError("fetch failed");
@@ -120,6 +127,14 @@ test("네트워크 오류는 같은 client_event_id · 같은 본문으로 최�
   assert.equal(new Set(calls.map((c) => c.raw)).size, 1);
 });
 
+test("운영에서 출처가 달라도 세션 소유권을 확인하도록 모든 요청에 쿠키를 싣는다(재전송 포함)", async () => {
+  let attempts = 0;
+  serve(() => (++attempts < 2 ? "network" : { status: 200, body: { ok: true } }));
+  await sendFrozen("/x", { client_event_id: "44444444-4444-4444-8444-444444444444", trigger: "auto" }, FAST);
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every((call) => call.credentials === "include"));
+});
+
 test("500 · 409 · 422 는 다시 보내지 않고, 502 는 재시도가 다하면 실패한다", async () => {
   for (const status of [500, 409, 422]) {
     calls = [];
@@ -163,6 +178,49 @@ test("content_version 을 고정한 세션을 만들고 기록한다", async () 
   const create = calls.find((c) => c.path === "/api/v1/play-sessions");
   assert.deepEqual(create?.body, { anonymous_session_id: "anon-1", case_id: CONFIG.caseId, content_version: 3 });
   assert.equal(JSON.parse(storage.data[SESSION_STORAGE_KEY]).playSessionId, PLAY_ID);
+});
+
+test("세션을 만들 때와 되살릴 때 서버가 준 에셋 경로를 넘기고, 없으면 경고만 남긴다", async () => {
+  const PATH = "/c/naju-angam-01/v3";
+  const withPath = (body: { status: number; body?: unknown }) => {
+    const data = (body.body as { data: Record<string, unknown> }).data;
+    return { ...body, body: { data: { ...data, asset_base_path: PATH } } };
+  };
+
+  // 새로 만들 때
+  const base = backend();
+  serve((call) => (call.path === "/api/v1/play-sessions" && call.method === "POST" ? withPath(base(call) as never) : base(call)));
+  const created: string[] = [];
+  await createCompanionSession({ config: CONFIG, storage: memoryStore(), onAssetBasePath: (path) => created.push(path) }).start();
+  assert.deepEqual(created, [PATH]);
+
+  // 저장된 세션을 되살릴 때
+  const record = JSON.stringify({ anonymousSessionId: "anon-1", playSessionId: "old", ...CONFIG });
+  serve(() => ({
+    status: 200,
+    body: { data: { play_session_id: "old", case_id: CONFIG.caseId, state: { hint_levels: {} }, asset_base_path: PATH } },
+  }));
+  const restored: string[] = [];
+  await createCompanionSession({
+    config: CONFIG,
+    storage: memoryStore({ [SESSION_STORAGE_KEY]: record }),
+    onAssetBasePath: (path) => restored.push(path),
+  }).start();
+  assert.deepEqual(restored, [PATH]);
+
+  // 서버가 아직 경로를 주지 않으면 지금 경로를 건드리지 않고 경고만
+  serve(backend());
+  const untouched: string[] = [];
+  const logs: string[] = [];
+  const status = await createCompanionSession({
+    config: CONFIG,
+    storage: memoryStore(),
+    onAssetBasePath: (path) => untouched.push(path),
+    log: (message) => logs.push(message),
+  }).start();
+  assert.equal(status.phase, "ready");
+  assert.deepEqual(untouched, []);
+  assert.ok(logs.some((message) => message.includes("asset_base_path")));
 });
 
 test("저장된 세션은 GET 으로 이어 쓰고, 404 면 새로 만든다", async () => {

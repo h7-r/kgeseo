@@ -96,6 +96,8 @@ export interface PlaySessionData {
   play_session_id: string;
   case_id: string;
   state: PlaySessionState;
+  /** 이 세션이 읽을 케이스 에셋의 버전 경로(예: /c/naju-angam-01/v1). 서버가 아직 안 주면 없거나 null 이다 */
+  asset_base_path?: string | null;
 }
 
 // ── 응답 모양 검사 — 약속한 모양이 아니면 성공으로 보지 않는다(빈 대사를 띄우지 않게) ──
@@ -164,6 +166,8 @@ async function requestOnce(path: string, init: RequestInit, timeoutMs: number): 
     response = await fetch(`${API_ORIGIN}${path}`, {
       ...init,
       headers: { Accept: "application/json", ...(init.body ? { "Content-Type": "application/json" } : {}) },
+      // 운영은 play → api 로 출처가 다르다. 세션 소유권을 게스트 쿠키로 확인하므로 쿠키를 함께 보낸다
+      credentials: "include",
       signal: controller.signal,
     });
   } catch (cause) {
