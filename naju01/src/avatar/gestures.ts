@@ -273,7 +273,9 @@ function reachChest(arm: Arm & { chestRef: THREE.Bone | null }, group: THREE.Obj
   const W = worldPos(arm.hand, _c.clone());
   const L1 = S.distanceTo(E);
   const L2 = E.distanceTo(W);
-  const goal = _wrist.clone().sub(W).multiplyScalar(w).add(W);
+  // 다 얹은 자세를 풀고, 그 회전을 무게만큼만 건다 — 목표만 섞고 팔꿈치는 다 돌리면 무게가 0 에 가까워도
+  // 팔꿈치가 8~12cm 튄다(Codex 리뷰)
+  const goal = _wrist.clone();
   const axis = goal.clone().sub(S);
   const d = THREE.MathUtils.clamp(axis.length(), Math.abs(L1 - L2) + 1e-4, L1 + L2 - 1e-4);
   axis.normalize();
@@ -285,8 +287,8 @@ function reachChest(arm: Arm & { chestRef: THREE.Bone | null }, group: THREE.Obj
   const h = Math.sqrt(Math.max(0, L1 * L1 - along * along));
   _elbow.copy(S).addScaledVector(axis, along).addScaledVector(_pole, h);
   const wristGoal = S.clone().addScaledVector(axis, d);
-  aim(arm.upper, arm.lower, _elbow.clone().sub(S).normalize(), 1);
-  aim(arm.lower, arm.hand, wristGoal.sub(worldPos(arm.lower, _b)).normalize(), 1);
+  aim(arm.upper, arm.lower, _elbow.clone().sub(S).normalize(), w);
+  aim(arm.lower, arm.hand, wristGoal.sub(worldPos(arm.lower, _b)).normalize(), w);
 }
 
 /**
