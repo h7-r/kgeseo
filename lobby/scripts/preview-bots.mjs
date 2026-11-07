@@ -374,7 +374,7 @@ function findPath(fromX, fromZ, toK, avoid = []) {
 // ---------- 한 명 ----------
 const WALK_SPEED = 3.0;
 const TICK_MS = 125;
-const GREET_COUNT = 6;
+const GREET_COUNT = 3;
 const bots = [];
 
 /** 이 가상 인원 말고 방에 있는 모두의 자리 — 다른 가상 인원은 이 스크립트의 최신 값, 사람은 방 상태 */

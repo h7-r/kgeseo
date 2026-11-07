@@ -106,7 +106,8 @@ export class MoveGate {
   }
 }
 
-export const GREET_IDS = [1, 2, 3, 4, 5, 6] as const;
+/** 인사 번호 — 2026-11-07 미르: 키패드 1~3 만(손 내밀기·들썩들썩·줍는 시늉) */
+export const GREET_IDS = [1, 2, 3] as const;
 /** 🟡 시작값 */
 export const GREET_COOLDOWN_MS = 3000;
 
@@ -117,7 +118,7 @@ export class GreetGate {
   accept(raw: unknown, nowMs: number): number | null {
     if (typeof raw !== "object" || raw === null) return null;
     const id = (raw as Record<string, unknown>).id;
-    if (typeof id !== "number" || !Number.isInteger(id) || id < 1 || id > 6) return null;
+    if (typeof id !== "number" || !Number.isInteger(id) || id < 1 || id > GREET_IDS.length) return null;
     if (this.#lastAt !== null && nowMs - this.#lastAt < GREET_COOLDOWN_MS) return null;
     this.#lastAt = nowMs;
     return id;

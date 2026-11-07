@@ -110,8 +110,8 @@ describe("이동 속도·빈도", () => {
 
 describe("인사", () => {
   it("정수 1~6 만", () => {
-    for (const id of [0, 7, 1.5, "1", null]) assert.equal(new GreetGate().accept({ id }, 0), null);
-    assert.equal(new GreetGate().accept({ id: 6 }, 0), 6);
+    for (const id of [0, 4, 7, 1.5, "1", null]) assert.equal(new GreetGate().accept({ id }, 0), null);
+    assert.equal(new GreetGate().accept({ id: 3 }, 0), 3);
   });
   it("3초 쿨다운", () => {
     const gate = new GreetGate();

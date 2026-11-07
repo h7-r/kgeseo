@@ -107,6 +107,8 @@ export interface LobbyRoomLike {
 
 /** 서버 정상 종료(@colyseus/shared-types CloseCode.SERVER_SHUTDOWN) — 운영 중단으로 본다 */
 export const SERVER_SHUTDOWN_CODE = 4001;
+/** 인사 번호 개수(1~3) — 로비 서버 GREET_IDS 와 같아야 한다 */
+export const GREET_COUNT = 3;
 
 export interface LobbyConnectionOptions {
   /** 로비 서버 주소(VITE_LOBBY_URL). 비어 있으면 늘 혼자 진행 */
@@ -363,9 +365,9 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
       room.send("move", pose);
       return true;
     },
-    /** 인사 — 서버가 1~6 과 3초 쿨다운을 다시 검사한다 */
+    /** 인사 — 서버가 1~3 과 3초 쿨다운을 다시 검사한다 */
     sendGreet(id: number) {
-      if (!room || !Number.isInteger(id) || id < 1 || id > 6) return false;
+      if (!room || !Number.isInteger(id) || id < 1 || id > GREET_COUNT) return false;
       room.send("greet", { id });
       return true;
     },

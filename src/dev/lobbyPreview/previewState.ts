@@ -11,11 +11,11 @@ import { createLobbyConnection, type LobbyPose, type LobbyStatus } from "@/net/c
 import { meshConfigToLobbyLook } from "@/net/lobbyLook";
 
 import { playAction, playPunch, remoteLinks } from "./avatarLinks";
-import { EMOTES, HIT_REACTION, PUNCH_CLIPS } from "./emotes";
+import { EMOTES, HIT_LINE, HIT_LINE_MS, HIT_REACTION, PUNCH_CLIPS } from "./emotes";
 import { localPlayer } from "./localPlayer";
 import { playThud } from "./thud";
 
-/** 인사 문구(1~6) — 동작과 짝은 emotes.ts */
+/** 인사 문구(1~3) — 동작과 짝은 emotes.ts */
 export const GREETINGS = EMOTES.map((emote) => emote.text);
 export const BUBBLE_MS = 3000;
 export const GREET_COOLDOWN_MS = 3000;
@@ -106,6 +106,7 @@ connection.onPunch(({ sid, motion, hit }) => {
   // 남의 주먹은 지금 막 시작됐다 — 닿는 순간에 맞춘다. 내 주먹은 이미 닿았다
   later(sid === mine ? 0 : PUNCH_IMPACT_MS, () => {
     playAction(linkOf(hit), "hit", HIT_REACTION);
+    bubbles.set(hit, { text: HIT_LINE, until: Date.now() + HIT_LINE_MS });
     playThud(thudVolume(sid, hit));
   });
 });
