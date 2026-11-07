@@ -22,24 +22,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+# 상황 코드는 콘텐츠 팩(`situations[].code`)과 같은 목록 하나를 쓴다. 이 목록 밖의 코드는 422다.
+from app.schemas.npc_content import NpcSituationCode
+
 NpcTurnTrigger = Literal["player_message", "auto"]
 MAX_PLAYER_MESSAGE_LENGTH = 200
-
-# 계약 v0.4.16 §9-4 상황 코드 11개(§3 표를 대신함). 겹칠 때 FE가 보내는 차례(§9-5)대로 적는다.
-# 이 목록 밖의 코드는 422다. 코드를 늘리려면 계약을 먼저 고친다.
-NpcSituationCode = Literal[
-    "BREATH_LOW",
-    "SENT_BACK",
-    "ITEM_MISSING",
-    "ITEM_LEFT_BEHIND",
-    "ITEM_NOT_PICKED",
-    "REPEATED_MISTAKE",
-    "OFF_OBJECTIVE",
-    "NO_PROGRESS",
-    "STEP_ARRIVED",
-    "STEP_DONE",
-    "QUIET",
-]
 
 
 class NpcSituation(BaseModel):
