@@ -13,6 +13,7 @@ import { meshConfigToLobbyLook } from "@/net/lobbyLook";
 import { playAction, playPunch, remoteLinks } from "./avatarLinks";
 import { EMOTES, HIT_LINE, HIT_LINE_MS, HIT_REACTION, PUNCH_CLIPS } from "./emotes";
 import { localPlayer } from "./localPlayer";
+import { type HurtGender, playHurtVoice, preloadHurtVoices } from "./hurtVoice";
 import { playThud } from "./thud";
 
 /** 인사 문구(1~3) — 동작과 짝은 emotes.ts */
@@ -97,6 +98,23 @@ const noteEvent = (text: string) => {
 };
 connection.onGreet(({ sid, id }) => noteEvent(`greet ${sid}#${id}`));
 
+/** 맞은 사람의 성별 — 나는 내 아바타 설정, 남은 방 상태의 외형(틀린 외형이면 받는 쪽 기본값처럼 남성) */
+const genderOf = (sid: string): HurtGender => {
+  if (sid === mySid())
+    return readMeshAppearance(PLAYER_MESHY_APPEARANCE_KEY).gender === "feminine" ? "feminine" : "masculine";
+  try {
+    const look = JSON.parse(connection.players().get(sid)?.look ?? "") as { gender?: unknown };
+    return look.gender === "feminine" ? "feminine" : "masculine";
+  } catch {
+    return "masculine";
+  }
+};
+
+// 방에 붙으면 「윽」 음원을 미리 받아 둔다
+connection.subscribe((status) => {
+  if (status.kind === "connected") preloadHurtVoices();
+});
+
 connection.onPunch(({ sid, motion, hit }) => {
   noteEvent(`punch ${sid} ${motion}${hit ? ` hit ${hit}` : ""}`);
   const mine = mySid();
@@ -107,7 +125,9 @@ connection.onPunch(({ sid, motion, hit }) => {
   later(sid === mine ? 0 : PUNCH_IMPACT_MS, () => {
     playAction(linkOf(hit), "hit", HIT_REACTION);
     bubbles.set(hit, { text: HIT_LINE, until: Date.now() + HIT_LINE_MS });
-    playThud(thudVolume(sid, hit));
+    const volume = thudVolume(sid, hit);
+    playThud(volume);
+    playHurtVoice(genderOf(hit), volume);
   });
 });
 
