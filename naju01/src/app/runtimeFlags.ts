@@ -17,8 +17,12 @@ export const IS_VIGNETTE_DISABLED = QUERY.get("vig") === "off";
 export const IS_TONE_MAPPING_ENABLED = QUERY.get("tm") === "on";
 /** ?fb=half — 후처리 버퍼를 HalfFloat 로 쓴다. 이 버퍼에서 3D 가 까맣게 나오는 증상을 재현할 때 */
 export const USE_HALF_FLOAT_BUFFER = QUERY.get("fb") === "half";
-/** ?at=V1 · V2 · V3 — 실기기 측정용: 씬이 그려지면 그 관측 지점(plan/sitePlan VIEWPOINTS)으로 옮긴다 */
-export const TEST_START_AT = QUERY.get("at");
+/**
+ * ?at=V1 · V2 · V3 — 실기기 측정용: 씬이 그려지면 그 관측 지점(plan/sitePlan VIEWPOINTS)으로 옮긴다.
+ * 개발 빌드(npm run dev)에서만 듣는다. 운영 빌드는 ?dev 를 붙여도 무시한다 — 주소는 누구나 고칠 수 있어,
+ * 열어 두면 박람회 랭킹 · 타임어택에서 스테이지 문을 건너뛸 수 있다(11/8 미르 · 해랑 검토).
+ */
+export const TEST_START_AT = import.meta.env.DEV ? QUERY.get("at") : null;
 /** ?stage=16x9 — 본편과 같은 레터박스(시야 검증용). 기본은 창을 꽉 채운다 */
 export const IS_STAGE_16X9 = QUERY.get("stage") === "16x9";
 /** ?from=hub — 허브의 진입 연출을 타고 왔다. 검은 화면에서 첫 프레임에 밝아진다. 주소를 직접 치거나 새로고침하면 페이드가 없다 */

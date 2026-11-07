@@ -16,7 +16,16 @@
  */
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode } from "react";
 import { pauseGame, useGamePauseState } from "./gamePause";
-import { addCancelListener, addTouchLook, cancelKey, pressKey, releaseKey, setTouchMove } from "./touchInput";
+import {
+  DEAD_ZONE,
+  addCancelListener,
+  addTouchLook,
+  cancelKey,
+  pressKey,
+  releaseKey,
+  setTouchMove,
+} from "./touchInput";
+import { TOUCH_HUD } from "./touchHudLayout";
 import { useTouchMode } from "./touchMode";
 import { addPointerActiveListener, isVirtuallyLocked } from "./virtualLock";
 
@@ -59,7 +68,7 @@ if (typeof window !== "undefined") {
 /** 스틱 반지름(px) — 이만큼 밀면 최대 */
 const STICK_RADIUS = 56;
 /** 왼쪽 이 비율까지가 스틱 자리 */
-const STICK_AREA = 0.4;
+const STICK_AREA = TOUCH_HUD.stickArea;
 /** 화면 가장자리 이 폭은 시스템 제스처 몫 */
 const EDGE = 20;
 
@@ -82,7 +91,25 @@ interface Finger {
   originY: number;
   lastX: number;
   lastY: number;
+  /** 시점 — 조금 움직여야 돌기 시작한다(LOOK_SLOP). 그 전엔 화면을 누른 것뿐이다 */
+  isLooking?: boolean;
+  lastTime?: number;
 }
+
+/**
+ * 시점 끌기 손맛(11/8 해랑 검토 「손에 잘 안 붙는다 · 오래 하면 피곤」 — 감도 · 관성 · 데드존). 수치는 시험값.
+ *  · LOOK_SLOP: 손가락이 이만큼(px) 움직여야 돌기 시작 — 누르기만 해도 화면이 흔들리던 것
+ *  · 빠르게 끌수록 더 돈다(속도 px/ms 가 LOOK_SLOW → LOOK_FAST 사이에서 배율 LOOK_GAIN_MIN → LOOK_GAIN_MAX).
+ *    천천히 맞출 때는 정확하게, 크게 돌 때는 손을 덜 움직이게(모바일 FPS 의 가속 곡선)
+ *  · 관성(부드럽게 하기) · 세로 감도는 engine/input/TouchLook
+ */
+const LOOK_SLOP = 6;
+const LOOK_SLOW = 0.25;
+const LOOK_FAST = 1.6;
+const LOOK_GAIN_MIN = 0.85;
+const LOOK_GAIN_MAX = 1.5;
+/** 손가락이 스틱 원 밖으로 이만큼 넘어가면 원이 따라온다 — 방향을 바꿀 때 가운데로 돌아오지 않아도 된다 */
+const STICK_FOLLOW = 1.0;
 
 export function TouchHud({ extraTopButtons = [], hideActions = false }: TouchHudProps) {
   const isTouch = useTouchMode();
@@ -96,37 +123,38 @@ export function TouchHud({ extraTopButtons = [], hideActions = false }: TouchHud
       <MoveLookSurface />
       <div style={topRightStyle} data-hud="위 단추 줄">
         {extraTopButtons.map((button) => (
-          <KeyButton key={button.code} code={button.code} ariaLabel={button.ariaLabel} size={48}>
+          <KeyButton key={button.code} code={button.code} ariaLabel={button.ariaLabel} size={TOUCH_HUD.topButton}>
             {button.label}
           </KeyButton>
         ))}
-        <KeyButton code="KeyI" ariaLabel="소지품" size={48}>
+        <KeyButton code="KeyI" ariaLabel="소지품" size={TOUCH_HUD.topButton}>
           🎒
         </KeyButton>
-        <KeyButton code="KeyH" ariaLabel="힌트" size={48}>
+        <KeyButton code="KeyH" ariaLabel="힌트" size={TOUCH_HUD.topButton}>
           💡
         </KeyButton>
-        <KeyButton code="KeyP" ariaLabel="설정" size={48}>
+        <KeyButton code="KeyP" ariaLabel="설정" size={TOUCH_HUD.topButton}>
           ⚙
         </KeyButton>
         {/* 왼쪽 위는 힌트 표시 자리라 멈춤은 오른쪽 끝. 손을 뗄 때 멈춘다 — 누르는 순간 멈추면
             그 손가락의 클릭이 곧 뜬 「눌러서 계속」을 눌러 바로 풀린다 */}
-        <PadButton ariaLabel="멈춤" size={48} onPress={() => {}} onRelease={pauseGame}>
+        <PadButton ariaLabel="멈춤" size={TOUCH_HUD.topButton} onPress={() => {}} onRelease={pauseGame}>
           Ⅱ
         </PadButton>
       </div>
       {!hideActions && (
         <div style={actionClusterStyle} data-hud="동작 단추">
-          <KeyButton code="KeyC" ariaLabel="앉기" size={56} style={{ position: "absolute", right: 106, bottom: 80 }}>
+          {/* 엄지가 ✋ 에 얹힌 채 왼쪽 위로 뻗어 닿는 자리(점프 → 앉기). 예전(84 · 60 · 56)보다 한 단계 작게, 모서리 쪽으로 */}
+          <KeyButton code="KeyC" ariaLabel="앉기" size={50} style={{ position: "absolute", right: 94, bottom: 70 }}>
             앉기
           </KeyButton>
-          <KeyButton code="Space" ariaLabel="점프" size={60} style={{ position: "absolute", right: 104, bottom: 8 }}>
+          <KeyButton code="Space" ariaLabel="점프" size={54} style={{ position: "absolute", right: 92, bottom: 4 }}>
             점프
           </KeyButton>
           <KeyButton
             code="KeyE"
             ariaLabel="쓰기"
-            size={84}
+            size={76}
             style={{ position: "absolute", right: 0, bottom: 0 }}
             strong
           >
@@ -180,7 +208,14 @@ function MoveLookSurface() {
     const width = window.innerWidth;
     const height = window.innerHeight;
     if (x < EDGE || x > width - EDGE || y > height - EDGE) return;
-    const finger: Finger = { id: event.pointerId, originX: x, originY: y, lastX: x, lastY: y };
+    const finger: Finger = {
+      id: event.pointerId,
+      originX: x,
+      originY: y,
+      lastX: x,
+      lastY: y,
+      lastTime: event.timeStamp,
+    };
     if (x < width * STICK_AREA) {
       if (stick.current) return;
       stick.current = finger;
@@ -198,22 +233,47 @@ function MoveLookSurface() {
       let dx = event.clientX - s.originX;
       let dy = event.clientY - s.originY;
       const length = Math.hypot(dx, dy);
-      if (length > STICK_RADIUS) {
-        dx *= STICK_RADIUS / length;
-        dy *= STICK_RADIUS / length;
+      // 원 밖으로 넘어가면 원을 손가락 쪽으로 끌고 온다(떠 있는 스틱) — 반대로 돌 때 엄지가 덜 움직인다
+      if (length > STICK_RADIUS * STICK_FOLLOW) {
+        const pull = (length - STICK_RADIUS * STICK_FOLLOW) / length;
+        s.originX += dx * pull;
+        s.originY += dy * pull;
+        dx = event.clientX - s.originX;
+        dy = event.clientY - s.originY;
       }
-      // 가운데 10% 는 무감 — 엄지를 얹기만 해도 미끄러지지 않게
-      const strength = Math.min(1, length / STICK_RADIUS);
-      if (strength < 0.1) setTouchMove(0, 0);
+      const reach = Math.hypot(dx, dy);
+      if (reach > STICK_RADIUS) {
+        dx *= STICK_RADIUS / reach;
+        dy *= STICK_RADIUS / reach;
+      }
+      // 가운데는 무감(touchInput 의 DEAD_ZONE) — 엄지를 얹기만 해도 미끄러지지 않게
+      const strength = Math.min(1, reach / STICK_RADIUS);
+      if (strength < DEAD_ZONE) setTouchMove(0, 0);
       else setTouchMove(dx / STICK_RADIUS, -dy / STICK_RADIUS);
       showStick(s.originX, s.originY, dx, dy, true);
       return;
     }
     const l = look.current;
     if (l && l.id === event.pointerId) {
-      addTouchLook(event.clientX - l.lastX, event.clientY - l.lastY);
+      if (!l.isLooking) {
+        if (Math.hypot(event.clientX - l.originX, event.clientY - l.originY) < LOOK_SLOP) return;
+        // 문턱을 넘은 자리부터 돈다 — 문턱만큼 한꺼번에 튀지 않게
+        l.isLooking = true;
+        l.lastX = event.clientX;
+        l.lastY = event.clientY;
+        l.lastTime = event.timeStamp;
+        return;
+      }
+      const dx = event.clientX - l.lastX;
+      const dy = event.clientY - l.lastY;
+      const dt = Math.max(1, event.timeStamp - (l.lastTime ?? event.timeStamp - 16));
+      const speed = Math.hypot(dx, dy) / dt;
+      const t = Math.min(1, Math.max(0, (speed - LOOK_SLOW) / (LOOK_FAST - LOOK_SLOW)));
+      const gain = LOOK_GAIN_MIN + (LOOK_GAIN_MAX - LOOK_GAIN_MIN) * t;
+      addTouchLook(dx * gain, dy * gain);
       l.lastX = event.clientX;
       l.lastY = event.clientY;
+      l.lastTime = event.timeStamp;
     }
   };
 
@@ -295,7 +355,7 @@ function PadButton({ ariaLabel, size, style, strong, children, onPress, onReleas
         width: size,
         height: size,
         // 글자 단추(앉기 · 점프 · 시점)는 작게, 그림 단추는 크게
-        fontSize: typeof children === "string" && children.length > 1 ? 15 : size >= 80 ? 32 : 20,
+        fontSize: typeof children === "string" && children.length > 1 ? 14 : size >= 70 ? 30 : 19,
         background: isPressed ? "rgba(242,238,228,0.42)" : strong ? "rgba(242,238,228,0.22)" : "rgba(20,22,28,0.45)",
         ...style,
       }}
@@ -395,16 +455,16 @@ const padButtonStyle: CSSProperties = {
 
 const topRightStyle: CSSProperties = {
   position: "absolute",
-  right: "calc(env(safe-area-inset-right) + 12px)",
-  top: "calc(env(safe-area-inset-top) + 12px)",
+  right: `calc(env(safe-area-inset-right) + ${TOUCH_HUD.edge}px)`,
+  top: `calc(env(safe-area-inset-top) + ${TOUCH_HUD.edge}px)`,
   display: "flex",
-  gap: 8,
+  gap: TOUCH_HUD.topGap,
 };
 
 const actionClusterStyle: CSSProperties = {
   position: "absolute",
-  right: "calc(env(safe-area-inset-right) + 24px)",
-  bottom: "calc(env(safe-area-inset-bottom) + 20px)",
-  width: 170,
-  height: 140,
+  right: `calc(env(safe-area-inset-right) + ${TOUCH_HUD.actionRight}px)`,
+  bottom: `calc(env(safe-area-inset-bottom) + ${TOUCH_HUD.actionBottom}px)`,
+  width: TOUCH_HUD.actionWidth,
+  height: 124,
 };

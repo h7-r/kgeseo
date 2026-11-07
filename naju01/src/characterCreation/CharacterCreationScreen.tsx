@@ -122,9 +122,11 @@ export default function CharacterCreationScreen({
 
   // 노치 · 홈 막대 — 휴대폰 가로 배치는 이 안쪽에만 단추를 놓는다
   const safeInsets = useSafeInsets();
+  // 휴대폰 배치 · 큰 조작은 손가락 기기에서만 — PC 는 창 높이가 낮아도 PC 배치 그대로(11/8 해랑 검토)
+  const isCoarsePointer = useCoarsePointer();
   const layout = useMemo(
-    () => measureScreenLayout(screenSize.width, screenSize.height, safeInsets),
-    [screenSize, safeInsets],
+    () => measureScreenLayout(screenSize.width, screenSize.height, safeInsets, isCoarsePointer),
+    [screenSize, safeInsets, isCoarsePointer],
   );
   const rendererConfig = useMemo(
     () => toRendererConfig(appearance, activeCatalog, { showUnderwear, motion: pose }),
@@ -207,9 +209,8 @@ export default function CharacterCreationScreen({
       })()
     : baseSettings;
   const isSettingsWide = settings.w > 560;
-  // 손가락 기기면(태블릿 포함) 배치와 상관없이 조작 크기를 44px 이상으로
-  const isCoarsePointer = useCoarsePointer();
-  const isTouchSized = isCompact || isCoarsePointer;
+  // 손가락 기기면(태블릿 포함) 배치와 상관없이 조작 크기를 44px 이상으로. 휴대폰 배치(isCompact)는 손가락 기기에서만 나온다
+  const isTouchSized = isCoarsePointer;
   const rootClassName = ["character-creator", isCompact && "is-compact", isTouchSized && "is-touch-sized"]
     .filter(Boolean)
     .join(" ");

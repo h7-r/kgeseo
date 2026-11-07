@@ -1,6 +1,7 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 
 import { isGameFrozen } from "@/engine/input/gamePause";
+import { TOUCH_HUD } from "@/engine/input/touchHudLayout";
 import { useTouchMode } from "@/engine/input/touchMode";
 import { isPointerActive } from "@/engine/input/virtualLock";
 
@@ -145,9 +146,9 @@ const wrapStyle: CSSProperties = {
 };
 
 // 휴대폰 — 380×150 고정이면 퍼즐 안내판(왼쪽 위) · 빠른 소지품(아래 가운데) · 동작 단추(오른쪽 아래)와 겹쳤다.
-// 왼쪽 안내판(최대 300px · 40vw)과 오른쪽 동작 단추(약 194px) 사이 빈칸 가운데, 세로 가운데에 그 폭만큼 줄여 둔다(14회차)
+// 왼쪽 안내판(최대 300px · 40vw)과 오른쪽 동작 단추(engine/input/TouchHud 의 TOUCH_HUD) 사이 빈칸 가운데, 세로 가운데에 그 폭만큼 줄여 둔다(14회차)
 const GAUGE_LEFT = "calc(env(safe-area-inset-left, 0px) + 20px + min(300px, 40vw))";
-const GAUGE_RIGHT = "calc(100vw - env(safe-area-inset-right, 0px) - 202px)";
+const GAUGE_RIGHT = `calc(100vw - env(safe-area-inset-right, 0px) - ${TOUCH_HUD.actionRight + TOUCH_HUD.actionWidth + 8}px)`;
 const touchWrapStyle: CSSProperties = {
   left: `calc((${GAUGE_LEFT} + ${GAUGE_RIGHT}) / 2)`,
   bottom: "auto",

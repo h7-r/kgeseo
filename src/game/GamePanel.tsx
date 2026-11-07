@@ -19,13 +19,14 @@ interface GamePanelProps {
 
 /**
  * 소지품·힌트함이 함께 쓰는 틀. 왼쪽에 붙어 열려 게임 화면을 가리지 않는다.
- * 휴대폰(터치)은 높이가 393 안팎이라 목록 | 상세를 좌우로 나누고, 위쪽 끝까지 쓴다(오른쪽 위 단추 줄은 비켜 둔다).
- * 닫기 44px, 키보드 안내 줄은 뺀다(14회차).
+ * 휴대폰(터치)은 높이가 393 안팎이라 목록 | 상세를 좌우로 나눈다. 닫기 44px, 키보드 안내 줄은 뺀다(14회차).
+ * 휴대폰 창은 화면(안전 영역) 가운데에, 내용만큼만 높게 — 예전엔 왼쪽 위에서 화면 높이를 다 채워 게임이 안 보였다(11/8 해랑 검토).
+ * 창이 열리면 터치 단추 줄은 숨으므로 비켜 둘 것이 없다.
  */
 export default function GamePanel({ title, meta, closeKey, onClose, children }: GamePanelProps) {
   const isTouch = useTouchMode();
   return (
-    <div className="game-panel-backdrop" style={backdropStyle} onClick={onClose}>
+    <div className="game-panel-backdrop" style={isTouch ? touchBackdropStyle : backdropStyle} onClick={onClose}>
       <div
         className={isTouch ? "game-panel is-touch" : "game-panel"}
         style={isTouch ? { ...panelStyle, ...touchPanelStyle } : panelStyle}
@@ -33,8 +34,8 @@ export default function GamePanel({ title, meta, closeKey, onClose, children }: 
         aria-label={title}
         onClick={(event) => event.stopPropagation()}
       >
-        <header style={isTouch ? { ...headerStyle, paddingBottom: 8 } : headerStyle}>
-          <h2 style={isTouch ? { ...titleStyle, fontSize: 20 } : titleStyle}>{title}</h2>
+        <header style={isTouch ? { ...headerStyle, gap: 10, paddingBottom: 6 } : headerStyle}>
+          <h2 style={isTouch ? { ...titleStyle, fontSize: 17, lineHeight: 1.3 } : titleStyle}>{title}</h2>
           <span style={metaStyle}>{meta}</span>
           <button
             type="button"
@@ -61,15 +62,29 @@ export default function GamePanel({ title, meta, closeKey, onClose, children }: 
   );
 }
 
-// 휴대폰 — 안전 영역 안 왼쪽 위부터, 오른쪽 위 HUD 단추 줄(약 230px)은 비켜 둔다
-const touchPanelStyle: CSSProperties = {
-  left: "calc(env(safe-area-inset-left, 0px) + 12px)",
-  top: "calc(env(safe-area-inset-top, 0px) + 8px)",
-  width: "min(680px, calc(100% - 252px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)))",
-  maxHeight: "calc(100% - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
-  height: "calc(100% - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
-  padding: "10px 12px 12px 16px",
+// 휴대폰 — 바탕이 창을 안전 영역 가운데에 놓는다(transform 은 등장 애니메이션이 쓰므로 flex 로)
+const touchBackdropStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 50,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  boxSizing: "border-box",
+  padding:
+    "calc(env(safe-area-inset-top, 0px) + 16px) calc(env(safe-area-inset-right, 0px) + 32px) calc(env(safe-area-inset-bottom, 0px) + 16px) calc(env(safe-area-inset-left, 0px) + 32px)",
 };
+// 폭 최대 600 · 높이는 내용만큼(최대 화면 안). 본문 14px · 줄 간격 1.55 로 고르게
+const touchPanelStyle: CSSProperties = {
+  position: "relative",
+  left: "auto",
+  top: "auto",
+  width: "min(600px, 100%)",
+  maxHeight: "100%",
+  padding: "8px 10px 12px 16px",
+  "--panel-from": "0px",
+  font: `400 14px/1.55 ${UI_FONT.body}`,
+} as CSSProperties;
 
 // 바깥을 누르면 닫히게 화면 전체를 받되, 어둡게 덮지 않는다.
 const backdropStyle: CSSProperties = { position: "absolute", inset: 0, zIndex: 50 };

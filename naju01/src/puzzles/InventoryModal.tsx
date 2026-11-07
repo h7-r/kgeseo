@@ -59,7 +59,7 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
   }, [takeOut, selectedIndex]);
 
   return (
-    <div style={backdropStyle} onClick={onClose}>
+    <div style={isTouch ? touchBackdropStyle : backdropStyle} onClick={onClose}>
       <div
         role="dialog"
         aria-label="소지품"
@@ -74,12 +74,12 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
                   alignItems: "center",
                   justifyContent: "flex-start",
                   gap: 12,
-                  padding: "6px 6px 6px 20px",
+                  padding: "4px 6px 4px 16px",
                 }
               : headerStyle
           }
         >
-          <span style={titleStyle}>소지품</span>
+          <span style={isTouch ? { ...titleStyle, fontSize: 16, letterSpacing: 0 } : titleStyle}>소지품</span>
           <span style={isTouch ? { ...countStyle, fontSize: 13 } : countStyle}>
             {items.length} / {SLOT_COUNT}
           </span>
@@ -92,11 +92,11 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
         <div
           style={
             isTouch
-              ? { ...bodyStyle, padding: 16, gap: 16, overflowY: "auto", minHeight: 0, flexWrap: "nowrap" }
+              ? { ...bodyStyle, padding: "12px 16px", gap: 16, overflowY: "auto", minHeight: 0, flexWrap: "nowrap" }
               : bodyStyle
           }
         >
-          <div style={gridStyle}>
+          <div style={isTouch ? touchGridStyle : gridStyle}>
             {Array.from({ length: SLOT_COUNT }, (_, index) => {
               const item = items[index];
               const isSelected = index === selectedIndex;
@@ -119,14 +119,24 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
               );
             })}
           </div>
-          <section style={detailStyle}>
+          <section style={isTouch ? { ...detailStyle, minHeight: 0 } : detailStyle}>
             {selected ? (
               <>
-                <div style={showcaseStyle}>
-                  <span style={showcaseIconStyle}>{ITEM_ICONS[selected.kind]}</span>
+                <div style={isTouch ? { ...showcaseStyle, height: 64, marginBottom: 8 } : showcaseStyle}>
+                  <span style={isTouch ? { ...showcaseIconStyle, transform: "scale(1.5)" } : showcaseIconStyle}>
+                    {ITEM_ICONS[selected.kind]}
+                  </span>
                 </div>
                 <b style={nameStyle}>{ITEMS[selected.kind].name}</b>
-                <p style={descriptionStyle}>{ITEMS[selected.kind].description}</p>
+                <p
+                  style={
+                    isTouch
+                      ? { ...descriptionStyle, margin: "4px 0 10px", fontSize: 14, lineHeight: 1.5 }
+                      : descriptionStyle
+                  }
+                >
+                  {ITEMS[selected.kind].description}
+                </p>
                 <button
                   type="button"
                   style={isTouch ? { ...actionStyle, minHeight: 44, padding: "0 20px", fontSize: 15 } : actionStyle}
@@ -140,7 +150,7 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
             )}
           </section>
         </div>
-        <footer style={isTouch ? { ...footerStyle, fontSize: 13, padding: "10px 20px" } : footerStyle}>
+        <footer style={isTouch ? { ...footerStyle, fontSize: 13, padding: "8px 16px" } : footerStyle}>
           {hand ? <span>손에 든 것 · {ITEMS[hand.kind].name}</span> : <span>빈손</span>}
           {isTouch ? (
             <span>칸을 누르고 「손에 들기」</span>
@@ -262,12 +272,30 @@ const descriptionStyle: CSSProperties = {
   flex: 1,
 };
 
-// 휴대폰 — 화면 높이 안(안전 영역 포함)에서 머리 · 몸(스크롤) · 발치
+// 휴대폰 — 화면(안전 영역) 가운데, 폭 최대 540 · 높이는 내용만큼(머리 · 몸(스크롤) · 발치). 예전엔 화면 높이의 95% 를 덮었다(11/8 해랑 검토).
+// 바탕은 옅게 — 뒤의 게임 화면이 보이게
+const touchBackdropStyle: CSSProperties = {
+  ...backdropStyle,
+  boxSizing: "border-box",
+  padding:
+    "calc(env(safe-area-inset-top, 0px) + 16px) calc(env(safe-area-inset-right, 0px) + 32px) calc(env(safe-area-inset-bottom, 0px) + 16px) calc(env(safe-area-inset-left, 0px) + 32px)",
+  background: "rgba(8,10,14,.38)",
+  backdropFilter: "none",
+};
 const touchPanelStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  maxHeight: "calc(100% - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
-  width: "min(620px, calc(100% - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)))",
+  maxHeight: "100%",
+  width: "min(540px, 100%)",
+  borderRadius: 14,
+};
+/** 휴대폰 — 칸 52px 넷씩(예전엔 1fr 로 늘어 70px 남짓) */
+const touchGridStyle: CSSProperties = {
+  flex: "0 0 auto",
+  display: "grid",
+  gridTemplateColumns: `repeat(${COLUMNS}, 52px)`,
+  gap: 8,
+  alignContent: "start",
 };
 const touchCloseStyle: CSSProperties = {
   marginLeft: "auto",

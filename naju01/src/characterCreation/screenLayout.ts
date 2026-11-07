@@ -12,12 +12,19 @@ export type ScreenLayout = ReturnType<typeof measureScreenLayout>;
 
 // 패널과 그 안 무대 칸의 자리. 카메라가 피할 안전영역은 무대 칸 바깥 전부 — 캐릭터가 늘 무대 칸 한가운데 선다.
 // 수치는 4/8/16/24/32/48 배수(패널 안쪽 여백 32 · 머리 104 · 발치 84).
-export function measureScreenLayout(width: number, height: number, insets: SafeInsets = ZERO_INSETS) {
-  // 짧은 가로 화면(휴대폰 가로, 높이 360~430) — 세로 탭 | 미리보기 | 설정 세 칸(아래 measureCompactLayout)
-  const isCompact = height < 520 && width >= height;
+export function measureScreenLayout(
+  width: number,
+  height: number,
+  insets: SafeInsets = ZERO_INSETS,
+  isTouchDevice = false,
+) {
+  // 손가락 기기의 짧은 가로 화면(휴대폰 가로, 높이 360~430) — 세로 탭 | 미리보기 | 설정 세 칸(아래 measureCompactLayout).
+  // PC 는 창 높이가 낮아도 이 배치로 바꾸지 않는다(11/8 해랑 검토 — 화면 크기가 아니라 기기로 고른다)
+  const isCompact = isTouchDevice && height < 520 && width >= height;
   if (isCompact) return measureCompactLayout(width, height, insets);
-  // 가로로 넓은 태블릿(1024×768 등)은 위아래로 쌓으면 설정 칸이 109px 로 줄었다 — 폭 900 이상 가로면 두 칸(코덱스 14c)
-  const isNarrow = (width < 1100 || height < 640) && !(width >= height && width >= 900);
+  // 가로로 넓은 태블릿(1024×768 등)은 위아래로 쌓으면 설정 칸이 109px 로 줄었다 — 손가락 기기 · 폭 900 이상 가로면 두 칸(코덱스 14c).
+  // PC 는 예전 그대로(폭 1100 · 높이 640 미만이면 위아래로)
+  const isNarrow = (width < 1100 || height < 640) && !(isTouchDevice && width >= height && width >= 900);
   const margin = isCompact ? 4 : isNarrow ? 8 : Math.max(24, Math.round(Math.min(width * 0.035, height * 0.04)));
   const panelWidth = Math.min(1560, width - margin * 2);
   const panelHeight = Math.min(960, height - margin * 2);

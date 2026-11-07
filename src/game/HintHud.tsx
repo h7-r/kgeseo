@@ -4,6 +4,7 @@
  * 아래 왼쪽은 성능 계기판, 오른쪽은 Leva, 가운데는 조준점이 쓴다.
  */
 import { useKeyLabels } from "@/engine/input";
+import { useOpenLayer } from "./overlayLayer";
 import type { CSSProperties } from "react";
 
 import { NoteIcon } from "./gameIcons";
@@ -24,6 +25,9 @@ export default function HintHud({ isPanelOpen = false }: HintHudProps) {
   // [H] 는 반짝임과 창 열기를 같이 한다. 창이 뜨는 순간 감추면 정작 반짝이는 걸 못 봐서 창(50) 위로 띄운다.
   const latest = hints[hints.length - 1];
   const isEmpty = hints.length === 0;
+  // 휴대폰 — 창이 뜨면 이 표시가 창 제목 · 모서리를 덮었다(11/8 해랑 검토). 창이 떠 있는 동안 감춘다(힌트는 창 안의 목록이 보인다)
+  const openLayer = useOpenLayer();
+  const isBehindWindow = labels.isTouch && openLayer !== null;
 
   return (
     <>
@@ -34,6 +38,7 @@ export default function HintHud({ isPanelOpen = false }: HintHudProps) {
         style={{
           ...frameStyle,
           opacity: isPanelOpen ? 1 : isEmpty ? 0.72 : 0.92,
+          ...(isBehindWindow ? { opacity: 0, visibility: "hidden" } : null),
           animation: flashKey ? "hint-flash 900ms ease-out 1" : undefined,
         }}
       >

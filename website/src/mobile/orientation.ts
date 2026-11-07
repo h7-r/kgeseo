@@ -30,3 +30,21 @@ function subscribe(onChange: () => void) {
 export function useIsPortrait(): boolean {
   return useSyncExternalStore(subscribe, readIsPortrait, () => false);
 }
+
+const COARSE_QUERY = "(pointer: coarse)";
+
+function readIsTouchDevice(): boolean {
+  return typeof window !== "undefined" && window.matchMedia(COARSE_QUERY).matches;
+}
+
+function subscribeTouchDevice(onChange: () => void) {
+  if (typeof window === "undefined") return () => {};
+  const media = window.matchMedia(COARSE_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
+}
+
+/** 주 입력이 손가락인 기기(휴대폰 · 태블릿)인가 — 「가로로 돌리면 시작」은 돌릴 수 있는 이 기기에서만 막는다 */
+export function useIsTouchDevice(): boolean {
+  return useSyncExternalStore(subscribeTouchDevice, readIsTouchDevice, () => false);
+}

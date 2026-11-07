@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import type { PointerLockControls } from "three-stdlib";
 
-import { addPointerActiveListener, isPointerActive } from "@/engine/input";
+import { addPointerActiveListener, isPointerActive, isTouchMode } from "@/engine/input";
 import { overlayLayer, useOpenLayer, type OverlayLayerName } from "@/game/overlayLayer";
 import { endLockControl, leaveLockControl, turnLockDigit, useLockControl } from "@/props/combinationLockState";
 
@@ -18,20 +18,49 @@ const LOCK_LEAVE_TIMEOUT_MS = 1500;
 export function useOverlayWindows(controlsRef: PointerLockRef) {
   const openLayer = useOpenLayer();
   const wasPointerLocked = useRef(false);
+  /** PC — 창을 닫으며 다시 잠그려 했는데 브라우저가 거절했을 수 있다. 다음 클릭 한 번이 잠근다(아래 effect) */
+  const isRelockPending = useRef(false);
 
   const openWindow = useCallback(
     (layer: OverlayLayerName) => {
       // 터치 모드의 가상 잠금도 「조작 중」으로 친다 — 닫을 때 같은 조작으로 돌아간다
       wasPointerLocked.current = isPointerActive();
+      isRelockPending.current = false;
       overlayLayer.open(layer);
       controlsRef.current?.unlock();
     },
     [controlsRef],
   );
 
+  // 닫는 클릭 · I · P · H 키 안에서 바로 다시 잠근다(브라우저가 사용자 동작 안의 요청만 받는다).
+  // Esc 로 닫으면 브라우저는 다시 잠그지 않는다 — 그때는 화면을 한 번 누르면 잠긴다(11/8 해랑 검토 · 첫 물건 자동 열림)
   const closeWindow = useCallback(() => {
     overlayLayer.close();
-    if (wasPointerLocked.current) controlsRef.current?.lock();
+    if (!wasPointerLocked.current) return;
+    controlsRef.current?.lock();
+    if (!isTouchMode()) isRelockPending.current = true;
+  }, [controlsRef]);
+
+  // PC 다시 잠그기 안전망 — 잠금이 잡히면 끝. 아니면 게임 화면(3D 캔버스)을 처음 누르는 클릭이 잠근다
+  useEffect(() => {
+    const handleLockChange = () => {
+      if (document.pointerLockElement) isRelockPending.current = false;
+    };
+    const handleMouseDown = (event: MouseEvent) => {
+      if (!isRelockPending.current || event.button !== 0 || isTouchMode() || document.pointerLockElement) return;
+      if (overlayLayer.get() !== null) return;
+      // 게임 화면(3D 캔버스)을 누른 클릭만 — 긴급 호출 카드(alertdialog) · 창 · 단추 · 입력칸 클릭은 건드리지 않는다(코덱스 18회차)
+      const target = event.target as Element | null;
+      if (!(target instanceof HTMLCanvasElement)) return;
+      isRelockPending.current = false;
+      controlsRef.current?.lock();
+    };
+    document.addEventListener("pointerlockchange", handleLockChange);
+    window.addEventListener("mousedown", handleMouseDown, true);
+    return () => {
+      document.removeEventListener("pointerlockchange", handleLockChange);
+      window.removeEventListener("mousedown", handleMouseDown, true);
+    };
   }, [controlsRef]);
 
   // 다른 길(개발 훅 · 시험 도구 등)로 창이 열려도 조작 잠금을 풀어 둔다 — 터치 단추가 창 위에 남지 않게(14회차).

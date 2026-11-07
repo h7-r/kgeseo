@@ -31,6 +31,7 @@ export { MobileGate } from "./MobileGate";
 export { PauseClockGuard } from "./PauseClockGuard";
 export { getTouchMove, onInputCancel, tapKey } from "./touchInput";
 export { TouchHud, type TouchButton } from "./TouchHud";
+export { TOUCH_HUD, topRowWidth } from "./touchHudLayout";
 export { TouchLook } from "./TouchLook";
 export { isTouchMode, useTouchMode } from "./touchMode";
 export { addPointerActiveListener, isPointerActive } from "./virtualLock";
