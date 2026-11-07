@@ -78,7 +78,12 @@ export default function LobbyPreviewHud() {
   const [firstPersonBubble, setFirstPersonBubble] = useState<string | null>(null);
   useEffect(() => {
     const timer = setInterval(() => {
-      setRoomSize(connection.players().size);
+      // 서버가 둔 팀 캐릭터(NPC)는 사람 수에서 뺀다
+      let people = 0;
+      connection.players().forEach((player) => {
+        if (!player.npc) people += 1;
+      });
+      setRoomSize(people);
       const current = connection.status();
       const said = current.kind === "connected" ? bubbles.get(current.sessionId) : undefined;
       const text = said && said.until > Date.now() && !playerView.isThirdPerson ? said.text : null;

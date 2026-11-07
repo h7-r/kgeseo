@@ -38,6 +38,8 @@ export interface CreateLobbyServerOptions {
   /** 이 프로세스가 시작한 Unix 초(정수). 시험에서 바꾼다 */
   processStartSec?: number;
   now?: () => number;
+  /** 방마다 팀 캐릭터 다섯 명을 둔다(기본 켬, 검토 22회차). 방 인원을 세는 시험은 끈다 */
+  teamNpcs?: boolean;
 }
 
 export function createLobbyServer(config: LobbyConfig, options: CreateLobbyServerOptions): LobbyServer {
@@ -84,6 +86,7 @@ export function createLobbyServer(config: LobbyConfig, options: CreateLobbyServe
     roomCap,
     log,
     now,
+    teamNpcs: options.teamNpcs ?? true,
     failAfterAcquire: hooks
       ? () => {
           const fail = hooks.failNextRoomInit;

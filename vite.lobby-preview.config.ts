@@ -5,9 +5,13 @@
 //   `./playerState`      → src/dev/lobbyPreview/playerStateWithLobby.ts (내 플레이어 상자를 미리보기에 등록 — 인사·맞기 동작)
 // 그리고 src/station/layout/usePlayer.ts 가 가져오는 `./collision` 하나를 collisionWithPeople.ts 로(내 걷기에만 사람 충돌).
 // 포트는 평소와 같은 5173 이다 — 백엔드·로비가 허용한 출처(http://localhost:5173)라야 로그인·입장권·매칭이 된다.
+// 팀 캐릭터 꾸미기 창(http://localhost:5173/team-npc.html)의 저장 창구 GET · POST /__dev/team-npcs 도 여기만 연다(검토 22회차).
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mergeConfig, type Plugin } from "vite";
 
+import { isTeamSlotKey, parseTeamEntry, parseTeamFile, type TeamFile } from "./lobby/src/npc/teamRoster";
 import baseConfig from "./vite.config";
 
 const APP_FILE = fileURLToPath(new URL("./src/app/App.tsx", import.meta.url));
@@ -32,7 +36,92 @@ function lobbyPreviewCanvasPlugin(): Plugin {
   };
 }
 
+/** 저장 파일 — 로비 서버가 읽는 곳과 같아야 한다(둘 다 TEAM_NPC_FILE 로 옮길 수 있다) */
+const TEAM_FILE = process.env.TEAM_NPC_FILE ?? fileURLToPath(new URL("./lobby/data/team-npcs.json", import.meta.url));
+const TEAM_ROUTE = "/__dev/team-npcs";
+const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+const MAX_BODY_BYTES = 64 * 1024;
+
+function readTeamFile(): TeamFile {
+  try {
+    return parseTeamFile(JSON.parse(readFileSync(TEAM_FILE, "utf8")));
+  } catch {
+    return { version: 1, npcs: {} };
+  }
+}
+
+/** 통째로 바꿔 끼운다 — 쓰다 멈춰도 로비 서버가 반쯤 쓴 파일을 읽지 않게 */
+function writeTeamFile(file: TeamFile) {
+  mkdirSync(dirname(TEAM_FILE), { recursive: true });
+  const temp = `${TEAM_FILE}.${process.pid}.tmp`;
+  writeFileSync(temp, `${JSON.stringify(file, null, 2)}\n`);
+  renameSync(temp, TEAM_FILE);
+}
+
+/**
+ * 팀 캐릭터 저장 창구(개발 서버 전용). 이 컴퓨터에서 온 요청만, 쓰기는 같은 출처의 JSON 만 받는다 — 다른 사이트가 몰래
+ * 보낸 폼 · 요청이 저장소 파일을 바꾸지 못하게(JSON 은 사전 확인이 필요하고 CORS 를 열지 않는다).
+ */
+function teamNpcSavePlugin(): Plugin {
+  return {
+    name: "team-npc-save",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use(TEAM_ROUTE, (req, res) => {
+        const send = (status: number, body: unknown) => {
+          res.statusCode = status;
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
+          res.setHeader("Cache-Control", "no-store");
+          res.end(JSON.stringify(body));
+        };
+        if (!LOOPBACK.has(req.socket.remoteAddress ?? "")) return send(403, { error: "local_only" });
+        if (req.method === "GET") return send(200, readTeamFile());
+        if (req.method !== "POST") return send(405, { error: "method" });
+        const origin = req.headers.origin;
+        const sameOrigin = (() => {
+          try {
+            return !!origin && new URL(origin).host === req.headers.host;
+          } catch {
+            return false;
+          }
+        })();
+        if (!sameOrigin) return send(403, { error: "origin" });
+        if (!String(req.headers["content-type"] ?? "").startsWith("application/json"))
+          return send(415, { error: "json_only" });
+        const chunks: Buffer[] = [];
+        let size = 0;
+        req.on("data", (chunk: Buffer) => {
+          size += chunk.length;
+          if (size > MAX_BODY_BYTES) req.destroy();
+          else chunks.push(chunk);
+        });
+        req.on("end", () => {
+          let body: unknown;
+          try {
+            body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          } catch {
+            return send(400, { error: "json" });
+          }
+          const { key, entry } = (body ?? {}) as { key?: unknown; entry?: unknown };
+          const parsed = parseTeamEntry({ ...(entry as object), savedAt: new Date().toISOString() });
+          if (!isTeamSlotKey(key) || !parsed) return send(400, { error: "invalid" });
+          const file = readTeamFile();
+          file.npcs[key] = parsed;
+          try {
+            writeTeamFile(file);
+          } catch (error) {
+            server.config.logger.error(`[team-npc] 저장 실패: ${String(error)}`);
+            return send(500, { error: "write" });
+          }
+          server.config.logger.info(`[team-npc] ${key} 저장 → ${TEAM_FILE}`);
+          return send(200, file);
+        });
+      });
+    },
+  };
+}
+
 export default mergeConfig(baseConfig, {
-  plugins: [lobbyPreviewCanvasPlugin()],
+  plugins: [lobbyPreviewCanvasPlugin(), teamNpcSavePlugin()],
   cacheDir: "node_modules/.vite-lobby-preview",
 });

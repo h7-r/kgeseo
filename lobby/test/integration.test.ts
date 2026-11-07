@@ -29,6 +29,8 @@ before(async () => {
   lobby = createLobbyServer(result.config, {
     log: (event, fields = {}) => logs.push({ event, fields }),
     processStartSec: START,
+    // 방 인원을 센다 — 팀 캐릭터 NPC 는 끈다(따로 시험한다)
+    teamNpcs: false,
   });
   await lobby.listen("127.0.0.1", 0);
   const http = (lobby.server as unknown as { transport: { server: { address(): AddressInfo } } }).transport.server;
@@ -212,13 +214,19 @@ describe("채팅(설계 v0.21 5절 · 검토 14회차)", () => {
 
 describe("같은 계정 두 번 접속 — 나중 접속이 이긴다", () => {
   it("먼저 붙은 연결은 4100 으로 끊기고 새 연결은 남는다", async () => {
-    const older = await client(ALLOWED_ORIGIN, await makeTicket({ sub: "twice", nickname: "두번" })).joinOrCreate("lobby", {
-      look: validLook(),
-    });
+    const older = await client(ALLOWED_ORIGIN, await makeTicket({ sub: "twice", nickname: "두번" })).joinOrCreate(
+      "lobby",
+      {
+        look: validLook(),
+      },
+    );
     const closed = new Promise<number>((resolve) => older.onLeave((code: number) => resolve(code)));
-    const newer = await client(ALLOWED_ORIGIN, await makeTicket({ sub: "twice", nickname: "두번" })).joinOrCreate("lobby", {
-      look: validLook(),
-    });
+    const newer = await client(ALLOWED_ORIGIN, await makeTicket({ sub: "twice", nickname: "두번" })).joinOrCreate(
+      "lobby",
+      {
+        look: validLook(),
+      },
+    );
     assert.equal(await closed, CLOSE_REPLACED);
     await waitFor(() => playersOf(newer).has(newer.sessionId) && !playersOf(newer).has(older.sessionId));
     assert.equal(lobby.online.size, 1);

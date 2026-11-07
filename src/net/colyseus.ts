@@ -64,6 +64,8 @@ export interface RemotePlayerView {
   z: number;
   ry: number;
   gait: string;
+  /** 서버가 둔 팀 캐릭터(검토 22회차) — 방 인원 수에서 뺀다. 옛 서버는 보내지 않는다 */
+  npc?: boolean;
 }
 
 export type LobbyFailure =

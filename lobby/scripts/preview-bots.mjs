@@ -11,7 +11,7 @@
 // - **개발 백엔드(별도 시험 DB, WAEGOK_RUN_PROFILE=test)에서만** 쓴다. 계정은 lobby-bot-N@example.test,
 //   비밀번호는 --setup 이 무작위로 만들어 lobby/.env.preview-bots(Git 무시)에 적고, 출력하지 않는다.
 // - 입장권은 FastAPI 가 준다 — 머리 위 이름은 각 계정의 조사관명(캐릭터 이름).
-// - 가구를 뚫지 않는다: scripts/hq-obstacles.json(dump-hq-obstacles.mjs 가 게임에서 뽑은 충돌 박스 + 박스 없는 물체)을
+// - 가구를 뚫지 않는다: src/generated/hq-obstacles.json(dump-hq-obstacles.mjs 가 게임에서 뽑은 충돌 박스 + 박스 없는 물체)을
 //   사람 반지름만큼 부풀린 격자에서 길을 찾고, 직선으로 펴도 막힌 데를 지나지 않을 때만 편다.
 // - 사람끼리도 뚫지 않는다: 다른 가상 인원·실제 사람 자리에서 1.3 유닛 안으로 파고드는 걸음은 하지 않고,
 //   1초 넘게 막히면 그 사람들을 피해 길을 다시 찾는다. 실제 사람에게는 1.8 유닛(자리를 늦게 알아서 넉넉히). 목표도 사람이 서 있는 곳 근처는 고르지 않는다.
@@ -216,7 +216,7 @@ function randomLook() {
 }
 
 // ---------- 길찾기(가구를 뚫지 않는다) ----------
-const MAP = JSON.parse(readFileSync(resolve(here, "hq-obstacles.json"), "utf8"));
+const MAP = JSON.parse(readFileSync(resolve(here, "../src/generated/hq-obstacles.json"), "utf8"));
 const RADIUS = 0.6 + 0.15; // 사람 반지름(PLAYER_RADIUS) + 여유
 const WALL = MAP.wallMolding + RADIUS;
 const CELL = 0.25;
@@ -666,8 +666,8 @@ function step(bot, dt) {
 let stopping = false;
 async function run() {
   if (!PASSWORD) throw new Error("가상 인원 비밀번호가 없다 — node scripts/preview-bots.mjs --setup 먼저");
-  if (!existsSync(resolve(here, "hq-obstacles.json")))
-    throw new Error("scripts/hq-obstacles.json 이 없다 — dump-hq-obstacles.mjs 먼저");
+  if (!existsSync(resolve(here, "../src/generated/hq-obstacles.json")))
+    throw new Error("src/generated/hq-obstacles.json 이 없다 — dump-hq-obstacles.mjs 먼저");
   log(null, `빈칸 ${reachable.length}개 · 장애물 ${MAP.obstacles.length}개(${MAP.generatedAt}) · ${COUNT}명 입장`);
   for (const bot of BOTS.slice(0, COUNT)) {
     bots.push(bot);

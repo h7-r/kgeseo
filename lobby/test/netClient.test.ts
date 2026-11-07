@@ -494,6 +494,7 @@ describe("실제 로비 서버 + 실제 SDK", () => {
     const lobby = createLobbyServer(result.config, {
       log: silentLogger,
       processStartSec: Math.floor(Date.now() / 1000) - 10,
+      teamNpcs: false,
     });
     await lobby.listen("127.0.0.1", 0);
     const http = (lobby.server as unknown as { transport: { server: { address(): AddressInfo } } }).transport.server;

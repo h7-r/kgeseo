@@ -1,5 +1,5 @@
 // 본부실 장애물 지도 뽑기(개발 전용) — preview-bots.mjs 의 가상 인원이 가구를 뚫고 다니지 않게 쓰는 지도.
-//   cd lobby && node scripts/dump-hq-obstacles.mjs     → scripts/hq-obstacles.json
+//   cd lobby && node scripts/dump-hq-obstacles.mjs     → src/generated/hq-obstacles.json(가상 인원 스크립트 · 로비 서버 NPC 가 같이 쓴다)
 // 실행 중인 게임(기본 http://localhost:5173, 미리보기·평소 개발 서버 어느 쪽이든)을 열어 두 가지를 모은다.
 //   1) 게임이 실제로 쓰는 충돌 박스(window.__game.staticColliders · colliders) — 내 캐릭터를 막는 것과 같다.
 //   2) 박스가 없는데 높이가 있는 본부실 물체(바닥의 증거물 상자 같은 집는 물건, 벽 기둥) — 가상 인원만 피한다.
@@ -14,7 +14,7 @@ import { chromium } from "playwright";
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = resolve(here, "../..");
 const GAME = process.env.GAME_URL ?? "http://localhost:5173";
-const OUT = resolve(here, "hq-obstacles.json");
+const OUT = resolve(here, "../src/generated/hq-obstacles.json");
 
 const seed = readFileSync(resolve(repo, "backend/scripts/seed_test_account.py"), "utf8");
 const email = /^EMAIL = "([^"]+)"/m.exec(seed)?.[1];

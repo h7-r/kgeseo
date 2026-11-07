@@ -16,6 +16,8 @@ export const Player = schema(
     z: t.float32(),
     ry: t.float32(),
     gait: t.string(),
+    /** 서버가 둔 팀 캐릭터(검토 22회차) — 화면은 방 인원 수에서 뺀다. 사람은 늘 false */
+    npc: t.boolean(),
   },
   "Player",
 );

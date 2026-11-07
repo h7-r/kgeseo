@@ -342,6 +342,9 @@ exposeDevHook("lobbyPreview", {
       x: p.x,
       z: p.z,
       hair: hairOf(p.look),
+      gait: p.gait,
+      look: p.look,
+      npc: p.npc === true,
     })),
   /** 지금 보내는 내 자세(컷신 중에는 멈춘 값) */
   pose: () => ({ ...localPose }),

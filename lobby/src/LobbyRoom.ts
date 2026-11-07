@@ -9,6 +9,7 @@ import { authError, lobbyFullError, REJECT } from "./errors.js";
 import type { Logger } from "./log.js";
 import { lookToStateString } from "./look.js";
 import { GreetGate, MoveGate, parsePose } from "./movement.js";
+import { isNpcSid, NPC_TICK_MS, TeamNpcCrew } from "./npc/teamNpcs.js";
 import { type BodyAt, canHit, PunchGate } from "./punch.js";
 import type { RoomCap, RoomSlot } from "./roomCap.js";
 import { LobbyState, Player } from "./state.js";
@@ -42,6 +43,8 @@ export interface LobbyRoomDeps {
   online: OnlineAccounts<Client>;
   /** 숨기기용 가명 ID 를 만드는 키(입장권 서명 키를 쓴다) */
   pidSecret: Uint8Array;
+  /** 방마다 팀 캐릭터 다섯 명을 둔다(검토 22회차). 서버는 켜고, 방 인원을 세는 시험은 끈다 */
+  teamNpcs?: boolean;
 }
 
 export function createLobbyRoom({
@@ -54,6 +57,7 @@ export function createLobbyRoom({
   chatGuard,
   online,
   pidSecret,
+  teamNpcs = false,
 }: LobbyRoomDeps) {
   return class LobbyRoom extends Room<{ state: LobbyState }> {
     override maxClients = ROOM_CAPACITY;
@@ -66,6 +70,8 @@ export function createLobbyRoom({
     readonly #poseAt = new Map<string, number>();
     /** 연결 ID → 계정 ID. 서버 안에서만 쓰고 상태·방송·로그에는 넣지 않는다 */
     readonly #subs = new Map<string, string>();
+    /** 팀 캐릭터 NPC(방 상태에 사람처럼 들어간다 — 키 npc-*) */
+    #npcs: TeamNpcCrew | null = null;
 
     static override onAuth(token: string, options: unknown, context: AuthContextLike) {
       return authenticate(token, options, context);
@@ -91,6 +97,16 @@ export function createLobbyRoom({
         this.onMessage("chat", (client: Client, message: unknown) => this.#onChat(client, message));
         // 정해진 세 가지 말고는 조용히 버린다
         this.onMessage("*", () => {});
+        if (teamNpcs) {
+          this.#npcs = new TeamNpcCrew(this.state.players, {
+            nowMs,
+            greet: (sid, id) => this.broadcast("greet", { sid, id }),
+            log,
+          });
+          this.#npcs.spawn();
+          // 방 시계 — 방이 없어지면 같이 멈춘다
+          this.clock.setInterval(() => this.#npcs?.step(), NPC_TICK_MS);
+        }
       } catch (error) {
         this.#releaseSlot("create_failed");
         throw error;
@@ -160,6 +176,7 @@ export function createLobbyRoom({
     }
 
     override onDispose() {
+      this.#npcs = null;
       this.#releaseSlot("disposed");
     }
 
@@ -200,7 +217,8 @@ export function createLobbyRoom({
       const result = chatGuard.check(sub, message, at);
       const counts = chatGuard.takeRejectCounts(at);
       // 원문·계정은 남기지 않는다 — 사유별 개수만 1분에 한 줄
-      if (counts) log("chat_rejected", Object.fromEntries(CHAT_REJECT_REASONS.map((reason) => [reason, counts[reason] ?? 0])));
+      if (counts)
+        log("chat_rejected", Object.fromEntries(CHAT_REJECT_REASONS.map((reason) => [reason, counts[reason] ?? 0])));
       if (!result.ok) {
         if (result.reply) client.send("chatRejected", { reason: result.reason });
         return;
@@ -226,6 +244,8 @@ export function createLobbyRoom({
       // 보낸 사람은 연결에서 정한다. 상대는 같은 방에 있고, 자기 자신이 아니고, 서버가 아는 자리로 칠 수 있을 때만
       const target = request.target && request.target !== client.sessionId ? this.#bodyOf(request.target) : null;
       const hit = target && canHit(attacker, target, at) ? request.target : null;
+      // NPC 는 화면이 아니라 서버가 밀어낸다(사람은 맞은 사람 화면이 자기 몸을 민다)
+      if (hit && isNpcSid(hit)) this.#npcs?.hit(hit, attacker);
       this.broadcast(
         "punch",
         hit
