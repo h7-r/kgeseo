@@ -15,11 +15,28 @@ from sqlalchemy import select
 
 from app.models.interaction_event import InteractionEvent
 from app.schemas.npc_turn import NpcTurnRequest
-from app.services.npc_situation import COOLDOWN, GLOBAL_GAP, QUIET_LIMIT
+from app.services.npc_case_access import CaseNpcAccess
+from app.services.npc_situation import (
+    COOLDOWN,
+    GLOBAL_GAP,
+    QUIET_LIMIT,
+    QUIET_PUZZLE_COOLDOWN,
+)
+from app.services.npc_suggestion_events import (
+    SuggestionNotFoundError,
+    record_suggestion_event,
+)
 from app.services.npc_turn_service import process_npc_turn
 from app.services.pinned_content import PinnedContentStore
+from tests.pack_policy_stub import passing_test_policy
+from tests.test_npc_generic_pause import pack_approval, pause_pack
 from tests.test_npc_situation_turn import general_nudges, situations
-from tests.test_npc_suggestion_events_mysql import CASE_APPROVAL, seed_session
+from tests.test_npc_suggestion_events_mysql import (
+    CASE_APPROVAL,
+    seed_session,
+    suggestion_rows,
+    wrong_answers,
+)
 from tests.test_npc_turn import bundle
 from tests.test_npc_turn_idempotency_mysql import T0, mysql_run
 
@@ -184,5 +201,126 @@ def test_mysql_concurrent_same_event_is_stored_once_and_replayed():
         assert all(response == responses[0] for response in responses)
         assert responses[0].reply.line_id == "SIT_NO_PROGRESS_01"
         assert len(await npc_rows(sessions, session_id)) == 1
+
+    mysql_run(scenario)
+
+
+# --- 퍼즐 자동 개입 제안 보고(`record_suggestion_event`)와의 경계 ---
+
+
+async def puzzle_turn(sessions, session_id: str, at, *, case_access=None, **extra):
+    options = (
+        {"case_access": case_access}
+        if case_access
+        else {"approval_source": CASE_APPROVAL}
+    )
+    async with sessions() as db:
+        response = await process_npc_turn(
+            db,
+            session_id,
+            NpcTurnRequest(
+                client_event_id=uuid4(), trigger="auto", focus_object_id="OBJ_CABINET"
+            ),
+            store=new_store(),
+            now=at,
+            **options,
+            **extra,
+        )
+    async with sessions() as db:
+        record = (
+            await db.get(InteractionEvent, str(response.npc_event_id))
+        ).response_json
+    return response, record
+
+
+async def report(sessions, session_id, event_id, kind, at):
+    async with sessions() as db:
+        return await record_suggestion_event(
+            db,
+            session_id,
+            suggestion_id=str(event_id),
+            kind=kind,
+            client_event_id=str(uuid4()),
+            now=at,
+        )
+
+
+def test_mysql_only_puzzle_suggestions_are_reportable():
+    async def scenario(sessions):
+        session_id = await seed_session(sessions)
+
+        situation, record = await situation_turn(sessions, session_id, "BREATH_LOW", T0)
+        assert situation.reply is not None and record["auto_intervened"] is False
+
+        pack = pause_pack()
+
+        async def blocked(db, pin, *, lock):
+            return CaseNpcAccess(None, withdrawn=True, basis=("blocked",))
+
+        pause, record = await puzzle_turn(
+            sessions,
+            session_id,
+            T0 + timedelta(seconds=30),
+            case_access=blocked,
+            general_pack=pack,
+            general_pack_approval=pack_approval(pack),
+            general_pack_policy=passing_test_policy,
+        )
+        assert pause.reply.line_id.startswith("GENERIC_PAUSE_")
+        # 긴급 차단의 「잠시 멈춤」 대사는 퍼즐 제안이 아니다.
+        assert record["auto_intervened"] is False
+
+        for event_id in (situation.npc_event_id, pause.npc_event_id, uuid4()):
+            for kind in ("shown", "suppressed", "declined"):
+                with pytest.raises(SuggestionNotFoundError):
+                    await report(
+                        sessions, session_id, event_id, kind, T0 + timedelta(seconds=40)
+                    )
+        assert await suggestion_rows(sessions, session_id) == 0
+
+    mysql_run(scenario)
+
+
+def test_mysql_puzzle_reports_gate_quiet_but_not_other_situations():
+    async def scenario(sessions):
+        session_id = await seed_session(sessions)
+        await wrong_answers(sessions, session_id)
+
+        offer, record = await puzzle_turn(
+            sessions, session_id, T0 + timedelta(seconds=1)
+        )
+        assert offer.reply.line_id == "NUDGE_A_01" and record["auto_intervened"] is True
+        shown_at = T0 + timedelta(seconds=2)
+        await report(sessions, session_id, offer.npc_event_id, "shown", shown_at)
+
+        # 표시된 퍼즐 제안 뒤 180초 안에는 잡담하지 않는다(§8-4). 다른 상황 코드는 막지 않는다.
+        quiet, record = await situation_turn(
+            sessions, session_id, "QUIET", shown_at + timedelta(seconds=10)
+        )
+        assert quiet.reply is None
+        assert record["situation_reason"] == QUIET_PUZZLE_COOLDOWN
+        breath, _ = await situation_turn(
+            sessions, session_id, "BREATH_LOW", shown_at + timedelta(seconds=11)
+        )
+        assert breath.reply is not None
+
+        # 상황 대사는 퍼즐 제안 횟수 · 쿨다운을 쓰지 않는다: 180초 뒤 퍼즐 개입은 그대로 나온다.
+        again, record = await puzzle_turn(
+            sessions, session_id, shown_at + timedelta(seconds=180)
+        )
+        assert again.reply is not None and record["auto_intervened"] is True
+        quiet, _ = await situation_turn(
+            sessions, session_id, "QUIET", shown_at + timedelta(seconds=181)
+        )
+        assert quiet.reply is not None
+
+        # 거절은 600초 동안 잡담을 막는다(재시작해도 DB 기록으로).
+        declined_at = shown_at + timedelta(seconds=200)
+        await report(sessions, session_id, offer.npc_event_id, "declined", declined_at)
+        held, record = await situation_turn(
+            sessions, session_id, "QUIET", declined_at + timedelta(seconds=400)
+        )
+        assert held.reply is None
+        assert record["situation_reason"] == QUIET_PUZZLE_COOLDOWN
 
     mysql_run(scenario)

@@ -920,3 +920,34 @@ def test_suspended_publication_keeps_serving_situation_lines(
 
     assert response.json()["reply"]["line_id"] == "SIT_BREATH_LOW_01"
     assert response.json()["fallback_reason"] is None
+
+
+def test_only_puzzle_interventions_are_recorded_as_suggestions(
+    client,
+    db_session,
+    overrides,  # noqa: F811
+    general,  # noqa: F811
+    reader_override,  # noqa: F811
+) -> None:
+    # 긴급 차단의 「잠시 멈춤」 대사 · 상황 대사는 퍼즐 제안(auto_intervened)이 아니어서 표시 · 거절 보고 대상이 아니다.
+    blocked_setup(overrides, general, reader_override, db_session)
+    pause = client.post(URL, json=auto_body(client_event_id=str(uuid.uuid4())))
+    pause_record = stored(db_session).response_json
+
+    reader_override(Reader(approved_access()))
+    db_session.added.clear()
+    situation = client.post(URL, json=sit_body("BREATH_LOW"))
+    situation_record = stored(db_session).response_json
+
+    overrides["events"] = answer_events(6)
+    db_session.added.clear()
+    puzzle = client.post(URL, json=auto_body(client_event_id=str(uuid.uuid4())))
+    puzzle_record = stored(db_session).response_json
+
+    assert pause.json()["reply"]["line_id"].startswith("GENERIC_PAUSE_")
+    assert pause_record["auto_intervened"] is False
+    assert pause_record["auto_intervene"] is None
+    assert situation.json()["reply"]["line_id"] == "SIT_BREATH_LOW_01"
+    assert situation_record["auto_intervened"] is False
+    assert puzzle.json()["reply"]["line_id"] == "NUDGE_A_01"
+    assert puzzle_record["auto_intervened"] is True

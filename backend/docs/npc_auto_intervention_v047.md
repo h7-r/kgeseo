@@ -84,6 +84,8 @@
   - 같은 client_event_id로 다른 보고를 보내면 `IdempotencyConflictError`다.
   - 세션 행 `FOR UPDATE`로 직렬화한다.
 - 자동 개입 제안이 아닌 ID나 다른 세션의 ID는 `SuggestionNotFoundError`다.
+- 제안(`auto_intervened: true`)은 퍼즐 자동 개입 판단(`auto_intervene` 기록)이 대사나 힌트 안내를 낸 응답뿐이다.
+  상황 대사(v0.4.16)와 긴급 차단의 「잠시 멈춤」 대사(v0.4.12)는 제안이 아니라 보고하면 `SuggestionNotFoundError`다.
 - 모든 보고 이벤트는 `npc_` 접두라 무입력(마지막 플레이어 행동) 계산에서 빠진다.
 
 ## PUB-GATE
@@ -94,6 +96,9 @@
 ## 아직 연결하지 않은 것
 
 - 표시 · 미표시 · 거절을 받는 HTTP 라우트(서비스 `record_suggestion_event`만 있다)와 FE 연결
+  - 11/7 확인: 공식 계약(v0.4.16 §1은 「v0.4.7 §3」만 가리킨다)에 경로 · 요청 본문 · 응답 · 오류 상태 코드가 없다.
+    PM이 정할 것: 경로, 보고 종류 값, `client_event_id` · `client_timestamp` 포함 여부, 응답 모양(`duplicate` 노출 여부),
+    오류 코드(제안 아님 · 반대 보고 · 같은 ID 다른 보고).
 - hint_ref를 받는 Hint API(검증 함수 `resolve_hint_ref`만 있다), 운영 발급 키 설정
 - 멱등 저장소 · 게시 guard의 NPC 턴 HTTP 연결(작업 C · D 저장소는 독립 기반)
 - 무입력에서 컷 · 모달 시간 제외(FE `active_seconds` 연동 필요)

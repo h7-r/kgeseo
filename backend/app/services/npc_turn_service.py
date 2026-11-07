@@ -480,7 +480,10 @@ def _record(trigger: str, result: NpcTurnResult) -> NpcTurnEventRecord:
         ),
         # 보여 줄 것(대사 또는 힌트 안내)이 있는 자동 개입만 제안이다. 횟수는 표시 보고로 센다.
         # 상황 대사는 자동 개입 제안이 아니다(퍼즐 횟수 · 쿨다운과 따로 센다, 계약 v0.4.16 §4).
+        # 퍼즐 자동 개입 판단(`result.auto`)이 낸 응답만 제안이다 — 긴급 차단의 「잠시 멈춤」 대사는 제안이 아니라
+        # 표시 · 거절 보고로 퍼즐 쿨다운 · 횟수를 쓰지 않는다.
         auto_intervened=trigger == "auto"
+        and result.auto is not None
         and not result.situation_replied
         and (result.reply is not None or result.suggest_hint is not None),
         auto_intervene=(
