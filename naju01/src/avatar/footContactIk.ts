@@ -71,13 +71,13 @@ export function lowestSoleY(
   let y = Infinity;
   soles.forEach((sole) => {
     const { object } = sole;
-    if (!object.visible) return;
+    const list = pick(sole);
+    if (!object.visible || list.length === 0) return;
     // localToWorld 는 부를 때마다 부모까지 행렬을 다시 계산한다. 정점마다 부르면 걷는 아바타 9명에서
     // 프레임의 대부분이 그 계산이었다(2026-11-06 프로파일, docs/로비/0단계-화면성능-측정.md 8절).
     // 이 루프 안에서는 행렬이 바뀌지 않으므로 메시마다 한 번만 갱신하고 곱해도 결과가 같다.
     object.updateWorldMatrix(true, false);
     soleToModel.multiplyMatrices(inverseModel, object.matrixWorld);
-    const list = pick(sole);
     for (let i = 0; i < list.length; i += step) {
       object.getVertexPosition(list[i], point);
       point.applyMatrix4(soleToModel);

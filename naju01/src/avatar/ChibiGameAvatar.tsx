@@ -69,6 +69,8 @@ function applyGrip(
   });
 }
 
+const NO_SOLE_INDICES: number[] = [];
+
 // 팔·다리 길이, 어깨 폭, 발 크기는 뼈 배율로 덮는다. 믹서가 쓴 뒤에 불러야 한다(클립에 위치·배율 트랙이 있을 수 있다).
 
 /** 팔·다리 뿌리 뼈 배율. 손은 팔 배율을 물려받아 되돌린다(손 크기는 모프로). 다리 배율을 돌려준다. */
@@ -337,7 +339,17 @@ function ChibiGameAvatar({
     soleFingerprint.current = fingerprint;
     if (!canUseCache) {
       // 전부 본다 — 넷 중 하나만 보면 최저점을 놓쳐 몇 mm 씩 묻히고 깜빡인다.
-      const soleY = lowestSoleY(prepared.soles, (sole) => sole.indices, 1, inverseModel, point);
+      // 보이는 신발이 있으면 맨발 정점은 세지 않는다 — 신발 안의 맨발(모프 −1.5)은 신발 바닥보다 늘 위라 결과가 같다.
+      //   발 크기 보기(2026-11-07): 남녀 · 다리 0.85~1.2 · 발 0.7~1.15 · 대기·걷기·달리기·쪼그림·춤·전력 질주에서 최소 15.4mm 위.
+      //   로비 버벅임(검토 12회차): 아바타당 4,481 → 1,122.
+      const wearsVisibleShoes = prepared.soles.some((sole) => sole.kind === "shoe" && sole.object.visible);
+      const soleY = lowestSoleY(
+        prepared.soles,
+        (sole) => (wearsVisibleShoes && sole.kind === "body" ? NO_SOLE_INDICES : sole.indices),
+        1,
+        inverseModel,
+        point,
+      );
       soleHeightCache.current = Number.isFinite(soleY) ? soleY : null;
     }
     if (soleHeightCache.current !== null) group.position.y = state.footY - soleHeightCache.current * avatarScale;
