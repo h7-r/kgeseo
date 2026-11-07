@@ -10,7 +10,7 @@ import { DOOR, DOOR_CENTER_Y, FLOOR_Y, WHEEL_DEPTH, WHEEL_RADIUS } from "./caveS
 
 /** 고리 — 바깥 · 가운데 · 안쪽. 처음 틈 자리(도, 위가 0)와 다이얼 한 눈금에 도는 각 */
 export const RINGS = [
-  // 물레 한 눈금에 고리도 한 눈금(−10°) — 틈이 0 쪽으로 간다. 틈의 화살이 가리키는 바깥 숫자 = 돌릴 눈금 수
+  // 물레 한 눈금에 고리도 한 눈금(−10°). 틈이 가리키는 바퀴 숫자는 RingDoor 의 gapNotch
   { name: "바깥 고리", radius: 1.86, tube: 0.12, start: 260, perNotch: -10 },
   { name: "가운데 고리", radius: 1.5, tube: 0.105, start: 100, perNotch: -10 },
   { name: "안쪽 고리", radius: 1.14, tube: 0.1, start: 40, perNotch: -10 },
@@ -57,18 +57,11 @@ export const PANEL_RANGE = 7;
 /** 켜진 빛 — 따뜻한 흰빛 */
 export const GLOW = new THREE.Color("#F2E3B8");
 export const DARK = new THREE.Color("#000000");
-/** 고리 빛깔 — 얼굴보다 밝은 맨 돌. 틈이 위에 서면 따뜻한 흰빛이 스민다 */
+/** 고리 빛깔 — 얼굴보다 밝은 맨 돌. 문이 열리면 따뜻한 흰빛이 스민다 */
 export const RING_COLOR = "#A4A398";
 export const RING_LIT = new THREE.Color("#3C3830");
 
 export const wrapDegrees = (deg: number) => ((deg % 360) + 360) % 360;
-
-/** 틈이 위 눈금에 닿기까지 남은 다이얼 눈금 수 */
-export const notchesLeft = (angle: number, perNotch: number) => {
-  const a = wrapDegrees(angle);
-  if (a === 0) return 0;
-  return Math.round((perNotch > 0 ? 360 - a : a) / Math.abs(perNotch));
-};
 
 /** 틈이 위(0도)에 오게 돌려 둔 고리 — 30° 마다 홈줄이 파여 있다(꼭짓점 색). 각도는 mesh.rotation.z 로만 준다 */
 export function buildRing(radius: number, tube: number) {

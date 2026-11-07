@@ -397,10 +397,7 @@ export default function StumpStairs() {
     if (ridge.stage() === "sealed" && ridgeQuest.postsSolved && !ridgeQuest.stairs && distance < 5) {
       if (!stairs.told.near) {
         stairs.told.near = true;
-        showNotice(
-          "바람이 잦아드니 걸상 윗면의 새김이 보인다 — 해 · 달 · 물결 · 새 · 불. 평상 널이 타며 드러난 글과 맞춰 보자.",
-          5,
-        );
+        showNotice("바람이 잦아드니 걸상 윗면에 새김이 하나씩 보인다. 평상 널이 타며 드러난 글과 맞춰 보자.", 5);
       }
       setPuzzlePanel("ridge-stumps", {
         title: "통나무 걸상",

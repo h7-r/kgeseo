@@ -1,6 +1,7 @@
 /**
- * 틈에 들어선 순간 — 화면이 그을리고 뒤틀리며 느려지다 캄캄해진 뒤 다음 자리(바위 위)에서 걷힌다.
- * GateRift 가 시작하고 매 프레임 시간을 올리며 건너가는 때를 정하고, RiftEntryHud 가 화면을 그린다. 시각은 초.
+ * 틈에 들어선 순간 — 화면이 그을리고 뒤틀리며 느려지다 캄캄해진 뒤 다음 자리에서 걷힌다.
+ * 틈(진부촌 문 GateRift · 벼랑 끝 EdgeRift)이 제 이름으로 시작하고 매 프레임 시간을 올리며 건너가는 때를 정하고,
+ * RiftEntryHud 가 화면을 그린다. 한 번에 한 틈만 돈다. 시각은 초.
  * 벽시계가 아니라 프레임 시간을 쌓는다 — 건너간 자리를 처음 그리느라 멈춰도 걷히는 연출이 통째로 지나가지 않게.
  */
 import { useSyncExternalStore } from "react";
@@ -11,13 +12,18 @@ import { createChangeSignal } from "@/lib/changeSignal";
 export const RIFT_ENTRY = { warpIn: 2.6, dark: 0.5, warpOut: 1.7 };
 export const RIFT_ENTRY_TOTAL = RIFT_ENTRY.warpIn + RIFT_ENTRY.dark + RIFT_ENTRY.warpOut;
 
+/** 틈의 이름 — 시작한 틈만 시간을 올리고, 제 것일 때만 건너간다 */
+export type RiftName = "gate" | "edge";
+
 const signal = createChangeSignal();
-/** 시작한 뒤 쌓인 프레임 시간(초). 안 돌면 −1 */
+/** 지금 도는 틈 · 시작한 뒤 쌓인 프레임 시간(초). 안 돌면 −1 */
+let running: RiftName | null = null;
 let elapsed = -1;
 
 /** 시작한다 — 이미 돌고 있으면 false */
-export function startRiftEntry() {
+export function startRiftEntry(rift: RiftName) {
   if (elapsed >= 0) return false;
+  running = rift;
   elapsed = 0;
   signal.notify();
   return true;
@@ -25,17 +31,18 @@ export function startRiftEntry() {
 
 export function finishRiftEntry() {
   if (elapsed < 0) return;
+  running = null;
   elapsed = -1;
   signal.notify();
 }
 
 /** 매 프레임 — 멈췄다 돌아온 프레임은 1/30 초로만 친다 */
-export function tickRiftEntry(dt: number) {
-  if (elapsed >= 0) elapsed += Math.min(dt, 1 / 30);
+export function tickRiftEntry(rift: RiftName, dt: number) {
+  if (running === rift && elapsed >= 0) elapsed += Math.min(dt, 1 / 30);
 }
 
-/** 시작한 지 몇 초 — 안 돌면 −1 */
-export const riftEntrySince = () => elapsed;
+/** 시작한 지 몇 초 — 안 돌면(이름을 주면 그 틈이 아니어도) −1 */
+export const riftEntrySince = (rift?: RiftName) => (rift === undefined || rift === running ? elapsed : -1);
 
 export const useRiftEntryStarted = () => useSyncExternalStore(signal.subscribe, () => elapsed >= 0);
 

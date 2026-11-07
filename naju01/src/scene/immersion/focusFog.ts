@@ -51,6 +51,8 @@ export const focus = {
   openRadiusM: 55,
   // 퍼즐이 안개를 걷는 정도 0~1(증언 능선 장막). opening 과 큰 쪽을 쓴다. 몰입연출이 덮어쓰지 않는다
   lift: 0,
+  // 굿이 풀려 날이 갠 정도 0~1(씻김굿 gut/TorchRite) — 장막(lift)은 능선이 매 프레임 쓰므로 따로 둔다
+  clear: 0,
   // ── 씬안개 (10/14 미르: 「씬별로 조금씩 더 옅게 걷어 달라」) ──
   //   끝낸 씬 수. 씬이 끝날 때마다(endScene) 하나씩 올라가고, 위의 radiusM · fogStartRatio 가
   //   cueTable.json 「씬안개」 표의 다음 칸으로 천천히(clearSeconds) 다가간다. 되돌아가지 않는다.
@@ -77,7 +79,10 @@ export function scenePassed(n: number) {
 /** 무리(인스턴스)가 「이 거리 밖은 그리지 않는다」로 쓰는 값(유닛). 꺼져 있으면 null. */
 export const drawRadius = () =>
   IS_FOCUS_ENABLED && !focus.paused
-    ? (focus.radiusM + focus.marginM + (focus.openRadiusM - focus.radiusM) * Math.max(focus.opening, focus.lift)) * U
+    ? (focus.radiusM +
+        focus.marginM +
+        (focus.openRadiusM - focus.radiusM) * Math.max(focus.opening, focus.lift, focus.clear)) *
+      U
     : null;
 
 const focusState: { zone: string | null; pulse: number } = {
@@ -127,7 +132,7 @@ export function focusTick({ scene, camera, terrain, position, dt }: FocusTickArg
   focusState.pulse = Math.max(0, focusState.pulse - dt / focus.transitionSeconds);
   // 펄스 곡선: 빨리 조이고 천천히 풀린다
   // 공간 훑기 컷 동안은 조이지 않는다(조이면 화면이 통째로 안개색이 된다)
-  const open = Math.max(focus.opening, focus.lift);
+  const open = Math.max(focus.opening, focus.lift, focus.clear);
   const squeeze = (focusState.pulse > 0 ? Math.sin(Math.PI * Math.pow(1 - focusState.pulse, 0.6)) : 0) * (1 - open);
   const normalEnd = focus.radiusM * (1 - 0.8 * squeeze);
   const end = normalEnd + (focus.openRadiusM - normalEnd) * open;

@@ -33,7 +33,19 @@ export type ItemKind =
   | "scale"
   | "letterBox"
   | "bronzeKey"
-  | "strawShoe";
+  | "strawShoe"
+  | "serpentFigure"
+  | "bowlLarge"
+  | "bowlMedium"
+  | "bowlSmall"
+  | "dewBowlLarge"
+  | "dewBowlMedium"
+  | "dewBowlSmall"
+  | "emptyJug"
+  | "waterJug"
+  | "arangPouch"
+  | "shellRings"
+  | "pineTorch";
 
 interface ItemDef {
   name: string;
@@ -84,6 +96,49 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
     name: "청동 열쇠",
     description:
       "증언 능선의 돌새가 물고 있던 청동 열쇠. 대가 길고 끝이 꺾였다 — 아랑사의 함에 채워진 자물통 구멍에 꼭 맞을 것 같다.",
+  },
+  serpentFigure: {
+    name: "구렁이상",
+    description:
+      "아랑사의 함 바닥에 남아 있던 손바닥만 한 구렁이상. 똬리를 틀고 고개를 든 모양이다. 어부의 함에 왜 이것이 들어 있었을까.",
+  },
+  bowlLarge: {
+    name: "큰 사발",
+    description: "독 곁에 엎어져 있던 큰 흰 사발. 굽이 넓고 닳았다 — 누가 여기 두고 오래 썼다. 비어 있다.",
+  },
+  bowlMedium: {
+    name: "사발",
+    description: "너럭바위에 엎어져 있던 흰 사발. 굽이 닳았다. 비어 있다.",
+  },
+  bowlSmall: {
+    name: "작은 사발",
+    description: "선바위 발치에 엎어져 있던 작은 흰 사발. 한 손에 쏙 들어온다. 비어 있다.",
+  },
+  dewBowlLarge: { name: "물 담은 큰 사발", description: "독의 빗물을 가득 뜬 큰 사발. 물낯에 달이 내려앉는다." },
+  dewBowlMedium: { name: "물 담은 사발", description: "독의 빗물을 가득 뜬 사발. 물낯에 달이 내려앉는다." },
+  dewBowlSmall: { name: "물 담은 작은 사발", description: "독의 빗물을 뜬 작은 사발. 물낯에 달이 내려앉는다." },
+  emptyJug: {
+    name: "귀때동이",
+    description:
+      "흙에 묻혀 있던 귀때동이. 부리가 있어 물을 한곳에 뿌리기 좋다. 비어 있다 — 독에서 물을 퍼 담을 수 있다.",
+  },
+  waterJug: {
+    name: "물 담은 귀때동이",
+    description: "독의 물을 퍼 담은 귀때동이. 부리로 물을 한곳에 뿌릴 수 있다. 세 번 뿌릴 만큼 들었다.",
+  },
+  arangPouch: {
+    name: "아랑사의 주머니",
+    description:
+      "굵은 삼베를 기워 만든 주머니. 그물 실로 아가리를 졸라맸다. 귀퉁이에 물고기 하나가 수놓여 있다 — 나루터 짚신 코에 새겨져 있던 그 표시다. 안에 접은 편지 두 장과 조가비 가락지 한 쌍이 들어 있었다(편지는 [H] 힌트함에서 다시 읽는다).",
+  },
+  shellRings: {
+    name: "조가비 가락지 한 쌍",
+    description:
+      "강조개 껍데기를 갈아 만든 가락지 두 짝. 하나는 굵고 하나는 가늘다. 아랑사가 아비사에게 끼워 주려던 것 — 끝내 건네지 못했다.",
+  },
+  pineTorch: {
+    name: "관솔불",
+    description: "송진이 밴 소나무 가지에 화로의 불씨를 옮겨 붙였다. 꺼진 횃불에 대면 불이 옮겨붙는다.",
   },
 };
 

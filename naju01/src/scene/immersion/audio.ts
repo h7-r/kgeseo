@@ -50,7 +50,20 @@ interface Layer {
 }
 type FilterSpec = [BiquadFilterType, number, number?];
 type BurstFilterSpec = [BiquadFilterType, number, number?, number?];
-export type SoundName = "단서" | "징" | "전환" | "진입" | "첨벙" | "똑" | "우르릉" | (string & {});
+export type SoundName =
+  | "단서"
+  | "징"
+  | "전환"
+  | "진입"
+  | "첨벙"
+  | "똑"
+  | "우르릉"
+  | "물뿌림"
+  | "사기"
+  | "깨짐"
+  | "불붙음"
+  | "불길"
+  | (string & {});
 
 class ImmersionAudio {
   ctx: AudioContext | null = null;
@@ -407,6 +420,62 @@ class ImmersionAudio {
       for (let i = 0; i < count; i++) {
         const s0 = t + i * (0.09 + Math.random() * 0.05);
         this.tone(base, "sine", s0, 0.05, 0.004, 0.07, out, base * (1.25 + Math.random() * 0.3));
+      }
+    } else if (name === "물뿌림") {
+      // 그릇의 물을 땅에 끼얹는 소리 — 쏴 하고 날아가 흙에 철썩 떨어지고, 잔물이 후드득 뒤따른다
+      const out = this.makeOutput(0.3, Math.random() * 0.3 - 0.15);
+      this.noiseBurst(t, 0.55, 0.55, [["bandpass", 3200, 1400, 0.7]], out);
+      this.noiseBurst(t + 0.28, 0.4, 0.75, [["bandpass", 900, 420, 0.9]], out);
+      this.tone(210, "sine", t + 0.3, 0.12, 0.01, 0.16, out, 95);
+      for (let i = 0; i < 8; i++) {
+        const drop = t + 0.45 + i * 0.07 + Math.random() * 0.04;
+        this.noiseBurst(drop, 0.05, 0.24, [["bandpass", 1500 + Math.random() * 1500, 0, 2]], out);
+      }
+    } else if (name === "사기") {
+      // 사기그릇을 돌 위에 내려놓는 소리 — 굽이 돌에 닿는 「달그락」과 낮은 「툭」. 그릇이 살짝 한 번 더 논다
+      const out = this.makeOutput(0.22, Math.random() * 0.4 - 0.2);
+      const ring = 1750 + Math.random() * 350;
+      for (const [delay, level] of [
+        [0, 0.2],
+        [0.085, 0.08],
+      ]) {
+        this.tone(ring, "sine", t + delay, level, 0.002, 0.11, out, ring * 0.97);
+        this.tone(ring * 1.63, "sine", t + delay, level * 0.55, 0.002, 0.07, out);
+        this.noiseBurst(t + delay, 0.05, level * 1.8, [["bandpass", 2600, 0, 1.4]], out);
+      }
+      this.noiseBurst(t, 0.09, 0.4, [["lowpass", 380]], out);
+    } else if (name === "깨짐") {
+      // 사기그릇이 깨지는 소리 — 「쨍」 하고 갈라져 조각이 돌 위에 흩어진다
+      const out = this.makeOutput(0.3, Math.random() * 0.4 - 0.2);
+      this.noiseBurst(t, 0.16, 0.8, [["highpass", 2600]], out);
+      for (const ring of [2300, 3150, 4400]) this.tone(ring, "sine", t, 0.14, 0.002, 0.22, out, ring * 0.94);
+      for (let i = 0; i < 6; i++) {
+        const shard = t + 0.12 + i * 0.07 + Math.random() * 0.05;
+        const ring = 1900 + Math.random() * 2400;
+        this.tone(ring, "sine", shard, 0.07, 0.002, 0.06, out);
+        this.noiseBurst(shard, 0.03, 0.18, [["bandpass", 3000, 0, 1.5]], out);
+      }
+    } else if (name === "불붙음") {
+      // 관솔불이 횃불에 옮겨붙는 소리 — 「화륵」 하고 숨을 들이켜듯 솟고, 송진이 탁탁 튄다
+      const out = this.makeOutput(0.28, Math.random() * 0.3 - 0.15);
+      this.noiseBurst(t, 0.75, 0.9, [["bandpass", 320, 2200, 0.8]], out);
+      this.noiseBurst(t + 0.05, 1.1, 0.55, [["lowpass", 420]], out, true);
+      this.tone(95, "sine", t, 0.2, 0.03, 0.4, out, 55);
+      for (let i = 0; i < 7; i++) {
+        const snap = t + 0.12 + Math.random() * 0.9;
+        this.noiseBurst(snap, 0.025, 0.3, [["highpass", 2400 + Math.random() * 2000]], out);
+      }
+    } else if (name === "불길") {
+      // 불기둥이 치솟는 소리 — 낮게 으르렁대며 커졌다 오래 타고, 그동안 나무가 터지듯 튄다
+      const out = this.makeOutput(0.45);
+      const seconds = 6.5;
+      this.noiseBurst(t, seconds, 1.5, [["lowpass", 260, 520]], out, true);
+      this.noiseBurst(t, seconds, 0.85, [["bandpass", 500, 1400, 0.6]], out);
+      this.noiseBurst(t + 0.2, seconds * 0.8, 0.4, [["bandpass", 1800, 3200, 0.7]], out);
+      this.tone(62, "sine", t, 0.3, 0.6, seconds * 0.7, out, 44);
+      for (let i = 0; i < 26; i++) {
+        const snap = t + 0.3 + Math.random() * (seconds - 1);
+        this.noiseBurst(snap, 0.03, 0.4, [["highpass", 1800 + Math.random() * 2600]], out);
       }
     } else if (name === "물발소리") {
       // 발목까지 찬 물을 헤치는 소리 — 쏴 하고 밀리는 물 + 낮게 출렁
