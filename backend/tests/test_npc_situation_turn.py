@@ -13,9 +13,11 @@ import pytest
 
 from app.models.interaction_event import InteractionEvent
 from app.services.npc import NpcContentUnsafeError
+from app.services.npc_case_access import CaseNpcAccess
 from app.services.npc_decision import DecisionSignals, NpcDecision, RuleConfig
 from app.services.npc_dialogue import NpcReply, SuggestHint
 from app.services.npc_situation import (
+    CONTENT_WITHDRAWN,
     COOLDOWN,
     GLOBAL_GAP,
     NO_LINE,
@@ -30,6 +32,17 @@ from app.services.npc_situation import (
 )
 from app.services.npc_turn import NpcTurnResult
 from app.services.pinned_content import PinnedContentStore
+from tests.test_npc_case_access import (  # noqa: F401 — pytest fixture
+    BLOCKED,
+    Reader,
+    approved_access,
+    reader_override,
+)
+from tests.test_npc_generic_pause import (  # noqa: F401 — pytest fixture
+    general,
+    pack_approval,
+    pause_pack,
+)
 from tests.test_npc_turn import (
     FP,
     HINT_1,
@@ -740,3 +753,170 @@ def test_http_unapproved_content_has_no_situation_reply(
         assert response.status_code == 200
         assert response.json()["reply"] is None, code
         assert stored(db_session).response_json["situation_reason"] == NO_LINE
+
+
+# --- 5 · 긴급 차단(blocked) — 계약 v0.4.16 §5 「게시 중단: reply: null」 ---
+
+WITHDRAWN = "NPC_CONTENT_WITHDRAWN"
+
+
+def blocked_setup(overrides, general, reader_override, db_session):  # noqa: F811
+    approve_all(overrides)
+    use_situation_bundle(overrides)
+    pack = pause_pack()
+    general(pack, pack_approval(pack))  # 승인된 「잠시 멈춤」 팩이 있어도
+    reader_override(Reader(BLOCKED))
+    db_session.get_result = session_row()
+
+
+@pytest.mark.parametrize("code", [*CODES, "QUIET"])
+def test_blocked_situation_turn_has_null_reply_and_consumes_nothing(
+    client,
+    db_session,
+    overrides,  # noqa: F811
+    general,  # noqa: F811
+    reader_override,  # noqa: F811
+    code,
+) -> None:
+    blocked_setup(overrides, general, reader_override, db_session)
+
+    response = client.post(
+        URL,
+        json=sit_body(
+            code, focus_object_id="OBJ_STEP_A", situation_extra={"zone_id": "ZONE_A"}
+        ),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "npc_event_id": response.json()["npc_event_id"],
+        "reply": None,
+        "suggest_hint": None,
+        "fallback_reason": WITHDRAWN,
+        "content_mode": "generic",
+    }
+    event = stored(db_session)
+    record = event.response_json
+    assert event.result_type == "no_reply"
+    assert record["line_id"] is None
+    assert record["situation_code"] == code
+    assert record["situation_replied"] is False
+    assert record["situation_reason"] == CONTENT_WITHDRAWN
+    assert "(가상)" not in str(record)
+    # 쿨다운 · QUIET 횟수를 쓰지 않는다.
+    assert situation_history([event]) == []
+
+
+def test_blocked_keeps_pause_line_for_turns_without_situation(
+    client,
+    db_session,
+    overrides,  # noqa: F811
+    general,  # noqa: F811
+    reader_override,  # noqa: F811
+) -> None:
+    blocked_setup(overrides, general, reader_override, db_session)
+
+    auto = client.post(URL, json=auto_body(client_event_id=str(uuid.uuid4())))
+    message = client.post(
+        URL,
+        json={
+            "client_event_id": str(uuid.uuid4()),
+            "trigger": "player_message",
+            "message": "(가상) 안녕",
+        },
+    )
+
+    # 상황이 없는 턴의 v0.4.12 「잠시 멈춤」 대사는 그대로다.
+    for response in (auto, message):
+        assert response.json()["reply"]["line_id"].startswith("GENERIC_PAUSE_")
+        assert response.json()["fallback_reason"] == WITHDRAWN
+
+
+def test_block_committed_during_situation_turn_drops_the_line(
+    client,
+    db_session,
+    overrides,  # noqa: F811
+    general,  # noqa: F811
+    reader_override,  # noqa: F811
+) -> None:
+    blocked_setup(overrides, general, reader_override, db_session)
+    reader_override(Reader(approved_access(), BLOCKED))
+
+    response = client.post(URL, json=sit_body("BREATH_LOW"))
+
+    assert response.json()["reply"] is None
+    assert response.json()["fallback_reason"] == WITHDRAWN
+    assert stored(db_session).response_json["situation_replied"] is False
+
+
+def test_resend_after_block_does_not_show_the_situation_or_pause_line(
+    client,
+    db_session,
+    overrides,  # noqa: F811
+    general,  # noqa: F811
+    reader_override,  # noqa: F811
+) -> None:
+    blocked_setup(overrides, general, reader_override, db_session)
+    reader_override(Reader(approved_access()))
+    first_body = sit_body("BREATH_LOW")
+    before = client.post(URL, json=first_body).json()
+    event = stored(db_session)
+    assert before["reply"]["line_id"] == "SIT_BREATH_LOW_01"
+
+    reader_override(Reader(BLOCKED))
+    db_session.added.clear()
+    db_session.scalar_result = event
+    again = client.post(URL, json=first_body).json()
+
+    assert again["reply"] is None
+    assert again["fallback_reason"] == WITHDRAWN
+    assert again["content_mode"] == "generic"
+    assert "SIT_BREATH_LOW_01" not in str(again)
+    assert db_session.added == []
+
+
+def test_situation_lines_resume_after_unblock_without_cooldown(
+    client,
+    db_session,
+    overrides,  # noqa: F811
+    general,  # noqa: F811
+    reader_override,  # noqa: F811
+) -> None:
+    blocked_setup(overrides, general, reader_override, db_session)
+    blocked_events = []
+    for _ in range(6):
+        db_session.added.clear()
+        client.post(URL, json=sit_body("QUIET", client_event_id=str(uuid.uuid4())))
+        blocked_events.append(stored(db_session))
+
+    reader_override(Reader(approved_access()))
+    overrides["events"] = blocked_events
+    db_session.added.clear()
+    resumed = client.post(
+        URL, json=sit_body("QUIET", client_event_id=str(uuid.uuid4()))
+    )
+
+    # 차단 중 6번의 QUIET는 횟수(5회) · 쿨다운 · 20초 간격을 쓰지 않았다.
+    assert resumed.json()["reply"]["line_id"] == "NUDGE_GENERAL_01"
+
+
+def test_suspended_publication_keeps_serving_situation_lines(
+    client,
+    db_session,
+    overrides,  # noqa: F811
+    reader_override,  # noqa: F811
+) -> None:
+    # v0.4.6: suspended(새 세션 생성만 중지)는 진행 중 세션의 케이스 대사를 막지 않는다. 바꾸지 않았다.
+    approve_all(overrides)
+    use_situation_bundle(overrides)
+    reader_override(
+        Reader(
+            CaseNpcAccess(approved(("case_test", 1), FP).source(), basis=("suspended",))
+        )
+    )
+    db_session.get_result = session_row()
+
+    response = client.post(URL, json=sit_body("BREATH_LOW"))
+
+    assert response.json()["reply"]["line_id"] == "SIT_BREATH_LOW_01"
+    assert response.json()["fallback_reason"] is None

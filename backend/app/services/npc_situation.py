@@ -24,6 +24,10 @@ FE가 감지한 상황(`situation.code`)을 받아 BE가 「말할지 · 무엇�
    (표시 뒤 · 거절 뒤) 중이거나, 다른 상황 코드의 쿨다운이 아직 남았으면 말하지 않는다(우선순위 가장 낮음).
 말하지 않은 턴(쿨다운 · 대사 없음 · 퍼즐 우선)은 횟수 · 쿨다운을 쓰지 않는다.
 
+[긴급 차단] 케이스가 `blocked`이면 상황 턴은 `reply: null`이다(§5 「게시 중단」). 상황이 없는 턴의 「잠시 멈춤」 대사
+(v0.4.12)는 그대로다 — 자동으로 자주 오는 상황 턴마다 멈춤 문구를 되풀이하지 않게 상황 턴에만 적용한다.
+`fallback_reason=NPC_CONTENT_WITHDRAWN` · `content_mode="generic"`은 같다. 상황 대사로 답하지 않았으므로 쿨다운 · 횟수를 쓰지 않는다.
+
 [응답] `suggest_hint`는 늘 없다(§5). 힌트 단계 · 잔액 · 별을 바꾸지 않는다. 대사 원문은 기록하지 않는다.
 """
 
@@ -50,6 +54,8 @@ QUIET_LIMIT = "situation_quiet_limit"
 QUIET_PUZZLE_COOLDOWN = "situation_quiet_puzzle_cooldown"
 QUIET_OTHER_COOLDOWN = "situation_quiet_other_cooldown"
 NO_LINE = "situation_no_approved_line"
+# 긴급 차단(blocked): 상황 턴은 「잠시 멈춤」 대사도 내지 않는다(§5 「게시 중단: reply: null」)
+CONTENT_WITHDRAWN = "situation_content_withdrawn"
 
 
 @dataclass(frozen=True)

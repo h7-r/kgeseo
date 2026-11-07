@@ -37,6 +37,9 @@
     QUIET은 퍼즐 자동 개입 쿨다운(표시 뒤 · 거절 뒤)이나 다른 상황 코드 쿨다운 중에는 말하지 않는다.
     DB 이벤트로 세므로 서버 재시작 · 이어하기 뒤에도 유지된다.
   - 동시 요청: 상황 턴은 세션 행 `FOR UPDATE`로 시작해 같은 세션의 상황 턴을 직렬화한다.
+  - 긴급 차단(blocked): 상황 턴은 `reply: null` · `fallback_reason: NPC_CONTENT_WITHDRAWN` · `content_mode: "generic"`
+    (계약 v0.4.16 §5 「게시 중단」). 「잠시 멈춤」 대사도 내지 않고 쿨다운 · 횟수를 쓰지 않는다. 재전송도 같다.
+    상황이 없는 턴의 「잠시 멈춤」 대사(v0.4.12)와 `suspended`(진행 중 세션은 케이스 대사 사용, v0.4.6)는 그대로다.
   - 기록(response_json): `situation_code` · `situation_replied` · `situation_reason`(말하지 않은 이유). 대사 원문 없음.
     상황 대사 응답은 `auto_intervened=false`(퍼즐 자동 개입 횟수 · 쿨다운과 따로 센다).
 

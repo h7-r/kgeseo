@@ -84,6 +84,7 @@ from app.services.npc_dialogue import PM_GENERIC_PUZZLE_LINES, NpcReply
 from app.services.npc_general_dialogue import ApprovedLine, ModelGenerator
 from app.services.npc_general_pack import GeneralPackAccess, GeneralPackReader
 from app.services.npc_line_supply import select_pause_line
+from app.services.npc_situation import CONTENT_WITHDRAWN as SITUATION_WITHDRAWN
 from app.services.npc_situation import (
     SituationConfig,
     SituationRequest,
@@ -249,6 +250,13 @@ async def _process_npc_turn_once(
             access: CaseNpcAccess, pack: GeneralPackAccess
         ) -> NpcTurnResult:
             if access.withdrawn:
+                if request.situation is not None:
+                    # 계약 v0.4.16 §5: 게시 중단 중 상황 턴은 reply null(「잠시 멈춤」 대사도 내지 않는다).
+                    return replace(
+                        _withdrawn_result(request.trigger, None),
+                        situation_code=request.situation.code,
+                        situation_reason=SITUATION_WITHDRAWN,
+                    )
                 return _withdrawn_result(request.trigger, pause_line(pack))
             result = await compute_case(access, pack)
             if npc_missing:
@@ -553,7 +561,8 @@ def _replay(
         raise IdempotencyConflictError()
     if access.withdrawn:
         # 긴급 차단 뒤 재전송: 저장했던 응답(케이스 대사 · 예전 대체 대사)을 돌려주지 않고 지금 승인된 팩에서 다시 고른다.
-        pause = pause_line()
+        # 상황 턴은 새 턴과 같이 「잠시 멈춤」 대사도 내지 않는다(계약 v0.4.16 §5).
+        pause = None if "situation" in payload_json else pause_line()
         return NpcTurnResponse(
             npc_event_id=UUID(event.id),
             reply=(
