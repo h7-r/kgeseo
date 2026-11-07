@@ -212,19 +212,22 @@ async function tryPlay() {
   if (state.blocked) set({ blocked: false });
 }
 
-let gestureArmed = false;
+let gestureRetry: (() => void) | null = null;
+function cancelGestureWait() {
+  if (!gestureRetry) return;
+  window.removeEventListener("pointerdown", gestureRetry, true);
+  window.removeEventListener("keydown", gestureRetry, true);
+  gestureRetry = null;
+}
 function waitForGesture() {
   if (!state.blocked) set({ blocked: true });
-  if (gestureArmed) return;
-  gestureArmed = true;
-  const retry = () => {
-    gestureArmed = false;
-    window.removeEventListener("pointerdown", retry, true);
-    window.removeEventListener("keydown", retry, true);
+  if (gestureRetry) return;
+  gestureRetry = () => {
+    cancelGestureWait();
     void tryPlay();
   };
-  window.addEventListener("pointerdown", retry, true);
-  window.addEventListener("keydown", retry, true);
+  window.addEventListener("pointerdown", gestureRetry, true);
+  window.addEventListener("keydown", gestureRetry, true);
 }
 
 // ── 자동 재생 ── 이번 방문에 본부실에 처음 들어오면 한 번 튼다(미르 11/7: 들어오면 기본으로 재생).
@@ -300,7 +303,7 @@ export function nextTrack() {
 }
 
 // ── 소리 크기 ──
-settingsStore.subscribe(() => applyVolume());
+const stopFollowingSettings = settingsStore.subscribe(() => applyVolume());
 
 let duckTimer: ReturnType<typeof setTimeout> | undefined;
 let duckUntil = 0;
@@ -310,7 +313,7 @@ function endDuck() {
   ducked = false;
   applyVolume();
 }
-onVoiceStart((kind, seconds, volume) => {
+const stopFollowingVoices = onVoiceStart((kind, seconds, volume) => {
   if (!DUCK_KINDS.has(kind) || volume < 0.25 || !state.playing) return;
   const until = performance.now() + seconds * 1000 + 200;
   // 겹친 말은 더 줄이지 않고, 가장 늦게 끝나는 말까지 줄인 채로 둔다(짧은 말이 긴 말을 앞당겨 풀지 않게)
@@ -344,6 +347,45 @@ if (import.meta.env.DEV)
   });
 
 // ── 탭을 숨기면 잠깐 멈춤 ──
-if (typeof document !== "undefined") {
-  document.addEventListener("visibilitychange", () => setMusicPaused("tab", document.hidden));
+const onVisibilityChange = () => setMusicPaused("tab", document.hidden);
+if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibilityChange);
+
+// ── 개발 서버 고쳐 끼우기(HMR) ── 이 파일이나 가져오는 파일(소리 · 설정 · 목소리)을 고치면 이 모듈이 새로 실행된다.
+// <audio> 는 화면(DOM) 밖에 있어 React 가 치워 주지 않으니, 옛 모듈의 곡이 멈추지 않은 채 새 모듈이 또 틀어 두 곡이 겹쳤다
+// (11/8 미르 「음악이 두 개 동시에」 — 고칠 때마다 하나씩 늘었다). Vite 는 고친 파일이 아니라 그걸 쓰는 화면 파일을 갈아
+// 끼워 이 모듈의 hot.dispose 가 불리지 않는다 — 그래서 전역 자리에 지금 플레이어를 걸어 두고, 새 모듈이 뜰 때 옛 것을 멈추고
+// 듣기를 다 뗀다. 켜져 있었으면 새 모듈이 이어 켜고, 자동 재생은 이미 한 것으로 넘긴다. 개발 서버에서만 돈다.
+interface HotSlot {
+  autoTried: () => boolean;
+  wasOn: () => boolean;
+  dispose: () => void;
+}
+const HOT_SLOT = "__waegokLobbyMusic";
+if (import.meta.hot) {
+  const slots = globalThis as typeof globalThis & { [HOT_SLOT]?: HotSlot };
+  const previous = slots[HOT_SLOT];
+  const resume = previous?.wasOn() ?? false;
+  if (previous) {
+    if (previous.autoTried()) autoTried = true;
+    previous.dispose();
+  }
+  slots[HOT_SLOT] = {
+    autoTried: () => autoTried,
+    wasOn: () => state.on,
+    dispose: () => {
+      playTicket += 1;
+      clearTimeout(duckTimer);
+      cancelGestureWait();
+      stopFollowingSettings();
+      stopFollowingVoices();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      if (audio) {
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      }
+      gain?.disconnect();
+    },
+  };
+  if (resume) startMusic();
 }
