@@ -16,6 +16,7 @@ import {
   parseTeamEntry,
   parseTeamFile,
   parseTeamLines,
+  TEAM_LINES_MAX,
   type TeamFile,
 } from "./lobby/src/npc/teamRoster";
 import baseConfig from "./vite.config";
@@ -124,9 +125,12 @@ function teamNpcSavePlugin(): Plugin {
             });
           } else if (Array.isArray(lines)) {
             if (!current) return send(409, { error: "no_entry" });
-            // 틀린 줄이 섞이면 조용히 버리지 않고 거절한다(적은 대사가 사라진 줄 모르게 되지 않게)
+            // 틀린 줄이 섞이면 조용히 버리지 않고 거절한다(적은 대사가 사라진 줄 모르게 되지 않게) — 문자열이 아닌 것,
+            // 3개 이상, 다듬은 뒤 40자를 넘는 줄. 빈 줄은 지운 것으로 본다, [] 는 대사 지우기(Codex 리뷰 e0bc05d)
+            if (lines.length > TEAM_LINES_MAX || lines.some((line) => typeof line !== "string"))
+              return send(400, { error: "invalid_line" });
             const kept = parseTeamLines(lines);
-            if (kept.length !== lines.filter((line) => typeof line === "string" && line.trim()).length)
+            if (kept.length !== (lines as string[]).filter((line) => line.trim()).length)
               return send(400, { error: "invalid_line" });
             parsed = { ...current, lines: kept, savedAt: new Date().toISOString() };
           }
