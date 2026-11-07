@@ -60,13 +60,14 @@ const CHAT_ALLOWED = [/시발점/gu, /보지\s?(마|말)/gu, /자지\s?(마|말)
 
 export function findChatProfanity(text: string): boolean {
   let probe = text;
-  // 허용 구절을 하나씩 비워 가며 다시 본다 — 몇 번이면 끝난다
-  for (let round = 0; round < 6; round += 1) {
+  // 허용 구절을 하나씩 비워 가며 다시 본다. 비울 때마다 글자가 줄어 원문 길이 안에 반드시 끝난다(번 수 상한을 두면
+  // 「보지 마」 를 여러 번 쓴 정상 글이 상한에서 거절된다 — Codex 리뷰)
+  for (let round = 0; round <= probe.length; round += 1) {
     const hit = findProfanity(probe, { freeText: true });
     if (!hit) return false;
     const allowed = CHAT_ALLOWED.flatMap((pattern) =>
       [...probe.matchAll(pattern)].map((match) => [match.index, match.index + match[0].length] as const),
-    ).find(([start, end]) => start <= hit.start && hit.end <= end);
+    ).find(([start, end]) => start <= hit.start && hit.end <= end && probe.slice(start, end).trim() !== "");
     if (!allowed) return true;
     probe = probe.slice(0, allowed[0]) + " ".repeat(allowed[1] - allowed[0]) + probe.slice(allowed[1]);
   }

@@ -128,8 +128,9 @@ export function createLobbyRoom({
       this.#punches.set(client.sessionId, new PunchGate());
       this.state.players.set(client.sessionId, player);
       this.#subs.set(client.sessionId, ticket.sub);
-      // 같은 계정의 먼저 붙은 연결은 끊는다(나중 접속이 이긴다 — 미르 11/7 「표준대로」)
-      if (online.claim(ticket.sub, client)) log("join_replaced_previous", { rooms: roomCap.used });
+      // 같은 계정의 먼저 붙은 연결은 끊는다(나중 접속이 이긴다 — 미르 11/7 「표준대로」). 보통은 매칭 전에 이미 끊었다(server.ts)
+      if (online.claim(ticket.sub, client, () => this.#revoke(client.sessionId)))
+        log("join_replaced_previous", { rooms: roomCap.used });
       log("join", { clients: this.clients.length, look: player.look !== "", rooms: roomCap.used });
     }
 
@@ -143,6 +144,19 @@ export function createLobbyRoom({
       if (sub) online.release(sub, client);
       this.#subs.delete(client.sessionId);
       if (existed) log("leave", { code: code ?? null, clients: this.clients.length });
+    }
+
+    /**
+     * 이 연결의 메시지 권한을 바로 거둔다 — 같은 계정 새 접속·명단 제재. 끊김 신호(leave)는 상대가 닫기에 응해야 끝나므로
+     * 그 사이 채팅·이동·주먹이 들어와도 받지 않게 계정·검사 상태와 아바타를 먼저 지운다(onLeave 가 나중에 와도 무해).
+     */
+    #revoke(sid: string) {
+      this.#subs.delete(sid);
+      this.#moves.delete(sid);
+      this.#greets.delete(sid);
+      this.#punches.delete(sid);
+      this.#poseAt.delete(sid);
+      this.state.players.delete(sid);
     }
 
     override onDispose() {

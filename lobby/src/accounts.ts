@@ -18,16 +18,28 @@ interface Leavable {
   leave(code?: number, data?: string): void;
 }
 
+interface OnlineEntry<C> {
+  client: C;
+  /** 그 방에서 이 연결의 메시지 권한을 바로 거둔다(끊김 신호는 상대가 닫기 응답을 해야 끝나므로 기다리지 않는다) */
+  revoke: () => void;
+  left: Promise<void>;
+  markLeft: () => void;
+}
+
 /** 지금 붙어 있는 계정 → 연결(프로세스 전체에서 하나). 방이 여럿이어도 같은 맵을 쓴다 */
 export class OnlineAccounts<C extends Leavable = Leavable> {
-  readonly #bySub = new Map<string, C>();
+  readonly #bySub = new Map<string, OnlineEntry<C>>();
 
-  /** 이 계정의 새 연결을 등록한다. 먼저 붙어 있던 연결이 있으면 끊는다(나중 접속이 이긴다) */
-  claim(sub: string, client: C): boolean {
+  /** 이 계정의 새 연결을 등록한다. 먼저 붙어 있던 연결이 있으면 권한을 거두고 끊는다(나중 접속이 이긴다) */
+  claim(sub: string, client: C, revoke: () => void = () => {}): boolean {
     const previous = this.#bySub.get(sub);
-    this.#bySub.set(sub, client);
-    if (previous && previous !== client) {
-      previous.leave(CLOSE_REPLACED);
+    let markLeft = () => {};
+    const left = new Promise<void>((resolve) => (markLeft = resolve));
+    this.#bySub.set(sub, { client, revoke, left, markLeft });
+    if (previous && previous.client !== client) {
+      previous.revoke();
+      previous.client.leave(CLOSE_REPLACED);
+      previous.markLeft();
       return true;
     }
     return false;
@@ -35,16 +47,36 @@ export class OnlineAccounts<C extends Leavable = Leavable> {
 
   /** 연결이 나갔다. 그 사이 같은 계정의 새 연결이 등록됐으면 건드리지 않는다 */
   release(sub: string, client: C) {
-    if (this.#bySub.get(sub) === client) this.#bySub.delete(sub);
+    const entry = this.#bySub.get(sub);
+    if (entry?.client !== client) return;
+    this.#bySub.delete(sub);
+    entry.markLeft();
   }
 
-  /** 명단에 없는 계정을 끊는다. 끊은 수 */
+  /**
+   * 매칭 전에 부른다 — 이 계정이 이미 붙어 있으면 권한을 거두고 끊은 뒤, 그 연결이 실제로 나가 자리가 빌 때까지(최대 timeoutMs)
+   * 기다린다. 방이 다 찼을 때도 같은 계정의 새 접속이 자기 옛 자리를 넘겨받게(검토 14회차 Codex 리뷰). 끊었으면 true
+   */
+  async evict(sub: string, timeoutMs: number): Promise<boolean> {
+    const entry = this.#bySub.get(sub);
+    if (!entry) return false;
+    entry.revoke();
+    entry.client.leave(CLOSE_REPLACED);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([entry.left, new Promise<void>((resolve) => (timer = setTimeout(resolve, timeoutMs)))]);
+    clearTimeout(timer);
+    return true;
+  }
+
+  /** 명단에 없는 계정을 끊는다(권한을 먼저 거둔다). 끊은 수 */
   removeNotIn(eligible: ReadonlySet<string>): number {
     let removed = 0;
-    for (const [sub, client] of this.#bySub) {
+    for (const [sub, entry] of this.#bySub) {
       if (eligible.has(sub)) continue;
       this.#bySub.delete(sub);
-      client.leave(CLOSE_REMOVED);
+      entry.revoke();
+      entry.client.leave(CLOSE_REMOVED);
+      entry.markLeft();
       removed += 1;
     }
     return removed;

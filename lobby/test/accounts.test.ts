@@ -40,6 +40,41 @@ describe("OnlineAccounts", () => {
     assert.equal(online.size, 0);
   });
 
+  it("끊기 전에 방의 메시지 권한부터 거둔다(교체·제재 모두)", () => {
+    const online = new OnlineAccounts<FakeClient>();
+    const revoked: string[] = [];
+    online.claim("u1", new FakeClient(), () => revoked.push("old"));
+    online.claim("u1", new FakeClient(), () => revoked.push("new"));
+    assert.deepEqual(revoked, ["old"]);
+    online.removeNotIn(new Set());
+    assert.deepEqual(revoked, ["old", "new"]);
+  });
+
+  it("evict — 붙어 있으면 거두고 끊은 뒤 실제로 나갈 때까지 기다린다(최대 시간까지)", async () => {
+    const online = new OnlineAccounts<FakeClient>();
+    assert.equal(await online.evict("nobody", 10), false);
+    const client = new FakeClient();
+    let revoked = false;
+    online.claim("u1", client, () => (revoked = true));
+    let done = false;
+    const waiting = online.evict("u1", 5000).then((result) => {
+      done = true;
+      return result;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(revoked, true);
+    assert.equal(client.closed, CLOSE_REPLACED);
+    assert.equal(done, false, "나가기 전에는 기다린다");
+    online.release("u1", client);
+    assert.equal(await waiting, true);
+    // 나가지 않는 연결은 최대 시간 뒤 넘어간다
+    const stuck = new FakeClient();
+    online.claim("u2", stuck);
+    const started = Date.now();
+    assert.equal(await online.evict("u2", 50), true);
+    assert.ok(Date.now() - started >= 45);
+  });
+
   it("명단에 없는 계정만 4101 로 끊는다", () => {
     const online = new OnlineAccounts<FakeClient>();
     const keep = new FakeClient();

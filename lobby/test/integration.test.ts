@@ -227,6 +227,30 @@ describe("같은 계정 두 번 접속 — 나중 접속이 이긴다", () => {
   });
 });
 
+describe("같은 계정 — 방이 다 찼어도 다시 들어오면 자기 자리를 넘겨받는다(Codex 리뷰)", () => {
+  it("모든 자리가 찬 상태에서 같은 계정의 새 접속이 옛 연결을 끊고 들어간다", async () => {
+    // 이 시험 서버는 방 2개(20자리)
+    const others = [];
+    for (let i = 0; i < 19; i += 1) others.push((await join()).room);
+    const mine = await client(ALLOWED_ORIGIN, await makeTicket({ sub: "full-house", nickname: "만석" })).joinOrCreate(
+      "lobby",
+      { look: validLook() },
+    );
+    assert.equal(lobby.roomCap.used, 2);
+    // 다른 계정은 더 못 들어온다
+    assert.equal(await errorMessage(join()), "LOBBY_FULL");
+    const closed = new Promise<number>((resolve) => mine.onLeave((code: number) => resolve(code)));
+    const again = await client(ALLOWED_ORIGIN, await makeTicket({ sub: "full-house", nickname: "만석" })).joinOrCreate(
+      "lobby",
+      { look: validLook() },
+    );
+    assert.equal(await closed, CLOSE_REPLACED);
+    assert.ok(again.sessionId);
+    assert.equal(lobby.roomCap.used, 2);
+    await leaveAll([...others, again]);
+  });
+});
+
 describe("입장권 1회 사용", () => {
   it("같은 티켓으로 새 HTTP 요청을 보내면 TICKET_USED", async () => {
     const token = await ticket();

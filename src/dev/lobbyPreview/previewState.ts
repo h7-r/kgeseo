@@ -68,8 +68,11 @@ connection.onChatRejected((reason) => showChatNotice(CHAT_REJECT_TEXT[reason]));
 /** 채팅 보내기 — 다듬어서 1~40자가 아니면 false(서버에는 안 간다) */
 export const sendChat = (text: string) => connection.sendChat(text);
 
-/** 그 사람(가명 ID) 숨기기·풀기. 숨기면 지금 떠 있는 말풍선도 바로 지운다 */
+/** 그 사람(가명 ID) 숨기기·풀기. 숨기면 지금 떠 있는 말풍선도 바로 지운다. 나 자신은 숨기지 못한다(이미 숨겼으면 풀기만) */
 export function toggleMutePlayer(pid: string) {
+  const sid = mySid();
+  const myPid = sid ? connection.players().get(sid)?.pid : undefined;
+  if (pid === myPid && !isMuted(pid)) return false;
   const muted = toggleMute(pid);
   if (muted)
     for (const [sid, player] of connection.players()) if (player.pid === pid) bubbles.delete(sid);

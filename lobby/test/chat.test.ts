@@ -49,6 +49,9 @@ describe("연락처·금칙어", () => {
     for (const text of ["여기 보지 마", "보지말고 가", "자지 마 일어나", "시발점이 어디야"])
       assert.equal(findChatProfanity(text), false, text);
     assert.equal(findChatProfanity("여기 보지 마 시발"), true);
+    // 허용 구절이 여러 번이어도(번 수 상한 없음) 정상이면 통과, 끝에 욕이 붙으면 잡는다
+    assert.equal(findChatProfanity("보지 마 ".repeat(8).trim()), false);
+    assert.equal(findChatProfanity(`${"보지 마 ".repeat(7)}ㅅㅂ`), true);
     assert.equal(findChatProfanity("시발점 병신"), true);
   });
 });

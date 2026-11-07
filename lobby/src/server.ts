@@ -17,6 +17,8 @@ import { UsedJtiRegistry } from "./usedJti.js";
 const SWEEP_INTERVAL_MS = 30_000;
 /** 베타 명단을 다시 읽는 간격 — 명단에서 뺀 계정은 이 안에 끊긴다 */
 export const BETA_LIST_INTERVAL_MS = 30_000;
+/** 같은 계정의 옛 연결이 나가 자리가 빌 때까지 매칭을 기다리는 최대 시간 */
+export const EVICT_WAIT_MS = 2000;
 
 export interface LobbyServer {
   server: Server;
@@ -57,16 +59,23 @@ export function createLobbyServer(config: LobbyConfig, options: CreateLobbyServe
   });
   // 매칭 인증 거절은 운영에서도 유형만 남긴다(설계 1절 기록 규칙 — 티켓·계정 ID 는 넣지 않는다).
   // 시험 장치가 켜졌으면 요청 번호와 함께 시험 기록에도 남긴다.
-  const tracedAuthenticate: typeof authenticate = (token, opts, context) =>
-    authenticate(token, opts, context).catch((error: unknown) => {
-      const reason = error instanceof ServerError ? error.message : "error";
-      log("auth_rejected", { reason });
-      if (hooks && context) hooks.trace.record(context, `rejected_${reason}`);
-      throw error;
-    });
-
   const chatGuard = new ChatGuard();
   const online = new OnlineAccounts<Client>();
+  const tracedAuthenticate: typeof authenticate = (token, opts, context) =>
+    authenticate(token, opts, context)
+      .catch((error: unknown) => {
+        const reason = error instanceof ServerError ? error.message : "error";
+        log("auth_rejected", { reason });
+        if (hooks && context) hooks.trace.record(context, `rejected_${reason}`);
+        throw error;
+      })
+      .then(async (ticket) => {
+        // 같은 계정이 이미 붙어 있으면 매칭 전에 옛 연결을 끊고 자리가 빌 때까지 기다린다 — 방이 다 찼어도 자기 자리를
+        // 넘겨받게(검토 14회차 Codex 리뷰). 같은 요청 안의 재인증(좌석 재시도)에서는 이미 끊었으므로 바로 지나간다
+        if (await online.evict(ticket.sub, EVICT_WAIT_MS)) log("auth_evicted_previous", {});
+        return ticket;
+      });
+
   const LobbyRoom = createLobbyRoom({
     chatGuard,
     online,

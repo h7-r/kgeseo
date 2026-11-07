@@ -82,7 +82,9 @@ export default function ChatBox({ canChat }: { canChat: boolean }) {
   const [quietAt, setQuietAt] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
-  const relockOnSend = useRef(false);
+  // 열기 전에 잠겨 있던 요소 — 본편 조작기(PointerLockControls)는 캔버스가 아니라 R3F 의 감싼 요소를 잠근다(Codex 리뷰).
+  // 같은 요소를 다시 잠가야 조작기가 「잠김」으로 받는다
+  const relockTarget = useRef<Element | null>(null);
   const [hidden] = useState(touchOnly);
 
   // 열 수 없게 되면(컷신·화면창·자물쇠·출동 경보·연결 끊김) 닫는다 — 렌더 중 이전 값과 비교(effect 안 setState 피함)
@@ -102,7 +104,7 @@ export default function ChatBox({ canChat }: { canChat: boolean }) {
   }, []);
 
   const openChat = () => {
-    relockOnSend.current = !!document.pointerLockElement;
+    relockTarget.current = document.pointerLockElement;
     if (document.pointerLockElement) document.exitPointerLock();
     setOpen(true);
   };
@@ -142,20 +144,23 @@ export default function ChatBox({ canChat }: { canChat: boolean }) {
 
   const status = connection.status();
   const mySid = status.kind === "connected" ? status.sessionId : null;
+  // 내 말은 연결 ID 가 아니라 가명 ID 로 가린다 — 다시 접속하면 연결 ID 가 바뀌어 옛 줄이 남의 말로 보이고 나를 숨길 수 있었다(Codex 리뷰)
+  const myPid = mySid ? (connection.players().get(mySid)?.pid ?? null) : null;
   const shown = lines.filter((line) => !muted.has(line.pid));
   const visible = open ? shown : shown.slice(-VISIBLE_LINES);
   const count = chatLength(normalizeChatText(draft));
   const tooLong = count > CHAT_MAX_CHARS;
-  // 커서가 보일 때만 이름을 누를 수 있다(잠금 중엔 커서가 없다)
-  const canClickNames = open || !locked;
+  // 커서가 보일 때만 이름을 누를 수 있다(잠금 중엔 커서가 없다). 연결이 없으면 내 가명 ID 를 몰라 누르지 못하게 한다
+  const canClickNames = (open || !locked) && myPid !== null;
 
   const close = (relock: boolean) => {
     setOpen(false);
     setMenu(null);
     inputRef.current?.blur();
-    // Enter(사용자 입력)로 닫을 때만 다시 잠근다 — 본편 화면창처럼 열기 전 상태로
-    if (relock && relockOnSend.current) document.querySelector("canvas")?.requestPointerLock();
-    relockOnSend.current = false;
+    // Enter(사용자 입력)로 닫을 때만 다시 잠근다 — 본편 화면창처럼 열기 전 상태로, 같은 요소를
+    const target = relockTarget.current;
+    relockTarget.current = null;
+    if (relock && target?.isConnected) void Promise.resolve(target.requestPointerLock()).catch(() => undefined);
   };
 
   const onInputKey = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -197,7 +202,7 @@ export default function ChatBox({ canChat }: { canChat: boolean }) {
         }}
       >
         {visible.map((line) => {
-          const mine = line.sid === mySid;
+          const mine = line.sid === mySid || (myPid !== null && line.pid === myPid);
           return (
             <div key={line.id} style={{ ...lineStyle, background: mine ? "rgba(40, 62, 98, 0.72)" : lineStyle.background }}>
               {mine ? (
