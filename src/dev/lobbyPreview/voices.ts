@@ -149,7 +149,18 @@ export function playVoice(speaker: string, kind: VoiceKind, gender: VoiceGender,
       gain.disconnect();
     };
     source.start();
+    voiceListeners.forEach((listener) => listener(kind, buffer.duration, volume));
   });
+}
+
+type VoiceListener = (kind: VoiceKind, seconds: number, volume: number) => void;
+const voiceListeners = new Set<VoiceListener>();
+/** 목소리가 실제로 나기 시작할 때 알린다(로비 스피커 음악을 잠깐 줄이는 데 쓴다) */
+export function onVoiceStart(listener: VoiceListener) {
+  voiceListeners.add(listener);
+  return () => {
+    voiceListeners.delete(listener);
+  };
 }
 
 /** 그 사람이 지금 하는 말(불러오는 중 포함)을 끊는다 — 숨기기 */
