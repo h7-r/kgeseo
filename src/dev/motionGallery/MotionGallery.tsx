@@ -147,10 +147,11 @@ function FitCamera({ count }: { count: number }) {
   useEffect(() => {
     const rows = Math.max(1, Math.ceil(count / COLUMNS));
     const width = COLUMNS * SPACING_X + 1;
-    const height = rows * SPACING_Y + 1.2;
+    // 위쪽 단추 줄과 첫 줄 이름표가 겹치지 않게 위를 넉넉히
+    const height = rows * SPACING_Y + 3;
     const ortho = camera as THREE.OrthographicCamera;
     ortho.zoom = Math.min(size.width / width, size.height / height);
-    ortho.position.set(0, EYE_HEIGHT * 0.55 - ((rows - 1) * SPACING_Y) / 2 + 0.6, 50);
+    ortho.position.set(0, EYE_HEIGHT * 0.55 - ((rows - 1) * SPACING_Y) / 2 + 1.5, 50);
     ortho.lookAt(0, ortho.position.y, 0);
     ortho.updateProjectionMatrix();
   }, [camera, size, count]);
