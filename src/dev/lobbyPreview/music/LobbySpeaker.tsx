@@ -203,7 +203,14 @@ export default function LobbySpeaker() {
     label: () => (musicStore.get().on ? "[E] 음악 끄기" : "[E] 음악 틀기"),
     position: center,
     radius: 0.75,
-    run: toggleMusic,
+    run: () => {
+      // 게임 키(useGameKeys)는 E 를 누르고 있는 동안 반복 입력마다 「쓰기」를 부른다 — 켜기 / 끄기가 깜빡이며 「다음 방문
+      // 자동 재생 안 함」까지 저장되지 않게 반복으로 온 E 는 거른다(Codex 21 리뷰). 따로 키를 엿듣지 않고 지금 처리 중인
+      // 이벤트(window.event — 낡았지만 모든 브라우저가 지원)를 본다. 리스너 순서와 상관없다
+      const current = window.event;
+      if (current instanceof KeyboardEvent && current.repeat) return;
+      toggleMusic();
+    },
     disabled: () => gate.current.hidden || gate.current.blocked,
   });
 

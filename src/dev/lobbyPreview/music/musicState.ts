@@ -94,8 +94,11 @@ function shuffled(avoidFirst: Track | null): Track[] {
 // ── 소리 길 ──
 let audio: HTMLAudioElement | null = null;
 let gain: GainNode | null = null;
-/** 이어서 실패한 곡 수 — 전부 실패하면 멈추고 알린다(자동 재생 막힘은 세지 않는다) */
-let failures = 0;
+/**
+ * 마지막으로 재생에 성공한 뒤 실패한 곡들 — 서로 다른 곡이 전부 실패하면 멈추고 알린다. 회차를 넘기며 다시 섞으면 같은 곡을
+ * 또 만날 수 있어 시도 횟수가 아니라 곡으로 센다(Codex 21 리뷰). 자동 재생 막힘은 세지 않는다
+ */
+const failed = new Set<Track>();
 let ducked = false;
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
@@ -129,7 +132,7 @@ function ensureAudio(): HTMLAudioElement {
   }
   applyVolume(0);
   element.addEventListener("playing", () => {
-    failures = 0;
+    failed.clear();
     if (!state.playing || state.error) set({ playing: true, error: null });
   });
   element.addEventListener("pause", () => {
@@ -142,8 +145,8 @@ function ensureAudio(): HTMLAudioElement {
   element.addEventListener("error", () => {
     // 끈 뒤 src 를 비울 때 나는 오류는 무시한다
     if (!state.on || !element.getAttribute("src")) return;
-    failures += 1;
-    if (failures >= TRACKS.length) {
+    if (state.track) failed.add(state.track);
+    if (failed.size >= TRACKS.length) {
       element.pause();
       set({ playing: false, error: "음악을 불러오지 못했어요" });
       return;
@@ -256,7 +259,7 @@ export function autoStartMusic() {
 /** 켠다 — 매번 순서를 새로 섞는다 */
 export function startMusic() {
   if (state.on) return;
-  failures = 0;
+  failed.clear();
   order = shuffled(lastTrack);
   index = 0;
   set({ on: true, error: null, blocked: false });
@@ -290,7 +293,7 @@ export function toggleMusic() {
 export function nextTrack() {
   if (!state.on) return;
   if (state.error) {
-    failures = 0;
+    failed.clear();
     set({ error: null });
   }
   advance();
