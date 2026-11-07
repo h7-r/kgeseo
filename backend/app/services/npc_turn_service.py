@@ -350,11 +350,16 @@ def _payload(request: NpcTurnRequest) -> dict[str, Any]:
         if request.message is not None
         else None
     )
-    return {
+    payload: dict[str, Any] = {
         "trigger": request.trigger,
         "focus_object_id": request.focus_object_id,
         "message_sha256": digest,
     }
+    # 계약 v0.4.16 §8-6: 같은 client_event_id 재전송은 situation까지 같아야 처음 응답을 돌려준다.
+    # situation이 없으면 키를 넣지 않는다 — 이미 저장된 이벤트의 payload_json과 그대로 일치하게.
+    if request.situation is not None:
+        payload["situation"] = request.situation.model_dump(mode="json")
+    return payload
 
 
 def _focus_puzzle(

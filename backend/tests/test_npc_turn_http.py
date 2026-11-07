@@ -540,3 +540,208 @@ def test_without_hint_ref_keys_suggest_hint_is_withheld(
     assert response.json()["suggest_hint"] is None
     assert "PZ_A" not in response.text
     assert stored(db_session).response_json["suggest_hint_puzzle_id"] == "PZ_A"
+
+
+# --- 상황(situation) 요청 계약 — 계약 v0.4.16 §2 · §8-6 · §9-4 ---
+# 이 단계는 요청 계약만 받는다. 상황 대사 고르기 · 쿨다운은 아직 없으므로, situation이 실린 auto 턴도
+# 기존 퍼즐 자동 개입 판단을 그대로 탄다(§8-5: 겹치면 퍼즐 자동 개입이 우선).
+
+SITUATION_CODES = [
+    "BREATH_LOW",
+    "SENT_BACK",
+    "ITEM_MISSING",
+    "ITEM_LEFT_BEHIND",
+    "ITEM_NOT_PICKED",
+    "REPEATED_MISTAKE",
+    "OFF_OBJECTIVE",
+    "NO_PROGRESS",
+    "STEP_ARRIVED",
+    "STEP_DONE",
+    "QUIET",
+]
+
+
+def test_situation_codes_match_contract_v0416() -> None:
+    from typing import get_args
+
+    from app.schemas.npc_turn import NpcSituationCode
+
+    assert list(get_args(NpcSituationCode)) == SITUATION_CODES
+
+
+@pytest.mark.parametrize("code", SITUATION_CODES)
+def test_auto_turn_with_situation_is_accepted(
+    client, db_session, overrides, code
+) -> None:
+    approve_all(overrides)
+    db_session.get_result = session_row()
+
+    response = client.post(
+        URL,
+        json=auto_body(situation={"code": code, "zone_id": "ZONE_A", "value": 12}),
+    )
+
+    assert response.status_code == 200
+    # 퍼즐 자동 개입 조건이 없으니 말하지 않는다(대사 없음은 오류가 아니다, §5).
+    assert response.json()["reply"] is None
+    assert response.json()["suggest_hint"] is None
+    event = stored(db_session)
+    assert event.payload_json["situation"] == {
+        "code": code,
+        "zone_id": "ZONE_A",
+        "value": 12,
+    }
+
+
+@pytest.mark.parametrize(
+    "situation",
+    [
+        {"code": "QUIET"},
+        {"code": "BREATH_LOW", "value": 7.5},
+        {"code": "OFF_OBJECTIVE", "zone_id": "ZONE_A"},
+        {"code": "NO_PROGRESS", "value": 0, "zone_id": None},
+    ],
+    ids=["code_only", "float_value", "zone_only", "explicit_null_zone"],
+)
+def test_situation_optional_fields(client, db_session, overrides, situation) -> None:
+    db_session.get_result = session_row()
+
+    response = client.post(URL, json=auto_body(situation=situation))
+
+    assert response.status_code == 200
+    stored_situation = stored(db_session).payload_json["situation"]
+    assert stored_situation["code"] == situation["code"]
+    assert stored_situation["zone_id"] == situation.get("zone_id")
+    assert stored_situation["value"] == situation.get("value")
+
+
+def test_situation_does_not_replace_puzzle_auto_intervention(
+    client, db_session, overrides
+) -> None:
+    approve_all(overrides)
+    overrides["events"] = answer_events(6)
+    db_session.get_result = session_row()
+
+    response = client.post(
+        URL, json=auto_body(situation={"code": "REPEATED_MISTAKE", "value": 6})
+    )
+
+    assert response.status_code == 200
+    assert response.json()["reply"]["line_id"] == "NUDGE_A_01"
+    assert stored(db_session).response_json["auto_intervened"] is True
+
+
+def test_turns_without_situation_keep_previous_payload(
+    client, db_session, overrides
+) -> None:
+    db_session.get_result = session_row()
+
+    auto = client.post(URL, json=auto_body())
+    auto_payload = stored(db_session).payload_json
+    db_session.added.clear()
+    message = client.post(
+        URL, json=body(client_event_id="77777777-7777-4777-8777-777777777777")
+    )
+    message_payload = stored(db_session).payload_json
+
+    assert auto.status_code == 200
+    assert message.status_code == 200
+    # 이미 저장된 이벤트와의 재전송 비교가 깨지지 않게, situation이 없으면 키도 없다.
+    assert auto_payload == {
+        "trigger": "auto",
+        "focus_object_id": "OBJ_CABINET",
+        "message_sha256": None,
+    }
+    assert set(message_payload) == {"trigger", "focus_object_id", "message_sha256"}
+
+
+@pytest.mark.parametrize(
+    "request_body",
+    [
+        # 계약 밖 코드
+        auto_body(situation={"code": "UNKNOWN"}),
+        auto_body(situation={"code": "breath_low"}),
+        auto_body(situation={"code": ""}),
+        auto_body(situation={"code": "CHATTER"}),
+        # 형식
+        auto_body(situation="BREATH_LOW"),
+        auto_body(situation=["BREATH_LOW"]),
+        auto_body(situation={}),
+        auto_body(situation={"zone_id": "ZONE_A"}),
+        auto_body(situation={"code": 1}),
+        auto_body(situation={"code": "QUIET", "zone_id": ""}),
+        auto_body(situation={"code": "QUIET", "zone_id": "Z" * 65}),
+        auto_body(situation={"code": "QUIET", "zone_id": 3}),
+        auto_body(situation={"code": "BREATH_LOW", "value": "12"}),
+        auto_body(situation={"code": "BREATH_LOW", "value": True}),
+        auto_body(situation={"code": "BREATH_LOW", "value": [12]}),
+        # 모르는 필드
+        auto_body(situation={"code": "QUIET", "puzzle_id": "PZ_A"}),
+        auto_body(situation={"code": "QUIET", "line_id": "SIT_QUIET_01"}),
+        auto_body(situation_code="QUIET"),
+        # auto 가 아닌 트리거
+        body(situation={"code": "QUIET"}),
+        body(trigger="other", situation={"code": "QUIET"}),
+        # player_message 원문과 함께
+        auto_body(message="숨이 모자라", situation={"code": "BREATH_LOW"}),
+    ],
+    ids=[
+        "unknown_code",
+        "lowercase_code",
+        "empty_code",
+        "not_contract_code",
+        "situation_string",
+        "situation_list",
+        "situation_empty",
+        "code_missing",
+        "code_number",
+        "zone_empty",
+        "zone_too_long",
+        "zone_number",
+        "value_string",
+        "value_bool",
+        "value_list",
+        "situation_extra_puzzle_id",
+        "situation_extra_line_id",
+        "top_level_extra",
+        "player_message_with_situation",
+        "unknown_trigger_with_situation",
+        "auto_message_with_situation",
+    ],
+)
+def test_invalid_situation_request_is_422(
+    client, db_session, overrides, request_body
+) -> None:
+    db_session.get_result = session_row()
+
+    response = client.post(URL, json=request_body)
+
+    assert response.status_code == 422
+    assert db_session.added == []
+
+
+def test_replay_requires_the_same_situation(client, db_session, overrides) -> None:
+    approve_all(overrides)
+    db_session.get_result = session_row()
+    first_body = auto_body(situation={"code": "BREATH_LOW", "value": 12})
+    first = client.post(URL, json=first_body)
+    event = stored(db_session)
+
+    db_session.added.clear()
+    db_session.scalar_result = event
+    again = client.post(URL, json=first_body)
+    other_code = client.post(URL, json=auto_body(situation={"code": "SENT_BACK"}))
+    other_value = client.post(
+        URL, json=auto_body(situation={"code": "BREATH_LOW", "value": 5})
+    )
+    without = client.post(URL, json=auto_body())
+
+    assert again.status_code == 200
+    assert again.json() == first.json()
+    assert db_session.added == []
+    # 같은 client_event_id 에 다른 situation 은 기존 재전송 충돌과 같은 409.
+    for changed in (other_code, other_value, without):
+        assert changed.status_code == 409
+        assert changed.json() == {
+            "detail": "Client event ID conflicts with a previous interaction."
+        }

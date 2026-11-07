@@ -12,12 +12,19 @@
   "client_timestamp": "2026-10-29T12:00:00+09:00",
   "trigger": "player_message | auto",
   "message": "player_message 일 때만 (1~200자)",
-  "focus_object_id": "선택 — 현재 구역에서 보고 있는 Object"
+  "focus_object_id": "선택 — 현재 구역에서 보고 있는 Object",
+  "situation": {"code": "BREATH_LOW", "zone_id": "선택", "value": 12}
 }
 ```
 
 - 모르는 필드는 422(`extra="forbid"`). 퍼즐 ID 는 받지 않는다 — 서버가 포커스 Object 에서 다시 찾는다.
 - `player_message` 에는 `message` 필수, `auto` 에는 `message` 금지.
+- `situation`(계약 v0.4.16 §2 · §9-4)은 `auto` 에만 싣는다(그 밖은 422). `code` 필수 — `BREATH_LOW` ·
+  `SENT_BACK` · `ITEM_MISSING` · `ITEM_LEFT_BEHIND` · `ITEM_NOT_PICKED` · `REPEATED_MISTAKE` · `OFF_OBJECTIVE` ·
+  `NO_PROGRESS` · `STEP_ARRIVED` · `STEP_DONE` · `QUIET` 외에는 422. `zone_id` 는 선택(1~64자),
+  `value` 는 선택 숫자(문자열 · 불리언 422). `situation` 안에도 모르는 필드는 422.
+- 같은 `client_event_id` 재전송은 `situation` 까지 같아야 처음 응답을 돌려준다. 다르면 409(기존 재전송 충돌과 같음).
+- 상황 대사 고르기 · 쿨다운은 아직 없다. 지금은 `situation` 이 실린 auto 턴도 기존 퍼즐 자동 개입 판단만 한다.
 
 ## 응답 (200, 감싸지 않은 객체)
 

@@ -25,6 +25,37 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 NpcTurnTrigger = Literal["player_message", "auto"]
 MAX_PLAYER_MESSAGE_LENGTH = 200
 
+# 계약 v0.4.16 §9-4 상황 코드 11개(§3 표를 대신함). 겹칠 때 FE가 보내는 차례(§9-5)대로 적는다.
+# 이 목록 밖의 코드는 422다. 코드를 늘리려면 계약을 먼저 고친다.
+NpcSituationCode = Literal[
+    "BREATH_LOW",
+    "SENT_BACK",
+    "ITEM_MISSING",
+    "ITEM_LEFT_BEHIND",
+    "ITEM_NOT_PICKED",
+    "REPEATED_MISTAKE",
+    "OFF_OBJECTIVE",
+    "NO_PROGRESS",
+    "STEP_ARRIVED",
+    "STEP_DONE",
+    "QUIET",
+]
+
+
+class NpcSituation(BaseModel):
+    """auto 턴에 FE가 감지한 상황(계약 v0.4.16 §2). 말할지 · 무엇을 말할지는 BE가 정한다.
+
+    - `code`만 필수. `zone_id` · `value`는 선택이다.
+    - `zone_id`: 플레이어가 있는 Zone. 11/9 나주 대응표 전에는 형식을 묶지 않는다(§9-8).
+    - `value`: 수치가 있는 상황(남은 숨 초 · 누적 실수 · 머문 시간 등). 숫자만 받는다 — 문자열 · 불리언은 422.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: NpcSituationCode
+    zone_id: str | None = Field(default=None, min_length=1, max_length=64)
+    value: float | None = Field(default=None, strict=True, allow_inf_nan=False)
+
 
 class NpcTurnRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -38,6 +69,8 @@ class NpcTurnRequest(BaseModel):
     )
     # 플레이어가 보고 있는 Object(현재 구역). 서버가 퍼즐로 다시 찾는다(퍼즐 ID는 받지 않는다).
     focus_object_id: str | None = Field(default=None, min_length=1, max_length=64)
+    # 계약 v0.4.16 §2: trigger=auto 일 때만. 없으면 기존 퍼즐 자동 개입 그대로다.
+    situation: NpcSituation | None = None
 
     @field_validator("client_timestamp")
     @classmethod
@@ -54,6 +87,9 @@ class NpcTurnRequest(BaseModel):
             raise ValueError("player_message requires message")
         if self.trigger == "auto" and self.message is not None:
             raise ValueError("auto turn must not carry a message")
+        if self.trigger != "auto" and self.situation is not None:
+            # 계약 v0.4.16 §2: player_message 턴에는 situation을 싣지 않는다.
+            raise ValueError("situation is only allowed on auto turns")
         return self
 
 
