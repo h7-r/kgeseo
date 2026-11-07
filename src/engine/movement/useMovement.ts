@@ -631,7 +631,9 @@ export function useMovement(
     }
 
     const isRunning = active && k.run && !isCrouching && isGrounded.current && target.lengthSq() > 1e-6;
-    if (isRunning) startLoop("run", { volume: 0.55 });
+    // 뛰기 발소리 — 0.55 → 0.85(2026-11-07 미르 「음성에 비해 발소리가 작다」). run.mp3 는 −25.8 LUFS 라 0.85배면 약 −27,
+    // 캐릭터 목소리(−20.5 로 맞춤 — src/dev/lobbyPreview/voices.ts)보다 약 7dB 아래. 검토 15회차
+    if (isRunning) startLoop("run", { volume: 0.85 });
     else stopLoop("run");
 
     writePlayerState(p, false);

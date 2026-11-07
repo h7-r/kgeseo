@@ -26,7 +26,8 @@ import { overlayLayer } from "@/game/overlayLayer";
 import { getLockControl } from "@/props/combinationLockState";
 
 import { localPlayer } from "./localPlayer";
-import { bubbles, connection, localPose, notePunch, refreshAccount } from "./previewState";
+import { JUMP_VOICE_EVERY_MS } from "./emotes";
+import { bubbles, connection, localPose, noteMyJump, noteMyPunchStart, notePunch, refreshAccount } from "./previewState";
 import RemotePlayers, { LocalLabel } from "./RemotePlayers";
 
 /** 경계 왔다 갔다 방지(🟡) — 안으로 이만큼 들어와야 입장, 밖으로 이만큼 나가야 퇴장 */
@@ -45,6 +46,7 @@ export default function LobbyPreviewRig() {
   const lastRef = useRef<{ x: number; z: number } | null>(null);
   /** 본편 펀치 회차 — 바뀌면 내가 주먹을 낸 것 */
   const lastAttackRef = useRef<number | null>(null);
+  const lastJumpingRef = useRef(false);
 
   useEffect(() => {
     cutsceneRef.current = cutscene;
@@ -84,10 +86,15 @@ export default function LobbyPreviewRig() {
       getLockControl() !== null;
     if (attack !== null && lastAttackRef.current !== null && attack !== lastAttackRef.current) {
       if (connection.status().kind === "connected" && !isPunchBlocked()) {
+        noteMyPunchStart();
         notePunch(me?.attackMotion === "Punch_Cross" ? "cross" : "jab", isPunchBlocked);
       }
     }
     lastAttackRef.current = attack;
+    // 내 점프 — 뛰어오르는 프레임(jumping 이 켜질 때)에 「헛!」(검토 15회차: 실제 이륙 때만)
+    const jumping = !!me?.jumping;
+    if (jumping && !lastJumpingRef.current && !isPunchBlocked()) noteMyJump(JUMP_VOICE_EVERY_MS);
+    lastJumpingRef.current = jumping;
     if (inTrain || najuRef.current) {
       if (connected) connection.exit();
       return;

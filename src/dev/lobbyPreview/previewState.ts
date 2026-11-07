@@ -12,10 +12,10 @@ import { meshConfigToLobbyLook } from "@/net/lobbyLook";
 
 import { playAction, playPunch, remoteLinks } from "./avatarLinks";
 import { addChatLine, CHAT_REJECT_TEXT, chatBubbleMs, isMuted, showChatNotice, toggleMute } from "./chatState";
-import { EMOTES, HIT_LINE, HIT_LINE_MS, HIT_REACTION, PUNCH_CLIPS } from "./emotes";
+import { EMOTES, HIT_LINE, HIT_LINE_MS, HIT_REACTION, PUNCH_CLIPS, PUNCH_VOICE, PUNCH_VOICE_EVERY_MS } from "./emotes";
 import { localPlayer } from "./localPlayer";
-import { type HurtGender, playHurtVoice, preloadHurtVoices } from "./hurtVoice";
 import { playThud } from "./thud";
+import { playVoice, preloadVoices, silenceSpeaker, type VoiceGender } from "./voices";
 
 /** 인사 문구(1~3) — 동작과 짝은 emotes.ts */
 export const GREETINGS = EMOTES.map((emote) => emote.text);
@@ -50,11 +50,13 @@ const mySid = () => {
 /** 그 사람의 아바타 상자 — 나는 App 의 실제 상자, 남은 RemotePlayers 가 등록한 상자 */
 const linkOf = (sid: string) => (sid === mySid() ? localPlayer() : (remoteLinks.get(sid) ?? null));
 
-// 인사: 말풍선과 동작을 같이(서버가 돌려준 것만 — 쿨다운에 걸린 인사는 안 보인다)
+// 인사: 말풍선·동작·목소리를 같이(서버가 돌려준 것만 — 쿨다운에 걸린 인사는 안 보인다)
 connection.onGreet(({ sid, id }) => {
   const emote = EMOTES[id - 1];
   bubbles.set(sid, { text: emote?.text ?? "?", until: Date.now() + BUBBLE_MS });
-  if (emote) playAction(linkOf(sid), "emote", emote.steps);
+  if (!emote) return;
+  playAction(linkOf(sid), "emote", emote.steps);
+  if (!isMutedSid(sid)) playVoice(sid, emote.voice, genderOf(sid), voiceVolume(sid));
 });
 
 // --- 채팅(설계 v0.21 5절) — 서버가 확정해 방송한 말만 띄운다(내 말도 돌아온 것을 띄운다) ---
@@ -68,16 +70,27 @@ connection.onChatRejected((reason) => showChatNotice(CHAT_REJECT_TEXT[reason]));
 /** 채팅 보내기 — 다듬어서 1~40자가 아니면 false(서버에는 안 간다) */
 export const sendChat = (text: string) => connection.sendChat(text);
 
-/** 그 사람(가명 ID) 숨기기·풀기. 숨기면 지금 떠 있는 말풍선도 바로 지운다. 나 자신은 숨기지 못한다(이미 숨겼으면 풀기만) */
+/** 그 사람(가명 ID) 숨기기·풀기. 숨기면 지금 떠 있는 말풍선과 목소리도 바로 끊는다. 나 자신은 숨기지 못한다(이미 숨겼으면 풀기만) */
 export function toggleMutePlayer(pid: string) {
   const sid = mySid();
   const myPid = sid ? connection.players().get(sid)?.pid : undefined;
   if (pid === myPid && !isMuted(pid)) return false;
   const muted = toggleMute(pid);
   if (muted)
-    for (const [sid, player] of connection.players()) if (player.pid === pid) bubbles.delete(sid);
+    for (const [other, player] of connection.players())
+      if (player.pid === pid) {
+        bubbles.delete(other);
+        silenceSpeaker(other);
+      }
   return muted;
 }
+
+/** 숨긴 사람인가(목소리를 안 낸다) — 나는 아니다 */
+const isMutedSid = (sid: string) => {
+  if (sid === mySid()) return false;
+  const pid = connection.players().get(sid)?.pid;
+  return pid ? isMuted(pid) : false;
+};
 
 // --- 때리기 ---
 /** 주먹을 내고 닿기까지(잽·크로스 클립에서 팔이 다 뻗는 때) 🟡 */
@@ -122,10 +135,11 @@ const noteEvent = (text: string) => {
 connection.onGreet(({ sid, id }) => noteEvent(`greet ${sid}#${id}`));
 connection.onChat(({ sid }) => noteEvent(`chat ${sid}`));
 
-/** 맞은 사람의 성별 — 나는 내 아바타 설정, 남은 방 상태의 외형(틀린 외형이면 받는 쪽 기본값처럼 남성) */
-const genderOf = (sid: string): HurtGender => {
-  if (sid === mySid())
-    return readMeshAppearance(PLAYER_MESHY_APPEARANCE_KEY).gender === "feminine" ? "feminine" : "masculine";
+/** 그 사람의 성별 — 나는 내 아바타 설정, 남은 방 상태의 외형(틀린 외형이면 받는 쪽 기본값처럼 남성) */
+const myGender = (): VoiceGender =>
+  readMeshAppearance(PLAYER_MESHY_APPEARANCE_KEY).gender === "feminine" ? "feminine" : "masculine";
+const genderOf = (sid: string): VoiceGender => {
+  if (sid === mySid()) return myGender();
   try {
     const look = JSON.parse(connection.players().get(sid)?.look ?? "") as { gender?: unknown };
     return look.gender === "feminine" ? "feminine" : "masculine";
@@ -134,16 +148,53 @@ const genderOf = (sid: string): HurtGender => {
   }
 };
 
-// 방에 붙으면 「윽」 음원을 미리 받아 둔다
+// 방에 붙으면 목소리 음원을 미리 받아 둔다
 connection.subscribe((status) => {
-  if (status.kind === "connected") preloadHurtVoices();
+  if (status.kind === "connected") preloadVoices();
 });
+
+/** 남의 목소리 크기 — 「윽」·타격음과 같은 거리 곡선(3유닛까지 그대로, 14유닛에서 0.15). 나는 1 */
+const voiceVolume = (sid: string) => {
+  if (sid === mySid()) return 1;
+  const body = connection.players().get(sid);
+  if (!body) return 0;
+  const distance = Math.hypot(body.x - playerView.eye.x, body.z - playerView.eye.z);
+  return Math.max(0.15, Math.min(1, 1 - (distance - THUD_FULL_DISTANCE) / (THUD_FADE_DISTANCE - THUD_FULL_DISTANCE)));
+};
+
+/** 주먹 목소리 — 사람마다 PUNCH_VOICE_EVERY_MS 에 한 번(연타의 첫 주먹) */
+const lastPunchVoiceAt = new Map<string, number>();
+function punchVoice(sid: string) {
+  if (!PUNCH_VOICE || isMutedSid(sid)) return;
+  const now = Date.now();
+  if (now - (lastPunchVoiceAt.get(sid) ?? -Infinity) < PUNCH_VOICE_EVERY_MS) return;
+  lastPunchVoiceAt.set(sid, now);
+  playVoice(sid, PUNCH_VOICE, genderOf(sid), voiceVolume(sid));
+}
+
+/** 내가 주먹을 휘두르기 시작했다(리그가 attackSerial 이 바뀐 프레임에 부른다) — 내 목소리는 휘두르는 순간에 */
+export function noteMyPunchStart() {
+  const mine = mySid();
+  if (mine) punchVoice(mine);
+}
+
+/** 내가 뛰어올랐다(리그가 jumping 이 켜진 프레임에 부른다) */
+let lastJumpVoiceAt = -Infinity;
+export function noteMyJump(everyMs: number) {
+  const now = Date.now();
+  if (now - lastJumpVoiceAt < everyMs) return;
+  lastJumpVoiceAt = now;
+  playVoice(mySid() ?? "me", "jump", myGender(), 1);
+}
 
 connection.onPunch(({ sid, motion, hit }) => {
   noteEvent(`punch ${sid} ${motion}${hit ? ` hit ${hit}` : ""}`);
   const mine = mySid();
-  // 내 주먹은 이미 돌고 있다 — 다시 틀지 않는다
-  if (sid !== mine) playPunch(remoteLinks.get(sid), PUNCH_CLIPS[motion] ?? PUNCH_CLIPS.jab);
+  // 내 주먹은 이미 돌고 있다 — 다시 틀지 않는다(내 목소리는 휘두를 때 냈다). 남의 주먹은 지금 동작이 시작된다
+  if (sid !== mine) {
+    playPunch(remoteLinks.get(sid), PUNCH_CLIPS[motion] ?? PUNCH_CLIPS.jab);
+    punchVoice(sid);
+  }
   if (!hit) return;
   // 남의 주먹은 지금 막 시작됐다 — 닿는 순간에 맞춘다. 내 주먹은 이미 닿았다
   later(sid === mine ? 0 : PUNCH_IMPACT_MS, () => {
@@ -151,7 +202,7 @@ connection.onPunch(({ sid, motion, hit }) => {
     bubbles.set(hit, { text: HIT_LINE, until: Date.now() + HIT_LINE_MS });
     const volume = thudVolume(sid, hit);
     playThud(volume);
-    playHurtVoice(genderOf(hit), volume);
+    playVoice(hit, "hurt", genderOf(hit), isMutedSid(hit) ? 0 : volume);
   });
 });
 
