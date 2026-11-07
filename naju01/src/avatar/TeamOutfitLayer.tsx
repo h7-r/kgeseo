@@ -14,8 +14,8 @@ import { attachParts } from "./chibiBodyParts";
 import type { MeshAppearanceConfig } from "./meshAppearance";
 import type { Disposables, LoadedGltf, PartError, PreparedBody } from "./preparedBody";
 import { getTeamPantsUrl, type TeamOutfit, type TeamPantsStyle } from "./teamOutfit";
-import { DEFAULT_TOON, makeToonGradientTexture } from "./toonMaterial";
-import { applyOutline, DEFAULT_OUTLINE } from "./toonOutline";
+import { DEFAULT_TOON, makeToonGradientTexture, TOON_UNIFORMS_KEY } from "./toonMaterial";
+import { applyOutline, DEFAULT_OUTLINE, type OutlineConfig, type OutlineHandle } from "./toonOutline";
 
 /** 아바타 외곽선과 같은 색(toonOutline DEFAULT_OUTLINE) */
 const INK = "#2b2a33";
@@ -42,6 +42,15 @@ interface PrintFit {
   center: THREE.Vector3;
   width: number;
   bend: number;
+}
+
+/**
+ * 캐릭터 재질 표식 — 세계 재질을 손보는 쪽(로비 만화풍 MangaMaterials · 나주 WorldToon)은 이 표식이 있는 재질을 건너뛴다.
+ * 없으면 바지 · 캡 셰이더를 덮어써 결 무늬가 사라졌다(Codex 리뷰 a2a0fbd). 안의 값은 아무도 읽지 않는다(있는지만 본다)
+ */
+function markAvatarMaterial<T extends THREE.Material>(material: T): T {
+  material.userData[TOON_UNIFORMS_KEY] = {};
+  return material;
 }
 
 const gradient = (() => {
@@ -213,13 +222,24 @@ const BRIM_THICKNESS = 0.009;
  */
 const HULL = 0.0035;
 
-function Cap({ fit }: { fit: CapFit }) {
-  const material = useMemo(() => new THREE.MeshToonMaterial({ color: CAP_COLOR, gradientMap: gradient }), []);
-  const buttonMaterial = useMemo(
-    () => new THREE.MeshToonMaterial({ color: CAP_BUTTON_COLOR, gradientMap: gradient }),
+function Cap({ fit, outline }: { fit: CapFit; outline: OutlineConfig }) {
+  const material = useMemo(
+    () => markAvatarMaterial(new THREE.MeshToonMaterial({ color: CAP_COLOR, gradientMap: gradient })),
     [],
   );
-  const inkMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide }), []);
+  const buttonMaterial = useMemo(
+    () => markAvatarMaterial(new THREE.MeshToonMaterial({ color: CAP_BUTTON_COLOR, gradientMap: gradient })),
+    [],
+  );
+  const inkMaterial = useMemo(
+    () => markAvatarMaterial(new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide })),
+    [],
+  );
+  // 아바타 외곽선 설정을 따른다(끄면 캡 껍데기도 숨긴다)
+  useEffect(() => {
+    inkMaterial.color.set(outline.color);
+    inkMaterial.visible = outline.enabled;
+  }, [inkMaterial, outline.color, outline.enabled]);
   const dome = useMemo(() => new THREE.SphereGeometry(1, 40, 18, 0, Math.PI * 2, 0, Math.PI / 2), []);
   const brim = useMemo(() => new THREE.CylinderGeometry(1, 1, BRIM_THICKNESS, 32, 1, false, -Math.PI / 2, Math.PI), []);
   useEffect(
@@ -235,7 +255,7 @@ function Cap({ fit }: { fit: CapFit }) {
   return createPortal(
     <group matrixAutoUpdate={false} matrix={frame.basis}>
       {/* 돔 — 위 반구를 머리에 맞춰 늘린다. 껍데기는 아래가 열려 있어 챙 밑 안쪽이 어둡게 보인다 */}
-      <mesh position={center} scale={radius} geometry={dome} material={material} />
+      <mesh position={center} scale={radius} geometry={dome} material={material} castShadow receiveShadow />
       <mesh
         position={center}
         scale={[radius.x + HULL, radius.y + HULL, radius.z + HULL]}
@@ -244,7 +264,7 @@ function Cap({ fit }: { fit: CapFit }) {
       />
       {/* 챙 — 앞쪽 반원판, 살짝 아래로 */}
       <group position={brimAt} rotation={[0.14, 0, 0]}>
-        <mesh scale={brimScale} geometry={brim} material={material} />
+        <mesh scale={brimScale} geometry={brim} material={material} castShadow receiveShadow />
         <mesh
           scale={[brimScale[0] + HULL, 1 + (2 * HULL) / BRIM_THICKNESS, brimScale[2] + HULL]}
           geometry={brim}
@@ -264,15 +284,17 @@ function MarinePrint({ fit }: { fit: PrintFit }) {
   const texture = useMemo(() => makeMarineTexture(), []);
   const material = useMemo(
     () =>
-      new THREE.MeshToonMaterial({
-        map: texture,
-        gradientMap: gradient,
-        transparent: true,
-        alphaTest: 0.35,
-        polygonOffset: true,
-        polygonOffsetFactor: -2,
-        polygonOffsetUnits: -2,
-      }),
+      markAvatarMaterial(
+        new THREE.MeshToonMaterial({
+          map: texture,
+          gradientMap: gradient,
+          transparent: true,
+          alphaTest: 0.35,
+          polygonOffset: true,
+          polygonOffsetFactor: -2,
+          polygonOffsetUnits: -2,
+        }),
+      ),
     [texture],
   );
   const geometry = useMemo(() => {
@@ -293,7 +315,7 @@ function MarinePrint({ fit }: { fit: PrintFit }) {
   useEffect(() => () => geometry.dispose(), [geometry]);
   return createPortal(
     <group matrixAutoUpdate={false} matrix={fit.frame.basis}>
-      <mesh position={fit.center} geometry={geometry} material={material} />
+      <mesh position={fit.center} geometry={geometry} material={material} receiveShadow />
     </group>,
     fit.frame.bone,
   );
@@ -325,16 +347,18 @@ function Pants({
   prepared,
   style,
   config,
+  outline,
   framePriority,
 }: {
   prepared: PreparedBody;
   style: TeamPantsStyle;
   config: Partial<MeshAppearanceConfig>;
+  outline: OutlineConfig;
   framePriority: number;
 }) {
   const gltf = useGLTF(getTeamPantsUrl(style, config)) as unknown as LoadedGltf;
   const material = useMemo(
-    () => new THREE.MeshToonMaterial({ gradientMap: pantsGradient, side: THREE.DoubleSide }),
+    () => markAvatarMaterial(new THREE.MeshToonMaterial({ gradientMap: pantsGradient, side: THREE.DoubleSide })),
     [],
   );
   useEffect(() => () => material.dispose(), [material]);
@@ -342,6 +366,13 @@ function Pants({
     material.color.set(config.bottomColor ?? "#ffffff");
   }, [material, config.bottomColor]);
   const attached = useRef<{ body: THREE.SkinnedMesh; meshes: THREE.SkinnedMesh[] } | null>(null);
+  // 외곽선은 아바타 설정을 따른다(끄기 · 굵기 · 색) — 붙일 때 지금 값으로, 바뀌면 핸들을 고친다
+  const outlineRef = useRef(outline);
+  const outlineHandles = useRef<OutlineHandle[]>([]);
+  useEffect(() => {
+    outlineRef.current = outline;
+    outlineHandles.current.forEach((handle) => handle.update(outline));
+  }, [outline]);
   useEffect(() => {
     const body = findBodyMesh(prepared.model);
     if (!body) return;
@@ -366,12 +397,17 @@ function Pants({
       }
       mesh.material = material;
       mesh.frustumCulled = false;
+      // 몸 · 신발처럼 그림자를 드리우고 받는다(attachParts 는 둘 다 끈 채 만든다 — Codex 리뷰 a2a0fbd)
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
       mesh.userData.teamPants = style;
     }
-    const outlines = meshes.map((mesh) => applyOutline(mesh, DEFAULT_OUTLINE));
+    const outlines = meshes.map((mesh) => applyOutline(mesh, outlineRef.current));
+    outlineHandles.current = outlines;
     attached.current = { body, meshes };
     return () => {
       attached.current = null;
+      outlineHandles.current = [];
       outlines.forEach((outline) => outline.remove());
       meshes.forEach((mesh) => mesh.parent?.remove(mesh));
       disposables.geometries.forEach((geometry) => geometry.dispose());
@@ -404,12 +440,15 @@ export default function TeamOutfitLayer({
   prepared,
   outfit,
   config,
+  outline = DEFAULT_OUTLINE,
   framePriority,
 }: {
   prepared: PreparedBody;
   outfit: TeamOutfit;
   /** 번호를 푼 렌더러 설정 — 바뀌면 다시 잰다(fitKey). 바지 파일 · 색도 여기서 */
   config: Partial<MeshAppearanceConfig>;
+  /** 아바타 외곽선 설정(끄기 · 굵기 · 색) */
+  outline?: OutlineConfig;
   framePriority: number;
 }) {
   const fitKey = config;
@@ -441,13 +480,19 @@ export default function TeamOutfitLayer({
   const print = current?.print ?? null;
   return (
     <>
-      {outfit.cap && cap && <Cap fit={cap} />}
+      {outfit.cap && cap && <Cap fit={cap} outline={outline} />}
       {outfit.marine && print && <MarinePrint fit={print} />}
       {outfit.pants && (
         // 바지 파일을 받는 동안 아바타 전체가 사라지지 않게 따로 기다린다
         <SkipOnError key={`${outfit.pants}:${config.gender}:${config.top}`} label="바지">
           <Suspense fallback={null}>
-            <Pants prepared={prepared} style={outfit.pants} config={config} framePriority={framePriority} />
+            <Pants
+              prepared={prepared}
+              style={outfit.pants}
+              config={config}
+              outline={outline}
+              framePriority={framePriority}
+            />
           </Suspense>
         </SkipOnError>
       )}

@@ -423,7 +423,13 @@ function ChibiGameAvatar({
     <group name="NAJU-chibi-avatar" ref={root} visible={visible || firstPersonBody}>
       <primitive object={prepared.model} />
       {(teamOutfit.cap || teamOutfit.marine || teamOutfit.pants) && (
-        <TeamOutfitLayer prepared={prepared} outfit={teamOutfit} config={config} framePriority={framePriority + 1} />
+        <TeamOutfitLayer
+          prepared={prepared}
+          outfit={teamOutfit}
+          config={config}
+          outline={outline}
+          framePriority={framePriority + 1}
+        />
       )}
     </group>
   );
