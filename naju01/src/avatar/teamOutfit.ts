@@ -3,7 +3,8 @@
 // 다른 옷처럼 파츠 번호로 실려 온다(카탈로그 → 번호 → 렌더러). 아바타가 맨 앞에서 번호를 풀어 몸 GLB · 머리 · 색은 기존
 // 번호로 그리고, 덧입힐 것(캡 · 해병대 글자)은 TeamOutfitLayer 가 뼈에 붙인다 — 몸 GLB 를 새로 굽지 않는다.
 //   헤어 9 · 10 · 11 = 민머리 · 짧은(단발) · 긴 머리 + 캡      상의 1 = 해병대 반팔(흰 티 GLB + 빨강 + 가슴 「해병대」)
-//   하의 1 · 2 = 스키니 청바지 · 통 큰 바지 — 하의 없는 몸 GLB + 따로 구운 바지 파츠(tools/team_pants_build.py)
+//   하의 1 · 2 = 스키니 청바지 · 통 큰 바지 — 반바지 몸 GLB 위에 따로 구운 바지 파츠(tools/team_pants_build.py)를 입는다.
+//     하의 없는 몸 GLB(base · top)는 다른 Meshy 캐릭터라 얼굴이 달라, 그걸 쓰면 머리가 내려앉고 목에 흰 자국이 났다(미르 11/8)
 import { sharedAssetUrl } from "@/config/env";
 
 import type { MeshAppearanceConfig } from "./meshAppearance";
@@ -28,8 +29,9 @@ export const TEAM_PANTS_DEFAULT_COLOR: Readonly<Record<TeamPantsStyle, string>> 
 /**
  * 바지 파츠를 다시 구우면 올린다(파일 이름이 그대로라 브라우저가 새 GLB 를 받게)
  *   2 = 허리 띠를 셔츠 바깥으로 매끈하게 · 통 큰 바지 기장 3.5cm · 법선 다시 계산
+ *   3 = 반바지 몸(both · bottom) 기준으로 다시 구움 · 허리를 셔츠 안으로 · 엉덩이 통 줄임
  */
-export const TEAM_PANTS_VERSION = 2;
+export const TEAM_PANTS_VERSION = 3;
 
 export interface TeamOutfit {
   cap: boolean;
@@ -53,18 +55,18 @@ export function splitTeamOutfit<T extends OutfitFields>(config: T): { config: T;
       ...config,
       ...(cap ? { hair: hair - TEAM_CAP_HAIR_OFFSET } : {}),
       ...(marine ? { top: 0, clothColor: MARINE_RED } : {}),
-      // 바지는 하의 없는 몸 위에 따로 입는다
+      // 바지는 반바지 몸 위에 따로 입는다(반바지는 바지 안에 가려진다)
       ...(pants
-        ? { bottom: -1, bottomColor: bottomColor === "#ffffff" ? TEAM_PANTS_DEFAULT_COLOR[pants] : bottomColor }
+        ? { bottom: 0, bottomColor: bottomColor === "#ffffff" ? TEAM_PANTS_DEFAULT_COLOR[pants] : bottomColor }
         : {}),
     },
     outfit: { cap, marine, pants },
   };
 }
 
-/** 그 몸(상의 있음 · 없음 착장, 성별)에 맞춰 구운 바지 파츠 */
+/** 그 몸(반바지 + 상의 있음 · 없음 착장, 성별)에 맞춰 구운 바지 파츠 */
 export function getTeamPantsUrl(style: TeamPantsStyle, config: Partial<Pick<MeshAppearanceConfig, "gender" | "top">>) {
-  const combo = (config.top ?? -1) >= 0 ? "top" : "base";
+  const combo = (config.top ?? -1) >= 0 ? "both" : "bottom";
   const gender = config.gender === "feminine" ? "female" : "male";
   return sharedAssetUrl(`/models/team-pants-${style}-${combo}-${gender}.glb?v=${TEAM_PANTS_VERSION}`);
 }

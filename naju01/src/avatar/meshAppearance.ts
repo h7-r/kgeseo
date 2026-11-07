@@ -3,8 +3,6 @@
 import { AUTO_MOTION, isHexColor, isKnownMotion, type AvatarGender, type Option, type Slider } from "./sidekickOptions";
 import { sharedAssetUrl } from "@/config/env";
 
-import { TEAM_PANTS_BY_BOTTOM } from "./teamOutfit";
-
 // 하의 표식(3)을 구운 판. 파일 이름이 그대로라 판을 올려야 브라우저가 새 GLB 를 받는다.
 export const MESH_MODEL_VERSION = 21;
 
@@ -89,11 +87,10 @@ export const MOTION_SOURCE_OPTIONS: readonly Option<MotionSource>[] = [
 type OutfitSelection = Pick<MeshAppearanceConfig, "gender" | "top" | "bottom">;
 
 function formatOutfitCombo({ top, bottom }: OutfitSelection): string {
-  // 팀 전용 바지(하의 1 · 2)는 하의 없는 몸 위에 따로 입는다 — 미리 받기(생성 화면 ModelWarmup) 등 모든 호출이 같은 파일을 고르게
-  const hasShorts = bottom >= 0 && TEAM_PANTS_BY_BOTTOM[bottom] === undefined;
-  if (top >= 0 && hasShorts) return "both";
+  // 팀 전용 바지(하의 1 · 2)도 반바지 몸(both · bottom) 위에 입으므로 하의 있음으로 센다(teamOutfit.ts)
+  if (top >= 0 && bottom >= 0) return "both";
   if (top >= 0) return "top";
-  if (hasShorts) return "bottom";
+  if (bottom >= 0) return "bottom";
   return "base";
 }
 

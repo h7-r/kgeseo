@@ -8,7 +8,9 @@
 # UV 는 다리 둘레를 따라 펴고(이음은 다리 안쪽), 결 무늬 텍스처(회색 — 화면이 하의 색을 곱한다)를 넣는다.
 #
 #   Blender --background --factory-startup --python tools/team_pants_build.py -- \
-#     --glb public/models/meshy-base-male.glb --style jeans --out public/models/team-pants-jeans-base-male.glb
+#     --glb public/models/meshy-both-male.glb --style jeans --out public/models/team-pants-jeans-both-male.glb
+# 몸은 반바지를 입은 착장(both = 티 + 반바지, bottom = 반바지)을 쓴다 — 하의 없는 착장(base · top)은 다른 Meshy 캐릭터라 얼굴이
+# 달라, 바지를 입히면 머리가 내려앉고 목에 흰 자국이 났다.
 import argparse
 import json
 import math
@@ -21,19 +23,19 @@ from mathutils import Vector
 
 argv = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
 parser = argparse.ArgumentParser()
-parser.add_argument("--glb", required=True, help="몸 GLB(하의 없는 base · top 착장)")
+parser.add_argument("--glb", required=True, help="몸 GLB(반바지를 입은 both · bottom 착장)")
 parser.add_argument("--style", choices=["jeans", "baggy"], required=True)
 parser.add_argument("--out", required=True)
 parser.add_argument("--report", help="잰 값을 JSON 으로")
-args = parser.parse_args(argv)
+args, _extra = parser.parse_known_args(argv)
 
 STYLE = {
     # hem: 발목 뼈 위 밑단 높이(m) · waist: spine_01 위 허리 높이(m)
     # min_offset: 고른 뒤에도 몸 표면에서 이만큼은 떨어진다(라플라시안 고르기는 표면을 오그라뜨려 몸이 비쳤다)
     # hem_drop: 밑단 고리를 발목 뼈보다 이만큼 더 내린다(통 큰 바지 기장 — 미르 11/8 「좀만 더 길게」) · band_margin: 허리 띠가
     # 몸 · 셔츠의 가장 바깥에서 떨어지는 거리
-    "jeans": {"hem": 0.012, "hem_drop": 0.0, "waist": 0.02, "offset_hip": 0.0065, "offset_hem": 0.0065, "min_offset": 0.006, "smooth": 0, "weight_smooth": 0, "band_margin": 0.009},
-    "baggy": {"hem": 0.0, "hem_drop": 0.035, "waist": 0.02, "offset_hip": 0.012, "offset_hem": 0.07, "min_offset": 0.01, "smooth": 14, "weight_smooth": 4, "band_margin": 0.012},
+    "jeans": {"hem": 0.012, "hem_drop": 0.0, "waist": 0.02, "offset_hip": 0.0065, "offset_hem": 0.0065, "min_offset": 0.006, "smooth": 3, "weight_smooth": 0, "band_margin": 0.003},
+    "baggy": {"hem": 0.0, "hem_drop": 0.035, "waist": 0.02, "offset_hip": 0.007, "offset_hem": 0.07, "min_offset": 0.006, "smooth": 14, "weight_smooth": 4, "band_margin": 0.004},
 }[args.style]
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -54,11 +56,31 @@ def head(name):
 is_female = "female" in body.name.lower()
 waist_z = head("spine_01").z + STYLE["waist"] + (0.03 if is_female else 0.0)
 tint_attr = body.data.attributes.get("_TINT")
+# 아래 깔린 반바지(하의 표식 3)의 허리 밴드 윗선 — 그보다 위까지 덮는다(상의 없는 몸에서 검은 띠가 보였다).
+# 몸통 둘레 16구역마다 가장 높은 반바지 정점을 재고 그중 가장 높은 곳. 가슴 쪽에 흩어진 표식은 빼려고 고관절 25cm 위까지만
+shorts_top_z = None
+if tint_attr and tint_attr.domain == "POINT":
+    centre0 = head("pelvis")
+    tops = {}
+    for i, d in enumerate(tint_attr.data):
+        if round(d.value) != 3:
+            continue
+        p = body.matrix_world @ body.data.vertices[i].co
+        if p.z > head("thigh_l").z + 0.25 or math.hypot(p.x - centre0.x, p.y - centre0.y) > 0.25:
+            continue
+        k = int((math.atan2(p.y - centre0.y, p.x - centre0.x) + math.pi) / (2 * math.pi) * 16) % 16
+        tops[k] = max(tops.get(k, p.z), p.z)
+    if len(tops) >= 8:
+        # 구역별 최고 높이의 중간값 — 크롭 탑 밑단 근처에 잘못 찍힌 표식 몇 구역(여자 0.84m)에 끌려 올라가지 않게
+        ordered = sorted(tops.values())
+        shorts_top_z = ordered[len(ordered) // 2]
 shirt_hem_z = None
 shirt_lowest_z = None
+shirt_points = []
 if tint_attr and tint_attr.domain == "POINT":
     shirt = [body.matrix_world @ body.data.vertices[i].co for i, d in enumerate(tint_attr.data) if round(d.value) == 2]
     if len(shirt) > 500:
+        shirt_points = shirt
         # 밑단은 앞뒤 높이가 다르다 — 몸통 둘레 16구역마다 가장 낮은 셔츠 정점을 재고, 그중 가장 높은 곳까지 덮는다
         # (가장 낮은 곳 기준이면 등 쪽에 틈이 남았다). 팔(소매)은 빼려고 몸통 가까운 정점만 본다
         centre = head("pelvis")
@@ -71,10 +93,14 @@ if tint_attr and tint_attr.domain == "POINT":
             sectors[k] = min(sectors.get(k, p.z), p.z)
         if sectors:
             shirt_hem_z = max(sectors.values())
-            waist_z = max(waist_z, shirt_hem_z + 0.012)
+            # 밑단 톱니 꼭대기 바로 위 — 더 높으면 띠가 셔츠보다 길게 올라와 붕 떠 보였다
+            waist_z = max(waist_z, shirt_hem_z + 0.006)
             # 띠가 시작할 셔츠 밑단 높이 — 구역별 가장 낮은 셔츠 정점의 중간값(엉덩이 쪽에 흩어진 표식 몇 개에 끌려 내려가지 않게)
             minima = sorted(sectors.values())
             shirt_lowest_z = minima[len(minima) // 2]
+# 반바지 윗선은 셔츠가 없을 때만 — 셔츠가 있으면 셔츠가 반바지를 덮는다
+if shorts_top_z is not None and not shirt_points:
+    waist_z = max(waist_z, shorts_top_z + 0.006)
 thigh_z = head("thigh_l").z
 knee_z = head("calf_l").z
 ankle = {1: head("foot_l"), -1: head("foot_r")}
@@ -140,7 +166,8 @@ for name in ("_TINT", "_tint"):
 bm = bmesh.new()
 bm.from_mesh(pants.data)
 merged_before = len(bm.verts)
-bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
+# 0.3mm — 이음매 정점이 0.01mm 넘게 벌어진 곳은 안 붙어, 바지를 띄우자 실금이 벌어져 그 틈으로 몸이 비쳤다(「빵꾸」)
+bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=3e-4)
 merged = merged_before - len(bm.verts)
 bm.verts.ensure_lookup_table()
 bm.verts.index_update()
@@ -187,14 +214,32 @@ for edge in bm.edges:
                     stack.append(nxt)
     verts = {v for e in loop_edges for v in e.verts}
     loops.append({"edges": loop_edges, "verts": verts, "z": sum((world @ v.co).z for v in verts) / len(verts), "x": sum((world @ v.co).x for v in verts) / len(verts)})
-waist_loop = max(loops, key=lambda l: l["z"])
-hem_loops = [min((l for l in loops if l is not waist_loop and (l["x"] >= 0) == (side > 0)), key=lambda l: l["z"], default=None) for side in (1, -1)]
+if "--debug-loops" in sys.argv:
+    for l in sorted(loops, key=lambda l: l["z"])[:8]:
+        print("LOOP", len(l["verts"]), round(l["z"], 4), round(l["x"], 4))
+# 허리 — 가장 높은 고리에서 3cm 안의 고리 중 가장 큰 것(허리 가장자리의 작은 구멍을 허리로 고르지 않게)
+highest = max(l["z"] for l in loops)
+waist_loop = max((l for l in loops if l["z"] > highest - 0.03), key=lambda l: len(l["verts"]))
+# 밑단 — 다리마다 가장 낮은 고리에서 3cm 안의 고리 중 가장 큰 것(밑단 가장자리의 작은 구멍을 밑단으로 고르지 않게)
+
+
+def hem_loop_of(side):
+    candidates = [l for l in loops if l is not waist_loop and (l["x"] >= 0) == (side > 0)]
+    if not candidates:
+        return None
+    lowest = min(l["z"] for l in candidates)
+    return max((l for l in candidates if l["z"] < lowest + 0.03), key=lambda l: len(l["verts"]))
+
+
+hem_loops = [hem_loop_of(side) for side in (1, -1)]
 open_loops = [waist_loop] + [l for l in hem_loops if l]
 holes = [l for l in loops if all(l is not o for o in open_loops)]
 filled = 0
 if holes:
     result = bmesh.ops.holes_fill(bm, edges=[e for l in holes for e in l["edges"]], sides=0)
     filled = len(result.get("faces", []))
+# 거의 넓이가 없는 찌그러진 면은 녹인다 — 법선이 제멋대로라 툰 테두리 빛이 흰 점처럼 튀었다
+bmesh.ops.dissolve_degenerate(bm, dist=1e-5, edges=bm.edges)
 # 메운 면까지 바깥을 보게 면 방향을 다시 맞춘다(뒤집힌 면은 양면 재질에서 반대로 비쳐 흰 점처럼 보였다)
 bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
 for face in bm.faces:
@@ -280,102 +325,100 @@ for i in range(count):
         new_positions[i] = new_positions[i] + n * (STYLE["min_offset"] - off)
         pushed += 1
 
-# 허리 띠 감싸기 — 셔츠 밑단은 들쭉날쭉 바깥으로 퍼져 있어, 그 표면을 복제해 띄운 바지 허리가 울퉁불퉁하고 셔츠가 군데군데
-# 뚫고 나와 번져 보였다(미르 11/8). 띠(셔츠 밑단 2cm 아래 ~ 허리)는 몸통 둘레 48구역 × 1cm 줄마다 몸 전체(셔츠 포함)의 가장 바깥
-# 반지름을 재서, 그 바깥 band_margin 에 매끈하게 두른다 — 셔츠는 바지 안으로 넣어 입은 모양이 된다
+# 허리 띠 — 바지는 반바지를 입은 몸(both · bottom) 위에 입는다(하의 없는 몸 GLB 는 얼굴이 달라 머리가 내려앉았다, 미르 11/8).
+# 셔츠 밑단은 톱니 모양이라 셔츠를 밖으로 내놓으면 톱니 사이로 바지 · 반바지가 비쳐 번져 보인다 — 셔츠를 넣어 입되 딱 붙게:
+# 띠(밑단 1.5cm 아래 ~ 톱니 꼭대기 6mm 위)는 몸통 둘레 48구역 × 1cm 줄마다 제 구역의 가장 바깥 반지름(셔츠 · 반바지 포함)에
+# band_margin(3~4mm)만 둔다. 예전엔 이웃 구역 최댓값 · 여유 9~12mm · 밑단 1.2cm 위 허리라 셔츠보다 바지가 붕 떠 보였다.
 centre = head("pelvis")
-# 띠는 고관절보다 3cm 위에서만 — 그 아래는 두 다리가 갈라져 몸통 둘레 하나로 감쌀 수 없다
-band_bottom = max((shirt_lowest_z - 0.03) if shirt_lowest_z is not None else waist_z - 0.04, thigh_z + 0.03)
 SECTORS = 48
 ROW = 0.01
 
 
-def bucket(p):
-    a = int((math.atan2(p.y - centre.y, p.x - centre.x) + math.pi) / (2 * math.pi) * SECTORS) % SECTORS
-    return a, int(math.floor((p.z - band_bottom) / ROW))
+def sector_of(p):
+    return int((math.atan2(p.y - centre.y, p.x - centre.x) + math.pi) / (2 * math.pi) * SECTORS) % SECTORS
 
 
-outer = {}
-for v in body.data.vertices:
-    p = body.matrix_world @ v.co
-    if not (band_bottom - 0.02 <= p.z <= waist_z + 0.02):
-        continue
-    r = math.hypot(p.x - centre.x, p.y - centre.y)
-    if r > 0.3:
-        continue
-    key = bucket(p)
-    outer[key] = max(outer.get(key, 0.0), r)
+def radius_of(p):
+    return math.hypot(p.x - centre.x, p.y - centre.y)
 
 
-def envelope(a, row):
-    best = None
-    for da in (-1, 0, 1):
-        for dr in (-1, 0, 1):
-            value = outer.get(((a + da) % SECTORS, row + dr))
-            if value is not None and (best is None or value > best):
-                best = value
-    return best
+def set_radius(i, p, r_new):
+    r = radius_of(p)
+    if r < 1e-6:
+        return
+    k = r_new / r
+    p.x = centre.x + (p.x - centre.x) * k
+    p.y = centre.y + (p.y - centre.y) * k
+    new_positions[i] = inverse_world @ p
 
 
 band = []
+# 띠 아래 끝 — 셔츠가 있으면 밑단(구역별 가장 낮은 곳의 중간값) 1.5cm 아래, 없으면 허리 4cm 아래. 고관절 3cm 위로 제한
+if shirt_lowest_z is not None:
+    band_bottom = max(shirt_lowest_z - 0.015, thigh_z + 0.03)
+else:
+    band_bottom = max(waist_z - 0.04, thigh_z + 0.03)
+outer = {}
+for v in body.data.vertices:
+    p = body.matrix_world @ v.co
+    if not (band_bottom - 0.02 <= p.z <= waist_z + 0.02) or radius_of(p) > 0.3:
+        continue
+    key = (sector_of(p), int(math.floor((p.z - band_bottom) / ROW)))
+    outer[key] = max(outer.get(key, 0.0), radius_of(p))
+
+
+def envelope(a, row):
+    # 제 구역의 가장 바깥 — 이웃까지 최댓값을 잡으면 띠가 셔츠보다 굵어졌다. 비었을 때만 이웃을 본다
+    own = outer.get((a, row))
+    if own is not None:
+        return own
+    near = [outer.get(((a + da) % SECTORS, row + dr)) for da in (-1, 0, 1) for dr in (-1, 0, 1)]
+    near = [r for r in near if r is not None]
+    return max(near) if near else None
+
+
 for i in range(count):
     p = pw @ new_positions[i]
     if p.z < band_bottom:
         continue
-    env = envelope(*bucket(p))
+    env = envelope(sector_of(p), int(math.floor((p.z - band_bottom) / ROW)))
     if env is None:
         continue
-    r = math.hypot(p.x - centre.x, p.y - centre.y)
-    if r < 1e-6:
-        continue
-    target = env + STYLE["band_margin"]
-    # 띠 아래쪽 2cm 는 원래 자리에서 서서히 넘어간다
     w = smoothstep((p.z - band_bottom) / 0.02)
-    k = (r + (target - r) * w) / r
-    p.x = centre.x + (p.x - centre.x) * k
-    p.y = centre.y + (p.y - centre.y) * k
-    new_positions[i] = inverse_world @ p
+    r = radius_of(p)
+    set_radius(i, p, r + (env + STYLE["band_margin"] - r) * w)
     band.append(i)
-# 띠를 고르게 — 허리 고리는 고정, 고른 뒤에도 가장 바깥보다 안으로는 안 들어가게
+# 띠를 고르게 — 허리 고리는 높이 그대로 가로로만. 고른 뒤에도 가장 바깥보다 안으로는 안 들어가게(셔츠 톱니가 뚫지 않게)
 if band:
-    band_set = set(band)
     bm = bmesh.new()
     bm.from_mesh(mesh)
     bm.verts.ensure_lookup_table()
     band_neighbours = {i: [e.other_vert(bm.verts[i]).index for e in bm.verts[i].link_edges] for i in band}
     bm.free()
-    # 허리 고리도 같이 고른다 — 높이(허리선)는 그대로 두고 가로로만. 고정하면 구역마다 계단진 반지름이 윗선에 톱니로 남았다
     for _ in range(8):
         nxt = {}
         for i in band:
-            if not band_neighbours[i]:
-                continue
+            ring = band_neighbours[i]
             if i in waist_verts:
-                ring = [j for j in band_neighbours[i] if j in waist_verts]
-                if not ring:
-                    continue
-                avg = sum((new_positions[j] for j in ring), Vector()) / len(ring)
-                moved = new_positions[i].lerp(avg, 0.5)
+                ring = [j for j in ring if j in waist_verts]
+            if not ring:
+                continue
+            avg = sum((new_positions[j] for j in ring), Vector()) / len(ring)
+            moved = new_positions[i].lerp(avg, 0.5)
+            if i in waist_verts:
                 world = pw @ moved
                 world.z = waist_z
-                nxt[i] = inverse_world @ world
-                continue
-            avg = sum((new_positions[j] for j in band_neighbours[i]), Vector()) / len(band_neighbours[i])
-            nxt[i] = new_positions[i].lerp(avg, 0.5)
+                moved = inverse_world @ world
+            nxt[i] = moved
         for i, value in nxt.items():
             new_positions[i] = value
     for i in band:
         p = pw @ new_positions[i]
-        env = envelope(*bucket(p))
-        if env is None:
+        if p.z < band_bottom + 0.02:
             continue
-        r = math.hypot(p.x - centre.x, p.y - centre.y)
-        floor_r = env + STYLE["band_margin"] * 0.8
-        if 1e-6 < r < floor_r and p.z >= band_bottom + 0.02:
-            k = floor_r / r
-            p.x = centre.x + (p.x - centre.x) * k
-            p.y = centre.y + (p.y - centre.y) * k
-            new_positions[i] = inverse_world @ p
+        env = envelope(sector_of(p), int(math.floor((p.z - band_bottom) / ROW)))
+        if env is not None and radius_of(p) < env + 0.002:
+            set_radius(i, p, env + 0.002)
 
 # 셰이프 키는 절대 자리를 갖고 있다 — 기본 자리에 더한 만큼 모든 키에 똑같이 더해 모프 차이를 지킨다
 for i in range(count):
@@ -504,7 +547,9 @@ report = {
     "droppedFragments": dropped,
     "waistZ": round(waist_z, 4),
     "shirtHemZ": round(shirt_hem_z, 4) if shirt_hem_z is not None else None,
-    "bandBottomZ": round(band_bottom, 4),
+    "shortsTopZ": round(shorts_top_z, 4) if shorts_top_z is not None else None,
+    "bandBottomZ": round(band_bottom, 4) if band_bottom is not None else None,
+    "shirtBody": bool(shirt_points),
     "bandVerts": len(band),
     "hemZ": {k: round(v, 4) for k, v in hem_z.items()},
     "shapeKeys": [k.name for k in keys],
