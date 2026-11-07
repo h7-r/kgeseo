@@ -362,8 +362,11 @@ if (typeof document !== "undefined") {
 interface HotSlot {
   autoTried: () => boolean;
   wasOn: () => boolean;
-  /** 잠깐 멈춤 이유도 넘긴다 — 숨은 탭 · 컷신 중에 고쳐 끼워도 새 모듈이 멋대로 틀지 않게(Codex 리뷰) */
-  pauseReasons: () => PauseReason[];
+  /**
+   * 잠깐 멈춤 이유도 넘긴다 — 숨은 탭 · 컷신 중에 고쳐 끼워도 새 모듈이 멋대로 틀지 않게(Codex 리뷰). 이 칸이 생기기 전
+   * 모듈이 걸어 둔 자리엔 없을 수 있어 선택으로 둔다(없다고 넘겨받기가 끊기면 옛 곡이 남는다)
+   */
+  pauseReasons?: () => PauseReason[];
   dispose: () => void;
 }
 const HOT_SLOT = "__waegokLobbyMusic";
@@ -373,7 +376,7 @@ if (import.meta.hot) {
   const resume = previous?.wasOn() ?? false;
   if (previous) {
     if (previous.autoTried()) autoTried = true;
-    for (const reason of previous.pauseReasons()) pauseReasons.add(reason);
+    for (const reason of previous.pauseReasons?.() ?? []) pauseReasons.add(reason);
     previous.dispose();
   }
   slots[HOT_SLOT] = {
