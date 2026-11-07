@@ -66,7 +66,7 @@ interface SettingsPanelProps {
 
 export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   const settings = useSettings();
-  // 휴대폰 — 왼쪽 위 · 제목 줄 고정 · 단추와 막대 44px(gameUi.css 의 .settings-dialog.is-touch, 14회차)
+  // 휴대폰 — 화면 가운데 · 제목 줄 고정 · 단추와 막대 44px(gameUi.css 의 .settings-dialog.is-touch, 14회차 · 11/8 해랑 검토)
   const isTouch = useTouchMode();
 
   // 막대를 만진 뒤엔 포커스가 <input> 에 남아 App 의 키 처리가 「글씨 입력 중」으로 보고 [P]·ESC 를 무시한다.
@@ -88,7 +88,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
 
   if (!open) return null;
   return (
-    <div style={overlayStyle} onClick={onClose}>
+    <div className={isTouch ? "settings-overlay is-touch" : undefined} style={overlayStyle} onClick={onClose}>
       <div
         className={isTouch ? "settings-dialog is-touch" : "settings-dialog"}
         style={{ ...dialogStyle, "--panel-from": "14px" } as CSSProperties}

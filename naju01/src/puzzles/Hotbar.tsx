@@ -5,7 +5,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 
-import { tapKey, useGameFrozen, useTouchMode } from "@/engine/input";
+import { TOUCH_HUD, tapKey, useGameFrozen, useTouchMode } from "@/engine/input";
 
 import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
 import { ITEMS, inventory, useHandItem, useHeldItems } from "./inventory";
@@ -87,13 +87,13 @@ const columnStyle: CSSProperties = {
 
 /**
  * 터치 빠른 소지품 — 하단 가운데 가로 줄(마인크래프트 모바일 하단 소지품 · Roblox 「아래 양쪽 조작 영역을 피한다」 참고,
- * 코덱스 구현 07회차). 왼쪽 40% 이동 스틱 자리와 오른쪽 ✋ · 점프 묶음(오른쪽 24 + 폭 170, engine/input/TouchHud) 사이에 둔다.
+ * 코덱스 구현 07회차). 왼쪽 40% 이동 스틱 자리와 오른쪽 ✋ · 점프 묶음(engine/input/TouchHud 의 TOUCH_HUD) 사이에 둔다.
  * 칸 48px + 간격 8px — 들어가는 만큼만 보이고, 넘치면 마지막 칸이 「+n」(누르면 소지품 창).
  */
 const TOUCH_SLOT = 48;
 const TOUCH_GAP = 8;
-const ACTION_CLUSTER_WIDTH = 24 + 170;
-const STICK_AREA = 0.4;
+const ACTION_CLUSTER_WIDTH = TOUCH_HUD.actionRight + TOUCH_HUD.actionWidth;
+const STICK_AREA = TOUCH_HUD.stickArea;
 
 /**
  * 칸 수는 줄 상자의 실제 폭으로 센다 — 상자 좌우는 CSS(40vw · 안전 영역 · 동작 묶음)가 정하므로 같은 값을 JS 로 다시

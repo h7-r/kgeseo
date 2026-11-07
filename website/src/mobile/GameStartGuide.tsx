@@ -17,13 +17,15 @@ import { COLOR } from "@/styles/tokens";
 import { closeGameStartGuide, useGameStartGuide } from "./gameStartStore";
 import InAppNotice from "./InAppNotice";
 import { GUTTER, primaryButtonStyle, safeBottom, secondaryButtonStyle } from "./mobileStyles";
-import { useIsPortrait } from "./orientation";
+import { useIsPortrait, useIsTouchDevice } from "./orientation";
 
 export default function GameStartGuide() {
   const url = useGameStartGuide();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const isPortrait = useIsPortrait();
+  // 세로를 막는 것은 손가락 기기만 — PC 의 세로 모니터 · 좁고 긴 창은 돌릴 수 없으니 그냥 시작한다(11/8 해랑 검토)
+  const isTouchDevice = useIsTouchDevice();
+  const isPortrait = useIsPortrait() && isTouchDevice;
   const [isLeaving, setIsLeaving] = useState(false);
 
   // 게임에서 뒤로 오면 bfcache 가 「이동하는 중」으로 얼려 둔 시트를 보여 준다 — 알아채면 닫는다.

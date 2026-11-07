@@ -173,21 +173,21 @@ const panelStyle: CSSProperties = {
   WebkitBackdropFilter: "blur(10px)",
 };
 
-/** 터치 — 왼쪽 위 힌트 표시 아래, 화면 폭 절반 이하. 단추 · 조준점과 겹치지 않는다 */
+/** 터치 — 왼쪽 위 힌트 표시 아래, 화면 폭 42% 이하(11/8 해랑 검토 — 게임 화면을 덜 덮게). 단추 · 조준점과 겹치지 않는다 */
 const touchPanelStyle: CSSProperties = {
   ...panelStyle,
   top: "calc(env(safe-area-inset-top, 0px) + 62px)",
   left: "calc(env(safe-area-inset-left, 0px) + 12px)",
   transform: "none",
-  width: "min(380px, 46vw)",
+  width: "min(340px, 42vw)",
   // 글이 길어져도 왼쪽 아래 이동 스틱 자리까지 내려오지 않게 — 넘치면 본문을 손가락으로 스크롤한다(touchScrollStyle).
   // 그래서 터치 조작면(z 900) 위에 두고 손가락을 받는다(이 판 위에서는 시점이 돌지 않는다, 코덱스 14c)
   pointerEvents: "auto",
   zIndex: 950,
-  padding: "10px 12px 10px",
+  padding: "8px 12px",
   borderRadius: 12,
-  // 14px — 휴대폰에서 읽히는 본문 크기(14회차, 예전 12.5)
-  font: `400 14px/1.45 ${UI_FONT.body}`,
+  // 14px — 휴대폰에서 읽히는 본문 크기(14회차, 예전 12.5). 줄 간격은 창들과 같은 1.5
+  font: `400 14px/1.5 ${UI_FONT.body}`,
 };
 // 판 머리(약 30px) · 위아래 여백을 뺀 나머지 — 화면 높이 기준(dvh)
 const touchScrollStyle: CSSProperties = {

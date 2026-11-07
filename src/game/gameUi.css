@@ -88,27 +88,98 @@
 }
 .game-panel.is-touch aside.game-panel-scroll {
   flex-grow: 1.15 !important;
-  padding: 12px 14px !important;
+  padding: 10px 12px !important;
+}
+/* 휴대폰 창 안쪽 — 칸 · 글자를 한 단계 줄이고 줄 간격을 1.5 로 고르게(11/8 해랑 검토 「창 · 글씨가 너무 큼 · 간격이 들쭉날쭉」).
+   목록과 상세가 같은 높이에서 시작하게 위 여백을 맞춘다. 본문 14 · 보조 13 · 제목 16 */
+.game-panel.is-touch .game-panel-scroll {
+  max-height: min(268px, calc(100dvh - 120px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
+}
+.game-panel.is-touch .game-panel-scroll section {
+  margin-bottom: 10px !important;
+}
+.game-panel.is-touch .game-panel-scroll section > div:first-child {
+  margin-bottom: 6px !important;
+  font-size: 14px !important;
+}
+.game-panel.is-touch .game-panel-scroll section > div:last-child {
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)) !important;
+  gap: 8px !important;
+}
+.game-panel.is-touch .game-slot {
+  gap: 4px !important;
+  padding: 8px 4px !important;
+}
+.game-panel.is-touch .game-slot > :first-child {
+  width: 36px !important;
+  height: 36px !important;
+  font-size: 18px !important;
+}
+.game-panel.is-touch aside.game-panel-scroll h3 {
+  margin: 4px 0 6px !important;
+  font-size: 16px !important;
+}
+.game-panel.is-touch aside.game-panel-scroll p {
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+}
+.game-panel.is-touch aside.game-panel-scroll img {
+  max-width: 160px !important;
+  margin-bottom: 8px !important;
+}
+.game-panel.is-touch aside.game-panel-scroll > div:only-child {
+  min-height: 0 !important;
+  gap: 8px !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
 }
 
-/* 휴대폰(터치) 설정 창 — 오른쪽 위 HUD 단추 줄을 가리지 않게 왼쪽 위 · 안전 영역 안, 제목 줄은 스크롤해도 남는다,
-   닫기 · 해상도 · 기본값 단추와 막대는 누르는 영역 44px(14회차) */
-.settings-dialog.is-touch {
-  left: calc(env(safe-area-inset-left, 0px) + 12px) !important;
-  right: auto !important;
-  top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
-  width: min(560px, calc(100% - 252px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))) !important;
-  max-height: calc(100% - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
-  padding: 0 16px 12px !important;
-  overscroll-behavior: contain;
+/* 휴대폰(터치) 설정 창 — 화면(안전 영역) 가운데, 제목 줄은 스크롤해도 남는다, 닫기 · 해상도 · 기본값 단추와 막대는 누르는 영역 44px
+   (14회차). 예전엔 왼쪽 위에서 화면 높이를 다 채웠다 — 줄 높이를 줄여 내용만큼만(11/8 해랑 검토). 바탕이 가운데에 놓는다 */
+.settings-overlay.is-touch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: calc(env(safe-area-inset-top, 0px) + 16px) calc(env(safe-area-inset-right, 0px) + 32px)
+    calc(env(safe-area-inset-bottom, 0px) + 16px) calc(env(safe-area-inset-left, 0px) + 32px);
 }
+.settings-dialog.is-touch {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  width: min(480px, 100%) !important;
+  max-height: 100% !important;
+  padding: 0 16px 10px !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  overscroll-behavior: contain;
+  --panel-from: 0px;
+}
+/* 제목 줄 — 창과 같은 바탕으로 창 폭 끝까지(예전엔 다른 색 띠가 안쪽 여백만큼 짧게 보였다) */
 .settings-dialog.is-touch .settings-dialog__header {
   position: sticky;
   top: 0;
   z-index: 1;
-  min-height: 52px;
+  min-height: 48px;
+  margin: 0 -16px;
+  padding: 0 10px 0 16px;
   background: inherit;
-  background-color: rgb(16 18 24 / 0.98);
+}
+.settings-dialog.is-touch .settings-dialog__header h2 {
+  font-size: 17px !important;
+}
+/* 묶음 제목(소리 · 화면 · 조작) · 줄 — 위아래 여백을 줄인다 */
+.settings-dialog.is-touch .settings-dialog__header ~ div:not([style*="grid"]) {
+  margin-top: 8px !important;
+  margin-bottom: 0 !important;
+  font-size: 13px !important;
+  color: #a4adbd;
+}
+.settings-dialog.is-touch .settings-dialog__header ~ div[style*="grid"] {
+  padding: 0 !important;
+  gap: 10px !important;
 }
 .settings-dialog.is-touch .settings-dialog__header button {
   width: 44px !important;

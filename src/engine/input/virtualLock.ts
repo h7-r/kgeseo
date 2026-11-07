@@ -17,6 +17,8 @@ import { isTouchMode, subscribeTouchMode } from "./touchMode";
 export const VIRTUAL_LOCK_EVENT = "virtualpointerlockchange";
 
 let virtualLocked = false;
+/** 가상 잠금을 심은 조작기들 — 터치 노트북이 마우스로 돌아오면 「풀림」으로 되돌린다 */
+const patchedControls = new Set<PatchableControls>();
 
 function setVirtualLocked(next: boolean) {
   if (virtualLocked === next) return;
@@ -65,6 +67,7 @@ export function installVirtualLock(target: PointerLockControls | null | undefine
   const controls = target as unknown as PatchableControls | null | undefined;
   if (!controls || controls.__virtualLockPatched) return;
   controls.__virtualLockPatched = true;
+  patchedControls.add(controls);
 
   const realLock = controls.lock;
   const realUnlock = controls.unlock;
@@ -112,8 +115,17 @@ export function installVirtualLock(target: PointerLockControls | null | undefine
   if (virtualLocked && isTouchMode()) controls.isLocked = true;
 }
 
-// 터치 모드가 꺼지면(진짜 잠금이 잡힘) 가상 잠금을 내려놓는다. 진짜 잠금 쪽 이벤트가 isLocked 를 다시 세운다.
+// 터치 모드가 꺼지면 가상 잠금을 내려놓는다.
+//  · 진짜 잠금이 잡혀 꺼졌다 — 진짜 잠금 쪽 이벤트가 isLocked 를 다시 세운다.
+//  · 마우스로 눌러 꺼졌다(터치 노트북, touchMode) — 아직 진짜 잠금이 없으니 조작기를 「풀림」으로 돌린다. 안 그러면 isLocked 가
+//    참으로 남아 잠금 없이 마우스만 움직여도 시점이 돌고, 화면은 조작 중으로 안다. 그 뒤는 PC 흐름(T 로 잠그기)을 따른다.
 subscribeTouchMode(() => {
   if (isTouchMode() || !virtualLocked) return;
   setVirtualLocked(false);
+  if (typeof document !== "undefined" && document.pointerLockElement) return;
+  for (const controls of patchedControls) {
+    if (!controls.isLocked) continue;
+    controls.isLocked = false;
+    controls.dispatchEvent({ type: "unlock" });
+  }
 });

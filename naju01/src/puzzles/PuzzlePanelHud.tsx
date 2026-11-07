@@ -71,7 +71,7 @@ function TouchPuzzlePanel({ title, rule: rawRule, rows, diagram }: TouchPuzzlePa
         aria-label={isOpen ? `${title} 접기` : `${title} 펼치기`}
         onClick={() => setIsOpen((open) => !open)}
       >
-        <span style={{ ...titleStyle, marginBottom: 0 }}>{title}</span>
+        <span style={{ ...titleStyle, marginBottom: 0, fontSize: 14 }}>{title}</span>
         <span style={chevronStyle} aria-hidden="true">
           {isOpen ? "▴ 접기" : "▾ 규칙"}
         </span>
@@ -80,8 +80,8 @@ function TouchPuzzlePanel({ title, rule: rawRule, rows, diagram }: TouchPuzzlePa
         <div style={{ ...rowsStyle, borderTop: "none", paddingTop: 2 }}>
           {rows.map((row) => (
             <div key={row.label} style={rowStyle}>
-              <span style={{ ...labelStyle, fontSize: 14 }}>{row.label}</span>
-              <span style={{ ...valueStyle, fontSize: 14, color: row.ok ? AMBER : CREAM }}>{row.value}</span>
+              <span style={{ ...labelStyle, fontSize: 13 }}>{row.label}</span>
+              <span style={{ ...valueStyle, fontSize: 13, color: row.ok ? AMBER : CREAM }}>{row.value}</span>
             </div>
           ))}
         </div>
@@ -115,25 +115,28 @@ const cardStyle: CSSProperties = {
   boxShadow: "0 8px 28px rgba(0,0,0,.3)",
 };
 
-/** 터치 — 좌상단 안전 영역 안 12px. 아래쪽 이동 스틱 자리를 넘지 않게 높이를 묶는다 */
+/**
+ * 터치 — 좌상단 안전 영역 안 8px. 아래쪽 이동 스틱 자리를 넘지 않게 높이를 묶는다.
+ * 폭 최대 280 · 36vw, 글 13px · 줄 간격 1.5 — 게임 화면을 덜 덮게(11/8 해랑 검토). 숨 · 당김 게이지는 최대 300 · 40vw 를 비켜 둔다
+ */
 const touchCardStyle: CSSProperties = {
   position: "absolute",
-  left: "calc(env(safe-area-inset-left, 0px) + 12px)",
-  top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+  left: "calc(env(safe-area-inset-left, 0px) + 8px)",
+  top: "calc(env(safe-area-inset-top, 0px) + 8px)",
   zIndex: 950,
-  width: "min(300px, 40vw)",
+  width: "min(280px, 36vw)",
   boxSizing: "border-box",
   maxHeight: "calc(100dvh - 24px - 150px)",
   overflowY: "auto",
   overscrollBehavior: "contain",
   touchAction: "pan-y",
   pointerEvents: "auto",
-  padding: "2px 12px 10px",
+  padding: "0 12px 8px",
   borderRadius: 12,
   background: "rgba(10,13,19,.92)",
   border: "1px solid rgba(242,238,228,.12)",
   color: CREAM,
-  font: `500 14px/1.5 ${FONT}`,
+  font: `500 13px/1.5 ${FONT}`,
   boxShadow: "0 8px 28px rgba(0,0,0,.35)",
 };
 
@@ -158,7 +161,7 @@ const chevronStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 const clampedRuleStyle: CSSProperties = {
-  marginTop: 6,
+  marginTop: 4,
   color: "#CFD6D4",
   display: "-webkit-box",
   WebkitLineClamp: 2,

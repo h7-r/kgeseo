@@ -88,12 +88,12 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
         role="alertdialog"
         aria-labelledby="dispatch-title"
       >
-        <div className="game-panel" style={dispatchCardStyle}>
+        <div className="game-panel" style={labels.isTouch ? touchDispatchCardStyle : dispatchCardStyle}>
           <div style={headerStyle}>
             <span style={sirenDotStyle} />
             긴급 호출 · 수사본부 상황실
           </div>
-          <h2 id="dispatch-title" style={titleStyle}>
+          <h2 id="dispatch-title" style={labels.isTouch ? touchTitleStyle : titleStyle}>
             나주 앙암바위, 왜곡 발생
           </h2>
           <div style={bodyStyle}>
@@ -101,7 +101,7 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
             <p style={paragraphStyle}>강물 위로 지워졌던 옛 장면이 겹쳐 떠오르고, 왜곡은 지금도 번지는 중이다.</p>
             <p style={commandLineStyle}>더 퍼지기 전에 막아야 한다. 즉시 기차에 올라 나주로 출동하라.</p>
           </div>
-          <div style={footerStyle}>
+          <div style={labels.isTouch ? touchFooterStyle : footerStyle}>
             <span>— 상황실</span>
             {labels.isTouch ? (
               <button
@@ -126,7 +126,7 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
 
   if (phase === "guide")
     return (
-      <div style={objectiveStyle} role="status" data-hud="출동 목표">
+      <div style={labels.isTouch ? touchObjectiveStyle : objectiveStyle} role="status" data-hud="출동 목표">
         <div style={objectiveHeaderStyle}>
           <span style={objectiveDotStyle} />
           임무 · 나주 앙암바위 왜곡 저지
@@ -173,6 +173,15 @@ const dispatchCardStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+/** 휴대폰 — 화면을 덜 덮게 폭 520 · 글 14px · 여백을 줄인다(11/8 해랑 검토 「창 · 글씨가 너무 큼」) */
+const touchDispatchCardStyle: CSSProperties = {
+  ...dispatchCardStyle,
+  width: "min(520px, 100%)",
+  padding: "14px 18px 12px",
+  borderRadius: 14,
+  font: `400 14px/1.6 ${UI_FONT.body}`,
+};
+
 const touchDispatchButtonStyle: CSSProperties = {
   minHeight: 44,
   minWidth: 96,
@@ -206,6 +215,7 @@ const titleStyle: CSSProperties = {
   font: `700 clamp(22px, 6vh, 30px)/1.25 ${UI_FONT.title}`,
   color: UI.text,
 };
+const touchTitleStyle: CSSProperties = { ...titleStyle, margin: "6px 0 8px", font: `700 19px/1.3 ${UI_FONT.title}` };
 const bodyStyle: CSSProperties = { color: UI.textMuted };
 const paragraphStyle: CSSProperties = { margin: "0 0 4px" };
 const commandLineStyle: CSSProperties = { margin: "12px 0 0", color: UI.text, fontWeight: 600 };
@@ -220,6 +230,8 @@ const footerStyle: CSSProperties = {
   color: UI.textMuted,
   fontSize: 13,
 };
+
+const touchFooterStyle: CSSProperties = { ...footerStyle, marginTop: 12, paddingTop: 10 };
 
 const objectiveStyle: CSSProperties = {
   position: "fixed",
@@ -237,6 +249,18 @@ const objectiveStyle: CSSProperties = {
   font: `400 14px/1.55 ${UI_FONT.body}`,
   pointerEvents: "none",
   zIndex: 20,
+};
+
+/** 휴대폰 — 위 가운데는 오른쪽 위 단추 줄과 겹친다. 튜토리얼 판처럼 왼쪽 위 힌트 표시 아래에 */
+const touchObjectiveStyle: CSSProperties = {
+  ...objectiveStyle,
+  top: "calc(env(safe-area-inset-top, 0px) + 62px)",
+  left: "calc(env(safe-area-inset-left, 0px) + 12px)",
+  transform: "none",
+  width: "min(340px, 42vw)",
+  padding: "8px 12px",
+  borderRadius: 12,
+  font: `400 13px/1.5 ${UI_FONT.body}`,
 };
 
 const objectiveHeaderStyle: CSSProperties = {
