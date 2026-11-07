@@ -217,10 +217,105 @@ function makeMarineTexture() {
 /** 챙 두께(m) */
 const BRIM_THICKNESS = 0.009;
 /**
+ * 챙 크기 — 돔 테두리 대비 옆 폭 · 앞으로 나온 정도. 옆 폭을 돔보다 좁게 둬 챙 양 끝이 돔 옆벽 안으로 들어간다 — 일반 캡처럼
+ * 앞쪽(약 140°)에만 챙이 보인다(돔보다 넓으면 옆을 따라 귀 쪽까지 띠가 생기고 끝에 턱이 졌다)
+ */
+const BRIM_WIDEN = 0.86;
+const BRIM_REACH = 1.7;
+/** 테두리에서 바깥 끝까지 숙이는 기울기(높이/길이) */
+const BRIM_DROOP = 0.16;
+/** 양옆 끝이 아래로 휘는 정도(돔 반폭 대비) — 일반 캡의 둥근 챙 */
+const BRIM_CURL = 0.32;
+/** 돔 밑면(안감) 색 — 챙 밑으로 올려다볼 때 보인다 */
+const CAP_LINING_COLOR = "#1a1c22";
+/**
  * 외곽선 껍데기 두께(m). 몸은 화면 픽셀로 일정한 뒤집은 껍데기를 쓴다 — 캡은 작아서 몇 mm 의 세계 두께로 같은 굵기에 맞춘다
  * (drei Outlines 는 늘린 반원판에서 껍데기가 얼굴을 덮는 큰 삼각형으로 깨졌다).
  */
 const HULL = 0.0035;
+
+/**
+ * 곡선 챙(닫힌 입체). 돔 테두리의 앞 호에 그대로 붙어 있고(뿌리는 돔 벽 안쪽 1.2cm 부터), 바깥으로 갈수록 살짝 숙이며 양옆이
+ * 아래로 휜다. 예전엔 평평한 반원판을 돔 한가운데를 축으로 숙여, 돔 앞 벽에서 챙이 테두리보다 1cm 남짓 내려가 그 틈으로
+ * 이마가 비쳤다(미르 11/8). offset 은 외곽선 껍데기용 — 바깥 · 위아래로 그만큼 키운다.
+ */
+function makeBrimGeometry(radius: THREE.Vector3, offset: number) {
+  const across = 28;
+  const along = 10;
+  const outerX = radius.x * BRIM_WIDEN + offset;
+  const outerZ = radius.z * BRIM_REACH + offset;
+  const rimZ = (x: number) => {
+    const t = 1 - (x / radius.x) ** 2;
+    return t > 0 ? radius.z * Math.sqrt(t) : 0;
+  };
+  const edgeZ = (x: number) => {
+    const t = 1 - (x / outerX) ** 2;
+    return t > 0 ? outerZ * Math.sqrt(t) : 0;
+  };
+  const positions: number[] = [];
+  const rows = across + 1;
+  const cols = along + 1;
+  for (const layer of [0, 1]) {
+    for (let i = 0; i < rows; i += 1) {
+      const x = (i / across) * 2 * outerX - outerX;
+      const inner = rimZ(x) - 0.012 - offset;
+      const outer = Math.max(inner + 1e-4, edgeZ(x));
+      for (let j = 0; j < cols; j += 1) {
+        const z = inner + ((outer - inner) * j) / along;
+        // 테두리 호에서 바깥 끝까지 0 → 1. 테두리 안쪽(뿌리)은 평평하게 테두리 높이
+        const reach = outer - rimZ(x);
+        const t = reach > 1e-4 ? Math.min(1, Math.max(0, (z - rimZ(x)) / reach)) : 0;
+        const drop = t * reach * BRIM_DROOP + t ** 1.5 * BRIM_CURL * radius.x * (x / outerX) ** 2;
+        const y = layer === 0 ? offset - drop : -BRIM_THICKNESS - offset - drop;
+        positions.push(x, y, z);
+      }
+    }
+  }
+  const top = (i: number, j: number) => i * cols + j;
+  const bottom = (i: number, j: number) => rows * cols + i * cols + j;
+  const index: number[] = [];
+  for (let i = 0; i < across; i += 1) {
+    for (let j = 0; j < along; j += 1) {
+      // 윗면(+y) · 아랫면(−y)
+      index.push(top(i, j), top(i, j + 1), top(i + 1, j), top(i + 1, j), top(i, j + 1), top(i + 1, j + 1));
+      index.push(
+        bottom(i, j),
+        bottom(i + 1, j),
+        bottom(i, j + 1),
+        bottom(i + 1, j),
+        bottom(i + 1, j + 1),
+        bottom(i, j + 1),
+      );
+    }
+    // 바깥 끝(+z) · 뿌리(−z, 돔 안)
+    index.push(
+      top(i, along),
+      bottom(i, along),
+      top(i + 1, along),
+      top(i + 1, along),
+      bottom(i, along),
+      bottom(i + 1, along),
+    );
+    index.push(top(i, 0), top(i + 1, 0), bottom(i, 0), top(i + 1, 0), bottom(i + 1, 0), bottom(i, 0));
+  }
+  for (let j = 0; j < along; j += 1) {
+    // 양 끝 벽(−x · +x)
+    index.push(top(0, j), bottom(0, j), top(0, j + 1), top(0, j + 1), bottom(0, j), bottom(0, j + 1));
+    index.push(
+      top(across, j),
+      top(across, j + 1),
+      bottom(across, j),
+      top(across, j + 1),
+      bottom(across, j + 1),
+      bottom(across, j),
+    );
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(index);
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 function Cap({ fit, outline }: { fit: CapFit; outline: OutlineConfig }) {
   const material = useMemo(
@@ -229,6 +324,13 @@ function Cap({ fit, outline }: { fit: CapFit; outline: OutlineConfig }) {
   );
   const buttonMaterial = useMemo(
     () => markAvatarMaterial(new THREE.MeshToonMaterial({ color: CAP_BUTTON_COLOR, gradientMap: gradient })),
+    [],
+  );
+  const liningMaterial = useMemo(
+    () =>
+      markAvatarMaterial(
+        new THREE.MeshToonMaterial({ color: CAP_LINING_COLOR, gradientMap: gradient, side: THREE.DoubleSide }),
+      ),
     [],
   );
   const inkMaterial = useMemo(
@@ -241,20 +343,28 @@ function Cap({ fit, outline }: { fit: CapFit; outline: OutlineConfig }) {
     inkMaterial.visible = outline.enabled;
   }, [inkMaterial, outline.color, outline.enabled]);
   const dome = useMemo(() => new THREE.SphereGeometry(1, 40, 18, 0, Math.PI * 2, 0, Math.PI / 2), []);
-  const brim = useMemo(() => new THREE.CylinderGeometry(1, 1, BRIM_THICKNESS, 32, 1, false, -Math.PI / 2, Math.PI), []);
+  // 돔 밑면 — 머리와 돔 테두리 사이의 빈 곳을 막는다(머리 안쪽은 머리 표면에 가려 안 보인다)
+  const lining = useMemo(() => new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2), []);
+  const { center, radius, frame } = fit;
+  const brim = useMemo(() => makeBrimGeometry(radius, 0), [radius]);
+  const brimHull = useMemo(() => makeBrimGeometry(radius, HULL), [radius]);
   useEffect(
     () => () => {
-      [material, buttonMaterial, inkMaterial, dome, brim].forEach((item) => item.dispose());
+      [material, buttonMaterial, liningMaterial, inkMaterial, dome, lining].forEach((item) => item.dispose());
     },
-    [material, buttonMaterial, inkMaterial, dome, brim],
+    [material, buttonMaterial, liningMaterial, inkMaterial, dome, lining],
   );
-  const { center, radius, frame } = fit;
-  const brimAt: [number, number, number] = [center.x, center.y + 0.003, center.z];
-  const brimScale: [number, number, number] = [radius.x * 1.02, 1, radius.z * 1.65];
+  useEffect(
+    () => () => {
+      brim.dispose();
+      brimHull.dispose();
+    },
+    [brim, brimHull],
+  );
   const button = Math.max(0.006, radius.x * 0.07);
   return createPortal(
     <group matrixAutoUpdate={false} matrix={frame.basis}>
-      {/* 돔 — 위 반구를 머리에 맞춰 늘린다. 껍데기는 아래가 열려 있어 챙 밑 안쪽이 어둡게 보인다 */}
+      {/* 돔 — 위 반구를 머리에 맞춰 늘린다 */}
       <mesh position={center} scale={radius} geometry={dome} material={material} castShadow receiveShadow />
       <mesh
         position={center}
@@ -262,14 +372,17 @@ function Cap({ fit, outline }: { fit: CapFit; outline: OutlineConfig }) {
         geometry={dome}
         material={inkMaterial}
       />
-      {/* 챙 — 앞쪽 반원판, 살짝 아래로 */}
-      <group position={brimAt} rotation={[0.14, 0, 0]}>
-        <mesh scale={brimScale} geometry={brim} material={material} castShadow receiveShadow />
-        <mesh
-          scale={[brimScale[0] + HULL, 1 + (2 * HULL) / BRIM_THICKNESS, brimScale[2] + HULL]}
-          geometry={brim}
-          material={inkMaterial}
-        />
+      <mesh
+        position={[center.x, center.y + 0.0005, center.z]}
+        scale={[radius.x, 1, radius.z]}
+        geometry={lining}
+        material={liningMaterial}
+        receiveShadow
+      />
+      {/* 챙 — 테두리 앞 호에 붙은 곡선 챙 */}
+      <group position={center}>
+        <mesh geometry={brim} material={material} castShadow receiveShadow />
+        <mesh geometry={brimHull} material={inkMaterial} />
       </group>
       {/* 꼭대기 단추 */}
       <mesh position={[center.x, center.y + radius.y - button * 0.3, center.z]} material={buttonMaterial}>
