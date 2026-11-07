@@ -2,7 +2,7 @@
 //   · Enter 로 열고, Enter 로 보내고, Esc 로 닫는다(쓰던 글은 남는다). 한글 조합 중 Enter 는 글자 확정이라 보내지 않는다.
 //   · 열 때 마우스 잠금을 푼다 — 이동·시점 회전·클릭 공격이 멈추고 커서로 이름을 누를 수 있다(본편 화면창과 같은 방식).
 //     Enter 로 보내고 닫으면 열기 전 잠금 상태로 되돌린다. Esc 로 닫으면 그대로(T 로 다시 잠근다 — 브라우저가 Esc 로는 못 잠근다).
-//   · 대화 기록은 왼쪽 아래, 닫혀 있으면 최근 8줄이 12초 뒤 사라지고, 열면 50줄까지 스크롤. 이름을 누르면 숨기기·풀기.
+//   · 대화 기록은 왼쪽 아래(내 말은 그 칸의 오른쪽 끝), 닫혀 있으면 최근 8줄이 12초 뒤 사라지고, 열면 50줄까지 스크롤. 이름을 누르면 숨기기·풀기.
 //   · 컷신·화면창·자물쇠·출동 경보 중에는 열리지 않고, 열려 있으면 닫힌다. 화면 터치만 되는 기기에서는 숨긴다(PC 먼저).
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
 
@@ -204,7 +204,15 @@ export default function ChatBox({ canChat }: { canChat: boolean }) {
         {visible.map((line) => {
           const mine = line.sid === mySid || (myPid !== null && line.pid === myPid);
           return (
-            <div key={line.id} style={{ ...lineStyle, background: mine ? "rgba(40, 62, 98, 0.72)" : lineStyle.background }}>
+            // 내 말은 오른쪽 끝에 붙인다(메신저처럼, 미르 11/7). 감긴 글자는 말풍선 안에서 왼쪽 정렬 그대로
+            <div
+              key={line.id}
+              style={{
+                ...lineStyle,
+                background: mine ? "rgba(40, 62, 98, 0.72)" : lineStyle.background,
+                alignSelf: mine ? "flex-end" : undefined,
+              }}
+            >
               {mine ? (
                 <span style={{ ...nameButton, cursor: "default", color: "#ffd479" }}>{line.nickname}</span>
               ) : (
