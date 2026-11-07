@@ -148,10 +148,10 @@ export function createLobbyRoom({
 
     /**
      * 이 연결의 메시지 권한을 바로 거둔다 — 같은 계정 새 접속·명단 제재. 끊김 신호(leave)는 상대가 닫기에 응해야 끝나므로
-     * 그 사이 채팅·이동·주먹이 들어와도 받지 않게 계정·검사 상태와 아바타를 먼저 지운다(onLeave 가 나중에 와도 무해).
+     * 그 사이 채팅·이동·주먹이 들어와도 받지 않게 검사 상태와 아바타를 먼저 지운다(각 처리기가 검사기·아바타가 없으면
+     * 그냥 돌아간다). 계정(#subs)은 남긴다 — onLeave 가 그것으로 online.release 를 불러야 새 접속의 기다림(evict)이 바로 끝난다.
      */
     #revoke(sid: string) {
-      this.#subs.delete(sid);
       this.#moves.delete(sid);
       this.#greets.delete(sid);
       this.#punches.delete(sid);

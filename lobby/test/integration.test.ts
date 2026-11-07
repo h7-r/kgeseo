@@ -240,11 +240,15 @@ describe("같은 계정 — 방이 다 찼어도 다시 들어오면 자기 자�
     // 다른 계정은 더 못 들어온다
     assert.equal(await errorMessage(join()), "LOBBY_FULL");
     const closed = new Promise<number>((resolve) => mine.onLeave((code: number) => resolve(code)));
+    const startedAt = Date.now();
     const again = await client(ALLOWED_ORIGIN, await makeTicket({ sub: "full-house", nickname: "만석" })).joinOrCreate(
       "lobby",
       { look: validLook() },
     );
+    // 옛 연결이 나가는 대로 바로 들어간다(최대 대기 2초를 채우지 않는다 — Codex 리뷰)
+    assert.ok(Date.now() - startedAt < 1500, `재접속 ${Date.now() - startedAt}ms`);
     assert.equal(await closed, CLOSE_REPLACED);
+    assert.equal(lobby.online.size, 20);
     assert.ok(again.sessionId);
     assert.equal(lobby.roomCap.used, 2);
     await leaveAll([...others, again]);
