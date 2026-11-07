@@ -2,13 +2,14 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildConfig, collectSettings, parseProfile, type Profile } from "../src/config.js";
+import { buildConfig, collectSettings, loadConfig, parseProfile, type Profile } from "../src/config.js";
 
 const PROD_SECRET = "p".repeat(40);
 const goodProduction = {
   LOBBY_TICKET_SECRET: PROD_SECRET,
   LOBBY_ALLOWED_ORIGINS: "https://play.example.com",
   LOBBY_MAX_ROOMS: "5",
+  LOBBY_BETA_LIST_PATH: "/srv/waegok/lobby_beta_users.txt",
 };
 
 const errorsOf = (profile: Profile, settings: Record<string, string>) => {
@@ -87,6 +88,7 @@ describe("운영 시작 검사 — production", () => {
     ["개발 키", { ...goodProduction, LOBBY_TICKET_SECRET: `dev-${"x".repeat(40)}` }, "LOBBY_TICKET_SECRET"],
     ["LOBBY_ENV=test", { ...goodProduction, LOBBY_ENV: "test" }, "LOBBY_ENV"],
     ["포트 숫자 오타", { ...goodProduction, LOBBY_PORT: "abc" }, "LOBBY_PORT"],
+    ["명단 경로 없음(채팅 제재를 못 한다)", { ...goodProduction, LOBBY_BETA_LIST_PATH: "" }, "LOBBY_BETA_LIST_PATH"],
   ];
   for (const [name, settings, field] of cases) {
     it(`${name} → 시작 안 함`, () => {
@@ -98,6 +100,27 @@ describe("운영 시작 검사 — production", () => {
       );
     });
   }
+  it("정상 설정은 명단 경로를 넘긴다", () => {
+    const result = buildConfig("production", goodProduction);
+    assert.ok("config" in result);
+    assert.equal(result.config.betaListPath, "/srv/waegok/lobby_beta_users.txt");
+  });
+  for (const debug of ["colyseus:message", "colyseus:*", "*", "app,colyseus:matchmaking"]) {
+    it(`DEBUG=${debug} 이면 시작 안 함(받은 메시지 원문을 찍는다)`, () => {
+      const result = loadConfig(["--profile=production"], { ...goodProduction, DEBUG: debug }, "/nonexistent");
+      assert.ok("errors" in result && result.errors.some((e) => e.startsWith("DEBUG")), JSON.stringify(result));
+    });
+  }
+  it("다른 DEBUG 값과 test 프로필의 colyseus 디버그는 괜찮다", () => {
+    assert.ok("config" in loadConfig(["--profile=production"], { ...goodProduction, DEBUG: "app" }, "/nonexistent"));
+    const test = loadConfig(
+      ["--profile=test"],
+      { LOBBY_TICKET_SECRET: "dev-local", LOBBY_ALLOWED_ORIGINS: "http://localhost:5173", DEBUG: "colyseus:*" },
+      "/nonexistent",
+    );
+    assert.ok("config" in test, JSON.stringify(test));
+    assert.equal(test.config.betaListPath, null);
+  });
   it("실패 사유에 비밀값이 들어가지 않는다", () => {
     const secret = "short-secret-value";
     const errors = errorsOf("production", { ...goodProduction, LOBBY_TICKET_SECRET: secret });

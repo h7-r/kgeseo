@@ -14,7 +14,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
     "make-dev-env": "node scripts/make-dev-env.mjs",
-    "extract-look": "node scripts/extract-look-allowlist.mjs"
+    "extract-look": "node scripts/extract-look-allowlist.mjs",
+    "extract-profanity": "node scripts/extract-profanity.mjs"
   },
   "dependencies": {
     "@colyseus/core": "0.18.10",

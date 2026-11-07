@@ -1,10 +1,12 @@
 // 방 상태 — 방 안에서만 공유한다(설계 v0.19 5절 「상태」).
-// 연결 ID(맵 키 = sessionId)·닉네임·검사한 외형·위치·방향·이동 상태만. 계정 ID·티켓 ID 는 넣지 않는다.
+// 연결 ID(맵 키 = sessionId)·닉네임·숨기기용 가명 ID·검사한 외형·위치·방향·이동 상태만. 계정 ID·티켓 ID 는 넣지 않는다.
 import { schema, t } from "@colyseus/schema";
 
 export const Player = schema(
   {
     nickname: t.string(),
+    /** 숨기기용 가명 ID(계정 ID 의 HMAC 앞 12자 — accounts.ts pidFor). 계정 ID 자체는 넣지 않는다 */
+    pid: t.string(),
     /** 검사한 외형 JSON. 틀린 외형이면 "" — 받는 쪽이 기본 외형 데이터로 그린다(성별 정보도 없다) */
     look: t.string(),
     /** 첫 정상 위치를 받기 전에는 false — 받는 쪽은 그리지 않는다 */

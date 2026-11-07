@@ -2,7 +2,9 @@
 // 의존(인증·방 상한·시계·로그)을 받아 방 클래스를 만든다. 시험이 같은 코드를 따로 묶어 돌릴 수 있게.
 import { Room, type Client } from "@colyseus/core";
 
+import { type OnlineAccounts, pidFor } from "./accounts.js";
 import type { Authenticator, AuthContextLike } from "./authenticate.js";
+import { type ChatGuard, CHAT_REJECT_REASONS } from "./chat.js";
 import { authError, lobbyFullError, REJECT } from "./errors.js";
 import type { Logger } from "./log.js";
 import { lookToStateString } from "./look.js";
@@ -18,6 +20,11 @@ export const ROOM_CAPACITY = 10;
 export const SEAT_RESERVATION_SECONDS = 5;
 /** 🟡 시작값 — 서버 패치·화면 보간 100ms(5절) */
 export const PATCH_RATE_MS = 100;
+/**
+ * 연결당 초당 메시지 상한 — 넘으면 Colyseus 가 그 연결을 끊는다(검토 14회차 5). 정상 송신은 이동 10 + 주먹 약 3 + 인사·채팅 몇 개라
+ * 넉넉히 30. 채팅 통은 비싼 판정을 줄이고, 이것은 받기·해석 폭주를 막는다.
+ */
+export const MAX_MESSAGES_PER_SECOND = 30;
 
 export interface LobbyRoomDeps {
   authenticate: Authenticator;
@@ -29,6 +36,12 @@ export interface LobbyRoomDeps {
   nowMs?: () => number;
   /** 시험 장치 — 자리를 확보한 뒤 초기화가 실패하는 경우를 만든다 */
   failAfterAcquire?: () => boolean;
+  /** 채팅 검사(계정 기준 — 서버 전체에서 하나) */
+  chatGuard: ChatGuard;
+  /** 지금 붙어 있는 계정(같은 계정 두 번 접속·명단 제재) — 서버 전체에서 하나 */
+  online: OnlineAccounts<Client>;
+  /** 숨기기용 가명 ID 를 만드는 키(입장권 서명 키를 쓴다) */
+  pidSecret: Uint8Array;
 }
 
 export function createLobbyRoom({
@@ -38,6 +51,9 @@ export function createLobbyRoom({
   now = () => Date.now() / 1000,
   nowMs = () => Date.now(),
   failAfterAcquire,
+  chatGuard,
+  online,
+  pidSecret,
 }: LobbyRoomDeps) {
   return class LobbyRoom extends Room<{ state: LobbyState }> {
     override maxClients = ROOM_CAPACITY;
@@ -48,6 +64,8 @@ export function createLobbyRoom({
     readonly #punches = new Map<string, PunchGate>();
     /** 마지막 정상 위치를 받은 서버 시각(ms) — 때리기 판정이 낡은 자리로 맞히지 않게 */
     readonly #poseAt = new Map<string, number>();
+    /** 연결 ID → 계정 ID. 서버 안에서만 쓰고 상태·방송·로그에는 넣지 않는다 */
+    readonly #subs = new Map<string, string>();
 
     static override onAuth(token: string, options: unknown, context: AuthContextLike) {
       return authenticate(token, options, context);
@@ -65,10 +83,12 @@ export function createLobbyRoom({
         if (failAfterAcquire?.()) throw new Error("test hook: room init failure");
         this.seatReservationTimeout = SEAT_RESERVATION_SECONDS;
         this.patchRate = PATCH_RATE_MS;
+        this.maxMessagesPerSecond = MAX_MESSAGES_PER_SECOND;
         this.state = new LobbyState();
         this.onMessage("move", (client: Client, message: unknown) => this.#onMove(client, message));
         this.onMessage("greet", (client: Client, message: unknown) => this.#onGreet(client, message));
         this.onMessage("punch", (client: Client, message: unknown) => this.#onPunch(client, message));
+        this.onMessage("chat", (client: Client, message: unknown) => this.#onChat(client, message));
         // 정해진 세 가지 말고는 조용히 버린다
         this.onMessage("*", () => {});
       } catch (error) {
@@ -80,7 +100,7 @@ export function createLobbyRoom({
 
     override onJoin(client: Client, options: unknown, auth: unknown) {
       const ticket = auth as Partial<VerifiedTicket> | undefined;
-      if (!ticket || typeof ticket.exp !== "number" || typeof ticket.nickname !== "string") {
+      if (!ticket || typeof ticket.exp !== "number" || typeof ticket.nickname !== "string" || !ticket.sub) {
         log("join_rejected", { reason: REJECT.AUTH_MISSING });
         throw authError(REJECT.AUTH_MISSING);
       }
@@ -92,6 +112,7 @@ export function createLobbyRoom({
       const joinOptions = (typeof options === "object" && options !== null ? options : {}) as Record<string, unknown>;
       const player = new Player();
       player.nickname = ticket.nickname;
+      player.pid = pidFor(pidSecret, ticket.sub);
       player.look = lookToStateString(joinOptions.look);
       player.placed = false;
       player.gait = "idle";
@@ -106,6 +127,9 @@ export function createLobbyRoom({
       this.#greets.set(client.sessionId, new GreetGate());
       this.#punches.set(client.sessionId, new PunchGate());
       this.state.players.set(client.sessionId, player);
+      this.#subs.set(client.sessionId, ticket.sub);
+      // 같은 계정의 먼저 붙은 연결은 끊는다(나중 접속이 이긴다 — 미르 11/7 「표준대로」)
+      if (online.claim(ticket.sub, client)) log("join_replaced_previous", { rooms: roomCap.used });
       log("join", { clients: this.clients.length, look: player.look !== "", rooms: roomCap.used });
     }
 
@@ -115,6 +139,9 @@ export function createLobbyRoom({
       this.#greets.delete(client.sessionId);
       this.#punches.delete(client.sessionId);
       this.#poseAt.delete(client.sessionId);
+      const sub = this.#subs.get(client.sessionId);
+      if (sub) online.release(sub, client);
+      this.#subs.delete(client.sessionId);
       if (existed) log("leave", { code: code ?? null, clients: this.clients.length });
     }
 
@@ -149,6 +176,23 @@ export function createLobbyRoom({
       if (id === null) return;
       // 검사한 연결 ID 와 문구 번호만 보낸다. 화면이 목록에서 문구를 찾는다
       this.broadcast("greet", { sid: client.sessionId, id });
+    }
+
+    #onChat(client: Client, message: unknown) {
+      const sub = this.#subs.get(client.sessionId);
+      const player = this.state.players.get(client.sessionId);
+      if (!sub || !player) return;
+      const at = nowMs();
+      const result = chatGuard.check(sub, message, at);
+      const counts = chatGuard.takeRejectCounts(at);
+      // 원문·계정은 남기지 않는다 — 사유별 개수만 1분에 한 줄
+      if (counts) log("chat_rejected", Object.fromEntries(CHAT_REJECT_REASONS.map((reason) => [reason, counts[reason] ?? 0])));
+      if (!result.ok) {
+        if (result.reply) client.send("chatRejected", { reason: result.reason });
+        return;
+      }
+      // 이름·가명 ID 를 서버가 확정해 함께 보낸다 — 방 상태보다 먼저 닿거나 보낸 사람이 나가도 화면이 이름을 안다(검토 14회차 4)
+      this.broadcast("chat", { sid: client.sessionId, pid: player.pid, nickname: player.nickname, text: result.text });
     }
 
     #bodyOf(sid: string): BodyAt | null {

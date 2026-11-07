@@ -14,6 +14,11 @@ export interface LobbyConfig {
   /** HS256 서명 키(UTF-8 바이트) */
   ticketSecret: Uint8Array;
   testHooks: boolean;
+  /**
+   * 베타 명단 파일(백엔드와 같은 파일). 30초마다 다시 읽어 빠진 계정의 연결을 끊는다(채팅 제재 — 검토 14회차 1).
+   * 운영은 필수, test 는 없으면 끄기만 한다.
+   */
+  betaListPath: string | null;
 }
 
 export const PRODUCTION_MAX_ROOMS = 5;
@@ -175,6 +180,9 @@ export function buildConfig(profile: Profile, settings: Readonly<Record<string, 
   const testHooks = hooksRaw === "1";
   if (isProduction && testHooks) errors.push("LOBBY_TEST_HOOKS: 운영 프로필에서 켤 수 없다");
 
+  const betaListPath = settings.LOBBY_BETA_LIST_PATH?.trim() || null;
+  if (isProduction && !betaListPath) errors.push("LOBBY_BETA_LIST_PATH: 운영에서는 필요하다(명단에서 뺀 계정을 끊는다)");
+
   if (errors.length > 0) return { errors };
   return {
     config: {
@@ -184,6 +192,7 @@ export function buildConfig(profile: Profile, settings: Readonly<Record<string, 
       maxRooms: maxRooms as number,
       ticketSecret: secretBytes,
       testHooks,
+      betaListPath,
     },
   };
 }
@@ -205,6 +214,10 @@ export function loadConfig(argv: readonly string[], env: SettingsSource["env"], 
     },
   });
   const built = buildConfig(profileResult.profile, settings);
+  // Colyseus 디버그 로그(colyseus:message 등)는 받은 메시지 원문을 찍는다 — 운영에서 켜면 채팅 원문이 남는다(검토 14회차 2)
+  const debug = env.DEBUG ?? "";
+  if (profileResult.profile === "production" && /colyseus|\*/u.test(debug))
+    errors.push("DEBUG: 운영에서 colyseus 디버그 로그를 켤 수 없다(받은 메시지 원문을 찍는다)");
   if (errors.length === 0) return built;
   return { errors: [...errors, ...("errors" in built ? built.errors : [])] };
 }

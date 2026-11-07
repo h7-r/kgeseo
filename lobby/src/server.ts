@@ -1,8 +1,10 @@
 // 검사한 설정으로 로비 서버를 조립한다. index.ts(실행)와 시험이 같이 쓴다.
-import { matchMaker, Server, ServerError } from "@colyseus/core";
+import { type Client, matchMaker, Server, ServerError } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 
+import { enforceBetaList, OnlineAccounts } from "./accounts.js";
 import { createAuthenticator } from "./authenticate.js";
+import { ChatGuard } from "./chat.js";
 import type { LobbyConfig } from "./config.js";
 import { createLobbyRoom, ROOM_NAME } from "./LobbyRoom.js";
 import type { Logger } from "./log.js";
@@ -13,6 +15,8 @@ import { createTicketVerifier } from "./ticket.js";
 import { UsedJtiRegistry } from "./usedJti.js";
 
 const SWEEP_INTERVAL_MS = 30_000;
+/** 베타 명단을 다시 읽는 간격 — 명단에서 뺀 계정은 이 안에 끊긴다 */
+export const BETA_LIST_INTERVAL_MS = 30_000;
 
 export interface LobbyServer {
   server: Server;
@@ -20,6 +24,9 @@ export interface LobbyServer {
   usedJti: UsedJtiRegistry;
   processStartSec: number;
   hooks: TestHooks | null;
+  online: OnlineAccounts;
+  /** 베타 명단을 지금 다시 읽어 빠진 계정을 끊는다(주기 작업과 같은 일 — 시험용) */
+  enforceBetaList(): Promise<void>;
   listen(host: string, port: number): Promise<void>;
   shutdown(): Promise<void>;
 }
@@ -58,7 +65,12 @@ export function createLobbyServer(config: LobbyConfig, options: CreateLobbyServe
       throw error;
     });
 
+  const chatGuard = new ChatGuard();
+  const online = new OnlineAccounts<Client>();
   const LobbyRoom = createLobbyRoom({
+    chatGuard,
+    online,
+    pidSecret: config.ticketSecret,
     authenticate: tracedAuthenticate,
     roomCap,
     log,
@@ -87,18 +99,43 @@ export function createLobbyServer(config: LobbyConfig, options: CreateLobbyServe
   const sweepTimer = setInterval(() => usedJti.sweep(), SWEEP_INTERVAL_MS);
   sweepTimer.unref();
 
+  // 명단 제재 — 읽기·형식 실패는 끊지 않고 상태가 바뀔 때만 한 줄 남긴다(30초마다 같은 오류를 찍지 않게)
+  let lastBetaError: string | null = null;
+  const runBetaList = async () => {
+    if (!config.betaListPath) return;
+    const result = await enforceBetaList(config.betaListPath, online);
+    if ("error" in result) {
+      if (lastBetaError !== result.error) log("beta_list_check_failed", { reason: result.error });
+      lastBetaError = result.error;
+      return;
+    }
+    lastBetaError = null;
+    if (result.removed > 0) log("beta_list_removed", { connections: result.removed });
+  };
+  const betaTimer = config.betaListPath ? setInterval(() => void runBetaList(), BETA_LIST_INTERVAL_MS) : null;
+  betaTimer?.unref();
+
   return {
     server,
     roomCap,
     usedJti,
     processStartSec,
     hooks,
+    online,
+    enforceBetaList: runBetaList,
     async listen(host, port) {
       await server.listen(port, host);
-      log("listening", { port, profile: config.profile, maxRooms: config.maxRooms, testHooks: config.testHooks });
+      log("listening", {
+        port,
+        profile: config.profile,
+        maxRooms: config.maxRooms,
+        testHooks: config.testHooks,
+        betaListWatch: config.betaListPath !== null,
+      });
     },
     async shutdown() {
       clearInterval(sweepTimer);
+      if (betaTimer) clearInterval(betaTimer);
       await server.gracefullyShutdown(false);
       // 시험이 같은 프로세스에서 서버를 다시 띄울 수 있게 매칭 상태를 비운다
       matchMaker.removeRoomType(ROOM_NAME);

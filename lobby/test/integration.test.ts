@@ -7,6 +7,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { Client, type Room } from "@colyseus/sdk";
 import WebSocket from "ws";
 
+import { CLOSE_REPLACED, pidFor } from "../src/accounts.js";
 import { buildConfig } from "../src/config.js";
 import type { LogFields } from "../src/log.js";
 import { createLobbyServer, type LobbyServer } from "../src/server.js";
@@ -104,7 +105,7 @@ describe("입장·이동·인사·퇴장", () => {
     assert.equal(JSON.parse(String(seenA.look)).gender, "feminine");
     assert.equal(seenA.placed, true);
     // 계정 ID·티켓 ID 는 상태에 없다
-    assert.deepEqual(Object.keys(seenA).sort(), ["gait", "look", "nickname", "placed", "ry", "x", "y", "z"]);
+    assert.deepEqual(Object.keys(seenA).sort(), ["gait", "look", "nickname", "pid", "placed", "ry", "x", "y", "z"]);
 
     a.room.send("move", { x: -4.5, y: 0, z: 0.2, ry: 1, gait: "walk" });
     await waitFor(() => Math.abs(Number(players().get(a.room.sessionId)?.x) - -4.5) < 1e-3);
@@ -155,6 +156,74 @@ describe("입장·이동·인사·퇴장", () => {
     await waitFor(() => playersOf(a.room).has(a.room.sessionId));
     assert.equal(playersOf(a.room).get(a.room.sessionId)?.look, "");
     await leaveAll([a.room]);
+  });
+});
+
+describe("채팅(설계 v0.21 5절 · 검토 14회차)", () => {
+  it("다듬은 글을 이름·가명 ID 와 함께 방 전체에 보내고, 거절은 보낸 사람에게만 알린다", async () => {
+    const a = await join();
+    const b = await join();
+    await waitFor(() => playersOf(b.room).size === 2);
+    const atB: Record<string, unknown>[] = [];
+    const atA: Record<string, unknown>[] = [];
+    const rejectedAtA: Record<string, unknown>[] = [];
+    const rejectedAtB: Record<string, unknown>[] = [];
+    b.room.onMessage("chat", (m: Record<string, unknown>) => atB.push(m));
+    a.room.onMessage("chat", (m: Record<string, unknown>) => atA.push(m));
+    a.room.onMessage("chatRejected", (m: Record<string, unknown>) => rejectedAtA.push(m));
+    b.room.onMessage("chatRejected", (m: Record<string, unknown>) => rejectedAtB.push(m));
+
+    a.room.send("chat", { text: "  같이\n풀어요  ", sid: b.room.sessionId });
+    await waitFor(() => atB.length === 1 && atA.length === 1);
+    const seenA = playersOf(b.room).get(a.room.sessionId);
+    assert.deepEqual(atB[0], {
+      sid: a.room.sessionId,
+      pid: seenA?.pid,
+      nickname: seenA?.nickname,
+      text: "같이 풀어요",
+    });
+    assert.match(String(seenA?.pid), /^[A-Za-z0-9_-]{12}$/);
+
+    a.room.send("chat", { text: "ㅅㅂ" });
+    await waitFor(() => rejectedAtA.length === 1);
+    assert.deepEqual(rejectedAtA[0], { reason: "word" });
+    await sleep(200);
+    assert.equal(atB.length, 1, "거절된 말은 방송하지 않는다");
+    assert.equal(rejectedAtB.length, 0, "거절은 보낸 사람에게만");
+
+    // 로그에 원문이 없다(허용·거절 모두)
+    const text = JSON.stringify(logs);
+    assert.ok(!text.includes("같이") && !text.includes("ㅅㅂ"));
+    await leaveAll([a.room, b.room]);
+  });
+
+  it("가명 ID 는 같은 계정이면 다시 들어와도 같고, 계정 ID 는 상태에 없다", async () => {
+    const first = await client(ALLOWED_ORIGIN, await makeTicket({ sub: "pid-account", nickname: "가명" })).joinOrCreate(
+      "lobby",
+      { look: validLook() },
+    );
+    await waitFor(() => playersOf(first).has(first.sessionId));
+    const pid = playersOf(first).get(first.sessionId)?.pid;
+    assert.equal(pid, pidFor(TEST_SECRET, "pid-account"));
+    assert.ok(!JSON.stringify([...playersOf(first).values()]).includes("pid-account"));
+    await leaveAll([first]);
+  });
+});
+
+describe("같은 계정 두 번 접속 — 나중 접속이 이긴다", () => {
+  it("먼저 붙은 연결은 4100 으로 끊기고 새 연결은 남는다", async () => {
+    const older = await client(ALLOWED_ORIGIN, await makeTicket({ sub: "twice", nickname: "두번" })).joinOrCreate("lobby", {
+      look: validLook(),
+    });
+    const closed = new Promise<number>((resolve) => older.onLeave((code: number) => resolve(code)));
+    const newer = await client(ALLOWED_ORIGIN, await makeTicket({ sub: "twice", nickname: "두번" })).joinOrCreate("lobby", {
+      look: validLook(),
+    });
+    assert.equal(await closed, CLOSE_REPLACED);
+    await waitFor(() => playersOf(newer).has(newer.sessionId) && !playersOf(newer).has(older.sessionId));
+    assert.equal(lobby.online.size, 1);
+    await leaveAll([newer]);
+    assert.equal(lobby.online.size, 0);
   });
 });
 

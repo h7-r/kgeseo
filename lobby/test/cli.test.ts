@@ -19,7 +19,12 @@ function run(args: string[], env: Record<string, string>) {
 }
 
 describe("운영 시작 검사(로비)", () => {
-  const prod = { LOBBY_TICKET_SECRET: SECRET, LOBBY_ALLOWED_ORIGINS: "https://play.example.com", LOBBY_MAX_ROOMS: "5" };
+  const prod = {
+    LOBBY_TICKET_SECRET: SECRET,
+    LOBBY_ALLOWED_ORIGINS: "https://play.example.com",
+    LOBBY_MAX_ROOMS: "5",
+    LOBBY_BETA_LIST_PATH: "/srv/waegok/lobby_beta_users.txt",
+  };
   const cases: [string, string[], Record<string, string>, string][] = [
     [
       "프로필 인자 없음 + 시험 장치 → production 으로 보고 거절",
@@ -37,6 +42,13 @@ describe("운영 시작 검사(로비)", () => {
     ],
     ["production + 설정 없음", ["--profile=production"], {}, "LOBBY_TICKET_SECRET"],
     ["알 수 없는 프로필", ["--profile=staging"], prod, "--profile"],
+    ["production + colyseus 디버그 로그", ["--profile=production"], { ...prod, DEBUG: "colyseus:message" }, "DEBUG"],
+    [
+      "production + 명단 경로 없음",
+      ["--profile=production"],
+      { ...prod, LOBBY_BETA_LIST_PATH: "" },
+      "LOBBY_BETA_LIST_PATH",
+    ],
   ];
   for (const [name, args, env, field] of cases) {
     it(name, () => {
