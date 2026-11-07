@@ -1,5 +1,6 @@
 // 절차 손짓 — 클립 파일 없이 그 성별 대기 위에 몇 개 뼈만 덮어쓴다(2026-11-07 미르: 「안녕은 손바닥을 보이고 흔들어야」,
-// 미안해·고마워·알았어에 어울리는 동작 후보 — 검토 16회차). 고르는 화면: gesture-gallery.html(개발 전용).
+// 미안해·고마워·알았어에 어울리는 동작 — 검토 16회차). 후보 9개 중 미르가 고른 넷만 남겼다(안녕 ③ · 미안해 ① · 고마워 ② ·
+// 알았어 ①, 나머지는 폐기). 보는 화면: gesture-gallery.html(개발 전용).
 //
 // 좌표: 아바타 무리(group) 공간 — +x 왼쪽 · +y 위 · +z 앞(armIk.ts 와 같은 규약, 11/7 뼈 좌표로 다시 잼).
 // 축 이름을 외워 각도를 넣지 않는다 — 위팔·아래팔은 「가리킬 방향」을 주고, 그 프레임의 실제 뼈 위치로 지금 방향 → 목표 방향
@@ -36,7 +37,6 @@ export interface GesturePose {
   l?: ArmPose;
   /** 허리 숙임(도, 앞으로 +) — 등뼈 셋에 나눠 굽힌다 */
   bow?: number;
-
   /** 고개 숙임(도, 앞으로 +) */
   nod?: number;
 }
@@ -64,42 +64,11 @@ const swayZ = ([x, y, z]: Dir, a: number): Dir => {
   const s = Math.sin(deg(a));
   return [x * c - y * s, x * s + y * c, z];
 };
-/** 오른팔 방향을 왼팔로(좌우 뒤집기) */
-const mirror = ([x, y, z]: Dir): Dir => [-x, y, z];
 /** 0 → 1 → 0 한 번(구간 [a, b]) */
 const bump = (t: number, a: number, b: number) => (t <= a || t >= b ? 0 : Math.sin((Math.PI * (t - a)) / (b - a)) ** 2);
 
-/** 차렷처럼 팔을 몸 옆에 내림(허리에 손 대기 자세를 덮는다) */
-const ARM_DOWN_R: ArmPose = { upper: [-0.16, -1, 0.04], fore: [-0.06, -1, 0.12] };
-const ARM_DOWN_L: ArmPose = { upper: mirror(ARM_DOWN_R.upper!), fore: mirror(ARM_DOWN_R.fore!) };
-/** 두 손을 배 앞으로 모으는 쪽(닿지는 않게) */
-const HANDS_FRONT_R: ArmPose = { upper: [-0.08, -1, 0.24], fore: [0.3, -0.75, 0.5] };
-const HANDS_FRONT_L: ArmPose = { upper: mirror(HANDS_FRONT_R.upper!), fore: mirror(HANDS_FRONT_R.fore!) };
-
 export const GESTURES: Readonly<Record<string, GestureDef>> = {
-  // 안녕 ① 머리 옆에서 아래팔 흔들기 — 손바닥 앞
-  waveSide: {
-    seconds: 1.9,
-    fadeIn: 0.3,
-    fadeOut: 0.35,
-    pose: (t) => ({
-      r: { upper: [-0.62, 0.5, 0.2], fore: swayZ([-0.1, 1, 0.12], 24 * Math.sin(TAU * 2.2 * t)), palm: [0, 0, 1] },
-    }),
-  },
-  // 안녕 ② 머리 위로 팔 전체를 크게
-  waveBig: {
-    seconds: 2,
-    fadeIn: 0.3,
-    fadeOut: 0.35,
-    pose: (t) => ({
-      r: {
-        upper: swayZ([-0.32, 1, 0.08], 12 * Math.sin(TAU * 1.6 * t)),
-        fore: swayZ([-0.06, 1, 0.06], 30 * Math.sin(TAU * 1.6 * t + 0.6)),
-        palm: [0, 0, 1],
-      },
-    }),
-  },
-  // 안녕 ③ 어깨 높이로 손 들고 가볍게 까딱
+  // 안녕(③) 어깨 높이로 손 들고 가볍게 까딱
   waveSmall: {
     seconds: 1.6,
     fadeIn: 0.25,
@@ -112,7 +81,7 @@ export const GESTURES: Readonly<Record<string, GestureDef>> = {
       },
     }),
   },
-  // 미안해 ① 고개·허리 살짝 숙이기, 두 손은 배꼽 아래로 공손히 모은다(11/7 미르: 팔을 떨구는 자세가 어색하다)
+  // 미안해(①) 고개·허리 살짝 숙이기, 두 손은 배꼽 아래로 공손히 모은다(11/7 미르: 팔을 떨구는 자세가 어색하다)
   sorryBow: {
     seconds: 1.9,
     fadeIn: 0.4,
@@ -125,21 +94,7 @@ export const GESTURES: Readonly<Record<string, GestureDef>> = {
       l: { reach: "belly", palm: [0.3, 0.2, -1], wristBend: 60 },
     }),
   },
-  // 미안해 ② 두 손을 앞에 모으고 깊이 꾸벅
-  sorryDeep: {
-    seconds: 2.1,
-    fadeIn: 0.45,
-    fadeOut: 0.5,
-    pose: () => ({ bow: 36, nod: 14, r: HANDS_FRONT_R, l: HANDS_FRONT_L }),
-  },
-  // 고마워 ① 가볍게 꾸벅(빠르게 숙였다 올라옴)
-  thanksBow: {
-    seconds: 1.4,
-    fadeIn: 0.25,
-    fadeOut: 0.5,
-    pose: () => ({ bow: 28, nod: 10, r: ARM_DOWN_R, l: ARM_DOWN_L }),
-  },
-  // 고마워 ② 가슴에 손 얹고 고개 끄덕
+  // 고마워(②) 가슴에 손 얹고 고개 끄덕
   thanksChest: {
     seconds: 2,
     fadeIn: 0.35,
@@ -147,22 +102,12 @@ export const GESTURES: Readonly<Record<string, GestureDef>> = {
     // 손바닥은 몸 쪽 · 가운데 · 아래로 꺾어 가슴 굴곡(옆구리 쪽 · 쇄골 쪽으로 넘어가는 면)에 붙인다(11/7 미르: 손바닥이 떠 있다)
     pose: (t) => ({ r: { reach: "chest", palm: [-0.3, -0.4, -1], wristBend: 75 }, nod: 16 * bump(t, 0.55, 1.45) }),
   },
-  // 알았어 ① 고개 두 번 끄덕
+  // 알았어(①) 고개 두 번 끄덕
   okNod: {
     seconds: 1.3,
     fadeIn: 0.1,
     fadeOut: 0.15,
     pose: (t) => ({ nod: 17 * (bump(t, 0.05, 0.6) + bump(t, 0.6, 1.15)) }),
-  },
-  // 알았어 ② 손 들어 「응」(손바닥 보이며) + 한 번 끄덕
-  okHand: {
-    seconds: 1.5,
-    fadeIn: 0.25,
-    fadeOut: 0.35,
-    pose: (t) => ({
-      r: { upper: [-0.45, -0.5, 0.38], fore: [-0.08, 0.92, 0.35], palm: [0, 0.1, 1] },
-      nod: 12 * bump(t, 0.35, 1),
-    }),
   },
 };
 

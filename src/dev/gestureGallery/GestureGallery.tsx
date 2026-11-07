@@ -1,4 +1,5 @@
-// 손짓 고르기(개발 전용) — 2026-11-07 미르: 「안녕은 손바닥을 보이고 흔들어야」, 미안해·고마워·알았어에 어울리는 동작 후보.
+// 손짓 보기(개발 전용) — 2026-11-07 미르: 「안녕은 손바닥을 보이고 흔들어야」, 미안해·고마워·알았어에 어울리는 동작.
+// 후보 9개 + 예전 「손 내밀기」 중 고른 넷만 남겼다(안녕 ③ · 미안해 ① · 고마워 ② · 알았어 ①, 나머지는 폐기).
 // 손짓은 클립이 아니라 그 성별 대기 위에 뼈를 덮어쓰는 절차 동작(naju01/src/avatar/gestures.ts). 게임과 같은 통로
 // (AvatarLink.emote 의 gesture 단계)로 되풀이한다. 칸의 이름표를 누르면 그 칸만 처음부터 다시, 대사 목소리와 함께.
 import { Html } from "@react-three/drei";
@@ -29,21 +30,15 @@ const gestureSteps = (name: string): AvatarAction["steps"] => [
 ];
 
 const CANDIDATES: readonly Candidate[] = [
-  { line: "안녕!", label: "지금 — 손 내밀기", voice: "greet", steps: [{ motion: "Interact", seconds: 1.8 }] },
-  { line: "안녕!", label: "① 머리 옆에서 흔들기", voice: "greet", steps: gestureSteps("waveSide") },
-  { line: "안녕!", label: "② 머리 위로 크게", voice: "greet", steps: gestureSteps("waveBig") },
   { line: "안녕!", label: "③ 손 들고 까딱", voice: "greet", steps: gestureSteps("waveSmall") },
   { line: "미안해.", label: "① 살짝 숙이기", voice: "sorry", steps: gestureSteps("sorryBow") },
-  { line: "미안해.", label: "② 두 손 모으고 꾸벅", voice: "sorry", steps: gestureSteps("sorryDeep") },
-  { line: "고마워!", label: "① 가볍게 꾸벅", voice: "thanks", steps: gestureSteps("thanksBow") },
   { line: "고마워!", label: "② 가슴에 손", voice: "thanks", steps: gestureSteps("thanksChest") },
   { line: "알았어.", label: "① 두 번 끄덕", voice: "ok", steps: gestureSteps("okNod") },
-  { line: "알았어.", label: "② 손 들어 「응」", voice: "ok", steps: gestureSteps("okHand") },
 ];
 
 const TOON = { ...DEFAULT_TOON, enabled: true };
 const OUTLINE = { ...DEFAULT_OUTLINE, enabled: true };
-const COLUMNS = 5;
+const COLUMNS = 4;
 const SPACING_X = 3.6;
 const SPACING_Y = 6.4;
 const PAUSE_SECONDS = 0.9;
@@ -70,7 +65,17 @@ function makeLink(x: number, y: number, facing: number): AvatarLink {
 
 const total = (steps: AvatarAction["steps"]) => steps.reduce((sum, step) => sum + step.seconds, 0);
 
-function Cell({ index, candidate, gender, facing }: { index: number; candidate: Candidate; gender: Gender; facing: number }) {
+function Cell({
+  index,
+  candidate,
+  gender,
+  facing,
+}: {
+  index: number;
+  candidate: Candidate;
+  gender: Gender;
+  facing: number;
+}) {
   const column = index % COLUMNS;
   const row = Math.floor(index / COLUMNS);
   const x = (column - (COLUMNS - 1) / 2) * SPACING_X;
@@ -182,7 +187,17 @@ export default function GestureGallery() {
           <Cell key={`${gender}:${index}`} index={index} candidate={candidate} gender={gender} facing={FACING[view]} />
         ))}
       </Canvas>
-      <div style={{ position: "absolute", left: 12, top: 12, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+      <div
+        style={{
+          position: "absolute",
+          left: 12,
+          top: 12,
+          display: "flex",
+          gap: 6,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
         <button type="button" style={gender === "masculine" ? active : button} onClick={() => setGender("masculine")}>
           남
         </button>
