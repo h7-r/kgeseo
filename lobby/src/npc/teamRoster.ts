@@ -22,6 +22,21 @@ export const TEAM_SLOTS: readonly TeamSlot[] = [
   { key: "mireu", name: "황미르", gender: "masculine" },
 ];
 
+/**
+ * 팀 캐릭터만 입는 옷(C단계) — 이 다섯 명의 look 에만 허용한다(사람 look 허용 목록은 그대로). 화면 카탈로그
+ * (src/lobby/teamCatalog.ts)가 같은 ID 에 이름 · 파츠 번호를 붙인다. 한 번 쓴 ID 는 바꾸거나 다시 쓰지 않는다.
+ */
+export const TEAM_LOOK_ITEMS = {
+  hair: {
+    masculine: ["hair.cap.none", "hair.m.crop.cap", "hair.m.long.cap"],
+    feminine: ["hair.cap.none", "hair.f.bob.cap", "hair.f.long.cap"],
+  },
+  top: { masculine: ["top.tee.marine"], feminine: ["top.tee.marine"] },
+  bottom: { masculine: [], feminine: [] },
+  shoes: { masculine: [], feminine: [] },
+} as const satisfies Record<"hair" | "top" | "bottom" | "shoes", Record<TeamGender, readonly string[]>>;
+export type TeamLookItemId = (typeof TEAM_LOOK_ITEMS)[keyof typeof TEAM_LOOK_ITEMS][TeamGender][number];
+
 const SLOT_KEYS = new Set(TEAM_SLOTS.map((slot) => slot.key));
 export const isTeamSlotKey = (key: unknown): key is string => typeof key === "string" && SLOT_KEYS.has(key);
 

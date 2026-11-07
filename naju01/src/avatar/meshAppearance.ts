@@ -10,25 +10,35 @@ export type MeshPartKey = "hair" | "top" | "bottom" | "shoes";
 
 export const MESH_PART_OPTIONS: Record<MeshPartKey, Record<AvatarGender, readonly Option<number>[]>> = {
   hair: {
+    // 9 · 10 · 11 = 머리 + 캡 — 팀 캐릭터 전용(teamOutfit.ts). 플레이어 카탈로그에는 없다
     masculine: [
       [-1, "민머리"],
       [0, "짧은 머리"],
       [1, "긴 머리"],
+      [9, "민머리 + 캡"],
+      [10, "짧은 머리 + 캡"],
+      [11, "긴 머리 + 캡"],
     ],
     feminine: [
       [-1, "민머리"],
       [0, "단발"],
       [1, "긴 머리"],
+      [9, "민머리 + 캡"],
+      [10, "단발 + 캡"],
+      [11, "긴 머리 + 캡"],
     ],
   },
+  // 1 = 해병대 반팔 — 팀 캐릭터 전용(teamOutfit.ts). 흰 티 GLB 에 빨강 · 가슴 글자
   top: {
     masculine: [
       [-1, "없음 · 속옷"],
       [0, "티셔츠"],
+      [1, "해병대 반팔"],
     ],
     feminine: [
       [-1, "없음 · 속옷"],
       [0, "티셔츠"],
+      [1, "해병대 반팔"],
     ],
   },
   bottom: {

@@ -62,6 +62,30 @@ const SEJIN = {
 };
 
 describe("팀 캐릭터 NPC", () => {
+  it("길찾기가 편 선분은 촘촘히(1cm) 재도 막힌 데를 지나지 않는다(Codex 리뷰 3de4d97)", async () => {
+    const { REACHABLE, cellCenter, findPath } = await import("../src/npc/hqMap.js");
+    let segments = 0;
+    for (let n = 0; n < 400; n += 1) {
+      const from = REACHABLE[(n * 7919) % REACHABLE.length]!;
+      const to = REACHABLE[(n * 104729 + 13) % REACHABLE.length]!;
+      const [fx, fz] = cellCenter(from);
+      const path = findPath(fx, fz, to);
+      if (!path) continue;
+      let [ax, az] = [fx, fz];
+      for (const [bx, bz] of path) {
+        const steps = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.01);
+        for (let s = 0; s <= steps; s += 1) {
+          const x = ax + ((bx - ax) * s) / steps;
+          const z = az + ((bz - az) * s) / steps;
+          assert.ok(isFree(x, z), `막힌 자리 ${x.toFixed(3)}, ${z.toFixed(3)} (${n}번째 길)`);
+        }
+        segments += 1;
+        [ax, az] = [bx, bz];
+      }
+    }
+    assert.ok(segments > 400);
+  });
+
   it("다섯 명이 빈칸에 서고, 저장값이 없으면 그 성별 기본 모습이다", () => {
     const { crew, players } = makeCrew();
     crew.spawn();
@@ -124,6 +148,28 @@ describe("팀 캐릭터 NPC", () => {
     const look = JSON.parse(sejin.look) as { colors: { skin: string }; body: { buff: number } };
     assert.equal(look.colors.skin, "#e0b79c");
     assert.equal(look.body.buff, 0.4);
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
+  });
+
+  it("팀 전용 옷(캡 · 해병대 반팔)은 NPC look 에서만 통과한다 — 사람 look 은 그대로 막는다", async () => {
+    const { validateLook } = await import("../src/look.js");
+    const marine = {
+      ...SEJIN,
+      appearance: {
+        ...SEJIN.appearance,
+        hairId: "hair.f.long.cap",
+        equipmentIds: { ...SEJIN.appearance.equipmentIds, top: "top.tee.marine" },
+      },
+    };
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: { sejin: marine } }));
+    const { crew, players, setNow } = makeCrew();
+    setNow(20_000_000);
+    crew.spawn();
+    const look = JSON.parse(players.get("npc-sejin")!.look) as Record<string, unknown>;
+    assert.equal(look.hair, "hair.f.long.cap");
+    assert.equal(look.top, "top.tee.marine");
+    // 같은 look 을 사람이 보내면 허용 목록에 없어 통째로 버린다
+    assert.equal(validateLook(look), null);
     writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
   });
 

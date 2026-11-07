@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
 import { UI, UI_FONT } from "@/game/gameUi";
+import { TEAM_CATALOG } from "@/lobby/teamCatalog";
 
 import {
   parseTeamFile,
@@ -22,14 +23,13 @@ import {
   type CompletedCharacter,
   type CompleteResult,
 } from "../../../naju01/src/characterCreation/appearanceData";
-import { DEFAULT_CATALOG, SLOT_LABELS } from "../../../naju01/src/characterCreation/catalog";
+import { SLOT_LABELS } from "../../../naju01/src/characterCreation/catalog";
 import CharacterCreationScreen from "../../../naju01/src/characterCreation/CharacterCreationScreen";
 import type { NameChecker } from "../../../naju01/src/characterCreation/nameRules";
 import { SCREEN_CSS } from "../../../naju01/src/characterCreation/styles";
 
 const ROUTE = "/__dev/team-npcs";
-/** 팀 캐릭터용 선택지 — 지금은 플레이어와 같다. 전용 옷(모자 · 바지 · 해병대 티)은 C단계에서 더한다 */
-const TEAM_CATALOG = DEFAULT_CATALOG;
+// 팀 캐릭터용 선택지 — 플레이어 옷 + 팀 전용 옷(캡은 헤어에, 해병대 반팔은 상의에). 바지는 C2 단계에서 더한다
 
 type View = { mode: "list" } | { mode: "edit"; slot: TeamSlot; mount: number };
 
@@ -50,7 +50,7 @@ function draftOf(
 }
 
 const genderLabel = (gender: string) => (gender === "feminine" ? "여성" : "남성");
-const itemLabel = (id: string | null) => DEFAULT_CATALOG.items.find((item) => item.id === id)?.label ?? "—";
+const itemLabel = (id: string | null) => TEAM_CATALOG.items.find((item) => item.id === id)?.label ?? "—";
 
 function formatSavedAt(iso: string) {
   const at = new Date(iso);

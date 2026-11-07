@@ -14,7 +14,14 @@ import { LOOK_CATALOG_VERSION, lookToStateString } from "../look.js";
 import { GREET_IDS } from "../movement.js";
 import { Player } from "../state.js";
 import { cellCenter, cellIndex, clearance, findPath, isFree, nearPerson, type Person, REACHABLE } from "./hqMap.js";
-import { parseTeamFile, TEAM_SLOTS, type TeamEntry, type TeamFile, type TeamSlot } from "./teamRoster.js";
+import {
+  parseTeamFile,
+  TEAM_LOOK_ITEMS,
+  TEAM_SLOTS,
+  type TeamEntry,
+  type TeamFile,
+  type TeamSlot,
+} from "./teamRoster.js";
 
 /** 방 상태 키 · 가명 ID 앞머리 — 연결 ID(무작위 9자)와 겹치지 않는다 */
 export const NPC_SID_PREFIX = "npc-";
@@ -68,20 +75,23 @@ function defaultLook(gender: TeamSlot["gender"]) {
   };
 }
 
-/** 저장값 → 방 상태 look 문자열. 사람과 같은 검사를 지나야 하고, 틀리면 기본 모습 */
+/** 저장값 → 방 상태 look 문자열. 사람과 같은 검사(+ 팀 전용 옷)를 지나야 하고, 틀리면 기본 모습 */
 function lookStringOf(slot: TeamSlot, entry: TeamEntry | undefined): { look: string; valid: boolean } {
   if (entry) {
     const { appearance } = entry;
-    const look = lookToStateString({
-      catalog: LOOK_CATALOG_VERSION,
-      gender: appearance.gender,
-      hair: appearance.hairId ?? "hair.none",
-      top: appearance.equipmentIds.top ?? "top.none",
-      bottom: appearance.equipmentIds.bottom ?? "bottom.none",
-      shoes: appearance.equipmentIds.shoes ?? "shoes.none",
-      colors: appearance.colors,
-      body: appearance.bodyParameters,
-    });
+    const look = lookToStateString(
+      {
+        catalog: LOOK_CATALOG_VERSION,
+        gender: appearance.gender,
+        hair: appearance.hairId ?? "hair.none",
+        top: appearance.equipmentIds.top ?? "top.none",
+        bottom: appearance.equipmentIds.bottom ?? "bottom.none",
+        shoes: appearance.equipmentIds.shoes ?? "shoes.none",
+        colors: appearance.colors,
+        body: appearance.bodyParameters,
+      },
+      TEAM_LOOK_ITEMS,
+    );
     if (look) return { look, valid: true };
   }
   return { look: lookToStateString(defaultLook(entry?.appearance.gender ?? slot.gender)), valid: !entry };
@@ -345,9 +355,9 @@ export class TeamNpcCrew {
         const move = Math.min(distance, budget);
         const nx = distance > 1e-6 ? walker.x + (dx / distance) * move : tx;
         const nz = distance > 1e-6 ? walker.z + (dz / distance) * move : tz;
-        // 사람 사이로 파고드는 걸음은 하지 않는다(이미 가까우면 멀어지는 걸음만)
+        // 막힌 자리로는 안 간다(길이 어긋났을 때의 마지막 방어) · 사람 사이로 파고드는 걸음은 하지 않는다(이미 가까우면 멀어지는 걸음만)
         const next = clearance(nx, nz, others);
-        if (next < 0 && next < clearance(walker.x, walker.z, others)) {
+        if (!isFree(nx, nz) || (next < 0 && next < clearance(walker.x, walker.z, others))) {
           blocked = true;
           break;
         }

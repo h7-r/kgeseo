@@ -292,13 +292,47 @@ const clearance = (x, z, others) =>
   others.reduce((best, [ox, oz, gap]) => Math.min(best, Math.hypot(x - ox, z - oz) - gap), Infinity);
 const nearPerson = (x, z, others, extra = 0) => clearance(x, z, others) < extra;
 
+/** 선분이 사람 반지름만큼 부풀린 장애물 상자의 안쪽을 지나는가(Liang–Barsky) — 로비 서버 NPC(src/npc/hqMap.ts)와 같다 */
+function segmentHitsBox(ax, az, bx, bz, o) {
+  const minX = o.minX - RADIUS + 1e-6;
+  const maxX = o.maxX + RADIUS - 1e-6;
+  const minZ = o.minZ - RADIUS + 1e-6;
+  const maxZ = o.maxZ + RADIUS - 1e-6;
+  const dx = bx - ax;
+  const dz = bz - az;
+  let t0 = 0;
+  let t1 = 1;
+  for (const [p, q] of [
+    [-dx, ax - minX],
+    [dx, maxX - ax],
+    [-dz, az - minZ],
+    [dz, maxZ - az],
+  ]) {
+    if (Math.abs(p) < 1e-12) {
+      if (q < 0) return false;
+      continue;
+    }
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return false;
+      t0 = Math.max(t0, r);
+    } else {
+      if (r < t0) return false;
+      t1 = Math.min(t1, r);
+    }
+  }
+  return t1 > t0;
+}
+
+/** 직선으로 갈 수 있나 — 가구는 선분 × 상자로 정확히(0.1 표본은 모서리를 스쳤다, Codex 리뷰 3de4d97), 사람은 표본으로 */
 function lineIsFree(ax, az, bx, bz, avoid = []) {
+  if (!isFree(bx, bz)) return false;
+  for (const o of MAP.obstacles) if (segmentHitsBox(ax, az, bx, bz, o)) return false;
+  if (!avoid.length) return true;
   const steps = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.1);
   for (let s = 1; s <= steps; s += 1) {
     const t = s / steps;
-    const x = ax + (bx - ax) * t;
-    const z = az + (bz - az) * t;
-    if (!isFree(x, z) || nearPerson(x, z, avoid, 0.2)) return false;
+    if (nearPerson(ax + (bx - ax) * t, az + (bz - az) * t, avoid, 0.2)) return false;
   }
   return true;
 }

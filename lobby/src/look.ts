@@ -62,8 +62,11 @@ export function replaceRetiredItem(id: string, allowed: readonly string[]): stri
 const COLOR_KEYS = new Set(ALLOWLIST.colorKeys);
 const BODY_KEYS = new Set(ALLOWLIST.bodyFields.map((field) => field.key));
 
+/** 허용 목록에 더할 아이템(팀 캐릭터 NPC 만 — 사람 look 에는 넘기지 않는다) */
+export type ExtraLookItems = Partial<Record<Slot, Partial<Record<Gender, readonly string[]>>>>;
+
 /** 검사해서 정규화한 look, 틀리면 null */
-export function validateLook(raw: unknown): Look | null {
+export function validateLook(raw: unknown, extra?: ExtraLookItems): Look | null {
   if (!isPlainObject(raw)) return null;
   let size: number;
   try {
@@ -83,7 +86,7 @@ export function validateLook(raw: unknown): Look | null {
     // 「안 입음」도 카탈로그 ID(hair.none 등)로 온다 — null 은 받지 않는다
     if (typeof id !== "string") return null;
     const allowed = ALLOWLIST.items[slot][gender];
-    if (allowed.includes(id)) slots[slot] = id;
+    if (allowed.includes(id) || extra?.[slot]?.[gender]?.includes(id)) slots[slot] = id;
     else {
       const replaced = replaceRetiredItem(id, allowed);
       if (replaced === null) return null;
@@ -114,8 +117,8 @@ export function validateLook(raw: unknown): Look | null {
 }
 
 /** 방 상태에 넣을 문자열. 틀리면 "" */
-export function lookToStateString(raw: unknown): string {
-  const look = validateLook(raw);
+export function lookToStateString(raw: unknown, extra?: ExtraLookItems): string {
+  const look = validateLook(raw, extra);
   return look ? JSON.stringify(look) : "";
 }
 

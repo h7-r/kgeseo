@@ -2,6 +2,7 @@
 // 보내는 값은 내 화면에 그려지는 아바타 설정(ChibiConfig)에서 만든다 — 그래야 남이 보는 나와 내가 보는 내가 같다.
 // 서버(lobby/src/look.ts)는 같은 모양을 검사하고, 틀리면 "" 로 비워 보낸다(성별도 함께 버려진다).
 // 받는 쪽은 빈 값을 렌더러에 그대로 넘기지 않는다 — 그러면 슬롯이 -1(안 입음)이 된다. 카탈로그 기본 착장으로 그린다.
+import { TEAM_CATALOG } from "@/lobby/teamCatalog";
 import { DEFAULT_CATALOG, DEFAULT_MESH_CONFIG, toRendererConfig, type ChibiConfig } from "@/naju";
 
 // 체형 범위는 캐릭터 생성 화면의 눈금(로비 서버 허용 목록도 여기서 뽑는다). src/naju 입구에 아직 없어 직접 가져온다 —
@@ -143,5 +144,6 @@ export function lobbyLookToRendererConfig(text: string, fallbackGender: Gender =
     colors: look.colors,
     bodyParameters: { ...DEFAULT_BODY, ...look.body } as Appearance["bodyParameters"],
   };
-  return toRendererConfig(appearance, DEFAULT_CATALOG, { motion: DEFAULT_MESH_CONFIG.motion });
+  // 팀 캐릭터(서버 NPC)의 전용 옷(캡 · 해병대 반팔)도 번호로 바꾸게 팀 카탈로그(플레이어 카탈로그의 상위 집합)로 읽는다
+  return toRendererConfig(appearance, TEAM_CATALOG, { motion: DEFAULT_MESH_CONFIG.motion });
 }

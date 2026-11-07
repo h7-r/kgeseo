@@ -92,13 +92,53 @@ export const clearance = (x: number, z: number, others: readonly Person[]) =>
 export const nearPerson = (x: number, z: number, others: readonly Person[], extra = 0) =>
   clearance(x, z, others) < extra;
 
+/** 선분이 사람 반지름만큼 부풀린 장애물 상자의 안쪽(경계는 빈칸)을 지나는가 — Liang–Barsky 로 정확히 잰다 */
+function segmentHitsBox(ax: number, az: number, bx: number, bz: number, o: Box): boolean {
+  // isFree 는 경계를 빈칸으로 본다 — 아주 조금 줄여 같은 기준으로
+  const minX = o.minX - RADIUS + 1e-6;
+  const maxX = o.maxX + RADIUS - 1e-6;
+  const minZ = o.minZ - RADIUS + 1e-6;
+  const maxZ = o.maxZ + RADIUS - 1e-6;
+  const dx = bx - ax;
+  const dz = bz - az;
+  let t0 = 0;
+  let t1 = 1;
+  // p · t ≤ q 꼴의 네 조건으로 선분을 상자 안으로 자른다
+  for (const [p, q] of [
+    [-dx, ax - minX],
+    [dx, maxX - ax],
+    [-dz, az - minZ],
+    [dz, maxZ - az],
+  ] as const) {
+    if (Math.abs(p) < 1e-12) {
+      if (q < 0) return false;
+      continue;
+    }
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return false;
+      t0 = Math.max(t0, r);
+    } else {
+      if (r < t0) return false;
+      t1 = Math.min(t1, r);
+    }
+  }
+  return t1 > t0;
+}
+
+/**
+ * 직선으로 갈 수 있나. 가구는 선분 × 부풀린 상자로 정확히 본다 — 0.1 간격 표본은 모서리를 스치는 짧은 겹침을 놓쳐
+ * NPC 가 막힌 자리로 들어갔다(Codex 리뷰 3de4d97). 벽(방 경계)은 볼록한 사각형이라 끝점만 보면 된다(시작점은 지금 선 빈칸).
+ * 사람은 움직이니 표본으로 본다.
+ */
 function lineIsFree(ax: number, az: number, bx: number, bz: number, avoid: readonly Person[]) {
+  if (!isFree(bx, bz)) return false;
+  for (const o of MAP.obstacles) if (segmentHitsBox(ax, az, bx, bz, o)) return false;
+  if (!avoid.length) return true;
   const steps = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.1);
   for (let s = 1; s <= steps; s += 1) {
     const t = s / steps;
-    const x = ax + (bx - ax) * t;
-    const z = az + (bz - az) * t;
-    if (!isFree(x, z) || nearPerson(x, z, avoid, 0.2)) return false;
+    if (nearPerson(ax + (bx - ax) * t, az + (bz - az) * t, avoid, 0.2)) return false;
   }
   return true;
 }
