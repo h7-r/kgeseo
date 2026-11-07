@@ -4,6 +4,7 @@ import * as THREE from "three";
 
 import type { AvatarAction, AvatarLink } from "@/engine/avatarLink";
 
+import { QUATERNIUS_PREFIX } from "./chibiClipLibrary";
 import type { ChibiAvatarConfig, PreparedBody } from "./preparedBody";
 import { AUTO_MOTION } from "./sidekickOptions";
 
@@ -23,7 +24,22 @@ export interface MotionTimers {
   actionSpeed?: number | null;
   /** 인사·맞기 단계가 정한 몸 들어 올림(세계 유닛) */
   actionLift?: number;
+  /** 가만히 서 있기 시작한 시각(clock 초) — 움직이거나 다른 동작이 나오면 비운다 */
+  stillSince?: number | null;
+  /** 서 있다 트는 「말하며 대기」가 끝나는 시각 */
+  fidgetUntil?: number;
 }
+
+/**
+ * 대기 자세 — 2026-11-07 미르가 동작 보기 화면(motion-gallery.html)에서 고름. 남성은 Quaternius 기본 대기,
+ * 여성은 지금처럼 Tripo 「허리에 손」. Tripo 를 안 쓰는 몸(동작 출처 sidekick)은 둘 다 Quaternius 대기가 된다.
+ */
+const IDLE_MOTION = { masculine: `${QUATERNIUS_PREFIX}Idle_Loop`, feminine: "Idle_Loop" } as const;
+/** 이만큼(초) 가만히 서 있으면 「말하며 대기」를 한 번 틀고 돌아온다(미르 11/7) */
+export const IDLE_FIDGET_AFTER_SECONDS = 10;
+const IDLE_FIDGET_MOTION = "Idle_Talking_Loop";
+/** Idle_Talking_Loop 한 바퀴(GLB 2.93초) */
+const IDLE_FIDGET_SECONDS = 2.93;
 
 /** 지금 틀 단계(시작 시각부터 단계 길이를 차례로 더해 고른다). 끝났거나 아직이면 null */
 function activeStep(action: AvatarAction | undefined, wallSeconds: number) {
@@ -112,6 +128,9 @@ export function chooseMotion(
     if (hitStep || attacking || (emoteStep && !emoteBlocked)) {
       // 점프·착지 판정은 계속 갱신한다(동작이 끝난 뒤 공중에 있으면 바로 점프 동작으로)
       timers.wasAirborne = confirmedAir;
+      // 인사·펀치·맞기도 「움직임」이다 — 서 있던 시간을 새로 센다
+      timers.stillSince = null;
+      timers.fidgetUntil = 0;
     } else if (confirmedAir) {
       if (!timers.wasAirborne) timers.jumpStartEnd = now + 0.22;
       next = now < timers.jumpStartEnd ? "Jump_Start" : "Jump_Loop";
@@ -124,7 +143,23 @@ export function chooseMotion(
       next = state.running
         ? pickByStride(state.speed ?? 0, [config.runMotion || "Jog_Fwd_Loop", "Sprint_Loop"])
         : config.walkMotion || "Walk_Loop";
-    } else next = "Idle_Loop";
+    } else {
+      // 가만히 서 있음 — 성별 대기, 10초가 지나면 「말하며 대기」 한 바퀴 뒤 다시 대기(시계를 새로 센다)
+      timers.stillSince ??= now;
+      if (now < (timers.fidgetUntil ?? 0)) next = IDLE_FIDGET_MOTION;
+      else if (now - timers.stillSince >= IDLE_FIDGET_AFTER_SECONDS) {
+        timers.fidgetUntil = now + IDLE_FIDGET_SECONDS;
+        timers.stillSince = timers.fidgetUntil;
+        next = IDLE_FIDGET_MOTION;
+      } else next = IDLE_MOTION[config.gender === "masculine" ? "masculine" : "feminine"];
+    }
+    // 서 있는 대기가 아니면(이동·공중·착지·앉기) 서 있던 시간을 비우고 말하던 것도 끊는다
+    const standingStill =
+      next === IDLE_FIDGET_MOTION || next === IDLE_MOTION.masculine || next === IDLE_MOTION.feminine;
+    if (!standingStill) {
+      timers.stillSince = null;
+      timers.fidgetUntil = 0;
+    }
     timers.wasAirborne = confirmedAir;
   }
   return next || "Idle_Loop";

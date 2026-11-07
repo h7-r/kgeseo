@@ -29,6 +29,8 @@ const PAUSE_SECONDS = 0.8;
 const PANEL_WIDTH = 360;
 const STORAGE_KEY = "kgeseo.motionGallery.v1";
 const CURRENT_IDLE = "tripo:Idle_Loop";
+/** 지금 게임이 쓰는 남자 대기(11/7 미르) */
+const CURRENT_MALE_IDLE = "q:Idle_Loop";
 const FACING: Record<View, number> = { front: 0, angle: Math.PI / 4, side: Math.PI / 2 };
 const PAGES = Math.ceil(CLIPS.length / PAGE_SIZE);
 const byId = new Map(CLIPS.map((clip) => [clip.id, clip]));
@@ -39,11 +41,11 @@ function loadChoice(): Choice {
   try {
     const value = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as Partial<Choice> | null;
     return {
-      masculine: value?.masculine && byId.has(value.masculine) ? value.masculine : CURRENT_IDLE,
+      masculine: value?.masculine && byId.has(value.masculine) ? value.masculine : CURRENT_MALE_IDLE,
       feminine: value?.feminine && byId.has(value.feminine) ? value.feminine : CURRENT_IDLE,
     };
   } catch {
-    return { masculine: CURRENT_IDLE, feminine: CURRENT_IDLE };
+    return { masculine: CURRENT_MALE_IDLE, feminine: CURRENT_IDLE };
   }
 }
 
@@ -275,7 +277,8 @@ export default function MotionGallery() {
             여자 대기: <b>{byId.get(choice.feminine)?.label}</b>
           </div>
           <div style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>
-            지금 게임은 남녀 모두 「{byId.get(CURRENT_IDLE)?.label}」입니다.
+            지금 게임(11/7): 남자 「대기 · Quaternius 기본」, 여자 「대기 · 허리에 손」. 10초 가만히 서 있으면 「말하며
+            대기」를 한 번 틀고 돌아옵니다.
           </div>
         </div>
 
