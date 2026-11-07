@@ -172,69 +172,13 @@ export function applyFootContact(
   prepared.legs.forEach((leg) => {
     leg.thigh.updateMatrixWorld(true);
   });
-  prepared.targetSkin.skeleton.update();
-  // 발마다 발바닥 최저점(모델 좌표).
-  const heights = prepared.legs.map((leg) =>
-    lowestSoleY(prepared.soles, (sole) => (leg.side === "l" ? sole.left : sole.right), 3, inverseModel, point),
-  );
-  const lower = heights[0] <= heights[1] ? 0 : 1;
-  const other = 1 - lower;
-  // 모델 단위
-  const gap = heights[other] - heights[lower];
-  const contactWindow = (prepared.correction?.footContactWindow ?? 0.045) * 1.45;
-  const leg = prepared.legs[other];
-  // 골반보다 앞에 있는(다가오는) 발만 — 빼면 떼는 뒷발이 창에 걸려 뒷다리가 꺾인다.
-  point.setFromMatrixPosition(leg.foot.matrixWorld).applyMatrix4(inverseModel);
-  const footZ = point.z;
-  point.setFromMatrixPosition(prepared.pelvisBone.matrixWorld).applyMatrix4(inverseModel);
-  // 문턱은 전부 부드러운 가중치 — 딱딱한 on/off 는 양발 지지에서 IK 가 켜졌다 꺼져 몸이 떨린다.
-  const aheadWeight = THREE.MathUtils.smoothstep(footZ - point.z, 0.01, 0.03);
-  const isAhead = aheadWeight > 0.001;
-  const gapWeight =
-    THREE.MathUtils.smoothstep(gap, 0.002, 0.008) *
-    (1 - THREE.MathUtils.smoothstep(gap, contactWindow * 0.7, contactWindow));
-  // 접지 시각 창: 평평하게 붙는 시각의 25% 전 ~ 3% 후. 그 안에서 가중치를 0→1→0 으로 매끄럽게 —
-  // 온/오프면 닿는 순간 다리가 '탁' 펴진다. 접근(앞다리가 엉덩이로 내린다) 뒤 하중(디딘 다리를 굽혀 골반을 내린다).
-  let contactWeight = 0;
-  // 접근 1 → 하중 0
-  let frontShare = 0;
-  if (action && LOCOMOTION_CLIPS.has(next)) {
-    const times = prepared.contactTimeFor(next);
-    const duration = action.getClip().duration || 1;
-    if (times) {
-      const phase = (((action.time % duration) + duration) % duration) / duration;
-      // 붙는 시각 기준 0~1
-      const sinceContact = (((phase - times[leg.side]) % 1) + 1) % 1;
-      if (sinceContact >= 0.72) {
-        contactWeight = THREE.MathUtils.smoothstep(sinceContact, 0.72, 0.82);
-        frontShare = 1 - THREE.MathUtils.smoothstep(sinceContact, 0.8, 0.9);
-      } else if (sinceContact <= 0.06) {
-        contactWeight = 1 - THREE.MathUtils.smoothstep(sinceContact, 0.0, 0.06);
-        frontShare = 0;
-      }
-    }
-  }
-  const inContact = contactWeight > 0.001;
-  if (import.meta.env.DEV) {
-    fc.debug = {
-      other: leg.side,
-      gap: +gap.toFixed(4),
-      weight: +contactWeight.toFixed(2),
-      frontShare: +frontShare.toFixed(2),
-      isAhead,
-    };
-  }
   // 이번 프레임 목표량. 조건 밖이면 0 — 아래 평활이 0 으로 미끄러진다.
   const goal: Record<Side, { lift: number; drop: number }> = { l: { lift: 0, drop: 0 }, r: { lift: 0, drop: 0 } };
-  if (inContact && isAhead && gap > 0) {
-    // 틈을 두 다리가 나눈다. 앞다리만 내리면 무릎이 2° 로 잠기고, 디딘 다리만 올리면 80° 로 꺾인다.
-    // 앞다리 몫엔 낮은 상한을 두고 남는 틈은 둔다(리타게팅 전 클립도 뒤꿈치 접지 때 1cm 떠 있다).
-    const weight = contactWeight * aheadWeight * gapWeight;
-    const limit = (prepared.correction?.footContactDrop ?? 0.03) * 1.45 * weight;
-    const frontLimit = (prepared.correction?.footContactFrontLimit ?? 0.015) * 1.45 * weight * frontShare;
-    goal[leg.side].drop = Math.min(gap, frontLimit);
-    goal[prepared.legs[lower].side].lift = Math.min(gap - goal[leg.side].drop, limit);
-  }
+  // 접지 시각은 이동 클립에서만 구하므로 대기·인사에서는 목표량이 늘 0 이다. 그때는 비싼 밑창 측정(정점마다 CPU
+  // 스키닝)을 건너뛴다 — 남은 IK 를 클립 자세로 되돌리고 0 으로 감쇠하는 앞뒤 부분은 그대로 돈다.
+  // 로비 버벅임(2026-11-07, 검토 12회차): Quaternius 대기로 서 있는 남자가 이 측정 때문에 걷는 사람보다 비쌌다.
+  if (action && LOCOMOTION_CLIPS.has(next)) measureContactGoal(fc, goal, { prepared, action, next, inverseModel, point });
+  else if (import.meta.env.DEV) fc.debug = null;
   // 시간 평활(시정수 40ms) — 남은 프레임 단위 꺾임(무릎 2~5°)을 누른다.
   const smooth = fc.smooth;
   const rate = 1 - Math.exp(-Math.max(0, delta) / 0.04);
@@ -254,4 +198,79 @@ export function applyFootContact(
       if (entry) entry.ik = (entry.ik ?? new THREE.Quaternion()).copy(bone.quaternion);
     }),
   );
+}
+
+/** 이동 클립일 때만 — 발마다 밑창 최저점을 재서 이번 프레임 목표량(goal)을 채운다. */
+function measureContactGoal(
+  fc: FootContactState,
+  goal: Record<Side, { lift: number; drop: number }>,
+  {
+    prepared,
+    action,
+    next,
+    inverseModel,
+    point,
+  }: Pick<FootContactFrame, "prepared" | "next" | "inverseModel" | "point"> & { action: THREE.AnimationAction },
+) {
+  const pelvisBone = prepared.pelvisBone;
+  if (!pelvisBone) return;
+  prepared.targetSkin.skeleton.update();
+  // 발마다 발바닥 최저점(모델 좌표).
+  const heights = prepared.legs.map((leg) =>
+    lowestSoleY(prepared.soles, (sole) => (leg.side === "l" ? sole.left : sole.right), 3, inverseModel, point),
+  );
+  const lower = heights[0] <= heights[1] ? 0 : 1;
+  const other = 1 - lower;
+  // 모델 단위
+  const gap = heights[other] - heights[lower];
+  const contactWindow = (prepared.correction?.footContactWindow ?? 0.045) * 1.45;
+  const leg = prepared.legs[other];
+  // 골반보다 앞에 있는(다가오는) 발만 — 빼면 떼는 뒷발이 창에 걸려 뒷다리가 꺾인다.
+  point.setFromMatrixPosition(leg.foot.matrixWorld).applyMatrix4(inverseModel);
+  const footZ = point.z;
+  point.setFromMatrixPosition(pelvisBone.matrixWorld).applyMatrix4(inverseModel);
+  // 문턱은 전부 부드러운 가중치 — 딱딱한 on/off 는 양발 지지에서 IK 가 켜졌다 꺼져 몸이 떨린다.
+  const aheadWeight = THREE.MathUtils.smoothstep(footZ - point.z, 0.01, 0.03);
+  const isAhead = aheadWeight > 0.001;
+  const gapWeight =
+    THREE.MathUtils.smoothstep(gap, 0.002, 0.008) *
+    (1 - THREE.MathUtils.smoothstep(gap, contactWindow * 0.7, contactWindow));
+  // 접지 시각 창: 평평하게 붙는 시각의 25% 전 ~ 3% 후. 그 안에서 가중치를 0→1→0 으로 매끄럽게 —
+  // 온/오프면 닿는 순간 다리가 '탁' 펴진다. 접근(앞다리가 엉덩이로 내린다) 뒤 하중(디딘 다리를 굽혀 골반을 내린다).
+  let contactWeight = 0;
+  // 접근 1 → 하중 0
+  let frontShare = 0;
+  const times = prepared.contactTimeFor(next);
+  const duration = action.getClip().duration || 1;
+  if (times) {
+    const phase = (((action.time % duration) + duration) % duration) / duration;
+    // 붙는 시각 기준 0~1
+    const sinceContact = (((phase - times[leg.side]) % 1) + 1) % 1;
+    if (sinceContact >= 0.72) {
+      contactWeight = THREE.MathUtils.smoothstep(sinceContact, 0.72, 0.82);
+      frontShare = 1 - THREE.MathUtils.smoothstep(sinceContact, 0.8, 0.9);
+    } else if (sinceContact <= 0.06) {
+      contactWeight = 1 - THREE.MathUtils.smoothstep(sinceContact, 0.0, 0.06);
+      frontShare = 0;
+    }
+  }
+  const inContact = contactWeight > 0.001;
+  if (import.meta.env.DEV) {
+    fc.debug = {
+      other: leg.side,
+      gap: +gap.toFixed(4),
+      weight: +contactWeight.toFixed(2),
+      frontShare: +frontShare.toFixed(2),
+      isAhead,
+    };
+  }
+  if (inContact && isAhead && gap > 0) {
+    // 틈을 두 다리가 나눈다. 앞다리만 내리면 무릎이 2° 로 잠기고, 디딘 다리만 올리면 80° 로 꺾인다.
+    // 앞다리 몫엔 낮은 상한을 두고 남는 틈은 둔다(리타게팅 전 클립도 뒤꿈치 접지 때 1cm 떠 있다).
+    const weight = contactWeight * aheadWeight * gapWeight;
+    const limit = (prepared.correction?.footContactDrop ?? 0.03) * 1.45 * weight;
+    const frontLimit = (prepared.correction?.footContactFrontLimit ?? 0.015) * 1.45 * weight * frontShare;
+    goal[leg.side].drop = Math.min(gap, frontLimit);
+    goal[prepared.legs[lower].side].lift = Math.min(gap - goal[leg.side].drop, limit);
+  }
 }
