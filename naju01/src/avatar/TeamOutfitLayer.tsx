@@ -2,7 +2,8 @@
 // 몸 GLB 를 새로 굽지 않고, 그 아바타의 실제 정점을 재서 맞춘다:
 //   · 캡: 머리 뼈 국소 공간에서 머리(머리 뼈 웨이트가 큰 몸 정점) + 보이는 머리카락 정점을 모아, 위쪽 42% 를 다 감싸는
 //     타원 돔을 만든다 — 머리카락이 돔 밖으로 튀어나오지 않게 높이를 정점마다 확인해 정한다. 앞으로 챙.
-//   · 글자: 가슴 뼈(spine_03) 국소 공간에서 상의(_tint 2) 정점의 앞면을 재고, 가슴 곡률만큼 휜 판에 노란 「해병대」.
+//   · 해병대 반팔: 가슴 뼈(spine_03) 국소 공간에서 상의(_tint 2) 정점을 재, 가슴에는 노란 「해병대」, 등에는 닻 · 별 마크를
+//     그 자리 상의 표면을 따라가는 판(실측 높이장)에 붙인다.
 // 축은 바인드 자세에서 뼈가 본 몸의 위(+Y) · 앞(+Z)이다(glTF) — 재는 순간의 자세(걷기 · 인사)와 상관없이 같은 모양이 된다.
 // 몸 · 머리카락은 뼈에 단단히 묶인 정점만 쓰므로 재는 자세는 상관없다. 설정(체형 모프 · 머리)이 바뀌면 다시 잰다.
 import { useGLTF } from "@react-three/drei";
@@ -22,6 +23,8 @@ const INK = "#2b2a33";
 const CAP_COLOR = "#23252c";
 const CAP_BUTTON_COLOR = "#2f323a";
 const MARINE_YELLOW = "#ffd23f";
+/** 등 마크 원판 — 셔츠 빨강(MARINE_RED)보다 짙게 */
+const MARINE_BADGE_RED = "#7a121b";
 /** 캡이 덮는 머리 높이 비율(정수리부터) 🟡 */
 const CAP_COVER = 0.42;
 
@@ -37,11 +40,26 @@ interface CapFit {
   radius: THREE.Vector3;
 }
 
+/**
+ * 상의 표면을 따라가는 인쇄 판 — 몸 메시 국소(바인드 자세, 지금 체형 모프를 얹은) 좌표의 격자 정점, 위 줄부터 왼쪽 → 오른쪽.
+ * 정점마다 그 아래 셔츠 삼각형의 뼈 웨이트(무게중심 보간)를 받아 몸과 같이 스키닝된다 — 가슴 뼈 하나에 단단히 붙이면
+ * 걷기 · 몸통 비틀기에서 등 아래쪽 셔츠가 판을 뚫었다(Codex 24회차)
+ */
+interface PrintPatch {
+  positions: Float32Array;
+  /** 정점마다 뼈 번호 4개 · 웨이트 4개 */
+  skinIndex: Uint16Array;
+  skinWeight: Float32Array;
+  cols: number;
+  rows: number;
+  /** 등(뒤를 보는 판) — 면 방향 · 글자 좌우를 뒤집는다 */
+  back: boolean;
+}
+
 interface PrintFit {
-  frame: BoneFrame;
-  center: THREE.Vector3;
-  width: number;
-  bend: number;
+  body: THREE.SkinnedMesh;
+  chest: PrintPatch;
+  back: PrintPatch | null;
 }
 
 /**
@@ -153,41 +171,217 @@ function fitCap(prepared: PreparedBody): CapFit | null {
   return { frame, center, radius };
 }
 
+/** 판이 상의 표면에서 떨어지는 거리(m) */
+const PRINT_LIFT = 0.004;
+/** 가슴 글자 폭(가슴 뼈에 묶인 몸통 폭 대비) — 미르 11/8 「글자좀 키워줄 수 있나」(0.36 → 0.78, 약 2.2배) */
+const CHEST_PRINT_WIDTH = 0.78;
+/** 등 마크 폭(몸통 폭 대비) · 높이(상의 몸통 아래에서 비율) */
+const BACK_PRINT_WIDTH = 0.62;
+const BACK_PRINT_HEIGHT = 0.56;
+
+/** 몸 메시 국소 바인드 자리 + 지금 체형 모프(스키닝 전) — 자세와 상관없다. 정점 전부를 한 번에 */
+function bindPositions(mesh: THREE.SkinnedMesh) {
+  const geometry = mesh.geometry;
+  const position = geometry.getAttribute("position");
+  const out = new Float32Array(position.count * 3);
+  for (let i = 0; i < position.count; i += 1) {
+    out[i * 3] = position.getX(i);
+    out[i * 3 + 1] = position.getY(i);
+    out[i * 3 + 2] = position.getZ(i);
+  }
+  const morphs = geometry.morphAttributes.position ?? [];
+  const influences = mesh.morphTargetInfluences ?? [];
+  morphs.forEach((attribute, k) => {
+    const influence = influences[k] ?? 0;
+    if (!influence) return;
+    for (let i = 0; i < position.count; i += 1) {
+      const base = geometry.morphTargetsRelative ? [0, 0, 0] : [position.getX(i), position.getY(i), position.getZ(i)];
+      out[i * 3] += influence * (attribute.getX(i) - base[0]!);
+      out[i * 3 + 1] += influence * (attribute.getY(i) - base[1]!);
+      out[i * 3 + 2] += influence * (attribute.getZ(i) - base[2]!);
+    }
+  });
+  return out;
+}
+
+interface SurfaceHit {
+  z: number;
+  /** 뼈 번호 → 웨이트(삼각형 세 꼭짓점을 무게중심 좌표로 섞은 것) */
+  bones: Map<number, number>;
+}
+
+/**
+ * 몸 표면을 앞(side 1, +Z) 또는 뒤(−1)에서 Z 축으로 쏴 처음 닿는 삼각형 — 정점이 성긴 곳(큰 삼각형)에서는 칸 안에 정점이
+ * 없어 판 깊이가 몸 안쪽으로 잡혔다. 그쪽을 보는 면만 본다(안쪽 면 · 반대쪽 면 제외), 팔 · 머리 웨이트가 큰 정점이 낀 면도 뺀다
+ */
+function surfaceSampler(
+  body: THREE.SkinnedMesh,
+  positions: Float32Array,
+  side: 1 | -1,
+  region: { minX: number; maxX: number; minY: number; maxY: number },
+  skip: (index: number) => boolean,
+) {
+  const geometry = body.geometry;
+  const index = geometry.getIndex();
+  const triangles = index ? index.count / 3 : positions.length / 9;
+  const vertex = (t: number, c: number) => (index ? index.getX(t * 3 + c) : t * 3 + c);
+  const picked: number[] = [];
+  for (let t = 0; t < triangles; t += 1) {
+    const a = vertex(t, 0);
+    const b = vertex(t, 1);
+    const c = vertex(t, 2);
+    if (skip(a) || skip(b) || skip(c)) continue;
+    const [ax, ay, bx, by, cx, cy] = [a, b, c].flatMap((v) => [positions[v * 3]!, positions[v * 3 + 1]!]);
+    if (Math.max(ax!, bx!, cx!) < region.minX || Math.min(ax!, bx!, cx!) > region.maxX) continue;
+    if (Math.max(ay!, by!, cy!) < region.minY || Math.min(ay!, by!, cy!) > region.maxY) continue;
+    // XY 로 본 감기 방향 = 면이 +Z(앞) · −Z(뒤) 중 어디를 보는지
+    const area = (bx! - ax!) * (cy! - ay!) - (by! - ay!) * (cx! - ax!);
+    if (area * side <= 1e-12) continue;
+    picked.push(a, b, c);
+  }
+  const skinIndex = geometry.getAttribute("skinIndex");
+  const skinWeight = geometry.getAttribute("skinWeight");
+  return (x: number, y: number): SurfaceHit | null => {
+    let best: { z: number; t: number; w: [number, number, number] } | null = null;
+    for (let t = 0; t < picked.length; t += 3) {
+      const [a, b, c] = [picked[t]!, picked[t + 1]!, picked[t + 2]!];
+      const ax = positions[a * 3]!;
+      const ay = positions[a * 3 + 1]!;
+      const bx = positions[b * 3]!;
+      const by = positions[b * 3 + 1]!;
+      const cx = positions[c * 3]!;
+      const cy = positions[c * 3 + 1]!;
+      const det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+      if (Math.abs(det) < 1e-14) continue;
+      const wa = ((by - cy) * (x - cx) + (cx - bx) * (y - cy)) / det;
+      const wb = ((cy - ay) * (x - cx) + (ax - cx) * (y - cy)) / det;
+      const wc = 1 - wa - wb;
+      if (wa < -1e-6 || wb < -1e-6 || wc < -1e-6) continue;
+      const z = wa * positions[a * 3 + 2]! + wb * positions[b * 3 + 2]! + wc * positions[c * 3 + 2]!;
+      if (!best || z * side > best.z * side) best = { z, t, w: [wa, wb, wc] };
+    }
+    if (!best) return null;
+    const bones = new Map<number, number>();
+    [picked[best.t]!, picked[best.t + 1]!, picked[best.t + 2]!].forEach((v, n) => {
+      for (let k = 0; k < 4; k += 1) {
+        const w = skinWeight.getComponent(v, k) * best.w[n]!;
+        if (w > 0) bones.set(skinIndex.getComponent(v, k), (bones.get(skinIndex.getComponent(v, k)) ?? 0) + w);
+      }
+    });
+    return { z: best.z, bones };
+  };
+}
+
+/**
+ * 상의 표면을 따라가는 판. 격자 정점마다 몸 표면 깊이(surfaceSampler)에 PRINT_LIFT 를 더하고, 이웃 평균으로 고르되 표면
+ * 안으로는 안 들어가게 한다. 2차식으로 휘던 예전 판은 넓히면 여자 가슴처럼 가운데가 들어간 곳에서 판 일부가 몸에 묻혔다.
+ * 맞는 면이 없는 칸은 같은 줄 가장 가까운 칸으로, 줄 전체가 비면 판을 만들지 않는다
+ */
+function conformPatch(
+  sample: (x: number, y: number) => SurfaceHit | null,
+  centerX: number,
+  centerY: number,
+  width: number,
+  height: number,
+  side: 1 | -1,
+  cols: number,
+  rows: number,
+): PrintPatch | null {
+  const count = (cols + 1) * (rows + 1);
+  const hits: (SurfaceHit | null)[] = [];
+  const xy: [number, number][] = [];
+  for (let j = 0; j <= rows; j += 1) {
+    for (let i = 0; i <= cols; i += 1) {
+      const x = centerX - width / 2 + (width * i) / cols;
+      const y = centerY + height / 2 - (height * j) / rows;
+      xy.push([x, y]);
+      hits.push(sample(x, y));
+    }
+  }
+  for (let j = 0; j <= rows; j += 1) {
+    const row = Array.from({ length: cols + 1 }, (_, i) => j * (cols + 1) + i);
+    const filled = row.filter((k) => hits[k]);
+    if (!filled.length) return null;
+    for (const k of row) {
+      if (hits[k]) continue;
+      hits[k] = hits[filled.reduce((a, b) => (Math.abs(b - k) < Math.abs(a - k) ? b : a))]!;
+    }
+  }
+  const surface = Float32Array.from(hits, (hit) => hit!.z + side * PRINT_LIFT);
+  let current = Float32Array.from(surface);
+  for (let pass = 0; pass < 2; pass += 1) {
+    const next = Float32Array.from(current);
+    for (let j = 0; j <= rows; j += 1) {
+      for (let i = 0; i <= cols; i += 1) {
+        const k = j * (cols + 1) + i;
+        const around = [
+          [i - 1, j],
+          [i + 1, j],
+          [i, j - 1],
+          [i, j + 1],
+        ].filter(([a, b]) => a! >= 0 && a! <= cols && b! >= 0 && b! <= rows);
+        const mean = around.reduce((sum, [a, b]) => sum + current[b! * (cols + 1) + a!]!, 0) / around.length;
+        const smoothed = (current[k]! + mean) / 2;
+        // 고른 판이 표면 안으로 들어가지 않게
+        next[k] = side > 0 ? Math.max(smoothed, surface[k]!) : Math.min(smoothed, surface[k]!);
+      }
+    }
+    current = next;
+  }
+  const positions = new Float32Array(count * 3);
+  xy.forEach(([x, y], k) => positions.set([x, y, current[k]!], k * 3));
+  const skinIndex = new Uint16Array(count * 4);
+  const skinWeight = new Float32Array(count * 4);
+  hits.forEach((hit, k) => {
+    const top = [...hit!.bones.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const total = top.reduce((sum, [, w]) => sum + w, 0) || 1;
+    top.forEach(([bone, w], c) => {
+      skinIndex[k * 4 + c] = bone;
+      skinWeight[k * 4 + c] = w / total;
+    });
+  });
+  return { positions, skinIndex, skinWeight, cols, rows, back: side < 0 };
+}
+
+/**
+ * 몸 메시 국소(glTF: 오른쪽 +X · 위 +Y · 앞 +Z) 바인드 자리에서 잰다. 몸통 크기는 가슴 뼈(spine_02 · 03)에 묶인 상의(_tint 2)
+ * 정점으로, 판 깊이 · 웨이트는 팔 · 머리를 뺀 몸 표면 삼각형에서 — 상의 표식만 보면 다른 표식이 잘못 찍힌 셔츠가 판을 뚫었다
+ */
 function fitPrint(prepared: PreparedBody): PrintFit | null {
   const body = findBodyMesh(prepared.model);
-  const chest = prepared.model.getObjectByName("spine_03") as THREE.Bone | undefined;
   const tint = body?.geometry.getAttribute("_tint");
-  if (!body || !chest || !tint) return null;
-  const frame = restFrame(body, chest);
-  if (!frame) return null;
+  if (!body || !tint) return null;
   const bones = ["spine_03", "spine_02"].map((name) => body.skeleton.bones.findIndex((bone) => bone.name === name));
   const onChest = weightOn(body, bones);
-  const points: THREE.Vector3[] = [];
-  // 상의 표식(2) — 반올림해 본다(경계 삼각형은 중간값)
-  measure(body, frame, (i) => Math.round(tint.getX(i)) === 2 && onChest(i) >= 0.6, points);
-  if (points.length < 50) return null;
-  const ys = points.map((p) => p.y);
-  const xs = points.map((p) => p.x);
-  const [minY, maxY] = [Math.min(...ys), Math.max(...ys)];
-  const [minX, maxX] = [Math.min(...xs), Math.max(...xs)];
-  const centerX = (minX + maxX) / 2;
-  const y = minY + 0.62 * (maxY - minY);
-  const band = points.filter((p) => Math.abs(p.y - y) < 0.02);
-  const middle = band.filter((p) => Math.abs(p.x - centerX) < 0.03);
-  if (!middle.length) return null;
-  const front = Math.max(...middle.map((p) => p.z));
-  const width = 0.36 * (maxX - minX);
-  // 가슴 곡률 — 앞면 정점의 (가운데에서 떨어진 거리)² 에 대한 들어감으로 휜 정도를 맞춘다
-  let num = 0;
-  let den = 0;
-  for (const p of band) {
-    const x = p.x - centerX;
-    if (Math.abs(x) > width * 0.7 || p.z < front - 0.06) continue;
-    num += (front - p.z) * x * x;
-    den += x ** 4;
+  const armBones = body.skeleton.bones.flatMap((bone, index) =>
+    /^(upperarm|lowerarm|hand|neck|head)/.test(bone.name) ? [index] : [],
+  );
+  const onArmOrHead = weightOn(body, armBones);
+  const positions = bindPositions(body);
+  let [minX, maxX, minY, maxY, count] = [Infinity, -Infinity, Infinity, -Infinity, 0];
+  for (let i = 0; i < tint.count; i += 1) {
+    // 상의 표식(2) — 반올림해 본다(경계 삼각형은 중간값)
+    if (Math.round(tint.getX(i)) !== 2 || onChest(i) < 0.6 || onArmOrHead(i) >= 0.5) continue;
+    const [x, y] = [positions[i * 3]!, positions[i * 3 + 1]!];
+    [minX, maxX, minY, maxY] = [Math.min(minX, x), Math.max(maxX, x), Math.min(minY, y), Math.max(maxY, y)];
+    count += 1;
   }
-  const bend = den > 0 ? Math.max(0, Math.min(12, num / den)) : 0;
-  return { frame, center: new THREE.Vector3(centerX, y, front + 0.004), width, bend };
+  if (count < 50) return null;
+  const centerX = (minX + maxX) / 2;
+  const torso = maxX - minX;
+  const skip = (i: number) => onArmOrHead(i) >= 0.5;
+  const patch = (centerY: number, width: number, height: number, side: 1 | -1, cols: number, rows: number) => {
+    const region = { minX: centerX - width, maxX: centerX + width, minY: centerY - height, maxY: centerY + height };
+    const sample = surfaceSampler(body, positions, side, region, skip);
+    return conformPatch(sample, centerX, centerY, width, height, side, cols, rows);
+  };
+  // 가슴 글자 — 캔버스 비율(512 × 200)대로
+  const chestWidth = CHEST_PRINT_WIDTH * torso;
+  const chest = patch(minY + 0.62 * (maxY - minY), chestWidth, chestWidth * 0.39, 1, 24, 8);
+  if (!chest) return null;
+  const backWidth = BACK_PRINT_WIDTH * torso;
+  const back = patch(minY + BACK_PRINT_HEIGHT * (maxY - minY), backWidth, backWidth, -1, 16, 16);
+  return { body, chest, back };
 }
 
 function makeMarineTexture() {
@@ -211,6 +405,83 @@ function makeMarineTexture() {
   draw();
   // 글꼴이 늦게 오면 다시 그린다
   void document.fonts?.ready.then(draw);
+  return texture;
+}
+
+/**
+ * 등 마크 — 짙은 빨강 원판에 닻 · 별 · 물결(바다 · 군의 일반 모티프), 양옆이 끊긴 노란 테. 실제 해병대 휘장을 베끼지 않은
+ * 도안이다(미르 11/8 「해병대 로고랑 비슷한 모양」). 공식 휘장과 덜 헷갈리게 테를 끊고 물결을 넣었다(Codex 24회차)
+ */
+function makeMarineBackTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const g = canvas.getContext("2d");
+  if (g) {
+    const c = 256;
+    g.fillStyle = MARINE_BADGE_RED;
+    g.beginPath();
+    g.arc(c, c, 236, 0, Math.PI * 2);
+    g.fill();
+    // 테 — 위아래 두 호(양옆이 끊긴다)
+    g.strokeStyle = MARINE_YELLOW;
+    g.lineWidth = 22;
+    g.lineCap = "round";
+    for (const start of [Math.PI * 1.12, Math.PI * 0.12]) {
+      g.beginPath();
+      g.arc(c, c, 228, start, start + Math.PI * 0.76);
+      g.stroke();
+    }
+    // 별
+    g.fillStyle = MARINE_YELLOW;
+    g.beginPath();
+    for (let k = 0; k < 10; k += 1) {
+      const r = k % 2 ? 22 : 54;
+      const a = -Math.PI / 2 + (k * Math.PI) / 5;
+      g.lineTo(c + r * Math.cos(a), 128 + r * Math.sin(a));
+    }
+    g.closePath();
+    g.fill();
+    // 닻 — 고리 · 가로대 · 몸대 · 아래 팔(호) · 양 끝 갈고리
+    g.lineCap = "round";
+    g.lineWidth = 16;
+    g.beginPath();
+    g.arc(c, 214, 22, 0, Math.PI * 2);
+    g.stroke();
+    g.lineWidth = 26;
+    g.beginPath();
+    g.moveTo(c, 238);
+    g.lineTo(c, 404);
+    g.stroke();
+    g.lineWidth = 22;
+    g.beginPath();
+    g.moveTo(c - 70, 268);
+    g.lineTo(c + 70, 268);
+    g.stroke();
+    g.lineWidth = 24;
+    g.beginPath();
+    g.arc(c, 312, 102, Math.PI * 0.18, Math.PI * 0.82);
+    g.stroke();
+    for (const s of [-1, 1]) {
+      const a = s > 0 ? Math.PI * 0.18 : Math.PI * 0.82;
+      const tipX = c + 102 * Math.cos(a);
+      const tipY = 312 + 102 * Math.sin(a);
+      g.beginPath();
+      g.moveTo(tipX + s * 30, tipY - 44);
+      g.lineTo(tipX + s * 18, tipY + 14);
+      g.lineTo(tipX - s * 30, tipY + 4);
+      g.closePath();
+      g.fill();
+    }
+    // 닻 아래 물결
+    g.lineWidth = 12;
+    g.beginPath();
+    for (let x = -120; x <= 120; x += 4) g.lineTo(c + x, 452 + 10 * Math.sin((x / 120) * Math.PI * 3));
+    g.stroke();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
   return texture;
 }
 
@@ -393,45 +664,80 @@ function Cap({ fit, outline }: { fit: CapFit; outline: OutlineConfig }) {
   );
 }
 
+let chestPrintMaterial: THREE.MeshToonMaterial | null = null;
+let backPrintMaterial: THREE.MeshToonMaterial | null = null;
+
+/** 인쇄 재질 — 모든 팀 NPC 가 같이 쓴다(지우지 않는다). 불투명 + alphaTest(정렬 문제 없게), 그림자는 받기만 */
+function printMaterial(back: boolean) {
+  const make = (texture: THREE.Texture) =>
+    markAvatarMaterial(
+      new THREE.MeshToonMaterial({
+        map: texture,
+        gradientMap: gradient,
+        alphaTest: 0.35,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
+      }),
+    );
+  if (back) return (backPrintMaterial ??= make(makeMarineBackTexture()));
+  return (chestPrintMaterial ??= make(makeMarineTexture()));
+}
+
+/**
+ * 인쇄 판 격자 → 스키닝 기하(웨이트는 그 아래 셔츠 삼각형에서 받아 둔 것). 등 판은 면이 뒤를 보게 감기를 뒤집고, 뒤에서
+ * 읽히게 글자 좌우(u)를 뒤집는다
+ */
+function printGeometry(patch: PrintPatch) {
+  const plane = new THREE.PlaneGeometry(1, 1, patch.cols, patch.rows);
+  plane.setAttribute("position", new THREE.BufferAttribute(patch.positions.slice(), 3));
+  plane.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(patch.skinIndex, 4));
+  plane.setAttribute("skinWeight", new THREE.Float32BufferAttribute(patch.skinWeight, 4));
+  if (patch.back) {
+    const uv = plane.getAttribute("uv");
+    for (let i = 0; i < uv.count; i += 1) uv.setX(i, 1 - uv.getX(i));
+    const index = plane.getIndex();
+    if (index) {
+      const array = index.array;
+      for (let i = 0; i < array.length; i += 3) {
+        const swap = array[i + 1]!;
+        array[i + 1] = array[i + 2]!;
+        array[i + 2] = swap;
+      }
+      index.needsUpdate = true;
+    }
+  }
+  plane.computeVertexNormals();
+  return plane;
+}
+
+/** 가슴 글자 · 등 마크 — 몸 메시 옆에 같은 골격으로 묶은 스키닝 메시(바지 파츠와 같은 방식) */
 function MarinePrint({ fit }: { fit: PrintFit }) {
-  const texture = useMemo(() => makeMarineTexture(), []);
-  const material = useMemo(
-    () =>
-      markAvatarMaterial(
-        new THREE.MeshToonMaterial({
-          map: texture,
-          gradientMap: gradient,
-          transparent: true,
-          alphaTest: 0.35,
-          polygonOffset: true,
-          polygonOffsetFactor: -2,
-          polygonOffsetUnits: -2,
-        }),
-      ),
-    [texture],
-  );
-  const geometry = useMemo(() => {
-    const plane = new THREE.PlaneGeometry(fit.width, fit.width * 0.39, 24, 1);
-    const position = plane.getAttribute("position");
-    // 가슴 둘레를 따라 뒤로 휜다(가운데가 가장 앞)
-    for (let i = 0; i < position.count; i += 1) position.setZ(i, -fit.bend * position.getX(i) ** 2);
-    plane.computeVertexNormals();
-    return plane;
-  }, [fit.width, fit.bend]);
-  useEffect(
-    () => () => {
-      texture.dispose();
-      material.dispose();
-    },
-    [texture, material],
-  );
-  useEffect(() => () => geometry.dispose(), [geometry]);
-  return createPortal(
-    <group matrixAutoUpdate={false} matrix={fit.frame.basis}>
-      <mesh position={fit.center} geometry={geometry} material={material} receiveShadow />
-    </group>,
-    fit.frame.bone,
-  );
+  useEffect(() => {
+    const { body } = fit;
+    const parent = body.parent;
+    if (!parent) return;
+    const meshes = [fit.chest, fit.back].flatMap((patch) => {
+      if (!patch) return [];
+      const mesh = new THREE.SkinnedMesh(printGeometry(patch), printMaterial(patch.back));
+      mesh.name = patch.back ? "MarinePrintBack" : "MarinePrintChest";
+      mesh.position.copy(body.position);
+      mesh.quaternion.copy(body.quaternion);
+      mesh.scale.copy(body.scale);
+      mesh.bind(body.skeleton, body.bindMatrix);
+      mesh.frustumCulled = false;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return [mesh];
+    });
+    return () => {
+      meshes.forEach((mesh) => {
+        mesh.parent?.remove(mesh);
+        mesh.geometry.dispose();
+      });
+    };
+  }, [fit]);
+  return null;
 }
 
 /** 바지 파일이 없거나 못 받아도 바지만 빠지고 아바타(로비 화면)는 그대로 — useGLTF 는 실패하면 오류를 던진다 */

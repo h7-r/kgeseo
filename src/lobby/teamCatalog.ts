@@ -35,7 +35,7 @@ const TEAM_ITEM_INFO: Record<TeamLookItemId, TeamItemInfo> = {
     slot: "top",
     label: "해병대 반팔",
     variant: TEAM_MARINE_TOP,
-    description: "팀 전용 · 빨강 바탕에 노란 글자(상의 색은 따르지 않는다)",
+    description: "팀 전용 · 빨강 바탕, 가슴에 노란 「해병대」 · 등에 닻 마크(상의 색은 따르지 않는다)",
     thumbnail: { masculine: thumbnail("top.tee.marine.m"), feminine: thumbnail("top.tee.marine.f") },
   },
   "bottom.jeans.skinny": {

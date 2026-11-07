@@ -1,5 +1,6 @@
 // 팀 캐릭터 전용 옷 썸네일 굽기(검토 22회차) — naju01/tools/character-thumbnails.mjs 와 같은 gait.html 화면 · 자르기라
 // 카드가 기존 썸네일과 같은 모양이 된다. 가운데 몸체는 지금 기본이 여성이라 남자 칸은 gender=masculine 을 넘긴다.
+// 해병대 반팔은 반바지 몸(bottom=0)으로 찍는다 — 하의 없는 몸 GLB 는 다른 Meshy 캐릭터라 목에 흰 자국이 있다.
 //   npx vite naju01 &   (5174)  →  node tools/team-npc-thumbnails.mjs
 import { fileURLToPath } from "node:url";
 
@@ -14,8 +15,8 @@ const SHOTS = [
   ["hair.m.long.cap", "hair=11", "head", "m"],
   ["hair.f.bob.cap", "hair=10", "head", "f"],
   ["hair.f.long.cap", "hair=11", "head", "f"],
-  ["top.tee.marine.m", "top=1&bottom=-1&shoes=-1", "torso", "m"],
-  ["top.tee.marine.f", "top=1&bottom=-1&shoes=-1", "torso", "f"],
+  ["top.tee.marine.m", "top=1&bottom=0&shoes=-1", "torso", "m"],
+  ["top.tee.marine.f", "top=1&bottom=0&shoes=-1", "torso", "f"],
   ["bottom.jeans.skinny.m", "top=-1&bottom=1&shoes=-1", "hips", "m"],
   ["bottom.jeans.skinny.f", "top=-1&bottom=1&shoes=-1", "hips", "f"],
   ["bottom.pants.baggy.m", "top=-1&bottom=2&shoes=-1", "hips", "m"],
