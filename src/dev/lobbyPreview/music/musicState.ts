@@ -19,13 +19,21 @@ export const PLAYLIST_URL = `https://www.youtube.com/watch?v=${FIRST_VIDEO_ID}&l
 /** 겨냥 등록 이름(스피커 ↔ 화면 안내문) */
 export const SPEAKER_AIM_ID = "lobby:speaker";
 
-/** 처음 볼륨 = 설정 「배경음악」 × 이 비율. 목소리(−20.5 LUFS)보다 유튜브 곡이 대체로 커서 낮춰 시작한다 */
-const VOLUME_SHARE = 0.5;
+/**
+ * 처음 볼륨 = 설정 「배경음악」 × 이 비율(기본 0.6 → 10). 목소리는 −20.5 LUFS × 효과음 0.65 ≈ −24 LUFS 인데 유튜브 곡은
+ * 대체로 −14 LUFS 라, 30 이면 목소리와 같은 크기로 쉬지 않고 깔려 「너무 크다」(11/7 미르). 10(약 −20dB)이면 목소리보다
+ * 10dB 쯤 아래 — 배경음악은 대사보다 10~20dB 아래가 보통이다.
+ */
+const VOLUME_SHARE = 1 / 6;
 /** 인사 · 대사가 날 때 잠깐 이만큼으로(주먹 · 맞기 · 점프는 줄이지 않는다) */
 const DUCK_RATIO = 0.5;
 const DUCK_KINDS: ReadonlySet<VoiceKind> = new Set(["greet", "joy", "move", "sorry", "thanks", "ok"]);
-/** 미니 플레이어(16:9, 높이 200 이상이라야 규정) — 이보다 좁은 화면은 미니 없이 큰 화면 · 닫기만 */
-export const MINI_SIZE = { width: 384, height: 216 } as const;
+/**
+ * 미니 플레이어 — 규정 하한(가로 · 세로 200 이상)의 정사각형. 그 바깥을 주크박스 틀이 감싼다(JUKEBOX_WIDTH 는 틀까지).
+ * 이보다 좁은 화면은 미니 없이 큰 화면 · 닫기만
+ */
+export const MINI_SIZE = { width: 200, height: 200 } as const;
+export const JUKEBOX_WIDTH = 224;
 export const canMini = () => window.innerWidth >= 720 && window.innerHeight >= 520;
 
 export type MusicMode = "closed" | "big" | "mini";
