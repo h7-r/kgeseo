@@ -14,6 +14,7 @@ import { registerDiagnostics } from "./avatarDiagnostics";
 import { QUATERNIUS_PREFIX } from "./chibiClipLibrary";
 import { attachClipPlanes, CLIPPING, updateClipPlane } from "./firstPersonClipping";
 import { applyFootContact, createFootContactState, lowestSoleY } from "./footContactIk";
+import { applyGesture, createGestureState } from "./gestures";
 import { DEFAULT_MESH_CONFIG, type MeshAppearanceConfig, getMeshBodyUrl, getMeshShoesUrl } from "./meshAppearance";
 import {
   type CorrectionOverrides,
@@ -257,6 +258,8 @@ function ChibiGameAvatar({
   const inverseModel = useMemo(() => new THREE.Matrix4(), []);
   const point = useMemo(() => new THREE.Vector3(), []);
   const footContact = useMemo(() => createFootContactState(), []);
+  // 절차 손짓(인사 단계의 gesture) — 덮어쓴 뼈의 클립 자세·무게
+  const gesture = useMemo(() => createGestureState(), []);
   // 발바닥 최저점 캐시 — 정점 7731 개를 매 프레임 훑는 값이 아바타당 3.0ms 다.
   const soleHeightCache = useRef<number | null>(null);
   const soleFingerprint = useRef("");
@@ -335,7 +338,8 @@ function ChibiGameAvatar({
     if (prepared.neckBone) prepared.neckBone.scale.setScalar(bodyOnly ? 1e-4 : 1);
     updateClipPlane(camera, bodyOnly, state.crouching, scale);
     const legLength = applyLimbLengths(prepared, config);
-    applyGrip(prepared.fistMorphs, state, appearance.fistHands ?? 0, gripAmount, delta);
+    // 손짓 중에는 손을 편다(손바닥이 보이게 — 손가락 뼈가 없어 주먹 모프가 유일한 손잡이). 지난 프레임 무게로
+    applyGrip(prepared.fistMorphs, state, (appearance.fistHands ?? 0) * (1 - gesture.weight), gripAmount, delta);
     applyShoulderAndFeet(prepared, config, isMeshy, legLength);
 
     group.position.set(state.position.x, state.footY, state.position.z);
@@ -349,6 +353,8 @@ function ChibiGameAvatar({
     group.scale.setScalar(avatarScale);
     group.updateMatrixWorld(true);
 
+    // 손짓 → 팔 IK(물건 들기가 이긴다) → 손목 맞춤 → 접지 차례(검토 16회차)
+    applyGesture(gesture, prepared, group, timers.current.gesture ?? null, delta);
     const armRequests = solveArms(prepared, state, group);
     alignWrists(prepared.arms, state, armRequests);
 

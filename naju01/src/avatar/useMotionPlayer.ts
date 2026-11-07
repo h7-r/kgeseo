@@ -4,6 +4,8 @@ import * as THREE from "three";
 
 import type { AvatarAction, AvatarLink } from "@/engine/avatarLink";
 
+import type { ActiveGesture } from "./gestures";
+
 import { QUATERNIUS_PREFIX } from "./chibiClipLibrary";
 import type { ChibiAvatarConfig, PreparedBody } from "./preparedBody";
 import { AUTO_MOTION } from "./sidekickOptions";
@@ -28,7 +30,12 @@ export interface MotionTimers {
   stillSince?: number | null;
   /** 서 있다 트는 「말하며 대기」가 끝나는 시각 */
   fidgetUntil?: number;
+  /** 이번 프레임에 실제로 고른 인사 단계의 절차 손짓(맞기·주먹·끊김 판정을 지난 것만). 없으면 null */
+  gesture?: ActiveGesture | null;
 }
+
+/** 인사 단계 motion 이 이것이면 그 성별 대기를 밑바탕으로 손짓만 덮어쓴다 */
+export const GESTURE_BASE_MOTION = "@idle";
 
 /**
  * 대기 자세 — 2026-11-07 미르가 동작 보기 화면(motion-gallery.html)에서 고름. 남성은 Quaternius 기본 대기,
@@ -89,6 +96,7 @@ export function chooseMotion(
   timers.restartKey = null;
   timers.actionSpeed = null;
   timers.actionLift = 0;
+  timers.gesture = null;
   let next = config.motion;
   if (!next || next === AUTO_MOTION) {
     if (!state.grounded && timers.airborneSince === null) timers.airborneSince = now;
@@ -124,6 +132,13 @@ export function chooseMotion(
       next = emoteStep.motion;
       timers.restartKey = `emote:${state.emote.serial}:${emoteStep.index}`;
       applyStep(emoteStep);
+      if (emoteStep.step.gesture)
+        timers.gesture = { name: emoteStep.step.gesture, elapsed: emoteStep.progress * emoteStep.step.seconds };
+      // 손짓의 밑바탕은 그 성별 대기 — 대기를 처음부터 다시 틀지 않는다(이어서 섞임)
+      if (next === GESTURE_BASE_MOTION) {
+        next = IDLE_MOTION[config.gender === "masculine" ? "masculine" : "feminine"];
+        timers.restartKey = null;
+      }
     }
     if (hitStep || attacking || (emoteStep && !emoteBlocked)) {
       // 점프·착지 판정은 계속 갱신한다(동작이 끝난 뒤 공중에 있으면 바로 점프 동작으로)

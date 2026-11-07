@@ -11,7 +11,7 @@
 import { getSfxGraph } from "@/audio/sound";
 
 export type VoiceGender = "feminine" | "masculine";
-export type VoiceKind = "greet" | "joy" | "move" | "threat" | "jump" | "hurt";
+export type VoiceKind = "greet" | "joy" | "move" | "threat" | "jump" | "hurt" | "sorry" | "thanks" | "ok";
 
 /** 맞출 크기(마스터 효과음 크기를 곱하기 전) */
 export const VOICE_TARGET_LUFS = -20.5;
@@ -43,10 +43,33 @@ const FILES: Readonly<Record<VoiceKind, Readonly<Record<VoiceGender, { url: stri
     feminine: { url: "/sfx/hurt_female_1_eu_a.mp3", lufs: -17.5 },
     masculine: { url: "/sfx/hurt_male_1_eu_a.mp3", lufs: -18.7 },
   },
+  // 미안해. · 고마워! · 알았어. — 인사 4~6 후보(미르가 손짓을 고르면 연결, 검토 16회차)
+  sorry: {
+    feminine: { url: "/sfx/voice_female_sorry.mp3", lufs: -16.4 },
+    masculine: { url: "/sfx/voice_male_sorry.mp3", lufs: -16.4 },
+  },
+  thanks: {
+    feminine: { url: "/sfx/voice_female_thanks.mp3", lufs: -16.4 },
+    masculine: { url: "/sfx/voice_male_thanks.mp3", lufs: -16.8 },
+  },
+  ok: {
+    feminine: { url: "/sfx/voice_female_ok.mp3", lufs: -17.0 },
+    masculine: { url: "/sfx/voice_male_ok.mp3", lufs: -19.0 },
+  },
 };
 
 /** 우선순위 — 높은 것이 같은 사람의 낮은 것을 끊는다 */
-const PRIORITY: Readonly<Record<VoiceKind, number>> = { greet: 1, joy: 1, move: 1, jump: 1, threat: 2, hurt: 3 };
+const PRIORITY: Readonly<Record<VoiceKind, number>> = {
+  greet: 1,
+  joy: 1,
+  move: 1,
+  jump: 1,
+  sorry: 1,
+  thanks: 1,
+  ok: 1,
+  threat: 2,
+  hurt: 3,
+};
 const MAX_AT_ONCE = 3;
 
 /** 맞출 크기까지의 배율 */

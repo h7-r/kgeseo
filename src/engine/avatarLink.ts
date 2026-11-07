@@ -46,6 +46,11 @@ export interface AvatarActionStep {
   speed?: number;
   /** 이 단계 동안 몸을 들어 올리는 높이(세계 유닛, 반원 꼴로 0 → 최고 → 0). 제자리 점프 클립은 몸이 뜨지 않는다 */
   lift?: number;
+  /**
+   * 이 단계 동안 덮어쓸 절차 손짓(naju01/src/avatar/gestures.ts 의 GESTURES 이름). 그때 motion 은 밑바탕 클립 —
+   * GESTURE_BASE_MOTION("@idle")이면 그 성별 대기
+   */
+  gesture?: string;
 }
 
 export interface AvatarLink extends PlayerMotionState {
