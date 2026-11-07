@@ -460,7 +460,16 @@ async function enter(bot) {
       if (!nearPerson(x, z, others, 0.7)) return { x, z };
     }
   })();
-  Object.assign(bot, { x: start.x, z: start.z, ry: between(-Math.PI, Math.PI), goalX: start.x, goalZ: start.z });
+  // 지난 방에서 받은 밀림은 버린다(다시 들어오면 새 자리 — Codex 리뷰 c43ccb2)
+  Object.assign(bot, {
+    x: start.x,
+    z: start.z,
+    ry: between(-Math.PI, Math.PI),
+    goalX: start.x,
+    goalZ: start.z,
+    pendingPushes: [],
+    push: null,
+  });
   const client = new Client(LOBBY, { headers: { Origin: ORIGIN, Authorization: `Bearer ${ticket}` } });
   let room;
   try {
@@ -486,6 +495,8 @@ async function enter(bot) {
   room.onLeave((code) => {
     if (bot.room !== room) return;
     bot.room = null;
+    bot.pendingPushes = [];
+    bot.push = null;
     if (stopping) return;
     log(bot, `방에서 나감(${code}) — 5초 뒤 다시 들어간다`);
     setTimeout(() => void enterWithRetry(bot), 5000);
@@ -560,14 +571,17 @@ function applyPush(bot, now, dt) {
   const moveZ = bot.push.z * share;
   bot.push.x *= decay;
   bot.push.z *= decay;
+  // 사람도 막는다 — 걸을 때와 같은 기준(이미 겹쳐 있으면 멀어지는 쪽만, Codex 리뷰 c43ccb2)
+  const others = othersOf(bot);
+  const canGo = (x, z) => isFree(x, z) && (clearance(x, z, others) >= 0 || clearance(x, z, others) >= clearance(bot.x, bot.z, others));
   const pieces = Math.max(1, Math.ceil(Math.hypot(moveX, moveZ) / PUSH_CHECK));
   for (let i = 0; i < pieces; i += 1) {
     if (bot.push.x !== 0) {
-      if (isFree(bot.x + moveX / pieces, bot.z)) bot.x += moveX / pieces;
+      if (canGo(bot.x + moveX / pieces, bot.z)) bot.x += moveX / pieces;
       else bot.push.x = 0;
     }
     if (bot.push.z !== 0) {
-      if (isFree(bot.x, bot.z + moveZ / pieces)) bot.z += moveZ / pieces;
+      if (canGo(bot.x, bot.z + moveZ / pieces)) bot.z += moveZ / pieces;
       else bot.push.z = 0;
     }
   }
