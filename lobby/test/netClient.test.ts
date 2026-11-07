@@ -14,6 +14,8 @@ import {
   type LobbyConnectionOptions,
   type LobbyRoomLike,
   type LobbyStatus,
+  REMOVED_CODE,
+  REPLACED_CODE,
   SERVER_SHUTDOWN_CODE,
 } from "../../src/net/colyseus.ts";
 import { buildConfig } from "../src/config.js";
@@ -81,8 +83,16 @@ class FakeRoom implements LobbyRoomLike {
     this.close(4000);
     return Promise.resolve(4000);
   }
-  onMessage() {
-    return () => undefined;
+  readonly handlers = new Map<string, (payload: never) => void>();
+  onMessage(type: string, callback: (payload: never) => void) {
+    this.handlers.set(type, callback);
+    return () => {
+      if (this.handlers.get(type) === callback) this.handlers.delete(type);
+    };
+  }
+  /** 서버가 이 방에 메시지를 보낸 것처럼 */
+  emit(type: string, payload: unknown) {
+    this.handlers.get(type)?.(payload as never);
   }
   close(code: number) {
     [...this.#leaveListeners].forEach((listener) => listener(code));
@@ -381,6 +391,48 @@ describe("연결 규칙(가짜 시계)", () => {
     assert.equal(calls.join, 1);
   });
 
+  for (const [code, reason] of [
+    [REPLACED_CODE, "REPLACED"],
+    [REMOVED_CODE, "REMOVED"],
+  ] as const) {
+    it(`${code}(${reason}) → 혼자 진행, 이번 방문 재시도 없음(다시 붙으면 서로 밀어내거나 또 끊긴다)`, async () => {
+      const { connection, calls, statuses, clock, rooms } = setup();
+      connection.enter();
+      await flush();
+      rooms[0]?.close(code);
+      assert.deepEqual(last(statuses), { kind: "solo", visit: 1, reason, nextRetryAt: null });
+      await clock.advance(300_000);
+      assert.equal(calls.join, 1);
+    });
+  }
+
+  it("채팅 — 다듬은 1~40자만 보내고, 방송·거절을 구독자에게 넘기며, 퇴장하면 끊는다", async () => {
+    const { connection, rooms } = setup();
+    assert.equal(connection.sendChat("안녕"), false, "연결 전에는 안 보낸다");
+    connection.enter();
+    await flush();
+    const room = rooms[0];
+    assert.ok(room);
+    assert.equal(connection.sendChat("  같이\t가요  "), true);
+    assert.deepEqual(room.sent.at(-1), ["chat", { text: "같이 가요" }]);
+    assert.equal(connection.sendChat("   "), false);
+    assert.equal(connection.sendChat("가".repeat(41)), false);
+    assert.equal(connection.sendChat("😀".repeat(40)), true, "이모지는 코드포인트로 센다");
+
+    const chats: unknown[] = [];
+    const rejected: unknown[] = [];
+    connection.onChat((event) => chats.push(event));
+    connection.onChatRejected((reason) => rejected.push(reason));
+    room.emit("chat", { sid: "x", pid: "p", nickname: "가", text: "하이" });
+    room.emit("chatRejected", { reason: "word" });
+    assert.deepEqual(chats, [{ sid: "x", pid: "p", nickname: "가", text: "하이" }]);
+    assert.deepEqual(rejected, ["word"]);
+
+    connection.exit();
+    room.emit("chat", { sid: "x", pid: "p", nickname: "가", text: "늦은 말" });
+    assert.equal(chats.length, 1, "나간 방의 메시지는 넘기지 않는다");
+  });
+
   it("붙었다 끊겼다를 되풀이해도 한 방문에서 두 번까지만 다시 시도한다", async () => {
     const { connection, calls, clock, rooms } = setup();
     connection.enter();
@@ -504,7 +556,10 @@ describe("실제 로비 서버 + 실제 SDK", () => {
       a.exit();
       await waitFor(() => !b.players().has(aId));
       assert.deepEqual(a.status(), { kind: "idle" });
-      await waitFor(() => (sdkRooms[0]?.teardowns ?? 0) > 0);
+      // a 의 방을 세션 ID 로 찾는다 — 둘이 동시에 들어가 sdkRooms 순서는 정해지지 않는다(전에는 [0] 이라 가끔 b 를 봤다)
+      const aRoom = sdkRooms.find((entry) => (entry.room as { sessionId?: string }).sessionId === aId);
+      assert.ok(aRoom);
+      await waitFor(() => aRoom.teardowns > 0);
 
       // 운영 중단(서버 정상 종료) → 남은 사람은 혼자 진행, 이번 방문 재시도 없음
       await lobby.shutdown();

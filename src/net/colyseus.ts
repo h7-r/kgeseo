@@ -10,11 +10,14 @@
 //   「혼자 둘러보는 중」, 첫 실패 기준 +30초·+60초에 다시 시도. Retry-After 가 안 끝난 시도는 건너뛴다.
 //   시도마다 새 티켓을 받는다. 「최대 두 번」은 방문당 상한이다(🟡) — 붙었다 끊겼다를 되풀이해도 늘지 않는다.
 // - 인증 거절(401·403·ORIGIN_NOT_ALLOWED·TICKET_INVALID·AUTH_MISSING)·방 상한(LOBBY_FULL)·
-//   운영 중단(서버 정상 종료 4001 — systemctl stop 등): 이번 방문의 재시도를 끝낸다.
+//   운영 중단(서버 정상 종료 4001 — systemctl stop 등)·같은 계정 다른 곳 접속(4100)·명단에서 빠짐(4101):
+//   이번 방문의 재시도를 끝낸다.
 // - 티켓은 메모리에만 두고 매칭 HTTP 의 Authorization 헤더로만 보낸다. SDK 의 client.auth.token 은
 //   티켓을 WebSocket 주소(_authToken)에 복사하므로 쓰지 않는다(로비 서버도 그런 연결을 거절한다).
 // - SDK 의 자동 재접속은 끈다 — 같은 방 20초 복귀는 이번 베타 범위 밖이다(서버도 reconnect 경로를 닫았다).
 import { Client } from "@colyseus/sdk";
+
+import { CHAT_MAX_CHARS, chatLength, normalizeChatText } from "./chatText";
 
 export const LOBBY_ROOM_NAME = "lobby";
 export const TICKET_PATH = "/api/v1/lobby/ticket";
@@ -51,6 +54,8 @@ export interface LobbyLook {
 /** 방 상태의 한 사람(서버 lobby/src/state.ts 의 Player) */
 export interface RemotePlayerView {
   nickname: string;
+  /** 숨기기용 가명 ID — 같은 계정이면 다시 들어와도 같다. 인증·권한 판정에 쓰지 않는다 */
+  pid: string;
   /** 검사한 외형 JSON. "" 이면 받는 쪽이 기본 외형으로 그린다 */
   look: string;
   placed: boolean;
@@ -71,7 +76,9 @@ export type LobbyFailure =
   | "LOBBY_STOPPED" // 로비 운영 중단(서버 정상 종료 4001) — 이번 방문 재시도 끝(4절 표)
   | "LOBBY_FULL"
   | "REJECTED" // 로비 인증 거절(되풀이해도 안 되는 것)
-  | "RETRYABLE_REJECT"; // TICKET_USED 등 — 새 티켓으로 다시 시도
+  | "RETRYABLE_REJECT" // TICKET_USED 등 — 새 티켓으로 다시 시도
+  | "REPLACED" // 같은 계정이 다른 곳에서 들어와 이 연결이 끊김(4100) — 재시도하면 서로 밀어낸다
+  | "REMOVED"; // 베타 명단에서 빠져 끊김(4101)
 
 export type LobbyStatus =
   | { kind: "idle" }
@@ -84,6 +91,17 @@ export interface GreetEvent {
   sid: string;
   id: number;
 }
+
+/** 채팅 방송 — 서버가 다듬어 확정한 글과 보낸 사람의 이름·가명 ID(방 상태보다 먼저 닿아도 이름을 안다) */
+export interface ChatEvent {
+  sid: string;
+  pid: string;
+  nickname: string;
+  text: string;
+}
+
+/** 내 채팅이 거절된 까닭(보낸 사람에게만 온다) */
+export type ChatRejectReason = "rate" | "length" | "repeat" | "contact" | "word";
 
 /** 때리기 방송 — 보낸 사람(sid)·주먹(jab·cross)·서버가 맞았다고 본 사람(hit, 없으면 헛손질) */
 export interface PunchEvent {
@@ -107,6 +125,9 @@ export interface LobbyRoomLike {
 
 /** 서버 정상 종료(@colyseus/shared-types CloseCode.SERVER_SHUTDOWN) — 운영 중단으로 본다 */
 export const SERVER_SHUTDOWN_CODE = 4001;
+/** 같은 계정 새 접속에 밀려남 · 명단에서 빠짐(lobby/src/accounts.ts) — 둘 다 이번 방문 재시도 없음 */
+export const REPLACED_CODE = 4100;
+export const REMOVED_CODE = 4101;
 /** 인사 번호 개수(1~3) — 로비 서버 GREET_IDS 와 같아야 한다 */
 export const GREET_COUNT = 3;
 
@@ -182,6 +203,8 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
   const statusListeners = new Set<(status: LobbyStatus) => void>();
   const greetListeners = new Set<(event: GreetEvent) => void>();
   const punchListeners = new Set<(event: PunchEvent) => void>();
+  const chatListeners = new Set<(event: ChatEvent) => void>();
+  const chatRejectedListeners = new Set<(reason: ChatRejectReason) => void>();
 
   const setStatus = (next: LobbyStatus) => {
     status = next;
@@ -254,17 +277,33 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
     const unbindPunch = joined.onMessage("punch", ((payload: PunchEvent) => {
       if (room === joined) punchListeners.forEach((listener) => listener(payload));
     }) as (payload: never) => void);
+    const unbindChat = joined.onMessage("chat", ((payload: ChatEvent) => {
+      if (room === joined) chatListeners.forEach((listener) => listener(payload));
+    }) as (payload: never) => void);
+    const unbindChatRejected = joined.onMessage("chatRejected", ((payload: { reason?: ChatRejectReason }) => {
+      if (room === joined && payload?.reason) chatRejectedListeners.forEach((listener) => listener(payload.reason!));
+    }) as (payload: never) => void);
     const handleLeave = (code: number) => {
       // 우리가 정리한 방이면(room 이 이미 바뀜) 아무것도 안 한다
       if (room !== joined || visit !== myVisit) return;
       room = null;
       unsubscribeRoom = null;
-      fail(myVisit, new AttemptFailure(code === SERVER_SHUTDOWN_CODE ? "LOBBY_STOPPED" : "DISCONNECTED"));
+      const reason: LobbyFailure =
+        code === SERVER_SHUTDOWN_CODE
+          ? "LOBBY_STOPPED"
+          : code === REPLACED_CODE
+            ? "REPLACED"
+            : code === REMOVED_CODE
+              ? "REMOVED"
+              : "DISCONNECTED";
+      fail(myVisit, new AttemptFailure(reason));
     };
     joined.onLeave(handleLeave);
     unsubscribeRoom = () => {
       if (typeof unbindGreet === "function") unbindGreet();
       if (typeof unbindPunch === "function") unbindPunch();
+      if (typeof unbindChat === "function") unbindChat();
+      if (typeof unbindChatRejected === "function") unbindChatRejected();
       joined.onLeave.remove?.(handleLeave);
     };
     setStatus({ kind: "connected", visit: myVisit, sessionId: joined.sessionId });
@@ -377,6 +416,18 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
       room.send("punch", target ? { motion, target } : { motion });
       return true;
     },
+    /**
+     * 채팅 — 다듬어서 1~40자일 때만 보낸다(서버가 빈도·반복·연락처·금칙어를 다시 본다). 보낸 글은 서버가 방송한 것을 받아
+     * 화면에 띄운다(거절되면 chatRejected 만 온다).
+     */
+    sendChat(raw: string) {
+      if (!room) return false;
+      const text = normalizeChatText(raw);
+      const length = chatLength(text);
+      if (length < 1 || length > CHAT_MAX_CHARS) return false;
+      room.send("chat", { text });
+      return true;
+    },
     /** 같은 방 사람들(나 포함). 연결 전이면 비어 있다 */
     players(): ReadonlyMap<string, RemotePlayerView> {
       const state = room?.state as { players?: ReadonlyMap<string, RemotePlayerView> } | undefined;
@@ -401,12 +452,26 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
         punchListeners.delete(listener);
       };
     },
+    onChat(listener: (event: ChatEvent) => void) {
+      chatListeners.add(listener);
+      return () => {
+        chatListeners.delete(listener);
+      };
+    },
+    onChatRejected(listener: (reason: ChatRejectReason) => void) {
+      chatRejectedListeners.add(listener);
+      return () => {
+        chatRejectedListeners.delete(listener);
+      };
+    },
     /** 화면이 사라질 때. 퇴장하고 구독을 모두 끊는다 */
     dispose() {
       connection.exit();
       statusListeners.clear();
       greetListeners.clear();
       punchListeners.clear();
+      chatListeners.clear();
+      chatRejectedListeners.clear();
     },
   };
   return connection;
