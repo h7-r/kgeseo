@@ -11,6 +11,7 @@ export type { AvatarLink as AvatarPlayerLink } from "@/engine/avatarLink";
 export {
   continueLoadingVideoAt,
   showLoadingVideo,
+  useLoadingVideoState,
   type LoadingVideoKind,
   type LoadingVideoOptions,
 } from "../../naju01/src/transition/loadingVideo";

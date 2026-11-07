@@ -19,6 +19,7 @@ import { MeasuredItem } from "@/lobby/ItemPlacement";
 import { aimStore, useInteractable } from "@/lobby/interactions";
 import { getLockControl } from "@/props/combinationLockState";
 import { useIsCutscenePlaying } from "@/props/vendingPushState";
+import { useLoadingVideoState } from "@/naju";
 import { NAJU_ENTER_EVENT } from "@/station/najuEnter";
 import {
   HEADQUARTERS_MAX_X,
@@ -29,6 +30,8 @@ import {
 
 import { autoStartMusic, closeMusic, musicStore, openMusic, SPEAKER_AIM_ID } from "./musicState";
 
+/** 로딩 막(오프닝 영상)이 걷힌 뒤 이만큼 더 기다렸다 자동 재생 — 막의 곡이 1.4초에 걸쳐 줄어드는 것과 겹치지 않게 */
+const AFTER_CURTAIN_MS = 900;
 /** 본부실 벽 안(경계에서 이만큼 들어와야) — 로비 입장 판정(LobbyPreviewRig)과 같은 여유 */
 const ENTRY_MARGIN = 0.5;
 const insideHeadquarters = (x: number, z: number) =>
@@ -135,10 +138,26 @@ interface Note {
 
 export default function LobbySpeaker() {
   const cutscene = useIsCutscenePlaying();
-  const gate = useRef({ cutscene, naju: false, hidden: false, blocked: false });
+  // 로딩 막 — 웹사이트에서 본부실 저장 지점으로 이어 들어오면 오프닝 영상 막(z 100000)이 게임을 덮는다. 막 아래의
+  // 플레이어는 가려진 것이라 틀면 안 된다(Codex 리뷰). 막이 걷힌 뒤 조금 더 기다려 자동 재생한다.
+  const curtain = useLoadingVideoState() !== null;
+  const gate = useRef({
+    cutscene,
+    curtain,
+    autoAfter: curtain ? Infinity : 0,
+    naju: false,
+    hidden: false,
+    blocked: false,
+  });
   useEffect(() => {
     gate.current.cutscene = cutscene;
   }, [cutscene]);
+  useEffect(() => {
+    const g = gate.current;
+    g.curtain = curtain;
+    if (curtain) g.autoAfter = Infinity;
+    else if (g.autoAfter === Infinity) g.autoAfter = performance.now() + AFTER_CURTAIN_MS;
+  }, [curtain]);
 
   const rootRef = useRef<THREE.Group>(null);
   const bodyRef = useRef<THREE.Group>(null);
@@ -210,12 +229,18 @@ export default function LobbySpeaker() {
   useFrame(({ clock }, delta) => {
     const g = gate.current;
     g.hidden = window.location.pathname === TRAIN_PATH || g.naju;
-    g.blocked = g.cutscene || overlayLayer.get() !== null || getLockControl() !== null;
+    g.blocked = g.cutscene || g.curtain || overlayLayer.get() !== null || getLockControl() !== null;
     if (rootRef.current) rootRef.current.visible = !g.hidden;
     const music = musicStore.get();
     if ((g.hidden || g.blocked) && music.mode !== "closed") closeMusic("system");
-    // 본부실에 처음 들어서면 미니로 자동 재생(이번 방문 한 번 · 직접 끈 적 없을 때) — 컷신 · 창이 떠 있으면 기다린다
-    else if (!g.hidden && !g.blocked && playerView.ready && insideHeadquarters(playerView.eye.x, playerView.eye.z))
+    // 본부실에 처음 들어서면 미니로 자동 재생(이번 방문 한 번 · 직접 끈 적 없을 때) — 컷신 · 창 · 로딩 막이 있으면 기다린다
+    else if (
+      !g.hidden &&
+      !g.blocked &&
+      performance.now() >= g.autoAfter &&
+      playerView.ready &&
+      insideHeadquarters(playerView.eye.x, playerView.eye.z)
+    )
       autoStartMusic();
 
     // 연출 — 재생 중이면 0 → 1 로 스며들고, 멈추면 빠진다
