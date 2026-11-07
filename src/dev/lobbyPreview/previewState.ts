@@ -152,9 +152,12 @@ export function notePunch(motion: "jab" | "cross", isBlocked: () => boolean) {
       target = sid;
       nearest = distance;
     }
+    lastPunchSent = { target, facing: +facing.toFixed(2), at: new Date().toISOString().slice(11, 23) };
     connection.sendPunch(motion, target);
   });
 }
+/** 개발 훅용 — 마지막으로 보낸 주먹의 상대(내 화면 판단) */
+let lastPunchSent: { target: string | null; facing: number; at: string } | null = null;
 
 // --- 화면이 구독하는 작은 상태(로그인 · 연결 상태) ---
 interface PreviewState {
@@ -237,6 +240,8 @@ exposeDevHook("lobbyPreview", {
   pose: () => ({ ...localPose }),
   /** 최근 받은 인사·주먹 */
   events: () => [...recentEvents],
+  /** 마지막으로 보낸 주먹의 상대(내 화면 판단) — 서버 판정과 비교용 */
+  lastPunch: () => lastPunchSent,
   /** 내 아바타 상자를 잡았나(App 대역) */
   hasLocalPlayer: () => localPlayer() !== null,
 });
