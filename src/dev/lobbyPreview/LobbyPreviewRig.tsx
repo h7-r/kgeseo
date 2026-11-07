@@ -46,7 +46,9 @@ export default function LobbyPreviewRig() {
   const lastRef = useRef<{ x: number; z: number } | null>(null);
   /** 본편 펀치 회차 — 바뀌면 내가 주먹을 낸 것 */
   const lastAttackRef = useRef<number | null>(null);
-  const lastJumpingRef = useRef(false);
+  // 이번 점프에 「헛!」 을 냈나 · 지난 프레임 발 높이
+  const jumpVoicedRef = useRef(false);
+  const lastFootYRef = useRef(0);
 
   useEffect(() => {
     cutsceneRef.current = cutscene;
@@ -91,10 +93,16 @@ export default function LobbyPreviewRig() {
       }
     }
     lastAttackRef.current = attack;
-    // 내 점프 — 뛰어오르는 프레임(jumping 이 켜질 때)에 「헛!」(검토 15회차: 실제 이륙 때만)
+    // 내 점프 — 발이 실제로 올라가기 시작한 프레임에 「헛!」 한 번(검토 15회차: 실제 이륙 때만).
+    // jumping 만 보면 안 된다 — 조작이 꺼져 있어도(마우스 잠금 전) Space 가 jumping 을 켜지만 몸은 안 뜬다(Codex 리뷰)
     const jumping = !!me?.jumping;
-    if (jumping && !lastJumpingRef.current && !isPunchBlocked()) noteMyJump(JUMP_VOICE_EVERY_MS);
-    lastJumpingRef.current = jumping;
+    const footY = me?.footY ?? 0;
+    if (!jumping) jumpVoicedRef.current = false;
+    else if (!jumpVoicedRef.current && footY > lastFootYRef.current + 0.005 && !isPunchBlocked()) {
+      jumpVoicedRef.current = true;
+      noteMyJump(JUMP_VOICE_EVERY_MS);
+    }
+    lastFootYRef.current = footY;
     if (inTrain || najuRef.current) {
       if (connected) connection.exit();
       return;
