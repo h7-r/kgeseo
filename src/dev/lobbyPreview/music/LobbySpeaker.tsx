@@ -3,8 +3,9 @@
 // 카세트 · 손잡이 · 안테나로 한눈에 음악 물건이게, 꺼져 있을 땐 위에 ♪ 표지가 둥실 떠 방 건너편에서도 보이게.
 // 게임의 겨냥 장치(useInteractable)에 등록해 빛남 · 팔 뻗기 · [E] 가 다른 물건과 똑같이 동작한다. 1인칭에선 클릭도(주먹이 없다).
 // 집을 수 없고, 놓을 자리 검사에 차지한 칸으로 등록한다(위에 노트북을 내려놓지 못하게).
-// 재생 중(유튜브 PLAYING)에만 콘이 박자처럼 들썩이고 음표가 피어오른다 — 교차 출처라 소리를 분석할 수 없어 가짜 박자다.
-// 각자 듣기라 다른 사람 화면의 스피커는 가만히 있다. 기차 · 나주에선 숨기고, 컷신 · 게임 창 · 자물쇠 중엔 끈다.
+// 재생 중에만 콘이 박자처럼 들썩이고 음표가 피어오른다(가짜 박자). [E] · 클릭은 켜기 / 끄기(검토 21회차).
+// 각자 듣기라 다른 사람 화면의 스피커는 가만히 있다. 기차 · 나주에선 숨기고 음악을 끈다. 컷신 · 로딩 막 동안은 잠깐
+// 멈췄다 이어 듣고, 게임 창(설정 포함) · 자물쇠 중엔 계속 튼다 — 설정에서 배경음악 볼륨을 바꾸며 들어 볼 수 있게.
 import { Outlines, RoundedBox } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type RefObject } from "react";
@@ -28,7 +29,7 @@ import {
   HEADQUARTERS_MIN_Z,
 } from "@/station/layout/dimensions";
 
-import { autoStartMusic, closeMusic, musicStore, openMusic, SPEAKER_AIM_ID } from "./musicState";
+import { autoStartMusic, musicStore, setMusicPaused, SPEAKER_AIM_ID, stopMusic, toggleMusic } from "./musicState";
 
 /** 로딩 막(오프닝 영상)이 걷힌 뒤 이만큼 더 기다렸다 자동 재생 — 막의 곡이 1.4초에 걸쳐 줄어드는 것과 겹치지 않게 */
 const AFTER_CURTAIN_MS = 900;
@@ -199,10 +200,10 @@ export default function LobbySpeaker() {
   );
 
   useInteractable(SPEAKER_AIM_ID, {
-    label: () => (musicStore.get().mode === "closed" ? "[E] 음악 틀기" : "[E] 음악 화면"),
+    label: () => (musicStore.get().on ? "[E] 음악 끄기" : "[E] 음악 틀기"),
     position: center,
     radius: 0.75,
-    run: openMusic,
+    run: toggleMusic,
     disabled: () => gate.current.hidden || gate.current.blocked,
   });
 
@@ -216,7 +217,7 @@ export default function LobbySpeaker() {
       if (event.button !== 0 || aimStore.get() !== SPEAKER_AIM_ID || playerView.isThirdPerson) return;
       if (gate.current.hidden || gate.current.blocked) return;
       if (!document.pointerLockElement && !(event.target instanceof HTMLCanvasElement)) return;
-      openMusic();
+      toggleMusic();
     };
     window.addEventListener(NAJU_ENTER_EVENT, onNaju);
     window.addEventListener("pointerdown", onPointerDown);
@@ -232,8 +233,11 @@ export default function LobbySpeaker() {
     g.blocked = g.cutscene || g.curtain || overlayLayer.get() !== null || getLockControl() !== null;
     if (rootRef.current) rootRef.current.visible = !g.hidden;
     const music = musicStore.get();
-    if ((g.hidden || g.blocked) && music.mode !== "closed") closeMusic("system");
-    // 본부실에 처음 들어서면 미니로 자동 재생(이번 방문 한 번 · 직접 끈 적 없을 때) — 컷신 · 창 · 로딩 막이 있으면 기다린다
+    // 본부실을 떠나면(기차 · 나주) 끈다. 컷신 · 로딩 막은 잠깐 멈춤(풀리면 이어 듣기). 게임 창 · 자물쇠 중엔 계속 튼다
+    setMusicPaused("cutscene", g.cutscene);
+    setMusicPaused("curtain", g.curtain);
+    if (g.hidden && music.on) stopMusic("system");
+    // 본부실에 처음 들어서면 자동 재생(이번 방문 한 번 · 직접 끈 적 없을 때) — 컷신 · 창 · 로딩 막이 있으면 기다린다
     else if (
       !g.hidden &&
       !g.blocked &&
