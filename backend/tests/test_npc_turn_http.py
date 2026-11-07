@@ -582,8 +582,11 @@ def test_auto_turn_with_situation_is_accepted(
     )
 
     assert response.status_code == 200
-    # 퍼즐 자동 개입 조건이 없으니 말하지 않는다(대사 없음은 오류가 아니다, §5).
-    assert response.json()["reply"] is None
+    # 이 묶음에는 situations[]가 없어 QUIET(general_nudges에서 고름) 밖의 코드는 말하지 않는다
+    # (대사 없음은 오류가 아니다, §5). 선택 · 쿨다운은 test_npc_situation_turn이 확인한다.
+    expected = "NUDGE_GENERAL_01" if code == "QUIET" else None
+    reply = response.json()["reply"]
+    assert (reply or {}).get("line_id") == expected
     assert response.json()["suggest_hint"] is None
     event = stored(db_session)
     assert event.payload_json["situation"] == {

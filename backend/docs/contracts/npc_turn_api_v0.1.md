@@ -24,7 +24,21 @@
   `NO_PROGRESS` · `STEP_ARRIVED` · `STEP_DONE` · `QUIET` 외에는 422. `zone_id` 는 선택(1~64자),
   `value` 는 선택 숫자(문자열 · 불리언 422). `situation` 안에도 모르는 필드는 422.
 - 같은 `client_event_id` 재전송은 `situation` 까지 같아야 처음 응답을 돌려준다. 다르면 409(기존 재전송 충돌과 같음).
-- 상황 대사 고르기 · 쿨다운은 아직 없다. 지금은 `situation` 이 실린 auto 턴도 기존 퍼즐 자동 개입 판단만 한다.
+- 상황 대사(`app.services.npc_situation`, 계약 v0.4.16 §4 · §5 · §8 · §9 · §10):
+  - 퍼즐 자동 개입을 먼저 계산한다. 대사나 힌트 안내를 냈으면 그대로 응답하고 상황 대사는 고르지 않는다(퍼즐 우선).
+  - 코드(QUIET 제외): 게시 `npc.json` `situations[]`의 같은 코드 대사. 요청 `focus_object_id`와 같은 Object 대사 →
+    없으면 Object 조건 없는 대사. 다른 Object 대사는 고르지 않는다.
+  - QUIET: `general_nudges` 중 `reveal_when`이 공개된 대사. `situation.zone_id`와 같은 구역 → 없으면 구역 조건 없는 대사.
+  - 같은 코드로 마지막에 낸 대사의 다음 대사(돌아가며, 후보가 둘 이상이면 직전 대사를 피함).
+  - 승인은 고정 묶음의 G1~G3 승인 이력으로만 본다. 승인이 없으면 `reply: null`.
+  - 응답: `reply.source="approved_line"`, `suggest_hint: null`. 쿨다운 중 · 대사 없음은 `reply: null`(오류 아님).
+  - 쿨다운 · 횟수: 이 세션에 실제로 응답한 상황 대사(`npc_turn` 이벤트 `situation_replied`)의 저장 시각으로 센다.
+    전체 간격 20초 · `(code, focus_object_id)` 콘텐츠 `cooldown_seconds`(없으면 60초) · QUIET 180초 · 세션당 5회 ·
+    QUIET은 퍼즐 자동 개입 쿨다운(표시 뒤 · 거절 뒤)이나 다른 상황 코드 쿨다운 중에는 말하지 않는다.
+    DB 이벤트로 세므로 서버 재시작 · 이어하기 뒤에도 유지된다.
+  - 동시 요청: 상황 턴은 세션 행 `FOR UPDATE`로 시작해 같은 세션의 상황 턴을 직렬화한다.
+  - 기록(response_json): `situation_code` · `situation_replied` · `situation_reason`(말하지 않은 이유). 대사 원문 없음.
+    상황 대사 응답은 `auto_intervened=false`(퍼즐 자동 개입 횟수 · 쿨다운과 따로 센다).
 
 ## 응답 (200, 감싸지 않은 객체)
 

@@ -138,5 +138,10 @@ class NpcTurnEventRecord(BaseModel):
     # 자동 개입 제안을 응답했는가. 횟수 · 쿨다운은 표시 보고(npc_suggestion_shown)로만 센다(PM v0.4.7).
     auto_intervened: bool = False
     auto_intervene: NpcAutoInterveneRecord | None = None
+    # 계약 v0.4.16 §5: 요청의 상황 코드. 상황 대사로 답했으면 situation_replied(쿨다운 · 횟수는 이것으로 센다).
+    # situation_reason은 말하지 않은 이유(쿨다운 · 대사 없음 · 퍼즐 우선). 대사 원문은 남기지 않는다.
+    situation_code: NpcSituationCode | None = None
+    situation_replied: bool = False
+    situation_reason: str | None = None
     # NPC는 게임 상태를 바꾸지 않는다.
     state_changes: list[dict[str, object]] = Field(default_factory=list, max_length=0)

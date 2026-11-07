@@ -222,6 +222,15 @@ class PinnedContent:
                         puzzle_id=puzzle_id,
                         reveal_when=nudge.reveal_when,
                     )
+            # 상황 대사(계약 v0.4.16 §4)도 같은 G1~G3 승인으로만 쓴다. 공개 조건이 없어 넛지 경로에서는 쓰지 않는다.
+            for line in pack.situation_lines():
+                if line.line_id == line_id:
+                    return ApprovedNpcLine(
+                        line_id=line.line_id,
+                        kind="situation",
+                        text=line.text,
+                        approved=self.is_approved(approval_source),
+                    )
             return None
 
         return self._tag(source)
