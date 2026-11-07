@@ -109,14 +109,14 @@ const checkMarkStyle: CSSProperties = {
   position: "absolute",
   top: 6,
   right: 6,
-  width: 20,
-  height: 20,
+  width: 22,
+  height: 22,
   borderRadius: 999,
   display: "grid",
   placeItems: "center",
   background: "#FFFFFF",
   color: "#0A0B0D",
-  font: "800 11px/1 sans-serif",
+  font: "800 13px/1 sans-serif",
 };
 
 interface CatalogItemCardProps {

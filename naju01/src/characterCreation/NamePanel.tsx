@@ -15,7 +15,8 @@ const NAME_STATUS_COLORS: Partial<Record<NameStatusKind, string>> = {
 };
 
 const nameInputStyle: CSSProperties = {
-  flex: "1 1 auto",
+  // 좁으면(휴대폰 가로 + 노치) 중복확인 단추가 아래 줄로 내려간다
+  flex: "1 1 150px",
   minWidth: 0,
   boxSizing: "border-box",
   padding: "15px 18px",
@@ -83,7 +84,7 @@ export default function NamePanel({
   return (
     <>
       <SettingGroup title="조사관 이름" aside={`${characterCount} / ${rules.max}자`}>
-        <div style={{ display: "flex", gap: SPACING.s }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: SPACING.s }}>
           <input
             ref={inputRef}
             id={inputId}
@@ -110,6 +111,8 @@ export default function NamePanel({
             style={{
               ...tileStyle,
               padding: "0 22px",
+              minHeight: 48,
+              flex: "0 0 auto",
               font: `700 14px/1 ${FONTS.body}`,
               color: COLORS.text,
             }}

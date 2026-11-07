@@ -5,6 +5,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { startLoop, stopLoop } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
 import { cameraOwner, DEFAULT_FOV, FRAME_PRIORITY, MAX_FRAME_DELTA } from "@/engine/camera";
+import { getTouchMove, touchSpeedMultiplier } from "@/engine/input/touchInput";
 import { smoothstep } from "@/engine/math";
 import { playerView, takeViewHandover } from "@/engine/playerView";
 
@@ -152,6 +153,8 @@ export function useMovement(
     run: false,
     crouchToggle: false,
   });
+  /** 터치 스틱을 끝까지 밀어 달리는 중 — Shift(k.run)와 같이 본다 */
+  const isTouchRunning = useRef(false);
 
   // 카메라를 실제로 세운 눈 높이. 「앉았나」 로 고르면 조작이 꺼진 동안 C 만 눌렸을 때 캐릭터가 떠오르고,
   // 선 키를 빼면 앉는 순간 바닥 아래로 꺼진다. 카메라를 움직이는 곳에서만 갱신해 둘이 어긋나지 않게 한다.
@@ -357,7 +360,7 @@ export function useMovement(
       // 아바타가 걷기 모션 재생 속도를 실제 이동 속도에 맞춘다.
       state.speed = Math.hypot(velocity.current.x, velocity.current.z);
       state.moving = state.speed > 0.001;
-      state.running = keys.current.run;
+      state.running = keys.current.run || isTouchRunning.current;
     }
     state.crouching = keys.current.crouchToggle;
     state.grounded = isGrounded.current;
@@ -385,11 +388,27 @@ export function useMovement(
       setKey(event.code, true);
     };
     const handleKeyUp = (event: KeyboardEvent) => setKey(event.code, false);
+    // 창을 벗어나거나 숨기면 keyup 을 못 받아 키가 눌린 채 남는다 — 나주 이동과 같게 비운다(앉기 토글은 둔다)
+    const releaseAll = () => {
+      const k = keys.current;
+      k.forward = false;
+      k.back = false;
+      k.left = false;
+      k.right = false;
+      k.run = false;
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") releaseAll();
+    };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", releaseAll);
+    document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", releaseAll);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
 
@@ -518,12 +537,32 @@ export function useMovement(
     if (k.back) wish.sub(forward);
     if (k.right) wish.add(right);
     if (k.left) wish.sub(right);
+    // 키가 없으면 터치 스틱 — 방향은 정규화하되 세기는 반응 곡선으로 따로 둔다(touchInput)
+    let touchMultiplier: number | null = null;
+    /** 터치 걷기 세기(0~1) — 앉기 속도에도 곱한다. 키보드면 1 */
+    let touchWalk = 1;
+    isTouchRunning.current = false;
+    const runMultiplier = isThirdPerson ? RUN_SPEED_MULTIPLIER : firstPersonSpeed.runMultiplier;
+    if (wish.lengthSq() === 0) {
+      const touch = getTouchMove();
+      if (touch.walk > 0) {
+        wish.addScaledVector(forward, touch.y).addScaledVector(right, touch.x);
+        touchMultiplier = touchSpeedMultiplier(touch, runMultiplier);
+        touchWalk = touch.walk;
+        isTouchRunning.current = touch.isRunning;
+      }
+    }
     if (wish.lengthSq() > 0) wish.normalize();
     if (wish.lengthSq() > 0.00001) bodyYaw.current = Math.atan2(wish.x, wish.z);
     const isCrouching = k.crouchToggle;
     const speedScale = isThirdPerson ? thirdPersonSpeed.scale : (firstPersonSpeedScale ?? firstPersonSpeed.scale);
-    const runMultiplier = isThirdPerson ? RUN_SPEED_MULTIPLIER : firstPersonSpeed.runMultiplier;
-    const speed = WALK_SPEED * (isCrouching ? CROUCH_SPEED_MULTIPLIER : k.run ? runMultiplier : 1) * speedScale;
+    const isRunInput = k.run || isTouchRunning.current;
+    const speed =
+      WALK_SPEED *
+      (isCrouching
+        ? CROUCH_SPEED_MULTIPLIER * touchWalk // 앉아도 스틱 세기를 따른다
+        : (touchMultiplier ?? (k.run ? runMultiplier : 1))) *
+      speedScale;
     const target = wish.multiplyScalar(speed);
     if (movementDebug.enabled) {
       movementDebug.commandedSpeed = speed;
@@ -626,7 +665,7 @@ export function useMovement(
       p.y = ny;
     }
 
-    const isRunning = active && k.run && !isCrouching && isGrounded.current && target.lengthSq() > 1e-6;
+    const isRunning = active && isRunInput && !isCrouching && isGrounded.current && target.lengthSq() > 1e-6;
     if (isRunning) startLoop("run", { volume: 0.55 });
     else stopLoop("run");
 

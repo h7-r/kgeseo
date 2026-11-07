@@ -10,6 +10,8 @@
  */
 import { useSyncExternalStore } from "react";
 
+import { gameClearTimeout, gameSetTimeout } from "@/engine/input/gameClock";
+
 import { ASSET_BASE, setAssetVersionPath } from "../../../shared/env.ts";
 import { createCompanionDialog } from "./companionDialog.ts";
 import { createCompanionSession, type CompanionSessionConfig, type KeyValueStore } from "./companionSession.ts";
@@ -79,7 +81,12 @@ export const companionSession = createCompanionSession({
   onAssetBasePath: applyAssetBasePath,
 });
 
-export const companionDialog = createCompanionDialog({ session: companionSession, log });
+// 자막이 사라지는 시간은 게임 시계로 — 터치 모드에서 멈춘 동안 자막이 지워지지 않게
+export const companionDialog = createCompanionDialog({
+  session: companionSession,
+  log,
+  timers: { set: gameSetTimeout, clear: gameClearTimeout },
+});
 
 let started: Promise<unknown> | null = null;
 

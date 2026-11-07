@@ -8,6 +8,7 @@ import { restoreServerSession } from "@/services/session";
 import App from "./App";
 
 import "@/styles/index.css";
+import "@/mobile/mobile.css";
 
 startBackgroundLoading();
 void restoreServerSession();

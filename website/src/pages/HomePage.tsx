@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import DividerArc from "@/components/DividerArc";
 import Stage from "@/components/Stage";
 import Footer from "@/layout/Footer";
+import { useIsMobileLayout } from "@/mobile/layoutMode";
+import MobileHomePage from "@/mobile/MobileHomePage";
 import { SHIFT_BOX_ATTR, useStageScale } from "@/lib/layout";
 import AngamRock from "@/sections/home/AngamRock";
 import BackgroundDecor, { CenterGlow, LargeGlow } from "@/sections/home/BackgroundDecor";
@@ -22,8 +24,12 @@ import QuickSignup from "@/sections/home/QuickSignup";
 import RegionSelect from "@/sections/home/RegionSelect";
 import ScenarioCards from "@/sections/home/ScenarioCards";
 
-/** 메인 랜딩. */
+/** 메인 랜딩. 모바일은 따로 그린다 — 무대 배율 · 핀 스크롤 훅이 모바일에서 돌지 않게 진입에서만 가른다. */
 export default function HomePage() {
+  return useIsMobileLayout() ? <MobileHomePage /> : <DesktopHomePage />;
+}
+
+function DesktopHomePage() {
   const scale = useStageScale();
 
   return (

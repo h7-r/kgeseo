@@ -1,6 +1,7 @@
 // NAJU-01 그레이박스를 단독으로 띄우는 엔트리. 본편 main 과 같은 구조이고 라우터만 없다.
 import { createRoot } from "react-dom/client";
 
+import { LandscapeGuard } from "@/engine/input";
 import { initGameSave } from "@/save/gameSave";
 
 import { registerNajuSave } from "./save/najuSaveData";
@@ -27,6 +28,8 @@ void (IS_REVIEW_REQUESTED ? Promise.resolve() : initGameSave()).finally(() => {
       <>
         <App />
         <LoadingVideoOverlay />
+        {/* 휴대폰 세로면 무엇보다 위에서 「가로로 돌려 주세요」(본편 main 과 같다) */}
+        <LandscapeGuard />
       </>
     ),
   );

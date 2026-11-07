@@ -7,6 +7,7 @@
  * 씬2 솟대 0·1 번은 그 자리에서 숨기고 여기서 다시 그린다(회전·깨짐을 보여야 해서). 편집으로 옮기면 따라간다.
  * 좌표는 미터, 그리는 것은 유닛(M 배).
  */
+import { gameNow } from "@/engine/input/gameClock";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -333,7 +334,7 @@ function startThrow(birds: Birds, camera: THREE.Camera, from: THREE.Vector3) {
   birds.throwing = {
     from: from.clone(),
     to: new THREE.Vector3(x * M, floorAt(x, z) * M, z * M),
-    startedAt: performance.now() / 1000,
+    startedAt: gameNow() / 1000,
   };
   birds.flyingKey.visible = true;
   showNotice("열쇠를 문 새가 고개를 숙인다 — 무언가 떨어진다!", 3);
@@ -342,7 +343,7 @@ function startThrow(birds: Birds, camera: THREE.Camera, from: THREE.Vector3) {
 function updateThrow(birds: Birds, time: number) {
   const throwing = birds.throwing;
   if (!throwing || birds.isThrown) return;
-  const u = Math.min(1, (performance.now() / 1000 - throwing.startedAt) / THROW_SECONDS);
+  const u = Math.min(1, (gameNow() / 1000 - throwing.startedAt) / THROW_SECONDS);
   const peak = Math.max(throwing.from.y, throwing.to.y) + 1.2 * M;
   const y = (1 - u) * (1 - u) * throwing.from.y + 2 * (1 - u) * u * peak + u * u * throwing.to.y;
   birds.flyingKey.position.set(

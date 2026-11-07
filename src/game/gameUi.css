@@ -79,3 +79,50 @@
     transform: none;
   }
 }
+
+/* 휴대폰(터치) 창 — 목록 | 상세를 좌우로 폭을 나눠 각자 스크롤(GamePanel 이 몸을 가로로 둔다, 14회차) */
+.game-panel.is-touch .game-panel-scroll {
+  flex: 1 1 0 !important;
+  min-width: 0;
+  min-height: 0 !important;
+}
+.game-panel.is-touch aside.game-panel-scroll {
+  flex-grow: 1.15 !important;
+  padding: 12px 14px !important;
+}
+
+/* 휴대폰(터치) 설정 창 — 오른쪽 위 HUD 단추 줄을 가리지 않게 왼쪽 위 · 안전 영역 안, 제목 줄은 스크롤해도 남는다,
+   닫기 · 해상도 · 기본값 단추와 막대는 누르는 영역 44px(14회차) */
+.settings-dialog.is-touch {
+  left: calc(env(safe-area-inset-left, 0px) + 12px) !important;
+  right: auto !important;
+  top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+  width: min(560px, calc(100% - 252px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))) !important;
+  max-height: calc(100% - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+  padding: 0 16px 12px !important;
+  overscroll-behavior: contain;
+}
+.settings-dialog.is-touch .settings-dialog__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: 52px;
+  background: inherit;
+  background-color: rgb(16 18 24 / 0.98);
+}
+.settings-dialog.is-touch .settings-dialog__header button {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 22px !important;
+}
+.settings-dialog.is-touch input[type="range"] {
+  height: 44px;
+}
+.settings-dialog.is-touch [role="radiogroup"] button {
+  min-height: 44px;
+  padding: 0 14px !important;
+  font-size: 14px !important;
+}
+.settings-dialog.is-touch button:not([role]) {
+  min-height: 44px;
+}

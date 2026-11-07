@@ -3,6 +3,7 @@
  * 구석에 아이콘 하나를 늘 띄워 「저기에 뭔가 모이고 있다」를 남긴다.
  * 아래 왼쪽은 성능 계기판, 오른쪽은 Leva, 가운데는 조준점이 쓴다.
  */
+import { useKeyLabels } from "@/engine/input";
 import type { CSSProperties } from "react";
 
 import { NoteIcon } from "./gameIcons";
@@ -15,6 +16,7 @@ interface HintHudProps {
 }
 
 export default function HintHud({ isPanelOpen = false }: HintHudProps) {
+  const labels = useKeyLabels();
   const hints = useHintBox();
   // [H] 를 누를 때마다 시각이 바뀐다 — key 로 써서 요소를 다시 태어나게 해 애니메이션을 처음부터 돌린다.
   const flashKey = getHintFlashTime();
@@ -28,13 +30,14 @@ export default function HintHud({ isPanelOpen = false }: HintHudProps) {
       <style>{FLASH_KEYFRAMES}</style>
       <div
         key={flashKey}
+        data-hud="힌트 표시"
         style={{
           ...frameStyle,
           opacity: isPanelOpen ? 1 : isEmpty ? 0.72 : 0.92,
           animation: flashKey ? "hint-flash 900ms ease-out 1" : undefined,
         }}
       >
-        <kbd style={keyCapStyle}>H</kbd>
+        <kbd style={keyCapStyle}>{labels.key("H")}</kbd>
         <span style={isEmpty ? emptyThumbStyle : thumbStyle}>
           {latest?.image ? (
             <img src={latest.image} alt="" style={imageStyle} />
@@ -64,8 +67,9 @@ const FLASH_KEYFRAMES = `
 
 const frameStyle: CSSProperties = {
   position: "absolute",
-  left: 16,
-  top: 16,
+  // 노치 가로 화면에서 안전 영역 안으로(PC 는 inset 0 이라 그대로 16)
+  left: "calc(env(safe-area-inset-left, 0px) + 16px)",
+  top: "calc(env(safe-area-inset-top, 0px) + 16px)",
   zIndex: 60, // 힌트함 창(50) 보다 위 — 창이 떠도 반짝임이 보여야 한다
   display: "flex",
   alignItems: "center",

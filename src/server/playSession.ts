@@ -2,6 +2,7 @@ import { useSyncExternalStore } from "react";
 
 import { readStorage, removeStorage, writeStorage } from "@/engine/storage";
 import { createChangeSignal } from "@/lib/changeSignal";
+import { randomUuid } from "@/lib/uuid";
 
 import {
   BackendError,
@@ -275,7 +276,7 @@ export function submitFireCabinetLock(answer: string): Promise<boolean> {
     const playSessionId = await startPlaySession();
     update({ phase: "judging", error: null });
     const result = await submitInteraction(playSessionId, {
-      client_event_id: crypto.randomUUID(),
+      client_event_id: randomUuid(),
       client_timestamp: new Date().toISOString(),
       zone_id: PLAY_CONTRACT.zoneId,
       action: "input",

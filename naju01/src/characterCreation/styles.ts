@@ -48,6 +48,13 @@ export const SCREEN_CSS = `
 .character-creator input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 7px rgba(154,216,232,0.20); }
 .character-creator input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: rgba(255,255,255,0.16); }
 .character-creator input[type="range"]::-moz-range-thumb { width: 15px; height: 15px; border: none; border-radius: 50%; background: ${BASE_COLORS.accent}; }
+/* 손가락 기기(휴대폰 · 태블릿, 14회차) — 슬라이더 입력 44px · 트랙 6px · 손잡이 24px, −/＋ 단추는 hover 가 없으니 늘 선명하게 */
+.character-creator.is-touch-sized input[type="range"] { height: 44px; }
+.character-creator.is-touch-sized input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; }
+.character-creator.is-touch-sized input[type="range"]::-webkit-slider-thumb { width: 24px; height: 24px; margin-top: -9px; }
+.character-creator.is-touch-sized input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; }
+.character-creator.is-touch-sized input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; }
+.character-creator.is-touch-sized .tick-slider .tick-slider__step-buttons { opacity: 1 !important; }
 .character-creator ::-webkit-scrollbar { width: 8px; }
 .character-creator ::-webkit-scrollbar-thumb { background: rgba(154,216,232,0.22); border-radius: 4px; }
 .character-creator ::-webkit-scrollbar-track { background: transparent; }
@@ -89,8 +96,9 @@ export const COLORS = {
 
 export const WHITE = "#ffffff";
 
-export const smallTextStyle: CSSProperties = { font: `400 12.5px/1.5 ${FONTS.body}`, color: COLORS.textFaint };
-export const stepNumberStyle: CSSProperties = { font: `600 12px/1 ${FONTS.mono}`, letterSpacing: "0.1em" };
+// 보조 글 13px — 휴대폰에서 Apple 각주(13pt) 크기(14회차, 예전 12.5)
+export const smallTextStyle: CSSProperties = { font: `400 13px/1.5 ${FONTS.body}`, color: COLORS.textFaint };
+export const stepNumberStyle: CSSProperties = { font: `600 13px/1 ${FONTS.mono}`, letterSpacing: "0.1em" };
 
 export const tileStyle: CSSProperties = {
   appearance: "none",
@@ -261,7 +269,7 @@ export const stageFloorGlowStyle: CSSProperties = {
 };
 
 export const stageTagStyle: CSSProperties = {
-  font: `600 11px/1 ${FONTS.mono}`,
+  font: `600 12px/1 ${FONTS.mono}`,
   letterSpacing: "0.22em",
   color: COLORS.accentStrong,
 };

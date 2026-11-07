@@ -2,6 +2,9 @@ import { useEffect, useState, type CSSProperties } from "react";
 
 import Stage from "@/components/Stage";
 import PageFooter from "@/layout/PageFooter";
+import { useIsMobileLayout } from "@/mobile/layoutMode";
+import MobilePage from "@/mobile/MobilePage";
+import { primaryButtonStyle as mobilePrimaryButtonStyle, sectionStyle } from "@/mobile/mobileStyles";
 import { FONT, gradientText } from "@/lib/style";
 import { QUERY, ROUTES, useSiteNavigate, withQuery, type RoutePath } from "@/navigation/routes";
 import { COLOR, GRADIENT, SHADOW } from "@/styles/tokens";
@@ -67,6 +70,7 @@ interface ErrorPageProps {
 
 export default function ErrorPage({ kind = "404" }: ErrorPageProps) {
   const navigate = useSiteNavigate();
+  const isMobile = useIsMobileLayout();
   const screen = ERROR_SCREENS[kind];
   const { secondary } = screen;
 
@@ -86,6 +90,45 @@ export default function ErrorPage({ kind = "404" }: ErrorPageProps) {
     else if (kind === "403") navigate(withQuery(path, { [QUERY.next]: decodeURIComponent(window.location.pathname) }));
     else navigate(path);
   };
+
+  if (isMobile) {
+    return (
+      <MobilePage>
+        <div
+          style={{
+            ...sectionStyle,
+            paddingTop: 48,
+            display: "grid",
+            gap: 16,
+            textAlign: "center",
+            justifyItems: "center",
+          }}
+        >
+          <div style={{ ...codeStyle, fontSize: "72px" }}>{screen.code}</div>
+          <h1 style={{ fontFamily: FONT.display, fontSize: "26px", color: COLOR.textBright, margin: 0 }}>
+            {screen.title}
+          </h1>
+          <p style={{ ...descriptionStyle, fontSize: "15px", margin: 0 }}>{screen.description}</p>
+          {kind === "offline" && isOnline && (
+            <p style={{ fontFamily: FONT.mono, fontSize: "14px", color: COLOR.success, margin: 0 }}>
+              연결이 돌아왔습니다. 다시 시도해 주세요.
+            </p>
+          )}
+          <button type="button" style={mobilePrimaryButtonStyle} onClick={handlePrimary}>
+            {screen.primary.label}
+          </button>
+          <button type="button" style={mobileLinkStyle} onClick={() => window.history.back()}>
+            이전 구역으로 돌아가기
+          </button>
+          {secondary && (
+            <button type="button" style={mobileLinkStyle} onClick={() => navigate(secondary.path)}>
+              {secondary.label}
+            </button>
+          )}
+        </div>
+      </MobilePage>
+    );
+  }
 
   return (
     <Stage height={900}>
@@ -184,5 +227,13 @@ const linkButtonStyle: CSSProperties = {
   fontFamily: FONT.mono,
   fontSize: "16px",
   color: COLOR.textSubtle,
+  cursor: "pointer",
+};
+
+const mobileLinkStyle: CSSProperties = {
+  minHeight: "44px",
+  fontFamily: FONT.mono,
+  fontSize: "14px",
+  color: COLOR.accent,
   cursor: "pointer",
 };

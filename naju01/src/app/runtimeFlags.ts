@@ -3,7 +3,7 @@
  * 본편과 같은 개발용 스위치(?fx=off)와 나주 전용 스위치. 나주맵은 Leva 패널을 띄우지 않는다.
  * 저사양(?q=low)은 본편과 같은 `@/engine/quality` 의 IS_LOW_QUALITY 를 쓴다.
  */
-import { IS_LOW_QUALITY } from "@/engine/quality";
+import { IS_LOW_QUALITY, IS_MOBILE_QUALITY, MOBILE_MAX_DPR } from "@/engine/quality";
 import { PLAYER_MESHY_APPEARANCE_KEY, readStorage } from "@/engine/storage";
 
 const QUERY = typeof location !== "undefined" ? new URLSearchParams(location.search) : new URLSearchParams();
@@ -11,11 +11,14 @@ const QUERY = typeof location !== "undefined" ? new URLSearchParams(location.sea
 /** ?fx=off — 후처리 끔(+ antialias 켬) */
 export const IS_POSTFX_DISABLED = QUERY.get("fx") === "off";
 // 후처리 효과를 하나씩 끄고 견주는 스위치
-export const IS_BLOOM_DISABLED = QUERY.get("bloom") === "off";
+// 모바일 품질은 블룸을 끈다(계획서 8.2 보수적 시작값)
+export const IS_BLOOM_DISABLED = QUERY.get("bloom") === "off" || (IS_MOBILE_QUALITY && QUERY.get("bloom") !== "on");
 export const IS_VIGNETTE_DISABLED = QUERY.get("vig") === "off";
 export const IS_TONE_MAPPING_ENABLED = QUERY.get("tm") === "on";
 /** ?fb=half — 후처리 버퍼를 HalfFloat 로 쓴다. 이 버퍼에서 3D 가 까맣게 나오는 증상을 재현할 때 */
 export const USE_HALF_FLOAT_BUFFER = QUERY.get("fb") === "half";
+/** ?at=V1 · V2 · V3 — 실기기 측정용: 씬이 그려지면 그 관측 지점(plan/sitePlan VIEWPOINTS)으로 옮긴다 */
+export const TEST_START_AT = QUERY.get("at");
 /** ?stage=16x9 — 본편과 같은 레터박스(시야 검증용). 기본은 창을 꽉 채운다 */
 export const IS_STAGE_16X9 = QUERY.get("stage") === "16x9";
 /** ?from=hub — 허브의 진입 연출을 타고 왔다. 검은 화면에서 첫 프레임에 밝아진다. 주소를 직접 치거나 새로고침하면 페이드가 없다 */
@@ -35,13 +38,14 @@ export const PRESENTATION_MOOD: PresentationMood | null =
 // minimal 은 light 위에 더 끈다 — 해상도·MSAA 를 줄이는 쪽은 둘이 같다
 export const IS_LIGHT_PRESENTATION = PRESENTATION_MODE === "light" || PRESENTATION_MODE === "minimal";
 /** 후처리 MSAA — 가벼운 발표 프리셋에서 4 → 2 */
-export const MSAA_SAMPLES = IS_LIGHT_PRESENTATION ? 2 : 4;
+export const MSAA_SAMPLES = IS_MOBILE_QUALITY ? 0 : IS_LIGHT_PRESENTATION ? 2 : 4;
 
 // 이 씬은 픽셀에 걸려 있다(땅이 픽셀마다 삼면 노이즈를 돈다). 1.75 는 레티나에서 글자·외곽선이 안 무너지는 가장 낮은 값.
 // 가벼운 발표 프리셋은 느린 노트북용이라 1.5(픽셀 27 % 감소)까지 내린다.
 // ?dpr=1.5 처럼 숫자를 주면 그 값에 못 박고 자동 조절을 끈다(A/B 비교용).
 const DPR_PARAM = QUERY.get("dpr");
-const DEFAULT_MAX_DPR = IS_LIGHT_PRESENTATION ? 1.5 : 1.75;
+// 모바일은 기기 배율 3 이라 상한을 따로 둔다 — 픽셀은 배율의 제곱으로 는다
+const DEFAULT_MAX_DPR = IS_MOBILE_QUALITY ? MOBILE_MAX_DPR : IS_LIGHT_PRESENTATION ? 1.5 : 1.75;
 export const MAX_DPR = Math.min(3, Math.max(1, +(DPR_PARAM || DEFAULT_MAX_DPR) || DEFAULT_MAX_DPR));
 /** 자동 조절 하한 — 이보다 내리면 너무 뿌예진다 */
 export const MIN_DPR = 1;

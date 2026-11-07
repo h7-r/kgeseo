@@ -4,6 +4,7 @@
  */
 import { useMemo, type CSSProperties } from "react";
 
+import { useTouchMode } from "@/engine/input";
 import { createRandom } from "@/engine/random";
 
 import { BREATH_SECONDS, useBreath } from "./caveState";
@@ -12,14 +13,21 @@ const LOW_SECONDS = 15;
 
 export default function BreathHud() {
   const { isUnderwater, breath, blackout, inkHits, insideDark } = useBreath();
+  // 휴대폰 — 왼쪽 아래는 이동 스틱 자리이고 노치 쪽이다. 아래 가운데는 빠른 소지품 · 동행 자막 · 알림이 차지해,
+  // 위쪽에서 왼쪽 퍼즐 안내판(최대 300px · 40vw)과 오른쪽 위 단추 줄(약 216px) 사이 빈칸 가운데에 그 폭만큼 줄여 둔다(14회차 · 코덱스 14c)
+  const isTouch = useTouchMode();
   const ratio = breath / BREATH_SECONDS;
   const isLow = breath < LOW_SECONDS;
   return (
     <>
       {isUnderwater && (
-        <div style={wrapStyle}>
+        <div style={isTouch ? { ...wrapStyle, ...touchWrapStyle } : wrapStyle} data-hud="숨">
           <span style={labelStyle}>숨</span>
-          <div style={trackStyle}>
+          <div
+            style={
+              isTouch ? { ...trackStyle, width: "clamp(56px, calc(100% - 70px), 140px)", flex: "1 1 auto" } : trackStyle
+            }
+          >
             <div
               className={isLow ? "naju-breath-low" : undefined}
               style={{ ...fillStyle, width: `${ratio * 100}%`, background: isLow ? "#E0A35E" : "#E8E2D2" }}
@@ -110,6 +118,17 @@ function InkSplat({ seed }: { seed: number }) {
 
 const FONT = '"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif';
 
+const GAP_LEFT = "calc(env(safe-area-inset-left, 0px) + 20px + min(300px, 40vw))";
+const GAP_RIGHT = "calc(100vw - env(safe-area-inset-right, 0px) - 236px)";
+const touchWrapStyle: CSSProperties = {
+  left: `calc((${GAP_LEFT} + ${GAP_RIGHT}) / 2)`,
+  bottom: "auto",
+  top: "calc(env(safe-area-inset-top, 0px) + 14px)",
+  transform: "translateX(-50%)",
+  width: `min(220px, calc(${GAP_RIGHT} - ${GAP_LEFT}))`,
+  boxSizing: "border-box",
+  justifyContent: "center",
+};
 const wrapStyle: CSSProperties = {
   position: "absolute",
   left: 24,

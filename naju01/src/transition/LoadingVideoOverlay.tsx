@@ -1,9 +1,21 @@
 /**
  * 전환 로딩 영상 막. 본편 main 과 나주 main 에 한 번씩 둔다.
  * 걷는 조건은 최소 시간 + readinessCheck 의 「다 떴다」 둘 다다(오프닝은 SKIP·끝까지 보기도).
+ *
+ * 휴대폰(터치 모드)은 세로이거나 첫 탭 전이면 영상 · 문장 · 최소 시간을 멈춰 둔다(landscape.isMediaHeld) — 첫 1회 오프닝을
+ * 회전 안내 뒤로 흘려보내지 않게. 내려받기 · 장면 준비는 계속한다. 첫 탭 전에는 「화면을 눌러 입장/계속」을 띄우고,
+ * 그 탭 안에서 소리와 함께 틀고 전체 화면을 건다(11/7 미르 · 코덱스 13회차). PC 는 그대로다.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { useProgress } from "@react-three/drei";
+
+import {
+  canRequestFullscreen,
+  isMediaHeld,
+  passFirstTap,
+  subscribeLandscape,
+  useLandscapeState,
+} from "@/engine/input/landscape";
 
 import {
   CLIPS,
@@ -49,7 +61,11 @@ function LoadingCurtain({
   const [isOpeningDone, setIsOpeningDone] = useState(!sequence.isOpening);
   const [isSoundBlocked, setIsSoundBlocked] = useState(false);
   const isReadyRef = useRef(false);
-  const isLifted = isReadyToLift || (!!sequence.isOpening && isReady && isOpeningDone);
+  // 휴대폰: 세로이거나 첫 탭 전이면 잡아 둔다. 잡혀 있는 동안은 걷지 않는다(돌아오면 그때 걷는다)
+  const { isTouch, hasFirstTap, wasInterrupted, isMediaHeld: isHeld } = useLandscapeState();
+  const needsFirstTap = isTouch && !hasFirstTap;
+  const isHeldRef = useRef(isHeld);
+  const isLifted = !isHeld && (isReadyToLift || (!!sequence.isOpening && isReady && isOpeningDone));
 
   // 영상 두 칸을 번갈아 쓴다. 한 칸이 트는 동안 다른 칸이 다음 영상을 미리 받아 두고, 끝나기 0.4초 전에
   // 겹쳐 바꾸면 영상 사이에 검은 틈이 없다(한 칸이면 src 를 바꿀 때마다 깜빡인다).
@@ -68,7 +84,7 @@ function LoadingCurtain({
     if (isSwitchingRef.current) return;
     isSwitchingRef.current = true;
     const back = 1 - deckRef.current.front;
-    videoRefs[back].current?.play().catch(() => {});
+    if (!isHeldRef.current) videoRefs[back].current?.play().catch(() => {});
     setDeck((previous) => ({ ...previous, front: back }));
     // 겹쳐 바뀌는 0.5초가 끝나면 뒤로 간 칸에 그다음 클립을 실어 둔다
     setTimeout(() => {
@@ -87,6 +103,7 @@ function LoadingCurtain({
   useLayoutEffect(() => {
     isLoadingRef.current = isLoading;
     isReadyRef.current = isReady;
+    isHeldRef.current = isHeld;
     deckRef.current = deck;
     lineIndexRef.current = lineIndex;
   });
@@ -111,14 +128,48 @@ function LoadingCurtain({
   }, []);
 
   useEffect(() => {
+    if (isHeld) return undefined;
     const id = setInterval(() => setLineIndex((i) => (i + 1) % sequence.lines.length), LINE_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [sequence.lines.length]);
+  }, [sequence.lines.length, isHeld]);
+
+  // 잡아 둠이 바뀌면 영상을 멈추거나 잇는다. 구독은 같은 호출 스택에서 불린다 — 첫 탭의 몸짓 안에서 소리와 함께 튼다
+  useEffect(() => {
+    let wasHeld = isMediaHeld();
+    return subscribeLandscape(() => {
+      const held = isMediaHeld();
+      if (held === wasHeld) return;
+      wasHeld = held;
+      isHeldRef.current = held;
+      const front = deckRef.current.front;
+      const frontVideo = (front === 0 ? firstVideoRef : secondVideoRef).current;
+      const backVideo = (front === 0 ? secondVideoRef : firstVideoRef).current;
+      if (held) {
+        frontVideo?.pause();
+        backVideo?.pause();
+      } else if (frontVideo && !frontVideo.ended) {
+        playWithSound(frontVideo, () => setIsSoundBlocked(true));
+      }
+    });
+  }, []);
 
   useEffect(() => {
     if (keepOpen) return undefined; // 곧 페이지를 옮긴다 — 걷는 건 다음 페이지 몫
     let isCancelled = false;
-    const minimum = new Promise((resolve) => setTimeout(resolve, sequence.minSeconds * 1000));
+    // 최소 시간은 실제로 보인 시간으로 잰다 — 휴대폰에서 잡혀 있던(세로 · 첫 탭 전) 동안은 세지 않는다
+    let minimumTimer = 0;
+    const minimum = new Promise<void>((resolve) => {
+      let shownMs = 0;
+      let last = performance.now();
+      minimumTimer = window.setInterval(() => {
+        const now = performance.now();
+        if (!isHeldRef.current) shownMs += now - last;
+        last = now;
+        if (shownMs < sequence.minSeconds * 1000) return;
+        window.clearInterval(minimumTimer);
+        resolve();
+      }, 100);
+    });
     const ready = waitUntilReady(
       () => isLoadingRef.current,
       setWaitingFor,
@@ -140,6 +191,7 @@ function LoadingCurtain({
     });
     return () => {
       isCancelled = true;
+      window.clearInterval(minimumTimer);
     };
   }, [keepOpen, sequence.minSeconds, sequence.isOpening]);
 
@@ -224,17 +276,9 @@ function LoadingCurtain({
                   // 못 옮기면 처음부터
                 }
               }
-              if (clip.hasSound) {
-                video.muted = false;
-                video.volume = getBgmVolume();
-              }
-              video.play().catch(() => {
-                // 소리 있는 영상은 새 페이지에서 막힐 수 있다 — 소리 없이 이어 틀고 첫 입력에 켠다
-                if (!clip.hasSound) return; // 자동 재생이 막혀도 포스터는 보인다
-                video.muted = true;
-                setIsSoundBlocked(true);
-                video.play().catch(() => {});
-              });
+              // 휴대폰에서 잡혀 있으면(세로 · 첫 탭 전) 시작 초만 옮겨 두고 기다린다 — 풀릴 때 구독이 튼다
+              if (isHeldRef.current) return;
+              playWithSound(video, () => setIsSoundBlocked(true));
             }}
             onTimeUpdate={(event) => {
               if (!isFront) return;
@@ -267,7 +311,7 @@ function LoadingCurtain({
         </span>
       )}
 
-      {sequence.isOpening && isReady && !isOpeningDone && (
+      {sequence.isOpening && isReady && !isOpeningDone && !needsFirstTap && (
         <button
           type="button"
           className="loading-video-overlay__skip-button"
@@ -279,6 +323,19 @@ function LoadingCurtain({
         </button>
       )}
       {isSoundBlocked && frontClip.hasSound && <span style={soundHintStyle}>CLICK FOR SOUND</span>}
+
+      {/* 휴대폰 첫 탭 — 이 탭 안에서 소리와 함께 틀고 전체 화면을 건다. 세로면 회전 안내가 위를 덮는다.
+          전체 화면이 풀리거나 다른 앱에 다녀오면 다시 뜬다(「화면을 눌러 계속」) */}
+      {needsFirstTap && (
+        <button type="button" style={firstTapStyle} onClick={passFirstTap}>
+          <strong style={firstTapTitleStyle}>
+            {kind === "entry" && !wasInterrupted ? "화면을 눌러 입장" : "화면을 눌러 계속"}
+          </strong>
+          <span style={firstTapBodyStyle}>
+            {canRequestFullscreen() ? "전체 화면으로 이어집니다" : "소리와 함께 이어집니다"}
+          </span>
+        </button>
+      )}
 
       <div style={{ ...textColumnStyle, display: frontClip.hasSound ? "none" : "flex" }}>
         <span style={tagStyle}>{sequence.tag}</span>
@@ -296,6 +353,25 @@ function LoadingCurtain({
       <style>{OVERLAY_CSS}</style>
     </div>
   );
+}
+
+/**
+ * 소리 있는 영상은 소리를 켜고 튼다. 막히면(새 페이지라 몸짓이 없음) 소리 없이 이어 틀고 알린다 — 첫 입력에 켠다.
+ * 늦게 돌아온 실패는 그사이 잡혔으면(세로) 다시 틀지 않는다.
+ */
+function playWithSound(video: HTMLVideoElement, onSoundBlocked: () => void) {
+  const clip = video.dataset.clip;
+  const hasSound = isClipId(clip) && !!CLIPS[clip].hasSound;
+  if (hasSound) {
+    video.muted = false;
+    video.volume = getBgmVolume();
+  }
+  video.play().catch(() => {
+    if (!hasSound || isMediaHeld()) return; // 자동 재생이 막혀도 포스터는 보인다
+    video.muted = true;
+    onSoundBlocked();
+    video.play().catch(() => {});
+  });
 }
 
 // 웹사이트 전환막(website GameTransition)과 같은 자리·같은 글씨
@@ -384,7 +460,7 @@ const lineStyle: CSSProperties = {
 };
 const statusStyle: CSSProperties = {
   fontFamily: MONO_FONT,
-  fontSize: "11px",
+  fontSize: "13px",
   letterSpacing: "0.08em",
   color: "rgba(159,178,234,0.6)",
   marginTop: "-4px",
@@ -392,8 +468,10 @@ const statusStyle: CSSProperties = {
 const skipStyle: CSSProperties = {
   position: "absolute",
   zIndex: 4,
-  right: "clamp(24px, 4vw, 56px)",
-  bottom: "clamp(28px, 6vh, 64px)",
+  // 노치 · 홈 막대 안쪽, 누르는 영역 44px 이상(14회차)
+  right: "calc(env(safe-area-inset-right, 0px) + clamp(24px, 4vw, 56px))",
+  bottom: "calc(env(safe-area-inset-bottom, 0px) + clamp(20px, 6vh, 64px))",
+  minHeight: 44,
   padding: "10px 22px",
   borderRadius: "999px",
   background: "rgba(0,0,0,0.42)",
@@ -414,6 +492,33 @@ const soundHintStyle: CSSProperties = {
   letterSpacing: "0.16em",
   color: "rgba(255,255,255,0.7)",
 };
+// 휴대폰 첫 탭 — 화면 전체가 단추다(어디를 눌러도 된다). 포스터 위에 어둡게 깔고 가운데에 글
+const firstTapStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 5,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 10,
+  width: "100%",
+  height: "100%",
+  padding: "env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)",
+  border: "none",
+  background: "rgba(1,4,10,0.55)",
+  color: "#F2EEE4",
+  cursor: "pointer",
+  touchAction: "manipulation",
+  WebkitTapHighlightColor: "transparent",
+};
+const firstTapTitleStyle: CSSProperties = {
+  fontFamily: DISPLAY_FONT,
+  fontSize: "24px",
+  fontWeight: 700,
+  letterSpacing: "-0.01em",
+};
+const firstTapBodyStyle: CSSProperties = { fontFamily: BODY_FONT, fontSize: "15px", opacity: 0.75 };
 const regionBadgeStyle: CSSProperties = {
   position: "absolute",
   zIndex: 3,

@@ -1,6 +1,7 @@
 import { useEffect, type RefObject } from "react";
 import * as THREE from "three";
 
+import { isTouchMode } from "@/engine/input";
 import { EYE_HEIGHT } from "@/engine/movement/constants";
 import type { AvatarPlayerLink } from "@/naju";
 
@@ -48,6 +49,8 @@ export function usePunch({ playerRef, isPointerLocked, isThirdPerson, isTrain, i
   useEffect(() => {
     let nextPunch: PunchMotion = "Punch_Jab";
     const handleMouseDown = (event: MouseEvent) => {
+      // 터치 모드에서는 손가락이 만든 호환 mouse 이벤트로 주먹이 나가지 않게 막는다(로비 주먹 단추는 따로)
+      if (isTouchMode()) return;
       if (event.button !== 0 || !(isPointerLocked || IS_INPUT_ALWAYS_ON) || !isThirdPerson || isTrain || isWindowOpen)
         return;
       const player = playerRef.current;

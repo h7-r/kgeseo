@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 
+import { useKeyLabels } from "@/engine/input";
 import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
 import { aimedTarget, useAimedLabel, useNotice, usesWithHand } from "./interaction";
 import { ITEMS, inventory, useHandItem, useHeldItems } from "./inventory";
@@ -13,6 +14,8 @@ export default function InteractionHud() {
   const hand = useHandItem();
   useHeldItems(); // 소지품이 바뀌면 안내도 다시 고른다
   const notice = useNotice();
+  // 터치 모드면 키 표기를 화면 단추 그림으로(✋ · 💡 · 🎒)
+  const labels = useKeyLabels();
   const target = aimedTarget();
   const label = hand
     ? (target?.handLabel?.(hand.kind) ?? (usesWithHand(target) ? aimedLabel : `${ITEMS[hand.kind].name} 내려놓기`))
@@ -23,13 +26,13 @@ export default function InteractionHud() {
       <div style={crosshairStyle} />
       {label && (
         <div style={promptStyle}>
-          <span style={keyStyle}>E</span>
+          <span style={keyStyle}>{labels.key("E")}</span>
           {label}
         </div>
       )}
       {notice && (
-        <div key={notice.key} className="naju-notice" style={noticeStyle}>
-          {notice.text}
+        <div key={notice.key} className="naju-notice" style={noticeStyle} data-hud="알림">
+          {labels.text(notice.text)}
         </div>
       )}
     </>
@@ -66,6 +69,10 @@ const promptStyle: CSSProperties = {
   font: `600 14px/1 ${FONT}`,
   pointerEvents: "none",
   whiteSpace: "nowrap",
+  // 긴 물건 이름 · 사용 안내가 좁은 휴대폰 가로에서 화면 밖으로 나가지 않게(14회차)
+  maxWidth: "calc(100% - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
 };
 
 const keyStyle: CSSProperties = {
