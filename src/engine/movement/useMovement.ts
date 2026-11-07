@@ -35,6 +35,7 @@ import {
   UNITS_PER_METER,
   WALK_SPEED,
 } from "./constants";
+import { clearPush, PUSH_COMBINED_SPEED_LIMIT, stopPushAxis, takePushStep } from "./push";
 
 /** 아바타가 읽는 몸 상태. useMovement 가 매 프레임 적는다. */
 export interface PlayerMotionState {
@@ -409,6 +410,7 @@ export function useMovement(
       velocity.current.set(0, 0, 0);
       verticalVelocity.current = 0;
       eyeAboveFeet.current = eyeRef.current;
+      clearPush();
     }
     if (facing !== undefined) {
       camera.rotation.set(0, facing, 0);
@@ -479,6 +481,7 @@ export function useMovement(
       if (target.y != null) p.y = target.y;
       velocity.current.set(0, 0, 0);
       verticalVelocity.current = 0;
+      clearPush();
       if (isThirdPerson) camera.position.copy(p);
     }
     // 연출이 끝난 화면을 이어받는다. 3인칭 붐이 지금 시선 기준으로 자리를 다시 잡을 때 튀지 않게 이어 붙인다.
@@ -489,6 +492,7 @@ export function useMovement(
         p.y = eyeHeight;
         velocity.current.set(0, 0, 0);
         verticalVelocity.current = 0;
+        clearPush();
         bodyYaw.current = camera.rotation.y + Math.PI;
       }
       if (isThirdPerson) {
@@ -502,6 +506,8 @@ export function useMovement(
     playerView.ready = true;
 
     if (!active) {
+      // 조작이 꺼진 동안(채팅 · 메뉴 · 연출)은 밀리지 않는다 — 맞는 동작만 나오고 자리는 그대로(검토 19회차)
+      clearPush();
       stopLoop("run"); // 메뉴를 열거나 조작이 꺼지면 발소리도 멈춘다
       writePlayerState(p, true);
       placeCamera(p, dt);
@@ -582,17 +588,42 @@ export function useMovement(
       const minZ = insetMin(area.minZ, area.maxZ, marginZ);
       const maxZ = insetMax(area.minZ, area.maxZ, marginZ);
 
-      const nx = THREE.MathUtils.clamp(p.x + velocity.current.x * stepDt, minX, maxX);
-      if (canMoveTo(nx, p.z)) p.x = nx;
-      else {
+      // 밖에서 미는 힘(push.ts)을 걷기에 더해 같은 막힘 · 경계 검사를 거친다. 밀림이 없으면 예전 그대로다.
+      // 몸 방향 · 걷기 동작(state.speed)은 velocity 만 보므로 밀림을 안 센다 — 맞는 동작 그대로 미끄러진다.
+      let dx = velocity.current.x * stepDt;
+      let dz = velocity.current.z * stepDt;
+      const push = takePushStep(stepDt);
+      if (push.x !== 0 || push.z !== 0) {
+        dx += push.x;
+        dz += push.z;
+        // 합친 속도 상한 — 걷기가 이미 더 빠르면 걷기 속도까지(걷기를 늦추지 않는다)
+        const limit = Math.max(Math.hypot(velocity.current.x, velocity.current.z), PUSH_COMBINED_SPEED_LIMIT) * stepDt;
+        const length = Math.hypot(dx, dz);
+        if (length > limit) {
+          dx *= limit / length;
+          dz *= limit / length;
+        }
+      }
+
+      const wantX = p.x + dx;
+      const nx = THREE.MathUtils.clamp(wantX, minX, maxX);
+      if (canMoveTo(nx, p.z)) {
+        p.x = nx;
+        if (nx !== wantX) stopPushAxis("x");
+      } else {
         velocity.current.x = 0;
+        stopPushAxis("x");
         if (movementDebug.enabled) movementDebug.blockedX = (movementDebug.blockedX ?? 0) + 1;
       }
 
-      const nz = THREE.MathUtils.clamp(p.z + velocity.current.z * stepDt, minZ, maxZ);
-      if (canMoveTo(p.x, nz)) p.z = nz;
-      else {
+      const wantZ = p.z + dz;
+      const nz = THREE.MathUtils.clamp(wantZ, minZ, maxZ);
+      if (canMoveTo(p.x, nz)) {
+        p.z = nz;
+        if (nz !== wantZ) stopPushAxis("z");
+      } else {
         velocity.current.z = 0;
+        stopPushAxis("z");
         if (movementDebug.enabled) movementDebug.blockedZ = (movementDebug.blockedZ ?? 0) + 1;
       }
 

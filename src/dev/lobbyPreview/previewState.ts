@@ -4,10 +4,11 @@ import { useSyncExternalStore } from "react";
 
 import { apiUrl, LOBBY_URL } from "@/config/env";
 import { exposeDevHook } from "@/debug/devHooks";
+import { clearPush, requestPush } from "@/engine/movement/push";
 import { playerView } from "@/engine/playerView";
 import { PLAYER_MESHY_APPEARANCE_KEY } from "@/engine/storage";
 import { readMeshAppearance } from "@/naju";
-import { createLobbyConnection, type LobbyPose, type LobbyStatus } from "@/net/colyseus";
+import { createLobbyConnection, type LobbyPose, type LobbyStatus, type PunchEvent } from "@/net/colyseus";
 import { meshConfigToLobbyLook } from "@/net/lobbyLook";
 
 import { playAction, playPunch, remoteLinks } from "./avatarLinks";
@@ -115,7 +116,33 @@ connection.subscribe((status) => {
   if (status.kind === "connected") return;
   timers.forEach(clearTimeout);
   timers.clear();
+  clearPush();
 });
+
+/**
+ * 맞으면 뒤로 밀리는 거리(유닛, 1 유닛 ≈ 0.3m → 약 36cm) 🟡 — 미르 11/7 「때리면 뒤로 조금씩 밀려나게」. 검토 19회차.
+ * 내 자리는 내 화면이 정해 보내므로 맞은 사람의 화면이 자기 몸을 민다(push.ts → useMovement 가 막힘 · 경계 검사).
+ * 남들은 그 사람이 보내는 자리로 미끄러지는 걸 본다(송신 0.1초 + 보간만큼 늦다).
+ */
+export const HIT_PUSH_DISTANCE = 1.2;
+/** 밀리면 안 되는 때(컷신 · 화면창 · 자물쇠 · 기차 · 나주) — 리그가 등록한다. 등록 전에는 밀지 않는다 */
+let isHitPushBlocked: () => boolean = () => true;
+export function setHitPushGate(blocked: () => boolean) {
+  isHitPushBlocked = blocked;
+  return () => {
+    if (isHitPushBlocked === blocked) isHitPushBlocked = () => true;
+  };
+}
+/** 때린 사람 → 나 방향(받은 순간의 자리로 정한다 — 닿는 0.2초 뒤엔 둘 다 움직였을 수 있다). 붙어 있으면 때린 사람 몸 방향 */
+function pushDirectionFrom(attacker: string): { x: number; z: number } | null {
+  const body = connection.players().get(attacker);
+  if (!body) return null;
+  const dx = playerView.eye.x - body.x;
+  const dz = playerView.eye.z - body.z;
+  if (Math.hypot(dx, dz) >= 0.3) return { x: dx, z: dz };
+  // 몸 방향 규약: 앞 = (sin ry, cos ry)
+  return { x: Math.sin(body.ry), z: Math.cos(body.ry) };
+}
 
 const thudVolume = (attacker: string, target: string) => {
   const mine = mySid();
@@ -187,7 +214,7 @@ export function noteMyJump(everyMs: number) {
   playVoice(mySid() ?? "me", "jump", myGender(), 1);
 }
 
-connection.onPunch(({ sid, motion, hit }) => {
+function onPunch({ sid, motion, hit }: PunchEvent) {
   noteEvent(`punch ${sid} ${motion}${hit ? ` hit ${hit}` : ""}`);
   const mine = mySid();
   // 내 주먹은 이미 돌고 있다 — 다시 틀지 않는다(내 목소리는 휘두를 때 냈다). 남의 주먹은 지금 동작이 시작된다
@@ -196,15 +223,20 @@ connection.onPunch(({ sid, motion, hit }) => {
     punchVoice(sid);
   }
   if (!hit) return;
+  // 내가 맞았으면 밀릴 방향을 지금 잡아 둔다
+  const pushDirection = hit === mine && sid !== mine ? pushDirectionFrom(sid) : null;
   // 남의 주먹은 지금 막 시작됐다 — 닿는 순간에 맞춘다. 내 주먹은 이미 닿았다
   later(sid === mine ? 0 : PUNCH_IMPACT_MS, () => {
+    // 닿는 순간 막힘 조건이면(그사이 화면창을 열었다 등) 밀리지 않는다. 조작이 꺼져 있으면 useMovement 가 버린다
+    if (pushDirection && !isHitPushBlocked()) requestPush(pushDirection.x, pushDirection.z, HIT_PUSH_DISTANCE);
     playAction(linkOf(hit), "hit", HIT_REACTION);
     bubbles.set(hit, { text: HIT_LINE, until: Date.now() + HIT_LINE_MS });
     const volume = thudVolume(sid, hit);
     playThud(volume);
     playVoice(hit, "hurt", genderOf(hit), isMutedSid(hit) ? 0 : volume);
   });
-});
+}
+connection.onPunch(onPunch);
 
 /** 내가 주먹을 냈다(본편 usePunch 가 attackSerial 을 올림) — 닿는 순간에 앞쪽 가장 가까운 사람을 골라 한 번 보낸다 */
 export function notePunch(motion: "jab" | "cross", isBlocked: () => boolean) {
@@ -319,4 +351,6 @@ exposeDevHook("lobbyPreview", {
   lastPunch: () => lastPunchSent,
   /** 내 아바타 상자를 잡았나(App 대역) */
   hasLocalPlayer: () => localPlayer() !== null,
+  /** 자동 검사용 — 서버가 보낸 것처럼 주먹 메시지를 받는다(맞기 · 밀리기 확인) */
+  fakePunch: (event: PunchEvent) => onPunch(event),
 });

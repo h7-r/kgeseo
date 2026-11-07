@@ -8,7 +8,7 @@
 // 자세는 playerView 로 읽는 임시 방식이다 — 앉기는 보내지 않고, 발 높이는 「눈 − 고정 눈높이」라 앉기·키 변경에서 틀릴 수 있다.
 // 정식 연결(3단계)은 App.tsx·StationScene.tsx 에 끼우고 AvatarLink 의 발 높이·앉기 상태를 읽는다.
 import { useFrame } from "@react-three/fiber";
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { TRAIN_PATH } from "@/app/useSceneTransition";
 import { EYE_HEIGHT, RUN_SPEED_MULTIPLIER, WALK_SPEED } from "@/engine/movement/constants";
@@ -27,7 +27,16 @@ import { getLockControl } from "@/props/combinationLockState";
 
 import { localPlayer } from "./localPlayer";
 import { JUMP_VOICE_EVERY_MS } from "./emotes";
-import { bubbles, connection, localPose, noteMyJump, noteMyPunchStart, notePunch, refreshAccount } from "./previewState";
+import {
+  bubbles,
+  connection,
+  localPose,
+  noteMyJump,
+  noteMyPunchStart,
+  notePunch,
+  refreshAccount,
+  setHitPushGate,
+} from "./previewState";
 import RemotePlayers, { LocalLabel } from "./RemotePlayers";
 
 /** 경계 왔다 갔다 방지(🟡) — 안으로 이만큼 들어와야 입장, 밖으로 이만큼 나가야 퇴장 */
@@ -53,6 +62,18 @@ export default function LobbyPreviewRig() {
   useEffect(() => {
     cutsceneRef.current = cutscene;
   }, [cutscene]);
+
+  // 컷신 · 화면창 · 자물쇠 · 기차 · 나주 중에는 주먹을 안 보내고, 맞아도 밀리지 않는다(검토 19회차)
+  const isPunchBlocked = useCallback(
+    () =>
+      cutsceneRef.current ||
+      window.location.pathname === TRAIN_PATH ||
+      najuRef.current ||
+      overlayLayer.get() !== null ||
+      getLockControl() !== null,
+    [],
+  );
+  useEffect(() => setHitPushGate(isPunchBlocked), [isPunchBlocked]);
 
   useEffect(() => {
     void refreshAccount();
@@ -80,12 +101,6 @@ export default function LobbyPreviewRig() {
     // 아닐 때만 보낸다(멈춰 있던 동안 낸 주먹이 나중에 나가지 않게)
     const me = localPlayer();
     const attack = me?.attackSerial ?? null;
-    const isPunchBlocked = () =>
-      cutsceneRef.current ||
-      window.location.pathname === TRAIN_PATH ||
-      najuRef.current ||
-      overlayLayer.get() !== null ||
-      getLockControl() !== null;
     if (attack !== null && lastAttackRef.current !== null && attack !== lastAttackRef.current) {
       if (connection.status().kind === "connected" && !isPunchBlocked()) {
         noteMyPunchStart();

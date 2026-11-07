@@ -476,6 +476,7 @@ async function enter(bot) {
   }
   room.reconnection.enabled = false;
   // 다른 사람 인사·서버 되맞춤은 가상 인원이 쓸 일이 없다 — 받기만 한다(안 받으면 SDK 가 경고를 찍는다)
+  room.onMessage("punch", (event) => onBotPunch(bot, room, event));
   room.onMessage("*", () => {});
   bot.room = room;
   bot.path = [];
@@ -508,10 +509,77 @@ async function enterWithRetry(bot) {
   }
 }
 
+// 맞으면 뒤로 밀린다(미르 11/7, 검토 19회차) — 게임 화면과 같은 값: src/dev/lobbyPreview/previewState.ts HIT_PUSH_DISTANCE ·
+// src/engine/movement/push.ts. 주먹이 닿는 0.2초 뒤에 밀리기 시작해 지수 감쇠로 1.2 유닛(약 36cm). 걷던 길은 버리고 잠깐 선다.
+const PUSH_DISTANCE = 1.2;
+const PUSH_DECAY = 7;
+const PUSH_SPEED_LIMIT = WALK_SPEED * 2.58 * 1.2;
+const PUSH_IMPACT_MS = 200;
+/** 막힘 검사 간격(유닛) — 한 틱(0.125초)에 최대 1유닛쯤 가므로 잘게 나눠 본다 */
+const PUSH_CHECK = 0.05;
+
+function onBotPunch(bot, room, event) {
+  if (bot.room !== room || !event || event.hit !== room.sessionId || event.sid === room.sessionId) return;
+  const attacker = room.state?.players?.get(event.sid);
+  if (!attacker) return;
+  // 방향은 받은 순간의 자리로 — 붙어 있으면 때린 사람 몸 방향(앞 = (sin ry, cos ry))
+  let dx = bot.x - attacker.x;
+  let dz = bot.z - attacker.z;
+  if (Math.hypot(dx, dz) < 0.3) {
+    dx = Math.sin(attacker.ry);
+    dz = Math.cos(attacker.ry);
+  }
+  const length = Math.hypot(dx, dz) || 1;
+  (bot.pendingPushes ??= []).push({ at: Date.now() + PUSH_IMPACT_MS, x: dx / length, z: dz / length });
+}
+
+/** 밀림을 이번 틱만큼 적용한다. 밀리는 중이면 true */
+function applyPush(bot, now, dt) {
+  const due = bot.pendingPushes?.filter((push) => push.at <= now) ?? [];
+  if (due.length) {
+    bot.pendingPushes = bot.pendingPushes.filter((push) => push.at > now);
+    bot.push ??= { x: 0, z: 0 };
+    for (const push of due) {
+      bot.push.x += push.x * PUSH_DISTANCE * PUSH_DECAY;
+      bot.push.z += push.z * PUSH_DISTANCE * PUSH_DECAY;
+    }
+    const speed = Math.hypot(bot.push.x, bot.push.z);
+    if (speed > PUSH_SPEED_LIMIT) {
+      bot.push.x *= PUSH_SPEED_LIMIT / speed;
+      bot.push.z *= PUSH_SPEED_LIMIT / speed;
+    }
+    bot.path = [];
+    bot.blockedSince = undefined;
+    bot.idleUntil = Math.max(bot.idleUntil, now + between(800, 1500));
+  }
+  if (!bot.push) return false;
+  // 한 틱의 밀림을 정확히 적분(게임과 같은 거리) → 잘게 나눠 축마다 막힘 검사, 막힌 축은 멈춘다
+  const decay = Math.exp(-PUSH_DECAY * dt);
+  const share = (1 - decay) / PUSH_DECAY;
+  const moveX = bot.push.x * share;
+  const moveZ = bot.push.z * share;
+  bot.push.x *= decay;
+  bot.push.z *= decay;
+  const pieces = Math.max(1, Math.ceil(Math.hypot(moveX, moveZ) / PUSH_CHECK));
+  for (let i = 0; i < pieces; i += 1) {
+    if (bot.push.x !== 0) {
+      if (isFree(bot.x + moveX / pieces, bot.z)) bot.x += moveX / pieces;
+      else bot.push.x = 0;
+    }
+    if (bot.push.z !== 0) {
+      if (isFree(bot.x, bot.z + moveZ / pieces)) bot.z += moveZ / pieces;
+      else bot.push.z = 0;
+    }
+  }
+  if (Math.hypot(bot.push.x, bot.push.z) < 0.05) bot.push = null;
+  return true;
+}
+
 function step(bot, dt) {
   const room = bot.room;
   if (!room) return;
   const now = Date.now();
+  applyPush(bot, now, dt);
   const others = othersOf(bot);
   if (!bot.path.length && now >= bot.idleUntil) {
     const target = chooseTarget(bot, others);
