@@ -266,8 +266,8 @@ def test_mysql_only_puzzle_suggestions_are_reportable():
             general_pack_approval=pack_approval(pack),
             general_pack_policy=passing_test_policy,
         )
-        assert pause.reply.line_id.startswith("GENERIC_PAUSE_")
-        # 긴급 차단의 「잠시 멈춤」 대사는 퍼즐 제안이 아니다.
+        # 긴급 차단 중 auto 턴은 「잠시 멈춤」 대사도 내지 않고(§11) 퍼즐 제안이 아니다.
+        assert pause.reply is None
         assert record["auto_intervened"] is False
 
         for event_id in (situation.npc_event_id, pause.npc_event_id, uuid4()):

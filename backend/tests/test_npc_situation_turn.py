@@ -807,7 +807,45 @@ def test_blocked_situation_turn_has_null_reply_and_consumes_nothing(
     assert situation_history([event]) == []
 
 
-def test_blocked_keeps_pause_line_for_turns_without_situation(
+def message_body() -> dict[str, Any]:
+    return {
+        "client_event_id": str(uuid.uuid4()),
+        "trigger": "player_message",
+        "message": "(가상) 안녕",
+    }
+
+
+def test_blocked_pause_line_only_for_player_message_turns(
+    client,
+    db_session,
+    overrides,  # noqa: F811
+    general,  # noqa: F811
+    reader_override,  # noqa: F811
+) -> None:
+    # 계약 v0.4.16 §11: 「잠시 멈춤」 대사는 플레이어가 말을 건 턴에만. 상황 없는 auto 턴도 침묵한다.
+    blocked_setup(overrides, general, reader_override, db_session)
+    # 차단되지 않았다면 퍼즐 자동 개입이 나올 조건이어도
+    overrides["events"] = answer_events(6)
+
+    auto = client.post(URL, json=auto_body(client_event_id=str(uuid.uuid4())))
+    auto_record = stored(db_session).response_json
+    db_session.added.clear()
+    message = client.post(URL, json=message_body())
+
+    assert auto.json()["reply"] is None
+    assert auto.json()["suggest_hint"] is None
+    assert auto.json()["fallback_reason"] == WITHDRAWN
+    assert auto.json()["content_mode"] == "generic"
+    # 차단된 auto 턴은 퍼즐 제안이 아니고 자동 개입 판단(횟수 · 쿨다운)도 하지 않는다.
+    assert auto_record["auto_intervened"] is False
+    assert auto_record["auto_intervene"] is None
+    assert auto_record["situation_replied"] is False
+    assert message.json()["reply"]["line_id"].startswith("GENERIC_PAUSE_")
+    assert message.json()["fallback_reason"] == WITHDRAWN
+    assert message.json()["content_mode"] == "generic"
+
+
+def test_resend_after_block_silences_plain_auto_turns(
     client,
     db_session,
     overrides,  # noqa: F811
@@ -815,21 +853,25 @@ def test_blocked_keeps_pause_line_for_turns_without_situation(
     reader_override,  # noqa: F811
 ) -> None:
     blocked_setup(overrides, general, reader_override, db_session)
+    reader_override(Reader(approved_access()))
+    overrides["events"] = answer_events(6)
+    first_body = auto_body(client_event_id=str(uuid.uuid4()))
+    before = client.post(URL, json=first_body).json()
+    event = stored(db_session)
+    assert before["reply"]["line_id"] == "NUDGE_A_01"
 
-    auto = client.post(URL, json=auto_body(client_event_id=str(uuid.uuid4())))
-    message = client.post(
-        URL,
-        json={
-            "client_event_id": str(uuid.uuid4()),
-            "trigger": "player_message",
-            "message": "(가상) 안녕",
-        },
-    )
+    reader_override(Reader(BLOCKED))
+    db_session.added.clear()
+    db_session.scalar_result = event
+    again = client.post(URL, json=first_body).json()
 
-    # 상황이 없는 턴의 v0.4.12 「잠시 멈춤」 대사는 그대로다.
-    for response in (auto, message):
-        assert response.json()["reply"]["line_id"].startswith("GENERIC_PAUSE_")
-        assert response.json()["fallback_reason"] == WITHDRAWN
+    # 차단 전 퍼즐 넛지도, 「잠시 멈춤」 대사도 다시 내지 않는다.
+    assert again["reply"] is None
+    assert again["suggest_hint"] is None
+    assert again["fallback_reason"] == WITHDRAWN
+    assert again["content_mode"] == "generic"
+    assert "NUDGE_A_01" not in str(again)
+    assert db_session.added == []
 
 
 def test_block_committed_during_situation_turn_drops_the_line(
@@ -929,9 +971,12 @@ def test_only_puzzle_interventions_are_recorded_as_suggestions(
     general,  # noqa: F811
     reader_override,  # noqa: F811
 ) -> None:
-    # 긴급 차단의 「잠시 멈춤」 대사 · 상황 대사는 퍼즐 제안(auto_intervened)이 아니어서 표시 · 거절 보고 대상이 아니다.
+    # 긴급 차단 턴 · 「잠시 멈춤」 대사 · 상황 대사는 퍼즐 제안(auto_intervened)이 아니어서 표시 · 거절 보고 대상이 아니다.
     blocked_setup(overrides, general, reader_override, db_session)
-    pause = client.post(URL, json=auto_body(client_event_id=str(uuid.uuid4())))
+    blocked_auto = client.post(URL, json=auto_body(client_event_id=str(uuid.uuid4())))
+    blocked_record = stored(db_session).response_json
+    db_session.added.clear()
+    pause = client.post(URL, json=message_body())
     pause_record = stored(db_session).response_json
 
     reader_override(Reader(approved_access()))
@@ -944,6 +989,8 @@ def test_only_puzzle_interventions_are_recorded_as_suggestions(
     puzzle = client.post(URL, json=auto_body(client_event_id=str(uuid.uuid4())))
     puzzle_record = stored(db_session).response_json
 
+    assert blocked_auto.json()["reply"] is None
+    assert blocked_record["auto_intervened"] is False
     assert pause.json()["reply"]["line_id"].startswith("GENERIC_PAUSE_")
     assert pause_record["auto_intervened"] is False
     assert pause_record["auto_intervene"] is None

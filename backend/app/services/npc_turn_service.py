@@ -15,9 +15,10 @@
   읽고, 이벤트 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 근거가 바뀌었으면(철회 · 차단이 사이에 commit) 확정 전에
   다시 계산한다. 멱등 처리는 기존 `interaction_events`(`client_event_id`) 하나다.
 - 긴급 차단(blocked, PM v0.4.6 · v0.4.12): 새 턴 · 재전송 모두 케이스 콘텐츠(대사 · 힌트 제안)를 쓰지 않고 LLM도
-  부르지 않는다. 공급된 일반 팩이 승인돼 있으면 「잠시 멈춤」(`GENERIC_PAUSE_*`) 승인 대사 하나를
-  `client_event_id`로 결정적으로 골라(`npc_line_supply.select_pause_line`) `approved_line`으로 답하고, 없으면
-  `reply: null`이다. `fallback_reason`은 늘 `NPC_CONTENT_WITHDRAWN`이다. 재전송도 저장된 대사가 아니라 지금 승인된
+  부르지 않는다. 플레이어가 말을 건 턴(player_message)은 공급된 일반 팩이 승인돼 있으면 「잠시 멈춤」
+  (`GENERIC_PAUSE_*`) 승인 대사 하나를 `client_event_id`로 결정적으로 골라(`npc_line_supply.select_pause_line`)
+  `approved_line`으로 답하고, 없으면 `reply: null`이다. auto 턴은 상황 유무와 상관없이 늘 `reply: null`이다
+  (계약 v0.4.16 §11). `fallback_reason`은 늘 `NPC_CONTENT_WITHDRAWN`이다. 재전송도 저장된 대사가 아니라 지금 승인된
   팩에서 같은 규칙으로 다시 고른다(같은 팩이면 같은 대사, 승인이 빠졌으면 null).
 - `content_mode`(PM v0.4.13 §4 · v0.3 §6): 정상 응답은 `"case"`. `fallback_reason`이 긴급 중단
   (`NPC_CONTENT_WITHDRAWN`) · NPC 콘텐츠 없음(`NPC_CONTENT_MISSING`) · 버전 불일치(`NPC_CONTENT_VERSION_MISMATCH`) ·
@@ -250,10 +251,14 @@ async def _process_npc_turn_once(
             access: CaseNpcAccess, pack: GeneralPackAccess
         ) -> NpcTurnResult:
             if access.withdrawn:
-                if request.situation is not None:
-                    # 계약 v0.4.16 §5: 게시 중단 중 상황 턴은 reply null(「잠시 멈춤」 대사도 내지 않는다).
+                if request.trigger == "auto":
+                    # 계약 v0.4.16 §11: 「잠시 멈춤」 대사는 플레이어가 말을 건 턴에만 낸다. 게시 중단 중 auto 턴은
+                    # 상황 유무와 상관없이 reply null이다(§5).
+                    result = _withdrawn_result(request.trigger, None)
+                    if request.situation is None:
+                        return result
                     return replace(
-                        _withdrawn_result(request.trigger, None),
+                        result,
                         situation_code=request.situation.code,
                         situation_reason=SITUATION_WITHDRAWN,
                     )
@@ -564,8 +569,10 @@ def _replay(
         raise IdempotencyConflictError()
     if access.withdrawn:
         # 긴급 차단 뒤 재전송: 저장했던 응답(케이스 대사 · 예전 대체 대사)을 돌려주지 않고 지금 승인된 팩에서 다시 고른다.
-        # 상황 턴은 새 턴과 같이 「잠시 멈춤」 대사도 내지 않는다(계약 v0.4.16 §5).
-        pause = None if "situation" in payload_json else pause_line()
+        # auto 턴은 새 턴과 같이 「잠시 멈춤」 대사도 내지 않는다(계약 v0.4.16 §5 · §11).
+        pause = (
+            pause_line() if payload_json.get("trigger") == "player_message" else None
+        )
         return NpcTurnResponse(
             npc_event_id=UUID(event.id),
             reply=(

@@ -85,7 +85,8 @@
   - 세션 행 `FOR UPDATE`로 직렬화한다.
 - 자동 개입 제안이 아닌 ID나 다른 세션의 ID는 `SuggestionNotFoundError`다.
 - 제안(`auto_intervened: true`)은 퍼즐 자동 개입 판단(`auto_intervene` 기록)이 대사나 힌트 안내를 낸 응답뿐이다.
-  상황 대사(v0.4.16)와 긴급 차단의 「잠시 멈춤」 대사(v0.4.12)는 제안이 아니라 보고하면 `SuggestionNotFoundError`다.
+  상황 대사(v0.4.16)와 긴급 차단 중 턴(auto는 `reply: null`, 플레이어 메시지는 「잠시 멈춤」 대사)은 제안이 아니라
+  보고하면 `SuggestionNotFoundError`다.
 - 모든 보고 이벤트는 `npc_` 접두라 무입력(마지막 플레이어 행동) 계산에서 빠진다.
 
 ## PUB-GATE
