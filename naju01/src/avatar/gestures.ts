@@ -202,11 +202,19 @@ export interface GestureState {
   weight: number;
   /** 마지막으로 튼 손짓 — 끊기면 이 자세에서 짧게 풀어 돌아온다 */
   last: ActiveGesture | null;
-  /** 가슴 앞면 높이(가슴뼈 기준 앞쪽 거리, 모델 단위) — 손짓을 시작할 때 몸 정점으로 한 번 잰다(체형마다 다르다) */
-  chestFront: number | null;
+  /**
+   * 가슴 앞면(가슴뼈 기준 앞쪽 거리, group 안쪽 단위) — 손짓을 시작할 때 몸 정점으로 한 번 잰다(체형마다 다르다).
+   * undefined 는 아직 안 잼, null 은 못 잼(고정값을 쓴다 — 다시 재지 않는다)
+   */
+  chestFront: number | null | undefined;
 }
 
-export const createGestureState = (): GestureState => ({ store: new Map(), weight: 0, last: null, chestFront: null });
+export const createGestureState = (): GestureState => ({
+  store: new Map(),
+  weight: 0,
+  last: null,
+  chestFront: undefined,
+});
 
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
@@ -281,7 +289,9 @@ export const CHEST_REACH = {
   /** 팔꿈치를 바깥·앞으로 — 뒤로 빼면 아래팔이 가슴을 비스듬히 가로질러 파고든다(남 2.9cm → 0.6cm) */
   pole: [0.9, -0.45, 0.6] as [number, number, number],
 };
-if (import.meta.env.DEV) exposeDevHook("gestureTuning", CHEST_REACH);
+/** 개발 확인용 — 마지막으로 잰 가슴 앞면 */
+const CHEST_REACH_DEBUG: { measured: number | null | undefined } = { measured: undefined };
+if (import.meta.env.DEV) exposeDevHook("gestureTuning", Object.assign(CHEST_REACH, { debug: CHEST_REACH_DEBUG }));
 
 const _inverseGroup = new THREE.Matrix4();
 /** 가슴 살이 묶인 뼈 — 여자 가슴은 쇄골에도 나눠 묶여 spine 만 보면 앞면을 낮게 잰다(손이 2cm 묻혔다, 11/7) */
@@ -292,31 +302,47 @@ const _vertex = new THREE.Vector3();
  * 가장 앞의 z 를, 가슴뼈 z 를 뺀 거리로(모델 단위). 체형(통통·골격·남녀)마다 달라 고정값이면 남자는 아래팔이 가슴에 묻히고
  * 여자는 손이 뜬다(11/7 잼: 같은 0.23 에서 남 묻힘 0 · 여 손바닥 3.4cm 뜸). 손짓을 시작할 때 한 번만 잰다.
  */
-function measureChestFront(prepared: PreparedBody, group: THREE.Object3D, chestRef: THREE.Bone, sign: number): number | null {
+/** 가슴 정점 번호(몸마다 한 번) — 5만 정점의 가중치를 손짓마다 다시 훑지 않게 */
+const chestVertexCache = new WeakMap<PreparedBody, number[]>();
+function chestVertices(prepared: PreparedBody): number[] {
+  const cached = chestVertexCache.get(prepared);
+  if (cached) return cached;
   const skin = prepared.targetSkin;
   const bones = skin.skeleton.bones;
   const index = skin.geometry.getAttribute("skinIndex");
   const weight = skin.geometry.getAttribute("skinWeight");
-  if (!index || !weight) return null;
-  const scale = group.getWorldScale(_a).x || 1;
+  const list: number[] = [];
+  if (index && weight)
+    for (let i = 0; i < index.count; i += 1) {
+      let torso = 0;
+      for (let k = 0; k < index.itemSize; k += 1) {
+        const name = bones[index.getComponent(i, k)]?.name;
+        if (name !== undefined && CHEST_BONES.has(name)) torso += weight.getComponent(i, k);
+      }
+      if (torso >= 0.9) list.push(i);
+    }
+  chestVertexCache.set(prepared, list);
+  return list;
+}
+
+function measureChestFront(prepared: PreparedBody, group: THREE.Object3D, chestRef: THREE.Bone, sign: number): number | null {
+  const skin = prepared.targetSkin;
+  // group 의 역행렬이 배율까지 지우므로 아래 값은 모두 group 안쪽 단위(=모델 단위)다 — 배율로 또 나누면 안 된다(Codex 리뷰:
+  // 배율 3.3 에서 창이 가슴을 벗어나 늘 못 재고, 못 잰 결과로 매 프레임 5만 정점을 다시 훑었다)
   _inverseGroup.copy(group.matrixWorld).invert();
   const ref = worldPos(chestRef, _b).applyMatrix4(_inverseGroup);
-  const tx = ref.x / scale - sign * CHEST_REACH.side;
-  const ty = ref.y / scale + CHEST_REACH.up;
+  const tx = ref.x - sign * CHEST_REACH.side;
+  const ty = ref.y + CHEST_REACH.up;
   let front = -Infinity;
-  for (let i = 0; i < index.count; i += 1) {
-    let torso = 0;
-    for (let k = 0; k < index.itemSize; k += 1) {
-      const name = bones[index.getComponent(i, k)]?.name;
-      if (name !== undefined && CHEST_BONES.has(name)) torso += weight.getComponent(i, k);
-    }
-    if (torso < 0.9) continue;
+  for (const i of chestVertices(prepared)) {
     skin.getVertexPosition(i, _vertex);
-    _vertex.applyMatrix4(skin.matrixWorld).applyMatrix4(_inverseGroup).divideScalar(scale);
+    _vertex.applyMatrix4(skin.matrixWorld).applyMatrix4(_inverseGroup);
     if (Math.abs(_vertex.x - tx) > 0.03 || Math.abs(_vertex.y - ty) > 0.03) continue;
     front = Math.max(front, _vertex.z);
   }
-  return Number.isFinite(front) ? front - ref.z / scale : null;
+  const result = Number.isFinite(front) ? front - ref.z : null;
+  if (import.meta.env.DEV) CHEST_REACH_DEBUG.measured = result;
+  return result;
 }
 
 /** 손목을 가슴 앞에 — 두 마디 IK(armIk 의 폴 방식과 같은 풀이) */
@@ -372,7 +398,7 @@ export function applyGesture(
   const def = active ? GESTURES[active.name] : gs.last ? GESTURES[gs.last.name] : undefined;
   if (active && def) {
     // 새 손짓을 시작하면 가슴 앞면을 다시 잰다(아래에서 뼈를 클립 자세로 되돌린 뒤)
-    if (!gs.last || gs.last.name !== active.name || active.elapsed < gs.last.elapsed) gs.chestFront = null;
+    if (!gs.last || gs.last.name !== active.name || active.elapsed < gs.last.elapsed) gs.chestFront = undefined;
     gs.last = { ...active };
     gs.weight = envelope(def, active.elapsed);
   } else if (gs.last) {
@@ -419,8 +445,8 @@ export function applyGesture(
     const arm = bones.arms.get(sideName);
     if (!target || !arm) continue;
     if (target.onChest) {
-      if (gs.chestFront === null && arm.chestRef)
-        gs.chestFront = measureChestFront(prepared, group, arm.chestRef, sideName === "l" ? 1 : -1);
+      if (gs.chestFront === undefined)
+        gs.chestFront = arm.chestRef ? measureChestFront(prepared, group, arm.chestRef, sideName === "l" ? 1 : -1) : null;
       reachChest(arm, group, w, gs.chestFront);
     }
     else {
