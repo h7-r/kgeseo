@@ -4,6 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { startLoop, stopLoop } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
+import { isTypingTarget } from "@/game/overlayLayer";
 import { cameraOwner, DEFAULT_FOV, FRAME_PRIORITY, MAX_FRAME_DELTA } from "@/engine/camera";
 import { smoothstep } from "@/engine/math";
 import { playerView, takeViewHandover } from "@/engine/playerView";
@@ -375,6 +376,9 @@ export function useMovement(
       else if (code === "ShiftLeft" || code === "ShiftRight") k.run = pressed;
     };
     const handleKeyDown = (event: KeyboardEvent) => {
+      // 입력칸(로비 채팅 등)에 쓰는 중이면 이동·점프·앉기로 받지 않고 글자도 막지 않는다. 떼는 키(keyup)는 그대로 받아
+      // 쓰기 전에 누르고 있던 키도 풀린다(2026-11-07 로비 채팅 — 검토 14회차 3).
+      if (isTypingTarget(event.target)) return;
       if (HANDLED_KEYS.has(event.code)) event.preventDefault();
       if (event.code === "Space" && isGrounded.current) {
         verticalVelocity.current = JUMP_VELOCITY;

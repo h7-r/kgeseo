@@ -3,6 +3,7 @@ import type * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
 import { playerView } from "@/engine/playerView";
+import { isTypingTarget } from "@/game/overlayLayer";
 import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import type { OutlineValues } from "@/engine/toon";
 import { Interactable } from "@/lobby/AimTracker";
@@ -263,7 +264,8 @@ export default function WorkLampPuzzle({
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code !== "KeyF" || e.repeat) return;
+      // 입력칸(로비 채팅)에서 친 F 는 내려놓기가 아니다
+      if (e.code !== "KeyF" || e.repeat || isTypingTarget(e.target)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       dropHeld();
     };
