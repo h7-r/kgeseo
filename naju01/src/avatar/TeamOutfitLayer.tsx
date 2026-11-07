@@ -1,16 +1,21 @@
-// 팀 캐릭터 전용 덧입힘(검토 22회차) — 캡과 해병대 반팔의 가슴 글자를 뼈에 붙인다(teamOutfit.ts 가 번호를 푼다).
+// 팀 캐릭터 전용 덧입힘(검토 22회차) — 캡 · 해병대 반팔의 가슴 글자를 뼈에 붙이고, 바지 파츠를 몸 골격에 묶는다(teamOutfit.ts 가 번호를 푼다).
 // 몸 GLB 를 새로 굽지 않고, 그 아바타의 실제 정점을 재서 맞춘다:
 //   · 캡: 머리 뼈 국소 공간에서 머리(머리 뼈 웨이트가 큰 몸 정점) + 보이는 머리카락 정점을 모아, 위쪽 42% 를 다 감싸는
 //     타원 돔을 만든다 — 머리카락이 돔 밖으로 튀어나오지 않게 높이를 정점마다 확인해 정한다. 앞으로 챙.
 //   · 글자: 가슴 뼈(spine_03) 국소 공간에서 상의(_tint 2) 정점의 앞면을 재고, 가슴 곡률만큼 휜 판에 노란 「해병대」.
 // 축은 바인드 자세에서 뼈가 본 몸의 위(+Y) · 앞(+Z)이다(glTF) — 재는 순간의 자세(걷기 · 인사)와 상관없이 같은 모양이 된다.
 // 몸 · 머리카락은 뼈에 단단히 묶인 정점만 쓰므로 재는 자세는 상관없다. 설정(체형 모프 · 머리)이 바뀌면 다시 잰다.
+import { useGLTF } from "@react-three/drei";
 import { createPortal, useFrame } from "@react-three/fiber";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
 
-import type { PreparedBody } from "./preparedBody";
-import type { TeamOutfit } from "./teamOutfit";
+import { attachParts } from "./chibiBodyParts";
+import type { MeshAppearanceConfig } from "./meshAppearance";
+import type { Disposables, LoadedGltf, PartError, PreparedBody } from "./preparedBody";
+import { getTeamPantsUrl, type TeamOutfit, type TeamPantsStyle } from "./teamOutfit";
+import { DEFAULT_TOON, makeToonGradientTexture } from "./toonMaterial";
+import { applyOutline, DEFAULT_OUTLINE } from "./toonOutline";
 
 /** 아바타 외곽선과 같은 색(toonOutline DEFAULT_OUTLINE) */
 const INK = "#2b2a33";
@@ -294,6 +299,103 @@ function MarinePrint({ fit }: { fit: PrintFit }) {
   );
 }
 
+/** 바지 파일이 없거나 못 받아도 바지만 빠지고 아바타(로비 화면)는 그대로 — useGLTF 는 실패하면 오류를 던진다 */
+class SkipOnError extends Component<{ children: ReactNode; label: string }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  override componentDidCatch(error: unknown) {
+    console.warn(`[TeamOutfitLayer] ${this.props.label} 를 그리지 못했다`, error);
+  }
+  override render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+/** 아바타 몸과 같은 명암 계단(툰) */
+const pantsGradient = makeToonGradientTexture(DEFAULT_TOON.steps, DEFAULT_TOON.threshold);
+
+/**
+ * 바지 — 따로 구운 파츠 GLB(tools/team_pants_build.py)를 신발처럼 몸 골격에 묶는다(attachParts: 뼈 이름으로 다시 묶기).
+ * 몸 표면을 복제해 만든 것이라 몸과 같은 모프 이름을 갖고 있어, 매 프레임 몸의 모프 값(다리 두께 · 골반 · 체형)을 옮겨
+ * 체형 슬라이더를 따라간다. 결 무늬(회색)에 하의 색을 곱하고, 외곽선은 아바타와 같은 껍데기(applyOutline)다.
+ */
+function Pants({
+  prepared,
+  style,
+  config,
+  framePriority,
+}: {
+  prepared: PreparedBody;
+  style: TeamPantsStyle;
+  config: Partial<MeshAppearanceConfig>;
+  framePriority: number;
+}) {
+  const gltf = useGLTF(getTeamPantsUrl(style, config)) as unknown as LoadedGltf;
+  const material = useMemo(
+    () => new THREE.MeshToonMaterial({ gradientMap: pantsGradient, side: THREE.DoubleSide }),
+    [],
+  );
+  useEffect(() => () => material.dispose(), [material]);
+  useEffect(() => {
+    material.color.set(config.bottomColor ?? "#ffffff");
+  }, [material, config.bottomColor]);
+  const attached = useRef<{ body: THREE.SkinnedMesh; meshes: THREE.SkinnedMesh[] } | null>(null);
+  useEffect(() => {
+    const body = findBodyMesh(prepared.model);
+    if (!body) return;
+    const errors: PartError[] = [];
+    const disposables: Disposables = { geometries: [], materials: [] };
+    const meshes = attachParts(gltf, body, errors, disposables);
+    if (errors.length) console.warn("[TeamOutfitLayer] 바지 파츠 뼈가 몸에 없다", errors);
+    const originals = new Map<string, THREE.SkinnedMesh>();
+    gltf.scene.traverse((object) => {
+      if (object instanceof THREE.SkinnedMesh) originals.set(object.name, object);
+    });
+    for (const mesh of meshes) {
+      const original = originals.get(mesh.name);
+      // 새 메시는 모프 이름을 모른다(번호만) — 원본 이름표를 옮긴다. 결 무늬는 원본 재질의 텍스처
+      if (original?.morphTargetDictionary) mesh.morphTargetDictionary = { ...original.morphTargetDictionary };
+      const map = (original?.material as THREE.MeshStandardMaterial | undefined)?.map ?? null;
+      if (map && material.map !== map) {
+        map.wrapS = THREE.RepeatWrapping;
+        map.wrapT = THREE.RepeatWrapping;
+        material.map = map;
+        material.needsUpdate = true;
+      }
+      mesh.material = material;
+      mesh.frustumCulled = false;
+      mesh.userData.teamPants = style;
+    }
+    const outlines = meshes.map((mesh) => applyOutline(mesh, DEFAULT_OUTLINE));
+    attached.current = { body, meshes };
+    return () => {
+      attached.current = null;
+      outlines.forEach((outline) => outline.remove());
+      meshes.forEach((mesh) => mesh.parent?.remove(mesh));
+      disposables.geometries.forEach((geometry) => geometry.dispose());
+    };
+  }, [gltf, prepared, material, style]);
+  // 몸의 체형 모프 값을 이름으로 옮긴다(몸 GLB 와 바지 파츠의 모프 순서가 같다는 보장은 없다)
+  useFrame(() => {
+    const current = attached.current;
+    const bodyInfluences = current?.body.morphTargetInfluences;
+    const bodyDictionary = current?.body.morphTargetDictionary;
+    if (!current || !bodyInfluences || !bodyDictionary) return;
+    for (const mesh of current.meshes) {
+      const influences = mesh.morphTargetInfluences;
+      const dictionary = mesh.morphTargetDictionary;
+      if (!influences || !dictionary) continue;
+      for (const [name, index] of Object.entries(dictionary)) {
+        const source = bodyDictionary[name];
+        influences[index] = source === undefined ? 0 : (bodyInfluences[source] ?? 0);
+      }
+    }
+  }, framePriority);
+  return null;
+}
+
 /**
  * 아바타 안에 둔다. fitKey(설정)가 바뀌면 두 프레임 뒤(모프 · 뼈 배율이 들어간 뒤) 다시 잰다.
  * framePriority 는 아바타보다 뒤 — 그 프레임의 자세가 다 잡힌 다음에 잰다.
@@ -301,14 +403,16 @@ function MarinePrint({ fit }: { fit: PrintFit }) {
 export default function TeamOutfitLayer({
   prepared,
   outfit,
-  fitKey,
+  config,
   framePriority,
 }: {
   prepared: PreparedBody;
   outfit: TeamOutfit;
-  fitKey: unknown;
+  /** 번호를 푼 렌더러 설정 — 바뀌면 다시 잰다(fitKey). 바지 파일 · 색도 여기서 */
+  config: Partial<MeshAppearanceConfig>;
   framePriority: number;
 }) {
+  const fitKey = config;
   // 잰 결과는 어느 몸 · 설정으로 쟀는지와 함께 둔다 — 바뀐 뒤 다시 재기 전(두 프레임)에는 그리지 않는다
   const [fits, setFits] = useState<{
     prepared: PreparedBody;
@@ -339,6 +443,14 @@ export default function TeamOutfitLayer({
     <>
       {outfit.cap && cap && <Cap fit={cap} />}
       {outfit.marine && print && <MarinePrint fit={print} />}
+      {outfit.pants && (
+        // 바지 파일을 받는 동안 아바타 전체가 사라지지 않게 따로 기다린다
+        <SkipOnError key={`${outfit.pants}:${config.gender}:${config.top}`} label="바지">
+          <Suspense fallback={null}>
+            <Pants prepared={prepared} style={outfit.pants} config={config} framePriority={framePriority} />
+          </Suspense>
+        </SkipOnError>
+      )}
     </>
   );
 }

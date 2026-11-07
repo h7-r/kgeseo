@@ -166,7 +166,7 @@ function ChibiGameAvatar({
   framePriority = -20,
 }: ChibiGameAvatarProps) {
   const root = useRef<THREE.Group>(null);
-  // 팀 캐릭터 전용 옷 번호(캡 · 해병대 반팔)를 풀어 아래는 기존 번호로 그린다 — teamOutfit.ts, 검토 22회차
+  // 팀 캐릭터 전용 옷 번호(캡 · 해병대 반팔 · 바지)를 풀어 아래는 기존 번호로 그린다 — teamOutfit.ts, 검토 22회차
   const { config, outfit: teamOutfit } = useMemo(() => splitTeamOutfit(rawConfig), [rawConfig]);
   // 1인칭 잘림면은 세계 좌표라 카메라가 필요하고, localClippingEnabled 를 켜야 clippingPlanes 를 본다.
   const { gl, camera } = useThree();
@@ -422,8 +422,8 @@ function ChibiGameAvatar({
   return (
     <group name="NAJU-chibi-avatar" ref={root} visible={visible || firstPersonBody}>
       <primitive object={prepared.model} />
-      {(teamOutfit.cap || teamOutfit.marine) && (
-        <TeamOutfitLayer prepared={prepared} outfit={teamOutfit} fitKey={config} framePriority={framePriority + 1} />
+      {(teamOutfit.cap || teamOutfit.marine || teamOutfit.pants) && (
+        <TeamOutfitLayer prepared={prepared} outfit={teamOutfit} config={config} framePriority={framePriority + 1} />
       )}
     </group>
   );

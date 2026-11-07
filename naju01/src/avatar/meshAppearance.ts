@@ -41,14 +41,19 @@ export const MESH_PART_OPTIONS: Record<MeshPartKey, Record<AvatarGender, readonl
       [1, "해병대 반팔"],
     ],
   },
+  // 1 · 2 = 스키니 청바지 · 통 큰 바지 — 팀 캐릭터 전용(teamOutfit.ts). 하의 없는 몸 + 바지 파츠
   bottom: {
     masculine: [
       [-1, "속옷"],
       [0, "반바지"],
+      [1, "스키니 청바지"],
+      [2, "통 큰 바지"],
     ],
     feminine: [
       [-1, "속옷"],
       [0, "반바지"],
+      [1, "스키니 청바지"],
+      [2, "통 큰 바지"],
     ],
   },
   shoes: {

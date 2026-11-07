@@ -32,7 +32,10 @@ export const TEAM_LOOK_ITEMS = {
     feminine: ["hair.cap.none", "hair.f.bob.cap", "hair.f.long.cap"],
   },
   top: { masculine: ["top.tee.marine"], feminine: ["top.tee.marine"] },
-  bottom: { masculine: [], feminine: [] },
+  bottom: {
+    masculine: ["bottom.jeans.skinny", "bottom.pants.baggy"],
+    feminine: ["bottom.jeans.skinny", "bottom.pants.baggy"],
+  },
   shoes: { masculine: [], feminine: [] },
 } as const satisfies Record<"hair" | "top" | "bottom" | "shoes", Record<TeamGender, readonly string[]>>;
 export type TeamLookItemId = (typeof TEAM_LOOK_ITEMS)[keyof typeof TEAM_LOOK_ITEMS][TeamGender][number];

@@ -151,14 +151,14 @@ describe("팀 캐릭터 NPC", () => {
     writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
   });
 
-  it("팀 전용 옷(캡 · 해병대 반팔)은 NPC look 에서만 통과한다 — 사람 look 은 그대로 막는다", async () => {
+  it("팀 전용 옷(캡 · 해병대 반팔 · 바지)은 NPC look 에서만 통과한다 — 사람 look 은 그대로 막는다", async () => {
     const { validateLook } = await import("../src/look.js");
     const marine = {
       ...SEJIN,
       appearance: {
         ...SEJIN.appearance,
         hairId: "hair.f.long.cap",
-        equipmentIds: { ...SEJIN.appearance.equipmentIds, top: "top.tee.marine" },
+        equipmentIds: { ...SEJIN.appearance.equipmentIds, top: "top.tee.marine", bottom: "bottom.pants.baggy" },
       },
     };
     writeFileSync(FILE, JSON.stringify({ version: 1, npcs: { sejin: marine } }));
@@ -168,6 +168,7 @@ describe("팀 캐릭터 NPC", () => {
     const look = JSON.parse(players.get("npc-sejin")!.look) as Record<string, unknown>;
     assert.equal(look.hair, "hair.f.long.cap");
     assert.equal(look.top, "top.tee.marine");
+    assert.equal(look.bottom, "bottom.pants.baggy");
     // 같은 look 을 사람이 보내면 허용 목록에 없어 통째로 버린다
     assert.equal(validateLook(look), null);
     writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));

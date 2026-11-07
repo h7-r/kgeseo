@@ -7,7 +7,7 @@ import { chromium } from "playwright";
 const OUT = fileURLToPath(new URL("../public/thumbs/character-creation/", import.meta.url));
 const MALE_CROP = { x: 560, w: 300 };
 const FEMALE_CROP = { x: 900, w: 300 };
-const PART_CROPS = { head: { y: 90, h: 190 }, torso: { y: 230, h: 230 } };
+const PART_CROPS = { head: { y: 90, h: 190 }, torso: { y: 230, h: 230 }, hips: { y: 360, h: 230 } };
 const SHOTS = [
   ["hair.cap.none", "hair=9", "head", "m"],
   ["hair.m.crop.cap", "hair=10", "head", "m"],
@@ -16,6 +16,10 @@ const SHOTS = [
   ["hair.f.long.cap", "hair=11", "head", "f"],
   ["top.tee.marine.m", "top=1&bottom=-1&shoes=-1", "torso", "m"],
   ["top.tee.marine.f", "top=1&bottom=-1&shoes=-1", "torso", "f"],
+  ["bottom.jeans.skinny.m", "top=-1&bottom=1&shoes=-1", "hips", "m"],
+  ["bottom.jeans.skinny.f", "top=-1&bottom=1&shoes=-1", "hips", "f"],
+  ["bottom.pants.baggy.m", "top=-1&bottom=2&shoes=-1", "hips", "m"],
+  ["bottom.pants.baggy.f", "top=-1&bottom=2&shoes=-1", "hips", "f"],
 ];
 const browser = await chromium.launch({
   headless: true,
