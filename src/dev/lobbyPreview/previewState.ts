@@ -60,6 +60,15 @@ connection.onGreet(({ sid, id }) => {
   if (!isMutedSid(sid)) playVoice(sid, emote.voice, genderOf(sid), voiceVolume(sid));
 });
 
+// 상주 팀 NPC 대사(검토 25회차): 말풍선 + 인사 동작만 — 목소리 · 동작 고유 말풍선 없이, 채팅 기록에도 안 남긴다.
+// NPC 5~8명이 20~40초마다 말하면 사람 채팅이 묻혀서다. 음소거한 상대(가명 ID = sid)면 말풍선을 안 띄운다
+connection.onNpcAct(({ sid, text, gesture }) => {
+  if (typeof text !== "string" || !text) return;
+  if (!isMuted(sid)) bubbles.set(sid, { text, until: Date.now() + chatBubbleMs(text) });
+  const emote = EMOTES[gesture - 1];
+  if (emote) playAction(linkOf(sid), "emote", emote.steps);
+});
+
 // --- 채팅(설계 v0.21 5절) — 서버가 확정해 방송한 말만 띄운다(내 말도 돌아온 것을 띄운다) ---
 connection.onChat((event) => {
   addChatLine(event);
@@ -160,6 +169,7 @@ const noteEvent = (text: string) => {
   if (recentEvents.length > 20) recentEvents.shift();
 };
 connection.onGreet(({ sid, id }) => noteEvent(`greet ${sid}#${id}`));
+connection.onNpcAct(({ sid, gesture }) => noteEvent(`npcAct ${sid}#${gesture}`));
 connection.onChat(({ sid }) => noteEvent(`chat ${sid}`));
 
 /** 그 사람의 성별 — 나는 내 아바타 설정, 남은 방 상태의 외형(틀린 외형이면 받는 쪽 기본값처럼 남성) */

@@ -11,7 +11,13 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { mergeConfig, type Plugin } from "vite";
 
-import { isTeamSlotKey, parseTeamEntry, parseTeamFile, type TeamFile } from "./lobby/src/npc/teamRoster";
+import {
+  isTeamSlotKey,
+  parseTeamEntry,
+  parseTeamFile,
+  parseTeamLines,
+  type TeamFile,
+} from "./lobby/src/npc/teamRoster";
 import baseConfig from "./vite.config";
 
 const APP_FILE = fileURLToPath(new URL("./src/app/App.tsx", import.meta.url));
@@ -102,10 +108,29 @@ function teamNpcSavePlugin(): Plugin {
           } catch {
             return send(400, { error: "json" });
           }
-          const { key, entry } = (body ?? {}) as { key?: unknown; entry?: unknown };
-          const parsed = parseTeamEntry({ ...(entry as object), savedAt: new Date().toISOString() });
-          if (!isTeamSlotKey(key) || !parsed) return send(400, { error: "invalid" });
+          // 두 가지 저장: { key, entry } = 외형(대사를 안 보내면 저장된 대사를 지킨다) · { key, lines } = 대사만(외형은 그대로,
+          // [] 는 대사 지우기). 한쪽 저장이 다른 쪽을 지우지 않게(Codex 25)
+          const { key, entry, lines } = (body ?? {}) as { key?: unknown; entry?: unknown; lines?: unknown };
+          if (!isTeamSlotKey(key)) return send(400, { error: "invalid" });
           const file = readTeamFile();
+          const current = file.npcs[key];
+          let parsed;
+          if (entry !== undefined) {
+            const keepLines = !(typeof entry === "object" && entry !== null && "lines" in entry);
+            parsed = parseTeamEntry({
+              ...(entry as object),
+              ...(keepLines ? { lines: current?.lines ?? [] } : {}),
+              savedAt: new Date().toISOString(),
+            });
+          } else if (Array.isArray(lines)) {
+            if (!current) return send(409, { error: "no_entry" });
+            // 틀린 줄이 섞이면 조용히 버리지 않고 거절한다(적은 대사가 사라진 줄 모르게 되지 않게)
+            const kept = parseTeamLines(lines);
+            if (kept.length !== lines.filter((line) => typeof line === "string" && line.trim()).length)
+              return send(400, { error: "invalid_line" });
+            parsed = { ...current, lines: kept, savedAt: new Date().toISOString() };
+          }
+          if (!parsed) return send(400, { error: "invalid" });
           file.npcs[key] = parsed;
           try {
             writeTeamFile(file);

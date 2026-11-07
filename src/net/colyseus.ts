@@ -94,6 +94,16 @@ export interface GreetEvent {
   id: number;
 }
 
+/**
+ * 상주 팀 NPC 의 대사(검토 25회차) — 서버가 검사해 확정한 대사와 인사 동작 번호(1~6). 화면은 말풍선 + 그 동작만 보여 주고
+ * (목소리 · 동작 고유 말풍선 없음) 채팅 기록에는 넣지 않는다
+ */
+export interface NpcActEvent {
+  sid: string;
+  text: string;
+  gesture: number;
+}
+
 /** 채팅 방송 — 서버가 다듬어 확정한 글과 보낸 사람의 이름·가명 ID(방 상태보다 먼저 닿아도 이름을 안다) */
 export interface ChatEvent {
   sid: string;
@@ -204,6 +214,7 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
   let lastMoveSentAt = -Infinity;
   const statusListeners = new Set<(status: LobbyStatus) => void>();
   const greetListeners = new Set<(event: GreetEvent) => void>();
+  const npcActListeners = new Set<(event: NpcActEvent) => void>();
   const punchListeners = new Set<(event: PunchEvent) => void>();
   const chatListeners = new Set<(event: ChatEvent) => void>();
   const chatRejectedListeners = new Set<(reason: ChatRejectReason) => void>();
@@ -276,6 +287,9 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
     const unbindGreet = joined.onMessage("greet", ((payload: GreetEvent) => {
       if (room === joined) greetListeners.forEach((listener) => listener(payload));
     }) as (payload: never) => void);
+    const unbindNpcAct = joined.onMessage("npcAct", ((payload: NpcActEvent) => {
+      if (room === joined) npcActListeners.forEach((listener) => listener(payload));
+    }) as (payload: never) => void);
     const unbindPunch = joined.onMessage("punch", ((payload: PunchEvent) => {
       if (room === joined) punchListeners.forEach((listener) => listener(payload));
     }) as (payload: never) => void);
@@ -303,6 +317,7 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
     joined.onLeave(handleLeave);
     unsubscribeRoom = () => {
       if (typeof unbindGreet === "function") unbindGreet();
+      if (typeof unbindNpcAct === "function") unbindNpcAct();
       if (typeof unbindPunch === "function") unbindPunch();
       if (typeof unbindChat === "function") unbindChat();
       if (typeof unbindChatRejected === "function") unbindChatRejected();
@@ -448,6 +463,12 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
         greetListeners.delete(listener);
       };
     },
+    onNpcAct(listener: (event: NpcActEvent) => void) {
+      npcActListeners.add(listener);
+      return () => {
+        npcActListeners.delete(listener);
+      };
+    },
     onPunch(listener: (event: PunchEvent) => void) {
       punchListeners.add(listener);
       return () => {
@@ -471,6 +492,7 @@ export function createLobbyConnection(options: LobbyConnectionOptions) {
       connection.exit();
       statusListeners.clear();
       greetListeners.clear();
+      npcActListeners.clear();
       punchListeners.clear();
       chatListeners.clear();
       chatRejectedListeners.clear();

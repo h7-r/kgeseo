@@ -15,16 +15,22 @@ process.env.TEAM_NPC_FILE = FILE;
 
 const { TeamNpcCrew, NPC_TICK_MS } = await import("../src/npc/teamNpcs.js");
 const { isFree } = await import("../src/npc/hqMap.js");
-const { TEAM_SLOTS } = await import("../src/npc/teamRoster.js");
+const { TEAM_SLOTS, parseTeamLines, parseTeamEntry } = await import("../src/npc/teamRoster.js");
+const { NPC_ACT_MIN_MS, NPC_ACT_MAX_MS } = await import("../src/npc/teamNpcs.js");
 const { Player } = await import("../src/state.js");
 
 function makeCrew() {
   let now = 1_000_000;
   const players = new MapSchema<InstanceType<typeof Player>>();
   const greets: Array<[string, number]> = [];
+  const acts: Array<{ sid: string; text: string; gesture: number; at: number; x: number; z: number }> = [];
   const crew = new TeamNpcCrew(players, {
     nowMs: () => now,
     greet: (sid, id) => greets.push([sid, id]),
+    act: (sid, text, gesture) => {
+      const player = players.get(sid)!;
+      acts.push({ sid, text, gesture, at: now, x: player.x, z: player.z });
+    },
     log: () => {},
   });
   const advance = (ticks: number) => {
@@ -33,7 +39,7 @@ function makeCrew() {
       crew.step();
     }
   };
-  return { crew, players, greets, advance, setNow: (value: number) => (now = value), getNow: () => now };
+  return { crew, players, greets, acts, advance, setNow: (value: number) => (now = value), getNow: () => now };
 }
 
 const SEJIN = {
@@ -206,5 +212,101 @@ describe("팀 캐릭터 NPC", () => {
     const along = target.x - x0;
     assert.ok(Math.abs(target.z - z0) < 0.05, `옆으로 ${(target.z - z0).toFixed(2)} 밀렸다`);
     assert.ok(along > 1.0 && along < 1.25, `밀린 거리 ${along.toFixed(3)}`);
+  });
+  it("대사는 앞뒤 공백을 걷고 1~40자 · 제어 문자 없는 것만, 앞에서 2개까지 남긴다", () => {
+    assert.deepEqual(parseTeamLines(["  안녕하세요   조사관님 ", "", "a".repeat(41), "둘째\u0007", "셋째", "넷째"]), [
+      "안녕하세요 조사관님",
+      "셋째",
+    ]);
+    assert.deepEqual(parseTeamLines("한 줄"), []);
+    assert.deepEqual(parseTeamLines(undefined), []);
+    // 대사가 없던 옛 저장값도 그대로 읽힌다
+    assert.deepEqual(parseTeamEntry(SEJIN)?.lines, []);
+  });
+
+  it("20~40초마다 멈춘 채 대사 2개 중 하나를 말하며 인사 동작을 한다(사람 인사는 안 한다)", () => {
+    const lines = ["오늘도 수사 시작!", "단서는 현장에 있어요"];
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: { sejin: { ...SEJIN, lines } } }));
+    const { crew, acts, greets, advance, setNow } = makeCrew();
+    setNow(30_000_000);
+    crew.spawn();
+    advance(Math.ceil(200_000 / NPC_TICK_MS));
+    const mine = acts.filter((act) => act.sid === "npc-sejin");
+    assert.ok(mine.length >= 4, `세진 행동 ${mine.length}번`);
+    for (const act of mine) {
+      assert.ok(lines.includes(act.text), act.text);
+      assert.ok(act.gesture >= 1 && act.gesture <= 6, String(act.gesture));
+    }
+    for (let i = 1; i < mine.length; i += 1) {
+      const gap = mine[i]!.at - mine[i - 1]!.at;
+      assert.ok(gap >= NPC_ACT_MIN_MS, `간격 ${gap}`);
+      // 걷는 중이면 멈춘 다음에 하므로 상한보다 조금 늦을 수 있다
+      assert.ok(gap <= NPC_ACT_MAX_MS + 15_000, `간격 ${gap}`);
+    }
+    // 대사가 없는 네 명은 같은 주기로 인사만 한다
+    assert.ok(greets.some(([sid]) => sid === "npc-mireu"));
+    assert.ok(!greets.some(([sid]) => sid === "npc-sejin"));
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
+  });
+
+  it("행동하는 순간에는 멈춰 있고, 그 뒤 3초는 걷지 않는다", () => {
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: { sejin: { ...SEJIN, lines: ["잠깐만요"] } } }));
+    const { crew, players, acts, advance, setNow } = makeCrew();
+    setNow(40_000_000);
+    crew.spawn();
+    const sejin = players.get("npc-sejin")!;
+    let checked = 0;
+    for (let tick = 0; tick < Math.ceil(300_000 / NPC_TICK_MS); tick += 1) {
+      const count = acts.length;
+      advance(1);
+      if (acts.length === count || acts[acts.length - 1]!.sid !== "npc-sejin") continue;
+      const at = { x: sejin.x, z: sejin.z };
+      for (let hold = 0; hold < Math.floor(3000 / NPC_TICK_MS); hold += 1) {
+        advance(1);
+        assert.equal(sejin.gait, "idle");
+        assert.ok(Math.hypot(sejin.x - at.x, sejin.z - at.z) < 1e-6, "행동 중에 움직였다");
+      }
+      checked += 1;
+    }
+    assert.ok(checked >= 5, `확인한 행동 ${checked}번`);
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
+  });
+
+  it("연락처 · 금칙어가 든 대사는 말하지 않고, 남은 대사가 없으면 인사로 대신한다", () => {
+    writeFileSync(
+      FILE,
+      JSON.stringify({
+        version: 1,
+        npcs: {
+          sejin: { ...SEJIN, lines: ["연락 주세요 010-1234-5678", "씨발 뭐야"] },
+          haerang: { ...SEJIN, displayName: "해랑", lines: ["씨발 뭐야", "같이 단서 찾아요"] },
+        },
+      }),
+    );
+    const { crew, acts, greets, advance, setNow } = makeCrew();
+    setNow(50_000_000);
+    crew.spawn();
+    advance(Math.ceil(200_000 / NPC_TICK_MS));
+    assert.ok(!acts.some((act) => act.sid === "npc-sejin"));
+    assert.ok(greets.some(([sid]) => sid === "npc-sejin"));
+    const haerang = acts.filter((act) => act.sid === "npc-haerang");
+    assert.ok(haerang.length > 0);
+    assert.ok(haerang.every((act) => act.text === "같이 단서 찾아요"));
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
+  });
+
+  it("저장 파일의 대사를 바꾸면 2초 안에 새 대사를 말한다", () => {
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: { sejin: { ...SEJIN, lines: ["옛 대사"] } } }));
+    const { crew, acts, advance, setNow, getNow } = makeCrew();
+    setNow(60_000_000);
+    crew.spawn();
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: { sejin: { ...SEJIN, lines: ["새 대사"] } } }));
+    advance(Math.ceil(2100 / NPC_TICK_MS));
+    const from = getNow();
+    advance(Math.ceil(120_000 / NPC_TICK_MS));
+    const after = acts.filter((act) => act.sid === "npc-sejin" && act.at > from);
+    assert.ok(after.length > 0);
+    assert.ok(after.every((act) => act.text === "새 대사"));
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
   });
 });

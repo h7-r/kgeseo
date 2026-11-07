@@ -5,6 +5,8 @@
 //   · 완료 데이터는 색을 supportedColorValues 로, 다시 열 초안은 colors 로 읽는다 — 옮겨 담지 않으면 다시 열 때 색이 처음으로
 //     돌아간다(Codex 22).
 //   · 다른 사람으로 바꿀 때는 key 를 바꿔 화면을 새로 띄운다(initialValue 는 처음 한 번만 읽힌다).
+//   · 카드마다 로비에서 20~40초마다 읊조릴 대사 2개를 적는다(미르 11/8, 검토 25회차). 대사 저장은 외형을, 외형 저장은 대사를
+//     건드리지 않는다(저장 창구가 나눠 받는다).
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
 import { UI, UI_FONT } from "@/game/gameUi";
@@ -12,6 +14,8 @@ import { TEAM_CATALOG } from "@/lobby/teamCatalog";
 
 import {
   parseTeamFile,
+  TEAM_LINE_MAX_LENGTH,
+  TEAM_LINES_MAX,
   TEAM_SLOTS,
   type TeamEntry,
   type TeamFile,
@@ -51,6 +55,102 @@ function draftOf(
 
 const genderLabel = (gender: string) => (gender === "feminine" ? "여성" : "남성");
 const itemLabel = (id: string | null) => TEAM_CATALOG.items.find((item) => item.id === id)?.label ?? "—";
+
+const lineLength = (text: string) => [...text.replace(/\s+/gu, " ").trim()].length;
+
+/**
+ * 대사 2개 — 저장된 값이 바뀌면(저장 뒤) key 로 새로 띄워 입력칸을 맞춘다. 채팅과 같이 40자까지, 연락처 · 금칙어가 든 대사는
+ * 로비 서버가 말하지 않는다(그 대사 대신 인사)
+ */
+function LinesEditor({
+  slot,
+  entry,
+  onSaved,
+}: {
+  slot: TeamSlot;
+  entry: TeamEntry | undefined;
+  onSaved: (file: TeamFile, message: string) => void;
+}) {
+  const saved = entry?.lines ?? [];
+  const [draft, setDraft] = useState<string[]>(() => Array.from({ length: TEAM_LINES_MAX }, (_, i) => saved[i] ?? ""));
+  const [state, setState] = useState<{ kind: "idle" | "saving" } | { kind: "error"; message: string }>({
+    kind: "idle",
+  });
+  const tooLong = draft.some((line) => lineLength(line) > TEAM_LINE_MAX_LENGTH);
+  const dirty = draft.some((line, i) => line.replace(/\s+/gu, " ").trim() !== (saved[i] ?? ""));
+  const disabled = !entry || state.kind === "saving";
+
+  const submit = async () => {
+    setState({ kind: "saving" });
+    let response: Response;
+    try {
+      response = await fetch(ROUTE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: slot.key, lines: draft.map((line) => line.trim()).filter(Boolean) }),
+      });
+    } catch {
+      setState({ kind: "error", message: "개발 서버에 닿지 못했어요." });
+      return;
+    }
+    if (!response.ok) {
+      setState({ kind: "error", message: `저장하지 못했어요(${response.status}).` });
+      return;
+    }
+    setState({ kind: "idle" });
+    onSaved(
+      parseTeamFile(await response.json()),
+      `${entry?.displayName ?? slot.name} 대사를 저장했어요 — 로비에 곧 반영돼요.`,
+    );
+  };
+
+  return (
+    <form
+      style={linesBox}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (dirty && !tooLong && !disabled) void submit();
+      }}
+    >
+      <span style={linesTitle}>읊조릴 대사 · 20~40초마다 하나씩</span>
+      {draft.map((line, i) => {
+        const length = lineLength(line);
+        const id = `${slot.key}-line-${i}`;
+        return (
+          <label key={id} htmlFor={id} style={lineRow}>
+            <span style={lineLabel}>대사 {i + 1}</span>
+            <input
+              id={id}
+              type="text"
+              value={line}
+              disabled={disabled}
+              placeholder={entry ? "비워 두면 인사만 해요" : "먼저 꾸미기를 저장해 주세요"}
+              onChange={(event) =>
+                setDraft((current) => current.map((value, n) => (n === i ? event.target.value : value)))
+              }
+              style={{ ...lineInput, borderColor: length > TEAM_LINE_MAX_LENGTH ? UI.danger : UI.border }}
+            />
+            <span style={{ ...lineCount, color: length > TEAM_LINE_MAX_LENGTH ? UI.danger : UI.textSubtle }}>
+              {length}/{TEAM_LINE_MAX_LENGTH}
+            </span>
+          </label>
+        );
+      })}
+      <div style={linesFoot}>
+        <span role={state.kind === "error" ? "alert" : undefined} style={{ color: UI.danger, fontSize: 12 }}>
+          {state.kind === "error" ? state.message : tooLong ? `대사는 ${TEAM_LINE_MAX_LENGTH}자까지예요.` : ""}
+        </span>
+        <button
+          type="submit"
+          disabled={!dirty || tooLong || disabled}
+          style={{ ...linesSave, ...(!dirty || tooLong || disabled ? linesSaveOff : null) }}
+        >
+          {state.kind === "saving" ? "저장 중…" : "대사 저장"}
+        </button>
+      </div>
+    </form>
+  );
+}
 
 function formatSavedAt(iso: string) {
   const at = new Date(iso);
@@ -140,8 +240,9 @@ export default function TeamNpcStudio() {
       <header style={{ marginBottom: 28 }}>
         <h1 style={title}>팀 캐릭터 꾸미기</h1>
         <p style={lead}>
-          로비에 늘 돌아다니는 다섯 명이에요. 고르면 캐릭터 만들기 화면이 열리고, 끝까지 만들면 저장돼 로비에 바로
-          반영돼요.
+          로비에 늘 돌아다니는 다섯 명이에요. 카드를 누르면 캐릭터 만들기 화면이 열리고, 끝까지 만들면 저장돼 로비에
+          바로 반영돼요. 카드 아래에는 로비에서 읊조릴 대사 두 개를 적어요 — 20~40초마다 둘 중 하나를 말하며 인사 동작을
+          해요.
         </p>
         {notice && (
           <p role="status" style={noticeStyle}>
@@ -157,10 +258,10 @@ export default function TeamNpcStudio() {
           const entry = file?.npcs[slot.key];
           const gender = entry?.appearance.gender ?? slot.gender;
           return (
-            <li key={slot.key} style={{ listStyle: "none" }}>
+            <li key={slot.key} style={{ ...card, listStyle: "none" }}>
               <button
                 type="button"
-                style={card}
+                style={cardButton}
                 disabled={!file}
                 onClick={() => {
                   setNotice(null);
@@ -183,6 +284,15 @@ export default function TeamNpcStudio() {
                   <span style={cardAction}>꾸미기 →</span>
                 </span>
               </button>
+              <LinesEditor
+                key={`${slot.key}:${(entry?.lines ?? []).join("\n")}:${entry ? 1 : 0}`}
+                slot={slot}
+                entry={entry}
+                onSaved={(next, message) => {
+                  setFile(next);
+                  setNotice(message);
+                }}
+              />
             </li>
           );
         })}
@@ -213,7 +323,7 @@ const noticeStyle: CSSProperties = {
 };
 const grid: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))",
   gap: 16,
   margin: 0,
   padding: 0,
@@ -222,19 +332,73 @@ const grid: CSSProperties = {
 const card: CSSProperties = {
   boxSizing: "border-box",
   width: "100%",
-  minHeight: 168,
+  display: "flex",
+  flexDirection: "column",
+  borderRadius: 16,
+  border: `1px solid ${UI.border}`,
+  background: UI.glass,
+  overflow: "hidden",
+};
+const cardButton: CSSProperties = {
+  boxSizing: "border-box",
+  width: "100%",
+  minHeight: 150,
   display: "flex",
   flexDirection: "column",
   alignItems: "flex-start",
   gap: 6,
   padding: "18px 18px 14px",
-  borderRadius: 16,
-  border: `1px solid ${UI.border}`,
-  background: UI.glass,
+  border: "none",
+  background: "transparent",
   color: UI.text,
   textAlign: "left",
   cursor: "pointer",
   font: "inherit",
+};
+const linesBox: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  margin: 0,
+  padding: "12px 18px 16px",
+  borderTop: `1px solid ${UI.border}`,
+};
+const linesTitle: CSSProperties = { color: UI.textMuted, fontSize: 12, fontWeight: 600 };
+const lineRow: CSSProperties = { display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 8 };
+const lineLabel: CSSProperties = { color: UI.textSubtle, fontSize: 12, whiteSpace: "nowrap", minWidth: "3.4em" };
+const lineInput: CSSProperties = {
+  boxSizing: "border-box",
+  minWidth: 0,
+  width: "100%",
+  minHeight: 44,
+  padding: "0 12px",
+  borderRadius: 10,
+  border: `1px solid ${UI.border}`,
+  background: "rgba(2,6,16,.55)",
+  color: UI.text,
+  font: "inherit",
+  fontSize: 14,
+};
+const lineCount: CSSProperties = {
+  fontSize: 11.5,
+  fontVariantNumeric: "tabular-nums",
+  minWidth: 36,
+  textAlign: "right",
+};
+/** 저장할 것이 없거나 저장 중 — 흐리게 */
+const linesSaveOff: CSSProperties = { opacity: 0.45, cursor: "default" };
+const linesFoot: CSSProperties = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 };
+const linesSave: CSSProperties = {
+  minHeight: 44,
+  padding: "0 18px",
+  borderRadius: 10,
+  border: `1px solid ${UI.borderStrong}`,
+  background: UI.surfaceRaised,
+  color: UI.text,
+  font: "inherit",
+  fontWeight: 600,
+  cursor: "pointer",
+  flexShrink: 0,
 };
 const cardName: CSSProperties = { font: `700 20px/1.2 ${UI_FONT.title}` };
 const cardMeta: CSSProperties = { color: UI.accent, fontSize: 13, fontWeight: 600 };

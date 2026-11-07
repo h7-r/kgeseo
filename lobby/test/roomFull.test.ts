@@ -7,6 +7,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { Client, type Room } from "@colyseus/sdk";
 
 import { buildConfig } from "../src/config.js";
+import { TEAM_SLOTS } from "../src/npc/teamRoster.js";
 import { silentLogger } from "../src/log.js";
 import { createLobbyServer, type LobbyServer } from "../src/server.js";
 import { ALLOWED_ORIGIN, makeTicket, TEST_SECRET, validLook } from "./helpers.js";
@@ -54,6 +55,11 @@ describe("방 상한 1", () => {
     const rooms: Room[] = [];
     for (let i = 0; i < 10; i += 1) rooms.push(await join());
     assert.equal(new Set(rooms.map((room) => room.roomId)).size, 1);
+    // 상주 팀 NPC 는 정원(연결 수)에 안 센다 — 사람 10명 + NPC(지금 5명)가 한 방에(미르 11/8 베타 「NPC 를 빼고 10명」)
+    await sleep(300);
+    const sids = [...((rooms[0]!.state as { players: Map<string, unknown> }).players?.keys?.() ?? [])] as string[];
+    assert.equal(sids.filter((sid) => sid.startsWith("npc-")).length, TEAM_SLOTS.length);
+    assert.equal(sids.filter((sid) => !sid.startsWith("npc-")).length, 10);
     for (let i = 0; i < 3; i += 1) {
       const error = await errorOf(join());
       assert.equal(error.message, "LOBBY_FULL");

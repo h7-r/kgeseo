@@ -2,13 +2,15 @@
 // 움직인다 — 화면은 사람과 똑같이 그린다(이름 · 외형 · 걷기 · 인사 · 맞으면 밀림). 접속 정원(ROOM_CAPACITY)은 연결 수라
 // NPC 는 세지 않는다. 방이 사라지면(마지막 사람이 나가면) 같이 사라진다.
 // 걷기는 가상 인원 스크립트(scripts/preview-bots.mjs)와 같다: 빈칸을 골라 길을 찾아 걷고, 사람 사이로 파고들지 않고,
-// 막히면 피해 다시 찾고, 서서 쉬고, 가끔 근처 사람에게 인사한다. 맞으면 0.2초 뒤 지수 감쇠로 1.2 유닛 밀린다.
-// 모습 · 이름은 lobby/data/team-npcs.json(팀 꾸미기 창이 쓴다) — 2초마다 바뀌었는지 보고 바뀌면 바로 갈아입힌다.
+// 막히면 피해 다시 찾고, 서서 쉰다. 맞으면 0.2초 뒤 지수 감쇠로 1.2 유닛 밀린다.
+// 20~40초마다 멈춘 채 대사 2개 중 하나를 말하며 인사 동작 6종 중 하나를 한다(미르 11/8, 검토 25회차 — 대사가 없으면 인사).
+// 모습 · 이름 · 대사는 lobby/data/team-npcs.json(팀 꾸미기 창이 쓴다) — 2초마다 바뀌었는지 보고 바뀌면 바로 갈아입힌다.
 import { readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import type { MapSchema } from "@colyseus/schema";
 
+import { CHAT_MAX_CHARS, chatLength, findChatProfanity, looksLikeContact, normalizeChatText } from "../chat.js";
 import type { Logger } from "../log.js";
 import { LOOK_CATALOG_VERSION, lookToStateString } from "../look.js";
 import { GREET_IDS } from "../movement.js";
@@ -36,8 +38,15 @@ const WALK_SPEED = 3.0;
 const PERSON_GAP = 1.3;
 /** 사람에게는 더 넉넉히 — 사람 자리는 화면이 0.1초마다 보내 늦게 안다 */
 const HUMAN_GAP = 1.8;
-/** 이 거리 안에 사람이 있을 때만 인사한다(허공에 인사하지 않게) */
-const GREET_NEAR = 6;
+/** 행동할 때 이 거리(유닛) 안에 사람이 있으면 그쪽을 본다 */
+const FACE_NEAR = 6;
+/** 대사 · 동작 주기(ms) — 실제로 한 때부터 다음까지 */
+export const NPC_ACT_MIN_MS = 20_000;
+export const NPC_ACT_MAX_MS = 40_000;
+/** 방이 생긴 뒤 첫 행동 — 다섯 명이 한꺼번에 말하지 않게 흩는다 */
+const FIRST_ACT_MIN_MS = 4_000;
+/** 동작하는 동안 서 있는 시간 */
+const ACT_HOLD_MS = 3_500;
 // 맞으면 밀림 — 게임 화면 · 가상 인원과 같은 값(src/dev/lobbyPreview/previewState.ts HIT_PUSH_DISTANCE · engine/movement/push.ts)
 const PUSH_DISTANCE = 1.2;
 const PUSH_DECAY = 7;
@@ -73,6 +82,22 @@ function defaultLook(gender: TeamSlot["gender"]) {
     colors: { ...DEFAULT_COLORS },
     body: { ...DEFAULT_BODY },
   };
+}
+
+/**
+ * 방송할 대사 — 채팅과 같은 다듬기 · 글자 수 · 연락처 · 금칙어(채팅 허용 구절 포함)를 지난 것만. 반복 발화를 막는 ChatGuard 는
+ * 쓰지 않는다(NPC 는 같은 말을 되풀이하는 것이 목적이다)
+ */
+function speakableLines(entry: TeamEntry | undefined): { lines: string[]; blocked: number } {
+  const lines: string[] = [];
+  let blocked = 0;
+  for (const raw of entry?.lines ?? []) {
+    const text = normalizeChatText(raw);
+    const length = chatLength(text);
+    if (length >= 1 && length <= CHAT_MAX_CHARS && !looksLikeContact(text) && !findChatProfanity(text)) lines.push(text);
+    else blocked += 1;
+  }
+  return { lines, blocked };
 }
 
 /** 저장값 → 방 상태 look 문자열. 사람과 같은 검사(+ 팀 전용 옷)를 지나야 하고, 틀리면 기본 모습 */
@@ -135,7 +160,10 @@ interface Walker {
   speed: number;
   idleUntil: number;
   blockedSince: number | undefined;
-  nextGreetAt: number;
+  /** 다음 대사 · 동작 — 걷는 중이면 멈춘 다음에 한다 */
+  nextActAt: number;
+  /** 지금 말할 수 있는 대사(검사를 지난 것) */
+  lines: string[];
   pendingPushes: PendingPush[];
   push: { x: number; z: number } | null;
   /** 지금 입은 모습(바뀌었는지 견준다) */
@@ -147,8 +175,10 @@ const pick = <T>(list: readonly T[]): T => list[Math.floor(Math.random() * list.
 
 export interface TeamNpcCrewOptions {
   nowMs: () => number;
-  /** 인사 방송 — 사람 인사와 같은 메시지 */
+  /** 인사 방송 — 사람 인사와 같은 메시지(동작 + 그 동작의 말풍선 · 목소리) */
   greet: (sid: string, id: number) => void;
+  /** 대사 방송 — 말풍선은 대사, 동작은 인사 id 의 동작만(목소리 · 동작 말풍선 없음). 채팅 기록에는 안 남는다 */
+  act: (sid: string, text: string, gesture: number) => void;
   log: Logger;
 }
 
@@ -158,6 +188,8 @@ export class TeamNpcCrew {
   readonly #options: TeamNpcCrewOptions;
   readonly #walkers = new Map<string, Walker>();
   #lastStepAt: number;
+  /** 마지막으로 반영한 저장 파일(바뀌었을 때만 대사를 다시 검사한다) */
+  #appliedFile: TeamFile | null = null;
 
   constructor(players: MapSchema<Player>, options: TeamNpcCrewOptions) {
     this.#players = players;
@@ -173,7 +205,9 @@ export class TeamNpcCrew {
   spawn() {
     const now = this.#options.nowMs();
     const file = teamFile(now);
+    this.#appliedFile = file;
     let invalid = 0;
+    let blockedLines = 0;
     for (const slot of TEAM_SLOTS) {
       const sid = `${NPC_SID_PREFIX}${slot.key}`;
       const entry = file.npcs[slot.key];
@@ -181,6 +215,7 @@ export class TeamNpcCrew {
       if (!valid) invalid += 1;
       const others = this.#othersOf(sid);
       const [x, z] = this.#freeSpot(others);
+      const speakable = speakableLines(entry);
       const player = new Player();
       player.nickname = entry?.displayName ?? slot.name;
       player.pid = sid;
@@ -201,13 +236,15 @@ export class TeamNpcCrew {
         speed: WALK_SPEED,
         idleUntil: now + between(500, 4000),
         blockedSince: undefined,
-        nextGreetAt: now + between(8000, 30000),
+        nextActAt: now + between(FIRST_ACT_MIN_MS, NPC_ACT_MAX_MS),
+        lines: speakable.lines,
         pendingPushes: [],
         push: null,
         appliedLook: `${player.nickname}\n${look}`,
       });
+      blockedLines += speakable.blocked;
     }
-    this.#options.log("npc_spawned", { count: this.#walkers.size, invalid });
+    this.#options.log("npc_spawned", { count: this.#walkers.size, invalid, blockedLines });
   }
 
   /** 서버 판정으로 맞았다 — 때린 사람 반대쪽으로(붙어 있으면 때린 사람 몸 방향으로) 주먹이 닿는 순간부터 민다 */
@@ -232,9 +269,20 @@ export class TeamNpcCrew {
     for (const walker of this.#walkers.values()) this.#stepWalker(walker, now, dt);
   }
 
-  /** 꾸미기 창이 저장하면 지금 방의 다섯 명도 바로 갈아입는다 */
+  /** 꾸미기 창이 저장하면 지금 방의 다섯 명도 바로 갈아입는다(대사도) */
   #refreshLooks(now: number) {
     const file = teamFile(now);
+    if (file !== this.#appliedFile) {
+      this.#appliedFile = file;
+      let blocked = 0;
+      for (const walker of this.#walkers.values()) {
+        const speakable = speakableLines(file.npcs[walker.slot.key]);
+        walker.lines = speakable.lines;
+        blocked += speakable.blocked;
+      }
+      // 걸린 대사는 내용 없이 개수만 남긴다
+      if (blocked) this.#options.log("npc_lines_blocked", { count: blocked });
+    }
     for (const walker of this.#walkers.values()) {
       const entry = file.npcs[walker.slot.key];
       const { look } = lookStringOf(walker.slot, entry);
@@ -331,6 +379,8 @@ export class TeamNpcCrew {
   #stepWalker(walker: Walker, now: number, dt: number) {
     this.#applyPush(walker, now, dt);
     const others = this.#othersOf(walker.sid);
+    // 대사 · 동작은 새 길을 고르기 전에 — 멈춰 있을 때만(걷는 중이면 도착해 멈춘 다음 틱에)
+    if (now >= walker.nextActAt && !walker.path.length && !walker.push) this.#act(walker, now);
     if (!walker.path.length && !walker.push && now >= walker.idleUntil) {
       const target = this.#chooseTarget(walker, others);
       const path = target && findPath(walker.x, walker.z, target.k, others);
@@ -383,21 +433,26 @@ export class TeamNpcCrew {
       gait = walker.path.length && !blocked ? "walk" : "idle";
       if (!walker.path.length) walker.idleUntil = Math.max(walker.idleUntil, now + between(1500, 7000));
     }
-    // 가끔 근처 사람에게 인사한다 — 서 있으면 그 사람 쪽을 본다
-    if (now >= walker.nextGreetAt) {
-      walker.nextGreetAt = now + between(20000, 50000);
-      const human = this.#nearestHuman(walker);
-      if (human && human.distance <= GREET_NEAR) {
-        if (gait === "idle") walker.ry = Math.atan2(human.x - walker.x, human.z - walker.z);
-        this.#options.greet(walker.sid, pick(GREET_IDS));
-      }
-    }
     const { player } = walker;
     player.x = walker.x;
     player.y = 0;
     player.z = walker.z;
     player.ry = walker.ry;
     player.gait = gait;
+  }
+
+  /**
+   * 대사 2개 중 하나 + 인사 동작 6종 중 하나(대사가 없거나 다 걸렸으면 그냥 인사). 근처에 사람이 있으면 그쪽을 보고,
+   * 동작하는 동안 서 있는다. 다음 행동은 지금부터 20~40초 뒤
+   */
+  #act(walker: Walker, now: number) {
+    walker.nextActAt = now + between(NPC_ACT_MIN_MS, NPC_ACT_MAX_MS);
+    walker.idleUntil = Math.max(walker.idleUntil, now + ACT_HOLD_MS);
+    const human = this.#nearestHuman(walker);
+    if (human && human.distance <= FACE_NEAR) walker.ry = Math.atan2(human.x - walker.x, human.z - walker.z);
+    const gesture = pick(GREET_IDS);
+    if (walker.lines.length) this.#options.act(walker.sid, pick(walker.lines), gesture);
+    else this.#options.greet(walker.sid, gesture);
   }
 
   #nearestHuman(walker: Walker) {

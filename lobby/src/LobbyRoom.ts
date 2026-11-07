@@ -101,6 +101,8 @@ export function createLobbyRoom({
           this.#npcs = new TeamNpcCrew(this.state.players, {
             nowMs,
             greet: (sid, id) => this.broadcast("greet", { sid, id }),
+            // NPC 대사(검토 25회차) — 화면은 말풍선 + 동작만, 채팅 기록에는 넣지 않는다
+            act: (sid, text, gesture) => this.broadcast("npcAct", { sid, text, gesture }),
             log,
           });
           this.#npcs.spawn();

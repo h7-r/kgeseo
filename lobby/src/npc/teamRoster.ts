@@ -1,7 +1,8 @@
 // 팀 캐릭터 다섯 명(미르 11/8, 검토 22회차) — 로비 서버가 방마다 상시 NPC 로 두고, 모습은 미르가 팀 꾸미기 창
 // (루트 team-npc.html, 개발 서버 전용)에서 만들어 저장한 lobby/data/team-npcs.json 을 따른다.
 // 로비 서버(lobby/src/npc)와 개발 서버 저장 미들웨어(vite.lobby-preview.config.ts)가 같이 쓰므로 아무것도 가져오지 않는다.
-// 여기서는 모양만 본다(문자열 · 유한한 수 · 색 형식 · 길이). 아이템 ID · 체형 범위는 로비 서버가 look 으로 만들 때 다시 검사한다.
+// 여기서는 모양만 본다(문자열 · 유한한 수 · 색 형식 · 길이). 아이템 ID · 체형 범위는 로비 서버가 look 으로 만들 때, 대사 내용은
+// 방송 직전에 다시 검사한다.
 
 export type TeamGender = "masculine" | "feminine";
 
@@ -63,6 +64,11 @@ export interface TeamAppearance {
 export interface TeamEntry {
   displayName: string;
   appearance: TeamAppearance;
+  /**
+   * 로비에서 주기적으로 읊조리는 대사(최대 2개, 미르 11/8) — 꾸미기 창에서 적는다. 여기서는 모양만 보고(1~40자 · 제어 문자 없음),
+   * 로비 서버가 방송 직전에 채팅과 같은 다듬기 · 연락처 · 금칙어 검사를 다시 한다
+   */
+  lines: string[];
   /** ISO 시각 */
   savedAt: string;
 }
@@ -73,6 +79,9 @@ export interface TeamFile {
 }
 
 export const NAME_MAX_LENGTH = 12;
+/** 대사 수 · 대사 글자 수(코드포인트) 상한 — 글자 수는 채팅 상한(lobby/src/chat.ts CHAT_MAX_CHARS)과 같다 */
+export const TEAM_LINES_MAX = 2;
+export const TEAM_LINE_MAX_LENGTH = 40;
 const ID_PATTERN = /^[a-z0-9.]{1,40}$/;
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 const COLOR_KEYS = ["skin", "hair", "cloth", "bottom", "shoes"] as const;
@@ -122,13 +131,33 @@ export function parseTeamName(raw: unknown): string | null {
   return name;
 }
 
+/** 대사 한 줄 — 공백을 묶고 앞뒤를 걷어 1~40자, 제어 문자 없음. 틀리면 null */
+export function parseTeamLine(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  // eslint-disable-next-line no-control-regex -- 제어 문자가 있으면 버린다
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(raw)) return null;
+  const line = raw.replace(/\s+/gu, " ").trim();
+  const length = [...line].length;
+  return length >= 1 && length <= TEAM_LINE_MAX_LENGTH ? line : null;
+}
+
+/** 대사 목록 — 배열이 아니면 빈 목록, 틀린 줄 · 빈 줄은 버리고 앞에서 2개까지 */
+export function parseTeamLines(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .slice(0, TEAM_LINES_MAX * 4)
+    .map(parseTeamLine)
+    .filter((line): line is string => line !== null)
+    .slice(0, TEAM_LINES_MAX);
+}
+
 export function parseTeamEntry(raw: unknown): TeamEntry | null {
   if (!isRecord(raw)) return null;
   const displayName = parseTeamName(raw.displayName);
   const appearance = parseTeamAppearance(raw.appearance);
   if (!displayName || !appearance) return null;
   const savedAt = typeof raw.savedAt === "string" && raw.savedAt.length <= 40 ? raw.savedAt : "";
-  return { displayName, appearance, savedAt };
+  return { displayName, appearance, lines: parseTeamLines(raw.lines), savedAt };
 }
 
 /** 파일 전체 — 모르는 키 · 틀린 사람은 버리고 나머지는 살린다(한 사람 실수로 다섯이 다 사라지지 않게) */
