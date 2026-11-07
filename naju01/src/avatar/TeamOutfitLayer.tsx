@@ -450,21 +450,26 @@ class SkipOnError extends Component<{ children: ReactNode; label: string }, { fa
 
 /** 아바타 몸과 같은 명암 계단(툰) */
 const pantsGradient = makeToonGradientTexture(DEFAULT_TOON.steps, DEFAULT_TOON.threshold);
+/** 바지 파츠의 −1 끝 체형 모프 이름 꼬리(tools/team_pants_build.py 가 붙인다) */
+const NEGATIVE_MORPH_SUFFIX = "__neg";
 
 /**
  * 바지 — 따로 구운 파츠 GLB(tools/team_pants_build.py)를 신발처럼 몸 골격에 묶는다(attachParts: 뼈 이름으로 다시 묶기).
- * 몸 표면을 복제해 만든 것이라 몸과 같은 모프 이름을 갖고 있어, 매 프레임 몸의 모프 값(다리 두께 · 골반 · 체형)을 옮겨
- * 체형 슬라이더를 따라간다. 결 무늬(회색)에 하의 색을 곱하고, 외곽선은 아바타와 같은 껍데기(applyOutline)다.
+ * 굽을 때 가장 가까운 몸 표면에서 웨이트 · 모프를 옮겨 받아 몸과 같은 모프 이름을 갖고 있다 — 매 프레임 몸의 모프 값
+ * (다리 두께 · 골반 · 체형)을 옮겨 체형 슬라이더를 따라간다. 결 무늬(회색)에 바지 색을 곱하고, 외곽선은 아바타와 같은
+ * 껍데기(applyOutline)다.
  */
 function Pants({
   prepared,
   style,
+  color,
   config,
   outline,
   framePriority,
 }: {
   prepared: PreparedBody;
   style: TeamPantsStyle;
+  color: string;
   config: Partial<MeshAppearanceConfig>;
   outline: OutlineConfig;
   framePriority: number;
@@ -476,8 +481,8 @@ function Pants({
   );
   useEffect(() => () => material.dispose(), [material]);
   useEffect(() => {
-    material.color.set(config.bottomColor ?? "#ffffff");
-  }, [material, config.bottomColor]);
+    material.color.set(color);
+  }, [material, color]);
   const attached = useRef<{ body: THREE.SkinnedMesh; meshes: THREE.SkinnedMesh[] } | null>(null);
   // 외곽선은 아바타 설정을 따른다(끄기 · 굵기 · 색) — 붙일 때 지금 값으로, 바뀌면 핸들을 고친다
   const outlineRef = useRef(outline);
@@ -499,6 +504,9 @@ function Pants({
     });
     for (const mesh of meshes) {
       const original = originals.get(mesh.name);
+      // 골반 높이 벽(두 다리 통이 가운데 평면에서 맞붙은 면 — 몸 · 바지 안에 숨는다)은 외곽선 · 그림자에서 뺀다.
+      // 껍데기가 앞뒤 가운데 이음으로 비쳐 검은 줄이 된다(Codex 23회차). 재질 이름은 tools/team_pants_build.py 가 붙인다
+      const wall = (mesh.material as THREE.Material | undefined)?.name === "TeamPantsWall";
       // 새 메시는 모프 이름을 모른다(번호만) — 원본 이름표를 옮긴다. 결 무늬는 원본 재질의 텍스처
       if (original?.morphTargetDictionary) mesh.morphTargetDictionary = { ...original.morphTargetDictionary };
       const map = (original?.material as THREE.MeshStandardMaterial | undefined)?.map ?? null;
@@ -511,11 +519,14 @@ function Pants({
       mesh.material = material;
       mesh.frustumCulled = false;
       // 몸 · 신발처럼 그림자를 드리우고 받는다(attachParts 는 둘 다 끈 채 만든다 — Codex 리뷰 a2a0fbd)
-      mesh.castShadow = true;
+      mesh.castShadow = !wall;
       mesh.receiveShadow = true;
       mesh.userData.teamPants = style;
+      mesh.userData.teamPantsWall = wall;
     }
-    const outlines = meshes.map((mesh) => applyOutline(mesh, outlineRef.current));
+    const outlines = meshes
+      .filter((mesh) => !mesh.userData.teamPantsWall)
+      .map((mesh) => applyOutline(mesh, outlineRef.current));
     outlineHandles.current = outlines;
     attached.current = { body, meshes };
     return () => {
@@ -526,7 +537,9 @@ function Pants({
       disposables.geometries.forEach((geometry) => geometry.dispose());
     };
   }, [gltf, prepared, material, style]);
-  // 몸의 체형 모프 값을 이름으로 옮긴다(몸 GLB 와 바지 파츠의 모프 순서가 같다는 보장은 없다)
+  // 몸의 체형 모프 값을 이름으로 옮긴다(몸 GLB 와 바지 파츠의 모프 순서가 같다는 보장은 없다).
+  // 음수로도 쓰는 체형(골반 · 다리 두께 · 신발 신은 발)은 바지에 −1 끝 모양이 따로 있다(「이름__neg」) — 양수는 원래 이름,
+  // 음수는 __neg 에 크기로 넣는다. 바지 통은 최대 필터라 +1 모양을 뒤집어 쓰면 몸보다 더 오그라들었다
   useFrame(() => {
     const current = attached.current;
     const bodyInfluences = current?.body.morphTargetInfluences;
@@ -537,8 +550,12 @@ function Pants({
       const dictionary = mesh.morphTargetDictionary;
       if (!influences || !dictionary) continue;
       for (const [name, index] of Object.entries(dictionary)) {
-        const source = bodyDictionary[name];
-        influences[index] = source === undefined ? 0 : (bodyInfluences[source] ?? 0);
+        const negative = name.endsWith(NEGATIVE_MORPH_SUFFIX);
+        const bodyName = negative ? name.slice(0, -NEGATIVE_MORPH_SUFFIX.length) : name;
+        const source = bodyDictionary[bodyName];
+        const value = source === undefined ? 0 : (bodyInfluences[source] ?? 0);
+        const split = negative || dictionary[`${name}${NEGATIVE_MORPH_SUFFIX}`] !== undefined;
+        influences[index] = !split ? value : negative ? Math.max(0, -value) : Math.max(0, value);
       }
     }
   }, framePriority);
@@ -602,6 +619,7 @@ export default function TeamOutfitLayer({
             <Pants
               prepared={prepared}
               style={outfit.pants}
+              color={outfit.pantsColor ?? "#ffffff"}
               config={config}
               outline={outline}
               framePriority={framePriority}

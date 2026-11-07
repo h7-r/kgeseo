@@ -1,11 +1,23 @@
-# 팀 캐릭터 전용 바지(스키니 청바지 · 통 큰 바지)를 몸 GLB 에서 뽑아 파츠 GLB 로 굽는다(미르 11/8, 검토 22회차 C2).
-# 신발처럼 몸 골격에 묶는 따로 된 파츠다(TeamOutfitLayer 가 attachParts 로 붙인다) — 바지 입은 몸 GLB(10~15MB)를 새로
-# 굽지 않는다. 바지는 몸 표면(다리 · 골반 웨이트가 큰 면)을 그대로 복제해 만들어서 웨이트 · 모프(다리 두께 · 골반 · 체형)를
-# 물려받는다 — 체형 슬라이더를 움직여도 다리를 따라간다. 모양은 법선 방향으로 밀어 낸다:
-#   jeans: 다리에 붙게 5mm, 허리에서 발목 위까지
-#   baggy: 엉덩이 1.2cm → 밑단 7cm 로 넓히고, 다리 근육 굴곡이 안 보이게 표면을 고르고(라플라시안), 웨이트도 부드럽게 —
-#          천이 다리에 딱 붙어 따라가지 않게. 안쪽 허벅지는 덜 밀어 두 다리가 덜 부딪힌다.
-# UV 는 다리 둘레를 따라 펴고(이음은 다리 안쪽), 결 무늬 텍스처(회색 — 화면이 하의 색을 곱한다)를 넣는다.
+# 팀 캐릭터 전용 바지(스키니 청바지 · 통 큰 바지)를 몸 GLB 에 맞춰 파츠 GLB 로 굽는다(미르 11/8, 검토 22 · 23회차).
+# 신발처럼 몸 골격에 묶는 따로 된 파츠다(TeamOutfitLayer 가 attachParts 로 붙인다) — 바지 입은 몸 GLB 를 새로 굽지 않는다.
+#
+# 모양 — 다리를 감싸는 통(튜브)이다. 몸 표면을 복제해 띄우던 예전 방식(22회차)은 반바지 밑단 단차 · 무릎 · 종아리 굴곡을
+# 그대로 따라가 「다리에 페인트를 칠한 것 같다」(미르 11/8)였다:
+#   1) 1cm 줄마다 그 높이의 몸(다리 · 골반 · 허리, 팔 · 손 · 발 제외, 자기 쪽 절반) 정점을 모아 2D 볼록 껍질을 만들고,
+#      다리 축에서 둘레 N 방향으로 껍질까지의 반지름을 잰다 — 근육 사이 오목이 사라진다.
+#   2) 길이 방향으로 기울기 제한 최대 필터 — 엉덩이 · 반바지 밑단 · 무릎의 불룩함이 아래로 완만하게 이어져 단차가 안 보인다.
+#      허리 띠는 위로 번지지 않게 셔츠에 딱 붙인다(셔츠를 넣어 입은 모양).
+#   3) 여유(ease)를 더한다. 통 큰 바지는 무릎 아래로 일자로 떨어진다.
+#   4) 두 다리는 가운데 평면(x = 0)에서 자른다 — 골반 높이에서는 두 통의 안쪽이 같은 평면에 붙은 「벽」이 되어 몸 · 바지
+#      안에 숨는다(따로 된 재질 TeamPantsWall — 화면이 외곽선 · 그림자에서 뺀다). 골반 높이는 두 통이 몸 전체 껍질과 가운데
+#      평면의 중심을 같이 써 앞뒤 가운데 이음 정점이 똑같고, 가랑이 아래 6cm 동안 다리 축으로 옮긴다. 통 큰 바지는 가랑이
+#      아래로 두 다리 사이를 벌린다.
+# 메시는 다리마다 줄 × 둘레 N 의 링이라 허리 · 밑단 고리가 반듯하고 구멍 · 실금이 없다.
+# 웨이트는 같은 쪽 몸 표면에서, 여유를 넣기 전 껍질 자리의 가장 가까운 점을 찾아 삼각형 무게중심 좌표로 보간한다. 앞뒤
+# 가운데 이음 정점은 두 통이 같은 웨이트 · 모프를 써 걸을 때 벌어지지 않는다.
+# 모프(체형 슬라이더)는 셰이프 키마다 그 체형의 몸으로 통을 다시 만들어 차이를 쓴다. 음수로도 쓰는 키(골반 · 다리 두께 ·
+# 신발 신은 발)는 −1 끝을 「이름__neg」로 따로 굽는다. 다 구운 뒤 체형 조합마다 몸이 바지 밖으로 나오는지 잰다(--report).
+# UV 는 다리 둘레(이음은 다리 안쪽) × 높이, 결 무늬 텍스처(회색 — 화면이 하의 색을 곱한다).
 #
 #   Blender --background --factory-startup --python tools/team_pants_build.py -- \
 #     --glb public/models/meshy-both-male.glb --style jeans --out public/models/team-pants-jeans-both-male.glb
@@ -17,9 +29,10 @@ import math
 import random
 import sys
 
-import bmesh
 import bpy
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
+from mathutils.interpolate import poly_3d_calc
 
 argv = sys.argv[sys.argv.index("--") + 1 :] if "--" in sys.argv else []
 parser = argparse.ArgumentParser()
@@ -30,13 +43,25 @@ parser.add_argument("--report", help="잰 값을 JSON 으로")
 args, _extra = parser.parse_known_args(argv)
 
 STYLE = {
-    # hem: 발목 뼈 위 밑단 높이(m) · waist: spine_01 위 허리 높이(m)
-    # min_offset: 고른 뒤에도 몸 표면에서 이만큼은 떨어진다(라플라시안 고르기는 표면을 오그라뜨려 몸이 비쳤다)
-    # hem_drop: 밑단 고리를 발목 뼈보다 이만큼 더 내린다(통 큰 바지 기장 — 미르 11/8 「좀만 더 길게」) · band_margin: 허리 띠가
-    # 몸 · 셔츠의 가장 바깥에서 떨어지는 거리
-    "jeans": {"hem": 0.012, "hem_drop": 0.0, "waist": 0.02, "offset_hip": 0.0065, "offset_hem": 0.0065, "min_offset": 0.006, "smooth": 3, "weight_smooth": 0, "band_margin": 0.003},
-    "baggy": {"hem": 0.0, "hem_drop": 0.035, "waist": 0.02, "offset_hip": 0.007, "offset_hem": 0.07, "min_offset": 0.006, "smooth": 14, "weight_smooth": 4, "band_margin": 0.004},
+    # hem: 발목 뼈 위 밑단 높이(m) · hem_drop: 밑단을 더 내림(통 큰 바지 기장, 미르 11/8 「좀만 더 길게」)
+    # waist: spine_01 위 허리 높이 · band_margin: 허리 띠가 몸 · 셔츠의 가장 바깥에서 떨어지는 거리
+    # ease_*: 볼록 껍질에서 바지까지의 여유(엉덩이 · 고관절 · 무릎 · 밑단) · slope_down: 불룩함이 아래로 줄어드는 기울기
+    # straight: 무릎 아래에서 아래로 갈수록 줄어드는 기울기 상한(통 큰 바지 일자) · gap: 밑단에서 두 다리 사이 반 간격
+    "jeans": {
+        "hem": 0.012, "hem_drop": 0.0, "waist": 0.02, "band_margin": 0.004,
+        "ease_hip": 0.008, "ease_thigh": 0.010, "ease_knee": 0.009, "ease_hem": 0.008,
+        "slope_down": 0.2, "straight": None, "gap": 0.0, "weight_smooth": 2,
+    },
+    "baggy": {
+        "hem": 0.0, "hem_drop": 0.035, "waist": 0.02, "band_margin": 0.005,
+        "ease_hip": 0.014, "ease_thigh": 0.03, "ease_knee": 0.042, "ease_hem": 0.05,
+        "slope_down": 0.12, "straight": 0.03, "gap": 0.014, "weight_smooth": 6,
+    },
 }[args.style]
+RING = 64  # 둘레 정점 수
+ROW = 0.01  # 줄 간격(m)
+SLAB = 0.006  # 줄마다 몸 정점을 모으는 두께(위아래)
+MIN_EASE = 0.006  # 고른 뒤에도 껍질에서 이만큼은 떨어진다(체형 모프를 섞어 얹을 때의 오차도 이 안에서)
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=args.glb)
@@ -51,61 +76,69 @@ def head(name):
     return arm.matrix_world @ arm.data.bones[name].head_local
 
 
-# 허리 높이 — spine_01 위. 여자 몸은 속옷 윗선이 더 높아(상의와 바지 사이에 회색 띠가 보였다) 3cm 더 올린다.
-# 상의가 있는 몸은 셔츠 밑단(상의 표식 2 의 아래 1%)보다 1.5cm 위까지 — 바지가 셔츠 밑으로 들어가 틈이 안 생긴다
+def smoothstep(t):
+    t = min(1.0, max(0.0, t))
+    return t * t * (3 - 2 * t)
+
+
+world = body.matrix_world
+points = [world @ v.co for v in body.data.vertices]
+
+# ── 허리 높이 ── spine_01 위. 여자 몸은 속옷 윗선이 더 높아 3cm 더 올린다.
 is_female = "female" in body.name.lower()
 waist_z = head("spine_01").z + STYLE["waist"] + (0.03 if is_female else 0.0)
 tint_attr = body.data.attributes.get("_TINT")
-# 아래 깔린 반바지(하의 표식 3)의 허리 밴드 윗선 — 그보다 위까지 덮는다(상의 없는 몸에서 검은 띠가 보였다).
-# 몸통 둘레 16구역마다 가장 높은 반바지 정점을 재고 그중 가장 높은 곳. 가슴 쪽에 흩어진 표식은 빼려고 고관절 25cm 위까지만
+# 아래 깔린 반바지(하의 표식 3)의 허리 밴드 윗선 — 상의가 없으면 그보다 위까지 덮는다(검은 띠가 보였다).
+# 몸통 둘레 16구역마다 가장 높은 반바지 정점, 그 중간값(크롭 탑 근처에 잘못 찍힌 표식에 끌려 올라가지 않게)
+centre0 = head("pelvis")
 shorts_top_z = None
 if tint_attr and tint_attr.domain == "POINT":
-    centre0 = head("pelvis")
     tops = {}
     for i, d in enumerate(tint_attr.data):
         if round(d.value) != 3:
             continue
-        p = body.matrix_world @ body.data.vertices[i].co
+        p = points[i]
         if p.z > head("thigh_l").z + 0.25 or math.hypot(p.x - centre0.x, p.y - centre0.y) > 0.25:
             continue
         k = int((math.atan2(p.y - centre0.y, p.x - centre0.x) + math.pi) / (2 * math.pi) * 16) % 16
         tops[k] = max(tops.get(k, p.z), p.z)
     if len(tops) >= 8:
-        # 구역별 최고 높이의 중간값 — 크롭 탑 밑단 근처에 잘못 찍힌 표식 몇 구역(여자 0.84m)에 끌려 올라가지 않게
         ordered = sorted(tops.values())
         shorts_top_z = ordered[len(ordered) // 2]
+# 상의가 있는 몸 — 셔츠 밑단 톱니 꼭대기 바로 위(+6mm)까지. 밑단은 앞뒤 높이가 달라 16구역마다 가장 낮은 셔츠 정점을 잰다
 shirt_hem_z = None
 shirt_lowest_z = None
-shirt_points = []
+shirt_body = False
 if tint_attr and tint_attr.domain == "POINT":
-    shirt = [body.matrix_world @ body.data.vertices[i].co for i, d in enumerate(tint_attr.data) if round(d.value) == 2]
+    shirt = [points[i] for i, d in enumerate(tint_attr.data) if round(d.value) == 2]
     if len(shirt) > 500:
-        shirt_points = shirt
-        # 밑단은 앞뒤 높이가 다르다 — 몸통 둘레 16구역마다 가장 낮은 셔츠 정점을 재고, 그중 가장 높은 곳까지 덮는다
-        # (가장 낮은 곳 기준이면 등 쪽에 틈이 남았다). 팔(소매)은 빼려고 몸통 가까운 정점만 본다
-        centre = head("pelvis")
+        shirt_body = True
         lowest = min(p.z for p in shirt)
         sectors = {}
         for p in shirt:
-            if p.z > lowest + 0.2 or math.hypot(p.x - centre.x, p.y - centre.y) > 0.25:
+            if p.z > lowest + 0.2 or math.hypot(p.x - centre0.x, p.y - centre0.y) > 0.25:
                 continue
-            k = int((math.atan2(p.y - centre.y, p.x - centre.x) + math.pi) / (2 * math.pi) * 16) % 16
+            k = int((math.atan2(p.y - centre0.y, p.x - centre0.x) + math.pi) / (2 * math.pi) * 16) % 16
             sectors[k] = min(sectors.get(k, p.z), p.z)
         if sectors:
             shirt_hem_z = max(sectors.values())
-            # 밑단 톱니 꼭대기 바로 위 — 더 높으면 띠가 셔츠보다 길게 올라와 붕 떠 보였다
             waist_z = max(waist_z, shirt_hem_z + 0.006)
-            # 띠가 시작할 셔츠 밑단 높이 — 구역별 가장 낮은 셔츠 정점의 중간값(엉덩이 쪽에 흩어진 표식 몇 개에 끌려 내려가지 않게)
             minima = sorted(sectors.values())
             shirt_lowest_z = minima[len(minima) // 2]
-# 반바지 윗선은 셔츠가 없을 때만 — 셔츠가 있으면 셔츠가 반바지를 덮는다
-if shorts_top_z is not None and not shirt_points:
+if shorts_top_z is not None and not shirt_body:
     waist_z = max(waist_z, shorts_top_z + 0.006)
+
 thigh_z = head("thigh_l").z
 knee_z = head("calf_l").z
 ankle = {1: head("foot_l"), -1: head("foot_r")}
-hem_z = {side: ankle[side].z + STYLE["hem"] for side in (1, -1)}
-# 다리 축(옆 · 앞뒤 자리)을 높이로 잇는다 — UV 둘레 각과 통 큰 바지의 밑단 퍼짐에 쓴다
+hem_z = {side: ankle[side].z + STYLE["hem"] - STYLE["hem_drop"] for side in (1, -1)}
+# 허리 띠 아래 끝 — 셔츠가 있으면 밑단(구역별 가장 낮은 곳의 중간값) 1.5cm 아래, 없으면 허리 4cm 아래. 고관절 3cm 위로 제한
+if shirt_lowest_z is not None:
+    band_bottom = max(shirt_lowest_z - 0.015, thigh_z + 0.03)
+else:
+    band_bottom = max(waist_z - 0.04, thigh_z + 0.03)
+
+# 다리 축 — 고관절 위로는 수직, 그 아래는 thigh → calf → foot 꺾은선(높이로 잇는다)
 axis_points = {
     1: [(head("thigh_l").z, head("thigh_l")), (knee_z, head("calf_l")), (ankle[1].z, ankle[1])],
     -1: [(head("thigh_r").z, head("thigh_r")), (head("calf_r").z, head("calf_r")), (ankle[-1].z, ankle[-1])],
@@ -118,376 +151,577 @@ def leg_axis(side, z):
         return pts[0][1]
     for (z0, p0), (z1, p1) in zip(pts, pts[1:]):
         if z1 <= z <= z0:
-            t = (z0 - z) / max(1e-6, z0 - z1)
-            return p0.lerp(p1, t)
+            return p0.lerp(p1, (z0 - z) / max(1e-6, z0 - z1))
     return pts[-1][1]
 
 
+# ── 몸에서 바지가 덮을 정점 ── 다리 · 골반 웨이트(허리 띠 높이에서는 몸통 전부), 팔 · 손 · 발은 뺀다
 groups = {g.index: g.name for g in body.vertex_groups}
 LEG = {i for i, n in groups.items() if n.startswith(("thigh", "calf"))}
 FOOT = {i for i, n in groups.items() if n.startswith(("foot", "ball"))}
 PELVIS = {i for i, n in groups.items() if n == "pelvis"}
-
-world = body.matrix_world
-selected = set()
+ARM = {i for i, n in groups.items() if n.startswith(("clavicle", "upperarm", "lowerarm", "hand", "thumb", "index", "middle", "ring", "pinky", "prop", "elbow", "shoulder"))}
+covered = [False] * len(points)
 for v in body.data.vertices:
-    p = world @ v.co
-    leg = sum(g.weight for g in v.groups if g.group in LEG)
-    pelvis = sum(g.weight for g in v.groups if g.group in PELVIS)
-    foot = sum(g.weight for g in v.groups if g.group in FOOT)
-    side = 1 if p.x >= 0 else -1
-    if leg + pelvis >= 0.5 and foot < 0.25 and hem_z[side] <= p.z <= waist_z:
-        selected.add(v.index)
-
-# 고른 정점만으로 된 면을 복제해 새 물체로 — 웨이트 그룹 · 셰이프 키 · 아마추어가 그대로 따라온다
-bpy.ops.object.select_all(action="DESELECT")
-body.select_set(True)
-bpy.context.view_layer.objects.active = body
-bpy.ops.object.mode_set(mode="EDIT")
-bm = bmesh.from_edit_mesh(body.data)
-bm.verts.ensure_lookup_table()
-for f in bm.faces:
-    f.select_set(all(v.index in selected for v in f.verts))
-bmesh.update_edit_mesh(body.data)
-bpy.ops.mesh.duplicate()
-bpy.ops.mesh.separate(type="SELECTED")
-bpy.ops.object.mode_set(mode="OBJECT")
-pants = next(o for o in bpy.context.selected_objects if o != body)
-pants.name = f"TeamPants_{args.style}"
-pants.data.name = pants.name
-# 몸에서 온 재질 · 표식은 버린다(화면이 하의 재질을 따로 만든다)
-pants.data.materials.clear()
-for name in ("_TINT", "_tint"):
-    if name in pants.data.attributes:
-        pants.data.attributes.remove(pants.data.attributes[name])
-
-# glTF 는 UV · 법선 이음마다 정점을 갈라 둔다 — 같은 자리 정점을 합쳐 바지를 한 덩어리로 잇는다(셰이프 키 · 웨이트는 함께 합쳐진다).
-# 그다음 작은 조각(파편)만 버린다 — 가장 큰 연결 덩어리만 남긴다
-bm = bmesh.new()
-bm.from_mesh(pants.data)
-merged_before = len(bm.verts)
-# 0.3mm — 이음매 정점이 0.01mm 넘게 벌어진 곳은 안 붙어, 바지를 띄우자 실금이 벌어져 그 틈으로 몸이 비쳤다(「빵꾸」)
-bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=3e-4)
-merged = merged_before - len(bm.verts)
-bm.verts.ensure_lookup_table()
-bm.verts.index_update()
-seen = set()
-islands = []
-for v in bm.verts:
-    if v.index in seen:
+    p = points[v.index]
+    w = {g.group: g.weight for g in v.groups}
+    leg = sum(x for g, x in w.items() if g in LEG)
+    pelvis = sum(x for g, x in w.items() if g in PELVIS)
+    foot = sum(x for g, x in w.items() if g in FOOT)
+    armw = sum(x for g, x in w.items() if g in ARM)
+    if armw >= 0.1 or foot >= 0.25:
         continue
-    stack = [v]
-    seen.add(v.index)
-    island = []
-    while stack:
-        cur = stack.pop()
-        island.append(cur)
-        for e in cur.link_edges:
-            other = e.other_vert(cur)
-            if other.index not in seen:
-                seen.add(other.index)
-                stack.append(other)
-    islands.append(island)
-islands.sort(key=len, reverse=True)
-dropped = sum(len(i) for i in islands[1:])
-for island in islands[1:]:
-    bmesh.ops.delete(bm, geom=island, context="VERTS")
-# 경계 고리 — 허리(가장 높은 고리) · 밑단(양쪽 가장 낮은 고리)만 열어 두고 나머지(다리 안쪽에 웨이트가 갈려 빠진 구멍)는
-# 메운다. 구멍으로 몸이 비쳐 흰 점처럼 보였다. 메우기는 있는 정점으로 면만 만들어 셰이프 키 · 웨이트가 그대로다
-bm.verts.ensure_lookup_table()
-bm.edges.ensure_lookup_table()
-loops = []
-seen_edges = set()
-for edge in bm.edges:
-    if not edge.is_boundary or edge.index in seen_edges:
-        continue
-    stack = [edge]
-    seen_edges.add(edge.index)
-    loop_edges = []
-    while stack:
-        cur = stack.pop()
-        loop_edges.append(cur)
-        for v in cur.verts:
-            for nxt in v.link_edges:
-                if nxt.is_boundary and nxt.index not in seen_edges:
-                    seen_edges.add(nxt.index)
-                    stack.append(nxt)
-    verts = {v for e in loop_edges for v in e.verts}
-    loops.append({"edges": loop_edges, "verts": verts, "z": sum((world @ v.co).z for v in verts) / len(verts), "x": sum((world @ v.co).x for v in verts) / len(verts)})
-if "--debug-loops" in sys.argv:
-    for l in sorted(loops, key=lambda l: l["z"])[:8]:
-        print("LOOP", len(l["verts"]), round(l["z"], 4), round(l["x"], 4))
-# 허리 — 가장 높은 고리에서 3cm 안의 고리 중 가장 큰 것(허리 가장자리의 작은 구멍을 허리로 고르지 않게)
-highest = max(l["z"] for l in loops)
-waist_loop = max((l for l in loops if l["z"] > highest - 0.03), key=lambda l: len(l["verts"]))
-# 밑단 — 다리마다 가장 낮은 고리에서 3cm 안의 고리 중 가장 큰 것(밑단 가장자리의 작은 구멍을 밑단으로 고르지 않게)
+    torso = p.z >= band_bottom - 0.03 and math.hypot(p.x - centre0.x, p.y - centre0.y) < 0.3
+    if (leg + pelvis >= 0.5 or torso) and p.z <= waist_z + SLAB + 0.01:
+        covered[v.index] = True
+
+# 가랑이 꼭짓점 — 골반 웨이트가 큰 가운데(|x| < 1cm) 정점의 가장 낮은 높이. 그 위(골반)는 두 다리 통이 몸 전체 껍질을
+# 같이 쓰고 둘레 중심을 가운데 평면에 둬, 앞뒤 가운데 이음 정점이 두 통에서 똑같다(예전엔 다리 축에서 쏴 이음이 V 로 벌어져
+# 반바지 · 셔츠가 비쳤다). 그 아래 BLEND 동안 중심을 다리 축으로 옮긴다
+pelvis_mid = [
+    points[v.index].z
+    for v in body.data.vertices
+    if covered[v.index] and abs(points[v.index].x) < 0.01 and sum(g.weight for g in v.groups if g.group in PELVIS) >= 0.5
+]
+apex_z = min(pelvis_mid) if pelvis_mid else thigh_z - 0.04
+BLEND = 0.06
+# 두 다리(반바지) 안쪽이 가운데에서 떨어지기 시작하는 높이 — 통 큰 바지가 이 아래로 두 다리 사이를 벌린다
+crotch_z = apex_z
+z = apex_z
+while z > knee_z:
+    inner = [abs(p.x) for i, p in enumerate(points) if covered[i] and abs(p.z - z) < SLAB]
+    if inner and min(inner) > 0.003:
+        break
+    crotch_z = z
+    z -= ROW
 
 
-def hem_loop_of(side):
-    candidates = [l for l in loops if l is not waist_loop and (l["x"] >= 0) == (side > 0)]
-    if not candidates:
-        return None
-    lowest = min(l["z"] for l in candidates)
-    return max((l for l in candidates if l["z"] < lowest + 0.03), key=lambda l: len(l["verts"]))
+def ease_at(z):
+    if z >= band_bottom:
+        return STYLE["band_margin"]
+    if z >= band_bottom - 0.03:
+        return STYLE["band_margin"] + (STYLE["ease_hip"] - STYLE["band_margin"]) * smoothstep((band_bottom - z) / 0.03)
+    if z >= thigh_z:
+        t = (band_bottom - 0.03 - z) / max(1e-6, band_bottom - 0.03 - thigh_z)
+        return STYLE["ease_hip"] + (STYLE["ease_thigh"] - STYLE["ease_hip"]) * smoothstep(t)
+    if z >= knee_z:
+        return STYLE["ease_thigh"] + (STYLE["ease_knee"] - STYLE["ease_thigh"]) * smoothstep((thigh_z - z) / (thigh_z - knee_z))
+    return STYLE["ease_knee"] + (STYLE["ease_hem"] - STYLE["ease_knee"]) * smoothstep((knee_z - z) / max(1e-6, knee_z - min(hem_z.values())))
 
 
-hem_loops = [hem_loop_of(side) for side in (1, -1)]
-open_loops = [waist_loop] + [l for l in hem_loops if l]
-holes = [l for l in loops if all(l is not o for o in open_loops)]
-filled = 0
-if holes:
-    result = bmesh.ops.holes_fill(bm, edges=[e for l in holes for e in l["edges"]], sides=0)
-    filled = len(result.get("faces", []))
-# 거의 넓이가 없는 찌그러진 면은 녹인다 — 법선이 제멋대로라 툰 테두리 빛이 흰 점처럼 튀었다
-bmesh.ops.dissolve_degenerate(bm, dist=1e-5, edges=bm.edges)
-# 메운 면까지 바깥을 보게 면 방향을 다시 맞춘다(뒤집힌 면은 양면 재질에서 반대로 비쳐 흰 점처럼 보였다)
-bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-for face in bm.faces:
-    face.smooth = True
-bm.verts.index_update()
-waist_verts = {v.index for v in waist_loop["verts"]}
-hem_verts = {v.index for l in hem_loops if l for v in l["verts"]}
-loop_report = {"loops": len(loops), "holes": len(holes), "holeVerts": sum(len(l["verts"]) for l in holes), "filledFaces": filled, "waistVerts": len(waist_verts), "hemVerts": len(hem_verts)}
-bm.to_mesh(pants.data)
-bm.free()
-
-mesh = pants.data
-# 몸에서 물려받은 사용자 법선 · 각진 면 표식은 버린다 — 바지는 자리를 옮기고 고르므로 몸의 법선이 맞지 않는다(조명 얼룩)
-for name in ("custom_normal", "sharp_face", "sharp_edge"):
-    if name in mesh.attributes:
-        mesh.attributes.remove(mesh.attributes[name])
-keys = mesh.shape_keys.key_blocks
-basis = keys[0]
-count = len(mesh.vertices)
-mesh.update()
-normals = [Vector(v.normal) for v in mesh.vertices]
-positions = [Vector(basis.data[i].co) for i in range(count)]
-pw = pants.matrix_world
+def gap_at(z, side=1, j=None):
+    # 가운데 평면에서 띄울 거리 — 가랑이 위로는 0(두 통이 붙어 벽이 된다). 그 줄 몸 안쪽 허벅지보다 여유 하한만큼은
+    # 안쪽에 둔다(벌린 틈이 몸을 바지 밖으로 내놓지 않게)
+    if not STYLE["gap"] or z >= crotch_z:
+        return 0.0
+    g = STYLE["gap"] * smoothstep((crotch_z - z) / 0.22)
+    if j is not None:
+        g = min(g, max(0.0, INNER_X[side][j] - MIN_EASE))
+    return g
 
 
-def smoothstep(t):
-    t = min(1.0, max(0.0, t))
-    return t * t * (3 - 2 * t)
+def convex_hull(pts):
+    pts = sorted(set(pts))
+    if len(pts) < 3:
+        return pts
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    lower, upper = [], []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    for p in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    return lower[:-1] + upper[:-1]
 
 
-# 1) 법선 방향으로 밀어 낸다
-offsets = []
-for i in range(count):
-    p = pw @ positions[i]
-    side = 1 if p.x >= 0 else -1
-    t = (thigh_z - p.z) / max(1e-6, thigh_z - hem_z[side])
-    d = STYLE["offset_hip"] + (STYLE["offset_hem"] - STYLE["offset_hip"]) * smoothstep(t)
-    n = normals[i]
-    if args.style == "baggy":
-        # 안쪽 허벅지(다리 가운데 쪽을 보는 면)는 덜 민다
-        inward = max(0.0, -n.x * side)
-        d *= 1.0 - 0.6 * inward
-    offsets.append(n * d)
-
-new_positions = [positions[i] + offsets[i] for i in range(count)]
-
-# 허리 · 밑단 고리를 한 높이로 — 면 단위로 고른 경계는 삼각형 모서리를 따라 톱니처럼 들쭉날쭉했다
-inverse_world = pw.inverted()
-snapped = 0
-for i in range(count):
-    if i not in waist_verts and i not in hem_verts:
-        continue
-    p = pw @ new_positions[i]
-    side = 1 if p.x >= 0 else -1
-    p.z = waist_z if i in waist_verts else hem_z[side] - STYLE["hem_drop"]
-    new_positions[i] = inverse_world @ p
-    snapped += 1
-
-# 2) 통 큰 바지: 표면 고르기(경계 고리는 고정) — 근육 굴곡이 안 보이게
-if STYLE["smooth"]:
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.verts.ensure_lookup_table()
-    neighbours = [[e.other_vert(v).index for e in v.link_edges] for v in bm.verts]
-    boundary = [v.is_boundary for v in bm.verts]
-    bm.free()
-    for _ in range(STYLE["smooth"]):
-        nxt = []
-        for i in range(count):
-            if boundary[i] or not neighbours[i]:
-                nxt.append(new_positions[i])
-                continue
-            avg = sum((new_positions[j] for j in neighbours[i]), Vector()) / len(neighbours[i])
-            nxt.append(new_positions[i].lerp(avg, 0.5))
-        new_positions = nxt
-
-# 몸 표면에서 최소 거리 지키기 — 원래 자리에서 법선 방향으로 min_offset 보다 안쪽이면 밀어 낸다
-pushed = 0
-for i in range(count):
-    n = normals[i]
-    off = (new_positions[i] - positions[i]).dot(n)
-    if off < STYLE["min_offset"]:
-        new_positions[i] = new_positions[i] + n * (STYLE["min_offset"] - off)
-        pushed += 1
-
-# 허리 띠 — 바지는 반바지를 입은 몸(both · bottom) 위에 입는다(하의 없는 몸 GLB 는 얼굴이 달라 머리가 내려앉았다, 미르 11/8).
-# 셔츠 밑단은 톱니 모양이라 셔츠를 밖으로 내놓으면 톱니 사이로 바지 · 반바지가 비쳐 번져 보인다 — 셔츠를 넣어 입되 딱 붙게:
-# 띠(밑단 1.5cm 아래 ~ 톱니 꼭대기 6mm 위)는 몸통 둘레 48구역 × 1cm 줄마다 제 구역의 가장 바깥 반지름(셔츠 · 반바지 포함)에
-# band_margin(3~4mm)만 둔다. 예전엔 이웃 구역 최댓값 · 여유 9~12mm · 밑단 1.2cm 위 허리라 셔츠보다 바지가 붕 떠 보였다.
-centre = head("pelvis")
-SECTORS = 48
-ROW = 0.01
-
-
-def sector_of(p):
-    return int((math.atan2(p.y - centre.y, p.x - centre.x) + math.pi) / (2 * math.pi) * SECTORS) % SECTORS
-
-
-def radius_of(p):
-    return math.hypot(p.x - centre.x, p.y - centre.y)
-
-
-def set_radius(i, p, r_new):
-    r = radius_of(p)
-    if r < 1e-6:
-        return
-    k = r_new / r
-    p.x = centre.x + (p.x - centre.x) * k
-    p.y = centre.y + (p.y - centre.y) * k
-    new_positions[i] = inverse_world @ p
-
-
-band = []
-# 띠 아래 끝 — 셔츠가 있으면 밑단(구역별 가장 낮은 곳의 중간값) 1.5cm 아래, 없으면 허리 4cm 아래. 고관절 3cm 위로 제한
-if shirt_lowest_z is not None:
-    band_bottom = max(shirt_lowest_z - 0.015, thigh_z + 0.03)
-else:
-    band_bottom = max(waist_z - 0.04, thigh_z + 0.03)
-outer = {}
-for v in body.data.vertices:
-    p = body.matrix_world @ v.co
-    if not (band_bottom - 0.02 <= p.z <= waist_z + 0.02) or radius_of(p) > 0.3:
-        continue
-    key = (sector_of(p), int(math.floor((p.z - band_bottom) / ROW)))
-    outer[key] = max(outer.get(key, 0.0), radius_of(p))
-
-
-def envelope(a, row):
-    # 제 구역의 가장 바깥 — 이웃까지 최댓값을 잡으면 띠가 셔츠보다 굵어졌다. 비었을 때만 이웃을 본다
-    own = outer.get((a, row))
-    if own is not None:
-        return own
-    near = [outer.get(((a + da) % SECTORS, row + dr)) for da in (-1, 0, 1) for dr in (-1, 0, 1)]
-    near = [r for r in near if r is not None]
-    return max(near) if near else None
-
-
-for i in range(count):
-    p = pw @ new_positions[i]
-    if p.z < band_bottom:
-        continue
-    env = envelope(sector_of(p), int(math.floor((p.z - band_bottom) / ROW)))
-    if env is None:
-        continue
-    w = smoothstep((p.z - band_bottom) / 0.02)
-    r = radius_of(p)
-    set_radius(i, p, r + (env + STYLE["band_margin"] - r) * w)
-    band.append(i)
-# 띠를 고르게 — 허리 고리는 높이 그대로 가로로만. 고른 뒤에도 가장 바깥보다 안으로는 안 들어가게(셔츠 톱니가 뚫지 않게)
-if band:
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.verts.ensure_lookup_table()
-    band_neighbours = {i: [e.other_vert(bm.verts[i]).index for e in bm.verts[i].link_edges] for i in band}
-    bm.free()
-    for _ in range(8):
-        nxt = {}
-        for i in band:
-            ring = band_neighbours[i]
-            if i in waist_verts:
-                ring = [j for j in ring if j in waist_verts]
-            if not ring:
-                continue
-            avg = sum((new_positions[j] for j in ring), Vector()) / len(ring)
-            moved = new_positions[i].lerp(avg, 0.5)
-            if i in waist_verts:
-                world = pw @ moved
-                world.z = waist_z
-                moved = inverse_world @ world
-            nxt[i] = moved
-        for i, value in nxt.items():
-            new_positions[i] = value
-    for i in band:
-        p = pw @ new_positions[i]
-        if p.z < band_bottom + 0.02:
+def hull_radius(hull, cx, cy, ux, uy):
+    # 중심에서 방향 u 로 볼록 껍질 경계까지 거리. 중심이 밖이면 받침 함수(가장 먼 투영)로
+    best = None
+    n = len(hull)
+    for a in range(n):
+        px, py = hull[a]
+        qx, qy = hull[(a + 1) % n]
+        ex, ey = qx - px, qy - py
+        den = ux * ey - uy * ex
+        if abs(den) < 1e-12:
             continue
-        env = envelope(sector_of(p), int(math.floor((p.z - band_bottom) / ROW)))
-        if env is not None and radius_of(p) < env + 0.002:
-            set_radius(i, p, env + 0.002)
+        wx, wy = px - cx, py - cy
+        t = (wx * ey - wy * ex) / den
+        s = (wx * uy - wy * ux) / den
+        if t > 0 and -1e-9 <= s <= 1 + 1e-9:
+            best = t if best is None else max(best, t)
+    if best is None:
+        best = max((hx - cx) * ux + (hy - cy) * uy for hx, hy in hull)
+    return best
 
-# 셰이프 키는 절대 자리를 갖고 있다 — 기본 자리에 더한 만큼 모든 키에 똑같이 더해 모프 차이를 지킨다
-for i in range(count):
-    delta = new_positions[i] - positions[i]
-    for key in keys:
-        key.data[i].co = key.data[i].co + delta
+
+def gaussian(values, sigma, cyclic):
+    if sigma <= 0:
+        return list(values)
+    radius = int(math.ceil(sigma * 3))
+    kernel = [math.exp(-(d * d) / (2 * sigma * sigma)) for d in range(-radius, radius + 1)]
+    n = len(values)
+    out = []
+    for i in range(n):
+        total = 0.0
+        weight = 0.0
+        for d, k in zip(range(-radius, radius + 1), kernel):
+            j = i + d
+            if cyclic:
+                j %= n
+            elif j < 0 or j >= n:
+                continue
+            total += values[j] * k
+            weight += k
+        out.append(total / weight)
+    return out
+
+
+def radius_field(pts, side, rows, dz, dirs, by_row, centre_of, both_sides, leg_filters):
+    """줄마다 볼록 껍질까지의 반지름(중심 centre_of(z) 에서 dirs 방향) → (껍질 반지름, 여유 · 고르기 뒤 반지름).
+    leg_filters: 기울기 제한 최대 필터 · 일자(다리 틀에서만 — 골반 틀의 큰 반지름이 다리로 번지면 바지가 부풀었다)"""
+    count = len(rows)
+    raw = []
+    for j, z in enumerate(rows):
+        c = centre_of(z)
+        pts2 = [
+            (pts[i].x, pts[i].y)
+            for i in by_row[j]
+            if math.hypot(pts[i].x - c.x, pts[i].y - c.y) < 0.25 and (both_sides or pts[i].x * side >= -0.001)
+        ]
+        hull = convex_hull(pts2) if len(pts2) >= 6 else []
+        raw.append([hull_radius(hull, c.x, c.y, ux, uy) for ux, uy in dirs] if len(hull) >= 3 else None)
+    r = [row[:] if row else [-1.0] * RING for row in raw]
+    if not leg_filters:
+        # 골반 틀 — 빈 줄은 가장 가까운 줄 그대로
+        for j in range(count):
+            if raw[j] is None:
+                near = min((abs(j - n), n) for n in range(count) if raw[n] is not None)[1]
+                r[j] = raw[near][:]
+    else:
+        # 기울기 제한 최대 필터 — 위 → 아래(엉덩이 · 반바지 밑단 · 무릎의 불룩함이 아래로 완만하게, 빈 줄도 채운다),
+        # 아래 → 위는 허리 띠 아래까지만(띠는 셔츠에 딱 붙는다)
+        for j in range(1, count):
+            for k in range(RING):
+                r[j][k] = max(r[j][k], r[j - 1][k] - STYLE["slope_down"] * dz)
+        for j in range(count - 2, -1, -1):
+            if rows[j] >= band_bottom:
+                continue
+            for k in range(RING):
+                r[j][k] = max(r[j][k], r[j + 1][k] - 0.5 * dz)
+    hull_r = [row[:] for row in r]
+    for j, z in enumerate(rows):
+        e = ease_at(z)
+        r[j] = [x + e for x in r[j]]
+    if leg_filters and STYLE["straight"] is not None:
+        # 통 큰 바지 — 무릎 아래로 거의 줄지 않게(일자)
+        for j in range(1, count):
+            if rows[j] > knee_z + 0.05:
+                continue
+            for k in range(RING):
+                r[j][k] = max(r[j][k], r[j - 1][k] - STYLE["straight"] * dz)
+    # 고르기 — 둘레 · 길이 방향 가우시안. 고른 뒤에도 껍질 + 여유 하한보다 안으로는 안 들어간다(가우시안은 봉우리를 낮춘다)
+    r = [gaussian(row, 1.0, True) for row in r]
+    cols = [gaussian([r[j][k] for j in range(count)], 1.5, False) for k in range(RING)]
+    for j in range(count):
+        for k in range(RING):
+            floor = hull_r[j][k] + (STYLE["band_margin"] if rows[j] >= band_bottom else MIN_EASE)
+            r[j][k] = max(cols[k][j], floor)
+    return hull_r, r
+
+
+# ── 줄 ── 두 다리가 같은 줄 높이를 쓴다(앞뒤 가운데 이음 정점을 줄마다 짝짓는다). 밑단은 낮은 쪽에 맞춘다(1mm 안팎)
+top_z = waist_z
+bottom_z = min(hem_z.values())
+ROWS = int(math.ceil((top_z - bottom_z) / ROW)) + 1
+rows = [top_z - (top_z - bottom_z) * i / (ROWS - 1) for i in range(ROWS)]
+dz = (top_z - bottom_z) / (ROWS - 1)
+upper = [j for j, z in enumerate(rows) if z >= apex_z - BLEND]
+pel_index = {j: n for n, j in enumerate(upper)}
+# 다리 안쪽에 둘레 이음 — 왼쪽 다리(x>0)의 안쪽은 −x(각 π), 오른쪽은 +x(각 0). 둘 다 반시계(위에서 볼 때)로 돈다.
+# RING 이 4의 배수라 앞(−y) · 뒤(+y) 방향이 정확히 정점이다
+THETA0 = {1: math.pi, -1: 0.0}
+DIRS = {side: [(math.cos(THETA0[side] + 2 * math.pi * k / RING), math.sin(THETA0[side] + 2 * math.pi * k / RING)) for k in range(RING)] for side in (1, -1)}
+def rows_of(pts):
+    """줄마다 그 높이(위아래 SLAB)의 덮는 정점 — 체형 모프로 정점 높이가 바뀌면 그 높이로 다시 모은다"""
+    by_row = [[] for _ in rows]
+    for i, p in enumerate(pts):
+        if not covered[i]:
+            continue
+        j0 = max(0, int(math.floor((top_z - (p.z + SLAB)) / dz)))
+        j1 = min(ROWS - 1, int(math.ceil((top_z - (p.z - SLAB)) / dz)))
+        for j in range(j0, j1 + 1):
+            if abs(rows[j] - p.z) <= SLAB:
+                by_row[j].append(i)
+    return by_row
+
+
+BY_ROW = rows_of(points)
+
+
+# 줄마다 몸 안쪽 허벅지의 가운데 평면까지 거리(자기 쪽 덮는 정점 중 가장 작은 |x|) — 통 큰 바지 틈의 상한
+INNER_X = {
+    side: [min((points[i].x * side for i in BY_ROW[j] if points[i].x * side > 0), default=1.0) for j in range(ROWS)]
+    for side in (1, -1)
+}
+
+
+def build_rings(pts):
+    """몸 정점 자리 pts 로 두 다리의 링을 만든다 → {side: (ring 겉 · near 몸 가까운 기준 · clamped 벽 · leg_hull)}.
+    다리 틀(중심 = 다리 축, 자기 쪽 정점)과 골반 틀(중심 = 가운데 평면, 양쪽 정점 — 몸 전체 껍질)을 따로 재고, 가랑이
+    꼭짓점 위는 골반 틀, 그 아래 BLEND 동안 다리 틀로 옮긴다. 골반 틀은 두 통이 같은 껍질 · 같은 중심을 써서 앞뒤
+    가운데(±90°) 정점이 두 통에서 똑같다 — 다리 축에서 쏘면 이음이 V 로 벌어져 반바지 · 셔츠가 비쳤다.
+    near 는 여유를 넣기 전 껍질(+ 여유 하한) 자리 — 웨이트를 넓힌 통이 아니라 몸 가까이에서 옮겨 받는다"""
+    out = {}
+    pelvis_centre = lambda z: Vector((0.0, centre0.y, z))  # noqa: E731
+    by_row = BY_ROW if pts is points else rows_of(pts)
+    for side in (1, -1):
+        dirs = DIRS[side]
+        leg_hull, leg_r = radius_field(pts, side, rows, dz, dirs, by_row, lambda z: leg_axis(side, z), False, True)
+        pel_hull, pel_r = radius_field(pts, side, [rows[j] for j in upper], dz, dirs, [by_row[j] for j in upper], pelvis_centre, True, False)
+
+        def leg_hull_at(j, dx, dy):
+            phi = (math.atan2(dy, dx) - THETA0[side]) % (2 * math.pi)
+            kf = phi / (2 * math.pi) * RING
+            k0 = int(math.floor(kf)) % RING
+            t = kf - math.floor(kf)
+            return leg_hull[j][k0] * (1 - t) + leg_hull[j][(k0 + 1) % RING] * t
+
+        def place(j, k, r_leg, r_pel):
+            z = rows[j]
+            ux, uy = dirs[k]
+            cl = leg_axis(side, z)
+            x = cl.x + ux * r_leg
+            y = cl.y + uy * r_leg
+            if j in pel_index:
+                px = ux * r_pel
+                py = centre0.y + uy * r_pel
+                s = 0.0 if z >= apex_z else smoothstep((apex_z - z) / BLEND)
+                x = px + (x - px) * s
+                y = py + (y - py) * s
+                if 0.0 < s < 1.0:
+                    # 섞은 점은 두 겉싸개 사이 안쪽으로 들어갈 수 있다 — 다리 틀 껍질 + 여유 하한 밖으로 민다
+                    ddx, ddy = x - cl.x, y - cl.y
+                    d = math.hypot(ddx, ddy)
+                    need = leg_hull_at(j, ddx, ddy) + MIN_EASE
+                    if 1e-6 < d < need:
+                        x = cl.x + ddx / d * need
+                        y = cl.y + ddy / d * need
+            g = gap_at(z, side, j)
+            hit = x * side < g
+            if hit:
+                x = side * g
+            return Vector((x, y, z)), hit
+
+        ring, near, clamped = [], [], []
+        for j in range(ROWS):
+            row_pts, row_near, row_clamped = [], [], []
+            for k in range(RING):
+                n = pel_index.get(j)
+                p, hit = place(j, k, leg_r[j][k], pel_r[n][k] if n is not None else 0.0)
+                q, _ = place(j, k, leg_hull[j][k] + MIN_EASE, pel_hull[n][k] + MIN_EASE if n is not None else 0.0)
+                row_pts.append(p)
+                row_near.append(q)
+                row_clamped.append(hit)
+            ring.append(row_pts)
+            near.append(row_near)
+            clamped.append(row_clamped)
+        out[side] = (ring, near, clamped, leg_hull)
+    return out
+
+
+base = build_rings(points)
+
+# ── 웨이트 ── 같은 쪽 몸 표면(덮는 정점으로 된 삼각형)에서 몸 가까운 기준점(near)의 가장 가까운 점을 찾아 삼각형 무게중심
+# 좌표로 보간한다. 삼각형 목록과 몸 정점 번호를 함께 보관한다(BVH 면 번호 → 같은 목록)
+mesh_b = body.data
+mesh_b.calc_loop_triangles()
+key_blocks = mesh_b.shape_keys.key_blocks
+basis_b = key_blocks[0]
+key_names = [k.name for k in key_blocks[1:]]
+weights_b = [{groups[g.group]: g.weight for g in v.groups if g.weight > 1e-4} for v in mesh_b.vertices]
+trees = {}
+for side in (1, -1):
+    tri_list = []
+    for tri in mesh_b.loop_triangles:
+        vs = tuple(tri.vertices)
+        if not all(covered[i] for i in vs):
+            continue
+        if sum(points[i].x for i in vs) / 3 * side < -0.003:
+            continue
+        tri_list.append(vs)
+    trees[side] = (BVHTree.FromPolygons(points, tri_list), tri_list)
+
+
+def sample_weights(side, p):
+    tree, tris = trees[side]
+    loc, _n, index, _d = tree.find_nearest(p)
+    vs = tris[index]
+    bary = poly_3d_calc([points[i] for i in vs], loc)
+    weights = {}
+    for i, b in zip(vs, bary):
+        for name, w in weights_b[i].items():
+            weights[name] = weights.get(name, 0.0) + w * b
+    return weights
+
+
+def normalise(weights):
+    top = sorted(weights.items(), key=lambda item: item[1], reverse=True)[:4]
+    total = sum(w for _, w in top) or 1.0
+    return {k: w / total for k, w in top if w / total > 1e-4}
+
+
+def mix(a, b, t):
+    out = {name: w * (1 - t) for name, w in a.items()}
+    for name, w in b.items():
+        out[name] = out.get(name, 0.0) + w * t
+    return out
+
+
+def ring_distance(row_clamped):
+    """눌린 점마다 둘레 순서로 가장 가까운 겉 정점까지 칸 수(겉 정점은 0)"""
+    free = [k for k in range(RING) if not row_clamped[k]]
+    if not free:
+        return [RING] * RING
+    return [0 if not c else min(min((k - f) % RING, (f - k) % RING) for f in free) for k, c in enumerate(row_clamped)]
+
+
+W = {}
+for side in (1, -1):
+    ring, near, clamped, _ = base[side]
+    Ws = [[None] * RING for _ in rows]
+    for j in range(ROWS):
+        free = [k for k in range(RING) if not clamped[j][k]]
+        for k in free:
+            Ws[j][k] = sample_weights(side, near[j][k])
+        # 벽(눌린 점)은 같은 줄 양옆의 겉 정점 사이를 둘레 순서로 보간 — 몸 안쪽 가장 가까운 점은 반대 다리일 수 있다
+        for k in range(RING):
+            if not clamped[j][k]:
+                continue
+            if not free:
+                Ws[j][k] = {"pelvis": 1.0}
+                continue
+            before = max((f for f in free if f < k), default=free[-1] - RING)
+            after = min((f for f in free if f > k), default=free[0] + RING)
+            Ws[j][k] = mix(Ws[j][before % RING], Ws[j][after % RING], (k - before) / max(1, after - before))
+    W[side] = Ws
+
+# 앞뒤 가운데 이음 — 두 통은 따로 된 메시라, 이음 정점이 각자 자기 허벅지를 따르면 걸을 때 가랑이 앞이 벌어져 반바지가
+# 비쳤다. 눌린 점(가운데 평면의 벽 · 이음 모서리)은 같은 줄 반대 통의 가장 가까운 눌린 점과 반씩 섞어 두 통이 똑같이
+# 움직이게 한다(웨이트 · 모프 모두). 골반 높이(가랑이 꼭짓점 위)는 벽 전체, 그 아래(맞닿은 허벅지 안쪽)는 이음 모서리에서
+# 3칸 안쪽까지만 섞는다 — 벽 가운데는 제 다리를 따라야 걸을 때 허벅지가 벽을 뚫지 않는다
+PAIRS = {1: {}, -1: {}}  # side → {(j, k): (partner_k, beta)}
+for j, z in enumerate(rows):
+    for side in (1, -1):
+        other = -side
+        clamped = base[side][2]
+        mine = [k for k in range(RING) if clamped[j][k]]
+        theirs = [k for k in range(RING) if base[other][2][j][k]]
+        if not mine or not theirs:
+            continue
+        dist = ring_distance(clamped[j])
+        for k in mine:
+            beta = 1.0 if z >= apex_z else max(0.0, 1.0 - (dist[k] - 1) / 3.0)
+            if beta <= 0:
+                continue
+            y = base[side][0][j][k].y
+            partner = min(theirs, key=lambda q: abs(base[other][0][j][q].y - y))
+            PAIRS[side][(j, k)] = (partner, beta)
+raw_W = {side: [row[:] for row in W[side]] for side in W}
+for side in (1, -1):
+    for (j, k), (partner, beta) in PAIRS[side].items():
+        W[side][j][k] = mix(raw_W[side][j][k], raw_W[-side][j][partner], beta * 0.5)
+# 웨이트 고르기 — 줄 · 둘레 이웃 평균(천이 몸 근육을 따라 출렁이지 않게). 반대 통과 맞춘 이음 정점은 그대로 둔다
+for side in (1, -1):
+    pinned = {key for key, (_p, beta) in PAIRS[side].items() if beta >= 0.999}
+    Ws = W[side]
+    for _ in range(max(2, STYLE["weight_smooth"])):
+        nxt = [[None] * RING for _ in rows]
+        for j in range(ROWS):
+            for k in range(RING):
+                if (j, k) in pinned:
+                    nxt[j][k] = Ws[j][k]
+                    continue
+                around = [(j, (k - 1) % RING), (j, (k + 1) % RING)]
+                if j > 0:
+                    around.append((j - 1, k))
+                if j < ROWS - 1:
+                    around.append((j + 1, k))
+                mixed = {name: w * 0.5 for name, w in Ws[j][k].items()}
+                share = 0.5 / len(around)
+                for a, b in around:
+                    for name, w in Ws[a][b].items():
+                        mixed[name] = mixed.get(name, 0.0) + w * share
+                nxt[j][k] = mixed
+        Ws = nxt
+    W[side] = [[normalise(w) for w in row] for row in Ws]
+
+# ── 모프 ── 셰이프 키마다 그 체형의 몸으로 링을 다시 만들어 차이를 모프로 쓴다(같은 줄 · 같은 방향 · 같은 정점).
+# 몸 이동량을 그대로 옮기면 지운 반바지 굴곡 · 통 큰 바지 일자가 체형을 바꿀 때 되살아난다(Codex 23회차)
+# 음수로도 쓰는 키(골반 · 다리 두께 −1~1, 신발 신은 발 −1.5)는 −1 끝의 링을 따로 구워 「이름__neg」 모프로 둔다 — 겉싸개는
+# 최대 필터라 +1 차이를 뒤집어 쓰면 −1 에서 몸보다 더 오그라들어 몸이 바지 밖으로 나왔다. 화면이 음수 값을 __neg 로 옮긴다
+NEGATIVE_KEYS = {"hipWidth", "legThickness", "footScale"}
+# 겉싸개는 최대 필터라 체형 모프끼리 더해지지 않는다 — 줄이는 모프 둘 셋을 겹치면(마른 체격 + 다리 · 골반 −1) 같은 여유를
+# 두 번 빼 몸이 바지 밖으로 8mm 까지 나왔다. 안으로 줄어드는 성분은 이 비율만큼만 쓴다(마른 체형에서 바지가 조금 넉넉해진다)
+SHRINK = 0.7
+to_world = world.to_3x3()
+to_local = to_world.inverted()
+DELTA = {}  # 모프 이름 → {side: [[Vector local]]}
+for key in key_blocks[1:]:
+    for sign in (1.0, -1.0) if key.name in NEGATIVE_KEYS else (1.0,):
+        moved = [points[i] + to_world @ (key.data[i].co - basis_b.data[i].co) * sign for i in range(len(points))]
+        rings = build_rings(moved)
+        per = {}
+        for side in (1, -1):
+            rows_delta = []
+            for j in range(ROWS):
+                c = Vector((0.0, centre0.y, rows[j])) if rows[j] >= apex_z else leg_axis(side, rows[j])
+                row_delta = []
+                for k in range(RING):
+                    d = rings[side][0][j][k] - base[side][0][j][k]
+                    out_dir = base[side][0][j][k] - c
+                    out_dir.z = 0.0
+                    if out_dir.length > 1e-6:
+                        out_dir.normalize()
+                        inward = d.dot(out_dir)
+                        if inward < 0:
+                            d = d - out_dir * inward * (1.0 - SHRINK)
+                    row_delta.append(to_local @ d)
+                rows_delta.append(row_delta)
+            per[side] = rows_delta
+        # 이음 정점은 웨이트처럼 반대 통과 반씩
+        raw = {side: [row[:] for row in per[side]] for side in per}
+        for side in (1, -1):
+            for (j, k), (partner, beta) in PAIRS[side].items():
+                per[side][j][k] = raw[side][j][k].lerp(raw[-side][j][partner], beta * 0.5)
+        DELTA[key.name if sign > 0 else f"{key.name}__neg"] = per
+
+# ── 메시 ── 골반 높이의 벽(가랑이 꼭짓점 위, 네 점이 다 눌린 면)은 몸 · 바지 안에 숨는다 — 정점을 따로 두고(앞뒤 가운데
+# 모서리에서 법선이 섞이지 않게) 재질도 따로 둔다(화면이 외곽선 · 그림자에서 뺀다). 그 아래 맞닿은 허벅지 안쪽은 다리를
+# 벌리면 보이는 안쪽 면이라 겉면과 같이 둔다
+verts, vert_key, faces, face_uv, face_mat = [], [], [], [], []
+for side in (1, -1):
+    ring, _near, clamped, _ = base[side]
+    outer_id, wall_id = {}, {}
+
+    def vid(table, j, k):
+        if (j, k) not in table:
+            table[(j, k)] = len(verts)
+            verts.append(ring[j][k])
+            vert_key.append((side, j, k))
+        return table[(j, k)]
+
+    for j in range(ROWS - 1):
+        for k in range(RING):
+            k1 = (k + 1) % RING
+            corners = [(j, k), (j + 1, k), (j + 1, k1), (j, k1)]
+            wall = rows[j + 1] >= apex_z and all(clamped[a][b] for a, b in corners)
+            table = wall_id if wall else outer_id
+            faces.append([vid(table, a, b) for a, b in corners])
+            # UV — 둘레 4번 · 높이 1m 에 8번 반복. 이음(k = RING → 0)은 4 로 이어 붙인다
+            face_uv.append([((k if b == k else k + 1) / RING * 4, rows[a] * 8) for a, b in corners])
+            face_mat.append(1 if wall else 0)
+
+mesh = bpy.data.meshes.new(f"TeamPants_{args.style}")
+local = [world.inverted() @ p for p in verts]
+mesh.from_pydata([tuple(p) for p in local], [], faces)
 mesh.update()
+for poly, m in zip(mesh.polygons, face_mat):
+    poly.use_smooth = True
+    poly.material_index = m
+uv = mesh.uv_layers.new(name="UVMap")
+for poly, uvs in zip(mesh.polygons, face_uv):
+    for li, value in zip(poly.loop_indices, uvs):
+        uv.data[li].uv = value
+pants = bpy.data.objects.new(mesh.name, mesh)
+bpy.context.scene.collection.objects.link(pants)
+pants.parent = body.parent
+pants.parent_type = body.parent_type
+pants.matrix_parent_inverse = body.matrix_parent_inverse.copy()
+pants.matrix_world = body.matrix_world.copy()
+modifier = pants.modifiers.new("Armature", "ARMATURE")
+modifier.object = arm
+used = sorted({name for side, j, k in vert_key for name in W[side][j][k]})
+for name in used:
+    pants.vertex_groups.new(name=name)
+for i, (side, j, k) in enumerate(vert_key):
+    for name, value in W[side][j][k].items():
+        pants.vertex_groups[name].add([i], value, "REPLACE")
+# 셰이프 키 — 바지에서 차이가 있는 것만(어깨 · 팔 · 손 · 발은 바지 링을 안 바꾼다, 화면은 이름으로 옮긴다)
+pants.shape_key_add(name="Basis", from_mix=False)
+kept_keys = []
+for name in [n for base_name in key_names for n in (base_name, f"{base_name}__neg") if n in DELTA]:
+    biggest = max(DELTA[name][side][j][k].length for side, j, k in vert_key)
+    if biggest < 1e-5:
+        continue
+    key = pants.shape_key_add(name=name, from_mix=False)
+    for i, (side, j, k) in enumerate(vert_key):
+        key.data[i].co = local[i] + DELTA[name][side][j][k]
+    kept_keys.append(name)
 
-# 다리와 상관없는 셰이프 키(어깨 · 팔 · 손 · 주먹)는 바지에서 차이가 없다 — 버려 파일을 줄인다(화면은 이름으로 옮긴다)
-removed_keys = []
-for key in list(keys)[1:]:
-    if max((key.data[i].co - basis.data[i].co).length for i in range(count)) < 1e-6:
-        removed_keys.append(key.name)
-        pants.shape_key_remove(key)
-keys = mesh.shape_keys.key_blocks
-basis = keys[0]
+# ── 덮기 검사 ── 덮는 몸 정점마다 링 중심에서 바깥으로 쏴 바지에 닿는지(안 닿으면 몸이 바지 밖). 기본 체형과 체형 슬라이더
+# 조합(팀 저장값 · 끝값)마다 몸 · 바지 모두에 모프를 얹어 잰다 — 허리 띠까지(허리 고리 3mm 아래)
+BODY_DELTA = {k.name: [to_world @ (k.data[i].co - basis_b.data[i].co) for i in range(len(points))] for k in key_blocks[1:]}
+COMBOS = {
+    "base": {},
+    "sejin": {"heavy": 0.4, "buff": 0.2, "legThickness": -1.0},
+    "haerang": {"skinny": 1.0, "buff": 0.55},
+    "max": {"heavy": 1.0, "buff": 1.0, "hipWidth": 1.0, "legThickness": 1.0},
+    "min": {"skinny": 1.0, "hipWidth": -1.0, "legThickness": -1.0},
+    "heavy": {"heavy": 1.0},
+    "hipWide": {"hipWidth": 1.0},
+    "skinnyOnly": {"skinny": 1.0},
+    "hipNarrow": {"hipWidth": -1.0},
+    "legThin": {"legThickness": -1.0},
+    "skinnyLegThin": {"skinny": 1.0, "legThickness": -1.0},
+}
 
-# 3) 웨이트 고르기(통 큰 바지) — 천이 다리 근육을 따라 출렁이지 않게. 이웃 평균으로 섞고 합을 1 로 맞춘다
-if STYLE["weight_smooth"]:
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bm.verts.ensure_lookup_table()
-    neighbours = [[e.other_vert(v).index for e in v.link_edges] for v in bm.verts]
-    bm.free()
-    weights = [{g.group: g.weight for g in v.groups} for v in mesh.vertices]
-    for _ in range(STYLE["weight_smooth"]):
-        nxt = []
-        for i in range(count):
-            mixed = {k: w * 0.5 for k, w in weights[i].items()}
-            if neighbours[i]:
-                share = 0.5 / len(neighbours[i])
-                for j in neighbours[i]:
-                    for k, w in weights[j].items():
-                        mixed[k] = mixed.get(k, 0.0) + w * share
-            else:
-                mixed = {k: w for k, w in weights[i].items()}
-            # 4개까지만(글TF 영향 수), 합 1
-            top = sorted(mixed.items(), key=lambda item: item[1], reverse=True)[:4]
-            total = sum(w for _, w in top) or 1.0
-            nxt.append({k: w / total for k, w in top})
-        weights = nxt
-    for group in pants.vertex_groups:
-        group.remove(list(range(count)))
-    for i, per in enumerate(weights):
-        for k, w in per.items():
-            if w > 1e-4:
-                pants.vertex_groups[k].add([i], w, "REPLACE")
 
-# 4) UV — 다리 둘레 각(이음은 다리 안쪽) × 높이. 결이 고르게 반복되게 둘레 4번 · 높이 1m 에 8번
-uv = mesh.uv_layers.active or mesh.uv_layers.new(name="UVMap")
-for poly in mesh.polygons:
-    us = []
-    for li in poly.loop_indices:
-        vi = mesh.loops[li].vertex_index
-        p = pw @ Vector(basis.data[vi].co)
-        side = 1 if p.x >= 0 else -1
-        a = leg_axis(side, p.z)
-        dx = (p.x - a.x) * side
-        dy = p.y - a.y
-        angle = math.atan2(dy, dx)  # −π..π, ±π = 다리 안쪽
-        us.append((li, (angle + math.pi) / (2 * math.pi) * 4, p.z * 8))
-    # 이음을 넘는 면은 한쪽으로 모은다
-    values = [u for _, u, _ in us]
-    if max(values) - min(values) > 2:
-        us = [(li, u + 4 if u < 2 else u, v) for li, u, v in us]
-    for li, u, v in us:
-        uv.data[li].uv = (u, v)
+def coverage(combo):
+    body_pts = [p + sum((BODY_DELTA[n][i] * w for n, w in combo.items()), Vector()) for i, p in enumerate(points)]
+    # 화면과 같게 — 음수 값은 __neg 모프에(있으면)
+    terms = [(n, w) if w >= 0 or f"{n}__neg" not in DELTA else (f"{n}__neg", -w) for n, w in combo.items()]
+    pants_pts = [
+        verts[v] + sum((to_world @ DELTA[n][side][j][k] * w for n, w in terms), Vector())
+        for v, (side, j, k) in enumerate(vert_key)
+    ]
+    tree = BVHTree.FromPolygons(pants_pts, faces)
+    outside, thin, checked, closest, depth = 0, 0, 0, None, 0.0
+    for i, p in enumerate(body_pts):
+        if not covered[i] or not (bottom_z + 0.01 < p.z < waist_z - 0.003) or abs(p.x) < 0.008:
+            continue
+        side = 1 if p.x > 0 else -1
+        c = Vector((0.0, centre0.y, p.z)) if p.z >= apex_z else leg_axis(side, p.z)
+        d = Vector((p.x - c.x, p.y - c.y, 0.0))
+        if d.length < 1e-6:
+            continue
+        d.normalize()
+        checked += 1
+        hit = tree.ray_cast(p, d, 0.3)
+        if hit[0] is None:
+            outside += 1
+            # 얼마나 밖인지 — 가장 가까운 바지면까지
+            nearest = tree.find_nearest(p)
+            if nearest[0] is not None:
+                depth = max(depth, nearest[3])
+            continue
+        if hit[3] < 0.002:
+            thin += 1
+        closest = hit[3] if closest is None else min(closest, hit[3])
+    return {"checked": checked, "outside": outside, "maxDepth": round(depth, 4), "under2mm": thin, "closest": round(closest, 4) if closest is not None else None}
 
-# 5) 결 무늬 텍스처 — 회색(밝을수록 하의 색이 그대로). jeans = 사선 능직 · baggy = 촘촘한 평직
+
+COVERAGE = {name: coverage(combo) for name, combo in COMBOS.items()}
+checked, outside, thin = COVERAGE["base"]["checked"], COVERAGE["base"]["outside"], COVERAGE["base"]["under2mm"]
+closest = COVERAGE["base"]["closest"]
+
+# 결 무늬 텍스처 — 회색(밝을수록 하의 색이 그대로). jeans = 사선 능직 · baggy = 촘촘한 평직
 SIZE = 256
 image = bpy.data.images.new(f"{pants.name}_weave", SIZE, SIZE, alpha=False)
 rng = random.Random(22)
@@ -513,8 +747,11 @@ material.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
 bsdf.inputs["Roughness"].default_value = 0.9
 material.use_backface_culling = False
 mesh.materials.append(material)
+# 골반 높이 벽 — 같은 결 무늬, 이름으로 화면이 알아본다(외곽선 · 그림자에서 뺀다)
+wall_material = material.copy()
+wall_material.name = "TeamPantsWall"
+mesh.materials.append(wall_material)
 
-# 파츠 표식(화면이 읽는다)
 pants["slot"] = "teamPants"
 pants["style"] = args.style
 
@@ -539,20 +776,20 @@ report = {
     "style": args.style,
     "vertices": len(mesh.vertices),
     "faces": len(mesh.polygons),
-    "mergedSeamVertices": merged,
-    "snappedBoundary": snapped,
-    **loop_report,
-    "pushedOut": pushed,
-    "removedShapeKeys": removed_keys,
-    "droppedFragments": dropped,
+    "wallFaces": sum(face_mat),
     "waistZ": round(waist_z, 4),
+    "bandBottomZ": round(band_bottom, 4),
+    "crotchZ": round(crotch_z, 4),
+    "apexZ": round(apex_z, 4),
+    "sharedSeamVerts": sum(1 for side in PAIRS for _k, (_p, b) in PAIRS[side].items() if b >= 0.999),
+    "coverage": COVERAGE,
     "shirtHemZ": round(shirt_hem_z, 4) if shirt_hem_z is not None else None,
     "shortsTopZ": round(shorts_top_z, 4) if shorts_top_z is not None else None,
-    "bandBottomZ": round(band_bottom, 4) if band_bottom is not None else None,
-    "shirtBody": bool(shirt_points),
-    "bandVerts": len(band),
+    "shirtBody": shirt_body,
     "hemZ": {k: round(v, 4) for k, v in hem_z.items()},
-    "shapeKeys": [k.name for k in keys],
+    "shapeKeys": kept_keys,
+    "keyMaxDelta": {name: round(max(DELTA[name][side][j][k].length for side, j, k in vert_key), 4) for name in DELTA},
+    "emptyRows": {side: sum(1 for row in base[side][3] if min(row) < 0) for side in base},
 }
 print("TEAM_PANTS", json.dumps(report, ensure_ascii=False))
 if args.report:
