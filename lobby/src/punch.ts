@@ -15,7 +15,10 @@ export const PUNCH_RANGE = 2.8;
 export const PUNCH_ARC = (75 * Math.PI) / 180;
 /** 발 높이 차 상한(유닛) */
 export const PUNCH_HEIGHT = 2;
-/** 둘 다 이 시간 안에 정상 위치를 보냈어야 맞음으로 친다(ms) */
+/**
+ * 때린 사람은 이 시간 안에 정상 위치를 보냈어야 한다(ms). 맞는 사람에게는 묻지 않는다 — 위치를 안 보내는 동안(탭을 뒤로 내려
+ * 화면이 멈춘 사람 등)은 남의 화면에도 마지막 자리에 서 있으니, 그 자리로 판정해도 보이는 것과 맞는다(미르 11/7).
+ */
 export const POSE_FRESH_MS = 1500;
 const TARGET_MAX_LENGTH = 64;
 
@@ -71,7 +74,7 @@ export interface BodyAt {
 /** 서버가 아는 자리로 「때린 사람이 상대를 칠 수 있었나」 */
 export function canHit(attacker: BodyAt, target: BodyAt, nowMs: number): boolean {
   if (!attacker.placed || !target.placed) return false;
-  if (nowMs - attacker.poseAt > POSE_FRESH_MS || nowMs - target.poseAt > POSE_FRESH_MS) return false;
+  if (nowMs - attacker.poseAt > POSE_FRESH_MS) return false;
   if (Math.abs(attacker.y - target.y) > PUNCH_HEIGHT) return false;
   const dx = target.x - attacker.x;
   const dz = target.z - attacker.z;

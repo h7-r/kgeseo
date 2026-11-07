@@ -109,7 +109,7 @@ describe("이동 속도·빈도", () => {
 });
 
 describe("인사", () => {
-  it("정수 1~6 만", () => {
+  it("정수 1~3 만", () => {
     for (const id of [0, 4, 7, 1.5, "1", null]) assert.equal(new GreetGate().accept({ id }, 0), null);
     assert.equal(new GreetGate().accept({ id: 3 }, 0), 3);
   });

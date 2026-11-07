@@ -550,7 +550,8 @@ function step(bot, dt) {
     gait = bot.path.length && !blocked ? "walk" : "idle";
     if (!bot.path.length) bot.idleUntil = Math.max(bot.idleUntil, now + between(1500, 7000));
     room.send("move", { x: bot.x, y: 0, z: bot.z, ry: bot.ry, gait });
-  } else if (bot.lastGait !== "idle") {
+  } else {
+    // 서 있어도 실제 사람처럼 계속 보낸다(0.125초마다) — 안 보내면 서버가 「낡은 자리」로 보고 때리기 판정에서 뺐다
     room.send("move", { x: bot.x, y: 0, z: bot.z, ry: bot.ry, gait: "idle" });
   }
   bot.lastGait = gait;

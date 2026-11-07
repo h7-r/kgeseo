@@ -71,9 +71,11 @@ describe("맞았나(서버가 아는 자리)", () => {
     assert.equal(canHit(attacker, at(1.5, 0, { y: PUNCH_HEIGHT + 0.1 }), now), false));
   it("아직 자리를 안 받은 사람은 안 맞는다", () =>
     assert.equal(canHit(attacker, at(1.5, 0, { placed: false }), now), false));
-  it("낡은 자리로는 안 맞는다", () => {
-    assert.equal(canHit(attacker, at(1.5, 0, { poseAt: now - POSE_FRESH_MS - 1 }), now), false);
+  it("때린 사람의 자리가 낡았으면 안 맞는다", () => {
     assert.equal(canHit({ ...attacker, poseAt: now - POSE_FRESH_MS - 1 }, at(1.5, 0), now), false);
+  });
+  it("가만히 서서 위치를 안 보내는 사람도 맞는다(남의 화면에도 그 자리에 서 있다)", () => {
+    assert.equal(canHit(attacker, at(1.5, 0, { poseAt: now - 60_000 }), now), true);
   });
   it("몸이 겹칠 만큼 붙어 있으면 방향은 보지 않는다", () => assert.equal(canHit(attacker, at(-0.1, 0.1), now), true));
 });
