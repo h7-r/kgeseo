@@ -348,7 +348,11 @@ if (import.meta.env.DEV)
 
 // ── 탭을 숨기면 잠깐 멈춤 ──
 const onVisibilityChange = () => setMusicPaused("tab", document.hidden);
-if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibilityChange);
+if (typeof document !== "undefined") {
+  // 처음부터 숨은 탭일 수 있다(개발 서버가 숨은 탭에서 이 모듈을 새로 실행할 때 — 숨은 탭에선 화면 프레임도 안 돈다)
+  if (document.hidden) pauseReasons.add("tab");
+  document.addEventListener("visibilitychange", onVisibilityChange);
+}
 
 // ── 개발 서버 고쳐 끼우기(HMR) ── 이 파일이나 가져오는 파일(소리 · 설정 · 목소리)을 고치면 이 모듈이 새로 실행된다.
 // <audio> 는 화면(DOM) 밖에 있어 React 가 치워 주지 않으니, 옛 모듈의 곡이 멈추지 않은 채 새 모듈이 또 틀어 두 곡이 겹쳤다
@@ -358,6 +362,8 @@ if (typeof document !== "undefined") document.addEventListener("visibilitychange
 interface HotSlot {
   autoTried: () => boolean;
   wasOn: () => boolean;
+  /** 잠깐 멈춤 이유도 넘긴다 — 숨은 탭 · 컷신 중에 고쳐 끼워도 새 모듈이 멋대로 틀지 않게(Codex 리뷰) */
+  pauseReasons: () => PauseReason[];
   dispose: () => void;
 }
 const HOT_SLOT = "__waegokLobbyMusic";
@@ -367,11 +373,13 @@ if (import.meta.hot) {
   const resume = previous?.wasOn() ?? false;
   if (previous) {
     if (previous.autoTried()) autoTried = true;
+    for (const reason of previous.pauseReasons()) pauseReasons.add(reason);
     previous.dispose();
   }
   slots[HOT_SLOT] = {
     autoTried: () => autoTried,
     wasOn: () => state.on,
+    pauseReasons: () => [...pauseReasons],
     dispose: () => {
       playTicket += 1;
       clearTimeout(duckTimer);
