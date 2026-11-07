@@ -11,6 +11,7 @@ import { createLobbyConnection, type LobbyPose, type LobbyStatus } from "@/net/c
 import { meshConfigToLobbyLook } from "@/net/lobbyLook";
 
 import { playAction, playPunch, remoteLinks } from "./avatarLinks";
+import { addChatLine, CHAT_REJECT_TEXT, chatBubbleMs, isMuted, showChatNotice, toggleMute } from "./chatState";
 import { EMOTES, HIT_LINE, HIT_LINE_MS, HIT_REACTION, PUNCH_CLIPS } from "./emotes";
 import { localPlayer } from "./localPlayer";
 import { type HurtGender, playHurtVoice, preloadHurtVoices } from "./hurtVoice";
@@ -56,6 +57,25 @@ connection.onGreet(({ sid, id }) => {
   if (emote) playAction(linkOf(sid), "emote", emote.steps);
 });
 
+// --- 채팅(설계 v0.21 5절) — 서버가 확정해 방송한 말만 띄운다(내 말도 돌아온 것을 띄운다) ---
+connection.onChat((event) => {
+  addChatLine(event);
+  if (isMuted(event.pid)) return;
+  bubbles.set(event.sid, { text: event.text, until: Date.now() + chatBubbleMs(event.text) });
+});
+connection.onChatRejected((reason) => showChatNotice(CHAT_REJECT_TEXT[reason]));
+
+/** 채팅 보내기 — 다듬어서 1~40자가 아니면 false(서버에는 안 간다) */
+export const sendChat = (text: string) => connection.sendChat(text);
+
+/** 그 사람(가명 ID) 숨기기·풀기. 숨기면 지금 떠 있는 말풍선도 바로 지운다 */
+export function toggleMutePlayer(pid: string) {
+  const muted = toggleMute(pid);
+  if (muted)
+    for (const [sid, player] of connection.players()) if (player.pid === pid) bubbles.delete(sid);
+  return muted;
+}
+
 // --- 때리기 ---
 /** 주먹을 내고 닿기까지(잽·크로스 클립에서 팔이 다 뻗는 때) 🟡 */
 export const PUNCH_IMPACT_MS = 200;
@@ -97,6 +117,7 @@ const noteEvent = (text: string) => {
   if (recentEvents.length > 20) recentEvents.shift();
 };
 connection.onGreet(({ sid, id }) => noteEvent(`greet ${sid}#${id}`));
+connection.onChat(({ sid }) => noteEvent(`chat ${sid}`));
 
 /** 맞은 사람의 성별 — 나는 내 아바타 설정, 남은 방 상태의 외형(틀린 외형이면 받는 쪽 기본값처럼 남성) */
 const genderOf = (sid: string): HurtGender => {

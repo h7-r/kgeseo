@@ -375,6 +375,21 @@ function findPath(fromX, fromZ, toK, avoid = []) {
 const WALK_SPEED = 3.0;
 const TICK_MS = 125;
 const GREET_COUNT = 3;
+/** 화면 확인용 채팅 — 가끔(25~60초) 정해진 착한 말 하나. 서버가 금칙어·빈도·반복을 다시 본다 */
+const CHAT_LINES = [
+  "안녕하세요!",
+  "오늘 사건 같이 풀어요",
+  "자물쇠 번호 찾으신 분?",
+  "출동 언제 해요?",
+  "여기 처음 와 봤어요",
+  "ㅋㅋ 반가워요",
+  "작업등 어디 있어요?",
+  "기차 타러 갈게요",
+  "조사관님들 화이팅!",
+  "잠깐 자리 비울게요",
+  "이 그림 수상한데요",
+  "엇 방금 뭐 지나갔어요?",
+];
 const bots = [];
 
 /** 이 가상 인원 말고 방에 있는 모두의 자리 — 다른 가상 인원은 이 스크립트의 최신 값, 사람은 방 상태 */
@@ -466,6 +481,7 @@ async function enter(bot) {
   bot.path = [];
   bot.idleUntil = Date.now() + between(500, 4000);
   bot.nextGreetAt = Date.now() + between(6000, 30000);
+  bot.nextChatAt = Date.now() + between(8000, 40000);
   room.onLeave((code) => {
     if (bot.room !== room) return;
     bot.room = null;
@@ -558,6 +574,10 @@ function step(bot, dt) {
   if (now >= bot.nextGreetAt) {
     room.send("greet", { id: 1 + Math.floor(Math.random() * GREET_COUNT) });
     bot.nextGreetAt = now + between(15000, 45000);
+  }
+  if (now >= (bot.nextChatAt ?? Infinity)) {
+    room.send("chat", { text: pick(CHAT_LINES) });
+    bot.nextChatAt = now + between(25000, 60000);
   }
 }
 

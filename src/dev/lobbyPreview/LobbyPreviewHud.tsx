@@ -10,7 +10,9 @@ import { playerView } from "@/engine/playerView";
 import { isTypingTarget, useOpenLayer } from "@/game/overlayLayer";
 import { useLockControl } from "@/props/combinationLockState";
 import { useIsCutscenePlaying } from "@/props/vendingPushState";
+import { useDispatchState } from "@/tutorial/dispatchState";
 
+import ChatBox from "./ChatBox";
 import { bubbles, connection, devLogin, greet, GREETINGS, usePreviewState } from "./previewState";
 import SpeechBubble from "./SpeechBubble";
 
@@ -25,6 +27,8 @@ const REASON_TEXT: Record<string, string> = {
   LOBBY_FULL: "방 상한",
   REJECTED: "로비 인증 거절",
   RETRYABLE_REJECT: "티켓 재시도",
+  REPLACED: "다른 곳에서 같은 계정으로 접속함",
+  REMOVED: "로비 이용이 제한됨",
 };
 
 const panel: CSSProperties = {
@@ -60,6 +64,9 @@ export default function LobbyPreviewHud() {
   const busy = cutscene || openLayer !== null || lockControl !== null;
   // 인사를 할 수 있는 때: 붙어 있고, 컷신·화면창·자물쇠가 아닐 때
   const canGreet = connected && !busy;
+  // 채팅은 출동 경보 중에도 열지 않는다 — 경보 카드가 Enter 를 출동 확인으로 받는다(검토 14회차 3)
+  const dispatchPhase = useDispatchState().phase;
+  const canChat = canGreet && dispatchPhase !== "alert";
   // 그런 것이 열리면 인사창을 닫는다(렌더 중 이전 값과 비교 — effect 안 setState 를 피한다)
   const [wasBusy, setWasBusy] = useState(busy);
   if (busy !== wasBusy) {
@@ -126,7 +133,7 @@ export default function LobbyPreviewHud() {
       : status.kind === "connecting"
         ? "로비에 붙는 중…"
         : status.kind === "connected"
-          ? `로비 연결됨 · 같은 방 ${roomSize}명 · G: 인사 · 키패드 1~3: 바로 인사`
+          ? `로비 연결됨 · 같은 방 ${roomSize}명 · G: 인사 · 키패드 1~3: 바로 인사 · Enter: 채팅`
           : `혼자 둘러보는 중(${REASON_TEXT[status.reason] ?? status.reason})${
               status.nextRetryAt ? " · 재시도 예약됨" : " · 이번 방문 재시도 없음"
             }`;
@@ -150,6 +157,7 @@ export default function LobbyPreviewHud() {
           {notice && <div style={{ ...panel, padding: "4px 10px", fontSize: 12 }}>{notice}</div>}
         </div>
       )}
+      <ChatBox canChat={canChat} />
       {status.kind === "solo" && (
         <div style={{ ...panel, position: "absolute", top: 60, right: 16, padding: "4px 10px", fontSize: 12 }}>
           혼자 둘러보는 중
