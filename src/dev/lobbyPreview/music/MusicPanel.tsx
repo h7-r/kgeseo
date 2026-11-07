@@ -1,4 +1,5 @@
-// 로비 스피커 음악 화면(Canvas 밖) — 큰 화면 · 미니 플레이어 · 스피커 겨냥 안내. 검토 17회차.
+// 로비 스피커 음악 화면(Canvas 밖) — 큰 화면 · 미니 플레이어 · 스피커 겨냥 안내. 검토 17 · 20회차.
+// 모양은 게임 HUD(gameUi 남색 유리)를 따른다 — 주크박스 네온 틀이 다른 창 · 게임 공간과 톤이 달랐다(미르 11/7, 검토 20회차).
 // 플레이어 자리(빈 상자)는 큰 화면과 미니에서 같은 DOM 칸을 쓴다 — 바꿔 그리면 iframe 이 새로 떠서 곡이 처음부터 나온다.
 // 규정: 플레이어 위에 아무것도 올리지 않는다(단추는 플레이어 바깥, z 순서는 HUD 보다 위), 크기는 16:9 · 높이 200 이상.
 import { useEffect, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
@@ -12,7 +13,8 @@ import {
   canMini,
   closeMusic,
   expandMusic,
-  JUKEBOX_WIDTH,
+  MINI_CARD_PADDING,
+  MINI_CARD_WIDTH,
   MINI_SIZE,
   minimizeMusic,
   PLAYLIST_URL,
@@ -27,6 +29,8 @@ const GUIDE_HALF_WIDTH = 300;
 const GUIDE_BOTTOM = 196;
 /** 큰 화면의 머리 · 단추 줄 · 여백 높이 */
 const BIG_CHROME = 140;
+/** 큰 화면 좌우 여백 */
+const BIG_SIDE_PADDING = 16;
 
 function useViewport() {
   const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
@@ -38,16 +42,23 @@ function useViewport() {
   return size;
 }
 
-/** 큰 화면 플레이어 크기 — 권장 480×270 이상, 화면의 82%, 머리 · 단추 줄까지 세로에 들어가게 */
+/**
+ * 큰 화면 플레이어 크기 — 화면 폭의 60% 를 480(유튜브 권장 하한)~640 사이로 묶고, 머리 · 단추 줄까지 가로 · 세로에
+ * 들어가게 줄인다(미르 11/7 「너무 크다」 — 예전 82% · 최대 960). 아주 좁은 화면만 그보다 작게
+ */
 function bigPlayerSize(width: number, height: number) {
-  const fit = Math.min(960, width * 0.82, ((height * 0.92 - BIG_CHROME) * 16) / 9);
-  const playerWidth = Math.round(Math.max(356, Math.min(fit, width - 24)));
-  return { width: playerWidth, height: Math.round((playerWidth * 9) / 16) };
+  const target = Math.min(640, Math.max(480, width * 0.6));
+  const fit = Math.min(target, width - 56, ((height * 0.92 - BIG_CHROME) * 16) / 9);
+  // 바닥은 16:9 로 높이 200 이 되는 356. 그보다 좁은 폰(375 등)은 창이 화면 밖으로 나가지 않게 폭만 줄이고 높이 200 을
+  // 지킨다(규정은 200×200 이상 — 16:9 는 권장)
+  const floor = Math.min(356, width - BIG_SIDE_PADDING * 2 - 2);
+  const playerWidth = Math.round(Math.max(floor, fit));
+  return { width: playerWidth, height: Math.max(200, Math.round((playerWidth * 9) / 16)) };
 }
 
-/** 미니(주크박스) 위치 — 오른쪽 위 알약 단추 · 「혼자 둘러보는 중」 아래. 안내판과 겹칠 만큼 좁으면 안내판 아래로 */
+/** 미니 카드 위치 — 오른쪽 위 알약 단추 · 「혼자 둘러보는 중」 아래. 안내판과 겹칠 만큼 좁으면 안내판 아래로 */
 function miniTop(viewportWidth: number) {
-  const left = viewportWidth - DOCK_EDGE - JUKEBOX_WIDTH;
+  const left = viewportWidth - DOCK_EDGE - MINI_CARD_WIDTH;
   return left > viewportWidth / 2 + GUIDE_HALF_WIDTH + 12 ? DOCK_TOP + 26 : GUIDE_BOTTOM + 8;
 }
 
@@ -83,10 +94,13 @@ export default function MusicPanel() {
         left: "50%",
         top: "50%",
         transform: "translate(-50%, -50%)",
-        padding: "14px 16px 16px",
+        // 폭은 플레이어 + 여백 · 테두리로 못 박는다 — 한 줄 말줄임 곡 제목이 창을 제 길이만큼 늘리지 않게(390 폭에서 화면 밖)
+        width: size.width + BIG_SIDE_PADDING * 2 + 2,
+        boxSizing: "border-box",
+        padding: `14px ${BIG_SIDE_PADDING}px 16px`,
         gap: 12,
       }
-    : { ...jukebox, top: miniTop(viewport.width) };
+    : { ...miniCard, top: miniTop(viewport.width) };
 
   return (
     <>
@@ -94,10 +108,13 @@ export default function MusicPanel() {
       <div style={container} onMouseDown={stop} onPointerDown={stop} onClick={stop} onWheel={stop}>
         {isBig && (
           <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ font: `700 17px/1.2 ${UI_FONT.title}` }}>본부실 스피커</div>
-              <div style={{ color: UI.textSubtle, fontSize: 12, marginTop: 3 }}>
-                미르 플레이리스트 · 나에게만 들려요 · 볼륨은 플레이어에서
+              <div
+                style={{ ...ellipsis, color: UI.textSubtle, fontSize: 12, marginTop: 3 }}
+                title={music.title ?? undefined}
+              >
+                {music.title ? `♪ ${music.title} · ` : ""}나에게만 들려요 · 볼륨은 플레이어에서
               </div>
             </div>
             <a href={PLAYLIST_URL} target="_blank" rel="noopener noreferrer" style={link}>
@@ -106,28 +123,43 @@ export default function MusicPanel() {
           </div>
         )}
         {!isBig && (
-          // 주크박스 머리 — 네온 제목 · 이퀄라이저(재생 중에만 춤춘다). 막히면 ▶ 안내
-          <div style={{ height: 52, display: "grid", placeItems: "center", alignContent: "center", gap: 6 }}>
-            <style>{JUKEBOX_CSS}</style>
-            <div style={neonTitle}>♪ 본부실 라디오 ♪</div>
-            {music.blocked || music.error ? (
-              <div style={{ color: music.error ? "#fecaca" : "#fde68a", fontSize: 11 }}>
-                {music.error ? "재생 오류 — 크게 보기" : "▶ 를 눌러 주세요"}
-              </div>
-            ) : (
-              <div className={`lobby-jukebox-eq${music.playing ? "" : " is-paused"}`} aria-hidden>
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
-            )}
+          // 미니 머리 한 줄 — ♪(재생 중이면 강조색) · 지금 곡 제목(말줄임) · 크게 보기 · 정지. 막히면 제목 자리에 안내
+          <div style={{ height: 26, display: "flex", alignItems: "center", gap: 6, paddingLeft: 3 }}>
+            <span
+              aria-hidden
+              style={{ color: music.playing ? UI.accent : UI.textSubtle, font: "700 13px/1 system-ui, sans-serif" }}
+            >
+              ♪
+            </span>
+            <span
+              style={{
+                ...ellipsis,
+                flex: 1,
+                minWidth: 0,
+                font: `600 12px/1.2 ${UI_FONT.body}`,
+                color: music.error ? UI.danger : music.blocked ? "#fde68a" : UI.text,
+              }}
+              title={music.title ?? undefined}
+            >
+              {music.error
+                ? "재생 오류 — 크게 보기"
+                : music.blocked
+                  ? "▶ 를 눌러 주세요"
+                  : (music.title ?? "본부실 스피커")}
+            </span>
+            <IconButton label="크게 보기" onClick={expandMusic}>
+              ⤢
+            </IconButton>
+            <IconButton
+              label="정지하고 닫기 — 다음 방문부터는 자동으로 틀지 않아요"
+              onClick={() => closeMusic("user")}
+              danger
+            >
+              ■
+            </IconButton>
           </div>
         )}
-        {/* 플레이어 자리 — 큰 화면 · 미니가 같은 칸. 위에 아무것도 겹치지 않는다(테두리는 칸 바깥에 그려진다) */}
+        {/* 플레이어 자리 — 큰 화면 · 미니가 같은 칸. 위에 아무것도 겹치지 않고, 카드 모서리가 깎지 않는다(여백 안쪽) */}
         <div
           key="player"
           ref={attachHost}
@@ -135,9 +167,10 @@ export default function MusicPanel() {
             width: size.width,
             height: size.height,
             background: "#000",
-            // 게임 전역이 border-box 라 테두리가 플레이어 안쪽을 깎는다(194×194 — 규정 200 미만). 칸은 늘 이 크기 그대로
+            // 칸은 늘 이 크기 그대로(게임 전역 border-box 에 테두리가 붙으면 규정 200 아래로 깎인다 — 테두리 없음)
             boxSizing: "content-box",
-            border: isBig ? "none" : "3px solid #3a3346",
+            border: "none",
+            flex: "none",
           }}
         />
         {isBig && (
@@ -155,22 +188,6 @@ export default function MusicPanel() {
             <PanelButton onClick={() => closeMusic("user")} danger title="다음 방문부터는 자동으로 틀지 않아요">
               정지하고 닫기
             </PanelButton>
-          </div>
-        )}
-        {!isBig && (
-          // 주크박스 아래 — 크게 보기 · 스피커 망 · 정지
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, width: "100%" }}>
-            <IconButton label="크게 보기" onClick={expandMusic}>
-              ⤢
-            </IconButton>
-            <div style={grille} aria-hidden />
-            <IconButton
-              label="정지하고 닫기 — 다음 방문부터는 자동으로 틀지 않아요"
-              onClick={() => closeMusic("user")}
-              danger
-            >
-              ■
-            </IconButton>
           </div>
         )}
       </div>
@@ -196,16 +213,18 @@ function IconButton({
       title={label}
       onClick={onClick}
       style={{
-        width: 30,
-        height: 30,
+        // 게임 HUD 키 표시(keyCapStyle)와 같은 상자 — 26 · 모서리 6 · 남색
+        width: 26,
+        height: 26,
         flex: "none",
         display: "grid",
         placeItems: "center",
-        borderRadius: 999,
-        border: `1px solid ${danger ? "rgba(248,113,113,.7)" : "#f2b05e"}`,
-        background: danger ? "rgba(248,113,113,.14)" : "rgba(242,176,94,.12)",
-        color: danger ? "#fecaca" : "#ffe8b0",
-        font: "700 14px/1 system-ui, sans-serif",
+        boxSizing: "border-box",
+        borderRadius: 6,
+        border: `1px solid ${danger ? "rgba(248,113,113,.55)" : UI.borderStrong}`,
+        background: danger ? "rgba(248,113,113,.12)" : UI.surfaceHover,
+        color: danger ? "#fecaca" : UI.text,
+        font: "700 13px/1 system-ui, sans-serif",
         cursor: "pointer",
         padding: 0,
       }}
@@ -268,54 +287,26 @@ const panel: CSSProperties = {
   font: `500 13px/1.35 ${UI_FONT.body}`,
   pointerEvents: "auto",
 };
-/** 주크박스 틀 — 아치 머리 · 네온 테두리 · 짙은 몸통. 플레이어(200×200 + 테두리 3)를 가운데 두고 둘레만 꾸민다 */
-const jukebox: CSSProperties = {
+/** 미니 카드 — 다른 HUD 창(gameUi 남색 유리)과 같은 바탕 · 테두리. 여백 안쪽에 머리 줄과 플레이어 200×200 */
+const miniCard: CSSProperties = {
   position: "fixed",
   right: DOCK_EDGE,
   zIndex: Z_INDEX,
-  width: JUKEBOX_WIDTH,
+  width: MINI_CARD_WIDTH,
   boxSizing: "border-box",
   display: "flex",
   flexDirection: "column",
-  alignItems: "center",
-  padding: "0 7px 9px",
-  borderRadius: "60px 60px 18px 18px",
-  border: "2px solid #f2b05e",
-  background: "linear-gradient(180deg, #3a1d46 0%, #1a1730 34%, #0b0f1c 100%)",
-  boxShadow: "0 0 0 3px rgba(236,72,153,.4), 0 0 22px rgba(245,158,11,.32), 0 18px 48px rgba(1,4,10,.62)",
+  gap: MINI_CARD_PADDING,
+  padding: MINI_CARD_PADDING,
+  background: UI.glass,
+  border: `1px solid ${UI.border}`,
+  borderRadius: 12,
+  boxShadow: PANEL_SHADOW,
   color: UI.text,
-  font: `600 12px/1 ${UI_FONT.body}`,
+  font: `500 12px/1 ${UI_FONT.body}`,
   pointerEvents: "auto",
 };
-const neonTitle: CSSProperties = {
-  font: `700 12px/1 ${UI_FONT.title}`,
-  letterSpacing: 0.5,
-  color: "#ffe8b0",
-  textShadow: "0 0 6px rgba(255,170,80,.9), 0 0 12px rgba(236,72,153,.6)",
-  whiteSpace: "nowrap",
-};
-const grille: CSSProperties = {
-  flex: 1,
-  height: 22,
-  borderRadius: 6,
-  background: "repeating-linear-gradient(180deg, #2b2638 0 2px, #12101c 2px 5px)",
-  boxShadow: "inset 0 0 0 1px rgba(242,176,94,.35)",
-};
-/** 이퀄라이저 막대 — 재생 중에만 춤추고(멈추면 그 자리에서 쉼), 움직임 줄이기 설정이면 가만히 */
-const JUKEBOX_CSS = `
-.lobby-jukebox-eq { display: flex; align-items: flex-end; gap: 3px; height: 14px; }
-.lobby-jukebox-eq span { width: 4px; height: 14px; border-radius: 2px; transform-origin: bottom;
-  background: linear-gradient(180deg, #fde68a, #f472b6); animation: lobby-jukebox-eq .9s ease-in-out infinite; }
-.lobby-jukebox-eq span:nth-child(2) { animation-delay: -.45s; }
-.lobby-jukebox-eq span:nth-child(3) { animation-delay: -.2s; }
-.lobby-jukebox-eq span:nth-child(4) { animation-delay: -.65s; }
-.lobby-jukebox-eq span:nth-child(5) { animation-delay: -.1s; }
-.lobby-jukebox-eq span:nth-child(6) { animation-delay: -.55s; }
-.lobby-jukebox-eq span:nth-child(7) { animation-delay: -.3s; }
-.lobby-jukebox-eq.is-paused span { animation-play-state: paused; opacity: .55; }
-@keyframes lobby-jukebox-eq { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
-@media (prefers-reduced-motion: reduce) { .lobby-jukebox-eq span { animation: none; transform: scaleY(.6); } }
-`;
+const ellipsis: CSSProperties = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const backdrop: CSSProperties = {
   position: "fixed",
   inset: 0,

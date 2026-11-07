@@ -10,6 +10,8 @@ export interface YouTubePlayer {
   getVolume(): number;
   isMuted(): boolean;
   destroy(): void;
+  /** 공식 문서에 없는 함수 — 있는지 보고 쓴다 */
+  getVideoData?(): { title?: string; video_id?: string } | undefined;
 }
 
 export interface YouTubeEvent<T = unknown> {

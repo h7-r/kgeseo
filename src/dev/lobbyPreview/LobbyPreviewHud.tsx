@@ -13,7 +13,7 @@ import { useIsCutscenePlaying } from "@/props/vendingPushState";
 import { useDispatchState } from "@/tutorial/dispatchState";
 
 import ChatBox from "./ChatBox";
-import { JUKEBOX_WIDTH, useMusic } from "./music/musicState";
+import { MINI_CARD_WIDTH, useMusic } from "./music/musicState";
 import { bubbles, connection, devLogin, greet, GREETINGS, usePreviewState } from "./previewState";
 import SpeechBubble from "./SpeechBubble";
 
@@ -232,7 +232,7 @@ export default function LobbyPreviewHud() {
             ...panel,
             position: "absolute",
             // 미니 음악 플레이어가 오른쪽에 떠 있으면 그 왼쪽에 연다 — 플레이어를 덮으면 안 된다(유튜브 규정)
-            right: musicMode === "mini" ? 16 + JUKEBOX_WIDTH + 12 : 16,
+            right: musicMode === "mini" ? 16 + MINI_CARD_WIDTH + 12 : 16,
             bottom: 64,
             padding: 8,
             display: "flex",

@@ -13,8 +13,9 @@ import { settingsStore } from "@/settings/settings";
 import { onVoiceStart, type VoiceKind } from "../voices";
 import { loadYouTubeApi, PLAYER_STATE, type YouTubePlayer } from "./youtube";
 
-const PLAYLIST_ID = "PLDZ6WSutVZhmxvlDfhDn8_A3emkQgUZP4";
-const FIRST_VIDEO_ID = "JdlFCN_sVxw";
+/** 미르 재생목록 「왜곡」(NOIR GROOVE LAB 8곡, 11/7 교체). 첫 곡은 미르가 준 주소 그대로 */
+const PLAYLIST_ID = "PLcZ1Rv4EdVXE";
+const FIRST_VIDEO_ID = "s878k4Y6MIE";
 export const PLAYLIST_URL = `https://www.youtube.com/watch?v=${FIRST_VIDEO_ID}&list=${PLAYLIST_ID}`;
 /** 겨냥 등록 이름(스피커 ↔ 화면 안내문) */
 export const SPEAKER_AIM_ID = "lobby:speaker";
@@ -29,11 +30,12 @@ const VOLUME_SHARE = 1 / 6;
 const DUCK_RATIO = 0.5;
 const DUCK_KINDS: ReadonlySet<VoiceKind> = new Set(["greet", "joy", "move", "sorry", "thanks", "ok"]);
 /**
- * 미니 플레이어 — 규정 하한(가로 · 세로 200 이상)의 정사각형. 그 바깥을 주크박스 틀이 감싼다(JUKEBOX_WIDTH 는 틀까지).
- * 이보다 좁은 화면은 미니 없이 큰 화면 · 닫기만
+ * 미니 플레이어 — 규정 하한(가로 · 세로 200 이상)의 정사각형. 그 바깥을 HUD 카드(테두리 1 + 여백 5)가 감싼다 —
+ * MINI_CARD_WIDTH 는 카드 바깥 폭. 이보다 좁은 화면은 미니 없이 큰 화면 · 닫기만
  */
 export const MINI_SIZE = { width: 200, height: 200 } as const;
-export const JUKEBOX_WIDTH = 224;
+export const MINI_CARD_PADDING = 5;
+export const MINI_CARD_WIDTH = MINI_SIZE.width + (MINI_CARD_PADDING + 1) * 2;
 export const canMini = () => window.innerWidth >= 720 && window.innerHeight >= 520;
 
 export type MusicMode = "closed" | "big" | "mini";
@@ -46,10 +48,19 @@ export interface MusicState {
   error: string | null;
   /** 큰 화면을 닫은 뒤 마우스 잠금을 못 되돌렸다 — [T] 안내 */
   relockFailed: boolean;
+  /** 지금 곡 제목(모르면 null — 화면이 「본부실 스피커」로 둔다) */
+  title: string | null;
 }
 
 const signal = createChangeSignal();
-let state: MusicState = { mode: "closed", playing: false, blocked: false, error: null, relockFailed: false };
+let state: MusicState = {
+  mode: "closed",
+  playing: false,
+  blocked: false,
+  error: null,
+  relockFailed: false,
+  title: null,
+};
 function set(patch: Partial<MusicState>) {
   state = { ...state, ...patch };
   signal.notify();
@@ -76,6 +87,24 @@ function errorText(code: number) {
   return `재생하지 못했어요(오류 ${code})`;
 }
 
+/**
+ * 지금 곡 제목. getVideoData 는 공식 문서에 없는 함수라 있는지 보고, 실패하면 null(Codex 20).
+ * 곡 이름 뒤 「[Lyrics/한글자막] …」 꼬리표만 떼고, 나머지 긴 제목은 화면이 말줄임한다
+ */
+function readTitle(target: YouTubePlayer): string | null {
+  try {
+    const raw = target.getVideoData?.()?.title?.trim();
+    if (!raw) return null;
+    return raw.split("[")[0].trim() || raw;
+  } catch {
+    return null;
+  }
+}
+function updateTitle(target: YouTubePlayer) {
+  const title = readTitle(target);
+  if (title && title !== state.title) set({ title });
+}
+
 async function createPlayer(element: HTMLElement) {
   const mine = ++generation;
   let api;
@@ -100,11 +129,13 @@ async function createPlayer(element: HTMLElement) {
       onReady: (event) => {
         if (mine !== generation) return;
         ready = true;
+        updateTitle(event.target);
         event.target.setVolume(startVolume());
         event.target.playVideo();
       },
       onStateChange: (event) => {
         if (mine !== generation) return;
+        updateTitle(event.target);
         const playing = event.data === PLAYER_STATE.playing;
         if (playing !== state.playing || (playing && state.blocked))
           set({ playing, blocked: playing ? false : state.blocked });
@@ -263,7 +294,7 @@ export function closeMusic(reason: "user" | "system") {
   const wasBig = state.mode === "big";
   if (reason === "user") writeAutoOff(true);
   destroyPlayer();
-  set({ mode: "closed", playing: false, blocked: false, error: null });
+  set({ mode: "closed", playing: false, blocked: false, error: null, title: null });
   if (reason === "user" && wasBig) restoreLock();
   else lockTarget = null;
 }
@@ -309,6 +340,8 @@ if (import.meta.env.DEV)
   exposeDevHook("lobbyMusic", {
     state: () => state,
     volume: () => (player && ready ? player.getVolume() : null),
+    /** 검사용 — 다음 곡으로 넘긴다 */
+    next: () => player?.nextVideo(),
     ducking: () => duck !== null,
   });
 
