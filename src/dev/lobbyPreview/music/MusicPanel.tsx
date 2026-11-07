@@ -110,7 +110,7 @@ export default function MusicPanel() {
               {music.playing ? "♪ 재생 중" : music.blocked ? "▶ 를 눌러 주세요" : "본부실 스피커"}
             </span>
             <PanelButton onClick={expandMusic}>크게 보기</PanelButton>
-            <PanelButton onClick={() => closeMusic("user")} danger>
+            <PanelButton onClick={() => closeMusic("user")} danger title="다음 방문부터는 자동으로 틀지 않아요">
               정지하고 닫기
             </PanelButton>
           </div>
@@ -129,7 +129,7 @@ export default function MusicPanel() {
                     : "이 화면에선 작게 띄울 수 없어 닫으면 멈춰요"}
             </span>
             {canMini() && <PanelButton onClick={minimizeMusic}>작게 보기 · 계속 듣기</PanelButton>}
-            <PanelButton onClick={() => closeMusic("user")} danger>
+            <PanelButton onClick={() => closeMusic("user")} danger title="다음 방문부터는 자동으로 틀지 않아요">
               정지하고 닫기
             </PanelButton>
           </div>
@@ -148,10 +148,21 @@ function SpeakerHint() {
   return <div style={hint}>{playerView.isThirdPerson ? "[E] 음악 틀기" : "[E] 또는 클릭 — 음악 틀기"}</div>;
 }
 
-function PanelButton({ children, onClick, danger }: { children: ReactNode; onClick: () => void; danger?: boolean }) {
+function PanelButton({
+  children,
+  onClick,
+  danger,
+  title,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  danger?: boolean;
+  title?: string;
+}) {
   return (
     <button
       type="button"
+      title={title}
       onClick={onClick}
       style={{
         padding: "7px 12px",

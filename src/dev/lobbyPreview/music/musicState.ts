@@ -171,11 +171,61 @@ function restoreLock() {
   }
 }
 
+// ── 이동 키 풀기 ── 큰 화면을 열 때 누르고 있던 이동 키를 뗀 것으로 알린다. 새로 누르는 키는 화면이 막지만, 이미 눌린
+// W 는 이동 쪽에 「눌림」으로 남아 창 뒤에서 계속 걸었다(Codex 리뷰). 이동은 keyup 으로만 풀리므로 그것을 보낸다.
+const MOVEMENT_CODES = [
+  "KeyW",
+  "KeyA",
+  "KeyS",
+  "KeyD",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "ShiftLeft",
+  "ShiftRight",
+];
+function releaseMovementKeys() {
+  for (const code of MOVEMENT_CODES) window.dispatchEvent(new KeyboardEvent("keyup", { code }));
+}
+
+// ── 자동 재생 ── 이번 방문에 본부실에 처음 들어오면 한 번, 미니로 튼다(미르 11/7: 들어오면 기본으로 재생).
+// 미니는 화면에 다 보이는 플레이어라 규정의 「절반 이상 보일 때만 자동 재생」을 지킨다. 「정지하고 닫기」를 직접 누르면
+// 기억해 다음 방문부터 안 틀고, 라디오를 다시 켜면 그 기억을 지운다. 좁은 화면(미니 불가)은 자동으로 안 튼다.
+const AUTO_OFF_KEY = "waegok.lobbyMusic.autoOff";
+function readAutoOff() {
+  try {
+    return window.localStorage.getItem(AUTO_OFF_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeAutoOff(off: boolean) {
+  try {
+    if (off) window.localStorage.setItem(AUTO_OFF_KEY, "1");
+    else window.localStorage.removeItem(AUTO_OFF_KEY);
+  } catch {
+    // 저장소를 못 쓰는 창(비공개 등) — 이번 방문에만 따른다
+  }
+}
+let autoTried = false;
+
+/** 본부실에 들어선 첫 순간(막힘 없을 때) 부른다. 이번 방문에 한 번만 */
+export function autoStartMusic() {
+  if (autoTried) return;
+  autoTried = true;
+  if (state.mode !== "closed" || readAutoOff() || !canMini()) return;
+  set({ mode: "mini", error: null, blocked: false, relockFailed: false });
+  if (host && !player) void createPlayer(host);
+}
+
 // ── 여닫기 ──
 /** 스피커 [E] · 클릭 — 닫혀 있으면 큰 화면으로 틀고, 미니면 크게. 길게 눌러 여러 번 와도 한 번만 */
 export function openMusic() {
   if (state.mode === "big") return;
+  writeAutoOff(false);
   releaseLock();
+  releaseMovementKeys();
   const fresh = state.mode === "closed";
   set({ mode: "big", relockFailed: false, ...(fresh ? { error: null, blocked: false } : {}) });
   if (host && !player) void createPlayer(host);
@@ -195,6 +245,7 @@ export function minimizeMusic() {
 export function expandMusic() {
   if (state.mode !== "mini") return;
   releaseLock();
+  releaseMovementKeys();
   set({ mode: "big" });
 }
 
@@ -202,6 +253,7 @@ export function expandMusic() {
 export function closeMusic(reason: "user" | "system") {
   if (state.mode === "closed") return;
   const wasBig = state.mode === "big";
+  if (reason === "user") writeAutoOff(true);
   destroyPlayer();
   set({ mode: "closed", playing: false, blocked: false, error: null });
   if (reason === "user" && wasBig) restoreLock();
@@ -221,7 +273,7 @@ settingsStore.subscribe(() => {
   }
 });
 
-let duck: { base: number; timer: ReturnType<typeof setTimeout> } | null = null;
+let duck: { base: number; until: number; timer: ReturnType<typeof setTimeout> } | null = null;
 function endDuck(skipRestore = false) {
   if (!duck) return;
   clearTimeout(duck.timer);
@@ -231,16 +283,18 @@ function endDuck(skipRestore = false) {
 }
 onVoiceStart((kind, seconds, volume) => {
   if (!DUCK_KINDS.has(kind) || volume < 0.25 || !player || !ready || !state.playing || player.isMuted()) return;
-  const hold = seconds * 1000 + 200;
+  const until = performance.now() + seconds * 1000 + 200;
   if (duck) {
-    // 겹친 말은 더 줄이지 않고 끝만 늦춘다
+    // 겹친 말은 더 줄이지 않고, 가장 늦게 끝나는 말까지 줄인 채로 둔다(짧은 말이 긴 말을 앞당겨 풀지 않게 — Codex 리뷰)
+    if (until <= duck.until) return;
+    duck.until = until;
     clearTimeout(duck.timer);
-    duck.timer = setTimeout(() => endDuck(), hold);
+    duck.timer = setTimeout(() => endDuck(), until - performance.now());
     return;
   }
   const base = player.getVolume();
   player.setVolume(clampVolume(base * DUCK_RATIO));
-  duck = { base, timer: setTimeout(() => endDuck(), hold) };
+  duck = { base, until, timer: setTimeout(() => endDuck(), until - performance.now()) };
 });
 
 if (import.meta.env.DEV)

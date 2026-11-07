@@ -20,8 +20,22 @@ import { aimStore, useInteractable } from "@/lobby/interactions";
 import { getLockControl } from "@/props/combinationLockState";
 import { useIsCutscenePlaying } from "@/props/vendingPushState";
 import { NAJU_ENTER_EVENT } from "@/station/najuEnter";
+import {
+  HEADQUARTERS_MAX_X,
+  HEADQUARTERS_MAX_Z,
+  HEADQUARTERS_MIN_X,
+  HEADQUARTERS_MIN_Z,
+} from "@/station/layout/dimensions";
 
-import { closeMusic, musicStore, openMusic, SPEAKER_AIM_ID } from "./musicState";
+import { autoStartMusic, closeMusic, musicStore, openMusic, SPEAKER_AIM_ID } from "./musicState";
+
+/** 본부실 벽 안(경계에서 이만큼 들어와야) — 로비 입장 판정(LobbyPreviewRig)과 같은 여유 */
+const ENTRY_MARGIN = 0.5;
+const insideHeadquarters = (x: number, z: number) =>
+  x > HEADQUARTERS_MIN_X + ENTRY_MARGIN &&
+  x < HEADQUARTERS_MAX_X - ENTRY_MARGIN &&
+  z > HEADQUARTERS_MIN_Z + ENTRY_MARGIN &&
+  z < HEADQUARTERS_MAX_Z - ENTRY_MARGIN;
 
 /** 책상4(노랑, 윗면 2.06 · x −0.4~5.8 · z −4.0~−1.2)의 왼쪽 끝. 스탠드(x 1.2~2.0) · 서류를 비켜 방 가운데를 본다 */
 const SPOT = { x: 0.35, y: 2.06, z: -2.8, rot: -0.35 } as const;
@@ -200,6 +214,9 @@ export default function LobbySpeaker() {
     if (rootRef.current) rootRef.current.visible = !g.hidden;
     const music = musicStore.get();
     if ((g.hidden || g.blocked) && music.mode !== "closed") closeMusic("system");
+    // 본부실에 처음 들어서면 미니로 자동 재생(이번 방문 한 번 · 직접 끈 적 없을 때) — 컷신 · 창이 떠 있으면 기다린다
+    else if (!g.hidden && !g.blocked && playerView.ready && insideHeadquarters(playerView.eye.x, playerView.eye.z))
+      autoStartMusic();
 
     // 연출 — 재생 중이면 0 → 1 로 스며들고, 멈추면 빠진다
     const target = music.playing && !g.hidden ? 1 : 0;
