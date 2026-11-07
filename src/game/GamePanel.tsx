@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
+import { useTouchMode } from "@/engine/input";
+
 import { CloseIcon } from "./gameIcons";
 import { DOCK_EDGE, DOCK_TOP, PANEL_SHADOW, UI, UI_FONT, keyCapStyle } from "./gameUi";
 
@@ -15,34 +17,59 @@ interface GamePanelProps {
   children: ReactNode;
 }
 
-/** 소지품·힌트함이 함께 쓰는 틀. 왼쪽에 붙어 열려 게임 화면을 가리지 않는다. */
+/**
+ * 소지품·힌트함이 함께 쓰는 틀. 왼쪽에 붙어 열려 게임 화면을 가리지 않는다.
+ * 휴대폰(터치)은 높이가 393 안팎이라 목록 | 상세를 좌우로 나누고, 위쪽 끝까지 쓴다(오른쪽 위 단추 줄은 비켜 둔다).
+ * 닫기 44px, 키보드 안내 줄은 뺀다(14회차).
+ */
 export default function GamePanel({ title, meta, closeKey, onClose, children }: GamePanelProps) {
+  const isTouch = useTouchMode();
   return (
     <div className="game-panel-backdrop" style={backdropStyle} onClick={onClose}>
       <div
-        className="game-panel"
-        style={panelStyle}
+        className={isTouch ? "game-panel is-touch" : "game-panel"}
+        style={isTouch ? { ...panelStyle, ...touchPanelStyle } : panelStyle}
         role="dialog"
         aria-label={title}
         onClick={(event) => event.stopPropagation()}
       >
-        <header style={headerStyle}>
-          <h2 style={titleStyle}>{title}</h2>
+        <header style={isTouch ? { ...headerStyle, paddingBottom: 8 } : headerStyle}>
+          <h2 style={isTouch ? { ...titleStyle, fontSize: 20 } : titleStyle}>{title}</h2>
           <span style={metaStyle}>{meta}</span>
-          <button type="button" className="game-icon-button" style={closeStyle} onClick={onClose} aria-label="닫기">
+          <button
+            type="button"
+            className="game-icon-button"
+            style={isTouch ? { ...closeStyle, width: 44, height: 44, borderRadius: 22 } : closeStyle}
+            onClick={onClose}
+            aria-label="닫기"
+          >
             <CloseIcon />
           </button>
         </header>
-        <div style={bodyStyle}>{children}</div>
-        <footer style={footerStyle}>
-          <kbd style={keyCapStyle}>{closeKey}</kbd>
-          <kbd style={keyCapStyle}>ESC</kbd>
-          <span>닫기</span>
-        </footer>
+        <div style={isTouch ? { ...bodyStyle, flexDirection: "row", gap: 12, paddingTop: 10 } : bodyStyle}>
+          {children}
+        </div>
+        {!isTouch && (
+          <footer style={footerStyle}>
+            <kbd style={keyCapStyle}>{closeKey}</kbd>
+            <kbd style={keyCapStyle}>ESC</kbd>
+            <span>닫기</span>
+          </footer>
+        )}
       </div>
     </div>
   );
 }
+
+// 휴대폰 — 안전 영역 안 왼쪽 위부터, 오른쪽 위 HUD 단추 줄(약 230px)은 비켜 둔다
+const touchPanelStyle: CSSProperties = {
+  left: "calc(env(safe-area-inset-left, 0px) + 12px)",
+  top: "calc(env(safe-area-inset-top, 0px) + 8px)",
+  width: "min(680px, calc(100% - 252px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)))",
+  maxHeight: "calc(100% - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
+  height: "calc(100% - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
+  padding: "10px 12px 12px 16px",
+};
 
 // 바깥을 누르면 닫히게 화면 전체를 받되, 어둡게 덮지 않는다.
 const backdropStyle: CSSProperties = { position: "absolute", inset: 0, zIndex: 50 };

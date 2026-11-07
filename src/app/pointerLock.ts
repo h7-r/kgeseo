@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import type { PointerLockControls } from "three-stdlib";
 
+import { addPointerActiveListener, isPointerActive } from "@/engine/input";
 import { overlayLayer, useOpenLayer, type OverlayLayerName } from "@/game/overlayLayer";
 import { endLockControl, leaveLockControl, turnLockDigit, useLockControl } from "@/props/combinationLockState";
 
@@ -20,7 +21,8 @@ export function useOverlayWindows(controlsRef: PointerLockRef) {
 
   const openWindow = useCallback(
     (layer: OverlayLayerName) => {
-      wasPointerLocked.current = !!document.pointerLockElement;
+      // 터치 모드의 가상 잠금도 「조작 중」으로 친다 — 닫을 때 같은 조작으로 돌아간다
+      wasPointerLocked.current = isPointerActive();
       overlayLayer.open(layer);
       controlsRef.current?.unlock();
     },
@@ -31,6 +33,14 @@ export function useOverlayWindows(controlsRef: PointerLockRef) {
     overlayLayer.close();
     if (wasPointerLocked.current) controlsRef.current?.lock();
   }, [controlsRef]);
+
+  // 다른 길(개발 훅 · 시험 도구 등)로 창이 열려도 조작 잠금을 풀어 둔다 — 터치 단추가 창 위에 남지 않게(14회차).
+  // openWindow 로 열었으면 이미 풀려 있어 아무 일도 하지 않는다
+  useEffect(() => {
+    if (openLayer === null || !isPointerActive()) return;
+    wasPointerLocked.current = true;
+    controlsRef.current?.unlock();
+  }, [openLayer, controlsRef]);
 
   return { openLayer, openWindow, closeWindow };
 }
@@ -48,10 +58,9 @@ export function useLockControlMode() {
     if (lockControl.phase === "active") {
       // 잠금 중 ESC 는 브라우저가 먼저 가져가 키 입력이 오지 않는다. 잠금이 풀리면 자물쇠에서도 나간다.
       const handleLockChange = () => {
-        if (!document.pointerLockElement) leaveLockControl();
+        if (!isPointerActive()) leaveLockControl();
       };
-      document.addEventListener("pointerlockchange", handleLockChange);
-      return () => document.removeEventListener("pointerlockchange", handleLockChange);
+      return addPointerActiveListener(handleLockChange);
     }
     // 카메라가 돌아오면 자물쇠 쪽이 endLockControl() 을 부른다. 이건 뒤늦은 안전망이다.
     const timer = setTimeout(() => endLockControl(), LOCK_LEAVE_TIMEOUT_MS);

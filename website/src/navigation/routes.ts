@@ -3,6 +3,8 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { openGameTransition } from "@/app/siteState";
+import { openGameStartGuide } from "@/mobile/gameStartStore";
+import { isMobileLayout } from "@/mobile/layoutMode";
 import { getSessionUser } from "@/services/session";
 
 export const ROUTES = {
@@ -114,6 +116,11 @@ export function launchGame(navigate: (path: RoutePath) => void) {
   const url = new URL(gameEntry(GAME_URL, GAME_ENTRY_PATH, import.meta.env.PROD));
   const nickname = getSessionUser()?.name;
   if (nickname) url.searchParams.set(GAME_NICKNAME_PARAM, nickname);
+  // 모바일이면 사전 안내(가로 · 용량 · 앱 안 브라우저)를 먼저 — 확인하면 같은 전환으로 넘어간다
+  if (isMobileLayout()) {
+    openGameStartGuide(url.href);
+    return;
+  }
   openGameTransition(url.href);
 }
 

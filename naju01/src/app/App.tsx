@@ -21,12 +21,24 @@ import { ToneMappingMode } from "postprocessing";
 import { Leva } from "leva";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
 
-import { IS_LOW_QUALITY } from "@/engine/quality";
+import {
+  FovCap,
+  FpsBadge,
+  isPointerActive,
+  MobileGate,
+  PauseClockGuard,
+  SHOW_FPS,
+  TouchHud,
+  useGameFrozen,
+  useTouchMode,
+} from "@/engine/input";
+import { IS_LOW_QUALITY, IS_MOBILE_QUALITY } from "@/engine/quality";
 import { useHintBox } from "@/game/hintBox";
 import { DEFAULT_SETTINGS, RESOLUTION_DPR, useSettings } from "@/settings/settings";
 import SettingsPanel from "@/settings/SettingsPanel";
 
 import ChibiCustomizerPanel from "../avatar/ChibiCustomizerPanel";
+import { useCompanionChatOpen } from "../companion/chatOpen";
 import CompanionHud from "../companion/CompanionHud";
 import { IS_COMPANION_ENABLED } from "../companion/companionRuntime";
 import SidekickCustomizerPanel from "../avatar/SidekickCustomizerPanel";
@@ -35,6 +47,8 @@ import { readSidekickAppearance } from "../avatar/sidekickOptions";
 import { DEFAULT_TOON } from "../avatar/toonMaterial";
 import { DEFAULT_OUTLINE } from "../avatar/toonOutline";
 import { BASELINE, UNITS_PER_METER, VIEWPOINTS } from "../plan/sitePlan";
+import { teleportPlayer } from "../puzzles/cave/caveState";
+import { useHintBoxOpen } from "../puzzles/hintBoxView";
 import InventoryModal from "../puzzles/InventoryModal";
 import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
 import NajuScene, { type NajuSceneReport, type NajuToonConfig } from "../scene/NajuScene";
@@ -55,6 +69,7 @@ import {
   IS_OUTLINE_DISABLED,
   IS_POSTFX_DISABLED,
   IS_STAGE_16X9,
+  TEST_START_AT,
   IS_TONE_MAPPING_ENABLED,
   IS_TOON_DISABLED,
   IS_VIGNETTE_DISABLED,
@@ -173,6 +188,24 @@ export default function App() {
   }, [settings.sensitivity, isSceneReady, isLocked]);
 
   const switchViewMode = useCallback(() => setViewMode(toggleViewMode), []);
+  // ?at=V2 — 실기기 측정용으로 관측 지점에 바로 선다(첫 프레임이 그려진 뒤 한 번)
+  useEffect(() => {
+    const code = TEST_START_AT?.toUpperCase();
+    if (!isSceneDrawn || !code) return;
+    const viewpoint = VIEWPOINTS.find((v) => v.code === code);
+    if (viewpoint) teleportPlayer(viewpoint.x, viewpoint.z, viewpoint.heading);
+  }, [isSceneDrawn]);
+  // 터치 모드 — 멈춤 · 창이면 렌더 루프까지 세운다(11/7 미르 결정 5). 창이 열려 있으면 「멈춤」 덮개 대신 창을 보인다
+  const isTouch = useTouchMode();
+  const isFrozen = useGameFrozen();
+  const isHintBoxOpen = useHintBoxOpen();
+  const isChatOpen = useCompanionChatOpen();
+  const isWindowOpen = isSettingsOpen || isInventoryOpen || isHintBoxOpen || isChatOpen;
+  // 다른 길(퍼즐 · 개발 훅 등)로 창이 열려도 조작 잠금을 풀어 둔다 — 터치 단추가 창 위에 남지 않게(14회차).
+  // 단축키 · HUD 단추로 열었으면 이미 풀려 있어 아무 일도 하지 않는다. 닫으면 MobileGate 가 조작으로 되돌린다
+  useEffect(() => {
+    if (isWindowOpen && isPointerActive()) controlsRef.current?.unlock();
+  }, [isWindowOpen]);
   useGameHotkeys({
     controlsRef,
     isLocked,
@@ -189,7 +222,8 @@ export default function App() {
       {/* 나주맵은 Leva 를 조절 창으로 쓰지 않는다 — 값은 코드 기본·저장값 그대로 돌고 패널만 숨긴다 */}
       <Leva hidden theme={{ sizes: { numberInputMinWidth: "68px" } }} />
       <Canvas
-        shadows={IS_LOW_QUALITY ? false : "percentage"}
+        frameloop={isFrozen ? "never" : "always"}
+        shadows={IS_LOW_QUALITY || IS_MOBILE_QUALITY ? false : "percentage"}
         // [1, 상한] 배열을 주면 three 가 기기 픽셀비로 골라 PerformanceMonitor 가 정한 값이 묻힌다
         dpr={IS_LOW_QUALITY ? 1 : (fixedDpr ?? dpr)}
         // 밝기 100% 면 필터를 아예 안 건다(합성 비용 0)
@@ -238,6 +272,8 @@ export default function App() {
             <PuzzleWorld />
             {/* 씬 뒤에 둔다 — 붙는 순서대로 효과가 돌아 씬의 재질이 다 선 다음에 데운다 */}
             <Preload all />
+            <PauseClockGuard />
+            <FovCap />
             {/* 붙자마자 걷으면 셰이더 컴파일·첫 업로드가 걸린 프레임을 그대로 보게 된다 */}
             <FirstFrameSignal frames={3} onFirstFrame={() => setIsSceneDrawn(true)} />
             {IS_ARRIVING_FROM_HUB && <FirstFrameSignal onFirstFrame={revealArrival} />}
@@ -291,7 +327,7 @@ export default function App() {
           setOutlineConfig={setOutlineConfig}
         />
       )}
-      {SHOW_SETTINGS_BUTTON && (
+      {SHOW_SETTINGS_BUTTON && !isTouch && (
         <button
           type="button"
           onClick={() => {
@@ -305,6 +341,9 @@ export default function App() {
         </button>
       )}
       <SettingsPanel open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <TouchHud />
+      <MobileGate controlsRef={controlsRef} isWindowOpen={isWindowOpen} />
+      {SHOW_FPS && <FpsBadge />}
       {isCoverMounted && <LoadingCover progress={loadingProgress} isFading={isSceneDrawn} />}
       {SHOW_CUSTOMIZE_PANEL && !meshConfig && (
         <SidekickCustomizerPanel

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
+import { isPointerActive } from "@/engine/input";
 import { useSavedControls } from "@/engine/leva/savedControls";
 import { toRadians } from "@/engine/math";
 import { playerView } from "@/engine/playerView";
@@ -118,7 +119,7 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
     let hit = false;
     if (panel && isNear) {
       // 잠겨 있으면 화면 가운데 점, 풀려 있으면 마우스 자리로 겨눈다.
-      aimRaycaster.setFromCamera(document.pointerLockElement ? SCREEN_CENTER : pointer, camera);
+      aimRaycaster.setFromCamera(isPointerActive() ? SCREEN_CENTER : pointer, camera);
       hit = aimRaycaster.intersectObject(panel, false).length > 0;
     }
     setHologramAimed(hit);

@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+import { isPointerActive, isTouchMode } from "@/engine/input";
+import { gameSetTimeout } from "@/engine/input/gameClock";
 import { startReach } from "@/engine/playerView";
 import { addHint, flashHints } from "@/game/hintBox";
 import { isTypingTarget, OVERLAY_LAYERS, type OverlayLayerName } from "@/game/overlayLayer";
@@ -54,13 +56,13 @@ function handleLockKey(code: string, id: string) {
     // 맞으면 풀리고 나간다. 틀리면 덜컹 — "아니다"를 몸으로 알려 준다.
     submitLockAnswer(id)
       .then((isCorrect) => {
-        if (isCorrect === true) setTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
+        if (isCorrect === true) gameSetTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
         else if (isCorrect === false) rattleHinge(id);
       })
       .catch((error: unknown) => {
         // 백엔드 없이 프론트만 켜면 요청이 실패해 튜토리얼 자물쇠가 영영 안 열린다 — 서버에 못 닿았을 때만 로컬 판정.
         console.warn("[Play Session] 자물쇠 판정 실패 — 로컬 판정으로 대신한다", error);
-        if (tryLockAnswer(id)) setTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
+        if (tryLockAnswer(id)) gameSetTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
         else rattleHinge(id);
       });
   }
@@ -187,8 +189,10 @@ export function useGameKeys({
     };
     // 안내판 클릭. 잠금 중엔 이벤트가 캔버스를 감싼 틀로 오고, 풀려 있으면 화면 창 클릭을 걸러야 한다.
     const handlePointerDown = (event: PointerEvent) => {
+      // 터치에서는 이 직접 클릭 경로를 쓰지 않는다 — 스틱 · 시점 · 단추를 누를 때마다 안내판이 열린다. 상황 단추(E)로 연다.
+      if (isTouchMode()) return;
       if (event.button !== 0 || !isTrain || openLayer || !isHologramAimed()) return;
-      if (!document.pointerLockElement && !(event.target instanceof HTMLCanvasElement)) return;
+      if (!isPointerActive() && !(event.target instanceof HTMLCanvasElement)) return;
       openWindow(OVERLAY_LAYERS.destination);
     };
     window.addEventListener("keydown", handleKeyDown);

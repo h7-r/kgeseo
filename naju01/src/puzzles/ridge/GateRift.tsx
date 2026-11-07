@@ -9,6 +9,8 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
+import { gameClearTimeout, gameSetTimeout } from "@/engine/input/gameClock";
+
 import { cancelCameraFocus, focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
@@ -171,20 +173,20 @@ export default function GateRift() {
   useEffect(() => {
     if (stage !== "rift") return undefined;
     const timers = [
-      setTimeout(() => {
+      gameSetTimeout(() => {
         audio.play("전환");
         showNotice("횃불이 붙자 두 장승 사이의 바람이 일그러진다 — 갈라진 틈 너머로 그날 밤의 강이 비친다.", 5);
       }, RIFT_OPEN_AT * 1000),
-      setTimeout(
+      gameSetTimeout(
         () => showNotice("초롱 하나가 물을 건너온다. 불빛은 앙암바위 쪽으로 가더니 바위 위로 올라간다.", 5),
         (RIFT_OPEN_AT + 5) * 1000,
       ),
-      setTimeout(
+      gameSetTimeout(
         () => showNotice("강 건너 어부, 아랑사의 초롱이다. 그 밤 아랑사는 바위 위로 갔다.", 5),
         (RIFT_OPEN_AT + 10) * 1000,
       ),
     ];
-    return () => timers.forEach(clearTimeout);
+    return () => timers.forEach(gameClearTimeout);
   }, [stage]);
 
   useFrame((frame, dt) => {

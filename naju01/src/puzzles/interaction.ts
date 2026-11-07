@@ -5,6 +5,7 @@
 import { useSyncExternalStore } from "react";
 import * as THREE from "three";
 
+import { isPointerActive } from "@/engine/input/virtualLock";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import { isCameraFocused } from "../scene/cameraFocus";
@@ -169,7 +170,7 @@ if (typeof window !== "undefined") {
         event.stopImmediatePropagation();
         return;
       }
-      if (!document.pointerLockElement || isCameraFocused()) return;
+      if (!isPointerActive() || isCameraFocused()) return;
       if (handHandler?.(aimed)) {
         event.stopImmediatePropagation();
         return;

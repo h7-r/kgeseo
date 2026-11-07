@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { gameNow } from "@/engine/input/gameClock";
 
 import { recall, track } from "../../save/puzzleMemory";
 import { solidQueries } from "../../movement/solidField";
@@ -215,7 +216,7 @@ export default function BoxOpening() {
   /** 열쇠를 꽂기 시작한다 */
   const startUnlock = useRef(() => {
     phase.current = "unlocking";
-    startedAt.current = performance.now() / 1000;
+    startedAt.current = gameNow() / 1000;
     box.key.visible = true;
     audio.play("똑");
   });
@@ -358,7 +359,7 @@ export default function BoxOpening() {
     if (phase.current === "play") updatePlay(dt, frame.clock.elapsedTime);
     if (phase.current !== "unlocking") return;
 
-    const elapsed = performance.now() / 1000 - startedAt.current;
+    const elapsed = gameNow() / 1000 - startedAt.current;
     const lockEnd = LOCK_AT.x + LOCK_LENGTH / 2;
     // 열쇠가 구멍으로 들어간다 — 구멍을 찾느라 끝에서 한 번 멈칫한다
     const reach = THREE.MathUtils.smootherstep(elapsed, 0, INSERT_SECONDS * 0.55) * 0.6;

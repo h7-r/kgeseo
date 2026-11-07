@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 import type { Option } from "../avatar/sidekickOptions";
 import type { PreviewView } from "./CharacterPreview";
+import { useIsTouchSized } from "./compactLayout";
 import { COLORS, FONTS, MOTION } from "./styles";
 
 // 이름 단계 전용인 upperBody 는 단추에 없다
@@ -56,6 +57,8 @@ interface ViewSwitcherProps {
  * 상자 하나가 움직여야 어디서 어디로 옮겼는지 눈이 따라간다. 자리는 단추의 실제 크기를 재서 맞춘다.
  */
 export default function ViewSwitcher({ selected, onSelect }: ViewSwitcherProps) {
+  // 휴대폰 가로 — 단추 높이 · 폭 44 이상(예전 29px)
+  const isCompact = useIsTouchSized(); // 손가락 기기(휴대폰 · 태블릿)
   const buttonRefs = useRef<Partial<Record<PreviewView, HTMLButtonElement | null>>>({});
   const [highlight, setHighlight] = useState<{ x: number; w: number } | null>(null);
   useLayoutEffect(() => {
@@ -65,7 +68,7 @@ export default function ViewSwitcher({ selected, onSelect }: ViewSwitcherProps) 
       return;
     }
     setHighlight({ x: element.offsetLeft, w: element.offsetWidth });
-  }, [selected]);
+  }, [selected, isCompact]);
   return (
     <div
       className="view-switcher"
@@ -94,7 +97,11 @@ export default function ViewSwitcher({ selected, onSelect }: ViewSwitcherProps) 
             className="view-switcher__option"
             aria-pressed={isSelected}
             onClick={() => onSelect(view)}
-            style={{ ...optionButtonStyle, color: isSelected ? "#fff" : COLORS.textMuted }}
+            style={{
+              ...optionButtonStyle,
+              ...(isCompact ? { minHeight: 44, minWidth: 44, padding: "0 10px", fontSize: 14 } : null),
+              color: isSelected ? "#fff" : COLORS.textMuted,
+            }}
           >
             {label}
           </button>

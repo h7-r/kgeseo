@@ -1,3 +1,4 @@
+import { useTouchMode } from "@/engine/input/touchMode";
 import { useEffect, useMemo, useState, type RefObject } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
@@ -8,7 +9,14 @@ import { buildCameraOccluders, buildPropColliders } from "../movement/propCollid
 import { useSolidField } from "../movement/solidField";
 import { gateBlockedAt } from "../movement/stageGates";
 import { MOVEMENT_CONSTANTS, useTerrainMovement } from "../movement/useTerrainMovement";
-import { UNDERWATER_SPEED, cave, registerTeleporter, useIsUnderwater, withCave } from "../puzzles/cave/caveState";
+import {
+  TOUCH_UNDERWATER_SPEED,
+  UNDERWATER_SPEED,
+  cave,
+  registerTeleporter,
+  useIsUnderwater,
+  withCave,
+} from "../puzzles/cave/caveState";
 import type { InstanceGroup } from "../placement/instanceGroups";
 import { VIEWPOINTS } from "../plan/sitePlan";
 import { IS_REVIEW_REQUESTED } from "../review/ReviewBridge";
@@ -54,6 +62,7 @@ export function usePlayerMovement({
   // 강 밑 물굴(puzzles/cave) — 물이 갈라져 있는 동안 그 자리의 바닥·벽은 물굴 것. 물속에서는 살짝 무겁게 걷는다
   const walkable = useMemo(() => withCave(terrain), [terrain]);
   const isUnderwater = useIsUnderwater();
+  const isTouch = useTouchMode();
   // 화면의 물건을 구운 충돌 격자 — 다 구워지면 위 소품 충돌 대신 쓰고, 낮은 물건 위로 올라선다
   const solid = useSolidField((x, z) => terrain.groundAt(x, z).y);
   const [savedStart] = useState(savedNajuStart);
@@ -67,7 +76,9 @@ export function usePlayerMovement({
       ? [savedStart[0], savedStart[1], undefined]
       : [VIEWPOINTS[0].x, VIEWPOINTS[0].z, VIEWPOINTS[0].heading],
     eyeHeight: controls.eyeHeight,
-    walkSpeed: isUnderwater ? (controls.walkSpeed ?? MOVEMENT_CONSTANTS.walk) * UNDERWATER_SPEED : controls.walkSpeed,
+    walkSpeed: isUnderwater
+      ? (controls.walkSpeed ?? MOVEMENT_CONSTANTS.walk) * (isTouch ? TOUCH_UNDERWATER_SPEED : UNDERWATER_SPEED)
+      : controls.walkSpeed,
     swim: isUnderwater,
     fallRecovery: controls.fallRecovery,
     // 보고를 읽는 곳은 검수 실행의 ReviewBridge 뿐이다

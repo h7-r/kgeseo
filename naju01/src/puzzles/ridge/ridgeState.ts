@@ -16,6 +16,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { gameNow } from "@/engine/input/gameClock";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 export type RidgeStage = "idle" | "sealing" | "sealed" | "awakening" | "circling" | "leaving" | "rift" | "done";
@@ -32,7 +33,8 @@ let releaseFrom: number | null = null;
 /** 플레이어가 장막에 마지막으로 부딪힌 자리(둘레 0~1 · 시각 초) — 장막이 그 자리에서 물결친다 */
 let lastTouch = { t: 0, at: -99 };
 
-const now = () => performance.now() / 1000;
+// 게임 시계 — 터치 모드에서 멈춘 동안은 단계 경과가 흐르지 않는다
+const now = () => gameNow() / 1000;
 
 export const ridge = {
   stage: () => stage,

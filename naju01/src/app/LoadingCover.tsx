@@ -76,6 +76,6 @@ const barFillStyle: CSSProperties = {
 };
 
 const captionStyle: CSSProperties = {
-  font: '12px/1.5 ui-monospace, Menlo, "Malgun Gothic", monospace',
+  font: '13px/1.5 ui-monospace, Menlo, "Malgun Gothic", monospace',
   color: "#9AA3B4",
 };

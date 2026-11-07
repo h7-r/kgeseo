@@ -25,6 +25,10 @@ import { useReadProgress } from "@/hooks/motion";
 import GameTransition from "@/layout/GameTransition";
 import HeaderLayer from "@/layout/HeaderLayer";
 import SiteBackdrop from "@/layout/SiteBackdrop";
+import { useIsMobileLayout } from "@/mobile/layoutMode";
+import MobileBackdrop from "@/mobile/MobileBackdrop";
+import GameStartGuide from "@/mobile/GameStartGuide";
+import MobileHeader from "@/mobile/MobileHeader";
 import VideoModal from "@/layout/videoPlayer/VideoModal";
 import { dispatchPageChange, scrollToTopSilently } from "@/lib/pageEvents";
 import { ROUTES, launchGame, pageTitle } from "@/navigation/routes";
@@ -35,14 +39,18 @@ import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 import { getSessionUser, useSessionUser } from "@/services/session";
 
 export default function App() {
+  // 모바일 배치 — 머리띠 · 배경을 모바일판으로 바꾼다. 3D 배경은 휴대폰 GPU · 배터리 몫이라 정지 배경으로(계획서 5.3)
+  const isMobile = useIsMobileLayout();
   return (
     <>
       {/* 쪽 전환 바깥에 둬야 화면을 옮겨도 3D 배경이 다시 만들어지지 않는다. */}
-      <SiteBackdrop />
+      {isMobile ? <MobileBackdrop /> : <SiteBackdrop />}
       <ReadProgressBar />
-      <HeaderLayer />
+      {isMobile ? <MobileHeader /> : <HeaderLayer />}
       <VideoModal />
       <GameTransition />
+      {/* 모바일에서 연 안내가 창 크기 변경으로 데스크톱이 돼도 닫히지 않게 늘 둔다(열린 것이 없으면 그리지 않는다) */}
+      <GameStartGuide />
       <PageFrame>
         <Routes>
           <Route path={ROUTES.home} element={<HomePage />} />

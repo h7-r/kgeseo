@@ -152,7 +152,7 @@ function ConsentRow({ checked, hasGlow, onChange, ariaLabel, children }: Consent
           {checked && <span style={checkMarkStyle} />}
         </span>
       </span>
-      <span style={consentTextStyle}>{children}</span>
+      <span className="consent-text" style={consentTextStyle}>{children}</span>
     </label>
   );
 }

@@ -6,10 +6,14 @@
  * - Enter(잠금 중)로 한 줄 입력을 연다. 입력 중에는 capture 단계 차단기 하나로 게임 키(T · V · H · I · P · 숫자)가
  *   새지 않게 막고, 닫을 때 원래 잠겨 있었으면 다시 잠근다.
  */
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
 
 import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT } from "../puzzles/hudTheme";
+import { useTouchMode } from "@/engine/input/touchMode";
+import { isPointerActive } from "@/engine/input/virtualLock";
+import { setCompanionChatOpen } from "./chatOpen";
 import { MAX_MESSAGE_LENGTH } from "./companionDialog.ts";
 import { cancelCompanionHold, useCompanionHold } from "./companionPrompt";
 import {
@@ -35,6 +39,9 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
   const [isTyping, setIsTyping] = useState(false);
   // 입력칸 effect 는 열릴 때 한 번만 돌아야 한다(잠금 기억 · 포커스) — 닫기 함수가 매번 바뀌면 다시 돌아 둘 다 잃는다
   const closeTyping = useCallback(() => setIsTyping(false), []);
+  const isTouch = useTouchMode();
+  // 터치 모드의 창 판정(MobileGate)이 입력칸을 창으로 보게 밖에 알린다
+  useEffect(() => setCompanionChatOpen(isTyping), [isTyping]);
 
   useEffect(() => {
     void startCompanion();
@@ -62,9 +69,20 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
 
   return (
     <>
-      <div style={bandStyle} data-testid="companion-subtitle">
+      {/* 터치 — 💬 로 입력칸을 연다. 아이폰은 탭 안에서 바로 포커스해야 키보드가 뜨므로 그 탭에서 동기로 그린다(flushSync) */}
+      {isTouch && isLocked && dialog.isEnabled && !isTyping && (
+        <button
+          type="button"
+          aria-label={`${COMPANION_NAME}에게 말하기`}
+          style={chatButtonStyle}
+          onClick={() => flushSync(() => setIsTyping(true))}
+        >
+          💬
+        </button>
+      )}
+      <div style={isTyping && isTouch ? touchTypingBandStyle : bandStyle} data-testid="companion-subtitle">
         {isTyping ? (
-          <ChatInput controlsRef={controlsRef} onClose={closeTyping} />
+          <ChatInput controlsRef={controlsRef} onClose={closeTyping} isTouch={isTouch} />
         ) : waiting ? (
           <div style={nameStyle} data-state="waiting">
             {name} <span className="companion-dots">···</span>
@@ -96,15 +114,21 @@ function hintLabel(line: ReturnType<typeof companionDialog.getState>["line"]) {
 function ChatInput({
   controlsRef,
   onClose,
+  isTouch,
 }: {
   controlsRef: RefObject<PointerLockControlsImpl | null>;
   onClose: () => void;
+  isTouch: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [text, setText] = useState("");
+  // 그려진 그 커밋 안에서 포커스 — 💬 탭(사용자 몸짓) 안이어야 아이폰 키보드가 뜬다
+  useLayoutEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
-    const wasLocked = !!document.pointerLockElement;
+    const wasLocked = isPointerActive();
     controlsRef.current?.unlock();
     // 바로 포커스한다 — 다음 프레임으로 미루면 Enter 뒤 곧바로 친 글자가 입력칸 밖으로 샌다
     inputRef.current?.focus();
@@ -155,7 +179,7 @@ function ChatInput({
   return (
     <div style={{ pointerEvents: "auto", width: "100%" }}>
       <div style={nameStyle}>
-        {COMPANION_NAME}에게 · Enter 보내기 · Esc 취소
+        {COMPANION_NAME}에게{isTouch ? "" : " · Enter 보내기 · Esc 취소"}
         {text.length >= 180 && <span style={counterStyle}>{`${text.length}/${MAX_MESSAGE_LENGTH}`}</span>}
       </div>
       <input
@@ -167,8 +191,40 @@ function ChatInput({
         aria-label={`${COMPANION_NAME}에게 할 말`}
         data-testid="companion-input"
       />
+      {/* 터치 — 보내기 · 닫기. 누르는 순간 입력칸이 포커스를 잃으면 닫혀 버리므로 기본 동작(포커스 옮기기)을 막고,
+          판정은 키보드와 같은 길(Enter · Escape 차단기)로 보낸다 */}
+      {isTouch && (
+        <div style={chatActionsStyle}>
+          <button
+            type="button"
+            style={chatActionStyle}
+            onPointerDown={keepFocus}
+            onMouseDown={keepFocus}
+            onClick={() => sendKey("Escape")}
+          >
+            닫기
+          </button>
+          <button
+            type="button"
+            style={{ ...chatActionStyle, borderColor: AMBER, color: AMBER }}
+            onPointerDown={keepFocus}
+            onMouseDown={keepFocus}
+            onClick={() => sendKey("Enter")}
+          >
+            보내기
+          </button>
+        </div>
+      )}
     </div>
   );
+}
+
+function keepFocus(event: { preventDefault: () => void }) {
+  event.preventDefault();
+}
+
+function sendKey(code: "Enter" | "Escape") {
+  window.dispatchEvent(new KeyboardEvent("keydown", { code, key: code, bubbles: true, cancelable: true }));
 }
 
 function HoldBar({ durationMs }: { durationMs: number }) {
@@ -253,9 +309,43 @@ const hintTextStyle: CSSProperties = { ...stripe, borderLeft: `2px solid ${AMBER
 const noticeTextStyle: CSSProperties = { ...stripe, color: "rgba(242,238,228,.75)", fontSize: 15 };
 const counterStyle: CSSProperties = { marginLeft: 10, font: `11px/1 ${KEY_FONT}` };
 
+/** 터치 — 입력칸은 위쪽에(아래는 화면 키보드가 덮는다) */
+const touchTypingBandStyle: CSSProperties = {
+  ...bandStyle,
+  bottom: "auto",
+  top: "calc(env(safe-area-inset-top, 0px) + 10px)",
+  zIndex: 960,
+};
+const chatButtonStyle: CSSProperties = {
+  position: "absolute",
+  right: "calc(env(safe-area-inset-right, 0px) + 12px + 4 * 48px + 4 * 8px)",
+  top: "calc(env(safe-area-inset-top, 0px) + 12px)",
+  zIndex: 950,
+  width: 48,
+  height: 48,
+  borderRadius: "50%",
+  border: "1.5px solid rgba(242,238,228,0.4)",
+  background: "rgba(20,22,28,0.45)",
+  fontSize: 20,
+  padding: 0,
+  pointerEvents: "auto",
+  touchAction: "manipulation",
+};
+const chatActionsStyle: CSSProperties = { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 };
+const chatActionStyle: CSSProperties = {
+  minWidth: 80,
+  height: 44,
+  borderRadius: 22,
+  border: "1px solid rgba(242,238,228,.4)",
+  background: "rgba(14,18,26,.78)",
+  color: CREAM,
+  font: `600 15px/1 ${FONT}`,
+};
+
 const inputStyle: CSSProperties = {
   width: "100%",
-  height: 40,
+  // 누르는 영역 44(14회차, 예전 40)
+  height: 44,
   boxSizing: "border-box",
   padding: "0 14px",
   borderRadius: 8,

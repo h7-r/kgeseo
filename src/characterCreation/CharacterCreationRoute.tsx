@@ -9,6 +9,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
+import { isTouchMode, passFirstTap } from "@/engine/input";
 import { PLAYER_MESHY_APPEARANCE_KEY } from "@/engine/storage";
 import {
   CharacterCreationScreen,
@@ -153,6 +154,8 @@ export default function CharacterCreationRoute() {
       // 영상 막은 main 에 있어 주소가 바뀌어도 살아 있고, 역 씬이 다 뜨면 스스로 걷힌다. 두 번 눌려도 한 번만 간다.
       if (!hasLeft.current) {
         hasLeft.current = true;
+        // 휴대폰: 생성 중 다른 앱에 다녀와 첫 탭이 풀렸어도 「완료」 탭이 그 탭을 대신한다 — 튜토리얼 막에서 한 번 더 누르지 않게(코덱스 13c)
+        if (isTouchMode()) passFirstTap();
         showLoadingVideo("tutorial");
         setTimeout(() => navigate("/", { replace: true }), 350);
       }

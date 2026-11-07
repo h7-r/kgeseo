@@ -4,7 +4,8 @@ import type { CSSProperties } from "react";
 // 소지품 창과 힌트함이 함께 쓰는 치수·색. 생김새가 다르면 다른 게임 화면으로 읽힌다.
 
 export const GOLD = "#e0a94e";
-const MONO_SMALL = "12px ui-monospace,Menlo,monospace";
+// 13px — 휴대폰에서도 읽히는 크기(14회차, 예전 12)
+const MONO_SMALL = "13px ui-monospace,Menlo,monospace";
 
 export const backdropStyle: CSSProperties = {
   position: "absolute",
@@ -60,7 +61,7 @@ export const slotStyle: CSSProperties = {
   background: "#12161c",
   border: "1px solid #2c343e",
   color: "#cfe3ff",
-  font: "12px sans-serif",
+  font: "13px sans-serif",
   cursor: "pointer",
 };
 export const selectedSlotStyle: CSSProperties = { ...slotStyle, borderColor: GOLD, background: "#1d2430" };

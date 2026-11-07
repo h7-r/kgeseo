@@ -53,6 +53,14 @@ export const DOOR_CENTER_Y = INNER_FLOOR + WHEEL_RADIUS + 0.03;
 export const SURFACE_Y = 0.7;
 /** 물속 걷는 빠르기 배율 — 살짝 무겁게 */
 export const UNDERWATER_SPEED = 0.52;
+/**
+ * 터치(휴대폰) 물속 배율 — 미르 폰 시험 「물속이 너무 느리다」(11/7). PC 는 Shift 로 달려 헤엄치지만 휴대폰은 스틱을 끝까지 밀어야 해서
+ * 같은 0.52 면 체감이 훨씬 느리다. 0.75 는 비교 시험값(코덱스 구현 07회차) — ?swim=0.65 처럼 주소로 바꿔 견준다.
+ */
+export const TOUCH_UNDERWATER_SPEED = (() => {
+  const value = typeof location === "undefined" ? NaN : Number(new URLSearchParams(location.search).get("swim"));
+  return Number.isFinite(value) && value > 0.2 && value <= 1.5 ? value : 0.75;
+})();
 
 /** 숨(초) */
 export const BREATH_SECONDS = 70;

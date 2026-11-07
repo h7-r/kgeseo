@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
+import { useTouchMode } from "@/engine/input";
+
 import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
 import { ITEMS, SLOT_COUNT, inventory, useHandItem, useHeldItems } from "./inventory";
 import { ITEM_ICONS } from "./itemIcons";
@@ -18,6 +20,8 @@ export default function InventoryModal({ open, onClose }: { open: boolean; onClo
 }
 
 function InventoryPanel({ onClose }: { onClose: () => void }) {
+  // 휴대폰 — 키보드 안내 · 칸 번호를 빼고, 닫기 · 손에 들기 44px, 화면 높이(393)를 넘으면 안에서 스크롤(14회차)
+  const isTouch = useTouchMode();
   const items = useHeldItems();
   const hand = useHandItem();
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -56,14 +60,42 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div style={backdropStyle} onClick={onClose}>
-      <div style={panelStyle} onClick={(event) => event.stopPropagation()}>
-        <header style={headerStyle}>
+      <div
+        role="dialog"
+        aria-label="소지품"
+        style={isTouch ? { ...panelStyle, ...touchPanelStyle } : panelStyle}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header
+          style={
+            isTouch
+              ? {
+                  ...headerStyle,
+                  alignItems: "center",
+                  justifyContent: "flex-start",
+                  gap: 12,
+                  padding: "6px 6px 6px 20px",
+                }
+              : headerStyle
+          }
+        >
           <span style={titleStyle}>소지품</span>
-          <span style={countStyle}>
+          <span style={isTouch ? { ...countStyle, fontSize: 13 } : countStyle}>
             {items.length} / {SLOT_COUNT}
           </span>
+          {isTouch && (
+            <button type="button" aria-label="닫기" style={touchCloseStyle} onClick={onClose}>
+              ×
+            </button>
+          )}
         </header>
-        <div style={bodyStyle}>
+        <div
+          style={
+            isTouch
+              ? { ...bodyStyle, padding: 16, gap: 16, overflowY: "auto", minHeight: 0, flexWrap: "nowrap" }
+              : bodyStyle
+          }
+        >
           <div style={gridStyle}>
             {Array.from({ length: SLOT_COUNT }, (_, index) => {
               const item = items[index];
@@ -81,7 +113,7 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
                   }}
                   title={item ? ITEMS[item.kind].name : undefined}
                 >
-                  <span style={slotKeyStyle}>{index + 1}</span>
+                  {!isTouch && <span style={slotKeyStyle}>{index + 1}</span>}
                   {item && <span style={slotIconStyle}>{ITEM_ICONS[item.kind]}</span>}
                 </button>
               );
@@ -95,8 +127,12 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
                 </div>
                 <b style={nameStyle}>{ITEMS[selected.kind].name}</b>
                 <p style={descriptionStyle}>{ITEMS[selected.kind].description}</p>
-                <button type="button" style={actionStyle} onClick={() => takeOut(selectedIndex)}>
-                  손에 들기 <span style={actionKeyStyle}>Enter</span>
+                <button
+                  type="button"
+                  style={isTouch ? { ...actionStyle, minHeight: 44, padding: "0 20px", fontSize: 15 } : actionStyle}
+                  onClick={() => takeOut(selectedIndex)}
+                >
+                  손에 들기 {!isTouch && <span style={actionKeyStyle}>Enter</span>}
                 </button>
               </>
             ) : (
@@ -104,11 +140,15 @@ function InventoryPanel({ onClose }: { onClose: () => void }) {
             )}
           </section>
         </div>
-        <footer style={footerStyle}>
+        <footer style={isTouch ? { ...footerStyle, fontSize: 13, padding: "10px 20px" } : footerStyle}>
           {hand ? <span>손에 든 것 · {ITEMS[hand.kind].name}</span> : <span>빈손</span>}
-          <span style={hintsStyle}>
-            <Key>←↑↓→</Key> 고르기 <Key>1~8</Key> 바로 들기 <Key>I</Key> 닫기
-          </span>
+          {isTouch ? (
+            <span>칸을 누르고 「손에 들기」</span>
+          ) : (
+            <span style={hintsStyle}>
+              <Key>←↑↓→</Key> 고르기 <Key>1~8</Key> 바로 들기 <Key>I</Key> 닫기
+            </span>
+          )}
         </footer>
       </div>
     </div>
@@ -222,6 +262,24 @@ const descriptionStyle: CSSProperties = {
   flex: 1,
 };
 
+// 휴대폰 — 화면 높이 안(안전 영역 포함)에서 머리 · 몸(스크롤) · 발치
+const touchPanelStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  maxHeight: "calc(100% - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
+  width: "min(620px, calc(100% - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)))",
+};
+const touchCloseStyle: CSSProperties = {
+  marginLeft: "auto",
+  width: 44,
+  height: 44,
+  borderRadius: 22,
+  border: "1px solid rgba(242,238,228,.18)",
+  background: "transparent",
+  color: CREAM,
+  font: `400 24px/1 ${FONT}`,
+  cursor: "pointer",
+};
 const emptyTextStyle: CSSProperties = { margin: "auto", color: "rgba(242,238,228,.45)" };
 
 const actionStyle: CSSProperties = {

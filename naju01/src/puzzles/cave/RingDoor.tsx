@@ -36,6 +36,8 @@ import {
   stirSand,
   useCaveShown,
 } from "./caveState";
+import { isPointerActive } from "@/engine/input/virtualLock";
+import { gameNow, gameSetTimeout } from "@/engine/input/gameClock";
 import { buildHintStele, buildStele, makeDialFaceTexture, makeWheelFaceTexture } from "./ringDoorArt";
 import { DialWheel, GearPost, SPOKE_OUT, Steles } from "./ringDoorParts";
 import {
@@ -408,9 +410,9 @@ export default function RingDoor() {
 
   useFrame((_, dt) => {
     if (!isShown) return;
-    const time = performance.now() / 1000;
+    const time = gameNow() / 1000;
     if (isHolding.current && openedAt.current < 0) {
-      if (!document.pointerLockElement || aimedId() !== "cave-valve") isHolding.current = false;
+      if (!isPointerActive() || aimedId() !== "cave-valve") isHolding.current = false;
       else {
         holdTime.current += dt;
         while (holdTime.current >= NOTCH_SECONDS) {
@@ -448,7 +450,7 @@ export default function RingDoor() {
       isHolding.current = false;
       setIsOpen(true);
       // 바퀴가 다 굴러간 뒤에야 지나갈 수 있다
-      window.setTimeout(() => setDoorOpen(true), (RATTLE_SECONDS + ROLL_SECONDS * 0.8) * 1000);
+      gameSetTimeout(() => setDoorOpen(true), (RATTLE_SECONDS + ROLL_SECONDS * 0.8) * 1000);
       // 물속이 쿵 울린다 — 처음 덜컹에 크게, 구르는 동안은 매 프레임 잔떨림
       director.cue({ 카메라: "흔들림", 세기: 0.9 });
       stirSand(0.9);

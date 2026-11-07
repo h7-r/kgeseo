@@ -15,7 +15,18 @@ import { useSavedControls } from "@/engine/leva/savedControls";
 import { EYE_HEIGHT } from "@/engine/movement/constants";
 import { MangaEffect } from "@/engine/manga/mangaEffect";
 import { useMangaStyle } from "@/engine/manga/useMangaStyle";
-import { IS_LOW_QUALITY } from "@/engine/quality";
+import {
+  FovCap,
+  FpsBadge,
+  MobileGate,
+  PauseClockGuard,
+  SHOW_FPS,
+  TouchHud,
+  TouchLook,
+  useGameFrozen,
+  useTouchMode,
+} from "@/engine/input";
+import { IS_LOW_QUALITY, IS_MOBILE_QUALITY, MOBILE_MAX_DPR } from "@/engine/quality";
 import { PLAYER_MESHY_APPEARANCE_KEY, PLAYER_SIDEKICK_APPEARANCE_KEY } from "@/engine/storage";
 import { SettingsIcon } from "@/game/gameIcons";
 import HintHud from "@/game/HintHud";
@@ -87,7 +98,9 @@ function canvasDpr({ resolution }: Settings): number | [number, number] {
   if (resolution !== "auto" && RESOLUTION_DPR[resolution]) {
     return Math.min(RESOLUTION_DPR[resolution], window.devicePixelRatio || 1);
   }
-  return IS_LOW_QUALITY ? 1 : [1, 1.5];
+  if (IS_LOW_QUALITY) return 1;
+  // 모바일은 기기 배율이 3 이라 [1, 1.5] 면 늘 1.5 — 픽셀이 배율의 제곱으로 는다
+  return IS_MOBILE_QUALITY ? [1, MOBILE_MAX_DPR] : [1, 1.5];
 }
 
 // ?dev 일 때만 그리므로 평소엔 받지도 않는다.
@@ -166,6 +179,9 @@ export default function App() {
   useEffect(() => onEnteredHeadquarters(() => setIsThirdPerson(true)), []);
   const avatar = useLobbyAvatar();
   const isMobile = useIsMobile();
+  const isTouch = useTouchMode();
+  // 터치 모드에서 멈춤 · 창이면 렌더 루프까지 세운다(11/7 미르 결정 5 「전부 멈춤」)
+  const isFrozen = useGameFrozen();
   const playerRef = useRef(createPlayerState());
 
   // 계기판은 개발용이라 기본 꺼짐. Scene 안 Leva 값은 껍데기에서 못 읽어 여기서 따로 만든다.
@@ -214,9 +230,9 @@ export default function App() {
     <div className="game-stage" style={{ position: "relative" }}>
       <Leva hidden={!SHOW_LEVA || isMobile} theme={LEVA_THEME} />
       <Canvas
-        frameloop={isEnteringNaju ? "never" : "always"}
+        frameloop={isEnteringNaju || isFrozen ? "never" : "always"}
         // 그림자는 씬을 광원 시점에서 한 번 더 그린다. 끄면 드로우콜이 거의 절반 — 저사양에서 가장 큰 절약.
-        shadows={IS_LOW_QUALITY ? false : "percentage"}
+        shadows={IS_LOW_QUALITY || IS_MOBILE_QUALITY ? false : "percentage"}
         dpr={canvasDpr(settings)}
         // 밝기 100% 면 필터를 아예 안 건다(합성 비용 0)
         style={settings.brightness !== 1 ? { filter: `brightness(${settings.brightness})` } : undefined}
@@ -227,6 +243,9 @@ export default function App() {
         {/* 계기판·셰이더 미리 컴파일은 씬이 바뀌어도 살아 있어야 해 껍데기 쪽에 둔다 */}
         <Preload all />
         <PerformanceMeter visible={showMeter} />
+        <PauseClockGuard />
+        <TouchLook controlsRef={controlsRef} />
+        <FovCap />
 
         {/* 두 씬을 계속 마운트해 두고 보임만 바꾼다. 역(지오 1100여 개)을 다시 지으면 메인 스레드가 수백 ms 멈춘다. */}
         {isTrainMounted && <TrainInteriorScene active={active && isTrain} enabled={isTrain} onNear={setNear} />}
@@ -251,13 +270,13 @@ export default function App() {
         {!IS_POSTFX_DISABLED && (
           <EffectComposer
             autoClear={false}
-            multisampling={IS_LOW_QUALITY ? 0 : IS_POSTFX_HIGH_QUALITY ? 8 : 2}
+            multisampling={IS_LOW_QUALITY || IS_MOBILE_QUALITY ? 0 : IS_POSTFX_HIGH_QUALITY ? 8 : 2}
             // 반정밀도(HalfFloat) 버퍼에서는 야외 씬이 통째로 까맣게 나온다(ANGLE Metal). 바이트로 못 박는다.
             frameBufferType={THREE.UnsignedByteType}
           >
             {/* 만화 v3 — 깊이 선·색 보정. 블룸이 선까지 번지지 않게 먼저 둔다 */}
             {manga && <MangaEffect {...manga.effect} />}
-            <Bloom intensity={0.45} luminanceThreshold={0.85} mipmapBlur />
+            {!IS_MOBILE_QUALITY && <Bloom intensity={0.45} luminanceThreshold={0.85} mipmapBlur />}
             <Vignette offset={0.36} darkness={0.28} />
             {/* 깊이로 그은 펜선과 실루엣은 MSAA 2 로는 계단이 남는다 — 마지막에 SMAA 로 편다 */}
             <SMAA />
@@ -278,18 +297,21 @@ export default function App() {
       <FadeCurtain opacity={fade} />
       <NajuEntryTransition />
       {(isPointerLocked || IS_INPUT_ALWAYS_ON) && !openLayer && <Crosshair />}
-      <TopBarButton right={112} onClick={toggleSettings} ariaLabel="설정 열기">
-        <SettingsIcon /> 설정 [P]
-      </TopBarButton>
+      {/* 터치 모드에서는 조작 화면(TouchHud)의 단추가 대신한다 */}
+      {!isTouch && (
+        <TopBarButton right={112} onClick={toggleSettings} ariaLabel="설정 열기">
+          <SettingsIcon /> 설정 [P]
+        </TopBarButton>
+      )}
       <SettingsPanel open={openLayer === OVERLAY_LAYERS.settings} onClose={closeWindow} />
-      {!isTrain && (
+      {!isTrain && !isTouch && (
         <TopBarButton right={16} onClick={toggleThirdPerson}>
           [V] {isThirdPerson ? "1인칭" : "3인칭"}
         </TopBarButton>
       )}
       {SHOW_CUSTOMIZE_PANEL && !isTrain && <CustomizePanels avatar={avatar} />}
       {active && <ActionHint near={near} />}
-      <LockDialPanel />
+      <LockDialPanel covered={openLayer !== null} />
       {/* 화면층이 지금 열린 창을 하나로 정하므로 두 창이 겹칠 수 없다 */}
       <InventoryPanel open={openLayer === OVERLAY_LAYERS.inventory} onClose={closeWindow} />
       <HintPanel open={openLayer === OVERLAY_LAYERS.hint} onClose={closeWindow} />
@@ -299,6 +321,15 @@ export default function App() {
       <TutorialPanel covered={openLayer !== null || isTrain} />
       <DispatchCard covered={openLayer !== null} isInTrain={isTrain} />
       {SHOW_DEV_TOOLS && <DevTools />}
+      <TouchHud
+        // 자물쇠 중에는 그 자리를 다이얼이 쓴다(앉기 · 점프 · ✋ 는 자물쇠에서 하는 일이 없다)
+        hideActions={lockControl !== null}
+        extraTopButtons={
+          isTrain ? [] : [{ code: "KeyV", label: "시점", ariaLabel: isThirdPerson ? "1인칭으로" : "3인칭으로" }]
+        }
+      />
+      <MobileGate controlsRef={controlsRef} isWindowOpen={openLayer !== null} />
+      {SHOW_FPS && <FpsBadge />}
       <CrashOverlays isGpuLost={isGpuLost} isSceneEmptied={isSceneEmptied} />
     </div>
   );

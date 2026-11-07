@@ -4,6 +4,7 @@
  */
 import { useEffect, type CSSProperties } from "react";
 
+import { useTouchMode } from "@/engine/input";
 import { CloseIcon } from "@/game/gameIcons";
 import { DOCK_EDGE, DOCK_TOP, PANEL_SHADOW, UI, UI_FONT } from "@/game/gameUi";
 
@@ -65,6 +66,8 @@ interface SettingsPanelProps {
 
 export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   const settings = useSettings();
+  // 휴대폰 — 왼쪽 위 · 제목 줄 고정 · 단추와 막대 44px(gameUi.css 의 .settings-dialog.is-touch, 14회차)
+  const isTouch = useTouchMode();
 
   // 막대를 만진 뒤엔 포커스가 <input> 에 남아 App 의 키 처리가 「글씨 입력 중」으로 보고 [P]·ESC 를 무시한다.
   // 그래서 막대 위일 때만 여기서 받는다(단추 위라면 App 이 이미 닫는다 — 두 번 닫지 않게).
@@ -87,13 +90,14 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div
+        className={isTouch ? "settings-dialog is-touch" : "settings-dialog"}
         style={{ ...dialogStyle, "--panel-from": "14px" } as CSSProperties}
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="settings-title"
       >
-        <div style={headerStyle}>
+        <div className="settings-dialog__header" style={headerStyle}>
           <h2 id="settings-title" style={titleStyle}>
             설정
           </h2>
@@ -159,7 +163,7 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
         <div style={groupTitleStyle}>조작</div>
         <SliderRow
           id="settings-sensitivity"
-          label="마우스 감도"
+          label={isTouch ? "시점 감도" : "마우스 감도"}
           value={settings.sensitivity}
           min={0.4}
           max={2}
@@ -177,7 +181,9 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
           >
             기본값으로
           </button>
-          <span style={noteStyle}>[P] · [ESC] 로 닫기 · 바꾸면 바로 저장됩니다</span>
+          <span style={noteStyle}>
+            {isTouch ? "바꾸면 바로 저장됩니다" : "[P] · [ESC] 로 닫기 · 바꾸면 바로 저장됩니다"}
+          </span>
         </div>
       </div>
     </div>

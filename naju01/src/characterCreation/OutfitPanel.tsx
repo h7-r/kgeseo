@@ -4,6 +4,7 @@ import { useEffect, type CSSProperties } from "react";
 import type { AvatarGender } from "../avatar/sidekickOptions";
 import { getSlotOptions, type DraftAppearance } from "./appearanceData";
 import { SLOT_LABELS, getItemThumbnail, type CharacterCatalog } from "./catalog";
+import { useIsCompact, useIsTouchSized } from "./compactLayout";
 import { ColorPicker, SettingGroup, CatalogItemCard, TileButton } from "./controls";
 import { ICONS } from "./icons";
 import { OUTFIT_COLOR_SLOTS, OUTFIT_DESCRIPTIONS, OUTFIT_SLOTS, type OutfitSlot } from "./steps";
@@ -20,6 +21,81 @@ interface OutfitPanelProps {
 
 /** 상의 · 하의 · 신발 세 칸. 누르면 그 칸을 고르는 창이 열린다 */
 export function OutfitPanel({ catalog, appearance, gender, isWide, onOpenSlot }: OutfitPanelProps) {
+  // 휴대폰 가로 — 큰 4:3 카드 세 장 대신 64px 선택 줄 세 개(작은 썸네일 · 이름 · 지금 고른 것 · 색 · ›)
+  const isCompact = useIsCompact();
+  if (isCompact)
+    return (
+      <SettingGroup title="의상 항목">
+        <div style={{ display: "grid", gap: SPACING.s }}>
+          {OUTFIT_SLOTS.map((slot) => {
+            const current = getSlotOptions(catalog, slot, gender).find((it) => it.id === appearance.equipmentIds[slot]);
+            const thumbnail = current ? getItemThumbnail(current, gender) : null;
+            const color = appearance.colors[OUTFIT_COLOR_SLOTS[slot]] ?? WHITE;
+            return (
+              <TileButton
+                key={slot}
+                onClick={() => onOpenSlot(slot)}
+                aria-haspopup="dialog"
+                aria-label={`${SLOT_LABELS[slot]} 고르기 — 지금 ${current?.label ?? "없음"}`}
+                style={{
+                  minHeight: 64,
+                  padding: "6px 10px 6px 6px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  textAlign: "left",
+                }}
+              >
+                <span
+                  style={{
+                    width: 52,
+                    height: 52,
+                    flexShrink: 0,
+                    borderRadius: 6,
+                    overflow: "hidden",
+                    background: "rgba(0,0,0,0.3)",
+                    display: "grid",
+                    placeItems: "center",
+                  }}
+                >
+                  {thumbnail ? (
+                    <img src={thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : null}
+                </span>
+                <span style={{ display: "grid", gap: 3, minWidth: 0, flex: 1 }}>
+                  <span style={{ font: `700 15px/1.2 ${FONTS.body}`, color: COLORS.text }}>{SLOT_LABELS[slot]}</span>
+                  <span
+                    style={{
+                      font: `400 13px/1.3 ${FONTS.body}`,
+                      color: COLORS.textMuted,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {current?.label ?? "없음"}
+                  </span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 18,
+                    height: 18,
+                    flexShrink: 0,
+                    borderRadius: 5,
+                    background: color,
+                    boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.25)",
+                  }}
+                />
+                <span aria-hidden="true" style={{ color: COLORS.textMuted, display: "grid" }}>
+                  {ICONS.next}
+                </span>
+              </TileButton>
+            );
+          })}
+        </div>
+      </SettingGroup>
+    );
   return (
     <SettingGroup title="의상 항목" aside="누르면 고르는 창이 열립니다">
       <div
@@ -114,6 +190,9 @@ interface OutfitModalProps {
 
 /** 의상 한 칸(상의 · 하의 · 신발)의 종류와 색을 고르는 창 */
 export function OutfitModal({ slot, catalog, appearance, gender, updateAppearance, onClose }: OutfitModalProps) {
+  // 휴대폰 가로 — 바깥 여백 16 · 머리 48 · 아래 56 만 고정하고 나머지를 목록에 준다(393 에서 본문 약 270px). 닫기 44
+  const isCompact = useIsCompact();
+  const isTouchSized = useIsTouchSized();
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -130,19 +209,39 @@ export function OutfitModal({ slot, catalog, appearance, gender, updateAppearanc
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div role="dialog" aria-modal="true" aria-label={`${SLOT_LABELS[slot]} 고르기`} style={modalStyle}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${SLOT_LABELS[slot]} 고르기`}
+        style={
+          isCompact
+            ? {
+                ...modalStyle,
+                width:
+                  "min(720px, calc(100% - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)))",
+                maxHeight: "calc(100% - 32px - env(safe-area-inset-bottom, 0px))",
+                height: "calc(100% - 32px - env(safe-area-inset-bottom, 0px))",
+                gridTemplateRows: "48px minmax(0, 1fr) 56px",
+              }
+            : modalStyle
+        }
+      >
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: SPACING.m,
-            padding: `${SPACING.xl}px ${SPACING.xl}px ${SPACING.l}px`,
+            padding: isCompact ? "0 4px 0 16px" : `${SPACING.xl}px ${SPACING.xl}px ${SPACING.l}px`,
             borderBottom: `1px solid ${COLORS.line}`,
           }}
         >
           <div style={{ display: "grid", gap: 4 }}>
-            <h2 style={{ margin: 0, font: `700 22px/1.25 ${FONTS.body}`, color: COLORS.text }}>{SLOT_LABELS[slot]}</h2>
-            <p style={{ margin: 0, ...smallTextStyle, color: COLORS.textMuted }}>{OUTFIT_DESCRIPTIONS[slot]}</p>
+            <h2 style={{ margin: 0, font: `700 ${isCompact ? 17 : 22}px/1.25 ${FONTS.body}`, color: COLORS.text }}>
+              {SLOT_LABELS[slot]}
+            </h2>
+            {!isCompact ? (
+              <p style={{ margin: 0, ...smallTextStyle, color: COLORS.textMuted }}>{OUTFIT_DESCRIPTIONS[slot]}</p>
+            ) : null}
           </div>
           <button
             type="button"
@@ -152,8 +251,8 @@ export function OutfitModal({ slot, catalog, appearance, gender, updateAppearanc
             style={{
               ...tileStyle,
               marginLeft: "auto",
-              width: 40,
-              height: 40,
+              width: isTouchSized ? 44 : 40,
+              height: isTouchSized ? 44 : 40,
               padding: 0,
               display: "grid",
               placeItems: "center",
@@ -162,7 +261,17 @@ export function OutfitModal({ slot, catalog, appearance, gender, updateAppearanc
             {ICONS.close}
           </button>
         </div>
-        <div style={{ padding: SPACING.xl, display: "grid", gap: SPACING.xl, overflowY: "auto" }}>
+        <div
+          style={{
+            padding: isCompact ? "12px 16px" : SPACING.xl,
+            display: "grid",
+            gap: isCompact ? SPACING.l : SPACING.xl,
+            alignContent: "start",
+            overflowY: "auto",
+            minHeight: 0,
+            overscrollBehavior: "contain",
+          }}
+        >
           <SettingGroup title={`${SLOT_LABELS[slot]} 종류`}>
             <div style={cardGridStyle}>
               {getSlotOptions(catalog, slot, gender).map((it) => (
@@ -193,16 +302,18 @@ export function OutfitModal({ slot, catalog, appearance, gender, updateAppearanc
         </div>
         <div
           style={{
-            padding: `${SPACING.l}px ${SPACING.xl}px ${SPACING.xl}px`,
+            padding: isCompact ? "0 16px" : `${SPACING.l}px ${SPACING.xl}px ${SPACING.xl}px`,
             display: "flex",
+            alignItems: "center",
             justifyContent: "flex-end",
+            borderTop: isCompact ? `1px solid ${COLORS.line}` : undefined,
           }}
         >
           <button
             type="button"
             className="character-creator__confirm-button"
             onClick={onClose}
-            style={{ ...confirmButtonStyle, height: 46, padding: "0 32px" }}
+            style={{ ...confirmButtonStyle, height: isCompact ? 44 : 46, padding: "0 32px" }}
           >
             완료
           </button>

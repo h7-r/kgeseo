@@ -16,6 +16,7 @@ import { audio } from "../../scene/immersion/audio";
 import { director, setZoneRainGate } from "../../scene/immersion/director";
 import { CORRIDOR, getPartOpenness } from "../cave/caveState";
 import { registerInteractable, setKeyInterceptor, showNotice } from "../interaction";
+import { setPuzzlePanel } from "../puzzlePanel";
 import { ITEMS, type ItemKind } from "../inventory";
 import { buildItemLooks } from "../itemLooks";
 import { jarPuzzle } from "../jars/jarState";
@@ -43,6 +44,8 @@ const OFFERINGS: ItemKind[] = ["lightFish", "rice", "makgeolli"];
 /** 이어 하기 시계의 시작값(초). 지나간 연출이 모두 끝난 뒤로 잡는다 */
 const RESUME_CLOCK = 1000;
 
+/** 소반 안내판이 뜨는 거리(미터) */
+const PANEL_RANGE = 6;
 /** 소반 상판 높이(미터) — 씬5 소반(키 0.38) */
 const TABLE_TOP = 0.38;
 /** 놓았을 때 이 거리(미터) 안의 빈 홈으로 빨려 든다 */
@@ -309,8 +312,14 @@ export default function RitualCircle() {
         enabled: () => draggingRef.current === null,
         use: () => {
           const now = ritual.stage();
-          if (now === "cairns") showNotice("소반 둘레 땅에 무언가 새겨져 있다. 돌탑이 설 자리 같다.", 3.2);
-          else if (now === "offering") showNotice("소반이 빛난다. 제물을 손에 들고 올리자. [I]", 3);
+          // 무엇을 올리는지는 숨기고 「셋」이라는 개수만 처음부터 알린다(미르 폰 시험 11/7 · 코덱스 구현 07회차)
+          if (now === "cairns")
+            showNotice("제물 세 가지를 받는 소반 같다. 둘레 땅에는 돌탑이 설 자리가 새겨져 있다.", 3.6);
+          else if (now === "offering")
+            showNotice(
+              `소반이 빛난다. 제물 셋을 손에 들고 올리자. (${offeredRef.current.size}/${OFFERINGS.length}) [I]`,
+              3,
+            );
         },
         handLabel: (kind) =>
           ritual.stage() === "offering" &&
@@ -400,9 +409,33 @@ export default function RitualCircle() {
     }
   };
 
+  useEffect(() => () => setPuzzlePanel("ritual-table", null), []);
+
   useFrame(({ camera }, delta) => {
     const dt = Math.min(delta, 0.1);
     const time = (clockRef.current += dt);
+
+    // 안내판 — 소반 가까이에서 제물 개수를 처음부터 보인다(무엇을 올리는지는 숨김)
+    const tableDistance = Math.hypot(CIRCLE_CENTER.x - camera.position.x / M, CIRCLE_CENTER.z - camera.position.z / M);
+    const panelStage = ritual.stage();
+    if (tableDistance > PANEL_RANGE || ritual.isAtLeast("rising")) setPuzzlePanel("ritual-table", null);
+    else {
+      const offeredCount = offeredRef.current.size;
+      setPuzzlePanel("ritual-table", {
+        distance: tableDistance,
+        title: "소반",
+        // 단계별 — 돌탑(아직 못 올림) · 그려지는 중(기다림) · 제물(올릴 수 있음). 제출은 offering 부터(코덱스 구현 08회차)
+        rule:
+          panelStage === "cairns"
+            ? "소반 둘레 땅에 돌탑이 설 자리가 새겨져 있다. 소반에는 제물 세 가지를 올려야 한다 — 소반이 빛나면 올릴 수 있다."
+            : panelStage === "drawing"
+              ? "땅에 무늬가 번져 간다. 소반이 빛날 때까지 기다리자 — 제물은 세 가지."
+              : "소반이 빛난다. 제물 세 가지를 손에 들고 소반에 올리자.",
+        rows: [
+          { label: "올린 제물", value: `${offeredCount} / ${OFFERINGS.length}`, ok: offeredCount === OFFERINGS.length },
+        ],
+      });
+    }
 
     // 금줄 천자락 — 마법진이 그려지기 시작하면 바람이 일어 펄럭인다
     ropeFlutter.tryPatch(scene, time);
@@ -452,7 +485,7 @@ export default function RitualCircle() {
     if (stage === "drawing" && progress >= 1.05) {
       ritual.ready();
       audio.play("징");
-      showNotice("빛이 소반으로 모였다. 제물을 올리자.", 3.4);
+      showNotice(`빛이 소반으로 모였다. 제물 셋을 올리자. (${offeredRef.current.size}/${OFFERINGS.length})`, 3.4);
     }
     const tableLevel = THREE.MathUtils.clamp((progress - 0.85) / 0.2, 0, 1);
     effects.tableGlow.material.opacity = tableLevel * (stage === "flooded" ? 0.15 : 0.55 + 0.2 * Math.sin(time * 3));

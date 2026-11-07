@@ -6,6 +6,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { onGameThaw } from "@/engine/input/gamePause";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import { setKeyInterceptor } from "../interaction";
@@ -101,6 +102,14 @@ export function startGauge(label: string, next: GaugeHandlers) {
   setKeyInterceptor(handleKey);
   update({ active: true, label, hits: 0, flash: null, ...roundFor(0) });
 }
+
+/**
+ * 터치 모드에서 얼었다 풀리면(멈춤 · 창) 얼어 있던 시간만큼 막대 출발 시각을 미룬다 —
+ * 막대가 「멈춘 자리」에서 다시 움직인다(시간으로 재는 판정이 멈춤 동안 흐르지 않게).
+ */
+onGameThaw((frozenMs) => {
+  if (state.active) update({ startedAt: state.startedAt + frozenMs });
+});
 
 export function stopGauge() {
   handlers = null;

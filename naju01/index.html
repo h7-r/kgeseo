@@ -3,14 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>NAJU-01 그레이박스</title>
+    <!-- 휴대폰 세로 안내(리액트가 뜨기 전 첫 화면) — 뜨고 나면 LandscapeGuard 가 같은 안내를 맡는다(src/engine/input/LandscapeGuard.tsx).
+         #root 안에 두어 리액트가 처음 그릴 때 저절로 지워진다. -->
+    <style>
+      #boot-rotate { display: none; }
+      @media (pointer: coarse) and (orientation: portrait) {
+        #boot-rotate {
+          position: fixed; inset: 0; z-index: 2147483647; display: flex; flex-direction: column; align-items: center;
+          justify-content: center; gap: 12px; background: #01040a; color: #f2eee4; font-family: sans-serif; text-align: center;
+        }
+      }
+    </style>
   </head>
   <body>
     <!-- 본편에서 텔레포트로 넘어온 경우 — 로딩 영상(src/transition/LoadingVideoOverlay.tsx)이 뜨기 전 한순간도
          밝은 바탕이 비치지 않게, 이어받을 장면이 있으면 바탕부터 영상 막과 같은 색으로 칠해 둔다. -->
     <script>try { if (sessionStorage.getItem("kgeseo.loading.handoff.v2")) document.documentElement.style.background = "#01040a"; } catch (e) {}</script>
-    <div id="root"></div>
+    <div id="root"><div id="boot-rotate" role="alertdialog" aria-label="가로로 돌려 주세요"><div style="font-size: 56px; line-height: 1" aria-hidden="true">⟲</div><div style="font-size: 24px; font-weight: 700">가로로 돌려 주세요</div><div style="font-size: 15px; opacity: 0.75">이 게임은 가로 화면에서 플레이합니다.</div></div></div>
     <!-- 에러 수집기 — 본편 index.html 과 같은 장치.
          잡히지 않은 에러를 탭 제목에 찍고 window.__E 에 쌓아 둔다. -->
     <script>

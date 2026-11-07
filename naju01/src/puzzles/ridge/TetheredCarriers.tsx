@@ -30,6 +30,7 @@ import {
   findLegTip,
   ropeMaterial,
 } from "./carrierRope";
+import { isPointerActive } from "@/engine/input/virtualLock";
 import { RIDGE_CENTER } from "./ridgeShape";
 import { ridge, ridgeCarry, ridgeQuest, useRidgeStage } from "./ridgeState";
 
@@ -411,7 +412,7 @@ export default function TetheredCarriers() {
     );
     // 빈 지게 내려놓기 — 겨눈 것이 없을 때의 [E]. 줄이 없으니 바람이 채 간다
     const onKey = (event: KeyboardEvent) => {
-      if (event.code !== "KeyE" || event.repeat || !document.pointerLockElement) return;
+      if (event.code !== "KeyE" || event.repeat || !isPointerActive()) return;
       if (ridgeCarry.load !== "jige" || aimedId() || ridgeCarry.isCartGrabbed) return;
       const carrier = carriers.find((entry) => entry.state === "carried");
       if (!carrier) return;

@@ -1,6 +1,7 @@
 // 설정 칸 — 위 단계 탭, 가운데 큰 카드, 아래 다음 단계 단추.
 import type { CSSProperties, ReactNode } from "react";
 
+import { useIsCompact, useIsTouchSized } from "./compactLayout";
 import { ICONS, TAB_ICONS } from "./icons";
 import { NEXT_LABELS, TABS, type TabId } from "./steps";
 import { COLORS, FONTS, SPACING, smallTextStyle, stepNumberStyle, textButtonStyle, tileStyle } from "./styles";
@@ -14,16 +15,22 @@ const selectedTabStyle: CSSProperties = {
 interface StepNavProps {
   activeTab: TabId;
   isNarrow: boolean;
+  /** 휴대폰 가로 — 왼쪽 세로 줄(칸마다 높이 48 이상) */
+  isVertical?: boolean;
   onSelect: (tab: TabId) => void;
 }
 
 /** 01~05 단계 탭. 지나온 단계는 번호 대신 ✓ */
-export function StepNav({ activeTab, isNarrow, onSelect }: StepNavProps) {
+export function StepNav({ activeTab, isNarrow, isVertical = false, onSelect }: StepNavProps) {
   const activeIndex = TABS.findIndex((tab) => tab.id === activeTab);
   return (
     <nav
       aria-label="만드는 순서"
-      style={{ display: "grid", gridTemplateColumns: `repeat(${TABS.length}, 1fr)`, gap: SPACING.s }}
+      style={
+        isVertical
+          ? { display: "grid", gridAutoRows: "minmax(48px, 1fr)", gap: SPACING.s, height: "100%", maxHeight: 360 }
+          : { display: "grid", gridTemplateColumns: `repeat(${TABS.length}, 1fr)`, gap: SPACING.s }
+      }
     >
       {TABS.map((tab, i) => {
         const isSelected = activeTab === tab.id;
@@ -39,14 +46,25 @@ export function StepNav({ activeTab, isNarrow, onSelect }: StepNavProps) {
             style={{
               ...tileStyle,
               ...(isSelected ? selectedTabStyle : null),
-              padding: isNarrow ? "8px 6px" : "12px 12px 11px",
+              ...(isVertical && isSelected ? { boxShadow: `inset 3px 0 0 ${COLORS.accent}` } : null),
+              padding: isVertical ? "4px 2px" : isNarrow ? "8px 6px" : "12px 12px 11px",
+              minHeight: isVertical ? 48 : undefined,
               display: "grid",
-              gap: 6,
-              justifyItems: isNarrow ? "center" : "start",
+              alignContent: "center",
+              gap: isVertical ? 4 : 6,
+              justifyItems: isNarrow || isVertical ? "center" : "start",
               textAlign: "left",
             }}
           >
-            <span style={{ display: "flex", alignItems: "center", gap: 8, width: "100%" }}>
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: isVertical ? "center" : undefined,
+                gap: 8,
+                width: "100%",
+              }}
+            >
               <span
                 style={{
                   ...stepNumberStyle,
@@ -55,7 +73,7 @@ export function StepNav({ activeTab, isNarrow, onSelect }: StepNavProps) {
               >
                 {isPassed ? "✓" : `0${i + 1}`}
               </span>
-              {!isNarrow ? (
+              {!isNarrow && !isVertical ? (
                 <span
                   style={{
                     marginLeft: "auto",
@@ -70,7 +88,7 @@ export function StepNav({ activeTab, isNarrow, onSelect }: StepNavProps) {
             <span style={{ font: `700 15px/1.2 ${FONTS.body}`, color: isSelected ? "#fff" : COLORS.textMuted }}>
               {tab.label}
             </span>
-            {!isNarrow ? (
+            {!isNarrow && !isVertical ? (
               <span
                 style={{
                   ...smallTextStyle,
@@ -161,49 +179,87 @@ export function SettingsCard({
   onDismissNotice,
   children,
 }: SettingsCardProps) {
+  const isCompact = useIsCompact();
+  const isTouchSized = useIsTouchSized();
   return (
-    <div style={contentCardStyle}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "flex-start",
-          gap: SPACING.m,
-          padding: `${SPACING.xl}px ${SPACING.xl}px ${SPACING.l}px`,
-          borderBottom: `1px solid ${COLORS.line}`,
-        }}
-      >
-        <div style={{ display: "grid", gap: 4 }}>
-          <h2
-            style={{
-              margin: 0,
-              font: `700 22px/1.25 ${FONTS.body}`,
-              color: COLORS.text,
-              letterSpacing: "-0.01em",
-            }}
-          >
-            {title}
-          </h2>
-          <p style={{ margin: 0, ...smallTextStyle, color: COLORS.textMuted }}>{description}</p>
+    <div style={{ ...contentCardStyle, height: isCompact ? "100%" : undefined }}>
+      {/* 휴대폰 가로: 머리는 한 줄(44) — 제목 · 초기화만. 설명은 빼서 조작 칸 높이를 지킨다 */}
+      {isCompact ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: SPACING.s,
+            minHeight: 44,
+            padding: "0 4px 0 14px",
+            borderBottom: `1px solid ${COLORS.line}`,
+          }}
+        >
+          <h2 style={{ margin: 0, font: `700 16px/1.2 ${FONTS.body}`, color: COLORS.text }}>{title}</h2>
+          {onResetSection ? (
+            <button
+              type="button"
+              className="character-creator__text-button"
+              style={{
+                ...textButtonStyle,
+                marginLeft: "auto",
+                minHeight: 44,
+                padding: "0 12px",
+                font: `500 14px/1 ${FONTS.body}`,
+              }}
+              onClick={onResetSection}
+            >
+              {ICONS.reset} 초기화
+            </button>
+          ) : null}
         </div>
-        {onResetSection ? (
-          <button
-            type="button"
-            className="character-creator__text-button"
-            style={{ ...textButtonStyle, marginLeft: "auto" }}
-            onClick={onResetSection}
-          >
-            {ICONS.reset} 이 항목 초기화
-          </button>
-        ) : null}
-      </div>
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: SPACING.m,
+            padding: `${SPACING.xl}px ${SPACING.xl}px ${SPACING.l}px`,
+            borderBottom: `1px solid ${COLORS.line}`,
+          }}
+        >
+          <div style={{ display: "grid", gap: 4 }}>
+            <h2
+              style={{
+                margin: 0,
+                font: `700 22px/1.25 ${FONTS.body}`,
+                color: COLORS.text,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              {title}
+            </h2>
+            <p style={{ margin: 0, ...smallTextStyle, color: COLORS.textMuted }}>{description}</p>
+          </div>
+          {onResetSection ? (
+            <button
+              type="button"
+              className="character-creator__text-button"
+              style={{ ...textButtonStyle, marginLeft: "auto", ...(isTouchSized ? { minHeight: 44 } : null) }}
+              onClick={onResetSection}
+            >
+              {ICONS.reset} 이 항목 초기화
+            </button>
+          ) : null}
+        </div>
+      )}
 
       {notice ? (
-        <div style={noticeStyle} role="status">
+        <div style={{ ...noticeStyle, ...(isCompact ? { margin: "8px 12px 0", fontSize: 14 } : null) }} role="status">
           <span style={{ flex: 1 }}>{notice}</span>
           <button
             type="button"
             className="character-creator__text-button"
-            style={{ ...textButtonStyle, color: COLORS.warning }}
+            style={{
+              ...textButtonStyle,
+              color: COLORS.warning,
+              ...(isCompact ? { minHeight: 44, minWidth: 44 } : null),
+            }}
             onClick={onDismissNotice}
           >
             확인
@@ -214,11 +270,14 @@ export function SettingsCard({
       <div
         style={{
           overflowY: "auto",
-          padding: SPACING.xl,
+          padding: isCompact ? "12px 12px 16px" : SPACING.xl,
           display: "grid",
-          gap: SPACING.xl,
+          // 열 최소 폭을 0 으로 — 안 그러면 입력칸 · 표의 최소 폭이 칸 밖으로 밀어낸다(667 노치에서 「중복확인」이 잘림)
+          gridTemplateColumns: "minmax(0, 1fr)",
+          gap: isCompact ? SPACING.l : SPACING.xl,
           alignContent: "start",
           minHeight: 0,
+          overscrollBehavior: "contain",
         }}
       >
         {children}

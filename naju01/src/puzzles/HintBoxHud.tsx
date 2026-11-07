@@ -4,6 +4,7 @@
  */
 import { useState, type CSSProperties } from "react";
 
+import { useKeyLabels } from "@/engine/input";
 import { useHintBox } from "@/game/hintBox";
 import {
   backdropStyle,
@@ -27,6 +28,7 @@ import {
 import { setHintBoxOpen, useHintBoxOpen } from "./hintBoxView";
 
 export default function HintBoxHud() {
+  const labels = useKeyLabels();
   const open = useHintBoxOpen();
   const hints = useHintBox();
   const latestId = () => (hints.length ? hints[hints.length - 1].id : null);
@@ -42,10 +44,27 @@ export default function HintBoxHud() {
 
   return (
     <div style={backdropStyle} onClick={() => setHintBoxOpen(false)}>
-      <div style={panelStyle} onClick={(event) => event.stopPropagation()}>
-        <div style={headerStyle}>
+      <div
+        role="dialog"
+        aria-label="힌트함"
+        style={labels.isTouch ? { ...panelStyle, ...touchPanelStyle } : panelStyle}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div
+          style={
+            labels.isTouch
+              ? { ...headerStyle, alignItems: "center", justifyContent: "flex-start", gap: 12, marginBottom: 8 }
+              : headerStyle
+          }
+        >
           <span style={titleStyle}>힌트함</span>
           <span style={headerMetaStyle}>모은 것 {hints.length}</span>
+          {/* 휴대폰 — 바깥 누르기만으로는 닫는 길이 안 보인다. 닫기 44px(14회차) */}
+          {labels.isTouch && (
+            <button type="button" aria-label="닫기" style={touchCloseStyle} onClick={() => setHintBoxOpen(false)}>
+              ×
+            </button>
+          )}
         </div>
 
         <div style={bodyStyle}>
@@ -75,7 +94,7 @@ export default function HintBoxHud() {
               <div style={emptyRowStyle}>
                 아직 모은 힌트가 없다.
                 <br />
-                쪽지를 읽는 중에 [H] 를 누르면 여기 적힌다.
+                {labels.text("쪽지를 읽는 중에 [H] 를 누르면 여기 적힌다.")}
               </div>
             )}
           </div>
@@ -97,12 +116,30 @@ export default function HintBoxHud() {
           </div>
         </div>
 
-        <div style={footerStyle}>[H] · [ESC] 로 닫기</div>
+        {!labels.isTouch && <div style={footerStyle}>[H] · [ESC] 로 닫기</div>}
       </div>
     </div>
   );
 }
 
+// 휴대폰 — 안전 영역 안, 화면 높이를 넘지 않게
+const touchPanelStyle: CSSProperties = {
+  width: "min(720px, calc(100% - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)))",
+  maxHeight: "calc(100% - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
+  height: "calc(100% - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
+  padding: "8px 8px 14px 20px",
+};
+const touchCloseStyle: CSSProperties = {
+  marginLeft: "auto",
+  width: 44,
+  height: 44,
+  borderRadius: 22,
+  border: "1px solid #2c343e",
+  background: "transparent",
+  color: "#b7c0cb",
+  font: "400 24px/1 sans-serif",
+  cursor: "pointer",
+};
 const leftColumnStyle: CSSProperties = { flex: "1 1 48%", overflowY: "auto", paddingRight: 4 };
 const rightColumnStyle: CSSProperties = {
   flex: "1 1 52%",

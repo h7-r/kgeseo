@@ -90,11 +90,17 @@ export function createCompanionDialog(options: {
   session: CompanionSession;
   timing?: Partial<Timing>;
   now?: () => number;
+  /** 자막을 지우는 타이머 — 게임에서는 「전부 멈춤」 동안 흐르지 않는 게임 타이머를 넘긴다(companionRuntime). 시험은 기본값 */
+  timers?: { set: (callback: () => void, ms: number) => number; clear: (id: number) => void };
   log?: (level: "warn" | "error", message: string, detail?: unknown) => void;
 }) {
   const { session } = options;
   const timing: Timing = { ...DIALOG_TIMING, ...options.timing };
   const now = options.now ?? (() => Date.now());
+  const timers = options.timers ?? {
+    set: (callback: () => void, ms: number) => setTimeout(callback, ms) as unknown as number,
+    clear: (id: number) => clearTimeout(id),
+  };
   const log = options.log ?? (() => {});
   const listeners = new Set<() => void>();
 
@@ -115,7 +121,7 @@ export function createCompanionDialog(options: {
   };
   /** 지금 기다리는 요청의 client_event_id — 다른 id 의 늦은 응답은 버린다 */
   let pendingId: string | null = null;
-  let lineTimer: ReturnType<typeof setTimeout> | null = null;
+  let lineTimer: number | null = null;
   let lastAutoAt = -Infinity;
   let reportedContentError = false;
 
@@ -138,11 +144,11 @@ export function createCompanionDialog(options: {
   });
 
   function show(line: DialogLine | null) {
-    if (lineTimer) clearTimeout(lineTimer);
+    if (lineTimer) timers.clear(lineTimer);
     lineTimer = null;
     patch({ line });
     if (!line) return;
-    lineTimer = setTimeout(
+    lineTimer = timers.set(
       () => {
         lineTimer = null;
         if (state.line === line) patch({ line: null });
