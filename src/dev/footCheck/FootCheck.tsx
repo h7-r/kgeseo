@@ -2,7 +2,7 @@
 // 발이 튀어나온다). 실제 로비 캐릭터(LobbyChibi)에 발 크기·다리 길이만 바꿔 넣는다. 다리가 길수록 발목 살이
 // 커지고(종아리 뼈 배율), 신발은 발뼈 배율만 따라 작아지므로 「작은 발 + 긴 다리」가 가장 나쁘다.
 import { Html } from "@react-three/drei";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import * as THREE from "three";
 
@@ -16,21 +16,38 @@ import { defaultLobbyLook, lobbyLookToRendererConfig } from "@/net/lobbyLook";
 type Gender = "feminine" | "masculine";
 type View = "front" | "back" | "side" | "angle";
 type MotionSource = "tripo" | "sidekick";
-/** 고를 수 있는 동작 — 발목이 많이 꺾이는 것(쪼그림·춤·달리기)까지. 반복 클립을 제자리에서 계속 튼다 */
-const MOTIONS: readonly { label: string; motion?: string; source?: MotionSource }[] = [
+/**
+ * 게임이 실제로 트는 동작 전부(useMotionPlayer 의 고르기 · 인사 · 맞기 · 주먹 · 생성 화면). 반복 클립은 제자리에서
+ * 계속 틀고, 끝이 있는 동작(seconds)은 게임과 같은 통로(AvatarLink.emote)로 되풀이한다.
+ */
+const MOTIONS: readonly { label: string; motion?: string; source?: MotionSource; seconds?: number }[] = [
   { label: "대기" },
   { label: "걷기", motion: "Walk_Loop", source: "tripo" },
   { label: "달리기", motion: "Jog_Fwd_Loop", source: "tripo" },
   { label: "쪼그려 대기", motion: "Crouch_Idle_Loop", source: "sidekick" },
   { label: "춤", motion: "Dance_Loop", source: "sidekick" },
   { label: "전력 질주", motion: "Sprint_Loop", source: "sidekick" },
+  { label: "말하며 대기", motion: "Idle_Talking_Loop", source: "sidekick" },
+  { label: "앉아 걷기", motion: "Crouch_Fwd_Loop", source: "sidekick" },
+  { label: "점프 공중", motion: "Jump_Loop", source: "sidekick" },
+  { label: "A 포즈", motion: "A_TPose", source: "sidekick" },
+  { label: "점프 시작", motion: "Jump_Start", seconds: 1.33 },
+  { label: "착지", motion: "Jump_Land", seconds: 1.27 },
+  { label: "잽", motion: "Punch_Jab", seconds: 0.87 },
+  { label: "크로스", motion: "Punch_Cross", seconds: 1 },
+  { label: "손 내밀기", motion: "Interact", seconds: 2 },
+  { label: "줍기", motion: "PickUp_Table", seconds: 0.9 },
+  { label: "가슴 맞기", motion: "Hit_Chest", seconds: 0.6 },
 ];
+const PAUSE_SECONDS = 0.3;
+let serial = 0;
 
 const TOON = { ...DEFAULT_TOON, enabled: true };
 const OUTLINE = { ...DEFAULT_OUTLINE, enabled: true };
 /** 생성 화면 눈금(0.7·0.85·1.0·1.15·1.3 = 230~290mm) 사이까지 촘촘히 */
-const FOOT_SCALES = [0.7, 0.775, 0.85, 0.925, 1, 1.15];
-const LEG_LENGTHS = [0.85, 1, 1.2];
+const FOOT_SCALES = [0.7, 0.775, 0.85, 0.925, 1, 1.15, 1.3];
+/** 렌더러 범위(0.8~1.2). 로비 허용은 0.85~1.2 */
+const LEG_LENGTHS = [0.8, 1, 1.2];
 const SPACING_X = 2.4;
 const FACING: Record<View, number> = { front: 0, back: Math.PI, side: Math.PI / 2, angle: (Math.PI * 3) / 4 };
 const VIEW_LABEL: Record<View, string> = { front: "앞", back: "뒤", side: "옆", angle: "뒤 45°" };
@@ -71,18 +88,28 @@ function Cell({
 }) {
   const x = (index - (FOOT_SCALES.length - 1) / 2) * SPACING_X;
   const linkRef = useRef<AvatarLink>(makeLink(x, facing));
+  const nextAt = useRef(0);
   useEffect(() => {
     linkRef.current.facing = facing;
   }, [facing]);
+  const chosen = MOTIONS[motion];
+  useFrame(() => {
+    if (!chosen.seconds || !chosen.motion) return;
+    const wall = performance.now() / 1000;
+    if (wall < nextAt.current) return;
+    serial += 1;
+    linkRef.current.emote = { serial, at: wall, steps: [{ motion: chosen.motion, seconds: chosen.seconds }] };
+    nextAt.current = wall + chosen.seconds + PAUSE_SECONDS;
+  });
   const config = useMemo(() => {
     const base = lobbyLookToRendererConfig(JSON.stringify(defaultLobbyLook(gender)));
-    const chosen = MOTIONS[motion];
+    const picked = MOTIONS[motion];
     return {
       ...base,
       footScale,
       legLength,
-      ...(chosen.motion
-        ? { motion: chosen.motion, motionSource: chosen.source }
+      ...(picked.motion && !picked.seconds
+        ? { motion: picked.motion, motionSource: picked.source }
         : { motion: DEFAULT_MESH_CONFIG.motion }),
     };
   }, [gender, footScale, legLength, motion]);

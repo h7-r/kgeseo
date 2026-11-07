@@ -11,6 +11,7 @@ import type { AvatarLink } from "@/engine/avatarLink";
 import { UNITS_PER_METER } from "../plan/sitePlan";
 import { alignWrists, solveArms } from "./armIk";
 import { registerDiagnostics } from "./avatarDiagnostics";
+import { QUATERNIUS_PREFIX } from "./chibiClipLibrary";
 import { attachClipPlanes, CLIPPING, updateClipPlane } from "./firstPersonClipping";
 import { applyFootContact, createFootContactState, lowestSoleY } from "./footContactIk";
 import { DEFAULT_MESH_CONFIG, type MeshAppearanceConfig, getMeshBodyUrl, getMeshShoesUrl } from "./meshAppearance";
@@ -70,6 +71,34 @@ function applyGrip(
 }
 
 const NO_SOLE_INDICES: number[] = [];
+/**
+ * 신발을 신었을 때 맨발 밑창을 안 세도 되는 동작 — 게임이 실제로 트는 동작만(useMotionPlayer 고르기 · 인사 · 맞기 · 주먹 ·
+ * 생성 화면). 발 크기 보기(foot-check.html, 2026-11-07)에서 남녀 · 다리 0.8/1.2 · 발 0.7~1.3 으로 재서 맨발 최저점이
+ * 신발 최저점보다 늘 위였던 것. 여기에 없는 동작(구르기처럼 발이 뒤집히는 것)은 맨발까지 다 센다 — 새 동작을 게임에
+ * 쓰게 되면 그 화면으로 재고 넣는다(Codex 12회차 지적: Roll 은 맨발이 12mm 더 낮다).
+ */
+const SHOE_ONLY_SOLE_CLIPS: ReadonlySet<string> = new Set([
+  "Idle_Loop",
+  `${QUATERNIUS_PREFIX}Idle_Loop`,
+  "Idle_Talking_Loop",
+  "Walk_Loop",
+  "Jog_Fwd_Loop",
+  "Sprint_Loop",
+  "Crouch_Idle_Loop",
+  "Crouch_Fwd_Loop",
+  "Jump_Start",
+  "Jump_Loop",
+  "Jump_Land",
+  "Punch_Jab",
+  "Punch_Cross",
+  "Interact",
+  "Dance_Loop",
+  "PickUp_Table",
+  "Hit_Chest",
+  "A_TPose",
+]);
+/** 확인 안 된 동작이 끝난 뒤에도 섞이는 동안(크로스페이드 0.2초)은 맨발까지 센다 */
+const SOLE_FADE_SECONDS = 0.2;
 
 // 팔·다리 길이, 어깨 폭, 발 크기는 뼈 배율로 덮는다. 믹서가 쓴 뒤에 불러야 한다(클립에 위치·배율 트랙이 있을 수 있다).
 
@@ -232,6 +261,8 @@ function ChibiGameAvatar({
   const soleHeightCache = useRef<number | null>(null);
   const soleFingerprint = useRef("");
   const fadeEnd = useRef(0);
+  // 이 시각까지는 맨발 밑창도 센다(확인 안 된 동작이 섞여 있을 수 있다)
+  const bodySoleUntil = useRef(0);
   // 주먹 쥠의 지난 프레임 값(applyGrip 참고).
   const gripAmount = useRef(0);
 
@@ -278,6 +309,8 @@ function ChibiGameAvatar({
     play(next, timers.current.restartKey ?? null);
     // 크로스페이드(0.16초) 중에는 두 클립이 섞여 발이 옮겨 간다 — 그동안은 캐시를 안 쓴다.
     if (currentMotion.current !== previousMotion) fadeEnd.current = now + 0.2;
+    if (!SHOE_ONLY_SOLE_CLIPS.has(next) || !SHOE_ONLY_SOLE_CLIPS.has(currentMotion.current ?? ""))
+      bodySoleUntil.current = now + SOLE_FADE_SECONDS;
     const action = currentMotion.current ? actions.current.get(currentMotion.current) : undefined;
     // 인사·맞기 단계가 정한 재생 속도(짧은 클립 늘이기)
     if (action && timers.current.actionSpeed) action.setEffectiveTimeScale(timers.current.actionSpeed);
@@ -339,13 +372,15 @@ function ChibiGameAvatar({
     soleFingerprint.current = fingerprint;
     if (!canUseCache) {
       // 전부 본다 — 넷 중 하나만 보면 최저점을 놓쳐 몇 mm 씩 묻히고 깜빡인다.
-      // 보이는 신발이 있으면 맨발 정점은 세지 않는다 — 신발 안의 맨발(모프 −1.5)은 신발 바닥보다 늘 위라 결과가 같다.
-      //   발 크기 보기(2026-11-07): 남녀 · 다리 0.85~1.2 · 발 0.7~1.15 · 대기·걷기·달리기·쪼그림·춤·전력 질주에서 최소 15.4mm 위.
-      //   로비 버벅임(검토 12회차): 아바타당 4,481 → 1,122.
-      const wearsVisibleShoes = prepared.soles.some((sole) => sole.kind === "shoe" && sole.object.visible);
+      // 보이는 신발이 있고 확인된 동작이면 맨발 정점은 세지 않는다 — 신발 안의 맨발(모프 −1.5)은 신발 바닥보다 위라
+      //   결과가 같다(SHOE_ONLY_SOLE_CLIPS). 로비 버벅임(검토 12회차): 아바타당 4,481 → 1,122.
+      const shoeOnly =
+        usesTripo &&
+        now >= bodySoleUntil.current &&
+        prepared.soles.some((sole) => sole.kind === "shoe" && sole.object.visible);
       const soleY = lowestSoleY(
         prepared.soles,
-        (sole) => (wearsVisibleShoes && sole.kind === "body" ? NO_SOLE_INDICES : sole.indices),
+        (sole) => (shoeOnly && sole.kind === "body" ? NO_SOLE_INDICES : sole.indices),
         1,
         inverseModel,
         point,
