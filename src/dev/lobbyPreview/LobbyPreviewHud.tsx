@@ -1,6 +1,6 @@
 // 로비 실제 화면 미리보기 — Canvas 밖(DOM). 「혼자 둘러보는 중」, 인사창, 개발용 조작.
-// 인사창: 포인터 잠금 중 G → 숫자 1~3 / 커서가 보일 때 💬 단추 → 클릭. Esc·G 로 닫는다(설계 5절).
-// 오른쪽 키패드 1~3 은 인사창 없이 바로 인사한다(미르 11/6 — 게임이 키패드를 안 쓴다). 위 줄 숫자는 인사창이 열렸을 때만.
+// 인사창: 포인터 잠금 중 G → 숫자 1~6 / 커서가 보일 때 💬 단추 → 클릭. Esc·G 로 닫는다(설계 5절).
+// 오른쪽 키패드 1~6 은 인사창 없이 바로 인사한다(미르 11/6 — 게임이 키패드를 안 쓴다). 위 줄 숫자는 인사창이 열렸을 때만.
 // 1인칭에서는 내 말풍선이 눈 위라 안 보이므로 화면 아래에 띄운다. 쿨다운(3초) 중이면 짧게 알린다.
 // 컷신·본편 화면창·자물쇠 확대 중에는 인사창을 열지 않고, 열려 있으면 닫는다(설계 5절).
 // 모양은 동작 확인용이다 — 최종 톤은 3단계에서 해랑 님 화면에 맞춘다.
@@ -101,7 +101,7 @@ export default function LobbyPreviewHud() {
     return () => document.removeEventListener("pointerlockchange", onChange);
   }, []);
 
-  // G 로 열고 닫기, 열려 있을 때만 숫자 1~3 이 인사, Esc 로 닫기. 입력칸에 쓰는 중이면 무시
+  // G 로 열고 닫기, 열려 있을 때만 숫자 1~6 이 인사, Esc 로 닫기. 입력칸에 쓰는 중이면 무시
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       // 입력칸에 쓰는 중, 누르고 있어 반복되는 키, 조합키(Ctrl·Cmd·Alt)는 무시 — 본편 키 처리와 같은 기준
@@ -114,9 +114,9 @@ export default function LobbyPreviewHud() {
         setPickerOpen(false);
         return;
       }
-      // 오른쪽 키패드 1~3 은 바로, 위 줄 숫자는 인사창이 열렸을 때만
-      const numpad = /^Numpad([1-3])$/.exec(event.code);
-      const digit = /^Digit([1-3])$/.exec(event.code);
+      // 오른쪽 키패드 1~6 은 바로, 위 줄 숫자는 인사창이 열렸을 때만
+      const numpad = /^Numpad([1-6])$/.exec(event.code);
+      const digit = /^Digit([1-6])$/.exec(event.code);
       const id = numpad ? Number(numpad[1]) : digit && pickerOpen ? Number(digit[1]) : null;
       if (id !== null && canGreet) {
         if (!greet(id)) setNotice("인사는 3초에 한 번 할 수 있어요");
@@ -133,7 +133,7 @@ export default function LobbyPreviewHud() {
       : status.kind === "connecting"
         ? "로비에 붙는 중…"
         : status.kind === "connected"
-          ? `로비 연결됨 · 같은 방 ${roomSize}명 · G: 인사 · 키패드 1~3: 바로 인사 · Enter: 채팅`
+          ? `로비 연결됨 · 같은 방 ${roomSize}명 · G: 인사 · 키패드 1~6: 바로 인사 · Enter: 채팅`
           : `혼자 둘러보는 중(${REASON_TEXT[status.reason] ?? status.reason})${
               status.nextRetryAt ? " · 재시도 예약됨" : " · 이번 방문 재시도 없음"
             }`;
@@ -252,7 +252,7 @@ export default function LobbyPreviewHud() {
               {index + 1}. {text}
             </button>
           ))}
-          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>숫자 1~3 · 키패드는 바로 · Esc·G 닫기</div>
+          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>숫자 1~6 · 키패드는 바로 · Esc·G 닫기</div>
         </div>
       )}
     </div>

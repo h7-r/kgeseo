@@ -17,7 +17,7 @@ import { localPlayer } from "./localPlayer";
 import { playThud } from "./thud";
 import { playVoice, preloadVoices, silenceSpeaker, type VoiceGender } from "./voices";
 
-/** 인사 문구(1~3) — 동작과 짝은 emotes.ts */
+/** 인사 문구(1~6) — 동작과 짝은 emotes.ts */
 export const GREETINGS = EMOTES.map((emote) => emote.text);
 export const BUBBLE_MS = 3000;
 export const GREET_COOLDOWN_MS = 3000;

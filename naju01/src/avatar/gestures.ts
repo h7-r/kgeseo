@@ -9,6 +9,8 @@
 import * as THREE from "three";
 
 import type { Arm, PreparedBody, Side } from "./preparedBody";
+import { exposeDevHook } from "@/debug/devHooks";
+
 import { applyWorldRotation } from "./rig";
 
 type Dir = readonly [number, number, number];
@@ -200,9 +202,11 @@ export interface GestureState {
   weight: number;
   /** 마지막으로 튼 손짓 — 끊기면 이 자세에서 짧게 풀어 돌아온다 */
   last: ActiveGesture | null;
+  /** 가슴 앞면 높이(가슴뼈 기준 앞쪽 거리, 모델 단위) — 손짓을 시작할 때 몸 정점으로 한 번 잰다(체형마다 다르다) */
+  chestFront: number | null;
 }
 
-export const createGestureState = (): GestureState => ({ store: new Map(), weight: 0, last: null });
+export const createGestureState = (): GestureState => ({ store: new Map(), weight: 0, last: null, chestFront: null });
 
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
@@ -259,14 +263,78 @@ function turnPalm(arm: Arm & { index: THREE.Bone | null; pinky: THREE.Bone | nul
   applyWorldRotation(arm.lower, _q, _pq);
 }
 
-/** 손목을 가슴 앞에 — 두 마디 IK(armIk 의 폴 방식과 같은 풀이), 팔꿈치는 아래·바깥·조금 뒤 */
-function reachChest(arm: Arm & { chestRef: THREE.Bone | null }, group: THREE.Object3D, w: number) {
+/**
+ * 가슴에 손 — 손목 자리(가슴뼈 spine_03 기준, 모델 단위: 반대쪽 · 위 · 앞)와 팔꿈치 폴(group 방향: 바깥 · 위 · 앞).
+ * 앞(forward)이 모자라면 아래팔·손이 가슴 속에 파묻힌다(11/7 미르 — 처음 값 0.13 에서 약 2.8cm 묻힘). approach 는
+ * 얹으러 올 때·내릴 때 손이 앞쪽에서 들어오게 더하는 거리(무게가 0 일수록 많이) — 배를 뚫고 지나가지 않게.
+ */
+export const CHEST_REACH = {
+  /** 반대쪽(심장 쪽)으로 */
+  side: 0.03,
+  /** 가슴뼈보다 위로 — 낮으면 여자는 손이 가슴 아래로 들어가 몸에 묻힌다(11/7: 0.06 → 0.13) */
+  up: 0.13,
+  /** 잰 가슴 앞면에서 손목(hand 뼈)까지 더 띄울 거리 — 손바닥 두께만큼 */
+  palm: 0.04,
+  /** 못 쟀을 때 쓰는 앞 거리(가슴뼈 기준) */
+  forward: 0.15,
+  approach: 0.12,
+  /** 팔꿈치를 바깥·앞으로 — 뒤로 빼면 아래팔이 가슴을 비스듬히 가로질러 파고든다(남 2.9cm → 0.6cm) */
+  pole: [0.9, -0.45, 0.6] as [number, number, number],
+};
+if (import.meta.env.DEV) exposeDevHook("gestureTuning", CHEST_REACH);
+
+const _inverseGroup = new THREE.Matrix4();
+/** 가슴 살이 묶인 뼈 — 여자 가슴은 쇄골에도 나눠 묶여 spine 만 보면 앞면을 낮게 잰다(손이 2cm 묻혔다, 11/7) */
+const CHEST_BONES = new Set(["spine_02", "spine_03", "clavicle_l", "clavicle_r"]);
+const _vertex = new THREE.Vector3();
+/**
+ * 가슴 앞면 — 손을 얹을 자리(가슴뼈 기준 옆 side · 위 up) 둘레 ±3cm 안의 몸통 정점(spine_02·03·쇄골 가중치 합 0.9 이상) 중
+ * 가장 앞의 z 를, 가슴뼈 z 를 뺀 거리로(모델 단위). 체형(통통·골격·남녀)마다 달라 고정값이면 남자는 아래팔이 가슴에 묻히고
+ * 여자는 손이 뜬다(11/7 잼: 같은 0.23 에서 남 묻힘 0 · 여 손바닥 3.4cm 뜸). 손짓을 시작할 때 한 번만 잰다.
+ */
+function measureChestFront(prepared: PreparedBody, group: THREE.Object3D, chestRef: THREE.Bone, sign: number): number | null {
+  const skin = prepared.targetSkin;
+  const bones = skin.skeleton.bones;
+  const index = skin.geometry.getAttribute("skinIndex");
+  const weight = skin.geometry.getAttribute("skinWeight");
+  if (!index || !weight) return null;
+  const scale = group.getWorldScale(_a).x || 1;
+  _inverseGroup.copy(group.matrixWorld).invert();
+  const ref = worldPos(chestRef, _b).applyMatrix4(_inverseGroup);
+  const tx = ref.x / scale - sign * CHEST_REACH.side;
+  const ty = ref.y / scale + CHEST_REACH.up;
+  let front = -Infinity;
+  for (let i = 0; i < index.count; i += 1) {
+    let torso = 0;
+    for (let k = 0; k < index.itemSize; k += 1) {
+      const name = bones[index.getComponent(i, k)]?.name;
+      if (name !== undefined && CHEST_BONES.has(name)) torso += weight.getComponent(i, k);
+    }
+    if (torso < 0.9) continue;
+    skin.getVertexPosition(i, _vertex);
+    _vertex.applyMatrix4(skin.matrixWorld).applyMatrix4(_inverseGroup).divideScalar(scale);
+    if (Math.abs(_vertex.x - tx) > 0.03 || Math.abs(_vertex.y - ty) > 0.03) continue;
+    front = Math.max(front, _vertex.z);
+  }
+  return Number.isFinite(front) ? front - ref.z / scale : null;
+}
+
+/** 손목을 가슴 앞에 — 두 마디 IK(armIk 의 폴 방식과 같은 풀이) */
+function reachChest(
+  arm: Arm & { chestRef: THREE.Bone | null },
+  group: THREE.Object3D,
+  w: number,
+  chestFront: number | null,
+) {
   if (!arm.chestRef) return;
   const scale = group.getWorldScale(_a).x || 1;
   const sign = arm.side === "l" ? 1 : -1;
-  // 가슴뼈 앞 — 반대쪽으로 조금(심장 쪽), 위로 조금. 모델 단위 × 배율
-  toWorld([-sign * 0.04, 0.06, 0.13], _wrist)
-    .multiplyScalar(scale * (_d.set(-sign * 0.04, 0.06, 0.13).length()))
+  const { side, up, palm, forward, approach, pole } = CHEST_REACH;
+  // 가슴뼈 앞 — 반대쪽으로 조금(심장 쪽), 위로 조금, 앞은 잰 가슴 앞면 + 손바닥 두께. 모델 단위 × 배율(group 회전만 곱한다)
+  _wrist
+    .set(-sign * side, up, (chestFront === null ? forward : chestFront + palm) + approach * (1 - w))
+    .multiplyScalar(scale)
+    .applyQuaternion(_groupQ)
     .add(worldPos(arm.chestRef, _b));
   const S = worldPos(arm.upper, _a.clone());
   const E = worldPos(arm.lower, _b.clone());
@@ -279,7 +347,7 @@ function reachChest(arm: Arm & { chestRef: THREE.Bone | null }, group: THREE.Obj
   const axis = goal.clone().sub(S);
   const d = THREE.MathUtils.clamp(axis.length(), Math.abs(L1 - L2) + 1e-4, L1 + L2 - 1e-4);
   axis.normalize();
-  toWorld([sign * 0.7, -0.6, -0.25], _pole);
+  toWorld([sign * pole[0], pole[1], pole[2]], _pole);
   _pole.addScaledVector(axis, -_pole.dot(axis));
   if (_pole.lengthSq() < 1e-8) return;
   _pole.normalize();
@@ -303,6 +371,8 @@ export function applyGesture(
 ): number {
   const def = active ? GESTURES[active.name] : gs.last ? GESTURES[gs.last.name] : undefined;
   if (active && def) {
+    // 새 손짓을 시작하면 가슴 앞면을 다시 잰다(아래에서 뼈를 클립 자세로 되돌린 뒤)
+    if (!gs.last || gs.last.name !== active.name || active.elapsed < gs.last.elapsed) gs.chestFront = null;
     gs.last = { ...active };
     gs.weight = envelope(def, active.elapsed);
   } else if (gs.last) {
@@ -348,7 +418,11 @@ export function applyGesture(
     const target = pose[sideName];
     const arm = bones.arms.get(sideName);
     if (!target || !arm) continue;
-    if (target.onChest) reachChest(arm, group, w);
+    if (target.onChest) {
+      if (gs.chestFront === null && arm.chestRef)
+        gs.chestFront = measureChestFront(prepared, group, arm.chestRef, sideName === "l" ? 1 : -1);
+      reachChest(arm, group, w, gs.chestFront);
+    }
     else {
       if (target.upper) aim(arm.upper, arm.lower, toWorld(target.upper, new THREE.Vector3()), w);
       if (target.fore) aim(arm.lower, arm.hand, toWorld(target.fore, new THREE.Vector3()), w);

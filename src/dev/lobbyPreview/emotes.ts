@@ -1,7 +1,8 @@
-// 인사(키패드 1~3 · 인사창) — 대사와 동작을 한 짝으로. 서버는 번호(1~3)만 주고받고, 화면이 이 표에서 찾는다.
+// 인사(키패드 1~6 · 인사창) — 대사와 동작을 한 짝으로. 서버는 번호(1~6)만 주고받고, 화면이 이 표에서 찾는다.
 // 동작은 치비가 쓰는 Quaternius 범용 애니메이션(public/models/vendor/, 라이선스 파일 동봉) 이름이다.
 // steps 를 차례로 튼다 — 서 있을 때만, 움직이면 끊긴다(naju01/src/avatar/useMotionPlayer.ts 우선순위: 맞기 > 펀치 > 인사).
 import type { AvatarAction } from "@/engine/avatarLink";
+import { GESTURE_BASE_MOTION, GESTURES } from "@/naju";
 
 import type { VoiceKind } from "./voices";
 
@@ -12,15 +13,26 @@ export interface Emote {
   voice: VoiceKind;
 }
 
-// 2026-11-07 미르가 고르기 화면(emote-gallery.html)에서 보고 고른 셋. 4~6 은 비워 둔다.
+/** 절차 손짓 한 단계(그 성별 대기 위에 덮어쓴다 — naju01/src/avatar/gestures.ts) */
+const gesture = (name: string): AvatarAction["steps"] => [
+  { motion: GESTURE_BASE_MOTION, seconds: GESTURES[name]?.seconds ?? 1.5, gesture: name },
+];
+
+// 2026-11-07 미르가 고르기 화면(emote-gallery.html · gesture-gallery.html)에서 보고 고른 여섯.
 // 문구는 목소리(음성 모음집)와 맞췄다 — 「안녕」→「안녕!」, 「신난다~」→「신난다!」(미르 11/7).
 export const EMOTES: readonly Emote[] = [
-  // 한 팔을 앞으로 내밀었다 거둠
-  { text: "안녕!", steps: [{ motion: "Interact", seconds: 1.8 }], voice: "greet" },
+  // 손바닥을 보이며 어깨 높이로 들고 까딱(「손 내밀기」에서 바꿈 — 미르 11/7 「안녕은 손바닥 보이며 흔들어야」)
+  { text: "안녕!", steps: gesture("waveSmall"), voice: "greet" },
   // 좌우로 들썩(1초 × 3)
   { text: "신난다!", steps: [{ motion: "Dance_Loop", seconds: 3 }], voice: "joy" },
   // 허리 높이로 손을 뻗어 줍는 시늉
   { text: "비켜!", steps: [{ motion: "PickUp_Table", seconds: 0.9 }], voice: "move" },
+  // 고개·허리 살짝 숙이기
+  { text: "미안해.", steps: gesture("sorryBow"), voice: "sorry" },
+  // 가슴(심장 쪽)에 손을 얹고 고개 끄덕
+  { text: "고마워!", steps: gesture("thanksChest"), voice: "thanks" },
+  // 고개 두 번 끄덕
+  { text: "알았어.", steps: gesture("okNod"), voice: "ok" },
 ];
 
 /** 맞았을 때 — 가슴을 맞은 듯 상체·고개가 뒤로 젖혀졌다 돌아온다(0.33초 클립을 0.55배속). 키패드 인사가 아니다 */

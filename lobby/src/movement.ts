@@ -106,8 +106,8 @@ export class MoveGate {
   }
 }
 
-/** 인사 번호 — 2026-11-07 미르: 키패드 1~3 만(손 내밀기·들썩들썩·줍는 시늉) */
-export const GREET_IDS = [1, 2, 3] as const;
+/** 인사 번호 — 2026-11-07 미르: 1 안녕(손 들고 까딱) · 2 신난다 · 3 비켜 · 4 미안해 · 5 고마워 · 6 알았어 */
+export const GREET_IDS = [1, 2, 3, 4, 5, 6] as const;
 /** 🟡 시작값 */
 export const GREET_COOLDOWN_MS = 3000;
 

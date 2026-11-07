@@ -128,8 +128,8 @@ export const SERVER_SHUTDOWN_CODE = 4001;
 /** 같은 계정 새 접속에 밀려남 · 명단에서 빠짐(lobby/src/accounts.ts) — 둘 다 이번 방문 재시도 없음 */
 export const REPLACED_CODE = 4100;
 export const REMOVED_CODE = 4101;
-/** 인사 번호 개수(1~3) — 로비 서버 GREET_IDS 와 같아야 한다 */
-export const GREET_COUNT = 3;
+/** 인사 번호 개수(1~6) — 로비 서버 GREET_IDS 와 같아야 한다 */
+export const GREET_COUNT = 6;
 
 export interface LobbyConnectionOptions {
   /** 로비 서버 주소(VITE_LOBBY_URL). 비어 있으면 늘 혼자 진행 */

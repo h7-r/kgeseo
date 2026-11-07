@@ -374,7 +374,7 @@ function findPath(fromX, fromZ, toK, avoid = []) {
 // ---------- 한 명 ----------
 const WALK_SPEED = 3.0;
 const TICK_MS = 125;
-const GREET_COUNT = 3;
+const GREET_COUNT = 6;
 /** 화면 확인용 채팅 — 가끔(25~60초) 정해진 착한 말 하나. 서버가 금칙어·빈도·반복을 다시 본다 */
 const CHAT_LINES = [
   "안녕하세요!",
