@@ -25,8 +25,11 @@ export const TEAM_PANTS_DEFAULT_COLOR: Readonly<Record<TeamPantsStyle, string>> 
   jeans: "#4a6896",
   baggy: "#3a3d45",
 };
-/** 바지 파츠를 다시 구우면 올린다(파일 이름이 그대로라 브라우저가 새 GLB 를 받게) */
-export const TEAM_PANTS_VERSION = 1;
+/**
+ * 바지 파츠를 다시 구우면 올린다(파일 이름이 그대로라 브라우저가 새 GLB 를 받게)
+ *   2 = 허리 띠를 셔츠 바깥으로 매끈하게 · 통 큰 바지 기장 3.5cm · 법선 다시 계산
+ */
+export const TEAM_PANTS_VERSION = 2;
 
 export interface TeamOutfit {
   cap: boolean;
