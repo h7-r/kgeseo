@@ -13,11 +13,12 @@ export interface Emote {
 }
 
 // 2026-11-07 미르가 고르기 화면(emote-gallery.html)에서 보고 고른 셋. 4~6 은 비워 둔다.
+// 문구는 목소리(음성 모음집)와 맞췄다 — 「안녕」→「안녕!」, 「신난다~」→「신난다!」(미르 11/7).
 export const EMOTES: readonly Emote[] = [
   // 한 팔을 앞으로 내밀었다 거둠
-  { text: "안녕", steps: [{ motion: "Interact", seconds: 1.8 }], voice: "greet" },
+  { text: "안녕!", steps: [{ motion: "Interact", seconds: 1.8 }], voice: "greet" },
   // 좌우로 들썩(1초 × 3)
-  { text: "신난다~", steps: [{ motion: "Dance_Loop", seconds: 3 }], voice: "joy" },
+  { text: "신난다!", steps: [{ motion: "Dance_Loop", seconds: 3 }], voice: "joy" },
   // 허리 높이로 손을 뻗어 줍는 시늉
   { text: "비켜!", steps: [{ motion: "PickUp_Table", seconds: 0.9 }], voice: "move" },
 ];
@@ -29,10 +30,12 @@ export const HIT_LINE = "윽!";
 export const HIT_LINE_MS = 1200;
 
 /**
- * 주먹 목소리 — 「죽어라!」(음성 모음집의 위협 대사). 매번이면 시끄러워 사람마다 이 간격에 한 번(연타의 첫 주먹).
- * Codex(검토 15회차)는 박람회 관객까지 생각하면 위협성이 강하다고 비추천 — 미르 판단. 「헛!」 으로 바꾸려면 "jump", 끄려면 null.
+ * 주먹 목소리 — 「죽어라!」(음성 모음집의 위협 대사). **베타 테스트 이벤트**(미르 11/7: 「베타 때는 이벤트로 넣어라」 —
+ * 박람회는 로비를 안 쓴다). 빌드 값 VITE_LOBBY_EVENT_PUNCH_VOICE=0 이면 끈다(이벤트 끝). 매번이면 시끄러워 사람마다
+ * PUNCH_VOICE_EVERY_MS 에 한 번(연타의 첫 주먹).
  */
-export const PUNCH_VOICE: VoiceKind | null = "threat";
+export const PUNCH_VOICE_EVENT = import.meta.env.VITE_LOBBY_EVENT_PUNCH_VOICE !== "0";
+export const PUNCH_VOICE: VoiceKind | null = PUNCH_VOICE_EVENT ? "threat" : null;
 export const PUNCH_VOICE_EVERY_MS = 4000;
 /** 점프 목소리(「헛!」) — 내 점프만(남의 점프 동작은 아직 안 보인다), 이 간격에 한 번 */
 export const JUMP_VOICE_EVERY_MS = 1200;

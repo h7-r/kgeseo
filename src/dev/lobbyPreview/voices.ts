@@ -22,10 +22,10 @@ const FILES: Readonly<Record<VoiceKind, Readonly<Record<VoiceGender, { url: stri
     feminine: { url: "/sfx/voice_female_greet.mp3", lufs: -16.4 },
     masculine: { url: "/sfx/voice_male_greet.mp3", lufs: -16.4 },
   },
-  // 남자는 a 후보(Jun Ho — 다른 대사와 같은 목소리). b(Ian)를 고르면 파일만 바꾼다
+  // 남자는 b 후보(Ian — 더 굵은 목소리, 미르 11/7 「굵게 가자」)
   joy: {
     feminine: { url: "/sfx/voice_female_joy.mp3", lufs: -16.4 },
-    masculine: { url: "/sfx/voice_male_joy.mp3", lufs: -16.4 },
+    masculine: { url: "/sfx/voice_male_joy.mp3", lufs: -16.9 },
   },
   move: {
     feminine: { url: "/sfx/voice_female_move.mp3", lufs: -16.4 },
