@@ -414,7 +414,9 @@ def build_rings(pts):
                         x = cl.x + ddx / d * need
                         y = cl.y + ddy / d * need
             g = gap_at(z, side, j)
-            hit = x * side < g
+            # 평면에 거의 붙은 점도 평면 위로 본다 — 앞뒤 가운데(±90°)는 cos 반올림으로 x 가 ±1e-17 이라, 한쪽 통만 눌린 점이
+            # 되어 이음 짝을 못 찾고 웨이트가 갈려 다리를 벌리면 이음이 11mm 벌어졌다(Codex 리뷰 2f8641a)
+            hit = x * side < g + 1e-6
             if hit:
                 x = side * g
             return Vector((x, y, z)), hit
