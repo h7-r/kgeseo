@@ -82,7 +82,9 @@ export class SerpentEcho {
       });
       if (outlineMaterial) {
         const copy = cloneMaterial(outlineMaterial as THREE.ShaderMaterial);
-        copy.userData = {};
+        // 굽힘 표시만 지운다 — 몰입연출의 외곽선 보정(fixOutlines) 표시는 남겨야 복제본을 또 고쳐 셰이더가 겹치지 않는다(Codex 리뷰)
+        const source = outlineMaterial as THREE.ShaderMaterial;
+        copy.userData = source.userData.wgOutline ? { wgOutline: true } : {};
         attachOutlineBend(copy, "serpent", this.uniforms);
         const outline = new THREE.Mesh(toCreasedNormals(model.geometry, Math.PI), copy);
         outline.name = ECHO_MESH_NAME;
