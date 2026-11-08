@@ -99,7 +99,8 @@ const RETREAT = { recoil: 0.45, end: 2.5, splash: 2.0, sink: 0.62 };
 /** 시험 상한(Codex 03 — 승인값 아님). 라디안 */
 const LIMITS = { headYaw: 0.7, torsoYaw: 0.3, headUp: -0.25, headDown: 0.35, bow: 0.28, snakeYaw: 0.6 };
 /** A자세 팔 모으기 · 흔들림 — 화면 보고 정한다(Codex 04 「정면 · 옆 · 뒤 · 숙임 확인 후 채택」) */
-const POSE = { armRest: 0.22, swayX: 0.011, swayY: 0.008 };
+// 모형이 손을 모은 자세(abisa-pose.glb)라 팔 모으기는 0 — A자세 원본으로 되돌리면 0.22
+const POSE = { armRest: 0, swayX: 0.011, swayY: 0.008 };
 /**
  * 가리키기(팔) — 기본 끔. 정점 굽힘으로 팔을 앞으로 돌리면 소매 안감(붉은 면)이 겉으로 비친다(11/8 화면 확인, Codex 03 「큰 동작은 뼈로」).
  * 개발 훅 setArmGesture(true) 로 켜 볼 수 있다. 지금은 고개 · 몸을 그쪽으로 돌리는 것으로 방향을 준다

@@ -61,8 +61,9 @@ void actorBend(inout vec3 p, inout vec3 n) {
   n = bendRotate(n, vec3(1.0, 0.0, 0.0), uHeadPitch * wH);
   p = bendAround(p, neck, vec3(0.0, 1.0, 0.0), uHeadYaw * wH);
   n = bendRotate(n, vec3(0.0, 1.0, 0.0), uHeadYaw * wH);
-  // 허리 위 — 팔은 몸통을 그대로 따라간다
-  float arms = max(wL, wR);
+  // 허리 위 — 팔은 몸통을 그대로 따라간다. 손을 아랫배 앞에 모은 자세(abisa-pose)는 배 앞으로 나온 팔 · 손도
+  float front = smoothstep(0.1, 0.12, rest.z) * smoothstep(0.46, 0.49, rest.y) * (1.0 - smoothstep(0.68, 0.72, rest.y));
+  float arms = max(max(wL, wR), front);
   float wT = max(smoothstep(0.55, 0.78, rest.y), arms);
   p = bendAround(p, vec3(0.0), vec3(0.0, 1.0, 0.0), uTorsoYaw * wT);
   n = bendRotate(n, vec3(0.0, 1.0, 0.0), uTorsoYaw * wT);
