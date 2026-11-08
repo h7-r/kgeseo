@@ -9,6 +9,7 @@
 import { useSyncExternalStore } from "react";
 
 import { getSfxGraph } from "@/audio/sound";
+import { sharedAssetUrl } from "@/config/env";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 import { settingsStore } from "@/settings/settings";
@@ -36,8 +37,8 @@ export const TRACKS: readonly Track[] = [
   { file: "neujeun-jakbyeol.mp3", title: "늦은 작별", artist: "골디" },
   { file: "mirwodun-anbu.mp3", title: "미뤄둔 안부", artist: "골디" },
 ];
-/** Vite 가 public 을 루트(/)로 서빙한다(효과음 /sfx 와 같은 방식) */
-const MUSIC_DIR = "/lobby-music/";
+/** 공용 CDN 폴더(sharedAssetUrl — 배포본에는 없다, 11/8). 개발 서버는 public/lobby-music 을 그대로 서빙 */
+const musicUrl = (file: string) => sharedAssetUrl(`/lobby-music/${file}`);
 
 /** 겨냥 등록 이름(스피커 ↔ 화면 안내문) */
 export const SPEAKER_AIM_ID = "lobby:speaker";
@@ -158,7 +159,7 @@ function ensureAudio(): HTMLAudioElement {
 
 function load(track: Track) {
   const element = ensureAudio();
-  element.src = `${MUSIC_DIR}${track.file}`;
+  element.src = musicUrl(track.file);
   lastTrack = track;
   set({ track });
 }

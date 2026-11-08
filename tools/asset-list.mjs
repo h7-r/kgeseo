@@ -81,6 +81,7 @@ const ORIGIN_RULES = [
     "확인 필요",
     "9/22 미르 님 계정 · 받은 운동화 모형을 Meshy 발에 맞춤(meshy_fit_shoe.py) — 운동화 원본 출처 기록 없음",
   ],
+  [/^lobby-music\//, "팀 제작", "미르(골디 · Goldie Groove) 곡 · 11/7 로비 라디오"],
   [/^vfx\//, "확인 필요", "10/15 이식 · 출처 기록 없음(코드 주석은 Meshy/Tripo 왕관 자리)"],
 ];
 
