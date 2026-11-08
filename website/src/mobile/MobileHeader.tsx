@@ -168,7 +168,7 @@ const logoStyle: CSSProperties = {
   textAlign: "left",
 };
 
-const startStyle: CSSProperties = { ...primaryButtonStyle, minHeight: "40px", padding: "0 16px", fontSize: "14px" };
+const startStyle: CSSProperties = { ...primaryButtonStyle, minHeight: "44px", padding: "0 16px", fontSize: "14px" };
 
 const menuButtonStyle: CSSProperties = {
   width: "44px",

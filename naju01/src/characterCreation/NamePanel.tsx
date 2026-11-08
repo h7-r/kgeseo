@@ -61,6 +61,8 @@ interface NamePanelProps {
   onCompositionStart: () => void;
   onCompositionEnd: (value: string) => void;
   onCheck: () => void;
+  /** 화면 키보드가 떠 있다 — 안내 줄을 접어 입력 · 중복확인 · 결과가 키보드 위 좁은 높이에 함께 들어가게 */
+  isKeyboardOpen?: boolean;
 }
 
 export default function NamePanel({
@@ -80,6 +82,7 @@ export default function NamePanel({
   onCompositionStart,
   onCompositionEnd,
   onCheck,
+  isKeyboardOpen = false,
 }: NamePanelProps) {
   return (
     <>
@@ -122,7 +125,7 @@ export default function NamePanel({
             중복확인
           </button>
         </div>
-        <span id={`${inputId}-help`} style={smallTextStyle}>
+        <span id={`${inputId}-help`} style={isKeyboardOpen ? { display: "none" } : smallTextStyle}>
           {rules.allowedHint}
         </span>
         {/* 결과 자리를 미리 비워 둔다 — 메시지가 떠도 입력칸·단추가 튀지 않는다 */}

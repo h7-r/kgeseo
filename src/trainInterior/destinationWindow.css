@@ -308,6 +308,11 @@ button:hover > .dest-key {
   transform-box: fill-box;
   transform-origin: center;
 }
+/* 누르는 자리(보이지 않음) — 이름표 위아래로 넓혀 손가락 44px 를 맞춘다 */
+.dest-map-tag__hit {
+  fill: transparent;
+  stroke: none;
+}
 .dest-map-tag__box {
   fill: rgba(5, 11, 26, 0.88);
   stroke: #3a4258;
