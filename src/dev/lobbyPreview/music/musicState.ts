@@ -119,6 +119,9 @@ function applyVolume(glide = VOLUME_GLIDE) {
 function ensureAudio(): HTMLAudioElement {
   if (audio) return audio;
   const element = new Audio();
+  // 곡은 CDN(다른 출처)에 있다 — Web Audio 로 넘기는 다른 출처 소리는 CORS 요청이 아니면 무음이 된다(11/8 운영에서 안 들림).
+  // CDN 은 CORS 를 허용한다(S3 CORS + CloudFront Managed-CORS-With-Preflight). 같은 출처(개발 서버)에서도 문제없다
+  element.crossOrigin = "anonymous";
   element.preload = "auto";
   audio = element;
   const graph = getSfxGraph();
