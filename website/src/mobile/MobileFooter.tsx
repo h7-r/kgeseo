@@ -44,7 +44,8 @@ const rootStyle: CSSProperties = {
 const linksStyle: CSSProperties = { display: "flex", flexWrap: "wrap", gap: "4px 18px", margin: "14px 0 16px" };
 
 const linkStyle: CSSProperties = {
-  minHeight: "40px",
+  minHeight: "44px",
+  minWidth: "44px",
   fontFamily: FONT.body,
   fontSize: "14px",
   color: COLOR.textMuted,

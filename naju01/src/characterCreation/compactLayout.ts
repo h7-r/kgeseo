@@ -9,8 +9,8 @@ export function useIsCompact(): boolean {
 }
 
 /**
- * 손가락 기기(휴대폰 · 태블릿)면 참 — 배치는 그대로라도 조작 크기는 44px 이상(코덱스 14c: 태블릿은 높이 520 이상이라
- * 휴대폰 가로 배치 밖이었다). 휴대폰 가로 배치(CompactContext)면 늘 참이다.
+ * 손가락 기기(휴대폰 · 태블릿)면 참 — 배치는 그대로라도 조작 크기는 44px 이상(코덱스 14c: 키 큰 태블릿은
+ * 휴대폰 가로 배치 밖이다). 휴대폰 가로 배치(CompactContext)면 늘 참이다.
  */
 export const TouchSizedContext = createContext(false);
 

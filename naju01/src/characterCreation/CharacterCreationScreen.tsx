@@ -199,8 +199,10 @@ export default function CharacterCreationScreen({
   const previewView: PreviewView = phase === "name" ? "upperBody" : view;
 
   const { isNarrow, isCompact, panel, stage: stageRect, settings: baseSettings, viewBar, safeArea, rail } = layout;
-  // 휴대폰 가로 이름 단계에서 화면 키보드가 뜨면 설정 칸을 키보드 위 보이는 범위로 줄인다(입력 · 중복확인 · 결과가 가리지 않게)
-  const keyboardArea = useKeyboardViewport(isCompact && phase === "name");
+  // 손가락 기기 이름 단계에서 화면 키보드가 뜨면 설정 칸을 키보드 위 보이는 범위로 줄인다(입력 · 중복확인 · 결과가 가리지 않게).
+  // 두 칸 배치(키 큰 태블릿)도 같다 — iOS · 안드로이드 크롬은 키보드가 레이아웃은 그대로 두고 보이는 범위만 줄여, 사파리가 입력칸만
+  // 보이게 밀어 주고 그 아래 안내 · 중복확인 결과는 키보드 밑에 남았다(코덱스 20회차 P0)
+  const keyboardArea = useKeyboardViewport(isCoarsePointer && phase === "name");
   const settings = keyboardArea
     ? (() => {
         const top = Math.max(baseSettings.y, keyboardArea.top + 4);
@@ -208,6 +210,19 @@ export default function CharacterCreationScreen({
         return { ...baseSettings, y: top, h: Math.max(120, bottom - top) };
       })()
     : baseSettings;
+  // 키보드가 떠 있는 동안은 설정 칸에 이름 묶음만 — 탭 줄 · 카드 머리 · 「다음」 줄을 접는다(휴대폰 가로는 남는 높이가 140~190px,
+  // 두 칸 배치 태블릿은 탭 줄 · 카드 머리가 먹어 입력칸이 반만 보였다)
+  const isKeyboardMode = keyboardArea !== null;
+  // 키보드로 설정 칸이 줄면 이름 묶음(제목 · 입력 · 중복확인 · 안내 · 결과)이 통째로 보이게 그 칸 안에서만 굴린다
+  const keyboardTop = keyboardArea?.top;
+  const keyboardHeight = keyboardArea?.height;
+  useEffect(() => {
+    if (keyboardHeight === undefined) return undefined;
+    const frame = requestAnimationFrame(() => {
+      nameInputRef.current?.closest("section")?.scrollIntoView({ block: "nearest" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [keyboardTop, keyboardHeight]);
   const isSettingsWide = settings.w > 560;
   // 손가락 기기면(태블릿 포함) 배치와 상관없이 조작 크기를 44px 이상으로. 휴대폰 배치(isCompact)는 손가락 기기에서만 나온다
   const isTouchSized = isCoarsePointer;
@@ -316,12 +331,14 @@ export default function CharacterCreationScreen({
                 width: settings.w,
                 height: settings.h,
                 display: "grid",
-                gridTemplateRows: isCompact ? "minmax(0, 1fr)" : "auto 1fr auto",
+                gridTemplateRows: isCompact || isKeyboardMode ? "minmax(0, 1fr)" : "auto 1fr auto",
                 gap: SPACING.l,
                 pointerEvents: "auto",
               }}
             >
-              {!isCompact ? <StepNav activeTab={activeTab} isNarrow={isNarrow} onSelect={handleTabSelect} /> : null}
+              {!isCompact && !isKeyboardMode ? (
+                <StepNav activeTab={activeTab} isNarrow={isNarrow} onSelect={handleTabSelect} />
+              ) : null}
 
               <SettingsCard
                 title={TABS[activeTabIndex].label}
@@ -329,6 +346,7 @@ export default function CharacterCreationScreen({
                 notice={notice}
                 onResetSection={activeTab !== "name" ? () => lookHistory.resetSection(section) : null}
                 onDismissNotice={() => setNotice(null)}
+                isHeaderHidden={isKeyboardMode}
               >
                 {activeTab === "basics" ? (
                   <BasicsPanel
@@ -370,6 +388,7 @@ export default function CharacterCreationScreen({
                 ) : null}
                 {activeTab === "name" ? (
                   <NamePanel
+                    isKeyboardOpen={isKeyboardMode}
                     inputId={nameInputId}
                     inputRef={nameInputRef}
                     name={nameCheck.name}
@@ -397,7 +416,7 @@ export default function CharacterCreationScreen({
               </SettingsCard>
 
               {/* 휴대폰 가로는 「다음」이 미리보기 아래 큰 단추다 */}
-              {!isCompact ? (
+              {!isCompact && !isKeyboardMode ? (
                 <NextStep nextTab={nextTab?.id} isNameConfirmed={nameCheck.isConfirmed} onSelect={handleTabSelect} />
               ) : null}
             </section>

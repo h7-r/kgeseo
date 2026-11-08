@@ -10,6 +10,9 @@ interface Rect {
 
 export type ScreenLayout = ReturnType<typeof measureScreenLayout>;
 
+/** 손가락 기기 가로에서 이 높이 미만이면 휴대폰 배치(세 칸) */
+export const COMPACT_MAX_HEIGHT = 800;
+
 // 패널과 그 안 무대 칸의 자리. 카메라가 피할 안전영역은 무대 칸 바깥 전부 — 캐릭터가 늘 무대 칸 한가운데 선다.
 // 수치는 4/8/16/24/32/48 배수(패널 안쪽 여백 32 · 머리 104 · 발치 84).
 export function measureScreenLayout(
@@ -18,9 +21,13 @@ export function measureScreenLayout(
   insets: SafeInsets = ZERO_INSETS,
   isTouchDevice = false,
 ) {
-  // 손가락 기기의 짧은 가로 화면(휴대폰 가로, 높이 360~430) — 세로 탭 | 미리보기 | 설정 세 칸(아래 measureCompactLayout).
+  // 손가락 기기의 짧은 가로 화면 — 세로 탭 | 미리보기 | 설정 세 칸(아래 measureCompactLayout). 설정 칸이 화면 높이를 다 쓴다.
+  // 휴대폰 가로(높이 360~430)뿐 아니라 키 작은 태블릿 가로도 여기로 — 아이패드 미니 6 사파리(1133×634~670) · 7인치 안드로이드
+  // (1024×520~600)는 PC 두 칸 배치에서 설정 스크롤 칸이 48~156px 로 줄어 이름 칸 아래(안내 · 중복확인 결과)가 잘렸다(11/8 미르).
+  // 두 칸 배치는 머리 104 · 아래 줄 84 · 탭 · 카드 머리에 약 460px 를 쓴다. 세 칸이면 설정 칸이 화면 높이를 거의 다 써서
+  // 미니 가로 1133×634 기준 396 → 618px(코덱스 20회차 권장 — 높이 800 미만, 아이패드 10세대 · 프로 11 사파리 막대 상태도 포함).
   // PC 는 창 높이가 낮아도 이 배치로 바꾸지 않는다(11/8 해랑 검토 — 화면 크기가 아니라 기기로 고른다)
-  const isCompact = isTouchDevice && height < 520 && width >= height;
+  const isCompact = isTouchDevice && height < COMPACT_MAX_HEIGHT && width >= height;
   if (isCompact) return measureCompactLayout(width, height, insets);
   // 가로로 넓은 태블릿(1024×768 등)은 위아래로 쌓으면 설정 칸이 109px 로 줄었다 — 손가락 기기 · 폭 900 이상 가로면 두 칸(코덱스 14c).
   // PC 는 예전 그대로(폭 1100 · 높이 640 미만이면 위아래로)

@@ -30,7 +30,9 @@
   row-gap: 4px;
 }
 .mobile-auth-card .auth-form-footer > * {
-  min-height: 40px;
+  min-height: 44px;
+  min-width: 44px;
+  justify-content: center;
   display: inline-flex;
   align-items: center;
 }
@@ -46,4 +48,27 @@
   content: "";
   position: absolute;
   inset: -10px;
+}
+
+/* 11/8 기기 전수 검사 — 누르는 영역 44px. 보이는 모양은 그대로 두고 칸 안쪽 여백만큼 누르는 자리를 넓힌다 */
+/* 입력칸: 글줄(24px)만 눌리고 칸 위아래 여백을 누르면 초점이 안 갔다 */
+.mobile-auth-card .text-input {
+  padding: 10px 0;
+  margin: -10px 0;
+}
+/* 지역 고르기 단추(27px) — 같은 칸 높이(48)를 다 쓴다 */
+.mobile-auth-card .region-picker__trigger {
+  padding: 9px 0;
+  margin: -9px 0;
+}
+.mobile-auth-card .region-picker__chip {
+  min-height: 44px;
+}
+/* 동의 줄(25px) · 그 안의 약관 링크(24px) */
+.mobile-auth-card .consent-row {
+  min-height: 44px;
+}
+.mobile-auth-card .consent-group__terms-link {
+  padding: 10px 0;
+  margin: -10px 0;
 }

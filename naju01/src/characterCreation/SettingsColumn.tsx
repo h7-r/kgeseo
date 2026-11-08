@@ -167,6 +167,8 @@ interface SettingsCardProps {
   /** 없으면 「이 항목 초기화」 단추를 숨긴다 */
   onResetSection: (() => void) | null;
   onDismissNotice: () => void;
+  /** 화면 키보드가 떠 있는 동안 — 머리를 접어 몸(입력)에 높이를 다 준다 */
+  isHeaderHidden?: boolean;
   children: ReactNode;
 }
 
@@ -177,14 +179,15 @@ export function SettingsCard({
   notice,
   onResetSection,
   onDismissNotice,
+  isHeaderHidden = false,
   children,
 }: SettingsCardProps) {
   const isCompact = useIsCompact();
   const isTouchSized = useIsTouchSized();
   return (
-    <div style={{ ...contentCardStyle, height: isCompact ? "100%" : undefined }}>
+    <div style={{ ...contentCardStyle, height: isCompact || isHeaderHidden ? "100%" : undefined }}>
       {/* 휴대폰 가로: 머리는 한 줄(44) — 제목 · 초기화만. 설명은 빼서 조작 칸 높이를 지킨다 */}
-      {isCompact ? (
+      {isHeaderHidden ? null : isCompact ? (
         <div
           style={{
             display: "flex",
@@ -270,7 +273,7 @@ export function SettingsCard({
       <div
         style={{
           overflowY: "auto",
-          padding: isCompact ? "12px 12px 16px" : SPACING.xl,
+          padding: isHeaderHidden ? "10px 12px" : isCompact ? "12px 12px 16px" : SPACING.xl,
           display: "grid",
           // 열 최소 폭을 0 으로 — 안 그러면 입력칸 · 표의 최소 폭이 칸 밖으로 밀어낸다(667 노치에서 「중복확인」이 잘림)
           gridTemplateColumns: "minmax(0, 1fr)",
