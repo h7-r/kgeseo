@@ -7,12 +7,15 @@ import type { CSSProperties } from "react";
 import { useKeyLabels } from "@/engine/input";
 
 import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT } from "../../puzzles/hudTheme";
+import { useCompanionChatOpen } from "../../companion/chatOpen";
 import { useNpcSpeech } from "./npcSpeech";
 
 export default function NpcSpeechHud() {
   const speech = useNpcSpeech();
   const labels = useKeyLabels();
-  if (!speech) return null;
+  // 동행 입력칸이 같은 자리에 뜬다 — 그동안은 내려 둔다(대사도 멈춘다, FirstSceneActors)
+  const isChatOpen = useCompanionChatOpen();
+  if (!speech || isChatOpen) return null;
   return (
     <div style={bandStyle} data-hud="인물 자막">
       <div key={speech.key} className="companion-line">

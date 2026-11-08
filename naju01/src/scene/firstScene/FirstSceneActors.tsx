@@ -14,6 +14,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import { isPointerActive } from "@/engine/input/virtualLock";
 
 import { IS_COMPANION_ENABLED } from "../../companion/companionRuntime";
@@ -73,6 +74,8 @@ interface Talk {
   /** 고개 끄덕임 시작 뒤 시간 */
   nodTime: number;
   isGreeting: boolean;
+  /** 창 · 동행 입력 · 조작 풀림으로 멈춰 있다 — 자막도 내려 둔다 */
+  isPaused: boolean;
   /** 이 줄이 바라보는 곳으로 몸을 돌리기 시작한 뒤 시간(팔 동작) */
   gestureTime: number;
 }
@@ -131,6 +134,7 @@ function startTalk(brain: Brain, lines: AbisaLine[], { isGreeting, bow }: { isGr
     nodTime: bow ? -1 : 0,
     isGreeting,
     gestureTime: -1,
+    isPaused: false,
   };
 }
 
@@ -179,7 +183,8 @@ function updateSerpent(brain: Brain, rig: ActorRig, eye: THREE.Vector3, dt: numb
   state.serpentDistance = rig.position.distanceTo(eye) / M;
   const wantsAlert = state.serpentDistance < 7 ? 1 : 0;
   state.alert = smooth(state.alert, wantsAlert, wantsAlert ? 1.6 : 0.6, dt);
-  if (state.alert > 0.5 && !state.alertSeen) {
+  // 소리가 아직 못 나는 때(첫 몸짓 전 — 저장 자리가 구렁이 곁)에는 아껴 뒀다가 나는 때에 한 번(Codex 리뷰)
+  if (state.alert > 0.5 && !state.alertSeen && audio.ctx?.state === "running") {
     state.alertSeen = true;
     audio.play("쉬익");
   }
@@ -271,8 +276,16 @@ function updateAbisa(brain: Brain, rig: ActorRig, eye: THREE.Vector3, camera: TH
     }
   }
 
-  // 대사 진행
+  // 대사 진행 — 창(소지품 · 설정 · 힌트함 · 동행 입력)이 떠 있거나 조작이 풀려 있으면 멈추고 자막을 내린다.
+  // 안 그러면 창을 보는 사이 한 번뿐인 인사가 다 흘러가 「끝까지 들음」으로 저장된다(Codex 리뷰)
   if (talk) {
+    const shouldPause = isWindowHeld() || !isPointerActive();
+    if (shouldPause !== talk.isPaused) {
+      talk.isPaused = shouldPause;
+      if (shouldPause) setNpcSpeech(null);
+      else if (line) setNpcSpeech({ speaker: ABISA_NAME, text: line.text, canAdvance: true });
+    }
+    if (shouldPause) return;
     talk.lineTime += dt;
     if (talk.index < 0 ? talk.lineTime >= 0 : talk.lineTime >= lineSeconds(line?.text ?? "")) nextLine(brain);
     // 멀리 가 버리면 그친다 — 인사를 끝까지 못 들었으면 다음에 다가올 때 안내만 다시
@@ -326,6 +339,7 @@ export default function FirstSceneActors({ enabled }: { enabled: boolean }) {
   const brain = useMemo(() => createBrain(), []);
   const headPosition = useMemo(() => new THREE.Vector3(0, -1e6, 0), []);
   const frame = useMemo(() => ({ count: 0 }), []);
+  const lastPose = useMemo(() => ({ headYaw: 0, torsoYaw: 0, bow: 0, snakeYaw: 0, snakeLift: 0 }), []);
 
   // 겨누고 [E] — 처음 인사 뒤에는 지금 단계 한 줄, 말하는 중이면 다음 줄
   useEffect(() => {
@@ -416,6 +430,22 @@ export default function FirstSceneActors({ enabled }: { enabled: boolean }) {
       if (rigs.serpent.isPlaced) updateSerpent(brain, rigs.serpent, eye, dt);
       if (rigs.abisa.isPlaced) updateAbisa(brain, rigs.abisa, eye, camera, dt);
     }
+    // 그림자는 평소 몇 초에 한 번만 다시 그린다 — 가까이서 고개 · 몸이 크게 움직이는 동안은 촘촘히(Codex 리뷰)
+    const motion =
+      Math.abs(brain.abisa.headYaw - lastPose.headYaw) +
+      Math.abs(brain.abisa.torsoYaw - lastPose.torsoYaw) +
+      Math.abs(brain.abisa.bow - lastPose.bow) +
+      Math.abs(brain.serpent.yaw - lastPose.snakeYaw) +
+      Math.abs(brain.serpent.lift - lastPose.snakeLift);
+    if (dt > 0 && motion / dt > 0.04 && Math.min(brain.state.abisaDistance, brain.state.serpentDistance) < 20)
+      requestShadowUpdates(0.3);
+    Object.assign(lastPose, {
+      headYaw: brain.abisa.headYaw,
+      torsoYaw: brain.abisa.torsoYaw,
+      bow: brain.abisa.bow,
+      snakeYaw: brain.serpent.yaw,
+      snakeLift: brain.serpent.lift,
+    });
     writeAbisaPose(rigs.abisa.uniforms, brain.abisa);
     writeSerpentPose(rigs.serpent.uniforms, brain.serpent);
   });
