@@ -20,6 +20,7 @@ import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import { isPointerActive } from "@/engine/input/virtualLock";
 
 import { IS_COMPANION_ENABLED } from "../../companion/companionRuntime";
+import { releasePropColliders } from "../../movement/propColliders";
 import { GROUP_IDS } from "../../placement/editFile";
 import { clamDig } from "../../puzzles/fishTrap/clamState";
 import { fishTrapPuzzle } from "../../puzzles/fishTrap/fishTrapState";
@@ -487,6 +488,7 @@ export default function FirstSceneActors({ enabled }: { enabled: boolean }) {
   const frame = useMemo(() => ({ count: 0 }), []);
   const lastPose = useMemo(() => ({ headYaw: 0, torsoYaw: 0, bow: 0, snakeYaw: 0, snakeLift: 0, shift: 0 }), []);
   const dev = useMemo(() => ({ frozen: null as FrozenPose | null }), []);
+  const colliders = useMemo(() => ({ isReleased: false }), []);
 
   // 아비사 — 구렁이가 있으면 지켜볼 뿐, 그 뒤로는 의뢰(끊긴 줄부터) · 인연 이야기 · 지금 단계 한 줄. 말하는 중이면 다음 줄
   useEffect(() => {
@@ -618,6 +620,12 @@ export default function FirstSceneActors({ enabled }: { enabled: boolean }) {
       snakeLift: brain.serpent.lift,
       shift,
     });
+    // 물러나 사라진 구렁이 — 메시를 숨기고(단단한 땅 굽기에서 빠진다) 소품 충돌 원기둥도 푼다(Codex 리뷰). 편집 중엔 다시 보인다
+    rigs.serpent.setHidden(enabled && brain.serpent.isGone);
+    if (brain.serpent.isGone && !colliders.isReleased && rigs.serpent.isPlaced) {
+      colliders.isReleased = true;
+      releasePropColliders("구렁이", rigs.serpent.position.x / M, rigs.serpent.position.z / M, 2.2);
+    }
     writeAbisaPose(rigs.abisa.uniforms, brain.abisa);
     writeSerpentPose(rigs.serpent.uniforms, brain.serpent);
   });

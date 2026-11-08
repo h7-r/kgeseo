@@ -31,6 +31,9 @@ export class ActorRig {
   readonly position = new THREE.Vector3();
   /** 이번에 찾은 무리가 있고 인물이 놓여 있다 */
   isPlaced = false;
+  /** 무리 메시를 아예 숨긴다(물러난 구렁이) — 단단한 땅 굽기(solidField)는 보이는 메시만 읽으므로 안 숨기면 보이지 않는 벽이 남는다 */
+  private isHidden = false;
+  private meshes: THREE.InstancedMesh[] = [];
 
   constructor(
     readonly kind: ActorKind,
@@ -46,6 +49,7 @@ export class ActorRig {
   /** 무리 메시를 다시 찾아 굽힘을 심는다(가볍다 — 몇 프레임에 한 번) */
   sync(scene: THREE.Object3D) {
     this.near = null;
+    this.meshes = [];
     if (!this.modelMap) return;
     scene.traverse((object) => {
       const mesh = object as THREE.InstancedMesh;
@@ -61,8 +65,17 @@ export class ActorRig {
           attachOutlineBend(outline, this.kind, this.uniforms);
       });
       if (!mesh.userData.isDistant) this.near = mesh;
+      this.meshes.push(mesh);
+      mesh.visible = !this.isHidden;
     });
     this.updatePlacement();
+  }
+
+  /** 숨기기 · 다시 보이기 — 바뀔 때만 메시에 적는다 */
+  setHidden(isHidden: boolean) {
+    if (this.isHidden === isHidden) return;
+    this.isHidden = isHidden;
+    for (const mesh of this.meshes) mesh.visible = !isHidden;
   }
 
   /** 인물 자리(인스턴스 #0 원본 행렬 × 무리 월드 행렬). 거리 · 초점 거르기가 지금 그리는 행렬을 다시 쓰므로 원본을 읽는다 */
