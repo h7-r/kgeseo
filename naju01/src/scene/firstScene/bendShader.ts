@@ -9,7 +9,11 @@
  */
 import * as THREE from "three";
 
-export type ActorKind = "abisa" | "serpent";
+export type ActorKind = "abisa" | "serpent" | PersonKind;
+/** 두 번째 구역 어부 셋 — 공용 「사람」 굽힘에 모형마다 기준점만 다르다 */
+export type PersonKind = "fisher" | "fisher2" | "fisher3";
+export const isPersonKind = (kind: ActorKind): kind is PersonKind =>
+  kind === "fisher" || kind === "fisher2" || kind === "fisher3";
 
 const ROTATE_GLSL = /* glsl */ `
 vec3 bendRotate(vec3 v, vec3 axis, float angle) {
@@ -80,6 +84,61 @@ void actorBend(inout vec3 p, inout vec3 n) {
 }
 `;
 
+/**
+ * 사람(어부) 기준점 — 모형 공간(키 1). 정점 단면 폭으로 쟀다(11/9, npc-face-hq 판):
+ * 목은 단면이 가장 좁아지는 높이(어부 0.84~0.86 · 어부2 0.85~0.88 · 어부3 0.84~0.87), z 는 그 높이 앞뒤 폭의 가운데.
+ * 팔은 그물 · 밧줄을 메고 있어 따로 돌리지 않는다(몸통을 따라간다).
+ */
+interface PersonBody {
+  neck: [number, number, number];
+  /** 머리 가중치가 0 → 1 로 오르는 높이 */
+  headFrom: number;
+  headTo: number;
+  waist: number;
+}
+const PERSON_BODY: Record<PersonKind, PersonBody> = {
+  fisher: { neck: [0, 0.835, 0.015], headFrom: 0.81, headTo: 0.855, waist: 0.58 },
+  fisher2: { neck: [0, 0.84, 0.0], headFrom: 0.815, headTo: 0.86, waist: 0.58 },
+  fisher3: { neck: [0, 0.835, 0.02], headFrom: 0.81, headTo: 0.855, waist: 0.58 },
+};
+/** 목 기준점(모형 공간) — 고개를 돌릴 각도를 여기서 잰다 */
+export const personNeck = (kind: PersonKind) => new THREE.Vector3(...PERSON_BODY[kind].neck);
+const glslNumber = (value: number) => (Number.isInteger(value) ? `${value}.0` : `${value}`);
+
+/** 사람 — 숨 · 머리(좌우 · 숙임) · 허리 비틀기 · 숙이기 · 흔들림(아비사와 같은 차례, 팔 없음) */
+const personGlsl = (body: PersonBody) => /* glsl */ `
+uniform float uBreath;
+uniform float uHeadYaw;
+uniform float uHeadPitch;
+uniform float uTorsoYaw;
+uniform float uBow;
+uniform vec2 uSway;
+${ROTATE_GLSL}
+void actorBend(inout vec3 p, inout vec3 n) {
+  vec3 rest = p;
+  float chest = smoothstep(0.58, 0.66, rest.y) * (1.0 - smoothstep(0.74, 0.8, rest.y));
+  p.z += rest.z * chest * uBreath;
+  float wH = smoothstep(${glslNumber(body.headFrom)}, ${glslNumber(body.headTo)}, rest.y);
+  vec3 neck = vec3(${body.neck.map(glslNumber).join(", ")});
+  p = bendAround(p, neck, vec3(1.0, 0.0, 0.0), uHeadPitch * wH);
+  n = bendRotate(n, vec3(1.0, 0.0, 0.0), uHeadPitch * wH);
+  p = bendAround(p, neck, vec3(0.0, 1.0, 0.0), uHeadYaw * wH);
+  n = bendRotate(n, vec3(0.0, 1.0, 0.0), uHeadYaw * wH);
+  float wT = smoothstep(0.55, 0.78, rest.y);
+  p = bendAround(p, vec3(0.0), vec3(0.0, 1.0, 0.0), uTorsoYaw * wT);
+  n = bendRotate(n, vec3(0.0, 1.0, 0.0), uTorsoYaw * wT);
+  float wB = smoothstep(0.52, 0.66, rest.y);
+  vec3 waist = vec3(0.0, ${glslNumber(body.waist)}, 0.0);
+  p = bendAround(p, waist, vec3(1.0, 0.0, 0.0), uBow * wB);
+  n = bendRotate(n, vec3(1.0, 0.0, 0.0), uBow * wB);
+  float wS = smoothstep(0.0, 0.55, rest.y);
+  p = bendAround(p, vec3(0.0), vec3(0.0, 0.0, 1.0), uSway.x * wS);
+  n = bendRotate(n, vec3(0.0, 0.0, 1.0), uSway.x * wS);
+  p = bendAround(p, vec3(0.0), vec3(1.0, 0.0, 0.0), uSway.y * wS);
+  n = bendRotate(n, vec3(1.0, 0.0, 0.0), uSway.y * wS);
+}
+`;
+
 /** 구렁이 — 숨 · 혀 · 목(좌우 · 들기) */
 const SERPENT_GLSL = /* glsl */ `
 uniform float uBreath;
@@ -126,6 +185,16 @@ export interface AbisaPose {
   armR: THREE.Vector4;
 }
 
+export interface PersonPose {
+  breath: number;
+  swayX: number;
+  swayY: number;
+  headYaw: number;
+  headPitch: number;
+  torsoYaw: number;
+  bow: number;
+}
+
 export interface SerpentPose {
   breath: number;
   yaw: number;
@@ -153,6 +222,15 @@ export function bendUniformsFor(kind: ActorKind): BendUniforms {
 }
 
 export function createBendUniforms(kind: ActorKind): BendUniforms {
+  if (isPersonKind(kind))
+    return {
+      uBreath: { value: 0 },
+      uHeadYaw: { value: 0 },
+      uHeadPitch: { value: 0 },
+      uTorsoYaw: { value: 0 },
+      uBow: { value: 0 },
+      uSway: { value: new THREE.Vector2() },
+    };
   if (kind === "abisa")
     return {
       uBreath: { value: 0 },
@@ -196,7 +274,17 @@ export function writeSerpentPose(uniforms: BendUniforms, pose: SerpentPose) {
   uniforms.uGone.value = pose.isGone ? 1 : 0;
 }
 
-const bendGlsl = (kind: ActorKind) => (kind === "abisa" ? ABISA_GLSL : SERPENT_GLSL);
+export function writePersonPose(uniforms: BendUniforms, pose: PersonPose) {
+  uniforms.uBreath.value = pose.breath;
+  uniforms.uHeadYaw.value = pose.headYaw;
+  uniforms.uHeadPitch.value = pose.headPitch;
+  uniforms.uTorsoYaw.value = pose.torsoYaw;
+  uniforms.uBow.value = pose.bow;
+  (uniforms.uSway.value as THREE.Vector2).set(pose.swayX, pose.swayY);
+}
+
+const bendGlsl = (kind: ActorKind) =>
+  isPersonKind(kind) ? personGlsl(PERSON_BODY[kind]) : kind === "abisa" ? ABISA_GLSL : SERPENT_GLSL;
 
 /**
  * three 기본 재질(툰 · 깊이)에 굽힘을 심는다. 법선은 beginnormal 뒤(있으면), 자리는 begin_vertex 뒤에 굽힌다.

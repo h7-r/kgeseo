@@ -19,7 +19,7 @@ import { exposeDevHook } from "@/debug/devHooks";
 import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import { isPointerActive } from "@/engine/input/virtualLock";
 
-import { IS_COMPANION_ENABLED } from "../../companion/companionRuntime";
+import { companionDialog } from "../../companion/companionRuntime";
 import { releasePropColliders } from "../../movement/propColliders";
 import { GROUP_IDS } from "../../placement/editFile";
 import { clamDig } from "../../puzzles/fishTrap/clamState";
@@ -51,7 +51,8 @@ import {
 } from "./abisaLines";
 import { ActorRig } from "./actorRig";
 import { writeAbisaPose, writeSerpentPose, type AbisaPose, type SerpentPose } from "./bendShader";
-import { isNpcSpeaking, setNpcSpeech } from "./npcSpeech";
+import { claimTalk, isTalkTaken, releaseTalk, setNpcSpeech } from "./npcSpeech";
+import { isTalkPaused } from "./storyTalk";
 import { SerpentEcho } from "./serpentEcho";
 
 /** 저장 키 — 앞서 시험한 인사 저장(abisaGreeted · abisaGuided)은 새 의뢰를 들은 것으로 치지 않는다(Codex 04) */
@@ -221,7 +222,12 @@ const tmp = {
 const isRequestDone = (brain: Brain) => brain.state.requestNext >= REQUEST_LINES.length;
 const isFireBack = () => fishTrapPuzzle.stage() === "lit" || fishTrapPuzzle.stage() === "told";
 
+/** 아비사의 대화 차례 이름(npcSpeech) */
+const TALK_ID = "abisa";
+
 function startTalk(brain: Brain, kind: TalkKind, lines: AbisaLine[], bow: boolean) {
+  // 다른 사람(어부 · 동행 소개)이 말하는 중이면 시작하지 않는다
+  if (!claimTalk(TALK_ID)) return;
   brain.state.talk = {
     kind,
     lines,
@@ -253,11 +259,11 @@ function nextLine(brain: Brain) {
   const line = talk.lines[talk.index];
   talk.gestureTime = line?.lookAt ? 0 : -1;
   if (line) {
-    setNpcSpeech({ speaker: ABISA_NAME, text: line.text, canAdvance: true });
+    setNpcSpeech({ speaker: ABISA_NAME, text: line.text, canAdvance: true }, TALK_ID);
     return;
   }
   // 끝까지 들었다
-  setNpcSpeech(null);
+  releaseTalk(TALK_ID);
   brain.state.talk = null;
   if (talk.kind === "backstory") {
     brain.state.isBackstoryHeard = true;
@@ -267,7 +273,8 @@ function nextLine(brain: Brain) {
     brain.state.isEchoLineHeard = true;
     remember(ECHO_LINE_KEY, true);
   }
-  if (talk.kind === "request" && IS_COMPANION_ENABLED && !brain.state.isTipShown) {
+  // 말 걸기가 실제로 켜져 있을 때만(모형은 있어도 대화 세션이 없을 수 있다 — Codex 06회차)
+  if (talk.kind === "request" && companionDialog.getState().isEnabled && !brain.state.isTipShown) {
     brain.state.isTipShown = true;
     showNotice(COMPANION_TIP, 5);
   }
@@ -276,7 +283,7 @@ function nextLine(brain: Brain) {
 function stopTalk(brain: Brain) {
   if (!brain.state.talk) return;
   brain.state.talk = null;
-  setNpcSpeech(null);
+  releaseTalk(TALK_ID);
 }
 
 /** 플레이 중이고 다른 일(창 · 종이 · 게이지 · 연출 · 다른 말)에 묶여 있지 않다 */
@@ -287,7 +294,7 @@ const isFree = () =>
   !isWindowHeld() &&
   !isPaperOpenNow() &&
   !isGaugeActive() &&
-  !isNpcSpeaking();
+  !isTalkTaken(TALK_ID);
 
 /** 구렁이를 쫓아낸다 — 「첫 등장이 끝났다」는 E 를 받는 순간 남긴다(물러나는 중에 나가도 다시 들어오면 사라진 상태) */
 function driveSerpent(brain: Brain, rig: ActorRig) {
@@ -544,14 +551,14 @@ function updateAbisa(brain: Brain, rig: ActorRig, eye: THREE.Vector3, camera: TH
     }
   }
 
-  // 대사 진행 — 창(소지품 · 설정 · 힌트함 · 동행 입력)이 떠 있거나 조작이 풀려 있으면 멈추고 자막을 내린다.
+  // 대사 진행 — 창(소지품 · 설정 · 힌트함 · 동행 입력) · 종이 · 게이지 · 연출 중이거나 조작이 풀려 있으면 멈추고 자막을 내린다.
   // 안 그러면 창을 보는 사이 한 번뿐인 의뢰가 다 흘러가 「들었음」으로 저장된다(Codex 리뷰)
   if (talk) {
-    const shouldPause = isWindowHeld() || !isPointerActive();
+    const shouldPause = isTalkPaused();
     if (shouldPause !== talk.isPaused) {
       talk.isPaused = shouldPause;
-      if (shouldPause) setNpcSpeech(null);
-      else if (line) setNpcSpeech({ speaker: ABISA_NAME, text: line.text, canAdvance: true });
+      if (shouldPause) setNpcSpeech(null, TALK_ID);
+      else if (line) setNpcSpeech({ speaker: ABISA_NAME, text: line.text, canAdvance: true }, TALK_ID);
     }
     if (shouldPause) return;
     talk.lineTime += dt;
@@ -678,7 +685,7 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
     return remove;
   }, [enabled, rigs, brain, serpentHead]);
 
-  useEffect(() => () => setNpcSpeech(null), []);
+  useEffect(() => () => releaseTalk(TALK_ID), []);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
