@@ -9,11 +9,12 @@
 - 서버 연결 범위(v1.1 §2 · §6): P01 · P03 · P07 · P09 + 비석 inspect. 나머지 퍼즐은 넣지 않는다(화면 판정 유지).
   P09 서버 선행은 P07 완료만. 아이템(톱니돌 · 뜬 돌)은 서버가 모르므로 소비 조건에 넣지 않는다.
 - 정답은 이 파일에 없다. `--answers`(공개 저장소 밖)에서 읽고, 출력 · 오류에 싣지 않는다.
-- 10/27 초안의 Zone · 배치 소품 · 이동 · 차단물 · 보내지 않는 항목 ID는 그대로 싣는다. 생성본 퍼즐(PUZZLE_ANGAM_*)과
-  그 단서는 v1.1 §7에 따라 싣지 않는다. 걸음 focus Object(v1.1 §4 · §8)는 서버 상호작용 인스턴스가 없으므로
-  `object_groups_without_instances`에 ID만 예약한다.
-- 장면(`scenes[].clear_when`)과 NPC 검수 목록(`proper_nouns` · `ng` · `open`)은 공식 근거가 없어 비워 둔다
-  — 게시 게이트가 SCENES UNVERIFIED · POLICY_DATA FAIL · NG UNVERIFIED로 막는다(지어내지 않는다).
+- 10/27 초안의 Zone · 배치 소품 · 이동 · 보내지 않는 항목 ID는 그대로 싣는다. 생성본 퍼즐(PUZZLE_ANGAM_*) ·
+  단서 · 장면은 v1.1 §7 · PM 11/8 장면 결정에 따라 싣지 않는다. 차단물 4개(PM 11/8)와 v1 장면이 없는 초안 씬에
+  묶인 소품 4개는 v1 게시본에서 뺀다(초안 파일에는 그대로). 걸음 focus Object(v1.1 §4 · §8)는 서버 상호작용
+  인스턴스가 없으므로 `object_groups_without_instances`에 ID만 예약한다.
+- 장면(PM 11/8): 나루터 = P01 완료, 바위 아래 · 물굴 = P09 완료. NPC 검수 목록은 PM 11/8 G1 확정분
+  (`PROPER_NOUNS` · `NG_RULES` · `OPEN_RULES`, 설화 사실 계약서 v0.5.1 NG-01~06 · U-01/02/05)이다.
 - 상황 대사(`situations[]`)는 계약 v0.4.16(PR #54) 전의 BE가 읽지 못하므로 v1 묶음에 넣지 않고 따로 만든다.
 - 파일의 `status`는 `draft`다. 승인 · 게시 상태는 승인 기록 · 게시 절차만 만든다(파일 값은 판정에 쓰지 않는다).
 """
@@ -112,8 +113,6 @@ V1_PUZZLES = (
     ("P07", "cave-big-clam", "조개 진주 빛 잇기"),
     ("P09", "cave-door", "물레 고리 숫자"),
 )
-# 1105 대응표: P01~P09 는 씬 1. 초안의 씬 1(local 1) 장면 ID를 쓴다(생성 장면 = 나주 씬 번호 가정 🟡).
-V1_SCENE_LOCAL = 1
 # v1.1 §4 걸음 focus — (걸음, 로컬, 런타임). S1_FIRE(OBJ_S1_BONFIRE_0)는 초안 objects 에 이미 있다.
 STEP_FOCUS = (
     ("S1_FIRE", "씬1.화톳불#0", "OBJ_S1_BONFIRE_0"),
@@ -156,6 +155,90 @@ APPROVED_V1_NUDGE_IDS = (
     "NUDGE_P07_STUCK_1_J",
     "NUDGE_P09_HELP_1_J",
     "NUDGE_P09_STUCK_1_J",
+)
+# PM 11/8 장면 결정: 나루터 = P01 완료, 바위 아래 · 물굴 = P09 완료. 능선 · 바위 위 · 굿판은 v1 장면에서 뺀다.
+# idmap 장면 `local` 은 스테이지 번호(1스테이지 나루터 · 2스테이지 바위 아래)다 — FE endScene(씬) 번호가 아니다.
+V1_SCENES = (
+    {
+        "local": 1,
+        "scene_id": "SCENE_STAGE1_FERRY",
+        "title": "나루터",
+        "zones": ("Z1",),
+        "puzzle": "P01",
+    },
+    {
+        "local": 2,
+        "scene_id": "SCENE_STAGE2_ROCK_CAVE",
+        "title": "바위 아래 · 물굴",
+        "zones": ("Z2", "cave-hall", "cave-inner"),
+        "puzzle": "P09",
+    },
+)
+# PM 11/8: v1 게시본에서 뺀다(Zone 이 없고 v1 판정에 쓰이지 않는다). 10/27 초안에는 그대로 있다.
+EXCLUDED_BLOCKER_IDS = frozenset(
+    {
+        "OBJ_BLOCKER_RIDGE",
+        "OBJ_BLOCKER_NORTH_ROCK",
+        "OBJ_BLOCKER_EAST_ROCK",
+        "OBJ_BLOCKER_WEST_ROCKFALL",
+    }
+)
+# 10/27 초안 소품 중 v1 장면이 없는 초안 씬(2 · 4)에 묶인 것 — v1 게시본에서 뺀다(상호작용 없음, 초안에는 그대로).
+EXCLUDED_DRAFT_PROP_IDS = frozenset(
+    {
+        "OBJ_S2_SOTDAE_2",
+        "OBJ_S4_BOAT_MARK_0",
+        "OBJ_S4_MOORING_POST_0",
+        "OBJ_S4_FOOTPRINTS_0",
+    }
+)
+# PM 11/8 G1 확정 검수 목록(설화 사실 계약서 v0.5.1 NG-01~06 · U-01/02/05). 서버 정책 검사 전용.
+PROPER_NOUNS = (
+    {"text": "아랑사", "kind": "person", "aliases": []},
+    {"text": "아비사", "kind": "person", "aliases": ["아비사 처녀"]},
+    {"text": "앙암바위", "kind": "place", "aliases": ["앙암바우", "아망바우"]},
+    {"text": "진부촌", "kind": "place", "aliases": []},
+    {"text": "택촌", "kind": "place", "aliases": []},
+    {"text": "영산강", "kind": "place", "aliases": []},
+    {"text": "영산포", "kind": "place", "aliases": []},
+)
+NG_RULES = (
+    {
+        "text": "NG-01 아랑사와 아비사의 거주 마을을 반대로 설정(원전: 아랑사=택촌, 아비사=진부촌)",
+        "patterns": ["아랑사는 진부촌", "아비사는 택촌"],
+    },
+    {
+        "text": "NG-02 두 사람이 살아남아 현실에서 재결합하는 결말",
+        "patterns": ["살아서 다시 만"],
+    },
+    # 문자열로 판정할 수 없는 의미 규칙 — PM 이 패턴을 주지 않았다. 패턴이 없으면 검사기는 text 를 찾으므로
+    # 사실상 자동 검출이 없다(G1 사람 검토가 맡는다).
+    {
+        "text": "NG-03 진부촌 젊은이들의 개입 삭제 · 사고 또는 자살로 변경",
+        "patterns": [],
+    },
+    {
+        "text": "NG-04 씻김굿을 저주나 악령 소환 의식으로 왜곡",
+        "patterns": ["씻김굿은 저주"],
+    },
+    {"text": "NG-05 밀양 아랑 설화와 혼용", "patterns": ["밀양 아랑"]},
+    {
+        "text": "NG-06 GF-01~03 해석을 나주의 확정 전승 사실로 소개",
+        "patterns": ["구렁이는 아랑사였다"],
+    },
+)
+# open 은 PM 이 주제만 정했다. 패턴은 계약서 U-01/02/05 의 단정 형태를 BE 가 옮긴 변환안이다(G1 확인 필요).
+# 팩 규칙에는 유보 표현(hedge) 칸이 없어 패턴이 맞으면 언제나 막는다(보수적).
+OPEN_RULES = (
+    {
+        "text": "U-01 구렁이가 아랑사의 환생인지",
+        "patterns": ["아랑사의 환생", "아랑사가 환생"],
+    },
+    {
+        "text": "U-02 두 구렁이의 정체",
+        "patterns": ["두 구렁이는 아랑사", "두 마리 구렁이는 아랑사"],
+    },
+    {"text": "U-05 아비사의 죽음", "patterns": ["아비사는 죽었", "아비사가 죽었"]},
 )
 REPRESENTATIVE_KEY_RULE = (
     "v1.1(11/8) 대표 · 단서 · 걸음 Object 는 FE registerInteractable id(또는 묶음 이름) 그대로 — "
@@ -237,7 +320,42 @@ def build_server(answers: Mapping[str, Any]) -> dict[str, Any]:
         "clue_combinations": [],
         "inspections": [{"inspect_id": TABLET_INSPECT_ID, "on_inspect": _effect()}],
         "clues": [],
+        "scenes": [
+            {
+                "scene_id": scene["scene_id"],
+                "clear_when": {"puzzle_completed": scene["puzzle"]},
+            }
+            for scene in V1_SCENES
+        ],
     }
+
+
+def _scene_of(zone_local: str) -> int:
+    for scene in V1_SCENES:
+        if zone_local in scene["zones"]:
+            return scene["local"]
+    raise BuildError(f"zone {zone_local} has no v1 scene")
+
+
+def _puzzle_zone(local: str) -> str:
+    return next(item["zone"] for item in V1_OBJECTS if item["local"] == local)
+
+
+def _draft_props(idmap_draft: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """10/27 초안 소품 중 v1 게시본에 싣는 것. 빼는 것은 EXCLUDED_DRAFT_PROP_IDS 와 정확히 같아야 한다."""
+
+    kept, dropped = [], set()
+    for item in idmap_draft["objects"]:
+        scene = next(
+            (s["local"] for s in V1_SCENES if item["zone"] in s["zones"]), None
+        )
+        if scene is not None and scene == item["scene"]:
+            kept.append(deepcopy(item))
+        else:
+            dropped.add(item["object_id"])
+    if dropped != EXCLUDED_DRAFT_PROP_IDS:
+        raise BuildError("draft props outside v1 scenes changed — review exclusions")
+    return kept
 
 
 def _zone_list(idmap_draft: Mapping[str, Any]) -> list[dict[str, Any]]:
@@ -252,7 +370,7 @@ def build_client(idmap_draft: Mapping[str, Any]) -> dict[str, Any]:
     local_to_zone = {zone["local"]: zone["zone_id"] for zone in zones}
     objects: dict[str, list[dict[str, Any]]] = {zone["zone_id"]: [] for zone in zones}
     # 10/27 초안의 배치 소품(상호작용 없음). idmap 교차 검사가 Client 에 있을 것을 요구한다.
-    for item in idmap_draft["objects"]:
+    for item in _draft_props(idmap_draft):
         name = item["local"].split(".", 1)[-1].split("#", 1)[0]
         objects[item["zone_id"]].append(
             {
@@ -296,17 +414,12 @@ def build_client(idmap_draft: Mapping[str, Any]) -> dict[str, Any]:
 def build_idmap(idmap_draft: Mapping[str, Any]) -> dict[str, Any]:
     zones = _zone_list(idmap_draft)
     local_to_zone = {zone["local"]: zone["zone_id"] for zone in zones}
-    scene_id = next(
-        scene["scene_id"]
-        for scene in idmap_draft["scenes"]
-        if scene["local"] == V1_SCENE_LOCAL
-    )
-    objects = [deepcopy(item) for item in idmap_draft["objects"]]
+    objects = _draft_props(idmap_draft)
     objects += [
         {
             "local": item["local"],
             "object_id": item["object_id"],
-            "scene": V1_SCENE_LOCAL,
+            "scene": _scene_of(item["zone"]),
             "zone": item["zone"],
             "zone_id": local_to_zone[item["zone"]],
             "status": "placed",
@@ -347,16 +460,37 @@ def build_idmap(idmap_draft: Mapping[str, Any]) -> dict[str, Any]:
             "object_local_key_representative": REPRESENTATIVE_KEY_RULE,
         },
         "zones": zones,
-        "scenes": deepcopy(idmap_draft["scenes"]),
+        # 초안 장면(생성본 기준 5개)은 v1 에 싣지 않는다 — idmap 장면은 Server 장면과 하나씩 맞아야 한다.
+        "scenes": [
+            {
+                "local": scene["local"],
+                "local_complete_signal": f"서버 판정 — {scene['puzzle']} 완료(clear_when)",
+                "note": "PM 11/8 v1 장면. local 은 스테이지 번호이며 FE endScene(씬) 번호와 다르다",
+                "scene_id": scene["scene_id"],
+                "src_id": f"pm-1108-stage{scene['local']}",
+                "title": scene["title"],
+                "zones": list(scene["zones"]),
+                "zone_ids": [local_to_zone[z] for z in scene["zones"]],
+            }
+            for scene in V1_SCENES
+        ],
         "navigation": deepcopy(idmap_draft["navigation"]),
-        "blockers": deepcopy(idmap_draft["blockers"]),
+        "blockers": [
+            deepcopy(b)
+            for b in idmap_draft["blockers"]
+            if b["object_id"] not in EXCLUDED_BLOCKER_IDS
+        ],
         "objects": objects,
         "object_groups_without_instances": groups,
         "puzzles": [
             {
                 "local": local,
                 "puzzle_id": puzzle_id,
-                "scene_id": scene_id,
+                "scene_id": next(
+                    s["scene_id"]
+                    for s in V1_SCENES
+                    if s["local"] == _scene_of(_puzzle_zone(local))
+                ),
                 "src_id": puzzle_id,
                 "status": "placed",
                 "title": title,
@@ -391,7 +525,6 @@ def build_npc(npc_lines: Mapping[str, Any]) -> dict[str, Any]:
         ]
         if nudges:
             puzzles.append({"puzzle_id": puzzle_id, "nudges": nudges})
-    # proper_nouns · ng · open 은 검수 근거가 없어 싣지 않는다(빈 배열은 「검수했고 없음」이라는 뜻이다).
     return {
         "schema_version": "npc-pack 0.1",
         "case_id": CASE_ID,
@@ -399,6 +532,9 @@ def build_npc(npc_lines: Mapping[str, Any]) -> dict[str, Any]:
         "status": "draft",
         "general_nudges": [],
         "puzzles": puzzles,
+        "proper_nouns": deepcopy(list(PROPER_NOUNS)),
+        "ng": deepcopy(list(NG_RULES)),
+        "open": deepcopy(list(OPEN_RULES)),
     }
 
 
