@@ -15,7 +15,9 @@ process.env.TEAM_NPC_FILE = FILE;
 
 const { TeamNpcCrew, NPC_TICK_MS } = await import("../src/npc/teamNpcs.js");
 const { isFree } = await import("../src/npc/hqMap.js");
-const { TEAM_SLOTS, parseTeamLines, parseTeamEntry } = await import("../src/npc/teamRoster.js");
+const { TEAM_SLOTS, parseTeamLines, parseTeamLinePairs, parseTeamEntry } = await import("../src/npc/teamRoster.js");
+const { TEAM_EMOTE_MOTIONS, TEAM_CLIP_MOTIONS, gesturePlaySeconds, isTeamGestureId } =
+  await import("../src/npc/teamGestures.js");
 const { NPC_ACT_MIN_MS, NPC_ACT_MAX_MS } = await import("../src/npc/teamNpcs.js");
 const { Player } = await import("../src/state.js");
 
@@ -23,13 +25,21 @@ function makeCrew() {
   let now = 1_000_000;
   const players = new MapSchema<InstanceType<typeof Player>>();
   const greets: Array<[string, number, number]> = [];
-  const acts: Array<{ sid: string; text: string; gesture: number; at: number; x: number; z: number }> = [];
+  const acts: Array<{
+    sid: string;
+    text: string;
+    gesture: number;
+    motion: string | undefined;
+    at: number;
+    x: number;
+    z: number;
+  }> = [];
   const crew = new TeamNpcCrew(players, {
     nowMs: () => now,
     greet: (sid, id) => greets.push([sid, id, now]),
-    act: (sid, text, gesture) => {
+    act: (sid, text, gesture, motion) => {
       const player = players.get(sid)!;
-      acts.push({ sid, text, gesture, at: now, x: player.x, z: player.z });
+      acts.push({ sid, text, gesture, motion, at: now, x: player.x, z: player.z });
     },
     log: () => {},
   });
@@ -342,6 +352,96 @@ describe("팀 캐릭터 NPC", () => {
     const after = acts.filter((act) => act.sid === "npc-sejin" && act.at > from);
     assert.ok(after.length > 0);
     assert.ok(after.every((act) => act.text === "새 대사"));
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
+  });
+  it("고를 수 있는 동작은 인사 6 + 치비 클립 47, ID 는 겹치지 않고 반복 클립은 3초 튼다", () => {
+    assert.equal(TEAM_EMOTE_MOTIONS.length, 6);
+    assert.equal(TEAM_CLIP_MOTIONS.length, 47);
+    const ids = [...TEAM_EMOTE_MOTIONS, ...TEAM_CLIP_MOTIONS].map((motion) => motion.id);
+    assert.equal(new Set(ids).size, ids.length);
+    assert.equal(gesturePlaySeconds("q:Dance_Loop"), 3);
+    assert.equal(gesturePlaySeconds("q:Fixing_Kneeling"), 5.2);
+    assert.ok(isTeamGestureId("tripo:Idle_Fold_Loop") && isTeamGestureId("emote:6"));
+    assert.ok(!isTeamGestureId("q:Nope") && !isTeamGestureId("emote:7") && !isTeamGestureId(""));
+  });
+
+  it('대사와 동작은 짝으로 읽는다 — 빈 줄 · 틀린 줄은 그 동작과 함께 빠지고, 모르는 동작 · 옛 파일은 무작위("")', () => {
+    assert.deepEqual(parseTeamLinePairs(["", "둘째"], ["q:Roll", "q:Death01"]), {
+      lines: ["둘째"],
+      lineGestures: ["q:Death01"],
+    });
+    assert.deepEqual(parseTeamLinePairs(["하나", "둘"], ["q:Nope", 3]), {
+      lines: ["하나", "둘"],
+      lineGestures: ["", ""],
+    });
+    assert.deepEqual(parseTeamLinePairs(["하나"]), { lines: ["하나"], lineGestures: [""] });
+    assert.deepEqual(parseTeamEntry({ ...SEJIN, lines: ["a", "b"], lineGestures: ["emote:2"] })?.lineGestures, [
+      "emote:2",
+      "",
+    ]);
+  });
+
+  it("고른 동작으로 대사를 친다 — 클립은 motion(+ 옛 화면용 번호), 인사 동작은 그 번호, 긴 동작은 끝날 때까지 서 있다", () => {
+    writeFileSync(
+      FILE,
+      JSON.stringify({
+        version: 1,
+        npcs: {
+          sejin: { ...SEJIN, lines: ["춤춘다", "고마워요"], lineGestures: ["q:Dance_Loop", "emote:5"] },
+          jiha: { ...SEJIN, displayName: "지하", lines: ["고치는 중"], lineGestures: ["q:Fixing_Kneeling"] },
+        },
+      }),
+    );
+    const { crew, players, acts, advance, setNow } = makeCrew();
+    setNow(70_000_000);
+    crew.spawn();
+    const jiha = players.get("npc-jiha")!;
+    let held = 0;
+    for (let tick = 0; tick < Math.ceil(300_000 / NPC_TICK_MS); tick += 1) {
+      const count = acts.length;
+      advance(1);
+      const last = acts[acts.length - 1];
+      if (acts.length === count || last?.sid !== "npc-jiha") continue;
+      // 무릎 꿇고 수리 5.2초 — 그동안 걷지 않는다
+      const at = { x: jiha.x, z: jiha.z };
+      for (let hold = 0; hold < Math.floor(5300 / NPC_TICK_MS); hold += 1) {
+        advance(1);
+        assert.equal(jiha.gait, "idle");
+        assert.ok(Math.hypot(jiha.x - at.x, jiha.z - at.z) < 1e-6, "긴 동작 중에 움직였다");
+      }
+      held += 1;
+    }
+    assert.ok(held >= 3, `지하 대사 ${held}번`);
+    const sejin = acts.filter((act) => act.sid === "npc-sejin");
+    assert.ok(sejin.some((act) => act.text === "춤춘다") && sejin.some((act) => act.text === "고마워요"));
+    for (const act of sejin) {
+      if (act.text === "춤춘다") {
+        assert.equal(act.motion, "q:Dance_Loop");
+        assert.ok(act.gesture >= 1 && act.gesture <= 6);
+      } else {
+        assert.equal(act.motion, undefined);
+        assert.equal(act.gesture, 5);
+      }
+    }
+    assert.ok(acts.filter((act) => act.sid === "npc-jiha").every((act) => act.motion === "q:Fixing_Kneeling"));
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
+  });
+
+  it("금칙어로 빠진 대사는 그 동작도 같이 빠진다(남은 대사는 제 동작 그대로)", () => {
+    writeFileSync(
+      FILE,
+      JSON.stringify({
+        version: 1,
+        npcs: { sejin: { ...SEJIN, lines: ["씨발 뭐야", "좋아요"], lineGestures: ["q:Roll", "q:Death01"] } },
+      }),
+    );
+    const { crew, acts, advance, setNow } = makeCrew();
+    setNow(80_000_000);
+    crew.spawn();
+    advance(Math.ceil(200_000 / NPC_TICK_MS));
+    const sejin = acts.filter((act) => act.sid === "npc-sejin");
+    assert.ok(sejin.length > 0);
+    assert.ok(sejin.every((act) => act.text === "좋아요" && act.motion === "q:Death01"));
     writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
   });
 });

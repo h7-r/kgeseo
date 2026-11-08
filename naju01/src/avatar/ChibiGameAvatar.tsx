@@ -321,8 +321,9 @@ function ChibiGameAvatar({
     const action = currentMotion.current ? actions.current.get(currentMotion.current) : undefined;
     // 인사·맞기 단계가 정한 재생 속도(짧은 클립 늘이기)
     if (action && timers.current.actionSpeed) action.setEffectiveTimeScale(timers.current.actionSpeed);
-    // 발이 안 미끄러지게 걷기·달리기 재생 속도를 실제 이동 속도에 맞춘다.
-    if (action && fixedTime === null && LOCOMOTION_CLIPS.has(next)) {
+    // 발이 안 미끄러지게 걷기·달리기 재생 속도를 실제 이동 속도에 맞춘다. 인사 · 대사 단계가 속도를 정했으면(제자리에서 트는
+    // 걷기 클립 — 팀 NPC 대사 동작, 검토 27회차) 그 속도를 그대로 둔다.
+    if (action && fixedTime === null && LOCOMOTION_CLIPS.has(next) && !timers.current.actionSpeed) {
       const own = prepared.strideFor(next) * avatarScale;
       const groundSpeed = state.speed ?? 0;
       action.setEffectiveTimeScale(own > 1e-4 ? THREE.MathUtils.clamp(groundSpeed / own, 0.45, 2.2) : 1);

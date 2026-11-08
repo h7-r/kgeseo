@@ -15,10 +15,11 @@ import {
   isTeamSlotKey,
   parseTeamEntry,
   parseTeamFile,
-  parseTeamLines,
+  parseTeamLinePairs,
   TEAM_LINES_MAX,
   type TeamFile,
 } from "./lobby/src/npc/teamRoster";
+import { isTeamGestureId } from "./lobby/src/npc/teamGestures";
 import baseConfig from "./vite.config";
 
 const APP_FILE = fileURLToPath(new URL("./src/app/App.tsx", import.meta.url));
@@ -109,18 +110,23 @@ function teamNpcSavePlugin(): Plugin {
           } catch {
             return send(400, { error: "json" });
           }
-          // 두 가지 저장: { key, entry } = 외형(대사를 안 보내면 저장된 대사를 지킨다) · { key, lines } = 대사만(외형은 그대로,
-          // [] 는 대사 지우기). 한쪽 저장이 다른 쪽을 지우지 않게(Codex 25)
-          const { key, entry, lines } = (body ?? {}) as { key?: unknown; entry?: unknown; lines?: unknown };
+          // 두 가지 저장: { key, entry } = 외형만(저장된 대사 · 동작은 늘 지킨다) · { key, lines, lineGestures } = 대사와 그 동작만
+          // (외형은 그대로, [] 는 대사 지우기). 한쪽 저장이 다른 쪽을 지우지 않게(Codex 25 · 27)
+          const { key, entry, lines, lineGestures } = (body ?? {}) as {
+            key?: unknown;
+            entry?: unknown;
+            lines?: unknown;
+            lineGestures?: unknown;
+          };
           if (!isTeamSlotKey(key)) return send(400, { error: "invalid" });
           const file = readTeamFile();
           const current = file.npcs[key];
           let parsed;
           if (entry !== undefined) {
-            const keepLines = !(typeof entry === "object" && entry !== null && "lines" in entry);
             parsed = parseTeamEntry({
-              ...(entry as object),
-              ...(keepLines ? { lines: current?.lines ?? [] } : {}),
+              ...(typeof entry === "object" && entry !== null ? entry : {}),
+              lines: current?.lines ?? [],
+              lineGestures: current?.lineGestures ?? [],
               savedAt: new Date().toISOString(),
             });
           } else if (Array.isArray(lines)) {
@@ -129,10 +135,18 @@ function teamNpcSavePlugin(): Plugin {
             // 3개 이상, 다듬은 뒤 40자를 넘는 줄. 빈 줄은 지운 것으로 본다, [] 는 대사 지우기(Codex 리뷰 e0bc05d)
             if (lines.length > TEAM_LINES_MAX || lines.some((line) => typeof line !== "string"))
               return send(400, { error: "invalid_line" });
-            const kept = parseTeamLines(lines);
-            if (kept.length !== (lines as string[]).filter((line) => line.trim()).length)
+            // 동작은 빈 줄을 걷기 전 대사와 같은 길이 · 각 "" 또는 아는 동작(검토 27회차) — 없으면 전부 무작위
+            if (
+              lineGestures !== undefined &&
+              (!Array.isArray(lineGestures) ||
+                lineGestures.length !== lines.length ||
+                lineGestures.some((id) => id !== "" && !isTeamGestureId(id)))
+            )
+              return send(400, { error: "invalid_gesture" });
+            const kept = parseTeamLinePairs(lines, lineGestures);
+            if (kept.lines.length !== (lines as string[]).filter((line) => line.trim()).length)
               return send(400, { error: "invalid_line" });
-            parsed = { ...current, lines: kept, savedAt: new Date().toISOString() };
+            parsed = { ...current, ...kept, savedAt: new Date().toISOString() };
           }
           if (!parsed) return send(400, { error: "invalid" });
           file.npcs[key] = parsed;

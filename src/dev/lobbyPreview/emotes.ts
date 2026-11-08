@@ -2,7 +2,9 @@
 // 동작은 치비가 쓰는 Quaternius 범용 애니메이션(public/models/vendor/, 라이선스 파일 동봉) 이름이다.
 // steps 를 차례로 튼다 — 서 있을 때만, 움직이면 끊긴다(naju01/src/avatar/useMotionPlayer.ts 우선순위: 맞기 > 펀치 > 인사).
 import type { AvatarAction } from "@/engine/avatarLink";
-import { GESTURE_BASE_MOTION, GESTURES } from "@/naju";
+import { GESTURE_BASE_MOTION, GESTURES, QUATERNIUS_PREFIX } from "@/naju";
+
+import { gesturePlaySeconds, TEAM_CLIP_MOTIONS, teamMotionOf } from "../../../lobby/src/npc/teamGestures";
 
 import type { VoiceKind } from "./voices";
 
@@ -54,3 +56,20 @@ export const JUMP_VOICE_EVERY_MS = 1200;
 
 /** 서버 주먹 이름 → 클립 이름(본편 usePunch 와 같은 클립) */
 export const PUNCH_CLIPS = { jab: "Punch_Jab", cross: "Punch_Cross" } as const;
+
+// 팀 NPC 대사 동작(꾸미기 창에서 고른 클립, 검토 27회차) → 트는 단계. 클립 이름은 Tripo 가 먼저 잡으므로(chibiClipLibrary
+// clipFor) Tripo 와 이름이 겹치는 Quaternius 클립(대기 · 걷기 · 조깅)만 접두사를 붙인다 — 나머지는 인사 · 게임이 쓰는 이름과
+// 같게 둬야 같은 리타깃 캐시 · 반복 판정(이름 끝 _Loop · A_TPose · Sword_Idle) · 발바닥 명단을 그대로 탄다.
+// 속도 1 을 적어 두면 걷기류 클립의 「실제 이동 속도에 맞춘 재생 속도」를 건너뛴다(ChibiGameAvatar — 제자리라 0.45배로 느려진다).
+const TRIPO_CLIPS = new Set(
+  TEAM_CLIP_MOTIONS.filter((motion) => motion.source === "tripo").map((motion) => motion.clip),
+);
+
+export function teamMotionSteps(id: unknown): AvatarAction["steps"] | null {
+  if (typeof id !== "string") return null;
+  const motion = teamMotionOf(id);
+  if (!motion?.clip || motion.source === "emote") return null;
+  const name =
+    motion.source === "q" && TRIPO_CLIPS.has(motion.clip) ? `${QUATERNIUS_PREFIX}${motion.clip}` : motion.clip;
+  return [{ motion: name, seconds: gesturePlaySeconds(id), speed: 1 }];
+}

@@ -1,8 +1,11 @@
 // 팀 캐릭터 다섯 명(미르 11/8, 검토 22회차) — 로비 서버가 방마다 상시 NPC 로 두고, 모습은 미르가 팀 꾸미기 창
 // (루트 team-npc.html, 개발 서버 전용)에서 만들어 저장한 lobby/data/team-npcs.json 을 따른다.
-// 로비 서버(lobby/src/npc)와 개발 서버 저장 미들웨어(vite.lobby-preview.config.ts)가 같이 쓰므로 아무것도 가져오지 않는다.
+// 로비 서버(lobby/src/npc)와 개발 서버 저장 미들웨어(vite.lobby-preview.config.ts)가 같이 쓰므로 가져오기 없는 동작 목록
+// (teamGestures.ts) 말고는 아무것도 가져오지 않는다.
 // 여기서는 모양만 본다(문자열 · 유한한 수 · 색 형식 · 길이). 아이템 ID · 체형 범위는 로비 서버가 look 으로 만들 때, 대사 내용은
 // 방송 직전에 다시 검사한다.
+
+import { isTeamGestureId } from "./teamGestures.js";
 
 export type TeamGender = "masculine" | "feminine";
 
@@ -74,6 +77,11 @@ export interface TeamEntry {
    * 로비 서버가 방송 직전에 채팅과 같은 다듬기 · 연락처 · 금칙어 검사를 다시 한다
    */
   lines: string[];
+  /**
+   * 대사마다 취할 동작 ID(teamGestures.ts) — lines 와 같은 순서 · 같은 길이, "" 는 무작위 인사 동작(미르 11/8, 검토 27회차).
+   * 옛 파일(없음) · 모르는 ID 는 "" 로 읽는다
+   */
+  lineGestures: string[];
   /** ISO 시각 */
   savedAt: string;
 }
@@ -146,15 +154,26 @@ export function parseTeamLine(raw: unknown): string | null {
   return length >= 1 && length <= TEAM_LINE_MAX_LENGTH ? line : null;
 }
 
-/** 대사 목록 — 배열이 아니면 빈 목록, 틀린 줄 · 빈 줄은 버리고 앞에서 2개까지 */
-export function parseTeamLines(raw: unknown): string[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .slice(0, TEAM_LINES_MAX * 4)
-    .map(parseTeamLine)
-    .filter((line): line is string => line !== null)
-    .slice(0, TEAM_LINES_MAX);
+/**
+ * 대사와 그 동작을 짝으로 — 틀린 줄 · 빈 줄은 그 동작과 함께 버리고 앞에서 2개까지(순서가 어긋나지 않게). 배열이 아니면
+ * 빈 목록, 동작이 없거나 모르는 ID 면 ""
+ */
+export function parseTeamLinePairs(rawLines: unknown, rawGestures?: unknown): { lines: string[]; lineGestures: string[] } {
+  const lines: string[] = [];
+  const lineGestures: string[] = [];
+  if (!Array.isArray(rawLines)) return { lines, lineGestures };
+  const gestures = Array.isArray(rawGestures) ? rawGestures : [];
+  rawLines.slice(0, TEAM_LINES_MAX * 4).forEach((raw, i) => {
+    const line = parseTeamLine(raw);
+    if (line === null || lines.length >= TEAM_LINES_MAX) return;
+    lines.push(line);
+    lineGestures.push(isTeamGestureId(gestures[i]) ? gestures[i] : "");
+  });
+  return { lines, lineGestures };
 }
+
+/** 대사 목록 — 배열이 아니면 빈 목록, 틀린 줄 · 빈 줄은 버리고 앞에서 2개까지 */
+export const parseTeamLines = (raw: unknown): string[] => parseTeamLinePairs(raw).lines;
 
 export function parseTeamEntry(raw: unknown): TeamEntry | null {
   if (!isRecord(raw)) return null;
@@ -162,7 +181,7 @@ export function parseTeamEntry(raw: unknown): TeamEntry | null {
   const appearance = parseTeamAppearance(raw.appearance);
   if (!displayName || !appearance) return null;
   const savedAt = typeof raw.savedAt === "string" && raw.savedAt.length <= 40 ? raw.savedAt : "";
-  return { displayName, appearance, lines: parseTeamLines(raw.lines), savedAt };
+  return { displayName, appearance, ...parseTeamLinePairs(raw.lines, raw.lineGestures), savedAt };
 }
 
 /** 파일 전체 — 모르는 키 · 틀린 사람은 버리고 나머지는 살린다(한 사람 실수로 다섯이 다 사라지지 않게) */

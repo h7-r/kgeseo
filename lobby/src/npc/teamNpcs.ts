@@ -17,6 +17,7 @@ import { LOOK_CATALOG_VERSION, lookToStateString } from "../look.js";
 import { GREET_IDS } from "../movement.js";
 import { Player } from "../state.js";
 import { cellCenter, cellIndex, clearance, findPath, isFree, nearPerson, type Person, REACHABLE } from "./hqMap.js";
+import { emoteNumberOf, gesturePlaySeconds } from "./teamGestures.js";
 import {
   parseTeamFile,
   TEAM_LOOK_ITEMS,
@@ -46,8 +47,9 @@ export const NPC_ACT_MIN_MS = 10_000;
 export const NPC_ACT_MAX_MS = 30_000;
 /** 방이 생긴 뒤 첫 행동 — 다섯 명이 한꺼번에 말하지 않게 흩는다 */
 const FIRST_ACT_MIN_MS = 4_000;
-/** 동작하는 동안 서 있는 시간 */
+/** 동작하는 동안 서 있는 시간 — 고른 동작이 더 길면 그 길이 + ACT_HOLD_EXTRA_MS(무릎 꿇고 수리 5.2초가 끊기지 않게) */
 const ACT_HOLD_MS = 3_500;
+const ACT_HOLD_EXTRA_MS = 400;
 // 맞으면 밀림 — 게임 화면 · 가상 인원과 같은 값(src/dev/lobbyPreview/previewState.ts HIT_PUSH_DISTANCE · engine/movement/push.ts)
 const PUSH_DISTANCE = 1.2;
 const PUSH_DECAY = 7;
@@ -85,19 +87,26 @@ function defaultLook(gender: TeamSlot["gender"]) {
   };
 }
 
+/** 말할 수 있는 대사와 그 동작(teamGestures.ts ID, "" = 무작위 인사 동작) */
+interface SpeakableLine {
+  text: string;
+  gesture: string;
+}
+
 /**
- * 방송할 대사 — 채팅과 같은 다듬기 · 글자 수 · 연락처 · 금칙어(채팅 허용 구절 포함)를 지난 것만. 반복 발화를 막는 ChatGuard 는
- * 쓰지 않는다(NPC 는 같은 말을 되풀이하는 것이 목적이다)
+ * 방송할 대사 — 채팅과 같은 다듬기 · 글자 수 · 연락처 · 금칙어(채팅 허용 구절 포함)를 지난 것만, 고른 동작과 짝으로(걸린 대사는
+ * 동작도 같이 빠진다). 반복 발화를 막는 ChatGuard 는 쓰지 않는다(NPC 는 같은 말을 되풀이하는 것이 목적이다)
  */
-function speakableLines(entry: TeamEntry | undefined): { lines: string[]; blocked: number } {
-  const lines: string[] = [];
+function speakableLines(entry: TeamEntry | undefined): { lines: SpeakableLine[]; blocked: number } {
+  const lines: SpeakableLine[] = [];
   let blocked = 0;
-  for (const raw of entry?.lines ?? []) {
+  (entry?.lines ?? []).forEach((raw, i) => {
     const text = normalizeChatText(raw);
     const length = chatLength(text);
-    if (length >= 1 && length <= CHAT_MAX_CHARS && !looksLikeContact(text) && !findChatProfanity(text)) lines.push(text);
+    if (length >= 1 && length <= CHAT_MAX_CHARS && !looksLikeContact(text) && !findChatProfanity(text))
+      lines.push({ text, gesture: entry?.lineGestures[i] ?? "" });
     else blocked += 1;
-  }
+  });
   return { lines, blocked };
 }
 
@@ -163,8 +172,8 @@ interface Walker {
   blockedSince: number | undefined;
   /** 다음 대사 · 동작 — 걷는 중이면 멈춘 다음에 한다 */
   nextActAt: number;
-  /** 지금 말할 수 있는 대사(검사를 지난 것) */
-  lines: string[];
+  /** 지금 말할 수 있는 대사(검사를 지난 것)와 그 동작 */
+  lines: SpeakableLine[];
   /** 다음 차례가 고유 외침인가 — 대사와 번갈아(첫 차례만 무작위). 대사가 없으면 늘 외침 */
   callNext: boolean;
   pendingPushes: PendingPush[];
@@ -180,8 +189,11 @@ export interface TeamNpcCrewOptions {
   nowMs: () => number;
   /** 인사 방송 — 사람 인사와 같은 메시지(동작 + 그 동작의 말풍선 · 목소리). 고유 외침이 이것이다 */
   greet: (sid: string, id: number) => void;
-  /** 대사 방송 — 말풍선은 대사, 동작은 인사 id 의 동작만(목소리 · 동작 말풍선 없음). 채팅 기록에는 안 남는다 */
-  act: (sid: string, text: string, gesture: number) => void;
+  /**
+   * 대사 방송 — 말풍선은 대사, 동작은 motion(꾸미기 창에서 고른 클립 ID)이 있으면 그것, 없으면 인사 id 의 동작만(목소리 ·
+   * 동작 말풍선 없음). motion 을 모르는 옛 화면은 gesture 로 튼다. 채팅 기록에는 안 남는다
+   */
+  act: (sid: string, text: string, gesture: number, motion?: string) => void;
   log: Logger;
 }
 
@@ -446,18 +458,26 @@ export class TeamNpcCrew {
   }
 
   /**
-   * 대사(2개 중 하나 + 인사 동작 6종 중 하나)와 고유 외침을 번갈아 한다 — 대사가 없거나 다 걸렸으면 외침만. 근처에 사람이
+   * 대사(2개 중 하나 + 고른 동작, 안 골랐으면 인사 동작 6종 중 하나)와 고유 외침을 번갈아 한다 — 대사가 없거나 다 걸렸으면 외침만. 근처에 사람이
    * 있으면 그쪽을 보고, 동작하는 동안 서 있는다. 다음 행동은 지금부터 10~30초 뒤
    */
   #act(walker: Walker, now: number) {
     walker.nextActAt = now + between(NPC_ACT_MIN_MS, NPC_ACT_MAX_MS);
-    walker.idleUntil = Math.max(walker.idleUntil, now + ACT_HOLD_MS);
     const human = this.#nearestHuman(walker);
     if (human && human.distance <= FACE_NEAR) walker.ry = Math.atan2(human.x - walker.x, human.z - walker.z);
     const speakLine = walker.lines.length > 0 && !walker.callNext;
     walker.callNext = speakLine;
-    if (speakLine) this.#options.act(walker.sid, pick(walker.lines), pick(GREET_IDS));
-    else this.#options.greet(walker.sid, walker.slot.call);
+    let holdMs = ACT_HOLD_MS;
+    if (speakLine) {
+      // 고른 동작: 인사 동작이면 그 번호, 클립이면 motion(+ 옛 화면용 무작위 번호), 안 골랐으면 무작위 인사 동작
+      const { text, gesture } = pick(walker.lines);
+      const emote = gesture ? emoteNumberOf(gesture) : null;
+      if (gesture && emote === null) {
+        this.#options.act(walker.sid, text, pick(GREET_IDS), gesture);
+        holdMs = Math.max(holdMs, gesturePlaySeconds(gesture) * 1000 + ACT_HOLD_EXTRA_MS);
+      } else this.#options.act(walker.sid, text, emote ?? pick(GREET_IDS));
+    } else this.#options.greet(walker.sid, walker.slot.call);
+    walker.idleUntil = Math.max(walker.idleUntil, now + holdMs);
   }
 
   #nearestHuman(walker: Walker) {

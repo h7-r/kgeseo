@@ -102,6 +102,8 @@ export interface NpcActEvent {
   sid: string;
   text: string;
   gesture: number;
+  /** 꾸미기 창에서 그 대사에 고른 클립 동작 ID(lobby/src/npc/teamGestures.ts, 검토 27회차) — 있으면 gesture 대신 튼다 */
+  motion?: string;
 }
 
 /** 채팅 방송 — 서버가 다듬어 확정한 글과 보낸 사람의 이름·가명 ID(방 상태보다 먼저 닿아도 이름을 안다) */

@@ -42,6 +42,7 @@ export {
 // 절차 손짓(인사 단계의 gesture) — 손짓 고르기 화면·로비 인사가 쓴다(2026-11-07)
 export { GESTURES } from "../../naju01/src/avatar/gestures";
 export { GESTURE_BASE_MOTION } from "../../naju01/src/avatar/useMotionPlayer";
+export { QUATERNIUS_PREFIX } from "../../naju01/src/avatar/chibiClipLibrary";
 export {
   DEFAULT_SIDEKICK_CONFIG,
   readSidekickAppearance,
