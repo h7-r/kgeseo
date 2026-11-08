@@ -190,15 +190,53 @@ describe("팀 캐릭터 NPC", () => {
     writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
   });
 
-  it("틀린 저장값은 버리고 기본 모습으로 돌아다닌다", () => {
-    const broken = { ...SEJIN, appearance: { ...SEJIN.appearance, hairId: "hair.unknown" } };
+  it("틀린 저장값(옷 · 색 · 체형)은 버리고 기본 모습으로 돌아다닌다", () => {
+    const broken = {
+      ...SEJIN,
+      appearance: { ...SEJIN.appearance, equipmentIds: { ...SEJIN.appearance.equipmentIds, top: "top.unknown" } },
+    };
     writeFileSync(FILE, JSON.stringify({ version: 1, npcs: { sejin: broken } }));
     const { crew, players, setNow } = makeCrew();
     setNow(9_000_000); // 파일 캐시를 넘기게
     crew.spawn();
-    const look = JSON.parse(players.get("npc-sejin")!.look) as { gender: string; hair: string };
+    const look = JSON.parse(players.get("npc-sejin")!.look) as { gender: string; hair: string; bottom: string };
     assert.equal(look.gender, "feminine");
     assert.equal(look.hair, "hair.f.bob");
+    assert.equal(look.bottom, "bottom.shorts.black");
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
+  });
+
+  it("머리만 이 서버가 모르는 것이면(다른 브랜치의 새 머리) 그 성별 기본 머리로만 바꾸고 나머지 외형은 살린다", () => {
+    const newHair = {
+      ...SEJIN,
+      appearance: {
+        ...SEJIN.appearance,
+        hairId: "hair.buzz.future",
+        equipmentIds: { ...SEJIN.appearance.equipmentIds, bottom: "bottom.jeans.skinny" },
+        colors: { ...SEJIN.appearance.colors, cloth: "#ff0000" },
+      },
+    };
+    writeFileSync(FILE, JSON.stringify({ version: 1, npcs: { sejin: newHair } }));
+    const logs: Array<[string, Record<string, unknown>]> = [];
+    let now = 9_500_000;
+    const players = new MapSchema<InstanceType<typeof Player>>();
+    const crew = new TeamNpcCrew(players, {
+      nowMs: () => now,
+      greet: () => {},
+      act: () => {},
+      log: (event, fields) => logs.push([event, fields ?? {}]),
+    });
+    now += 1;
+    crew.spawn();
+    const look = JSON.parse(players.get("npc-sejin")!.look) as {
+      hair: string;
+      bottom: string;
+      colors: { cloth: string };
+    };
+    assert.equal(look.hair, "hair.f.bob");
+    assert.equal(look.bottom, "bottom.jeans.skinny");
+    assert.equal(look.colors.cloth, "#ff0000");
+    assert.equal(logs.find(([event]) => event === "npc_spawned")?.[1].hairFallback, 1);
     writeFileSync(FILE, JSON.stringify({ version: 1, npcs: {} }));
   });
 

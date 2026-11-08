@@ -110,26 +110,41 @@ function speakableLines(entry: TeamEntry | undefined): { lines: SpeakableLine[];
   return { lines, blocked };
 }
 
-/** 저장값 → 방 상태 look 문자열. 사람과 같은 검사(+ 팀 전용 옷)를 지나야 하고, 틀리면 기본 모습 */
-function lookStringOf(slot: TeamSlot, entry: TeamEntry | undefined): { look: string; valid: boolean } {
+/**
+ * 저장값 → 방 상태 look 문자열. 사람과 같은 검사(+ 팀 전용 옷)를 지나야 하고, 틀리면 기본 모습. 단 머리만 이 서버가 모르는
+ * 것이면(다른 브랜치에서 더한 새 머리 — 황미르 반삭 hair.buzz, 검토 29회차) 그 성별 기본 머리로만 바꾸고 옷 · 색 · 체형은
+ * 살린다(hairFallback). 저장 파일은 그대로라 그 머리가 들어오면 저절로 그 머리가 된다
+ */
+function lookStringOf(
+  slot: TeamSlot,
+  entry: TeamEntry | undefined,
+): { look: string; valid: boolean; hairFallback: boolean } {
   if (entry) {
     const { appearance } = entry;
-    const look = lookToStateString(
-      {
-        catalog: LOOK_CATALOG_VERSION,
-        gender: appearance.gender,
-        hair: appearance.hairId ?? "hair.none",
-        top: appearance.equipmentIds.top ?? "top.none",
-        bottom: appearance.equipmentIds.bottom ?? "bottom.none",
-        shoes: appearance.equipmentIds.shoes ?? "shoes.none",
-        colors: appearance.colors,
-        body: appearance.bodyParameters,
-      },
-      TEAM_LOOK_ITEMS,
-    );
-    if (look) return { look, valid: true };
+    const toLook = (hair: string) =>
+      lookToStateString(
+        {
+          catalog: LOOK_CATALOG_VERSION,
+          gender: appearance.gender,
+          hair,
+          top: appearance.equipmentIds.top ?? "top.none",
+          bottom: appearance.equipmentIds.bottom ?? "bottom.none",
+          shoes: appearance.equipmentIds.shoes ?? "shoes.none",
+          colors: appearance.colors,
+          body: appearance.bodyParameters,
+        },
+        TEAM_LOOK_ITEMS,
+      );
+    const look = toLook(appearance.hairId ?? "hair.none");
+    if (look) return { look, valid: true, hairFallback: false };
+    const withDefaultHair = toLook(defaultLook(appearance.gender).hair);
+    if (withDefaultHair) return { look: withDefaultHair, valid: true, hairFallback: true };
   }
-  return { look: lookToStateString(defaultLook(entry?.appearance.gender ?? slot.gender)), valid: !entry };
+  return {
+    look: lookToStateString(defaultLook(entry?.appearance.gender ?? slot.gender)),
+    valid: !entry,
+    hairFallback: false,
+  };
 }
 
 // 파일은 서버 전체에서 하나 — 방마다 따로 읽지 않는다
@@ -222,12 +237,14 @@ export class TeamNpcCrew {
     const file = teamFile(now);
     this.#appliedFile = file;
     let invalid = 0;
+    let hairFallback = 0;
     let blockedLines = 0;
     for (const slot of TEAM_SLOTS) {
       const sid = `${NPC_SID_PREFIX}${slot.key}`;
       const entry = file.npcs[slot.key];
-      const { look, valid } = lookStringOf(slot, entry);
+      const { look, valid, hairFallback: fellBack } = lookStringOf(slot, entry);
       if (!valid) invalid += 1;
+      if (fellBack) hairFallback += 1;
       const others = this.#othersOf(sid);
       const [x, z] = this.#freeSpot(others);
       const speakable = speakableLines(entry);
@@ -260,7 +277,7 @@ export class TeamNpcCrew {
       });
       blockedLines += speakable.blocked;
     }
-    this.#options.log("npc_spawned", { count: this.#walkers.size, invalid, blockedLines });
+    this.#options.log("npc_spawned", { count: this.#walkers.size, invalid, hairFallback, blockedLines });
   }
 
   /** 서버 판정으로 맞았다 — 때린 사람 반대쪽으로(붙어 있으면 때린 사람 몸 방향으로) 주먹이 닿는 순간부터 민다 */
@@ -301,14 +318,14 @@ export class TeamNpcCrew {
     }
     for (const walker of this.#walkers.values()) {
       const entry = file.npcs[walker.slot.key];
-      const { look } = lookStringOf(walker.slot, entry);
+      const { look, hairFallback } = lookStringOf(walker.slot, entry);
       const nickname = entry?.displayName ?? walker.slot.name;
       const key = `${nickname}\n${look}`;
       if (key === walker.appliedLook) continue;
       walker.appliedLook = key;
       walker.player.look = look;
       walker.player.nickname = nickname;
-      this.#options.log("npc_look_changed", { npc: walker.slot.key });
+      this.#options.log("npc_look_changed", { npc: walker.slot.key, hairFallback });
     }
   }
 
