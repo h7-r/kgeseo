@@ -43,24 +43,37 @@
 ## 4. 실행 전 확인
 
 1. 대상: `case_id` · `content_version` · fingerprint(아래 status로 확인한 값과 같은지).
-2. 실행 근거(`--reason`)와 실행자(`--actor`). 운영 DB 이름(`--confirm-db`, 🟡 확인 필요).
+2. 실행 근거(`--reason`)와 실행자(`--actor`). 운영 DB 이름은 `waegok`(`--confirm-db waegok`).
 3. `status` → 계획(--commit 없이) → `--commit` 순서. 계획 출력의 `plan: A -> B`가 의도와 같은지.
 
 ## 5. CloudShell → SSM 명령
 
-**확인된 값**(저장소 `.github/workflows/deploy-backend.yml` · `server-logs.yml`): 리전 `ap-northeast-2`, 인스턴스 `i-006fa7d504dafaa75`, 배포는 SSM Run Command(사용자 문서 `waegok-Deploy` · `waegok-Logs`).
-**확인 안 된 값(🟡 — 미르가 운영 서버에서 확인 후 채운다):** 백엔드 폴더(문서상 예 `/opt/waegok/backend`), venv Python 경로, 운영 DB 이름, `AWS-RunShellScript` 사용 허용 여부.
-`.env`는 백엔드 폴더 기준으로 읽히므로 **반드시 그 폴더로 `cd` 한 뒤** 실행한다. 비밀번호 · 정답은 명령 · 출력에 나오지 않는다(명령 인자에 비밀값을 넣지 않는다).
+**운영 값(PM 11/8 확정):**
+
+| 항목 | 값 |
+|---|---|
+| 리전 · 인스턴스 | `ap-northeast-2` · `i-006fa7d504dafaa75` |
+| 백엔드 폴더 | `/srv/waegok/current/backend` |
+| Python | `/srv/waegok/current/venv/bin/python` |
+| 운영 DB 이름 | `waegok` |
+| 실행 사용자 | `waegok` |
+| 실행 경로 | CloudShell → SSM Run Command `AWS-RunShellScript`(PM이 실행 권한 보유) |
+| `PUBLISHED_CONTENT_ROOT` | **미확인** — resume 전에 서버 설정에서 확인 |
+
+- SSM `AWS-RunShellScript`는 root로 돈다. 그래서 백엔드 폴더로 `cd` 한 뒤 `sudo -n -u waegok`로 실행 사용자를 바꾼다(`-n`: 암호를 묻지 않고 바로 실패).
+- 설정은 백엔드 폴더 기준 `.env`에서 읽는다. **첫 `status`가 DB를 읽으면 설정 로딩이 확인된 것**이다. 설정을 못 읽으면 종료 1 · `[ERROR]`(설정 이름만, 값은 출력 안 함) — 운영 앱이 `.env`가 아니라 다른 방식(systemd 환경 등)으로 설정을 받는지 확인한다.
+- 비밀번호 · 정답은 명령 · 출력에 나오지 않는다(명령 인자에 비밀값을 넣지 않는다).
 
 ### 5-1. CloudShell에서 한 번만(변수)
 
 ```bash
-export AWS_REGION=ap-northeast-2 I=i-006fa7d504dafaa75 D=<백엔드 폴더> PY=<venv python 경로> DBN=<운영 DB 이름> FP=sha256:cf804b1740860aa563734f9d866bd660c14f5bf1f5f595cb4b118d557671f1b6
-run(){ local a q=""; for a in "$@"; do if [[ $a == *\"* || $a == *\'* || $a == *\\* ]]; then echo "인자에 따옴표 · 역슬래시를 쓰지 않는다: $a" >&2; return 1; fi; q="$q '$a'"; done; CID=$(aws ssm send-command --instance-ids "$I" --document-name AWS-RunShellScript --comment publication_state --parameters "{\"commands\":[\"cd '$D' && '$PY' -m scripts.publication_state$q\"]}" --query Command.CommandId --output text) && echo "CommandId=$CID" && aws ssm wait command-executed --command-id "$CID" --instance-id "$I"; aws ssm get-command-invocation --command-id "$CID" --instance-id "$I" --query '[Status,ResponseCode,StandardOutputContent,StandardErrorContent]' --output text; }
+export AWS_REGION=ap-northeast-2 I=i-006fa7d504dafaa75 D=/srv/waegok/current/backend PY=/srv/waegok/current/venv/bin/python U=waegok DBN=waegok FP=sha256:cf804b1740860aa563734f9d866bd660c14f5bf1f5f595cb4b118d557671f1b6
+run(){ local a q=""; for a in "$@"; do if [[ $a == *\"* || $a == *\'* || $a == *\\* ]]; then echo "인자에 따옴표 · 역슬래시를 쓰지 않는다: $a" >&2; return 1; fi; q="$q '$a'"; done; CID=$(aws ssm send-command --instance-ids "$I" --document-name AWS-RunShellScript --comment publication_state --parameters "{\"commands\":[\"cd '$D' && sudo -n -u '$U' '$PY' -m scripts.publication_state$q\"]}" --query Command.CommandId --output text) && echo "CommandId=$CID" && aws ssm wait command-executed --command-id "$CID" --instance-id "$I"; aws ssm get-command-invocation --command-id "$CID" --instance-id "$I" --query '[Status,ResponseCode,StandardOutputContent,StandardErrorContent]' --output text; }
 ```
 
 - `run`은 인자를 하나씩 작은따옴표로 감싸 서버에 그대로 넘긴다(띄어쓰기 · 쉼표가 있는 `--reason`도 한 인자). 인자에 `'` · `"` · `\`가 있으면 보내지 않고 멈춘다.
   로컬 확인(11/8): `aws`를 대역으로 바꿔 만든 `--parameters`가 올바른 JSON이고, 서버 쪽 인자가 의도대로 나뉨(실제 AWS 호출 없음).
+- 서버에 `sudo`가 없으면 `sudo -n -u '$U'` 대신 `runuser -u '$U' --`를 쓴다(root 전용).
 - `aws ssm wait command-executed`는 명령이 실패해도 끝난다(대기 실패 메시지가 나올 수 있다) — 그 뒤 `get-command-invocation`으로 실제 결과를 본다.
 
 ### 5-2. 명령 한 줄씩
@@ -73,15 +86,19 @@ run suspend --case-id naju-angam-01 --content-version 1 --expect-fingerprint $FP
 run suspend --case-id naju-angam-01 --content-version 1 --expect-fingerprint $FP --actor <실행자> --reason '<근거>' --commit --confirm-db $DBN
 # 3. block
 run block --case-id naju-angam-01 --content-version 1 --expect-fingerprint $FP --actor <실행자> --reason '<근거>' --commit --confirm-db $DBN
-# 4. resume (게시 루트 = 서버 PUBLISHED_CONTENT_ROOT, LOCAL_IDS 파일이 있으면 --local-ids)
+# 4. resume — 계획 먼저. 게시 루트는 서버 PUBLISHED_CONTENT_ROOT 와 같아야 한다(미확인 — 채운 뒤 실행)
+run resume --case-id naju-angam-01 --content-version 1 --expect-fingerprint $FP --content-root <PUBLISHED_CONTENT_ROOT> --local-ids <local-ids.json> --actor <실행자> --reason '<근거>'
 run resume --case-id naju-angam-01 --content-version 1 --expect-fingerprint $FP --content-root <PUBLISHED_CONTENT_ROOT> --local-ids <local-ids.json> --actor <실행자> --reason '<근거>' --commit --confirm-db $DBN
 ```
+
+- ⚠ **나주 v1 `resume`은 PR #62(idmap 대표 로컬 ID · EXECUTABLE_REFS 수정)가 운영에 배포돼 있어야 통과한다.** 재개는 게시 게이트를 다시 돌리므로, #62가 없는 서버에서는 IDMAP FAIL(종료 2)로 막힌다. `status` · `suspend` · `block`은 #62와 무관하다.
+- blocked 에서 재개할 때는 먼저 G1 · G2 · G3 재승인(`record_gate_review`, 직전 기록 `--supersedes` + `--reason`)이 있어야 한다.
 
 - `--reason`은 CloudShell에서 작은따옴표로 감싸 한 인자로 넘긴다. 그 안에 `'` · `"` · `\`는 쓸 수 없다(`run`이 거부).
 - 요청 성공과 명령 성공은 다르다: `send-command`가 CommandId를 주면 **요청만** 접수된 것이다. 결과는 `get-command-invocation`의 `Status`(Success · Failed …)와 `ResponseCode`(= CLI 종료 코드)로 본다.
   - `ResponseCode` 0 성공 · 변화 없음 · 계획 / 1 입력 오류 · 대상 없음 · DB 오류 / 2 게이트 · 재승인 차단 / 3 상태 충돌 · 허용 안 되는 전이.
 - 결과를 나중에 다시 볼 때: `aws ssm get-command-invocation --command-id <CommandId> --instance-id "$I" --query '[Status,ResponseCode,StandardOutputContent]' --output text`
-- 필요한 IAM 권한(CloudShell 사용자): `ssm:SendCommand`(이 인스턴스 + `AWS-RunShellScript` 문서), `ssm:GetCommandInvocation`, `ssm:ListCommandInvocations`. 인스턴스 역할은 이미 SSM 관리 대상이다(배포가 SSM으로 됨).
+- 필요한 IAM 권한(CloudShell 사용자): `ssm:SendCommand`(이 인스턴스 + `AWS-RunShellScript` 문서), `ssm:GetCommandInvocation`, `ssm:ListCommandInvocations` — PM 보유(11/8 확정).
 - 더 안전한 대안(권장, 미르 결정): `waegok-Deploy`처럼 **허용 인자만 받는 전용 SSM 문서**(예: `waegok-PublicationState` — action은 4개 중 하나, case_id · version 형식 검사)를 만들어 임의 셸 실행을 막는다.
 
 ## 6. 실행 후 확인
@@ -99,7 +116,17 @@ run resume --case-id naju-angam-01 --content-version 1 --expect-fingerprint $FP 
 | 3 | 상태가 이미 바뀜 · 허용 안 되는 전이 · fingerprint 불일치 | `status`로 현재 상태 다시 보고 판단 |
 | SSM `Failed`인데 ResponseCode 없음 | 셸 · 경로 문제 | `StandardErrorContent` 확인(폴더 · Python 경로) |
 
-## 8. 배포와의 관계
+## 8. 배포와의 관계 · 권장 순서
 
 - 이 명령 파일은 **이 브랜치가 main에 병합 · 운영 배포된 뒤에만** 서버에 있다(main 병합 = 운영 자동 배포).
 - 상태 변경은 배포 없이 즉시 적용되고, 배포 · 재시작해도 DB 상태는 유지된다.
+
+권장 순서(나주 v1):
+
+1. PR #62 리뷰 · 병합(나주 v1 Zone 호환 · 게이트 검증기)
+2. PR #65(이 명령) 리뷰 · 병합
+3. Backend 자동 배포 성공 확인(Actions `deploy-backend`)
+4. 운영 실행 경로에서 `run status --case-id naju-angam-01 --content-version 1` — 게시 전이면 `status=none (게시 기록 없음)`이 정상(설정 · DB 접속 확인)
+5. 최종 LOCAL_IDS 검증 · G1~G3 승인(`record_gate_review`)
+6. 나주 콘텐츠 v1 운영 게시(`publish_case_content --commit`) · 앱 재시작 · `check_published_restore`
+7. 게시 뒤 `run status` → `status=published`
