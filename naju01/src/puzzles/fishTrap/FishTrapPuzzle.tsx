@@ -9,6 +9,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { gameNow } from "@/engine/input/gameClock";
 
 import { recall, remember, track } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
@@ -79,6 +80,9 @@ function restoreCatchingTrap(traps: Trap[]) {
   trap.caught = stage === "full" || stage === "pulled" ? FULL_COUNT : recall("fishTrap.caught", 0);
 }
 
+/** 맞는 통발이 물에 든 뒤 이만큼(초) 지나도 불씨가 안 들면 하나 넣어 준다 */
+const FIRST_EMBER_SECONDS = 12;
+
 export default function FishTrapPuzzle() {
   const scene = useThree((state) => state.scene);
   const gl = useThree((state) => state.gl);
@@ -97,6 +101,8 @@ export default function FishTrapPuzzle() {
   /** 게이지로 당기는 중인 말뚝 — 멀어지면 그만둔다 */
   const pullingStakeRef = useRef(-1);
   const nextTugRef = useRef(0);
+  /** 맞는 통발이 빈 채로 물에 들어간 때(게임 시계 ms — 멈춘 동안은 안 흐른다). 프레임 dt 는 상한이 있어 저사양에서 늘어난다 */
+  const emptySinceRef = useRef<number | null>(null);
   const isShoeDroppedRef = useRef(recall("fishTrap.isShoeDropped", false));
 
   const pourState = useMemo(() => createPourState(), []);
@@ -207,7 +213,8 @@ export default function FishTrapPuzzle() {
       const trap = traps.find((entry) => entry.stake === stake);
       if (!trap || isBusy()) return;
       if (traps.some((entry) => entry.place === "shore" || entry.place === "baiting")) {
-        showNotice("흰 줄 통발이 아직 뭍에 있다. 먼저 물에 넣어야 한다.");
+        // 줄 색을 말하면 어느 줄이 그 통발 것인지 드러난다(상황조사 B02)
+        showNotice("뭍에 있는 통발을 먼저 물에 넣어야 한다.");
         return;
       }
       if (trap.place !== "water" || isGaugeActive()) return;
@@ -358,6 +365,18 @@ export default function FishTrapPuzzle() {
 
     // 찬 뒤에도 불티가 부딪혀 그 줄만 이따금 떨린다 — 어느 줄을 당길지의 단서
     const catching = traps[CATCHING_TRAP] ?? null;
+    // 첫 불씨 대기 상한 — 물고기가 물살을 타고 드는 데 운에 따라 30초 넘게 걸리기도 했다(박람회판 정리 · 미르 11/8).
+    // 이만큼 지나도 안 들면 줄이 떨리며 「찼다」로 넘어간다
+    if (catching && catching.place === "water" && catching.caught === 0) {
+      emptySinceRef.current ??= gameNow();
+      if (gameNow() - emptySinceRef.current > FIRST_EMBER_SECONDS * 1000) {
+        catching.caught = 1;
+        catching.tug = 1;
+        catching.splashPending = true;
+        audio.play("똑");
+        fishTrapPuzzle.fill();
+      }
+    } else emptySinceRef.current = null;
     if (catching && catching.place === "water" && catching.caught > 0) {
       nextTugRef.current -= dt;
       if (nextTugRef.current <= 0) {

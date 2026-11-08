@@ -30,7 +30,7 @@ import {
   buildRuts,
   buildWheelGeometry,
 } from "./cartModels";
-import { ALTAR, CART_START, CHEST_START, GATE, RIDGE_CENTER, isInsideCurtain } from "./ridgeShape";
+import { ALTAR, CART_START, CHEST_START, GATE, RIDGE_CENTER, RUT_PATH, isInsideCurtain } from "./ridgeShape";
 import { ridge, ridgeCarry, ridgeQuest, useRidgeStage } from "./ridgeState";
 import { makeVertexColorMaterial } from "./vertexPaint";
 
@@ -84,6 +84,10 @@ interface CartState {
   toldChest: boolean;
   wheel: WheelPlace;
   wheelT: number;
+  /** 바퀴 자국을 따라 돌단 곁으로 저절로 굴러가는 중 — 손으로 밀면 수레가 화면 밖이라 잘 미는지 안 보이고 그루터기에 걸린다(박람회판 정리 · 미르 11/8). 저장하지 않는다(다시 E 면 그 자리부터 다시 구른다) */
+  roll: { points: { x: number; z: number }[]; total: number; s: number } | null;
+  /** 굴러 와 선 자리에 플레이어가 있으면 비킬 때까지 밟는 상자를 켜지 않는다 */
+  isSolidHeld: boolean;
 }
 
 function createCart() {
@@ -127,6 +131,8 @@ function createCart() {
     toldChest: false,
     wheel: "on",
     wheelT: 0,
+    roll: null,
+    isSolidHeld: false,
   };
   return {
     body,
@@ -165,6 +171,66 @@ function useHeldKeys() {
     };
   }, [keys]);
   return keys;
+}
+
+/** 굴림 — 빠르기(m/s) · 돌단에서 이만큼 앞에 선다(돌단 안 ALTAR_REACH 2.6 m 안, 몸통이 돌단에 안 닿게) · 도는 빠르기 */
+const ROLL_SPEED = 1.3;
+const ROLL_STOP_FROM_ALTAR = 1.75;
+const ROLL_TURN_RATE = 3.2;
+
+/** 바퀴 자국(그린 것과 같은 곡선)을 거꾸로 — 지금 수레 자리에서 돌단 곁까지의 꺾은선 */
+function buildRollPath(fromX: number, fromZ: number) {
+  const curve = new THREE.CatmullRomCurve3([...RUT_PATH].reverse().map(([x, z]) => new THREE.Vector3(x, 0, z)));
+  const samples = curve.getPoints(80);
+  // 수레에서 가장 가까운 점부터 · 돌단까지 ROLL_STOP_FROM_ALTAR 안으로 처음 드는 점까지
+  let startAt = 0;
+  let nearest = Infinity;
+  samples.forEach((point, i) => {
+    const distance = Math.hypot(point.x - fromX, point.z - fromZ);
+    if (distance < nearest) {
+      nearest = distance;
+      startAt = i;
+    }
+  });
+  let stopAt = samples.length - 1;
+  for (let i = startAt; i < samples.length; i++)
+    if (Math.hypot(samples[i].x - ALTAR.x, samples[i].z - ALTAR.z) <= ROLL_STOP_FROM_ALTAR) {
+      stopAt = i;
+      break;
+    }
+  const points = [{ x: fromX, z: fromZ }, ...samples.slice(startAt + 1, stopAt + 1).map((p) => ({ x: p.x, z: p.z }))];
+  let total = 0;
+  for (let i = 1; i < points.length; i++)
+    total += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
+  return { points, total, s: 0 };
+}
+
+/** 굴림 한 프레임 — 꺾은선을 따라 나아가고 나아가는 쪽으로 천천히 돈다. 끝나면 false */
+function advanceRoll(state: CartState, dt: number) {
+  const roll = state.roll;
+  if (!roll) return false;
+  roll.s = Math.min(roll.total, roll.s + ROLL_SPEED * dt);
+  let left = roll.s;
+  for (let i = 1; i < roll.points.length; i++) {
+    const a = roll.points[i - 1];
+    const b = roll.points[i];
+    const length = Math.hypot(b.x - a.x, b.z - a.z);
+    if (left <= length || i === roll.points.length - 1) {
+      const t = length > 0 ? Math.min(1, left / length) : 1;
+      state.x = a.x + (b.x - a.x) * t;
+      state.z = a.z + (b.z - a.z) * t;
+      // 미는 쪽 = (−sin yaw, −cos yaw) — 나아가는 쪽을 보게
+      if (length > 1e-4) {
+        const want = Math.atan2(-(b.x - a.x), -(b.z - a.z));
+        let turn = want - state.yaw;
+        turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+        state.yaw += THREE.MathUtils.clamp(turn, -ROLL_TURN_RATE * dt, ROLL_TURN_RATE * dt);
+      }
+      break;
+    }
+    left -= length;
+  }
+  return roll.s < roll.total;
 }
 
 /**
@@ -446,14 +512,19 @@ export default function RidgeCart() {
         showNotice("바퀴 하나가 빠져 수레가 기울어 있다. 빠진 바퀴는… 바람에 떠올라 머리 위에서 맴돌고 있다.", 4.5);
         return;
       }
-      const foot = camera.position.y / M - 1.6;
-      if (foot > groundY(camera.position.x / M, camera.position.z / M) + 0.3) {
-        showNotice("수레 위에서는 수레를 밀 수 없다. 내려서 밀자.", 3);
+      // 손으로 밀지 않는다 — 궤를 실었으면 바퀴 자국을 따라 돌단 곁으로 저절로 굴러간다
+      if (state.roll) return;
+      if (state.chest !== "cart") {
+        showNotice("빈 수레다. 궤를 지게에 지고 와 수레에 먼저 싣자.", 3.5);
         return;
       }
-      state.isGrabbed = true;
-      audio.play("똑");
-      if (state.chest === "cart") showNotice("궤를 실은 수레가 묵직하게 구른다.", 2.5);
+      if (Math.hypot(state.x - ALTAR.x, state.z - ALTAR.z) < ALTAR_REACH) {
+        showNotice("수레가 이미 돌단 곁에 있다 — 돌단을 겨누고 E 로 궤를 올리자.", 3.5);
+        return;
+      }
+      state.roll = buildRollPath(state.x, state.z);
+      audio.play("우르릉");
+      showNotice("수레를 밀자 바퀴 자국을 따라 묵직하게 굴러간다 — 장승 앞 돌단으로.", 4);
     };
     // 수레 어디를 겨눠도 E 로 바로 잡는다(궤를 지고 있으면 내려놓기가 먼저다)
     const removeCart = registerInteractable({
@@ -463,7 +534,12 @@ export default function RidgeCart() {
       highlight: () => cart.body,
       radius: 1.3 * M,
       reach: 3 * M,
-      enabled: () => activeRef.current && !state.isGrabbed && state.wheel !== "held" && ridgeCarry.load !== "jigeChest",
+      enabled: () =>
+        activeRef.current &&
+        !state.isGrabbed &&
+        !state.roll &&
+        state.wheel !== "held" &&
+        ridgeCarry.load !== "jigeChest",
       use: toggleGrab,
     });
     const removeWheel = registerInteractable({
@@ -637,6 +713,14 @@ export default function RidgeCart() {
       if (!activeRef.current) state.isGrabbed = false;
       pushCart(cart, camera, keys, dt);
     }
+    if (state.roll && !advanceRoll(state, dt)) {
+      state.roll = null;
+      // 선 자리에 플레이어가 있으면 비킬 때까지 밟는 상자를 켜지 않는다(몸에 박히지 않게)
+      state.isSolidHeld = true;
+      audio.play("똑");
+      showNotice("수레가 돌단 곁에 섰다 — 돌단을 겨누고 E 로 궤를 올리자.", 4);
+    }
+    if (state.isSolidHeld && Math.hypot(px - state.x, pz - state.z) > CART.halfZ + 0.6) state.isSolidHeld = false;
     const chestY = placeChest(cart, camera, dt);
     const isWheelOn = placeWheel(cart, camera, time, dt);
 
@@ -653,7 +737,7 @@ export default function RidgeCart() {
       yaw: state.yaw,
       bottom: cartGround - 0.5,
       top: cartGround + CART.bedTop,
-      enabled: !state.isGrabbed,
+      enabled: !state.isGrabbed && !state.roll && !state.isSolidHeld,
     });
     Object.assign(cart.chestSolid, {
       x: state.chestX,
@@ -666,7 +750,9 @@ export default function RidgeCart() {
         state.chest !== "carried" &&
         state.chest !== "toAltar" &&
         state.chest !== "sucked" &&
-        !state.isGrabbed,
+        !state.isGrabbed &&
+        !state.roll &&
+        !state.isSolidHeld,
     });
   });
 

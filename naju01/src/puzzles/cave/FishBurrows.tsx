@@ -148,6 +148,8 @@ export default function FishBurrows() {
   const rounds = useMemo(() => makeRounds(), []);
   const isSolved = roundsDone >= rounds.length;
   const roundsRef = useRef(roundsDone);
+  /** 마지막 보상(톱니돌)을 줬나 — 판 수는 solve 전에 오르므로 판 수로는 못 막는다(Codex 04). 두 번 주지 않게 */
+  const isRewardedRef = useRef(roundsDone >= rounds.length);
   const inputRef = useRef(0);
   const awaitingRef = useRef(false);
   /** 차례 보여 주기 — 시작 시각(없으면 −1) · 다음 판 자동 시작 시각 */
@@ -196,6 +198,8 @@ export default function FishBurrows() {
   };
 
   const solve = () => {
+    if (isRewardedRef.current) return;
+    isRewardedRef.current = true;
     roundsRef.current = rounds.length;
     setRoundsDone(rounds.length);
     awaitingRef.current = false;

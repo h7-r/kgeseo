@@ -18,6 +18,7 @@ import { teleportPlayer } from "../cave/caveState";
 import { showNotice } from "../interaction";
 import { inventory } from "../inventory";
 import { M, groundY } from "../units";
+import { isBoxOpened } from "./boxPhase";
 import { GATE } from "./ridgeShape";
 import { RIFT_ENTRY, riftEntrySince, startRiftEntry, tickRiftEntry } from "./riftEntry";
 import { ridge, useRidgeStage } from "./ridgeState";
@@ -162,6 +163,8 @@ export default function GateRift() {
   const stage = useRidgeStage();
   /** 틈을 지나 바위 위로 건너갔나 — 캄캄해진 순간 한 번 */
   const hasCrossed = useRef(false);
+  /** 상자 전 틈 거절 알림을 너무 자주 띄우지 않게 */
+  const riftRefusedAt = useRef(0);
 
   useEffect(() => {
     scene.add(rift.mesh, rift.light);
@@ -196,7 +199,13 @@ export default function GateRift() {
     if (now === "rift" && rift.material.uniforms.uOpen.value > 0.6) {
       const dx = frame.camera.position.x / M - GATE.center.x;
       const dz = frame.camera.position.z / M - GATE.center.z;
-      if (Math.hypot(dx, dz) < ENTER_RADIUS && startRiftEntry()) {
+      // 편지 상자(그림자극)를 다 본 뒤에야 틈이 받는다 — 이야기 결말 보장 · 상자가 틈 너머에 남아 꺼내기 어려운 경우 방지(박람회판 정리)
+      if (!isBoxOpened() && Math.hypot(dx, dz) < ENTER_RADIUS + 0.8) {
+        if (performance.now() - riftRefusedAt.current > 4000) {
+          riftRefusedAt.current = performance.now();
+          showNotice("틈이 밀어낸다 — 편지 상자를 먼저 열어 보자.", 3.5);
+        }
+      } else if (Math.hypot(dx, dz) < ENTER_RADIUS && startRiftEntry()) {
         // 빨려 든다 — 시선이 틈 가운데로 천천히 당겨지고 걷기가 멈춘다. 건너가는 것은 캄캄해진 뒤
         audio.play("우르릉");
         director.cue({ 카메라: "흔들림", 세기: 0.35 });
