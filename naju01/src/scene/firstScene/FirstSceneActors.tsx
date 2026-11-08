@@ -50,6 +50,7 @@ import {
   type LookTarget,
 } from "./abisaLines";
 import { ActorRig } from "./actorRig";
+import { firstScenePoints } from "./firstScenePoints";
 import { writeAbisaPose, writeSerpentPose, type AbisaPose, type SerpentPose } from "./bendShader";
 import { claimTalk, isTalkTaken, releaseTalk, setNpcSpeech } from "./npcSpeech";
 import { isTalkPaused } from "./storyTalk";
@@ -350,12 +351,15 @@ function updateSerpent(brain: Brain, rig: ActorRig, eye: THREE.Vector3, dt: numb
 
   const wantsAlert = state.serpentDistance < 7 ? 1 : 0;
   state.alert = smooth(state.alert, wantsAlert, wantsAlert ? 1.6 : 0.6, dt);
-  // 처음 다가가면 — 조사관의 판단(위험해 보인다). 소리는 날 수 있을 때 한 번(Codex 리뷰)
-  if (state.alert > 0.5 && !state.isSerpentNoticed && isPointerActive()) {
+  // 처음 다가가면 — 조사관의 판단(위험해 보인다). 소리는 날 수 있을 때 한 번(Codex 리뷰).
+  // 화면 고정 · 다른 사람(동행 소개 등)이 말하는 중이면 한 번뿐인 알림을 쓰지 않고 미룬다(Codex 08)
+  const isHeldBack = isCameraFocused() || isTalkTaken(TALK_ID);
+  if (state.alert > 0.5 && !state.isSerpentNoticed && isPointerActive() && !isHeldBack) {
     state.isSerpentNoticed = true;
+    firstScenePoints.isSerpentNoticed = true;
     showNotice(SERPENT_NOTICE, 4);
   }
-  if (state.alert > 0.5 && !state.isAlertHeard && audio.ctx?.state === "running") {
+  if (state.alert > 0.5 && !state.isAlertHeard && audio.ctx?.state === "running" && !isHeldBack) {
     state.isAlertHeard = true;
     audio.play("쉬익");
   }
@@ -642,6 +646,12 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
     scene.add(echo.root);
     return () => echo.dispose();
   }, [scene, echo]);
+  useEffect(
+    () => () => {
+      firstScenePoints.abisaHead = null;
+    },
+    [],
+  );
 
   // 아비사 — 구렁이가 있으면 지켜볼 뿐, 그 뒤로는 의뢰(끊긴 줄부터) · 인연 이야기 · 지금 단계 한 줄. 말하는 중이면 다음 줄
   useEffect(() => {
@@ -760,6 +770,7 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
     }
     if (rigs.abisa.isPlaced) rigs.abisa.toWorld(ABISA_HEAD, abisaHead);
     else abisaHead.set(0, -1e6, 0);
+    firstScenePoints.abisaHead = rigs.abisa.isPlaced ? abisaHead : null;
     if (rigs.serpent.isPlaced && !brain.state.isSerpentDriven) rigs.serpent.toWorld(SNAKE_HEAD, serpentHead);
     else serpentHead.set(0, -1e6, 0);
 

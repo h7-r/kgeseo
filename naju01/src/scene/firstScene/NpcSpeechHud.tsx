@@ -4,7 +4,9 @@
  *  - 상자 윗변 높이를 `--npc-speech-top` 으로 알린다 — 알림 · 겨냥 안내(InteractionHud)가 상자 위로 비켜 선다.
  *  - 터치 화면은 오른쪽 아래 동작 단추 묶음을 피하고(왼쪽 스틱 자리는 눌림이 그대로 지나간다), 말하는 동안은 아래 빠른 칸이
  *    숨어 상자가 맨 아래로 내려온다. 알림은 상자 안 맨 위 한 줄로 — 키 작은 휴대폰에서 위로 띄우면 좌상단 퍼즐 안내판과 겹쳤다(UI 전수 검사).
- *  - 「다음」 안내는 이름표 줄 오른쪽에 — 상자를 한 줄 낮춘다.
+ *  - 「다음」 안내는 이름표 줄 오른쪽에 — 상자를 한 줄 낮춘다. 겨누지 않고 넘기는 대사(onNext — 동행 소개 클로즈업)는
+ *    「[E] 다음」 · 터치 「✋ 다음」. 넘기기는 말하는 쪽이 E 키로 받는다 — 터치 ✋ 단추도 같은 E 를 보낸다.
+ *    상자 안에 누르는 단추를 두지 않는 까닭: 터치 시점 끌기 층(TouchHud, z 900)이 이 상자 위를 덮어 눌리지 않는다.
  *  - 여러 줄이면 위로 자란다. 한국어는 낱말 단위로 줄을 바꾼다(keep-all).
  */
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
@@ -71,7 +73,12 @@ export default function NpcSpeechHud() {
       <div key={speech.key} className="companion-line">
         <div style={headStyle}>
           <span style={nameStyle}>{speech.speaker}</span>
-          {speech.canAdvance && (
+          {speech.onNext && (
+            <span style={advanceStyle}>
+              {labels.isTouch ? "✋" : `[${labels.key("E")}]`} 다음 <span className="companion-dots">▸</span>
+            </span>
+          )}
+          {!speech.onNext && speech.canAdvance && (
             <span style={advanceStyle}>
               {labels.isTouch ? "✋" : `[${labels.key("E")}]`} 겨누면 다음 <span className="companion-dots">▸</span>
             </span>

@@ -17,6 +17,7 @@ import { setCompanionChatOpen } from "./chatOpen";
 import { useNpcSpeech } from "../scene/firstScene/npcSpeech";
 import { MAX_MESSAGE_LENGTH } from "./companionDialog.ts";
 import { cancelCompanionHold, useCompanionHold } from "./companionPrompt";
+import { isCompanionIntro, useCompanionIntro } from "./companionStage";
 import {
   COMPANION_NAME,
   MOCK_SCENARIO,
@@ -41,6 +42,8 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
   // 입력칸 effect 는 열릴 때 한 번만 돌아야 한다(잠금 기억 · 포커스) — 닫기 함수가 매번 바뀌면 다시 돌아 둘 다 잃는다
   const closeTyping = useCallback(() => setIsTyping(false), []);
   const isTouch = useTouchMode();
+  // 첫 입장 소개 중에는 입력칸을 열지 않는다(Enter · 💬) — 소개 대사와 겹치지 않게(Codex 08)
+  const isIntro = useCompanionIntro();
   // 터치 모드의 창 판정(MobileGate)이 입력칸을 창으로 보게 밖에 알린다
   useEffect(() => setCompanionChatOpen(isTyping), [isTyping]);
 
@@ -57,7 +60,7 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
   useEffect(() => {
     if (!isLocked || !dialog.isEnabled || isTyping) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "Enter" || event.repeat || event.isComposing) return;
+      if (event.code !== "Enter" || event.repeat || event.isComposing || isCompanionIntro()) return;
       event.preventDefault();
       setIsTyping(true);
     };
@@ -73,7 +76,7 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
   return (
     <>
       {/* 터치 — 💬 로 입력칸을 연다. 아이폰은 탭 안에서 바로 포커스해야 키보드가 뜨므로 그 탭에서 동기로 그린다(flushSync) */}
-      {isTouch && isLocked && dialog.isEnabled && !isTyping && (
+      {isTouch && isLocked && dialog.isEnabled && !isTyping && !isIntro && (
         <button
           type="button"
           aria-label={`${COMPANION_NAME}에게 말하기`}

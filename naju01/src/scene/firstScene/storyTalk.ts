@@ -12,7 +12,7 @@ import { isPointerActive } from "@/engine/input/virtualLock";
 import { isGaugeActive } from "../../puzzles/fishTrap/pullGauge";
 import { isWindowHeld } from "../../puzzles/pointerHold";
 import { isPaperOpenNow } from "../../puzzles/ridge/oldPaper";
-import { isCameraFocused } from "../cameraFocus";
+import { cameraFocusId } from "../cameraFocus";
 import { stage } from "../immersion/state";
 import { claimTalk, releaseTalk, setNpcSpeech } from "./npcSpeech";
 
@@ -27,9 +27,21 @@ export interface StoryLine {
 /** 한 줄을 띄워 두는 시간(초) — 글이 길수록 길게 */
 export const lineSeconds = (text: string) => THREE.MathUtils.clamp(1.6 + text.length * 0.075, 2.8, 5.5);
 
-/** 말을 멈출 때 — 다른 일(창 · 종이 · 게이지 · 연출)에 묶여 있거나 조작이 풀려 있다 */
-export const isTalkPaused = () =>
-  !isPointerActive() || isWindowHeld() || isPaperOpenNow() || isGaugeActive() || isCameraFocused() || !!stage.cut;
+/**
+ * 말을 멈출 때 — 다른 일(창 · 종이 · 게이지 · 연출)에 묶여 있거나 조작이 풀려 있다.
+ * ownsFocus = 말하는 쪽이 제가 건 화면 고정(클로즈업)을 알아보는 함수 — 제 고정 중에는 멈추지 않는다.
+ */
+export const isTalkPaused = (ownsFocus?: (id: string) => boolean) => {
+  const focusId = cameraFocusId();
+  return (
+    !isPointerActive() ||
+    isWindowHeld() ||
+    isPaperOpenNow() ||
+    isGaugeActive() ||
+    (focusId !== null && !ownsFocus?.(focusId)) ||
+    !!stage.cut
+  );
+};
 
 export class StoryTalk {
   lines: StoryLine[] = [];
@@ -43,6 +55,10 @@ export class StoryTalk {
   onLineDone: ((index: number) => void) | null = null;
   /** 끝까지 들었다 */
   onDone: (() => void) | null = null;
+  /** 이 말하기가 건 화면 고정(클로즈업)인지 — 그 고정 중에는 멈추지 않는다 */
+  ownsFocus: ((id: string) => boolean) | undefined = undefined;
+  /** 겨누지 않고 넘길 수 있다(상자에 「다음」 안내 — E · 터치 ✋ 는 부르는 쪽이 press 로 잇는다) */
+  canPress = false;
 
   constructor(
     readonly id: string,
@@ -81,6 +97,13 @@ export class StoryTalk {
     this.onDone?.();
   }
 
+  /** 겨누지 않고 다음 줄로 — 줄을 띄운 동안만(첫 줄 전 틈 · 멈춘 동안은 무시). 넘겼으면 true */
+  press(): boolean {
+    if (!this.isActive || this.isPaused || this.index < 0) return false;
+    this.next();
+    return true;
+  }
+
   /** 그친다(멀어짐 · 편집) — 들은 줄까지만 남는다 */
   stop() {
     if (this.isActive) this.finish();
@@ -89,7 +112,7 @@ export class StoryTalk {
   /** 매 프레임 */
   tick(dt: number) {
     if (!this.isActive) return;
-    const shouldPause = isTalkPaused();
+    const shouldPause = isTalkPaused(this.ownsFocus);
     if (shouldPause !== this.isPaused) {
       this.isPaused = shouldPause;
       const line = this.line;
@@ -103,7 +126,15 @@ export class StoryTalk {
   }
 
   private show(line: StoryLine) {
-    setNpcSpeech({ speaker: this.speaker, text: line.text, canAdvance: this.canAdvance }, this.id);
+    setNpcSpeech(
+      {
+        speaker: this.speaker,
+        text: line.text,
+        canAdvance: this.canAdvance,
+        onNext: this.canPress ? () => void this.press() : undefined,
+      },
+      this.id,
+    );
   }
 
   private finish() {

@@ -11,8 +11,10 @@ export interface NpcSpeech {
   text: string;
   /** 같은 글이 이어 나와도 다시 그리게 */
   key: number;
-  /** [E] 로 넘길 수 있다 */
+  /** [E] 로 넘길 수 있다(그 인물을 겨누고) */
   canAdvance: boolean;
+  /** 겨누지 않고 넘긴다(E · 터치 ✋) — 화면 고정 중처럼 겨눌 수 없는 연출. 있으면 상자가 「다음」 안내를 띄운다 */
+  onNext?: () => void;
 }
 
 const signal = createChangeSignal();
