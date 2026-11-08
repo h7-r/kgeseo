@@ -188,6 +188,14 @@ let notice: { text: string; key: number } | null = null;
 const noticeSignal = createChangeSignal();
 let noticeTimer = 0;
 
+/** 이 글의 알림이 떠 있으면 바로 내린다 — 기다리던 일이 끝났는데 안내가 남지 않게 */
+export function clearNotice(text: string) {
+  if (notice?.text !== text) return;
+  window.clearTimeout(noticeTimer);
+  notice = null;
+  noticeSignal.notify();
+}
+
 export function showNotice(text: string, seconds = 3.2) {
   notice = { text, key: (notice?.key ?? 0) + 1 };
   noticeSignal.notify();

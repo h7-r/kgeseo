@@ -17,6 +17,7 @@ import { recall, track } from "../../save/puzzleMemory";
 import { addDynamicSolid, solidQueries, type DynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
 import { registerInteractable, showNotice } from "../interaction";
+import { onEscapeUnlock } from "../pointerHold";
 import { prewarmShaders } from "../prewarm";
 import { M, groundY } from "../units";
 import {
@@ -585,7 +586,14 @@ export default function RidgeCart() {
       if (event.code === "KeyE" && !event.repeat && state.isGrabbed) toggleGrab();
     };
     window.addEventListener("keydown", onKey);
+    // ESC 로 잠금이 풀리면 수레를 놓는다 — 첫 ESC 는 잡기 전으로(pointerHold)
+    const removeEscape = onEscapeUnlock(() => {
+      if (!state.isGrabbed) return false;
+      state.isGrabbed = false;
+      return true;
+    });
     return () => {
+      removeEscape();
       removeCart();
       removeChest();
       removeChestOnBack();

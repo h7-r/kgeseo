@@ -50,6 +50,7 @@ import { BASELINE, UNITS_PER_METER, VIEWPOINTS } from "../plan/sitePlan";
 import { teleportPlayer } from "../puzzles/cave/caveState";
 import { useHintBoxOpen } from "../puzzles/hintBoxView";
 import InventoryModal from "../puzzles/InventoryModal";
+import { beginHold, bindPointerHold, endHold } from "../puzzles/pointerHold";
 import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
 import NajuScene, { type NajuSceneReport, type NajuToonConfig } from "../scene/NajuScene";
 import { audio } from "../scene/immersion/audio";
@@ -201,11 +202,17 @@ export default function App() {
   const isHintBoxOpen = useHintBoxOpen();
   const isChatOpen = useCompanionChatOpen();
   const isWindowOpen = isSettingsOpen || isInventoryOpen || isHintBoxOpen || isChatOpen;
-  // 다른 길(퍼즐 · 개발 훅 등)로 창이 열려도 조작 잠금을 풀어 둔다 — 터치 단추가 창 위에 남지 않게(14회차).
-  // 단축키 · HUD 단추로 열었으면 이미 풀려 있어 아무 일도 하지 않는다. 닫으면 MobileGate 가 조작으로 되돌린다
+  useEffect(() => bindPointerHold(() => controlsRef.current), []);
+  // 창이 떠 있는 동안 조작 잠금을 붙든다(pointerHold) — 어느 길로 열어도(단축키 · 단추 · 퍼즐 · 개발 훅) 풀고(터치 단추가 창 위에
+  // 남지 않게, 14회차), 어느 길로 닫아도(ESC · 단축키 · 닫기 단추 · 배경 · 꺼내기) 열기 전에 조작 중이었을 때만 다시 잠근다(미르 11/8).
+  // 터치에서 닫을 때 다시 잠그는 일은 MobileGate 가 한다
+  useWindowHold("settings", isSettingsOpen);
+  useWindowHold("inventory", isInventoryOpen);
+  useWindowHold("hintBox", isHintBoxOpen);
+  // 동행 입력은 제 손으로 풀고(열 때 잠겨 있었으면 ESC 로 닫으며) 다시 잠근다 — 여기서는 다른 길로 열렸을 때만 풀어 둔다
   useEffect(() => {
-    if (isWindowOpen && isPointerActive()) controlsRef.current?.unlock();
-  }, [isWindowOpen]);
+    if (isChatOpen && isPointerActive()) controlsRef.current?.unlock();
+  }, [isChatOpen]);
   useGameHotkeys({
     controlsRef,
     isLocked,
@@ -302,13 +309,7 @@ export default function App() {
       {IS_COMPANION_ENABLED && !IS_REVIEW_REQUESTED && (
         <CompanionHud controlsRef={controlsRef} isLocked={isLocked} showStatus={SHOW_DEV_TOOLS} />
       )}
-      <InventoryModal
-        open={isInventoryOpen}
-        onClose={() => {
-          setIsInventoryOpen(false);
-          controlsRef.current?.lock();
-        }}
-      />
+      <InventoryModal open={isInventoryOpen} onClose={() => setIsInventoryOpen(false)} />
       {IS_REVIEW_REQUESTED && <ReviewHud />}
       {SHOW_DEV_TOOLS && !isLocked && <ControlsHelp />}
       {ALLOW_VIEW_TOGGLE && (
@@ -330,10 +331,7 @@ export default function App() {
       {SHOW_SETTINGS_BUTTON && !isTouch && (
         <button
           type="button"
-          onClick={() => {
-            controlsRef.current?.unlock();
-            setIsSettingsOpen((open) => !open);
-          }}
+          onClick={() => setIsSettingsOpen((open) => !open)}
           style={settingsButtonStyle}
           aria-label="설정 열기"
         >
@@ -355,6 +353,15 @@ export default function App() {
       )}
     </div>
   );
+}
+
+/** 창이 열려 있는 동안 조작 잠금을 붙든다 — 닫히거나(어느 길이든) 내려가면 놓는다 */
+function useWindowHold(id: string, isOpen: boolean) {
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    beginHold(id, "window");
+    return () => endHold(id);
+  }, [id, isOpen]);
 }
 
 /** (?dev) 조작 안내 — 잠그기 전에만 화면 아래에 뜬다 */

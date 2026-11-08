@@ -1,7 +1,7 @@
 /**
  * 줄 당기기 게이지 — 막대가 게이지 위를 오가고, 호박빛 칸에 왔을 때 [E] 를 누르면 한 번 당겨진다.
  * 세 번 맞추면 통발이 올라온다. 판마다 어려워진다 — 둘째는 칸이 좁아지고, 셋째는 칸이 옆으로 옮겨 가며 막대도 빨라진다.
- * 놓쳐도 벌은 없다.
+ * 놓쳐도 벌은 없다. 당기는 동안은 잠금을 풀어 두고(pointerHold) [Esc] 로 그만둔다 — 통발은 물에 그대로라 다시 당기면 된다.
  */
 import { useSyncExternalStore } from "react";
 
@@ -10,6 +10,7 @@ import { onGameThaw } from "@/engine/input/gamePause";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import { setKeyInterceptor } from "../interaction";
+import { beginHold, endHold, isWindowHeld } from "../pointerHold";
 
 export const GAUGE_HITS = 3;
 
@@ -100,6 +101,7 @@ function handleKey() {
 export function startGauge(label: string, next: GaugeHandlers) {
   handlers = next;
   setKeyInterceptor(handleKey);
+  beginHold("gauge", "interaction");
   update({ active: true, label, hits: 0, flash: null, ...roundFor(0) });
 }
 
@@ -115,7 +117,14 @@ export function stopGauge() {
   handlers = null;
   setKeyInterceptor(null);
   update({ active: false });
+  endHold("gauge");
 }
+
+// [Esc] — 그만두기. 위에 창이 떠 있으면 창이 먼저 닫힌다
+if (typeof window !== "undefined")
+  window.addEventListener("keydown", (event) => {
+    if (event.code === "Escape" && state.active && !isWindowHeld()) stopGauge();
+  });
 
 export const isGaugeActive = () => state.active;
 

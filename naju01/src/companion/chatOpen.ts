@@ -15,4 +15,6 @@ export function setCompanionChatOpen(next: boolean) {
   signal.notify();
 }
 
+export const isCompanionChatOpen = () => isOpen;
+
 export const useCompanionChatOpen = () => useSyncExternalStore(signal.subscribe, () => isOpen);

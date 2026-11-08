@@ -1,11 +1,13 @@
 /**
  * 종이 읽기 — 궤 속 낡은 종이를 손에 들고 읽는 화면(Canvas 밖 DOM). 왼쪽 가장자리에 작게 떠서 가운데 장면을 가리지 않고,
- * [E] · [Esc] 로 내려놓는다. 열려 있는 동안 [E] 는 여기서 받아 다른 것에 안 닿는다
+ * [E] · [Esc] 로 내려놓는다. 열려 있는 동안 [E] 는 여기서 받아 다른 것에 안 닿는다.
+ * 읽는 동안은 잠금이 풀려 있어(pointerHold) [Esc] 가 종이만 내려놓고 조작으로 돌아간다. 위에 창이 떠 있으면 창이 먼저 닫힌다
  */
 import { useEffect, useMemo, type CSSProperties } from "react";
 
 import { useKeyLabels } from "@/engine/input";
 import { setKeyInterceptor } from "../interaction";
+import { isWindowHeld } from "../pointerHold";
 import { closePaper, getOldPaperCanvas, usePaperOpen } from "./oldPaper";
 
 export default function PaperReadHud() {
@@ -20,7 +22,7 @@ export default function PaperReadHud() {
       return true;
     });
     const onKey = (event: KeyboardEvent) => {
-      if (event.code === "Escape") closePaper();
+      if (event.code === "Escape" && !isWindowHeld()) closePaper();
     };
     window.addEventListener("keydown", onKey);
     return () => {

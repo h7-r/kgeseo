@@ -16,6 +16,7 @@ import { audio } from "../../scene/immersion/audio";
 import { director, setZoneRainGate } from "../../scene/immersion/director";
 import { CORRIDOR, getPartOpenness } from "../cave/caveState";
 import { registerInteractable, setKeyInterceptor, showNotice } from "../interaction";
+import { onEscapeUnlock } from "../pointerHold";
 import { setPuzzlePanel } from "../puzzlePanel";
 import { ITEMS, type ItemKind } from "../inventory";
 import { buildItemLooks } from "../itemLooks";
@@ -288,6 +289,12 @@ export default function RitualCircle() {
     };
 
     const disposers = [
+      // ESC 로 잠금이 풀리면 끌던 돌탑을 놓는다 — 첫 ESC 는 끌기 전으로(pointerHold)
+      onEscapeUnlock(() => {
+        if (draggingRef.current === null) return false;
+        release();
+        return true;
+      }),
       ...cairns.map((cairn, index) =>
         registerInteractable({
           id: `ritual-cairn-${index}`,
