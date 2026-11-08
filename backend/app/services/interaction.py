@@ -57,6 +57,18 @@ from app.services.scene_progress import clear_scenes
 RuntimeLoader = Callable[[str], PuzzleRuntimeDefinition]
 ClientContentLoader = Callable[[str], CaseClientContent]
 
+# PM 11/8: 나주 v1은 navigate 계약 없이 진행한다 — 요청의 zone_id를 현재 위치로 인정한다(정식 navigate는 v2).
+# 버전 고정 세션의 (case_id, content_version)이 정확히 이 목록에 있을 때만 적용한다. 다른 케이스 · 버전 ·
+# 버전 없는(레거시) 세션은 기존 현재 구역 검사를 그대로 쓴다. 요청 Zone은 콘텐츠에 있어야 하고(404),
+# Object는 그 Zone 안에서만 찾으므로(object_resolver) 다른 Zone의 Object로 판정을 우회할 수 없다.
+REQUEST_ZONE_AS_CURRENT = frozenset({("naju-angam-01", 1)})
+
+
+def accepts_request_zone(play_session: PlaySession) -> bool:
+    return (play_session.case_id, play_session.content_version) in (
+        REQUEST_ZONE_AS_CURRENT
+    )
+
 
 class InteractionServiceError(Exception):
     pass
@@ -172,13 +184,21 @@ async def process_interaction(
                 loaded_client_content.append(client_content)
             return loaded_client_content[0]
 
+        accept_request_zone = accepts_request_zone(play_session)
+
+        def current_zone_state(zone_id: str) -> dict[str, Any]:
+            return _ensure_current_zone(
+                current_state,
+                zone_id,
+                load_client_content,
+                accept_request_zone=accept_request_zone,
+            )
+
         message = None
         if isinstance(interaction, CompletePuzzleInteraction):
             result_type, result_state, state_changes, attempt_count = _process_complete(
                 interaction,
-                _ensure_current_zone(
-                    current_state, interaction.zone_id, load_client_content
-                ),
+                current_zone_state(interaction.zone_id),
                 runtime,
                 load_client_content,
             )
@@ -190,18 +210,14 @@ async def process_interaction(
                 attempt_count,
             ) = _process_submit_answer(
                 interaction,
-                _ensure_current_zone(
-                    current_state, interaction.zone_id, load_client_content
-                ),
+                current_zone_state(interaction.zone_id),
                 runtime,
                 load_client_content,
             )
         elif isinstance(interaction, InspectInteraction):
             result_type, result_state, state_changes, message = _process_inspect(
                 interaction,
-                _ensure_current_zone(
-                    current_state, interaction.zone_id, load_client_content
-                ),
+                current_zone_state(interaction.zone_id),
                 runtime,
                 load_client_content,
             )
@@ -209,9 +225,7 @@ async def process_interaction(
         elif isinstance(interaction, NavigateInteraction):
             result_type, result_state, state_changes = _process_navigate(
                 interaction,
-                _ensure_current_zone(
-                    current_state, interaction.zone_id, load_client_content
-                ),
+                current_zone_state(interaction.zone_id),
                 load_client_content,
             )
             attempt_count = None
@@ -223,9 +237,7 @@ async def process_interaction(
                 attempt_count,
             ) = _process_select_choice(
                 interaction,
-                _ensure_current_zone(
-                    current_state, interaction.zone_id, load_client_content
-                ),
+                current_zone_state(interaction.zone_id),
                 runtime,
                 load_client_content,
             )
@@ -237,6 +249,20 @@ async def process_interaction(
                 load_client_content,
             )
             attempt_count = None
+
+        # 요청 Zone을 현재 위치로 인정했으면 그 이동을 알린다(navigate는 자기 이동을 이미 알린다).
+        moved_to = result_state.get("current_zone_id")
+        if (
+            accept_request_zone
+            and not isinstance(interaction, NavigateInteraction)
+            and moved_to != current_state.get("current_zone_id")
+        ):
+            state_changes = [
+                CurrentZoneChangedStateChange(
+                    type="current_zone_changed", zone_id=moved_to
+                ),
+                *state_changes,
+            ]
 
         # 같은 세션 행 잠금 안에서 판정하므로 장면 · Case 완료 기록은 한 번만 일어난다.
         # 장면은 이번 상호작용을 반영한 최신 상태로 판정하고, 같은 state_json에 함께 저장한다.
@@ -746,11 +772,14 @@ def _ensure_current_zone(
     state: dict[str, Any],
     zone_id: str,
     load_client_content: Callable[[], CaseClientContent],
+    *,
+    accept_request_zone: bool = False,
 ) -> dict[str, Any]:
     """요청 Zone이 서버의 현재 위치인지 확인하고, 판정에 쓸 상태를 반환한다.
 
     current_zone_id가 없는 과거 세션은 Zone이 하나뿐인 콘텐츠에서만 입구로 복원한다.
     복원한 값은 반환 상태에 담겨 이번 상호작용과 함께 저장된다.
+    `accept_request_zone`(REQUEST_ZONE_AS_CURRENT 콘텐츠)이면 콘텐츠에 있는 요청 Zone을 현재 위치로 삼는다.
     """
 
     current_zone_id = state.get("current_zone_id")
@@ -761,6 +790,9 @@ def _ensure_current_zone(
     zone_ids = {zone.zone_id for zone in client_content.zones}
     if zone_id not in zone_ids:
         raise ZoneNotFoundError(f"Zone '{zone_id}' not found.")
+
+    if accept_request_zone:
+        return {**state, "current_zone_id": zone_id}
 
     if current_zone_id is None:
         # Zone이 여러 개면 실제 위치를 알 수 없으므로 입구로 간주하지 않는다.

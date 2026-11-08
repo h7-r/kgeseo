@@ -549,8 +549,19 @@ def _non_executable_references(
     defined_puzzles = {p.puzzle_id for p in server.puzzles}
     reasons: list[str] = []
 
+    # idmap이 상호작용이 있다고 적은 물건(상태와 무관). Client에 상호작용이 없는 물건과 맞지 않으면 막는다.
+    declared_interactive = {
+        (o.zone_id, o.object_id) for o in idmap.objects if o.interaction is not None
+    }
+
     for zone in client.zones:
         for obj in zone.objects:
+            if obj.interaction is None:
+                # 상호작용 없는 소품(스키마 허용)은 Interaction 대상이 아니라 참조 검사 대상이 아니다.
+                # 대응표가 상호작용을 적었는데 Client에 없으면 FE가 보낸 요청이 거절되므로 막는다.
+                if (zone.zone_id, obj.object_id) in declared_interactive:
+                    reasons.append(f"interaction_missing:{obj.object_id}")
+                continue
             # 차단물 · 상태 없는 대응도 placed가 아니므로 실행 불가로 본다(PM 확인 필요).
             if (zone.zone_id, obj.object_id) not in placed_objects:
                 reasons.append(f"interaction_object:{obj.object_id}")
