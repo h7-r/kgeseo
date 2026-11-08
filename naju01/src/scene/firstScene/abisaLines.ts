@@ -13,7 +13,8 @@ import type { FishTrapStage } from "../../puzzles/fishTrap/fishTrapState";
 export const ABISA_NAME = "아비사";
 
 /** 이 줄을 말하는 동안 바라볼 곳 — 없으면 플레이어 */
-export type LookTarget = "hoe" | "hearth" | "rock" | "river";
+/** echo = 다시 나타나 물가에 머무는 구렁이 */
+export type LookTarget = "hoe" | "hearth" | "rock" | "river" | "echo";
 
 export interface AbisaLine {
   text: string;
@@ -41,6 +42,9 @@ export const BACKSTORY_LINES: AbisaLine[] = [
   { text: "그이를 처음 만난 것도 이 물가였어요. 병드신 아버지께 드릴 물고기를 못 구해 울고 있었는데…", isDown: true },
   { text: "그이가 자기가 잡은 물고기를 건네줬어요. 그날부터였어요.", lookAt: "river" },
 ];
+
+/** 구렁이가 다시 나타나 물가에 머무는 동안 말을 걸면 한 번 — 지금 느낌만(기억 · 정체를 말하지 않는다, F-08 · Codex 05) */
+export const ECHO_LINE: AbisaLine = { text: "…이상하죠. 저 구렁이를 보면 무섭지가 않아요.", lookAt: "echo" };
 
 /** 다시 말을 걸면 — 지금 단계에 맞는 한 줄 */
 export function stageLine(clam: ClamStage, trap: FishTrapStage): AbisaLine {

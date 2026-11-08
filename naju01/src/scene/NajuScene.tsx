@@ -356,7 +356,7 @@ export default function NajuScene({
       />
       {isFocusNow && controls.showInvestigationPoints && gates && <DistortionGates spots={gates} />}
       {/* 첫 장면 아비사 · 구렁이 — 숨 · 시선 · 인사 · 대사. 편집 중에는 기본 자세로 멈춘다 */}
-      <FirstSceneActors enabled={!isEditing} />
+      <FirstSceneActors enabled={!isEditing} groundY={(x, z) => terrain.groundAt(x, z).y} />
       {IS_FOCUS_ENABLED && (
         <ImmersionLayer terrain={terrain} playerRef={playerState} gateSpots={gates} active={active && !isReviewHold} />
       )}

@@ -71,6 +71,11 @@ export class ActorRig {
     this.updatePlacement();
   }
 
+  /** 가까이 그리는 무리 메시 — 다시 나타나는 구렁이가 재질 · 외곽선을 본뜬다 */
+  get nearMesh() {
+    return this.near;
+  }
+
   /** 숨기기 · 다시 보이기 — 바뀔 때만 메시에 적는다 */
   setHidden(isHidden: boolean) {
     if (this.isHidden === isHidden) return;

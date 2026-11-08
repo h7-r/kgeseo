@@ -151,7 +151,7 @@ export function bendUniformsFor(kind: ActorKind): BendUniforms {
   return (store[kind] ??= createBendUniforms(kind));
 }
 
-function createBendUniforms(kind: ActorKind): BendUniforms {
+export function createBendUniforms(kind: ActorKind): BendUniforms {
   if (kind === "abisa")
     return {
       uBreath: { value: 0 },
