@@ -56,8 +56,11 @@ const START: [number, number | undefined, number] = [DOOR_X, undefined, DOOR_Z +
 /** 객차는 x 로 길다. 기본 시선(-z)이면 옆벽을 코앞에서 마주 본다. */
 const START_FACING = -Math.PI / 2;
 const EXIT_DISTANCE = 4.5;
-/** 문 폭 안에서 벽까지 이만큼 다가가면 걸어서 내린다(사람이 벽에 붙을 수 있는 끝이 1.0) */
-const AUTO_EXIT_DEPTH = 1.25;
+/**
+ * 문 폭 안에서 벽까지 이만큼 다가가면 걸어서 내린다. 사람이 벽에 붙는 끝은 1.0 이지만 비스듬히 걸으면 이동 경계가 어깨 몫(0.31,
+ * useMovement SHOULDER_REACH)만큼 더 좁혀 1.31 까지 밀려난다 — 어느 각도로 와도 닿게 그보다 넉넉히(Codex 리뷰 64a8cc4)
+ */
+const AUTO_EXIT_DEPTH = 1.45;
 /** 걸어서 내리기는 문 벽에서 이만큼 한 번 떨어진 뒤에만 — 들어온 자리(2.6) · 문 앞에 저장된 자리에서 곧바로 내리지 않게 */
 const EXIT_ARM_DEPTH = 2.2;
 /** 내리는 문 표시 색 — 튜토리얼 바닥 동그라미와 같은 색(같은 「여기로 가라」로 읽힌다) */
