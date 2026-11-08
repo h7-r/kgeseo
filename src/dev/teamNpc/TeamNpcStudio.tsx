@@ -10,7 +10,7 @@
 //     한다(검토 26회차) — 외침은 고정이라 여기서는 보여 주기만 한다.
 //   · 대사마다 칠 때의 동작을 고른다(미르 11/8 「가용한 애니메이션 목록 다 보여주면 돼」, 검토 27회차) — 인사 동작 6 + 치비 클립
 //     47(lobby/src/npc/teamGestures.ts). 안 고르면 지금처럼 무작위 인사 동작. 대사와 동작은 늘 짝으로 저장한다.
-import { useCallback, useEffect, useState, type CSSProperties } from "react";
+import { Component, lazy, Suspense, useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 import { UI, UI_FONT } from "@/game/gameUi";
 import { TEAM_CATALOG } from "@/lobby/teamCatalog";
@@ -41,6 +41,28 @@ import {
   type TeamMotion,
 } from "../../../lobby/src/npc/teamGestures";
 import { EMOTES } from "../lobbyPreview/emotes";
+
+// 동작 보고 고르기 창(3D) — 누를 때만 불러온다(검토 28회차)
+const MotionPicker = lazy(() => import("./MotionPicker"));
+
+/** 고르기 창을 못 불러왔을 때 — 안내하고 닫을 수 있게 */
+class PickerBoundary extends Component<{ onClose: () => void; children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  override render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div role="alert" style={pickerFallback}>
+        <p style={{ margin: 0 }}>동작 고르기 창을 불러오지 못했어요. 개발 서버를 확인해 주세요.</p>
+        <button type="button" style={linesSave} onClick={this.props.onClose}>
+          닫기
+        </button>
+      </div>
+    );
+  }
+}
 
 /** 「안녕!」과 · 「비켜!」와 — 마지막 한글 글자에 받침이 있으면 「과」 */
 function withAnd(text: string) {
@@ -77,26 +99,12 @@ const lineLength = (text: string) => [...text.replace(/\s+/gu, " ").trim()].leng
 const secondsText = (motion: TeamMotion) =>
   motion.loop ? `반복 ${LOOP_PLAY_SECONDS}초` : `${motion.seconds.toFixed(motion.seconds < 1 ? 2 : 1)}초`;
 
-/** 동작 선택지 — 안 고름(무작위 인사 동작) · 인사 동작 6 · 치비 클립 전부 */
-const GESTURE_OPTIONS = (
-  <>
-    <option value="">무작위 인사 동작(지금처럼)</option>
-    <optgroup label="인사 동작">
-      {TEAM_EMOTE_MOTIONS.map((motion) => (
-        <option key={motion.id} value={motion.id}>
-          {motion.label}
-        </option>
-      ))}
-    </optgroup>
-    <optgroup label="전체 동작 — 제자리에서 흉내만(실제로 움직이거나 때리지 않아요)">
-      {TEAM_CLIP_MOTIONS.map((motion) => (
-        <option key={motion.id} value={motion.id}>
-          {motion.label} · {secondsText(motion)}
-        </option>
-      ))}
-    </optgroup>
-  </>
-);
+/** 고른 동작 이름(버튼에 보인다) */
+const MOTION_BY_ID = new Map([...TEAM_EMOTE_MOTIONS, ...TEAM_CLIP_MOTIONS].map((motion) => [motion.id, motion]));
+const gestureText = (id: string) => {
+  const motion = MOTION_BY_ID.get(id);
+  return motion ? `${motion.label} · ${secondsText(motion)}` : "무작위 인사 동작";
+};
 
 interface DraftLine {
   text: string;
@@ -136,6 +144,9 @@ function LinesEditor({
   const callText = EMOTES[slot.call - 1]?.text ?? "";
   const update = (i: number, patch: Partial<DraftLine>) =>
     setDraft((current) => current.map((line, n) => (n === i ? { ...line, ...patch } : line)));
+  /** 동작 고르기 창을 연 대사 번호 */
+  const [picking, setPicking] = useState<number | null>(null);
+  const closePicker = useCallback(() => setPicking(null), []);
 
   const submit = async () => {
     setState({ kind: "saving" });
@@ -200,26 +211,41 @@ function LinesEditor({
                 {length}/{TEAM_LINE_MAX_LENGTH}
               </span>
             </label>
-            <label htmlFor={gestureId} style={lineRow}>
-              <span style={lineLabel}>동작</span>
-              <select
+            <div style={lineRow}>
+              <span id={`${gestureId}-label`} style={lineLabel}>
+                동작
+              </span>
+              <button
                 id={gestureId}
-                value={line.gesture}
+                type="button"
                 disabled={disabled || blank}
+                aria-labelledby={`${gestureId}-label ${gestureId}`}
                 title={blank ? "대사를 먼저 적어 주세요" : undefined}
-                onChange={(event) => update(i, { gesture: event.target.value })}
-                style={{ ...lineInput, ...gestureSelect, ...(disabled || blank ? gestureSelectOff : null) }}
+                onClick={() => setPicking(i)}
+                style={{ ...lineInput, ...gestureButton, ...(disabled || blank ? gestureButtonOff : null) }}
               >
-                {GESTURE_OPTIONS}
-              </select>
-              <span style={lineCount} />
-            </label>
+                <span style={gestureName}>{gestureText(line.gesture)}</span>
+                <span style={gestureOpen}>보고 고르기 ▸</span>
+              </button>
+              <span style={{ ...lineCount, color: UI.accent }}>
+                {!blank && line.gesture !== (savedGestures[i] ?? "") ? "바뀜" : ""}
+              </span>
+            </div>
           </div>
         );
       })}
       <div style={linesFoot}>
-        <span role={state.kind === "error" ? "alert" : undefined} style={{ color: UI.danger, fontSize: 12 }}>
-          {state.kind === "error" ? state.message : tooLong ? `대사는 ${TEAM_LINE_MAX_LENGTH}자까지예요.` : ""}
+        <span
+          role={state.kind === "error" ? "alert" : undefined}
+          style={{ color: state.kind === "error" || tooLong ? UI.danger : UI.accent, fontSize: 12 }}
+        >
+          {state.kind === "error"
+            ? state.message
+            : tooLong
+              ? `대사는 ${TEAM_LINE_MAX_LENGTH}자까지예요.`
+              : dirty
+                ? "바뀐 것이 있어요 — 「대사 저장」을 눌러야 로비에 반영돼요."
+                : ""}
         </span>
         <button
           type="submit"
@@ -229,6 +255,23 @@ function LinesEditor({
           {state.kind === "saving" ? "저장 중…" : "대사 저장"}
         </button>
       </div>
+      {picking !== null && entry && (
+        <PickerBoundary onClose={closePicker}>
+          <Suspense fallback={<div style={pickerFallback}>동작 미리보기를 불러오는 중…</div>}>
+            <MotionPicker
+              who={`${entry.displayName} · 대사 ${picking + 1}`}
+              line={draft[picking]?.text.trim() ?? ""}
+              appearance={entry.appearance}
+              value={draft[picking]?.gesture ?? ""}
+              onPick={(id) => {
+                update(picking, { gesture: id });
+                setPicking(null);
+              }}
+              onClose={closePicker}
+            />
+          </Suspense>
+        </PickerBoundary>
+      )}
     </form>
   );
 }
@@ -472,9 +515,31 @@ const linesTitle: CSSProperties = { color: UI.textMuted, fontSize: 12, fontWeigh
 const lineRow: CSSProperties = { display: "grid", gridTemplateColumns: "auto 1fr auto", alignItems: "center", gap: 8 };
 /** 대사 한 줄과 그 동작 칸 */
 const lineBlock: CSSProperties = { display: "flex", flexDirection: "column", gap: 6 };
-/** 동작 고르기 — 입력칸과 같은 틀, 펼친 목록도 어두운 색으로 */
-const gestureSelect: CSSProperties = { colorScheme: "dark", cursor: "pointer", fontSize: 13, paddingRight: 8 };
-const gestureSelectOff: CSSProperties = { opacity: 0.5, cursor: "default" };
+/** 동작 고르기 버튼 — 입력칸과 같은 틀에 지금 고른 동작 이름 + 「보고 고르기」 */
+const gestureButton: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+  textAlign: "left",
+  cursor: "pointer",
+  fontSize: 13,
+};
+const gestureButtonOff: CSSProperties = { opacity: 0.5, cursor: "default" };
+const gestureName: CSSProperties = { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const gestureOpen: CSSProperties = { flexShrink: 0, color: UI.accent, fontSize: 12, fontWeight: 600 };
+const pickerFallback: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 50,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 12,
+  background: UI.surface,
+  color: UI.textMuted,
+};
 const lineLabel: CSSProperties = { color: UI.textSubtle, fontSize: 12, whiteSpace: "nowrap", minWidth: "3.4em" };
 const lineInput: CSSProperties = {
   boxSizing: "border-box",
