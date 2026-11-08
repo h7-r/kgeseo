@@ -333,6 +333,80 @@ def test_object_scene_and_key_checks() -> None:
     assert ("OBJECT_GROUP_CONFLICT", "OBJ_S1_X_1") in found
 
 
+def representative(local: str, object_id: str = "OBJ_S1_CLAM_HOLES", scene: int = 1):
+    return {
+        "local": local,
+        "object_id": object_id,
+        "scene": scene,
+        "zone": "Z1",
+        "zone_id": "ZONE_ALPHA",
+        "status": "placed",
+        "interaction": {"type": "input"},
+        "at_m": [1, 1],
+    }
+
+
+@pytest.mark.parametrize(
+    "local", ["clam-holes", "cave-door", "cave-big-clam", "float-stone-0", "p01"]
+)
+def test_v11_representative_local_ids_are_accepted(local: str) -> None:
+    """대응표 v1.1 §2~§5: 대표 Object 로컬 ID는 FE registerInteractable id 그대로다."""
+    raw = draft()
+    raw["objects"].append(representative(local))
+
+    report = validate_idmap(raw)
+
+    assert report.internal_valid is True
+    assert ("OBJECT_LOCAL_KEY_INVALID", "OBJ_S1_CLAM_HOLES") not in codes(report)
+    assert ("OBJECT_ID_RULE_MISMATCH", "OBJ_S1_CLAM_HOLES") not in codes(report)
+
+
+@pytest.mark.parametrize(
+    "local",
+    [
+        "Clam-Holes",
+        "clam_holes",
+        "clam holes",
+        "clam-",
+        "-clam",
+        "clam--holes",
+        "씬1.조개",
+        "씬1.조개#",
+        "#3",
+        "clam-holes ",
+        "clam/holes",
+    ],
+)
+def test_other_local_keys_are_still_invalid(local: str) -> None:
+    raw = draft()
+    raw["objects"].append(representative(local))
+
+    assert ("OBJECT_LOCAL_KEY_INVALID", "OBJ_S1_CLAM_HOLES") in errors(raw)
+
+
+@pytest.mark.parametrize(
+    ("object_id", "scene"),
+    [("OBJ_S2_CLAM_HOLES", 1), ("OBJ_S1_CLAM_HOLES_", 1), ("CLAM_HOLES", 1)],
+)
+def test_representative_object_id_rule_is_checked_as_warning(object_id, scene) -> None:
+    raw = draft()
+    raw["objects"].append(representative("clam-holes", object_id, scene))
+
+    report = validate_idmap(raw)
+
+    assert ("OBJECT_ID_RULE_MISMATCH", object_id) in codes(report, "warning")
+
+
+def test_representative_local_id_used_as_group_without_instances_conflicts() -> None:
+    raw = draft()
+    raw["objects"].append(representative("clam-holes"))
+    raw["object_groups_without_instances"].append(
+        {"local_group": "clam-holes", "object_id_base": "OBJ_S1_OTHER", "note": "x"}
+    )
+
+    assert ("OBJECT_GROUP_CONFLICT", "OBJ_S1_CLAM_HOLES") in errors(raw)
+
+
 def test_object_rule_and_scene_placement_warnings_do_not_invalidate_draft() -> None:
     raw = draft()
     raw["objects"][0]["object_id"] = "OBJ_S1_BASKET_7"

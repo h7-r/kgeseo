@@ -375,18 +375,36 @@ def test_sealed_bundle_passes_schema_checks_and_reports_known_blockers():
     assert not result.approved and not result.registered
     # 검수 목록(proper_nouns · ng) 없음 → 막힌다
     assert checks["POLICY_DATA"].status == "FAIL"
-    # v1.1 대표 로컬 ID(`clam-holes` 등)는 idmap 검증기 v0.1 의 `<묶음>#<번호>` 규칙과 맞지 않는다
-    reasons = set(checks["IDMAP"].reasons)
+    # v1.1 대표 로컬 ID(`clam-holes` 등)는 받는다. 남은 IDMAP 오류는 Zone 없는 초안 차단물 4개뿐(PM 결정 대기)
     assert checks["IDMAP"].status == "FAIL"
-    for object_id in (
-        "OBJ_S1_CLAM_HOLES",
-        "OBJ_S1_JAR_SLOTS",
-        "OBJ_S1_CAVE_BIG_CLAM",
-        "OBJ_S1_CAVE_RING_DOOR",
-        "OBJ_S1_CAVE_TABLET",
-    ):
-        assert f"OBJECT_LOCAL_KEY_INVALID:{object_id}" in reasons
+    assert set(checks["IDMAP"].reasons) == {
+        f"MISSING_IN_CLIENT:{object_id}"
+        for object_id in (
+            "OBJ_BLOCKER_RIDGE",
+            "OBJ_BLOCKER_NORTH_ROCK",
+            "OBJ_BLOCKER_EAST_ROCK",
+            "OBJ_BLOCKER_WEST_ROCKFALL",
+        )
+    }
+    # IDMAP 에서 멈추므로 뒤 검사는 실행되지 않는다(통과로 보지 않는다)
+    assert "EXECUTABLE_REFS" not in checks and "SCENES" not in checks
     assert fingerprint.startswith("sha256:")
+
+
+def test_v1_npc_uses_exactly_the_15_approved_nudges_verbatim():
+    _, lines = drafts()
+    draft = {line["line_id"]: line for line in lines["lines"]}
+    npc = built()["npc"]
+    nudges = [n for p in npc["puzzles"] for n in p["nudges"]]
+    assert [n["line_id"] for n in nudges] == list(builder.APPROVED_V1_NUDGE_IDS)
+    assert len(nudges) == 15
+    assert "NUDGE_P01_HELP_3_J" not in {n["line_id"] for n in nudges}
+    for nudge in nudges:
+        source = draft[nudge["line_id"]]
+        assert nudge["text"] == source["text"]
+        assert (source["category"], source["tone"]) == ("퍼즐 넛지", "polite")
+    assert npc["general_nudges"] == [] and "situations" not in npc
+    assert all(key not in npc for key in ("proper_nouns", "ng", "open"))
 
 
 # ── 4. 실제 묶음(비공개 정답) — 환경 변수가 있을 때만 ──

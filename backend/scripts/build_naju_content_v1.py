@@ -138,6 +138,29 @@ QUIET_ZONE_IDS = {
 }
 NUDGE_TONE = "polite"  # 대사 초안의 베타 한 벌
 ALWAYS = {"always": True}
+# PM 11/8 G3 확인 대상 15줄(v1 퍼즐 넛지, NUDGE_P01_HELP_3_J 제외). 원문은 대사 초안 그대로 쓴다.
+# 승인 기록은 묶음 fingerprint 단위(case_content G3)라 이 목록 자체는 승인 기록이 아니다.
+APPROVED_V1_NUDGE_IDS = (
+    "NUDGE_P01_HELP_1_J",
+    "NUDGE_P01_HELP_2_J",
+    "NUDGE_P01_STUCK_1_J",
+    "NUDGE_P01_WRONG_1_J",
+    "NUDGE_P01_WRONG_2_J",
+    "NUDGE_P03_ARRIVE_1_J",
+    "NUDGE_P03_HELP_1_J",
+    "NUDGE_P03_HELP_2_J",
+    "NUDGE_P03_HELP_3_J",
+    "NUDGE_P03_STUCK_1_J",
+    "NUDGE_P03_STUCK_2_J",
+    "NUDGE_P07_HELP_1_J",
+    "NUDGE_P07_STUCK_1_J",
+    "NUDGE_P09_HELP_1_J",
+    "NUDGE_P09_STUCK_1_J",
+)
+REPRESENTATIVE_KEY_RULE = (
+    "v1.1(11/8) 대표 · 단서 · 걸음 Object 는 FE registerInteractable id(또는 묶음 이름) 그대로 — "
+    "소문자 · 숫자 · 하이픈(예: clam-holes), Object ID 는 OBJ_S<씬>_<영문 이름>(번호 없음)"
+)
 
 
 class BuildError(ValueError):
@@ -319,7 +342,10 @@ def build_idmap(idmap_draft: Mapping[str, Any]) -> dict[str, Any]:
             **idmap_draft["local_source"],
             "v1_table": "docs/naju/나주_ID대응표_v1_1108.md (v1.1)",
         },
-        "rules": deepcopy(idmap_draft["rules"]),
+        "rules": {
+            **deepcopy(idmap_draft["rules"]),
+            "object_local_key_representative": REPRESENTATIVE_KEY_RULE,
+        },
         "zones": zones,
         "scenes": deepcopy(idmap_draft["scenes"]),
         "navigation": deepcopy(idmap_draft["navigation"]),
@@ -352,12 +378,16 @@ def _lines(npc_lines: Mapping[str, Any], category: str) -> list[Mapping[str, Any
 
 
 def build_npc(npc_lines: Mapping[str, Any]) -> dict[str, Any]:
+    by_id = {line["line_id"]: line for line in _lines(npc_lines, "퍼즐 넛지")}
+    missing = [line_id for line_id in APPROVED_V1_NUDGE_IDS if line_id not in by_id]
+    if missing:
+        raise BuildError(f"approved nudges missing from draft: {missing}")
     puzzles = []
     for puzzle_id, _, _ in V1_PUZZLES:
         nudges = [
-            {"line_id": line["line_id"], "text": line["text"], "reveal_when": ALWAYS}
-            for line in _lines(npc_lines, "퍼즐 넛지")
-            if line["puzzle_id"] == puzzle_id
+            {"line_id": line_id, "text": by_id[line_id]["text"], "reveal_when": ALWAYS}
+            for line_id in APPROVED_V1_NUDGE_IDS
+            if by_id[line_id]["puzzle_id"] == puzzle_id
         ]
         if nudges:
             puzzles.append({"puzzle_id": puzzle_id, "nudges": nudges})
