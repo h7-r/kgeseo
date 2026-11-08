@@ -11,9 +11,11 @@ import { playSound } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 import { lobbyStore } from "@/lobby/interactions";
+import { giveVendingHint } from "@/tutorial/firstHint";
 
 import { getHeldCoin } from "../coinState";
 import { getNozzleLocation } from "../nozzleState";
+import { setVendingPowerSource } from "../vendingMachineState";
 
 /** 분기함 세 곳. 순서 = 복도 끝에서 방 쪽으로. */
 export const JUNCTION_SLOTS = ["A", "B", "C"] as const;
@@ -197,6 +199,8 @@ export const hasSeenAllMarks = () => JUNCTION_SLOTS.every((k) => state.seenMarks
 export const isCorridorPowered = () => state.power;
 /** 시험반까지 풀었나 — 복도등이 전부 들어왔나 */
 export const hasFullPower = () => state.fullPower;
+// 자판기는 완전 전원이 들어와야 동전을 받고 음료를 낸다(vendingMachineState)
+setVendingPowerSource(hasFullPower);
 export function raiseBreaker() {
   if (state.power) return false;
   // 선 셋을 다 꽂아야 올라간다. 안 막으면 함 속 퍼즐이 장식이 된다.
@@ -367,6 +371,8 @@ export function toggleWindowSwitch(index: number) {
   if (getWindowSwitchKey() === LAST_TRAIN_PASSENGERS) {
     state.fullPower = true;
     playSound("boxDown", { volume: 1 });
+    // 자판기 구역에 불이 들어온 순간 다음 쪽지(캔음료) — 첫 쪽지는 분리수거 쪽(튜토피드백 01회차)
+    giveVendingHint();
   }
   signal.notify();
   return true;

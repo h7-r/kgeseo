@@ -97,7 +97,9 @@ export function useSceneTransition(isTrain: boolean, near: NearTarget) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 기차는 페이드 없이 넘어가 실제로는 setState 를 부르지 않는다
     if (near === NEAR_TARGET.trainEntrance && !isTrain) boardTrain();
-  }, [near, isTrain, boardTrain]);
+    // 내릴 때도 문 안으로 걸어 들어가면 키 없이(TrainInteriorScene 이 문에서 한 번 떨어졌다 다시 다가올 때만 알린다)
+    if (near === NEAR_TARGET.trainExitDoor && isTrain) leaveTrain();
+  }, [near, isTrain, boardTrain, leaveTrain]);
 
   return { fade, boardTrain, leaveTrain };
 }

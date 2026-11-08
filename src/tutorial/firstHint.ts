@@ -1,21 +1,30 @@
 import { addHint, flashHints, type Hint } from "@/game/hintBox";
 
-// 튜토리얼 뒤 혼자 풀 자판기 퍼즐 쪽으로 등을 미는 한 줄. 풀이는 말하지 않고 「캔음료」에만 따옴표로 눈길을 준다.
-const FIRST_HINT_TEXT = '본부실 사람들은 커피와 "캔음료"를 무척 좋아해!';
-
-const CANVAS_SIZE = 512;
-const FONT = "'Nanum Pen Script', 'Gaegu', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif";
-const NOTE_LINES: [text: string, tilt: number][] = [
+// 튜토리얼 뒤 혼자 풀 퍼즐 쪽으로 등을 미는 쪽지 두 장. 풀이는 말하지 않고 따옴표로 눈길만 준다.
+//   1) 튜토리얼이 끝나는 순간 — 분리수거 쪽(미르 플레이 시험 11/8: 「첫번째 잠금장치 이후 분리수거로 유도하는 장치가 필요」.
+//      예전 첫 쪽지 「캔음료」는 분리수거를 건너뛰고 자판기 앞에서 헤매게 했다, 튜토피드백 검토 01회차)
+//   2) 분리수거 → 창문 스위치로 자판기 구역에 불이 들어오는 순간(workLampState fullPower) — 예전 「캔음료」 쪽지
+const RECYCLE_LINES: [text: string, tilt: number][] = [
+  ["복도가 쓰레기로 엉망이야.", 0.015],
+  ['"분리수거"부터', -0.02],
+  ["해 두라고!", 0.01],
+];
+const VENDING_LINES: [text: string, tilt: number][] = [
   ["본부실 사람들은", 0.015],
   ['커피와 "캔음료"를', -0.02],
   ["무척 좋아해!", 0.01],
 ];
+const linesText = (lines: [string, number][]) => lines.map(([text]) => text).join(" ");
 
-let cachedNoteImageUrl: string | null = null;
+const CANVAS_SIZE = 512;
+const FONT = "'Nanum Pen Script', 'Gaegu', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif";
 
-/** 찢어진 쪽지를 캔버스에 그려 PNG data URL 로 돌려준다. 한 번 그린 것을 계속 쓴다. */
-function makeNoteImageUrl() {
-  if (cachedNoteImageUrl) return cachedNoteImageUrl;
+const cachedNoteImageUrls = new Map<string, string>();
+
+/** 찢어진 쪽지를 캔버스에 그려 PNG data URL 로 돌려준다. 쪽지마다 한 번 그린 것을 계속 쓴다. */
+function makeNoteImageUrl(key: string, noteLines: [string, number][], seedStart: number) {
+  const cached = cachedNoteImageUrls.get(key);
+  if (cached) return cached;
   if (typeof document === "undefined") return null;
   const S = CANVAS_SIZE;
   const canvas = document.createElement("canvas");
@@ -24,7 +33,7 @@ function makeNoteImageUrl() {
   if (!g) return null;
 
   // 씨앗을 고정해 다시 열 때마다 같은 모양이 나오게 한다.
-  let seed = 7;
+  let seed = seedStart;
   const random = () => {
     seed = (seed * 16807) % 2147483647;
     return (seed - 1) / 2147483646;
@@ -92,8 +101,14 @@ function makeNoteImageUrl() {
   g.fillStyle = "#2b2a33";
   g.textAlign = "center";
   g.textBaseline = "alphabetic";
-  g.font = `600 44px ${FONT}`;
-  NOTE_LINES.forEach(([text, tilt], i) => {
+  noteLines.forEach(([text, tilt], i) => {
+    // 손글씨 글꼴이 없어 넓은 글꼴로 그려져도 종이 밖으로 안 나가게 줄마다 줄인다
+    let size = 44;
+    g.font = `600 ${size}px ${FONT}`;
+    while (size > 24 && g.measureText(text).width > right - left - 28) {
+      size -= 2;
+      g.font = `600 ${size}px ${FONT}`;
+    }
     g.save();
     g.translate(S / 2, top + 92 + i * 62);
     g.rotate(tilt);
@@ -102,22 +117,36 @@ function makeNoteImageUrl() {
   });
   g.restore();
 
-  cachedNoteImageUrl = canvas.toDataURL("image/png");
-  return cachedNoteImageUrl;
+  const url = canvas.toDataURL("image/png");
+  cachedNoteImageUrls.set(key, url);
+  return url;
 }
 
-// 바닥에 떨어진 실물이 없어 힌트함에서 버릴 수 없다.
+// 바닥에 떨어진 실물이 없어 힌트함에서 버릴 수 없다. 그림 글씨가 작게 보여도 읽히게 설명에도 문장을 적는다.
+// 첫 쪽지 id 는 예전 그대로(이미 받은 저장본과 겹치지 않게 내용만 바뀐다)
 const FIRST_HINT: Hint = {
   id: "tutorial:firstNote",
   name: "찢어진 쪽지",
-  // 그림 글씨가 작게 보여도 읽히게 설명에도 문장을 적는다.
-  description: `${FIRST_HINT_TEXT}\n\n누군가 급하게 찢어 남긴 쪽지. 복도 어딘가와 관계가 있을지도 모른다.`,
+  description: `${linesText(RECYCLE_LINES)}\n\n누군가 급하게 찢어 남긴 쪽지. 복도에 흩어진 쓰레기와 관계가 있을지도 모른다.`,
+  isPhysical: false,
+};
+const VENDING_HINT: Hint = {
+  id: "tutorial:vendingNote",
+  name: "찢어진 쪽지 2",
+  description: `${linesText(VENDING_LINES)}\n\n자판기 쪽에 불이 들어오자 어디선가 나타난 쪽지. 자판기와 관계가 있을지도 모른다.`,
   isPhysical: false,
 };
 
-/** 튜토리얼이 끝나는 순간 부른다. 이미 넣었으면 아무 일도 안 한다. */
+/** 튜토리얼이 끝나는 순간 부른다(분리수거 쪽지). 이미 넣었으면 아무 일도 안 한다. */
 export function giveFirstHint() {
-  const added = addHint({ ...FIRST_HINT, image: makeNoteImageUrl() });
+  const added = addHint({ ...FIRST_HINT, image: makeNoteImageUrl(FIRST_HINT.id, RECYCLE_LINES, 7) });
+  if (added) flashHints();
+  return added;
+}
+
+/** 자판기 구역에 완전 전원이 들어오는 순간 부른다(캔음료 쪽지). 이미 넣었으면 아무 일도 안 한다. */
+export function giveVendingHint() {
+  const added = addHint({ ...VENDING_HINT, image: makeNoteImageUrl(VENDING_HINT.id, VENDING_LINES, 11) });
   if (added) flashHints();
   return added;
 }

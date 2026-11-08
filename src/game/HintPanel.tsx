@@ -47,6 +47,8 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
   }
 
   const isTouch = useTouchMode();
+  // 「정답 보기」를 누른 쪽지 — 한 번 본 정답은 이 탭에서는 계속 보인다
+  const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set());
 
   // 골라 둔 힌트를 버린다 — 지우지 않고 실물 쪽지를 바닥에 도로 내놓는다(잘못 누른 사람이 걸어가 주우면 된다).
   // 실물이 없는 쪽지(튜토리얼 첫 쪽지 등)는 떨어뜨릴 종이가 없어 버리지 않는다. 버린 자리는 옆 것을 이어서 펴 준다.
@@ -133,6 +135,20 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
             <h3 style={detailNameStyle}>{selected.name}</h3>
             {selected.image && <img src={selected.image} alt="" style={detailImageStyle} />}
             <p style={descriptionStyle}>{selected.description ?? "아직 적힌 것이 없다."}</p>
+            {selected.spoiler &&
+              (revealed.has(selected.id) ? (
+                <p role="status" style={spoilerStyle}>
+                  정답: {selected.spoiler}
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  style={discardButtonStyle}
+                  onClick={() => setRevealed((current) => new Set(current).add(selected.id))}
+                >
+                  정답 보기
+                </button>
+              ))}
             {selected.isPhysical === false ? (
               <div style={discardStyle}>힌트함에 늘 남아 있는 쪽지</div>
             ) : isTouch ? (
@@ -167,6 +183,12 @@ const discardButtonStyle: CSSProperties = {
   color: UI.text,
   font: `600 14px/1 ${UI_FONT.body}`,
   cursor: "pointer",
+};
+const spoilerStyle: CSSProperties = {
+  margin: "4px 0 0",
+  color: UI.accent,
+  font: `700 22px/1.3 ${UI_FONT.body}`,
+  letterSpacing: "0.12em",
 };
 const inlineKeyStyle: CSSProperties = { ...keyCapStyle, minWidth: 22, height: 22, padding: "0 6px", margin: "0 2px" };
 const discardStyle: CSSProperties = {

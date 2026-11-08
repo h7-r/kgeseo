@@ -20,6 +20,8 @@ import OutlineMorph from "./OutlineMorph";
 const LIFT = 0.03;
 /** 이 안에서 겨누면 목적지 창이 열린다 */
 const NEAR_DISTANCE = 13;
+const PANEL_RAYCAST = THREE.Mesh.prototype.raycast;
+const NO_RAYCAST = () => {};
 const SCREEN_CENTER = new THREE.Vector2(0, 0);
 const aimRaycaster = new THREE.Raycaster();
 
@@ -164,7 +166,9 @@ export default function HologramScreen({ enabled = true }: HologramScreenProps) 
 
       {/* 어두운 유리판이라 일반 혼합이다. 더하기 혼합은 어두운 색을 못 내 회색 벽 위에서 글자가 묻힌다.
           깊이를 써야 만화 후처리가 판 뒤 기둥의 펜선을 글자 위에 긋지 않는다. */}
-      <mesh ref={panelRef} raycast={enabled ? undefined : () => null}>
+      {/* 꺼진 씬에서는 광선에 안 걸리게. 켤 때 undefined 를 주면 R3F 가 기본 판정을 되돌리지 않아, 한 번 내렸다 다시 타면
+          안내판이 영영 안 겨눠졌다(미르 플레이 시험 11/8 「기차 안 모니터에서 맵선택이 안 된다」) — 기본 판정을 직접 넣는다 */}
+      <mesh ref={panelRef} raycast={enabled ? PANEL_RAYCAST : NO_RAYCAST}>
         <planeGeometry args={[controls.width, height]} />
         <meshBasicMaterial
           map={panelTexture}

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, type CSSProperties } from "react";
 import * as THREE from "three";
-import { Outlines } from "@react-three/drei";
+import { Html, Outlines } from "@react-three/drei";
+import { useFrame } from "@react-three/fiber";
 
 import { savedTrainPose } from "@/save/mainGameSave";
 import { scaleColor } from "@/engine/color";
@@ -55,6 +56,12 @@ const START: [number, number | undefined, number] = [DOOR_X, undefined, DOOR_Z +
 /** 객차는 x 로 길다. 기본 시선(-z)이면 옆벽을 코앞에서 마주 본다. */
 const START_FACING = -Math.PI / 2;
 const EXIT_DISTANCE = 4.5;
+/** 문 폭 안에서 벽까지 이만큼 다가가면 걸어서 내린다(사람이 벽에 붙을 수 있는 끝이 1.0) */
+const AUTO_EXIT_DEPTH = 1.25;
+/** 걸어서 내리기는 문 벽에서 이만큼 한 번 떨어진 뒤에만 — 들어온 자리(2.6) · 문 앞에 저장된 자리에서 곧바로 내리지 않게 */
+const EXIT_ARM_DEPTH = 2.2;
+/** 내리는 문 표시 색 — 튜토리얼 바닥 동그라미와 같은 색(같은 「여기로 가라」로 읽힌다) */
+const EXIT_MARK_COLOR = "#86a6f0";
 const SIDES = [-1, 1] as const;
 
 const bounds = () => ({
@@ -182,10 +189,23 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
   useLayoutEffect(() => {
     onNearRef.current = onNear;
   });
-  // 들어온 그 문 앞에 오면 내리기 안내를 띄운다.
+  // 들어온 그 문 앞에 오면 내리기 안내를 띄우고, 문 안으로 걸어 들어가면 내린다(탈 때와 같게 — 미르 플레이 시험 11/8)
+  const exitArmed = useRef(false);
+  useEffect(() => {
+    if (enabled) exitArmed.current = false;
+  }, [enabled]);
   const nearby = useCallback((p: THREE.Vector3) => {
     const distance = Math.hypot(p.x - DOOR_X, p.z - DOOR_Z);
-    const target = distance < EXIT_DISTANCE ? NEAR_TARGET.trainExit : NEAR_TARGET.none;
+    const fromWall = p.z - DOOR_Z;
+    const alongDoor = Math.abs(p.x - DOOR_X);
+    if (fromWall > EXIT_ARM_DEPTH || alongDoor > DOOR_WIDTH / 2) exitArmed.current = true;
+    const inDoorway = alongDoor < DOOR_WIDTH / 2 - 0.4 && fromWall < AUTO_EXIT_DEPTH;
+    const target =
+      exitArmed.current && inDoorway
+        ? NEAR_TARGET.trainExitDoor
+        : distance < EXIT_DISTANCE
+          ? NEAR_TARGET.trainExit
+          : NEAR_TARGET.none;
     onNearRef.current(target);
     return target;
   }, []);
@@ -331,6 +351,7 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
 
         {/* 출입문 — 실제 객차처럼 벽이 이어지다 그 구간만 뚫리고 얇은 마감선만 있다. 굵으면 실내 문틀로 보인다. */}
         <group position={[DOOR_X, 0, DOOR_Z]}>
+          <ExitDoorMarker visible={enabled} />
           {SIDES.map((side) => (
             <mesh key={`edge${side}`} position={[side * (DOOR_WIDTH / 2 + 0.07), DOOR_HEIGHT / 2, 0.06]} castShadow>
               <boxGeometry args={[0.14, DOOR_HEIGHT, 0.34]} />
@@ -398,3 +419,42 @@ export default function TrainInteriorScene({ active, enabled = true, onNear }: T
     </>
   );
 }
+
+/**
+ * 내리는 문 표시 — 문 앞 바닥에 튜토리얼 색 고리(천천히 깜빡) + 문 위 「내리는 문」 표지. 기차에 탄 뒤 내리는 법을 헤매거나
+ * 내릴 수 없는 줄 아는 사람이 있었다(미르 플레이 시험 11/8, 튜토피드백 01회차). 출입문 그룹(문 벽 = z 0, 안쪽 = +z) 안에 둔다.
+ */
+function ExitDoorMarker({ visible }: { visible: boolean }) {
+  const ringRef = useRef<THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>>(null);
+  useFrame(({ clock }) => {
+    const ring = ringRef.current;
+    if (ring) ring.material.opacity = 0.45 + 0.3 * Math.sin(clock.elapsedTime * 2.4);
+  });
+  if (!visible) return null;
+  return (
+    <>
+      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.03, 1.5]}>
+        <ringGeometry args={[0.95, 1.2, 48]} />
+        <meshBasicMaterial color={EXIT_MARK_COLOR} transparent opacity={0.6} toneMapped={false} depthWrite={false} />
+      </mesh>
+      {/* 화면 창(목적지 등)보다 아래에 깔리게 낮은 층 */}
+      <Html position={[0, DOOR_HEIGHT - 0.6, 0.5]} center zIndexRange={[5, 0]} style={{ pointerEvents: "none" }}>
+        <div style={exitSignStyle}>
+          <div style={{ fontWeight: 800, fontSize: 15 }}>내리는 문</div>
+          <div style={{ fontSize: 12, opacity: 0.85 }}>문으로 걸어 나가거나 [E]</div>
+        </div>
+      </Html>
+    </>
+  );
+}
+
+const exitSignStyle: CSSProperties = {
+  padding: "6px 14px",
+  borderRadius: 12,
+  border: `2px solid ${EXIT_MARK_COLOR}`,
+  background: "rgba(5,11,26,0.82)",
+  color: "#f1f1fc",
+  textAlign: "center",
+  whiteSpace: "nowrap",
+  font: "14px/1.35 system-ui, sans-serif",
+};

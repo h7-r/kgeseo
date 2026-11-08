@@ -76,7 +76,12 @@ export default defineConfig({
     dropLocalOnlyPlugin(),
   ],
   resolve: {
-    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // 기차에서 고른 나주(/naju01/)를 이 서버가 내줄 때 동행 NPC 가 쓰는 경로 — naju01/vite.config.ts 와 같게.
+      // 없으면 「전설 속으로」 뒤 나주가 「@npc/behaviorState 를 못 찾음」으로 멈춘다(배포 빌드는 나주 설정으로 따로 빌드해 괜찮았다)
+      "@npc": fileURLToPath(new URL("./prototypes/npc-follow/src/npc", import.meta.url)),
+    },
   },
   // 본편·나주 의존성을 서버 켤 때 한 번에 묶는다 — 나주 첫 진입 때 다시 묶으며 새로고침하는 긴 멈춤을 없앤다
   optimizeDeps: {

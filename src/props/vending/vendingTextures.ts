@@ -223,14 +223,24 @@ export function makePosterTexture({
           g.arc(w * dx, h * dy, dr, 0, 7);
           g.fill();
         }
-        // 정답을 직접 주지 않고 '막히면 파란 캔' 을 유추하게 한다
+        // 정답을 직접 주지 않고 '막히면 파란 캔' 을 유추하게 한다. 한글을 크게, 영어는 작게 덧붙인다 — 영어 광고를 단서로 안 읽거나
+        // 영어를 모르는 사람이 있었다(미르 플레이 시험 11/8, 튜토피드백 01회차)
         g.fillStyle = "#ffffff";
         g.textAlign = "center";
         g.textBaseline = "middle";
-        g.font = `800 ${Math.round(h * 0.2)}px ${VENDING_FONT_STACK}`;
-        g.fillText("NEED A HINT?", w * 0.62, h * 0.4);
-        g.font = `800 ${Math.round(h * 0.28)}px ${VENDING_FONT_STACK}`;
-        g.fillText("GO BLUE", w * 0.62, h * 0.68);
+        const fitText = (text: string, size: number, weight: number, y: number) => {
+          let px = size;
+          g.font = `${weight} ${px}px ${VENDING_FONT_STACK}`;
+          while (px > 8 && g.measureText(text).width > w * 0.58) {
+            px -= 2;
+            g.font = `${weight} ${px}px ${VENDING_FONT_STACK}`;
+          }
+          g.fillText(text, w * 0.62, y);
+        };
+        fitText("힌트가 필요해?", Math.round(h * 0.19), 800, h * 0.3);
+        fitText("파란 캔을 뽑아 봐!", Math.round(h * 0.23), 800, h * 0.56);
+        g.fillStyle = "rgba(255,255,255,0.72)";
+        fitText("NEED A HINT? GO BLUE", Math.round(h * 0.1), 700, h * 0.82);
       }
 
       // 비스듬히 봐도 글자가 안 뭉개진다(이방성 8)

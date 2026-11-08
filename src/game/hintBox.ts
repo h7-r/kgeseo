@@ -14,6 +14,8 @@ export interface Hint {
   image?: string | null;
   /** false 면 바닥에 떨어진 실물이 없어 버릴 수 없다(튜토리얼 첫 쪽지 등). */
   isPhysical?: boolean;
+  /** 「정답 보기」를 눌러야 보이는 글(밸브 자물쇠 정답 확인하기 — 새 쪽지는 자동으로 펼쳐져 설명에 적으면 바로 보인다) */
+  spoiler?: string;
 }
 
 interface StoredHint extends Hint {
