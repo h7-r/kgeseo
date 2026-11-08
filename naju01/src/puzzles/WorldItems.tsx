@@ -133,7 +133,8 @@ function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
         isPickup: true,
         // 겨누면 본부실처럼 살짝 커지고 밝아진다
         highlight: () => meshRef.current,
-        radius: 0.45 * M,
+        // 얹어 둔 것은 곁의 대상(큰 조개 진주)과 붙어 있다 — 줍기가 겨눔을 먼저 가져가므로 겨눌 범위를 좁힌다
+        radius: (item.isPerched ? 0.25 : 0.45) * M,
         reach: 3 * M,
         use: () => {
           if (!inventory.pickUp(item.uid)) {
@@ -154,7 +155,9 @@ function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
     const z = item.position.z / M;
     // 물 위면 수면에 뜬다 — 뜬 돌은 물결 따라 까딱이고, 다른 물건도 물밑에 묻혀 사라지지 않는다
     const surface = floodSurfaceAt(x, z);
-    const floorHere = cave.isOpen() && cave.contains(x, z) ? (cave.groundAt(x, z)?.y ?? 0) : item.position.y / M;
+    // 얹어 둔 것(열린 조개 속 톱니돌)은 바닥으로 끌어내리면 껍데기 밑에 묻힌다
+    const floorHere =
+      !item.isPerched && cave.isOpen() && cave.contains(x, z) ? (cave.groundAt(x, z)?.y ?? 0) : item.position.y / M;
     const isFloating = surface > floorHere;
     const t = clock.elapsedTime;
     const bob = isFloating && item.kind === "floatStone" ? Math.sin(t * 1.6 + item.uid) * BOB_HEIGHT : 0;
