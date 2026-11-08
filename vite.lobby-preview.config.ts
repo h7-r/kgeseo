@@ -21,28 +21,7 @@ import {
 } from "./lobby/src/npc/teamRoster";
 import { isTeamGestureId } from "./lobby/src/npc/teamGestures";
 import baseConfig from "./vite.config";
-
-const APP_FILE = fileURLToPath(new URL("./src/app/App.tsx", import.meta.url));
-const STAND_IN_FILE = fileURLToPath(new URL("./src/dev/lobbyPreview/r3fWithLobby.tsx", import.meta.url));
-const PLAYER_STATE_STAND_IN = fileURLToPath(new URL("./src/dev/lobbyPreview/playerStateWithLobby.ts", import.meta.url));
-const USE_PLAYER_FILE = fileURLToPath(new URL("./src/station/layout/usePlayer.ts", import.meta.url));
-const COLLISION_STAND_IN = fileURLToPath(new URL("./src/dev/lobbyPreview/collisionWithPeople.ts", import.meta.url));
-
-function lobbyPreviewCanvasPlugin(): Plugin {
-  return {
-    name: "lobby-preview-canvas",
-    enforce: "pre",
-    resolveId(source, importer) {
-      const from = importer?.split("?")[0];
-      if (from === APP_FILE) {
-        if (source === "@react-three/fiber") return STAND_IN_FILE;
-        if (source === "./playerState") return PLAYER_STATE_STAND_IN;
-      }
-      if (from === USE_PLAYER_FILE && source === "./collision") return COLLISION_STAND_IN;
-      return null;
-    },
-  };
-}
+import { lobbyPreviewCanvasPlugin } from "./vite.lobby-standins";
 
 /** 저장 파일 — 로비 서버가 읽는 곳과 같아야 한다(둘 다 TEAM_NPC_FILE 로 옮길 수 있다) */
 const TEAM_FILE = process.env.TEAM_NPC_FILE ?? fileURLToPath(new URL("./lobby/data/team-npcs.json", import.meta.url));

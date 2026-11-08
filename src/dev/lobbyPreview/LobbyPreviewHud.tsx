@@ -143,6 +143,17 @@ export default function LobbyPreviewHud() {
               status.nextRetryAt ? " · 재시도 예약됨" : " · 이번 방문 재시도 없음"
             }`;
 
+  const prodStatus =
+    status.kind === "connected"
+      ? `같은 방 ${roomSize}명 · G 인사 · Enter 채팅`
+      : status.kind === "solo"
+        ? status.reason === "LOGIN_REQUIRED"
+          ? "혼자 둘러보는 중 · 로그인하면 다른 조사관과 만나요"
+          : `혼자 둘러보는 중(${REASON_TEXT[status.reason] ?? status.reason})`
+        : status.kind === "connecting"
+          ? "로비에 붙는 중…"
+          : null;
+
   return (
     <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 30 }}>
       {(firstPersonBubble || notice) && (
@@ -163,57 +174,81 @@ export default function LobbyPreviewHud() {
         </div>
       )}
       <ChatBox canChat={canChat} />
-      {status.kind === "solo" && (
-        <div style={{ ...panel, position: "absolute", top: 60, right: 16, padding: "4px 10px", fontSize: 12 }}>
-          혼자 둘러보는 중
+      {/* 배포 빌드(베타, 11/8) — 개발 패널(본부실로 이동 · 개발 로그인) 없이 상태 한 줄만 오른쪽 위에 */}
+      {!import.meta.env.DEV && prodStatus && (
+        <div
+          style={{
+            ...panel,
+            position: "absolute",
+            top: 60,
+            right: 16,
+            padding: "4px 10px",
+            fontSize: 12,
+            maxWidth: 260,
+          }}
+        >
+          {prodStatus}
         </div>
       )}
+      {import.meta.env.DEV && (
+        <>
+          {status.kind === "solo" && (
+            <div style={{ ...panel, position: "absolute", top: 60, right: 16, padding: "4px 10px", fontSize: 12 }}>
+              혼자 둘러보는 중
+            </div>
+          )}
 
-      <div
-        style={{ ...panel, position: "absolute", left: 16, bottom: 16, padding: "8px 12px", maxWidth: 420 }}
-        onMouseDown={stop}
-        onClick={stop}
-      >
-        <div style={{ fontWeight: 600, marginBottom: 4 }}>로비 미리보기 · 개발용</div>
-        <div>{me}</div>
-        <div style={{ color: "#ffd479", margin: "4px 0" }}>{statusLine}</div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          <button
-            type="button"
-            style={button}
-            onClick={() => {
-              // 튜토리얼을 건너뛰고 본부실 안으로(개발용)
-              const teleport = window.__game?.teleport as ((x: number, z: number) => void) | undefined;
-              teleport?.(-14, 7);
-            }}
+          <div
+            style={{ ...panel, position: "absolute", left: 16, bottom: 16, padding: "8px 12px", maxWidth: 420 }}
+            onMouseDown={stop}
+            onClick={stop}
           >
-            본부실로 이동
-          </button>
-        </div>
-        {!loggedIn && (
-          <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-            <input placeholder="이메일" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="off" />
-            <input
-              placeholder="비밀번호"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="off"
-            />
-            <button
-              type="button"
-              style={button}
-              onClick={() => {
-                void devLogin(email, password);
-                setPassword("");
-              }}
-            >
-              로그인
-            </button>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>로비 미리보기 · 개발용</div>
+            <div>{me}</div>
+            <div style={{ color: "#ffd479", margin: "4px 0" }}>{statusLine}</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                style={button}
+                onClick={() => {
+                  // 튜토리얼을 건너뛰고 본부실 안으로(개발용)
+                  const teleport = window.__game?.teleport as ((x: number, z: number) => void) | undefined;
+                  teleport?.(-14, 7);
+                }}
+              >
+                본부실로 이동
+              </button>
+            </div>
+            {!loggedIn && (
+              <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                <input
+                  placeholder="이메일"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="off"
+                />
+                <input
+                  placeholder="비밀번호"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  style={button}
+                  onClick={() => {
+                    void devLogin(email, password);
+                    setPassword("");
+                  }}
+                >
+                  로그인
+                </button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
-
+        </>
+      )}
       {canGreet && !locked && (
         <button
           type="button"

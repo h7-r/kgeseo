@@ -88,6 +88,8 @@ export class OnlineAccounts<C extends Leavable = Leavable> {
 }
 
 const LOADTEST_PREFIX = "loadtest:";
+/** 명단에 이 한 줄이 있으면 로그인한 계정 전부(백엔드 lobby_ticket.ALL_ACCOUNTS) */
+export const ALL_ACCOUNTS = "*";
 
 /**
  * 베타 명단(backend/app/services/lobby_ticket.py parse_beta_list 와 같은 형식) — 한 줄에 계정 ID 하나, 빈 줄·`#` 줄은 건너뛰고,
@@ -121,5 +123,7 @@ export async function enforceBetaList(
   }
   const eligible = parseBetaList(text);
   if (!eligible) return { error: "malformed" };
+  // `*` 한 줄 = 로그인한 계정 전부(11/8 베타, 백엔드 ALL_ACCOUNTS 와 같다) — 아무도 끊지 않는다
+  if (eligible.has(ALL_ACCOUNTS)) return { removed: 0 };
   return { removed: online.removeNotIn(eligible) };
 }
