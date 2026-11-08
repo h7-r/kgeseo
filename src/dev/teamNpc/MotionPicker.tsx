@@ -263,31 +263,40 @@ export interface MotionPickerProps {
   onClose: () => void;
 }
 
-/** 3D 화면을 못 띄울 때(웹GL 없음 · 모델 못 받음) — 안내와 다시 해 보기 */
-class StageBoundary extends Component<{ children: ReactNode }, { failed: boolean; attempt: number }> {
-  override state = { failed: false, attempt: 0 };
+/** 웹GL 을 만들 수 있나 — R3F 는 렌더러를 비동기로 만들어 실패가 오류 경계로 오지 않으므로 먼저 본다(Codex 리뷰 87a3b41) */
+function canUseWebGl() {
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    return !!gl;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 3D 화면을 못 띄울 때(웹GL 없음 · 모델 못 받음) — 안내와 새로 고침. 실패한 모델 요청은 불러오기 캐시에 남아 다시 그려도
+ * 같은 실패가 되풀이되므로(useGLTF) 「다시 해 보기」 대신 페이지를 새로 고친다(Codex 리뷰 87a3b41)
+ */
+function StageFailure() {
+  return (
+    <div role="alert" style={failBox}>
+      <p style={{ margin: 0 }}>3D 미리보기를 띄우지 못했어요(웹GL 또는 모델 불러오기 실패).</p>
+      <button type="button" style={pill} onClick={() => window.location.reload()}>
+        새로 고침(저장 안 한 대사 · 동작은 사라져요)
+      </button>
+    </div>
+  );
+}
+
+class StageBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
   }
   override render() {
-    if (!this.state.failed)
-      return (
-        <div key={this.state.attempt} style={{ position: "absolute", inset: 0 }}>
-          {this.props.children}
-        </div>
-      );
-    return (
-      <div role="alert" style={failBox}>
-        <p style={{ margin: 0 }}>3D 미리보기를 띄우지 못했어요(웹GL 또는 모델 불러오기 실패).</p>
-        <button
-          type="button"
-          style={pill}
-          onClick={() => this.setState((state) => ({ failed: false, attempt: state.attempt + 1 }))}
-        >
-          다시 해 보기
-        </button>
-      </div>
-    );
+    return this.state.failed ? <StageFailure /> : this.props.children;
   }
 }
 
@@ -314,6 +323,7 @@ export default function MotionPicker({ who, line, appearance, value, onPick, onC
   const labelWidth = Math.max(64, Math.min(150, SPACING_X * layout.zoom - 8));
   const goPage = (to: number) => setAnchor(pages[(to + pages.length) % pages.length]!.choices[0]?.motion.id ?? "");
   const views = Object.keys(FACING) as View[];
+  const [webGl] = useState(canUseWebGl);
 
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -442,27 +452,30 @@ export default function MotionPicker({ who, line, appearance, value, onPick, onC
         )}
       </nav>
       <div style={stage}>
+        {!webGl && <StageFailure />}
         <StageBoundary>
-          <Canvas orthographic dpr={[1, 1.5]} style={{ background: "#8d95a1" }}>
-            <FitCamera count={choices.length} onLayout={onLayout} />
-            <ambientLight intensity={0.85} />
-            <hemisphereLight args={["#eef3ff", "#6d6a63", 0.55]} />
-            <directionalLight position={[3, 6, 8]} intensity={1.15} />
-            {choices.map((choice, index) => (
-              <Cell
-                key={`${page}:${choice.motion.id}`}
-                index={index}
-                columns={layout.columns}
-                choice={choice}
-                config={config}
-                facing={FACING[view]}
-                selected={value === choice.motion.id}
-                paused={paused}
-                labelWidth={labelWidth}
-                onPick={onPick}
-              />
-            ))}
-          </Canvas>
+          {webGl && (
+            <Canvas orthographic dpr={[1, 1.5]} style={{ background: "#8d95a1" }}>
+              <FitCamera count={choices.length} onLayout={onLayout} />
+              <ambientLight intensity={0.85} />
+              <hemisphereLight args={["#eef3ff", "#6d6a63", 0.55]} />
+              <directionalLight position={[3, 6, 8]} intensity={1.15} />
+              {choices.map((choice, index) => (
+                <Cell
+                  key={`${page}:${choice.motion.id}`}
+                  index={index}
+                  columns={layout.columns}
+                  choice={choice}
+                  config={config}
+                  facing={FACING[view]}
+                  selected={value === choice.motion.id}
+                  paused={paused}
+                  labelWidth={labelWidth}
+                  onPick={onPick}
+                />
+              ))}
+            </Canvas>
+          )}
         </StageBoundary>
       </div>
     </div>,
