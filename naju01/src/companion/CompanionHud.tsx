@@ -14,6 +14,7 @@ import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT } from "../puzzles/hudTheme";
 import { useTouchMode } from "@/engine/input/touchMode";
 import { isPointerActive } from "@/engine/input/virtualLock";
 import { setCompanionChatOpen } from "./chatOpen";
+import { useNpcSpeech } from "../scene/firstScene/npcSpeech";
 import { MAX_MESSAGE_LENGTH } from "./companionDialog.ts";
 import { cancelCompanionHold, useCompanionHold } from "./companionPrompt";
 import {
@@ -65,6 +66,8 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
   }, [isLocked, dialog.isEnabled, isTyping]);
 
   const { line, waiting } = dialog;
+  // 장면 인물(아비사)이 말하는 동안은 같은 자리를 비켜 준다 — 두 말이 겹치지 않게
+  const npcSpeech = useNpcSpeech();
   const name = waiting === "hint" || line?.kind === "hint" ? hintLabel(line) : COMPANION_NAME;
 
   return (
@@ -83,7 +86,7 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
       <div style={isTyping && isTouch ? touchTypingBandStyle : bandStyle} data-testid="companion-subtitle">
         {isTyping ? (
           <ChatInput controlsRef={controlsRef} onClose={closeTyping} isTouch={isTouch} />
-        ) : waiting ? (
+        ) : npcSpeech ? null : waiting ? (
           <div style={nameStyle} data-state="waiting">
             {name} <span className="companion-dots">···</span>
           </div>

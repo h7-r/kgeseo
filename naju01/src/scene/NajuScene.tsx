@@ -68,6 +68,7 @@ import { usePlayerMovement } from "./usePlayerMovement";
 import { IS_MANGA_STYLE } from "../world/mangaStyle";
 import { useRendererSetup, useSceneFrame, type NajuSceneReport } from "./useSceneFrame";
 import { useSceneModes } from "./useSceneModes";
+import FirstSceneActors from "./firstScene/FirstSceneActors";
 import { usePrototypes, useStoryModels, useStoryProps } from "./useStoryProps";
 import { useSunLight } from "./useSunLight";
 import { useBakedTerrainTexture, useGroundAndCliff, useRockAsset, useTerrain } from "./useTerrainLayers";
@@ -354,6 +355,8 @@ export default function NajuScene({
         }
       />
       {isFocusNow && controls.showInvestigationPoints && gates && <DistortionGates spots={gates} />}
+      {/* 첫 장면 아비사 · 구렁이 — 숨 · 시선 · 인사 · 대사. 편집 중에는 기본 자세로 멈춘다 */}
+      <FirstSceneActors enabled={!isEditing} />
       {IS_FOCUS_ENABLED && (
         <ImmersionLayer terrain={terrain} playerRef={playerState} gateSpots={gates} active={active && !isReviewHold} />
       )}

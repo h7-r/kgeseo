@@ -399,6 +399,29 @@ class ImmersionAudio {
       const out = this.makeOutput(0.25, Math.random() * 1.6 - 0.8);
       const f = 900 + Math.random() * 900;
       this.tone(f, "sine", t, 0.05, 0.002, 0.09, out, f * 0.55);
+    } else if (name === "쉬익") {
+      // 구렁이 — 낮게 쉬익. 높은 잡음을 좁게 걸러 숨 내쉬듯 두 번(첫 장면, 정체 불명이라 크지 않게)
+      const out = this.makeOutput(0.2, Math.random() * 0.3 - 0.15);
+      this.noiseBurst(
+        t,
+        0.75,
+        0.05,
+        [
+          ["highpass", 2600],
+          ["bandpass", 5200, 3600, 0.8],
+        ],
+        out,
+      );
+      this.noiseBurst(
+        t + 0.55,
+        0.9,
+        0.035,
+        [
+          ["highpass", 2400],
+          ["bandpass", 4800, 3200, 0.8],
+        ],
+        out,
+      );
     } else if (name === "짹짹") {
       // 작은 새 — 위로 미끄러지는 짧은 소리 두세 번, 좌우 아무 데서나
       const out = this.makeOutput(0.22, Math.random() * 1.6 - 0.8);
