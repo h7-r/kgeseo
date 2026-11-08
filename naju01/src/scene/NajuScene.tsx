@@ -7,12 +7,15 @@ import { Outlines, PointerLockControls } from "@react-three/drei";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
 
 import type { AvatarLink } from "@/engine/avatarLink";
+import { TouchLook } from "@/engine/input";
 import { scaleColor } from "@/engine/color";
 import { pickOutlineValues } from "@/engine/leva/savedControls";
 import { TOON_GRADIENT } from "@/engine/toon";
 
 import { usePresentationOverrides } from "../app/presentation";
 import { IS_NPC_TEST } from "../app/runtimeFlags";
+import CompanionNpc from "../companion/CompanionNpc";
+import { IS_COMPANION_ENABLED } from "../companion/companionRuntime";
 import type { MeshAppearanceConfig } from "../avatar/meshAppearance";
 import type { SidekickConfig } from "../avatar/sidekickOptions";
 import type { ToonConfig } from "../avatar/toonMaterial";
@@ -24,6 +27,7 @@ import { useEditModeActive } from "../placement/libraryPlaceApi";
 import { MESH_NAMES } from "../plan/meshNames";
 import { CORE, UNITS_PER_METER } from "../plan/sitePlan";
 import { isOnJarSite } from "../puzzles/jars/site";
+import { isCameraFocused } from "./cameraFocus";
 import { SKY_STYLE } from "../world/sky";
 import WorldToon from "../world/WorldToon";
 import { buildInstanceGroups } from "./buildInstanceGroups";
@@ -506,7 +510,13 @@ export default function NajuScene({
         toonConfig={toonConfig}
         outlineConfig={outlineConfig}
       />
+      {/* 동행 NPC — 이동 훅 뒤에 붙어 같은 프레임의 플레이어 위치를 따라간다(?npc=off 로 끔) */}
+      {IS_COMPANION_ENABLED && !IS_REVIEW_REQUESTED && (
+        <CompanionNpc playerRef={playerState} terrain={terrain} instanceGroups={instanceGroups} />
+      )}
 
+      {/* 터치 모드의 손가락 시점 — 퍼즐 집중 카메라 중엔 돌리지 않는다(이동도 같은 조건으로 막힌다) */}
+      <TouchLook controlsRef={controlsRef} canLook={() => !isCameraFocused()} />
       <PointerLockControls
         ref={controlsRef}
         selector="#no-such-element"

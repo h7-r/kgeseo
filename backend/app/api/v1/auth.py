@@ -23,6 +23,7 @@ from app.services.google_auth import (
     InvalidGoogleCredentialError,
     verify_google_credential,
 )
+from app.services.guest_session import transfer_guest_to_user
 from app.services.naver_auth import (
     InvalidNaverAuthorizationCodeError,
     InvalidNaverProfileError,
@@ -53,6 +54,18 @@ from app.services.user_session import (
     start_session,
 )
 
+
+async def _establish_login(
+    db: AsyncSession, http_request: Request, response: Response, user_id: str
+) -> None:
+    """로그인 성공 공통 처리(11/6 PM): 로그인 세션 쿠키를 주고, 유효한 게스트 쿠키가 있으면 그 진행을 계정으로 옮긴다.
+
+    승계가 실패해도 로그인은 성공으로 두고 게스트 진행은 지우지 않는다(transfer_guest_to_user).
+    """
+    await start_session(db, response, user_id)
+    await transfer_guest_to_user(db, http_request, response, user_id)
+
+
 router = APIRouter(
     prefix="/auth",
     tags=["Auth"],
@@ -68,6 +81,7 @@ router = APIRouter(
 )
 async def login_with_google(
     request: GoogleLoginRequest,
+    http_request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> SocialUserResponse | SocialOnboardingRequiredResponse:
@@ -78,7 +92,7 @@ async def login_with_google(
             settings.google_client_id,
         )
         result = await authenticate_social_user(db, profile)
-        await _start_social_session(db, response, result)
+        await _start_social_session(db, http_request, response, result)
         return result
     except GoogleAuthConfigurationError as error:
         raise HTTPException(
@@ -109,6 +123,7 @@ async def login_with_google(
 )
 async def login_with_naver(
     request: NaverLoginRequest,
+    http_request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> SocialUserResponse | SocialOnboardingRequiredResponse:
@@ -122,7 +137,7 @@ async def login_with_naver(
             settings.naver_redirect_uri,
         )
         result = await authenticate_social_user(db, profile)
-        await _start_social_session(db, response, result)
+        await _start_social_session(db, http_request, response, result)
         return result
     except NaverAuthConfigurationError as error:
         raise HTTPException(
@@ -172,6 +187,7 @@ async def login_with_naver(
 )
 async def register_local_account(
     request: LocalRegisterRequest,
+    http_request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> LocalAuthResponse:
@@ -219,7 +235,7 @@ async def register_local_account(
             detail="Invalid local account input.",
         ) from error
 
-    await start_session(db, response, user.id)
+    await _establish_login(db, http_request, response, user.id)
     return LocalAuthResponse(user=local_auth.user_to_payload(user))
 
 
@@ -253,7 +269,7 @@ async def login_local_account(
         ) from error
 
     await clear_login_failures(db, http_request, request.email)
-    await start_session(db, response, user.id)
+    await _establish_login(db, http_request, response, user.id)
     return LocalAuthResponse(user=local_auth.user_to_payload(user))
 
 
@@ -289,12 +305,13 @@ async def check_nickname_exists(
 
 async def _start_social_session(
     db: AsyncSession,
+    http_request: Request,
     response: Response,
     result: SocialUserResponse | SocialOnboardingRequiredResponse,
 ) -> None:
     # 가입을 마치기 전의 소셜 계정에는 세션을 주지 않는다.
     if isinstance(result, SocialUserResponse):
-        await start_session(db, response, result.user.user_id)
+        await _establish_login(db, http_request, response, result.user.user_id)
 
 
 def invalid_nickname_exception() -> HTTPException:
@@ -327,13 +344,14 @@ def account_link_required_exception() -> HTTPException:
 )
 async def complete_social_account(
     request: SocialOnboardingCompleteRequest,
+    http_request: Request,
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> SocialUserResponse:
     response.headers["Cache-Control"] = "no-store"
     try:
         result = await complete_onboarding(db, request)
-        await _start_social_session(db, response, result)
+        await _start_social_session(db, http_request, response, result)
         return result
     except AccountLinkRequiredError as error:
         raise account_link_required_exception() from error

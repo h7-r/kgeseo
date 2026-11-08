@@ -32,7 +32,7 @@ from app.schemas.puzzle_runtime import PuzzleRuntimeDefinition
 from app.services.object_state import resolve_effective_object_states
 
 # 퍼즐로 이어지는 상호작용 종류(target_id가 puzzle_id)
-PUZZLE_INTERACTION_TYPES = frozenset({"input", "select"})
+PUZZLE_INTERACTION_TYPES = frozenset({"input", "select", "complete"})
 # 이보다 짧은 신호 B 낱말은 일상 글자와 구별할 수 없어 쓰지 않는다.
 MIN_TERM_LENGTH = 2
 

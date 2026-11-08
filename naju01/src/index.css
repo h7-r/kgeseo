@@ -29,6 +29,7 @@ body {
 .game-stage {
   width: 100%; /* 100vw 가 아니라 100% — 위 주석 */
   height: 100vh;
+  height: 100dvh; /* 휴대폰 주소창을 뺀 실제 높이 — 모르는 브라우저는 윗줄 */
 }
 
 /* ?stage=16x9 — 본편과 같은 16:9 레터박스(시야 검증용) */
@@ -51,4 +52,42 @@ body:has(.game-stage--16x9) {
   display: block;
   width: 100% !important;
   height: 100% !important;
+}
+
+/* 동행 NPC 자막(companion/CompanionHud) — 대사는 아래에서 살짝 떠오르고, 기다림 점은 숨쉬듯 */
+.companion-line {
+  animation: companion-rise 240ms ease-out both;
+}
+.companion-dots {
+  animation: companion-breathe 1.2s ease-in-out infinite;
+}
+@keyframes companion-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes companion-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .companion-line,
+  .companion-dots {
+    animation: none;
+  }
+}
+
+/* 모바일 — 당겨서 새로고침 · 튕김 스크롤을 막고, 캔버스 위 손가락이 페이지 확대 · 스크롤로 새지 않게 */
+html,
+body {
+  overscroll-behavior: none;
+}
+.game-stage canvas {
+  touch-action: none;
+}
+/* 터치 모드 「전부 멈춤」 동안 화면 연출(CSS 애니메이션)도 세운다(engine/input/gamePause) */
+html.game-frozen * {
+  animation-play-state: paused !important;
 }

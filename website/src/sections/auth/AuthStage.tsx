@@ -5,6 +5,10 @@ import Stage from "@/components/Stage";
 import { TERMS_HEIGHTS } from "@/data/terms";
 import PageFooter from "@/layout/PageFooter";
 import { DESIGN_WIDTH, FOOTER_ALLOWANCE } from "@/lib/layout";
+import { useIsMobileLayout } from "@/mobile/layoutMode";
+import InAppNotice from "@/mobile/InAppNotice";
+import MobilePage from "@/mobile/MobilePage";
+import { sectionStyle } from "@/mobile/mobileStyles";
 import AuthIntro from "@/sections/auth/AuthIntro";
 import TermsTabs from "@/sections/terms/TermsTabs";
 
@@ -32,6 +36,24 @@ interface AuthStageProps {
 
 /** 인증 화면 공통 배치. 왼쪽에 카드, 오른쪽에 소개 글, 아래에 약관 탭. */
 export default function AuthStage({ terms, children }: AuthStageProps) {
+  const isMobile = useIsMobileLayout();
+  if (isMobile) {
+    return (
+      <MobilePage>
+        <div style={{ ...sectionStyle, paddingTop: 20 }}>
+          {/* 간편 로그인이 앱 안 브라우저에서 막힐 수 있어 로그인 전에도 안내한다(코덱스 구현 06회차) */}
+          <div style={{ marginBottom: 12 }}>
+            <InAppNotice />
+          </div>
+          {/* 카드는 데스크톱 폭(593)으로 짜여 있다 — 모바일 칸 폭에 맞춘다(mobile.css .mobile-auth-card) */}
+          <div className="mobile-auth-card">{children}</div>
+          <div id={TERMS_ANCHOR_ID} style={{ marginTop: 32, scrollMarginTop: "72px" }}>
+            <TermsTabs tab={terms.tab} top={0} onTabChange={terms.setTab} isFlow />
+          </div>
+        </div>
+      </MobilePage>
+    );
+  }
   return (
     <Stage height={FOOTER_TOP + FOOTER_ALLOWANCE}>
       <div style={{ position: "absolute", left: `${SIDE_MARGIN}px`, top: "393px" }}>{children}</div>

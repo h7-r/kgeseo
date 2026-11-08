@@ -22,6 +22,14 @@ import HeroVideoFrame from "./HeroVideoFrame";
 
 // 영상 파일은 이름에 판을 붙인다 — 같은 이름으로 바꾸면 브라우저가 옛 영상을 계속 쓴다.
 const HERO_VIDEO_URL = "/hero-trailer-v12.mp4";
+/**
+ * 예고편 파일 위아래에 구워진 검은 띠(1080 중 76줄씩)의 몫. 그대로 깔면 머리글 아래에 빈 띠가 생긴다.
+ * 띠를 잘라 낸 그림이 칸을 덮게 맞춘다. 첫 장면 그림(포스터)도 같은 만큼 잘라 두었다.
+ */
+export const TRAILER_LETTERBOX = 76 / 1080;
+const TRAILER_CONTENT_HEIGHT = 1 - 2 * TRAILER_LETTERBOX;
+/** 끝 화면 반복 영상은 띠가 없는 16:9 */
+const AMBIENT_ASPECT = 16 / 9;
 // 끝 화면 바탕 반복 영상. 예고편이 흐르기 시작한 뒤에야 받는다 — 첫 화면 로딩을 나눠 쓰지 않게.
 const AMBIENT_VIDEO_URL = "/hero-ambient-v2.mp4";
 // 이만큼 지나도 영상이 흐르지 않으면(자동 재생 막힘·느린 망) 예고편을 건너뛰고 끝 화면을 띄운다.
@@ -50,8 +58,12 @@ const FRAGMENT_SHADER = /* glsl */ `
   precision mediump float;
   uniform sampler2D uTex, uAmbient;
   uniform float uTime, uZoom, uShake, uWarp, uProg, uAspect, uGlitch, uEnd;
-  uniform vec2 uScale;
+  uniform vec2 uScale, uAmbientScale;
+  uniform float uLetterbox;
   varying vec2 vUv;
+
+  // 예고편의 검은 띠를 건너뛰고 그림 영역만 읽는다
+  vec3 trailerAt(vec2 uv){ return texture2D(uTex, vec2(uv.x, uLetterbox + uv.y * (1.0 - 2.0 * uLetterbox))).rgb; }
 
   float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
@@ -85,9 +97,9 @@ const FRAGMENT_SHADER = /* glsl */ `
 
     // 색수차: 흔들릴수록 R·B 채널을 서로 반대쪽으로 벌린다
     float ca = uShake * 0.004 + uWarp * 0.0025 + ring * 0.003 + uGlitch * 0.007;
-    float r = texture2D(uTex, uv + d * ca).r;
-    vec3  g = texture2D(uTex, uv).rgb;
-    float b = texture2D(uTex, uv - d * ca).b;
+    float r = trailerAt(uv + d * ca).r;
+    vec3  g = trailerAt(uv);
+    float b = trailerAt(uv - d * ca).b;
     vec3 col = vec3(r, g.g, b);
 
     // 미끄러진 띠는 사이트 파랑(#6f86bf → #9fb2ea)으로 물들고, 왜곡 동안 밝기가 깜박인다
@@ -95,7 +107,9 @@ const FRAGMENT_SHADER = /* glsl */ `
     col *= 1.0 - uGlitch * 0.12 * step(0.5, hash(vec2(floor(uTime * 30.0), 3.0)));
 
     // 끝 화면 바탕: 어둡게 다듬어 둔 반복 영상이 암전 위로 떠오른다(글자가 읽히게 영상 쪽에서 이미 눌러 두었다)
-    if (uEnd > 0.001) col = mix(col, texture2D(uAmbient, uv).rgb, uEnd);
+    // 반복 영상은 비율이 달라 따로 덮어 맞춘다
+    vec2 ambientUv = (uv - 0.5) * (uAmbientScale / uScale) + 0.5;
+    if (uEnd > 0.001) col = mix(col, texture2D(uAmbient, ambientUv).rgb, uEnd);
 
     col += vec3(0.38, 0.65, 0.98) * ring * 0.3;           // 봉인 원의 푸른 빛
     col += (hash(gl_FragCoord.xy + fract(uTime * 7.0) * 100.0) - 0.5) * (0.016 + uShake * 0.025); // 그레인
@@ -118,6 +132,8 @@ interface HeroUniforms {
   uGlitch: THREE.IUniform<number>;
   uEnd: THREE.IUniform<number>;
   uScale: THREE.IUniform<THREE.Vector2>;
+  uAmbientScale: THREE.IUniform<THREE.Vector2>;
+  uLetterbox: THREE.IUniform<number>;
 }
 
 interface HeroResources {
@@ -191,6 +207,8 @@ function createResources(mode: Mode): HeroResources | null {
     uGlitch: { value: 0 },
     uEnd: { value: 0 },
     uScale: { value: new THREE.Vector2(1, 1) },
+    uAmbientScale: { value: new THREE.Vector2(1, 1) },
+    uLetterbox: { value: TRAILER_LETTERBOX },
   };
   const material = new THREE.ShaderMaterial({
     uniforms,
@@ -264,7 +282,7 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
     }
   }
 
-  let videoAspect = 16 / 9;
+  let videoAspect = 16 / 9 / TRAILER_CONTENT_HEIGHT;
   let needsRedraw = true;
   // 캔버스 버퍼는 무대 배율이 적용된, 화면에 실제로 보이는 크기로 잡는다. 1920 설계 크기로 잡으면 GPU 가 포화된다.
   const fit = () => {
@@ -277,6 +295,7 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
     const aspect = width / height;
     uniforms.uAspect.value = aspect;
     uniforms.uScale.value.set(Math.min(1, aspect / videoAspect), Math.min(1, videoAspect / aspect));
+    uniforms.uAmbientScale.value.set(Math.min(1, aspect / AMBIENT_ASPECT), Math.min(1, AMBIENT_ASPECT / aspect));
   };
   const resizeObserver = new ResizeObserver(fit);
   resizeObserver.observe(container);
@@ -324,7 +343,7 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
   };
 
   const prepare = () => {
-    if (video.videoWidth) videoAspect = video.videoWidth / video.videoHeight;
+    if (video.videoWidth) videoAspect = video.videoWidth / (video.videoHeight * TRAILER_CONTENT_HEIGHT);
     fit();
     readProgress();
     seek();
@@ -346,7 +365,12 @@ function mount(container: HTMLElement, onEnd: (canReplay: boolean) => void): Her
   // 예고편은 왜곡까지 영상에 구워져 있어 셰이더가 할 일이 없다. 영상을 그대로 화면에 올려 브라우저가 직접 재생하게 한다 —
   // 칸마다 텍스처로 올리면 그 부담에 영상 칸이 버려져 끊겨 보였다. 캔버스는 끝 화면부터 맡는다.
   const showTrailerDirectly = () => {
-    video.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;";
+    // 띠를 뺀 그림 영역이 칸을 덮을 만큼 키우고 가운데에 둔다. 띠는 칸(overflow:hidden) 밖으로 나가 잘린다.
+    const contentAspect = (video.videoWidth || 1920) / ((video.videoHeight || 1080) * TRAILER_CONTENT_HEIGHT);
+    video.style.cssText =
+      `position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);` +
+      `width:max(100cqw, calc(100cqh * ${contentAspect}));aspect-ratio:${video.videoWidth || 1920} / ${video.videoHeight || 1080};` +
+      `height:auto;max-width:none;object-fit:fill;`;
     container.appendChild(video);
   };
 

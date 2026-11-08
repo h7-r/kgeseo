@@ -542,7 +542,10 @@ def test_official_pack_fingerprint_matches_the_pm_value(official) -> None:
         ({"gate": "G1", "reviewer": "박지하"}, "not a required gate"),
         ({"reviewer": "세진"}, "not allowed"),
         ({"reviewer": "가상 판정자"}, "not allowed"),
-        ({"target_type": "case_content"}, "unsupported target_type"),
+        ({"target_type": "unknown_kind"}, "unsupported target_type"),
+        # 케이스 콘텐츠는 게시 루트의 묶음으로만 fingerprint를 계산한다(tests/test_case_publication_cli.py)
+        ({"target_type": "case_content"}, "--content-root is required"),
+        ({"content_root": "anything"}, "--content-root is only for case_content"),
         ({"target_version": "2"}, "pack not loadable"),
         ({"actor": " "}, "actor"),
         ({"reason": " "}, "reason"),

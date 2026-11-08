@@ -1,3 +1,4 @@
+import { isMobileLayout } from "@/mobile/layoutMode";
 import { OPENING_FILM } from "@/data/videos";
 import { runWhenIdle } from "@/lib/idle";
 import { PAGE_CHANGE_EVENT } from "@/lib/pageEvents";
@@ -50,6 +51,8 @@ const prefetchOpeningPosterWhenIdle = () => runWhenIdle(prefetchOpeningPoster, 6
 
 /** 첫 렌더 전에 한 번 부른다. 첫 쪽 바뀜 알림보다 먼저 듣고 있어야 한다. */
 export function startBackgroundLoading(): void {
+  // 모바일 배치는 미리 받지 않는다 — 휴대폰 데이터 · 배터리 몫이고, 데스크톱 화면 코드 · 그림은 쓰지도 않는다(코덱스 구현 05회차)
+  if (isMobileLayout()) return;
   // 첫 화면이 다 뜬 뒤 한가할 때 나머지 화면 코드와 그림을 미리 받아 둔다.
   runAfterPageLoad(() => runWhenIdle(preloadAllPages, 4000, 2000));
 

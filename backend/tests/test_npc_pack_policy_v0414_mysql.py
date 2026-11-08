@@ -103,7 +103,7 @@ def test_mysql_publication_conflicting_with_configured_pack_is_rejected_concurre
     mysql_run(scenario)
 
 
-def test_mysql_publication_with_official_pack_is_blocked_until_names_are_contracted(
+def test_mysql_publication_with_official_pack_and_review_data_passes(
     tmp_path, monkeypatch
 ):
     monkeypatch.setattr(settings, "npc_general_pack", OFFICIAL)
@@ -112,12 +112,14 @@ def test_mysql_publication_with_official_pack_is_blocked_until_names_are_contrac
     async def scenario(sessions):
         service = NpcPublicationService(sessions)
         await approve(sessions, 1, fingerprint)
-        with pytest.raises(PublicationGateFailedError) as caught:
-            await release(service, PinnedContentStore(), tmp_path)
-        check = caught.value.result.check("GEN_PACK")
-        assert check.status == "UNVERIFIED"
-        assert f"GEN-CASE:-:proper_names_undefined:{CASE_ID}@v1" in check.reasons
-        assert await service.current(CASE_ID, 1) is None
+        store = PinnedContentStore()
+        await release(service, store, tmp_path)
+        assert await service.current(CASE_ID, 1) is not None
+        assert store.versions(CASE_ID) == (1,)
+        async with sessions() as db:
+            cases = await read_published_cases(db, store)
+            await db.rollback()
+        assert cases[0].proper_names == ("자물쇠", "쪽지")
 
     mysql_run(scenario)
 

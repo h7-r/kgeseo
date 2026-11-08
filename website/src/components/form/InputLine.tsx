@@ -183,6 +183,7 @@ function EyeToggle({ variant, isRevealed, onToggle }: EyeToggleProps) {
       type="button"
       onClick={onToggle}
       title={isRevealed ? "비밀번호 숨기기" : "비밀번호 보기"}
+      className="eye-toggle"
       style={{ ...eyeButtonStyle, right: variant === "card" ? "8px" : 0 }}
     >
       <img

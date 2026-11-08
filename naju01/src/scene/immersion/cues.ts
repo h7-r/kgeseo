@@ -8,6 +8,8 @@
  */
 import type * as THREE from "three";
 
+import { gameSetTimeout } from "@/engine/input/gameClock";
+
 import { audio } from "./audio";
 import { setLetterbox } from "./overlayDom";
 import { cueTable, settings, stage, type CueItem } from "./state";
@@ -27,7 +29,7 @@ export function strikeLightning(strength = 1) {
     { start: t, seconds: 0.07, strength },
     { start: t + 0.16, seconds: 0.05, strength: strength * 0.7 },
   ];
-  setTimeout(() => audio.play("우르릉"), 1000 + Math.random() * 2000);
+  gameSetTimeout(() => audio.play("우르릉"), 1000 + Math.random() * 2000);
 }
 
 export function playCue(item: CueItem, context: CueContext = {}) {
@@ -57,7 +59,7 @@ export function playCue(item: CueItem, context: CueContext = {}) {
     }
     if (typeof item.바람 === "number") stage.eventWind = { factor: item.바람, end: now + (item.초 ?? 20) };
   };
-  if (item.늦게) setTimeout(run, item.늦게 * 1000);
+  if (item.늦게) gameSetTimeout(run, item.늦게 * 1000);
   else run();
 }
 

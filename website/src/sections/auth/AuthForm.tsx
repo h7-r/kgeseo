@@ -22,10 +22,12 @@ import {
 } from "@/hooks/useForm";
 import { FONT } from "@/lib/style";
 import { suggestEmailTypo, type FieldName } from "@/lib/validation";
+import { isMobileLayout } from "@/mobile/layoutMode";
+import { SIGNED_UP_STATE } from "@/mobile/signedUpState";
 import { QUERY, ROUTES, safeNextPath, withQuery, type RoutePath } from "@/navigation/routes";
 import type { AuthMode } from "@/pages/AuthPage";
 import { authenticate, signUp } from "@/services/account/authApi";
-import { TEST_ACCOUNT_ENABLED, TEST_ACCOUNT_LOGIN } from "@/services/account/db";
+import { TEST_ACCOUNT } from "@/services/account/testAccount";
 import {
   IS_ACCOUNT_MANAGEMENT_READY,
   STORAGE_UNAVAILABLE_REASON,
@@ -65,15 +67,15 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
   // 재설정 2·3단계는 1단계에서 적은 이메일을 이어받는다.
   const carriedEmail = mode === "verifyCode" || mode === "resetPassword" ? readResetState()?.email : "";
 
-  // 시연용 테스트 계정은 미리 채워만 둔다. 로그인은 사람이 누른다. VITE_TEST_ACCOUNT=off 면 같이 꺼진다.
+  // 시연용 테스트 계정은 미리 채워만 둔다. 로그인은 사람이 누른다. 개발 서버에서 VITE_TEST_ACCOUNT=on 일 때만이다.
   const form = useForm({
     fields: AUTH_FIELDS[mode],
     isLogin: mode === "login",
     asyncChecks: mode === "signup" ? SIGNUP_DUPLICATE_CHECKS : {},
     initialValues: carriedEmail
       ? { email: carriedEmail }
-      : mode === "login" && TEST_ACCOUNT_ENABLED
-        ? TEST_ACCOUNT_LOGIN
+      : mode === "login" && TEST_ACCOUNT
+        ? { email: TEST_ACCOUNT.email, password: TEST_ACCOUNT.password }
         : null,
   });
   const { values } = form;
@@ -152,6 +154,11 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
           }
           clearResetState();
         }
+        // 휴대폰에서 가입을 막 마쳤으면 게임으로 바로 넘기지 않고 웹(홈)에 둔다 — 가로로 돌리고 「게임 시작」을 직접 누르게(11/7 미르)
+        if (mode === "signup" && returnTo === ROUTES.play && isMobileLayout()) {
+          navigate(ROUTES.home, { replace: true, state: SIGNED_UP_STATE });
+          return;
+        }
         navigate((mode === "login" || mode === "signup") && returnTo ? returnTo : config.next);
       } catch {
         setAlertMessage(STORAGE_ERROR_MESSAGE[mode]);
@@ -180,7 +187,7 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
       }}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "8px", paddingBottom: "16px", width: "100%" }}>
-        <div style={titleStyle}>{config.title}</div>
+        <h1 style={titleStyle}>{config.title}</h1>
         <div style={subtitleStyle}>{config.subtitle}</div>
       </div>
 
@@ -350,12 +357,13 @@ export default function AuthForm({ mode, onShowTerms }: AuthFormProps) {
               holdOnboarding(onboarding, returnTo);
               navigate(ROUTES.socialOnboarding);
             }}
+            returnTo={returnTo}
           />
         </>
       )}
 
       {/* 화면끼리 이어지는 자리. 회원가입 화면의 「로그인」만 Regular 이다(디자인 그대로). */}
-      <div style={footerStyle}>
+      <div className="auth-form-footer" style={footerStyle}>
         {mode === "login" && (
           <>
             <span style={footerPromptStyle}>아직 계정이 없으신가요?</span>
@@ -420,7 +428,9 @@ const outerShadowStyle: CSSProperties = { filter: "drop-shadow(0px 8px 16px rgba
 
 const innerShadowStyle: CSSProperties = { overflow: "hidden", boxShadow: "0px 8px 32px 0px rgba(47,62,112,0.13)" };
 
+/** 화면 제목 — 쪽마다 h1 하나(보조 기술 · 검사용). 모양은 예전 div 그대로 */
 const titleStyle: CSSProperties = {
+  margin: 0,
   fontFamily: FONT.display,
   fontWeight: 700,
   fontSize: "36px",

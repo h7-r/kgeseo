@@ -1,0 +1,62 @@
+# main에 backend/ 변경이 병합되면 운영 API 서버(EC2)에 자동 배포한다.
+# AWS 키 없이 GitHub OIDC로 역할(waegok-github-deploy)을 빌려 쓴다 — 이 역할은 main 브랜치에서만 쓸 수 있다.
+# 수동 배포: Actions 탭 → deploy-backend → Run workflow (main)
+name: deploy-backend
+
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**', '.github/workflows/deploy-backend.yml']
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+  ROLE_ARN: arn:aws:iam::986033946239:role/waegok-github-deploy
+  BUCKET: waegok-deploy-986033946239
+  INSTANCE_ID: i-006fa7d504dafaa75
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 배포 묶음 만들기
+        run: |
+          tar --exclude='backend/tests' --exclude='__pycache__' --exclude='backend/.env' \
+              --exclude='backend/.venv' -czf release.tgz backend
+          ls -lh release.tgz
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 묶음 올리기
+        run: aws s3 cp release.tgz "s3://$BUCKET/backend/$GITHUB_SHA.tgz" --only-show-errors
+
+      - name: 서버에 배포 (마이그레이션 → 재시작 → /health/ready 확인, 실패 시 이전 버전으로)
+        run: |
+          CID=$(aws ssm send-command --instance-ids "$INSTANCE_ID" --document-name waegok-Deploy \
+                --parameters "Sha=$GITHUB_SHA" --comment "deploy ${GITHUB_SHA:0:7}" \
+                --query Command.CommandId --output text)
+          for i in $(seq 1 180); do
+            sleep 5
+            S=$(aws ssm get-command-invocation --command-id "$CID" --instance-id "$INSTANCE_ID" \
+                --query Status --output text 2>/dev/null || echo Pending)
+            case "$S" in Pending|InProgress|Delayed) continue;; *) break;; esac
+          done
+          aws ssm get-command-invocation --command-id "$CID" --instance-id "$INSTANCE_ID" \
+            --query '[StandardOutputContent,StandardErrorContent]' --output text
+          echo "결과: $S"
+          test "$S" = "Success"

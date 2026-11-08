@@ -78,6 +78,8 @@ FIELD_ERRORS = {
 }
 # Routes whose validation errors never echo inputs, with fields checked in order.
 SENSITIVE_INPUT_FIELDS = {
+    "/api/v1/auth/google": (),
+    "/api/v1/auth/naver": (),
     "/api/v1/auth/register": ("email", "password", "nickname"),
     "/api/v1/auth/login": ("email", "password"),
     "/api/v1/auth/social-onboarding/complete": ("nickname",),

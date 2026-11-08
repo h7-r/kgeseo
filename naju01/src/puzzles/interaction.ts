@@ -5,6 +5,7 @@
 import { useSyncExternalStore } from "react";
 import * as THREE from "three";
 
+import { isPointerActive } from "@/engine/input/virtualLock";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import { isCameraFocused } from "../scene/cameraFocus";
@@ -32,6 +33,8 @@ export interface Interactable {
   keepHand?: boolean;
   /** 다시 주울 수 있는 물건 — 겨냥에서 다른 대상보다 먼저 잡히고, 손에 다른 것을 들고 있어도 E 로 줍는다 */
   isPickup?: boolean;
+  /** 겨냥 점수에 더하는 값 — 클수록 다른 대상에 양보한다(따라다니는 동행이 퍼즐 물건 앞을 지날 때 가로채지 않게) */
+  aimPenalty?: number;
   /** 겨누면 살짝 커지고 밝아질 물체(본편 AimHighlight 와 같은 셈) — 테두리 동그라미 대신 이걸 쓴다 */
   highlight?: () => THREE.Object3D | null;
 }
@@ -72,7 +75,8 @@ export function updateAim(camera: THREE.Camera, isActive: boolean) {
     if (along <= 0 || toTarget.length() > target.reach) continue;
     const side = Math.sqrt(Math.max(0, toTarget.lengthSq() - along * along));
     if (side > target.radius) continue;
-    const score = side / target.radius + along / target.reach - (target.isPickup ? PICKUP_PRIORITY : 0);
+    const score =
+      side / target.radius + along / target.reach - (target.isPickup ? PICKUP_PRIORITY : 0) + (target.aimPenalty ?? 0);
     if (score < bestScore) {
       bestScore = score;
       best = target;
@@ -82,6 +86,9 @@ export function updateAim(camera: THREE.Camera, isActive: boolean) {
 }
 
 export const useAimedLabel = () => useSyncExternalStore(signal.subscribe, () => aimed?.label ?? null);
+
+/** 지금 등록된 대상 id(정렬) — 개발 도구가 FE 로컬 ID 보고에 쓴다. 등록부를 바꾸지 않는다 */
+export const listInteractableIds = () => [...targets.keys()].sort();
 
 /** 지금 겨눈 대상의 id — 매 프레임 읽는 강조(빛남)가 쓴다 */
 export const aimedId = () => aimed?.id ?? null;
@@ -163,7 +170,7 @@ if (typeof window !== "undefined") {
         event.stopImmediatePropagation();
         return;
       }
-      if (!document.pointerLockElement || isCameraFocused()) return;
+      if (!isPointerActive() || isCameraFocused()) return;
       if (handHandler?.(aimed)) {
         event.stopImmediatePropagation();
         return;

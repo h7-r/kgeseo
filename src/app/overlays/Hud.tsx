@@ -1,5 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
+import { tapKey, useKeyLabels } from "@/engine/input";
+
 import { useLock, useLockControl } from "@/props/combinationLockState";
 import { getHeldDrink, useDrink } from "@/props/drinkState";
 import { PANEL_SHADOW, UI, UI_FONT } from "@/game/gameUi";
@@ -100,7 +102,12 @@ const actionHintStyle: CSSProperties = {
   boxShadow: PANEL_SHADOW,
   padding: "13px 20px",
   borderRadius: 22,
-  whiteSpace: "pre",
+  // 줄바꿈은 글에 적힌 대로, 좁은 휴대폰 가로에서는 폭 안에서 접는다(14회차 — 예전 pre 라 화면 밖으로 나갔다)
+  whiteSpace: "pre-line",
+  lineHeight: 1.35,
+  textAlign: "center",
+  maxWidth: "calc(100% - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))",
+  boxSizing: "border-box",
   pointerEvents: "none",
 };
 
@@ -116,6 +123,7 @@ export function ActionHint({ near }: ActionHintProps) {
   // 판 번호만 구독한다. 집고 버리는 순간에만 바뀌어 자주 다시 그려지지 않는다.
   useDrink();
   const isHologramAimed = useIsHologramAimed();
+  const labels = useKeyLabels();
   const hint =
     getHeldDrink()?.kind === "paper"
       ? "[H] 힌트함에 넣기   ·   [E] 내려놓기"
@@ -125,7 +133,7 @@ export function ActionHint({ near }: ActionHintProps) {
           ? "[E] 기차에서 내리기"
           : "";
   if (!hint) return null;
-  return <div style={actionHintStyle}>{hint}</div>;
+  return <div style={actionHintStyle}>{labels.text(hint)}</div>;
 }
 
 const lockPanelStyle: CSSProperties = {
@@ -173,10 +181,13 @@ const lockGuideStyle: CSSProperties = {
  * 자물쇠를 만지는 동안 지금 돌리는 칸과 키 안내. 숫자는 3D 자물쇠에서 읽게 하고 여기서는 키만 알려 준다.
  * App 에서 떼어 둔 이유: 다이얼을 App 이 구독하면 키 한 번에 App 과 Canvas 자식 전체가 다시 그려진다.
  */
-export function LockDialPanel() {
+export function LockDialPanel({ covered = false }: { covered?: boolean }) {
   const control = useLockControl();
   const lock = useLock(control?.id);
+  const labels = useKeyLabels();
   if (!control || !lock) return null;
+  // 터치 다이얼은 조작 화면 위(z 950)라 창(설정 등)이 뜨면 창을 가린다 — 창이 떠 있거나 나가는 중(카메라 복귀)이면 숨긴다(코덱스 구현 10회차)
+  if (labels.isTouch) return covered || control.phase !== "active" ? null : <TouchLockDial />;
   return (
     <div style={lockPanelStyle}>
       <div style={lockRowsStyle}>
@@ -196,3 +207,116 @@ export function LockDialPanel() {
     </div>
   );
 }
+
+/**
+ * 터치 자물쇠 — 칸마다 ▲ ▼, 칸을 누르면 그 칸을 고른다, [열기] · [나가기].
+ * 판정 · 소리 · 열림 연출은 키보드 길(useGameKeys 의 handleLockKey)을 그대로 쓴다: ← → ↑ ↓ · Enter · Escape 가상 키.
+ * 조작 화면(z 900) 위에 둬야 손가락이 닿는다.
+ */
+function TouchLockDial() {
+  const control = useLockControl();
+  const lock = useLock(control?.id);
+  if (!control || !lock) return null;
+  const goToRow = (row: number) => {
+    const steps = row - lock.selectedRow;
+    const code = steps > 0 ? "ArrowRight" : "ArrowLeft";
+    for (let i = 0; i < Math.abs(steps); i += 1) tapKey(code);
+  };
+  const turn = (row: number, direction: 1 | -1) => {
+    goToRow(row);
+    tapKey(direction > 0 ? "ArrowUp" : "ArrowDown");
+  };
+  return (
+    <div style={touchLockPanelStyle} data-hud="자물쇠 다이얼">
+      <div style={lockRowsStyle}>
+        {lock.digits.map((digit, row) => (
+          <div key={row} style={touchLockColumnStyle}>
+            <button
+              type="button"
+              style={touchLockArrowStyle}
+              aria-label={`${row + 1}번째 칸 올리기`}
+              onClick={() => turn(row, 1)}
+            >
+              ▲
+            </button>
+            <button
+              type="button"
+              style={{ ...(row === lock.selectedRow ? selectedLockRowStyle : lockRowStyle), ...touchLockGlyphStyle }}
+              aria-label={`${row + 1}번째 칸 고르기`}
+              onClick={() => goToRow(row)}
+            >
+              {lock.glyphs[row]?.[digit] ?? "?"}
+            </button>
+            <button
+              type="button"
+              style={touchLockArrowStyle}
+              aria-label={`${row + 1}번째 칸 내리기`}
+              onClick={() => turn(row, -1)}
+            >
+              ▼
+            </button>
+          </div>
+        ))}
+      </div>
+      <div style={touchLockActionsStyle}>
+        <button type="button" style={touchLockActionStyle} onClick={() => tapKey("Escape")}>
+          나가기
+        </button>
+        <button
+          type="button"
+          style={{ ...touchLockActionStyle, ...touchLockPrimaryStyle }}
+          disabled={lock.submitting}
+          onClick={() => tapKey("Enter")}
+        >
+          {lock.submitting ? "확인 중…" : lock.unlocked ? "열렸다" : "열기"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * 터치 — 오른쪽 아래, 숨긴 앉기 · 점프 · ✋ 자리(오른손 엄지가 닿는 곳). 가운데에 두면 왼쪽 위 튜토리얼 판과 겹치고
+ * (667 · 노치 가로, HUD 검사 3판) 화면 가운데 3D 자물쇠도 가렸다
+ */
+const touchLockPanelStyle: CSSProperties = {
+  ...lockPanelStyle,
+  left: "auto",
+  right: "calc(env(safe-area-inset-right, 0px) + 16px)",
+  transform: "none",
+  bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)",
+  zIndex: 950,
+  pointerEvents: "auto",
+  touchAction: "manipulation",
+  userSelect: "none",
+  WebkitUserSelect: "none",
+};
+const touchLockColumnStyle: CSSProperties = { display: "grid", justifyItems: "center", gap: 4 };
+// 누르는 영역 44(Apple HIG) — 예전 40(14회차)
+const touchLockArrowStyle: CSSProperties = {
+  width: 48,
+  height: 44,
+  borderRadius: 10,
+  border: `1px solid ${UI.border}`,
+  background: UI.glass,
+  color: UI.text,
+  fontSize: 16,
+  padding: 0,
+};
+const touchLockGlyphStyle: CSSProperties = {
+  width: 48,
+  minHeight: 44,
+  font: `600 22px/1.1 ${UI_FONT.mono}`,
+  padding: 0,
+};
+const touchLockActionsStyle: CSSProperties = { display: "flex", gap: 10 };
+const touchLockActionStyle: CSSProperties = {
+  minWidth: 96,
+  height: 48,
+  borderRadius: 24,
+  border: `1px solid ${UI.border}`,
+  background: UI.glass,
+  color: UI.text,
+  font: `600 15px/1 ${UI_FONT.body}`,
+};
+const touchLockPrimaryStyle: CSSProperties = { border: `1px solid ${UI.accent}`, background: UI.surfaceHover };

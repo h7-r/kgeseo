@@ -17,6 +17,7 @@ import {
   RUN_SPEED_MULTIPLIER,
   WALK_SPEED,
 } from "@/engine/movement/constants";
+import { getTouchMove, touchSpeedMultiplier } from "@/engine/input/touchInput";
 import type { PlayerMotionState } from "@/engine/movement/useMovement";
 
 import { BASELINE, METERS_PER_UNIT, UNITS_PER_METER, type Heading, type ZoneCode } from "../plan/sitePlan";
@@ -144,6 +145,8 @@ export function useTerrainMovement(
   const boomLength = useRef(thirdPersonDistance * UNITS_PER_METER);
   const boomProbe = useRef(new THREE.Vector3());
   const keys = useRef({ forward: false, back: false, left: false, right: false, run: false, crouch: false });
+  /** 터치 스틱을 끝까지 밀어 달리는 중 — Shift(k.run)와 같이 본다 */
+  const isTouchRunning = useRef(false);
   const velocity = useRef(new THREE.Vector3());
   const verticalVelocity = useRef(0);
   const isGrounded = useRef(true);
@@ -317,12 +320,30 @@ export function useTerrainMovement(
       if (k.back) wish.sub(forward);
       if (k.right) wish.add(right);
       if (k.left) wish.sub(right);
+      // 키가 없으면 터치 스틱 — 방향은 정규화하되 세기는 반응 곡선으로 따로 둔다(touchInput)
+      let touchMultiplier: number | null = null;
+      /** 터치 걷기 세기(0~1) — 앉기 속도에도 곱한다. 키보드면 1 */
+      let touchWalk = 1;
+      isTouchRunning.current = false;
+      if (wish.lengthSq() === 0) {
+        const touch = getTouchMove();
+        if (touch.walk > 0) {
+          wish.addScaledVector(forward, touch.y).addScaledVector(right, touch.x);
+          touchMultiplier = touchSpeedMultiplier(touch, RUN_SPEED_MULTIPLIER);
+          touchWalk = touch.walk;
+          isTouchRunning.current = touch.isRunning;
+        }
+      }
       if (wish.lengthSq() > 0) wish.normalize();
       if (wish.lengthSq() > 0.00001) facing.current = Math.atan2(wish.x, wish.z);
       const baseSpeed =
         (walkSpeed ? walkSpeed * UNITS_PER_METER : WALK_SPEED) *
         (gravityField.speedScaleAt?.(p.x * METERS_PER_UNIT, p.z * METERS_PER_UNIT) ?? 1);
-      const speed = baseSpeed * (isCrouching ? CROUCH_SPEED_MULTIPLIER : k.run ? RUN_SPEED_MULTIPLIER : 1);
+      const speed =
+        baseSpeed *
+        (isCrouching
+          ? CROUCH_SPEED_MULTIPLIER * touchWalk // 앉아도 스틱 세기를 따른다
+          : (touchMultiplier ?? (k.run ? RUN_SPEED_MULTIPLIER : 1)));
       const goal = wish.multiplyScalar(speed);
       // 바깥에서 미는 힘(물고기 떼 · 물살) — 가려는 빠르기에 얹는다. 이번 프레임만
       goal.x += playerPush.x * UNITS_PER_METER;
@@ -509,7 +530,7 @@ export function useTerrainMovement(
         placeName: terrain.placeName(finalX, finalZ),
         isGrounded: isGrounded.current,
         isCrouching,
-        isRunning: keys.current.run,
+        isRunning: keys.current.run || isTouchRunning.current,
         speed: Math.hypot(velocity.current.x, velocity.current.z) * METERS_PER_UNIT,
         distance: travelled.current,
         elapsed: elapsed.current,
@@ -541,7 +562,7 @@ export function useTerrainMovement(
       // 아바타가 걷기 모션 속도를 실제 이동 속도에 맞춘다
       state.speed = active ? Math.hypot(velocity.current.x, velocity.current.z) : 0;
       state.moving = state.speed > 0.001;
-      state.running = active && keys.current.run;
+      state.running = active && (keys.current.run || isTouchRunning.current);
       state.crouching = keys.current.crouch;
       state.grounded = isGrounded.current;
       state.jumping = isJumping.current;

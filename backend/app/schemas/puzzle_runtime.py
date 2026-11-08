@@ -110,9 +110,16 @@ class HintDefinition(ServerContentModel):
         return self
 
 
+class PuzzleSolveDefinition(ServerContentModel):
+    """Approved v0.4.15 extension. Omitted solve retains answer grading."""
+
+    mode: Literal["client_skill"]
+
+
 class PuzzleDefinition(ServerContentModel):
     puzzle_id: str
-    accepted_answers: list[str] = Field(min_length=1)
+    solve: PuzzleSolveDefinition | None = None
+    accepted_answers: list[str] = Field(default_factory=list)
     # 정답 판정 전에 PlaySession이 모두 획득해야 하는 단서. 비어 있으면 조건 없음.
     requires_clue_ids: list[str] = Field(default_factory=list)
     # 정답 판정 전에 PlaySession이 모두 완료해야 하는 퍼즐. 비어 있으면 조건 없음.
@@ -126,6 +133,10 @@ class PuzzleDefinition(ServerContentModel):
     @model_validator(mode="after")
     def validate_requirements(self) -> "PuzzleDefinition":
         owner = f"Puzzle '{self.puzzle_id}'"
+        if self.solve is None and not self.accepted_answers:
+            raise ValueError(f"{owner} requires accepted_answers for answer grading")
+        if self.solve is not None and self.accepted_answers:
+            raise ValueError(f"{owner} client_skill must not define accepted_answers")
         _validate_required_clue_ids(owner, self.requires_clue_ids)
         _validate_required_ids(owner, "requires_puzzle_ids", self.requires_puzzle_ids)
         if self.puzzle_id in self.requires_puzzle_ids:

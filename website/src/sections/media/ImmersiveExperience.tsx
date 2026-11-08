@@ -53,11 +53,12 @@ const FEATURES: readonly Feature[] = [
 ];
 
 // 지금 사실인 숫자만 둔다. 한 판 시간은 홈 마무리 글·게임 소개와 같은 값이다.
-const STATS: readonly (readonly [value: string, label: string])[] = [
+// 단위(분·인칭)는 한글이라 숫자 글꼴에 없어 굵고 큰 대체 글꼴로 나온다. 따로 줄여 숫자 높이에 맞춘다.
+const STATS: readonly (readonly [value: string, label: string, unit?: string])[] = [
   ["1", "공개 맵 · 나주"],
   ["4", "출시 예정 지역"],
-  ["15~25분", "한 판 플레이"],
-  ["1인칭", "실시간 3D 추리"],
+  ["15~25", "한 판 플레이", "분"],
+  ["1", "실시간 3D 추리", "인칭"],
 ];
 
 interface ImmersiveExperienceProps {
@@ -144,8 +145,8 @@ export default function ImmersiveExperience({ top = 0 }: ImmersiveExperienceProp
         />
 
         <div style={statsRowStyle}>
-          {STATS.map(([value, label], i) => (
-            <Stat key={label} value={value} label={label} hasDivider={i < STATS.length - 1} />
+          {STATS.map(([value, label, unit], i) => (
+            <Stat key={label} value={value} unit={unit} label={label} hasDivider={i < STATS.length - 1} />
           ))}
         </div>
       </section>
@@ -205,15 +206,19 @@ function FeatureCard({ number, icon, title, description, isComingSoon, order }: 
 
 interface StatProps {
   value: string;
+  unit?: string;
   label: string;
   hasDivider: boolean;
 }
 
-function Stat({ value, label, hasDivider }: StatProps) {
+function Stat({ value, unit, label, hasDivider }: StatProps) {
   return (
     <>
       <div style={statStyle}>
-        <span style={statValueStyle}>{value}</span>
+        <span style={statValueStyle}>
+          {value}
+          {unit && <span style={statUnitStyle}>{unit}</span>}
+        </span>
         <span style={statLabelStyle}>{label}</span>
       </div>
       {hasDivider && (
@@ -419,6 +424,12 @@ const statValueStyle: CSSProperties = {
   fontFamily: FONT.display,
   fontSize: "60px",
   ...gradientText("linear-gradient(180deg, #536c95 39.904%, #111b34 100%)"),
+};
+
+const statUnitStyle: CSSProperties = {
+  fontSize: "0.86em",
+  fontWeight: 600,
+  marginLeft: "0.06em",
 };
 
 const statLabelStyle: CSSProperties = {

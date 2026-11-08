@@ -1,0 +1,83 @@
+# 게임 에셋(public/_sf_local · vfx · models)을 CDN(S3 + CloudFront)에 올린다.
+#   케이스 파일: s3://<버킷>/c/<케이스>/<판>/_sf_local · vfx   (assetUrl — VITE_DEFAULT_CASE_PATH · 세션 asset_base_path)
+#   공용 파일:   s3://<버킷>/shared/<해시>/models               (sharedAssetUrl — tools/shared-asset-build.mjs 해시)
+# 실행: Actions → deploy-assets → Run workflow(main). main 에 에셋 변경이 병합돼도 자동으로 돈다.
+# 라이선스 보류(tools/asset-hold.mjs)에 걸린 파일은 올리지 않는다.
+name: deploy-assets
+
+on:
+  push:
+    branches: [main]
+    paths: ['public/_sf_local/**', 'public/vfx/**', 'public/models/**', 'tools/asset-hold.mjs', '.github/workflows/deploy-assets.yml']
+  workflow_dispatch:
+    inputs:
+      case_path:
+        description: '케이스 판 경로(asset_base_path와 같게)'
+        default: '/c/naju-angam-01/v1'
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-assets
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-2
+  ROLE_ARN: arn:aws:iam::986033946239:role/waegok-github-deploy
+  BUCKET: waegok-assets-986033946239
+
+jobs:
+  upload:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 경로 정하기 · 보류 파일 확인
+        id: plan
+        env:
+          CASE_PATH: ${{ inputs.case_path || '/c/naju-angam-01/v1' }}
+        run: |
+          [[ "$CASE_PATH" =~ ^/c/[a-z0-9-]+/v[0-9]+$ ]] || { echo "case_path 형식이 틀림: $CASE_PATH"; exit 1; }
+          SHARED=$(node -e "import('./tools/shared-asset-build.mjs').then(m=>console.log(m.sharedAssetBuild()))")
+          echo "case=$CASE_PATH" >> "$GITHUB_OUTPUT"
+          echo "shared=$SHARED" >> "$GITHUB_OUTPUT"
+          node -e "
+            import('./tools/asset-hold.mjs').then(({ holdOf }) => {
+              const { readdirSync, statSync } = require('node:fs');
+              const walk = (d) => readdirSync(d).flatMap((n) => { const p = d + '/' + n; return statSync(p).isDirectory() ? walk(p) : [p]; });
+              const held = ['_sf_local', 'vfx', 'models'].flatMap((d) => walk('public/' + d)).map((p) => p.slice(7)).filter((r) => holdOf(r));
+              require('node:fs').writeFileSync('held.txt', held.map((r) => '/' + r).join('\n'));
+              console.log('보류 파일(올리지 않음):', held.length);
+            });"
+          echo "케이스 → $CASE_PATH · 공용 → /shared/$SHARED"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 올리기
+        env:
+          CASE: ${{ steps.plan.outputs.case }}
+          SHARED: ${{ steps.plan.outputs.shared }}
+        run: |
+          EXCL=(); while read -r f; do [ -n "$f" ] && EXCL+=(--exclude "${f#/*/}"); done < held.txt
+          up() { # $1=폴더 $2=S3 접두 $3=Cache-Control
+            aws s3 sync "public/$1" "s3://$BUCKET$2/$1" --only-show-errors \
+              --exclude ".*" --exclude "*/.*" "${EXCL[@]}" --cache-control "$3"
+          }
+          up _sf_local "$CASE" "public, max-age=86400"
+          up vfx       "$CASE" "public, max-age=86400"
+          up models    "/shared/$SHARED" "public, max-age=31536000, immutable"
+          echo "== play 환경변수"
+          echo "VITE_ASSET_BASE=https://d1eknf201863mj.cloudfront.net"
+          echo "VITE_DEFAULT_CASE_PATH=$CASE"
+          echo "(공용 경로 /shared/$SHARED 는 빌드가 같은 해시로 채운다)"

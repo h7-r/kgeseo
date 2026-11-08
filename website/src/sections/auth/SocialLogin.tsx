@@ -13,16 +13,18 @@ interface SocialLoginProps {
   onSignedIn: (user: SessionUser) => void;
   /** 처음 온 구글 계정. 로그인시키지 않고 가입 화면으로 넘긴다. */
   onOnboardingRequired: (onboarding: OnboardingRequired) => void;
+  /** 네이버는 화면을 떠났다 돌아오므로 마친 뒤 갈 곳을 미리 넘긴다. 없으면 기본 경로로 간다. */
+  returnTo?: string | null;
 }
 
 /** 키(.env)가 없으면 창을 띄우지 않고 그 자리에서 까닭을 알려 준다. */
-export default function SocialLogin({ onSignedIn, onOnboardingRequired }: SocialLoginProps) {
+export default function SocialLogin({ onSignedIn, onOnboardingRequired, returnTo = null }: SocialLoginProps) {
   const [message, setMessage] = useState("");
   const [isBusy, setIsBusy] = useState(false);
 
   const handleNaver = () => {
     if (isBusy) return;
-    setMessage(startNaverLogin());
+    setMessage(startNaverLogin(returnTo));
   };
 
   return (

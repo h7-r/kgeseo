@@ -2,8 +2,9 @@
  * [H] 로 여는 힌트함. 치수·색은 소지품 창과 같다 — 생김새가 다르면 다른 게임 화면으로 읽힌다.
  * 힌트는 그림 한 장 + 한 줄 설명이라 왼쪽에서 고르면 오른쪽에 크게 펴 준다.
  */
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
+import { useTouchMode } from "@/engine/input";
 import { restoreHintPaper, VALVE_HINT } from "@/props/hintPaperState";
 
 import { NoteIcon } from "./gameIcons";
@@ -45,25 +46,35 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
     setSelectedId(open ? latestId() : null);
   }
 
-  // [E] — 골라 둔 힌트를 버린다. 창이 열리면 마우스 잠금이 풀려 App 의 E 까지 가지 않으므로 창이 직접 듣는다.
-  // 지우지 않고 실물 쪽지를 바닥에 도로 내놓는다 — 잘못 누른 사람이 걸어가 주우면 된다.
+  const isTouch = useTouchMode();
+
+  // 골라 둔 힌트를 버린다 — 지우지 않고 실물 쪽지를 바닥에 도로 내놓는다(잘못 누른 사람이 걸어가 주우면 된다).
+  // 실물이 없는 쪽지(튜토리얼 첫 쪽지 등)는 떨어뜨릴 종이가 없어 버리지 않는다. 버린 자리는 옆 것을 이어서 펴 준다.
+  const discardSelected = () => {
+    if (!selectedId) return;
+    const selected = hints.find((hint) => hint.id === selectedId);
+    if (selected?.isPhysical === false) return;
+    const remaining = hints.filter((hint) => hint.id !== selectedId);
+    if (removeHint(selectedId) && selectedId === VALVE_HINT.id) restoreHintPaper();
+    setSelectedId(remaining.length ? remaining[remaining.length - 1].id : null);
+  };
+  const discardRef = useRef(discardSelected);
+  useLayoutEffect(() => {
+    discardRef.current = discardSelected;
+  });
+
+  // [E] — 창이 열리면 마우스 잠금이 풀려 App 의 E 까지 가지 않으므로 창이 직접 듣는다. 휴대폰은 아래 단추로 버린다(14회차)
   useEffect(() => {
     if (!open || !selectedId) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "KeyE") return;
       if (isTypingTarget(event.target)) return;
       event.preventDefault();
-      // 실물이 없는 쪽지(튜토리얼 첫 쪽지 등)는 떨어뜨릴 종이가 없어 버리지 않는다.
-      const selected = hints.find((hint) => hint.id === selectedId);
-      if (selected?.isPhysical === false) return;
-      const remaining = hints.filter((hint) => hint.id !== selectedId);
-      if (removeHint(selectedId) && selectedId === VALVE_HINT.id) restoreHintPaper();
-      // 버린 자리를 비워 두지 않는다 — 옆 것을 이어서 펴 준다
-      setSelectedId(remaining.length ? remaining[remaining.length - 1].id : null);
+      discardRef.current();
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, selectedId, hints]);
+  }, [open, selectedId]);
 
   if (!open) return null;
   const selected = selectedId ? hints.find((hint) => hint.id === selectedId) : null;
@@ -103,7 +114,13 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
             <span>
               아직 모은 힌트가 없다.
               <br />
-              쪽지를 집어 든 채 <kbd style={inlineKeyStyle}>H</kbd> 를 누르면 여기 적힌다.
+              {isTouch ? (
+                "쪽지를 집어 든 채 위 💡 단추를 누르면 여기 적힌다."
+              ) : (
+                <>
+                  쪽지를 집어 든 채 <kbd style={inlineKeyStyle}>H</kbd> 를 누르면 여기 적힌다.
+                </>
+              )}
             </span>
           </div>
         )}
@@ -118,6 +135,13 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
             <p style={descriptionStyle}>{selected.description ?? "아직 적힌 것이 없다."}</p>
             {selected.isPhysical === false ? (
               <div style={discardStyle}>힌트함에 늘 남아 있는 쪽지</div>
+            ) : isTouch ? (
+              <div style={discardStyle}>
+                <button type="button" style={discardButtonStyle} onClick={discardSelected}>
+                  쪽지 버리기
+                </button>
+                <div style={{ marginTop: 6 }}>쪽지가 바닥에 떨어진다 — 다시 주울 수 있다</div>
+              </div>
             ) : (
               <div style={discardStyle}>
                 <kbd style={inlineKeyStyle}>E</kbd> 버리기 — 쪽지가 바닥에 떨어진다
@@ -134,6 +158,16 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
   );
 }
 
+const discardButtonStyle: CSSProperties = {
+  minHeight: 44,
+  padding: "0 18px",
+  borderRadius: 22,
+  border: `1px solid ${UI.borderStrong}`,
+  background: UI.surfaceRaised,
+  color: UI.text,
+  font: `600 14px/1 ${UI_FONT.body}`,
+  cursor: "pointer",
+};
 const inlineKeyStyle: CSSProperties = { ...keyCapStyle, minWidth: 22, height: 22, padding: "0 6px", margin: "0 2px" };
 const discardStyle: CSSProperties = {
   marginTop: 18,

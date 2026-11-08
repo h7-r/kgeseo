@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import App from "@/app/App";
 import CharacterCreationRoute, { CHARACTER_CREATION_PATH } from "@/characterCreation/CharacterCreationRoute";
+import { LandscapeGuard } from "@/engine/input";
 import { LoadingVideoOverlay } from "@/naju";
 import { initGameSave } from "@/save/gameSave";
 import { registerMainGameSave } from "@/save/mainGameSave";
@@ -31,6 +32,8 @@ void initGameSave().finally(() => {
           <Route path="*" element={<App />} />
         </Routes>
         <LoadingVideoOverlay />
+        {/* 휴대폰 세로면 무엇보다 위에서 「가로로 돌려 주세요」 — 첫 로딩 · 오프닝 · 캐릭터 생성 · 게임 씬 모두 */}
+        <LandscapeGuard />
       </BrowserRouter>
     </StrictMode>,
   );

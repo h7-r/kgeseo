@@ -23,7 +23,7 @@ import { SCRIM_ATTR } from "@/lib/layout";
 import { fillImageStyle, FONT, glowImageStyle, gradientText, place } from "@/lib/style";
 import { START_GAME, useSiteNavigate } from "@/navigation/routes";
 import { sectionAnchor } from "@/navigation/subMenus";
-import { COLOR, GRADIENT, SHADOW, badgePillStyle } from "@/styles/tokens";
+import { COLOR, GRADIENT, SHADOW } from "@/styles/tokens";
 
 interface Branch {
   label: string;
@@ -161,19 +161,6 @@ export default function RegionSelect() {
         {...SCRIM_ATTR}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <div style={eyebrowStyle}>
-            <span
-              style={{
-                fontFamily: FONT.mono,
-                fontSize: "18px",
-                color: COLOR.accent,
-                textTransform: "uppercase",
-                whiteSpace: "nowrap",
-              }}
-            >
-              당신의 모험이 시작되는 곳
-            </span>
-          </div>
           <div style={bigTitleStyle}>지역을 선택하세요</div>
           <div
             style={{
@@ -352,8 +339,6 @@ const photoDescriptionStyle: CSSProperties = {
   color: COLOR.accent,
   width: "100%",
 };
-
-const eyebrowStyle: CSSProperties = { ...badgePillStyle, alignSelf: "flex-start", gap: "8px", padding: "6px 16px" };
 
 const bigTitleStyle: CSSProperties = {
   fontFamily: FONT.body,

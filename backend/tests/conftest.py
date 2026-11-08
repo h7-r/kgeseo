@@ -2,11 +2,18 @@ from collections.abc import Iterator
 from typing import Any
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 
 from app.api.v1.play_sessions import get_new_session_publication_guard
 from app.db.session import get_db
 from app.main import app
+from app.services.play_principal import (
+    PlayPrincipal,
+    current_play_principal,
+    require_play_origin,
+    require_play_session_owner,
+)
 
 
 class FakeAsyncSession:
@@ -125,3 +132,43 @@ def client(db_session: FakeAsyncSession) -> Iterator[TestClient]:
 
 async def published_guard(db: Any, pin: Any) -> None:
     """테스트용 게시 상태 guard: 저장소에 등록된 버전을 게시 중으로 본다(DB 게시 상태 테이블 없이)."""
+
+
+async def _legacy_play_principal(request: Request) -> PlayPrincipal:
+    """소유권 도입(11/6) 전에 쓰인 테스트용 주체 — 쿠키 대신 본문의 익명 세션을 게스트 주체로 본다.
+
+    새 Play Session 은 그 익명 세션 소유가 되고, 익명 세션 없음 · 만료 오류는 예전처럼 서비스가 낸다.
+    실제 쿠키 · 소유권 · Origin 검사는 `real_play_auth` 표시 테스트가 MySQL 로 확인한다.
+    """
+    anonymous_session_id = None
+    if request.method == "POST" and request.url.path.rstrip("/").endswith("/play-sessions"):
+        try:
+            body = await request.json()
+        except Exception:
+            body = None
+        if isinstance(body, dict) and isinstance(body.get("anonymous_session_id"), str):
+            anonymous_session_id = body["anonymous_session_id"]
+    return PlayPrincipal(kind="guest", anonymous_session_id=anonymous_session_id)
+
+
+async def _legacy_owner_check() -> None:
+    return None
+
+
+@pytest.fixture(autouse=True)
+def legacy_play_auth(request: pytest.FixtureRequest) -> Iterator[None]:
+    """기존 테스트에서만 플레이 API 의 쿠키 주체 · 소유권 · Origin 의존성을 예전 동작으로 바꾼다."""
+    if request.node.get_closest_marker("real_play_auth") is not None:
+        yield
+        return
+    overrides = {
+        current_play_principal: _legacy_play_principal,
+        require_play_session_owner: _legacy_owner_check,
+        require_play_origin: _legacy_owner_check,
+    }
+    app.dependency_overrides.update(overrides)
+    try:
+        yield
+    finally:
+        for dependency in overrides:
+            app.dependency_overrides.pop(dependency, None)

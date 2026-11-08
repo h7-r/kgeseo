@@ -1,0 +1,49 @@
+/* 모바일 배치(src/mobile) 공용 규칙 — 데스크톱 화면에는 걸리지 않는다(클래스가 모바일 갈래에만 붙는다) */
+
+/* 인증 카드는 데스크톱 폭(593px · 높이 800px)으로 짜여 있다 — 모바일 칸에 맞춘다 */
+.mobile-auth-card > * {
+  width: 100% !important;
+  min-height: 0 !important;
+  max-width: 100%;
+}
+
+/* 약관 탭(흐름 배치) — 탭 줄 스크롤 막대는 숨긴다(줄 자체는 TermsTabs 가 가로 스크롤로 둔다) */
+.terms-tabs--flow [role="tablist"]::-webkit-scrollbar {
+  display: none;
+}
+/* 약관 본문 — 휴대폰 폭에서 바깥 여백을 줄인다 */
+.terms-tabs--flow > div:last-child {
+  padding: 20px 18px 28px !important;
+}
+
+/* 입력칸 16px 미만이면 아이폰 Safari 가 확대한다 */
+.mobile-auth-card input,
+.mobile-auth-card select,
+.mobile-auth-card textarea {
+  font-size: 16px !important;
+}
+
+/* 로그인 · 가입 카드 아래 링크 줄 — 한 줄 고정이면 잘린다 */
+.mobile-auth-card .auth-form-footer {
+  flex-wrap: wrap;
+  white-space: normal !important;
+  row-gap: 4px;
+}
+.mobile-auth-card .auth-form-footer > * {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 동의 문구 — 줄바꿈 허용 */
+.mobile-auth-card .consent-text {
+  white-space: normal !important;
+  flex-wrap: wrap;
+}
+
+/* 비밀번호 보기(24px) — 그림은 그대로 두고 누르는 영역만 44px 로 넓힌다 */
+.mobile-auth-card .eye-toggle::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+}

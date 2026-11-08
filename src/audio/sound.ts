@@ -1,4 +1,5 @@
 import { exposeDevHook } from "@/debug/devHooks";
+import { isGameFrozen, trackAudioContext } from "@/engine/input/gamePause";
 import { settingsStore } from "@/settings/settings";
 
 // 버튼 연타처럼 같은 소리가 겹쳐야 하고 지연이 적어야 해서 <audio> 대신 미리 디코드한 Web Audio 버퍼를 쓴다.
@@ -67,8 +68,11 @@ function getAudioContext() {
       window.AudioContext ?? (window as Window & { webkitAudioContext?: AudioContextConstructor }).webkitAudioContext;
     if (!AudioContextClass) return null;
     context = new AudioContextClass();
+    // 터치 모드의 「전부 멈춤」이 이 컨텍스트도 세운다
+    trackAudioContext(context);
   }
-  if (context.state === "suspended") context.resume().catch(() => {});
+  // 얼어 있는 동안은 효과음을 찾다가 소리를 다시 깨우지 않는다
+  if (context.state === "suspended" && !isGameFrozen()) context.resume().catch(() => {});
   return context;
 }
 

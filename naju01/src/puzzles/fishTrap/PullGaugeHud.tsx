@@ -1,5 +1,10 @@
 import { useEffect, useRef, type CSSProperties } from "react";
 
+import { isGameFrozen } from "@/engine/input/gamePause";
+import { TOUCH_HUD } from "@/engine/input/touchHudLayout";
+import { useTouchMode } from "@/engine/input/touchMode";
+import { isPointerActive } from "@/engine/input/virtualLock";
+
 import { GAUGE_HITS, gaugeCursor, stopGauge, useGauge } from "./pullGauge";
 
 // 반원 게이지 — 낚시 릴처럼 위로 휜 반투명 띠. 잿빛 막대가 잿빛 띠를 따라 오가고 흰 칸에서 [E]
@@ -41,6 +46,8 @@ function markerTransform(t: number) {
 
 /** 줄 당기기 게이지 — 화면 가운데 아래. 막대 자리는 매 프레임 직접 옮긴다(다시 그리지 않게) */
 export default function PullGaugeHud() {
+  // 휴대폰 — 당기기는 오른쪽 아래 ✋ 단추다(14회차)
+  const isTouch = useTouchMode();
   const gauge = useGauge();
   const markerRef = useRef<SVGGElement>(null);
 
@@ -48,8 +55,13 @@ export default function PullGaugeHud() {
     if (!gauge.active) return undefined;
     let frame = 0;
     const tick = () => {
+      // 터치 모드에서 얼어 있으면(멈춤 · 창) 그만두지 않고 기다린다 — 풀리면 출발 시각이 그만큼 밀린다(pullGauge)
+      if (isGameFrozen()) {
+        frame = requestAnimationFrame(tick);
+        return;
+      }
       // 마우스 잠금이 풀리면(ESC) 그만둔다
-      if (!document.pointerLockElement) {
+      if (!isPointerActive()) {
         stopGauge();
         return;
       }
@@ -63,14 +75,14 @@ export default function PullGaugeHud() {
   if (!gauge.active) return null;
   const zonePath = arcPath(gauge.center - gauge.zone / 2, gauge.center + gauge.zone / 2);
   return (
-    <div style={wrapStyle}>
+    <div style={isTouch ? { ...wrapStyle, ...touchWrapStyle } : wrapStyle} data-hud="게이지">
       <svg
         key={gauge.flashKey}
         className={gauge.flash === "miss" ? "naju-gauge-miss" : undefined}
         width={WIDTH}
         height={HEIGHT}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        style={{ overflow: "visible" }}
+        style={isTouch ? { overflow: "visible", width: "100%", height: "auto" } : { overflow: "visible" }}
       >
         <defs>
           <linearGradient id="naju-gauge-zone" x1="0" x2="1">
@@ -98,8 +110,14 @@ export default function PullGaugeHud() {
           />
         </g>
       </svg>
-      <div style={labelStyle}>
-        <span style={keyStyle}>E</span>
+      <div
+        style={
+          isTouch
+            ? { ...labelStyle, maxWidth: "100%", whiteSpace: "normal", lineHeight: 1.3, textAlign: "center" }
+            : labelStyle
+        }
+      >
+        <span style={keyStyle}>{isTouch ? "✋" : "E"}</span>
         {gauge.label} — {ROUND_NOTES[Math.min(gauge.hits, ROUND_NOTES.length - 1)]}
       </div>
       <div style={dotsStyle}>
@@ -127,6 +145,21 @@ const wrapStyle: CSSProperties = {
   pointerEvents: "none",
 };
 
+// 휴대폰 — 380×150 고정이면 퍼즐 안내판(왼쪽 위) · 빠른 소지품(아래 가운데) · 동작 단추(오른쪽 아래)와 겹쳤다.
+// 왼쪽 안내판(최대 300px · 40vw)과 오른쪽 동작 단추(engine/input/TouchHud 의 TOUCH_HUD) 사이 빈칸 가운데, 세로 가운데에 그 폭만큼 줄여 둔다(14회차)
+const GAUGE_LEFT = "calc(env(safe-area-inset-left, 0px) + 20px + min(300px, 40vw))";
+const GAUGE_RIGHT = `calc(100vw - env(safe-area-inset-right, 0px) - ${TOUCH_HUD.actionRight + TOUCH_HUD.actionWidth + 8}px)`;
+const touchWrapStyle: CSSProperties = {
+  left: `calc((${GAUGE_LEFT} + ${GAUGE_RIGHT}) / 2)`,
+  bottom: "auto",
+  top: "50%",
+  transform: "translate(-50%, -50%)",
+  width: `min(300px, calc(${GAUGE_RIGHT} - ${GAUGE_LEFT}))`,
+  // 짧은 화면에서 위 단추 줄 · 아래 빠른 소지품과 닿지 않게 높이도 묶는다
+  maxHeight: "calc(100dvh - 150px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
+  padding: 0,
+  background: "none",
+};
 const labelStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",

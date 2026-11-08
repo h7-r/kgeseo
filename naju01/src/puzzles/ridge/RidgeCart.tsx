@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { getTouchMove } from "@/engine/input/touchInput";
 
 import { recall, track } from "../../save/puzzleMemory";
 import { addDynamicSolid, solidQueries, type DynamicSolid } from "../../movement/solidField";
@@ -177,10 +178,16 @@ function pushCart(cart: Cart, camera: THREE.Camera, keys: Set<string>, dt: numbe
   camera.getWorldDirection(forward);
   forward.y = 0;
   forward.normalize();
-  const forwardKey =
+  // 터치 스틱도 같은 세 갈래(앞 · 없음 · 뒤 / 왼 · 없음 · 오)로 읽는다 — 키가 눌렸으면 키가 먼저
+  const touch = getTouchMove();
+  const stickForward = touch.y > 0.35 ? 1 : touch.y < -0.35 ? -1 : 0;
+  const stickSide = touch.x > 0.35 ? 1 : touch.x < -0.35 ? -1 : 0;
+  const keyForward =
     (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0) - (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0);
-  const sideKey =
+  const keySide =
     (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0);
+  const forwardKey = keyForward || stickForward;
+  const sideKey = keySide || stickSide;
   let yaw = state.yaw;
   if (forwardKey >= 0) {
     // 시선 + 옆 키 — 오른쪽은 (−앞z, 앞x)

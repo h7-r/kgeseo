@@ -2,6 +2,8 @@ import { useCallback, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { FONT } from "@/lib/style";
+import { isMobileLayout } from "@/mobile/layoutMode";
+import { SIGNED_UP_STATE } from "@/mobile/signedUpState";
 import { ROUTES } from "@/navigation/routes";
 import AuthStage from "@/sections/auth/AuthStage";
 import SocialOnboardingForm from "@/sections/auth/SocialOnboardingForm";
@@ -20,7 +22,13 @@ export default function SocialOnboardingPage() {
 
   const handleDone = (user: SessionUser) => {
     signIn(user);
-    navigate(onboarding?.returnTo ?? ROUTES.home, { replace: true });
+    // 이메일 가입과 같다 — 휴대폰에서 소셜 가입을 막 마쳤으면 게임으로 바로 넘기지 않고 홈에 둔다
+    const returnTo = onboarding?.returnTo;
+    if (returnTo === ROUTES.play && isMobileLayout()) {
+      navigate(ROUTES.home, { replace: true, state: SIGNED_UP_STATE });
+      return;
+    }
+    navigate(returnTo ?? ROUTES.home, { replace: true });
   };
   const handleEnded = useCallback((message: string) => setEndedMessage(message), []);
 

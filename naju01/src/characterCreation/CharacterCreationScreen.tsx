@@ -21,13 +21,20 @@ import {
 import { BasicsPanel, BodyPanel, HairPanel } from "./AppearancePanels";
 import { DEFAULT_CATALOG, type CharacterCatalog } from "./catalog";
 import CharacterPreview, { type PreviewControls, type PreviewQuality, type PreviewView } from "./CharacterPreview";
+import {
+  CompactContext,
+  TouchSizedContext,
+  useCoarsePointer,
+  useKeyboardViewport,
+  useSafeInsets,
+} from "./compactLayout";
 import { measureScreenLayout } from "./screenLayout";
 import NamePanel from "./NamePanel";
 import { DEFAULT_NAME_RULES, normalizeName, normalizeNameRules, type NameChecker } from "./nameRules";
 import { OutfitModal, OutfitPanel } from "./OutfitPanel";
 import { ScreenFooter, ScreenHeader } from "./ScreenFrame";
 import { NextStep, SettingsCard, StepNav } from "./SettingsColumn";
-import { TAB_DESCRIPTIONS, TABS, type AppearanceTab, type OutfitSlot, type TabId } from "./steps";
+import { NEXT_LABELS, TAB_DESCRIPTIONS, TABS, type AppearanceTab, type OutfitSlot, type TabId } from "./steps";
 import {
   COLORS,
   FONTS,
@@ -113,7 +120,14 @@ export default function CharacterCreationScreen({
     cameraControls.current = controls;
   }, []);
 
-  const layout = useMemo(() => measureScreenLayout(screenSize.width, screenSize.height), [screenSize]);
+  // 노치 · 홈 막대 — 휴대폰 가로 배치는 이 안쪽에만 단추를 놓는다
+  const safeInsets = useSafeInsets();
+  // 휴대폰 배치 · 큰 조작은 손가락 기기에서만 — PC 는 창 높이가 낮아도 PC 배치 그대로(11/8 해랑 검토)
+  const isCoarsePointer = useCoarsePointer();
+  const layout = useMemo(
+    () => measureScreenLayout(screenSize.width, screenSize.height, safeInsets, isCoarsePointer),
+    [screenSize, safeInsets, isCoarsePointer],
+  );
   const rendererConfig = useMemo(
     () => toRendererConfig(appearance, activeCatalog, { showUnderwear, motion: pose }),
     [appearance, activeCatalog, showUnderwear, pose],
@@ -184,193 +198,244 @@ export default function CharacterCreationScreen({
       : "확인 · 게임 시작";
   const previewView: PreviewView = phase === "name" ? "upperBody" : view;
 
-  const { isNarrow, panel, stage: stageRect, settings, viewBar, safeArea } = layout;
+  const { isNarrow, isCompact, panel, stage: stageRect, settings: baseSettings, viewBar, safeArea, rail } = layout;
+  // 휴대폰 가로 이름 단계에서 화면 키보드가 뜨면 설정 칸을 키보드 위 보이는 범위로 줄인다(입력 · 중복확인 · 결과가 가리지 않게)
+  const keyboardArea = useKeyboardViewport(isCompact && phase === "name");
+  const settings = keyboardArea
+    ? (() => {
+        const top = Math.max(baseSettings.y, keyboardArea.top + 4);
+        const bottom = Math.min(baseSettings.y + baseSettings.h, keyboardArea.top + keyboardArea.height - 4);
+        return { ...baseSettings, y: top, h: Math.max(120, bottom - top) };
+      })()
+    : baseSettings;
   const isSettingsWide = settings.w > 560;
+  // 손가락 기기면(태블릿 포함) 배치와 상관없이 조작 크기를 44px 이상으로. 휴대폰 배치(isCompact)는 손가락 기기에서만 나온다
+  const isTouchSized = isCoarsePointer;
+  const rootClassName = ["character-creator", isCompact && "is-compact", isTouchSized && "is-touch-sized"]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <div ref={rootRef} className="character-creator" style={rootStyle}>
-      <style>{SCREEN_CSS + SCREEN_HOVER_CSS + HEARTBEAT_LINE_CSS}</style>
+    <CompactContext.Provider value={isCompact}>
+      <TouchSizedContext.Provider value={isTouchSized}>
+        <div ref={rootRef} className={rootClassName} style={rootStyle}>
+          <style>{SCREEN_CSS + SCREEN_HOVER_CSS + HEARTBEAT_LINE_CSS}</style>
 
-      {/* 배경층 — 「어디에 들어왔나」만 말하고 주인공을 빼앗지 않는다 */}
-      <div aria-hidden="true" style={backgroundImageStyle} />
-      <div aria-hidden="true" style={backgroundShadeStyle} />
+          {/* 배경층 — 「어디에 들어왔나」만 말하고 주인공을 빼앗지 않는다 */}
+          <div aria-hidden="true" style={backgroundImageStyle} />
+          <div aria-hidden="true" style={backgroundShadeStyle} />
 
-      <div aria-hidden="true" style={{ ...panelStyle, left: panel.x, top: panel.y, width: panel.w, height: panel.h }} />
-
-      {/* 무대 칸 — 테두리 없이 캐릭터 뒤에 은은한 빛과 바닥 그림자만 */}
-      <div
-        aria-hidden="true"
-        style={{ ...stageStyle, left: stageRect.x, top: stageRect.y, width: stageRect.w, height: stageRect.h }}
-      >
-        <div style={stageFloorGlowStyle} />
-      </div>
-
-      {/* 3D층 — 머리·상반신 보기에서 크게 당기면 칸 밖으로 삐져나와 무대 칸 모양으로 잘라 낸다.
-          캔버스는 화면 전체 그대로 두어 어디서나 돌려 볼 수 있다. */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          opacity: hasEntered ? 1 : 0,
-          transition: "opacity 600ms ease-out",
-          clipPath: `inset(${stageRect.y}px ${Math.max(0, screenSize.width - stageRect.x - stageRect.w)}px ${Math.max(0, screenSize.height - stageRect.y - stageRect.h)}px ${stageRect.x}px round 4px)`,
-        }}
-      >
-        <CharacterPreview
-          config={rendererConfig}
-          view={previewView}
-          pose={pose}
-          quality={quality}
-          safeArea={safeArea}
-          onControlsReady={handleControlsReady}
-        />
-      </div>
-
-      {/* UI층 — 빈 자리(무대)는 캐릭터를 돌려 보는 자리다 */}
-      <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-        <ScreenHeader layout={layout} onCancel={onCancel} />
-
-        <div
-          style={{
-            position: "absolute",
-            left: stageRect.x,
-            width: stageRect.w,
-            top: stageRect.y + stageRect.h - viewBar,
-            height: viewBar,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <ViewSwitcher selected={previewView} onSelect={setView} />
-        </div>
-        <div style={{ position: "absolute", left: stageRect.x + 28, top: stageRect.y + 26, display: "grid", gap: 4 }}>
-          <span style={stageTagStyle}>{gender === "feminine" ? "FEMALE" : "MALE"} · 조사관</span>
-          <span style={{ font: `700 20px/1.2 ${FONTS.body}`, color: COLORS.text }}>
-            {nameCheck.normalizedName || "이름 없음"}
-          </span>
-        </div>
-
-        <section
-          aria-label="설정"
-          style={{
-            position: "absolute",
-            left: settings.x,
-            top: settings.y,
-            width: settings.w,
-            height: settings.h,
-            display: "grid",
-            gridTemplateRows: "auto 1fr auto",
-            gap: SPACING.l,
-            pointerEvents: "auto",
-          }}
-        >
-          <StepNav activeTab={activeTab} isNarrow={isNarrow} onSelect={handleTabSelect} />
-
-          <SettingsCard
-            title={TABS[activeTabIndex].label}
-            description={TAB_DESCRIPTIONS[activeTab]}
-            notice={notice}
-            onResetSection={activeTab !== "name" ? () => lookHistory.resetSection(section) : null}
-            onDismissNotice={() => setNotice(null)}
-          >
-            {activeTab === "basics" ? (
-              <BasicsPanel
-                catalog={activeCatalog}
-                appearance={appearance}
-                gender={gender}
-                showUnderwear={showUnderwear}
-                onGenderChange={lookHistory.changeGender}
-                onShowUnderwearChange={setShowUnderwear}
-                updateAppearance={updateAppearance}
-              />
-            ) : null}
-            {activeTab === "body" ? (
-              <BodyPanel
-                gender={gender}
-                body={appearance.bodyParameters}
-                isWide={isSettingsWide}
-                onChange={lookHistory.changeBodyValue}
-                onDragStart={lookHistory.startDrag}
-                onDragEnd={lookHistory.endDrag}
-              />
-            ) : null}
-            {activeTab === "hair" ? (
-              <HairPanel
-                catalog={activeCatalog}
-                appearance={appearance}
-                gender={gender}
-                updateAppearance={updateAppearance}
-              />
-            ) : null}
-            {activeTab === "outfit" ? (
-              <OutfitPanel
-                catalog={activeCatalog}
-                appearance={appearance}
-                gender={gender}
-                isWide={isSettingsWide}
-                onOpenSlot={setOpenOutfitSlot}
-              />
-            ) : null}
-            {activeTab === "name" ? (
-              <NamePanel
-                inputId={nameInputId}
-                inputRef={nameInputRef}
-                name={nameCheck.name}
-                characterCount={nameCheck.characterCount}
-                rules={rules}
-                statusKind={nameCheck.statusKind}
-                message={nameCheck.message}
-                isComposing={nameCheck.isComposing}
-                isConfirmNudged={isConfirmNudged}
-                summary={formatOutfitSummary(appearance, activeCatalog)}
-                completeError={completion.error}
-                isCompleted={completion.isCompleted}
-                onInput={(value) => {
-                  handleNameChange(value);
-                  setIsConfirmNudged(false);
-                }}
-                onCompositionStart={() => nameCheck.setIsComposing(true)}
-                onCompositionEnd={(value) => {
-                  nameCheck.setIsComposing(false);
-                  handleNameChange(value);
-                }}
-                onCheck={() => void nameCheck.checkDuplicate()}
-              />
-            ) : null}
-          </SettingsCard>
-
-          <NextStep nextTab={nextTab?.id} isNameConfirmed={nameCheck.isConfirmed} onSelect={handleTabSelect} />
-        </section>
-
-        {openOutfitSlot ? (
-          <OutfitModal
-            slot={openOutfitSlot}
-            catalog={activeCatalog}
-            appearance={appearance}
-            gender={gender}
-            updateAppearance={updateAppearance}
-            onClose={() => setOpenOutfitSlot(null)}
+          <div
+            aria-hidden="true"
+            style={{ ...panelStyle, left: panel.x, top: panel.y, width: panel.w, height: panel.h }}
           />
-        ) : null}
 
-        <ScreenFooter
-          layout={layout}
-          activeTabIndex={activeTabIndex}
-          canUndo={lookHistory.canUndo}
-          canRedo={lookHistory.canRedo}
-          isNameConfirmed={nameCheck.isConfirmed}
-          isBusy={completion.isCompleting || completion.isCompleted}
-          confirmLabel={confirmLabel}
-          nameResultId={`${nameInputId}-result`}
-          onCancel={onCancel}
-          onUndo={lookHistory.undo}
-          onRedo={lookHistory.redo}
-          onResetAll={handleResetAll}
-          onConfirm={handleConfirm}
-        />
-      </div>
-    </div>
+          {/* 무대 칸 — 테두리 없이 캐릭터 뒤에 은은한 빛과 바닥 그림자만 */}
+          <div
+            aria-hidden="true"
+            style={{ ...stageStyle, left: stageRect.x, top: stageRect.y, width: stageRect.w, height: stageRect.h }}
+          >
+            <div style={stageFloorGlowStyle} />
+          </div>
+
+          {/* 3D층 — 머리·상반신 보기에서 크게 당기면 칸 밖으로 삐져나와 무대 칸 모양으로 잘라 낸다.
+          캔버스는 화면 전체 그대로 두어 어디서나 돌려 볼 수 있다. */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              opacity: hasEntered ? 1 : 0,
+              transition: "opacity 600ms ease-out",
+              clipPath: `inset(${stageRect.y}px ${Math.max(0, screenSize.width - stageRect.x - stageRect.w)}px ${Math.max(0, screenSize.height - stageRect.y - stageRect.h)}px ${stageRect.x}px round 4px)`,
+            }}
+          >
+            <CharacterPreview
+              config={rendererConfig}
+              view={previewView}
+              pose={pose}
+              quality={quality}
+              safeArea={safeArea}
+              onControlsReady={handleControlsReady}
+            />
+          </div>
+
+          {/* UI층 — 빈 자리(무대)는 캐릭터를 돌려 보는 자리다 */}
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+            <ScreenHeader layout={layout} onCancel={onCancel} />
+
+            <div
+              style={{
+                position: "absolute",
+                left: stageRect.x,
+                width: stageRect.w,
+                top: stageRect.y + stageRect.h - viewBar,
+                height: viewBar,
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <ViewSwitcher selected={previewView} onSelect={setView} />
+            </div>
+            {/* 휴대폰 가로는 미리보기가 작아 뺀다 — 이름은 이름 탭에서 보인다 */}
+            {!isCompact ? (
+              <div
+                style={{ position: "absolute", left: stageRect.x + 28, top: stageRect.y + 26, display: "grid", gap: 4 }}
+              >
+                <span style={stageTagStyle}>{gender === "feminine" ? "FEMALE" : "MALE"} · 조사관</span>
+                <span style={{ font: `700 20px/1.2 ${FONTS.body}`, color: COLORS.text }}>
+                  {nameCheck.normalizedName || "이름 없음"}
+                </span>
+              </div>
+            ) : null}
+
+            {/* 휴대폰 가로 — 단계 탭은 왼쪽 세로 줄 */}
+            {isCompact && rail ? (
+              <div
+                style={{
+                  position: "absolute",
+                  left: rail.x,
+                  top: rail.y,
+                  width: rail.w,
+                  height: rail.h,
+                  display: "grid",
+                  alignContent: "start",
+                  pointerEvents: "auto",
+                }}
+              >
+                <StepNav activeTab={activeTab} isNarrow isVertical onSelect={handleTabSelect} />
+              </div>
+            ) : null}
+
+            <section
+              aria-label="설정"
+              style={{
+                position: "absolute",
+                left: settings.x,
+                top: settings.y,
+                width: settings.w,
+                height: settings.h,
+                display: "grid",
+                gridTemplateRows: isCompact ? "minmax(0, 1fr)" : "auto 1fr auto",
+                gap: SPACING.l,
+                pointerEvents: "auto",
+              }}
+            >
+              {!isCompact ? <StepNav activeTab={activeTab} isNarrow={isNarrow} onSelect={handleTabSelect} /> : null}
+
+              <SettingsCard
+                title={TABS[activeTabIndex].label}
+                description={TAB_DESCRIPTIONS[activeTab]}
+                notice={notice}
+                onResetSection={activeTab !== "name" ? () => lookHistory.resetSection(section) : null}
+                onDismissNotice={() => setNotice(null)}
+              >
+                {activeTab === "basics" ? (
+                  <BasicsPanel
+                    catalog={activeCatalog}
+                    appearance={appearance}
+                    gender={gender}
+                    showUnderwear={showUnderwear}
+                    onGenderChange={lookHistory.changeGender}
+                    onShowUnderwearChange={setShowUnderwear}
+                    updateAppearance={updateAppearance}
+                  />
+                ) : null}
+                {activeTab === "body" ? (
+                  <BodyPanel
+                    gender={gender}
+                    body={appearance.bodyParameters}
+                    isWide={isSettingsWide}
+                    onChange={lookHistory.changeBodyValue}
+                    onDragStart={lookHistory.startDrag}
+                    onDragEnd={lookHistory.endDrag}
+                  />
+                ) : null}
+                {activeTab === "hair" ? (
+                  <HairPanel
+                    catalog={activeCatalog}
+                    appearance={appearance}
+                    gender={gender}
+                    updateAppearance={updateAppearance}
+                  />
+                ) : null}
+                {activeTab === "outfit" ? (
+                  <OutfitPanel
+                    catalog={activeCatalog}
+                    appearance={appearance}
+                    gender={gender}
+                    isWide={isSettingsWide}
+                    onOpenSlot={setOpenOutfitSlot}
+                  />
+                ) : null}
+                {activeTab === "name" ? (
+                  <NamePanel
+                    inputId={nameInputId}
+                    inputRef={nameInputRef}
+                    name={nameCheck.name}
+                    characterCount={nameCheck.characterCount}
+                    rules={rules}
+                    statusKind={nameCheck.statusKind}
+                    message={nameCheck.message}
+                    isComposing={nameCheck.isComposing}
+                    isConfirmNudged={isConfirmNudged}
+                    summary={formatOutfitSummary(appearance, activeCatalog)}
+                    completeError={completion.error}
+                    isCompleted={completion.isCompleted}
+                    onInput={(value) => {
+                      handleNameChange(value);
+                      setIsConfirmNudged(false);
+                    }}
+                    onCompositionStart={() => nameCheck.setIsComposing(true)}
+                    onCompositionEnd={(value) => {
+                      nameCheck.setIsComposing(false);
+                      handleNameChange(value);
+                    }}
+                    onCheck={() => void nameCheck.checkDuplicate()}
+                  />
+                ) : null}
+              </SettingsCard>
+
+              {/* 휴대폰 가로는 「다음」이 미리보기 아래 큰 단추다 */}
+              {!isCompact ? (
+                <NextStep nextTab={nextTab?.id} isNameConfirmed={nameCheck.isConfirmed} onSelect={handleTabSelect} />
+              ) : null}
+            </section>
+
+            {openOutfitSlot ? (
+              <OutfitModal
+                slot={openOutfitSlot}
+                catalog={activeCatalog}
+                appearance={appearance}
+                gender={gender}
+                updateAppearance={updateAppearance}
+                onClose={() => setOpenOutfitSlot(null)}
+              />
+            ) : null}
+
+            <ScreenFooter
+              layout={layout}
+              nextLabel={nextTab ? (NEXT_LABELS[nextTab.id] ?? nextTab.label) : null}
+              onNext={() => {
+                if (nextTab) handleTabSelect(nextTab.id);
+              }}
+              activeTabIndex={activeTabIndex}
+              canUndo={lookHistory.canUndo}
+              canRedo={lookHistory.canRedo}
+              isNameConfirmed={nameCheck.isConfirmed}
+              isBusy={completion.isCompleting || completion.isCompleted}
+              confirmLabel={confirmLabel}
+              nameResultId={`${nameInputId}-result`}
+              onCancel={onCancel}
+              onUndo={lookHistory.undo}
+              onRedo={lookHistory.redo}
+              onResetAll={handleResetAll}
+              onConfirm={handleConfirm}
+            />
+          </div>
+        </div>
+      </TouchSizedContext.Provider>
+    </CompactContext.Provider>
   );
 }
 

@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { gameNow } from "@/engine/input/gameClock";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import { TUTORIAL_COLOR, tutorialStore } from "./tutorialState";
@@ -22,7 +23,7 @@ type DispatchPhase = "idle" | "countdown" | "alert" | "guide" | "boarded";
 
 interface DispatchState {
   phase: DispatchPhase;
-  /** performance.now() 기준 ms */
+  /** gameNow() 기준 ms */
   enteredAt: number | null;
   secondsLeft: number | null;
   /** 문까지 거리(미터, 정수) */
@@ -63,12 +64,12 @@ export function tickDispatch({ isInHeadquarters, isInTrain, doorDistance = null 
   }
   if (phase === "idle") {
     if (tutorialStore.get().isFinished && isInHeadquarters) {
-      setState({ phase: "countdown", enteredAt: performance.now() });
+      setState({ phase: "countdown", enteredAt: gameNow() });
     }
     return;
   }
   if (phase === "countdown") {
-    const elapsed = (performance.now() - (state.enteredAt ?? 0)) / 1000;
+    const elapsed = (gameNow() - (state.enteredAt ?? 0)) / 1000;
     const secondsLeft = Math.max(0, Math.ceil(ALERT_DELAY_SECONDS - elapsed));
     if (secondsLeft <= 0) setState({ phase: "alert", secondsLeft: 0 });
     else if (secondsLeft !== state.secondsLeft) setState({ secondsLeft });

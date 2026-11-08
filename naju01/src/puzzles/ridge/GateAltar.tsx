@@ -6,6 +6,7 @@
  *   → 바람이 잦아든다(ridgeQuest.postsSolved). 처음 횃불에는 불꽃 모양이 없다(모형에서 뺀다).
  * 좌표는 미터, 그리는 것은 유닛(M 배).
  */
+import { gameNow } from "@/engine/input/gameClock";
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -68,7 +69,7 @@ type Gate = ReturnType<typeof createGate>;
 /** 고리 넷이 맞물렸다 — 땅이 울리며 흔들리고(QUAKE_SECONDS) 그 뒤 바람이 잦아든다(프레임에서) */
 function solveRings(gate: Gate) {
   if (gate.ringsSolvedAt >= 0) return;
-  gate.ringsSolvedAt = performance.now() / 1000;
+  gate.ringsSolvedAt = gameNow() / 1000;
   audio.play("징");
   audio.play("우르릉");
   showNotice("고리 넷이 딸깍 맞물린다 — 발밑에서 땅이 우르르 울린다…", 4);
@@ -250,7 +251,7 @@ export default function GateAltar() {
   /** 맞춘 뒤 — 땅이 점점 세게 흔들리다 멎으면 바람이 잦아든다 */
   const quake = (time: number) => {
     if (gate.ringsSolvedAt < 0 || ridgeQuest.postsSolved) return;
-    const progress = (performance.now() / 1000 - gate.ringsSolvedAt) / QUAKE_SECONDS;
+    const progress = (gameNow() / 1000 - gate.ringsSolvedAt) / QUAKE_SECONDS;
     if (time - gate.lastQuakeAt > 0.45) {
       gate.lastQuakeAt = time;
       director.cue({ 카메라: "흔들림", 세기: 0.12 + 0.3 * Math.min(1, progress) });

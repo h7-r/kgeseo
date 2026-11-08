@@ -12,6 +12,7 @@ InteractionAction = Literal[
     "input",
     "select",
     "combine_clues",
+    "complete",
 ]
 InteractionTargetType = Literal["object", "puzzle", "clue", "zone"]
 ExternalInteractionResultType = Literal[
@@ -60,6 +61,13 @@ class NavigateInteractionRequest(InteractionRequestBase):
     payload: EmptyInteractionPayload
 
 
+class CompleteInteractionRequest(InteractionRequestBase):
+    action: Literal["complete"]
+    target_type: Literal["object"]
+    target_id: str = Field(min_length=1)
+    payload: EmptyInteractionPayload
+
+
 class InputInteractionPayload(InteractionApiModel):
     answer: str
 
@@ -102,7 +110,8 @@ InteractionApiRequest = Annotated[
     | NavigateInteractionRequest
     | InputInteractionRequest
     | SelectInteractionRequest
-    | CombineCluesInteractionRequest,
+    | CombineCluesInteractionRequest
+    | CompleteInteractionRequest,
     Field(discriminator="action"),
 ]
 

@@ -5,6 +5,7 @@ import type { Vector3Tuple } from "three";
 
 import { playSound } from "@/audio/sound";
 import { playerView } from "@/engine/playerView";
+import { gameNow } from "@/engine/input/gameClock";
 import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import { makeCachedCanvasTexture } from "@/engine/textures/canvas";
 import { canVendingMove, getValveOpening } from "@/props/panelWiringState";
@@ -149,7 +150,7 @@ export default function VendingPushCutscene({
 
   useFrame((_, dt) => {
     const d = Math.min(0.05, dt); // 창을 잠깐 떠났다 오면 dt 가 크다
-    const elapsed = () => (performance.now() - phaseStart.current) / 1000;
+    const elapsed = () => (gameNow() - phaseStart.current) / 1000;
     const emit = (count: number, origin: Vector3Tuple) => {
       let emitted = 0;
       for (let i = 0; i < dustCount && emitted < count; i++) {
@@ -204,7 +205,7 @@ export default function VendingPushCutscene({
     // 처음 열릴 때 한 번만 민다. 전류가 닿고 불빛이 다 날뛴 뒤다(isReady).
     if (!preview && open && !hasSeenCutscene() && phase.current === "idle") {
       phase.current = "push";
-      phaseStart.current = performance.now();
+      phaseStart.current = gameNow();
       lastStage.current = -1;
       playSound("vendingOff", { volume: 0.9 }); // 밀려나기 시작 — 전원 끄는 소리
     }

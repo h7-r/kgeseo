@@ -2,6 +2,10 @@
 
 /** 소개 덩이와 가입 폼이 함께 맞추는 세로 중심선. */
 export const INTRO_CENTER_Y = 1938;
+/** 소개 덩이의 높이. 글 크기가 전부 px 로 고정이라 변하지 않는다. 가입 폼의 아랫선을 여기에 맞춘다. */
+const INTRO_HEIGHT = 789;
+/** 소개 덩이 아랫선(숫자 지표 이름 줄의 바닥) */
+export const INTRO_BOTTOM_Y = INTRO_CENTER_Y + INTRO_HEIGHT / 2;
 
 /** 소개 덩이와 가입 폼의 가로 자리. 양쪽 여백 215 로 대칭(215 + 755 + 175 + 560 + 215 = 1920). */
 export const INTRO_LEFT = 215;

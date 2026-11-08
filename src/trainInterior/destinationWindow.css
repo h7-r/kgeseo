@@ -984,3 +984,178 @@ button:hover > .dest-key {
     animation: none !important;
   }
 }
+
+/* ── 휴대폰 가로(14회차) ──
+   1280×720 도면을 통째로 줄이면 852×393 에서 배율 0.52 — 설명 8px · 닫기 26px 로 읽히지도 눌리지도 않았다.
+   휴대폰에서는 창을 화면(노치 안쪽) 전체로 넓히고, 핵심만 실제 px 로 다시 놓는다.
+   · 지역: 장식 지도는 빼고 지역 줄을 2열 × 3줄로 크게(줄 높이 약 90px)
+   · 전설: 열린 전설 카드 하나를 왼쪽에 크게, 「전설 속으로」는 오른쪽 아래 52px. 잠긴 전설 · 좌우 화살표는 뺀다
+   · 닫기 · 뒤로 44px, 글자 13px 이상, [E] 표시는 없앤다(터치에는 커서가 없다) */
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  .dest-window {
+    width: calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 16px);
+    height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
+    aspect-ratio: auto;
+    border-radius: 12px;
+  }
+  .dest-key {
+    display: none !important;
+  }
+  .dest-header {
+    top: 10px;
+    left: 16px;
+    gap: 12px;
+  }
+  .dest-badge {
+    display: none;
+  }
+  .dest-heading {
+    gap: 2px;
+  }
+  .dest-title {
+    font-size: 20px;
+  }
+  .dest-subtitle {
+    font-size: 13px;
+  }
+  .dest-progress {
+    top: 22px;
+    right: 68px;
+    gap: 8px;
+    font-size: 13px;
+  }
+  .dest-progress i {
+    width: 20px;
+  }
+  .dest-round {
+    width: 44px;
+    height: 44px;
+    font-size: 24px;
+  }
+  .dest-close {
+    top: 10px;
+    right: 10px;
+  }
+
+  /* 지역 */
+  .dest-map {
+    display: none;
+  }
+  .dest-list {
+    left: 16px;
+    right: 16px;
+    top: 72px;
+    bottom: 12px;
+    grid-template-rows: repeat(3, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .dest-row {
+    gap: 10px;
+    padding: 0 12px 0 6px;
+    border-radius: 10px;
+  }
+  .dest-row__thumb {
+    width: 64px;
+    height: calc(100% - 12px);
+    border-radius: 7px;
+  }
+  .dest-row__lock {
+    width: 20px;
+    height: 20px;
+  }
+  .dest-row__name {
+    gap: 8px;
+    font-size: 18px;
+  }
+  .dest-row__roman {
+    display: none;
+  }
+  .dest-row__go {
+    font-size: 14px;
+  }
+  .dest-chip {
+    padding: 3px 8px;
+    font-size: 12px;
+  }
+
+  /* 전설 */
+  .dest-slot--left,
+  .dest-slot--right,
+  .dest-arrow {
+    display: none;
+  }
+  .dest-slot--center {
+    left: 16px;
+    top: 72px;
+    height: calc(100% - 84px);
+    width: auto;
+    aspect-ratio: 356 / 462;
+  }
+  .dest-card {
+    border-radius: 12px;
+  }
+  .dest-stars {
+    font-size: 16px;
+  }
+  .dest-card__label,
+  .dest-region-tag {
+    font-size: 12px;
+  }
+  .dest-card--center .dest-card__title {
+    font-size: 22px;
+  }
+  .dest-card__kind {
+    font-size: 13px;
+  }
+  .dest-card__description {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .dest-enter {
+    left: auto;
+    top: auto;
+    right: 16px;
+    bottom: 16px;
+    width: min(320px, calc(100% - 300px));
+    height: 52px;
+    border-radius: 26px;
+  }
+  .dest-enter span {
+    font-size: 17px !important;
+  }
+}
+
+/* ── 태블릿(손가락, 높이 520 초과) — 도면 배율은 그대로, 작은 글자만 13px · 둥근 단추만 44px 아래로 내려가지 않게(코덱스 14c)
+   1180×820 에서 배율 0.885 → 12px 글자 10.6px, 1024×768 에서 닫기 38px 이었다 */
+@media (pointer: coarse) and (min-height: 521px) {
+  .dest-key {
+    display: none !important;
+  }
+  .dest-badge,
+  .dest-row__roman,
+  .dest-chip,
+  .dest-card__label,
+  .dest-region-tag,
+  .dest-card__kind {
+    font-size: max(13px, calc(var(--u) * 12));
+  }
+  .dest-progress {
+    font-size: max(13px, calc(var(--u) * 14));
+  }
+  .dest-subtitle,
+  .dest-card__description {
+    font-size: max(14px, calc(var(--u) * 15));
+  }
+  .dest-round {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .dest-arrow {
+    min-width: 48px;
+    min-height: 48px;
+  }
+  .dest-enter {
+    min-height: 48px;
+  }
+}

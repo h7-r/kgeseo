@@ -8,8 +8,9 @@ import { chromium } from "playwright";
 // 소프트웨어 렌더러라 fps 는 의미 없고 한 프레임이 3~4 초다 — 도구마다 넉넉히 기다린다.
 export const SWIFTSHADER_ARGS = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"];
 
-export async function openHeadless(viewport, extraArgs = []) {
-  const browser = await chromium.launch({ args: [...SWIFTSHADER_ARGS, ...extraArgs] });
+/** launchOptions — 예: { channel: "msedge" }(Playwright 브라우저를 받지 않은 PC에서 설치된 브라우저로) */
+export async function openHeadless(viewport, extraArgs = [], launchOptions = {}) {
+  const browser = await chromium.launch({ ...launchOptions, args: [...SWIFTSHADER_ARGS, ...extraArgs] });
   const page = await browser.newPage({ viewport });
   return { browser, page };
 }

@@ -10,6 +10,8 @@
  */
 import * as THREE from "three";
 
+import { isGameFrozen, trackAudioContext } from "@/engine/input/gamePause";
+
 import { UNITS_PER_METER } from "../../plan/sitePlan";
 import type { GateSpot } from "./focusFog";
 import { noise, settings } from "./state";
@@ -81,13 +83,15 @@ class ImmersionAudio {
   /** 화면을 한 번 누르면 켜진다(브라우저 자동재생 정책) */
   start() {
     if (this.ctx) {
-      if (this.ctx.state === "suspended") void this.ctx.resume();
+      // 터치 모드에서 얼어 있으면(멈춤 · 창) 깨우지 않는다 — 풀릴 때 등록부가 다시 켠다
+      if (this.ctx.state === "suspended" && !isGameFrozen()) void this.ctx.resume();
       return;
     }
     const AC =
       window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
     const c = (this.ctx = new AC());
+    trackAudioContext(c);
     this.master = c.createGain();
     this.master.gain.value = settings.볼륨 * this.sfxScale;
     const comp = c.createDynamicsCompressor();

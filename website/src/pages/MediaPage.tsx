@@ -1,3 +1,5 @@
+import { useIsMobileLayout } from "@/mobile/layoutMode";
+import { MobileMediaPage } from "@/mobile/MobilePages";
 import Stage from "@/components/Stage";
 import PageFooter from "@/layout/PageFooter";
 import { FOOTER_ALLOWANCE } from "@/lib/layout";
@@ -17,7 +19,7 @@ const PAGER_TOP = FEATURED_TOP + FEATURED_HEIGHT + 58;
 const FOOTER_TOP = PAGER_TOP + 72 + 80;
 
 /** 게임 영상 페이지. */
-export default function MediaPage() {
+function DesktopMediaPage() {
   return (
     <Stage height={FOOTER_TOP + FOOTER_ALLOWANCE}>
       <MediaHero top={HERO_TOP} />
@@ -26,4 +28,9 @@ export default function MediaPage() {
       <PageFooter />
     </Stage>
   );
+}
+
+/** 모바일은 따로 그린다 — 데스크톱판의 무대 배율 훅이 모바일에서 돌지 않게 진입에서만 가른다(src/mobile/MobilePages) */
+export default function MediaPage() {
+  return useIsMobileLayout() ? <MobileMediaPage /> : <DesktopMediaPage />;
 }

@@ -4,6 +4,9 @@
  */
 import { useEffect, useRef, type CSSProperties } from "react";
 
+import { useKeyLabels } from "@/engine/input";
+import { isGameFrozen, trackAudioContext } from "@/engine/input/gamePause";
+import { gameClearTimeout, gameSetTimeout } from "@/engine/input/gameClock";
 import { PANEL_SHADOW, UI, UI_FONT, keyCapStyle } from "@/game/gameUi";
 import { isTypingTarget } from "@/game/overlayLayer";
 
@@ -16,8 +19,9 @@ function playRadioChirp() {
   try {
     const AudioContextClass =
       window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioContextClass) return;
+    if (!AudioContextClass || isGameFrozen()) return;
     const context = new AudioContextClass();
+    trackAudioContext(context);
     const now = context.currentTime;
     const beep = (at: number, frequency: number, length: number, volume: number) => {
       const oscillator = context.createOscillator();
@@ -47,6 +51,7 @@ interface DispatchCardProps {
 }
 
 export default function DispatchCard({ covered = false, isInTrain = false }: DispatchCardProps) {
+  const labels = useKeyLabels();
   const { phase, doorDistance } = useDispatchState();
   const hasChirped = useRef(false);
 
@@ -67,10 +72,11 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
       if (event.code === "KeyE" || event.code === "Enter") acknowledgeDispatch();
     };
     window.addEventListener("keydown", handleKeyDown);
-    const timer = setTimeout(acknowledgeDispatch, 16000);
+    // 멈춘 동안은 흐르지 않는다(게임 시계)
+    const timer = gameSetTimeout(acknowledgeDispatch, 16000);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      clearTimeout(timer);
+      gameClearTimeout(timer);
     };
   }, [phase]);
 
@@ -78,13 +84,19 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
 
   if (phase === "alert")
     return (
-      <div style={overlayStyle} onClick={acknowledgeDispatch} role="alertdialog" aria-labelledby="dispatch-title">
-        <div className="game-panel" style={dispatchCardStyle}>
+      <div
+        // 휴대폰 — 터치 조작면(z 900) · 퍼즐 안내판(950) 위, 멈춤 덮개(1000) 아래. 아니면 카드를 눌러도 시점이 돈다(코덱스 14c)
+        style={labels.isTouch ? { ...overlayStyle, zIndex: 960 } : overlayStyle}
+        onClick={acknowledgeDispatch}
+        role="alertdialog"
+        aria-labelledby="dispatch-title"
+      >
+        <div className="game-panel" style={labels.isTouch ? touchDispatchCardStyle : dispatchCardStyle}>
           <div style={headerStyle}>
             <span style={sirenDotStyle} />
             긴급 호출 · 수사본부 상황실
           </div>
-          <h2 id="dispatch-title" style={titleStyle}>
+          <h2 id="dispatch-title" style={labels.isTouch ? touchTitleStyle : titleStyle}>
             나주 앙암바위, 왜곡 발생
           </h2>
           <div style={bodyStyle}>
@@ -92,11 +104,24 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
             <p style={paragraphStyle}>강물 위로 지워졌던 옛 장면이 겹쳐 떠오르고, 왜곡은 지금도 번지는 중이다.</p>
             <p style={commandLineStyle}>더 퍼지기 전에 막아야 한다. 즉시 기차에 올라 나주로 출동하라.</p>
           </div>
-          <div style={footerStyle}>
+          <div style={labels.isTouch ? touchFooterStyle : footerStyle}>
             <span>— 상황실</span>
-            <span>
-              <kbd style={keyCapStyle}>E</kbd> 출동
-            </span>
+            {labels.isTouch ? (
+              <button
+                type="button"
+                style={touchDispatchButtonStyle}
+                onClick={(event) => {
+                  event.stopPropagation(); // 카드 바깥 클릭으로 한 번 더 가지 않게
+                  acknowledgeDispatch();
+                }}
+              >
+                출동
+              </button>
+            ) : (
+              <span>
+                <kbd style={keyCapStyle}>{labels.key("E")}</kbd> 출동
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -104,7 +129,7 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
 
   if (phase === "guide")
     return (
-      <div style={objectiveStyle} role="status">
+      <div style={labels.isTouch ? touchObjectiveStyle : objectiveStyle} role="status" data-hud="출동 목표">
         <div style={objectiveHeaderStyle}>
           <span style={objectiveDotStyle} />
           임무 · 나주 앙암바위 왜곡 저지
@@ -129,20 +154,46 @@ const overlayStyle: CSSProperties = {
   zIndex: 45,
   display: "grid",
   placeItems: "center",
-  padding: 24,
+  // 노치 · 홈 막대 안쪽에 카드를 놓는다(14회차)
+  padding:
+    "calc(env(safe-area-inset-top, 0px) + 24px) calc(env(safe-area-inset-right, 0px) + 24px) calc(env(safe-area-inset-bottom, 0px) + 24px) calc(env(safe-area-inset-left, 0px) + 24px)",
   background: "rgba(1,4,10,.62)",
 };
 
 const dispatchCardStyle: CSSProperties = {
   width: "min(620px, 100%)",
+  // 휴대폰 가로(높이 393)나 글 확대에서도 화면 안 — 넘치면 카드 안에서 스크롤(14회차)
+  maxHeight: "calc(100dvh - 48px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))",
+  overflowY: "auto",
   boxSizing: "border-box",
-  padding: "30px 34px 24px",
+  padding: "clamp(16px, 5vh, 30px) clamp(18px, 4vw, 34px) clamp(14px, 4vh, 24px)",
   borderRadius: 16,
   background: UI.surface,
   border: `1px solid ${UI.borderStrong}`,
   boxShadow: PANEL_SHADOW,
   color: UI.text,
   font: `400 15px/1.75 ${UI_FONT.body}`,
+  cursor: "pointer",
+};
+
+/** 휴대폰 — 화면을 덜 덮게 폭 520 · 글 14px · 여백을 줄인다(11/8 해랑 검토 「창 · 글씨가 너무 큼」) */
+const touchDispatchCardStyle: CSSProperties = {
+  ...dispatchCardStyle,
+  width: "min(520px, 100%)",
+  padding: "14px 18px 12px",
+  borderRadius: 14,
+  font: `400 14px/1.6 ${UI_FONT.body}`,
+};
+
+const touchDispatchButtonStyle: CSSProperties = {
+  minHeight: 44,
+  minWidth: 96,
+  padding: "0 22px",
+  borderRadius: 22,
+  border: `1px solid ${UI.danger}`,
+  background: "rgba(220,70,60,.16)",
+  color: UI.text,
+  font: `700 15px/1 ${UI_FONT.body}`,
   cursor: "pointer",
 };
 
@@ -162,7 +213,12 @@ const sirenDotStyle: CSSProperties = {
   animation: "dispatch-blink 1s steps(2, start) infinite",
 };
 
-const titleStyle: CSSProperties = { margin: "14px 0 14px", font: `700 30px/1.25 ${UI_FONT.title}`, color: UI.text };
+const titleStyle: CSSProperties = {
+  margin: "clamp(8px, 2.5vh, 14px) 0",
+  font: `700 clamp(22px, 6vh, 30px)/1.25 ${UI_FONT.title}`,
+  color: UI.text,
+};
+const touchTitleStyle: CSSProperties = { ...titleStyle, margin: "6px 0 8px", font: `700 19px/1.3 ${UI_FONT.title}` };
 const bodyStyle: CSSProperties = { color: UI.textMuted };
 const paragraphStyle: CSSProperties = { margin: "0 0 4px" };
 const commandLineStyle: CSSProperties = { margin: "12px 0 0", color: UI.text, fontWeight: 600 };
@@ -177,6 +233,8 @@ const footerStyle: CSSProperties = {
   color: UI.textMuted,
   fontSize: 13,
 };
+
+const touchFooterStyle: CSSProperties = { ...footerStyle, marginTop: 12, paddingTop: 10 };
 
 const objectiveStyle: CSSProperties = {
   position: "fixed",
@@ -194,6 +252,18 @@ const objectiveStyle: CSSProperties = {
   font: `400 14px/1.55 ${UI_FONT.body}`,
   pointerEvents: "none",
   zIndex: 20,
+};
+
+/** 휴대폰 — 위 가운데는 오른쪽 위 단추 줄과 겹친다. 튜토리얼 판처럼 왼쪽 위 힌트 표시 아래에 */
+const touchObjectiveStyle: CSSProperties = {
+  ...objectiveStyle,
+  top: "calc(env(safe-area-inset-top, 0px) + 62px)",
+  left: "calc(env(safe-area-inset-left, 0px) + 12px)",
+  transform: "none",
+  width: "min(340px, 42vw)",
+  padding: "8px 12px",
+  borderRadius: 12,
+  font: `400 13px/1.5 ${UI_FONT.body}`,
 };
 
 const objectiveHeaderStyle: CSSProperties = {
