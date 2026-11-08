@@ -223,8 +223,8 @@ export function makePosterTexture({
           g.arc(w * dx, h * dy, dr, 0, 7);
           g.fill();
         }
-        // 정답을 직접 주지 않고 '막히면 파란 캔' 을 유추하게 한다. 한글을 크게, 영어는 작게 덧붙인다 — 영어 광고를 단서로 안 읽거나
-        // 영어를 모르는 사람이 있었다(미르 플레이 시험 11/8, 튜토피드백 01회차)
+        // 정답을 직접 주지 않고 '막히면 파란 캔' 을 유추하게 한다. 영어를 크게(원래 광고 그대로), 그 밑에 한글을 작고 흐리게 —
+        // 한글을 크게 쓰니 너무 노골적이었다(미르 11/8). 영어를 모르는 사람도 가까이 보면 읽힌다
         g.fillStyle = "#ffffff";
         g.textAlign = "center";
         g.textBaseline = "middle";
@@ -237,10 +237,10 @@ export function makePosterTexture({
           }
           g.fillText(text, w * 0.62, y);
         };
-        fitText("힌트가 필요해?", Math.round(h * 0.19), 800, h * 0.3);
-        fitText("파란 캔을 뽑아 봐!", Math.round(h * 0.23), 800, h * 0.56);
-        g.fillStyle = "rgba(255,255,255,0.72)";
-        fitText("NEED A HINT? GO BLUE", Math.round(h * 0.1), 700, h * 0.82);
+        fitText("NEED A HINT?", Math.round(h * 0.2), 800, h * 0.33);
+        fitText("GO BLUE", Math.round(h * 0.28), 800, h * 0.6);
+        g.fillStyle = "rgba(255,255,255,0.32)";
+        fitText("힌트가 필요해? 파란 캔", Math.round(h * 0.075), 600, h * 0.84);
       }
 
       // 비스듬히 봐도 글자가 안 뭉개진다(이방성 8)
