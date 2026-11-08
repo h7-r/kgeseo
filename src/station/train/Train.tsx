@@ -5,12 +5,15 @@ import * as THREE from "three";
 
 import { ToonOutline } from "@/engine/outline";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
+import { dynamicColliders } from "@/station/layout/collision";
+import { HEADQUARTERS_MAX_X, HEADQUARTERS_MAX_Z, HEADQUARTERS_MIN_Z } from "@/station/layout/dimensions";
 import { DOOR_OPEN_DISTANCE } from "@/station/layout/passage";
 import { doorState, trainDoors } from "@/station/layout/trainDoors";
 import { splitGltf } from "@/engine/gltfModel";
 import GltfPartMeshes from "@/engine/GltfPartMeshes";
 import { applyDents } from "@/station/vertexNoise";
 
+import { measureFootprint } from "./trainFootprint";
 import { makeTrainStepTexture, makeTrainDoorTexture, type TrainDoorTextureOptions } from "./trainTextures";
 import { sharedAssetUrl } from "@/config/env";
 
@@ -311,8 +314,59 @@ export default function Train({
   const stepCar = step?.car ?? -1;
   const hasStep = !!step && step.visible !== false;
 
+  // 방 안으로 들어온 차체 · 발판을 충돌 박스로(검토 26회차) — 내 캐릭터 · 3인칭 카메라 · 물건 놓기가 막히고, 로비 NPC 지도
+  // (lobby/scripts/dump-hq-obstacles.mjs)도 이 박스를 뽑는다. 놓인 값 · 모양이 바뀔 때만 다시 잰다(삼각형 약 2만 개).
+  const root = useRef<THREE.Group>(null);
+  const { width: stepW, depth: stepD, thickness: stepT, offsetX: stepX, offsetY: stepY, offsetZ: stepZ } = step ?? {};
+  useEffect(() => {
+    const group = root.current;
+    if (!group) return;
+    const names: string[] = [];
+    const register = () => {
+      for (const name of names) dynamicColliders.delete(name);
+      names.length = 0;
+      const boxes = measureFootprint(group, {
+        minZ: HEADQUARTERS_MIN_Z,
+        maxZ: HEADQUARTERS_MAX_Z,
+        maxX: HEADQUARTERS_MAX_X,
+      });
+      boxes.forEach((box, i) => {
+        const name = `train:edge:${i}`;
+        dynamicColliders.set(name, box);
+        names.push(name);
+      });
+    };
+    register();
+    // 첫 커밋 직후 한 프레임 늦게 붙는 부모 변환이 있어도 맞게 한 번 더(문 표식과 같은 이유)
+    const id = setTimeout(register, 300);
+    return () => {
+      clearTimeout(id);
+      for (const name of names) dynamicColliders.delete(name);
+    };
+  }, [
+    x,
+    y,
+    z,
+    rotation,
+    size,
+    cars,
+    spacing,
+    roll,
+    pitch,
+    bend,
+    bodyParts,
+    hasStep,
+    stepCar,
+    stepW,
+    stepD,
+    stepT,
+    stepX,
+    stepY,
+    stepZ,
+  ]);
+
   return (
-    <group position={[x, y, z]} rotation={[0, rotation, 0]}>
+    <group ref={root} name="train" position={[x, y, z]} rotation={[0, rotation, 0]}>
       {/* 기울기를 바깥 rotation 에 섞으면 오일러 축이 엉켜 방향까지 돌아간다 — 그룹을 나눈다 */}
       <group rotation={[roll, 0, pitch]} scale={size}>
         {placements.map((car, i) => (

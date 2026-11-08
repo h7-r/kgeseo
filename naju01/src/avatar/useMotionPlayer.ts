@@ -2,8 +2,11 @@
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import type { AvatarLink } from "@/engine/avatarLink";
+import type { AvatarAction, AvatarLink } from "@/engine/avatarLink";
 
+import type { ActiveGesture } from "./gestures";
+
+import { QUATERNIUS_PREFIX } from "./chibiClipLibrary";
 import type { ChibiAvatarConfig, PreparedBody } from "./preparedBody";
 import { AUTO_MOTION } from "./sidekickOptions";
 
@@ -15,6 +18,47 @@ export interface MotionTimers {
   landingEnd: number;
   lastAttack: number;
   attackEnd: number;
+  /** 끊긴 인사 동작(serial) — 멈춘 뒤에 다시 살아나지 않게 */
+  canceledEmote?: number;
+  /** 이번 프레임 동작의 회차 표시 — 같은 클립이라도 이 값이 바뀌면 처음부터(연달아 맞기 등) */
+  restartKey?: string | null;
+  /** 인사·맞기 단계가 정한 재생 속도(없으면 null) */
+  actionSpeed?: number | null;
+  /** 인사·맞기 단계가 정한 몸 들어 올림(세계 유닛) */
+  actionLift?: number;
+  /** 가만히 서 있기 시작한 시각(clock 초) — 움직이거나 다른 동작이 나오면 비운다 */
+  stillSince?: number | null;
+  /** 서 있다 트는 「말하며 대기」가 끝나는 시각 */
+  fidgetUntil?: number;
+  /** 이번 프레임에 실제로 고른 인사 단계의 절차 손짓(맞기·주먹·끊김 판정을 지난 것만). 없으면 null */
+  gesture?: ActiveGesture | null;
+}
+
+/** 인사 단계 motion 이 이것이면 그 성별 대기를 밑바탕으로 손짓만 덮어쓴다 */
+export const GESTURE_BASE_MOTION = "@idle";
+
+/**
+ * 대기 자세 — 2026-11-07 미르가 동작 보기 화면(motion-gallery.html)에서 고름. 남성은 Quaternius 기본 대기,
+ * 여성은 지금처럼 Tripo 「허리에 손」. Tripo 를 안 쓰는 몸(동작 출처 sidekick)은 둘 다 Quaternius 대기가 된다.
+ */
+const IDLE_MOTION = { masculine: `${QUATERNIUS_PREFIX}Idle_Loop`, feminine: "Idle_Loop" } as const;
+/** 이만큼(초) 가만히 서 있으면 「말하며 대기」를 한 번 틀고 돌아온다(미르 11/7) */
+export const IDLE_FIDGET_AFTER_SECONDS = 10;
+const IDLE_FIDGET_MOTION = "Idle_Talking_Loop";
+/** Idle_Talking_Loop 한 바퀴(GLB 2.93초) */
+const IDLE_FIDGET_SECONDS = 2.93;
+
+/** 지금 틀 단계(시작 시각부터 단계 길이를 차례로 더해 고른다). 끝났거나 아직이면 null */
+function activeStep(action: AvatarAction | undefined, wallSeconds: number) {
+  if (!action) return null;
+  let elapsed = wallSeconds - action.at;
+  if (elapsed < 0) elapsed = 0;
+  for (let index = 0; index < action.steps.length; index += 1) {
+    const step = action.steps[index];
+    if (elapsed < step.seconds) return { motion: step.motion, index, step, progress: elapsed / step.seconds };
+    elapsed -= step.seconds;
+  }
+  return null;
 }
 
 /**
@@ -49,14 +93,60 @@ export function chooseMotion(
     const attackClip = state.attackMotion ? prepared.clipFor(state.attackMotion) : null;
     timers.attackEnd = now + THREE.MathUtils.clamp((attackClip?.duration ?? 0.62) / 1.2, 0.45, 0.82);
   }
+  timers.restartKey = null;
+  timers.actionSpeed = null;
+  timers.actionLift = 0;
+  timers.gesture = null;
   let next = config.motion;
   if (!next || next === AUTO_MOTION) {
     if (!state.grounded && timers.airborneSince === null) timers.airborneSince = now;
     if (state.grounded) timers.airborneSince = null;
     const confirmedAir =
       state.jumping || (!state.grounded && timers.airborneSince !== null && now - timers.airborneSince > 0.12);
-    if (now < timers.attackEnd && state.attackMotion) next = state.attackMotion;
-    else if (confirmedAir) {
+    // 인사·맞기는 벽시계로 잰다(몸을 안 그리던 동안 지난 것은 건너뛴다). 펀치 > 인사, 맞기 > 모두
+    const wall = performance.now() / 1000;
+    const hitStep = activeStep(state.hit, wall);
+    const emoteStep = state.emote && state.emote.serial !== timers.canceledEmote ? activeStep(state.emote, wall) : null;
+    const attacking = now < timers.attackEnd && !!state.attackMotion;
+    // 인사는 서서만 — 움직이거나 공중·착지·앉기·맞기면 끊고, 끊긴 것은 다시 살리지 않는다
+    const emoteBlocked =
+      !!hitStep ||
+      state.moving ||
+      confirmedAir ||
+      state.crouching ||
+      (timers.wasAirborne && state.grounded) ||
+      now < timers.landingEnd;
+    if (emoteStep && emoteBlocked && state.emote) timers.canceledEmote = state.emote.serial;
+    const applyStep = (active: NonNullable<typeof hitStep>) => {
+      timers.actionSpeed = active.step.speed ?? null;
+      timers.actionLift = (active.step.lift ?? 0) * Math.sin(Math.PI * active.progress);
+    };
+    if (hitStep && state.hit) {
+      next = hitStep.motion;
+      timers.restartKey = `hit:${state.hit.serial}:${hitStep.index}`;
+      applyStep(hitStep);
+    } else if (attacking) {
+      next = state.attackMotion as string;
+      timers.restartKey = `attack:${timers.lastAttack}`;
+    } else if (emoteStep && !emoteBlocked && state.emote) {
+      next = emoteStep.motion;
+      timers.restartKey = `emote:${state.emote.serial}:${emoteStep.index}`;
+      applyStep(emoteStep);
+      if (emoteStep.step.gesture)
+        timers.gesture = { name: emoteStep.step.gesture, elapsed: emoteStep.progress * emoteStep.step.seconds };
+      // 손짓의 밑바탕은 그 성별 대기 — 대기를 처음부터 다시 틀지 않는다(이어서 섞임)
+      if (next === GESTURE_BASE_MOTION) {
+        next = IDLE_MOTION[config.gender === "masculine" ? "masculine" : "feminine"];
+        timers.restartKey = null;
+      }
+    }
+    if (hitStep || attacking || (emoteStep && !emoteBlocked)) {
+      // 점프·착지 판정은 계속 갱신한다(동작이 끝난 뒤 공중에 있으면 바로 점프 동작으로)
+      timers.wasAirborne = confirmedAir;
+      // 인사·펀치·맞기도 「움직임」이다 — 서 있던 시간을 새로 센다
+      timers.stillSince = null;
+      timers.fidgetUntil = 0;
+    } else if (confirmedAir) {
       if (!timers.wasAirborne) timers.jumpStartEnd = now + 0.22;
       next = now < timers.jumpStartEnd ? "Jump_Start" : "Jump_Loop";
     } else if (timers.wasAirborne && state.grounded) {
@@ -68,10 +158,40 @@ export function chooseMotion(
       next = state.running
         ? pickByStride(state.speed ?? 0, [config.runMotion || "Jog_Fwd_Loop", "Sprint_Loop"])
         : config.walkMotion || "Walk_Loop";
-    } else next = "Idle_Loop";
+    } else {
+      // 가만히 서 있음 — 성별 대기, 10초가 지나면 「말하며 대기」 한 바퀴 뒤 다시 대기(시계를 새로 센다)
+      timers.stillSince ??= now;
+      if (now < (timers.fidgetUntil ?? 0)) next = IDLE_FIDGET_MOTION;
+      else if (now - timers.stillSince >= IDLE_FIDGET_AFTER_SECONDS) {
+        timers.fidgetUntil = now + IDLE_FIDGET_SECONDS;
+        timers.stillSince = timers.fidgetUntil;
+        next = IDLE_FIDGET_MOTION;
+      } else next = IDLE_MOTION[config.gender === "masculine" ? "masculine" : "feminine"];
+    }
+    // 서 있는 대기가 아니면(이동·공중·착지·앉기) 서 있던 시간을 비우고 말하던 것도 끊는다
+    const standingStill =
+      next === IDLE_FIDGET_MOTION || next === IDLE_MOTION.masculine || next === IDLE_MOTION.feminine;
+    if (!standingStill) {
+      timers.stillSince = null;
+      timers.fidgetUntil = 0;
+    }
     timers.wasAirborne = confirmedAir;
   }
-  return next;
+  return next || "Idle_Loop";
+}
+
+/**
+ * 몸을 그리지 않는 프레임(1인칭 등)에도 인사 취소만은 적는다 — 숨어 있는 동안 움직였던 인사가 3인칭으로 돌아왔을 때
+ * 다시 살아나지 않게(Codex 10). 판정은 chooseMotion 의 emoteBlocked 와 같은 기준(움직임·공중·앉기·맞기).
+ */
+export function noteHiddenActions(state: AvatarLink, timers: MotionTimers) {
+  const emote = state.emote;
+  if (!emote || emote.serial === timers.canceledEmote) return;
+  const wall = performance.now() / 1000;
+  if (!activeStep(emote, wall)) return;
+  if (state.moving || !state.grounded || state.jumping || state.crouching || activeStep(state.hit, wall)) {
+    timers.canceledEmote = emote.serial;
+  }
 }
 
 /** 몸(prepared)마다 믹서 하나. 몸이 바뀌면 하던 동작과 시각을 새 몸에 넘겨 이어 튼다. */
@@ -97,8 +217,16 @@ export function useMotionPlayer(prepared: PreparedBody) {
     [mixer, prepared.targetSkin],
   );
 
-  const play = (name: string) => {
-    if (name === currentMotion.current) return;
+  const currentKey = useRef<string | null>(null);
+  /** restartKey: 같은 클립이라도 이 값이 바뀌면 처음부터(연달아 맞기). 주지 않으면 예전처럼 이름만 본다 */
+  const play = (name: string, restartKey: string | null = null) => {
+    if (name === currentMotion.current && (restartKey === null || restartKey === currentKey.current)) return;
+    currentKey.current = restartKey;
+    if (name === currentMotion.current) {
+      // 같은 클립을 처음부터 — 섞을 앞 동작이 자기 자신이라 바로 되감는다
+      actions.current.get(name)?.reset().play();
+      return;
+    }
     let action = actions.current.get(name);
     if (!action) {
       const clip = prepared.clipFor(name);

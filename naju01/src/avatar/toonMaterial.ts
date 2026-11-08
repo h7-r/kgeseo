@@ -4,6 +4,7 @@
 // 얼굴은 몸과 같은 메시라 이름으로 못 가른다. head 본의 스킨 웨이트로 정점마다 '얼굴 정도'를 구해 넘긴다.
 import * as THREE from "three";
 
+import { addEmptyScalpWeights, addScalpWeights } from "./buzzScalp";
 import { isOutlineShell } from "./toonOutline";
 
 export interface ToonConfig {
@@ -81,8 +82,14 @@ export function makeToonGradientTexture(steps: number, threshold: number, softne
 
 // 셰이더 문자열 안에는 한글을 넣지 않는다 — 일부 드라이버는 주석의 한글도 거부한다.
 const VERTEX_DECLARATIONS = `
+uniform vec3 _swayOffset;
+uniform float _swayTwist;
+uniform vec4 _swayShape;
 attribute float _face;
 attribute float _tint;
+attribute float _scalp;
+varying float v_scalp;
+varying vec3 v_restPos;
 varying float v_tint;
 varying float v_cloth;
 varying float v_bottom;
@@ -97,6 +104,8 @@ varying vec3 v_viewNormal;
 const VERTEX_NORMAL = `
   v_face = _face;
   v_tint = _tint;
+  v_scalp = _scalp;
+  v_restPos = position;
   // keep the 1.0~2.0 ramp (see the Korean note above) instead of a per-vertex step;
   // "is bottom" still steps, so a skin->bottom triangle never passes through 2 = top
   v_cloth = clamp(_tint - 1.0, 0.0, 1.0);
@@ -104,6 +113,24 @@ const VERTEX_NORMAL = `
   if (_face > 0.001 && _faceFlatten > 0.001) {
     vec3 sphere = normalize(position - _headCentre);
     objectNormal = normalize(mix(objectNormal, sphere, _face * _faceFlatten));
+  }
+`;
+// 긴 머리 찰랑임(hairSway.ts) — 스키닝이 끝난 자리에 머리끝 밀림을 더한다. 두피 높이(_swayShape.x) 아래로
+// 머리끝(_swayShape.y)까지 갈수록 제곱으로 커진다(두피·정수리는 그대로). 머리칼을 몸 쪽(척추 축을 향해 수평으로)으로는
+// 밀지 않는다 — 등에 얹힌 머리는 앞으로, 가슴에 내린 머리는 뒤로 안 들어가고 옆·밖으로만 출렁인다.
+// _swayShape = (두피 높이, 머리끝 높이, 척추 축 z, 세기). 세기 0(단발·짧은 머리)이면 아무것도 안 한다.
+const VERTEX_HAIR_SWAY = `#include <skinning_vertex>
+  {
+    float swayAlong = clamp((_swayShape.x - position.y) / max(_swayShape.x - _swayShape.y, 0.001), 0.0, 1.0);
+    float swayWeight = swayAlong * swayAlong * _swayShape.w;
+    if (swayWeight > 0.0) {
+      vec2 radial = vec2(position.x, position.z - _swayShape.z);
+      float radialLength = length(radial);
+      vec2 outward = radialLength > 0.0001 ? radial / radialLength : vec2(0.0);
+      vec3 sway = _swayOffset + _swayTwist * vec3(radial.y, 0.0, -radial.x);
+      sway.xz -= outward * min(dot(sway.xz, outward), 0.0);
+      transformed += sway * swayWeight;
+    }
   }
 `;
 const FRAGMENT_DECLARATIONS = `
@@ -119,8 +146,54 @@ varying float v_bottom;
 uniform float _rimPower;
 uniform float _rimStrength;
 uniform float _hairBand;
+uniform vec3 _hairBase;
+uniform float _hairNorm;
+uniform float _buzz;
+uniform vec3 _buzzColor;
+varying float v_scalp;
+varying vec3 v_restPos;
 varying float v_face;
 varying vec3 v_viewNormal;
+float buzzHash(vec3 p) {
+  p = fract(p * 0.3183099 + 0.1);
+  p *= 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+float buzzNoise(vec3 x) {
+  vec3 i = floor(x);
+  vec3 f = fract(x);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(buzzHash(i), buzzHash(i + vec3(1, 0, 0)), f.x), mix(buzzHash(i + vec3(0, 1, 0)), buzzHash(i + vec3(1, 1, 0)), f.x), f.y),
+    mix(mix(buzzHash(i + vec3(0, 0, 1)), buzzHash(i + vec3(1, 0, 1)), f.x), mix(buzzHash(i + vec3(0, 1, 1)), buzzHash(i + vec3(1, 1, 1)), f.x), f.y),
+    f.z);
+}
+`;
+// 머리색 — 머리 텍스처는 짙은 갈색이라 고른 색을 그냥 곱하면(예전 방식) 거의 검정이 되고 결이 사라졌다.
+// 텍스처의 밝기를 그 머리의 평균 밝기(_hairBase, 살빛 조각을 뺀 정점 UV 자리 평균)로 나눠 「평균보다 밝다·어둡다」만
+// 남기고, 그 비율을 고른 색에 곱한다 — 평균 자리가 고른 색 그대로 나온다. 남자 긴 머리처럼 거의 검은 텍스처는 비율이
+// JPEG 잡티까지 키우므로 비율을 0.6 제곱으로 누르고, 하이라이트가 하얗게 타지 않게 위를 눌러 담는다(1.7배에 수렴).
+// 결의 세기는 85% 만 쓴다. 흰색(#ffffff = 「원본」)이면 예전처럼 곱한다.
+// 머리 메시에 딸려 온 살빛 조각(원본 캐릭터의 귀 등)은 밝고 채도가 있어 가려내 피부색으로 칠한다.
+const FRAGMENT_HAIR = `
+#ifdef USE_MAP
+  {
+    vec3 texel = sampledDiffuseColor.rgb;
+    vec3 seenHair = sqrt(texel);
+    float brightest = max(max(seenHair.r, seenHair.g), seenHair.b);
+    float spread = (brightest - min(min(seenHair.r, seenHair.g), seenHair.b)) / max(brightest, 0.001);
+    float skinPiece = smoothstep(0.5, 0.62, brightest) * smoothstep(0.1, 0.18, spread);
+    vec3 hairColor = diffuseColor.rgb;
+    if (_hairNorm > 0.5) {
+      const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+      float ratio = dot(texel, LUMA) / max(dot(_hairBase, LUMA), 0.0001);
+      float shade = pow(ratio, 0.6);
+      shade = shade / (1.0 + max(shade - 1.0, 0.0) * 0.6);
+      hairColor = diffuse * mix(1.0, max(shade, 0.2), 0.85);
+    }
+    diffuseColor.rgb = mix(hairColor, texel * _skinTint, skinPiece);
+  }
+#endif
 `;
 const FRAGMENT_FINISH = `
   vec3 viewDir = normalize(vViewPosition);
@@ -137,23 +210,58 @@ const FRAGMENT_FINISH = `
 // 흰 셔츠 소매·밑단엔 검은 실밥처럼 보인다. 구역 평균색(정점 UV 에서 잰다)에서 벗어난 텍셀을 평균색으로 되돌리되,
 // 다른 옷 구역의 색이면 그대로 둔다 — 정점 표식의 밑단 경계는 텍스처의 밑단과 조금 어긋나, 셔츠 구역에 그려진
 // 반바지 텍셀을 흰색으로 칠하면 밑단이 찢어진 듯 보였다. 피부 구역은 눈·눈썹이 정당하게 어두워 손대지 않는다.
+// 상의·하의 정점이 섞인 삼각형(밑단을 가로지르는 줄)만은 정점 표식 대신 텍셀 색으로 상·하의를 가른다 — 표식은
+// 삼각형 모서리를 따라 톱니로 갈리지만 텍스처의 밑단은 매끈하다. 텍셀 색을 상의 평균색→하의 평균색 직선에 내려
+// 어느 쪽인지 보고(평균보다 더 검은 반바지 텍셀도 하의다), 직선에서 먼 색(살빛 여백 등)만 예전처럼 표식으로 정해
+// 평균색으로 되돌린다. 반반인 중간색(접힌 그늘·밑단 자체의 번짐)은 가까운 정점 표식 쪽으로 조금 기운다.
+// 표식은 naju01/tools/bake-bottom-markers.mjs hem 이 텍스처 밑단 둘레로 옮겨 둔다(이 갈래는 그 띠 안에서만 돈다).
+// 두 평균색이 가까우면(√선형 거리 0.12 미만) 색으로 못 가르므로 이 갈래를 끈다.
 const FRAGMENT_TINT = `#include <map_fragment>
   // 2 = top, 3 = bottom
   if (v_cloth > 0.5) {
     bool isBottom = v_bottom > 0.5 * v_cloth;
-    vec3 own = isBottom ? _bottomBase : _clothBase;
-    vec3 other = isBottom ? _clothBase : _bottomBase;
     // 거리는 제곱근 공간에서 — 선형값은 어두운 쪽이 눌려 검은 천 위의 갈색 실금(0.05 근처)이 평균과 구별되지 않는다
     vec3 seen = sqrt(diffuseColor.rgb);
-    float stray = smoothstep(0.06, 0.18, distance(seen, sqrt(own)))
-      * smoothstep(0.08, 0.2, distance(seen, sqrt(other))) * _seamFix;
-    diffuseColor.rgb = mix(diffuseColor.rgb, own, stray) * (isBottom ? _bottomTint : _clothTint);
+    vec3 sTop = sqrt(_clothBase);
+    vec3 seg = sqrt(_bottomBase) - sTop;
+    float segLen2 = dot(seg, seg);
+    // only triangles that carry both a top (2) and a bottom (3) mark
+    float hem = step(0.001, v_bottom) * step(0.001, v_cloth - v_bottom) * step(0.0144, segLen2) * _seamFix;
+    if (hem > 0.5) {
+      // distance to the line, not the segment: texels darker than the bottom average (or whiter than the top
+      // average) are still that cloth, not strays
+      float along = dot(seen - sTop, seg) / segLen2;
+      float stray = smoothstep(0.03, 0.08, distance(seen, sTop + seg * along));
+      // ambiguous mid tones (a shadowed fold, the painted hem's own anti-aliasing) lean to the vertex marks
+      float lean = 0.25 * (v_bottom / max(v_cloth, 0.001) - 0.5);
+      float pick = smoothstep(0.4, 0.6, clamp(along, 0.0, 1.0) + lean);
+      float bottomWeight = mix(pick, isBottom ? 1.0 : 0.0, stray);
+      vec3 topColor = mix(diffuseColor.rgb, _clothBase, stray) * _clothTint;
+      vec3 bottomColor = mix(diffuseColor.rgb, _bottomBase, stray) * _bottomTint;
+      diffuseColor.rgb = mix(topColor, bottomColor, bottomWeight);
+    } else {
+      vec3 own = isBottom ? _bottomBase : _clothBase;
+      vec3 other = isBottom ? _clothBase : _bottomBase;
+      float stray = smoothstep(0.06, 0.18, distance(seen, sqrt(own)))
+        * smoothstep(0.08, 0.2, distance(seen, sqrt(other))) * _seamFix;
+      diffuseColor.rgb = mix(diffuseColor.rgb, own, stray) * (isBottom ? _bottomTint : _clothTint);
+    }
   }
   else if (v_tint > 0.5) {
     float lum = max(max(diffuseColor.r, diffuseColor.g), diffuseColor.b);
     float sat = lum - min(min(diffuseColor.r, diffuseColor.g), diffuseColor.b);
     float sclera = smoothstep(0.60, 0.84, lum) * (1.0 - smoothstep(0.05, 0.13, sat));
     diffuseColor.rgb *= mix(_skinTint, vec3(1.0), sclera);
+    if (_buzz > 0.5 && v_scalp > 0.001) {
+      // stubble grain in rest-pose space (sticks to the scalp); vertical cells a little longer = short strands
+      vec3 cell = v_restPos * vec3(950.0, 520.0, 950.0);
+      float grain = buzzNoise(cell) * 0.6 + buzzNoise(cell * 2.3 + 17.0) * 0.4;
+      // fade the grain out where one pixel spans several cells (far away) so it does not shimmer
+      grain = mix(0.5, grain, 1.0 - smoothstep(0.5, 1.5, length(fwidth(cell))));
+      float cover = v_scalp * mix(0.86, 1.0, smoothstep(0.2, 0.55, grain));
+      vec3 strands = _buzzColor * mix(0.8, 1.18, grain);
+      diffuseColor.rgb = mix(diffuseColor.rgb, strands, cover);
+    }
   }`;
 
 interface ToonUniforms {
@@ -171,11 +279,26 @@ interface ToonUniforms {
   _bottomBase: THREE.IUniform<THREE.Color>;
   /** 번짐 보정 세기 0~1. 평균색을 못 재면 0 */
   _seamFix: THREE.IUniform<number>;
+  /** 머리 텍스처 평균색(살빛 조각 뺌, 선형) — 머리색을 평균 밝기에 맞춰 칠할 기준 */
+  _hairBase: THREE.IUniform<THREE.Color>;
+  /** 1 = 머리색을 평균 밝기 기준으로 칠한다, 0 = 예전처럼 텍스처에 곱한다(흰색 = 원본, 평균을 못 잼) */
+  _hairNorm: THREE.IUniform<number>;
+  /** 머리끝 밀림(아바타 로컬 m)·비틀림(rad) — hairSway.ts 가 프레임마다 넣는다 */
+  _swayOffset: THREE.IUniform<THREE.Vector3>;
+  _swayTwist: THREE.IUniform<number>;
+  /** (두피 높이, 머리끝 높이, 척추 축 z, 세기) — 머리 메시마다 한 번 정한다 */
+  _swayShape: THREE.IUniform<THREE.Vector4>;
+  /** 반삭(buzzScalp.ts) — 1 이면 두피(_scalp)를 머리색으로 칠한다 */
+  _buzz: THREE.IUniform<number>;
+  /** 반삭 머리색(선형) — 머리색을 그 아바타 기본 머리 텍스처 평균에 곱한 값(머리 메시와 같은 밝기) */
+  _buzzColor: THREE.IUniform<THREE.Color>;
 }
 
 interface ToonUniformEntry {
   uniforms: ToonUniforms;
   kind: ToonPartKind;
+  /** 머리 텍스처 평균색을 쟀나 — 못 쟀으면 머리색을 예전처럼 곱한다 */
+  hairBaseKnown: boolean;
 }
 
 interface ToonBuildConfig extends ToonConfig {
@@ -208,6 +331,13 @@ function applyToonShaderPatch(
     _clothBase: { value: new THREE.Color(1, 1, 1) },
     _bottomBase: { value: new THREE.Color(0, 0, 0) },
     _seamFix: { value: 0 },
+    _hairBase: { value: new THREE.Color(1, 1, 1) },
+    _hairNorm: { value: 0 },
+    _swayOffset: { value: new THREE.Vector3() },
+    _swayTwist: { value: 0 },
+    _swayShape: { value: new THREE.Vector4(0, 0, 0, 0) },
+    _buzz: { value: 0 },
+    _buzzColor: { value: new THREE.Color(0, 0, 0) },
   };
   material.userData[TOON_UNIFORMS_KEY] = uniforms;
   material.onBeforeCompile = (shader) => {
@@ -219,9 +349,11 @@ function applyToonShaderPatch(
         "#include <defaultnormal_vertex>",
         `#include <defaultnormal_vertex>\n  v_viewNormal = transformedNormal;`,
       );
+    if (kind === "hair")
+      shader.vertexShader = shader.vertexShader.replace("#include <skinning_vertex>", VERTEX_HAIR_SWAY);
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", `#include <common>\n${FRAGMENT_DECLARATIONS}`)
-      .replace("#include <map_fragment>", FRAGMENT_TINT)
+      .replace("#include <map_fragment>", kind === "hair" ? `${FRAGMENT_TINT}\n${FRAGMENT_HAIR}` : FRAGMENT_TINT)
       .replace("#include <dithering_fragment>", `#include <dithering_fragment>\n${FRAGMENT_FINISH}`);
   };
   // three 는 onBeforeCompile 소스로 프로그램을 캐시한다. 갈래가 다르면 키도 달라야
@@ -293,6 +425,47 @@ function computeZoneBases(geometry: THREE.BufferGeometry, map: THREE.Texture | n
   const toColor = ([r, g, b, n]: number[]) =>
     n ? new THREE.Color(r / n / 255, g / n / 255, b / n / 255).convertSRGBToLinear() : null;
   return { cloth: toColor(sums.cloth), bottom: toColor(sums.bottom) };
+}
+
+/**
+ * 머리 텍스처의 평균색(선형) — 정점 UV 자리 텍셀의 평균. 살빛 조각(밝고 채도 있는 텍셀, FRAGMENT_HAIR 와 같은 기준)은 뺀다.
+ * 못 재면 null(머리색을 예전처럼 곱한다).
+ */
+function computeHairBase(geometry: THREE.BufferGeometry, map: THREE.Texture | null): THREE.Color | null {
+  const uv = geometry.getAttribute("uv");
+  if (!map || !uv) return null;
+  const texels = readTexels(map);
+  if (!texels) return null;
+  const { width, height, data } = texels;
+  const sum = [0, 0, 0];
+  let count = 0;
+  const linear = new THREE.Color();
+  for (let i = 0; i < uv.count; i += 1) {
+    const u = uv.getX(i) - Math.floor(uv.getX(i));
+    const v = uv.getY(i) - Math.floor(uv.getY(i));
+    const row = Math.min(height - 1, Math.floor((map.flipY ? 1 - v : v) * height));
+    const column = Math.min(width - 1, Math.floor(u * width));
+    const at = (row * width + column) * 4;
+    linear.setRGB(data[at] / 255, data[at + 1] / 255, data[at + 2] / 255).convertSRGBToLinear();
+    const seen = [Math.sqrt(linear.r), Math.sqrt(linear.g), Math.sqrt(linear.b)];
+    const brightest = Math.max(...seen);
+    const spread = (brightest - Math.min(...seen)) / Math.max(brightest, 0.001);
+    if (brightest > 0.56 && spread > 0.14) continue;
+    sum[0] += linear.r;
+    sum[1] += linear.g;
+    sum[2] += linear.b;
+    count += 1;
+  }
+  return count ? new THREE.Color(sum[0] / count, sum[1] / count, sum[2] / count) : null;
+}
+
+/** 머리 파츠 번호 — GLB 노드 extras(variant)는 재질이 여럿이면 부모 그룹에 붙어 온다 */
+function hairVariantOf(object: THREE.Object3D): number | null {
+  for (let node: THREE.Object3D | null = object; node; node = node.parent) {
+    if (node.userData.slot !== undefined)
+      return typeof node.userData.variant === "number" ? node.userData.variant : null;
+  }
+  return null;
 }
 
 // ── 살결/옷 가르기 ──
@@ -382,6 +555,10 @@ interface ToonTint {
   skin?: string;
   cloth?: string;
   bottom?: string;
+  /** 머리색 — 머리 메시는 재질 색으로 곱해 두고 여기서는 평균 밝기 기준으로 칠할지만 정한다. 반삭 색도 이 색에서 낸다 */
+  hair?: string;
+  /** 반삭을 골랐나 — 몸의 두피를 머리색으로 칠한다(buzzScalp.ts) */
+  buzz?: boolean;
 }
 
 export interface ToonHandle {
@@ -394,6 +571,10 @@ export interface ToonHandle {
   tint: (colors: ToonTint) => void;
   /** 정점 표식이 있는 메시가 하나라도 있나. 없으면 아바타가 메시 단위 색칠로 돌아간다. */
   hasTintMarks: boolean;
+  /** 긴 머리 찰랑임 — 머리끝 밀림(아바타 로컬 m)·비틀림(rad). 단발처럼 짧은 머리 재질은 건너뛴다 */
+  sway: (offset: THREE.Vector3, twist: number) => void;
+  /** 흔들릴 만큼 긴 머리 재질이 하나라도 있나 — 없으면 아바타가 용수철을 굴리지 않는다 */
+  hasSwayingHair: boolean;
 }
 
 interface InstalledMaterials {
@@ -431,9 +612,17 @@ export function applyToon(
   }
   const buildConfig: ToonBuildConfig = { ...config, headCentre };
   let hasTintMarks = false;
+  let referenceHairBase: THREE.Color | null = null;
   meshes.forEach((object) => {
     const kind = classify(object) ?? "cloth";
     if (!(object instanceof THREE.SkinnedMesh && addFaceWeights(object))) addEmptyFaceWeights(object.geometry);
+    if (kind === "body" && object instanceof THREE.SkinnedMesh) addScalpWeights(object);
+    else addEmptyScalpWeights(object.geometry);
+    // 반삭 색의 밝기 기준 — 그 아바타의 기본 머리(파츠 번호 0) 텍스처 평균
+    if (kind === "hair" && hairVariantOf(object) === 0 && !referenceHairBase) {
+      const map = (Array.isArray(object.material) ? object.material[0] : object.material) as THREE.MeshStandardMaterial;
+      referenceHairBase = computeHairBase(object.geometry, map?.map ?? null);
+    }
     if (kind === "hair") addEmptyTint(object.geometry);
     else if (hasTintAttribute(object)) hasTintMarks = true;
     const current: THREE.Material[] = Array.isArray(object.material) ? object.material : [object.material];
@@ -442,13 +631,19 @@ export function applyToon(
     const created = sources.map((source) => {
       const { material, uniforms } = createToonMaterial(source, buildConfig, kind);
       material.userData[TOON_SOURCE_KEY] = source;
+      let hairBaseKnown = false;
       if (kind !== "hair") {
         const bases = computeZoneBases(object.geometry, material.map);
         if (bases.cloth) uniforms._clothBase.value.copy(bases.cloth);
         if (bases.bottom) uniforms._bottomBase.value.copy(bases.bottom);
         uniforms._seamFix.value = bases.cloth || bases.bottom ? 1 : 0;
+      } else {
+        const base = computeHairBase(object.geometry, material.map);
+        if (base) uniforms._hairBase.value.copy(base);
+        hairBaseKnown = !!base;
+        if (object instanceof THREE.SkinnedMesh) uniforms._swayShape.value.copy(hairSwayShape(object));
       }
-      entries.push({ uniforms, kind });
+      entries.push({ uniforms, kind, hairBaseKnown });
       return material;
     });
     const install = Array.isArray(object.material) ? created : created[0];
@@ -478,13 +673,58 @@ export function applyToon(
       uniforms._hairBand.value = kind === "hair" ? next.hairShine : 0;
     });
   };
-  const tint = ({ skin, cloth, bottom }: ToonTint) => {
-    entries.forEach(({ uniforms, kind }) => {
-      if (kind === "hair") return;
+  const buzzColor = new THREE.Color();
+  const tint = ({ skin, cloth, bottom, hair, buzz }: ToonTint) => {
+    // 반삭 색 = 머리색 × 기본 머리 텍스처 평균 — 머리 메시(텍스처 × 머리색)와 같은 밝기로 보인다
+    buzzColor.set(hair ?? "#ffffff");
+    if (referenceHairBase) buzzColor.multiply(referenceHairBase);
+    entries.forEach(({ uniforms, kind, hairBaseKnown }) => {
       if (skin) uniforms._skinTint.value.set(skin);
+      if (kind === "hair") {
+        uniforms._hairNorm.value = hairBaseKnown && hair && hair.toLowerCase() !== "#ffffff" ? 1 : 0;
+        return;
+      }
       if (cloth) uniforms._clothTint.value.set(cloth);
       uniforms._bottomTint.value.set(bottom ?? cloth ?? "#ffffff");
+      uniforms._buzz.value = buzz ? 1 : 0;
+      uniforms._buzzColor.value.copy(buzzColor);
     });
   };
-  return { restore, uniforms: entries.map((entry) => entry.uniforms), update, tint, hasTintMarks };
+  const swaying = entries.filter(({ uniforms, kind }) => kind === "hair" && uniforms._swayShape.value.w > 0);
+  const sway = (offset: THREE.Vector3, twist: number) => {
+    swaying.forEach(({ uniforms }) => {
+      uniforms._swayOffset.value.copy(offset);
+      uniforms._swayTwist.value = twist;
+    });
+  };
+  return {
+    restore,
+    uniforms: entries.map((entry) => entry.uniforms),
+    update,
+    tint,
+    hasTintMarks,
+    sway,
+    hasSwayingHair: swaying.length > 0,
+  };
+}
+
+const _headBind = new THREE.Matrix4();
+
+/**
+ * 머리 메시의 찰랑임 모양 — (두피 높이, 머리끝 높이, 척추 축 z, 세기), 메시 로컬(쉴 때 자세) 좌표.
+ * 두피 높이 = head 뼈 + 2 cm(턱 높이 — 이 위는 안 흔든다), 머리끝 = 메시의 가장 낮은 점.
+ * 머리끝이 두피 높이보다 15 cm 넘게 내려가면 다 흔들고 6 cm 안이면(단발·짧은 머리) 안 흔든다. 짧을수록 덜 흔든다.
+ */
+function hairSwayShape(mesh: THREE.SkinnedMesh): THREE.Vector4 {
+  const shape = new THREE.Vector4(0, 0, 0, 0);
+  const index = mesh.skeleton?.bones.findIndex((bone) => bone.name === "head") ?? -1;
+  if (index < 0) return shape;
+  // inverseBindMatrices 의 역행렬 = 쉴 때 자세의 뼈 자리(메시 공간)
+  const head = new THREE.Vector3().setFromMatrixPosition(_headBind.copy(mesh.skeleton.boneInverses[index]).invert());
+  if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+  const tip = mesh.geometry.boundingBox?.min.y ?? head.y;
+  const top = head.y + 0.02;
+  const length = top - tip;
+  const amount = THREE.MathUtils.smoothstep(length, 0.06, 0.15) * Math.min(1, length / 0.25);
+  return shape.set(top, tip, head.z, amount);
 }

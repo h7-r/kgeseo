@@ -17,6 +17,7 @@ from app.api.v1.cases import router as cases_router
 from app.api.v1.health import router as health_router
 from app.api.v1.hints import router as hints_router
 from app.api.v1.interactions import router as interactions_router
+from app.api.v1.lobby import router as lobby_router
 from app.api.v1.me import router as me_router
 from app.api.v1.npc import router as npc_router
 
@@ -27,6 +28,7 @@ from app.api.v1.play_sessions import (
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
 from app.services.content_release import restore_on_startup
+from app.services.lobby_config import get_lobby_issuer_state
 from app.services.session_content import get_pinned_content_store
 
 
@@ -36,6 +38,8 @@ async def lifespan(app: FastAPI):
     await restore_on_startup(
         settings.published_content_root, AsyncSessionLocal, get_pinned_content_store()
     )
+    # 로비 입장권 발급 설정을 읽어 결과(활성 여부 · 실패 항목)를 로그에 남긴다. 실패해도 본편은 그대로 뜬다.
+    get_lobby_issuer_state()
     yield
 
 
@@ -53,6 +57,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Accept"],
+    # 로비 입장권 429 의 다음 발급까지 남은 초를 게임 화면이 읽을 수 있게 한다(로비 설계 2.2절)
+    expose_headers=["Retry-After"],
 )
 
 
@@ -121,6 +127,16 @@ app.include_router(
 )
 app.include_router(
     admin_router,
+    prefix="/api/v1",
+)
+
+
+# 로비 입장권 발급 API 등록
+#
+# 최종 경로:
+# /api/v1/lobby/ticket
+app.include_router(
+    lobby_router,
     prefix="/api/v1",
 )
 

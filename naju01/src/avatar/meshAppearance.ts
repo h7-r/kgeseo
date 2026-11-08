@@ -3,42 +3,66 @@
 import { AUTO_MOTION, isHexColor, isKnownMotion, type AvatarGender, type Option, type Slider } from "./sidekickOptions";
 import { sharedAssetUrl } from "@/config/env";
 
-// 하의 표식(3)을 구운 판. 파일 이름이 그대로라 판을 올려야 브라우저가 새 GLB 를 받는다.
-export const MESH_MODEL_VERSION = 21;
+// 몸 GLB 를 다시 구울 때마다 올린다. 파일 이름이 그대로라 판을 올려야 브라우저가 새 GLB 를 받는다.
+//   22 = 상·하의 경계 표식을 텍스처 밑단에 맞춤(bake-bottom-markers.mjs hem)
+//   23 = 긴 머리 숱 줄이기·몸에서 띄우기·몸통 따라가기, 몸 모프 earTuck(fit-long-hair.mjs)
+export const MESH_MODEL_VERSION = 23;
 
 export type MeshPartKey = "hair" | "top" | "bottom" | "shoes";
 
+/** 긴 머리 파츠 번호(남녀 같다). 귀 접기 모프·머리 흔들림이 이 머리에만 붙는다. */
+export const LONG_HAIR_VARIANT = 1;
+/** 반삭 — 머리 메시 없이 몸의 두피를 머리색으로 칠한다(buzzScalp.ts). 긴 머리(1)와 섞이지 않게 새 번호를 쓴다. */
+export const BUZZ_HAIR_VARIANT = 2;
+
 export const MESH_PART_OPTIONS: Record<MeshPartKey, Record<AvatarGender, readonly Option<number>[]>> = {
   hair: {
+    // 9 · 10 · 11 = 머리 + 캡 — 팀 캐릭터 전용(teamOutfit.ts). 플레이어 카탈로그에는 없다
     masculine: [
       [-1, "민머리"],
       [0, "짧은 머리"],
       [1, "긴 머리"],
+      [BUZZ_HAIR_VARIANT, "반삭"],
+      [9, "민머리 + 캡"],
+      [10, "짧은 머리 + 캡"],
+      [11, "긴 머리 + 캡"],
     ],
     feminine: [
       [-1, "민머리"],
       [0, "단발"],
       [1, "긴 머리"],
+      [BUZZ_HAIR_VARIANT, "반삭"],
+      [9, "민머리 + 캡"],
+      [10, "단발 + 캡"],
+      [11, "긴 머리 + 캡"],
     ],
   },
+  // 1 = 해병대 반팔 — 팀 캐릭터 전용(teamOutfit.ts). 흰 티 GLB 에 빨강 · 가슴 글자
   top: {
     masculine: [
       [-1, "없음 · 속옷"],
       [0, "티셔츠"],
+      [1, "해병대 반팔"],
     ],
     feminine: [
       [-1, "없음 · 속옷"],
       [0, "티셔츠"],
+      [1, "해병대 반팔"],
     ],
   },
+  // 1 · 2 = 스키니 청바지 · 통 큰 바지 — 팀 캐릭터 전용(teamOutfit.ts). 하의 없는 몸 + 바지 파츠
   bottom: {
     masculine: [
       [-1, "속옷"],
       [0, "반바지"],
+      [1, "스키니 청바지"],
+      [2, "통 큰 바지"],
     ],
     feminine: [
       [-1, "속옷"],
       [0, "반바지"],
+      [1, "스키니 청바지"],
+      [2, "통 큰 바지"],
     ],
   },
   shoes: {
@@ -72,6 +96,7 @@ export const MOTION_SOURCE_OPTIONS: readonly Option<MotionSource>[] = [
 type OutfitSelection = Pick<MeshAppearanceConfig, "gender" | "top" | "bottom">;
 
 function formatOutfitCombo({ top, bottom }: OutfitSelection): string {
+  // 팀 전용 바지(하의 1 · 2)도 반바지 몸(both · bottom) 위에 입으므로 하의 있음으로 센다(teamOutfit.ts)
   if (top >= 0 && bottom >= 0) return "both";
   if (top >= 0) return "top";
   if (bottom >= 0) return "bottom";

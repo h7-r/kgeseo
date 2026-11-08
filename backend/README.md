@@ -62,6 +62,36 @@ cp .env.example .env                       # DB 비밀번호 · 구글/네이버
 
 구글·네이버 로그인은 키가 비어 있으면 503 으로 답한다. 웹사이트 쪽 `VITE_GOOGLE_CLIENT_ID` · `VITE_NAVER_CLIENT_ID` 도 같은 값으로 넣는다. 설정 순서와 콘솔 등록은 [`docs/소셜로그인-설정.md`](../docs/소셜로그인-설정.md) 를 본다.
 
+## 로비 입장권 발급 (`POST /api/v1/lobby/ticket`)
+
+본부실 로비(`lobby/`)에 들어갈 짧은 입장권을 로그인한 모집 참가자에게 준다. 로비 설계 v0.19 2 · 3 · 3.3절.
+
+```bash
+# 로컬: 로비 전용 파일을 같은 개발 키로 만든다(lobby/.env.lobby 와 한 쌍). 키 값은 화면에 안 찍힌다
+(cd ../lobby && npm run make-dev-env)
+echo "<내 계정 ID>" > data/lobby_beta_users.txt      # 모집 명단(Git 무시). /api/v1/me 의 user_id
+WAEGOK_RUN_PROFILE=test .venv/bin/uvicorn app.main:app --port 8000
+```
+
+- **공유 `.env`에 `LOBBY_*`를 넣지 않는다.** 본편 `Settings`가 값 있는 모르는 키를 거부해 서버가 뜨지 않는다.
+  로비 값은 프로세스 환경 또는 `backend/.env.lobby`(Git 무시)에 둔다.
+- 실행 프로필은 실행 명령의 `WAEGOK_RUN_PROFILE`(production | test)로만 정한다. 없으면 production.
+  - production: 프로세스 환경만 읽는다(운영은 systemd `EnvironmentFile=-/절대경로/backend/.env.lobby`, `ExecStart=env WAEGOK_RUN_PROFILE=production uvicorn …`).
+  - test: 프로세스 환경을 먼저, 없는 항목만 `backend/.env.lobby`에서. 그 파일의 `WAEGOK_RUN_PROFILE`은 무시한다.
+- 로비 설정이 없거나 틀리면 **발급만 503**이고 본편 API는 그대로다. 실패 항목은 서버 로그(`lobby ticket issuance disabled: …`)에 남는다.
+
+| 환경값 | 뜻 | production 에서 발급을 끄는 조건 |
+|---|---|---|
+| `LOBBY_TICKET_SECRET` | 로비 서버와 같은 서명 키 | 없음 · 32바이트 미만 · `dev-`로 시작 |
+| `LOBBY_TICKET_TTL_SEC` | 입장권 유효 초 | 60이 아님(test 에서만 줄일 수 있다) |
+| `LOBBY_BETA_LIST_PATH` | 모집 명단 파일(상대 경로면 `backend/` 기준) | 없음 |
+| `LOBBY_LOADTEST_IP_EXEMPT` | 부하 시험 계정의 IP 한도 예외 | 1 |
+| `LOBBY_ENV` | (선택) 설정 묶음 표시 | 실행 프로필과 다름 |
+
+- 명단: 한 줄에 계정 ID 하나, 빈 줄 · `#` 줄은 건너뛰고, `loadtest:<계정 ID>`는 시험 계정. 바꿀 때는 같은 폴더에 임시 파일을 쓰고 `mv`로 바꿔 끼운다 — 다음 요청부터 반영된다. 없거나 · 비었거나 · 형식이 틀리면 발급하지 않는다(503).
+- 발급 제한(🟡 시작값): 최근 60초 계정당 10회 · IP당 60회. 넘으면 429와 `Retry-After`(CORS `expose_headers`로 게임이 읽는다). 이 프로세스 메모리에만 두므로 uvicorn 워커는 1개로 띄운다.
+- 응답: 200 `{ticket}` · 401 로그인 없음 · 403 다른 출처 또는 명단에 없음 · 429 · 503. 모두 `Cache-Control: no-store`.
+
 ## 기술 스택
 
 - Python 3.13

@@ -1,6 +1,6 @@
-# 게임 에셋(public/_sf_local · vfx · models)을 CDN(S3 + CloudFront)에 올린다.
+# 게임 에셋(public/_sf_local · vfx · models · lobby-music)을 CDN(S3 + CloudFront)에 올린다.
 #   케이스 파일: s3://<버킷>/c/<케이스>/<판>/_sf_local · vfx   (assetUrl — VITE_DEFAULT_CASE_PATH · 세션 asset_base_path)
-#   공용 파일:   s3://<버킷>/shared/<해시>/models               (sharedAssetUrl — tools/shared-asset-build.mjs 해시)
+#   공용 파일:   s3://<버킷>/shared/<해시>/models · lobby-music (sharedAssetUrl — tools/shared-asset-build.mjs 해시)
 # 실행: Actions → deploy-assets → Run workflow(main). main 에 에셋 변경이 병합돼도 자동으로 돈다.
 # 라이선스 보류(tools/asset-hold.mjs)에 걸린 파일은 올리지 않는다.
 name: deploy-assets
@@ -8,7 +8,7 @@ name: deploy-assets
 on:
   push:
     branches: [main]
-    paths: ['public/_sf_local/**', 'public/vfx/**', 'public/models/**', 'tools/asset-hold.mjs', '.github/workflows/deploy-assets.yml']
+    paths: ['public/_sf_local/**', 'public/vfx/**', 'public/models/**', 'public/lobby-music/**', 'tools/asset-hold.mjs', '.github/workflows/deploy-assets.yml']
   workflow_dispatch:
     inputs:
       case_path:
@@ -53,7 +53,7 @@ jobs:
             import('./tools/asset-hold.mjs').then(({ holdOf }) => {
               const { readdirSync, statSync } = require('node:fs');
               const walk = (d) => readdirSync(d).flatMap((n) => { const p = d + '/' + n; return statSync(p).isDirectory() ? walk(p) : [p]; });
-              const held = ['_sf_local', 'vfx', 'models'].flatMap((d) => walk('public/' + d)).map((p) => p.slice(7)).filter((r) => holdOf(r));
+              const held = ['_sf_local', 'vfx', 'models', 'lobby-music'].flatMap((d) => walk('public/' + d)).map((p) => p.slice(7)).filter((r) => holdOf(r));
               require('node:fs').writeFileSync('held.txt', held.map((r) => '/' + r).join('\n'));
               console.log('보류 파일(올리지 않음):', held.length);
             });"
@@ -77,6 +77,7 @@ jobs:
           up _sf_local "$CASE" "public, max-age=86400"
           up vfx       "$CASE" "public, max-age=86400"
           up models    "/shared/$SHARED" "public, max-age=31536000, immutable"
+          up lobby-music "/shared/$SHARED" "public, max-age=31536000, immutable"
           echo "== play 환경변수"
           echo "VITE_ASSET_BASE=https://d1eknf201863mj.cloudfront.net"
           echo "VITE_DEFAULT_CASE_PATH=$CASE"

@@ -74,6 +74,9 @@ interface TripoSources {
 }
 
 /** Tripo 동작 파일 여러 개 — 같은 이름 클립은 앞 파일이 이긴다. 클립마다 제 파일의 리그를 쓴다. */
+/** clipFor 에 이 접두사를 붙이면 Tripo 에 같은 이름이 있어도 Quaternius 범용 애니메이션 클립을 쓴다 */
+export const QUATERNIUS_PREFIX = "Quaternius:";
+
 export function loadTripoSources(tripoGltfs: LoadedGltf[] | null): TripoSources {
   const sources: TripoSource[] = (tripoGltfs ?? [])
     .map((g) => {
@@ -153,8 +156,11 @@ export function createClipLibrary({
   const clipFor = (name: string): THREE.AnimationClip | null => {
     const cached = retargeted.get(name);
     if (cached) return cached;
-    const tripo = tripoClips.get(name);
-    const sourceClip = tripo?.clip ?? sourceClips.get(name);
+    // "Quaternius:이름" — Tripo 에 같은 이름이 있어도 Quaternius 범용 애니메이션 쪽을 쓴다(남성 대기 등)
+    const fromLibrary = name.startsWith(QUATERNIUS_PREFIX);
+    const clipName = fromLibrary ? name.slice(QUATERNIUS_PREFIX.length) : name;
+    const tripo = fromLibrary ? undefined : tripoClips.get(clipName);
+    const sourceClip = tripo?.clip ?? sourceClips.get(clipName);
     if (!sourceClip) return null;
     const clipSource = tripo ? tripo.source.scene : source;
     const clipSourceSkin = tripo ? tripo.source.skin : sourceSkin;
@@ -168,9 +174,9 @@ export function createClipLibrary({
     // 클립마다 쓸 보정 — 팔짱·대기는 그 클립 전용 값이 있다.
     let table: CorrectionTable | null = tripo ? tripoTable : baseTable;
     let values = tripo ? tripoValues : correction;
-    if (tripo && name === "Idle_Fold_Loop") [table, values] = [foldTable, foldValues];
-    if (tripo && name === "Idle_Loop") [table, values] = [idleTable, idleValues];
-    if (correction.enabled) applyClipCorrection(result, table, name, values);
+    if (tripo && clipName === "Idle_Fold_Loop") [table, values] = [foldTable, foldValues];
+    if (tripo && clipName === "Idle_Loop") [table, values] = [idleTable, idleValues];
+    if (correction.enabled) applyClipCorrection(result, table, clipName, values);
     retargeted.set(name, result);
     return result;
   };

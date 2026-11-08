@@ -8,6 +8,7 @@ import { useKeyLabels } from "@/engine/input";
 import { isGameFrozen, trackAudioContext } from "@/engine/input/gamePause";
 import { gameClearTimeout, gameSetTimeout } from "@/engine/input/gameClock";
 import { PANEL_SHADOW, UI, UI_FONT, keyCapStyle } from "@/game/gameUi";
+import { isTypingTarget } from "@/game/overlayLayer";
 
 import "@/game/gameUi.css";
 
@@ -66,6 +67,8 @@ export default function DispatchCard({ covered = false, isInTrain = false }: Dis
       playRadioChirp();
     }
     const handleKeyDown = (event: KeyboardEvent) => {
+      // 입력칸(로비 채팅)에서 친 E·Enter 는 출동 확인이 아니다
+      if (isTypingTarget(event.target)) return;
       if (event.code === "KeyE" || event.code === "Enter") acknowledgeDispatch();
     };
     window.addEventListener("keydown", handleKeyDown);

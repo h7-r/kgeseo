@@ -2,11 +2,20 @@
 import { type RefObject, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 
-import { DEFAULT_MESH_CONFIG, type MeshAppearanceConfig } from "./meshAppearance";
+import { BUZZ_HAIR_VARIANT, DEFAULT_MESH_CONFIG, LONG_HAIR_VARIANT, type MeshAppearanceConfig } from "./meshAppearance";
 import { type ChibiAvatarConfig, type ChibiBody, DEFAULT_CHIBI_CONFIG, type PreparedBody } from "./preparedBody";
 import { setMorph } from "./rig";
 import { applyToon, type ToonConfig, type ToonHandle, type ToonPartKind } from "./toonMaterial";
 import { applyOutline, type OutlineConfig, type OutlineHandle } from "./toonOutline";
+
+/**
+ * 신발을 신었을 때 맨발 모프(footScale) 값 — 신발 안의 발을 가장 작은 발보다 더 줄여 둔다(모프 범위 −1~1 을 넘겨 늘림).
+ * 신발은 발뼈 배율만 따라 작아지는데 뒤꿈치·발목 살은 종아리 뼈에도 묶여 다리 길이만큼 커진다. 그래서 작은 신발 +
+ * 긴 다리에서 살이 신발 밖으로 나왔다(2026-11-07 미르, 다리 1.2 면 260mm 까지). 0 이면 그대로, −1 이면 230mm·다리 1.2 만
+ * 남고, −1.5 에서 발 크기 0.7~1.15 · 다리 0.85~1.2 · 남녀 · 대기·걷기·달리기·쪼그림·춤을 화면으로 봐도 안 나온다.
+ * 이 모프는 발목 위(모델 y 0.12~0.16)도 0.6cm 이하로 조금 줄이지만 화면에서 차이가 안 보였다. 발 크기 보기(foot-check.html).
+ */
+const FOOT_MORPH_IN_SHOES = -1.5;
 
 function setMaterialColor(material: THREE.Material, color: string) {
   if ("color" in material && material.color instanceof THREE.Color) material.color.set(color);
@@ -173,9 +182,11 @@ export function useAppearancePaint({
       armThickness: (appearance.armThickness - 1) / 0.3,
       legThickness: (appearance.legThickness - 1) / 0.3,
       handScale: (appearance.handScale - 1) / 0.3,
-      footScale: wearsShoes ? 0 : (appearance.footScale - 1) / 0.3,
+      footScale: wearsShoes ? FOOT_MORPH_IN_SHOES : (appearance.footScale - 1) / 0.3,
       // 평소 손 모양(옷장). 물건을 들 때 감는 건 useFrame 이 이 위에 얹는다 — 지우면 옷장 미리보기 손이 안 바뀐다.
       fistHands: appearance.fistHands,
+      // 긴 머리는 귀를 덮는다 — 귀를 두개골 쪽으로 접어 머리칼 밖으로 삐져나오지 않게 한다(naju01/tools/fit-long-hair.mjs)
+      earTuck: appearance.hair === LONG_HAIR_VARIANT ? 1 : 0,
     };
     // 몸과 옷은 한 메시라 재질 색으로는 못 가른다. 정점 표식이 있는 툰 재질일 때만 피부·의상을 따로 칠한다.
     const hasTintMarks = Boolean(toonHandle.current?.hasTintMarks);
@@ -193,6 +204,10 @@ export function useAppearancePaint({
       cloth: appearance.clothColor,
       // 하의는 정점 표식 3 으로 따로 칠한다
       bottom: appearance.bottomColor ?? appearance.clothColor,
+      // 머리는 재질 색을 그대로 두고, 텍스처 평균 밝기 기준으로 칠할지만 정한다(toonMaterial.ts FRAGMENT_HAIR).
+      // 반삭은 머리 메시가 없고 몸의 두피를 머리색으로 칠한다(buzzScalp.ts)
+      hair: appearance.hairColor,
+      buzz: appearance.hair === BUZZ_HAIR_VARIANT,
     });
     // 툰 재질이 붙은 뒤에 칠해야 하므로 툰 켬/끔도 의존성에 둔다. 핸들 상자는 늘 같은 ref 다.
   }, [prepared, appearance, body, config.skinColor, toonEnabled, toonHandle, outlineHandle]);

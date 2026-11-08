@@ -29,10 +29,38 @@ export interface ArmPole {
   weight: number;
 }
 
+/**
+ * 한 번 틀고 끝나는 동작(인사·맞기). serial 이 바뀌면 steps 를 차례로 튼다.
+ * at 은 시작 시각(performance.now() / 1000, 초) — 몸이 안 그려지던 동안(1인칭 등) 이미 지난 동작은 나중에 다시 보이지 않는다.
+ */
+export interface AvatarAction {
+  serial: number;
+  at: number;
+  steps: readonly AvatarActionStep[];
+}
+
+export interface AvatarActionStep {
+  motion: string;
+  seconds: number;
+  /** 재생 속도(1 = 원래). 너무 짧은 클립을 늘일 때 */
+  speed?: number;
+  /** 이 단계 동안 몸을 들어 올리는 높이(세계 유닛, 반원 꼴로 0 → 최고 → 0). 제자리 점프 클립은 몸이 뜨지 않는다 */
+  lift?: number;
+  /**
+   * 이 단계 동안 덮어쓸 절차 손짓(naju01/src/avatar/gestures.ts 의 GESTURES 이름). 그때 motion 은 밑바탕 클립 —
+   * GESTURE_BASE_MOTION("@idle")이면 그 성별 대기
+   */
+  gesture?: string;
+}
+
 export interface AvatarLink extends PlayerMotionState {
   /** 펀치 — 바뀔 때마다 attackMotion 클립을 한 번 튼다 */
   attackSerial?: number;
   attackMotion?: string;
+  /** 인사 동작 — 서 있을 때만. 움직이거나 공중·앉기·맞기면 끊기고 다시 이어지지 않는다(우선순위 맞기 > 펀치 > 인사) */
+  emote?: AvatarAction;
+  /** 맞는 동작 — 가장 먼저. 연달아 맞으면 처음부터 다시 */
+  hit?: AvatarAction;
 
   // 아래는 아바타가 적는다
   rightHand?: THREE.Object3D | null;

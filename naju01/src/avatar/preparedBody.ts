@@ -70,6 +70,8 @@ export interface BodyPart {
 
 export interface Sole {
   object: THREE.Mesh;
+  /** 맨발(몸 메시의 발바닥)인지 신발 밑창인지 — 신발을 신으면 지면 맞춤은 신발만 본다 */
+  kind: "body" | "shoe";
   indices: number[];
   left: number[];
   right: number[];

@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react";
 import { IS_INPUT_ALWAYS_ON } from "@/app/runtimeFlags";
 import { exposeDevHook } from "@/debug/devHooks";
 import { getTouchMove, isPointerActive, isTouchMode } from "@/engine/input";
+import { isTypingTarget } from "@/game/overlayLayer";
 import { createChangeSignal } from "@/lib/changeSignal";
 import { getLockState } from "@/props/combinationLockState";
 import { isCorridorPowered, hasSeenAllMarks, getWorkLampLocation } from "@/props/workLampPuzzle/workLampState";
@@ -264,7 +265,8 @@ const KEY_NAMES: Partial<Record<string, string>> = {
 
 if (typeof window !== "undefined") {
   window.addEventListener("keydown", (event) => {
-    if (event.repeat) return;
+    // 입력칸(로비 채팅)에 쓴 글자는 조작 연습으로 세지 않는다
+    if (event.repeat || isTypingTarget(event.target)) return;
     const name = KEY_NAMES[event.code];
     if (!name) return;
     recordPress(name);
