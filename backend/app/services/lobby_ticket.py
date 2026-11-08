@@ -36,6 +36,10 @@ IP_LIMIT = 60
 # --- 모집 명단 ---
 
 
+ALL_ACCOUNTS = "*"
+"""명단에 이 한 줄이 있으면 로그인한 계정 전부를 받는다."""
+
+
 @dataclass(frozen=True)
 class BetaMembership:
     eligible: bool
@@ -54,7 +58,10 @@ class _Snapshot:
 
 
 def parse_beta_list(text: str) -> tuple[frozenset[str], frozenset[str]]:
-    """(일반 계정, 시험 계정). 형식이 틀린 줄이 있거나 계정이 하나도 없으면 ValueError."""
+    """(일반 계정, 시험 계정). 형식이 틀린 줄이 있거나 계정이 하나도 없으면 ValueError.
+
+    `*` 한 줄 = 로그인한 계정 전부(11/8 미르: 베타는 로그인한 사람 모두 로비에). 일반 계정 집합에 `*` 로 담긴다.
+    """
 
     accounts: set[str] = set()
     loadtest: set[str] = set()
@@ -120,7 +127,9 @@ class BetaList:
             self._failure = None
         in_loadtest = account_id in snapshot.loadtest
         return BetaMembership(
-            eligible=account_id in snapshot.accounts or in_loadtest,
+            eligible=ALL_ACCOUNTS in snapshot.accounts
+            or account_id in snapshot.accounts
+            or in_loadtest,
             loadtest=in_loadtest,
         )
 

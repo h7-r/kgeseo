@@ -109,6 +109,8 @@ describe("베타 명단", () => {
     );
     assert.deepEqual(await enforceBetaList("x", online, async () => ""), { error: "malformed" });
     assert.equal(client.closed, null);
+    assert.deepEqual(await enforceBetaList("x", online, async () => "# 베타\n*\n"), { removed: 0 });
+    assert.equal(client.closed, null);
     assert.deepEqual(await enforceBetaList("x", online, async () => "u2\n"), { removed: 1 });
     assert.equal(client.closed, CLOSE_REMOVED);
   });

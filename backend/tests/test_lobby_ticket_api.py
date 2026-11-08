@@ -194,6 +194,16 @@ def test_list_replacement_applies_without_restart(lobby):
     assert _post(lobby.client).status_code == 403
 
 
+def test_star_line_admits_every_logged_in_account(lobby):
+    """`*` 한 줄 = 로그인한 계정 전부(11/8 베타). 로그인 없음은 여전히 401(위 시험)."""
+    lobby.user["value"] = SimpleNamespace(id="anyone", nickname="아무나")
+    assert _post(lobby.client).status_code == 403
+    _replace_list(lobby.path, "# 베타: 로그인한 사람 모두\n*\n")
+    assert _post(lobby.client).status_code == 200
+    _replace_list(lobby.path, "user-1\n")
+    assert _post(lobby.client).status_code == 403
+
+
 @pytest.mark.parametrize(
     "content",
     [None, "", "# 주석만\n\n", "user 1\n", "loadtest:\n", b"\xff\xfe\x00bad"],
