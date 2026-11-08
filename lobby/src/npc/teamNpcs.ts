@@ -3,7 +3,8 @@
 // NPC 는 세지 않는다. 방이 사라지면(마지막 사람이 나가면) 같이 사라진다.
 // 걷기는 가상 인원 스크립트(scripts/preview-bots.mjs)와 같다: 빈칸을 골라 길을 찾아 걷고, 사람 사이로 파고들지 않고,
 // 막히면 피해 다시 찾고, 서서 쉰다. 맞으면 0.2초 뒤 지수 감쇠로 1.2 유닛 밀린다.
-// 20~40초마다 멈춘 채 대사 2개 중 하나를 말하며 인사 동작 6종 중 하나를 한다(미르 11/8, 검토 25회차 — 대사가 없으면 인사).
+// 10~30초마다 멈춰 서서, 적은 대사(2개 중 하나 + 인사 동작 6종 중 하나)와 그 사람의 고유 외침(해랑 비켜 · 세진 신난다 ·
+// 동환 안녕 · 지하 고마워 · 미르 알았어 — 사람 인사처럼 목소리까지)을 번갈아 한다(미르 11/8, 검토 25 · 26회차 — 대사가 없으면 외침만).
 // 모습 · 이름 · 대사는 lobby/data/team-npcs.json(팀 꾸미기 창이 쓴다) — 2초마다 바뀌었는지 보고 바뀌면 바로 갈아입힌다.
 import { readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -40,9 +41,9 @@ const PERSON_GAP = 1.3;
 const HUMAN_GAP = 1.8;
 /** 행동할 때 이 거리(유닛) 안에 사람이 있으면 그쪽을 본다 */
 const FACE_NEAR = 6;
-/** 대사 · 동작 주기(ms) — 실제로 한 때부터 다음까지 */
-export const NPC_ACT_MIN_MS = 20_000;
-export const NPC_ACT_MAX_MS = 40_000;
+/** 대사 · 외침 주기(ms) — 실제로 한 때부터 다음까지(20~40초에서 10초 당김 — 미르 11/8, 검토 26회차) */
+export const NPC_ACT_MIN_MS = 10_000;
+export const NPC_ACT_MAX_MS = 30_000;
 /** 방이 생긴 뒤 첫 행동 — 다섯 명이 한꺼번에 말하지 않게 흩는다 */
 const FIRST_ACT_MIN_MS = 4_000;
 /** 동작하는 동안 서 있는 시간 */
@@ -164,6 +165,8 @@ interface Walker {
   nextActAt: number;
   /** 지금 말할 수 있는 대사(검사를 지난 것) */
   lines: string[];
+  /** 다음 차례가 고유 외침인가 — 대사와 번갈아(첫 차례만 무작위). 대사가 없으면 늘 외침 */
+  callNext: boolean;
   pendingPushes: PendingPush[];
   push: { x: number; z: number } | null;
   /** 지금 입은 모습(바뀌었는지 견준다) */
@@ -175,7 +178,7 @@ const pick = <T>(list: readonly T[]): T => list[Math.floor(Math.random() * list.
 
 export interface TeamNpcCrewOptions {
   nowMs: () => number;
-  /** 인사 방송 — 사람 인사와 같은 메시지(동작 + 그 동작의 말풍선 · 목소리) */
+  /** 인사 방송 — 사람 인사와 같은 메시지(동작 + 그 동작의 말풍선 · 목소리). 고유 외침이 이것이다 */
   greet: (sid: string, id: number) => void;
   /** 대사 방송 — 말풍선은 대사, 동작은 인사 id 의 동작만(목소리 · 동작 말풍선 없음). 채팅 기록에는 안 남는다 */
   act: (sid: string, text: string, gesture: number) => void;
@@ -238,6 +241,7 @@ export class TeamNpcCrew {
         blockedSince: undefined,
         nextActAt: now + between(FIRST_ACT_MIN_MS, NPC_ACT_MAX_MS),
         lines: speakable.lines,
+        callNext: Math.random() < 0.5,
         pendingPushes: [],
         push: null,
         appliedLook: `${player.nickname}\n${look}`,
@@ -442,17 +446,18 @@ export class TeamNpcCrew {
   }
 
   /**
-   * 대사 2개 중 하나 + 인사 동작 6종 중 하나(대사가 없거나 다 걸렸으면 그냥 인사). 근처에 사람이 있으면 그쪽을 보고,
-   * 동작하는 동안 서 있는다. 다음 행동은 지금부터 20~40초 뒤
+   * 대사(2개 중 하나 + 인사 동작 6종 중 하나)와 고유 외침을 번갈아 한다 — 대사가 없거나 다 걸렸으면 외침만. 근처에 사람이
+   * 있으면 그쪽을 보고, 동작하는 동안 서 있는다. 다음 행동은 지금부터 10~30초 뒤
    */
   #act(walker: Walker, now: number) {
     walker.nextActAt = now + between(NPC_ACT_MIN_MS, NPC_ACT_MAX_MS);
     walker.idleUntil = Math.max(walker.idleUntil, now + ACT_HOLD_MS);
     const human = this.#nearestHuman(walker);
     if (human && human.distance <= FACE_NEAR) walker.ry = Math.atan2(human.x - walker.x, human.z - walker.z);
-    const gesture = pick(GREET_IDS);
-    if (walker.lines.length) this.#options.act(walker.sid, pick(walker.lines), gesture);
-    else this.#options.greet(walker.sid, gesture);
+    const speakLine = walker.lines.length > 0 && !walker.callNext;
+    walker.callNext = speakLine;
+    if (speakLine) this.#options.act(walker.sid, pick(walker.lines), pick(GREET_IDS));
+    else this.#options.greet(walker.sid, walker.slot.call);
   }
 
   #nearestHuman(walker: Walker) {

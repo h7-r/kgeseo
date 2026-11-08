@@ -1,6 +1,6 @@
 {
  "note": "lobby/scripts/dump-hq-obstacles.mjs 가 만든다. 손으로 고치지 않는다.",
- "generatedAt": "2026-11-06T05:16:34.438Z",
+ "generatedAt": "2026-11-08T03:24:00.741Z",
  "hq": {
   "minX": -20,
   "maxX": 16,
@@ -192,6 +192,294 @@
    "maxX": -1.03,
    "minZ": 3,
    "maxZ": 5.2
+  },
+  {
+   "id": "train:edge:0",
+   "source": "collider",
+   "minX": 15.88,
+   "maxX": 16,
+   "minZ": -12.5,
+   "maxZ": -11.5
+  },
+  {
+   "id": "train:edge:1",
+   "source": "collider",
+   "minX": 15.77,
+   "maxX": 16,
+   "minZ": -11.5,
+   "maxZ": -10.5
+  },
+  {
+   "id": "train:edge:2",
+   "source": "collider",
+   "minX": 15.65,
+   "maxX": 16,
+   "minZ": -10.5,
+   "maxZ": -9.5
+  },
+  {
+   "id": "train:edge:3",
+   "source": "collider",
+   "minX": 15.57,
+   "maxX": 16,
+   "minZ": -9.5,
+   "maxZ": -8.75
+  },
+  {
+   "id": "train:edge:4",
+   "source": "collider",
+   "minX": 15.9,
+   "maxX": 16,
+   "minZ": -6.5,
+   "maxZ": -5.5
+  },
+  {
+   "id": "train:edge:5",
+   "source": "collider",
+   "minX": 15.79,
+   "maxX": 16,
+   "minZ": -5.5,
+   "maxZ": -4.5
+  },
+  {
+   "id": "train:edge:6",
+   "source": "collider",
+   "minX": 15.68,
+   "maxX": 16,
+   "minZ": -4.5,
+   "maxZ": -3.5
+  },
+  {
+   "id": "train:edge:7",
+   "source": "collider",
+   "minX": 15.57,
+   "maxX": 16,
+   "minZ": -3.5,
+   "maxZ": -2.5
+  },
+  {
+   "id": "train:edge:8",
+   "source": "collider",
+   "minX": 15.45,
+   "maxX": 16,
+   "minZ": -2.5,
+   "maxZ": -1.5
+  },
+  {
+   "id": "train:edge:9",
+   "source": "collider",
+   "minX": 15.33,
+   "maxX": 16,
+   "minZ": -1.5,
+   "maxZ": -0.5
+  },
+  {
+   "id": "train:edge:10",
+   "source": "collider",
+   "minX": 15.03,
+   "maxX": 16,
+   "minZ": -0.5,
+   "maxZ": 0
+  },
+  {
+   "id": "train:edge:11",
+   "source": "collider",
+   "minX": 14.87,
+   "maxX": 16,
+   "minZ": 0,
+   "maxZ": 0.5
+  },
+  {
+   "id": "train:edge:12",
+   "source": "collider",
+   "minX": 15.03,
+   "maxX": 16,
+   "minZ": 0.5,
+   "maxZ": 1
+  },
+  {
+   "id": "train:edge:13",
+   "source": "collider",
+   "minX": 14.92,
+   "maxX": 16,
+   "minZ": 1,
+   "maxZ": 1.5
+  },
+  {
+   "id": "train:edge:14",
+   "source": "collider",
+   "minX": 14.82,
+   "maxX": 16,
+   "minZ": 1.5,
+   "maxZ": 2
+  },
+  {
+   "id": "train:edge:15",
+   "source": "collider",
+   "minX": 14.72,
+   "maxX": 16,
+   "minZ": 2,
+   "maxZ": 2.5
+  },
+  {
+   "id": "train:edge:16",
+   "source": "collider",
+   "minX": 14.6,
+   "maxX": 16,
+   "minZ": 2.5,
+   "maxZ": 3
+  },
+  {
+   "id": "train:edge:17",
+   "source": "collider",
+   "minX": 14.49,
+   "maxX": 16,
+   "minZ": 3,
+   "maxZ": 3.5
+  },
+  {
+   "id": "train:edge:18",
+   "source": "collider",
+   "minX": 14.38,
+   "maxX": 16,
+   "minZ": 3.5,
+   "maxZ": 4
+  },
+  {
+   "id": "train:edge:19",
+   "source": "collider",
+   "minX": 14.26,
+   "maxX": 16,
+   "minZ": 4,
+   "maxZ": 4.5
+  },
+  {
+   "id": "train:edge:20",
+   "source": "collider",
+   "minX": 14.21,
+   "maxX": 16,
+   "minZ": 4.5,
+   "maxZ": 4.75
+  },
+  {
+   "id": "train:edge:21",
+   "source": "collider",
+   "minX": 12.07,
+   "maxX": 16,
+   "minZ": 4.75,
+   "maxZ": 5.25
+  },
+  {
+   "id": "train:edge:22",
+   "source": "collider",
+   "minX": 11.95,
+   "maxX": 16,
+   "minZ": 5.25,
+   "maxZ": 5.75
+  },
+  {
+   "id": "train:edge:23",
+   "source": "collider",
+   "minX": 11.84,
+   "maxX": 16,
+   "minZ": 5.75,
+   "maxZ": 6.25
+  },
+  {
+   "id": "train:edge:24",
+   "source": "collider",
+   "minX": 11.73,
+   "maxX": 16,
+   "minZ": 6.25,
+   "maxZ": 6.75
+  },
+  {
+   "id": "train:edge:25",
+   "source": "collider",
+   "minX": 11.61,
+   "maxX": 16,
+   "minZ": 6.75,
+   "maxZ": 7.25
+  },
+  {
+   "id": "train:edge:26",
+   "source": "collider",
+   "minX": 11.5,
+   "maxX": 16,
+   "minZ": 7.25,
+   "maxZ": 7.75
+  },
+  {
+   "id": "train:edge:27",
+   "source": "collider",
+   "minX": 11.38,
+   "maxX": 16,
+   "minZ": 7.75,
+   "maxZ": 8.25
+  },
+  {
+   "id": "train:edge:28",
+   "source": "collider",
+   "minX": 11.27,
+   "maxX": 16,
+   "minZ": 8.25,
+   "maxZ": 8.75
+  },
+  {
+   "id": "train:edge:29",
+   "source": "collider",
+   "minX": 11.12,
+   "maxX": 16,
+   "minZ": 8.75,
+   "maxZ": 9.5
+  },
+  {
+   "id": "train:edge:30",
+   "source": "collider",
+   "minX": 11.48,
+   "maxX": 16,
+   "minZ": 9.5,
+   "maxZ": 9.75
+  },
+  {
+   "id": "train:edge:31",
+   "source": "collider",
+   "minX": 12.57,
+   "maxX": 16,
+   "minZ": 9.75,
+   "maxZ": 10
+  },
+  {
+   "id": "train:edge:32",
+   "source": "collider",
+   "minX": 12.87,
+   "maxX": 16,
+   "minZ": 10,
+   "maxZ": 10.5
+  },
+  {
+   "id": "train:edge:33",
+   "source": "collider",
+   "minX": 12.75,
+   "maxX": 16,
+   "minZ": 10.5,
+   "maxZ": 11
+  },
+  {
+   "id": "train:edge:34",
+   "source": "collider",
+   "minX": 12.64,
+   "maxX": 16,
+   "minZ": 11,
+   "maxZ": 11.5
+  },
+  {
+   "id": "train:edge:35",
+   "source": "collider",
+   "minX": 12.53,
+   "maxX": 16,
+   "minZ": 11.5,
+   "maxZ": 12
   },
   {
    "id": "mesh0",

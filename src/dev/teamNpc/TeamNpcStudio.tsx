@@ -5,8 +5,9 @@
 //   · 완료 데이터는 색을 supportedColorValues 로, 다시 열 초안은 colors 로 읽는다 — 옮겨 담지 않으면 다시 열 때 색이 처음으로
 //     돌아간다(Codex 22).
 //   · 다른 사람으로 바꿀 때는 key 를 바꿔 화면을 새로 띄운다(initialValue 는 처음 한 번만 읽힌다).
-//   · 카드마다 로비에서 20~40초마다 읊조릴 대사 2개를 적는다(미르 11/8, 검토 25회차). 대사 저장은 외형을, 외형 저장은 대사를
-//     건드리지 않는다(저장 창구가 나눠 받는다).
+//   · 카드마다 로비에서 읊조릴 대사 2개를 적는다(미르 11/8, 검토 25회차). 대사 저장은 외형을, 외형 저장은 대사를
+//     건드리지 않는다(저장 창구가 나눠 받는다). 로비에서는 10~30초마다 대사와 그 사람의 고유 외침(명단의 call)을 번갈아
+//     한다(검토 26회차) — 외침은 고정이라 여기서는 보여 주기만 한다.
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 
 import { UI, UI_FONT } from "@/game/gameUi";
@@ -30,6 +31,13 @@ import {
 import { SLOT_LABELS } from "../../../naju01/src/characterCreation/catalog";
 import CharacterCreationScreen from "../../../naju01/src/characterCreation/CharacterCreationScreen";
 import type { NameChecker } from "../../../naju01/src/characterCreation/nameRules";
+import { EMOTES } from "../lobbyPreview/emotes";
+
+/** 「안녕!」과 · 「비켜!」와 — 마지막 한글 글자에 받침이 있으면 「과」 */
+function withAnd(text: string) {
+  const last = [...text].reverse().find((char) => char >= "가" && char <= "힣");
+  return last && (last.charCodeAt(0) - 0xac00) % 28 !== 0 ? "과" : "와";
+}
 import { SCREEN_CSS } from "../../../naju01/src/characterCreation/styles";
 
 const ROUTE = "/__dev/team-npcs";
@@ -79,6 +87,7 @@ function LinesEditor({
   const tooLong = draft.some((line) => lineLength(line) > TEAM_LINE_MAX_LENGTH);
   const dirty = draft.some((line, i) => line.replace(/\s+/gu, " ").trim() !== (saved[i] ?? ""));
   const disabled = !entry || state.kind === "saving";
+  const callText = EMOTES[slot.call - 1]?.text ?? "";
 
   const submit = async () => {
     setState({ kind: "saving" });
@@ -112,7 +121,9 @@ function LinesEditor({
         if (dirty && !tooLong && !disabled) void submit();
       }}
     >
-      <span style={linesTitle}>읊조릴 대사 · 20~40초마다 하나씩</span>
+      <span style={linesTitle}>
+        읊조릴 대사 · 외침 「{callText}」{withAnd(callText)} 번갈아 10~30초마다
+      </span>
       {draft.map((line, i) => {
         const length = lineLength(line);
         const id = `${slot.key}-line-${i}`;
@@ -241,8 +252,8 @@ export default function TeamNpcStudio() {
         <h1 style={title}>팀 캐릭터 꾸미기</h1>
         <p style={lead}>
           로비에 늘 돌아다니는 다섯 명이에요. 카드를 누르면 캐릭터 만들기 화면이 열리고, 끝까지 만들면 저장돼 로비에
-          바로 반영돼요. 카드 아래에는 로비에서 읊조릴 대사 두 개를 적어요 — 20~40초마다 둘 중 하나를 말하며 인사 동작을
-          해요.
+          바로 반영돼요. 카드 아래에는 로비에서 읊조릴 대사 두 개를 적어요 — 10~30초마다 대사(둘 중 하나 + 인사 동작)와
+          그 사람의 고유 외침(목소리 포함)을 번갈아 해요.
         </p>
         {notice && (
           <p role="status" style={noticeStyle}>

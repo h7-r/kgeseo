@@ -13,14 +13,19 @@ export interface TeamSlot {
   name: string;
   /** 처음 성별 — 꾸미기 창에서 바꿀 수 있다 */
   gender: TeamGender;
+  /**
+   * 고유 외침 — 인사 번호(1 안녕 · 2 신난다 · 3 비켜 · 4 미안해 · 5 고마워 · 6 알았어, lobby/src/movement.ts GREET_IDS).
+   * 적은 대사와 번갈아 사람 인사처럼(말풍선 + 동작 + 목소리) 외친다(미르 11/8, 검토 26회차)
+   */
+  call: number;
 }
 
 export const TEAM_SLOTS: readonly TeamSlot[] = [
-  { key: "haerang", name: "이해랑", gender: "masculine" },
-  { key: "sejin", name: "김세진", gender: "feminine" },
-  { key: "donghwan", name: "김동환", gender: "masculine" },
-  { key: "jiha", name: "박지하", gender: "masculine" },
-  { key: "mireu", name: "황미르", gender: "masculine" },
+  { key: "haerang", name: "이해랑", gender: "masculine", call: 3 },
+  { key: "sejin", name: "김세진", gender: "feminine", call: 2 },
+  { key: "donghwan", name: "김동환", gender: "masculine", call: 1 },
+  { key: "jiha", name: "박지하", gender: "masculine", call: 5 },
+  { key: "mireu", name: "황미르", gender: "masculine", call: 6 },
 ];
 
 /**

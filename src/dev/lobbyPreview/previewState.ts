@@ -61,7 +61,8 @@ connection.onGreet(({ sid, id }) => {
 });
 
 // 상주 팀 NPC 대사(검토 25회차): 말풍선 + 인사 동작만 — 목소리 · 동작 고유 말풍선 없이, 채팅 기록에도 안 남긴다.
-// NPC 5~8명이 20~40초마다 말하면 사람 채팅이 묻혀서다. 음소거한 상대(가명 ID = sid)면 말풍선을 안 띄운다
+// NPC 5~8명이 10~30초마다 말하면 사람 채팅이 묻혀서다. 음소거한 상대(가명 ID = sid)면 말풍선을 안 띄운다.
+// NPC 고유 외침(해랑 비켜 · 세진 신난다 …, 검토 26회차)은 대사와 번갈아 오는 보통 인사(onGreet)라 목소리까지 난다
 connection.onNpcAct(({ sid, text, gesture }) => {
   if (typeof text !== "string" || !text) return;
   if (!isMuted(sid)) bubbles.set(sid, { text, until: Date.now() + chatBubbleMs(text) });
