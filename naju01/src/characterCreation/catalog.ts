@@ -4,10 +4,12 @@
 // 있어 바깥으로 나가는 데이터에는 변하지 않는 아이디를 쓰고, 번호와의 대응은 여기 한 곳에만 둔다.
 // 목록에 한 줄 더 적으면 카드가 늘어나지만 모델·리깅은 따라오지 않는다 — 새 옷은 그 옷을 입은 전신 GLB 와
 // 짝이 되는 신발 GLB 가 있어야 하고, 지원하지 않는 조합은 여기서 빼 둔다.
-import { DEFAULT_MESH_CONFIG, MESH_PART_OPTIONS } from "../avatar/meshAppearance";
+import { BUZZ_HAIR_VARIANT, DEFAULT_MESH_CONFIG, MESH_PART_OPTIONS } from "../avatar/meshAppearance";
 import type { AvatarGender, Option } from "../avatar/sidekickOptions";
 
 // 목록이 바뀌면 올린다. 저장된 캐릭터가 어느 목록으로 만든 것인지 안다.
+//   2026-11-06 반삭(hair.buzz)을 더했지만 판은 그대로 둔다 — 로비 서버가 판이 다른 외형을 통째로 버리고
+//   로비 시험 고정값(lobby/test/helpers.ts)도 이 판을 쓴다. 올릴지는 로비 쪽과 같이 정한다.
 const CATALOG_VERSION = "2026-09-24";
 
 /** 생성 화면 썸네일·배경 그림 폴더 */
@@ -138,6 +140,9 @@ export const DEFAULT_CATALOG: CharacterCatalog = {
     defineCatalogItem("hair.m.long", "hair", "긴 머리", ["masculine"], 1, { thumbnail: thumbnailUrl("hair.m.long") }),
     defineCatalogItem("hair.f.bob", "hair", "단발", ["feminine"], 0, { thumbnail: thumbnailUrl("hair.f.bob") }),
     defineCatalogItem("hair.f.long", "hair", "긴 머리", ["feminine"], 1, { thumbnail: thumbnailUrl("hair.f.long") }),
+    defineCatalogItem("hair.buzz", "hair", "반삭", BOTH, BUZZ_HAIR_VARIANT, {
+      thumbnail: genderThumbnailUrls("hair.buzz"),
+    }),
 
     defineCatalogItem("top.none", "top", "입지 않음", BOTH, -1, {
       description: "기본 속옷",
