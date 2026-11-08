@@ -263,11 +263,14 @@ export interface MotionPickerProps {
   onClose: () => void;
 }
 
-/** 웹GL 을 만들 수 있나 — R3F 는 렌더러를 비동기로 만들어 실패가 오류 경계로 오지 않으므로 먼저 본다(Codex 리뷰 87a3b41) */
+/**
+ * 웹GL 2 를 만들 수 있나 — R3F 는 렌더러를 비동기로 만들어 실패가 오류 경계로 오지 않으므로 먼저 본다(Codex 리뷰 87a3b41).
+ * 지금 three.js 렌더러는 웹GL 2 만 쓰므로 웹GL 1 만 되는 기기도 안 되는 것으로 본다(Codex 리뷰 65e7a48)
+ */
 function canUseWebGl() {
   try {
     const canvas = document.createElement("canvas");
-    const gl = canvas.getContext("webgl2") ?? canvas.getContext("webgl");
+    const gl = canvas.getContext("webgl2");
     gl?.getExtension("WEBGL_lose_context")?.loseContext();
     return !!gl;
   } catch {
