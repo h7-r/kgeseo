@@ -1,4 +1,215 @@
 {
   "version": 1,
-  "npcs": {}
+  "npcs": {
+    "sejin": {
+      "displayName": "김세진",
+      "appearance": {
+        "gender": "feminine",
+        "bodyParameters": {
+          "heightScale": 0.84,
+          "headScale": 1.18,
+          "handScale": 0.7,
+          "footScale": 1,
+          "shoulderWidth": 1.19,
+          "hipWidth": 1,
+          "armLength": 0.78,
+          "legLength": 0.93,
+          "armThickness": 0.85,
+          "legThickness": 0.7,
+          "build": 0.4,
+          "buff": 0.2
+        },
+        "hairId": "hair.f.bob",
+        "equipmentIds": {
+          "top": "top.tee.white",
+          "bottom": "bottom.jeans.skinny",
+          "shoes": "shoes.sneaker.white"
+        },
+        "colors": {
+          "skin": "#ffffff",
+          "hair": "#2e2a30",
+          "cloth": "#e9e4d8",
+          "bottom": "#c9ccd2",
+          "shoes": "#e9e4d8"
+        }
+      },
+      "lines": [
+        "집에 가고 시프허여어",
+        "총총총~"
+      ],
+      "lineGestures": [
+        "emote:4",
+        "emote:2"
+      ],
+      "savedAt": "2026-11-08T04:43:47.033Z"
+    },
+    "donghwan": {
+      "displayName": "김동환",
+      "appearance": {
+        "gender": "masculine",
+        "bodyParameters": {
+          "heightScale": 1.14,
+          "headScale": 0.8,
+          "handScale": 0.84,
+          "footScale": 0.85,
+          "shoulderWidth": 1.25,
+          "hipWidth": 1,
+          "armLength": 0.78,
+          "legLength": 1,
+          "armThickness": 0.77,
+          "legThickness": 0.85,
+          "build": -0.2,
+          "buff": 0.4
+        },
+        "hairId": "hair.m.crop",
+        "equipmentIds": {
+          "top": "top.tee.marine",
+          "bottom": "bottom.shorts.black",
+          "shoes": "shoes.sneaker.white"
+        },
+        "colors": {
+          "skin": "#e1dada",
+          "hair": "#ffffff",
+          "cloth": "#ffffff",
+          "bottom": "#5a5f6b",
+          "shoes": "#ffffff"
+        }
+      },
+      "lines": [
+        "난 나보다 약한 녀석의 명령 따위는 듣지 않는다.",
+        "처음보는 얼굴이네? 나 쌍촌동 보안관인디."
+      ],
+      "lineGestures": [
+        "emote:5",
+        "emote:1"
+      ],
+      "savedAt": "2026-11-08T04:43:47.799Z"
+    },
+    "haerang": {
+      "displayName": "이해랑",
+      "appearance": {
+        "gender": "masculine",
+        "bodyParameters": {
+          "heightScale": 0.98,
+          "headScale": 0.8,
+          "handScale": 0.7,
+          "footScale": 0.85,
+          "shoulderWidth": 1.19,
+          "hipWidth": 1,
+          "armLength": 0.78,
+          "legLength": 0.93,
+          "armThickness": 0.85,
+          "legThickness": 1,
+          "build": -1,
+          "buff": 0.55
+        },
+        "hairId": "hair.m.crop.cap",
+        "equipmentIds": {
+          "top": "top.tee.white",
+          "bottom": "bottom.pants.baggy",
+          "shoes": "shoes.sneaker.white"
+        },
+        "colors": {
+          "skin": "#e7cdbc",
+          "hair": "#9aa3ad",
+          "cloth": "#5a5f6b",
+          "bottom": "#ffffff",
+          "shoes": "#ffffff"
+        }
+      },
+      "lines": [
+        "아 이런 샤갈~!",
+        "아나~ 워함마 어딨냐!"
+      ],
+      "lineGestures": [
+        "emote:3",
+        "emote:3"
+      ],
+      "savedAt": "2026-11-08T04:43:46.050Z"
+    },
+    "mireu": {
+      "displayName": "황미르",
+      "appearance": {
+        "gender": "masculine",
+        "bodyParameters": {
+          "heightScale": 0.98,
+          "headScale": 0.93,
+          "handScale": 0.98,
+          "footScale": 1,
+          "shoulderWidth": 1.25,
+          "hipWidth": 1,
+          "armLength": 0.78,
+          "legLength": 1,
+          "armThickness": 0.85,
+          "legThickness": 1,
+          "build": 0.4,
+          "buff": 0.55
+        },
+        "hairId": "hair.buzz",
+        "equipmentIds": {
+          "top": "top.tee.white",
+          "bottom": "bottom.shorts.black",
+          "shoes": "shoes.sneaker.white"
+        },
+        "colors": {
+          "skin": "#f2c7ab",
+          "hair": "#000000",
+          "cloth": "#000000",
+          "bottom": "#000000",
+          "shoes": "#000000"
+        }
+      },
+      "lines": [
+        "에..예? 아 넵.",
+        "카페인이 부족하다."
+      ],
+      "lineGestures": [
+        "emote:6",
+        "emote:3"
+      ],
+      "savedAt": "2026-11-08T04:43:49.358Z"
+    },
+    "jiha": {
+      "displayName": "박지하",
+      "appearance": {
+        "gender": "masculine",
+        "bodyParameters": {
+          "heightScale": 0.98,
+          "headScale": 0.8,
+          "handScale": 0.84,
+          "footScale": 0.85,
+          "shoulderWidth": 1.25,
+          "hipWidth": 1,
+          "armLength": 0.78,
+          "legLength": 1.1,
+          "armThickness": 0.85,
+          "legThickness": 0.7,
+          "build": -0.6,
+          "buff": 0.2
+        },
+        "hairId": "hair.m.crop",
+        "equipmentIds": {
+          "top": "top.tee.white",
+          "bottom": "bottom.jeans.skinny",
+          "shoes": "shoes.sneaker.white"
+        },
+        "colors": {
+          "skin": "#ffffff",
+          "hair": "#ffffff",
+          "cloth": "#ffffff",
+          "bottom": "#403526",
+          "shoes": "#ffffff"
+        }
+      },
+      "lines": [
+        "단 걸 좀 드셔보시는게 어때요?",
+        "삶의 대부분의 문제들은 당이 부족해서 생겨납니다."
+      ],
+      "lineGestures": [
+        "emote:6",
+        "emote:6"
+      ],
+      "savedAt": "2026-11-08T04:43:48.682Z"
+    }
+  }
 }
