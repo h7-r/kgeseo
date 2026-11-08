@@ -10,6 +10,7 @@ import { TOUCH_HUD, tapKey, useGameFrozen, useTouchMode } from "@/engine/input";
 import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
 import { ITEMS, inventory, useHandItem, useHeldItems } from "./inventory";
 import { ITEM_ICONS } from "./itemIcons";
+import { useSpeechBoxShown } from "../scene/firstScene/npcSpeech";
 
 /** 빠른 칸에 보이는 수 */
 const SHOWN = 4;
@@ -34,6 +35,8 @@ export default function Hotbar() {
   const isTouch = useTouchMode();
   // 터치 — 창 · 멈춤 · 동행 입력 중(얼어 있음)에는 숨긴다. 칸이 창 위로 떠 눌리면 멈춘 채로 물건이 오간다
   const isFrozen = useGameFrozen();
+  // 터치 — 인물이 말하는 동안은 숨겨 대사 상자가 맨 아래로 내려오게 한다(키 작은 휴대폰에서 상자가 안내판까지 올라갔다)
+  const isSpeechShown = useSpeechBoxShown();
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -46,7 +49,7 @@ export default function Hotbar() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  if (!row.length || (isTouch && isFrozen)) return null;
+  if (!row.length || (isTouch && (isFrozen || isSpeechShown))) return null;
   if (isTouch) return <TouchHotbar row={row} handUid={hand?.uid ?? null} />;
   const rest = row.length - SHOWN;
   return (
