@@ -31,6 +31,8 @@ uniform float uTorsoYaw;
 uniform float uBow;
 uniform vec4 uArmL;
 uniform vec4 uArmR;
+uniform float uArmRest;
+uniform vec2 uSway;
 ${ROTATE_GLSL}
 void actorBend(inout vec3 p, inout vec3 n) {
   vec3 rest = p;
@@ -43,6 +45,11 @@ void actorBend(inout vec3 p, inout vec3 n) {
   float wR = (1.0 - smoothstep(-0.16, -0.128, rest.x)) * armBand;
   vec3 shoulderL = vec3(0.125, 0.765, 0.0);
   vec3 shoulderR = vec3(-0.125, 0.765, 0.0);
+  // A자세로 벌어진 팔을 몸 쪽으로 조금 모은다(앞뒤 축 둘레, 왼팔은 −, 오른팔은 +)
+  p = bendAround(p, shoulderL, vec3(0.0, 0.0, 1.0), -uArmRest * wL);
+  n = bendRotate(n, vec3(0.0, 0.0, 1.0), -uArmRest * wL);
+  p = bendAround(p, shoulderR, vec3(0.0, 0.0, 1.0), uArmRest * wR);
+  n = bendRotate(n, vec3(0.0, 0.0, 1.0), uArmRest * wR);
   p = bendAround(p, shoulderL, uArmL.xyz, uArmL.w * wL);
   n = bendRotate(n, uArmL.xyz, uArmL.w * wL);
   p = bendAround(p, shoulderR, uArmR.xyz, uArmR.w * wR);
@@ -63,6 +70,12 @@ void actorBend(inout vec3 p, inout vec3 n) {
   vec3 waist = vec3(0.0, 0.58, 0.0);
   p = bendAround(p, waist, vec3(1.0, 0.0, 0.0), uBow * wB);
   n = bendRotate(n, vec3(1.0, 0.0, 0.0), uBow * wB);
+  // 온몸 아주 작은 흔들림 — 발은 땅에 붙인 채 위로 갈수록
+  float wS = smoothstep(0.0, 0.55, rest.y);
+  p = bendAround(p, vec3(0.0), vec3(0.0, 0.0, 1.0), uSway.x * wS);
+  n = bendRotate(n, vec3(0.0, 0.0, 1.0), uSway.x * wS);
+  p = bendAround(p, vec3(0.0), vec3(1.0, 0.0, 0.0), uSway.y * wS);
+  n = bendRotate(n, vec3(1.0, 0.0, 0.0), uSway.y * wS);
 }
 `;
 
@@ -72,6 +85,8 @@ uniform float uBreath;
 uniform float uSnakeYaw;
 uniform float uSnakeLift;
 uniform float uTongue;
+uniform vec3 uShift;
+uniform float uGone;
 ${ROTATE_GLSL}
 void actorBend(inout vec3 p, inout vec3 n) {
   vec3 rest = p;
@@ -88,11 +103,19 @@ void actorBend(inout vec3 p, inout vec3 n) {
   n = bendRotate(n, vec3(1.0, 0.0, 0.0), -uSnakeLift * wN);
   p = bendAround(p, base, vec3(0.0, 1.0, 0.0), uSnakeYaw * wN);
   n = bendRotate(n, vec3(0.0, 1.0, 0.0), uSnakeYaw * wN);
+  // 물러나기 — 통째로 미끄러지며 가라앉는다(모형 공간). 다 사라지면 한 점으로 접어 안 그린다
+  p += uShift;
+  p = mix(p, vec3(0.0, -50.0, 0.0), step(0.5, uGone));
 }
 `;
 
 export interface AbisaPose {
   breath: number;
+  /** A자세 팔을 몸 쪽으로 모으는 각(라디안) */
+  armRest: number;
+  /** 온몸 흔들림 — 좌우(x) · 앞뒤(y) */
+  swayX: number;
+  swayY: number;
   headYaw: number;
   headPitch: number;
   torsoYaw: number;
@@ -108,11 +131,27 @@ export interface SerpentPose {
   lift: number;
   /** 혀 내민 정도 0~1 */
   tongue: number;
+  /** 물러나며 옮겨 간 만큼(모형 공간) */
+  shift: THREE.Vector3;
+  /** 다 사라졌다 */
+  isGone: boolean;
 }
 
 export type BendUniforms = Record<string, THREE.IUniform>;
 
-export function createBendUniforms(kind: ActorKind): BendUniforms {
+/**
+ * 굽힘 값은 종류마다 하나만 둔다 — 재질에 한 번 심은 셰이더는 그때 받은 값 묶음을 계속 본다.
+ * 장면이 다시 붙어 손잡이(ActorRig)가 새로 생겨도 같은 묶음을 쓰게(안 그러면 새 값이 셰이더에 안 닿아 자세가 굳는다).
+ */
+const SHARED_KEY = "__firstSceneBendUniforms";
+export function bendUniformsFor(kind: ActorKind): BendUniforms {
+  const store = ((globalThis as Record<string, unknown>)[SHARED_KEY] ??= {}) as Partial<
+    Record<ActorKind, BendUniforms>
+  >;
+  return (store[kind] ??= createBendUniforms(kind));
+}
+
+function createBendUniforms(kind: ActorKind): BendUniforms {
   if (kind === "abisa")
     return {
       uBreath: { value: 0 },
@@ -122,12 +161,16 @@ export function createBendUniforms(kind: ActorKind): BendUniforms {
       uBow: { value: 0 },
       uArmL: { value: new THREE.Vector4(1, 0, 0, 0) },
       uArmR: { value: new THREE.Vector4(1, 0, 0, 0) },
+      uArmRest: { value: 0 },
+      uSway: { value: new THREE.Vector2() },
     };
   return {
     uBreath: { value: 0 },
     uSnakeYaw: { value: 0 },
     uSnakeLift: { value: 0 },
     uTongue: { value: 1 },
+    uShift: { value: new THREE.Vector3() },
+    uGone: { value: 0 },
   };
 }
 
@@ -139,6 +182,8 @@ export function writeAbisaPose(uniforms: BendUniforms, pose: AbisaPose) {
   uniforms.uBow.value = pose.bow;
   (uniforms.uArmL.value as THREE.Vector4).copy(pose.armL);
   (uniforms.uArmR.value as THREE.Vector4).copy(pose.armR);
+  uniforms.uArmRest.value = pose.armRest;
+  (uniforms.uSway.value as THREE.Vector2).set(pose.swayX, pose.swayY);
 }
 
 export function writeSerpentPose(uniforms: BendUniforms, pose: SerpentPose) {
@@ -146,6 +191,8 @@ export function writeSerpentPose(uniforms: BendUniforms, pose: SerpentPose) {
   uniforms.uSnakeYaw.value = pose.yaw;
   uniforms.uSnakeLift.value = pose.lift;
   uniforms.uTongue.value = pose.tongue;
+  (uniforms.uShift.value as THREE.Vector3).copy(pose.shift);
+  uniforms.uGone.value = pose.isGone ? 1 : 0;
 }
 
 const bendGlsl = (kind: ActorKind) => (kind === "abisa" ? ABISA_GLSL : SERPENT_GLSL);

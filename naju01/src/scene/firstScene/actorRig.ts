@@ -10,7 +10,7 @@ import { loadTexturedModel } from "../../loaders/useTexturedModel";
 import {
   attachBend,
   attachOutlineBend,
-  createBendUniforms,
+  bendUniformsFor,
   createBentDepthMaterial,
   type ActorKind,
   type BendUniforms,
@@ -36,7 +36,7 @@ export class ActorRig {
     readonly kind: ActorKind,
     private readonly groupName: string,
   ) {
-    this.uniforms = createBendUniforms(kind);
+    this.uniforms = bendUniformsFor(kind);
     this.depthMaterial = createBentDepthMaterial(kind, this.uniforms);
     void loadTexturedModel(kind).then((model) => {
       this.modelMap = textureMapOf(model.material);
