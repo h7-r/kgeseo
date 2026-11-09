@@ -27,6 +27,12 @@ import {
   useCompanionSession,
 } from "./companionRuntime";
 
+/**
+ * 자유 입력(player_message)을 여는가. 계약 v0.4.16 §10-1: 11/13 나주 베타는 끈다(11/9 미르 재확인).
+ * 코드는 지우지 않는다 — true 로 바꾸면 Enter · 💬 입력이 전처럼 열린다.
+ */
+export const IS_FREE_INPUT_ENABLED = false;
+
 interface CompanionHudProps {
   controlsRef: RefObject<PointerLockControlsImpl | null>;
   isLocked: boolean;
@@ -58,7 +64,7 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
 
   // Enter — 잠금 중 · 말을 걸 수 있을 때만 입력을 연다(창이 열려 있으면 잠금이 풀려 있어 여기 오지 않는다)
   useEffect(() => {
-    if (!isLocked || !dialog.isEnabled || isTyping) return undefined;
+    if (!IS_FREE_INPUT_ENABLED || !isLocked || !dialog.isEnabled || isTyping) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Enter" || event.repeat || event.isComposing || isCompanionIntro()) return;
       event.preventDefault();
@@ -76,7 +82,7 @@ export default function CompanionHud({ controlsRef, isLocked, showStatus = false
   return (
     <>
       {/* 터치 — 💬 로 입력칸을 연다. 아이폰은 탭 안에서 바로 포커스해야 키보드가 뜨므로 그 탭에서 동기로 그린다(flushSync) */}
-      {isTouch && isLocked && dialog.isEnabled && !isTyping && !isIntro && (
+      {IS_FREE_INPUT_ENABLED && isTouch && isLocked && dialog.isEnabled && !isTyping && !isIntro && (
         <button
           type="button"
           aria-label={`${COMPANION_NAME}에게 말하기`}
