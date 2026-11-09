@@ -25,6 +25,7 @@ import { isTouchMode } from "@/engine/input/touchMode";
 import { cancelCompanionHold } from "../../companion/companionPrompt";
 import { COMPANION_NAME, IS_COMPANION_ENABLED } from "../../companion/companionRuntime";
 import { callCompanion, companionStage, releaseCompanion, setCompanionIntro } from "../../companion/companionStage";
+import { setTalkAdvance } from "../../puzzles/interaction";
 import { M } from "../../puzzles/units";
 import { recall, remember } from "../../save/puzzleMemory";
 import { cameraFocusId, endCameraFocus, focusCamera, isCameraFocusTurned } from "../cameraFocus";
@@ -133,18 +134,11 @@ export default function CompanionIntro({ enabled }: { enabled: boolean }) {
       remember(SAVE_KEY, true);
       wrapUp();
     };
-    // 데스크톱 E — 겨누지 않고 한 줄 넘긴다(화면 고정 중에는 겨냥 E 가 쉰다). 누르고 있기 · 첫 줄 전 · 멈춤은 무시
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "KeyE" || event.repeat || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) {
-        return;
-      }
-      if (state.phase !== "talk" || !talk.press()) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    };
-    window.addEventListener("keydown", onKeyDown, { capture: true });
+    // E(터치 ✋) — 겨누지 않고 한 줄 넘긴다. 겨눈 물건보다 먼저 받는다(클로즈업 없이 대사만 하는 길에서도).
+    // 누르고 있기 · 첫 줄 전 · 멈춤은 무시(press 가 false — 그 E 는 평소대로)
+    setTalkAdvance(() => state.phase === "talk" && talk.press());
     return () => {
-      window.removeEventListener("keydown", onKeyDown, { capture: true });
+      setTalkAdvance(null);
       talk.stop();
       wrapUp();
     };
@@ -181,7 +175,7 @@ export default function CompanionIntro({ enabled }: { enabled: boolean }) {
 
     if (state.phase === "talk") {
       // 「물가로 가 보자」 줄 — 동행을 보던 시선을 당기지 않은 넓은 시야로 아비사 쪽에 넘긴다(Codex 08)
-      if (!state.hasLooked && talk.index === state.lookIndex && cameraFocusId() === FOCUS_ID) {
+      if (state.lookIndex >= 0 && !state.hasLooked && talk.index === state.lookIndex && cameraFocusId() === FOCUS_ID) {
         state.hasLooked = true;
         const head = firstScenePoints.abisaHead;
         if (head) {
