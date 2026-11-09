@@ -103,8 +103,8 @@ function canvasDpr({ resolution }: Settings): number | [number, number] {
     return Math.min(RESOLUTION_DPR[resolution], window.devicePixelRatio || 1);
   }
   if (IS_LOW_QUALITY) return 1;
-  // 모바일은 기기 배율이 3 이라 [1, 1.5] 면 늘 1.5 — 픽셀이 배율의 제곱으로 는다
-  return IS_MOBILE_QUALITY ? [1, MOBILE_MAX_DPR] : [1, 1.5];
+  // 모바일은 기기 배율이 3 이라 상한값이 곧 배율이다 — 픽셀이 배율의 제곱으로 는다. PC 상한(1.5)은 넘지 않는다
+  return IS_MOBILE_QUALITY ? [1, Math.min(MOBILE_MAX_DPR, 1.5)] : [1, 1.5];
 }
 
 // ?dev 일 때만 그리므로 평소엔 받지도 않는다.
