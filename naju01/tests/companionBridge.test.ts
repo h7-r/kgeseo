@@ -426,6 +426,33 @@ test("걸음 상황은 그 걸음의 대표 Object 를 focus_object_id 로 싣�
 
 // ── 퍼즐 폴링(v0.4.7 퍼즐 자동 개입을 BE 가 판단하게) ──
 
+test("퍼즐 폴링 대표 Object 는 대응표 v1.1 §5(진행 동기화 표)의 것 — v1 에 서버 연결된 P01 · P03 · P07 · P09 만, 모두 서버 판정 퍼즐", () => {
+  assert.deepEqual(PUZZLE_FOCUS_IDS, {
+    P01: "OBJ_S1_CLAM_HOLES",
+    P03: "OBJ_S1_JAR_SLOTS",
+    P07: "OBJ_S1_CAVE_BIG_CLAM",
+    P09: "OBJ_S1_CAVE_RING_DOOR",
+  });
+  for (const id of Object.keys(PUZZLE_FOCUS_IDS) as ObjectiveId[]) assert.ok(OBJECTIVES[id].puzzleId, id);
+});
+
+test("퍼즐 폴링: 대응표 §5 에 대표 Object 가 없는 서버 퍼즐(P02 · P05 · P11 …)과 걸음은 보내지 않는다", () => {
+  const planner = createAutoTurnPlanner({
+    sendSituation: false,
+    puzzleFocusOf: (objective) => (OBJECTIVES[objective].puzzleId ? (PUZZLE_FOCUS_IDS[objective] ?? null) : null),
+  });
+  for (const objective of ["P02", "P05", "P11", "P13-2", "S1_FIRE"] as const) {
+    planner.next(null, "Z1", true, { objective, now: 0, canPoll: true });
+    for (let t = 30_000; t <= 300_000; t += 30_000)
+      assert.equal(planner.next(null, "Z1", true, { objective, now: t, canPoll: true }), null, objective);
+  }
+  planner.next(null, "Z1", true, { objective: "P07", now: 400_000, canPoll: true });
+  assert.deepEqual(planner.next(null, "Z1", true, { objective: "P07", now: 460_000, canPoll: true }), {
+    situation: null,
+    focusObjectId: "OBJ_S1_CAVE_BIG_CLAM",
+  });
+});
+
 /** P03 · P09 만 서버 퍼즐인 플래너. at(시각, 목표, 덧붙임) = 0.5초 판정 한 번 */
 function pollPlanner(sendSituation = false) {
   const planner = createAutoTurnPlanner({
@@ -509,7 +536,7 @@ async function pollBridge(turnReply: Handler = () => ({ status: 200, body: turn(
     },
     // 나주 v1 처럼 정식 힌트가 0개인 판 — 폴링은 공식 서버 퍼즐 ID 로 따로 간다(HINTED_PUZZLES 와 무관)
     serverPuzzleIdOf: () => null,
-    puzzleFocusIdOf: (objective) => (HINT_PUZZLE_IDS[objective] ? (PUZZLE_FOCUS_IDS[objective] ?? null) : null),
+    puzzleFocusIdOf: (objective) => (OBJECTIVES[objective].puzzleId ? (PUZZLE_FOCUS_IDS[objective] ?? null) : null),
     now: () => clock,
   });
   calls = [];
@@ -566,9 +593,10 @@ test("퍼즐 폴링에 넛지 대사만 와도(제안 없음) 띄우고 180초 �
   await relayAt(0);
   await relayAt(60_000);
   assert.equal(turns().length, 1);
+  // 넛지는 대화창에 동행 말(line)로 뜬다
   assert.deepEqual(
-    said.map((speech) => speech.text),
-    ["[모의] 숨구멍을 다시 살펴볼까요?"],
+    said.map((speech) => [speech.kind, speech.text]),
+    [["line", "[모의] 숨구멍을 다시 살펴볼까요?"]],
   );
   assert.equal(asked(), 0, "제안이 없으면 묻지 않는다");
   await relayAt(120_000);

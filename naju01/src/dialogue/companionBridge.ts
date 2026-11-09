@@ -18,7 +18,9 @@ import type { NpcSituation } from "../companion/companionApi.ts";
 import type { DialogLine, DialogState, HintOffer } from "../companion/companionDialog.ts";
 import type { Speech } from "./dialogueStore.ts";
 import type { HintProvider } from "./director.ts";
-import type { ObjectiveId, Stage } from "./objectives.ts";
+import { NAJU_ID_TABLE_V1 } from "../progress/najuIdTable.ts";
+import { NAJU_LOCAL } from "../progress/najuLocalIds.ts";
+import { OBJECTIVES, type ObjectiveId, type Stage } from "./objectives.ts";
 import { toSituationPayload, toSituationRequest } from "./situationCodes.ts";
 import type { Situation } from "./situations.ts";
 
@@ -78,24 +80,16 @@ export const SITUATION_ZONE_IDS: Partial<Record<Stage, string>> = {
   ridge: "ZONE_JINBU_RIDGE",
 };
 /**
- * 퍼즐 → 대표 Object(대응표 §2) — 퍼즐 폴링의 focus_object_id. 서버는 지금 구역에 보이는 · 안 푼 퍼즐로 이어지는 Object 만
- * 퍼즐로 찾고, 콘텐츠에 없는 Object 는 조용히 무시한다(_focus_puzzle) — v1 에 아직 연결 안 된 퍼즐도 그대로 둔다.
+ * 서버 퍼즐 → 대표 Object(대응표 v1.1 §5) — 퍼즐 폴링의 focus_object_id. 진행 동기화가 쓰는 표(NAJU_LOCAL · NAJU_ID_TABLE_V1)
+ * 그대로 뽑는다 — 대응표에 없는 로컬 ID 는 서버로 보내지 않는다(대응표 기존 규칙). content_version 1 은 서버에 연결된
+ * P01 · P03 · P07 · P09 뿐이고, 다음 판에서 퍼즐을 연결해 그 표에 더하면 여기도 따라 늘어난다.
  */
-export const PUZZLE_FOCUS_IDS: Partial<Record<ObjectiveId, string>> = {
-  P01: "OBJ_S1_CLAM_HOLES",
-  P02: "OBJ_S1_FISH_TRAPS",
-  "P02-2": "OBJ_S1_FISH_TRAP_STAKES",
-  P03: "OBJ_S1_JAR_SLOTS",
-  P05: "OBJ_S1_RITUAL_TABLE",
-  P07: "OBJ_S1_CAVE_BIG_CLAM",
-  P08: "OBJ_S1_CAVE_BURROW_POT",
-  P09: "OBJ_S1_CAVE_RING_DOOR",
-  P10: "OBJ_S1_CAVE_ALTAR",
-  P11: "OBJ_S2_RIDGE_ALTAR",
-  P12: "OBJ_S2_JANGSEUNG_RINGS",
-  P13: "OBJ_S2_PLATFORM_STORY",
-  "P13-2": "OBJ_S2_STONE_BIRDS",
-};
+export const PUZZLE_FOCUS_IDS: Partial<Record<ObjectiveId, string>> = Object.fromEntries(
+  Object.entries(NAJU_LOCAL.objects).flatMap(([key, local]) => {
+    const runtime = NAJU_ID_TABLE_V1.objects[local];
+    return key in OBJECTIVES && runtime ? [[key, runtime]] : [];
+  }),
+);
 /** 판정 없는 걸음 → 대표 Object(상황 대사 focus_object_id, 대응표 §4). 걸음 상황을 보낼 때 함께 싣는다 */
 export const STEP_FOCUS_IDS: Partial<Record<ObjectiveId, string>> = {
   S1_FIRE: "OBJ_S1_BONFIRE_0",
@@ -232,7 +226,8 @@ export interface CompanionBridgeOptions {
   /** 걸음 → 대표 Object(STEP_FOCUS_IDS) */
   focusIdOf?: (objective: ObjectiveId) => string | null;
   /**
-   * 서버 퍼즐 → 대표 Object(PUZZLE_FOCUS_IDS) — 퍼즐 폴링 대상. 서버 퍼즐(공식 ID, HINT_PUZZLE_IDS)이 아니면 null.
+   * 서버 판정 퍼즐 → 대표 Object(PUZZLE_FOCUS_IDS) — 퍼즐 폴링 대상. 서버 판정 퍼즐(OBJECTIVES[…].puzzleId)이 아니거나 대응표에
+   * 대표 Object 가 없으면 null.
    * 정식 힌트 유무(serverPuzzleIdOf)와 묶지 않는다 — 힌트 없는 판에서도 자동 개입(넛지)은 BE 가 한다
    */
   puzzleFocusIdOf?: (objective: ObjectiveId) => string | null;

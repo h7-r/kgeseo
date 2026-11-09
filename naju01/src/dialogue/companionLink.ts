@@ -13,7 +13,7 @@ import {
   hintedPuzzleIdOf,
 } from "./companionBridge.ts";
 import { askOpenHint, sayCompanion, setHintProvider, setSituationSink } from "./dialogueRuntime";
-import type { ObjectiveId } from "./objectives.ts";
+import { OBJECTIVES, type ObjectiveId } from "./objectives.ts";
 
 /** 세션이 고정한 판의 정식 힌트만 연다. 개발 모의 서버(?npc-mock, 개발 빌드만)는 어느 퍼즐이든 힌트를 주므로 공식 ID 그대로 */
 function serverHintPuzzleIdOf(objective: ObjectiveId): string | null {
@@ -31,8 +31,8 @@ export function connectCompanionDialogue(): () => void {
     serverPuzzleIdOf: serverHintPuzzleIdOf,
     zoneIdOf: (stage) => SITUATION_ZONE_IDS[stage] ?? null,
     focusIdOf: (objective) => STEP_FOCUS_IDS[objective] ?? null,
-    // 퍼즐 폴링은 공식 서버 퍼즐 ID 가 있는 퍼즐 — 이 판에 정식 힌트가 있는지(serverHintPuzzleIdOf)와 상관없다
-    puzzleFocusIdOf: (objective) => (HINT_PUZZLE_IDS[objective] ? (PUZZLE_FOCUS_IDS[objective] ?? null) : null),
+    // 퍼즐 폴링은 서버 판정 퍼즐(puzzleId 가 있는 목표) · 대응표 §5 대표 Object — 이 판에 정식 힌트가 있는지와 상관없다
+    puzzleFocusIdOf: (objective) => (OBJECTIVES[objective].puzzleId ? (PUZZLE_FOCUS_IDS[objective] ?? null) : null),
   });
   setHintProvider(bridge.hintProvider);
   setSituationSink(bridge.relay);
