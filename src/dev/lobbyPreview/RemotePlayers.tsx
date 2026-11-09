@@ -161,6 +161,11 @@ function RemoteAvatar({
   const labelRef = useRef<THREE.Group>(null);
   const avatarRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Object3D | null>(null);
+  /** 공중에 있는 동안 바닥 높이를 한 번이라도 받았다 — 바로 다시 뛰어 받은 높이가 덮여도 착지를 잃지 않게(Codex 리뷰 1e6b260) */
+  const landPendingRef = useRef(false);
+  /** 마지막으로 받은 발 높이와 그때 올라가던 중이었나 — 착지 직후 다시 뛸 때 따라가는 발은 아직 내려오는 중이라 이걸로 가른다 */
+  const lastTargetY = useRef(first?.y ?? 0);
+  const isTargetRising = useRef(false);
   // 걷기 충돌 상자 — 매 프레임 같은 상자의 값만 바꾼다(새로 만들지 않는다)
   const bodyRef = useRef<PersonBox>({
     minX: (first?.x ?? 0) - BODY_HALF_WIDTH,
@@ -207,14 +212,29 @@ function RemoteAvatar({
     link.verticalVelocity += (rise - link.verticalVelocity) * Math.min(1, delta * 12);
     link.groundY = STATION_FLOOR_Y;
     const lift = link.footY - STATION_FLOOR_Y;
-    // 뜨는 것도 받은 높이가 떠 있을 때만 — 착지한 뒤 따라가는 발이 아직 높아도 다시 공중으로 읽지 않게(Codex 리뷰 8d98fa0)
-    if (link.grounded && lift > AIR_ENTER && view.y - STATION_FLOOR_Y > AIR_EXIT) {
-      link.grounded = false;
-      link.jumping = link.verticalVelocity > 0; // 올라가던 중이면 뛴 것, 아니면 떨어지는 중
-    } else if (!link.grounded && (lift < AIR_EXIT || (view.y - STATION_FLOOR_Y < AIR_EXIT && lift < LAND_EARLY))) {
-      // 받은 높이가 바닥이고 발도 거의 내려왔으면 착지 — 0.1초 따라가기만큼 늦게 내려앉지도, 공중에서 착지하지도 않게
-      link.grounded = true;
-      link.jumping = false;
+    const isTargetUp = view.y - STATION_FLOOR_Y > AIR_EXIT;
+    if (view.y !== lastTargetY.current) {
+      isTargetRising.current = view.y > lastTargetY.current;
+      lastTargetY.current = view.y;
+    }
+    if (link.grounded) {
+      // 뜨는 것도 받은 높이가 떠 있을 때만 — 착지한 뒤 따라가는 발이 아직 높아도 다시 공중으로 읽지 않게(Codex 리뷰 8d98fa0)
+      if (lift > AIR_ENTER && isTargetUp) {
+        link.grounded = false;
+        // 올라가던 중이면 뛴 것, 아니면 떨어지는 중 — 받은 높이가 오르고 있어도 뛴 것(착지 직후 바로 다시 뛴 때)
+        link.jumping = link.verticalVelocity > 0 || isTargetRising.current;
+        landPendingRef.current = false;
+      }
+    } else {
+      if (!isTargetUp) landPendingRef.current = true;
+      // 착지: 발이 바닥에 닿았거나, 바닥 높이를 받았고 발도 거의 내려왔거나(닿기 직전에 웅크리기 시작),
+      // 바닥을 받은 뒤 발이 내려오기 전에 다시 뛰었거나 — 그때는 한 프레임 착지해 다음 점프가 처음(Jump_Start)부터 나오게
+      const isLanding = lift < AIR_EXIT || (landPendingRef.current && (lift < LAND_EARLY || isTargetUp));
+      if (isLanding) {
+        link.grounded = true;
+        link.jumping = false;
+        landPendingRef.current = false;
+      }
     }
     link.facing = wrapAngle(link.facing + wrapAngle(view.ry - link.facing) * alpha);
     const moved = Math.hypot(link.position.x - beforeX, link.position.z - beforeZ) / Math.max(delta, 1e-3);
