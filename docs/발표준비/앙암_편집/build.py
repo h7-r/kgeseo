@@ -7,6 +7,7 @@ import os, sys, subprocess, json
 W = os.path.dirname(os.path.abspath(__file__))
 V = sys.argv[1]
 C, O = f"{W}/cuts/{V}", f"{W}/out"
+os.makedirs(C, exist_ok=True)
 os.makedirs(O, exist_ok=True)
 FPS, WID, HEI = 30, 1280, 720
 PLAN = json.load(open(f"{W}/plan_{V}.json"))
@@ -33,8 +34,9 @@ for k, c in enumerate(cuts, 1):
         vf += (f",scale={WID*2}:{HEI*2}:flags=lanczos,zoompan=z='{z0}+({z1}-{z0})*on/{n}':d=1:"
                f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={WID}x{HEI}:fps={FPS}")
     if c.get("dark"): vf += ",fade=t=in:st=0:d=0.08:color=black"
+    if c.get("fadein"): vf += f",fade=t=in:st=0:d={c['fadein']}:color=black"
     out = f"{O}/{V}_c{k}.mp4"
-    run("-i", f"{C}/{k}.mp4", "-vf", vf + ",format=yuv420p", "-an", "-c:v", "libx264", "-preset", "medium",
+    run("-i", c.get("file", f"{C}/{k}.mp4"), "-vf", vf + ",format=yuv420p", "-an", "-c:v", "libx264", "-preset", "medium",
         "-crf", "15", "-r", str(FPS), "-t", f"{L:.3f}", out)
     segs.append(out)
 

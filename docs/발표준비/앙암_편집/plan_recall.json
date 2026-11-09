@@ -1,0 +1,147 @@
+{
+ "cuts": [
+  {
+   "len": 4,
+   "src": 3.0,
+   "speed": 1.6,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.04,
+   "file": "<cuts>/v1/3.mp4",
+   "fadein": 0.5
+  },
+  {
+   "len": 2.2,
+   "src": 3.0,
+   "speed": 2.0,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "file": "<cuts>/v1/7.mp4",
+   "fadein": 0.5
+  },
+  {
+   "len": 1.8,
+   "src": 1.0,
+   "speed": 2.0,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.04,
+   "file": "<cuts>/v2/2.mp4",
+   "dark": true
+  },
+  {
+   "len": 4,
+   "src": 0.5,
+   "speed": 2.2,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.04,
+   "file": "<cuts>/v2/6.mp4",
+   "fadein": 0.5
+  },
+  {
+   "len": 1.2,
+   "src": 0.5,
+   "speed": 1.0,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.04,
+   "file": "<v6 그림자극 cuts>/2.mp4",
+   "fadein": 0.5
+  },
+  {
+   "len": 1.2,
+   "src": 0.2,
+   "speed": 1.0,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.04,
+   "file": "<v6 그림자극 cuts>/5.mp4",
+   "dark": true
+  },
+  {
+   "len": 1.4,
+   "src": 0.5,
+   "speed": 1.0,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.04,
+   "file": "<v6 그림자극 cuts>/7.mp4",
+   "dark": true
+  },
+  {
+   "len": 1.2,
+   "src": 0.5,
+   "speed": 1.0,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.04,
+   "file": "<v6 그림자극 cuts>/10.mp4"
+  },
+  {
+   "len": 2,
+   "src": 1.0,
+   "speed": 2.0,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "file": "<cuts>/v3/3.mp4",
+   "fadein": 0.5
+  },
+  {
+   "len": 2,
+   "src": 0.0,
+   "speed": 2.0,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.04,
+   "file": "<cuts>/v3/5.mp4",
+   "dark": true
+  },
+  {
+   "len": 2,
+   "src": 0.5,
+   "speed": 1.4,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "file": "<cuts>/v4/6.mp4",
+   "fadein": 0.5
+  },
+  {
+   "len": 2,
+   "src": 0.5,
+   "speed": 1.2,
+   "push": [
+    1.0,
+    1.0
+   ],
+   "xf": 0.15,
+   "file": "<cuts>/v4/7.mp4"
+  }
+ ],
+ "ambience": null
+}
