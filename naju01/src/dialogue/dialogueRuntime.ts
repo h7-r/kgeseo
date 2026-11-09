@@ -6,6 +6,7 @@
  *    알림 · 안내판 수는 상황 판정의 신호로만 읽는다(gameObserver.noteNotice · notePanel).
  *  - 첫 인사(말투 묻기 · 조작 안내) · 첫 물건 안내는 하지 않는다 — 첫 입장 소개는 CompanionIntro(클로즈업)가 맡는다.
  *  - 장면 인물(아비사 · 어부 · 동행 소개)이 차례를 잡았거나 다른 창이 떠 있으면 동행 말은 멈추고 줄을 선다(syncDialogueHold).
+ *  - 동행을 끈 판(?npc=off · ?npc 샌드박스 · 검수)은 [F] 도 상황 판정도 없다 — 대화창은 장면 인물 말만 그린다(Codex 리뷰 e649b7d).
  */
 import { useSyncExternalStore } from "react";
 
@@ -33,6 +34,7 @@ import { PANEL_OBJECTIVE, type ObjectiveId } from "./objectives.ts";
 import { hasDraftLines, setTone } from "./lines.ts";
 import { loadDraftLines } from "./previewMode";
 import { createSituationWatcher, type Situation } from "./situations.ts";
+import { IS_COMPANION_ACTIVE } from "./talkButton";
 
 /** 대화창 이름 줄 — 동행 캐릭터 이름은 아직 정해지지 않았다(PM 결정 대기). 세진 님 companion 쪽과 같은 자리 표시 */
 export const COMPANION_NAME = "동행";
@@ -135,7 +137,8 @@ export function setSituationSink(sink: SituationSink | null) {
 /** 0.5초마다 — 게임 상태를 읽어 상황이 생겼으면 동행이 말한다(미리 보기 초안) · 서버에 알린다(한 길 — companionBridge) */
 export function tickDialogue() {
   syncDialogueHold();
-  if (!hasStarted) return;
+  // 동행을 끈 판은 동행이 먼저 말할 일도 서버에 알릴 일도 없다(장면 인물 말은 npcSpeech 가 따로 한다)
+  if (!hasStarted || !IS_COMPANION_ACTIVE) return;
   const situation = watcher.observe(observeGame(panel));
   if (situation) director.handle(situation);
   situationSink?.(situation, currentZoneCode(), canDisplayCompanion());
@@ -152,6 +155,8 @@ export const askOpenHint = director.askOpenHint;
 
 /** [F] — 떠 있는 말이 있으면 넘기고, 없으면 동행에게 말을 건다(물어볼 것 고르기) */
 export function pressTalkKey(isPlaying: boolean) {
+  // 동행을 끈 판(?npc=off 등)에는 말을 걸 동행이 없다
+  if (!IS_COMPANION_ACTIVE) return false;
   // 장면 인물이 말하는 동안 · 첫 소개 · 다른 창이 떠 있는 동안은 동행이 끼어들지 않는다(그 말은 E 로 넘긴다)
   if (shouldHold()) return false;
   if (dialogue.advance()) return true;
