@@ -104,13 +104,14 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
                 onClick={() => setSelectedId(hint.id)}
                 title={isHintUnseen(hint.id) ? `${hint.name} — 새 쪽지` : hint.name}
               >
-                {isHintUnseen(hint.id) && <span aria-hidden style={unseenDotStyle} />}
                 {hint.image ? (
                   <img src={hint.image} alt="" style={slotImageStyle} />
                 ) : (
                   <span style={slotLetterStyle}>{hint.name?.[0] ?? "?"}</span>
                 )}
                 <span style={slotNameStyle}>{hint.name}</span>
+                {/* 맨 뒤에 둔다 — 터치 창 CSS 가 칸의 첫 자식(썸네일)을 36px 로 키운다(gameUi.css, Codex 리뷰 6a1acdd) */}
+                {isHintUnseen(hint.id) && <span aria-hidden style={unseenDotStyle} />}
               </button>
             ))}
           </div>
