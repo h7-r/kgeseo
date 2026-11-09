@@ -48,7 +48,8 @@ class ApprovedNpcLine(BaseModel):
     """주입받는 승인 콘텐츠 한 줄 (게시 형식 · 위치 미정)."""
 
     line_id: str
-    kind: Literal["nudge"]
+    # "situation": 상황 대사(계약 v0.4.16 `situations[].lines[]`). 넛지 경로는 "nudge"만 쓴다.
+    kind: Literal["nudge", "situation"]
     text: str
     # G3 검수 승인 여부. False면 내보내지 않는다.
     approved: bool

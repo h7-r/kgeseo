@@ -20,6 +20,16 @@ PM v0.4.15: 게시 시 ng 및 proper_nouns는 필수다([] 유효). 모델의 No
 - `fallback_lines[]`: `line_id` · `text` · `use` — 생성 대사가 막혔을 때의 승인 대체 대사(G3 승인 필요).
   `use` 값의 목록 · 뜻은 정해지지 않아 비어 있지 않은 문자열만 확인한다.
 항목에 ID가 없는 `ng` · `open`은 정책 검사 결과에서 위치(`ng[0]`)를 규칙 ID로 쓴다.
+
+[계약 v0.4.16 상황 대사 — 스키마 버전은 그대로 `npc-pack 0.1`, 선택 필드만 더한다]
+- `situations[]`(§4 · §8-1): `code`(§9-4의 11개) · `cooldown_seconds`(선택, 없으면 서버 기본값) ·
+  `lines[]{line_id, text, focus_object_id?}`. `line_id`는 케이스 안에서 유일하다(기존 중복 검사에 포함).
+  없으면(None) 「상황 대사 미제공」(v0.4.16 이전 팩), `[]`는 「상황 대사 없음」이다. 둘 다 상황 대사를 내지 않는다.
+  같은 `code`를 두 항목에 나눠 적지 않는다(쿨다운 값이 둘이 되므로).
+- `general_nudges[]`의 선택 `zone_id`(§9-7, 잡담 구역). 계약 문구는 `general_nudges[].lines[]`지만 이 팩의
+  `general_nudges[]`는 항목 하나가 대사 한 줄이라 항목에 둔다. 퍼즐 넛지에는 받지 않는다.
+- 상황 대사에는 계약 §4대로 `reveal_when`이 없다(어느 상태에서나 나올 수 있다). 그래서 게시 검사는 「아무것도
+  공개되지 않은 상태」로 미공개 단서 · 힌트 겹침을 본다(`app.services.npc_content_validation`).
 """
 
 from datetime import datetime
@@ -33,6 +43,25 @@ NUDGE_CONTENT_ID_PATTERN = r"^NUDGE_[A-Z0-9_]+$"
 MAX_NUDGE_TEXT_LENGTH = 200
 
 NonBlank = Annotated[str, StringConstraints(strip_whitespace=False, min_length=1)]
+# Zone · Object ID 길이 상한(NPC 턴 요청의 focus_object_id · situation.zone_id와 같다)
+MAX_RUNTIME_REF_LENGTH = 64
+RuntimeRef = Annotated[str, Field(min_length=1, max_length=MAX_RUNTIME_REF_LENGTH)]
+
+# 계약 v0.4.16 §9-4 상황 코드 11개(§3 표를 대신함). 겹칠 때 FE가 보내는 차례(§9-5)대로 적는다.
+# 코드를 늘리려면 계약을 먼저 고친다. NPC 턴 요청(`app.schemas.npc_turn`)도 이 목록을 쓴다.
+NpcSituationCode = Literal[
+    "BREATH_LOW",
+    "SENT_BACK",
+    "ITEM_MISSING",
+    "ITEM_LEFT_BEHIND",
+    "ITEM_NOT_PICKED",
+    "REPEATED_MISTAKE",
+    "OFF_OBJECTIVE",
+    "NO_PROGRESS",
+    "STEP_ARRIVED",
+    "STEP_DONE",
+    "QUIET",
+]
 
 
 class NpcContentModel(BaseModel):
@@ -54,6 +83,47 @@ class NpcNudgeContent(NpcContentModel):
     def validate_fields(self) -> "NpcNudgeContent":
         _require_text(self.text, f"Nudge '{self.line_id}' text")
         return self
+
+
+class NpcGeneralNudgeContent(NpcNudgeContent):
+    """퍼즐과 무관한 넛지(잡담 포함, 계약 v0.4.16 §6). `zone_id`가 있으면 그 구역 잡담이다(§9-7)."""
+
+    zone_id: RuntimeRef | None = None
+
+    @model_validator(mode="after")
+    def validate_zone(self) -> "NpcGeneralNudgeContent":
+        if self.zone_id is not None:
+            _require_text(self.zone_id, f"Nudge '{self.line_id}' zone_id")
+        return self
+
+
+class NpcSituationLine(NpcContentModel):
+    """상황 대사 한 줄(계약 v0.4.16 §4 · §8-1). 고정 문장만(§8-7, 치환 없음)."""
+
+    line_id: NonBlank
+    text: NonBlank = Field(max_length=MAX_NUDGE_TEXT_LENGTH)
+    # 있으면 「코드 + 같은 Object」일 때 먼저 고른다(§8-1). 판정 없는 걸음 대사가 쓴다.
+    focus_object_id: RuntimeRef | None = None
+
+    @model_validator(mode="after")
+    def validate_text(self) -> "NpcSituationLine":
+        _require_text(self.line_id, "Situation line line_id")
+        _require_text(self.text, f"Situation line '{self.line_id}' text")
+        if self.focus_object_id is not None:
+            _require_text(
+                self.focus_object_id, f"Situation line '{self.line_id}' focus_object_id"
+            )
+        return self
+
+
+class NpcSituationContent(NpcContentModel):
+    """상황 코드 하나의 대사 묶음(계약 v0.4.16 §4)."""
+
+    code: NpcSituationCode
+    # 코드별 쿨다운(초). 없으면 서버 기본값(§4). 자동 개입 설정과 같이 1 이상의 정수만 받는다.
+    cooldown_seconds: Annotated[int, Field(strict=True, ge=1)] | None = None
+    # 퍼즐 넛지(`puzzles[].nudges`)와 같이 대사가 하나도 없는 항목은 받지 않는다.
+    lines: list[NpcSituationLine] = Field(min_length=1)
 
 
 class NpcHintLevelRef(NpcContentModel):
@@ -164,8 +234,8 @@ class NpcContentPack(NpcContentModel):
     content_version: int | None = Field(default=None, ge=1)
     content_fingerprint: NonBlank | None = None
     approvals: list[NpcApprovalRecord] = Field(default_factory=list)
-    # 퍼즐과 무관한 일반 nudge
-    general_nudges: list[NpcNudgeContent] = Field(default_factory=list)
+    # 퍼즐과 무관한 일반 nudge(잡담은 선택 zone_id)
+    general_nudges: list[NpcGeneralNudgeContent] = Field(default_factory=list)
     # 퍼즐별 nudge
     puzzles: list[NpcPuzzleNudges] = Field(default_factory=list)
     # PM v0.4.3 — None은 「제공하지 않음」(정책 검사 불가), []는 「규칙 없음」
@@ -177,6 +247,8 @@ class NpcContentPack(NpcContentModel):
     fallback_lines: list[NpcFallbackLine] = Field(default_factory=list)
     # PM v0.4.7 — 없으면 서버 기본 자동 개입 설정
     auto_nudge: NpcAutoNudgeConfig | None = None
+    # 계약 v0.4.16 §4 — None은 「미제공」(이전 팩), []는 「상황 대사 없음」
+    situations: list[NpcSituationContent] | None = None
 
     @model_validator(mode="after")
     def validate_unique_ids(self) -> "NpcContentPack":
@@ -187,10 +259,17 @@ class NpcContentPack(NpcContentModel):
             if entry.puzzle_id in seen_puzzles:
                 raise ValueError(f"Duplicate puzzle entry: '{entry.puzzle_id}'")
             seen_puzzles.add(entry.puzzle_id)
+        seen_codes: set[str] = set()
+        for situation in self.situations or ():
+            if situation.code in seen_codes:
+                raise ValueError(f"Duplicate situation entry: '{situation.code}'")
+            seen_codes.add(situation.code)
         seen_lines: set[str] = set()
-        line_ids = [nudge.line_id for nudge in self.all_nudges()] + [
-            line.line_id for line in self.fallback_lines
-        ]
+        line_ids = (
+            [nudge.line_id for nudge in self.all_nudges()]
+            + [line.line_id for line in self.fallback_lines]
+            + [line.line_id for line in self.situation_lines()]
+        )
         for line_id in line_ids:
             if line_id in seen_lines:
                 raise ValueError(f"Duplicate line_id: '{line_id}'")
@@ -202,6 +281,9 @@ class NpcContentPack(NpcContentModel):
             *self.general_nudges,
             *(nudge for entry in self.puzzles for nudge in entry.nudges),
         ]
+
+    def situation_lines(self) -> list[NpcSituationLine]:
+        return [line for entry in self.situations or () for line in entry.lines]
 
 
 class GeneralLinePack(NpcContentModel):

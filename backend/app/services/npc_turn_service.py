@@ -15,9 +15,10 @@
   읽고, 이벤트 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 근거가 바뀌었으면(철회 · 차단이 사이에 commit) 확정 전에
   다시 계산한다. 멱등 처리는 기존 `interaction_events`(`client_event_id`) 하나다.
 - 긴급 차단(blocked, PM v0.4.6 · v0.4.12): 새 턴 · 재전송 모두 케이스 콘텐츠(대사 · 힌트 제안)를 쓰지 않고 LLM도
-  부르지 않는다. 공급된 일반 팩이 승인돼 있으면 「잠시 멈춤」(`GENERIC_PAUSE_*`) 승인 대사 하나를
-  `client_event_id`로 결정적으로 골라(`npc_line_supply.select_pause_line`) `approved_line`으로 답하고, 없으면
-  `reply: null`이다. `fallback_reason`은 늘 `NPC_CONTENT_WITHDRAWN`이다. 재전송도 저장된 대사가 아니라 지금 승인된
+  부르지 않는다. 플레이어가 말을 건 턴(player_message)은 공급된 일반 팩이 승인돼 있으면 「잠시 멈춤」
+  (`GENERIC_PAUSE_*`) 승인 대사 하나를 `client_event_id`로 결정적으로 골라(`npc_line_supply.select_pause_line`)
+  `approved_line`으로 답하고, 없으면 `reply: null`이다. auto 턴은 상황 유무와 상관없이 늘 `reply: null`이다
+  (계약 v0.4.16 §11). `fallback_reason`은 늘 `NPC_CONTENT_WITHDRAWN`이다. 재전송도 저장된 대사가 아니라 지금 승인된
   팩에서 같은 규칙으로 다시 고른다(같은 팩이면 같은 대사, 승인이 빠졌으면 null).
 - `content_mode`(PM v0.4.13 §4 · v0.3 §6): 정상 응답은 `"case"`. `fallback_reason`이 긴급 중단
   (`NPC_CONTENT_WITHDRAWN`) · NPC 콘텐츠 없음(`NPC_CONTENT_MISSING`) · 버전 불일치(`NPC_CONTENT_VERSION_MISMATCH`) ·
@@ -29,6 +30,12 @@
 - 일반 팩 승인(`general_pack_access`, 운영은 `npc_general_pack.read_general_pack_access`): 케이스 판정과 같은 방식으로
   계산 전(잠금 없음) · 확정 트랜잭션(공유 잠금, 케이스 판정 다음)에서 읽고, 근거가 바뀌었으면 다시 계산한다.
   일반 팩은 G3 승인과 정책 검사(`general_pack_policy`, 운영 기본값은 기준 미정 · fail closed)를 모두 통과해야 쓴다.
+- 상황 대사(계약 v0.4.16, `npc_situation`): auto 턴에 `situation`이 있으면 퍼즐 자동 개입을 먼저 계산하고, 그것이
+  보여 줄 것이 없을 때만 상황 대사를 고른다. 쿨다운 · 횟수는 이 세션의 `npc_turn` 이벤트(`situation_replied`)로 센다.
+  상황 턴은 세션 행을 배타 잠금(`FOR UPDATE`, Interaction · 제안 보고와 같은 순서: 세션 먼저)으로 시작해 같은 세션의
+  상황 턴을 한 번에 하나씩 처리한다 — 동시 요청이 같은 이력을 보고 쿨다운 · 횟수를 함께 넘지 않게. 잠금 전에 열린
+  읽기 트랜잭션(라우트 소유자 확인)은 먼저 끝내, 잠금 뒤의 이벤트 읽기가 다른 요청이 확정한 기록을 보게 한다.
+  이벤트 저장 시각(`created_at`)은 판정 시각과 같은 값이다.
 """
 
 import asyncio
@@ -78,6 +85,12 @@ from app.services.npc_dialogue import PM_GENERIC_PUZZLE_LINES, NpcReply
 from app.services.npc_general_dialogue import ApprovedLine, ModelGenerator
 from app.services.npc_general_pack import GeneralPackAccess, GeneralPackReader
 from app.services.npc_line_supply import select_pause_line
+from app.services.npc_situation import CONTENT_WITHDRAWN as SITUATION_WITHDRAWN
+from app.services.npc_situation import (
+    SituationConfig,
+    SituationRequest,
+    run_situation_turn,
+)
 from app.services.npc_suggestion_events import shown_and_declined
 from app.services.npc_turn import (
     NpcTurnContent,
@@ -170,6 +183,7 @@ async def _process_npc_turn_once(
     event_loader: EventLoader = load_session_events,
     rule_config: RuleConfig = RuleConfig(),
     hint_ref_keys: HintRefKeys | None = None,
+    situation_config: SituationConfig = SituationConfig(),
     now: datetime | None = None,
 ) -> NpcTurnResponse:
     if case_access is not None and approval_source is not None:
@@ -179,7 +193,14 @@ async def _process_npc_turn_once(
     client_event_id = str(request.client_event_id)
     payload_json = _payload(request)
     try:
-        play_session = await db.get(PlaySession, play_session_id)
+        if request.situation is not None:
+            # 상황 턴: 쿨다운 · 횟수 판정을 같은 세션 안에서 직렬화한다(모듈 설명 참고).
+            await db.rollback()
+            play_session = await db.get(
+                PlaySession, play_session_id, with_for_update=True
+            )
+        else:
+            play_session = await db.get(PlaySession, play_session_id)
         if play_session is None:
             raise PlaySessionNotFoundError()
         bundle = resolve_session_content(play_session, store)
@@ -189,6 +210,8 @@ async def _process_npc_turn_once(
         state = dict(play_session.state_json)
         fingerprint = bundle.pin.content_fingerprint
         npc_missing = bundle.npc() is None
+        # 판정 · 저장에 같은 시각을 쓴다(쿨다운은 저장 시각으로 센다).
+        current = now or datetime.now(timezone.utc).replace(tzinfo=None)
 
         def hint_ref_for(puzzle_id: str | None) -> SuggestHintOut | None:
             if puzzle_id is None or hint_ref_keys is None:
@@ -228,6 +251,17 @@ async def _process_npc_turn_once(
             access: CaseNpcAccess, pack: GeneralPackAccess
         ) -> NpcTurnResult:
             if access.withdrawn:
+                if request.trigger == "auto":
+                    # 계약 v0.4.16 §11: 「잠시 멈춤」 대사는 플레이어가 말을 건 턴에만 낸다. 게시 중단 중 auto 턴은
+                    # 상황 유무와 상관없이 reply null이다(§5).
+                    result = _withdrawn_result(request.trigger, None)
+                    if request.situation is None:
+                        return result
+                    return replace(
+                        result,
+                        situation_code=request.situation.code,
+                        situation_reason=SITUATION_WITHDRAWN,
+                    )
                 return _withdrawn_result(request.trigger, pause_line(pack))
             result = await compute_case(access, pack)
             if npc_missing:
@@ -247,7 +281,6 @@ async def _process_npc_turn_once(
                     general_generator=generation.generator,
                     generation_enabled=generation.enabled,
                 )
-            current = now or datetime.now(timezone.utc).replace(tzinfo=None)
             events = await event_loader(db, play_session_id)
             target = _focus_puzzle(content, state, request.focus_object_id)
             shown, declined = shown_and_declined(events)
@@ -261,7 +294,26 @@ async def _process_npc_turn_once(
             config = rule_config_for(
                 content.npc_pack.auto_nudge if content.npc_pack else None, rule_config
             )
-            return run_auto_turn(decide(signals, config), state=state, content=content)
+            puzzle_result = run_auto_turn(
+                decide(signals, config), state=state, content=content
+            )
+            if request.situation is None:
+                return puzzle_result
+            return run_situation_turn(
+                puzzle_result,
+                SituationRequest(
+                    code=request.situation.code,
+                    focus_object_id=request.focus_object_id,
+                    zone_id=request.situation.zone_id,
+                ),
+                events=events,
+                state=state,
+                content=content,
+                now=current,
+                signals=signals,
+                rule_config=config,
+                config=situation_config,
+            )
 
         def pause_line(pack: GeneralPackAccess) -> ApprovedLine | None:
             # 케이스 승인 출처와 섞지 않는다: 일반 팩과 그 팩 승인 출처만 쓴다.
@@ -311,7 +363,7 @@ async def _process_npc_turn_once(
                 payload_json=payload_json,
                 result_type="replied" if result.reply is not None else "no_reply",
                 response_json=record.model_dump(mode="json"),
-                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                created_at=current,
             )
         )
         try:
@@ -350,11 +402,16 @@ def _payload(request: NpcTurnRequest) -> dict[str, Any]:
         if request.message is not None
         else None
     )
-    return {
+    payload: dict[str, Any] = {
         "trigger": request.trigger,
         "focus_object_id": request.focus_object_id,
         "message_sha256": digest,
     }
+    # 계약 v0.4.16 §8-6: 같은 client_event_id 재전송은 situation까지 같아야 처음 응답을 돌려준다.
+    # situation이 없으면 키를 넣지 않는다 — 이미 저장된 이벤트의 payload_json과 그대로 일치하게.
+    if request.situation is not None:
+        payload["situation"] = request.situation.model_dump(mode="json")
+    return payload
 
 
 def _focus_puzzle(
@@ -427,7 +484,12 @@ def _record(trigger: str, result: NpcTurnResult) -> NpcTurnEventRecord:
             else None
         ),
         # 보여 줄 것(대사 또는 힌트 안내)이 있는 자동 개입만 제안이다. 횟수는 표시 보고로 센다.
+        # 상황 대사는 자동 개입 제안이 아니다(퍼즐 횟수 · 쿨다운과 따로 센다, 계약 v0.4.16 §4).
+        # 퍼즐 자동 개입 판단(`result.auto`)이 낸 응답만 제안이다 — 긴급 차단의 「잠시 멈춤」 대사는 제안이 아니라
+        # 표시 · 거절 보고로 퍼즐 쿨다운 · 횟수를 쓰지 않는다.
         auto_intervened=trigger == "auto"
+        and result.auto is not None
+        and not result.situation_replied
         and (result.reply is not None or result.suggest_hint is not None),
         auto_intervene=(
             NpcAutoInterveneRecord(
@@ -440,6 +502,9 @@ def _record(trigger: str, result: NpcTurnResult) -> NpcTurnEventRecord:
             if result.auto is not None
             else None
         ),
+        situation_code=result.situation_code,
+        situation_replied=result.situation_replied,
+        situation_reason=result.situation_reason,
     )
 
 
@@ -504,7 +569,10 @@ def _replay(
         raise IdempotencyConflictError()
     if access.withdrawn:
         # 긴급 차단 뒤 재전송: 저장했던 응답(케이스 대사 · 예전 대체 대사)을 돌려주지 않고 지금 승인된 팩에서 다시 고른다.
-        pause = pause_line()
+        # auto 턴은 새 턴과 같이 「잠시 멈춤」 대사도 내지 않는다(계약 v0.4.16 §5 · §11).
+        pause = (
+            pause_line() if payload_json.get("trigger") == "player_message" else None
+        )
         return NpcTurnResponse(
             npc_event_id=UUID(event.id),
             reply=(

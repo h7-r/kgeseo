@@ -12,12 +12,38 @@
   "client_timestamp": "2026-10-29T12:00:00+09:00",
   "trigger": "player_message | auto",
   "message": "player_message 일 때만 (1~200자)",
-  "focus_object_id": "선택 — 현재 구역에서 보고 있는 Object"
+  "focus_object_id": "선택 — 현재 구역에서 보고 있는 Object",
+  "situation": {"code": "BREATH_LOW", "zone_id": "선택", "value": 12}
 }
 ```
 
 - 모르는 필드는 422(`extra="forbid"`). 퍼즐 ID 는 받지 않는다 — 서버가 포커스 Object 에서 다시 찾는다.
 - `player_message` 에는 `message` 필수, `auto` 에는 `message` 금지.
+- `situation`(계약 v0.4.16 §2 · §9-4)은 `auto` 에만 싣는다(그 밖은 422). `code` 필수 — `BREATH_LOW` ·
+  `SENT_BACK` · `ITEM_MISSING` · `ITEM_LEFT_BEHIND` · `ITEM_NOT_PICKED` · `REPEATED_MISTAKE` · `OFF_OBJECTIVE` ·
+  `NO_PROGRESS` · `STEP_ARRIVED` · `STEP_DONE` · `QUIET` 외에는 422. `zone_id` 는 선택(1~64자),
+  `value` 는 선택 숫자(문자열 · 불리언 422). `situation` 안에도 모르는 필드는 422.
+- 같은 `client_event_id` 재전송은 `situation` 까지 같아야 처음 응답을 돌려준다. 다르면 409(기존 재전송 충돌과 같음).
+- 상황 대사(`app.services.npc_situation`, 계약 v0.4.16 §4 · §5 · §8 · §9 · §10):
+  - 퍼즐 자동 개입을 먼저 계산한다. 대사나 힌트 안내를 냈으면 그대로 응답하고 상황 대사는 고르지 않는다(퍼즐 우선).
+  - 코드(QUIET 제외): 게시 `npc.json` `situations[]`의 같은 코드 대사. 요청 `focus_object_id`와 같은 Object 대사 →
+    없으면 Object 조건 없는 대사. 다른 Object 대사는 고르지 않는다.
+  - QUIET: `general_nudges` 중 `reveal_when`이 공개된 대사. `situation.zone_id`와 같은 구역 → 없으면 구역 조건 없는 대사.
+  - 같은 코드로 마지막에 낸 대사의 다음 대사(돌아가며, 후보가 둘 이상이면 직전 대사를 피함).
+  - 승인은 고정 묶음의 G1~G3 승인 이력으로만 본다. 승인이 없으면 `reply: null`.
+  - 응답: `reply.source="approved_line"`, `suggest_hint: null`. 쿨다운 중 · 대사 없음은 `reply: null`(오류 아님).
+  - 쿨다운 · 횟수: 이 세션에 실제로 응답한 상황 대사(`npc_turn` 이벤트 `situation_replied`)의 저장 시각으로 센다.
+    전체 간격 20초 · `(code, focus_object_id)` 콘텐츠 `cooldown_seconds`(없으면 60초) · QUIET 180초 · 세션당 5회 ·
+    QUIET은 퍼즐 자동 개입 쿨다운(표시 뒤 · 거절 뒤)이나 다른 상황 코드 쿨다운 중에는 말하지 않는다.
+    DB 이벤트로 세므로 서버 재시작 · 이어하기 뒤에도 유지된다.
+  - 동시 요청: 상황 턴은 세션 행 `FOR UPDATE`로 시작해 같은 세션의 상황 턴을 직렬화한다.
+  - 긴급 차단(blocked): 상황 턴은 `reply: null` · `fallback_reason: NPC_CONTENT_WITHDRAWN` · `content_mode: "generic"`
+    (계약 v0.4.16 §5 「게시 중단」). 「잠시 멈춤」 대사도 내지 않고 쿨다운 · 횟수를 쓰지 않는다. 재전송도 같다.
+    「잠시 멈춤」 대사(v0.4.12)는 플레이어가 말을 건 턴(`player_message`)에만 낸다(v0.4.16 §11) — 상황이 없는
+    auto 턴도 `reply: null`(퍼즐 자동 개입 판단 · 기록 없음)이고 재전송도 같다.
+    `suspended`(진행 중 세션은 케이스 대사 사용, v0.4.6)는 그대로다.
+  - 기록(response_json): `situation_code` · `situation_replied` · `situation_reason`(말하지 않은 이유). 대사 원문 없음.
+    상황 대사 응답은 `auto_intervened=false`(퍼즐 자동 개입 횟수 · 쿨다운과 따로 센다).
 
 ## 응답 (200, 감싸지 않은 객체)
 

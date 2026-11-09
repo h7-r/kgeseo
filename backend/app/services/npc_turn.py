@@ -97,6 +97,10 @@ class NpcTurnResult:
     fallback_reason: str | None = None
     # 자동 개입 기록(npc_auto_intervene). 자동 턴에서 개입을 판단했을 때만 있다.
     auto: "AutoInterventionRecord | None" = None
+    # 계약 v0.4.16: auto 턴의 상황 코드 · 상황 대사로 답했는가 · 말하지 않은 이유(`npc_situation`)
+    situation_code: str | None = None
+    situation_replied: bool = False
+    situation_reason: str | None = None
 
     @property
     def generated(self) -> bool:
