@@ -10,6 +10,8 @@
  */
 import * as THREE from "three";
 
+import { exposeDevHook } from "@/debug/devHooks";
+
 import { regionAt, type Region } from "../movement/regions";
 import { recall, remember } from "../save/puzzleMemory";
 import { fishTrapPuzzle } from "./fishTrap/fishTrapState";
@@ -119,6 +121,10 @@ function requestOfferingNudge() {
   pendingNudge = { kind: "offering", at: performance.now() };
 }
 
+/** 제물 단서를 말하는 도중 그 까닭이 풀렸나 — 모자란 것을 주웠거나 소반 단계가 끝났다(Codex 리뷰 b8752ba) */
+export const isOfferingNudgeStale = (offered: ReadonlySet<ItemKind>) =>
+  ritual.stage() !== "offering" || missingOfferings(offered).length === 0;
+
 function offeringLines(offered: ReadonlySet<ItemKind>): string[] | null {
   if (!offeringNudgeArmed || ritual.stage() !== "offering") return null;
   const missing = missingOfferings(offered);
@@ -152,14 +158,30 @@ function whereIs(kind: ItemKind): string {
   return `${withObjectParticle(name)} ${REGION_PHRASE[regionOfItem(item.position)]}에 내려놓고 온 것 같아요.`;
 }
 
+/** 물고기가 이만큼(ms) 계속 어디에도 없어야 다시 놓는다 */
+const LOST_FISH_GRACE_MS = 2000;
+let fishLostSince: number | null = null;
+
 /**
  * 빛 물고기가 어디에도 없는 판(손 · 소지품 · 땅 · 소반 어디에도) — 통발을 쏟아 불을 붙였는데 물고기가 사라졌다(쏟기 도중 저장 등).
  * 화톳불 곁에 다시 놓는다 — 「돌아가 찾아보자」만 되풀이해서는 풀리지 않는다(Codex 13). 놓았으면 true
  */
 export function restoreLostFish(offered: ReadonlySet<ItemKind>) {
-  if (fishTrapPuzzle.stage() !== "told" && !ritual.isAtLeast("drawing")) return false;
-  if (offered.has("lightFish") || ritual.isAtLeast("rising")) return false;
-  if (isHolding("lightFish") || inventory.world().some((item) => item.kind === "lightFish")) return false;
+  const isLost =
+    (fishTrapPuzzle.stage() === "told" || ritual.isAtLeast("drawing")) &&
+    !offered.has("lightFish") &&
+    !ritual.isAtLeast("rising") &&
+    !isHolding("lightFish") &&
+    !inventory.world().some((item) => item.kind === "lightFish");
+  // 잠깐 비는 틈(저장을 나눠 되살리는 순간 등)에 한 마리를 더 만들지 않게 — 이만큼 계속 없을 때만
+  const now = performance.now();
+  if (!isLost) {
+    fishLostSince = null;
+    return false;
+  }
+  fishLostSince ??= now;
+  if (now - fishLostSince < LOST_FISH_GRACE_MS) return false;
+  fishLostSince = null;
   const x = HEARTH.x;
   const z = HEARTH.z - 1.3;
   inventory.spawn("lightFish", new THREE.Vector3(x * M, groundY(x, z) * M, z * M));
@@ -169,3 +191,15 @@ export function restoreLostFish(offered: ReadonlySet<ItemKind>) {
 /** 소반에 오른 제물(저장된 것) — 소반이 없을 때(나루터) 읽는다 */
 export const offeredSoFar = (): ReadonlySet<ItemKind> =>
   new Set<ItemKind>(ritual.isAtLeast("rising") ? OFFERINGS : recall<ItemKind[]>("ritual.offered", []));
+
+exposeDevHook("najuLeftBehind", {
+  state: () => ({
+    pending: pendingNudge?.kind ?? null,
+    isDockNudgeSpent,
+    offeringHintLevel,
+    offeringNudgeArmed,
+    passed: hasPassedDockGate(),
+  }),
+  noteOfferingExamined,
+  leftFishAtDock,
+});

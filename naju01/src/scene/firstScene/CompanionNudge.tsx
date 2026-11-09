@@ -9,7 +9,7 @@ import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 
 import { isCompanionChatOpen } from "../../companion/chatOpen";
-import { COMPANION_NAME, companionDialog } from "../../companion/companionRuntime";
+import { COMPANION_NAME, companionDialog, IS_COMPANION_ENABLED } from "../../companion/companionRuntime";
 import { isCompanionIntro } from "../../companion/companionStage";
 import { playerPose } from "../../movement/playerPose";
 import { regionAt } from "../../movement/regions";
@@ -17,6 +17,7 @@ import {
   DOCK_GATE_MOUTH,
   DOCK_GATE_REARM_METERS,
   isDockGateHeldByFish,
+  isOfferingNudgeStale,
   linesForNudge,
   markDockGatePassed,
   offeredSoFar,
@@ -63,11 +64,14 @@ export default function CompanionNudge({ enabled }: { enabled: boolean }) {
       const fromMouth = Math.hypot(playerPose.x - DOCK_GATE_MOUTH.x, playerPose.z - DOCK_GATE_MOUTH.z);
       if (fromMouth > DOCK_GATE_REARM_METERS) rearmDockNudge();
       restoreLostFish(offeredSoFar());
-      // 말하던 까닭이 풀렸으면(물고기를 주웠다) 그친다
+      // 말하던 까닭이 풀렸으면(물고기를 주웠다 · 모자란 제물을 주웠다 · 소반 단계가 끝났다) 그친다
       if (talk.isActive && speakingKind.current === "dockGate" && !isDockGateHeldByFish()) talk.stop();
+      if (talk.isActive && speakingKind.current === "offering" && isOfferingNudgeStale(offeredSoFar())) talk.stop();
     }
 
     const request = takeNudgeRequest();
+    // 동행을 끈 판(?npc=off)은 말하지 않는다 — 문의 알림 줄 · 지나감 기록 · 물고기 복구는 위에서 그대로(Codex 리뷰 b8752ba)
+    if (!IS_COMPANION_ENABLED) return;
     if (request) waiting.current = request;
     const pending = waiting.current;
     if (!pending || talk.isActive) return;
