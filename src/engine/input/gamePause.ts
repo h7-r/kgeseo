@@ -126,6 +126,10 @@ function update() {
       document.documentElement.classList.remove("game-frozen");
     }
   }
+  // CSS 애니메이션은 「멈춤」(눌러서 계속) 동안만 세운다(index.css 의 html.game-paused).
+  // 창 때문에 얼었을 때까지 세우면 막 뜬 창의 등장 애니메이션이 첫 장면(투명)에 멈춰 창이 안 보인다(11/9 기차 목적지 창).
+  // 얼어 있는 채로 멈춤만 풀릴 수 있어(창을 연 채 멈췄다 돌아옴) 바뀔 때마다 맞춘다.
+  document.documentElement.classList.toggle("game-paused", isFrozen && isPausedFlag);
   signal.notify();
 }
 
