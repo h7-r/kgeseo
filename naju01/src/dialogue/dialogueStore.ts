@@ -37,6 +37,11 @@ export interface Speech {
   freeCursor?: boolean;
   /** 줄에서 이만큼 넘게 기다렸으면 버린다 — 때를 놓친 말(이미 지나간 상황의 한마디)이 늦게 튀어나오지 않게 */
   ttlMs?: number;
+  /**
+   * 화면에 뜰 때마다(밀려났다 다시 뜰 때도) — 실제로 플레이어에게 보였는지를 부른 쪽이 안다. 줄에서 기다리다 버려진 말은 부르지 않는다.
+   * 서버 개입(넛지 · 제안)의 쿨다운 · 퍼즐당 횟수를 「보인 것」만 세는 데 쓴다(companionBridge)
+   */
+  onShow?: () => void;
   /** 같은 key 의 말이 떠 있거나 줄 서 있으면 새 말로 바꿔 끼운다 */
   key?: string;
   /** 미룰 수 없는 말(숨이 모자란다) — 급을 따지지 않고 떠 있는 말을 물리고 바로 뜬다 */
@@ -129,6 +134,7 @@ export function createDialogueStore(options: StoreOptions = {}) {
     current = { speech, pages, pageIndex: 0, serial: ++serial };
     armTimer();
     emit();
+    speech.onShow?.();
   }
 
   function showNext() {

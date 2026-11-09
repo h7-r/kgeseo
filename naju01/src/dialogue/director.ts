@@ -298,7 +298,13 @@ export function createDirector(options: DirectorOptions) {
    * 서버가 힌트를 권했다(suggest_hint) — 열지 Y/N 으로 묻는다. 제안은 해금이 아니라서 「네」일 때만 연다(부른 쪽이 acceptOffer).
    * 같이 온 서버 대사(lead)는 물음 위에 붙인다 — 따로 띄우면 물음이 그 말을 밀어낸다.
    */
-  async function askOpenHint(request: { lead: string | null; lineId?: string; balance: number | null }) {
+  async function askOpenHint(request: {
+    lead: string | null;
+    lineId?: string;
+    balance: number | null;
+    /** 물음이 실제로 화면에 떴다(dialogueStore onShow) */
+    onShow?: () => void;
+  }) {
     const question =
       request.balance === null ? OPEN_HINT_QUESTION : `${OPEN_HINT_QUESTION} (남은 힌트 ${request.balance})`;
     options.onSpoken?.();
@@ -308,6 +314,7 @@ export function createDirector(options: DirectorOptions) {
       choices: OPEN_CHOICES,
       timeoutMs: ASK_TIMEOUT_MS,
       key: "offer",
+      onShow: request.onShow,
     });
     return answer === YES;
   }

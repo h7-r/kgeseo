@@ -130,7 +130,12 @@ test("서버 승인 대사는 고치지 않고 대화창에 올리고, reply 가
   const { dialog, store, said } = await connected({ turn: () => ({ status: 200, body: turn({ reply }) }) });
   await dialog.autoTurn();
   await tick();
-  assert.deepEqual(said, [{ kind: "line", text: "<승인 대사>", lineId: "SIT_QUIET_01", ttlMs: 10_000 }]);
+  // 서버 넛지 대사는 화면에 뜰 때 쿨다운을 거는 onShow 가 붙는다 — 글 · 종류만 본다
+  assert.deepEqual(
+    said.map(({ onShow: _onShow, ...speech }) => speech),
+    [{ kind: "line", text: "<승인 대사>", lineId: "SIT_QUIET_01", ttlMs: 10_000 }],
+  );
+  assert.equal(typeof said[0].onShow, "function");
   assert.equal(store.getState()?.speech.text, "<승인 대사>");
 
   reply = null;
@@ -482,7 +487,7 @@ test("퍼즐 폴링: 한 번에 턴 하나 — 구역 진입 · 상황이 먼저
 });
 
 /** 서버 · 다리 · 가짜 시계를 세운다(퍼즐 폴링 검사) */
-async function pollBridge(turnReply: Handler = () => ({ status: 200, body: turn() }), answer = false) {
+async function pollBridge(turnReply: Handler = () => ({ status: 200, body: turn() }), answer = false, isShown = true) {
   let clock = 0;
   serve(backend({ turn: turnReply }));
   const session = createCompanionSession({ config: { caseId: "naju-angam-01", contentVersion: 1 }, storage: memoryStore() });
@@ -492,9 +497,14 @@ async function pollBridge(turnReply: Handler = () => ({ status: 200, body: turn(
   let asked = 0;
   const bridge = createCompanionBridge({
     dialog,
-    say: (speech) => void said.push(speech),
-    askOpenHint: async () => {
+    // 가짜 대화창 — 받은 말을 바로 띄운다(isShown 거짓이면 창 · 컷신에 막혀 못 띄우고 버린 셈)
+    say: (speech) => {
+      said.push(speech);
+      if (isShown) speech.onShow?.();
+    },
+    askOpenHint: async (request) => {
       asked += 1;
+      if (isShown) request.onShow?.();
       return answer;
     },
     // 나주 v1 처럼 정식 힌트가 0개인 판 — 폴링은 공식 서버 퍼즐 ID 로 따로 간다(HINTED_PUZZLES 와 무관)
@@ -585,6 +595,17 @@ test("퍼즐 폴링으로 받은 개입은 퍼즐당 2번까지 — 그 뒤 그 
   await relayAt(start + 60_000, "P09");
   assert.equal(turns().length, 3);
   assert.equal(turns()[2].body!.focus_object_id, "OBJ_S1_CAVE_RING_DOOR");
+});
+
+test("화면에 뜨지 못하고 버려진 개입(창 · 컷신)은 쉬지도 세지도 않는다 — 다음 폴링이 그대로 간다(Codex 리뷰 21ab072)", async () => {
+  const nudge: Handler = () => ({
+    status: 200,
+    body: turn({ reply: { source: "approved_line", text: "[모의] 숨구멍을 다시 살펴볼까요?", line_id: "NUDGE_P01_1" } }),
+  });
+  const { relayAt, turns } = await pollBridge(nudge, false, false);
+  await relayAt(0);
+  for (let t = 60_000; t <= 300_000; t += 60_000) await relayAt(t);
+  assert.equal(turns().length, 5, "60초마다 그대로 — 퍼즐당 2번 상한도 쓰지 않았다");
 });
 
 test("퍼즐 폴링이 실패해도(422 · 연결) 「다시 말을 걸어 주세요」 같은 안내를 띄우지 않는다", async () => {

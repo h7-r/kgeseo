@@ -121,7 +121,13 @@ export interface CompanionDialogPort {
   requestPuzzleHint(puzzleId: string): Promise<boolean>;
 }
 
-export type OpenHintRequest = { lead: string | null; lineId?: string; balance: number | null };
+export type OpenHintRequest = {
+  lead: string | null;
+  lineId?: string;
+  balance: number | null;
+  /** 물음이 실제로 화면에 떴다 — 그때에야 쿨다운 · 퍼즐당 횟수에 든다 */
+  onShow?: () => void;
+};
 
 /** 서버 대사가 대화창 줄에서 이만큼 넘게 기다렸으면 버린다 — 연출에 막혀 때를 놓친 말이 늦게 나오지 않게 */
 const SERVER_LINE_TTL_MS = 10_000;
@@ -256,8 +262,18 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
   };
   /** 응답을 기다리는 퍼즐 폴링의 목표 — 그 응답이 개입(넛지 · 제안)이면 그 퍼즐 몫으로 센다 */
   let pollingFor: ObjectiveId | null = null;
-  /** 퍼즐마다 폴링으로 받은 개입 수(POLL_MAX_PER_PUZZLE) */
+  /** 퍼즐마다 폴링으로 받아 화면에 뜬 개입 수(POLL_MAX_PER_PUZZLE) */
   const interventions = new Map<ObjectiveId, number>();
+  /** 개입이 처음 화면에 뜰 때 한 번 — 쿨다운을 걸고, 폴링 응답이면 그 퍼즐 몫으로 센다(밀려났다 다시 떠도 한 번) */
+  const chargeOnce = (objective: ObjectiveId | null) => {
+    let isCharged = false;
+    return () => {
+      if (isCharged) return;
+      isCharged = true;
+      pausePolling(OFFER_POLL_PAUSE_MS.shown);
+      if (objective) interventions.set(objective, (interventions.get(objective) ?? 0) + 1);
+    };
+  };
 
   // 다리를 놓기 전에 이미 있던 말 · 제안은 다시 띄우지 않는다
   let seenLine: DialogLine | null = dialog.getState().line;
@@ -276,24 +292,31 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     // 서버가 권한 제안(ref)만 묻는다. 정식 힌트 다음 단계(puzzle)는 [F] 「힌트를 주세요」가 연다
     const freshOffer = offer?.via === "ref" && offer !== seenOffer ? offer : null;
     seenOffer = offer;
-    // 서버의 개입(승인 넛지 대사 · 힌트 제안)이 왔다 — 쿨다운만큼 폴링을 쉬고, 폴링 응답이면 그 퍼즐 몫으로 센다
+    // 서버의 개입(승인 넛지 대사 · 힌트 제안)이 왔다 — 실제로 화면에 뜬 때에야(onShow) 쿨다운만큼 폴링을 쉬고, 폴링 응답이면
+    // 그 퍼즐 몫으로 센다. 창 · 컷신 때문에 줄에서 기다리다 버려진 응답은 세지 않는다(BE 의 표시 · 미표시와 같은 뜻, Codex 리뷰 21ab072)
     const isIntervention = freshOffer !== null || freshLine?.kind === "npc";
-    if (isIntervention) {
-      pausePolling(OFFER_POLL_PAUSE_MS.shown);
-      if (pollingFor) interventions.set(pollingFor, (interventions.get(pollingFor) ?? 0) + 1);
-    }
+    const charge = isIntervention ? chargeOnce(pollingFor) : undefined;
     if (isIntervention || dialog.getState().waiting === null) pollingFor = null;
     if (!freshOffer) {
-      if (freshLine) options.say(toSpeech(freshLine));
+      if (freshLine) options.say(charge ? { ...toSpeech(freshLine), onShow: charge } : toSpeech(freshLine));
       return;
     }
     const lead = freshLine?.kind === "npc" ? freshLine : null;
     if (freshLine && !lead) options.say(toSpeech(freshLine));
+    let wasShown = false;
     void options
-      .askOpenHint({ lead: lead?.text ?? null, lineId: lead?.lineId ?? undefined, balance: hintBalance })
+      .askOpenHint({
+        lead: lead?.text ?? null,
+        lineId: lead?.lineId ?? undefined,
+        balance: hintBalance,
+        onShow: () => {
+          wasShown = true;
+          charge?.();
+        },
+      })
       .then((isYes) => {
-        // 「아니요」 · 대답 없이 물러남 — 거절 쿨다운만큼 다시 묻지 않는다
-        if (!isYes) pausePolling(OFFER_POLL_PAUSE_MS.declined);
+        // 보인 물음에 「아니요」 · 대답 없이 물러남 — 거절 쿨다운만큼 다시 묻지 않는다(뜨지도 못하고 버려졌으면 거절이 아니다)
+        if (!isYes && wasShown) pausePolling(OFFER_POLL_PAUSE_MS.declined);
         // 묻는 사이 제안이 바뀌었으면(세션이 바뀜 · 새 제안) 이 대답으로 열지 않는다
         if (isYes && dialog.getState().offer === freshOffer) void dialog.acceptOffer();
       });
