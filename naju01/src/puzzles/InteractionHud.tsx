@@ -17,7 +17,7 @@ export default function InteractionHud() {
   const notice = useNotice();
   // 터치 모드면 키 표기를 화면 단추 그림으로(✋ · 💡 · 🎒)
   const labels = useKeyLabels();
-  // 터치 화면에서 인물 대사 상자가 떠 있으면 알림은 상자 안에 뜬다(NpcSpeechHud)
+  // 터치 화면에서 대화창이 떠 있으면 알림은 창 안 맨 위에 뜬다(dialogue/DialogueLayer)
   const isSpeechShown = useSpeechBoxShown();
   const isNoticeInBox = labels.isTouch && isSpeechShown;
   const target = aimedTarget();
@@ -96,7 +96,7 @@ const keyStyle: CSSProperties = {
 const noticeStyle: CSSProperties = {
   position: "absolute",
   left: "50%",
-  // 아래 빠른 칸(소지품 한 줄) 위 — 인물 대사 상자가 떠 있으면 그 위로 비켜 선다(NpcSpeechHud 가 윗변 높이를 알린다)
+  // 아래 빠른 칸(소지품 한 줄) 위 — 대화창이 떠 있으면 그 위로 비켜 선다(DialogueLayer 가 윗변 높이를 알린다)
   bottom: "max(110px, calc(var(--npc-speech-top, 0px) + 12px))",
   transform: "translateX(-50%)",
   zIndex: 25,

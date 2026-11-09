@@ -1,7 +1,8 @@
 /**
  * NAJU-01 그레이박스 껍데기. 본편 껍데기와 같은 구성(Leva · Canvas · T 키로 시작)이고,
  * 씬이 하나뿐이라 라우터가 없다.
- * 순서: 에셋 받기(로딩 덮개) → 씬 한 번 세우기 → 몇 장 그린 뒤 덮개 걷기. 걷힌 뒤에는 다시 세울 것이 없다.
+ * 순서: 동행 세션 열기(CDN 빌드면 최대 2.5초 기다림) → 에셋 받기(로딩 덮개) → 씬 한 번 세우기 → 몇 장 그린 뒤 덮개 걷기.
+ * 걷힌 뒤에는 다시 세울 것이 없다.
  */
 import {
   memo,
@@ -37,10 +38,13 @@ import { useHintBox } from "@/game/hintBox";
 import { DEFAULT_SETTINGS, RESOLUTION_DPR, useSettings } from "@/settings/settings";
 import SettingsPanel from "@/settings/SettingsPanel";
 
+import { ASSET_BASE } from "../../../shared/env.ts";
 import ChibiCustomizerPanel from "../avatar/ChibiCustomizerPanel";
 import { useCompanionChatOpen } from "../companion/chatOpen";
 import CompanionHud from "../companion/CompanionHud";
-import { IS_COMPANION_ENABLED } from "../companion/companionRuntime";
+import { startCompanion } from "../companion/companionRuntime";
+import { connectCompanionDialogue } from "../dialogue/companionLink";
+import { IS_COMPANION_ACTIVE, TALK_BUTTONS } from "../dialogue/talkButton";
 import SidekickCustomizerPanel from "../avatar/SidekickCustomizerPanel";
 import { readMeshAppearance, type MeshAppearanceConfig } from "../avatar/meshAppearance";
 import { readSidekickAppearance } from "../avatar/sidekickOptions";
@@ -62,6 +66,7 @@ import { IS_MANGA_STYLE, MangaEffect } from "../world/mangaStyle";
 import LoadingCover, { type LoadingProgress } from "./LoadingCover";
 import { PuzzleHud, PuzzleWorld } from "./PuzzleLayer";
 import { prefetchNajuAssets } from "./prefetch";
+import { waitForSessionBeforeAssets } from "./sessionGate";
 import {
   ALLOW_VIEW_TOGGLE,
   IS_ARRIVING_FROM_HUB,
@@ -153,23 +158,33 @@ export default function App() {
   useEffect(() => {
     let isAlive = true;
     let frame = 0;
-    prefetchNajuAssets((done, total, label) => {
-      if (isAlive) setLoadingProgress({ done, total, label, phase: "fetching" });
-    }).then(() => {
-      if (!isAlive) return;
-      setLoadingProgress((previous) => ({ ...previous, phase: "building" }));
-      // 「세우는 중」이 한 번 그려진 뒤에 붙인다 — 같은 틱이면 수 초짜리 동기 세우기가 먼저 와 「받는 중」에서 얼어 보인다
-      frame = requestAnimationFrame(() => {
+    // 동행 세션은 앱이 뜰 때 한 번 연다 — 진행 동기화 · NPC · 힌트가 모두 이 Play Session 을 쓴다(전에는 CompanionHud 안에서 열었다, #52).
+    // 여러 번 불려도 한 번만 돈다(startCompanion). CDN 에셋이면 세션이 준 판 경로로 받게 받기 전에 잠깐 기다린다
+    const session = IS_COMPANION_ACTIVE ? startCompanion() : Promise.resolve();
+    waitForSessionBeforeAssets(session, { isCdn: !!ASSET_BASE })
+      .then(() =>
+        prefetchNajuAssets((done, total, label) => {
+          if (isAlive) setLoadingProgress({ done, total, label, phase: "fetching" });
+        }),
+      )
+      .then(() => {
+        if (!isAlive) return;
+        setLoadingProgress((previous) => ({ ...previous, phase: "building" }));
+        // 「세우는 중」이 한 번 그려진 뒤에 붙인다 — 같은 틱이면 수 초짜리 동기 세우기가 먼저 와 「받는 중」에서 얼어 보인다
         frame = requestAnimationFrame(() => {
-          if (isAlive) setIsSceneReady(true);
+          frame = requestAnimationFrame(() => {
+            if (isAlive) setIsSceneReady(true);
+          });
         });
       });
-    });
     return () => {
       isAlive = false;
       cancelAnimationFrame(frame);
     };
   }, []);
+
+  // 동행 서버의 말 · 힌트 제안 · auto 턴을 대화창 한 벌에 잇는다(dialogue/companionBridge). 대화창은 CompanionHud 가 아니라 DialogueLayer 다
+  useEffect(() => (IS_COMPANION_ACTIVE ? connectCompanionDialogue() : undefined), []);
 
   useEffect(() => {
     if (!isSceneDrawn) return undefined;
@@ -306,7 +321,8 @@ export default function App() {
 
       {IS_ARRIVING_FROM_HUB && <ArrivalCover isRevealed={isArrivalRevealed} />}
       <PuzzleHud />
-      {IS_COMPANION_ENABLED && !IS_REVIEW_REQUESTED && (
+      {/* 동행 세션 상태 표식(?dev) · 자유 입력(베타는 끔) — 동행의 말은 위 PuzzleHud 의 대화창에 뜬다 */}
+      {IS_COMPANION_ACTIVE && (
         <CompanionHud controlsRef={controlsRef} isLocked={isLocked} showStatus={SHOW_DEV_TOOLS} />
       )}
       <InventoryModal open={isInventoryOpen} onClose={() => setIsInventoryOpen(false)} />
@@ -339,7 +355,7 @@ export default function App() {
         </button>
       )}
       <SettingsPanel open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-      <TouchHud />
+      <TouchHud extraTopButtons={TALK_BUTTONS} />
       <MobileGate controlsRef={controlsRef} isWindowOpen={isWindowOpen} />
       {SHOW_FPS && <FpsBadge />}
       {isCoverMounted && <LoadingCover progress={loadingProgress} isFading={isSceneDrawn} />}

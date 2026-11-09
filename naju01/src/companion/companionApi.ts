@@ -49,6 +49,17 @@ export interface NpcTurnBody {
   trigger: NpcTurnTrigger;
   message?: string;
   focus_object_id?: string;
+  /**
+   * 계약 v0.4.16 §2 — auto 턴의 상황. BE(#54)가 받기 전에는 보내는 쪽(dialogue/companionBridge 의 SEND_SITUATION)이 꺼 둔다.
+   */
+  situation?: NpcSituation;
+}
+
+/** 계약 v0.4.16 §2 의 situation — code 만 필수. zone_id 는 나주 대응표(v1.1 §1)의 Zone ID */
+export interface NpcSituation {
+  code: string;
+  zone_id?: string;
+  value?: number;
 }
 
 export type FallbackReason =
