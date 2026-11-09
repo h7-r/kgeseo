@@ -124,6 +124,9 @@ export const ridgeQuest = {
 };
 export const useRidgeQuest = () => useSyncExternalStore(questSignal.subscribe, () => questVersion);
 
+/** 아랑사의 함 — 속의 것을 꺼내 챙겼나. 함(BoxOpening)이 적고, 챙기기 전에는 틈(GateRift)이 끌어들이지 않는다 */
+export const ridgeBox = { isEmptied: false };
+
 /** 퍼즐을 건너뛰고 뒤 연출을 볼 때 — 돌새 쪽이 풀이를 등록한다 */
 export const ridgeDev: { solve: (() => void) | null } = { solve: null };
 

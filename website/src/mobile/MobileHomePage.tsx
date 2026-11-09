@@ -393,7 +393,7 @@ const chipStyle: CSSProperties = {
   borderRadius: 999,
   border: `1px solid ${COLOR.border}`,
   fontFamily: FONT.mono,
-  fontSize: "11px",
+  fontSize: "12px",
   color: COLOR.textMuted,
   whiteSpace: "nowrap",
 };

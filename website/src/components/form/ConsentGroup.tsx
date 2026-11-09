@@ -32,12 +32,7 @@ export default function ConsentGroup({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "9px", width: "100%", position: "relative" }}>
-      <ConsentRow
-        checked={allAgreed}
-        hasGlow={hasGlow}
-        onChange={(v) => onChange("all", v)}
-        ariaLabel="전체 동의"
-      >
+      <ConsentRow checked={allAgreed} hasGlow={hasGlow} onChange={(v) => onChange("all", v)} ariaLabel="전체 동의">
         <span style={requiredTagStyle}>[전체]</span>
         <span style={muted}>아래 항목에 모두 동의합니다.</span>
       </ConsentRow>
@@ -130,7 +125,10 @@ interface ConsentRowProps {
 /** 보이는 네모는 시안 그대로 두고, 진짜 체크박스를 투명하게 겹쳐 키보드·스크린리더가 쓸 수 있게 한다. */
 function ConsentRow({ checked, hasGlow, onChange, ariaLabel, children }: ConsentRowProps) {
   return (
-    <label style={{ display: "flex", gap: "10px", alignItems: "center", position: "relative", cursor: "pointer" }}>
+    <label
+      className="consent-row"
+      style={{ display: "flex", gap: "10px", alignItems: "center", position: "relative", cursor: "pointer" }}
+    >
       <span style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}>
         <input
           type="checkbox"
@@ -152,7 +150,9 @@ function ConsentRow({ checked, hasGlow, onChange, ariaLabel, children }: Consent
           {checked && <span style={checkMarkStyle} />}
         </span>
       </span>
-      <span className="consent-text" style={consentTextStyle}>{children}</span>
+      <span className="consent-text" style={consentTextStyle}>
+        {children}
+      </span>
     </label>
   );
 }

@@ -24,7 +24,7 @@ import { setPuzzlePanel } from "../puzzlePanel";
 import { M, groundY } from "../units";
 import { buildAltar, makeRingTexture } from "./gateArt";
 import { POSTS, SYMBOLS, angleFor, buildPostRings, isSolved, type Ring } from "./gateRings";
-import { PAPER_READING, openPaper } from "./oldPaper";
+import { openPaper } from "./oldPaper";
 import { ALTAR, GATE, RIDGE_CENTER } from "./ridgeShape";
 import { ridge, ridgeQuest, useRidgeQuest } from "./ridgeState";
 import { createTorchFire, stripFlame, updateTorchFire } from "./torchFlames";
@@ -295,7 +295,7 @@ export default function GateAltar() {
     }
     setPuzzlePanel("ridge-posts", {
       title: "장승 고리",
-      rule: `궤 속 종이 — 「${PAPER_READING}」 장승마다 머리 고리 · 발 고리를 [E] 로 돌려 그 그림을 앞으로 맞춘다.`,
+      rule: "궤 속 종이에 적힌 대로, 장승마다 머리 고리 · 발 고리를 [E] 로 돌려 그 그림을 앞으로 맞춘다.",
       rows: gate.rings.map((ring) => ({
         label: `${POSTS[ring.post].name} · ${ring.slot === 0 ? "머리" : "발"}`,
         value: SYMBOLS[ring.symbol],

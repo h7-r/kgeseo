@@ -31,8 +31,14 @@ export function buildBoxBase() {
   for (const sx of [-1, 1]) parts.push(paintedBox(wall, height, depth, sx * (width - wall) * 0.5, height / 2, 0, WOOD));
   // 속 바닥 — 옻칠이 닳은 어두운 안쪽
   parts.push(paintedBox(width - wall * 2, 0.001, depth - wall * 2, 0, floor + 0.0005, 0, "#160D07"));
-  // 판자 이음 띠
-  for (const y of [0.05, 0.1]) parts.push(paintedBox(width + 0.002, 0.004, depth + 0.002, 0, y, 0, WOOD_LIGHT));
+  // 판자 이음 띠 — 네 벽 바깥에만 두른다(통판이면 속을 덮어 함 속이 막힌다)
+  const band = 0.004;
+  for (const y of [0.05, 0.1]) {
+    for (const sz of [-1, 1])
+      parts.push(paintedBox(width + band, band, band, 0, y, sz * (depth + band) * 0.5, WOOD_LIGHT));
+    for (const sx of [-1, 1])
+      parts.push(paintedBox(band, band, depth + band, sx * (width + band) * 0.5, y, 0, WOOD_LIGHT));
+  }
   // 모서리 감잡이(ㄱ자 청동판)
   for (const sx of [-1, 1])
     for (const sz of [-1, 1]) {

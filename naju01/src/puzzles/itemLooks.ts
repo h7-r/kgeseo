@@ -65,15 +65,17 @@ export function buildItemLooks(): Record<ItemKind, ItemLook> {
       material: makeToonMaterial("#E2DCCD"),
       lift: 0.06,
     },
+    // 막걸리 — 배에서 챙긴 그 백자 술병 그대로(makgeolli/BoatBottles 와 같은 모형)
     makgeolli: {
       geometry: buildLathe(BOTTLE_PROFILE),
       material: makeToonMaterial("#EDE8DA", { side: THREE.DoubleSide }),
       lift: 0,
+      model: { url: LIQUOR_BOTTLE_MODEL, size: 0.3 },
     },
     gearStone: {
       geometry: buildGearStoneGeometry(),
       // 물속 어둠에서도 찾아지게 살짝 빛난다
-      material: makeToonMaterial("#55605F", { emissive: new THREE.Color("#0F2A30") }),
+      material: makeToonMaterial("#55605F", { emissive: new THREE.Color("#1E4A52") }),
       lift: 0,
     },
     pearl: {
@@ -113,7 +115,136 @@ export function buildItemLooks(): Record<ItemKind, ItemLook> {
       material: makeToonMaterial("#FFFFFF", { vertexColors: true, emissive: new THREE.Color("#3A2A10") }),
       lift: 0,
     },
+    // 함 속 구렁이상 — 미르의 구렁이 모형(코드 소품)을 손바닥만 하게
+    serpentFigure: {
+      geometry: new THREE.CylinderGeometry(0.05, 0.06, 0.08, 10).translate(0, 0.04, 0),
+      material: makeToonMaterial("#6B6F5A"),
+      lift: 0,
+      model: { url: SERPENT_MODEL, size: 0.16 },
+    },
+    // 사발 셋 · 귀때동이 — 미르 라이브러리(국가유산청 CC BY 4.0). 같은 사발을 크기만 달리 쓴다
+    bowlLarge: bowlLook(0.3),
+    bowlMedium: bowlLook(0.22),
+    bowlSmall: bowlLook(0.15),
+    dewBowlLarge: bowlLook(0.3),
+    dewBowlMedium: bowlLook(0.22),
+    dewBowlSmall: bowlLook(0.15),
+    emptyJug: jugLook(),
+    waterJug: jugLook(),
+    // 삼베 주머니 — 아가리를 졸라맨 자루
+    arangPouch: {
+      geometry: buildPouchGeometry(),
+      material: makeToonMaterial("#B9A682", { side: THREE.DoubleSide, emissive: new THREE.Color("#2A2416") }),
+      lift: 0,
+      model: { url: POUCH_MODEL, size: 0.24 },
+    },
+    // 조가비 가락지 두 짝 — 굵은 것에 가는 것이 기대어 있다
+    shellRings: {
+      geometry: buildShellRings(),
+      material: makeToonMaterial("#F1ECE2", { emissive: new THREE.Color("#4A4A52") }),
+      lift: 0,
+    },
+    // 관솔불 — 끝이 벌겋게 탄다. 밤에도 보이게 빛을 타지 않는 재질로
+    pineTorch: {
+      geometry: buildPineTorchGeometry(),
+      material: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
+      lift: 0,
+    },
   };
+}
+
+export const SERPENT_MODEL = "/_sf_local/codeprops/serpent.glb";
+export const LIQUOR_BOTTLE_MODEL = "/_sf_local/lib/ast-prop-liquor-bottle-porcelain-01.glb";
+/** 끈 달린 주머니 — 아랑사의 주머니(바위 틈 · 주머니 속 그림이 같이 쓴다) */
+export const POUCH_MODEL = "/_sf_local/lib/ast-prop-bird-feed-pouch-01.glb";
+/** 고리 — 조가비 가락지(주머니 속 그림) */
+export const RING_MODEL = "/_sf_local/lib/ast-prop-silver-ring-2-01.glb";
+const BOWL_MODEL = "/_sf_local/lib/ast-prop-sabal-rice-bowl-01.glb";
+const JUG_MODEL = "/_sf_local/lib/ast-prop-spouted-jar-gwittae-01.glb";
+const BOWL_PROFILE: [number, number][] = [
+  [0, 0],
+  [0.045, 0],
+  [0.05, 0.02],
+  [0.11, 0.12],
+  [0.1, 0.12],
+  [0.04, 0.025],
+  [0, 0.025],
+];
+const JUG_PROFILE: [number, number][] = [
+  [0, 0],
+  [0.12, 0],
+  [0.2, 0.15],
+  [0.18, 0.3],
+  [0.12, 0.38],
+  [0.13, 0.4],
+  [0, 0.4],
+];
+const POUCH_PROFILE: [number, number][] = [
+  [0, 0],
+  [0.05, 0.005],
+  [0.075, 0.04],
+  [0.07, 0.085],
+  [0.03, 0.115],
+  [0.022, 0.125],
+  [0.045, 0.15],
+  [0, 0.15],
+];
+/** 삼베 주머니 — 아가리를 졸라맨 자루. 미터, 바닥이 원점 */
+export const buildPouchGeometry = () => buildLathe(POUCH_PROFILE);
+/** 사발 — 모형을 읽기 전에는 옆선만. diameter 는 지름(미터) */
+function bowlLook(diameter: number): ItemLook {
+  const scale = diameter / 0.22;
+  return {
+    geometry: buildLathe(BOWL_PROFILE.map(([r, y]) => [r * scale, y * scale])),
+    material: makeToonMaterial("#E4E8E6", { side: THREE.DoubleSide }),
+    lift: 0,
+    model: { url: BOWL_MODEL, size: diameter },
+  };
+}
+const jugLook = (): ItemLook => ({
+  geometry: buildLathe(JUG_PROFILE),
+  material: makeToonMaterial("#3A332E", { side: THREE.DoubleSide }),
+  lift: 0,
+  model: { url: JUG_MODEL, size: 0.42 },
+});
+/** 관솔불의 불이 붙는 자리 — 밑동에서 이만큼 위(미터). 불꽃은 여기서 솟는다 */
+export const PINE_TORCH_TIP = 0.5;
+/**
+ * 관솔불 — 손목 굵기 소나무 가지에 삼끈을 돌려 감고, 끝에 송진 먹인 헝겊을 두툼하게 말았다(꼭짓점 색). 미터, 밑이 원점.
+ * 불꽃은 모양에 넣지 않는다 — 들고 있을 때 실제 불꽃으로 그린다(gut/TorchRite)
+ */
+export function buildPineTorchGeometry() {
+  const paint = (geometry: THREE.BufferGeometry, color: string, gain = 1) => {
+    const flat = geometry.index ? geometry.toNonIndexed() : geometry;
+    const tint = new THREE.Color(color).multiplyScalar(gain);
+    const count = flat.attributes.position.count;
+    const colors = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) tint.toArray(colors, i * 3);
+    flat.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    flat.deleteAttribute("uv");
+    return flat;
+  };
+  const parts = [paint(new THREE.CylinderGeometry(0.011, 0.016, 0.44, 7).translate(0, 0.22, 0), "#5E4127")];
+  // 자루를 감은 삼끈 — 손잡이께 세 번, 헝겊 밑에 두 번
+  for (const y of [0.06, 0.085, 0.11, 0.36, 0.385])
+    parts.push(
+      paint(new THREE.TorusGeometry(0.0155, 0.0042, 5, 10).rotateX(Math.PI / 2).translate(0, y, 0), "#B39A62"),
+    );
+  // 송진 먹인 헝겊 뭉치 — 겹겹이 말려 울퉁불퉁하고, 타는 속이 틈새로 벌겋다
+  parts.push(paint(new THREE.CylinderGeometry(0.03, 0.022, 0.1, 8).translate(0, 0.45, 0), "#1C130D"));
+  parts.push(paint(new THREE.TorusGeometry(0.027, 0.006, 5, 10).rotateX(Math.PI / 2).translate(0, 0.43, 0), "#2B1D13"));
+  parts.push(paint(new THREE.TorusGeometry(0.029, 0.006, 5, 10).rotateX(Math.PI / 2).translate(0, 0.47, 0), "#2B1D13"));
+  parts.push(
+    paint(new THREE.SphereGeometry(0.024, 8, 6).scale(1, 0.6, 1).translate(0, PINE_TORCH_TIP, 0), "#FF7A2A", 2.2),
+  );
+  return mergeGeometries(parts)!;
+}
+
+/** 가락지 두 짝 — 눕힌 굵은 고리에 가는 고리가 비스듬히 기댄다. 미터, 바닥이 원점 */
+function buildShellRings() {
+  const big = new THREE.TorusGeometry(0.03, 0.008, 8, 20).rotateX(Math.PI / 2).translate(0, 0.008, 0);
+  const small = new THREE.TorusGeometry(0.024, 0.006, 8, 20).rotateX(1.0).translate(0.02, 0.022, 0.012);
+  return mergeGeometries([big, small])!;
 }
 
 /**

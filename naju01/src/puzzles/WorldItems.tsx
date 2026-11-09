@@ -8,6 +8,7 @@ import { useFrame } from "@react-three/fiber";
 
 import { audio } from "../scene/immersion/audio";
 import { M } from "./units";
+import { HAND_SCALE, handItemAt } from "./handPlace";
 import { registerInteractable, setHandHandler, showNotice, usesWithHand } from "./interaction";
 import {
   ITEMS,
@@ -88,13 +89,6 @@ export default function WorldItems() {
   );
 }
 
-/** 손에 든 물건 자리(미터) — 화면 오른쪽 아래, 눈보다 아래 */
-const HAND_OFFSET = { forward: 0.8, side: 0.3, down: 0.36 };
-/** 손에 든 물건 배율 — 눈 바로 앞이라 실물 크기면 화면을 가린다 */
-const HAND_SCALE = 0.7;
-const handForward = new THREE.Vector3();
-const handSide = new THREE.Vector3();
-
 /** 손에 든 물건 — 카메라를 따라 화면 오른쪽 아래에 들려 있다 */
 function HandItem({ item, look }: { item: HeldItem; look: ItemLook }) {
   const meshRef = useRef<THREE.Group>(null);
@@ -102,13 +96,7 @@ function HandItem({ item, look }: { item: HeldItem; look: ItemLook }) {
   useFrame(({ camera, clock }) => {
     const mesh = meshRef.current;
     if (!mesh) return;
-    camera.getWorldDirection(handForward);
-    handSide.crossVectors(handForward, camera.up).normalize();
-    mesh.position
-      .copy(camera.position)
-      .addScaledVector(handForward, HAND_OFFSET.forward * M)
-      .addScaledVector(handSide, HAND_OFFSET.side * M)
-      .addScaledVector(camera.up, -HAND_OFFSET.down * M);
+    handItemAt(camera, mesh.position);
     mesh.quaternion.copy(camera.quaternion);
     // 빛 물고기는 손에서도 꿈틀댄다
     if (item.kind === "lightFish") mesh.rotateY(Math.sin(clock.elapsedTime * 7) * 0.3);
@@ -165,11 +153,11 @@ function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
     const x = item.position.x / M;
     const z = item.position.z / M;
     // 물 위면 수면에 뜬다 — 뜬 돌은 물결 따라 까딱이고, 다른 물건도 물밑에 묻혀 사라지지 않는다
+    // 물굴 안은 통째로 물속이다 — 거기 나온 물건(톱니돌 등)은 바닥에 그대로 놓인다. 수면으로 띄우면 머리 위로 사라진다
+    const isInCave = cave.isOpen() && cave.contains(x, z);
     const surface = floodSurfaceAt(x, z);
-    // 얹어 둔 것(열린 조개 속 톱니돌)은 바닥으로 끌어내리면 껍데기 밑에 묻힌다
-    const floorHere =
-      !item.isPerched && cave.isOpen() && cave.contains(x, z) ? (cave.groundAt(x, z)?.y ?? 0) : item.position.y / M;
-    const isFloating = surface > floorHere;
+    const floorHere = item.position.y / M;
+    const isFloating = !isInCave && surface > floorHere;
     const t = clock.elapsedTime;
     const bob = isFloating && item.kind === "floatStone" ? Math.sin(t * 1.6 + item.uid) * BOB_HEIGHT : 0;
     const restY = isFloating ? surface + bob : floorHere;

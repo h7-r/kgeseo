@@ -11,6 +11,7 @@ import type { ProgressIdTable } from "../src/progress/progressSync.ts";
 import { createPuzzleSubmission, verdictNotice, type SubmissionState } from "../src/progress/puzzleSubmission.ts";
 import { JAR_COUNT, jarOrderAnswer } from "../src/puzzles/jars/jarAnswer.ts";
 import { isLocalJarOrderCorrect } from "../src/puzzles/jars/jarLocalJudge.dev.ts";
+import { NOTCH_COUNT, RING_COUNT, ringDoorAnswer } from "../src/puzzles/cave/ringDoorAnswer.ts";
 
 interface Call {
   path: string;
@@ -48,7 +49,11 @@ const READY: CompanionSessionStatus = { phase: "ready", playSessionId: PLAY, cas
 // 가상 대응표 — 왼쪽은 najuLocalIds 의 로컬 이름, 오른쪽은 시험용 런타임 ID
 const TABLE: ProgressIdTable = {
   zones: { [NAJU_LOCAL.zones.Z2]: "ZONE_TEST_Z2", [NAJU_LOCAL.zones.caveHall]: "ZONE_TEST_HALL" },
-  objects: { [NAJU_LOCAL.objects.P03]: "OBJ_TEST_JARS", [NAJU_LOCAL.objects.P07]: "OBJ_TEST_BIG_CLAM" },
+  objects: {
+    [NAJU_LOCAL.objects.P03]: "OBJ_TEST_JARS",
+    [NAJU_LOCAL.objects.P07]: "OBJ_TEST_BIG_CLAM",
+    [NAJU_LOCAL.objects.P09]: "OBJ_TEST_DOOR",
+  },
 };
 const P03 = (answer: string) =>
   ({ action: "input", zone: NAJU_LOCAL.zones.Z2, object: NAJU_LOCAL.objects.P03, answer }) as const;
@@ -140,6 +145,50 @@ test("P03 중복 제출: 보내는 중에는 새 시도를 받지 않는다(busy
   release();
   assert.deepEqual(await first, { kind: "correct" });
   assert.equal(calls.length, 1);
+});
+
+// ── P09 답 모양 · 서버 판정 ── (값은 아무 눈금이다 — 정답과 상관없다)
+
+const P09 = (answer: string) =>
+  ({ action: "input", zone: NAJU_LOCAL.zones.caveHall, object: NAJU_LOCAL.objects.P09, answer }) as const;
+
+test("P09 답: 고리 셋의 눈금 번호(0~35)를 [바깥, 가운데, 안쪽] 차례로 쉼표로 잇고, 모양이 틀리면 거절한다", () => {
+  assert.equal(RING_COUNT, 3);
+  assert.equal(NOTCH_COUNT, 36);
+  assert.equal(ringDoorAnswer([7, 18, 35]), "7,18,35");
+  assert.throws(() => ringDoorAnswer([7, 18]));
+  assert.throws(() => ringDoorAnswer([7, 18, 36]));
+  assert.throws(() => ringDoorAnswer([7, -1, 3]));
+  assert.throws(() => ringDoorAnswer([7, 1.5, 3]));
+});
+
+test("P09 제출: 물굴 큰 방 · 돌바퀴로 input 한 번, 오답이면 완료가 아니고 쥘 것도 없다", async () => {
+  serve(() => ({ status: 200, body: result("incorrect", 1) }));
+  const { submission } = setup();
+  assert.deepEqual(await submission.submit(P09("7,18,35")), { kind: "incorrect", attemptCount: 1 });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body?.action, "input");
+  assert.equal(calls[0].body?.target_type, "object");
+  assert.equal(calls[0].body?.zone_id, "ZONE_TEST_HALL");
+  assert.equal(calls[0].body?.target_id, "OBJ_TEST_DOOR");
+  assert.deepEqual(calls[0].body?.payload, { answer: "7,18,35" });
+  assert.equal(submission.canRetry(), false);
+});
+
+test("P09 앞 퍼즐 미완료(409 required-puzzles): failed — 문을 열지 않고 다시 보낼 것도 없다", async () => {
+  serve(() => ({ status: 409, body: { detail: "Required puzzles are not completed.", missing_puzzle_count: 1 } }));
+  const { submission } = setup();
+  assert.deepEqual(await submission.submit(P09("7,18,35")), { kind: "failed", reason: "required-puzzles" });
+  assert.equal(submission.canRetry(), false);
+});
+
+test("P09 대응표 확정 전: 보내지 않고 unavailable — 배포 빌드에서는 열지 않고 「연결 필요」", async () => {
+  serve(() => ({ status: 200, body: result("correct") }));
+  const { submission } = setup({ table: null });
+  const verdict = await submission.submit(P09("7,18,35"));
+  assert.deepEqual(verdict, { kind: "unavailable", reason: "not-configured" });
+  assert.equal(calls.length, 0);
+  assert.match(verdictNotice(verdict) ?? "", /연결/);
 });
 
 // ── P07 화면 판정 ──

@@ -57,7 +57,7 @@ export default function InAppNotice() {
 const noteStyle: CSSProperties = { margin: 0, fontFamily: FONT.body, fontSize: "14px", lineHeight: 1.55 };
 
 const helpLinkStyle: CSSProperties = {
-  minHeight: 40,
+  minHeight: 44,
   fontFamily: FONT.body,
   fontSize: "13px",
   color: COLOR.accent,

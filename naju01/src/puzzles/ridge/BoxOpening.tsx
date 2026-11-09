@@ -20,7 +20,7 @@ import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { makeGlowTexture } from "../glowTexture";
 import { registerInteractable, showNotice } from "../interaction";
-import { ridge } from "./ridgeState";
+import { ridge, ridgeBox } from "./ridgeState";
 import { inventory, registerLeftBehind, useHeldItems, useWorldItems } from "../inventory";
 import { createCompressedGltfLoader } from "../../loaders/compressedGlb";
 import { M, groundY } from "../units";
@@ -176,6 +176,8 @@ export default function BoxOpening() {
   const playTime = useRef(-1);
   const cuesFired = useRef(new Set<number>());
   const told = useRef({ hint: false, unlocked: false });
+  /** 함 속 구렁이상을 꺼냈나 — 4스테이지(바위 위)에서 쓴다 */
+  const serpentTaken = useRef(recall("ridge.serpentTaken", false));
   const held = useHeldItems();
   const worldItems = useWorldItems();
 
@@ -256,11 +258,18 @@ export default function BoxOpening() {
         box.lock.visible = false;
       } else if (saved.phase !== "placed") startUnlock.current();
     }
-    return track("ridge.box", (): SavedBox => ({
+    box.serpent.visible = !serpentTaken.current;
+    ridgeBox.isEmptied = serpentTaken.current;
+    const untrackSerpent = track("ridge.serpentTaken", () => serpentTaken.current);
+    const untrackBox = track("ridge.box", (): SavedBox => ({
       phase: phase.current,
       restAt: box.restAt.toArray(),
       yaw: box.root.rotation.y,
     }));
+    return () => {
+      untrackSerpent();
+      untrackBox();
+    };
   }, [box]);
 
   /** 내려놓은 함을 도로 챙긴다 — 다시 평상이나 다른 자리에 놓을 수 있다. 칸이 없으면 false */
@@ -331,9 +340,36 @@ export default function BoxOpening() {
         showNotice("함을 다시 챙겼다. 청동 자물통이 단단히 채워져 있어 맞는 열쇠가 있어야 열린다.", 3.5);
       },
     });
+    // 다 본 함 — 바닥의 구렁이상을 꺼낸다
+    const serpentTarget = new THREE.Vector3();
+    const removeSerpent = registerInteractable({
+      id: "ridge-box-serpent",
+      position: serpentTarget,
+      label: "구렁이상 꺼내기",
+      isPickup: true,
+      radius: 0.35 * M,
+      reach: 2.4 * M,
+      enabled: () => {
+        if (phase.current !== "done" || serpentTaken.current) return false;
+        serpentTarget.copy(box.root.position).setY(box.root.position.y + 0.15 * M);
+        return true;
+      },
+      use: () => {
+        if (!inventory.add("serpentFigure")) {
+          showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 꺼내자.");
+          return;
+        }
+        serpentTaken.current = true;
+        ridgeBox.isEmptied = true;
+        box.serpent.visible = false;
+        audio.play("단서");
+        showNotice("손바닥만 한 구렁이상 — 똬리를 틀고 고개를 들었다. 어부의 함에 왜 이것이.", 4.5);
+      },
+    });
     return () => {
       removePlatform();
       removeLock();
+      removeSerpent();
     };
   }, [box, camera]);
 
@@ -361,6 +397,8 @@ export default function BoxOpening() {
       }
     }
     if (phase.current === "play") updatePlay(dt, frame.clock.elapsedTime);
+    // 다 본 함 — 꺼내기 전까지 속이 은은히 밝아 밤에도 구렁이상이 보인다
+    if (phase.current === "done") (box.glow.material as THREE.SpriteMaterial).opacity = serpentTaken.current ? 0 : 0.35;
     if (phase.current !== "unlocking") return;
 
     const elapsed = gameNow() / 1000 - startedAt.current;
@@ -451,7 +489,10 @@ export default function BoxOpening() {
     box.play.mesh.visible = false;
     box.beam.visible = false;
     (box.glow.material as THREE.SpriteMaterial).opacity = 0;
-    showNotice("빛이 함으로 가라앉았다. 바닥에 작은 구렁이상 하나가 남아 있다 — 아랑사의 함에 왜 이것이.", 6);
+    showNotice(
+      "빛이 함으로 가라앉았다. 바닥에 작은 구렁이상 하나가 남아 있다 — 아랑사의 함에 왜 이것이. [E] 로 꺼낸다.",
+      6,
+    );
   };
 
   useEffect(() => {

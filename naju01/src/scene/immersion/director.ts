@@ -50,6 +50,16 @@ export function setZoneRainGate(code: string, gate: (() => boolean) | null) {
 }
 const isRainZoneOpen = (code: string) => zoneRainGates.get(code)?.() ?? true;
 
+/**
+ * 구역 시간대 바꿔 걸기 — 퍼즐이 그 구역의 시간대를 큐 시트와 다르게 건다(이름을 주면 그 시간대, null 이면 큐 시트대로).
+ * 나주 2구역은 바위 위에서 벼랑 끝 틈을 지나 내려서면 굿판의 밤이 된다
+ */
+const zoneTimes = new Map<string, () => string | null>();
+export function setZoneTime(code: string, pick: (() => string | null) | null) {
+  if (pick) zoneTimes.set(code, pick);
+  else zoneTimes.delete(code);
+}
+
 export const director = {
   settings,
   cue: (item: CueItem, context?: CueContext) => playCue(item, context),
@@ -249,7 +259,7 @@ export function tick({ scene, camera, terrain, position, dt, active }: TickArgs)
   const paused = focus.paused;
   const code = currentZone() ?? stage.zone ?? cueTable.기본구역;
   const zq = cueTable.구역?.[code] ?? {};
-  const tod = cueTable.시간대[zq.시간대 ?? "한낮"] ?? cueTable.시간대.한낮;
+  const tod = cueTable.시간대[zoneTimes.get(code)?.() ?? zq.시간대 ?? "한낮"] ?? cueTable.시간대.한낮;
 
   // ── 구역 바뀜 → 전환 박자 · 소리 섞기 ──
   if (code !== stage.zone) {

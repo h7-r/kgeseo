@@ -158,6 +158,21 @@ test("input · select: payload 는 answer / choice 하나뿐", async () => {
   });
 });
 
+test("inspect: 물건 대상 · 빈 payload(조사 ID 는 서버가 물건에서 찾는다)", async () => {
+  serve(() => ({ status: 200, body: okResponse() }));
+  const outcome = await sync().submit({ action: "inspect", zone: "TA", object: "test-lever" });
+  assert.equal(outcome.kind, "sent");
+  assert.deepEqual(calls[0].body, {
+    client_event_id: "00000000-0000-4000-8000-000000000001",
+    client_timestamp: NOW,
+    zone_id: "ZONE_TEST_A",
+    action: "inspect",
+    target_type: "object",
+    target_id: "OBJ_TEST_LEVER",
+    payload: {},
+  });
+});
+
 // ── 재시도 ──
 
 test("연결 실패 · 502~504 는 같은 client_event_id · 같은 본문 문자열로 다시 보낸다", async () => {

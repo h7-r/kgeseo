@@ -472,7 +472,7 @@ export function MobileSearchPage() {
             <button
               key={word}
               type="button"
-              style={{ ...secondaryButtonStyle, minHeight: 40 }}
+              style={{ ...secondaryButtonStyle, minHeight: 44 }}
               onClick={() => {
                 setDraft(word);
                 run(word);
@@ -545,7 +545,7 @@ const badgeStyle: CSSProperties = {
   borderRadius: 999,
   border: `1px solid ${COLOR.border}`,
   fontFamily: FONT.mono,
-  fontSize: "11px",
+  fontSize: "12px",
   color: COLOR.textMuted,
 };
 const inputStyle: CSSProperties = {

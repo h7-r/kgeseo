@@ -11,6 +11,7 @@ import type { TerrainTeleport } from "../movement/useTerrainMovement";
 import { computeEditAnchors, type Edits, type InstanceGroup } from "../placement/instanceGroups";
 import { collectLocalIds } from "../placement/localIds";
 import { BLOCKERS, METERS_PER_UNIT, PATHS, SCENE_TITLES, ZONES } from "../plan/sitePlan";
+import { NAJU_ID_TABLE_V1 } from "../progress/najuIdTable";
 import { listInteractableIds } from "../puzzles/interaction";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 import type { CollapseSequence } from "../story/blockerCollapse";
@@ -101,6 +102,7 @@ export function useNajuDevHook({
           blockers: BLOCKERS,
           sceneNumbers: Object.keys(SCENE_TITLES),
           groups: instanceGroups,
+          progress: { zones: Object.keys(NAJU_ID_TABLE_V1.zones), objects: Object.keys(NAJU_ID_TABLE_V1.objects) },
         }),
       // 지금 등록된 상호작용 id(참고 — idmap 형식이 받지 않는다)
       interactableIds: listInteractableIds,

@@ -217,7 +217,12 @@ export default function AirStations() {
     showNotice("독에 갇혀 있던 공기가 거품 기둥으로 솟는다. 톱니돌 하나가 굴러 나왔다.", 5);
     inventory.spawn(
       "gearStone",
-      new THREE.Vector3((JAR_SPOT.x + 0.8) * M, floorY(JAR_SPOT.x + 0.8, JAR_SPOT.z + 0.4) * M, (JAR_SPOT.z + 0.4) * M),
+      // 독이 +x 쪽으로 기울어 눕는다 — 그 몸통 밑에 깔리지 않게 아가리 앞 트인 바닥으로 굴러 나온다
+      new THREE.Vector3(
+        (JAR_SPOT.x + 1.7) * M,
+        (floorY(JAR_SPOT.x + 1.7, JAR_SPOT.z + 0.7) + 0.02) * M,
+        (JAR_SPOT.z + 0.7) * M,
+      ),
     );
   };
 

@@ -126,7 +126,8 @@ const touchCardStyle: CSSProperties = {
   zIndex: 950,
   width: "min(280px, 36vw)",
   boxSizing: "border-box",
-  maxHeight: "calc(100dvh - 24px - 150px)",
+  // 주소창까지 보이는 낮은 휴대폰(780×304 등)에서는 130px 로 줄어 짧은 안내도 스크롤해야 했다 — 160px 은 지킨다(스틱은 그 아래 136px 에)
+  maxHeight: "max(160px, calc(100dvh - 24px - 150px))",
   overflowY: "auto",
   overscrollBehavior: "contain",
   touchAction: "pan-y",

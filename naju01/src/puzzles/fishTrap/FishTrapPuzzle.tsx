@@ -214,7 +214,7 @@ export default function FishTrapPuzzle() {
       if (!trap || isBusy()) return;
       if (traps.some((entry) => entry.place === "shore" || entry.place === "baiting")) {
         // 줄 색을 말하면 어느 줄이 그 통발 것인지 드러난다(상황조사 B02)
-        showNotice("뭍에 있는 통발을 먼저 물에 넣어야 한다.");
+        showNotice("통발 하나가 아직 뭍에 있다. 먼저 물에 넣어야 한다.");
         return;
       }
       if (trap.place !== "water" || isGaugeActive()) return;
