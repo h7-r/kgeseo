@@ -14,7 +14,7 @@ import type { CollapseState } from "./useBlockerCollapse";
 import type { RiverShapes } from "./useWorldLayers";
 import type { AvatarLink } from "@/engine/avatarLink";
 import type { Terrain } from "./useTerrainLayers";
-import { focusTick } from "./immersion/focusFog";
+import { CLEARED_SKY, focus, focusTick } from "./immersion/focusFog";
 
 /** 걷기 훅이 매 프레임 갈아 끼우는 보고에 씬이 렌더 통계를 덧붙인다(검수 실행의 ReviewBridge 가 읽는다). */
 export interface NajuSceneReport extends MovementReport {
@@ -113,7 +113,8 @@ export function useSceneFrame({
     // 물결은 움직여야 물로 읽힌다
     if (river) {
       const shift = waterShift ? computeWaterDistortion(waterShift) : null;
-      river.surface.update(state.clock.elapsedTime * controls.waveSpeed, shift);
+      // 굿이 풀려 날이 개면 물도 맑은 바다로 바뀐다(안개가 걷히는 것과 같은 빠르기)
+      river.surface.update(state.clock.elapsedTime * controls.waveSpeed, shift, focus.clear / CLEARED_SKY);
       setGrainStrength(controls.groundGrain, controls.groundRockGrain);
       // 잔결도 같은 어긋남을 받아야 위화감이 반만 오지 않는다
       rippleHandle.current?.update(state.clock.elapsedTime * controls.waveSpeed, shift, controls.waterRipple);

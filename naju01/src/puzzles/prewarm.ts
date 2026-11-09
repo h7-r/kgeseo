@@ -52,3 +52,22 @@ export function prewarmShaders(
     gl.setRenderTarget(previous);
   }
 }
+
+/**
+ * 무리째 미리 굽는다 — roots 아래 그려지는 것(메시 · 빛점 · 스프라이트)을 숨겨 둔 것까지 하나하나 꺼내 굽는다.
+ * 퍼즐 한 벌을 통째로 넘길 때 쓴다(효과마다 따로 적지 않아도 된다)
+ */
+export function prewarmTree(
+  gl: THREE.WebGLRenderer,
+  scene: THREE.Scene,
+  camera: THREE.Camera,
+  roots: THREE.Object3D[],
+) {
+  const drawn: THREE.Object3D[] = [];
+  for (const root of roots)
+    root.traverse((node) => {
+      if ((node as THREE.Mesh).isMesh || (node as THREE.Points).isPoints || (node as THREE.Sprite).isSprite)
+        drawn.push(node);
+    });
+  prewarmShaders(gl, scene, camera, drawn);
+}

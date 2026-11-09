@@ -4,6 +4,13 @@
  * 셈법이 보인다 — 「세 번 숨 쉬는 자리를 파라. 한 번은 게, 두 번은 갯지렁이」. 뿜는 수를 세어 조개 구멍 셋을 파면 한 움큼이 모인다.
  * 게 구멍을 파면 게가 튀어나와 손등을 꼬집고(호미질이 멈칫한다), 갯지렁이 구멍은 헛수고다.
  * 맨손으로는 못 판다. 통발은 조개를 든 뒤에야 물에 넣을 수 있다(FishTrapPuzzle).
+ *
+ * 판정(P01, 서버 판정 input): 구멍을 파기 시작하면 판 구멍 번호 목록을 서버로 보내고(najuProgress), 호미질이 끝나면
+ * 받은 판정대로 드러낸다 — 어느 구멍이 조개인지 이 파일은 모른다. 서버가 correct · already_completed 면 다 찾은 것이다.
+ * 서버는 아직 구멍별 결과(조개 · 게 · 갯지렁이)를 주지 않아 incorrect 면 「아직 모자란다」만 알린다.
+ * 서버로 보낼 수 없으면(대응표 확정 전 · 세션 없음) 개발 빌드에서만 clamLocalJudge.dev 로 판정하고,
+ * 배포 빌드에서는 구덩이를 메우고 「연결 필요」를 띄운다. 연결이 끊기면 같은 이벤트를 [E] 로 다시 보낸다.
+ * 이어 하기: 판 구멍(clam.isDug) · 조개가 나온 구멍(clam.found) · 꼬집힌 수(clam.pinches)를 저장본에 남긴다.
  */
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
@@ -11,6 +18,9 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { NAJU_LOCAL } from "../../progress/najuLocalIds";
+import { najuProgress } from "../../progress/najuProgress";
+import { createPuzzleSubmission, verdictNotice, type PuzzleVerdict } from "../../progress/puzzleSubmission";
 import { recall, track } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
@@ -28,6 +38,7 @@ import {
   puffAt,
   type BreathHole,
 } from "./breathHoles";
+import { clamDugAnswer, deriveFound, dugHoles, restoreClamProgress, type DigResult } from "./clamAnswer";
 import { CLAM_SCALE, buildClamHandful, buildDugGround, buildHoe, buildSideHoles } from "./clamModels";
 import { clamDig, useClamStage } from "./clamState";
 import { DIG_KEYS, STRIKES, Y_AXIS, createMove, digKeyAt, digPose, ease, holdHoe, startMove } from "./hoeMotion";
@@ -122,6 +133,9 @@ function updateSand(burst: SandBurst, floorY: number, dt: number) {
   burst.points.commit();
 }
 
+/** 판정 — 받았거나(result), 못 받았거나(blocked: 연결 필요 · 끊김 · 서버 거절) */
+type DigOutcome = { kind: "result"; result: DigResult } | { kind: "blocked"; verdict: PuzzleVerdict };
+
 /** 숨구멍 하나 — 자리와 자국, 판 구덩이(판 뒤에 보인다) */
 interface Hole extends BreathHole {
   spot: THREE.Vector3;
@@ -156,14 +170,33 @@ function createHoles(ground: ReturnType<typeof buildDugGround>): Hole[] {
 export default function ClamDig() {
   const scene = useThree((state) => state.scene);
   const gl = useThree((state) => state.gl);
+  const getThree = useThree((state) => state.get);
   const stage = useClamStage();
+  /** 이어 하기 — 옛 저장본(clam.isDug 만)도 받는다 */
+  const restored = useMemo(
+    () =>
+      restoreClamProgress({
+        isDug: recall<unknown>("clam.isDug", []),
+        found: recall<unknown>("clam.found", null),
+        pinches: recall<unknown>("clam.pinches", 0),
+      }),
+    [],
+  );
   /** 파기 진행 0~1. 안 파는 중이면 −1 · 파는 구멍 */
   const digRef = useRef(-1);
   const diggingRef = useRef(-1);
-  /** 캔 조개 구멍 수 · 꼬집힌 수 · 꼬집혀 멈칫하는 동안(끝나는 때) */
-  const clamsRef = useRef(0);
-  const pinchesRef = useRef(0);
+  /** 조개가 나온 구멍(캔 수 = 길이) · 꼬집힌 수 · 꼬집혀 멈칫하는 동안(끝나는 때) */
+  const foundRef = useRef<number[]>(restored.found ?? []);
+  const pinchesRef = useRef(restored.pinches);
   const pinchedUntil = useRef(-1);
+  /** P01 제출 — 연결이 끊긴 이벤트는 여기 쥐고 [E] 로 같은 이벤트를 다시 보낸다 */
+  const submission = useMemo(() => createPuzzleSubmission(najuProgress), []);
+  /** 판정을 기다리는 동안(호미질 3초와 겹친다)은 다른 구멍을 못 판다 */
+  const pendingRef = useRef<Promise<DigOutcome> | null>(null);
+  /** 연결이 끊겨 판정을 못 받은 구멍 */
+  const retryHoleRef = useRef(-1);
+  /** 판정을 드러내는 쪽(아래 effect 가 넣는다) — 호미질이 끝난 프레임에서 부른다 */
+  const landRef = useRef<(k: number, outcome: DigOutcome) => void>(() => {});
   const settle = useMemo(() => createMove(), []);
   const hoeBack = useMemo(() => createMove(), []);
   const pick = useMemo(() => createMove(), []);
@@ -186,13 +219,33 @@ export default function ClamDig() {
   const sideHoles = useMemo(() => buildSideHoles(ground), [ground]);
   const holes = useMemo(() => {
     const created = createHoles(ground);
-    const dug = recall<boolean[]>("clam.isDug", []);
     created.forEach((hole, k) => {
-      hole.isDug = dug[k] ?? false;
+      hole.isDug = restored.isDug[k];
     });
     return created;
-  }, [ground]);
-  useEffect(() => track("clam.isDug", () => holes.map((hole) => hole.isDug)), [holes]);
+  }, [ground, restored]);
+  useEffect(() => {
+    const disposers = [
+      track("clam.isDug", () => holes.map((hole) => hole.isDug)),
+      track("clam.found", () => foundRef.current),
+      track("clam.pinches", () => pinchesRef.current),
+    ];
+    return () => disposers.forEach((dispose) => dispose());
+  }, [holes]);
+  // 옛 저장본(찾은 구멍 기록 없음)은 판 구멍마다 판정을 다시 물어 캔 수를 되살린다 — 개발 빌드의 로컬 판정만.
+  // 배포 빌드는 완료를 서버가 판 구멍 목록으로 정하므로 수가 모자라도 막히지 않는다(안내판 수만 0 부터).
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      if (restored.found !== null || !restored.isDug.includes(true)) return;
+      let isLive = true;
+      void import("./clamLocalJudge.dev").then(({ isLocalClamHole }) => {
+        if (isLive && foundRef.current.length === 0) foundRef.current = deriveFound(restored.isDug, isLocalClamHole);
+      });
+      return () => {
+        isLive = false;
+      };
+    }
+  }, [restored]);
   const crab = useMemo(() => {
     const model = buildCrab();
     model.scale.setScalar(M);
@@ -203,8 +256,12 @@ export default function ClamDig() {
   const glints = useMemo(() => makeGlowPoints(GLINTS.length, { additive: true }), []);
   const sand = useMemo(() => createSandBurst(), []);
   const hoeRest = useMemo(() => spotPoint(HOE_SPOT.x, HOE_SPOT.z, 0.02), []);
-  /** 캐낸 조개가 놓이는 자리 — 마지막으로 캔 구멍. 처음엔 가운데 구멍 */
-  const clamRest = useMemo(() => holes[0].spot.clone().add(new THREE.Vector3(0, 0.03 * M, 0)), [holes]);
+  /** 캐낸 조개가 놓이는 자리 — 마지막으로 캔 구멍(이어 하기면 저장된 마지막 구멍). 처음엔 가운데 구멍 */
+  const clamRest = useMemo(() => {
+    const found = restored.found ?? [];
+    const last = found.length > 0 ? found[found.length - 1] : 0;
+    return holes[last].spot.clone().add(new THREE.Vector3(0, 0.03 * M, 0));
+  }, [holes, restored]);
 
   useEffect(() => {
     const group = new THREE.Group();
@@ -216,49 +273,121 @@ export default function ClamDig() {
     };
   }, [scene, hoe, clam, crab, glints, jets, sand, sideHoles, holes]);
 
-  /** 구덩이 한 곳을 판 결과 — 조개 · 게 · 갯지렁이 */
-  const finishHole = (hole: Hole, camera: THREE.Camera) => {
-    hole.isDug = true;
-    hole.mark.visible = false;
-    if (hole.puffs === 3) {
-      clamsRef.current += 1;
-      clamRest.copy(hole.spot).add(new THREE.Vector3(0, 0.03 * M, 0));
-      audio.play("단서");
-      if (clamsRef.current >= CLAM_HOLES) {
-        // 구덩이 옆, 플레이어 쪽에 자루를 두고 눕힌다
-        const side = scratch.lift.set(-toPlayer.z, 0, toPlayer.x);
-        dropped.position
-          .copy(hole.spot)
-          .addScaledVector(toPlayer, 0.34 * M)
-          .addScaledVector(side, 0.16 * M);
-        dropped.position.y = groundY(dropped.position.x / M, dropped.position.z / M) * M + 0.005 * M;
-        dropped.quaternion.setFromAxisAngle(Y_AXIS, Math.atan2(-toPlayer.x, -toPlayer.z) + 0.35);
-        startMove(settle, hoe);
-        clamDig.set("dug");
-        showNotice("세 번 숨 쉬던 자리마다 조개가 나왔다 — 한 움큼은 되겠다. 아랑사의 셈법이 맞았다.", 5);
-      } else showNotice(`모래를 걷어 내자 조개가 드러났다. (${clamsRef.current}/${CLAM_HOLES})`, 3.5);
-      return;
-    }
-    if (hole.puffs === 1) {
-      // 게 — 튀어나와 손등을 꼬집고 달아난다
-      pinchesRef.current += 1;
-      pinchedUntil.current = performance.now() / 1000 + PINCH_SECONDS;
-      crabRun.startedAt = performance.now() / 1000;
-      crabRun.from.copy(hole.spot);
-      crabRun.direction.set(camera.position.x - hole.spot.x, 0, camera.position.z - hole.spot.z).normalize();
-      // 사람 반대쪽으로, 조금 비스듬히
-      crabRun.direction.applyAxisAngle(Y_AXIS, Math.PI + (Math.random() - 0.5) * 1.2);
-      crab.visible = true;
-      audio.play("우르릉");
-      director.cue({ 카메라: "흔들림", 세기: 0.25 });
-      showNotice("게다! 집게에 손등을 꼬집혔다 — 한 번 숨 쉬는 구멍은 게다.", 4);
-      return;
-    }
-    audio.play("똑");
-    showNotice("갯지렁이만 꿈틀거리며 모래 속으로 빠져나간다. 두 번 숨 쉬는 구멍엔 조개가 없다.", 4);
-  };
-
   useEffect(() => {
+    /** 구덩이 한 곳을 판 결과 — 조개 · 게 · 갯지렁이(판정이 정한다) */
+    const finishHole = (hole: Hole, k: number, result: DigResult, camera: THREE.Camera) => {
+      hole.isDug = true;
+      hole.mark.visible = false;
+      if (result.find === "clam" || result.done) {
+        if (!foundRef.current.includes(k)) foundRef.current = [...foundRef.current, k];
+        clamRest.copy(hole.spot).add(new THREE.Vector3(0, 0.03 * M, 0));
+        audio.play("단서");
+        if (result.done) {
+          // 구덩이 옆, 플레이어 쪽에 자루를 두고 눕힌다
+          const side = scratch.lift.set(-toPlayer.z, 0, toPlayer.x);
+          dropped.position
+            .copy(hole.spot)
+            .addScaledVector(toPlayer, 0.34 * M)
+            .addScaledVector(side, 0.16 * M);
+          dropped.position.y = groundY(dropped.position.x / M, dropped.position.z / M) * M + 0.005 * M;
+          dropped.quaternion.setFromAxisAngle(Y_AXIS, Math.atan2(-toPlayer.x, -toPlayer.z) + 0.35);
+          startMove(settle, hoe);
+          clamDig.set("dug");
+          showNotice("세 번 숨 쉬던 자리마다 조개가 나왔다 — 한 움큼은 되겠다. 아랑사의 셈법이 맞았다.", 5);
+        } else showNotice(`모래를 걷어 내자 조개가 드러났다. (${foundRef.current.length}/${CLAM_HOLES})`, 3.5);
+        return;
+      }
+      if (result.find === "unknown") {
+        // 서버가 구멍별 결과를 주기 전까지 — 다 찾지 못했다는 것만 안다
+        audio.play("똑");
+        showNotice("모래를 걷어 냈다. 아직 한 움큼에는 모자란다.", 3.5);
+        return;
+      }
+      if (result.find === "crab") {
+        // 게 — 튀어나와 손등을 꼬집고 달아난다
+        pinchesRef.current += 1;
+        pinchedUntil.current = performance.now() / 1000 + PINCH_SECONDS;
+        crabRun.startedAt = performance.now() / 1000;
+        crabRun.from.copy(hole.spot);
+        crabRun.direction.set(camera.position.x - hole.spot.x, 0, camera.position.z - hole.spot.z).normalize();
+        // 사람 반대쪽으로, 조금 비스듬히
+        crabRun.direction.applyAxisAngle(Y_AXIS, Math.PI + (Math.random() - 0.5) * 1.2);
+        crab.visible = true;
+        audio.play("우르릉");
+        director.cue({ 카메라: "흔들림", 세기: 0.25 });
+        showNotice("게다! 집게에 손등을 꼬집혔다 — 한 번 숨 쉬는 구멍은 게다.", 4);
+        return;
+      }
+      audio.play("똑");
+      showNotice("갯지렁이만 꿈틀거리며 모래 속으로 빠져나간다. 두 번 숨 쉬는 구멍엔 조개가 없다.", 4);
+    };
+
+    /** 판정을 받았으면 드러내고, 못 받았으면 구덩이를 메워 다시 팔 수 있게 한다 */
+    const land = (k: number, outcome: DigOutcome) => {
+      const hole = holes[k];
+      if (outcome.kind === "result") {
+        retryHoleRef.current = -1;
+        finishHole(hole, k, outcome.result, getThree().camera);
+        return;
+      }
+      retryHoleRef.current = outcome.verdict.kind === "retryable" ? k : -1;
+      hole.isDug = false;
+      hole.mark.visible = true;
+      hole.dug.hole.visible = false;
+      hole.dug.pile.visible = false;
+      const notice = verdictNotice(outcome.verdict);
+      if (notice) showNotice(notice, 4.5);
+    };
+    landRef.current = land;
+
+    /** 서버 판정 → 구멍 결과. 서버를 쓸 수 없을 때만, 개발 빌드에서만 로컬 판정 — 배포 빌드에는 이 분기와 판정 파일이 없다 */
+    const toOutcome = async (verdict: PuzzleVerdict, dug: number[], k: number): Promise<DigOutcome> => {
+      if (verdict.kind === "correct" || verdict.kind === "already-completed")
+        return { kind: "result", result: { find: "clam", done: true } };
+      if (verdict.kind === "incorrect") return { kind: "result", result: { find: "unknown", done: false } };
+      if (import.meta.env.DEV) {
+        if (verdict.kind === "unavailable") {
+          const { localDigResult } = await import("./clamLocalJudge.dev");
+          return { kind: "result", result: localDigResult(dug, k) };
+        }
+      }
+      return { kind: "blocked", verdict };
+    };
+    /** 구멍 k 판정 — 제출은 여기 한 곳. send 는 새 제출 또는 쥔 이벤트 다시 보내기 */
+    const judge = (k: number, send: (dug: number[]) => Promise<PuzzleVerdict | null>) => {
+      const dug = dugHoles(holes.map((hole, index) => hole.isDug || index === k));
+      // 던지면(뜻밖의 오류) 잠긴 채로 남지 않게 판정 못 받음으로 돌린다
+      const pending = send(dug)
+        .then((verdict) => toOutcome(verdict ?? { kind: "busy" }, dug, k))
+        .catch((): DigOutcome => ({ kind: "blocked", verdict: { kind: "failed", reason: "rejected" } }));
+      pendingRef.current = pending;
+      return pending;
+    };
+    const submit = (dug: number[]) =>
+      submission.submit({
+        action: "input",
+        zone: NAJU_LOCAL.zones.Z1,
+        object: NAJU_LOCAL.objects.P01,
+        answer: clamDugAnswer(dug),
+      });
+    /** 파기 시작 — 판정은 호미질(3초) 동안 받아 두고, 다 파면 advanceDig 가 드러낸다 */
+    const startDig = (k: number) => {
+      if (clamDig.stage() !== "hoe" || digRef.current >= 0 || pendingRef.current) return false;
+      void judge(k, submit);
+      digRef.current = 0;
+      diggingRef.current = k;
+      return true;
+    };
+    /** 연결이 끊겨 쥔 같은 이벤트를 다시 보낸다(새 이벤트를 만들지 않는다) */
+    const retry = () => {
+      const k = retryHoleRef.current;
+      if (k < 0 || pendingRef.current) return;
+      void judge(k, () => submission.retry()).then((outcome) => {
+        pendingRef.current = null;
+        land(k, outcome);
+      });
+    };
+    const canDig = () => pendingRef.current === null && !submission.canRetry();
     const disposers = [
       registerInteractable({
         id: "clam-hoe",
@@ -282,7 +411,10 @@ export default function ClamDig() {
           radius: 0.22 * M,
           reach: 2.2 * M, // 가까이 와야 판다 — 멀리서 호미만 날아가 보이지 않게
           enabled: () =>
-            (clamDig.stage() === "buried" || clamDig.stage() === "hoe") && !hole.isDug && digRef.current < 0,
+            (clamDig.stage() === "buried" || clamDig.stage() === "hoe") &&
+            !hole.isDug &&
+            digRef.current < 0 &&
+            canDig(),
           use: () => {
             if (clamDig.stage() !== "hoe") {
               showNotice("젖은 모래의 구멍에서 이따금 물이 찔끔 올라온다. 맨손으로는 팔 수 없다.");
@@ -292,11 +424,20 @@ export default function ClamDig() {
               showNotice("꼬집힌 손이 아직 얼얼하다.", 2);
               return;
             }
-            digRef.current = 0;
-            diggingRef.current = k;
+            startDig(k);
           },
         }),
       ),
+      // 연결이 끊겨 판정을 못 받았을 때만 — 숨구멍은 잠그고 이것만 [E] 로 쓴다
+      registerInteractable({
+        id: "clam-sync-retry",
+        position: spotPoint(DIG_SPOT.x, DIG_SPOT.z, 0.1),
+        label: "판정 다시 받기",
+        radius: 0.9 * M,
+        reach: 3 * M,
+        enabled: () => submission.canRetry() && retryHoleRef.current >= 0 && pendingRef.current === null,
+        use: retry,
+      }),
       registerInteractable({
         id: "clam-pick",
         position: clamRest,
@@ -312,31 +453,41 @@ export default function ClamDig() {
         },
       }),
     ];
-    return () => disposers.forEach((dispose) => dispose());
-  }, [stage, holes, hoeRest, clamRest, clam, settle, pick]);
-
-  useEffect(() => {
     if (import.meta.env.DEV)
       exposeDevHook("najuClamDev", {
-        holes: () => holes.map((hole) => ({ puffs: hole.puffs, dug: hole.isDug })),
-        clams: () => clamsRef.current,
+        holes: () => holes.map((hole) => ({ dug: hole.isDug })),
+        found: () => [...foundRef.current],
+        clams: () => foundRef.current.length,
         pinches: () => pinchesRef.current,
         /** 구멍 k 를 판다(호미를 든 뒤) — 검사용 */
-        dig: (k: number) => {
-          if (clamDig.stage() !== "hoe" || digRef.current >= 0) return false;
-          digRef.current = 0;
-          diggingRef.current = k;
-          return true;
-        },
-        /** 조개 구멍을 다 판 것으로 — 검사용 */
-        digAll: () => {
-          clamsRef.current = CLAM_HOLES;
-          for (const hole of holes) if (hole.puffs === 3) hole.isDug = true;
+        dig: startDig,
+        /** 조개 구멍을 다 판 것으로 — 검사용(로컬 판정) */
+        digAll: async () => {
+          const { localClamHoles } = await import("./clamLocalJudge.dev");
+          foundRef.current = localClamHoles();
+          for (const hole of foundRef.current) holes[hole].isDug = true;
           clamDig.set("dug");
         },
       });
-    return () => setPuzzlePanel("clam-dig", null);
-  }, [holes]);
+    return () => disposers.forEach((dispose) => dispose());
+  }, [
+    stage,
+    holes,
+    hoeRest,
+    clamRest,
+    clam,
+    settle,
+    pick,
+    submission,
+    getThree,
+    crab,
+    crabRun,
+    dropped,
+    hoe,
+    toPlayer,
+  ]);
+
+  useEffect(() => () => setPuzzlePanel("clam-dig", null), []);
 
   /** 파기 한 프레임 — 호미 날이 구멍 자리를 세 번 찍고 몸 쪽으로 긁는다. 다 파면 무엇이 나왔는지 본다 */
   const advanceDig = (camera: THREE.Camera, dt: number) => {
@@ -379,7 +530,13 @@ export default function ClamDig() {
     hole.dug.hole.scale.setScalar(M);
     hole.dug.pile.scale.set(0.3 * M, 0.1 * M, 0.24 * M);
     startMove(hoeBack, hoe);
-    finishHole(hole, camera);
+    hole.mark.visible = false;
+    // 판정은 보통 호미질 동안 와 있다. 늦으면 올 때 드러낸다(그동안 다른 구멍은 잠근다)
+    const k = holes.indexOf(hole);
+    void pendingRef.current?.then((outcome) => {
+      pendingRef.current = null;
+      landRef.current(k, outcome);
+    });
   };
 
   /** 호미 자리 — 바닥 / 손 / 구덩이 옆에 내려놓는 중 / 내려놓음(파는 중은 advanceDig 가 잡는다) */
@@ -423,7 +580,7 @@ export default function ClamDig() {
       }
     }
     // 캔 만큼 — 셋을 다 캐면 한 움큼. 손에 든 한 움큼은 눈 바로 앞이라 줄여 든다
-    const found = current === "hoe" || current === "buried" ? clamsRef.current / CLAM_HOLES : 1;
+    const found = current === "hoe" || current === "buried" ? foundRef.current.length / CLAM_HOLES : 1;
     clam.scale.setScalar(M * CLAM_SCALE * (current === "held" ? 0.6 : 0.55 + 0.45 * found));
     if (current === "held") {
       scratch.offset.set(0.2, -0.24, -0.62).multiplyScalar(M).applyQuaternion(camera.quaternion);
@@ -533,7 +690,11 @@ export default function ClamDig() {
           ? `젖은 모래의 숨구멍이 이따금 물을 뿜는다. 호미 자루의 셈법 — ${HOE_CARVING}. 뿜는 수를 세고, 조개 구멍을 겨눠 [E] 로 판다.`
           : "젖은 모래에 숨구멍이 여럿. 속에 든 것이 숨 쉴 때마다 물을 뿜는다. 맨손으로는 못 판다 — 배 옆에 호미가 있다.",
       rows: [
-        { label: "캔 조개", value: `${clamsRef.current} / ${CLAM_HOLES}`, ok: clamsRef.current >= CLAM_HOLES },
+        {
+          label: "캔 조개",
+          value: `${foundRef.current.length} / ${CLAM_HOLES}`,
+          ok: foundRef.current.length >= CLAM_HOLES,
+        },
         { label: "꼬집힘", value: `${pinchesRef.current}`, ok: pinchesRef.current === 0 },
       ],
     });
@@ -562,7 +723,7 @@ export default function ClamDig() {
     }
 
     placeClam(camera, current, dt);
-    clam.visible = (clamsRef.current > 0 || (current !== "buried" && current !== "hoe")) && !isSunkRef.current;
+    clam.visible = (foundRef.current.length > 0 || (current !== "buried" && current !== "hoe")) && !isSunkRef.current;
 
     // 반짝임 — 캐낸 껍데기 가장자리에서 작게 반짝였다 사라진다
     const glowAt = current === "held" || current === "baiting" ? clam.position : clamRest;

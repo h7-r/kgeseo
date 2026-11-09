@@ -74,6 +74,8 @@ const LOD_BOUNDARY_M = 22;
 const LOD_BOUNDARY_FOCUSED_M = 10;
 /** 차단물 겉돌이 가라앉는 시간(초) */
 const SINK_SECONDS = 2.4;
+/** 눈이 이만큼(유닛) 넘게 옮겨 가면 구역 초점 거르기를 바로 다시 한다 — 걸어서는 2초 넘게 걸리는 거리 */
+const FOCUS_JUMP_UNITS = 8 * U;
 
 // ── 「놓기」 다시 읽기 (10/15) — 통합 편집 모드(E)가 manifest 「놓기」를 쓴 뒤(놓기·고치기·지우기) 새로고침 없이 보이게 ──
 const reloadHandlers = new Set<() => Promise<boolean>>();
@@ -158,6 +160,8 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
   const placesOverride = useRef<PlaceItem[] | null>(null);
   const tick = useRef(0);
   const focusTick = useRef(0);
+  /** 구역 초점으로 마지막에 걸러 낸 때의 눈 자리(유닛) */
+  const filteredAt = useRef(new THREE.Vector3(Infinity, Infinity, Infinity));
   const clearedRef = useRef(clearedBlockers);
   const groundAtRef = useRef(groundAt);
   // 렌더 중 ref 쓰기 금지(react-hooks) — 효과에서 최신 값을 넣는다
@@ -439,7 +443,11 @@ export default function PublicAssetLayer({ clearedBlockers, groundAt }: PublicAs
 
     // ── ⑥ 구역 초점 거르기 — 원근 짝이 없는 교체본(덮기 등)도 반경 밖 자리는 뺀다 ──
     // 전체보기(부감) 중엔 radius 가 없다 → 빼 둔 자리를 반경 없이 되살린다
-    if ((radius || focus.paused) && ++focusTick.current % 20 === 0) {
+    // 이 블록은 20 프레임에 한 번 도는 틱 안에 있어 실제로는 400 프레임에 한 번이다. 걸을 때는 그걸로 넉넉하지만,
+    // 순간이동(틈 · 되돌려짐)으로 눈이 멀리 뛰면 그 자리 소품이 몇 초씩 빠져 보인다 — 크게 옮겼으면 바로 다시 거른다
+    const hasJumped = eye.distanceToSquared(filteredAt.current) > FOCUS_JUMP_UNITS ** 2;
+    if ((radius || focus.paused) && (++focusTick.current % 20 === 0 || hasJumped)) {
+      filteredAt.current.copy(eye);
       const t = new THREE.Vector3();
       group.traverse((o) => {
         if (!(o as THREE.InstancedMesh).isInstancedMesh || o.userData.lodPaired) return;

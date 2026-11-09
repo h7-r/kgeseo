@@ -32,8 +32,10 @@ import {
   type Pose,
 } from "./shadowPlayArt";
 
-const W = 1024;
-const H = 576;
+/** 그림판 크기(px) — 바위 위 영상(cliff/moonPlay)도 같은 판에 그린다 */
+export const FILM = { width: 1024, height: 576 };
+const W = FILM.width;
+const H = FILM.height;
 const BAR = 0.08;
 const DRAWS_PER_SECOND = 30;
 /** 판 크기(미터) */
@@ -86,7 +88,7 @@ function drawDung(g: Pen, x: number, y: number, size: number, shine: number) {
 }
 
 /** 강 — 달빛 줄기가 일렁이는 검은 물 */
-function drawRiver(g: Pen, top: number, moonX: number, time: number, strength = 1) {
+export function drawRiver(g: Pen, top: number, moonX: number, time: number, strength = 1) {
   g.fillStyle = "#10070A";
   g.fillRect(0, top, W, H - top);
   for (let k = 0; k < 30; k++) {
@@ -100,7 +102,7 @@ function drawRiver(g: Pen, top: number, moonX: number, time: number, strength = 
   }
 }
 
-function drawMist(g: Pen, y: number, alpha: number, time: number) {
+export function drawMist(g: Pen, y: number, alpha: number, time: number) {
   for (let k = 0; k < 4; k++) {
     const x = ((time * (12 + k * 6) + k * 260) % (W + 500)) - 250;
     const cy = y + k * 14;
@@ -118,7 +120,7 @@ function drawMist(g: Pen, y: number, alpha: number, time: number) {
 }
 
 /** 카메라 — 가운데를 기준으로 당기고 밀고 살짝 흐른다 */
-function camera(g: Pen, zoom: number, dx: number, dy: number, roll = 0) {
+export function camera(g: Pen, zoom: number, dx: number, dy: number, roll = 0) {
   g.translate(W / 2 + dx, H / 2 + dy);
   g.rotate(roll);
   g.scale(zoom, zoom);
@@ -683,7 +685,8 @@ function cutAfter(g: Pen, art: Layers, t: number, length: number) {
   g.restore();
 }
 
-export function createShadowPlay() {
+/** 영상을 올릴 판 — 그림판 · 질감 · 늘 맨 위에 그리는 재질. 크기는 미터 */
+export function createFilmScreen(width: number, height: number) {
   const { canvas, g } = makeLayer(W, H);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -698,9 +701,74 @@ export function createShadowPlay() {
     toneMapped: false,
     side: THREE.DoubleSide,
   });
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(PLANE.width * M, PLANE.height * M), material);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width * M, height * M), material);
   mesh.visible = false;
   mesh.renderOrder = 8;
+  return { canvas, g, texture, material, mesh };
+}
+
+/**
+ * 한 장을 필름처럼 마무리한다 — 색 누르기 · 알갱이 · 가장자리 어둠 · 컷 넘김 · 처음 밝아짐 · 위아래 띠 · 판 가장자리 풀기.
+ * cuts 는 컷이 바뀌는 시각들(그때 한 장 어둡게 넘어간다)
+ */
+export function finishFilm(g: Pen, grain: HTMLCanvasElement, time: number, frame: number, cuts: number[]) {
+  // 색 — 그늘은 푸르게, 빛은 호박빛으로 눌러 필름 느낌
+  g.save();
+  g.globalCompositeOperation = "soft-light";
+  const grade = g.createLinearGradient(0, 0, 0, H);
+  grade.addColorStop(0, "rgba(40,60,110,0.55)");
+  grade.addColorStop(0.5, "rgba(255,170,90,0.25)");
+  grade.addColorStop(1, "rgba(30,40,90,0.6)");
+  g.fillStyle = grade;
+  g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = "overlay";
+  const dx = Math.floor(hash(frame) * 256);
+  const dy = Math.floor(hash(frame + 3) * 256);
+  for (let x = -dx; x < W; x += 256) for (let y = -dy; y < H; y += 256) g.drawImage(grain, x, y);
+  g.restore();
+  const vignette = g.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, W * 0.62);
+  vignette.addColorStop(0, "rgba(0,0,0,0)");
+  vignette.addColorStop(1, "rgba(0,0,0,0.55)");
+  g.fillStyle = vignette;
+  g.fillRect(0, 0, W, H);
+  // 컷이 바뀔 때 한 장 어둡게 — 필름이 넘어간다
+  for (const at of cuts) {
+    const since = time - at;
+    if (since >= 0 && since < 0.06) {
+      g.fillStyle = `rgba(0,0,0,${0.7 * (1 - since / 0.06)})`;
+      g.fillRect(0, 0, W, H);
+    }
+  }
+  // 처음엔 어둠에서 밝아진다. 끝은 까매지지 않고 판 자체가 빛과 함께 옅어진다(BoxOpening)
+  const open = smooth(time / 0.6);
+  if (open < 1) {
+    g.fillStyle = `rgba(2,3,6,${1 - open})`;
+    g.fillRect(0, 0, W, H);
+  }
+  g.fillStyle = "#030202";
+  g.fillRect(0, 0, W, H * BAR);
+  g.fillRect(0, H * (1 - BAR), W, H * BAR);
+  // 판 가장자리를 빛 속으로 풀어 준다
+  g.globalCompositeOperation = "destination-in";
+  const edgeX = g.createLinearGradient(0, 0, W, 0);
+  edgeX.addColorStop(0, "rgba(0,0,0,0)");
+  edgeX.addColorStop(0.03, "rgba(0,0,0,1)");
+  edgeX.addColorStop(0.97, "rgba(0,0,0,1)");
+  edgeX.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = edgeX;
+  g.fillRect(0, 0, W, H);
+  const edgeY = g.createLinearGradient(0, 0, 0, H);
+  edgeY.addColorStop(0, "rgba(0,0,0,0)");
+  edgeY.addColorStop(0.03, "rgba(0,0,0,1)");
+  edgeY.addColorStop(0.97, "rgba(0,0,0,1)");
+  edgeY.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = edgeY;
+  g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = "source-over";
+}
+
+export function createShadowPlay() {
+  const { canvas, g, texture, material, mesh } = createFilmScreen(PLANE.width, PLANE.height);
 
   let layers: Layers | null = null;
   let lastDraw = -1;
@@ -735,59 +803,7 @@ export function createShadowPlay() {
     else if (time < CUT.after) cutImpact(g, art, time - CUT.impact);
     else cutAfter(g, art, time - CUT.after, SHADOW_PLAY_SECONDS - CUT.after);
     g.restore();
-    // 색 — 그늘은 푸르게, 빛은 호박빛으로 눌러 필름 느낌
-    g.save();
-    g.globalCompositeOperation = "soft-light";
-    const grade = g.createLinearGradient(0, 0, 0, H);
-    grade.addColorStop(0, "rgba(40,60,110,0.55)");
-    grade.addColorStop(0.5, "rgba(255,170,90,0.25)");
-    grade.addColorStop(1, "rgba(30,40,90,0.6)");
-    g.fillStyle = grade;
-    g.fillRect(0, 0, W, H);
-    g.globalCompositeOperation = "overlay";
-    const dx = Math.floor(hash(frame) * 256);
-    const dy = Math.floor(hash(frame + 3) * 256);
-    for (let x = -dx; x < W; x += 256) for (let y = -dy; y < H; y += 256) g.drawImage(art.grain, x, y);
-    g.restore();
-    const vignette = g.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, W * 0.62);
-    vignette.addColorStop(0, "rgba(0,0,0,0)");
-    vignette.addColorStop(1, "rgba(0,0,0,0.55)");
-    g.fillStyle = vignette;
-    g.fillRect(0, 0, W, H);
-    // 컷이 바뀔 때 한 장 어둡게 — 필름이 넘어간다
-    for (const at of [CUT.edge, CUT.hands, CUT.fall, CUT.flee, CUT.impact]) {
-      const since = time - at;
-      if (since >= 0 && since < 0.06) {
-        g.fillStyle = `rgba(0,0,0,${0.7 * (1 - since / 0.06)})`;
-        g.fillRect(0, 0, W, H);
-      }
-    }
-    // 처음엔 어둠에서 밝아진다. 끝은 까매지지 않고 판 자체가 빛과 함께 옅어진다(BoxOpening)
-    const open = smooth(time / 0.6);
-    if (open < 1) {
-      g.fillStyle = `rgba(2,3,6,${1 - open})`;
-      g.fillRect(0, 0, W, H);
-    }
-    g.fillStyle = "#030202";
-    g.fillRect(0, 0, W, H * BAR);
-    g.fillRect(0, H * (1 - BAR), W, H * BAR);
-    // 판 가장자리를 빛 속으로 풀어 준다
-    g.globalCompositeOperation = "destination-in";
-    const edgeX = g.createLinearGradient(0, 0, W, 0);
-    edgeX.addColorStop(0, "rgba(0,0,0,0)");
-    edgeX.addColorStop(0.03, "rgba(0,0,0,1)");
-    edgeX.addColorStop(0.97, "rgba(0,0,0,1)");
-    edgeX.addColorStop(1, "rgba(0,0,0,0)");
-    g.fillStyle = edgeX;
-    g.fillRect(0, 0, W, H);
-    const edgeY = g.createLinearGradient(0, 0, 0, H);
-    edgeY.addColorStop(0, "rgba(0,0,0,0)");
-    edgeY.addColorStop(0.03, "rgba(0,0,0,1)");
-    edgeY.addColorStop(0.97, "rgba(0,0,0,1)");
-    edgeY.addColorStop(1, "rgba(0,0,0,0)");
-    g.fillStyle = edgeY;
-    g.fillRect(0, 0, W, H);
-    g.globalCompositeOperation = "source-over";
+    finishFilm(g, art.grain, time, frame, [CUT.edge, CUT.hands, CUT.fall, CUT.flee, CUT.impact]);
     texture.needsUpdate = true;
   };
 

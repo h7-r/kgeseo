@@ -9,7 +9,7 @@ import { createCompressedGltfLoader } from "../loaders/compressedGlb";
 
 const cache = new Map<string, Promise<THREE.Object3D | null>>();
 
-function loadModel(url: string, size: number) {
+export function loadModel(url: string, size: number) {
   const key = `${url}@${size}`;
   let pending = cache.get(key);
   if (!pending) {

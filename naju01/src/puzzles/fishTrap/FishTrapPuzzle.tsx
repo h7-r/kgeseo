@@ -207,7 +207,7 @@ export default function FishTrapPuzzle() {
       const trap = traps.find((entry) => entry.stake === stake);
       if (!trap || isBusy()) return;
       if (traps.some((entry) => entry.place === "shore" || entry.place === "baiting")) {
-        showNotice("흰 줄 통발이 아직 뭍에 있다. 먼저 물에 넣어야 한다.");
+        showNotice("통발 하나가 아직 뭍에 있다. 먼저 물에 넣어야 한다.");
         return;
       }
       if (trap.place !== "water" || isGaugeActive()) return;

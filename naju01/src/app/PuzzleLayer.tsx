@@ -5,9 +5,15 @@
 import Hotbar from "../puzzles/Hotbar";
 import InteractionHud from "../puzzles/InteractionHud";
 import InteractionLoop from "../puzzles/InteractionLoop";
+import LightBudget from "../puzzles/LightBudget";
 import HintBoxHud from "../puzzles/HintBoxHud";
 import PuzzlePanelHud from "../puzzles/PuzzlePanelHud";
 import WorldItems from "../puzzles/WorldItems";
+import BowlRite from "../puzzles/cliff/BowlRite";
+import EdgeRift from "../puzzles/cliff/EdgeRift";
+import FootTrail from "../puzzles/cliff/FootTrail";
+import LetterReadHud from "../puzzles/cliff/LetterReadHud";
+import MoonSky from "../puzzles/cliff/MoonSky";
 import AirStations from "../puzzles/cave/AirStations";
 import BreathHud from "../puzzles/cave/BreathHud";
 import CaveWorld from "../puzzles/cave/CaveWorld";
@@ -27,6 +33,8 @@ import BoatBottles from "../puzzles/makgeolli/BoatBottles";
 import BirdHints from "../puzzles/ridge/BirdHints";
 import BoxOpening from "../puzzles/ridge/BoxOpening";
 import GateAltar from "../puzzles/ridge/GateAltar";
+import ReturningLife from "../puzzles/gut/ReturningLife";
+import TorchRite from "../puzzles/gut/TorchRite";
 import GateRift from "../puzzles/ridge/GateRift";
 import PaperReadHud from "../puzzles/ridge/PaperReadHud";
 import RidgeBirds from "../puzzles/ridge/RidgeBirds";
@@ -58,6 +66,13 @@ export function PuzzleWorld() {
       <GateAltar />
       <GateRift />
       <BoxOpening />
+      {/* 4스테이지 바위 위 — 달 · 정화수 세 그릇 · 발자국 길 · 아랑사의 주머니(puzzles/cliff) */}
+      <MoonSky />
+      <BowlRite />
+      <FootTrail />
+      <EdgeRift />
+      <TorchRite />
+      <ReturningLife />
       {/* 2스테이지 바위 아래 — 장독대 · 술병 · 기우제(puzzles/jars · makgeolli · ritual) */}
       <JarPuzzle />
       <BoatBottles />
@@ -75,6 +90,8 @@ export function PuzzleWorld() {
       <InnerChamber />
       <WorldItems />
       <InteractionLoop />
+      {/* 퍼즐들이 단 점조명을 다 본 뒤에 고른다 — 맨 끝에 둔다 */}
+      <LightBudget />
     </>
   );
 }
@@ -91,6 +108,7 @@ export function PuzzleHud() {
       <PaperReadHud />
       <HintBoxHud />
       <RiftEntryHud />
+      <LetterReadHud />
     </>
   );
 }

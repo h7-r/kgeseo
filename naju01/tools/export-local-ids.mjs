@@ -3,6 +3,9 @@
 // 배치 키(`<무리>#<번호>`)는 생성기가 지형 · 장면 · 손 편집을 보고 실행 중에 정한다 — 코드만 읽어서는 개수를 알 수 없다.
 // 그래서 나주를 띄워 실제로 그려진 인스턴스 번호를 읽는다(`__game.naju.localIds()` → src/placement/localIds.ts).
 // Zone · 길 · 차단물 · 장면은 도면 상수(src/plan/sitePlan.ts)의 값 그대로다.
+// 진행 동기화 대응표(src/progress/najuIdTable.ts)의 왼쪽 열(cave-hall · clam-holes 등)도 들어간다 — 퍼즐 코드가 서버로 보내는 이름이다.
+// 보고서의 progress_table 은 그 이름마다 게임 안에 실제로 받쳐 주는 것(도면 구역 · 퍼즐 코드가 보내는 값 · 상호작용 대상)이
+// 있는지 적는다. 받쳐 주는 것이 없는 이름은 콘텐츠 쪽에서 고쳐야 한다.
 //
 // 쓰는 법 (나주 개발 서버가 떠 있어야 한다 — 예: npx vite naju01)
 //   node naju01/tools/export-local-ids.mjs [주소] --out <local-ids.json> [--report <report.json>]
@@ -17,6 +20,8 @@ import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { NAJU_ID_TABLE_V1 } from "../src/progress/najuIdTable.ts";
+import { NAJU_LOCAL } from "../src/progress/najuLocalIds.ts";
 import { captureCanvas, logPageErrors, openHeadless, startGame, waitForBakedGround } from "./headlessPage.mjs";
 
 const KINDS = ["zones", "navigation", "blockers", "objects", "scenes"];
@@ -91,6 +96,49 @@ export function staticInteractableIds(sources) {
   return found;
 }
 
+/**
+ * 대표 물건 하나가 묶는 상호작용 대상 — 여럿을 한 물건으로 세는 것만 적는다(najuLocalIds 의 설명과 같다).
+ * 나머지 대표 물건은 상호작용 id 와 이름이 같다.
+ */
+const GROUPED_TARGETS = { "clam-holes": "clam-hole-", "jar-slots": "jar-slot-" };
+
+/**
+ * 대응표 이름마다 게임 안의 받침을 찾는다.
+ *   zones   — 도면 구역(siteZones)이거나 퍼즐 코드가 보내는 구역(sentZones)
+ *   objects — 상호작용 대상(소스의 registerInteractable · 실행 중 등록). 묶음 물건은 그 이름으로 시작하는 대상
+ * 받침이 하나도 없으면 missing 에 넣는다.
+ */
+export function progressCoverage({ table, siteZones, sentZones, sentObjects, staticIds, runtimeIds }) {
+  const zones = Object.entries(table.zones).map(([local, runtime]) => {
+    const backing = [];
+    if (siteZones.includes(local)) backing.push("도면 구역(sitePlan ZONES)");
+    if (sentZones.includes(local)) backing.push("퍼즐 코드가 보내는 구역(NAJU_LOCAL.zones)");
+    return { local, runtime, backing };
+  });
+  const objects = Object.entries(table.objects).map(([local, runtime]) => {
+    const prefix = GROUPED_TARGETS[local];
+    const matches = (id) => (prefix ? id.startsWith(prefix) : id === local);
+    const staticHits = staticIds.filter((item) => {
+      if (item.id === null) return false;
+      if (!item.dynamic) return matches(item.id);
+      return prefix ? item.id.startsWith(prefix) : templatePattern(item.id).test(local);
+    });
+    const runtimeHits = runtimeIds.filter(matches);
+    const backing = [];
+    if (sentObjects.includes(local)) backing.push("퍼즐 코드가 보내는 물건(NAJU_LOCAL.objects)");
+    if (staticHits.length) backing.push(`상호작용 대상(${[...new Set(staticHits.map((item) => item.file))].join(" · ")})`);
+    return {
+      local,
+      runtime,
+      targets: prefix ? `${prefix}*` : local,
+      backing,
+      registered_at_load: runtimeHits,
+    };
+  });
+  const missing = [...zones, ...objects].filter((item) => item.backing.length === 0).map((item) => item.local);
+  return { zones, objects, missing };
+}
+
 const templatePattern = (template) =>
   new RegExp(`^${template.split(/\$\{[^}]+\}/).map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".+")}$`);
 
@@ -126,6 +174,7 @@ function inputHashes() {
     "naju01/assets/edits.json", "naju01/assets/edit-anchors.json",
     "naju01/src/plan/sitePlan.ts", "naju01/src/placement/localIds.ts",
     "naju01/src/scene/useNajuDevTools.ts", "naju01/tools/export-local-ids.mjs",
+    "naju01/src/progress/najuIdTable.ts", "naju01/src/progress/najuLocalIds.ts",
     "naju01/tools/headlessPage.mjs",
   ];
   return Object.fromEntries(paths.map((path) => [path, createHash("sha256").update(readFileSync(join(REPO, path))).digest("hex")]));
@@ -229,6 +278,15 @@ async function main() {
     const sources = sourceFiles(SRC).map((file) => [relative(SRC, file).replaceAll("\\", "/"), readFileSync(file, "utf8")]);
     const staticIds = staticInteractableIds(sources);
     const comparison = compareInteractables(staticIds, current.interactables);
+    const sitePlan = sources.find(([file]) => file === "plan/sitePlan.ts")?.[1] ?? "";
+    const coverage = progressCoverage({
+      table: NAJU_ID_TABLE_V1,
+      siteZones: [...sitePlan.matchAll(/\bcode:\s*"(Z\d+)"/g)].map((match) => match[1]),
+      sentZones: Object.values(NAJU_LOCAL.zones),
+      sentObjects: Object.values(NAJU_LOCAL.objects),
+      staticIds,
+      runtimeIds: current.interactables,
+    });
     const report = {
       schema: "naju-local-ids-report/0.1",
       fe_commit: feCommit(),
@@ -245,7 +303,9 @@ async function main() {
         blockers: "src/plan/sitePlan.ts BLOCKERS[].code",
         scenes: "src/plan/sitePlan.ts SCENE_TITLES 열쇠",
         objects: "실행 중 InstanceGroup.batches[].ids — 손 편집(edits.json)을 얹은 뒤의 번호",
+        progress: "src/progress/najuIdTable.ts NAJU_ID_TABLE_V1 의 열쇠(zones · objects) — 도면 · 배치와 같은 이름은 한 번만",
       },
+      progress_table: coverage,
       counts,
       object_counts: objectCounts,
       coverage: [
@@ -263,6 +323,11 @@ async function main() {
     console.log(`보고를 적었다 → ${options.report}`);
     console.log(
       `  상호작용 id: 실행 중 ${current.interactables.length}개 · 처음 화면에서 등록 안 된 정적 id ${comparison.notSeen.length}개`,
+    );
+    console.log(
+      `  대응표 이름: 구역 ${coverage.zones.length} · 물건 ${coverage.objects.length} — 게임 안에 받침이 없는 것 ${
+        coverage.missing.length ? coverage.missing.join(", ") : "없음"
+      }`,
     );
   }
 }

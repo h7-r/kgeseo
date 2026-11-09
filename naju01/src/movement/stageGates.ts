@@ -1,5 +1,6 @@
 // 스테이지 경계 — 지도 전체를 빈틈없이 네 영역으로 나누고, 아직 안 열린 영역으로 넘어가는 걸음만 막는다.
 // 언덕 · 절벽 · 강 · 풀숲 어디로 돌아도 영역이 다르면 막히므로 샐 틈이 없다. 이미 그 영역 안이면 자유롭게 움직인다.
+// 바위 위에서는 벼랑 밖으로 나가는 걸음도 막는다 — 걸어서든 뛰어서든 떨어지지 않는다.
 // 단위는 미터.
 
 import { exposeDevHook } from "@/debug/devHooks";
@@ -10,6 +11,7 @@ import { fishTrapPuzzle } from "../puzzles/fishTrap/fishTrapState";
 import { isInsideCurtain, nearestCurtainT } from "../puzzles/ridge/ridgeShape";
 import { ridge } from "../puzzles/ridge/ridgeState";
 import { ritual } from "../puzzles/ritual/ritualState";
+import { walkTerrain } from "./playerPose";
 
 type Region = "나루터" | "바위아래" | "능선" | "바위위";
 
@@ -57,6 +59,24 @@ function closedNotice(region: Region) {
   return "바위가 막아 위로 오를 길이 없다.";
 }
 
+/**
+ * 벼랑 끝 — 바위 위(이 높이 위)에 서 있을 때, 가려는 쪽 바로 앞(ahead)에서 땅이 이만큼 넘게 꺼지면 낭떠러지다.
+ * 내려가는 길(경사로)은 한 걸음 앞이 이만큼 꺼지지 않아 그대로 지나간다
+ */
+const CLIFF_GUARD = { from: 12, ahead: 1.0, drop: 1.5, step: 0.6 };
+function isCliffDropAt(x: number, z: number, fromX: number, fromZ: number) {
+  const terrain = walkTerrain.current;
+  if (!terrain) return false;
+  const standing = terrain.groundAt(fromX, fromZ).y;
+  if (standing < CLIFF_GUARD.from) return false;
+  if (terrain.groundAt(x, z).y < standing - CLIFF_GUARD.step) return true;
+  const length = Math.hypot(x - fromX, z - fromZ);
+  if (length < 1e-5) return false;
+  const aheadX = x + ((x - fromX) / length) * CLIFF_GUARD.ahead;
+  const aheadZ = z + ((z - fromZ) / length) * CLIFF_GUARD.ahead;
+  return terrain.groundAt(aheadX, aheadZ).y < standing - CLIFF_GUARD.drop;
+}
+
 const NOTICE_GAP_MS = 6000;
 const noticedAt = new Map<string, number>();
 function noticeOnce(name: string, text: string) {
@@ -78,6 +98,10 @@ export function gateBlockedAt(x: number, z: number, fromX: number, fromZ: number
     // 부딪힌 자리에서 장막이 물결친다(0.3 초에 한 번만 잰다)
     if (performance.now() / 1000 - ridge.lastTouch().at > 0.3) ridge.touchCurtain(nearestCurtainT(x, z));
     noticeOnce("장막", CURTAIN_NOTICE);
+    return true;
+  }
+  if (isCliffDropAt(x, z, fromX, fromZ)) {
+    noticeOnce("벼랑", "벼랑 끝이다. 더 나가면 떨어진다.");
     return true;
   }
   if (isForcedOpen) return false;
