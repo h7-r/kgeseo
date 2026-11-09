@@ -5,6 +5,7 @@
 import { MOCK_SCENARIO, companionDialog, companionSession } from "../companion/companionRuntime";
 import {
   HINT_PUZZLE_IDS,
+  PUZZLE_FOCUS_IDS,
   SEND_SITUATION,
   SITUATION_ZONE_IDS,
   STEP_FOCUS_IDS,
@@ -30,6 +31,7 @@ export function connectCompanionDialogue(): () => void {
     serverPuzzleIdOf: serverHintPuzzleIdOf,
     zoneIdOf: (stage) => SITUATION_ZONE_IDS[stage] ?? null,
     focusIdOf: (objective) => STEP_FOCUS_IDS[objective] ?? null,
+    puzzleFocusIdOf: (objective) => PUZZLE_FOCUS_IDS[objective] ?? null,
   });
   setHintProvider(bridge.hintProvider);
   setSituationSink(bridge.relay);

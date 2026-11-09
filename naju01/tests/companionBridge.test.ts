@@ -11,6 +11,9 @@ import { createCompanionSession, type KeyValueStore } from "../src/companion/com
 import {
   HINTED_PUZZLES,
   HINT_PUZZLE_IDS,
+  OFFER_POLL_PAUSE_MS,
+  PUZZLE_FOCUS_IDS,
+  PUZZLE_POLL_MS,
   SEND_SITUATION,
   SITUATION_ZONE_IDS,
   STEP_FOCUS_IDS,
@@ -413,6 +416,147 @@ test("걸음 상황은 그 걸음의 대표 Object 를 focus_object_id 로 싣�
   const [sent] = calls.filter((c) => c.path.endsWith("/npc/turns"));
   assert.deepEqual(sent.body!.situation, { code: "NO_PROGRESS" });
   assert.equal(sent.body!.focus_object_id, "OBJ_S1_RITUAL_TABLE");
+});
+
+// ── 퍼즐 폴링(v0.4.7 퍼즐 자동 개입을 BE 가 판단하게) ──
+
+/** P03 · P09 만 서버 퍼즐인 플래너. at(시각, 목표, 덧붙임) = 0.5초 판정 한 번 */
+function pollPlanner(sendSituation = false) {
+  const planner = createAutoTurnPlanner({
+    sendSituation,
+    puzzleFocusOf: (objective) => (objective === "P03" || objective === "P09" ? PUZZLE_FOCUS_IDS[objective]! : null),
+  });
+  const at = (
+    now: number,
+    objective: ObjectiveId | null = "P03",
+    extra: { zone?: string; canDisplay?: boolean; canPoll?: boolean; situation?: Parameters<typeof planner.next>[0] } = {},
+  ) => planner.next(extra.situation ?? null, extra.zone ?? "Z2", extra.canDisplay ?? true, { objective, now, canPoll: extra.canPoll ?? true });
+  return at;
+}
+
+test("퍼즐 폴링: 서버 퍼즐이 목표인 동안 60초마다 상황 없이 그 퍼즐 대표 Object 만 실어 보내고, 목표가 바뀌면 처음부터 센다", () => {
+  assert.equal(PUZZLE_POLL_MS, 60_000);
+  const at = pollPlanner();
+  const jar = { situation: null, focusObjectId: "OBJ_S1_JAR_SLOTS" };
+  assert.equal(at(0), null, "목표가 된 순간에는 보내지 않는다");
+  assert.equal(at(30_000), null);
+  assert.equal(at(59_999), null);
+  assert.deepEqual(at(60_000), jar);
+  assert.equal(at(60_500), null, "보낸 뒤 다시 60초");
+  assert.equal(at(119_999), null);
+  assert.deepEqual(at(120_000), jar);
+  // 다른 서버 퍼즐로 — 그때부터 다시 센다
+  assert.equal(at(130_000, "P09"), null);
+  assert.equal(at(189_999, "P09"), null);
+  assert.deepEqual(at(190_000, "P09"), { situation: null, focusObjectId: "OBJ_S1_CAVE_RING_DOOR" });
+  // 걸음 · 목표 없음 · 서버 퍼즐 ID 없는 퍼즐은 보내지 않는다
+  for (const objective of ["S2_OFFER", null, "P05"] as const) {
+    const other = pollPlanner();
+    for (let t = 0; t <= 300_000; t += 30_000) assert.equal(other(t, objective), null, String(objective));
+  }
+});
+
+test("퍼즐 폴링: 컷신 · 창(표시할 수 없음) · 응답 대기 · 쉬는 중이면 보내지 않고, 풀리면 그때 보낸다", () => {
+  const at = pollPlanner();
+  at(0);
+  assert.equal(at(60_000, "P03", { canDisplay: false }), null, "컷신 · 창 · 대화 중");
+  assert.equal(at(61_000, "P03", { canPoll: false }), null, "응답 대기 · 제안 뒤 쉼");
+  assert.deepEqual(at(61_500), { situation: null, focusObjectId: "OBJ_S1_JAR_SLOTS" }, "풀리면 바로");
+  assert.equal(at(121_000), null, "다음은 보낸 때부터 60초");
+  assert.deepEqual(at(121_500), { situation: null, focusObjectId: "OBJ_S1_JAR_SLOTS" });
+});
+
+test("퍼즐 폴링: 한 번에 턴 하나 — 구역 진입 · 상황이 먼저고, 폴링은 다음 판정에 간다", () => {
+  const at = pollPlanner();
+  at(0, "P03", { zone: "Z1" });
+  assert.deepEqual(at(60_000, "P03", { zone: "Z2" }), { situation: null }, "구역 진입(대표 Object 없음)");
+  assert.deepEqual(at(60_500, "P03", { zone: "Z2" }), { situation: null, focusObjectId: "OBJ_S1_JAR_SLOTS" });
+
+  const withSituation = pollPlanner(true);
+  withSituation(0);
+  assert.deepEqual(withSituation(60_000, "P03", { situation: { kind: "breath", objective: "P03", step: 0 } }), {
+    situation: { code: "BREATH_LOW" },
+  });
+  assert.deepEqual(withSituation(60_500), { situation: null, focusObjectId: "OBJ_S1_JAR_SLOTS" }, "상황을 실어도 폴링은 따로");
+});
+
+/** 서버 · 다리 · 가짜 시계를 세운다(퍼즐 폴링 검사) */
+async function pollBridge(turnReply: Handler = () => ({ status: 200, body: turn() }), answer = false) {
+  let clock = 0;
+  serve(backend({ turn: turnReply }));
+  const session = createCompanionSession({ config: { caseId: "naju-angam-01", contentVersion: 1 }, storage: memoryStore() });
+  await session.start();
+  const dialog = createCompanionDialog({ session, timing: { ...TIMING, autoMinIntervalMs: 180_000 }, now: () => clock });
+  const said: Speech[] = [];
+  let asked = 0;
+  const bridge = createCompanionBridge({
+    dialog,
+    say: (speech) => void said.push(speech),
+    askOpenHint: async () => {
+      asked += 1;
+      return answer;
+    },
+    serverPuzzleIdOf: (objective) => HINT_PUZZLE_IDS[objective] ?? null,
+    puzzleFocusIdOf: (objective) => PUZZLE_FOCUS_IDS[objective] ?? null,
+    now: () => clock,
+  });
+  calls = [];
+  const relayAt = async (time: number, objective: ObjectiveId | null = "P03") => {
+    clock = time;
+    bridge.relay(null, "Z2", true, objective);
+    await tick();
+    await tick();
+  };
+  const turns = () => calls.filter((c) => c.path.endsWith("/npc/turns"));
+  return { dialog, said, relayAt, turns, asked: () => asked };
+}
+
+test("퍼즐 폴링 본문: 상황 없이 focus_object_id 만 싣고, FE 구역 간격(180초)에 막히지 않으며, reply null 은 조용히 넘긴다", async () => {
+  const { said, relayAt, turns, dialog } = await pollBridge();
+  await relayAt(0);
+  await relayAt(60_000);
+  await relayAt(120_000);
+  const sent = turns();
+  assert.equal(sent.length, 2);
+  for (const call of sent) {
+    assert.equal(call.body!.trigger, "auto");
+    assert.equal(call.body!.focus_object_id, "OBJ_S1_JAR_SLOTS");
+    assert.equal("situation" in call.body!, false);
+  }
+  assert.deepEqual(said, [], "reply null — 아무것도 띄우지 않는다");
+  assert.equal(dialog.getState().line, null);
+  // 걸음 목표는 폴링하지 않는다
+  await relayAt(130_000, "S2_OFFER");
+  await relayAt(400_000, "S2_OFFER");
+  assert.equal(turns().length, 2);
+});
+
+test("퍼즐 폴링에 제안(suggest_hint)이 오면 기존 Y/N 으로 묻고, 물은 뒤 180초 · 「아니요」면 600초 쉰다(보고 API 미연결)", async () => {
+  const suggest: Handler = () => ({ status: 200, body: turn({ suggest_hint: { hint_ref: "HINT_REF_P03" } }) });
+  const { relayAt, turns, asked } = await pollBridge(suggest, false);
+  await relayAt(0);
+  await relayAt(60_000);
+  assert.equal(turns().length, 1);
+  assert.equal(asked(), 1, "Y/N 으로 물었다");
+  await relayAt(120_000);
+  await relayAt(60_000 + OFFER_POLL_PAUSE_MS.declined - 1);
+  assert.equal(turns().length, 1, "「아니요」 뒤 600초는 다시 묻지 않는다");
+  await relayAt(60_000 + OFFER_POLL_PAUSE_MS.declined);
+  assert.equal(turns().length, 2);
+});
+
+test("퍼즐 폴링이 실패해도(422 · 연결) 「다시 말을 걸어 주세요」 같은 안내를 띄우지 않는다", async () => {
+  for (const status of [422, 503]) {
+    const { said, relayAt, turns, dialog } = await pollBridge(() => ({ status }));
+    await relayAt(0);
+    await relayAt(60_000);
+    // 503 은 같은 본문으로 몇 번 다시 보낸 뒤 끝난다 — 끝날 때까지 기다린다
+    for (let i = 0; i < 100 && dialog.getState().waiting !== null; i++) await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.ok(turns().length >= 1, `${status} 보냈다`);
+    assert.deepEqual(said, [], `${status} 안내 없음`);
+    assert.equal(dialog.getState().line, null);
+    assert.equal(dialog.getState().waiting, null, "대기가 풀렸다 — 다음 폴링이 막히지 않는다");
+  }
 });
 
 test("다리의 auto 턴: 꺼진 동안 본문에 situation 이 없고, 구역 진입은 간격(180초) 안에서 한 번만 간다", async () => {

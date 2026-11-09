@@ -128,7 +128,12 @@ export function syncDialogueHold() {
 const canDisplayCompanion = () => !shouldHold() && isPointerActive() && dialogue.getState()?.speech.kind !== "ask";
 
 /** 상황 · 구역을 서버로 보내는 곳(companionBridge.relay) — 동행 서버 세션이 있을 때만 붙는다 */
-type SituationSink = (situation: Situation | null, zoneCode: string | null, canDisplay: boolean) => void;
+type SituationSink = (
+  situation: Situation | null,
+  zoneCode: string | null,
+  canDisplay: boolean,
+  objective: ObjectiveId | null,
+) => void;
 let situationSink: SituationSink | null = null;
 export function setSituationSink(sink: SituationSink | null) {
   situationSink = sink;
@@ -139,9 +144,11 @@ export function tickDialogue() {
   syncDialogueHold();
   // 동행을 끈 판은 동행이 먼저 말할 일도 서버에 알릴 일도 없다(장면 인물 말은 npcSpeech 가 따로 한다)
   if (!hasStarted || !IS_COMPANION_ACTIVE) return;
-  const situation = watcher.observe(observeGame(panel));
+  const sight = observeGame(panel);
+  const situation = watcher.observe(sight);
   if (situation) director.handle(situation);
-  situationSink?.(situation, currentZoneCode(), canDisplayCompanion());
+  // 지금 목표도 넘긴다 — 서버 퍼즐이면 1분마다 그 퍼즐을 가리켜 BE 퍼즐 자동 개입이 돌게 한다(companionBridge 퍼즐 폴링)
+  situationSink?.(situation, currentZoneCode(), canDisplayCompanion(), sight.objective);
 }
 
 /** 서버가 준 동행의 말을 대화창에 올린다 — 동행이 방금 말했으니 한동안 먼저 말 걸지 않게 적는다 */

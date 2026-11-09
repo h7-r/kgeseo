@@ -4,7 +4,9 @@
  *   서버가 준 말    companionDialog 의 line(승인 대사 · 힌트 · 한국어 알림)이 새로 생기면 대화창에 그대로 올린다.
  *                   reply 가 null 이면 line 이 안 생기므로 아무것도 띄우지 않는다. 영문 detail 은 companionDialog 가 이미 걸렀다(DIALOG_TEXT).
  *   힌트 제안       suggest_hint(offer via ref)가 오면 Y/N 으로 묻고 「네」일 때만 acceptOffer — 동행을 겨눈 E 꾹을 대신한다(§10-2).
- *   auto 턴         상황 감지(situations)가 낸 상황 · 구역 진입을 여기 한 길로만 보낸다(createAutoTurnPlanner).
+ *   auto 턴         상황 감지(situations)가 낸 상황 · 구역 진입 · 퍼즐 폴링을 여기 한 길로만 보낸다(createAutoTurnPlanner).
+ *                   퍼즐 폴링: 지금 목표가 서버 퍼즐이면 1분마다 그 퍼즐 대표 Object 를 focus_object_id 로 실은 auto 턴 —
+ *                   v0.4.7 퍼즐 자동 개입(오답 6회 · 무입력 240초)을 BE 가 판단할 수 있게(상황을 싣든 안 싣든).
  *                   표시할 수 없을 때(연출 · 창 · 장면 인물 대화 · 동행 물음 · 첫 소개)는 보내지 않고 버린다 — 늦게 보내지도 않는다(계약 §11-2).
  *                   상황 대사는 퍼즐 자동 개입의 표시 · 거절 보고 대상이 아니다(§11-7) — FE 는 어느 쪽도 보고하지 않는다.
  *   [F] 정식 힌트   director 의 HintProvider — 지금 판에 정식 힌트가 있는 서버 퍼즐일 때만 Hint API 를 부른다(HINTED_PUZZLES).
@@ -75,6 +77,25 @@ export const SITUATION_ZONE_IDS: Partial<Record<Stage, string>> = {
   rock: "ZONE_GRAVEL_BEACH",
   ridge: "ZONE_JINBU_RIDGE",
 };
+/**
+ * 퍼즐 → 대표 Object(대응표 §2) — 퍼즐 폴링의 focus_object_id. 서버는 지금 구역에 보이는 · 안 푼 퍼즐로 이어지는 Object 만
+ * 퍼즐로 찾고, 콘텐츠에 없는 Object 는 조용히 무시한다(_focus_puzzle) — v1 에 아직 연결 안 된 퍼즐도 그대로 둔다.
+ */
+export const PUZZLE_FOCUS_IDS: Partial<Record<ObjectiveId, string>> = {
+  P01: "OBJ_S1_CLAM_HOLES",
+  P02: "OBJ_S1_FISH_TRAPS",
+  "P02-2": "OBJ_S1_FISH_TRAP_STAKES",
+  P03: "OBJ_S1_JAR_SLOTS",
+  P05: "OBJ_S1_RITUAL_TABLE",
+  P07: "OBJ_S1_CAVE_BIG_CLAM",
+  P08: "OBJ_S1_CAVE_BURROW_POT",
+  P09: "OBJ_S1_CAVE_RING_DOOR",
+  P10: "OBJ_S1_CAVE_ALTAR",
+  P11: "OBJ_S2_RIDGE_ALTAR",
+  P12: "OBJ_S2_JANGSEUNG_RINGS",
+  P13: "OBJ_S2_PLATFORM_STORY",
+  "P13-2": "OBJ_S2_STONE_BIRDS",
+};
 /** 판정 없는 걸음 → 대표 Object(상황 대사 focus_object_id, 대응표 §4). 걸음 상황을 보낼 때 함께 싣는다 */
 export const STEP_FOCUS_IDS: Partial<Record<ObjectiveId, string>> = {
   S1_FIRE: "OBJ_S1_BONFIRE_0",
@@ -96,7 +117,7 @@ export interface CompanionDialogPort {
   getState(): DialogState;
   subscribe(listener: () => void): () => unknown;
   acceptOffer(): Promise<boolean>;
-  autoTurn(situation?: NpcSituation, focusObjectId?: string): Promise<boolean>;
+  autoTurn(situation?: NpcSituation, focusObjectId?: string, options?: { quiet?: boolean }): Promise<boolean>;
   requestPuzzleHint(puzzleId: string): Promise<boolean>;
 }
 
@@ -113,8 +134,21 @@ export function toSpeech(line: DialogLine): Speech {
   return { kind: "line", text: line.text, lineId: line.lineId ?? undefined, ttlMs: SERVER_LINE_TTL_MS };
 }
 
-/** 이번에 보낼 auto 턴 — situation 이 null 이면 v0.4.7 방식(상황 없이). focusObjectId 는 걸음 상황일 때만 */
+/** 이번에 보낼 auto 턴 — situation 이 null 이면 v0.4.7 방식(상황 없이). focusObjectId 는 걸음 상황 · 퍼즐 폴링일 때만 */
 export type AutoTurnPlan = { situation: NpcSituation | null; focusObjectId?: string };
+
+/** 퍼즐 폴링 간격 — 지금 목표가 서버 퍼즐인 동안 이만큼마다 한 번 */
+export const PUZZLE_POLL_MS = 60_000;
+
+/** 퍼즐 폴링에 쓰는 지금 형편(relay 가 넣는다) */
+export interface PuzzleSight {
+  /** 지금 목표 — 상황 판정(gameObserver)이 본 것 */
+  objective: ObjectiveId | null;
+  /** 지금 시각(ms) */
+  now: number;
+  /** 폴링을 보내도 되나 — 서버 응답을 기다리는 중 · 방금 제안을 물은 뒤 쉬는 중이면 거짓 */
+  canPoll: boolean;
+}
 
 /**
  * auto 턴을 언제 · 무엇으로 보낼지 — 0.5초마다 상황 감지 뒤에 부른다. 상황은 「생긴 순간」 하나만 오므로 그대로 하나씩 보낸다.
@@ -122,17 +156,37 @@ export type AutoTurnPlan = { situation: NpcSituation | null; focusObjectId?: str
  *   sendSituation 켜짐  상황이 있으면 그 코드로(서버 판정 퍼즐의 실수 · 진전 없음 · 풀림은 toSituationPayload 가 null — 안 보낸다),
  *                       없고 구역에 막 들어섰으면 상황 없는 턴
  *   표시할 수 없는 때(canDisplay 거짓) 상황 · 구역 진입은 버린다 — 구역은 기억만 해 두어 나중에 「막 들어섰다」로 보내지 않는다(§11-2)
+ *   퍼즐 폴링           지금 목표가 서버 퍼즐(puzzleFocusOf 가 대표 Object 를 줌)이면, 그 목표가 된 때부터 pollMs 마다 상황 없이
+ *                       focus_object_id 만 실은 턴. 표시할 수 없거나 · 응답 대기 중이거나 · 쉬는 중(canPoll 거짓)이면 보내지 않고
+ *                       때가 지난 채 기다렸다가 그런 때가 풀리면 보낸다. 목표가 바뀌면 처음부터 센다. 한 번에 턴 하나 —
+ *                       상황 · 구역 진입이 먼저다
  */
 export function createAutoTurnPlanner(options: {
   sendSituation: boolean;
   zoneIdOf?: (stage: Stage) => string | null;
   focusIdOf?: (objective: ObjectiveId) => string | null;
+  /** 서버 퍼즐이면 그 대표 Object, 아니면 null — 퍼즐 폴링 대상 */
+  puzzleFocusOf?: (objective: ObjectiveId) => string | null;
+  pollMs?: number;
 }) {
+  const pollMs = options.pollMs ?? PUZZLE_POLL_MS;
   let lastZone: string | null = null;
+  /** 폴링을 세는 목표와 그 기준 시각(목표가 된 때 · 마지막으로 보낸 때) */
+  let pollObjective: ObjectiveId | null = null;
+  let pollFrom = 0;
   return {
-    next(situation: Situation | null, zoneCode: string | null, canDisplay = true): AutoTurnPlan | null {
+    next(
+      situation: Situation | null,
+      zoneCode: string | null,
+      canDisplay = true,
+      puzzle: PuzzleSight | null = null,
+    ): AutoTurnPlan | null {
       const isZoneEntry = zoneCode !== null && lastZone !== null && zoneCode !== lastZone;
       if (zoneCode !== null) lastZone = zoneCode;
+      if (puzzle && puzzle.objective !== pollObjective) {
+        pollObjective = puzzle.objective;
+        pollFrom = puzzle.now;
+      }
       if (!canDisplay) return null;
       const payload = options.sendSituation && situation ? toSituationPayload(situation) : null;
       if (payload && situation) {
@@ -141,10 +195,21 @@ export function createAutoTurnPlanner(options: {
         if (focus) plan.focusObjectId = focus;
         return plan;
       }
-      return isZoneEntry ? { situation: null } : null;
+      if (isZoneEntry) return { situation: null };
+      const focus = puzzle?.objective ? (options.puzzleFocusOf?.(puzzle.objective) ?? null) : null;
+      if (!puzzle || !focus || !puzzle.canPoll || puzzle.now - pollFrom < pollMs) return null;
+      pollFrom = puzzle.now;
+      return { situation: null, focusObjectId: focus };
     },
   };
 }
+
+/**
+ * 서버가 힌트를 권한 뒤 퍼즐 폴링을 쉬는 시간 — v0.4.7 쿨다운(제안 표시 180초 · 거절 600초)과 같은 값.
+ * 표시 · 거절 보고 API(npc_suggestion_events)가 아직 HTTP 에 연결되지 않아 BE 가 쿨다운을 셀 수 없다 — 그동안 1분 폴링이 같은
+ * 제안을 1분마다 다시 묻지 않게 FE 가 쉰다. 보고가 연결되면 BE 가 세므로 이 쉼은 빼도 된다.
+ */
+export const OFFER_POLL_PAUSE_MS = { shown: 180_000, declined: 600_000 };
 
 export interface CompanionBridgeOptions {
   dialog: CompanionDialogPort;
@@ -157,6 +222,10 @@ export interface CompanionBridgeOptions {
   zoneIdOf?: (stage: Stage) => string | null;
   /** 걸음 → 대표 Object(STEP_FOCUS_IDS) */
   focusIdOf?: (objective: ObjectiveId) => string | null;
+  /** 퍼즐 → 대표 Object(PUZZLE_FOCUS_IDS) — 서버 퍼즐 ID(serverPuzzleIdOf)가 있는 퍼즐만 폴링한다 */
+  puzzleFocusIdOf?: (objective: ObjectiveId) => string | null;
+  /** 지금 시각(ms) — 기본 Date.now(검사에서 바꿔 끼운다) */
+  now?: () => number;
   /** 상태 변화를 한 번에 모아 본다 — 기본은 마이크로태스크(검사에서 바꿔 끼운다) */
   schedule?: (run: () => void) => void;
 }
@@ -165,11 +234,19 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
   const { dialog } = options;
   const schedule = options.schedule ?? ((run) => queueMicrotask(run));
   const serverPuzzleIdOf = options.serverPuzzleIdOf ?? (() => null);
+  const now = options.now ?? (() => Date.now());
   const planner = createAutoTurnPlanner({
     sendSituation: options.sendSituation ?? false,
     zoneIdOf: options.zoneIdOf,
     focusIdOf: options.focusIdOf,
+    puzzleFocusOf: (objective) =>
+      serverPuzzleIdOf(objective) !== null ? (options.puzzleFocusIdOf?.(objective) ?? null) : null,
   });
+  /** 제안을 물은 뒤 퍼즐 폴링을 쉬는 끝 시각(OFFER_POLL_PAUSE_MS) */
+  let pollPausedUntil = 0;
+  const pausePolling = (ms: number) => {
+    pollPausedUntil = Math.max(pollPausedUntil, now() + ms);
+  };
 
   // 다리를 놓기 전에 이미 있던 말 · 제안은 다시 띄우지 않는다
   let seenLine: DialogLine | null = dialog.getState().line;
@@ -194,9 +271,12 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     }
     const lead = freshLine?.kind === "npc" ? freshLine : null;
     if (freshLine && !lead) options.say(toSpeech(freshLine));
+    pausePolling(OFFER_POLL_PAUSE_MS.shown);
     void options
       .askOpenHint({ lead: lead?.text ?? null, lineId: lead?.lineId ?? undefined, balance: hintBalance })
       .then((isYes) => {
+        // 「아니요」 · 대답 없이 물러남 — 거절 쿨다운만큼 다시 묻지 않는다
+        if (!isYes) pausePolling(OFFER_POLL_PAUSE_MS.declined);
         // 묻는 사이 제안이 바뀌었으면(세션이 바뀜 · 새 제안) 이 대답으로 열지 않는다
         if (isYes && dialog.getState().offer === freshOffer) void dialog.acceptOffer();
       });
@@ -220,13 +300,31 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
   };
 
   return {
-    /** 상황 감지 한 번(0.5초)마다 — 이번에 생긴 상황(없으면 null) · 지금 구역 코드 · 지금 동행 말을 띄울 수 있나(§11-2) */
-    relay(situation: Situation | null, zoneCode: string | null, canDisplay = true) {
-      const plan = planner.next(situation, zoneCode, canDisplay);
+    /**
+     * 상황 감지 한 번(0.5초)마다 — 이번에 생긴 상황(없으면 null) · 지금 구역 코드 · 지금 동행 말을 띄울 수 있나(§11-2, 컷신 · 창 ·
+     * 대화 중이면 거짓) · 지금 목표(퍼즐 폴링)
+     */
+    relay(
+      situation: Situation | null,
+      zoneCode: string | null,
+      canDisplay = true,
+      objective: ObjectiveId | null = null,
+    ) {
+      const time = now();
+      const state = dialog.getState();
+      const canPoll = state.isEnabled && state.waiting === null && time >= pollPausedUntil;
+      const plan = planner.next(situation, zoneCode, canDisplay, { objective, now: time, canPoll });
       if (!plan) return;
       // 상황이 있으면 쿨다운 · 횟수는 BE 가 센다. 보낼 수 없을 때(세션 준비 전 · 대기 중)는 버린다 — 지난 상황을 늦게 보내지 않는다
-      if (!plan.situation) return void dialog.autoTurn();
-      void (plan.focusObjectId ? dialog.autoTurn(plan.situation, plan.focusObjectId) : dialog.autoTurn(plan.situation));
+      if (plan.situation) {
+        void (plan.focusObjectId
+          ? dialog.autoTurn(plan.situation, plan.focusObjectId)
+          : dialog.autoTurn(plan.situation));
+        return;
+      }
+      // 퍼즐 폴링 — reply null 이면 아무것도 안 뜨고(line 없음), 제안이면 위 flush 가 Y/N 으로 묻는다. 실패해도 안내 없이
+      if (plan.focusObjectId) return void dialog.autoTurn(undefined, plan.focusObjectId, { quiet: true });
+      void dialog.autoTurn();
     },
     hintProvider,
     dispose() {
