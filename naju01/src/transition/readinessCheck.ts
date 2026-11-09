@@ -26,11 +26,33 @@ const RESOURCE_EXTENSIONS =
   /\.(glb|gltf|bin|png|jpe?g|webp|avif|ktx2|basis|hdr|exr|wasm|drc|fbx|obj|mtl|woff2?|ttf|otf)(\?|#|$)/i;
 const QUIET_MS = 800;
 const STALE_REQUEST_MS = 30000;
+/**
+ * 최대 시간이 지나도 파일이 계속 오고 있으면 이 시각까지 더 기다린다. 휴대폰 회선에서 나주 첫 방문(약 72 MB)이
+ * 60초를 넘겨 막이 먼저 걷히면 공개 에셋 전의 임시 모형 · 구운 땅 전의 해석 지형이 보이고, 뒤늦게 땅이 바뀌며
+ * 걷던 자리가 튄다(미르 11/9 갤럭시 S24 「PC 와 다른 맵 · NPC 없음 · 이동이 잘 안 됨」, 8 Mbps 흉내로 재현).
+ */
+const EXTENDED_MAX_SECONDS = 240;
+/** 이만큼 아무것도 안 오면 받기가 멈춘 것으로 보고 더 늘리지 않는다 */
+const STALL_MS = 10000;
+/**
+ * 받는 중인 요청을 「아직 오는 중」으로 쳐 주는 나이. 관문 1 은 30초 넘은 요청을 걸림으로 안 치지만,
+ * 느린 회선에서 큰 GLB 하나가 30초를 넘겨 받히는 중일 수 있어 늘림 판정은 더 길게 본다(Codex 23b P1).
+ * 이보다 오래 걸린 요청은 걸려 멈춘 것으로 본다.
+ */
+const LONG_REQUEST_MS = 120000;
 
 const pendingRequests = new Map<number, number>(); // 번호 → 시작 시각
 let requestSerial = 0;
 let lastReceivedAt = 0;
 let lastReceivedName = ""; // 진단용
+
+/** 아직 파일이 오고 있나 — 받는 중인 요청(LONG_REQUEST_MS 안)이 있거나 방금 받았다 */
+function isStillReceiving(): boolean {
+  const now = performance.now();
+  if (now - lastReceivedAt < STALL_MS) return true;
+  for (const startedAt of pendingRequests.values()) if (now - startedAt < LONG_REQUEST_MS) return true;
+  return false;
+}
 
 function isResource(url: unknown): boolean {
   try {
@@ -143,11 +165,17 @@ function getLiveCanvases(): CanvasState[] {
 /** 관문 1 — 조용하면 null, 아니면 무엇 때문인지(진단 글) */
 function findLoadingBlocker(isLoading: () => boolean): string | null {
   const now = performance.now();
-  for (const [id, startedAt] of pendingRequests) if (now - startedAt > STALE_REQUEST_MS) pendingRequests.delete(id);
+  // 30초 넘은 요청은 걸림으로 치지 않되 목록에서는 늘림 판정(LONG_REQUEST_MS)까지 남겨 둔다
+  let activeRequests = 0;
+  for (const [id, startedAt] of pendingRequests) {
+    const age = now - startedAt;
+    if (age > LONG_REQUEST_MS) pendingRequests.delete(id);
+    else if (age <= STALE_REQUEST_MS) activeRequests += 1;
+  }
   if (!document.querySelector("canvas")) return "캔버스 없음";
   if (getLiveCanvases().length === 0) return "3D 준비 전";
   if (isLoading()) return "모델 · 텍스처 받는 중";
-  if (pendingRequests.size) return `파일 ${pendingRequests.size}개 받는 중`;
+  if (activeRequests) return `파일 ${activeRequests}개 받는 중`;
   if (now - lastReceivedAt < QUIET_MS) return `파일 막 받음(${lastReceivedName})`;
   if (document.fonts && document.fonts.status !== "loaded") return "글꼴 받는 중";
   return null;
@@ -257,7 +285,12 @@ export async function waitUntilReady(
   document.addEventListener("visibilitychange", handleVisibilityChange);
   const elapsedSeconds = () =>
     (performance.now() - startedAt - hiddenTotal - (hiddenSince != null ? performance.now() - hiddenSince : 0)) / 1000;
-  const remainingSeconds = () => maxSeconds - elapsedSeconds();
+  // 최대 시간까지는 그대로. 넘긴 뒤에도 파일이 계속 오면(느린 회선) 늘린 상한까지 기다리고, 멈췄으면 걷는다
+  const remainingSeconds = () => {
+    const elapsed = elapsedSeconds();
+    if (elapsed < maxSeconds) return maxSeconds - elapsed;
+    return isStillReceiving() ? Math.max(0, Math.max(maxSeconds, EXTENDED_MAX_SECONDS) - elapsed) : 0;
+  };
   let lastReason = "";
   const report = (status: string) => {
     lastReason = status;

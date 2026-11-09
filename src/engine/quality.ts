@@ -31,5 +31,9 @@ export const IS_MOBILE_QUALITY = (() => {
   }
 })();
 
-/** 모바일 품질의 해상도 배율 상한 */
-export const MOBILE_MAX_DPR = 1.25;
+/**
+ * 모바일 품질의 해상도 배율 상한. 휴대폰은 기기 배율이 3 이라 1.25 면 화면 해상도의 42 % 로 그려 늘린다 —
+ * 미르 11/9(갤럭시 S24) 「너무 흐릿해 이질감이 크다」로 PC 나주와 같은 1.75 로 올렸다.
+ * 나주는 1.25 에서 시작해 프레임이 넉넉하면 여기까지 올린다(PerformanceMonitor). 본편은 PC 상한 1.5 를 넘지 않는다.
+ */
+export const MOBILE_MAX_DPR = 1.75;
