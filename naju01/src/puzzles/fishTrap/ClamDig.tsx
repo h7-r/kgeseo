@@ -6,8 +6,11 @@
  * 맨손으로는 못 판다. 통발은 조개를 든 뒤에야 물에 넣을 수 있다(FishTrapPuzzle).
  *
  * 판정(P01, 서버 판정 input): 구멍을 파기 시작하면 판 구멍 번호 목록을 서버로 보내고(najuProgress), 호미질이 끝나면
- * 받은 판정대로 드러낸다 — 어느 구멍이 조개인지 이 파일은 모른다. 서버가 correct · already_completed 면 다 찾은 것이다.
- * 서버는 아직 구멍별 결과(조개 · 게 · 갯지렁이)를 주지 않아 incorrect 면 「아직 모자란다」만 알린다.
+ * 받은 판정대로 드러낸다. 다 찾았는지(완료)는 서버만 정한다 — correct · already_completed 면 다 찾은 것이다.
+ * 서버는 구멍별 결과를 주지 않으므로 incorrect 면 그 구멍에서 무엇이 나왔는지는 숨구멍이 뿜는 수(물줄기와 같은 값)로 보인다
+ * (해랑 11/9 운영 플레이: 조개 구멍을 파도 「모자란다」만 떠 셋째에 한꺼번에 나왔다).
+ * 게 구멍을 파면 꼬집혀 놀란 바람에 모아 둔 조개를 쏟고 판 구덩이가 다 메워진다 — 처음부터 다시(미르 11/9).
+ * 서버 정답 규칙(판 구멍에 조개 구멍이 다 들었나)은 v1 에서 바꿀 수 없어, 일곱을 다 파는 길을 화면에서 막는다.
  * 서버로 보낼 수 없으면(대응표 확정 전 · 세션 없음) 개발 빌드에서만 clamLocalJudge.dev 로 판정하고,
  * 배포 빌드에서는 구덩이를 메우고 「연결 필요」를 띄운다. 연결이 끊기면 같은 이벤트를 [E] 로 다시 보낸다.
  * 이어 하기: 판 구멍(clam.isDug) · 조개가 나온 구멍(clam.found) · 꼬집힌 수(clam.pinches)를 저장본에 남긴다.
@@ -38,7 +41,7 @@ import {
   puffAt,
   type BreathHole,
 } from "./breathHoles";
-import { clamDugAnswer, deriveFound, dugHoles, restoreClamProgress, type DigResult } from "./clamAnswer";
+import { clamDugAnswer, deriveFound, dugHoles, findOfPuffs, restoreClamProgress, type DigResult } from "./clamAnswer";
 import { CLAM_SCALE, buildClamHandful, buildDugGround, buildHoe, buildSideHoles } from "./clamModels";
 import { clamDig, useClamStage } from "./clamState";
 import { DIG_KEYS, STRIKES, Y_AXIS, createMove, digKeyAt, digPose, ease, holdHoe, startMove } from "./hoeMotion";
@@ -165,6 +168,14 @@ function createHoles(ground: ReturnType<typeof buildDugGround>): Hole[] {
     pile.visible = false;
     return { ...hole, spot, mark, dug: { hole: dugHole, pile }, isDug: false };
   });
+}
+
+/** 판 구덩이를 메워 처음처럼 — 판정을 못 받았을 때 · 게에 놀라 다 무너뜨렸을 때 */
+function refillHole(hole: Hole) {
+  hole.isDug = false;
+  hole.mark.visible = true;
+  hole.dug.hole.visible = false;
+  hole.dug.pile.visible = false;
 }
 
 export default function ClamDig() {
@@ -304,7 +315,10 @@ export default function ClamDig() {
         return;
       }
       if (result.find === "crab") {
-        // 게 — 튀어나와 손등을 꼬집고 달아난다
+        // 게 — 튀어나와 손등을 꼬집고 달아난다. 놀란 바람에 모아 둔 조개를 쏟고 판 구덩이가 다 메워진다(처음부터)
+        const hadDug = holes.some((other) => other !== hole && other.isDug);
+        for (const other of holes) refillHole(other);
+        foundRef.current = [];
         pinchesRef.current += 1;
         pinchedUntil.current = performance.now() / 1000 + PINCH_SECONDS;
         crabRun.startedAt = performance.now() / 1000;
@@ -315,7 +329,12 @@ export default function ClamDig() {
         crab.visible = true;
         audio.play("우르릉");
         director.cue({ 카메라: "흔들림", 세기: 0.25 });
-        showNotice("게다! 집게에 손등을 꼬집혔다 — 한 번 숨 쉬는 구멍은 게다.", 4);
+        showNotice(
+          hadDug
+            ? "게다! 손등을 꼬집혀 움찔하는 바람에 모아 둔 조개를 쏟았다 — 판 구덩이도 무너져 다시 메워졌다. 처음부터 다시. 한 번 숨 쉬는 구멍은 게다."
+            : "게다! 집게에 손등을 꼬집혔다 — 한 번 숨 쉬는 구멍은 게다.",
+          5,
+        );
         return;
       }
       audio.play("똑");
@@ -331,10 +350,7 @@ export default function ClamDig() {
         return;
       }
       retryHoleRef.current = outcome.verdict.kind === "retryable" ? k : -1;
-      hole.isDug = false;
-      hole.mark.visible = true;
-      hole.dug.hole.visible = false;
-      hole.dug.pile.visible = false;
+      refillHole(hole);
       const notice = verdictNotice(outcome.verdict);
       if (notice) showNotice(notice, 4.5);
     };
@@ -344,7 +360,9 @@ export default function ClamDig() {
     const toOutcome = async (verdict: PuzzleVerdict, dug: number[], k: number): Promise<DigOutcome> => {
       if (verdict.kind === "correct" || verdict.kind === "already-completed")
         return { kind: "result", result: { find: "clam", done: true } };
-      if (verdict.kind === "incorrect") return { kind: "result", result: { find: "unknown", done: false } };
+      // 아직 다 못 찾았다 — 이 구멍에서 나온 것은 뿜는 수로
+      if (verdict.kind === "incorrect")
+        return { kind: "result", result: { find: findOfPuffs(HOLES[k].puffs), done: false } };
       if (import.meta.env.DEV) {
         if (verdict.kind === "unavailable") {
           const { localDigResult } = await import("./clamLocalJudge.dev");

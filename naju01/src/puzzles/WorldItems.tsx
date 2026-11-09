@@ -18,9 +18,11 @@ import {
   useWorldItems,
   withObjectParticle,
   type HeldItem,
+  type ItemKind,
   type WorldItem,
 } from "./inventory";
 import { buildItemLooks, type ItemLook } from "./itemLooks";
+import { makeGlowTexture } from "./glowTexture";
 import { useItemModel } from "./itemModel";
 import { cave } from "./cave/caveState";
 import { floodSurfaceAt } from "./ritual/floodSurface";
@@ -29,14 +31,17 @@ import { ridgeCarry } from "./ridge/ridgeState";
 export default function WorldItems() {
   const items = useWorldItems();
   const looks = useMemo(() => buildItemLooks(), []);
+  const halo = useMemo(() => makeHalo(), []);
   useEffect(
     () => () => {
       for (const look of Object.values(looks)) {
         look.geometry.dispose();
         look.material.dispose();
       }
+      halo.map?.dispose();
+      halo.dispose();
     },
-    [looks],
+    [looks, halo],
   );
   const hand = useHandItem();
 
@@ -82,7 +87,7 @@ export default function WorldItems() {
   return (
     <>
       {items.map((item) => (
-        <PlacedItem key={item.uid} item={item} look={looks[item.kind]} />
+        <PlacedItem key={item.uid} item={item} look={looks[item.kind]} halo={HALO_KINDS.has(item.kind) ? halo : null} />
       ))}
       {hand && <HandItem key={hand.uid} item={hand} look={looks[hand.kind]} />}
     </>
@@ -116,8 +121,30 @@ function HandItem({ item, look }: { item: HeldItem; look: ItemLook }) {
 /** 물에 뜬 뜬 돌이 까딱이는 높이(미터) */
 const BOB_HEIGHT = 0.03;
 
-function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
+/**
+ * 바닥에 놓인 채 빛무리를 두르는 물건 — 톱니돌은 물굴 바닥 돌과 빛깔이 같아 독 곁에 나와도 못 찾았다(해랑 11/9 운영 플레이).
+ * 손 · 고리문 홈에 든 것은 두르지 않는다
+ */
+const HALO_KINDS = new Set<ItemKind>(["gearStone"]);
+/** 빛무리 지름(미터) · 숨 쉬듯 밝아졌다 어두워지는 빠르기 · 가장 옅을 때와 짙을 때 */
+const HALO_SIZE = 0.42;
+const HALO_SPEED = 1.8;
+const HALO_OPACITY = [0.22, 0.5] as const;
+
+function makeHalo() {
+  return new THREE.SpriteMaterial({
+    map: makeGlowTexture(),
+    color: "#8FE7E0",
+    transparent: true,
+    opacity: HALO_OPACITY[1],
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+}
+
+function PlacedItem({ item, look, halo }: { item: WorldItem; look: ItemLook; halo: THREE.SpriteMaterial | null }) {
   const meshRef = useRef<THREE.Group>(null);
+  const haloRef = useRef<THREE.Sprite>(null);
   const model = useItemModel(look.model);
   const name = ITEMS[item.kind].name;
   // 물에 뜨면 겨누는 자리도 함께 오른다. item.position 은 바닥 자리라 그대로 둔다
@@ -167,11 +194,17 @@ function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
     mesh.rotation.y = flap === null ? (isFloating ? t * 0.25 + item.uid : 0) : Math.sin(flap) * 0.35;
     const hop = flap === null ? 0 : Math.max(0, Math.sin(flap * 0.5)) * 0.05;
     mesh.position.y = (restY + look.lift + hop) * M;
+    // 빛무리 재질은 톱니돌 모두가 같이 쓴다 — 같이 숨 쉬게 시각만으로 정한다
+    if (haloRef.current && halo) {
+      const breath = 0.5 + 0.5 * Math.sin(t * HALO_SPEED);
+      halo.opacity = HALO_OPACITY[0] + (HALO_OPACITY[1] - HALO_OPACITY[0]) * breath;
+    }
   });
 
   return (
     <group ref={meshRef} position={[item.position.x, item.position.y + look.lift * M, item.position.z]} scale={M}>
       {model ? <primitive object={model} /> : <mesh geometry={look.geometry} material={look.material} />}
+      {halo && <sprite ref={haloRef} material={halo} position={[0, 0.04, 0]} scale={HALO_SIZE} renderOrder={2} />}
     </group>
   );
 }
