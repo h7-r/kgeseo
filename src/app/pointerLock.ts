@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, type RefObject } from "react";
 import type { PointerLockControls } from "three-stdlib";
 
-import { addPointerActiveListener, isPointerActive, isTouchMode } from "@/engine/input";
+import { isPointerActive, isTouchMode } from "@/engine/input";
 import { overlayLayer, useOpenLayer, type OverlayLayerName } from "@/game/overlayLayer";
-import { endLockControl, leaveLockControl, turnLockDigit, useLockControl } from "@/props/combinationLockState";
+import { isHintOffering } from "@/game/valveHelp";
+import { endLockControl, turnLockDigit, useLockControl } from "@/props/combinationLockState";
 
 /** 마우스 잠금(1인칭 시점) 조작기. 창·자물쇠가 잠금을 풀고 되돌릴 때 쓴다. */
 export type PointerLockRef = RefObject<PointerLockControls | null>;
@@ -74,31 +75,78 @@ export function useOverlayWindows(controlsRef: PointerLockRef) {
   return { openLayer, openWindow, closeWindow };
 }
 
+/** 자물쇠에서 나오며 다시 잠그는 중 — 잡히기 전에 ESC 가 한 번 더 오면 「밖으로」를 고른 것이다 */
+const lockRelock = { inFlight: false, canceled: false, timer: 0 };
+/** 다시 잠근 뒤 이만큼 안에 안 잡히면 거절된 것으로 본다(그때는 [T] 안내가 뜬다) */
+const RELOCK_CHECK_MS = 600;
+
+function onRelockSettled() {
+  window.clearTimeout(lockRelock.timer);
+  lockRelock.inFlight = false;
+  // 다시 잠그는 사이 ESC 를 또 눌렀으면 잡히자마자 놓는다 — 늦은 자동 잠금이 「밖으로」를 덮지 않게(12회차 Codex)
+  if (lockRelock.canceled && document.pointerLockElement) document.exitPointerLock();
+  lockRelock.canceled = false;
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("pointerlockchange", () => {
+    if (lockRelock.inFlight && document.pointerLockElement) onRelockSettled();
+  });
+}
+
+/** ESC — 자물쇠에서 막 나와 다시 잠그는 중이면 그 잠금을 거둔다. 거뒀으면 true */
+export function cancelLockRelock() {
+  if (!lockRelock.inFlight) return false;
+  lockRelock.canceled = true;
+  return true;
+}
+
 /**
- * [E] 로 자물쇠를 만지는 동안의 마우스 처리. 마우스 잠금은 풀지 않는다 — 풀면 커서가 튀어나오고,
- * 브라우저가 다시 잠그는 것을 거절할 수 있다. 고개가 돌지 않게 하는 일은 App 이 시점 속도를 0 으로 해서 맡는다.
+ * [E] 로 자물쇠를 만지는 동안의 마우스 처리 — ESC 두 단계(미르 11/9, 튜토피드백 12회차. 나주 pointerHold 81b1484 와 같은 원리).
+ * 마우스가 잠긴 동안 ESC 는 브라우저가 먼저 가져가 잠금을 푼다(키는 안 온다) — 그래서 예전엔 ESC 한 번에 커서가 게임 밖으로
+ * 나와 T 를 다시 눌러야 했다. PC 에서는 자물쇠를 만지기 시작할 때 페이지가 스스로 잠금을 풀어 둔다. 그러면 ESC 가 평범한
+ * 키로 들어와 자물쇠만 닫고(useGameKeys), 페이지가 푼 잠금이라 크롬은 몸짓 없이 다시 잠가 준다 — 게임 화면으로 돌아온다.
+ * 거기서 ESC 를 한 번 더 누르면 그때 커서가 밖으로 나온다. 다시 잠그기를 거절하는 브라우저면 [T] 안내(ReturnPrompt)가 뜬다.
+ * 자물쇠 중에 연 창(H · I · P)은 닫으면 자물쇠로 돌아가고(창은 열 때 잠겨 있지 않았다), 자물쇠에서 나올 때 여기서 다시 잠근다.
+ * 고개가 돌지 않게 하는 일은 App 이 시점 속도를 0 으로 해서 맡는다. 터치(가상 잠금)는 풀지 않는다.
  * 다이얼은 휠로도 돌린다 — 실물 자물쇠를 엄지로 굴리는 몸짓이다.
  */
-export function useLockControlMode() {
+export function useLockControlMode(controlsRef: PointerLockRef) {
   const lockControl = useLockControl();
+  const openLayer = useOpenLayer();
+  const phase = lockControl?.phase ?? null;
+  /** 자물쇠 때문에 페이지가 스스로 푼 잠금 — 나올 때 다시 잠근다 */
+  const isReleasedForLock = useRef(false);
 
   useEffect(() => {
-    if (!lockControl) return;
-    if (lockControl.phase === "active") {
-      // 잠금 중 ESC 는 브라우저가 먼저 가져가 키 입력이 오지 않는다. 잠금이 풀리면 자물쇠에서도 나간다.
-      const handleLockChange = () => {
-        if (!isPointerActive()) leaveLockControl();
-      };
-      return addPointerActiveListener(handleLockChange);
-    }
+    if (phase !== "active" || isTouchMode() || !document.pointerLockElement) return;
+    isReleasedForLock.current = true;
+    controlsRef.current?.unlock();
+  }, [phase, controlsRef]);
+
+  // 나가기 시작하면(ESC · 정답 뒤 · 자물쇠가 사라짐) 다시 잠근다. 창이 떠 있으면 창이 닫힌 뒤에
+  useEffect(() => {
+    if (phase === "active" || openLayer !== null || !isReleasedForLock.current) return;
+    isReleasedForLock.current = false;
+    lockRelock.inFlight = true;
+    lockRelock.canceled = false;
+    window.clearTimeout(lockRelock.timer);
+    lockRelock.timer = window.setTimeout(onRelockSettled, RELOCK_CHECK_MS);
+    controlsRef.current?.lock();
+  }, [phase, openLayer, controlsRef]);
+
+  useEffect(() => {
+    if (phase !== "leaving") return;
     // 카메라가 돌아오면 자물쇠 쪽이 endLockControl() 을 부른다. 이건 뒤늦은 안전망이다.
     const timer = setTimeout(() => endLockControl(), LOCK_LEAVE_TIMEOUT_MS);
     return () => clearTimeout(timer);
-  }, [lockControl]);
+  }, [phase]);
 
   useEffect(() => {
     if (!lockControl || lockControl.phase !== "active") return;
     const handleWheel = (event: WheelEvent) => {
+      // 창(힌트함 등)은 휠로 넘겨 읽는다 · 추가 힌트를 묻는 동안은 다이얼을 안 돌린다(12회차 Codex)
+      if (overlayLayer.get() !== null || isHintOffering()) return;
       event.preventDefault();
       turnLockDigit(lockControl.id, event.deltaY < 0 ? 1 : -1);
     };

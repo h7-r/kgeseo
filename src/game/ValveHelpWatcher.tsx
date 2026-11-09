@@ -5,16 +5,23 @@ import { useEffect } from "react";
 import { gameClearTimeout, gameSetTimeout } from "@/engine/input/gameClock";
 import { useLockControl } from "@/props/combinationLockState";
 
-import { addValveActiveTime, isValveLockId } from "./valveHelp";
+import { addValveActiveTime, dismissHintOffer, isValveLockId, useHintOffering } from "./valveHelp";
 
 const TICK_MS = 1000;
 
 export default function ValveHelpWatcher({ covered }: { covered: boolean }) {
   const control = useLockControl();
   const id = control?.phase === "active" && isValveLockId(control.id) ? control.id : null;
+  // 추가 힌트를 묻는 동안은 시간을 안 센다 — 고민하는 동안 다음 문턱을 넘지 않게(12회차 Codex)
+  const isOffering = useHintOffering();
+
+  // 자물쇠에서 나가면 묻던 것을 접는다 — 힌트함 「받기」로 남는다(12회차)
+  useEffect(() => {
+    if (!id) dismissHintOffer();
+  }, [id]);
 
   useEffect(() => {
-    if (!id || covered) return;
+    if (!id || covered || isOffering) return;
     let timer: number | null = null;
     const tick = () => {
       if (document.visibilityState === "visible") addValveActiveTime(id, TICK_MS);
@@ -22,7 +29,7 @@ export default function ValveHelpWatcher({ covered }: { covered: boolean }) {
     };
     timer = gameSetTimeout(tick, TICK_MS);
     return () => gameClearTimeout(timer);
-  }, [id, covered]);
+  }, [id, covered, isOffering]);
 
   return null;
 }

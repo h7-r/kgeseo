@@ -52,10 +52,21 @@ import StationScene from "@/station/StationScene";
 import DestinationWindow from "@/trainInterior/DestinationWindow";
 import TrainInteriorScene from "@/trainInterior/TrainInteriorScene";
 import DispatchCard from "@/tutorial/DispatchCard";
+import { useDispatchState } from "@/tutorial/dispatchState";
 import TutorialPanel from "@/tutorial/TutorialPanel";
 
 import CrashOverlays from "./overlays/CrashOverlays";
-import { ActionHint, Crosshair, FadeCurtain, LockDialPanel, Toast, TopBarButton } from "./overlays/Hud";
+import {
+  ActionHint,
+  Crosshair,
+  FadeCurtain,
+  HintOfferCard,
+  LockDialPanel,
+  ReturnPrompt,
+  Toast,
+  TopBarButton,
+} from "./overlays/Hud";
+import { useIsTypingFocused } from "./useIsTypingFocused";
 import MangaScene from "./MangaScene";
 import { createPlayerState, usePunch } from "./playerState";
 import { useLockControlMode, useOverlayWindows } from "./pointerLock";
@@ -169,6 +180,8 @@ export default function App() {
     return pose ? { ...CAMERA, position: pose.position } : CAMERA;
   });
   const [isPointerLocked, setIsPointerLocked] = useState(false);
+  /** 한 번이라도 [T] 로 들어왔나 — 처음엔 튜토리얼 첫 단계가 「T 조작 시작」을 알려 주므로 게임 밖 안내를 띄우지 않는다 */
+  const [hasLockedOnce, setHasLockedOnce] = useState(false);
   // 나주 진입 연출 중엔 렌더를 멈춘다. 암전에 가려 안 보이고, 메인 스레드가 연출에 집중해 매끄럽다.
   const [isEnteringNaju, setIsEnteringNaju] = useState(false);
   useEffect(() => {
@@ -207,7 +220,7 @@ export default function App() {
   const { fade, boardTrain, leaveTrain } = useSceneTransition(isTrain, near);
   const { openLayer, openWindow, closeWindow } = useOverlayWindows(controlsRef);
   const settings = useSettings();
-  const lockControl = useLockControlMode();
+  const lockControl = useLockControlMode(controlsRef);
   useDevInventorySeed();
 
   useGameKeys({
@@ -242,6 +255,22 @@ export default function App() {
     stationActiveRef.current = isStationActive;
   }, [isStationActive]);
   const readStationActive = useCallback(() => stationActiveRef.current, []);
+  // 게임 밖(잠금 풀림)이면 [T] 안내 — ESC 두 번 · 다시 잠그기 거절 뒤(12회차). 창 · 자물쇠 · 연출 · 입력칸 · 긴급 호출 카드 · 장면 전환
+  // · 나주 진입 중에는 그쪽이 화면을 쓰고 잠금이 일부러 풀려 있으니 띄우지 않는다. 터치는 가상 잠금이라 해당 없음
+  const isTyping = useIsTypingFocused();
+  const isDispatchAlert = useDispatchState().phase === "alert";
+  const isReturnPromptShown =
+    !isTouch &&
+    !IS_INPUT_ALWAYS_ON &&
+    hasLockedOnce &&
+    !isPointerLocked &&
+    !openLayer &&
+    !lockControl &&
+    !isCutscenePlaying &&
+    !isTyping &&
+    !isDispatchAlert &&
+    !isEnteringNaju &&
+    fade === 0;
   // 3인칭인 채로 비밀 복도(튜토 공간)에 있으면 1인칭으로 돌린다 — 본부실에서 복도로 걸어 들어온 때도. 기차 · 컷신 중엔 건드리지 않는다
   useEffect(() => {
     if (isTrain || !isThirdPerson || isCutscenePlaying) return;
@@ -317,7 +346,10 @@ export default function App() {
           // 자물쇠·컷신 동안은 잠금을 유지한 채 고개만 멈춘다. 커서가 튀어나오지 않는다.
           pointerSpeed={lockControl || isCutscenePlaying ? 0 : settings.sensitivity}
           selector="#__never__"
-          onLock={() => setIsPointerLocked(true)}
+          onLock={() => {
+            setIsPointerLocked(true);
+            setHasLockedOnce(true);
+          }}
           onUnlock={() => setIsPointerLocked(false)}
         />
       </Canvas>
@@ -341,7 +373,9 @@ export default function App() {
       {active && <ActionHint near={near} />}
       <Toast raised={lockControl !== null} />
       <LockDialPanel covered={openLayer !== null} />
+      <HintOfferCard covered={openLayer !== null} />
       <ValveHelpWatcher covered={openLayer !== null} />
+      {isReturnPromptShown && <ReturnPrompt />}
       {/* 화면층이 지금 열린 창을 하나로 정하므로 두 창이 겹칠 수 없다 */}
       <InventoryPanel open={openLayer === OVERLAY_LAYERS.inventory} onClose={closeWindow} />
       <HintPanel open={openLayer === OVERLAY_LAYERS.hint} onClose={closeWindow} />

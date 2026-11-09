@@ -138,6 +138,15 @@ export function leaveLockControl() {
   signal.notify();
 }
 
+/**
+ * 그 자물쇠를 아직 만지고 있을 때만 나간다 — 늦게 온 서버 판정 · 정답 뒤 타이머가 그사이 ESC 로 나갔다가 새로 연
+ * 다른 자물쇠 조작을 끝내지 않게(튜토피드백 12회차 Codex)
+ */
+export function leaveLockControlIf(id: string) {
+  if (activeControl?.id !== id || activeControl.phase !== "active") return;
+  leaveLockControl();
+}
+
 export function endLockControl() {
   if (!activeControl) return;
   activeControl = null;

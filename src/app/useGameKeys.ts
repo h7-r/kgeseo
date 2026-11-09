@@ -5,12 +5,13 @@ import { gameSetTimeout } from "@/engine/input/gameClock";
 import { startReach } from "@/engine/playerView";
 import { addHint, flashHints } from "@/game/hintBox";
 import { isTypingTarget, OVERLAY_LAYERS, type OverlayLayerName } from "@/game/overlayLayer";
-import { noteValveAnswer } from "@/game/valveHelp";
+import { acceptHintOffer, dismissHintOffer, isHintOffering, noteValveAnswer } from "@/game/valveHelp";
 import { dropChair, getDraggedChair, runAimedInteraction } from "@/lobby/interactions";
 import { getLatestPlacement } from "@/lobby/placement";
 import { dropCoin, getHeldCoin } from "@/props/coinState";
 import {
   leaveLockControl,
+  leaveLockControlIf,
   selectLockRow,
   submitLockAnswer,
   tryLockAnswer,
@@ -27,7 +28,7 @@ import { chairDragState } from "@/station/headquarters/chairDragState";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 import { isHologramAimed } from "@/trainInterior/hologramAim";
 
-import type { PointerLockRef } from "./pointerLock";
+import { cancelLockRelock, type PointerLockRef } from "./pointerLock";
 import { IS_INPUT_ALWAYS_ON } from "./runtimeFlags";
 import { tryPlaceHeldItem } from "./useSceneTransition";
 
@@ -48,8 +49,25 @@ interface GameKeysOptions {
   toggleThirdPerson: () => void;
 }
 
+/** 정답 뒤 나가기를 이미 걸어 둔 자물쇠 — 풀린 뒤 Enter 를 또 눌러도 타이머가 겹치지 않게(12회차 Codex) */
+const leavingAfterUnlock = new Set<string>();
+function leaveAfterUnlock(id: string) {
+  if (leavingAfterUnlock.has(id)) return;
+  leavingAfterUnlock.add(id);
+  gameSetTimeout(() => {
+    leavingAfterUnlock.delete(id);
+    leaveLockControlIf(id);
+  }, UNLOCK_SHOW_MS);
+}
+
 /** 자물쇠를 만지는 동안은 키를 여기서 다 먹는다. 화살표와 WASD 를 둘 다 받는다(걸음은 어차피 멈춰 있다). */
 function handleLockKey(code: string, id: string) {
+  // 「추가 힌트를 받으시겠습니까?」를 묻는 동안은 예(Y) · 아니요(N)만 — 다이얼은 안 돈다(12회차)
+  if (isHintOffering()) {
+    if (code === "KeyY") acceptHintOffer();
+    else if (code === "KeyN") dismissHintOffer();
+    return;
+  }
   if (code === "ArrowLeft" || code === "KeyA") selectLockRow(id, -1);
   else if (code === "ArrowRight" || code === "KeyD") selectLockRow(id, 1);
   else if (code === "ArrowUp" || code === "KeyW") turnLockDigit(id, 1);
@@ -60,7 +78,8 @@ function handleLockKey(code: string, id: string) {
     submitLockAnswer(id)
       .then((isCorrect) => {
         if (typeof isCorrect === "boolean") noteValveAnswer(id, isCorrect);
-        if (isCorrect === true) gameSetTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
+        // 늦게 온 판정이 그사이 ESC 로 나갔다가 새로 연 다른 자물쇠 조작을 끝내지 않게 — 그 자물쇠일 때만 나간다
+        if (isCorrect === true) leaveAfterUnlock(id);
         else if (isCorrect === false) rattleHinge(id);
       })
       .catch((error: unknown) => {
@@ -68,7 +87,7 @@ function handleLockKey(code: string, id: string) {
         console.warn("[Play Session] 자물쇠 판정 실패 — 로컬 판정으로 대신한다", error);
         const isCorrect = tryLockAnswer(id);
         noteValveAnswer(id, isCorrect);
-        if (isCorrect) gameSetTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
+        if (isCorrect) leaveAfterUnlock(id);
         else rattleHinge(id);
       });
   }
@@ -138,10 +157,14 @@ export function useGameKeys({
       if (isTypingTarget(event.target)) return;
       const { code } = event;
 
-      // 열린 창부터 닫는다(CMN-035). 브라우저가 ESC 로 잠금을 먼저 푸는 건 막을 수 없지만 창이 열려 있으면 이미 풀려 있다.
+      // 맨 위 하나만 닫는다(CMN-035): 창 → 추가 힌트 묻기(= 아니요) → 자물쇠(게임 화면으로 돌아옴, 12회차) → 그다음 ESC 는
+      // 브라우저가 잠금을 풀어 커서가 밖으로. 자물쇠 · 창 동안은 페이지가 잠금을 풀어 두어 ESC 가 키로 들어온다.
+      // 자물쇠에서 막 나와 다시 잠그는 중에 ESC 가 또 오면 「밖으로」를 고른 것 — 그 잠금을 거둔다
       if (code === "Escape") {
         if (openLayer) closeWindow();
+        else if (isLockActive && isHintOffering()) dismissHintOffer();
         else if (isLockActive) leaveLockControl();
+        else cancelLockRelock();
         return;
       }
       if (code === "KeyI") {
