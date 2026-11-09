@@ -1,4 +1,5 @@
 import { addHint, flashHints, type Hint } from "@/game/hintBox";
+import { showToast } from "@/game/toast";
 
 // 튜토리얼 뒤 혼자 풀 퍼즐 쪽으로 등을 미는 쪽지 두 장. 풀이는 말하지 않고 따옴표로 눈길만 준다.
 //   1) 튜토리얼이 끝나는 순간 — 분리수거 쪽(미르 플레이 시험 11/8: 「첫번째 잠금장치 이후 분리수거로 유도하는 장치가 필요」.
@@ -144,9 +145,17 @@ export function giveFirstHint() {
   return added;
 }
 
+// 첫 쪽지는 튜토리얼 완료 안내판이 「H 를 눌러 확인해 보자」고 말해 주지만 이 쪽지는 말해 주는 곳이 없었다 —
+// 칩이 한 번 깜빡일 뿐이라 불이 켜지는 쪽으로 눈이 간 사이 지나가 「무지성 자판기 앞으로」 갔다(미르 11/9, 09회차).
+// 「[H]」 꼴이라 터치에서는 [💡] 로 바뀐다(touchifyText — 「(H)」 꼴은 안 바뀐다)
+const VENDING_HINT_TOAST = "힌트함에 새 쪽지가 생겼다 — [H]로 확인해 보자";
+
 /** 자판기 구역에 완전 전원이 들어오는 순간 부른다(캔음료 쪽지). 이미 넣었으면 아무 일도 안 한다. */
 export function giveVendingHint() {
   const added = addHint({ ...VENDING_HINT, image: makeNoteImageUrl(VENDING_HINT.id, VENDING_LINES, 11) });
-  if (added) flashHints();
+  if (added) {
+    flashHints();
+    showToast(VENDING_HINT_TOAST, 6000);
+  }
   return added;
 }

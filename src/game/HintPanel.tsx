@@ -10,7 +10,7 @@ import { restoreHintPaper, VALVE_HINT } from "@/props/hintPaperState";
 import { NoteIcon } from "./gameIcons";
 import GamePanel from "./GamePanel";
 import { UI, UI_FONT, keyCapStyle } from "./gameUi";
-import { removeHint, useHintBox } from "./hintBox";
+import { isHintUnseen, markHintSeen, removeHint, useHintBox } from "./hintBox";
 import { isTypingTarget } from "./overlayLayer";
 import {
   categoryStyle,
@@ -45,6 +45,11 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
     setWasOpen(open);
     setSelectedId(open ? latestId() : null);
   }
+
+  // 펼쳐 보인 쪽지만 「본 것」 — 창을 연 것만으로 다 지우면 창이 열린 채 들어온 쪽지 · 여러 장 쌓인 쪽지를 안 읽고 넘긴다(09회차 Codex)
+  useEffect(() => {
+    if (open && selectedId) markHintSeen(selectedId);
+  }, [open, selectedId]);
 
   const isTouch = useTouchMode();
   // 「정답 보기」를 누른 쪽지 — 한 번 본 정답은 이 탭에서는 계속 보인다
@@ -95,10 +100,11 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
                 key={hint.id}
                 className="game-slot"
                 aria-pressed={selectedId === hint.id}
-                style={slotStyle}
+                style={slotFrameStyle}
                 onClick={() => setSelectedId(hint.id)}
-                title={hint.name}
+                title={isHintUnseen(hint.id) ? `${hint.name} — 새 쪽지` : hint.name}
               >
+                {isHintUnseen(hint.id) && <span aria-hidden style={unseenDotStyle} />}
                 {hint.image ? (
                   <img src={hint.image} alt="" style={slotImageStyle} />
                 ) : (
@@ -191,6 +197,18 @@ const spoilerStyle: CSSProperties = {
   letterSpacing: "0.12em",
 };
 const inlineKeyStyle: CSSProperties = { ...keyCapStyle, minWidth: 22, height: 22, padding: "0 6px", margin: "0 2px" };
+// 칸 모서리의 「새 쪽지」 점 — 왼쪽 위 힌트 칩의 점과 같은 색 · 크기
+const slotFrameStyle: CSSProperties = { ...slotStyle, position: "relative" };
+const unseenDotStyle: CSSProperties = {
+  position: "absolute",
+  top: 6,
+  right: 6,
+  width: 9,
+  height: 9,
+  borderRadius: "50%",
+  background: UI.accent,
+  boxShadow: `0 0 0 2px ${UI.surfaceRaised}`,
+};
 const discardStyle: CSSProperties = {
   marginTop: 18,
   paddingTop: 14,
