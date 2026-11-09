@@ -205,11 +205,14 @@ export function createAutoTurnPlanner(options: {
 }
 
 /**
- * 서버가 힌트를 권한 뒤 퍼즐 폴링을 쉬는 시간 — v0.4.7 쿨다운(제안 표시 180초 · 거절 600초)과 같은 값.
- * 표시 · 거절 보고 API(npc_suggestion_events)가 아직 HTTP 에 연결되지 않아 BE 가 쿨다운을 셀 수 없다 — 그동안 1분 폴링이 같은
- * 제안을 1분마다 다시 묻지 않게 FE 가 쉰다. 보고가 연결되면 BE 가 세므로 이 쉼은 빼도 된다.
+ * 서버가 개입한 뒤(넛지 대사 · 힌트 제안) 퍼즐 폴링을 쉬는 시간과 퍼즐당 상한 — BE v0.4.7 기본값(RuleConfig: cooldown 180초 ·
+ * decline_cooldown 600초 · max_per_puzzle 2)과 같은 값.
+ * 표시 · 거절 보고 API(npc_suggestion_events)가 아직 HTTP 에 연결되지 않아 BE 가 쿨다운 · 횟수를 셀 수 없다 — 그동안 1분 폴링이
+ * 같은 넛지 · 제안을 1분마다, 끝없이 되풀이하지 않게 FE 가 쉬고 센다(Codex 리뷰 1fa489b). 보고가 연결되면 BE 가 세므로 빼도 된다.
+ * 퍼즐당 횟수는 이 탭(앱 한 번)에서만 센다.
  */
 export const OFFER_POLL_PAUSE_MS = { shown: 180_000, declined: 600_000 };
+export const POLL_MAX_PER_PUZZLE = 2;
 
 export interface CompanionBridgeOptions {
   dialog: CompanionDialogPort;
@@ -242,11 +245,15 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     puzzleFocusOf: (objective) =>
       serverPuzzleIdOf(objective) !== null ? (options.puzzleFocusIdOf?.(objective) ?? null) : null,
   });
-  /** 제안을 물은 뒤 퍼즐 폴링을 쉬는 끝 시각(OFFER_POLL_PAUSE_MS) */
+  /** 서버가 개입한 뒤 퍼즐 폴링을 쉬는 끝 시각(OFFER_POLL_PAUSE_MS) */
   let pollPausedUntil = 0;
   const pausePolling = (ms: number) => {
     pollPausedUntil = Math.max(pollPausedUntil, now() + ms);
   };
+  /** 응답을 기다리는 퍼즐 폴링의 목표 — 그 응답이 개입(넛지 · 제안)이면 그 퍼즐 몫으로 센다 */
+  let pollingFor: ObjectiveId | null = null;
+  /** 퍼즐마다 폴링으로 받은 개입 수(POLL_MAX_PER_PUZZLE) */
+  const interventions = new Map<ObjectiveId, number>();
 
   // 다리를 놓기 전에 이미 있던 말 · 제안은 다시 띄우지 않는다
   let seenLine: DialogLine | null = dialog.getState().line;
@@ -265,13 +272,19 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     // 서버가 권한 제안(ref)만 묻는다. 정식 힌트 다음 단계(puzzle)는 [F] 「힌트를 주세요」가 연다
     const freshOffer = offer?.via === "ref" && offer !== seenOffer ? offer : null;
     seenOffer = offer;
+    // 서버의 개입(승인 넛지 대사 · 힌트 제안)이 왔다 — 쿨다운만큼 폴링을 쉬고, 폴링 응답이면 그 퍼즐 몫으로 센다
+    const isIntervention = freshOffer !== null || freshLine?.kind === "npc";
+    if (isIntervention) {
+      pausePolling(OFFER_POLL_PAUSE_MS.shown);
+      if (pollingFor) interventions.set(pollingFor, (interventions.get(pollingFor) ?? 0) + 1);
+    }
+    if (isIntervention || dialog.getState().waiting === null) pollingFor = null;
     if (!freshOffer) {
       if (freshLine) options.say(toSpeech(freshLine));
       return;
     }
     const lead = freshLine?.kind === "npc" ? freshLine : null;
     if (freshLine && !lead) options.say(toSpeech(freshLine));
-    pausePolling(OFFER_POLL_PAUSE_MS.shown);
     void options
       .askOpenHint({ lead: lead?.text ?? null, lineId: lead?.lineId ?? undefined, balance: hintBalance })
       .then((isYes) => {
@@ -312,7 +325,11 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     ) {
       const time = now();
       const state = dialog.getState();
-      const canPoll = state.isEnabled && state.waiting === null && time >= pollPausedUntil;
+      const canPoll =
+        state.isEnabled &&
+        state.waiting === null &&
+        time >= pollPausedUntil &&
+        (objective === null || (interventions.get(objective) ?? 0) < POLL_MAX_PER_PUZZLE);
       const plan = planner.next(situation, zoneCode, canDisplay, { objective, now: time, canPoll });
       if (!plan) return;
       // 상황이 있으면 쿨다운 · 횟수는 BE 가 센다. 보낼 수 없을 때(세션 준비 전 · 대기 중)는 버린다 — 지난 상황을 늦게 보내지 않는다
@@ -323,7 +340,13 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
         return;
       }
       // 퍼즐 폴링 — reply null 이면 아무것도 안 뜨고(line 없음), 제안이면 위 flush 가 Y/N 으로 묻는다. 실패해도 안내 없이
-      if (plan.focusObjectId) return void dialog.autoTurn(undefined, plan.focusObjectId, { quiet: true });
+      if (plan.focusObjectId) {
+        pollingFor = objective;
+        void dialog.autoTurn(undefined, plan.focusObjectId, { quiet: true });
+        // 보내지 못했으면(세션 준비 전) 그 퍼즐 몫으로 셀 응답도 없다 — 요청은 보내는 순간 대기(waiting)가 된다
+        if (dialog.getState().waiting === null) pollingFor = null;
+        return;
+      }
       void dialog.autoTurn();
     },
     hintProvider,

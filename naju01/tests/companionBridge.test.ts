@@ -12,6 +12,7 @@ import {
   HINTED_PUZZLES,
   HINT_PUZZLE_IDS,
   OFFER_POLL_PAUSE_MS,
+  POLL_MAX_PER_PUZZLE,
   PUZZLE_FOCUS_IDS,
   PUZZLE_POLL_MS,
   SEND_SITUATION,
@@ -543,6 +544,46 @@ test("퍼즐 폴링에 제안(suggest_hint)이 오면 기존 Y/N 으로 묻고, 
   assert.equal(turns().length, 1, "「아니요」 뒤 600초는 다시 묻지 않는다");
   await relayAt(60_000 + OFFER_POLL_PAUSE_MS.declined);
   assert.equal(turns().length, 2);
+});
+
+test("퍼즐 폴링에 넛지 대사만 와도(제안 없음) 띄우고 180초 쉰다 — 같은 넛지를 1분마다 되풀이하지 않게(Codex 리뷰 1fa489b)", async () => {
+  const nudge: Handler = () => ({
+    status: 200,
+    body: turn({ reply: { source: "approved_line", text: "[모의] 숨구멍을 다시 살펴볼까요?", line_id: "NUDGE_P01_1" } }),
+  });
+  const { said, relayAt, turns, asked } = await pollBridge(nudge);
+  await relayAt(0);
+  await relayAt(60_000);
+  assert.equal(turns().length, 1);
+  assert.deepEqual(
+    said.map((speech) => speech.text),
+    ["[모의] 숨구멍을 다시 살펴볼까요?"],
+  );
+  assert.equal(asked(), 0, "제안이 없으면 묻지 않는다");
+  await relayAt(120_000);
+  await relayAt(60_000 + OFFER_POLL_PAUSE_MS.shown - 1);
+  assert.equal(turns().length, 1, "180초 쉰다");
+  await relayAt(60_000 + OFFER_POLL_PAUSE_MS.shown);
+  assert.equal(turns().length, 2);
+});
+
+test("퍼즐 폴링으로 받은 개입은 퍼즐당 2번까지 — 그 뒤 그 퍼즐은 폴링하지 않고, 다른 퍼즐은 그대로(Codex 리뷰 1fa489b)", async () => {
+  assert.equal(POLL_MAX_PER_PUZZLE, 2);
+  const suggest: Handler = () => ({ status: 200, body: turn({ suggest_hint: { hint_ref: "HINT_REF_P03" } }) });
+  const { relayAt, turns, asked } = await pollBridge(suggest, false);
+  const step = OFFER_POLL_PAUSE_MS.declined;
+  await relayAt(0);
+  await relayAt(60_000);
+  await relayAt(60_000 + step);
+  assert.equal(asked(), 2);
+  for (let t = 60_000 + step * 2; t <= 60_000 + step * 6; t += step) await relayAt(t);
+  assert.equal(turns().length, 2, "P03 은 더 묻지 않는다");
+  // 다른 서버 퍼즐은 제 몫이 따로다
+  const start = 60_000 + step * 7;
+  await relayAt(start, "P09");
+  await relayAt(start + 60_000, "P09");
+  assert.equal(turns().length, 3);
+  assert.equal(turns()[2].body!.focus_object_id, "OBJ_S1_CAVE_RING_DOOR");
 });
 
 test("퍼즐 폴링이 실패해도(422 · 연결) 「다시 말을 걸어 주세요」 같은 안내를 띄우지 않는다", async () => {
