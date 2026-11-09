@@ -20,6 +20,7 @@ import {
 import { discardDrink, getHeldDrink, interactWithHeldDrink } from "@/props/drinkState";
 import { rattleHinge } from "@/props/hingeState";
 import { OPENING_MOTION } from "@/props/padlock/openingMotion";
+import { isCutscenePlaying } from "@/props/vendingPushState";
 import { dropHintPaper, getFootSpot, storeHintPaper, VALVE_HINT } from "@/props/hintPaperState";
 import { getHintPaperImageUrl } from "@/station/hands/hintPaperTexture";
 import { chairDragState } from "@/station/headquarters/chairDragState";
@@ -177,6 +178,9 @@ export function useGameKeys({
         handleLockKey(code, lockControl.id);
         return;
       }
+      // 연출이 화면을 돌리는 동안(전류 따라가기 · 배전반 알림)은 만지기 · 시점 전환을 받지 않는다 — 겨냥이 비기 전 E 가
+      // 엉뚱한 것에 걸리거나 V 로 카메라가 바뀌면 연출이 깨진다(10회차 Codex)
+      if ((code === "KeyE" || code === "KeyV") && isCutscenePlaying()) return;
       if (code === "KeyV" && !isTrain) {
         toggleThirdPerson();
         return;

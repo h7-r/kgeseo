@@ -231,7 +231,10 @@ export function LockDialPanel({ covered = false }: { covered?: boolean }) {
         {lock.submitting
           ? "Backend에서 확인 중..."
           : lock.unlocked
-            ? "열렸다 — [E] 로 소화전 문을 연다"
+            ? // 밸브 자물쇠는 맞은편 배전반 문도 같이 연다(10회차). 다른 자물쇠(차단기함)에 소화전 문구가 뜨던 것도 가른다
+              isValveLockId(control.id)
+              ? "열렸다 — 맞은편 배전반도 함께 열린다 · 소화전 문은 [E]"
+              : "열렸다"
             : "← → 칸 고르기 · ↑ ↓ 숫자 돌리기(휠도 된다) · [E] 확인 · ESC 나가기"}
       </div>
       {valveLines.map((line) => (

@@ -63,8 +63,6 @@ interface CorridorAreaProps {
   drinkMachine: VendingMachineState;
   coffeeMachine: VendingMachineState;
   eyeHeight: number;
-  hydrantDoorId: string;
-  isHydrantLocked: boolean;
 }
 
 /** 비밀 복도 안의 모든 것. 「비밀 복도 › 보이기」 가 켜져 있을 때만 그린다. */
@@ -84,8 +82,6 @@ export default function CorridorArea({
   drinkMachine,
   coffeeMachine,
   eyeHeight,
-  hydrantDoorId,
-  isHydrantLocked,
 }: CorridorAreaProps) {
   const { depthRule, brightnessAt, outline, hasPower, hasFullPower, isEndDoorReleased } = shading;
   const sideDoorSpan = Math.max(1, corridor.sideDoorCount - 1);
@@ -200,8 +196,6 @@ export default function CorridorArea({
         panelInterior={panelInterior}
         highlight={highlight}
         conduitFollowsPush={vending.secretDoor.followPipe}
-        hydrantDoorId={hydrantDoorId}
-        isHydrantLocked={isHydrantLocked}
       />
 
       {/* 바깥벽의 사무실 문들 — 시작~끝 비율 사이를 (개수-1)등분해 규칙적으로 놓는다 */}

@@ -26,7 +26,8 @@ export interface ReturnPose {
 }
 
 interface UsePlayerOptions {
-  active: boolean;
+  /** 조작이 켜져 있나 — 역 씬은 매 프레임 읽는 함수로 준다(useMovement) */
+  active: boolean | (() => boolean);
   onNear: (target: NearTarget) => void;
   eye?: number;
   crouchEye?: number;

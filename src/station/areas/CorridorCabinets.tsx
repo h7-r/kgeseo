@@ -5,8 +5,11 @@ import HydrantCabinetInterior, {
   type HydrantCabinetInteriorProps,
 } from "@/props/hydrantCabinet/HydrantCabinetInterior";
 import CombinationPadlock from "@/props/padlock/CombinationPadlock";
+import { canTurnValve } from "@/props/panelWiringState";
 import { submitFireCabinetLock } from "@/server/playSession";
 import WallCabinet from "@/station/corridor/WallCabinet";
+import { getWallCabinetDoorId } from "@/station/corridor/wallCabinetId";
+import FloorBeacon from "@/tutorial/FloorBeacon";
 
 import type {
   HydrantControlValues,
@@ -15,7 +18,8 @@ import type {
 } from "../controls/corridorCabinetControls";
 import type { CorridorValues } from "../controls/corridorControls";
 import type { HighlightValues } from "../controls/systemControls";
-import { computeWallCabinetSpots, type CorridorShading } from "./corridorHooks";
+import { computeWallCabinetSpots, useWallCabinetDoors, type CorridorShading } from "./corridorHooks";
+import PanelUnlockReveal from "./PanelUnlockReveal";
 
 /**
  * 두 함을 그리는 자리에만 더하는 올림 — 함 중심을 눈높이 가까이 올린다.
@@ -46,8 +50,6 @@ interface CorridorCabinetsProps {
   highlight: HighlightValues;
   /** 소화전 밑 배선관 끝이 밀리는 자판기를 따라가나(「자판기 비밀문」) */
   conduitFollowsPush: boolean;
-  hydrantDoorId: string;
-  isHydrantLocked: boolean;
 }
 
 /** 벽 부착함 두 개(배전반·소화전)와 소화전 번호 자물쇠. 밝기는 벽·문과 같은 규칙으로 깎는다. */
@@ -59,11 +61,12 @@ export default function CorridorCabinets({
   panelInterior,
   highlight,
   conduitFollowsPush,
-  hydrantDoorId,
-  isHydrantLocked,
 }: CorridorCabinetsProps) {
   const { outline, brightnessAt } = shading;
   const spots = computeWallCabinetSpots(corridor);
+  // 소화전 자물쇠 · 서버 진행 구독은 여기서만 — 역 씬(StationScene)에서 받으면 풀리는 순간 역 전체가 다시 그려져
+  // 개발 서버에서 멈칫했다(미르 11/9, 튜토피드백 10회차). 이 값을 쓰는 것은 벽함 둘과 자물쇠뿐이다.
+  const { hydrantDoorId, isHydrantLocked } = useWallCabinetDoors(corridor, padlock.visible);
   const hydrantBrightness = brightnessAt(spots.hydrant.z) * corridor.wallBrightness;
 
   const [panelOutline, panelRest] = splitOutline(panelInterior);
@@ -174,6 +177,26 @@ export default function CorridorCabinets({
             />
           )}
           outline={outline}
+        />
+      )}
+      {/* 밸브에 전기가 닿으면 소화전 앞 바닥에 튜토리얼과 같은 동그라미 — 멀리서도 「저기로」(10회차) */}
+      {corridor.hydrantVisible && (
+        <FloorBeacon
+          x={spots.hydrant.x - corridor.hydrantDepth / 2 - 1.8}
+          z={spots.hydrant.z}
+          isVisible={canTurnValve}
+        />
+      )}
+      {/* 밸브 자물쇠를 새로 풀면 맞은편 배전반이 같이 열리는 것을 보여 준다(10회차) */}
+      {corridor.panelVisible && padlock.visible && (
+        <PanelUnlockReveal
+          hydrantDoorId={hydrantDoorId}
+          panelDoorId={getWallCabinetDoorId("panel", spots.panel.x, spots.panel.z)}
+          panelCenter={[
+            spots.panel.x + corridor.panelDepth / 2,
+            corridor.panelBaseHeight + WALL_CABINET_LIFT + corridor.panelHeight / 2,
+            spots.panel.z,
+          ]}
         />
       )}
       {/* 자물쇠를 숨겨도 걸쇠는 남아야 해서 셋 중 하나라도 켜져 있으면 그린다 */}

@@ -118,7 +118,11 @@ const HANDOVER_BLEND_SECONDS = 0.25;
  * (경계·막힘·근처)만 함수로 받는다. 돌려주는 ref 에 지금 근처 지점 이름이 들어 있다.
  */
 export function useMovement(
-  active: boolean,
+  /**
+   * 조작이 켜져 있나. 함수로 주면 매 프레임 읽는다 — 자물쇠 · 창 · 연출로 켜고 끌 때마다 씬 전체를 다시 그리지 않으려고
+   * (역 씬, 미르 11/9 「밸브 자물쇠 뒤 멈칫」 튜토피드백 10회차). 기차 씬은 값으로 준다.
+   */
+  active: boolean | (() => boolean),
   {
     eyeHeight = EYE_HEIGHT,
     crouchEyeHeight = CROUCH_EYE_HEIGHT,
@@ -136,7 +140,9 @@ export function useMovement(
     firstPersonSpeedScale = null,
   }: MovementOptions = {},
 ): RefObject<string> {
-  const { camera: sceneCamera } = useThree();
+  // 카메라만 고른다 — useThree() 통째로 받으면 R3F 상태가 바뀔 때마다(App 이 다시 그려질 때 Canvas 가 건드린다)
+  // 이 훅을 부르는 씬 전체가 다시 그려졌다(밸브 자물쇠 뒤 멈칫, 튜토피드백 10회차)
+  const sceneCamera = useThree((state) => state.camera);
   // 이동은 원근 카메라만 쓴다(시야각을 만진다).
   const camera = sceneCamera as THREE.PerspectiveCamera;
   const eyeRef = useRef(eyeHeight);
@@ -329,7 +335,8 @@ export function useMovement(
     else {
       reportBoomLength(99);
       boomLength.current = 0;
-      easeFov(null, dt);
+      // 연출이 카메라를 쥔 동안은 시야각도 연출 몫(끝자리 당겨 보기, 10회차) — 놓으면 여기서 원래 값으로 천천히 푼다
+      if (!cameraOwner.owner) easeFov(null, dt);
     }
   };
 
@@ -524,7 +531,9 @@ export function useMovement(
     playerView.isThirdPerson = !!isThirdPerson;
     playerView.ready = true;
 
-    if (!active) {
+    // 한 프레임에 한 번만 읽어 아래 두 곳이 같은 값을 쓴다(함수 자체를 참으로 보지 않게)
+    const isActive = typeof active === "function" ? active() : active;
+    if (!isActive) {
       // 조작이 꺼진 동안(채팅 · 메뉴 · 연출)은 밀리지 않는다 — 맞는 동작만 나오고 자리는 그대로(검토 19회차)
       clearPush();
       stopLoop("run"); // 메뉴를 열거나 조작이 꺼지면 발소리도 멈춘다
@@ -700,7 +709,7 @@ export function useMovement(
       p.y = ny;
     }
 
-    const isRunning = active && isRunInput && !isCrouching && isGrounded.current && target.lengthSq() > 1e-6;
+    const isRunning = isActive && isRunInput && !isCrouching && isGrounded.current && target.lengthSq() > 1e-6;
     // 뛰기 발소리 — 0.55 → 0.85(2026-11-07 미르 「음성에 비해 발소리가 작다」). run.mp3 는 −25.8 LUFS 라 0.85배면 약 −27,
     // 캐릭터 목소리(−20.5 로 맞춤 — src/dev/lobbyPreview/voices.ts)보다 약 7dB 아래. 검토 15회차
     if (isRunning) startLoop("run", { volume: 0.85 });

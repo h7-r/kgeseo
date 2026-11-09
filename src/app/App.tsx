@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { PointerLockControls, Preload } from "@react-three/drei";
@@ -234,6 +234,14 @@ export default function App() {
   // 창·자물쇠·자판기 컷신 동안은 이동·조준을 멈춘다. 컷신이 카메라를 모는데 입력까지 들어오면 화면이 떤다.
   const isCutscenePlaying = useIsCutscenePlaying();
   const active = (isPointerLocked || IS_INPUT_ALWAYS_ON) && !openLayer && !lockControl && !isCutscenePlaying;
+  // 역 씬에는 값 대신 읽는 함수를 넘긴다 — 켜고 끌 때마다 역 전체가 다시 그려지지 않게(StationScene 은 memo, 10회차).
+  // 이동은 useFrame 에서만 이 값을 본다. 겨냥(AimTracker) · HUD 는 그대로 값으로 받는다.
+  const isStationActive = active && !isTrain;
+  const stationActiveRef = useRef(isStationActive);
+  useLayoutEffect(() => {
+    stationActiveRef.current = isStationActive;
+  }, [isStationActive]);
+  const readStationActive = useCallback(() => stationActiveRef.current, []);
   // 3인칭인 채로 비밀 복도(튜토 공간)에 있으면 1인칭으로 돌린다 — 본부실에서 복도로 걸어 들어온 때도. 기차 · 컷신 중엔 건드리지 않는다
   useEffect(() => {
     if (isTrain || !isThirdPerson || isCutscenePlaying) return;
@@ -271,7 +279,7 @@ export default function App() {
         {isTrainMounted && <TrainInteriorScene active={active && isTrain} enabled={isTrain} onNear={setNear} />}
         <StationScene
           enabled={!isTrain}
-          active={active && !isTrain}
+          active={readStationActive}
           onNear={setNear}
           isThirdPerson={isThirdPerson}
           playerRef={playerRef}
