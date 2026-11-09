@@ -66,7 +66,8 @@ const CIRCLE_RADIUS = 5.5;
 const CIRCLE_HEIGHT = 8;
 /** 이 지점(바퀴 비율)에서 열쇠를 떨어뜨린다 · 열쇠가 떨어지는 시간 */
 const THROW_AT = 1.15;
-const THROW_SECONDS = 1.3;
+// 천천히 — 떨어지는 열쇠를 시선이 따라가 어디에 떨어지는지 보이게(박람회판 정리 · 미르 11/8, 예전 1.3)
+const THROW_SECONDS = 2.4;
 /** 떠나는 쪽 — 진부촌 너머 북동 하늘 */
 const DEPART = new THREE.Vector3(1, 0, -0.75).normalize();
 
@@ -153,7 +154,8 @@ function createBirds() {
   heroes[KEY_STATUE].group.add(heldKey);
   // 떨어지는 열쇠(던지는 동안만)
   const flyingKey = new THREE.Mesh(keyGeometry, keyBronze);
-  flyingKey.scale.setScalar(M * 1.6);
+  // 떨어지는 동안 읽히게 크게(예전 1.6)
+  flyingKey.scale.setScalar(M * 2.8);
   flyingKey.visible = false;
   return {
     stoneDuck,
@@ -338,6 +340,16 @@ function startThrow(birds: Birds, camera: THREE.Camera, from: THREE.Vector3) {
   };
   birds.flyingKey.visible = true;
   showNotice("열쇠를 문 새가 고개를 숙인다 — 무언가 떨어진다!", 3);
+  // 시선이 떨어지는 열쇠를 따라 내려가 떨어진 자리를 보고 끝난다 — 표식 없이 연출로만(길잡이는 넣지 않는다)
+  focusCamera({
+    id: "key-drop",
+    target: () => birds.flyingKey.position,
+    hold: THROW_SECONDS + 0.6,
+    turnIn: 0.45,
+    turnOut: 0.4,
+    zoom: 0.9,
+    replace: true,
+  });
 }
 
 function updateThrow(birds: Birds, time: number) {

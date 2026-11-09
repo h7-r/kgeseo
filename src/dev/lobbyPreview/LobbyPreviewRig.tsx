@@ -131,15 +131,23 @@ export default function LobbyPreviewRig() {
     if (connected && !inside) connection.exit();
     else if (!connected && inside) connection.enter();
 
-    // 내 자세: 발바닥 높이(눈 − 눈높이), 몸 방향, 걸음새(속도로 고른다)
+    // 내 자세: 발바닥 높이, 몸 방향, 걸음새(속도로 고른다)
     const last = lastRef.current;
     const speed = last ? Math.hypot(eye.x - last.x, eye.z - last.z) / Math.max(delta, 1e-3) : 0;
     lastRef.current = { x: eye.x, z: eye.z };
     localPose.x = eye.x;
     localPose.z = eye.z;
-    localPose.y = Math.max(0, eye.y - EYE_HEIGHT);
+    // 실제 발 높이 — 「눈 − 선 눈높이」로 재면 앉은 채 뛴 점프가 거의 0으로 잘려 남의 화면에서 안 떴다(11회차 Codex)
+    localPose.y = Math.max(0, me?.footY ?? eye.y - EYE_HEIGHT);
     localPose.ry = playerView.bodyYaw;
-    localPose.gait = speed < 0.4 ? "idle" : speed < WALK_SPEED * (1 + RUN_SPEED_MULTIPLIER) * 0.5 ? "walk" : "run";
+    // 앉아 있으면 crouch(서버가 받는 값) — 속도로만 고르면 남의 화면에서 앉아도 서서 걸었다(미르 11/9, 11회차). 점프는 높이로 받는 쪽이 가른다
+    localPose.gait = me?.crouching
+      ? "crouch"
+      : speed < 0.4
+        ? "idle"
+        : speed < WALK_SPEED * (1 + RUN_SPEED_MULTIPLIER) * 0.5
+          ? "walk"
+          : "run";
     if (connection.status().kind === "connected") connection.sendMove({ ...localPose });
   });
 

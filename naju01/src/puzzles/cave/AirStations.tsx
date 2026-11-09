@@ -67,6 +67,12 @@ const LIGHT_CENTER = { x: 49.7, z: 64.5 };
 const AIR_RADIUS = 1.3;
 /** 안내판이 뜨는 거리(미터) */
 const PANEL_RANGE = 5;
+/**
+ * 큰 조개가 열리면 진주 곁에 보이는 톱니돌 — 큰 조개 가운데에서 떨어진 자리와 바닥에서의 높이(미터).
+ * 아래짝 자개 윗면이 이 자리(톱니돌 둘레 포함)에서 0.043~0.070 m 라 그 위에 얹는다(바깥 톱니 끝만 4 mm 닿는다).
+ * 바닥에 두면 껍데기 밑에 묻힌다(미르 11/8 「본게임은 아직 그대로」). 큰 조개가 돌지 않고(yaw 0) 입이 −z 라는 전제의 자리다
+ */
+const GEAR_IN_CLAM = { dx: 0.5, dz: -0.15, y: 0.066 };
 /** 큰 진주에 빛이 이만큼(초) 닿아 있으면 열린다 */
 const OPEN_AFTER = 0.8;
 
@@ -257,14 +263,15 @@ export default function AirStations() {
     audio.play("징");
     showNotice("빛이 큰 진주에 닿자 큰 조개가 입을 활짝 열며 거품을 토한다 — 안에 톱니돌이 있다.", 5.5);
     window.setTimeout(() => {
+      // 큰 조개 속 진주 곁 자개 위에 — 조개 몸이 가운데 바닥 높이에 놓여 있어 그 높이를 기준으로 얹는다
       inventory.spawn(
         "gearStone",
         new THREE.Vector3(
-          // 큰 조개와 성게에 가리지 않게 조개 앞(들어오는 쪽) 모래에 뱉어 낸다
-          (LIGHT_BIG.x + 0.3) * M,
-          (floorY(LIGHT_BIG.x + 0.3, LIGHT_BIG.z - 1.3) + 0.02) * M,
-          (LIGHT_BIG.z - 1.3) * M,
+          (LIGHT_BIG.x + GEAR_IN_CLAM.dx) * M,
+          (floorY(LIGHT_BIG.x, LIGHT_BIG.z) + GEAR_IN_CLAM.y) * M,
+          (LIGHT_BIG.z + GEAR_IN_CLAM.dz) * M,
         ),
+        { isPerched: true },
       );
     }, 900);
   };

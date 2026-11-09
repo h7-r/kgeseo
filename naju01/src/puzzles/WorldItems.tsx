@@ -12,6 +12,7 @@ import { HAND_SCALE, handItemAt } from "./handPlace";
 import { registerInteractable, setHandHandler, showNotice, usesWithHand } from "./interaction";
 import {
   ITEMS,
+  SLOT_COUNT,
   inventory,
   useHandItem,
   useWorldItems,
@@ -39,7 +40,10 @@ export default function WorldItems() {
   );
   const hand = useHandItem();
 
-  // 손에 든 것이 있으면 [E] 는 내려놓기 — 겨눈 곳이 받으면 거기, 아니면 발 앞 땅에.
+  // 손에 든 것이 있으면 [E] 는 겨눈 곳이 받으면 거기, 아니면 소지품에 넣는다(칸이 차면 발 앞 땅에).
+  //   예전엔 허공 E 가 늘 땅에 내려놓기라, E 를 마구 누르다 물건을 흘리고 「내려서 뭘 해야 하나」 헤맸다 — 땅에 놓인 함은
+  //   그 자리에서 열리는 함으로 바뀌어 놓았다 줍기를 끝없이 되풀이했다(미르 11/8, 박람회판에서 정리한 것을 본편에도).
+  //   땅에 내려놓아야 풀리는 퍼즐은 없다 — 받는 곳(제상 · 평상 · 홈)은 겨누고 E.
   // 빈손 [E] 는 겨눈 곳이 꼭 받는 물건이 소지품에 있을 때만 그것을 꺼내 쓴다(뜬 돌 홈에 뜬 돌, 자물통에 열쇠).
   // 그 밖의 빈손 [E] 는 소지품을 건드리지 않는다 — 처음 푸는 사람은 E 를 마구 누르고, 그때마다 물건이 빠져나가면 안 된다.
   useEffect(() => {
@@ -52,6 +56,13 @@ export default function WorldItems() {
           if (target.receive?.(held.kind) !== false && !target.keepHand) inventory.releaseHand();
         } else if (usesWithHand(target)) {
           return false; // 든 채로 줍거나 쓴다 — 그 E 는 겨눈 대상의 use 가 받는다
+        } else if (inventory.held().length < SLOT_COUNT) {
+          inventory.stow();
+          audio.play("똑");
+          showNotice(
+            `${withObjectParticle(ITEMS[held.kind].name)} 소지품에 넣었다. 쓸 곳을 겨누고 E 면 꺼내 쓴다.`,
+            2.5,
+          );
         } else {
           inventory.dropHand();
           audio.play("똑");
@@ -121,7 +132,8 @@ function PlacedItem({ item, look }: { item: WorldItem; look: ItemLook }) {
         isPickup: true,
         // 겨누면 본부실처럼 살짝 커지고 밝아진다
         highlight: () => meshRef.current,
-        radius: 0.45 * M,
+        // 얹어 둔 것은 곁의 대상(큰 조개 진주)과 붙어 있다 — 줍기가 겨눔을 먼저 가져가므로 겨눌 범위를 좁힌다
+        radius: (item.isPerched ? 0.25 : 0.45) * M,
         reach: 3 * M,
         use: () => {
           if (!inventory.pickUp(item.uid)) {

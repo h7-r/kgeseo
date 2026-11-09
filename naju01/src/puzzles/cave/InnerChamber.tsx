@@ -223,20 +223,25 @@ export default function InnerChamber() {
     clearBreathAfterLeaving();
     teleportPlayer(SHORE.x, SHORE.z, "-Z");
     audio.play("전환");
-    // 물살에 떠밀려 나오며 손에 쥐여 있던 것 — 아랑사가 아비사에게 쓴 편지가 든 나무 함(청동 자물통으로 잠겼다)
-    if (inventory.add("letterBox")) {
-      const box = inventory.held().find((entry) => entry.kind === "letterBox");
-      if (box) inventory.takeOut(box.uid);
-    } else {
+    // 물살에 떠밀려 나오며 챙긴 것 — 아랑사가 아비사에게 쓴 편지가 든 나무 함(청동 자물통으로 잠겼다).
+    // 손에 쥐여 주지 않고 소지품에 — 손에 들면 E 를 누를 때마다 땅에 떨어져 「내려서 뭘 해야 하나」 헷갈렸다(박람회판 정리 · 미르 11/8).
+    // 능선의 불탄 평상을 겨누고 E 면 꺼내 올린다
+    const isStored = inventory.add("letterBox");
+    if (!isStored)
       inventory.spawn("letterBox", new THREE.Vector3(SHORE.x * M, groundY(SHORE.x, SHORE.z) * M, SHORE.z * M));
-    }
+    // 칸이 차 있으면 add 가 손에 쥐여 준다 — 실제로 간 곳대로 알린다(Codex 04)
+    const boxWhere = !isStored
+      ? "청동 자물통이 채워진 나무 함이 발치에 떠밀려 와 있다"
+      : inventory.hand()?.kind === "letterBox"
+        ? "소지품이 가득 차 청동 자물통이 채워진 나무 함을 손에 쥐고 나왔다"
+        : "청동 자물통이 채워진 나무 함을 소지품에 챙겼다";
     // 물굴은 다시 못 들어온다 — 바닥에 두고 온 물건도 물살에 함께 떠밀려 나온다
     inventory.bringAlong(SHORE.x, SHORE.z);
     // 안 주운 채 남은 물굴 물건은 함께 사라진다 — 두면 물이 닫힌 뒤 강물 위로 떠오른다
     for (const item of inventory.world())
       if (cave.contains(item.position.x / M, item.position.z / M)) inventory.removeFromWorld(item.uid);
     showNotice(
-      "물살이 몸을 밀어 올렸다. 강가로 돌아왔다 — 손에 청동 자물통이 채워진 나무 함이 쥐여 있다. 안에서 무언가 달그락거린다.",
+      `물살이 몸을 밀어 올렸다. 강가로 돌아왔다 — ${boxWhere}. 안에서 무언가 달그락거린다. 여는 법은 능선에서 찾자.`,
       6,
     );
   };

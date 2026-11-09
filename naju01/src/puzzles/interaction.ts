@@ -153,6 +153,16 @@ export function setHandHandler(handler: ((target: Interactable | null) => boolea
 /** 지금 겨눈 대상 — 손에 든 물건을 받을 곳인지 HUD 가 본다 */
 export const aimedTarget = () => aimed;
 
+/**
+ * 겨누지 않고 넘기는 대사(동행 첫 소개)가 E 를 가장 먼저 받는다 — 겨눈 물건보다 먼저(Codex 리뷰 c7fe989).
+ * 터치 ✋ 도 같은 E 를 보낸다. true 를 돌려주면(한 줄 넘겼다) 그 E 는 여기서 끝난다.
+ */
+let talkAdvance: (() => boolean) | null = null;
+
+export function setTalkAdvance(handler: (() => boolean) | null) {
+  talkAdvance = handler;
+}
+
 /** 미니게임처럼 E 를 따로 받는 동안 먼저 가로챈다. true 를 돌려주면 그 E 는 여기서 끝난다 */
 let keyInterceptor: ((event: KeyboardEvent) => boolean) | null = null;
 
@@ -166,6 +176,11 @@ if (typeof window !== "undefined") {
     "keydown",
     (event) => {
       if (event.code !== "KeyE" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (talkAdvance?.()) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       if (keyInterceptor?.(event)) {
         event.stopImmediatePropagation();
         return;
@@ -187,6 +202,14 @@ if (typeof window !== "undefined") {
 let notice: { text: string; key: number } | null = null;
 const noticeSignal = createChangeSignal();
 let noticeTimer = 0;
+
+/** 이 글의 알림이 떠 있으면 바로 내린다 — 기다리던 일이 끝났는데 안내가 남지 않게 */
+export function clearNotice(text: string) {
+  if (notice?.text !== text) return;
+  window.clearTimeout(noticeTimer);
+  notice = null;
+  noticeSignal.notify();
+}
 
 export function showNotice(text: string, seconds = 3.2) {
   notice = { text, key: (notice?.key ?? 0) + 1 };

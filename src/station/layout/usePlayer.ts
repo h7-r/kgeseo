@@ -26,7 +26,8 @@ export interface ReturnPose {
 }
 
 interface UsePlayerOptions {
-  active: boolean;
+  /** 조작이 켜져 있나 — 역 씬은 매 프레임 읽는 함수로 준다(useMovement) */
+  active: boolean | (() => boolean);
   onNear: (target: NearTarget) => void;
   eye?: number;
   crouchEye?: number;
@@ -82,8 +83,9 @@ export function usePlayer({
 
   const near = useCallback((p: FloorPoint) => {
     let target: NearTarget = NEAR_TARGET.none;
-    // 기차 문이 여러 개라 실제로 그려진 문 중 가장 가까운 것을 본다.
-    const door = trainDoors.nearest(p.x, p.z);
+    // 타는 문은 출동 안내가 데려가는 오른쪽 문(발판 있는 문) 하나뿐이다 — 뒤쪽 칸 문(후문)으로 다가가 타는 건 필요 없었다
+    // (미르 플레이 시험 11/8, 튜토피드백 01회차). 열리는 문(doorState)도 이 문만.
+    const door = trainDoors.rightmost(p.x, p.z);
     doorState.car = door ? door.car : null;
     doorState.distance = door ? door.distance : Infinity;
     if (!door || door.distance > DOOR_UNLOCK_DISTANCE) entryLock.active = false;

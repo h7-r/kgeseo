@@ -36,6 +36,7 @@ import { audio } from "../../scene/immersion/audio";
 import { focusCamera } from "../../scene/cameraFocus";
 import { director } from "../../scene/immersion/director";
 import { aimedId, registerInteractable, setKeyInterceptor, showNotice } from "../interaction";
+import { onEscapeUnlock } from "../pointerHold";
 import { inventory } from "../inventory";
 import { buildFloatStoneGeometry, buildGearStoneGeometry } from "../itemLooks";
 import { makeToonMaterial } from "../materials";
@@ -502,7 +503,14 @@ export default function RingDoor() {
     };
     window.addEventListener("keyup", release);
     window.addEventListener("blur", blur);
+    // ESC 로 잠금이 풀리면 돌리던 물레를 멈춘다 — 첫 ESC 는 돌리기 전으로(pointerHold)
+    const removeEscape = onEscapeUnlock(() => {
+      if (!isHolding.current) return false;
+      isHolding.current = false;
+      return true;
+    });
     return () => {
+      removeEscape();
       setKeyInterceptor(null);
       window.removeEventListener("keyup", release);
       window.removeEventListener("blur", blur);

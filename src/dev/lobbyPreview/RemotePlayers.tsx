@@ -33,6 +33,16 @@ const TOON = { ...DEFAULT_TOON, enabled: !IS_LOBBY_TOON_DISABLED };
 const OUTLINE = { ...DEFAULT_OUTLINE, enabled: !IS_LOBBY_OUTLINE_DISABLED };
 /** 따라가는 시간 상수(초) — 서버 패치 100ms 와 맞춘다 🟡 */
 const FOLLOW_SECONDS = 0.1;
+/**
+ * 공중 판정(발 높이, 유닛) — 방 상태에는 점프가 없다(gait 는 idle · walk · run · crouch). 역 바닥은 높이 0이고
+ * 보내는 쪽 발 높이는 max(0, 눈 − 눈높이)라(앉아도 0) 따라가는 발 높이로 가른다. 이만큼 뜨면 공중, 이 밑이면 착지.
+ * 점프는 정점 약 1.8 · 체공 0.7초라 10Hz 로도 넉넉히 잡힌다. 없으면 걷기 · 대기 자세로 콩콩 튀었다(미르 11/9, 11회차).
+ */
+const AIR_ENTER = 0.15;
+const AIR_EXIT = 0.05;
+/** 받은 높이가 이미 바닥이면 따라가는 발이 이만큼 밑으로 내려왔을 때 착지 — 착지 동작은 닿기 조금 전에 웅크리기 시작한다 */
+const LAND_EARLY = 0.25;
+const STATION_FLOOR_Y = 0;
 /** 머리뼈(head, 목과 머리 이음매)에서 이름표까지 — 머리 꼭대기 바로 위(약 40cm, 유닛) 🟡 화면 보고 맞춤 */
 const LABEL_ABOVE_HEAD_BONE = 0.4 * UNITS_PER_METER;
 /** 머리뼈를 아직 못 찾았을 때(모델 내려받는 중) 발바닥에서의 높이 */
@@ -103,7 +113,8 @@ function createLink(view: RemotePlayerView | undefined): AvatarLink {
     running: false,
     speed: 0,
     crouching: false,
-    grounded: true,
+    // 공중에서 처음 보이면(점프 중에 방에 들어오면) 공중에서 시작한다
+    grounded: (view?.y ?? 0) - STATION_FLOOR_Y < AIR_ENTER,
     jumping: false,
     verticalVelocity: 0,
   };
@@ -150,6 +161,11 @@ function RemoteAvatar({
   const labelRef = useRef<THREE.Group>(null);
   const avatarRef = useRef<THREE.Group>(null);
   const headRef = useRef<THREE.Object3D | null>(null);
+  /** 공중에 있는 동안 바닥 높이를 한 번이라도 받았다 — 바로 다시 뛰어 받은 높이가 덮여도 착지를 잃지 않게(Codex 리뷰 1e6b260) */
+  const landPendingRef = useRef(false);
+  /** 마지막으로 받은 발 높이와 그때 올라가던 중이었나 — 착지 직후 다시 뛸 때 따라가는 발은 아직 내려오는 중이라 이걸로 가른다 */
+  const lastTargetY = useRef(first?.y ?? 0);
+  const isTargetRising = useRef(false);
   // 걷기 충돌 상자 — 매 프레임 같은 상자의 값만 바꾼다(새로 만들지 않는다)
   const bodyRef = useRef<PersonBox>({
     minX: (first?.x ?? 0) - BODY_HALF_WIDTH,
@@ -188,8 +204,38 @@ function RemoteAvatar({
     const beforeZ = link.position.z;
     link.position.x += (view.x - link.position.x) * alpha;
     link.position.z += (view.z - link.position.z) * alpha;
+    const beforeFootY = link.footY;
     link.footY += (view.y - link.footY) * alpha;
     link.position.y = link.footY + EYE_HEIGHT;
+    // 공중 · 착지 — 아바타 동작 플레이어가 grounded · jumping 을 보고 Jump_Start/Loop/Land 를 고른다
+    const rise = (link.footY - beforeFootY) / Math.max(delta, 1e-3);
+    link.verticalVelocity += (rise - link.verticalVelocity) * Math.min(1, delta * 12);
+    link.groundY = STATION_FLOOR_Y;
+    const lift = link.footY - STATION_FLOOR_Y;
+    const isTargetUp = view.y - STATION_FLOOR_Y > AIR_EXIT;
+    if (view.y !== lastTargetY.current) {
+      isTargetRising.current = view.y > lastTargetY.current;
+      lastTargetY.current = view.y;
+    }
+    if (link.grounded) {
+      // 뜨는 것도 받은 높이가 떠 있을 때만 — 착지한 뒤 따라가는 발이 아직 높아도 다시 공중으로 읽지 않게(Codex 리뷰 8d98fa0)
+      if (lift > AIR_ENTER && isTargetUp) {
+        link.grounded = false;
+        // 올라가던 중이면 뛴 것, 아니면 떨어지는 중 — 받은 높이가 오르고 있어도 뛴 것(착지 직후 바로 다시 뛴 때)
+        link.jumping = link.verticalVelocity > 0 || isTargetRising.current;
+        landPendingRef.current = false;
+      }
+    } else {
+      if (!isTargetUp) landPendingRef.current = true;
+      // 착지: 발이 바닥에 닿았거나, 바닥 높이를 받았고 발도 거의 내려왔거나(닿기 직전에 웅크리기 시작),
+      // 바닥을 받은 뒤 발이 내려오기 전에 다시 뛰었거나 — 그때는 한 프레임 착지해 다음 점프가 처음(Jump_Start)부터 나오게
+      const isLanding = lift < AIR_EXIT || (landPendingRef.current && (lift < LAND_EARLY || isTargetUp));
+      if (isLanding) {
+        link.grounded = true;
+        link.jumping = false;
+        landPendingRef.current = false;
+      }
+    }
     link.facing = wrapAngle(link.facing + wrapAngle(view.ry - link.facing) * alpha);
     const moved = Math.hypot(link.position.x - beforeX, link.position.z - beforeZ) / Math.max(delta, 1e-3);
     link.speed += (moved - link.speed) * Math.min(1, delta * 10);

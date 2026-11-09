@@ -1,5 +1,6 @@
 /**
- * 나주 전역 단축키 — 창을 여닫는 키는 마우스 잠금도 같이 다룬다(창이 열리면 마우스가 필요하고, 닫히면 바로 걷는다).
+ * 나주 전역 단축키 — 창을 여닫기만 한다. 마우스 잠금은 App 이 창 상태를 보고 pointerHold 로 다룬다
+ * (창이 열리면 풀고, 닫히면 열기 전에 조작 중이었을 때만 다시 잠근다 — ESC · 단추 · 배경 클릭 어느 길로 닫아도 같다).
  *   [P] 설정 · [I] 소지품(손에 든 것이 있으면 그것을 넣는다) · [T] 시작 · [H] 힌트함 · [V] 시점 · [Esc] 닫기
  */
 import { useEffect, type RefObject } from "react";
@@ -9,6 +10,7 @@ import { addHint } from "@/game/hintBox";
 
 import { isHintBoxOpen, setHintBoxOpen } from "../puzzles/hintBoxView";
 import { inventory } from "../puzzles/inventory";
+import { hasPointerHolds } from "../puzzles/pointerHold";
 import {
   PAPER_HINT,
   closePaper,
@@ -57,17 +59,14 @@ export function useGameHotkeys({
           image: getOldPaperCanvas().toDataURL("image/png"),
         });
         closePaper();
-        controls()?.unlock();
         setHintBoxOpen(true);
         return;
       }
       if (isHintBoxOpen()) {
         setHintBoxOpen(false);
-        controls()?.lock();
         return;
       }
       if (hintCount > 0) {
-        controls()?.unlock();
         setHintBoxOpen(true);
         return;
       }
@@ -75,7 +74,6 @@ export function useGameHotkeys({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code === "KeyP" && isPlainPress(event)) {
-        if (!isSettingsOpen) controls()?.unlock();
         setIsSettingsOpen(!isSettingsOpen);
         return;
       }
@@ -88,8 +86,6 @@ export function useGameHotkeys({
           inventory.stow();
           return;
         }
-        if (isInventoryOpen) controls()?.lock();
-        else controls()?.unlock();
         setIsInventoryOpen(!isInventoryOpen);
         return;
       }
@@ -97,16 +93,14 @@ export function useGameHotkeys({
         if (event.code === "Escape") setIsInventoryOpen(false);
         return;
       }
-      if (event.code === "KeyT" && !isLocked) controls()?.lock();
+      // 종이 · 게이지처럼 일부러 풀어 둔 동안은 잠그지 않는다 — 잠기면 ESC 가 다시 브라우저로 간다
+      if (event.code === "KeyT" && !isLocked && !hasPointerHolds()) controls()?.lock();
       if (event.code === "KeyH" && isPlainPress(event)) {
         handleHintKey();
         return;
       }
       if (isHintBoxOpen()) {
-        if (event.code === "Escape") {
-          setHintBoxOpen(false);
-          controls()?.lock();
-        }
+        if (event.code === "Escape") setHintBoxOpen(false);
         return;
       }
       // 시점 전환은 카메라 회전을 만지지 않고 캐릭터 표시만 바꾼다. 수식키가 눌린 V 는 편집기의 붙여넣기(⌘V/Ctrl+V)다.

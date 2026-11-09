@@ -270,6 +270,7 @@ export default function HydrantCabinetInterior({
 
       <HoseValve
         valveId={valveId}
+        cabinetId={cabinetId}
         position={valveSpot}
         d={d}
         metalColor={metalColor}

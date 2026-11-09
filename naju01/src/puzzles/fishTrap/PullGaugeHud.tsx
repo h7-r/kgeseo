@@ -5,6 +5,8 @@ import { TOUCH_HUD } from "@/engine/input/touchHudLayout";
 import { useTouchMode } from "@/engine/input/touchMode";
 import { isPointerActive } from "@/engine/input/virtualLock";
 
+import { isInteractionHeld } from "../pointerHold";
+
 import { GAUGE_HITS, gaugeCursor, stopGauge, useGauge } from "./pullGauge";
 
 // 반원 게이지 — 낚시 릴처럼 위로 휜 반투명 띠. 잿빛 막대가 잿빛 띠를 따라 오가고 흰 칸에서 [E]
@@ -60,8 +62,8 @@ export default function PullGaugeHud() {
         frame = requestAnimationFrame(tick);
         return;
       }
-      // 마우스 잠금이 풀리면(ESC) 그만둔다
-      if (!isPointerActive()) {
+      // 조작이 풀리면(창이 열림 · 터치 멈춤) 그만둔다. 당기는 동안 페이지가 일부러 풀어 둔 잠금은 빼고(pointerHold)
+      if (!isPointerActive() && !isInteractionHeld()) {
         stopGauge();
         return;
       }

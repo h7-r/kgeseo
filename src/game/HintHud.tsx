@@ -9,7 +9,7 @@ import type { CSSProperties } from "react";
 
 import { NoteIcon } from "./gameIcons";
 import { UI, UI_FONT, keyCapStyle } from "./gameUi";
-import { getHintFlashTime, useHintBox } from "./hintBox";
+import { getHintFlashTime, hasUnseenHints, useHintBox } from "./hintBox";
 
 interface HintHudProps {
   /** 힌트함 창이 열려 있다 — 숨기지 않고 더 진하게 띄운다 */
@@ -25,6 +25,9 @@ export default function HintHud({ isPanelOpen = false }: HintHudProps) {
   // [H] 는 반짝임과 창 열기를 같이 한다. 창이 뜨는 순간 감추면 정작 반짝이는 걸 못 봐서 창(50) 위로 띄운다.
   const latest = hints[hints.length - 1];
   const isEmpty = hints.length === 0;
+  // 펼쳐 보지 않은 쪽지가 있으면 점 + 테두리가 천천히 숨 쉰다 — 들어오는 순간의 반짝임 · 토스트를 놓쳐도 남는다(09회차).
+  // 칩 폭은 그대로 둔다(튜토리얼 완료 안내판과 같은 줄이라 넓히면 작은 폰에서 닿는다)
+  const isUnseen = hasUnseenHints();
   // 휴대폰 — 창이 뜨면 이 표시가 창 제목 · 모서리를 덮었다(11/8 해랑 검토). 창이 떠 있는 동안 감춘다(힌트는 창 안의 목록이 보인다)
   const openLayer = useOpenLayer();
   const isBehindWindow = labels.isTouch && openLayer !== null;
@@ -35,6 +38,7 @@ export default function HintHud({ isPanelOpen = false }: HintHudProps) {
       <div
         key={flashKey}
         data-hud="힌트 표시"
+        data-unseen={isUnseen ? "1" : undefined}
         style={{
           ...frameStyle,
           opacity: isPanelOpen ? 1 : isEmpty ? 0.72 : 0.92,
@@ -42,14 +46,20 @@ export default function HintHud({ isPanelOpen = false }: HintHudProps) {
           animation: flashKey ? "hint-flash 900ms ease-out 1" : undefined,
         }}
       >
+        {/* 반짝임(칩 자체의 animation)과 겹치지 않게 숨 쉬기는 따로 얹은 테두리가 한다 */}
+        {isUnseen && <span aria-hidden className="hint-unseen-ring" style={ringStyle} />}
         <kbd style={keyCapStyle}>{labels.key("H")}</kbd>
-        <span style={isEmpty ? emptyThumbStyle : thumbStyle}>
-          {latest?.image ? (
-            <img src={latest.image} alt="" style={imageStyle} />
-          ) : (
-            // 아직 없을 때도 「여기에 쪽지가 모인다」를 알리는 자리는 남긴다
-            <NoteIcon size={16} />
-          )}
+        <span style={thumbFrameStyle}>
+          <span style={isEmpty ? emptyThumbStyle : thumbStyle}>
+            {latest?.image ? (
+              <img src={latest.image} alt="" style={imageStyle} />
+            ) : (
+              // 아직 없을 때도 「여기에 쪽지가 모인다」를 알리는 자리는 남긴다
+              <NoteIcon size={16} />
+            )}
+          </span>
+          {/* 썸네일은 overflow hidden 이라 점은 바깥 틀에 단다 */}
+          {isUnseen && <span aria-label="새 쪽지" role="img" style={dotStyle} />}
         </span>
         <span style={labelStyle}>
           힌트
@@ -68,6 +78,14 @@ const FLASH_KEYFRAMES = `
   38%  { transform: translateX(0);   border-color: #3a5794; }
   56%  { transform: translateX(1px); border-color: #86a6f0; }
   100% { transform: translateX(0);   border-color: #1a305f; }
+}
+@keyframes hint-unseen {
+  0%, 100% { opacity: 0.35; box-shadow: 0 0 0 0 rgba(134,166,240,0); }
+  50%      { opacity: 1;    box-shadow: 0 0 10px 1px rgba(134,166,240,0.45); }
+}
+.hint-unseen-ring { animation: hint-unseen 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .hint-unseen-ring { animation: none; opacity: 1; }
 }`;
 
 const frameStyle: CSSProperties = {
@@ -101,6 +119,24 @@ const thumbStyle: CSSProperties = {
   overflow: "hidden",
 };
 const emptyThumbStyle: CSSProperties = { ...thumbStyle, background: "transparent", color: UI.textSubtle };
+const thumbFrameStyle: CSSProperties = { position: "relative", display: "grid" };
+const dotStyle: CSSProperties = {
+  position: "absolute",
+  top: -3,
+  right: -3,
+  width: 9,
+  height: 9,
+  borderRadius: "50%",
+  background: UI.accent,
+  boxShadow: `0 0 0 2px ${UI.surface}`,
+};
+const ringStyle: CSSProperties = {
+  position: "absolute",
+  inset: -1,
+  borderRadius: 22,
+  border: `1px solid ${UI.accent}`,
+  pointerEvents: "none",
+};
 const imageStyle: CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
 const labelStyle: CSSProperties = {
   display: "flex",

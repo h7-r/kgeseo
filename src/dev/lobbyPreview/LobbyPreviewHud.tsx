@@ -1,11 +1,12 @@
 // 로비 실제 화면 미리보기 — Canvas 밖(DOM). 「혼자 둘러보는 중」, 인사창, 개발용 조작.
 // 인사창: 포인터 잠금 중 G → 숫자 1~6 / 커서가 보일 때 💬 단추 → 클릭. Esc·G 로 닫는다(설계 5절).
-// 오른쪽 키패드 1~6 은 인사창 없이 바로 인사한다(미르 11/6 — 게임이 키패드를 안 쓴다). 위 줄 숫자는 인사창이 열렸을 때만.
+// 숫자 1~6(위 줄 · 키패드)은 인사창 없이 바로 인사한다(미르 11/6 키패드 · 11/8 위 줄도 — 본편은 숫자키를 안 쓴다).
 // 1인칭에서는 내 말풍선이 눈 위라 안 보이므로 화면 아래에 띄운다. 쿨다운(3초) 중이면 짧게 알린다.
 // 컷신·본편 화면창·자물쇠 확대 중에는 인사창을 열지 않고, 열려 있으면 닫는다(설계 5절).
 // 모양은 동작 확인용이다 — 최종 톤은 3단계에서 해랑 님 화면에 맞춘다.
 import { useEffect, useState, type CSSProperties } from "react";
 
+import { useTouchMode } from "@/engine/input";
 import { playerView } from "@/engine/playerView";
 import { isTypingTarget, useOpenLayer } from "@/game/overlayLayer";
 import { useLockControl } from "@/props/combinationLockState";
@@ -50,6 +51,40 @@ const button: CSSProperties = {
 
 const stop = (event: { stopPropagation(): void }) => event.stopPropagation();
 
+/**
+ * 로비에 처음 붙으면 여기서 할 수 있는 것을 몇 초 알려 준다 — 미르 플레이 시험 메모(11/8): 「로비입장후 채팅이 가능하다는 것을
+ * 알게 하는 ui가 없다 또 1-6까지 제스처 사용이 가능하다는 것을 알리는 ui도 없다」(튜토피드백 검토 01회차). 컷신 · 창 · 자물쇠가
+ * 끝나 실제로 볼 수 있을 때부터 세고, 이 탭에서 한 번만.
+ */
+const INTRO_MS = 9000;
+let introShown = false;
+// 위 가운데는 튜토리얼 안내판 · 출동 호출 카드 자리라 아래 가운데에 — 행동 안내(40) · 짧은 안내(104) · 1인칭 말풍선(96) 위
+const introCard: CSSProperties = {
+  position: "absolute",
+  bottom: 168,
+  left: "50%",
+  transform: "translateX(-50%)",
+  width: "min(440px, calc(100% - 32px))",
+  boxSizing: "border-box",
+  padding: "12px 16px",
+  borderRadius: 14,
+  background: "rgba(10,20,40,0.9)",
+  border: "1px solid #86a6f0",
+  color: "#f1f1fc",
+  font: "14px/1.5 system-ui, sans-serif",
+  textAlign: "center",
+  boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+};
+const introKey: CSSProperties = {
+  display: "inline-block",
+  minWidth: 22,
+  padding: "1px 7px",
+  margin: "0 3px",
+  borderRadius: 6,
+  border: "1px solid #86a6f0",
+  font: "600 12px/1.6 system-ui, sans-serif",
+};
+
 export default function LobbyPreviewHud() {
   const { status, me, loggedIn } = usePreviewState();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -57,6 +92,7 @@ export default function LobbyPreviewHud() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const cutscene = useIsCutscenePlaying();
+  const isTouch = useTouchMode();
   // 본편 화면창(소지품·설정 등)이나 자물쇠 확대가 열려 있으면 인사 입력을 받지 않는다(설계 5절 「동시에 열리지 않게」)
   const openLayer = useOpenLayer();
   const lockControl = useLockControl();
@@ -67,6 +103,19 @@ export default function LobbyPreviewHud() {
   // 채팅은 출동 경보 중에도 열지 않는다 — 경보 카드가 Enter 를 출동 확인으로 받는다(검토 14회차 3)
   const dispatchPhase = useDispatchState().phase;
   const canChat = canGreet && dispatchPhase !== "alert";
+  // 처음 로비에 붙어 화면을 볼 수 있게 된 순간 안내 카드(INTRO_MS)
+  const [introOpen, setIntroOpen] = useState(false);
+  useEffect(() => {
+    if (introShown || !canGreet) return;
+    introShown = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 처음 붙은 순간 한 번만 연다
+    setIntroOpen(true);
+  }, [canGreet]);
+  useEffect(() => {
+    if (!introOpen) return;
+    const timer = setTimeout(() => setIntroOpen(false), INTRO_MS);
+    return () => clearTimeout(timer);
+  }, [introOpen]);
   // 그런 것이 열리면 인사창을 닫는다(렌더 중 이전 값과 비교 — effect 안 setState 를 피한다)
   const [wasBusy, setWasBusy] = useState(busy);
   if (busy !== wasBusy) {
@@ -106,7 +155,8 @@ export default function LobbyPreviewHud() {
     return () => document.removeEventListener("pointerlockchange", onChange);
   }, []);
 
-  // G 로 열고 닫기, 열려 있을 때만 숫자 1~6 이 인사, Esc 로 닫기. 입력칸에 쓰는 중이면 무시
+  // G 로 열고 닫기, 숫자 1~6(위 줄 · 키패드)은 바로 인사, Esc 로 닫기. 입력칸에 쓰는 중이면 무시.
+  // 위 줄 숫자도 바로 — 키패드 없는 노트북이 많다(미르 플레이 시험 11/8). 본편은 숫자키를 쓰지 않는다
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       // 입력칸에 쓰는 중, 누르고 있어 반복되는 키, 조합키(Ctrl·Cmd·Alt)는 무시 — 본편 키 처리와 같은 기준
@@ -119,10 +169,8 @@ export default function LobbyPreviewHud() {
         setPickerOpen(false);
         return;
       }
-      // 오른쪽 키패드 1~6 은 바로, 위 줄 숫자는 인사창이 열렸을 때만
-      const numpad = /^Numpad([1-6])$/.exec(event.code);
-      const digit = /^Digit([1-6])$/.exec(event.code);
-      const id = numpad ? Number(numpad[1]) : digit && pickerOpen ? Number(digit[1]) : null;
+      const number = /^(?:Numpad|Digit)([1-6])$/.exec(event.code);
+      const id = number ? Number(number[1]) : null;
       if (id !== null && canGreet) {
         if (!greet(id)) setNotice("인사는 3초에 한 번 할 수 있어요");
         setPickerOpen(false);
@@ -138,14 +186,16 @@ export default function LobbyPreviewHud() {
       : status.kind === "connecting"
         ? "로비에 붙는 중…"
         : status.kind === "connected"
-          ? `로비 연결됨 · 같은 방 ${roomSize}명 · G: 인사 · 키패드 1~6: 바로 인사 · Enter: 채팅`
+          ? `로비 연결됨 · 같은 방 ${roomSize}명 · 숫자 1~6: 바로 인사 · G: 인사 고르기 · Enter: 채팅`
           : `혼자 둘러보는 중(${REASON_TEXT[status.reason] ?? status.reason})${
               status.nextRetryAt ? " · 재시도 예약됨" : " · 이번 방문 재시도 없음"
             }`;
 
   const prodStatus =
     status.kind === "connected"
-      ? `같은 방 ${roomSize}명 · G 인사 · Enter 채팅`
+      ? isTouch
+        ? `같은 방 ${roomSize}명 · 💬 인사`
+        : `같은 방 ${roomSize}명 · Enter 채팅 · 1~6 인사 · G 인사 고르기`
       : status.kind === "solo"
         ? status.reason === "LOGIN_REQUIRED"
           ? "혼자 둘러보는 중 · 로그인하면 다른 조사관과 만나요"
@@ -174,6 +224,19 @@ export default function LobbyPreviewHud() {
         </div>
       )}
       <ChatBox canChat={canChat} />
+      {introOpen && canGreet && (
+        <div role="status" aria-live="polite" style={introCard}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>로비에 들어왔어요 — 다른 조사관과 함께예요</div>
+          {isTouch ? (
+            <div>오른쪽 아래 💬 단추로 인사(제스처)를 할 수 있어요</div>
+          ) : (
+            <div>
+              <span style={introKey}>Enter</span> 채팅 · <span style={introKey}>1</span>~<span style={introKey}>6</span>{" "}
+              인사(제스처) · <span style={introKey}>G</span> 인사 고르기
+            </div>
+          )}
+        </div>
+      )}
       {/* 배포 빌드(베타, 11/8) — 개발 패널(본부실로 이동 · 개발 로그인) 없이 상태 한 줄만 오른쪽 위에 */}
       {!import.meta.env.DEV && prodStatus && (
         <div
@@ -292,7 +355,7 @@ export default function LobbyPreviewHud() {
               {index + 1}. {text}
             </button>
           ))}
-          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>숫자 1~6 · 키패드는 바로 · Esc·G 닫기</div>
+          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 2 }}>숫자 1~6 은 창 없이도 바로 · Esc·G 닫기</div>
         </div>
       )}
     </div>

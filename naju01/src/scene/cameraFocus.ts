@@ -48,6 +48,10 @@ const lookQuaternion = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 
 export const isCameraFocused = () => active !== null;
+/** 지금 걸린 고정의 이름(없으면 null) — 고정을 건 쪽이 제 고정인지 알아본다 */
+export const cameraFocusId = () => active?.id ?? null;
+/** 그 이름의 고정이 다 돌아봤다(머무는 중) — 연출이 돌아보기를 마친 뒤 시작하게 */
+export const isCameraFocusTurned = (id: string) => active?.id === id && active.elapsed >= active.turnIn;
 
 /** 건다. 이미 다른 고정이 걸려 있으면 replace 일 때만 이어 건다 */
 export function focusCamera(request: CameraFocusRequest) {
@@ -70,6 +74,16 @@ export function focusCamera(request: CameraFocusRequest) {
     homeFov,
   };
   return true;
+}
+
+/**
+ * 그 이름의 고정이면 머물기를 여기서 끝낸다 — 당긴 시야를 turnOut 동안 풀고 조작을 돌려준다(이어 볼 곳은 버린다).
+ * 대사처럼 끝나는 때를 미리 모르는 쪽이 hold 를 넉넉히 걸고 이걸로 끝낸다. 돌아보는 중이면 다 돌아본 뒤 바로 푼다.
+ */
+export function endCameraFocus(id: string) {
+  if (!active || active.id !== id) return;
+  active.hold = Math.max(0, active.elapsed - active.turnIn);
+  active.then = null;
 }
 
 /** 걸린 고정을 바로 푼다 — 시선은 그 자리에 둔다(자리는 안 옮긴다) */

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { PointerLockControls, Preload } from "@react-three/drei";
@@ -34,6 +34,10 @@ import HintPanel from "@/game/HintPanel";
 import { useDevInventorySeed } from "@/game/inventory";
 import InventoryPanel from "@/game/InventoryPanel";
 import { OVERLAY_LAYERS } from "@/game/overlayLayer";
+import { showToast } from "@/game/toast";
+import { setThirdPersonView } from "@/game/viewMode";
+import { isThirdPersonLocked, THIRD_PERSON_LOCKED_MESSAGE } from "@/game/viewRule";
+import ValveHelpWatcher from "@/game/ValveHelpWatcher";
 import AimTracker from "@/lobby/AimTracker";
 import { LobbyChibiPanel, LobbySidekickPanel } from "@/naju";
 import MainGameSaveBridge from "@/save/MainGameSaveBridge";
@@ -51,7 +55,7 @@ import DispatchCard from "@/tutorial/DispatchCard";
 import TutorialPanel from "@/tutorial/TutorialPanel";
 
 import CrashOverlays from "./overlays/CrashOverlays";
-import { ActionHint, Crosshair, FadeCurtain, LockDialPanel, TopBarButton } from "./overlays/Hud";
+import { ActionHint, Crosshair, FadeCurtain, LockDialPanel, Toast, TopBarButton } from "./overlays/Hud";
 import MangaScene from "./MangaScene";
 import { createPlayerState, usePunch } from "./playerState";
 import { useLockControlMode, useOverlayWindows } from "./pointerLock";
@@ -174,7 +178,15 @@ export default function App() {
   }, []);
 
   const [isThirdPerson, setIsThirdPerson] = useState(true);
-  const toggleThirdPerson = useCallback(() => setIsThirdPerson((value) => !value), []);
+  // V · 위 단추 · 터치 「시점」이 모두 이 한 곳을 지난다. 비밀 복도에서 튜토 「시점 바꾸기」를 지났으면 3인칭으로는 못 간다(viewRule)
+  const toggleThirdPerson = useCallback(() => {
+    if (!isThirdPerson && isThirdPersonLocked()) {
+      showToast(THIRD_PERSON_LOCKED_MESSAGE);
+      return;
+    }
+    setIsThirdPerson(!isThirdPerson);
+  }, [isThirdPerson]);
+  useEffect(() => setThirdPersonView(isThirdPerson), [isThirdPerson]);
   // 본부실에 처음 들어서는 순간만 3인칭으로 맞춘다. 그 뒤로는 사용자가 고른 시점을 건드리지 않는다
   useEffect(() => onEnteredHeadquarters(() => setIsThirdPerson(true)), []);
   const avatar = useLobbyAvatar();
@@ -222,6 +234,22 @@ export default function App() {
   // 창·자물쇠·자판기 컷신 동안은 이동·조준을 멈춘다. 컷신이 카메라를 모는데 입력까지 들어오면 화면이 떤다.
   const isCutscenePlaying = useIsCutscenePlaying();
   const active = (isPointerLocked || IS_INPUT_ALWAYS_ON) && !openLayer && !lockControl && !isCutscenePlaying;
+  // 역 씬에는 값 대신 읽는 함수를 넘긴다 — 켜고 끌 때마다 역 전체가 다시 그려지지 않게(StationScene 은 memo, 10회차).
+  // 이동은 useFrame 에서만 이 값을 본다. 겨냥(AimTracker) · HUD 는 그대로 값으로 받는다.
+  const isStationActive = active && !isTrain;
+  const stationActiveRef = useRef(isStationActive);
+  useLayoutEffect(() => {
+    stationActiveRef.current = isStationActive;
+  }, [isStationActive]);
+  const readStationActive = useCallback(() => stationActiveRef.current, []);
+  // 3인칭인 채로 비밀 복도(튜토 공간)에 있으면 1인칭으로 돌린다 — 본부실에서 복도로 걸어 들어온 때도. 기차 · 컷신 중엔 건드리지 않는다
+  useEffect(() => {
+    if (isTrain || !isThirdPerson || isCutscenePlaying) return;
+    const id = window.setInterval(() => {
+      if (isThirdPersonLocked()) setIsThirdPerson(false);
+    }, 300);
+    return () => window.clearInterval(id);
+  }, [isTrain, isThirdPerson, isCutscenePlaying]);
 
   const toggleSettings = () =>
     openLayer === OVERLAY_LAYERS.settings ? closeWindow() : openWindow(OVERLAY_LAYERS.settings);
@@ -251,7 +279,7 @@ export default function App() {
         {isTrainMounted && <TrainInteriorScene active={active && isTrain} enabled={isTrain} onNear={setNear} />}
         <StationScene
           enabled={!isTrain}
-          active={active && !isTrain}
+          active={readStationActive}
           onNear={setNear}
           isThirdPerson={isThirdPerson}
           playerRef={playerRef}
@@ -311,7 +339,9 @@ export default function App() {
       )}
       {SHOW_CUSTOMIZE_PANEL && !isTrain && <CustomizePanels avatar={avatar} />}
       {active && <ActionHint near={near} />}
+      <Toast raised={lockControl !== null} />
       <LockDialPanel covered={openLayer !== null} />
+      <ValveHelpWatcher covered={openLayer !== null} />
       {/* 화면층이 지금 열린 창을 하나로 정하므로 두 창이 겹칠 수 없다 */}
       <InventoryPanel open={openLayer === OVERLAY_LAYERS.inventory} onClose={closeWindow} />
       <HintPanel open={openLayer === OVERLAY_LAYERS.hint} onClose={closeWindow} />

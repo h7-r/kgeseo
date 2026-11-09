@@ -53,6 +53,8 @@ export const NEAR_TARGET = {
   train: "train",
   /** 객차 안 출구 앞 */
   trainExit: "trainExit",
+  /** 객차 안 출입문 안으로 걸어 들어갔다 — 키 없이 내린다(탈 때와 같게, 미르 플레이 시험 11/8) */
+  trainExitDoor: "trainExitDoor",
 } as const;
 
 export type NearTarget = (typeof NEAR_TARGET)[keyof typeof NEAR_TARGET];

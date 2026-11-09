@@ -4,6 +4,7 @@ import { IS_INPUT_ALWAYS_ON } from "@/app/runtimeFlags";
 import { exposeDevHook } from "@/debug/devHooks";
 import { getTouchMove, isPointerActive, isTouchMode } from "@/engine/input";
 import { isTypingTarget } from "@/game/overlayLayer";
+import { isThirdPersonView } from "@/game/viewMode";
 import { createChangeSignal } from "@/lib/changeSignal";
 import { getLockState } from "@/props/combinationLockState";
 import { isCorridorPowered, hasSeenAllMarks, getWorkLampLocation } from "@/props/workLampPuzzle/workLampState";
@@ -120,12 +121,14 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     isDone: (c) => (c.pressCounts.C ?? 0) >= 2,
   },
   {
+    // 비밀 복도는 1인칭으로 진행한다 — 이 단계를 지나면 복도에서는 3인칭으로 못 바꾼다(game/viewRule, 미르 플레이 시험 11/8)
     id: "view",
     title: "시점 바꾸기",
-    text: "1인칭과 3인칭을 오갈 수 있습니다. 편한 쪽으로 두세요.",
-    keys: [[["V"], "1인칭 ↔ 3인칭"]],
-    touchText: "오른쪽 위 「시점」으로 1인칭과 3인칭을 오갑니다. 편한 쪽으로 두세요.",
-    isDone: (c) => c.pressed.has("V"),
+    text: "V 를 눌러 1인칭으로 바꿔 보세요.\n비밀 복도는 1인칭으로 진행하고, 3인칭은 수사 본부(로비)에 들어서면 다시 쓸 수 있어요.",
+    keys: [[["V"], "1인칭으로 바꾸기"]],
+    touchText:
+      "오른쪽 위 「시점」을 눌러 1인칭으로 바꿔 보세요.\n비밀 복도는 1인칭으로 진행하고, 3인칭은 수사 본부(로비)에 들어서면 다시 쓸 수 있어요.",
+    isDone: () => !isThirdPersonView(),
   },
   {
     id: "backToExitDoor",

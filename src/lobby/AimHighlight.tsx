@@ -22,6 +22,11 @@ interface AimHighlightProps {
   /** 넓은 면(벽 부착함)은 0.45 면 통째로 크림색으로 뜬다 — 부르는 쪽에서 0.15~0.2 를 준다. */
   strength?: number;
   grow?: number;
+  /**
+   * 겨냥하지 않아도 스스로 빛나는 세기(0~1, 매 프레임 읽는다) — 「여기를 만져라」 맥박(소화전 밸브, 튜토피드백 10회차).
+   * 발광에만 더하고 커지기(grow)는 겨냥 때만 — 숨쉬듯 커졌다 작아지면 물건이 흔들려 보인다(Codex 10).
+   */
+  pulse?: () => number;
   children?: ReactNode;
 }
 
@@ -31,6 +36,7 @@ export function AimHighlight({
   color = "#fffee7",
   strength = 0.45,
   grow = 0.08,
+  pulse,
   children,
 }: AimHighlightProps) {
   const groupRef = useRef<THREE.Group>(null);
@@ -57,10 +63,12 @@ export function AimHighlight({
       group.position.set(p[0] * (1 - k), p[1] * (1 - k), p[2] * (1 - k));
     }
 
+    // 맥박은 발광에만 — 겨냥하면 그대로 최대
+    const glow = Math.max(level, Math.min(1, Math.max(0, pulse?.() ?? 0)));
     // 꺼져 있고 이미 껐으면 훑지 않는다(대부분의 프레임이 여기서 끝난다)
-    if (level < 0.002 && previous.current < 0.002) return;
-    previous.current = level;
-    glowColor.set(color).multiplyScalar(level * strength);
+    if (glow < 0.002 && previous.current < 0.002) return;
+    previous.current = glow;
+    glowColor.set(color).multiplyScalar(glow * strength);
 
     // 원래 발광에 더한다. 덮어쓰면 강조가 꺼질 때 스탠드 전구처럼 스스로 빛나던 부품이 영영 꺼진다.
     const apply = (material: EmissiveMaterial) => {

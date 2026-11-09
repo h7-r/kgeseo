@@ -18,7 +18,9 @@ const MODEL_URLS: Record<TexturedModelName, string> = {
   //   옛 serpent-colored(1.2만 면 정점색)는 남겨 둔다 — 텍스처판이 깨지면 이 줄만 되돌린다.
   serpent: new URL("../../assets/models/serpent-hq.glb", import.meta.url).href,
   // 아비사 — Z1 의 NPC(§163 대화). 한 사람뿐이라 텍스처째 써서 Meshy 에서 본 그대로(노멀맵 포함) 나온다.
-  abisa: new URL("../../assets/models/abisa.glb", import.meta.url).href,
+  //   11/8 미르 「팔 벌린 채 부자연스럽게 서 있다」 → A자세 원본(abisa.glb)에 블렌더로 뼈를 심어 손을 아랫배 앞에 모은 자세(공수)로
+  //   다시 굽혔다(abisa-pose.glb · naju01/tools/abisa_repose_blender.py). 깨지면 이 줄만 abisa.glb 로 되돌린다.
+  abisa: new URL("../../assets/models/abisa-pose.glb", import.meta.url).href,
   // 어부(아랑사) — 그물을 진 사람. 척도용 회색 사람 중 물가에 가장 가까운 자리에 선다.
   fisher: new URL("../../assets/models/fisher.glb", import.meta.url).href,
   // 밧줄을 진 사람 — 척도용 회색 사람 (40, 36) 자리

@@ -10,7 +10,12 @@ import { playSound } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
 
-import { insertCoin as lightUpButtons, type VendingId } from "./vendingMachineState";
+import {
+  isVendingPowered,
+  insertCoin as lightUpButtons,
+  noticeVendingUnpowered,
+  type VendingId,
+} from "./vendingMachineState";
 
 export type CoinKind = "can" | "cup";
 
@@ -29,6 +34,8 @@ interface CoinInsertion {
   /** 투입구 월드 좌표. 동전이 여기로 날아가 들어간다. */
   slot: Vector3Tuple | null;
   t0: number;
+  /** 전원이 없어 돌려준 것 — 끝날 때 까닭을 알린다 */
+  unpowered?: boolean;
 }
 
 interface CoinState {
@@ -122,8 +129,10 @@ export function dropCoin(position: Vector3Tuple | null = null) {
 export function tryInsertCoin(vendingId: VendingId, slot: Vector3Tuple | null = null) {
   const held = state.held;
   if (!held || state.inserting) return null;
-  const result: InsertResult = MATCHING_MACHINE[held] === vendingId ? "accepted" : "returned";
-  state.inserting = { kind: held, vendingId, result, slot, t0: 0 };
+  // 전원이 없는 자판기는 맞는 동전도 받지 않고 반환구로 돌려준다(finishCoinInsert 가 까닭을 알린다)
+  const unpowered = !isVendingPowered();
+  const result: InsertResult = !unpowered && MATCHING_MACHINE[held] === vendingId ? "accepted" : "returned";
+  state.inserting = { kind: held, vendingId, result, slot, t0: 0, unpowered };
   state.held = null;
   playSound("lockDial", { volume: 0.7 });
   signal.notify();
@@ -151,6 +160,7 @@ export function finishCoinInsert() {
     state.location[insertion.kind] = `returned:${insertion.vendingId}`;
     state.droppedTime[insertion.kind] = performance.now();
     playSound("lockDial", { volume: 0.9 });
+    if (insertion.unpowered) noticeVendingUnpowered();
   }
   state.inserting = null;
   signal.notify();

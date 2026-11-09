@@ -25,6 +25,7 @@ import { inventory, registerLeftBehind, useHeldItems, useWorldItems } from "../i
 import { createCompressedGltfLoader } from "../../loaders/compressedGlb";
 import { M, groundY } from "../units";
 import { LID, LOCK_AT, LOCK_LENGTH, buildBoxBase, buildBoxLid, BOX, buildBronzeKey, buildPadlock } from "./lockedBox";
+import { bindBoxPhase, type BoxPhase } from "./boxPhase";
 import { PLATFORM } from "./ridgeShape";
 import { SHADOW_PLAY_CUES, SHADOW_PLAY_FADE, SHADOW_PLAY_SECONDS, createShadowPlay } from "./shadowPlay";
 import { makeVertexColorMaterial } from "./vertexPaint";
@@ -48,7 +49,7 @@ const SERPENT_SIZE = 0.14;
 /** 속에서 새어 나오는 빛 — 바닥에서 띄우는 높이(함 기준 m) · 크기 */
 const INNER_GLOW = { lift: 0.05, size: 0.5 };
 
-type Phase = "none" | "placed" | "unlocking" | "play" | "done";
+type Phase = BoxPhase;
 
 /** 끝에서 살짝 넘어갔다 돌아온다 — 무거운 뚜껑이 경첩에 걸리는 느낌 */
 const easeOutBack = (t: number) => {
@@ -165,6 +166,8 @@ export default function BoxOpening() {
   const camera = useThree((state) => state.camera);
   const box = useMemo(() => buildBox(), []);
   const phase = useRef<Phase>("none");
+  // 쓸 일 끝난 열쇠 · 함 치우기가 읽는다
+  useEffect(() => bindBoxPhase(() => phase.current), []);
   const startedAt = useRef(0);
   /** 내려놓은 뒤 흐른 시간(초 · 음수면 다 놓였다) · 그림자 재생 시간 */
   const placeTime = useRef(-1);
@@ -293,7 +296,8 @@ export default function BoxOpening() {
     const kinds = new Set(held.map((item) => item.kind));
     if (!told.current.hint && kinds.has("bronzeKey") && kinds.has("letterBox") && phase.current === "none") {
       told.current.hint = true;
-      showNotice("청동 열쇠와 아랑사의 함 — 함을 꺼내([I]) 내려놓고, 자물통을 겨눠 열어 보자.", 5);
+      // 허공 E 는 소지품 넣기라 「꺼내 내려놓기」가 아니다 — 평상에 올리는 길만 알린다
+      showNotice("청동 열쇠와 아랑사의 함 — 불탄 평상을 겨누고 E 로 함을 올린 뒤, 자물통을 겨눠 열어 보자.", 5);
     }
   }, [held]);
 

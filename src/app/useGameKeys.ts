@@ -5,6 +5,7 @@ import { gameSetTimeout } from "@/engine/input/gameClock";
 import { startReach } from "@/engine/playerView";
 import { addHint, flashHints } from "@/game/hintBox";
 import { isTypingTarget, OVERLAY_LAYERS, type OverlayLayerName } from "@/game/overlayLayer";
+import { noteValveAnswer } from "@/game/valveHelp";
 import { dropChair, getDraggedChair, runAimedInteraction } from "@/lobby/interactions";
 import { getLatestPlacement } from "@/lobby/placement";
 import { dropCoin, getHeldCoin } from "@/props/coinState";
@@ -19,6 +20,7 @@ import {
 import { discardDrink, getHeldDrink, interactWithHeldDrink } from "@/props/drinkState";
 import { rattleHinge } from "@/props/hingeState";
 import { OPENING_MOTION } from "@/props/padlock/openingMotion";
+import { isCutscenePlaying } from "@/props/vendingPushState";
 import { dropHintPaper, getFootSpot, storeHintPaper, VALVE_HINT } from "@/props/hintPaperState";
 import { getHintPaperImageUrl } from "@/station/hands/hintPaperTexture";
 import { chairDragState } from "@/station/headquarters/chairDragState";
@@ -54,15 +56,19 @@ function handleLockKey(code: string, id: string) {
   else if (code === "ArrowDown" || code === "KeyS") turnLockDigit(id, -1);
   else if (code === "KeyE" || code === "Enter") {
     // 맞으면 풀리고 나간다. 틀리면 덜컹 — "아니다"를 몸으로 알려 준다.
+    // 밸브 자물쇠 막힘 힌트(valveHelp)는 「틀렸다」는 판정만 센다 — 통신 실패 자체는 안 센다
     submitLockAnswer(id)
       .then((isCorrect) => {
+        if (typeof isCorrect === "boolean") noteValveAnswer(id, isCorrect);
         if (isCorrect === true) gameSetTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
         else if (isCorrect === false) rattleHinge(id);
       })
       .catch((error: unknown) => {
         // 백엔드 없이 프론트만 켜면 요청이 실패해 튜토리얼 자물쇠가 영영 안 열린다 — 서버에 못 닿았을 때만 로컬 판정.
         console.warn("[Play Session] 자물쇠 판정 실패 — 로컬 판정으로 대신한다", error);
-        if (tryLockAnswer(id)) gameSetTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
+        const isCorrect = tryLockAnswer(id);
+        noteValveAnswer(id, isCorrect);
+        if (isCorrect) gameSetTimeout(() => leaveLockControl(), UNLOCK_SHOW_MS);
         else rattleHinge(id);
       });
   }
@@ -70,6 +76,11 @@ function handleLockKey(code: string, id: string) {
 
 /** [E] — 순서는 화면 안내문과 같아야 한다: 끄는 의자 → 든 음료·쪽지 → 겨냥한 것 → 동전 → 놓기 → 문 */
 function handleUse(near: NearTarget, boardTrain: () => void, leaveTrain: () => void) {
+  // 기차 출구 앞에서는 내리기가 먼저 — 음료 · 쪽지 · 동전을 든 채 타면 [E] 가 그쪽에 걸려 못 내린다고 여겼다(미르 플레이 시험 11/8)
+  if (near === NEAR_TARGET.trainExit || near === NEAR_TARGET.trainExitDoor) {
+    leaveTrain();
+    return;
+  }
   // 끌던 의자가 화면 밖으로 나가 조준이 안 될 수 있어 조준보다 먼저 본다.
   if (getDraggedChair()) {
     dropChair(chairDragState.x, chairDragState.z);
@@ -96,7 +107,6 @@ function handleUse(near: NearTarget, boardTrain: () => void, leaveTrain: () => v
   if (tryPlaceHeldItem()) return;
   // 문 안으로 걸어 들어가도 타지만 [E] 로도 탄다.
   if (near === NEAR_TARGET.train) boardTrain();
-  else if (near === NEAR_TARGET.trainExit) leaveTrain();
 }
 
 /**
@@ -168,6 +178,9 @@ export function useGameKeys({
         handleLockKey(code, lockControl.id);
         return;
       }
+      // 연출이 화면을 돌리는 동안(전류 따라가기 · 배전반 알림)은 만지기 · 시점 전환을 받지 않는다 — 겨냥이 비기 전 E 가
+      // 엉뚱한 것에 걸리거나 V 로 카메라가 바뀌면 연출이 깨진다(10회차 Codex)
+      if ((code === "KeyE" || code === "KeyV") && isCutscenePlaying()) return;
       if (code === "KeyV" && !isTrain) {
         toggleThirdPerson();
         return;

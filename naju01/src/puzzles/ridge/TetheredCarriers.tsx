@@ -34,6 +34,9 @@ import { isPointerActive } from "@/engine/input/virtualLock";
 import { RIDGE_CENTER } from "./ridgeShape";
 import { ridge, ridgeCarry, ridgeQuest, useRidgeStage } from "./ridgeState";
 
+/** 빈 지게를 허공 E 로 내려놓으면 발 앞에 둔다(예전: 바람이 채 간다) */
+const KEEPS_JIGE_ON_PUT_DOWN = true;
+
 /** 지게 자리(씬2 지게 표본) */
 const CARRIERS = [
   { x: 72.02, z: 22.12 },
@@ -416,6 +419,15 @@ export default function TetheredCarriers() {
       if (ridgeCarry.load !== "jige" || aimedId() || ridgeCarry.isCartGrabbed) return;
       const carrier = carriers.find((entry) => entry.state === "carried");
       if (!carrier) return;
+      // 날려 보내지 않고 발 앞에 내려놓는다 — E 를 마구 누르다 지게를 잃고 뛰어 붙잡느라 헤매지 않게(박람회판 정리 · 미르 11/8).
+      // 발밑 자리는 선 자리라 막힘 · 턱이 없다. 아래 바람에 날리는 분기는 이제 쓰지 않지만 저장본 · 개발 훅을 위해 남긴다
+      if (KEEPS_JIGE_ON_PUT_DOWN) {
+        ridgeCarry.putDown = { x: camera.position.x / M, z: camera.position.z / M };
+        ridgeCarry.load = "none";
+        audio.play("똑");
+        showNotice("지게를 발 앞에 내려놓았다. 겨누고 E 로 다시 진다.", 3);
+        return;
+      }
       carrier.state = "flown";
       carrier.flownAt = -1;
       carrier.flownFrom.copy(carrier.group.position);

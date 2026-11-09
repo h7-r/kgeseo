@@ -90,7 +90,7 @@ export const ITEMS: Record<ItemKind, ItemDef> = {
   letterBox: {
     name: "아랑사의 함",
     description:
-      "물살에 떠밀려 나올 때 손에 쥐여 있던 옻칠한 나무 함. 젖지 않았다. 청동 자물통이 채워져 있어 열쇠가 있어야 열린다. 흔들면 안에서 무언가 달그락거린다.",
+      "물살에 떠밀려 나올 때 함께 건져 온 옻칠한 나무 함. 젖지 않았다. 청동 자물통이 채워져 있어 열쇠가 있어야 열린다. 흔들면 안에서 무언가 달그락거린다.",
   },
   bronzeKey: {
     name: "청동 열쇠",
@@ -155,6 +155,8 @@ export interface WorldItem extends HeldItem {
   position: THREE.Vector3;
   /** 플레이어가 버린 것 — 퍼즐이 내놓은 채 아직 안 주운 것과 달리, 떠날 때 따라온다 */
   isDropped?: boolean;
+  /** 바닥이 아닌 데(열린 조개 속 등)에 얹어 둔 것 — 바닥 높이로 끌어내리지 않고 position.y 에 둔다 */
+  isPerched?: boolean;
 }
 
 const signal = createChangeSignal();
@@ -235,7 +237,7 @@ export function registerLeftBehind(collect: () => void) {
 export interface SavedInventory {
   held: HeldItem[];
   hand: HeldItem | null;
-  world: (HeldItem & { position: [number, number, number]; isDropped?: boolean })[];
+  world: (HeldItem & { position: [number, number, number]; isDropped?: boolean; isPerched?: boolean })[];
   nextUid: number;
 }
 
@@ -271,8 +273,15 @@ export const inventory = {
   },
 
   /** 땅 위에 물건을 놓는다(퍼즐이 내놓는 물건) */
-  spawn(kind: ItemKind, position: THREE.Vector3, { followsPlayer = false }: { followsPlayer?: boolean } = {}) {
-    world = [...world, { uid: nextUid++, kind, position: position.clone(), isDropped: followsPlayer }];
+  spawn(
+    kind: ItemKind,
+    position: THREE.Vector3,
+    { followsPlayer = false, isPerched = false }: { followsPlayer?: boolean; isPerched?: boolean } = {},
+  ) {
+    world = [
+      ...world,
+      { uid: nextUid++, kind, position: position.clone(), isDropped: followsPlayer, ...(isPerched && { isPerched }) },
+    ];
     signal.notify();
   },
 

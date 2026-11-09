@@ -46,6 +46,7 @@ import WindCurtain from "../puzzles/ridge/WindCurtain";
 import FloatingStones from "../puzzles/ritual/FloatingStones";
 import RitualCircle from "../puzzles/ritual/RitualCircle";
 import StormRain from "../puzzles/ritual/StormRain";
+import NpcSpeechHud from "../scene/firstScene/NpcSpeechHud";
 
 /** Canvas 안 — 퍼즐 장치 · 소지품 물건 · 겨냥 */
 export function PuzzleWorld() {
@@ -106,6 +107,7 @@ export function PuzzleHud() {
       <BreathHud />
       <PuzzlePanelHud />
       <PaperReadHud />
+      <NpcSpeechHud />
       <HintBoxHud />
       <RiftEntryHud />
       <LetterReadHud />

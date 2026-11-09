@@ -65,7 +65,7 @@ export function advancePush(open: number | boolean, dt: number, duration: number
 // 컷신
 // 컷신 동안 걷기·마우스를 멈추는 판단은 App 껍데기가, 컷신은 씬 안 컴포넌트가 돌린다. 여기서 잇는다.
 let cutscenePlaying = false;
-const isCutscenePlaying = () => cutscenePlaying;
+export const isCutscenePlaying = () => cutscenePlaying;
 
 // 컴포넌트 ref 로 잡으면 기차에 탔다 내릴 때 씬이 다시 마운트되며 false 로 돌아가
 // 컷신이 또 돈다. 한 번 봤다는 사실은 씬보다 오래 살아야 한다.

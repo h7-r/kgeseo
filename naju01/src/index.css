@@ -91,3 +91,10 @@ body {
 html.game-frozen * {
   animation-play-state: paused !important;
 }
+
+/* 종이 읽기 · 줄 당기기처럼 페이지가 잠금을 일부러 풀어 둔 동안 · 다시 잠그길 기다리는 동안 커서를 숨긴다(puzzles/pointerHold).
+   숨길 뿐 창 밖으로 나가는 것까지 막지는 못한다 */
+html.naju-cursor-hidden,
+html.naju-cursor-hidden * {
+  cursor: none !important;
+}
