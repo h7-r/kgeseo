@@ -31,7 +31,8 @@ export function connectCompanionDialogue(): () => void {
     serverPuzzleIdOf: serverHintPuzzleIdOf,
     zoneIdOf: (stage) => SITUATION_ZONE_IDS[stage] ?? null,
     focusIdOf: (objective) => STEP_FOCUS_IDS[objective] ?? null,
-    puzzleFocusIdOf: (objective) => PUZZLE_FOCUS_IDS[objective] ?? null,
+    // 퍼즐 폴링은 공식 서버 퍼즐 ID 가 있는 퍼즐 — 이 판에 정식 힌트가 있는지(serverHintPuzzleIdOf)와 상관없다
+    puzzleFocusIdOf: (objective) => (HINT_PUZZLE_IDS[objective] ? (PUZZLE_FOCUS_IDS[objective] ?? null) : null),
   });
   setHintProvider(bridge.hintProvider);
   setSituationSink(bridge.relay);

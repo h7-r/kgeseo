@@ -497,8 +497,9 @@ async function pollBridge(turnReply: Handler = () => ({ status: 200, body: turn(
       asked += 1;
       return answer;
     },
-    serverPuzzleIdOf: (objective) => HINT_PUZZLE_IDS[objective] ?? null,
-    puzzleFocusIdOf: (objective) => PUZZLE_FOCUS_IDS[objective] ?? null,
+    // 나주 v1 처럼 정식 힌트가 0개인 판 — 폴링은 공식 서버 퍼즐 ID 로 따로 간다(HINTED_PUZZLES 와 무관)
+    serverPuzzleIdOf: () => null,
+    puzzleFocusIdOf: (objective) => (HINT_PUZZLE_IDS[objective] ? (PUZZLE_FOCUS_IDS[objective] ?? null) : null),
     now: () => clock,
   });
   calls = [];
@@ -512,7 +513,7 @@ async function pollBridge(turnReply: Handler = () => ({ status: 200, body: turn(
   return { dialog, said, relayAt, turns, asked: () => asked };
 }
 
-test("퍼즐 폴링 본문: 상황 없이 focus_object_id 만 싣고, FE 구역 간격(180초)에 막히지 않으며, reply null 은 조용히 넘긴다", async () => {
+test("퍼즐 폴링 본문: 상황 없이 focus_object_id 만 싣고, FE 구역 간격(180초)에 막히지 않으며, reply null 은 조용히 넘긴다 — 정식 힌트가 0개인 판(v1)에서도 간다", async () => {
   const { said, relayAt, turns, dialog } = await pollBridge();
   await relayAt(0);
   await relayAt(60_000);

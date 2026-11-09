@@ -225,7 +225,10 @@ export interface CompanionBridgeOptions {
   zoneIdOf?: (stage: Stage) => string | null;
   /** 걸음 → 대표 Object(STEP_FOCUS_IDS) */
   focusIdOf?: (objective: ObjectiveId) => string | null;
-  /** 퍼즐 → 대표 Object(PUZZLE_FOCUS_IDS) — 서버 퍼즐 ID(serverPuzzleIdOf)가 있는 퍼즐만 폴링한다 */
+  /**
+   * 서버 퍼즐 → 대표 Object(PUZZLE_FOCUS_IDS) — 퍼즐 폴링 대상. 서버 퍼즐(공식 ID, HINT_PUZZLE_IDS)이 아니면 null.
+   * 정식 힌트 유무(serverPuzzleIdOf)와 묶지 않는다 — 힌트 없는 판에서도 자동 개입(넛지)은 BE 가 한다
+   */
   puzzleFocusIdOf?: (objective: ObjectiveId) => string | null;
   /** 지금 시각(ms) — 기본 Date.now(검사에서 바꿔 끼운다) */
   now?: () => number;
@@ -242,8 +245,9 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     sendSituation: options.sendSituation ?? false,
     zoneIdOf: options.zoneIdOf,
     focusIdOf: options.focusIdOf,
-    puzzleFocusOf: (objective) =>
-      serverPuzzleIdOf(objective) !== null ? (options.puzzleFocusIdOf?.(objective) ?? null) : null,
+    // 폴링 대상은 서버 퍼즐(공식 ID 가 있는 것)이다 — 정식 힌트가 있는지(serverPuzzleIdOf, HINTED_PUZZLES)와는 따로.
+    // 힌트가 없는 판(나주 v1)에서도 BE 퍼즐 자동 개입(넛지 대사)은 돈다
+    puzzleFocusOf: (objective) => options.puzzleFocusIdOf?.(objective) ?? null,
   });
   /** 서버가 개입한 뒤 퍼즐 폴링을 쉬는 끝 시각(OFFER_POLL_PAUSE_MS) */
   let pollPausedUntil = 0;
