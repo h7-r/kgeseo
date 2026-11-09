@@ -38,6 +38,7 @@ import { showToast } from "@/game/toast";
 import { setThirdPersonView } from "@/game/viewMode";
 import { isThirdPersonLocked, THIRD_PERSON_LOCKED_MESSAGE } from "@/game/viewRule";
 import ValveHelpWatcher from "@/game/ValveHelpWatcher";
+import { useHintOffering } from "@/game/valveHelp";
 import AimTracker from "@/lobby/AimTracker";
 import { LobbyChibiPanel, LobbySidekickPanel } from "@/naju";
 import MainGameSaveBridge from "@/save/MainGameSaveBridge";
@@ -66,6 +67,7 @@ import {
   Toast,
   TopBarButton,
 } from "./overlays/Hud";
+import { bindPointerResume, usePointerResumeState } from "./pointerResume";
 import { useIsTypingFocused } from "./useIsTypingFocused";
 import MangaScene from "./MangaScene";
 import { createPlayerState, usePunch } from "./playerState";
@@ -220,7 +222,7 @@ export default function App() {
   const { fade, boardTrain, leaveTrain } = useSceneTransition(isTrain, near);
   const { openLayer, openWindow, closeWindow } = useOverlayWindows(controlsRef);
   const settings = useSettings();
-  const lockControl = useLockControlMode(controlsRef);
+  const lockControl = useLockControlMode();
   useDevInventorySeed();
 
   useGameKeys({
@@ -246,7 +248,13 @@ export default function App() {
 
   // 창·자물쇠·자판기 컷신 동안은 이동·조준을 멈춘다. 컷신이 카메라를 모는데 입력까지 들어오면 화면이 떤다.
   const isCutscenePlaying = useIsCutscenePlaying();
-  const active = (isPointerLocked || IS_INPUT_ALWAYS_ON) && !openLayer && !lockControl && !isCutscenePlaying;
+  // 자물쇠 · 창을 ESC 로 닫고 게임으로 돌아가는 중(크롬이 잠시 잠금을 거절하는 동안)도 조작 중이다 — 화면은 이미 게임이고
+  // 키로 걷는다. 마우스 시점만 잠긴 뒤부터(pointerResume, 12회차)
+  const resumeState = usePointerResumeState();
+  const isResuming = resumeState !== "idle";
+  useEffect(() => bindPointerResume(() => controlsRef.current), []);
+  const active =
+    (isPointerLocked || isResuming || IS_INPUT_ALWAYS_ON) && !openLayer && !lockControl && !isCutscenePlaying;
   // 역 씬에는 값 대신 읽는 함수를 넘긴다 — 켜고 끌 때마다 역 전체가 다시 그려지지 않게(StationScene 은 memo, 10회차).
   // 이동은 useFrame 에서만 이 값을 본다. 겨냥(AimTracker) · HUD 는 그대로 값으로 받는다.
   const isStationActive = active && !isTrain;
@@ -259,7 +267,7 @@ export default function App() {
   // · 나주 진입 중에는 그쪽이 화면을 쓰고 잠금이 일부러 풀려 있으니 띄우지 않는다. 터치는 가상 잠금이라 해당 없음
   const isTyping = useIsTypingFocused();
   const isDispatchAlert = useDispatchState().phase === "alert";
-  const isReturnPromptShown =
+  const canShowReturnPrompt =
     !isTouch &&
     !IS_INPUT_ALWAYS_ON &&
     hasLockedOnce &&
@@ -271,6 +279,22 @@ export default function App() {
     !isDispatchAlert &&
     !isEnteringNaju &&
     fade === 0;
+  // 밖이면 「[T] 로 돌아간다」, 돌아가려는데 브라우저가 저절로는 못 잠그면 「클릭하거나 아무 키나」. 잠시 기다리는 동안(pending)은 아무것도
+  const returnPromptMode = !canShowReturnPrompt
+    ? null
+    : resumeState === "idle"
+      ? "out"
+      : resumeState === "waiting"
+        ? "waiting"
+        : null;
+  // 커서 숨기기 — 게임으로 돌아가는 중 · 자물쇠를 만지는 동안(페이지가 잠금을 풀어 두었다). 추가 힌트 묻기 · 창이 뜨면 보인다
+  const isOffering = useHintOffering();
+  const isCursorHidden =
+    !isTouch && !isPointerLocked && !openLayer && (isResuming || (lockControl?.phase === "active" && !isOffering));
+  useEffect(() => {
+    document.documentElement.classList.toggle("game-cursor-hidden", isCursorHidden);
+    return () => document.documentElement.classList.remove("game-cursor-hidden");
+  }, [isCursorHidden]);
   // 3인칭인 채로 비밀 복도(튜토 공간)에 있으면 1인칭으로 돌린다 — 본부실에서 복도로 걸어 들어온 때도. 기차 · 컷신 중엔 건드리지 않는다
   useEffect(() => {
     if (isTrain || !isThirdPerson || isCutscenePlaying) return;
@@ -356,7 +380,7 @@ export default function App() {
 
       <FadeCurtain opacity={fade} />
       <NajuEntryTransition />
-      {(isPointerLocked || IS_INPUT_ALWAYS_ON) && !openLayer && <Crosshair />}
+      {(isPointerLocked || isResuming || IS_INPUT_ALWAYS_ON) && !openLayer && <Crosshair />}
       {/* 터치 모드에서는 조작 화면(TouchHud)의 단추가 대신한다 */}
       {!isTouch && (
         <TopBarButton right={112} onClick={toggleSettings} ariaLabel="설정 열기">
@@ -375,7 +399,7 @@ export default function App() {
       <LockDialPanel covered={openLayer !== null} />
       <HintOfferCard covered={openLayer !== null} />
       <ValveHelpWatcher covered={openLayer !== null} />
-      {isReturnPromptShown && <ReturnPrompt />}
+      {returnPromptMode && <ReturnPrompt mode={returnPromptMode} />}
       {/* 화면층이 지금 열린 창을 하나로 정하므로 두 창이 겹칠 수 없다 */}
       <InventoryPanel open={openLayer === OVERLAY_LAYERS.inventory} onClose={closeWindow} />
       <HintPanel open={openLayer === OVERLAY_LAYERS.hint} onClose={closeWindow} />

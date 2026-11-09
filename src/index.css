@@ -58,3 +58,9 @@ html.game-frozen [data-game-clock],
 html.game-frozen [data-game-clock] * {
   animation-play-state: paused !important;
 }
+
+/* 자물쇠를 만지는 동안 · 자물쇠 · 창에서 게임으로 돌아가는 중에는 커서를 숨긴다(App, 튜토피드백 12회차) — 나주 naju-cursor-hidden 과 같은 일 */
+html.game-cursor-hidden,
+html.game-cursor-hidden * {
+  cursor: none !important;
+}

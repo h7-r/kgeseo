@@ -28,7 +28,8 @@ import { chairDragState } from "@/station/headquarters/chairDragState";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 import { isHologramAimed } from "@/trainInterior/hologramAim";
 
-import { cancelLockRelock, type PointerLockRef } from "./pointerLock";
+import type { PointerLockRef } from "./pointerLock";
+import { cancelResume, isResumePending, resumePlay } from "./pointerResume";
 import { IS_INPUT_ALWAYS_ON } from "./runtimeFlags";
 import { tryPlaceHeldItem } from "./useSceneTransition";
 
@@ -164,7 +165,7 @@ export function useGameKeys({
         if (openLayer) closeWindow();
         else if (isLockActive && isHintOffering()) dismissHintOffer();
         else if (isLockActive) leaveLockControl();
-        else cancelLockRelock();
+        else cancelResume();
         return;
       }
       if (code === "KeyI") {
@@ -208,9 +209,9 @@ export function useGameKeys({
         toggleThirdPerson();
         return;
       }
-      // 클릭 대신 T 로 잠근다 — 그래야 Leva 를 자유롭게 만진다.
+      // 클릭 대신 T 로 잠근다 — 그래야 Leva 를 자유롭게 만진다. ESC 직후라 크롬이 거절하는 동안이면 풀리는 대로 잠근다(pointerResume)
       if (code === "KeyT" && !isPointerLocked) {
-        controlsRef.current?.lock();
+        resumePlay();
         return;
       }
       // 안내판은 문 가까이에도 떠 있어 내리기보다 먼저 묻는다. 잠금이 풀린 채 마우스로 겨눠도 열린다.
@@ -218,7 +219,8 @@ export function useGameKeys({
         if (!event.repeat) openWindow(OVERLAY_LAYERS.destination);
         return;
       }
-      if (code !== "KeyE" || !(isPointerLocked || IS_INPUT_ALWAYS_ON)) return;
+      // 게임으로 돌아가는 중(ESC 직후 잠금을 기다림)에도 조작은 받는다 — 화면은 이미 게임이다
+      if (code !== "KeyE" || !(isPointerLocked || isResumePending() || IS_INPUT_ALWAYS_ON)) return;
       // 무엇을 만지든 팔이 한 번 나간다. 여기 한 곳에 걸어야 아래 갈래를 하나도 빠뜨리지 않는다.
       if (!event.repeat) startReach();
       handleUse(near, boardTrain, leaveTrain);

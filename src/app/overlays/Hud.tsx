@@ -443,7 +443,17 @@ const offerSecondaryStyle: CSSProperties = {
  * 게임 밖(마우스 잠금 풀림)이면 [T] 로 돌아온다는 걸 알린다 — ESC 를 두 번 눌러(또는 다시 잠그기를 브라우저가 거절해)
  * 커서가 밖으로 나왔을 때 무엇을 해야 할지 몰랐다(미르 11/9, 튜토피드백 12회차). 띄울지는 App 이 정한다. 누르는 것은 없다.
  */
-export function ReturnPrompt() {
+export function ReturnPrompt({ mode }: { mode: "out" | "waiting" }) {
+  // waiting — 자물쇠 · 창에서 돌아오려는데 브라우저가 저절로는 잠가 주지 않았다. 다음 클릭 · 키가 잠근다(pointerResume)
+  if (mode === "waiting")
+    return (
+      <div role="status" aria-live="polite" data-hud="게임 밖 안내" style={returnStyle}>
+        <div style={returnTitleStyle}>클릭하거나 아무 키나 누르면 이어서</div>
+        <div style={returnTextStyle}>
+          <kbd style={keyCapStyle}>Esc</kbd> 게임 밖으로
+        </div>
+      </div>
+    );
   return (
     <div role="status" aria-live="polite" data-hud="게임 밖 안내" style={returnStyle}>
       <div style={returnTitleStyle}>게임 밖으로 나왔다</div>
