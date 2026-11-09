@@ -33,6 +33,14 @@ const TOON = { ...DEFAULT_TOON, enabled: !IS_LOBBY_TOON_DISABLED };
 const OUTLINE = { ...DEFAULT_OUTLINE, enabled: !IS_LOBBY_OUTLINE_DISABLED };
 /** 따라가는 시간 상수(초) — 서버 패치 100ms 와 맞춘다 🟡 */
 const FOLLOW_SECONDS = 0.1;
+/**
+ * 공중 판정(발 높이, 유닛) — 방 상태에는 점프가 없다(gait 는 idle · walk · run · crouch). 역 바닥은 높이 0이고
+ * 보내는 쪽 발 높이는 max(0, 눈 − 눈높이)라(앉아도 0) 따라가는 발 높이로 가른다. 이만큼 뜨면 공중, 이 밑이면 착지.
+ * 점프는 정점 약 1.8 · 체공 0.7초라 10Hz 로도 넉넉히 잡힌다. 없으면 걷기 · 대기 자세로 콩콩 튀었다(미르 11/9, 11회차).
+ */
+const AIR_ENTER = 0.15;
+const AIR_EXIT = 0.05;
+const STATION_FLOOR_Y = 0;
 /** 머리뼈(head, 목과 머리 이음매)에서 이름표까지 — 머리 꼭대기 바로 위(약 40cm, 유닛) 🟡 화면 보고 맞춤 */
 const LABEL_ABOVE_HEAD_BONE = 0.4 * UNITS_PER_METER;
 /** 머리뼈를 아직 못 찾았을 때(모델 내려받는 중) 발바닥에서의 높이 */
@@ -103,7 +111,8 @@ function createLink(view: RemotePlayerView | undefined): AvatarLink {
     running: false,
     speed: 0,
     crouching: false,
-    grounded: true,
+    // 공중에서 처음 보이면(점프 중에 방에 들어오면) 공중에서 시작한다
+    grounded: (view?.y ?? 0) - STATION_FLOOR_Y < AIR_ENTER,
     jumping: false,
     verticalVelocity: 0,
   };
@@ -188,8 +197,22 @@ function RemoteAvatar({
     const beforeZ = link.position.z;
     link.position.x += (view.x - link.position.x) * alpha;
     link.position.z += (view.z - link.position.z) * alpha;
+    const beforeFootY = link.footY;
     link.footY += (view.y - link.footY) * alpha;
     link.position.y = link.footY + EYE_HEIGHT;
+    // 공중 · 착지 — 아바타 동작 플레이어가 grounded · jumping 을 보고 Jump_Start/Loop/Land 를 고른다
+    const rise = (link.footY - beforeFootY) / Math.max(delta, 1e-3);
+    link.verticalVelocity += (rise - link.verticalVelocity) * Math.min(1, delta * 12);
+    link.groundY = STATION_FLOOR_Y;
+    const lift = link.footY - STATION_FLOOR_Y;
+    if (link.grounded && lift > AIR_ENTER) {
+      link.grounded = false;
+      link.jumping = link.verticalVelocity > 0; // 올라가던 중이면 뛴 것, 아니면 떨어지는 중
+    } else if (!link.grounded && (lift < AIR_EXIT || view.y - STATION_FLOOR_Y < AIR_EXIT)) {
+      // 받은 높이가 바닥이면 따라가는 발이 아직 내려오는 중이어도 착지 — 0.1초 따라가기만큼 늦게 내려앉지 않게
+      link.grounded = true;
+      link.jumping = false;
+    }
     link.facing = wrapAngle(link.facing + wrapAngle(view.ry - link.facing) * alpha);
     const moved = Math.hypot(link.position.x - beforeX, link.position.z - beforeZ) / Math.max(delta, 1e-3);
     link.speed += (moved - link.speed) * Math.min(1, delta * 10);
