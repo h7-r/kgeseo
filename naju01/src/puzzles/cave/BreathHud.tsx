@@ -85,7 +85,8 @@ function InkSplat({ seed }: { seed: number }) {
     });
   }, [seed]);
   return (
-    <div style={inkLayerStyle}>
+    // 먹물은 CSS 애니메이션만으로 걷힌다 — 창을 연 동안(게임 시계가 멈춤) 걷히지 않게 game-frozen 에서도 세운다(index.css)
+    <div style={inkLayerStyle} data-game-clock="">
       {blots.map((blot, i) => (
         <svg
           key={i}

@@ -33,7 +33,7 @@ export default function NajuEntryTransition() {
       // 이 페이지에서는 걷지 않는다 — 준비를 기다릴 대상은 다음 페이지(나주 맵)다
       showLoadingVideo("naju", { keepOpen: true });
       // 페이지 전환은 실제 시각 — 터치 모드에서 목적지 창이 열린 채라 게임 시계가 얼어 있다(코덱스 구현 04회차).
-      // 창도 닫는다: 열린 창 때문에 얼어 있으면 로딩 영상 연출(CSS)까지 멈춘다
+      // 목적지 창을 닫아 게임 얼음(소리 · 시간 판정 정지)을 풀고 넘어간다
       if (isTouchMode()) overlayLayer.close();
       timer.current = window.setTimeout(() => continueLoadingVideoAt(destination.toString()), COVER_THEN_LEAVE_MS);
     };

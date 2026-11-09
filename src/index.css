@@ -48,7 +48,13 @@ body {
 .game-stage canvas {
   touch-action: none;
 }
-/* 터치 모드 「전부 멈춤」 동안 화면 연출(CSS 애니메이션)도 세운다(engine/input/gamePause) */
-html.game-frozen * {
+/* 터치 모드 「멈춤」(눌러서 계속) 동안 화면 연출(CSS 애니메이션)도 세운다(engine/input/gamePause).
+   창 때문에 얼었을 때는 세우지 않는다 — 막 뜬 창의 등장 애니메이션이 투명한 첫 장면에 멈춰 창이 안 보였다 */
+html.game-paused * {
+  animation-play-state: paused !important;
+}
+/* 게임 시간으로 재는 연출(나주 먹물 등, data-game-clock)은 창 때문에 얼었을 때도 세운다 — 창을 연 사이에 걷히지 않게 */
+html.game-frozen [data-game-clock],
+html.game-frozen [data-game-clock] * {
   animation-play-state: paused !important;
 }
