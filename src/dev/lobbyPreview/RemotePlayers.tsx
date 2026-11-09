@@ -40,6 +40,8 @@ const FOLLOW_SECONDS = 0.1;
  */
 const AIR_ENTER = 0.15;
 const AIR_EXIT = 0.05;
+/** 받은 높이가 이미 바닥이면 따라가는 발이 이만큼 밑으로 내려왔을 때 착지 — 착지 동작은 닿기 조금 전에 웅크리기 시작한다 */
+const LAND_EARLY = 0.25;
 const STATION_FLOOR_Y = 0;
 /** 머리뼈(head, 목과 머리 이음매)에서 이름표까지 — 머리 꼭대기 바로 위(약 40cm, 유닛) 🟡 화면 보고 맞춤 */
 const LABEL_ABOVE_HEAD_BONE = 0.4 * UNITS_PER_METER;
@@ -205,11 +207,12 @@ function RemoteAvatar({
     link.verticalVelocity += (rise - link.verticalVelocity) * Math.min(1, delta * 12);
     link.groundY = STATION_FLOOR_Y;
     const lift = link.footY - STATION_FLOOR_Y;
-    if (link.grounded && lift > AIR_ENTER) {
+    // 뜨는 것도 받은 높이가 떠 있을 때만 — 착지한 뒤 따라가는 발이 아직 높아도 다시 공중으로 읽지 않게(Codex 리뷰 8d98fa0)
+    if (link.grounded && lift > AIR_ENTER && view.y - STATION_FLOOR_Y > AIR_EXIT) {
       link.grounded = false;
       link.jumping = link.verticalVelocity > 0; // 올라가던 중이면 뛴 것, 아니면 떨어지는 중
-    } else if (!link.grounded && (lift < AIR_EXIT || view.y - STATION_FLOOR_Y < AIR_EXIT)) {
-      // 받은 높이가 바닥이면 따라가는 발이 아직 내려오는 중이어도 착지 — 0.1초 따라가기만큼 늦게 내려앉지 않게
+    } else if (!link.grounded && (lift < AIR_EXIT || (view.y - STATION_FLOOR_Y < AIR_EXIT && lift < LAND_EARLY))) {
+      // 받은 높이가 바닥이고 발도 거의 내려왔으면 착지 — 0.1초 따라가기만큼 늦게 내려앉지도, 공중에서 착지하지도 않게
       link.grounded = true;
       link.jumping = false;
     }
