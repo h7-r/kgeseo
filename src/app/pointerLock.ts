@@ -5,7 +5,7 @@ import { isPointerActive, isTouchMode } from "@/engine/input";
 import { overlayLayer, useOpenLayer, type OverlayLayerName } from "@/game/overlayLayer";
 import { isHintOffering } from "@/game/valveHelp";
 
-import { cancelResume, isResumePending, releasePointerForGame, resumePlay } from "./pointerResume";
+import { cancelResume, handOverResume, isResumePending, releasePointerForGame, resumePlay } from "./pointerResume";
 import { endLockControl, turnLockDigit, useLockControl } from "@/props/combinationLockState";
 
 /** 마우스 잠금(1인칭 시점) 조작기. 창·자물쇠가 잠금을 풀고 되돌릴 때 쓴다. */
@@ -67,9 +67,14 @@ export function useLockControlMode() {
   const isReleasedForLock = useRef(false);
 
   useEffect(() => {
-    if (phase !== "active" || isTouchMode() || !document.pointerLockElement) return;
-    isReleasedForLock.current = true;
-    releasePointerForGame();
+    if (phase !== "active" || isTouchMode()) return;
+    if (document.pointerLockElement) {
+      isReleasedForLock.current = true;
+      releasePointerForGame();
+      return;
+    }
+    // ESC 직후 게임으로 돌아가길 기다리던 중에 자물쇠를 열었다 — 기다림을 넘겨받아 나올 때 이어 간다(Codex 리뷰 3fd1ae9)
+    if (handOverResume()) isReleasedForLock.current = true;
   }, [phase]);
 
   // 나가기 시작하면(ESC · 정답 뒤 · 자물쇠가 사라짐) 다시 잠근다. 창이 떠 있으면 창이 닫힌 뒤에

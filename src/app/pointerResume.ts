@@ -14,6 +14,7 @@ import type { PointerLockControls } from "three-stdlib";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import { isTouchMode } from "@/engine/input";
+import { isTypingTarget } from "@/game/overlayLayer";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 /** ESC 뒤 이만큼 기다렸다 잠근다(크롬 1250ms + 여유) */
@@ -47,6 +48,10 @@ let isUnlockExpected = false;
 let state: PointerResumeState = "idle";
 let attemptTimer = 0;
 let checkTimer = 0;
+/** 잠금을 청해 놓고 아직 답이 없다 */
+let isRequestInFlight = false;
+/** 청해 놓은 잠금을 거뒀다 — 늦게 잡히면 바로 놓는다(브라우저 요청은 되돌릴 수 없다, Codex 리뷰 3fd1ae9) */
+let isAcquireCanceled = false;
 const signal = createChangeSignal();
 
 /** App 이 잠금 장치를 알려 준다 */
@@ -83,9 +88,12 @@ function attempt() {
     attemptTimer = window.setTimeout(attempt, wait);
     return;
   }
+  isRequestInFlight = true;
+  isAcquireCanceled = false;
   getControls()?.lock();
   window.clearTimeout(checkTimer);
   checkTimer = window.setTimeout(() => {
+    isRequestInFlight = false;
     if (state !== "idle" && !isLocked()) setState("waiting");
   }, LOCK_CHECK_MS);
 }
@@ -98,6 +106,7 @@ export function resumePlay() {
     return;
   }
   if (isLocked()) return;
+  isAcquireCanceled = false;
   if (state === "idle") setState("pending");
   attempt();
 }
@@ -105,9 +114,18 @@ export function resumePlay() {
 /** 「밖으로」 — 돌아가려던 것을 거둔다. 거뒀으면 true */
 export function cancelResume() {
   if (state === "idle") return false;
+  if (isRequestInFlight) isAcquireCanceled = true;
   clearTimers();
   setState("idle");
   return true;
+}
+
+/**
+ * 자물쇠 조작으로 넘겨준다 — ESC 직후 기다리던 사이에 자물쇠를 열면 그 잠금이 자물쇠 안에서 걸려 ESC 가 다시 브라우저로 갔다.
+ * 기다리던 것을 거두고 true(자물쇠에서 나올 때 resumePlay 로 이어 간다, Codex 리뷰 3fd1ae9)
+ */
+export function handOverResume() {
+  return cancelResume();
 }
 
 /** 페이지가 스스로 잠금을 푼다(창 · 자물쇠) — 이 풀림은 ESC 가 아니라 잠그는 데 기다릴 일이 없다 */
@@ -125,6 +143,14 @@ export const usePointerResumeState = () =>
 if (typeof window !== "undefined") {
   document.addEventListener("pointerlockchange", () => {
     if (isLocked()) {
+      isRequestInFlight = false;
+      if (isAcquireCanceled) {
+        // 거둔 뒤에 늦게 잡혔다 — 「밖으로」를 고른 뜻대로 놓는다
+        isAcquireCanceled = false;
+        isUnlockExpected = true;
+        document.exitPointerLock();
+        return;
+      }
       isUnlockExpected = false;
       clearTimers();
       setState("idle");
@@ -135,6 +161,8 @@ if (typeof window !== "undefined") {
     isUnlockExpected = false;
   });
   document.addEventListener("pointerlockerror", () => {
+    isRequestInFlight = false;
+    isAcquireCanceled = false;
     if (state === "idle") return;
     window.clearTimeout(checkTimer);
     setState("waiting");
@@ -147,7 +175,8 @@ if (typeof window !== "undefined") {
         return;
       }
       if (state === "idle" || isLocked() || event.repeat || event.ctrlKey || event.metaKey) return;
-      if (NON_RESUME_KEYS.has(event.code)) return;
+      // 입력칸(Leva 숫자칸 · 채팅)에 쓰는 글자는 몸짓으로 치지 않는다
+      if (NON_RESUME_KEYS.has(event.code) || isTypingTarget(event.target)) return;
       // 키는 그대로 게임에도 간다(W 면 바로 걷는다) — 이 키가 몸짓이라 잠그기도 된다
       attempt();
     },

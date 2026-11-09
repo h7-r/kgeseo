@@ -10,6 +10,8 @@ import type { Vector3Tuple } from "three";
 import { aimStore } from "./interactions";
 
 const glowColor = new THREE.Color();
+/** 강조 그룹 표시 — 바깥 강조가 안쪽 강조 아래를 건너뛴다 */
+const HIGHLIGHT_ROOT = "aimHighlightRoot";
 
 type EmissiveMaterial = THREE.Material & { emissive?: THREE.Color };
 
@@ -80,13 +82,23 @@ export function AimHighlight({
       }
       material.emissive.copy(original).add(glowColor);
     };
-    group.traverse((node) => {
+    // 안쪽에 또 다른 강조(배전반 속 선 · 스위치)가 있으면 그 아래는 건드리지 않는다 — 둘이 같은 재질의 「원래 발광」을 따로 기억하면
+    // 바깥 맥박이 안쪽의 원래 값으로 굳어 빛이 남았다(배전반 알림, Codex 리뷰 3fd1ae9)
+    const visit = (node: THREE.Object3D) => {
+      if (node !== group && node.userData[HIGHLIGHT_ROOT]) return;
       const material = (node as THREE.Mesh).material as EmissiveMaterial | EmissiveMaterial[] | undefined;
-      if (!material) return;
-      if (Array.isArray(material)) material.forEach(apply);
-      else apply(material);
-    });
+      if (material) {
+        if (Array.isArray(material)) material.forEach(apply);
+        else apply(material);
+      }
+      for (const child of node.children) visit(child);
+    };
+    visit(group);
   });
 
-  return <group ref={groupRef}>{children}</group>;
+  return (
+    <group ref={groupRef} userData={{ [HIGHLIGHT_ROOT]: true }}>
+      {children}
+    </group>
+  );
 }
