@@ -5,45 +5,20 @@
 
 import { exposeDevHook } from "@/debug/devHooks";
 
-import { cliffProfileAt } from "../plan/sitePlan";
 import { showNotice } from "../puzzles/interaction";
 import { fishTrapPuzzle } from "../puzzles/fishTrap/fishTrapState";
+import { isDockGateHeldByFish, reportDockGateBlocked } from "../puzzles/leftBehind";
 import { isInsideCurtain, nearestCurtainT } from "../puzzles/ridge/ridgeShape";
 import { ridge } from "../puzzles/ridge/ridgeState";
 import { ritual } from "../puzzles/ritual/ritualState";
 import { walkTerrain } from "./playerPose";
-
-type Region = "나루터" | "바위아래" | "능선" | "바위위";
-
-/** 절벽 위 영역이 시작되는 z(이 값보다 북쪽) — 절벽 발치 안쪽은 아래에서 발을 못 댄다 */
-function northEdgeAt(x: number) {
-  if (x < CLIFF_X[0]) return WEST_NORTH_EDGE;
-  return x <= CLIFF_X[1] ? cliffProfileAt(x).toe : EAST_NORTH_EDGE;
-}
-const CLIFF_X = [34, 56] as const;
-const WEST_NORTH_EDGE = 29.5;
-const EAST_NORTH_EDGE = 29;
-/** 나루터 ↔ 바위 아래 · 절벽 위 ↔ 나루터 · 바위 아래 ↔ 능선의 경계 x */
-const DOCK_EDGE_X = 30;
-const DOCK_NORTH_EDGE_X = 31.4;
-const DOCK_HILL_END_Z = 20;
-const RIDGE_EDGE_X = 57;
-const RIDGE_NORTH_EDGE_X = 58;
-
-function regionAt(x: number, z: number): Region {
-  if (z < northEdgeAt(x)) {
-    // 나루터 뒤 언덕은 낙석 앞까지만 — 더 올라가면 절벽 위 영역이다
-    if (x < DOCK_NORTH_EDGE_X && z >= DOCK_HILL_END_Z) return "나루터";
-    return x < RIDGE_NORTH_EDGE_X ? "바위위" : "능선";
-  }
-  if (x < DOCK_EDGE_X) return "나루터";
-  return x < RIDGE_EDGE_X ? "바위아래" : "능선";
-}
+import { regionAt, type Region } from "./regions";
 
 const IS_REGION_OPEN: Record<Region, () => boolean> = {
   나루터: () => true,
-  // 연기 화살표가 앞서 바위틈을 지나면 열린다. 기우제를 시작했으면 이미 지나온 것이다(이어 하기)
-  바위아래: () => fishTrapPuzzle.guideAhead() || ritual.isAtLeast("drawing"),
+  // 연기 화살표가 앞서 바위틈을 지나면 열린다. 기우제를 시작했으면 이미 지나온 것이다(이어 하기).
+  // 처음 넘어갈 때 씬 1의 빛 물고기를 나루터 땅에 두고 왔으면 안 열린다 — 동행이 「뭐 놓친 거 없어요?」(puzzles/leftBehind, 튜토피드백 13회차)
+  바위아래: () => (fishTrapPuzzle.guideAhead() && !isDockGateHeldByFish()) || ritual.isAtLeast("drawing"),
   // 물굴에서 비늘을 얻고 강가로 돌아오면 열린다
   능선: () => ritual.isAtLeast("cleared"),
   // 능선의 시공간 틈을 지나면 열린다
@@ -51,6 +26,10 @@ const IS_REGION_OPEN: Record<Region, () => boolean> = {
 };
 
 function closedNotice(region: Region) {
+  if (region === "바위아래" && fishTrapPuzzle.guideAhead() && isDockGateHeldByFish()) {
+    reportDockGateBlocked(); // 말은 CompanionNudge 가 차례가 나면 — 여기서는 청하기만
+    return "바위틈 앞에서 동행이 발을 멈춘다. 나루터에 두고 온 것이 있는 것 같다.";
+  }
   if (region === "바위아래")
     return fishTrapPuzzle.stage() === "told"
       ? "연기가 아직 뒤에 있다. 화살표가 앞서가길 기다렸다 따라가자."
