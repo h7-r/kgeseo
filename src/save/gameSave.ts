@@ -10,6 +10,12 @@ const CHARACTER_URL = apiUrl("/api/v1/me/character");
 const SCHEMA_VERSION = 1;
 const SAVE_DELAY_MS = 1500;
 const POSITION_SAVE_INTERVAL_MS = 10_000;
+/**
+ * 개발 서버에서 주소에 ?fresh — 계정 저장을 읽지도 쓰지도 않고 손님처럼 처음부터 시작한다(미르 11/9 「중간부터 이어져 시험을 못 한다」).
+ * 계정 저장본은 그대로 남는다(이 판의 진행은 어디에도 안 남는다). 배포 빌드에서는 무시한다.
+ */
+const IS_FRESH_RUN =
+  import.meta.env.DEV && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("fresh");
 
 export type GameStage = "character" | "tutorial" | "headquarters" | "train" | "naju";
 
@@ -52,6 +58,11 @@ async function requestJson(url: string, init?: RequestInit): Promise<{ status: n
 
 /** 게임을 그리기 전에 한 번 부른다. 서버가 안 되면 저장 없이 시작한다. */
 export async function initGameSave(): Promise<void> {
+  if (IS_FRESH_RUN) {
+    isLoggedIn = false;
+    console.info("[저장] ?fresh — 계정 저장을 읽지도 쓰지도 않고 처음부터 시작한다(개발 서버 전용)");
+    return;
+  }
   try {
     const { status, body } = await requestJson(SAVE_URL);
     isLoggedIn = status === 200;
