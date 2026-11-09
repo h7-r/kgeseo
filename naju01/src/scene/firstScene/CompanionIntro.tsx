@@ -12,8 +12,9 @@
  *  - 소개 중에는 동행 대화(E · Enter · 💬) · 구역 자동 끼어들기 · 구렁이 첫 경고를 막는다(그쪽 파일들).
  *  - 정체(소속 · 사람인지 · 정령의 기원)는 말하지 않는다 — 동행 조사관의 존재 자체가 미정이다(04 부록 I, Codex 06회차).
  *    이름표도 아직 「동행」(PM 결정 대기).
- *  - 「물가로 가 보자」는 구렁이 · 아비사와 아직 안 마주쳤을 때만(경고를 봤거나 쫓아냈거나 의뢰를 듣는 중이면 의뢰부터),
- *    의뢰를 다 들었으면 소개를 건너뛴다.
+ *  - 「물가로 가 보자」는 구렁이 · 아비사와 아직 안 마주쳤을 때만(경고를 봤거나 쫓아냈거나 의뢰를 듣는 중이면 의뢰부터).
+ *  - 이미 시작을 지난 판이면 건너뛴다(들은 것으로 저장) — 의뢰를 다 들었거나, 첫 퍼즐(조개 · 통발)이 나아갔거나,
+ *    시작 자리에서 START_RADIUS 넘게 떨어져 있으면. 의뢰 없이 진행한 옛 저장으로 이어 하면 물굴 안에서 「여기는 나루터」가 나왔다.
  *  - 말 걸기 안내([Enter])는 여기서 하지 않는다 — 아비사 의뢰 끝 안내 한 곳에서(Codex 06회차).
  */
 import { useEffect, useMemo } from "react";
@@ -25,7 +26,11 @@ import { isTouchMode } from "@/engine/input/touchMode";
 import { cancelCompanionHold } from "../../companion/companionPrompt";
 import { COMPANION_NAME, IS_COMPANION_ENABLED } from "../../companion/companionRuntime";
 import { callCompanion, companionStage, releaseCompanion, setCompanionIntro } from "../../companion/companionStage";
+import { clamDig } from "../../puzzles/fishTrap/clamState";
+import { fishTrapPuzzle } from "../../puzzles/fishTrap/fishTrapState";
 import { setTalkAdvance } from "../../puzzles/interaction";
+import { playerPose } from "../../movement/playerPose";
+import { VIEWPOINTS } from "../../plan/sitePlan";
 import { M } from "../../puzzles/units";
 import { recall, remember } from "../../save/puzzleMemory";
 import { cameraFocusId, endCameraFocus, focusCamera, isCameraFocusTurned } from "../cameraFocus";
@@ -39,6 +44,8 @@ const SAVE_KEY = "companion.introHeard";
 const TALK_ID = "companion-intro";
 /** 조작이 이어진 뒤 이만큼(초) 지나 말한다 */
 const START_AFTER = 1.5;
+/** 시작 자리(VIEWPOINTS[0])에서 이만큼(m) 넘게 떨어진 채 들어왔으면 시작을 지난 판이다 — 나루터 둘레가 이 안이다 */
+const START_RADIUS = 20;
 /** 동행이 닿고 카메라가 돌아보기를 기다리는 한도(초) — 넘으면 그대로 첫 줄 */
 const PREP_LIMIT = 3;
 /** 화면 고정 이름 — 동행을 볼 때 · 물가를 보여 줄 때 */
@@ -222,8 +229,14 @@ export default function CompanionIntro({ enabled }: { enabled: boolean }) {
     if (!isTalkPaused()) state.activeTime += dt;
     if (state.activeTime < START_AFTER || isTalkTaken() || isTalkPaused()) return;
     const requestNext = recall<number>("firstScene.requestLine", 0);
-    // 아비사 의뢰를 다 들은 뒤라면(진행 중인 저장) 소개를 건너뛴다 — 지금 자리와 안 맞는 말이 나온다
-    if (requestNext >= REQUEST_LINES.length) {
+    // 이미 시작을 지난 판이면(진행 중인 저장) 소개를 건너뛴다 — 지금 자리와 안 맞는 말이 나온다
+    const start = VIEWPOINTS[0];
+    const isPastStart =
+      requestNext >= REQUEST_LINES.length ||
+      clamDig.stage() !== "buried" ||
+      fishTrapPuzzle.stage() !== "idle" ||
+      Math.hypot(playerPose.x - start.x, playerPose.z - start.z) > START_RADIUS;
+    if (isPastStart) {
       state.isHeard = true;
       remember(SAVE_KEY, true);
       return;
