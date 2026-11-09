@@ -8,7 +8,7 @@
 // 자세는 playerView 로 읽는 임시 방식이다 — 앉기는 보내지 않고, 발 높이는 「눈 − 고정 눈높이」라 앉기·키 변경에서 틀릴 수 있다.
 // 정식 연결(3단계)은 App.tsx·StationScene.tsx 에 끼우고 AvatarLink 의 발 높이·앉기 상태를 읽는다.
 import { useFrame } from "@react-three/fiber";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { TRAIN_PATH } from "@/app/useSceneTransition";
 import { EYE_HEIGHT, RUN_SPEED_MULTIPLIER, WALK_SPEED } from "@/engine/movement/constants";
@@ -38,6 +38,7 @@ import {
   setHitPushGate,
 } from "./previewState";
 import RemotePlayers, { LocalLabel } from "./RemotePlayers";
+import ResidentNpcs from "../lobbyNpc/ResidentNpcs";
 
 /** 경계 왔다 갔다 방지(🟡) — 안으로 이만큼 들어와야 입장, 밖으로 이만큼 나가야 퇴장 */
 const HYSTERESIS = 0.5;
@@ -91,7 +92,16 @@ export default function LobbyPreviewRig() {
     };
   }, []);
 
+  // 상주쌤은 본부실(역)에서만 — 기차 · 나주로 넘어가면 내린다(표시 · 걷기 충돌 함께, 34회차 Codex). 바뀔 때만 상태를 바꾼다
+  const [residentsShown, setResidentsShown] = useState(() => window.location.pathname !== TRAIN_PATH);
+  const residentsShownRef = useRef(residentsShown);
+
   useFrame((_, delta) => {
+    const showResidents = window.location.pathname !== TRAIN_PATH && !najuRef.current;
+    if (showResidents !== residentsShownRef.current) {
+      residentsShownRef.current = showResidents;
+      setResidentsShown(showResidents);
+    }
     if (!playerView.ready) return;
     const eye = playerView.eye;
     const connected = connection.status().kind !== "idle";
@@ -154,6 +164,8 @@ export default function LobbyPreviewRig() {
   return (
     <>
       <RemotePlayers connection={connection} bubbles={bubbles} />
+      {/* 본부실 상주쌤 3명(미르 11/10) — 대사 · 동작 · 걷기 충돌. 로비 연결과 상관없이 각자 화면에서 돈다 */}
+      {residentsShown && <ResidentNpcs />}
       <LocalLabel
         getSid={() => {
           const status = connection.status();

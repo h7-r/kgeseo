@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>상주쌤 꾸미기</title>
+    <style>
+      html, body, #root { margin: 0; width: 100%; min-height: 100%; background: #050b1a; }
+    </style>
+  </head>
+  <body>
+    <!-- 로비 상주쌤 3명의 이름 · 반복 대사 · 대사마다 동작을 고르는 화면(개발 서버 전용, 미르 11/9).
+         저장 창구는 로비 미리보기 개발 서버(vite.lobby-preview.config.ts)에만 있다 → http://localhost:5173/resident-npc.html
+         vite build 는 index.html 만 묶으므로 배포본에 들어가지 않는다. -->
+    <div id="root"></div>
+    <script type="module" src="/src/dev/residentNpc/main.tsx"></script>
+  </body>
+</html>

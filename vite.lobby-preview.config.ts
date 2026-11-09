@@ -6,6 +6,7 @@
 // 그리고 src/station/layout/usePlayer.ts 가 가져오는 `./collision` 하나를 collisionWithPeople.ts 로(내 걷기에만 사람 충돌).
 // 포트는 평소와 같은 5173 이다 — 백엔드·로비가 허용한 출처(http://localhost:5173)라야 로그인·입장권·매칭이 된다.
 // 팀 캐릭터 꾸미기 창(http://localhost:5173/team-npc.html)의 저장 창구 GET · POST /__dev/team-npcs 도 여기만 연다(검토 22회차).
+// 상주쌤 꾸미기 창(http://localhost:5173/resident-npc.html)의 저장 창구 /__dev/resident-npcs 도(vite.resident-npcs.ts).
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +23,7 @@ import {
 import { isTeamGestureId } from "./lobby/src/npc/teamGestures";
 import baseConfig from "./vite.config";
 import { lobbyPreviewCanvasPlugin } from "./vite.lobby-standins";
+import { residentNpcSavePlugin } from "./vite.resident-npcs";
 
 /** 저장 파일 — 로비 서버가 읽는 곳과 같아야 한다(둘 다 TEAM_NPC_FILE 로 옮길 수 있다) */
 const TEAM_FILE = process.env.TEAM_NPC_FILE ?? fileURLToPath(new URL("./lobby/data/team-npcs.json", import.meta.url));
@@ -144,6 +146,6 @@ function teamNpcSavePlugin(): Plugin {
 }
 
 export default mergeConfig(baseConfig, {
-  plugins: [lobbyPreviewCanvasPlugin(), teamNpcSavePlugin()],
+  plugins: [lobbyPreviewCanvasPlugin(), teamNpcSavePlugin(), residentNpcSavePlugin()],
   cacheDir: "node_modules/.vite-lobby-preview",
 });
