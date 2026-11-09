@@ -35,6 +35,12 @@ const FOCUS_PARAM = QUERY?.get("초점") ?? null;
 export const IS_FOCUS_ENABLED = !(FOCUS_PARAM === "끔" || FOCUS_PARAM === "0" || FOCUS_PARAM === "off");
 const GIVEN_RADIUS = Number(FOCUS_PARAM);
 
+/**
+ * 날이 갰을 때 안개가 물러나는 정도(0~1) — focus.clear 가 다가가는 끝값. 1 이면 그리는 반경이 55 m 까지 열려
+ * 맵 거의 전부를 그린다(실측: 삼각형 67만 → 162만). 굿판에서는 강 건너까지만 보이면 되니 그만큼만 연다
+ */
+export const CLEARED_SKY = 0.6;
+
 export const focus = {
   // 이 거리에서 안개가 완전히 닫힌다(10/13 실측: 그리기 반경 20 m → 구역 가운데 기준 무리 면수 28만~46만, 지금 맵 전체 120만)
   radiusM: GIVEN_RADIUS > 4 ? GIVEN_RADIUS : 14,

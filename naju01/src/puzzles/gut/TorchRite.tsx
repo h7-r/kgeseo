@@ -21,7 +21,7 @@ import { addDynamicSolid } from "../../movement/solidField";
 import { recall, track } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
-import { focus } from "../../scene/immersion/focusFog";
+import { CLEARED_SKY, focus } from "../../scene/immersion/focusFog";
 import { cliff } from "../cliff/cliffState";
 import { floorAt, planar } from "../cliff/riteScene";
 import { useGroundReady } from "../cliff/useGroundReady";
@@ -70,11 +70,6 @@ const CHARRED_TABLE = { tall: 0.25, wide: 0.8 };
 const REACH = { out: 0.3, catchAt: 0.32, backFrom: 0.52, done: 0.86 };
 /** 관솔불을 든 채 이 거리(m) 안에서 그림패가 비친다 — 가까울수록 또렷하다 */
 const SHINE = { full: 1.8, none: 5 };
-/**
- * 날이 갰을 때 안개가 물러나는 정도(0~1). 1 이면 그리는 반경이 55 m 까지 열려 맵 거의 전부를 그린다(실측: 삼각형
- * 67만 → 162만). 굿판에서는 강 건너까지만 보이면 되니 그만큼만 연다
- */
-const CLEARED_SKY = 0.6;
 /** 바람에 날리는 티끌 수 */
 const MOTES = 48;
 /** 꺼진 횃불의 불꽃을 치워 두는 자리 — 땅속 깊이 */
