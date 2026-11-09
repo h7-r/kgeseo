@@ -3,7 +3,7 @@
 // 동행 대화창은 이 문장들을 동행의 말투로 바꿔 말한다(src/dialogue/gameVoiceLines.ts).
 // 문장 속 ${…} 는 {1} · {2} 로 바꿔 적는다 — 말투 표의 자리 표시와 같은 모양이다.
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SRC = fileURLToPath(new URL("../src", import.meta.url));
@@ -60,7 +60,8 @@ export function listGameTexts() {
   const guides = new Map();
   for (const file of filesUnder(SRC)) {
     const source = readFileSync(file, "utf8");
-    const where = relative(SRC, file);
+    // 플랫폼과 상관없이 「/」 경로로 적는다 — Windows 의 「\」 경로는 검사(dialogue.test)의 경로 비교를 깨뜨린다
+    const where = relative(SRC, file).split(sep).join("/");
     for (const call of source.matchAll(/\b(?:showNotice|noticeOnce)\(/g)) {
       const span = spanToClose(source, call.index + call[0].length);
       for (const text of literalsIn(span)) if (!notices.has(text)) notices.set(text, where);

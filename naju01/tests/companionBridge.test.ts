@@ -9,16 +9,18 @@ import { waitForSessionBeforeAssets } from "../src/app/sessionGate.ts";
 import { DIALOG_TEXT, createCompanionDialog } from "../src/companion/companionDialog.ts";
 import { createCompanionSession, type KeyValueStore } from "../src/companion/companionSession.ts";
 import {
+  HINTED_PUZZLES,
   HINT_PUZZLE_IDS,
   SEND_SITUATION,
   SITUATION_ZONE_IDS,
   STEP_FOCUS_IDS,
   createAutoTurnPlanner,
   createCompanionBridge,
+  hintedPuzzleIdOf,
   toSpeech,
 } from "../src/dialogue/companionBridge.ts";
 import { createDialogueStore, type Speech } from "../src/dialogue/dialogueStore.ts";
-import { OPEN_HINT_QUESTION, createDirector } from "../src/dialogue/director.ts";
+import { HINT_UNAVAILABLE, OPEN_HINT_QUESTION, createDirector } from "../src/dialogue/director.ts";
 import { OBJECTIVES, type ObjectiveId } from "../src/dialogue/objectives.ts";
 
 // ── 가짜 백엔드(companion.test.ts 와 같은 모양) ──
@@ -90,7 +92,12 @@ const TIMING = { noticeMs: 5, lineMinMs: 5, lineMaxMs: 5, hintMinMs: 5, autoMinI
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 /** 세션 · 서버 대화 · 대화창 · director · 다리를 한 벌 세운다. 대화창에 올라간 말은 said 에 모인다 */
-async function connected(routes: Parameters<typeof backend>[0] = {}, serverPuzzleIds: Record<string, string> = {}) {
+async function connected(
+  routes: Parameters<typeof backend>[0] = {},
+  serverPuzzleIds: Record<string, string> | ((objective: ObjectiveId) => string | null) = {},
+) {
+  const serverPuzzleIdOf =
+    typeof serverPuzzleIds === "function" ? serverPuzzleIds : (objective: ObjectiveId) => serverPuzzleIds[objective] ?? null;
   serve(backend(routes));
   const session = createCompanionSession({ config: { caseId: "naju-angam-01", contentVersion: 1 }, storage: memoryStore() });
   await session.start();
@@ -105,7 +112,7 @@ async function connected(routes: Parameters<typeof backend>[0] = {}, serverPuzzl
       store.say(speech);
     },
     askOpenHint: director.askOpenHint,
-    serverPuzzleIdOf: (objective) => serverPuzzleIds[objective] ?? null,
+    serverPuzzleIdOf,
   });
   director.setHintProvider(bridge.hintProvider);
   calls = [];
@@ -222,6 +229,95 @@ test("[F] 「힌트를 주세요」는 서버 퍼즐 ID 를 알 때만 Hint API(
   await tick();
   const second = calls.filter((c) => c.path.endsWith("/hints"));
   assert.equal(second[1].body!.target_level, 2, "두 번째는 다음 단계(정답)");
+});
+
+// ── 판마다 정식 힌트가 있는 퍼즐(HINTED_PUZZLES) — 나주 v1 은 0개 ──
+
+const NAJU_V1 = { caseId: "naju-angam-01", contentVersion: 1 };
+const SERVER_PUZZLES = (Object.keys(OBJECTIVES) as ObjectiveId[]).filter((id) => OBJECTIVES[id].puzzleId);
+
+test("정식 힌트 대상: 나주 v1 은 0개, 표에 없는 판 · 판을 모를 때도 0개(짐작하지 않는다), 힌트를 넣은 판은 그 퍼즐만", () => {
+  assert.deepEqual(HINTED_PUZZLES["naju-angam-01@1"], []);
+  assert.equal(SERVER_PUZZLES.length, 13);
+  for (const id of Object.keys(OBJECTIVES) as ObjectiveId[]) {
+    assert.equal(hintedPuzzleIdOf(id, NAJU_V1), null, `${id} — v1 정식 힌트 없음`);
+    assert.equal(hintedPuzzleIdOf(id, { caseId: "naju-angam-01", contentVersion: 2 }), null, `${id} — 표에 없는 판`);
+    assert.equal(hintedPuzzleIdOf(id, null), null, `${id} — 세션 준비 전`);
+  }
+  const future = { "naju-angam-01@2": ["P01", "P03"] };
+  const v2 = { caseId: "naju-angam-01", contentVersion: 2 };
+  assert.equal(hintedPuzzleIdOf("P03", v2, future), "P03");
+  assert.equal(hintedPuzzleIdOf("P01", v2, future), "P01");
+  assert.equal(hintedPuzzleIdOf("P09", v2, future), null, "그 판에 힌트가 없는 퍼즐");
+  assert.equal(hintedPuzzleIdOf("S2_OFFER", v2, future), null, "걸음은 정식 힌트가 없다");
+  assert.equal(hintedPuzzleIdOf("P03", NAJU_V1, future), null, "다른 판의 줄을 빌리지 않는다");
+});
+
+test("나주 v1: 13개 퍼즐 모두 「힌트를 주세요」에 차감 안내 없이 FE 고정 문구 하나 — Hint API 를 부르지 않는다", async () => {
+  const { director, store, bridge } = await connected({}, (objective) => hintedPuzzleIdOf(objective, NAJU_V1));
+  for (const id of SERVER_PUZZLES) {
+    while (store.advance());
+    assert.equal(bridge.hintProvider.canOpen(id), false, `${id} canOpen`);
+    director.help(id, "힌트를 주세요");
+    const speech = store.getState()?.speech;
+    assert.notEqual(speech?.kind, "ask", `${id} — 정식 힌트를 묻지 않는다`);
+    assert.equal(speech?.text, HINT_UNAVAILABLE, `${id} — FE 고정 문구`);
+    assert.ok(!speech?.text.includes("줄어요"), `${id} — 차감 안내 없음`);
+    assert.equal(await bridge.hintProvider.open(id), false, `${id} — 직접 불러도 보내지 않는다`);
+  }
+  await tick();
+  assert.deepEqual(
+    calls.filter((call) => call.path.endsWith("/hints")),
+    [],
+    "Hint API 요청 0건",
+  );
+});
+
+test("힌트를 넣은 판(예: v2 의 P03): 정식 힌트 1단계 → 2단계 → 다시 보기가 그대로 돈다", async () => {
+  const v2 = { caseId: "naju-angam-01", contentVersion: 2 };
+  const table = { "naju-angam-01@2": ["P03"] };
+  let opened = 0;
+  const { director, store, said } = await connected(
+    {
+      hint: (call) => {
+        const level = call.body!.target_level as 1 | 2;
+        const isReview = level <= opened;
+        opened = Math.max(opened, level);
+        const body = hintResponse(level, call.body!.puzzle_id as string);
+        const resultType = isReview ? "already_unlocked" : "hint_unlocked";
+        return { status: 200, body: { ...body, result: { ...body.result, result_type: resultType } } };
+      },
+    },
+    (objective) => hintedPuzzleIdOf(objective, v2, table),
+  );
+  const ask = async (question: string) => {
+    while (store.advance());
+    director.help("P03", question);
+    assert.equal(store.getState()?.speech.kind, "ask", "정식 힌트는 먼저 묻는다");
+    store.answer("yes");
+    await tick();
+    await tick();
+  };
+  await ask("힌트를 주세요");
+  await ask("힌트를 더 주세요");
+  await ask("힌트를 더 주세요");
+  const hints = calls.filter((call) => call.path.endsWith("/hints"));
+  assert.deepEqual(
+    hints.map((call) => [call.body!.puzzle_id, call.body!.target_level, "hint_ref" in call.body!]),
+    [
+      ["P03", 1, false],
+      ["P03", 2, false],
+      ["P03", 2, false],
+    ],
+  );
+  assert.deepEqual(
+    said.filter((speech) => speech.kind === "hint").map((speech) => speech.topic),
+    ["힌트 1/2", "힌트 2/2", "힌트 2/2 · 다시 보기"],
+  );
+  // 힌트가 없는 다른 퍼즐은 같은 판에서도 묻지 않는다
+  while (store.advance());
+  director.help("P09", "힌트를 주세요");
+  assert.equal(store.getState()?.speech.text, HINT_UNAVAILABLE);
 });
 
 // ── 나주 ID 대응표 v1.1(docs/naju/나주_ID대응표_v1_1108.md §5) ──

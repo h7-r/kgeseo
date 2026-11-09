@@ -7,7 +7,7 @@
  *   auto 턴         상황 감지(situations)가 낸 상황 · 구역 진입을 여기 한 길로만 보낸다(createAutoTurnPlanner).
  *                   표시할 수 없을 때(연출 · 창 · 장면 인물 대화 · 동행 물음 · 첫 소개)는 보내지 않고 버린다 — 늦게 보내지도 않는다(계약 §11-2).
  *                   상황 대사는 퍼즐 자동 개입의 표시 · 거절 보고 대상이 아니다(§11-7) — FE 는 어느 쪽도 보고하지 않는다.
- *   [F] 정식 힌트   director 의 HintProvider — 서버 퍼즐 ID 를 알 때만 Hint API 를 부른다.
+ *   [F] 정식 힌트   director 의 HintProvider — 지금 판에 정식 힌트가 있는 서버 퍼즐일 때만 Hint API 를 부른다(HINTED_PUZZLES).
  *
  * 서버 통신은 세진 님 코드 그대로 쓴다(같은 Play Session). React · 별칭 · import.meta.env 를 쓰지 않는다(node --test) — 싱글턴을
  * 잇는 일은 companionLink.ts 가 한다.
@@ -28,7 +28,10 @@ export const SEND_SITUATION = false;
 
 // ── 나주 ID 대응표 v1.1(docs/naju/나주_ID대응표_v1_1108.md §5) ──
 
-/** 로컬 목표 → 서버 퍼즐 ID(Hint API). 공식 ID 그대로 — 서버에 힌트가 없는 퍼즐은 서버가 「없음」으로 답한다 */
+/**
+ * 로컬 목표 → 서버 퍼즐 ID(Hint API). 공식 ID 그대로. 이름만 잇는 표다 — 그 판에 정식 힌트가 있는지는 HINTED_PUZZLES 가 정한다
+ * (이 표만 보고 [F] 정식 힌트를 열면 힌트 없는 퍼즐에서도 「남은 힌트가 하나 줄어요」를 묻고 404 로 끝난다)
+ */
 export const HINT_PUZZLE_IDS: Partial<Record<ObjectiveId, string>> = {
   P01: "P01",
   P02: "P02",
@@ -44,6 +47,28 @@ export const HINT_PUZZLE_IDS: Partial<Record<ObjectiveId, string>> = {
   P13: "P13",
   "P13-2": "P13-2",
 };
+/**
+ * 게시 판(`case_id@content_version`)마다 정식 힌트(server.json `puzzles[].hints`)가 실제로 있는 서버 퍼즐 ID.
+ * 표에 없는 판 · 세션이 준비되지 않은 때는 0개다 — 서버 힌트 정보 없이 지원 여부를 짐작하지 않는다.
+ * 새 판에 힌트를 넣으면 그 판의 줄을 더한다(예: "naju-angam-01@2": ["P01", "P03"]). 힌트 1 · 2단계 · 다시 보기 흐름은 그대로 쓴다.
+ */
+export const HINTED_PUZZLES: Readonly<Record<string, readonly string[]>> = {
+  // 나주 v1(sha256:cf804b17…): 서버 퍼즐 P01 · P03 · P07 · P09 모두 hints 가 없다 — 정식 힌트 0개(11/9 확인)
+  "naju-angam-01@1": [],
+};
+
+/** 지금 판에서 정식 힌트를 열 수 있는 서버 퍼즐 ID. 판을 모르거나 그 판에 힌트가 없으면 null — Hint API 를 부르지 않는다 */
+export function hintedPuzzleIdOf(
+  objective: ObjectiveId,
+  content: { caseId: string; contentVersion: number } | null,
+  table: Readonly<Record<string, readonly string[]>> = HINTED_PUZZLES,
+): string | null {
+  if (!content) return null;
+  const puzzleId = HINT_PUZZLE_IDS[objective];
+  const hinted = table[`${content.caseId}@${content.contentVersion}`];
+  return puzzleId && hinted?.includes(puzzleId) ? puzzleId : null;
+}
+
 /** FE 구역 → 서버 Zone ID(잡담 QUIET 의 zone_id). 물굴은 잡담을 보내지 않는다(§10-5) */
 export const SITUATION_ZONE_IDS: Partial<Record<Stage, string>> = {
   dock: "ZONE_FERRY_TERRACE",
