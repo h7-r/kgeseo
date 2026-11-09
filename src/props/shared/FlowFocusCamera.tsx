@@ -39,10 +39,15 @@ interface ActiveFocus {
   homeLook: THREE.Quaternion;
   look: THREE.Quaternion;
   homeFov: number;
-  /** 화면이 실제로 시작한 시각(초) — 끝자리 최소 머묾을 여기서도 잰다 */
-  beganAt: number;
-  /** 돌아오기 시작한 시각 · 그때의 시선과 시야각 */
-  returnAt: number | null;
+  /**
+   * 화면이 시작한 뒤 흐른 프레임 시간(초). 끝자리 머묾 · 당기기 · 돌아오기는 이걸로 잰다 — 휴대폰 멈춤은 렌더 루프와
+   * 게임 시계(gameSetTimeout)를 같이 세우는데 벽시계로 재면 풀자마자 돌아와 버린다(Codex 리뷰 af5cca6).
+   */
+  elapsed: number;
+  /** 끝자리에 닿은(길이 끝난) 때의 elapsed */
+  arrivedElapsed: number | null;
+  /** 돌아오기 시작한 때의 elapsed · 그때의 시선과 시야각 */
+  returnElapsed: number | null;
   returnFrom: THREE.Quaternion;
   returnFov: number;
 }
@@ -83,8 +88,9 @@ export default function FlowFocusCamera() {
         homeLook: camera.quaternion.clone(),
         look: camera.quaternion.clone(),
         homeFov: camera.fov,
-        beganAt: now,
-        returnAt: null,
+        elapsed: 0,
+        arrivedElapsed: null,
+        returnElapsed: null,
         returnFrom: new THREE.Quaternion(),
         returnFov: camera.fov,
       };
@@ -92,15 +98,17 @@ export default function FlowFocusCamera() {
     }
     const focus = active.current;
     const { request } = focus;
+    focus.elapsed += dt;
 
+    // 길(전류)은 번개 그림과 같은 벽시계를 따른다. 끝자리부터는 프레임 시간으로 잰다
     const pathEnd = request.startedAt + request.seconds;
     const isOnPath = !!request.path && now < pathEnd;
-    const arrivedAt = Math.max(pathEnd, focus.beganAt);
-    const holdEnd = Math.max(request.holdUntil(), arrivedAt + (request.minHoldSeconds ?? 0));
+    if (!isOnPath && focus.arrivedElapsed === null) focus.arrivedElapsed = focus.elapsed;
+    const sinceArrived = focus.arrivedElapsed === null ? 0 : focus.elapsed - focus.arrivedElapsed;
 
     // 돌아오는 중 — 처음 보던 쪽으로, 당긴 시야도 같이 푼다
-    if (focus.returnAt !== null) {
-      const s = smoothstepRange(0, RETURN_SECONDS, now - focus.returnAt);
+    if (focus.returnElapsed !== null) {
+      const s = smoothstepRange(0, RETURN_SECONDS, focus.elapsed - focus.returnElapsed);
       camera.quaternion.slerpQuaternions(focus.returnFrom, focus.homeLook, s);
       setFov(camera, THREE.MathUtils.lerp(focus.returnFov, focus.homeFov, s));
       if (s >= 1) {
@@ -129,16 +137,16 @@ export default function FlowFocusCamera() {
     }
     // 끝자리에서만 당긴다. 쥔 동안은 이 층만 시야각을 쓴다(이동 훅은 카메라 주인이 있으면 손대지 않는다)
     if (!isOnPath && request.fovScale !== undefined && request.fovScale !== 1) {
-      const zoomed = smoothstepRange(0, ZOOM_SECONDS, now - arrivedAt);
+      const zoomed = smoothstepRange(0, ZOOM_SECONDS, sinceArrived);
       setFov(camera, THREE.MathUtils.lerp(focus.homeFov, focus.homeFov * request.fovScale, zoomed));
     }
     const shake = (request.shake?.() ?? 0) * SHAKE_ANGLE;
     shakeEuler.set((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
     camera.quaternion.copy(focus.look).multiply(shakeQuaternion.setFromEuler(shakeEuler));
-    if (!isOnPath && now >= holdEnd) {
+    if (!isOnPath && now >= request.holdUntil() && sinceArrived >= (request.minHoldSeconds ?? 0)) {
       camera.quaternion.copy(focus.look);
       if (request.returnHome && !request.finalPosition) {
-        focus.returnAt = now;
+        focus.returnElapsed = focus.elapsed;
         focus.returnFrom.copy(focus.look);
         focus.returnFov = camera.fov;
         return;
