@@ -17,8 +17,10 @@ import {
   getPushOffset,
   getPushProgress,
   hasEnteredHeadquarters,
+  isHeadquartersDoorSealed,
   markEnteredHeadquarters,
   getPushStage,
+  sealHeadquartersDoor,
   setPush,
 } from "@/props/vendingPushState";
 import { HEADQUARTERS_MIN_X } from "@/station/layout/dimensions";
@@ -108,6 +110,13 @@ export default function VendingPushCutscene({
     if (!hasEnteredHeadquarters() && x > HEADQUARTERS_MIN_X + ENTERED_DEPTH) markEnteredHeadquarters();
     // 처음 들어가기 전에는 열어 둔다 — 문을 연 사람이 돌아올 때까지 닫으면 안 된다
     if (!hasEnteredHeadquarters()) return true;
+    // 본부실 안에서 문이 다 닫히면 잠근다 — 그 뒤로는 다가가도 열리지 않는다(튜토리얼은 한 번 지나가는 구간, 미르 11/10).
+    // 다 닫히기 전에 돌아서면 지금처럼 다시 열린다(닫히는 자판기에 끼지 않게). 복도 쪽에서 닫힌 것은 잠그지 않는다(갇히지 않게)
+    if (isHeadquartersDoorSealed()) return false;
+    if (getPushProgress() === 0 && x > HEADQUARTERS_MIN_X + ENTERED_DEPTH) {
+      sealHeadquartersDoor();
+      return false;
+    }
     // 복도는 폭이 좁아 가운데로 걸어도 문까지 멀다 — 복도 쪽에서는 따라 걸은 거리만 본다
     const alongCorridor = Math.abs(z - passage.get().doorZ);
     const distanceToDoor = x < HEADQUARTERS_MIN_X ? alongCorridor : Math.hypot(x - HEADQUARTERS_MIN_X, alongCorridor);

@@ -10,6 +10,7 @@ export type { AvatarLink as AvatarPlayerLink } from "@/engine/avatarLink";
 // 로딩 영상
 export {
   continueLoadingVideoAt,
+  replaceOpeningWithResume,
   showLoadingVideo,
   useLoadingVideoState,
   type LoadingVideoKind,

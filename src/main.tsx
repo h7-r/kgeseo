@@ -8,6 +8,7 @@ import { LandscapeGuard } from "@/engine/input";
 import { LoadingVideoOverlay } from "@/naju";
 import { initGameSave } from "@/save/gameSave";
 import { registerMainGameSave } from "@/save/mainGameSave";
+import { decideResume, finishResume } from "@/save/resumeStart";
 
 // 효과음은 앱 시작에 미리 받아 두고 첫 입력에 오디오를 깨운다.
 import "@/audio/sound";
@@ -22,8 +23,11 @@ if (!root) throw new Error("#root 가 없습니다");
 // 웹사이트 「게임 시작」 → 캐릭터 생성 → 튜토리얼(/). 생성 중에는 게임 씬을 띄우지 않는다.
 // 로딩 영상 막은 라우터 안·Routes 밖에 한 번만 — 주소가 바뀌어도 살아 있게.
 // 저장본을 먼저 받아 넣은 뒤 그린다. 그려진 뒤에 넣으면 처음 자리가 한 번 보였다가 튄다.
+// 다시 접속이면 어디서 시작할지(튜토리얼 처음부터 · 로비) · 오프닝을 다시 틀지를 그리기 전에 정한다(save/resumeStart)
 void initGameSave().finally(() => {
+  decideResume();
   registerMainGameSave();
+  finishResume();
   createRoot(root).render(
     <StrictMode>
       <BrowserRouter>

@@ -46,7 +46,14 @@ import MainGameSaveBridge from "@/save/MainGameSaveBridge";
 import { getSavedStage, readSavedSection } from "@/save/gameSave";
 import { LOBBY_SPOT, clearLobbyReturn, peekLobbyReturn, wantsLobbyEntry, withoutLobbyEntry } from "@/save/lobbyEntry";
 import { savedStationPose } from "@/save/mainGameSave";
-import { markEnteredHeadquarters, onEnteredHeadquarters, useIsCutscenePlaying } from "@/props/vendingPushState";
+import { isInsideHeadquarters } from "@/save/resumePolicy";
+import {
+  hasEnteredHeadquarters,
+  markEnteredHeadquarters,
+  onEnteredHeadquarters,
+  sealHeadquartersDoor,
+  useIsCutscenePlaying,
+} from "@/props/vendingPushState";
 import SettingsPanel from "@/settings/SettingsPanel";
 import { RESOLUTION_DPR, useSettings, type Settings } from "@/settings/settings";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
@@ -59,6 +66,7 @@ import DispatchCard from "@/tutorial/DispatchCard";
 import { skipDispatch, useDispatchState } from "@/tutorial/dispatchState";
 import { TUTORIAL_STEPS, restoreTutorial, tutorialStore } from "@/tutorial/tutorialState";
 import TutorialPanel from "@/tutorial/TutorialPanel";
+import TutorialRestartNotice from "@/tutorial/TutorialRestartNotice";
 
 import CrashOverlays from "./overlays/CrashOverlays";
 import {
@@ -187,14 +195,16 @@ export default function App() {
   const [isLobbyEntry] = useState(
     () => !isTrain && wantsLobbyEntry(window.location.search, getSavedStage(), peekLobbyReturn()),
   );
+  // 튜토리얼 중(본부실 전)에는 저장 자리를 쓰지 않는다 — 처음부터 다시(save/resumeStart 가 그 칸을 넣지 않는다)
+  // 본부실에 들어선 뒤인데 저장 자리가 본부실 밖(잠긴 비밀 복도)이거나 없으면 로비 자리에서
   const [initialCamera] = useState(() => {
-    if (isLobbyEntry)
+    const pose = savedStationPose();
+    if (isLobbyEntry || (hasEnteredHeadquarters() && !isInsideHeadquarters(pose)))
       return {
         ...CAMERA,
         position: [LOBBY_SPOT.x, EYE_HEIGHT, LOBBY_SPOT.z] as THREE.Vector3Tuple,
         rotation: [0, LOBBY_SPOT.yaw, 0] as THREE.Vector3Tuple,
       };
-    const pose = savedStationPose();
     return pose ? { ...CAMERA, position: pose.position } : CAMERA;
   });
   // 로비로 들어왔다 — 본부실 진입은 저장되지 않고 문 연출 안에서만 다시 적혀(밸브 · 회로가 준비돼야) 새 페이지에서는 단계가
@@ -211,6 +221,7 @@ export default function App() {
     // 로그인하지 않은 사람은 튜토리얼 저장이 없다 — 나주까지 다녀왔으면 마친 것이다(본부실에서 튜토리얼이 처음부터 뜨지 않게)
     if (!tutorialStore.get().isFinished) restoreTutorial({ step: TUTORIAL_STEPS.length - 1, isFinished: true });
     markEnteredHeadquarters();
+    sealHeadquartersDoor();
     navigate(withoutLobbyEntry(window.location.href), { replace: true });
   }, [isLobbyEntry, navigate]);
   const [isPointerLocked, setIsPointerLocked] = useState(false);
@@ -443,6 +454,7 @@ export default function App() {
       {SHOW_CUSTOMIZE_PANEL && !isTrain && <CustomizePanels avatar={avatar} />}
       {active && <ActionHint near={near} />}
       <Toast raised={lockControl !== null} />
+      <TutorialRestartNotice />
       <LockDialPanel covered={openLayer !== null} />
       <HintOfferCard covered={openLayer !== null} roamVisible={isStationActive} />
       <ValveHelpWatcher covered={openLayer !== null} roamActive={isStationActive} />

@@ -7,6 +7,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { CheckIcon } from "@/game/gameIcons";
 import { useKeyLabels } from "@/engine/input";
 import { PANEL_SHADOW, UI, UI_FONT, keyCapStyle } from "@/game/gameUi";
+import { useHasEnteredHeadquarters } from "@/props/vendingPushState";
 
 import "@/game/gameUi.css";
 
@@ -33,6 +34,8 @@ export default function TutorialPanel({ covered = false }: TutorialPanelProps) {
   const { phase: dispatchPhase } = useDispatchState();
   const current = TUTORIAL_STEPS[step];
   const [isFinishedHidden, setIsFinishedHidden] = useState(false);
+  // 본부실에 들어서면 튜토리얼은 지나간 구간이다 — 완료 안내를 다시 띄우지 않는다(로비로 다시 접속해도, 미르 11/10)
+  const hasEnteredHeadquarters = useHasEnteredHeadquarters();
 
   // 단계가 넘어가면 1.1초 동안 「✓ 방금 한 것」
   const flashFor = (stepIndex: number): Flash | null =>
@@ -75,7 +78,7 @@ export default function TutorialPanel({ covered = false }: TutorialPanelProps) {
 
   // 출동 호출 카드가 같은 위쪽 가운데에 뜨므로 자리를 내준다
   const isDispatching = dispatchPhase === "alert" || dispatchPhase === "guide" || dispatchPhase === "boarded";
-  if (!current || covered || isDispatching || (isFinished && isFinishedHidden)) return null;
+  if (!current || covered || isDispatching || hasEnteredHeadquarters || (isFinished && isFinishedHidden)) return null;
   if (isHidden)
     return (
       <div style={collapsedStyle}>
