@@ -518,6 +518,24 @@ button:hover > .dest-key {
   color: #e1ebf8;
 }
 
+/* 하던 케이스의 진행(지역 줄) — 「진행 중 32%」 · 「완료」 */
+.dest-row__progress {
+  flex-shrink: 0;
+  padding: calc(var(--u) * 3) calc(var(--u) * 10);
+  border: 1px solid rgba(134, 166, 240, 0.55);
+  border-radius: 999px;
+  background: rgba(46, 72, 137, 0.35);
+  font-size: max(13px, calc(var(--u) * 13));
+  font-weight: 500;
+  color: #cfdcf8;
+  white-space: nowrap;
+}
+.dest-row__progress.is-cleared {
+  border-color: rgba(242, 200, 154, 0.6);
+  background: rgba(120, 90, 40, 0.3);
+  color: #f2d9b6;
+}
+
 .dest-chip {
   flex-shrink: 0;
   padding: calc(var(--u) * 3) calc(var(--u) * 10);
@@ -740,6 +758,42 @@ button:hover > .dest-key {
   font-size: calc(var(--u) * 13);
   color: #8b93a3;
 }
+/* 하던 케이스의 진행(전설 카드) — 어디까지 했는지 한 줄 + 막대 */
+.dest-card__progress {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 6);
+  width: min(100%, calc(var(--u) * 320));
+}
+.dest-card__progress-label {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(var(--u) * 10);
+  font-size: max(13px, calc(var(--u) * 14));
+  color: #cfdcf8;
+}
+.dest-card__progress-label b {
+  font-family: "IBM Plex Mono", "IBM Plex Sans KR", monospace;
+  font-weight: 600;
+  color: #f1f1fc;
+}
+.dest-card__progress-bar {
+  position: relative;
+  height: calc(var(--u) * 5);
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(241, 241, 252, 0.16);
+}
+.dest-card__progress-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6f86bf, #9db6f2);
+}
+.dest-card__progress.is-cleared .dest-card__progress-bar i {
+  background: linear-gradient(90deg, #c9a46a, #f2d9b6);
+}
+
 .dest-card__description {
   font-weight: 300;
   font-size: calc(var(--u) * 15);
@@ -1078,6 +1132,16 @@ button:hover > .dest-key {
   }
   .dest-row__go {
     font-size: 14px;
+  }
+  .dest-row__progress {
+    padding: 3px 8px;
+    font-size: 13px;
+  }
+  .dest-card__progress-label {
+    font-size: 13px;
+  }
+  .dest-card__progress-bar {
+    height: 4px;
   }
   .dest-chip {
     padding: 3px 8px;

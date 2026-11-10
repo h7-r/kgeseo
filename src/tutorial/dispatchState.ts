@@ -41,6 +41,14 @@ function setState(patch: Partial<DispatchState>) {
 
 export const useDispatchState = () => useSyncExternalStore(signal.subscribe, () => state);
 
+/**
+ * 이미 출동한 적이 있다(나주를 시작했다) — 「긴급 호출 · 즉시 출동」 카드를 다시 띄우지 않는다. 다시 접속하면 늘 로비에서
+ * 시작하므로(미르 11/10) 들어올 때마다 카드가 떠 하던 케이스로 떠밀지 않게. 다시 할지는 기차 목적지 창에서 고른다.
+ */
+export function skipDispatch() {
+  if (state.phase === "idle") setState({ phase: "boarded" });
+}
+
 /** 카드를 닫는다 — 화살표 안내만 남는다. */
 export function acknowledgeDispatch() {
   if (state.phase === "alert") setState({ phase: "guide" });

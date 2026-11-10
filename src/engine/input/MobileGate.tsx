@@ -8,7 +8,15 @@
  *
  * 멈춤은 이 덮개의 탭으로만 풀린다. 창이 열린 채 멈췄다면 풀린 뒤에도 창은 그대로다(창을 닫아야 조작으로 돌아간다).
  */
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import type { PointerLockControls } from "three-stdlib";
 
 import { markGameStarted, pauseGame, resumeAllAudio, resumeFromGate, useGamePauseState } from "./gamePause";
@@ -21,9 +29,11 @@ interface MobileGateProps {
   controlsRef: RefObject<PointerLockControls | null>;
   /** 게임 창이 열려 있다(소지품 · 힌트 · 설정 · 입력칸 등) */
   isWindowOpen: boolean;
+  /** 멈춤 화면 아래쪽에 덧붙일 것 — 나주의 「로비로 나가기」(미르 11/10). 없으면 「눌러서 계속」만 */
+  pausedExtra?: ReactNode;
 }
 
-export function MobileGate({ controlsRef, isWindowOpen }: MobileGateProps) {
+export function MobileGate({ controlsRef, isWindowOpen, pausedExtra }: MobileGateProps) {
   const isTouch = useTouchMode();
   const { hasStarted, isPaused } = useGamePauseState();
   const { isPortrait } = useLandscapeState();
@@ -128,14 +138,39 @@ export function MobileGate({ controlsRef, isWindowOpen }: MobileGateProps) {
   // 멈춤 — 또는 창도 없는데 조작이 풀린 채로 남았을 때(빠져나갈 길이 없게 두지 않는다)
   if (isPaused || (!isLocked && !isWindowOpen)) {
     return (
-      <button type="button" style={{ ...coverStyle, ...buttonResetStyle }} onClick={handleTap}>
-        <div style={titleStyle}>멈춤</div>
-        <div style={bodyStyle}>눌러서 계속</div>
-      </button>
+      <>
+        {/* 아래에 덧붙인 것이 있으면 「멈춤 · 눌러서 계속」을 위로 올려 겹치지 않게 */}
+        <button
+          type="button"
+          style={{ ...coverStyle, ...buttonResetStyle, ...(pausedExtra ? withExtraStyle : null) }}
+          onClick={handleTap}
+        >
+          <div style={titleStyle}>멈춤</div>
+          <div style={bodyStyle}>눌러서 계속</div>
+        </button>
+        {/* 덮개 단추 밖에 따로 둔다 — 덧붙인 단추를 누른 손가락이 「계속」이 되지 않게 */}
+        {pausedExtra && <div style={pausedExtraStyle}>{pausedExtra}</div>}
+      </>
     );
   }
   return null;
 }
+
+/** 덧붙인 것(최대 높이 약 150px)만큼 덮개의 가운데를 위로 */
+const withExtraStyle: CSSProperties = { paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 160px)" };
+
+/** 멈춤 화면 아래쪽에 덧붙이는 자리 — 덮개(z 1000) 위 */
+const pausedExtraStyle: CSSProperties = {
+  position: "fixed",
+  left: "50%",
+  bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)",
+  transform: "translateX(-50%)",
+  zIndex: 1001,
+  display: "flex",
+  justifyContent: "center",
+  width: "max-content",
+  maxWidth: "calc(100vw - 32px)",
+};
 
 /** 덮개가 뜬 직후 이만큼은 클릭을 받지 않는다 */
 const GHOST_CLICK_MS = 350;
