@@ -5,7 +5,7 @@
  * 박자로 붉게 빛난다. 30 · 10초에는 조작을 막지 않는 안내 띠 — 「서서」 숨을 채운다는 것까지(Codex 01). 공기 기둥에 들면 「숨을 고르는 중…」.
  * 10초 아래는 화면이 뿌옇게 조여 오고(예전 15초) 5초 아래는 흔들린다(CaveWorld). 장면을 보여 주는 동안(숨 보호)은 깜빡임을 멈추고 옅게.
  */
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { TOUCH_HUD, topRowWidth, useTouchMode } from "@/engine/input";
 import { gameNow } from "@/engine/input/gameClock";
@@ -101,6 +101,23 @@ export default function BreathHud() {
   const isGuarded = isBreathGuarded();
   const warn = isUnderwater ? warnStepOf(breath) : null;
   const band = useBreathBand(breath, isUnderwater, isGuarded);
+  const bandRef = useRef<HTMLDivElement>(null);
+  const isBandShown = isUnderwater && band !== null;
+  // PC — 띠가 떠 있는 동안 알림(가운데 아래)이 그 위로 오르게 윗변 높이를 알린다(1024 폭에서 겹쳤다). 터치는 띠가 위에 있어 안 알린다
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const element = bandRef.current;
+    if (!isBandShown || isTouch || !element) {
+      root.style.removeProperty(BAND_TOP_VAR);
+      return undefined;
+    }
+    const stage = element.offsetParent?.getBoundingClientRect();
+    const bottom = stage ? stage.bottom : window.innerHeight;
+    root.style.setProperty(BAND_TOP_VAR, `${Math.ceil(bottom - element.getBoundingClientRect().top)}px`);
+    return () => {
+      root.style.removeProperty(BAND_TOP_VAR);
+    };
+  }, [isBandShown, isTouch, band]);
   // 깜빡임 박자 · 세기 — 장면을 보여 주는 동안은 멈추고 옅게(장면을 가리지 않게)
   const pulse: CSSProperties | null = warn
     ? {
@@ -147,8 +164,9 @@ export default function BreathHud() {
           <style>{BREATH_ALERT_CSS}</style>
         </div>
       )}
-      {isUnderwater && band && (
+      {isBandShown && (
         <div
+          ref={bandRef}
           role="status"
           data-hud="숨 경고"
           style={{
@@ -240,6 +258,8 @@ function InkSplat({ seed }: { seed: number }) {
 }
 
 const FONT = '"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif';
+/** 알림이 읽는 값 — 무대 아래끝에서 숨 경고 띠 윗변까지(px, PC 만) */
+const BAND_TOP_VAR = "--naju-breath-band-top";
 
 // 테두리 빛 · 게이지 테두리 · 채움 깜빡임. 박자(animation-duration)는 단계마다 style 로 준다
 const BREATH_ALERT_CSS =
@@ -333,6 +353,8 @@ const bandStyle: CSSProperties = {
   background: "rgba(58,12,10,.86)",
   color: "#FFECE7",
   font: `700 15px/1.4 ${FONT}`,
+  // 낱말 가운데서 끊지 않는다(휴대폰에서 「공기방울/이」로 끊겼다)
+  wordBreak: "keep-all",
   pointerEvents: "none",
   boxShadow: "0 6px 18px rgba(0,0,0,.45)",
 };

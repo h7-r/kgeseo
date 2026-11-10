@@ -748,9 +748,10 @@ export default function RidgeBirds() {
     awaken(now, since, time);
     updateShards(birds.shell, dt);
     updateChunks(birds.shell, scene, dt);
-    // 깨어난 뒤 — 새 떼와 두 새가 지저귄다
-    if (birds.isBroken && (now === "awakening" || now === "circling" || now === "leaving") && Math.random() < dt * 3)
-      audio.play("짹짹");
+    // 깨어난 뒤 — 새 떼와 두 새가 지저귄다. 떠날 때는 날아가 사라지는 6초 동안만 — 틈이 구렁이상을 꺼낸 뒤로 미뤄져 leaving 이
+    // 길어졌다(Codex 03, 새가 다 사라진 뒤에도 함 영상 내내 지저귀었다)
+    const isSinging = now === "awakening" || now === "circling" || (now === "leaving" && since <= 6);
+    if (birds.isBroken && isSinging && Math.random() < dt * 3) audio.play("짹짹");
 
     if (birds.isBroken) flyHeroes(now, since, time, dt, centerGround);
     flyFlock(time, dt, centerGround);

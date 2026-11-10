@@ -61,9 +61,10 @@ export default function InteractionHud() {
 
 /**
  * 알림 아랫변 — 아래 빠른 칸 위(110px). 대화창이 떠 있으면 그 위로, PC 에서 줄 당기기 게이지가 떠 있으면 그 위로 12px 비켜 선다.
- * 대화창 · 게이지는 제 윗변 높이를 --npc-speech-top · --naju-gauge-top 으로 알린다.
+ * 대화창 · 게이지 · 숨 경고 띠는 제 윗변 높이를 --npc-speech-top · --naju-gauge-top · --naju-breath-band-top 으로 알린다.
  */
-const NOTICE_BOTTOM = "max(110px, calc(var(--npc-speech-top, 0px) + 12px), calc(var(--naju-gauge-top, 0px) + 12px))";
+const NOTICE_BOTTOM =
+  "max(110px, calc(var(--npc-speech-top, 0px) + 12px), calc(var(--naju-gauge-top, 0px) + 12px), calc(var(--naju-breath-band-top, 0px) + 12px))";
 
 /**
  * 겨냥 안내가 읽는 값 — 무대 아래끝에서 알림 윗변까지. PC 알림이 커져 가운데 아래 겨냥 안내와 닿을 수 있다.
