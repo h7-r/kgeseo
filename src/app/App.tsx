@@ -23,6 +23,7 @@ import {
   SHOW_FPS,
   TouchHud,
   TouchLook,
+  setDesktopPauses,
   useGameFrozen,
   useTouchMode,
 } from "@/engine/input";
@@ -318,6 +319,21 @@ export default function App() {
       : resumeState === "waiting"
         ? "waiting"
         : null;
+  // PC 일시정지 — 쉬는 창(설정 · 소지품 · 힌트함 · 수첩)이 열렸거나 게임 밖([T] 안내)이면 게임 시간 · 렌더 · 소리를 세운다
+  // (미르 11/10, 터치의 「전부 멈춤」과 같다). 자물쇠 · 돌아가기 기다림(키로는 걷는다) · 컷신은 게임 안이라 세우지 않는다.
+  // 기차의 목적지 창과 기차 안의 「게임 밖」은 세우지 않는다 — 기차는 마우스를 풀어 홀로그램을 겨눠 누르고(겨냥은 매 프레임 판정),
+  // 목적지 창은 고르는 소리 · 영상이 있는 길 고르기 화면이다(Codex 리뷰). 처음 [T] 전에는 장면을 그려 둬야 해 세우지 않는다
+  // 연출(전기 흐름 · 자판기 밀림) 중에는 창 · ESC 로 세우지 않는다 — 번개 · 카메라 · 자판기가 실제 시계(performance.now)로 맞물려 돌아
+  // 멈췄다 풀면 연출이 건너뛰어졌다(Codex 리뷰). 연출 중엔 조작이 꺼져 있어 안 세워도 놓치는 것이 없다
+  const isDesktopWindowPause =
+    !isTouch && hasLockedOnce && openLayer !== null && openLayer !== "destination" && !isCutscenePlaying;
+  const isDesktopOutPause = returnPromptMode === "out" && !isTrain && !isCutscenePlaying;
+  // 두 까닭은 함께 알린다 — 하나씩 바꾸면 「창」→「게임 밖」 사이에 잠깐 풀린다(Codex 리뷰)
+  useEffect(
+    () => setDesktopPauses({ window: isDesktopWindowPause, out: isDesktopOutPause }),
+    [isDesktopWindowPause, isDesktopOutPause],
+  );
+  useEffect(() => () => setDesktopPauses({ window: false, out: false }), []);
   // 커서 숨기기 — 게임으로 돌아가는 중 · 자물쇠를 만지는 동안(페이지가 잠금을 풀어 두었다). 추가 힌트 묻기 · 창이 뜨면 보인다
   const isOffering = useHintOffering();
   const isCursorHidden =

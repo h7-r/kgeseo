@@ -134,6 +134,8 @@ export function onSoundPlayed(listener: SoundListener) {
 /** 한 번 재생(겹침 허용). 버퍼가 아직 없으면 불러오기만 하고 이번은 건너뛴다. */
 export function playSound(name: SoundName, { volume = 1, rate = 1 }: PlaySoundOptions = {}) {
   soundListeners.forEach((listener) => listener(name, volume));
+  // 「전부 멈춤」 동안 멈춘 소리 장치에 넣으면 쌓였다가 풀리는 순간 한꺼번에 터진다 — 버린다(Codex 리뷰)
+  if (isGameFrozen()) return null;
   const ctx = getAudioContext();
   if (!ctx) return null;
   const buffer = buffers.get(name);

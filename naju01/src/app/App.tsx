@@ -29,6 +29,7 @@ import {
   PauseClockGuard,
   SHOW_FPS,
   TouchHud,
+  setDesktopPauses,
   useGameFrozen,
   useTouchMode,
 } from "@/engine/input";
@@ -51,7 +52,7 @@ import { BASELINE, UNITS_PER_METER, VIEWPOINTS } from "../plan/sitePlan";
 import { teleportPlayer } from "../puzzles/cave/caveState";
 import { useHintBoxOpen } from "../puzzles/hintBoxView";
 import InventoryModal from "../puzzles/InventoryModal";
-import { beginHold, bindPointerHold, endHold } from "../puzzles/pointerHold";
+import { beginHold, bindPointerHold, endHold, isOutOfGame as checkOutOfGame } from "../puzzles/pointerHold";
 import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
 import NajuScene, { type NajuSceneReport, type NajuToonConfig } from "../scene/NajuScene";
 import { audio } from "../scene/immersion/audio";
@@ -207,6 +208,35 @@ export default function App() {
   const isHintBoxOpen = useHintBoxOpen();
   const isChatOpen = useCompanionChatOpen();
   const isWindowOpen = isSettingsOpen || isInventoryOpen || isHintBoxOpen || isChatOpen;
+  // PC 일시정지(미르 11/10) — 창이 열렸거나 게임 밖(ESC 로 나옴)이면 게임 시간 · 렌더 · 소리를 세운다. 터치의 「전부 멈춤」과 같다.
+  // 종이 읽기 · 줄 당기기 · 창처럼 페이지가 일부러 잠금을 풀어 둔 것(붙듦)과 다시 잠그기를 기다리는 동안은 게임 안이다.
+  // 처음 [T] 전에는 첫 장면을 그려야 덮개가 걷히므로 세우지 않는다
+  const [hasLockedOnce, setHasLockedOnce] = useState(false);
+  const [isOutOfGame, setIsOutOfGame] = useState(false);
+  const handleLockChange = useCallback((next: boolean) => {
+    setIsLocked(next);
+    if (next) setHasLockedOnce(true);
+  }, []);
+  useEffect(() => {
+    if (isTouch || !hasLockedOnce) return undefined;
+    // 붙듦 · 기다림은 알림이 없어 잠금이 바뀔 때와 짧은 간격으로 본다. 창이 떠 있는 동안에도 「닫으면 게임 밖인가」를 잰다
+    const check = () => setIsOutOfGame(checkOutOfGame());
+    const timer = window.setInterval(check, 300);
+    document.addEventListener("pointerlockchange", check);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("pointerlockchange", check);
+      setIsOutOfGame(false);
+    };
+  }, [isTouch, hasLockedOnce]);
+  const isDesktopWindowPause = !isTouch && hasLockedOnce && isWindowOpen;
+  const isDesktopOutPause = !isTouch && isOutOfGame && !isWindowOpen;
+  // 두 까닭은 함께 알린다 — 하나씩 바꾸면 「창」→「게임 밖」 사이에 잠깐 풀린다(Codex 리뷰)
+  useEffect(
+    () => setDesktopPauses({ window: isDesktopWindowPause, out: isDesktopOutPause }),
+    [isDesktopWindowPause, isDesktopOutPause],
+  );
+  useEffect(() => () => setDesktopPauses({ window: false, out: false }), []);
   useEffect(() => bindPointerHold(() => controlsRef.current), []);
   // 창이 떠 있는 동안 조작 잠금을 붙든다(pointerHold) — 어느 길로 열어도(단축키 · 단추 · 퍼즐 · 개발 훅) 풀고(터치 단추가 창 위에
   // 남지 않게, 14회차), 어느 길로 닫아도(ESC · 단축키 · 닫기 단추 · 배경 · 꺼내기) 열기 전에 조작 중이었을 때만 다시 잠근다(미르 11/8).
@@ -273,7 +303,7 @@ export default function App() {
             <MemoNajuScene
               active={isLocked}
               controlsRef={controlsRef}
-              onLockChange={setIsLocked}
+              onLockChange={handleLockChange}
               reportRef={reportRef}
               isThirdPerson={ALLOW_VIEW_TOGGLE && viewMode === "3인칭"}
               sidekickConfig={sidekickConfig}

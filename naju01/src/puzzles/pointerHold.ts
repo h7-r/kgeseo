@@ -77,6 +77,19 @@ export const isInteractionHeld = () => hasKind("interaction") && !isWindowHeld()
 /** 붙든 것이 하나라도 있다 — [T] 로 잠그지 않는다 */
 export const hasPointerHolds = () => holds.size > 0;
 
+/**
+ * 「게임 밖」(ESC 로 나와 [T] 를 기다림)인가 — PC 일시정지가 묻는다(미르 11/10).
+ * 조작 중 · 다시 잠그기를 기다리는 중(게임 화면 그대로) · 상호작용이 잠금을 풀어 둔 중 · 다시 잠그러 가는 중은 게임 안이다.
+ * 창 붙듦은 빼고 「창을 닫으면 조작으로 돌아갈 참인가」(resumeAfter)로 본다 — 창이 떠 있는 동안에도 닫은 뒤를 미리 알아야
+ * 창 → 게임 밖으로 넘어갈 때 그 사이 잠깐 풀리지 않는다(Codex 리뷰).
+ */
+export function isOutOfGame(): boolean {
+  if (isPointerActive() || isWaiting) return false;
+  if (hasKind("interaction")) return false;
+  const willResume = holds.size > 0 || resumeTimer !== 0 ? resumeAfter : isResumeRequested;
+  return !willResume;
+}
+
 function syncCursor() {
   if (typeof document === "undefined") return;
   const hide = !isTouchMode() && (isWaiting || isInteractionHeld());

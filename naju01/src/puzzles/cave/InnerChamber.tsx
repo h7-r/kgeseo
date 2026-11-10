@@ -4,6 +4,7 @@
  * 빛줄기가 상자로 흘러들어 비늘이 떠오르고, 비늘을 챙긴 뒤 뒷벽 물길에 몸을 맡기면 강가로 올라간다.
  * 치수는 chamberLayout, 그림 · 재질은 chamberArt, 연출 조각은 chamberMotion, 돌 소품은 chamberParts.
  */
+import { gameNow } from "@/engine/input/gameClock";
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -78,7 +79,8 @@ const SUNK_DEPTH = 0.12;
 import { lampLevel, placePearlBeam, pullIntoExit, scaleHeight, updateCurrent } from "./chamberMotion";
 import { ChamberVents, EntryStatues, ExitRocks, OrbLamps, PearlSocket, Pedestals, StoneBox } from "./chamberParts";
 
-const now = () => performance.now() / 1000;
+// 게임 시계 — 「전부 멈춤」(창 · 게임 밖 · PC 일시정지) 동안은 흐르지 않는다. 실제 시계면 오래 멈췄다 돌아올 때 차례 시범이 건너뛰어졌다(Codex 리뷰)
+const now = () => gameNow() / 1000;
 
 export default function InnerChamber() {
   const isShown = useCaveShown();

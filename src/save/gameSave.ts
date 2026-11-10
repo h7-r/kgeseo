@@ -117,6 +117,28 @@ export function registerSaveSection(name: string, section: GameSaveSection): voi
   if (name in storedSections) section.apply?.(storedSections[name]);
 }
 
+/**
+ * 저장된 칸을 지운다(이 페이지가 쓰지 않는 칸만 — 등록된 칸은 다음 저장 때 다시 생긴다). 실제로 지워지려면 저장을 한 번 써야 한다
+ * (saveBeforeLeaving). 기차 목적지 창 「처음부터 다시」가 나주 칸(naju.*)을 지울 때 쓴다(미르 11/10).
+ * 지운 칸을 돌려준다 — 저장에 실패하면 restoreSavedSections 로 되돌린다(다음 자동 저장이 진행을 지워 버리지 않게)
+ */
+export function removeSavedSections(match: (name: string) => boolean): Record<string, unknown> {
+  const removed: Record<string, unknown> = {};
+  const next = { ...storedSections };
+  for (const name of Object.keys(storedSections)) {
+    if (!match(name) || sections.has(name)) continue;
+    removed[name] = next[name];
+    delete next[name];
+  }
+  storedSections = next;
+  return removed;
+}
+
+/** removeSavedSections 로 지운 칸을 되돌린다(그사이 다시 생긴 칸은 그대로 둔다) */
+export function restoreSavedSections(removed: Record<string, unknown>): void {
+  storedSections = { ...removed, ...storedSections };
+}
+
 /** 저장된 칸 값을 읽기만 한다(시작 자리처럼 그릴 때 한 번 쓰는 값). */
 export function readSavedSection<T>(name: string): T | null {
   return name in storedSections ? (storedSections[name] as T) : null;
@@ -182,9 +204,10 @@ async function sendState(state: string, key: string, keepalive: boolean): Promis
 /**
  * 페이지를 떠나기 직전(나주 → 로비) — 오가던 저장을 기다린 뒤 지금 값을 한 번 묶어 쓰고, 그 묶음이 실제로 저장됐는지 돌려준다.
  * 저장한 뒤 다시 모아 비교하지 않는다 — 창을 연 동안에도 매 프레임 바뀌는 칸(지게 짐 자리 등)이 있어 성공해도 실패로 보였다(Codex 리뷰).
- * 늦어도 timeoutMs 뒤에는 false 로 끝낸다(떠나는 사람을 붙잡지 않는다). 로그인하지 않았으면 바로 false.
+ * 늦어도 timeoutMs 뒤에는 false 로 끝낸다(떠나는 사람을 붙잡지 않는다). null 이면 결과가 올 때까지 기다린다 — 「처음부터 다시」처럼
+ * 시간 넘김을 실패로 보면 늦게 도착한 요청과 어긋나는 곳(Codex 리뷰). 로그인하지 않았으면 바로 false.
  */
-export async function saveBeforeLeaving(timeoutMs = 2500): Promise<boolean> {
+export async function saveBeforeLeaving(timeoutMs: number | null = 2500): Promise<boolean> {
   if (!isLoggedIn) return false;
   window.clearTimeout(saveTimer);
   const save = (async () => {
@@ -201,6 +224,7 @@ export async function saveBeforeLeaving(timeoutMs = 2500): Promise<boolean> {
     await writing;
     return lastWritten === key;
   })();
+  if (timeoutMs === null) return save;
   const timeout = new Promise<boolean>((resolve) => window.setTimeout(() => resolve(false), timeoutMs));
   return Promise.race([save, timeout]);
 }

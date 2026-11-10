@@ -10,6 +10,7 @@ export {
   isGamePausedFlag,
   onGameFreeze,
   onGameThaw,
+  setDesktopPauses,
   trackAudioContext,
   trackMedia,
   useGameFrozen,
