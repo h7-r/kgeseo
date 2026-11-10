@@ -12,6 +12,7 @@ import GamePanel from "./GamePanel";
 import { UI, UI_FONT, keyCapStyle } from "./gameUi";
 import { isHintUnseen, markHintSeen, removeHint, useHintBox } from "./hintBox";
 import { isTypingTarget } from "./overlayLayer";
+import { takeExtraHint, useExtraHintAvailable } from "./valveHelp";
 import {
   categoryStyle,
   descriptionStyle,
@@ -52,6 +53,11 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
   }, [open, selectedId]);
 
   const isTouch = useTouchMode();
+  // 추가 힌트를 「아니요」로 미뤘어도 여기서 언제든 받는다(12회차) — 받으면 그 쪽지를 펴 준다
+  const isExtraHintAvailable = useExtraHintAvailable();
+  const takeExtra = () => {
+    if (takeExtraHint()) setSelectedId(hints.length ? hints[hints.length - 1].id : null);
+  };
   // 「정답 보기」를 누른 쪽지 — 한 번 본 정답은 이 탭에서는 계속 보인다
   const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set());
 
@@ -89,6 +95,14 @@ export default function HintPanel({ open, onClose }: HintPanelProps) {
   return (
     <GamePanel title="힌트함" meta={`모은 것 ${hints.length}`} closeKey="H" onClose={onClose}>
       <div className="game-panel-scroll" style={listColumnStyle}>
+        {isExtraHintAvailable && (
+          <div style={extraHintStyle} data-hud="추가 힌트 받기">
+            <span>받을 수 있는 추가 힌트가 있다</span>
+            <button type="button" style={extraHintButtonStyle} onClick={takeExtra}>
+              받기
+            </button>
+          </div>
+        )}
         <div style={sectionTitleStyle}>
           모은 힌트 <span style={sectionCountStyle}>{hints.length}</span>
         </div>
@@ -216,4 +230,29 @@ const discardStyle: CSSProperties = {
   borderTop: `1px solid ${UI.border}`,
   color: UI.textMuted,
   font: `400 14px/1.6 ${UI_FONT.body}`,
+};
+const extraHintStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 10,
+  marginBottom: 12,
+  padding: "8px 8px 8px 12px",
+  borderRadius: 12,
+  border: `1px solid ${UI.accent}`,
+  background: UI.surfaceRaised,
+  color: UI.text,
+  font: `500 14px/1.4 ${UI_FONT.body}`,
+};
+const extraHintButtonStyle: CSSProperties = {
+  flex: "none",
+  minHeight: 44,
+  minWidth: 72,
+  padding: "0 16px",
+  borderRadius: 22,
+  border: `1px solid ${UI.accent}`,
+  background: UI.navy,
+  color: UI.text,
+  font: `600 14px/1 ${UI_FONT.body}`,
+  cursor: "pointer",
 };

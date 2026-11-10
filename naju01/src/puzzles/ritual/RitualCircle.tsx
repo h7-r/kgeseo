@@ -18,6 +18,7 @@ import { CORRIDOR, getPartOpenness } from "../cave/caveState";
 import { cliff } from "../cliff/cliffState";
 import { gut } from "../gut/gutState";
 import { registerInteractable, setKeyInterceptor, showNotice } from "../interaction";
+import { noteOfferingExamined, noteOfferingPlaced } from "../leftBehind";
 import { onEscapeUnlock } from "../pointerHold";
 import { setPuzzlePanel } from "../puzzlePanel";
 import { ITEMS, type ItemKind } from "../inventory";
@@ -301,6 +302,8 @@ export default function RitualCircle() {
       audio.play("단서");
       if (offeredRef.current.size < OFFERINGS.length) {
         showNotice(`제물을 올렸다. (${offeredRef.current.size}/${OFFERINGS.length})`, 2.4);
+        // 마지막 하나가 남았는데 손 · 소지품에 없으면 동행이 회상 단서를(puzzles/leftBehind, 튜토피드백 13회차)
+        noteOfferingPlaced(offeredRef.current);
         return;
       }
       riseAtRef.current = clockRef.current;
@@ -358,11 +361,11 @@ export default function RitualCircle() {
           // 무엇을 올리는지는 숨기고 「셋」이라는 개수만 처음부터 알린다(미르 폰 시험 11/7 · 코덱스 구현 07회차)
           if (now === "cairns")
             showNotice("제물 세 가지를 받는 소반 같다. 둘레 땅에는 돌탑이 설 자리가 새겨져 있다.", 3.6);
-          else if (now === "offering")
-            showNotice(
-              `소반이 빛난다. 제물 셋을 손에 들고 올리자. (${offeredRef.current.size}/${OFFERINGS.length}) [I]`,
-              3,
-            );
+          else if (now === "offering") {
+            // 올릴 것을 가졌으면 E 가 소지품에서 바로 올린다 — 여기 오는 건 올릴 것이 없을 때다(그래서 「손에 들고 [I]」는 뺐다)
+            showNotice(`소반이 빛난다. 제물 셋을 올리자. (${offeredRef.current.size}/${OFFERINGS.length})`, 3);
+            noteOfferingExamined(offeredRef.current);
+          }
         },
         handLabel: (kind) =>
           ritual.stage() === "offering" &&

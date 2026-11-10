@@ -15,6 +15,8 @@ import { getLockControl, getLockState } from "@/props/combinationLockState";
 import { openHinge } from "@/props/hingeState";
 import { requestFlowFocus } from "@/props/shared/flowFocus";
 
+import { startPanelRevealGlow } from "./panelRevealGlow";
+
 const PANEL_TOAST = "맞은편 배전반 문도 함께 열렸다";
 /** 고개를 돌려(약 0.8초) 배전반을 보는 시간까지 — 이미 긴 자물쇠 연출 뒤라 짧게(Codex 10: 0.6~0.8 + 0.6~0.8) */
 const LOOK_SECONDS = 1.6;
@@ -22,6 +24,8 @@ const LOOK_SECONDS = 1.6;
 const DOOR_DELAY_MS = 300;
 /** 이만큼(초) 안에 카메라를 못 넘겨받으면 화면은 안 돌린다 */
 const EXPIRE_SECONDS = 3;
+/** 배전반이 빛나는 시간 — 고개를 돌려 보고 돌아온 뒤에도 조금 더 */
+const GLOW_SECONDS = 4.5;
 
 interface PanelUnlockRevealProps {
   hydrantDoorId: string;
@@ -60,6 +64,7 @@ export default function PanelUnlockReveal({ hydrantDoorId, panelDoorId, panelCen
     if (!arm.inControl || overlayLayer.get() !== null) {
       openHinge(panelDoorId);
       showToast(PANEL_TOAST, 5500);
+      startPanelRevealGlow(GLOW_SECONDS);
       return;
     }
     const now = performance.now() / 1000;
@@ -70,6 +75,7 @@ export default function PanelUnlockReveal({ hydrantDoorId, panelDoorId, panelCen
         if (isStarted) return;
         openHinge(panelDoorId);
         showToast(PANEL_TOAST, 5500);
+        startPanelRevealGlow(GLOW_SECONDS);
       },
       (EXPIRE_SECONDS + 0.1) * 1000,
     );
@@ -85,6 +91,8 @@ export default function PanelUnlockReveal({ hydrantDoorId, panelDoorId, panelCen
       onStart: () => {
         isStarted = true;
         showToast(PANEL_TOAST, 5500);
+        // 어두운 복도(완전 전원 전)에서도 보이게 배전반이 빛난다 — 돌아온 뒤에도 잠깐 더
+        startPanelRevealGlow(GLOW_SECONDS);
         gameSetTimeout(() => openHinge(panelDoorId), DOOR_DELAY_MS);
       },
     });

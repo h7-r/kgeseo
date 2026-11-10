@@ -9,6 +9,7 @@ import {
   clamDugAnswer,
   deriveFound,
   dugHoles,
+  findOfPuffs,
   restoreClamProgress,
 } from "../src/puzzles/fishTrap/clamAnswer.ts";
 
@@ -77,4 +78,10 @@ test("어긋난 값은 버린다 — 안 판 구멍 · 범위 밖 · 중복 · �
   assert.equal(restored.pinches, 0);
   const empty = restoreFrom({ "clam.isDug": "broken" });
   assert.deepEqual(empty, { isDug: Array(CLAM_HOLE_COUNT).fill(false), found: null, pinches: 0 });
+});
+
+test("구멍에서 나온 것 — 호미 자루 셈법(세 번 조개 · 두 번 갯지렁이 · 한 번 게)", () => {
+  assert.equal(findOfPuffs(3), "clam");
+  assert.equal(findOfPuffs(2), "worm");
+  assert.equal(findOfPuffs(1), "crab");
 });

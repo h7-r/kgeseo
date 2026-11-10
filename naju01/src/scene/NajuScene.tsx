@@ -69,6 +69,7 @@ import { IS_MANGA_STYLE } from "../world/mangaStyle";
 import { useRendererSetup, useSceneFrame, type NajuSceneReport } from "./useSceneFrame";
 import { useSceneModes } from "./useSceneModes";
 import CompanionIntro from "./firstScene/CompanionIntro";
+import CompanionNudge from "./firstScene/CompanionNudge";
 import FirstSceneActors from "./firstScene/FirstSceneActors";
 import SecondSceneActors from "./secondScene/SecondSceneActors";
 import { usePrototypes, useStoryModels, useStoryProps } from "./useStoryProps";
@@ -361,6 +362,8 @@ export default function NajuScene({
       <FirstSceneActors enabled={!isEditing} groundY={(x, z) => terrain.groundAt(x, z).y} />
       <SecondSceneActors enabled={!isEditing} />
       <CompanionIntro enabled={!isEditing && !IS_REVIEW_REQUESTED} />
+      {/* 놓고 온 것(씬 1 빛 물고기 · 모자란 제물) 동행 한마디 — 튜토피드백 13회차 */}
+      <CompanionNudge enabled={!isEditing && !IS_REVIEW_REQUESTED} />
       {IS_FOCUS_ENABLED && (
         <ImmersionLayer terrain={terrain} playerRef={playerState} gateSpots={gates} active={active && !isReviewHold} />
       )}

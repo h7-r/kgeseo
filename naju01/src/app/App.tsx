@@ -36,6 +36,7 @@ import {
 import { IS_LOW_QUALITY, IS_MOBILE_QUALITY } from "@/engine/quality";
 import { useHintBox } from "@/game/hintBox";
 import { DEFAULT_SETTINGS, RESOLUTION_DPR, useSettings } from "@/settings/settings";
+import LeaveToLobby from "@/game/LeaveToLobby";
 import SettingsPanel from "@/settings/SettingsPanel";
 
 import { ASSET_BASE } from "../../../shared/env.ts";
@@ -64,6 +65,7 @@ import { applyMusicVolume } from "../transition/loadingVideo";
 import { useArrivalFade } from "../transition/useArrivalFade";
 import { IS_MANGA_STYLE, MangaEffect } from "../world/mangaStyle";
 import LoadingCover, { type LoadingProgress } from "./LoadingCover";
+import { canLeaveToLobby, leaveToLobbyAction } from "./leaveToLobby";
 import { PuzzleHud, PuzzleWorld } from "./PuzzleLayer";
 import { prefetchNajuAssets } from "./prefetch";
 import { waitForSessionBeforeAssets } from "./sessionGate";
@@ -119,6 +121,9 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const hintCount = useHintBox().length;
+  // 「로비로 나가기」 — 저장 여부 안내는 로그인 상태가 정해진 뒤(앱은 initGameSave 뒤에 그려진다)
+  // 나갈 로비가 없는 판(검수 실행 · 나주만 띄운 개발 서버)에는 두지 않는다
+  const [leaveAction] = useState(() => (!IS_REVIEW_REQUESTED && canLeaveToLobby() ? leaveToLobbyAction() : undefined));
   // 「자동」이 아니면 고른 배율로 못 박고 동적 해상도를 끈다
   const fixedDpr =
     settings.resolution === "auto" ? null : Math.min(RESOLUTION_DPR[settings.resolution], window.devicePixelRatio || 1);
@@ -354,9 +359,14 @@ export default function App() {
           ⚙ 설정 [P]
         </button>
       )}
-      <SettingsPanel open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      {/* 게임 중 멈추고 로비로 — 설정 창(P · ⚙) · 터치 멈춤 화면 둘 다(미르 11/10). 검수 실행에는 두지 않는다 */}
+      <SettingsPanel open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} leaveToLobby={leaveAction} />
       <TouchHud extraTopButtons={TALK_BUTTONS} />
-      <MobileGate controlsRef={controlsRef} isWindowOpen={isWindowOpen} />
+      <MobileGate
+        controlsRef={controlsRef}
+        isWindowOpen={isWindowOpen}
+        pausedExtra={leaveAction && <LeaveToLobby action={leaveAction} tone="cover" />}
+      />
       {SHOW_FPS && <FpsBadge />}
       {isCoverMounted && <LoadingCover progress={loadingProgress} isFading={isSceneDrawn} />}
       {SHOW_CUSTOMIZE_PANEL && !meshConfig && (

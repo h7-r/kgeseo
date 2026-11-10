@@ -15,6 +15,13 @@ export interface DigResult {
   done: boolean;
 }
 
+/**
+ * 판 구멍에서 나온 것 — 호미 자루 셈법 그대로(세 번 조개 · 두 번 갯지렁이 · 한 번 게). puffs 는 그 구멍이 잇달아 뿜는 수로,
+ * 화면의 물줄기와 같은 값이다(breathHoles). 다 찾았는지는 이것으로 정하지 않는다 — 서버가 정한다
+ */
+export const findOfPuffs = (puffs: number): Exclude<HoleFind, "unknown"> =>
+  puffs >= 3 ? "clam" : puffs === 2 ? "worm" : "crab";
+
 const isHole = (value: unknown): value is number =>
   Number.isInteger(value) && (value as number) >= 0 && (value as number) < CLAM_HOLE_COUNT;
 

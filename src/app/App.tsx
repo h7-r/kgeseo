@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { PointerLockControls, Preload } from "@react-three/drei";
 import { Bloom, EffectComposer, SMAA, Vignette } from "@react-three/postprocessing";
@@ -38,11 +38,14 @@ import { showToast } from "@/game/toast";
 import { setThirdPersonView } from "@/game/viewMode";
 import { isThirdPersonLocked, THIRD_PERSON_LOCKED_MESSAGE } from "@/game/viewRule";
 import ValveHelpWatcher from "@/game/ValveHelpWatcher";
+import { useHintOffering } from "@/game/valveHelp";
 import AimTracker from "@/lobby/AimTracker";
-import { LobbyChibiPanel, LobbySidekickPanel } from "@/naju";
+import { LobbyChibiPanel, LobbySidekickPanel, najuCaseProgress } from "@/naju";
 import MainGameSaveBridge from "@/save/MainGameSaveBridge";
+import { getSavedStage, readSavedSection } from "@/save/gameSave";
+import { LOBBY_SPOT, clearLobbyReturn, peekLobbyReturn, wantsLobbyEntry, withoutLobbyEntry } from "@/save/lobbyEntry";
 import { savedStationPose } from "@/save/mainGameSave";
-import { onEnteredHeadquarters, useIsCutscenePlaying } from "@/props/vendingPushState";
+import { markEnteredHeadquarters, onEnteredHeadquarters, useIsCutscenePlaying } from "@/props/vendingPushState";
 import SettingsPanel from "@/settings/SettingsPanel";
 import { RESOLUTION_DPR, useSettings, type Settings } from "@/settings/settings";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
@@ -52,10 +55,23 @@ import StationScene from "@/station/StationScene";
 import DestinationWindow from "@/trainInterior/DestinationWindow";
 import TrainInteriorScene from "@/trainInterior/TrainInteriorScene";
 import DispatchCard from "@/tutorial/DispatchCard";
+import { skipDispatch, useDispatchState } from "@/tutorial/dispatchState";
+import { TUTORIAL_STEPS, restoreTutorial, tutorialStore } from "@/tutorial/tutorialState";
 import TutorialPanel from "@/tutorial/TutorialPanel";
 
 import CrashOverlays from "./overlays/CrashOverlays";
-import { ActionHint, Crosshair, FadeCurtain, LockDialPanel, Toast, TopBarButton } from "./overlays/Hud";
+import {
+  ActionHint,
+  Crosshair,
+  FadeCurtain,
+  HintOfferCard,
+  LockDialPanel,
+  ReturnPrompt,
+  Toast,
+  TopBarButton,
+} from "./overlays/Hud";
+import { bindPointerResume, usePointerResumeState } from "./pointerResume";
+import { useIsTypingFocused } from "./useIsTypingFocused";
 import MangaScene from "./MangaScene";
 import { createPlayerState, usePunch } from "./playerState";
 import { useLockControlMode, useOverlayWindows } from "./pointerLock";
@@ -154,6 +170,7 @@ function CustomizePanels({ avatar }: { avatar: LobbyAvatarState }) {
 export default function App() {
   const controlsRef = useRef<PointerLockControlsImpl>(null);
   const isTrain = useLocation().pathname === TRAIN_PATH;
+  const navigate = useNavigate();
 
   // 기차 씬은 처음 탈 때 만들고 그 뒤로 버리지 않는다(첫 로딩 3초 · CMN-026).
   // useLayoutEffect 로 바꾸면 안 된다 — 같은 커밋에서 역의 배경·안개가 떨어지며 방금 붙은 기차 안개를 지운다.
@@ -163,12 +180,41 @@ export default function App() {
     if (isTrain) setIsTrainMounted(true);
   }, [isTrain]);
 
-  // 이어 하기면 나갔던 자리에서 시작한다. Canvas 는 처음 한 번만 읽는다.
+  // 다시 접속 · 나주에서 「로비로 나가기」면 로비(본부실) 자리에서, 아니면 나갔던 자리에서 시작한다. Canvas 는 처음 한 번만 읽는다.
+  // 로비 표시(?entry=lobby)는 저장 단계가 본부실 뒤일 때만 받는다 — 튜토리얼 중인 사람에게 주소만으로 본부실을 열지 않게
+  // 로그인하지 않은 사람은 저장 단계가 없다 — 나주에서 방금 나온 탭이면(peekLobbyReturn) 받는다
+  const [isLobbyEntry] = useState(
+    () => !isTrain && wantsLobbyEntry(window.location.search, getSavedStage(), peekLobbyReturn()),
+  );
   const [initialCamera] = useState(() => {
+    if (isLobbyEntry)
+      return {
+        ...CAMERA,
+        position: [LOBBY_SPOT.x, EYE_HEIGHT, LOBBY_SPOT.z] as THREE.Vector3Tuple,
+        rotation: [0, LOBBY_SPOT.yaw, 0] as THREE.Vector3Tuple,
+      };
     const pose = savedStationPose();
     return pose ? { ...CAMERA, position: pose.position } : CAMERA;
   });
+  // 로비로 들어왔다 — 본부실 진입은 저장되지 않고 문 연출 안에서만 다시 적혀(밸브 · 회로가 준비돼야) 새 페이지에서는 단계가
+  // 튜토리얼로 돌아갈 수 있다. 여기서 바로 적고, 주소의 표시는 지운다(새로고침하면 그때 저장된 자리로 잇는다)
+  // 나주를 시작한 적이 있으면 본부실의 「긴급 호출 · 즉시 출동」 카드는 다시 띄우지 않는다(이미 출동했다)
+  useEffect(() => {
+    if (najuCaseProgress((name) => readSavedSection(name))) skipDispatch();
+  }, []);
+  useLayoutEffect(() => {
+    if (!isLobbyEntry) return;
+    // 나주에서 방금 나왔다(로그인하지 않아 진행 저장이 없어도) — 이미 출동했으니 「긴급 호출」을 다시 띄우지 않는다
+    if (peekLobbyReturn()) skipDispatch();
+    clearLobbyReturn();
+    // 로그인하지 않은 사람은 튜토리얼 저장이 없다 — 나주까지 다녀왔으면 마친 것이다(본부실에서 튜토리얼이 처음부터 뜨지 않게)
+    if (!tutorialStore.get().isFinished) restoreTutorial({ step: TUTORIAL_STEPS.length - 1, isFinished: true });
+    markEnteredHeadquarters();
+    navigate(withoutLobbyEntry(window.location.href), { replace: true });
+  }, [isLobbyEntry, navigate]);
   const [isPointerLocked, setIsPointerLocked] = useState(false);
+  /** 한 번이라도 [T] 로 들어왔나 — 처음엔 튜토리얼 첫 단계가 「T 조작 시작」을 알려 주므로 게임 밖 안내를 띄우지 않는다 */
+  const [hasLockedOnce, setHasLockedOnce] = useState(false);
   // 나주 진입 연출 중엔 렌더를 멈춘다. 암전에 가려 안 보이고, 메인 스레드가 연출에 집중해 매끄럽다.
   const [isEnteringNaju, setIsEnteringNaju] = useState(false);
   useEffect(() => {
@@ -233,7 +279,13 @@ export default function App() {
 
   // 창·자물쇠·자판기 컷신 동안은 이동·조준을 멈춘다. 컷신이 카메라를 모는데 입력까지 들어오면 화면이 떤다.
   const isCutscenePlaying = useIsCutscenePlaying();
-  const active = (isPointerLocked || IS_INPUT_ALWAYS_ON) && !openLayer && !lockControl && !isCutscenePlaying;
+  // 자물쇠 · 창을 ESC 로 닫고 게임으로 돌아가는 중(크롬이 잠시 잠금을 거절하는 동안)도 조작 중이다 — 화면은 이미 게임이고
+  // 키로 걷는다. 마우스 시점만 잠긴 뒤부터(pointerResume, 12회차)
+  const resumeState = usePointerResumeState();
+  const isResuming = resumeState !== "idle";
+  useEffect(() => bindPointerResume(() => controlsRef.current), []);
+  const active =
+    (isPointerLocked || isResuming || IS_INPUT_ALWAYS_ON) && !openLayer && !lockControl && !isCutscenePlaying;
   // 역 씬에는 값 대신 읽는 함수를 넘긴다 — 켜고 끌 때마다 역 전체가 다시 그려지지 않게(StationScene 은 memo, 10회차).
   // 이동은 useFrame 에서만 이 값을 본다. 겨냥(AimTracker) · HUD 는 그대로 값으로 받는다.
   const isStationActive = active && !isTrain;
@@ -242,6 +294,38 @@ export default function App() {
     stationActiveRef.current = isStationActive;
   }, [isStationActive]);
   const readStationActive = useCallback(() => stationActiveRef.current, []);
+  // 게임 밖(잠금 풀림)이면 [T] 안내 — ESC 두 번 · 다시 잠그기 거절 뒤(12회차). 창 · 자물쇠 · 연출 · 입력칸 · 긴급 호출 카드 · 장면 전환
+  // · 나주 진입 중에는 그쪽이 화면을 쓰고 잠금이 일부러 풀려 있으니 띄우지 않는다. 터치는 가상 잠금이라 해당 없음
+  const isTyping = useIsTypingFocused();
+  const isDispatchAlert = useDispatchState().phase === "alert";
+  const canShowReturnPrompt =
+    !isTouch &&
+    !IS_INPUT_ALWAYS_ON &&
+    hasLockedOnce &&
+    !isPointerLocked &&
+    !openLayer &&
+    !lockControl &&
+    !isCutscenePlaying &&
+    !isTyping &&
+    !isDispatchAlert &&
+    !isEnteringNaju &&
+    fade === 0;
+  // 밖이면 「[T] 로 돌아간다」, 돌아가려는데 브라우저가 저절로는 못 잠그면 「클릭하거나 아무 키나」. 잠시 기다리는 동안(pending)은 아무것도
+  const returnPromptMode = !canShowReturnPrompt
+    ? null
+    : resumeState === "idle"
+      ? "out"
+      : resumeState === "waiting"
+        ? "waiting"
+        : null;
+  // 커서 숨기기 — 게임으로 돌아가는 중 · 자물쇠를 만지는 동안(페이지가 잠금을 풀어 두었다). 추가 힌트 묻기 · 창이 뜨면 보인다
+  const isOffering = useHintOffering();
+  const isCursorHidden =
+    !isTouch && !isPointerLocked && !openLayer && (isResuming || (lockControl?.phase === "active" && !isOffering));
+  useEffect(() => {
+    document.documentElement.classList.toggle("game-cursor-hidden", isCursorHidden);
+    return () => document.documentElement.classList.remove("game-cursor-hidden");
+  }, [isCursorHidden]);
   // 3인칭인 채로 비밀 복도(튜토 공간)에 있으면 1인칭으로 돌린다 — 본부실에서 복도로 걸어 들어온 때도. 기차 · 컷신 중엔 건드리지 않는다
   useEffect(() => {
     if (isTrain || !isThirdPerson || isCutscenePlaying) return;
@@ -317,14 +401,17 @@ export default function App() {
           // 자물쇠·컷신 동안은 잠금을 유지한 채 고개만 멈춘다. 커서가 튀어나오지 않는다.
           pointerSpeed={lockControl || isCutscenePlaying ? 0 : settings.sensitivity}
           selector="#__never__"
-          onLock={() => setIsPointerLocked(true)}
+          onLock={() => {
+            setIsPointerLocked(true);
+            setHasLockedOnce(true);
+          }}
           onUnlock={() => setIsPointerLocked(false)}
         />
       </Canvas>
 
       <FadeCurtain opacity={fade} />
       <NajuEntryTransition />
-      {(isPointerLocked || IS_INPUT_ALWAYS_ON) && !openLayer && <Crosshair />}
+      {(isPointerLocked || isResuming || IS_INPUT_ALWAYS_ON) && !openLayer && <Crosshair />}
       {/* 터치 모드에서는 조작 화면(TouchHud)의 단추가 대신한다 */}
       {!isTouch && (
         <TopBarButton right={112} onClick={toggleSettings} ariaLabel="설정 열기">
@@ -341,7 +428,9 @@ export default function App() {
       {active && <ActionHint near={near} />}
       <Toast raised={lockControl !== null} />
       <LockDialPanel covered={openLayer !== null} />
-      <ValveHelpWatcher covered={openLayer !== null} />
+      <HintOfferCard covered={openLayer !== null} roamVisible={isStationActive} />
+      <ValveHelpWatcher covered={openLayer !== null} roamActive={isStationActive} />
+      {returnPromptMode && <ReturnPrompt mode={returnPromptMode} />}
       {/* 화면층이 지금 열린 창을 하나로 정하므로 두 창이 겹칠 수 없다 */}
       <InventoryPanel open={openLayer === OVERLAY_LAYERS.inventory} onClose={closeWindow} />
       <HintPanel open={openLayer === OVERLAY_LAYERS.hint} onClose={closeWindow} />
