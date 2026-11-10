@@ -17,6 +17,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import { requestShadowUpdates } from "@/engine/shadowUpdates";
+import { isTouchMode } from "@/engine/input/touchMode";
 import { isPointerActive } from "@/engine/input/virtualLock";
 
 import { companionDialog } from "../../companion/companionRuntime";
@@ -39,6 +40,7 @@ import {
   ABISA_NAME,
   BACKSTORY_LINES,
   COMPANION_TIP,
+  COMPANION_TIP_TOUCH,
   DRIVE_LABEL,
   DRIVE_NOTICE,
   ECHO_LINE,
@@ -277,7 +279,7 @@ function nextLine(brain: Brain) {
   // 말 걸기가 실제로 켜져 있을 때만(모형은 있어도 대화 세션이 없을 수 있다 — Codex 06회차)
   if (talk.kind === "request" && companionDialog.getState().isEnabled && !brain.state.isTipShown) {
     brain.state.isTipShown = true;
-    showNotice(COMPANION_TIP, 5);
+    showNotice(isTouchMode() ? COMPANION_TIP_TOUCH : COMPANION_TIP, 5);
   }
 }
 

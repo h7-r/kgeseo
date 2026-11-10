@@ -36,8 +36,7 @@ import { recall, remember } from "../../save/puzzleMemory";
 import { cameraFocusId, endCameraFocus, focusCamera, isCameraFocusTurned } from "../cameraFocus";
 import { REQUEST_LINES } from "./abisaLines";
 import { firstScenePoints } from "./firstScenePoints";
-import { claimTalk, isTalkTaken, releaseTalk } from "./npcSpeech";
-import { NPC_SPEECH_TOP_VAR } from "./NpcSpeechHud";
+import { NPC_SPEECH_TOP_VAR, claimTalk, isTalkTaken, releaseTalk } from "./npcSpeech";
 import { StoryTalk, isTalkPaused, type StoryLine } from "./storyTalk";
 
 const SAVE_KEY = "companion.introHeard";

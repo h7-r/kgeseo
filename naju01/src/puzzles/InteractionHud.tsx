@@ -18,12 +18,14 @@ export default function InteractionHud() {
   const notice = useNotice();
   // 터치 모드면 키 표기를 화면 단추 그림으로(✋ · 💡 · 🎒)
   const labels = useKeyLabels();
+  // 대화창(dialogue/DialogueLayer)이 떠 있나 — 그동안 알림은 줄을 섰다가 창이 내려가면 뜬다(PC · 휴대폰 같게)
   const isSpeechShown = useSpeechBoxShown();
   // 종이를 읽는 동안 E 는 종이를 내려놓는다 — 겨눈 물건 안내는 틀린 말이 되므로 내린다(박람회 출품판 22c Codex)
   const isPaperOpen = usePaperOpen();
   const noticeRef = useRef<HTMLDivElement>(null);
-  // 대사가 뜨는 그 순간 알림을 내린다 — 알림 줄(interaction.ts)은 0.1초마다 보므로 그 틈에도 겹치지 않게. 대사 중 알림은 줄을 섰다가 뒤에 뜬다
-  const isNoticeShown = !!notice && !isSpeechShown;
+  // 대화창이 뜨는 그 순간 알림을 내린다 — 알림 줄(interaction.ts)은 0.1초마다 보므로 그 틈에도 겹치지 않게. 대화 중 알림은 줄을 섰다가 뒤에 뜬다.
+  // 멈춤 상태 안내(「클릭하면 계속」 · always)만은 대화창이 떠 있어도 보인다 — PC ESC 중에도 동행 말은 창에 남는다
+  const isNoticeShown = !!notice && (!isSpeechShown || notice.always);
   // PC 만 — 커진 알림을 겨냥 안내가 피한다(휴대폰 배치는 11/8 해랑 검토로 따로 맞춰 두었다)
   useNoticeTop(noticeRef, isNoticeShown && !labels.isTouch ? (notice?.key ?? null) : null);
   const target = aimedTarget();
@@ -58,8 +60,8 @@ export default function InteractionHud() {
 }
 
 /**
- * 알림 아랫변 — 아래 빠른 칸 위(110px). 인물 대사 상자가 떠 있으면 그 위로, PC 에서 줄 당기기 게이지가 떠 있으면 그 위로 12px 비켜 선다.
- * 대사 상자 · 게이지는 제 윗변 높이를 --npc-speech-top · --naju-gauge-top 으로 알린다.
+ * 알림 아랫변 — 아래 빠른 칸 위(110px). 대화창이 떠 있으면 그 위로, PC 에서 줄 당기기 게이지가 떠 있으면 그 위로 12px 비켜 선다.
+ * 대화창 · 게이지는 제 윗변 높이를 --npc-speech-top · --naju-gauge-top 으로 알린다.
  */
 const NOTICE_BOTTOM = "max(110px, calc(var(--npc-speech-top, 0px) + 12px), calc(var(--naju-gauge-top, 0px) + 12px))";
 
@@ -140,7 +142,7 @@ const keyStyle: CSSProperties = {
 const noticeStyle: CSSProperties = {
   position: "absolute",
   left: "50%",
-  // 아래 빠른 칸(소지품 한 줄) 위 — 인물 대사 상자가 떠 있으면 그 위로 비켜 선다(NpcSpeechHud 가 윗변 높이를 알린다)
+  // 아래 빠른 칸(소지품 한 줄) 위 — 대화창이 떠 있으면 그 위로 비켜 선다(DialogueLayer 가 윗변 높이를 알린다)
   bottom: NOTICE_BOTTOM,
   transform: "translateX(-50%)",
   zIndex: 25,

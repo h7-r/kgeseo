@@ -15,6 +15,7 @@
 import type { PointerLockControls } from "three-stdlib";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { createChangeSignal } from "@/lib/changeSignal";
 import { isTouchMode } from "@/engine/input/touchMode";
 import { isPointerActive } from "@/engine/input/virtualLock";
 
@@ -45,6 +46,9 @@ const NON_RESUME_KEYS = new Set([
 ]);
 
 const holds = new Map<string, HoldKind>();
+/** 붙듦이 늘거나 줄었다 — 동행 대화창이 「다른 창이 떴다」를 바로 알게(dialogue/DialogueLayer) */
+const holdSignal = createChangeSignal();
+export const subscribePointerHolds = holdSignal.subscribe;
 let getControls: () => PointerLockControls | null = () => null;
 /** 처음 붙들 때 조작 중이었나 — 다 놓이면 이것을 보고 다시 잠근다 */
 let resumeAfter = false;
@@ -70,6 +74,10 @@ const isRealLockActive = () => typeof document !== "undefined" && !!document.poi
 
 /** 창(소지품 · 설정 · 힌트함 · 동행 입력)이 떠 있다 — ESC 는 창이 먼저 받는다 */
 export const isWindowHeld = () => hasKind("window") || isCompanionChatOpen();
+
+/** id 말고 다른 창이 떠 있다 — 동행 대화창의 보기(제 붙듦)는 빼고 본다(제 보기 때문에 제 말을 멈추지 않게, Codex 01회차) */
+export const isOtherWindowHeld = (id: string) =>
+  [...holds.entries()].some(([key, kind]) => kind === "window" && key !== id) || isCompanionChatOpen();
 
 /** 상호작용 때문에 페이지가 잠금을 풀어 둔 상태다(위에 창 없음) — 「잠금이 풀리면 그만둔다」는 이때 무시한다 */
 export const isInteractionHeld = () => hasKind("interaction") && !isWindowHeld();
@@ -123,6 +131,7 @@ export function beginHold(id: string, kind: HoldKind) {
   window.clearTimeout(resumeTimer);
   resumeTimer = 0;
   holds.set(id, kind);
+  holdSignal.notify();
   if (kind === "window") stopWaiting();
   if (kind === "window" ? isPointerActive() : !isTouchMode() && isRealLockActive()) releaseLock();
   syncCursor();
@@ -131,6 +140,7 @@ export function beginHold(id: string, kind: HoldKind) {
 /** 놓는다 — 다 놓였고 처음에 조작 중이었으면 한 박자 뒤에 다시 잠근다 */
 export function endHold(id: string) {
   if (!holds.delete(id)) return;
+  holdSignal.notify();
   syncCursor();
   if (holds.size > 0) return;
   window.clearTimeout(resumeTimer);

@@ -11,8 +11,7 @@ import { isPointerActive } from "@/engine/input/virtualLock";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import { isCameraFocused } from "../scene/cameraFocus";
-import { isNpcSpeaking, isTalkTaken } from "../scene/firstScene/npcSpeech";
-import { companionDialog } from "../companion/companionRuntime";
+import { isNpcSpeaking, isSpeechBoxShown, isTalkTaken } from "../scene/firstScene/npcSpeech";
 import { isLetterOpenNow } from "./cliff/letters";
 import { isPaperOpenNow } from "./ridge/oldPaper";
 
@@ -234,7 +233,8 @@ interface NoticeItem extends NoticeOptions {
   /** 지금까지 보인 시간(초) — 밀렸다 다시 떠도 쌓는다 */
   shown: number;
 }
-let notice: { text: string; key: number } | null = null;
+/** 떠 있는 알림 — always 는 대화창이 떠 있어도 보인다(멈춤 상태 안내) */
+let notice: { text: string; key: number; always: boolean } | null = null;
 let noticeKey = 0;
 const noticeSignal = createChangeSignal();
 /** 떠 있는 알림과 남은 시간(초) */
@@ -252,15 +252,15 @@ const noticeStem = (text: string) => text.replace(/\s*\((?:지금\s*)?\d+\s*\/\s
 const readSeconds = (item: NoticeItem) => Math.min(item.seconds, Math.max(2, 1.2 + item.text.length * 0.045));
 
 /**
- * 이야기가 화면에 있다 — 펼친 종이 · 주머니 편지, 그리고 조작 중일 때는 인물 대사 · 말할 차례를 잡은 사람(첫 줄 전 틈도) · 동행이 하는 말.
- * 조작이 풀린 동안(ESC · 창)은 대사 · 동행 말을 이야기로 치지 않는다 — 인물 대사는 멈춰 내려가고, 그때 뜨는 「클릭하면 계속」이
- * 동행 말에 밀려 못 뜬 채 만료됐다(Codex 리뷰). 동행 대화창이 한 벌로 합쳐지면(#72 · dialogue/) 그 창이 떠 있는지로 바꾼다
+ * 이야기가 화면에 있다 — 펼친 종이 · 주머니 편지 · 대화창(장면 인물 말이든 동행 말이든 · 고르는 물음 포함, DialogueLayer 가 알린다) ·
+ * 인물 대사 · 말할 차례를 잡은 사람(첫 줄 전 틈 — 조작 중일 때만: ESC · 창으로 잠금이 풀리면 대사는 멈춰 내려가는데 차례는 쥔 채다).
+ * 「클릭하면 계속」 같은 멈춤 상태 안내는 always 로 이야기 위에도 뜬다
  */
 export const isStoryOnScreen = () =>
   isPaperOpenNow() ||
   isLetterOpenNow() ||
+  isSpeechBoxShown() ||
   isNpcSpeaking() ||
-  companionDialog.getState().line !== null ||
   (isTalkTaken() && isPointerActive());
 
 const isStillValid = (item: NoticeItem) =>
@@ -269,7 +269,7 @@ const isStillValid = (item: NoticeItem) =>
 function displayNotice(item: NoticeItem) {
   showing = { item, left: item.seconds };
   noticeKey += 1;
-  notice = { text: item.text, key: noticeKey };
+  notice = { text: item.text, key: noticeKey, always: item.always === true };
   noticeSignal.notify();
 }
 
@@ -320,8 +320,8 @@ function tickNotice() {
   }
   freeSeconds += dt;
   if (showing) {
-    // 급한 것이 줄 맨 앞에 오면 떠 있던 기본 알림을 밀어낸다
-    if (noticeLine[0]?.urgent && !showing.item.urgent) pushBackShowing();
+    // 급한 것이 줄 맨 앞에 오면 떠 있던 기본 알림을 밀어낸다(멈춤 상태 안내 always 는 밀지 않는다)
+    if (noticeLine[0]?.urgent && !showing.item.urgent && !showing.item.always) pushBackShowing();
     else {
       showing.left -= dt;
       const shownFor = showing.item.shown + showing.item.seconds - showing.left;
@@ -351,7 +351,21 @@ export function clearNotice(text: string) {
   if (showing?.item.text === text) hideNotice();
 }
 
+/** 게임이 알림을 쏜 순간을 듣는 곳 — 줄 · 밀림 · 버림과 상관없이 쏠 때마다 한 번 */
+const noticePostListeners = new Set<(text: string) => void>();
+/**
+ * 게임이 알림을 쏜 순간(화면에 뜬 때가 아니다) — 대화창의 상황 판정(틀림 · 풀림 · 되돌려짐 신호)이 듣는다.
+ * 알림이 대화 중엔 줄을 서고 · 밀렸다 다시 뜨고 · 버려지기도 해서, 화면에 뜬 알림으로 세면 늦거나 두 번 세거나 빠졌다
+ */
+export function subscribeNoticePosted(listener: (text: string) => void) {
+  noticePostListeners.add(listener);
+  return () => {
+    noticePostListeners.delete(listener);
+  };
+}
+
 export function showNotice(text: string, seconds = 3.2, options: NoticeOptions = {}) {
+  for (const listener of noticePostListeners) listener(text);
   const item: NoticeItem = {
     ...options,
     text,
@@ -382,7 +396,7 @@ export function showNotice(text: string, seconds = 3.2, options: NoticeOptions =
   }
   if (item.urgent) {
     // 떠 있는 것도 급한 것이면 그 뒤에 선다(앞 안내가 잘리지 않게). 바로 못 뜨면 버리는 것은 버린다
-    if (showing?.item.urgent || noticeLine[0]?.urgent) {
+    if (showing?.item.urgent || showing?.item.always || noticeLine[0]?.urgent) {
       if (!item.fleeting) lineUp(item);
       return;
     }

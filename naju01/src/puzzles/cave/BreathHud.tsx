@@ -7,6 +7,7 @@ import { useMemo, type CSSProperties } from "react";
 import { TOUCH_HUD, topRowWidth, useTouchMode } from "@/engine/input";
 import { createRandom } from "@/engine/random";
 
+import { TOP_BUTTON_COUNT } from "../../dialogue/talkButton";
 import { BREATH_SECONDS, useBreath } from "./caveState";
 
 const LOW_SECONDS = 15;
@@ -121,7 +122,7 @@ const FONT = '"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif';
 
 const GAP_LEFT = "calc(env(safe-area-inset-left, 0px) + 20px + min(300px, 40vw))";
 // 위 단추 줄(🎒 💡 ⚙ Ⅱ, engine/input/TouchHud) 왼쪽 끝에서 8px 더 띈다
-const GAP_RIGHT = `calc(100vw - env(safe-area-inset-right, 0px) - ${TOUCH_HUD.edge + topRowWidth(4) + 8}px)`;
+const GAP_RIGHT = `calc(100vw - env(safe-area-inset-right, 0px) - ${TOUCH_HUD.edge + topRowWidth(TOP_BUTTON_COUNT) + 8}px)`;
 const touchWrapStyle: CSSProperties = {
   left: `calc((${GAP_LEFT} + ${GAP_RIGHT}) / 2)`,
   bottom: "auto",

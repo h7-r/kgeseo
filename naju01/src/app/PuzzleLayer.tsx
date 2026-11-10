@@ -2,6 +2,7 @@
  * 퍼즐 세 스테이지와 그 HUD 를 한 자리에 모은다. 씬(NajuScene)의 무리를 읽어 바꿔 끼우는 것들이라 씬 뒤에 붙인다.
  * 순서가 곧 붙는 순서다 — 뒤 스테이지가 앞 스테이지의 상태를 구독하므로 바꾸지 않는다.
  */
+import DialogueLayer from "../dialogue/DialogueLayer";
 import Hotbar from "../puzzles/Hotbar";
 import InteractionHud from "../puzzles/InteractionHud";
 import InteractionLoop from "../puzzles/InteractionLoop";
@@ -46,7 +47,6 @@ import WindCurtain from "../puzzles/ridge/WindCurtain";
 import FloatingStones from "../puzzles/ritual/FloatingStones";
 import RitualCircle from "../puzzles/ritual/RitualCircle";
 import StormRain from "../puzzles/ritual/StormRain";
-import NpcSpeechHud from "../scene/firstScene/NpcSpeechHud";
 
 /** Canvas 안 — 퍼즐 장치 · 소지품 물건 · 겨냥 */
 export function PuzzleWorld() {
@@ -97,7 +97,7 @@ export function PuzzleWorld() {
   );
 }
 
-/** Canvas 밖 DOM — 겨냥 안내 · 빠른 칸 · 게이지 · 숨 · 안내판 · 종이 읽기 · 힌트함 · 틈 건너기 */
+/** Canvas 밖 DOM — 겨냥 안내 · 빠른 칸 · 게이지 · 숨 · 안내판 · 종이 읽기 · 대화창(동행 · 장면 인물 말 한 벌) · 힌트함 · 틈 건너기 */
 export function PuzzleHud() {
   return (
     <>
@@ -107,7 +107,7 @@ export function PuzzleHud() {
       <BreathHud />
       <PuzzlePanelHud />
       <PaperReadHud />
-      <NpcSpeechHud />
+      <DialogueLayer />
       <HintBoxHud />
       <RiftEntryHud />
       <LetterReadHud />

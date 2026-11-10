@@ -68,4 +68,6 @@ export const DRIVE_NOTICE = "발을 구르며 다가서자 구렁이가 움찔 �
 export const WATCHING_NOTICE = "여인은 구렁이에게서 눈을 떼지 않는다. 먼저 구렁이를 떼어 놓아야겠다.";
 
 /** 의뢰를 다 들으면 한 번 — 동행 입력 안내(동행이 켜져 있을 때만) */
-export const COMPANION_TIP = "막히면 동행에게 물어볼 수 있어요 — [Enter] 동행에게 입력";
+/** 말 거는 키는 F 하나(계약 v0.4.16 §10-2) — 자유 입력([Enter])은 11/13 베타에서 껐다(§10-1, #70). 터치는 위 단추 줄 💬 */
+export const COMPANION_TIP = "막히면 [F] 로 동행을 불러 물어볼 수 있어요";
+export const COMPANION_TIP_TOUCH = "막히면 위의 💬 로 동행을 불러 물어볼 수 있어요";

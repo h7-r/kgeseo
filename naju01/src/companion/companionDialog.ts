@@ -20,6 +20,7 @@ import {
   type FallbackReason,
   type HintBody,
   type HintResponse,
+  type NpcSituation,
   type NpcTurnBody,
   type NpcTurnResponse,
 } from "./companionApi.ts";
@@ -197,7 +198,14 @@ export function createCompanionDialog(options: {
 
   // ── NPC 턴 ──
 
-  async function sendTurn(body: Omit<NpcTurnBody, "client_event_id" | "client_timestamp">) {
+  /**
+   * quiet — 플레이어가 하지 않은 뒤쪽 요청(퍼즐 자동 개입 폴링)이라 실패해도 안내를 띄우지 않는다(로그 · 세션 처리는 그대로).
+   * 1분마다 도는 요청이 「연결이 불안정해요 · 한 번 더 말을 걸어 주세요」를 되풀이하지 않게.
+   */
+  async function sendTurn(
+    body: Omit<NpcTurnBody, "client_event_id" | "client_timestamp">,
+    { quiet = false }: { quiet?: boolean } = {},
+  ) {
     const ready = readySession();
     if (!ready || state.waiting) return false;
     const request: NpcTurnBody = { client_event_id: newEventId(), client_timestamp: clientTimestamp(), ...body };
@@ -212,18 +220,18 @@ export function createCompanionDialog(options: {
       const common = handleCommonError(error, "npc");
       if (common) {
         patch({ waiting: null });
-        if (common.text) show({ kind: "notice", text: common.text });
+        if (common.text && !quiet) show({ kind: "notice", text: common.text });
       } else if (error instanceof CompanionApiError && error.status === 500) {
         // NPC 콘텐츠 검증 실패 등 — 비활성 + 보고(한 번)
         if (!reportedContentError) log("error", "NPC 500 — 동행 NPC 를 끈다", error);
         reportedContentError = true;
         session.disable("case-content-unavailable");
         patch({ waiting: null });
-        show({ kind: "notice", text: DIALOG_TEXT.unavailable });
+        if (!quiet) show({ kind: "notice", text: DIALOG_TEXT.unavailable });
       } else {
         log("error", "NPC 턴 실패", error);
         patch({ waiting: null });
-        show({ kind: "notice", text: DIALOG_TEXT.failed });
+        if (!quiet) show({ kind: "notice", text: DIALOG_TEXT.failed });
       }
     } finally {
       if (pendingId === request.client_event_id) pendingId = null;
@@ -320,20 +328,42 @@ export function createCompanionDialog(options: {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    /** E 로 말 걸기 · 채팅 전송 — player_message */
+    /** 채팅 전송 — player_message. E 로 말 걸기는 뺐고(계약 v0.4.16 §10-2) 자유 입력은 베타에서 숨긴다(§10-1, CompanionHud) */
     talk(message: string = TALK_OPENER) {
       const text = message.trim().slice(0, MAX_MESSAGE_LENGTH);
       if (!text) return Promise.resolve(false);
       return sendTurn({ trigger: "player_message", message: text });
     },
-    /** 끼어들어도 되는 순간(구역 진입 등)에 한 번. 주기 호출하지 않는다 */
-    autoTurn() {
-      if (now() - lastAutoAt < timing.autoMinIntervalMs) return Promise.resolve(false);
+    /**
+     * 끼어들어도 되는 순간에 한 번. 부르는 곳은 dialogue/companionBridge 하나다(createAutoTurnPlanner 가 언제 보낼지 정한다).
+     *   구역 진입      situation · focusObjectId 없이 — 여기 간격(autoMinIntervalMs)으로 한 번 더 막는다
+     *   상황(§1)       situation(+ 걸음이면 그 대표 Object) — 횟수 · 쿨다운은 BE 가 센다, 여기 간격으로 막지 않는다
+     *   퍼즐 폴링      focusObjectId(서버 퍼즐 대표 Object)만 — v0.4.7 퍼즐 자동 개입(오답 · 무입력)을 BE 가 판단하게.
+     *                  1분 간격은 플래너가 지키고, 뒤쪽 요청이라 실패해도 조용하다(quiet)
+     */
+    autoTurn(situation?: NpcSituation, focusObjectId?: string, options: { quiet?: boolean } = {}) {
+      if (!situation && !focusObjectId && now() - lastAutoAt < timing.autoMinIntervalMs) return Promise.resolve(false);
       if (!readySession() || state.waiting) return Promise.resolve(false);
-      lastAutoAt = now();
-      return sendTurn({ trigger: "auto" });
+      if (!situation && !focusObjectId) {
+        lastAutoAt = now();
+        return sendTurn({ trigger: "auto" });
+      }
+      const body: Omit<NpcTurnBody, "client_event_id" | "client_timestamp"> = { trigger: "auto" };
+      if (situation) body.situation = situation;
+      if (focusObjectId) body.focus_object_id = focusObjectId;
+      return sendTurn(body, options);
     },
     acceptOffer,
+    /**
+     * [F] 보기 「힌트를 주세요」(계약 §10-2: 말 거는 키는 F 하나) — 서버 퍼즐 ID 로 다음 단계를 연다.
+     * 1 → 2, 이미 2 면 다시 보기(already_unlocked · 차감 없음). 결과 · 오류 문구는 acceptOffer 와 같은 길로 line 에 뜬다.
+     */
+    requestPuzzleHint(puzzleId: string) {
+      if (!readySession() || state.waiting) return Promise.resolve(false);
+      const level = Math.min(2, (state.hintLevels[puzzleId] ?? 0) + 1) as 1 | 2;
+      patch({ offer: { via: "puzzle", puzzleId, level } });
+      return acceptOffer();
+    },
     /** 지금 자막을 접는다 */
     dismissLine() {
       show(null);

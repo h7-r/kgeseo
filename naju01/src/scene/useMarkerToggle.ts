@@ -15,14 +15,23 @@ import { useEffect, useState } from "react";
 
 import { readStorage, writeStorage } from "@/engine/storage";
 
+import { IS_REVIEW_RUN, SHOW_DEV_TOOLS } from "../app/runtimeFlags";
+
 const STORAGE_KEY = "왜곡.표식.v2";
 const OFF = "끔";
 const ON = "켬";
 
-/** N 키로 뒤집히는 「표식 보이기」. 입력칸에 글을 쓰는 중이거나 Ctrl/⌘ 조합이면 건드리지 않는다. */
+/**
+ * 표식은 맵을 만드는 사람의 도구다 — 플레이 화면에서는 켜지지 않고 N 도 듣지 않는다(#52).
+ * 동행 대화창이 N 을 「아니요」로 쓰기 때문에, 물음이 없을 때 누른 N 이 보라색 조사점 기둥을 켜 버렸다(11/6).
+ */
+const CAN_TOGGLE = SHOW_DEV_TOOLS || IS_REVIEW_RUN;
+
+/** N 키로 뒤집히는 「표식 보이기」(?dev · 검수 실행에서만). 입력칸에 글을 쓰는 중이거나 Ctrl/⌘ 조합이면 건드리지 않는다. */
 export function useMarkerToggle(): boolean {
-  const [showMarkers, setShowMarkers] = useState(() => readStorage(STORAGE_KEY) === ON);
+  const [showMarkers, setShowMarkers] = useState(() => CAN_TOGGLE && readStorage(STORAGE_KEY) === ON);
   useEffect(() => {
+    if (!CAN_TOGGLE) return undefined;
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== "KeyN" || e.repeat || e.ctrlKey || e.metaKey) return;
       if (/INPUT|TEXTAREA|SELECT/.test((e.target as HTMLElement | null)?.tagName ?? "")) return;
