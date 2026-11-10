@@ -72,4 +72,6 @@ const TEAM_ITEMS: CatalogItem[] = (Object.keys(TEAM_ITEM_INFO) as TeamLookItemId
 export const TEAM_CATALOG: CharacterCatalog = {
   ...DEFAULT_CATALOG,
   items: [...DEFAULT_CATALOG.items, ...TEAM_ITEMS],
+  // 플레이어 캐릭터 생성의 시작 모습(start-look.html)은 따르지 않는다 — 새 팀 캐릭터 · 초기화는 코드 기본값(11/10 Codex 01)
+  startLooks: null,
 };

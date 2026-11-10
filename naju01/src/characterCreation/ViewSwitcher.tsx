@@ -33,6 +33,7 @@ const optionButtonStyle: CSSProperties = {
   color: COLORS.textMuted,
   font: `600 13px/1 ${FONTS.body}`,
   cursor: "pointer",
+  whiteSpace: "nowrap",
   transition: `background ${MOTION.fast}, color ${MOTION.fast}`,
 };
 const optionHighlightStyle: CSSProperties = {
@@ -50,13 +51,17 @@ const optionHighlightStyle: CSSProperties = {
 interface ViewSwitcherProps {
   selected: PreviewView;
   onSelect: (view: PreviewView) => void;
+  /** 시점 초기화(돌린 각 · 확대 · 옮김) — 고른 보기를 다시 눌러도 같다 */
+  onReset: () => void;
+  /** 줄 끝에 초기화 단추를 붙인다 — 휴대폰 가로는 무대가 좁아 줄이 넘쳐 무대 구석에 따로 둔다(ViewResetButton) */
+  showReset?: boolean;
 }
 
 /**
  * 보기 전환(전신 · 머리 · 손 · 발) — 고른 칸의 반투명 상자가 누른 단추로 미끄러져 간다.
  * 상자 하나가 움직여야 어디서 어디로 옮겼는지 눈이 따라간다. 자리는 단추의 실제 크기를 재서 맞춘다.
  */
-export default function ViewSwitcher({ selected, onSelect }: ViewSwitcherProps) {
+export default function ViewSwitcher({ selected, onSelect, onReset, showReset = true }: ViewSwitcherProps) {
   // 휴대폰 가로 — 단추 높이 · 폭 44 이상(예전 29px)
   const isCompact = useIsTouchSized(); // 손가락 기기(휴대폰 · 태블릿)
   const buttonRefs = useRef<Partial<Record<PreviewView, HTMLButtonElement | null>>>({});
@@ -96,7 +101,7 @@ export default function ViewSwitcher({ selected, onSelect }: ViewSwitcherProps) 
             type="button"
             className="view-switcher__option"
             aria-pressed={isSelected}
-            onClick={() => onSelect(view)}
+            onClick={() => (isSelected ? onReset() : onSelect(view))}
             style={{
               ...optionButtonStyle,
               ...(isCompact ? { minHeight: 44, minWidth: 44, padding: "0 10px", fontSize: 14 } : null),
@@ -107,6 +112,83 @@ export default function ViewSwitcher({ selected, onSelect }: ViewSwitcherProps) 
           </button>
         );
       })}
+      {showReset ? (
+        <>
+          <span aria-hidden="true" style={dividerStyle} />
+          <button
+            type="button"
+            className="view-switcher__option"
+            aria-label={RESET_LABEL}
+            title={RESET_TITLE}
+            onClick={onReset}
+            style={{
+              ...optionButtonStyle,
+              ...(isCompact
+                ? { minHeight: 44, minWidth: 44, padding: "0 10px", fontSize: 14 }
+                : { padding: "8px 11px" }),
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <ResetIcon />
+          </button>
+        </>
+      ) : null}
     </div>
+  );
+}
+
+const RESET_LABEL = "시점 초기화";
+const RESET_TITLE = "시점 초기화 — 돌린 각 · 확대 · 옮긴 자리를 처음으로";
+
+/** 휴대폰 가로 — 보기 단추 줄 대신 무대 구석에 두는 시점 초기화(44 × 44) */
+export function ViewResetButton({ onReset, style }: { onReset: () => void; style?: CSSProperties }) {
+  return (
+    <button
+      type="button"
+      className="view-switcher__option"
+      aria-label={RESET_LABEL}
+      title={RESET_TITLE}
+      onClick={onReset}
+      style={{
+        ...switcherFrameStyle,
+        padding: 0,
+        width: 44,
+        height: 44,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: COLORS.textMuted,
+        cursor: "pointer",
+        pointerEvents: "auto",
+        ...style,
+      }}
+    >
+      <ResetIcon />
+    </button>
+  );
+}
+
+const dividerStyle: CSSProperties = {
+  alignSelf: "stretch",
+  width: 1,
+  margin: "4px 2px",
+  background: "rgba(255,255,255,0.16)",
+};
+
+/** 뷰파인더(네 귀 + 가운데 점) — 「외형 초기화」의 되돌리기 화살표와 헷갈리지 않게 다른 모양으로 */
+function ResetIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path
+        d="M2 5.5V2h3.5M10.5 2H14v3.5M14 10.5V14h-3.5M5.5 14H2v-3.5"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="8" cy="8" r="1.6" fill="currentColor" />
+    </svg>
   );
 }

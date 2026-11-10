@@ -39,6 +39,7 @@ import {
   COLORS,
   FONTS,
   HEARTBEAT_LINE_CSS,
+  stageHintStyle,
   SCREEN_CSS,
   SCREEN_HOVER_CSS,
   SPACING,
@@ -52,7 +53,7 @@ import {
 } from "./styles";
 import { useLookHistory } from "./useLookHistory";
 import { useNameCheck } from "./useNameCheck";
-import ViewSwitcher from "./ViewSwitcher";
+import ViewSwitcher, { ViewResetButton } from "./ViewSwitcher";
 
 interface CharacterCreationScreenProps {
   /** 이어 만들 초안(믿지 않고 보정한다) */
@@ -119,6 +120,7 @@ export default function CharacterCreationScreen({
   const handleControlsReady = useCallback((controls: PreviewControls) => {
     cameraControls.current = controls;
   }, []);
+  const resetCamera = useCallback(() => cameraControls.current?.reset(), []);
 
   // 노치 · 홈 막대 — 휴대폰 가로 배치는 이 안쪽에만 단추를 놓는다
   const safeInsets = useSafeInsets();
@@ -278,19 +280,43 @@ export default function CharacterCreationScreen({
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
             <ScreenHeader layout={layout} onCancel={onCancel} />
 
+            {/* 이름 단계는 상반신 고정이라 보기 단추가 듣지 않는다 — 감춘다(Codex 05). 돌리기는 그대로 된다 */}
+            {phase !== "name" ? (
+              <div
+                style={{
+                  position: "absolute",
+                  left: stageRect.x,
+                  width: stageRect.w,
+                  top: stageRect.y + stageRect.h - viewBar,
+                  height: viewBar,
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <ViewSwitcher selected={previewView} onSelect={setView} onReset={resetCamera} showReset={!isCompact} />
+              </div>
+            ) : null}
+            {isCompact ? (
+              <ViewResetButton
+                onReset={resetCamera}
+                style={{ position: "absolute", left: stageRect.x + 8, top: stageRect.y + 8 }}
+              />
+            ) : null}
+            {/* 무대 조작 안내 — 오른쪽 위 구석(발밑 · 머리 위를 가리지 않게). 확대해야 위아래로 옮길 수 있다는 것까지 */}
             <div
+              aria-hidden="true"
               style={{
-                position: "absolute",
-                left: stageRect.x,
-                width: stageRect.w,
-                top: stageRect.y + stageRect.h - viewBar,
-                height: viewBar,
-                display: "flex",
-                justifyContent: "center",
-                alignItems: "center",
+                ...stageHintStyle,
+                right: Math.max(8, screenSize.width - stageRect.x - stageRect.w) + (isCompact ? 10 : 24),
+                top: stageRect.y + (isCompact ? 8 : 24),
+                // 휴대폰 가로는 왼쪽 위 구석에 시점 초기화(44)가 있다 — 그만큼 비운다
+                maxWidth: isCompact ? Math.max(120, stageRect.w - 72) : Math.max(160, stageRect.w * 0.42),
               }}
             >
-              <ViewSwitcher selected={previewView} onSelect={setView} />
+              <span>좌우로 끌어 돌리기</span>
+              <span>{isTouchSized ? "두 손가락으로 확대" : "휠로 확대"}</span>
+              <span>{isCompact ? "확대 후 위아래로 이동" : "확대하면 위아래로 끌어 이동"}</span>
             </div>
             {/* 휴대폰 가로는 미리보기가 작아 뺀다 — 이름은 이름 탭에서 보인다 */}
             {!isCompact ? (
@@ -361,6 +387,7 @@ export default function CharacterCreationScreen({
                 ) : null}
                 {activeTab === "body" ? (
                   <BodyPanel
+                    catalog={activeCatalog}
                     gender={gender}
                     body={appearance.bodyParameters}
                     isWide={isSettingsWide}

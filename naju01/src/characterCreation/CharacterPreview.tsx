@@ -50,17 +50,35 @@ export interface PreviewControls {
 interface OrbitState {
   yaw: number;
   pitch: number;
+  /** 1 = 그 보기의 기본 화면(가장 멀리) · 작을수록 확대 */
   zoom: number;
+  /** 확대 중 몸을 따라 위아래로 옮긴 거리(m) — 기준점 위가 + */
+  lift: number;
 }
 
-const INITIAL_ORBIT: OrbitState = { yaw: -0.3, pitch: 0.06, zoom: 1 };
-/** 확대 · 축소 한도(거리 배율). 더 밀면 캐릭터가 점처럼 작아진다. */
-const ZOOM_MAX = 1.5;
+const INITIAL_ORBIT: OrbitState = { yaw: -0.3, pitch: 0.06, zoom: 1, lift: 0 };
+// 기본 화면보다 멀어질 필요는 없다 — 확대만 한다(미르 11/10). 해랑이 #92 에서 1.5 배까지 밀게 했던 것을 1 로
+const MAX_ZOOM = 1;
 /**
- * 당기는 한도는 보기마다 — 전신은 머리~무릎까지, 이미 가까이 보는 부위는 조금만(더 당기면 한 부분만 화면을 덮는다).
- * 손은 두 손을 나란히 봐야 해서 거의 당기지 않는다(당기면 양쪽 손이 잘린다).
+ * 당기는 한도는 보기마다(해랑 #92) — 전신은 머리~무릎까지, 이미 가까이 보는 부위는 조금만(더 당기면 한 부분만 화면을 덮는다).
+ * 손은 두 손을 나란히 봐야 해서 거의 당기지 않는다(당기면 양쪽 손이 잘린다). 확대한 뒤에는 세로로 끌어 몸을 따라 옮긴다
  */
-const ZOOM_MIN: Record<PreviewView, number> = { full: 0.6, upperBody: 0.8, head: 0.82, feet: 0.82, hands: 0.95 };
+const MIN_ZOOM: Record<PreviewView, number> = { full: 0.6, upperBody: 0.8, head: 0.82, feet: 0.82, hands: 0.95 };
+
+/** 카메라가 매 프레임 남기는 화면 크기 — 끌기 · 가리킨 곳 확대가 화면 px 을 세계 m 로 바꿀 때 쓴다 */
+interface ViewMetrics {
+  /** 기준점 거리에서 화면 전체 높이가 담는 세계 높이(m) */
+  worldHeight: number;
+  /** 빈 자리(무대) 가운데의 화면 y(px, 캔버스 위 기준) */
+  freeCenterY: number;
+  /** 캔버스 높이(px) */
+  height: number;
+  /** 지금 화면 기준점 높이(옮김 포함) · 그 보기의 기준점 높이(m) */
+  focusY: number;
+  baseY: number;
+  /** 이 값들을 그린 때의 zoom — 한 프레임 안에 휠이 여러 번 와도 그린 때 기준으로 비를 잰다(Codex 06) */
+  zoom: number;
+}
 
 // 손을 볼 때만 팔을 벌린 자세로 — 허리에 손을 얹은 대기 자세는 손을 가린다.
 // 걷기는 팔이 흔들려 손이 이미 다 보이고, 바꾸면 골라 둔 걷기가 멋대로 멈춘다 — 대기일 때만 바꾼다.
@@ -204,6 +222,9 @@ interface Measurement {
   handSpan: number;
   feet: THREE.Vector3;
   chest: THREE.Vector3;
+  /** 몸 아래 · 위 끝 높이(m) — 확대 중 옮길 수 있는 범위 */
+  bottom: number;
+  top: number;
 }
 
 // 씬에서 캐릭터를 찾아 크기와 주요 부위 위치를 잰다 — 카메라 자리를 정하는 데만 쓴다.
@@ -238,6 +259,8 @@ function measureCharacter(scene: THREE.Scene, heightScale: number): Measurement 
     handSpan: leftHand && rightHand ? leftHand.distanceTo(rightHand) : height * 0.6,
     feet: new THREE.Vector3(0, box.min.y + height * 0.05, 0),
     chest: bonePosition("spine_03") ?? new THREE.Vector3(0, height * 0.66, 0),
+    bottom: box.min.y,
+    top: box.max.y,
   };
 }
 
@@ -259,8 +282,51 @@ function computeFraming(view: PreviewView, measured: Measurement): Framing {
   return { center: new THREE.Vector3(0, H * 0.5, 0), height: H * 1.08 * Math.max(1, measured.height / H) };
 }
 
+/** 카메라가 위아래로 기울 수 있는 각(라디안). 세로 끌기는 각이 아니라 옮기기라(11/10) 지금은 처음 각(0.06) 그대로 쓴다 */
+const MIN_PITCH = -0.4;
+const MAX_PITCH = 0.75;
+/** 카메라가 내려갈 수 있는 가장 낮은 높이(m) — 바닥 밑에서 올려다보지 않는다 */
+const MIN_CAMERA_Y = 0.1;
+
+interface OrbitPlacement {
+  center: THREE.Vector3;
+  yaw: number;
+  distance: number;
+  /** 빈 자리 가운데가 화면 가운데에서 떨어진 정도(화면 폭 · 높이 비율) */
+  cx: number;
+  cy: number;
+  /** 카메라 거리에서 화면 전체가 담는 세계 크기 */
+  worldWidth: number;
+  worldHeight: number;
+}
+
+/** 궤도 위 카메라 자리 — 기준점(center)이 화면의 빈 자리 가운데에 오게 카메라와 목표를 같이 민다(시선 방향은 그대로) */
+function placeOrbitCamera(
+  { center, yaw, distance, cx, cy, worldWidth, worldHeight }: OrbitPlacement,
+  elevation: number,
+) {
+  const forward = new THREE.Vector3(
+    Math.sin(yaw) * Math.cos(elevation),
+    Math.sin(elevation),
+    Math.cos(yaw) * Math.cos(elevation),
+  );
+  // forward 는 목표 → 카메라라 시선은 그 반대다. 화면 오른쪽은 cross(위, forward) — 반대로 잡으면 캐릭터가 UI 쪽으로 밀린다.
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+  const up = new THREE.Vector3().crossVectors(forward, right).normalize();
+  const shift = right
+    .clone()
+    .multiplyScalar(-cx * worldWidth)
+    .add(up.clone().multiplyScalar(-cy * worldHeight));
+  return {
+    position: center.clone().addScaledVector(forward, distance).add(shift),
+    lookTarget: center.clone().add(shift),
+    up,
+  };
+}
+
 interface PreviewCameraProps {
   orbit: RefObject<OrbitState>;
+  metrics: RefObject<ViewMetrics | null>;
   view: PreviewView;
   heightScale: number;
   safeArea: SafeArea;
@@ -269,7 +335,7 @@ interface PreviewCameraProps {
 }
 
 // 카메라를 궤도 위에 놓고 UI 를 뺀 빈 자리 한가운데에 캐릭터를 담는다. 패널 폭이 달라져도 머리·손·발이 숨지 않는다.
-function PreviewCamera({ orbit, view, heightScale, safeArea, reduceMotion, measureKey }: PreviewCameraProps) {
+function PreviewCamera({ orbit, metrics, view, heightScale, safeArea, reduceMotion, measureKey }: PreviewCameraProps) {
   // three 객체는 반응형 값으로 잡지 않고 필요할 때 꺼내 쓴다
   const get = useThree((s) => s.get);
   const current = useRef({ center: new THREE.Vector3(0, 0.9, 0), height: 1.9, isFilled: false });
@@ -282,9 +348,14 @@ function PreviewCamera({ orbit, view, heightScale, safeArea, reduceMotion, measu
   // 부위를 바꾸면 자세도 바뀐다(손 보기). 고른 순간 한 번만 재면 아직 바뀌기 전 손 좌표를 담아
   // 손이 화면 밖으로 나간다 — 자세가 건너가는 동안 몇 프레임 더 잰다.
   const remeasureFrames = useRef(0);
+  /** 몸 아래 · 위 끝 — 보기와 상관없이 늘 잰다(키 · 옷 · 성별이 바뀌어도 옮길 범위가 맞게) */
+  const body = useRef({ bottom: 0, top: 1.9 });
+  const focus = useRef(new THREE.Vector3());
 
   useEffect(() => {
     heightScaleRef.current = heightScale;
+    // 머리 · 손 · 발 보기도 키를 바꾸면 그 부위가 움직인다 — 잠깐 다시 잰다
+    remeasureFrames.current = 40;
   }, [heightScale]);
   useEffect(() => {
     safeAreaRef.current = safeArea;
@@ -309,10 +380,14 @@ function PreviewCamera({ orbit, view, heightScale, safeArea, reduceMotion, measu
     const s = current.current;
     frameCount.current += 1;
     if (remeasureFrames.current > 0) remeasureFrames.current -= 1;
-    // 전신은 키 슬라이더를 따라가야 해서 늘, 다른 부위는 자세가 건너가는 동안만 다시 잰다
-    if ((!s.isFilled || view === "full" || remeasureFrames.current > 0) && frameCount.current % 10 === 0) {
+    // 몸 끝은 늘, 담을 자리는 전신(키 슬라이더를 따라가야 한다)이거나 다른 부위가 자세 · 키가 건너가는 동안만 다시 잰다
+    if (frameCount.current % 10 === 0) {
       const measured = measureCharacter(scene, heightScaleRef.current);
       if (measured) {
+        body.current.bottom = measured.bottom;
+        body.current.top = measured.top;
+      }
+      if (measured && (!s.isFilled || view === "full" || remeasureFrames.current > 0)) {
         target.current = computeFraming(view, measured);
         if (!s.isFilled) {
           s.center.copy(target.current.center);
@@ -329,40 +404,62 @@ function PreviewCamera({ orbit, view, heightScale, safeArea, reduceMotion, measu
     const area = safeAreaRef.current;
     const freeWidth = Math.max(160, size.width - area.left - area.right);
     const freeHeight = Math.max(160, size.height - area.top - area.bottom);
-    // 2) 빈 자리에 담을 높이 → 화면 전체의 세계 높이 → 거리.
-    // 확대 · 축소는 거리만 바꾸므로 그 거리에서 화면에 보이는 세계 크기도 같은 배율로 줄고 는다.
-    // 4) 의 밀기를 이 크기로 재야 캐릭터가 빈 자리 한가운데에 머문 채 커지고 작아진다(안 그러면 확대할수록 옆으로 지나간다).
-    const zoom = orbit.current.zoom;
-    const worldHeight = s.height * (size.height / freeHeight) * zoom;
-    const distance = worldHeight / (2 * Math.tan((perspective.fov * Math.PI) / 360));
+    // 2) 빈 자리에 담을 높이 → 화면 전체의 세계 높이 → 거리. 확대 · 축소(zoom)는 거리만 바꾼다
+    const fitHeight = s.height * (size.height / freeHeight);
+    const distance = (fitHeight / (2 * Math.tan((perspective.fov * Math.PI) / 360))) * orbit.current.zoom;
+    // 그 거리에서 화면 전체가 담는 세계 크기 — 4) 의 화면 이동은 이 크기로 재야 한다. zoom 을 빼고 재면 확대할수록
+    // 캐릭터가 빈 자리 가운데에서 1/zoom 배 바깥으로 밀려(PC 는 왼쪽 화면 밖으로) 나갔다(미르 11/10 · 해랑 #92 도 같은 고침).
+    // 해랑 #92 의 「축소할 때 발밑 붙잡기」는 축소가 없어져(기본 화면까지만) 뺐다
+    const worldHeight = fitHeight * orbit.current.zoom;
     const worldWidth = worldHeight * (size.width / size.height);
 
-    // 3) 궤도 위 카메라
-    const { yaw, pitch } = orbit.current;
-    const elevation = THREE.MathUtils.clamp(pitch, -0.4, 0.75);
-    const forward = new THREE.Vector3(
-      Math.sin(yaw) * Math.cos(elevation),
-      Math.sin(elevation),
-      Math.cos(yaw) * Math.cos(elevation),
-    );
-    // 전신을 축소할 때는 발밑(땅 y=0)을 붙잡아 발판 위에 선 채 작아지게 한다. 확대는 몸 가운데를 붙잡는다.
-    const focus = s.center.clone();
-    if (view === "full" && zoom > 1) focus.y = s.center.y * zoom;
-    const position = focus.clone().addScaledVector(forward, distance);
-    // 4) 빈 자리 한가운데로 화면을 옮긴다(카메라와 목표를 같이 밀면 시선 방향은 그대로다)
-    const cx = (area.left + freeWidth / 2) / size.width - 0.5;
-    const cy = 0.5 - (area.top + freeHeight / 2) / size.height;
-    // forward 는 목표 → 카메라라 시선은 그 반대다. 화면 오른쪽은 cross(위, forward) — 반대로 잡으면 캐릭터가 UI 쪽으로 밀린다.
-    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
-    const up = new THREE.Vector3().crossVectors(forward, right).normalize();
-    const shift = right
-      .clone()
-      .multiplyScalar(-cx * worldWidth)
-      .add(up.clone().multiplyScalar(-cy * worldHeight));
-    const lookTarget = focus.clone().add(shift);
-    position.add(shift);
+    // 확대 중 위아래로 옮긴 기준점 — 화면(빈 자리)이 몸 끝 밖으로 나가지 않는 데까지만. 몸이 화면보다 작으면(기본 화면 근처)
+    // 그 보기의 기본 구도를 지킨다. 그 보기의 기준점 자체는 늘 허용한다(머리 보기는 기준점이 머리 끝 가까이라)
+    const half = (s.height * orbit.current.zoom) / 2;
+    const low = body.current.bottom + half;
+    const high = body.current.top - half;
+    const base = s.center.y;
+    const liftRange = low > high ? [base, base] : [Math.min(low, base), Math.max(high, base)];
+    const lifted = THREE.MathUtils.clamp(base + orbit.current.lift, liftRange[0], liftRange[1]);
+    orbit.current.lift = lifted - base;
+    focus.current.set(s.center.x, lifted, s.center.z);
+    metrics.current = {
+      worldHeight,
+      freeCenterY: area.top + freeHeight / 2,
+      height: size.height,
+      focusY: lifted,
+      baseY: base,
+      zoom: orbit.current.zoom,
+    };
 
-    perspective.position.set(position.x, Math.max(0.1, position.y), position.z);
+    // 3) 궤도 위 카메라 · 4) 빈 자리 한가운데로 화면 이동
+    const placement: OrbitPlacement = {
+      center: focus.current,
+      yaw: orbit.current.yaw,
+      distance,
+      cx: (area.left + freeWidth / 2) / size.width - 0.5,
+      cy: 0.5 - (area.top + freeHeight / 2) / size.height,
+      worldWidth,
+      worldHeight,
+    };
+    let elevation = THREE.MathUtils.clamp(orbit.current.pitch, MIN_PITCH, MAX_PITCH);
+    let pose = placeOrbitCamera(placement, elevation);
+    // 카메라가 바닥 밑으로 가면(발 보기 · 아래에서 올려다보며 축소) 높이만 눌러 올리지 않고 올려다보는 각을 줄인다 — 높이만 올리면
+    // 시선이 틀어져 캐릭터가 빈 자리 가운데에서 옆으로 밀렸다(Codex 01). 높이는 각에 따라 늘기만 해 반씩 좁혀 찾는다
+    if (pose.position.y < MIN_CAMERA_Y && placeOrbitCamera(placement, MAX_PITCH).position.y >= MIN_CAMERA_Y) {
+      let low = elevation;
+      let high = MAX_PITCH;
+      for (let i = 0; i < 16; i += 1) {
+        const middle = (low + high) / 2;
+        if (placeOrbitCamera(placement, middle).position.y < MIN_CAMERA_Y) low = middle;
+        else high = middle;
+      }
+      elevation = high;
+      pose = placeOrbitCamera(placement, elevation);
+    }
+    const { position, lookTarget, up } = pose;
+
+    perspective.position.set(position.x, Math.max(MIN_CAMERA_Y, position.y), position.z);
     perspective.lookAt(lookTarget);
     perspective.near = Math.max(0.05, distance * 0.05);
     perspective.far = distance * 14 + 24;
@@ -398,6 +495,9 @@ function VisibilityWatcher({ onChange }: { onChange: (visible: boolean) => void 
   useEffect(() => {
     const handleChange = () => onChange(!document.hidden);
     document.addEventListener("visibilitychange", handleChange);
+    // 붙이는 사이에 탭이 다시 보이게 됐으면 그 알림을 놓친다 — 뒤 탭에서 열린 화면이 보이는데도 그리기를 멈춘 채(frameloop never)
+    // 캐릭터가 안 나왔다(11/10). 붙인 뒤 지금 상태로 한 번 맞춘다
+    handleChange();
     return () => document.removeEventListener("visibilitychange", handleChange);
   }, [onChange]);
   return null;
@@ -441,6 +541,9 @@ export default function CharacterPreview({
   const playerRef = useRef(createStandingState());
   // 카메라 조작값은 여기서 들고, 바깥에는 손잡이만 넘긴다(바깥 ref 를 여기서 바꾸면 추적이 어렵다)
   const orbit = useRef<OrbitState>({ ...INITIAL_ORBIT });
+  const metrics = useRef<ViewMetrics | null>(null);
+  /** 휠 · 핀치 한 동작 동안 붙든 몸 높이 — 끌기 · 초기화 · 보기 바꿈 · 손을 대고 뗄 때 버린다(앞 동작 기준점을 다시 쓰면 그사이 옮긴 것이 되돌아가 튄다, Codex 06) */
+  const anchor = useRef<{ clientY: number; worldY: number; at: number } | null>(null);
   const dragFrom = useRef<{ x: number; y: number } | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistance = useRef(0);
@@ -473,14 +576,7 @@ export default function CharacterPreview({
     };
   }, [gender]);
 
-  // 부위를 바꾸면 확대는 처음 배율로 — 전신에서 당겨 둔 배율이 머리 · 손 보기에 남으면 너무 가깝다.
-  const lastView = useRef(view);
-  useEffect(() => {
-    if (lastView.current === view) return;
-    lastView.current = view;
-    orbit.current.zoom = INITIAL_ORBIT.zoom;
-  }, [view]);
-  const zoomMin = ZOOM_MIN[view];
+  const zoomMin = MIN_ZOOM[view];
 
   const handleWarmupReady = useCallback((key: string) => {
     setDisplayKey((previous) => (key === previous ? previous : key));
@@ -493,13 +589,47 @@ export default function CharacterPreview({
       },
       reset: () => {
         orbit.current = { ...INITIAL_ORBIT };
+        anchor.current = null;
       },
     });
   }, [onControlsReady]);
 
-  const zoomBy = useCallback(
-    (factor: number) => {
-      orbit.current.zoom = THREE.MathUtils.clamp(orbit.current.zoom * factor, zoomMin, ZOOM_MAX);
+  // 보기(전신 · 머리 · 손 · 발)를 바꾸면 그 보기의 기본 화면으로 — 전신에서 당겨 둔 배율 · 옮긴 자리가 머리 · 손 보기에 남으면
+  // 너무 가깝다(해랑 #92). 돌린 각은 남긴다
+  const lastView = useRef(view);
+  useEffect(() => {
+    if (lastView.current === view) return;
+    lastView.current = view;
+    orbit.current.zoom = INITIAL_ORBIT.zoom;
+    orbit.current.lift = 0;
+    anchor.current = null;
+  }, [view]);
+
+  /**
+   * 화면 y(px)의 몸 높이를 붙든 채 확대 · 축소 — 가리킨 높이로 다가간다(세로만: 몸은 늘 무대 가로 가운데, 돌리는 축이 몸을 벗어나지 않게).
+   * 굴리는 동안(커서가 그대로 · 0.4초 안)은 처음 가리킨 몸 높이를 붙든다 — 한 칸마다 다시 재면 확대 초반의 좁은 범위에 잘린 만큼
+   * 잃어 발을 가리키고 확대해도 발까지 못 내려갔다
+   */
+  const zoomAt = useCallback(
+    (factor: number, clientY: number | null) => {
+      const after = THREE.MathUtils.clamp(orbit.current.zoom * factor, zoomMin, MAX_ZOOM);
+      const measured = metrics.current;
+      const rect = wrapper.current?.getBoundingClientRect();
+      orbit.current.zoom = after;
+      if (clientY === null || !measured || !rect || measured.height <= 0) return;
+      // 가리킨 점이 빈 자리 가운데에서 아래로 떨어진 정도(화면 높이 비율)
+      const below = (clientY - rect.top - measured.freeCenterY) / measured.height;
+      const now = performance.now();
+      const held = anchor.current;
+      if (!held || Math.abs(held.clientY - clientY) > 6 || now - held.at > 400) {
+        anchor.current = { clientY, worldY: measured.focusY - below * measured.worldHeight, at: now };
+      }
+      const target = anchor.current;
+      if (!target) return;
+      target.at = now;
+      // 확대 뒤 그 몸 높이가 다시 커서 아래 오는 기준점 — 몸 끝 밖으로 나가는 만큼은 카메라가 잘라 낸다
+      const worldHeightAfter = measured.worldHeight * (after / measured.zoom);
+      orbit.current.lift = target.worldY + below * worldHeightAfter - measured.baseY;
     },
     [zoomMin],
   );
@@ -510,17 +640,22 @@ export default function CharacterPreview({
     if (!element) return undefined;
     const handleWheel = (event: WheelEvent) => {
       event.preventDefault();
-      zoomBy(Math.exp(event.deltaY * 0.0012));
+      zoomAt(Math.exp(event.deltaY * 0.0012), event.clientY);
     };
     element.addEventListener("wheel", handleWheel, { passive: false });
     return () => element.removeEventListener("wheel", handleWheel);
-  }, [zoomBy]);
+  }, [zoomAt]);
 
   const twoFingerDistance = () => {
     const [a, b] = [...pointers.current.values()];
     return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
   };
+  const twoFingerMiddleY = () => {
+    const [a, b] = [...pointers.current.values()];
+    return a && b ? (a.y + b.y) / 2 : null;
+  };
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    anchor.current = null;
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.current.size === 2) pinchDistance.current = twoFingerDistance();
     else dragFrom.current = { x: event.clientX, y: event.clientY };
@@ -531,7 +666,7 @@ export default function CharacterPreview({
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.current.size >= 2) {
       const distance = twoFingerDistance();
-      if (pinchDistance.current > 0 && distance > 0) zoomBy(pinchDistance.current / distance);
+      if (pinchDistance.current > 0 && distance > 0) zoomAt(pinchDistance.current / distance, twoFingerMiddleY());
       pinchDistance.current = distance;
       return;
     }
@@ -539,13 +674,21 @@ export default function CharacterPreview({
     const dx = event.clientX - dragFrom.current.x;
     const dy = event.clientY - dragFrom.current.y;
     dragFrom.current = { x: event.clientX, y: event.clientY };
+    // 가로로 끌면 돌리기, 세로로 끌면 몸을 따라 위아래로 옮기기 — 손가락(커서)에 붙어 따라온다. 기본 화면(확대 전)에서는
+    // 옮길 데가 없어 그대로다. 세로 끌기의 뜻은 확대 여부와 상관없이 같다(Codex 05 — 처음 보는 사람이 헷갈리지 않게)
     orbit.current.yaw -= dx * 0.008;
-    orbit.current.pitch = THREE.MathUtils.clamp(orbit.current.pitch + dy * 0.005, -0.4, 0.75);
+    anchor.current = null;
+    const measured = metrics.current;
+    if (measured && measured.height > 0)
+      orbit.current.lift += (dy / measured.height) * measured.worldHeight * (orbit.current.zoom / measured.zoom);
   };
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    anchor.current = null;
     pointers.current.delete(event.pointerId);
     if (pointers.current.size < 2) pinchDistance.current = 0;
-    if (pointers.current.size === 0) dragFrom.current = null;
+    // 두 손가락에서 하나를 떼면 남은 손가락 자리에서 다시 끈다 — 처음 누른 자리를 쓰면 화면이 튄다(Codex 05)
+    const [remaining] = [...pointers.current.values()];
+    dragFrom.current = remaining ? { ...remaining } : null;
   };
 
   const qualitySettings = QUALITY_SETTINGS[quality] ?? QUALITY_SETTINGS.medium;
@@ -561,6 +704,7 @@ export default function CharacterPreview({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
+      onLostPointerCapture={handlePointerUp}
     >
       <Canvas
         shadows={false}
@@ -579,6 +723,7 @@ export default function CharacterPreview({
         <CharacterCreationDevHook displayKey={displayKey} />
         <PreviewCamera
           orbit={orbit}
+          metrics={metrics}
           view={view}
           heightScale={displayConfig.heightScale ?? 1}
           safeArea={safeArea}

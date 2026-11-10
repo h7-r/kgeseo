@@ -97,6 +97,8 @@ export function BasicsPanel({
 }
 
 interface BodyPanelProps {
+  /** 「초기화」가 놓을 시작값(시작 모습)을 고른다 */
+  catalog: CharacterCatalog;
   gender: AvatarGender;
   body: BodyParameters;
   isWide: boolean;
@@ -105,7 +107,7 @@ interface BodyPanelProps {
   onDragEnd: () => void;
 }
 
-export function BodyPanel({ gender, body, isWide, onChange, onDragStart, onDragEnd }: BodyPanelProps) {
+export function BodyPanel({ catalog, gender, body, isWide, onChange, onDragStart, onDragEnd }: BodyPanelProps) {
   return (
     <>
       {BODY_FIELD_GROUPS.map(([group, label]) => (
@@ -126,7 +128,7 @@ export function BodyPanel({ gender, body, isWide, onChange, onDragStart, onDragE
                 onChange={(value, isHistoryStep) => onChange(field, value, isHistoryStep)}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
-                onReset={() => onChange(field, getBodyFieldStart(field, gender), true)}
+                onReset={() => onChange(field, getBodyFieldStart(field, gender, catalog), true)}
               />
             ))}
           </div>

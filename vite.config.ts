@@ -7,6 +7,7 @@ import { dropLocalOnlyPlugin } from "./naju01/vite/dropLocalOnlyPlugin";
 import { editFileServerPlugin } from "./naju01/vite/editFilePlugin";
 import { sharedAssetBuildPlugin } from "./tools/shared-asset-build.mjs";
 import { lobbyBuildPlugin } from "./vite.lobby-standins";
+import { startLookSavePlugin } from "./vite.start-looks";
 
 /**
  * leva 의 useValuesForPath 는 자기 폴더 값 몇 개를 읽으려고 스토어 전체(본부실 1,190개)를 매번 복사한다.
@@ -73,6 +74,8 @@ export default defineConfig({
     react(),
     editFileServerPlugin({ writable: false }),
     defaultLookReceiverPlugin(),
+    // 캐릭터 생성 시작 모습 창(start-look.html)의 저장 창구 — 개발 서버 전용
+    startLookSavePlugin(),
     dropLocalOnlyPlugin(),
   ],
   resolve: {
