@@ -1,36 +1,13 @@
-// NAJU-01 그레이박스를 단독으로 띄우는 엔트리. 본편 main 과 같은 구조이고 라우터만 없다.
-import { createRoot } from "react-dom/client";
-
-import { LandscapeGuard } from "@/engine/input";
-import { initGameSave } from "@/save/gameSave";
-
-import { registerNajuSave } from "./save/najuSaveData";
-
-import App from "./app/App";
-// 본편 기차에서 텔레포트로 넘어오면 본편이 틀던 로딩 영상을 같은 장면부터 이어 틀고, 이 맵이 다 뜨면 걷는다
-import LoadingVideoOverlay from "./transition/LoadingVideoOverlay";
-// 검수 작업대(review/, 5180)가 삽입해 열 때 — 실행 키·대상이 맞을 때만 게임을 띄운다
-import { IS_REVIEW_REQUESTED, IS_REVIEW_RUNNABLE, ReviewErrorBoundary, ReviewHud } from "./review/ReviewBridge";
-import "./index.css";
+// 나주 엔트리 — 지금은 PC(키보드 · 마우스)에서만 연다(미르 11/11). 휴대폰 · 태블릿으로 /naju01/ 을 바로 열어도 게임 모듈 · 에셋을
+// 받기 전에 안내만 그린다. 판정 · 문구는 shared/playDevicePolicy. 통과하면 boot.tsx(예전 main.tsx)를 불러온다.
+import { isPlayDeviceBlocked, renderPcOnlyNotice } from "../../shared/playDevicePolicy";
+import { SITE_URL } from "@/lib/siteUrl";
 
 const container = document.getElementById("root");
 if (!container) throw new Error("#root 가 없다");
 
-// StrictMode 를 씌우지 않는다 — 개발 모드에서 useMemo 를 두 번 돌리고 effect 를 붙였다 떼었다 다시 붙여,
-// 지형·무리를 전부 memo 로 세우는 이 씬은 첫 진입 CPU·GPU 업로드·fetch 가 통째로 두 배가 된다. 본편은 그대로 둔다.
-// 저장본을 먼저 받는다. 시작 자리를 정하는 이동 훅이 첫 그림 전에 읽는다. 검수 실행은 저장을 쓰지 않는다.
-void (IS_REVIEW_REQUESTED ? Promise.resolve() : initGameSave()).finally(() => {
-  if (!IS_REVIEW_REQUESTED) registerNajuSave();
-  createRoot(container).render(
-    IS_REVIEW_REQUESTED ? (
-      <ReviewErrorBoundary>{IS_REVIEW_RUNNABLE ? <App /> : <ReviewHud />}</ReviewErrorBoundary>
-    ) : (
-      <>
-        <App />
-        <LoadingVideoOverlay />
-        {/* 휴대폰 세로면 무엇보다 위에서 「가로로 돌려 주세요」(본편 main 과 같다) */}
-        <LandscapeGuard />
-      </>
-    ),
-  );
-});
+if (isPlayDeviceBlocked({ allowOverride: import.meta.env.DEV || import.meta.env.VITE_ALLOW_DEVICE_OVERRIDE === "1" })) {
+  renderPcOnlyNotice(container, SITE_URL);
+} else {
+  void import("./boot");
+}

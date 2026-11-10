@@ -5,7 +5,15 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { najuCaseProgress } from "../src/progress/caseProgress.ts";
-import { LOBBY_PATH, LOBBY_SPOT, isLobbyStage, wantsLobbyEntry, withoutLobbyEntry } from "../../src/save/lobbyEntry.ts";
+import {
+  LOBBY_PATH,
+  LOBBY_SPOT,
+  TRAIN_ENTRY_PATH,
+  isLobbyStage,
+  wantsLobbyEntry,
+  wantsTrainEntry,
+  withoutLobbyEntry,
+} from "../../src/save/lobbyEntry.ts";
 
 const reader = (sections: Record<string, unknown>) => (name: string) => (name in sections ? sections[name] : null);
 
@@ -110,6 +118,16 @@ test("로비 표시는 저장 단계가 맞을 때만 받는다 — 주소만으
   assert.equal(wantsLobbyEntry("?entry=lobby", "tutorial"), false);
   assert.equal(wantsLobbyEntry("", "naju"), false);
   assert.equal(wantsLobbyEntry("?entry=other", "naju"), false);
+});
+
+test("나주 멈춤 메뉴 「다른 지역으로」(?entry=train)는 로비 들어오기와 같은 조건으로 받고, 기차까지 간다", () => {
+  assert.equal(TRAIN_ENTRY_PATH, "/?entry=train");
+  assert.equal(wantsLobbyEntry("?entry=train", "naju"), true);
+  assert.equal(wantsLobbyEntry("?entry=train", null, true), true, "로그인하지 않고 나주에서 나왔다");
+  assert.equal(wantsLobbyEntry("?entry=train", "tutorial"), false, "튜토리얼 중이면 주소만으로 열지 않는다");
+  assert.equal(wantsTrainEntry("?entry=train"), true);
+  assert.equal(wantsTrainEntry("?entry=lobby"), false);
+  assert.equal(withoutLobbyEntry("https://play.k-escape.com/?entry=train"), "/");
 });
 
 test("읽은 뒤에는 주소에서 로비 표시만 지운다(다른 질의 · 경로 · 해시는 그대로)", () => {

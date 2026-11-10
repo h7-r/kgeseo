@@ -694,14 +694,36 @@ button:hover > .dest-key {
   top: calc(var(--u) * 20);
   text-align: center;
 }
-.dest-stars {
+/* 난이도 글자(쉬움 · 보통 · 어려움, 미르 11/11) — 예전 별은 케이스 평가 별과 헷갈렸다 */
+.dest-difficulty {
+  display: inline-flex;
+  align-items: baseline;
+  gap: calc(var(--u) * 7);
+  padding: calc(var(--u) * 5) calc(var(--u) * 12);
+  border-radius: 999px;
+  border: 1px solid rgba(241, 241, 252, 0.32);
+  background: rgba(5, 11, 26, 0.62);
   color: #f1f1fc;
-  font-size: calc(var(--u) * 21);
-  letter-spacing: 0.14em;
-  text-shadow: 0 1px 10px rgba(1, 4, 10, 0.85);
+  font-size: calc(var(--u) * 15);
+  line-height: 1.2;
+  text-shadow: 0 1px 8px rgba(1, 4, 10, 0.85);
 }
-.dest-stars__empty {
-  color: rgba(241, 241, 252, 0.26);
+.dest-difficulty__label {
+  color: rgba(241, 241, 252, 0.68);
+  font-size: 0.86em;
+}
+.dest-difficulty b {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.dest-difficulty[data-level="쉬움"] b {
+  color: #9be3b4;
+}
+.dest-difficulty[data-level="보통"] b {
+  color: #f3d77e;
+}
+.dest-difficulty[data-level="어려움"] b {
+  color: #f6a0a0;
 }
 .dest-card__lock {
   position: absolute;
@@ -1233,8 +1255,10 @@ button:hover > .dest-key {
   .dest-card {
     border-radius: 12px;
   }
-  .dest-stars {
-    font-size: 16px;
+  .dest-difficulty {
+    gap: 6px;
+    padding: 4px 10px;
+    font-size: 13px;
   }
   .dest-card__label,
   .dest-region-tag {

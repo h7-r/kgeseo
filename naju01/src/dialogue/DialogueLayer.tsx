@@ -27,6 +27,7 @@ import {
 
 import { useKeyLabels } from "@/engine/input";
 import { addPointerActiveListener, isPointerActive } from "@/engine/input/virtualLock";
+import { isBlockedByPauseMenu } from "@/game/pauseMenuState";
 
 import { useCompanionChatOpen } from "../companion/chatOpen";
 import { subscribeNoticePosted } from "../puzzles/interaction";
@@ -180,6 +181,8 @@ export default function DialogueLayer() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || isTypingInField(event.target)) return;
+      // 멈춤 메뉴가 떠 있는 동안은 대화를 넘기거나 보기를 고르지 않는다(나주입장 08회차)
+      if (isBlockedByPauseMenu(event.code)) return;
       const state = dialogue.getState();
       const choices = state?.speech.kind === "ask" && isLastPage(state) ? (state.speech.choices ?? []) : [];
       if (choices.length > 0) {

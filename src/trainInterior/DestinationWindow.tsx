@@ -6,11 +6,17 @@ import { najuCaseProgress, pendingNajuReset, resetNajuCase, type CaseProgress } 
 import { readSavedSection } from "@/save/gameSave";
 import { NAJU_ENTER_EVENT, type NajuEnterDetail } from "@/station/najuEnter";
 
-import { DESTINATIONS, LOCKED_LEGENDS, NAJU_LEGEND, type Destination, type LockedLegend } from "./destinationData";
+import {
+  DESTINATIONS,
+  LOCKED_LEGENDS,
+  NAJU_LEGEND,
+  type Destination,
+  type Difficulty,
+  type LockedLegend,
+} from "./destinationData";
 import DestinationMap, { LOCK_LINE_PATH } from "./DestinationMap";
 import "./destinationWindow.css";
 
-const STAR_COUNT = 5;
 const SHAKE_MS = 360;
 
 /** 커서 자리를 CSS 값으로 넘긴다. 카드 기울기·빛 번짐은 전부 CSS 가 이 값을 읽어 그린다. */
@@ -31,11 +37,12 @@ function resetPointer(event: ReactPointerEvent<HTMLElement>) {
   style.setProperty("--tilt-y", "0deg");
 }
 
-function Stars({ filled }: { filled: number }) {
+/** 난이도 글자 — 쉬움 · 보통 · 어려움(destinationData) */
+function DifficultyTag({ level }: { level: Difficulty }) {
   return (
-    <span className="dest-stars" aria-label={`난이도 ${STAR_COUNT}점 중 ${filled}점`}>
-      {"★".repeat(filled)}
-      <span className="dest-stars__empty">{"★".repeat(STAR_COUNT - filled)}</span>
+    <span className="dest-difficulty" data-level={level}>
+      <span className="dest-difficulty__label">난이도</span>
+      <b>{level}</b>
     </span>
   );
 }
@@ -170,7 +177,7 @@ function OpenLegendCard({ progress }: { progress: CaseProgress | null }) {
         <span className="dest-card__fade" />
         <span className="dest-card__sheen" />
         <span className="dest-card__top">
-          <Stars filled={NAJU_LEGEND.stars} />
+          <DifficultyTag level={NAJU_LEGEND.difficulty} />
         </span>
         <span className="dest-card__text">
           <span className="dest-card__meta">

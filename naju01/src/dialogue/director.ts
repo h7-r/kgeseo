@@ -75,6 +75,12 @@ interface DirectorOptions {
   onTone?: (tone: Tone) => void;
   /** 대사를 말했다 — 한동안 먼저 말 걸지 않게 판정 쪽에 알린다 */
   onSpoken?: () => void;
+  /**
+   * 플레이어가 [F] 로 청해 동행의 대답을 받았다 — 「여기서 뭘 해야 해요?」(보기가 둘이면 Y) 대답 · 미리 보기 판의 넛지.
+   * 도움 별의 「직접 청한 도움」(progress/helpLog, 미르 11/11 「Y 를 눌러 동행이 알려 준 것을 받았을 때」).
+   * 정식 힌트는 서버 글이 실제로 왔을 때 다리(companionBridge onRequestedHint)가 센다. 동행이 먼저 권한 것에 「네」는 세지 않는다
+   */
+  onHelpAsked?: () => void;
   /** 승인 대기 초안(isDraft)을 화면에 내나 — 미리 보기(개발 · VITE_NPC_PREVIEW 빌드)만 true. 기본 true(검사용) */
   showDraftLines?: boolean | (() => boolean);
   log?: (line: PickedLine, situation: string) => void;
@@ -164,7 +170,11 @@ export function createDirector(options: DirectorOptions) {
    * 도움말 한 칸 — 플레이어가 청했을 때만 준다.
    * 지금 해 놓은 데(단계)에 맞는 말이 있으면 그것부터, 같은 단계에서 또 청하면 사다리를 한 칸씩 더 간다.
    */
-  function nextHelp(objective: ObjectiveId | null, asked?: string): void {
+  function nextHelp(objective: ObjectiveId | null, asked?: string, isRequested = false): void {
+    /** 청해서 받은 도움이면 센다 */
+    const noteRequested = () => {
+      if (isRequested) options.onHelpAsked?.();
+    };
     // 배포판에서 목표를 모르면(4 · 5스테이지처럼 목표표 밖) 「걸리는 게 없다」고 하지 않는다 — 받을 수 없다고만
     if (!objective) {
       if (!showsDrafts()) return void sayFixed(HINT_UNAVAILABLE, null, asked);
@@ -182,7 +192,10 @@ export function createDirector(options: DirectorOptions) {
       // 첫 설명 단계인데 따로 써 둔 첫 대사가 없으면(안내판과 같은 말이라 두지 않았다) 안내판 설명으로 답한다
       const fitting =
         ownLines(objective, phase.kind)[phase.index] ?? (phase.kind === "arrive" ? introOf(objective) : null);
-      if (fitting) return void speak(fitting, objective, "help-phase", asked ?? "");
+      if (fitting) {
+        noteRequested();
+        return void speak(fitting, objective, "help-phase", asked ?? "");
+      }
     }
     const ladder = ownLines(objective, "help");
     const step = helpStep.get(objective) ?? 0;
@@ -194,6 +207,7 @@ export function createDirector(options: DirectorOptions) {
       return void speak(rotateGeneral("helpEnd", endCount), objective, "help-end", asked ?? "");
     }
     helpStep.set(objective, step + 1);
+    noteRequested();
     speak(ladder[step], objective, "help", asked ?? "");
   }
 
@@ -229,7 +243,8 @@ export function createDirector(options: DirectorOptions) {
     if (answer === MENU.what && intro) {
       store.say({ kind: "guide", text: intro.text, topic: topicOf(objective), key: "guide", asked });
       options.onSpoken?.();
-    } else if (answer === MENU.hint) nextHelp(objective, asked);
+      options.onHelpAsked?.();
+    } else if (answer === MENU.hint) nextHelp(objective, asked, true);
     else if (answer === MENU.tone) applyTone(getTone() === "casual" ? "polite" : "casual", asked);
   }
 

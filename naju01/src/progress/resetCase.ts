@@ -8,7 +8,14 @@
  *     세션 번호는 저장이 끝난 뒤에만 버린다.
  * 칸을 어떻게 읽고 지우는지는 나주가 안다(본편은 src/naju 입구로 부른다).
  */
-import { removeSavedSections, restoreSavedSections, saveBeforeLeaving } from "@/save/gameSave";
+import {
+  detachSaveSections,
+  isGameSaveEnabled,
+  reattachSaveSections,
+  removeSavedSections,
+  restoreSavedSections,
+  saveBeforeLeaving,
+} from "@/save/gameSave";
 
 import { SESSION_STORAGE_KEY } from "../companion/companionSession";
 
@@ -49,6 +56,31 @@ async function reset(): Promise<boolean> {
 /** 나주 진행을 지우고 저장까지 마쳤으면 true. 이미 하는 중이면 그 결과를 같이 기다린다 */
 export function resetNajuCase(): Promise<boolean> {
   pending ??= reset().finally(() => {
+    pending = null;
+  });
+  return pending;
+}
+
+/**
+ * 나주 페이지 안에서 처음부터 다시 — 멈춤 메뉴 「처음부터 다시」(미르 11/11). 나주 칸은 이 페이지가 쓰고 있어 removeSavedSections 로는
+ * 안 지워진다 — 등록째 떼어 내고(detachSaveSections) 저장을 마친 뒤 true. 부른 쪽이 페이지를 새로 연다(새 페이지는 빈 나주 칸으로 시작한다).
+ * 떼어 낸 칸은 다시 붙이지 않는다 — 떠나기 전 저장(pagehide)이 옛 진행을 되살리지 않게. 못 쓰면 다시 붙이고 false(이 판 그대로 남는다).
+ * 로그인하지 않았으면 서버 저장이 없다 — Play Session 번호만 버리고 true.
+ */
+export function restartNajuHere(): Promise<boolean> {
+  pending ??= (async () => {
+    if (!isGameSaveEnabled()) {
+      forgetPlaySession();
+      return true;
+    }
+    const detached = detachSaveSections((name) => name.startsWith(NAJU_SECTION_PREFIX));
+    if (!(await saveBeforeLeaving(null))) {
+      reattachSaveSections(detached);
+      return false;
+    }
+    forgetPlaySession();
+    return true;
+  })().finally(() => {
     pending = null;
   });
   return pending;

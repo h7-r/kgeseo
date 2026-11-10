@@ -1,13 +1,26 @@
 // 목적지 창의 내용. 나주 전설 글은 웹사이트 지역 소개(website/src/sections/home)와 같은 문구를 쓴다.
 
-export const NAJU_LEGEND = {
+/**
+ * 난이도 — 쉬움 · 보통 · 어려움 글자로(미르 11/11 「일단」). 예전 별(★★★☆☆)은 케이스 평가 별(시간 · 도움)과 헷갈려 쓰지 않는다.
+ * 웹사이트 홈(앙암바위 소개 · 시나리오 카드 · 모바일 홈)도 같은 글자다.
+ */
+export type Difficulty = "쉬움" | "보통" | "어려움";
+
+export const NAJU_LEGEND: {
+  region: string;
+  name: string;
+  description: string;
+  video: string;
+  photo: string;
+  difficulty: Difficulty;
+} = {
   region: "나주",
   name: "앙암바위의 전설",
   description: "강가에 선 바위에 얽힌 오래된 이야기, 그 진짜 결말을 찾아내세요.",
   /** 카드에 커서를 올리면 흐르는 나주 진입 영상 */
   video: "/transitions/naju-enter.mp4",
   photo: "/destinations/naju.webp",
-  stars: 3,
+  difficulty: "보통",
 };
 
 export interface LockedLegend {

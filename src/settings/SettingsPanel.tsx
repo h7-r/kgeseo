@@ -65,9 +65,13 @@ interface SettingsPanelProps {
   onClose: () => void;
   /** 게임(케이스) 중이면 맨 아래 「로비로 나가기」(나주) — 없으면 그리지 않는다 */
   leaveToLobby?: LeaveToLobbyAction;
+  /** 시작 카드(조작 · 평가)를 다시 띄운다(나주) — 없으면 그리지 않는다 */
+  onShowGuide?: () => void;
+  /** 그 단추 글자 */
+  guideLabel?: string;
 }
 
-export default function SettingsPanel({ open, onClose, leaveToLobby }: SettingsPanelProps) {
+export default function SettingsPanel({ open, onClose, leaveToLobby, onShowGuide, guideLabel }: SettingsPanelProps) {
   const settings = useSettings();
   // 휴대폰 — 화면 가운데 · 제목 줄 고정 · 단추와 막대 44px(gameUi.css 의 .settings-dialog.is-touch, 14회차 · 11/8 해랑 검토)
   const isTouch = useTouchMode();
@@ -175,12 +179,21 @@ export default function SettingsPanel({ open, onClose, leaveToLobby }: SettingsP
           onChange={(value) => updateSettings({ sensitivity: value })}
         />
 
-        {leaveToLobby && (
+        {(leaveToLobby || onShowGuide) && (
           <>
             <div style={groupTitleStyle}>게임</div>
-            <div style={leaveRowStyle}>
-              <LeaveToLobby action={leaveToLobby} tone="panel" />
-            </div>
+            {onShowGuide && (
+              <div style={leaveRowStyle}>
+                <button type="button" onClick={onShowGuide} style={guideButtonStyle}>
+                  {guideLabel ?? "조작 다시 보기"}
+                </button>
+              </div>
+            )}
+            {leaveToLobby && (
+              <div style={leaveRowStyle}>
+                <LeaveToLobby action={leaveToLobby} tone="panel" />
+              </div>
+            )}
           </>
         )}
 
@@ -306,3 +319,13 @@ const resetButtonStyle: CSSProperties = {
 };
 const noteStyle: CSSProperties = { fontSize: 13, color: UI.textMuted };
 const leaveRowStyle: CSSProperties = { padding: "8px 0 4px" };
+const guideButtonStyle: CSSProperties = {
+  width: "100%",
+  minHeight: 44,
+  borderRadius: 12,
+  border: `1px solid ${UI.borderStrong}`,
+  background: UI.surfaceRaised,
+  color: UI.text,
+  font: `600 15px/1 ${UI_FONT.body}`,
+  cursor: "pointer",
+};
