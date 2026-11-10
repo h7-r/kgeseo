@@ -1,28 +1,22 @@
-/** 마이페이지 다섯 탭. 서버가 붙기 전까지 쓰는 화면용 값이다. */
+/**
+ * 마이페이지 다섯 탭. 내 진행 · 업적 · 아이템은 서버의 내 저장본에서 그린다(lib/myProgress).
+ * keywords 는 사이트 검색이 이 탭을 찾게 하는 말이다 — 사람마다 다른 값은 색인에 넣지 않는다.
+ */
 export const MY_PAGE_TABS = [
-  { id: "history", label: "최근 플레이 기록" },
-  { id: "account", label: "계정 설정" },
-  { id: "subscription", label: "구독 현황" },
-  { id: "achievements", label: "업적 & 배지" },
-  { id: "items", label: "보유 아이템" },
+  { id: "history", label: "내 진행", keywords: "진행 현황 사건 스테이지 나주 앙암바위 이어 하기 마지막 저장 튜토리얼" },
+  {
+    id: "account",
+    label: "계정 설정",
+    keywords: "비밀번호 변경 로그인 기록 이메일 수신 데이터 내보내기 로그아웃 회원 탈퇴",
+  },
+  { id: "subscription", label: "구독 현황", keywords: "구독 플랜 결제 베타 무료" },
+  { id: "achievements", label: "업적 & 배지", keywords: "업적 배지 해결 달성" },
+  { id: "items", label: "보유 아이템", keywords: "아이템 소지품 물건 보유" },
 ] as const;
 
 export type MyPageTabId = (typeof MY_PAGE_TABS)[number]["id"];
 
 type Pair = readonly [label: string, value: string];
-
-interface PlayRecord {
-  region: string;
-  regionNo: string;
-  title: string;
-  result: "성공" | "실패";
-  playedAgo: string;
-  difficulty: string;
-  /** "18:42" 처럼 같은 꼴이라 글자 정렬이 곧 시간 정렬이다. */
-  clearTime: string;
-  date: string;
-  image: string;
-}
 
 /**
  * 계정 설정에서 실제로 동작하는 항목.
@@ -43,45 +37,13 @@ interface SettingsGroup {
   items: readonly SettingsItem[];
 }
 
-interface OwnedItem {
-  name: string;
-  rarity: "COMMON" | "RARE" | "EPIC" | "LEGEND";
-  color: string;
-}
-
 interface MyPageContent {
-  history: { records: readonly PlayRecord[] };
   account: { groups: readonly SettingsGroup[] };
-  subscription: {
-    plan: readonly Pair[];
-    /** [날짜, 플랜, 금액] */
-    payments: readonly (readonly [date: string, plan: string, amount: string])[];
-  };
-  achievements: {
-    stats: readonly Pair[];
-    /** [이름, 조건, 진행]. 진행이 null 이면 아직 열리지 않은 기능의 배지다. */
-    badges: readonly (readonly [name: string, condition: string, progress: string | null])[];
-  };
-  items: { stats: readonly Pair[]; items: readonly OwnedItem[] };
+  /** 지금은 결제 없는 무료 시험 서비스다(약관 제12조). 결제가 붙으면 서버 값으로 바뀐다. */
+  subscription: { plan: readonly Pair[] };
 }
 
 export const MY_PAGE_CONTENT: MyPageContent = {
-  // 실제로 만들어진 사건이 나주 앙암바위 하나뿐이라 기록도 그것만 둔다. 서버가 붙으면 play_session 기록으로 바뀐다.
-  history: {
-    records: [
-      {
-        region: "나주",
-        regionNo: "REGION NO. 04",
-        title: "앙암바위의 비밀",
-        result: "성공",
-        playedAgo: "1시간 전",
-        difficulty: "중급",
-        clearTime: "18:42",
-        date: "2026.09.03",
-        image: "/case-film-poster.webp",
-      },
-    ],
-  },
   account: {
     groups: [
       {
@@ -121,53 +83,11 @@ export const MY_PAGE_CONTENT: MyPageContent = {
   },
   subscription: {
     plan: [
-      ["현재 플랜", "PREMIUM"],
-      ["다음 결제일", "2026.10.12"],
-      ["월 결제 금액", "₩14,900"],
-      ["상태", "활성"],
-    ],
-    payments: [
-      ["2026.09.12", "PREMIUM", "₩14,900"],
-      ["2026.08.12", "PREMIUM", "₩14,900"],
-      ["2026.07.12", "PREMIUM", "₩14,900"],
-      ["2026.06.12", "PREMIUM", "₩14,900"],
-    ],
-  },
-  achievements: {
-    stats: [
-      ["획득한 배지", "12 / 30"],
-      ["달성률", "40%"],
-      ["최근 획득", "스피드러너"],
-      ["희귀 배지", "3개"],
-    ],
-    badges: [
-      ["첫 번째 탈출", "첫 사건 해결", "완료"],
-      ["퍼즐 마스터", "퍼즐 50개 해결", "완료"],
-      ["스피드러너", "10분 이내 클리어", "70%"],
-      ["전설의 탐험가", "열린 지역 모두 방문", "완료"],
-      ["속도의 왕", "5분 이내 클리어", "15%"],
-      ["협동 전문가", "멀티플레이 출시 후 열림", null],
-      ["수집가", "아이템 50개 수집", "60%"],
-      ["불굴의 의지", "실패 후 재도전 성공", "완료"],
-    ],
-  },
-  items: {
-    stats: [
-      ["총 아이템", "8개"],
-      ["LEGEND", "1개"],
-      ["EPIC", "2개"],
-      ["RARE", "3개"],
-      ["COMMON", "2개"],
-    ],
-    items: [
-      { name: "황금 열쇠", rarity: "COMMON", color: "rgba(115,122,140,0.15)" },
-      { name: "고대 지도", rarity: "RARE", color: "rgba(46,72,137,0.15)" },
-      { name: "암호 해독기", rarity: "EPIC", color: "rgba(153,77,229,0.15)" },
-      { name: "수정 랜턴", rarity: "RARE", color: "rgba(46,72,137,0.15)" },
-      { name: "시간의 모래시계", rarity: "EPIC", color: "rgba(153,77,229,0.15)" },
-      { name: "비밀 일지", rarity: "COMMON", color: "rgba(115,122,140,0.15)" },
-      { name: "유령 탐지기", rarity: "RARE", color: "rgba(46,72,137,0.15)" },
-      { name: "마스터 키", rarity: "LEGEND", color: "rgba(242,199,51,0.15)" },
+      ["현재 플랜", "무료 시험 서비스(베타)"],
+      ["이용 요금", "0원"],
+      ["이용할 수 있는 사건", "CASE 01 · 나주 앙암바위"],
+      ["결제 · 자동결제", "없음"],
+      ["시험운영 종료 예정", "2026년 12월 31일"],
     ],
   },
 };

@@ -8,6 +8,8 @@ import { useSearchParams } from "react-router-dom";
 
 import { ABOUT_CONTENT, ABOUT_TABS } from "@/data/about";
 import { MY_PAGE_CONTENT, MY_PAGE_TABS } from "@/data/myPage";
+import type { MyProgress } from "@/lib/myProgress";
+import { useMyProgress } from "@/sections/myPage/useMyProgress";
 import { PRICING } from "@/data/pricing";
 import { useActiveTabInView } from "@/components/useActiveTabInView";
 import { FAQ_ITEMS, NOTICES, SUPPORT_TABS } from "@/data/support";
@@ -301,6 +303,8 @@ export function MobileMyPage() {
   const user = useSessionUser();
   const navigate = useSiteNavigate();
   const content = MY_PAGE_CONTENT;
+  // 내 진행 · 업적 · 아이템은 서버의 내 저장본에서(데스크톱과 같은 값)
+  const { state: progressState } = useMyProgress(user?.id);
   return (
     <Shell>
       <PageHeading eyebrow="My page" title={user ? `${user.name} 님` : "마이페이지"} />
@@ -320,29 +324,19 @@ export function MobileMyPage() {
         </button>
       </div>
       <Tabs items={MY_PAGE_TABS} active={tab} onSelect={setTab} />
-      {tab === "history" && (
-        <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
-          {content.history.records.map((record) => (
-            <article key={`${record.date}-${record.title}`} style={{ ...cardStyle, padding: 14 }}>
-              <div style={{ fontFamily: FONT.mono, fontSize: "12px", color: COLOR.accent }}>
-                {record.regionNo} · {record.region}
-              </div>
-              <div
-                style={{
-                  fontFamily: FONT.body,
-                  fontWeight: 700,
-                  fontSize: "16px",
-                  color: COLOR.textBright,
-                  marginTop: 4,
-                }}
-              >
-                {record.title}
-              </div>
-              <div style={{ fontFamily: FONT.body, fontSize: "13px", color: COLOR.textMuted, marginTop: 4 }}>
-                {record.result} · {record.clearTime} · {record.difficulty} · {record.date}
-              </div>
-            </article>
-          ))}
+      {(tab === "history" || tab === "achievements" || tab === "items") && (
+        <div style={{ marginTop: 16 }}>
+          {progressState.status !== "ready" ? (
+            <p style={{ ...bodyTextStyle, fontSize: "14px", color: COLOR.textMuted }}>
+              {progressState.status === "loading"
+                ? "내 기록을 불러오는 중입니다…"
+                : progressState.status === "signedOut"
+                  ? "로그인이 끝났습니다. 다시 로그인하면 내 기록이 보입니다."
+                  : "기록을 불러오지 못했습니다. 잠시 후 다시 열어 주세요."}
+            </p>
+          ) : (
+            <MobileProgressRows tab={tab} progress={progressState.progress} />
+          )}
         </div>
       )}
       {tab === "account" &&
@@ -353,35 +347,56 @@ export function MobileMyPage() {
             <Rows rows={group.items.map((item) => [item.label, "준비 중"] as const)} />
           </section>
         ))}
-      {tab === "subscription" && (
-        <>
-          <Rows rows={content.subscription.plan} />
-          <h2 style={subheadingStyle}>결제 내역</h2>
-          <Rows
-            rows={content.subscription.payments.map(([date, plan, amount]) => [date, `${plan} · ${amount}`] as const)}
-          />
-        </>
-      )}
-      {tab === "achievements" && (
-        <>
-          <Rows rows={content.achievements.stats} />
-          <Rows
-            rows={content.achievements.badges.map(
-              ([name, condition, progress]) => [name, `${condition} · ${progress ?? "준비 중"}`] as const,
-            )}
-          />
-        </>
-      )}
-      {tab === "items" && (
-        <>
-          <Rows rows={content.items.stats} />
-          <Rows rows={content.items.items.map((item) => [item.rarity, item.name] as const)} />
-        </>
-      )}
+      {tab === "subscription" && <Rows rows={content.subscription.plan} />}
       <p style={{ ...bodyTextStyle, fontSize: "13px", color: COLOR.textDim }}>
         계정 설정(비밀번호 변경 · 로그인 기록 · 탈퇴 등)은 준비 중입니다.
       </p>
     </Shell>
+  );
+}
+
+/** 모바일 내 진행 · 업적 · 아이템 — 데스크톱 탭과 같은 요약을 줄로 */
+function MobileProgressRows({ tab, progress }: { tab: string; progress: MyProgress }) {
+  if (tab === "achievements") {
+    return (
+      <Rows rows={progress.badges.map((badge) => [badge.name, badge.isEarned ? "획득" : badge.condition] as const)} />
+    );
+  }
+  if (tab === "items") {
+    const rows = [
+      ...progress.caseItems.map((item) => ["사건 소지품", `${item.name} × ${item.count}`] as const),
+      ...progress.ownedItems.map((item) => ["계정 아이템", `${item.name} × ${item.quantity}`] as const),
+    ];
+    return rows.length ? (
+      <Rows rows={rows} />
+    ) : (
+      <p style={{ ...bodyTextStyle, fontSize: "14px", color: COLOR.textMuted }}>아직 가진 물건이 없습니다.</p>
+    );
+  }
+  const naju = progress.naju;
+  return (
+    <>
+      <Rows
+        rows={[
+          ["지금 위치", progress.journey.find((step) => step.state === "current")?.name ?? "출발 전"],
+          [
+            "나주 앙암바위",
+            naju ? `${naju.percent}% · ${naju.isCleared ? "해결" : `지금 ${naju.stageName}`}` : "출동 전",
+          ],
+          ["마지막 저장", progress.savedAt ? progress.savedAt.toLocaleString("ko-KR") : "없음"],
+        ]}
+      />
+      {naju && (
+        <>
+          <h2 style={subheadingStyle}>스테이지</h2>
+          <Rows
+            rows={naju.stages.map(
+              (stage) => [stage.name, stage.done >= stage.total ? "✓ 완료" : `${stage.done} / ${stage.total}`] as const,
+            )}
+          />
+        </>
+      )}
+    </>
   );
 }
 

@@ -19,6 +19,14 @@ export interface CaseProgress {
   /** 지금 스테이지 이름(끝냈으면 「완료」) */
   stageName: string;
   isCleared: boolean;
+  /** 스테이지마다 한 이정표 수 — 마이페이지가 스테이지별로 보여 준다 */
+  stages: StageProgress[];
+}
+
+export interface StageProgress {
+  name: string;
+  done: number;
+  total: number;
 }
 
 /** 저장 칸 하나를 읽는다(없으면 null) */
@@ -124,5 +132,9 @@ export function najuCaseProgress(read: ReadSection): CaseProgress | null {
     total,
     stageName: isCleared || current < 0 ? "완료" : stages[current].name,
     isCleared,
+    stages: stages.map((stage, index) => {
+      const total = stage.milestones.length;
+      return { name: stage.name, done: isCleared ? total : counts[index], total };
+    }),
   };
 }
