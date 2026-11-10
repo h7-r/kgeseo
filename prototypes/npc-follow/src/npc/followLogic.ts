@@ -4,6 +4,8 @@ import type { CircleXZ, DetourSide } from './avoidance.ts'
 import {
   createCollisionWorld,
   createMoveResult,
+  isPointClear,
+  isSegmentClear,
   moveAndSlide,
   NPC_COLLISION_RADIUS,
   resolvePenetration,
@@ -20,7 +22,7 @@ import {
 } from './companionSlots.ts'
 import type { SlotState } from './companionSlots.ts'
 import { HOVER_CONFIG } from './hover.ts'
-import { groundHeight, guardTerrainMove } from './terrain.ts'
+import { groundHeight, guardTerrainMove, isTerrainSegmentWalkable } from './terrain.ts'
 import type { NpcTerrain } from './terrain.ts'
 
 // NPC가 따라갈 대상의 자세. 실제 게임 플레이어도 이 형태로만 넘겨주면 된다.
@@ -29,6 +31,9 @@ import type { NpcTerrain } from './terrain.ts'
 export interface FollowTargetPose {
   position: THREE.Vector3
   yaw: number
+  // 플레이어 수평 빠르기 (m/s). 부르는 쪽이 프레임 단위로 재서 넘기면 그 값을 쓴다 —
+  // 한 프레임을 여러 걸음으로 나눠 부르면 여기서는 프레임 경계를 몰라 잴 수 없다(Codex 리뷰). 없으면 위치 변화로 어림한다
+  speed?: number
 }
 
 const SIDE_OFFSET = DEFAULT_SLOT.side // 대상 오른쪽 거리 (m)
@@ -62,6 +67,22 @@ export const FOLLOW_CONFIG = {
   detourOrbitRadius: MIN_SEPARATION + 0.25, // 경유점을 놓는 반경 (m)
   detourLookahead: 0.5, // 경유점 선행 각도 (rad)
   detourSwitchMargin: 0.6, // 우회 방향 전환에 필요한 각도 이득 (rad)
+  // 플레이어가 보는 쪽(pose.yaw) 좌우 이 각도 안은 우회 경로로 지나지 않는다 (rad).
+  // 돌아서거나 뒷걸음하면 오른쪽 뒤에 있던 NPC 가 새 자리로 가며 눈앞 0.9 m 를 가로질러 길을 막았다(나주 11/11)
+  frontAvoidHalfAngle: Math.PI / 3,
+  // 보는 쪽 앞 길목 — 앞으로 이 거리(m) 안 · 좌우 이 폭(m) 안. 들어와 있으면 경유점보다 먼저 옆으로 비킨다.
+  // 플레이어가 NPC 쪽으로 돌아서 걸어오면 NPC 가 그 둘레를 도는 동안 눈앞을 막았다
+  frontLaneAhead: 2.0,
+  frontLaneHalfWidth: 0.8,
+  frontLaneExitMargin: 0.2, // 길목 밖으로 이만큼 더 나간 자리로 비킨다 (m)
+  // 비키기를 이만큼(s) 해도 길목을 못 벗어나면 그만두고 원래 길(경유점)로 간다 — 벽에 붙어 눈앞에 남지 않게
+  frontLaneGiveUpTime: 1.2,
+  // 플레이어가 걷는 중일 때만 눈앞 길목에 드는 동행 위치를 고르지 않는다 — 서서 둘러볼 때까지 비키면 NPC 를 보려 할 때마다 달아난다.
+  // 걷기 판정은 이 빠르기(m/s)를 넘으면 켜고, 아래 값 밑으로 내려가면 끈다(경계에서 깜빡이지 않게)
+  laneWalkOnSpeed: 0.35,
+  laneWalkOffSpeed: 0.2,
+  // 플레이어 위치가 이만큼(s) 그대로면 멈춘 것으로 본다 — 한 프레임을 여러 걸음으로 나눠 부르면 걸음 사이엔 위치가 안 바뀐다
+  speedStillTime: 0.25,
 
   // 플레이어가 한 프레임에 이보다 멀리 옮겨지면 텔레포트(낙하 복귀·시점 이동 등)로 본다 (m).
   // 걷기·달리기로는 한 프레임(최대 0.05 s)에 0.2 m 도 못 간다. NPC 는 따라 순간이동하지 않는다.
@@ -105,6 +126,12 @@ export interface FollowState {
   lastPlayerPosition: THREE.Vector3 | null
   teleportedThisFrame: boolean
   teleportCount: number
+  // 눈앞 길목에서 비키는 데 쓴 시간 (s). 길목을 벗어나면 0
+  laneEscapeTime: number
+  // 플레이어 걷는 빠르기(m/s, 부드럽게 한 값) — 텔레포트는 셈하지 않는다
+  playerSpeed: number
+  speedClock: number // 플레이어 위치가 마지막으로 바뀐 뒤 흐른 시간 (s)
+  isPlayerWalking: boolean // 걷기 판정(laneWalkOnSpeed / laneWalkOffSpeed)
 }
 
 export function createFollowState(start: THREE.Vector3): FollowState {
@@ -134,6 +161,10 @@ export function createFollowState(start: THREE.Vector3): FollowState {
     lastPlayerPosition: null,
     teleportedThisFrame: false,
     teleportCount: 0,
+    laneEscapeTime: 0,
+    playerSpeed: 0,
+    speedClock: 0,
+    isPlayerWalking: false,
   }
 }
 
@@ -324,10 +355,106 @@ function updateGoal(
       minSeparation: FOLLOW_CONFIG.minSeparation,
       delta,
       terrain,
+      viewFront: {
+        yaw: pose.yaw,
+        halfAngle: FOLLOW_CONFIG.frontAvoidHalfAngle,
+        lane:
+          state.isPlayerWalking
+            ? { ahead: FOLLOW_CONFIG.frontLaneAhead, halfWidth: FOLLOW_CONFIG.frontLaneHalfWidth }
+            : null,
+      },
     },
     state.goal,
   )
   state.waiting = slot === null
+}
+
+// 점이 플레이어가 보는 쪽 앞 길목 안인가. ahead = 앞(+) 거리, lateral = 오른쪽(+) 거리 (m)
+const lane = { ahead: 0, lateral: 0 }
+function readLane(pose: FollowTargetPose, point: THREE.Vector3) {
+  const forwardX = Math.sin(pose.yaw)
+  const forwardZ = Math.cos(pose.yaw)
+  const dx = point.x - pose.position.x
+  const dz = point.z - pose.position.z
+  lane.ahead = dx * forwardX + dz * forwardZ
+  lane.lateral = -dx * forwardZ + dz * forwardX // 오른쪽 = (-cos yaw, sin yaw)
+  return lane
+}
+const isInLane = ({ ahead, lateral }: typeof lane) =>
+  ahead > 0 && ahead < FOLLOW_CONFIG.frontLaneAhead && Math.abs(lateral) < FOLLOW_CONFIG.frontLaneHalfWidth
+
+// NPC 가 눈앞 길목 안이고 가려는 자리는 밖이면, 지금 앞 거리 그대로 길목 옆 바깥을 향하게 steerTarget 을 바꾼다. 바꿨으면 true.
+// 그쪽이 장애물 · 못 걷는 땅으로 막혔으면 반대쪽, 둘 다 막혔거나 오래(frontLaneGiveUpTime) 못 벗어나면 그만둔다(원래 길로)
+const exitPoint = new THREE.Vector3()
+function steerOutOfFrontLane(
+  state: FollowState,
+  pose: FollowTargetPose,
+  delta: number,
+  world: CollisionWorld | null,
+  terrain: NpcTerrain | null,
+): boolean {
+  const goalLane = readLane(pose, state.goal)
+  const goalLateral = goalLane.lateral
+  const isGoalInLane = isInLane(goalLane)
+  const { ahead, lateral } = readLane(pose, state.position)
+  if (!isInLane(lane)) {
+    state.laneEscapeTime = 0
+    return false
+  }
+  if (isGoalInLane || state.laneEscapeTime > FOLLOW_CONFIG.frontLaneGiveUpTime) return false
+  // 이미 한쪽으로 치우쳐 있으면 그쪽으로, 가운데면 가려는 자리 쪽으로
+  const preferred = Math.abs(lateral) > 0.2 ? Math.sign(lateral) : Math.sign(goalLateral) || 1
+  const forwardX = Math.sin(pose.yaw)
+  const forwardZ = Math.cos(pose.yaw)
+  const y = state.position.y
+  for (const side of [preferred, -preferred]) {
+    const offset = side * (FOLLOW_CONFIG.frontLaneHalfWidth + FOLLOW_CONFIG.frontLaneExitMargin)
+    exitPoint.set(
+      pose.position.x + forwardX * ahead - forwardZ * offset,
+      y,
+      pose.position.z + forwardZ * ahead + forwardX * offset,
+    )
+    if (world && !isPointClear(world, exitPoint.x, exitPoint.z, y)) continue
+    if (world && !isSegmentClear(world, state.position, exitPoint, y)) continue
+    if (
+      terrain &&
+      !isTerrainSegmentWalkable(terrain, state.position.x, state.position.z, exitPoint.x, exitPoint.z)
+    ) {
+      continue
+    }
+    state.steerTarget.copy(exitPoint)
+    state.laneEscapeTime += delta
+    return true
+  }
+  return false
+}
+
+// 플레이어 걷는 빠르기 — 위치가 바뀐 순간에 「바뀐 거리 / 지난번 바뀐 뒤 흐른 시간」으로 잰다.
+// 한 프레임을 여러 걸음으로 나눠 불러도(같은 위치로 여러 번) 값이 출렁이지 않는다(Codex 리뷰). 텔레포트는 셈하지 않는다
+function updatePlayerSpeed(
+  state: FollowState,
+  pose: FollowTargetPose,
+  moved: number,
+  delta: number,
+): void {
+  state.speedClock += delta
+  if (pose.speed !== undefined) {
+    // 넘겨받은 빠르기를 쓰되, 위치가 speedStillTime 동안 그대로면 0 — 화면 고정 · 경계에 막힘에서는
+    // 걷기 훅의 빠르기가 남아 있어도 실제로는 서 있다(Codex 리뷰)
+    if (state.teleportedThisFrame || moved > 1e-6) state.speedClock = 0
+    const speed = state.speedClock > FOLLOW_CONFIG.speedStillTime ? 0 : pose.speed
+    state.playerSpeed += (speed - state.playerSpeed) * (1 - Math.exp(-8 * delta))
+  } else if (state.teleportedThisFrame) {
+    state.speedClock = 0
+  } else if (moved > 1e-6) {
+    const measured = moved / state.speedClock
+    state.playerSpeed += (measured - state.playerSpeed) * (1 - Math.exp(-8 * state.speedClock))
+    state.speedClock = 0
+  } else if (state.speedClock > FOLLOW_CONFIG.speedStillTime) {
+    state.playerSpeed *= Math.exp(-8 * delta)
+  }
+  if (state.playerSpeed > FOLLOW_CONFIG.laneWalkOnSpeed) state.isPlayerWalking = true
+  else if (state.playerSpeed < FOLLOW_CONFIG.laneWalkOffSpeed) state.isPlayerWalking = false
 }
 
 // 추적 위치를 delta(초)만큼 진행시킨다. 프레임레이트와 무관하게 동작한다.
@@ -343,7 +470,14 @@ export function stepFollow(
 ): void {
   if (terrain && !world) world = EMPTY_WORLD
   state.terrainBlocked = false
+  const lastPlayer = state.lastPlayerPosition
+  const moved = lastPlayer
+    ? Math.hypot(pose.position.x - lastPlayer.x, pose.position.z - lastPlayer.z)
+    : 0
   detectTeleport(state, pose)
+  updatePlayerSpeed(state, pose, moved, delta)
+  // 눈앞 길목을 벗어났으면 비키기 시간을 비운다 — 대기 · 멈춤 중에 벗어나도(Codex 리뷰)
+  if (!isInLane(readLane(pose, state.position))) state.laneEscapeTime = 0
   if (terrain) {
     state.position.y = groundHeight(terrain, state.position.x, state.position.z) + HOVER_CONFIG.baseHeight
   }
@@ -402,7 +536,7 @@ export function stepFollow(
     state.steerTarget.copy(state.position)
     desired.set(0, 0, 0)
   } else if (state.following) {
-    // 다음 지점까지의 직선이 플레이어를 지나면 플레이어 둘레의 경유점으로 향한다
+    // 다음 지점까지의 직선이 플레이어를 지나면 플레이어 둘레의 경유점으로 향한다 — 보는 쪽 앞은 피해 등 뒤로 돈다
     state.detourSide = planDetourXZ(
       state.position,
       waypoint,
@@ -412,15 +546,24 @@ export function stepFollow(
         orbitRadius: FOLLOW_CONFIG.detourOrbitRadius,
         lookahead: FOLLOW_CONFIG.detourLookahead,
         switchMargin: FOLLOW_CONFIG.detourSwitchMargin,
+        // 정면 = (sin yaw, cos yaw) → XZ 각도 atan2(z, x)
+        avoid: {
+          angle: Math.atan2(Math.cos(pose.yaw), Math.sin(pose.yaw)),
+          halfWidth: FOLLOW_CONFIG.frontAvoidHalfAngle,
+        },
       },
       state.steerTarget,
     )
 
+    // 눈앞 길목에 들어와 있으면 경유점보다 먼저 옆으로 비킨다(가려는 자리 자체가 길목이면 — 뒷걸음 등 — 그대로 간다)
+    const isEscaping = steerOutOfFrontLane(state, pose, delta, world, terrain)
+
     toSteer.subVectors(state.steerTarget, state.position)
     const steerDistance = toSteer.length()
-    // 감속은 최종 목표까지 남은 경로 길이로 판단 (경유점에서 멈칫하지 않도록)
-    const speed =
-      FOLLOW_CONFIG.maxSpeed * Math.min(1, remaining / FOLLOW_CONFIG.slowRadius)
+    // 감속은 최종 목표까지 남은 경로 길이로 판단 (경유점에서 멈칫하지 않도록). 비킬 때는 최고 속도로
+    const speed = isEscaping
+      ? FOLLOW_CONFIG.maxSpeed
+      : FOLLOW_CONFIG.maxSpeed * Math.min(1, remaining / FOLLOW_CONFIG.slowRadius)
     if (steerDistance > 1e-6) {
       desired.copy(toSteer).multiplyScalar(speed / steerDistance)
     } else {
@@ -512,4 +655,6 @@ export function resumeFollow(state: FollowState, pose: FollowTargetPose): void {
   if (state.headingYaw !== null) state.headingOrigin.copy(pose.position)
   // 멈춘 동안 플레이어가 걸어서 멀어진 것을 텔레포트로 오인하지 않게 기준을 새로 잡는다
   state.lastPlayerPosition = null
+  state.speedClock = 0
+  state.laneEscapeTime = 0
 }

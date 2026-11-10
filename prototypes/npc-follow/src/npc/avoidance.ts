@@ -37,6 +37,30 @@ export interface DetourOptions {
   orbitRadius: number // 경유점을 놓는 원의 반경 (검사 반경보다 커야 함)
   lookahead: number // 접선 지점에서 더 앞으로 내다보는 각도 (rad)
   switchMargin: number // 반대쪽 경로가 이만큼(rad) 더 짧아야 방향을 바꾼다
+  // 돌아가는 길이 덜 지났으면 하는 부채꼴(원 중심 기준) — 플레이어 시야 앞.
+  // 두 방향 중 이 부채꼴을 덜 지나는 쪽으로 돈다. 없으면 짧은 쪽(예전 그대로)
+  avoid?: AvoidSector | null
+}
+
+// 원 중심 기준 XZ 각도(atan2(z, x))와 반폭(rad)
+export interface AvoidSector {
+  angle: number
+  halfWidth: number
+}
+
+// 두 방향의 「부채꼴을 지나는 길이」가 이만큼(rad) 넘게 달라야 그것으로 방향을 가른다 — 비슷하면 예전 규칙
+const AVOID_MARGIN = 0.15
+
+// fromAngle 에서 side 쪽으로 arc 만큼 도는 호가 부채꼴과 겹치는 길이 (rad)
+function sectorOverlap(fromAngle: number, side: 1 | -1, arc: number, sector: AvoidSector): number {
+  const center = wrapPositive(side * (sector.angle - fromAngle))
+  let overlap = 0
+  for (const shift of [-TWO_PI, 0, TWO_PI]) {
+    const start = center - sector.halfWidth + shift
+    const end = center + sector.halfWidth + shift
+    overlap += Math.max(0, Math.min(arc, end) - Math.max(0, start))
+  }
+  return overlap
 }
 
 // 직선 경로가 원과 교차하면 원 둘레의 경유점을 out에 기록하고 우회 방향을 돌려준다.
@@ -68,6 +92,14 @@ export function planDetourXZ(
   } else {
     side = previousSide
     if (arcFor(side) > Math.PI + options.switchMargin) side = side === 1 ? -1 : 1
+  }
+  // 플레이어 앞을 덜 지나는 쪽이 뚜렷하면 그쪽으로 — 길이가 조금 길어도 등 뒤로 돈다
+  if (options.avoid) {
+    const overlapPositive = sectorOverlap(fromAngle, 1, arcFor(1), options.avoid)
+    const overlapNegative = sectorOverlap(fromAngle, -1, arcFor(-1), options.avoid)
+    if (Math.abs(overlapPositive - overlapNegative) > AVOID_MARGIN) {
+      side = overlapPositive < overlapNegative ? 1 : -1
+    }
   }
 
   // 원 밖에 있으면 접선 지점까지의 각도만큼 건너뛰어 불필요하게 원 쪽으로 붙지 않게 한다

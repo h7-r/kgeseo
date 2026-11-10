@@ -26,7 +26,7 @@ import type { InstanceGroup } from "../placement/instanceGroups";
 import { UNITS_PER_METER } from "../plan/sitePlan";
 import { cave, withCave } from "../puzzles/cave/caveState";
 import { CORE_BOUNDS, type Terrain } from "../terrain/terrain";
-import { companionDialog, useCompanionDialog } from "./companionRuntime";
+import { companionDialog } from "./companionRuntime";
 import { companionStage, isCompanionCalled } from "./companionStage";
 
 const U = UNITS_PER_METER;
@@ -81,6 +81,11 @@ function disposeCompanionModel(model: THREE.Object3D) {
       material.dispose();
     }
   });
+}
+
+/** 걷기 훅이 적은 플레이어 이동 빠르기(m/s) — 플레이어 상자의 speed 는 월드 유닛/s 다 */
+function readWalkSpeed(link: RefObject<AvatarLink>) {
+  return (link.current?.speed ?? 0) / U;
 }
 
 /** 각도 a 에서 b 로 가장 가까운 쪽으로 t 만큼 */
@@ -165,7 +170,6 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
       if (loaded) disposeCompanionModel(loaded);
     };
   }, []);
-  const dialog = useCompanionDialog();
 
   // 플레이어 이동과 같은 지형(물굴 포함) · 같은 소품 충돌. 코어 밖은 물굴이 열렸을 때 그 안만 걷는다
   const world = useMemo(
@@ -189,11 +193,8 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
   /** 앞으로 불려 날아갈 자리(m) — 불리지 않았으면 null */
   const stageSpot = useRef<THREE.Vector3 | null>(null);
 
-  // 말하는 동안(기다림 · 자막)은 그 자리에 멈춘다 — 프로토타입 행동 상태 Interact
-  const isTalking = dialog.waiting !== null || dialog.line !== null;
-  useEffect(() => {
-    behavior.dispatch({ type: isTalking ? "START_INTERACT" : "END_INTERACT", source: "dialog" });
-  }, [behavior, isTalking]);
+  // 말하는 동안(기다림 · 자막)에도 따라온다 — 예전엔 그 자리에 멈춰(프로토타입 행동 상태 Interact) 돌아서거나 되돌아오는
+  // 플레이어 눈앞 · 길에 남았다(미르 11/11 「동행이 길을 막는다」). 말은 화면 아래 대화창에 뜨니 멈춰 설 까닭이 없다
 
   // 겨냥 대상 등록(E 로 말 걸기 · E 꾹 힌트)은 뺐다 — 계약 v0.4.16 §10-2: 말 거는 키는 F 하나, E 는 물건 쓰기 전용
 
@@ -284,6 +285,9 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
     const jumped =
       lastPlayer.current !== null && lastPlayer.current.distanceTo(target.position) > COMPANION_CONFIG.teleportDistance;
     (lastPlayer.current ??= new THREE.Vector3()).copy(target.position);
+    // 걷는 빠르기(m/s)는 걷기 훅이 적은 실제 이동 빠르기를 넘긴다(눈앞 길목 판정이 쓴다) — 위치 차이로 어림하면
+    // 이 훅이 걷기 훅보다 먼저 돌아 한 프레임 늦은 위치를 읽고, 아래서 한 프레임을 여러 걸음으로 나눠 값이 출렁였다(Codex 리뷰)
+    target.speed = jumped ? 0 : readWalkSpeed(playerRef);
     let state = follow.current;
     const distance = state ? Math.hypot(state.position.x - target.position.x, state.position.z - target.position.z) : 0;
     if (!state || jumped || distance > COMPANION_CONFIG.catchUpDistance) {
@@ -310,7 +314,10 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
     }
     if (isCompanionCalled() && stageSpot.current) {
       // 앞으로 불렸다 — 고른 자리로 날아가 멈춘다(추종은 쉰다). 플레이어는 화면 고정으로 묶여 있다
-      state.position.lerp(stageSpot.current, 1 - Math.exp(-Math.min(delta, COMPANION_CONFIG.maxFrameTime) * STAGE_FLY_RATE));
+      state.position.lerp(
+        stageSpot.current,
+        1 - Math.exp(-Math.min(delta, COMPANION_CONFIG.maxFrameTime) * STAGE_FLY_RATE),
+      );
       state.velocity.set(0, 0, 0);
       if (companionStage.status === "flying" && state.position.distanceTo(stageSpot.current) < STAGE_ARRIVE) {
         companionStage.status = "arrived";
