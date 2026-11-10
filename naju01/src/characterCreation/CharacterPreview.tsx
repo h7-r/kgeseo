@@ -435,6 +435,9 @@ function VisibilityWatcher({ onChange }: { onChange: (visible: boolean) => void 
   useEffect(() => {
     const handleChange = () => onChange(!document.hidden);
     document.addEventListener("visibilitychange", handleChange);
+    // 붙이는 사이에 탭이 다시 보이게 됐으면 그 알림을 놓친다 — 뒤 탭에서 열린 화면이 보이는데도 그리기를 멈춘 채(frameloop never)
+    // 캐릭터가 안 나왔다(11/10). 붙인 뒤 지금 상태로 한 번 맞춘다
+    handleChange();
     return () => document.removeEventListener("visibilitychange", handleChange);
   }, [onChange]);
   return null;
