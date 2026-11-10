@@ -12,11 +12,13 @@ import HeroVideoFrame from "./HeroVideoFrame";
 const HeroVideo = lazy(() => import("@/sections/home/HeroVideo"));
 
 const DESCRIPTION = "지역의 전설 속으로 들어가 지워진 기록을 되찾는 1인칭 방탈출 어드벤처";
+// 호버하면 글자가 하나씩 차례로 튀어 오른다 — 글자마다 칸을 나눈다.
+const PLAY_LABEL = [..."플레이하기"];
 
 // 예고편이 어떤 이유로든 끝을 알리지 못해도 이 뒤에는 끝 화면을 띄운다(영상은 약 17초).
 const TRAILER_SAFETY_MS = 40000;
 
-/** trailer: 예고편이 흐르는 동안 글을 숨긴다 · end: 로고가 왜곡되며 뜨고 설명·단추가 따라온다. */
+/** trailer: 예고편이 흐른다 · end: 예고편이 끝나고 잔잔한 반복 영상으로 바뀐다. 글 · 단추는 둘 다에서 보인다. */
 type HeroPhase = "trailer" | "end";
 
 interface HeroProps {
@@ -26,10 +28,9 @@ interface HeroProps {
 }
 
 /**
- * 첫 화면. 게임 예고편이 글 없이 흐르고, 암전·끊김 뒤에 ESCAPE THE LEGEND 로고가 왜곡되며 떠오른다.
- * 글은 처음부터 DOM 에 있다(검색·화면 읽기용) — 예고편 동안은 보이지만 않는다.
- * 동작 줄이기는 바로 끝 화면이다. 단추로 탭 이동하거나 스크롤로 떠났다 돌아와도 끝 화면을 당겨 띄운다.
- * 예고편 동안에도 오른쪽 아래 「건너뛰기」「플레이하기」로 기다리지 않고 넘어갈 수 있다.
+ * 첫 화면. 게임 예고편 위에 ESCAPE THE LEGEND 로고 · 설명 · 플레이 단추가 처음부터 떠 있다(영상 안 보고 바로 시작).
+ * 예고편이 끝나면 잔잔한 반복 영상으로 바뀐다. 오른쪽 아래 「건너뛰기」로 기다리지 않고 넘길 수 있다.
+ * 동작 줄이기는 바로 끝 화면이다. 스크롤로 떠났다 돌아와도 끝 화면을 당겨 띄운다.
  */
 export default function Hero({ top = 173, height }: HeroProps) {
   const navigate = useSiteNavigate();
@@ -138,9 +139,17 @@ export default function Hero({ top = 173, height }: HeroProps) {
         className="button button--gradient-label hero__play"
         style={{ ...playButtonStyle, cursor: "pointer", position: "relative", zIndex: 1 }}
         onClick={startGame}
-        onFocus={reveal}
       >
-        <span className="button__label hero__play-label">플레이하기</span>
+        <svg width="22" height="26" viewBox="0 0 12 14" aria-hidden="true" style={playIconStyle}>
+          <path d="M1 1.2v11.6L11 7z" fill="currentColor" />
+        </svg>
+        <span className="button__label hero__play-label">
+          {PLAY_LABEL.map((char, index) => (
+            <span key={index} className="hero__play-char" style={{ "--i": index } as CSSProperties}>
+              {char}
+            </span>
+          ))}
+        </span>
       </button>
 
       {!isEnded && (
@@ -151,18 +160,12 @@ export default function Hero({ top = 173, height }: HeroProps) {
               <path d="M2 2.5 7.5 7 2 11.5zM7.5 2.5 13 7l-5.5 4.5z" fill="currentColor" />
             </svg>
           </button>
-          <button type="button" className="button" style={trailerPlayButtonStyle} onClick={startGame}>
-            <svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true">
-              <path d="M1 1.2v11.6L11 7z" fill="currentColor" />
-            </svg>
-            <span className="button__label">플레이하기</span>
-          </button>
         </div>
       )}
 
       {isEnded && canReplay && (
         <button type="button" className="hero__replay" style={replayButtonStyle} onClick={replay}>
-          <span aria-hidden="true">↻</span> 예고편 다시 보기
+          <span aria-hidden="true">↻</span> 다시 보기
         </button>
       )}
     </section>
@@ -245,19 +248,30 @@ const descriptionStyle: CSSProperties = {
   flexShrink: 0,
 };
 
+// 상시 플레이 단추. 머리띠 · 구석 단추와 같은 알약 모양을 크게 — 영상 위에서도 칸이 보이게 테두리 · 반투명 면 · 푸른 빛.
 const playButtonStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "22px",
+  marginTop: "28px",
+  padding: "22px 64px 22px 54px",
   fontFamily: FONT.display,
   fontWeight: 400,
-  fontSize: "44px",
-  lineHeight: "150px",
+  fontSize: "40px",
+  lineHeight: 1,
   letterSpacing: "9px",
   // 파란 면 위 검정은 2.9:1 로 묻힌다. 흰색이면 5.6:1.
   color: COLOR.white,
   whiteSpace: "nowrap",
   flexShrink: 0,
-  // 호버 때 글자가 7% 커지는데 .button 이 overflow: hidden 이라 좌우 여유가 없으면 양 끝이 잘린다.
-  padding: "0 32px",
+  borderRadius: "999px",
+  border: "1.5px solid rgba(159,178,234,0.6)",
+  background: "rgba(6,12,32,0.5)",
+  boxShadow: "0 0 36px rgba(58,88,180,0.38), inset 0 0 20px rgba(58,88,180,0.22)",
 };
+
+// 삼각형은 글자 그라데이션과 따로 — 밝은 쪽 색으로 고정해 둔다.
+const playIconStyle: CSSProperties = { color: "#c9d5f5", flexShrink: 0 };
 
 // 오른쪽 아래 단추 자리. 예고편 단추와 끝 화면의 「다시 보기」가 같은 자리를 번갈아 쓴다.
 const CORNER_RIGHT = "120px";
@@ -293,15 +307,6 @@ const skipButtonStyle: CSSProperties = {
   color: COLOR.textBright,
   background: "rgba(1,4,10,0.45)",
   border: "1px solid rgba(159,178,234,0.4)",
-};
-
-// 머리띠 「로그인」 단추와 같은 남색 면. 예고편 위에서 먼저 눈에 들어오는 쪽이다.
-const trailerPlayButtonStyle: CSSProperties = {
-  ...cornerButtonBase,
-  color: COLOR.white,
-  background: "linear-gradient(90deg, #3a58b4 0%, #2f427b 100%)",
-  border: "1px solid rgba(159,178,234,0.55)",
-  boxShadow: "0 0 32px rgba(50,82,150,0.35), 0 4px 16px rgba(1,4,10,0.5)",
 };
 
 // 끝 화면 오른쪽 아래의 작은 글 단추. 로고·플레이하기와 겨루지 않게 흐리게 둔다.

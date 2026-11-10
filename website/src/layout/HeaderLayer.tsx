@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { DESIGN_WIDTH, HEADER_HEIGHT, useStageScale } from "@/lib/layout";
@@ -12,7 +12,7 @@ import {
   type RoutePath,
 } from "@/navigation/routes";
 import { measureSectionPositions } from "@/navigation/sectionGeometry";
-import { SUB_NAV_HEIGHT, getSubMenu } from "@/navigation/subMenus";
+import { SUB_NAV_HEIGHT, getSubMenu, itemLabel } from "@/navigation/subMenus";
 import { signOut, useSessionUser } from "@/services/session";
 
 import Header, { type HeaderMenuId } from "./Header";
@@ -67,6 +67,13 @@ export default function HeaderLayer() {
   // 다른 페이지로 가면 굴리던 것을 멈춘다. 안 그러면 새 페이지를 이전 페이지의 구간 자리로 끌고 간다.
   useEffect(() => cancelSectionScroll, [path]);
 
+  // 로그인 여부에 따라 이름이 바뀌는 항목이 있다(홈의 「로그인」 ↔ 「내 정보」).
+  const isSignedIn = Boolean(user);
+  const subNavItems = useMemo(
+    () => subMenu?.items.map(({ id, label }) => ({ id, label: itemLabel(label, isSignedIn) })),
+    [subMenu, isSignedIn],
+  );
+
   // 함수를 같은 것으로 유지해야 memo 된 Header 가 스크롤 문턱마다 다시 그려지지 않는다.
   const handleMenuNavigate = useCallback(
     (target: RoutePath) => {
@@ -117,7 +124,7 @@ export default function HeaderLayer() {
           onSearch={handleSearch}
           onMenuNavigate={handleMenuNavigate}
         />
-        {subMenu && <SubNav items={subMenu.items} activeId={currentSection} onSelect={handleSubSelect} />}
+        {subNavItems && <SubNav items={subNavItems} activeId={currentSection} onSelect={handleSubSelect} />}
       </div>
     </div>
   );
