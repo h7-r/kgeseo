@@ -2,6 +2,7 @@ import type { SessionUser } from "@/services/session";
 
 import { normalizeEmail, type ConsentKind } from "./db";
 import { apiUrl } from "@/config/env";
+import { lockedLoginMessage, parseRetryAfter, rateLimitedMessage } from "@/lib/retryAfter";
 import { TEST_ACCOUNT } from "./testAccount";
 
 /** 백엔드 인증 API(/api/v1/auth). 개발 서버는 vite proxy 로 127.0.0.1:8000 에 넘긴다. */
@@ -11,7 +12,15 @@ const SERVER_ERROR_MESSAGE = "서버와 통신하지 못했습니다. 잠시 후
 const INPUT_ERROR_MESSAGE = "입력값을 다시 확인해 주세요.";
 
 type AuthResponse =
-  { ok: true; status: number; body: unknown } | { ok: false; status: number; body: unknown; reason: string };
+  | { ok: true; status: number; body: unknown }
+  | {
+      ok: false;
+      status: number;
+      body: unknown;
+      reason: string;
+      /** 429 일 때 다시 보내도 되기까지 남은 초(Retry-After) */
+      retryAfter?: number;
+    };
 
 // 약관 글이 바뀌면 올린다. 동의 기록에 함께 남아 어느 판에 동의했는지 알 수 있다(consent_log.version).
 const TERMS_VERSION = "2026-09";
@@ -76,10 +85,22 @@ async function postAuth(path: string, payload: unknown): Promise<AuthResponse> {
       status: response.status,
       body,
       reason: typeof detail === "string" && detail ? detail : SERVER_ERROR_MESSAGE,
+      retryAfter: parseRetryAfter(response.headers.get("Retry-After")),
     };
   }
   return { ok: true, status: response.status, body };
 }
+
+/** 429 의 안내. 로그인 잠김(login_locked)과 요청 과다(rate_limited)를 code 로 가른다. 429 가 아니면 undefined. */
+function tooManyRequestsMessage(result: AuthResponse): string | undefined {
+  if (result.ok || result.status !== 429) return undefined;
+  return errorCode(result.body) === "login_locked"
+    ? lockedLoginMessage(result.retryAfter)
+    : rateLimitedMessage(result.retryAfter);
+}
+
+/** 중복 확인이 요청 제한에 걸렸다 — 「없음」으로 넘기지 않고 칸에 안내를 띄운다. */
+export class DuplicateCheckLimitedError extends Error {}
 
 const BACKEND_PROVIDERS = ["local", "google", "naver"] as const;
 type BackendProvider = (typeof BACKEND_PROVIDERS)[number];
@@ -136,9 +157,14 @@ export function toSessionUserFromBackend(body: unknown): SessionUser | null {
   };
 }
 
-/** 이메일·닉네임 중복 확인. 서버에 못 닿으면 「없음」으로 본다 — 가입 요청에서 서버가 다시 막는다. */
+/**
+ * 이메일·닉네임 중복 확인. 서버에 못 닿으면 「없음」으로 본다 — 가입 요청에서 서버가 다시 막는다.
+ * 요청 제한(429)은 「없음」이 아니다 — DuplicateCheckLimitedError 로 알린다.
+ */
 async function existsOnServer(path: "/email-exists" | "/nickname-exists", payload: unknown) {
   const result = await postAuth(path, payload);
+  const limited = tooManyRequestsMessage(result);
+  if (limited) throw new DuplicateCheckLimitedError(limited);
   return Boolean(
     result.ok &&
     typeof result.body === "object" &&
@@ -196,6 +222,8 @@ export async function authenticate(email: string, password: string): Promise<Aut
       const testUser = testAccountWithoutServer(email, password);
       if (testUser) return { ok: true, user: testUser };
     }
+    const limited = tooManyRequestsMessage(result);
+    if (limited) return { ok: false, reason: limited };
     // 없는 계정과 틀린 비밀번호를 같은 말로 답해 어떤 메일이 가입됐는지 캐낼 수 없게 한다.
     if (result.status === 401) return { ok: false, reason: "이메일 또는 비밀번호가 올바르지 않습니다." };
     // 422 { code, message } 는 입력 형식 문제다. 통신 오류로 안내하지 않고, 서버 문구도 그대로 띄우지 않는다.
@@ -234,6 +262,8 @@ export async function signUp({ email, password, nickname, region, consents = {} 
     if (detail === "Required consent is missing.") {
       return { ok: false, reason: "필수 약관 동의가 빠져 회원가입을 완료하지 못했습니다." };
     }
+    const limited = tooManyRequestsMessage(result);
+    if (limited) return { ok: false, reason: limited };
     if (SERVER_UNREACHABLE_STATUS.includes(result.status)) {
       return {
         ok: false,
