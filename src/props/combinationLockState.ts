@@ -195,12 +195,17 @@ export function turnLockDigit(id: string, direction: number) {
 }
 
 /** 지금 맞춰 놓은 번호가 정답인가. 맞으면 풀린 채로 남는다. */
-export function tryLockAnswer(id: string) {
+/**
+ * 로컬 판정. digits 를 주면 그 글자로 판다 — 서버 판정이 실패해 나중에 대신 팔 때는 「낸 순간」의 글자를 넘겨야
+ * 그사이 다이얼을 정답으로 돌리기만 해도 열리지 않는다(튜토피드백 15회차 Codex).
+ */
+export function tryLockAnswer(id: string, digits?: readonly number[]) {
   const lock = locks.get(id);
   if (!lock) return false;
   // 정답이 없으면 아무 번호나 통과시키지 않는다 — 문이 그냥 열려 버린다.
   if (lock.answer.length === 0) return false;
-  const correct = lock.answer.length === lock.digits.length && lock.answer.every((v, i) => v === lock.digits[i]);
+  const judged = digits ?? lock.digits;
+  const correct = lock.answer.length === judged.length && lock.answer.every((v, i) => v === judged[i]);
   if (correct && !lock.unlocked) {
     locks.set(id, { ...lock, unlocked: true, openInstantly: false });
     playSound("lockOpen", { volume: 0.9 });

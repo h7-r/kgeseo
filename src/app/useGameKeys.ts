@@ -83,7 +83,8 @@ function handleLockKey(code: string, id: string) {
   else if (code === "KeyE" || code === "Enter") {
     // 맞으면 풀리고 나간다. 틀리면 덜컹 — "아니다"를 몸으로 알려 준다.
     // 밸브 자물쇠 막힘 힌트(valveHelp)는 「틀렸다」는 판정만 센다 — 통신 실패 자체는 안 센다. 같은 답 연달아는 한 번(낸 순간의 글자로 가린다)
-    const answer = getLockState(id)?.digits.join(",") ?? "";
+    const digits = [...(getLockState(id)?.digits ?? [])];
+    const answer = digits.join(",");
     submitLockAnswer(id)
       .then((isCorrect) => {
         if (typeof isCorrect === "boolean") noteValveAnswer(id, isCorrect, answer);
@@ -94,7 +95,7 @@ function handleLockKey(code: string, id: string) {
       .catch((error: unknown) => {
         // 백엔드 없이 프론트만 켜면 요청이 실패해 튜토리얼 자물쇠가 영영 안 열린다 — 서버에 못 닿았을 때만 로컬 판정.
         console.warn("[Play Session] 자물쇠 판정 실패 — 로컬 판정으로 대신한다", error);
-        const isCorrect = tryLockAnswer(id);
+        const isCorrect = tryLockAnswer(id, digits); // 낸 순간의 글자로(그사이 돌린 다이얼 말고)
         noteValveAnswer(id, isCorrect, answer);
         if (isCorrect) leaveAfterUnlock(id);
         else rattleHinge(id);

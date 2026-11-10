@@ -15,7 +15,7 @@ import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
 import { createChangeSignal } from "@/lib/changeSignal";
-import { findLockState, getLockState } from "@/props/combinationLockState";
+import { findLockState, getLockControl, getLockState } from "@/props/combinationLockState";
 import { hasFullPower } from "@/props/workLampPuzzle/workLampState";
 
 import { addHint, flashHints, type Hint } from "./hintBox";
@@ -156,7 +156,9 @@ export function noteValveAnswer(id: string, isCorrect: boolean, answer: string) 
   if (key === lastWrongAnswer) return;
   lastWrongAnswer = key;
   wrong += 1;
-  advance(true);
+  // 늦게 온 판정이면 이미 자물쇠를 나갔을 수 있다 — 그때 넘은 문턱은 게임 화면에서 묻는다(자물쇠 카드로 묶으면 안 보인 채 남는다, 15회차 Codex)
+  const control = getLockControl();
+  advance(control?.phase === "active" && control.id === id);
 }
 
 /** 자물쇠를 만지고 있던 시간을 더한다(ValveHelpWatcher) */
