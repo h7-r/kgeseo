@@ -151,7 +151,8 @@ export function updateStoryBurn(
   if (story.emberAt < 0) {
     story.emberAt = time;
     audio.play("단서");
-    showNotice("횃불에서 튄 불티 하나가 바람을 타고 평상으로 날아간다…", 3.5);
+    // 눈앞에서 지금 벌어지는 일 — 이야기에 밀리면 버린다(뒤에 뜨면 끝난 일을 지금처럼 말한다)
+    showNotice("횃불에서 튄 불티 하나가 바람을 타고 평상으로 날아간다…", 3.5, { fleeting: true });
   }
   const since = time - story.emberAt;
   const { flames, flameSeeds, fireLight } = story;
@@ -181,7 +182,7 @@ export function updateStoryBurn(
     if (since + dt >= EMBER_SECONDS) {
       audio.play("첨벙");
       director.cue({ 카메라: "흔들림", 세기: 0.1 });
-      showNotice("불티가 평상 널에 떨어져 불이 붙는다 — 널이 타들어 가며 무언가 드러난다.", 4);
+      showNotice("불티가 평상 널에 떨어져 불이 붙는다 — 널이 타들어 가며 무언가 드러난다.", 4, { fleeting: true });
     }
   } else {
     const burn = Math.min(1, (since - EMBER_SECONDS) / BURN_SECONDS);

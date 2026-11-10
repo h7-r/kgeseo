@@ -148,7 +148,8 @@ function startWaiting() {
   if (isWaiting || isTouchMode() || isWindowHeld() || !document.hasFocus()) return;
   isWaiting = true;
   syncCursor();
-  showNotice(WAITING_NOTICE, 4);
+  // 멈춤 상태 안내 — 이야기(동행 자막 등) 위에도 바로(풀리면 clearNotice 로 거둔다)
+  showNotice(WAITING_NOTICE, 4, { always: true });
 }
 
 function stopWaiting() {

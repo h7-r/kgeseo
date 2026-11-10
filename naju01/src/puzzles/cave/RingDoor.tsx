@@ -387,7 +387,7 @@ export default function RingDoor() {
   const removeGear = (k: number) => {
     if (!gearsRef.current[k]) return;
     if (!inventory.add("gearStone")) {
-      showNotice("소지품이 가득 찼다.");
+      showNotice("소지품이 가득 찼다.", 3.2, { urgent: true, fleeting: true });
       return;
     }
     setGears((previous) => previous.map((filled, i) => (i === k ? false : filled)));
@@ -486,11 +486,15 @@ export default function RingDoor() {
       const filled = countFilled(floatsRef.current);
       if (filled < FLOAT_SLOTS) {
         if (inventory.has("floatStone")) return false;
-        showNotice(`물레가 헛돈다 — 뜬 돌 넷을 가운데 홈에 다 끼워야 걸린다. (지금 ${filled}/${FLOAT_SLOTS})`, 3.5);
+        showNotice(`물레가 헛돈다 — 뜬 돌 넷을 가운데 홈에 다 끼워야 걸린다. (지금 ${filled}/${FLOAT_SLOTS})`, 3.5, {
+          urgent: true,
+          fleeting: true,
+        });
         wobble.current = 1;
         return true;
       }
-      if (!gearsRef.current.some(Boolean)) showNotice("물린 고리가 없다 — 물레만 돈다. 톱니돌을 홈에 끼우자.", 3);
+      if (!gearsRef.current.some(Boolean))
+        showNotice("물린 고리가 없다 — 물레만 돈다. 톱니돌을 홈에 끼우자.", 3, { urgent: true, fleeting: true });
       isHolding.current = true;
       holdTime.current = NOTCH_SECONDS; // 누르자마자 한 눈금
       return true;

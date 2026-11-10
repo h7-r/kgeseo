@@ -1,14 +1,47 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { addPointerActiveListener, isPointerActive, useKeyLabels, useTouchMode } from "@/engine/input";
 
 import { AMBER, CREAM, HUD_FONT as FONT } from "./hudTheme";
+import { useNotice } from "./interaction";
 import { usePuzzlePanel } from "./puzzlePanel";
 
-/** 퍼즐 안내판 — 화면 오른쪽 가운데. 퍼즐이 올린 제목 · 규칙 · 상태 줄 · 그림을 그대로 보여 준다. Canvas 밖 DOM 층 */
+/**
+ * PC — 알림과 겹치면 안내판이 잠깐 비켜 준다(흐려진다). 알림은 몇 초 뒤 사라지고 안내판은 퍼즐 곁에 있는 내내 떠 있어서,
+ * 짧게 머무는 쪽(알림)을 또렷하게 둔다. 큰 그림이 든 안내판(물레 고리문) · 낮은 화면 · 긴 이야기 알림이 겹치는 경우(박람회 출품판 22회차 Codex).
+ * 대사 상자 · 게이지가 떠서 알림이 옮겨 가는 것도 잡게 떠 있는 동안 0.25초마다 다시 잰다.
+ */
+function useYieldToNotice() {
+  const notice = useNotice();
+  const ref = useRef<HTMLDivElement>(null);
+  const [isYielding, setIsYielding] = useState(false);
+  useLayoutEffect(() => {
+    if (!notice) return undefined;
+    const check = () => {
+      const panel = ref.current;
+      const box = document.querySelector('[data-hud="알림"]');
+      if (!panel || !box) return setIsYielding(false);
+      const a = panel.getBoundingClientRect();
+      const b = box.getBoundingClientRect();
+      setIsYielding(a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom);
+    };
+    // 알림이 그려진 다음 프레임에 처음 재고, 떠 있는 동안 이어서 잰다
+    const frame = requestAnimationFrame(check);
+    const timer = window.setInterval(check, 250);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearInterval(timer);
+    };
+  }, [notice]);
+  // 알림이 없으면 비키지 않는다(마지막으로 잰 값이 남아 있어도)
+  return { ref, isYielding: !!notice && isYielding };
+}
+
+/** 퍼즐 안내판 — PC 는 화면 오른쪽 위. 퍼즐이 올린 제목 · 규칙 · 상태 줄 · 그림을 그대로 보여 준다. Canvas 밖 DOM 층 */
 export default function PuzzlePanelHud() {
   const panel = usePuzzlePanel();
   const isTouch = useTouchMode();
+  const { ref, isYielding } = useYieldToNotice();
   if (!panel) return null;
   if (isTouch) {
     // 퍼즐이 바뀌면(제목) 접힘 상태를 새로 — 같은 퍼즐의 개수 갱신으로는 바뀌지 않는다
@@ -23,7 +56,12 @@ export default function PuzzlePanelHud() {
     );
   }
   return (
-    <div style={cardStyle}>
+    <div
+      ref={ref}
+      style={{ ...cardStyle, opacity: isYielding ? 0.12 : 1 }}
+      data-hud="퍼즐 안내판"
+      data-yield={isYielding ? "1" : undefined}
+    >
       <div style={titleStyle}>{panel.title}</div>
       <div style={ruleStyle}>{panel.rule}</div>
       {panel.diagram && <div style={diagramStyle}>{panel.diagram}</div>}
@@ -102,17 +140,26 @@ function TouchPuzzlePanel({ title, rule: rawRule, rows, diagram }: TouchPuzzlePa
 const cardStyle: CSSProperties = {
   position: "absolute",
   right: 24,
-  top: "50%",
-  transform: "translateY(-50%)",
+  // 오른쪽 위에 붙여 아래로 자란다 — 가운데(50%)에 두면 글씨를 키운 알림(긴 이야기는 4~5줄)이 아래에서 올라와 닿았다(박람회 출품판 22회차).
+  // 「⚙ 설정 [P]」 단추(위 14 ~ 42px) 바로 아래부터 — 그림까지 든 물레 고리문 판(15px 글씨로 550px 안팎)도 낮은 화면(640)에 들어오게
+  top: 54,
   zIndex: 24,
-  width: 250,
-  padding: "14px 16px",
-  borderRadius: 12,
-  background: "rgba(14,18,26,.78)",
+  // 글씨를 키웠다(13 → 15px · 제목 15 → 17px, 미르 11/9 「작아서 안 보인다 — 대사 상자와 같은 톤으로」) — 그만큼 넓게
+  width: 290,
+  boxSizing: "border-box",
+  padding: "15px 18px",
+  borderRadius: 14,
+  background: "rgba(12,15,22,.9)",
+  border: "1px solid rgba(242,238,228,.16)",
+  backdropFilter: "blur(6px)",
+  WebkitBackdropFilter: "blur(6px)",
   color: CREAM,
-  font: `500 13px/1.5 ${FONT}`,
+  font: `500 15px/1.55 ${FONT}`,
+  wordBreak: "keep-all",
+  overflowWrap: "break-word",
   pointerEvents: "none",
   boxShadow: "0 8px 28px rgba(0,0,0,.3)",
+  transition: "opacity .2s ease",
 };
 
 /**
@@ -171,7 +218,8 @@ const clampedRuleStyle: CSSProperties = {
 };
 const touchBodyStyle: CSSProperties = { borderTop: "1px solid rgba(242,238,228,.14)", marginTop: 8, paddingTop: 8 };
 
-const titleStyle: CSSProperties = { font: `700 15px/1.3 ${FONT}`, color: AMBER, marginBottom: 6 };
+// PC 제목 15 → 17px · 값 13 → 15px(휴대폰 판은 fontSize 를 따로 덮어써 그대로다)
+const titleStyle: CSSProperties = { font: `700 17px/1.3 ${FONT}`, color: AMBER, marginBottom: 7 };
 const ruleStyle: CSSProperties = { color: "#CFD6D4", whiteSpace: "pre-line", marginBottom: 8 };
 const diagramStyle: CSSProperties = { display: "grid", placeItems: "center", margin: "4px 0 8px" };
 const rowsStyle: CSSProperties = {
@@ -182,4 +230,4 @@ const rowsStyle: CSSProperties = {
 };
 const rowStyle: CSSProperties = { display: "flex", justifyContent: "space-between", gap: 10 };
 const labelStyle: CSSProperties = { color: "#A9B3B0" };
-const valueStyle: CSSProperties = { font: `600 13px/1.5 ${FONT}`, textAlign: "right" };
+const valueStyle: CSSProperties = { font: `600 15px/1.5 ${FONT}`, textAlign: "right" };

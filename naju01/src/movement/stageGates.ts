@@ -62,7 +62,8 @@ function noticeOnce(name: string, text: string) {
   const now = performance.now();
   if (now - (noticedAt.get(name) ?? -Infinity) < NOTICE_GAP_MS) return;
   noticedAt.set(name, now);
-  showNotice(text, 3.5);
+  // 지금 부딪힌 것에 대한 반응 — 바로, 이야기 중이라 못 뜨면 버린다(경계가 풀린 뒤에 뜨면 지난 말)
+  showNotice(text, 3.5, { urgent: true, fleeting: true });
 }
 
 /** 개발용 — 문을 다 연다(퍼즐을 건너뛰고 뒤 스테이지를 볼 때) */

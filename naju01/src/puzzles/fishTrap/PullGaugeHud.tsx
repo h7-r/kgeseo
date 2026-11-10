@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
 
 import { isGameFrozen } from "@/engine/input/gamePause";
 import { TOUCH_HUD } from "@/engine/input/touchHudLayout";
@@ -52,6 +52,32 @@ export default function PullGaugeHud() {
   const isTouch = useTouchMode();
   const gauge = useGauge();
   const markerRef = useRef<SVGGElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // PC — 게이지 윗변 높이를 알린다. 알림(InteractionHud)이 그 위로 비켜 선다 — 게이지 그림(150px)이 알림 자리(아래 110px)까지 올라와
+  // 줄을 당기는 동안 뜬 알림과 겹쳤다(박람회 출품판 22회차 Codex). 휴대폰은 게이지가 화면 가운데라 알리지 않는다
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const wrap = wrapRef.current;
+    if (!gauge.active || !wrap || isTouch) {
+      root.style.removeProperty(GAUGE_TOP_VAR);
+      return undefined;
+    }
+    const update = () => {
+      const stage = wrap.offsetParent?.getBoundingClientRect();
+      const bottom = stage ? stage.bottom : window.innerHeight;
+      root.style.setProperty(GAUGE_TOP_VAR, `${Math.ceil(bottom - wrap.getBoundingClientRect().top)}px`);
+    };
+    update();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(wrap);
+    window.addEventListener("resize", update);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", update);
+      root.style.removeProperty(GAUGE_TOP_VAR);
+    };
+  }, [gauge.active, isTouch]);
 
   useEffect(() => {
     if (!gauge.active) return undefined;
@@ -77,7 +103,7 @@ export default function PullGaugeHud() {
   if (!gauge.active) return null;
   const zonePath = arcPath(gauge.center - gauge.zone / 2, gauge.center + gauge.zone / 2);
   return (
-    <div style={isTouch ? { ...wrapStyle, ...touchWrapStyle } : wrapStyle} data-hud="게이지">
+    <div ref={wrapRef} style={isTouch ? { ...wrapStyle, ...touchWrapStyle } : wrapStyle} data-hud="게이지">
       <svg
         key={gauge.flashKey}
         className={gauge.flash === "miss" ? "naju-gauge-miss" : undefined}
@@ -115,7 +141,14 @@ export default function PullGaugeHud() {
       <div
         style={
           isTouch
-            ? { ...labelStyle, maxWidth: "100%", whiteSpace: "normal", lineHeight: 1.3, textAlign: "center" }
+            ? {
+                ...labelStyle,
+                ...touchLabelLook,
+                maxWidth: "100%",
+                whiteSpace: "normal",
+                lineHeight: 1.3,
+                textAlign: "center",
+              }
             : labelStyle
         }
       >
@@ -133,6 +166,8 @@ export default function PullGaugeHud() {
 }
 
 const FONT = '"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif';
+/** 알림이 읽는 값 — 무대 아래끝에서 게이지 윗변까지(px, PC 만) */
+const GAUGE_TOP_VAR = "--naju-gauge-top";
 
 const wrapStyle: CSSProperties = {
   position: "absolute",
@@ -169,11 +204,14 @@ const labelStyle: CSSProperties = {
   marginTop: -18,
   padding: "6px 12px 6px 6px",
   borderRadius: 999,
-  background: "rgba(14,18,26,.72)",
+  background: "rgba(12,15,22,.9)",
   color: "#F2EEE4",
-  font: `600 14px/1 ${FONT}`,
+  // PC 14 → 16px — 조작 중에 읽는 규칙(미르 11/9 「글씨가 작아 안 보인다 — 대사 상자와 같은 톤으로」 · 박람회 출품판 22회차)
+  font: `600 16px/1 ${FONT}`,
   whiteSpace: "nowrap",
 };
+/** 휴대폰은 예전 그대로(휴대폰 글자 크기는 11/8 해랑 검토로 따로 맞춰 두었다) */
+const touchLabelLook: CSSProperties = { background: "rgba(14,18,26,.72)", fontSize: 14 };
 
 const keyStyle: CSSProperties = {
   display: "grid",

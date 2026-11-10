@@ -170,9 +170,13 @@ export function useNajuDevHook({
   ]);
 }
 
-/** 개발용 — Shift+숫자 = 그 씬이 끝났다. 숫자만 누르는 텔레포트는 뺐다(플레이 중 잘못 눌러 스테이지가 건너뛰었다). IME 때문에 e.code 를 쓴다. */
+/**
+ * 개발용 — Shift+숫자 = 그 씬이 끝났다. 숫자만 누르는 텔레포트는 뺐다(플레이 중 잘못 눌러 스테이지가 건너뛰었다). IME 때문에 e.code 를 쓴다.
+ * 개발 빌드에서만 — 배포 판에서도 켜져 있어 Shift+1~5 를 누르면 스테이지가 끝났다(박람회 출품판 01회차에서 짚음 · 11/10).
+ */
 export function useSceneEndKeys(endScene: (sceneNumber: number) => string) {
   useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
     const handleKeyDown = (e: KeyboardEvent) => {
       const i = DIGIT_INDEX[e.code];
       if (i === undefined || !e.shiftKey) return;

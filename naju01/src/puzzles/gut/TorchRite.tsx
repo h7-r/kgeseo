@@ -315,7 +315,7 @@ function TorchRiteScene() {
     /** 가락지를 도로 집었다 — 굿이 멎고 횃불이 되살아난다 */
     const takeBack = () => {
       if (!inventory.add("shellRings")) {
-        showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 집자.");
+        showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 집자.", 3.2, { urgent: true, fleeting: true });
         return;
       }
       pending.current = [];
@@ -332,7 +332,7 @@ function TorchRiteScene() {
         return;
       }
       if (!inventory.has("pineTorch") && !inventory.add("pineTorch")) {
-        showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 집자.");
+        showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 집자.", 3.2, { urgent: true, fleeting: true });
         return;
       }
       // 뽑아서 바로 손에 든다 — 들고 있어야 둘레가 밝고, 횃불에 댈 수 있다
@@ -351,16 +351,19 @@ function TorchRiteScene() {
       audio.play("불길");
       director.cue({ 카메라: "흔들림", 세기: 0.16 });
       director.cue({ 바람: 2.8, 초: FINALE.descendAt + 1.5 });
-      showNotice("다섯 불이 다 켜졌다. 징이 길게 울고 바람이 거세진다 — 불기둥 다섯이 하늘로 치솟는다.", 5);
+      // 눈앞에서 지금 벌어지는 일 — 이야기에 밀리면 버린다(뒤에 뜨면 끝난 일을 지금처럼 말한다)
+      showNotice("다섯 불이 다 켜졌다. 징이 길게 울고 바람이 거세진다 — 불기둥 다섯이 하늘로 치솟는다.", 5, {
+        fleeting: true,
+      });
       later(FINALE.descendAt + 0.3, () =>
-        showNotice("불길이 횃불대를 타고 내려와 땅을 달린다 — 다섯 줄기가 소반으로 모인다.", 4.5),
+        showNotice("불길이 횃불대를 타고 내려와 땅을 달린다 — 다섯 줄기가 소반으로 모인다.", 4.5, { fleeting: true }),
       );
       later(FINALE.runAt, () => audio.play("불붙음"));
       later(FINALE.igniteAt, () => {
         audio.play("불길");
         audio.play("우르릉");
         director.cue({ 카메라: "흔들림", 세기: 0.14 });
-        showNotice("소반에 불이 붙는다. 제물이 타오르고 — 가락지 한 쌍이 불길 위로 떠오른다.", 5.5);
+        showNotice("소반에 불이 붙는다. 제물이 타오르고 — 가락지 한 쌍이 불길 위로 떠오른다.", 5.5, { fleeting: true });
       });
       later(FINALE.dawnAt, () => {
         gut.dawn();
@@ -396,7 +399,9 @@ function TorchRiteScene() {
         audio.play("전환");
         director.cue({ 바람: 2.2, 초: 1.6 });
         director.cue({ 카메라: "흔들림", 세기: 0.06 });
-        showNotice("차례가 어긋났다. 바람이 불어 켠 불이 다 꺼진다 — 그 밤부터의 일을 처음부터 다시 짚어 보자.", 5.5);
+        showNotice("차례가 어긋났다. 바람이 불어 켠 불이 다 꺼진다 — 그 밤부터의 일을 처음부터 다시 짚어 보자.", 5.5, {
+          urgent: true,
+        });
         return;
       }
       gut.light();

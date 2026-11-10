@@ -140,7 +140,10 @@ export default function GateRift() {
         // 틈은 한 방향이다 — 함 속의 것을 챙기기 전에는 끌어들이지 않고 까닭만 알린다
         if (!hold.current.wasInside && gameNow() - hold.current.noticedAt > HOLD_NOTICE_GAP_MS) {
           hold.current.noticedAt = gameNow();
-          showNotice("틈이 아직 끌어당기지 않는다 — 아랑사의 함에 볼일이 남았다.", 3.5);
+          showNotice("틈이 아직 끌어당기지 않는다 — 아랑사의 함에 볼일이 남았다.", 3.5, {
+            urgent: true,
+            fleeting: true,
+          });
         }
       } else if (isInside && startRiftEntry("gate")) {
         // 빨려 든다 — 시선이 틈 가운데로 천천히 당겨지고 걷기가 멈춘다. 건너가는 것은 캄캄해진 뒤

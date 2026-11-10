@@ -279,7 +279,7 @@ export default function AirStations() {
   const takePearl = () => {
     if (!isLightSolved || isPearlTaken) return;
     if (!inventory.add("bigPearl")) {
-      showNotice("소지품이 가득 찼다.");
+      showNotice("소지품이 가득 찼다.", 3.2, { urgent: true, fleeting: true });
       return;
     }
     setIsPearlTaken(true);

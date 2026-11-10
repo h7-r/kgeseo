@@ -221,15 +221,15 @@ export function ExitRocks({ assets }: { assets: ChamberAssets }) {
   );
 }
 
-/** 아비사 · 아랑사 석상 — 들머리 양옆에서 방 안쪽을 본다. 초롱 · 노 날의 빛은 받침 풀이를 따라 켜진다 */
+/** 아랑사 · 아비사 석상 — 들머리 양옆에서 방 안쪽을 본다. 초롱 · 노 날의 빛은 받침 풀이를 따라 켜진다 */
 export function EntryStatues({
   assets,
-  abisaGlow,
   arangsaGlow,
+  abisaGlow,
 }: {
   assets: ChamberAssets;
-  abisaGlow: RefObject<number>;
   arangsaGlow: RefObject<number>;
+  abisaGlow: RefObject<number>;
 }) {
   return STATUE_X.map((x, i) => (
     <group key={i} position={[x, INNER_FLOOR, STATUE_Z]} rotation={[0, Math.PI + (i === 0 ? -0.35 : 0.35), 0]}>
@@ -238,10 +238,10 @@ export function EntryStatues({
       </mesh>
       <group position={[0, 0.3, 0]}>
         <StoneFigure
-          kind={i === 0 ? "아비사" : "아랑사"}
+          kind={i === 0 ? "아랑사" : "아비사"}
           material={assets.statue}
           glowTexture={assets.glowTexture}
-          glow={i === 0 ? abisaGlow : arangsaGlow}
+          glow={i === 0 ? arangsaGlow : abisaGlow}
         />
       </group>
     </group>
