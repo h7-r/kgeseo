@@ -51,6 +51,7 @@ export const MyPage = preloadable(() => import("@/pages/MyPage"));
 export const MediaPage = preloadable(() => import("@/pages/MediaPage"));
 export const SearchPage = preloadable(() => import("@/pages/SearchPage"));
 export const SocialOnboardingPage = preloadable(() => import("@/pages/SocialOnboardingPage"));
+export const AdminApp = preloadable(() => import("@/admin/AdminApp"));
 
 interface Preloadable {
   preload: () => Promise<unknown>;
