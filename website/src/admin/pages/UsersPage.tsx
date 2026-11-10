@@ -13,13 +13,15 @@ import Badge from "../ui/Badge";
 import DataTable, { type Column } from "../ui/DataTable";
 import PillTabs from "../ui/PillTabs";
 import StatCard from "../ui/StatCard";
-import { PendingScreen } from "../ui/StatusScreen";
 
 const TABS = [
   { id: "all", label: "전체 회원" },
-  { id: "withdrawn", label: "탈퇴 회원" },
-  { id: "suspended", label: "정지 회원" },
+  { id: "withdrawn", label: "탈퇴 회원", pendingNote: "준비 중" },
+  { id: "suspended", label: "정지 회원", pendingNote: "준비 중" },
 ] as const;
+
+/** 서버 API 가 있는 탭만 고를 수 있다. 주소로 ?tab=withdrawn 이 와도 준비 중 탭은 열리지 않는다. */
+const OPEN_TABS = TABS.filter((tab) => !("pendingNote" in tab));
 
 /** 주소의 ?shown= — 「더 보기」로 펼친 만큼. 새로고침 · 뒤로 가기에서 그만큼 다시 받는다. */
 const SHOWN_PARAM = "shown";
@@ -32,7 +34,7 @@ function readShown(params: URLSearchParams): number {
 }
 
 export default function UsersPage() {
-  const [tab, setTab] = useQueryChoice("tab", TABS, "all");
+  const [tab, setTab] = useQueryChoice("tab", OPEN_TABS, "all");
 
   return (
     <>
@@ -49,7 +51,7 @@ export default function UsersPage() {
         <StatCard label="정지" value={null} caption="이용 제한" />
         <StatCard label="탈퇴" value={null} caption="누적" />
       </div>
-      {tab === "all" ? <UserList /> : <PendingScreen needs="회원 정지 · 탈퇴 조회 API 가 생기면 열립니다." />}
+      {tab === "all" && <UserList />}
     </>
   );
 }

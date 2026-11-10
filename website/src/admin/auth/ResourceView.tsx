@@ -3,6 +3,7 @@ import { Navigate, useLocation } from "react-router-dom";
 
 import type { Resource } from "../api/useAdminResource";
 import { adminLoginPath } from "../paths";
+import AdminTitle from "../ui/AdminTitle";
 import StatusScreen from "../ui/StatusScreen";
 import LogoutButton from "./LogoutButton";
 
@@ -35,12 +36,15 @@ export default function ResourceView<T>({
       return <Navigate to={adminLoginPath(location.pathname + location.search)} replace />;
     case "forbidden":
       return (
-        <StatusScreen
-          kind="forbidden"
-          title="관리자 권한이 없습니다"
-          description="관리자 권한이 해제됐을 수 있습니다. 다른 계정으로 로그인해 주세요."
-          action={<LogoutButton variant="primary" />}
-        />
+        <>
+          <AdminTitle label="권한 없음" />
+          <StatusScreen
+            kind="forbidden"
+            title="관리자 권한이 없습니다"
+            description="관리자 권한이 해제됐을 수 있습니다. 다른 계정으로 로그인해 주세요."
+            action={<LogoutButton variant="primary" />}
+          />
+        </>
       );
     case "notFound":
       return <StatusScreen kind="notFound" title={notFoundText ?? "찾는 항목이 없습니다"} />;

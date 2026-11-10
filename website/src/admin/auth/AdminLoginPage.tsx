@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { toAdminError } from "../api/client";
 import { ADMIN_ROLE, fetchMe, loginWithPassword, logout, type LoginResult } from "../api/session";
+import { lockedLoginMessage } from "../lib/loginLock";
 import { adminNextPath } from "../paths";
 
 type FieldErrors = { email?: string; password?: string };
@@ -12,10 +13,8 @@ function loginMessage(result: FailedLogin): string {
   switch (result.failure) {
     case "invalid":
       return "이메일 또는 비밀번호가 올바르지 않습니다.";
-    case "locked": {
-      const minutes = result.retryAfterSeconds ? Math.ceil(result.retryAfterSeconds / 60) : null;
-      return `로그인을 여러 번 틀려 잠시 잠겼습니다. ${minutes ? `${minutes}분 뒤에` : "잠시 뒤에"} 다시 시도해 주세요.`;
-    }
+    case "locked":
+      return lockedLoginMessage(result.retryAfterSeconds);
     case "input":
       return "이메일 형식을 다시 확인해 주세요.";
     case "offline":
