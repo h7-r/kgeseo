@@ -68,6 +68,7 @@ import { usePlayerMovement } from "./usePlayerMovement";
 import { IS_MANGA_STYLE } from "../world/mangaStyle";
 import { useRendererSetup, useSceneFrame, type NajuSceneReport } from "./useSceneFrame";
 import { useSceneModes } from "./useSceneModes";
+import CompanionFishLore from "./firstScene/CompanionFishLore";
 import CompanionIntro from "./firstScene/CompanionIntro";
 import CompanionNudge from "./firstScene/CompanionNudge";
 import FirstSceneActors from "./firstScene/FirstSceneActors";
@@ -364,6 +365,8 @@ export default function NajuScene({
       <CompanionIntro enabled={!isEditing && !IS_REVIEW_REQUESTED} />
       {/* 놓고 온 것(씬 1 빛 물고기 · 모자란 제물) 동행 한마디 — 튜토피드백 13회차 */}
       <CompanionNudge enabled={!isEditing && !IS_REVIEW_REQUESTED} />
+      {/* 빛 물고기의 정체(꺼진 화톳불의 불씨) 동행 한마디 — 미르 11/10 */}
+      <CompanionFishLore enabled={!isEditing && !IS_REVIEW_REQUESTED} />
       {IS_FOCUS_ENABLED && (
         <ImmersionLayer terrain={terrain} playerRef={playerState} gateSpots={gates} active={active && !isReviewHold} />
       )}

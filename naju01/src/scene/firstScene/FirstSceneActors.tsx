@@ -323,6 +323,7 @@ function updateSerpent(brain: Brain, rig: ActorRig, eye: THREE.Vector3, dt: numb
   rig.toWorld(SNAKE_HEAD, tmp.snakeHead);
   serpent.breath = 0.012 * Math.sin((state.time * Math.PI * 2) / 3.6);
 
+  firstScenePoints.isSerpentClose = false;
   // 물러나는 중 — 움찔 쳐들었다가 물가로 미끄러지며 가라앉는다. 몸을 좌우로 틀며 기어가는 듯이
   if (state.retreatTime >= 0) {
     const before = state.retreatTime;
@@ -352,6 +353,7 @@ function updateSerpent(brain: Brain, rig: ActorRig, eye: THREE.Vector3, dt: numb
   serpent.shift.set(0, 0, 0);
 
   const wantsAlert = state.serpentDistance < 7 ? 1 : 0;
+  firstScenePoints.isSerpentClose = wantsAlert === 1;
   state.alert = smooth(state.alert, wantsAlert, wantsAlert ? 1.6 : 0.6, dt);
   // 처음 다가가면 — 조사관의 판단(위험해 보인다). 소리는 날 수 있을 때 한 번(Codex 리뷰).
   // 화면 고정 · 다른 사람(동행 소개 등)이 말하는 중이면 한 번뿐인 알림을 쓰지 않고 미룬다(Codex 08)
@@ -651,6 +653,7 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
   useEffect(
     () => () => {
       firstScenePoints.abisaHead = null;
+      firstScenePoints.isSerpentClose = false;
     },
     [],
   );
