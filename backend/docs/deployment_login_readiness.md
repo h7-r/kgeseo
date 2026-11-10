@@ -61,3 +61,21 @@ merge 마이그레이션이 필요하다. 운영자가 실제 DB를 백업·검�
 테스트는 코드 수준 증거다. 실제 계정 OAuth 성공은 도메인/제공자 설정 미준비로
 검증하지 못했다. 전체 테스트·브라우저 흐름·운영 번들 검사 결과는 통합 보고서와
 외부 감사 폴더 C:/dev/kgeseo-login-companion-integration-20261105에 기록한다.
+
+## 베타 전 보안 PR A (2026-11-10): API 문서 · 로그인 Retry-After
+
+- API 문서(`/docs` · `/redoc` · `/openapi.json`)는 `APP_ENV=production`일 때만 끈다
+  (`app/core/deployment.py` `api_docs_settings`, `app/main.py`의 `FastAPI(...)`). 개발 · 테스트는 그대로 연다.
+- **운영 판별은 `APP_ENV` 하나뿐이다.** 운영 서버 환경(`EnvironmentFile` 또는 `/srv/waegok/.env`)에
+  `APP_ENV=production`이 없으면 기본값 `development`로 떠서 문서가 그대로 열린다. 이때 운영 설정 검증
+  (`validate_deployment`: root DB 계정 금지 · HTTPS CORS · 소셜 설정 필수)도 함께 건너뛴다.
+- 배포 전 · 후 확인(운영자, 값은 보고에 적지 않는다):
+  1. 운영 API 프로세스 환경에 `APP_ENV=production`이 있는지(파일 내용 전체를 출력하지 말고 그 한 줄만 확인).
+  2. 배포 뒤 `https://api.k-escape.com/docs`, `/redoc`, `/openapi.json`이 모두 404인지.
+  3. `/api/v1/health`가 `{"status":"ok"}`, `/api/v1/health/ready`가 `{"status":"ready"}`인지.
+  4. 1이 아니면(문서가 200) `APP_ENV=production`을 넣기 전에 운영 설정 검증을 통과하는 값인지
+     `scripts/check_deployment.py`로 먼저 확인한다 — 검증에 실패하면 API 가 뜨지 않는다.
+- 로그인 잠금 429 는 `Retry-After`(정수 초)를 싣는다. 값은 `login_throttles.locked_until - 지금`을 올림한 값이고,
+  이메일 · IP 잠금이 둘 다면 더 늦게 풀리는 쪽이다. 잠금 정책(15분 안 이메일당 5회 · IP당 30회 실패)과
+  401 · 429 응답 본문은 바꾸지 않았다. CORS `expose_headers`에 `Retry-After`가 이미 있어 웹사이트가 읽을 수 있다.
+- 되돌리기: 이 PR 커밋을 되돌려 재배포한다(DB 변경 없음).

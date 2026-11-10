@@ -26,6 +26,7 @@ from app.api.v1.play_sessions import (
     router as play_sessions_router,
 )
 from app.core.config import settings
+from app.core.deployment import api_docs_settings
 from app.db.session import AsyncSessionLocal
 from app.services.content_release import restore_on_startup
 from app.services.lobby_config import get_lobby_issuer_state
@@ -43,11 +44,12 @@ async def lifespan(app: FastAPI):
     yield
 
 
-# FastAPI 애플리케이션 생성
+# FastAPI 애플리케이션 생성. API 문서(/docs · /redoc · /openapi.json)는 운영에서 끈다.
 app = FastAPI(
     title="왜곡 Backend API",
     version="0.1.0",
     lifespan=lifespan,
+    **api_docs_settings(settings.app_env),
 )
 
 

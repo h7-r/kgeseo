@@ -315,7 +315,8 @@ LOGIN = {
     ),
     429: error(
         CodedError,
-        "같은 이메일 또는 IP 의 로그인 실패가 많아 잠시 막혔다." + _NO_STORE,
+        "같은 이메일 또는 IP 의 로그인 실패가 많아 잠시 막혔다. `Retry-After` 헤더가 잠금이 풀릴 때까지 "
+        "남은 초다(이메일 · IP 잠금이 둘 다면 더 늦게 풀리는 쪽)." + _NO_STORE,
         "login_locked",
     ),
 }
