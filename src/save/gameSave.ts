@@ -161,8 +161,16 @@ function collectState(): string {
 /** 마지막으로 쓴 것과 같은지 보는 열쇠 — 단계만 바뀌어도(나주 → 로비) 다시 쓴다. 칸 값만 비교하면 단계 변경이 저장되지 않았다 */
 const writtenKey = (state: string) => `${stage}\n${state}`;
 
+/** 보내는 동안 또 쓰라고 했다 — 끝나면 그때 값으로 한 번 더 쓴다 */
+let isFollowUpWanted = false;
+
 function writeNow(keepalive: boolean): Promise<void> {
-  if (!isLoggedIn || !stage || isWriting) return writing ?? Promise.resolve();
+  if (!isLoggedIn || !stage) return writing ?? Promise.resolve();
+  if (isWriting) {
+    // 지금 오가는 요청은 그 전 값이다 — 끝난 뒤 최신 값을 놓치지 않게(본부실 첫 진입 단계가 묻히던 것, Codex 리뷰)
+    isFollowUpWanted = true;
+    return writing ?? Promise.resolve();
+  }
   const state = collectState();
   const key = writtenKey(state);
   if (key === lastWritten) return Promise.resolve();
@@ -170,6 +178,11 @@ function writeNow(keepalive: boolean): Promise<void> {
   writing = sendState(state, key, keepalive).finally(() => {
     isWriting = false;
     writing = null;
+    if (!isFollowUpWanted) return;
+    isFollowUpWanted = false;
+    // 뒤따르는 쓰기는 늘 keepalive — 떠나기 직전(pagehide · 본부실 첫 진입)에 부탁받은 것일 수 있어 창이 닫혀도 끝까지 가게(Codex 리뷰).
+    // 본문은 떠날 때 저장(pagehide)과 같은 크기라 keepalive 한도 안이다
+    void writeNow(true);
   });
   return writing;
 }

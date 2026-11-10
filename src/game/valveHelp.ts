@@ -53,6 +53,8 @@ const HINTS: readonly { hint: Hint; toast: string }[] = [
     toast: "힌트함 [H]에 「정답 확인하기」를 넣었다",
   },
 ];
+/** 밸브 자물쇠 쪽지 — 튜토리얼 공간 것이라 본부실에 들어서면 힌트함에서 지운다(tutorial/tutorialHints) */
+export const VALVE_HELP_HINT_IDS: readonly string[] = HINTS.map(({ hint }) => hint.id);
 
 export const VALVE_HINT_LINE = "힌트: 밸브가 영어로 뭐지?";
 export const VALVE_ANSWER_LINE = "그래도 막혔다면 [H] 힌트함의 「정답 확인하기」";

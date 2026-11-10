@@ -137,6 +137,8 @@ const VENDING_HINT: Hint = {
   description: `${linesText(VENDING_LINES)}\n\n자판기 쪽에 불이 들어오자 어디선가 나타난 쪽지. 자판기와 관계가 있을지도 모른다.`,
   isPhysical: false,
 };
+/** 튜토리얼 공간에서 저절로 들어오는 쪽지 — 본부실에 들어서면 힌트함에서 지운다(tutorial/tutorialHints) */
+export const TUTORIAL_NOTE_IDS: readonly string[] = [FIRST_HINT.id, VENDING_HINT.id];
 
 /** 튜토리얼이 끝나는 순간 부른다(분리수거 쪽지). 이미 넣었으면 아무 일도 안 한다. */
 export function giveFirstHint() {

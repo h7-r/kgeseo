@@ -1,6 +1,7 @@
 /**
  * 화면이 넘어가는 사이(렌더링·모델 읽기)를 반복 영상 + 흐르는 안내 문장으로 가리는 막의 상태·명령·음악.
  *   entry    웹사이트 → 캐릭터 생성. 웹사이트가 틀던 오프닝 시네마틱을 그 초부터 잇는다(?transition=2.61)
+ *   resume   웹사이트 → 다시 접속(저장 단계가 있다). 오프닝은 처음 한 번만 — 입장 영상만 짧게(replaceOpeningWithResume)
  *   tutorial 캐릭터 생성 → 튜토리얼. 경주 → 여수 반복
  *   naju     기차 내부 → 나주 맵. 나주 진입 영상을 한 번 튼 뒤 목포 → 순천 반복
  * 렌더 시간은 기계마다 달라(3초~20초) 길이를 정하지 않고 준비될 때까지 돈다.
@@ -13,7 +14,7 @@ import { isMediaHeld, subscribeLandscape } from "@/engine/input/landscape";
 
 import { TRANSITION_VIDEO_DIR } from "./readinessCheck";
 
-export type LoadingVideoKind = "entry" | "tutorial" | "naju";
+export type LoadingVideoKind = "entry" | "resume" | "tutorial" | "naju";
 
 export interface LoadingVideoOptions {
   /** true 면 이 페이지에서 준비가 끝나도 걷지 않는다(곧 페이지를 옮기고, 다음 페이지가 걷는다) */
@@ -24,6 +25,7 @@ export interface LoadingVideoOptions {
 // 입장은 오프닝 영상이 제 소리를 갖고 있어 곡을 따로 틀지 않는다.
 // 보정은 곡 크기(EBU R128)를 맞춘 값 — Final Chord −16.3 LUFS, Drone −14.4 LUFS → Drone 을 1.9dB 낮춘다.
 const MUSIC: Partial<Record<LoadingVideoKind, { url: string; gain: number }>> = {
+  resume: { url: "/bgm/final-chord.mp3", gain: 1 },
   tutorial: { url: "/bgm/final-chord.mp3", gain: 1 },
   naju: { url: "/bgm/atmospheric-drone.mp3", gain: 0.8 },
 };
@@ -258,6 +260,16 @@ export const SEQUENCES: Record<LoadingVideoKind, LoadingSequence> = {
     lines: [...WORLD_LINES.slice(0, 3), "외형을 정하고 이름을 등록하면 첫 임무가 시작됩니다."],
     minSeconds: 1.4,
   },
+  // 다시 접속 — 오프닝 없이 입장 영상(소리 없음)을 돌리며 기다린다. 튜토리얼 처음부터 · 로비 둘 다 이 막
+  resume: {
+    intro: [],
+    loop: ["entry"],
+    tag: "RECONNECTING · 합동수사본부",
+    title: "조사관 재접속",
+    subtitle: "기록을 확인하고 있습니다.",
+    lines: WORLD_LINES,
+    minSeconds: 1.4,
+  },
   tutorial: {
     intro: [],
     loop: ["gyeongju", "yeosu"],
@@ -372,6 +384,17 @@ function readInitialState(): LoadingVideoState | null {
 /** 막을 켠다 */
 export function showLoadingVideo(kind: LoadingVideoKind, { keepOpen = false }: LoadingVideoOptions = {}) {
   state = { kind, clipIndex: 0, videoTime: 0, musicTime: 0, lineIndex: 0, keepOpen, serial: (state?.serial ?? 0) + 1 };
+  notifyListeners();
+}
+
+/**
+ * 웹사이트에서 넘어온 입장(오프닝 이어 틀기)을 짧은 재접속 영상으로 바꾼다 — 저장 단계가 있는 사람(캐릭터를 만든 뒤)은 오프닝을
+ * 다시 보지 않는다(미르 11/10). 웹사이트가 먼저 튼 2.6초는 그대로다. 막을 그리기 전에 부른다(본편 main — 저장을 받은 뒤)
+ */
+export function replaceOpeningWithResume() {
+  if (state?.kind !== "entry") return;
+  state = { ...state, kind: "resume", clipIndex: 0, videoTime: 0, musicTime: 0, lineIndex: 0 };
+  playMusic("resume", 0);
   notifyListeners();
 }
 

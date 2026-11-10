@@ -202,6 +202,27 @@ async function createFreshPlaySession(caseId: string, anonymousSessionId: string
   };
 }
 
+/**
+ * 지난 회차를 이어 쓰지 않는다 — 튜토리얼을 처음부터 할 때(save/resumeStart). 다음 판정 때 서버에 새 회차를 연다(빈 진행 · 처음 힌트 잔액).
+ * 이미 푼 회차를 이어 쓰면 서버가 답을 보기 전에 「이미 완료」를 돌려줘 아무 답이나 열렸다(미르 11/9 · 11/10).
+ * 게스트 쿠키(익명 세션)는 그대로 둔다. 새 회차를 못 열면 판정하는 쪽이 지금처럼 그 자리 판정으로 대신한다 — 지난 회차로 돌아가지 않는다.
+ * 플레이를 시작하기 전(첫 화면을 그리기 전)에 부른다 — 오가는 요청을 되돌리지는 않는다.
+ */
+export function forgetPlaySession(caseId: string = PLAY_CONTRACT.caseId): void {
+  const record = readGuestPlay();
+  if (record?.caseId === caseId && record.playSessionId) clearPlayId(record, caseId);
+  if (status.playSessionId || status.caseId === caseId)
+    update({
+      phase: "idle",
+      caseId: null,
+      playSessionId: null,
+      lastResult: null,
+      savedState: null,
+      stateSource: null,
+      error: null,
+    });
+}
+
 export function startPlaySession(caseId: string = PLAY_CONTRACT.caseId): Promise<string> {
   if (!isNonEmptyString(caseId)) return Promise.reject(new Error("caseId가 필요합니다."));
   if (status.playSessionId && status.caseId === caseId) return Promise.resolve(status.playSessionId);

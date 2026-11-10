@@ -121,7 +121,8 @@ export default function CharacterCreationRoute() {
   const [initialValue] = useState(readInitialDraft);
   const hasLeft = useRef(false);
   // 저장이 있으면 캐릭터 생성을 건너뛴다. 본부실에 들어선 뒤(본부실 · 기차 · 나주)면 로비에서 시작하고 — 하던 게임으로 바로
-  // 들어가지 않는다, 다시 할지는 사용자가 기차 목적지 창에서 고른다(미르 11/10) — 튜토리얼 중이면 나갔던 자리에서 잇는다.
+  // 들어가지 않는다, 다시 할지는 사용자가 기차 목적지 창에서 고른다(미르 11/10) — 튜토리얼 중이면 튜토리얼을 처음부터 다시 한다
+  // (save/resumeStart — 위치 · 단계 · 서버 퍼즐 회차를 새로).
   const [savedStage] = useState(getSavedStage);
   const resumesGame = savedStage !== null && savedStage !== "character";
   const [isCharacterReady, setIsCharacterReady] = useState(false);

@@ -65,6 +65,19 @@ export function removeHint(id: string) {
   return removed ?? null;
 }
 
+/**
+ * 쪽지들을 힌트함에서 아주 지운다(실물을 되놓지 않는다). 본부실에 들어서면 튜토리얼 공간 쪽지를 정리할 때 쓴다(tutorial/tutorialHints).
+ * 지운 개수를 돌려준다.
+ */
+export function discardHints(ids: readonly string[]) {
+  const drop = new Set(ids);
+  const before = hints.length;
+  for (let i = hints.length - 1; i >= 0; i--) if (drop.has(hints[i].id)) hints.splice(i, 1);
+  for (const id of ids) unseen.delete(id);
+  if (hints.length !== before) signal.notify();
+  return before - hints.length;
+}
+
 // [H] 를 누를 때 왼쪽 표시가 같이 깜빡여야 저기가 힌트함이라는 게 눈에 박힌다.
 let flashedAt = 0;
 export const getHintFlashTime = () => flashedAt;

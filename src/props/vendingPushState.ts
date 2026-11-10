@@ -1,5 +1,6 @@
 /**
- * 소화전 밸브가 돌면 음료 자판기가 옆으로 밀려난다(비밀문). 들어간 뒤엔 닫히고 다가가면 다시 열린다.
+ * 소화전 밸브가 돌면 음료 자판기가 옆으로 밀려난다(비밀문). 본부실에 들어선 뒤 한 번 닫히면 다시 열리지 않는다 —
+ * 튜토리얼(비밀 복도)은 한 번 지나가는 구간이다(미르 11/10). 문턱에서 돌아서면 닫히기 전까지는 다가가면 다시 열린다.
  * 밀린 정도는 매 프레임 바뀌어 모듈 바깥에 둔다. 자판기 그룹은 매 프레임 position 을 직접 만지고,
  * 길이가 늘어야 하는 배전관은 지오를 다시 떠야 해서 0.08 유닛 칸으로 끊어 알린다.
  */
@@ -75,7 +76,9 @@ export const markCutsceneSeen = () => {
   cutsceneSeen = true;
 };
 
-// 문으로 처음 들어간 뒤부터 자판기가 저절로 닫히고, 다가가면 열린다. 씬이 다시 떠도 기억한다.
+// 문으로 처음 들어간 뒤부터 자판기가 저절로 닫힌다. 씬이 다시 떠도 기억한다.
+// 페이지를 새로 열면 저장 단계(본부실 · 기차 · 나주)로 다시 적는다(save/resumeStart) — 그러지 않으면 새로 고침한 본부실에서
+// 단계가 튜토리얼로 내려가 적혔다
 let enteredHeadquarters = false;
 export const hasEnteredHeadquarters = () => enteredHeadquarters;
 const enterListeners = new Set<() => void>();
@@ -89,7 +92,17 @@ export function onEnteredHeadquarters(listener: () => void) {
 export const markEnteredHeadquarters = () => {
   if (enteredHeadquarters) return;
   enteredHeadquarters = true;
-  enterListeners.forEach((listener) => listener());
+  [...enterListeners].forEach((listener) => listener());
+};
+/** 본부실에 들어섰나(화면용) — 들어선 뒤 튜토리얼 완료 안내를 걷는다 */
+export const useHasEnteredHeadquarters = () => useSyncExternalStore(onEnteredHeadquarters, hasEnteredHeadquarters);
+
+// 본부실에 들어선 뒤 문(자판기)이 한 번 닫히면 잠근다 — 다시 열리지 않아 비밀 복도로 돌아가지 못한다.
+// 다시 접속해 로비에서 시작하면 처음부터 잠겨 있다(save/resumeStart)
+let headquartersDoorSealed = false;
+export const isHeadquartersDoorSealed = () => headquartersDoorSealed;
+export const sealHeadquartersDoor = () => {
+  headquartersDoorSealed = true;
 };
 
 // 연출만 손보는 동안 퍼즐을 매번 풀 수는 없으니 밸브가 돌아간 척하는 스위치(Leva 버튼).
@@ -133,6 +146,7 @@ function resetPush() {
   steppedOffset = 0;
   cutsceneSeen = false;
   enteredHeadquarters = false;
+  headquartersDoorSealed = false;
   cutscenePlaying = false;
   valveFaked = false;
   signal.notify();
