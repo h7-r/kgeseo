@@ -261,7 +261,12 @@ async def _process_npc_turn_once(
             config = rule_config_for(
                 content.npc_pack.auto_nudge if content.npc_pack else None, rule_config
             )
-            return run_auto_turn(decide(signals, config), state=state, content=content)
+            return run_auto_turn(
+                decide(signals, config),
+                state=state,
+                content=content,
+                used_nudges=used_auto_nudges(events),
+            )
 
         def pause_line(pack: GeneralPackAccess) -> ApprovedLine | None:
             # 케이스 승인 출처와 섞지 않는다: 일반 팩과 그 팩 승인 출처만 쓴다.
@@ -287,14 +292,33 @@ async def _process_npc_turn_once(
             await db.rollback()
             return response
 
-        # 2. 계산(잠금 없음)
-        result = await compute(access, pack_access)
+        # 2. 계산(잠금 없음). auto 턴은 3에서 세션을 잠근 뒤에만 계산한다.
+        auto = request.trigger == "auto"
+        result = None if auto else await compute(access, pack_access)
+
+        if auto:
+            # 같은 세션의 auto 턴을 세션 행 잠금으로 직렬화한다 — 동시 요청이 같은 nudge 를 고르지 않도록,
+            # 앞선 턴이 commit 한 반환 기록(npc_turn)을 보고 고른다. 지금 트랜잭션을 끝내고(읽기 시점 갱신)
+            # 잠근 뒤 상태 · 이벤트를 다시 읽는다. 잠금 순서: 세션 → 승인 · 게시(공유) — 다른 경로와 같다.
+            await db.rollback()
+            locked = await db.get(
+                PlaySession,
+                play_session_id,
+                with_for_update=True,
+                populate_existing=True,
+            )
+            if locked is None:
+                raise PlaySessionNotFoundError()
+            state = dict(locked.state_json)
 
         # 3. 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 그 사이 철회 · 차단(케이스) 또는 팩 승인 변경이 commit됐으면
         #    다시 계산한다. 대역(승인 출처를 직접 넘긴 경우)은 근거가 늘 같다.
         final = await read_access(lock=True)
         final_pack = await read_pack(lock=True)
-        if (final.basis, final_pack.basis) != (access.basis, pack_access.basis):
+        if result is None or (final.basis, final_pack.basis) != (
+            access.basis,
+            pack_access.basis,
+        ):
             access, pack_access = final, final_pack
             result = await compute(access, pack_access)
 
@@ -355,6 +379,33 @@ def _payload(request: NpcTurnRequest) -> dict[str, Any]:
         "focus_object_id": request.focus_object_id,
         "message_sha256": digest,
     }
+
+
+def used_auto_nudges(events: Sequence[Any]) -> frozenset[tuple[str | None, str]]:
+    """이 회차(play session)에서 자동 개입으로 이미 반환한 승인 nudge (puzzle_id, line_id).
+
+    새 테이블 없이 기존 `npc_turn` 기록(response_json = NpcTurnEventRecord)을 쓴다. 1단계 nudge 만 센다
+    (2단계 힌트 안내 · 플레이어 메시지 응답은 넣지 않는다). 퍼즐 ID 를 함께 보아 다른 퍼즐의 같은 line_id 와
+    섞지 않는다. **응답으로 반환한 기록**이지 화면 표시 기록이 아니다 — FE 가 표시하지 못한 줄도 쓴 것으로 본다.
+    """
+
+    used: set[tuple[str | None, str]] = set()
+    for event in events:
+        if event.interaction_type != NPC_TURN_EVENT_TYPE:
+            continue
+        record = event.response_json if isinstance(event.response_json, dict) else {}
+        auto = record.get("auto_intervene")
+        line_id = record.get("line_id")
+        if (
+            record.get("trigger") == "auto"
+            and record.get("auto_intervened") is True
+            and record.get("reply_source") == "approved_line"
+            and isinstance(line_id, str)
+            and isinstance(auto, dict)
+            and auto.get("level") == 1
+        ):
+            used.add((auto.get("puzzle_ref"), line_id))
+    return frozenset(used)
 
 
 def _focus_puzzle(

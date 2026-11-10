@@ -98,3 +98,43 @@
 - 멱등 저장소 · 게시 guard의 NPC 턴 HTTP 연결(작업 C · D 저장소는 독립 기반)
 - 무입력에서 컷 · 모달 시간 제외(FE `active_seconds` 연동 필요)
 - 응답만 하고 보고가 오지 않은 제안의 처리. 소모하지 않으므로 다음 자동 턴에서 다시 제안될 수 있다.
+
+## 자동 개입 nudge 선택 (11/10 PM 요청 · 미르님 승인)
+
+판단 조건(연속 오답 6회 · 무입력 240초), `intervention_level`, 횟수 · 쿨다운 정책은 바꾸지 않았다. `decide()`의 판단 사유로
+**어떤 승인 nudge를 고를지**만 정한다(`npc_dialogue.select_auto_nudge`).
+
+- **분류:** line_id 끝의 `_<분류>_<번호>[_<말투>]`로 읽는다(예: `NUDGE_P01_WRONG_1_J` → WRONG).
+  이 꼴이 아니면 분류 없음이다.
+- **사유별 후보 순서(같은 분류 안에서는 npc.json 순서):**
+  - `repeated_incorrect`: WRONG → HELP → 분류 없음
+  - `idle_too_long`: STUCK → HELP → 분류 없음
+  - 순서를 정하지 않은 사유(`player_requested` 등)는 기존처럼 npc.json 순서다(PM 미정).
+    현재 auto 턴에서는 `player_requested`가 생기지 않는다.
+  - 그 사유의 순서에 없는 분류는 쓰지 않는다(무입력에 WRONG, 오답에 STUCK을 쓰지 않음).
+- **ARRIVE:** 어떤 사유에서도 자동 개입에 쓰지 않는다.
+- **승인 · 공개 조건:** 기존 검사(게시 절차의 승인 출처, `reveal_when`)를 그대로 거친 줄만 후보다.
+- **회차 내 중복 방지:**
+  - 기준은 `(play_session_id, puzzle_id, line_id)`이고, 개입 사유가 달라도 다시 고르지 않는다.
+  - 새 테이블 없이 기존 `npc_turn` 기록(`response_json`)을 쓴다. 기록 조건은 `trigger=auto`,
+    `auto_intervened=true`, `reply_source=approved_line`, `auto_intervene.level=1`이다.
+    퍼즐 ID는 `auto_intervene.puzzle_ref`에서 읽는다.
+  - 새 회차(새 play session)는 이력을 새로 시작한다.
+- **소진:**
+  - 후보가 모두 쓰였으면 같은 줄을 반복하지 않고 reply null을 돌려준다.
+    이벤트 기록의 `no_reply_reason`은 `auto_nudges_exhausted`다.
+  - 연속 오답은 기존 정책대로 2단계(힌트 안내)로 넘어간다. 단, server.json에 그 퍼즐의 정식 힌트가 있을 때만이다.
+    나주 v1에는 서버 힌트가 없어 null이다.
+- **재시도:** 같은 `client_event_id`는 저장된 기록을 그대로 돌려준다(후보를 더 쓰지 않는다).
+- **동시성:**
+  - auto 턴은 확정 전에 세션 행을 `FOR UPDATE`로 잠근다. 잠근 뒤 상태 · 이벤트를 다시 읽고 계산한다.
+  - 그래서 같은 회차의 동시 요청이 같은 줄을 두 번 고르지 않는다.
+  - 잠금 순서는 세션 → 승인 · 게시(공유 잠금)다.
+
+### 제한
+
+- **반환 기록 기준이다. 실제 화면 표시는 보장하지 않는다.** FE가 받은 뒤 표시하지 못한 줄(대화 중 · 컷 · 탭
+  숨김 · 네트워크 실패)도 쓴 것으로 센다. 표시 보고 HTTP API는 이번 베타 범위가 아니다.
+- **판단 순서:** 같은 퍼즐에서 연속 오답이 기준 이상이면 무입력보다 먼저 판단한다. 연속 수는 정답(=완료)으로만
+  끊긴다. 그래서 실제 흐름에서 같은 퍼즐의 순서는 「무입력(STUCK) → 오답(WRONG)」만 생긴다.
+- **반복 요청:** 후보가 소진된 뒤에도 auto 턴마다 `npc_turn` 기록 1행은 계속 쌓인다(reply null).
