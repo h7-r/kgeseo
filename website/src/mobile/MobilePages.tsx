@@ -25,6 +25,7 @@ import TermsTabs from "@/sections/terms/TermsTabs";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
+import { IS_MOBILE_PLAY_READY } from "./gameStartStore";
 import MobilePage from "./MobilePage";
 import {
   bodyTextStyle,
@@ -151,7 +152,8 @@ export function MobileAboutPage() {
     <Shell>
       <PageHeading eyebrow="About" title="게임 소개" />
       <Tabs items={ABOUT_TABS} active={tab} onSelect={setTab} />
-      {tab === "controls" && (
+      {/* 휴대폰 조작은 모바일 버전을 열 때 다시 보인다 — 지금은 PC 조작만 */}
+      {tab === "controls" && IS_MOBILE_PLAY_READY && (
         <>
           <h2 style={subheadingStyle}>휴대폰</h2>
           <Rows rows={TOUCH_CONTROL_ROWS} />

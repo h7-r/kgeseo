@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { FONT } from "@/lib/style";
 import { COLOR } from "@/styles/tokens";
 
+import { IS_MOBILE_PLAY_READY } from "./gameStartStore";
 import { isSignedUpState } from "./signedUpState";
 
 export default function SignedUpNotice() {
@@ -21,7 +22,11 @@ export default function SignedUpNotice() {
     <div role="status" style={noticeStyle}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <strong style={titleStyle}>가입을 마쳤습니다</strong>
-        <p style={bodyStyle}>휴대폰을 가로로 돌린 뒤 「플레이하기」를 누르면 게임이 시작됩니다.</p>
+        <p style={bodyStyle}>
+          {IS_MOBILE_PLAY_READY
+            ? "휴대폰을 가로로 돌린 뒤 「플레이하기」를 누르면 게임이 시작됩니다."
+            : "모바일 버전은 준비 중입니다. PC에서 같은 계정으로 로그인하면 바로 시작할 수 있습니다."}
+        </p>
       </div>
       <button type="button" aria-label="안내 닫기" style={closeStyle} onClick={dismiss}>
         ✕
