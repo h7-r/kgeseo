@@ -505,6 +505,20 @@ html[data-admin] :focus-visible {
 .adm-tab:hover {
   border-color: var(--admin-line-strong);
 }
+/* 서버 기능 전이라 못 여는 탭 — 점선 · 흐린 글자로 눌리는 탭과 구분한다 */
+.adm-tab[aria-disabled="true"] {
+  border-style: dashed;
+  background: var(--admin-surface-sunken);
+  color: var(--admin-text-label);
+  cursor: not-allowed;
+}
+.adm-tab[aria-disabled="true"]:hover {
+  border-color: var(--admin-line);
+}
+.adm-tab__note {
+  margin-left: 8px;
+  font-size: 12px;
+}
 .adm-tab.is-active {
   border-color: var(--admin-blue);
   background: var(--admin-blue);

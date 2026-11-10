@@ -2,6 +2,7 @@ import { apiUrl } from "@/config/env";
 import { errorCode, toSessionUserFromBackend } from "@/services/account/authApi";
 import { signIn, signOut } from "@/services/session";
 
+import { parseRetryAfter } from "../lib/loginLock";
 import { adminGet } from "./client";
 
 /** GET /api/v1/me. 관리자인지는 이 응답의 role 로만 정한다. */
@@ -56,12 +57,11 @@ export async function loginWithPassword(email: string, password: string): Promis
   const { status } = response;
   if (status === 401) return { ok: false, failure: "invalid", status };
   if (status === 429 && errorCode(body) === "login_locked") {
-    const retryAfter = Number(response.headers.get("Retry-After"));
     return {
       ok: false,
       failure: "locked",
       status,
-      retryAfterSeconds: Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : undefined,
+      retryAfterSeconds: parseRetryAfter(response.headers.get("Retry-After")),
     };
   }
   if (status === 422) return { ok: false, failure: "input", status };
