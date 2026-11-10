@@ -81,6 +81,15 @@ const SCREEN_LIST = [
       "관리자 기록(admin_audit_logs) 조회 API 가 생기면 열립니다. 기록 자체는 지금도 서버에 쌓이고 있습니다.",
   },
   {
+    id: "security",
+    path: "security",
+    label: "보안",
+    description: "로그인 실패 · 잠김 · 요청 거절 · 관리자 접속 같은 이상 신호를 봅니다.",
+    status: "pending",
+    pendingNote:
+      "보안 집계 API(/admin/security/summary · /admin/security/events)가 생기면 열립니다. 원문 · 비밀번호 · 전체 IP 는 보이지 않습니다.",
+  },
+  {
     id: "notices",
     path: "notices",
     label: "공지사항",
