@@ -93,6 +93,7 @@ varying vec3 v_restPos;
 varying float v_tint;
 varying float v_cloth;
 varying float v_bottom;
+varying float v_skin;
 uniform vec3 _headCentre;
 uniform float _faceFlatten;
 varying float v_face;
@@ -110,6 +111,8 @@ const VERTEX_NORMAL = `
   // "is bottom" still steps, so a skin->bottom triangle never passes through 2 = top
   v_cloth = clamp(_tint - 1.0, 0.0, 1.0);
   v_bottom = _tint > 2.5 ? 1.0 : 0.0;
+  // skin (1) mark, stepped per vertex like v_bottom: > 0 inside any triangle that touches a skin vertex
+  v_skin = (_tint > 0.5 && _tint < 1.5) ? 1.0 : 0.0;
   if (_face > 0.001 && _faceFlatten > 0.001) {
     vec3 sphere = normalize(position - _headCentre);
     objectNormal = normalize(mix(objectNormal, sphere, _face * _faceFlatten));
@@ -140,9 +143,13 @@ uniform vec3 _bottomTint;
 uniform vec3 _clothBase;
 uniform vec3 _bottomBase;
 uniform float _seamFix;
+uniform vec3 _skinBase;
+uniform float _skinHem;
+uniform float _legHemTop;
 varying float v_tint;
 varying float v_cloth;
 varying float v_bottom;
+varying float v_skin;
 uniform float _rimPower;
 uniform float _rimStrength;
 uniform float _hairBand;
@@ -167,6 +174,14 @@ vec3 bottomPaint(vec3 texel) {
   float shade = pow(ratio, 0.6);
   shade = shade / (1.0 + max(shade - 1.0, 0.0) * 0.6);
   return _bottomTint * mix(1.0, max(shade, 0.2), 0.85);
+}
+float skinLike(vec3 texel) {
+  if (_skinHem < 0.5) return 0.0;
+  vec3 seen = sqrt(texel);
+  float brightest = max(max(seen.r, seen.g), seen.b);
+  float spread = (brightest - min(min(seen.r, seen.g), seen.b)) / max(brightest, 0.001);
+  float closer = smoothstep(-0.05, 0.05, distance(seen, sqrt(_bottomBase)) - distance(seen, sqrt(_skinBase)));
+  return closer * smoothstep(0.07, 0.12, spread);
 }
 float buzzNoise(vec3 x) {
   vec3 i = floor(x);
@@ -228,9 +243,19 @@ const FRAGMENT_FINISH = `
 // 하의 색(bottomPaint) — 반바지 텍스처가 검정이라 고른 색을 곱하면(예전 방식) 무슨 색이든 검게 남았다(미르 11/11 「상의처럼 색을
 // 바꿀 수 없나」). 머리색(FRAGMENT_HAIR)과 같은 셈으로 텍스처 밝기를 하의 평균 밝기(_bottomBase)로 나눠 주름 · 그늘만 남기고
 // 고른 색을 입힌다 — 평균 자리가 고른 색 그대로 나온다. 흰색(#ffffff = 「원본」)이거나 평균을 못 재면 예전처럼 곱한다(검정 그대로).
+// 다리와 반바지가 맞닿는 줄(피부 · 하의 정점이 섞인 삼각형)은 정점 표식이 아니라 텍셀 색으로 가른다 — 피부 평균색(_skinBase)과
+// 하의 평균색 중 가까운 쪽. 표식은 삼각형 모서리를 따라 톱니로 갈려, 뒤쪽 다리에 반바지 색이 번지고(표식은 하의 · 그림은 살)
+// 다리 쪽에 검은 점이 남았다(표식은 피부 · 그림은 반바지) — 검정일 땐 덜 보였다(미르 11/11). 하의 표식은 그림의 밑단보다 한 줄 더
+// 내려와 있어 하의만 걸친 삼각형의 살 텍셀도 살로 되돌린다. 살로 보는 것은 「피부 평균에 더 가깝고 · 붉은 기(채도)가 있는」 텍셀만 —
+// 반바지의 밝은 박음질 · 주름 빛은 무채색이라 반바지로 남는다(skinLike). 하의만 걸친 삼각형에서는 다리 구멍 근처(하의 구역 아래
+// 10%, 쉴 때 자세 높이 _legHemTop)만 — 옆선의 붉은 기 도는 밝은 점까지 살로 칠해 점이 생겼다. 두 평균색이 가까우면 끈다(_skinHem).
 const FRAGMENT_TINT = `#include <map_fragment>
+  // skin (1) <-> bottom (3) hem: decide by the texel colour, not the vertex marks (see the Korean note above)
+  if (_skinHem > 0.5 && v_skin > 0.001 && v_bottom > 0.001) {
+    diffuseColor.rgb = mix(bottomPaint(diffuseColor.rgb), diffuseColor.rgb * _skinTint, skinLike(diffuseColor.rgb));
+  }
   // 2 = top, 3 = bottom
-  if (v_cloth > 0.5) {
+  else if (v_cloth > 0.5) {
     bool isBottom = v_bottom > 0.5 * v_cloth;
     // 거리는 제곱근 공간에서 — 선형값은 어두운 쪽이 눌려 검은 천 위의 갈색 실금(0.05 근처)이 평균과 구별되지 않는다
     vec3 seen = sqrt(diffuseColor.rgb);
@@ -257,7 +282,12 @@ const FRAGMENT_TINT = `#include <map_fragment>
       float stray = smoothstep(0.06, 0.18, distance(seen, sqrt(own)))
         * smoothstep(0.08, 0.2, distance(seen, sqrt(other))) * _seamFix;
       vec3 cleaned = mix(diffuseColor.rgb, own, stray);
-      diffuseColor.rgb = isBottom ? bottomPaint(cleaned) : cleaned * _clothTint;
+      // a leg texel under bottom marks (the marks reach a row below the painted hem) stays skin;
+      // only near the leg openings, so warm specks on the side seams higher up stay cloth
+      float legSkin = skinLike(diffuseColor.rgb) * step(v_restPos.y, _legHemTop);
+      diffuseColor.rgb = isBottom
+        ? mix(bottomPaint(cleaned), diffuseColor.rgb * _skinTint, legSkin)
+        : cleaned * _clothTint;
     }
   }
   else if (v_tint > 0.5) {
@@ -292,6 +322,12 @@ interface ToonUniforms {
   _bottomBase: THREE.IUniform<THREE.Color>;
   /** 번짐 보정 세기 0~1. 평균색을 못 재면 0 */
   _seamFix: THREE.IUniform<number>;
+  /** 피부 구역 텍스처 평균색(어두운 눈 · 눈썹 텍셀 뺌, 선형) — 다리와 반바지 경계를 텍셀 색으로 가를 기준 */
+  _skinBase: THREE.IUniform<THREE.Color>;
+  /** 1 = 다리 · 반바지 경계를 텍셀 색으로 가른다(두 평균색을 쟀고 충분히 다를 때) */
+  _skinHem: THREE.IUniform<number>;
+  /** 하의만 걸친 삼각형에서 살 텍셀을 살로 되돌리는 높이 한계(쉴 때 자세 y) — 하의 구역 아래 10% */
+  _legHemTop: THREE.IUniform<number>;
   /** 머리 텍스처 평균색(살빛 조각 뺌, 선형) — 머리색을 평균 밝기에 맞춰 칠할 기준 */
   _hairBase: THREE.IUniform<THREE.Color>;
   /** 1 = 머리색을 평균 밝기 기준으로 칠한다, 0 = 예전처럼 텍스처에 곱한다(흰색 = 원본, 평균을 못 잼) */
@@ -348,6 +384,9 @@ function applyToonShaderPatch(
     _clothBase: { value: new THREE.Color(1, 1, 1) },
     _bottomBase: { value: new THREE.Color(0, 0, 0) },
     _seamFix: { value: 0 },
+    _skinBase: { value: new THREE.Color(1, 1, 1) },
+    _skinHem: { value: 0 },
+    _legHemTop: { value: -1e9 },
     _hairBase: { value: new THREE.Color(1, 1, 1) },
     _hairNorm: { value: 0 },
     _bottomNorm: { value: 0 },
@@ -412,21 +451,46 @@ function readTexels(map: THREE.Texture): ImageData | null {
 interface ZoneBases {
   cloth: THREE.Color | null;
   bottom: THREE.Color | null;
+  skin: THREE.Color | null;
 }
 
 /** 표식 2·3 정점이 가리키는 텍셀의 평균색. 정점이 없는 구역은 null */
+/** 하의 구역(표식 3) 아래 10% 높이(쉴 때 자세 y) — 다리 구멍 근처. 하의 표식이 없으면 아무 데도 안 걸리게 아주 낮게 */
+function legHemTop(geometry: THREE.BufferGeometry) {
+  const tint = geometry.getAttribute("_tint");
+  const position = geometry.getAttribute("position");
+  if (!tint || !position) return -1e9;
+  let low = Infinity;
+  let high = -Infinity;
+  for (let i = 0; i < tint.count; i += 1) {
+    if (tint.getX(i) < 2.5) continue;
+    const y = position.getY(i);
+    low = Math.min(low, y);
+    high = Math.max(high, y);
+  }
+  return Number.isFinite(low) ? low + (high - low) * 0.1 : -1e9;
+}
+
+/** 두 평균색(선형)이 색으로 가를 만큼 다른가 — 제곱근 공간 거리 0.12 이상(상의 · 하의 밑단 갈래와 같은 기준) */
+function isFarApart(a: THREE.Color, b: THREE.Color) {
+  return (
+    Math.hypot(Math.sqrt(a.r) - Math.sqrt(b.r), Math.sqrt(a.g) - Math.sqrt(b.g), Math.sqrt(a.b) - Math.sqrt(b.b)) >=
+    0.12
+  );
+}
+
 function computeZoneBases(geometry: THREE.BufferGeometry, map: THREE.Texture | null): ZoneBases {
-  const none: ZoneBases = { cloth: null, bottom: null };
+  const none: ZoneBases = { cloth: null, bottom: null, skin: null };
   const tint = geometry.getAttribute("_tint");
   const uv = geometry.getAttribute("uv");
   if (!map || !tint || !uv) return none;
   const texels = readTexels(map);
   if (!texels) return none;
   const { width, height, data } = texels;
-  const sums = { cloth: [0, 0, 0, 0], bottom: [0, 0, 0, 0] };
+  const sums = { cloth: [0, 0, 0, 0], bottom: [0, 0, 0, 0], skin: [0, 0, 0, 0] };
   for (let i = 0; i < tint.count; i += 1) {
     const mark = tint.getX(i);
-    const zone = mark > 2.5 ? sums.bottom : mark > 1.75 ? sums.cloth : null;
+    const zone = mark > 2.5 ? sums.bottom : mark > 1.75 ? sums.cloth : mark > 0.5 && mark < 1.5 ? sums.skin : null;
     if (!zone) continue;
     const u = uv.getX(i) - Math.floor(uv.getX(i));
     const v = uv.getY(i) - Math.floor(uv.getY(i));
@@ -434,6 +498,8 @@ function computeZoneBases(geometry: THREE.BufferGeometry, map: THREE.Texture | n
     const row = Math.min(height - 1, Math.floor((map.flipY ? 1 - v : v) * height));
     const column = Math.min(width - 1, Math.floor(u * width));
     const at = (row * width + column) * 4;
+    // 피부 평균은 살빛만 — 눈동자 · 눈썹 · 입술 그늘 같은 어두운 텍셀은 뺀다
+    if (zone === sums.skin && Math.max(data[at], data[at + 1], data[at + 2]) < 90) continue;
     zone[0] += data[at];
     zone[1] += data[at + 1];
     zone[2] += data[at + 2];
@@ -442,7 +508,7 @@ function computeZoneBases(geometry: THREE.BufferGeometry, map: THREE.Texture | n
   // 캔버스 값은 sRGB — 셰이더의 map 은 선형이라 같은 공간으로 옮긴다
   const toColor = ([r, g, b, n]: number[]) =>
     n ? new THREE.Color(r / n / 255, g / n / 255, b / n / 255).convertSRGBToLinear() : null;
-  return { cloth: toColor(sums.cloth), bottom: toColor(sums.bottom) };
+  return { cloth: toColor(sums.cloth), bottom: toColor(sums.bottom), skin: toColor(sums.skin) };
 }
 
 /**
@@ -656,6 +722,9 @@ export function applyToon(
         if (bases.cloth) uniforms._clothBase.value.copy(bases.cloth);
         if (bases.bottom) uniforms._bottomBase.value.copy(bases.bottom);
         bottomBaseKnown = !!bases.bottom;
+        if (bases.skin) uniforms._skinBase.value.copy(bases.skin);
+        uniforms._skinHem.value = bases.skin && bases.bottom && isFarApart(bases.skin, bases.bottom) ? 1 : 0;
+        uniforms._legHemTop.value = legHemTop(object.geometry);
         uniforms._seamFix.value = bases.cloth || bases.bottom ? 1 : 0;
       } else {
         const base = computeHairBase(object.geometry, material.map);
