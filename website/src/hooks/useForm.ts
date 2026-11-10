@@ -8,7 +8,7 @@ import {
   type FieldName,
   type FormValues,
 } from "@/lib/validation";
-import { isEmailTaken, isNicknameTaken } from "@/services/account/authApi";
+import { DuplicateCheckLimitedError, isEmailTaken, isNicknameTaken } from "@/services/account/authApi";
 import type { ConsentKind } from "@/services/account/db";
 
 /** 저장소에 물어봐야 아는 검사(이메일·닉네임 중복). 통과하면 "", 아니면 보여 줄 말 */
@@ -19,6 +19,9 @@ export const SIGNUP_DUPLICATE_CHECKS: Partial<Record<FieldName, AsyncCheck>> = {
   email: async (value) => ((await isEmailTaken(value)) ? "이미 가입된 이메일입니다." : ""),
   nickname: async (value) => ((await isNicknameTaken(value)) ? "이미 사용 중인 닉네임입니다." : ""),
 };
+
+/** 중복 확인이 던진 오류 중 칸에 보여 줄 것(요청 제한)만 글로 바꾼다. */
+const limitedMessage = (error: unknown) => (error instanceof DuplicateCheckLimitedError ? error.message : "");
 
 interface UseFormOptions {
   fields: readonly FieldName[];
@@ -100,9 +103,9 @@ export function useForm({
         let message = "";
         try {
           message = await check(nextValues[name]);
-        } catch {
-          // 저장소가 막혀도 입력은 이어 가야 한다. 최종 판단은 제출 때 한다.
-          message = "";
+        } catch (error) {
+          // 저장소가 막혀도 입력은 이어 가야 한다. 최종 판단은 제출 때 한다. 요청 제한만은 칸에 알린다.
+          message = limitedMessage(error);
         }
         if (requestIds.current[name] !== requestId) return;
         setRemoteErrors((prev) => ({ ...prev, [name]: message }));
@@ -158,8 +161,8 @@ export function useForm({
       if (!check || !fields.includes(name) || syncErrors[name]) continue;
       try {
         results[name] = await check(values[name]);
-      } catch {
-        results[name] = "";
+      } catch (error) {
+        results[name] = limitedMessage(error);
       }
       setRemoteErrors((prev) => ({ ...prev, [name]: results[name] }));
     }
