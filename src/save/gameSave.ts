@@ -38,6 +38,11 @@ function readFreshRun(): boolean {
 }
 
 const IS_FRESH_RUN = readFreshRun();
+/**
+ * 개발 서버 `?fresh` 판인가 — 계정 저장뿐 아니라 서버 퍼즐 진행(플레이 세션)도 안 쓴다. 이미 푼 계정이면 서버가 아무 답이나
+ * 「이미 완료」로 받아 밸브 자물쇠가 입력 없이 열렸다(미르 11/9, 튜토피드백 12회차)
+ */
+export const isFreshRun = () => IS_FRESH_RUN;
 
 export type GameStage = "character" | "tutorial" | "headquarters" | "train" | "naju";
 
@@ -82,7 +87,9 @@ async function requestJson(url: string, init?: RequestInit): Promise<{ status: n
 export async function initGameSave(): Promise<void> {
   if (IS_FRESH_RUN) {
     isLoggedIn = false;
-    console.info("[저장] ?fresh — 계정 저장을 읽지도 쓰지도 않고 처음부터 시작한다(개발 서버 전용 · 이 탭 동안, 끝내려면 ?fresh=0)");
+    console.info(
+      "[저장] ?fresh — 계정 저장을 읽지도 쓰지도 않고 처음부터 시작한다(개발 서버 전용 · 이 탭 동안, 끝내려면 ?fresh=0)",
+    );
     return;
   }
   try {

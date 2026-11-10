@@ -4,9 +4,18 @@ import { tapKey, useKeyLabels } from "@/engine/input";
 
 import { useLock, useLockControl } from "@/props/combinationLockState";
 import { getHeldDrink, useDrink } from "@/props/drinkState";
-import { PANEL_SHADOW, UI, UI_FONT } from "@/game/gameUi";
+import { PANEL_SHADOW, UI, UI_FONT, keyCapStyle } from "@/game/gameUi";
 import { useToast } from "@/game/toast";
-import { isValveLockId, useValveHelpStage, VALVE_ANSWER_LINE, VALVE_HINT_LINE } from "@/game/valveHelp";
+import {
+  acceptHintOffer,
+  dismissHintOffer,
+  isValveLockId,
+  useHintOffering,
+  useRoamHintOffering,
+  useValveHintsDelivered,
+  VALVE_ANSWER_LINE,
+  VALVE_HINT_LINE,
+} from "@/game/valveHelp";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
 import { useIsHologramAimed } from "@/trainInterior/hologramAim";
 
@@ -209,15 +218,17 @@ export function LockDialPanel({ covered = false }: { covered?: boolean }) {
   const control = useLockControl();
   const lock = useLock(control?.id);
   const labels = useKeyLabels();
-  // 밸브 자물쇠에서 오래 막히면 단계별 한 줄(game/valveHelp)
-  const valveStage = useValveHelpStage();
+  // 밸브 자물쇠에서 오래 막히면 단계별 한 줄(game/valveHelp) — 「예」로 받은 것만(12회차)
+  const delivered = useValveHintsDelivered();
+  const isOffering = useHintOffering();
   const valveLines =
     isValveLockId(control?.id) && lock && !lock.unlocked
-      ? [valveStage >= 1 && VALVE_HINT_LINE, valveStage >= 2 && VALVE_ANSWER_LINE].filter(Boolean)
+      ? [delivered >= 1 && VALVE_HINT_LINE, delivered >= 2 && VALVE_ANSWER_LINE].filter(Boolean)
       : [];
   if (!control || !lock) return null;
-  // 터치 다이얼은 조작 화면 위(z 950)라 창(설정 등)이 뜨면 창을 가린다 — 창이 떠 있거나 나가는 중(카메라 복귀)이면 숨긴다(코덱스 구현 10회차)
-  if (labels.isTouch) return covered || control.phase !== "active" ? null : <TouchLockDial />;
+  // 터치 다이얼은 조작 화면 위(z 950)라 창(설정 등)이 뜨면 창을 가린다 — 창이 떠 있거나 나가는 중(카메라 복귀)이면 숨긴다(코덱스 구현 10회차).
+  // 추가 힌트를 묻는 동안도 숨긴다 — 그 카드의 예 · 아니요만 누르게
+  if (labels.isTouch) return covered || control.phase !== "active" || isOffering ? null : <TouchLockDial />;
   return (
     <div style={lockPanelStyle}>
       <div style={lockRowsStyle}>
@@ -358,3 +369,129 @@ const touchLockActionStyle: CSSProperties = {
   font: `600 15px/1 ${UI_FONT.body}`,
 };
 const touchLockPrimaryStyle: CSSProperties = { border: `1px solid ${UI.accent}`, background: UI.surfaceHover };
+
+/**
+ * 「추가 힌트를 확인하시겠습니까?」 — 밸브 자물쇠에서 오래 막히면 힌트를 넣기 전에 묻는다(미르 11/9: 시간이 걸려도 제 힘으로
+ * 풀고 싶은 사람에게 선택지를, 튜토피드백 12회차). 오답 · 자물쇠를 만진 시간이면 자물쇠 화면에서, 밸브가 다음 장치가 된 뒤
+ * 오래 못 풀고 헤매면(미르 11/10) 게임 화면에서(roamVisible — 창 · 연출 · 기차가 아닐 때) 뜬다.
+ * 자물쇠 화면: PC 는 잠금이 풀려 있어 눌러도 되고 Y · N 키로도, ESC 는 「아니요」. 터치는 다이얼 대신 이 카드(z 960 — 다이얼 950 위).
+ * 게임 화면: PC 는 마우스가 잠겨 있어 Y · N 키로(걷기는 그대로), 터치는 카드 단추.
+ */
+export function HintOfferCard({ covered = false, roamVisible = false }: { covered?: boolean; roamVisible?: boolean }) {
+  const control = useLockControl();
+  const isOffering = useHintOffering();
+  const isRoamOffering = useRoamHintOffering();
+  const labels = useKeyLabels();
+  const inLock = control?.phase === "active" && isValveLockId(control.id);
+  const inRoam = !control && roamVisible && isRoamOffering;
+  if (!isOffering || covered || (!inLock && !inRoam)) return null;
+  return (
+    <div role="dialog" aria-label="추가 힌트" data-hud="추가 힌트 묻기" style={offerCardStyle}>
+      <div style={offerTitleStyle}>추가 힌트를 확인하시겠습니까?</div>
+      <div style={offerTextStyle}>
+        {labels.text("시간이 걸려도 스스로 풀고 싶다면 「아니요」 — 나중에 힌트함 [H]에서 받을 수 있다.")}
+      </div>
+      <div style={offerButtonsStyle}>
+        <button type="button" style={offerPrimaryStyle} onClick={acceptHintOffer}>
+          예{labels.isTouch ? "" : " (Y)"}
+        </button>
+        <button type="button" style={offerSecondaryStyle} onClick={dismissHintOffer}>
+          아니요{labels.isTouch ? "" : " (N)"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const offerCardStyle: CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  top: "50%",
+  transform: "translate(-50%, -50%)",
+  zIndex: 960,
+  width: "min(420px, calc(100vw - 32px))",
+  boxSizing: "border-box",
+  padding: "18px 20px 16px",
+  borderRadius: 16,
+  background: UI.surface,
+  border: `1px solid ${UI.accent}`,
+  boxShadow: PANEL_SHADOW,
+  color: UI.text,
+  textAlign: "center",
+  pointerEvents: "auto",
+  touchAction: "manipulation",
+};
+const offerTitleStyle: CSSProperties = { font: `700 18px/1.35 ${UI_FONT.title}`, marginBottom: 8 };
+const offerTextStyle: CSSProperties = { color: UI.textMuted, font: `400 14px/1.55 ${UI_FONT.body}`, marginBottom: 14 };
+const offerButtonsStyle: CSSProperties = { display: "flex", gap: 10, justifyContent: "center" };
+const offerButtonStyle: CSSProperties = {
+  minWidth: 120,
+  minHeight: 44,
+  padding: "0 18px",
+  borderRadius: 22,
+  font: `600 15px/1 ${UI_FONT.body}`,
+  cursor: "pointer",
+};
+const offerPrimaryStyle: CSSProperties = {
+  ...offerButtonStyle,
+  border: `1px solid ${UI.accent}`,
+  background: UI.navy,
+  color: UI.text,
+};
+const offerSecondaryStyle: CSSProperties = {
+  ...offerButtonStyle,
+  border: `1px solid ${UI.borderStrong}`,
+  background: UI.surfaceRaised,
+  color: UI.text,
+};
+
+/**
+ * 게임 밖(마우스 잠금 풀림)이면 [T] 로 돌아온다는 걸 알린다 — ESC 를 두 번 눌러(또는 다시 잠그기를 브라우저가 거절해)
+ * 커서가 밖으로 나왔을 때 무엇을 해야 할지 몰랐다(미르 11/9, 튜토피드백 12회차). 띄울지는 App 이 정한다. 누르는 것은 없다.
+ */
+export function ReturnPrompt({ mode }: { mode: "out" | "waiting" }) {
+  // waiting — 자물쇠 · 창에서 돌아오려는데 브라우저가 저절로는 잠가 주지 않았다. 다음 클릭 · 키가 잠근다(pointerResume)
+  if (mode === "waiting")
+    return (
+      <div role="status" aria-live="polite" data-hud="게임 밖 안내" style={returnStyle}>
+        <div style={returnTitleStyle}>클릭하거나 아무 키나 누르면 이어서</div>
+        <div style={returnTextStyle}>
+          <kbd style={keyCapStyle}>Esc</kbd> 게임 밖으로
+        </div>
+      </div>
+    );
+  return (
+    <div role="status" aria-live="polite" data-hud="게임 밖 안내" style={returnStyle}>
+      <div style={returnTitleStyle}>게임 밖으로 나왔다</div>
+      <div style={returnTextStyle}>
+        <kbd style={keyCapStyle}>T</kbd> 를 누르면 게임으로 돌아간다
+      </div>
+    </div>
+  );
+}
+
+const returnStyle: CSSProperties = {
+  position: "absolute",
+  left: "50%",
+  top: "50%",
+  transform: "translate(-50%, -50%)",
+  zIndex: 45,
+  padding: "14px 22px",
+  borderRadius: 14,
+  background: UI.glass,
+  border: `1px solid ${UI.accent}`,
+  boxShadow: PANEL_SHADOW,
+  color: UI.text,
+  textAlign: "center",
+  pointerEvents: "none",
+  userSelect: "none",
+};
+const returnTitleStyle: CSSProperties = { font: `700 16px/1.3 ${UI_FONT.title}`, marginBottom: 8 };
+const returnTextStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+  color: UI.textMuted,
+  font: `500 14px/1 ${UI_FONT.body}`,
+};

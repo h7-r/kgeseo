@@ -8,6 +8,7 @@ import { registerSurface, unregisterSurface } from "@/lobby/placement";
 import { restoreUnlockedLock, useHasLock, useIsLockUnlocked } from "@/props/combinationLockState";
 import { restoreHingeOpen } from "@/props/hingeState";
 import { useIsCorridorPowered, useIsEndDoorReleased, useHasFullPower } from "@/props/workLampPuzzle/workLampState";
+import { isFreshRun } from "@/save/gameSave";
 import { PLAY_CONTRACT, usePlayFlag, usePlayStateSource, usePuzzleCompleted } from "@/server/playSession";
 import { computeCorridorDepthBrightness, type CorridorDepthRule } from "@/station/corridor/corridorLighting";
 import { getWallCabinetDoorId } from "@/station/corridor/wallCabinetId";
@@ -127,7 +128,8 @@ export function useWallCabinetDoors(corridor: CorridorValues, isPadlockVisible: 
   const isServerCabinetOpen = usePlayFlag(PLAY_CONTRACT.unlockedFlag) === true;
   const stateSource = usePlayStateSource();
   useEffect(() => {
-    if (stateSource !== "restored") return;
+    // `?fresh` 판은 서버에 남은 진행을 되살리지 않는다 — 처음부터(12회차)
+    if (stateSource !== "restored" || isFreshRun()) return;
     if (isServerPuzzleCompleted) restoreUnlockedLock(hydrantDoorId);
     if (isServerCabinetOpen) restoreHingeOpen(hydrantDoorId);
   }, [stateSource, isServerPuzzleCompleted, isServerCabinetOpen, hydrantDoorId]);

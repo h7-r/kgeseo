@@ -8,6 +8,7 @@ import { toRadians } from "@/engine/math";
 import { ToonOutline } from "@/engine/outline";
 import { requestShadowUpdates } from "@/engine/shadowUpdates";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
+import { AimHighlight } from "@/lobby/AimHighlight";
 import { Interactable } from "@/lobby/AimTracker";
 import {
   isHingeOpen,
@@ -104,6 +105,8 @@ interface WallCabinetProps {
   openAngle?: number;
   /** 문을 열면 보이는 속(canOpen 일 때만 그린다) */
   renderInterior?: (context: WallCabinetInteriorContext) => ReactNode;
+  /** 함 전체가 스스로 빛나는 세기(0~1, 매 프레임 읽는다) — 「맞은편 배전반도 열렸다」 알림(튜토피드백 12회차) */
+  glow?: () => number;
   outline?: OutlineValues | null;
 }
 
@@ -146,6 +149,7 @@ export default function WallCabinet({
   lockedLabel = "",
   openAngle = 102,
   renderInterior,
+  glow,
   outline,
 }: WallCabinetProps) {
   const d = facing;
@@ -355,84 +359,96 @@ export default function WallCabinet({
 
   return (
     <group position={[x, 0, z]}>
-      {canOpen ? (
-        <mesh geometry={shell ?? undefined} castShadow receiveShadow>
-          <meshToonMaterial color={scaleColor(bodyColor, brightness)} gradientMap={TOON_GRADIENT} />
-          <ToonOutline geometry={shell ?? undefined} outline={outline} />
-        </mesh>
-      ) : (
-        <mesh position={[0, cy, 0]} castShadow receiveShadow>
-          <boxGeometry args={[depth, height, width]} />
-          <meshToonMaterial color={scaleColor(bodyColor, brightness)} gradientMap={TOON_GRADIENT} />
-          <ToonOutline outline={outline} />
-        </mesh>
-      )}
-
-      {canOpen && renderInterior && (
-        <group position={[0, cy, 0]}>
-          {renderInterior({ doorId, isDoorOpen, width, height, depth, facing: d, brightness })}
-        </group>
-      )}
-
-      {/* 문 그룹 밖이어야 한다 — 안에 넣으면 문을 따라 돌고 cy 만큼 한 번 더 떠오른다 */}
-      <mesh geometry={fittings ?? undefined} castShadow>
-        <meshToonMaterial color={scaleColor(fittingColor, brightness)} gradientMap={TOON_GRADIENT} />
-        <ToonOutline geometry={fittings ?? undefined} outline={outline} />
-      </mesh>
-
-      {/* 문짝·라벨·손잡이 홈이 한 그룹이라 같이 돈다 */}
-      <group ref={doorRef} position={[0, cy, -(width - 0.14) / 2]}>
-        <group ref={doorPanelRef} position={[0, 0, (width - 0.14) / 2]}>
-          <mesh position={[d * (depth / 2 - 0.02), 0, 0]} castShadow>
-            <boxGeometry args={[0.08, height - 0.16, width - 0.14]} />
-            <meshToonMaterial color={scaleColor(doorColor, brightness)} gradientMap={TOON_GRADIENT} />
+      <GlowWrap id={doorId} glow={glow}>
+        {canOpen ? (
+          <mesh geometry={shell ?? undefined} castShadow receiveShadow>
+            <meshToonMaterial color={scaleColor(bodyColor, brightness)} gradientMap={TOON_GRADIENT} />
+            <ToonOutline geometry={shell ?? undefined} outline={outline} />
+          </mesh>
+        ) : (
+          <mesh position={[0, cy, 0]} castShadow receiveShadow>
+            <boxGeometry args={[depth, height, width]} />
+            <meshToonMaterial color={scaleColor(bodyColor, brightness)} gradientMap={TOON_GRADIENT} />
             <ToonOutline outline={outline} />
           </mesh>
+        )}
 
-          {/* 방향에 따라 뒤집어야 글자가 정면으로 보인다 */}
-          <mesh
-            position={[d * (depth / 2 + 0.045), height * 0.12, 0]}
-            rotation={[0, d > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}
-          >
-            <planeGeometry args={[labelWidth, labelWidth * LABEL_ASPECT]} />
-            <meshBasicMaterial map={label} toneMapped={false} color={scaleColor("#ffffff", brightness)} />
-          </mesh>
+        {canOpen && renderInterior && (
+          <group position={[0, cy, 0]}>
+            {renderInterior({ doorId, isDoorOpen, width, height, depth, facing: d, brightness })}
+          </group>
+        )}
 
-          {/* 홈 바닥판은 문 앞면보다 0.005 앞에 있어야 문에 가려지지 않는다 */}
-          <mesh position={[d * (depth / 2 + 0.015), 0, gripZ]}>
-            <boxGeometry args={[0.02, gripHeight, gripWidth]} />
-            <meshToonMaterial color={scaleColor(doorColor, brightness * 0.32)} gradientMap={TOON_GRADIENT} />
-          </mesh>
-          <mesh geometry={gripRimGeometry ?? undefined} castShadow>
-            <meshToonMaterial color={scaleColor(fittingColor, brightness)} gradientMap={TOON_GRADIENT} />
-            <ToonOutline geometry={gripRimGeometry ?? undefined} outline={outline} />
-          </mesh>
-          {canOpen && (
-            <Interactable
-              id={doorId}
-              radius={0.5}
-              reach={5}
-              position={() => {
-                const panel = doorPanelRef.current;
-                if (!panel) return null;
-                panel.getWorldPosition(aimPoint);
-                return [aimPoint.x, aimPoint.y, aimPoint.z];
-              }}
-              label={locked ? lockedLabel : ""}
-              // 아무 반응이 없으면 조작이 고장 난 줄 안다. 잠겼으면 덜컹거린다.
-              run={() => (locked ? rattleHinge(doorId) : toggleHinge(doorId))}
-            />
-          )}
-        </group>
-      </group>
-
-      {/* 배선관이 있어야 배전반이 어디서 온 전기인지 읽히고 천장 배관과 한 세트로 보인다 */}
-      {conduitGeometry && (
-        <mesh geometry={conduitGeometry} castShadow>
-          <meshToonMaterial color={scaleColor(conduitColor, brightness)} gradientMap={TOON_GRADIENT} />
-          <ToonOutline geometry={conduitGeometry} outline={outline} />
+        {/* 문 그룹 밖이어야 한다 — 안에 넣으면 문을 따라 돌고 cy 만큼 한 번 더 떠오른다 */}
+        <mesh geometry={fittings ?? undefined} castShadow>
+          <meshToonMaterial color={scaleColor(fittingColor, brightness)} gradientMap={TOON_GRADIENT} />
+          <ToonOutline geometry={fittings ?? undefined} outline={outline} />
         </mesh>
-      )}
+
+        {/* 문짝·라벨·손잡이 홈이 한 그룹이라 같이 돈다 */}
+        <group ref={doorRef} position={[0, cy, -(width - 0.14) / 2]}>
+          <group ref={doorPanelRef} position={[0, 0, (width - 0.14) / 2]}>
+            <mesh position={[d * (depth / 2 - 0.02), 0, 0]} castShadow>
+              <boxGeometry args={[0.08, height - 0.16, width - 0.14]} />
+              <meshToonMaterial color={scaleColor(doorColor, brightness)} gradientMap={TOON_GRADIENT} />
+              <ToonOutline outline={outline} />
+            </mesh>
+
+            {/* 방향에 따라 뒤집어야 글자가 정면으로 보인다 */}
+            <mesh
+              position={[d * (depth / 2 + 0.045), height * 0.12, 0]}
+              rotation={[0, d > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}
+            >
+              <planeGeometry args={[labelWidth, labelWidth * LABEL_ASPECT]} />
+              <meshBasicMaterial map={label} toneMapped={false} color={scaleColor("#ffffff", brightness)} />
+            </mesh>
+
+            {/* 홈 바닥판은 문 앞면보다 0.005 앞에 있어야 문에 가려지지 않는다 */}
+            <mesh position={[d * (depth / 2 + 0.015), 0, gripZ]}>
+              <boxGeometry args={[0.02, gripHeight, gripWidth]} />
+              <meshToonMaterial color={scaleColor(doorColor, brightness * 0.32)} gradientMap={TOON_GRADIENT} />
+            </mesh>
+            <mesh geometry={gripRimGeometry ?? undefined} castShadow>
+              <meshToonMaterial color={scaleColor(fittingColor, brightness)} gradientMap={TOON_GRADIENT} />
+              <ToonOutline geometry={gripRimGeometry ?? undefined} outline={outline} />
+            </mesh>
+            {canOpen && (
+              <Interactable
+                id={doorId}
+                radius={0.5}
+                reach={5}
+                position={() => {
+                  const panel = doorPanelRef.current;
+                  if (!panel) return null;
+                  panel.getWorldPosition(aimPoint);
+                  return [aimPoint.x, aimPoint.y, aimPoint.z];
+                }}
+                label={locked ? lockedLabel : ""}
+                // 아무 반응이 없으면 조작이 고장 난 줄 안다. 잠겼으면 덜컹거린다.
+                run={() => (locked ? rattleHinge(doorId) : toggleHinge(doorId))}
+              />
+            )}
+          </group>
+        </group>
+
+        {/* 배선관이 있어야 배전반이 어디서 온 전기인지 읽히고 천장 배관과 한 세트로 보인다 */}
+        {conduitGeometry && (
+          <mesh geometry={conduitGeometry} castShadow>
+            <meshToonMaterial color={scaleColor(conduitColor, brightness)} gradientMap={TOON_GRADIENT} />
+            <ToonOutline geometry={conduitGeometry} outline={outline} />
+          </mesh>
+        )}
+      </GlowWrap>
     </group>
+  );
+}
+
+/** glow 가 있으면 함 전체를 겨냥 강조와 같은 발광으로 감싼다(겨냥으로는 안 켜지는 id — 맥박만, 커지지도 않는다) */
+function GlowWrap({ id, glow, children }: { id: string; glow?: () => number; children: ReactNode }) {
+  if (!glow) return <>{children}</>;
+  return (
+    <AimHighlight id={`glow:${id}`} anchor={() => null} pulse={glow} strength={0.5} color="#cfe0ff">
+      {children}
+    </AimHighlight>
   );
 }

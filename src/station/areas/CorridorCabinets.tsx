@@ -6,6 +6,7 @@ import HydrantCabinetInterior, {
 } from "@/props/hydrantCabinet/HydrantCabinetInterior";
 import CombinationPadlock from "@/props/padlock/CombinationPadlock";
 import { canTurnValve } from "@/props/panelWiringState";
+import { isFreshRun } from "@/save/gameSave";
 import { submitFireCabinetLock } from "@/server/playSession";
 import WallCabinet from "@/station/corridor/WallCabinet";
 import { getWallCabinetDoorId } from "@/station/corridor/wallCabinetId";
@@ -20,6 +21,7 @@ import type { CorridorValues } from "../controls/corridorControls";
 import type { HighlightValues } from "../controls/systemControls";
 import { computeWallCabinetSpots, useWallCabinetDoors, type CorridorShading } from "./corridorHooks";
 import PanelUnlockReveal from "./PanelUnlockReveal";
+import { readPanelRevealGlow } from "./panelRevealGlow";
 
 /**
  * 두 함을 그리는 자리에만 더하는 올림 — 함 중심을 눈높이 가까이 올린다.
@@ -108,6 +110,8 @@ export default function CorridorCabinets({
           ceilingHeight={corridor.height}
           conduitColor={corridor.pipeColor}
           brightness={brightnessAt(spots.panel.z) * corridor.wallBrightness}
+          // 「맞은편 배전반도 열렸다」 알림 동안 빛난다 — 완전 전원 전엔 깜깜해서(12회차)
+          glow={readPanelRevealGlow}
           renderInterior={({ doorId, isDoorOpen, width, height, depth, facing, brightness }) => (
             <ElectricPanelInterior
               {...panelLook}
@@ -216,7 +220,8 @@ export default function CorridorCabinets({
           sideRoundness={padlock.sideRoundness}
           lockId={hydrantDoorId}
           answer={padlock.answer}
-          submit={submitFireCabinetLock}
+          // `?fresh` 판은 서버 판정 대신 그 자리 판정 — 이미 푼 계정이면 서버가 아무 답이나 「이미 완료」로 받는다(12회차)
+          submit={isFreshRun() ? undefined : submitFireCabinetLock}
           handleDistance={padlock.handleDistance}
           shackleRadius={padlock.shackleRadius}
           shackleThickness={padlock.shackleThickness}
