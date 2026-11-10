@@ -157,7 +157,7 @@ export function giveVendingHint() {
   const added = addHint({ ...VENDING_HINT, image: makeNoteImageUrl(VENDING_HINT.id, VENDING_LINES, 11) });
   if (added) {
     flashHints();
-    showToast(VENDING_HINT_TOAST, 6000);
+    showToast(VENDING_HINT_TOAST, 6000, { emphasis: "hint" });
   }
   return added;
 }

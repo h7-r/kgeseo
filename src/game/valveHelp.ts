@@ -108,7 +108,7 @@ function deliverNext() {
   addHint(next.hint);
   delivered += 1;
   flashHints();
-  showToast(next.toast, 5000);
+  showToast(next.toast, 5000, { emphasis: "hint" });
   return true;
 }
 

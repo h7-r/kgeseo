@@ -6,37 +6,13 @@ import { useFrame } from "@react-three/fiber";
 import { useSavedControls } from "@/engine/leva/savedControls";
 import { toRadians } from "@/engine/math";
 import { ToonOutline } from "@/engine/outline";
+import { getGlowTexture } from "@/engine/textures/glowTexture";
 import { TOON_GRADIENT, type OutlineValues } from "@/engine/toon";
 import { sharedAssetUrl } from "@/config/env";
 
 // Meshy 에서 뽑은 사실적 모델. 텍스처는 살리고 툰 + 외곽선만 입혀 화풍에 맞춘다. 모델 로컬 크기 ≈ 1.9×1.84×0.97.
 const MODEL_URL = sharedAssetUrl("/models/teleport.glb");
 useGLTF.preload(MODEL_URL);
-
-let glowTexture: THREE.CanvasTexture | null = null;
-
-/** 가운데가 꽉 차고 바깥으로 투명해지는 흰 원. 색은 스프라이트 재질이 입힌다. */
-function makeGlowTexture(): THREE.CanvasTexture {
-  if (glowTexture) return glowTexture;
-  const s = 256;
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = s;
-  const g = canvas.getContext("2d");
-  if (!g) throw new Error("2D 캔버스를 만들 수 없습니다.");
-  const gradient = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  // 빠르게 옅어졌다가 길게 사라져야 부드럽게 번진다.
-  gradient.addColorStop(0.0, "rgba(255,255,255,1.0)");
-  gradient.addColorStop(0.12, "rgba(255,255,255,0.85)");
-  gradient.addColorStop(0.32, "rgba(255,255,255,0.42)");
-  gradient.addColorStop(0.6, "rgba(255,255,255,0.12)");
-  gradient.addColorStop(1.0, "rgba(255,255,255,0.0)");
-  g.fillStyle = gradient;
-  g.fillRect(0, 0, s, s);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  glowTexture = texture;
-  return texture;
-}
 
 interface ToonPart {
   geometry: THREE.BufferGeometry;
@@ -144,7 +120,7 @@ interface GlowSpriteProps {
 
 /** 늘 카메라를 보는 부드러운 빛 한 장 */
 function GlowSprite({ color, spriteRef }: GlowSpriteProps) {
-  const map = useMemo(() => makeGlowTexture(), []);
+  const map = useMemo(() => getGlowTexture(), []);
   return (
     <sprite ref={spriteRef}>
       <spriteMaterial
