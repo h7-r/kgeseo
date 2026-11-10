@@ -22,6 +22,7 @@ export { default as LoadingVideoOverlay } from "../../naju01/src/transition/Load
 // 캐릭터 생성
 export { DEFAULT_CATALOG, type CharacterCatalog } from "../../naju01/src/characterCreation/catalog";
 export {
+  getStartAppearance,
   toRendererConfig,
   type CompletedCharacter,
   type CompleteResult,

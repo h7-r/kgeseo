@@ -108,12 +108,24 @@ function getBodyFieldDefault(field: BodyField, gender: AvatarGender): number {
   return field.genderDefaults?.[gender] ?? field.defaultValue;
 }
 
-/** 그 성별의 시작값 — 처음 열릴 때·초기화 때 놓이는 값. 시작 칸을 안 적은 항목은 기본값이다. */
-export function getBodyFieldStart(field: BodyField, gender: AvatarGender): number {
+/** 코드에 적힌 시작값 — 시작 칸(startTicks). 시작 칸을 안 적은 항목은 기본값이다. */
+function getBodyFieldCodeStart(field: BodyField, gender: AvatarGender): number {
   const tick = field.startTicks?.[gender];
-  if (tick === undefined) return getBodyFieldDefault(field, gender);
+  // 범위 안으로 — 렌더러 기본 팔 길이(0.7)가 이 화면 하한(0.78)보다 짧아, 처음 열 때(보정을 거침)는 0.78 인데 성별을 처음 누르거나
+  // 「되돌리기」하면 0.7 이 나와 서로 달랐다
+  if (tick === undefined) return clamp(getBodyFieldDefault(field, gender), field.min, field.max);
   const ticks = computeTickValues(field, gender);
   return ticks[Math.max(0, Math.min(ticks.length - 1, tick))].value;
+}
+
+/**
+ * 그 성별의 시작값 — 처음 열릴 때 · 「되돌리기」 · 초기화 때 놓이는 값. 미르가 정한 시작 모습(catalog.startLooks)이 있으면 그 값,
+ * 없으면 코드의 시작 칸. 눈금(칸 이름)은 시작값이 아니라 기본값 기준이라 그대로다.
+ */
+export function getBodyFieldStart(field: BodyField, gender: AvatarGender, catalog?: CharacterCatalog | null): number {
+  const saved = catalog?.startLooks?.[gender]?.bodyParameters[field.key];
+  if (typeof saved === "number" && Number.isFinite(saved)) return clamp(saved, field.min, field.max);
+  return getBodyFieldCodeStart(field, gender);
 }
 
 // 눈금의 가운데(defaultValue)와 시작 칸(startTicks)을 따로 둔다. 렌더러 기본값(어깨 1.2·팔 0.88)을 그대로 쓰되
@@ -308,16 +320,23 @@ export function computeNearestTickIndex(ticks: readonly Tick[], value: number): 
 }
 
 // ── 초안 ──
-export function getDefaultBodyParameters(gender: AvatarGender = "masculine"): BodyParameters {
+/** 그 성별의 시작 몸 치수 — catalog 를 주면 미르가 정한 시작 모습을 따른다 */
+export function getDefaultBodyParameters(
+  gender: AvatarGender = "masculine",
+  catalog?: CharacterCatalog | null,
+): BodyParameters {
   return Object.fromEntries(
-    BODY_FIELDS.map((field) => [field.key, getBodyFieldStart(field, gender)]),
+    BODY_FIELDS.map((field) => [field.key, getBodyFieldStart(field, gender, catalog)]),
   ) as BodyParameters;
 }
 
-function getDefaultAppearance(gender: AvatarGender, catalog: CharacterCatalog): DraftAppearance {
+/** 코드에 적힌 기본 모습 — newDefaults 착장 · 몸 시작 칸 · 원본(흰) 색. 시작 모습 파일이 없거나 틀린 칸을 메운다 */
+function getCodeDefaultAppearance(gender: AvatarGender, catalog: CharacterCatalog): DraftAppearance {
   return {
     gender,
-    bodyParameters: getDefaultBodyParameters(gender),
+    bodyParameters: Object.fromEntries(
+      BODY_FIELDS.map((field) => [field.key, getBodyFieldCodeStart(field, gender)]),
+    ) as BodyParameters,
     hairId: getSlotDefault(catalog, "hair", gender)?.id ?? null,
     equipmentIds: {
       top: getSlotDefault(catalog, "top", gender)?.id ?? null,
@@ -328,8 +347,19 @@ function getDefaultAppearance(gender: AvatarGender, catalog: CharacterCatalog): 
   };
 }
 
+/**
+ * 그 성별을 처음 골랐을 때의 모습 — 미르가 시작 모습 창에서 정한 모습(catalog.startLooks)을 코드 기본값 위에서 보정한 것
+ * (범위 밖 몸 치수는 끝값으로, 못 쓰는 아이템은 코드 기본 아이템으로). 정하지 않은 성별은 코드 기본값(미르 11/10).
+ */
+export function getStartAppearance(gender: AvatarGender, catalog: CharacterCatalog): DraftAppearance {
+  const fallback = getCodeDefaultAppearance(gender, catalog);
+  const saved = catalog.startLooks?.[gender];
+  if (!saved) return fallback;
+  return normalizeAppearance({ ...saved, gender }, catalog, fallback).appearance;
+}
+
 export function createDefaultDraft(catalog: CharacterCatalog, gender: AvatarGender = "masculine"): CharacterDraft {
-  return { schemaVersion: DRAFT_SCHEMA_VERSION, displayName: "", appearance: getDefaultAppearance(gender, catalog) };
+  return { schemaVersion: DRAFT_SCHEMA_VERSION, displayName: "", appearance: getStartAppearance(gender, catalog) };
 }
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
@@ -339,15 +369,17 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
-// 바깥에서 받은 값은 믿지 않는다. 범위 밖 수·없어진 아이디는 기본값으로 되돌리고, 무엇을 고쳤는지 함께 돌려준다.
+// 바깥에서 받은 값은 믿지 않는다. 범위 밖 수는 끝값으로, 빠진 칸 · 없어진 아이디는 기준 모습(fallback — 안 주면 그 성별
+// 시작 모습)으로 메우고, 무엇을 고쳤는지 함께 돌려준다. 시작 모습 자체를 보정할 때는 코드 기본값을 기준으로 준다(돌고 돌지 않게).
 function normalizeAppearance(
   value: unknown,
   catalog: CharacterCatalog,
+  base?: DraftAppearance,
 ): { appearance: DraftAppearance; notices: string[] } {
   const notices: string[] = [];
   const source = asRecord(value);
   const gender: AvatarGender = source.gender === "feminine" ? "feminine" : "masculine";
-  const fallback = getDefaultAppearance(gender, catalog);
+  const fallback = base?.gender === gender ? base : getStartAppearance(gender, catalog);
 
   const body = { ...fallback.bodyParameters };
   const incomingBody = asRecord(source.bodyParameters);
@@ -362,7 +394,7 @@ function normalizeAppearance(
       return found.id;
     }
     if (id) notices.push(`${slot}: 쓸 수 없는 항목이라 기본값으로 바꿨습니다.`);
-    return getSlotDefault(catalog, slot, gender)?.id ?? null;
+    return slot === "hair" ? fallback.hairId : fallback.equipmentIds[slot];
   };
 
   const colors = { ...fallback.colors };
@@ -403,43 +435,6 @@ export function normalizeDraft(
   const { appearance, notices } = normalizeAppearance(source.appearance, catalog);
   const displayName = typeof source.displayName === "string" ? source.displayName : "";
   return { draft: { schemaVersion: DRAFT_SCHEMA_VERSION, displayName, appearance }, notices };
-}
-
-/** 성별을 바꿀 때 — 그 성별이 못 쓰는 헤어·의상은 호환되는 기본값으로 바꾸고 무엇을 바꿨는지 알린다. */
-export function adaptAppearanceToGender(
-  appearance: DraftAppearance,
-  gender: AvatarGender,
-  catalog: CharacterCatalog,
-): { appearance: DraftAppearance; changes: string[] } {
-  const changes: string[] = [];
-  const pick = (slot: CatalogSlot, id: string | null) => {
-    const found = findItem(catalog, id);
-    if (found && found.genders.includes(gender)) return found.id;
-    const replacement = getSlotDefault(catalog, slot, gender);
-    if (found && replacement) changes.push(`${found.label} → ${replacement.label}`);
-    return replacement?.id ?? null;
-  };
-  // 몸 치수 중 이전 성별의 시작값 그대로인 항목은 새 성별의 시작값으로 옮긴다 — 손댄 값은 남긴다
-  const bodyParameters = { ...appearance.bodyParameters };
-  for (const field of BODY_FIELDS) {
-    if (bodyParameters[field.key] === getBodyFieldStart(field, appearance.gender)) {
-      bodyParameters[field.key] = getBodyFieldStart(field, gender);
-    }
-  }
-  return {
-    appearance: {
-      ...appearance,
-      gender,
-      bodyParameters,
-      hairId: pick("hair", appearance.hairId),
-      equipmentIds: {
-        top: pick("top", appearance.equipmentIds.top),
-        bottom: pick("bottom", appearance.equipmentIds.bottom),
-        shoes: pick("shoes", appearance.equipmentIds.shoes),
-      },
-    },
-    changes,
-  };
 }
 
 interface RendererOptions {

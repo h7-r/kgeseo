@@ -15,6 +15,7 @@ import {
   CharacterCreationScreen,
   DEFAULT_CATALOG,
   DEFAULT_MESH_CONFIG,
+  getStartAppearance,
   normalizeMeshConfig,
   showLoadingVideo,
   toRendererConfig,
@@ -24,16 +25,31 @@ import {
   type NameCheckResult,
 } from "@/naju";
 
-import { flushGameSave, getSavedStage, loadCharacter, saveCharacter, setGameStage } from "@/save/gameSave";
+import {
+  flushGameSave,
+  getSavedStage,
+  isGameSaveEnabled,
+  loadAccountId,
+  loadCharacter,
+  saveCharacter,
+  setGameStage,
+} from "@/save/gameSave";
 import { LOBBY_PATH, isLobbyStage } from "@/save/lobbyEntry";
 
 export const CHARACTER_CREATION_PATH = "/character-creation";
 /** 이어 하기 전에 서버 캐릭터를 기다리는 한도(ms) */
 const CHARACTER_WAIT_MS = 3000;
+/** 남은 초안이 이 계정 것인지 묻는 한도(ms) — 늦으면 초안을 버리고 시작 모습으로 연다 */
+const ACCOUNT_WAIT_MS = 3000;
 
-const DRAFT_STORAGE_KEY = "kgeseo.character.draft.v1";
+/**
+ * 만들던 초안 = { owner: 계정 id, draft }. 그 계정이 생성 도중 새로고침했을 때만 이어 만든다 — 계정 구분 없이 두었더니
+ * 같은 PC 에서 새로 가입한 사람에게 앞 사람이 만든 모습이 첫 모습으로 보였다(미르 11/10). 완료하면 지운다.
+ */
+const DRAFT_STORAGE_KEY = "kgeseo.character.draft.v2";
+/** 계정 구분이 없던 예전 초안 · 닉네임 표시 — 읽지 않고 지운다(이미 PC 에 남은 앞 사람 모습도 같이 사라진다) */
+const LEGACY_DRAFT_KEYS = ["kgeseo.character.draft.v1", "kgeseo.character.accountName.v1"];
 const CHARACTER_STORAGE_KEY = "kgeseo.character.v1";
-const ACCOUNT_NAME_KEY = "kgeseo.character.accountName.v1";
 // 웹사이트 launchGame 이 가입 닉네임을 이 질의로 넘긴다.
 const ACCOUNT_NAME_PARAM = "nickname";
 
@@ -64,8 +80,31 @@ function writeJson(key: string, value: unknown) {
   }
 }
 
+function removeKeys(keys: readonly string[]) {
+  try {
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {
+    // 저장소를 못 쓰면 지울 것도 없다
+  }
+}
+
 function isDraft(value: unknown): value is CharacterDraft {
   return typeof value === "object" && value !== null;
+}
+
+interface StoredDraft {
+  owner: string;
+  draft: unknown;
+}
+
+function readStoredDraft(): StoredDraft | null {
+  const stored = readJson(DRAFT_STORAGE_KEY);
+  if (!isDraft(stored) || typeof stored.owner !== "string" || !stored.owner) return null;
+  return { owner: stored.owner, draft: stored.draft };
+}
+
+function writeStoredDraft(owner: string, draft: unknown) {
+  writeJson(DRAFT_STORAGE_KEY, { owner, draft } satisfies StoredDraft);
 }
 
 /** 완료 데이터의 외형 → 로비 아바타 설정(MeshAppearanceConfig) */
@@ -83,43 +122,39 @@ function toLobbyMeshConfig(appearance: CompletedCharacter["appearance"]) {
   });
 }
 
-/**
- * 가입 닉네임을 이름 칸에 미리 적는다. 같은 계정이 이름을 바꿔 둔 초안은 그대로 둔다.
- * StrictMode 가 두 번 불러도 같은 답이 나오게 초안과 계정 이름을 함께 적어 둔다.
- */
-function applyAccountName(stored: unknown) {
+/** 가입 닉네임을 이름 칸에 미리 적는다. 이어 만드는 초안에 이름이 이미 있으면(같은 계정이 바꿔 둔 이름) 그대로 둔다. */
+function withAccountName(draft: unknown) {
   const accountName = new URLSearchParams(window.location.search).get(ACCOUNT_NAME_PARAM)?.trim();
-  if (!accountName) return stored;
-  const savedName = isDraft(stored) && typeof stored.displayName === "string" ? stored.displayName : "";
-  if (readJson(ACCOUNT_NAME_KEY) === accountName && savedName) return stored;
-  const draft = { ...(isDraft(stored) ? stored : {}), displayName: accountName };
-  writeJson(DRAFT_STORAGE_KEY, draft);
-  writeJson(ACCOUNT_NAME_KEY, accountName);
-  return draft;
+  if (!accountName) return draft;
+  if (isDraft(draft) && typeof draft.displayName === "string" && draft.displayName.trim()) return draft;
+  return { ...(isDraft(draft) ? draft : {}), displayName: accountName };
 }
 
-/** 지난 초안이 있으면 그 모습에서 이어 만든다. 긴 머리 모델은 귀 문제가 있어 처음 값으로는 단발로 돌려 연다. */
-function readInitialDraft() {
-  const stored = applyAccountName(readJson(DRAFT_STORAGE_KEY));
-  if (!isDraft(stored)) return stored;
-  const appearance = stored.appearance;
-  if (!appearance) return stored;
+/**
+ * 같은 계정의 초안을 이어 연다. 긴 머리 모델은 귀 문제가 있어 처음 값으로는 그 성별 시작 모습의 머리(정하지 않았으면 단발 ·
+ * 짧은 머리)로 돌려 연다 — 시작 모습 자체가 긴 머리면 그대로다.
+ */
+function resumeDraft(draft: unknown) {
+  if (!isDraft(draft) || !draft.appearance) return draft;
+  const appearance = draft.appearance;
   const hairId = appearance.hairId;
-  if (typeof hairId === "string" && hairId.endsWith(".long"))
-    return {
-      ...stored,
-      appearance: {
-        ...appearance,
-        hairId: appearance.gender === "feminine" ? "hair.f.bob" : "hair.m.crop",
-      },
-    };
-  return stored;
+  if (typeof hairId !== "string" || !hairId.endsWith(".long")) return draft;
+  const gender = appearance.gender === "feminine" ? "feminine" : "masculine";
+  return { ...draft, appearance: { ...appearance, hairId: getStartAppearance(gender, DEFAULT_CATALOG).hairId } };
 }
 
 export default function CharacterCreationRoute() {
   const navigate = useNavigate();
-  const [initialValue] = useState(readInitialDraft);
+  // undefined = 남은 초안이 이 계정 것인지 아직 모름(화면을 띄우지 않는다 — 생성 화면은 처음 값을 한 번만 읽는다).
+  // 남은 초안이 없으면 기다릴 것 없이 시작 모습으로 바로 연다
+  const [initialValue, setInitialValue] = useState<unknown>(() =>
+    readStoredDraft() ? undefined : withAccountName(null),
+  );
   const hasLeft = useRef(false);
+  /** 초안 주인으로 적을 계정 id — 알기 전에는 적지 않는다 */
+  const owner = useRef<string | null>(null);
+  /** 화면이 마지막으로 알려 준 초안 — 계정 id 가 늦게 와도 그때 바로 그 계정 몫으로 적는다(고치고 곧장 새로고침해도 이어지게) */
+  const latestDraft = useRef<unknown>(null);
   // 저장이 있으면 캐릭터 생성을 건너뛴다. 본부실에 들어선 뒤(본부실 · 기차 · 나주)면 로비에서 시작하고 — 하던 게임으로 바로
   // 들어가지 않는다, 다시 할지는 사용자가 기차 목적지 창에서 고른다(미르 11/10) — 튜토리얼 중이면 튜토리얼을 처음부터 다시 한다
   // (save/resumeStart — 위치 · 단계 · 서버 퍼즐 회차를 새로).
@@ -152,6 +187,38 @@ export default function CharacterCreationRoute() {
     };
   }, [resumesGame]);
 
+  // 남은 초안이 이 계정 것일 때만 이어 만든다. 다른 계정 · 손님 · ?fresh · 3초 안에 못 물으면 버리고 시작 모습으로.
+  // 늦게 온 답은 이미 연 화면을 덮지 않고 다음 저장의 주인만 정한다(Codex 01)
+  useEffect(() => {
+    if (resumesGame) return undefined;
+    removeKeys(LEGACY_DRAFT_KEYS);
+    let isAlive = true;
+    const stored = readStoredDraft();
+    let isDecided = stored === null;
+    const decide = (accountId: string | null) => {
+      if (isDecided) return;
+      isDecided = true;
+      window.clearTimeout(timer);
+      if (stored && accountId && stored.owner === accountId) {
+        setInitialValue(withAccountName(resumeDraft(stored.draft)));
+        return;
+      }
+      removeKeys([DRAFT_STORAGE_KEY]);
+      setInitialValue(withAccountName(null));
+    };
+    const timer = isDecided ? 0 : window.setTimeout(() => decide(null), ACCOUNT_WAIT_MS);
+    void loadAccountId().then((accountId) => {
+      if (!isAlive) return;
+      decide(accountId);
+      owner.current = accountId;
+      if (accountId && latestDraft.current && !hasLeft.current) writeStoredDraft(accountId, latestDraft.current);
+    });
+    return () => {
+      isAlive = false;
+      window.clearTimeout(timer);
+    };
+  }, [resumesGame]);
+
   // 지금은 형식만 본다(서버가 생기면 여기서 중복을 묻는다)
   const checkName = useCallback(async (name: string): Promise<NameCheckResult> => {
     const result = validateNameFormat(name);
@@ -160,7 +227,8 @@ export default function CharacterCreationRoute() {
   }, []);
 
   const handleDraftChange = useCallback((draft: unknown) => {
-    writeJson(DRAFT_STORAGE_KEY, draft);
+    latestDraft.current = draft;
+    if (owner.current && !hasLeft.current) writeStoredDraft(owner.current, draft);
   }, []);
 
   const handleComplete = useCallback(
@@ -168,13 +236,16 @@ export default function CharacterCreationRoute() {
       const lobby = toLobbyMeshConfig(payload.appearance);
       const isSaved = writeJson(PLAYER_MESHY_APPEARANCE_KEY, lobby) && writeJson(CHARACTER_STORAGE_KEY, payload);
       if (!isSaved) return { ok: false, reason: "failed", message: "이 브라우저에 저장할 수 없습니다." };
-      saveCharacter(payload.displayName, { lobby, completed: payload });
+      // 초안은 서버에 캐릭터가 저장된 뒤 지운다(실패하면 그 계정이 다시 열 때 이어 만들 수 있게). 손님은 서버 저장이 없어 바로 지운다
+      void saveCharacter(payload.displayName, { lobby, completed: payload }).then((isServerSaved) => {
+        if (isServerSaved || !isGameSaveEnabled()) removeKeys([DRAFT_STORAGE_KEY]);
+      });
       setGameStage("tutorial");
       void flushGameSave();
       // 화면은 완료 상태로 멈춰 있다 — 로딩 영상으로 먼저 덮고(0.35초) / 로 보낸다.
       // 영상 막은 main 에 있어 주소가 바뀌어도 살아 있고, 역 씬이 다 뜨면 스스로 걷힌다. 두 번 눌려도 한 번만 간다.
       if (!hasLeft.current) {
-        hasLeft.current = true;
+        hasLeft.current = true; // 이 뒤로는 초안을 적지 않는다(지운 초안이 다시 생기지 않게)
         // 휴대폰: 생성 중 다른 앱에 다녀와 첫 탭이 풀렸어도 「완료」 탭이 그 탭을 대신한다 — 튜토리얼 막에서 한 번 더 누르지 않게(코덱스 13c)
         if (isTouchMode()) passFirstTap();
         showLoadingVideo("tutorial");
@@ -195,6 +266,8 @@ export default function CharacterCreationRoute() {
     if (!isCharacterReady) return <div style={rootStyle} />;
     return <Navigate to={isLobbyStage(savedStage) ? LOBBY_PATH : "/"} replace />;
   }
+
+  if (initialValue === undefined) return <div style={rootStyle} />;
 
   return (
     <div style={rootStyle}>

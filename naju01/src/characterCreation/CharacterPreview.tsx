@@ -252,6 +252,48 @@ function computeFraming(view: PreviewView, measured: Measurement): Framing {
   return { center: new THREE.Vector3(0, H * 0.5, 0), height: H * 1.08 * Math.max(1, measured.height / H) };
 }
 
+/** 위아래로 돌릴 수 있는 각(라디안) — 끌기와 카메라가 같이 쓴다 */
+const MIN_PITCH = -0.4;
+const MAX_PITCH = 0.75;
+/** 카메라가 내려갈 수 있는 가장 낮은 높이(m) — 바닥 밑에서 올려다보지 않는다 */
+const MIN_CAMERA_Y = 0.1;
+
+interface OrbitPlacement {
+  center: THREE.Vector3;
+  yaw: number;
+  distance: number;
+  /** 빈 자리 가운데가 화면 가운데에서 떨어진 정도(화면 폭 · 높이 비율) */
+  cx: number;
+  cy: number;
+  /** 카메라 거리에서 화면 전체가 담는 세계 크기 */
+  worldWidth: number;
+  worldHeight: number;
+}
+
+/** 궤도 위 카메라 자리 — 기준점(center)이 화면의 빈 자리 가운데에 오게 카메라와 목표를 같이 민다(시선 방향은 그대로) */
+function placeOrbitCamera(
+  { center, yaw, distance, cx, cy, worldWidth, worldHeight }: OrbitPlacement,
+  elevation: number,
+) {
+  const forward = new THREE.Vector3(
+    Math.sin(yaw) * Math.cos(elevation),
+    Math.sin(elevation),
+    Math.cos(yaw) * Math.cos(elevation),
+  );
+  // forward 는 목표 → 카메라라 시선은 그 반대다. 화면 오른쪽은 cross(위, forward) — 반대로 잡으면 캐릭터가 UI 쪽으로 밀린다.
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
+  const up = new THREE.Vector3().crossVectors(forward, right).normalize();
+  const shift = right
+    .clone()
+    .multiplyScalar(-cx * worldWidth)
+    .add(up.clone().multiplyScalar(-cy * worldHeight));
+  return {
+    position: center.clone().addScaledVector(forward, distance).add(shift),
+    lookTarget: center.clone().add(shift),
+    up,
+  };
+}
+
 interface PreviewCameraProps {
   orbit: RefObject<OrbitState>;
   view: PreviewView;
@@ -322,34 +364,42 @@ function PreviewCamera({ orbit, view, heightScale, safeArea, reduceMotion, measu
     const area = safeAreaRef.current;
     const freeWidth = Math.max(160, size.width - area.left - area.right);
     const freeHeight = Math.max(160, size.height - area.top - area.bottom);
-    // 2) 빈 자리에 담을 높이 → 화면 전체의 세계 높이 → 거리
-    const worldHeight = s.height * (size.height / freeHeight);
-    const distance = (worldHeight / (2 * Math.tan((perspective.fov * Math.PI) / 360))) * orbit.current.zoom;
+    // 2) 빈 자리에 담을 높이 → 화면 전체의 세계 높이 → 거리. 확대 · 축소(zoom)는 거리만 바꾼다
+    const fitHeight = s.height * (size.height / freeHeight);
+    const distance = (fitHeight / (2 * Math.tan((perspective.fov * Math.PI) / 360))) * orbit.current.zoom;
+    // 그 거리에서 화면 전체가 담는 세계 크기 — 4) 의 화면 이동은 이 크기로 재야 한다. zoom 을 빼고 재면 확대할수록
+    // 캐릭터가 빈 자리 가운데에서 1/zoom 배 바깥으로 밀려(PC 는 왼쪽 화면 밖으로) 나갔다(미르 11/10)
+    const worldHeight = fitHeight * orbit.current.zoom;
     const worldWidth = worldHeight * (size.width / size.height);
 
-    // 3) 궤도 위 카메라
-    const { yaw, pitch } = orbit.current;
-    const elevation = THREE.MathUtils.clamp(pitch, -0.4, 0.75);
-    const forward = new THREE.Vector3(
-      Math.sin(yaw) * Math.cos(elevation),
-      Math.sin(elevation),
-      Math.cos(yaw) * Math.cos(elevation),
-    );
-    const position = s.center.clone().addScaledVector(forward, distance);
-    // 4) 빈 자리 한가운데로 화면을 옮긴다(카메라와 목표를 같이 밀면 시선 방향은 그대로다)
-    const cx = (area.left + freeWidth / 2) / size.width - 0.5;
-    const cy = 0.5 - (area.top + freeHeight / 2) / size.height;
-    // forward 는 목표 → 카메라라 시선은 그 반대다. 화면 오른쪽은 cross(위, forward) — 반대로 잡으면 캐릭터가 UI 쪽으로 밀린다.
-    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), forward).normalize();
-    const up = new THREE.Vector3().crossVectors(forward, right).normalize();
-    const shift = right
-      .clone()
-      .multiplyScalar(-cx * worldWidth)
-      .add(up.clone().multiplyScalar(-cy * worldHeight));
-    const lookTarget = s.center.clone().add(shift);
-    position.add(shift);
+    // 3) 궤도 위 카메라 · 4) 빈 자리 한가운데로 화면 이동
+    const placement: OrbitPlacement = {
+      center: s.center,
+      yaw: orbit.current.yaw,
+      distance,
+      cx: (area.left + freeWidth / 2) / size.width - 0.5,
+      cy: 0.5 - (area.top + freeHeight / 2) / size.height,
+      worldWidth,
+      worldHeight,
+    };
+    let elevation = THREE.MathUtils.clamp(orbit.current.pitch, MIN_PITCH, MAX_PITCH);
+    let pose = placeOrbitCamera(placement, elevation);
+    // 카메라가 바닥 밑으로 가면(발 보기 · 아래에서 올려다보며 축소) 높이만 눌러 올리지 않고 올려다보는 각을 줄인다 — 높이만 올리면
+    // 시선이 틀어져 캐릭터가 빈 자리 가운데에서 옆으로 밀렸다(Codex 01). 높이는 각에 따라 늘기만 해 반씩 좁혀 찾는다
+    if (pose.position.y < MIN_CAMERA_Y && placeOrbitCamera(placement, MAX_PITCH).position.y >= MIN_CAMERA_Y) {
+      let low = elevation;
+      let high = MAX_PITCH;
+      for (let i = 0; i < 16; i += 1) {
+        const middle = (low + high) / 2;
+        if (placeOrbitCamera(placement, middle).position.y < MIN_CAMERA_Y) low = middle;
+        else high = middle;
+      }
+      elevation = high;
+      pose = placeOrbitCamera(placement, elevation);
+    }
+    const { position, lookTarget, up } = pose;
 
-    perspective.position.set(position.x, Math.max(0.1, position.y), position.z);
+    perspective.position.set(position.x, Math.max(MIN_CAMERA_Y, position.y), position.z);
     perspective.lookAt(lookTarget);
     perspective.near = Math.max(0.05, distance * 0.05);
     perspective.far = distance * 14 + 24;
@@ -515,7 +565,7 @@ export default function CharacterPreview({
     const dy = event.clientY - dragFrom.current.y;
     dragFrom.current = { x: event.clientX, y: event.clientY };
     orbit.current.yaw -= dx * 0.008;
-    orbit.current.pitch = THREE.MathUtils.clamp(orbit.current.pitch + dy * 0.005, -0.4, 0.75);
+    orbit.current.pitch = THREE.MathUtils.clamp(orbit.current.pitch + dy * 0.005, MIN_PITCH, MAX_PITCH);
   };
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     pointers.current.delete(event.pointerId);

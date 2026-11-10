@@ -361,6 +361,7 @@ export default function CharacterCreationScreen({
                 ) : null}
                 {activeTab === "body" ? (
                   <BodyPanel
+                    catalog={activeCatalog}
                     gender={gender}
                     body={appearance.bodyParameters}
                     isWide={isSettingsWide}

@@ -7,6 +7,7 @@ import { apiUrl } from "@/config/env";
 
 const SAVE_URL = apiUrl("/api/v1/me/game-save");
 const CHARACTER_URL = apiUrl("/api/v1/me/character");
+const ME_URL = apiUrl("/api/v1/me");
 const SCHEMA_VERSION = 1;
 const SAVE_DELAY_MS = 1500;
 const POSITION_SAVE_INTERVAL_MS = 10_000;
@@ -269,13 +270,33 @@ export function startGameSaveLoop(): void {
   }, POSITION_SAVE_INTERVAL_MS);
 }
 
-/** 캐릭터를 서버에 둔다. 다른 기기에서도 같은 모습으로 시작한다. */
-export function saveCharacter(displayName: string, appearance: Record<string, unknown>): void {
-  if (!isLoggedIn) return;
-  void requestJson(CHARACTER_URL, {
-    method: "PUT",
-    body: JSON.stringify({ display_name: displayName, appearance }),
-  }).catch(() => {});
+/** 캐릭터를 서버에 둔다. 다른 기기에서도 같은 모습으로 시작한다. 서버에 저장됐으면 true(로그인 안 함 · 실패면 false) */
+export async function saveCharacter(displayName: string, appearance: Record<string, unknown>): Promise<boolean> {
+  if (!isLoggedIn) return false;
+  try {
+    const { status } = await requestJson(CHARACTER_URL, {
+      method: "PUT",
+      body: JSON.stringify({ display_name: displayName, appearance }),
+    });
+    return status >= 200 && status < 300;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 로그인한 계정의 id — 캐릭터 생성 초안을 그 계정 것으로만 이어 만든다(같은 PC 다음 가입자에게 앞 사람 모습이 보였다, 미르 11/10).
+ * 로그인 안 함 · 개발 서버 ?fresh(initGameSave 가 저장을 끈다) · 실패면 null.
+ */
+export async function loadAccountId(): Promise<string | null> {
+  if (!isLoggedIn) return null;
+  try {
+    const { status, body } = await requestJson(ME_URL);
+    const id = status === 200 && body && typeof body === "object" ? (body as { user_id?: unknown }).user_id : null;
+    return typeof id === "string" && id ? id : null;
+  } catch {
+    return null;
+  }
 }
 
 export async function loadCharacter(): Promise<Record<string, unknown> | null> {

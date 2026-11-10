@@ -4,5 +4,5 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "vite.lobby-standins.ts", "vite.resident-npcs.ts", "naju01/vite.config.ts", "naju01/vite/**/*.ts"]
+  "include": ["vite.config.ts", "vite.lobby-standins.ts", "vite.resident-npcs.ts", "vite.start-looks.ts", "naju01/vite.config.ts", "naju01/vite/**/*.ts"]
 }

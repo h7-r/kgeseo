@@ -7,6 +7,9 @@
 import { BUZZ_HAIR_VARIANT, DEFAULT_MESH_CONFIG, MESH_PART_OPTIONS } from "../avatar/meshAppearance";
 import type { AvatarGender, Option } from "../avatar/sidekickOptions";
 
+import { parseStartLookFile, toCatalogStartLooks, type StartLookAppearance } from "./startLookFile";
+import START_LOOKS_JSON from "./startLooks.json";
+
 // 목록이 바뀌면 올린다. 저장된 캐릭터가 어느 목록으로 만든 것인지 안다.
 //   2026-11-06 반삭(hair.buzz)을 더했지만 판은 그대로 둔다 — 로비 서버가 판이 다른 외형을 통째로 버리고
 //   로비 시험 고정값(lobby/test/helpers.ts)도 이 판을 쓴다. 올릴지는 로비 쪽과 같이 정한다.
@@ -41,6 +44,11 @@ export interface CharacterCatalog {
   items: readonly CatalogItem[];
   /** 처음 들어왔을 때의 착장(아이템 id) */
   newDefaults?: Partial<Record<AvatarGender, Partial<Record<CatalogSlot, string>>>>;
+  /**
+   * 성별을 처음 골랐을 때 보여 줄 모습 통째(몸 · 머리 · 옷 · 색) — 미르가 시작 모습 창(start-look.html)에서 정한 startLooks.json.
+   * 없는 성별은 newDefaults · 몸 시작 칸 · 원본 색(코드 기본값). 화면이 믿지 않고 보정한다(appearanceData getStartAppearance)
+   */
+  startLooks?: Partial<Record<AvatarGender, StartLookAppearance>> | null;
   palettes: Record<ColorSlot, readonly Option<string>[]>;
 }
 
@@ -176,6 +184,8 @@ export const DEFAULT_CATALOG: CharacterCatalog = {
     // 여성 긴 머리는 귀 문제가 있어 처음 값으로 쓰지 않는다(고르면 된다)
     feminine: { hair: "hair.f.bob", top: "top.tee.white", bottom: "bottom.shorts.black", shoes: "shoes.sneaker.white" },
   },
+  // 파일이 깨졌으면 비운다(코드 기본값으로 연다)
+  startLooks: toCatalogStartLooks(parseStartLookFile(START_LOOKS_JSON as unknown)),
   palettes: PALETTES,
 };
 
