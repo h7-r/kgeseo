@@ -33,12 +33,13 @@ from app.services.npc_decision import NpcDecision
 from app.services.npc_dialogue import (
     GENERIC_WITH_HINT_SUGGESTION,
     PM_GENERIC_PUZZLE_LINES,
+    AutoNudgeSelection,
     GenericLineApproval,
     NpcReply,
     SuggestHint,
     _has_server_hint,
-    _revealed_approved_nudge,
     respond_to_player_message,
+    select_auto_nudge,
 )
 from app.services.npc_general_dialogue import ApprovedLineProvider, ModelGenerator
 from app.services.npc_generation_policy import PolicyCheckResult, PolicyRules
@@ -186,8 +187,13 @@ def run_auto_turn(
     *,
     state: Mapping[str, Any],
     content: NpcTurnContent,
+    used_nudges: frozenset[tuple[str | None, str]] = frozenset(),
 ) -> NpcTurnResult:
-    """판단 결과에 따라 허용된 동작만 한다. 생성기는 받지 않는다(자동 개입은 생성하지 않는다)."""
+    """판단 결과에 따라 허용된 동작만 한다. 생성기는 받지 않는다(자동 개입은 생성하지 않는다).
+
+    `used_nudges`: 이 회차(play session)에서 이미 자동 개입으로 반환한 (puzzle_id, line_id)
+    (`npc_turn_service.used_auto_nudges`). 다시 고르지 않고, 후보가 다 쓰였으면 같은 줄을 반복하지 않는다.
+    """
 
     if not decision.intervene:
         return NpcTurnResult("auto", None, decision.reason, None, decision)
@@ -199,19 +205,23 @@ def run_auto_turn(
             decision.reason, decision.trigger_value, target, missing, level
         )
 
+    exhausted = False
     if "nudge" in allowed_auto_actions(decision.intervention_level):
-        nudge = (
-            _revealed_approved_nudge(
+        selection = (
+            select_auto_nudge(
                 content.npc_pack,
                 content.npc_id,
                 target,
                 state,
                 content.case_id,
                 content.line_source,
+                reason=decision.reason,
+                used=used_nudges,
             )
             if content.npc_id is not None
-            else None
+            else AutoNudgeSelection(None)
         )
+        nudge, exhausted = selection.nudge, selection.exhausted
         if nudge is not None:
             _ensure_no_protected_text(
                 nudge.text,
@@ -255,6 +265,6 @@ def run_auto_turn(
         reply = NpcReply("approved_line", text, GENERIC_WITH_HINT_SUGGESTION)
         return NpcTurnResult("auto", reply, None, suggest, decision, auto=record(2))
 
-    return NpcTurnResult(
-        "auto", None, "no_approved_line", None, decision, auto=record(level)
-    )
+    # 후보가 이 회차에서 모두 쓰였으면 사유를 따로 남긴다(같은 줄을 다시 내지 않는다).
+    reason = "auto_nudges_exhausted" if exhausted else "no_approved_line"
+    return NpcTurnResult("auto", None, reason, None, decision, auto=record(level))

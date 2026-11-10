@@ -34,7 +34,31 @@ pytestmark = pytest.mark.skipif(
 
 # 가상 테스트 콘텐츠 · 승인(운영 값이 아니다)
 STORE = PinnedContentStore()
-STORE.add(bundle())
+# 같은 회차에서 반환한 nudge 는 다시 고르지 않는다(자동 nudge 선택 규칙, 11/10). 이 파일은 표시 횟수 · 쿨다운을
+# 보므로 후보를 넉넉히 둔다(분류 없는 줄 — 팩 파일 순서, 첫 줄은 그대로 NUDGE_A_01).
+STORE.add(
+    bundle(
+        puzzles=[
+            {
+                "puzzle_id": "PZ_A",
+                "nudges": [
+                    {
+                        "line_id": line_id,
+                        "text": f"(가상) {line_id} 주변을 한 번 더 보자.",
+                        "reveal_when": {"clue_acquired": "CLUE_LETTER"},
+                    }
+                    for line_id in (
+                        "NUDGE_A_01",
+                        "NUDGE_A_02",
+                        "NUDGE_A_03",
+                        "NUDGE_A_04",
+                    )
+                ],
+                "hints": [{"level": 1}, {"level": 2}],
+            }
+        ]
+    )
+)
 CASE_APPROVAL = approved(("case_test", 1), FP).source()
 STATE = {
     "current_zone_id": "ZONE_A",
