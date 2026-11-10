@@ -16,6 +16,13 @@ export const LOBBY_ENTRY_PARAM = "entry";
 export const LOBBY_ENTRY_VALUE = "lobby";
 /** 로비로 들어가는 주소 */
 export const LOBBY_PATH = `/?${LOBBY_ENTRY_PARAM}=${LOBBY_ENTRY_VALUE}`;
+/**
+ * 나주 멈춤 메뉴 「다른 지역으로(기차)」(미르 11/11) — 로비 들어오기와 같이 받고(같은 저장 단계 조건), 로비 대신 기차 안에서 목적지 창을 연다.
+ * 새로 고침하면 표시가 지워져 있어 로비에서 시작한다(기차는 새로 고침으로 들어가지 않는다 — resumeStart)
+ */
+export const TRAIN_ENTRY_VALUE = "train";
+export const TRAIN_ENTRY_PATH = `/?${LOBBY_ENTRY_PARAM}=${TRAIN_ENTRY_VALUE}`;
+const ENTRY_VALUES: ReadonlySet<string> = new Set([LOBBY_ENTRY_VALUE, TRAIN_ENTRY_VALUE]);
 
 /** 로비에서 시작하는 저장 단계 — 본부실에 한 번이라도 들어선 뒤 */
 const LOBBY_STAGES: ReadonlySet<GameStage> = new Set<GameStage>(["headquarters", "train", "naju"]);
@@ -25,9 +32,13 @@ export const isLobbyStage = (stage: GameStage | null): boolean => stage !== null
 /** 이 주소 · 저장 단계(또는 방금 나주에서 나온 표시)면 로비 자리에서 시작한다 */
 export function wantsLobbyEntry(search: string, stage: GameStage | null, isReturning = false): boolean {
   return (
-    new URLSearchParams(search).get(LOBBY_ENTRY_PARAM) === LOBBY_ENTRY_VALUE && (isLobbyStage(stage) || isReturning)
+    ENTRY_VALUES.has(new URLSearchParams(search).get(LOBBY_ENTRY_PARAM) ?? "") && (isLobbyStage(stage) || isReturning)
   );
 }
+
+/** 로비로 들어오되 기차까지 바로 가나(wantsLobbyEntry 가 참일 때만 본다) */
+export const wantsTrainEntry = (search: string): boolean =>
+  new URLSearchParams(search).get(LOBBY_ENTRY_PARAM) === TRAIN_ENTRY_VALUE;
 
 // ── 나주 → 로비 이동 표시(이 탭에만, 잠깐) ──
 const RETURN_KEY = "kgeseo.lobbyReturn";

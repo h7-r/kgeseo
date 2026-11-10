@@ -17,6 +17,7 @@ import { isPointerActive } from "@/engine/input/virtualLock";
 
 import { isCompanionIntro } from "../companion/companionStage";
 import { getUnderwater } from "../puzzles/cave/caveState";
+import { helpLog } from "../progress/helpLog";
 import { isOtherWindowHeld } from "../puzzles/pointerHold";
 import { isTalkTaken } from "../scene/firstScene/npcSpeech";
 import { createDialogueStore, type Speech } from "./dialogueStore.ts";
@@ -75,6 +76,8 @@ const director = createDirector({
   store: dialogue,
   guideOf: (objective) => (panel && PANEL_OBJECTIVE[panel.title] === objective ? inCompanionVoice(panel.rule) : null),
   onSpoken: () => watcher.noteSpoken(performance.now() / 1000),
+  // [F] 로 청한 도움 — 도움 별(미르 11/11)
+  onHelpAsked: () => helpLog.noteAsked(),
   phaseHint: hintPhase,
   canChooseTone: IS_TONE_CHOICE_ENABLED,
   onTone: (tone) => localStorage.setItem(TONE_KEY, tone),

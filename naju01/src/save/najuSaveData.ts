@@ -8,6 +8,8 @@ import { jarPuzzle } from "../puzzles/jars/jarState";
 import { makgeolliBottle } from "../puzzles/makgeolli/makgeolliState";
 import { ridge, ridgeCarry, ridgeQuest } from "../puzzles/ridge/ridgeState";
 import { ritual, type RitualStage } from "../puzzles/ritual/ritualState";
+import { helpLog } from "../progress/helpLog";
+import { playClock } from "../progress/playClock";
 import { registerPuzzleMemory } from "./puzzleMemory";
 
 export const PLAYER_SECTION = "naju.player";
@@ -67,6 +69,16 @@ export function registerNajuSave(): void {
   registerSaveSection("naju.ridgeCarry", {
     read: () => ({ load: ridgeCarry.load, putDown: ridgeCarry.putDown }),
     apply: (value) => Object.assign(ridgeCarry, value),
+  });
+  // 조사 시간(경과 시간 · 시간 별, 미르 11/11) — 1초마다 바뀌므로 자동 저장 신호에는 넣지 않는다(playClock 이 1분마다 저장을 부른다)
+  registerSaveSection("naju.playTime", {
+    read: () => playClock.read(),
+    apply: (value) => playClock.restore(value),
+  });
+  // 직접 청한 도움(도움 별, 미르 11/11) — 셀 때마다 저장을 부른다(helpLog)
+  registerSaveSection("naju.helpLog", {
+    read: () => helpLog.read(),
+    apply: (value) => helpLog.restore(value),
   });
   registerSaveSection("naju.inventory", {
     read: () => inventory.snapshot(),

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { waitForSessionBeforeAssets } from "../src/app/sessionGate.ts";
-import { DIALOG_TEXT, createCompanionDialog } from "../src/companion/companionDialog.ts";
+import { DIALOG_TEXT, createCompanionDialog, type DialogState } from "../src/companion/companionDialog.ts";
 import { createCompanionSession, type KeyValueStore } from "../src/companion/companionSession.ts";
 import {
   HINTED_PUZZLES,
@@ -870,4 +870,106 @@ test("CDN 에셋이면 세션을 최대 2.5초 기다리고, 로컬 에셋이거
   await waitForSessionBeforeAssets(never, { isCdn: true, timeoutMs: 30 }).then(() => order.push("timeout"));
   assert.ok(Date.now() - startedAt >= 25);
   assert.deepEqual(order, ["local", "off", "failed", "timeout"]);
+});
+
+test("정식 힌트 2단계(정답)가 처음 오면 onAnswerSeen(도움 별 「정답 확인」) — 1단계 · 다시 보기는 아니다", () => {
+  let state: DialogState = {
+    isEnabled: true,
+    waiting: null,
+    line: null,
+    offer: null,
+    contentMode: "case",
+    fallbackReason: null,
+    hintBalance: null,
+    hintLevels: {},
+  };
+  const listeners = new Set<() => void>();
+  const set = (patch: Partial<DialogState>) => {
+    state = { ...state, ...patch };
+    for (const listener of listeners) listener();
+  };
+  let seen = 0;
+  const bridge = createCompanionBridge({
+    dialog: {
+      getState: () => state,
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      acceptOffer: async () => true,
+      autoTurn: async () => true,
+      requestPuzzleHint: async () => true,
+    },
+    say: () => {},
+    askOpenHint: async () => false,
+    schedule: (run) => run(),
+    onAnswerSeen: () => {
+      seen += 1;
+    },
+  });
+  set({ line: { kind: "hint", level: 1, text: "1단계", isReview: false } });
+  assert.equal(seen, 0);
+  set({ line: { kind: "hint", level: 2, text: "정답 다시 보기", isReview: true } });
+  assert.equal(seen, 0);
+  set({ line: { kind: "hint", level: 2, text: "정답", isReview: false } });
+  assert.equal(seen, 1);
+  bridge.dispose();
+});
+
+test("[F] 로 청한 정식 힌트는 글이 실제로 왔을 때만 onRequestedHint — 실패 문구 · 다시 보기 · 서버가 권한 힌트는 아니다", async () => {
+  let state: DialogState = {
+    isEnabled: true,
+    waiting: null,
+    line: null,
+    offer: null,
+    contentMode: "case",
+    fallbackReason: null,
+    hintBalance: null,
+    hintLevels: {},
+  };
+  const listeners = new Set<() => void>();
+  const set = (patch: Partial<DialogState>) => {
+    state = { ...state, ...patch };
+    for (const listener of listeners) listener();
+  };
+  let reply: Partial<DialogState> = {};
+  let counted = 0;
+  const bridge = createCompanionBridge({
+    dialog: {
+      getState: () => state,
+      subscribe: (listener) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      acceptOffer: async () => true,
+      autoTurn: async () => true,
+      requestPuzzleHint: async () => {
+        set(reply);
+        return true;
+      },
+    },
+    say: () => {},
+    askOpenHint: async () => false,
+    serverPuzzleIdOf: () => "PUZZLE_ANGAM_01",
+    schedule: (run) => run(),
+    onRequestedHint: () => {
+      counted += 1;
+    },
+  });
+  // 잔액 없음 같은 실패 문구 — 받은 것이 없다
+  reply = { line: { kind: "notice", text: DIALOG_TEXT.balanceEmpty } };
+  await bridge.hintProvider.open("P03");
+  assert.equal(counted, 0);
+  // 힌트 글이 왔다 — 1회
+  reply = { line: { kind: "hint", level: 1, text: "1단계", isReview: false } };
+  await bridge.hintProvider.open("P03");
+  assert.equal(counted, 1);
+  // 다시 보기는 새 도움이 아니다
+  reply = { line: { kind: "hint", level: 2, text: "다시 보기", isReview: true } };
+  await bridge.hintProvider.open("P03");
+  assert.equal(counted, 1);
+  // [F] 없이 온 힌트(서버가 권해 「네」)는 세지 않는다
+  set({ line: { kind: "hint", level: 1, text: "권한 힌트", isReview: false } });
+  assert.equal(counted, 1);
+  bridge.dispose();
 });

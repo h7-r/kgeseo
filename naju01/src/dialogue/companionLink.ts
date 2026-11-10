@@ -3,6 +3,7 @@
  * 앱이 뜰 때 한 번 부르고(app/App.tsx), 떼면 원래대로(서버 없이 FE 대화창만) 돌아간다.
  */
 import { MOCK_SCENARIO, companionDialog, companionSession } from "../companion/companionRuntime";
+import { helpLog } from "../progress/helpLog";
 import {
   HINT_PUZZLE_IDS,
   PUZZLE_FOCUS_IDS,
@@ -33,6 +34,8 @@ export function connectCompanionDialogue(): () => void {
     focusIdOf: (objective) => STEP_FOCUS_IDS[objective] ?? null,
     // 퍼즐 폴링은 서버 판정 퍼즐(puzzleId 가 있는 목표) · 대응표 §5 대표 Object — 이 판에 정식 힌트가 있는지와 상관없다
     puzzleFocusIdOf: (objective) => (OBJECTIVES[objective].puzzleId ? (PUZZLE_FOCUS_IDS[objective] ?? null) : null),
+    onAnswerSeen: () => helpLog.noteAnswerSeen(),
+    onRequestedHint: () => helpLog.noteAsked(),
   });
   setHintProvider(bridge.hintProvider);
   setSituationSink(bridge.relay);

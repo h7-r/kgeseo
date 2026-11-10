@@ -45,7 +45,14 @@ import AimTracker from "@/lobby/AimTracker";
 import { LobbyChibiPanel, LobbySidekickPanel, najuCaseProgress } from "@/naju";
 import MainGameSaveBridge from "@/save/MainGameSaveBridge";
 import { getSavedStage, readSavedSection } from "@/save/gameSave";
-import { LOBBY_SPOT, clearLobbyReturn, peekLobbyReturn, wantsLobbyEntry, withoutLobbyEntry } from "@/save/lobbyEntry";
+import {
+  LOBBY_SPOT,
+  clearLobbyReturn,
+  peekLobbyReturn,
+  wantsLobbyEntry,
+  wantsTrainEntry,
+  withoutLobbyEntry,
+} from "@/save/lobbyEntry";
 import { savedStationPose } from "@/save/mainGameSave";
 import { isInsideHeadquarters } from "@/save/resumePolicy";
 import {
@@ -70,6 +77,7 @@ import TutorialPanel from "@/tutorial/TutorialPanel";
 import TutorialRestartNotice from "@/tutorial/TutorialRestartNotice";
 
 import CrashOverlays from "./overlays/CrashOverlays";
+import MainPauseMenu from "./overlays/MainPauseMenu";
 import {
   ActionHint,
   Crosshair,
@@ -80,7 +88,7 @@ import {
   Toast,
   TopBarButton,
 } from "./overlays/Hud";
-import { bindPointerResume, usePointerResumeState } from "./pointerResume";
+import { bindPointerResume, resumePlay, usePointerResumeState } from "./pointerResume";
 import { useIsTypingFocused } from "./useIsTypingFocused";
 import MangaScene from "./MangaScene";
 import { createPlayerState, usePunch } from "./playerState";
@@ -196,6 +204,8 @@ export default function App() {
   const [isLobbyEntry] = useState(
     () => !isTrain && wantsLobbyEntry(window.location.search, getSavedStage(), peekLobbyReturn()),
   );
+  // 나주 멈춤 메뉴 「다른 지역으로(기차)」(?entry=train, 미르 11/11) — 로비로 들어오는 것과 같고, 이어서 기차 안으로 가 목적지 창을 연다
+  const [isTrainEntry] = useState(() => isLobbyEntry && wantsTrainEntry(window.location.search));
   // 튜토리얼 중(본부실 전)에는 저장 자리를 쓰지 않는다 — 처음부터 다시(save/resumeStart 가 그 칸을 넣지 않는다)
   // 본부실에 들어선 뒤인데 저장 자리가 본부실 밖(잠긴 비밀 복도)이거나 없으면 로비 자리에서
   const [initialCamera] = useState(() => {
@@ -225,6 +235,16 @@ export default function App() {
     sealHeadquartersDoor();
     navigate(withoutLobbyEntry(window.location.href), { replace: true });
   }, [isLobbyEntry, navigate]);
+  // 기차로 — 걸어 들어가는 boardTrain 대신 바로 객차로(문 소리 · 들고 있던 물건 내려놓기는 막 들어온 사람에게 없다).
+  // 위 레이아웃 효과에서 옮기면 안 된다 — 라우터(BrowserRouter)가 주소를 듣기 시작하는 것이 자식의 첫 레이아웃 효과보다 늦어,
+  // 주소창만 /train 이 되고 화면은 로비에 남았다. 보통 효과는 그 뒤에 돈다
+  // 한 번만 쓴다 — navigate 는 주소가 바뀌면 새로 만들어져 효과가 다시 도는데, 그대로 두면 기차에서 내릴 때마다 도로 객차로 끌려갔다(09회차 Codex)
+  const isTrainEntryPending = useRef(isTrainEntry);
+  useEffect(() => {
+    if (!isTrainEntryPending.current) return;
+    isTrainEntryPending.current = false;
+    navigate(TRAIN_PATH, { replace: true });
+  }, [navigate]);
   const [isPointerLocked, setIsPointerLocked] = useState(false);
   /** 한 번이라도 [T] 로 들어왔나 — 처음엔 튜토리얼 첫 단계가 「T 조작 시작」을 알려 주므로 게임 밖 안내를 띄우지 않는다 */
   const [hasLockedOnce, setHasLockedOnce] = useState(false);
@@ -265,6 +285,13 @@ export default function App() {
   const { isGpuLost, isSceneEmptied, handleCanvasCreated } = useCrashWatch();
   const { fade, boardTrain, leaveTrain } = useSceneTransition(isTrain, near);
   const { openLayer, openWindow, closeWindow } = useOverlayWindows(controlsRef);
+  // 기차로 들어왔으면 객차에 닿는 대로 목적지 창을 한 번 연다 — 닫으면 그냥 객차 안이다(T 로 조작)
+  const isTrainWindowOpened = useRef(false);
+  useEffect(() => {
+    if (!isTrainEntry || !isTrain || isTrainWindowOpened.current) return;
+    isTrainWindowOpened.current = true;
+    openWindow(OVERLAY_LAYERS.destination);
+  }, [isTrainEntry, isTrain, openWindow]);
   const settings = useSettings();
   const lockControl = useLockControlMode();
   useDevInventorySeed();
@@ -461,7 +488,16 @@ export default function App() {
       <ValveHelpWatcher covered={openLayer !== null} roamActive={isStationActive} />
       {/* 밸브에 전기가 닿은 뒤 30초 헤매면 「밸브로 돌아가자」(미르 11/10) */}
       <ValveNudgeWatcher roamActive={isStationActive} />
-      {returnPromptMode && <ReturnPrompt mode={returnPromptMode} />}
+      {/* 게임 밖이면 멈춤 메뉴(미르 11/11) — 기차 안은 예전처럼 [T] 안내만(마우스를 풀어 홀로그램을 겨누는 곳) */}
+      {returnPromptMode === "out" && !isTrain ? (
+        <MainPauseMenu
+          place={hasEnteredHeadquarters() ? "lobby" : "tutorial"}
+          onResume={resumePlay}
+          onOpenSettings={() => openWindow(OVERLAY_LAYERS.settings)}
+        />
+      ) : (
+        returnPromptMode && <ReturnPrompt mode={returnPromptMode} />
+      )}
       {/* 화면층이 지금 열린 창을 하나로 정하므로 두 창이 겹칠 수 없다 */}
       <InventoryPanel open={openLayer === OVERLAY_LAYERS.inventory} onClose={closeWindow} />
       <HintPanel open={openLayer === OVERLAY_LAYERS.hint} onClose={closeWindow} />

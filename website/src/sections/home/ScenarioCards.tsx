@@ -31,7 +31,8 @@ interface Scenario {
   video: Video;
   region: string;
   name: string;
-  stars: string;
+  /** 난이도 — 쉬움 · 보통 · 어려움(미르 11/11, 게임 목적지 창과 같다. 예전 별 ★3 = 보통, ★4 · ★5 = 어려움) */
+  difficulty: "쉬움" | "보통" | "어려움";
   description: string;
   /** 아직 플레이할 수 없는 지역이면 지역 딱지 옆에 「출시 예정」을 단다. */
   isComingSoon: boolean;
@@ -45,7 +46,7 @@ const SCENARIOS: readonly Scenario[] = [
     video: VIDEOS.mokpo,
     region: "목포",
     name: "갓바위의 전설",
-    stars: "★★★☆☆",
+    difficulty: "보통",
     description: "성자가 쉬어 가며 두고 간 갓이 바위로 굳었다. 바닷가 갓바위에 남은 단서를 찾아라.",
     isComingSoon: true,
   },
@@ -55,7 +56,7 @@ const SCENARIOS: readonly Scenario[] = [
     video: VIDEOS.yeosu,
     region: "여수",
     name: "거북선의 비밀",
-    stars: "★★★★☆",
+    difficulty: "어려움",
     description: "전라좌수영의 바다를 지키던 거북선. 거북 머리가 가리키는 곳에 봉인된 기록을 찾아라.",
     isComingSoon: true,
   },
@@ -65,7 +66,7 @@ const SCENARIOS: readonly Scenario[] = [
     video: VIDEOS.suncheon,
     region: "순천",
     name: "순천만의 비밀",
-    stars: "★★★★★",
+    difficulty: "어려움",
     description: "갈대숲 사이로 굽이치는 S자 물길. 물길이 멈추는 자리에 숨은 마지막 단서를 찾아라.",
     isComingSoon: true,
   },
@@ -114,7 +115,7 @@ type ScenarioCardProps = Omit<Scenario, "id"> & {
 };
 
 /** 카드 한 장. 처음부터 제자리에 서 있고, 호버하면 떠올라 흔들리며 영상이 흐른다. */
-function ScenarioCard({ order, photo, video, region, name, stars, description, isComingSoon }: ScenarioCardProps) {
+function ScenarioCard({ order, photo, video, region, name, difficulty, description, isComingSoon }: ScenarioCardProps) {
   const proximityRef = useProximity(240);
   // 카드 모서리(16px × 화면 배율쯤)에서 커지기 시작한다.
   const preview = useVideoPreview(video, "12px");
@@ -182,7 +183,7 @@ function ScenarioCard({ order, photo, video, region, name, stars, description, i
           <div style={metaStyle}>
             <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
               <span style={{ color: COLOR.textSubtle }}>난이도</span>
-              <span style={{ color: COLOR.textBright }}>{stars}</span>
+              <span style={{ color: COLOR.textBright }}>{difficulty}</span>
             </div>
             <span style={{ color: COLOR.textSubtle }}>1인칭 추리</span>
           </div>

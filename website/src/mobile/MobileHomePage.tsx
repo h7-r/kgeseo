@@ -59,7 +59,7 @@ const FACTS = [
 ];
 
 const MISSION_SPECS = [
-  { label: "난이도", value: "★★★☆☆" },
+  { label: "난이도", value: "보통" },
   { label: "플레이 시간", value: "15~25분" },
   { label: "플레이 인원", value: "1명" },
 ];

@@ -58,6 +58,13 @@ import { useHintBoxOpen } from "../puzzles/hintBoxView";
 import InventoryModal from "../puzzles/InventoryModal";
 import { beginHold, bindPointerHold, endHold, isOutOfGame as checkOutOfGame } from "../puzzles/pointerHold";
 import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
+import { najuCaseProgress } from "../progress/caseProgress";
+import { readSavedSection } from "@/save/gameSave";
+import CaseStartCard from "./CaseStartCard";
+import NajuPauseMenu from "./NajuPauseMenu";
+import PlayTimeHud from "./PlayTimeHud";
+import { playClock } from "../progress/playClock";
+import { CARD_PREVIEW, RATING_PREVIEW, type CaseStartMode } from "./caseStart";
 import NajuScene, { type NajuSceneReport, type NajuToonConfig } from "../scene/NajuScene";
 import { audio } from "../scene/immersion/audio";
 import { DEFAULT_TERRAIN } from "../terrain/terrain";
@@ -228,9 +235,21 @@ export default function App() {
   // 처음 [T] 전에는 첫 장면을 그려야 덮개가 걷히므로 세우지 않는다
   const [hasLockedOnce, setHasLockedOnce] = useState(false);
   const [isOutOfGame, setIsOutOfGame] = useState(false);
+  // 시작 카드 모드 — 저장이 있으면 한 줄 「이어서 조사」(아래 isCardVisible 설명)
+  const [caseStart] = useState(() => {
+    if (CARD_PREVIEW) return { mode: (CARD_PREVIEW === "full" ? "full" : "resume") as CaseStartMode, isCleared: CARD_PREVIEW === "cleared" };
+    const progress = IS_REVIEW_REQUESTED ? null : najuCaseProgress((name) => readSavedSection(name));
+    return { mode: (progress ? "resume" : "full") as CaseStartMode, isCleared: !!progress?.isCleared };
+  });
+  const [cardMode, setCardMode] = useState<CaseStartMode | null>(IS_REVIEW_REQUESTED ? null : caseStart.mode);
   const handleLockChange = useCallback((next: boolean) => {
     setIsLocked(next);
-    if (next) setHasLockedOnce(true);
+    if (!next) return;
+    setHasLockedOnce(true);
+    // 잠겼다 — 시작 카드(첫 몸짓 · 다시 보기)를 내린다. 다시 풀려도 카드가 아니라 「게임 밖」 쉼이 맡는다
+    setCardMode(null);
+    // 조사 시간은 첫 조작부터 센다(얼어 있던 시간은 게임 시계가 뺀다)
+    if (!IS_REVIEW_REQUESTED) playClock.start();
   }, []);
   useEffect(() => {
     if (isTouch || !hasLockedOnce) return undefined;
@@ -244,8 +263,43 @@ export default function App() {
       setIsOutOfGame(false);
     };
   }, [isTouch, hasLockedOnce]);
-  const isDesktopWindowPause = !isTouch && hasLockedOnce && isWindowOpen;
+  // 시작 카드(PC, 미르 11/11) — 첫 몸짓(조사 시작 · Enter · WASD · T)이 잠금을 건다. 저장이 있으면 한 줄 「이어서 조사」.
+  // 첫 장면이 그려지고(기차에서 왔으면 도착 막이 걷힌 뒤) 창이 없을 때 띄우고, 떠 있는 동안은 게임 시간 · 렌더를 세운다(창과 같은 쉼)
+  const isCardVisible =
+    cardMode !== null && !isTouch && isSceneDrawn && (!IS_ARRIVING_FROM_HUB || isArrivalRevealed) && !isWindowOpen;
+  // controls.lock() 과 같은 요청을 직접 — 브라우저가 거절하면(ESC 직후 · 창 밖 초점) 약속이 거절로 끝나니 받아 둔다.
+  // 거절은 pointerlockerror 로 카드 · 멈춤 메뉴가 「한 번 더 눌러 주세요」를 보인다
+  const requestLock = useCallback(() => {
+    const element = controlsRef.current?.domElement as (HTMLElement & { requestPointerLock(): Promise<void> | void }) | undefined;
+    const request = element?.requestPointerLock();
+    if (request instanceof Promise) request.catch(() => {});
+  }, []);
+  const startFromCard = useCallback(() => {
+    // 다시 보기는 창처럼 잠금을 붙들어 두었다 — 먼저 놓는다(붙든 동안은 잠그지 않는다). 첫 시작 전에 연 다시 보기는 놓아도
+    // 다시 잠가 주지 않으므로(조작 중이 아니었다) 아래에서 직접 잠근다. 카드는 잠긴 뒤에(handleLockChange) 내린다 — 03회차 Codex
+    if (cardMode === "guide") endHold(CASE_GUIDE_HOLD);
+    requestLock();
+  }, [cardMode, requestLock]);
+  /**
+   * 다시 보기를 Esc 로 닫는다 — 놓으면 열기 전 상태로(조작 중이었으면 다시 잠그고, 멈춤 메뉴에서 열었으면 메뉴로).
+   * 첫 시작 전(설정에서 연 다시 보기)이면 시작 카드로 돌아간다 — 카드를 내리면 시작할 길이 [T] 뿐이다
+   */
+  const closeCaseGuide = useCallback(() => {
+    endHold(CASE_GUIDE_HOLD);
+    setCardMode(hasLockedOnce ? null : caseStart.mode);
+  }, [hasLockedOnce, caseStart.mode]);
+  const showCaseGuide = useCallback(() => {
+    beginHold(CASE_GUIDE_HOLD, "window");
+    setCardMode("guide");
+    setIsSettingsOpen(false);
+  }, []);
+  // 첫 시작 전(카드가 걸려 있는 동안) 연 창도 쉰다 — 카드가 창에 가려 isCardVisible 이 꺼져도 멈춤이 풀리지 않게(03회차 Codex)
+  const isBeforeStart = cardMode !== null && isSceneDrawn;
+  const isDesktopWindowPause = !isTouch && (((hasLockedOnce || isBeforeStart) && isWindowOpen) || isCardVisible);
   const isDesktopOutPause = !isTouch && isOutOfGame && !isWindowOpen;
+  // PC 멈춤 메뉴(미르 11/11) — 조사 중 ESC 로 게임 밖에 나왔을 때. 창 · 시작 카드(다시 보기)가 떠 있으면 그쪽이 화면을 쓴다
+  const isPauseMenuShown =
+    !isTouch && !IS_REVIEW_REQUESTED && hasLockedOnce && isOutOfGame && !isWindowOpen && cardMode === null;
   // 두 까닭은 함께 알린다 — 하나씩 바꾸면 「창」→「게임 밖」 사이에 잠깐 풀린다(Codex 리뷰)
   useEffect(
     () => setDesktopPauses({ window: isDesktopWindowPause, out: isDesktopOutPause }),
@@ -356,6 +410,7 @@ export default function App() {
 
       {IS_ARRIVING_FROM_HUB && <ArrivalCover isRevealed={isArrivalRevealed} />}
       <PuzzleHud />
+      {!IS_REVIEW_REQUESTED && <PlayTimeHud />}
       {/* 동행 세션 상태 표식(?dev) · 자유 입력(베타는 끔) — 동행의 말은 위 PuzzleHud 의 대화창에 뜬다 */}
       {IS_COMPANION_ACTIVE && (
         <CompanionHud controlsRef={controlsRef} isLocked={isLocked} showStatus={SHOW_DEV_TOOLS} />
@@ -390,7 +445,30 @@ export default function App() {
         </button>
       )}
       {/* 게임 중 멈추고 로비로 — 설정 창(P · ⚙) · 터치 멈춤 화면 둘 다(미르 11/10). 검수 실행에는 두지 않는다 */}
-      <SettingsPanel open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} leaveToLobby={leaveAction} />
+      <SettingsPanel
+        open={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        leaveToLobby={leaveAction}
+        onShowGuide={IS_REVIEW_REQUESTED ? undefined : showCaseGuide}
+        guideLabel={guideLabel}
+      />
+      {isCardVisible && cardMode && (
+        <CaseStartCard
+          mode={cardMode}
+          isCleared={caseStart.isCleared}
+          onStart={startFromCard}
+          onClose={cardMode === "guide" ? closeCaseGuide : undefined}
+        />
+      )}
+      {isPauseMenuShown && (
+        <NajuPauseMenu
+          onResume={requestLock}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onShowGuide={showCaseGuide}
+          guideLabel={guideLabel}
+          leaveAction={leaveAction}
+        />
+      )}
       <TouchHud extraTopButtons={TALK_BUTTONS} />
       <MobileGate
         controlsRef={controlsRef}
@@ -410,6 +488,10 @@ export default function App() {
     </div>
   );
 }
+
+/** 설정의 「조작 · 평가 다시 보기」가 잠금을 붙드는 이름 */
+const CASE_GUIDE_HOLD = "caseGuide";
+const guideLabel = RATING_PREVIEW === "off" ? "조작 다시 보기" : "조작 · 평가 다시 보기";
 
 /** 창이 열려 있는 동안 조작 잠금을 붙든다 — 닫히거나(어느 길이든) 내려가면 놓는다 */
 function useWindowHold(id: string, isOpen: boolean) {

@@ -5,6 +5,7 @@ import { gameSetTimeout } from "@/engine/input/gameClock";
 import { startReach } from "@/engine/playerView";
 import { addHint, flashHints } from "@/game/hintBox";
 import { isTypingTarget, OVERLAY_LAYERS, type OverlayLayerName } from "@/game/overlayLayer";
+import { isBlockedByPauseMenu } from "@/game/pauseMenuState";
 import {
   acceptHintOffer,
   dismissHintOffer,
@@ -166,6 +167,8 @@ export function useGameKeys({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target)) return;
       const { code } = event;
+      // 멈춤 메뉴가 떠 있으면 T(계속하기) · P(설정)만 — V 로 시점이 바뀌거나 I · H 로 창이 겹쳐 뜨지 않게(나주입장 08회차 Codex)
+      if (isBlockedByPauseMenu(code)) return;
 
       // 맨 위 하나만 닫는다(CMN-035): 창 → 추가 힌트 묻기(= 아니요) → 자물쇠(게임 화면으로 돌아옴, 12회차) → 그다음 ESC 는
       // 브라우저가 잠금을 풀어 커서가 밖으로. 자물쇠 · 창 동안은 페이지가 잠금을 풀어 두어 ESC 가 키로 들어온다.

@@ -7,6 +7,7 @@ import { useEffect, type RefObject } from "react";
 import type { PointerLockControls as PointerLockControlsImpl } from "three-stdlib";
 
 import { addHint } from "@/game/hintBox";
+import { isBlockedByPauseMenu } from "@/game/pauseMenuState";
 
 import { isHintBoxOpen, setHintBoxOpen } from "../puzzles/hintBoxView";
 import { inventory } from "../puzzles/inventory";
@@ -73,6 +74,8 @@ export function useGameHotkeys({
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // 멈춤 메뉴가 떠 있으면 T(계속하기) · P(설정)만(나주입장 08회차 Codex)
+      if (isBlockedByPauseMenu(event.code)) return;
       if (event.code === "KeyP" && isPlainPress(event)) {
         setIsSettingsOpen(!isSettingsOpen);
         return;

@@ -235,6 +235,13 @@ export interface CompanionBridgeOptions {
    * 정식 힌트 유무(serverPuzzleIdOf)와 묶지 않는다 — 힌트 없는 판에서도 자동 개입(넛지)은 BE 가 한다
    */
   puzzleFocusIdOf?: (objective: ObjectiveId) => string | null;
+  /** 정식 힌트 2단계(정답)가 처음 왔다(다시 보기 빼고) — 도움 별의 「정답 확인」(progress/helpLog, 미르 11/11) */
+  onAnswerSeen?: () => void;
+  /**
+   * [F] 「힌트를 주세요」로 청한 정식 힌트 글이 실제로 왔다(다시 보기 빼고) — 도움 별의 「직접 청한 도움」.
+   * 잔액 없음 · 연결 오류처럼 힌트를 못 받았으면 부르지 않는다(미르 11/11 「알려 준 것을 받았을 때 차감」)
+   */
+  onRequestedHint?: () => void;
   /** 지금 시각(ms) — 기본 Date.now(검사에서 바꿔 끼운다) */
   now?: () => number;
   /** 상태 변화를 한 번에 모아 본다 — 기본은 마이크로태스크(검사에서 바꿔 끼운다) */
@@ -280,6 +287,8 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
 
   // 다리를 놓기 전에 이미 있던 말 · 제안은 다시 띄우지 않는다
   let seenLine: DialogLine | null = dialog.getState().line;
+  /** [F] 로 청한 정식 힌트를 기다리는 중 — 결과(힌트 글 · 실패 문구)가 오면 내린다 */
+  let isHintRequested = false;
   let seenOffer: HintOffer | null = dialog.getState().offer;
   let isScheduled = false;
 
@@ -292,6 +301,12 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     const { line, offer, hintBalance } = dialog.getState();
     const freshLine = line && line !== seenLine ? line : null;
     seenLine = line;
+    if (freshLine?.kind === "hint" && freshLine.level === 2 && !freshLine.isReview) options.onAnswerSeen?.();
+    // [F] 로 청한 힌트의 결과 — 힌트 글이면 센다, 실패 문구면 그냥 끝
+    if (isHintRequested && freshLine && freshLine.kind !== "npc") {
+      isHintRequested = false;
+      if (freshLine.kind === "hint" && !freshLine.isReview) options.onRequestedHint?.();
+    }
     // 서버가 권한 제안(ref)만 묻는다. 정식 힌트 다음 단계(puzzle)는 [F] 「힌트를 주세요」가 연다
     const freshOffer = offer?.via === "ref" && offer !== seenOffer ? offer : null;
     seenOffer = offer;
@@ -342,9 +357,14 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
       const state = dialog.getState();
       return state.isEnabled && !state.waiting && serverPuzzleIdOf(objective) !== null;
     },
-    open(objective) {
+    async open(objective) {
       const puzzleId = serverPuzzleIdOf(objective);
-      return puzzleId ? dialog.requestPuzzleHint(puzzleId) : Promise.resolve(false);
+      if (!puzzleId) return false;
+      isHintRequested = true;
+      const isSent = await dialog.requestPuzzleHint(puzzleId);
+      // 보내지 못했으면(세션 없음 · 다른 요청 중) 기다릴 결과도 없다
+      if (!isSent) isHintRequested = false;
+      return isSent;
     },
   };
 

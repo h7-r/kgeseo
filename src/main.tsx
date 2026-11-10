@@ -1,44 +1,14 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
-
-import App from "@/app/App";
-import CharacterCreationRoute, { CHARACTER_CREATION_PATH } from "@/characterCreation/CharacterCreationRoute";
-import { LandscapeGuard } from "@/engine/input";
-import { LoadingVideoOverlay } from "@/naju";
-import { initGameSave } from "@/save/gameSave";
-import { registerMainGameSave } from "@/save/mainGameSave";
-import { decideResume, finishResume } from "@/save/resumeStart";
-
-// 효과음은 앱 시작에 미리 받아 두고 첫 입력에 오디오를 깨운다.
-import "@/audio/sound";
-import "./index.css";
-// 손글씨 폰트(@font-face) — 화이트보드에서 쓴다
-import "./fonts.css";
+// 본편 엔트리 — 지금은 PC(키보드 · 마우스)에서만 연다(미르 11/11). 휴대폰 · 태블릿이면 게임 모듈 · 에셋을 받기 전에 안내만 그린다.
+// 판정 · 문구는 shared/playDevicePolicy(웹사이트 · 나주와 같다). 통과하면 boot.tsx(예전 main.tsx)를 불러온다.
+import { isPlayDeviceBlocked, renderPcOnlyNotice } from "../shared/playDevicePolicy";
+import { SITE_URL } from "./lib/siteUrl";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root 가 없습니다");
 
-// 주소가 바뀌어도 씬은 한 페이지 안에서 바뀐다(새로고침 없음).
-// 웹사이트 「게임 시작」 → 캐릭터 생성 → 튜토리얼(/). 생성 중에는 게임 씬을 띄우지 않는다.
-// 로딩 영상 막은 라우터 안·Routes 밖에 한 번만 — 주소가 바뀌어도 살아 있게.
-// 저장본을 먼저 받아 넣은 뒤 그린다. 그려진 뒤에 넣으면 처음 자리가 한 번 보였다가 튄다.
-// 다시 접속이면 어디서 시작할지(튜토리얼 처음부터 · 로비) · 오프닝을 다시 틀지를 그리기 전에 정한다(save/resumeStart)
-void initGameSave().finally(() => {
-  decideResume();
-  registerMainGameSave();
-  finishResume();
-  createRoot(root).render(
-    <StrictMode>
-      <BrowserRouter>
-        <Routes>
-          <Route path={CHARACTER_CREATION_PATH} element={<CharacterCreationRoute />} />
-          <Route path="*" element={<App />} />
-        </Routes>
-        <LoadingVideoOverlay />
-        {/* 휴대폰 세로면 무엇보다 위에서 「가로로 돌려 주세요」 — 첫 로딩 · 오프닝 · 캐릭터 생성 · 게임 씬 모두 */}
-        <LandscapeGuard />
-      </BrowserRouter>
-    </StrictMode>,
-  );
-});
+// 우회(?device=any)는 개발 서버 · 검수 빌드(VITE_ALLOW_DEVICE_OVERRIDE=1)에서만
+if (isPlayDeviceBlocked({ allowOverride: import.meta.env.DEV || import.meta.env.VITE_ALLOW_DEVICE_OVERRIDE === "1" })) {
+  renderPcOnlyNotice(root, SITE_URL);
+} else {
+  void import("./boot");
+}

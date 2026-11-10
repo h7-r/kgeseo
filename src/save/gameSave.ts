@@ -140,6 +140,40 @@ export function restoreSavedSections(removed: Record<string, unknown>): void {
   storedSections = { ...removed, ...storedSections };
 }
 
+/** detachSaveSections 로 떼어 낸 것 — 되돌릴 때 그대로 넘긴다 */
+export interface DetachedSaveSections {
+  sections: Map<string, GameSaveSection>;
+  stored: Record<string, unknown>;
+}
+
+/**
+ * 이 페이지가 쓰는 칸까지 떼어 낸다 — 등록을 풀고 저장본에서도 지운다. 나주 멈춤 메뉴 「처음부터 다시」가 나주 페이지 안에서 나주 칸을
+ * 지운 뒤 페이지를 새로 열 때 쓴다(미르 11/11). 등록을 풀어 두므로 그 뒤 자동 저장 · 떠날 때 저장(pagehide)이 지운 칸을 되살리지 않는다.
+ * 저장에 실패하면 reattachSaveSections 로 되돌린다.
+ */
+export function detachSaveSections(match: (name: string) => boolean): DetachedSaveSections {
+  const detached: DetachedSaveSections = { sections: new Map(), stored: {} };
+  for (const [name, section] of sections) {
+    if (!match(name)) continue;
+    detached.sections.set(name, section);
+    sections.delete(name);
+  }
+  const next = { ...storedSections };
+  for (const name of Object.keys(storedSections)) {
+    if (!match(name)) continue;
+    detached.stored[name] = next[name];
+    delete next[name];
+  }
+  storedSections = next;
+  return detached;
+}
+
+/** detachSaveSections 로 떼어 낸 칸을 다시 붙인다(값은 지금 게임 상태 그대로 — 다음 저장 때 다시 적힌다) */
+export function reattachSaveSections(detached: DetachedSaveSections): void {
+  for (const [name, section] of detached.sections) sections.set(name, section);
+  storedSections = { ...detached.stored, ...storedSections };
+}
+
 /** 저장된 칸 값을 읽기만 한다(시작 자리처럼 그릴 때 한 번 쓰는 값). */
 export function readSavedSection<T>(name: string): T | null {
   return name in storedSections ? (storedSections[name] as T) : null;

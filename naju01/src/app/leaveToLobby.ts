@@ -1,11 +1,12 @@
 /**
- * 나주에서 로비(합동수사본부)로 나간다 — 설정 창 · 터치 멈춤 화면의 「로비로 나가기」(미르 11/10).
+ * 나주에서 로비(합동수사본부)로 나간다 — 설정 창 · 터치 멈춤 화면 · PC 멈춤 메뉴의 「로비로 나가기」(미르 11/10).
+ * PC 멈춤 메뉴의 「다른 지역으로(기차)」도 같은 길로 가되 `/?entry=train` — 본편이 로비 대신 기차 안에서 목적지 창을 열어 둔다(미르 11/11).
  * 단계를 본부실로 적고, 저장이 실제로 끝난 것을 확인한 뒤(saveBeforeLeaving) 로딩 영상으로 덮고 `/?entry=lobby` 로 페이지째 간다.
  * 나주 칸(퍼즐 진행)은 그대로 남아 기차 목적지 창에서 다시 들어가면 이어진다. 저장하지 못하면 붙잡지 않고 부른 쪽이 「그래도 나가기」를 내민다.
  */
 import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import { isGameSaveEnabled, saveBeforeLeaving, setGameStage } from "@/save/gameSave";
-import { LOBBY_PATH, markLobbyReturn } from "@/save/lobbyEntry";
+import { LOBBY_PATH, TRAIN_ENTRY_PATH, markLobbyReturn } from "@/save/lobbyEntry";
 
 import { continueLoadingVideoAt, showLoadingVideo } from "../transition/loadingVideo";
 
@@ -24,7 +25,7 @@ if (typeof window !== "undefined")
     if (event.persisted) isLeaving = false;
   });
 
-async function leave(force = false): Promise<LeaveResult> {
+async function leaveTo(path: string, force = false): Promise<LeaveResult> {
   if (isLeaving) return "left";
   setGameStage("headquarters");
   if (isSaveRequired && !force) {
@@ -41,11 +42,15 @@ async function leave(force = false): Promise<LeaveResult> {
   showLoadingVideo("tutorial", { keepOpen: true });
   // 페이지 이동은 실제 시각 — 터치에서 창 · 멈춤 때문에 게임 시계가 얼어 있다
   window.setTimeout(
-    () => continueLoadingVideoAt(new URL(LOBBY_PATH, window.location.origin).toString()),
+    () => continueLoadingVideoAt(new URL(path, window.location.origin).toString()),
     COVER_THEN_LEAVE_MS,
   );
   return "left";
 }
+
+const leave = (force = false) => leaveTo(LOBBY_PATH, force);
+/** 기차로(다른 지역 고르기) — 저장 · 실패 처리는 로비로 나가기와 같다 */
+export const leaveToTrain = (force = false) => leaveTo(TRAIN_ENTRY_PATH, force);
 
 /**
  * 로비로 나갈 곳이 있나 — 본편과 한 출처에서 /naju01/ 로 돌 때만(운영 · 본편 개발 서버). 나주만 따로 띄운 개발 서버(npx vite naju01)는

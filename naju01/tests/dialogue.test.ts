@@ -1397,6 +1397,67 @@ test("배포판의 「힌트를 주세요」 — 정식 힌트를 열 수 없으
   assert.equal(store.getState()?.speech.text, HINT_UNAVAILABLE);
 });
 
+test("직접 청한 도움(도움 별, 미르 11/11) — [F] 「여기서 뭘 해야 해요?」 대답을 받으면 센다(정식 힌트는 글이 왔을 때 다리가 센다)", async () => {
+  const store = createDialogueStore({ ...fakeTimers(), capacity: 200 });
+  let asked = 0;
+  const director = createDirector({
+    store,
+    guideOf: () => null,
+    showDraftLines: false,
+    onHelpAsked: () => {
+      asked += 1;
+    },
+  });
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  const clear = () => {
+    while (store.advance());
+  };
+  // 말을 걸어 물었다 — 1회
+  void director.openMenu("S2_OFFER");
+  store.answer("what");
+  await settle();
+  assert.equal(asked, 1);
+  clear();
+  // 「괜찮아요」는 세지 않는다
+  void director.openMenu("S2_OFFER");
+  store.answer("close");
+  await settle();
+  assert.equal(asked, 1);
+  clear();
+  director.setHintProvider({ canOpen: (objective) => objective === "P03", open: async () => true });
+  // 「힌트를 주세요」 → 열지 묻는 데 「아니요」 — 세지 않는다
+  void director.openMenu("P03");
+  store.answer("hint");
+  await settle();
+  assert.equal(store.getState()?.speech.kind, "ask");
+  store.answer("no");
+  await settle();
+  assert.equal(asked, 1);
+  clear();
+  // 「네」(Y) — 여기서는 세지 않는다. 힌트 글이 실제로 오면 companionBridge 의 onRequestedHint 가 센다(못 받으면 안 센다)
+  let opened = 0;
+  director.setHintProvider({
+    canOpen: (objective) => objective === "P03",
+    open: async () => {
+      opened += 1;
+      return true;
+    },
+  });
+  void director.openMenu("P03");
+  store.answer("hint");
+  await settle();
+  store.answer("yes");
+  await settle();
+  assert.equal(opened, 1);
+  assert.equal(asked, 1);
+  clear();
+  // 서버가 먼저 권한 힌트에 「네」도 청한 것이 아니다
+  const isYes = director.askOpenHint({ lead: null, balance: 3 });
+  store.answer("yes");
+  assert.equal(await isYes, true);
+  assert.equal(asked, 1);
+});
+
 // ── 운영 번들에 초안이 없다(previewMode — VITE_NPC_PREVIEW 동적 import) ──
 
 test("초안 파일(draftLines)은 미리 보기의 동적 import 로만 불리고, 늘 실리는 lines.ts 에는 FE 문구만 남는다", () => {
