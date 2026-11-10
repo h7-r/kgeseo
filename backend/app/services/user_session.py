@@ -1,6 +1,7 @@
 """쿠키 로그인 세션과 로그인 시도 제한."""
 
 import hashlib
+import math
 import secrets
 from datetime import timedelta
 from uuid import uuid4
@@ -140,8 +141,17 @@ def _throttle_keys(request: Request, email: str) -> list[tuple[str, int]]:
     ]
 
 
-async def is_login_locked(db: AsyncSession, request: Request, email: str) -> bool:
+async def login_lock_remaining_seconds(
+    db: AsyncSession, request: Request, email: str
+) -> int | None:
+    """로그인이 막혀 있으면 풀릴 때까지 남은 초(올림, 1 이상), 아니면 None.
+
+    잠금은 실패 한도에 닿은 순간 `locked_until = 그때 + THROTTLE_WINDOW`로 기록된다(`record_login_failure`).
+    이메일 · IP 잠금이 둘 다 걸려 있으면 둘 다 풀려야 로그인할 수 있으므로 더 늦게 풀리는 쪽을 돌려준다.
+    """
+
     now = utc_now()
+    remaining: int | None = None
     for key, _ in _throttle_keys(request, email):
         row = await db.get(LoginThrottle, key)
         if (
@@ -149,8 +159,13 @@ async def is_login_locked(db: AsyncSession, request: Request, email: str) -> boo
             and row.locked_until
             and row.locked_until > now
         ):
-            return True
-    return False
+            seconds = max(1, math.ceil((row.locked_until - now).total_seconds()))
+            remaining = seconds if remaining is None else max(remaining, seconds)
+    return remaining
+
+
+async def is_login_locked(db: AsyncSession, request: Request, email: str) -> bool:
+    return await login_lock_remaining_seconds(db, request, email) is not None
 
 
 async def record_login_failure(db: AsyncSession, request: Request, email: str) -> None:

@@ -48,7 +48,7 @@ from app.services.social_onboarding import (
 )
 from app.services.user_session import (
     clear_login_failures,
-    is_login_locked,
+    login_lock_remaining_seconds,
     record_login_failure,
     require_same_origin,
     start_session,
@@ -249,14 +249,16 @@ async def login_local_account(
     db: AsyncSession = Depends(get_db),
 ) -> LocalAuthResponse:
     response.headers["Cache-Control"] = "no-store"
-    if await is_login_locked(db, http_request, request.email):
+    retry_after = await login_lock_remaining_seconds(db, http_request, request.email)
+    if retry_after is not None:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={
                 "code": "login_locked",
                 "message": "로그인 실패가 많아 잠시 막혔습니다. 15분 뒤 다시 시도해 주세요.",
             },
-            headers={"Cache-Control": "no-store"},
+            # 잠금이 풀릴 때까지 남은 초(DB 잠금 기록 기준). CORS expose_headers 로 웹사이트가 읽는다.
+            headers={"Cache-Control": "no-store", "Retry-After": str(retry_after)},
         )
     try:
         user = await local_auth.login_user(db, request.email, request.password)
