@@ -72,6 +72,8 @@ interface ViewMetrics {
   /** 지금 화면 기준점 높이(옮김 포함) · 그 보기의 기준점 높이(m) */
   focusY: number;
   baseY: number;
+  /** 이 값들을 그린 때의 zoom — 한 프레임 안에 휠이 여러 번 와도 그린 때 기준으로 비를 잰다(Codex 06) */
+  zoom: number;
 }
 
 // 손을 볼 때만 팔을 벌린 자세로 — 허리에 손을 얹은 대기 자세는 손을 가린다.
@@ -422,6 +424,7 @@ function PreviewCamera({ orbit, metrics, view, heightScale, safeArea, reduceMoti
       height: size.height,
       focusY: lifted,
       baseY: base,
+      zoom: orbit.current.zoom,
     };
 
     // 3) 궤도 위 카메라 · 4) 빈 자리 한가운데로 화면 이동
@@ -534,6 +537,8 @@ export default function CharacterPreview({
   // 카메라 조작값은 여기서 들고, 바깥에는 손잡이만 넘긴다(바깥 ref 를 여기서 바꾸면 추적이 어렵다)
   const orbit = useRef<OrbitState>({ ...INITIAL_ORBIT });
   const metrics = useRef<ViewMetrics | null>(null);
+  /** 휠 · 핀치 한 동작 동안 붙든 몸 높이 — 끌기 · 초기화 · 보기 바꿈 · 손을 대고 뗄 때 버린다(앞 동작 기준점을 다시 쓰면 그사이 옮긴 것이 되돌아가 튄다, Codex 06) */
+  const anchor = useRef<{ clientY: number; worldY: number; at: number } | null>(null);
   const dragFrom = useRef<{ x: number; y: number } | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistance = useRef(0);
@@ -577,6 +582,7 @@ export default function CharacterPreview({
       },
       reset: () => {
         orbit.current = { ...INITIAL_ORBIT };
+        anchor.current = null;
       },
     });
   }, [onControlsReady]);
@@ -590,6 +596,7 @@ export default function CharacterPreview({
     }
     orbit.current.zoom = 1;
     orbit.current.lift = 0;
+    anchor.current = null;
   }, [view]);
 
   /**
@@ -597,10 +604,8 @@ export default function CharacterPreview({
    * 굴리는 동안(커서가 그대로 · 0.4초 안)은 처음 가리킨 몸 높이를 붙든다 — 한 칸마다 다시 재면 확대 초반의 좁은 범위에 잘린 만큼
    * 잃어 발을 가리키고 확대해도 발까지 못 내려갔다
    */
-  const anchor = useRef<{ clientY: number; worldY: number; at: number } | null>(null);
   const zoomAt = useCallback((factor: number, clientY: number | null) => {
-    const before = orbit.current.zoom;
-    const after = THREE.MathUtils.clamp(before * factor, MIN_ZOOM, MAX_ZOOM);
+    const after = THREE.MathUtils.clamp(orbit.current.zoom * factor, MIN_ZOOM, MAX_ZOOM);
     const measured = metrics.current;
     const rect = wrapper.current?.getBoundingClientRect();
     orbit.current.zoom = after;
@@ -616,7 +621,7 @@ export default function CharacterPreview({
     if (!target) return;
     target.at = now;
     // 확대 뒤 그 몸 높이가 다시 커서 아래 오는 기준점 — 몸 끝 밖으로 나가는 만큼은 카메라가 잘라 낸다
-    const worldHeightAfter = measured.worldHeight * (after / before);
+    const worldHeightAfter = measured.worldHeight * (after / measured.zoom);
     orbit.current.lift = target.worldY + below * worldHeightAfter - measured.baseY;
   }, []);
 
@@ -641,6 +646,7 @@ export default function CharacterPreview({
     return a && b ? (a.y + b.y) / 2 : null;
   };
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    anchor.current = null;
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.current.size === 2) pinchDistance.current = twoFingerDistance();
     else dragFrom.current = { x: event.clientX, y: event.clientY };
@@ -662,10 +668,13 @@ export default function CharacterPreview({
     // 가로로 끌면 돌리기, 세로로 끌면 몸을 따라 위아래로 옮기기 — 손가락(커서)에 붙어 따라온다. 기본 화면(확대 전)에서는
     // 옮길 데가 없어 그대로다. 세로 끌기의 뜻은 확대 여부와 상관없이 같다(Codex 05 — 처음 보는 사람이 헷갈리지 않게)
     orbit.current.yaw -= dx * 0.008;
+    anchor.current = null;
     const measured = metrics.current;
-    if (measured && measured.height > 0) orbit.current.lift += (dy / measured.height) * measured.worldHeight;
+    if (measured && measured.height > 0)
+      orbit.current.lift += (dy / measured.height) * measured.worldHeight * (orbit.current.zoom / measured.zoom);
   };
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    anchor.current = null;
     pointers.current.delete(event.pointerId);
     if (pointers.current.size < 2) pinchDistance.current = 0;
     // 두 손가락에서 하나를 떼면 남은 손가락 자리에서 다시 끈다 — 처음 누른 자리를 쓰면 화면이 튄다(Codex 05)
