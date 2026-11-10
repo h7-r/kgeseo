@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 
 import { tapKey, useKeyLabels } from "@/engine/input";
+import { TOUCH_HUD } from "@/engine/input/touchHudLayout";
 
 import { useLock, useLockControl } from "@/props/combinationLockState";
 import { getHeldDrink, useDrink } from "@/props/drinkState";
@@ -157,14 +158,67 @@ const toastStyle: CSSProperties = {
 // 자물쇠 안내(글자 줄 + 키 안내 + 밸브 힌트 두 줄)가 아래 약 215 까지 차지한다
 const raisedToastStyle: CSSProperties = { ...toastStyle, bottom: 240 };
 
+/**
+ * 크게 보여야 하는 안내(힌트가 새로 들어왔다 · 오래 헤맬 때 밸브로 돌아가자) — 미르 11/10 「텍스트박스랑 글자가 너무 작다」.
+ * 글자 14 → 19(휴대폰은 화면 높이에 따라 16~19), 테두리 2px 강조색. 두 줄이 되어도 아래 행동 안내(두 줄이면 위끝 ~106)와 안 겹치게 조금 올린다.
+ */
+const hintToastStyle: CSSProperties = {
+  ...toastStyle,
+  bottom: 116,
+  font: `700 19px/1.35 ${UI_FONT.body}`,
+  padding: "15px 28px",
+  borderRadius: 28,
+  border: `2px solid ${UI.accent}`,
+  maxWidth: "min(680px, calc(100% - 32px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)))",
+};
+const raisedHintToastStyle: CSSProperties = { ...hintToastStyle, bottom: 240 };
+/**
+ * 터치 — 왼쪽 위 튜토리얼 판(폭 min(340, 42vw), z 950)과 왼쪽 이동 스틱 자리를 피해 그 오른쪽 띠 가운데에,
+ * 오른쪽 아래 동작 묶음(앉기 · 점프 · ✋, 아래 10 + 높이 124) 위로 올린다. 글자는 낮은 휴대폰에서 줄인다(16~19).
+ * 휴대폰 가로에서 화면 가운데에 두면 튜토리얼 판 밑에 깔렸다(기기 전수 검사).
+ */
+const touchHintToastStyle: CSSProperties = {
+  ...hintToastStyle,
+  left: "calc(env(safe-area-inset-left, 0px) + min(340px, 42vw) + 20px)",
+  right: `calc(env(safe-area-inset-right, 0px) + ${TOUCH_HUD.edge}px)`,
+  transform: "none",
+  width: "fit-content",
+  maxWidth: "none",
+  margin: "0 auto",
+  bottom: `calc(env(safe-area-inset-bottom, 0px) + ${TOUCH_HUD.actionBottom + 124 + 12}px)`,
+  fontSize: "clamp(16px, calc(1.2vh + 12px), 19px)",
+  padding: "12px 22px",
+};
+/** 터치 자물쇠 — 오른쪽 아래가 다이얼(폭 ~280) 자리라 왼쪽 아래로. 자물쇠 중엔 걷지 않으니 이동 스틱 자리가 비어 있다 */
+const TOUCH_LOCK_DIAL_SPACE = 310;
+const touchRaisedHintToastStyle: CSSProperties = {
+  ...touchHintToastStyle,
+  left: "calc(env(safe-area-inset-left, 0px) + 12px)",
+  right: `calc(env(safe-area-inset-right, 0px) + ${TOUCH_LOCK_DIAL_SPACE}px)`,
+  bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+  margin: 0,
+};
+
+function toastStyleFor(isHint: boolean, isTouch: boolean, raised: boolean): CSSProperties {
+  if (!isHint) return raised ? raisedToastStyle : toastStyle;
+  if (isTouch) return raised ? touchRaisedHintToastStyle : touchHintToastStyle;
+  return raised ? raisedHintToastStyle : hintToastStyle;
+}
+
 /** 짧은 안내 한 줄(game/toast) — 눌러 본 결과를 몇 초 알려 준다. 자물쇠 조작 중(raised)엔 자물쇠 안내 위로 올린다 */
 export function Toast({ raised = false }: { raised?: boolean }) {
-  const text = useToast();
+  const toast = useToast();
   const labels = useKeyLabels();
-  if (!text) return null;
+  if (!toast) return null;
   return (
-    <div role="status" aria-live="polite" style={raised ? raisedToastStyle : toastStyle}>
-      {labels.text(text)}
+    <div
+      role="status"
+      aria-live="polite"
+      data-hud="안내 한 줄"
+      data-emphasis={toast.emphasis}
+      style={toastStyleFor(toast.emphasis === "hint", labels.isTouch, raised)}
+    >
+      {labels.text(toast.message)}
     </div>
   );
 }

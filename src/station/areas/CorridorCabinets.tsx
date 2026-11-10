@@ -5,12 +5,10 @@ import HydrantCabinetInterior, {
   type HydrantCabinetInteriorProps,
 } from "@/props/hydrantCabinet/HydrantCabinetInterior";
 import CombinationPadlock from "@/props/padlock/CombinationPadlock";
-import { canTurnValve } from "@/props/panelWiringState";
 import { isFreshRun } from "@/save/gameSave";
 import { submitFireCabinetLock } from "@/server/playSession";
 import WallCabinet from "@/station/corridor/WallCabinet";
 import { getWallCabinetDoorId } from "@/station/corridor/wallCabinetId";
-import FloorBeacon from "@/tutorial/FloorBeacon";
 
 import type {
   HydrantControlValues,
@@ -181,14 +179,6 @@ export default function CorridorCabinets({
             />
           )}
           outline={outline}
-        />
-      )}
-      {/* 밸브에 전기가 닿으면 소화전 앞 바닥에 튜토리얼과 같은 동그라미 — 멀리서도 「저기로」(10회차) */}
-      {corridor.hydrantVisible && (
-        <FloorBeacon
-          x={spots.hydrant.x - corridor.hydrantDepth / 2 - 1.8}
-          z={spots.hydrant.z}
-          isVisible={canTurnValve}
         />
       )}
       {/* 밸브 자물쇠를 새로 풀면 맞은편 배전반이 같이 열리는 것을 보여 준다(10회차) */}

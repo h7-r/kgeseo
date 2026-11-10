@@ -39,6 +39,7 @@ import { showToast } from "@/game/toast";
 import { setThirdPersonView } from "@/game/viewMode";
 import { isThirdPersonLocked, THIRD_PERSON_LOCKED_MESSAGE } from "@/game/viewRule";
 import ValveHelpWatcher from "@/game/ValveHelpWatcher";
+import ValveNudgeWatcher from "@/game/ValveNudgeWatcher";
 import { useHintOffering } from "@/game/valveHelp";
 import AimTracker from "@/lobby/AimTracker";
 import { LobbyChibiPanel, LobbySidekickPanel, najuCaseProgress } from "@/naju";
@@ -458,6 +459,8 @@ export default function App() {
       <LockDialPanel covered={openLayer !== null} />
       <HintOfferCard covered={openLayer !== null} roamVisible={isStationActive} />
       <ValveHelpWatcher covered={openLayer !== null} roamActive={isStationActive} />
+      {/* 밸브에 전기가 닿은 뒤 30초 헤매면 「밸브로 돌아가자」(미르 11/10) */}
+      <ValveNudgeWatcher roamActive={isStationActive} />
       {returnPromptMode && <ReturnPrompt mode={returnPromptMode} />}
       {/* 화면층이 지금 열린 창을 하나로 정하므로 두 창이 겹칠 수 없다 */}
       <InventoryPanel open={openLayer === OVERLAY_LAYERS.inventory} onClose={closeWindow} />
