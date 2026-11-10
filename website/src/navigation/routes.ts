@@ -28,6 +28,7 @@ export const ROUTES = {
   serverError: "/error/500",
   maintenance: "/maintenance",
   offline: "/offline",
+  admin: "/admin",
   // 네이버 개발자센터·백엔드에 redirect_uri 로 등록된 주소라 한글 그대로 둔다. 바꾸면 양쪽 등록도 같이 바꿔야 한다.
   socialCallback: "/로그인/콜백",
 } as const;

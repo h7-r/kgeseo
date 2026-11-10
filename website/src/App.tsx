@@ -12,6 +12,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-
 
 import {
   AboutPage,
+  AdminApp,
   AuthPage,
   MediaPage,
   MyPage,
@@ -41,6 +42,17 @@ import { getSessionUser, useSessionUser } from "@/services/session";
 export default function App() {
   // 모바일 배치 — 머리띠 · 배경을 모바일판으로 바꾼다. 3D 배경은 휴대폰 GPU · 배터리 몫이라 정지 배경으로(계획서 5.3)
   const isMobile = useIsMobileLayout();
+  const { pathname } = useLocation();
+  // 관리자 화면은 사이트 장식(3D 배경 · 머리띠) 없이 자기 틀만 그린다. 훅을 다 부른 뒤에 가른다.
+  if (pathname === ROUTES.admin || pathname.startsWith(`${ROUTES.admin}/`)) {
+    return (
+      <RouteErrorBoundary>
+        <Suspense fallback={null}>
+          <AdminApp />
+        </Suspense>
+      </RouteErrorBoundary>
+    );
+  }
   return (
     <>
       {/* 쪽 전환 바깥에 둬야 화면을 옮겨도 3D 배경이 다시 만들어지지 않는다. */}
