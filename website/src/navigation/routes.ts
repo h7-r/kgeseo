@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { openGameTransition } from "@/app/siteState";
-import { openGameStartGuide } from "@/mobile/gameStartStore";
+import { IS_MOBILE_PLAY_READY, openGameStartGuide, openMobilePlayNotice } from "@/mobile/gameStartStore";
 import { isMobileLayout } from "@/mobile/layoutMode";
 import { getSessionUser } from "@/services/session";
 
@@ -112,6 +112,11 @@ export function safeNextPath(value: string | null): string | null {
 
 /** 게임으로 간다. 게임 주소가 없으면 게임 소개로 보낸다. */
 export function launchGame(navigate: (path: RoutePath) => void) {
+  // 모바일 버전 준비 중 — 게임 문서를 열지 않는다(로그인 뒤 /play · 마이페이지 시작 단추도 이 길을 지난다)
+  if (!IS_MOBILE_PLAY_READY && isMobileLayout()) {
+    openMobilePlayNotice();
+    return;
+  }
   if (!GAME_URL) {
     navigate(ROUTES.about);
     return;
@@ -135,6 +140,11 @@ export function useSiteNavigate() {
     (target: NavTarget) => {
       if (target !== START_GAME) {
         navigate(target);
+        return;
+      }
+      // 모바일 버전 준비 중 — 로그인하지 않았어도 로그인 화면으로 보내지 않고 안내부터(로그인시킨 뒤에 막지 않게)
+      if (!IS_MOBILE_PLAY_READY && isMobileLayout()) {
+        openMobilePlayNotice();
         return;
       }
       if (getSessionUser()) launchGame(navigate);

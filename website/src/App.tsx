@@ -29,6 +29,7 @@ import SiteBackdrop from "@/layout/SiteBackdrop";
 import { useIsMobileLayout } from "@/mobile/layoutMode";
 import MobileBackdrop from "@/mobile/MobileBackdrop";
 import GameStartGuide from "@/mobile/GameStartGuide";
+import MobilePlayNotice from "@/mobile/MobilePlayNotice";
 import MobileHeader from "@/mobile/MobileHeader";
 import VideoModal from "@/layout/videoPlayer/VideoModal";
 import { dispatchPageChange, scrollToTopSilently } from "@/lib/pageEvents";
@@ -63,6 +64,7 @@ export default function App() {
       <GameTransition />
       {/* 모바일에서 연 안내가 창 크기 변경으로 데스크톱이 돼도 닫히지 않게 늘 둔다(열린 것이 없으면 그리지 않는다) */}
       <GameStartGuide />
+      <MobilePlayNotice />
       <PageFrame>
         <Routes>
           <Route path={ROUTES.home} element={<HomePage />} />

@@ -14,6 +14,7 @@ import { ROUTES, START_GAME, useSiteNavigate } from "@/navigation/routes";
 import { useSessionUser } from "@/services/session";
 import { COLOR, GRADIENT } from "@/styles/tokens";
 
+import { IS_MOBILE_PLAY_READY } from "./gameStartStore";
 import MobilePage from "./MobilePage";
 import SignedUpNotice from "./SignedUpNotice";
 import {
@@ -90,7 +91,9 @@ const CLOSING_POINTS = [
   "한 판은 15~25분. 앉은 자리에서 끝납니다.",
   "혼자 하는 1인칭 추리입니다. 일행을 모으지 않아도 됩니다.",
   "처음이어도 괜찮습니다. 복도 튜토리얼에서 조작부터 익힙니다.",
-  "휴대폰은 가로로 돌려 플레이합니다. 화면 왼쪽으로 걷고 오른쪽으로 둘러봅니다.",
+  IS_MOBILE_PLAY_READY
+    ? "휴대폰은 가로로 돌려 플레이합니다. 화면 왼쪽으로 걷고 오른쪽으로 둘러봅니다."
+    : "모바일 버전은 준비 중입니다. 지금은 PC에서 플레이할 수 있습니다.",
 ];
 
 /** 데이터 절약 모드 · 움직임 줄이기면 히어로 영상을 받지 않고 포스터만 */
