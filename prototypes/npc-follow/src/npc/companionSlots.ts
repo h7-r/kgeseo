@@ -97,6 +97,39 @@ export interface SlotContext {
   delta: number
   // 지형. 있으면 후보 높이를 지면에서 재고, 걸을 수 없는 땅·플레이어와 이어지지 않는 자리를 뺀다
   terrain?: NpcTerrain | null
+  // 플레이어가 보는 쪽(yaw)과 그 좌우 반각(rad). 있으면 회전 중 지연된 위치가 이 부채꼴(눈앞)에 들면 쓰지 않고
+  // 최종 위치로 바로 간다 — 돌아서면 지연된 위치가 눈앞을 쓸고 지나가 NPC 가 길을 막았다(나주 11/11)
+  // lane 이 있으면(플레이어가 걷는 중) 최종 위치가 눈앞 길목(앞 ahead m · 좌우 halfWidth m)인 후보도 쓰지 않는다 —
+  // 뒷걸음 · 옆걸음 때 「뒤」 후보가 바로 눈앞 가운데가 됐다
+  viewFront?: {
+    yaw: number
+    halfAngle: number
+    lane?: { ahead: number; halfWidth: number } | null
+  } | null
+}
+
+// 최종 위치가 플레이어 눈앞 길목 안인가 (걷는 중일 때만 lane 이 온다)
+function isInViewLane(position: THREE.Vector3, ctx: SlotContext): boolean {
+  const lane = ctx.viewFront?.lane
+  if (!lane) return false
+  const yaw = ctx.viewFront!.yaw
+  const dx = position.x - ctx.player.x
+  const dz = position.z - ctx.player.z
+  const ahead = dx * Math.sin(yaw) + dz * Math.cos(yaw)
+  const lateral = -dx * Math.cos(yaw) + dz * Math.sin(yaw)
+  return ahead > 0 && ahead < lane.ahead && Math.abs(lateral) < lane.halfWidth
+}
+
+// 위치가 플레이어 눈앞 부채꼴 안인가 (정면 = (sin yaw, cos yaw))
+function isInViewFront(position: THREE.Vector3, ctx: SlotContext): boolean {
+  const front = ctx.viewFront
+  if (!front) return false
+  const dx = position.x - ctx.player.x
+  const dz = position.z - ctx.player.z
+  const length = Math.hypot(dx, dz)
+  if (length < 1e-6) return true
+  const cos = (dx * Math.sin(front.yaw) + dz * Math.cos(front.yaw)) / length
+  return cos > Math.cos(front.halfAngle)
 }
 
 const candidate = new THREE.Vector3()
@@ -140,6 +173,7 @@ function isSlotUsable(slot: CompanionSlot, ctx: SlotContext, out: THREE.Vector3)
   computeSlotPosition(slot, player, ctx.settledYaw, out)
   placeOnGround(out, ctx)
   if (!isPositionSafe(out, ctx)) return false
+  if (isInViewLane(out, ctx)) return false
 
   resetPath(probe)
   planPath(
@@ -227,10 +261,10 @@ export function selectCompanionSlot(
   }
 
   if (state.current) {
-    // 회전 중에는 지연된 방향으로 부드럽게 옮기되, 그 위치가 안전하지 않으면 최종 방향 위치를 쓴다
+    // 회전 중에는 지연된 방향으로 부드럽게 옮기되, 그 위치가 안전하지 않거나 플레이어 눈앞이면 최종 방향 위치를 쓴다
     computeSlotPosition(state.current, ctx.player, ctx.yaw, out)
     placeOnGround(out, ctx)
-    if (!isPositionSafe(out, ctx)) {
+    if (!isPositionSafe(out, ctx) || isInViewFront(out, ctx)) {
       computeSlotPosition(state.current, ctx.player, ctx.settledYaw, out)
       placeOnGround(out, ctx)
     }
