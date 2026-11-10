@@ -5,11 +5,18 @@ import { gameSetTimeout } from "@/engine/input/gameClock";
 import { startReach } from "@/engine/playerView";
 import { addHint, flashHints } from "@/game/hintBox";
 import { isTypingTarget, OVERLAY_LAYERS, type OverlayLayerName } from "@/game/overlayLayer";
-import { acceptHintOffer, dismissHintOffer, isHintOffering, noteValveAnswer } from "@/game/valveHelp";
+import {
+  acceptHintOffer,
+  dismissHintOffer,
+  isHintOffering,
+  isRoamHintOffering,
+  noteValveAnswer,
+} from "@/game/valveHelp";
 import { dropChair, getDraggedChair, runAimedInteraction } from "@/lobby/interactions";
 import { getLatestPlacement } from "@/lobby/placement";
 import { dropCoin, getHeldCoin } from "@/props/coinState";
 import {
+  getLockState,
   leaveLockControl,
   leaveLockControlIf,
   selectLockRow,
@@ -75,10 +82,11 @@ function handleLockKey(code: string, id: string) {
   else if (code === "ArrowDown" || code === "KeyS") turnLockDigit(id, -1);
   else if (code === "KeyE" || code === "Enter") {
     // 맞으면 풀리고 나간다. 틀리면 덜컹 — "아니다"를 몸으로 알려 준다.
-    // 밸브 자물쇠 막힘 힌트(valveHelp)는 「틀렸다」는 판정만 센다 — 통신 실패 자체는 안 센다
+    // 밸브 자물쇠 막힘 힌트(valveHelp)는 「틀렸다」는 판정만 센다 — 통신 실패 자체는 안 센다. 같은 답 연달아는 한 번(낸 순간의 글자로 가린다)
+    const answer = getLockState(id)?.digits.join(",") ?? "";
     submitLockAnswer(id)
       .then((isCorrect) => {
-        if (typeof isCorrect === "boolean") noteValveAnswer(id, isCorrect);
+        if (typeof isCorrect === "boolean") noteValveAnswer(id, isCorrect, answer);
         // 늦게 온 판정이 그사이 ESC 로 나갔다가 새로 연 다른 자물쇠 조작을 끝내지 않게 — 그 자물쇠일 때만 나간다
         if (isCorrect === true) leaveAfterUnlock(id);
         else if (isCorrect === false) rattleHinge(id);
@@ -87,7 +95,7 @@ function handleLockKey(code: string, id: string) {
         // 백엔드 없이 프론트만 켜면 요청이 실패해 튜토리얼 자물쇠가 영영 안 열린다 — 서버에 못 닿았을 때만 로컬 판정.
         console.warn("[Play Session] 자물쇠 판정 실패 — 로컬 판정으로 대신한다", error);
         const isCorrect = tryLockAnswer(id);
-        noteValveAnswer(id, isCorrect);
+        noteValveAnswer(id, isCorrect, answer);
         if (isCorrect) leaveAfterUnlock(id);
         else rattleHinge(id);
       });
@@ -200,6 +208,13 @@ export function useGameKeys({
       // 자물쇠 중엔 마우스 잠금이 풀려 있어 아래 잠금 검사에 걸리므로 그보다 앞에 둔다.
       if (lockControl && isLockActive) {
         handleLockKey(code, lockControl.id);
+        return;
+      }
+      // 자물쇠 밖에서 「추가 힌트를 확인하시겠습니까?」를 묻는 중 — 예(Y) · 아니요(N)만 가로채고 걷기 등은 그대로(미르 11/10).
+      // PC 는 마우스가 잠겨 있어 카드 단추를 못 누르므로 키로 고른다
+      if (!lockControl && isRoamHintOffering() && (code === "KeyY" || code === "KeyN")) {
+        if (code === "KeyY") acceptHintOffer();
+        else dismissHintOffer();
         return;
       }
       // 연출이 화면을 돌리는 동안(전류 따라가기 · 배전반 알림)은 만지기 · 시점 전환을 받지 않는다 — 겨냥이 비기 전 E 가

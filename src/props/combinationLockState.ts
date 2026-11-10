@@ -99,6 +99,12 @@ export function registerLock(id: string, { digits, answer, glyphs = "0123456789"
 
 export const getLockState = (id: string | null | undefined) => (id ? (locks.get(id) ?? null) : null);
 
+/** id 를 모를 때(밸브 막힘 시간 — 자물쇠 밖에서 잰다) 조건에 맞는 첫 자물쇠 상태 */
+export function findLockState(test: (id: string) => boolean) {
+  for (const [id, state] of locks) if (test(id)) return state;
+  return null;
+}
+
 /** 등록돼 있고 아직 안 풀렸으면 잠긴 것이다. */
 export const isLocked = (id: string | null | undefined) => {
   const lock = getLockState(id);

@@ -397,8 +397,8 @@ export default function App() {
       {active && <ActionHint near={near} />}
       <Toast raised={lockControl !== null} />
       <LockDialPanel covered={openLayer !== null} />
-      <HintOfferCard covered={openLayer !== null} />
-      <ValveHelpWatcher covered={openLayer !== null} />
+      <HintOfferCard covered={openLayer !== null} roamVisible={isStationActive} />
+      <ValveHelpWatcher covered={openLayer !== null} roamActive={isStationActive} />
       {returnPromptMode && <ReturnPrompt mode={returnPromptMode} />}
       {/* 화면층이 지금 열린 창을 하나로 정하므로 두 창이 겹칠 수 없다 */}
       <InventoryPanel open={openLayer === OVERLAY_LAYERS.inventory} onClose={closeWindow} />

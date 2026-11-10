@@ -11,6 +11,7 @@ import {
   dismissHintOffer,
   isValveLockId,
   useHintOffering,
+  useRoamHintOffering,
   useValveHintsDelivered,
   VALVE_ANSWER_LINE,
   VALVE_HINT_LINE,
@@ -370,18 +371,23 @@ const touchLockActionStyle: CSSProperties = {
 const touchLockPrimaryStyle: CSSProperties = { border: `1px solid ${UI.accent}`, background: UI.surfaceHover };
 
 /**
- * 「추가 힌트를 받으시겠습니까?」 — 밸브 자물쇠에서 오래 막히면 힌트를 넣기 전에 묻는다(미르 11/9: 시간이 걸려도 제 힘으로
- * 풀고 싶은 사람에게 선택지를, 튜토피드백 12회차). 자물쇠를 만지는 동안만 뜬다 — PC 는 그동안 잠금이 풀려 있어 눌러도 되고
- * Y · N 키로도 고른다. ESC 는 「아니요」. 터치는 다이얼 대신 이 카드(z 960 — 다이얼 950 위).
+ * 「추가 힌트를 확인하시겠습니까?」 — 밸브 자물쇠에서 오래 막히면 힌트를 넣기 전에 묻는다(미르 11/9: 시간이 걸려도 제 힘으로
+ * 풀고 싶은 사람에게 선택지를, 튜토피드백 12회차). 오답 · 자물쇠를 만진 시간이면 자물쇠 화면에서, 밸브가 다음 장치가 된 뒤
+ * 오래 못 풀고 헤매면(미르 11/10) 게임 화면에서(roamVisible — 창 · 연출 · 기차가 아닐 때) 뜬다.
+ * 자물쇠 화면: PC 는 잠금이 풀려 있어 눌러도 되고 Y · N 키로도, ESC 는 「아니요」. 터치는 다이얼 대신 이 카드(z 960 — 다이얼 950 위).
+ * 게임 화면: PC 는 마우스가 잠겨 있어 Y · N 키로(걷기는 그대로), 터치는 카드 단추.
  */
-export function HintOfferCard({ covered = false }: { covered?: boolean }) {
+export function HintOfferCard({ covered = false, roamVisible = false }: { covered?: boolean; roamVisible?: boolean }) {
   const control = useLockControl();
   const isOffering = useHintOffering();
+  const isRoamOffering = useRoamHintOffering();
   const labels = useKeyLabels();
-  if (!isOffering || covered || control?.phase !== "active" || !isValveLockId(control.id)) return null;
+  const inLock = control?.phase === "active" && isValveLockId(control.id);
+  const inRoam = !control && roamVisible && isRoamOffering;
+  if (!isOffering || covered || (!inLock && !inRoam)) return null;
   return (
     <div role="dialog" aria-label="추가 힌트" data-hud="추가 힌트 묻기" style={offerCardStyle}>
-      <div style={offerTitleStyle}>추가 힌트를 받으시겠습니까?</div>
+      <div style={offerTitleStyle}>추가 힌트를 확인하시겠습니까?</div>
       <div style={offerTextStyle}>
         {labels.text("시간이 걸려도 스스로 풀고 싶다면 「아니요」 — 나중에 힌트함 [H]에서 받을 수 있다.")}
       </div>
