@@ -148,6 +148,7 @@ uniform float _rimStrength;
 uniform float _hairBand;
 uniform vec3 _hairBase;
 uniform float _hairNorm;
+uniform float _bottomNorm;
 uniform float _buzz;
 uniform vec3 _buzzColor;
 varying float v_scalp;
@@ -158,6 +159,14 @@ float buzzHash(vec3 p) {
   p = fract(p * 0.3183099 + 0.1);
   p *= 17.0;
   return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+vec3 bottomPaint(vec3 texel) {
+  if (_bottomNorm < 0.5) return texel * _bottomTint;
+  const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+  float ratio = dot(texel, LUMA) / max(dot(_bottomBase, LUMA), 0.0001);
+  float shade = pow(ratio, 0.6);
+  shade = shade / (1.0 + max(shade - 1.0, 0.0) * 0.6);
+  return _bottomTint * mix(1.0, max(shade, 0.2), 0.85);
 }
 float buzzNoise(vec3 x) {
   vec3 i = floor(x);
@@ -216,6 +225,9 @@ const FRAGMENT_FINISH = `
 // 평균색으로 되돌린다. 반반인 중간색(접힌 그늘·밑단 자체의 번짐)은 가까운 정점 표식 쪽으로 조금 기운다.
 // 표식은 naju01/tools/bake-bottom-markers.mjs hem 이 텍스처 밑단 둘레로 옮겨 둔다(이 갈래는 그 띠 안에서만 돈다).
 // 두 평균색이 가까우면(√선형 거리 0.12 미만) 색으로 못 가르므로 이 갈래를 끈다.
+// 하의 색(bottomPaint) — 반바지 텍스처가 검정이라 고른 색을 곱하면(예전 방식) 무슨 색이든 검게 남았다(미르 11/11 「상의처럼 색을
+// 바꿀 수 없나」). 머리색(FRAGMENT_HAIR)과 같은 셈으로 텍스처 밝기를 하의 평균 밝기(_bottomBase)로 나눠 주름 · 그늘만 남기고
+// 고른 색을 입힌다 — 평균 자리가 고른 색 그대로 나온다. 흰색(#ffffff = 「원본」)이거나 평균을 못 재면 예전처럼 곱한다(검정 그대로).
 const FRAGMENT_TINT = `#include <map_fragment>
   // 2 = top, 3 = bottom
   if (v_cloth > 0.5) {
@@ -237,14 +249,15 @@ const FRAGMENT_TINT = `#include <map_fragment>
       float pick = smoothstep(0.4, 0.6, clamp(along, 0.0, 1.0) + lean);
       float bottomWeight = mix(pick, isBottom ? 1.0 : 0.0, stray);
       vec3 topColor = mix(diffuseColor.rgb, _clothBase, stray) * _clothTint;
-      vec3 bottomColor = mix(diffuseColor.rgb, _bottomBase, stray) * _bottomTint;
+      vec3 bottomColor = bottomPaint(mix(diffuseColor.rgb, _bottomBase, stray));
       diffuseColor.rgb = mix(topColor, bottomColor, bottomWeight);
     } else {
       vec3 own = isBottom ? _bottomBase : _clothBase;
       vec3 other = isBottom ? _clothBase : _bottomBase;
       float stray = smoothstep(0.06, 0.18, distance(seen, sqrt(own)))
         * smoothstep(0.08, 0.2, distance(seen, sqrt(other))) * _seamFix;
-      diffuseColor.rgb = mix(diffuseColor.rgb, own, stray) * (isBottom ? _bottomTint : _clothTint);
+      vec3 cleaned = mix(diffuseColor.rgb, own, stray);
+      diffuseColor.rgb = isBottom ? bottomPaint(cleaned) : cleaned * _clothTint;
     }
   }
   else if (v_tint > 0.5) {
@@ -283,6 +296,8 @@ interface ToonUniforms {
   _hairBase: THREE.IUniform<THREE.Color>;
   /** 1 = 머리색을 평균 밝기 기준으로 칠한다, 0 = 예전처럼 텍스처에 곱한다(흰색 = 원본, 평균을 못 잼) */
   _hairNorm: THREE.IUniform<number>;
+  /** 1 = 하의 색을 하의 평균 밝기 기준으로 칠한다(검은 반바지도 고른 색으로), 0 = 예전처럼 곱한다(흰색 = 원본, 평균을 못 잼) */
+  _bottomNorm: THREE.IUniform<number>;
   /** 머리끝 밀림(아바타 로컬 m)·비틀림(rad) — hairSway.ts 가 프레임마다 넣는다 */
   _swayOffset: THREE.IUniform<THREE.Vector3>;
   _swayTwist: THREE.IUniform<number>;
@@ -299,6 +314,8 @@ interface ToonUniformEntry {
   kind: ToonPartKind;
   /** 머리 텍스처 평균색을 쟀나 — 못 쟀으면 머리색을 예전처럼 곱한다 */
   hairBaseKnown: boolean;
+  /** 하의 구역 평균색을 쟀나 — 못 쟀으면 하의 색을 예전처럼 곱한다 */
+  bottomBaseKnown: boolean;
 }
 
 interface ToonBuildConfig extends ToonConfig {
@@ -333,6 +350,7 @@ function applyToonShaderPatch(
     _seamFix: { value: 0 },
     _hairBase: { value: new THREE.Color(1, 1, 1) },
     _hairNorm: { value: 0 },
+    _bottomNorm: { value: 0 },
     _swayOffset: { value: new THREE.Vector3() },
     _swayTwist: { value: 0 },
     _swayShape: { value: new THREE.Vector4(0, 0, 0, 0) },
@@ -632,10 +650,12 @@ export function applyToon(
       const { material, uniforms } = createToonMaterial(source, buildConfig, kind);
       material.userData[TOON_SOURCE_KEY] = source;
       let hairBaseKnown = false;
+      let bottomBaseKnown = false;
       if (kind !== "hair") {
         const bases = computeZoneBases(object.geometry, material.map);
         if (bases.cloth) uniforms._clothBase.value.copy(bases.cloth);
         if (bases.bottom) uniforms._bottomBase.value.copy(bases.bottom);
+        bottomBaseKnown = !!bases.bottom;
         uniforms._seamFix.value = bases.cloth || bases.bottom ? 1 : 0;
       } else {
         const base = computeHairBase(object.geometry, material.map);
@@ -643,7 +663,7 @@ export function applyToon(
         hairBaseKnown = !!base;
         if (object instanceof THREE.SkinnedMesh) uniforms._swayShape.value.copy(hairSwayShape(object));
       }
-      entries.push({ uniforms, kind, hairBaseKnown });
+      entries.push({ uniforms, kind, hairBaseKnown, bottomBaseKnown });
       return material;
     });
     const install = Array.isArray(object.material) ? created : created[0];
@@ -678,14 +698,16 @@ export function applyToon(
     // 반삭 색 = 머리색 × 기본 머리 텍스처 평균 — 머리 메시(텍스처 × 머리색)와 같은 밝기로 보인다
     buzzColor.set(hair ?? "#ffffff");
     if (referenceHairBase) buzzColor.multiply(referenceHairBase);
-    entries.forEach(({ uniforms, kind, hairBaseKnown }) => {
+    const bottomColor = (bottom ?? cloth ?? "#ffffff").toLowerCase();
+    entries.forEach(({ uniforms, kind, hairBaseKnown, bottomBaseKnown }) => {
       if (skin) uniforms._skinTint.value.set(skin);
       if (kind === "hair") {
         uniforms._hairNorm.value = hairBaseKnown && hair && hair.toLowerCase() !== "#ffffff" ? 1 : 0;
         return;
       }
       if (cloth) uniforms._clothTint.value.set(cloth);
-      uniforms._bottomTint.value.set(bottom ?? cloth ?? "#ffffff");
+      uniforms._bottomTint.value.set(bottomColor);
+      uniforms._bottomNorm.value = bottomBaseKnown && bottomColor !== "#ffffff" ? 1 : 0;
       uniforms._buzz.value = buzz ? 1 : 0;
       uniforms._buzzColor.value.copy(buzzColor);
     });
