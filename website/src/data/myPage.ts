@@ -1,9 +1,10 @@
 /**
- * 마이페이지 다섯 탭. 내 진행 · 업적 · 아이템은 서버의 내 저장본에서 그린다(lib/myProgress).
+ * 마이페이지 여섯 탭. 내 진행 · 업적 · 아이템은 서버의 내 저장본에서 그린다(lib/myProgress).
  * keywords 는 사이트 검색이 이 탭을 찾게 하는 말이다 — 사람마다 다른 값은 색인에 넣지 않는다.
  */
 export const MY_PAGE_TABS = [
   { id: "history", label: "내 진행", keywords: "진행 현황 사건 스테이지 나주 앙암바위 이어 하기 마지막 저장 튜토리얼" },
+  { id: "inquiries", label: "내 문의", keywords: "내 문의 내역 1:1 문의 접수 답변 고객센터" },
   {
     id: "account",
     label: "계정 설정",

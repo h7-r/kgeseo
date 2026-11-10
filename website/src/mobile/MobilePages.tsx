@@ -3,13 +3,15 @@
  * 데스크톱판은 1920 무대 좌표로 짜여 있어 그대로 줄이면 글자가 3~7px 가 된다. 같은 데이터(data/*)를 한 단으로 다시 엮는다.
  * 탭은 주소(?tab=)에 두는 데스크톱과 같은 훅(useQueryTab)을 쓴다 — 링크 · 뒤로 가기가 그대로 맞는다.
  */
-import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { ABOUT_CONTENT, ABOUT_TABS } from "@/data/about";
 import { MY_PAGE_CONTENT, MY_PAGE_TABS } from "@/data/myPage";
 import type { MyProgress } from "@/lib/myProgress";
 import { useMyProgress } from "@/sections/myPage/useMyProgress";
+import type { InquiryRecord } from "@/services/account/db";
+import { readAccountData } from "@/services/account/manageAccount";
 import { PRICING } from "@/data/pricing";
 import { useActiveTabInView } from "@/components/useActiveTabInView";
 import { FAQ_ITEMS, NOTICES, SUPPORT_TABS } from "@/data/support";
@@ -305,6 +307,18 @@ export function MobileMyPage() {
   const content = MY_PAGE_CONTENT;
   // 내 진행 · 업적 · 아이템은 서버의 내 저장본에서(데스크톱과 같은 값)
   const { state: progressState } = useMyProgress(user?.id);
+  // 내 문의 — 이 기기에서 이 계정으로 접수한 것(문의 API 전)
+  const [inquiries, setInquiries] = useState<InquiryRecord[]>([]);
+  useEffect(() => {
+    if (!user?.email) return;
+    let isActive = true;
+    void readAccountData(user.email).then((data) => {
+      if (isActive) setInquiries(data?.inquiries ?? []);
+    });
+    return () => {
+      isActive = false;
+    };
+  }, [user?.email]);
   return (
     <Shell>
       <PageHeading eyebrow="My page" title={user ? `${user.name} 님` : "마이페이지"} />
@@ -339,6 +353,22 @@ export function MobileMyPage() {
           )}
         </div>
       )}
+      {tab === "inquiries" &&
+        (inquiries.length ? (
+          <Rows
+            rows={inquiries.map(
+              (inquiry) =>
+                [
+                  `${inquiry.type} · ${new Date(inquiry.receivedAt).toLocaleDateString("ko-KR")}`,
+                  inquiry.title,
+                ] as const,
+            )}
+          />
+        ) : (
+          <p style={{ ...bodyTextStyle, fontSize: "14px", color: COLOR.textMuted, marginTop: 16 }}>
+            이 기기에서 접수한 문의가 없습니다. 1:1 문의는 PC 고객센터에서 접수할 수 있습니다.
+          </p>
+        ))}
       {tab === "account" &&
         content.account.groups.map((group) => (
           <section key={group.title}>

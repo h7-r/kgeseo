@@ -3,6 +3,10 @@ import { useId, useState, type CSSProperties } from "react";
 import uploadCloudIcon from "@/assets/images/imgUploadCloud.svg";
 import { FONT } from "@/lib/style";
 import { hasNoErrors, validateFields, type FieldErrors, type FieldName, type FormValues } from "@/lib/validation";
+import { QUERY, ROUTES, useSiteNavigate, withQuery } from "@/navigation/routes";
+import type { InquiryRecord } from "@/services/account/db";
+import { saveInquiry } from "@/services/account/manageAccount";
+import { useSessionUser } from "@/services/session";
 import { COLOR, SHADOW } from "@/styles/tokens";
 
 import InquiryField from "./InquiryField";
@@ -18,22 +22,16 @@ interface Attachment {
   size: string;
 }
 
-/** 접수한 문의 한 건 — 접수 완료 카드에 그대로 보여 준다 */
-interface Receipt {
-  number: string;
-  type: string;
-  title: string;
-  email: string;
-  attachment: string | null;
-  receivedAt: Date;
-}
-
 export default function InquiryPanel() {
-  const [values, setValues] = useState<FormValues>({});
+  const user = useSessionUser();
+  const navigate = useSiteNavigate();
+  // 로그인했으면 답변 받을 이메일을 내 이메일로 채워 둔다(고칠 수 있다).
+  const blankForm = (): FormValues => (user?.email ? { email: user.email } : {});
+  const [values, setValues] = useState<FormValues>(blankForm);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitted, setSubmitted] = useState(false);
   // 마지막으로 접수한 문의. 있으면 입력 칸 자리에 접수 완료 카드를 보인다.
-  const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [receipt, setReceipt] = useState<InquiryRecord | null>(null);
   const [receiptCount, setReceiptCount] = useState(0);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [fileError, setFileError] = useState("");
@@ -52,20 +50,25 @@ export default function InquiryPanel() {
     setErrors(nextErrors);
     // 보낼 서버(세진 문의 API)가 아직 없어 접수 표시만 남긴다. 붙으면 여기서 보내고 서버가 준 번호를 쓴다.
     if (!hasNoErrors(nextErrors)) return;
-    setReceipt({
-      number: makeReceiptNumber(new Date()),
+    const now = new Date();
+    const inquiry: InquiryRecord = {
+      number: makeReceiptNumber(now),
       type: values.inquiryType ?? "",
       title: values.title ?? "",
+      content: values.content ?? "",
       email: values.email ?? "",
       attachment: attachment?.name ?? null,
-      receivedAt: new Date(),
-    });
+      receivedAt: now.getTime(),
+    };
+    setReceipt(inquiry);
     setReceiptCount((count) => count + 1);
+    // 로그인했으면 이 계정 기록에 남겨 마이페이지 「내 문의」에서 다시 본다.
+    if (user?.email) void saveInquiry(user.email, inquiry);
   };
 
   /** 「추가 접수하기」 — 빈 양식으로 돌아간다 */
   const startAnother = () => {
-    setValues({});
+    setValues(blankForm());
     setErrors({});
     setSubmitted(false);
     setAttachment(null);
@@ -100,7 +103,13 @@ export default function InquiryPanel() {
       {/* 위로 맞춰야 오른쪽 안내 상자가 왼쪽 상자 키를 따라 늘어나지 않는다. */}
       <div style={{ display: "flex", gap: "40px", width: "100%", alignItems: "flex-start" }}>
         {receipt ? (
-          <ReceiptCard receipt={receipt} count={receiptCount} onAnother={startAnother} />
+          <ReceiptCard
+            receipt={receipt}
+            count={receiptCount}
+            isSignedIn={Boolean(user)}
+            onAnother={startAnother}
+            onOpenMine={() => navigate(withQuery(ROUTES.myPage, { [QUERY.tab]: "inquiries" }))}
+          />
         ) : (
           <div style={{ ...inquiryCardStyle, flex: "1 0 0", minWidth: 0, gap: "24px" }}>
             <InquiryField
@@ -213,21 +222,23 @@ export default function InquiryPanel() {
 }
 
 interface ReceiptCardProps {
-  receipt: Receipt;
+  receipt: InquiryRecord;
   /** 이번 방문에 접수한 건수 */
   count: number;
+  isSignedIn: boolean;
   onAnother: () => void;
+  onOpenMine: () => void;
 }
 
 /** 접수 완료 — 무엇을 접수했는지 되짚어 주고, 이어서 한 건 더 쓸 수 있게 한다 */
-function ReceiptCard({ receipt, count, onAnother }: ReceiptCardProps) {
+function ReceiptCard({ receipt, count, isSignedIn, onAnother, onOpenMine }: ReceiptCardProps) {
   const rows: readonly (readonly [string, string])[] = [
     ["접수 번호", receipt.number],
     ["문의 유형", receipt.type],
     ["제목", receipt.title],
     ["답변 받을 이메일", receipt.email],
     ["첨부파일", receipt.attachment ?? "없음"],
-    ["접수 시각", formatReceivedAt(receipt.receivedAt)],
+    ["접수 시각", formatReceivedAt(new Date(receipt.receivedAt))],
   ];
   return (
     <div
@@ -257,9 +268,26 @@ function ReceiptCard({ receipt, count, onAnother }: ReceiptCardProps) {
           </div>
         ))}
       </div>
-      <button type="button" className="button" style={submitButtonStyle} onClick={onAnother}>
-        <span className="button__label">+ 추가 접수하기</span>
-      </button>
+      <div style={{ display: "flex", gap: "12px" }}>
+        <button type="button" className="button" style={{ ...submitButtonStyle, flex: "1 0 0" }} onClick={onAnother}>
+          <span className="button__label">+ 추가 접수하기</span>
+        </button>
+        {isSignedIn && (
+          <button
+            type="button"
+            className="button"
+            style={{ ...secondaryButtonStyle, flex: "1 0 0" }}
+            onClick={onOpenMine}
+          >
+            <span className="button__label">마이페이지에서 내 문의 보기</span>
+          </button>
+        )}
+      </div>
+      {!isSignedIn && (
+        <span style={{ fontFamily: FONT.body, fontSize: "14px", color: COLOR.lightTextMuted }}>
+          로그인하고 접수하면 마이페이지 「내 문의」에서 접수 내역을 다시 볼 수 있습니다.
+        </span>
+      )}
     </div>
   );
 }
@@ -375,4 +403,14 @@ const receiptValueStyle: CSSProperties = {
   color: COLOR.lightText,
   minWidth: 0,
   overflowWrap: "anywhere",
+};
+
+// 접수 완료 카드의 둘째 단추 — 같은 크기, 테두리만
+const secondaryButtonStyle: CSSProperties = {
+  ...submitButtonStyle,
+  backgroundImage: "none",
+  background: "transparent",
+  border: `1px solid ${COLOR.blueMid}`,
+  color: COLOR.blue,
+  boxShadow: "none",
 };
