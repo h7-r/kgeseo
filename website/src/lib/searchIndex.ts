@@ -123,8 +123,10 @@ function buildIndex(): IndexEntry[] {
     ]),
   );
 
+  // 탭 내용은 사람마다 다르다(내 진행 · 아이템) — 탭이 무엇을 담는지 말로만 색인한다.
   for (const tab of MY_PAGE_TABS) {
-    entries.push(entry(`마이페이지 · ${tab.label}`, "마이페이지", ROUTES.myPage, MY_PAGE_CONTENT[tab.id]));
+    const content = tab.id === "account" || tab.id === "subscription" ? MY_PAGE_CONTENT[tab.id] : null;
+    entries.push(entry(`마이페이지 · ${tab.label}`, "마이페이지", ROUTES.myPage, [tab.keywords, content]));
   }
 
   cachedIndex = entries;

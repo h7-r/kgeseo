@@ -6,31 +6,32 @@ import { COLOR, GRADIENT } from "@/styles/tokens";
 
 import { profileStartStyle } from "./myPageStyles";
 
-export interface ProfileStats {
-  solved: number;
-  best: string;
-}
+/** [이름, 숫자, 단위] — 프로필 오른쪽 숫자 칸. 숫자는 표제 글꼴, 단위(%·건·개)는 본문 글꼴로 따로 그린다 */
+export type ProfileStat = readonly [label: string, value: string, unit: string];
+
+/** 가입 방식 이름(서버 provider) */
+const PROVIDER_LABEL: Record<string, string> = { local: "이메일 가입", google: "Google 가입", naver: "네이버 가입" };
 
 interface ProfileCardProps {
   user: SessionUser;
-  stats: ProfileStats;
+  stats: readonly ProfileStat[];
+  /** 저장된 진행이 있으면 「이어 하기」 */
+  hasProgress: boolean;
   onStart: () => void;
   onSignOut: () => void;
 }
 
 /** 마이페이지 맨 위. 헤더 알약을 누르고 들어온 사람이 누구의 페이지인지 바로 알게 한다. */
-export default function ProfileCard({ user, stats, onStart, onSignOut }: ProfileCardProps) {
+export default function ProfileCard({ user, stats, hasProgress, onStart, onSignOut }: ProfileCardProps) {
+  // 새 탭에서 로그인이 복원되면(/me) 가입일 · 가입 방식이 없다 — 모르는 칸은 「—」 대신 숨긴다.
   const joined = user.joinedAt
     ? new Date(user.joinedAt)
         .toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" })
         .replace(/\s/g, "")
         .replace(/\.$/, "")
-    : "—";
+    : null;
+  const provider = user.provider ? PROVIDER_LABEL[user.provider] : undefined;
   const initial = (user.name || "?").slice(0, 1).toUpperCase();
-  const statItems: readonly (readonly [string, string])[] = [
-    ["해결한 사건", `${stats.solved}건`],
-    ["최고 기록", stats.best],
-  ];
 
   return (
     <div style={profileCardStyle}>
@@ -52,7 +53,8 @@ export default function ProfileCard({ user, stats, onStart, onSignOut }: Profile
               {user.email}
             </span>
             <span style={profileChipStyle}>지역 · {user.region || "미정"}</span>
-            <span style={profileChipStyle}>합류 {joined}</span>
+            {provider && <span style={profileChipStyle}>{provider}</span>}
+            {joined && <span style={profileChipStyle}>합류 {joined}</span>}
             {user.isTest && (
               <span style={{ ...profileChipStyle, color: COLOR.warning, borderColor: "rgba(251,191,36,0.4)" }}>
                 테스트 계정
@@ -64,19 +66,12 @@ export default function ProfileCard({ user, stats, onStart, onSignOut }: Profile
 
       <div style={{ display: "flex", alignItems: "center", gap: "32px", flexShrink: 0 }}>
         <div style={{ display: "flex", gap: "28px" }}>
-          {statItems.map(([label, value]) => (
-            <div key={label} style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
-              <span style={{ fontFamily: FONT.mono, fontSize: "13px", color: COLOR.textDim }}>{label}</span>
-              <span
-                style={{
-                  fontFamily: FONT.display,
-                  fontSize: "34px",
-                  lineHeight: 1,
-                  color: COLOR.textBright,
-                  letterSpacing: "0.5px",
-                }}
-              >
-                {value}
+          {stats.map(([label, value, unit]) => (
+            <div key={label} style={statStyle}>
+              <span style={statLabelStyle}>{label}</span>
+              <span style={{ display: "flex", alignItems: "baseline", gap: "3px" }}>
+                <span style={statValueStyle}>{value}</span>
+                {unit && <span style={statUnitStyle}>{unit}</span>}
               </span>
             </div>
           ))}
@@ -84,7 +79,7 @@ export default function ProfileCard({ user, stats, onStart, onSignOut }: Profile
         <div style={{ width: "1px", height: "56px", background: "#262d40" }} aria-hidden="true" />
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           <button type="button" className="button button--primary" style={profileStartStyle} onClick={onStart}>
-            <span className="button__label">모험 시작하기</span>
+            <span className="button__label">{hasProgress ? "이어 하기 →" : "모험 시작하기"}</span>
           </button>
           <button type="button" className="button" style={profileSignOutStyle} onClick={onSignOut}>
             <span className="button__label">로그아웃</span>
@@ -155,6 +150,37 @@ const profileChipStyle: CSSProperties = {
   fontSize: "14px",
   color: "#c9d2e6",
   whiteSpace: "nowrap",
+};
+const statStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "8px",
+  alignItems: "flex-end",
+  minWidth: "72px",
+};
+// 한글 이름표는 본문 글꼴 — 모노 글꼴엔 한글이 없어 대체 글꼴로 떨어지며 자간이 들쭉날쭉했다.
+const statLabelStyle: CSSProperties = {
+  fontFamily: FONT.body,
+  fontSize: "13px",
+  lineHeight: 1.2,
+  letterSpacing: "0.2px",
+  color: COLOR.textDim,
+  whiteSpace: "nowrap",
+};
+const statValueStyle: CSSProperties = {
+  fontFamily: FONT.display,
+  fontSize: "34px",
+  lineHeight: 1,
+  letterSpacing: "0.5px",
+  color: COLOR.textBright,
+};
+// 표제 글꼴은 영문 전용이라 단위 한글은 본문 글꼴로 작게 — 숫자 바닥선에 맞춘다.
+const statUnitStyle: CSSProperties = {
+  fontFamily: FONT.body,
+  fontWeight: 600,
+  fontSize: "17px",
+  lineHeight: 1,
+  color: COLOR.textMuted,
 };
 const profileSignOutStyle: CSSProperties = {
   ...profileStartStyle,

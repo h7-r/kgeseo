@@ -3,7 +3,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import Modal from "@/components/Modal";
 import { modalSecondaryStyle } from "@/components/modalButtonStyles";
 import TabBar from "@/components/TabBar";
-import { MY_PAGE_CONTENT, MY_PAGE_TABS, type AccountAction, type MyPageTabId } from "@/data/myPage";
+import { MY_PAGE_TABS, type AccountAction, type MyPageTabId } from "@/data/myPage";
 import { FONT } from "@/lib/style";
 import { ROUTES, launchGame, useSiteNavigate } from "@/navigation/routes";
 import type { AccountData } from "@/services/account/db";
@@ -12,9 +12,11 @@ import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import LoginHistoryModal from "./LoginHistoryModal";
-import { AccountTab, AchievementsTab, HistoryTab, ItemsTab, SubscriptionTab } from "./MyPageTabs";
+import { AccountTab, SubscriptionTab } from "./MyPageTabs";
 import PasswordModal from "./PasswordModal";
-import ProfileCard, { type ProfileStats } from "./ProfileCard";
+import ProfileCard, { type ProfileStat } from "./ProfileCard";
+import { AchievementsTab, ItemsTab, ProgressGate, ProgressTab } from "./ProgressTabs";
+import { useMyProgress } from "./useMyProgress";
 import { modalDangerStyle } from "./myPageStyles";
 
 type OpenModal = "password" | "loginHistory" | "deleteAccount" | null;
@@ -32,11 +34,17 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
   const user = useSessionUser();
   const startGame = () => launchGame(navigate);
 
-  const records = MY_PAGE_CONTENT.history.records;
-  const stats: ProfileStats = {
-    solved: records.filter((record) => record.result === "성공").length,
-    best: records.map((record) => record.clearTime).sort()[0] ?? "—",
-  };
+  // 내 진행 · 업적 · 아이템은 서버의 내 저장본에서 — 계정이 바뀌면 새로 읽는다.
+  const { state: progressState, reload: reloadProgress } = useMyProgress(user?.id);
+  const progress = progressState.status === "ready" ? progressState.progress : null;
+  // 읽는 중에는 숫자 자리에 「—」만(단위 없이)
+  const stat = (label: string, value: number | undefined, unit: string): ProfileStat =>
+    value === undefined ? [label, "—", ""] : [label, String(value), unit];
+  const stats: readonly ProfileStat[] = [
+    stat("사건 진행률", progress ? (progress.naju?.percent ?? 0) : undefined, "%"),
+    stat("해결한 사건", progress ? (progress.naju?.isCleared ? 1 : 0) : undefined, "건"),
+    stat("획득한 배지", progress?.badges.filter((badge) => badge.isEarned).length, "개"),
+  ];
 
   const [openModal, setOpenModal] = useState<OpenModal>(null);
   const [deleteWarning, setDeleteWarning] = useState("");
@@ -94,7 +102,15 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
 
   return (
     <section style={{ ...rootStyle, top: `${top}px` }}>
-      {user && <ProfileCard user={user} stats={stats} onStart={startGame} onSignOut={handleSignOut} />}
+      {user && (
+        <ProfileCard
+          user={user}
+          stats={stats}
+          hasProgress={progress ? !progress.isEmpty : false}
+          onStart={startGame}
+          onSignOut={handleSignOut}
+        />
+      )}
       <TabBar
         items={MY_PAGE_TABS}
         activeId={tab}
@@ -106,11 +122,21 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
       <div style={{ height: "1px", width: "100%", background: "#262933" }} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "100%" }}>
-        {tab === "history" && <HistoryTab onRetry={startGame} />}
         {tab === "account" && <AccountTab emailNotifications={emailNotifications} onAction={handleAccountAction} />}
         {tab === "subscription" && <SubscriptionTab />}
-        {tab === "achievements" && <AchievementsTab />}
-        {tab === "items" && <ItemsTab />}
+        {(tab === "history" || tab === "achievements" || tab === "items") && (
+          <ProgressGate state={progressState} onRetry={reloadProgress}>
+            {(mine) =>
+              tab === "history" ? (
+                <ProgressTab progress={mine} onStart={startGame} />
+              ) : tab === "achievements" ? (
+                <AchievementsTab progress={mine} />
+              ) : (
+                <ItemsTab progress={mine} />
+              )
+            }
+          </ProgressGate>
+        )}
       </div>
 
       <PasswordModal open={openModal === "password"} onClose={closeModal} user={user} />
