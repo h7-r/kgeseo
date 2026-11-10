@@ -862,6 +862,75 @@ button:hover > .dest-key {
   translate: calc(var(--u) * 5) 0;
 }
 
+/* 처음부터 다시(하던 · 끝낸 케이스) — 입장 단추 오른쪽의 낮은 알약. 누르면 아래 확인 창 */
+.dest-restart {
+  position: absolute;
+  left: calc(var(--u) * 800);
+  top: calc(var(--u) * 638);
+  min-height: max(44px, calc(var(--u) * 44));
+  padding: 0 calc(var(--u) * 18);
+  border: 1px solid rgba(111, 134, 191, 0.55);
+  border-radius: 999px;
+  background: rgba(9, 15, 32, 0.6);
+  font-size: max(13px, calc(var(--u) * 15)) !important;
+  color: #cfdcf8 !important;
+  animation: dest-fade 0.5s ease-out 0.35s both;
+}
+.dest-restart:hover {
+  border-color: #6f86bf;
+  background: rgba(46, 72, 137, 0.35);
+}
+/* 한 번 더 묻기 — 지우면 되돌릴 수 없다 */
+.dest-restart-ask {
+  position: absolute;
+  left: calc(var(--u) * 380);
+  bottom: calc(var(--u) * 24);
+  z-index: 5;
+  width: calc(var(--u) * 520);
+  box-sizing: border-box;
+  padding: calc(var(--u) * 16) calc(var(--u) * 20);
+  border: 1px solid #3a5794;
+  border-radius: calc(var(--u) * 16);
+  background: rgba(5, 11, 26, 0.97);
+  box-shadow: 0 18px 48px rgba(1, 4, 10, 0.62);
+}
+.dest-restart-ask__title {
+  margin: 0;
+  font-size: max(15px, calc(var(--u) * 17));
+  font-weight: 600;
+  color: #f1f1fc;
+}
+.dest-restart-ask__note {
+  margin: calc(var(--u) * 6) 0 0;
+  font-size: max(13px, calc(var(--u) * 14));
+  line-height: 1.5;
+  color: #c6cfdd;
+}
+.dest-restart-ask__row {
+  display: flex;
+  gap: calc(var(--u) * 10);
+  margin-top: calc(var(--u) * 14);
+}
+.dest-restart-ask__confirm,
+.dest-restart-ask__cancel {
+  position: relative;
+  flex: 1 1 0;
+  min-height: max(44px, calc(var(--u) * 48));
+  border-radius: 999px;
+  font-size: max(14px, calc(var(--u) * 16)) !important;
+  font-weight: 600;
+}
+.dest-restart-ask__confirm {
+  border: 1px solid #c97a7a;
+  background: rgba(120, 40, 40, 0.55);
+  color: #ffe1e1 !important;
+}
+.dest-restart-ask__cancel {
+  border: 1px solid #3a4258;
+  background: transparent;
+  color: #c6cfdd !important;
+}
+
 /* 사이트 주 단추와 같은 남색 알약. 빛이 한 번씩 스쳐 지나간다. */
 .dest-enter {
   position: absolute;
@@ -1192,6 +1261,39 @@ button:hover > .dest-key {
   }
   .dest-enter span {
     font-size: 17px !important;
+  }
+  .dest-restart {
+    left: auto;
+    top: auto;
+    right: 16px;
+    bottom: 76px;
+    width: min(320px, calc(100% - 300px));
+    min-height: 44px;
+    font-size: 15px !important;
+  }
+  .dest-restart-ask {
+    left: auto;
+    right: 16px;
+    bottom: 16px;
+    width: min(380px, calc(100% - 290px));
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
+  .dest-restart-ask__title {
+    font-size: 15px;
+  }
+  .dest-restart-ask__note {
+    margin-top: 4px;
+    font-size: 13px;
+  }
+  .dest-restart-ask__row {
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .dest-restart-ask__confirm,
+  .dest-restart-ask__cancel {
+    min-height: 44px;
+    font-size: 15px !important;
   }
 }
 

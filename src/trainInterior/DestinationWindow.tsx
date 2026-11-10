@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 
 import { playSound } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
-import { najuCaseProgress, type CaseProgress } from "@/naju";
+import { najuCaseProgress, pendingNajuReset, resetNajuCase, type CaseProgress } from "@/naju";
 import { readSavedSection } from "@/save/gameSave";
 import { NAJU_ENTER_EVENT, type NajuEnterDetail } from "@/station/najuEnter";
 
@@ -232,7 +232,9 @@ const STEP_TEXT = {
 function DestinationContent({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<keyof typeof STEP_TEXT>("region");
   // 나주에서 하던 진행 — 창을 열 때 저장본에서 한 번 센다(나주는 다른 페이지라 이 페이지에서는 바뀌지 않는다)
-  const [najuProgress] = useState(() => najuCaseProgress((name) => readSavedSection(name)));
+  const [najuProgress, setNajuProgress] = useState(() => najuCaseProgress((name) => readSavedSection(name)));
+  /** 진행을 저장본에서 다시 센다 — 처음부터 다시가 끝났거나(지워짐) 실패했을 때(되돌려짐) */
+  const recountProgress = () => setNajuProgress(najuCaseProgress((name) => readSavedSection(name)));
   const [lockedPage, setLockedPage] = useState(0);
   const [linkedId, setLinkedId] = useState<string | null>(null);
   const windowRef = useRef<HTMLDivElement>(null);
@@ -269,6 +271,44 @@ function DestinationContent({ onClose }: { onClose: () => void }) {
     setLockedPage((page) => (page + delta + LOCKED_LEGENDS.length) % LOCKED_LEGENDS.length);
   };
 
+  /**
+   * 처음부터 다시(미르 11/10) — 한 번 더 묻는다(지우면 되돌릴 수 없다). 나주 진행을 지우고 저장까지 마친 뒤에 들어간다.
+   * 못 지웠으면 들어가지 않는다 — 나주가 옛 저장을 그대로 읽어 「처음부터」가 아니게 된다
+   */
+  // 앞서 연 창에서 시작한 처음부터 다시가 아직 끝나지 않았으면 그것부터 기다린다(끝나기 전에는 들어가지 못한다)
+  const [restartPhase, setRestartPhase] = useState<"idle" | "asking" | "working" | "failed">(() =>
+    pendingNajuReset() ? "working" : "idle",
+  );
+  // 지우는 사이 창이 닫혔으면(ESC 등) 끝난 뒤에 나주로 넘기지 않는다 — 게임으로 돌아간 사람을 순간이동시키지 않게(Codex 리뷰)
+  const isOpenRef = useRef(true);
+  useEffect(() => {
+    // 개발 모드(StrictMode)는 붙였다 떼었다 다시 붙인다 — 다시 붙을 때 켜 둔다
+    isOpenRef.current = true;
+    // 앞 창의 처음부터 다시가 끝나면 — 들어가지는 않고(그 창은 닫혔다) 결과만 보인다
+    void pendingNajuReset()?.then((isReset) => {
+      if (!isOpenRef.current) return;
+      recountProgress();
+      setRestartPhase(isReset ? "idle" : "failed");
+    });
+    return () => {
+      isOpenRef.current = false;
+    };
+  }, []);
+  const restart = async () => {
+    playSound("button");
+    setRestartPhase("working");
+    const isReset = await resetNajuCase();
+    if (!isOpenRef.current) return;
+    if (!isReset) {
+      recountProgress();
+      setRestartPhase("failed");
+      return;
+    }
+    enterLegend();
+  };
+  /** 지우는 동안은 닫기 · 뒤로를 받지 않는다 */
+  const isRestarting = restartPhase === "working";
+
   const enterLegend = () => {
     playSound("button");
     exposeDevHook("destinationSelect", "naju");
@@ -303,6 +343,7 @@ function DestinationContent({ onClose }: { onClose: () => void }) {
                 data-dest-button
                 className="dest-round"
                 aria-label="뒤로 가기"
+                disabled={isRestarting}
                 onClick={() => {
                   playSound("button");
                   setStep("region");
@@ -326,7 +367,14 @@ function DestinationContent({ onClose }: { onClose: () => void }) {
             <i className={step === "legend" ? "is-done" : ""} />
             <span className={step === "legend" ? "is-current" : ""}>02 전설</span>
           </div>
-          <button type="button" data-dest-button className="dest-round dest-close" aria-label="닫기" onClick={onClose}>
+          <button
+            type="button"
+            data-dest-button
+            className="dest-round dest-close"
+            aria-label="닫기"
+            disabled={isRestarting}
+            onClick={onClose}
+          >
             ×
             <KeyHint />
           </button>
@@ -355,11 +403,78 @@ function DestinationContent({ onClose }: { onClose: () => void }) {
               <OpenLegendCard progress={najuProgress} />
               <LockedLegendCard legend={rightLegend} side="right" onPress={shake} />
               <ArrowButton direction={1} onPress={() => turnPage(1)} />
-              <button type="button" data-dest-button className="dest-enter" onClick={enterLegend}>
-                {/* 하던 케이스면 이어서 — 나주는 저장된 데서 다시 시작한다 */}
-                <span>{najuProgress && !najuProgress.isCleared ? "이어서 하기" : "전설 속으로"}</span>
-                <KeyHint />
-              </button>
+              {/* 처음부터 다시를 묻는 동안은 입장 단추를 내린다(그 자리에 확인 창이 뜬다) */}
+              {restartPhase === "idle" && (
+                <button type="button" data-dest-button className="dest-enter" onClick={enterLegend}>
+                  {/* 하던 케이스면 이어서 — 나주는 저장된 데서 다시 시작한다 */}
+                  <span>{najuProgress && !najuProgress.isCleared ? "이어서 하기" : "전설 속으로"}</span>
+                  <KeyHint />
+                </button>
+              )}
+              {/* 하던 · 끝낸 케이스 — 처음부터 다시 */}
+              {najuProgress && restartPhase === "idle" && (
+                <button
+                  type="button"
+                  data-dest-button
+                  className="dest-restart"
+                  data-testid="case-restart"
+                  onClick={() => {
+                    playSound("button");
+                    setRestartPhase("asking");
+                  }}
+                >
+                  처음부터 다시
+                  <KeyHint />
+                </button>
+              )}
+              {/* 묻기 · 지우는 중 · 실패는 진행률과 따로 — 앞 창에서 시작한 것을 이어받으면 진행률이 잠깐 비어 있다 */}
+              {restartPhase !== "idle" && (
+                <div
+                  className="dest-restart-ask"
+                  role="alertdialog"
+                  aria-label="처음부터 다시"
+                  data-testid="case-restart-ask"
+                >
+                  <p className="dest-restart-ask__title">
+                    {restartPhase === "failed"
+                      ? "지우지 못했어요. 연결을 확인하고 다시 해 주세요."
+                      : restartPhase === "working"
+                        ? "지우는 중…"
+                        : "처음부터 다시 할까요?"}
+                  </p>
+                  {restartPhase === "asking" && (
+                    <p className="dest-restart-ask__note">
+                      앙암바위에서 한 진행(푼 퍼즐 · 소지품 · 위치)이 모두 지워지고 되돌릴 수 없어요.
+                    </p>
+                  )}
+                  {restartPhase !== "working" && (
+                    <div className="dest-restart-ask__row">
+                      <button
+                        type="button"
+                        data-dest-button
+                        className="dest-restart-ask__confirm"
+                        data-testid="case-restart-confirm"
+                        onClick={() => void restart()}
+                      >
+                        {restartPhase === "failed" ? "다시 해 보기" : "처음부터 시작"}
+                        <KeyHint />
+                      </button>
+                      <button
+                        type="button"
+                        data-dest-button
+                        className="dest-restart-ask__cancel"
+                        onClick={() => {
+                          playSound("button");
+                          setRestartPhase("idle");
+                        }}
+                      >
+                        취소
+                        <KeyHint />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

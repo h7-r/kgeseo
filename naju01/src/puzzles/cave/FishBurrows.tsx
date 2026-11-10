@@ -7,6 +7,7 @@
  *   틀리면 물고기들이 놀라 숨는다 — 항아리를 다시 두드려 차례를 다시 본다.
  * 규칙은 가까이 가면 안내판에 뜬다. 자리는 미터.
  */
+import { gameNow } from "@/engine/input/gameClock";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -184,7 +185,8 @@ export default function FishBurrows() {
     [],
   );
 
-  const now = () => performance.now() / 1000;
+  // 게임 시계 — 「전부 멈춤」(창 · 게임 밖 · PC 일시정지) 동안은 흐르지 않는다. 실제 시계면 오래 멈췄다 돌아올 때 차례 시범이 건너뛰어졌다(Codex 리뷰)
+  const now = () => gameNow() / 1000;
 
   const play = () => {
     if (roundsRef.current >= rounds.length || playStart.current >= 0) return;
