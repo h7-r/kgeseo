@@ -17,6 +17,7 @@ import {
   buildPebblePrototypes,
 } from "../../models/nature";
 import { MESH_NAMES } from "../../plan/meshNames";
+import { isCameraFocused } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { mangaInk } from "../../world/mangaStyle";
@@ -472,11 +473,12 @@ export default function CaveWorld() {
     // 숨이 얼마 안 남으면 화면이 떨린다
     if (isUnderwater && getBreath() < BREATH_WARNING)
       director.cue({ 카메라: "흔들림", 세기: dt * (1.2 + (BREATH_WARNING - getBreath()) * 0.4) });
-    if (tickBreath(dt, x, z)) {
+    // 화면이 한곳을 바라보는 동안(둥근 문 열림 등 — 몸이 멈춘다)은 숨을 세지 않는다 — 몸이 묶인 채 숨이 다하지 않게(박람회 출품판 26회차)
+    if (!isCameraFocused() && tickBreath(dt, x, z)) {
       const spot = getLastAirSpot();
       teleportPlayer(spot.x, spot.z);
       audio.play("전환");
-      showNotice("숨이 다했다. 마지막으로 숨 쉰 자리로 돌아왔다.", 4);
+      showNotice("숨이 다했다. 마지막으로 숨 쉰 자리로 돌아왔다.", 4, { urgent: true });
     }
 
     const { bubbles } = assets;

@@ -57,6 +57,7 @@ import {
   PANEL_RANGE,
   PEDESTAL_HEIGHT,
   PEDESTAL_VENT,
+  PEDESTAL_VENT_EAST,
   PEDESTAL_X,
   PEDESTAL_Z,
   PRESS_DEPTH,
@@ -156,7 +157,7 @@ export default function InnerChamber() {
   const takeScale = () => {
     if (shoneAt.current < 0 || now() - shoneAt.current < SCALE_DELAY + SCALE_RISE_SECONDS * 0.8) return;
     if (!inventory.add("scale")) {
-      showNotice("소지품이 가득 찼다.");
+      showNotice("소지품이 가득 찼다.", 3.2, { urgent: true, fleeting: true });
       return;
     }
     setIsScaleTaken(true);
@@ -167,7 +168,7 @@ export default function InnerChamber() {
   const press = (k: number) => {
     if (isSolved) return;
     if (now() < lockedUntil.current) {
-      showNotice("받침이 가라앉아 꿈쩍 않는다 — 물살이 잦아들 때까지 기다리자.", 2.5);
+      showNotice("받침이 가라앉아 꿈쩍 않는다 — 물살이 잦아들 때까지 기다리자.", 2.5, { urgent: true, fleeting: true });
       return;
     }
     pressedAt.current[k] = now();
@@ -184,8 +185,8 @@ export default function InnerChamber() {
       if (count === ORDER.length) solve();
       // 화면은 돌리지 않는다(11/4) — 석상 불·벽화는 안내문과 빛으로만 알린다
       else if (count === 1)
-        showNotice("받침이 맞물리자 벽화에 다음 장면이 번지고, 아랑사 석상이 든 초롱에 불이 든다.", 3.5);
-      else if (count === 3) showNotice("아비사 석상의 노 끝, 바닥에 닿은 날에서 빛이 번진다.", 3.5);
+        showNotice("받침이 맞물리자 벽화에 다음 장면이 번지고, 아비사 석상이 든 초롱에 불이 든다.", 3.5);
+      else if (count === 3) showNotice("아랑사 석상의 노 끝, 바닥에 닿은 날에서 빛이 번진다.", 3.5);
       else showNotice("아치 위 벽화에 다음 장면이 번져 나온다.", 3);
       return;
     }
@@ -204,6 +205,7 @@ export default function InnerChamber() {
     showNotice(
       `순서가 틀렸다 — 받침의 빛이 모두 꺼지고 물살이 거세져 숨이 밀려 나간다(숨 −${WRONG_PRESS_BREATH}초). 받침이 가라앉는다. 아치 위 벽화의 이야기를 다시 보자.`,
       4.5,
+      { urgent: true },
     );
   };
 
@@ -368,6 +370,8 @@ export default function InnerChamber() {
       { x: SOCKET.x - sx * 0.45, z: SOCKET.z - sz * 0.45, radius: 0.55, top: INNER_FLOOR + 1.6, name: "바위" },
       { x: CRACK.x, z: CRACK.z, radius: 0.5, top: INNER_FLOOR + 0.85, name: "바위" },
       { x: PEDESTAL_VENT.x, z: PEDESTAL_VENT.z, radius: 0.3, top: INNER_FLOOR + 0.55, name: "바위" },
+      // 동쪽 숨구멍도 같은 바위 틈 — 충돌이 빠져 있어 몸이 바위를 지나갔다
+      { x: PEDESTAL_VENT_EAST.x, z: PEDESTAL_VENT_EAST.z, radius: 0.3, top: INNER_FLOOR + 0.55, name: "바위" },
     ]);
   }, [isShown]);
 
@@ -416,11 +420,12 @@ export default function InnerChamber() {
     }
     const light =
       enteredAt.current < 0 ? 0 : THREE.MathUtils.smootherstep((time - enteredAt.current) / LIGHT_UP_SECONDS, 0, 1);
-    // 석상 빛 — 받침 하나를 맞히면 아랑사의 초롱, 셋째까지 맞히면 아비사의 노 날. 틀려 처음으로 돌아가면 꺼진다
     const solved = solvedAt.current >= 0;
     const follow = Math.min(1, dt * 2.2);
-    arangsaGlow.current += ((solved || progressRef.current >= 1 ? light : 0) - arangsaGlow.current) * follow;
-    abisaGlow.current += ((solved || progressRef.current >= 3 ? light : 0) - abisaGlow.current) * follow;
+    // 석상 빛 — 받침 하나를 맞히면 아비사의 초롱, 셋째까지 맞히면 아랑사의 노 날(석상 이름을 기획대로: 노 젓는 어부 = 아랑사 ·
+    // 초롱 든 처녀 = 아비사 — 뒤바뀌어 있던 것을 바로잡았다, 박람회 출품판 23회차). 틀려 처음으로 돌아가면 꺼진다
+    abisaGlow.current += ((solved || progressRef.current >= 1 ? light : 0) - abisaGlow.current) * follow;
+    arangsaGlow.current += ((solved || progressRef.current >= 3 ? light : 0) - arangsaGlow.current) * follow;
     // 받침 너머 어둠 — 다 맞히면 걷히며 안쪽(돌 상자 · 진주 홈)이 드러난다
     if (backVeil.current) {
       const reveal =

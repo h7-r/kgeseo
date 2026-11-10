@@ -482,7 +482,8 @@ export default function TetheredCarriers() {
     if (carrier.state === "ground" && lifting) {
       carrier.state = "rising";
       carrier.risenAt = time;
-      if (k === 0) showNotice("기둥에 묶인 지게 둘이 바람에 들려 떠오른다 — 밧줄이 팽팽하게 당겨진다.", 4);
+      if (k === 0)
+        showNotice("기둥에 묶인 지게 둘이 바람에 들려 떠오른다 — 밧줄이 팽팽하게 당겨진다.", 4, { fleeting: true });
     }
     // 밧줄 방향 — 위로, 바람 따라 기울며 맴돈다
     const phi = 0.9 + k * 1.6 + Math.sin(time * 0.37 + k * 2) * 0.55;

@@ -11,6 +11,7 @@ import { createChangeSignal } from "@/lib/changeSignal";
 
 import type { Heading } from "../../plan/sitePlan";
 import { DEFAULT_TERRAIN, type Terrain } from "../../terrain/terrain";
+import { isCameraFocused } from "../../scene/cameraFocus";
 import { ritual, useRitualStage } from "../ritual/ritualState";
 
 /** 갈라진 물 사이 강바닥 길 — 물가(44.5)에서 강 밑(−6 m)까지 내려간다 */
@@ -268,14 +269,19 @@ const HURT_FLOOR_SECONDS = 5;
  * 0 까지 깎으면 다음 숨 셈이 「익사」로 보고 숨을 70초로 도로 채워, 숨이 적을 때 복어에 찔리는 쪽이 오히려 이득이었다.
  * 이미 바닥 아래면 더 깎지도 채우지도 않는다.
  */
-export function hurtBreath(seconds: number, cause: "spike" | "ink") {
-  if (!isUnderwater) return;
+/** 숨을 깎는다 — 실제로 깎았으면 true(알림은 그때만 · 화면 고정 중엔 안 다친다) */
+export function hurtBreath(seconds: number, cause: "spike" | "ink"): boolean {
+  // 화면이 고정된 동안은 다치지 않는다 — 몸이 멈춘 채 숨이 깎이지 않게(박람회 출품판 26회차 Codex)
+  if (!isUnderwater || isCameraFocused()) return false;
+  const before = breath;
   breath = Math.max(Math.min(breath, HURT_FLOOR_SECONDS), breath - seconds);
   if (cause === "ink") {
     inkHitAt = performance.now() / 1000;
     inkHits += 1;
   }
   publish();
+  // 숨이 이미 바닥(HURT_FLOOR_SECONDS 이하)이면 깎이지 않는다 — 그때는 「숨이 줄었다」를 띄우지 않게(먹물 얼룩은 그대로 · Codex 리뷰)
+  return breath < before;
 }
 
 export const setInsideDark = (level: number) => {

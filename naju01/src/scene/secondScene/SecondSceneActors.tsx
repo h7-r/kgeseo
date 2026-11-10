@@ -225,7 +225,10 @@ export default function SecondSceneActors({ enabled }: SecondSceneActorsProps) {
         position: fisher.head,
         label: `${fisher.script.name}에게 말 걸기`,
         radius: 0.5 * M,
-        reach: 3.5 * M,
+        // 말하는 중이면 먼저 말을 거는 거리(5 m) 밖에서도 E 로 넘긴다(아비사와 같게 · 박람회 출품판에서 정리 · 11/10)
+        get reach() {
+          return (fisher.talk.isActive ? 6 : 3.5) * M;
+        },
         enabled: () => enabled && fisher.rig.isPlaced,
         use: () => talkTo(fisher),
       }),

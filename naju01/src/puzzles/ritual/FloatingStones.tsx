@@ -104,7 +104,7 @@ export default function FloatingStones() {
         enabled: () => !taken[index] && getWaterLevel() > SHOW_LEVEL,
         use: (picks[index] = () => {
           if (!inventory.add("floatStone")) {
-            showNotice("소지품이 가득 찼다. [I] 로 열어 하나 꺼내 두자.");
+            showNotice("소지품이 가득 찼다. [I] 로 열어 하나 꺼내 두자.", 3.2, { urgent: true, fleeting: true });
             return;
           }
           setTaken((previous) => previous.map((value, i) => value || i === index));

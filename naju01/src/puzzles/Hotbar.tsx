@@ -276,14 +276,15 @@ const keyStyle: CSSProperties = {
 
 const handKeyStyle: CSSProperties = { background: AMBER, color: KEY_INK, boxShadow: "none" };
 
+// PC 빠른 칸 이름 12 → 14px — 퍼즐에 쓸 물건을 알아보는 글(박람회 출품판 22회차). 휴대폰 칸(TouchHotbar)은 따로
 const nameStyle: CSSProperties = {
   color: "rgba(242,238,228,.72)",
-  font: `500 12px/1 ${FONT}`,
+  font: `500 14px/1 ${FONT}`,
   whiteSpace: "nowrap",
   textShadow: "0 1px 2px rgba(0,0,0,.6)",
 };
 
-const handNameStyle: CSSProperties = { color: CREAM, font: `700 12px/1 ${FONT}` };
+const handNameStyle: CSSProperties = { color: CREAM, font: `700 14px/1 ${FONT}` };
 
 const moreStyle: CSSProperties = {
   alignSelf: "flex-start",

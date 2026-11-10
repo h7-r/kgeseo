@@ -134,7 +134,7 @@ export default function BoatBottles() {
         enabled: () => !isTaken,
         use: () => {
           if (!inventory.add("makgeolli")) {
-            showNotice("소지품이 가득 찼다. [I] 로 열어 하나 꺼내 두자.");
+            showNotice("소지품이 가득 찼다. [I] 로 열어 하나 꺼내 두자.", 3.2, { urgent: true, fleeting: true });
             return;
           }
           setIsTaken(true);

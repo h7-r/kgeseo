@@ -660,7 +660,10 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
       position: abisaHead,
       label: "아비사에게 말 걸기",
       radius: 0.55 * M,
-      reach: 3.5 * M,
+      // 말하는 중이면 먼저 말을 거는 거리(9 m)에서도 E 로 넘긴다 — 대사의 「E 겨누면 다음」을 그 자리에서 쓰게(박람회 출품판에서 정리 · 11/10)
+      get reach() {
+        return (brain.state.talk ? 9 : 3.5) * M;
+      },
       enabled: () => enabled && rigs.abisa.isPlaced,
       use: () => {
         if (brain.state.talk) {

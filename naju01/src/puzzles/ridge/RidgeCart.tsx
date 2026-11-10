@@ -406,7 +406,7 @@ function placeWheel(cart: Cart, camera: THREE.Camera, time: number, dt: number) 
     state.wheel = "flying";
     state.wheelT = 0;
     audio.play("우르릉");
-    showNotice("바람이 수레바퀴를 뜯어 하늘로 들어 올린다!", 3.5);
+    showNotice("바람이 수레바퀴를 뜯어 하늘로 들어 올린다!", 3.5, { fleeting: true });
   }
   const orbitAngle = time * 0.35;
   const orbitX = WHEEL_ORBIT.x + Math.cos(orbitAngle) * WHEEL_ORBIT.radius;
@@ -505,7 +505,7 @@ export default function RidgeCart() {
         return;
       }
       if (ridgeCarry.load === "jigeChest") {
-        showNotice("궤를 진 채로는 수레를 밀 수 없다. 먼저 수레에 내려놓자.", 3);
+        showNotice("궤를 진 채로는 수레를 밀 수 없다. 먼저 수레에 내려놓자.", 3, { urgent: true, fleeting: true });
         return;
       }
       if (state.wheel !== "on" && state.wheel !== "fitted") {

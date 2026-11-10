@@ -101,6 +101,9 @@ interface Breeze {
   dt: number;
 }
 
+/** 장막이 아직 걷히지 않았다(덮이는 중 ~ 새가 맴도는 동안) — 장막 안내는 걷히면 지난 말 */
+const isCurtainUp = () => ["sealing", "sealed", "awakening", "circling"].includes(ridge.stage());
+
 export default function WindCurtain() {
   const scene = useThree((state) => state.scene);
   const gl = useThree((state) => state.gl);
@@ -167,9 +170,13 @@ export default function WindCurtain() {
   useEffect(() => {
     if (stage === "sealing") {
       audio.play("우르릉");
-      showNotice("바람이 미친 듯이 휘몰아친다 — 능선을 덮던 안개가 한꺼번에 걷힌다.", 4);
+      // 눈앞에서 지금 벌어지는 일은 밀리면 버린다 · 장막 안내는 장막이 걷히면 버린다
+      showNotice("바람이 미친 듯이 휘몰아친다 — 능선을 덮던 안개가 한꺼번에 걷힌다.", 4, { fleeting: true });
       const timers = [
-        gameSetTimeout(() => showNotice("하늘이 낮게 내려앉는다. 바람이 능선 위로 모여 소용돌이친다…", 3.5), 2600),
+        gameSetTimeout(
+          () => showNotice("하늘이 낮게 내려앉는다. 바람이 능선 위로 모여 소용돌이친다…", 3.5, { fleeting: true }),
+          2600,
+        ),
         gameSetTimeout(() => {
           audio.play("징");
           director.cue({ 카메라: "흔들림", 세기: 0.3 });
@@ -178,7 +185,7 @@ export default function WindCurtain() {
           () => {
             audio.play("우르릉");
             director.cue({ 카메라: "흔들림", 세기: 0.45 });
-            showNotice("바람이 장막이 되어 능선을 위아래 통째로 덮었다 — 갇혔다.", 5);
+            showNotice("바람이 장막이 되어 능선을 위아래 통째로 덮었다 — 갇혔다.", 5, { isValid: isCurtainUp });
           },
           (DROP_START + DROP_SECONDS * 0.7) * 1000,
         ),
@@ -186,10 +193,14 @@ export default function WindCurtain() {
       return () => timers.forEach(gameClearTimeout);
     }
     if (stage === "sealed") {
-      showNotice("몸이 이상하게 가볍다. 장막 안에선 바람이 몸을 떠받친다 — 힘껏 뛰면 높이 뜬다.", 5);
+      showNotice("몸이 이상하게 가볍다. 장막 안에선 바람이 몸을 떠받친다 — 힘껏 뛰면 높이 뜬다.", 5, {
+        isValid: isCurtainUp,
+      });
       const timer = gameSetTimeout(
         () =>
-          showNotice("엇갈린 두 돌새가 그날 밤의 바람을 붙들고 있다. 둘의 눈이 한곳에 맞아야 장막이 걷힐 것 같다.", 6),
+          showNotice("엇갈린 두 돌새가 그날 밤의 바람을 붙들고 있다. 둘의 눈이 한곳에 맞아야 장막이 걷힐 것 같다.", 6, {
+            isValid: isCurtainUp,
+          }),
         6000,
       );
       return () => gameClearTimeout(timer);
