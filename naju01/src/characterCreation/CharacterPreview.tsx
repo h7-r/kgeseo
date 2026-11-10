@@ -54,6 +54,13 @@ interface OrbitState {
 }
 
 const INITIAL_ORBIT: OrbitState = { yaw: -0.3, pitch: 0.06, zoom: 1 };
+/** 확대 · 축소 한도(거리 배율). 더 밀면 캐릭터가 점처럼 작아진다. */
+const ZOOM_MAX = 1.5;
+/**
+ * 당기는 한도는 보기마다 — 전신은 머리~무릎까지, 이미 가까이 보는 부위는 조금만(더 당기면 한 부분만 화면을 덮는다).
+ * 손은 두 손을 나란히 봐야 해서 거의 당기지 않는다(당기면 양쪽 손이 잘린다).
+ */
+const ZOOM_MIN: Record<PreviewView, number> = { full: 0.6, upperBody: 0.8, head: 0.82, feet: 0.82, hands: 0.95 };
 
 // 손을 볼 때만 팔을 벌린 자세로 — 허리에 손을 얹은 대기 자세는 손을 가린다.
 // 걷기는 팔이 흔들려 손이 이미 다 보이고, 바꾸면 골라 둔 걷기가 멋대로 멈춘다 — 대기일 때만 바꾼다.
@@ -322,9 +329,12 @@ function PreviewCamera({ orbit, view, heightScale, safeArea, reduceMotion, measu
     const area = safeAreaRef.current;
     const freeWidth = Math.max(160, size.width - area.left - area.right);
     const freeHeight = Math.max(160, size.height - area.top - area.bottom);
-    // 2) 빈 자리에 담을 높이 → 화면 전체의 세계 높이 → 거리
-    const worldHeight = s.height * (size.height / freeHeight);
-    const distance = (worldHeight / (2 * Math.tan((perspective.fov * Math.PI) / 360))) * orbit.current.zoom;
+    // 2) 빈 자리에 담을 높이 → 화면 전체의 세계 높이 → 거리.
+    // 확대 · 축소는 거리만 바꾸므로 그 거리에서 화면에 보이는 세계 크기도 같은 배율로 줄고 는다.
+    // 4) 의 밀기를 이 크기로 재야 캐릭터가 빈 자리 한가운데에 머문 채 커지고 작아진다(안 그러면 확대할수록 옆으로 지나간다).
+    const zoom = orbit.current.zoom;
+    const worldHeight = s.height * (size.height / freeHeight) * zoom;
+    const distance = worldHeight / (2 * Math.tan((perspective.fov * Math.PI) / 360));
     const worldWidth = worldHeight * (size.width / size.height);
 
     // 3) 궤도 위 카메라
@@ -335,7 +345,10 @@ function PreviewCamera({ orbit, view, heightScale, safeArea, reduceMotion, measu
       Math.sin(elevation),
       Math.cos(yaw) * Math.cos(elevation),
     );
-    const position = s.center.clone().addScaledVector(forward, distance);
+    // 전신을 축소할 때는 발밑(땅 y=0)을 붙잡아 발판 위에 선 채 작아지게 한다. 확대는 몸 가운데를 붙잡는다.
+    const focus = s.center.clone();
+    if (view === "full" && zoom > 1) focus.y = s.center.y * zoom;
+    const position = focus.clone().addScaledVector(forward, distance);
     // 4) 빈 자리 한가운데로 화면을 옮긴다(카메라와 목표를 같이 밀면 시선 방향은 그대로다)
     const cx = (area.left + freeWidth / 2) / size.width - 0.5;
     const cy = 0.5 - (area.top + freeHeight / 2) / size.height;
@@ -346,7 +359,7 @@ function PreviewCamera({ orbit, view, heightScale, safeArea, reduceMotion, measu
       .clone()
       .multiplyScalar(-cx * worldWidth)
       .add(up.clone().multiplyScalar(-cy * worldHeight));
-    const lookTarget = s.center.clone().add(shift);
+    const lookTarget = focus.clone().add(shift);
     position.add(shift);
 
     perspective.position.set(position.x, Math.max(0.1, position.y), position.z);
@@ -460,6 +473,15 @@ export default function CharacterPreview({
     };
   }, [gender]);
 
+  // 부위를 바꾸면 확대는 처음 배율로 — 전신에서 당겨 둔 배율이 머리 · 손 보기에 남으면 너무 가깝다.
+  const lastView = useRef(view);
+  useEffect(() => {
+    if (lastView.current === view) return;
+    lastView.current = view;
+    orbit.current.zoom = INITIAL_ORBIT.zoom;
+  }, [view]);
+  const zoomMin = ZOOM_MIN[view];
+
   const handleWarmupReady = useCallback((key: string) => {
     setDisplayKey((previous) => (key === previous ? previous : key));
   }, []);
@@ -475,9 +497,12 @@ export default function CharacterPreview({
     });
   }, [onControlsReady]);
 
-  const zoomBy = useCallback((factor: number) => {
-    orbit.current.zoom = THREE.MathUtils.clamp(orbit.current.zoom * factor, 0.45, 2.2);
-  }, []);
+  const zoomBy = useCallback(
+    (factor: number) => {
+      orbit.current.zoom = THREE.MathUtils.clamp(orbit.current.zoom * factor, zoomMin, ZOOM_MAX);
+    },
+    [zoomMin],
+  );
 
   // React 의 onWheel 은 passive 라 preventDefault 가 안 먹는다 — 직접 붙인다
   useEffect(() => {
