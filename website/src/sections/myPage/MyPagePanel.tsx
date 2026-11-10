@@ -5,13 +5,14 @@ import { modalSecondaryStyle } from "@/components/modalButtonStyles";
 import TabBar from "@/components/TabBar";
 import { MY_PAGE_TABS, type AccountAction, type MyPageTabId } from "@/data/myPage";
 import { FONT } from "@/lib/style";
-import { ROUTES, launchGame, useSiteNavigate } from "@/navigation/routes";
+import { QUERY, ROUTES, launchGame, useSiteNavigate, withQuery } from "@/navigation/routes";
 import type { AccountData } from "@/services/account/db";
 import { deleteAccount, exportMyData, readAccountData, writeAccountData } from "@/services/account/manageAccount";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
 
 import LoginHistoryModal from "./LoginHistoryModal";
+import { InquiriesTab } from "./InquiriesTab";
 import { AccountTab, SubscriptionTab } from "./MyPageTabs";
 import PasswordModal from "./PasswordModal";
 import ProfileCard, { type ProfileStat } from "./ProfileCard";
@@ -122,6 +123,12 @@ export default function MyPagePanel({ tab, top, onTabChange }: MyPagePanelProps)
       <div style={{ height: "1px", width: "100%", background: "#262933" }} />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px", width: "100%" }}>
+        {tab === "inquiries" && (
+          <InquiriesTab
+            inquiries={accountData?.inquiries ?? []}
+            onWrite={() => navigate(withQuery(ROUTES.support, { [QUERY.tab]: "inquiry" }))}
+          />
+        )}
         {tab === "account" && <AccountTab emailNotifications={emailNotifications} onAction={handleAccountAction} />}
         {tab === "subscription" && <SubscriptionTab />}
         {(tab === "history" || tab === "achievements" || tab === "items") && (

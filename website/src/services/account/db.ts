@@ -48,6 +48,19 @@ export interface AccountSettings {
   launchAlertAt?: number;
 }
 
+/** 이 계정으로 접수한 1:1 문의 한 건. 문의 API 가 붙기 전까지는 이 브라우저에만 남는다. */
+export interface InquiryRecord {
+  number: string;
+  type: string;
+  title: string;
+  content: string;
+  /** 답변 받을 이메일 */
+  email: string;
+  attachment: string | null;
+  /** 접수 시각(ms) */
+  receivedAt: number;
+}
+
 /** 계정별 기록·설정. 계정 표와 같은 열쇠(이메일)로 나눠 둔다. */
 export interface AccountData {
   email: string;
@@ -55,6 +68,8 @@ export interface AccountData {
   settings: AccountSettings;
   /** 최근 로그인 10번 */
   logins?: LoginEntry[];
+  /** 접수한 1:1 문의 — 최근 것이 앞 */
+  inquiries?: InquiryRecord[];
 }
 
 export type ConsentKind = "terms" | "privacyCollection" | "over14";

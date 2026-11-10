@@ -13,6 +13,7 @@ import {
   type AccountSettings,
   type ConsentKind,
   type ConsentRecord,
+  type InquiryRecord,
 } from "./db";
 
 /**
@@ -91,6 +92,12 @@ export async function readAccountData(email: string): Promise<AccountData | null
     (store) => store.get(normalizeEmail(email)) as IDBRequest<AccountData | undefined>,
   );
   return data ?? null;
+}
+
+/** 접수한 문의를 이 계정 기록 맨 앞에 더한다. 최근 50건만 둔다. */
+export async function saveInquiry(accountEmail: string, inquiry: InquiryRecord): Promise<void> {
+  const current = await readAccountData(accountEmail);
+  await writeAccountData(accountEmail, { inquiries: [inquiry, ...(current?.inquiries ?? [])].slice(0, 50) });
 }
 
 /** 이 계정의 데이터 쓰기. 넘긴 항목만 덮어쓴다. */
