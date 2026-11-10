@@ -2,7 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { DESIGN_WIDTH, HEADER_HEIGHT, useStageScale } from "@/lib/layout";
-import { AUTH_PAGE_PATHS, QUERY, ROUTES, withQuery, type RoutePath } from "@/navigation/routes";
+import {
+  AUTH_PAGE_PATHS,
+  QUERY,
+  ROUTES,
+  START_GAME,
+  useSiteNavigate,
+  withQuery,
+  type RoutePath,
+} from "@/navigation/routes";
 import { measureSectionPositions } from "@/navigation/sectionGeometry";
 import { SUB_NAV_HEIGHT, getSubMenu } from "@/navigation/subMenus";
 import { signOut, useSessionUser } from "@/services/session";
@@ -81,6 +89,9 @@ export default function HeaderLayer() {
   );
 
   const handleAccountClick = useCallback(() => navigate(user ? ROUTES.myPage : ROUTES.login), [navigate, user]);
+  // 로그인 안 했으면 로그인부터 — 마치면 게임으로 바로 잇는다(useSiteNavigate).
+  const siteNavigate = useSiteNavigate();
+  const handlePlay = useCallback(() => siteNavigate(START_GAME), [siteNavigate]);
   const handleSignOut = useCallback(() => {
     signOut();
     navigate(ROUTES.home);
@@ -101,6 +112,7 @@ export default function HeaderLayer() {
           activeId={activeMenuFor(path)}
           user={user}
           onAccountClick={handleAccountClick}
+          onPlay={handlePlay}
           onSignOut={handleSignOut}
           onSearch={handleSearch}
           onMenuNavigate={handleMenuNavigate}
