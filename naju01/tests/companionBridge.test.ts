@@ -16,6 +16,7 @@ import {
   PUZZLE_FOCUS_IDS,
   PUZZLE_POLL_MS,
   SEND_SITUATION,
+  SERVER_LINE_TTL_MS,
   SITUATION_ZONE_IDS,
   STEP_FOCUS_IDS,
   createAutoTurnPlanner,
@@ -130,7 +131,7 @@ test("서버 승인 대사는 고치지 않고 대화창에 올리고, reply 가
   const { dialog, store, said } = await connected({ turn: () => ({ status: 200, body: turn({ reply }) }) });
   await dialog.autoTurn();
   await tick();
-  // 서버 넛지 대사는 화면에 뜰 때 쿨다운을 거는 onShow 가 붙는다 — 글 · 종류만 본다
+  // 서버 넛지 대사는 줄에서 기다리는 동안을 알려고 onShow 가 붙는다(쿨다운 · 횟수는 받은 순간에 셌다) — 글 · 종류만 본다
   assert.deepEqual(
     said.map(({ onShow: _onShow, ...speech }) => speech),
     [{ kind: "line", text: "<승인 대사>", lineId: "SIT_QUIET_01", ttlMs: 10_000 }],
@@ -513,8 +514,14 @@ test("퍼즐 폴링: 한 번에 턴 하나 — 구역 진입 · 상황이 먼저
   assert.deepEqual(withSituation(60_500), { situation: null, focusObjectId: "OBJ_S1_JAR_SLOTS" }, "상황을 실어도 폴링은 따로");
 });
 
-/** 서버 · 다리 · 가짜 시계를 세운다(퍼즐 폴링 검사) */
-async function pollBridge(turnReply: Handler = () => ({ status: 200, body: turn() }), answer = false, isShown = true) {
+/**
+ * 서버 · 다리 · 가짜 시계를 세운다(퍼즐 폴링 검사). answer — 물음에 고른 대답(true 「네」 · false 「아니요」 · null 대답 없이 물러남)
+ */
+async function pollBridge(
+  turnReply: Handler = () => ({ status: 200, body: turn() }),
+  answer: boolean | null = false,
+  isShown = true,
+) {
   let clock = 0;
   serve(backend({ turn: turnReply }));
   const session = createCompanionSession({ config: { caseId: "naju-angam-01", contentVersion: 1 }, storage: memoryStore() });
@@ -532,7 +539,8 @@ async function pollBridge(turnReply: Handler = () => ({ status: 200, body: turn(
     askOpenHint: async (request) => {
       asked += 1;
       if (isShown) request.onShow?.();
-      return answer;
+      if (isShown && answer === false) request.onDecline?.();
+      return answer === true;
     },
     // 나주 v1 처럼 정식 힌트가 0개인 판 — 폴링은 공식 서버 퍼즐 ID 로 따로 간다(HINTED_PUZZLES 와 무관)
     serverPuzzleIdOf: () => null,
@@ -540,9 +548,9 @@ async function pollBridge(turnReply: Handler = () => ({ status: 200, body: turn(
     now: () => clock,
   });
   calls = [];
-  const relayAt = async (time: number, objective: ObjectiveId | null = "P03") => {
+  const relayAt = async (time: number, objective: ObjectiveId | null = "P03", zone = "Z2") => {
     clock = time;
-    bridge.relay(null, "Z2", true, objective);
+    bridge.relay(null, zone, true, objective);
     await tick();
     await tick();
   };
@@ -625,15 +633,156 @@ test("퍼즐 폴링으로 받은 개입은 퍼즐당 2번까지 — 그 뒤 그 
   assert.equal(turns()[2].body!.focus_object_id, "OBJ_S1_CAVE_RING_DOOR");
 });
 
-test("화면에 뜨지 못하고 버려진 개입(창 · 컷신)은 쉬지도 세지도 않는다 — 다음 폴링이 그대로 간다(Codex 리뷰 21ab072)", async () => {
-  const nudge: Handler = () => ({
-    status: 200,
-    body: turn({ reply: { source: "approved_line", text: "[모의] 숨구멍을 다시 살펴볼까요?", line_id: "NUDGE_P01_1" } }),
+const NUDGE: Handler = () => ({
+  status: 200,
+  body: turn({ reply: { source: "approved_line", text: "[모의] 숨구멍을 다시 살펴볼까요?", line_id: "NUDGE_P01_1" } }),
+});
+const OFFER: Handler = () => ({ status: 200, body: turn({ suggest_hint: { hint_ref: "HINT_REF_P03" } }) });
+
+/**
+ * 진짜 대화창 줄(dialogueStore) · director 위에 다리를 세운다 — 줄에서 버려지는 경우(ttl · QUEUE_LIMIT · 같은 key)를 본다.
+ * 줄의 수명(ttl)은 Date.now 로 재므로 가짜 시계에 묶는다(restore 로 되돌린다).
+ */
+async function storeBridge(turnReply: Handler) {
+  let clock = 0;
+  const realNow = Date.now;
+  Date.now = () => clock;
+  serve(backend({ turn: turnReply }));
+  const session = createCompanionSession({ config: { caseId: "naju-angam-01", contentVersion: 1 }, storage: memoryStore() });
+  await session.start();
+  const dialog = createCompanionDialog({ session, timing: { ...TIMING, autoMinIntervalMs: 180_000 }, now: () => clock });
+  const store = createDialogueStore({ capacity: 300, setTimer: () => 0, clearTimer: () => {} });
+  const director = createDirector({ store, guideOf: () => null, showDraftLines: false });
+  const bridge = createCompanionBridge({
+    dialog,
+    say: (speech) => store.say(speech),
+    askOpenHint: director.askOpenHint,
+    serverPuzzleIdOf: () => null,
+    puzzleFocusIdOf: (objective) => (OBJECTIVES[objective].puzzleId ? (PUZZLE_FOCUS_IDS[objective] ?? null) : null),
+    now: () => clock,
   });
-  const { relayAt, turns } = await pollBridge(nudge, false, false);
+  calls = [];
+  const relayAt = async (time: number, objective: ObjectiveId | null = "P03", zone = "Z2") => {
+    clock = time;
+    bridge.relay(null, zone, true, objective);
+    await tick();
+    await tick();
+  };
+  const turns = () => calls.filter((c) => c.path.endsWith("/npc/turns"));
+  return {
+    store,
+    relayAt,
+    turns,
+    setClock: (time: number) => void (clock = time),
+    restore: () => void (Date.now = realNow),
+  };
+}
+
+test("받았지만 줄에서 버려진 넛지(수명 ttl · QUEUE_LIMIT · 같은 key)도 받은 순간 180초 쉬고 퍼즐당 횟수에 들어 있다(BE 가 돌려준 것을 센다, 세진 11/10)", async () => {
+  const shown = OFFER_POLL_PAUSE_MS.shown;
+  /** 넛지 둘을 받아 각각 drop 으로 버린 뒤 — 받을 때마다 180초 쉬고, 둘째 뒤로는 그 퍼즐을 더 폴링하지 않는다 */
+  const run = async (turnReply: Handler, drop: (ctx: Awaited<ReturnType<typeof storeBridge>>, at: number) => Promise<void>) => {
+    const ctx = await storeBridge(turnReply);
+    try {
+      const { store, relayAt, turns } = ctx;
+      store.setHeld(true); // 연출 중 — 받은 말은 줄만 선다
+      await relayAt(0);
+      await relayAt(60_000);
+      assert.equal(turns().length, 1);
+      await drop(ctx, 60_000);
+      assert.equal(store.getState(), null, "화면에 뜨지 않았다");
+      await relayAt(60_000 + shown - 1);
+      assert.equal(turns().length, 1, "버려져도 받은 순간부터 180초 쉰다");
+      await relayAt(60_000 + shown);
+      assert.equal(turns().length, 2, "받은 때부터 센 180초가 지나면 다시 — 버려진 뒤로 늘지 않는다");
+      await drop(ctx, 60_000 + shown);
+      for (let t = 60_000 + shown * 2; t <= 60_000 + shown * 5; t += 60_000) await relayAt(t);
+      assert.equal(turns().length, 2, `버려진 개입도 퍼즐당 ${POLL_MAX_PER_PUZZLE}번에 들었다`);
+    } finally {
+      ctx.restore();
+    }
+  };
+  // 수명: 연출이 길어 줄에서 10초 넘게 기다렸다가 버려짐
+  await run(NUDGE, async ({ store, setClock }, at) => {
+    setClock(at + SERVER_LINE_TTL_MS + 1);
+    store.setHeld(false);
+    store.setHeld(true);
+  });
+  // QUEUE_LIMIT: 더 급한 알림 넷이 줄을 채우고 있어 넛지(line)가 바로 밀려남
+  await run(NUDGE, async ({ store }) => {
+    store.setHeld(false);
+    store.setHeld(true);
+    for (let i = 0; i < 4; i++) store.say({ kind: "notice", text: `알림 ${i}` });
+  });
+  // 같은 key: 줄 서 있던 힌트 제안 물음(key offer)을 다른 물음이 바꿔 끼움 — 물음은 「대답 없음」으로 끝난다
+  await run(OFFER, async ({ store }) => {
+    void store.ask({ text: "다른 물음", key: "offer", choices: [{ id: "yes", label: "네" }, { id: "no", label: "아니요" }] });
+    await tick();
+    store.reset();
+    store.setHeld(true);
+  });
+});
+
+test("넛지를 받은 직후 구역에 들어서도 쉬는 동안은 구역 진입 auto 턴을 보내지 않는다(세진 11/10)", async () => {
+  const { relayAt, turns } = await pollBridge(NUDGE);
+  await relayAt(0, "P03", "Z1");
+  await relayAt(60_000, "P03", "Z1");
+  assert.equal(turns().length, 1, "폴링 → 넛지");
+  await relayAt(61_000, "P03", "Z2");
+  await relayAt(62_000, "P03", "Z3");
+  assert.equal(turns().length, 1, "넛지 뒤 180초 안의 구역 진입은 버린다");
+  await relayAt(60_000 + OFFER_POLL_PAUSE_MS.shown, null, "Z4");
+  assert.equal(turns().length, 2, "쉬는 시간이 끝나면 구역 진입이 다시 간다");
+  assert.equal("focus_object_id" in turns()[1].body!, false, "구역 진입 턴(상황 · 대표 Object 없음)");
+});
+
+test("받은 개입이 아직 대화창 줄에서 기다리면 퍼즐 폴링을 보내지 않는다 — 넛지 대기 중 60초 · 제안 대기가 쉬는 시간보다 길어도", async () => {
+  // 넛지: 연출 중이라 줄에서 기다리는 사이 60초가 지남
+  const nudge = await storeBridge(NUDGE);
+  try {
+    nudge.store.setHeld(true);
+    await nudge.relayAt(0);
+    await nudge.relayAt(60_000);
+    await nudge.relayAt(120_000);
+    assert.equal(nudge.turns().length, 1, "넛지가 줄에서 기다리는 동안 다음 폴링은 안 간다");
+  } finally {
+    nudge.restore();
+  }
+  // 제안 물음: 줄에서 쉬는 시간(180초)보다 오래 기다려도 뜨거나 끝날 때까지는 안 간다
+  const offer = await storeBridge(OFFER);
+  try {
+    offer.store.setHeld(true);
+    await offer.relayAt(0);
+    await offer.relayAt(60_000);
+    for (let t = 120_000; t <= 60_000 + OFFER_POLL_PAUSE_MS.shown + 120_000; t += 60_000) await offer.relayAt(t);
+    assert.equal(offer.turns().length, 1, "물음이 줄에서 기다리는 동안은 쉬는 시간이 지나도 안 간다");
+    offer.store.setHeld(false); // 연출이 끝나 물음이 뜬다
+    assert.equal(offer.store.getState()?.speech.kind, "ask");
+    await offer.relayAt(60_000 + OFFER_POLL_PAUSE_MS.shown + 121_000);
+    assert.equal(offer.turns().length, 2, "뜬 뒤에는 그대로 — 쉬는 시간은 받은 때부터 이미 지났다");
+  } finally {
+    offer.restore();
+  }
+});
+
+test("reply: null(후보를 다 씀)이면 아무것도 띄우지 않고, 쉬는 시간 · 퍼즐당 횟수도 걸지 않는다(세진 11/10)", async () => {
+  const { said, relayAt, turns, dialog } = await pollBridge(() => ({ status: 200, body: turn({ reply: null }) }));
   await relayAt(0);
   for (let t = 60_000; t <= 300_000; t += 60_000) await relayAt(t);
-  assert.equal(turns().length, 5, "60초마다 그대로 — 퍼즐당 2번 상한도 쓰지 않았다");
+  assert.equal(turns().length, 5, "60초마다 그대로 — 쉬지 않고 퍼즐당 2번 상한도 쓰지 않았다");
+  assert.deepEqual(said, [], "대화창에 아무것도 없다");
+  assert.equal(dialog.getState().line, null);
+});
+
+test("거절 쿨다운(600초)은 화면에 뜬 물음에 「아니요」를 고른 때만 — 대답 없이 물러나면 받은 때의 180초만", async () => {
+  const { relayAt, turns, asked } = await pollBridge(OFFER, null);
+  await relayAt(0);
+  await relayAt(60_000);
+  assert.equal(asked(), 1);
+  await relayAt(60_000 + OFFER_POLL_PAUSE_MS.shown - 1);
+  assert.equal(turns().length, 1);
+  await relayAt(60_000 + OFFER_POLL_PAUSE_MS.shown);
+  assert.equal(turns().length, 2, "대답 없이 물러남은 거절이 아니다");
 });
 
 test("퍼즐 폴링이 실패해도(422 · 연결) 「다시 말을 걸어 주세요」 같은 안내를 띄우지 않는다", async () => {

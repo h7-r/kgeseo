@@ -8,6 +8,7 @@
  *                   퍼즐 폴링: 지금 목표가 서버 퍼즐이면 1분마다 그 퍼즐 대표 Object 를 focus_object_id 로 실은 auto 턴 —
  *                   v0.4.7 퍼즐 자동 개입(오답 6회 · 무입력 240초)을 BE 가 판단할 수 있게(상황을 싣든 안 싣든).
  *                   표시할 수 없을 때(연출 · 창 · 장면 인물 대화 · 동행 물음 · 첫 소개)는 보내지 않고 버린다 — 늦게 보내지도 않는다(계약 §11-2).
+ *                   서버 개입(넛지 대사 · 제안)을 받은 순간부터 쉬고(구역 진입 auto 턴도), 받은 개입이 아직 대화창 줄에서 기다리면 폴링을 안 보낸다.
  *                   상황 대사는 퍼즐 자동 개입의 표시 · 거절 보고 대상이 아니다(§11-7) — FE 는 어느 쪽도 보고하지 않는다.
  *   [F] 정식 힌트   director 의 HintProvider — 지금 판에 정식 힌트가 있는 서버 퍼즐일 때만 Hint API 를 부른다(HINTED_PUZZLES).
  *
@@ -119,12 +120,14 @@ export type OpenHintRequest = {
   lead: string | null;
   lineId?: string;
   balance: number | null;
-  /** 물음이 실제로 화면에 떴다 — 그때에야 쿨다운 · 퍼즐당 횟수에 든다 */
+  /** 물음이 실제로 화면에 떴다 — 받은 개입이 줄에서 기다리는 동안(폴링을 쉰다)이 끝난다. 쿨다운 · 횟수는 받은 순간에 이미 셌다 */
   onShow?: () => void;
+  /** 화면에 뜬 물음에 「아니요」를 골랐다 — 거절 쿨다운(대답 없이 물러남 · 버려짐은 거절이 아니다) */
+  onDecline?: () => void;
 };
 
 /** 서버 대사가 대화창 줄에서 이만큼 넘게 기다렸으면 버린다 — 연출에 막혀 때를 놓친 말이 늦게 나오지 않게 */
-const SERVER_LINE_TTL_MS = 10_000;
+export const SERVER_LINE_TTL_MS = 10_000;
 
 /** 서버가 준 한 줄 → 대화창의 말. 글은 손대지 않는다(승인 원문 = 화면 문장, §8-7) */
 export function toSpeech(line: DialogLine): Speech {
@@ -207,8 +210,9 @@ export function createAutoTurnPlanner(options: {
 /**
  * 서버가 개입한 뒤(넛지 대사 · 힌트 제안) 퍼즐 폴링을 쉬는 시간과 퍼즐당 상한 — BE v0.4.7 기본값(RuleConfig: cooldown 180초 ·
  * decline_cooldown 600초 · max_per_puzzle 2)과 같은 값.
- * 표시 · 거절 보고 API(npc_suggestion_events)가 아직 HTTP 에 연결되지 않아 BE 가 쿨다운 · 횟수를 셀 수 없다 — 그동안 1분 폴링이
- * 같은 넛지 · 제안을 1분마다, 끝없이 되풀이하지 않게 FE 가 쉬고 센다(Codex 리뷰 1fa489b). 보고가 연결되면 BE 가 세므로 빼도 된다.
+ * BE 는 「같은 PlaySession · 같은 퍼즐에서 서버가 돌려준 넛지(line_id)」를 쓴 것으로 세고, 후보를 다 쓰면 reply: null 을 준다
+ * (세진 11/10, 동시 요청은 세션 잠금). FE 도 화면에 뜬 때가 아니라 받은 때를 기준으로 맞춘다 — 받은 순간 180초 쉬고 퍼즐당 횟수에 든다.
+ * 600초는 화면에 뜬 물음에 「아니요」를 골랐을 때만. reply: null 은 개입이 아니다(띄우지도 쉬지도 세지도 않는다).
  * 퍼즐당 횟수는 이 탭(앱 한 번)에서만 센다.
  */
 export const OFFER_POLL_PAUSE_MS = { shown: 180_000, declined: 600_000 };
@@ -257,17 +261,21 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
   };
   /** 응답을 기다리는 퍼즐 폴링의 목표 — 그 응답이 개입(넛지 · 제안)이면 그 퍼즐 몫으로 센다 */
   let pollingFor: ObjectiveId | null = null;
-  /** 퍼즐마다 폴링으로 받아 화면에 뜬 개입 수(POLL_MAX_PER_PUZZLE) */
+  /** 퍼즐마다 폴링으로 받은 개입 수(POLL_MAX_PER_PUZZLE) — 화면에 떴는지와 상관없이 받은 것 */
   const interventions = new Map<ObjectiveId, number>();
-  /** 개입이 처음 화면에 뜰 때 한 번 — 쿨다운을 걸고, 폴링 응답이면 그 퍼즐 몫으로 센다(밀려났다 다시 떠도 한 번) */
-  const chargeOnce = (objective: ObjectiveId | null) => {
-    let isCharged = false;
-    return () => {
-      if (isCharged) return;
-      isCharged = true;
-      pausePolling(OFFER_POLL_PAUSE_MS.shown);
-      if (objective) interventions.set(objective, (interventions.get(objective) ?? 0) + 1);
-    };
+  /** 개입을 받은 순간 — 쿨다운을 걸고, 폴링 응답이면 그 퍼즐 몫으로 센다(BE 가 돌려준 것을 센다, 세진 11/10) */
+  const charge = (objective: ObjectiveId | null) => {
+    pausePolling(OFFER_POLL_PAUSE_MS.shown);
+    if (objective) interventions.set(objective, (interventions.get(objective) ?? 0) + 1);
+  };
+  /**
+   * 받았지만 아직 화면에 안 뜬 개입 → 그 끝 시각(대사는 줄의 수명 SERVER_LINE_TTL_MS, 물음은 대답 · 버려짐까지 Infinity).
+   * 하나라도 있으면 퍼즐 폴링을 보내지 않는다 — 뜨면(onShow) · 버려지면(물음 대답 없음, 대사는 수명이 다하면) 빠진다
+   */
+  const unshown = new Map<object, number>();
+  const hasUnshown = (time: number) => {
+    for (const [token, until] of unshown) if (time > until) unshown.delete(token);
+    return unshown.size > 0;
   };
 
   // 다리를 놓기 전에 이미 있던 말 · 제안은 다시 띄우지 않는다
@@ -287,31 +295,37 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     // 서버가 권한 제안(ref)만 묻는다. 정식 힌트 다음 단계(puzzle)는 [F] 「힌트를 주세요」가 연다
     const freshOffer = offer?.via === "ref" && offer !== seenOffer ? offer : null;
     seenOffer = offer;
-    // 서버의 개입(승인 넛지 대사 · 힌트 제안)이 왔다 — 실제로 화면에 뜬 때에야(onShow) 쿨다운만큼 폴링을 쉬고, 폴링 응답이면
-    // 그 퍼즐 몫으로 센다. 창 · 컷신 때문에 줄에서 기다리다 버려진 응답은 세지 않는다(BE 의 표시 · 미표시와 같은 뜻, Codex 리뷰 21ab072)
+    // 서버의 개입(승인 넛지 대사 · 힌트 제안)을 받았다 — 받은 순간 쿨다운만큼 폴링을 쉬고, 폴링 응답이면 그 퍼즐 몫으로 센다.
+    // 창 · 컷신 때문에 줄에서 기다리다 버려져도 이미 센 것이다(BE 가 돌려준 것을 센다, 세진 11/10).
+    // reply: null(후보를 다 씀)이면 line 이 새로 안 생기므로 개입이 아니다 — 띄우지도 쉬지도 세지도 않는다
     const isIntervention = freshOffer !== null || freshLine?.kind === "npc";
-    const charge = isIntervention ? chargeOnce(pollingFor) : undefined;
+    if (isIntervention) charge(pollingFor);
     if (isIntervention || dialog.getState().waiting === null) pollingFor = null;
     if (!freshOffer) {
-      if (freshLine) options.say(charge ? { ...toSpeech(freshLine), onShow: charge } : toSpeech(freshLine));
+      if (!freshLine) return;
+      if (freshLine.kind !== "npc") return options.say(toSpeech(freshLine));
+      // 넛지 대사가 줄에서 기다리는 동안은 폴링을 보내지 않는다 — 뜨면 빠지고, 못 뜨면 줄의 수명이 다할 때 빠진다
+      const token = {};
+      unshown.set(token, now() + SERVER_LINE_TTL_MS);
+      options.say({ ...toSpeech(freshLine), onShow: () => unshown.delete(token) });
       return;
     }
     const lead = freshLine?.kind === "npc" ? freshLine : null;
     if (freshLine && !lead) options.say(toSpeech(freshLine));
-    let wasShown = false;
+    // 물음이 줄에서 기다리는 동안도 폴링을 보내지 않는다 — 뜨거나 · 대답 없이 끝나면(버려짐 포함) 빠진다
+    const token = {};
+    unshown.set(token, Infinity);
     void options
       .askOpenHint({
         lead: lead?.text ?? null,
         lineId: lead?.lineId ?? undefined,
         balance: hintBalance,
-        onShow: () => {
-          wasShown = true;
-          charge?.();
-        },
+        onShow: () => unshown.delete(token),
+        // 화면에 뜬 물음에 「아니요」 — 거절 쿨다운만큼 다시 묻지 않는다(대답 없이 물러남 · 버려짐은 거절이 아니다)
+        onDecline: () => pausePolling(OFFER_POLL_PAUSE_MS.declined),
       })
       .then((isYes) => {
-        // 보인 물음에 「아니요」 · 대답 없이 물러남 — 거절 쿨다운만큼 다시 묻지 않는다(뜨지도 못하고 버려졌으면 거절이 아니다)
-        if (!isYes && wasShown) pausePolling(OFFER_POLL_PAUSE_MS.declined);
+        unshown.delete(token);
         // 묻는 사이 제안이 바뀌었으면(세션이 바뀜 · 새 제안) 이 대답으로 열지 않는다
         if (isYes && dialog.getState().offer === freshOffer) void dialog.acceptOffer();
       });
@@ -347,10 +361,12 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     ) {
       const time = now();
       const state = dialog.getState();
+      const isPaused = time < pollPausedUntil;
       const canPoll =
         state.isEnabled &&
         state.waiting === null &&
-        time >= pollPausedUntil &&
+        !isPaused &&
+        !hasUnshown(time) &&
         (objective === null || (interventions.get(objective) ?? 0) < POLL_MAX_PER_PUZZLE);
       const plan = planner.next(situation, zoneCode, canDisplay, { objective, now: time, canPoll });
       if (!plan) return;
@@ -369,6 +385,9 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
         if (dialog.getState().waiting === null) pollingFor = null;
         return;
       }
+      // 구역 진입 — 개입을 받고 쉬는 중이면 보내지 않고 버린다(늦게 보내지 않는다). companionDialog 의 간격(autoMinIntervalMs)은
+      // 구역 진입끼리만 세서, 넛지 바로 뒤 구역에 들어서면 또 말을 걸었다(세진 11/10)
+      if (isPaused) return;
       void dialog.autoTurn();
     },
     hintProvider,

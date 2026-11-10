@@ -304,6 +304,8 @@ export function createDirector(options: DirectorOptions) {
     balance: number | null;
     /** 물음이 실제로 화면에 떴다(dialogueStore onShow) */
     onShow?: () => void;
+    /** 화면에 뜬 물음에 「아니요」를 골랐다 — 대답 없이 물러남 · 버려짐과 가른다(거절 쿨다운) */
+    onDecline?: () => void;
   }) {
     const question =
       request.balance === null ? OPEN_HINT_QUESTION : `${OPEN_HINT_QUESTION} (남은 힌트 ${request.balance})`;
@@ -316,6 +318,7 @@ export function createDirector(options: DirectorOptions) {
       key: "offer",
       onShow: request.onShow,
     });
+    if (answer === NO) request.onDecline?.();
     return answer === YES;
   }
 

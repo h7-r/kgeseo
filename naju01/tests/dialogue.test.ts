@@ -105,6 +105,28 @@ function fakeTimers() {
   };
 }
 
+test("같은 key 로 바꿔 끼우거나 retract 로 내린 물음은 「대답 없음」(null)으로 돌려준다 — 부른 쪽이 끝없이 기다리지 않게", async () => {
+  const timers = fakeTimers();
+  const store = createDialogueStore({ ...timers, capacity: 97 });
+  const choices = [{ id: "yes", label: "네" }, { id: "no", label: "아니요" }];
+  // 떠 있는 물음을 같은 key 가 바꿔 끼움
+  const first = store.ask({ text: "첫 물음", key: "offer", choices });
+  const second = store.ask({ text: "둘째 물음", key: "offer", choices });
+  assert.equal(await first, null);
+  assert.equal(store.getState()?.speech.text, "둘째 물음");
+  // 줄 서 있던 물음을 같은 key 가 바꿔 끼움
+  store.setHeld(true);
+  const queued = store.ask({ text: "줄 선 물음", key: "q", choices });
+  const replacing = store.ask({ text: "바꾼 물음", key: "q", choices });
+  assert.equal(await queued, null);
+  // retract 로 내림
+  store.retract("q");
+  assert.equal(await replacing, null);
+  store.setHeld(false);
+  store.answer("yes");
+  assert.equal(await second, "yes");
+});
+
 test("급한 말이 덜 급한 말을 밀어내고, 밀린 말은 뒤에 이어진다", () => {
   const timers = fakeTimers();
   const store = createDialogueStore({ ...timers, capacity: 97 });

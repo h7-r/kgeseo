@@ -39,7 +39,8 @@ export interface Speech {
   ttlMs?: number;
   /**
    * 화면에 뜰 때마다(밀려났다 다시 뜰 때도) — 실제로 플레이어에게 보였는지를 부른 쪽이 안다. 줄에서 기다리다 버려진 말은 부르지 않는다.
-   * 서버 개입(넛지 · 제안)의 쿨다운 · 퍼즐당 횟수를 「보인 것」만 세는 데 쓴다(companionBridge)
+   * companionBridge 는 받은 개입이 아직 줄에서 기다리는지(그동안 퍼즐 폴링을 쉰다) · 물음이 보였는지를 이걸로 안다
+   * (쿨다운 · 퍼즐당 횟수는 받은 순간에 센다 — BE 가 돌려준 것을 센다, 세진 11/10)
    */
   onShow?: () => void;
   /** 같은 key 의 말이 떠 있거나 줄 서 있으면 새 말로 바꿔 끼운다 */
@@ -175,8 +176,17 @@ export function createDialogueStore(options: StoreOptions = {}) {
     speech.onAnswer?.(choiceId);
   }
 
+  /** 줄에서 빼 버린 말 — 대답 못 받은 물음은 「대답 없음」으로 돌려준다(안 돌려주면 부른 쪽이 끝없이 기다린다) */
+  function discard(dropped: Speech[]) {
+    for (const speech of dropped) speech.onAnswer?.(null);
+  }
+
   function enqueue(speech: Speech) {
-    if (speech.key) queue = queue.filter((queued) => queued.key !== speech.key);
+    if (speech.key) {
+      const replaced = queue.filter((queued) => queued.key === speech.key);
+      queue = queue.filter((queued) => queued.key !== speech.key);
+      discard(replaced);
+    }
     // 같은 말이 연달아 줄 서지 않게
     const last = queue[queue.length - 1];
     if (last && last.kind === speech.kind && last.text === speech.text) return;
@@ -222,7 +232,12 @@ export function createDialogueStore(options: StoreOptions = {}) {
       if (isHeld) return enqueue(speech);
       if (!current) return show(speech);
       const shown = current.speech;
-      if (speech.key && speech.key === shown.key) return show(speech);
+      if (speech.key && speech.key === shown.key) {
+        // 같은 key 로 바꿔 끼운다 — 떠 있던 물음은 「대답 없음」으로 돌려준다
+        show(speech);
+        if (shown !== speech) shown.onAnswer?.(null);
+        return;
+      }
       if (speech.urgent) {
         const withdrawn = setAside(current);
         show(speech);
@@ -277,7 +292,9 @@ export function createDialogueStore(options: StoreOptions = {}) {
 
     /** 이 key 의 말을 내린다 — 퍼즐에서 멀어지면 그 설명은 더 읽을 까닭이 없다 */
     retract(key: string) {
+      const retracted = queue.filter((queued) => queued.key === key);
       queue = queue.filter((queued) => queued.key !== key);
+      discard(retracted);
       if (current?.speech.key === key && current.speech.kind !== "ask") showNext();
     },
 
