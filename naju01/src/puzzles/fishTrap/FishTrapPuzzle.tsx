@@ -20,6 +20,7 @@ import { makeToonMaterial } from "../materials";
 import { M, groundY } from "../units";
 import { clamDig, useClamStage } from "./clamState";
 import { FULL_COUNT, fishTrapPuzzle, useFishTrapStage } from "./fishTrapState";
+import { shareFishTrapSight } from "./fishSighting";
 import { EMBER } from "./lightFish";
 import {
   MIN_CATCH,
@@ -121,6 +122,8 @@ export default function FishTrapPuzzle() {
 
   const fishTime = useMemo(() => ({ value: 0 }), []);
   const fishes = useMemo(() => createFishes(), []);
+  // 동행 한마디(빛 물고기의 정체)가 물고기가 보이는지 · 통발이 오가는지 읽는다
+  useEffect(() => shareFishTrapSight({ fishes, traps: () => trapsRef.current }), [fishes]);
   const school = useMemo(() => buildSchool(fishTime), [fishTime]);
   const halos = useMemo(() => makeGlowPoints(FISH_COUNT, { additive: true }), []);
   const streaks = useMemo(() => buildStreaks(), []);
@@ -284,7 +287,7 @@ export default function FishTrapPuzzle() {
     if (trap.index === CATCHING_TRAP && trap.caught > 0) {
       fishTrapPuzzle.pull();
       audio.play("단서");
-      showNotice("불씨 든 통발이 올라왔다. 그날 밤 꺼진 화톳불의 불티들이다.");
+      showNotice("빛 물고기가 든 통발이 올라왔다. 꺼진 화톳불에서 흩어진 불씨들이다.");
     } else if (rope === SEAWEED_ROPE) {
       audio.play("첨벙");
       showNotice("미역 줄기만 잔뜩 엉켜 올라왔다. 물고기 대신 미역국 거리다.", 3.5);
