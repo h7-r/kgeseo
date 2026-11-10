@@ -69,12 +69,18 @@ merge 마이그레이션이 필요하다. 운영자가 실제 DB를 백업·검�
 - **운영 판별은 `APP_ENV` 하나뿐이다.** 운영 서버 환경(`EnvironmentFile` 또는 `/srv/waegok/.env`)에
   `APP_ENV=production`이 없으면 기본값 `development`로 떠서 문서가 그대로 열린다. 이때 운영 설정 검증
   (`validate_deployment`: root DB 계정 금지 · HTTPS CORS · 소셜 설정 필수)도 함께 건너뛴다.
-- 배포 전 · 후 확인(운영자, 값은 보고에 적지 않는다):
+- 선행 조건(배포 전, 운영 서버 접근 권한이 있는 담당자, 값은 보고에 적지 않는다):
   1. 운영 API 프로세스 환경에 `APP_ENV=production`이 있는지(파일 내용 전체를 출력하지 말고 그 한 줄만 확인).
-  2. 배포 뒤 `https://api.k-escape.com/docs`, `/redoc`, `/openapi.json`이 모두 404인지.
-  3. `/api/v1/health`가 `{"status":"ok"}`, `/api/v1/health/ready`가 `{"status":"ready"}`인지.
-  4. 1이 아니면(문서가 200) `APP_ENV=production`을 넣기 전에 운영 설정 검증을 통과하는 값인지
-     `scripts/check_deployment.py`로 먼저 확인한다 — 검증에 실패하면 API 가 뜨지 않는다.
+  2. 운영 설정이 배포 설정 검증을 통과하는지 `scripts/check_deployment.py`로 확인한다. 특히 `APP_ENV=production`을
+     새로 넣는 경우에는 넣기 전에 확인한다 — 검증에 실패하면 API 가 뜨지 않는다.
+- 배포 후 확인은 둘로 나눈다. 운영 Caddy가 문서 경로를 임시로 막고 있어(11/10 기준), **외부 404만으로는
+  FastAPI 에서 문서가 꺼졌는지 알 수 없다.**
+  1. FastAPI 자체 확인(운영 서버 내부, 운영 접근 권한이 있는 담당자만): 서버 안에서 Caddy를 거치지 않고
+     `http://127.0.0.1:8000/docs`, `/redoc`, `/openapi.json`에 요청해 상태 코드가 셋 다 404인지 본다.
+     응답 본문 · 헤더 · 환경 값은 보고에 옮기지 않고 상태 코드만 적는다. 200이면 선행 조건 1을 다시 확인한다.
+  2. 외부 확인(Caddy 경유, 누구나): `https://api.k-escape.com/docs`, `/redoc`, `/openapi.json`이 계속 404인지,
+     `/api/v1/health`가 `{"status":"ok"}`, `/api/v1/health/ready`가 `{"status":"ready"}`인지 본다.
+  - Caddy 임시 차단은 1에서 FastAPI 자체가 404임을 확인한 뒤에 정리할지 정한다(남겨 둬도 무방하다).
 - 로그인 잠금 429 는 `Retry-After`(정수 초)를 싣는다. 값은 `login_throttles.locked_until - 지금`을 올림한 값이고,
   이메일 · IP 잠금이 둘 다면 더 늦게 풀리는 쪽이다. 잠금 정책(15분 안 이메일당 5회 · IP당 30회 실패)과
   401 · 429 응답 본문은 바꾸지 않았다. CORS `expose_headers`에 `Retry-After`가 이미 있어 웹사이트가 읽을 수 있다.
