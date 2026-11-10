@@ -69,6 +69,7 @@ import { IS_MANGA_STYLE } from "../world/mangaStyle";
 import { useRendererSetup, useSceneFrame, type NajuSceneReport } from "./useSceneFrame";
 import { useSceneModes } from "./useSceneModes";
 import CompanionFishLore from "./firstScene/CompanionFishLore";
+import BoxPlaceGuide from "../puzzles/ridge/BoxPlaceGuide";
 import CompanionIntro from "./firstScene/CompanionIntro";
 import CompanionNudge from "./firstScene/CompanionNudge";
 import FirstSceneActors from "./firstScene/FirstSceneActors";
@@ -367,6 +368,8 @@ export default function NajuScene({
       <CompanionNudge enabled={!isEditing && !IS_REVIEW_REQUESTED} />
       {/* 빛 물고기의 정체(꺼진 화톳불의 불씨) 동행 한마디 — 미르 11/10 */}
       <CompanionFishLore enabled={!isEditing && !IS_REVIEW_REQUESTED} />
+      {/* 새 열쇠를 주운 뒤 함 놓을 자리(불탄 평상) — 빛 · 동행 한마디 · 다시 알림(미르 11/10) */}
+      <BoxPlaceGuide enabled={!isEditing && !IS_REVIEW_REQUESTED} />
       {IS_FOCUS_ENABLED && (
         <ImmersionLayer terrain={terrain} playerRef={playerState} gateSpots={gates} active={active && !isReviewHold} />
       )}

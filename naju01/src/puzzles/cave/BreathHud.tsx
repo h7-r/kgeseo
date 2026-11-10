@@ -111,13 +111,15 @@ export default function BreathHud() {
   return (
     <>
       {/* 화면 테두리 붉은 빛 — 30 · 20 · 10초 아래로 갈수록 빨리 · 진하게 */}
+      {/* 세기는 바깥 틀 opacity 로, 깜빡임은 안쪽 opacity 애니메이션으로 — 한 요소에 두면 애니메이션이 세기를 덮어써
+          세 단계가 같은 세기로 깜빡이고 장면 중에도 옅어지지 않았다(Codex 02) */}
       {warn && (
         <div
           aria-hidden="true"
-          data-game-clock=""
-          className="naju-breath-edge"
-          style={{ ...edgeStyle, opacity: isGuarded ? warn.strength * 0.35 : warn.strength, ...pulse }}
-        />
+          style={{ ...edgeFrameStyle, opacity: isGuarded ? warn.strength * 0.35 : warn.strength }}
+        >
+          <div data-game-clock="" className="naju-breath-edge" style={{ ...edgeStyle, ...pulse }} />
+        </div>
       )}
       {isUnderwater && (
         <div
@@ -297,11 +299,16 @@ const secondsStyle: CSSProperties = {
   font: "600 12px/1 ui-monospace, Menlo, monospace",
 };
 
-/** 화면 테두리 붉은 빛 — 가운데는 비우고 가장자리만(시야를 가리지 않게) */
-const edgeStyle: CSSProperties = {
+/** 화면 테두리 붉은 빛 — 바깥 틀(세기) · 안쪽(깜빡임). 가운데는 비우고 가장자리만(시야를 가리지 않게) */
+const edgeFrameStyle: CSSProperties = {
   position: "absolute",
   inset: 0,
   zIndex: 27,
+  pointerEvents: "none",
+};
+const edgeStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
   pointerEvents: "none",
   boxShadow: "inset 0 0 90px 18px rgba(214,34,26,.75)",
   background: "radial-gradient(ellipse 120% 110% at center, rgba(0,0,0,0) 62%, rgba(170,20,14,.38) 100%)",
