@@ -111,10 +111,15 @@ export default function BreathHud() {
       root.style.removeProperty(BAND_TOP_VAR);
       return undefined;
     }
-    const stage = element.offsetParent?.getBoundingClientRect();
-    const bottom = stage ? stage.bottom : window.innerHeight;
-    root.style.setProperty(BAND_TOP_VAR, `${Math.ceil(bottom - element.getBoundingClientRect().top)}px`);
+    // 띠 아랫변은 대화창을 따라 오르내린다 — 그 식을 그대로 두고 띠 높이만 더해 알린다(픽셀로 굳히면 대화창이 닫힌 뒤에도 알림이
+    // 옛 높이에 떠 있었다, Codex 04). 띠 높이는 줄 수가 바뀌면 다시 잰다
+    const update = () =>
+      root.style.setProperty(BAND_TOP_VAR, `calc(${BAND_BOTTOM} + ${Math.ceil(element.offsetHeight)}px)`);
+    update();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(element);
     return () => {
+      observer?.disconnect();
       root.style.removeProperty(BAND_TOP_VAR);
     };
   }, [isBandShown, isTouch, band]);
@@ -258,8 +263,10 @@ function InkSplat({ seed }: { seed: number }) {
 }
 
 const FONT = '"Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif';
-/** 알림이 읽는 값 — 무대 아래끝에서 숨 경고 띠 윗변까지(px, PC 만) */
+/** 알림이 읽는 값 — 무대 아래끝에서 숨 경고 띠 윗변까지(CSS 식, PC 만) */
 const BAND_TOP_VAR = "--naju-breath-band-top";
+/** PC 띠 아랫변 — 숨 게이지 바로 위, 동행 대화창이 떠 있으면 그 위로(알림과 같은 기준 --npc-speech-top) */
+const BAND_BOTTOM = "max(74px, calc(var(--npc-speech-top, 0px) + 12px))";
 
 // 테두리 빛 · 게이지 테두리 · 채움 깜빡임. 박자(animation-duration)는 단계마다 style 로 준다
 const BREATH_ALERT_CSS =
@@ -344,7 +351,7 @@ const edgeStyle: CSSProperties = {
 const bandStyle: CSSProperties = {
   position: "absolute",
   left: 24,
-  bottom: "max(74px, calc(var(--npc-speech-top, 0px) + 12px))",
+  bottom: BAND_BOTTOM,
   zIndex: 29,
   maxWidth: "min(440px, calc(100vw - 48px))",
   padding: "9px 14px",
