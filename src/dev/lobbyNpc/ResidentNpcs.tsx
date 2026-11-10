@@ -19,6 +19,12 @@ import { IS_LOBBY_OUTLINE_DISABLED, IS_LOBBY_TOON_DISABLED } from "@/app/runtime
 import { PLAYER_RADIUS, UNITS_PER_METER } from "@/engine/movement/constants";
 import { playerView } from "@/engine/playerView";
 import { UI, UI_FONT } from "@/game/gameUi";
+import {
+  HEADQUARTERS_MAX_X,
+  HEADQUARTERS_MAX_Z,
+  HEADQUARTERS_MIN_X,
+  HEADQUARTERS_MIN_Z,
+} from "@/station/layout/dimensions";
 import { sharedAssetUrl } from "@/config/env";
 
 import { type PersonBox, personBoxes } from "../lobbyPreview/personColliders";
@@ -208,8 +214,30 @@ function usePersonBox(key: string, root: THREE.Object3D, place: ResidentPlacemen
   });
 }
 
+/**
+ * 이름표 · 말풍선은 화면 위에 덧그리는 HTML 이라 벽에 가려지지 않는다 — 본부실 밖(튜토 · 통로)에서 벽 너머로 쌤 이름과
+ * 말풍선이 비쳤다(미르 11/10). 쌤은 모두 본부실 안에 서므로, 카메라가 본부실 안에 있을 때만 띄운다(몸은 깊이로 가려진다).
+ * 바뀔 때만 상태를 바꾸고, 첫 프레임 전에는 숨겨 둔다(밖에서 들어왔을 때 한 번 번쩍이지 않게).
+ */
+function useCameraInHeadquarters() {
+  const [inside, setInside] = useState(false);
+  const insideRef = useRef(false);
+  const at = useMemo(() => new THREE.Vector3(), []);
+  useFrame(({ camera }) => {
+    camera.getWorldPosition(at);
+    const now =
+      at.x > HEADQUARTERS_MIN_X && at.x < HEADQUARTERS_MAX_X && at.z > HEADQUARTERS_MIN_Z && at.z < HEADQUARTERS_MAX_Z;
+    if (now === insideRef.current) return;
+    insideRef.current = now;
+    setInside(now);
+  });
+  return inside;
+}
+
 interface NpcProps {
   spec: NpcSpec;
+  /** 이름표 · 말풍선을 띄울지(카메라가 본부실 안) */
+  showTags: boolean;
   place: ResidentPlacement;
   name: string;
   lines: string[];
@@ -218,7 +246,7 @@ interface NpcProps {
   selected: boolean;
 }
 
-function ResidentNpc({ spec, place, name, lines, gestures, offset, selected }: NpcProps) {
+function ResidentNpc({ spec, showTags, place, name, lines, gestures, offset, selected }: NpcProps) {
   const say = useSpeech(spec.key, lines, gestures, offset);
   const { root, rawHeight, footY } = useRiggedNpc({
     url: residentModelUrl(spec.key),
@@ -266,7 +294,7 @@ function ResidentNpc({ spec, place, name, lines, gestures, offset, selected }: N
           <meshBasicMaterial color="#86a6f0" transparent opacity={0.85} depthWrite={false} />
         </mesh>
       )}
-      <NpcNameTag name={name} say={say?.text ?? null} height={height} />
+      {showTags && <NpcNameTag name={name} say={say?.text ?? null} height={height} />}
     </group>
   );
 }
@@ -306,6 +334,7 @@ export default function ResidentNpcs() {
   const file = RESIDENT_FILE;
   const [places, setPlaces] = useState<Record<string, ResidentPlacement>>(() => ({ ...DEFAULT_PLACES, ...file.placements }));
   const [selected, setSelected] = useState(NPCS[0]!.key);
+  const showTags = useCameraInHeadquarters();
   return (
     <>
       {NPCS.map((spec, i) => {
@@ -315,6 +344,7 @@ export default function ResidentNpcs() {
             <Suspense fallback={null}>
               <ResidentNpc
                 spec={spec}
+                showTags={showTags}
                 place={places[spec.key] ?? DEFAULT_PLACES[spec.key]!}
                 name={entry?.displayName ?? ""}
                 {...speechOf(entry)}
