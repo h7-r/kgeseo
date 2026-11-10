@@ -37,6 +37,12 @@ from app.services.registration_input_policy import (
     InvalidEmailError,
     InvalidPasswordError,
 )
+from app.services.request_rate_limit import (
+    EMAIL_EXISTS,
+    NICKNAME_EXISTS,
+    REGISTER,
+    limit_by_ip,
+)
 from app.services.social_auth import (
     authenticate_social_user,
 )
@@ -184,6 +190,8 @@ async def login_with_naver(
     response_model=LocalAuthResponse,
     status_code=status.HTTP_201_CREATED,
     responses=error_responses.REGISTER,
+    # IP 당 요청 빈도(PR B). 라우터의 Origin 검사 다음, 본문 검증 · DB 보다 먼저 센다.
+    dependencies=[Depends(limit_by_ip(REGISTER))],
 )
 async def register_local_account(
     request: LocalRegisterRequest,
@@ -275,7 +283,12 @@ async def login_local_account(
     return LocalAuthResponse(user=local_auth.user_to_payload(user))
 
 
-@router.post("/email-exists", response_model=LocalExistsResponse)
+@router.post(
+    "/email-exists",
+    response_model=LocalExistsResponse,
+    responses=error_responses.EMAIL_EXISTS,
+    dependencies=[Depends(limit_by_ip(EMAIL_EXISTS))],
+)
 async def check_email_exists(
     request: EmailExistsRequest,
     response: Response,
@@ -289,6 +302,7 @@ async def check_email_exists(
     "/nickname-exists",
     response_model=LocalExistsResponse,
     responses=error_responses.NICKNAME_EXISTS,
+    dependencies=[Depends(limit_by_ip(NICKNAME_EXISTS))],
 )
 async def check_nickname_exists(
     request: NicknameExistsRequest,

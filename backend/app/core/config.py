@@ -37,6 +37,15 @@ class Settings(BaseSettings):
         ]
     )
 
+    # IP 기준 요청 빈도 제한(베타 전 보안 PR B, `app/services/request_rate_limit.py`). IP 당 창(초) 안의 최대 요청 수.
+    # 값이 없으면 기본값으로 켜진다. 0 · 음수 · 숫자가 아닌 값은 거부한다(제한을 끄는 설정은 없다). APP_ENV 와 무관.
+    rate_limit_window_sec: int = Field(default=60, ge=1, le=3600)
+    rate_limit_email_exists: int = Field(default=30, ge=1)
+    rate_limit_nickname_exists: int = Field(default=30, ge=1)
+    # 베타 30(11/11 미르). 베타 종료 뒤 10 으로 낮출 예정(환경 변수만 바꾼다).
+    rate_limit_register: int = Field(default=30, ge=1)
+    rate_limit_anonymous_session_create: int = Field(default=60, ge=1)
+
     # 힌트 잔액(PM v0.4.8 · v0.4.9 §9). 숫자는 PM 확정 뒤 환경 변수로 바꾼다.
     # 회차(play_session) 시작 때 주는 잔액 N
     hint_initial_balance: int = Field(default=3, ge=0)

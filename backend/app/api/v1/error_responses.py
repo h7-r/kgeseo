@@ -321,6 +321,25 @@ LOGIN = {
     ),
 }
 
+
+def _rate_limited(limit: str) -> dict[int, dict[str, Any]]:
+    """IP 기준 요청 빈도 제한(베타 전 보안 PR B). 한도는 `RATE_LIMIT_*` 설정의 기본값이다."""
+
+    return {
+        429: error(
+            CodedError,
+            f"같은 IP 의 요청이 최근 60초 한도(기본 {limit}, 운영 설정 `RATE_LIMIT_*`로 바뀔 수 있다)를 넘었다. "
+            "`Retry-After` 헤더(정수 초) 뒤 다시 보낸다. API 마다 · IP 마다 따로 센다."
+            + _NO_STORE,
+            "rate_limited",
+        )
+    }
+
+
+REGISTER.update(_rate_limited("30회"))
+
+EMAIL_EXISTS = _rate_limited("30회")
+
 NICKNAME_EXISTS = {
     422: error(
         ValidationErrorResponse | CodedError,
@@ -328,6 +347,7 @@ NICKNAME_EXISTS = {
         + " 닉네임 정책 위반은 `code: invalid_nickname`(이때만 `Cache-Control: no-store`).",
         "invalid_nickname",
     ),
+    **_rate_limited("30회"),
 }
 
 SOCIAL_ONBOARDING = {
@@ -424,7 +444,12 @@ for _responses in (PLAY_SESSION_CREATE, INTERACTION, HINT, HINT_ALIAS, NPC_TURN)
 for _responses in (PLAY_SESSION_READ, PLAY_SESSION_CLUES, PLAY_SESSION_BUNDLE):
     _responses.update(_PLAY_COOKIE_REQUIRED)
 
-ANONYMOUS_SESSION_CREATE = {**FOREIGN_ORIGIN}
+ANONYMOUS_SESSION_CREATE = {
+    **FOREIGN_ORIGIN,
+    **_rate_limited(
+        "60회 — 유효한 게스트 쿠키로 기존 세션을 돌려받는 요청은 세지 않는다"
+    ),
+}
 
 # --- 로비 입장권(로비 설계 v0.19 2절) ---
 
