@@ -25,8 +25,11 @@ import {
 } from "@/naju";
 
 import { flushGameSave, getSavedStage, loadCharacter, saveCharacter, setGameStage } from "@/save/gameSave";
+import { LOBBY_PATH, isLobbyStage } from "@/save/lobbyEntry";
 
 export const CHARACTER_CREATION_PATH = "/character-creation";
+/** 이어 하기 전에 서버 캐릭터를 기다리는 한도(ms) */
+const CHARACTER_WAIT_MS = 3000;
 
 const DRAFT_STORAGE_KEY = "kgeseo.character.draft.v1";
 const CHARACTER_STORAGE_KEY = "kgeseo.character.v1";
@@ -117,19 +120,36 @@ export default function CharacterCreationRoute() {
   const navigate = useNavigate();
   const [initialValue] = useState(readInitialDraft);
   const hasLeft = useRef(false);
-  // 저장이 있으면 캐릭터 생성을 건너뛰고 나갔던 단계로 간다.
+  // 저장이 있으면 캐릭터 생성을 건너뛴다. 본부실에 들어선 뒤(본부실 · 기차 · 나주)면 로비에서 시작하고 — 하던 게임으로 바로
+  // 들어가지 않는다, 다시 할지는 사용자가 기차 목적지 창에서 고른다(미르 11/10) — 튜토리얼 중이면 나갔던 자리에서 잇는다.
   const [savedStage] = useState(getSavedStage);
   const resumesGame = savedStage !== null && savedStage !== "character";
+  const [isCharacterReady, setIsCharacterReady] = useState(false);
 
-  // 다른 기기에서 들어와도 같은 모습으로 시작하게 서버의 캐릭터를 받아 둔다.
+  // 다른 기기에서 들어와도 같은 모습으로 시작하게 서버의 캐릭터를 받아 둔 뒤에 넘어간다 — App 은 마운트 때 외형을 한 번만 읽는다.
+  // 늦어지면 기다리지 않는다(있던 외형으로 간다)
   useEffect(() => {
-    if (!resumesGame) return;
-    void loadCharacter().then((saved) => {
-      if (saved?.lobby) writeJson(PLAYER_MESHY_APPEARANCE_KEY, saved.lobby);
-      if (saved?.completed) writeJson(CHARACTER_STORAGE_KEY, saved.completed);
-      if (savedStage === "naju") window.location.replace("/naju01/");
-    });
-  }, [resumesGame, savedStage]);
+    if (!resumesGame) return undefined;
+    let isAlive = true;
+    const ready = () => {
+      if (isAlive) setIsCharacterReady(true);
+    };
+    const timer = window.setTimeout(ready, CHARACTER_WAIT_MS);
+    void loadCharacter()
+      .then((saved) => {
+        if (saved?.lobby) writeJson(PLAYER_MESHY_APPEARANCE_KEY, saved.lobby);
+        if (saved?.completed) writeJson(CHARACTER_STORAGE_KEY, saved.completed);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        window.clearTimeout(timer);
+        ready();
+      });
+    return () => {
+      isAlive = false;
+      window.clearTimeout(timer);
+    };
+  }, [resumesGame]);
 
   // 지금은 형식만 본다(서버가 생기면 여기서 중복을 묻는다)
   const checkName = useCallback(async (name: string): Promise<NameCheckResult> => {
@@ -171,8 +191,8 @@ export default function CharacterCreationRoute() {
   }, []);
 
   if (resumesGame) {
-    if (savedStage === "naju") return <div style={rootStyle} />;
-    return <Navigate to={savedStage === "train" ? "/train" : "/"} replace />;
+    if (!isCharacterReady) return <div style={rootStyle} />;
+    return <Navigate to={isLobbyStage(savedStage) ? LOBBY_PATH : "/"} replace />;
   }
 
   return (

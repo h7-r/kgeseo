@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { PointerLockControls, Preload } from "@react-three/drei";
 import { Bloom, EffectComposer, SMAA, Vignette } from "@react-three/postprocessing";
@@ -40,10 +40,12 @@ import { isThirdPersonLocked, THIRD_PERSON_LOCKED_MESSAGE } from "@/game/viewRul
 import ValveHelpWatcher from "@/game/ValveHelpWatcher";
 import { useHintOffering } from "@/game/valveHelp";
 import AimTracker from "@/lobby/AimTracker";
-import { LobbyChibiPanel, LobbySidekickPanel } from "@/naju";
+import { LobbyChibiPanel, LobbySidekickPanel, najuCaseProgress } from "@/naju";
 import MainGameSaveBridge from "@/save/MainGameSaveBridge";
+import { getSavedStage, readSavedSection } from "@/save/gameSave";
+import { LOBBY_SPOT, clearLobbyReturn, peekLobbyReturn, wantsLobbyEntry, withoutLobbyEntry } from "@/save/lobbyEntry";
 import { savedStationPose } from "@/save/mainGameSave";
-import { onEnteredHeadquarters, useIsCutscenePlaying } from "@/props/vendingPushState";
+import { markEnteredHeadquarters, onEnteredHeadquarters, useIsCutscenePlaying } from "@/props/vendingPushState";
 import SettingsPanel from "@/settings/SettingsPanel";
 import { RESOLUTION_DPR, useSettings, type Settings } from "@/settings/settings";
 import { NEAR_TARGET, type NearTarget } from "@/station/layout/passage";
@@ -53,7 +55,8 @@ import StationScene from "@/station/StationScene";
 import DestinationWindow from "@/trainInterior/DestinationWindow";
 import TrainInteriorScene from "@/trainInterior/TrainInteriorScene";
 import DispatchCard from "@/tutorial/DispatchCard";
-import { useDispatchState } from "@/tutorial/dispatchState";
+import { skipDispatch, useDispatchState } from "@/tutorial/dispatchState";
+import { TUTORIAL_STEPS, restoreTutorial, tutorialStore } from "@/tutorial/tutorialState";
 import TutorialPanel from "@/tutorial/TutorialPanel";
 
 import CrashOverlays from "./overlays/CrashOverlays";
@@ -167,6 +170,7 @@ function CustomizePanels({ avatar }: { avatar: LobbyAvatarState }) {
 export default function App() {
   const controlsRef = useRef<PointerLockControlsImpl>(null);
   const isTrain = useLocation().pathname === TRAIN_PATH;
+  const navigate = useNavigate();
 
   // 기차 씬은 처음 탈 때 만들고 그 뒤로 버리지 않는다(첫 로딩 3초 · CMN-026).
   // useLayoutEffect 로 바꾸면 안 된다 — 같은 커밋에서 역의 배경·안개가 떨어지며 방금 붙은 기차 안개를 지운다.
@@ -176,11 +180,38 @@ export default function App() {
     if (isTrain) setIsTrainMounted(true);
   }, [isTrain]);
 
-  // 이어 하기면 나갔던 자리에서 시작한다. Canvas 는 처음 한 번만 읽는다.
+  // 다시 접속 · 나주에서 「로비로 나가기」면 로비(본부실) 자리에서, 아니면 나갔던 자리에서 시작한다. Canvas 는 처음 한 번만 읽는다.
+  // 로비 표시(?entry=lobby)는 저장 단계가 본부실 뒤일 때만 받는다 — 튜토리얼 중인 사람에게 주소만으로 본부실을 열지 않게
+  // 로그인하지 않은 사람은 저장 단계가 없다 — 나주에서 방금 나온 탭이면(peekLobbyReturn) 받는다
+  const [isLobbyEntry] = useState(
+    () => !isTrain && wantsLobbyEntry(window.location.search, getSavedStage(), peekLobbyReturn()),
+  );
   const [initialCamera] = useState(() => {
+    if (isLobbyEntry)
+      return {
+        ...CAMERA,
+        position: [LOBBY_SPOT.x, EYE_HEIGHT, LOBBY_SPOT.z] as THREE.Vector3Tuple,
+        rotation: [0, LOBBY_SPOT.yaw, 0] as THREE.Vector3Tuple,
+      };
     const pose = savedStationPose();
     return pose ? { ...CAMERA, position: pose.position } : CAMERA;
   });
+  // 로비로 들어왔다 — 본부실 진입은 저장되지 않고 문 연출 안에서만 다시 적혀(밸브 · 회로가 준비돼야) 새 페이지에서는 단계가
+  // 튜토리얼로 돌아갈 수 있다. 여기서 바로 적고, 주소의 표시는 지운다(새로고침하면 그때 저장된 자리로 잇는다)
+  // 나주를 시작한 적이 있으면 본부실의 「긴급 호출 · 즉시 출동」 카드는 다시 띄우지 않는다(이미 출동했다)
+  useEffect(() => {
+    if (najuCaseProgress((name) => readSavedSection(name))) skipDispatch();
+  }, []);
+  useLayoutEffect(() => {
+    if (!isLobbyEntry) return;
+    // 나주에서 방금 나왔다(로그인하지 않아 진행 저장이 없어도) — 이미 출동했으니 「긴급 호출」을 다시 띄우지 않는다
+    if (peekLobbyReturn()) skipDispatch();
+    clearLobbyReturn();
+    // 로그인하지 않은 사람은 튜토리얼 저장이 없다 — 나주까지 다녀왔으면 마친 것이다(본부실에서 튜토리얼이 처음부터 뜨지 않게)
+    if (!tutorialStore.get().isFinished) restoreTutorial({ step: TUTORIAL_STEPS.length - 1, isFinished: true });
+    markEnteredHeadquarters();
+    navigate(withoutLobbyEntry(window.location.href), { replace: true });
+  }, [isLobbyEntry, navigate]);
   const [isPointerLocked, setIsPointerLocked] = useState(false);
   /** 한 번이라도 [T] 로 들어왔나 — 처음엔 튜토리얼 첫 단계가 「T 조작 시작」을 알려 주므로 게임 밖 안내를 띄우지 않는다 */
   const [hasLockedOnce, setHasLockedOnce] = useState(false);

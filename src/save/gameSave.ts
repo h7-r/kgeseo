@@ -67,6 +67,8 @@ let isLoggedIn = false;
 let lastWritten = "";
 let saveTimer = 0;
 let isWriting = false;
+/** 지금 오가는 저장 요청 — 떠나기 전 저장(saveBeforeLeaving)이 그것을 기다린 뒤 최신 값으로 한 번 더 쓴다 */
+let writing: Promise<void> | null = null;
 let isListening = false;
 
 async function requestJson(url: string, init?: RequestInit): Promise<{ status: number; body: unknown }> {
@@ -134,14 +136,28 @@ function collectState(): string {
   return JSON.stringify({ sections: merged });
 }
 
-async function writeNow(keepalive: boolean): Promise<void> {
-  if (!isLoggedIn || !stage || isWriting) return;
+/** 마지막으로 쓴 것과 같은지 보는 열쇠 — 단계만 바뀌어도(나주 → 로비) 다시 쓴다. 칸 값만 비교하면 단계 변경이 저장되지 않았다 */
+const writtenKey = (state: string) => `${stage}\n${state}`;
+
+function writeNow(keepalive: boolean): Promise<void> {
+  if (!isLoggedIn || !stage || isWriting) return writing ?? Promise.resolve();
   const state = collectState();
-  if (state === lastWritten) return;
+  const key = writtenKey(state);
+  if (key === lastWritten) return Promise.resolve();
   isWriting = true;
+  writing = sendState(state, key, keepalive).finally(() => {
+    isWriting = false;
+    writing = null;
+  });
+  return writing;
+}
+
+async function sendState(state: string, key: string, keepalive: boolean): Promise<void> {
+  // 보내는 동안 단계가 바뀌어도 이 요청은 모은 그때의 단계로 — 열쇠(key)와 본문이 같은 순간을 가리키게
+  const sentStage = stage;
   try {
     const body = (rev: number) =>
-      JSON.stringify({ revision: rev, schema_version: SCHEMA_VERSION, stage, state: JSON.parse(state) });
+      JSON.stringify({ revision: rev, schema_version: SCHEMA_VERSION, stage: sentStage, state: JSON.parse(state) });
     let answer = await requestJson(SAVE_URL, { method: "PUT", body: body(revision), keepalive });
     // 다른 창이 먼저 저장했으면 지금 플레이 중인 이쪽 값을 최신 번호로 한 번 더 쓴다.
     if (answer.status === 409) {
@@ -154,15 +170,39 @@ async function writeNow(keepalive: boolean): Promise<void> {
     }
     if (answer.status === 200) {
       revision = (answer.body as SaveEnvelope).revision;
-      lastWritten = state;
+      lastWritten = key;
     } else if (answer.status === 401) {
       isLoggedIn = false;
     }
   } catch {
     // 다음 차례에 다시 쓴다.
-  } finally {
-    isWriting = false;
   }
+}
+
+/**
+ * 페이지를 떠나기 직전(나주 → 로비) — 오가던 저장을 기다린 뒤 지금 값을 한 번 묶어 쓰고, 그 묶음이 실제로 저장됐는지 돌려준다.
+ * 저장한 뒤 다시 모아 비교하지 않는다 — 창을 연 동안에도 매 프레임 바뀌는 칸(지게 짐 자리 등)이 있어 성공해도 실패로 보였다(Codex 리뷰).
+ * 늦어도 timeoutMs 뒤에는 false 로 끝낸다(떠나는 사람을 붙잡지 않는다). 로그인하지 않았으면 바로 false.
+ */
+export async function saveBeforeLeaving(timeoutMs = 2500): Promise<boolean> {
+  if (!isLoggedIn) return false;
+  window.clearTimeout(saveTimer);
+  const save = (async () => {
+    while (writing) await writing;
+    if (!isLoggedIn || !stage) return false;
+    const state = collectState();
+    const key = writtenKey(state);
+    if (key === lastWritten) return true;
+    isWriting = true;
+    writing = sendState(state, key, true).finally(() => {
+      isWriting = false;
+      writing = null;
+    });
+    await writing;
+    return lastWritten === key;
+  })();
+  const timeout = new Promise<boolean>((resolve) => window.setTimeout(() => resolve(false), timeoutMs));
+  return Promise.race([save, timeout]);
 }
 
 /** 값이 바뀌었을 때 부른다. 잠깐 모아서 한 번만 쓴다. */

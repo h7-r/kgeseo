@@ -6,6 +6,7 @@ import { useEffect, type CSSProperties } from "react";
 
 import { useTouchMode } from "@/engine/input";
 import { CloseIcon } from "@/game/gameIcons";
+import LeaveToLobby, { type LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import { DOCK_EDGE, DOCK_TOP, PANEL_SHADOW, UI, UI_FONT } from "@/game/gameUi";
 
 import "@/game/gameUi.css";
@@ -62,9 +63,11 @@ const SETTING_KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[];
 interface SettingsPanelProps {
   open: boolean;
   onClose: () => void;
+  /** 게임(케이스) 중이면 맨 아래 「로비로 나가기」(나주) — 없으면 그리지 않는다 */
+  leaveToLobby?: LeaveToLobbyAction;
 }
 
-export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
+export default function SettingsPanel({ open, onClose, leaveToLobby }: SettingsPanelProps) {
   const settings = useSettings();
   // 휴대폰 — 화면 가운데 · 제목 줄 고정 · 단추와 막대 44px(gameUi.css 의 .settings-dialog.is-touch, 14회차 · 11/8 해랑 검토)
   const isTouch = useTouchMode();
@@ -171,6 +174,15 @@ export default function SettingsPanel({ open, onClose }: SettingsPanelProps) {
           format={formatMultiplier}
           onChange={(value) => updateSettings({ sensitivity: value })}
         />
+
+        {leaveToLobby && (
+          <>
+            <div style={groupTitleStyle}>게임</div>
+            <div style={leaveRowStyle}>
+              <LeaveToLobby action={leaveToLobby} tone="panel" />
+            </div>
+          </>
+        )}
 
         <div style={footerStyle}>
           <button
@@ -293,3 +305,4 @@ const resetButtonStyle: CSSProperties = {
   cursor: "pointer",
 };
 const noteStyle: CSSProperties = { fontSize: 13, color: UI.textMuted };
+const leaveRowStyle: CSSProperties = { padding: "8px 0 4px" };

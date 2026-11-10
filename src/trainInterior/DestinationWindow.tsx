@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 
 import { playSound } from "@/audio/sound";
 import { exposeDevHook } from "@/debug/devHooks";
+import { najuCaseProgress, type CaseProgress } from "@/naju";
+import { readSavedSection } from "@/save/gameSave";
 import { NAJU_ENTER_EVENT, type NajuEnterDetail } from "@/station/najuEnter";
 
 import { DESTINATIONS, LOCKED_LEGENDS, NAJU_LEGEND, type Destination, type LockedLegend } from "./destinationData";
@@ -57,15 +59,20 @@ function Chevron({ direction }: { direction: -1 | 1 }) {
 /** 커서가 올라간 버튼을 [E] 로 누를 수 있다는 표시. :hover 일 때만 보인다. */
 const KeyHint = () => <span className="dest-key">E</span>;
 
+/** 하던 케이스의 진행 — 「진행 중 32%」 · 「완료」 */
+const progressText = (progress: CaseProgress) => (progress.isCleared ? "완료" : `진행 중 ${progress.percent}%`);
+
 interface RegionRowProps {
   destination: Destination;
   isLinked: boolean;
   order: number;
+  /** 이 지역에서 하던 케이스의 진행(없으면 처음) */
+  progress: CaseProgress | null;
   onLink: (id: string | null) => void;
   onPress: () => void;
 }
 
-function RegionRow({ destination, isLinked, order, onLink, onPress }: RegionRowProps) {
+function RegionRow({ destination, isLinked, order, progress, onLink, onPress }: RegionRowProps) {
   const { id, name, roman, photo, isOpen } = destination;
   return (
     <button
@@ -86,7 +93,14 @@ function RegionRow({ destination, isLinked, order, onLink, onPress }: RegionRowP
         {name}
         <span className="dest-row__roman">{roman}</span>
       </span>
-      {isOpen ? <span className="dest-row__go">입장 가능 ›</span> : <span className="dest-chip">출시 예정</span>}
+      {isOpen && progress && (
+        <span className={`dest-row__progress${progress.isCleared ? " is-cleared" : ""}`}>{progressText(progress)}</span>
+      )}
+      {isOpen ? (
+        <span className="dest-row__go">{progress && !progress.isCleared ? "이어서 ›" : "입장 가능 ›"}</span>
+      ) : (
+        <span className="dest-chip">출시 예정</span>
+      )}
       <KeyHint />
     </button>
   );
@@ -129,7 +143,7 @@ function LockedLegendCard({
   );
 }
 
-function OpenLegendCard() {
+function OpenLegendCard({ progress }: { progress: CaseProgress | null }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   return (
     <div className="dest-slot dest-slot--center">
@@ -168,6 +182,21 @@ function OpenLegendCard() {
           </span>
           <span className="dest-card__title">{NAJU_LEGEND.name}</span>
           <span className="dest-card__kind">1인칭 추리</span>
+          {/* 하던 케이스 — 어디까지 했는지(미르 11/10). 처음이면 그리지 않는다 */}
+          {progress && (
+            <span
+              className={`dest-card__progress${progress.isCleared ? " is-cleared" : ""}`}
+              data-testid="case-progress"
+            >
+              <span className="dest-card__progress-label">
+                {progress.isCleared ? "완료한 전설" : `진행 중 · ${progress.stageName}`}
+                <b>{progress.percent}%</b>
+              </span>
+              <span className="dest-card__progress-bar" aria-hidden="true">
+                <i style={{ width: `${progress.percent}%` }} />
+              </span>
+            </span>
+          )}
           <span className="dest-card__description">{NAJU_LEGEND.description}</span>
         </span>
       </div>
@@ -202,6 +231,8 @@ const STEP_TEXT = {
  */
 function DestinationContent({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<keyof typeof STEP_TEXT>("region");
+  // 나주에서 하던 진행 — 창을 열 때 저장본에서 한 번 센다(나주는 다른 페이지라 이 페이지에서는 바뀌지 않는다)
+  const [najuProgress] = useState(() => najuCaseProgress((name) => readSavedSection(name)));
   const [lockedPage, setLockedPage] = useState(0);
   const [linkedId, setLinkedId] = useState<string | null>(null);
   const windowRef = useRef<HTMLDivElement>(null);
@@ -310,6 +341,7 @@ function DestinationContent({ onClose }: { onClose: () => void }) {
                     destination={destination}
                     isLinked={linkedId === destination.id}
                     order={order}
+                    progress={destination.id === "naju" ? najuProgress : null}
                     onLink={setLinkedId}
                     onPress={() => pressDestination(destination)}
                   />
@@ -320,11 +352,12 @@ function DestinationContent({ onClose }: { onClose: () => void }) {
             <div key="legend" className="dest-step">
               <ArrowButton direction={-1} onPress={() => turnPage(-1)} />
               <LockedLegendCard legend={leftLegend} side="left" onPress={shake} />
-              <OpenLegendCard />
+              <OpenLegendCard progress={najuProgress} />
               <LockedLegendCard legend={rightLegend} side="right" onPress={shake} />
               <ArrowButton direction={1} onPress={() => turnPage(1)} />
               <button type="button" data-dest-button className="dest-enter" onClick={enterLegend}>
-                <span>전설 속으로</span>
+                {/* 하던 케이스면 이어서 — 나주는 저장된 데서 다시 시작한다 */}
+                <span>{najuProgress && !najuProgress.isCleared ? "이어서 하기" : "전설 속으로"}</span>
                 <KeyHint />
               </button>
             </div>

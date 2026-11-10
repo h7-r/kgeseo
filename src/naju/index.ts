@@ -32,6 +32,9 @@ export {
 } from "../../naju01/src/characterCreation/nameRules";
 export const CharacterCreationScreen = lazy(() => import("../../naju01/src/characterCreation/CharacterCreationScreen"));
 
+// 케이스 진행률 — 기차 목적지 창(케이스 목록)이 「하던 케이스」를 보인다(11/10). 나주 저장 칸을 읽는 법은 나주만 안다
+export { najuCaseProgress, type CaseProgress } from "../../naju01/src/progress/caseProgress";
+
 // 로비 아바타 외형
 export {
   DEFAULT_MESH_CONFIG,
