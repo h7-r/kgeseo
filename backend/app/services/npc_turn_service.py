@@ -292,15 +292,25 @@ async def _process_npc_turn_once(
             await db.rollback()
             return response
 
-        # 2. 계산(잠금 없음). auto 턴은 3에서 세션을 잠근 뒤에만 계산한다.
+        # 2. 계산(잠금 없음). auto 턴은 3에서 승인 · 게시와 세션을 잠근 뒤에만 계산한다.
         auto = request.trigger == "auto"
         result = None if auto else await compute(access, pack_access)
 
         if auto:
-            # 같은 세션의 auto 턴을 세션 행 잠금으로 직렬화한다 — 동시 요청이 같은 nudge 를 고르지 않도록,
-            # 앞선 턴이 commit 한 반환 기록(npc_turn)을 보고 고른다. 지금 트랜잭션을 끝내고(읽기 시점 갱신)
-            # 잠근 뒤 상태 · 이벤트를 다시 읽는다. 잠금 순서: 세션 → 승인 · 게시(공유) — 다른 경로와 같다.
+            # 지금 트랜잭션을 끝낸다 — 아래 이벤트 조회가 세션 잠금 뒤에 새 읽기 시점을 잡도록.
             await db.rollback()
+
+        # 3. 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 그 사이 철회 · 차단(케이스) 또는 팩 승인 변경이 commit됐으면
+        #    다시 계산한다. 대역(승인 출처를 직접 넘긴 경우)은 근거가 늘 같다.
+        final = await read_access(lock=True)
+        final_pack = await read_pack(lock=True)
+        if auto:
+            # 같은 세션의 auto 턴을 세션 행 잠금으로 직렬화한다 — 동시 요청이 같은 nudge 를 고르지 않도록,
+            # 앞선 턴이 commit 한 반환 기록(npc_turn)을 보고 고른다. 잠근 뒤 상태 · 이벤트를 다시 읽는다.
+            # 잠금 순서: 승인 · 게시(공유) → 세션. 플레이어 메시지 턴(승인 · 게시 공유 → 이벤트 INSERT 의 세션 FK
+            # 공유 잠금)과 같고, 세션만 잠그는 Interaction · Hint · 표시 보고, 세션을 잠그지 않는 승인 · 게시 쓰기와
+            # 순서가 엇갈리지 않는다. 위 공유 잠금 읽기는 모두 잠금 읽기라 읽기 시점(read view)을 만들지 않는다 —
+            # 그래서 이벤트 조회(일반 SELECT)는 세션 잠금 뒤의 commit 을 본다.
             locked = await db.get(
                 PlaySession,
                 play_session_id,
@@ -310,11 +320,6 @@ async def _process_npc_turn_once(
             if locked is None:
                 raise PlaySessionNotFoundError()
             state = dict(locked.state_json)
-
-        # 3. 확정 트랜잭션에서 공유 잠금으로 다시 읽는다. 그 사이 철회 · 차단(케이스) 또는 팩 승인 변경이 commit됐으면
-        #    다시 계산한다. 대역(승인 출처를 직접 넘긴 경우)은 근거가 늘 같다.
-        final = await read_access(lock=True)
-        final_pack = await read_pack(lock=True)
         if result is None or (final.basis, final_pack.basis) != (
             access.basis,
             pack_access.basis,

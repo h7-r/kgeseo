@@ -8,6 +8,7 @@
 - 같은 client_event_id 재시도는 같은 결과이고 후보를 더 쓰지 않는다.
 - 회차마다 이력은 따로다.
 - 같은 회차의 동시 auto 턴은 세션 행 잠금으로 직렬화돼 같은 줄을 두 번 내지 않는다.
+- 잠금 순서는 승인 · 게시(공유) → 세션이다(플레이어 메시지 턴과 같은 순서).
 """
 
 import asyncio
@@ -18,15 +19,18 @@ from uuid import uuid4
 import httpx
 import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
 
+from app.api.v1.npc import get_npc_case_access_reader
 from app.db.session import get_db
 from app.main import app
 from app.models.anonymous_session import AnonymousSession
 from app.models.interaction_event import InteractionEvent
 from app.models.play_session import PlaySession
+from app.services.npc_publication import NpcPublicationService
 from app.services.pinned_content import PinnedContentStore
 from app.services.session_content import get_pinned_content_store
-from tests.test_npc_case_access_mysql import approve, publish_state
+from tests.test_npc_case_access_mysql import approve, paused_reader, publish_state
 from tests.test_npc_suggestion_events_mysql import STATE
 from tests.test_npc_turn import FP, bundle
 from tests.test_npc_turn_idempotency_mysql import mysql_run
@@ -106,10 +110,11 @@ async def seed_session(sessions, *, idle_seconds=300, wrong=0) -> str:
 
 
 class Http:
-    def __init__(self, sessions) -> None:
+    def __init__(self, sessions, reader=None) -> None:
         self.sessions = sessions
         self.store = PinnedContentStore()
         self.store.add(bundle(puzzles=PUZZLES))
+        self.reader = reader
 
     async def __aenter__(self):
         async def override_get_db():
@@ -118,6 +123,8 @@ class Http:
 
         app.dependency_overrides[get_db] = override_get_db
         app.dependency_overrides[get_pinned_content_store] = lambda: self.store
+        if self.reader is not None:
+            app.dependency_overrides[get_npc_case_access_reader] = lambda: self.reader
         self.client = httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
         )
@@ -125,7 +132,11 @@ class Http:
 
     async def __aexit__(self, *exc):
         await self.client.aclose()
-        for dependency in (get_db, get_pinned_content_store):
+        for dependency in (
+            get_db,
+            get_pinned_content_store,
+            get_npc_case_access_reader,
+        ):
             app.dependency_overrides.pop(dependency, None)
 
     async def auto(self, session_id: str, event_id: str | None = None) -> dict:
@@ -289,3 +300,76 @@ def test_mysql_concurrent_auto_turns_never_return_the_same_line_twice():
         )
 
     mysql_run(scenario)
+
+
+async def session_row_is_free(sessions, session_id: str) -> bool:
+    """다른 트랜잭션이 세션 행을 잠그고 있지 않은가(FOR UPDATE NOWAIT)."""
+
+    async with sessions() as db:
+        try:
+            await db.execute(
+                select(PlaySession.id)
+                .where(PlaySession.id == session_id)
+                .with_for_update(nowait=True)
+            )
+            return True
+        except DBAPIError:
+            return False
+        finally:
+            await db.rollback()
+
+
+def test_mysql_auto_turn_takes_approval_locks_before_the_session_lock():
+    # 잠금 순서: 승인 · 게시(공유) → 세션. 확정 판정(lock=True) 직전에 멈췄을 때 세션 행은 아직 잠기지 않아야
+    # 한다 — 세션을 먼저 잠그면 플레이어 메시지 턴(승인 공유 → 세션 FK)과 순서가 엇갈려 교착할 수 있다.
+    async def scenario(sessions):
+        await ready(sessions)
+        session_id = await seed_session(sessions)
+        reader, entered, proceed = paused_reader(before_read=True)
+        async with Http(sessions, reader) as http:
+            turn = asyncio.create_task(http.auto(session_id))
+            try:
+                await asyncio.wait_for(entered.wait(), timeout=30)
+                assert await session_row_is_free(sessions, session_id)
+            finally:
+                proceed.set()
+            body = await asyncio.wait_for(turn, timeout=30)
+        assert line(body) == STUCK
+
+    mysql_run(scenario)
+
+
+def test_mysql_block_committed_before_auto_turn_confirms_is_seen():
+    # 확정 판정 전에 commit 된 긴급 차단은 auto 턴도 본다(케이스 대사를 내지 않는다). 사용 이력도 쓰지 않는다.
+    async def scenario(sessions):
+        await ready(sessions)
+        session_id = await seed_session(sessions)
+        reader, entered, proceed = paused_reader(before_read=True)
+        service = NpcPublicationService(sessions)
+        async with Http(sessions, reader) as http:
+            turn = asyncio.create_task(http.auto(session_id))
+            try:
+                await asyncio.wait_for(entered.wait(), timeout=30)
+                await asyncio.wait_for(
+                    service.block("case_test", 1, reason="(가상) 긴급", actor="op"),
+                    timeout=30,
+                )
+            finally:
+                proceed.set()
+            body = await asyncio.wait_for(turn, timeout=30)
+        assert line(body) != STUCK and line(body) != HELP
+        assert body["fallback_reason"] == "NPC_CONTENT_WITHDRAWN"
+        stored = await records(sessions, session_id)
+        assert used_auto_nudges_from(stored) == set()
+
+    mysql_run(scenario)
+
+
+def used_auto_nudges_from(stored: list[dict]) -> set:
+    return {
+        r["line_id"]
+        for r in stored
+        if r.get("trigger") == "auto"
+        and r.get("auto_intervened") is True
+        and (r.get("auto_intervene") or {}).get("level") == 1
+    }
