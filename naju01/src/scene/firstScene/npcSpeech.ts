@@ -77,3 +77,5 @@ export function setSpeechBoxShown(next: boolean) {
   boxSignal.notify();
 }
 export const useSpeechBoxShown = () => useSyncExternalStore(boxSignal.subscribe, () => isBoxShown);
+/** 대화창이 떠 있나(훅 밖) — 알림 줄이 그동안 기다린다(puzzles/interaction.ts isStoryOnScreen) */
+export const isSpeechBoxShown = () => isBoxShown;

@@ -29,7 +29,7 @@ import { useKeyLabels } from "@/engine/input";
 import { addPointerActiveListener, isPointerActive } from "@/engine/input/virtualLock";
 
 import { useCompanionChatOpen } from "../companion/chatOpen";
-import { useNotice } from "../puzzles/interaction";
+import { subscribeNoticePosted } from "../puzzles/interaction";
 import { beginHold, endHold, subscribePointerHolds } from "../puzzles/pointerHold";
 import { usePuzzlePanel } from "../puzzles/puzzlePanel";
 import {
@@ -86,7 +86,6 @@ export default function DialogueLayer() {
   const npc = useNpcSpeech();
   const isTalkTaken = useTalkTaken();
   const panel = usePuzzlePanel();
-  const notice = useNotice();
   const labels = useKeyLabels();
   const isChatOpen = useCompanionChatOpen();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -106,12 +105,16 @@ export default function DialogueLayer() {
   }, [panel]);
   useEffect(() => () => setDialoguePanel(null), []);
 
-  // 알림 → 상황 판정의 신호(틀림 · 풀림 · 되돌려짐)만. 동행이 따라 말하지 않는다 — 알림은 제자리에 그대로 뜬다
-  useEffect(() => {
-    if (!notice) return;
-    noteNotice(notice.text);
-    noteGameNotice();
-  }, [notice]);
+  // 알림 → 상황 판정의 신호(틀림 · 풀림 · 되돌려짐)만. 동행이 따라 말하지 않는다 — 알림은 제자리에 그대로 뜬다.
+  // 화면에 뜬 때가 아니라 게임이 쏜 순간에 센다 — 대화창이 떠 있는 동안 알림은 줄을 서서 늦게 뜨거나 밀렸다 다시 뜬다(#78)
+  useEffect(
+    () =>
+      subscribeNoticePosted((text) => {
+        noteNotice(text);
+        noteGameNotice();
+      }),
+    [],
+  );
 
   // 상황 판정
   useEffect(() => {
@@ -245,12 +248,8 @@ export default function DialogueLayer() {
           data-kind={npcShown ? "scene" : companionShown?.speech.kind}
           data-testid="npc-talk-box"
         >
-          {/* 터치 — 알림은 창 맨 위 한 줄로(키 작은 휴대폰에서 위로 띄우면 좌상단 안내판과 겹쳤다, NpcSpeechHud 때와 같다) */}
-          {isTouch && notice && (
-            <div key={`notice-${notice.key}`} className="npc-talk__notice naju-notice" data-hud="알림">
-              {labels.text(notice.text)}
-            </div>
-          )}
+          {/* 알림은 창 안에 넣지 않는다 — 대화창이 떠 있는 동안 알림은 줄을 섰다가 창이 내려가면 뜬다(#78 · 미르 11/10 「NPC 와 대화할 때
+              다른 알림을 중복으로 띄우지 마라」). 예전엔 터치에서 창 맨 위 한 줄로 넣었다 */}
           {npcShown ? (
             <SceneSpeech speech={npcShown} isTouch={isTouch} keyE={labels.key("E")} toScreen={toScreen} />
           ) : companionShown ? (

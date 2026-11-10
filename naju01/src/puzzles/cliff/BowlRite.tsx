@@ -155,7 +155,9 @@ function BowlRiteScene() {
         audio.play("깨짐");
         audio.play("첨벙");
         director.cue({ 카메라: "흔들림", 세기: 0.1 });
-        showNotice("쩍 — 사발 셋이 한꺼번에 깨진다. 쏟아진 물이 받침에서 떨어져 땅을 적시며 흘러간다.", 4.5);
+        showNotice("쩍 — 사발 셋이 한꺼번에 깨진다. 쏟아진 물이 받침에서 떨어져 땅을 적시며 흘러간다.", 4.5, {
+          fleeting: true,
+        });
       });
       const settled = BREAK.at + SPILL.flow;
       later(settled, () => {
@@ -176,7 +178,7 @@ function BowlRiteScene() {
 
     const pullJug = () => {
       if (!inventory.add("emptyJug")) {
-        showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 뽑자.");
+        showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 뽑자.", 3.2, { urgent: true, fleeting: true });
         return;
       }
       cliff.update({ jugTaken: true });
@@ -226,7 +228,10 @@ function BowlRiteScene() {
           enabled: () => !cliff.state().taken[index],
           use: () => {
             if (!inventory.add(EMPTY_BOWL[bowl.size])) {
-              showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 줍자.");
+              showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 줍자.", 3.2, {
+                urgent: true,
+                fleeting: true,
+              });
               return;
             }
             const taken = cliff.state().taken.map((value, i) => value || i === index);
@@ -260,7 +265,10 @@ function BowlRiteScene() {
           receive: (kind) => {
             const size = sizeOfDew(kind);
             if (!size) {
-              showNotice("빈 사발이다. 물이 없으면 달이 비치지 않는다 — 독에 빗물이 고여 있다.", 4);
+              showNotice("빈 사발이다. 물이 없으면 달이 비치지 않는다 — 독에 빗물이 고여 있다.", 4, {
+                urgent: true,
+                fleeting: true,
+              });
               return false;
             }
             if (size !== bowl.size) {
@@ -270,6 +278,7 @@ function BowlRiteScene() {
                   ? "받침에 비해 사발이 크다. 기우뚱해 물이 쏟아지겠다 — 더 큰 바위에 맞겠다."
                   : "받침에 비해 사발이 작다. 물낯이 낮아 달빛이 선바위를 비껴간다 — 더 작은 돌에 맞겠다.",
                 4.5,
+                { urgent: true, fleeting: true },
               );
               return false;
             }

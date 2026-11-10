@@ -1,7 +1,7 @@
 /**
- * 석상 — 아비사와 아랑사. 한 돌로 깎아 색은 하나지만 실루엣이 확 다르게. 돌은 아래로 갈수록 물때가 앉아 어둡고 발치엔 이끼가 끼었다(꼭짓점 색).
- *   아비사 — 어부. 상투에 망건, 깃 단 저고리와 대님 맨 바지, 매듭 늘어진 허리띠, 허리에 종다래끼. 키보다 긴 노를 비스듬히 잡았고, 바닥에 닿은 노 날에서 빛이 난다
- *   아랑사 — 처녀. 길게 땋아 댕기를 늘인 머리, 깃·끝동 단 저고리에 긴 옷고름, 주름이 퍼지는 긴 치마. 두 손으로 든 청사초롱이 등처럼 빛난다
+ * 석상 — 아랑사와 아비사. 한 돌로 깎아 색은 하나지만 실루엣이 확 다르게. 돌은 아래로 갈수록 물때가 앉아 어둡고 발치엔 이끼가 끼었다(꼭짓점 색).
+ *   아랑사 — 어부. 상투에 망건, 깃 단 저고리와 대님 맨 바지, 매듭 늘어진 허리띠, 허리에 종다래끼. 키보다 긴 노를 비스듬히 잡았고, 바닥에 닿은 노 날에서 빛이 난다
+ *   아비사 — 처녀. 길게 땋아 댕기를 늘인 머리, 깃·끝동 단 저고리에 긴 옷고름, 주름이 퍼지는 긴 치마. 두 손으로 든 청사초롱이 등처럼 빛난다
  * 미터, 발밑(받침 윗면)이 원점, 앞이 −z. 빛나는 조각(초롱 몸통 · 노 날)은 따로 그리고, glow(0~1)에 따라 밝아진다.
  */
 import { useEffect, useMemo, useRef, type RefObject } from "react";
@@ -11,7 +11,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 
 import { M } from "../units";
 
-type Kind = "아비사" | "아랑사";
+type Kind = "아랑사" | "아비사";
 
 const lathe = (points: [number, number][], segments = 20) =>
   new THREE.LatheGeometry(
@@ -84,7 +84,7 @@ function buildOarBlade() {
   return blade;
 }
 
-function buildAbisa(): { parts: THREE.BufferGeometry[]; glow: GlowPart } {
+function buildArangsa(): { parts: THREE.BufferGeometry[]; glow: GlowPart } {
   const parts: THREE.BufferGeometry[] = [];
   // 다리 — 통 넓은 바지, 무릎께 주름, 발목에 대님
   for (const side of [-1, 1]) {
@@ -172,7 +172,7 @@ function buildAbisa(): { parts: THREE.BufferGeometry[]; glow: GlowPart } {
   return { parts, glow: { geometry: buildOarBlade(), at: along(0.08) } };
 }
 
-function buildArangsa(): { parts: THREE.BufferGeometry[]; glow: GlowPart } {
+function buildAbisa(): { parts: THREE.BufferGeometry[]; glow: GlowPart } {
   const parts: THREE.BufferGeometry[] = [];
   // 치마 — 가슴께에서 매어 아래로 넓게 퍼지고 주름이 잡힌다. 밑단이 살짝 끌린다
   const skirt = lathe(
@@ -302,7 +302,7 @@ export default function StoneFigure({
   glow: RefObject<number>;
 }) {
   const figure = useMemo(() => {
-    const { parts, glow: part } = kind === "아비사" ? buildAbisa() : buildArangsa();
+    const { parts, glow: part } = kind === "아랑사" ? buildArangsa() : buildAbisa();
     // 조각마다 제 법선을 지닌 채 합친다 — 다시 계산하면 이음매가 각져 보인다
     const merged = mergeGeometries(parts, false)!;
     parts.forEach((piece) => piece.dispose());
@@ -332,17 +332,17 @@ export default function StoneFigure({
   const light = useRef<THREE.PointLight>(null);
   const halo = useRef<THREE.Sprite>(null);
   const off = useMemo(() => new THREE.Color("#3A3934"), []);
-  const on = useMemo(() => new THREE.Color(kind === "아랑사" ? "#FFF1D8" : "#FFF6E6"), [kind]);
+  const on = useMemo(() => new THREE.Color(kind === "아비사" ? "#FFF1D8" : "#FFF6E6"), [kind]);
   useFrame(({ clock }) => {
     const level = glow.current;
     // 초롱은 심지 불처럼 살짝 일렁이고, 노 날은 물빛처럼 천천히 숨 쉰다
     const t = clock.elapsedTime;
     const breathe =
-      kind === "아랑사" ? 0.92 + 0.05 * Math.sin(t * 7.3) + 0.03 * Math.sin(t * 13.1) : 0.85 + 0.15 * Math.sin(t * 1.4);
+      kind === "아비사" ? 0.92 + 0.05 * Math.sin(t * 7.3) + 0.03 * Math.sin(t * 13.1) : 0.85 + 0.15 * Math.sin(t * 1.4);
     figure.glowMaterial.color.copy(off).lerp(on, level * breathe);
-    figure.haloMaterial.opacity = level * (kind === "아랑사" ? 0.75 : 0.55) * breathe;
-    if (halo.current) halo.current.scale.setScalar(kind === "아랑사" ? 1.1 : 0.9);
-    if (light.current) light.current.intensity = level * (kind === "아랑사" ? 0.9 : 0.6) * breathe;
+    figure.haloMaterial.opacity = level * (kind === "아비사" ? 0.75 : 0.55) * breathe;
+    if (halo.current) halo.current.scale.setScalar(kind === "아비사" ? 1.1 : 0.9);
+    if (light.current) light.current.intensity = level * (kind === "아비사" ? 0.9 : 0.6) * breathe;
   });
   const at = figure.part.at;
   return (

@@ -329,7 +329,7 @@ export const inventory = {
   stow() {
     if (!hand) return;
     if (held.length >= SLOT_COUNT) {
-      showNotice("소지품이 가득 찼다. [E] 로 내려놓자.");
+      showNotice("소지품이 가득 찼다. [E] 로 내려놓자.", 3.2, { urgent: true, fleeting: true });
       return;
     }
     held = [...held, hand];

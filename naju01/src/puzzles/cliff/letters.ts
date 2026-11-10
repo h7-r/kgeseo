@@ -91,6 +91,8 @@ export function turnLetter(step: number) {
   signal.notify();
 }
 export const useLetterView = () => useSyncExternalStore(signal.subscribe, () => view);
+/** 주머니 편지를 읽고 있다 — 그동안 알림은 줄을 선다(puzzles/interaction.ts) */
+export const isLetterOpenNow = () => view.isOpen;
 
 /** 힌트함에 넣는 쪽지 — 편지마다 하나. 그림은 종이 그림판 그대로 */
 export const letterHints = () =>

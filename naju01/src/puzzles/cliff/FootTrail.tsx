@@ -284,7 +284,7 @@ function FootTrailScene() {
     /** 바위 사이에서 주머니를 꺼낸다 */
     const takePouch = () => {
       if (!inventory.add("arangPouch")) {
-        showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 꺼내자.");
+        showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 꺼내자.", 3.2, { urgent: true, fleeting: true });
         return;
       }
       cliff.advance("found");

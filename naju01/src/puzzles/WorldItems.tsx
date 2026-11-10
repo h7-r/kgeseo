@@ -164,7 +164,10 @@ function PlacedItem({ item, look, halo }: { item: WorldItem; look: ItemLook; hal
         reach: 3 * M,
         use: () => {
           if (!inventory.pickUp(item.uid)) {
-            showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 줍자.");
+            showNotice("소지품과 손이 다 찼다. 손에 든 것을 내려놓고 다시 줍자.", 3.2, {
+              urgent: true,
+              fleeting: true,
+            });
             return;
           }
           audio.play("단서");

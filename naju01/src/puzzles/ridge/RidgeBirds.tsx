@@ -373,6 +373,8 @@ function updateThrow(birds: Birds, time: number) {
     showNotice(
       "새가 열쇠를 발 앞에 떨어뜨렸다. 대가 긴 청동 열쇠 — 아랑사의 함 자물통에 맞을 것 같다. [E] 로 줍자.",
       5,
+      // 기다리는 사이 이미 주웠으면 지난 말
+      { isValid: () => inventory.world().some((item) => item.kind === "bronzeKey") },
     );
   }
 }
@@ -480,7 +482,10 @@ export default function RidgeBirds() {
                 );
               }
               if (foot - support > 0.12) {
-                showNotice("허공에서는 돌새를 돌릴 힘이 들어가지 않는다. 단단히 딛고 서서 돌리자.", 3);
+                showNotice("허공에서는 돌새를 돌릴 힘이 들어가지 않는다. 단단히 딛고 서서 돌리자.", 3, {
+                  urgent: true,
+                  fleeting: true,
+                });
                 return;
               }
               const distance = eye.distanceTo(statue.touch) / M;
