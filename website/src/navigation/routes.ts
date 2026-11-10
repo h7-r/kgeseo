@@ -35,6 +35,9 @@ export const ROUTES = {
 
 export type RoutePath = (typeof ROUTES)[keyof typeof ROUTES];
 
+/** 관리자 주소인가 — 관리자는 사이트 장식 · 세션 복원 없이 자기 틀과 권한 검사로만 연다. */
+export const isAdminRoute = (pathname: string) => pathname === ROUTES.admin || pathname.startsWith(`${ROUTES.admin}/`);
+
 /** 서비스 이름. 회사·팀 이름(LATENT SPACE)과 구분해 탭 제목·푸터·저작권 표시에 쓴다. */
 const SERVICE_NAME = "ESCAPE THE LEGEND";
 

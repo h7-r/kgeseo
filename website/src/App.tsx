@@ -32,7 +32,7 @@ import GameStartGuide from "@/mobile/GameStartGuide";
 import MobileHeader from "@/mobile/MobileHeader";
 import VideoModal from "@/layout/videoPlayer/VideoModal";
 import { dispatchPageChange, scrollToTopSilently } from "@/lib/pageEvents";
-import { ROUTES, launchGame, pageTitle } from "@/navigation/routes";
+import { ROUTES, isAdminRoute, launchGame, pageTitle } from "@/navigation/routes";
 import ErrorPage from "@/pages/ErrorPage";
 import HomePage from "@/pages/HomePage";
 import SocialCallbackPage from "@/pages/SocialCallbackPage";
@@ -44,7 +44,7 @@ export default function App() {
   const isMobile = useIsMobileLayout();
   const { pathname } = useLocation();
   // 관리자 화면은 사이트 장식(3D 배경 · 머리띠) 없이 자기 틀만 그린다. 훅을 다 부른 뒤에 가른다.
-  if (pathname === ROUTES.admin || pathname.startsWith(`${ROUTES.admin}/`)) {
+  if (isAdminRoute(pathname)) {
     return (
       <RouteErrorBoundary>
         <Suspense fallback={null}>
