@@ -1,6 +1,7 @@
 /**
  * 루트 vercel.json 의 보안 머리 — 웹(www)과 게임(play)이 같이 쓰는 파일이라 실수 하나가 두 앱을 같이 깬다.
  * - 운영 주소와 미리보기 주소 덩어리가 같은 머리를 갖는다(조건이 AND 라 덩어리를 둘로 나눠 적었다)
+ * - 미리보기 조건이 실제 Vercel 주소 모양(고유 배포 · 브랜치 별칭)에 걸리고, 웹 · 게임이 서로 섞이지 않는다
  * - CSP 는 Report-Only 로만 — 막는 CSP 는 아직 넣지 않는다
  * - 인라인 스크립트 해시가 지금 index.html 과 맞는다(index.html 을 고치면 여기서 먼저 걸린다)
  *
@@ -26,7 +27,7 @@ const inlineScripts = (html) =>
 const inlineHandlers = (html) => [...html.matchAll(/\son[a-z]+="([^"]*)"/g)].map((m) => sha(m[1]));
 
 const SITES = {
-  www: { live: "www.k-escape.com", preview: { pre: "k-escape-web-", suf: ".vercel.app" } },
+  www: { live: "www.k-escape.com", preview: { pre: "k-escape-", suf: ".vercel.app" } },
   play: { live: "play.k-escape.com", preview: { pre: "kgeseo-", suf: ".vercel.app" } },
 };
 
@@ -46,6 +47,35 @@ test("운영 · 미리보기 덩어리는 같은 머리", () => {
     const preview = blockFor(site.preview);
     assert.ok(live && preview, `${name} 덩어리 둘`);
     assert.deepEqual(preview.headers, live.headers, `${name} 운영 · 미리보기`);
+  }
+});
+
+// Vercel 의 host 조건 맞춤 — 문자열은 같아야 하고, { pre, suf } 는 앞 · 뒤가 맞아야 한다
+const hostMatches = (value, host) =>
+  typeof value === "string" ? value === host : host.startsWith(value.pre ?? "") && host.endsWith(value.suf ?? "");
+
+// 실제 미리보기 주소 모양. 고유 배포 주소는 프로젝트 이름이 잘린다(k-escape-web → k-escape-)
+const PREVIEW_HOSTS = {
+  www: [
+    "k-escape-ggzrnk9vd-h7-rs-projects.vercel.app", // 고유 배포 주소
+    "k-escape-web-git-feat-1110-h7-rs-projects.vercel.app", // 브랜치 별칭
+  ],
+  play: ["kgeseo-h6rbioncr-h7-rs-projects.vercel.app", "kgeseo-git-feat-1110-h7-rs-projects.vercel.app"],
+};
+
+test("미리보기 조건이 실제 주소 모양에 걸리고, 웹 · 게임이 섞이지 않는다", () => {
+  for (const [name, hosts] of Object.entries(PREVIEW_HOSTS)) {
+    const other = name === "www" ? "play" : "www";
+    for (const host of hosts) {
+      assert.ok(hostMatches(SITES[name].preview, host), `${name} 미리보기 ${host}`);
+      assert.ok(!hostMatches(SITES[other].preview, host), `${other} 조건이 ${host} 에 걸리면 안 됨`);
+      assert.ok(!hostMatches(SITES[name].live, host) && !hostMatches(SITES[other].live, host), `운영 조건 ${host}`);
+    }
+  }
+  for (const site of Object.values(SITES)) {
+    for (const live of [SITES.www.live, SITES.play.live]) {
+      assert.ok(!hostMatches(site.preview, live), `미리보기 조건이 운영 ${live} 에 걸리면 안 됨`);
+    }
   }
 });
 
