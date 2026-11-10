@@ -2,6 +2,50 @@
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "www.k-escape.com" }],
+      "headers": [
+        {"key": "X-Content-Type-Options", "value": "nosniff"},
+        {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"},
+        {"key": "X-Frame-Options", "value": "DENY"},
+        {"key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), midi=(), magnetometer=(), gyroscope=(), accelerometer=(), display-capture=(), fullscreen=(self), autoplay=(self), clipboard-write=(self)"},
+        {"key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; script-src 'self' https://accounts.google.com 'sha256-JSorxXirs9GLCw4P5wgNIWGE0HyiAUo5qjb9YjxGPLY=' 'unsafe-hashes' 'sha256-5uYnxfJB9ylocq34ENW67XetkcMGK0sncfsS3Y44S/M='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com https://fastly.jsdelivr.net; img-src 'self' data: blob: https://*.googleusercontent.com; media-src 'self' blob:; connect-src 'self' https://api.k-escape.com https://accounts.google.com; worker-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"}
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": {"pre": "k-escape-web-", "suf": ".vercel.app"} }],
+      "headers": [
+        {"key": "X-Content-Type-Options", "value": "nosniff"},
+        {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"},
+        {"key": "X-Frame-Options", "value": "DENY"},
+        {"key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), midi=(), magnetometer=(), gyroscope=(), accelerometer=(), display-capture=(), fullscreen=(self), autoplay=(self), clipboard-write=(self)"},
+        {"key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; script-src 'self' https://accounts.google.com 'sha256-JSorxXirs9GLCw4P5wgNIWGE0HyiAUo5qjb9YjxGPLY=' 'unsafe-hashes' 'sha256-5uYnxfJB9ylocq34ENW67XetkcMGK0sncfsS3Y44S/M='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com https://fastly.jsdelivr.net; img-src 'self' data: blob: https://*.googleusercontent.com; media-src 'self' blob:; connect-src 'self' https://api.k-escape.com https://accounts.google.com; worker-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"}
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "play.k-escape.com" }],
+      "headers": [
+        {"key": "X-Content-Type-Options", "value": "nosniff"},
+        {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"},
+        {"key": "X-Frame-Options", "value": "DENY"},
+        {"key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), midi=(), magnetometer=(), gyroscope=(), accelerometer=(), display-capture=(), fullscreen=(self), autoplay=(self), clipboard-write=(self)"},
+        {"key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com 'sha256-/CUSQT1scEpE4ptmy5XxEa99/BlBGqDxehvBs272mcQ=' 'sha256-TwvM55/kdSLTxKhlKk3vslVP02N1UHionDwaQmn0WxE=' 'sha256-KQsGf1emW94ppaLa9Juf2aU1r6hOa+vqGc6XavtkJ0c=' 'sha256-SH0XOmlXdU4XarZHwTJcC3R4ie9bZfFCabR/cj0OjGw='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com https://fastly.jsdelivr.net https://d1eknf201863mj.cloudfront.net; img-src 'self' data: blob: https://d1eknf201863mj.cloudfront.net https://*.googleusercontent.com; media-src 'self' blob: https://d1eknf201863mj.cloudfront.net; connect-src 'self' blob: data: https://api.k-escape.com https://lobby.k-escape.com wss://lobby.k-escape.com https://d1eknf201863mj.cloudfront.net https://www.gstatic.com https://accounts.google.com; worker-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"}
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": {"pre": "kgeseo-", "suf": ".vercel.app"} }],
+      "headers": [
+        {"key": "X-Content-Type-Options", "value": "nosniff"},
+        {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"},
+        {"key": "X-Frame-Options", "value": "DENY"},
+        {"key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), midi=(), magnetometer=(), gyroscope=(), accelerometer=(), display-capture=(), fullscreen=(self), autoplay=(self), clipboard-write=(self)"},
+        {"key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://accounts.google.com 'sha256-/CUSQT1scEpE4ptmy5XxEa99/BlBGqDxehvBs272mcQ=' 'sha256-TwvM55/kdSLTxKhlKk3vslVP02N1UHionDwaQmn0WxE=' 'sha256-KQsGf1emW94ppaLa9Juf2aU1r6hOa+vqGc6XavtkJ0c=' 'sha256-SH0XOmlXdU4XarZHwTJcC3R4ie9bZfFCabR/cj0OjGw='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com https://fastly.jsdelivr.net https://d1eknf201863mj.cloudfront.net; img-src 'self' data: blob: https://d1eknf201863mj.cloudfront.net https://*.googleusercontent.com; media-src 'self' blob: https://d1eknf201863mj.cloudfront.net; connect-src 'self' blob: data: https://api.k-escape.com https://lobby.k-escape.com wss://lobby.k-escape.com https://d1eknf201863mj.cloudfront.net https://www.gstatic.com https://accounts.google.com; worker-src 'self' blob:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"}
+      ]
+    },
+    {
       "source": "/admin(.*)",
       "has": [{ "type": "host", "value": "www.k-escape.com" }],
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]

@@ -48,6 +48,19 @@ export interface PreviewData {
     totals: { all: number; warn: number; error: number; critical: number };
     logs: { id: string; at: string; admin: string; action: string; target: string; level: "INFO" | "WARN" | "ERROR" }[];
   };
+  security: {
+    /** 24시간 합계와 지난 7일 하루 평균(기준선) */
+    totals: { label: string; value: number; baseline: number; unit: string }[];
+    loginFailures24h: Point[];
+    loginFailuresBaseline: Point[];
+    rateLimited: Point[];
+    hotIps: { ip: string; failures: number; locked: boolean; lastAt: string }[];
+    adminLogins: { at: string; admin: string; ip: string; isNewIp: boolean }[];
+    adminActions: { action: string; count: number }[];
+    chatRejections: Point[];
+    requestErrors: { kind: string; value: number; baseline: number }[];
+    dependencyAudit: { tool: string; checkedAt: string; high: number; moderate: number; low: number }[];
+  };
   notices: {
     id: string;
     title: string;

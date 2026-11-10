@@ -143,6 +143,49 @@ export const PREVIEW_DATA: PreviewData = {
       },
     ],
   },
+  security: {
+    totals: [
+      { label: "로그인 실패", value: 214, baseline: 61, unit: "건" },
+      { label: "잠긴 계정 · IP", value: 7, baseline: 2, unit: "개" },
+      { label: "너무 잦은 요청(429)", value: 38, baseline: 30, unit: "건" },
+      { label: "CSP 위반 보고", value: 0, baseline: 0, unit: "건" },
+    ],
+    loginFailures24h: series(
+      Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}시`),
+      [2, 1, 0, 1, 0, 0, 1, 3, 4, 5, 6, 4, 3, 5, 7, 6, 8, 9, 41, 58, 33, 12, 4, 1],
+    ),
+    loginFailuresBaseline: series(
+      Array.from({ length: 24 }, (_, h) => `${String(h).padStart(2, "0")}시`),
+      [1, 1, 0, 0, 0, 0, 1, 2, 3, 4, 4, 3, 3, 4, 4, 4, 5, 5, 4, 4, 3, 3, 2, 1],
+    ),
+    rateLimited: series(["로그인", "가입", "퍼즐 판정", "NPC 대화", "저장"], [21, 4, 6, 7, 0]),
+    hotIps: [
+      { ip: "203.0.113.77", failures: 96, locked: true, lastAt: "2026-11-10 19:42" },
+      { ip: "203.0.113.12", failures: 41, locked: true, lastAt: "2026-11-10 20:05" },
+      { ip: "2001:db8:85a3:0:0:8a2e:370:7334", failures: 9, locked: false, lastAt: "2026-11-10 18:30" },
+    ],
+    adminLogins: [
+      { at: "2026-11-10 20:11", admin: "운영자 하늘", ip: "203.0.113.200", isNewIp: true },
+      { at: "2026-11-10 14:02", admin: "운영자 하늘", ip: "203.0.113.42", isNewIp: false },
+      { at: "2026-11-10 09:38", admin: "운영자 바다", ip: "203.0.113.19", isNewIp: false },
+    ],
+    adminActions: [
+      { action: "회원 목록 열람", count: 18 },
+      { action: "회원 상세 열람", count: 6 },
+      { action: "설정 변경", count: 0 },
+    ],
+    chatRejections: series(["너무 김", "금칙어", "너무 잦음", "형식 오류"], [12, 5, 9, 2]),
+    requestErrors: [
+      { kind: "4xx 요청 오류", value: 412, baseline: 380 },
+      { kind: "5xx 서버 오류", value: 3, baseline: 1 },
+      { kind: "413 너무 큰 요청", value: 2, baseline: 2 },
+      { kind: "허용 안 된 Origin", value: 26, baseline: 1 },
+    ],
+    dependencyAudit: [
+      { tool: "npm audit(웹 · 게임)", checkedAt: "2026-11-09", high: 0, moderate: 2, low: 1 },
+      { tool: "pip-audit(백엔드)", checkedAt: "2026-11-09", high: 1, moderate: 0, low: 0 },
+    ],
+  },
   notices: [
     {
       id: "N-021",

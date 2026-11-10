@@ -5,6 +5,7 @@ import ContentsPage from "./pages/ContentsPage";
 import DashboardPage from "./pages/DashboardPage";
 import GameDataPage, { GameDataVersion } from "./pages/GameDataPage";
 import NoticesPage, { NoticeWriteButton } from "./pages/NoticesPage";
+import SecurityPage from "./pages/SecurityPage";
 import SettingsPage from "./pages/SettingsPage";
 import SubscriptionsPage from "./pages/SubscriptionsPage";
 import SupportPage from "./pages/SupportPage";
@@ -24,6 +25,7 @@ const SCREEN_VIEWS: Record<ScreenId, ScreenView> = {
   userStats: { Component: UserStatsPage },
   gameData: { Component: GameDataPage, HeaderActions: GameDataVersion },
   activity: { Component: ActivityLogPage },
+  security: { Component: SecurityPage },
   notices: { Component: NoticesPage, HeaderActions: NoticeWriteButton },
   contents: { Component: ContentsPage },
   support: { Component: SupportPage },
