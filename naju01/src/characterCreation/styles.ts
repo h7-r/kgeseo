@@ -273,3 +273,17 @@ export const stageTagStyle: CSSProperties = {
   letterSpacing: "0.22em",
   color: COLORS.accentStrong,
 };
+
+/** 무대 오른쪽 위 조작 안내(돌리기 · 확대 · 옮기기) — 한 줄에 하나, 오른쪽 맞춤 */
+export const stageHintStyle: CSSProperties = {
+  position: "absolute",
+  display: "grid",
+  justifyItems: "end",
+  gap: 3,
+  textAlign: "right",
+  font: `500 12px/1.3 ${FONTS.body}`,
+  color: COLORS.textMuted,
+  textShadow: "0 1px 3px rgba(0,0,0,0.85)",
+  whiteSpace: "nowrap",
+  pointerEvents: "none",
+};
