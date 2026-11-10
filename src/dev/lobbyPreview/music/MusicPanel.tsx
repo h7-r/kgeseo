@@ -16,20 +16,23 @@ const MUSIC_CHIP_MAX_WIDTH = 260;
 /** 알약 기본 자리 — 오른쪽 위 알약 단추 · 「혼자 둘러보는 중」 아래 */
 const CHIP_TOP = DOCK_TOP + 26;
 const GAP = 8;
+/** 알약 높이(어림) — 알약 자리(top ~ top + 높이)에 걸치는 판을 찾을 때 */
+const CHIP_HEIGHT = 34;
 
 /**
- * 알약 위치. 가운데 위 조작 안내판(TutorialPanel, role="status")이 알약 자리까지 옆으로 뻗어 있으면 그 아래로 내린다.
+ * 알약 위치. 가운데 위 조작 안내판(TutorialPanel) · 출동 목표 띠 · 로비 상태 줄(모두 role="status")이 알약 자리까지 옆으로 뻗어 있으면 그 아래로 내린다.
  * 안내판 높이는 단계 · 화면 폭(폰에선 글이 줄바꿈돼 길어진다)마다 달라 고정값이 아니라 실제 상자를 잰다 — 접으면 올라간다.
+ * 위에서부터 차례로 본다 — 로비 상태 줄도 목표 띠를 비켜 내려가므로, 처음 자리보다 아래로 내려간 판도 알약 자리에 걸치면 비킨다(Codex 리뷰 11/10).
  * 알약 폭은 곡마다 달라 최대 폭으로 견준다(곡이 바뀔 때 자리가 튀지 않게)
  */
 function readChipTop() {
   const chipLeft = window.innerWidth - DOCK_EDGE - MUSIC_CHIP_MAX_WIDTH;
+  const boxes = [...document.querySelectorAll<HTMLElement>('[role="status"]')]
+    .map((element) => element.getBoundingClientRect())
+    .filter((box) => box.width > 0 && box.right + GAP * 1.5 > chipLeft)
+    .sort((a, b) => a.top - b.top);
   let top = CHIP_TOP;
-  for (const element of document.querySelectorAll<HTMLElement>('[role="status"]')) {
-    const box = element.getBoundingClientRect();
-    if (box.width === 0 || box.top > CHIP_TOP || box.right + GAP * 1.5 <= chipLeft) continue;
-    top = Math.max(top, Math.ceil(box.bottom) + GAP);
-  }
+  for (const box of boxes) if (box.top < top + CHIP_HEIGHT) top = Math.max(top, Math.ceil(box.bottom) + GAP);
   return top;
 }
 

@@ -4,7 +4,7 @@
 // 1인칭에서는 내 말풍선이 눈 위라 안 보이므로 화면 아래에 띄운다. 쿨다운(3초) 중이면 짧게 알린다.
 // 컷신·본편 화면창·자물쇠 확대 중에는 인사창을 열지 않고, 열려 있으면 닫는다(설계 5절).
 // 모양은 동작 확인용이다 — 최종 톤은 3단계에서 해랑 님 화면에 맞춘다.
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 
 import { useTouchMode } from "@/engine/input";
 import { playerView } from "@/engine/playerView";
@@ -84,6 +84,45 @@ const introKey: CSSProperties = {
   border: "1px solid #86a6f0",
   font: "600 12px/1.6 system-ui, sans-serif",
 };
+
+/** 배포 빌드 상태 줄의 기본 자리(오른쪽 위 단추 아래) */
+const STATUS_TOP = 60;
+const STATUS_EDGE = 16;
+const STATUS_GAP = 8;
+
+/**
+ * 배포 빌드 상태 줄 위치. 가운데 위 판(출동 목표 띠 · 튜토리얼 안내판 — role="status")이 이 자리까지 옆으로 뻗어 있으면 그 아래로 내린다.
+ * 좁은 PC 창(800 · 1024)에서 출동 목표 띠 오른쪽 끝(「· 기차 문까지 7m」)을 이 줄이 덮었다(미르 11/10 기기 전수). 음악 알약(MusicPanel)과 같은 방식 —
+ * 실제 상자를 잰다. 대화창(긴급 호출 카드 · alertdialog)은 이 줄 위에 덮이므로 비키지 않는다. 음악 알약은 role="group" 이라 서로 밀지 않는다
+ */
+function useStatusTop(pill: RefObject<HTMLDivElement | null>, active: boolean) {
+  const [top, setTop] = useState(STATUS_TOP);
+  useEffect(() => {
+    if (!active) return undefined;
+    const update = () => {
+      const self = pill.current;
+      if (!self) return;
+      const { width, height } = self.getBoundingClientRect();
+      const left = window.innerWidth - STATUS_EDGE - width;
+      let next = STATUS_TOP;
+      for (const element of document.querySelectorAll<HTMLElement>('[role="status"]')) {
+        if (element === self || element.closest('[role="alertdialog"]')) continue;
+        const box = element.getBoundingClientRect();
+        if (box.width === 0 || box.top >= STATUS_TOP + height || box.right + STATUS_GAP <= left) continue;
+        next = Math.max(next, Math.ceil(box.bottom) + STATUS_GAP);
+      }
+      setTop(next);
+    };
+    update();
+    const timer = setInterval(update, 300);
+    window.addEventListener("resize", update);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("resize", update);
+    };
+  }, [pill, active]);
+  return top;
+}
 
 export default function LobbyPreviewHud() {
   const { status, me, loggedIn } = usePreviewState();
@@ -203,6 +242,8 @@ export default function LobbyPreviewHud() {
         : status.kind === "connecting"
           ? "로비에 붙는 중…"
           : null;
+  const statusRef = useRef<HTMLDivElement>(null);
+  const statusTop = useStatusTop(statusRef, !import.meta.env.DEV && prodStatus !== null);
 
   return (
     <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 30 }}>
@@ -237,17 +278,24 @@ export default function LobbyPreviewHud() {
           )}
         </div>
       )}
-      {/* 배포 빌드(베타, 11/8) — 개발 패널(본부실로 이동 · 개발 로그인) 없이 상태 한 줄만 오른쪽 위에 */}
+      {/* 배포 빌드(베타, 11/8) — 개발 패널(본부실로 이동 · 개발 로그인) 없이 상태 한 줄만 오른쪽 위에.
+          한 줄로 둔다 — 폭을 260 으로 묶었더니 「…만나요」의 끝 글자만 다음 줄로 넘어갔다(미르 11/10). 화면보다 길 때만 말줄임.
+          role="status" — 음악 알약이 이 줄 아래로 자리를 잡는다(MusicPanel readChipTop). 가운데 위 판에 걸리면 그 아래로(useStatusTop) */}
       {!import.meta.env.DEV && prodStatus && (
         <div
+          ref={statusRef}
+          role="status"
           style={{
             ...panel,
             position: "absolute",
-            top: 60,
-            right: 16,
+            top: statusTop,
+            right: STATUS_EDGE,
             padding: "4px 10px",
             fontSize: 12,
-            maxWidth: 260,
+            whiteSpace: "nowrap",
+            maxWidth: "calc(100vw - 32px)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
           {prodStatus}
