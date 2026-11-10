@@ -29,7 +29,7 @@
           "skin": "#ffffff",
           "hair": "#2e2a30",
           "cloth": "#e9e4d8",
-          "bottom": "#c9ccd2",
+          "bottom": "#ffffff",
           "shoes": "#e9e4d8"
         }
       },
@@ -71,7 +71,7 @@
           "skin": "#e1dada",
           "hair": "#ffffff",
           "cloth": "#ffffff",
-          "bottom": "#5a5f6b",
+          "bottom": "#ffffff",
           "shoes": "#ffffff"
         }
       },
@@ -155,7 +155,7 @@
           "skin": "#f2c7ab",
           "hair": "#000000",
           "cloth": "#000000",
-          "bottom": "#000000",
+          "bottom": "#ffffff",
           "shoes": "#000000"
         }
       },
@@ -197,7 +197,7 @@
           "skin": "#ffffff",
           "hair": "#ffffff",
           "cloth": "#ffffff",
-          "bottom": "#403526",
+          "bottom": "#ffffff",
           "shoes": "#ffffff"
         }
       },
