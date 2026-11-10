@@ -10,6 +10,7 @@
  * 화면 판정이라 큰 조개 · 톱니돌 연출은 서버 응답을 기다리지 않는다. 보낼 수 없으면(대응표 확정 전 · 세션 없음) 보내지 않는다.
  * 연결이 끊기면 같은 이벤트를 쥐고, 큰 조개 [E] 로 다시 보낸다(자동 재전송 없음).
  */
+import { gameSetTimeout } from "@/engine/input/gameClock";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -34,7 +35,7 @@ import { setPuzzlePanel } from "../puzzlePanel";
 import { M } from "../units";
 import AirColumn from "./AirColumn";
 import BreathingHoles from "./BreathingHoles";
-import { SURFACE_Y, armInk, floorY, useCaveShown } from "./caveState";
+import { SURFACE_Y, armInk, floorY, guardBreathFor, useCaveShown } from "./caveState";
 import ClamShell from "./ClamShell";
 import CreviceVent from "./CreviceVent";
 import {
@@ -261,8 +262,11 @@ export default function AirStations() {
     void reportLight();
     setIsLightSolved(true);
     audio.play("징");
+    // 조개가 입을 여는 것을 보는 동안은 숨이 줄지 않는다(미르 11/10)
+    guardBreathFor("clam-open", 3);
     showNotice("빛이 큰 진주에 닿자 큰 조개가 입을 활짝 열며 거품을 토한다 — 안에 톱니돌이 있다.", 5.5);
-    window.setTimeout(() => {
+    // 게임 시계로 — 창을 열어 멈춘 동안 톱니돌만 먼저 나오지 않게(Codex 01)
+    gameSetTimeout(() => {
       // 큰 조개 속 진주 곁 자개 위에 — 조개 몸이 가운데 바닥 높이에 놓여 있어 그 높이를 기준으로 얹는다
       inventory.spawn(
         "gearStone",

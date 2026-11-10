@@ -21,7 +21,7 @@ import {
   type ItemKind,
   type WorldItem,
 } from "./inventory";
-import { buildItemLooks, type ItemLook } from "./itemLooks";
+import { buildGearStoneRimGeometry, buildItemLooks, type ItemLook } from "./itemLooks";
 import { makeGlowTexture } from "./glowTexture";
 import { useItemModel } from "./itemModel";
 import { cave } from "./cave/caveState";
@@ -31,17 +31,16 @@ import { ridgeCarry } from "./ridge/ridgeState";
 export default function WorldItems() {
   const items = useWorldItems();
   const looks = useMemo(() => buildItemLooks(), []);
-  const halo = useMemo(() => makeHalo(), []);
+  const glows = useMemo(() => buildClueGlows(), []);
   useEffect(
     () => () => {
       for (const look of Object.values(looks)) {
         look.geometry.dispose();
         look.material.dispose();
       }
-      halo.map?.dispose();
-      halo.dispose();
+      disposeClueGlows(glows);
     },
-    [looks, halo],
+    [looks, glows],
   );
   const hand = useHandItem();
 
@@ -87,7 +86,7 @@ export default function WorldItems() {
   return (
     <>
       {items.map((item) => (
-        <PlacedItem key={item.uid} item={item} look={looks[item.kind]} halo={HALO_KINDS.has(item.kind) ? halo : null} />
+        <PlacedItem key={item.uid} item={item} look={looks[item.kind]} glow={glows[item.kind] ?? null} />
       ))}
       {hand && <HandItem key={hand.uid} item={hand} look={looks[hand.kind]} />}
     </>
@@ -122,27 +121,72 @@ function HandItem({ item, look }: { item: HeldItem; look: ItemLook }) {
 const BOB_HEIGHT = 0.03;
 
 /**
- * 바닥에 놓인 채 빛무리를 두르는 물건 — 톱니돌은 물굴 바닥 돌과 빛깔이 같아 독 곁에 나와도 못 찾았다(해랑 11/9 운영 플레이).
- * 손 · 고리문 홈에 든 것은 두르지 않는다
+ * 바닥에 놓인 채 빛을 두르는 단서 — 주워야 할 것이 돌멩이 · 흙으로 안 보이게. 손 · 고리문 홈에 든 것은 두르지 않는다.
+ *   톱니돌: 물굴 바닥 돌과 빛깔이 같아 독 곁에 나와도 못 찾았다(해랑 11/9) → 빛무리가 물안개에 묻혀 여전히 돌멩이로 보였다(미르 11/10).
+ *     물안개에 안 묻히게(fog 끔) 빛무리를 키우고, 톱니 윤곽을 따라 얇은 빛 테두리를 둘러 「톱니 모양 물건」으로 읽히게.
+ *   청동 열쇠: 새가 떨어뜨린 열쇠도 같은 규칙으로 옅은 금빛(미르 11/10). 모양이 가늘어 테두리 없이 빛무리만.
+ * 맥박 빠르기 · 겨눔 강조(updateAimGlow — 돌판 재질의 emissive)는 같다. 빛무리 · 테두리는 따로 된 재질이라 겨눔 강조와 안 싸운다(Codex 01).
+ * 벽 · 독 뒤의 것까지 비쳐 보이지 않게 깊이 검사는 켠다
  */
-const HALO_KINDS = new Set<ItemKind>(["gearStone"]);
-/** 빛무리 지름(미터) · 숨 쉬듯 밝아졌다 어두워지는 빠르기 · 가장 옅을 때와 짙을 때 */
-const HALO_SIZE = 0.42;
+interface ClueGlow {
+  halo: THREE.SpriteMaterial;
+  rim: { geometry: THREE.BufferGeometry; material: THREE.MeshBasicMaterial } | null;
+}
+const CLUE_GLOW_KINDS: Partial<Record<ItemKind, { color: string; rim?: () => THREE.BufferGeometry }>> = {
+  gearStone: { color: "#8FE7E0", rim: buildGearStoneRimGeometry },
+  bronzeKey: { color: "#FFD58A" },
+};
+/** 빛무리 지름(미터) · 숨 쉬듯 밝아졌다 어두워지는 빠르기 · 가장 옅을 때와 짙을 때 — 돌(22 cm)이 빛 덩어리에 묻히지 않을 만큼만 */
+const HALO_SIZE = 0.6;
 const HALO_SPEED = 1.8;
-const HALO_OPACITY = [0.22, 0.5] as const;
+const HALO_OPACITY = [0.3, 0.65] as const;
+const RIM_OPACITY = [0.45, 0.95] as const;
 
-function makeHalo() {
-  return new THREE.SpriteMaterial({
-    map: makeGlowTexture(),
-    color: "#8FE7E0",
-    transparent: true,
-    opacity: HALO_OPACITY[1],
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  });
+function buildClueGlows(): Partial<Record<ItemKind, ClueGlow>> {
+  const glows: Partial<Record<ItemKind, ClueGlow>> = {};
+  for (const [kind, spec] of Object.entries(CLUE_GLOW_KINDS) as [ItemKind, (typeof CLUE_GLOW_KINDS)[ItemKind]][]) {
+    if (!spec) continue;
+    const halo = new THREE.SpriteMaterial({
+      map: makeGlowTexture(),
+      color: spec.color,
+      transparent: true,
+      opacity: HALO_OPACITY[1],
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      fog: false,
+      toneMapped: false,
+    });
+    const rim = spec.rim
+      ? {
+          geometry: spec.rim(),
+          material: new THREE.MeshBasicMaterial({
+            color: spec.color,
+            transparent: true,
+            opacity: RIM_OPACITY[1],
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+            fog: false,
+            toneMapped: false,
+          }),
+        }
+      : null;
+    glows[kind] = { halo, rim };
+  }
+  return glows;
 }
 
-function PlacedItem({ item, look, halo }: { item: WorldItem; look: ItemLook; halo: THREE.SpriteMaterial | null }) {
+function disposeClueGlows(glows: Partial<Record<ItemKind, ClueGlow>>) {
+  for (const glow of Object.values(glows)) {
+    if (!glow) continue;
+    glow.halo.map?.dispose();
+    glow.halo.dispose();
+    glow.rim?.geometry.dispose();
+    glow.rim?.material.dispose();
+  }
+}
+
+function PlacedItem({ item, look, glow }: { item: WorldItem; look: ItemLook; glow: ClueGlow | null }) {
   const meshRef = useRef<THREE.Group>(null);
   const haloRef = useRef<THREE.Sprite>(null);
   const model = useItemModel(look.model);
@@ -197,17 +241,19 @@ function PlacedItem({ item, look, halo }: { item: WorldItem; look: ItemLook; hal
     mesh.rotation.y = flap === null ? (isFloating ? t * 0.25 + item.uid : 0) : Math.sin(flap) * 0.35;
     const hop = flap === null ? 0 : Math.max(0, Math.sin(flap * 0.5)) * 0.05;
     mesh.position.y = (restY + look.lift + hop) * M;
-    // 빛무리 재질은 톱니돌 모두가 같이 쓴다 — 같이 숨 쉬게 시각만으로 정한다
-    if (haloRef.current && halo) {
+    // 빛 재질은 같은 물건 모두가 같이 쓴다 — 같이 숨 쉬게 시각만으로 정한다
+    if (haloRef.current && glow) {
       const breath = 0.5 + 0.5 * Math.sin(t * HALO_SPEED);
-      halo.opacity = HALO_OPACITY[0] + (HALO_OPACITY[1] - HALO_OPACITY[0]) * breath;
+      glow.halo.opacity = HALO_OPACITY[0] + (HALO_OPACITY[1] - HALO_OPACITY[0]) * breath;
+      if (glow.rim) glow.rim.material.opacity = RIM_OPACITY[0] + (RIM_OPACITY[1] - RIM_OPACITY[0]) * breath;
     }
   });
 
   return (
     <group ref={meshRef} position={[item.position.x, item.position.y + look.lift * M, item.position.z]} scale={M}>
       {model ? <primitive object={model} /> : <mesh geometry={look.geometry} material={look.material} />}
-      {halo && <sprite ref={haloRef} material={halo} position={[0, 0.04, 0]} scale={HALO_SIZE} renderOrder={2} />}
+      {glow && <sprite ref={haloRef} material={glow.halo} position={[0, 0.04, 0]} scale={HALO_SIZE} renderOrder={2} />}
+      {glow?.rim && <mesh geometry={glow.rim.geometry} material={glow.rim.material} renderOrder={2} />}
     </group>
   );
 }

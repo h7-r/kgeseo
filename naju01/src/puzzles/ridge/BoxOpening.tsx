@@ -1,5 +1,5 @@
 /**
- * 아랑사의 함 열기 — 어디서든 함을 꺼내 내려놓거나(E, 평상에 올려도 된다) 돌새가 준 청동 열쇠를 자물통 구멍에 꽂아 돌리면(E)
+ * 아랑사의 함 열기 — 불탄 평상을 겨눠 함을 올려놓고(E, 바닥에 떨어진 함도 그 자리에서 열 수 있다) 돌새가 준 청동 열쇠를 자물통 구멍에 꽂아 돌리면(E)
  * 열쇠가 들어가 「철컥」 돌고 → 자물통이 빠져 떨어지고 → 뚜껑이 덜컥 열린다.
  * 함 속에는 작은 구렁이상(미르의 구렁이 모형을 줄였다)과 주마등. 열리면 함에서 빛기둥이 위로 쏟아지고 그 빛 속에 그날 밤의 영상이
  * 흐른다(shadowPlay) — 글은 없다. 구렁이상은 넷째 이야기의 조각으로 남긴다.
@@ -11,7 +11,7 @@ import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
-import { gameNow } from "@/engine/input/gameClock";
+import { gameNow, gameSetTimeout } from "@/engine/input/gameClock";
 
 import { recall, track } from "../../save/puzzleMemory";
 import { solidQueries } from "../../movement/solidField";
@@ -21,7 +21,7 @@ import { director } from "../../scene/immersion/director";
 import { makeGlowTexture } from "../glowTexture";
 import { registerInteractable, showNotice } from "../interaction";
 import { ridge, ridgeBox } from "./ridgeState";
-import { inventory, registerLeftBehind, useHeldItems, useWorldItems } from "../inventory";
+import { inventory, registerLeftBehind, useHandItem, useHeldItems, useWorldItems } from "../inventory";
 import { createCompressedGltfLoader } from "../../loaders/compressedGlb";
 import { M, groundY } from "../units";
 import { LID, LOCK_AT, LOCK_LENGTH, buildBoxBase, buildBoxLid, BOX, buildBronzeKey, buildPadlock } from "./lockedBox";
@@ -167,7 +167,14 @@ export default function BoxOpening() {
   const box = useMemo(() => buildBox(), []);
   const phase = useRef<Phase>("none");
   // 쓸 일 끝난 열쇠 · 함 치우기가 읽는다
-  useEffect(() => bindBoxPhase(() => phase.current), []);
+  useEffect(
+    () =>
+      bindBoxPhase(
+        () => phase.current,
+        () => box.lockTarget,
+      ),
+    [box],
+  );
   const startedAt = useRef(0);
   /** 내려놓은 뒤 흐른 시간(초 · 음수면 다 놓였다) · 그림자 재생 시간 */
   const placeTime = useRef(-1);
@@ -179,6 +186,7 @@ export default function BoxOpening() {
   /** 함 속 구렁이상을 꺼냈나 — 4스테이지(바위 위)에서 쓴다 */
   const serpentTaken = useRef(recall("ridge.serpentTaken", false));
   const held = useHeldItems();
+  const hand = useHandItem();
   const worldItems = useWorldItems();
 
   useEffect(() => {
@@ -291,15 +299,15 @@ export default function BoxOpening() {
     placeBox.current(dropped.position);
   }, [worldItems]);
 
-  // 열쇠와 함이 둘 다 손에 들어오면 한 번 일러 준다
+  // 열쇠와 함이 둘 다 손에 들어오면 한 번 일러 준다 — 손에 꺼내 든 것도 센다(소지품만 보면 든 채로는 안 일렀다, Codex 01)
   useEffect(() => {
-    const kinds = new Set(held.map((item) => item.kind));
+    const kinds = new Set([...held, ...(hand ? [hand] : [])].map((item) => item.kind));
     if (!told.current.hint && kinds.has("bronzeKey") && kinds.has("letterBox") && phase.current === "none") {
       told.current.hint = true;
       // 허공 E 는 소지품 넣기라 「꺼내 내려놓기」가 아니다 — 평상에 올리는 길만 알린다
       showNotice("청동 열쇠와 아랑사의 함 — 불탄 평상을 겨누고 E 로 함을 올린 뒤, 자물통을 겨눠 열어 보자.", 5);
     }
-  }, [held]);
+  }, [held, hand]);
 
   useEffect(() => {
     const hasBox = () => inventory.has("letterBox") || inventory.hand()?.kind === "letterBox";
@@ -416,7 +424,8 @@ export default function BoxOpening() {
       told.current.unlocked = true;
       audio.play("단서");
       director.cue({ 카메라: "흔들림", 세기: 0.08 });
-      showNotice("철컥 — 자물통이 풀렸다.", 2.5);
+      // 그 순간에 — 앞에 기다리는 글이 있어도 밀어낸다(틈 해설 뒤에 줄 서서 영상이 끝난 뒤에야 떴다, 미르 11/10)
+      showNotice("철컥 — 자물통이 풀렸다.", 2.5, { urgent: true });
     }
     // 자물통이 고리에서 빠져 떨어져 튄다(열쇠도 함께)
     const dropStart = turnStart + TURN_SECONDS + 0.25;
@@ -489,9 +498,14 @@ export default function BoxOpening() {
     box.play.mesh.visible = false;
     box.beam.visible = false;
     (box.glow.material as THREE.SpriteMaterial).opacity = 0;
-    showNotice(
-      "빛이 함으로 가라앉았다. 바닥에 작은 구렁이상 하나가 남아 있다 — 아랑사의 함에 왜 이것이. [E] 로 꺼낸다.",
-      6,
+    // 화면이 다 돌아온 뒤에 — 영상(12.4 s)이 화면 고정(돌아보기 · 머물기 · 풀기 12.6 s)보다 조금 먼저 끝나 [E] 안내가 조작보다 먼저 떴다(Codex 01)
+    gameSetTimeout(
+      () =>
+        showNotice(
+          "빛이 함으로 가라앉았다. 바닥에 작은 구렁이상 하나가 남아 있다 — 아랑사의 함에 왜 이것이. [E] 로 꺼낸다.",
+          6,
+        ),
+      500,
     );
   };
 

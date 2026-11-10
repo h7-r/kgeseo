@@ -6,6 +6,7 @@
  */
 import { useSyncExternalStore } from "react";
 
+import { gameClearTimeout, gameSetTimeout } from "@/engine/input/gameClock";
 import { smoothstep } from "@/engine/math";
 import { createChangeSignal } from "@/lib/changeSignal";
 
@@ -238,14 +239,39 @@ const rememberAirSpot = (x: number, z: number) => {
   lastAirSpot = { x, z };
 };
 
-/** 숨 — 매 프레임. 물속이 아니거나 공기 기둥 안이면 찬다. 다하면 true 를 돌려주고 숨을 채운다 */
+/**
+ * 숨을 지키는 장면 — 문이 열리는 장면처럼 보여 주는 동안은 숨이 줄지도, 생물에게 다치지도 않는다(공기 기둥 안 회복은 된다).
+ * 화면 고정(focusCamera)만 멈추던 것을 장면 단위로 — 고리문은 화면이 풀린 뒤에도 바퀴가 굴러 그동안 숨이 깎였다(미르 11/10).
+ * 받을 때 해제 함수를 돌려준다 — 같은 장면이 겹쳐도 한쪽 해제가 다른 쪽을 풀지 않게(Codex 01). 저장하지 않는다.
+ */
+const breathGuards = new Set<symbol>();
+export function guardBreath(label: string): () => void {
+  const token = Symbol(label);
+  breathGuards.add(token);
+  return () => {
+    breathGuards.delete(token);
+  };
+}
+/** 정해진 시간(초, 게임 시계 — 멈춤 중엔 안 줄어든다)만큼 지킨다 */
+export function guardBreathFor(label: string, seconds: number): () => void {
+  const release = guardBreath(label);
+  const timer = gameSetTimeout(release, seconds * 1000);
+  return () => {
+    gameClearTimeout(timer);
+    release();
+  };
+}
+/** 지금 숨을 지키는 중인가 — 장면 · 화면 고정 */
+export const isBreathGuarded = () => breathGuards.size > 0 || isCameraFocused();
+
+/** 숨 — 매 프레임. 물속이 아니거나 공기 기둥 안이면 찬다. 다하면 true 를 돌려주고 숨을 채운다. 지키는 장면 동안은 줄지 않는다 */
 export function tickBreath(dt: number, x: number, z: number) {
   if (isBreathHeld) return false;
   const inAir = !isUnderwater || isInAir(x, z);
   if (inAir) {
     if (isInAir(x, z)) rememberAirSpot(x, z);
     breath = Math.min(BREATH_SECONDS, breath + BREATH_REFILL * dt);
-  } else breath = Math.max(0, breath - dt);
+  } else if (!isBreathGuarded()) breath = Math.max(0, breath - dt);
   const drowned = breath <= 0;
   if (drowned) breath = BREATH_SECONDS;
   // 까매짐은 숨이 다하면 1 로 튀고 2초쯤에 걸쳐 걷힌다
@@ -272,7 +298,7 @@ const HURT_FLOOR_SECONDS = 5;
 /** 숨을 깎는다 — 실제로 깎았으면 true(알림은 그때만 · 화면 고정 중엔 안 다친다) */
 export function hurtBreath(seconds: number, cause: "spike" | "ink"): boolean {
   // 화면이 고정된 동안은 다치지 않는다 — 몸이 멈춘 채 숨이 깎이지 않게(박람회 출품판 26회차 Codex)
-  if (!isUnderwater || isCameraFocused()) return false;
+  if (!isUnderwater || isBreathGuarded()) return false;
   const before = breath;
   breath = Math.max(Math.min(breath, HURT_FLOOR_SECONDS), breath - seconds);
   if (cause === "ink") {
@@ -332,6 +358,7 @@ export function clearBreathAfterLeaving() {
 
 /** 개발용 초기화 */
 export function resetCaveState() {
+  breathGuards.clear();
   isDoorOpen = false;
   isUnderwater = false;
   breath = BREATH_SECONDS;

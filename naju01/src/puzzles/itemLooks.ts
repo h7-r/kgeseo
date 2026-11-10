@@ -314,24 +314,25 @@ export function buildScaleGeometry() {
   return merged;
 }
 
-/** 톱니돌 — 테두리에 톱니 여덟이 난 납작한 돌판. 미터, 바닥이 원점(눕혀 둔다). 고리문 홈에는 세워 끼운다 */
-export function buildGearStoneGeometry() {
+/** 톱니돌 테두리(톱니 여덟) — grow(미터)만큼 바깥으로 키운 윤곽. 돌판과 빛 테두리가 같이 쓴다 */
+function gearStoneOutline(grow = 0) {
   const teeth = 8;
-  const outer = 0.11;
-  const inner = 0.085;
-  const shape = new THREE.Shape();
+  const outer = 0.11 + grow;
+  const inner = 0.085 + grow;
+  const points: THREE.Vector2[] = [];
   for (let i = 0; i < teeth * 2; i++) {
     const r = i % 2 === 0 ? outer : inner;
     const a0 = (i / (teeth * 2)) * Math.PI * 2;
     const a1 = ((i + 0.55) / (teeth * 2)) * Math.PI * 2;
-    const x0 = Math.cos(a0) * r;
-    const y0 = Math.sin(a0) * r;
-    const x1 = Math.cos(a1) * r;
-    const y1 = Math.sin(a1) * r;
-    if (i === 0) shape.moveTo(x0, y0);
-    else shape.lineTo(x0, y0);
-    shape.lineTo(x1, y1);
+    points.push(new THREE.Vector2(Math.cos(a0) * r, Math.sin(a0) * r));
+    points.push(new THREE.Vector2(Math.cos(a1) * r, Math.sin(a1) * r));
   }
+  return points;
+}
+
+/** 톱니돌 — 테두리에 톱니 여덟이 난 납작한 돌판. 미터, 바닥이 원점(눕혀 둔다). 고리문 홈에는 세워 끼운다 */
+export function buildGearStoneGeometry() {
+  const shape = new THREE.Shape(gearStoneOutline());
   shape.closePath();
   const holeRadius = 0.028;
   const hole = new THREE.Path();
@@ -345,6 +346,23 @@ export function buildGearStoneGeometry() {
     bevelSegments: 1,
   });
   geometry.rotateX(-Math.PI / 2); // 눕힌다 — 두께가 위로
+  geometry.computeBoundingBox();
+  geometry.translate(0, -geometry.boundingBox!.min.y, 0);
+  return geometry;
+}
+
+/**
+ * 톱니돌 빛 테두리 — 돌판 톱니 윤곽을 따라 바깥으로 1.6 cm 두른 얇은 띠(돌판 높이만큼 선 벽 + 윗면 고리). 바닥에 놓인 톱니돌이
+ * 돌멩이로 안 보이게 톱니 모양이 빛으로 읽힌다(미르 11/10). 돌판처럼 눕히고 바닥이 원점이다.
+ * 돌판을 통째로 키운 껍데기(뒷면)는 보는 각도에 따라 두께가 크게 달라져(Codex 01) 윤곽을 직접 띄운다
+ */
+export function buildGearStoneRimGeometry() {
+  // 안쪽 가장자리는 돌판 모서리 깎임(0.006)보다 조금 바깥 — 돌판과 겹쳐 깜빡이지 않게
+  const shape = new THREE.Shape(gearStoneOutline(0.016));
+  shape.closePath();
+  shape.holes.push(new THREE.Path([...gearStoneOutline(0.007)].reverse()));
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.058, bevelEnabled: false });
+  geometry.rotateX(-Math.PI / 2);
   geometry.computeBoundingBox();
   geometry.translate(0, -geometry.boundingBox!.min.y, 0);
   return geometry;

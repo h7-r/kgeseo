@@ -382,8 +382,8 @@ export const DRAFT_OBJECTIVE_LINES: Record<ObjectiveId, Partial<Record<Situation
   S3_KEY: {
     help: [
       [
-        "함을 [I] 에서 꺼내 내려놓고, 자물통을 겨눠 [E] 로 열어요.",
-        "함을 [I] 에서 꺼내서 내려놓고, 자물통을 겨눠 [E] 로 열어 봐.",
+        "불탄 평상을 겨눠 [E] 로 함을 올려놓고, 자물통을 겨눠 [E] 로 열어요.",
+        "불탄 평상을 겨눠서 [E] 로 함을 올려놓고, 자물통을 겨눠 [E] 로 열어 봐.",
       ],
     ],
   },

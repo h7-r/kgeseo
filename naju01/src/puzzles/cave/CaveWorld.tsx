@@ -17,7 +17,6 @@ import {
   buildPebblePrototypes,
 } from "../../models/nature";
 import { MESH_NAMES } from "../../plan/meshNames";
-import { isCameraFocused } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { mangaInk } from "../../world/mangaStyle";
@@ -40,6 +39,7 @@ import {
   getBreath,
   getLastAirSpot,
   getUnderwater,
+  isBreathGuarded,
   isCaveShown,
   resetCaveState,
   setBreath,
@@ -470,11 +470,12 @@ export default function CaveWorld() {
       scene.fog.color.lerp(SAND_MURK, murk.current * 0.45);
       if ((scene.background as THREE.Color | null)?.isColor) (scene.background as THREE.Color).copy(scene.fog.color);
     }
-    // 숨이 얼마 안 남으면 화면이 떨린다
-    if (isUnderwater && getBreath() < BREATH_WARNING)
+    // 숨이 얼마 안 남으면 화면이 떨린다(장면을 보여 주는 동안은 숨이 멈춰 떨지 않는다)
+    if (isUnderwater && getBreath() < BREATH_WARNING && !isBreathGuarded())
       director.cue({ 카메라: "흔들림", 세기: dt * (1.2 + (BREATH_WARNING - getBreath()) * 0.4) });
-    // 화면이 한곳을 바라보는 동안(둥근 문 열림 등 — 몸이 멈춘다)은 숨을 세지 않는다 — 몸이 묶인 채 숨이 다하지 않게(박람회 출품판 26회차)
-    if (!isCameraFocused() && tickBreath(dt, x, z)) {
+    // 화면이 한곳을 바라보는 동안 · 장면을 보여 주는 동안은 숨이 줄지 않는다(tickBreath 가 isBreathGuarded 로 본다) — 몸이 묶인 채
+    // 숨이 다하지 않게(박람회 출품판 26회차). 그래도 매 프레임 부른다 — 공기 기둥 회복 · 까매짐 걷힘은 장면 중에도 이어지게(Codex 01)
+    if (tickBreath(dt, x, z)) {
       const spot = getLastAirSpot();
       teleportPlayer(spot.x, spot.z);
       audio.play("전환");
