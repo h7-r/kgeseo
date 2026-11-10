@@ -21,20 +21,24 @@ type HeroPhase = "trailer" | "end";
 
 interface HeroProps {
   top?: number;
+  /** 무대 px. 창 높이에 맞춰 HeroPin 이 정한다. */
+  height: number;
 }
 
 /**
  * 첫 화면. 게임 예고편이 글 없이 흐르고, 암전·끊김 뒤에 ESCAPE THE LEGEND 로고가 왜곡되며 떠오른다.
  * 글은 처음부터 DOM 에 있다(검색·화면 읽기용) — 예고편 동안은 보이지만 않는다.
  * 동작 줄이기는 바로 끝 화면이다. 단추로 탭 이동하거나 스크롤로 떠났다 돌아와도 끝 화면을 당겨 띄운다.
+ * 예고편 동안에도 오른쪽 아래 「건너뛰기」「플레이하기」로 기다리지 않고 넘어갈 수 있다.
  */
-export default function Hero({ top = 173 }: HeroProps) {
+export default function Hero({ top = 173, height }: HeroProps) {
   const navigate = useSiteNavigate();
   // 조준선이 가장 많이, 제목은 아주 조금만 움직인다. 글자가 많이 흔들리면 읽기 힘들다.
   const stageRef = useMouseParallax<HTMLElement>(16);
   const [isStill] = useState(prefersReducedMotion);
   const [phase, setPhase] = useState<HeroPhase>(isStill ? "end" : "trailer");
   const isEnded = phase === "end";
+  const startGame = () => navigate(START_GAME);
   const [canReplay, setCanReplay] = useState(false);
   const [replayKey, setReplayKey] = useState(0);
   const reveal = useCallback(() => setPhase("end"), []);
@@ -42,6 +46,8 @@ export default function Hero({ top = 173 }: HeroProps) {
     setCanReplay(isReplayable);
     setPhase("end");
   }, []);
+  // 건너뛴 사람은 예고편을 덜 봤다 — 끝 화면에서 다시 볼 수 있게 한다.
+  const skip = () => handleEnd(true);
   const replay = () => {
     setPhase("trailer");
     setReplayKey((key) => key + 1);
@@ -69,7 +75,13 @@ export default function Hero({ top = 173 }: HeroProps) {
       className="hero"
       data-phase={phase}
       data-still={isStill ? "" : undefined}
-      style={{ ...sectionStyle, top: `${top}px`, transformOrigin: "center 38%", willChange: "transform, opacity" }}
+      style={{
+        ...sectionStyle,
+        top: `${top}px`,
+        height: `${height}px`,
+        transformOrigin: "center 38%",
+        willChange: "transform, opacity",
+      }}
     >
       {/* 제목·조준선(zIndex 1) 뒤(zIndex 0)에 깔린다. */}
       <Suspense fallback={<HeroVideoFrame isEnded={isEnded} />}>
@@ -125,11 +137,28 @@ export default function Hero({ top = 173 }: HeroProps) {
         type="button"
         className="button button--gradient-label hero__play"
         style={{ ...playButtonStyle, cursor: "pointer", position: "relative", zIndex: 1 }}
-        onClick={() => navigate(START_GAME)}
+        onClick={startGame}
         onFocus={reveal}
       >
         <span className="button__label hero__play-label">플레이하기</span>
       </button>
+
+      {!isEnded && (
+        <div className="hero__trailer-actions" style={trailerActionsStyle}>
+          <button type="button" className="button hero__skip" style={skipButtonStyle} onClick={skip}>
+            <span className="button__label">건너뛰기</span>
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M2 2.5 7.5 7 2 11.5zM7.5 2.5 13 7l-5.5 4.5z" fill="currentColor" />
+            </svg>
+          </button>
+          <button type="button" className="button" style={trailerPlayButtonStyle} onClick={startGame}>
+            <svg width="12" height="14" viewBox="0 0 12 14" aria-hidden="true">
+              <path d="M1 1.2v11.6L11 7z" fill="currentColor" />
+            </svg>
+            <span className="button__label">플레이하기</span>
+          </button>
+        </div>
+      )}
 
       {isEnded && canReplay && (
         <button type="button" className="hero__replay" style={replayButtonStyle} onClick={replay}>
@@ -145,7 +174,6 @@ const sectionStyle: CSSProperties = {
   left: "50%",
   transform: "translateX(-50%)",
   width: "1920px",
-  height: "1149px",
   background: "#43587f",
   overflow: "hidden",
   boxSizing: "border-box",
@@ -231,12 +259,56 @@ const playButtonStyle: CSSProperties = {
   padding: "0 32px",
 };
 
+// 오른쪽 아래 단추 자리. 예고편 단추와 끝 화면의 「다시 보기」가 같은 자리를 번갈아 쓴다.
+const CORNER_RIGHT = "120px";
+const CORNER_BOTTOM = "64px";
+
+// 예고편 동안의 단추 묶음. 영상을 가리지 않게 구석에 둔다.
+const trailerActionsStyle: CSSProperties = {
+  position: "absolute",
+  right: CORNER_RIGHT,
+  bottom: CORNER_BOTTOM,
+  zIndex: 1,
+  display: "flex",
+  alignItems: "center",
+  gap: "14px",
+};
+
+const cornerButtonBase: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "10px",
+  height: "52px",
+  padding: "0 26px",
+  fontFamily: FONT.display,
+  fontSize: "20px",
+  letterSpacing: "1px",
+  whiteSpace: "nowrap",
+  borderRadius: "999px",
+  cursor: "pointer",
+};
+
+const skipButtonStyle: CSSProperties = {
+  ...cornerButtonBase,
+  color: COLOR.textBright,
+  background: "rgba(1,4,10,0.45)",
+  border: "1px solid rgba(159,178,234,0.4)",
+};
+
+// 머리띠 「로그인」 단추와 같은 남색 면. 예고편 위에서 먼저 눈에 들어오는 쪽이다.
+const trailerPlayButtonStyle: CSSProperties = {
+  ...cornerButtonBase,
+  color: COLOR.white,
+  background: "linear-gradient(90deg, #3a58b4 0%, #2f427b 100%)",
+  border: "1px solid rgba(159,178,234,0.55)",
+  boxShadow: "0 0 32px rgba(50,82,150,0.35), 0 4px 16px rgba(1,4,10,0.5)",
+};
+
 // 끝 화면 오른쪽 아래의 작은 글 단추. 로고·플레이하기와 겨루지 않게 흐리게 둔다.
 const replayButtonStyle: CSSProperties = {
   position: "absolute",
-  // 히어로 아래쪽은 첫 화면 밖이다(1149 중 약 900 까지 보인다) — 보이는 자리에 둔다.
-  right: "120px",
-  bottom: "330px",
+  right: CORNER_RIGHT,
+  bottom: CORNER_BOTTOM,
   zIndex: 1,
   display: "inline-flex",
   alignItems: "center",

@@ -94,6 +94,25 @@
   opacity: 1;
   border-color: rgba(159, 178, 234, 0.8);
 }
+/* 예고편이 막 시작될 때 잠깐 뒤에 조용히 뜬다. 처음부터 눌리긴 한다. */
+.hero__trailer-actions {
+  animation: hero-fade-in 0.6s 0.6s ease-out both;
+}
+.hero__skip {
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease;
+}
+.hero__skip:hover,
+.hero__skip:focus-visible {
+  border-color: rgba(159, 178, 234, 0.8) !important;
+  background-color: rgba(1, 4, 10, 0.65) !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero__trailer-actions {
+    animation: none;
+  }
+}
 .hero[data-still] .hero__logo,
 .hero[data-still] .hero__lead,
 .hero[data-still] .hero__play,
