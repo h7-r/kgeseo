@@ -116,7 +116,7 @@ export function getBodyFieldStart(field: BodyField, gender: AvatarGender): numbe
   return ticks[Math.max(0, Math.min(ticks.length - 1, tick))].value;
 }
 
-// 눈금의 가운데(defaultValue)와 시작 칸(startTicks)을 따로 둔다. 렌더러 기본값(어깨 1.2·팔 0.88)을 그대로 쓰되
+// 눈금의 가운데(defaultValue)와 시작 칸(startTicks)을 따로 둔다. 렌더러 기본값(어깨 1·팔 0.7)을 그대로 쓰되
 // 처음 모습이 나아 보이도록 몇 가지는 따로 잡는다(머리는 가장 작게, 팔·다리는 조금 가늘게, 살짝 마른 체형).
 // 1.00 으로 고쳐 적으면 초기화할 때마다 캐릭터가 달라진다.
 // 시작 칸은 2026-11-04 화면을 보고 맞춘 것 — 남성은 작은 손·260mm·넓은 어깨, 여성은 아주 작은 손·245mm·보통 어깨·조금 좁은 골반.
@@ -176,11 +176,12 @@ export const BODY_FIELDS: readonly BodyField[] = [
     group: "proportions",
     startTicks: { feminine: 1 },
   },
-  // 뼈를 통째로 줄이는 방식이라 길이를 줄이면 굵기도 같이 준다 — 너무 줄이면 소매가 헐렁해 보여 하한을 두었다.
+  // 렌더러 기본 0.7 이 Meshy 의 긴 팔을 보통 길이로 줄인 값이고 렌더러 하한이기도 하다 — 더 짧게는 못 줄이고 길게만 늘린다.
+  // (뼈를 통째로 줄이는 방식이라 더 줄이면 굵기도 같이 줄어 소매가 헐렁해 보인다.)
   {
     key: "armLength",
     label: "팔 길이",
-    min: 0.78,
+    min: 0.7,
     max: 1.15,
     step: 0.01,
     defaultValue: RENDERER_DEFAULTS.armLength,
