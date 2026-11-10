@@ -255,6 +255,13 @@ html[data-admin] :focus-visible {
   }
 }
 
+/* 움직임 줄이기를 켠 사람에게는 사이드바가 미끄러지지 않고 바로 열리고 닫힌다 */
+@media (prefers-reduced-motion: reduce) {
+  .adm-sidebar {
+    transition: none;
+  }
+}
+
 /* ── 머리 · 칸 배치 ───────────────────────── */
 .adm-page-head {
   display: flex;

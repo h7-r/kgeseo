@@ -46,8 +46,12 @@ export function formatClock(value: number): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** 목록용 이메일. 앞 두 글자와 도메인만 남긴다 — minsoo@escape.com → mi***@escape.com */
+/**
+ * 목록용 이메일. 앞 두 글자와 도메인만 남긴다 — minsoo@escape.com → mi***@escape.com
+ * 서버가 이미 가려 보낸 값(* 포함)은 그대로 둔다 — 두 번 가리면 글자가 더 깎인다.
+ */
 export function maskEmail(email: string): string {
+  if (email.includes("*")) return email;
   const at = email.lastIndexOf("@");
   if (at <= 0) return "***";
   const local = email.slice(0, at);
