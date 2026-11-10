@@ -5,7 +5,6 @@ import { API_ORIGIN } from "@/config/env";
 import { useAdminMe } from "../auth/adminSession";
 import { useQueryChoice } from "../lib/useQueryChoice";
 import Badge from "../ui/Badge";
-import PageHeader from "../ui/PageHeader";
 import Panel from "../ui/Panel";
 import PillTabs from "../ui/PillTabs";
 import { PendingScreen } from "../ui/StatusScreen";
@@ -36,10 +35,6 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader
-        title="설정"
-        description="서비스 설정을 확인합니다. 값은 서버에서 정하고 이 화면에서는 바꾸지 않습니다."
-      />
       <PillTabs label="설정 구분" items={TABS} activeId={tab} onSelect={setTab} />
       {tab === "general" ? <GeneralSettings /> : <AdminAccounts />}
     </>

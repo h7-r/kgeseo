@@ -4,31 +4,24 @@ import { usePreviewData } from "../preview/usePreview";
 import BarChart from "../ui/BarChart";
 import Badge from "../ui/Badge";
 import DataTable from "../ui/DataTable";
-import PageHeader from "../ui/PageHeader";
 import Panel from "../ui/Panel";
 import StatCard from "../ui/StatCard";
-import { PendingScreen } from "../ui/StatusScreen";
 
 const percent = (part: number, whole: number) => (whole ? Math.round((part / whole) * 1000) / 10 : 0);
 
 /** 나주 사건(CASE-01)의 진행 · 퍼즐 집계. 퍼즐은 P번호 · 이름만 쓰고 정답 값은 어디에도 두지 않는다. */
+/** 제목 오른쪽 콘텐츠 판 표시. */
+export function GameDataVersion() {
+  const data = usePreviewData()?.gameData;
+  return <Badge tone="gray">{data?.contentVersion ?? "naju-angam-01"}</Badge>;
+}
+
 export default function GameDataPage() {
   const data = usePreviewData()?.gameData;
 
-  return (
-    <>
-      <PageHeader
-        title="게임 데이터"
-        description="나주 사건 「앙암바위」 스테이지 1–5 와 퍼즐별 시도를 봅니다."
-        actions={<Badge tone="gray">{data?.contentVersion ?? "naju-angam-01"}</Badge>}
-      />
-      {!data ? (
-        <PendingScreen needs="플레이 집계 API(스테이지 진입 · 완료, 퍼즐 시도 · 오답 · 힌트)가 생기면 열립니다." />
-      ) : (
-        <GameDataView data={data} />
-      )}
-    </>
-  );
+  if (!data) return null;
+
+  return <GameDataView data={data} />;
 }
 
 function GameDataView({ data }: { data: PreviewData["gameData"] }) {

@@ -3,7 +3,6 @@ import { usePreviewData } from "../preview/usePreview";
 import BarChart from "../ui/BarChart";
 import DataTable from "../ui/DataTable";
 import LineChart from "../ui/LineChart";
-import PageHeader from "../ui/PageHeader";
 import Panel from "../ui/Panel";
 import StatCard from "../ui/StatCard";
 import { PendingScreen } from "../ui/StatusScreen";
@@ -17,7 +16,6 @@ export default function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="대시보드" description="서비스 상태를 한눈에 봅니다." />
       <div className="adm-grid adm-grid--stats">
         <StatCard label="동시접속자" value={count(data?.concurrent)} unit="명" caption="실시간" />
         <StatCard label="오늘 DAU" value={count(data?.dau)} unit="명" caption="오늘 0시부터" />

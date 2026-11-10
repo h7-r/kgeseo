@@ -1,6 +1,7 @@
-import { parseBackendTimestamp } from "@/services/account/authApi";
-
-/** 관리자 화면의 숫자 · 날짜 · 가림 표기. 한 곳에서 정해 화면마다 모양이 갈리지 않게 한다. */
+/**
+ * 관리자 화면의 숫자 · 날짜 · 가림 표기. 한 곳에서 정해 화면마다 모양이 갈리지 않게 한다.
+ * "@/" 별칭 없이 써서 node 테스트가 바로 읽는다.
+ */
 
 const numberFormat = new Intl.NumberFormat("ko-KR");
 
@@ -8,10 +9,22 @@ export const formatNumber = (value: number): string => numberFormat.format(value
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
+// 끝에 Z 나 ±hh:mm 이 있으면 시간대가 적힌 값이다.
+const TIMEZONE_SUFFIX = /(?:Z|[+-]\d{2}:?\d{2})$/i;
+
+/**
+ * 서버 시각을 밀리초로. 서버는 UTC 를 시간대 표기 없이 보낸다(웹 authApi 의 parseBackendTimestamp 와 같은 규칙).
+ * 마이크로초는 브라우저마다 읽는 법이 달라 밀리초까지만 쓴다.
+ */
+export function parseServerTime(value: string): number | undefined {
+  const trimmed = value.trim().replace(/(\.\d{3})\d+/, "$1");
+  const time = Date.parse(TIMEZONE_SUFFIX.test(trimmed) ? trimmed : `${trimmed}Z`);
+  return Number.isNaN(time) ? undefined : time;
+}
+
 function toDate(value: string | number | null | undefined): Date | null {
   if (value == null) return null;
-  // 서버 시각은 UTC 를 시간대 없이 보낸다. 웹과 같은 해석기를 쓴다.
-  const time = typeof value === "number" ? value : parseBackendTimestamp(value);
+  const time = typeof value === "number" ? value : parseServerTime(value);
   return time === undefined ? null : new Date(time);
 }
 

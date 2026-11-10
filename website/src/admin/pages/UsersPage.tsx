@@ -8,10 +8,9 @@ import ResourceView from "../auth/ResourceView";
 import { formatDate, formatDateTime, formatNumber, maskEmail } from "../lib/format";
 import { stageLabel } from "../lib/gameStage";
 import { useQueryChoice } from "../lib/useQueryChoice";
-import { adminLoginPath, userDetailPath } from "../paths";
+import { ADMIN_PATHS, adminLoginPath } from "../paths";
 import Badge from "../ui/Badge";
 import DataTable, { type Column } from "../ui/DataTable";
-import PageHeader from "../ui/PageHeader";
 import PillTabs from "../ui/PillTabs";
 import StatCard from "../ui/StatCard";
 import { PendingScreen } from "../ui/StatusScreen";
@@ -37,7 +36,6 @@ export default function UsersPage() {
 
   return (
     <>
-      <PageHeader title="회원 관리" description="가입한 플레이어를 가입 최신순으로 봅니다." />
       <PillTabs label="회원 구분" items={TABS} activeId={tab} onSelect={setTab} />
       <div className="adm-toolbar">
         <label className="adm-search">
@@ -181,7 +179,7 @@ function userColumns(listPath: string): Column<AdminUserSummary>[] {
       width: "88px",
       render: (user) => (
         <Link
-          to={userDetailPath(user.user_id)}
+          to={ADMIN_PATHS.userDetail(user.user_id)}
           state={{ from: listPath }}
           className="adm-button adm-button--ghost adm-button--small"
           aria-label={`${user.nickname} 상세 보기`}

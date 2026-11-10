@@ -1,32 +1,19 @@
-import { ROUTES, safeNextPath } from "@/navigation/routes";
+import { ROUTES } from "@/navigation/routes";
 
-const base = ROUTES.admin;
+import { safeAdminNext } from "./lib/nextPath";
+import { buildAdminPaths, findScreen, menuScreenOf, type AdminScreen } from "./screens";
 
-/** 관리자 화면 주소. 운영 주소는 https://www.k-escape.com/admin 이다. */
-export const ADMIN_PATHS = {
-  dashboard: base,
-  login: `${base}/login`,
-  traffic: `${base}/traffic`,
-  users: `${base}/users`,
-  userStats: `${base}/user-stats`,
-  gameData: `${base}/game-data`,
-  activity: `${base}/activity`,
-  notices: `${base}/notices`,
-  contents: `${base}/contents`,
-  support: `${base}/support`,
-  subscriptions: `${base}/subscriptions`,
-  settings: `${base}/settings`,
-} as const;
+/** 관리자 주소. 운영 주소는 https://www.k-escape.com/admin 이다. 첫 주소는 ROUTES.admin 하나에서 온다. */
+export const ADMIN_PATHS = buildAdminPaths(ROUTES.admin);
 
-export const userDetailPath = (userId: string) => `${ADMIN_PATHS.users}/${encodeURIComponent(userId)}`;
+export const findAdminScreen = (pathname: string): AdminScreen | undefined => findScreen(pathname, ROUTES.admin);
 
-export const isAdminPath = (pathname: string) => pathname === base || pathname.startsWith(`${base}/`);
+/** 탭 제목 · 메뉴 강조에 쓰는 이름 — 회원 상세는 「회원 관리」를 따른다. */
+export const menuLabelFor = (pathname: string): string | undefined => {
+  const screen = findAdminScreen(pathname);
+  return screen && menuScreenOf(screen).label;
+};
 
-/** 로그인 뒤 돌아갈 곳. 관리자 안의 주소만 받는다 — 로그인 화면으로 다시 돌아가는 고리도 막는다. */
-export function adminNextPath(value: string | null): string {
-  const next = safeNextPath(value);
-  if (!next || !isAdminPath(next.split("?")[0]) || next.startsWith(ADMIN_PATHS.login)) return ADMIN_PATHS.dashboard;
-  return next;
-}
+export const adminNextPath = (value: string | null) => safeAdminNext(value, ADMIN_PATHS.dashboard, ADMIN_PATHS.login);
 
 export const adminLoginPath = (next: string) => `${ADMIN_PATHS.login}?next=${encodeURIComponent(next)}`;

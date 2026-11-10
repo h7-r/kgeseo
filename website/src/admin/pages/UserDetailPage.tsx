@@ -59,7 +59,7 @@ function UserDetail({ detail }: { detail: AdminUserDetail }) {
 
   return (
     <>
-      <PageHeader title={user.nickname} description="회원 상세" />
+      <PageHeader title={user.nickname} />
       <div className="adm-grid adm-grid--three">
         <Panel title="계정">
           <dl className="adm-fields">
