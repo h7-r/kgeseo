@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
+import { adminTitle } from "../lib/documentTitle";
 import { menuLabelFor } from "../paths";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
@@ -12,8 +13,7 @@ export default function AdminShell() {
 
   useEffect(() => {
     // 모르는 주소면 화면 이름 없이 「관리자」만 둔다.
-    const label = menuLabelFor(pathname);
-    document.title = label ? `${label} · 관리자 · ESCAPE THE LEGEND` : "관리자 · ESCAPE THE LEGEND";
+    document.title = adminTitle(menuLabelFor(pathname));
   }, [pathname]);
 
   return (

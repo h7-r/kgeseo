@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { ADMIN_ROLE, fetchMe } from "../api/session";
 import { useAdminResource } from "../api/useAdminResource";
+import AdminTitle from "../ui/AdminTitle";
 import StatusScreen from "../ui/StatusScreen";
 import { AdminSessionContext } from "./adminSession";
 import LogoutButton from "./LogoutButton";
@@ -18,8 +19,17 @@ export default function RequireAdmin({ children }: { children: ReactNode }) {
     return <AdminSessionContext value={resource.data}>{children}</AdminSessionContext>;
   }
 
+  // 틀(AdminShell) 밖이라 탭 제목을 여기서 정한다. 로그인으로 보낼 때는 로그인 화면이 정한다.
+  const gateLabel =
+    resource.status === "loading" || (resource.status === "error" && resource.error.kind === "unauthenticated")
+      ? undefined
+      : resource.status === "ready" || resource.error.kind === "forbidden"
+        ? "권한 없음"
+        : "연결 오류";
+
   return (
     <main className="adm-gate">
+      <AdminTitle label={gateLabel} />
       <ResourceView resource={resource} retry={retry} loadingText="관리자 권한을 확인하고 있습니다">
         {(me) => (
           <StatusScreen
