@@ -25,6 +25,11 @@ export interface CameraFocusRequest {
   replace?: boolean;
   /** 머물기가 끝나면 돌아오지 않고 바로 이어 볼 곳 */
   then?: CameraFocusRequest;
+  /**
+   * 끝나면(turnOut 동안) 이 고정을 건 때 보던 쪽으로 돌아온다 — 지나가며 한 번 보여 주는 것(석실 벽화)이 플레이어의 걷던 방향을
+   * 빼앗지 않게(미르 11/10). 기본은 지금처럼 그 시선 그대로 둔다. 이어 걸면(then · replace) 이어 건 고정을 건 때가 기준이다
+   */
+  returnHome?: boolean;
 }
 
 interface ActiveFocus extends Required<Omit<CameraFocusRequest, "replace" | "then">> {
@@ -36,6 +41,8 @@ interface ActiveFocus extends Required<Omit<CameraFocusRequest, "replace" | "the
   /** 돌아보기 시작할 때의 시선 · 원래 시야각 */
   from: THREE.Quaternion;
   homeFov: number;
+  /** returnHome — 돌아오기 시작한 때의 시선 */
+  outFrom: THREE.Quaternion | null;
 }
 
 /** 한 프레임에 흘려보낼 최대 시간(초) — 멈췄다 돌아온 프레임이 연출을 건너뛰지 않게 */
@@ -69,9 +76,11 @@ export function focusCamera(request: CameraFocusRequest) {
     zoom: request.zoom ?? 1,
     elapsed: 0,
     then: request.then ?? null,
+    returnHome: request.returnHome ?? false,
     fromFov: camera.fov,
     from: camera.quaternion.clone(),
     homeFov,
+    outFrom: null,
   };
   return true;
 }
@@ -133,8 +142,12 @@ export function applyCameraFocus(camera: THREE.Camera, dt: number) {
     focusCamera({ ...focus.then, replace: true });
     return;
   }
-  // 시선은 그 자리에 두고 당겼던 시야만 푼다. 원래 보던 쪽으로 돌아가지 않는다.
+  // 시선은 그 자리에 두고 당겼던 시야만 푼다. 원래 보던 쪽으로 돌아가지 않는다(returnHome 이면 돌아온다).
   const s = focus.turnOut > 0 ? Math.min(1, (since - focus.turnIn - focus.hold) / focus.turnOut) : 1;
+  if (focus.returnHome) {
+    if (!focus.outFrom) focus.outFrom = camera.quaternion.clone();
+    camera.quaternion.slerpQuaternions(focus.outFrom, focus.from, THREE.MathUtils.smootherstep(s, 0, 1));
+  }
   setFov(currentCamera, THREE.MathUtils.lerp(zoomed, focus.homeFov, THREE.MathUtils.smootherstep(s, 0, 1)));
   if (s >= 1) active = null;
 }

@@ -25,7 +25,7 @@ import { makeToonMaterial } from "../materials";
 import { setPuzzlePanel } from "../puzzlePanel";
 import { M } from "../units";
 import AirColumn from "./AirColumn";
-import { FISH_BURROWS, floorY, stirSand, useCaveShown } from "./caveState";
+import { FISH_BURROWS, floorY, guardBreathFor, stirSand, useCaveShown } from "./caveState";
 import { SPECIES, buildFishGeometry } from "./fishLooks";
 import { normalizePrototype } from "./seabed";
 
@@ -207,6 +207,8 @@ export default function FishBurrows() {
     awaitingRef.current = false;
     setIsAwaiting(false);
     solvedAt.current = now();
+    // 물고기들이 굴을 나오고 항아리 뚜껑이 밀려나는 것을 보는 동안은 숨이 줄지 않는다(미르 11/10)
+    guardBreathFor("burrows-open", 3);
     audio.play("징");
     audio.play("우르릉");
     director.cue({ 카메라: "흔들림", 세기: 0.7 });

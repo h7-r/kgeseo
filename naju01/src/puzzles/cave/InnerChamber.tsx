@@ -11,6 +11,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { exposeDevHook } from "@/debug/devHooks";
 
+import { cameraFocusId, focusCamera } from "../../scene/cameraFocus";
 import { useRememberedState } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
@@ -32,6 +33,7 @@ import {
   useCaveShown,
   cave,
   clearBreathAfterLeaving,
+  guardBreathFor,
   holdBreathWhileLeaving,
 } from "./caveState";
 import { createChamberAssets, disposeChamberAssets } from "./chamberArt";
@@ -71,6 +73,11 @@ import {
   STATUE_Z,
 } from "./chamberLayout";
 
+/** 벽화 돌아보기 — 방 안쪽으로 이만큼(z) 들어서면 · 화면 고정 이름 · 바라볼 자리(유닛, 벽화 가운데) */
+const MURAL_GLANCE_Z = INNER.z[0] + 2.2;
+const MURAL_FOCUS_ID = "chamber-mural";
+const muralTarget = new THREE.Vector3(45 * M, (MURAL.bottom + MURAL.height / 2) * M, MURAL.z * M);
+
 /** 틀리면 깎이는 숨(초) · 받침이 가라앉아 못 누르는 시간(초) */
 const WRONG_PRESS_BREATH = 8;
 const LOCKOUT_SECONDS = 3;
@@ -91,6 +98,9 @@ export default function InnerChamber() {
   const [isScaleTaken, setIsScaleTaken] = useRememberedState("chamber.isScaleTaken", false);
   /** 큰 진주로 홈을 밝혔나 — 그때부터 비늘이 떠오른다 */
   const [isShone, setIsShone] = useRememberedState("chamber.isShone", false);
+  // 석실에 처음 들어서 아치 위 벽화를 한 번 돌아봤나 — 다 본 뒤에 적는다(다른 연출에 밀려 못 봤으면 다음에 다시)
+  const [isMuralGlanced, setIsMuralGlanced] = useRememberedState("chamber.muralGlanced", false);
+  const muralGlance = useRef<"idle" | "focusing" | "done">(isMuralGlanced ? "done" : "idle");
   // 이어 하기: 이미 끝난 연출은 페이지 시작 때 끝난 것으로 친다(0 이면 충분히 지났다).
   const shoneAt = useRef(isShone ? 0 : -1);
   const progressRef = useRef(progress);
@@ -140,6 +150,8 @@ export default function InnerChamber() {
   const solve = () => {
     setIsSolved(true);
     solvedAt.current = now();
+    // 상자 옆 등이 켜지는 것을 보는 동안은 숨이 줄지 않는다(미르 11/10)
+    guardBreathFor("chamber-solve", 2.5);
     audio.play("징");
     showNotice(
       "받침 넷이 다 맞았다. 상자 옆 등에 불이 들었지만 상자 면은 아직 맨 돌이다 — 오른쪽 바위에 둥근 홈이 보인다.",
@@ -152,6 +164,8 @@ export default function InnerChamber() {
     if (solvedAt.current < 0 || shoneAt.current >= 0) return;
     shoneAt.current = now();
     setIsShone(true);
+    // 빛줄기가 상자로 흘러들고 비늘이 떠오르는 동안 — 숨이 줄지 않는다(미르 11/10)
+    guardBreathFor("chamber-shine", SCALE_DELAY + SCALE_RISE_SECONDS);
     audio.play("징");
     showNotice("진주가 홈에 딸깍 들어맞았다. 빛줄기가 상자 벽화로 흘러든다 — 구멍 깊은 곳에서 푸른 것이 떠오른다.", 5);
   };
@@ -419,6 +433,36 @@ export default function InnerChamber() {
     if (enteredAt.current < 0 && pz > INNER.z[0] - 0.3 && px > INNER.x[0] && px < INNER.x[1]) {
       enteredAt.current = time;
       audio.play("단서");
+    }
+    // 처음 들어서 방 안쪽으로 2 m 쯤 오면 — 들어온 아치 위 벽화(받침 순서의 단서)를 한 번 돌아보고 원래 보던 쪽으로(미르 11/10).
+    // 입구에서 바로 돌면 벽화가 너무 가까워 잘린다(Codex 01). 이미 받침을 누르기 시작한 저장본은 건너뛴다
+    if (muralGlance.current === "idle" && enteredAt.current >= 0 && !isSucking) {
+      if (progressRef.current > 0 || solvedAt.current >= 0) {
+        muralGlance.current = "done";
+        setIsMuralGlanced(true);
+      } else if (
+        pz > MURAL_GLANCE_Z &&
+        px > INNER.x[0] &&
+        px < INNER.x[1] &&
+        time - enteredAt.current > LIGHT_UP_SECONDS
+      ) {
+        const isFocused = focusCamera({
+          id: MURAL_FOCUS_ID,
+          target: muralTarget,
+          hold: 2.4,
+          turnIn: 0.8,
+          turnOut: 0.7,
+          zoom: 1.08,
+          returnHome: true,
+        });
+        if (isFocused) {
+          muralGlance.current = "focusing";
+          showNotice("…저 벽화는 뭐지? 들어온 아치 위에 그림이 이어져 있다.", 4, { urgent: true });
+        }
+      }
+    } else if (muralGlance.current === "focusing" && cameraFocusId() !== MURAL_FOCUS_ID) {
+      muralGlance.current = "done";
+      setIsMuralGlanced(true);
     }
     const light =
       enteredAt.current < 0 ? 0 : THREE.MathUtils.smootherstep((time - enteredAt.current) / LIGHT_UP_SECONDS, 0, 1);

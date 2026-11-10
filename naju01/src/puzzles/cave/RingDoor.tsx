@@ -49,6 +49,8 @@ import {
   WHEEL_RADIUS,
   registerCaveObstacles,
   setDoorOpen,
+  guardBreath,
+  guardBreathFor,
   stirSand,
   useCaveShown,
 } from "./caveState";
@@ -296,6 +298,8 @@ export default function RingDoor() {
     openedAt.current = gameNow() / 1000;
     isHolding.current = false;
     setIsOpen(true);
+    // 문이 열리는 장면 — 덜컹이고 바퀴가 다 굴러갈 때까지(화면 고정 3.7 s 보다 길다) 숨이 줄지 않는다(미르 11/10)
+    guardBreathFor("ring-door-open", RATTLE_SECONDS + ROLL_SECONDS + 0.4);
     // 바퀴가 다 굴러간 뒤에야 지나갈 수 있다
     gameSetTimeout(() => setDoorOpen(true), (RATTLE_SECONDS + ROLL_SECONDS * 0.8) * 1000);
     // 물속이 쿵 울린다 — 처음 덜컹에 크게, 구르는 동안은 매 프레임 잔떨림
@@ -355,6 +359,8 @@ export default function RingDoor() {
     const notches = angles.current.map(gapNotch);
     const answer = ringDoorAnswer(notches);
     isJudging.current = true;
+    // 판정을 기다리는 동안도 숨을 지킨다 — 맞으면 openDoor 가 이어 지키고, 틀리거나 끊기면 여기서 풀린다(Codex 01)
+    const releaseJudgeGuard = guardBreath("ring-door-judge");
     try {
       // 연결이 끊겨 쥔 이벤트가 있고 고리가 그대로면 같은 이벤트를, 바뀌었으면 새 시도를 보낸다(쥔 것은 버려진다)
       const verdict =
@@ -370,6 +376,7 @@ export default function RingDoor() {
       if (verdict) await settle(verdict, notches);
     } finally {
       isJudging.current = false;
+      releaseJudgeGuard();
     }
   };
   /** 톱니돌은 위 홈부터 — 열리지 않은 홈이면 거절한다(물건은 손 · 소지품에 남는다) */

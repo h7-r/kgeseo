@@ -248,7 +248,7 @@ export function EntryStatues({
   ));
 }
 
-/** 숨구멍 — 바닥 구멍이 아니라 바위 틈에서 공기가 새어 오른다. 받침 줄 양옆은 어둑해서 거품을 키운다 */
+/** 숨구멍 — 바닥 구멍이 아니라 바위 틈에서 공기가 새어 오른다. 입구 양옆 벽 앞 둘은 어둑해서 거품을 키운다 */
 export function ChamberVents() {
   return (
     <>
