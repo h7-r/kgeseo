@@ -56,31 +56,39 @@
   pointer-events: none;
 }
 
-/* 히어로 예고편 → 끝 화면. 예고편 동안 글은 DOM 에 있되 보이지 않고(단추는 눌리지 않는다),
-   끝나면 로고만 크게 끊기고 찢기며 떠오르고, 카메라가 뒤로 빠지듯 제자리 크기로 줄어들면 설명·단추가 아래에서 따라온다.
+/* 히어로 첫 등장. 예고편이 도는 동안에도 로고 · 설명 · 플레이 단추는 처음부터 있다 — 페이지가 열릴 때 한 번만
+   로고가 크게 끊기고 찢기며 떠오르고, 카메라가 뒤로 빠지듯 제자리 크기로 줄어들면 설명 · 단추가 아래에서 따라온다.
    크기는 scale 속성으로 따로 움직인다 — transform 은 찢김 연출이 쓴다. 로고만 흔드는 까닭: 바깥 칸의 transform 은 마우스 시차가 쓴다. */
-.hero[data-phase="trailer"] .hero__logo,
-.hero[data-phase="trailer"] .hero__lead,
-.hero[data-phase="trailer"] .hero__play,
-.hero[data-phase="trailer"] .hero__crosshair {
-  opacity: 0;
-}
-.hero[data-phase="trailer"] .hero__play {
-  pointer-events: none;
-}
-.hero[data-phase="end"] .hero__logo {
+.hero .hero__logo {
   animation:
-    hero-logo-glitch 1.15s steps(1, end) both,
-    hero-logo-pullback 1.7s 1.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+    hero-logo-glitch 1s 0.2s steps(1, end) both,
+    hero-logo-pullback 1.3s 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.hero[data-phase="end"] .hero__lead {
-  animation: hero-rise-in 0.9s 2.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+.hero .hero__lead {
+  animation: hero-rise-in 0.8s 1.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.hero[data-phase="end"] .hero__play {
-  animation: hero-rise-in 0.9s 2.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+.hero .hero__play {
+  animation: hero-rise-in 0.8s 1.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.hero[data-phase="end"] .hero__crosshair {
-  animation: hero-fade-in 1s 2.6s ease-out both;
+.hero .hero__crosshair {
+  animation: hero-fade-in 1s 1.7s ease-out both;
+}
+
+/* 상시 플레이 단추 — 머리띠 알약과 같은 모양을 크게. 영상 위에서도 칸이 읽히게 테두리와 푸른 빛을 두른다. */
+.hero__play {
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    background-color 0.25s ease,
+    transform 0.16s var(--ease-smooth);
+}
+.hero__play:hover,
+.hero__play:focus-visible {
+  border-color: rgba(159, 178, 234, 0.95) !important;
+  background-color: rgba(20, 34, 78, 0.62) !important;
+  box-shadow:
+    0 0 48px rgba(58, 88, 180, 0.55),
+    inset 0 0 26px rgba(58, 88, 180, 0.35) !important;
 }
 .hero__replay {
   opacity: 0.72;
@@ -94,6 +102,37 @@
   opacity: 1;
   border-color: rgba(159, 178, 234, 0.8);
 }
+/* 플레이 단추에 올리면 글자가 왼쪽부터 하나씩 튀어 올랐다 내려앉기를 되풀이한다(박자 타듯). */
+.hero__play-char {
+  display: inline-block;
+}
+/* 색 흐름(gradient-pan, motion.css)은 그대로 두고 물결만 더한다 */
+.hero__play:hover .hero__play-char,
+.hero__play:focus-visible .hero__play-char {
+  animation:
+    gradient-pan 6s calc(var(--i) * -0.35s) linear infinite,
+    hero-play-wave 1.2s calc(var(--i) * 0.1s) ease-in-out infinite;
+}
+@keyframes hero-play-wave {
+  0%,
+  55%,
+  100% {
+    translate: 0 0;
+  }
+  18% {
+    translate: 0 -8px;
+  }
+  36% {
+    translate: 0 2px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero__play:hover .hero__play-char,
+  .hero__play:focus-visible .hero__play-char {
+    animation: none;
+  }
+}
+
 /* 예고편이 막 시작될 때 잠깐 뒤에 조용히 뜬다. 처음부터 눌리긴 한다. */
 .hero__trailer-actions {
   animation: hero-fade-in 0.6s 0.6s ease-out both;

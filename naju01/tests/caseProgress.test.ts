@@ -42,6 +42,27 @@ test("이정표를 셀수록 오르고, 지금 스테이지 이름이 따라간�
   assert.ok(rock.percent > dock.percent);
 });
 
+test("스테이지별 숫자를 함께 준다 — 마이페이지가 스테이지마다 몇 개 했는지 그린다", () => {
+  const progress = najuCaseProgress(
+    reader({ "naju.player": {}, "naju.clam": "held", "naju.fishTrap": { stage: "pulled", isGuideAhead: false } }),
+  )!;
+  assert.deepEqual(
+    progress.stages.map((stage) => stage.name),
+    ["나루터", "바위 아래", "물굴", "능선", "바위 위", "굿판"],
+  );
+  assert.deepEqual(progress.stages[0], { name: "나루터", done: 2, total: 4 });
+  assert.equal(progress.stages[1].done, 0);
+  // 합은 전체와 같다
+  assert.equal(
+    progress.stages.reduce((sum, stage) => sum + stage.done, 0),
+    progress.done,
+  );
+  assert.equal(
+    progress.stages.reduce((sum, stage) => sum + stage.total, 0),
+    progress.total,
+  );
+});
+
 test("뒤 스테이지에 손을 댔으면 앞 스테이지는 다 한 것으로 센다(옛 저장 · 빠진 칸)", () => {
   const progress = najuCaseProgress(
     reader({ "naju.player": {}, "naju.ridge": { stage: "sealed" }, "naju.ridgeQuest": { chestOnAltar: true } }),

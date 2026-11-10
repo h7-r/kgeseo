@@ -218,5 +218,5 @@ export function isKnownVariant(slot: CatalogSlot, gender: AvatarGender, variant:
   return MESH_PART_OPTIONS[slot][gender].some(([value]) => value === variant);
 }
 
-/** 화면이 손대지 않는 렌더러 기본값(어깨 1.2, 팔 길이 0.88 처럼 보정된 값) */
+/** 화면이 손대지 않는 렌더러 기본값(팔 길이 0.7 처럼 Meshy 몸에 맞춰 보정된 값) */
 export const RENDERER_DEFAULTS = DEFAULT_MESH_CONFIG;

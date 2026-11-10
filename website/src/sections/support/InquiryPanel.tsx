@@ -18,11 +18,23 @@ interface Attachment {
   size: string;
 }
 
+/** 접수한 문의 한 건 — 접수 완료 카드에 그대로 보여 준다 */
+interface Receipt {
+  number: string;
+  type: string;
+  title: string;
+  email: string;
+  attachment: string | null;
+  receivedAt: Date;
+}
+
 export default function InquiryPanel() {
   const [values, setValues] = useState<FormValues>({});
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitted, setSubmitted] = useState(false);
-  const [isSent, setIsSent] = useState(false);
+  // 마지막으로 접수한 문의. 있으면 입력 칸 자리에 접수 완료 카드를 보인다.
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [receiptCount, setReceiptCount] = useState(0);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [fileError, setFileError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -38,8 +50,27 @@ export default function InquiryPanel() {
     setSubmitted(true);
     const nextErrors = validateFields(INQUIRY_FIELDS, values);
     setErrors(nextErrors);
-    // 보낼 서버가 아직 없어 접수됐다는 표시만 남긴다.
-    if (hasNoErrors(nextErrors)) setIsSent(true);
+    // 보낼 서버(세진 문의 API)가 아직 없어 접수 표시만 남긴다. 붙으면 여기서 보내고 서버가 준 번호를 쓴다.
+    if (!hasNoErrors(nextErrors)) return;
+    setReceipt({
+      number: makeReceiptNumber(new Date()),
+      type: values.inquiryType ?? "",
+      title: values.title ?? "",
+      email: values.email ?? "",
+      attachment: attachment?.name ?? null,
+      receivedAt: new Date(),
+    });
+    setReceiptCount((count) => count + 1);
+  };
+
+  /** 「추가 접수하기」 — 빈 양식으로 돌아간다 */
+  const startAnother = () => {
+    setValues({});
+    setErrors({});
+    setSubmitted(false);
+    setAttachment(null);
+    setFileError("");
+    setReceipt(null);
   };
 
   const fieldProps = (name: FieldName) => ({
@@ -68,95 +99,99 @@ export default function InquiryPanel() {
       <PanelHeading title="1:1 문의하기" description="궁금한 점이나 불편한 점을 남겨 주시면 빠르게 답변드리겠습니다." />
       {/* 위로 맞춰야 오른쪽 안내 상자가 왼쪽 상자 키를 따라 늘어나지 않는다. */}
       <div style={{ display: "flex", gap: "40px", width: "100%", alignItems: "flex-start" }}>
-        <div style={{ ...inquiryCardStyle, flex: "1 0 0", minWidth: 0, gap: "24px" }}>
-          <InquiryField
-            label="문의 유형"
-            placeholder="문의 유형을 선택해 주세요"
-            isSelect
-            {...fieldProps("inquiryType")}
-          />
-          <InquiryField label="제목" placeholder="문의 제목을 입력해 주세요" {...fieldProps("title")} />
-          <InquiryField
-            label="내용"
-            placeholder="문의 내용을 자세히 적어 주세요"
-            height={200}
-            {...fieldProps("content")}
-          />
+        {receipt ? (
+          <ReceiptCard receipt={receipt} count={receiptCount} onAnother={startAnother} />
+        ) : (
+          <div style={{ ...inquiryCardStyle, flex: "1 0 0", minWidth: 0, gap: "24px" }}>
+            <InquiryField
+              label="문의 유형"
+              placeholder="문의 유형을 선택해 주세요"
+              isSelect
+              {...fieldProps("inquiryType")}
+            />
+            <InquiryField label="제목" placeholder="문의 제목을 입력해 주세요" {...fieldProps("title")} />
+            <InquiryField
+              label="내용"
+              placeholder="문의 내용을 자세히 적어 주세요"
+              height={200}
+              {...fieldProps("content")}
+            />
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
-            <div style={labelStyle}>첨부파일</div>
-            {/* htmlFor 가 없으면 라벨은 안의 첫 단추(지우기)를 누른 것으로 친다. */}
-            <label
-              htmlFor={fileInputId}
-              style={{
-                ...dropZoneStyle,
-                cursor: "pointer",
-                borderColor: isDragging ? COLOR.blue : COLOR.blueMid,
-                background: isDragging ? "rgba(46,72,137,0.08)" : "transparent",
-                transition: "border-color .18s ease, background .18s ease",
-              }}
-              onDragOver={(event) => {
-                event.preventDefault();
-                setIsDragging(true);
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={(event) => {
-                event.preventDefault();
-                setIsDragging(false);
-                acceptFile(event.dataTransfer.files?.[0]);
-              }}
-            >
-              <img
-                loading="lazy"
-                decoding="async"
-                src={uploadCloudIcon}
-                alt=""
-                style={{ width: "24px", height: "24px", display: "block" }}
-              />
-              <span
+            <div style={{ display: "flex", flexDirection: "column", gap: "9px" }}>
+              <div style={labelStyle}>첨부파일</div>
+              {/* htmlFor 가 없으면 라벨은 안의 첫 단추(지우기)를 누른 것으로 친다. */}
+              <label
+                htmlFor={fileInputId}
                 style={{
-                  fontFamily: FONT.mono,
-                  fontSize: "16px",
-                  color: attachment ? COLOR.blue : COLOR.lightTextMuted,
-                  textAlign: "center",
+                  ...dropZoneStyle,
+                  cursor: "pointer",
+                  borderColor: isDragging ? COLOR.blue : COLOR.blueMid,
+                  background: isDragging ? "rgba(46,72,137,0.08)" : "transparent",
+                  transition: "border-color .18s ease, background .18s ease",
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setIsDragging(false);
+                  acceptFile(event.dataTransfer.files?.[0]);
                 }}
               >
-                {attachment
-                  ? `${attachment.name} · ${attachment.size}`
-                  : "파일을 끌어다 놓거나 눌러서 첨부 (최대 10MB)"}
-              </span>
-              {attachment && (
-                <button
-                  type="button"
-                  className="text-link"
-                  style={clearButtonStyle}
-                  onClick={(event) => {
-                    // 라벨 안이라 막지 않으면 파일 고르는 창이 다시 열린다.
-                    event.preventDefault();
-                    clearAttachment();
+                <img
+                  loading="lazy"
+                  decoding="async"
+                  src={uploadCloudIcon}
+                  alt=""
+                  style={{ width: "24px", height: "24px", display: "block" }}
+                />
+                <span
+                  style={{
+                    fontFamily: FONT.mono,
+                    fontSize: "16px",
+                    color: attachment ? COLOR.blue : COLOR.lightTextMuted,
+                    textAlign: "center",
                   }}
                 >
-                  지우기
-                </button>
+                  {attachment
+                    ? `${attachment.name} · ${attachment.size}`
+                    : "파일을 끌어다 놓거나 눌러서 첨부 (최대 10MB)"}
+                </span>
+                {attachment && (
+                  <button
+                    type="button"
+                    className="text-link"
+                    style={clearButtonStyle}
+                    onClick={(event) => {
+                      // 라벨 안이라 막지 않으면 파일 고르는 창이 다시 열린다.
+                      event.preventDefault();
+                      clearAttachment();
+                    }}
+                  >
+                    지우기
+                  </button>
+                )}
+                <input
+                  id={fileInputId}
+                  type="file"
+                  accept="image/*,.pdf,.txt,.log,.zip"
+                  style={{ display: "none" }}
+                  onChange={(event) => acceptFile(event.target.files?.[0])}
+                />
+              </label>
+              {fileError && (
+                <span style={{ fontFamily: FONT.mono, fontSize: "16px", color: COLOR.danger }}>{fileError}</span>
               )}
-              <input
-                id={fileInputId}
-                type="file"
-                accept="image/*,.pdf,.txt,.log,.zip"
-                style={{ display: "none" }}
-                onChange={(event) => acceptFile(event.target.files?.[0])}
-              />
-            </label>
-            {fileError && (
-              <span style={{ fontFamily: FONT.mono, fontSize: "16px", color: COLOR.danger }}>{fileError}</span>
-            )}
-          </div>
+            </div>
 
-          <InquiryField label="이메일" placeholder="답변 받을 이메일 주소" {...fieldProps("email")} />
-          <button type="button" className="button" style={submitButtonStyle} onClick={handleSubmit}>
-            <span className="button__label">{isSent ? "접수되었습니다 ✓" : "문의 접수하기"}</span>
-          </button>
-        </div>
+            <InquiryField label="이메일" placeholder="답변 받을 이메일 주소" {...fieldProps("email")} />
+            <button type="button" className="button" style={submitButtonStyle} onClick={handleSubmit}>
+              <span className="button__label">문의 접수하기</span>
+            </button>
+          </div>
+        )}
 
         <div style={{ ...inquiryCardStyle, width: "358px", flexShrink: 0, gap: "20px" }}>
           <div style={{ fontFamily: FONT.mono, fontWeight: 700, fontSize: "18px", color: COLOR.lightText }}>
@@ -175,6 +210,73 @@ export default function InquiryPanel() {
       </div>
     </>
   );
+}
+
+interface ReceiptCardProps {
+  receipt: Receipt;
+  /** 이번 방문에 접수한 건수 */
+  count: number;
+  onAnother: () => void;
+}
+
+/** 접수 완료 — 무엇을 접수했는지 되짚어 주고, 이어서 한 건 더 쓸 수 있게 한다 */
+function ReceiptCard({ receipt, count, onAnother }: ReceiptCardProps) {
+  const rows: readonly (readonly [string, string])[] = [
+    ["접수 번호", receipt.number],
+    ["문의 유형", receipt.type],
+    ["제목", receipt.title],
+    ["답변 받을 이메일", receipt.email],
+    ["첨부파일", receipt.attachment ?? "없음"],
+    ["접수 시각", formatReceivedAt(receipt.receivedAt)],
+  ];
+  return (
+    <div
+      style={{ ...inquiryCardStyle, flex: "1 0 0", minWidth: 0, gap: "24px", alignItems: "stretch" }}
+      role="status"
+      aria-live="polite"
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <span style={receiptCheckStyle} aria-hidden="true">
+          ✓
+        </span>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <span style={{ fontFamily: FONT.body, fontWeight: 700, fontSize: "22px", color: COLOR.lightText }}>
+            문의가 접수되었습니다
+          </span>
+          <span style={{ fontFamily: FONT.body, fontSize: "15px", color: COLOR.lightTextMuted }}>
+            평균 1~2영업일 안에 적어 주신 이메일로 답변드립니다.
+            {count > 1 ? ` (이번에 접수한 문의 ${count}건)` : ""}
+          </span>
+        </div>
+      </div>
+      <div style={receiptTableStyle}>
+        {rows.map(([label, value]) => (
+          <div key={label} style={receiptRowStyle}>
+            <span style={{ ...labelStyle, flexShrink: 0, width: "140px" }}>{label}</span>
+            <span style={receiptValueStyle}>{value}</span>
+          </div>
+        ))}
+      </div>
+      <button type="button" className="button" style={submitButtonStyle} onClick={onAnother}>
+        <span className="button__label">+ 추가 접수하기</span>
+      </button>
+    </div>
+  );
+}
+
+/** Q-20261110-1620-7F3A — 날짜 · 시각에 무작위 넷을 붙여 같은 분에 두 건이어도 겹치지 않게 */
+function makeReceiptNumber(at: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const random = Array.from(crypto.getRandomValues(new Uint8Array(2)), (byte) => byte.toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase();
+  return `Q-${at.getFullYear()}${pad(at.getMonth() + 1)}${pad(at.getDate())}-${pad(at.getHours())}${pad(at.getMinutes())}-${random}`;
+}
+
+/** 2026.11.10 16:20 */
+function formatReceivedAt(at: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${at.getFullYear()}.${pad(at.getMonth() + 1)}.${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`;
 }
 
 /** 1024 단위로 끊어 읽기 좋게 */
@@ -235,4 +337,42 @@ const submitButtonStyle: CSSProperties = {
   textTransform: "uppercase",
   cursor: "pointer",
   boxShadow: SHADOW.pillGlowWide,
+};
+
+const receiptCheckStyle: CSSProperties = {
+  display: "grid",
+  placeItems: "center",
+  width: "52px",
+  height: "52px",
+  borderRadius: "50%",
+  flexShrink: 0,
+  backgroundImage: ACTIVE_TAB_BACKGROUND,
+  color: COLOR.white,
+  fontSize: "24px",
+  fontWeight: 700,
+  boxShadow: SHADOW.pillGlowWide,
+};
+
+const receiptTableStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  borderRadius: "12px",
+  border: `1px solid ${COLOR.lightDivider}`,
+  overflow: "hidden",
+};
+
+const receiptRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "baseline",
+  gap: "16px",
+  padding: "14px 18px",
+  borderBottom: `1px solid ${COLOR.lightDivider}`,
+};
+
+const receiptValueStyle: CSSProperties = {
+  fontFamily: FONT.body,
+  fontSize: "16px",
+  color: COLOR.lightText,
+  minWidth: 0,
+  overflowWrap: "anywhere",
 };

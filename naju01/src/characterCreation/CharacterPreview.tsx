@@ -57,9 +57,13 @@ interface OrbitState {
 }
 
 const INITIAL_ORBIT: OrbitState = { yaw: -0.3, pitch: 0.06, zoom: 1, lift: 0 };
-// 기본 화면보다 멀어질 필요는 없다 — 확대만 한다(미르 11/10)
-const MIN_ZOOM = 0.45;
+// 기본 화면보다 멀어질 필요는 없다 — 확대만 한다(미르 11/10). 해랑이 #92 에서 1.5 배까지 밀게 했던 것을 1 로
 const MAX_ZOOM = 1;
+/**
+ * 당기는 한도는 보기마다(해랑 #92) — 전신은 머리~무릎까지, 이미 가까이 보는 부위는 조금만(더 당기면 한 부분만 화면을 덮는다).
+ * 손은 두 손을 나란히 봐야 해서 거의 당기지 않는다(당기면 양쪽 손이 잘린다). 확대한 뒤에는 세로로 끌어 몸을 따라 옮긴다
+ */
+const MIN_ZOOM: Record<PreviewView, number> = { full: 0.6, upperBody: 0.8, head: 0.82, feet: 0.82, hands: 0.95 };
 
 /** 카메라가 매 프레임 남기는 화면 크기 — 끌기 · 가리킨 곳 확대가 화면 px 을 세계 m 로 바꿀 때 쓴다 */
 interface ViewMetrics {
@@ -404,7 +408,8 @@ function PreviewCamera({ orbit, metrics, view, heightScale, safeArea, reduceMoti
     const fitHeight = s.height * (size.height / freeHeight);
     const distance = (fitHeight / (2 * Math.tan((perspective.fov * Math.PI) / 360))) * orbit.current.zoom;
     // 그 거리에서 화면 전체가 담는 세계 크기 — 4) 의 화면 이동은 이 크기로 재야 한다. zoom 을 빼고 재면 확대할수록
-    // 캐릭터가 빈 자리 가운데에서 1/zoom 배 바깥으로 밀려(PC 는 왼쪽 화면 밖으로) 나갔다(미르 11/10)
+    // 캐릭터가 빈 자리 가운데에서 1/zoom 배 바깥으로 밀려(PC 는 왼쪽 화면 밖으로) 나갔다(미르 11/10 · 해랑 #92 도 같은 고침).
+    // 해랑 #92 의 「축소할 때 발밑 붙잡기」는 축소가 없어져(기본 화면까지만) 뺐다
     const worldHeight = fitHeight * orbit.current.zoom;
     const worldWidth = worldHeight * (size.width / size.height);
 
@@ -571,6 +576,8 @@ export default function CharacterPreview({
     };
   }, [gender]);
 
+  const zoomMin = MIN_ZOOM[view];
+
   const handleWarmupReady = useCallback((key: string) => {
     setDisplayKey((previous) => (key === previous ? previous : key));
   }, []);
@@ -587,14 +594,13 @@ export default function CharacterPreview({
     });
   }, [onControlsReady]);
 
-  // 보기(전신 · 머리 · 손 · 발)를 바꾸면 그 보기의 기본 화면으로 — 돌린 각은 남긴다
-  const isFirstView = useRef(true);
+  // 보기(전신 · 머리 · 손 · 발)를 바꾸면 그 보기의 기본 화면으로 — 전신에서 당겨 둔 배율 · 옮긴 자리가 머리 · 손 보기에 남으면
+  // 너무 가깝다(해랑 #92). 돌린 각은 남긴다
+  const lastView = useRef(view);
   useEffect(() => {
-    if (isFirstView.current) {
-      isFirstView.current = false;
-      return;
-    }
-    orbit.current.zoom = 1;
+    if (lastView.current === view) return;
+    lastView.current = view;
+    orbit.current.zoom = INITIAL_ORBIT.zoom;
     orbit.current.lift = 0;
     anchor.current = null;
   }, [view]);
@@ -604,26 +610,29 @@ export default function CharacterPreview({
    * 굴리는 동안(커서가 그대로 · 0.4초 안)은 처음 가리킨 몸 높이를 붙든다 — 한 칸마다 다시 재면 확대 초반의 좁은 범위에 잘린 만큼
    * 잃어 발을 가리키고 확대해도 발까지 못 내려갔다
    */
-  const zoomAt = useCallback((factor: number, clientY: number | null) => {
-    const after = THREE.MathUtils.clamp(orbit.current.zoom * factor, MIN_ZOOM, MAX_ZOOM);
-    const measured = metrics.current;
-    const rect = wrapper.current?.getBoundingClientRect();
-    orbit.current.zoom = after;
-    if (clientY === null || !measured || !rect || measured.height <= 0) return;
-    // 가리킨 점이 빈 자리 가운데에서 아래로 떨어진 정도(화면 높이 비율)
-    const below = (clientY - rect.top - measured.freeCenterY) / measured.height;
-    const now = performance.now();
-    const held = anchor.current;
-    if (!held || Math.abs(held.clientY - clientY) > 6 || now - held.at > 400) {
-      anchor.current = { clientY, worldY: measured.focusY - below * measured.worldHeight, at: now };
-    }
-    const target = anchor.current;
-    if (!target) return;
-    target.at = now;
-    // 확대 뒤 그 몸 높이가 다시 커서 아래 오는 기준점 — 몸 끝 밖으로 나가는 만큼은 카메라가 잘라 낸다
-    const worldHeightAfter = measured.worldHeight * (after / measured.zoom);
-    orbit.current.lift = target.worldY + below * worldHeightAfter - measured.baseY;
-  }, []);
+  const zoomAt = useCallback(
+    (factor: number, clientY: number | null) => {
+      const after = THREE.MathUtils.clamp(orbit.current.zoom * factor, zoomMin, MAX_ZOOM);
+      const measured = metrics.current;
+      const rect = wrapper.current?.getBoundingClientRect();
+      orbit.current.zoom = after;
+      if (clientY === null || !measured || !rect || measured.height <= 0) return;
+      // 가리킨 점이 빈 자리 가운데에서 아래로 떨어진 정도(화면 높이 비율)
+      const below = (clientY - rect.top - measured.freeCenterY) / measured.height;
+      const now = performance.now();
+      const held = anchor.current;
+      if (!held || Math.abs(held.clientY - clientY) > 6 || now - held.at > 400) {
+        anchor.current = { clientY, worldY: measured.focusY - below * measured.worldHeight, at: now };
+      }
+      const target = anchor.current;
+      if (!target) return;
+      target.at = now;
+      // 확대 뒤 그 몸 높이가 다시 커서 아래 오는 기준점 — 몸 끝 밖으로 나가는 만큼은 카메라가 잘라 낸다
+      const worldHeightAfter = measured.worldHeight * (after / measured.zoom);
+      orbit.current.lift = target.worldY + below * worldHeightAfter - measured.baseY;
+    },
+    [zoomMin],
+  );
 
   // React 의 onWheel 은 passive 라 preventDefault 가 안 먹는다 — 직접 붙인다
   useEffect(() => {
