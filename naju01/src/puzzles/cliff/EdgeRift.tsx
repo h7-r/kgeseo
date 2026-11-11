@@ -24,7 +24,7 @@ import { makeGlowTexture } from "../glowTexture";
 import { STAKES } from "../gut/gutShape";
 import { gut } from "../gut/gutState";
 import { FIRE_SEAT } from "../gut/torchPost";
-import { interactableFor, noticeFor } from "../interaction";
+import { clearPendingNotices, interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { SERPENT_MODEL } from "../itemLooks";
 import { loadModel } from "../itemModel";
@@ -438,6 +438,9 @@ function EdgeRiftScene() {
       // 틈은 한 방향이다 — 두고 온 물건은 함께 넘어온다. 구렁이상은 살아나 먼저 이 길로 갔다
       inventory.bringAlong(RITE_ARRIVAL.x, RITE_ARRIVAL.z);
       cliff.advance("crossed");
+      // 바위 위에서 줄 서 있던 글(편지 귀띔 · 틈이 열린다는 글)은 여기서 내린다 — 건너고 나서 「아래 물가에서 징 소리가 올라온다」가
+      // 뜨고, 도착 글은 그 뒤로 밀려 20초 늦게 떴다(11/11 통플레이)
+      clearPendingNotices();
       showNotice("틈을 지나자 발밑이 자갈로 바뀐다 — 바위 아래 물가, 금줄 앞이다. 그 밤 아랑사가 떨어져 내린 곳.", 7);
     }
 
