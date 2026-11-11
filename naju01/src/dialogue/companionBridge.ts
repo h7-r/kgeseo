@@ -312,6 +312,8 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
    * 그 넛지가 가리킨 목표(objective)를 같이 둔다 — 연출이 그 퍼즐을 푼 장면이었으면 끝났을 때 목표가 바뀌어 있다(01회차 Codex)
    */
   let deferredNudge: { speech: Speech; until: number; token: object; objective: ObjectiveId | null } | null = null;
+  /** 가장 최근 판정(relay)이 본 지금 목표 — 폴링 응답이 도착했을 때 그 퍼즐이 아직 목표인지 본다(02회차 Codex) */
+  let latestObjective: ObjectiveId | null = null;
   const showDeferredNudge = (time: number, objective: ObjectiveId | null) => {
     if (!deferredNudge) return;
     // 늦었거나 · 그 퍼즐이 이제 지금 목표가 아니면(풀었다 · 자리를 떴다) 버린다 — 푼 퍼즐에 푸는 법을 말하지 않게
@@ -365,6 +367,8 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     if (!freshOffer) {
       if (!freshLine) return;
       if (freshLine.kind !== "npc") return options.say(toSpeech(freshLine));
+      // 응답을 기다리는 사이 그 퍼즐을 풀었거나 자리를 떴으면(목표가 바뀜) 지난 퍼즐의 넛지는 띄우지 않는다(받은 것으로는 위에서 셌다)
+      if (isUnasked && isPollReply && pollObjective !== latestObjective) return;
       // 퍼즐 폴링 넛지 — 물건을 만지는 중이어도 띄운다. 보낸 뒤 연출 · 멈춤이 시작됐으면 버리지 않고 풀린 뒤에(미르 11/11)
       if (isUnasked && isPollReply && options.isPollQuiet?.()) {
         const token = {};
@@ -436,6 +440,7 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
       objective: ObjectiveId | null = null,
     ) {
       const time = now();
+      latestObjective = objective;
       showDeferredNudge(time, objective);
       const state = dialog.getState();
       const isPaused = time < pollPausedUntil;

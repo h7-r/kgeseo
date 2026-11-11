@@ -574,7 +574,9 @@ async function pollBridge(
     await tick();
   };
   const turns = () => calls.filter((c) => c.path.endsWith("/npc/turns"));
-  return { dialog, said, relayAt, turns, asked: () => asked };
+  /** 지금 시각 그대로 판정 한 번(응답 처리 도중 목표가 바뀌는 것을 흉내) */
+  const relay = (objective: ObjectiveId | null) => bridge.relay(null, "Z2", true, objective);
+  return { dialog, said, relayAt, turns, relay, asked: () => asked };
 }
 
 test("퍼즐 폴링 본문: 상황 없이 focus_object_id 만 싣고, FE 구역 간격(180초)에 막히지 않으며, reply null 은 조용히 넘긴다 — 정식 힌트가 0개인 판(v1)에서도 간다", async () => {
@@ -714,6 +716,23 @@ test("연출 중 기다리던 폴링 넛지는 연출이 끝났을 때 목표가
   isQuiet = false;
   await relayAt(65_000, "P10"); // 연출이 끝나니 다음 목표
   assert.deepEqual(said, [], "지난 퍼즐의 넛지는 버린다");
+});
+
+test("응답을 기다리는 사이 그 퍼즐을 풀어 목표가 바뀌었으면 바로 온 폴링 넛지도 띄우지 않는다(02회차 Codex)", async () => {
+  let objectiveNow: ObjectiveId = "P03";
+  // 응답이 오기 전에 판정이 한 번 더 돌아 목표가 바뀌었다(항아리를 열었다)
+  let bridgeRelay: ((objective: ObjectiveId) => void) | null = null;
+  const reply: Handler = (call) => {
+    objectiveNow = "P05";
+    bridgeRelay?.(objectiveNow);
+    return nudgeReply(call);
+  };
+  const { said, relayAt, turns, relay } = await pollBridge(reply, false, true, () => true, () => false);
+  bridgeRelay = (objective) => relay(objective);
+  await relayAt(0, objectiveNow);
+  await relayAt(60_000, objectiveNow);
+  assert.equal(turns().length, 1);
+  assert.deepEqual(said, [], "지난 퍼즐(P03)의 넛지는 띄우지 않는다");
 });
 
 test("구역 진입 auto 턴의 말은 그대로 — 보낸 뒤 플레이어가 바빠졌으면(물건을 만짐) 띄우지 않고 버린다", async () => {
