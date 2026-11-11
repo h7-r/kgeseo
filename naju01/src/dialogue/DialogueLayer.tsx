@@ -52,6 +52,7 @@ import {
   pressTalkKey,
   setDialoguePanel,
   startDialogue,
+  switchTalkKey,
   syncDialogueHold,
   tickDialogue,
   useDialogue,
@@ -203,8 +204,9 @@ export default function DialogueLayer() {
         }
       }
       if (event.code !== "KeyF") return;
-      // 글자가 찍히는 중이면 먼저 다 보여 준다
-      const handled = typingRef.current?.() || pressTalkKey(isPointerActive());
+      // 다른 인물을 겨눴으면 그쪽으로 바꾸고, 아니면 글자가 찍히는 중이면 먼저 다 보여 준다
+      const handled =
+        switchTalkKey(isPointerActive()) || typingRef.current?.() || pressTalkKey(isPointerActive());
       if (handled) event.stopImmediatePropagation();
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });

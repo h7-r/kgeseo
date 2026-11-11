@@ -12,7 +12,14 @@ import { isPointerActive } from "@/engine/input/virtualLock";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import { isCameraFocused } from "../scene/cameraFocus";
-import { isNpcSpeaking, isSpeechBoxShown, isTalkTaken } from "../scene/firstScene/npcSpeech";
+import {
+  interruptTalk,
+  isNpcSpeaking,
+  isSpeechBoxShown,
+  isTalkInterruptible,
+  isTalkTaken,
+  talkOwner,
+} from "../scene/firstScene/npcSpeech";
 import { isLetterOpenNow } from "./cliff/letters";
 import { isPaperOpenNow } from "./ridge/oldPaper";
 
@@ -45,6 +52,8 @@ export interface Interactable {
   highlight?: () => THREE.Object3D | null;
   /** 말 거는 대상(장면 인물) — E 로 겨누지 않고 [F] 로 겨눈다(pressAimedTalk). 안내는 「[F] …에게 말 걸기」 */
   isTalk?: boolean;
+  /** 장면 인물의 말 차례 이름(npcSpeech) — 다른 인물이 말하는 중 이 인물을 겨누고 [F] 하면 이쪽으로 바꾼다(switchAimedTalk) */
+  talkId?: string;
 }
 
 const targets = new Map<string, Interactable>();
@@ -109,12 +118,71 @@ export function updateAim(camera: THREE.Camera, isActive: boolean) {
 export const useAimedLabel = () => useSyncExternalStore(signal.subscribe, () => aimed?.label ?? null);
 /** 겨눈 장면 인물의 안내(「아비사에게 말 걸기」) — [F] 알약 */
 export const useAimedTalkLabel = () => useSyncExternalStore(signal.subscribe, () => aimedTalk?.label ?? null);
+/** 겨눈 장면 인물의 말 차례 이름 — 말하는 중 다른 인물을 겨눴는지 HUD 가 본다 */
+export const useAimedTalkId = () => useSyncExternalStore(signal.subscribe, () => aimedTalk?.talkId ?? null);
+
+// ── 상호작용 차례 — 마지막 상호작용이 이긴다 ──
+/**
+ * 플레이어가 [E] · [F] 로 무언가를 쓴 한 번 = 상호작용 하나. 그 처리 안에서 쏜 알림이 그 상호작용의 「반응」이다.
+ * 새 상호작용이 성립하면 앞 상호작용의 반응(떠 있는 것 · 줄 선 것)은 내리고, 물건을 썼으면 말하던 장면 인물도 그친다
+ * (미르 11/11 「5개를 연달아 누르면 하나도 빠짐없이 차례로 다 나온다 — 이전 대화는 찍어눌러야 한다」, 나주통발 01회차 Codex).
+ * 시간차 해설 · 단서 · 이야기(반응이 아닌 알림)는 지금 규칙 그대로 — 줄을 서고 버리지 않는다.
+ * 뒤늦게 나오는 결과(통발이 뭍에 닿음)는 currentInteraction() 을 받아 두었다가 { reactionTo } 로 쏜다 — 그사이 새 상호작용이 있었으면 버린다.
+ */
+let interactionSeq = 0;
+/** 지금 처리 중인 상호작용 번호(처리 밖이면 0) — 아직 성립 전이면 interactionSeq + 1 */
+let runningInteraction = 0;
+let isRunningObject = false;
+/** 지금 처리 중인 상호작용 — 뒤늦게 나올 결과가 받아 둔다(처리 밖이면 0) */
+export const currentInteraction = () => runningInteraction;
+
+/** 처리 중인 상호작용을 성립시킨다 — 앞 반응을 내리고, 물건이면 말하던 인물을 그친다. 처리 안 첫 알림 · 처리 끝 중 먼저 오는 때 한 번 */
+function commitInteraction() {
+  if (!runningInteraction || runningInteraction <= interactionSeq) return;
+  interactionSeq = runningInteraction;
+  dropOlderReactions();
+  if (isRunningObject) interruptTalk();
+}
+
+/** fn 이 실제로 무언가 했으면(true) 상호작용으로 친다. 아무것도 안 했으면 앞 반응 · 말은 그대로 */
+function withInteraction(isObject: boolean, fn: () => boolean): boolean {
+  if (runningInteraction) return fn();
+  runningInteraction = interactionSeq + 1;
+  isRunningObject = isObject;
+  try {
+    const isDone = fn();
+    if (isDone) commitInteraction();
+    return isDone;
+  } finally {
+    runningInteraction = 0;
+    isRunningObject = false;
+  }
+}
 
 /** [F] — 겨눈 장면 인물에게 말을 건다(조작 중일 때만). 걸었으면 true */
 export function pressAimedTalk(): boolean {
   if (!aimedTalk || !isPointerActive() || isCameraFocused()) return false;
-  aimedTalk.use();
-  return true;
+  const target = aimedTalk;
+  return withInteraction(false, () => {
+    target.use();
+    return true;
+  });
+}
+
+/**
+ * [F] — 장면 인물이 말하는 중 다른 인물을 겨눴으면 그쪽으로 바꾼다. 말하던 인물은 들은 줄까지만 남기고 그친다.
+ * 같은 인물을 겨눴거나 아무도 안 겨눴으면 false — 지금처럼 [F] 는 줄 넘기기(나주통발 01회차 Codex)
+ */
+export function switchAimedTalk(): boolean {
+  const owner = talkOwner();
+  if (!aimedTalk?.talkId || owner === null || owner === aimedTalk.talkId || !isTalkInterruptible()) return false;
+  if (!isPointerActive() || isCameraFocused()) return false;
+  const target = aimedTalk;
+  return withInteraction(false, () => {
+    interruptTalk();
+    target.use();
+    return true;
+  });
 }
 
 /** 마지막으로 물건을 겨눈 때 · E 로 물건을 쓴 때(performance.now) */
@@ -211,15 +279,16 @@ if (typeof window !== "undefined") {
         return;
       }
       if (!isPointerActive() || isCameraFocused()) return;
-      if (handHandler?.(aimed)) {
-        lastObjectUseAt = performance.now();
-        event.stopImmediatePropagation();
-        return;
-      }
-      if (!aimed) return;
-      event.stopImmediatePropagation();
+      const target = aimed;
+      const isUsed = withInteraction(true, () => {
+        if (handHandler?.(target)) return true;
+        if (!target) return false;
+        target.use();
+        return true;
+      });
+      if (!isUsed) return;
       lastObjectUseAt = performance.now();
-      aimed.use();
+      event.stopImmediatePropagation();
     },
     { capture: true },
   );
@@ -244,6 +313,8 @@ export interface NoticeOptions {
   isValid?: () => boolean;
   /** 이야기 위에도 바로 뜬다 — 게임이 멈췄다는 상태 안내(「클릭하면 계속」)만. 다음 알림이 와도 밀리지 않는다 */
   always?: boolean;
+  /** 뒤늦게 나온 상호작용 결과 — 그 상호작용(currentInteraction)의 반응으로 친다. 그사이 새 상호작용이 있었으면 버린다 */
+  reactionTo?: number;
 }
 interface NoticeItem extends NoticeOptions {
   text: string;
@@ -254,6 +325,8 @@ interface NoticeItem extends NoticeOptions {
   expiresAt: number;
   /** 지금까지 보인 시간(초) — 밀렸다 다시 떠도 쌓는다 */
   shown: number;
+  /** 어느 상호작용의 반응인가 — 반응이 아니면 없음 */
+  action?: number;
 }
 /** 떠 있는 알림 — always 는 대화창이 떠 있어도 보인다(멈춤 상태 안내) */
 let notice: { text: string; key: number; always: boolean } | null = null;
@@ -289,7 +362,16 @@ export const isStoryOnScreen = () =>
   (isTalkTaken() && isPointerActive());
 
 const isStillValid = (item: NoticeItem) =>
-  (!item.urgent || gameNow() <= item.expiresAt) && (!item.isValid || item.isValid());
+  (!item.urgent || gameNow() <= item.expiresAt) &&
+  (!item.isValid || item.isValid()) &&
+  (item.action === undefined || item.action >= interactionSeq);
+
+/** 새 상호작용이 성립했다 — 앞 상호작용의 반응은 떠 있든 줄 서 있든 내린다 */
+function dropOlderReactions() {
+  const isOlder = (item: NoticeItem) => item.action !== undefined && item.action < interactionSeq;
+  for (let i = noticeLine.length - 1; i >= 0; i -= 1) if (isOlder(noticeLine[i])) noticeLine.splice(i, 1);
+  if (showing && isOlder(showing.item)) hideNotice();
+}
 
 function displayNotice(item: NoticeItem) {
   showing = { item, left: item.seconds };
@@ -316,7 +398,10 @@ function lineUp(item: NoticeItem, isPushedBack = false) {
     return;
   }
   const urgentCount = noticeLine.filter((each) => each.urgent).length;
+  // 반응은 기본 알림보다 앞에(지금 한 일의 답이 먼저) — 같은 상호작용의 반응끼리는 온 차례대로
+  const reactionCount = noticeLine.filter((each) => !each.urgent && each.action !== undefined).length;
   if (item.urgent || isPushedBack) noticeLine.splice(urgentCount, 0, item);
+  else if (item.action !== undefined) noticeLine.splice(urgentCount + reactionCount, 0, item);
   else noticeLine.push(item);
 }
 
@@ -356,7 +441,8 @@ function tickNotice() {
     }
   }
   const next = noticeLine[0];
-  if (next && (next.urgent || freeSeconds >= NOTICE_RELEASE_SECONDS)) {
+  // 지금 한 일의 반응은 틈을 기다리지 않는다(말을 그치고 띄우는 물건 글이 1.5 초 늦게 뜨지 않게)
+  if (next && (next.urgent || next.action !== undefined || freeSeconds >= NOTICE_RELEASE_SECONDS)) {
     noticeLine.shift();
     displayNotice(next);
   }
@@ -391,6 +477,9 @@ export function subscribeNoticePosted(listener: (text: string) => void) {
 
 export function showNotice(text: string, seconds = 3.2, options: NoticeOptions = {}) {
   for (const listener of noticePostListeners) listener(text);
+  // 상호작용 처리 안에서 쏜 알림 · 뒤늦은 결과는 그 상호작용의 반응(멈춤 상태 안내는 빼고)
+  const action = options.always ? undefined : (options.reactionTo ?? (runningInteraction || undefined));
+  if (action !== undefined && action === runningInteraction) commitInteraction();
   const item: NoticeItem = {
     ...options,
     text,
@@ -398,6 +487,7 @@ export function showNotice(text: string, seconds = 3.2, options: NoticeOptions =
     stem: noticeStem(text),
     expiresAt: gameNow() + URGENT_WAIT_MS,
     shown: 0,
+    action,
   };
   if (!isStillValid(item)) return;
   // 멈춤 상태 안내는 이야기 위에도 곧바로(PC ESC 중에도 동행 자막은 남아 있다 — 그 밑에 「클릭하면 계속」이 묻히지 않게 · Codex 리뷰)
@@ -417,6 +507,16 @@ export function showNotice(text: string, seconds = 3.2, options: NoticeOptions =
     const left = showing.left;
     displayNotice(item);
     if (showing) showing.left = Math.max(left, 1.5);
+    return;
+  }
+  if (item.action !== undefined) {
+    // 지금 한 일의 반응 — 앞 반응은 이미 내렸다. 같은 상호작용의 앞 글 · 급한 글 · 멈춤 안내는 자르지 않고 그 뒤에, 아니면 바로 뜬다
+    if (showing && (showing.item.action === item.action || showing.item.urgent || showing.item.always)) {
+      if (!item.fleeting) lineUp(item);
+      return;
+    }
+    pushBackShowing();
+    displayNotice(item);
     return;
   }
   if (item.urgent) {

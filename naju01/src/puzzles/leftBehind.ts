@@ -13,6 +13,7 @@ import * as THREE from "three";
 import { exposeDevHook } from "@/debug/devHooks";
 
 import { regionAt, type Region } from "../movement/regions";
+import { REQUEST_STORY_LINES } from "../scene/firstScene/abisaLines";
 import { recall, remember } from "../save/puzzleMemory";
 import { fishTrapPuzzle } from "./fishTrap/fishTrapState";
 import { HEARTH } from "./fishTrap/site";
@@ -57,11 +58,31 @@ export function leftFishAtDock() {
 /** 바위틈 문이 물고기 때문에 닫혀 있나 — 처음 넘어갈 때만 */
 export const isDockGateHeldByFish = () => !hasPassedDockGate() && leftFishAtDock() !== null;
 
+/** 아비사에게 지금 말을 걸 수 있나 — 모형이 안 놓였거나 장면이 꺼져 있으면(편집 · 시험) 문을 잡아 두지 않는다(갇힘 방지) */
+let isAbisaReachable: () => boolean = () => false;
+export function setAbisaReachable(check: (() => boolean) | null) {
+  isAbisaReachable = check ?? (() => false);
+}
+
+/** 아비사의 이야기(의뢰의 사건 이야기 · 불을 되살린 뒤 인연 이야기)를 다 들었나 */
+export const isAbisaStoryHeard = () =>
+  recall<number>("firstScene.requestLine", 0) >= REQUEST_STORY_LINES && recall<boolean>("firstScene.backstoryHeard", false);
+
+/**
+ * 바위 아래로 넘어가기 전에 아비사에게 마저 들어야 할 이야기가 있나 — 불을 되살린 뒤(인연 이야기를 들을 수 있을 때)부터, 처음 넘어갈 때만.
+ * 안 듣고 넘어가면 설화가 안 읽혔다(미르 11/11). 이미 바위 아래에서 무언가 한 옛 저장은 소급하지 않는다(Codex 01)
+ */
+export function isAbisaStoryOwed() {
+  const stage = fishTrapPuzzle.stage();
+  return (stage === "lit" || stage === "told") && !hasPassedDockGate() && !isAbisaStoryHeard() && isAbisaReachable();
+}
+
 // 동행에게 말해 달라는 요청 — CompanionNudge 가 차례가 나면 지금 상태로 다시 확인하고 말한다(하나만 기다린다)
-export type NudgeKind = "dockGate" | "offering";
+export type NudgeKind = "dockGate" | "offering" | "abisaStory";
 let pendingNudge: { kind: NudgeKind; at: number } | null = null;
 /** 바위틈 어귀에서 이미 말했다 — 물러났다 다시 오면 다시(CompanionNudge 가 거리로 되살린다) */
 let isDockNudgeSpent = false;
+let isAbisaNudgeSpent = false;
 
 /** 문이 물고기 때문에 걸음을 막았다(stageGates) — 말할 차례를 청하기만 한다 */
 export function reportDockGateBlocked() {
@@ -70,6 +91,13 @@ export function reportDockGateBlocked() {
 }
 export function rearmDockNudge() {
   isDockNudgeSpent = false;
+  isAbisaNudgeSpent = false;
+}
+
+/** 아비사 이야기가 남아 바위틈 문이 걸음을 막았다(stageGates) — 동행이 「아비사에게 다시 말을 걸어 봐요」(물건을 놓친 말과 다르게, Codex 01) */
+export function reportAbisaStoryOwed() {
+  if (isAbisaNudgeSpent || pendingNudge?.kind === "abisaStory") return;
+  pendingNudge = { kind: "abisaStory", at: performance.now() };
 }
 
 export function takeNudgeRequest() {
@@ -80,6 +108,11 @@ export function takeNudgeRequest() {
 
 /** 그 요청을 말로 — 지금도 그 까닭이 남아 있으면 줄들, 아니면 null(이미 주웠다 · 다 올렸다) */
 export function linesForNudge(kind: NudgeKind, offered: ReadonlySet<ItemKind>): string[] | null {
+  if (kind === "abisaStory") {
+    if (!isAbisaStoryOwed()) return null;
+    isAbisaNudgeSpent = true;
+    return ["떠나기 전에 아비사에게 다시 말을 걸어 봐요.", "아직 할 이야기가 남은 것 같아요."];
+  }
   if (kind === "dockGate") {
     const fish = leftFishAtDock();
     if (!fish || hasPassedDockGate()) return null;
@@ -243,6 +276,8 @@ exposeDevHook("najuLeftBehind", {
     offeringHintLevel,
     offeringNudgeArmed,
     passed: hasPassedDockGate(),
+    abisaOwed: isAbisaStoryOwed(),
+    abisaHeard: isAbisaStoryHeard(),
   }),
   noteOfferingExamined,
   leftFishAtDock,

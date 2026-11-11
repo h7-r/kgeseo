@@ -18,7 +18,7 @@ import { isPointerActive } from "@/engine/input/virtualLock";
 import { isCompanionIntro } from "../companion/companionStage";
 import { helpLog } from "../progress/helpLog";
 import { getUnderwater } from "../puzzles/cave/caveState";
-import { isHandlingObjects, pressAimedTalk } from "../puzzles/interaction";
+import { isHandlingObjects, pressAimedTalk, switchAimedTalk } from "../puzzles/interaction";
 import { isOtherWindowHeld } from "../puzzles/pointerHold";
 import { advanceNpcSpeech, isTalkTaken } from "../scene/firstScene/npcSpeech";
 import { createDialogueStore, type Speech } from "./dialogueStore.ts";
@@ -185,12 +185,14 @@ export const askOpenHint = director.askOpenHint;
 
 /**
  * [F](터치 💬) 하나로 말을 다룬다(계약 v0.4.16 §10-2 「말 거는 키는 F 하나」 · 미르 11/11). 한 번 누르면 하나만, 이 차례로:
+ *  0. 장면 인물이 말하는 중 다른 인물을 겨눴으면 그쪽으로 바꾼다(switchTalkKey — 마지막 상호작용이 이긴다, 미르 11/11)
  *  1. 장면 인물(아비사 · 어부 · 동행 소개 · 동행 한마디) 말이 떠 있으면 넘긴다 — 겨누거나 다가가지 않아도
  *  2. 동행 말이 떠 있으면 넘긴다
  *  3. 장면 인물을 겨눴으면 말을 건다(동행을 끈 판에서도)
  *  4. 동행에게 말을 건다(물어볼 것 고르기)
  */
 export function pressTalkKey(isPlaying: boolean) {
+  if (switchTalkKey(isPlaying)) return true;
   if (advanceNpcSpeech()) return true;
   // 다른 창이 떠 있거나(설정 · 소지품 …) 장면 인물이 차례를 잡은 동안은 동행 말을 건드리지 않는다
   const isCompanionFree = IS_COMPANION_ACTIVE && !shouldHold();
@@ -202,6 +204,11 @@ export function pressTalkKey(isPlaying: boolean) {
   if (dialogue.getState() || !isPlaying || isQuietTime()) return false;
   void director.openMenu(currentObjective(panel));
   return true;
+}
+
+/** [F] — 장면 인물이 말하는 중 다른 인물을 겨눴으면 그쪽으로 바꾼다. 글자가 찍히는 중이어도 먼저(DialogueLayer) */
+export function switchTalkKey(isPlaying: boolean) {
+  return isPlaying && !isOtherWindowHeld(MENU_HOLD_ID) && switchAimedTalk();
 }
 
 /** 보기를 고르지 않고 다시 걷기 시작했다 — 보기를 거둔다(그대로 두면 뒤의 말이 전부 갇힌다) */

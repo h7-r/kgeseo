@@ -8,6 +8,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
 import { showNotice } from "../interaction";
+import { isAbisaStoryOwed } from "../leftBehind";
 import { M, groundY } from "../units";
 import { fishTrapPuzzle } from "./fishTrapState";
 import { GUIDE_HEIGHT, GUIDE_PATH } from "./site";
@@ -24,6 +25,8 @@ const ARROW_LENGTH = 1.7;
 /** 앞으로 기울여 세운 각 — 뒤따라가며 볼 때 「앞으로」가 위쪽으로 읽힌다 */
 const ARROW_TILT = THREE.MathUtils.degToRad(40);
 const GATHER_SECONDS = 1.4;
+/** 아비사 이야기가 남았을 때 — 화살표가 모인 채 앞서지 않는다(바위틈 문도 닫혀 있다, stageGates) */
+const STORY_HOLD_NOTICE = "연기가 화톳불 곁에서 맴돈다. 떠나기 전에 아비사의 이야기를 마저 듣자.";
 /** 플레이어가 이만큼 안에 오면 앞서 간다 · 이보다 멀면 기다린다(미터) */
 /** 화살표가 이 x 를 넘으면 플레이어보다 앞서 바위틈을 지난 것이다 */
 const GUIDE_GATE_X = 31;
@@ -143,6 +146,7 @@ export default function SmokeGuide() {
   const lastPlayerRef = useRef(new THREE.Vector3(Infinity, 0, 0));
   /** 화살표가 보는 쪽(yaw) — 모퉁이에서 부드럽게 돈다 */
   const headingRef = useRef<number | null>(null);
+  const isHoldNoticedRef = useRef(false);
 
   useEffect(() => {
     scene.add(guide.points.points);
@@ -173,8 +177,17 @@ export default function SmokeGuide() {
     const playerNow = camera.position.clone();
     let isWaiting = false;
     if (phaseRef.current === "gather" && clockRef.current >= GATHER_SECONDS) {
-      phaseRef.current = "lead";
-      showNotice("연기가 화살표로 모였다. 따라가 보자.", 4);
+      // 아비사의 이야기를 다 들을 때까지 모인 채 기다린다 — 안 듣고 넘어가면 설화가 안 읽혔다(미르 11/11)
+      if (isAbisaStoryOwed()) {
+        if (!isHoldNoticedRef.current) {
+          isHoldNoticedRef.current = true;
+          // 이야기 중이라 줄을 섰다가 다 들은 뒤에 뜨면 지난 말 — 그때는 버린다(Codex 리뷰)
+          showNotice(STORY_HOLD_NOTICE, 5, { isValid: isAbisaStoryOwed });
+        }
+      } else {
+        phaseRef.current = "lead";
+        showNotice("연기가 화살표로 모였다. 따라가 보자.", 4);
+      }
     } else if (phaseRef.current === "lead") {
       // 플레이어가 먼저 앞으로 가 있으면 가까이 오기를 기다리지 않고 쫓아가 앞지른다
       if (playerDistance < LEAD_NEAR || camera.position.x / M > spot.x) {

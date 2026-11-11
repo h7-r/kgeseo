@@ -39,7 +39,7 @@ function arcPath(from: number, to: number) {
 
 const BAND_PATH = arcPath(0, 1);
 /** 판마다 한 줄 — 칸이 바뀌는 것을 알려 준다 */
-const ROUND_NOTES = ["막대가 흰 칸에 들어오면", "칸이 좁아졌다 — 더 정확히", "칸이 옆으로 옮겨 갔다 — 더 빨리"];
+const ROUND_NOTES = ["막대가 흰 칸에 들어오면", "칸이 좁아지고 옆으로 옮겨 갔다 — 더 빨리", "칸이 반대편으로 — 더 좁고 더 빨리"];
 
 function markerTransform(t: number) {
   const point = pointAt(t);

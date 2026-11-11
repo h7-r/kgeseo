@@ -31,6 +31,7 @@ import { isGaugeActive } from "../../puzzles/fishTrap/pullGauge";
 import { HEARTH } from "../../puzzles/fishTrap/site";
 import { isLetterOpenNow } from "../../puzzles/cliff/letters";
 import { registerInteractable, showNotice } from "../../puzzles/interaction";
+import { setAbisaReachable } from "../../puzzles/leftBehind";
 import { isWindowHeld } from "../../puzzles/pointerHold";
 import { isPaperOpenNow } from "../../puzzles/ridge/oldPaper";
 import { M } from "../../puzzles/units";
@@ -48,6 +49,7 @@ import {
   DRIVE_NOTICE,
   ECHO_LINE,
   REQUEST_LINES,
+  REQUEST_STORY_LINES,
   SERPENT_NOTICE,
   WATCHING_NOTICE,
   stageLine,
@@ -57,7 +59,7 @@ import {
 import { ActorRig } from "./actorRig";
 import { firstScenePoints } from "./firstScenePoints";
 import { writeAbisaPose, writeSerpentPose, type AbisaPose, type SerpentPose } from "./bendShader";
-import { claimTalk, isTalkTaken, releaseTalk, setNpcSpeech } from "./npcSpeech";
+import { claimTalk, isTalkTaken, registerTalkInterrupter, releaseTalk, setNpcSpeech } from "./npcSpeech";
 import { isTalkPaused } from "./storyTalk";
 import { SerpentEcho } from "./serpentEcho";
 
@@ -149,6 +151,8 @@ interface Talk {
   gestureTime: number;
   /** 창 · 동행 입력 · 조작 풀림으로 멈춰 있다 — 자막도 내려 둔다 */
   isPaused: boolean;
+  /** 다 들으면 이어 꺼낼 이야기 — 불을 되살린 뒤 늦게 들은 의뢰는 인연 이야기로 바로 잇는다 */
+  then?: "backstory";
 }
 
 function createBrain() {
@@ -236,7 +240,7 @@ const isFireBack = () => fishTrapPuzzle.stage() === "lit" || fishTrapPuzzle.stag
 /** 아비사의 대화 차례 이름(npcSpeech) */
 const TALK_ID = "abisa";
 
-function startTalk(brain: Brain, kind: TalkKind, lines: AbisaLine[], bow: boolean) {
+function startTalk(brain: Brain, kind: TalkKind, lines: AbisaLine[], bow: boolean, then?: Talk["then"]) {
   // 다른 사람(어부 · 동행 소개)이 말하는 중이면 시작하지 않는다
   if (!claimTalk(TALK_ID)) return;
   brain.state.talk = {
@@ -248,6 +252,7 @@ function startTalk(brain: Brain, kind: TalkKind, lines: AbisaLine[], bow: boolea
     nodTime: bow ? -1 : 0,
     gestureTime: -1,
     isPaused: false,
+    then,
   };
 }
 
@@ -258,10 +263,51 @@ function startRequest(brain: Brain) {
   if (brain.state.talk) brain.state.hasRequestOpened = true;
 }
 
+/** 의뢰의 일 지시(화톳불 · 조개)는 이미 지난 일 — 들은 것으로 친다 */
+function skipRequestTasks(brain: Brain) {
+  brain.state.requestNext = REQUEST_LINES.length;
+  remember(REQUEST_LINE_KEY, REQUEST_LINES.length);
+}
+
+/**
+ * 불을 되살린 뒤 의뢰를 마저 들을 때 — 사건 이야기(남은 줄만)에 인연 이야기를 바로 잇는다. 일 지시는 건너뛴다(지난 일을 지금 하라는 말이
+ * 된다). 바위 아래로 넘어가기 전에 꼭 들어야 하는 이야기라(leftBehind.isAbisaStoryOwed, 미르 11/11) [F] 한 번에 끝까지 이어진다
+ */
+function startLateRequest(brain: Brain) {
+  const from = brain.state.requestNext;
+  if (from >= REQUEST_STORY_LINES) {
+    skipRequestTasks(brain);
+    startBackstory(brain);
+    return;
+  }
+  startTalk(brain, "request", REQUEST_LINES.slice(from, REQUEST_STORY_LINES), from === 0, "backstory");
+  if (brain.state.talk) brain.state.hasRequestOpened = true;
+}
+
 /** 인연 이야기도 끊긴 줄부터 */
 function startBackstory(brain: Brain) {
   const from = Math.min(brain.state.backstoryNext, BACKSTORY_LINES.length - 1);
   startTalk(brain, "backstory", BACKSTORY_LINES.slice(from), false);
+}
+
+/** [F] 로 아비사에게 말을 걸었다 — 말하는 중이면 다음 줄 */
+function talkToAbisa(brain: Brain) {
+  if (brain.state.talk) {
+    nextLine(brain);
+    return;
+  }
+  if (!brain.state.isSerpentDriven || brain.state.retreatTime >= 0) {
+    showNotice(WATCHING_NOTICE, 3);
+    return;
+  }
+  // 불을 되살린 뒤면 꼭 들어야 할 이야기(사건 · 인연)부터 — 물가의 구렁이 한마디는 그다음(미르 11/11)
+  if (!isRequestDone(brain)) {
+    if (isFireBack()) startLateRequest(brain);
+    else startRequest(brain);
+  } else if (!brain.state.isBackstoryHeard && isFireBack()) startBackstory(brain);
+  else if (brain.state.echoPhase === "staying" && !brain.state.isEchoLineHeard)
+    startTalk(brain, "echo", [ECHO_LINE], false);
+  else startTalk(brain, "stage", [stageLine(clamDig.stage(), fishTrapPuzzle.stage())], false);
 }
 
 /** 대화창에 지금 줄을 띄운다 — [F] · 💬 로 다음 줄(어디서든) */
@@ -291,6 +337,10 @@ function nextLine(brain: Brain) {
   // 끝까지 들었다
   releaseTalk(TALK_ID);
   brain.state.talk = null;
+  if (talk.then === "backstory") {
+    skipRequestTasks(brain);
+    if (!brain.state.isBackstoryHeard) startBackstory(brain);
+  }
   if (talk.kind === "backstory") {
     brain.state.isBackstoryHeard = true;
     remember(BACKSTORY_KEY, true);
@@ -688,24 +738,19 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
       // 겨누고 [F] 로 말을 건다(E 는 물건 전용 — 계약 §10-2). 넘기기는 겨누지 않아도 [F] 라 거리는 말을 거는 때만 쓴다
       reach: 5 * M,
       isTalk: true,
+      talkId: TALK_ID,
       enabled: () => enabled && rigs.abisa.isPlaced,
-      use: () => {
-        if (brain.state.talk) {
-          nextLine(brain);
-          return;
-        }
-        if (!brain.state.isSerpentDriven || brain.state.retreatTime >= 0) {
-          showNotice(WATCHING_NOTICE, 3);
-          return;
-        }
-        if (!isRequestDone(brain)) startRequest(brain);
-        else if (brain.state.echoPhase === "staying" && !brain.state.isEchoLineHeard)
-          startTalk(brain, "echo", [ECHO_LINE], false);
-        else if (!brain.state.isBackstoryHeard && isFireBack()) startBackstory(brain);
-        else startTalk(brain, "stage", [stageLine(clamDig.stage(), fishTrapPuzzle.stage())], false);
-      },
+      use: () => talkToAbisa(brain),
     });
-    return remove;
+    // 바위틈 문은 아비사 이야기가 남으면 닫힌다 — 말을 걸 수 없는 판(편집 · 모형 없음)에선 잡아 두지 않는다
+    setAbisaReachable(() => enabled && rigs.abisa.isPlaced);
+    // 말하는 중 다른 것과 상호작용하면 그친다 — 들은 줄까지만 남는다(미르 11/11)
+    const removeInterrupter = registerTalkInterrupter(TALK_ID, () => stopTalk(brain));
+    return () => {
+      remove();
+      removeInterrupter();
+      setAbisaReachable(null);
+    };
   }, [enabled, rigs, brain, abisaHead]);
 
   // 구렁이 — 겨누고 E 로 쫓아낸다(조사관이 위험 요소로 판단 · 부록 E)
@@ -762,6 +807,8 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
         at: echoPlace.position.toArray(),
       }),
       drive: () => driveSerpent(brain, rigs.serpent),
+      /** [F] 로 말을 건 것처럼 */
+      talk: () => talkToAbisa(brain),
       request: () => startRequest(brain),
       backstory: () => startBackstory(brain),
       /** 팔 동작 켜고 끄기(화면 보고 정한다) */

@@ -14,7 +14,7 @@ import { gameNow } from "@/engine/input/gameClock";
 import { recall, remember, track } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
-import { registerInteractable, showNotice } from "../interaction";
+import { currentInteraction, registerInteractable, showNotice } from "../interaction";
 import { inventory } from "../inventory";
 import { makeToonMaterial } from "../materials";
 import { M, groundY } from "../units";
@@ -83,6 +83,11 @@ function restoreCatchingTrap(traps: Trap[]) {
 
 /** 맞는 통발이 물에 든 뒤 이만큼(초) 지나도 불씨가 안 들면 하나 넣어 준다 */
 const FIRST_EMBER_SECONDS = 12;
+/** 처음 물에 넣을 때 한 번 — 물고기가 들 때까지 기다린다는 것 */
+const WAIT_HINT_NOTICE = "통발이 물살에 잠겼다. 물고기가 들면 줄이 떨릴 것이다.";
+const WAIT_HINT_KEY = "fishTrap.waitHintShown";
+/** 물고기가 들기 전에 당겨 빈 통발이 올라왔을 때 */
+const EARLY_PULL_NOTICE = "아직 아무것도 들지 않았다. 물고기가 들면 그 통발의 줄이 떨린다 — 조금 기다려 보자.";
 
 export default function FishTrapPuzzle() {
   const scene = useThree((state) => state.scene);
@@ -101,6 +106,10 @@ export default function FishTrapPuzzle() {
   const pourRef = useRef(-1);
   /** 게이지로 당기는 중인 말뚝 — 멀어지면 그만둔다 */
   const pullingStakeRef = useRef(-1);
+  /** 물고기가 들기 전에 당기기 시작한 통발 번호 */
+  const pulledEarlyRef = useRef(new Set<number>());
+  /** 통발마다 당기기를 시작한 상호작용 — 뭍에 닿아 나온 결과를 그 [E] 의 반응으로 친다(그사이 다른 것을 쓰면 결과 글은 버린다) */
+  const pullReactionRef = useRef(new Map<number, number>());
   const nextTugRef = useRef(0);
   /** 맞는 통발이 빈 채로 물에 들어간 때(게임 시계 ms — 멈춘 동안은 안 흐른다). 프레임 dt 는 상한이 있어 저사양에서 늘어난다 */
   const emptySinceRef = useRef<number | null>(null);
@@ -223,6 +232,11 @@ export default function FishTrapPuzzle() {
       if (trap.place !== "water" || isGaugeActive()) return;
       // 게이지 — 가운데에서 [E] 세 번이면 올라온다. 맞출 때마다 줄이 당겨지며 물이 튄다
       pullingStakeRef.current = stake;
+      // 당기기 시작할 때 아직 어느 통발에도 물고기가 안 들었나 — 빈 채로 올라오면 「틀린 줄」이 아니라 「너무 일찍」이라고 알린다
+      // (시작할 때 기준 — 당기는 사이 첫 물고기가 들어도 그 통발은 건진 것으로 올라온다, Codex 01)
+      if (fishTrapPuzzle.stage() === "idle") pulledEarlyRef.current.add(trap.index);
+      else pulledEarlyRef.current.delete(trap.index);
+      pullReactionRef.current.set(trap.index, currentInteraction());
       startGauge(`${STAKES[stake].rope} 당기기`, {
         onHit: () => {
           trap.tug = 1;
@@ -284,13 +298,14 @@ export default function FishTrapPuzzle() {
   /** 통발이 뭍에 올라왔다 — 든 것에 따라 알린다. 불씨가 하나라도 들었으면 건진 것이다 */
   const handleLanded = (trap: Trap) => {
     const rope = STAKES[trap.stake].rope;
+    const reaction = { reactionTo: pullReactionRef.current.get(trap.index) || undefined };
     if (trap.index === CATCHING_TRAP && trap.caught > 0) {
       fishTrapPuzzle.pull();
       audio.play("단서");
-      showNotice("빛 물고기가 든 통발이 올라왔다. 꺼진 화톳불에서 흩어진 불씨들이다.");
+      showNotice("빛 물고기가 든 통발이 올라왔다. 꺼진 화톳불에서 흩어진 불씨들이다.", 3.2, reaction);
     } else if (rope === SEAWEED_ROPE) {
       audio.play("첨벙");
-      showNotice("미역 줄기만 잔뜩 엉켜 올라왔다. 물고기 대신 미역국 거리다.", 3.5);
+      showNotice("미역 줄기만 잔뜩 엉켜 올라왔다. 물고기 대신 미역국 거리다.", 3.5, reaction);
     } else if (rope === SHOE_ROPE && !isShoeDroppedRef.current) {
       // 짚신을 털어 통발 앞 뭍에 떨군다 — 주워 두면 단서(안 주워도 풀린다)
       isShoeDroppedRef.current = true;
@@ -300,9 +315,12 @@ export default function FishTrapPuzzle() {
       drop.y = groundY(drop.x / M, drop.z / M) * M;
       inventory.spawn("strawShoe", drop);
       audio.play("단서");
-      showNotice("통발 안에 큰 짚신 한 짝이 걸려 있었다. 어부의 신이다 — 신코에 물고기 하나가 새겨져 있다.", 5);
+      showNotice("통발 안에 큰 짚신 한 짝이 걸려 있었다. 어부의 신이다 — 신코에 물고기 하나가 새겨져 있다.", 5, reaction);
+    } else if (pulledEarlyRef.current.has(trap.index)) {
+      // 물고기가 들기 전에 건졌다 — 실수(「빈 통발이다」, gameObserver)로 세지 않고 기다리라는 뜻을 준다. 어느 줄이 맞는지는 말하지 않는다
+      showNotice(EARLY_PULL_NOTICE, 4, reaction);
     } else {
-      showNotice("빈 통발이다. 물만 줄줄 흐른다.");
+      showNotice("빈 통발이다. 물만 줄줄 흐른다.", 3.2, reaction);
     }
   };
 
@@ -343,6 +361,12 @@ export default function FishTrapPuzzle() {
           isPouring,
           staysAshore: (entry) => entry.index === CATCHING_TRAP && currentStage !== "idle" && currentStage !== "full",
           onLanded: handleLanded,
+          onEnteredWater: () => {
+            // 처음 통발을 물에 넣을 때 한 번 — 기다려야 한다는 규칙은 알려 준다. 발견할 것은 「어느 줄인가」(Codex 01 · 미르 11/11)
+            if (recall(WAIT_HINT_KEY, false) || fishTrapPuzzle.stage() !== "idle") return;
+            remember(WAIT_HINT_KEY, true);
+            showNotice(WAIT_HINT_NOTICE, 5);
+          },
         }) || changed;
       if (trap.place === "landed" && isPouring(trap))
         poseForPour(trap, Math.min(1, pourRef.current), pourState.startQuaternion);
