@@ -226,8 +226,11 @@ function writeNow(keepalive: boolean): Promise<void> {
   return writing;
 }
 
-/** 베타 기록 — 저장 실패(게임은 다음 차례에 다시 쓴다). 같은 사유는 한 번만(betaBoot.trackError 가 거른다) */
+/** 베타 기록 — 저장 실패(게임은 다음 차례에 다시 쓴다). 같은 사유는 한 페이지에 한 번만(저장이 계속 실패해도 기록이 쌓이지 않게) */
+const notedSaveFailures = new Set<string>();
 function noteSaveFailure(reason: string) {
+  if (notedSaveFailures.has(reason)) return;
+  notedSaveFailures.add(reason);
   betaLog.track("client_error", "save_failed", { data: { code: `game_save_${reason}`, blocking: false } });
 }
 
