@@ -26,6 +26,9 @@ import {
 } from "./companionApi.ts";
 import type { CompanionSession } from "./companionSession.ts";
 
+/** 서버가 받는 멈춘 시간 상한(하루, backend MAX_PAUSED_MS) */
+const MAX_PAUSED_MS = 86_400_000;
+
 export type DialogLine =
   | { kind: "npc"; text: string; lineId: string | null }
   | { kind: "hint"; level: 1 | 2; text: string; isReview: boolean }
@@ -91,6 +94,11 @@ export function createCompanionDialog(options: {
   session: CompanionSession;
   timing?: Partial<Timing>;
   now?: () => number;
+  /**
+   * auto 턴에 실을 「마지막 상호작용 뒤 멈춰 있던 시간(ms)」 — 게임에서는 progress/pausedSinceInteraction(게임 시계).
+   * 없거나 null 이면 싣지 않는다(서버가 빼지 않는다)
+   */
+  pausedMs?: () => number | null;
   /** 자막을 지우는 타이머 — 게임에서는 「전부 멈춤」 동안 흐르지 않는 게임 타이머를 넘긴다(companionRuntime). 시험은 기본값 */
   timers?: { set: (callback: () => void, ms: number) => number; clear: (id: number) => void };
   log?: (level: "warn" | "error", message: string, detail?: unknown) => void;
@@ -209,6 +217,12 @@ export function createCompanionDialog(options: {
     const ready = readySession();
     if (!ready || state.waiting) return false;
     const request: NpcTurnBody = { client_event_id: newEventId(), client_timestamp: clientTimestamp(), ...body };
+    // 멈춘 시간은 본문을 만들 때 한 번 정한다 — 재전송은 같은 본문이어야 한다(다르면 409)
+    if (body.trigger === "auto") {
+      const paused = options.pausedMs?.();
+      if (paused != null && Number.isFinite(paused))
+        request.paused_ms_since_interaction = Math.min(MAX_PAUSED_MS, Math.max(0, Math.round(paused)));
+    }
     pendingId = request.client_event_id;
     patch({ waiting: "npc" });
     try {

@@ -208,6 +208,21 @@ test("prepared 본문은 얼려 있어 바꿀 수 없다", () => {
   }, TypeError);
 });
 
+test("onSent 는 서버가 상호작용을 받았을 때만 — 동행의 「마지막 상호작용 뒤 멈춘 시간」 기준점(미르 11/11)", async () => {
+  let sent = 0;
+  const onSent = () => {
+    sent += 1;
+  };
+  serve(() => ({ status: 200, body: okResponse() }));
+  await sync({ onSent }).submit({ action: "complete", zone: "TA", object: "test-lever" });
+  assert.equal(sent, 1);
+  serve(() => ({ status: 409, body: { detail: "Zone is not current." } }));
+  await sync({ onSent }).submit({ action: "complete", zone: "TA", object: "test-lever" });
+  serve(() => ({ status: 200, body: { nope: true } }));
+  await sync({ onSent }).submit({ action: "complete", zone: "TA", object: "test-lever" });
+  assert.equal(sent, 1, "거절 · 이상한 응답은 받은 것이 아니다");
+});
+
 // ── 오류 구분 ──
 
 test("409: detail 문자열로 이유를 고르고 다시 보내지 않는다", async () => {

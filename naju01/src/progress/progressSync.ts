@@ -266,6 +266,8 @@ export interface ProgressSyncOptions {
   sendOptions?: { timeoutMs?: number; maxRetries?: number; retryDelayMs?: number };
   newEventId?: () => string;
   now?: () => string;
+  /** 서버가 상호작용을 받았다(sent) — 동행의 「마지막 상호작용 뒤 멈춘 시간」을 여기서부터 다시 잰다(pausedSinceInteraction) */
+  onSent?: () => void;
 }
 
 const DEFAULT_DELIVERY_HISTORY_LIMIT = 256;
@@ -365,6 +367,7 @@ export function createProgressSync(options: ProgressSyncOptions) {
       return classifyError(error);
     }
     if (!isInteractionResponse(body)) return { kind: "invalid-response", body };
+    options.onSent?.();
     const { known, unknown } = splitStateChanges(body.state_changes);
     const response: InteractionResponse = { ...body, state_changes: known };
     // 보낼 때의 세션으로 기록한다 — 응답을 기다리는 사이 세션이 바뀌어도 다른 세션 기록과 섞이지 않는다
