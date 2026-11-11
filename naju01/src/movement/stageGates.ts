@@ -7,7 +7,7 @@ import { exposeDevHook } from "@/debug/devHooks";
 
 import { showNotice } from "../puzzles/interaction";
 import { fishTrapPuzzle } from "../puzzles/fishTrap/fishTrapState";
-import { hasUnofferedOfferingAtDock, isDockGateHeldByFish, reportDockGateBlocked } from "../puzzles/leftBehind";
+import { isDockGateHeldByFish, isDockStillNeeded, reportDockGateBlocked } from "../puzzles/leftBehind";
 import { isInsideCurtain, nearestCurtainT } from "../puzzles/ridge/ridgeShape";
 import { ridge } from "../puzzles/ridge/ridgeState";
 import { ritual } from "../puzzles/ritual/ritualState";
@@ -75,11 +75,12 @@ const BACK_TO_DOCK_NOTICE = "나루터 일은 다 마쳤다. 지나온 길로 �
 /**
  * 지나온 나루터로는 돌아가지 않는다(미르 11/11) — 바위 아래가 열려(나루터 일을 다 마치고) 넘어온 뒤에는 나루터로 들어서는 걸음을 막는다.
  * 물이 차오른 바위 아래를 나루터 쪽에서 다시 보면 연출이 깨졌다. 지금 자리(넘어와 있음)가 곧 「정상 진입」이라 저장 표시는 필요 없다.
- * 안 올린 제물이 나루터 땅에 남아 있으면 열어 둔다(갇히지 않게). 능선 · 바위 위의 되돌아가기는 아직 막지 않는다 — 앞 영역 물건(푸른 눈물 ·
+ * 안 올린 제물 · 구렁이상을 안 꺼낸 함(옛 저장)이 나루터에 남아 있으면 열어 둔다(갇히지 않게). 내려놓은 물건은 바위 아래로 가져온다
+ * (leftBehind.collectDockLeftovers). 능선 · 바위 위의 되돌아가기는 아직 막지 않는다 — 앞 영역 물건(푸른 눈물 ·
  * 편지함 · 구렁이상)을 넘겨주는 길이 다 막혀 있지 않다(나주지역막기 01회차 Codex)
  */
 const isBackToDockBlocked = (to: Region, from: Region) =>
-  to === "나루터" && from !== "나루터" && IS_REGION_OPEN.바위아래() && !hasUnofferedOfferingAtDock();
+  to === "나루터" && from !== "나루터" && IS_REGION_OPEN.바위아래() && !isDockStillNeeded();
 
 /** 나루터가 닫혔나(바위 아래가 열렸다) — 나루터 땅에 두고 온 물건을 가져올 때(CompanionNudge → leftBehind.collectDockLeftovers) */
 export const isDockSealed = () => !isForcedOpen && IS_REGION_OPEN.바위아래();
