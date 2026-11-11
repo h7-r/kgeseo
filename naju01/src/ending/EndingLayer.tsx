@@ -328,11 +328,11 @@ function ClearScreen({ leaveAction }: EndingLayerProps) {
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
-  // 클리어 화면에서도 게임 단축키가 뒤로 새지 않게(Esc 는 다시 묻기만 닫는다)
+  // 클리어 화면에서도 게임 키가 뒤로 새지 않게 — 전파만 끊고 기본 동작은 둔다(Tab 이동 · Space/Enter 로 단추 누르기는 된다,
+  // Space 가 걷기 훅까지 가면 점프가 쌓이고 단추도 안 눌렸다 — Codex 리뷰). Esc 는 다시 묻기만 닫는다
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code === "Escape" && isConfirmingRestart) setIsConfirmingRestart(false);
-      if (event.code === "Tab" || event.code === "Enter" || event.code === "Space") return;
       event.stopImmediatePropagation();
     };
     window.addEventListener("keydown", onKeyDown, { capture: true });

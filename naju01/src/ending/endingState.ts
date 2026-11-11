@@ -10,6 +10,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
+import { gameClearTimeout, gameSetTimeout } from "@/engine/input/gameClock";
 import { createChangeSignal } from "@/lib/changeSignal";
 
 import { recall, remember } from "../save/puzzleMemory";
@@ -39,7 +40,7 @@ function setPhase(next: EndingPhase) {
 }
 
 function clearCaption() {
-  window.clearTimeout(captionTimer);
+  gameClearTimeout(captionTimer);
   captionTimer = 0;
   if (!caption) return;
   caption = null;
@@ -55,15 +56,15 @@ export const ending = {
   },
   /**
    * 끝 연출 자막 한 줄 — 앞 줄은 바로 바뀐다(알림 줄을 안 거친다: 줄을 서면 장면보다 늦게 뜬다, 나주피드백 01회차 Codex).
-   * seconds 뒤 내려간다. 실제 시각(연출이 게임 시계로 예약해 부르므로 뜬 뒤 길이만 잰다)
+   * seconds 뒤 내려간다 — 게임 시계로 잰다(멈춘 동안 장면과 함께 선다, Codex 리뷰)
    */
   caption(text: string, seconds: number) {
     if (phase !== "finale") return;
-    window.clearTimeout(captionTimer);
+    gameClearTimeout(captionTimer);
     captionKey += 1;
     caption = { text, key: captionKey };
     signal.notify();
-    captionTimer = window.setTimeout(clearCaption, seconds * 1000);
+    captionTimer = gameSetTimeout(clearCaption, seconds * 1000);
   },
   /** 전체화면 엔딩 필름 */
   openFilm: () => setPhase("film"),
