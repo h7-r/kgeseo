@@ -1,6 +1,8 @@
 /**
  * 장면 인물(아비사 · 어부 · 동행 소개)이 지금 하는 말 — 동행 대화창(dialogue/DialogueLayer) 한 벌에 이름표와 함께 뜬다(미르 11/9, 계약 §10).
  * 인물이 차례를 잡은 동안 동행 말은 줄 서서 기다린다 — 두 말이 한 자리에 겹치지 않게(Codex 03회차). 차례가 바뀌면 바로 알린다(ownerSignal).
+ * 넘기기는 누가 말하든 [F](터치 💬) 하나 — 겨누거나 다가가지 않아도 된다(미르 11/11 「말을 건 NPC 가까이 가지 않으면 E 로 안 넘어간다」,
+ * 계약 v0.4.16 §10-2 「말 거는 키는 F 하나, E 는 물건 쓰기 전용」).
  */
 import { useSyncExternalStore } from "react";
 
@@ -11,9 +13,7 @@ export interface NpcSpeech {
   text: string;
   /** 같은 글이 이어 나와도 다시 그리게 */
   key: number;
-  /** [E] 로 넘길 수 있다(그 인물을 겨누고) */
-  canAdvance: boolean;
-  /** 겨누지 않고 넘긴다(E · 터치 ✋) — 화면 고정 중처럼 겨눌 수 없는 연출. 있으면 상자가 「다음」 안내를 띄운다 */
+  /** 다음 줄로 — [F] · 터치 💬 · 대화창 「다음」(advanceNpcSpeech). 있으면 상자가 「다음」 안내를 띄운다 */
   onNext?: () => void;
 }
 
@@ -64,6 +64,13 @@ export function setNpcSpeech(next: Omit<NpcSpeech, "key"> | null, by?: string) {
 }
 
 export const isNpcSpeaking = () => speech !== null;
+
+/** [F] — 장면 인물 말이 떠 있으면 한 줄 넘긴다(어디서든 · 겨누지 않아도). 넘겼으면 true */
+export function advanceNpcSpeech(): boolean {
+  if (!speech?.onNext) return false;
+  speech.onNext();
+  return true;
+}
 export const useNpcSpeech = () => useSyncExternalStore(signal.subscribe, () => speech);
 
 /**

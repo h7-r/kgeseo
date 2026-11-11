@@ -130,7 +130,7 @@ export default function BoxPlaceGuide({ enabled }: { enabled: boolean }) {
     }
 
     if (!talkRef.current) {
-      const talk = new StoryTalk(TALK_ID, COMPANION_NAME, false);
+      const talk = new StoryTalk(TALK_ID, COMPANION_NAME);
       talk.onDone = () => remember(SAVE_KEY, true);
       talkRef.current = talk;
     }

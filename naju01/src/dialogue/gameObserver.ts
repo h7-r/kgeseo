@@ -18,6 +18,7 @@ import { isHintBoxOpen } from "../puzzles/hintBoxView";
 import { SLOT_COUNT, inventory } from "../puzzles/inventory";
 import { jarPuzzle } from "../puzzles/jars/jarState";
 import { makgeolliBottle } from "../puzzles/makgeolli/makgeolliState";
+import { isLetterOpenNow } from "../puzzles/cliff/letters";
 import { isPaperOpenNow } from "../puzzles/ridge/oldPaper";
 import { ridge, ridgeCarry, ridgeQuest } from "../puzzles/ridge/ridgeState";
 import { ritual } from "../puzzles/ritual/ritualState";
@@ -241,7 +242,7 @@ export const currentZoneCode = () => walkTerrain.current?.groundAt(playerPose.x,
 
 /** 연출 · 읽는 창이 떠 있어 말을 걸면 안 되는 동안 */
 export const isDialogueBlocked = () =>
-  isCameraFocused() || immersionStage.cut !== null || isPaperOpenNow() || isHintBoxOpen();
+  isCameraFocused() || immersionStage.cut !== null || isPaperOpenNow() || isLetterOpenNow() || isHintBoxOpen();
 
 /**
  * 손이 바쁘거나 눈을 뗄 수 없는 동안 — 동행이 먼저 말을 걸지 않는다(알림은 그대로 말한다).

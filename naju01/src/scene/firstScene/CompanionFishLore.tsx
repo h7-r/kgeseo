@@ -23,7 +23,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { isCompanionChatOpen } from "../../companion/chatOpen";
 import { COMPANION_NAME, companionDialog, IS_COMPANION_ENABLED } from "../../companion/companionRuntime";
 import { isCompanionIntro } from "../../companion/companionStage";
-import { dialogue } from "../../dialogue/dialogueRuntime";
+import { dialogue, isBusyForUnaskedTalk } from "../../dialogue/dialogueRuntime";
 import { getTone } from "../../dialogue/lines";
 import { isLightFishInView, isTrapOnTheMove } from "../../puzzles/fishTrap/fishSighting";
 import { fishTrapPuzzle } from "../../puzzles/fishTrap/fishTrapState";
@@ -77,6 +77,8 @@ function isBusy() {
   const dialog = companionDialog.getState();
   return (
     isTalkPaused() ||
+    // 물건을 살피는 중 · 집중 퍼즐 단계엔 먼저 말하지 않는다(미르 11/11 「단서를 찾는 중 원하지 않는 NPC 가 말을 건다」)
+    isBusyForUnaskedTalk() ||
     isTalkTaken(TALK_ID) ||
     dialogue.getState() !== null ||
     dialogue.queueLength() > 0 ||
@@ -106,7 +108,7 @@ export default function CompanionFishLore({ enabled }: { enabled: boolean }) {
 
   useFrame((_, delta) => {
     if (!talkRef.current) {
-      const talk = new StoryTalk(TALK_ID, COMPANION_NAME, false);
+      const talk = new StoryTalk(TALK_ID, COMPANION_NAME);
       talk.onDone = () => remember(SAVE_KEY, true);
       talkRef.current = talk;
     }

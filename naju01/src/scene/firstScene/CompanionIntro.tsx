@@ -8,7 +8,7 @@
  *    3. 동행이 닿고 카메라가 다 돌아본 뒤 첫 줄(늦어도 PREP_LIMIT). 제 고정 중에는 대사가 멈추지 않는다(ownsFocus).
  *    4. 「물가에 누가 있어요」 줄은 당기지 않은 넓은 시야로 아비사 쪽을 보여 주고, 다 들으면 그 시선 그대로 조작을 돌려준다.
  *    자리가 없거나(소품 · 땅에 가림) 고정이 거절되면(검사 스크립트) 클로즈업 없이 대사만.
- *  - 줄마다 자동으로 넘어가고, 데스크톱 E(겨누지 않고) · 터치 「다음」 단추로 한 줄씩 넘길 수 있다. 첫 줄 전 · 멈춘 동안은 안 넘어간다.
+ *  - 줄마다 자동으로 넘어가고, [F] · 터치 💬 · 대화창 「다음」으로 한 줄씩 넘길 수 있다(장면 인물 말과 같은 키, 미르 11/11). 첫 줄 전 · 멈춘 동안은 안 넘어간다.
  *  - 소개 중에는 동행 대화(E · Enter · 💬) · 구역 자동 끼어들기 · 구렁이 첫 경고를 막는다(그쪽 파일들).
  *  - 정체(소속 · 사람인지 · 정령의 기원)는 말하지 않는다 — 동행 조사관의 존재 자체가 미정이다(04 부록 I, Codex 06회차).
  *    이름표도 아직 「동행」(PM 결정 대기).
@@ -28,7 +28,6 @@ import { COMPANION_NAME, IS_COMPANION_ENABLED } from "../../companion/companionR
 import { callCompanion, companionStage, releaseCompanion, setCompanionIntro } from "../../companion/companionStage";
 import { clamDig } from "../../puzzles/fishTrap/clamState";
 import { fishTrapPuzzle } from "../../puzzles/fishTrap/fishTrapState";
-import { setTalkAdvance } from "../../puzzles/interaction";
 import { playerPose } from "../../movement/playerPose";
 import { VIEWPOINTS } from "../../plan/sitePlan";
 import { M } from "../../puzzles/units";
@@ -82,9 +81,8 @@ type Phase = "idle" | "prep" | "talk";
 
 export default function CompanionIntro({ enabled }: { enabled: boolean }) {
   const talk = useMemo(() => {
-    const next = new StoryTalk(TALK_ID, COMPANION_NAME, false);
+    const next = new StoryTalk(TALK_ID, COMPANION_NAME);
     next.ownsFocus = ownsFocus;
-    next.canPress = true;
     return next;
   }, []);
   const state = useMemo(
@@ -140,11 +138,8 @@ export default function CompanionIntro({ enabled }: { enabled: boolean }) {
       remember(SAVE_KEY, true);
       wrapUp();
     };
-    // E(터치 ✋) — 겨누지 않고 한 줄 넘긴다. 겨눈 물건보다 먼저 받는다(클로즈업 없이 대사만 하는 길에서도).
-    // 누르고 있기 · 첫 줄 전 · 멈춤은 무시(press 가 false — 그 E 는 평소대로)
-    setTalkAdvance(() => state.phase === "talk" && talk.press());
+    // 넘기기는 다른 장면 인물 말과 같은 [F] · 터치 💬(npcSpeech.advanceNpcSpeech — 미르 11/11). E 는 물건 전용이라 가로채지 않는다
     return () => {
-      setTalkAdvance(null);
       talk.stop();
       wrapUp();
     };

@@ -27,7 +27,7 @@ import {
   type NudgeKind,
 } from "../../puzzles/leftBehind";
 import { isTalkTaken } from "./npcSpeech";
-import { StoryTalk } from "./storyTalk";
+import { StoryTalk, isTalkPaused } from "./storyTalk";
 
 const TALK_ID = "companion-nudge";
 /** 요청을 이만큼(ms) 기다려도 말할 차례가 안 나면 버린다 — 한참 뒤 엉뚱한 자리에서 말하지 않게 */
@@ -49,7 +49,7 @@ export default function CompanionNudge({ enabled }: { enabled: boolean }) {
   );
 
   useFrame((_, delta) => {
-    talkRef.current ??= new StoryTalk(TALK_ID, COMPANION_NAME, false);
+    talkRef.current ??= new StoryTalk(TALK_ID, COMPANION_NAME);
     const talk = talkRef.current;
     if (!enabled) {
       talk.stop();
@@ -79,9 +79,10 @@ export default function CompanionNudge({ enabled }: { enabled: boolean }) {
       waiting.current = null;
       return;
     }
-    // 다른 사람이 말하는 중 · 동행 대화 중 · 첫 소개 중이면 기다린다(줄을 만들기 전에 — 만들면 「말했다」로 적힌다)
+    // 다른 사람이 말하는 중 · 동행 대화 중 · 첫 소개 중 · 창 · 종이 · 편지 · 연출 중이면 기다린다(줄을 만들기 전에 — 만들면 「말했다」로 적힌다,
+    // 차례부터 잡고 멈춰 있으면 그사이 다른 말도 막힌다 · Codex 리뷰). 길이 막혔다는 안내라 물건을 살피는 중이어도 기다렸다 한다
     const dialog = companionDialog.getState();
-    if (isTalkTaken(TALK_ID) || dialog.waiting !== null || dialog.line !== null) return;
+    if (isTalkTaken(TALK_ID) || dialog.waiting !== null || dialog.line !== null || isTalkPaused()) return;
     if (isCompanionChatOpen() || isCompanionIntro()) return;
     const lines = linesForNudge(pending.kind, offeredSoFar());
     waiting.current = null;

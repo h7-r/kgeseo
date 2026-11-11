@@ -4,8 +4,9 @@
  *    공용 「사람」 굽힘에 모형마다 목 기준점만 다르다(bendShader PERSON_BODY). 팔은 그물 · 밧줄을 메고 있어 안 돌린다.
  *  - 숨 · 흔들림 · 둘러보기, 가까이 오면 플레이어 쪽으로 고개(몸통 조금), 말할 때 끄덕임, 처음엔 살짝 숙여 인사.
  *    대사가 바위를 말하면 앙암바위 쪽을 보고, 「고개 돌림」 줄은 시선을 떨구며 비킨다. 늙은 어부는 느리게.
- *  - 처음 가까이(5 m) 마주 보면 먼저 증언을 꺼낸다(한 사람씩 — 대화 차례). 끊기면 다음에 그 줄부터.
- *    다시 말 걸면 지금 단계 길잡이 한 줄 + 증언 한 줄(비교할 수 있게 다시 듣기, Codex 06회차).
+ *  - 먼저 말을 걸지 않는다 — 겨누고 [F](터치 💬)로 말을 걸면 증언(한 사람씩 — 대화 차례). 끊기면 다음에 그 줄부터
+ *    (미르 11/11 「근처에만 가도 먼저 말을 건다 · 단서를 찾는 중 원하지 않는 NPC 가 반복해서 말을 건다」 — 예전엔 5 m 안에서 마주 보면 먼저 꺼냈다).
+ *    다시 말 걸면 지금 단계 길잡이 한 줄 + 증언 한 줄(비교할 수 있게 다시 듣기, Codex 06회차). 넘기기는 어디서든 [F].
  * 대사는 fisherLines.ts(초안).
  */
 import { useEffect, useMemo } from "react";
@@ -22,7 +23,7 @@ import { recall, remember } from "../../save/puzzleMemory";
 import { ActorRig } from "../firstScene/actorRig";
 import { personNeck, writePersonPose, type PersonPose } from "../firstScene/bendShader";
 import { isTalkTaken } from "../firstScene/npcSpeech";
-import { StoryTalk, isTalkPaused } from "../firstScene/storyTalk";
+import { StoryTalk } from "../firstScene/storyTalk";
 import { FISHER_SCRIPTS, stepHint, type FisherId } from "./fisherLines";
 import { currentRockStep } from "./rockStep";
 
@@ -39,10 +40,8 @@ const ROCK = { x: 45, z: 26, up: 9 };
 /** 각도 한도(라디안) — 시험 상한(Codex 06회차: 확정값이 아니라 화면 보고 줄인다) */
 const LIMITS = { headYaw: 0.8, torsoYaw: 0.25, headUp: -0.25, headDown: 0.35, bow: 0.2 };
 const TALK = {
-  /** 처음 증언을 먼저 꺼내는 거리(m) · 마주 봄(카메라 정면과 이 각 안) · 머문 시간(초) */
-  autoReach: 5,
-  faceCos: Math.cos(0.6),
-  hold: 0.4,
+  /** 겨누고 [F] 로 말을 거는 거리(m) */
+  reach: 5,
   /** 이 안이면 플레이어 쪽을 본다 */
   lookReach: 8,
   /** 이보다 멀어지면 말을 그친다 */
@@ -70,7 +69,7 @@ function createFisher(id: FisherId) {
     id,
     script,
     rig: new ActorRig(id, GROUPS[id]),
-    talk: new StoryTalk(`fisher:${id}`, script.name, true),
+    talk: new StoryTalk(`fisher:${id}`, script.name),
     neck: personNeck(id),
     /** 처음 증언을 이만큼 들었다(다음에 이 줄부터) */
     next: recall<number>(saveKey(id), 0),
@@ -79,7 +78,6 @@ function createFisher(id: FisherId) {
     lookYaw: 0,
     lookPitch: 0,
     time: 0,
-    inRange: 0,
     distance: Infinity,
     lineIndex: -1,
     nodTime: -1,
@@ -94,8 +92,6 @@ const isHeard = (fisher: Fisher) => fisher.next >= fisher.script.first.length;
 const tmp = {
   local: new THREE.Vector3(),
   target: new THREE.Vector3(),
-  forward: new THREE.Vector3(),
-  toActor: new THREE.Vector3(),
   eye: new THREE.Vector3(),
 };
 
@@ -134,7 +130,7 @@ function talkTo(fisher: Fisher) {
   else startAgain(fisher);
 }
 
-function updateFisher(fisher: Fisher, eye: THREE.Vector3, camera: THREE.Camera, dt: number) {
+function updateFisher(fisher: Fisher, eye: THREE.Vector3, dt: number) {
   const { rig, talk, pose } = fisher;
   const tempo = TEMPO[fisher.id];
   fisher.time += dt * tempo.speed;
@@ -184,20 +180,7 @@ function updateFisher(fisher: Fisher, eye: THREE.Vector3, camera: THREE.Camera, 
   pose.bow = bow * LIMITS.bow;
   pose.headPitch = fisher.lookPitch + bow * 0.12 + nod * 0.12 + down * 0.22;
 
-  // 처음 증언 — 가까이 마주 보고 잠깐 머물면 먼저 말한다(다른 사람이 말하는 중이 아닐 때)
-  if (!isHeard(fisher) && !talk.isActive) {
-    camera.getWorldDirection(tmp.forward);
-    tmp.toActor.subVectors(fisher.head, eye).normalize();
-    const isFacing = tmp.forward.dot(tmp.toActor) > TALK.faceCos;
-    const isFree = !isTalkTaken() && !isTalkPaused();
-    if (fisher.distance < TALK.autoReach && isFacing && isFree) fisher.inRange += dt;
-    else fisher.inRange = 0;
-    if (fisher.inRange > TALK.hold) {
-      fisher.inRange = 0;
-      startFirst(fisher);
-    }
-  }
-  // 멀리 가 버리면 그친다 — 증언은 들은 줄까지 남는다
+  // 멀리 가 버리면 그친다 — 증언은 들은 줄까지 남고, 다시 [F] 로 말을 걸면 그 줄부터
   if (talk.isActive && fisher.distance > TALK.stopFar) talk.stop();
 }
 
@@ -225,10 +208,9 @@ export default function SecondSceneActors({ enabled }: SecondSceneActorsProps) {
         position: fisher.head,
         label: `${fisher.script.name}에게 말 걸기`,
         radius: 0.5 * M,
-        // 말하는 중이면 먼저 말을 거는 거리(5 m) 밖에서도 E 로 넘긴다(아비사와 같게 · 박람회 출품판에서 정리 · 11/10)
-        get reach() {
-          return (fisher.talk.isActive ? 6 : 3.5) * M;
-        },
+        // 겨누고 [F] 로 말을 건다(E 는 물건 전용 — 계약 §10-2). 넘기기는 겨누지 않아도 [F]
+        reach: TALK.reach * M,
+        isTalk: true,
         enabled: () => enabled && fisher.rig.isPlaced,
         use: () => talkTo(fisher),
       }),
@@ -248,6 +230,8 @@ export default function SecondSceneActors({ enabled }: SecondSceneActorsProps) {
           isTalking: fisher.talk.isActive,
           line: fisher.talk.line?.text ?? null,
           distance: +fisher.distance.toFixed(2),
+          /** 겨냥 자리(얼굴 앞, 월드 유닛) — 시험이 겨눌 때 */
+          head: { x: fisher.head.x, y: fisher.head.y, z: fisher.head.z },
           placed: fisher.rig.isPlaced,
           pose: { ...fisher.pose },
         })),
@@ -282,7 +266,7 @@ export default function SecondSceneActors({ enabled }: SecondSceneActorsProps) {
         fisher.talk.stop();
         writeRest(fisher);
       } else {
-        updateFisher(fisher, eye, camera, dt);
+        updateFisher(fisher, eye, dt);
       }
       // 그림자는 고개 · 몸이 크게 움직이는 동안만 촘촘히(아비사와 같다)
       const motion =

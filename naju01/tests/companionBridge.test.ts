@@ -521,6 +521,7 @@ async function pollBridge(
   turnReply: Handler = () => ({ status: 200, body: turn() }),
   answer: boolean | null = false,
   isShown = true,
+  isBusy: () => boolean = () => false,
 ) {
   let clock = 0;
   serve(backend({ turn: turnReply }));
@@ -546,6 +547,7 @@ async function pollBridge(
     serverPuzzleIdOf: () => null,
     puzzleFocusIdOf: (objective) => (OBJECTIVES[objective].puzzleId ? (PUZZLE_FOCUS_IDS[objective] ?? null) : null),
     now: () => clock,
+    isBusy,
   });
   calls = [];
   const relayAt = async (time: number, objective: ObjectiveId | null = "P03", zone = "Z2") => {
@@ -612,6 +614,78 @@ test("퍼즐 폴링에 넛지 대사만 와도(제안 없음) 띄우고 180초 �
   assert.equal(turns().length, 1, "180초 쉰다");
   await relayAt(60_000 + OFFER_POLL_PAUSE_MS.shown);
   assert.equal(turns().length, 2);
+});
+
+test("다리가 보낸 auto 턴의 넛지 대사가 플레이어가 바쁠 때(물건을 살피는 중) 도착하면 띄우지 않고 버린다 — 받은 것으로는 센다(미르 11/11)", async () => {
+  const nudge: Handler = () => ({
+    status: 200,
+    body: turn({ reply: { source: "approved_line", text: "[모의] 숨구멍을 다시 살펴볼까요?", line_id: "NUDGE_P01_1" } }),
+  });
+  let isBusy = true;
+  const { said, relayAt, turns } = await pollBridge(nudge, false, true, () => isBusy);
+  // 폴링은 목표를 본 뒤 60초에 처음 간다(위 시험과 같다)
+  await relayAt(0);
+  await relayAt(60_000);
+  assert.equal(turns().length, 1);
+  assert.deepEqual(said, [], "바쁠 때 온 넛지는 띄우지 않는다");
+  // 받은 것으로 셌다 — 바쁨이 끝나도 쉬는 동안(180초)은 다시 보내지 않는다
+  isBusy = false;
+  await relayAt(120_000);
+  assert.equal(turns().length, 1);
+  await relayAt(60_000 + OFFER_POLL_PAUSE_MS.shown);
+  assert.equal(turns().length, 2);
+  assert.deepEqual(
+    said.map((speech) => speech.text),
+    ["[모의] 숨구멍을 다시 살펴볼까요?"],
+    "바쁘지 않을 때 온 넛지는 띄운다",
+  );
+});
+
+test("플레이어가 청한 말(talk)의 대사는 바빠도 버리지 않는다 — 버리는 것은 다리가 보낸 auto 턴의 대사뿐", async () => {
+  const reply = { source: "approved_line", line_id: "TALK_01", text: "<대답>" };
+  serve(backend({ turn: () => ({ status: 200, body: turn({ reply }) }) }));
+  const session = createCompanionSession({ config: { caseId: "naju-angam-01", contentVersion: 1 }, storage: memoryStore() });
+  await session.start();
+  const dialog = createCompanionDialog({ session, timing: TIMING });
+  const said: Speech[] = [];
+  const bridge = createCompanionBridge({
+    dialog,
+    say: (speech) => void said.push(speech),
+    askOpenHint: async () => false,
+    isBusy: () => true,
+  });
+  await dialog.talk("안녕");
+  await tick();
+  assert.deepEqual(
+    said.map((speech) => speech.text),
+    ["<대답>"],
+  );
+  bridge.dispose();
+});
+
+test("플레이어 말의 응답을 기다리는 중 구역이 바뀌어도(auto 턴은 못 보냄) 그 응답은 청한 말이라 바빠도 띄운다(Codex 리뷰)", async () => {
+  const reply = { source: "approved_line", line_id: "TALK_02", text: "<청한 대답>" };
+  serve(backend({ turn: () => ({ status: 200, body: turn({ reply }) }) }));
+  const session = createCompanionSession({ config: { caseId: "naju-angam-01", contentVersion: 1 }, storage: memoryStore() });
+  await session.start();
+  const dialog = createCompanionDialog({ session, timing: TIMING });
+  const said: Speech[] = [];
+  const bridge = createCompanionBridge({
+    dialog,
+    say: (speech) => void said.push(speech),
+    askOpenHint: async () => false,
+    isBusy: () => true,
+  });
+  bridge.relay(null, "Z1", true, null); // 첫 구역 — 보내지 않는다
+  const asked = dialog.talk("안녕");
+  bridge.relay(null, "Z2", true, null); // 구역 진입 — 플레이어 말을 기다리는 중이라 보내지지 않는다
+  await asked;
+  await tick();
+  assert.deepEqual(
+    said.map((speech) => speech.text),
+    ["<청한 대답>"],
+  );
+  bridge.dispose();
 });
 
 test("퍼즐 폴링으로 받은 개입은 퍼즐당 2번까지 — 그 뒤 그 퍼즐은 폴링하지 않고, 다른 퍼즐은 그대로(Codex 리뷰 1fa489b)", async () => {
