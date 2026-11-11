@@ -32,6 +32,8 @@ const LOCK_REFUSED_TEXT = "브라우저가 잠시 막았어요 — 한 번 더 �
 
 interface NajuPauseMenuProps {
   onResume: () => void;
+  /** ESC — 몸짓 없이 돌아가기(다음 클릭 · 키에 마우스가 잠긴다) */
+  onEscape: () => void;
   onOpenSettings: () => void;
   onShowGuide: () => void;
   guideLabel: string;
@@ -61,7 +63,14 @@ async function restart(): Promise<PauseRunResult> {
   return { ok: true };
 }
 
-export default function NajuPauseMenu({ onResume, onOpenSettings, onShowGuide, guideLabel, leaveAction }: NajuPauseMenuProps) {
+export default function NajuPauseMenu({
+  onResume,
+  onEscape,
+  onOpenSettings,
+  onShowGuide,
+  guideLabel,
+  leaveAction,
+}: NajuPauseMenuProps) {
   // 계속하기를 브라우저가 거절했다(ESC 직후 · 창 밖 초점) — 메뉴에 남아 알린다
   const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
@@ -150,7 +159,8 @@ export default function NajuPauseMenu({ onResume, onOpenSettings, onShowGuide, g
       status={<CaseStatus />}
       notice={notice}
       groups={groups}
-      footer="Enter · 클릭 고르기 · ↑↓ 옮기기 · T 계속하기 · P 설정"
+      onEscape={onEscape}
+      footer="Esc 계속하기 · Enter · 클릭 고르기 · ↑↓ 옮기기 · P 설정"
     />
   );
 }

@@ -167,6 +167,14 @@ function resumePlay() {
   }, LOCK_CHECK_MS);
 }
 
+/**
+ * 멈춤 메뉴에서 ESC — 게임으로 돌아간다(미르 11/11). ESC 는 몸짓이 아니라 잠금은 대개 거절되고, 그러면 커서를 숨긴 채 다음 클릭 · 키를
+ * 기다린다(게임은 이어진다). 그 기다림에서 ESC 를 또 누르면 「나가기」 — 다시 멈춤 메뉴
+ */
+export function requestResume() {
+  resumePlay();
+}
+
 function startWaiting() {
   if (isWaiting || isTouchMode() || isWindowHeld() || !document.hasFocus()) return;
   isWaiting = true;

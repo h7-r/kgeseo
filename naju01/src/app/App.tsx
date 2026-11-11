@@ -56,7 +56,13 @@ import { BASELINE, UNITS_PER_METER, VIEWPOINTS } from "../plan/sitePlan";
 import { teleportPlayer } from "../puzzles/cave/caveState";
 import { useHintBoxOpen } from "../puzzles/hintBoxView";
 import InventoryModal from "../puzzles/InventoryModal";
-import { beginHold, bindPointerHold, endHold, isOutOfGame as checkOutOfGame } from "../puzzles/pointerHold";
+import {
+  beginHold,
+  bindPointerHold,
+  endHold,
+  isOutOfGame as checkOutOfGame,
+  requestResume,
+} from "../puzzles/pointerHold";
 import { IS_REVIEW_REQUESTED, ReviewHud } from "../review/ReviewBridge";
 import { najuCaseProgress } from "../progress/caseProgress";
 import { readSavedSection } from "@/save/gameSave";
@@ -288,6 +294,11 @@ export default function App() {
     endHold(CASE_GUIDE_HOLD);
     setCardMode(hasLockedOnce ? null : caseStart.mode);
   }, [hasLockedOnce, caseStart.mode]);
+  // 멈춤 메뉴에서 ESC — 돌아가기를 청하고 바로 다시 잰다(300ms 판정을 기다리면 메뉴가 잠깐 남는다)
+  const resumeFromEscape = useCallback(() => {
+    requestResume();
+    setIsOutOfGame(checkOutOfGame());
+  }, []);
   const showCaseGuide = useCallback(() => {
     beginHold(CASE_GUIDE_HOLD, "window");
     setCardMode("guide");
@@ -463,6 +474,7 @@ export default function App() {
       {isPauseMenuShown && (
         <NajuPauseMenu
           onResume={requestLock}
+          onEscape={resumeFromEscape}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onShowGuide={showCaseGuide}
           guideLabel={guideLabel}
