@@ -85,8 +85,11 @@ export default function NajuPauseMenu({
       },
       { id: "settings", label: "설정", onSelect: onOpenSettings },
       { id: "guide", label: guideLabel, onSelect: onShowGuide },
-      // 굿을 끝낸 판 — 엔딩(필름 → 클리어 화면)을 다시 본다. 감상만(퍼즐 · 보고 · 보상 되풀이 없음)
-      ...(gut.stage() === "dawn" ? [{ id: "ending", label: "엔딩 다시 보기", onSelect: ending.openFilm }] : []),
+      // 굿을 끝낸 판 — 엔딩(필름 → 클리어 화면)을 다시 본다. 감상만(퍼즐 · 보고 · 보상 되풀이 없음).
+      // 끝 연출이 아직 도는 중(새벽이 온 뒤 필름이 열리기 전)에는 숨긴다 — 연출의 예약 · 카메라 고정이 남는다(Codex 리뷰)
+      ...(gut.stage() === "dawn" && ending.phase() === "off"
+        ? [{ id: "ending", label: "엔딩 다시 보기", onSelect: ending.openFilm }]
+        : []),
     ],
     [
       ...(leaveAction
