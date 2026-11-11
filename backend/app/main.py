@@ -13,6 +13,7 @@ from app.api.v1.anonymous_sessions import (
     router as anonymous_sessions_router,
 )
 from app.api.v1.auth import router as auth_router
+from app.api.v1.beta_events import router as beta_events_router
 from app.api.v1.cases import router as cases_router
 from app.api.v1.health import router as health_router
 from app.api.v1.hints import router as hints_router
@@ -129,6 +130,16 @@ app.include_router(
 )
 app.include_router(
     admin_router,
+    prefix="/api/v1",
+)
+
+
+# 베타 분석 기록 받기(11/11). 게임 진행 · 저장과 따로다.
+#
+# 최종 경로:
+# /api/v1/beta-events
+app.include_router(
+    beta_events_router,
     prefix="/api/v1",
 )
 

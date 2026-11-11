@@ -8,6 +8,7 @@
  */
 
 import { apiOrigin } from "../../../shared/deploymentUrls.ts";
+import { betaSignals } from "../beta/betaSignals.ts";
 
 const API_ORIGIN = apiOrigin(import.meta.env?.VITE_API_ORIGIN, import.meta.env?.PROD ?? false);
 
@@ -266,9 +267,31 @@ export async function loadPlaySession(playSessionId: string): Promise<PlaySessio
 }
 
 export async function postNpcTurn(playSessionId: string, body: NpcTurnBody): Promise<NpcTurnResponse> {
-  const response = await sendFrozen(`${sessionPath(playSessionId)}/npc/turns`, body);
-  if (!isNpcTurnResponse(response)) throw new CompanionApiError(200, "INVALID_RESPONSE", response);
-  return response;
+  // 베타 기록 — 요청 · 응답(대답 유무 · 출처 · 대체 사유) · 실패와 왕복 시간
+  const startedAt = performance.now();
+  const base = { request_id: body.client_event_id, trigger: body.trigger };
+  betaSignals.npcTurn("request", base);
+  try {
+    const response = await sendFrozen(`${sessionPath(playSessionId)}/npc/turns`, body);
+    if (!isNpcTurnResponse(response)) throw new CompanionApiError(200, "INVALID_RESPONSE", response);
+    betaSignals.npcTurn("response", {
+      ...base,
+      rtt_ms: Math.round(performance.now() - startedAt),
+      has_reply: response.reply !== null,
+      reply_source: response.reply?.source ?? null,
+      fallback_reason: response.fallback_reason ?? null,
+      content_mode: response.content_mode,
+    });
+    return response;
+  } catch (error) {
+    betaSignals.npcTurn("error", {
+      ...base,
+      rtt_ms: Math.round(performance.now() - startedAt),
+      status: error instanceof CompanionApiError ? error.status : null,
+      code: errorCode(error),
+    });
+    throw error;
+  }
 }
 
 /** 정식 경로 하나만 쓴다(별칭 /puzzles/{id}/hints 는 쓰지 않는다) */

@@ -6,6 +6,8 @@
  */
 import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import { isGameSaveEnabled, saveBeforeLeaving, setGameStage } from "@/save/gameSave";
+
+import { noteNajuLeave } from "../beta/najuBeta";
 import { LOBBY_PATH, TRAIN_ENTRY_PATH, markLobbyReturn } from "@/save/lobbyEntry";
 
 import { continueLoadingVideoAt, showLoadingVideo } from "../transition/loadingVideo";
@@ -37,6 +39,8 @@ async function leaveTo(path: string, force = false): Promise<LeaveResult> {
     }
   }
   isLeaving = true;
+  // 베타 기록 — 로비로 나갔다
+  noteNajuLeave("lobby");
   // 로그인하지 않았으면 저장 단계가 없다 — 이 탭에 잠깐 표시를 남겨 로비가 받게 한다
   markLobbyReturn();
   showLoadingVideo("tutorial", { keepOpen: true });

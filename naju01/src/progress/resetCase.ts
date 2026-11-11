@@ -18,6 +18,7 @@ import {
 } from "@/save/gameSave";
 
 import { SESSION_STORAGE_KEY } from "../companion/companionSession";
+import { betaLog } from "@/beta/betaLog";
 
 /** 나주 저장 칸 이름 앞머리 */
 const NAJU_SECTION_PREFIX = "naju.";
@@ -50,6 +51,9 @@ async function reset(): Promise<boolean> {
     return false;
   }
   forgetPlaySession();
+  // 베타 기록 — 기차 목적지 창에서 처음부터 다시. 이 탭에서 다음에 나주가 열리면 새 회차
+  betaLog.track("run_state", "restart", { withRun: true, urgent: true, data: { where: "train" } });
+  betaLog.markRunReset();
   return true;
 }
 

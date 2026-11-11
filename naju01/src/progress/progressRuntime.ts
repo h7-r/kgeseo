@@ -10,6 +10,7 @@
  *   (정책 미정 — 부르는 쪽이 결과를 보고 정한다).
  * React · 별칭(@/) 을 쓰지 않는다(node --test). 앱 한 벌은 najuProgress.ts 에서 만든다.
  */
+import { betaSignals } from "../beta/betaSignals.ts";
 import type { CompanionSessionStatus } from "../companion/companionSession.ts";
 import {
   createProgressIdMap,
@@ -59,6 +60,33 @@ export type ProgressAvailability = "ready" | "not-configured" | "session-not-rea
 /** 서버가 처리했다고 답했는가(sent 만). not-sent · unreachable · conflict · 미매핑 등은 false */
 export const isServerApplied = (result: SubmitResult): result is Extract<SendOutcome, { kind: "sent" }> =>
   "kind" in result && result.kind === "sent";
+
+/**
+ * 베타 기록 — 서버로 보낸 판정 · 완료의 결과(정답 · 오답 · 이미 완료)와 보내지 못한 실패(연결 · 충돌 · 거절).
+ * 이동(navigate) · 조사(inspect)는 판정이 아니라 남기지 않는다. 판정 실패와 통신 실패를 섞지 않는다(L07).
+ */
+function reportForBeta(intent: ProgressIntent, result: SubmitResult, clientEventId?: string) {
+  try {
+    if (intent.action === "navigate" || intent.action === "inspect") return;
+    // 같은 판정을 다시 보낸 것(재전송)은 client_event_id 로 묶는다
+    const target = `${intent.zone}/${intent.object}`.slice(0, 40);
+    const base = { action: intent.action, target, client_event_id: clientEventId ?? null };
+    if ("ok" in result) {
+      betaSignals.attempt(intent.object, "unmapped", "server", base);
+      return;
+    }
+    if (result.kind === "sent") {
+      betaSignals.attempt(intent.object, result.response.result_type, "server", base);
+      return;
+    }
+    if (result.kind === "not-sent") return;
+    const status = "status" in result ? result.status : null;
+    betaSignals.attempt(intent.object, "send_failed", "server", { ...base, kind: result.kind, status });
+    betaSignals.failure("submit_failed", `interaction_${result.kind}`, { action: intent.action, status, blocking: false });
+  } catch {
+    // 기록이 진행을 막으면 안 된다
+  }
+}
 
 export function createProgressRuntime(options: ProgressRuntimeOptions) {
   const { session } = options;
@@ -129,10 +157,18 @@ export function createProgressRuntime(options: ProgressRuntimeOptions) {
       return session.getStatus().phase === "ready" ? "ready" : "session-not-ready";
     },
     /** 퍼즐 · 구역 코드가 부르는 곳. 결과를 그대로 돌려준다(성공은 isServerApplied 로 가린다) */
-    submit: (intent: ProgressIntent): Promise<SubmitResult> => sync.submit(intent),
-    /** 같은 이벤트로 다시 보내야 할 때(부르는 쪽이 정한다) — prepare 한 것을 send 로 */
+    submit: async (intent: ProgressIntent): Promise<SubmitResult> => {
+      const result = await sync.submit(intent);
+      reportForBeta(intent, result);
+      return result;
+    },
+    /** 같은 이벤트로 다시 보내야 할 때(부르는 쪽이 정한다) — prepare 한 것을 send 로. 퍼즐 판정(createPuzzleSubmission)은 이 길로 온다 */
     prepare: sync.prepare,
-    send: sync.send,
+    send: async (prepared: PreparedInteraction): Promise<SendOutcome> => {
+      const outcome = await sync.send(prepared);
+      reportForBeta(prepared.intent, outcome, prepared.body.client_event_id);
+      return outcome;
+    },
     /** 처음 받은 상태 변화를 받는다. 돌려준 함수로 끊는다 */
     subscribe(listener: ProgressStateListener) {
       listeners.add(listener);
