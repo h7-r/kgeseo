@@ -1,6 +1,6 @@
 /*
  * 대화창 한 벌(dialogue/DialogueLayer) — 화면 아래 가운데. 동행 · 장면 인물의 말이 모두 여기 뜬다(미르 11/9, 계약 v0.4.16 §10).
- * 동행의 말은 얼굴(빛망울) 옆에, 장면 인물의 말은 이름표만. 보기는 세로로 늘어선다.
+ * 동행의 말은 얼굴(동행 정령 초상) 옆에, 장면 인물의 말은 이름표만. 보기는 세로로 늘어선다.
  * 색 · 글꼴은 게임 공용 UI(src/game/gameUi.ts — 웹사이트와 같은 남색 계열)와 같은 값, 이름은 나주 HUD 의 호박색.
  * 글자 크기는 장면 인물 상자(11/9 「글씨가 작아 잘 안 보인다」) 그대로 — DialogueLayer.fontPx 가 같은 셈으로 쪽을 나눈다.
  */
@@ -97,12 +97,18 @@
   border-color: var(--accent);
 }
 
-/* 동행의 얼굴 — 빛망울 */
+/*
+ * 동행의 얼굴 — 게임 속 동행 정령(public/models/companion-npc.glb)의 초상(미르 11/12 「파란 구체 → 동행 얼굴」).
+ * 투명 바탕 192px — 정면(+Z)에서 방위 20° · 올려보기 5° · 거리 3.6 · 가운데에서 0.05 아래(모델 키 1.9), 시야 30° 로 찍었다(귀까지 들어가는 가장 큰 틀). 모델을 바꾸면 다시 찍는다.
+ * 뒤는 대화창과 같은 남색 둥근 바탕, 테두리 빛은 예전 빛망울 그대로(숨 쉬듯 밝아진다).
+ */
 .npc-talk__face {
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  background: radial-gradient(circle at 42% 36%, #fff 0%, #d5e0fb 18%, #86a6f0 48%, #2e4889 78%, #101d38 100%);
+  background:
+    url("./companion-face.webp") center / 100% no-repeat,
+    radial-gradient(circle at 50% 42%, #2b4178 0%, #14244d 62%, #0a1428 100%);
   box-shadow:
     0 0 0 1px rgba(134, 166, 240, 0.5),
     0 0 18px rgba(134, 166, 240, 0.55);
