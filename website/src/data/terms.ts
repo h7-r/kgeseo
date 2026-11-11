@@ -30,17 +30,18 @@ export const TERMS_HEIGHTS: Record<TermsTabId, number> = {
 type TermsSection =
   { kind: "title"; text: string } | { kind: "article"; text: string } | { kind: "body"; lines: readonly string[] };
 
-const EFFECTIVE_DATE = "2026년 1월 1일";
+/** 게시일 · 시행일(미르 11/11) — 네 탭의 시행일 · 부칙 · 시험운영 조항이 모두 이 값을 쓴다 */
+const EFFECTIVE_DATE = "2026년 11월 12일";
 
 /**
  * 시험운영 값. 【 】 는 아직 정해지지 않아 실제 값을 넣어야 하는 칸이고, 보유기간은 임시로 정한 값이다.
  * 바꿀 일이 있으면 여기만 고치면 네 탭에 함께 반영된다.
  */
 const DEMO = {
-  operator: "【실제 운영 주체】",
+  operator: "LATENT SPACE",
   contactEmail: SUPPORT_EMAIL,
-  privacyOfficer: "【개인정보 담당자 또는 부서】",
-  publishDate: "【웹사이트 최초 게시일】",
+  privacyOfficer: "황미르",
+  publishDate: EFFECTIVE_DATE,
   creditsUrl: "【외부 에셋 및 오픈소스 크레딧 URL】",
   processors: "【개인정보 수탁업체 및 위탁업무】",
   overseasTransfer: "【국외 이전 현황】",
@@ -202,7 +203,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       ],
     },
     { kind: "article", text: "부칙" },
-    { kind: "body", lines: ["본 약관은 **2026년 1월 1일**부터 시행합니다."] },
+    { kind: "body", lines: [`본 약관은 **${EFFECTIVE_DATE}**부터 시행합니다.`] },
   ],
   privacy: [
     { kind: "title", text: "개인정보 처리방침" },
@@ -302,7 +303,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       kind: "body",
       lines: [
         "① 회사는 개인정보 처리에 관한 업무를 총괄하여 책임지고, 관련 불만처리 및 피해구제를 위하여 개인정보 보호책임자를 지정하고 있습니다.",
-        "   · 개인정보 보호책임자 : Team · Legend",
+        `   · 개인정보 보호책임자 : ${DEMO.privacyOfficer}`,
         `   · 연락처 : **${SUPPORT_EMAIL}**`,
         "② 정보주체는 서비스 이용 중 발생한 개인정보 보호 관련 문의를 위 연락처로 문의할 수 있습니다.",
       ],
@@ -322,7 +323,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
     {
       kind: "body",
       lines: [
-        "본 방침은 2026년 1월 1일부터 적용되며, 내용의 추가·삭제·수정이 있는 경우에는 **시행 7일 전**부터 공지사항을 통하여 고지합니다.",
+        `본 방침은 ${EFFECTIVE_DATE}부터 적용되며, 내용의 추가·삭제·수정이 있는 경우에는 **시행 7일 전**부터 공지사항을 통하여 고지합니다.`,
       ],
     },
     { kind: "article", text: "제12조 (시험운영의 개인정보 처리 안내)" },
@@ -480,7 +481,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       ],
     },
     { kind: "article", text: "부칙" },
-    { kind: "body", lines: ["본 면책조항은 **2026년 1월 1일**부터 시행합니다."] },
+    { kind: "body", lines: [`본 면책조항은 **${EFFECTIVE_DATE}**부터 시행합니다.`] },
     { kind: "article", text: "제14조 (시험 서비스 이용 안내)" },
     {
       kind: "body",
@@ -613,7 +614,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       ],
     },
     { kind: "article", text: "부칙" },
-    { kind: "body", lines: ["본 문서는 **2026년 1월 1일**부터 시행합니다."] },
+    { kind: "body", lines: [`본 문서는 **${EFFECTIVE_DATE}**부터 시행합니다.`] },
     { kind: "article", text: "제13조 (시험운영의 저작권 및 외부 에셋 안내)" },
     {
       kind: "body",
