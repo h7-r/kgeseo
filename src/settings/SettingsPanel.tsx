@@ -1,12 +1,16 @@
 /**
  * 게임 안 설정 창([P] 또는 오른쪽 위 ⚙). 바꾸는 즉시 적용·저장된다.
  * 창 규칙은 다른 창과 같다 — 한 번에 하나(화면층), ESC·[P]·닫기 단추로 닫는다.
+ * 자리: 게임 중 [P] · ⚙ 는 오른쪽 위(게임을 보며 밝기 · 감도를 맞춘다). ESC 멈춤 메뉴에서 열면 메뉴가 있던 화면 가운데(미르 11/11
+ * 「중앙 배치해야 자연스럽지 않나」) — 바탕은 어둡게 덮지 않는다(밝기 판단이 틀어진다), 메뉴에 이미 있는 「게임」 묶음은 숨긴다.
+ * 닫으면(ESC · P · X · 바깥) 메뉴로 돌아간다 — 열 때 조작 중이 아니었다.
  */
-import { useEffect, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 
 import { useTouchMode } from "@/engine/input";
 import { CloseIcon } from "@/game/gameIcons";
 import LeaveToLobby, { type LeaveToLobbyAction } from "@/game/LeaveToLobby";
+import { isPauseMenuOpen } from "@/game/pauseMenuState";
 import { DOCK_EDGE, DOCK_TOP, PANEL_SHADOW, UI, UI_FONT } from "@/game/gameUi";
 
 import "@/game/gameUi.css";
@@ -71,15 +75,22 @@ interface SettingsPanelProps {
   guideLabel?: string;
 }
 
-export default function SettingsPanel({ open, onClose, leaveToLobby, onShowGuide, guideLabel }: SettingsPanelProps) {
+export default function SettingsPanel(props: SettingsPanelProps) {
+  if (!props.open) return null;
+  return <SettingsDialog {...props} />;
+}
+
+function SettingsDialog({ onClose, leaveToLobby, onShowGuide, guideLabel }: SettingsPanelProps) {
   const settings = useSettings();
+  // 멈춤 메뉴에서 열었나 — 열리는 그 그리기에서 한 번 읽는다(메뉴는 이 커밋 뒤에 내려가 그때는 이미 거짓이다, 16회차 Codex)
+  const [isFromMenu] = useState(isPauseMenuOpen);
+  const dialogRef = useRef<HTMLDivElement>(null);
   // 휴대폰 — 화면 가운데 · 제목 줄 고정 · 단추와 막대 44px(gameUi.css 의 .settings-dialog.is-touch, 14회차 · 11/8 해랑 검토)
   const isTouch = useTouchMode();
 
   // 막대를 만진 뒤엔 포커스가 <input> 에 남아 App 의 키 처리가 「글씨 입력 중」으로 보고 [P]·ESC 를 무시한다.
   // 그래서 막대 위일 때만 여기서 받는다(단추 위라면 App 이 이미 닫는다 — 두 번 닫지 않게).
   useEffect(() => {
-    if (!open) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLInputElement | null;
       if (target?.type !== "range") return;
@@ -91,14 +102,37 @@ export default function SettingsPanel({ open, onClose, leaveToLobby, onShowGuide
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
+  }, [onClose]);
 
-  if (!open) return null;
+  const isCentered = isFromMenu && !isTouch;
+  // 가운데 창 — 멈춤 메뉴처럼 Web Animations 로 뜬다(게임 밖 쉼의 CSS 애니메이션 정지에 걸리지 않게) · 창 안으로 초점을 옮긴다
+  useLayoutEffect(() => {
+    if (!isCentered) return;
+    const dialog = dialogRef.current;
+    dialog?.querySelector<HTMLElement>("input, button")?.focus({ preventScroll: true });
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    dialog?.animate?.(
+      [
+        { opacity: 0, transform: "translateY(10px) scale(.98)" },
+        { opacity: 1, transform: "none" },
+      ],
+      { duration: 190, easing: "cubic-bezier(.2,.8,.2,1)" },
+    );
+  }, [isCentered]);
+  const hasGameGroup = !isFromMenu && (leaveToLobby || onShowGuide);
+
   return (
-    <div className={isTouch ? "settings-overlay is-touch" : undefined} style={overlayStyle} onClick={onClose}>
+    <div
+      className={isTouch ? "settings-overlay is-touch" : undefined}
+      style={isCentered ? centeredOverlayStyle : overlayStyle}
+      onClick={onClose}
+    >
       <div
+        ref={dialogRef}
         className={isTouch ? "settings-dialog is-touch" : "settings-dialog"}
-        style={{ ...dialogStyle, "--panel-from": "14px" } as CSSProperties}
+        style={
+          isCentered ? centeredDialogStyle : ({ ...dialogStyle, "--panel-from": "14px" } as CSSProperties)
+        }
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -179,7 +213,7 @@ export default function SettingsPanel({ open, onClose, leaveToLobby, onShowGuide
           onChange={(value) => updateSettings({ sensitivity: value })}
         />
 
-        {(leaveToLobby || onShowGuide) && (
+        {hasGameGroup && (
           <>
             <div style={groupTitleStyle}>게임</div>
             {onShowGuide && (
@@ -207,7 +241,11 @@ export default function SettingsPanel({ open, onClose, leaveToLobby, onShowGuide
             기본값으로
           </button>
           <span style={noteStyle}>
-            {isTouch ? "바꾸면 바로 저장됩니다" : "[P] · [ESC] 로 닫기 · 바꾸면 바로 저장됩니다"}
+            {isTouch
+              ? "바꾸면 바로 저장됩니다"
+              : isFromMenu
+                ? "[P] · [ESC] 로 일시정지로 돌아가기 · 바꾸면 바로 저장됩니다"
+                : "[P] · [ESC] 로 닫기 · 바꾸면 바로 저장됩니다"}
           </span>
         </div>
       </div>
@@ -238,6 +276,24 @@ const dialogStyle: CSSProperties = {
   font: `400 15px/1.6 ${UI_FONT.body}`,
 };
 
+// 멈춤 메뉴에서 열었을 때 — 화면 가운데, 바탕은 덮지 않는다(밝기 판단). 높이가 모자라면 창 안에서 스크롤
+const centeredOverlayStyle: CSSProperties = {
+  ...overlayStyle,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: DOCK_EDGE,
+  boxSizing: "border-box",
+};
+const centeredDialogStyle: CSSProperties = {
+  ...dialogStyle,
+  position: "relative",
+  right: "auto",
+  top: "auto",
+  width: "min(420px, 100%)",
+  maxHeight: "100%",
+  animation: "none",
+};
 const headerStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",

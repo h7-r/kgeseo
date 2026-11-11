@@ -16,6 +16,22 @@ export const setPauseMenuBusy = (next: boolean) => {
 };
 export const isPauseMenuOpen = () => isOpen;
 
+/** 메뉴에서 연 창(설정 · 다시 보기)을 닫고 돌아오면 초점을 그 단추로 — 메뉴가 다시 붙을 때 한 번 꺼내 쓴다(16회차 Codex) */
+let returnFocusId: string | null = null;
+export const rememberPauseFocus = (id: string) => {
+  returnFocusId = id;
+};
+/** 읽기만(그리기 중에 불러도 되게 — 개발 모드 StrictMode 는 초기값 함수를 두 번 부른다) */
+export const peekPauseFocus = () => returnFocusId;
+export const clearPauseFocus = () => {
+  returnFocusId = null;
+};
+// 메뉴로 돌아오지 않고 게임으로 갔으면(다시 보기 카드에서 바로 계속하기 등) 잊는다 — 한참 뒤 메뉴가 엉뚱한 단추에 초점을 두지 않게
+if (typeof document !== "undefined")
+  document.addEventListener("pointerlockchange", () => {
+    if (document.pointerLockElement) clearPauseFocus();
+  });
+
 /** 메뉴가 떠 있어도 게임으로 보내는 키 — T 는 예전처럼 게임으로 돌아가고, P 는 설정 창을 연다 */
 const PASS_CODES: ReadonlySet<string> = new Set(["KeyT", "KeyP"]);
 /**

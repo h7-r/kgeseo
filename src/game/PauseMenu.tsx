@@ -12,7 +12,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { NAVY_FILL, PANEL_SHADOW, UI, UI_FONT } from "./gameUi";
-import { setPauseMenuBusy, setPauseMenuOpen } from "./pauseMenuState";
+import {
+  clearPauseFocus,
+  peekPauseFocus,
+  rememberPauseFocus,
+  setPauseMenuBusy,
+  setPauseMenuOpen,
+} from "./pauseMenuState";
 
 export type PauseRunResult = { ok: true } | { ok: false; message: string; forceLabel?: string };
 
@@ -81,14 +87,22 @@ export default function PauseMenu({ status, groups, footer, notice }: PauseMenuP
     );
   }, []);
 
+  // 메뉴에서 연 창(설정 등)을 닫고 돌아왔으면 그 단추에 — 붙을 때 읽고, 초점을 준 뒤 지운다
+  const [returnFocusId] = useState(peekPauseFocus);
   // 쪽이 바뀌면 첫 단추에 초점 — Enter 가 바로 그것을 누른다. 되돌릴 수 없는 물음(처음부터 다시)은 「취소」에
   useEffect(() => {
     const card = cardRef.current;
+    const returned =
+      view.kind === "menu" && returnFocusId
+        ? card?.querySelector<HTMLButtonElement>(`[data-testid="pause-${returnFocusId}"]`)
+        : null;
     const first =
+      returned ??
       card?.querySelector<HTMLButtonElement>("[data-pause-autofocus]") ??
       card?.querySelector<HTMLButtonElement>(BUTTON_SELECTOR);
     first?.focus({ preventScroll: true });
-  }, [view.kind]);
+    clearPauseFocus();
+  }, [view.kind, returnFocusId]);
 
   const isBusy = view.kind === "confirm" && view.phase === "busy";
   // 하는 중에는 T · P 까지 막는다 — 메뉴가 내려가 그 일이 뒤에서 끝나지 않게(09회차 Codex)
@@ -119,7 +133,11 @@ export default function PauseMenu({ status, groups, footer, notice }: PauseMenuP
   const select = (item: PauseMenuItem) => {
     if (item.confirm) setView({ kind: "confirm", item, confirm: item.confirm, phase: "asking" });
     else if (item.page) setView({ kind: "page", item });
-    else item.onSelect?.();
+    else {
+      // 계속하기 말고(메뉴가 다시 뜨지 않는다) 창을 여는 항목은 돌아올 때 그 단추에 초점
+      if (item.id !== "resume") rememberPauseFocus(item.id);
+      item.onSelect?.();
+    }
   };
 
   const run = async (confirm: PauseConfirm, item: PauseMenuItem, force: boolean) => {
