@@ -40,7 +40,24 @@ for (const file of files) {
   }
 }
 const events = [...byId.values()].map((e) => ({ ...e, t: Date.parse(e.client_ts), data: e.data ?? {} })).sort((a, b) => a.t - b.t || (a.seq ?? 0) - (b.seq ?? 0));
-const pcs = [...new Set(events.map((e) => e.participant_code).filter(Boolean))];
+// 사람 — 계정(로그인)으로 묶는다. 같은 계정에 참여 코드가 붙어 있으면 코드도 함께 적는다. 계정이 없으면 코드로
+// 코드가 정확히 한 계정에만 붙어 있을 때만 계정 없는 기록을 그 계정으로 합친다(공용 PC 에서 여러 사람이 같은 코드를 썼으면 합치지 않는다)
+const accountsOfCode = new Map();
+for (const e of events) {
+  if (!e.participant_code || !e.app_user_id) continue;
+  if (!accountsOfCode.has(e.participant_code)) accountsOfCode.set(e.participant_code, new Set());
+  accountsOfCode.get(e.participant_code).add(e.app_user_id);
+}
+const accountOfCode = (code) => {
+  const set = accountsOfCode.get(code);
+  return set && set.size === 1 ? [...set][0] : null;
+};
+const who = (e) => {
+  const account = e.app_user_id ?? (e.participant_code ? accountOfCode(e.participant_code) : null);
+  return account ? `u:${account}` : e.participant_code ? `c:${e.participant_code}` : null;
+};
+for (const e of events) e.who = who(e);
+const pcs = [...new Set(events.map((e) => e.who).filter(Boolean))];
 
 // ── 도구 ──
 const pct = (m, n) => (n >= 10 ? `${((m / n) * 100).toFixed(1)}%` : "—(10명 미만)");
@@ -54,14 +71,14 @@ function quantile(values, q) {
 }
 const mmss = (ms) => (ms == null ? "—" : `${Math.floor(ms / 60000)}:${String(Math.round((ms % 60000) / 1000)).padStart(2, "0")}`);
 const sec = (ms) => (ms == null ? "—" : `${(ms / 1000).toFixed(1)}초`);
-const of = (pc) => events.filter((e) => e.participant_code === pc);
+const of = (pc) => events.filter((e) => e.who === pc);
 const csvCell = (v) => {
   const s = v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
   return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
 };
 
 // ── 원시 CSV ──
-const cols = ["id", "event_id", "client_ts", "received_at", "participant_code", "event_type", "phase", "page", "run_id", "run_index", "objective_id", "tab_id", "seq", "app_user_id", "guest_session_id", "build", "data"];
+const cols = ["id", "event_id", "client_ts", "received_at", "who", "participant_code", "event_type", "phase", "page", "run_id", "run_index", "objective_id", "tab_id", "seq", "app_user_id", "guest_session_id", "build", "data"];
 writeFileSync(`${outDir}/events.csv`, `\uFEFF${[cols.join(","), ...events.map((e) => cols.map((c) => csvCell(e[c])).join(","))].join("\n")}\n`);
 
 // ── 사람별 정리 ──
@@ -195,7 +212,7 @@ const direct = responses.filter((e) => e.data.trigger === "player_message").map(
 const errPeople = new Map();
 for (const e of events.filter((x) => x.event_type === "client_error")) {
   if (!errPeople.has(e.phase)) errPeople.set(e.phase, new Set());
-  errPeople.get(e.phase).add(e.participant_code);
+  errPeople.get(e.phase).add(e.who);
 }
 const loads = events.filter((e) => e.event_type === "stage_reached" && e.phase === "load_done" && e.page === "naju");
 const loadMs = loads.filter((e) => e.data.result === "ready").map((e) => e.data.at_ms);
@@ -210,14 +227,14 @@ for (const p of people) {
 // L19 수집 · 설문
 let issued = null;
 if (codesFile) issued = readFileSync(codesFile, "utf8").split("\n").slice(1).filter((l) => l.trim()).length;
-const survey = (kind, phase) => new Set(events.filter((e) => e.event_type === "survey_link" && e.data.kind === kind && e.phase === phase).map((e) => e.participant_code)).size;
+const survey = (kind, phase) => new Set(events.filter((e) => e.event_type === "survey_link" && e.data.kind === kind && e.phase === phase).map((e) => e.who)).size;
 
 // ── 요약 ──
 const md = [];
 const w = (s = "") => md.push(s);
 w("# 베타 기록 집계");
 w();
-w(`- 기록 ${events.length}건 · 참여 코드 ${pcs.length}개${issued ? ` (발급 ${issued}개)` : ""} · 계정 연결 ${people.filter((p) => p.users.size).length}명 · 집계 시각 ${new Date(NOW).toISOString()}`);
+w(`- 기록 ${events.length}건 · 사람 ${pcs.length}명(계정 ${pcs.filter((k) => k.startsWith("u:")).length} · 코드만 ${pcs.filter((k) => k.startsWith("c:")).length})${issued ? ` · 발급 코드 ${issued}개` : ""} · 집계 시각 ${new Date(NOW).toISOString()}`);
 w(`- 기간 ${events[0]?.client_ts ?? "—"} ~ ${events.at(-1)?.client_ts ?? "—"} · 빌드 ${[...new Set(events.map((e) => e.build).filter(Boolean))].join(", ") || "—"}`);
 w();
 w("## L01 진입 단계");
@@ -268,7 +285,7 @@ for (const [k, n] of [...envCount.entries()].sort((a, b) => b[1] - a[1])) w(`- $
 w();
 w("## L19 수집 · 설문");
 w();
-w(`- 기록이 남은 참여 코드 ${pcs.length}${issued ? ` / 발급 ${issued}` : ""}`);
+w(`- 기록이 남은 사람 ${pcs.length}명${issued ? ` / 발급 코드 ${issued}` : ""} — 참가자 명단(가입 계정 수)과 맞춰 본다`);
 for (const kind of ["pre", "post", "exit"]) w(`- ${kind}: 안내 ${survey(kind, "shown")}명 · 엶 ${survey(kind, "opened")}명 · 「이미 함」 ${survey(kind, "dismissed_done")}명 (제출 여부는 폼 응답과 맞춘다)`);
 w();
 w("> 숫자는 첫 판 · 실시간 기록 기준. 표본이 10명 미만이면 비율을 쓰지 않는다. 시간은 조사 시계(창 · 멈춤 · 게임 밖 제외) 기준.");

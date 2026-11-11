@@ -17,7 +17,7 @@ from app.api.v1 import error_responses
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.beta_event import BetaEvent
-from app.schemas.beta_event import BetaEventBatch, BetaEventBatchResult
+from app.schemas.beta_event import BetaEventBatch, BetaEventBatchResult, BetaEventIn
 from app.services.local_auth import utc_now
 from app.services.play_principal import require_play_origin, resolve_play_principal
 from app.services.request_rate_limit import BETA_EVENTS, limit_by_ip
@@ -106,6 +106,25 @@ async def receive_beta_events(
         return _validation_error(error)
 
     principal = await resolve_play_principal(db, request)
+    user_id = principal.user_id if principal else None
+
+    # 베타 참가자는 모두 회원이다(미르 11/11) — 저장하는 것:
+    #  · 만든 때의 계정(acct)이 지금 로그인 쿠키 계정과 같은 기록 → 그 계정으로
+    #  · 로그인하지 않은 때 만든(acct 없음 · "") 기록 중 참여 코드가 붙은 것 → 계정 없이 코드로
+    # 그 밖(쿠키 계정과 다른 acct · 로그인 안 하고 코드도 없음)은 저장하지 않고 ignored 로 센다.
+    def owner_of(event: BetaEventIn) -> str | None:
+        if event.acct and user_id is not None and event.acct == user_id:
+            return user_id
+        return None
+
+    kept = [
+        event
+        for event in batch.events
+        if owner_of(event) is not None or (not event.acct and event.pc is not None)
+    ]
+    ignored = len(batch.events) - len(kept)
+    if not kept:
+        return BetaEventBatchResult(accepted=0, duplicates=0, ignored=ignored)
     received_at = utc_now()
     rows = [
         {
@@ -122,15 +141,17 @@ async def receive_beta_events(
             "objective_id": event.objective_id,
             "page": event.page,
             "build": event.build,
-            "app_user_id": principal.user_id if principal else None,
+            "app_user_id": owner_of(event),
             "guest_session_id": principal.guest_session_id if principal else None,
             "data": event.data,
         }
-        for event in batch.events
+        for event in kept
     ]
     # 같은 event_id(재전송)는 유일 색인에 걸려 건너뛴다. 길이 · 형식은 위에서 이미 검사했다.
     result = await db.execute(insert(BetaEvent).values(rows).prefix_with("IGNORE"))
     await db.commit()
     rowcount = getattr(result, "rowcount", None)
     accepted = rowcount if isinstance(rowcount, int) and rowcount >= 0 else len(rows)
-    return BetaEventBatchResult(accepted=accepted, duplicates=len(rows) - accepted)
+    return BetaEventBatchResult(
+        accepted=accepted, duplicates=len(rows) - accepted, ignored=ignored
+    )

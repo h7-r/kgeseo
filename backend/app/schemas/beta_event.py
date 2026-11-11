@@ -61,6 +61,9 @@ class BetaEventIn(BaseModel):
     )
     page: str | None = Field(default=None, max_length=16)
     build: str | None = Field(default=None, max_length=40)
+    # 기록을 만든 때의 계정 id(게임 화면이 /me 로 확인한 값). "" = 로그인 안 함. 저장 여부를 가르는 데만 쓰고,
+    # 저장하는 계정은 늘 쿠키로 정한다 — 쿠키 계정과 다르면 버린다(공용 PC 에서 앞사람 기록이 다음 사람에게 붙지 않게)
+    acct: str | None = Field(default=None, max_length=36)
     data: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("data")
@@ -90,6 +93,8 @@ class BetaEventBatchResult(BaseModel):
     accepted: int
     duplicates: int
     disabled: bool = False
+    # 로그인하지 않았고 참여 코드도 없는 기록 — 저장하지 않는다(베타 참가자 = 회원, 미르 11/11)
+    ignored: int = 0
 
 
 class BetaEventOut(BaseModel):

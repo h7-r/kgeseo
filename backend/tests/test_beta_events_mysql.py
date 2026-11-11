@@ -147,6 +147,7 @@ def test_batches_are_saved_once_and_resends_are_skipped():
                 "accepted": 3,
                 "duplicates": 0,
                 "disabled": False,
+                "ignored": 0,
             }
             # 같은 기록 셋 + 새 기록 하나(묶음 안의 중복도 하나로)
             again = [*first, event(), first[0]]
@@ -155,6 +156,7 @@ def test_batches_are_saved_once_and_resends_are_skipped():
                 "accepted": 1,
                 "duplicates": 4,
                 "disabled": False,
+                "ignored": 0,
             }
             # 페이지를 떠날 때의 text/plain 본문
             response = await http.post(

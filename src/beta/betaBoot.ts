@@ -53,13 +53,47 @@ export function trackError(category: string, raw: string, extra: Record<string, 
   betaLog.track("client_error", category, { data: { fp, ...extra } });
 }
 
+/**
+ * 이 페이지의 계정을 /me 로 확인한다 — 200 이면 계정 id, 401 · 403 이면 로그인 안 함. 그 밖(서버 오류 · 연결 실패)은
+ * 확인될 때까지 다시 묻는다(저장 초기화 성공 여부와 따로 — 잠깐의 실패로 로그인 사용자의 기록을 멈추지 않게).
+ * 확인 전 기록은 betaLog 가 페이지 안에 잡아 둔다.
+ */
+async function resolveAccount(origin: string) {
+  let wait = 1000;
+  for (;;) {
+    const ticket = betaLog.accountTicket();
+    try {
+      const response = await fetch(`${origin}/api/v1/me`, { credentials: "include", headers: { Accept: "application/json" } });
+      if (response.status === 401 || response.status === 403) {
+        betaLog.setAccount(null, ticket);
+        return;
+      }
+      if (response.ok) {
+        const body = (await response.json().catch(() => null)) as { user_id?: unknown } | null;
+        const id = typeof body?.user_id === "string" && body.user_id ? body.user_id : null;
+        // 200 인데 id 가 없으면 응답 모양이 바뀐 것 — 로그인 안 함으로 보지 않고 다시 묻는다
+        if (id) {
+          betaLog.setAccount(id, ticket);
+          return;
+        }
+      }
+    } catch {
+      // 연결 실패 — 다시
+    }
+    await new Promise((resolve) => setTimeout(resolve, wait));
+    wait = Math.min(30_000, wait * 2);
+  }
+}
+
 export function bootBeta(page: BetaPage, extra: { blocked?: boolean } = {}): boolean {
   let isActive: boolean;
+  let origin: string;
   try {
     const env = import.meta.env as Record<string, string | boolean | undefined>;
+    origin = apiOrigin(env.VITE_API_ORIGIN as string | undefined, env.PROD === true);
     isActive = betaLog.init({
       page,
-      apiOrigin: apiOrigin(env.VITE_API_ORIGIN as string | undefined, env.PROD === true),
+      apiOrigin: origin,
       build: buildId(),
       href: window.location.href,
       enabled: env.VITE_BETA_LOG !== "off",
@@ -68,6 +102,7 @@ export function bootBeta(page: BetaPage, extra: { blocked?: boolean } = {}): boo
     return false;
   }
   if (!isActive) return false;
+  void resolveAccount(origin);
   try {
     // 코드는 저장했으니 주소에서는 뗀다(주소를 남과 나누어도 코드가 따라가지 않게)
     const url = new URL(window.location.href);

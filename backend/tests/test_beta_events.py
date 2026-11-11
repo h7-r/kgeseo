@@ -62,10 +62,21 @@ def inserted_rows(db_session):
 def test_valid_batch_is_saved_with_cookie_owner(client, db_session, principal):
     principal["value"] = PlayPrincipal(kind="user", user_id="user-1")
     response = client.post(
-        PATH, json={"events": [event(), event(type="beta_entry", phase=None)]}
+        PATH,
+        json={
+            "events": [
+                event(acct="user-1"),
+                event(type="beta_entry", phase=None, acct="user-1"),
+            ]
+        },
     )
     assert response.status_code == 200, response.text
-    assert response.json() == {"accepted": 2, "duplicates": 0, "disabled": False}
+    assert response.json() == {
+        "accepted": 2,
+        "duplicates": 0,
+        "disabled": False,
+        "ignored": 0,
+    }
     assert response.headers["Cache-Control"] == "no-store"
     count, statement = inserted_rows(db_session)
     assert count == 2
@@ -94,11 +105,53 @@ def test_text_plain_keepalive_body_is_accepted(client, db_session, principal):
     assert params["app_user_id_m0"] is None
 
 
-def test_no_cookie_is_still_accepted(client, db_session, principal):
-    response = client.post(PATH, json={"events": [event(pc=None)]})
+def test_no_cookie_with_code_is_still_accepted(client, db_session, principal):
+    response = client.post(PATH, json={"events": [event()]})
     assert response.status_code == 200
     params = inserted_rows(db_session)[1].compile().params
     assert params["app_user_id_m0"] is None and params["guest_session_id_m0"] is None
+    assert params["participant_code_m0"] == "B-7KQ2XM"
+
+
+def test_logged_in_without_code_is_saved_by_account(client, db_session, principal):
+    """베타 참가자는 모두 회원 — 참여 코드 없이도 로그인한 계정으로 묶어 남긴다(미르 11/11)."""
+    principal["value"] = PlayPrincipal(kind="user", user_id="user-7")
+    response = client.post(PATH, json={"events": [event(pc=None, acct="user-7")]})
+    assert response.status_code == 200
+    assert response.json()["accepted"] == 1
+    params = inserted_rows(db_session)[1].compile().params
+    assert params["app_user_id_m0"] == "user-7"
+    assert params["participant_code_m0"] is None
+
+
+@pytest.mark.parametrize("who", [None, "guest"])
+def test_not_logged_in_without_code_is_not_saved(client, db_session, principal, who):
+    """로그인하지 않았고 참여 코드도 없으면(일반 방문자 · 게스트) 저장하지 않고 ignored 로 센다."""
+    if who == "guest":
+        principal["value"] = PlayPrincipal(
+            kind="guest", guest_session_id="g-1", anonymous_session_id="a-1"
+        )
+    response = client.post(PATH, json={"events": [event(pc=None), event(pc=None)]})
+    assert response.status_code == 200
+    assert response.json() == {
+        "accepted": 0,
+        "duplicates": 0,
+        "disabled": False,
+        "ignored": 2,
+    }
+    assert db_session.execute_calls == []
+    assert db_session.commit_count == 0
+
+
+def test_mixed_batch_keeps_only_coded_events_for_guests(client, db_session, principal):
+    response = client.post(PATH, json={"events": [event(), event(pc=None)]})
+    assert response.json() == {
+        "accepted": 1,
+        "duplicates": 0,
+        "disabled": False,
+        "ignored": 1,
+    }
+    assert inserted_rows(db_session)[0] == 1
 
 
 def test_body_user_id_is_ignored(client, db_session, principal):
@@ -120,7 +173,12 @@ def test_duplicates_are_counted_from_rowcount(
     response = client.post(
         PATH, json={"events": [event(event_id=same), event(event_id=same)]}
     )
-    assert response.json() == {"accepted": 1, "duplicates": 1, "disabled": False}
+    assert response.json() == {
+        "accepted": 1,
+        "duplicates": 1,
+        "disabled": False,
+        "ignored": 0,
+    }
 
 
 @pytest.mark.parametrize("origin", [None, "https://evil.example"])
@@ -181,7 +239,12 @@ def test_disabled_flag_saves_nothing(client, db_session, principal, monkeypatch)
     monkeypatch.setattr(settings, "beta_events_enabled", False)
     response = client.post(PATH, json={"events": [event()]})
     assert response.status_code == 200
-    assert response.json() == {"accepted": 0, "duplicates": 0, "disabled": True}
+    assert response.json() == {
+        "accepted": 0,
+        "duplicates": 0,
+        "disabled": True,
+        "ignored": 0,
+    }
     assert not db_session.execute_calls
 
 
@@ -268,3 +331,38 @@ def test_export_rejects_bad_query(client):
     as_user("admin")
     response = client.get("/api/v1/admin/beta-events?limit=0")
     assert response.status_code == 422
+
+
+def test_record_from_another_account_is_not_saved(client, db_session, principal):
+    """공용 PC — 앞사람(user-A) 때 만든 기록을 다음 사람(user-B) 쿠키로 보내도 B 에게 붙지 않는다."""
+    principal["value"] = PlayPrincipal(kind="user", user_id="user-B")
+    response = client.post(
+        PATH,
+        json={"events": [event(pc=None, acct="user-A"), event(acct="user-A")]},
+    )
+    assert response.json() == {
+        "accepted": 0,
+        "duplicates": 0,
+        "disabled": False,
+        "ignored": 2,
+    }
+    assert db_session.execute_calls == []
+
+
+def test_account_record_after_logout_is_not_saved(client, db_session, principal):
+    """로그인 때 만든 기록을 로그아웃한 뒤(쿠키 없음) 보내면 저장하지 않는다 — 코드가 있어도."""
+    response = client.post(PATH, json={"events": [event(acct="user-1")]})
+    assert response.json()["ignored"] == 1
+    assert db_session.execute_calls == []
+
+
+def test_logged_in_cookie_does_not_adopt_anonymous_records(
+    client, db_session, principal
+):
+    """로그인하지 않은 때(acct "") 코드로 만든 기록은 지금 쿠키가 로그인이어도 그 계정에 붙이지 않는다."""
+    principal["value"] = PlayPrincipal(kind="user", user_id="user-1")
+    response = client.post(PATH, json={"events": [event(acct="")]})
+    assert response.json()["accepted"] == 1
+    params = inserted_rows(db_session)[1].compile().params
+    assert params["app_user_id_m0"] is None
+    assert params["participant_code_m0"] == "B-7KQ2XM"

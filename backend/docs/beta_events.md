@@ -16,18 +16,24 @@
 - 본문 `{"events": [...]}` 1~50개, 전체 64KB 이하(넘으면 413). `application/json` · `text/plain` 둘 다 받는다 — 페이지를
   떠날 때의 keepalive 요청을 CORS 사전 요청 없이 보내려고 text/plain 으로 온다. 본문을 직접 읽어 Pydantic 으로 검사한다.
 - Origin 검사는 플레이 API 와 같다(`require_play_origin`, 운영은 www · play 만). 403.
-- 주인은 쿠키로만(`resolve_play_principal` — 로그인 → 게스트, 둘 다 없어도 받는다). 본문의 사용자 id 는 무시한다.
+- 주인은 쿠키로만(`resolve_play_principal` — 로그인 → 게스트). 본문의 사용자 id 는 무시한다.
+- **저장 대상** — 베타 참가자는 모두 회원이다(미르 11/11).
+  - 기록에 찍힌 만든 때의 계정(`acct`)이 지금 로그인 쿠키 계정과 같으면 → 그 계정으로 저장.
+  - `acct` 가 없거나 ""(로그인 안 한 때)이고 참여 코드(`pc`)가 있으면 → 계정 없이 코드로 저장.
+  - 그 밖(쿠키 계정과 다른 `acct` · 로그인 안 했고 코드도 없음)은 저장하지 않고 응답의 `ignored` 로 센다.
+    공용 PC 에서 앞사람 기록이 다음 사람 쿠키로 와도 그 사람에게 붙지 않는다. `acct` 는 저장 여부만 가르고, 저장하는 계정은 늘 쿠키로 정한다.
 - 형식이 틀리면 묶음 전체 422(보낸 값 `input` 은 되돌려 주지 않는다). 부분 저장 없음.
 - 저장은 `INSERT IGNORE` — 같은 `event_id`(재전송)는 유일 색인에 걸려 건너뛰고 `duplicates` 로 센다.
   길이 · 형식은 앞에서 모두 검사하므로 IGNORE 가 숨기는 것은 중복뿐이다.
-- `BETA_EVENTS_ENABLED=false` 면 저장하지 않고 200 `{"accepted":0,"duplicates":0,"disabled":true}`. 게임 화면은 이 응답을
+- `BETA_EVENTS_ENABLED=false` 면 저장하지 않고 200 `{"accepted":0,"duplicates":0,"disabled":true,"ignored":0}`. 게임 화면은 이 응답을
   받으면 그 페이지에서 그만 보낸다(계측 끄기 스위치).
 - 요청 빈도: 기존 `request_rate_limit` 에 규칙 `beta_events` 추가. 교실 하나가 같은 IP 로 나가도 막히지 않게 넉넉히 뒀다.
 
 ## 필드
 
 event_id(UUID, 필수) · type(11종 중 하나, 필수) · client_ts(ISO, 필수 — UTC 로 바꿔 저장) · phase · pc(참여 코드
-`^[A-Z0-9-]{4,16}$`) · run_id · run_index · tab_id · seq · objective_id · page · build · data(JSON 2048바이트 이하).
+`^[A-Z0-9-]{4,16}$`) · run_id · run_index · tab_id · seq · objective_id · page · build · acct(만든 때의 계정 id, 저장 안 함) ·
+data(JSON 2048바이트 이하).
 알 수 없는 필드는 무시한다.
 
 ## 세진님이 볼 것(베타 뒤)
@@ -39,8 +45,11 @@ event_id(UUID, 필수) · type(11종 중 하나, 필수) · client_ts(ISO, 필�
 
 ## 게임 화면이 보내는 기록(src/beta · naju01/src/beta)
 
-참여 코드(`?pc=`)로 들어온 브라우저에서만 보낸다(코드 없는 일반 이용자는 보내지 않는다). 코드는 같은 출처 localStorage 에
-보관하고 주소에서는 지운다. 보내지 못한 기록은 localStorage 대기열(최대 300)에 남겨 같은 event_id 로 다시 보낸다.
+**로그인한 계정의 플레이를 자동으로 보낸다** — 참가자에게 따로 링크를 줄 필요가 없다. 참여 코드(`?pc=`)는 선택이다(있으면 붙는다).
+페이지마다 `/me` 로 계정을 확인하고(실패하면 확인될 때까지 다시), 확인 전 기록은 페이지 안에 잡아 두었다가 계정 · 회차를 찍어 넣는다.
+로그인하지 않았고 코드도 없으면 그 페이지는 더 쌓지 않는다. 계정이 바뀌면 회차를 잇지 않고, 남의 기록은 보내지 않고 하루 뒤 버린다.
+다른 탭이 다른 계정을 확인하면 앞 탭은 멈춘다.
+보내지 못한 기록은 localStorage 대기열(최대 300)에 남겨 같은 event_id 로 다시 보낸다.
 계측 오류는 밖으로 던지지 않고, 게임은 전송을 기다리지 않는다. 빌드 변수 `VITE_BETA_LOG=off` 로 끈다.
 
 | type | phase | 어디서 | 지표 |
@@ -62,7 +71,9 @@ event_id(UUID, 필수) · type(11종 중 하나, 필수) · client_ts(ISO, 필�
 
 ## 운영(미르)
 
-- 참여 코드 · 개인 링크: `node tools/beta/make-codes.mjs <개수> <출력.csv>` — 이름 · 연락처 배정표는 따로.
+- 참가자는 회원가입 → 로그인 상태로 플레이하면 된다. 집계는 계정 단위다.
+- (선택) 참여 코드 · 개인 링크: `node tools/beta/make-codes.mjs <개수> <출력.csv>` — 설문 카드(폼 미리 채움)를 쓸 때만 필요.
+- 베타가 끝나면 서버 `BETA_EVENTS_ENABLED=false` 로 끈다 — 켜 두면 그 뒤에 로그인한 일반 이용자도 기록된다.
 - 설문 폼 주소: `src/beta/betaSurvey.ts` 의 `BETA_FORMS` 또는 빌드 변수 `VITE_BETA_FORM_PRE` · `VITE_BETA_FORM_POST_A` ·
   `VITE_BETA_FORM_POST_B` · `VITE_BETA_FORM_EXIT`(구글 폼 미리 채운 링크에서 코드 칸 값을 `{pc}`, 회차 칸을 `{run}` 으로).
   비어 있으면 설문 안내는 뜨지 않는다(기록은 그대로 쌓인다).
@@ -75,3 +86,10 @@ event_id(UUID, 필수) · type(11종 중 하나, 필수) · client_ts(ISO, 필�
   `puzzle_attempt`(data.source=server)에 `client_event_id` 를 같이 남겨 `interaction_events.client_event_id` 와 맞춰 볼 수 있다.
 - 서버 밖에서만 보이는 것(로컬 퍼즐 실패 추정 · 목표 도달 · 활성 시간 · 이탈 위치 · 로딩 · 오류 · 게스트)은 이 기록에만 있다.
 - #117 의 주의(P03 의 `incorrect` 는 항아리를 놓을 때마다 생기는 판정)는 여기 `puzzle_attempt` 의 P03 결과에도 그대로 적용된다.
+
+## 알려진 한계
+
+- 같은 브라우저의 두 탭이 서로 다른 계정으로 거의 같은 순간(같은 밀리초 · 계정 확인 처리가 겹칠 때) `/me` 를 확인하면, 정상 탭 하나가
+  기록을 멈출 수 있다(localStorage 는 탭 사이에 원자적이지 않다 — Codex 18회차). 이때도 **다른 계정으로 저장되는 일은 없다** —
+  서버가 기록의 `acct` 와 쿠키 계정을 맞춰 보기 때문이다. 잃는 것은 그 탭의 기록뿐이다.
+- 계정 확인(`/me`)이 끝나기 전에 페이지를 떠나면, 그 페이지에서 잡아 둔 기록은 보내지 못한다(보통 1초 안에 끝난다).

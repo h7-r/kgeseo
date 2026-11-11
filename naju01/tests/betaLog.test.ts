@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { KEYS, QUEUE_CAP, clampData, createBetaLog, normalizeCode, type BetaEvent } from "../../src/beta/betaLog.ts";
+import { FOREIGN_KEEP_MS, KEYS, QUEUE_CAP, clampData, createBetaLog, normalizeCode, type BetaEvent } from "../../src/beta/betaLog.ts";
 
 function memoryStore() {
   const map = new Map<string, string>();
@@ -30,7 +30,9 @@ function fakeFetch(responses: Array<{ status: number; body?: unknown; headers?: 
   return { fn, calls };
 }
 
-function setup(options: { href?: string; storage?: ReturnType<typeof memoryStore>; responses?: Parameters<typeof fakeFetch>[0] } = {}) {
+function setup(
+  options: { href?: string; storage?: ReturnType<typeof memoryStore>; responses?: Parameters<typeof fakeFetch>[0]; account?: string | null | false } = {},
+) {
   const storage = options.storage ?? memoryStore();
   const session = memoryStore();
   const { fn, calls } = fakeFetch(options.responses ?? []);
@@ -50,16 +52,71 @@ function setup(options: { href?: string; storage?: ReturnType<typeof memoryStore
       clearTimer: () => {},
     },
   });
+  // 저장 초기화 뒤 계정을 알린다(기본: 로그인한 user-1). false 면 알리지 않는다
+  if (options.account !== false) log.setAccount(options.account === undefined ? "user-1" : options.account);
   return { log, storage, session, calls, isActive, advance: (ms: number) => (now += ms) };
 }
 
 const queued = (storage: ReturnType<typeof memoryStore>) => JSON.parse(storage.getItem(KEYS.queue) ?? "[]") as BetaEvent[];
 
-test("참여 코드가 없으면 아무것도 쌓지 않는다", () => {
-  const { log, storage, isActive } = setup({ href: "https://play.example.test/" });
-  assert.equal(isActive, false);
+test("로그인하지 않았고 참여 코드도 없으면 계정을 안 뒤로 쌓지 않는다", () => {
+  const { log, storage } = setup({ href: "https://play.example.test/", account: null });
+  assert.equal(log.isActive(), false);
   log.track("run_state", "start");
-  assert.equal(storage.getItem(KEYS.queue), null);
+  assert.equal(queued(storage).length, 0);
+});
+
+test("참여 코드 없이도 로그인한 계정이면 기록한다(베타 참가자는 모두 회원)", async () => {
+  const { log, storage, calls } = setup({ href: "https://play.example.test/", account: "user-9", responses: [{ status: 200, body: {} }] });
+  assert.equal(log.isActive(), true);
+  log.track("run_state", "start");
+  assert.equal(queued(storage)[0].pc, undefined);
+  await log.flush();
+  assert.equal(calls.length, 1);
+  assert.equal(queued(storage).length, 0);
+});
+
+test("계정을 확인하기 전 기록은 페이지 안에 잡아 두었다가, 확인되면 계정 · 회차를 찍어 보낸다", async () => {
+  const { log, storage, calls } = setup({ account: false, responses: [{ status: 200, body: {} }] });
+  log.track("run_state", "start");
+  assert.equal(log.run(), null);
+  assert.equal(queued(storage).length, 0);
+  await log.flush();
+  assert.equal(calls.length, 0);
+  log.setAccount("user-3");
+  await log.flush();
+  const sent = (JSON.parse(String(calls[0].init.body)) as { events: BetaEvent[] }).events;
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].acct, "user-3");
+  assert.match(sent[0].run_id ?? "", /^[0-9a-f-]{36}$/);
+});
+
+test("공용 PC — 앞사람 기록은 다음 사람 쿠키로 보내지 않고, 회차도 잇지 않는다", async () => {
+  const storage = memoryStore();
+  const a = setup({ storage, href: "https://play.example.test/", account: "user-A", responses: [{ status: 503 }] });
+  a.log.track("run_state", "start");
+  const runA = a.log.run();
+  const b = setup({ storage, href: "https://play.example.test/", account: "user-B", responses: [{ status: 200, body: {} }] });
+  b.log.track("run_state", "start");
+  await b.log.flush();
+  const sent = (JSON.parse(String(b.calls[0].init.body)) as { events: BetaEvent[] }).events;
+  assert.deepEqual([...new Set(sent.map((e) => e.acct))], ["user-B"]);
+  assert.notEqual(sent[0].run_id, runA?.id);
+  assert.equal(sent[0].run_index, 0);
+  // 앞사람 기록은 하루 동안 남겨 두었다가(그 사람이 돌아오면 보낸다) 지나면 버린다
+  assert.equal(queued(storage).filter((e) => e.acct === "user-A").length, 1);
+  b.advance(FOREIGN_KEEP_MS + 1);
+  await b.log.flush();
+  assert.equal(queued(storage).filter((e) => e.acct === "user-A").length, 0);
+});
+
+test("다른 탭에서 다른 계정을 확인하면 앞 탭은 더 쌓지도 보내지도 않는다", () => {
+  const storage = memoryStore();
+  const a = setup({ storage, href: "https://play.example.test/", account: "user-A" });
+  setup({ storage, href: "https://play.example.test/", account: "user-B" });
+  a.log.track("run_state", "released");
+  assert.equal(a.log.isActive(), false);
+  assert.equal(queued(storage).filter((e) => e.phase === "released").length, 0);
 });
 
 test("주소의 코드를 대문자로 보관하고, 기록에 회차 · 탭 · 순번 · 빌드를 붙인다", () => {
@@ -257,6 +314,7 @@ test("저장소가 없으면 회차 · 대기열을 메모리에 고정한다(Co
   const log = createBetaLog();
   const { fn, calls } = fakeFetch([{ status: 200, body: {} }]);
   log.init({ page: "naju", apiOrigin: "", href: "https://x.test/?pc=ABCD-1234", env: { storage: null, session: null, fetch: fn, setTimer: () => 0, clearTimer: () => {} } });
+  log.setAccount("user-1");
   log.track("run_state", "start");
   log.track("run_state", "dawn");
   await log.flush();
@@ -317,4 +375,50 @@ test("대기열 쓰기가 막힌(메모리) 탭도 다른 참여 코드가 들�
   setup({ storage, href: "https://play.example.test/?pc=BBBB-2222" });
   a.log.track("run_state", "released");
   assert.equal(a.log.isActive(), false);
+});
+
+test("늦게 물은 탭이 이긴다 — 먼저 물은 탭의 답이 나중에 와도 덮어쓰지 않고 그 탭만 멈춘다(Codex 재확인)", () => {
+  const storage = memoryStore();
+  const a = setup({ storage, href: "https://play.example.test/", account: false });
+  const b = setup({ storage, href: "https://play.example.test/", account: false });
+  const ticketA = a.log.accountTicket();
+  b.advance(500);
+  const ticketB = b.log.accountTicket(); // B 가 로그인한 뒤 물었다
+  b.log.setAccount("user-B", ticketB);
+  a.log.setAccount("user-A", ticketA); // 늦게 도착한 A 의 낡은 답
+  assert.equal(a.log.isActive(), false);
+  assert.equal(b.log.isActive(), true);
+  assert.equal(storage.getItem(KEYS.account), "user-B");
+});
+
+test("답이 물은 차례대로 오면(A 먼저 · B 나중) 나중에 물은 B 가 이기고 A 탭이 멈춘다(Codex 최종 확인)", () => {
+  const storage = memoryStore();
+  const a = setup({ storage, href: "https://play.example.test/", account: false });
+  const b = setup({ storage, href: "https://play.example.test/", account: false });
+  const ticketA = a.log.accountTicket();
+  b.advance(500);
+  const ticketB = b.log.accountTicket();
+  a.log.setAccount("user-A", ticketA);
+  b.log.setAccount("user-B", ticketB);
+  assert.equal(b.log.isActive(), true);
+  assert.equal(storage.getItem(KEYS.account), "user-B");
+  a.log.track("run_state", "released");
+  assert.equal(a.log.isActive(), false);
+});
+
+test("주인을 모르는 옛 회차(계정 기록 없음)는 잇지 않는다(Codex 재확인)", () => {
+  const storage = memoryStore();
+  storage.setItem(KEYS.run, JSON.stringify({ id: "legacy-run", index: 3 }));
+  const { log } = setup({ storage, href: "https://play.example.test/", account: "user-B" });
+  const run = log.run();
+  assert.notEqual(run?.id, "legacy-run");
+  assert.equal(run?.index, 0);
+});
+
+test("물음 표는 함께 쓰는 수 없이 만든다 — 같은 순간에 물어도 겹치지 않는다(Codex 최종 확인)", () => {
+  const storage = memoryStore();
+  const a = setup({ storage, href: "https://play.example.test/", account: false });
+  const b = setup({ storage, href: "https://play.example.test/", account: false });
+  const tickets = new Set(Array.from({ length: 200 }, (_, i) => (i % 2 ? a : b).log.accountTicket()));
+  assert.equal(tickets.size, 200);
 });

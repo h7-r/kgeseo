@@ -1,5 +1,8 @@
 /**
- * 베타 분석 기록(beta_events) — 참여 코드(pc)가 있는 브라우저에서만 쌓아 보낸다(미르 11/11, 계약 backend beta_events).
+ * 베타 분석 기록(beta_events) — 로그인한 계정(베타 참가자는 모두 회원, 미르 11/11)의 플레이를 쌓아 보낸다. 참여 코드(`?pc=`)는 있으면 함께 붙는다.
+ * 로그인하지 않았고 코드도 없으면 보내지 않는다(서버도 저장하지 않는다).
+ * 기록마다 만든 때의 계정(acct)을 찍고, 서버는 지금 로그인 쿠키와 같을 때만 그 계정으로 저장한다 — 공용 PC 에서 계정이 바뀌어도
+ * 앞사람 기록이 다음 사람 계정에 붙지 않는다. 계정을 확인하기 전의 기록은 페이지 안에 잡아 두었다가 확인되면 찍어 넣는다.
  *
  * - 게임 진행 · 진행 API(interactions) · 로그인 저장(game-save)과 따로 간다. 여기서 난 오류는 밖으로 던지지 않고, 게임은 전송을 기다리지 않는다.
  * - 참여 코드는 주소의 `?pc=` 로 한 번 받아 이 출처(localStorage)에 보관한다 — 본편 → 나주(/naju01/)는 같은 출처라 그대로 이어진다.
@@ -38,6 +41,8 @@ export interface BetaEvent {
   objective_id?: string;
   page?: BetaPage;
   build?: string;
+  /** 만든 때의 계정 id — 로그인하지 않았으면 "" (서버가 쿠키 계정과 맞춰 본다) */
+  acct?: string;
   data?: Record<string, unknown>;
 }
 
@@ -77,7 +82,13 @@ export const KEYS = {
   tab: "waegok.beta.tab",
   seq: "waegok.beta.seq",
   dropped: "waegok.beta.dropped",
+  account: "waegok.beta.account",
+  /** 지금 계정 기록을 정한 물음 표(물은 시각) */
+  accountAt: "waegok.beta.accountAt",
 } as const;
+
+/** 다른 계정 · 다른 코드의 기록을 그 사람이 돌아올 때까지 남겨 두는 기간 */
+export const FOREIGN_KEEP_MS = 24 * 3600 * 1000;
 
 /** 대기열 상한 — 넘으면 오래된 것부터 버리고 그 수를 다음 기록에 적는다 */
 export const QUEUE_CAP = 300;
@@ -217,6 +228,10 @@ export function createBetaLog() {
   let failCount = 0;
   /** 거절된 묶음을 반으로 줄여 가며 문제 기록을 가린다 */
   let batchLimit = BATCH;
+  /** 이 페이지의 계정 — undefined: 아직 모름 · null: 로그인 안 함 · 문자열: 계정 id */
+  let account: string | null | undefined = undefined;
+  /** 계정을 확인하기 전의 기록(페이지 안에만) */
+  let pending: Array<{ event: BetaEvent; withRun: boolean }> = [];
 
   const store = () => env?.storage ?? null;
 
@@ -262,19 +277,14 @@ export function createBetaLog() {
   }
 
   async function flush(): Promise<void> {
-    if (!env || isStopped || isSending || !pc || !env.fetch) return;
+    if (!env || isStopped || isSending || !env.fetch) return;
     if (env.now() < nextAllowedAt) return;
-    if (isParticipantChanged()) return;
-    let queue = currentQueue();
-    // 이 페이지 참가자의 것만 — 다른 참가자 코드의 기록은 지금 쿠키 주인으로 붙지 않게 버린다
-    const foreign = queue.filter((event) => event.pc !== pc).length;
-    if (foreign > 0) {
-      queue = queue.filter((event) => event.pc === pc);
-      saveQueue(queue);
-      noteDropped(foreign);
-    }
-    if (queue.length === 0) return;
-    const batch = takeBatch(queue, batchLimit);
+    if (account === undefined) return;
+    if (isParticipantChanged() || isAccountChanged()) return;
+    const queue = pruneForeign();
+    const mine = queue.filter(isMine);
+    if (mine.length === 0) return;
+    const batch = takeBatch(mine, batchLimit);
     const sentIds = new Set(batch.map((event) => event.event_id));
     isSending = true;
     try {
@@ -292,7 +302,7 @@ export function createBetaLog() {
         batchLimit = BATCH;
         if (body?.disabled) stop();
         // 더 남았으면 이어서
-        else if (currentQueue().length > 0) schedule(200);
+        else if (currentQueue().some(isMine)) schedule(200);
       } else if (response.status === 400 || response.status === 413 || response.status === 422) {
         // 거절 — 묶음이면 반으로 줄여 다시(멀쩡한 기록을 함께 잃지 않게), 하나만 남았으면 그것만 버리고 센다
         failCount += 1;
@@ -303,7 +313,7 @@ export function createBetaLog() {
           saveQueue(currentQueue().filter((event) => !sentIds.has(event.event_id)));
           noteDropped(1);
           batchLimit = BATCH;
-          if (currentQueue().length > 0) schedule(200);
+          if (currentQueue().some(isMine)) schedule(200);
         }
       } else {
         const retryAfter = Number(response.headers.get("Retry-After"));
@@ -322,9 +332,10 @@ export function createBetaLog() {
 
   /** 페이지를 떠난다 — 남은 것을 keepalive 로 한 번 더(지우지는 않는다 — 다음 페이지가 같은 event_id 로 다시 보내면 서버가 거른다) */
   function flushOnLeave() {
-    if (!env || isStopped || !pc || !env.fetch) return;
-    if (isParticipantChanged()) return;
-    const queue = currentQueue().filter((event) => event.pc === pc);
+    if (!env || isStopped || !env.fetch) return;
+    if (account === undefined) return;
+    if (isParticipantChanged() || isAccountChanged()) return;
+    const queue = currentQueue().filter(isMine);
     if (queue.length === 0) return;
     // keepalive 본문은 브라우저가 64KB 로 묶는다 — 그 안에서
     const batch = takeBatch(queue, BATCH, KEEPALIVE_LIMIT);
@@ -339,6 +350,51 @@ export function createBetaLog() {
     } catch {
       /* 무시 */
     }
+  }
+
+  /** 이 페이지(지금 계정 · 코드)의 기록인가 — 남의 것은 보내지 않는다(서버도 쿠키 계정과 다르면 버린다) */
+  function isMine(event: BetaEvent): boolean {
+    return (event.pc ?? null) === pc && (event.acct ?? "") === (account ?? "");
+  }
+
+  /** 남의 기록은 그 사람이 돌아올 때까지 하루만 둔다 */
+  function pruneForeign(): BetaEvent[] {
+    if (!env) return [];
+    const now = env.now();
+    const queue = currentQueue();
+    const kept = queue.filter((event) => isMine(event) || now - Date.parse(event.client_ts) < FOREIGN_KEEP_MS);
+    if (kept.length !== queue.length) {
+      noteDropped(queue.length - kept.length);
+      saveQueue(kept);
+    }
+    return kept;
+  }
+
+  /** 다른 탭에서 다른 계정을 확인했다(같은 브라우저 쿠키가 바뀌었다) — 이 페이지는 더 쌓지도 보내지도 않는다 */
+  function isAccountChanged(): boolean {
+    if (account === undefined || !store()) return false;
+    const stored = getRaw(store(), KEYS.account);
+    if (stored === null || stored === (account ?? "")) return false;
+    stop();
+    return true;
+  }
+
+  /** 계정 · 회차를 찍어 대기열에 넣는다 */
+  function enqueue(event: BetaEvent, withRun: boolean) {
+    event.acct = account ?? "";
+    const run = withRun ? api.run() : null;
+    if (run) {
+      event.run_id = run.id;
+      event.run_index = run.index;
+    }
+    let queue = currentQueue();
+    queue.push(event);
+    if (queue.length > QUEUE_CAP) {
+      noteDropped(queue.length - QUEUE_CAP);
+      queue = queue.slice(queue.length - QUEUE_CAP);
+    }
+    saveQueue(queue);
+    return queue.length;
   }
 
   /** 다른 탭이 다른 참여 코드로 들어왔다 — 이 페이지(앞사람)는 더 쌓지도 보내지도 않는다 */
@@ -412,10 +468,6 @@ export function createBetaLog() {
           noteDropped(leftover);
         }
       }
-      if (!pc) {
-        isStopped = true;
-        return false;
-      }
       tabId = getRaw(env.session, KEYS.tab) ?? "";
       if (!tabId) {
         tabId = uuid();
@@ -430,7 +482,56 @@ export function createBetaLog() {
       schedule(1500);
       return true;
     },
-    isActive: () => !!env && !isStopped && !!pc,
+    isActive: () => !!env && !isStopped,
+    /**
+     * 이 페이지의 계정을 알았다(/me) — 로그인 안 했고 참여 코드도 없으면 그만 쌓는다.
+     * 앞서 이 브라우저에서 본 계정과 다르면(공용 PC) 회차를 잇지 않는다. 잡아 둔 기록에 계정 · 회차를 찍어 넣고 보낸다.
+     */
+    setAccount(accountId: string | null, ticket?: string | null) {
+      if (!env || isStopped || account !== undefined) return;
+      const id = accountId || null;
+      const before = getRaw(store(), KEYS.account);
+      const appliedAt = getRaw(store(), KEYS.accountAt);
+      // 더 나중에 물은 다른 탭이 이미 다른 계정을 정했다 — 이 답은 낡았다(쿠키가 이미 바뀌었다). 덮어쓰지 않고 이 페이지는 멈춘다.
+      // 늦게 물은 쪽이 이긴다 — 답이 도착한 차례가 아니라 물은 차례로 가린다
+      if (ticket != null && appliedAt !== null && appliedAt > ticket && before !== (id ?? "")) {
+        pending = [];
+        stop();
+        return;
+      }
+      // 앞 계정과 다르거나, 주인을 모르는 회차(계정 기록이 없던 때 만든 것)면 잇지 않는다
+      if (before !== (id ?? "")) {
+        removeRaw(store(), KEYS.run);
+        removeRaw(env.session, KEYS.runReset);
+        pageRun = null;
+      }
+      try {
+        store()?.setItem(KEYS.account, id ?? "");
+        if (ticket != null && (appliedAt === null || ticket > appliedAt)) store()?.setItem(KEYS.accountAt, ticket);
+      } catch {
+        /* 무시 */
+      }
+      account = id;
+      if (!id && !pc) {
+        pending = [];
+        stop();
+        return;
+      }
+      const held = pending;
+      pending = [];
+      for (const { event, withRun } of held) enqueue(event, withRun);
+      void flush();
+    },
+    /** 계정을 확인했나(undefined 면 아직) */
+    account: () => account,
+    /**
+     * /me 를 묻기 직전에 받는 물음 표 — 「물은 시각(자릿수 고정) . 무작위 id」 글자. 글자 크기 비교가 곧 물은 차례다
+     * (같은 브라우저의 탭은 같은 시계). 함께 쓰는 수를 읽고 올리지 않으므로 두 탭이 같은 표를 받을 일이 없다.
+     */
+    accountTicket(): string | null {
+      if (!env || !store()) return null;
+      return `${String(Math.max(0, Math.floor(env.now()))).padStart(15, "0")}.${uuid()}`;
+    },
     participantCode: () => pc,
     page: () => page,
     tabId: () => tabId,
@@ -438,6 +539,8 @@ export function createBetaLog() {
     run(): BetaRun | null {
       if (!api.isActive()) return null;
       if (pageRun) return pageRun;
+      // 계정을 확인하기 전에는 정하지 않는다(공용 PC 에서 앞사람 회차를 잇지 않게)
+      if (account === undefined) return null;
       pageRun = readRun();
       if (!pageRun) {
         pageRun = { id: uuid(), index: 0 };
@@ -466,9 +569,8 @@ export function createBetaLog() {
     track(type: BetaEventType, phase?: string | null, fields: TrackFields = {}): void {
       try {
         if (!api.isActive() || !env) return;
-        if (isParticipantChanged()) return;
+        if (isParticipantChanged() || isAccountChanged()) return;
         const withRun = fields.withRun ?? page === "naju";
-        const run = withRun ? api.run() : null;
         const event: BetaEvent = {
           event_id: uuid(),
           type,
@@ -479,22 +581,17 @@ export function createBetaLog() {
           page,
         };
         if (phase && PHASE_PATTERN.test(phase)) event.phase = phase;
-        if (run) {
-          event.run_id = run.id;
-          event.run_index = run.index;
-        }
         if (fields.objective_id && OBJECTIVE_PATTERN.test(fields.objective_id)) event.objective_id = fields.objective_id;
         if (build) event.build = build;
         const data = clampData(fields.data);
         if (data && Object.keys(data).length > 0) event.data = data;
-        let queue = currentQueue();
-        queue.push(event);
-        if (queue.length > QUEUE_CAP) {
-          noteDropped(queue.length - QUEUE_CAP);
-          queue = queue.slice(queue.length - QUEUE_CAP);
+        if (account === undefined) {
+          // 계정을 확인하기 전 — 페이지 안에 잡아 둔다(확인되면 계정 · 회차를 찍어 넣는다)
+          if (pending.length < QUEUE_CAP) pending.push({ event, withRun });
+          return;
         }
-        saveQueue(queue);
-        if (fields.urgent || queue.length >= FLUSH_AT) void flush();
+        const length = enqueue(event, withRun);
+        if (fields.urgent || length >= FLUSH_AT) void flush();
       } catch {
         // 기록이 게임을 막으면 안 된다
       }
@@ -513,7 +610,7 @@ export function createBetaLog() {
       }
       return count;
     },
-    stats: () => ({ queued: currentQueue().length, sent: sentCount, failures: failCount, stopped: isStopped }),
+    stats: () => ({ queued: currentQueue().length, pending: pending.length, sent: sentCount, failures: failCount, stopped: isStopped }),
     stop,
   };
   return api;
