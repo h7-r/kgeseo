@@ -13,11 +13,12 @@ const { ADMIN_SCREENS, MENU_SCREENS, buildAdminPaths, findScreen, menuScreenOf, 
 const BASE = "/admin";
 const paths = buildAdminPaths(BASE);
 
-test("메뉴 — 정한 순서 그대로 열두 칸", () => {
+test("메뉴 — 정한 순서 그대로 열세 칸", () => {
   assert.deepEqual(
     MENU_SCREENS.map((screen) => screen.label),
     [
       "대시보드",
+      "베타 기록",
       "접속 통계",
       "회원 관리",
       "회원 통계",

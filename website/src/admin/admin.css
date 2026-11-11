@@ -1027,3 +1027,42 @@ td.adm-cell.is-mono {
   color: var(--admin-text-label);
   font-size: 13px;
 }
+
+/* ── 베타 기록(11/12) ─────────────────────── */
+.adm-beta-tools {
+  display: grid;
+  gap: 12px;
+  padding: 16px 24px;
+}
+.adm-beta-tools__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.adm-beta-tools__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.adm-beta-tools__check input {
+  width: 18px;
+  height: 18px;
+}
+.adm-input.adm-beta-tools__text {
+  height: auto;
+  min-height: 64px;
+  padding: 10px 16px;
+  resize: vertical;
+}
+.adm-beta-tools__note {
+  font-size: 13px;
+}
+.adm-beta-downloads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
