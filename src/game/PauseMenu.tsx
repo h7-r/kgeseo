@@ -45,6 +45,10 @@ export interface PauseMenuItem {
   /** 카드 안 읽을거리(조작표 등) */
   page?: { title: string; content: ReactNode };
   isDanger?: boolean;
+  /** 이름 밑 작은 글(무엇을 하는지) */
+  hint?: string;
+  /** 지금은 누를 수 없는 까닭 — 있으면 흐리게 하고 작은 글 자리에 까닭을 보인다 */
+  disabledReason?: string | null;
 }
 
 interface PauseMenuProps {
@@ -156,6 +160,7 @@ export default function PauseMenu({ status, groups, footer, notice, onEscape }: 
   }, [view.kind, isBusy]);
 
   const select = (item: PauseMenuItem) => {
+    if (item.disabledReason) return;
     if (item.confirm) setView({ kind: "confirm", item, confirm: item.confirm, phase: "asking" });
     else if (item.page) setView({ kind: "page", item });
     else {
@@ -205,6 +210,8 @@ export default function PauseMenu({ status, groups, footer, notice, onEscape }: 
                     <MenuButton
                       key={item.id}
                       label={item.label}
+                      hint={item.disabledReason ?? item.hint}
+                      isDisabled={!!item.disabledReason}
                       isDanger={item.isDanger}
                       onClick={() => select(item)}
                       testId={`pause-${item.id}`}
@@ -278,18 +285,23 @@ function ConfirmView({
 
 function MenuButton({
   label,
+  hint,
   onClick,
   isDanger = false,
   isFilled = false,
   isAutoFocus = false,
+  isDisabled = false,
   testId,
 }: {
   label: string;
+  /** 이름 밑 작은 글 */
+  hint?: string;
   onClick: () => void;
   isDanger?: boolean;
   isFilled?: boolean;
   /** 쪽이 열릴 때 이 단추에 초점 */
   isAutoFocus?: boolean;
+  isDisabled?: boolean;
   testId?: string;
 }) {
   const [isFocused, setIsFocused] = useState(false);
@@ -300,6 +312,7 @@ function MenuButton({
       data-pause-button
       data-pause-autofocus={isAutoFocus || undefined}
       data-testid={testId}
+      disabled={isDisabled}
       onClick={onClick}
       onFocus={() => setIsFocused(true)}
       onBlur={() => setIsFocused(false)}
@@ -311,9 +324,12 @@ function MenuButton({
         border: `1px solid ${isFocused ? (isDanger ? UI.danger : UI.accent) : isDanger ? "rgba(248,113,113,.4)" : UI.border}`,
         background: isFilled && !isDanger ? NAVY_FILL : isFocused ? UI.surfaceHover : "transparent",
         boxShadow: isFocused ? `0 0 0 1px ${isDanger ? UI.danger : UI.accent}` : "none",
+        ...(hint && hintedButtonStyle),
+        ...(isDisabled && disabledButtonStyle),
       }}
     >
       {label}
+      {hint && <span style={hintStyle}>{hint}</span>}
     </button>
   );
 }
@@ -411,6 +427,17 @@ const buttonStyle: CSSProperties = {
   outline: "none",
   transition: "background .12s, border-color .12s",
 };
+// 작은 글이 붙은 단추 — 두 줄로
+const hintedButtonStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 4,
+  padding: "9px 16px",
+};
+const hintStyle: CSSProperties = { font: `400 12px/1.35 ${UI_FONT.body}`, color: UI.textSubtle };
+const disabledButtonStyle: CSSProperties = { opacity: 0.5, cursor: "default" };
 const footerStyle: CSSProperties = {
   marginTop: 12,
   textAlign: "center",

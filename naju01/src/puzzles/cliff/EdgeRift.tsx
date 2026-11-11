@@ -51,12 +51,15 @@ const FIRES_AT = 10;
 const FIRES_SECONDS = 2.5;
 /** 틈 가운데에서 이만큼(m) 안에 들어서면 빨려 든다 */
 const ENTER_RADIUS = 0.9;
-/** 구렁이상을 끼우느라 틈 코앞에 서 있었으면 — 이만큼(m) 물러났다 다시 다가서야 끌어당긴다. 안 물러나도 이만큼(초) 뒤에는 당긴다 */
+/**
+ * 구렁이상을 끼우느라 틈 코앞에 서 있었으면 — 이만큼(m) 물러났다 다시 다가서야 끌어당긴다. 안 물러나도 이만큼(초) 뒤에는 당긴다.
+ * 7초 → 3초(미르 11/12 「포털이 생기는 쪽에 너무 가까이 서 있어서 입장이 안 된다」, 자리 다시 잡기 01회차 Codex) — 그동안은 한 번 알린다
+ */
 const ARM_DISTANCE = ENTER_RADIUS + 0.25;
-const ARM_SECONDS = 7;
+const ARM_SECONDS = 3;
 /**
  * 틈이 열린 뒤 이만큼(m) 걸음을 떼면 끌어당긴다 — 구렁이 바위(틈에서 1.1 m)에 붙어 서서 끼우면 ARM_DISTANCE 안이라, 틈이 열리자마자
- * 걸어 들어가도 아무 일 없이 틈을 그대로 지나쳐 버렸다(끼운 뒤 10.4 초까지 — 미르 11/11 「한 번에 입장이 잘 안 된다」).
+ * 걸어 들어가도 아무 일 없이 틈을 그대로 지나쳐 버렸다(끼운 뒤 10.4 초까지, 지금은 6.4 초 — 미르 11/11 「한 번에 입장이 잘 안 된다」).
  * 가만히 서서 구렁이를 보는 동안에는 여전히 당기지 않는다
  */
 const ARM_STEP = 0.3;
@@ -228,7 +231,7 @@ function EdgeRiftScene() {
   const gl = useThree((state) => state.gl);
   const crossing = useMemo(() => buildCrossing(), []);
   /** 한 번씩만 알리는 것 — 틈이 열렸다 · 굿 불이 켜졌다 */
-  const told = useRef({ alive: false, rift: false, fires: false });
+  const told = useRef({ alive: false, rift: false, fires: false, arming: false });
   /** 틈이 끌어당길 채비가 됐나(ARM_DISTANCE) */
   const isArmed = useRef(false);
   /** 틈이 열린 순간 플레이어가 서 있던 자리(m) */
@@ -417,6 +420,11 @@ function EdgeRiftScene() {
       openedAt.current ??= here;
       const stepped = Math.hypot(here.x - openedAt.current.x, here.z - openedAt.current.z);
       if (distance > ARM_DISTANCE || stepped > ARM_STEP || since > RIFT_AT + ARM_SECONDS) isArmed.current = true;
+      // 아직 채비 전인데 코앞에 서 있다 — 곧 당기지만 고장처럼 보이지 않게 한 번 알린다(자리 다시 잡기 01회차 Codex)
+      else if (!told.current.arming && distance < ARM_DISTANCE) {
+        told.current.arming = true;
+        showNotice("틈이 열렸다 — 한 걸음 내디디면 건너간다.", 3.5, { fleeting: true });
+      }
     }
     if (open > 0.6 && isArmed.current && distance < ENTER_RADIUS && startRiftEntry("edge")) {
       // 시선이 틈 너머로 천천히 당겨지고 걷기가 멈춘다. 건너가는 것은 캄캄해진 뒤

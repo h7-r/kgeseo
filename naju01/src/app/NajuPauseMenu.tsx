@@ -18,9 +18,11 @@ import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import PauseMenu, { type PauseMenuItem, type PauseRunResult } from "@/game/PauseMenu";
 import { UI } from "@/game/gameUi";
 import { openSurvey, shouldOfferSurvey } from "@/beta/betaSurvey";
-import { isGameSaveEnabled } from "@/save/gameSave";
+import { isGameSaveEnabled, scheduleGameSave } from "@/save/gameSave";
 
+import { moveToSafeSpot, safeSpotUnavailableReason } from "../movement/safeSpot";
 import { helpLog } from "../progress/helpLog";
+import { showNotice } from "../puzzles/interaction";
 import { THREE_STAR_MS, formatPlayTime, playClock } from "../progress/playClock";
 import { ending } from "../ending/endingState";
 import { gut } from "../puzzles/gut/gutState";
@@ -85,6 +87,22 @@ export default function NajuPauseMenu({
         },
       },
       { id: "settings", label: "설정", onSelect: onOpenSettings },
+      {
+        // 끼였거나 틈 코앞에 서서 안 들어갈 때 — 진행은 그대로, 지금 구역의 안전 자리로(미르 11/12). 「탈출」 · 「새로고침」은 완주 ·
+        // 진행 지움으로 읽혀 피했다(자리 다시 잡기 01회차 Codex)
+        id: "safe",
+        label: "안전한 곳으로 이동",
+        hint: "지금 있는 구역에서 자리만 다시 잡아요. 진행은 그대로예요.",
+        disabledReason: safeSpotUnavailableReason(),
+        onSelect: () => {
+          const moved = moveToSafeSpot();
+          onResume();
+          if (moved) {
+            scheduleGameSave();
+            showNotice("안전한 곳으로 옮겼어요. 진행은 그대로예요.", 3.5, { always: true });
+          } else showNotice("지금은 옮길 안전한 자리를 찾지 못했어요.", 3.5, { always: true });
+        },
+      },
       { id: "guide", label: guideLabel, onSelect: onShowGuide },
       // 굿을 끝낸 판 — 엔딩(필름 → 클리어 화면)을 다시 본다. 감상만(퍼즐 · 보고 · 보상 되풀이 없음).
       // 끝 연출이 아직 도는 중(새벽이 온 뒤 필름이 열리기 전)에는 숨긴다 — 연출의 예약 · 카메라 고정이 남는다(Codex 리뷰)
