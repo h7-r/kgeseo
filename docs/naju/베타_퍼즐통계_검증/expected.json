@@ -1,0 +1,629 @@
+{
+  "meta": {
+    "params": {
+      "beta_start_utc": "2026-11-12 15:00:00.000000",
+      "beta_end_utc": "2026-11-13 15:00:00.000000",
+      "asof_utc": "2026-11-14 03:00:00.000000"
+    },
+    "exclude_user_ids": [
+      "aaaaaaaa-0000-4000-8000-000000000002"
+    ],
+    "exclude_anon_ids": [
+      "bbbbbbbb-0000-4000-8000-000000000008"
+    ],
+    "note": "합성 데이터 전용 예상값. NULL 은 null. Q0 · Q5 는 metric 집합 비교, 나머지는 키 컬럼 기준 비교."
+  },
+  "Q0": [
+    {
+      "metric": "check_asof_ge_end (1=정상)",
+      "value": "1"
+    },
+    {
+      "metric": "check_exclude_lists_are_arrays (1=정상)",
+      "value": "1"
+    },
+    {
+      "metric": "check_start_lt_end (1=정상)",
+      "value": "1"
+    },
+    {
+      "metric": "cohort_events:P01:submit_answer:already_completed",
+      "value": "1"
+    },
+    {
+      "metric": "cohort_events:P01:submit_answer:correct",
+      "value": "5"
+    },
+    {
+      "metric": "cohort_events:P01:submit_answer:incorrect",
+      "value": "13"
+    },
+    {
+      "metric": "cohort_events:P03:submit_answer:already_completed",
+      "value": "1"
+    },
+    {
+      "metric": "cohort_events:P03:submit_answer:correct",
+      "value": "10"
+    },
+    {
+      "metric": "cohort_events:P03:submit_answer:incorrect",
+      "value": "16"
+    },
+    {
+      "metric": "cohort_events:P07:complete:already_completed",
+      "value": "1"
+    },
+    {
+      "metric": "cohort_events:P07:complete:correct",
+      "value": "5"
+    },
+    {
+      "metric": "cohort_events:P09:submit_answer:correct",
+      "value": "2"
+    },
+    {
+      "metric": "cohort_events:P09:submit_answer:incorrect",
+      "value": "1"
+    },
+    {
+      "metric": "cohort_graded_after_end:P03",
+      "value": "2"
+    },
+    {
+      "metric": "cohort_sessions:P01",
+      "value": "5"
+    },
+    {
+      "metric": "cohort_sessions:P03",
+      "value": "11"
+    },
+    {
+      "metric": "cohort_sessions:P07",
+      "value": "5"
+    },
+    {
+      "metric": "cohort_sessions:P09",
+      "value": "2"
+    },
+    {
+      "metric": "event_basis_graded_in_window:P01:session_created_in_window",
+      "value": "18"
+    },
+    {
+      "metric": "event_basis_graded_in_window:P03:session_created_before_start",
+      "value": "1"
+    },
+    {
+      "metric": "event_basis_graded_in_window:P03:session_created_in_window",
+      "value": "24"
+    },
+    {
+      "metric": "event_basis_graded_in_window:P07:session_created_in_window",
+      "value": "5"
+    },
+    {
+      "metric": "event_basis_graded_in_window:P09:session_created_in_window",
+      "value": "3"
+    },
+    {
+      "metric": "exclude_anon_ids_count",
+      "value": "1"
+    },
+    {
+      "metric": "exclude_user_ids_count",
+      "value": "1"
+    },
+    {
+      "metric": "naju_v1_sessions_in_window_after_exclusion",
+      "value": "13"
+    },
+    {
+      "metric": "naju_v1_sessions_in_window_before_exclusion",
+      "value": "16"
+    },
+    {
+      "metric": "param_asof_utc",
+      "value": "2026-11-14 03:00:00.000000"
+    },
+    {
+      "metric": "param_beta_end_utc",
+      "value": "2026-11-13 15:00:00.000000"
+    },
+    {
+      "metric": "param_beta_start_utc",
+      "value": "2026-11-12 15:00:00.000000"
+    },
+    {
+      "metric": "sessions_created_in_window:naju-angam-01@1",
+      "value": "16"
+    },
+    {
+      "metric": "sessions_created_in_window:naju-angam-01@null",
+      "value": "1"
+    },
+    {
+      "metric": "sessions_created_in_window:other-case-01@1",
+      "value": "1"
+    }
+  ],
+  "Q1": [
+    {
+      "puzzle_id": "P01",
+      "incorrect_meaning": "dig_step",
+      "duration_basis": "first_submit_to_correct",
+      "sessions_attempted": "5",
+      "sessions_solved": "5",
+      "sessions_unsolved_at_asof": "0",
+      "session_solve_rate_pct": "100.0",
+      "retry_sessions_in_window": "0",
+      "incorrect_events": "13",
+      "avg_incorrect_solved": "2.6",
+      "avg_incorrect_changed_solved": "2.6",
+      "avg_sec_first_to_solve": "88.0"
+    },
+    {
+      "puzzle_id": "P03",
+      "incorrect_meaning": "placement_step",
+      "duration_basis": "first_submit_to_correct",
+      "sessions_attempted": "11",
+      "sessions_solved": null,
+      "sessions_unsolved_at_asof": null,
+      "session_solve_rate_pct": null,
+      "retry_sessions_in_window": null,
+      "incorrect_events": "16",
+      "avg_incorrect_solved": "1.4",
+      "avg_incorrect_changed_solved": "1.3",
+      "avg_sec_first_to_solve": "219.0"
+    },
+    {
+      "puzzle_id": "P07",
+      "incorrect_meaning": "none",
+      "duration_basis": "not_measurable",
+      "sessions_attempted": "5",
+      "sessions_solved": "5",
+      "sessions_unsolved_at_asof": "0",
+      "session_solve_rate_pct": null,
+      "retry_sessions_in_window": "0",
+      "incorrect_events": null,
+      "avg_incorrect_solved": null,
+      "avg_incorrect_changed_solved": null,
+      "avg_sec_first_to_solve": null
+    },
+    {
+      "puzzle_id": "P09",
+      "incorrect_meaning": "deliberate_submit",
+      "duration_basis": "first_submit_to_correct",
+      "sessions_attempted": null,
+      "sessions_solved": null,
+      "sessions_unsolved_at_asof": null,
+      "session_solve_rate_pct": null,
+      "retry_sessions_in_window": null,
+      "incorrect_events": null,
+      "avg_incorrect_solved": null,
+      "avg_incorrect_changed_solved": null,
+      "avg_sec_first_to_solve": null
+    }
+  ],
+  "Q2": [
+    {
+      "puzzle_id": "P01",
+      "scope": "all",
+      "players": "5",
+      "players_solved": "5",
+      "player_solve_rate_pct": "100.0",
+      "players_solved_in_first_session": "5",
+      "players_with_retry_session": "0",
+      "players_with_prior_naju_session": "0",
+      "players_with_prior_puzzle_attempt": "0",
+      "member_players_solved_while_guest": "0"
+    },
+    {
+      "puzzle_id": "P01",
+      "scope": "member",
+      "players": null,
+      "players_solved": null,
+      "player_solve_rate_pct": null,
+      "players_solved_in_first_session": null,
+      "players_with_retry_session": null,
+      "players_with_prior_naju_session": null,
+      "players_with_prior_puzzle_attempt": null,
+      "member_players_solved_while_guest": null
+    },
+    {
+      "puzzle_id": "P01",
+      "scope": "guest",
+      "players": null,
+      "players_solved": null,
+      "player_solve_rate_pct": null,
+      "players_solved_in_first_session": null,
+      "players_with_retry_session": null,
+      "players_with_prior_naju_session": null,
+      "players_with_prior_puzzle_attempt": null,
+      "member_players_solved_while_guest": null
+    },
+    {
+      "puzzle_id": "P03",
+      "scope": "all",
+      "players": "10",
+      "players_solved": "10",
+      "player_solve_rate_pct": "100.0",
+      "players_solved_in_first_session": null,
+      "players_with_retry_session": null,
+      "players_with_prior_naju_session": null,
+      "players_with_prior_puzzle_attempt": null,
+      "member_players_solved_while_guest": null
+    },
+    {
+      "puzzle_id": "P03",
+      "scope": "member",
+      "players": "5",
+      "players_solved": "5",
+      "player_solve_rate_pct": "100.0",
+      "players_solved_in_first_session": null,
+      "players_with_retry_session": null,
+      "players_with_prior_naju_session": null,
+      "players_with_prior_puzzle_attempt": null,
+      "member_players_solved_while_guest": null
+    },
+    {
+      "puzzle_id": "P03",
+      "scope": "guest",
+      "players": "5",
+      "players_solved": "5",
+      "player_solve_rate_pct": "100.0",
+      "players_solved_in_first_session": null,
+      "players_with_retry_session": null,
+      "players_with_prior_naju_session": null,
+      "players_with_prior_puzzle_attempt": null,
+      "member_players_solved_while_guest": null
+    },
+    {
+      "puzzle_id": "P07",
+      "scope": "all",
+      "players": "5",
+      "players_solved": "5",
+      "player_solve_rate_pct": null,
+      "players_solved_in_first_session": "5",
+      "players_with_retry_session": "0",
+      "players_with_prior_naju_session": "0",
+      "players_with_prior_puzzle_attempt": "0",
+      "member_players_solved_while_guest": "0"
+    },
+    {
+      "puzzle_id": "P07",
+      "scope": "member",
+      "players": null,
+      "players_solved": null,
+      "player_solve_rate_pct": null,
+      "players_solved_in_first_session": null,
+      "players_with_retry_session": null,
+      "players_with_prior_naju_session": null,
+      "players_with_prior_puzzle_attempt": null,
+      "member_players_solved_while_guest": null
+    },
+    {
+      "puzzle_id": "P07",
+      "scope": "guest",
+      "players": null,
+      "players_solved": null,
+      "player_solve_rate_pct": null,
+      "players_solved_in_first_session": null,
+      "players_with_retry_session": null,
+      "players_with_prior_naju_session": null,
+      "players_with_prior_puzzle_attempt": null,
+      "member_players_solved_while_guest": null
+    },
+    {
+      "puzzle_id": "P09",
+      "scope": "all",
+      "players": null,
+      "players_solved": null,
+      "player_solve_rate_pct": null,
+      "players_solved_in_first_session": null,
+      "players_with_retry_session": null,
+      "players_with_prior_naju_session": null,
+      "players_with_prior_puzzle_attempt": null,
+      "member_players_solved_while_guest": null
+    },
+    {
+      "puzzle_id": "P09",
+      "scope": "member",
+      "players": null,
+      "players_solved": null,
+      "player_solve_rate_pct": null,
+      "players_solved_in_first_session": null,
+      "players_with_retry_session": null,
+      "players_with_prior_naju_session": null,
+      "players_with_prior_puzzle_attempt": null,
+      "member_players_solved_while_guest": null
+    }
+  ],
+  "Q3": [
+    {
+      "puzzle_id": "P01",
+      "solved_sessions_band": "5_9",
+      "median_sec_first_to_solve": "90.0",
+      "p75_sec_first_to_solve": "120.0",
+      "p90_sec_first_to_solve": null,
+      "median_incorrect_solved": "2",
+      "p90_incorrect_solved": null,
+      "median_incorrect_changed_solved": "2",
+      "p90_incorrect_changed_solved": null
+    },
+    {
+      "puzzle_id": "P03",
+      "solved_sessions_band": "10_19",
+      "median_sec_first_to_solve": "120.0",
+      "p75_sec_first_to_solve": "300.0",
+      "p90_sec_first_to_solve": "600.0",
+      "median_incorrect_solved": "1",
+      "p90_incorrect_solved": "3",
+      "median_incorrect_changed_solved": "1",
+      "p90_incorrect_changed_solved": "2"
+    },
+    {
+      "puzzle_id": "P09",
+      "solved_sessions_band": "lt_5",
+      "median_sec_first_to_solve": null,
+      "p75_sec_first_to_solve": null,
+      "p90_sec_first_to_solve": null,
+      "median_incorrect_solved": null,
+      "p90_incorrect_solved": null,
+      "median_incorrect_changed_solved": null,
+      "p90_incorrect_changed_solved": null
+    }
+  ],
+  "Q4": [
+    {
+      "puzzle_id": "P01",
+      "active_sessions_denominator": "12",
+      "attempted_share_of_active_pct": "41.7",
+      "solved_share_of_active_pct": "41.7"
+    },
+    {
+      "puzzle_id": "P03",
+      "active_sessions_denominator": "12",
+      "attempted_share_of_active_pct": null,
+      "solved_share_of_active_pct": null
+    },
+    {
+      "puzzle_id": "P07",
+      "active_sessions_denominator": "12",
+      "attempted_share_of_active_pct": "41.7",
+      "solved_share_of_active_pct": "41.7"
+    },
+    {
+      "puzzle_id": "P09",
+      "active_sessions_denominator": "12",
+      "attempted_share_of_active_pct": null,
+      "solved_share_of_active_pct": null
+    }
+  ],
+  "Q5": [
+    {
+      "metric": "P01:already_completed_events",
+      "value": "0"
+    },
+    {
+      "metric": "P01:attempt_count_mismatch",
+      "value": "1"
+    },
+    {
+      "metric": "P01:client_duration_negative",
+      "value": "0"
+    },
+    {
+      "metric": "P01:client_vs_server_duration_diff_over_5s",
+      "value": "0"
+    },
+    {
+      "metric": "P01:cohort_sessions",
+      "value": "5"
+    },
+    {
+      "metric": "P01:first_attempt_after_end",
+      "value": "0"
+    },
+    {
+      "metric": "P01:incorrect_after_correct",
+      "value": "0"
+    },
+    {
+      "metric": "P01:legacy_owner_sessions",
+      "value": "0"
+    },
+    {
+      "metric": "P01:multiple_correct",
+      "value": "0"
+    },
+    {
+      "metric": "P01:repeat_same_answer_events",
+      "value": "0"
+    },
+    {
+      "metric": "P01:sessions_only_already_completed",
+      "value": "1"
+    },
+    {
+      "metric": "P01:state_attempts_missing",
+      "value": "0"
+    },
+    {
+      "metric": "P03:already_completed_events",
+      "value": "1"
+    },
+    {
+      "metric": "P03:attempt_count_mismatch",
+      "value": "1"
+    },
+    {
+      "metric": "P03:client_duration_negative",
+      "value": "1"
+    },
+    {
+      "metric": "P03:client_vs_server_duration_diff_over_5s",
+      "value": "2"
+    },
+    {
+      "metric": "P03:cohort_sessions",
+      "value": "11"
+    },
+    {
+      "metric": "P03:first_attempt_after_end",
+      "value": "1"
+    },
+    {
+      "metric": "P03:incorrect_after_correct",
+      "value": "0"
+    },
+    {
+      "metric": "P03:legacy_owner_sessions",
+      "value": "0"
+    },
+    {
+      "metric": "P03:multiple_correct",
+      "value": "0"
+    },
+    {
+      "metric": "P03:repeat_same_answer_events",
+      "value": "1"
+    },
+    {
+      "metric": "P03:sessions_only_already_completed",
+      "value": "0"
+    },
+    {
+      "metric": "P03:state_attempts_missing",
+      "value": "1"
+    },
+    {
+      "metric": "P07:already_completed_events",
+      "value": "1"
+    },
+    {
+      "metric": "P07:attempt_count_mismatch",
+      "value": "0"
+    },
+    {
+      "metric": "P07:client_duration_negative",
+      "value": "0"
+    },
+    {
+      "metric": "P07:client_vs_server_duration_diff_over_5s",
+      "value": "0"
+    },
+    {
+      "metric": "P07:cohort_sessions",
+      "value": "5"
+    },
+    {
+      "metric": "P07:first_attempt_after_end",
+      "value": "0"
+    },
+    {
+      "metric": "P07:incorrect_after_correct",
+      "value": "0"
+    },
+    {
+      "metric": "P07:incorrect_events (0 이어야 함)",
+      "value": "0"
+    },
+    {
+      "metric": "P07:legacy_owner_sessions",
+      "value": "0"
+    },
+    {
+      "metric": "P07:multiple_correct",
+      "value": "0"
+    },
+    {
+      "metric": "P07:repeat_same_answer_events",
+      "value": "0"
+    },
+    {
+      "metric": "P07:sessions_only_already_completed",
+      "value": "0"
+    },
+    {
+      "metric": "P07:state_attempts_missing",
+      "value": "0"
+    },
+    {
+      "metric": "P09:already_completed_events",
+      "value": "0"
+    },
+    {
+      "metric": "P09:attempt_count_mismatch",
+      "value": "0"
+    },
+    {
+      "metric": "P09:client_duration_negative",
+      "value": "0"
+    },
+    {
+      "metric": "P09:client_vs_server_duration_diff_over_5s",
+      "value": "0"
+    },
+    {
+      "metric": "P09:cohort_sessions",
+      "value": "2"
+    },
+    {
+      "metric": "P09:first_attempt_after_end",
+      "value": "0"
+    },
+    {
+      "metric": "P09:graded_before_p07_solved (0 이어야 함)",
+      "value": "0"
+    },
+    {
+      "metric": "P09:incorrect_after_correct",
+      "value": "0"
+    },
+    {
+      "metric": "P09:legacy_owner_sessions",
+      "value": "0"
+    },
+    {
+      "metric": "P09:multiple_correct",
+      "value": "0"
+    },
+    {
+      "metric": "P09:repeat_same_answer_events",
+      "value": "0"
+    },
+    {
+      "metric": "P09:sessions_only_already_completed",
+      "value": "0"
+    },
+    {
+      "metric": "P09:state_attempts_missing",
+      "value": "0"
+    },
+    {
+      "metric": "all:clock_offset_p50_sec",
+      "value": "0.2"
+    },
+    {
+      "metric": "all:clock_offset_p90_sec",
+      "value": "0.2"
+    },
+    {
+      "metric": "all:events_abs_offset_over_60s",
+      "value": "1"
+    },
+    {
+      "metric": "all:events_client_ahead_over_1s",
+      "value": "4"
+    },
+    {
+      "metric": "all:graded_events_without_client_timestamp",
+      "value": "1"
+    },
+    {
+      "metric": "all:sessions_only_already_completed_total",
+      "value": "1"
+    }
+  ]
+}
