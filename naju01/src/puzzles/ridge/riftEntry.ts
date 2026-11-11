@@ -36,9 +36,14 @@ export function finishRiftEntry() {
   signal.notify();
 }
 
-/** 매 프레임 — 멈췄다 돌아온 프레임은 1/30 초로만 친다 */
+/**
+ * 매 프레임 — 멈췄다 돌아온 프레임은 1/30 초로만 친다. 다 지나면 여기서도 끝낸다 — 화면 효과(RiftEntryHud)가 못 그려도
+ * 「건너가는 중」이 남아 다음 틈을 막지 않게(미르 11/12 「벼랑 틈에 입장이 안 되고 진행이 더 안 된다」)
+ */
 export function tickRiftEntry(rift: RiftName, dt: number) {
-  if (running === rift && elapsed >= 0) elapsed += Math.min(dt, 1 / 30);
+  if (running !== rift || elapsed < 0) return;
+  elapsed += Math.min(dt, 1 / 30);
+  if (elapsed >= RIFT_ENTRY_TOTAL + 0.5) finishRiftEntry();
 }
 
 /** 시작한 지 몇 초 — 안 돌면(이름을 주면 그 틈이 아니어도) −1 */
