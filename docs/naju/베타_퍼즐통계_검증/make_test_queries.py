@@ -22,8 +22,14 @@ def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("사용: python -I make_test_queries.py <OUT_DIR>")
     out = Path(sys.argv[1]).resolve()
-    if out == HERE or HERE in out.parents or out in HERE.parents:
+    # 저장소(.git 이 있는 가장 가까운 상위 폴더) 안이면 어디든 거부한다 — 실행본이 저장소에 섞이거나 파일을 덮지 않게
+    repo = next((d for d in (HERE, *HERE.parents) if (d / ".git").exists()), None)
+    if repo is None:
+        raise SystemExit("저장소 루트(.git)를 찾지 못했다 — 저장소 안에서 이 스크립트를 실행한다")
+    if out == repo or repo in out.parents or out in repo.parents:
         raise SystemExit("OUT_DIR 은 저장소 밖 임시 폴더로 준다")
+    if out.exists() and any(out.glob("q[0-5].sql")):
+        raise SystemExit("OUT_DIR 에 이미 q*.sql 이 있다 — 빈 폴더를 준다")
     meta = json.loads((HERE / "expected.json").read_text(encoding="utf-8"))["meta"]
     p = meta["params"]
     params = {

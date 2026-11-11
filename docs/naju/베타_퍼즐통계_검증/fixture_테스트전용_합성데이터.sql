@@ -6,17 +6,18 @@
 -- 생성: make_fixture.py — 이 파일을 손으로 고치지 않는다.
 -- ##################################################################################
 
--- 가드 1: DB 이름이 test_puzzle_stats_ 로 시작해야 한다
+-- 가드 1: DB 이름이 test_puzzle_stats_ 로 시작해야 한다(LIKE 이스케이프 · sql_mode 에 기대지 않는 비교)
 DO (SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) g
-    WHERE DATABASE() IS NULL OR DATABASE() NOT LIKE 'test\_puzzle\_stats\_%');
+    WHERE DATABASE() IS NULL OR LEFT(DATABASE(), 18) <> 'test_puzzle_stats_' OR CHAR_LENGTH(DATABASE()) <= 18);
 -- 가드 2: 기본 포트 3306(기존 MySQL80) 이 아니어야 한다
 DO (SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) g WHERE @@port = 3306);
 -- 가드 3: RDS 가 아니어야 한다
 DO (SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) g WHERE @@basedir LIKE '/rdsdbbin%');
 -- 가드 4: 대상 테이블이 비어 있어야 한다(실데이터가 있는 DB 에 섞지 않는다)
 DO (SELECT 1 FROM (SELECT 1 AS x UNION ALL SELECT 2) g
-    WHERE (SELECT COUNT(*) FROM app_users) > 0 OR (SELECT COUNT(*) FROM play_sessions) > 0
-       OR (SELECT COUNT(*) FROM interaction_events) > 0);
+    WHERE (SELECT COUNT(*) FROM app_users) > 0 OR (SELECT COUNT(*) FROM anonymous_sessions) > 0
+       OR (SELECT COUNT(*) FROM guest_sessions) > 0 OR (SELECT COUNT(*) FROM play_sessions) > 0
+       OR (SELECT COUNT(*) FROM interaction_events) > 0 OR (SELECT COUNT(*) FROM guest_session_transfers) > 0);
 
 START TRANSACTION;
 
