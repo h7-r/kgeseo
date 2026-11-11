@@ -77,12 +77,12 @@ export const EXIT = { x: 45, y: INNER_FLOOR + 1.3, z: INNER.z[1] - 0.05 };
 /** 바위 틈 숨구멍 — 진주 쪽(늘 공기가 샌다) */
 export const CRACK = { x: 48.6, z: 84.6 };
 /**
- * 받침 퍼즐을 푸는 동안 숨을 채우는 작은 바위 틈 숨구멍 둘 — 석실에 들어서면 양옆 벽 앞에 보인다.
- * 예전엔 끝 받침 바로 옆(0.7 m)이라 거품이 받침 그림을 가리고 숨 반경이 받침까지 덮어 누르기 불편했다(미르 11/10) →
- * 받침 줄보다 입구 쪽으로 2 m(Codex 01 후보). 석상(1.7 m) · 등(2.5 m)과도 떨어져 있다
+ * 받침 퍼즐을 푸는 동안 숨을 채우는 작은 바위 틈 숨구멍 둘 — 석실 입구 양옆 모서리(들어서면 바로 옆 벽 앞).
+ * 예전엔 끝 받침 바로 옆(0.7 m) → 11/10 받침 줄 앞 2 m 였는데도 「눌러야 하는 버튼들이랑 너무 가깝다」(미르 11/11) — 받침을 누르는 거리
+ * (reach 2.8 m)와 숨 반경(0.9 m)을 더해도 닿지 않게 끝 받침에서 3.8 m(나주지역막기 01회차 Codex). 숨을 채우는 자리에서는 받침을 못 누른다
  */
-export const PEDESTAL_VENT = { x: 40.9, z: 78.0 };
-export const PEDESTAL_VENT_EAST = { x: 49.1, z: 78.0 };
+export const PEDESTAL_VENT = { x: 40.5, z: 76.3 };
+export const PEDESTAL_VENT_EAST = { x: 49.5, z: 76.3 };
 /** 받침 너머 어둠 — 넷을 다 맞히기 전에는 이 z 부터 안쪽이 보이지 않는다 · 걷히는 시간(초) */
 export const BACK_DARK_Z = PEDESTAL_Z + 1.0;
 export const BACK_REVEAL_SECONDS = 1.8;

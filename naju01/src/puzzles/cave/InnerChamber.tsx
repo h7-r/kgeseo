@@ -5,7 +5,7 @@
  * 치수는 chamberLayout, 그림 · 재질은 chamberArt, 연출 조각은 chamberMotion, 돌 소품은 chamberParts.
  */
 import { gameNow } from "@/engine/input/gameClock";
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
@@ -101,6 +101,13 @@ export default function InnerChamber() {
   // 석실에 처음 들어서 아치 위 벽화를 한 번 돌아봤나 — 다 본 뒤에 적는다(다른 연출에 밀려 못 봤으면 다음에 다시)
   const [isMuralGlanced, setIsMuralGlanced] = useRememberedState("chamber.muralGlanced", false);
   const muralGlance = useRef<"idle" | "focusing" | "done">(isMuralGlanced ? "done" : "idle");
+  // 벽화를 건너뛰는 것은 불러온 저장이 이미 받침을 눌렀거나 풀었을 때만 — 처음 그릴 때 한 번 정한다. 지금 판에서 먼저 누른 것은 까닭이
+  // 아니다: 받침은 들어서자마자 닿아(reach 2.8 m + 받침 0.4 m) 바로 누르면 벽화를 영영 못 봤다(미르 11/11 「석실 입장 시 벽화 한 번 강제로」)
+  const [isGlanceSkippedBySave] = useState(() => progress > 0 || isSolved);
+  /** 벽화를 보기 전에 받침을 누르려 했다 — 그 누름은 먹고, 들어온 자리 그대로 벽화부터 */
+  const isGlanceRequested = useRef(false);
+  /** 벽화를 처음 돌아보기 시작할 때의 시선 — 끊겼다 다시 돌아도 여기로 돌아온다 */
+  const glanceHome = useRef<THREE.Quaternion | null>(null);
   // 이어 하기: 이미 끝난 연출은 페이지 시작 때 끝난 것으로 친다(0 이면 충분히 지났다).
   const shoneAt = useRef(isShone ? 0 : -1);
   const progressRef = useRef(progress);
@@ -183,6 +190,11 @@ export default function InnerChamber() {
 
   const press = (k: number) => {
     if (isSolved) return;
+    // 벽화를 아직 못 봤다 — 이 누름은 정답 진행 · 오답 피해 없이 먹고 벽화부터 보여 준다(한 번)
+    if (muralGlance.current !== "done" && !isGlanceSkippedBySave) {
+      isGlanceRequested.current = true;
+      return;
+    }
     if (now() < lockedUntil.current) {
       showNotice("받침이 가라앉아 꿈쩍 않는다 — 물살이 잦아들 때까지 기다리자.", 2.5, { urgent: true, fleeting: true });
       return;
@@ -436,33 +448,42 @@ export default function InnerChamber() {
     }
     // 처음 들어서 방 안쪽으로 2 m 쯤 오면 — 들어온 아치 위 벽화(받침 순서의 단서)를 한 번 돌아보고 원래 보던 쪽으로(미르 11/10).
     // 입구에서 바로 돌면 벽화가 너무 가까워 잘린다(Codex 01). 이미 받침을 누르기 시작한 저장본은 건너뛴다
+    // 받침을 먼저 누르려 했으면 2 m 를 기다리지 않고 그 자리에서 — 벽이 가까워 위로 많이 올려다보므로 시야를 조금 넓힌다
     if (muralGlance.current === "idle" && enteredAt.current >= 0 && !isSucking) {
-      if (progressRef.current > 0 || solvedAt.current >= 0) {
+      if (isGlanceSkippedBySave) {
         muralGlance.current = "done";
         setIsMuralGlanced(true);
       } else if (
-        pz > MURAL_GLANCE_Z &&
+        (pz > MURAL_GLANCE_Z || isGlanceRequested.current) &&
         px > INNER.x[0] &&
         px < INNER.x[1] &&
         time - enteredAt.current > LIGHT_UP_SECONDS
       ) {
+        const isNearWall = pz < MURAL_GLANCE_Z;
         const isFocused = focusCamera({
           id: MURAL_FOCUS_ID,
           target: muralTarget,
           hold: 2.4,
           turnIn: 0.8,
           turnOut: 0.7,
-          zoom: 1.08,
+          zoom: isNearWall ? 1.2 : 1.08,
           returnHome: true,
+          home: glanceHome.current ?? camera.quaternion,
+          // 끝까지 다 돌았을 때만 본 것으로 적는다 — 끊겼으면(취소 · 다른 연출이 이어 걸림) 다음에 다시
+          onComplete: () => {
+            muralGlance.current = "done";
+            setIsMuralGlanced(true);
+          },
         });
         if (isFocused) {
           muralGlance.current = "focusing";
+          glanceHome.current ??= camera.quaternion.clone();
           showNotice("…저 벽화는 뭐지? 들어온 아치 위에 그림이 이어져 있다.", 4, { urgent: true });
         }
       }
     } else if (muralGlance.current === "focusing" && cameraFocusId() !== MURAL_FOCUS_ID) {
-      muralGlance.current = "done";
-      setIsMuralGlanced(true);
+      // 끝까지 못 보고 끊겼다 — 다시 기다린다(다 돌았으면 onComplete 가 이미 done 으로 바꿨다)
+      muralGlance.current = "idle";
     }
     const light =
       enteredAt.current < 0 ? 0 : THREE.MathUtils.smootherstep((time - enteredAt.current) / LIGHT_UP_SECONDS, 0, 1);
@@ -597,7 +618,7 @@ export default function InnerChamber() {
       setPuzzlePanel("cave-chamber", {
         distance,
         title: "석실 받침",
-        rule: `들어온 아치 위 벽화에 있는 장면의 받침을 [E] 로 누른다.\n맞히면 벽화에 다음 장면이 나타난다. 틀리면 첫 장면만 남고, 물살에 숨이 ${WRONG_PRESS_BREATH}초 깎이며 받침이 ${LOCKOUT_SECONDS}초 가라앉는다.`,
+        rule: `들어온 아치 위 벽화에 있는 장면의 받침을 [E] 로 누른다.\n맞히면 벽화에 다음 장면이 나타난다. 틀리면 첫 장면만 남고, 물살에 숨이 ${WRONG_PRESS_BREATH}초 깎이며 받침이 ${LOCKOUT_SECONDS}초 가라앉는다.\n숨은 입구 양옆 모서리 바위 틈에서 채운다.`,
         rows: [
           ...GLYPHS.map((symbol, k) => ({
             label: `받침 ${k + 1} — ${symbol}`,

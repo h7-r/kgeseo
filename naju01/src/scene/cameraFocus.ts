@@ -30,9 +30,21 @@ export interface CameraFocusRequest {
    * 빼앗지 않게(미르 11/10). 기본은 지금처럼 그 시선 그대로 둔다. 이어 걸면(then · replace) 이어 건 고정을 건 때가 기준이다
    */
   returnHome?: boolean;
+  /**
+   * 끝까지 다 돌아 풀렸을 때만 — 취소(cancelCameraFocus) · 다른 고정이 이어 걸림(replace)이면 부르지 않는다. 「봤다」를 저장하는 쪽이
+   * 끊긴 연출을 본 것으로 치지 않게(석실 벽화, 나주지역막기 01회차 Codex)
+   */
+  onComplete?: () => void;
+  /**
+   * returnHome 으로 돌아올 시선 — 없으면 건 때의 시선. 끊긴 연출을 다시 걸 때 처음 시선을 넘긴다(끊긴 자리는 위를 보고 있어
+   * 그리로 돌아오면 고개가 들린 채 남았다, 나주지역막기 시험)
+   */
+  home?: THREE.Quaternion;
 }
 
-interface ActiveFocus extends Required<Omit<CameraFocusRequest, "replace" | "then">> {
+interface ActiveFocus extends Required<Omit<CameraFocusRequest, "replace" | "then" | "home">> {
+  /** returnHome 으로 돌아올 시선 */
+  home: THREE.Quaternion;
   then: CameraFocusRequest | null;
   /** 돌아보기 시작할 때의 시야각 — 이어 걸 때 지금 값에서 이어진다 */
   fromFov: number;
@@ -77,8 +89,10 @@ export function focusCamera(request: CameraFocusRequest) {
     elapsed: 0,
     then: request.then ?? null,
     returnHome: request.returnHome ?? false,
+    onComplete: request.onComplete ?? (() => {}),
     fromFov: camera.fov,
     from: camera.quaternion.clone(),
+    home: (request.home ?? camera.quaternion).clone(),
     homeFov,
     outFrom: null,
   };
@@ -146,10 +160,13 @@ export function applyCameraFocus(camera: THREE.Camera, dt: number) {
   const s = focus.turnOut > 0 ? Math.min(1, (since - focus.turnIn - focus.hold) / focus.turnOut) : 1;
   if (focus.returnHome) {
     if (!focus.outFrom) focus.outFrom = camera.quaternion.clone();
-    camera.quaternion.slerpQuaternions(focus.outFrom, focus.from, THREE.MathUtils.smootherstep(s, 0, 1));
+    camera.quaternion.slerpQuaternions(focus.outFrom, focus.home, THREE.MathUtils.smootherstep(s, 0, 1));
   }
   setFov(currentCamera, THREE.MathUtils.lerp(zoomed, focus.homeFov, THREE.MathUtils.smootherstep(s, 0, 1)));
-  if (s >= 1) active = null;
+  if (s >= 1) {
+    active = null;
+    focus.onComplete();
+  }
 }
 
 exposeDevHook("najuCameraFocus", {

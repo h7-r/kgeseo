@@ -248,7 +248,10 @@ export function EntryStatues({
   ));
 }
 
-/** 숨구멍 — 바닥 구멍이 아니라 바위 틈에서 공기가 새어 오른다. 입구 양옆 벽 앞 둘은 어둑해서 거품을 키운다 */
+/**
+ * 숨구멍 — 바닥 구멍이 아니라 바위 틈에서 공기가 새어 오른다. 입구 양옆 모서리 둘은 어둑해서 거품을 키운다.
+ * 모서리라 숨 반경의 절반이 벽에 묻혀 1.0 m 로 넓혔다 — 그래도 끝 받침까지 2.8 m 넘게 남는다(미르 11/11)
+ */
 export function ChamberVents() {
   return (
     <>
@@ -259,7 +262,7 @@ export function ChamberVents() {
         floor={INNER_FLOOR}
         size={0.7}
         yaw={1.3}
-        radius={0.85}
+        radius={1.0}
         count={60}
         bubbleScale={1.5}
       />
@@ -269,7 +272,7 @@ export function ChamberVents() {
         floor={INNER_FLOOR}
         size={0.75}
         yaw={-1.2}
-        radius={0.9}
+        radius={1.0}
         count={70}
         bubbleScale={1.5}
       />

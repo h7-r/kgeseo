@@ -16,10 +16,12 @@ import { regionAt, type Region } from "../movement/regions";
 import { recall, remember } from "../save/puzzleMemory";
 import { fishTrapPuzzle } from "./fishTrap/fishTrapState";
 import { HEARTH } from "./fishTrap/site";
-import { inventory, ITEMS, withObjectParticle, type ItemKind } from "./inventory";
+import { showNotice } from "./interaction";
+import { inventory, ITEMS, withObjectParticle, type ItemKind, type WorldItem } from "./inventory";
 import { jarPuzzle } from "./jars/jarState";
 import { makgeolliBottle } from "./makgeolli/makgeolliState";
 import { ritual } from "./ritual/ritualState";
+import { ridgeBox } from "./ridge/ridgeState";
 import { M, groundY } from "./units";
 
 const PASSED_KEY = "leftBehind.dockGatePassed";
@@ -191,6 +193,48 @@ export function restoreLostFish(offered: ReadonlySet<ItemKind>) {
 /** 소반에 오른 제물(저장된 것) — 소반이 없을 때(나루터) 읽는다 */
 export const offeredSoFar = (): ReadonlySet<ItemKind> =>
   new Set<ItemKind>(ritual.isAtLeast("rising") ? OFFERINGS : recall<ItemKind[]>("ritual.offered", []));
+
+const isDroppedAtDock = (item: WorldItem) => item.isDropped === true && regionOfItem(item.position) === "나루터";
+
+/**
+ * 나루터가 닫힌 뒤(바위 아래에 넘어와 있음 — 부르는 쪽이 본다) 나루터 땅에 내려놓은 물건은 바위 아래로 가져온다. 문이 나루터로 못 돌아가게
+ * 막아, 옛 저장에서 나루터에 두고 온 필수품(큰 진주 · 뜬 돌 등)을 못 찾아 막히는 일이 없게(나주지역막기 02회차 Codex). 경계 너머로
+ * 내려놓은 것도 같다. 소지품에 자리가 있으면 소지품으로, 없으면 발치에. 가져온 것이 있으면 알린다
+ */
+export function collectDockLeftovers(x: number, z: number) {
+  if (!inventory.world().some(isDroppedAtDock)) return;
+  const brought = inventory.bringAlong(x, z, isDroppedAtDock);
+  if (brought.length === 0) return;
+  const names = [...new Set(brought)].map((kind) => ITEMS[kind].name).join(" · ");
+  showNotice(`나루터에 두고 온 ${names}도 챙겼다.`, 3.5);
+}
+
+/**
+ * 아직 소반에 안 올린 제물이 나루터 땅에 있나 — 있으면 바위 아래에서 나루터로 돌아가는 길을 열어 둔다(stageGates, 미르 11/11
+ * 「2지역에 정상 진입한 뒤 1지역으로 못 돌아가게」의 안전판). 경계 가까이 내려놓았거나 · 옛 저장 · 사라진 물고기를 화톳불 곁에
+ * 되살린 판(restoreLostFish)이 갇히지 않게(나주지역막기 01회차 Codex)
+ */
+export function hasUnofferedOfferingAtDock() {
+  if (ritual.isAtLeast("rising")) return false;
+  const offered = offeredSoFar();
+  return inventory
+    .world()
+    .some((item) => OFFERINGS.includes(item.kind) && !offered.has(item.kind) && regionOfItem(item.position) === "나루터");
+}
+
+/**
+ * 아직 구렁이상을 꺼내지 않은 아랑사의 함이 나루터 땅에 놓여 있나(옛 저장) — 함은 소지품 물건이 아니라 따로 저장돼(ridge.box)
+ * collectDockLeftovers 가 못 가져온다. 그런 판은 나루터 길을 열어 둔다(나주지역막기 03회차 Codex)
+ */
+export function hasUnemptiedBoxAtDock() {
+  if (ridgeBox.isEmptied) return false;
+  const box = recall<{ phase?: string; restAt?: [number, number, number] } | null>("ridge.box", null);
+  if (!box?.restAt || !box.phase || box.phase === "none") return false;
+  return regionAt(box.restAt[0] / M, box.restAt[2] / M) === "나루터";
+}
+
+/** 나루터에 아직 할 일(가져올 것)이 남았나 — 있으면 바위 아래에서 나루터로 돌아가는 길을 막지 않는다(stageGates) */
+export const isDockStillNeeded = () => hasUnofferedOfferingAtDock() || hasUnemptiedBoxAtDock();
 
 exposeDevHook("najuLeftBehind", {
   state: () => ({
