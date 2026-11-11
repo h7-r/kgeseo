@@ -192,6 +192,8 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
   const collision = useRef<{ world: CollisionWorld; x: number; z: number } | null>(null);
   /** 앞으로 불려 날아갈 자리(m) — 불리지 않았으면 null */
   const stageSpot = useRef<THREE.Vector3 | null>(null);
+  /** 마지막으로 받아들인 「보낼 자리」 — 같은 요청을 두 번 받아들이지 않는다 */
+  const sentSpot = useRef<{ x: number; z: number } | null>(null);
 
   // 말하는 동안(기다림 · 자막)에도 따라온다 — 예전엔 그 자리에 멈춰(프로토타입 행동 상태 Interact) 돌아서거나 되돌아오는
   // 플레이어 눈앞 · 길에 남았다(미르 11/11 「동행이 길을 막는다」). 말은 화면 아래 대화창에 뜨니 멈춰 설 까닭이 없다
@@ -311,6 +313,14 @@ export default function CompanionNpc({ playerRef, terrain, instanceGroups }: Com
       stageSpot.current = picked;
       companionStage.spot = picked ? world.toWorld(picked, new THREE.Vector3()) : null;
       companionStage.status = picked ? "flying" : "failed";
+    }
+    if (!companionStage.sent) sentSpot.current = null;
+    if (companionStage.status === "flying" && companionStage.sent && sentSpot.current !== companionStage.sent) {
+      // 새로 보낸 자리 — 앞서 불려 가 있던 자리가 남아 있어도 이쪽으로 바꾼다(Codex 리뷰 4)
+      sentSpot.current = companionStage.sent;
+      // 정해 준 자리로 — 높이는 지금 떠 있는 높이 그대로
+      stageSpot.current = new THREE.Vector3(companionStage.sent.x, state.position.y, companionStage.sent.z);
+      companionStage.spot = world.toWorld(stageSpot.current, new THREE.Vector3());
     }
     if (isCompanionCalled() && stageSpot.current) {
       // 앞으로 불렸다 — 고른 자리로 날아가 멈춘다(추종은 쉰다). 플레이어는 화면 고정으로 묶여 있다

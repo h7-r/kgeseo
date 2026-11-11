@@ -18,16 +18,30 @@ export const companionStage = {
   status: "idle" as CompanionStageStatus,
   /** 고른 자리(몸 가운데) — flying · arrived 일 때만 */
   spot: null as THREE.Vector3 | null,
+  /** 보낼 자리(미터, 나주 좌표) — sendCompanionTo 로 정해 준 자리. 앞자리를 고르지 않고 그리로 간다 */
+  sent: null as { x: number; z: number } | null,
 };
 
 export function callCompanion() {
   companionStage.status = "picking";
   companionStage.spot = null;
+  companionStage.sent = null;
 }
 
 export function releaseCompanion() {
   companionStage.status = "idle";
   companionStage.spot = null;
+  companionStage.sent = null;
+}
+
+/**
+ * 동행을 정해 준 자리(미터)로 보낸다 — 화면에 잡힐 인물을 가리지 않게 비켜 세울 때(굿판 작별: 동행이 아비사 앞을 가렸다).
+ * callCompanion 과 달리 카메라 앞을 고르지 않는다. 다 쓰면 releaseCompanion
+ */
+export function sendCompanionTo(x: number, z: number) {
+  companionStage.sent = { x, z };
+  companionStage.spot = null;
+  companionStage.status = "flying";
 }
 
 export const isCompanionCalled = () => companionStage.status !== "idle" && companionStage.status !== "failed";
