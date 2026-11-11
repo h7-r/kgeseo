@@ -7,7 +7,7 @@ import { exposeDevHook } from "@/debug/devHooks";
 
 import { showNotice } from "../puzzles/interaction";
 import { fishTrapPuzzle } from "../puzzles/fishTrap/fishTrapState";
-import { isDockGateHeldByFish, reportDockGateBlocked } from "../puzzles/leftBehind";
+import { hasUnofferedOfferingAtDock, isDockGateHeldByFish, reportDockGateBlocked } from "../puzzles/leftBehind";
 import { isInsideCurtain, nearestCurtainT } from "../puzzles/ridge/ridgeShape";
 import { ridge } from "../puzzles/ridge/ridgeState";
 import { ritual } from "../puzzles/ritual/ritualState";
@@ -70,6 +70,16 @@ function noticeOnce(name: string, text: string) {
 let isForcedOpen = false;
 
 const CURTAIN_NOTICE = "바람 장막이 몸을 밀어낸다. 돌새들의 눈이 맞기 전엔 능선을 벗어날 수 없다.";
+const BACK_TO_DOCK_NOTICE = "나루터 일은 다 마쳤다. 지나온 길로 돌아가지 말고 앞으로 가자.";
+
+/**
+ * 지나온 나루터로는 돌아가지 않는다(미르 11/11) — 바위 아래가 열려(나루터 일을 다 마치고) 넘어온 뒤에는 나루터로 들어서는 걸음을 막는다.
+ * 물이 차오른 바위 아래를 나루터 쪽에서 다시 보면 연출이 깨졌다. 지금 자리(넘어와 있음)가 곧 「정상 진입」이라 저장 표시는 필요 없다.
+ * 안 올린 제물이 나루터 땅에 남아 있으면 열어 둔다(갇히지 않게). 능선 · 바위 위의 되돌아가기는 아직 막지 않는다 — 앞 영역 물건(푸른 눈물 ·
+ * 편지함 · 구렁이상)을 넘겨주는 길이 다 막혀 있지 않다(나주지역막기 01회차 Codex)
+ */
+const isBackToDockBlocked = (to: Region, from: Region) =>
+  to === "나루터" && from !== "나루터" && IS_REGION_OPEN.바위아래() && !hasUnofferedOfferingAtDock();
 
 /** 지금 자리(from)에서 그 자리로 갈 수 없나. 막히면 안내를 띄운다 */
 export function gateBlockedAt(x: number, z: number, fromX: number, fromZ: number): boolean {
@@ -87,6 +97,10 @@ export function gateBlockedAt(x: number, z: number, fromX: number, fromZ: number
   if (isForcedOpen) return false;
   const to = regionAt(x, z);
   const from = regionAt(fromX, fromZ);
+  if (to !== from && isBackToDockBlocked(to, from) && IS_REGION_OPEN[from]()) {
+    noticeOnce("지나온 나루터", BACK_TO_DOCK_NOTICE);
+    return true;
+  }
   // 닫힌 영역 안에서 시작했으면(이어 하기 · 개발용 순간이동) 막지 않는다 — 나갈 곳이 없어 갇힌다
   if (to === from || IS_REGION_OPEN[to]() || !IS_REGION_OPEN[from]()) return false;
   noticeOnce(to, closedNotice(to));

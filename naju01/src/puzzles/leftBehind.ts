@@ -192,6 +192,19 @@ export function restoreLostFish(offered: ReadonlySet<ItemKind>) {
 export const offeredSoFar = (): ReadonlySet<ItemKind> =>
   new Set<ItemKind>(ritual.isAtLeast("rising") ? OFFERINGS : recall<ItemKind[]>("ritual.offered", []));
 
+/**
+ * 아직 소반에 안 올린 제물이 나루터 땅에 있나 — 있으면 바위 아래에서 나루터로 돌아가는 길을 열어 둔다(stageGates, 미르 11/11
+ * 「2지역에 정상 진입한 뒤 1지역으로 못 돌아가게」의 안전판). 경계 가까이 내려놓았거나 · 옛 저장 · 사라진 물고기를 화톳불 곁에
+ * 되살린 판(restoreLostFish)이 갇히지 않게(나주지역막기 01회차 Codex)
+ */
+export function hasUnofferedOfferingAtDock() {
+  if (ritual.isAtLeast("rising")) return false;
+  const offered = offeredSoFar();
+  return inventory
+    .world()
+    .some((item) => OFFERINGS.includes(item.kind) && !offered.has(item.kind) && regionOfItem(item.position) === "나루터");
+}
+
 exposeDevHook("najuLeftBehind", {
   state: () => ({
     pending: pendingNudge?.kind ?? null,
