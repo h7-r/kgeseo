@@ -356,6 +356,8 @@ let isBreathHeld = false;
 export const holdBreathWhileLeaving = () => {
   isBreathHeld = true;
 };
+/** 물길에 끌려 나가는 중인가 — 그동안은 「안전한 곳으로 이동」을 막는다(movement/safeSpot) */
+export const isLeavingChamber = () => isBreathHeld;
 /** 물 밖으로 나왔다 — 숨과 까매짐을 걷는다. 이 뒤로는 숨을 세지 않아 안 걷으면 화면이 까만 채 남는다 */
 export function clearBreathAfterLeaving() {
   isBreathHeld = false;

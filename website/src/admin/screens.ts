@@ -32,6 +32,13 @@ const SCREEN_LIST = [
     status: "partial",
   },
   {
+    id: "betaLog",
+    path: "beta-log",
+    label: "베타 기록",
+    description: "베타 참가자의 플레이 기록 — 진입 단계 · 퍼즐 · 그만둔 지점 · 오류 · 로딩 · 설문을 봅니다.",
+    status: "live",
+  },
+  {
     id: "traffic",
     path: "traffic",
     label: "접속 통계",

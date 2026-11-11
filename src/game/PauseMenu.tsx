@@ -8,6 +8,8 @@
  *   그 쪽에서 ESC 는 「뒤로」. 첫 쪽의 ESC 는 「계속하기」(onEscape, 미르 11/11 「다시 한번 esc 를 누르면 게임 재개」).
  *   다만 ESC 는 몸짓이 아니고 크롬은 ESC 직후 잠금을 거절해 마우스를 바로 잠그지 못한다 — 게임은 바로 이어지고(키로 걷는다)
  *   마우스 시점은 다음 클릭 · 키에 잠긴다(본편 pointerResume · 나주 pointerHold 의 기다림). 자동 반복(누르고 있기)은 받지 않는다.
+ * - 첫 쪽의 E 도 「계속하기」(미르 11/12) — 「계속하기」(id resume) 단추를 누른 것과 같다(E 는 몸짓이라 바로 잠글 수 있다).
+ *   그 E 는 뗄 때까지 게임이 받지 않는다(holdKeyUntilRelease). 물음 · 쪽 화면에서는 먹기만 한다(자리 다시 잡기 03회차 Codex).
  * - 등장은 Web Animations 로 — 게임 밖 쉼(html.game-paused)이 CSS 애니메이션을 세워 첫 장면(투명)에 멎는다(08회차 Codex).
  *   Web Animations 는 animation-play-state 를 따르지 않는다. 움직임을 줄인 환경이면 바로 보인다.
  */
@@ -16,6 +18,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type 
 import { NAVY_FILL, PANEL_SHADOW, UI, UI_FONT } from "./gameUi";
 import {
   clearPauseFocus,
+  holdKeyUntilRelease,
   peekPauseFocus,
   rememberPauseFocus,
   setPauseMenuBusy,
@@ -45,6 +48,10 @@ export interface PauseMenuItem {
   /** 카드 안 읽을거리(조작표 등) */
   page?: { title: string; content: ReactNode };
   isDanger?: boolean;
+  /** 이름 밑 작은 글(무엇을 하는지) */
+  hint?: string;
+  /** 지금은 누를 수 없는 까닭 — 있으면 흐리게 하고 작은 글 자리에 까닭을 보인다 */
+  disabledReason?: string | null;
 }
 
 interface PauseMenuProps {
@@ -125,8 +132,23 @@ export default function PauseMenu({ status, groups, footer, notice, onEscape }: 
   useEffect(() => {
     onEscapeRef.current = onEscape;
   }, [onEscape]);
+  const groupsRef = useRef(groups);
+  useEffect(() => {
+    groupsRef.current = groups;
+  }, [groups]);
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // E = 계속하기 — 첫 쪽에서만. 한/영과 상관없게 code 로 본다
+      if (event.code === "KeyE" && !event.ctrlKey && !event.metaKey && !event.altKey && !event.isComposing) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (event.repeat || view.kind !== "menu") return;
+        const resume = groupsRef.current.flat().find((item) => item.id === "resume");
+        if (!resume?.onSelect || resume.disabledReason) return;
+        holdKeyUntilRelease(event.code);
+        resume.onSelect();
+        return;
+      }
       if (event.code === "Escape" && view.kind !== "menu") {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -156,6 +178,7 @@ export default function PauseMenu({ status, groups, footer, notice, onEscape }: 
   }, [view.kind, isBusy]);
 
   const select = (item: PauseMenuItem) => {
+    if (item.disabledReason) return;
     if (item.confirm) setView({ kind: "confirm", item, confirm: item.confirm, phase: "asking" });
     else if (item.page) setView({ kind: "page", item });
     else {
@@ -205,6 +228,8 @@ export default function PauseMenu({ status, groups, footer, notice, onEscape }: 
                     <MenuButton
                       key={item.id}
                       label={item.label}
+                      hint={item.disabledReason ?? item.hint}
+                      isDisabled={!!item.disabledReason}
                       isDanger={item.isDanger}
                       onClick={() => select(item)}
                       testId={`pause-${item.id}`}
@@ -278,18 +303,23 @@ function ConfirmView({
 
 function MenuButton({
   label,
+  hint,
   onClick,
   isDanger = false,
   isFilled = false,
   isAutoFocus = false,
+  isDisabled = false,
   testId,
 }: {
   label: string;
+  /** 이름 밑 작은 글 */
+  hint?: string;
   onClick: () => void;
   isDanger?: boolean;
   isFilled?: boolean;
   /** 쪽이 열릴 때 이 단추에 초점 */
   isAutoFocus?: boolean;
+  isDisabled?: boolean;
   testId?: string;
 }) {
   const [isFocused, setIsFocused] = useState(false);
@@ -300,6 +330,7 @@ function MenuButton({
       data-pause-button
       data-pause-autofocus={isAutoFocus || undefined}
       data-testid={testId}
+      disabled={isDisabled}
       onClick={onClick}
       onFocus={() => setIsFocused(true)}
       onBlur={() => setIsFocused(false)}
@@ -311,9 +342,12 @@ function MenuButton({
         border: `1px solid ${isFocused ? (isDanger ? UI.danger : UI.accent) : isDanger ? "rgba(248,113,113,.4)" : UI.border}`,
         background: isFilled && !isDanger ? NAVY_FILL : isFocused ? UI.surfaceHover : "transparent",
         boxShadow: isFocused ? `0 0 0 1px ${isDanger ? UI.danger : UI.accent}` : "none",
+        ...(hint && hintedButtonStyle),
+        ...(isDisabled && disabledButtonStyle),
       }}
     >
       {label}
+      {hint && <span style={hintStyle}>{hint}</span>}
     </button>
   );
 }
@@ -411,6 +445,17 @@ const buttonStyle: CSSProperties = {
   outline: "none",
   transition: "background .12s, border-color .12s",
 };
+// 작은 글이 붙은 단추 — 두 줄로
+const hintedButtonStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 4,
+  padding: "9px 16px",
+};
+const hintStyle: CSSProperties = { font: `400 12px/1.35 ${UI_FONT.body}`, color: UI.textSubtle };
+const disabledButtonStyle: CSSProperties = { opacity: 0.5, cursor: "default" };
 const footerStyle: CSSProperties = {
   marginTop: 12,
   textAlign: "center",
