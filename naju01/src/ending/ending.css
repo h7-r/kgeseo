@@ -455,6 +455,7 @@
   margin: 0 0 8px;
   font: 700 clamp(19px, 1.9vw, 24px) / 1.35 var(--naju-ending-serif);
   word-break: keep-all;
+  text-wrap: balance;
 }
 .naju-ending-visit__lead {
   margin: 0 0 14px;

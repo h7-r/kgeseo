@@ -490,7 +490,7 @@ function ClearScreen({ leaveAction }: EndingLayerProps) {
   );
 }
 
-/** 현장 방문 · 방문 보상 창 — 인증 · 보상이 확정 전이라 「준비 중」으로만 말한다 */
+/** 현장 방문 · 방문 보상 창 — 황포돛배 선착장에서 방문 인증 → 추가 스토리 · 방문 보상 */
 function VisitPanel() {
   return (
     <aside className="naju-ending-visit" aria-label={VISIT_TEXT.title}>
@@ -503,9 +503,9 @@ function VisitPanel() {
           <b>{VISIT_TEXT.place}</b>
           <span>{VISIT_TEXT.spot}</span>
         </dd>
-        <dt>현장에서</dt>
-        <dd>{VISIT_TEXT.seal}</dd>
-        <dt>준비 중</dt>
+        <dt>하는 법</dt>
+        <dd>{VISIT_TEXT.how}</dd>
+        <dt>받는 것</dt>
         <dd>
           <ul>
             {VISIT_TEXT.rewards.map((reward) => (
