@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
+import { betaLog } from "./betaLog";
 import { dismissSurvey, noteSurveyShown, openSurvey, shouldOfferSurvey, type SurveyKind } from "./betaSurvey";
 
 const TEXT: Record<"pre" | "post", { title: string; body: string; open: string; skip: string; skipHow: "already" | "later" }> = {
@@ -125,9 +126,18 @@ export function BetaSurveyCard({ kind, where, onDone }: { kind: "pre" | "post"; 
   );
 }
 
-/** 시작 전 설문 — 본편 첫 화면에 한 번(열었거나 「이미 답했어요」면 다시 띄우지 않는다) */
+/** 시작 전 설문 — 본편 첫 화면에 한 번(열었거나 「이미 답했어요」면 다시 띄우지 않는다). 계정을 확인한 뒤에 정한다 */
 export function BetaPreSurvey() {
-  const [isOpen, setIsOpen] = useState(() => shouldOfferSurvey("pre"));
+  const [isOpen, setIsOpen] = useState(false);
+  useEffect(() => {
+    let isAlive = true;
+    void betaLog.accountReady().then(() => {
+      if (isAlive) setIsOpen(shouldOfferSurvey("pre"));
+    });
+    return () => {
+      isAlive = false;
+    };
+  }, []);
   if (!isOpen) return null;
   return <BetaSurveyCard kind="pre" where="main_entry" onDone={() => setIsOpen(false)} />;
 }
@@ -137,7 +147,26 @@ export function BetaPreSurvey() {
  * (수집 계획 「정할 것」 3번 가안). 「나중에」를 고르면 결과 화면 위에 작은 단추로 남긴다.
  */
 export function BetaPostSurveyGate({ children }: { children: ReactNode }) {
-  const [stage, setStage] = useState<"card" | "later" | "done">(() => (shouldOfferSurvey("post") ? "card" : "done"));
+  // 계정을 아직 모르면(드묾 — 보통 페이지를 열 때 확인된다) 잠깐 기다렸다가 정한다. 3초가 지나도 모르면 결과 화면을 연다
+  const [stage, setStage] = useState<"waiting" | "card" | "later" | "done">(() =>
+    betaLog.isActive() && betaLog.account() === undefined ? "waiting" : shouldOfferSurvey("post") ? "card" : "done",
+  );
+  useEffect(() => {
+    if (stage !== "waiting") return undefined;
+    let isAlive = true;
+    const decide = () => {
+      if (isAlive) setStage(shouldOfferSurvey("post") ? "card" : "done");
+    };
+    void betaLog.accountReady().then(decide);
+    const timer = window.setTimeout(() => {
+      if (isAlive) setStage((current) => (current === "waiting" ? "done" : current));
+    }, 3000);
+    return () => {
+      isAlive = false;
+      window.clearTimeout(timer);
+    };
+  }, [stage]);
+  if (stage === "waiting") return null;
   if (stage === "card")
     return (
       <BetaSurveyCard

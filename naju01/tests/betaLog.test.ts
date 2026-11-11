@@ -422,3 +422,28 @@ test("물음 표는 함께 쓰는 수 없이 만든다 — 같은 순간에 물�
   const tickets = new Set(Array.from({ length: 200 }, (_, i) => (i % 2 ? a : b).log.accountTicket()));
   assert.equal(tickets.size, 200);
 });
+
+test("참가 번호 — 코드가 없으면 계정 id 의 짧은 지문(집계 도구와 같은 식), 계정 확인 뒤 설문 안내가 풀린다", async () => {
+  const { shortKey } = await import("../../src/beta/betaLog.ts");
+  assert.equal(shortKey("user-1"), "F5537974");
+  const { log } = setup({ href: "https://play.example.test/", account: false });
+  assert.equal(log.participantKey(), null);
+  let isReady = false;
+  void log.accountReady().then(() => {
+    isReady = true;
+  });
+  log.setAccount("user-1");
+  await Promise.resolve();
+  assert.equal(isReady, true);
+  assert.equal(log.participantKey(), "F5537974");
+});
+
+test("공용 PC — 옛 참여 코드가 남아 있어도 로그인했으면 계정 번호를 쓴다(Codex 설문 검토)", async () => {
+  const storage = memoryStore();
+  setup({ storage, href: "https://play.example.test/?pc=AAAA-1111", account: "user-A" });
+  const b = setup({ storage, href: "https://play.example.test/", account: "user-B" });
+  const { shortKey } = await import("../../src/beta/betaLog.ts");
+  assert.equal(b.log.participantKey(), shortKey("user-B"));
+  const { log: guest } = setup({ storage: memoryStore(), href: "https://play.example.test/?pc=CCCC-3333", account: null });
+  assert.equal(guest.participantKey(), "CCCC-3333");
+});
