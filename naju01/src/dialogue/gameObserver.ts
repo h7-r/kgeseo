@@ -5,6 +5,7 @@
  * (아래 NOTICE_SIGNS). 퍼즐 문장을 고치면 이 표도 같이 고쳐야 한다 — 퍼즐이 직접 알리게 되면 reportMistake · reportSolved 로 바꾼다.
  * 물굴만은 퍼즐 부품이 저장 기록(save/puzzleMemory)에 적어 두는 값이 있어 그것으로 진행을 읽는다(readCave).
  */
+import { gameNow } from "@/engine/input/gameClock";
 import { isPointerActive } from "@/engine/input/virtualLock";
 
 import { isCameraFocused } from "../scene/cameraFocus";
@@ -284,7 +285,8 @@ export function observeGame(panel: PanelSight | null): Observation {
   // 이때 「두고 간다」 · 「없다」고 하면 헛말이 된다
   const isBeforeCurtain = ritual.isAtLeast("cleared") && ridge.stage() === "idle";
   return {
-    now: performance.now() / 1000,
+    // 게임 시계(초) — 멈춘 동안은 「진전 없음 · 가만히 있음」이 쌓이지 않는다(미르 11/11)
+    now: gameNow() / 1000,
     objective: currentObjective(panel, completed),
     completed,
     progressKey,

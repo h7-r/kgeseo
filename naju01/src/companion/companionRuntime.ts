@@ -10,7 +10,7 @@
  */
 import { useSyncExternalStore } from "react";
 
-import { gameClearTimeout, gameSetTimeout } from "@/engine/input/gameClock";
+import { gameClearTimeout, gameNow, gameSetTimeout } from "@/engine/input/gameClock";
 
 import { ASSET_BASE, setAssetVersionPath } from "../../../shared/env.ts";
 import { createCompanionDialog } from "./companionDialog.ts";
@@ -86,6 +86,8 @@ export const companionDialog = createCompanionDialog({
   session: companionSession,
   log,
   timers: { set: gameSetTimeout, clear: gameClearTimeout },
+  // 구역 진입 턴 간격(180초)도 게임 시계로 — 멈춘 시간은 세지 않는다(미르 11/11)
+  now: gameNow,
 });
 
 let started: Promise<unknown> | null = null;
