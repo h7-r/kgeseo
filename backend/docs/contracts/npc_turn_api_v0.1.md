@@ -12,12 +12,15 @@
   "client_timestamp": "2026-10-29T12:00:00+09:00",
   "trigger": "player_message | auto",
   "message": "player_message 일 때만 (1~200자)",
-  "focus_object_id": "선택 — 현재 구역에서 보고 있는 Object"
+  "focus_object_id": "선택 — 현재 구역에서 보고 있는 Object",
+  "paused_ms_since_interaction": "선택 · auto 만 — 마지막 플레이어 상호작용 뒤 게임이 멈춰 있던 시간(ms, 0~86400000)"
 }
 ```
 
 - 모르는 필드는 422(`extra="forbid"`). 퍼즐 ID 는 받지 않는다 — 서버가 포커스 Object 에서 다시 찾는다.
 - `player_message` 에는 `message` 필수, `auto` 에는 `message` 금지.
+- `paused_ms_since_interaction`(11/11): FE 게임 시계로 잰 멈춘 시간(ESC 멈춤 메뉴 · 설정 · 소지품처럼 게임이 얼어 있던 시간).
+  무입력 판정의 경과 시간에서만 뺀다 — 멈춘 동안은 「못 풀고 있는 시간」이 아니다. 경과보다 크면 0. `player_message` 에 실으면 422.
 
 ## 응답 (200, 감싸지 않은 객체)
 
@@ -46,7 +49,7 @@
 
 `interaction_events` 한 줄(`interaction_type="npc_turn"`, `target_id=null`).
 
-- `payload_json`: `trigger` · `focus_object_id` · `message_sha256`(재전송 비교용, 원문 없음)
+- `payload_json`: `trigger` · `focus_object_id` · `message_sha256`(재전송 비교용, 원문 없음) · `paused_ms_since_interaction`(실었을 때만)
 - `response_json`: `reply_source` · `line_id` · `generated` · `no_reply_reason` · `suggest_hint_puzzle_id` ·
   `policy`([{code, rule_id}]) · `decision` · `diagnosis`(신호 종류만) · `auto_intervened`
 - 대사 · 플레이어 원문 · 정답 · 힌트 원문은 저장하지 않는다.
