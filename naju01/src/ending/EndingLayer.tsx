@@ -300,13 +300,16 @@ function useEndingMusic() {
     };
     const syncTimer = window.setInterval(sync, 250);
     document.addEventListener("visibilitychange", sync);
-    // 소리 자동 재생을 막는 브라우저(사파리) — 필름은 연출 예약으로 열려 몸짓이 없다. 다음 클릭 · 키에서 다시 튼다(Codex 리뷰)
+    // 소리 자동 재생을 막는 브라우저(사파리) — 필름은 연출 예약으로 열려 몸짓이 없다. 다음 클릭 · 키에서 다시 튼다(Codex 리뷰).
+    // iOS 웹킷은 터치 pointerdown 을 몸짓으로 안 쳐서 click 도 듣는다(loadingVideo playMusic 과 같게)
     window.addEventListener("pointerdown", sync, { capture: true });
+    window.addEventListener("click", sync, { capture: true });
     window.addEventListener("keydown", sync, { capture: true });
     return () => {
       window.clearInterval(syncTimer);
       document.removeEventListener("visibilitychange", sync);
       window.removeEventListener("pointerdown", sync, { capture: true });
+      window.removeEventListener("click", sync, { capture: true });
       window.removeEventListener("keydown", sync, { capture: true });
       cancelAnimationFrame(raf);
       const from = audio.volume;

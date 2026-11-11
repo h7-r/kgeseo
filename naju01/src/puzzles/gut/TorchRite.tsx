@@ -397,15 +397,22 @@ function TorchRiteScene() {
       });
     };
 
-    /** 끝 연출 카메라 — 소반을 보다가, 가락지가 떠오르면 따라 올려다본다 */
+    /**
+     * 끝 연출 카메라 — 소반을 보다가, 가락지가 떠오르면 따라 올려다본다. 넘어가는 때는 연출과 같은 게임 시계로 예약한다
+     * (고정은 프레임 시간을 쌓아 느린 기기에서 뒤처진다 — then 으로 이으면 가락지 장면을 놓쳤다, Codex 리뷰).
+     * 둘 다 필름이 열릴 때 거둔다(그보다 길게 잡아 둔다)
+     */
     const focusFinale = () => {
       const ringsAt = new THREE.Vector3();
+      const holdUntilFilm = FINALE.endAt + FILM_AFTER + 4;
       focusCamera({
         id: FINALE_FOCUS.table,
         target: rite.tableTarget.clone().add(new THREE.Vector3(0, 1.2 * M, 0)),
-        hold: FINALE.ringsAt - 1.2,
+        hold: holdUntilFilm,
         turnIn: 1.2,
-        then: {
+      });
+      later(FINALE.ringsAt - 0.4, () =>
+        focusCamera({
           id: FINALE_FOCUS.rings,
           target: () => {
             const since = gut.stage() === "dawn" ? FINALE.dawnAt + gut.elapsed() : gut.elapsed();
@@ -413,11 +420,11 @@ function TorchRiteScene() {
             const rise = Math.min(FINALE_LOOK_UP, FINALE.ringsRise * u * u * (3 - 2 * u));
             return ringsAt.copy(rite.tableTarget).add(new THREE.Vector3(0, (1.2 + rise) * M, 0));
           },
-          // 필름이 열릴 때 거둔다(그보다 길게 잡아 둔다)
-          hold: FINALE.endAt + FILM_AFTER - FINALE.ringsAt + 4,
+          hold: holdUntilFilm,
           turnIn: 1.6,
-        },
-      });
+          replace: true,
+        }),
+      );
     };
 
     /** 관솔불이 횃불에 닿았다. 그 그림패가 다음 차례면 붙고, 아니면 바람이 켠 불을 다 끈다 */
