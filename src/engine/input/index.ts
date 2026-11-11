@@ -29,6 +29,7 @@ export {
 } from "./landscape";
 export { LandscapeGuard } from "./LandscapeGuard";
 export { MobileGate } from "./MobileGate";
+export { FrozenRedraw } from "./FrozenRedraw";
 export { PauseClockGuard } from "./PauseClockGuard";
 export { getTouchMove, onInputCancel, tapKey } from "./touchInput";
 export { TouchHud, type TouchButton } from "./TouchHud";
