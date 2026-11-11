@@ -22,13 +22,17 @@ import { createPuzzleSubmission, verdictNotice, type PuzzleVerdict } from "../..
 import { recall, track } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { setMusicDuck } from "../../transition/loadingVideo";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { makeToonMaterial } from "../materials";
 import { M, groundY } from "../units";
 import { jarOrderAnswer } from "./jarAnswer";
 import { jarPuzzle, useJarStage } from "./jarState";
 import { JAR_SITE, JAR_SLAB } from "./site";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("jars");
+const registerInteractable = interactableFor("jars");
 
 type Note = "도" | "미" | "솔" | "높은 도" | "높은 미" | "높은 솔";
 

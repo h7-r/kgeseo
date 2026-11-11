@@ -16,7 +16,7 @@ import { getTouchMove } from "@/engine/input/touchInput";
 import { recall, track } from "../../save/puzzleMemory";
 import { addDynamicSolid, solidQueries, type DynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { onEscapeUnlock } from "../pointerHold";
 import { prewarmShaders } from "../prewarm";
 import { M, groundY } from "../units";
@@ -33,6 +33,10 @@ import {
 import { ALTAR, CART_START, CHEST_START, GATE, RIDGE_CENTER, RUT_PATH, isInsideCurtain } from "./ridgeShape";
 import { ridge, ridgeCarry, ridgeQuest, useRidgeStage } from "./ridgeState";
 import { makeVertexColorMaterial } from "./vertexPaint";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("cart");
+const registerInteractable = interactableFor("cart");
 
 /** 잡았을 때 손잡이 끝이 발 앞 이만큼 · 수레가 시선을 따라 도는 빠르기(rad/s) */
 const GRIP_AHEAD = 0.45;
@@ -338,7 +342,7 @@ function placeChest(cart: Cart, camera: THREE.Camera, dt: number) {
       state.loadFromZ = state.chestZ;
       state.loadFromY = altarY;
       audio.play("전환");
-      showNotice("열린 틈이 돌단의 궤를 빨아들인다 — 그날 밤의 것이 그날 밤으로 돌아간다.", 4.5);
+      showNotice("열린 틈이 돌단의 궤를 빨아들인다.", 4.5);
     }
     if (state.chest === "toAltar") {
       state.loadT = Math.min(1, state.loadT + dt / (LOAD_SECONDS * 1.6));
@@ -694,10 +698,7 @@ export default function RidgeCart() {
     // 처음 다가갈 때 단서
     if (activeRef.current && !state.toldRuts && Math.hypot(px - state.x, pz - state.z) < 3) {
       state.toldRuts = true;
-      showNotice(
-        "낡은 수레 한 대. 바퀴 자국이 진부촌 문에서 여기까지 이어져 있다 — 그날 밤 이 수레는 저 문으로 들어왔다.",
-        5,
-      );
+      showNotice("낡은 수레 한 대. 바퀴 자국이 진부촌 문에서 여기까지 이어져 있다.", 5);
     }
     if (
       activeRef.current &&

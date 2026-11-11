@@ -21,7 +21,7 @@ import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { mangaInk } from "../../world/mangaStyle";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
-import { showNotice } from "../interaction";
+import { noticeFor } from "../interaction";
 import { makeToonMaterial } from "../materials";
 import { ritual, useRitualStage } from "../ritual/ritualState";
 import { M } from "../units";
@@ -63,6 +63,9 @@ import {
   makeShaftTexture,
   normalizePrototype,
 } from "./seabed";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("cave");
 
 /** 물이 갈라지는 데 걸리는 시간(초) */
 const PART_SECONDS = 7;
@@ -395,7 +398,7 @@ export default function CaveWorld() {
       partedAt.current = time;
       if (!isPartRestored.current) {
         audio.play("우르릉");
-        showNotice("강물이 양쪽으로 갈라진다. 강바닥에 길이 드러났다.", 5);
+        showNotice("강물이 갈라지고 아래에 길이 드러났다. 저 아래에도 아랑사의 흔적이 있을까.", 5);
       }
     }
     const openness = isPartRestored.current

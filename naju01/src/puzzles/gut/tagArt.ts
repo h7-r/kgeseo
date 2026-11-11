@@ -29,7 +29,7 @@ export const TAG_PLAY_SECONDS = 2.8;
  */
 const CLIPS: readonly { film: "box" | "moon"; from: number; still: number; left: number }[] = [
   { film: "box", from: 0.3, still: 1.1, left: 0.06 }, // 초롱을 들고 벼랑을 걷는다
-  { film: "box", from: 3.74, still: 4.1, left: 0.18 }, // 뒤꿈치가 미끄러진다
+  { film: "box", from: 3.98, still: 4.5, left: 0.18 }, // 뒤꿈치가 미끄러진다
   { film: "moon", from: 1.6, still: 3.6, left: 0.06 }, // 물 세 그릇 앞에 무릎을 꿇는다
   { film: "moon", from: 4.8, still: 7.2, left: 0.1 }, // 바위 틈에서 구렁이가 올라온다
   { film: "moon", from: 10.8, still: 12.6, left: 0 }, // 횃불 든 사내들이 올라온다

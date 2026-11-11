@@ -66,7 +66,8 @@ export function setAbisaReachable(check: (() => boolean) | null) {
 
 /** 아비사의 이야기(의뢰의 사건 이야기 · 불을 되살린 뒤 인연 이야기)를 다 들었나 */
 export const isAbisaStoryHeard = () =>
-  recall<number>("firstScene.requestLine", 0) >= REQUEST_STORY_LINES && recall<boolean>("firstScene.backstoryHeard", false);
+  recall<number>("firstScene.requestLine", 0) >= REQUEST_STORY_LINES &&
+  recall<boolean>("firstScene.backstoryHeard", false);
 
 /**
  * 바위 아래로 넘어가기 전에 아비사에게 마저 들어야 할 이야기가 있나 — 불을 되살린 뒤(인연 이야기를 들을 수 있을 때)부터, 처음 넘어갈 때만.
@@ -252,7 +253,9 @@ export function hasUnofferedOfferingAtDock() {
   const offered = offeredSoFar();
   return inventory
     .world()
-    .some((item) => OFFERINGS.includes(item.kind) && !offered.has(item.kind) && regionOfItem(item.position) === "나루터");
+    .some(
+      (item) => OFFERINGS.includes(item.kind) && !offered.has(item.kind) && regionOfItem(item.position) === "나루터",
+    );
 }
 
 /**

@@ -7,6 +7,7 @@
  * 시각은 초, 좌표는 그림판 px.
  */
 import { FILM, camera, createFilmScreen, drawMist, drawRiver, finishFilm } from "../ridge/shadowPlay";
+import type { FilmCaption } from "../filmCaption";
 import {
   INK,
   RIM,
@@ -16,7 +17,6 @@ import {
   bakeSky,
   drawGrass,
   drawPerson,
-  hash,
   lerp,
   makeLayer,
   mixPose,
@@ -42,6 +42,13 @@ const PACE = 1.3;
 /** 트는 시간(초) · 빛이 약해지며 영상이 사라지는 시간(끝에서) */
 export const MOON_PLAY_SECONDS = FILM_SECONDS * PACE;
 export const MOON_PLAY_FADE = 1.4;
+/** 자막 — 컷마다 한 줄(트는 시각). 그림이 깨지는 마지막 컷에는 글을 두지 않는다 — 그 뒤의 일은 굿판의 그림패가 말한다 */
+export const MOON_PLAY_CAPTIONS: readonly FilmCaption[] = [
+  { from: 0.5, to: CUT.rise * PACE, text: "아랑사가 떠난 뒤에도, 아비사는 밤마다 바위에 올랐어요." },
+  { from: CUT.rise * PACE, to: CUT.touch * PACE, text: "어느 밤, 벼랑 끝 바위 틈에서 구렁이가 올라왔어요." },
+  { from: CUT.touch * PACE, to: CUT.torch * PACE, text: "아비사는 구렁이를 두려워하지 않았어요." },
+  { from: CUT.torch * PACE, to: CUT.tear * PACE, text: "그 모습을 마을 젊은이들이 보았어요." },
+];
 /** 소리 — at 은 트는 시각 */
 export const MOON_PLAY_CUES: { at: number; sound: "우르릉" | "징" | "첨벙" | "전환"; shake?: number }[] = [
   { at: 0.1, sound: "징" },
@@ -394,18 +401,20 @@ function cutRise(g: Pen, art: Layers, t: number, length: number) {
     const ground = sideGroundAt(gapX);
     const sway = Math.sin(t * 1.5) * size * 0.05;
     const base: Point = [gapX + size * 0.04, ground + size * 0.5];
-    const head: Point = [gapX - size * 0.06 + sway, ground + size * 0.2 - rise * size * 1.12];
-    const span = base[1] - head[1];
+    // 곧게 솟으면 「파이프 · 잠망경」으로 읽혔다(11/11 독해 시험) — 몸이 S 로 굽이치고, 목 끝이 앞으로 넘어와 머리가 아래를 굽어본다
+    const top = ground + size * 0.2 - rise * size * 1.12;
+    const head: Point = [gapX - size * (0.1 + 0.2 * rise) + sway, top + size * 0.16 * rise];
+    const span = base[1] - top;
     drawNeck(
       g,
       neckPoints(
         base,
-        [gapX + size * 0.26 - sway, base[1] - span * 0.3],
-        [gapX - size * 0.2 + sway * 2, base[1] - span * 0.7],
+        [gapX + size * 0.34 - sway, base[1] - span * 0.42],
+        [gapX + size * (0.1 + 0.16 * rise) + sway, top - size * 0.14],
         head,
       ),
       size * 0.085,
-      Math.PI + 0.3 - rise * 0.25,
+      Math.PI + 0.25 + rise * 0.45,
       clamp01(Math.sin(t * 5) * 2 - 1),
     );
   }
@@ -525,30 +534,23 @@ function cutTorch(g: Pen, art: Layers, t: number) {
 function cutTear(g: Pen, art: Layers, t: number) {
   const u = clamp01(t / (FILM_SECONDS - CUT.tear));
   const { canvas } = art.held;
-  const band = 5;
+  const band = 3;
   for (let y = 0; y < H; y += band) {
-    const wave = Math.sin(y * 0.055 - t * 16) * (10 + 70 * u) * u + (hash(y + Math.floor(t * 40)) - 0.5) * 40 * u * u;
-    g.globalAlpha = (1 - smooth(clamp01((u - 0.35) / 0.65))) * (0.75 + 0.25 * hash(y * 3 + Math.floor(t * 30)));
+    // 물에 비친 그림이 흔들리듯 — 부드러운 물결만(줄마다 튀는 지직거림은 「화면 고장」으로 읽혔다, 11/11 독해 시험)
+    const wave = Math.sin(y * 0.035 - t * 7) * (6 + 46 * u) * u + Math.sin(y * 0.011 + t * 3) * 24 * u * u;
+    g.globalAlpha = 1 - smooth(clamp01((u - 0.35) / 0.65));
     g.drawImage(canvas, 0, y, W, band, wave, y, W, band);
   }
   g.globalAlpha = 1;
-  // 금 — 물낯이 깨지듯 흰 금이 번쩍 지나간다
-  const flash = 1 - smooth(clamp01(t / 0.5));
-  if (flash > 0) {
-    g.strokeStyle = `rgba(255,246,224,${0.9 * flash})`;
-    g.lineWidth = 2.5;
-    for (let k = 0; k < 5; k++) {
-      g.beginPath();
-      let x = W * (0.3 + hash(k) * 0.4);
-      let y = H * 0.1;
-      g.moveTo(x, y);
-      for (let step = 0; step < 9; step++) {
-        x += (hash(k * 13 + step) - 0.5) * 90;
-        y += H * 0.09;
-        g.lineTo(x, y);
-      }
-      g.stroke();
-    }
+  // 물낯이 흔들린다 — 한가운데(물 사발 자리)에서 고리가 번져 나간다. 전에는 지그재그 흰 금이라 「벼락」으로 읽혔다
+  for (let k = 0; k < 5; k++) {
+    const age = t * 1.1 - k * 0.22;
+    if (age <= 0) continue;
+    g.strokeStyle = `rgba(255,240,214,${Math.max(0, 0.5 - age * 0.3)})`;
+    g.lineWidth = 2.2;
+    g.beginPath();
+    g.ellipse(W * 0.5, H * 0.56, age * W * 0.34, age * H * 0.3, 0, 0, Math.PI * 2);
+    g.stroke();
   }
 }
 

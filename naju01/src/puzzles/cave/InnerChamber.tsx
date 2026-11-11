@@ -15,7 +15,7 @@ import { cameraFocusId, focusCamera } from "../../scene/cameraFocus";
 import { useRememberedState } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory, useHandItem, useHeldItems } from "../inventory";
 import { setPuzzlePanel } from "../puzzlePanel";
 import { ritual } from "../ritual/ritualState";
@@ -86,6 +86,10 @@ const LOCKOUT_SECONDS = 3;
 const SUNK_DEPTH = 0.12;
 import { lampLevel, placePearlBeam, pullIntoExit, scaleHeight, updateCurrent } from "./chamberMotion";
 import { ChamberVents, EntryStatues, ExitRocks, OrbLamps, PearlSocket, Pedestals, StoneBox } from "./chamberParts";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("chamber");
+const registerInteractable = interactableFor("chamber");
 
 // 게임 시계 — 「전부 멈춤」(창 · 게임 밖 · PC 일시정지) 동안은 흐르지 않는다. 실제 시계면 오래 멈췄다 돌아올 때 차례 시범이 건너뛰어졌다(Codex 리뷰)
 const now = () => gameNow() / 1000;
@@ -191,7 +195,7 @@ export default function InnerChamber() {
     }
     setIsScaleTaken(true);
     audio.play("단서");
-    showNotice("푸른 눈물을 챙겼다. 얼음처럼 차고, 손안에서 희미하게 빛난다 — 아랑사가 남긴 것이다.", 5);
+    showNotice("푸른 눈물을 챙겼다. 차갑고 희미하게 빛난다. 누구의 흔적일까.", 5);
   };
 
   const press = (k: number) => {
@@ -277,7 +281,7 @@ export default function InnerChamber() {
     for (const item of inventory.world())
       if (cave.contains(item.position.x / M, item.position.z / M)) inventory.removeFromWorld(item.uid);
     showNotice(
-      `물살이 몸을 밀어 올렸다. 강가로 돌아왔다 — ${boxWhere}. 안에서 무언가 달그락거린다. 여는 법은 능선에서 찾자.`,
+      `물살이 몸을 밀어 올렸다. 강가로 돌아왔다 — ${boxWhere}. 안에서 무언가 달그락거린다. 이 함을 열면 그 밤 일을 알 수 있을지도 모른다 — 여는 법은 능선에서 찾자.`,
       6,
     );
   };
@@ -484,7 +488,7 @@ export default function InnerChamber() {
         if (isFocused) {
           muralGlance.current = "focusing";
           glanceHome.current ??= camera.quaternion.clone();
-          showNotice("…저 벽화는 뭐지? 들어온 아치 위에 그림이 이어져 있다.", 4, { urgent: true });
+          showNotice("아치 위에 그림이 이어져 있다. 실제 사건을 그린 것인지는 아직 알 수 없다.", 4, { urgent: true });
         }
       }
     } else if (muralGlance.current === "focusing" && cameraFocusId() !== MURAL_FOCUS_ID) {

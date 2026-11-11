@@ -20,6 +20,7 @@ import { exposeDevHook } from "@/debug/devHooks";
 import { addDynamicSolid } from "../../movement/solidField";
 import { ending } from "../../ending/endingState";
 import { recall, track } from "../../save/puzzleMemory";
+import { releaseCompanion, sendCompanionTo } from "../../companion/companionStage";
 import { cancelCameraFocus, cameraFocusId, focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
@@ -29,7 +30,7 @@ import { floorAt, planar } from "../cliff/riteScene";
 import { useGroundReady } from "../cliff/useGroundReady";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
 import { makeGlowTexture } from "../glowTexture";
-import { clearNotice, registerInteractable, showNotice } from "../interaction";
+import { clearNotice, interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { PINE_TORCH_TIP, buildItemLooks, buildPineTorchGeometry } from "../itemLooks";
 import { loadModel } from "../itemModel";
@@ -52,10 +53,15 @@ import {
   TAG_HEIGHT,
   TAG_REACH,
 } from "./gutShape";
+import { AbisaFarewell, FAREWELL, FAREWELL_LINES, FAREWELL_SPOT } from "./abisaFarewell";
 import { gut, type SavedGut } from "./gutState";
 import { buildFinale, updateFinale } from "./riteFinale";
 import { TAG_PLAY_SECONDS, makeTagBoards, type TagBoards } from "./tagArt";
 import { FIRE_SEAT, PLAQUE_DEPTH, buildPlaqueGeometry, buildPostGeometry } from "./torchPost";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("gut");
+const registerInteractable = interactableFor("gut");
 
 const BRAZIER_MODEL = "/_sf_local/lib/ast-prop-bonfire-brazier-01.glb";
 /** 소반 — 불타 없어질 때 화면에서 지울 무리 이름(scene5 의 소반) */
@@ -80,8 +86,10 @@ const PARKED = new THREE.Vector3(0, -1e5, 0);
 const smooth = THREE.MathUtils.smoothstep;
 /** 불이 잦아든 뒤(FINALE.endAt) 이만큼 지나 전체화면 엔딩 필름을 연다(초) — 새벽(dawnAt)은 불이 아직 타는 중이다(Codex) */
 const FILM_AFTER = 2;
+/** 아비사의 작별이 끝나고 엔딩 필름을 여는 때(끝 연출이 시작된 뒤 초) — 불이 잦아든 뒤(FINALE.endAt + FILM_AFTER)보다 늦다 */
+const FILM_AT = Math.max(FINALE.endAt + FILM_AFTER, FAREWELL.endAt + 0.6);
 /** 끝 연출 카메라 고정 이름 */
-const FINALE_FOCUS = { table: "gut-finale-table", rings: "gut-finale-rings" } as const;
+const FINALE_FOCUS = { table: "gut-finale-table", rings: "gut-finale-rings", farewell: "gut-finale-farewell" } as const;
 /** 떠오르는 가락지를 이 높이(m)까지만 따라 올려다본다 — 더 오르면 하늘만 보인다 */
 const FINALE_LOOK_UP = 6;
 
@@ -187,7 +195,9 @@ function buildRite() {
   const motes = makeGlowPoints(MOTES, { additive: true, softness: 1.2 });
   motes.points.visible = false;
   const finale = buildFinale();
-  root.add(handFire.flames.points, handFire.sparks.points, handLight, motes.points, finale.root);
+  // 끝 연출의 작별 — 가락지가 오른 뒤 물가에 서는 아비사(abisaFarewell)
+  const farewell = new AbisaFarewell();
+  root.add(handFire.flames.points, handFire.sparks.points, handLight, motes.points, finale.root, farewell.root);
 
   return {
     root,
@@ -195,6 +205,7 @@ function buildRite() {
     fire,
     /** 불꽃이 솟는 자리 — 꺼진 횃불은 PARKED. 프레임마다 다시 채운다 */
     fireTops: torches.map(() => PARKED),
+    farewell,
     brazier,
     sticks,
     brazierFire,
@@ -368,31 +379,31 @@ function TorchRiteScene() {
       audio.play("불길");
       director.cue({ 카메라: "흔들림", 세기: 0.16 });
       director.cue({ 바람: 2.8, 초: FINALE.descendAt + 1.5 });
-      ending.caption("다섯 불이 다 켜졌다. 징이 길게 울고 바람이 거세진다 — 불기둥 다섯이 하늘로 치솟는다.", 5);
-      later(FINALE.descendAt + 0.3, () =>
-        ending.caption("불길이 횃불대를 타고 내려와 땅을 달린다 — 다섯 줄기가 소반으로 모인다.", 3),
-      );
+      // 자막은 화면이 못 하는 말만(미르 11/11) — 불길이 내려와 달리는 대목은 글 없이 화면이 말한다
+      ending.caption("흩어진 이야기가 이어졌어요.", 5);
       later(FINALE.runAt, () => audio.play("불붙음"));
       later(FINALE.igniteAt, () => {
         audio.play("불길");
         audio.play("우르릉");
         director.cue({ 카메라: "흔들림", 세기: 0.14 });
-        ending.caption("소반에 불이 붙는다. 제물이 타오르고 — 가락지 한 쌍이 불길 위로 떠오른다.", 5.5);
+        ending.caption("끝내 건네지 못한 가락지 한 쌍이에요.", 5.5);
       });
       later(FINALE.dawnAt, () => {
         gut.dawn();
         audio.play("전환");
       });
-      later(FINALE.ringsAt + 4.6, () =>
-        ending.caption(
-          "가락지가 하늘로 오르며 밤이 걷힌다. 잿빛이던 강과 바위에 빛깔이 돌아온다 — 건네지 못한 것이 이제야 건너간다.",
-          FINALE.endAt + FILM_AFTER - FINALE.ringsAt - 4.6,
-        ),
+      later(FINALE.ringsAt + 3, () =>
+        ending.caption("이제 그 마음을 보내 드려요.", FAREWELL.first - FINALE.ringsAt - 3 - 0.2),
       );
-      later(FINALE.endAt + FILM_AFTER, () => {
+      // 작별 — 물은 사람(아비사)이 답을 듣고 제 일을 기억해 낸다. 모형을 못 읽었으면 글만 낸다
+      later(FAREWELL.first, () => ending.caption(FAREWELL_LINES[0], FAREWELL.second - FAREWELL.first - 0.2));
+      later(FAREWELL.second, () => ending.caption(FAREWELL_LINES[1], FAREWELL.leaveAt - FAREWELL.second + 1));
+      later(FAREWELL.leaveAt, () => ending.noteFarewellShown());
+      later(FILM_AT, () => {
         // 어느 구간에 있든 거둔다 — 프레임이 느리면 고정은 프레임 시간으로 흘러 아직 소반 구간일 수 있다(Codex 리뷰)
         const focusId = cameraFocusId();
-        if (focusId === FINALE_FOCUS.table || focusId === FINALE_FOCUS.rings) cancelCameraFocus();
+        if (focusId === FINALE_FOCUS.table || focusId === FINALE_FOCUS.rings || focusId === FINALE_FOCUS.farewell)
+          cancelCameraFocus();
         ending.openFilm();
       });
     };
@@ -404,7 +415,7 @@ function TorchRiteScene() {
      */
     const focusFinale = () => {
       const ringsAt = new THREE.Vector3();
-      const holdUntilFilm = FINALE.endAt + FILM_AFTER + 4;
+      const holdUntilFilm = FILM_AT + 4;
       focusCamera({
         id: FINALE_FOCUS.table,
         target: rite.tableTarget.clone().add(new THREE.Vector3(0, 1.2 * M, 0)),
@@ -425,6 +436,17 @@ function TorchRiteScene() {
           replace: true,
         }),
       );
+      // 가락지가 한참 오른 뒤 물가의 아비사를 돌아본다 — 빈 하늘을 오래 보지 않는다
+      later(FAREWELL.lookAt, () => {
+        if (!rite.farewell.isReady) return;
+        focusCamera({
+          id: FINALE_FOCUS.farewell,
+          target: () => rite.farewell.head,
+          hold: holdUntilFilm,
+          turnIn: 1.8,
+          replace: true,
+        });
+      });
     };
 
     /** 관솔불이 횃불에 닿았다. 그 그림패가 다음 차례면 붙고, 아니면 바람이 켠 불을 다 끈다 */
@@ -466,6 +488,7 @@ function TorchRiteScene() {
     scene.add(rite.root);
     return () => {
       scene.remove(rite.root);
+      rite.farewell.release();
       setPuzzlePanel("gut-rite", null);
       gut.setGlow(0);
       gut.setWind(0);
@@ -574,6 +597,14 @@ function TorchRiteScene() {
   }, [rite, actions]);
 
   const up = useMemo(() => new THREE.Vector3(), []);
+  /** 작별 동안 동행을 비켜 세웠다 */
+  const isCompanionAside = useRef(false);
+  useEffect(
+    () => () => {
+      if (isCompanionAside.current) releaseCompanion();
+    },
+    [],
+  );
   useFrame(({ camera, clock }, rawDt) => {
     const dt = Math.min(rawDt, 0.05);
     const time = clock.elapsedTime;
@@ -594,6 +625,26 @@ function TorchRiteScene() {
     /** 굿이 풀린 지 몇 초 — 그 전이면 −1 */
     const releasedFor = stage === "released" ? since : stage === "dawn" ? FINALE.dawnAt + since : -1;
     const isHolding = actions.isHolding();
+
+    // 작별의 아비사 — 금줄 앞에 내려서면 만들어 두고, 끝 연출 동안만 그 초의 모습으로(이어 하기 · 다시 보기에서는 안 그린다)
+    if (isHere) rite.farewell.build(scene);
+    rite.farewell.update(ending.phase() === "finale" ? releasedFor : -1);
+    // 작별 동안 동행은 플레이어 뒤(아비사 반대쪽)로 비켜 선다 — 따라오던 자리가 아비사 앞이라 화면을 가렸다(11/11 촬영)
+    const isFarewellOn =
+      ending.phase() === "finale" && releasedFor > FAREWELL.lookAt - 1.2 && releasedFor < FAREWELL.endAt;
+    if (isFarewellOn && !isCompanionAside.current) {
+      isCompanionAside.current = true;
+      const px = camera.position.x / M;
+      const pz = camera.position.z / M;
+      const away = Math.hypot(px - FAREWELL_SPOT.x, pz - FAREWELL_SPOT.z) || 1;
+      sendCompanionTo(
+        px + ((px - FAREWELL_SPOT.x) / away) * 1.3 + ((pz - FAREWELL_SPOT.z) / away) * 0.5,
+        pz + ((pz - FAREWELL_SPOT.z) / away) * 1.3 - ((px - FAREWELL_SPOT.x) / away) * 0.5,
+      );
+    } else if (!isFarewellOn && isCompanionAside.current) {
+      isCompanionAside.current = false;
+      releaseCompanion();
+    }
 
     // 그림패 — 금줄 앞에 내려선 첫 프레임(틈을 건너느라 화면이 캄캄한 때)에 그려 둔다
     if (isHere && !rite.boards) paintTags(rite);

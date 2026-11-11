@@ -1247,12 +1247,13 @@ test("퍼즐 알림은 표에서 찾아 지금 말투로 말하고, 바뀌는 �
 });
 
 // 게임 알림은 동행이 따라 말하지 않는다(새 main 위 통합, Codex 01회차) — 동행 말투로 옮기는 것은 [F] 「여기서 뭘 해야 해요?」의
-// 대답(안내판 설명)뿐이다. 목표표(objectives)가 있는 1~3스테이지 안내판만 본다 — 4 · 5스테이지(cliff · gut)는 목표표 밖이다
-test("동행이 대답으로 읽는 안내판 설명은 모두 동행 말투 표에 있다(목표표 밖 4 · 5스테이지는 뺀다)", () => {
+// 대답(안내판 설명)뿐이다. 안내판 · 알림은 화면에도 해요체로 나가므로(11/11) 4 · 5스테이지(cliff · gut)까지 모두 표에 있어야 한다
+test("안내판 설명은 모두 동행 말투 표에 있다(4 · 5스테이지 포함)", () => {
   const { guides } = listGameTexts();
   const sample = (text: string) => text.replace(/\{(\d+)\}/g, "3");
   const missing = guides
-    .filter((entry) => !/^puzzles\/(cliff|gut)\//.test(entry.file) && entry.file !== "puzzles/PuzzlePanelHud.tsx")
+    // 4 · 5스테이지(cliff · gut)도 넣는다 — 알림 · 안내판은 화면에 해요체로 나간다(11/11)
+    .filter((entry) => entry.file !== "puzzles/PuzzlePanelHud.tsx")
     .filter((entry) => !hasCompanionVoice(sample(entry.text)));
   assert.deepEqual(
     missing.map((entry) => `${entry.file}: ${entry.text.slice(0, 40)}`),

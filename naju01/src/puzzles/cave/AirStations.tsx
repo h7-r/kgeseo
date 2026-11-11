@@ -28,7 +28,7 @@ import {
 import { useRememberedState } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { makeGlowTexture } from "../glowTexture";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { makeToonMaterial } from "../materials";
 import { setPuzzlePanel } from "../puzzlePanel";
@@ -52,6 +52,10 @@ import {
 } from "./lightLayout";
 import { JAR_SPOT, buildJarGeometry, useOverturnedJarModel } from "./overturnedJar";
 import { buildShellGeometry } from "./seabed";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("stations");
+const registerInteractable = interactableFor("stations");
 
 /** 빛줄기 조각 수 — 어미 → 조개 넷 → 큰 조개 */
 const BEAM_COUNT = LIGHT_CLAMS.length + 1;

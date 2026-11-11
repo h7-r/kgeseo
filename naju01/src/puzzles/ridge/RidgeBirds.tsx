@@ -19,7 +19,7 @@ import { focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { POLE_TOP } from "../../story/scene2";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { makeToonMaterial } from "../materials";
 import { prewarmShaders } from "../prewarm";
@@ -40,6 +40,10 @@ import {
 import { ridge, ridgeBox, ridgeDev, ridgeQuest, useRidgeStage } from "./ridgeState";
 import { crackShell, createStoneShell, updateChunks, updateShards } from "./stoneShell";
 import { makeVertexColorMaterial } from "./vertexPaint";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("birds");
+const registerInteractable = interactableFor("birds");
 
 /** 팔각 받침 — 한 칸의 각 */
 const STEP_ANGLE = Math.PI / 4;

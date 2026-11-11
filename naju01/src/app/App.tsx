@@ -251,7 +251,11 @@ export default function App() {
   const [isOutOfGame, setIsOutOfGame] = useState(false);
   // 시작 카드 모드 — 저장이 있으면 한 줄 「이어서 조사」(아래 isCardVisible 설명)
   const [caseStart] = useState(() => {
-    if (CARD_PREVIEW) return { mode: (CARD_PREVIEW === "full" ? "full" : "resume") as CaseStartMode, isCleared: CARD_PREVIEW === "cleared" };
+    if (CARD_PREVIEW)
+      return {
+        mode: (CARD_PREVIEW === "full" ? "full" : "resume") as CaseStartMode,
+        isCleared: CARD_PREVIEW === "cleared",
+      };
     const progress = IS_REVIEW_REQUESTED ? null : najuCaseProgress((name) => readSavedSection(name));
     return { mode: (progress ? "resume" : "full") as CaseStartMode, isCleared: !!progress?.isCleared };
   });
@@ -284,7 +288,8 @@ export default function App() {
   // controls.lock() 과 같은 요청을 직접 — 브라우저가 거절하면(ESC 직후 · 창 밖 초점) 약속이 거절로 끝나니 받아 둔다.
   // 거절은 pointerlockerror 로 카드 · 멈춤 메뉴가 「한 번 더 눌러 주세요」를 보인다
   const requestLock = useCallback(() => {
-    const element = controlsRef.current?.domElement as (HTMLElement & { requestPointerLock(): Promise<void> | void }) | undefined;
+    const element = controlsRef.current?.domElement as
+      (HTMLElement & { requestPointerLock(): Promise<void> | void }) | undefined;
     const request = element?.requestPointerLock();
     if (request instanceof Promise) request.catch(() => {});
   }, []);
@@ -339,11 +344,15 @@ export default function App() {
     if (gutStage === "dawn" && !ending.isSeen() && ending.phase() === "off") ending.openFilm();
   }, [hasLockedOnce, gutStage]);
   // (개발 서버) ?ending=film · ?ending=clear — 시작하면 바로 엔딩 필름 · 클리어 화면(화면 확인용, 굿 진행은 그대로)
+  //             ?stage=4&ending=finale — 다섯 횃불을 막 켠 순간부터(ending/finalePreview.dev)
   useEffect(() => {
     if (!import.meta.env.DEV || !hasLockedOnce) return;
     const preview = new URLSearchParams(window.location.search).get("ending");
     if (preview === "film") ending.openFilm();
     else if (preview === "clear") ending.openClear();
+    // ?stage=4&ending=finale — 마지막 퍼즐을 막 푼 순간부터(끝 연출 → 작별 → 필름)
+    else if (preview === "finale")
+      void import("../ending/finalePreview.dev").then((preview) => preview.runFinalePreview());
   }, [hasLockedOnce]);
   useWindowHold("inventory", isInventoryOpen);
   useWindowHold("hintBox", isHintBoxOpen);

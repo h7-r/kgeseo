@@ -25,10 +25,11 @@ import { NAJU_LOCAL } from "../../progress/najuLocalIds";
 import { najuProgress } from "../../progress/najuProgress";
 import { createPuzzleSubmission, verdictNotice, type PuzzleVerdict } from "../../progress/puzzleSubmission";
 import { recall, track } from "../../save/puzzleMemory";
+import { REQUEST_STORY_LINES } from "../../scene/firstScene/abisaLines";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { setPuzzlePanel } from "../puzzlePanel";
 import { M, groundY } from "../units";
 import {
@@ -45,6 +46,10 @@ import { clamDugAnswer, deriveFound, dugHoles, findOfPuffs, restoreClamProgress,
 import { CLAM_SCALE, buildClamHandful, buildDugGround, buildHoe, buildSideHoles } from "./clamModels";
 import { clamDig, useClamStage } from "./clamState";
 import { DIG_KEYS, STRIKES, Y_AXIS, createMove, digKeyAt, digPose, ease, holdHoe, startMove } from "./hoeMotion";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("clam");
+const registerInteractable = interactableFor("clam");
 
 /** 숨구멍 무리의 가운데 — 나룻배 서쪽 맨모래(미터). 배 · 길 · 배 자국 판 위를 비켜 어디서든 보인다 */
 const DIG_SPOT = { x: 14.4, z: 42.0 };
@@ -696,7 +701,14 @@ export default function ClamDig() {
   /** 안내판 — 호미를 들기 전후, 가까이에서 */
   const showPanel = (camera: THREE.Camera, current: string) => {
     const distance = Math.hypot(camera.position.x / M - DIG_SPOT.x, camera.position.z / M - DIG_SPOT.z);
-    if (distance > PANEL_RANGE || (current !== "buried" && current !== "hoe")) {
+    // 아비사의 부탁(사건 이야기)을 듣기 전에는 띄우지 않는다 — 시작 자리가 이 반경 안이라 이야기보다 할 일이 먼저 보였다(미르 11/11).
+    // 호미를 이미 들었으면(옛 저장 · 먼저 둘러본 사람) 그대로 띄운다
+    const isStoryHeard = recall<number>("firstScene.requestLine", 0) >= REQUEST_STORY_LINES;
+    if (
+      distance > PANEL_RANGE ||
+      (current !== "buried" && current !== "hoe") ||
+      (current === "buried" && !isStoryHeard)
+    ) {
       setPuzzlePanel("clam-dig", null);
       return;
     }

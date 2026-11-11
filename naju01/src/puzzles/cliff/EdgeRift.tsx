@@ -24,7 +24,7 @@ import { makeGlowTexture } from "../glowTexture";
 import { STAKES } from "../gut/gutShape";
 import { gut } from "../gut/gutState";
 import { FIRE_SEAT } from "../gut/torchPost";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { SERPENT_MODEL } from "../itemLooks";
 import { loadModel } from "../itemModel";
@@ -40,6 +40,10 @@ import { buildSerpentRun, updateSerpentRun } from "./serpentRun";
 import { ALIVE_AT, buildSerpentStone, fitFigure, fitStone, updateSerpentStone } from "./serpentStone";
 import { useGroundReady } from "./useGroundReady";
 
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("edge");
+const registerInteractable = interactableFor("edge");
+
 /** 구렁이상을 끼운 뒤 틈이 열리기 시작하는 때 · 다 벌어지는 시간 · 굿 불이 켜지는 때 · 다 켜지는 시간(초) */
 const RIFT_AT = 3.4;
 const RIFT_OPEN_SECONDS = 2.0;
@@ -50,6 +54,12 @@ const ENTER_RADIUS = 0.9;
 /** 구렁이상을 끼우느라 틈 코앞에 서 있었으면 — 이만큼(m) 물러났다 다시 다가서야 끌어당긴다. 안 물러나도 이만큼(초) 뒤에는 당긴다 */
 const ARM_DISTANCE = ENTER_RADIUS + 0.25;
 const ARM_SECONDS = 7;
+/**
+ * 틈이 열린 뒤 이만큼(m) 걸음을 떼면 끌어당긴다 — 구렁이 바위(틈에서 1.1 m)에 붙어 서서 끼우면 ARM_DISTANCE 안이라, 틈이 열리자마자
+ * 걸어 들어가도 아무 일 없이 틈을 그대로 지나쳐 버렸다(끼운 뒤 10.4 초까지 — 미르 11/11 「한 번에 입장이 잘 안 된다」).
+ * 가만히 서서 구렁이를 보는 동안에는 여전히 당기지 않는다
+ */
+const ARM_STEP = 0.3;
 /** 때를 이만큼(초) 넘겨 맞으면 이어 하기로 돌아온 것 — 소리와 알림 없이 끝난 모습으로 둔다 */
 const LATE_SECONDS = 3;
 /** 틈의 판은 틈보다 이만큼 크다 — 새어 나오는 빛이 판 가장자리에서 잘리지 않게 */
@@ -221,6 +231,8 @@ function EdgeRiftScene() {
   const told = useRef({ alive: false, rift: false, fires: false });
   /** 틈이 끌어당길 채비가 됐나(ARM_DISTANCE) */
   const isArmed = useRef(false);
+  /** 틈이 열린 순간 플레이어가 서 있던 자리(m) */
+  const openedAt = useRef<{ x: number; z: number } | null>(null);
   /** 개발용 — 기다리지 않고 틈을 연다(초) */
   const skipped = useRef(0);
 
@@ -293,11 +305,7 @@ function EdgeRiftScene() {
         enabled: () => cliff.stage() === "done",
         handLabel: (kind) => (kind === "serpentFigure" ? "파인 자리에 구렁이상 끼우기" : null),
         receive: () => actions.placeSerpent(),
-        use: () =>
-          showNotice(
-            "바위 윗면이 구렁이 한 마리가 누운 모양으로 파였다. 편지의 숨긴 말을 읽었다면 — 함에서 나온 것이 여기 꼭 맞을 것이다.",
-            6,
-          ),
+        use: () => showNotice("바위 윗면이 구렁이 한 마리가 누운 모양으로 파였다. 무언가를 끼워 넣는 자리 같다.", 6),
       }),
       registerInteractable({
         id: "cliff-fall",
@@ -337,7 +345,10 @@ function EdgeRiftScene() {
       told.current.alive = true;
       if (seatedFor < ALIVE_AT + LATE_SECONDS) {
         audio.play("전환");
-        showNotice("구렁이다. 바위에서 스르르 내려와 곁을 지나 — 미끄러진 자국을 따라 벼랑 끝으로 간다.", 5);
+        showNotice(
+          "구렁이다. 바위에서 스르르 내려와 곁을 지나 벼랑 끝으로 간다. 나루터에서 쫓아낸 구렁이가 떠오른다 — 아비사는 그때도 피하지 않았다.",
+          7,
+        );
       }
     }
 
@@ -400,7 +411,13 @@ function EdgeRiftScene() {
     }
 
     // 들어서면 빨려 든다 — 구렁이상을 세우느라 코앞에 서 있었으면 한 번 물러났다 다가서야 한다
-    if (open > 0.6 && (distance > ARM_DISTANCE || since > RIFT_AT + ARM_SECONDS)) isArmed.current = true;
+    if (open > 0.6) {
+      // 틈이 열린 순간 서 있던 자리 — 거기서 걸음을 뗐으면 들어가려는 것이다
+      const here = { x: frame.camera.position.x / M, z: frame.camera.position.z / M };
+      openedAt.current ??= here;
+      const stepped = Math.hypot(here.x - openedAt.current.x, here.z - openedAt.current.z);
+      if (distance > ARM_DISTANCE || stepped > ARM_STEP || since > RIFT_AT + ARM_SECONDS) isArmed.current = true;
+    }
     if (open > 0.6 && isArmed.current && distance < ENTER_RADIUS && startRiftEntry("edge")) {
       // 시선이 틈 너머로 천천히 당겨지고 걷기가 멈춘다. 건너가는 것은 캄캄해진 뒤
       audio.play("우르릉");
@@ -439,7 +456,7 @@ function EdgeRiftScene() {
         : stage === "done"
           ? {
               title: "떨어진 자리",
-              rule: "아랑사가 미끄러져 떨어진 두 바위 사이. 곁의 낮은 바위가 구렁이 모양으로 파였다. 편지의 숨긴 말을 읽었다면 — 함에서 나온 것을 그 자리에 끼운다.",
+              rule: "아랑사가 미끄러져 떨어진 두 바위 사이. 곁의 낮은 바위가 구렁이 모양으로 파였다. 그 모양에 맞는 것을 끼운다.",
               distance: panelDistance,
             }
           : {
@@ -453,6 +470,10 @@ function EdgeRiftScene() {
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     exposeDevHook("najuRiftDev", {
+      /** 구렁이상을 끼우기만 한다 — 기다림은 실제 그대로(틈 진입 시험용) */
+      place: () => {
+        if (cliff.stage() === "done") actions.placeSerpent();
+      },
       /** 구렁이상을 끼우고 기다림 없이 틈을 연다 */
       open: () => {
         if (cliff.stage() === "done") actions.placeSerpent();

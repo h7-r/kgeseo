@@ -4,6 +4,7 @@
  */
 import DialogueLayer from "../dialogue/DialogueLayer";
 import Hotbar from "../puzzles/Hotbar";
+import FilmCaptionHud from "../puzzles/FilmCaptionHud";
 import InteractionHud from "../puzzles/InteractionHud";
 import InteractionLoop from "../puzzles/InteractionLoop";
 import LightBudget from "../puzzles/LightBudget";
@@ -102,6 +103,7 @@ export function PuzzleHud() {
   return (
     <>
       <InteractionHud />
+      <FilmCaptionHud />
       <Hotbar />
       <PullGaugeHud />
       <BreathHud />

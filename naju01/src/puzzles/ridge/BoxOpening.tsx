@@ -19,7 +19,7 @@ import { focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { makeGlowTexture } from "../glowTexture";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor, clearPendingNotices } from "../interaction";
 import { ridge, ridgeBox } from "./ridgeState";
 import { inventory, registerLeftBehind, useHandItem, useHeldItems, useWorldItems } from "../inventory";
 import { createCompressedGltfLoader } from "../../loaders/compressedGlb";
@@ -27,8 +27,19 @@ import { M, groundY } from "../units";
 import { LID, LOCK_AT, LOCK_LENGTH, buildBoxBase, buildBoxLid, BOX, buildBronzeKey, buildPadlock } from "./lockedBox";
 import { bindBoxPhase, type BoxPhase } from "./boxPhase";
 import { PLATFORM } from "./ridgeShape";
-import { SHADOW_PLAY_CUES, SHADOW_PLAY_FADE, SHADOW_PLAY_SECONDS, createShadowPlay } from "./shadowPlay";
+import {
+  SHADOW_PLAY_CAPTIONS,
+  SHADOW_PLAY_CUES,
+  SHADOW_PLAY_FADE,
+  SHADOW_PLAY_SECONDS,
+  createShadowPlay,
+} from "./shadowPlay";
+import { captionAt, setFilmCaption } from "../filmCaption";
 import { makeVertexColorMaterial } from "./vertexPaint";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("box");
+const registerInteractable = interactableFor("box");
 
 /** 함을 실물보다 조금 크게 — 1인칭에서 자물통이 보이게 */
 const BOX_SCALE = 1.5;
@@ -451,6 +462,8 @@ export default function BoxOpening() {
   const startPlay = () => {
     phase.current = "play";
     playTime.current = 0;
+    // 영상 앞의 글은 거둔다 — 자막 동안 줄을 섰다가 영상이 끝난 뒤 뒤늦게 이어 나오지 않게
+    clearPendingNotices();
     cuesFired.current.clear();
     const away = new THREE.Vector3(box.root.position.x - camera.position.x, 0, box.root.position.z - camera.position.z);
     if (away.lengthSq() < 1) camera.getWorldDirection(away).setY(0);
@@ -478,6 +491,8 @@ export default function BoxOpening() {
     playTime.current += Math.min(dt, 1 / 30);
     const t = playTime.current;
     box.play.draw(t);
+    // 자막 — 컷마다 한 줄, 영상 시각에 맞춰
+    setFilmCaption(captionAt(SHADOW_PLAY_CAPTIONS, t));
     // 끝에는 빛이 천천히 약해지고 영상도 함께 옅어진다
     const dim = 1 - THREE.MathUtils.smootherstep(t, SHADOW_PLAY_SECONDS - SHADOW_PLAY_FADE, SHADOW_PLAY_SECONDS);
     const rise = THREE.MathUtils.smootherstep(t, 0, 0.9) * dim;
@@ -495,19 +510,16 @@ export default function BoxOpening() {
     }
     if (t < SHADOW_PLAY_SECONDS) return;
     phase.current = "done";
+    setFilmCaption(null);
     box.play.mesh.visible = false;
     box.beam.visible = false;
     (box.glow.material as THREE.SpriteMaterial).opacity = 0;
     // 화면이 다 돌아온 뒤에 — 영상(12.4 s)이 화면 고정(돌아보기 · 머물기 · 풀기 12.6 s)보다 조금 먼저 끝나 [E] 안내가 조작보다 먼저 떴다(Codex 01)
-    gameSetTimeout(
-      () =>
-        showNotice(
-          "빛이 함으로 가라앉았다. 바닥에 작은 구렁이상 하나가 남아 있다 — 아랑사의 함에 왜 이것이. [E] 로 꺼낸다.",
-          6,
-        ),
-      500,
-    );
+    gameSetTimeout(() => showNotice("함 바닥에 작은 구렁이상 하나가 남아 있다. [E] 로 꺼낸다.", 5), 500);
   };
+
+  // 영상 도중에 이 장면이 내려가도 자막이 남지 않게(남으면 다른 알림이 계속 줄을 선다)
+  useEffect(() => () => setFilmCaption(null), []);
 
   useEffect(() => {
     if (import.meta.env.DEV)

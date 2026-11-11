@@ -18,7 +18,7 @@ import { releasePropColliders } from "../../movement/propColliders";
 import { addDynamicSolid, type DynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
-import { registerInteractable, showNotice } from "../interaction";
+import { actFor, interactableFor, noticeFor } from "../interaction";
 import { makeToonMaterial } from "../materials";
 import { prewarmShaders } from "../prewarm";
 import { setPuzzlePanel } from "../puzzlePanel";
@@ -27,6 +27,11 @@ import { PLATFORM } from "./ridgeShape";
 import { ridge, ridgeQuest } from "./ridgeState";
 import { STORY_CLOSING, STORY_LINES, createStoryBurn, placeStoryPlane, updateStoryBurn } from "./storyBurn";
 import { STUMP_SYMBOLS, makeStumpTopTexture } from "./stumpArt";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("stumps");
+const registerInteractable = interactableFor("stumps");
+const act = actFor("stumps");
 
 /** 이야기 차례 — 해 · 달 · 물결 · 새 · 불 */
 const ANSWER = [0, 1, 2, 3, 4];
@@ -434,7 +439,11 @@ export default function StumpStairs() {
     stairs.isPressQueued = false;
     // 누른 바로 그 장면에 판정이 흔들려도 — 방금까지 서 있던 걸상으로 친다
     const pressedOn = on >= 0 ? on : time - stairs.lastOnAt < 0.4 ? stairs.lastOn : -1;
-    if (isSealed && !ridgeQuest.stairs && pressedOn >= 0 && isPressed) pressStump(stairs.stumps[pressedOn], time);
+    if (isSealed && !ridgeQuest.stairs && pressedOn >= 0 && isPressed)
+      act(() => {
+        pressStump(stairs.stumps[pressedOn], time);
+        return true;
+      });
 
     placeStumps(time, dt);
     showPanel();

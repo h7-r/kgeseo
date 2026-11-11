@@ -21,6 +21,7 @@ import {
   talkOwner,
 } from "../scene/firstScene/npcSpeech";
 import { isLetterOpenNow } from "./cliff/letters";
+import { isFilmCaptionOn } from "./filmCaption";
 import { isPaperOpenNow } from "./ridge/oldPaper";
 
 export interface Interactable {
@@ -54,6 +55,8 @@ export interface Interactable {
   isTalk?: boolean;
   /** 장면 인물의 말 차례 이름(npcSpeech) — 다른 인물이 말하는 중 이 인물을 겨누고 [F] 하면 이쪽으로 바꾼다(switchAimedTalk) */
   talkId?: string;
+  /** 어느 퍼즐(장면)의 물건인가 — 이 물건을 쓰면 다른 퍼즐이 남긴 글은 내린다(noticeFor · interactableFor 가 붙인다) */
+  owner?: string;
 }
 
 const targets = new Map<string, Interactable>();
@@ -133,6 +136,22 @@ let interactionSeq = 0;
 /** 지금 처리 중인 상호작용 번호(처리 밖이면 0) — 아직 성립 전이면 interactionSeq + 1 */
 let runningInteraction = 0;
 let isRunningObject = false;
+/**
+ * 퍼즐(장면)별 글의 주인 — 새 상호작용이 다른 퍼즐의 것이면 앞 퍼즐이 남긴 글(줄 선 것 · 떠 있는 것 · 뒤늦게 쏘는 것)을 내린다
+ * (미르 11/11 「이미 푼 퍼즐의 대사가 다른 퍼즐을 풀러 온 뒤에도 이어져 나온다」). 앞 규칙은 누른 순간의 「반응」끼리만 눌렀고,
+ * 풀이 뒤 시간차로 이어지는 이야기 · 단서 글은 버리지 않고 끝까지 띄웠다.
+ *   runningOwner  지금 처리 중인 상호작용의 주인(겨눈 물건의 owner, 없으면 처리 안에서 쏜 첫 글의 owner)
+ *   activeOwner   마지막으로 성립한 상호작용의 주인(주인 없는 상호작용 — 줍기 · 소지품 — 은 바꾸지 않는다)
+ *   ownerSeq      주인마다 마지막으로 상호작용한 번호 — 한 번도 손대지 않은 퍼즐의 글(다가가면 뜨는 첫 안내)은 지난 글이 아니다
+ */
+let runningOwner: string | undefined;
+let activeOwner: string | undefined;
+const ownerSeq = new Map<string, number>();
+/** 검사용 — 주인 기록을 비운다 */
+export function resetNoticeOwners() {
+  activeOwner = undefined;
+  ownerSeq.clear();
+}
 /** 지금 처리 중인 상호작용 — 뒤늦게 나올 결과가 받아 둔다(처리 밖이면 0) */
 export const currentInteraction = () => runningInteraction;
 
@@ -141,14 +160,24 @@ function commitInteraction() {
   if (!runningInteraction || runningInteraction <= interactionSeq) return;
   interactionSeq = runningInteraction;
   dropOlderReactions();
+  if (runningOwner !== undefined) {
+    // 인물에게 말을 건 것은 「다른 퍼즐로 넘어간 것」이 아니다 — 떠 있는 남의 글만 내리고 주인 기록은 그대로 둔다.
+    // 안 그러면 이야기를 들은 뒤 풀던 퍼즐이 새로 쏘는 다음 할 일(연기 길잡이 등)까지 지난 글로 버려진다(Codex 리뷰 2)
+    if (isRunningObject) {
+      activeOwner = runningOwner;
+      ownerSeq.set(runningOwner, interactionSeq);
+    }
+    dropOtherOwners(runningOwner);
+  }
   if (isRunningObject) interruptTalk();
 }
 
 /** fn 이 실제로 무언가 했으면(true) 상호작용으로 친다. 아무것도 안 했으면 앞 반응 · 말은 그대로 */
-function withInteraction(isObject: boolean, fn: () => boolean): boolean {
+function withInteraction(isObject: boolean, fn: () => boolean, owner?: string): boolean {
   if (runningInteraction) return fn();
   runningInteraction = interactionSeq + 1;
   isRunningObject = isObject;
+  runningOwner = owner;
   try {
     const isDone = fn();
     if (isDone) commitInteraction();
@@ -156,6 +185,7 @@ function withInteraction(isObject: boolean, fn: () => boolean): boolean {
   } finally {
     runningInteraction = 0;
     isRunningObject = false;
+    runningOwner = undefined;
   }
 }
 
@@ -163,10 +193,14 @@ function withInteraction(isObject: boolean, fn: () => boolean): boolean {
 export function pressAimedTalk(): boolean {
   if (!aimedTalk || !isPointerActive() || isCameraFocused()) return false;
   const target = aimedTalk;
-  return withInteraction(false, () => {
-    target.use();
-    return true;
-  });
+  return withInteraction(
+    false,
+    () => {
+      target.use();
+      return true;
+    },
+    target.owner,
+  );
 }
 
 /**
@@ -274,18 +308,24 @@ if (typeof window !== "undefined") {
     "keydown",
     (event) => {
       if (event.code !== "KeyE" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (keyInterceptor?.(event)) {
+      // 가로챈 조작(물레 돌리기 등)도 상호작용이다 — 겨눈 물건의 주인으로 친다(Codex 리뷰 2)
+      const interceptor = keyInterceptor;
+      if (interceptor && withInteraction(true, () => interceptor(event), aimed?.owner)) {
         event.stopImmediatePropagation();
         return;
       }
       if (!isPointerActive() || isCameraFocused()) return;
       const target = aimed;
-      const isUsed = withInteraction(true, () => {
-        if (handHandler?.(target)) return true;
-        if (!target) return false;
-        target.use();
-        return true;
-      });
+      const isUsed = withInteraction(
+        true,
+        () => {
+          if (handHandler?.(target)) return true;
+          if (!target) return false;
+          target.use();
+          return true;
+        },
+        target?.owner,
+      );
       if (!isUsed) return;
       lastObjectUseAt = performance.now();
       event.stopImmediatePropagation();
@@ -315,6 +355,8 @@ export interface NoticeOptions {
   always?: boolean;
   /** 뒤늦게 나온 상호작용 결과 — 그 상호작용(currentInteraction)의 반응으로 친다. 그사이 새 상호작용이 있었으면 버린다 */
   reactionTo?: number;
+  /** 어느 퍼즐(장면)의 글인가(noticeFor 가 붙인다) — 다른 퍼즐로 넘어가면 내린다. 없으면(줍기 · 길 막힘 · 소지품) 지금 규칙 그대로 */
+  owner?: string;
 }
 interface NoticeItem extends NoticeOptions {
   text: string;
@@ -355,6 +397,7 @@ const readSeconds = (item: NoticeItem) => Math.min(item.seconds, Math.max(2, 1.2
  * 「클릭하면 계속」 같은 멈춤 상태 안내는 always 로 이야기 위에도 뜬다
  */
 export const isStoryOnScreen = () =>
+  isFilmCaptionOn() ||
   isPaperOpenNow() ||
   isLetterOpenNow() ||
   isSpeechBoxShown() ||
@@ -365,6 +408,27 @@ const isStillValid = (item: NoticeItem) =>
   (!item.urgent || gameNow() <= item.expiresAt) &&
   (!item.isValid || item.isValid()) &&
   (item.action === undefined || item.action >= interactionSeq);
+
+/**
+ * 다른 퍼즐로 넘어갔다 — 앞 퍼즐이 남긴 글(주인이 다른 것)은 떠 있든 줄 서 있든 내린다. 주인 없는 글 · 멈춤 안내(always)는 둔다.
+ * 급한 글(피해 · 거절)도 주인이 다르면 내린다 — 지금 누른 것의 반응이 먼저다
+ */
+function dropOtherOwners(owner: string) {
+  const isOther = (item: NoticeItem) => !item.always && item.owner !== undefined && item.owner !== owner;
+  for (let i = noticeLine.length - 1; i >= 0; i -= 1) if (isOther(noticeLine[i])) noticeLine.splice(i, 1);
+  if (showing && isOther(showing.item)) hideNotice();
+}
+
+/**
+ * 뒤늦게 쏘는 글(예약 · 매 프레임 · 판정을 기다린 뒤)이 지난 퍼즐의 것인가 — 그 퍼즐을 만진 뒤에 다른 퍼즐을 만졌으면 그렇다.
+ * 한 번도 만지지 않은 퍼즐의 글(다가가면 뜨는 첫 안내 · 앞 퍼즐이 풀려 열린 다음 장치의 안내)은 지난 글이 아니다
+ */
+function isFromLeftPuzzle(owner: string | undefined) {
+  if (owner === undefined || activeOwner === undefined || owner === activeOwner) return false;
+  const mine = ownerSeq.get(owner);
+  const theirs = ownerSeq.get(activeOwner);
+  return mine !== undefined && theirs !== undefined && mine < theirs;
+}
 
 /** 새 상호작용이 성립했다 — 앞 상호작용의 반응은 떠 있든 줄 서 있든 내린다 */
 function dropOlderReactions() {
@@ -456,6 +520,15 @@ function startNoticeTicker() {
 }
 startNoticeTicker();
 
+/**
+ * 떠 있는 알림 · 줄 선 알림을 모두 거둔다(멈춤 안내 always 는 둔다) — 영상이 시작될 때 부른다.
+ * 영상 앞의 글이 자막 동안 줄을 섰다가 영상이 끝난 뒤 뒤늦게 이어 나오지 않게(미르 11/11)
+ */
+export function clearPendingNotices() {
+  noticeLine.length = 0;
+  if (showing && !showing.item.always) hideNotice();
+}
+
 /** 이 글의 알림이 떠 있거나 줄 서 있으면 바로 거둔다 — 기다리던 일이 끝났는데 안내가 남지 않게 */
 export function clearNotice(text: string) {
   for (let i = noticeLine.length - 1; i >= 0; i -= 1) if (noticeLine[i].text === text) noticeLine.splice(i, 1);
@@ -479,7 +552,14 @@ export function showNotice(text: string, seconds = 3.2, options: NoticeOptions =
   for (const listener of noticePostListeners) listener(text);
   // 상호작용 처리 안에서 쏜 알림 · 뒤늦은 결과는 그 상호작용의 반응(멈춤 상태 안내는 빼고)
   const action = options.always ? undefined : (options.reactionTo ?? (runningInteraction || undefined));
-  if (action !== undefined && action === runningInteraction) commitInteraction();
+  if (action !== undefined && action === runningInteraction) {
+    // 겨눈 물건에 주인이 없으면 처리 안에서 쏜 첫 글의 주인이 이 상호작용의 주인이다
+    runningOwner ??= options.owner;
+    commitInteraction();
+  } else if (!options.always && isFromLeftPuzzle(options.owner)) {
+    // 이미 다른 퍼즐로 넘어갔다 — 앞 퍼즐이 예약해 둔 글 · 뒤늦은 글은 띄우지 않는다
+    return;
+  }
   const item: NoticeItem = {
     ...options,
     text,
@@ -537,6 +617,21 @@ export function showNotice(text: string, seconds = 3.2, options: NoticeOptions =
   }
   displayNotice(item);
 }
+
+/** 이 퍼즐(장면)의 글로 쏘는 showNotice — 퍼즐 파일마다 한 번 만들어 쓴다 */
+export const noticeFor =
+  (owner: string) =>
+  (text: string, seconds?: number, options: NoticeOptions = {}) =>
+    showNotice(text, seconds, { owner, ...options });
+
+/**
+ * [E] 가 아닌 퍼즐 조작(밟기 [C] 등)을 이 퍼즐의 상호작용으로 친다 — 안 그러면 주인이 앞 퍼즐로 남아
+ * 이 조작의 실패 · 완료 글이 지난 글로 버려진다(Codex 리뷰 2). fn 이 실제로 무언가 했으면 true
+ */
+export const actFor = (owner: string) => (fn: () => boolean) => withInteraction(true, fn, owner);
+
+/** 이 퍼즐(장면)의 물건으로 등록하는 registerInteractable */
+export const interactableFor = (owner: string) => (target: Interactable) => registerInteractable({ owner, ...target });
 
 /** 알림이 떠 있거나 줄 서 있다 */
 export const isNoticePending = () => showing !== null || noticeLine.length > 0;

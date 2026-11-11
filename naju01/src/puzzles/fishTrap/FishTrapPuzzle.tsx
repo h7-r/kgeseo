@@ -14,7 +14,7 @@ import { gameNow } from "@/engine/input/gameClock";
 import { recall, remember, track } from "../../save/puzzleMemory";
 import { audio } from "../../scene/immersion/audio";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
-import { currentInteraction, registerInteractable, showNotice } from "../interaction";
+import { currentInteraction, interactableFor, noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { makeToonMaterial } from "../materials";
 import { M, groundY } from "../units";
@@ -61,6 +61,10 @@ import {
   type Trap,
 } from "./trapRig";
 import { createWaterSplash } from "./waterSplash";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("fishTrap");
+const registerInteractable = interactableFor("fishTrap");
 
 /** 배치 무리를 다시 찾아보는 간격(초) — 배치 무리가 늦게 서거나 다시 서면 통발도 다시 읽는다 */
 const SCAN_SECONDS = 1;
@@ -302,7 +306,7 @@ export default function FishTrapPuzzle() {
     if (trap.index === CATCHING_TRAP && trap.caught > 0) {
       fishTrapPuzzle.pull();
       audio.play("단서");
-      showNotice("빛 물고기가 든 통발이 올라왔다. 꺼진 화톳불에서 흩어진 불씨들이다.", 3.2, reaction);
+      showNotice("빛 물고기가 든 통발이 올라왔다. 물 밖에서도 불빛이 남아 있다.", 3.2, reaction);
     } else if (rope === SEAWEED_ROPE) {
       audio.play("첨벙");
       showNotice("미역 줄기만 잔뜩 엉켜 올라왔다. 물고기 대신 미역국 거리다.", 3.5, reaction);
@@ -315,7 +319,11 @@ export default function FishTrapPuzzle() {
       drop.y = groundY(drop.x / M, drop.z / M) * M;
       inventory.spawn("strawShoe", drop);
       audio.play("단서");
-      showNotice("통발 안에 큰 짚신 한 짝이 걸려 있었다. 어부의 신이다 — 신코에 물고기 하나가 새겨져 있다.", 5, reaction);
+      showNotice(
+        "통발 안에 큰 짚신 한 짝이 걸려 있었다. 어부의 신이다 — 신코에 물고기 하나가 새겨져 있다.",
+        5,
+        reaction,
+      );
     } else if (pulledEarlyRef.current.has(trap.index)) {
       // 물고기가 들기 전에 건졌다 — 실수(「빈 통발이다」, gameObserver)로 세지 않고 기다리라는 뜻을 준다. 어느 줄이 맞는지는 말하지 않는다
       showNotice(EARLY_PULL_NOTICE, 4, reaction);

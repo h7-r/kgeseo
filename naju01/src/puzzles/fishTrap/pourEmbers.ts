@@ -6,13 +6,16 @@ import * as THREE from "three";
 
 import { audio } from "../../scene/immersion/audio";
 import { makeGlowPoints, type GlowPoints } from "../glowPoints";
-import { showNotice } from "../interaction";
+import { noticeFor } from "../interaction";
 import { inventory } from "../inventory";
 import { M, groundY } from "../units";
 import { FULL_COUNT } from "./fishTrapState";
 import { EMBER } from "./lightFish";
 import { HEARTH } from "./site";
 import type { Trap } from "./trapRig";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("fishTrap");
 
 /** 들어 옮기고 → 기울여 쏟고 → 내려놓기까지(초) */
 export const POUR_SECONDS = 3.6;

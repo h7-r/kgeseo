@@ -17,7 +17,7 @@ import { recall, track } from "../../save/puzzleMemory";
 import { addDynamicSolid } from "../../movement/solidField";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
-import { registerInteractable, showNotice } from "../interaction";
+import { interactableFor, noticeFor } from "../interaction";
 import { makeToonMaterial } from "../materials";
 import { prewarmShaders } from "../prewarm";
 import { setPuzzlePanel } from "../puzzlePanel";
@@ -28,6 +28,10 @@ import { openPaper } from "./oldPaper";
 import { ALTAR, GATE, RIDGE_CENTER } from "./ridgeShape";
 import { ridge, ridgeQuest, useRidgeQuest } from "./ridgeState";
 import { createTorchFire, stripFlame, updateTorchFire } from "./torchFlames";
+
+/** 이 퍼즐(장면)의 글 · 물건 — 다른 퍼즐로 넘어가면 여기서 남긴 글은 내린다(interaction noticeFor · interactableFor) */
+const showNotice = noticeFor("gate");
+const registerInteractable = interactableFor("gate");
 
 /** 고리를 맞춘 뒤 땅이 흔들리는 시간(초) — 끝나면 바람이 잦아든다 */
 const QUAKE_SECONDS = 3;
