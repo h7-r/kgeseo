@@ -69,7 +69,6 @@ export function installVirtualLock(target: PointerLockControls | null | undefine
   controls.__virtualLockPatched = true;
   patchedControls.add(controls);
 
-  const realLock = controls.lock;
   const realUnlock = controls.unlock;
   const realMouseMove = controls.onMouseMove;
   const realLockChange = controls.onPointerlockChange;
@@ -86,7 +85,14 @@ export function installVirtualLock(target: PointerLockControls | null | undefine
     }
     // 잠금이 없는 브라우저에서 원래 lock() 은 TypeError 를 낸다
     if (typeof controls.domElement?.requestPointerLock !== "function") return;
-    realLock();
+    // 원래 lock() 과 같은 요청이되 거절(ESC 직후 · 몸짓 없이 청함)을 받아 둔다 — 원래 것은 약속을 버려 「잡히지 않은 거절」이 되고
+    // index.html 의 에러 수집기가 탭 제목에 「ERR: REJ …」를 찍었다(멈춤 메뉴 ESC 로 돌아가기, 미르 11/11). 거절은 pointerlockerror 로도 온다
+    try {
+      const result = controls.domElement.requestPointerLock() as unknown;
+      if (result instanceof Promise) result.catch(() => {});
+    } catch {
+      // 막는 브라우저 — 기다림(다음 클릭 · 키)으로 넘어간다
+    }
   };
   controls.unlock = () => {
     if (virtualLocked || isTouchMode()) {

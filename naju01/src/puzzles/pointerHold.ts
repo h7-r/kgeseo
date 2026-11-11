@@ -26,6 +26,8 @@ type HoldKind = "interaction" | "window";
 
 /** 다시 잠근 뒤 이만큼 안에 안 잡히면 다음 몸짓을 기다린다(ms) */
 const LOCK_CHECK_MS = 600;
+/** 크롬은 사용자가 ESC 로 잠금을 푼 뒤 약 1.25초 동안 잠금을 거절한다 — 그 뒤에 다시 청한다(본편 pointerResume 과 같은 값) */
+const ESC_COOLDOWN_MS = 1300;
 const HIDDEN_CURSOR_CLASS = "naju-cursor-hidden";
 export const WAITING_NOTICE = "클릭하거나 아무 키나 누르면 이어서 · [Esc] 나가기";
 /** 기다리는 동안 눌러도 잠그지 않는 키 — 창을 여는 키 · 수식키(창은 커서가 필요하다) */
@@ -60,6 +62,9 @@ let isUnlockExpected = false;
 let isWaiting = false;
 /** 복귀하려고 잠금을 청했다 — 거절(pointerlockerror)이면 바로 기다림으로 */
 let isResumeRequested = false;
+/** 마지막으로 ESC 가 눌렸거나 사용자가 잠금을 푼 때 */
+let lastEscapeAt = -Infinity;
+let retryTimer = 0;
 
 type EscapeConsumer = () => boolean;
 const escapeConsumers = new Set<EscapeConsumer>();
@@ -167,6 +172,28 @@ function resumePlay() {
   }, LOCK_CHECK_MS);
 }
 
+/**
+ * 멈춤 메뉴에서 ESC — 게임으로 돌아간다(미르 11/11). ESC 는 몸짓이 아니라 잠금은 대개 거절되고, 그러면 커서를 숨긴 채 다음 클릭 · 키를
+ * 기다린다(게임은 이어진다). 그 기다림에서 ESC 를 또 누르면 「나가기」 — 다시 멈춤 메뉴
+ */
+export function requestResume() {
+  resumePlay();
+}
+
+/**
+ * 기다리는 중에 받은 몸짓(클릭 · 키)으로 잠근다. ESC 직후라 크롬이 거절할 때면 그 시간이 끝나는 순간 한 번 더 청한다 — 방금 몸짓의
+ * 사용자 활성(약 5초)이 아직 살아 있어 잡힌다. 안 그러면 ESC 로 돌아가자마자 W 를 누르고 있어도 다음 새 키까지 서 있었다(19회차 Codex)
+ */
+function lockFromGesture() {
+  requestLock();
+  const wait = lastEscapeAt + ESC_COOLDOWN_MS - performance.now();
+  if (wait <= 0) return;
+  window.clearTimeout(retryTimer);
+  retryTimer = window.setTimeout(() => {
+    if (isWaiting && !isPointerActive()) requestLock();
+  }, wait);
+}
+
 function startWaiting() {
   if (isWaiting || isTouchMode() || isWindowHeld() || !document.hasFocus()) return;
   isWaiting = true;
@@ -177,6 +204,7 @@ function startWaiting() {
 
 function stopWaiting() {
   window.clearTimeout(lockCheckTimer);
+  window.clearTimeout(retryTimer);
   if (!isWaiting) return;
   isWaiting = false;
   syncCursor();
@@ -207,6 +235,7 @@ if (typeof window !== "undefined") {
       return;
     }
     // 페이지가 푼 것이 아니다 — ESC(또는 브라우저가 창 전환으로 푼 것)
+    lastEscapeAt = performance.now();
     let wasBusy = false;
     for (const consumer of escapeConsumers) if (consumer()) wasBusy = true;
     if (wasBusy) startWaiting();
@@ -220,14 +249,16 @@ if (typeof window !== "undefined") {
   window.addEventListener(
     "keydown",
     (event) => {
+      if (event.code === "Escape") lastEscapeAt = performance.now();
       if (!isWaiting) return;
       if (event.code === "Escape") {
-        stopWaiting();
+        // 자동 반복은 받지 않는다 — 멈춤 메뉴를 ESC 로 닫자마자 반복분이 「나가기」가 되어 도로 멈췄다(18회차 Codex)
+        if (!event.repeat) stopWaiting();
         return;
       }
       if (event.repeat || NON_RESUME_KEYS.has(event.code) || event.ctrlKey || event.metaKey) return;
       // 키는 그대로 게임에도 간다(W 면 바로 걷는다)
-      requestLock();
+      lockFromGesture();
     },
     { capture: true },
   );
@@ -237,7 +268,7 @@ if (typeof window !== "undefined") {
       if (!isWaiting || event.button !== 0) return;
       // 화면 단추(설정 등)는 그 단추가 받는다
       if ((event.target as Element | null)?.closest?.("button, input, textarea, select, a, [role='button']")) return;
-      requestLock();
+      lockFromGesture();
     },
     { capture: true },
   );

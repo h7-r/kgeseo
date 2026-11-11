@@ -5,14 +5,22 @@
  * - 화면 가운데 카드 하나. 뒤는 어둡게 덮어 클릭이 게임으로 가지 않는다(바탕을 눌러도 닫지 않는다 — 계속하기는 단추로만).
  * - 첫 초점은 맨 위 단추(계속하기). Enter 는 초점이 간 단추를 누르고, ↑ · ↓ 로 옮긴다. 마우스를 올려도 같은 자리가 밝아진다.
  * - 한 번 더 묻는 항목(종료 · 나가기 · 처음부터)은 카드 안에서 물음으로 바뀌고, 조작표 같은 읽을거리는 카드 안 다른 쪽으로 넘어간다.
- *   그 쪽에서 ESC 는 「뒤로」. 첫 쪽의 ESC 는 아무것도 하지 않는다 — 크롬은 ESC 직후 잠금을 거절하고, ESC 는 몸짓도 아니라 다시 잠글 수 없다.
+ *   그 쪽에서 ESC 는 「뒤로」. 첫 쪽의 ESC 는 「계속하기」(onEscape, 미르 11/11 「다시 한번 esc 를 누르면 게임 재개」).
+ *   다만 ESC 는 몸짓이 아니고 크롬은 ESC 직후 잠금을 거절해 마우스를 바로 잠그지 못한다 — 게임은 바로 이어지고(키로 걷는다)
+ *   마우스 시점은 다음 클릭 · 키에 잠긴다(본편 pointerResume · 나주 pointerHold 의 기다림). 자동 반복(누르고 있기)은 받지 않는다.
  * - 등장은 Web Animations 로 — 게임 밖 쉼(html.game-paused)이 CSS 애니메이션을 세워 첫 장면(투명)에 멎는다(08회차 Codex).
  *   Web Animations 는 animation-play-state 를 따르지 않는다. 움직임을 줄인 환경이면 바로 보인다.
  */
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { NAVY_FILL, PANEL_SHADOW, UI, UI_FONT } from "./gameUi";
-import { setPauseMenuBusy, setPauseMenuOpen } from "./pauseMenuState";
+import {
+  clearPauseFocus,
+  peekPauseFocus,
+  rememberPauseFocus,
+  setPauseMenuBusy,
+  setPauseMenuOpen,
+} from "./pauseMenuState";
 
 export type PauseRunResult = { ok: true } | { ok: false; message: string; forceLabel?: string };
 
@@ -48,6 +56,8 @@ interface PauseMenuProps {
   footer?: ReactNode;
   /** 계속하기가 막혔을 때 등 — 단추 위에 한 줄 */
   notice?: string | null;
+  /** 첫 쪽에서 ESC — 게임으로 돌아간다(계속하기). 없으면 ESC 를 받지 않는다 */
+  onEscape?: () => void;
 }
 
 type View =
@@ -57,7 +67,7 @@ type View =
 
 const BUTTON_SELECTOR = "[data-pause-button]";
 
-export default function PauseMenu({ status, groups, footer, notice }: PauseMenuProps) {
+export default function PauseMenu({ status, groups, footer, notice, onEscape }: PauseMenuProps) {
   const [view, setView] = useState<View>({ kind: "menu" });
   const backdropRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -81,24 +91,43 @@ export default function PauseMenu({ status, groups, footer, notice }: PauseMenuP
     );
   }, []);
 
+  // 메뉴에서 연 창(설정 등)을 닫고 돌아왔으면 그 단추에 — 붙을 때 읽고, 초점을 준 뒤 지운다
+  const [returnFocusId] = useState(peekPauseFocus);
   // 쪽이 바뀌면 첫 단추에 초점 — Enter 가 바로 그것을 누른다. 되돌릴 수 없는 물음(처음부터 다시)은 「취소」에
   useEffect(() => {
     const card = cardRef.current;
+    const returned =
+      view.kind === "menu" && returnFocusId
+        ? card?.querySelector<HTMLButtonElement>(`[data-testid="pause-${returnFocusId}"]`)
+        : null;
     const first =
+      returned ??
       card?.querySelector<HTMLButtonElement>("[data-pause-autofocus]") ??
       card?.querySelector<HTMLButtonElement>(BUTTON_SELECTOR);
     first?.focus({ preventScroll: true });
-  }, [view.kind]);
+    clearPauseFocus();
+  }, [view.kind, returnFocusId]);
 
   const isBusy = view.kind === "confirm" && view.phase === "busy";
   // 하는 중에는 T · P 까지 막는다 — 메뉴가 내려가 그 일이 뒤에서 끝나지 않게(09회차 Codex)
   useLayoutEffect(() => setPauseMenuBusy(isBusy), [isBusy]);
+  const onEscapeRef = useRef(onEscape);
+  useEffect(() => {
+    onEscapeRef.current = onEscape;
+  }, [onEscape]);
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.code === "Escape" && view.kind !== "menu") {
         event.preventDefault();
         event.stopImmediatePropagation();
         if (!isBusy) setView({ kind: "menu" });
+        return;
+      }
+      // 첫 쪽의 ESC = 계속하기 — 게임 쪽 ESC 처리(본편 「밖으로」 등)로 새지 않게 여기서 끝낸다
+      if (event.code === "Escape" && onEscapeRef.current) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!event.repeat) onEscapeRef.current();
         return;
       }
       if (event.code !== "ArrowDown" && event.code !== "ArrowUp") return;
@@ -119,7 +148,11 @@ export default function PauseMenu({ status, groups, footer, notice }: PauseMenuP
   const select = (item: PauseMenuItem) => {
     if (item.confirm) setView({ kind: "confirm", item, confirm: item.confirm, phase: "asking" });
     else if (item.page) setView({ kind: "page", item });
-    else item.onSelect?.();
+    else {
+      // 계속하기 말고(메뉴가 다시 뜨지 않는다) 창을 여는 항목은 돌아올 때 그 단추에 초점
+      if (item.id !== "resume") rememberPauseFocus(item.id);
+      item.onSelect?.();
+    }
   };
 
   const run = async (confirm: PauseConfirm, item: PauseMenuItem, force: boolean) => {

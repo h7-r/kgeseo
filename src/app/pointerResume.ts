@@ -90,12 +90,28 @@ function attempt() {
   }
   isRequestInFlight = true;
   isAcquireCanceled = false;
-  getControls()?.lock();
+  requestLock(getControls());
   window.clearTimeout(checkTimer);
   checkTimer = window.setTimeout(() => {
     isRequestInFlight = false;
     if (state !== "idle" && !isLocked()) setState("waiting");
   }, LOCK_CHECK_MS);
+}
+
+/**
+ * 잠금을 청한다 — controls.lock() 과 같은 요청이되 거절(몸짓 없이 · ESC 직후)을 받아 둔다. 원래 lock() 은 약속을 버려 「잡히지 않은
+ * 거절」이 되고 index.html 의 에러 수집기가 탭 제목에 「ERR: REJ …」를 찍었다(멈춤 메뉴 ESC 로 돌아가기, 미르 11/11).
+ * 거절은 위 확인 타이머가 「기다림」으로 넘긴다
+ */
+function requestLock(controls: PointerLockControls | null) {
+  const element = controls?.domElement as (HTMLElement & { requestPointerLock(): unknown }) | undefined;
+  if (typeof element?.requestPointerLock !== "function") return;
+  try {
+    const result = element.requestPointerLock();
+    if (result instanceof Promise) result.catch(() => {});
+  } catch {
+    // 막는 브라우저 — 기다림(다음 클릭 · 키)으로 넘어간다
+  }
 }
 
 /** 게임 화면으로 돌아간다 — 지금 잠글 수 없으면(ESC 직후) 잠글 수 있게 되는 대로 */
