@@ -764,9 +764,12 @@ export function applyToon(
   };
   const buzzColor = new THREE.Color();
   const tint = ({ skin, cloth, bottom, hair, buzz }: ToonTint) => {
-    // 반삭 색 = 머리색 × 기본 머리 텍스처 평균 — 머리 메시(텍스처 × 머리색)와 같은 밝기로 보인다
-    buzzColor.set(hair ?? "#ffffff");
-    if (referenceHairBase) buzzColor.multiply(referenceHairBase);
+    // 반삭 색 — 머리 메시와 같게 보이게. 「원본」(흰색)이면 기본 머리 텍스처 평균(짙은 갈색), 고른 색이 있으면 그 색 그대로.
+    // 예전엔 늘 「머리색 × 텍스처 평균」이라 머리 메시를 평균 밝기 기준으로 칠한 뒤(_hairNorm)에도 반삭만 무슨 색이든 거의 검게
+    // 남았다(미르 11/11 「머리색을 바꿔도 안 보인다」). 머리 메시도 평균 자리가 고른 색 그대로 나온다
+    const isOriginalHair = !hair || hair.toLowerCase() === "#ffffff";
+    if (isOriginalHair && referenceHairBase) buzzColor.copy(referenceHairBase);
+    else buzzColor.set(hair ?? "#ffffff");
     const bottomColor = (bottom ?? cloth ?? "#ffffff").toLowerCase();
     entries.forEach(({ uniforms, kind, hairBaseKnown, bottomBaseKnown }) => {
       if (skin) uniforms._skinTint.value.set(skin);

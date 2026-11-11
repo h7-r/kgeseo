@@ -63,7 +63,17 @@ const MAX_ZOOM = 1;
  * 당기는 한도는 보기마다(해랑 #92) — 전신은 머리~무릎까지, 이미 가까이 보는 부위는 조금만(더 당기면 한 부분만 화면을 덮는다).
  * 손은 두 손을 나란히 봐야 해서 거의 당기지 않는다(당기면 양쪽 손이 잘린다). 확대한 뒤에는 세로로 끌어 몸을 따라 옮긴다
  */
-const MIN_ZOOM: Record<PreviewView, number> = { full: 0.6, upperBody: 0.8, head: 0.82, feet: 0.82, hands: 0.95 };
+// 머리는 구도를 머리카락 · 어깨까지 넓힌 만큼(11/11) 더 당길 수 있다 — 가장 가까울 때 얼굴 크기는 예전(0.82)과 같다
+const MIN_ZOOM: Record<PreviewView, number> = { full: 0.6, upperBody: 0.8, head: 0.65, feet: 0.82, hands: 0.95 };
+/**
+ * 보기마다 처음 내려다보는 각(라디안) — 머리는 살짝 위에서 봐야 정수리 · 머리 윗면 색이 보인다(미르 11/11 「머리색을 바꿔도
+ * 얼굴만 보인다」). 나머지는 처음 각 그대로
+ */
+const VIEW_PITCH: Partial<Record<PreviewView, number>> = { head: 0.22 };
+const startOrbit = (view: PreviewView): OrbitState => ({
+  ...INITIAL_ORBIT,
+  pitch: VIEW_PITCH[view] ?? INITIAL_ORBIT.pitch,
+});
 
 /** 카메라가 매 프레임 남기는 화면 크기 — 끌기 · 가리킨 곳 확대가 화면 px 을 세계 m 로 바꿀 때 쓴다 */
 interface ViewMetrics {
@@ -225,6 +235,34 @@ interface Measurement {
   /** 몸 아래 · 위 끝 높이(m) — 확대 중 옮길 수 있는 범위 */
   bottom: number;
   top: number;
+  /** 지금 보이는 것 중 가장 높은 곳(머리카락 · 정수리) · 보이는 머리카락 끝(없으면 null) · 어깨선(쇄골) — 머리 보기 구도 */
+  headTop: number;
+  hairBottom: number | null;
+  shoulder: number | null;
+}
+
+/** 보이는가 — 자신과 부모가 다 보일 때(골라 두지 않은 머리 · 옷 메시는 숨겨져 있다) */
+function isShown(object: THREE.Object3D) {
+  for (let node: THREE.Object3D | null = object; node; node = node.parent) if (!node.visible) return false;
+  return true;
+}
+
+const visiblePiece = new THREE.Box3();
+/** 보이는 메시만 — 지금 머리 꼭대기 · 머리카락 끝 */
+function measureVisibleHead(avatar: THREE.Object3D) {
+  let top = -Infinity;
+  let hairBottom = Infinity;
+  avatar.traverse((object) => {
+    const mesh = object as THREE.Mesh;
+    if (!mesh.isMesh || !mesh.geometry || !isShown(mesh)) return;
+    if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+    const box = mesh.geometry.boundingBox;
+    if (!box) return;
+    visiblePiece.copy(box).applyMatrix4(mesh.matrixWorld);
+    top = Math.max(top, visiblePiece.max.y);
+    if (/hair/i.test(mesh.name)) hairBottom = Math.min(hairBottom, visiblePiece.min.y);
+  });
+  return { top, hairBottom: Number.isFinite(hairBottom) ? hairBottom : null };
 }
 
 // 씬에서 캐릭터를 찾아 크기와 주요 부위 위치를 잰다 — 카메라 자리를 정하는 데만 쓴다.
@@ -247,6 +285,7 @@ function measureCharacter(scene: THREE.Scene, heightScale: number): Measurement 
     return bone ? new THREE.Vector3().setFromMatrixPosition(bone.matrixWorld) : null;
   };
   const leftHand = bonePosition("hand_l");
+  const visibleHead = measureVisibleHead(avatar);
   const rightHand = bonePosition("hand_r");
   return {
     height,
@@ -261,6 +300,9 @@ function measureCharacter(scene: THREE.Scene, heightScale: number): Measurement 
     chest: bonePosition("spine_03") ?? new THREE.Vector3(0, height * 0.66, 0),
     bottom: box.min.y,
     top: box.max.y,
+    headTop: Number.isFinite(visibleHead.top) ? visibleHead.top : box.max.y,
+    hairBottom: visibleHead.hairBottom,
+    shoulder: bonePosition("clavicle_l")?.y ?? null,
   };
 }
 
@@ -272,7 +314,17 @@ interface Framing {
 /** 어느 부위를 얼마나 크게 담을지 */
 function computeFraming(view: PreviewView, measured: Measurement): Framing {
   const H = measured.baseHeight;
-  if (view === "head") return { center: measured.head.clone(), height: H * 0.3 };
+  if (view === "head") {
+    // 머리카락까지 다 — 머리 뼈(턱 밑)를 가운데로 담으면 정수리가 잘리고 얼굴만 커서 머리색이 안 보였다(미르 11/11).
+    // 위는 보이는 머리 꼭대기, 아래는 어깨선 — 긴 머리면 머리끝까지(가슴께에서 멈춘다)
+    const top = measured.headTop + H * 0.03;
+    const shoulder = measured.shoulder ?? measured.head.y - H * 0.07;
+    const low = Math.max(measured.chest.y, Math.min(shoulder, measured.hairBottom ?? Infinity) - H * 0.02);
+    return {
+      center: new THREE.Vector3(measured.head.x, (top + low) / 2, measured.head.z),
+      height: (top - low) * 1.08,
+    };
+  }
   // 손은 좌우를 함께 봐야 비교가 된다 — 두 손 사이 거리에 맞춰 물러난다
   if (view === "hands") return { center: measured.hands.clone(), height: Math.max(H * 0.34, measured.handSpan * 1.05) };
   if (view === "feet") return { center: measured.feet.clone(), height: H * 0.26 };
@@ -540,7 +592,12 @@ export default function CharacterPreview({
 }: CharacterPreviewProps) {
   const playerRef = useRef(createStandingState());
   // 카메라 조작값은 여기서 들고, 바깥에는 손잡이만 넘긴다(바깥 ref 를 여기서 바꾸면 추적이 어렵다)
-  const orbit = useRef<OrbitState>({ ...INITIAL_ORBIT });
+  const orbit = useRef<OrbitState>(startOrbit(view));
+  // 「시점 초기화」가 지금 보기의 처음 각으로 돌아가게 — 렌더 중에 ref 를 쓰지 않는다
+  const viewRef = useRef(view);
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
   const metrics = useRef<ViewMetrics | null>(null);
   /** 휠 · 핀치 한 동작 동안 붙든 몸 높이 — 끌기 · 초기화 · 보기 바꿈 · 손을 대고 뗄 때 버린다(앞 동작 기준점을 다시 쓰면 그사이 옮긴 것이 되돌아가 튄다, Codex 06) */
   const anchor = useRef<{ clientY: number; worldY: number; at: number } | null>(null);
@@ -588,7 +645,7 @@ export default function CharacterPreview({
         orbit.current.yaw += radians;
       },
       reset: () => {
-        orbit.current = { ...INITIAL_ORBIT };
+        orbit.current = startOrbit(viewRef.current);
         anchor.current = null;
       },
     });
@@ -602,6 +659,7 @@ export default function CharacterPreview({
     lastView.current = view;
     orbit.current.zoom = INITIAL_ORBIT.zoom;
     orbit.current.lift = 0;
+    orbit.current.pitch = startOrbit(view).pitch;
     anchor.current = null;
   }, [view]);
 
@@ -728,7 +786,8 @@ export default function CharacterPreview({
           heightScale={displayConfig.heightScale ?? 1}
           safeArea={safeArea}
           reduceMotion={reduceMotion}
-          measureKey={displayKey}
+          // 머리 모양이 바뀌어도 다시 잰다 — 머리 보기 구도가 머리카락 꼭대기 · 끝을 따른다
+          measureKey={`${displayKey}|${displayConfig.hair}`}
         />
         <Suspense fallback={null}>
           <ChibiGameAvatar
