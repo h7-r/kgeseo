@@ -284,7 +284,8 @@ export function useMovement(
 
     // ③ 굵기 있는 붐으로 벽까지 밀어 본다
     const radius = config.enabled ? config.boomRadius * UNITS_PER_METER : 0;
-    const target = computeBoomDistance(pivot, back, maxLength, bounds, isBlocked, radius);
+    const chestDrop = config.enabled && config.clearBody ? config.chestDrop * UNITS_PER_METER : 0;
+    const target = computeBoomDistance(pivot, back, maxLength, bounds, isBlocked, radius, chestDrop);
 
     // ④ 접힘은 즉시(한 프레임만 늦어도 벽이 뚫린다) · 펴짐은 천천히
     const previous = boomLength.current;

@@ -61,6 +61,14 @@ interface ThirdPersonConfig {
   fovSpeed: number;
   /** 끄면 단순 붐(피벗 = 눈 · 어깨 0 · 굵기 없는 붐) */
   enabled: boolean;
+  /**
+   * 몸이 가려지지 않게 — 카메라에서 가슴까지의 시선이 가구에 막히면 그 앞까지 당긴다.
+   * 붐은 머리 위 높이로만 막힘을 봐서, 어깨 높이 가구(코르크판)가 사이에 끼면 머리만 보이고 몸이 통째로 가려졌다(11/11 점검).
+   * 시험값 — 콘솔에서 __game.thirdPersonConfig.clearBody = false 로 끄고 비교한다
+   */
+  clearBody: boolean;
+  /** 피벗(머리 위)에서 가슴까지 내려가는 높이(미터) — 책상 · 의자 등받이보다는 높게 */
+  chestDrop: number;
 }
 
 export const thirdPersonConfig: ThirdPersonConfig = {
@@ -74,6 +82,10 @@ export const thirdPersonConfig: ThirdPersonConfig = {
   fov: 64,
   fovSpeed: 4,
   enabled: true,
+  // 시험 결과(11/11) — 판이 정말 사이에 끼면 잘 당기지만, 가구의 막힘 상자가 실제 모양보다 커서(비스듬히 선 판은 네모 상자로 잡힌다)
+  // 판이 옆에 있을 뿐인데도 당겨져 플레이어가 화면 밖으로 빠진다. 그래서 꺼 둔다 — 정확한 모양으로 판정하게 되면 켠다
+  clearBody: false,
+  chestDrop: 0.6,
 };
 
 exposeDevHook("thirdPersonConfig", thirdPersonConfig);
@@ -162,6 +174,10 @@ export function reportBoomLength(distance: number) {
  * 씬의 경계·막힘 판정을 그대로 쓴다. 등을 벽에 붙이면 0 이 나온다.
  * radius 는 붐의 굵기 — 선 하나로 밀면 근평면 모서리가 벽을 뚫어 옆방이 보인다.
  */
+/** 가슴 시선을 짚는 간격 · 가슴에서 이만큼 떨어진 데부터(유닛) */
+const SIGHT_STEP = 0.5;
+const SIGHT_START = 1.0;
+
 export function computeBoomDistance(
   pivot: THREE.Vector3,
   back: THREE.Vector3,
@@ -169,6 +185,8 @@ export function computeBoomDistance(
   boundsAt: BoundsAt | undefined,
   isBlocked: BlockTest | undefined,
   radius = 0,
+  /** 0 보다 크면 — 카메라에서 이만큼 아래(가슴)까지의 시선도 트여 있어야 한다(유닛) */
+  chestDrop = 0,
 ): number {
   const step = 0.25;
   const bounds = boundsAt ? boundsAt(pivot) : null;
@@ -205,9 +223,23 @@ export function computeBoomDistance(
     startZ = Math.min(Math.max(startZ, inner.minZ), inner.maxZ);
   }
 
+  // 가슴에서 카메라 자리(d)까지의 시선이 트였나 — 가운데 선만, 성긴 간격으로 짚는다(가슴 바로 앞은 제 몸이라 건너뛴다)
+  const chestY = pivot.y - chestDrop;
+  const isChestSeen = (d: number) => {
+    if (chestDrop <= 0 || !isBlocked) return true;
+    const cameraY = pivot.y + back.y * d;
+    for (let t = SIGHT_START; t < d; t += SIGHT_STEP) {
+      const y = chestY + ((cameraY - chestY) * t) / d;
+      if (isBlocked(startX + back.x * t, startZ + back.z * t, y)) return false;
+    }
+    return true;
+  };
+
   let reachable = 0;
   for (let d = step; d <= maxDistance; d += step) {
     if (blockedAt(startX + back.x * d, startZ + back.z * d, pivot.y + back.y * d)) break;
+    // 가구가 가슴 시선을 가리면 그 앞에서 멈춘다 — 더 물러나도 계속 가려진다
+    if (!isChestSeen(d)) break;
     reachable = d;
   }
   if (reachable === 0) boomState.collapsedFrames += 1;
