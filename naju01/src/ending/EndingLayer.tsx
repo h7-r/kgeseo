@@ -4,6 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { isGamePausedFlag } from "@/engine/input/gamePause";
 import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import { isGameSaveEnabled } from "@/save/gameSave";
 
@@ -93,7 +94,8 @@ function EndingFilm() {
       for (let at = 0; at < shot.from; at += 0.25) film.draw(at);
     }
     const tick = (now: number) => {
-      played += Math.min(0.1, Math.max(0, (now - last) / 1000));
+      // 터치 「멈춤」(앱 전환 · 세로로 돌림) 동안은 필름도 선다 — 세계가 창 때문에 언 것(PC)과는 따로(Codex 리뷰)
+      if (!isGamePausedFlag()) played += Math.min(0.1, Math.max(0, (now - last) / 1000));
       last = now;
       if (film && shot.kind === "film") film.draw(Math.min(shot.to, shot.from + played * (shot.speed ?? 1)));
       if (played >= duration && !isDone) {
@@ -135,9 +137,11 @@ function EndingFilm() {
       keyDownAt.current = performance.now();
       hold.start();
     };
+    // 놓음은 필름 키만 잡는다 — 이동 키를 쥔 채 필름이 열렸을 때 그 놓음을 삼키면 강가로 돌아가 혼자 걷는다(Codex 리뷰)
     const onKeyUp = (event: KeyboardEvent) => {
+      if (!isSkipKey(event)) return;
       event.stopImmediatePropagation();
-      if (!isSkipKey(event) || !keyDownAt.current) return;
+      if (!keyDownAt.current) return;
       const heldFor = performance.now() - keyDownAt.current;
       keyDownAt.current = 0;
       hold.cancel();
@@ -261,7 +265,7 @@ function swallowNextClick() {
   window.setTimeout(() => window.removeEventListener("click", swallow, { capture: true }), 600);
 }
 
-/** 엔딩 음악 — 설정의 「배경음악」 크기로, 들어올 때 · 나갈 때 천천히. 탭을 숨기면 멈춘다 */
+/** 엔딩 음악 — 설정의 「배경음악」 크기로, 들어올 때 · 나갈 때 천천히. 탭을 숨기거나 터치 「멈춤」이면 쉰다 */
 function useEndingMusic() {
   useEffect(() => {
     const audio = new Audio(ENDING_MUSIC.url);
@@ -277,13 +281,16 @@ function useEndingMusic() {
       if (t < 1) raf = requestAnimationFrame(fadeIn);
     };
     raf = requestAnimationFrame(fadeIn);
-    const onVisibility = () => {
-      if (document.hidden) audio.pause();
-      else void audio.play().catch(() => {});
+    const sync = () => {
+      const shouldPlay = !document.hidden && !isGamePausedFlag();
+      if (!shouldPlay && !audio.paused) audio.pause();
+      else if (shouldPlay && audio.paused && !audio.ended) void audio.play().catch(() => {});
     };
-    document.addEventListener("visibilitychange", onVisibility);
+    const syncTimer = window.setInterval(sync, 250);
+    document.addEventListener("visibilitychange", sync);
     return () => {
-      document.removeEventListener("visibilitychange", onVisibility);
+      window.clearInterval(syncTimer);
+      document.removeEventListener("visibilitychange", sync);
       cancelAnimationFrame(raf);
       const from = audio.volume;
       const outAt = performance.now();
@@ -309,6 +316,17 @@ function ClearScreen({ leaveAction }: EndingLayerProps) {
   const [isConfirmingRestart, setIsConfirmingRestart] = useState(false);
   const isSaving = isGameSaveEnabled();
   const playTime = formatPlayTime(playClock.elapsed());
+
+  // 기차 · 로비로 간 뒤 브라우저 「뒤로」로 이 페이지가 캐시에서 되살아나면 단추를 다시 쓸 수 있게(PauseMenu 와 같게, Codex 리뷰)
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      setBusy(null);
+      setFailure(null);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
   // 클리어 화면에서도 게임 단축키가 뒤로 새지 않게(Esc 는 다시 묻기만 닫는다)
   useEffect(() => {

@@ -1,4 +1,5 @@
-/* 나주 엔딩 — 끝 연출 자막 띠 · 전체화면 필름 · 클리어 화면 + 현장 방문 창. 게임 HUD(950대)보다 위, 로딩 덮개(3000)보다 아래 */
+/* 나주 엔딩 — 끝 연출 자막 띠 · 전체화면 필름 · 클리어 화면 + 현장 방문 창.
+   게임 HUD(950대)보다 위, 터치 「눌러서 계속」 문(MobileGate 1000 · 1001)과 로딩 덮개(3000)보다 아래 — 멈춘 뒤 돌아올 문을 가리지 않게 */
 
 :root {
   --naju-ending-ink: #f3ead6;
@@ -14,7 +15,7 @@
 .naju-ending-band {
   position: fixed;
   inset: 0;
-  z-index: 2400;
+  z-index: 985;
   pointer-events: none;
 }
 .naju-ending-band__bar {
@@ -68,7 +69,7 @@
 .naju-ending-film {
   position: fixed;
   inset: 0;
-  z-index: 2500;
+  z-index: 990;
   background: #000;
   color: var(--naju-ending-ink);
   font-family: var(--naju-ending-font);
@@ -268,7 +269,7 @@
 .naju-ending-clear {
   position: fixed;
   inset: 0;
-  z-index: 2500;
+  z-index: 990;
   display: flex;
   align-items: center;
   justify-content: center;

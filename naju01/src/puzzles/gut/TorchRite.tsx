@@ -20,7 +20,7 @@ import { exposeDevHook } from "@/debug/devHooks";
 import { addDynamicSolid } from "../../movement/solidField";
 import { ending } from "../../ending/endingState";
 import { recall, track } from "../../save/puzzleMemory";
-import { endCameraFocus, focusCamera } from "../../scene/cameraFocus";
+import { cancelCameraFocus, cameraFocusId, focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { CLEARED_SKY, focus } from "../../scene/immersion/focusFog";
@@ -390,7 +390,9 @@ function TorchRiteScene() {
         ),
       );
       later(FINALE.endAt + FILM_AFTER, () => {
-        endCameraFocus(FINALE_FOCUS.rings);
+        // 어느 구간에 있든 거둔다 — 프레임이 느리면 고정은 프레임 시간으로 흘러 아직 소반 구간일 수 있다(Codex 리뷰)
+        const focusId = cameraFocusId();
+        if (focusId === FINALE_FOCUS.table || focusId === FINALE_FOCUS.rings) cancelCameraFocus();
         ending.openFilm();
       });
     };
