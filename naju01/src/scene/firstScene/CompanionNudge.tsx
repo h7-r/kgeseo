@@ -13,7 +13,9 @@ import { COMPANION_NAME, companionDialog, IS_COMPANION_ENABLED } from "../../com
 import { isCompanionIntro } from "../../companion/companionStage";
 import { playerPose } from "../../movement/playerPose";
 import { regionAt } from "../../movement/regions";
+import { isDockSealed } from "../../movement/stageGates";
 import {
+  collectDockLeftovers,
   DOCK_GATE_MOUTH,
   DOCK_GATE_REARM_METERS,
   isDockGateHeldByFish,
@@ -60,7 +62,10 @@ export default function CompanionNudge({ enabled }: { enabled: boolean }) {
     checkClock.current += delta;
     if (checkClock.current >= CHECK_SECONDS) {
       checkClock.current = 0;
-      if (regionAt(playerPose.x, playerPose.z) === "바위아래") markDockGatePassed();
+      const region = regionAt(playerPose.x, playerPose.z);
+      if (region === "바위아래") markDockGatePassed();
+      // 나루터가 닫힌 뒤 나루터 땅에 두고 온 물건은 바위 아래로 가져온다(돌아가지 못하니 — 미르 11/11)
+      if (region === "바위아래" && isDockSealed()) collectDockLeftovers(playerPose.x, playerPose.z);
       const fromMouth = Math.hypot(playerPose.x - DOCK_GATE_MOUTH.x, playerPose.z - DOCK_GATE_MOUTH.z);
       if (fromMouth > DOCK_GATE_REARM_METERS) rearmDockNudge();
       restoreLostFish(offeredSoFar());

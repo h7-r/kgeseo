@@ -16,7 +16,8 @@ import { regionAt, type Region } from "../movement/regions";
 import { recall, remember } from "../save/puzzleMemory";
 import { fishTrapPuzzle } from "./fishTrap/fishTrapState";
 import { HEARTH } from "./fishTrap/site";
-import { inventory, ITEMS, withObjectParticle, type ItemKind } from "./inventory";
+import { showNotice } from "./interaction";
+import { inventory, ITEMS, withObjectParticle, type ItemKind, type WorldItem } from "./inventory";
 import { jarPuzzle } from "./jars/jarState";
 import { makgeolliBottle } from "./makgeolli/makgeolliState";
 import { ritual } from "./ritual/ritualState";
@@ -191,6 +192,21 @@ export function restoreLostFish(offered: ReadonlySet<ItemKind>) {
 /** 소반에 오른 제물(저장된 것) — 소반이 없을 때(나루터) 읽는다 */
 export const offeredSoFar = (): ReadonlySet<ItemKind> =>
   new Set<ItemKind>(ritual.isAtLeast("rising") ? OFFERINGS : recall<ItemKind[]>("ritual.offered", []));
+
+const isDroppedAtDock = (item: WorldItem) => item.isDropped === true && regionOfItem(item.position) === "나루터";
+
+/**
+ * 나루터가 닫힌 뒤(바위 아래에 넘어와 있음 — 부르는 쪽이 본다) 나루터 땅에 내려놓은 물건은 바위 아래로 가져온다. 문이 나루터로 못 돌아가게
+ * 막아, 옛 저장에서 나루터에 두고 온 필수품(큰 진주 · 뜬 돌 등)을 못 찾아 막히는 일이 없게(나주지역막기 02회차 Codex). 경계 너머로
+ * 내려놓은 것도 같다. 소지품에 자리가 있으면 소지품으로, 없으면 발치에. 가져온 것이 있으면 알린다
+ */
+export function collectDockLeftovers(x: number, z: number) {
+  if (!inventory.world().some(isDroppedAtDock)) return;
+  const brought = inventory.bringAlong(x, z, isDroppedAtDock);
+  if (brought.length === 0) return;
+  const names = [...new Set(brought)].map((kind) => ITEMS[kind].name).join(" · ");
+  showNotice(`나루터에 두고 온 ${names}도 챙겼다.`, 3.5);
+}
 
 /**
  * 아직 소반에 안 올린 제물이 나루터 땅에 있나 — 있으면 바위 아래에서 나루터로 돌아가는 길을 열어 둔다(stageGates, 미르 11/11

@@ -185,17 +185,23 @@ export const inventory = {
     return true;
   },
 
-  /** 돌아올 수 없는 곳을 떠날 때 — 버려 둔 물건을 챙긴다. 다 못 챙기면 도착지(x, z) 곁에 나란히 놓는다 */
-  bringAlong(x: number, z: number) {
-    leftBehindCollectors.forEach((collect) => collect());
+  /**
+   * 돌아올 수 없는 곳을 떠날 때 — 버려 둔 물건을 챙긴다. 다 못 챙기면 도착지(x, z) 곁에 나란히 놓는다. 챙긴 것의 종류를 돌려준다.
+   * only 를 주면 그 물건만(물건이 아닌 모습으로 놓인 것은 챙기지 않는다) — 닫힌 나루터 땅에 두고 온 것만 가져올 때(leftBehind)
+   */
+  bringAlong(x: number, z: number, only?: (item: WorldItem) => boolean): ItemKind[] {
+    if (!only) leftBehindCollectors.forEach((collect) => collect());
     let spare = 0;
+    const brought: ItemKind[] = [];
     world = world.flatMap((item) => {
-      if (!item.isDropped) return [item];
+      if (!item.isDropped || (only && !only(item))) return [item];
+      brought.push(item.kind);
       if (stash({ uid: item.uid, kind: item.kind })) return [];
       const spotX = x + 0.5 * (spare++ - 1);
       return [{ ...item, position: new THREE.Vector3(spotX * M, groundY(spotX, z + 1) * M, (z + 1) * M) }];
     });
     signal.notify();
+    return brought;
   },
 
   /** 소지품에서 꺼내 손에 든다. 이미 든 것이 있으면 그것은 소지품으로 돌아간다 */

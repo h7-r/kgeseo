@@ -81,6 +81,9 @@ const BACK_TO_DOCK_NOTICE = "나루터 일은 다 마쳤다. 지나온 길로 �
 const isBackToDockBlocked = (to: Region, from: Region) =>
   to === "나루터" && from !== "나루터" && IS_REGION_OPEN.바위아래() && !hasUnofferedOfferingAtDock();
 
+/** 나루터가 닫혔나(바위 아래가 열렸다) — 나루터 땅에 두고 온 물건을 가져올 때(CompanionNudge → leftBehind.collectDockLeftovers) */
+export const isDockSealed = () => !isForcedOpen && IS_REGION_OPEN.바위아래();
+
 /** 지금 자리(from)에서 그 자리로 갈 수 없나. 막히면 안내를 띄운다 */
 export function gateBlockedAt(x: number, z: number, fromX: number, fromZ: number): boolean {
   // 증언 능선의 바람 장막 — 내려가는 길·올라가는 길·떨어지는 비탈 모두 장막 밖이다
