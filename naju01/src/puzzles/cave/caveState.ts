@@ -139,9 +139,17 @@ export const cave = {
     if (z < DOOR.z - radius) return x - radius < HALL.x[0] || x + radius > HALL.x[1] ? "동굴 벽" : null;
     const inDoorway = Math.abs(x - DOOR.x) + radius <= DOOR.halfWidth;
     if (z < PASSAGE.z[1]) return isDoorOpen && inDoorway ? null : "고리문";
+    // 받침을 다 맞히기 전 받침 줄 너머는 캄캄한 어둠이다 — 그 안에서 헤매며 멈춘 것처럼 되지 않게 몸을 막는다(11/11 플레이테스트)
+    if (chamberBackLimitZ !== null && z + radius > chamberBackLimitZ) return "받침 너머 어둠";
     if (z + radius <= INNER.z[1]) return x - radius < INNER.x[0] || x + radius > INNER.x[1] ? "석실 벽" : null;
     return "석실 벽";
   },
+};
+
+/** 석실 받침 줄 너머를 막는 선(z, 미터). 받침을 다 맞히기 전에만 InnerChamber 가 건다 — null 이면 막지 않는다 */
+let chamberBackLimitZ: number | null = null;
+export const setChamberBackLimit = (z: number | null) => {
+  chamberBackLimitZ = z;
 };
 
 /** 물굴 안 소품의 둥근 충돌 자리(미터) — 석상 · 받침 · 등 · 비석 · 바위 틈 같은 것을 몸이 뚫고 지나가지 않게 */

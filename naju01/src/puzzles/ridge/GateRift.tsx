@@ -27,6 +27,8 @@ import { ridge, ridgeBox, useRidgeStage } from "./ridgeState";
 const NEXT_STAGE = { x: 52, z: 11, heading: "+Z" as const };
 /** 틈 가운데에서 이만큼(m) 안에 들어서면 빨려 든다 */
 const ENTER_RADIUS = 1.1;
+/** 틈이 열리기 전(함에 볼일이 남음) 까닭을 알리는 거리(m) — 장승 문 앞에 서면 */
+const WAITING_NOTICE_RADIUS = 3;
 /** 함 속의 것을 챙기기 전 틈 앞에 섰을 때의 알림 — 들어설 때 한 번, 이 간격(ms) 안에는 되풀이하지 않는다 */
 const HOLD_NOTICE_GAP_MS = 6000;
 
@@ -159,6 +161,16 @@ export default function GateRift() {
         });
       }
       hold.current.wasInside = isInside;
+    }
+    // 새들이 떠났는데 함 속 구렁이상을 아직 안 챙겼으면 틈이 열리지 않는다(RidgeBirds) — 문 앞에 선 사람에게 까닭을 알린다.
+    // 이 안내가 없을 땐 「3스테이지가 끝났는데 틈이 사라졌다」로 보였다(11/11 플레이테스트).
+    if (now === "leaving" && ridge.elapsed() > 6 && !ridgeBox.isEmptied) {
+      const dx = frame.camera.position.x / M - GATE.center.x;
+      const dz = frame.camera.position.z / M - GATE.center.z;
+      if (Math.hypot(dx, dz) < WAITING_NOTICE_RADIUS && gameNow() - hold.current.noticedAt > HOLD_NOTICE_GAP_MS) {
+        hold.current.noticedAt = gameNow();
+        showNotice("장승 사이가 일렁이다 멎는다 — 아랑사의 함에 아직 볼일이 남았다.", 4, { fleeting: true });
+      }
     }
     if (!hasCrossed.current && riftEntrySince("gate") >= RIFT_ENTRY.warpIn) {
       hasCrossed.current = true;

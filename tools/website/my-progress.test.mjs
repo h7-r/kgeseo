@@ -61,7 +61,11 @@ test("사건 소지품 — 나주 주머니 · 손에 든 것을 이름으로 �
         world: [{ uid: 5, kind: "makgeolli", position: [0, 0, 0] }],
         nextUid: 6,
       },
-      "main.inventory": [{ id: "oldKey", name: "낡은 열쇠", category: "열쇠", description: "녹슨 열쇠" }],
+      "main.inventory": [
+        { id: "oldKey", name: "낡은 열쇠", category: "열쇠", description: "녹슨 열쇠" },
+        // 예전 운영 저장본에 섞인 개발용 표본 — 보이면 안 된다
+        { id: "DEV_NOTE_01", name: "구겨진 쪽지", category: "기록" },
+      ],
     }),
     [],
     null,

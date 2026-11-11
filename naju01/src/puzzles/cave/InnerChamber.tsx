@@ -35,6 +35,7 @@ import {
   clearBreathAfterLeaving,
   guardBreathFor,
   holdBreathWhileLeaving,
+  setChamberBackLimit,
 } from "./caveState";
 import { createChamberAssets, disposeChamberAssets } from "./chamberArt";
 import {
@@ -98,6 +99,11 @@ export default function InnerChamber() {
   const [isScaleTaken, setIsScaleTaken] = useRememberedState("chamber.isScaleTaken", false);
   /** 큰 진주로 홈을 밝혔나 — 그때부터 비늘이 떠오른다 */
   const [isShone, setIsShone] = useRememberedState("chamber.isShone", false);
+  // 받침을 다 맞히기 전엔 받침 줄 너머(어둠)로 못 들어가게 막는다 — 들어가면 캄캄한 채 헤매 멈춘 것처럼 보였다(11/11)
+  useEffect(() => {
+    setChamberBackLimit(isShown && !isSolved ? BACK_DARK_Z - 0.2 : null);
+    return () => setChamberBackLimit(null);
+  }, [isShown, isSolved]);
   // 석실에 처음 들어서 아치 위 벽화를 한 번 돌아봤나 — 다 본 뒤에 적는다(다른 연출에 밀려 못 봤으면 다음에 다시)
   const [isMuralGlanced, setIsMuralGlanced] = useRememberedState("chamber.muralGlanced", false);
   const muralGlance = useRef<"idle" | "focusing" | "done">(isMuralGlanced ? "done" : "idle");

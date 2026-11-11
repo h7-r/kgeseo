@@ -73,8 +73,11 @@ export const useInventory = () => {
 
 exposeDevHook("inventory", inventory);
 
-// 개발용 표본 — 지금은 소지품 창을 눈으로 확인할 방법이 이것뿐이다.
+// 개발용 표본 — 개발 서버에서만 소지품 창을 눈으로 확인하려고 넣는다. 운영에는 넣지 않는다(11/11 플레이테스트:
+// 「얻은 적 없는 낡은 열쇠 · 구겨진 쪽지 · 압수 목록이 들어 있다」).
 // 서버가 붙으면 계약의 clue_acquired 가 inventory.add() 를 부르고, 이 표본과 useDevInventorySeed() 는 지운다.
+/** 표본 물건의 id 머리 — 예전 저장본에 섞여 들어간 것을 복원할 때 걸러 낸다 */
+export const DEV_ITEM_PREFIX = "DEV_";
 const DEV_INVENTORY_SEED: InventoryItemInput[] = [
   {
     id: "DEV_KEY_01",
@@ -98,6 +101,7 @@ const DEV_INVENTORY_SEED: InventoryItemInput[] = [
 
 export function useDevInventorySeed() {
   useEffect(() => {
+    if (!import.meta.env.DEV) return;
     // silent — 접속하자마자 소지품 창이 튀어나오지 않게. 서버 복원분도 이 길로 들어온다.
     inventory.addMany(DEV_INVENTORY_SEED, { silent: true });
   }, []);
