@@ -8,6 +8,7 @@ import * as THREE from "three";
 
 import { gameNow } from "@/engine/input/gameClock";
 import { isGameFrozen } from "@/engine/input/gamePause";
+import { isBlockedByPauseMenu } from "@/game/pauseMenuState";
 import { isPointerActive } from "@/engine/input/virtualLock";
 import { createChangeSignal } from "@/lib/changeSignal";
 
@@ -308,6 +309,9 @@ if (typeof window !== "undefined") {
     "keydown",
     (event) => {
       if (event.code !== "KeyE" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+      // 멈춤 메뉴가 떠 있으면 그 E 는 메뉴의 「계속하기」다 — 이 듣기가 메뉴보다 먼저 걸려 있어 여기서 비킨다.
+      // 가로채기(물레)는 잠금을 보지 않아 메뉴 위에서도 돌기 시작했다(자리 다시 잡기 03회차 Codex)
+      if (isBlockedByPauseMenu(event.code)) return;
       // 가로챈 조작(물레 돌리기 등)도 상호작용이다 — 겨눈 물건의 주인으로 친다(Codex 리뷰 2)
       const interceptor = keyInterceptor;
       if (interceptor && withInteraction(true, () => interceptor(event), aimed?.owner)) {
