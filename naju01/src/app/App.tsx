@@ -338,6 +338,13 @@ export default function App() {
     if (!hasLockedOnce || IS_REVIEW_REQUESTED) return;
     if (gutStage === "dawn" && !ending.isSeen() && ending.phase() === "off") ending.openFilm();
   }, [hasLockedOnce, gutStage]);
+  // (개발 서버) ?ending=film · ?ending=clear — 시작하면 바로 엔딩 필름 · 클리어 화면(화면 확인용, 굿 진행은 그대로)
+  useEffect(() => {
+    if (!import.meta.env.DEV || !hasLockedOnce) return;
+    const preview = new URLSearchParams(window.location.search).get("ending");
+    if (preview === "film") ending.openFilm();
+    else if (preview === "clear") ending.openClear();
+  }, [hasLockedOnce]);
   useWindowHold("inventory", isInventoryOpen);
   useWindowHold("hintBox", isHintBoxOpen);
   // 동행 입력은 제 손으로 풀고(열 때 잠겨 있었으면 ESC 로 닫으며) 다시 잠근다 — 여기서는 다른 길로 열렸을 때만 풀어 둔다
