@@ -19,6 +19,7 @@ import {
   FovCap,
   FpsBadge,
   MobileGate,
+  FrozenRedraw,
   PauseClockGuard,
   SHOW_FPS,
   TouchHud,
@@ -411,6 +412,8 @@ export default function App() {
         <Preload all />
         <PerformanceMeter visible={showMeter} />
         <PauseClockGuard />
+        {/* 멈춘 동안 캔버스 크기 · 픽셀비가 바뀌면 한 장면 다시 — 안 그리면 메뉴 · 창 뒤가 까맣다(미르 11/11) */}
+        <FrozenRedraw />
         <TouchLook controlsRef={controlsRef} />
         <FovCap />
 

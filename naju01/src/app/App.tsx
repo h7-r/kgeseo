@@ -27,6 +27,7 @@ import {
   FpsBadge,
   isPointerActive,
   MobileGate,
+  FrozenRedraw,
   PauseClockGuard,
   SHOW_FPS,
   TouchHud,
@@ -395,6 +396,8 @@ export default function App() {
             {/* 씬 뒤에 둔다 — 붙는 순서대로 효과가 돌아 씬의 재질이 다 선 다음에 데운다 */}
             <Preload all />
             <PauseClockGuard />
+            {/* 멈춘 동안 캔버스 크기 · 픽셀비가 바뀌면 한 장면 다시 — 안 그리면 메뉴 뒤가 까맣다(미르 11/11 물굴 ESC 암전) */}
+            <FrozenRedraw />
             <FovCap />
             {/* 붙자마자 걷으면 셰이더 컴파일·첫 업로드가 걸린 프레임을 그대로 보게 된다 */}
             <FirstFrameSignal frames={3} onFirstFrame={() => setIsSceneDrawn(true)} />

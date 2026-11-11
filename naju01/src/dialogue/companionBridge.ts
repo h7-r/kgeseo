@@ -160,9 +160,10 @@ export interface PuzzleSight {
  *                       없고 구역에 막 들어섰으면 상황 없는 턴
  *   표시할 수 없는 때(canDisplay 거짓) 상황 · 구역 진입은 버린다 — 구역은 기억만 해 두어 나중에 「막 들어섰다」로 보내지 않는다(§11-2)
  *   퍼즐 폴링           지금 목표가 서버 퍼즐(puzzleFocusOf 가 대표 Object 를 줌)이면, 그 목표가 된 때부터 pollMs 마다 상황 없이
- *                       focus_object_id 만 실은 턴. 표시할 수 없거나 · 응답 대기 중이거나 · 쉬는 중(canPoll 거짓)이면 보내지 않고
- *                       때가 지난 채 기다렸다가 그런 때가 풀리면 보낸다. 목표가 바뀌면 처음부터 센다. 한 번에 턴 하나 —
- *                       상황 · 구역 진입이 먼저다
+ *                       focus_object_id 만 실은 턴. canDisplay 와는 따로 canPoll 로만 막는다 — 응답 대기 · 쉬는 중 · 멈춤 · 집중 연출
+ *                       (isQuietTime)이면 보내지 않고 때가 지난 채 기다렸다가 풀리면 보낸다. 물건을 만지는 중(canDisplay 를 거짓으로
+ *                       만드는 것)은 막지 않는다 — 오답을 되풀이하는 사람에게 넛지가 못 갔다(미르 11/11). 걷고 있어도 목표가 그대로면
+ *                       pollMs 마다 간다. 목표가 바뀌면 처음부터 센다. 한 번에 턴 하나 — 상황 · 구역 진입이 먼저다
  */
 export function createAutoTurnPlanner(options: {
   sendSituation: boolean;
@@ -190,15 +191,14 @@ export function createAutoTurnPlanner(options: {
         pollObjective = puzzle.objective;
         pollFrom = puzzle.now;
       }
-      if (!canDisplay) return null;
-      const payload = options.sendSituation && situation ? toSituationPayload(situation) : null;
+      const payload = canDisplay && options.sendSituation && situation ? toSituationPayload(situation) : null;
       if (payload && situation) {
         const plan: AutoTurnPlan = { situation: toSituationRequest(payload, options.zoneIdOf) };
         const focus = situation.objective ? (options.focusIdOf?.(situation.objective) ?? null) : null;
         if (focus) plan.focusObjectId = focus;
         return plan;
       }
-      if (isZoneEntry) return { situation: null };
+      if (canDisplay && isZoneEntry) return { situation: null };
       const focus = puzzle?.objective ? (options.puzzleFocusOf?.(puzzle.objective) ?? null) : null;
       if (!puzzle || !focus || !puzzle.canPoll || puzzle.now - pollFrom < pollMs) return null;
       pollFrom = puzzle.now;
@@ -247,11 +247,20 @@ export interface CompanionBridgeOptions {
   /** 상태 변화를 한 번에 모아 본다 — 기본은 마이크로태스크(검사에서 바꿔 끼운다) */
   schedule?: (run: () => void) => void;
   /**
-   * 플레이어가 바쁜가(물건을 살피는 중 · 집중 퍼즐 단계) — 다리가 보낸 auto 턴의 대사(먼저 거는 말)가 그때 도착하면 띄우지 않고 버린다.
-   * 받은 것으로는 센다(쉬기 · 퍼즐당 횟수 — BE 가 돌려준 것을 센다). 힌트 제안(Y/N)은 버리지 않는다(미르 11/11)
+   * 플레이어가 바쁜가(물건을 살피는 중 · 집중 퍼즐 단계) — 구역 진입 · 상황 auto 턴의 대사(먼저 거는 말)가 그때 도착하면 띄우지 않고
+   * 버린다. 퍼즐 폴링의 대사는 이것을 보지 않는다(isPollQuiet). 힌트 제안(Y/N)은 버리지 않는다(미르 11/11)
    */
   isBusy?: () => boolean;
+  /**
+   * 퍼즐 폴링 넛지를 지금 보내거나 띄울 수 없나 — 멈춤(연출 · 종이 · 컷신 · 창) · 조작을 놓음 · 동행 물음 · 집중 연출(isQuietTime).
+   * 물건을 만지는 중은 넣지 않는다. 참이면 폴링을 보내지 않고(받아 놓고 버리지 않게), 보낸 뒤에 참이 됐으면 그 넛지는 버리지 않고
+   * 풀릴 때까지(POLL_DEFER_MS 안) 기다렸다 띄운다(미르 11/11)
+   */
+  isPollQuiet?: () => boolean;
 }
+
+/** 폴링 넛지가 연출 중에 도착했을 때 연출이 끝나길 기다리는 한도(ms) — 넘으면 늦은 말이라 버린다 */
+export const POLL_DEFER_MS = 30_000;
 
 export function createCompanionBridge(options: CompanionBridgeOptions) {
   const { dialog } = options;
@@ -298,6 +307,27 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
   let isScheduled = false;
   /** 다리가 보낸 auto 턴(구역 진입 · 상황 · 퍼즐 폴링)의 응답을 기다리는 중 — 그 응답 대사는 플레이어가 청하지 않은 말이다 */
   let isAutoPending = false;
+  /**
+   * 연출 중에 도착해 기다리는 폴링 넛지 — 풀리면 띄운다(relay 가 0.5초마다 본다). 기다리는 동안은 폴링을 보내지 않는다(unshown).
+   * 그 넛지가 가리킨 목표(objective)를 같이 둔다 — 연출이 그 퍼즐을 푼 장면이었으면 끝났을 때 목표가 바뀌어 있다(01회차 Codex)
+   */
+  let deferredNudge: { speech: Speech; until: number; token: object; objective: ObjectiveId | null } | null = null;
+  /** 가장 최근 판정(relay)이 본 지금 목표 — 폴링 응답이 도착했을 때 그 퍼즐이 아직 목표인지 본다(02회차 Codex) */
+  let latestObjective: ObjectiveId | null = null;
+  const showDeferredNudge = (time: number, objective: ObjectiveId | null) => {
+    if (!deferredNudge) return;
+    // 늦었거나 · 그 퍼즐이 이제 지금 목표가 아니면(풀었다 · 자리를 떴다) 버린다 — 푼 퍼즐에 푸는 법을 말하지 않게
+    if (time > deferredNudge.until || objective !== deferredNudge.objective) {
+      unshown.delete(deferredNudge.token);
+      deferredNudge = null;
+      return;
+    }
+    if (options.isPollQuiet?.()) return;
+    const { speech, token } = deferredNudge;
+    deferredNudge = null;
+    unshown.set(token, time + SERVER_LINE_TTL_MS);
+    options.say({ ...speech, onShow: () => unshown.delete(token) });
+  };
   /** auto 턴을 보낸다 — 실제로 보냈을 때만(대기가 새로 생김) 기다리는 중으로 적는다. 플레이어 말의 응답을 기다리던 중이면 보내지지 않는다(Codex 리뷰) */
   const sendAuto = (send: () => void) => {
     const wasWaiting = dialog.getState().waiting !== null;
@@ -327,6 +357,9 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     // 창 · 컷신 때문에 줄에서 기다리다 버려져도 이미 센 것이다(BE 가 돌려준 것을 센다, 세진 11/10).
     // reply: null(후보를 다 씀)이면 line 이 새로 안 생기므로 개입이 아니다 — 띄우지도 쉬지도 세지도 않는다
     const isIntervention = freshOffer !== null || freshLine?.kind === "npc";
+    /** 이 응답이 퍼즐 폴링의 응답인가 · 그 목표 — 아래에서 pollingFor 를 지우기 전에 본다 */
+    const isPollReply = pollingFor !== null;
+    const pollObjective = pollingFor;
     if (isIntervention) charge(pollingFor);
     if (isIntervention || dialog.getState().waiting === null) pollingFor = null;
     const isUnasked = isAutoPending;
@@ -334,8 +367,18 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     if (!freshOffer) {
       if (!freshLine) return;
       if (freshLine.kind !== "npc") return options.say(toSpeech(freshLine));
-      // 청하지 않은 넛지가 바쁠 때 왔으면 띄우지 않는다 — 쌓아 두면 바쁨이 끝난 뒤 몰려 나온다(받은 것으로는 위에서 셌다)
-      if (isUnasked && options.isBusy?.()) return;
+      // 응답을 기다리는 사이 그 퍼즐을 풀었거나 자리를 떴으면(목표가 바뀜) 지난 퍼즐의 넛지는 띄우지 않는다(받은 것으로는 위에서 셌다)
+      if (isUnasked && isPollReply && pollObjective !== latestObjective) return;
+      // 퍼즐 폴링 넛지 — 물건을 만지는 중이어도 띄운다. 보낸 뒤 연출 · 멈춤이 시작됐으면 버리지 않고 풀린 뒤에(미르 11/11)
+      if (isUnasked && isPollReply && options.isPollQuiet?.()) {
+        const token = {};
+        const until = now() + POLL_DEFER_MS;
+        unshown.set(token, until);
+        deferredNudge = { speech: toSpeech(freshLine), until, token, objective: pollObjective };
+        return;
+      }
+      // 구역 진입 · 상황의 청하지 않은 말이 바쁠 때 왔으면 띄우지 않는다 — 쌓아 두면 바쁨이 끝난 뒤 몰려 나온다(받은 것으로는 위에서 셌다)
+      if (isUnasked && !isPollReply && options.isBusy?.()) return;
       // 넛지 대사가 줄에서 기다리는 동안은 폴링을 보내지 않는다 — 뜨면 빠지고, 못 뜨면 줄의 수명이 다할 때 빠진다
       const token = {};
       unshown.set(token, now() + SERVER_LINE_TTL_MS);
@@ -397,13 +440,17 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
       objective: ObjectiveId | null = null,
     ) {
       const time = now();
+      latestObjective = objective;
+      showDeferredNudge(time, objective);
       const state = dialog.getState();
       const isPaused = time < pollPausedUntil;
+      // 정말 바쁠 때(멈춤 · 집중 연출)는 폴링을 보내지 않는다 — 받아 놓고 버리지 않게. 물건을 만지는 중은 보낸다
       const canPoll =
         state.isEnabled &&
         state.waiting === null &&
         !isPaused &&
         !hasUnshown(time) &&
+        !options.isPollQuiet?.() &&
         (objective === null || (interventions.get(objective) ?? 0) < POLL_MAX_PER_PUZZLE);
       const plan = planner.next(situation, zoneCode, canDisplay, { objective, now: time, canPoll });
       if (!plan) return;

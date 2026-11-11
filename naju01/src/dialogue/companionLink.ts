@@ -15,7 +15,14 @@ import {
   createCompanionBridge,
   hintedPuzzleIdOf,
 } from "./companionBridge.ts";
-import { askOpenHint, isUnaskedTalkBlocked, sayCompanion, setHintProvider, setSituationSink } from "./dialogueRuntime";
+import {
+  askOpenHint,
+  isPuzzleNudgeBlocked,
+  isUnaskedTalkBlocked,
+  sayCompanion,
+  setHintProvider,
+  setSituationSink,
+} from "./dialogueRuntime";
 import { OBJECTIVES, type ObjectiveId } from "./objectives.ts";
 
 /** 세션이 고정한 판의 정식 힌트만 연다. 개발 모의 서버(?npc-mock, 개발 빌드만)는 어느 퍼즐이든 힌트를 주므로 공식 ID 그대로 */
@@ -44,6 +51,8 @@ export function connectCompanionDialogue(): () => void {
     onRequestedHint: () => helpLog.noteAsked(),
     // 보낼 때는 canDisplay 가 막고(dialogueRuntime), 보낸 뒤 바빠졌으면(같은 조건) 도착한 넛지 대사를 버린다
     isBusy: isUnaskedTalkBlocked,
+    // 퍼즐 폴링은 물건 만짐을 보지 않는다 — 멈춤 · 집중 연출일 때만 안 보내고, 보낸 뒤 그리 되면 풀린 뒤 띄운다(미르 11/11)
+    isPollQuiet: isPuzzleNudgeBlocked,
   });
   setHintProvider(bridge.hintProvider);
   setSituationSink(bridge.relay);

@@ -108,6 +108,16 @@ export default function PauseMenu({ status, groups, footer, notice, onEscape }: 
     clearPauseFocus();
   }, [view.kind, returnFocusId]);
 
+  // 브라우저 「뒤로」로 이 페이지가 캐시(bfcache)에서 되살아나면 첫 쪽으로 — 「로비로 나가기」 · 「게임 종료」를 누른 채 떠난 판은
+  // 「~ 중…」에 굳어 단축키까지 막혀(하는 중 = 전부 막음) 어두운 메뉴에 갇혔다(미르 11/11 ESC 암전 조사)
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setView({ kind: "menu" });
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
   const isBusy = view.kind === "confirm" && view.phase === "busy";
   // 하는 중에는 T · P 까지 막는다 — 메뉴가 내려가 그 일이 뒤에서 끝나지 않게(09회차 Codex)
   useLayoutEffect(() => setPauseMenuBusy(isBusy), [isBusy]);

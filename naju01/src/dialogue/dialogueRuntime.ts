@@ -137,6 +137,14 @@ const canDisplayCompanion = () =>
 export const isBusyForUnaskedTalk = () => isQuietTime() || isHandlingObjects();
 
 /**
+ * 퍼즐 폴링 넛지(BE 퍼즐 자동 개입)를 지금 보내거나 띄울 수 없나 — 멈춤(연출 · 종이 · 컷신 · 창 · 장면 인물 차례) · 조작을 놓음 ·
+ * 동행 물음이 떠 있음 · 집중 연출(isQuietTime). **물건을 만지는 중은 넣지 않는다** — 8초 안에 물건을 만지면 바쁨으로 봐서 오답을
+ * 되풀이하는 사람의 넛지가 못 가거나 받아 놓고 버려졌다(미르 11/11 플레이테스트). 다리(companionBridge)가 폴링을 보낼지 · 띄울지에 쓴다
+ */
+export const isPuzzleNudgeBlocked = () =>
+  shouldHold() || !isPointerActive() || dialogue.getState()?.speech.kind === "ask" || isQuietTime();
+
+/**
  * 보낸 auto 턴의 대사가 도착한 때 버릴까 — 보낼 때 막는 조건(canDisplayCompanion) 그대로. 보낸 뒤 창 · 편지 · 연출 · 다른 대화 ·
  * 물건 살피기가 시작됐으면 그 넛지는 버린다(줄에 두면 끝난 뒤 늦게 튀어나온다, Codex 리뷰)
  */
