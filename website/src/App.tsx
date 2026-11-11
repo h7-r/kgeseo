@@ -14,6 +14,7 @@ import {
   AboutPage,
   AdminApp,
   AuthPage,
+  CreditsPage,
   MediaPage,
   MyPage,
   PricingPage,
@@ -78,6 +79,7 @@ export default function App() {
           <Route path={ROUTES.resetPassword} element={<PasswordResetRoute mode="resetPassword" />} />
           <Route path={ROUTES.about} element={<AboutPage />} />
           <Route path={ROUTES.terms} element={<TermsPage />} />
+          <Route path={ROUTES.credits} element={<CreditsPage />} />
           <Route path={ROUTES.support} element={<SupportPage />} />
           <Route path={ROUTES.pricing} element={<PricingPage />} />
           <Route
