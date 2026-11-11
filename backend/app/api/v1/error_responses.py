@@ -472,3 +472,23 @@ LOBBY_TICKET = {
         "Lobby is unavailable.",
     ),
 }
+
+
+# --- 베타 분석 기록(11/11 미르, `docs/beta_events.md`) ---
+# 쿠키가 없어도 받는다(401 없음). 형식 오류는 묶음 전체를 거절한다(보낸 값은 되돌려 주지 않는다).
+
+BETA_EVENTS = {
+    **FOREIGN_ORIGIN,
+    413: error(
+        ErrorMessage,
+        "본문이 64KB 를 넘었다." + _NO_STORE,
+        "Beta event batch too large.",
+    ),
+    422: error(
+        ValidationErrorResponse,
+        _VALIDATION
+        + " 본문을 직접 읽어 검사한다 — JSON 이 아니거나, 기록이 0개 · 51개 이상이거나, 필드 형식이 틀리거나,"
+        " data 가 2048바이트를 넘으면 묶음 전체를 거절한다. `input` 은 싣지 않는다.",
+    ),
+    **_rate_limited("1500회"),
+}

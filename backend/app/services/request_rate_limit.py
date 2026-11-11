@@ -6,6 +6,7 @@
 | `nickname_exists` | POST /api/v1/auth/nickname-exists | IP 당 60초에 30회 |
 | `register` | POST /api/v1/auth/register | IP 당 60초에 30회(베타. 종료 뒤 10회 예정) |
 | `anonymous_session_create` | POST /api/v1/anonymous-sessions (새 게스트를 만들 때만) | IP 당 60초에 60회 |
+| `beta_events` | POST /api/v1/beta-events (베타 분석 기록, 11/11) | IP 당 60초에 1500회 |
 
 - 규칙마다 · IP 마다 따로 센다. 한 API 를 다 써도 다른 API 는 그대로다.
 - 한도와 창은 환경 변수(`RATE_LIMIT_*`)로 바꿀 수 있다. 값이 없으면 위 기본값이고, 0 · 음수 · 숫자가 아닌 값은
@@ -35,6 +36,7 @@ EMAIL_EXISTS = "email_exists"
 NICKNAME_EXISTS = "nickname_exists"
 REGISTER = "register"
 ANONYMOUS_SESSION_CREATE = "anonymous_session_create"
+BETA_EVENTS = "beta_events"
 
 RATE_LIMITED_CODE = "rate_limited"
 RATE_LIMITED_MESSAGE = "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요."
@@ -55,6 +57,7 @@ def configured_rule(name: str) -> RateLimitRule:
         NICKNAME_EXISTS: settings.rate_limit_nickname_exists,
         REGISTER: settings.rate_limit_register,
         ANONYMOUS_SESSION_CREATE: settings.rate_limit_anonymous_session_create,
+        BETA_EVENTS: settings.rate_limit_beta_events,
     }
     return RateLimitRule(name, limits[name], settings.rate_limit_window_sec)
 

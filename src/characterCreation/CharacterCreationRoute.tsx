@@ -9,6 +9,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
+import { betaLog } from "@/beta/betaLog";
 import { isTouchMode, passFirstTap } from "@/engine/input";
 import { PLAYER_MESHY_APPEARANCE_KEY } from "@/engine/storage";
 import {
@@ -162,6 +163,11 @@ export default function CharacterCreationRoute() {
   const resumesGame = savedStage !== null && savedStage !== "character";
   const [isCharacterReady, setIsCharacterReady] = useState(false);
 
+  // 베타 기록 — 캐릭터 생성 화면을 열었다(저장이 있어 건너뛰는 경우는 빼고). 진입 단계 L01 의 「캐릭터 생성 시작」
+  useEffect(() => {
+    if (!resumesGame) betaLog.track("stage_reached", "character_open", { withRun: false });
+  }, [resumesGame]);
+
   // 다른 기기에서 들어와도 같은 모습으로 시작하게 서버의 캐릭터를 받아 둔 뒤에 넘어간다 — App 은 마운트 때 외형을 한 번만 읽는다.
   // 늦어지면 기다리지 않는다(있던 외형으로 간다)
   useEffect(() => {
@@ -240,6 +246,8 @@ export default function CharacterCreationRoute() {
       void saveCharacter(payload.displayName, { lobby, completed: payload }).then((isServerSaved) => {
         if (isServerSaved || !isGameSaveEnabled()) removeKeys([DRAFT_STORAGE_KEY]);
       });
+      // 베타 기록 — 캐릭터 생성 완료(진입 단계 L01). 단계 「tutorial」 은 처음 화면에서도 정해지므로 따로 남긴다
+      betaLog.track("stage_reached", "character_done", { withRun: false, urgent: true });
       setGameStage("tutorial");
       void flushGameSave();
       // 화면은 완료 상태로 멈춰 있다 — 로딩 영상으로 먼저 덮고(0.35초) / 로 보낸다.

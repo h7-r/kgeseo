@@ -33,6 +33,8 @@ import {
   useLoadingVideoState,
   type LoadingVideoState,
 } from "./loadingVideo";
+import { betaLog } from "@/beta/betaLog";
+
 import { READY, waitUntilReady } from "./readinessCheck";
 
 export default function LoadingVideoOverlay() {
@@ -178,6 +180,14 @@ function LoadingCurtain({
         maxSeconds: MAX_WAIT_SECONDS,
       },
     );
+    // 베타 기록 — 로딩이 끝났다(준비 완료 · 시간 초과). 시각은 이 페이지가 열린 때부터
+    void ready.then((status) => {
+      if (isCancelled) return;
+      betaLog.track("stage_reached", "load_done", {
+        withRun: false,
+        data: { opening: sequence.isOpening, result: status === READY ? "ready" : "timeout", reason: status === READY ? null : status.slice(0, 80), at_ms: Math.round(performance.now()) },
+      });
+    });
     void Promise.all([minimum, ready]).then(() => {
       if (isCancelled) return;
       // 두 프레임 더 — 데운 뒤 첫 그림이 실제 화면에 올라간 다음에 걷는다. 오프닝은 SKIP 만 띄운다.

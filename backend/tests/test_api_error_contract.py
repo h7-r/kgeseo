@@ -47,6 +47,9 @@ EXPECTED_ERRORS = {
     ("POST", "/api/v1/lobby/ticket"): {401, 403, 429, 503},
     ("GET", "/api/v1/admin/users"): {401, 403, 422},
     ("GET", "/api/v1/admin/users/{user_id}"): {401, 403, 404, 422},
+    ("GET", "/api/v1/admin/beta-events"): {401, 403, 422},
+    # 11/11 베타 분석 기록: 쿠키 없이도 받는다(401 없음). 형식 오류 422, 64KB 초과 413.
+    ("POST", "/api/v1/beta-events"): {403, 413, 422, 429},
     ("POST", "/api/v1/auth/email-exists"): {403, 422, 429},
     ("POST", "/api/v1/auth/nickname-exists"): {403, 422, 429},
     ("POST", "/api/v1/auth/social-onboarding/complete"): {401, 403, 409, 422},
@@ -202,6 +205,7 @@ def _source_literals(text: str) -> set[str]:
     "source",
     [
         "auth.py",
+        "beta_events.py",
         "cases.py",
         "health.py",
         "hints.py",

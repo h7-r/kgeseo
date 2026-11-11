@@ -75,6 +75,7 @@ import CaseStartCard from "./CaseStartCard";
 import NajuPauseMenu from "./NajuPauseMenu";
 import PlayTimeHud from "./PlayTimeHud";
 import { playClock } from "../progress/playClock";
+import { noteNajuReady, noteNajuStart } from "../beta/najuBeta";
 import { CARD_PREVIEW, RATING_PREVIEW, type CaseStartMode } from "./caseStart";
 import NajuScene, { type NajuSceneReport, type NajuToonConfig } from "../scene/NajuScene";
 import { audio } from "../scene/immersion/audio";
@@ -267,8 +268,12 @@ export default function App() {
     // 잠겼다 — 시작 카드(첫 몸짓 · 다시 보기)를 내린다. 다시 풀려도 카드가 아니라 「게임 밖」 쉼이 맡는다
     setCardMode(null);
     // 조사 시간은 첫 조작부터 센다(얼어 있던 시간은 게임 시계가 뺀다)
-    if (!IS_REVIEW_REQUESTED) playClock.start();
-  }, []);
+    if (!IS_REVIEW_REQUESTED) {
+      playClock.start();
+      // 베타 기록 — 첫 조작(시작 · 이어 하기). 참여 코드가 없으면 아무 일도 없다
+      noteNajuStart(caseStart.mode === "full" ? "full" : "resume", caseStart.isCleared);
+    }
+  }, [caseStart]);
   useEffect(() => {
     if (isTouch || !hasLockedOnce) return undefined;
     // 붙듦 · 기다림은 알림이 없어 잠금이 바뀔 때와 짧은 간격으로 본다. 창이 떠 있는 동안에도 「닫으면 게임 밖인가」를 잰다
@@ -285,6 +290,10 @@ export default function App() {
   // 첫 장면이 그려지고(기차에서 왔으면 도착 막이 걷힌 뒤) 창이 없을 때 띄우고, 떠 있는 동안은 게임 시간 · 렌더를 세운다(창과 같은 쉼)
   const isCardVisible =
     cardMode !== null && !isTouch && isSceneDrawn && (!IS_ARRIVING_FROM_HUB || isArrivalRevealed) && !isWindowOpen;
+  // 베타 기록 — 시작 카드가 처음 떴다 = 나주 로딩이 끝나 조작을 받을 수 있다(로딩 시간)
+  useEffect(() => {
+    if (isCardVisible) noteNajuReady({ mode: caseStart.mode, from_hub: IS_ARRIVING_FROM_HUB });
+  }, [isCardVisible, caseStart.mode]);
   // controls.lock() 과 같은 요청을 직접 — 브라우저가 거절하면(ESC 직후 · 창 밖 초점) 약속이 거절로 끝나니 받아 둔다.
   // 거절은 pointerlockerror 로 카드 · 멈춤 메뉴가 「한 번 더 눌러 주세요」를 보인다
   const requestLock = useCallback(() => {

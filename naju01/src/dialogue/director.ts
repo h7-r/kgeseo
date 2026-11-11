@@ -24,6 +24,7 @@ import {
 } from "./lines.ts";
 import { OBJECTIVES, type ObjectiveId } from "./objectives.ts";
 import type { Situation } from "./situations.ts";
+import { betaSignals } from "../beta/betaSignals.ts";
 
 /** 정식 힌트를 여는 쪽(서버 연동 — companionBridge) */
 export interface HintProvider {
@@ -240,6 +241,9 @@ export function createDirector(options: DirectorOptions) {
       key: "menu",
     });
     const asked = choices.find((choice) => choice.id === answer)?.label;
+    // 베타 기록 — 플레이어가 도움 보기를 골랐다(요청)
+    if (answer === MENU.what) betaSignals.help("request", "what");
+    else if (answer === MENU.hint) betaSignals.help("request", "hint");
     if (answer === MENU.what && intro) {
       store.say({ kind: "guide", text: intro.text, topic: topicOf(objective), key: "guide", asked });
       options.onSpoken?.();

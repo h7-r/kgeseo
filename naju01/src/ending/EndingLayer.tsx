@@ -25,6 +25,7 @@ import {
   type FilmShot,
 } from "./endingScript";
 import "./ending.css";
+import { BetaPostSurveyGate } from "@/beta/BetaSurveyCard";
 
 interface EndingLayerProps {
   /** 본편과 한 출처일 때만 — 로비 · 기차로 나간다 */
@@ -35,7 +36,13 @@ export default function EndingLayer({ leaveAction }: EndingLayerProps) {
   const phase = useEndingPhase();
   if (phase === "finale") return <FinaleBand />;
   if (phase === "film") return <EndingFilm />;
-  if (phase === "clear") return <ClearScreen leaveAction={leaveAction} />;
+  // 베타 — 결과 · 현장 방문 창보다 먼저 끝난 뒤 설문을 묻는다(참여 코드 · 폼 주소가 없으면 바로 결과 화면)
+  if (phase === "clear")
+    return (
+      <BetaPostSurveyGate>
+        <ClearScreen leaveAction={leaveAction} />
+      </BetaPostSurveyGate>
+    );
   return null;
 }
 
