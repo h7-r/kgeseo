@@ -10,6 +10,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type Dispatch,
   type SetStateAction,
@@ -330,11 +331,13 @@ export default function App() {
   // 터치에서 닫을 때 다시 잠그는 일은 MobileGate 가 한다
   useWindowHold("settings", isSettingsOpen);
   useWindowHold("ending", isEndingScreen);
-  // 굿이 끝난 판(새로 고침 · 옛 저장)인데 엔딩을 아직 안 봤으면 — 조사를 다시 시작하는 첫 순간에 엔딩부터(나주엔딩 01회차 Codex)
+  // 굿이 끝난 판(새로 고침 · 옛 저장)인데 엔딩을 아직 안 봤으면 — 조사를 다시 시작하는 첫 순간에 엔딩부터(나주엔딩 01회차 Codex).
+  // 굿 복원은 지형이 준비된 뒤라 시작보다 늦을 수 있다 — 굿 단계가 바뀌어도 다시 본다(Codex 리뷰). 굿을 막 끝낸 판은 끝 연출이 맡는다
+  const gutStage = useSyncExternalStore(gut.subscribe, gut.stage);
   useEffect(() => {
     if (!hasLockedOnce || IS_REVIEW_REQUESTED) return;
-    if (gut.stage() === "dawn" && !ending.isSeen() && ending.phase() === "off") ending.openFilm();
-  }, [hasLockedOnce]);
+    if (gutStage === "dawn" && !ending.isSeen() && ending.phase() === "off") ending.openFilm();
+  }, [hasLockedOnce, gutStage]);
   useWindowHold("inventory", isInventoryOpen);
   useWindowHold("hintBox", isHintBoxOpen);
   // 동행 입력은 제 손으로 풀고(열 때 잠겨 있었으면 ESC 로 닫으며) 다시 잠근다 — 여기서는 다른 길로 열렸을 때만 풀어 둔다
