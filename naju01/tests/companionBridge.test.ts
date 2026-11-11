@@ -12,6 +12,7 @@ import {
   HINTED_PUZZLES,
   HINT_PUZZLE_IDS,
   OFFER_POLL_PAUSE_MS,
+  POLL_DEFER_MS,
   POLL_MAX_PER_PUZZLE,
   PUZZLE_FOCUS_IDS,
   PUZZLE_POLL_MS,
@@ -490,14 +491,28 @@ test("퍼즐 폴링: 서버 퍼즐이 목표인 동안 60초마다 상황 없이
   }
 });
 
-test("퍼즐 폴링: 컷신 · 창(표시할 수 없음) · 응답 대기 · 쉬는 중이면 보내지 않고, 풀리면 그때 보낸다", () => {
+test("퍼즐 폴링: 멈춤 · 집중 연출 · 응답 대기 · 쉬는 중(canPoll 거짓)이면 보내지 않고 풀리면 그때 — 표시 판정(물건 만짐)은 폴링을 막지 않는다(미르 11/11)", () => {
+  const jar = { situation: null, focusObjectId: "OBJ_S1_JAR_SLOTS" };
   const at = pollPlanner();
   at(0);
-  assert.equal(at(60_000, "P03", { canDisplay: false }), null, "컷신 · 창 · 대화 중");
-  assert.equal(at(61_000, "P03", { canPoll: false }), null, "응답 대기 · 제안 뒤 쉼");
-  assert.deepEqual(at(61_500), { situation: null, focusObjectId: "OBJ_S1_JAR_SLOTS" }, "풀리면 바로");
-  assert.equal(at(121_000), null, "다음은 보낸 때부터 60초");
-  assert.deepEqual(at(121_500), { situation: null, focusObjectId: "OBJ_S1_JAR_SLOTS" });
+  assert.equal(at(60_000, "P03", { canPoll: false }), null, "멈춤 · 집중 연출 · 응답 대기 · 제안 뒤 쉼");
+  assert.deepEqual(at(60_500, "P03", { canDisplay: false }), jar, "물건을 만지는 중(표시 판정 거짓)이어도 간다");
+  assert.equal(at(120_000), null, "다음은 보낸 때부터 60초");
+  assert.deepEqual(at(120_500), jar);
+  // 구역 진입은 그대로 표시 판정에 막힌다 — 그때 들어선 구역은 기억만 해 두고 나중에 「막 들어섰다」로 보내지 않는다
+  assert.equal(at(130_000, "P03", { zone: "Z3", canDisplay: false }), null);
+  assert.equal(at(130_500, "P03", { zone: "Z3" }), null);
+});
+
+test("퍼즐 폴링: 걷는 중 — 목표가 그대로면 물건을 겨누며 지나가 표시 판정이 오락가락해도 60초마다 간다(미르 11/11)", () => {
+  const at = pollPlanner();
+  const sentAt: number[] = [];
+  for (let t = 0; t <= 180_000; t += 500) {
+    // 걸으며 물건을 겨눴다 뗐다 한다(8초 안에 겨눔 = 표시 판정 거짓)
+    const isAiming = Math.floor(t / 7_000) % 2 === 0;
+    if (at(t, "P03", { canDisplay: !isAiming })) sentAt.push(t);
+  }
+  assert.deepEqual(sentAt, [60_000, 120_000, 180_000]);
 });
 
 test("퍼즐 폴링: 한 번에 턴 하나 — 구역 진입 · 상황이 먼저고, 폴링은 다음 판정에 간다", () => {
@@ -522,6 +537,7 @@ async function pollBridge(
   answer: boolean | null = false,
   isShown = true,
   isBusy: () => boolean = () => false,
+  isPollQuiet: () => boolean = () => false,
 ) {
   let clock = 0;
   serve(backend({ turn: turnReply }));
@@ -548,11 +564,12 @@ async function pollBridge(
     puzzleFocusIdOf: (objective) => (OBJECTIVES[objective].puzzleId ? (PUZZLE_FOCUS_IDS[objective] ?? null) : null),
     now: () => clock,
     isBusy,
+    isPollQuiet,
   });
   calls = [];
-  const relayAt = async (time: number, objective: ObjectiveId | null = "P03", zone = "Z2") => {
+  const relayAt = async (time: number, objective: ObjectiveId | null = "P03", zone = "Z2", canDisplay = true) => {
     clock = time;
-    bridge.relay(null, zone, true, objective);
+    bridge.relay(null, zone, canDisplay, objective);
     await tick();
     await tick();
   };
@@ -616,29 +633,85 @@ test("퍼즐 폴링에 넛지 대사만 와도(제안 없음) 띄우고 180초 �
   assert.equal(turns().length, 2);
 });
 
-test("다리가 보낸 auto 턴의 넛지 대사가 플레이어가 바쁠 때(물건을 살피는 중) 도착하면 띄우지 않고 버린다 — 받은 것으로는 센다(미르 11/11)", async () => {
-  const nudge: Handler = () => ({
-    status: 200,
-    body: turn({ reply: { source: "approved_line", text: "[모의] 숨구멍을 다시 살펴볼까요?", line_id: "NUDGE_P01_1" } }),
-  });
-  let isBusy = true;
-  const { said, relayAt, turns } = await pollBridge(nudge, false, true, () => isBusy);
-  // 폴링은 목표를 본 뒤 60초에 처음 간다(위 시험과 같다)
+const NUDGE_TEXT = "[모의] 숨구멍을 다시 살펴볼까요?";
+const nudgeReply: Handler = () => ({
+  status: 200,
+  body: turn({ reply: { source: "approved_line", text: NUDGE_TEXT, line_id: "NUDGE_P01_1" } }),
+});
+
+test("오답을 되풀이하며 물건을 만지는 중(바쁨 · 표시 판정 거짓)에도 퍼즐 폴링은 가고 넛지가 뜬다 — 버리고 횟수만 줄던 것(미르 11/11)", async () => {
+  // 8초 안에 물건을 만졌다 = isBusy 참 · 표시 판정 거짓. 멈춤 · 집중 연출은 아니다(isPollQuiet 거짓)
+  const { said, relayAt, turns } = await pollBridge(nudgeReply, false, true, () => true, () => false);
+  for (let t = 0; t <= 60_000; t += 500) await relayAt(t, "P03", "Z2", false);
+  assert.equal(turns().length, 1, "물건을 만지는 중에도 60초에 간다");
+  assert.deepEqual(
+    said.map((speech) => speech.text),
+    [NUDGE_TEXT],
+    "넛지를 버리지 않고 띄운다",
+  );
+});
+
+test("연출 · 멈춤 중(isPollQuiet)에는 퍼즐 폴링을 보내지 않는다 — 풀리면 그때 보낸다(받아 놓고 버리지 않게)", async () => {
+  let isQuiet = true;
+  const { said, relayAt, turns } = await pollBridge(nudgeReply, false, true, () => false, () => isQuiet);
+  await relayAt(0);
+  await relayAt(60_000);
+  await relayAt(90_000);
+  assert.equal(turns().length, 0, "연출 중에는 안 보낸다");
+  isQuiet = false;
+  await relayAt(90_500);
+  assert.equal(turns().length, 1, "풀리자마자 보낸다");
+  assert.deepEqual(
+    said.map((speech) => speech.text),
+    [NUDGE_TEXT],
+  );
+});
+
+test("보낸 뒤 연출이 시작돼 그 사이 도착한 폴링 넛지는 버리지 않고 끝난 뒤 띄운다 · 기다리는 동안 폴링을 또 보내지 않는다 · 너무 늦으면 버린다", async () => {
+  let isQuiet = false;
+  // 응답이 오는 사이에 연출이 시작된다
+  const reply: Handler = (call) => {
+    isQuiet = true;
+    return nudgeReply(call);
+  };
+  const { said, relayAt, turns } = await pollBridge(reply, false, true, () => false, () => isQuiet);
   await relayAt(0);
   await relayAt(60_000);
   assert.equal(turns().length, 1);
-  assert.deepEqual(said, [], "바쁠 때 온 넛지는 띄우지 않는다");
-  // 받은 것으로 셌다 — 바쁨이 끝나도 쉬는 동안(180초)은 다시 보내지 않는다
-  isBusy = false;
-  await relayAt(120_000);
-  assert.equal(turns().length, 1);
-  await relayAt(60_000 + OFFER_POLL_PAUSE_MS.shown);
-  assert.equal(turns().length, 2);
+  assert.deepEqual(said, [], "연출 중에는 아직 안 띄운다");
+  await relayAt(70_000);
+  assert.deepEqual(said, []);
+  isQuiet = false;
+  await relayAt(70_500);
   assert.deepEqual(
     said.map((speech) => speech.text),
-    ["[모의] 숨구멍을 다시 살펴볼까요?"],
-    "바쁘지 않을 때 온 넛지는 띄운다",
+    [NUDGE_TEXT],
+    "연출이 끝나면 띄운다",
   );
+  assert.equal(turns().length, 1);
+
+  // 연출이 기다림 한도(POLL_DEFER_MS)보다 길면 늦은 말이라 버린다
+  isQuiet = false;
+  const late = await pollBridge(reply, false, true, () => false, () => isQuiet);
+  await late.relayAt(0);
+  await late.relayAt(60_000);
+  await late.relayAt(60_000 + POLL_DEFER_MS + 1);
+  isQuiet = false;
+  await late.relayAt(60_000 + POLL_DEFER_MS + 500);
+  assert.deepEqual(late.said, []);
+});
+
+test("구역 진입 auto 턴의 말은 그대로 — 보낸 뒤 플레이어가 바빠졌으면(물건을 만짐) 띄우지 않고 버린다", async () => {
+  let isBusy = false;
+  const reply: Handler = (call) => {
+    isBusy = true;
+    return nudgeReply(call);
+  };
+  const { said, relayAt, turns } = await pollBridge(reply, false, true, () => isBusy);
+  await relayAt(0, null, "Z1");
+  await relayAt(500, null, "Z2");
+  assert.equal(turns().length, 1, "구역 진입");
+  assert.deepEqual(said, [], "바빠졌으면 버린다");
 });
 
 test("플레이어가 청한 말(talk)의 대사는 바빠도 버리지 않는다 — 버리는 것은 다리가 보낸 auto 턴의 대사뿐", async () => {
