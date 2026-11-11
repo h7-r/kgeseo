@@ -16,10 +16,11 @@ import { isTouchMode } from "@/engine/input/touchMode";
 import { isPointerActive } from "@/engine/input/virtualLock";
 
 import { isCompanionIntro } from "../companion/companionStage";
-import { getUnderwater } from "../puzzles/cave/caveState";
 import { helpLog } from "../progress/helpLog";
+import { getUnderwater } from "../puzzles/cave/caveState";
+import { isHandlingObjects, pressAimedTalk } from "../puzzles/interaction";
 import { isOtherWindowHeld } from "../puzzles/pointerHold";
-import { isTalkTaken } from "../scene/firstScene/npcSpeech";
+import { advanceNpcSpeech, isTalkTaken } from "../scene/firstScene/npcSpeech";
 import { createDialogueStore, type Speech } from "./dialogueStore.ts";
 import { createDirector } from "./director.ts";
 import {
@@ -127,8 +128,19 @@ export function syncDialogueHold() {
 /**
  * 지금 동행 말을 화면에 낼 수 있나 — 아니면 상황 · 구역 진입을 서버에 보내지 않는다(계약 v0.4.16 §11-2).
  * 멈춤 조건에 더해 동행 물음 · 보기가 떠 있는 동안(대화 중) · 조작을 놓은 동안도 낼 수 없는 때다.
+ * 플레이어가 바쁠 때(집중 퍼즐 단계 · 물건을 살피는 중)도 먼저 말을 꺼내지 않는다(미르 11/11 「단서를 찾는 중 원하지 않는 NPC 가 말을 건다」)
  */
-const canDisplayCompanion = () => !shouldHold() && isPointerActive() && dialogue.getState()?.speech.kind !== "ask";
+const canDisplayCompanion = () =>
+  !shouldHold() && isPointerActive() && dialogue.getState()?.speech.kind !== "ask" && !isBusyForUnaskedTalk();
+
+/** 먼저 거는 말(묻지 않은 동행 말)을 꺼내지 않을 때 — 집중 퍼즐 단계(isQuietTime) · 최근 8초 안에 물건을 겨눴거나 E 로 썼다 */
+export const isBusyForUnaskedTalk = () => isQuietTime() || isHandlingObjects();
+
+/**
+ * 보낸 auto 턴의 대사가 도착한 때 버릴까 — 보낼 때 막는 조건(canDisplayCompanion) 그대로. 보낸 뒤 창 · 편지 · 연출 · 다른 대화 ·
+ * 물건 살피기가 시작됐으면 그 넛지는 버린다(줄에 두면 끝난 뒤 늦게 튀어나온다, Codex 리뷰)
+ */
+export const isUnaskedTalkBlocked = () => !canDisplayCompanion();
 
 /** 상황 · 구역을 서버로 보내는 곳(companionBridge.relay) — 동행 서버 세션이 있을 때만 붙는다 */
 type SituationSink = (
@@ -163,13 +175,22 @@ export function sayCompanion(speech: Speech) {
 /** 서버가 힌트를 권했다 — 열지 Y/N 으로 묻는다 */
 export const askOpenHint = director.askOpenHint;
 
-/** [F] — 떠 있는 말이 있으면 넘기고, 없으면 동행에게 말을 건다(물어볼 것 고르기) */
+/**
+ * [F](터치 💬) 하나로 말을 다룬다(계약 v0.4.16 §10-2 「말 거는 키는 F 하나」 · 미르 11/11). 한 번 누르면 하나만, 이 차례로:
+ *  1. 장면 인물(아비사 · 어부 · 동행 소개 · 동행 한마디) 말이 떠 있으면 넘긴다 — 겨누거나 다가가지 않아도
+ *  2. 동행 말이 떠 있으면 넘긴다
+ *  3. 장면 인물을 겨눴으면 말을 건다(동행을 끈 판에서도)
+ *  4. 동행에게 말을 건다(물어볼 것 고르기)
+ */
 export function pressTalkKey(isPlaying: boolean) {
-  // 동행을 끈 판(?npc=off 등)에는 말을 걸 동행이 없다
-  if (!IS_COMPANION_ACTIVE) return false;
-  // 장면 인물이 말하는 동안 · 첫 소개 · 다른 창이 떠 있는 동안은 동행이 끼어들지 않는다(그 말은 E 로 넘긴다)
-  if (shouldHold()) return false;
-  if (dialogue.advance()) return true;
+  if (advanceNpcSpeech()) return true;
+  // 다른 창이 떠 있거나(설정 · 소지품 …) 장면 인물이 차례를 잡은 동안은 동행 말을 건드리지 않는다
+  const isCompanionFree = IS_COMPANION_ACTIVE && !shouldHold();
+  if (isCompanionFree && dialogue.advance()) return true;
+  // 동행 말 · 물음(Y/N)이 아직 떠 있으면 장면 인물에게 말을 걸지 않는다 — 물음이 대답 없이 물러난다(Codex 리뷰)
+  if (IS_COMPANION_ACTIVE && dialogue.getState()) return false;
+  if (isPlaying && !isTalkTaken() && !isOtherWindowHeld(MENU_HOLD_ID) && pressAimedTalk()) return true;
+  if (!isCompanionFree) return false;
   if (dialogue.getState() || !isPlaying || isQuietTime()) return false;
   void director.openMenu(currentObjective(panel));
   return true;

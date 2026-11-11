@@ -7,8 +7,10 @@
  *  2. 구렁이를 겨누고 [E] 「구렁이를 쫓아낸다」 → 움찔 고개를 쳐들었다가 물가로 미끄러지며 강물 속으로 가라앉아 사라진다(첨벙).
  *     정체 설명은 없다. 「첫 등장이 끝났다」만 저장한다(firstScene.serpentDriven) — 뒤 장면의 재등장은 따로(아직 없음).
  *  3. 아비사가 사라진 쪽을 잠깐 바라보다가 플레이어에게 돌아서 살짝 숙여 인사하고 의뢰(대사 여섯 줄 — 필수 발견).
- *     줄을 다 들을 때마다 저장해, 끊기면 다음에 그 줄부터 이어 말한다(firstScene.requestLine).
- *  4. 그 뒤로는 겨누고 [E] 면 지금 단계 한 줄. 화톳불을 되살린 뒤 다가가면 인연의 시작(골라 듣는 이야기)을 한 번.
+ *     줄을 다 들을 때마다 저장해, 끊기면 다음에 그 줄부터 — 다시 겨누고 [F] 로 이어 듣는다(저절로 다시 열지 않는다).
+ *     아비사가 먼저 말을 거는 것은 이 첫 의뢰 한 번뿐이다(미르 11/11 「근처에만 가도 먼저 말을 건다」).
+ *  4. 그 뒤로는 겨누고 [F] 면 지금 단계 한 줄. 화톳불을 되살린 뒤 [F] 로 말을 걸면 인연의 시작(골라 듣는 이야기, 끊기면 그 줄부터).
+ *  말은 누가 하든 [F](터치 💬)로 넘긴다 — 겨누거나 다가가지 않아도(npcSpeech). E 는 물건 전용이다.
  * 자세: A자세라 팔을 몸 쪽으로 조금 모으고, 온몸이 아주 작게 흔들린다(발은 고정). 편집 중(enabled=false)에는 기본 자세로 멈춘다.
  */
 import { useEffect, useMemo, useRef } from "react";
@@ -27,6 +29,7 @@ import { clamDig } from "../../puzzles/fishTrap/clamState";
 import { fishTrapPuzzle } from "../../puzzles/fishTrap/fishTrapState";
 import { isGaugeActive } from "../../puzzles/fishTrap/pullGauge";
 import { HEARTH } from "../../puzzles/fishTrap/site";
+import { isLetterOpenNow } from "../../puzzles/cliff/letters";
 import { registerInteractable, showNotice } from "../../puzzles/interaction";
 import { isWindowHeld } from "../../puzzles/pointerHold";
 import { isPaperOpenNow } from "../../puzzles/ridge/oldPaper";
@@ -62,6 +65,8 @@ import { SerpentEcho } from "./serpentEcho";
 const SERPENT_DRIVEN_KEY = "firstScene.serpentDriven";
 const REQUEST_LINE_KEY = "firstScene.requestLine";
 const BACKSTORY_KEY = "firstScene.backstoryHeard";
+/** 인연 이야기에서 다음에 말할 줄 — 끊기면 그 줄부터(의뢰와 같게) */
+const BACKSTORY_LINE_KEY = "firstScene.backstoryLine";
 /** 다시 나타나는 구렁이 — 단계(none · staying · away) · 아비사 한 줄 들음 */
 const ECHO_KEY = "firstScene.echo";
 const ECHO_LINE_KEY = "firstScene.echoLineHeard";
@@ -182,10 +187,13 @@ function createBrain() {
     /** 다음에 말할 의뢰 줄(다 들으면 REQUEST_LINES.length) */
     requestNext: recall(REQUEST_LINE_KEY, 0),
     isBackstoryHeard: recall(BACKSTORY_KEY, false),
+    backstoryNext: recall(BACKSTORY_LINE_KEY, 0),
     isSerpentNoticed: false,
     isTipShown: false,
     talk: null as Talk | null,
     inRange: 0,
+    /** 이번 접속에 첫 의뢰를 먼저 꺼냈다 — 첫 줄을 다 듣기 전에 멀어져도 다시 먼저 말하지 않는다 */
+    hasRequestOpened: false,
     alert: 0,
     isAlertHeard: false,
     snakeYaw: 0,
@@ -243,11 +251,22 @@ function startTalk(brain: Brain, kind: TalkKind, lines: AbisaLine[], bow: boolea
   };
 }
 
-/** 의뢰는 끊긴 줄부터, 처음이면 숙여 인사하고 */
+/** 의뢰는 끊긴 줄부터, 처음이면 숙여 인사하고. 한 번 열었으면(먼저 꺼냈든 [F] 로 열었든) 다시 먼저 꺼내지 않는다 */
 function startRequest(brain: Brain) {
   const from = brain.state.requestNext;
   startTalk(brain, "request", REQUEST_LINES.slice(from), from === 0);
+  if (brain.state.talk) brain.state.hasRequestOpened = true;
 }
+
+/** 인연 이야기도 끊긴 줄부터 */
+function startBackstory(brain: Brain) {
+  const from = Math.min(brain.state.backstoryNext, BACKSTORY_LINES.length - 1);
+  startTalk(brain, "backstory", BACKSTORY_LINES.slice(from), false);
+}
+
+/** 대화창에 지금 줄을 띄운다 — [F] · 💬 로 다음 줄(어디서든) */
+const showLine = (brain: Brain, line: AbisaLine) =>
+  setNpcSpeech({ speaker: ABISA_NAME, text: line.text, onNext: () => nextLine(brain) }, TALK_ID);
 
 function nextLine(brain: Brain) {
   const talk = brain.state.talk;
@@ -257,12 +276,16 @@ function nextLine(brain: Brain) {
     brain.state.requestNext = Math.min(REQUEST_LINES.length, brain.state.requestNext + 1);
     remember(REQUEST_LINE_KEY, brain.state.requestNext);
   }
+  if (talk.kind === "backstory" && talk.index >= 0) {
+    brain.state.backstoryNext = Math.min(BACKSTORY_LINES.length, brain.state.backstoryNext + 1);
+    remember(BACKSTORY_LINE_KEY, brain.state.backstoryNext);
+  }
   talk.index += 1;
   talk.lineTime = 0;
   const line = talk.lines[talk.index];
   talk.gestureTime = line?.lookAt ? 0 : -1;
   if (line) {
-    setNpcSpeech({ speaker: ABISA_NAME, text: line.text, canAdvance: true }, TALK_ID);
+    showLine(brain, line);
     return;
   }
   // 끝까지 들었다
@@ -296,6 +319,7 @@ const isFree = () =>
   !stage.cut &&
   !isWindowHeld() &&
   !isPaperOpenNow() &&
+  !isLetterOpenNow() &&
   !isGaugeActive() &&
   !isTalkTaken(TALK_ID);
 
@@ -566,35 +590,31 @@ function updateAbisa(brain: Brain, rig: ActorRig, eye: THREE.Vector3, camera: TH
     if (shouldPause !== talk.isPaused) {
       talk.isPaused = shouldPause;
       if (shouldPause) setNpcSpeech(null, TALK_ID);
-      else if (line) setNpcSpeech({ speaker: ABISA_NAME, text: line.text, canAdvance: true }, TALK_ID);
+      else if (line) showLine(brain, line);
     }
     if (shouldPause) return;
     talk.lineTime += dt;
     if (talk.index < 0 ? talk.lineTime >= 0 : talk.lineTime >= lineSeconds(line?.text ?? "")) nextLine(brain);
-    // 멀리 가 버리면 그친다 — 의뢰는 들은 줄까지 남아 다음에 다가오면 이어 말한다
+    // 멀리 가 버리면 그친다 — 의뢰 · 인연 이야기는 들은 줄까지 남아, 다시 겨누고 [F] 면 그 줄부터 잇는다(저절로 다시 열지 않는다)
     if (brain.state.talk && state.abisaDistance > 14) stopTalk(brain);
     return;
   }
 
-  // 먼저 말을 거는 때 — 구렁이가 물러나 사라진 쪽을 잠깐 본 뒤, 마주 보고 가까이 있으면
-  if (isWatchingSerpent) return;
-  const wantsRequest = !isRequestDone(brain);
-  const wantsBackstory = isRequestDone(brain) && !state.isBackstoryHeard && isFireBack();
-  if (!wantsRequest && !wantsBackstory) return;
+  // 먼저 말을 거는 때 — 첫 의뢰 한 번뿐(꼭 들어야 하는 말). 구렁이가 물러나 사라진 쪽을 잠깐 본 뒤, 마주 보고 가까이 있으면.
+  // 끊긴 의뢰 · 인연 이야기 · 단계 한 줄은 플레이어가 [F] 로 말을 걸 때만(미르 11/11 「근처에만 가도 먼저 말을 건다」)
+  if (isWatchingSerpent || state.requestNext > 0 || state.hasRequestOpened) return;
   camera.getWorldDirection(tmp.forward);
   tmp.toActor
     .copy(rig.position)
     .setY(rig.position.y + 1.3 * M)
     .sub(eye)
     .normalize();
-  const isFacing = tmp.forward.dot(tmp.toActor) > (state.requestNext === 0 && wantsRequest ? 0.3 : 0.55);
-  const reach = wantsRequest ? 9 : 6;
-  if (state.abisaDistance < reach && isFacing && isFree()) state.inRange += dt;
+  const isFacing = tmp.forward.dot(tmp.toActor) > 0.3;
+  if (state.abisaDistance < 9 && isFacing && isFree()) state.inRange += dt;
   else state.inRange = 0;
   if (state.inRange < 0.6) return;
   state.inRange = 0;
-  if (wantsRequest) startRequest(brain);
-  else startTalk(brain, "backstory", BACKSTORY_LINES, false);
+  startRequest(brain);
 }
 
 function writeRest(brain: Brain) {
@@ -665,10 +685,9 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
       position: abisaHead,
       label: "아비사에게 말 걸기",
       radius: 0.55 * M,
-      // 말하는 중이면 먼저 말을 거는 거리(9 m)에서도 E 로 넘긴다 — 대사의 「E 겨누면 다음」을 그 자리에서 쓰게(박람회 출품판에서 정리 · 11/10)
-      get reach() {
-        return (brain.state.talk ? 9 : 3.5) * M;
-      },
+      // 겨누고 [F] 로 말을 건다(E 는 물건 전용 — 계약 §10-2). 넘기기는 겨누지 않아도 [F] 라 거리는 말을 거는 때만 쓴다
+      reach: 5 * M,
+      isTalk: true,
       enabled: () => enabled && rigs.abisa.isPlaced,
       use: () => {
         if (brain.state.talk) {
@@ -682,7 +701,7 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
         if (!isRequestDone(brain)) startRequest(brain);
         else if (brain.state.echoPhase === "staying" && !brain.state.isEchoLineHeard)
           startTalk(brain, "echo", [ECHO_LINE], false);
-        else if (!brain.state.isBackstoryHeard && isFireBack()) startTalk(brain, "backstory", BACKSTORY_LINES, false);
+        else if (!brain.state.isBackstoryHeard && isFireBack()) startBackstory(brain);
         else startTalk(brain, "stage", [stageLine(clamDig.stage(), fishTrapPuzzle.stage())], false);
       },
     });
@@ -720,6 +739,8 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
           afterRetreat: 0,
           requestNext: 0,
           isBackstoryHeard: false,
+          backstoryNext: 0,
+          hasRequestOpened: false,
           isSerpentNoticed: false,
           isTipShown: false,
           isAlertHeard: false,
@@ -727,6 +748,7 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
         remember(SERPENT_DRIVEN_KEY, false);
         remember(REQUEST_LINE_KEY, 0);
         remember(BACKSTORY_KEY, false);
+        remember(BACKSTORY_LINE_KEY, 0);
         Object.assign(brain.state, { echoPhase: "none", echoTime: 0, echoHasLeft: false, isEchoLineHeard: false });
         remember(ECHO_KEY, "none");
         remember(ECHO_LINE_KEY, false);
@@ -741,7 +763,7 @@ export default function FirstSceneActors({ enabled, groundY }: FirstSceneActorsP
       }),
       drive: () => driveSerpent(brain, rigs.serpent),
       request: () => startRequest(brain),
-      backstory: () => startTalk(brain, "backstory", BACKSTORY_LINES, false),
+      backstory: () => startBackstory(brain),
       /** 팔 동작 켜고 끄기(화면 보고 정한다) */
       setArmGesture: (on: boolean) => {
         ARM_GESTURE.enabled = on;

@@ -7,7 +7,8 @@
  *   동행                                  서버 대사 · 힌트 · 힌트 제안(companionBridge) · [F] 보기 · 미리 보기 초안(dialogueStore).
  * 이름 줄에는 늘 말하는 사람 이름이 있다. 게임 알림 · 퍼즐 안내판은 대화창이 아니라 지금처럼 따로 뜬다(Codex 01회차).
  *
- * 키: [F] 동행 말 넘기기 · 말 걸기(터치는 위 단추 줄 💬 가 같은 키), 물음은 [Y] [N] · 숫자. 장면 인물 말은 지금처럼 E(겨누고) · 소개는 E · ✋.
+ * 키: [F] 말 넘기기 · 말 걸기(터치는 위 단추 줄 💬 가 같은 키), 물음은 [Y] [N] · 숫자. 장면 인물(아비사 · 어부 · 동행 소개) 말도 [F] —
+ *  겨누거나 다가가지 않아도 넘어간다(미르 11/11, 계약 §10-2 「말 거는 키는 F 하나」). 터치는 창 안 「다음」 단추도.
  * 플레이어가 건 보기([F])는 데스크톱에서 마우스를 풀어 눌러서도 고른다 — 푸는 · 다시 잡는 일은 나주 pointerHold 의 「창」 붙듦이라
  * ESC 두 단계(81b1484)와 같은 길이다. 터치는 잠금을 풀지 않고, 보기 단추가 터치 조작층(TouchHud, z 900) 위에 떠 바로 눌린다.
  * 터치 자리는 빠른 칸과 같은 빈칸 — 이동 스틱 자리(왼쪽 40%)와 오른쪽 동작 단추 묶음 사이. 창이 뜨면 빠른 칸은 비켜 숨는다.
@@ -254,7 +255,7 @@ export default function DialogueLayer() {
           {/* 알림은 창 안에 넣지 않는다 — 대화창이 떠 있는 동안 알림은 줄을 섰다가 창이 내려가면 뜬다(#78 · 미르 11/10 「NPC 와 대화할 때
               다른 알림을 중복으로 띄우지 마라」). 예전엔 터치에서 창 맨 위 한 줄로 넣었다 */}
           {npcShown ? (
-            <SceneSpeech speech={npcShown} isTouch={isTouch} keyE={labels.key("E")} toScreen={toScreen} />
+            <SceneSpeech speech={npcShown} isTouch={isTouch} toScreen={toScreen} />
           ) : companionShown ? (
             <CompanionSpeech
               shown={companionShown}
@@ -275,34 +276,37 @@ const isLastPage = (shown: ShownSpeech | null) => !!shown && shown.pageIndex >= 
 /** 찍는 중인 글자를 한꺼번에 다 보여 준다 — 아직 찍는 중이었으면 true */
 type FinishTyping = () => boolean;
 
-/** 장면 인물의 말 — 이름표 · 넘기기 안내 · 글 전체(제 시간에 넘어가므로 쪽을 나누지 않는다) */
+/** 장면 인물의 말 — 이름표 · 넘기기 안내 · 글 전체(제 시간에 넘어가므로 쪽을 나누지 않는다). 넘기기는 [F] · 터치는 창 안 「다음」 */
 function SceneSpeech({
   speech,
   isTouch,
-  keyE,
   toScreen,
 }: {
   speech: NpcSpeech;
   isTouch: boolean;
-  keyE: string;
   toScreen: (text: string) => string;
 }) {
-  const advance = speech.onNext ? "다음" : speech.canAdvance ? "겨누면 다음" : null;
   return (
     <div key={speech.key} className="npc-talk__body npc-talk__body--scene">
       <div className="npc-talk__head">
         <span className="npc-talk__name" data-testid="npc-talk-name">
           {speech.speaker}
         </span>
-        {advance && (
+        {speech.onNext && !isTouch && (
           <span className="npc-talk__advance">
-            {isTouch ? "✋" : `[${keyE}]`} {advance} <span className="companion-dots">▸</span>
+            [F] 다음 <span className="companion-dots">▸</span>
           </span>
         )}
       </div>
       <p className="npc-talk__text" data-testid="npc-talk-text">
         {withKeys(toScreen(speech.text))}
       </p>
+      {speech.onNext && isTouch && (
+        // 터치 — 창이 조작층 위에 떠 있어 「다음」을 바로 누른다(위 줄 💬 도 같은 일 — 동행 말과 같은 모양)
+        <button type="button" className="npc-talk__foot npc-talk__foot--button" onClick={speech.onNext}>
+          다음 <span className="companion-dots">▸</span>
+        </button>
+      )}
     </div>
   );
 }

@@ -4,11 +4,13 @@
  *  - 창(소지품 · 설정 · 힌트함 · 동행 입력) · 종이 · 게이지 · 카메라 연출 · 조작 풀림 동안은 멈추고 대사를 내린다.
  *    안 그러면 창을 보는 사이 한 번뿐인 대사가 흘러가 「들었음」으로 저장된다.
  *  - 줄마다 다 들으면 onLineDone(그 줄 번호) — 끊기면 다음에 그 줄부터 이어 말하게 저장한다.
+ *  - 띄운 줄은 [F] · 터치 💬 로 넘긴다(npcSpeech.advanceNpcSpeech — 누가 말하든 같은 키, 미르 11/11).
  */
 import * as THREE from "three";
 
 import { isPointerActive } from "@/engine/input/virtualLock";
 
+import { isLetterOpenNow } from "../../puzzles/cliff/letters";
 import { isGaugeActive } from "../../puzzles/fishTrap/pullGauge";
 import { isWindowHeld } from "../../puzzles/pointerHold";
 import { isPaperOpenNow } from "../../puzzles/ridge/oldPaper";
@@ -28,7 +30,7 @@ export interface StoryLine {
 export const lineSeconds = (text: string) => THREE.MathUtils.clamp(1.6 + text.length * 0.075, 2.8, 5.5);
 
 /**
- * 말을 멈출 때 — 다른 일(창 · 종이 · 게이지 · 연출)에 묶여 있거나 조작이 풀려 있다.
+ * 말을 멈출 때 — 다른 일(창 · 종이 · 편지 · 게이지 · 연출)에 묶여 있거나 조작이 풀려 있다.
  * ownsFocus = 말하는 쪽이 제가 건 화면 고정(클로즈업)을 알아보는 함수 — 제 고정 중에는 멈추지 않는다.
  */
 export const isTalkPaused = (ownsFocus?: (id: string) => boolean) => {
@@ -37,6 +39,7 @@ export const isTalkPaused = (ownsFocus?: (id: string) => boolean) => {
     !isPointerActive() ||
     isWindowHeld() ||
     isPaperOpenNow() ||
+    isLetterOpenNow() ||
     isGaugeActive() ||
     (focusId !== null && !ownsFocus?.(focusId)) ||
     !!stage.cut
@@ -57,13 +60,10 @@ export class StoryTalk {
   onDone: (() => void) | null = null;
   /** 이 말하기가 건 화면 고정(클로즈업)인지 — 그 고정 중에는 멈추지 않는다 */
   ownsFocus: ((id: string) => boolean) | undefined = undefined;
-  /** 겨누지 않고 넘길 수 있다(상자에 「다음」 안내 — E · 터치 ✋ 는 부르는 쪽이 press 로 잇는다) */
-  canPress = false;
 
   constructor(
     readonly id: string,
     readonly speaker: string,
-    private readonly canAdvance: boolean,
   ) {}
 
   /** 지금 줄(첫 줄 전 · 끝나면 null) */
@@ -82,7 +82,7 @@ export class StoryTalk {
     return true;
   }
 
-  /** 다음 줄로(겨누고 E · 시간이 다 됨) */
+  /** 다음 줄로(시간이 다 됨 · press) */
   next() {
     if (!this.isActive) return;
     if (this.index >= 0) this.onLineDone?.(this.index);
@@ -97,7 +97,7 @@ export class StoryTalk {
     this.onDone?.();
   }
 
-  /** 겨누지 않고 다음 줄로 — 줄을 띄운 동안만(첫 줄 전 틈 · 멈춘 동안은 무시). 넘겼으면 true */
+  /** [F] · 💬 로 다음 줄로 — 줄을 띄운 동안만(첫 줄 전 틈 · 멈춘 동안은 무시). 넘겼으면 true */
   press(): boolean {
     if (!this.isActive || this.isPaused || this.index < 0) return false;
     this.next();
@@ -126,15 +126,7 @@ export class StoryTalk {
   }
 
   private show(line: StoryLine) {
-    setNpcSpeech(
-      {
-        speaker: this.speaker,
-        text: line.text,
-        canAdvance: this.canAdvance,
-        onNext: this.canPress ? () => void this.press() : undefined,
-      },
-      this.id,
-    );
+    setNpcSpeech({ speaker: this.speaker, text: line.text, onNext: () => void this.press() }, this.id);
   }
 
   private finish() {

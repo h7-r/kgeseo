@@ -246,6 +246,11 @@ export interface CompanionBridgeOptions {
   now?: () => number;
   /** 상태 변화를 한 번에 모아 본다 — 기본은 마이크로태스크(검사에서 바꿔 끼운다) */
   schedule?: (run: () => void) => void;
+  /**
+   * 플레이어가 바쁜가(물건을 살피는 중 · 집중 퍼즐 단계) — 다리가 보낸 auto 턴의 대사(먼저 거는 말)가 그때 도착하면 띄우지 않고 버린다.
+   * 받은 것으로는 센다(쉬기 · 퍼즐당 횟수 — BE 가 돌려준 것을 센다). 힌트 제안(Y/N)은 버리지 않는다(미르 11/11)
+   */
+  isBusy?: () => boolean;
 }
 
 export function createCompanionBridge(options: CompanionBridgeOptions) {
@@ -291,6 +296,14 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
   let isHintRequested = false;
   let seenOffer: HintOffer | null = dialog.getState().offer;
   let isScheduled = false;
+  /** 다리가 보낸 auto 턴(구역 진입 · 상황 · 퍼즐 폴링)의 응답을 기다리는 중 — 그 응답 대사는 플레이어가 청하지 않은 말이다 */
+  let isAutoPending = false;
+  /** auto 턴을 보낸다 — 실제로 보냈을 때만(대기가 새로 생김) 기다리는 중으로 적는다. 플레이어 말의 응답을 기다리던 중이면 보내지지 않는다(Codex 리뷰) */
+  const sendAuto = (send: () => void) => {
+    const wasWaiting = dialog.getState().waiting !== null;
+    send();
+    if (!wasWaiting && dialog.getState().waiting !== null) isAutoPending = true;
+  };
 
   /**
    * 서버 응답 하나는 제안(offer)을 먼저, 대사(line)를 뒤에 따로 알린다(applyTurn). 한 번에 모아 봐야
@@ -316,9 +329,13 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
     const isIntervention = freshOffer !== null || freshLine?.kind === "npc";
     if (isIntervention) charge(pollingFor);
     if (isIntervention || dialog.getState().waiting === null) pollingFor = null;
+    const isUnasked = isAutoPending;
+    if (dialog.getState().waiting === null) isAutoPending = false;
     if (!freshOffer) {
       if (!freshLine) return;
       if (freshLine.kind !== "npc") return options.say(toSpeech(freshLine));
+      // 청하지 않은 넛지가 바쁠 때 왔으면 띄우지 않는다 — 쌓아 두면 바쁨이 끝난 뒤 몰려 나온다(받은 것으로는 위에서 셌다)
+      if (isUnasked && options.isBusy?.()) return;
       // 넛지 대사가 줄에서 기다리는 동안은 폴링을 보내지 않는다 — 뜨면 빠지고, 못 뜨면 줄의 수명이 다할 때 빠진다
       const token = {};
       unshown.set(token, now() + SERVER_LINE_TTL_MS);
@@ -392,15 +409,15 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
       if (!plan) return;
       // 상황이 있으면 쿨다운 · 횟수는 BE 가 센다. 보낼 수 없을 때(세션 준비 전 · 대기 중)는 버린다 — 지난 상황을 늦게 보내지 않는다
       if (plan.situation) {
-        void (plan.focusObjectId
-          ? dialog.autoTurn(plan.situation, plan.focusObjectId)
-          : dialog.autoTurn(plan.situation));
+        const { situation, focusObjectId } = plan;
+        sendAuto(() => void (focusObjectId ? dialog.autoTurn(situation, focusObjectId) : dialog.autoTurn(situation)));
         return;
       }
       // 퍼즐 폴링 — reply null 이면 아무것도 안 뜨고(line 없음), 제안이면 위 flush 가 Y/N 으로 묻는다. 실패해도 안내 없이
       if (plan.focusObjectId) {
         pollingFor = objective;
-        void dialog.autoTurn(undefined, plan.focusObjectId, { quiet: true });
+        const focusObjectId = plan.focusObjectId;
+        sendAuto(() => void dialog.autoTurn(undefined, focusObjectId, { quiet: true }));
         // 보내지 못했으면(세션 준비 전) 그 퍼즐 몫으로 셀 응답도 없다 — 요청은 보내는 순간 대기(waiting)가 된다
         if (dialog.getState().waiting === null) pollingFor = null;
         return;
@@ -408,7 +425,7 @@ export function createCompanionBridge(options: CompanionBridgeOptions) {
       // 구역 진입 — 개입을 받고 쉬는 중이면 보내지 않고 버린다(늦게 보내지 않는다). companionDialog 의 간격(autoMinIntervalMs)은
       // 구역 진입끼리만 세서, 넛지 바로 뒤 구역에 들어서면 또 말을 걸었다(세진 11/10)
       if (isPaused) return;
-      void dialog.autoTurn();
+      sendAuto(() => void dialog.autoTurn());
     },
     hintProvider,
     dispose() {

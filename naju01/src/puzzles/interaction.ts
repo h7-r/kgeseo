@@ -1,6 +1,7 @@
 /**
  * 나주 상호작용 — 바라보는 물건을 고르고 [E] 로 쓴다. 퍼즐마다 대상을 등록만 하면 된다.
- * E 는 상호작용 전용이다.
+ * E 는 물건 전용이다. 장면 인물(isTalk)은 따로 겨누고 [F](터치 💬)로 말을 건다 — 계약 v0.4.16 §10-2 「말 거는 키는 F 하나,
+ * E 는 물건 쓰기 전용」, 미르 11/11 「물건을 살피는데 NPC 가 E 를 가로챈다」.
  */
 import { useSyncExternalStore } from "react";
 import * as THREE from "three";
@@ -42,23 +43,30 @@ export interface Interactable {
   aimPenalty?: number;
   /** 겨누면 살짝 커지고 밝아질 물체(본편 AimHighlight 와 같은 셈) — 테두리 동그라미 대신 이걸 쓴다 */
   highlight?: () => THREE.Object3D | null;
+  /** 말 거는 대상(장면 인물) — E 로 겨누지 않고 [F] 로 겨눈다(pressAimedTalk). 안내는 「[F] …에게 말 걸기」 */
+  isTalk?: boolean;
 }
 
 const targets = new Map<string, Interactable>();
 const signal = createChangeSignal();
+/** E 로 쓸 물건 */
 let aimed: Interactable | null = null;
+/** [F] 로 말을 걸 장면 인물 — 물건과 따로 고른다(인물 앞 물건을 가리지 않게) */
+let aimedTalk: Interactable | null = null;
 
 export function registerInteractable(target: Interactable) {
   targets.set(target.id, target);
   return () => {
     targets.delete(target.id);
-    if (aimed?.id === target.id) setAimed(null);
+    if (aimed?.id === target.id) setAimed(null, aimedTalk);
+    if (aimedTalk?.id === target.id) setAimed(aimed, null);
   };
 }
 
-function setAimed(next: Interactable | null) {
-  if (aimed === next) return;
+function setAimed(next: Interactable | null, nextTalk: Interactable | null) {
+  if (aimed === next && aimedTalk === nextTalk) return;
   aimed = next;
+  aimedTalk = nextTalk;
   signal.notify();
 }
 
@@ -67,12 +75,14 @@ const PICKUP_PRIORITY = 2;
 const toTarget = new THREE.Vector3();
 const forward = new THREE.Vector3();
 
-/** 매 프레임 카메라로 겨눈 대상을 고른다. 시선과의 옆거리가 가장 작은 것 — 광선 판정보다 너그럽다 */
+/** 매 프레임 카메라로 겨눈 대상을 고른다. 시선과의 옆거리가 가장 작은 것 — 광선 판정보다 너그럽다. 물건(E)과 장면 인물(F)은 따로 */
 export function updateAim(camera: THREE.Camera, isActive: boolean) {
-  if (!isActive) return setAimed(null);
+  if (!isActive) return setAimed(null, null);
   camera.getWorldDirection(forward);
   let best: Interactable | null = null;
   let bestScore = Infinity;
+  let bestTalk: Interactable | null = null;
+  let bestTalkScore = Infinity;
   for (const target of targets.values()) {
     if (target.enabled && !target.enabled()) continue;
     toTarget.subVectors(target.position, camera.position);
@@ -82,15 +92,40 @@ export function updateAim(camera: THREE.Camera, isActive: boolean) {
     if (side > target.radius) continue;
     const score =
       side / target.radius + along / target.reach - (target.isPickup ? PICKUP_PRIORITY : 0) + (target.aimPenalty ?? 0);
-    if (score < bestScore) {
+    if (target.isTalk) {
+      if (score < bestTalkScore) {
+        bestTalkScore = score;
+        bestTalk = target;
+      }
+    } else if (score < bestScore) {
       bestScore = score;
       best = target;
     }
   }
-  setAimed(best);
+  if (best) lastObjectAimAt = performance.now();
+  setAimed(best, bestTalk);
 }
 
 export const useAimedLabel = () => useSyncExternalStore(signal.subscribe, () => aimed?.label ?? null);
+/** 겨눈 장면 인물의 안내(「아비사에게 말 걸기」) — [F] 알약 */
+export const useAimedTalkLabel = () => useSyncExternalStore(signal.subscribe, () => aimedTalk?.label ?? null);
+
+/** [F] — 겨눈 장면 인물에게 말을 건다(조작 중일 때만). 걸었으면 true */
+export function pressAimedTalk(): boolean {
+  if (!aimedTalk || !isPointerActive() || isCameraFocused()) return false;
+  aimedTalk.use();
+  return true;
+}
+
+/** 마지막으로 물건을 겨눈 때 · E 로 물건을 쓴 때(performance.now) */
+let lastObjectAimAt = -Infinity;
+let lastObjectUseAt = -Infinity;
+/**
+ * 물건을 살피는 중인가 — 최근 seconds 초 안에 물건을 겨눴거나 E 로 썼다(시선을 잠깐 돌려도 살피는 중이다, Codex 리뷰).
+ * 먼저 거는 말(동행 한마디 · 서버 넛지)은 이때 꺼내지 않는다(미르 11/11 「단서를 찾는 중 원하지 않는 NPC 가 말을 건다」)
+ */
+export const isHandlingObjects = (seconds = 8) =>
+  aimed !== null || performance.now() - Math.max(lastObjectAimAt, lastObjectUseAt) < seconds * 1000;
 
 /** 지금 등록된 대상 id(정렬) — 개발 도구가 FE 로컬 ID 보고에 쓴다. 등록부를 바꾸지 않는다 */
 export const listInteractableIds = () => [...targets.keys()].sort();
@@ -158,16 +193,6 @@ export function setHandHandler(handler: ((target: Interactable | null) => boolea
 /** 지금 겨눈 대상 — 손에 든 물건을 받을 곳인지 HUD 가 본다 */
 export const aimedTarget = () => aimed;
 
-/**
- * 겨누지 않고 넘기는 대사(동행 첫 소개)가 E 를 가장 먼저 받는다 — 겨눈 물건보다 먼저(Codex 리뷰 c7fe989).
- * 터치 ✋ 도 같은 E 를 보낸다. true 를 돌려주면(한 줄 넘겼다) 그 E 는 여기서 끝난다.
- */
-let talkAdvance: (() => boolean) | null = null;
-
-export function setTalkAdvance(handler: (() => boolean) | null) {
-  talkAdvance = handler;
-}
-
 /** 미니게임처럼 E 를 따로 받는 동안 먼저 가로챈다. true 를 돌려주면 그 E 는 여기서 끝난다 */
 let keyInterceptor: ((event: KeyboardEvent) => boolean) | null = null;
 
@@ -181,22 +206,19 @@ if (typeof window !== "undefined") {
     "keydown",
     (event) => {
       if (event.code !== "KeyE" || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (talkAdvance?.()) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        return;
-      }
       if (keyInterceptor?.(event)) {
         event.stopImmediatePropagation();
         return;
       }
       if (!isPointerActive() || isCameraFocused()) return;
       if (handHandler?.(aimed)) {
+        lastObjectUseAt = performance.now();
         event.stopImmediatePropagation();
         return;
       }
       if (!aimed) return;
       event.stopImmediatePropagation();
+      lastObjectUseAt = performance.now();
       aimed.use();
     },
     { capture: true },
@@ -240,8 +262,11 @@ const noticeSignal = createChangeSignal();
 /** 떠 있는 알림과 남은 시간(초) */
 let showing: { item: NoticeItem; left: number } | null = null;
 const noticeLine: NoticeItem[] = [];
-/** 이야기가 끝나고 이만큼 비어야 줄 선 알림을 띄운다 — 대사 사이 · 다음 줄로 넘어가는 틈에 끼지 않게 */
-const NOTICE_RELEASE_SECONDS = 0.6;
+/**
+ * 이야기가 끝나고 이만큼 비어야 줄 선 알림을 띄운다 — 대사 사이 · 다음 줄로 넘어가는 틈에 끼지 않게.
+ * 0.6초면 대화가 끝나자마자 글이 또 튀어나와 「사람 사이에 상자가 또 뜬다」로 보였다(미르 11/11) — 급한 알림은 기다리지 않는다
+ */
+const NOTICE_RELEASE_SECONDS = 1.5;
 const URGENT_WAIT_MS = 5000;
 let freeSeconds = NOTICE_RELEASE_SECONDS;
 let noticeTicker = 0;
@@ -337,7 +362,7 @@ function tickNotice() {
   }
 }
 
-/** 틱은 늘 돈다(0.1초마다 몇 가지 비교뿐) — 이야기가 끝난 지 얼마나 됐는지를 알림이 없을 때도 세어야 0.6초 틈을 지킨다 */
+/** 틱은 늘 돈다(0.1초마다 몇 가지 비교뿐) — 이야기가 끝난 지 얼마나 됐는지를 알림이 없을 때도 세어야 틈(NOTICE_RELEASE_SECONDS)을 지킨다 */
 function startNoticeTicker() {
   if (noticeTicker || typeof window === "undefined") return;
   lastNoticeTick = performance.now();
@@ -405,7 +430,7 @@ export function showNotice(text: string, seconds = 3.2, options: NoticeOptions =
     displayNotice(item);
     return;
   }
-  // 앞 알림이 있거나 이야기가 막 끝났으면(0.6초 틈 — 다음 줄 · 다음 사람이 이어 말할 수 있다) 줄 뒤로
+  // 앞 알림이 있거나 이야기가 막 끝났으면(틈 NOTICE_RELEASE_SECONDS — 다음 줄 · 다음 사람이 이어 말할 수 있다) 줄 뒤로
   if (showing || noticeLine.length || freeSeconds < NOTICE_RELEASE_SECONDS) {
     if (!item.fleeting) lineUp(item);
     return;
