@@ -22,7 +22,7 @@ import { M } from "../../puzzles/units";
 import { recall, remember } from "../../save/puzzleMemory";
 import { ActorRig } from "../firstScene/actorRig";
 import { personNeck, writePersonPose, type PersonPose } from "../firstScene/bendShader";
-import { isTalkTaken } from "../firstScene/npcSpeech";
+import { isTalkTaken, registerTalkInterrupter } from "../firstScene/npcSpeech";
 import { StoryTalk } from "../firstScene/storyTalk";
 import { FISHER_SCRIPTS, stepHint, type FisherId } from "./fisherLines";
 import { currentRockStep } from "./rockStep";
@@ -211,11 +211,14 @@ export default function SecondSceneActors({ enabled }: SecondSceneActorsProps) {
         // 겨누고 [F] 로 말을 건다(E 는 물건 전용 — 계약 §10-2). 넘기기는 겨누지 않아도 [F]
         reach: TALK.reach * M,
         isTalk: true,
+        talkId: fisher.talk.id,
         enabled: () => enabled && fisher.rig.isPlaced,
         use: () => talkTo(fisher),
       }),
     );
-    return () => removers.forEach((remove) => remove());
+    // 말하는 중 다른 어부에게 [F] · 물건에 [E] 하면 그친다 — 들은 줄까지만 남고 다음에 그 줄부터(미르 11/11)
+    const interrupters = fishers.map((fisher) => registerTalkInterrupter(fisher.talk.id, () => fisher.talk.stop()));
+    return () => [...removers, ...interrupters].forEach((remove) => remove());
   }, [enabled, fishers]);
 
   useEffect(() => () => fishers.forEach((fisher) => fisher.talk.stop()), [fishers]);

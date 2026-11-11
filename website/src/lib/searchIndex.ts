@@ -1,3 +1,4 @@
+import { SUPPORT_EMAIL } from "@/data/contact";
 import { ABOUT_CONTENT, ABOUT_TABS } from "@/data/about";
 import { MY_PAGE_CONTENT, MY_PAGE_TABS } from "@/data/myPage";
 import { PRICING } from "@/data/pricing";
@@ -108,7 +109,7 @@ function buildIndex(): IndexEntry[] {
       "고객센터 · 1:1 문의",
       "고객센터",
       ROUTES.support,
-      "1:1 문의하기 문의 유형 제목 내용 첨부파일 운영 시간 평일 10:00 18:00",
+      `1:1 문의하기 문의 메일 ${SUPPORT_EMAIL} 비밀번호 계정 신고 운영 시간 평일 10:00 18:00`,
     ),
   );
 

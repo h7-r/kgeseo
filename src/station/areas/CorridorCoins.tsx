@@ -189,6 +189,15 @@ export default function CorridorCoins({ coin, outline }: CorridorCoinsProps) {
     const landing = getReturnLandingPosition(vendingId) ?? fallback;
     return [landing[0], coin.floorY, landing[2]];
   };
+  const returnFallback: Record<VendingId, readonly number[]> = { drink: coin.drinkReturn, coffee: coin.coffeeReturn };
+  // 반환구로 돌아온 동전 — 틀린 자판기에 넣었을 때뿐 아니라 전원이 꺼진 자판기에 넣었을 때도(맞는 자판기의 반환구로) 나온다.
+  // 예전엔 앞의 두 경우만 그려 전원 없이 넣은 동전이 사라진 것처럼 보였다(11/11 플레이테스트).
+  const returnedTo = (kind: CoinKind): VendingId | null => {
+    const location = getCoinLocation(kind);
+    return location.startsWith("returned:") ? (location.slice("returned:".length) as VendingId) : null;
+  };
+  const canReturnedTo = returnedTo("can");
+  const cupReturnedTo = returnedTo("cup");
 
   return (
     <>
@@ -199,11 +208,12 @@ export default function CorridorCoins({ coin, outline }: CorridorCoinsProps) {
           {...canLook}
         />
       )}
-      {getCoinLocation("can") === "returned:coffee" && (
+      {canReturnedTo && (
         <FloorCoin
+          key={`can-${canReturnedTo}`}
           kind="can"
-          spot={returnedSpot("coffee", coin.coffeeReturn)}
-          from={getReturnSlotPosition("coffee")}
+          spot={returnedSpot(canReturnedTo, returnFallback[canReturnedTo])}
+          from={getReturnSlotPosition(canReturnedTo)}
           {...canLook}
         />
       )}
@@ -214,11 +224,12 @@ export default function CorridorCoins({ coin, outline }: CorridorCoinsProps) {
           {...cupLook}
         />
       )}
-      {getCoinLocation("cup") === "returned:drink" && (
+      {cupReturnedTo && (
         <FloorCoin
+          key={`cup-${cupReturnedTo}`}
           kind="cup"
-          spot={returnedSpot("drink", coin.drinkReturn)}
-          from={getReturnSlotPosition("drink")}
+          spot={returnedSpot(cupReturnedTo, returnFallback[cupReturnedTo])}
+          from={getReturnSlotPosition(cupReturnedTo)}
           {...cupLook}
         />
       )}

@@ -55,6 +55,31 @@ export function releaseTalk(id: string) {
 export const isTalkTaken = (id?: string) => owner !== null && owner !== id;
 export const subscribeTalkOwner = ownerSignal.subscribe;
 export const useTalkTaken = () => useSyncExternalStore(ownerSignal.subscribe, () => owner !== null);
+/** 지금 차례를 잡은 사람(없으면 null) */
+export const talkOwner = () => owner;
+export const useTalkOwner = () => useSyncExternalStore(ownerSignal.subscribe, () => owner);
+
+/**
+ * 끊을 수 있는 말 — 플레이어가 말을 거는 장면 인물(아비사 · 어부)만 등록한다. 말하는 중 다른 것과 상호작용하면(물건 [E] · 다른 인물 [F])
+ * 그친다 — 「대사가 나오는 중이라도 다른 것과 상호작용해 대사가 나오면 이전 대화는 찍어눌러야 한다」(미르 11/11).
+ * 그칠 때 띄운 줄은 들은 것으로 치지 않는다(다시 말을 걸면 그 줄부터). 동행 말(소개 · 한마디)은 등록하지 않아 끊기지 않는다
+ */
+const interrupters = new Map<string, () => void>();
+export function registerTalkInterrupter(id: string, stop: () => void) {
+  interrupters.set(id, stop);
+  return () => {
+    if (interrupters.get(id) === stop) interrupters.delete(id);
+  };
+}
+/** 지금 말하는 사람이 끊을 수 있는 인물인가 */
+export const isTalkInterruptible = () => owner !== null && interrupters.has(owner);
+/** 지금 말하는 인물을 그친다(끊을 수 있을 때만). 그쳤으면 true */
+export function interruptTalk(): boolean {
+  const stop = owner === null ? undefined : interrupters.get(owner);
+  if (!stop) return false;
+  stop();
+  return true;
+}
 
 /** 자막을 바꾼다 — 차례를 잡은 사람만(by). 차례가 비어 있으면 누구나 */
 export function setNpcSpeech(next: Omit<NpcSpeech, "key"> | null, by?: string) {

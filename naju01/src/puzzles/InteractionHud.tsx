@@ -2,10 +2,10 @@ import { useLayoutEffect, useRef, type CSSProperties, type RefObject } from "rea
 
 import { useKeyLabels } from "@/engine/input";
 import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
-import { aimedTarget, useAimedLabel, useAimedTalkLabel, useNotice, usesWithHand } from "./interaction";
+import { aimedTarget, useAimedLabel, useAimedTalkId, useAimedTalkLabel, useNotice, usesWithHand } from "./interaction";
 import { ITEMS, SLOT_COUNT, inventory, useHandItem, useHeldItems } from "./inventory";
 import { usePaperOpen } from "./ridge/oldPaper";
-import { useSpeechBoxShown, useTalkTaken } from "../scene/firstScene/npcSpeech";
+import { isTalkInterruptible, useSpeechBoxShown, useTalkOwner, useTalkTaken } from "../scene/firstScene/npcSpeech";
 
 /**
  * 겨눈 물건의 [E] 안내와 짧은 알림. 손에 든 것이 있으면 [E] 는 받는 곳의 안내(「제상에 올리기」) 아니면 「소지품에 넣기」(칸이 차면 「내려놓기」).
@@ -16,6 +16,11 @@ export default function InteractionHud() {
   // 겨눈 장면 인물 — [F](터치 💬)로 말을 건다. 물건 안내가 있으면 그쪽만(알약 하나), 누가 말하는 중이면(장면 인물 · 동행 대화창) 숨긴다(그때 F 는 말을 넘긴다)
   const talkLabel = useAimedTalkLabel();
   const isTalkTaken = useTalkTaken();
+  // 장면 인물이 말하는 중이어도 다른 인물을 겨눴으면 [F] 가 그쪽으로 바꾼다(switchAimedTalk) — 그때는 안내를 띄운다
+  const talkOwner = useTalkOwner();
+  const aimedTalkId = useAimedTalkId();
+  const canSwitchTalk =
+    talkOwner !== null && aimedTalkId !== null && aimedTalkId !== talkOwner && isTalkInterruptible();
   const hand = useHandItem();
   useHeldItems(); // 소지품이 바뀌면 안내도 다시 고른다
   const notice = useNotice();
@@ -47,7 +52,7 @@ export default function InteractionHud() {
           {label}
         </div>
       )}
-      {!label && talkLabel && !isTalkTaken && !isSpeechShown && !isPaperOpen && (
+      {!label && talkLabel && !isPaperOpen && (canSwitchTalk || (!isTalkTaken && !isSpeechShown)) && (
         <div style={promptStyle}>
           <span style={keyStyle}>{labels.isTouch ? "💬" : "F"}</span>
           {talkLabel}

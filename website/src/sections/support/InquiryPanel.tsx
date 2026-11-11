@@ -8,6 +8,7 @@ import type { InquiryRecord } from "@/services/account/db";
 import { saveInquiry } from "@/services/account/manageAccount";
 import { useSessionUser } from "@/services/session";
 import { COLOR, SHADOW } from "@/styles/tokens";
+import { SUPPORT_EMAIL } from "@/data/contact";
 
 import InquiryField from "./InquiryField";
 import PanelHeading from "./PanelHeading";
@@ -22,7 +23,98 @@ interface Attachment {
   size: string;
 }
 
+/**
+ * 문의 서버(API · 저장 표)가 생기면 켠다. 그전엔 접수 양식 대신 메일 안내를 보인다 — 양식이 접수된 것처럼 보이지만
+ * 운영자에게 닿지 않았다(11/11 세진 · 미르). 켜면 handleSubmit 에서 서버로 보내고 서버가 준 접수 번호를 쓴다.
+ */
+const IS_INQUIRY_API_READY = false;
+
 export default function InquiryPanel() {
+  return IS_INQUIRY_API_READY ? <InquiryForm /> : <InquiryByEmail />;
+}
+
+/** 문의 서버 전 — 「준비 중」과 공식 메일 안내 */
+function InquiryByEmail() {
+  const [copyState, setCopyState] = useState<"idle" | "done" | "failed">("idle");
+  const copyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(SUPPORT_EMAIL);
+      setCopyState("done");
+    } catch {
+      setCopyState("failed");
+    }
+  };
+  const mailHref = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("[ESCAPE THE LEGEND 문의] ")}`;
+  return (
+    <>
+      <PanelHeading
+        title="1:1 문의하기"
+        description="지금은 메일로 문의를 받고 있습니다. 보내 주시면 확인 후 답변드리겠습니다."
+      />
+      <div style={{ display: "flex", gap: "40px", width: "100%", alignItems: "flex-start" }}>
+        <div style={{ ...inquiryCardStyle, flex: "1 0 0", minWidth: 0, gap: "22px" }}>
+          <span style={pendingChipStyle}>준비 중</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <span style={{ fontFamily: FONT.body, fontWeight: 700, fontSize: "22px", color: COLOR.lightText }}>
+              1:1 문의 접수 화면을 준비하고 있습니다
+            </span>
+            <span style={{ fontFamily: FONT.body, fontSize: "16px", lineHeight: 1.6, color: COLOR.lightTextMuted }}>
+              그동안 문의는 아래 메일로 보내 주세요. 평균 1~2영업일 안에 답변드립니다.
+            </span>
+          </div>
+          <div style={emailBoxStyle}>
+            <span style={emailTextStyle}>{SUPPORT_EMAIL}</span>
+            <div style={{ display: "flex", gap: "10px", flexShrink: 0 }}>
+              <a className="button" href={mailHref} style={{ ...submitButtonStyle, textDecoration: "none" }}>
+                <span className="button__label">메일 쓰기</span>
+              </a>
+              <button type="button" className="button" style={copyButtonStyle} onClick={copyAddress}>
+                <span className="button__label">
+                  {copyState === "done"
+                    ? "복사했습니다 ✓"
+                    : copyState === "failed"
+                      ? "직접 복사해 주세요"
+                      : "주소 복사"}
+                </span>
+              </button>
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <div style={labelStyle}>메일에 함께 적어 주시면 빨리 도와드릴 수 있습니다</div>
+            <ul style={tipListStyle}>
+              <li>가입한 이메일 또는 닉네임</li>
+              <li>문의 유형 — 계정 · 게임플레이 · 결제 · 기술지원 · 기타</li>
+              <li>일어난 일과 그때 시각, 어느 화면(사건 · 스테이지)이었는지</li>
+              <li>가능하면 화면 캡처</li>
+            </ul>
+          </div>
+        </div>
+        <InfoCard />
+      </div>
+    </>
+  );
+}
+
+/** 오른쪽 안내 — 운영 시간 · 공식 메일 */
+function InfoCard() {
+  return (
+    <div style={{ ...inquiryCardStyle, width: "358px", flexShrink: 0, gap: "20px" }}>
+      <div style={{ fontFamily: FONT.mono, fontWeight: 700, fontSize: "18px", color: COLOR.lightText }}>운영 시간</div>
+      <div style={infoListStyle}>
+        <span>평일 10:00~18:00</span>
+        <span>주말 · 공휴일 휴무</span>
+      </div>
+      <div style={{ height: "1px", background: COLOR.lightDivider }} />
+      <div style={infoListStyle}>
+        <span>문의 메일: {SUPPORT_EMAIL}</span>
+        <span>평균 답변 시간: 1~2영업일</span>
+      </div>
+    </div>
+  );
+}
+
+/** 문의 서버가 생긴 뒤의 접수 양식 */
+function InquiryForm() {
   const user = useSessionUser();
   const navigate = useSiteNavigate();
   // 로그인했으면 답변 받을 이메일을 내 이메일로 채워 둔다(고칠 수 있다).
@@ -202,20 +294,7 @@ export default function InquiryPanel() {
           </div>
         )}
 
-        <div style={{ ...inquiryCardStyle, width: "358px", flexShrink: 0, gap: "20px" }}>
-          <div style={{ fontFamily: FONT.mono, fontWeight: 700, fontSize: "18px", color: COLOR.lightText }}>
-            운영 시간
-          </div>
-          <div style={infoListStyle}>
-            <span>평일 10:00~18:00</span>
-            <span>주말 · 공휴일 휴무</span>
-          </div>
-          <div style={{ height: "1px", background: COLOR.lightDivider }} />
-          <div style={infoListStyle}>
-            <span>긴급 문의: support@escapethelegend.kr</span>
-            <span>평균 답변 시간: 1~2영업일</span>
-          </div>
-        </div>
+        <InfoCard />
       </div>
     </>
   );
@@ -413,4 +492,57 @@ const secondaryButtonStyle: CSSProperties = {
   border: `1px solid ${COLOR.blueMid}`,
   color: COLOR.blue,
   boxShadow: "none",
+};
+
+const pendingChipStyle: CSSProperties = {
+  alignSelf: "flex-start",
+  padding: "5px 12px",
+  borderRadius: "999px",
+  fontFamily: FONT.body,
+  fontSize: "13px",
+  fontWeight: 700,
+  color: COLOR.blue,
+  background: "rgba(46,72,137,0.08)",
+  border: `1px solid ${COLOR.blueMid}`,
+};
+
+const emailBoxStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: "16px",
+  flexWrap: "wrap",
+  padding: "18px 20px",
+  borderRadius: "12px",
+  border: `1px solid ${COLOR.lightDivider}`,
+  background: "rgba(46,72,137,0.04)",
+};
+
+const emailTextStyle: CSSProperties = {
+  fontFamily: FONT.mono,
+  fontWeight: 700,
+  fontSize: "20px",
+  color: COLOR.lightText,
+  overflowWrap: "anywhere",
+};
+
+const copyButtonStyle: CSSProperties = {
+  ...submitButtonStyle,
+  backgroundImage: "none",
+  background: "transparent",
+  border: `1px solid ${COLOR.blueMid}`,
+  color: COLOR.blue,
+  boxShadow: "none",
+};
+
+const tipListStyle: CSSProperties = {
+  margin: 0,
+  paddingLeft: "20px",
+  display: "flex",
+  flexDirection: "column",
+  gap: "6px",
+  fontFamily: FONT.body,
+  fontSize: "15px",
+  lineHeight: 1.6,
+  color: COLOR.lightTextMuted,
 };

@@ -54,6 +54,8 @@ export function usePunch({ playerRef, isPointerLocked, isThirdPerson, isTrain, i
       if (event.button !== 0 || !(isPointerLocked || IS_INPUT_ALWAYS_ON) || !isThirdPerson || isTrain || isWindowOpen)
         return;
       const player = playerRef.current;
+      // 주먹은 제자리 동작이다 — 걷거나 뛰는 중에 내면 몸만 빙판처럼 미끄러진다(11/11 플레이테스트)
+      if (player.moving || !player.grounded) return;
       player.attackMotion = nextPunch;
       player.attackSerial += 1;
       nextPunch = nextPunch === "Punch_Jab" ? "Punch_Cross" : "Punch_Jab";

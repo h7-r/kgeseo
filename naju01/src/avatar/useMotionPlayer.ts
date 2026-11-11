@@ -93,6 +93,8 @@ export function chooseMotion(
     const attackClip = state.attackMotion ? prepared.clipFor(state.attackMotion) : null;
     timers.attackEnd = now + THREE.MathUtils.clamp((attackClip?.duration ?? 0.62) / 1.2, 0.45, 0.82);
   }
+  // 주먹 도중 걷기 시작하면 주먹을 끊는다 — 제자리 동작인 채 미끄러지지 않게(인사와 같은 규칙)
+  if (state.moving && now < timers.attackEnd) timers.attackEnd = 0;
   timers.restartKey = null;
   timers.actionSpeed = null;
   timers.actionLift = 0;
