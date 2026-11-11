@@ -38,4 +38,25 @@ const PASS_CODES: ReadonlySet<string> = new Set(["KeyT", "KeyP"]);
  * 막을 키인가. 하는 중(종료 · 나가기 · 처음부터 다시)에는 전부 — T · P 로 메뉴가 내려가면 그 일이 뒤에서 끝나 게임 중에 페이지가 넘어가고,
  * 다시 연 메뉴에서 다른 일이 겹쳐 시작됐다(09회차 Codex)
  */
-export const isBlockedByPauseMenu = (code: string) => isOpen && (isBusy || !PASS_CODES.has(code));
+export const isBlockedByPauseMenu = (code: string) => code === heldCode || (isOpen && (isBusy || !PASS_CODES.has(code)));
+
+/**
+ * 메뉴를 닫는 데 쓴 키(E = 계속하기, 미르 11/12) — 뗄 때까지 게임이 받지 않는다. 누른 채 두면 메뉴가 내려간 뒤 자동 반복이
+ * 상호작용(본편은 반복 E 도 물건 쓰기)으로 샌다(자리 다시 잡기 03회차 Codex). 떼거나 창 초점을 잃으면 풀린다.
+ */
+let heldCode: string | null = null;
+export const holdKeyUntilRelease = (code: string) => {
+  heldCode = code;
+};
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "keyup",
+    (event) => {
+      if (event.code === heldCode) heldCode = null;
+    },
+    true,
+  );
+  window.addEventListener("blur", () => {
+    heldCode = null;
+  });
+}

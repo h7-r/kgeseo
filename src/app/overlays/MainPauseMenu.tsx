@@ -63,5 +63,5 @@ export default function MainPauseMenu({
       },
     ],
   ];
-  return <PauseMenu groups={items} onEscape={onResume} footer="Esc 계속하기 · Enter · 클릭 고르기 · ↑↓ 옮기기" />;
+  return <PauseMenu groups={items} onEscape={onResume} footer="Esc · E 계속하기 · Enter · 클릭 고르기 · ↑↓ 옮기기" />;
 }

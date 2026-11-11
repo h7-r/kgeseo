@@ -181,7 +181,7 @@ export default function NajuPauseMenu({
       notice={notice}
       groups={groups}
       onEscape={onEscape}
-      footer="Esc 계속하기 · Enter · 클릭 고르기 · ↑↓ 옮기기 · P 설정"
+      footer="Esc · E 계속하기 · Enter · 클릭 고르기 · ↑↓ 옮기기 · P 설정"
     />
   );
 }
