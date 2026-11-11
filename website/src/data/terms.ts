@@ -2,6 +2,8 @@
  * 약관·법적 고지 다섯 탭의 글. 국내 법령을 근거로 조·항·호를 갖춰 쓴 화면용 문안이다.
  * 실제 서비스 개시 전에는 법무 검토를 받아야 한다 — 상호·주소·대표자·사업자번호는 아직 빈 값이다.
  */
+import { SUPPORT_EMAIL } from "./contact";
+
 export const TERMS_TABS = [
   { id: "terms", label: "이용약관" },
   { id: "privacy", label: "개인정보처리방침" },
@@ -36,7 +38,7 @@ const EFFECTIVE_DATE = "2026년 1월 1일";
  */
 const DEMO = {
   operator: "【실제 운영 주체】",
-  contactEmail: "【운영팀 공식 문의 이메일】",
+  contactEmail: SUPPORT_EMAIL,
   privacyOfficer: "【개인정보 담당자 또는 부서】",
   publishDate: "【웹사이트 최초 게시일】",
   creditsUrl: "【외부 에셋 및 오픈소스 크레딧 URL】",
@@ -301,7 +303,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       lines: [
         "① 회사는 개인정보 처리에 관한 업무를 총괄하여 책임지고, 관련 불만처리 및 피해구제를 위하여 개인정보 보호책임자를 지정하고 있습니다.",
         "   · 개인정보 보호책임자 : Team · Legend",
-        "   · 연락처 : **privacy@escapethelegend.kr**",
+        `   · 연락처 : **${SUPPORT_EMAIL}**`,
         "② 정보주체는 서비스 이용 중 발생한 개인정보 보호 관련 문의를 위 연락처로 문의할 수 있습니다.",
       ],
     },
@@ -541,7 +543,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
         "② 신고 시 **권리 소명자료, 침해된 저작물의 명칭, 침해 위치(URL), 신고인의 연락처**를 기재하여야 합니다.",
         "③ 회사는 신고를 받은 !!즉시 복제·전송을 중단!!하고, 그 사실을 권리주장자와 게시자에게 통보합니다.",
         "④ 게시자는 정당한 권원이 있음을 소명하여 재개를 요구할 수 있습니다.",
-        "   · 신고 접수 : **copyright@escapethelegend.kr**",
+        `   · 신고 접수 : **${SUPPORT_EMAIL}**`,
       ],
     },
     { kind: "article", text: "제6조 (지역 설화 및 공공저작물의 이용)" },
@@ -606,8 +608,8 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       lines: [
         "① 서비스의 모든 화면에는 ™ & © 2026 ESCAPE THE LEGEND 표시가 포함됩니다.",
         "② 라이선스·제휴·상표 사용에 관한 문의는 아래로 접수합니다.",
-        "   · 라이선스 문의 : **license@escapethelegend.kr**",
-        "   · 저작권 침해 신고 : **copyright@escapethelegend.kr**",
+        `   · 라이선스 문의 : **${SUPPORT_EMAIL}**`,
+        `   · 저작권 침해 신고 : **${SUPPORT_EMAIL}**`,
       ],
     },
     { kind: "article", text: "부칙" },
@@ -645,7 +647,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
         "   · 사업자등록번호 : 000-00-00000",
         "   · 통신판매업신고 : 2026-광주남구-00000",
         "   · 대표전화 : 000-0000-0000 / FAX : 000-0000-0000",
-        "   · 전자우편 : support@escapethelegend.kr",
+        `   · 전자우편 : ${SUPPORT_EMAIL}`,
       ],
     },
     { kind: "article", text: "제2조 (게임물 등급분류)" },
@@ -663,7 +665,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       lines: [
         "① 회사는 「청소년 보호법」에 따라 **청소년유해매체물을 제공하지 않습니다**.",
         "② 회사는 청소년의 건전한 게임 이용을 위하여 이용시간 안내 및 과몰입 예방 정보를 제공합니다.",
-        "③ 청소년보호책임자 : Team · Legend (**youth@escapethelegend.kr**)",
+        `③ 청소년보호책임자 : Team · Legend (**${SUPPORT_EMAIL}**)`,
       ],
     },
     { kind: "article", text: "제4조 (결제 및 환불)" },
@@ -751,7 +753,7 @@ export const TERMS_CONTENT: Record<TermsTabId, readonly TermsSection[]> = {
       lines: [
         "① 회사는 「정보통신망 이용촉진 및 정보보호 등에 관한 법률」 제48조의3에 따라 침해사고 발생 시 지체 없이 한국인터넷진흥원 또는 과학기술정보통신부에 신고합니다.",
         "② 이용자 개인정보가 유출된 경우 「개인정보 보호법」 제34조에 따라 그 사실을 **지체 없이 정보주체에게 알리고** 신고합니다.",
-        "   · 보안취약점 제보 : **security@escapethelegend.kr**",
+        `   · 보안취약점 제보 : **${SUPPORT_EMAIL}**`,
       ],
     },
     { kind: "article", text: "제14조 (고지의 개정 이력)" },

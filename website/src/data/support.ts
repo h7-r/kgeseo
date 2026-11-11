@@ -1,3 +1,4 @@
+import { SUPPORT_EMAIL } from "@/data/contact";
 import { IS_ACCOUNT_MANAGEMENT_READY } from "@/services/account/manageAccount";
 import { COLOR } from "@/styles/tokens";
 
@@ -85,7 +86,7 @@ export const FAQ_ITEMS: readonly FaqItem[] = [
     question: "비밀번호를 잊어버렸어요. 어떻게 찾나요?",
     answer: IS_ACCOUNT_MANAGEMENT_READY
       ? "로그인 화면에서 「비밀번호 찾기」를 누르면 가입한 이메일로 인증코드 6자리를 보내 드립니다. 인증을 마치면 새 비밀번호를 설정할 수 있습니다."
-      : "비밀번호 찾기는 준비 중입니다. 그동안은 고객센터 「1:1 문의하기」에 가입한 이메일을 적어 요청해 주세요.",
+      : `비밀번호 찾기는 준비 중입니다. 그동안은 가입한 이메일을 적어 ${SUPPORT_EMAIL} 로 요청해 주세요.`,
   },
   {
     category: "게임플레이",

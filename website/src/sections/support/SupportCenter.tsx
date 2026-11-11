@@ -60,7 +60,7 @@ export default function SupportCenter({ tab, top, panelHeight, lightBgHeight, on
               width: "100%",
             }}
           >
-            공지사항과 자주 묻는 질문을 먼저 확인하고, 해결되지 않은 문제는 1:1 문의로 남겨 주세요.
+            공지사항과 자주 묻는 질문을 먼저 확인하고, 해결되지 않은 문제는 1:1 문의 메일로 보내 주세요.
           </div>
         </div>
       </div>
