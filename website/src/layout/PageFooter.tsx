@@ -37,8 +37,7 @@ export default function PageFooter() {
           ESCAPE THE LEGEND의 로고 · 캐릭터 · 명칭을 비롯해 이와 관련된 모든 고유한 표현은 LATENT SPACE의 독점
           자산입니다.
         </p>
-        <p style={lineStyle}>대표자 : Team · Legend | 대표전화 : 000-0000-0000 | 광주광역시 인공지능 사관학교</p>
-        <p style={lineStyle}>사업자등록번호 : 000-00-00000 | 통신판매업신고 : 2026-광주남구-00000</p>
+        <p style={lineStyle}>대표자 : 황미르 | 광주광역시 인공지능 사관학교</p>
       </div>
     </footer>
   );
@@ -49,8 +48,8 @@ const rootStyle: CSSProperties = {
   left: 0,
   bottom: 0,
   width: "1920px",
-  // 위 구분선~첫 줄과 마지막 줄~바닥 간격을 같게 맞춘 높이.
-  height: "217px",
+  // 위 구분선~첫 줄과 마지막 줄~바닥 간격을 같게 맞춘 높이. 아래 정보 두 줄(사업자 번호 · 전화 줄은 11/11 뺐다) 기준.
+  height: "188px",
   background: COLOR.black,
   borderTop: "1px solid #40454d",
   boxSizing: "border-box",

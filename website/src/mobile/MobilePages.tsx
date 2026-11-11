@@ -22,6 +22,7 @@ import { useQueryTab } from "@/hooks/useQueryTab";
 import { searchSite } from "@/lib/searchIndex";
 import { FONT } from "@/lib/style";
 import { QUERY, ROUTES, START_GAME, useSiteNavigate } from "@/navigation/routes";
+import CreditsCard from "@/sections/credits/CreditsCard";
 import TermsTabs from "@/sections/terms/TermsTabs";
 import { signOut, useSessionUser } from "@/services/session";
 import { COLOR } from "@/styles/tokens";
@@ -129,6 +130,19 @@ export function MobileTermsPage() {
       <PageHeading eyebrow="Brand · Policy" title="약관 및 정책" />
       <div style={{ marginTop: 16 }}>
         <TermsTabs tab={tab} top={0} onTabChange={setTab} isFlow />
+      </div>
+    </Shell>
+  );
+}
+
+// ── 크레딧 ──
+
+export function MobileCreditsPage() {
+  return (
+    <Shell>
+      <PageHeading eyebrow="Brand · Credits" title="크레딧" />
+      <div style={{ marginTop: 16 }}>
+        <CreditsCard isFlow />
       </div>
     </Shell>
   );

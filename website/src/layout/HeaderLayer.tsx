@@ -38,6 +38,7 @@ const ACTIVE_MENU: Readonly<Record<string, HeaderMenuId | undefined>> = {
   [ROUTES.myPage]: "collection",
   [ROUTES.pricing]: "subscribe",
   [ROUTES.terms]: "brand",
+  [ROUTES.credits]: "brand",
   [ROUTES.support]: "support",
 };
 
