@@ -18,7 +18,9 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { exposeDevHook } from "@/debug/devHooks";
 
 import { addDynamicSolid } from "../../movement/solidField";
+import { ending } from "../../ending/endingState";
 import { recall, track } from "../../save/puzzleMemory";
+import { endCameraFocus, focusCamera } from "../../scene/cameraFocus";
 import { audio } from "../../scene/immersion/audio";
 import { director } from "../../scene/immersion/director";
 import { CLEARED_SKY, focus } from "../../scene/immersion/focusFog";
@@ -27,7 +29,7 @@ import { floorAt, planar } from "../cliff/riteScene";
 import { useGroundReady } from "../cliff/useGroundReady";
 import { makeGlowPoints, pointScaleFor } from "../glowPoints";
 import { makeGlowTexture } from "../glowTexture";
-import { registerInteractable, showNotice } from "../interaction";
+import { clearNotice, registerInteractable, showNotice } from "../interaction";
 import { inventory } from "../inventory";
 import { PINE_TORCH_TIP, buildItemLooks, buildPineTorchGeometry } from "../itemLooks";
 import { loadModel } from "../itemModel";
@@ -76,6 +78,12 @@ const MOTES = 48;
 const PARKED = new THREE.Vector3(0, -1e5, 0);
 
 const smooth = THREE.MathUtils.smoothstep;
+/** 불이 잦아든 뒤(FINALE.endAt) 이만큼 지나 전체화면 엔딩 필름을 연다(초) — 새벽(dawnAt)은 불이 아직 타는 중이다(Codex) */
+const FILM_AFTER = 2;
+/** 끝 연출 카메라 고정 이름 */
+const FINALE_FOCUS = { table: "gut-finale-table", rings: "gut-finale-rings" } as const;
+/** 떠오르는 가락지를 이 높이(m)까지만 따라 올려다본다 — 더 오르면 하늘만 보인다 */
+const FINALE_LOOK_UP = 6;
 
 function buildGlowSprite(map: THREE.Texture, color: string, size: number) {
   const sprite = new THREE.Sprite(
@@ -341,53 +349,73 @@ function TorchRiteScene() {
       showNotice("화톳불에서 불붙은 관솔 가지를 뽑아 들었다. 둘레가 밝아진다 — 그림패에 가까이 비춰 보자.", 5);
     };
 
-    /** 다섯 불이 차례대로 다 켜졌다 — 굿이 풀린다(riteFinale 이 그린다) */
+    /**
+     * 다섯 불이 차례대로 다 켜졌다 — 굿이 풀린다(riteFinale 이 그린다). 여기부터 엔딩(미르 11/11 · 나주엔딩 01회차 Codex):
+     * 끝 연출 동안 HUD 를 걷고 카메라를 소반 → 떠오르는 가락지로 잡는다(걷기 · 겨냥 · E/F 가 멈춘다). 연출 글은 아래 자막 띠로
+     * 장면과 같은 때에(알림 줄을 안 거친다). 불이 잦아들면(release 뒤 FINALE.endAt + 2 s) 전체화면 엔딩 필름 → 클리어 화면.
+     * 굿을 맺는 해설(씻김굿 · 진부촌 · 끝 물음)은 필름이 한다.
+     */
     const release = () => {
       if (gut.stage() !== "rite") return;
       gut.release();
       if (hasEmber()) dropEmber();
+      // 그림패마다 띄운 글이 줄에 남아 있으면 강가로 돌아왔을 때 뒤늦게 뜬다
+      for (const tag of TAGS) clearNotice(tag.told);
+      ending.beginFinale();
+      focusFinale();
       audio.play("징");
       audio.play("우르릉");
       audio.play("불길");
       director.cue({ 카메라: "흔들림", 세기: 0.16 });
       director.cue({ 바람: 2.8, 초: FINALE.descendAt + 1.5 });
-      // 눈앞에서 지금 벌어지는 일 — 이야기에 밀리면 버린다(뒤에 뜨면 끝난 일을 지금처럼 말한다)
-      showNotice("다섯 불이 다 켜졌다. 징이 길게 울고 바람이 거세진다 — 불기둥 다섯이 하늘로 치솟는다.", 5, {
-        fleeting: true,
-      });
+      ending.caption("다섯 불이 다 켜졌다. 징이 길게 울고 바람이 거세진다 — 불기둥 다섯이 하늘로 치솟는다.", 5);
       later(FINALE.descendAt + 0.3, () =>
-        showNotice("불길이 횃불대를 타고 내려와 땅을 달린다 — 다섯 줄기가 소반으로 모인다.", 4.5, { fleeting: true }),
+        ending.caption("불길이 횃불대를 타고 내려와 땅을 달린다 — 다섯 줄기가 소반으로 모인다.", 3),
       );
       later(FINALE.runAt, () => audio.play("불붙음"));
       later(FINALE.igniteAt, () => {
         audio.play("불길");
         audio.play("우르릉");
         director.cue({ 카메라: "흔들림", 세기: 0.14 });
-        showNotice("소반에 불이 붙는다. 제물이 타오르고 — 가락지 한 쌍이 불길 위로 떠오른다.", 5.5, { fleeting: true });
+        ending.caption("소반에 불이 붙는다. 제물이 타오르고 — 가락지 한 쌍이 불길 위로 떠오른다.", 5.5);
       });
       later(FINALE.dawnAt, () => {
         gut.dawn();
         audio.play("전환");
       });
-      later(FINALE.ringsAt + 5.5, () =>
-        showNotice(
+      later(FINALE.ringsAt + 4.6, () =>
+        ending.caption(
           "가락지가 하늘로 오르며 밤이 걷힌다. 잿빛이던 강과 바위에 빛깔이 돌아온다 — 건네지 못한 것이 이제야 건너간다.",
-          8,
+          FINALE.endAt + FILM_AFTER - FINALE.ringsAt - 4.6,
         ),
       );
-      later(FINALE.endAt + 6, () => {
-        audio.play("단서");
-        showNotice("노인들이 뜻을 모아 무당들이 음력 8월에 씻김굿을 했다 — 넋을 위로하는 굿이었다.", 8);
+      later(FINALE.endAt + FILM_AFTER, () => {
+        endCameraFocus(FINALE_FOCUS.rings);
+        ending.openFilm();
       });
-      later(FINALE.endAt + 15, () =>
-        showNotice(
-          "그 뒤부터 진부촌은 화를 면했다고 전한다. 구렁이가 무엇이었는지, 아비사가 어찌 되었는지는 이야기가 끝내 말해 주지 않는다.",
-          9,
-        ),
-      );
-      later(FINALE.endAt + 25, () =>
-        showNotice("강 건너편에서 들려오는 소리를 들은 적이 있다면 — 어떤 소리였습니까?", 10),
-      );
+    };
+
+    /** 끝 연출 카메라 — 소반을 보다가, 가락지가 떠오르면 따라 올려다본다 */
+    const focusFinale = () => {
+      const ringsAt = new THREE.Vector3();
+      focusCamera({
+        id: FINALE_FOCUS.table,
+        target: rite.tableTarget.clone().add(new THREE.Vector3(0, 1.2 * M, 0)),
+        hold: FINALE.ringsAt - 1.2,
+        turnIn: 1.2,
+        then: {
+          id: FINALE_FOCUS.rings,
+          target: () => {
+            const since = gut.stage() === "dawn" ? FINALE.dawnAt + gut.elapsed() : gut.elapsed();
+            const u = THREE.MathUtils.clamp((since - FINALE.ringsAt) / 7.5, 0, 1);
+            const rise = Math.min(FINALE_LOOK_UP, FINALE.ringsRise * u * u * (3 - 2 * u));
+            return ringsAt.copy(rite.tableTarget).add(new THREE.Vector3(0, (1.2 + rise) * M, 0));
+          },
+          // 필름이 열릴 때 거둔다(그보다 길게 잡아 둔다)
+          hold: FINALE.endAt + FILM_AFTER - FINALE.ringsAt + 4,
+          turnIn: 1.6,
+        },
+      });
     };
 
     /** 관솔불이 횃불에 닿았다. 그 그림패가 다음 차례면 붙고, 아니면 바람이 켠 불을 다 끈다 */
@@ -420,7 +448,7 @@ function TorchRiteScene() {
       reach.current = { stake, time: 0, hasCaught: false };
     };
 
-    return { later, isHolding, hasEmber, begin, takeBack, takeEmber, tryLight, reachTo, release };
+    return { later, isHolding, hasEmber, dropEmber, begin, takeBack, takeEmber, tryLight, reachTo, release };
   }, [rite]);
 
   usePrewarm(rite.root);
@@ -551,6 +579,8 @@ function TorchRiteScene() {
     const isHere = cliff.stage() === "crossed";
     const isRite = stage === "rite";
     const isOver = stage === "released" || stage === "dawn";
+    // 이어 하기로 굿이 끝난 뒤에 돌아왔는데 관솔불이 손 · 소지품에 남아 있으면 거둔다(마지막 점화 직후 새로 고침, Codex)
+    if (isOver && actions.hasEmber()) actions.dropEmber();
     const since = gut.elapsed();
     /** 굿이 풀린 지 몇 초 — 그 전이면 −1 */
     const releasedFor = stage === "released" ? since : stage === "dawn" ? FINALE.dawnAt + since : -1;

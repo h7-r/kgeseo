@@ -21,13 +21,12 @@ import { isGameSaveEnabled } from "@/save/gameSave";
 
 import { helpLog } from "../progress/helpLog";
 import { THREE_STAR_MS, formatPlayTime, playClock } from "../progress/playClock";
-import { restartNajuHere } from "../progress/resetCase";
-import { continueLoadingVideoAt, showLoadingVideo } from "../transition/loadingVideo";
+import { ending } from "../ending/endingState";
+import { gut } from "../puzzles/gut/gutState";
 import { RATING_PREVIEW } from "./caseStart";
 import { leaveToTrain } from "./leaveToLobby";
+import { RESTART_FAILED_TEXT, restartNajuCase } from "./restartNaju";
 
-/** 새 판이 같은 장면부터 잇게 덮은 뒤(0.7초 페이드) 넘어간다 — 로비로 나가기와 같은 박자 */
-const COVER_THEN_LEAVE_MS = 700;
 const LOCK_REFUSED_TEXT = "브라우저가 잠시 막았어요 — 한 번 더 눌러 주세요.";
 
 interface NajuPauseMenuProps {
@@ -53,13 +52,7 @@ const toRun =
         };
 
 async function restart(): Promise<PauseRunResult> {
-  if (!(await restartNajuHere())) return { ok: false, message: "기록을 지우지 못했어요. 연결을 확인하고 다시 해 보세요." };
-  // 같은 나주 주소를 새로 연다 — 기차에서 들어올 때처럼 영상으로 덮고 이어 튼다(from=hub). 미리 보기 질의(card)는 뗀다
-  const url = new URL(window.location.href);
-  url.searchParams.delete("card");
-  url.searchParams.set("from", "hub");
-  showLoadingVideo("naju", { keepOpen: true });
-  window.setTimeout(() => continueLoadingVideoAt(url.toString()), COVER_THEN_LEAVE_MS);
+  if (!(await restartNajuCase())) return { ok: false, message: RESTART_FAILED_TEXT };
   return { ok: true };
 }
 
@@ -92,6 +85,8 @@ export default function NajuPauseMenu({
       },
       { id: "settings", label: "설정", onSelect: onOpenSettings },
       { id: "guide", label: guideLabel, onSelect: onShowGuide },
+      // 굿을 끝낸 판 — 엔딩(필름 → 클리어 화면)을 다시 본다. 감상만(퍼즐 · 보고 · 보상 되풀이 없음)
+      ...(gut.stage() === "dawn" ? [{ id: "ending", label: "엔딩 다시 보기", onSelect: ending.openFilm }] : []),
     ],
     [
       ...(leaveAction

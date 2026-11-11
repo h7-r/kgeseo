@@ -53,6 +53,9 @@ import { readMeshAppearance, type MeshAppearanceConfig } from "../avatar/meshApp
 import { readSidekickAppearance } from "../avatar/sidekickOptions";
 import { DEFAULT_TOON } from "../avatar/toonMaterial";
 import { DEFAULT_OUTLINE } from "../avatar/toonOutline";
+import EndingLayer from "../ending/EndingLayer";
+import { ending, useEndingPhase } from "../ending/endingState";
+import { gut } from "../puzzles/gut/gutState";
 import { BASELINE, UNITS_PER_METER, VIEWPOINTS } from "../plan/sitePlan";
 import { teleportPlayer } from "../puzzles/cave/caveState";
 import { useHintBoxOpen } from "../puzzles/hintBoxView";
@@ -236,7 +239,10 @@ export default function App() {
   const isFrozen = useGameFrozen();
   const isHintBoxOpen = useHintBoxOpen();
   const isChatOpen = useCompanionChatOpen();
-  const isWindowOpen = isSettingsOpen || isInventoryOpen || isHintBoxOpen || isChatOpen;
+  // 엔딩 — 끝 연출(finale)은 세계가 흐르고 HUD 만 걷는다. 전체화면 필름 · 클리어 화면은 창처럼 세계를 세우고 커서를 준다
+  const endingPhase = useEndingPhase();
+  const isEndingScreen = endingPhase === "film" || endingPhase === "clear";
+  const isWindowOpen = isSettingsOpen || isInventoryOpen || isHintBoxOpen || isChatOpen || isEndingScreen;
   // PC 일시정지(미르 11/10) — 창이 열렸거나 게임 밖(ESC 로 나옴)이면 게임 시간 · 렌더 · 소리를 세운다. 터치의 「전부 멈춤」과 같다.
   // 종이 읽기 · 줄 당기기 · 창처럼 페이지가 일부러 잠금을 풀어 둔 것(붙듦)과 다시 잠그기를 기다리는 동안은 게임 안이다.
   // 처음 [T] 전에는 첫 장면을 그려야 덮개가 걷히므로 세우지 않는다
@@ -323,6 +329,12 @@ export default function App() {
   // 남지 않게, 14회차), 어느 길로 닫아도(ESC · 단축키 · 닫기 단추 · 배경 · 꺼내기) 열기 전에 조작 중이었을 때만 다시 잠근다(미르 11/8).
   // 터치에서 닫을 때 다시 잠그는 일은 MobileGate 가 한다
   useWindowHold("settings", isSettingsOpen);
+  useWindowHold("ending", isEndingScreen);
+  // 굿이 끝난 판(새로 고침 · 옛 저장)인데 엔딩을 아직 안 봤으면 — 조사를 다시 시작하는 첫 순간에 엔딩부터(나주엔딩 01회차 Codex)
+  useEffect(() => {
+    if (!hasLockedOnce || IS_REVIEW_REQUESTED) return;
+    if (gut.stage() === "dawn" && !ending.isSeen() && ending.phase() === "off") ending.openFilm();
+  }, [hasLockedOnce]);
   useWindowHold("inventory", isInventoryOpen);
   useWindowHold("hintBox", isHintBoxOpen);
   // 동행 입력은 제 손으로 풀고(열 때 잠겨 있었으면 ESC 로 닫으며) 다시 잠근다 — 여기서는 다른 길로 열렸을 때만 풀어 둔다
@@ -423,12 +435,15 @@ export default function App() {
       </Canvas>
 
       {IS_ARRIVING_FROM_HUB && <ArrivalCover isRevealed={isArrivalRevealed} />}
-      <PuzzleHud />
-      {!IS_REVIEW_REQUESTED && <PlayTimeHud />}
-      {/* 동행 세션 상태 표식(?dev) · 자유 입력(베타는 끔) — 동행의 말은 위 PuzzleHud 의 대화창에 뜬다 */}
-      {IS_COMPANION_ACTIVE && (
-        <CompanionHud controlsRef={controlsRef} isLocked={isLocked} showStatus={SHOW_DEV_TOOLS} />
-      )}
+      {/* 엔딩 동안 HUD 는 숨기기만 한다(대화창 · 알림 줄은 런타임도 맡아 떼면 안 된다, Codex) */}
+      <div hidden={endingPhase !== "off"}>
+        <PuzzleHud />
+        {!IS_REVIEW_REQUESTED && <PlayTimeHud />}
+        {/* 동행 세션 상태 표식(?dev) · 자유 입력(베타는 끔) — 동행의 말은 위 PuzzleHud 의 대화창에 뜬다 */}
+        {IS_COMPANION_ACTIVE && (
+          <CompanionHud controlsRef={controlsRef} isLocked={isLocked} showStatus={SHOW_DEV_TOOLS} />
+        )}
+      </div>
       <InventoryModal open={isInventoryOpen} onClose={() => setIsInventoryOpen(false)} />
       {IS_REVIEW_REQUESTED && <ReviewHud />}
       {SHOW_DEV_TOOLS && !isLocked && <ControlsHelp />}
@@ -448,7 +463,7 @@ export default function App() {
           setOutlineConfig={setOutlineConfig}
         />
       )}
-      {SHOW_SETTINGS_BUTTON && !isTouch && (
+      {SHOW_SETTINGS_BUTTON && !isTouch && endingPhase === "off" && (
         <button
           type="button"
           onClick={() => setIsSettingsOpen((open) => !open)}
@@ -484,7 +499,10 @@ export default function App() {
           leaveAction={leaveAction}
         />
       )}
-      <TouchHud extraTopButtons={TALK_BUTTONS} />
+      <div hidden={endingPhase !== "off"}>
+        <TouchHud extraTopButtons={TALK_BUTTONS} />
+      </div>
+      <EndingLayer leaveAction={leaveAction} />
       <MobileGate
         controlsRef={controlsRef}
         isWindowOpen={isWindowOpen}
