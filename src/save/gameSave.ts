@@ -296,6 +296,15 @@ export function startGameSaveLoop(): void {
   isListening = true;
   const flush = () => void flushGameSave();
   window.addEventListener("pagehide", flush);
+  // 「뒤로」로 브라우저가 기억해 둔 페이지(bfcache)가 되살아나면, 떠나기 전 저장본 · revision 을 그대로 쥐고 있다.
+  // 그대로 쓰면 그 사이 다른 페이지(나주)가 저장한 진행을 옛 값으로 덮는다 — 409 도 최신 번호로 다시 써 이긴다
+  // (11/11 플레이테스트 「뒤로 갔다 다시 들어오니 처음부터」). 쓰지 않고 새로 불러와 서버의 최신 저장으로 시작한다.
+  window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) return;
+    isLoggedIn = false;
+    window.clearTimeout(saveTimer);
+    window.location.reload();
+  });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") flush();
   });

@@ -104,10 +104,11 @@ function readCaseItems(sections: Record<string, unknown>): CaseItem[] {
       add(def.name, def.description);
     }
   }
-  // 본편: 저장본에 이름이 같이 들어 있다
+  // 본편: 저장본에 이름이 같이 들어 있다. 예전 운영 저장본에 섞인 개발용 표본(id 「DEV_」)은 뺀다.
   const main = sections["main.inventory"];
   for (const item of Array.isArray(main) ? main : []) {
     const record = asRecord(item);
+    if (typeof record.id === "string" && record.id.startsWith("DEV_")) continue;
     if (typeof record.name === "string")
       add(record.name, typeof record.description === "string" ? record.description : "");
   }

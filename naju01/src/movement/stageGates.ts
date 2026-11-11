@@ -101,6 +101,9 @@ const isBackToDockBlocked = (to: Region, from: Region) =>
 export const isDockSealed = () => !isForcedOpen && IS_REGION_OPEN.바위아래();
 
 /** 지금 자리(from)에서 그 자리로 갈 수 없나. 막히면 안내를 띄운다 */
+/** 진부촌 쪽 끝(x, 미터) — 바람 장막 동쪽 끝(76.8) 바로 안. 능선을 지나는 길은 모두 이보다 서쪽이다 */
+const VILLAGE_EDGE_X = 76.5;
+
 export function gateBlockedAt(x: number, z: number, fromX: number, fromZ: number): boolean {
   // 증언 능선의 바람 장막 — 내려가는 길·올라가는 길·떨어지는 비탈 모두 장막 밖이다
   if (ridge.isConfining() && !isInsideCurtain(x, z, 0.6)) {
@@ -111,6 +114,12 @@ export function gateBlockedAt(x: number, z: number, fromX: number, fromZ: number
   }
   if (isCliffDropAt(x, z, fromX, fromZ)) {
     noticeOnce("벼랑", "벼랑 끝이다. 더 나가면 떨어진다.");
+    return true;
+  }
+  // 장승 문 너머는 진부촌 — 무대 밖이다. 틈으로만 지나간다. 얇은 장승 · 울타리 충돌을 비벼 빠져나가던 길을 막는다
+  // (11/11 플레이테스트). 이미 넘어가 있으면 돌아오는 걸음은 둔다.
+  if (x > VILLAGE_EDGE_X && x > fromX) {
+    noticeOnce("진부촌", "장승 너머는 진부촌이다 — 지금 갈 곳이 아니다.");
     return true;
   }
   if (isForcedOpen) return false;

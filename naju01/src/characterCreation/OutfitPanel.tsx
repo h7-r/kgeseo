@@ -288,10 +288,7 @@ export function OutfitModal({ slot, catalog, appearance, gender, updateAppearanc
               ))}
             </div>
           </SettingGroup>
-          <SettingGroup
-            title={`${SLOT_LABELS[slot]} 컬러`}
-            aside={slot === "bottom" ? "검은 바지라 짙은 색만 또렷이 보입니다" : "원본에 색을 입힙니다"}
-          >
+          <SettingGroup title={`${SLOT_LABELS[slot]} 컬러`} aside="원본에 색을 입힙니다">
             <ColorPicker
               slot={colorSlot}
               palette={catalog.palettes[colorSlot] ?? catalog.palettes.cloth}

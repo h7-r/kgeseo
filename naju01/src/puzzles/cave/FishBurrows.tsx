@@ -40,6 +40,13 @@ const GAP = { half: 0.16, height: 0.36 };
 /** 고개를 내미는 길이 · 판마다 차례 사이(초) — 갈수록 빨라진다. 고개 내미는 시간은 그 0.8 배 */
 const PEEK_OUT = 0.5;
 const NOTE_SECONDS = [0.6, 0.44, 0.32];
+/**
+ * 같은 판에서 계속 틀리면 돕는다(11/11 플레이테스트 「피지컬 · 청음 퍼즐은 계속 못 풀면 정답을 알려 주자」).
+ * 두 번 틀리면 차례를 가장 느리게 보여 주고, 세 번 틀리면 따라 할 때 다음에 두드릴 굴 입이 은은히 빛난다.
+ */
+const SLOW_DEMO_AFTER_FAILS = 2;
+const GUIDE_AFTER_FAILS = 3;
+const SLOW_NOTE_SECONDS = NOTE_SECONDS[0] * 1.3;
 const peekSeconds = (round: number) => NOTE_SECONDS[Math.min(round, NOTE_SECONDS.length - 1)] * 0.8;
 /** 판 r 에서 굴 k 에 숨은 물고기 종 — 판이 바뀌면 다른 물고기가 나온다 */
 const speciesAt = (round: number, k: number) => (k + round) % SPECIES.length;
@@ -152,6 +159,8 @@ export default function FishBurrows() {
   /** 마지막 보상(톱니돌)을 줬나 — 판 수는 solve 전에 오르므로 판 수로는 못 막는다(Codex 04). 두 번 주지 않게 */
   const isRewardedRef = useRef(roundsDone >= rounds.length);
   const inputRef = useRef(0);
+  /** 이 판에서 틀린 수 — 판을 넘기면 0 */
+  const failsRef = useRef(0);
   const awaitingRef = useRef(false);
   /** 차례 보여 주기 — 시작 시각(없으면 −1) · 다음 판 자동 시작 시각 */
   const playStart = useRef(-1);
@@ -239,6 +248,7 @@ export default function FishBurrows() {
       });
     });
     roundsRef.current += 1;
+    failsRef.current = 0;
     setRoundsDone(roundsRef.current);
     awaitingRef.current = false;
     setIsAwaiting(false);
@@ -277,7 +287,15 @@ export default function FishBurrows() {
       audio.play("우르릉");
       director.cue({ 카메라: "흔들림", 세기: 0.35 });
       stirSand(0.6);
-      showNotice("차례가 틀렸다 — 물고기들이 놀라 굴 깊이 숨었다. 항아리를 다시 두드려 차례를 다시 보자.", 4);
+      failsRef.current += 1;
+      showNotice(
+        failsRef.current >= GUIDE_AFTER_FAILS
+          ? "차례가 틀렸다. 항아리를 다시 두드리자 — 이번엔 따라 할 때 다음 굴 입이 희미하게 빛난다."
+          : failsRef.current >= SLOW_DEMO_AFTER_FAILS
+            ? "차례가 틀렸다. 항아리를 다시 두드리자 — 이번엔 물고기들이 천천히 고개를 내민다."
+            : "차례가 틀렸다 — 물고기들이 놀라 굴 깊이 숨었다. 항아리를 다시 두드려 차례를 다시 보자.",
+        4,
+      );
       return;
     }
     inputRef.current += 1;
@@ -342,7 +360,7 @@ export default function FishBurrows() {
     // 차례 보여 주기 — 차례가 된 굴의 물고기가 고개를 내민다
     if (playStart.current >= 0) {
       const sequence = rounds[roundsRef.current];
-      const note = NOTE_SECONDS[roundsRef.current];
+      const note = failsRef.current >= SLOW_DEMO_AFTER_FAILS ? SLOW_NOTE_SECONDS : NOTE_SECONDS[roundsRef.current];
       const step = Math.floor((time - playStart.current) / note);
       if (step >= 0 && step < sequence.length) {
         const k = sequence[step];
@@ -362,6 +380,11 @@ export default function FishBurrows() {
     const startled = Math.max(0, 1 - (time - startledAt.current) / 1.2);
     const peekTime = peekSeconds(roundsRef.current);
     const wrongFlash = Math.max(0, 1 - (time - wrongAt.current) / WRONG_FLASH_SECONDS);
+    // 세 번 넘게 틀린 판 — 따라 하는 동안 다음에 두드릴 굴
+    const guidedBurrow =
+      failsRef.current >= GUIDE_AFTER_FAILS && awaitingRef.current && !isSolved
+        ? (rounds[roundsRef.current]?.[inputRef.current] ?? -1)
+        : -1;
     BURROWS.forEach((burrow, k) => {
       const since = time - peekAt.current[k];
       const peek = isSolved ? 0 : since >= 0 && since < peekTime ? Math.sin((since / peekTime) * Math.PI) : 0;
@@ -369,7 +392,8 @@ export default function FishBurrows() {
       const glow = assets.materials.glows[k];
       const isWrong = wrongBurrow.current === k && wrongFlash > 0;
       glow.color.set(isWrong ? "#FF5A3C" : "#BFEBFF");
-      glow.opacity = isWrong ? wrongFlash * 0.95 : peek * 0.8;
+      const guide = guidedBurrow === k ? 0.28 + 0.14 * Math.sin(time * 4) : 0;
+      glow.opacity = isWrong ? wrongFlash * 0.95 : Math.max(peek * 0.8, guide);
       const species = speciesAt(roundsRef.current, k);
       // 판마다 굴 속 물고기가 바뀐다 — 굴 하나에 메시 넷(종마다), 그 판의 종만 보인다
       burrowFishMeshes.current.forEach((mesh, index) => {
