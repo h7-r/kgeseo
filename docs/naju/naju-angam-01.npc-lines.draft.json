@@ -208,8 +208,8 @@
       "zone": null,
       "fe_situation": "wrong",
       "situation_code": null,
-      "text": "근디 방금 그 구멍은 몇 번 숨 쉬었을까요? 같은 횟수의 구멍은 이제 건너뛰어도 돼요.",
-      "length": 48
+      "text": "그런데 방금 그 구멍은 몇 번 숨 쉬었을까요? 같은 횟수의 구멍은 이제 건너뛰어도 돼요.",
+      "length": 49
     },
     {
       "line_id": "NUDGE_P01_WRONG_1_B",
@@ -338,8 +338,8 @@
       "zone": null,
       "fe_situation": "help",
       "situation_code": null,
-      "text": "물에 넣은 뒤엔 줄을 봐요. 물고기가 든 통발은 줄이 파르르 떨려요잉.",
-      "length": 39
+      "text": "물에 넣은 뒤엔 줄을 봐요. 물고기가 든 통발은 줄이 파르르 떨려요.",
+      "length": 38
     },
     {
       "line_id": "NUDGE_P02_HELP_3_B",
@@ -416,8 +416,8 @@
       "zone": null,
       "fe_situation": "wrong",
       "situation_code": null,
-      "text": "오메, 빈 통발이었네요. 그 통발 입구가 어느 쪽을 보고 있었는지 떠올려 봐요.",
-      "length": 44
+      "text": "아, 빈 통발이었네요. 그 통발 입구가 어느 쪽을 보고 있었는지 떠올려 봐요.",
+      "length": 43
     },
     {
       "line_id": "NUDGE_P02_WRONG_1_B",
@@ -442,8 +442,8 @@
       "zone": null,
       "fe_situation": "wrong",
       "situation_code": null,
-      "text": "아따, 떨리지 않는 줄은 당겨도 헛일이에요. 줄이 떨릴 때까지 조금만 기다려 봐요.",
-      "length": 46
+      "text": "떨리지 않는 줄은 당겨도 헛일이에요. 줄이 떨릴 때까지 조금만 기다려 봐요.",
+      "length": 42
     },
     {
       "line_id": "NUDGE_P02_WRONG_2_B",
@@ -468,8 +468,8 @@
       "zone": null,
       "fe_situation": "arrive",
       "situation_code": null,
-      "text": "오메, 줄 하나가 떨려요! 그 줄의 말뚝으로 가서 [E] 로 당겨 봐요.",
-      "length": 40
+      "text": "와, 줄 하나가 떨려요! 그 줄의 말뚝으로 가서 [E] 로 당겨 봐요.",
+      "length": 39
     },
     {
       "line_id": "NUDGE_P02_2_ARRIVE_1_B",
@@ -546,8 +546,8 @@
       "zone": null,
       "fe_situation": "stuck",
       "situation_code": null,
-      "text": "서두르지 않아도 돼요잉. 놓쳐도 다시 당기면 되니까, 박자를 한 번 보고 눌러요.",
-      "length": 45
+      "text": "서두르지 않아도 돼요. 놓쳐도 다시 당기면 되니까, 박자를 한 번 보고 눌러요.",
+      "length": 44
     },
     {
       "line_id": "NUDGE_P02_2_STUCK_1_B",
@@ -728,8 +728,8 @@
       "zone": null,
       "fe_situation": "help",
       "situation_code": null,
-      "text": "항아리마다 소리가 달라요. 크기는 믿지 마요잉. [E] 로 들어서 다른 자리에 놓으면 치는 차례가 바뀌어요.",
-      "length": 60
+      "text": "항아리마다 소리가 달라요. 크기는 믿지 마요. [E] 로 들어서 다른 자리에 놓으면 치는 차례가 바뀌어요.",
+      "length": 59
     },
     {
       "line_id": "NUDGE_P03_HELP_2_B",
@@ -936,8 +936,8 @@
       "zone": null,
       "fe_situation": "help",
       "situation_code": null,
-      "text": "홈의 눈금과 돌탑의 돌을 하나씩 짝지어 봐요. 맞는 자리에 서면 빛이 들어요잉.",
-      "length": 44
+      "text": "홈의 눈금과 돌탑의 돌을 하나씩 짝지어 봐요. 맞는 자리에 서면 빛이 들어요.",
+      "length": 43
     },
     {
       "line_id": "NUDGE_P05_HELP_3_B",
@@ -1092,8 +1092,8 @@
       "zone": null,
       "fe_situation": "help",
       "situation_code": "NO_PROGRESS",
-      "text": "갈라진 물 사이로 걸어 들어가면 돼요. 근디 안은 물속이라 숨을 아껴야 해요.",
-      "length": 43
+      "text": "갈라진 물 사이로 걸어 들어가면 돼요. 그런데 안은 물속이라 숨을 아껴야 해요.",
+      "length": 44
     },
     {
       "line_id": "NUDGE_S2_ENTER_HELP_1_B",
@@ -1196,8 +1196,8 @@
       "zone": null,
       "fe_situation": "stuck",
       "situation_code": null,
-      "text": "숨이 모자라면 먼저 거품 기둥에서 채우고 와요. 서두르면 더 꼬여요잉.",
-      "length": 39
+      "text": "숨이 모자라면 먼저 거품 기둥에서 채우고 와요. 서두르면 더 꼬여요.",
+      "length": 38
     },
     {
       "line_id": "NUDGE_P07_STUCK_1_B",
@@ -1300,8 +1300,8 @@
       "zone": null,
       "fe_situation": "stuck",
       "situation_code": null,
-      "text": "숨부터 채우고 와요. 고리문은 천천히 풀어도 달아나지 않아요잉.",
-      "length": 35
+      "text": "숨부터 채우고 와요. 고리문은 천천히 풀어도 달아나지 않아요.",
+      "length": 34
     },
     {
       "line_id": "NUDGE_P09_STUCK_1_B",
@@ -1404,8 +1404,8 @@
       "zone": null,
       "fe_situation": "arrive",
       "situation_code": "STEP_ARRIVED",
-      "text": "물이 빠졌어요. 근디 손에 든 함은 자물통이 채워져 있네요. 우리 강변 비탈 너머 능선으로 가 봐요.",
-      "length": 56
+      "text": "물이 빠졌어요. 그런데 손에 든 함은 자물통이 채워져 있네요. 우리 강변 비탈 너머 능선으로 가 봐요.",
+      "length": 57
     },
     {
       "line_id": "NUDGE_S3_GO_ARRIVE_1_B",
@@ -1456,7 +1456,7 @@
       "zone": null,
       "fe_situation": "arrive",
       "situation_code": null,
-      "text": "오메, 우리 바람 장막에 갇혔어요. 저 무거운 궤를 문 앞 돌단까지 옮겨야 할 것 같아요.",
+      "text": "이런, 우리 바람 장막에 갇혔어요. 저 무거운 궤를 문 앞 돌단까지 옮겨야 할 것 같아요.",
       "length": 50
     },
     {
@@ -1560,8 +1560,8 @@
       "zone": null,
       "fe_situation": "stuck",
       "situation_code": null,
-      "text": "종이는 [H] 로 힌트함에 넣어 두면 언제든 다시 볼 수 있어요잉.",
-      "length": 37
+      "text": "종이는 [H] 로 힌트함에 넣어 두면 언제든 다시 볼 수 있어요.",
+      "length": 36
     },
     {
       "line_id": "NUDGE_P12_STUCK_1_B",
@@ -1664,8 +1664,8 @@
       "zone": null,
       "fe_situation": "help",
       "situation_code": null,
-      "text": "두 새의 눈이 한곳에서 만나게 해 봐요. 발을 단단히 딛고 서서 돌려야 힘이 들어가요잉.",
-      "length": 49
+      "text": "두 새의 눈이 한곳에서 만나게 해 봐요. 발을 단단히 딛고 서서 돌려야 힘이 들어가요.",
+      "length": 48
     },
     {
       "line_id": "NUDGE_P13_2_HELP_1_B",
@@ -1716,8 +1716,8 @@
       "zone": null,
       "fe_situation": "help",
       "situation_code": "NO_PROGRESS",
-      "text": "함을 [I] 에서 꺼내 내려놓고, 자물통을 겨눠 [E] 로 열어요.",
-      "length": 37
+      "text": "불탄 평상을 겨눠 [E] 로 함을 올려놓고, 자물통을 겨눠 [E] 로 열어요.",
+      "length": 43
     },
     {
       "line_id": "NUDGE_S3_KEY_HELP_1_B",
@@ -1729,8 +1729,8 @@
       "zone": null,
       "fe_situation": "help",
       "situation_code": "NO_PROGRESS",
-      "text": "함을 [I] 에서 꺼내서 내려놓고, 자물통을 겨눠 [E] 로 열어 봐.",
-      "length": 39
+      "text": "불탄 평상을 겨눠서 [E] 로 함을 올려놓고, 자물통을 겨눠 [E] 로 열어 봐.",
+      "length": 45
     },
     {
       "line_id": "NUDGE_S3_RIFT_HELP_1_J",
@@ -2002,8 +2002,8 @@
       "zone": null,
       "fe_situation": "helpEnd",
       "situation_code": null,
-      "text": "방금 제가 말한 걸 하나씩 다시 해 봐요. 분명 거기 있어요잉.",
-      "length": 35
+      "text": "방금 제가 말한 걸 하나씩 다시 해 봐요. 분명 거기 있어요.",
+      "length": 34
     },
     {
       "line_id": "NUDGE_GENERAL_HELP_END_2_B",
@@ -2028,8 +2028,8 @@
       "zone": null,
       "fe_situation": "stuck",
       "situation_code": "NO_PROGRESS",
-      "text": "막막하면 [F] 를 눌러 물어봐요. 제가 아는 만큼 알려 줄게요잉.",
-      "length": 37
+      "text": "막막하면 [F] 를 눌러 물어봐요. 제가 아는 만큼 알려 줄게요.",
+      "length": 36
     },
     {
       "line_id": "NUDGE_GENERAL_STUCK_1_B",
@@ -2132,7 +2132,7 @@
       "zone": null,
       "fe_situation": "astray",
       "situation_code": "OFF_OBJECTIVE",
-      "text": "아따, 너무 멀리 왔어요. 아까 하던 곳으로 우리 돌아가 볼까요?",
+      "text": "어느새 너무 멀리 왔어요. 아까 하던 곳으로 우리 돌아가 볼까요?",
       "length": 36
     },
     {
@@ -2158,8 +2158,8 @@
       "zone": null,
       "fe_situation": "dropped",
       "situation_code": "ITEM_LEFT_BEHIND",
-      "text": "아따, 두고 오신 게 있어요. 이따가 꼭 써야 해요. 돌아가서 [E] 로 다시 주워요.",
-      "length": 48
+      "text": "잠깐만요, 두고 오신 게 있어요. 이따가 꼭 써야 해요. 돌아가서 [E] 로 다시 주워요.",
+      "length": 50
     },
     {
       "line_id": "NUDGE_GENERAL_DROPPED_1_B",
@@ -2210,8 +2210,8 @@
       "zone": null,
       "fe_situation": "unpicked",
       "situation_code": "ITEM_NOT_PICKED",
-      "text": "근디 방금 나온 걸 안 챙겼어요. 두고 가면 다음에서 막혀요.",
-      "length": 34
+      "text": "그런데 방금 나온 걸 안 챙겼어요. 두고 가면 다음에서 막혀요.",
+      "length": 35
     },
     {
       "line_id": "NUDGE_GENERAL_UNPICKED_1_B",
@@ -2262,8 +2262,8 @@
       "zone": null,
       "fe_situation": "idle",
       "situation_code": "NO_PROGRESS",
-      "text": "쉬는 중이죠? 저는 조용히 기다릴게요잉.",
-      "length": 22
+      "text": "쉬는 중이죠? 저는 조용히 기다릴게요.",
+      "length": 21
     },
     {
       "line_id": "NUDGE_GENERAL_IDLE_1_B",
@@ -2470,8 +2470,8 @@
       "zone": null,
       "fe_situation": "solved",
       "situation_code": "STEP_DONE",
-      "text": "아따, 됐어요! 잘했어요.",
-      "length": 14
+      "text": "됐어요! 잘했어요.",
+      "length": 10
     },
     {
       "line_id": "NUDGE_GENERAL_SOLVED_1_B",
@@ -2535,7 +2535,7 @@
       "zone": null,
       "fe_situation": "toneAsk",
       "situation_code": null,
-      "text": "근디 말은 어떻게 할까요? 편하게 반말로 할까요, 아니면 존댓말로 할까요잉?",
+      "text": "그런데 말은 어떻게 할까요? 편하게 반말로 할까요, 아니면 존댓말로 할까요?",
       "length": 42
     },
     {
@@ -2548,8 +2548,8 @@
       "zone": null,
       "fe_situation": "toneSet",
       "situation_code": null,
-      "text": "알겠어요. 그럼 존댓말로 할게요잉. 막히면 [F] 로 불러 줘요. 제가 뭘 물어보면 [Y] · [N] 으로 답하면 돼요.",
-      "length": 67
+      "text": "알겠어요. 그럼 존댓말로 할게요. 막히면 [F] 로 불러 줘요. 제가 뭘 물어보면 [Y] · [N] 으로 답하면 돼요.",
+      "length": 66
     },
     {
       "line_id": "NUDGE_GENERAL_TONE_SET_1_B",
@@ -2600,8 +2600,8 @@
       "zone": null,
       "fe_situation": "firstItem",
       "situation_code": null,
-      "text": "챙긴 물건은 숫자키나 [I] 소지품에서 꺼내야 손에 들려요. 빈손으로 [E] 를 눌러도 가진 게 떨어지지 않으니 걱정하지 않아도 돼요잉.",
-      "length": 76
+      "text": "챙긴 물건은 숫자키나 [I] 소지품에서 꺼내야 손에 들려요. 빈손으로 [E] 를 눌러도 가진 게 떨어지지 않으니 걱정하지 않아도 돼요.",
+      "length": 75
     },
     {
       "line_id": "NUDGE_GENERAL_FIRST_ITEM_1_B",
@@ -2626,8 +2626,8 @@
       "zone": null,
       "fe_situation": "chatter",
       "situation_code": null,
-      "text": "저는 걸을 필요가 없어서 편해요. 근디 발자국을 못 남기는 건 조금 아쉽네요.",
-      "length": 43
+      "text": "저는 걸을 필요가 없어서 편해요. 그런데 발자국을 못 남기는 건 조금 아쉽네요.",
+      "length": 44
     },
     {
       "line_id": "NUDGE_GENERAL_CHATTER_1_B",
@@ -2652,8 +2652,8 @@
       "zone": null,
       "fe_situation": "chatter",
       "situation_code": null,
-      "text": "아따, 서두르지 않아도 돼요. 전설은 몇백 년을 기다렸는걸요.",
-      "length": 34
+      "text": "서두르지 않아도 돼요. 전설은 몇백 년을 기다렸는걸요.",
+      "length": 30
     },
     {
       "line_id": "NUDGE_GENERAL_CHATTER_2_B",
@@ -2782,8 +2782,8 @@
       "zone": null,
       "fe_situation": "chatter",
       "situation_code": null,
-      "text": "제게 손이 있었다면 같이 들었을 텐데요. 응원은 두 배로 할게요잉.",
-      "length": 37
+      "text": "제게 손이 있었다면 같이 들었을 텐데요. 응원은 두 배로 할게요.",
+      "length": 36
     },
     {
       "line_id": "NUDGE_GENERAL_CHATTER_7_B",
@@ -2938,8 +2938,8 @@
       "zone": null,
       "fe_situation": "chatterNaju",
       "situation_code": null,
-      "text": "아랑사와 아비사 이야기, 저는 끝을 알아요. 근디 말하면 재미없겠죠.",
-      "length": 38
+      "text": "아랑사와 아비사 이야기, 저는 끝을 알아요. 그런데 말하면 재미없겠죠.",
+      "length": 39
     },
     {
       "line_id": "NUDGE_GENERAL_CHATTER_NAJU_2_B",
@@ -2964,8 +2964,8 @@
       "zone": null,
       "fe_situation": "chatterNaju",
       "situation_code": null,
-      "text": "아따, 강바람이 좋네요. 저는 흔들리지 않지만 기분은 내 볼게요.",
-      "length": 36
+      "text": "와, 강바람이 좋네요. 저는 흔들리지 않지만 기분은 내 볼게요.",
+      "length": 35
     },
     {
       "line_id": "NUDGE_GENERAL_CHATTER_NAJU_3_B",
@@ -3432,8 +3432,8 @@
       "zone": null,
       "fe_situation": "progressLast",
       "situation_code": null,
-      "text": "거의 다 됐어요잉. 딱 하나 남았어요.",
-      "length": 21
+      "text": "거의 다 됐어요. 딱 하나 남았어요.",
+      "length": 20
     },
     {
       "line_id": "NUDGE_GENERAL_PROGRESS_LAST_2_B",
@@ -3458,8 +3458,8 @@
       "zone": null,
       "fe_situation": "pinched",
       "situation_code": null,
-      "text": "오메, 게한테 물렸네요. 손은 괜찮아요?",
-      "length": 22
+      "text": "앗, 게한테 물렸네요. 손은 괜찮아요?",
+      "length": 21
     },
     {
       "line_id": "NUDGE_GENERAL_PINCHED_1_B",
@@ -3484,7 +3484,7 @@
       "zone": null,
       "fe_situation": "pinched",
       "situation_code": null,
-      "text": "아따, 또 게예요… 우리 그런 구멍은 이제 그만 건드리기로 해요.",
+      "text": "이런, 또 게예요… 우리 그런 구멍은 이제 그만 건드리기로 해요.",
       "length": 36
     },
     {
@@ -3718,8 +3718,8 @@
       "zone": null,
       "fe_situation": "hintDeclined",
       "situation_code": null,
-      "text": "알겠어요. 필요하면 [F] 로 불러 줘요잉.",
-      "length": 24
+      "text": "알겠어요. 필요하면 [F] 로 불러 줘요.",
+      "length": 23
     },
     {
       "line_id": "NUDGE_GENERAL_HINT_DECLINED_1_B",
