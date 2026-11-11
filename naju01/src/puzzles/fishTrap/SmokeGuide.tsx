@@ -181,7 +181,8 @@ export default function SmokeGuide() {
       if (isAbisaStoryOwed()) {
         if (!isHoldNoticedRef.current) {
           isHoldNoticedRef.current = true;
-          showNotice(STORY_HOLD_NOTICE, 5);
+          // 이야기 중이라 줄을 섰다가 다 들은 뒤에 뜨면 지난 말 — 그때는 버린다(Codex 리뷰)
+          showNotice(STORY_HOLD_NOTICE, 5, { isValid: isAbisaStoryOwed });
         }
       } else {
         phaseRef.current = "lead";
