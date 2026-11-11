@@ -174,6 +174,8 @@ export function useGameKeys({
       // 브라우저가 잠금을 풀어 커서가 밖으로. 자물쇠 · 창 동안은 페이지가 잠금을 풀어 두어 ESC 가 키로 들어온다.
       // 자물쇠에서 막 나와 다시 잠그는 중에 ESC 가 또 오면 「밖으로」를 고른 것 — 그 잠금을 거둔다
       if (code === "Escape") {
+        // 누르고 있어 자동 반복된 ESC 는 받지 않는다 — 멈춤 메뉴를 ESC 로 닫자마자 반복분이 「밖으로」를 골라 도로 멈췄다(18회차 Codex)
+        if (event.repeat) return;
         if (openLayer) closeWindow();
         else if (isLockActive && isHintOffering()) dismissHintOffer();
         else if (isLockActive) leaveLockControl();

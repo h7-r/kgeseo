@@ -230,7 +230,8 @@ if (typeof window !== "undefined") {
     (event) => {
       if (!isWaiting) return;
       if (event.code === "Escape") {
-        stopWaiting();
+        // 자동 반복은 받지 않는다 — 멈춤 메뉴를 ESC 로 닫자마자 반복분이 「나가기」가 되어 도로 멈췄다(18회차 Codex)
+        if (!event.repeat) stopWaiting();
         return;
       }
       if (event.repeat || NON_RESUME_KEYS.has(event.code) || event.ctrlKey || event.metaKey) return;
