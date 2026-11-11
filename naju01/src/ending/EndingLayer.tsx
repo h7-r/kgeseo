@@ -11,6 +11,7 @@ import { isGameSaveEnabled } from "@/save/gameSave";
 import { RESTART_FAILED_TEXT, restartNajuCase } from "../app/restartNaju";
 import { leaveToTrain } from "../app/leaveToLobby";
 import { formatPlayTime, playClock } from "../progress/playClock";
+import { BrokenLines } from "../dialogue/BrokenLines";
 import { createMoonPlay } from "../puzzles/cliff/moonPlay";
 import { createShadowPlay } from "../puzzles/ridge/shadowPlay";
 import { getBgmVolume } from "../transition/loadingVideo";
@@ -57,9 +58,7 @@ function FinaleBand() {
       <div className="naju-ending-band__bar naju-ending-band__bar--top" />
       <div className="naju-ending-band__bar naju-ending-band__bar--bottom">
         {caption && (
-          <p key={caption.key} className="naju-ending-band__caption">
-            {caption.text}
-          </p>
+          <BrokenLines key={caption.key} className="naju-ending-band__caption" text={caption.text} />
         )}
       </div>
     </div>
@@ -246,7 +245,7 @@ function FilmCaption({ shot }: { shot: FilmShot }) {
   return (
     <div key={shot.id} className="naju-ending-film__caption">
       {shot.lines.map((line) => (
-        <p key={line}>{line}</p>
+        <BrokenLines key={line} text={line} />
       ))}
     </div>
   );

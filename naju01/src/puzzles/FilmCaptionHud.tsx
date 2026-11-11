@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 
+import { BrokenLines } from "../dialogue/BrokenLines";
 import { useFilmCaption } from "./filmCaption";
 import { CREAM, HUD_FONT as FONT } from "./hudTheme";
 
@@ -9,9 +10,7 @@ export default function FilmCaptionHud() {
   if (!caption) return null;
   return (
     <div style={wrapStyle} data-hud="영상 자막">
-      <p key={caption.key} className="naju-film-caption" style={textStyle}>
-        {caption.text}
-      </p>
+      <BrokenLines key={caption.key} className="naju-film-caption" style={textStyle} text={caption.text} />
     </div>
   );
 }
