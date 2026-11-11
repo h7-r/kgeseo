@@ -239,6 +239,8 @@ function FilmCaption({ shot }: { shot: FilmShot }) {
 function useHoldToSkip(setLevel: (level: number) => void) {
   const frame = useRef(0);
   const startedAt = useRef(0);
+  // 필름이 먼저 닫히면(마지막 장이 끝남) 남은 누르기를 거둔다 — 남으면 클리어 화면의 클릭을 삼키거나 화면을 다시 연다(Codex 리뷰)
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
   return useMemo(() => {
     const cancel = () => {
       cancelAnimationFrame(frame.current);
@@ -253,6 +255,7 @@ function useHoldToSkip(setLevel: (level: number) => void) {
         setLevel(level);
         if (level >= 1) {
           frame.current = 0;
+          if (ending.phase() !== "film") return;
           // 손을 떼며 생기는 클릭이 바로 뜬 클리어 화면의 단추를 누르지 않게(Codex)
           swallowNextClick();
           ending.finishFilm();
@@ -312,15 +315,24 @@ function useEndingMusic() {
       window.removeEventListener("click", sync, { capture: true });
       window.removeEventListener("keydown", sync, { capture: true });
       cancelAnimationFrame(raf);
+      // 줄이며 끈다 — 타이머로(숨긴 탭에서도 끝난다), 줄이는 사이 탭을 숨기면 바로 멈춘다(Codex 리뷰)
       const from = audio.volume;
       const outAt = performance.now();
-      const fadeOut = () => {
+      const stop = () => {
+        window.clearInterval(fadeTimer);
+        document.removeEventListener("visibilitychange", stopIfHidden);
+        audio.pause();
+      };
+      const stopIfHidden = () => {
+        if (document.hidden) stop();
+      };
+      const fadeTimer = window.setInterval(() => {
         const t = Math.min(1, (performance.now() - outAt) / 1500);
         audio.volume = from * (1 - t);
-        if (t < 1) requestAnimationFrame(fadeOut);
-        else audio.pause();
-      };
-      requestAnimationFrame(fadeOut);
+        if (t >= 1) stop();
+      }, 50);
+      document.addEventListener("visibilitychange", stopIfHidden);
+      if (document.hidden) stop();
     };
   }, []);
 }
