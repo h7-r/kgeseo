@@ -45,6 +45,7 @@ function preloadable<P extends object>(importer: () => Promise<PageModule<P>>): 
 export const AuthPage = preloadable(() => import("@/pages/AuthPage"));
 export const AboutPage = preloadable(() => import("@/pages/AboutPage"));
 export const TermsPage = preloadable(() => import("@/pages/TermsPage"));
+export const CreditsPage = preloadable(() => import("@/pages/CreditsPage"));
 export const SupportPage = preloadable(() => import("@/pages/SupportPage"));
 export const PricingPage = preloadable(() => import("@/pages/PricingPage"));
 export const MyPage = preloadable(() => import("@/pages/MyPage"));
@@ -61,6 +62,7 @@ interface Preloadable {
 const PAGE_BY_PATH: Readonly<Record<string, Preloadable | undefined>> = {
   [ROUTES.about]: AboutPage,
   [ROUTES.terms]: TermsPage,
+  [ROUTES.credits]: CreditsPage,
   [ROUTES.support]: SupportPage,
   [ROUTES.pricing]: PricingPage,
   [ROUTES.myPage]: MyPage,
