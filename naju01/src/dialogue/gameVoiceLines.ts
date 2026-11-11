@@ -68,7 +68,7 @@ export const GAME_VOICE: readonly (readonly [source: string, polite: string, cas
   // puzzles/cave/CaveWorld.tsx
   [
     "강물이 양쪽으로 갈라진다. 강바닥에 길이 드러났다.",
-    "오메, 강물이 양쪽으로 갈라지네요. 강바닥에 길이 드러났어요.",
+    "와, 강물이 양쪽으로 갈라지네요. 강바닥에 길이 드러났어요.",
     "워매, 강물이 양쪽으로 갈라지네! 강바닥에 길이 드러났어.",
   ],
   [
@@ -232,7 +232,7 @@ export const GAME_VOICE: readonly (readonly [source: string, polite: string, cas
   ],
   [
     "틈 셋이 한 줄로 섰다. 돌바퀴가 무겁게 굴러간다 — 석실로 가는 길이 열렸다.",
-    "틈 셋이 한 줄로 섰어요. 돌바퀴가 무겁게 굴러가네요. 아따, 석실로 가는 길이 열렸어요!",
+    "틈 셋이 한 줄로 섰어요. 돌바퀴가 무겁게 굴러가네요. 드디어 석실로 가는 길이 열렸어요!",
     "틈 셋이 한 줄로 섰어. 돌바퀴가 무겁게 굴러가네. 아따, 석실로 가는 길이 열렸당께!",
   ],
   // puzzles/cave/seaLifeBehaviors.ts
@@ -249,7 +249,7 @@ export const GAME_VOICE: readonly (readonly [source: string, polite: string, cas
   // puzzles/fishTrap/ClamDig.tsx
   [
     "세 번 숨 쉬던 자리마다 조개가 나왔다 — 한 움큼은 되겠다. 아랑사의 셈법이 맞았다.",
-    "세 번 숨 쉬던 자리마다 조개가 나왔어요. 한 움큼은 되겠네요. 아랑사의 셈법이 맞았당께요.",
+    "세 번 숨 쉬던 자리마다 조개가 나왔어요. 한 움큼은 되겠네요. 아랑사의 셈법이 맞았어요.",
     "세 번 숨 쉬던 자리마다 조개가 나왔어. 한 움큼은 되겠네. 아랑사 셈법이 맞았당께.",
   ],
   [
@@ -264,7 +264,7 @@ export const GAME_VOICE: readonly (readonly [source: string, polite: string, cas
   ],
   [
     "게다! 집게에 손등을 꼬집혔다 — 한 번 숨 쉬는 구멍은 게다.",
-    "오메, 게네요! 손등을 꼬집히셨어요. 한 번 숨 쉬는 구멍은 게인가 봐요.",
+    "앗, 게네요! 손등을 꼬집히셨어요. 한 번 숨 쉬는 구멍은 게인가 봐요.",
     "워매, 게네! 손등 꼬집혔제? 한 번 숨 쉬는 구멍은 게인갑다잉.",
   ],
   [
@@ -363,7 +363,7 @@ export const GAME_VOICE: readonly (readonly [source: string, polite: string, cas
   ["항아리를 제자리에 내려놓았다.", "항아리를 제자리에 내려놓았어요.", "항아리를 제자리에 내려놨어."],
   [
     "뚜껑이 열렸다. 항아리 안에 쌀이 가득하다.",
-    "뚜껑이 열렸어요. 오메, 항아리 안에 쌀이 가득하네요.",
+    "뚜껑이 열렸어요. 와, 항아리 안에 쌀이 가득하네요.",
     "뚜껑이 열렸어. 오메, 항아리 안에 쌀이 가득하네.",
   ],
   // puzzles/makgeolli/BoatBottles.tsx
@@ -570,7 +570,7 @@ export const GAME_VOICE: readonly (readonly [source: string, polite: string, cas
   ["흔들림이 커진다 — 두 기둥 쪽이다!", "흔들림이 커져요. 두 기둥 쪽이에요!", "흔들림이 커지네. 두 기둥 쪽이야!"],
   [
     "돌 껍질이 알껍데기처럼 깨져 흩날린다 — 바람 장막이 한꺼번에 풀린다!",
-    "오메, 돌 껍질이 알껍데기처럼 깨져 흩날려요. 바람 장막이 한꺼번에 풀리네요!",
+    "와, 돌 껍질이 알껍데기처럼 깨져 흩날려요. 바람 장막이 한꺼번에 풀리네요!",
     "워매, 돌 껍질이 알껍데기처럼 깨져서 흩날려. 바람 장막이 한꺼번에 풀리네!",
   ],
   // puzzles/ridge/RidgeCart.tsx
@@ -586,7 +586,7 @@ export const GAME_VOICE: readonly (readonly [source: string, polite: string, cas
   ],
   [
     "바람이 수레바퀴를 뜯어 하늘로 들어 올린다!",
-    "오메, 바람이 수레바퀴를 뜯어서 하늘로 들어 올려요!",
+    "와, 바람이 수레바퀴를 뜯어서 하늘로 들어 올려요!",
     "오메, 바람이 수레바퀴를 뜯어서 하늘로 들어 올리네!",
   ],
   [
