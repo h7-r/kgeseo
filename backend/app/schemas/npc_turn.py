@@ -24,6 +24,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 NpcTurnTrigger = Literal["player_message", "auto"]
 MAX_PLAYER_MESSAGE_LENGTH = 200
+# 멈춘 시간 상한(하루) — 그보다 크면 잘못 잰 값이다
+MAX_PAUSED_MS = 86_400_000
 
 
 class NpcTurnRequest(BaseModel):
@@ -38,6 +40,12 @@ class NpcTurnRequest(BaseModel):
     )
     # 플레이어가 보고 있는 Object(현재 구역). 서버가 퍼즐로 다시 찾는다(퍼즐 ID는 받지 않는다).
     focus_object_id: str | None = Field(default=None, min_length=1, max_length=64)
+    # auto 턴만. FE 가 마지막으로 보낸 플레이어 상호작용 뒤 게임이 멈춰 있던 시간(ms) — ESC 멈춤 메뉴 · 설정 · 소지품처럼
+    # 게임 시계가 얼어 있던 시간. 무입력 판정(idle_too_long)의 경과 시간에서 뺀다(미르 11/11 「일시정지한 시간을 못 풀고 있는
+    # 시간으로 세면 안 된다」). 클라 값이라 NPC 개입 시점에만 쓴다 — 경과 시간보다 크면 0 으로 깎인다. 없으면 빼지 않는다.
+    paused_ms_since_interaction: int | None = Field(
+        default=None, ge=0, le=MAX_PAUSED_MS
+    )
 
     @field_validator("client_timestamp")
     @classmethod
@@ -54,6 +62,11 @@ class NpcTurnRequest(BaseModel):
             raise ValueError("player_message requires message")
         if self.trigger == "auto" and self.message is not None:
             raise ValueError("auto turn must not carry a message")
+        if (
+            self.trigger == "player_message"
+            and self.paused_ms_since_interaction is not None
+        ):
+            raise ValueError("player_message must not carry paused_ms_since_interaction")
         return self
 
 

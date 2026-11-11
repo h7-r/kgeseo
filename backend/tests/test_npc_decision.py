@@ -232,3 +232,22 @@ def test_past_declines_feed_decline_cooldown() -> None:
 
     assert result.since_last_decline_sec == 120.0
     assert result.interventions_in_session == 0
+
+
+def test_paused_time_is_not_idle_time() -> None:
+    """멈춤 메뉴 · 설정처럼 게임이 얼어 있던 시간은 무입력에서 뺀다(미르 11/11) — 경과보다 크면 0."""
+    events = [ev("inspect", "OBJ", "ok", 300)]
+
+    paused = signals_from_events(
+        events, now=NOW, target_puzzle_id="PZ_A", paused_sec=100
+    )
+    over = signals_from_events(
+        events, now=NOW, target_puzzle_id="PZ_A", paused_sec=900
+    )
+    none = signals_from_events([], now=NOW, target_puzzle_id="PZ_A", paused_sec=100)
+
+    assert paused.since_last_interaction_sec == 200.0
+    assert decide(paused).reason == "not_needed"
+    assert decide(signals_from_events(events, now=NOW, target_puzzle_id="PZ_A")).reason == "idle_too_long"
+    assert over.since_last_interaction_sec == 0.0
+    assert none.since_last_interaction_sec is None

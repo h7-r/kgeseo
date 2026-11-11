@@ -439,6 +439,59 @@ def test_auto_focus_on_hidden_or_unknown_object_has_no_target(
     assert stored(db_session).response_json["decision"]["target_puzzle_id"] is None
 
 
+def test_auto_turn_does_not_count_paused_time_as_idle(
+    client, db_session, overrides
+) -> None:
+    """마지막 조작 뒤 300초 — 그중 100초가 멈춤(FE 게임 시계)이면 무입력은 200초라 아직 끼어들지 않는다(미르 11/11)."""
+    approve_all(overrides)
+    overrides["events"] = answer_events(1, seconds_ago=300)
+    db_session.get_result = session_row()
+
+    paused = client.post(URL, json=auto_body(paused_ms_since_interaction=100_000))
+
+    assert paused.status_code == 200
+    assert paused.json()["reply"] is None
+    assert stored(db_session).response_json["decision"]["reason"] == "not_needed"
+
+    db_session.added.clear()
+    idle = client.post(URL, json=auto_body(client_event_id=str(uuid.uuid4())))
+
+    assert idle.json()["reply"]["line_id"] == "NUDGE_A_01"
+    assert stored(db_session).response_json["decision"]["reason"] == "idle_too_long"
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"paused_ms_since_interaction": -1},
+        {"paused_ms_since_interaction": 86_400_001},
+    ],
+)
+def test_paused_ms_must_be_a_sane_non_negative_value(client, extra) -> None:
+    assert client.post(URL, json=auto_body(**extra)).status_code == 422
+
+
+def test_player_message_must_not_carry_paused_ms(client) -> None:
+    response = client.post(URL, json=body(paused_ms_since_interaction=1000))
+
+    assert response.status_code == 422
+
+
+def test_replay_with_different_paused_ms_conflicts(client, db_session, overrides) -> None:
+    approve_all(overrides)
+    db_session.get_result = session_row()
+    client.post(URL, json=auto_body(paused_ms_since_interaction=1000))
+    event = stored(db_session)
+
+    db_session.added.clear()
+    db_session.scalar_result = event
+    same = client.post(URL, json=auto_body(paused_ms_since_interaction=1000))
+    changed = client.post(URL, json=auto_body(paused_ms_since_interaction=2000))
+
+    assert same.status_code == 200
+    assert changed.status_code == 409
+
+
 # --- 재전송 ---
 
 

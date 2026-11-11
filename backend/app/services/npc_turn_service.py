@@ -257,6 +257,7 @@ async def _process_npc_turn_once(
                 target_puzzle_id=target,
                 past_interventions=[AutoIntervention(at, pid) for at, pid in shown],
                 past_declines=declined,
+                paused_sec=(request.paused_ms_since_interaction or 0) / 1000,
             )
             config = rule_config_for(
                 content.npc_pack.auto_nudge if content.npc_pack else None, rule_config
@@ -379,11 +380,15 @@ def _payload(request: NpcTurnRequest) -> dict[str, Any]:
         if request.message is not None
         else None
     )
-    return {
+    payload: dict[str, Any] = {
         "trigger": request.trigger,
         "focus_object_id": request.focus_object_id,
         "message_sha256": digest,
     }
+    # 실었을 때만 넣는다 — 안 실은 요청의 재전송 비교 값(예전 기록)이 바뀌지 않게
+    if request.paused_ms_since_interaction is not None:
+        payload["paused_ms_since_interaction"] = request.paused_ms_since_interaction
+    return payload
 
 
 def used_auto_nudges(events: Sequence[Any]) -> frozenset[tuple[str | None, str]]:
