@@ -7,7 +7,13 @@ import { exposeDevHook } from "@/debug/devHooks";
 
 import { showNotice } from "../puzzles/interaction";
 import { fishTrapPuzzle } from "../puzzles/fishTrap/fishTrapState";
-import { isDockGateHeldByFish, isDockStillNeeded, reportDockGateBlocked } from "../puzzles/leftBehind";
+import {
+  isAbisaStoryOwed,
+  isDockGateHeldByFish,
+  isDockStillNeeded,
+  reportAbisaStoryOwed,
+  reportDockGateBlocked,
+} from "../puzzles/leftBehind";
 import { isInsideCurtain, nearestCurtainT } from "../puzzles/ridge/ridgeShape";
 import { ridge } from "../puzzles/ridge/ridgeState";
 import { ritual } from "../puzzles/ritual/ritualState";
@@ -18,7 +24,9 @@ const IS_REGION_OPEN: Record<Region, () => boolean> = {
   나루터: () => true,
   // 연기 화살표가 앞서 바위틈을 지나면 열린다. 기우제를 시작했으면 이미 지나온 것이다(이어 하기).
   // 처음 넘어갈 때 씬 1의 빛 물고기를 나루터 땅에 두고 왔으면 안 열린다 — 동행이 「뭐 놓친 거 없어요?」(puzzles/leftBehind, 튜토피드백 13회차)
-  바위아래: () => (fishTrapPuzzle.guideAhead() && !isDockGateHeldByFish()) || ritual.isAtLeast("drawing"),
+  // 아비사의 이야기(의뢰 · 인연)를 다 듣기 전에도 안 열린다 — 안 듣고 넘어가면 설화가 안 읽혔다(미르 11/11)
+  바위아래: () =>
+    (fishTrapPuzzle.guideAhead() && !isDockGateHeldByFish() && !isAbisaStoryOwed()) || ritual.isAtLeast("drawing"),
   // 물굴에서 비늘을 얻고 강가로 돌아오면 열린다
   능선: () => ritual.isAtLeast("cleared"),
   // 능선의 시공간 틈을 지나면 열린다
@@ -29,6 +37,10 @@ function closedNotice(region: Region) {
   if (region === "바위아래" && fishTrapPuzzle.guideAhead() && isDockGateHeldByFish()) {
     reportDockGateBlocked(); // 말은 CompanionNudge 가 차례가 나면 — 여기서는 청하기만
     return "바위틈 앞에서 동행이 발을 멈춘다. 나루터에 두고 온 것이 있는 것 같다.";
+  }
+  if (region === "바위아래" && isAbisaStoryOwed()) {
+    reportAbisaStoryOwed();
+    return ABISA_STORY_NOTICE;
   }
   if (region === "바위아래")
     return fishTrapPuzzle.stage() === "told"
@@ -55,6 +67,9 @@ function isCliffDropAt(x: number, z: number, fromX: number, fromZ: number) {
   const aheadZ = z + ((z - fromZ) / length) * CLIFF_GUARD.ahead;
   return terrain.groundAt(aheadX, aheadZ).y < standing - CLIFF_GUARD.drop;
 }
+
+/** 아비사의 이야기가 남아 바위틈 문이 막혔을 때 — 동행을 끈 판도 이 글로 할 일을 안다(Codex 01) */
+export const ABISA_STORY_NOTICE = "아비사에게 아직 듣지 못한 이야기가 있다. 떠나기 전에 말을 걸자.";
 
 const NOTICE_GAP_MS = 6000;
 const noticedAt = new Map<string, number>();

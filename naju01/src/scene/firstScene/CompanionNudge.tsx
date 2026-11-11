@@ -18,6 +18,7 @@ import {
   collectDockLeftovers,
   DOCK_GATE_MOUTH,
   DOCK_GATE_REARM_METERS,
+  isAbisaStoryOwed,
   isDockGateHeldByFish,
   isOfferingNudgeStale,
   linesForNudge,
@@ -71,6 +72,7 @@ export default function CompanionNudge({ enabled }: { enabled: boolean }) {
       restoreLostFish(offeredSoFar());
       // 말하던 까닭이 풀렸으면(물고기를 주웠다 · 모자란 제물을 주웠다 · 소반 단계가 끝났다) 그친다
       if (talk.isActive && speakingKind.current === "dockGate" && !isDockGateHeldByFish()) talk.stop();
+      if (talk.isActive && speakingKind.current === "abisaStory" && !isAbisaStoryOwed()) talk.stop();
       if (talk.isActive && speakingKind.current === "offering" && isOfferingNudgeStale(offeredSoFar())) talk.stop();
     }
 
