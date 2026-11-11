@@ -8,6 +8,8 @@
 import { createChangeSignal } from "@/lib/changeSignal";
 import { gameNow } from "@/engine/input/gameClock";
 
+import { TAGS } from "./gutShape";
+
 type GutStage = "waiting" | "rite" | "released" | "dawn";
 
 export interface SavedGut {
@@ -57,10 +59,14 @@ export const gut = {
   },
   release: () => enter("released"),
   dawn: () => enter("dawn"),
-  /** 이어 하기 — 지나가던 끝 연출은 끝난 모습(새벽)으로 돌아온다 */
+  /**
+   * 이어 하기 — 지나가던 끝 연출은 끝난 모습(새벽)으로 돌아온다. 다섯 불을 다 켠 직후(그림패가 움직이는 2.8 초, 아직 rite)에
+   * 나갔어도 풀린 것으로 본다 — 풀림 예약은 새로 고침에 사라진다(나주엔딩 01회차 Codex)
+   */
   restore(saved: SavedGut) {
     state = { ...initial(), ...saved };
-    if (state.stage === "released") state = { ...state, stage: "dawn" };
+    if (state.stage === "released" || (state.stage === "rite" && state.lit >= TAGS.length))
+      state = { ...state, stage: "dawn" };
     stageAt = now() - 999;
     signal.notify();
   },
