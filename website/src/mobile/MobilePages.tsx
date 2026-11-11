@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { useSearchParams } from "react-router-dom";
 
 import { ABOUT_CONTENT, ABOUT_TABS } from "@/data/about";
+import { SUPPORT_EMAIL } from "@/data/contact";
 import { MY_PAGE_CONTENT, MY_PAGE_TABS } from "@/data/myPage";
 import type { MyProgress } from "@/lib/myProgress";
 import { useMyProgress } from "@/sections/myPage/useMyProgress";
@@ -292,7 +293,8 @@ export function MobileSupportPage() {
       {tab === "inquiry" && (
         <div style={{ ...cardStyle, marginTop: 16 }}>
           <p style={{ ...bodyTextStyle, marginTop: 0 }}>
-            1:1 문의 기능을 준비하고 있습니다. 급한 문의는 공지사항의 안내를 확인해 주세요.
+            1:1 문의 접수 화면을 준비하고 있습니다. 문의는 <b>{SUPPORT_EMAIL}</b> 로 보내 주세요. 평균 1~2영업일 안에
+            답변드립니다.
           </p>
         </div>
       )}
@@ -368,7 +370,7 @@ export function MobileMyPage() {
           />
         ) : (
           <p style={{ ...bodyTextStyle, fontSize: "14px", color: COLOR.textMuted, marginTop: 16 }}>
-            이 기기에서 접수한 문의가 없습니다. 1:1 문의는 PC 고객센터에서 접수할 수 있습니다.
+            1:1 문의는 {SUPPORT_EMAIL} 로 받고 있습니다.
           </p>
         ))}
       {tab === "account" &&
