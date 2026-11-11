@@ -11,7 +11,7 @@
 import { useSyncExternalStore } from "react";
 
 import { exposeDevHook } from "@/debug/devHooks";
-import { gameClearTimeout, gameSetTimeout } from "@/engine/input/gameClock";
+import { gameClearTimeout, gameNow, gameSetTimeout } from "@/engine/input/gameClock";
 import { isTouchMode } from "@/engine/input/touchMode";
 import { isPointerActive } from "@/engine/input/virtualLock";
 
@@ -76,7 +76,7 @@ setTone("polite");
 const director = createDirector({
   store: dialogue,
   guideOf: (objective) => (panel && PANEL_OBJECTIVE[panel.title] === objective ? inCompanionVoice(panel.rule) : null),
-  onSpoken: () => watcher.noteSpoken(performance.now() / 1000),
+  onSpoken: () => watcher.noteSpoken(gameNow() / 1000),
   // [F] 로 청한 도움 — 도움 별(미르 11/11)
   onHelpAsked: () => helpLog.noteAsked(),
   phaseHint: hintPhase,
@@ -103,7 +103,7 @@ export function setDialoguePanel(next: Panel | null) {
 
 /** 게임이 알림을 띄웠다 — 동행이 따라 말하지는 않고, 방금 무슨 일이 있었다고만 적는다(먼저 거는 말을 미루게) */
 export function noteGameNotice() {
-  watcher.noteEvent(performance.now() / 1000);
+  watcher.noteEvent(gameNow() / 1000);
 }
 
 /** 처음 걷기 시작했다 — 모아 둔 말을 시작한다(인사는 CompanionIntro 가 한다) */
@@ -169,7 +169,7 @@ export function tickDialogue() {
 /** 서버가 준 동행의 말을 대화창에 올린다 — 동행이 방금 말했으니 한동안 먼저 말 걸지 않게 적는다 */
 export function sayCompanion(speech: Speech) {
   dialogue.say(speech);
-  watcher.noteSpoken(performance.now() / 1000);
+  watcher.noteSpoken(gameNow() / 1000);
 }
 
 /** 서버가 힌트를 권했다 — 열지 Y/N 으로 묻는다 */
