@@ -9,6 +9,7 @@
 >   `acct` 없이 코드가 있으면 계정 없이 코드로, 그 밖은 저장하지 않고 `ignored` 로 센다(응답에 `ignored` 추가). 공용 PC 에서 앞사람 기록이
 >   다음 사람에게 붙지 않게.
 > - **진입 단계**: 캐릭터 생성 화면 열기 · 완료(`character_open` · `character_done`)를 따로 남긴다.
+> - **설문 연결**: 따로 만든 구글 폼을 게임이 연다(시작 전 · 결과 화면 앞 · 멈춤 메뉴). 폼에 「참가 번호」(계정 id 의 짧은 지문)를 미리 채워 기록과 잇는다.
 > - **운영**: 베타가 끝나면 `BETA_EVENTS_ENABLED=false` 로 끈다(켜 두면 그 뒤 로그인한 일반 이용자도 기록된다). 아래 「알려진 한계」 추가.
 > - **관련 PR #121(로그인 필수)**: 로그인하지 않으면 게임 주소를 직접 열어도 게임을 열지 않는다(운영 빌드만, `VITE_ALLOW_GUEST_PLAY=1` 로 되돌림).
 >   그래서 베타 동안 게스트 발급 · 승계 경로는 게임에서 쓰이지 않는다(서버 기능은 그대로).
@@ -82,13 +83,18 @@ data(JSON 2048바이트 이하).
 ## 운영(미르)
 
 - 참가자는 회원가입 → 로그인 상태로 플레이하면 된다. 집계는 계정 단위다.
-- (선택) 참여 코드 · 개인 링크: `node tools/beta/make-codes.mjs <개수> <출력.csv>` — 설문 카드(폼 미리 채움)를 쓸 때만 필요.
+- (선택) 참여 코드 · 개인 링크: `node tools/beta/make-codes.mjs <개수> <출력.csv>` — 지금은 쓰지 않는다(계정으로 잇는다).
+- **설문 폼 연결**: 폼마다 「참가 번호」 짧은 답 칸을 두고, 구글 폼 「미리 채운 링크 가져오기」로 만든 주소에서 그 칸 값을 `{key}` 로 바꿔
+  `src/beta/betaSurvey.ts` 의 `BETA_FORMS`(또는 Vercel 빌드 변수 `VITE_BETA_FORM_PRE` · `_POST_A` · `_POST_B` · `_EXIT`)에 넣는다.
+  게임이 계정 id 의 짧은 지문(참가 번호, 16진 8자)을 채운다 — 이름 · 이메일은 폼 주소에 넣지 않는다. 끝난 뒤 폼이 하나면 `_POST_A` 만.
+  카드: 처음 접속 때 시작 전 폼 · 완주하면 결과 · 현장 방문 창보다 먼저 끝난 뒤 폼 · 멈춤 메뉴 「베타 설문 — 그만두는 이유」 중단 폼.
 - 베타가 끝나면 서버 `BETA_EVENTS_ENABLED=false` 로 끈다 — 켜 두면 그 뒤에 로그인한 일반 이용자도 기록된다.
 - 설문 폼 주소: `src/beta/betaSurvey.ts` 의 `BETA_FORMS` 또는 빌드 변수 `VITE_BETA_FORM_PRE` · `VITE_BETA_FORM_POST_A` ·
   `VITE_BETA_FORM_POST_B` · `VITE_BETA_FORM_EXIT`(구글 폼 미리 채운 링크에서 코드 칸 값을 `{pc}`, 회차 칸을 `{run}` 으로).
   비어 있으면 설문 안내는 뜨지 않는다(기록은 그대로 쌓인다).
 - 내보내기: 관리자 계정으로 로그인한 브라우저에서 `https://<api>/api/v1/admin/beta-events?limit=10000`(다음 쪽은 `after_id`).
-- 집계: `node tools/beta/beta-report.mjs <출력 폴더> <내보낸.json …> [--codes 코드.csv]` → summary.md · objectives.csv · events.csv.
+- 집계: `node tools/beta/beta-report.mjs <출력 폴더> <내보낸.json …> [--codes 코드.csv]` → summary.md · objectives.csv · people.csv · events.csv.
+  people.csv 의 「참가 번호」로 폼 응답(같은 이름의 칸)과 맞춘다.
 
 ## 세진님 PR #117(베타 퍼즐 통계 · 읽기 전용 SQL)과의 관계
 

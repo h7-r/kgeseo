@@ -1,10 +1,10 @@
 /**
- * 베타 설문 연결 — 참여 코드가 미리 채워진 구글 폼 주소를 만들고, 띄움(shown) · 엶(opened)을 기록한다(L19).
- *
- * 폼 주소는 구글 폼의 「미리 채운 링크 가져오기」로 만든 주소에서 참여 코드 칸 값을 `{pc}` 로 바꿔 넣는다.
- * (예: https://docs.google.com/forms/d/e/…/viewform?usp=pp_url&entry.123456={pc})
+ * 베타 설문 연결 — 따로 만든 구글 폼을 게임에서 연다(미르 11/11). 시작 전 · 끝난 뒤(결과 · 현장 방문 창보다 먼저) · 중단(멈춤 메뉴).
+ * 폼에 「참가 번호」 짧은 답 칸을 두고, 「미리 채운 링크 가져오기」로 만든 주소에서 그 칸 값을 `{key}` 로 바꿔 넣는다
+ * (예: https://docs.google.com/forms/d/e/…/viewform?usp=pp_url&entry.123456={key}). 게임이 계정 id 의 짧은 지문(참가 번호)을 채워
+ * 폼 응답과 게임 기록을 같은 사람으로 잇는다 — 이름 · 이메일은 폼 주소에 넣지 않는다. `{run}` 은 나주 회차(0부터).
  * 빌드 변수(VITE_BETA_FORM_*)가 있으면 그것을, 없으면 아래 BETA_FORMS 를 쓴다. 비어 있으면 그 설문 안내는 뜨지 않는다.
- * 끝난 뒤 설문은 보상 질문 두 개(D3 · D4)의 순서만 다른 두 판(A · B)을 두고, 참여 코드로 반씩 나눈다.
+ * 끝난 뒤 설문은 보상 질문 두 개(D3 · D4)의 순서만 다른 두 판(A · B)을 두면 참가 번호로 반씩 나눈다(B 가 비면 모두 A).
  */
 import { betaLog } from "./betaLog";
 
@@ -26,33 +26,34 @@ function envForm(name: string): string {
 }
 
 /** 참여 코드로 고정된 반(A · B) — 같은 사람은 늘 같은 판 */
-export function postVariant(pc: string): "A" | "B" {
+export function postVariant(key: string): "A" | "B" {
   let hash = 0;
-  for (const char of pc) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return hash % 2 === 0 ? "A" : "B";
 }
 
-function template(kind: SurveyKind, pc: string): { url: string; variant: string | null } {
+function template(kind: SurveyKind, key: string): { url: string; variant: string | null } {
   if (kind === "pre") return { url: envForm("VITE_BETA_FORM_PRE") || BETA_FORMS.pre, variant: null };
   if (kind === "exit") return { url: envForm("VITE_BETA_FORM_EXIT") || BETA_FORMS.exit, variant: null };
-  const variant = postVariant(pc);
-  const url =
-    variant === "A"
-      ? envForm("VITE_BETA_FORM_POST_A") || BETA_FORMS.postA
-      : envForm("VITE_BETA_FORM_POST_B") || BETA_FORMS.postB;
-  return { url, variant };
+  const postA = envForm("VITE_BETA_FORM_POST_A") || BETA_FORMS.postA;
+  const postB = envForm("VITE_BETA_FORM_POST_B") || BETA_FORMS.postB;
+  // 판이 하나뿐이면(B 없음) 모두 A
+  if (!postB) return { url: postA, variant: postA ? "A" : null };
+  const variant = postVariant(key);
+  return { url: variant === "A" ? postA : postB, variant };
 }
 
-/** 이 사람에게 띄울 설문 주소. 참여 코드가 없거나 주소가 비었으면 null */
+/** 이 사람에게 띄울 설문 주소. 계정(또는 참여 코드)을 모르거나 주소가 비었으면 null */
 export function surveyLink(kind: SurveyKind): { url: string; variant: string | null } | null {
-  const pc = betaLog.participantCode();
-  if (!betaLog.isActive() || !pc) return null;
-  const { url, variant } = template(kind, pc);
+  const key = betaLog.participantKey();
+  if (!betaLog.isActive() || !key) return null;
+  const { url, variant } = template(kind, key);
   if (!url || !url.startsWith("https://")) return null;
   const run = betaLog.run();
   return {
     url: url
-      .replaceAll("{pc}", encodeURIComponent(pc))
+      .replaceAll("{key}", encodeURIComponent(key))
+      .replaceAll("{pc}", encodeURIComponent(key))
       .replaceAll("{run}", encodeURIComponent(run ? String(run.index) : "")),
     variant,
   };
@@ -60,8 +61,8 @@ export function surveyLink(kind: SurveyKind): { url: string; variant: string | n
 
 /** 이 설문을 이미 처리했나(엶 · 「이미 했어요」) — 끝난 뒤 · 중단 설문은 회차마다 */
 const doneKey = (kind: SurveyKind) => {
-  // 시작 전은 참여 코드마다(한 PC 를 여러 참가자가 쓰면 각자 묻는다), 끝난 뒤 · 중단은 회차마다
-  if (kind === "pre") return `waegok.beta.survey.pre.${betaLog.participantCode() ?? ""}`;
+  // 시작 전은 사람마다(한 PC 를 여러 참가자가 쓰면 각자 묻는다), 끝난 뒤 · 중단은 회차마다
+  if (kind === "pre") return `waegok.beta.survey.pre.${betaLog.participantKey() ?? ""}`;
   const run = betaLog.run();
   return `waegok.beta.survey.${kind}${run ? `.${run.id}` : ""}`;
 };

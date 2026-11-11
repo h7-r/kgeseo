@@ -105,6 +105,19 @@ const BODY_LIMIT = 60_000;
 const KEEPALIVE_LIMIT = 48_000;
 const MAX_BACKOFF_MS = 60_000;
 
+/**
+ * 참가 번호 — 계정 id 의 짧은 지문(FNV-1a 32비트, 16진 8자). 설문 폼에 미리 채워 게임 기록과 같은 사람으로 잇는다.
+ * 이름 · 이메일 대신 이것만 폼(구글)으로 간다. 집계 도구(tools/beta/beta-report.mjs)가 같은 식으로 계정 id 에서 다시 만든다.
+ */
+export function shortKey(text: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0").toUpperCase();
+}
+
 /** 참여 코드를 대문자 · 공백 없이. 형식이 아니면 null */
 export function normalizeCode(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -232,6 +245,11 @@ export function createBetaLog() {
   let account: string | null | undefined = undefined;
   /** 계정을 확인하기 전의 기록(페이지 안에만) */
   let pending: Array<{ event: BetaEvent; withRun: boolean }> = [];
+  /** 계정을 확인했을 때(로그인 안 함 · 멈춤 포함) 풀리는 약속 — 설문 안내가 기다린다 */
+  let resolveAccountReady: () => void = () => {};
+  const accountReady = new Promise<void>((resolve) => {
+    resolveAccountReady = resolve;
+  });
 
   const store = () => env?.storage ?? null;
 
@@ -409,6 +427,7 @@ export function createBetaLog() {
 
   function stop() {
     isStopped = true;
+    resolveAccountReady();
     if (env && timer !== null) env.clearTimer(timer);
     timer = null;
   }
@@ -512,6 +531,7 @@ export function createBetaLog() {
         /* 무시 */
       }
       account = id;
+      resolveAccountReady();
       if (!id && !pc) {
         pending = [];
         stop();
@@ -524,6 +544,13 @@ export function createBetaLog() {
     },
     /** 계정을 확인했나(undefined 면 아직) */
     account: () => account,
+    /** 계정 확인이 끝나면 풀린다(멈춰도) */
+    accountReady: () => accountReady,
+    /**
+     * 설문 폼에 미리 채울 참가 번호 — 로그인했으면 늘 계정 id 의 짧은 지문(남아 있는 옛 참여 코드보다 먼저 — 공용 PC 에서 앞사람 번호가
+     * 채워지지 않게), 로그인하지 않았으면 참여 코드. 모르면 null. 집계 도구도 같은 차례로 만든다
+     */
+    participantKey: (): string | null => (account ? shortKey(account) : (account === null ? pc : null)),
     /**
      * /me 를 묻기 직전에 받는 물음 표 — 「물은 시각(자릿수 고정) . 무작위 id」 글자. 글자 크기 비교가 곧 물은 차례다
      * (같은 브라우저의 탭은 같은 시계). 함께 쓰는 수를 읽고 올리지 않으므로 두 탭이 같은 표를 받을 일이 없다.

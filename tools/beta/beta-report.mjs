@@ -57,6 +57,18 @@ const who = (e) => {
   return account ? `u:${account}` : e.participant_code ? `c:${e.participant_code}` : null;
 };
 for (const e of events) e.who = who(e);
+
+// 참가 번호 — 게임이 설문 폼에 미리 채운 값(src/beta/betaLog.ts shortKey 와 같은 식). 폼 응답의 「참가 번호」 칸과 이 값으로 맞춘다
+function shortKey(text) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0").toUpperCase();
+}
+// 게임과 같은 차례 — 계정이 있으면 늘 계정 지문, 없으면 참여 코드
+for (const e of events) e.key = e.app_user_id ? shortKey(e.app_user_id) : (e.participant_code ?? null);
 const pcs = [...new Set(events.map((e) => e.who).filter(Boolean))];
 
 // ── 도구 ──
@@ -78,7 +90,7 @@ const csvCell = (v) => {
 };
 
 // ── 원시 CSV ──
-const cols = ["id", "event_id", "client_ts", "received_at", "who", "participant_code", "event_type", "phase", "page", "run_id", "run_index", "objective_id", "tab_id", "seq", "app_user_id", "guest_session_id", "build", "data"];
+const cols = ["id", "event_id", "client_ts", "received_at", "who", "key", "participant_code", "event_type", "phase", "page", "run_id", "run_index", "objective_id", "tab_id", "seq", "app_user_id", "guest_session_id", "build", "data"];
 writeFileSync(`${outDir}/events.csv`, `\uFEFF${[cols.join(","), ...events.map((e) => cols.map((c) => csvCell(e[c])).join(","))].join("\n")}\n`);
 
 // ── 사람별 정리 ──
@@ -177,6 +189,25 @@ const objRows = [...objectives.values()].map((o) => {
     help: `${o.helpers.size}/${reached}`,
   };
 });
+// 사람 목록 — 참가 번호로 설문 응답과 맞출 때 쓴다(사람마다 첫 판 완주 · 마지막 목표 · 조사 시간)
+{
+  const rows = ["사람,참가 번호,계정 id,첫 판 시작,첫 판 엔딩,조사 시간(초),마지막 목표"];
+  for (const p of people) {
+    const run = p.firstRun;
+    const start = run?.events.find((e) => e.event_type === "run_state" && (e.phase === "start" || e.phase === "resume"));
+    const dawn = run?.events.find((e) => e.event_type === "run_state" && e.phase === "dawn");
+    const last = run ? [...run.events].reverse().find((e) => e.objective_id)?.objective_id ?? "" : "";
+    // 계정이 있는 사람은 계정 지문(게임이 폼에 채우는 값), 없으면 코드
+    const sample = p.list.find((e) => e.app_user_id) ?? p.list.find((e) => e.key);
+    rows.push(
+      [p.pc, sample?.key ?? "", [...p.users][0] ?? "", start ? "예" : "", dawn ? "예" : "", dawn?.data.active_ms ? Math.round(dawn.data.active_ms / 1000) : "", last]
+        .map(csvCell)
+        .join(","),
+    );
+  }
+  writeFileSync(`${outDir}/people.csv`, `\uFEFF${rows.join("\n")}\n`);
+}
+
 writeFileSync(
   `${outDir}/objectives.csv`,
   `\uFEFF목표,도달,완료,통과율,완료 시간 가운데,느린 쪽(75%),3번 이상 실패,서버 오답/판정,직접 도움 요청\n${objRows.map((r) => [r.id, r.reached, r.done, r.pass, r.median, r.p75, r.fail3, r.serverWrong, r.help].map(csvCell).join(",")).join("\n")}\n`,
@@ -290,4 +321,4 @@ for (const kind of ["pre", "post", "exit"]) w(`- ${kind}: 안내 ${survey(kind, 
 w();
 w("> 숫자는 첫 판 · 실시간 기록 기준. 표본이 10명 미만이면 비율을 쓰지 않는다. 시간은 조사 시계(창 · 멈춤 · 게임 밖 제외) 기준.");
 writeFileSync(`${outDir}/summary.md`, `${md.join("\n")}\n`);
-console.log(`${events.length}건 · ${pcs.length}명 → ${outDir}/summary.md · objectives.csv · events.csv`);
+console.log(`${events.length}건 · ${pcs.length}명 → ${outDir}/summary.md · objectives.csv · people.csv · events.csv`);
