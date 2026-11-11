@@ -266,8 +266,12 @@ export interface ProgressSyncOptions {
   sendOptions?: { timeoutMs?: number; maxRetries?: number; retryDelayMs?: number };
   newEventId?: () => string;
   now?: () => string;
-  /** 서버가 상호작용을 받았다(sent) — 동행의 「마지막 상호작용 뒤 멈춘 시간」을 여기서부터 다시 잰다(pausedSinceInteraction) */
-  onSent?: () => void;
+  /**
+   * 동행의 「마지막 상호작용 뒤 멈춘 시간」 기준점(pausedSinceInteraction). markSend 는 prepared 마다 처음 보낼 때 한 번 찍고,
+   * 서버가 받았으면(sent) 그 표시로 onSent — 응답을 잃고 나중에 다시 보내도 서버 기록(처음 받은 때)에 가까운 처음 표시를 쓴다(14회차 Codex)
+   */
+  markSend?: () => unknown;
+  onSent?: (mark: unknown) => void;
 }
 
 const DEFAULT_DELIVERY_HISTORY_LIMIT = 256;
@@ -279,6 +283,8 @@ export function createProgressSync(options: ProgressSyncOptions) {
   const makeEventId = options.newEventId ?? newEventId;
   const now = options.now ?? clientTimestamp;
   const historyLimit = Math.max(1, Math.floor(options.deliveryHistoryLimit ?? DEFAULT_DELIVERY_HISTORY_LIMIT));
+  /** prepared 를 처음 보낸 때의 표시(markSend) */
+  const sendMarks = new WeakMap<PreparedInteraction, unknown>();
   /** 이미 넘긴 `<playSessionId>\n<interaction_id>`. Set 은 넣은 차례를 지켜 가장 오래된 것을 먼저 지운다 */
   const delivered = new Set<string>();
 
@@ -359,6 +365,7 @@ export function createProgressSync(options: ProgressSyncOptions) {
   async function send(prepared: PreparedInteraction): Promise<SendOutcome> {
     const session = options.getSession();
     if (session.phase !== "ready") return { kind: "not-sent", reason: "session-not-ready" };
+    if (options.markSend && !sendMarks.has(prepared)) sendMarks.set(prepared, options.markSend());
     let body: unknown;
     try {
       body = await sendFrozen(interactionsPath(session.playSessionId), prepared.body, options.sendOptions);
@@ -367,7 +374,7 @@ export function createProgressSync(options: ProgressSyncOptions) {
       return classifyError(error);
     }
     if (!isInteractionResponse(body)) return { kind: "invalid-response", body };
-    options.onSent?.();
+    options.onSent?.(sendMarks.get(prepared));
     const { known, unknown } = splitStateChanges(body.state_changes);
     const response: InteractionResponse = { ...body, state_changes: known };
     // 보낼 때의 세션으로 기록한다 — 응답을 기다리는 사이 세션이 바뀌어도 다른 세션 기록과 섞이지 않는다

@@ -429,6 +429,37 @@ test("auto 턴에만 멈춘 시간을 싣는다 — 정수로 · 0~하루로 깎
   assert.equal("paused_ms_since_interaction" in sentBody(), false, "말 걸기에는 싣지 않는다 — 서버가 422");
 });
 
+test("서버가 멈춘 시간 칸을 422 로 막으면(배포 순서) 빼고 같은 턴을 다시 보내고, 그 뒤로는 싣지 않는다", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const { dialog, logs } = await readyDialog(
+    {
+      turn: (call) => {
+        const body = call.body as Record<string, unknown>;
+        bodies.push(body);
+        return "paused_ms_since_interaction" in body
+          ? {
+              status: 422,
+              body: { detail: [{ type: "extra_forbidden", loc: ["body", "paused_ms_since_interaction"] }] },
+            }
+          : { status: 200, body: turn({ reply: { source: "approved_line", text: "넛지", line_id: "N1" } }) };
+      },
+    },
+    () => Date.now(),
+    () => 3000,
+  );
+  assert.equal(await dialog.autoTurn(undefined, "OBJ_X", { quiet: true }), true);
+  assert.equal(bodies.length, 2);
+  assert.equal(bodies[0].paused_ms_since_interaction, 3000);
+  assert.equal("paused_ms_since_interaction" in bodies[1], false);
+  assert.notEqual(bodies[0].client_event_id, bodies[1].client_event_id);
+  assert.deepEqual(dialog.getState().line, { kind: "npc", text: "넛지", lineId: "N1" });
+  assert.ok(logs.some((line) => line.startsWith("warn:")));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  await dialog.autoTurn(undefined, "OBJ_X", { quiet: true });
+  assert.equal(bodies.length, 3);
+  assert.equal("paused_ms_since_interaction" in bodies[2], false, "이 탭에서는 그만 싣는다");
+});
+
 test("빈 말 · 대기 중 중복은 보내지 않는다", async () => {
   const { dialog } = await readyDialog();
   assert.equal(await dialog.talk("   "), false);

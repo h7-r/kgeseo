@@ -29,6 +29,12 @@ import type { CompanionSession } from "./companionSession.ts";
 /** 서버가 받는 멈춘 시간 상한(하루, backend MAX_PAUSED_MS) */
 const MAX_PAUSED_MS = 86_400_000;
 
+/** 서버가 모르는 칸이라 막았다(422 · detail 에 칸 이름) — 서버가 그 칸을 받기 전 배포 순서 */
+const isPausedFieldRejection = (error: unknown) =>
+  error instanceof CompanionApiError &&
+  error.status === 422 &&
+  JSON.stringify(error.detail ?? error.body ?? "").includes("paused_ms_since_interaction");
+
 export type DialogLine =
   | { kind: "npc"; text: string; lineId: string | null }
   | { kind: "hint"; level: 1 | 2; text: string; isReview: boolean }
@@ -210,6 +216,9 @@ export function createCompanionDialog(options: {
    * quiet — 플레이어가 하지 않은 뒤쪽 요청(퍼즐 자동 개입 폴링)이라 실패해도 안내를 띄우지 않는다(로그 · 세션 처리는 그대로).
    * 1분마다 도는 요청이 「연결이 불안정해요 · 한 번 더 말을 걸어 주세요」를 되풀이하지 않게.
    */
+  /** 서버가 멈춘 시간 칸을 받는가 — 422 로 거절하면 이 탭에서는 그만 싣는다 */
+  let isPausedFieldAccepted = true;
+
   async function sendTurn(
     body: Omit<NpcTurnBody, "client_event_id" | "client_timestamp">,
     { quiet = false }: { quiet?: boolean } = {},
@@ -218,7 +227,7 @@ export function createCompanionDialog(options: {
     if (!ready || state.waiting) return false;
     const request: NpcTurnBody = { client_event_id: newEventId(), client_timestamp: clientTimestamp(), ...body };
     // 멈춘 시간은 본문을 만들 때 한 번 정한다 — 재전송은 같은 본문이어야 한다(다르면 409)
-    if (body.trigger === "auto") {
+    if (body.trigger === "auto" && isPausedFieldAccepted) {
       const paused = options.pausedMs?.();
       if (paused != null && Number.isFinite(paused))
         request.paused_ms_since_interaction = Math.min(MAX_PAUSED_MS, Math.max(0, Math.round(paused)));
@@ -231,6 +240,15 @@ export function createCompanionDialog(options: {
       applyTurn(response);
     } catch (error) {
       if (pendingId !== request.client_event_id) return true;
+      // 서버가 아직 멈춘 시간 칸을 모른다(배포 순서 — 요청 모델이 모르는 칸을 422 로 막는다). 이 탭에서는 그 칸을 빼고
+      // 같은 턴을 다시 보낸다 — 자동 개입이 통째로 멎거나 실패 안내가 뜨지 않게(14회차 Codex)
+      if (request.paused_ms_since_interaction !== undefined && isPausedFieldRejection(error)) {
+        isPausedFieldAccepted = false;
+        log("warn", "서버가 paused_ms_since_interaction 을 받지 않는다 — 빼고 다시 보낸다", error);
+        pendingId = null;
+        patch({ waiting: null });
+        return sendTurn(body, { quiet });
+      }
       const common = handleCommonError(error, "npc");
       if (common) {
         patch({ waiting: null });

@@ -223,6 +223,24 @@ test("onSent 는 서버가 상호작용을 받았을 때만 — 동행의 「마
   assert.equal(sent, 1, "거절 · 이상한 응답은 받은 것이 아니다");
 });
 
+test("멈춘 시간 기준점은 prepared 를 처음 보낼 때 찍은 표시 — 응답을 잃고 다시 보내 성공해도 처음 표시로 onSent", async () => {
+  let n = 0;
+  const marks: unknown[] = [];
+  const s = sync({ markSend: () => ++n, onSent: (mark) => marks.push(mark) });
+  const result = s.prepare({ action: "complete", zone: "TA", object: "test-lever" });
+  assert.ok(result.ok);
+  serveSequence(["network", "network", "network"]);
+  assert.equal((await s.send(result.prepared)).kind, "unreachable");
+  serveSequence([{ status: 200, body: okResponse() }]);
+  assert.equal((await s.send(result.prepared)).kind, "sent");
+  assert.deepEqual(marks, [1], "다시 보낸 때(2)가 아니라 처음 보낸 때(1)");
+  const other = s.prepare({ action: "complete", zone: "TA", object: "test-lever" });
+  assert.ok(other.ok);
+  serveSequence([{ status: 200, body: okResponse() }]);
+  await s.send(other.prepared);
+  assert.deepEqual(marks, [1, 2]);
+});
+
 // ── 오류 구분 ──
 
 test("409: detail 문자열로 이유를 고르고 다시 보내지 않는다", async () => {
