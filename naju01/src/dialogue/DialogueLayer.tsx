@@ -322,7 +322,7 @@ interface CompanionSpeechProps {
   toScreen: (text: string) => string;
 }
 
-/** 동행의 말 — 빛망울 얼굴 · 이름 · 화제 · 쪽 */
+/** 동행의 말 — 얼굴(동행 정령 초상) · 이름 · 화제 · 쪽 */
 function CompanionSpeech(props: CompanionSpeechProps) {
   const { speech, pages, pageIndex, serial } = props.shown;
   return (
