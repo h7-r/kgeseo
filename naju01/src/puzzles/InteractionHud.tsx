@@ -5,6 +5,7 @@ import { AMBER, CREAM, HUD_FONT as FONT, KEY_FONT, KEY_INK } from "./hudTheme";
 import { aimedTarget, useAimedLabel, useAimedTalkId, useAimedTalkLabel, useNotice, usesWithHand } from "./interaction";
 import { ITEMS, SLOT_COUNT, inventory, useHandItem, useHeldItems } from "./inventory";
 import { usePaperOpen } from "./ridge/oldPaper";
+import { BrokenLines } from "../dialogue/BrokenLines";
 import { inCompanionVoice } from "../dialogue/gameVoice";
 import { isTalkInterruptible, useSpeechBoxShown, useTalkOwner, useTalkTaken } from "../scene/firstScene/npcSpeech";
 
@@ -71,7 +72,7 @@ export default function InteractionHud() {
           {labels.isTouch ? (
             labels.text(inCompanionVoice(notice.text))
           ) : (
-            <p style={pcNoticeTextStyle}>{labels.text(inCompanionVoice(notice.text))}</p>
+            <BrokenLines style={pcNoticeTextStyle} text={labels.text(inCompanionVoice(notice.text))} />
           )}
         </div>
       )}

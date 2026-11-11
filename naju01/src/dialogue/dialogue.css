@@ -187,6 +187,8 @@
   font-size: clamp(17px, calc(0.9vw + 10px), 22px);
   font-weight: 500;
   line-height: 1.6;
+  /* 끊을 자리는 useLineBreaks 가 줄바꿈 글자로 넣는다 */
+  white-space: pre-line;
   word-break: keep-all;
   overflow-wrap: anywhere;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);

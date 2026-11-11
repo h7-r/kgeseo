@@ -1481,3 +1481,31 @@ test("초안 파일(draftLines)은 미리 보기의 동적 import 로만 불리�
   assert.doesNotMatch(preview, /^import .*draftLines/m);
   for (const kind of Object.keys(GENERAL_LINES)) assert.equal(categoryOf("GENERAL", kind), "FE 문구", kind);
 });
+
+test("줄 끊기 — 한 줄에 들어가면 그대로, 넘치면 문장 끝에서 끊고 글 길이는 그대로다", async () => {
+  const { breakLines } = await import("../src/dialogue/lineBreak.ts");
+  const measure = (text: string) => textWidth(text);
+  const line = "초롱이 꺼졌어요. 아랑사는 돌아오지 못했어요.";
+  assert.equal(breakLines(line, 40, measure), line);
+  assert.equal(breakLines(line, 18, measure), "초롱이 꺼졌어요.\n아랑사는 돌아오지 못했어요.");
+  // 문장 끝이 없으면 쉼표에서
+  assert.equal(
+    breakLines("그들이 꾸민 계략에, 아랑사는 발이 미끄러졌어요.", 18, measure),
+    "그들이 꾸민 계략에,\n아랑사는 발이 미끄러졌어요.",
+  );
+  // 문장 끝이 너무 앞이면(한 줄이 거의 비면) 고르게 끊는다
+  const lopsided = breakLines("네. 연기가 화살표로 모였으니 그쪽으로 따라가 봐요.", 20, measure);
+  assert.notEqual(lopsided.split("\n")[0], "네.");
+  assert.equal(lopsided.length, "네. 연기가 화살표로 모였으니 그쪽으로 따라가 봐요.".length);
+  // 줄 수를 늘리지 않는다 — 문장 끝에서 끊으면 세 줄이 되는 글은 두 줄로 남긴다
+  const two = breakLines("하나. 둘 셋 넷 다섯 여섯 일곱 여덟 아홉 열 열하나 열둘.", 20, measure);
+  assert.equal(two.split("\n").length, 2);
+});
+
+test("줄 끊기 — 화면에 놓인 줄 수(lineLimit)보다 줄이 더 필요하면 손대지 않는다", async () => {
+  const { breakLines } = await import("../src/dialogue/lineBreak.ts");
+  const line = "초롱이 꺼졌어요. 아랑사는 돌아오지 못했어요.";
+  // 폭 12.65 에서는 두 줄에 들어가는데, 여유를 뺀 폭(× 0.98)으로 재면 세 줄이 필요하다고 나온다
+  assert.equal(breakLines(line, 12.65 * 0.98, (text) => textWidth(text)).split("\n").length, 3);
+  assert.equal(breakLines(line, 12.65 * 0.98, (text) => textWidth(text), 2), line);
+});

@@ -1,0 +1,72 @@
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+
+import { breakLines } from "./lineBreak";
+
+/** [E] 같은 키 표시는 글자보다 넓은 단추로 그린다(.npc-talk__key — 최소 24px + 양옆 3px) */
+const KEY_TOKEN = /\[([A-Z0-9]{1,2}|✋|💬|💡|🎒|⚙)\]/gu;
+const KEY_MIN_PX = 30;
+/** 잰 폭과 실제 폭의 어긋남(글자 사이 · 반올림)을 받아 줄 여유 */
+const SAFETY = 0.98;
+
+let canvas: CanvasRenderingContext2D | null = null;
+
+function measurer(element: HTMLElement) {
+  canvas ??= document.createElement("canvas").getContext("2d");
+  const style = getComputedStyle(element);
+  const font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+  return (text: string) => {
+    if (!canvas) return 0;
+    canvas.font = font;
+    let extra = 0;
+    const plain = text.replace(KEY_TOKEN, () => {
+      extra += KEY_MIN_PX;
+      return "";
+    });
+    return canvas.measureText(plain).width + extra;
+  };
+}
+
+/**
+ * 글이 두 줄 넘게 넘어가면 읽기 좋은 자리에서 끊은 글을 돌려준다(lineBreak). 글을 담는 요소에 ref 를 달고
+ * `white-space: pre-line` 으로 그린다. 먼저 그냥 흘려 그려 한 줄 폭을 잰 뒤, 화면에 나오기 전에 끊은 글로 바꾼다.
+ * 창 크기 · 글꼴이 바뀌면 다시 잰다.
+ */
+export function useLineBreaks<T extends HTMLElement>(text: string): [RefObject<T | null>, string] {
+  const ref = useRef<T | null>(null);
+  const [broken, setBroken] = useState<{ source: string; value: string } | null>(null);
+  const [epoch, setEpoch] = useState(0);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element || !text) return;
+    const style = getComputedStyle(element);
+    const width = element.clientWidth - parseFloat(style.paddingLeft || "0") - parseFloat(style.paddingRight || "0");
+    // 한 줄에 들어간 글은 그대로 둔다 — 잰 폭이 실제와 조금 어긋나도 멀쩡한 한 줄을 끊지 않게 화면의 줄 수로 가린다
+    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5;
+    if (element.clientHeight < lineHeight * 1.5) {
+      setBroken({ source: text, value: text });
+      return;
+    }
+    // 여유(SAFETY)만큼 좁게 재면 줄이 하나 더 필요하다고 나올 수 있다 — 화면에 놓인 줄 수를 넘기면 그대로 둔다
+    const shownLines = Math.max(1, Math.round(element.clientHeight / lineHeight));
+    setBroken({ source: text, value: breakLines(text, width * SAFETY, measurer(element), shownLines) });
+  }, [text, epoch]);
+
+  useEffect(() => {
+    let isAlive = true;
+    const remeasure = () => {
+      if (!isAlive) return;
+      // 끊은 글을 걷고 다시 흘려 그려야 한 줄 폭이 잡힌다
+      setBroken(null);
+      setEpoch((value) => value + 1);
+    };
+    window.addEventListener("resize", remeasure);
+    void document.fonts?.ready.then(remeasure);
+    return () => {
+      isAlive = false;
+      window.removeEventListener("resize", remeasure);
+    };
+  }, []);
+
+  return [ref, broken?.source === text ? broken.value : text];
+}

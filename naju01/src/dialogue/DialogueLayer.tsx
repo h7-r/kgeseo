@@ -59,6 +59,7 @@ import {
 } from "./dialogueRuntime";
 import { noteNotice, notePanel } from "./gameObserver";
 
+import { useLineBreaks } from "./useLineBreaks";
 import "./dialogue.css";
 
 const TICK_MS = 500;
@@ -351,6 +352,8 @@ function CompanionSpeech(props: CompanionSpeechProps) {
 function SpeechPage({ shown, typingRef, onAnswer, isTouch, toScreen }: CompanionSpeechProps) {
   const { speech, pages, pageIndex } = shown;
   const text = toScreen(pages[pageIndex]);
+  // 두 줄 넘게 넘어가면 문장 · 쉼표 자리에서 끊는다 — 글 길이는 그대로라 찍는 자리는 text 로 세도 된다
+  const [textRef, lined] = useLineBreaks<HTMLParagraphElement>(text);
   const [typed, setTyped] = useState(0);
 
   useEffect(() => {
@@ -387,9 +390,9 @@ function SpeechPage({ shown, typingRef, onAnswer, isTouch, toScreen }: Companion
 
   return (
     <>
-      <p className="npc-talk__text" data-testid="npc-talk-text">
-        {withKeys(text.slice(0, cut))}
-        <span className="npc-talk__pending">{withKeys(text.slice(cut))}</span>
+      <p ref={textRef} className="npc-talk__text" data-testid="npc-talk-text">
+        {withKeys(lined.slice(0, cut))}
+        <span className="npc-talk__pending">{withKeys(lined.slice(cut))}</span>
       </p>
       {choices.length > 0 ? (
         <div className="npc-talk__choices">
