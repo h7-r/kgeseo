@@ -46,7 +46,7 @@ event_id(UUID, 필수) · type(11종 중 하나, 필수) · client_ts(ISO, 필�
 | type | phase | 어디서 | 지표 |
 |---|---|---|---|
 | beta_entry | open · blocked | 본편 · 나주 엔트리(브라우저 · OS · 화면 대략) | L01 · L16 |
-| stage_reached | tutorial · headquarters · train · naju(gameSave.setGameStage) · naju_ready(시작 카드) · naju_controllable(첫 조작) · load_done(로딩 막 준비 · 시간 초과) | 본편 · 나주 | L01 · L14 |
+| stage_reached | character_open · character_done(캐릭터 생성 화면) · tutorial · headquarters · train · naju(gameSave.setGameStage) · naju_ready(시작 카드) · naju_controllable(첫 조작) · load_done(로딩 막 준비 · 시간 초과) | 본편 · 나주 | L01 · L14 |
 | run_state | start · resume · new_run · restart · released · dawn · quit · lobby | 나주 App · restartNaju · gutState · exitGame · leaveToLobby | L02 · L17 |
 | objective_state | available(그 회차에서 처음 지금 목표) · focus · complete(실시간만) · progress(바위 위) · rite | najuBeta 1초 확인 | L03 · L04 |
 | puzzle_attempt | fail(알림 · 안내판 추정) · sent_back · correct · incorrect · already_completed · send_failed(서버 판정) | gameObserver · progressRuntime | L07 |

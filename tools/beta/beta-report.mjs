@@ -81,7 +81,8 @@ const has = (list, type, phase) => list.some((e) => e.event_type === type && (ph
 // L01 진입 단계
 const STEPS = [
   ["게임 첫 실행", (l) => has(l, "beta_entry")],
-  ["캐릭터 생성 완료(튜토리얼 시작)", (l) => has(l, "stage_reached", "tutorial") || has(l, "stage_reached", "headquarters")],
+  ["캐릭터 생성 시작", (l) => has(l, "stage_reached", "character_open")],
+  ["캐릭터 생성 완료(튜토리얼 시작)", (l) => has(l, "stage_reached", "character_done")],
   ["본부실 진입", (l) => has(l, "stage_reached", "headquarters")],
   ["나주 조작 가능", (l) => has(l, "stage_reached", "naju_controllable")],
   ["첫 퍼즐 해결(P01)", (l) => l.some((e) => e.event_type === "objective_state" && e.phase === "complete" && e.objective_id === "P01")],
