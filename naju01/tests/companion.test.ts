@@ -99,12 +99,22 @@ function backend(routes: { turn?: Handler; hint?: Handler } = {}): Handler {
 const FAST = { retryDelayMs: 1 };
 const TIMING = { noticeMs: 5, lineMinMs: 5, lineMaxMs: 5, hintMinMs: 5, autoMinIntervalMs: 1000 };
 
-async function readyDialog(routes: Parameters<typeof backend>[0] = {}, now = () => Date.now()) {
+async function readyDialog(
+  routes: Parameters<typeof backend>[0] = {},
+  now = () => Date.now(),
+  pausedMs?: () => number | null,
+) {
   serve(backend(routes));
   const session = createCompanionSession({ config: CONFIG, storage: memoryStore() });
   await session.start();
   const logs: string[] = [];
-  const dialog = createCompanionDialog({ session, timing: TIMING, now, log: (level, message) => logs.push(`${level}:${message}`) });
+  const dialog = createCompanionDialog({
+    session,
+    timing: TIMING,
+    now,
+    pausedMs,
+    log: (level, message) => logs.push(`${level}:${message}`),
+  });
   calls = [];
   return { session, dialog, logs };
 }
@@ -396,6 +406,58 @@ test("auto 턴은 message 없이 보내고, 간격 안에서는 다시 보내지
   assert.equal(await dialog.autoTurn(), false);
   clock = 6100;
   assert.equal(await dialog.autoTurn(), true);
+});
+
+test("auto 턴에만 멈춘 시간을 싣는다 — 정수로 · 0~하루로 깎고, 없으면 싣지 않는다(미르 11/11)", async () => {
+  let paused: number | null = 1234.4;
+  const { dialog } = await readyDialog({}, () => Date.now(), () => paused);
+  const sentBody = () => calls.at(-1)!.body as Record<string, unknown>;
+  assert.equal(await dialog.autoTurn(undefined, "OBJ_X"), true);
+  assert.equal(sentBody().paused_ms_since_interaction, 1234);
+  paused = -5;
+  await dialog.autoTurn(undefined, "OBJ_X");
+  assert.equal(sentBody().paused_ms_since_interaction, 0);
+  paused = 1e12;
+  await dialog.autoTurn(undefined, "OBJ_X");
+  assert.equal(sentBody().paused_ms_since_interaction, 86_400_000);
+  paused = null;
+  await dialog.autoTurn(undefined, "OBJ_X");
+  assert.equal("paused_ms_since_interaction" in sentBody(), false);
+  paused = 500;
+  await dialog.talk("안녕");
+  assert.equal(sentBody().trigger, "player_message");
+  assert.equal("paused_ms_since_interaction" in sentBody(), false, "말 걸기에는 싣지 않는다 — 서버가 422");
+});
+
+test("서버가 멈춘 시간 칸을 422 로 막으면(배포 순서) 빼고 같은 턴을 다시 보내고, 그 뒤로는 싣지 않는다", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const { dialog, logs } = await readyDialog(
+    {
+      turn: (call) => {
+        const body = call.body as Record<string, unknown>;
+        bodies.push(body);
+        return "paused_ms_since_interaction" in body
+          ? {
+              status: 422,
+              body: { detail: [{ type: "extra_forbidden", loc: ["body", "paused_ms_since_interaction"] }] },
+            }
+          : { status: 200, body: turn({ reply: { source: "approved_line", text: "넛지", line_id: "N1" } }) };
+      },
+    },
+    () => Date.now(),
+    () => 3000,
+  );
+  assert.equal(await dialog.autoTurn(undefined, "OBJ_X", { quiet: true }), true);
+  assert.equal(bodies.length, 2);
+  assert.equal(bodies[0].paused_ms_since_interaction, 3000);
+  assert.equal("paused_ms_since_interaction" in bodies[1], false);
+  assert.notEqual(bodies[0].client_event_id, bodies[1].client_event_id);
+  assert.deepEqual(dialog.getState().line, { kind: "npc", text: "넛지", lineId: "N1" });
+  assert.ok(logs.some((line) => line.startsWith("warn:")));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  await dialog.autoTurn(undefined, "OBJ_X", { quiet: true });
+  assert.equal(bodies.length, 3);
+  assert.equal("paused_ms_since_interaction" in bodies[2], false, "이 탭에서는 그만 싣는다");
 });
 
 test("빈 말 · 대기 중 중복은 보내지 않는다", async () => {

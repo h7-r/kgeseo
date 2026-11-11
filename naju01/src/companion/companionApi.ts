@@ -50,6 +50,11 @@ export interface NpcTurnBody {
   message?: string;
   focus_object_id?: string;
   /**
+   * auto 턴만 — 마지막으로 보낸 플레이어 상호작용 뒤 게임이 멈춰 있던 시간(ms, 0~86400000). 서버가 무입력 판정에서 뺀다
+   * (backend npc_turn_api_v0.1, 미르 11/11 「멈춘 시간은 못 풀고 있는 시간이 아니다」). 서버가 이 칸을 받기 전에는 보내면 422 다.
+   */
+  paused_ms_since_interaction?: number;
+  /**
    * 계약 v0.4.16 §2 — auto 턴의 상황. BE(#54)가 받기 전에는 보내는 쪽(dialogue/companionBridge 의 SEND_SITUATION)이 꺼 둔다.
    */
   situation?: NpcSituation;

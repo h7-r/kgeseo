@@ -47,6 +47,9 @@ export interface ProgressRuntimeOptions {
   deliveryHistoryLimit?: number;
   newEventId?: () => string;
   now?: () => string;
+  /** progressSync 로 그대로 넘긴다 — 처음 보낸 때 표시 · 서버가 상호작용을 받았다 */
+  markSend?: () => unknown;
+  onSent?: (mark: unknown) => void;
 }
 
 export type SubmitResult = SendOutcome | Extract<PrepareResult, { ok: false }>;
@@ -110,6 +113,8 @@ export function createProgressRuntime(options: ProgressRuntimeOptions) {
     sendOptions: options.sendOptions,
     newEventId: options.newEventId,
     now: options.now,
+    markSend: options.markSend,
+    onSent: options.onSent,
   });
 
   return {

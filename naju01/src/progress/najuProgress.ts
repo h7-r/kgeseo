@@ -7,12 +7,16 @@
 import { companionSession } from "../companion/companionRuntime";
 import { createInspectRecorder } from "./inspectRecorder.ts";
 import { NAJU_ID_TABLE_V1 } from "./najuIdTable.ts";
+import { markInteractionSend, noteInteractionSent } from "./pausedSinceInteraction";
 import { createProgressRuntime } from "./progressRuntime.ts";
 
 export const najuProgress = createProgressRuntime({
   session: companionSession,
   ids: NAJU_ID_TABLE_V1,
   onUnmapped: (report) => console.warn("[진행 동기화] 대응표에 없는 로컬 ID — 보내지 않음", report),
+  // 동행 auto 턴의 「마지막 상호작용 뒤 멈춘 시간」 기준점 — 처음 보낸 때 찍고, 서버가 받으면 그 표시로
+  markSend: markInteractionSend,
+  onSent: noteInteractionSent,
 });
 
 export const najuInspect = createInspectRecorder({
