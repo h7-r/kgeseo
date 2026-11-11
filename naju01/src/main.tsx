@@ -3,12 +3,16 @@
 import { apiOrigin } from "../../shared/deploymentUrls";
 import { isPlayDeviceBlocked, renderPcOnlyNotice } from "../../shared/playDevicePolicy";
 import { isLoginGateEnabled, passLoginGate } from "../../shared/playLoginGate";
+import { bootBeta } from "@/beta/betaBoot";
 import { SITE_URL } from "@/lib/siteUrl";
 
 const container = document.getElementById("root");
 if (!container) throw new Error("#root 가 없다");
 
-if (isPlayDeviceBlocked({ allowOverride: import.meta.env.DEV || import.meta.env.VITE_ALLOW_DEVICE_OVERRIDE === "1" })) {
+const isBlocked = isPlayDeviceBlocked({ allowOverride: import.meta.env.DEV || import.meta.env.VITE_ALLOW_DEVICE_OVERRIDE === "1" });
+// 베타 기록(로그인한 계정 · 참여 코드가 있을 때만 — 로그인 안 했으면 /me 확인 뒤 스스로 멈춘다)
+bootBeta("naju", { blocked: isBlocked });
+if (isBlocked) {
   renderPcOnlyNotice(container, SITE_URL);
 } else {
   // 로그인하지 않았으면 로그인 안내(미르 11/11) — /naju01/ 을 직접 열어도 같다

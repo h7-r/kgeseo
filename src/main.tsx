@@ -4,13 +4,17 @@
 import { apiOrigin } from "../shared/deploymentUrls";
 import { isPlayDeviceBlocked, renderPcOnlyNotice } from "../shared/playDevicePolicy";
 import { isLoginGateEnabled, passLoginGate } from "../shared/playLoginGate";
+import { bootBeta } from "./beta/betaBoot";
 import { SITE_URL } from "./lib/siteUrl";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root 가 없습니다");
 
 // 우회(?device=any)는 개발 서버 · 검수 빌드(VITE_ALLOW_DEVICE_OVERRIDE=1)에서만
-if (isPlayDeviceBlocked({ allowOverride: import.meta.env.DEV || import.meta.env.VITE_ALLOW_DEVICE_OVERRIDE === "1" })) {
+const isBlocked = isPlayDeviceBlocked({ allowOverride: import.meta.env.DEV || import.meta.env.VITE_ALLOW_DEVICE_OVERRIDE === "1" });
+// 베타 기록(로그인한 계정 · 참여 코드가 있을 때만 — 로그인 안 했으면 /me 확인 뒤 스스로 멈춘다). 막힌 기기도 「열었다」는 남긴다
+bootBeta("main", { blocked: isBlocked });
+if (isBlocked) {
   renderPcOnlyNotice(root, SITE_URL);
 } else {
   void passLoginGate(root, loginGateOptions()).then((isPassed) => {

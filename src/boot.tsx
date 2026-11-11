@@ -16,6 +16,7 @@ import "@/audio/sound";
 import "./index.css";
 // 손글씨 폰트(@font-face) — 화이트보드에서 쓴다
 import "./fonts.css";
+import { BetaPreSurvey } from "./beta/BetaSurveyCard";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("#root 가 없습니다");
@@ -37,6 +38,8 @@ void initGameSave().finally(() => {
           <Route path="*" element={<App />} />
         </Routes>
         <LoadingVideoOverlay />
+        {/* 베타 — 참여 코드가 있으면 시작 전 설문을 한 번 묻는다(폼 주소가 없으면 그리지 않는다) */}
+        <BetaPreSurvey />
         {/* 휴대폰 세로면 무엇보다 위에서 「가로로 돌려 주세요」 — 첫 로딩 · 오프닝 · 캐릭터 생성 · 게임 씬 모두 */}
         <LandscapeGuard />
       </BrowserRouter>

@@ -17,6 +17,7 @@ import { EXIT_FAILED_TEXT, exitGame, exitNote } from "@/game/exitGame";
 import type { LeaveResult, LeaveToLobbyAction } from "@/game/LeaveToLobby";
 import PauseMenu, { type PauseMenuItem, type PauseRunResult } from "@/game/PauseMenu";
 import { UI } from "@/game/gameUi";
+import { openSurvey, shouldOfferSurvey } from "@/beta/betaSurvey";
 import { isGameSaveEnabled } from "@/save/gameSave";
 
 import { helpLog } from "../progress/helpLog";
@@ -89,6 +90,10 @@ export default function NajuPauseMenu({
       // 끝 연출이 아직 도는 중(새벽이 온 뒤 필름이 열리기 전)에는 숨긴다 — 연출의 예약 · 카메라 고정이 남는다(Codex 리뷰)
       ...(gut.stage() === "dawn" && ending.phase() === "off"
         ? [{ id: "ending", label: "엔딩 다시 보기", onSelect: ending.openFilm }]
+        : []),
+      // 베타 — 끝내기 전 중단 설문(1분). 굿을 풀기 전 · 참여 코드 · 폼 주소가 있고 아직 열지 않았을 때만
+      ...(gut.stage() !== "released" && gut.stage() !== "dawn" && shouldOfferSurvey("exit")
+        ? [{ id: "beta_exit", label: "베타 설문 — 그만두는 이유(1분)", onSelect: () => void openSurvey("exit", "pause_menu") }]
         : []),
     ],
     [

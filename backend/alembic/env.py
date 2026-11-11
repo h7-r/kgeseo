@@ -20,6 +20,7 @@ from app.models.account_data import (
 from app.models.anonymous_session import AnonymousSession
 from app.models.app_user import AppUser
 from app.models.auth_identity import AuthIdentity
+from app.models.beta_event import BetaEvent
 from app.models.content_review import ContentReview
 from app.models.guest_session import GuestSession, GuestSessionTransfer
 from app.models.interaction_event import InteractionEvent

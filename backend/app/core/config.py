@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     # 베타 30(11/11 미르). 베타 종료 뒤 10 으로 낮출 예정(환경 변수만 바꾼다).
     rate_limit_register: int = Field(default=30, ge=1)
     rate_limit_anonymous_session_create: int = Field(default=60, ge=1)
+    # 베타 분석 기록 받기(POST /api/v1/beta-events). 교실 하나가 같은 IP 로 나갈 수 있어 넉넉히 둔다(11/11 미르).
+    rate_limit_beta_events: int = Field(default=1500, ge=1)
+
+    # 베타 분석 기록을 저장할지. false 면 받기만 하고 저장하지 않는다(`disabled: true` 응답 — 게임 화면은 그만 보낸다).
+    beta_events_enabled: bool = True
 
     # 힌트 잔액(PM v0.4.8 · v0.4.9 §9). 숫자는 PM 확정 뒤 환경 변수로 바꾼다.
     # 회차(play_session) 시작 때 주는 잔액 N

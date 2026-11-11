@@ -250,9 +250,10 @@ def test_new_revision_is_single_head_after_previous_head() -> None:
     # 두 계열을 합친다. 소셜 온보딩(c9d8e7f6a5b4)은 이전 head에서 갈라지고, merge revision 4b8e1d6a9c27이
     # 7c3e5a9d1f42와 합친다. 그 위에 승인 기록 실행자 열(b3f7c2e9a4d1, PM v0.4.13)이 단일 head다.
     # 각 부모 관계는 그대로다.
-    # 그 위의 계정 데이터(c1d2e3f4a5b6), 그 위의 게스트 세션 · Play Session 소유자(d8f2a6c4e1b9, 11/6 PM)가
-    # 지금 단일 head다.
-    assert script.get_heads() == ["d8f2a6c4e1b9"]
+    # 그 위의 계정 데이터(c1d2e3f4a5b6), 그 위의 게스트 세션 · Play Session 소유자(d8f2a6c4e1b9, 11/6 PM),
+    # 그 위의 베타 분석 기록(a3f9c2e7b1d4, 11/11 — 새 표만)이 지금 단일 head다.
+    assert script.get_heads() == ["a3f9c2e7b1d4"]
+    assert script.get_revision("a3f9c2e7b1d4").down_revision == "d8f2a6c4e1b9"
     assert script.get_revision("d8f2a6c4e1b9").down_revision == "c1d2e3f4a5b6"
     assert script.get_revision("c1d2e3f4a5b6").down_revision == "b3f7c2e9a4d1"
     assert script.get_revision("b3f7c2e9a4d1").down_revision == "4b8e1d6a9c27"

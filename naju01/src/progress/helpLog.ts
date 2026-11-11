@@ -12,6 +12,7 @@ import { createChangeSignal } from "@/lib/changeSignal";
 import { scheduleGameSave } from "@/save/gameSave";
 
 import { playClock } from "./playClock";
+import { betaSignals } from "../beta/betaSignals";
 
 export interface SavedHelpLog {
   /** 직접 청한 도움 횟수 */
@@ -31,6 +32,7 @@ export const helpLog = {
   noteAsked() {
     if (isClosed()) return;
     asked += 1;
+    betaSignals.help("received", "direct");
     scheduleGameSave();
     signal.notify();
   },
@@ -38,6 +40,7 @@ export const helpLog = {
   noteAnswerSeen() {
     if (isClosed() || isAnswerSeen) return;
     isAnswerSeen = true;
+    betaSignals.help("answer_seen", "hint_answer");
     scheduleGameSave();
     signal.notify();
   },
